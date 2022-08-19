@@ -20,6 +20,7 @@ const Cr = Components.results;
 Cu.import('resource://gre/modules/SettingsRequestManager.jsm');
 Cu.import('resource://gre/modules/XPCOMUtils.jsm');
 Cu.import('resource://gre/modules/Services.jsm');
+Cu.import('resource://gre/modules/AppConstants.jsm');
 
 #ifdef MOZ_WIDGET_GONK
 XPCOMUtils.defineLazyGetter(this, "libcutils", function () {
@@ -181,7 +182,7 @@ Components.utils.import('resource://gre/modules/ctypes.jsm');
 
 // =================== DevTools ====================
 
-let developerHUD;
+var developerHUD;
 SettingsListener.observe('devtools.overlay', false, (value) => {
   if (value) {
     if (!developerHUD) {
@@ -312,7 +313,8 @@ setUpdateTrackingId();
     });
   }
 
-  syncCharPref('app.update.url');
+  syncCharPref(AppConstants.MOZ_B2GDROID ? 'app.update.url.android'
+                                         : 'app.update.url');
   syncCharPref('app.update.channel');
 })();
 
@@ -522,8 +524,50 @@ SettingsListener.observe("theme.selected",
   setPAC();
 })();
 
+#ifdef MOZ_B2G_RIL
+XPCOMUtils.defineLazyModuleGetter(this, "AppsUtils",
+                                  "resource://gre/modules/AppsUtils.jsm");
+
+// ======================= Dogfooders FOTA ==========================
+SettingsListener.observe('debug.performance_data.dogfooding', false,
+  isDogfooder => {
+    if (!isDogfooder) {
+      dump('AUS:Settings: Not a dogfooder!\n');
+      return;
+    }
+
+    if (!('mozTelephony' in navigator)) {
+      dump('AUS:Settings: There is no mozTelephony!\n');
+      return;
+    }
+
+    if (!('mozMobileConnections' in navigator)) {
+      dump('AUS:Settings: There is no mozMobileConnections!\n');
+      return;
+    }
+
+    let conn = navigator.mozMobileConnections[0];
+    conn.addEventListener('radiostatechange', function onradiostatechange() {
+      if (conn.radioState !== 'enabled') {
+        return;
+      }
+
+      conn.removeEventListener('radiostatechange', onradiostatechange);
+      navigator.mozTelephony.dial('*#06#').then(call => {
+        return call.result.then(res => {
+          if (res.success && res.statusMessage
+              && (res.serviceCode === 'scImei')) {
+            Services.prefs.setCharPref("app.update.imei_hash",
+                                       AppsUtils.computeHash(res.statusMessage, "SHA512"));
+          }
+        });
+      });
+    });
+  });
+#endif
+
 // =================== Various simple mapping  ======================
-let settingsToObserve = {
+var settingsToObserve = {
   'accessibility.screenreader_quicknav_modes': {
     prefName: 'accessibility.accessfu.quicknav_modes',
     resetToPref: true,
@@ -568,7 +612,11 @@ let settingsToObserve = {
   'layers.draw-borders': false,
   'layers.draw-tile-borders': false,
   'layers.dump': false,
+#ifdef XP_WIN
+  'layers.enable-tiles': false,
+#else
   'layers.enable-tiles': true,
+#endif
   'layers.effect.invert': false,
   'layers.effect.grayscale': false,
   'layers.effect.contrast': '0.0',

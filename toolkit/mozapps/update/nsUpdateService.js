@@ -31,6 +31,7 @@ const PREF_APP_UPDATE_CERT_ERRORS         = "app.update.cert.errors";
 const PREF_APP_UPDATE_CERT_MAXERRORS      = "app.update.cert.maxErrors";
 const PREF_APP_UPDATE_CERT_REQUIREBUILTIN = "app.update.cert.requireBuiltIn";
 const PREF_APP_UPDATE_CUSTOM              = "app.update.custom";
+const PREF_APP_UPDATE_IMEI_HASH           = "app.update.imei_hash";
 const PREF_APP_UPDATE_ENABLED             = "app.update.enabled";
 const PREF_APP_UPDATE_IDLETIME            = "app.update.idletime";
 const PREF_APP_UPDATE_INCOMPATIBLE_MODE   = "app.update.incompatible.mode";
@@ -152,7 +153,9 @@ const SERVICE_ERRORS = [SERVICE_UPDATER_COULD_NOT_BE_STARTED,
                         SERVICE_UPDATER_NOT_FIXED_DRIVE,
                         SERVICE_COULD_NOT_LOCK_UPDATER,
                         SERVICE_INSTALLDIR_ERROR,
-                        SERVICE_COULD_NOT_COPY_UPDATER];
+                        SERVICE_COULD_NOT_COPY_UPDATER,
+                        SERVICE_STILL_APPLYING_TERMINATED,
+                        SERVICE_STILL_APPLYING_NO_EXIT_CODE];
 
 // Error codes 80 through 99 are reserved for nsUpdateService.js and are not
 // defined in common/errors.h
@@ -685,16 +688,18 @@ function getCanStageUpdates() {
     return false;
   }
 
+  if (AppConstants.platform == "win" && shouldUseService()) {
+    // No need to perform directory write checks, the maintenance service will
+    // be able to write to all directories.
+    LOG("getCanStageUpdates - able to stage updates using the service");
+    return true;
+  }
+
   // For Gonk, the updater will remount the /system partition to move staged
-  // files into place and it uses the app.update.service.enabled preference for
-  // this purpose.
-  if (AppConstants.platform == "win" || AppConstants.platform == "gonk") {
-    if (getPref("getBoolPref", PREF_APP_UPDATE_SERVICE_ENABLED, false)) {
-      // No need to perform directory write checks, the maintenance service will
-      // be able to write to all directories.
-      LOG("getCanStageUpdates - able to stage updates because we'll use the service");
-      return true;
-    }
+  // files into place.
+  if (AppConstants.platform == "gonk") {
+    LOG("getCanStageUpdates - able to stage updates because this is gonk");
+    return true;
   }
 
   if (!hasUpdateMutex()) {
@@ -1059,13 +1064,12 @@ function releaseSDCardMountLock() {
 
 /**
  * Determines if the service should be used to attempt an update
- * or not.  For now this is only when PREF_APP_UPDATE_SERVICE_ENABLED
- * is true and we have Firefox.
+ * or not.
  *
  * @return  true if the service should be used for updates.
  */
 function shouldUseService() {
-  if (AppConstants.MOZ_MAINTENANCE_SERVICE) {
+  if (AppConstants.MOZ_MAINTENANCE_SERVICE && isServiceInstalled()) {
     return getPref("getBoolPref",
                    PREF_APP_UPDATE_SERVICE_ENABLED, false);
   }
@@ -3530,6 +3534,8 @@ Checker.prototype = {
       }
       url = url.replace(/%B2G_VERSION%/g,
                         getPref("getCharPref", PREF_APP_B2G_VERSION, null));
+      url = url.replace(/%IMEI%/g,
+                        getPref("getCharPref", PREF_APP_UPDATE_IMEI_HASH, "default"));
     }
 
     if (force) {
@@ -3856,6 +3862,13 @@ Downloader.prototype = {
     }
 
     LOG("Downloader:_verifyDownload downloaded size == expected size.");
+
+    // The hash check is not necessary when mar signatures are used to verify
+    // the downloaded mar file.
+    if (AppConstants.MOZ_VERIFY_MAR_SIGNATURE) {
+      return true;
+    }
+
     let fileStream = Cc["@mozilla.org/network/file-input-stream;1"].
                      createInstance(Ci.nsIFileInputStream);
     fileStream.init(destination, FileUtils.MODE_RDONLY, FileUtils.PERMS_FILE, 0);

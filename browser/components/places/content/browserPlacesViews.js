@@ -2,6 +2,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
 
+Components.utils.import("resource://gre/modules/AppConstants.jsm");
 Components.utils.import("resource://gre/modules/XPCOMUtils.jsm");
 Components.utils.import("resource://gre/modules/Services.jsm");
 
@@ -9,8 +10,9 @@ Components.utils.import("resource://gre/modules/Services.jsm");
  * The base view implements everything that's common to the toolbar and
  * menu views.
  */
-function PlacesViewBase(aPlace) {
+function PlacesViewBase(aPlace, aOptions) {
   this.place = aPlace;
+  this.options = aOptions;
   this._controller = new PlacesController(this);
   this._viewElt.controllers.appendController(this._controller);
 }
@@ -90,6 +92,21 @@ PlacesViewBase.prototype = {
       this._resultNode = null;
       delete this._domNodes;
     }
+
+    return val;
+  },
+
+  _options: null,
+  get options() {
+    return this._options;
+  },
+  set options(val) {
+    if (!val)
+      val = {};
+
+    if (!("extraClasses" in val))
+      val.extraClasses = {};
+    this._options = val;
 
     return val;
   },
@@ -279,6 +296,9 @@ PlacesViewBase.prototype = {
       aPopup._emptyMenuitem = document.createElement("menuitem");
       aPopup._emptyMenuitem.setAttribute("label", label);
       aPopup._emptyMenuitem.setAttribute("disabled", true);
+      aPopup._emptyMenuitem.className = "bookmark-item";
+      if (typeof this.options.extraClasses.entry == "string")
+        aPopup._emptyMenuitem.classList.add(this.options.extraClasses.entry);
     }
 
     if (aEmpty) {
@@ -330,12 +350,12 @@ PlacesViewBase.prototype = {
           PlacesUtils.livemarks.getLivemark({ id: itemId })
             .then(aLivemark => {
               element.setAttribute("livemark", "true");
-#ifdef XP_MACOSX
-              // OS X native menubar doesn't track list-style-images since
-              // it doesn't have a frame (bug 733415).  Thus enforce updating.
-              element.setAttribute("image", "");
-              element.removeAttribute("image");
-#endif
+              if (AppConstants.platform === "macosx") {
+                // OS X native menubar doesn't track list-style-images since
+                // it doesn't have a frame (bug 733415).  Thus enforce updating.
+                element.setAttribute("image", "");
+                element.removeAttribute("image");
+              }
               this.controller.cacheLivemarkInfo(aPlacesNode, aLivemark);
             }, () => undefined);
         }
@@ -347,12 +367,11 @@ PlacesViewBase.prototype = {
           popup.setAttribute("placespopup", "true");
         }
 
-#ifdef XP_MACOSX
-        // No context menu on mac.
-        popup.setAttribute("context", "placesContext");
-#endif
         element.appendChild(popup);
         element.className = "menu-iconic bookmark-item";
+        if (typeof this.options.extraClasses.entry == "string") {
+          element.classList.add(this.options.extraClasses.entry);
+        }
 
         this._domNodes.set(aPlacesNode, popup);
       }
@@ -377,6 +396,12 @@ PlacesViewBase.prototype = {
   function PVB__insertNewItemToPopup(aNewChild, aPopup, aBefore) {
     let element = this._createMenuItemForPlacesNode(aNewChild);
     let before = aBefore || aPopup._endMarker;
+
+    if (element.localName == "menuitem" || element.localName == "menu") {
+      if (typeof this.options.extraClasses.entry == "string")
+        element.classList.add(this.options.extraClasses.entry);
+    }
+
     aPopup.insertBefore(element, before);
     return element;
   },
@@ -396,6 +421,9 @@ PlacesViewBase.prototype = {
       // Add "Open (Feed Name)" menuitem.
       aPopup._siteURIMenuitem = document.createElement("menuitem");
       aPopup._siteURIMenuitem.className = "openlivemarksite-menuitem";
+      if (typeof this.options.extraClasses.entry == "string") {
+        aPopup._siteURIMenuitem.classList.add(this.options.extraClasses.entry);
+      }
       aPopup._siteURIMenuitem.setAttribute("targetURI", siteUrl);
       aPopup._siteURIMenuitem.setAttribute("oncommand",
         "openUILink(this.getAttribute('targetURI'), event);");
@@ -431,6 +459,9 @@ PlacesViewBase.prototype = {
       // Create the status menuitem and cache it in the popup object.
       statusMenuitem = document.createElement("menuitem");
       statusMenuitem.className = "livemarkstatus-menuitem";
+      if (typeof this.options.extraClasses.entry == "string") {
+        statusMenuitem.classList.add(this.options.extraClasses.entry);
+      }
       statusMenuitem.setAttribute("disabled", true);
       aPopup._statusMenuitem = statusMenuitem;
     }
@@ -502,12 +533,12 @@ PlacesViewBase.prototype = {
       let menu = elt.parentNode;
       if (!menu.hasAttribute("livemark")) {
         menu.setAttribute("livemark", "true");
-#ifdef XP_MACOSX
-        // OS X native menubar doesn't track list-style-images since
-        // it doesn't have a frame (bug 733415).  Thus enforce updating.
-        menu.setAttribute("image", "");
-        menu.removeAttribute("image");
-#endif
+        if (AppConstants.platform === "macosx") {
+          // OS X native menubar doesn't track list-style-images since
+          // it doesn't have a frame (bug 733415).  Thus enforce updating.
+          menu.setAttribute("image", "");
+          menu.removeAttribute("image");
+        }
       }
 
       PlacesUtils.livemarks.getLivemark({ id: aPlacesNode.itemId })
@@ -795,6 +826,12 @@ PlacesViewBase.prototype = {
       // Add the "Open All in Tabs" menuitem.
       aPopup._endOptOpenAllInTabs = document.createElement("menuitem");
       aPopup._endOptOpenAllInTabs.className = "openintabs-menuitem";
+
+      if (typeof this.options.extraClasses.entry == "string")
+        aPopup._endOptOpenAllInTabs.classList.add(this.options.extraClasses.entry);
+      if (typeof this.options.extraClasses.footer == "string")
+        aPopup._endOptOpenAllInTabs.classList.add(this.options.extraClasses.footer);
+
       if (isLiveMark) {
         aPopup._endOptOpenAllInTabs.setAttribute("oncommand",
           "PlacesUIUtils.openLiveMarkNodesInTabs(this.parentNode._placesNode, event, " +
@@ -1016,9 +1053,7 @@ PlacesToolbar.prototype = {
         popup.setAttribute("placespopup", "true");
         button.appendChild(popup);
         popup._placesNode = PlacesUtils.asContainer(aChild);
-#ifndef XP_MACOSX
         popup.setAttribute("context", "placesContext");
-#endif
 
         this._domNodes.set(aChild, popup);
       }
@@ -1689,24 +1724,24 @@ PlacesToolbar.prototype = {
  * View for Places menus.  This object should be created during the first
  * popupshowing that's dispatched on the menu.
  */
-function PlacesMenu(aPopupShowingEvent, aPlace) {
+function PlacesMenu(aPopupShowingEvent, aPlace, aOptions) {
   this._rootElt = aPopupShowingEvent.target; // <menupopup>
   this._viewElt = this._rootElt.parentNode;   // <menu>
   this._viewElt._placesView = this;
   this._addEventListeners(this._rootElt, ["popupshowing", "popuphidden"], true);
   this._addEventListeners(window, ["unload"], false);
 
-#ifdef XP_MACOSX
-  // Must walk up to support views in sub-menus, like Bookmarks Toolbar menu.
-  for (let elt = this._viewElt.parentNode; elt; elt = elt.parentNode) {
-    if (elt.localName == "menubar") {
-      this._nativeView = true;
-      break;
+  if (AppConstants.platform === "macosx") {
+    // Must walk up to support views in sub-menus, like Bookmarks Toolbar menu.
+    for (let elt = this._viewElt.parentNode; elt; elt = elt.parentNode) {
+      if (elt.localName == "menubar") {
+        this._nativeView = true;
+        break;
+      }
     }
   }
-#endif
 
-  PlacesViewBase.call(this, aPlace);
+  PlacesViewBase.call(this, aPlace, aOptions);
   this._onPopupShowing(aPopupShowingEvent);
 }
 

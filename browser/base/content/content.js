@@ -184,7 +184,7 @@ AboutHomeListener.init(this);
 
 var global = this;
 
-let ClickEventHandler = {
+var ClickEventHandler = {
   init: function init() {
     Cc["@mozilla.org/eventlistenerservice;1"]
       .getService(Ci.nsIEventListenerService)

@@ -35,7 +35,7 @@ public:
   size_t SizeOfAudioQueueInFrames() override;
 
   nsRefPtr<VideoDataPromise>
-  RequestVideoData(bool aSkipToNextKeyframe, int64_t aTimeThreshold, bool aForceDecodeAhead) override;
+  RequestVideoData(bool aSkipToNextKeyframe, int64_t aTimeThreshold) override;
 
   nsRefPtr<AudioDataPromise> RequestAudioData() override;
 
@@ -61,7 +61,6 @@ public:
     return mSeekable;
   }
 
-  int64_t GetEvictionOffset(double aTime) override;
 protected:
   void NotifyDataArrivedInternal(uint32_t aLength, int64_t aOffset) override;
 public:
@@ -176,6 +175,9 @@ private:
     void ReleaseMediaResources() override {
       mReader->ReleaseMediaResources();
     }
+    bool OnReaderTaskQueue() override {
+      return mReader->OnTaskQueue();
+    }
   private:
     MediaFormatReader* mReader;
     TrackType mType;
@@ -188,7 +190,6 @@ private:
       : mOwner(aOwner)
       , mType(aType)
       , mDecodeAhead(aDecodeAhead)
-      , mForceDecodeAhead(false)
       , mUpdateScheduled(false)
       , mDemuxEOS(false)
       , mWaitingForData(false)
@@ -222,7 +223,6 @@ private:
 
     // Only accessed from reader's task queue.
     uint32_t mDecodeAhead;
-    bool mForceDecodeAhead;
     bool mUpdateScheduled;
     bool mDemuxEOS;
     bool mWaitingForData;
@@ -277,7 +277,6 @@ private:
     void ResetState()
     {
       MOZ_ASSERT(mOwner->OnTaskQueue());
-      mForceDecodeAhead = false;
       mDemuxEOS = false;
       mWaitingForData = false;
       mReceivedNewData = false;
@@ -395,6 +394,8 @@ private:
   // Set to true if any of our track buffers may be blocking.
   bool mTrackDemuxersMayBlock;
 
+  bool mHardwareAccelerationDisabled;
+
   // Seeking objects.
   bool IsSeeking() const { return mPendingSeekTime.isSome(); }
   void AttemptSeek();
@@ -420,13 +421,6 @@ private:
   MozPromiseRequestHolder<MediaDataDecoder::InitPromise::AllPromiseType> mDecodersInitRequest;
 
   nsRefPtr<SharedDecoderManager> mSharedDecoderManager;
-
-  // Main thread objects
-  // Those are only used to calculate our buffered range on the main thread.
-  // The cached buffered range is calculated one when required.
-  nsRefPtr<MediaDataDemuxer> mMainThreadDemuxer;
-  nsRefPtr<MediaTrackDemuxer> mAudioTrackDemuxer;
-  nsRefPtr<MediaTrackDemuxer> mVideoTrackDemuxer;
 
 #if defined(READER_DORMANT_HEURISTIC)
   const bool mDormantEnabled;

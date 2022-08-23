@@ -33,10 +33,6 @@
 // Define to output information on decoding and painting framerate
 /* #define DEBUG_FRAME_RATE 1 */
 
-class nsIChannel;
-class nsIHttpChannel;
-class nsILoadGroup;
-
 typedef uint16_t nsMediaNetworkState;
 typedef uint16_t nsMediaReadyState;
 
@@ -54,9 +50,13 @@ class MediaTrack;
 } // namespace dom
 } // namespace mozilla
 
+class AutoNotifyAudioChannelAgent;
+class nsIChannel;
+class nsIHttpChannel;
+class nsILoadGroup;
+class nsIRunnable;
 class nsITimer;
 class nsRange;
-class nsIRunnable;
 
 namespace mozilla {
 namespace dom {
@@ -77,6 +77,8 @@ class HTMLMediaElement : public nsGenericHTMLElement,
                          public nsIAudioChannelAgentCallback,
                          public SupportsWeakPtr<HTMLMediaElement>
 {
+  friend AutoNotifyAudioChannelAgent;
+
 public:
   typedef mozilla::TimeStamp TimeStamp;
   typedef mozilla::layers::ImageContainer ImageContainer;
@@ -346,14 +348,14 @@ public:
    */
   virtual void FireTimeUpdate(bool aPeriodic) final override;
 
+  /**
+   * This will return null if mSrcStream is null, or if mSrcStream is not
+   * null but its GetStream() returns null --- which can happen during
+   * cycle collection unlinking!
+   */
   MediaStream* GetSrcMediaStream() const
   {
-    NS_ASSERTION(mSrcStream, "Don't call this when not playing a stream");
-    if (!mPlaybackStream) {
-      // XXX Remove this check with CameraPreviewMediaStream per bug 1124630.
-      return mSrcStream->GetStream();
-    }
-    return mPlaybackStream->GetStream();
+    return mSrcStream ? mSrcStream->GetStream() : nullptr;
   }
 
   // WebIDL
@@ -727,6 +729,11 @@ protected:
    * Stop playback on mSrcStream.
    */
   void EndSrcMediaStreamPlayback();
+  /**
+   * Ensure we're playing mSrcStream if and only if we're not paused.
+   */
+  enum { REMOVING_SRC_STREAM = 0x1 };
+  void UpdateSrcMediaStreamPlaying(uint32_t aFlags = 0);
 
   /**
    * Returns an nsDOMMediaStream containing the played contents of this
@@ -1029,6 +1036,10 @@ protected:
   // Notifies the audio channel agent when the element starts or stops playing.
   void NotifyAudioChannelAgent(bool aPlaying);
 
+  // Creates the audio channel agent if needed.  Returns true if the audio
+  // channel agent is ready to be used.
+  bool MaybeCreateAudioChannelAgent();
+
   class nsAsyncEventRunner;
   using nsGenericHTMLElement::DispatchEvent;
   // For nsAsyncEventRunner.
@@ -1054,8 +1065,9 @@ protected:
   // At most one of mDecoder and mSrcStream can be non-null.
   nsRefPtr<DOMMediaStream> mSrcStream;
 
-  // Holds a reference to a MediaInputPort connecting mSrcStream to mPlaybackStream.
-  nsRefPtr<MediaInputPort> mPlaybackStreamInputPort;
+  // If non-negative, the time we should return for currentTime while playing
+  // mSrcStream.
+  double mSrcStreamPausedCurrentTime;
 
   // Holds a reference to the stream connecting this stream to the capture sink.
   nsRefPtr<MediaInputPort> mCaptureStreamPort;
@@ -1337,6 +1349,9 @@ protected:
   // load when the user initiates either playback or an explicit load is
   // stored in mPreloadURI.
   bool mSuspendedForPreloadNone;
+
+  // True if we've connected mSrcStream to the media element output.
+  bool mSrcStreamIsPlaying;
 
   // True if a same-origin check has been done for the media element and resource.
   bool mMediaSecurityVerified;

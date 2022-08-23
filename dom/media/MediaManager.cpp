@@ -126,8 +126,6 @@ using dom::Sequence;
 using dom::OwningBooleanOrMediaTrackConstraints;
 using dom::OwningStringOrStringSequence;
 using dom::OwningStringOrStringSequenceOrConstrainDOMStringParameters;
-using dom::SupportedAudioConstraints;
-using dom::SupportedVideoConstraints;
 using media::Pledge;
 using media::NewRunnableFrom;
 using media::NewTaskFrom;
@@ -486,12 +484,13 @@ public:
   CreateTrackUnionStream(nsIDOMWindow* aWindow,
                          GetUserMediaCallbackMediaStreamListener* aListener,
                          MediaEngineSource* aAudioSource,
-                         MediaEngineSource* aVideoSource)
+                         MediaEngineSource* aVideoSource,
+                         MediaStreamGraph* aMSG)
   {
     nsRefPtr<nsDOMUserMediaStream> stream = new nsDOMUserMediaStream(aListener,
                                                                      aAudioSource,
                                                                      aVideoSource);
-    stream->InitTrackUnionStream(aWindow);
+    stream->InitTrackUnionStream(aWindow, aMSG);
     return stream.forget();
   }
 
@@ -790,7 +789,13 @@ public:
     }
 #endif
 
-    MediaStreamGraph* msg = MediaStreamGraph::GetInstance();
+    MediaStreamGraph::GraphDriverType graphDriverType =
+      mAudioSource ? MediaStreamGraph::AUDIO_THREAD_DRIVER
+                   : MediaStreamGraph::SYSTEM_THREAD_DRIVER;
+    MediaStreamGraph* msg =
+      MediaStreamGraph::GetInstance(graphDriverType,
+                                    dom::AudioChannel::Normal);
+
     nsRefPtr<SourceMediaStream> stream = msg->CreateSourceStream(nullptr);
 
     nsRefPtr<DOMLocalMediaStream> domStream;
@@ -800,7 +805,7 @@ public:
     // them down instead.
     if (mAudioSource &&
         mAudioSource->GetMediaSource() == dom::MediaSourceEnum::AudioCapture) {
-      domStream = DOMLocalMediaStream::CreateAudioCaptureStream(window);
+      domStream = DOMLocalMediaStream::CreateAudioCaptureStream(window, msg);
       // It should be possible to pipe the capture stream to anything. CORS is
       // not a problem here, we got explicit user content.
       domStream->SetPrincipal(window->GetExtantDoc()->NodePrincipal());
@@ -812,7 +817,8 @@ public:
       // avoid us blocking
       nsRefPtr<nsDOMUserMediaStream> trackunion =
         nsDOMUserMediaStream::CreateTrackUnionStream(window, mListener,
-                                                     mAudioSource, mVideoSource);
+                                                     mAudioSource, mVideoSource,
+                                                     msg);
       trackunion->GetStream()->AsProcessedStream()->SetAutofinish(true);
       nsRefPtr<MediaInputPort> port = trackunion->GetStream()->AsProcessedStream()->
         AllocateInputPort(stream, MediaInputPort::FLAG_BLOCK_OUTPUT);
@@ -998,7 +1004,7 @@ ApplyConstraints(const MediaTrackConstraints &aConstraints,
         }
       }
       if (!aSources.Length()) {
-        aSources.MoveElementsFrom(rejects);
+        aSources.AppendElements(Move(rejects));
         aggregateConstraints.RemoveElementAt(aggregateConstraints.Length() - 1);
       }
     }
@@ -1376,6 +1382,8 @@ MediaManager::IsInMediaThread()
 // NOTE: never Dispatch(....,NS_DISPATCH_SYNC) to the MediaManager
 // thread from the MainThread, as we NS_DISPATCH_SYNC to MainThread
 // from MediaManager thread.
+
+// Guaranteed never to return nullptr.
 /* static */  MediaManager*
 MediaManager::Get() {
   if (!sSingleton) {
@@ -1403,6 +1411,7 @@ MediaManager::Get() {
     nsCOMPtr<nsIObserverService> obs = services::GetObserverService();
     if (obs) {
       obs->AddObserver(sSingleton, "xpcom-will-shutdown", false);
+      obs->AddObserver(sSingleton, "last-pb-context-exited", false);
       obs->AddObserver(sSingleton, "getUserMedia:privileged:allow", false);
       obs->AddObserver(sSingleton, "getUserMedia:response:allow", false);
       obs->AddObserver(sSingleton, "getUserMedia:response:deny", false);
@@ -2032,7 +2041,14 @@ MediaManager::EnumerateDevices(nsPIDOMWindow* aWindow,
   nsCOMPtr<nsIDOMGetUserMediaErrorCallback> onFailure(aOnFailure);
   uint64_t windowId = aWindow->WindowID();
 
-  AddWindowID(windowId);
+  StreamListeners* listeners = AddWindowID(windowId);
+
+  // Create a disabled listener to act as a placeholder
+  nsRefPtr<GetUserMediaCallbackMediaStreamListener> listener =
+    new GetUserMediaCallbackMediaStreamListener(mMediaThread, windowId);
+
+  // No need for locking because we always do this in the main thread.
+  listeners->AppendElement(listener);
 
   bool fake = Preferences::GetBool("media.navigator.streams.fake");
 
@@ -2040,11 +2056,15 @@ MediaManager::EnumerateDevices(nsPIDOMWindow* aWindow,
                                                      dom::MediaSourceEnum::Camera,
                                                      dom::MediaSourceEnum::Microphone,
                                                      fake);
-  p->Then([onSuccess](SourceSet*& aDevices) mutable {
+  p->Then([onSuccess, windowId, listener](SourceSet*& aDevices) mutable {
     ScopedDeletePtr<SourceSet> devices(aDevices); // grab result
+    nsRefPtr<MediaManager> mgr = MediaManager_GetInstance();
+    mgr->RemoveFromWindowList(windowId, listener);
     nsCOMPtr<nsIWritableVariant> array = MediaManager_ToJSArray(*devices);
     onSuccess->OnSuccess(array);
-  }, [onFailure](MediaStreamError& reason) mutable {
+  }, [onFailure, windowId, listener](MediaStreamError& reason) mutable {
+    nsRefPtr<MediaManager> mgr = MediaManager_GetInstance();
+    mgr->RemoveFromWindowList(windowId, listener);
     onFailure->OnError(&reason);
   });
   return NS_OK;
@@ -2274,6 +2294,7 @@ MediaManager::Observe(nsISupports* aSubject, const char* aTopic,
     sInShutdown = true;
 
     obs->RemoveObserver(this, "xpcom-will-shutdown");
+    obs->RemoveObserver(this, "last-pb-context-exited");
     obs->RemoveObserver(this, "getUserMedia:privileged:allow");
     obs->RemoveObserver(this, "getUserMedia:response:allow");
     obs->RemoveObserver(this, "getUserMedia:response:deny");
@@ -2356,6 +2377,10 @@ MediaManager::Observe(nsISupports* aSubject, const char* aTopic,
     })));
     return NS_OK;
 
+  } else if (!strcmp(aTopic, "last-pb-context-exited")) {
+    // Clear memory of private-browsing-specific deviceIds. Fire and forget.
+    media::SanitizeOriginKeys(0, true);
+    return NS_OK;
   } else if (!strcmp(aTopic, "getUserMedia:privileged:allow") ||
              !strcmp(aTopic, "getUserMedia:response:allow")) {
     nsString key(aData);
@@ -2605,7 +2630,7 @@ MediaManager::SanitizeDeviceIds(int64_t aSinceWhen)
   NS_ASSERTION(NS_IsMainThread(), "Only call on main thread");
   LOG(("%s: sinceWhen = %llu", __FUNCTION__, aSinceWhen));
 
-  media::SanitizeOriginKeys(aSinceWhen); // we fire and forget
+  media::SanitizeOriginKeys(aSinceWhen, false); // we fire and forget
   return NS_OK;
 }
 
@@ -2798,7 +2823,10 @@ GetUserMediaCallbackMediaStreamListener::StopSharing()
     nsCOMPtr<nsPIDOMWindow> window = nsGlobalWindow::GetInnerWindowWithId(mWindowID);
     MOZ_ASSERT(window);
     window->SetAudioCapture(false);
-    MediaStreamGraph::GetInstance()->UnregisterCaptureStreamForWindow(mWindowID);
+    MediaStreamGraph* graph =
+      MediaStreamGraph::GetInstance(MediaStreamGraph::AUDIO_THREAD_DRIVER,
+                                    dom::AudioChannel::Normal);
+    graph->UnregisterCaptureStreamForWindow(mWindowID);
     mStream->Destroy();
   }
 }

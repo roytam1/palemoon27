@@ -42,13 +42,6 @@ WMFDecoderModule::~WMFDecoderModule()
   }
 }
 
-void
-WMFDecoderModule::DisableHardwareAcceleration()
-{
-  sDXVAEnabled = false;
-  sIsIntelDecoderEnabled = false;
-}
-
 static void
 SetNumOfDecoderThreads()
 {
@@ -99,11 +92,11 @@ WMFDecoderModule::CreateVideoDecoder(const VideoInfo& aConfig,
                                      FlushableTaskQueue* aVideoTaskQueue,
                                      MediaDataDecoderCallback* aCallback)
 {
-  nsAutoPtr<WMFVideoMFTManager> manager =
+  nsAutoPtr<WMFVideoMFTManager> manager(
     new WMFVideoMFTManager(aConfig,
                            aLayersBackend,
                            aImageContainer,
-                           sDXVAEnabled && ShouldUseDXVA(aConfig));
+                           sDXVAEnabled));
 
   nsRefPtr<MFTDecoder> mft = manager->Init();
 
@@ -122,7 +115,7 @@ WMFDecoderModule::CreateAudioDecoder(const AudioInfo& aConfig,
                                      FlushableTaskQueue* aAudioTaskQueue,
                                      MediaDataDecoderCallback* aCallback)
 {
-  nsAutoPtr<WMFAudioMFTManager> manager = new WMFAudioMFTManager(aConfig);
+  nsAutoPtr<WMFAudioMFTManager> manager(new WMFAudioMFTManager(aConfig));
   nsRefPtr<MFTDecoder> mft = manager->Init();
 
   if (!mft) {
@@ -132,35 +125,6 @@ WMFDecoderModule::CreateAudioDecoder(const AudioInfo& aConfig,
   nsRefPtr<MediaDataDecoder> decoder =
     new WMFMediaDataDecoder(manager.forget(), mft, aAudioTaskQueue, aCallback);
   return decoder.forget();
-}
-
-bool
-WMFDecoderModule::ShouldUseDXVA(const VideoInfo& aConfig) const
-{
-  static bool isAMD = false;
-  static bool initialized = false;
-  if (!initialized) {
-    nsCOMPtr<nsIGfxInfo> gfxInfo = services::GetGfxInfo();
-    nsAutoString vendor;
-    gfxInfo->GetAdapterVendorID(vendor);
-    isAMD = vendor.Equals(widget::GfxDriverInfo::GetDeviceVendor(widget::VendorAMD), nsCaseInsensitiveStringComparator()) ||
-            vendor.Equals(widget::GfxDriverInfo::GetDeviceVendor(widget::VendorATI), nsCaseInsensitiveStringComparator());
-    initialized = true;
-  }
-  if (!isAMD) {
-    return true;
-  }
-  // Don't use DXVA for 4k videos or above, since it seems to perform poorly.
-  return aConfig.mDisplay.width <= 1920 && aConfig.mDisplay.height <= 1200;
-}
-
-bool
-WMFDecoderModule::SupportsSharedDecoders(const VideoInfo& aConfig) const
-{
-  // If DXVA is enabled, but we're not going to use it for this specific config, then
-  // we can't use the shared decoder.
-  return !AgnosticMimeType(aConfig.mMimeType) &&
-    (!sDXVAEnabled || ShouldUseDXVA(aConfig));
 }
 
 bool

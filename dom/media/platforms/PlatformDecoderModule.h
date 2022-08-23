@@ -100,8 +100,6 @@ public:
   // feeding it to MediaDataDecoder::Input.
   virtual ConversionRequired DecoderNeedsConversion(const TrackInfo& aConfig) const = 0;
 
-  virtual void DisableHardwareAcceleration() {}
-
   virtual bool SupportsSharedDecoders(const VideoInfo& aConfig) const {
     return !AgnosticMimeType(aConfig.mMimeType);
   }
@@ -179,6 +177,8 @@ public:
   virtual void DrainComplete() = 0;
 
   virtual void ReleaseMediaResources() {};
+
+  virtual bool OnReaderTaskQueue() = 0;
 };
 
 // MediaDataDecoder is the interface exposed by decoders created by the

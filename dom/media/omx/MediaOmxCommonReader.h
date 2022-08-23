@@ -15,6 +15,7 @@
 
 namespace android {
 struct MOZ_EXPORT MediaSource;
+class MediaStreamSource;
 } // namespace android
 
 namespace mozilla {
@@ -43,6 +44,11 @@ public:
 
 protected:
   dom::AudioChannel mAudioChannel;
+  // Weak reference to the MediaStreamSource that will be created by either
+  // MediaOmxReader or MediaCodecReader.
+  android::MediaStreamSource* mStreamSource;
+  // Get value from the preferece, if true, we stop the audio offload.
+  bool IsMonoAudioEnabled();
 };
 
 } // namespace mozilla

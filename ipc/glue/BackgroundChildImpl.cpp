@@ -8,6 +8,10 @@
 #include "BroadcastChannelChild.h"
 #include "ServiceWorkerManagerChild.h"
 #include "FileDescriptorSetChild.h"
+#ifdef MOZ_WEBRTC
+#include "CamerasChild.h"
+#endif
+#include "mozilla/media/MediaChild.h"
 #include "mozilla/Assertions.h"
 #include "mozilla/dom/PBlobChild.h"
 #include "mozilla/dom/asmjscache/AsmJSCache.h"
@@ -263,6 +267,29 @@ BackgroundChildImpl::DeallocPBroadcastChannelChild(
   nsRefPtr<dom::BroadcastChannelChild> child =
     dont_AddRef(static_cast<dom::BroadcastChannelChild*>(aActor));
   MOZ_ASSERT(child);
+  return true;
+}
+
+camera::PCamerasChild*
+BackgroundChildImpl::AllocPCamerasChild()
+{
+#ifdef MOZ_WEBRTC
+  nsRefPtr<camera::CamerasChild> agent =
+    new camera::CamerasChild();
+  return agent.forget().take();
+#else
+  return nullptr;
+#endif
+}
+
+bool
+BackgroundChildImpl::DeallocPCamerasChild(camera::PCamerasChild *aActor)
+{
+#ifdef MOZ_WEBRTC
+  nsRefPtr<camera::CamerasChild> child =
+      dont_AddRef(static_cast<camera::CamerasChild*>(aActor));
+  MOZ_ASSERT(aActor);
+#endif
   return true;
 }
 

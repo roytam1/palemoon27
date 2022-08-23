@@ -315,7 +315,7 @@ ADTSDemuxer::Init()
     ADTSLOG("Init() failure: waiting for data");
 
     return InitPromise::CreateAndReject(
-      DemuxerFailureReason::WAITING_FOR_DATA, __func__);
+      DemuxerFailureReason::DEMUXER_ERROR, __func__);
   }
 
   ADTSLOG("Init() successful");
@@ -429,16 +429,6 @@ ADTSTrackDemuxer::GetInfo() const
   return mInfo->Clone();
 }
 
-already_AddRefed<MediaDataDemuxer>
-ADTSDemuxer::Clone() const {
-  nsRefPtr<ADTSDemuxer> demuxer = new ADTSDemuxer(mSource);
-  if (!demuxer->InitInternal()) {
-    NS_WARNING("Couldn't recreate ADTSTrackDemuxer");
-    return nullptr;
-  }
-  return demuxer.forget();
-}
-
 nsRefPtr<ADTSTrackDemuxer::SeekPromise>
 ADTSTrackDemuxer::Seek(media::TimeUnit aTime)
 {
@@ -448,13 +438,6 @@ ADTSTrackDemuxer::Seek(media::TimeUnit aTime)
   const media::TimeUnit seekTime = ScanUntil(aTime);
 
   return SeekPromise::CreateAndResolve(seekTime, __func__);
-}
-
-int64_t
-ADTSTrackDemuxer::GetEvictionOffset(media::TimeUnit aTime)
-{
-  // Unused.
-  return 0;
 }
 
 media::TimeUnit

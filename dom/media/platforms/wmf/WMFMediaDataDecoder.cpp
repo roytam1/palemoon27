@@ -66,6 +66,9 @@ WMFMediaDataDecoder::ProcessShutdown()
   if (mMFTManager) {
     mMFTManager->Shutdown();
     mMFTManager = nullptr;
+    if (!mRecordedError && mHasSuccessfulOutput) {
+      //SendTelemetry(S_OK);
+    }
   }
   mDecoder = nullptr;
 }
@@ -101,6 +104,10 @@ WMFMediaDataDecoder::ProcessDecode(MediaRawData* aSample)
   if (FAILED(hr)) {
     NS_WARNING("MFTManager rejected sample");
     mCallback->Error();
+    if (!mRecordedError) {
+      //SendTelemetry(hr);
+      mRecordedError = true;
+    }
     return;
   }
 
@@ -116,6 +123,7 @@ WMFMediaDataDecoder::ProcessOutput()
   HRESULT hr = S_OK;
   while (SUCCEEDED(hr = mMFTManager->Output(mLastStreamOffset, output)) &&
          output) {
+    mHasSuccessfulOutput = true;
     mCallback->Output(output);
   }
   if (hr == MF_E_TRANSFORM_NEED_MORE_INPUT) {
@@ -125,6 +133,10 @@ WMFMediaDataDecoder::ProcessOutput()
   } else if (FAILED(hr)) {
     NS_WARNING("WMFMediaDataDecoder failed to output data");
     mCallback->Error();
+    if (!mRecordedError) {
+      //SendTelemetry(hr);
+      mRecordedError = true;
+    }
   }
 }
 

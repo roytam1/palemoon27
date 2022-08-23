@@ -11,6 +11,7 @@
 #include "mozilla/ErrorResult.h"
 #include "mp4_demuxer/MoofParser.h"
 #include "mozilla/Logging.h"
+#include "mozilla/Maybe.h"
 #include "MediaData.h"
 #ifdef MOZ_FMP4
 #include "MP4Stream.h"
@@ -172,16 +173,6 @@ public:
         (*aData)[3] == 0x6b) {
       return true;
     }
-    // 0xa3 // SimpleBlock
-    if (aData->Length() >= 1 &&
-        (*aData)[0] == 0xa3) {
-      return true;
-    }
-    // 0xa1 // Block
-    if (aData->Length() >= 1 &&
-        (*aData)[0] == 0xa1) {
-      return true;
-    }
     return false;
   }
 
@@ -189,6 +180,19 @@ public:
                                   int64_t& aStart, int64_t& aEnd) override
   {
     bool initSegment = IsInitSegmentPresent(aData);
+
+    if (mLastMapping && (initSegment || IsMediaSegmentPresent(aData))) {
+      // The last data contained a complete cluster but we can only detect it
+      // now that a new one is starting.
+      // We use mOffset as end position to ensure that any blocks not reported
+      // by WebMBufferParser are properly skipped.
+      mCompleteMediaSegmentRange = MediaByteRange(mLastMapping.ref().mSyncOffset,
+                                                  mOffset);
+      mLastMapping.reset();
+      MSE_DEBUG(WebMContainerParser, "New cluster found at start, ending previous one");
+      return false;
+    }
+
     if (initSegment) {
       mOffset = 0;
       mParser = WebMBufferedParser(0);
@@ -237,38 +241,77 @@ public:
       return false;
     }
 
+    // Calculate media range for first media segment.
+
+    // Check if we have a cluster finishing in the current data.
     uint32_t endIdx = mapping.Length() - 1;
-
-    // Calculate media range for first media segment
-    uint32_t segmentEndIdx = endIdx;
-    while (mapping[0].mSyncOffset != mapping[segmentEndIdx].mSyncOffset) {
-      segmentEndIdx -= 1;
-    }
-    if (segmentEndIdx > 0 && mOffset >= mapping[segmentEndIdx].mEndOffset) {
-      mCompleteMediaHeaderRange = MediaByteRange(mParser.mInitEndOffset,
-                                                 mapping[0].mEndOffset);
-      mCompleteMediaSegmentRange = MediaByteRange(mParser.mInitEndOffset,
-                                                  mapping[segmentEndIdx].mEndOffset);
-    }
-
-    // Exclude frames that we don't have enough data to cover the end of.
-    while (mOffset < mapping[endIdx].mEndOffset && endIdx > 0) {
+    bool foundNewCluster = false;
+    while (mapping[0].mSyncOffset != mapping[endIdx].mSyncOffset) {
       endIdx -= 1;
+      foundNewCluster = true;
     }
 
-    if (endIdx == 0) {
+    int32_t completeIdx = endIdx;
+    while (completeIdx >= 0 && mOffset < mapping[completeIdx].mEndOffset) {
+      MSE_DEBUG(WebMContainerParser, "block is incomplete, missing: %lld",
+                mapping[completeIdx].mEndOffset - mOffset);
+      completeIdx -= 1;
+    }
+
+    // Save parsed blocks for which we do not have all data yet.
+    mOverlappedMapping.AppendElements(mapping.Elements() + completeIdx + 1,
+                                      mapping.Length() - completeIdx - 1);
+
+    if (completeIdx < 0) {
+      mLastMapping.reset();
       return false;
     }
 
-    uint64_t frameDuration = mapping[endIdx].mTimecode - mapping[endIdx - 1].mTimecode;
+    if (mCompleteMediaHeaderRange.IsNull()) {
+      mCompleteMediaHeaderRange = MediaByteRange(mapping[0].mSyncOffset,
+                                                 mapping[0].mEndOffset);
+    }
+
+    if (foundNewCluster && mOffset >= mapping[endIdx].mEndOffset) {
+      // We now have all information required to delimit a complete cluster.
+      int64_t endOffset = mapping[endIdx+1].mSyncOffset;
+      if (mapping[endIdx+1].mInitOffset > mapping[endIdx].mInitOffset) {
+        // We have a new init segment before this cluster.
+        endOffset = mapping[endIdx+1].mInitOffset;
+      }
+      mCompleteMediaSegmentRange = MediaByteRange(mapping[endIdx].mSyncOffset,
+                                                  endOffset);
+    } else if (mapping[endIdx].mClusterEndOffset >= 0 &&
+               mOffset >= mapping[endIdx].mClusterEndOffset) {
+      mCompleteMediaSegmentRange = MediaByteRange(mapping[endIdx].mSyncOffset,
+                                                  mParser.EndSegmentOffset(mapping[endIdx].mClusterEndOffset));
+    }
+
+    Maybe<WebMTimeDataOffset> previousMapping;
+    if (completeIdx) {
+      previousMapping = Some(mapping[completeIdx - 1]);
+    } else {
+      previousMapping = mLastMapping;
+    }
+
+    mLastMapping = Some(mapping[completeIdx]);
+
+    if (!previousMapping && completeIdx + 1u >= mapping.Length()) {
+      // We have no previous nor next block available,
+      // so we can't estimate this block's duration.
+      return false;
+    }
+
+    uint64_t frameDuration = (completeIdx + 1u < mapping.Length())
+      ? mapping[completeIdx + 1].mTimecode - mapping[completeIdx].mTimecode
+      : mapping[completeIdx].mTimecode - previousMapping.ref().mTimecode;
     aStart = mapping[0].mTimecode / NS_PER_USEC;
-    aEnd = (mapping[endIdx].mTimecode + frameDuration) / NS_PER_USEC;
+    aEnd = (mapping[completeIdx].mTimecode + frameDuration) / NS_PER_USEC;
 
-    MSE_DEBUG(WebMContainerParser, "[%lld, %lld] [fso=%lld, leo=%lld, l=%u endIdx=%u]",
-              aStart, aEnd, mapping[0].mSyncOffset, mapping[endIdx].mEndOffset, mapping.Length(), endIdx);
-
-    mapping.RemoveElementsAt(0, endIdx + 1);
-    mOverlappedMapping.AppendElements(mapping);
+    MSE_DEBUG(WebMContainerParser, "[%lld, %lld] [fso=%lld, leo=%lld, l=%u processedIdx=%u fs=%lld]",
+              aStart, aEnd, mapping[0].mSyncOffset,
+              mapping[completeIdx].mEndOffset, mapping.Length(), completeIdx,
+              mCompleteMediaSegmentRange.mEnd);
 
     return true;
   }
@@ -283,6 +326,7 @@ private:
   WebMBufferedParser mParser;
   nsTArray<WebMTimeDataOffset> mOverlappedMapping;
   int64_t mOffset;
+  Maybe<WebMTimeDataOffset> mLastMapping;
 };
 
 #ifdef MOZ_FMP4
@@ -454,7 +498,153 @@ private:
   nsAutoPtr<mp4_demuxer::MoofParser> mParser;
   Monitor mMonitor;
 };
-#endif
+#endif // MOZ_FMP4
+
+#ifdef MOZ_FMP4
+class ADTSContainerParser : public ContainerParser {
+public:
+  explicit ADTSContainerParser(const nsACString& aType)
+    : ContainerParser(aType)
+  {}
+
+  typedef struct {
+    size_t header_length; // Length of just the initialization data.
+    size_t frame_length;  // Includes header_length;
+    uint8_t aac_frames;   // Number of AAC frames in the ADTS frame.
+    bool have_crc;
+  } Header;
+
+  /// Helper to parse the ADTS header, returning data we care about.
+  /// Returns true if the header is parsed successfully.
+  /// Returns false if the header is invalid or incomplete,
+  /// without modifying the passed-in Header object.
+  bool Parse(MediaByteBuffer* aData, Header& header)
+  {
+    MOZ_ASSERT(aData);
+
+    // ADTS initialization segments are just the packet header.
+    if (aData->Length() < 7) {
+      MSE_DEBUG(ADTSContainerParser, "buffer too short for header.");
+      return false;
+    }
+    // Check 0xfffx sync word plus layer 0.
+    if (((*aData)[0] != 0xff) || (((*aData)[1] & 0xf6) != 0xf0)) {
+      MSE_DEBUG(ADTSContainerParser, "no syncword.");
+      return false;
+    }
+    bool have_crc = !((*aData)[1] & 0x01);
+    if (have_crc && aData->Length() < 9) {
+      MSE_DEBUG(ADTSContainerParser, "buffer too short for header with crc.");
+      return false;
+    }
+    uint8_t frequency_index = ((*aData)[2] & 0x3c) >> 2;
+    MOZ_ASSERT(frequency_index < 16);
+    if (frequency_index == 15) {
+      MSE_DEBUG(ADTSContainerParser, "explicit frequency disallowed.");
+      return false;
+    }
+    size_t header_length = have_crc ? 9 : 7;
+    size_t data_length = (((*aData)[3] & 0x03) << 11) ||
+                         (((*aData)[4] & 0xff) << 3) ||
+                         (((*aData)[5] & 0xe0) >> 5);
+    uint8_t frames = ((*aData)[6] & 0x03) + 1;
+    MOZ_ASSERT(frames > 0);
+    MOZ_ASSERT(frames < 4);
+
+    // Return successfully parsed data.
+    header.header_length = header_length;
+    header.frame_length = header_length + data_length;
+    header.aac_frames = frames;
+    header.have_crc = have_crc;
+    return true;
+  }
+
+  bool IsInitSegmentPresent(MediaByteBuffer* aData) override
+  {
+    // Call superclass for logging.
+    ContainerParser::IsInitSegmentPresent(aData);
+
+    Header header;
+    if (!Parse(aData, header)) {
+      return false;
+    }
+
+    MSE_DEBUGV(ADTSContainerParser, "%llu byte frame %d aac frames%s",
+        (unsigned long long)header.frame_length, (int)header.aac_frames,
+        header.have_crc ? " crc" : "");
+
+    return true;
+  }
+
+  bool IsMediaSegmentPresent(MediaByteBuffer* aData) override
+  {
+    // Call superclass for logging.
+    ContainerParser::IsMediaSegmentPresent(aData);
+
+    // Make sure we have a header so we know how long the frame is.
+    // NB this assumes the media segment buffer starts with an
+    // initialization segment. Since every frame has an ADTS header
+    // this is a normal place to divide packets, but we can re-parse
+    // mInitData if we need to handle separate media segments.
+    Header header;
+    if (!Parse(aData, header)) {
+      return false;
+    }
+    // We're supposed to return true as long as aData contains the
+    // start of a media segment, whether or not it's complete. So
+    // return true if we have any data beyond the header.
+    if (aData->Length() <= header.header_length) {
+      return false;
+    }
+
+    // We should have at least a partial frame.
+    return true;
+  }
+
+  bool ParseStartAndEndTimestamps(MediaByteBuffer* aData,
+                                  int64_t& aStart, int64_t& aEnd) override
+  {
+    // ADTS header.
+    Header header;
+    if (!Parse(aData, header)) {
+      return false;
+    }
+    mHasInitData = true;
+    mCompleteInitSegmentRange = MediaByteRange(0, header.header_length);
+
+    // Cache raw header in case the caller wants a copy.
+    mInitData = new MediaByteBuffer(header.header_length);
+    mInitData->AppendElements(aData->Elements(), header.header_length);
+
+    // Check that we have enough data for the frame body.
+    if (aData->Length() < header.frame_length) {
+      MSE_DEBUGV(ADTSContainerParser, "Not enough data for %llu byte frame"
+          " in %llu byte buffer.",
+          (unsigned long long)header.frame_length,
+          (unsigned long long)(aData->Length()));
+      return false;
+    }
+    mCompleteMediaSegmentRange = MediaByteRange(header.header_length,
+                                                header.frame_length);
+    // The ADTS MediaSource Byte Stream Format document doesn't
+    // define media header. Just treat it the same as the whole
+    // media segment.
+    mCompleteMediaHeaderRange = mCompleteMediaSegmentRange;
+
+    MSE_DEBUG(ADTSContainerParser, "[%lld, %lld]",
+              aStart, aEnd);
+    // We don't update timestamps, regardless.
+    return false;
+  }
+
+  // Audio shouldn't have gaps.
+  // Especially when we generate the timestamps ourselves.
+  int64_t GetRoundingError() override
+  {
+    return 0;
+  }
+};
+#endif // MOZ_FMP4
 
 /*static*/ ContainerParser*
 ContainerParser::CreateForMIMEType(const nsACString& aType)
@@ -467,7 +657,11 @@ ContainerParser::CreateForMIMEType(const nsACString& aType)
   if (aType.LowerCaseEqualsLiteral("video/mp4") || aType.LowerCaseEqualsLiteral("audio/mp4")) {
     return new MP4ContainerParser(aType);
   }
+  if (aType.LowerCaseEqualsLiteral("audio/aac")) {
+    return new ADTSContainerParser(aType);
+  }
 #endif
+
   return new ContainerParser(aType);
 }
 

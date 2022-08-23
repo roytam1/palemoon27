@@ -267,6 +267,12 @@ public:
 
   mozilla::OriginAttributes GetOriginAttributes();
 
+  void SetInFrameSwap(bool aInSwap)
+  {
+    mInFrameSwap = aInSwap;
+  }
+  bool InFrameSwap();
+
 private:
   // An observed docshell wrapper is created when recording markers is enabled.
   mozilla::UniquePtr<mozilla::ObservedDocShell> mObserved;
@@ -921,6 +927,7 @@ protected:
   bool mUseRemoteTabs;
   bool mDeviceSizeIsPageSize;
   bool mWindowDraggingAllowed;
+  bool mInFrameSwap;
 
   // Because scriptability depends on the mAllowJavascript values of our
   // ancestors, we cache the effective scriptability and recompute it when

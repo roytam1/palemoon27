@@ -97,6 +97,11 @@ XPCOMUtils.defineLazyModuleGetter(this, "SimpleServiceDiscovery",
 XPCOMUtils.defineLazyModuleGetter(this, "ContentSearch",
                                   "resource:///modules/ContentSearch.jsm");
 
+#ifdef E10S_TESTING_ONLY
+XPCOMUtils.defineLazyModuleGetter(this, "UpdateUtils",
+                                  "resource://gre/modules/UpdateUtils.jsm");
+#endif
+
 #ifdef MOZ_CRASHREPORTER
 XPCOMUtils.defineLazyModuleGetter(this, "TabCrashReporter",
                                   "resource:///modules/ContentCrashReporters.jsm");
@@ -2633,15 +2638,18 @@ var DefaultBrowserCheck = {
 };
 
 #ifdef E10S_TESTING_ONLY
-let E10SUINotification = {
+var E10SUINotification = {
   // Increase this number each time we want to roll out an
   // e10s testing period to Nightly users.
   CURRENT_NOTICE_COUNT: 0,
+  CURRENT_NOTICE_COUNT: 1,
+  CURRENT_PROMPT_PREF: "browser.displayedE10SPrompt.1",
+  PREVIOUS_PROMPT_PREF: "browser.displayedE10SPrompt",
 
   checkStatus: function() {
     let skipE10sChecks = false;
     try {
-      let updateChannel = UpdateChannel.get();
+      let updateChannel = UpdateUtils.UpdateChannel;
       let channelAuthorized = updateChannel == "nightly" || updateChannel == "aurora";
 
       skipE10sChecks = !channelAuthorized ||
@@ -2672,16 +2680,25 @@ let E10SUINotification = {
     } else {
       let e10sPromptShownCount = 0;
       try {
-        e10sPromptShownCount = Services.prefs.getIntPref("browser.displayedE10SPrompt");
+        e10sPromptShownCount = Services.prefs.getIntPref(this.CURRENT_PROMPT_PREF);
       } catch(e) {}
+
+      let isHardwareAccelerated = true;
+      try {
+        let win = RecentWindow.getMostRecentBrowserWindow();
+        let winutils = win.QueryInterface(Ci.nsIInterfaceRequestor).getInterface(Ci.nsIDOMWindowUtils);
+        isHardwareAccelerated = winutils.layerManagerType != "Basic";
+      } catch (e) {}
 
       if (!Services.appinfo.inSafeMode &&
           !Services.appinfo.accessibilityEnabled &&
+          isHardwareAccelerated &&
           e10sPromptShownCount < 5) {
         Services.tm.mainThread.dispatch(() => {
           try {
             this._showE10SPrompt();
-            Services.prefs.setIntPref("browser.displayedE10SPrompt", e10sPromptShownCount + 1);
+            Services.prefs.setIntPref(this.CURRENT_PROMPT_PREF, e10sPromptShownCount + 1);
+            Services.prefs.clearUserPref(this.PREVIOUS_PROMPT_PREF);
           } catch (ex) {
             Cu.reportError("Failed to show e10s prompt: " + ex);
           }
@@ -2756,7 +2773,7 @@ let E10SUINotification = {
         label: win.gNavigatorBundle.getString("e10s.offerPopup.noThanks.label"),
         accessKey: win.gNavigatorBundle.getString("e10s.offerPopup.noThanks.accesskey"),
         callback: function () {
-          Services.prefs.setIntPref("browser.displayedE10SPrompt", 5);
+          Services.prefs.setIntPref(E10SUINotification.CURRENT_PROMPT_PREF, 5);
         }
       }
     ];
@@ -2766,7 +2783,7 @@ let E10SUINotification = {
       persistWhileVisible: true
     };
 
-    win.PopupNotifications.show(browser, "enable_e10s", promptMessage, null, mainAction, secondaryActions, options);
+    win.PopupNotifications.show(browser, "enable-e10s", promptMessage, null, mainAction, secondaryActions, options);
 
     let highlights = [
       win.gNavigatorBundle.getString("e10s.offerPopup.highlight1"),

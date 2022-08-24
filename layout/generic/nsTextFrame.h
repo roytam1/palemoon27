@@ -761,6 +761,7 @@ protected:
                                 const gfxFont::Metrics& aFontMetrics,
                                 DrawPathCallbacks* aCallbacks,
                                 bool aVertical,
+                                gfxFloat aDecorationOffsetDir,
                                 uint8_t aDecoration);
   enum DecorationType
   {

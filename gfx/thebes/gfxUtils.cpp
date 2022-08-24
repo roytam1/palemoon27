@@ -397,20 +397,17 @@ IsSafeImageTransformComponent(gfxFloat aValue)
  * alpha channel or their alpha channel is uniformly opaque.
  * This differs per render mode.
  */
-static gfxContext::GraphicsOperator
-OptimalFillOperator()
+static CompositionOp
+OptimalFillOp()
 {
 #ifdef XP_WIN
     if (gfxWindowsPlatform::GetPlatform()->GetRenderMode() ==
         gfxWindowsPlatform::RENDER_DIRECT2D) {
         // D2D -really- hates operator source.
-        return gfxContext::OPERATOR_OVER;
-    } else {
-#endif
-        return gfxContext::OPERATOR_SOURCE;
-#ifdef XP_WIN
+        return CompositionOp::OP_OVER;
     }
 #endif
+    return CompositionOp::OP_SOURCE;
 }
 
 // EXTEND_PAD won't help us here; we have to create a temporary surface to hold
@@ -449,7 +446,7 @@ CreateSamplingRestrictedDrawable(gfxDrawable* aDrawable,
     }
 
     nsRefPtr<gfxContext> tmpCtx = new gfxContext(target);
-    tmpCtx->SetOperator(OptimalFillOperator());
+    tmpCtx->SetOp(OptimalFillOp());
     aDrawable->Draw(tmpCtx, needed - needed.TopLeft(), true,
                     GraphicsFilter::FILTER_FAST, 1.0, gfxMatrix::Translation(needed.TopLeft()));
     RefPtr<SourceSurface> surface = target->Snapshot();
@@ -500,7 +497,7 @@ struct MOZ_STACK_CLASS AutoCairoPixmanBugWorkaround
         mContext->Clip(bounds);
         mContext->SetMatrix(currentMatrix);
         mContext->PushGroup(gfxContentType::COLOR_ALPHA);
-        mContext->SetOperator(gfxContext::OPERATOR_OVER);
+        mContext->SetOp(CompositionOp::OP_OVER);
 
         mPushedGroup = true;
     }
@@ -604,6 +601,101 @@ static GraphicsFilter ReduceResamplingFilter(GraphicsFilter aFilter,
 }
 #endif
 
+#ifdef MOZ_WIDGET_COCOA
+// Only prescale a temporary surface if we're going to repeat it often.
+// Scaling is expensive on OS X and without prescaling, we'd scale
+// every tile of the repeated rect. However, using a temp surface also potentially uses
+// more memory if the scaled image is large. So only prescale on a temp
+// surface if we know we're going to repeat the image in either the X or Y axis
+// multiple times.
+static bool
+ShouldUseTempSurface(Rect aImageRect, Rect aNeededRect)
+{
+  int repeatX = aNeededRect.width / aImageRect.width;
+  int repeatY = aNeededRect.height / aImageRect.height;
+  return (repeatX >= 5) || (repeatY >= 5);
+}
+
+static bool
+PrescaleAndTileDrawable(gfxDrawable* aDrawable,
+                        gfxContext* aContext,
+                        const ImageRegion& aRegion,
+                        Rect aImageRect,
+                        const GraphicsFilter& aFilter,
+                        const SurfaceFormat aFormat,
+                        gfxFloat aOpacity)
+{
+  gfxSize scaleFactor = aContext->CurrentMatrix().ScaleFactors(true);
+  gfxMatrix scaleMatrix = gfxMatrix::Scaling(scaleFactor.width, scaleFactor.height);
+  const float fuzzFactor = 0.01;
+
+  // If we aren't scaling or translating, don't go down this path
+  if ((FuzzyEqual(scaleFactor.width, 1.0, fuzzFactor) &&
+      FuzzyEqual(scaleFactor.width, 1.0, fuzzFactor)) ||
+      aContext->CurrentMatrix().HasNonAxisAlignedTransform()) {
+    return false;
+  }
+
+  gfxRect clipExtents = aContext->GetClipExtents();
+
+  // Inflate by one pixel because bilinear filtering will sample at most
+  // one pixel beyond the computed image pixel coordinate.
+  clipExtents.Inflate(1.0);
+
+  gfxRect needed = aRegion.IntersectAndRestrict(clipExtents);
+  Rect scaledNeededRect = ToMatrix(scaleMatrix).TransformBounds(ToRect(needed));
+  scaledNeededRect.RoundOut();
+  if (scaledNeededRect.IsEmpty()) {
+    return false;
+  }
+
+  Rect scaledImageRect = ToMatrix(scaleMatrix).TransformBounds(aImageRect);
+  if (!ShouldUseTempSurface(scaledImageRect, scaledNeededRect)) {
+    return false;
+  }
+
+  IntSize scaledImageSize((int32_t)scaledImageRect.width,
+                          (int32_t)scaledImageRect.height);
+  if (scaledImageSize.width != scaledImageRect.width ||
+      scaledImageSize.height != scaledImageRect.height) {
+    // If the scaled image isn't pixel aligned, we'll get artifacts
+    // so we have to take the slow path.
+    return false;
+  }
+
+  RefPtr<DrawTarget> scaledDT =
+    gfxPlatform::GetPlatform()->CreateOffscreenContentDrawTarget(scaledImageSize, aFormat);
+  if (!scaledDT) {
+    return false;
+  }
+
+  nsRefPtr<gfxContext> tmpCtx = new gfxContext(scaledDT);
+  scaledDT->SetTransform(ToMatrix(scaleMatrix));
+  gfxRect gfxImageRect(aImageRect.x, aImageRect.y, aImageRect.width, aImageRect.height);
+  aDrawable->Draw(tmpCtx, gfxImageRect, true, aFilter, 1.0, gfxMatrix());
+
+  RefPtr<SourceSurface> scaledImage = scaledDT->Snapshot();
+
+  {
+    gfxContextMatrixAutoSaveRestore autoSR(aContext);
+    Matrix withoutScale = ToMatrix(aContext->CurrentMatrix());
+    DrawTarget* destDrawTarget = aContext->GetDrawTarget();
+
+    // The translation still is in scaled units
+    withoutScale.PreScale(1.0 / scaleFactor.width, 1.0 / scaleFactor.height);
+    aContext->SetMatrix(ThebesMatrix(withoutScale));
+
+    DrawOptions drawOptions(aOpacity, aContext->CurrentOp(),
+                            aContext->CurrentAntialiasMode());
+
+    SurfacePattern scaledImagePattern(scaledImage, ExtendMode::REPEAT,
+                                      Matrix(), ToFilter(aFilter));
+    destDrawTarget->FillRect(scaledNeededRect, scaledImagePattern, drawOptions);
+  }
+  return true;
+}
+#endif // MOZ_WIDGET_COCOA
+
 /* static */ void
 gfxUtils::DrawPixelSnapped(gfxContext*         aContext,
                            gfxDrawable*        aDrawable,
@@ -648,6 +740,14 @@ gfxUtils::DrawPixelSnapped(gfxContext*         aContext,
                                                doTile, aFilter, aOpacity)) {
               return;
             }
+
+#ifdef MOZ_WIDGET_COCOA
+            if (PrescaleAndTileDrawable(aDrawable, aContext, aRegion,
+                                        ToRect(imageRect), aFilter,
+                                        aFormat, aOpacity)) {
+              return;
+            }
+#endif
 
             // On Mobile, we don't ever want to do this; it has the potential for
             // allocating very large temporary surfaces, especially since we'll
@@ -995,9 +1095,7 @@ gfxUtils::ConvertYCbCrToRGB(const PlanarYCbCrData& aData,
   }
 }
 
-/* static */ void gfxUtils::ClearThebesSurface(gfxASurface* aSurface,
-                                               IntRect* aRect,
-                                               const gfxRGBA& aColor)
+/* static */ void gfxUtils::ClearThebesSurface(gfxASurface* aSurface)
 {
   if (aSurface->CairoStatus()) {
     return;
@@ -1007,14 +1105,9 @@ gfxUtils::ConvertYCbCrToRGB(const PlanarYCbCrData& aData,
     return;
   }
   cairo_t* ctx = cairo_create(surf);
-  cairo_set_source_rgba(ctx, aColor.r, aColor.g, aColor.b, aColor.a);
+  cairo_set_source_rgba(ctx, 0.0, 0.0, 0.0, 0.0);
   cairo_set_operator(ctx, CAIRO_OPERATOR_SOURCE);
-  IntRect bounds;
-  if (aRect) {
-    bounds = *aRect;
-  } else {
-    bounds = IntRect(nsIntPoint(0, 0), aSurface->GetSize());
-  }
+  IntRect bounds(nsIntPoint(0, 0), aSurface->GetSize());
   cairo_rectangle(ctx, bounds.x, bounds.y, bounds.width, bounds.height);
   cairo_fill(ctx);
   cairo_destroy(ctx);

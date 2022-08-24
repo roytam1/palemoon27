@@ -539,7 +539,7 @@ imgFrame::SurfaceForDrawing(bool               aDoPadding,
   aContext->Multiply(gfxMatrix::Translation(paddingTopLeft));
   aImageRect = gfxRect(0, 0, mSize.width, mSize.height);
 
-  gfxIntSize availableSize(mDecoded.width, mDecoded.height);
+  IntSize availableSize(mDecoded.width, mDecoded.height);
   return SurfaceWithFormat(new gfxSurfaceDrawable(aSurface, availableSize),
                            mFormat);
 }
@@ -574,8 +574,7 @@ bool imgFrame::Draw(gfxContext* aContext, const ImageRegion& aRegion,
     RefPtr<DrawTarget> dt = aContext->GetDrawTarget();
     dt->FillRect(ToRect(aRegion.Rect()),
                  ColorPattern(mSinglePixelColor),
-                 DrawOptions(1.0f,
-                             CompositionOpForOp(aContext->CurrentOperator())));
+                 DrawOptions(1.0f, aContext->CurrentOp()));
     return true;
   }
 

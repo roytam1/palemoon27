@@ -113,7 +113,7 @@ protected:
 
     virtual PPluginSurfaceChild*
     AllocPPluginSurfaceChild(const WindowsSharedMemoryHandle&,
-                             const gfxIntSize&, const bool&) override {
+                             const gfx::IntSize&, const bool&) override {
         return new PPluginSurfaceChild();
     }
 
@@ -380,7 +380,7 @@ private:
     InfallibleTArray<nsCString> mValues;
     NPP_t mData;
     NPWindow mWindow;
-#if defined(XP_MACOSX)
+#if defined(XP_DARWIN)
     double mContentsScaleFactor;
 #endif
     int16_t               mDrawingModel;

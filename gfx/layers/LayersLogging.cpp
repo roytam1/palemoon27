@@ -7,7 +7,6 @@
 
 #include "LayersLogging.h"
 #include <stdint.h>                     // for uint8_t
-#include "gfxColor.h"                   // for gfxRGBA
 #include "ImageTypes.h"                 // for ImageFormat
 #include "mozilla/gfx/Matrix.h"         // for Matrix4x4, Matrix
 #include "mozilla/gfx/Point.h"          // for IntSize
@@ -58,13 +57,13 @@ AppendToString(std::stringstream& aStream, FrameMetrics::ViewID n,
 }
 
 void
-AppendToString(std::stringstream& aStream, const gfxRGBA& c,
+AppendToString(std::stringstream& aStream, const Color& c,
                const char* pfx, const char* sfx)
 {
   aStream << pfx;
   aStream << nsPrintfCString(
-    "rgba(%d, %d, %d, %g)",
-    uint8_t(c.r*255.0), uint8_t(c.g*255.0), uint8_t(c.b*255.0), c.a).get();
+    "rgba(%d, %d, %d, %f)",
+    uint8_t(c.r*255.f), uint8_t(c.g*255.f), uint8_t(c.b*255.f), c.a).get();
   aStream << sfx;
 }
 

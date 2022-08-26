@@ -16,8 +16,6 @@
 #include "nsRegion.h"                   // for nsRegion, nsIntRegion
 #include "nscore.h"                     // for nsACString, etc
 
-struct gfxRGBA;
-
 namespace mozilla {
 namespace gfx {
 class Matrix4x4;
@@ -41,7 +39,7 @@ AppendToString(std::stringstream& aStream, FrameMetrics::ViewID n,
                const char* pfx="", const char* sfx="");
 
 void
-AppendToString(std::stringstream& aStream, const gfxRGBA& c,
+AppendToString(std::stringstream& aStream, const gfx::Color& c,
                const char* pfx="", const char* sfx="");
 
 void

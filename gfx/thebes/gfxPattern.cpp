@@ -19,7 +19,7 @@
 
 using namespace mozilla::gfx;
 
-gfxPattern::gfxPattern(const gfxRGBA& aColor)
+gfxPattern::gfxPattern(const Color& aColor)
   : mExtend(EXTEND_NONE)
 {
   mGfxPattern.InitColorPattern(ToDeviceColor(aColor));
@@ -51,7 +51,7 @@ gfxPattern::gfxPattern(SourceSurface *aSurface, const Matrix &aPatternToUserSpac
 }
 
 void
-gfxPattern::AddColorStop(gfxFloat offset, const gfxRGBA& c)
+gfxPattern::AddColorStop(gfxFloat offset, const Color& c)
 {
   if (mGfxPattern.GetPattern()->GetType() != PatternType::LINEAR_GRADIENT &&
       mGfxPattern.GetPattern()->GetType() != PatternType::RADIAL_GRADIENT) {
@@ -209,10 +209,10 @@ gfxPattern::Filter() const
 }
 
 bool
-gfxPattern::GetSolidColor(gfxRGBA& aColor)
+gfxPattern::GetSolidColor(Color& aColorOut)
 {
   if (mGfxPattern.GetPattern()->GetType() == PatternType::COLOR) {
-    aColor = ThebesColor(static_cast<ColorPattern*>(mGfxPattern.GetPattern())->mColor);
+    aColorOut = static_cast<ColorPattern*>(mGfxPattern.GetPattern())->mColor;
     return true;
   }
 

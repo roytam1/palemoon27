@@ -557,6 +557,13 @@ Layer::ApplyPendingUpdatesToSubtree()
 }
 
 bool
+Layer::IsOpaqueForVisibility()
+{
+  return GetLocalOpacity() == 1.0f &&
+         GetEffectiveMixBlendMode() == CompositionOp::OP_OVER;
+}
+
+bool
 Layer::CanUseOpaqueSurface()
 {
   // If the visible content in the layer is opaque, there is no need
@@ -2092,7 +2099,7 @@ ColorLayer::DumpPacket(layerscope::LayersPacket* aPacket, const void* aParent)
   using namespace layerscope;
   LayersPacket::Layer* layer = aPacket->mutable_layer(aPacket->layer_size()-1);
   layer->set_type(LayersPacket::Layer::ColorLayer);
-  layer->set_color(mColor.Packed());
+  layer->set_color(mColor.ToABGR());
 }
 
 void
@@ -2194,7 +2201,7 @@ ReadbackLayer::PrintInfo(std::stringstream& aStream, const char* aPrefix)
   if (mBackgroundLayer) {
     AppendToString(aStream, mBackgroundLayer, " [backgroundLayer=", "]");
     AppendToString(aStream, mBackgroundLayerOffset, " [backgroundOffset=", "]");
-  } else if (mBackgroundColor.a == 1.0) {
+  } else if (mBackgroundColor.a == 1.f) {
     AppendToString(aStream, mBackgroundColor, " [backgroundColor=", "]");
   } else {
     aStream << " [nobackground]";

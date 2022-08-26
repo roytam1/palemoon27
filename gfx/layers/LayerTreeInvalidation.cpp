@@ -10,7 +10,6 @@
 #include "ImageLayers.h"                // for ImageLayer, etc
 #include "Layers.h"                     // for Layer, ContainerLayer, etc
 #include "Units.h"                      // for ParentLayerIntRect
-#include "gfxColor.h"                   // for gfxRGBA
 #include "GraphicsFilter.h"             // for GraphicsFilter
 #include "gfxRect.h"                    // for gfxRect
 #include "gfxUtils.h"                   // for gfxUtils
@@ -382,7 +381,7 @@ struct ColorLayerProperties : public LayerPropertiesBase
     return result;
   }
 
-  gfxRGBA mColor;
+  Color mColor;
   IntRect mBounds;
 };
 

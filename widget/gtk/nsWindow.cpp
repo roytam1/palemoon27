@@ -2170,7 +2170,7 @@ nsWindow::OnExposeEvent(cairo_t *cr)
 
                 UpdateAlpha(pattern, boundsRect);
 
-                ctx->SetOperator(gfxContext::OPERATOR_SOURCE);
+                ctx->SetOp(CompositionOp::OP_SOURCE);
                 ctx->SetPattern(pattern);
                 ctx->Paint();
             }
@@ -6053,7 +6053,7 @@ nsWindow::GetSurfaceForGdkDrawable(GdkDrawable* aDrawable,
         Visual* xVisual = gdk_x11_visual_get_xvisual(visual);
 
         result = new gfxXlibSurface(xDisplay, xDrawable, xVisual,
-                                    gfxIntSize(aSize.width, aSize.height));
+                                    IntSize(aSize.width, aSize.height));
     } else {
         // no visual? we must be using an xrender format.  Find a format
         // for this depth.
@@ -6071,7 +6071,7 @@ nsWindow::GetSurfaceForGdkDrawable(GdkDrawable* aDrawable,
         }
 
         result = new gfxXlibSurface(xScreen, xDrawable, pf,
-                                    gfxIntSize(aSize.width, aSize.height));
+                                    IntSize(aSize.width, aSize.height));
     }
 
     return result.forget();

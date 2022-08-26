@@ -1950,7 +1950,7 @@ TabParent::RecvSetCustomCursor(const nsCString& aCursorData,
     }
 
     if (mTabSetsCursor) {
-      const gfxIntSize size(aWidth, aHeight);
+      const gfx::IntSize size(aWidth, aHeight);
 
       mozilla::RefPtr<gfx::DataSourceSurface> customCursor = new mozilla::gfx::SourceSurfaceRawData();
       mozilla::gfx::SourceSurfaceRawData* raw = static_cast<mozilla::gfx::SourceSurfaceRawData*>(customCursor.get());
@@ -1968,15 +1968,6 @@ TabParent::RecvSetCustomCursor(const nsCString& aCursorData,
     }
   }
 
-  return true;
-}
-
-bool
-TabParent::RecvSetBackgroundColor(const nscolor& aColor)
-{
-  if (RenderFrameParent* frame = GetRenderFrame()) {
-    frame->SetBackgroundColor(aColor);
-  }
   return true;
 }
 

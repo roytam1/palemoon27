@@ -77,6 +77,11 @@ const TIMELINE_BLUEPRINT = {
     collapseFunc: CollapseFunctions.identical,
     label: L10N.getStr("timeline.label.paint"),
   },
+  "Composite": {
+    group: 0,
+    colorName: "graphs-green",
+    label: L10N.getStr("marker.label.composite"),
+  },
 
   /* Group 1 - JS */
   "DOMEvent": {

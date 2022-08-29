@@ -4,62 +4,68 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef TimelineMarker_h_
-#define TimelineMarker_h_
+#ifndef mozilla_TimelineMarker_h_
+#define mozilla_TimelineMarker_h_
 
 #include "nsString.h"
-#include "GeckoProfiler.h"
-#include "mozilla/dom/ProfileTimelineMarkerBinding.h"
 #include "nsContentUtils.h"
-#include "jsapi.h"
+#include "GeckoProfiler.h"
 
 class nsDocShell;
 
-// Objects of this type can be added to the timeline.  The class can
-// also be subclassed to let a given marker creator provide custom
-// details.
+namespace mozilla {
+namespace dom {
+struct ProfileTimelineMarker;
+}
+
+// Objects of this type can be added to the timeline if there is an interested
+// consumer. The class can also be subclassed to let a given marker creator
+// provide custom details.
 class TimelineMarker
 {
 public:
   enum TimelineStackRequest { STACK, NO_STACK };
 
-  TimelineMarker(nsDocShell* aDocShell, const char* aName,
-                 TracingMetadata aMetaData);
-
-  TimelineMarker(nsDocShell* aDocShell, const char* aName,
+  TimelineMarker(const char* aName,
                  TracingMetadata aMetaData,
+                 TimelineStackRequest aStackRequest = STACK);
+
+  TimelineMarker(const char* aName,
+                 const TimeStamp& aTime,
+                 TracingMetadata aMetaData,
+                 TimelineStackRequest aStackRequest = STACK);
+
+  TimelineMarker(const char* aName,
                  const nsAString& aCause,
+                 TracingMetadata aMetaData,
+                 TimelineStackRequest aStackRequest = STACK);
+
+  TimelineMarker(const char* aName,
+                 const nsAString& aCause,
+                 const TimeStamp& aTime,
+                 TracingMetadata aMetaData,
                  TimelineStackRequest aStackRequest = STACK);
 
   virtual ~TimelineMarker();
 
-  // Check whether two markers should be considered the same,
-  // for the purpose of pairing start and end markers.  Normally
-  // this definition suffices.
+  // Check whether two markers should be considered the same, for the purpose
+  // of pairing start and end markers. Normally this definition suffices.
   virtual bool Equals(const TimelineMarker& aOther)
   {
     return strcmp(mName, aOther.mName) == 0;
   }
 
-  // Add details specific to this marker type to aMarker.  The
-  // standard elements have already been set.  This method is
-  // called on both the starting and ending markers of a pair.
-  // Ordinarily the ending marker doesn't need to do anything
-  // here.
-  virtual void AddDetails(JSContext* aCx,
-                          mozilla::dom::ProfileTimelineMarker& aMarker)
+  // Add details specific to this marker type to aMarker. The standard elements
+  // have already been set. This method is called on both the starting and
+  // ending markers of a pair. Ordinarily the ending marker doesn't need to do
+  // anything here.
+  virtual void AddDetails(JSContext* aCx, dom::ProfileTimelineMarker& aMarker)
   {}
 
-  virtual void AddLayerRectangles(
-      mozilla::dom::Sequence<mozilla::dom::ProfileTimelineLayerRect>&)
-  {
-    MOZ_ASSERT_UNREACHABLE("can only be called on layer markers");
-  }
-
   const char* GetName() const { return mName; }
-  TracingMetadata GetMetaData() const { return mMetaData; }
-  DOMHighResTimeStamp GetTime() const { return mTime; }
   const nsString& GetCause() const { return mCause; }
+  DOMHighResTimeStamp GetTime() const { return mTime; }
+  TracingMetadata GetMetaData() const { return mMetaData; }
 
   JSObject* GetStack()
   {
@@ -85,15 +91,22 @@ protected:
 
 private:
   const char* mName;
-  TracingMetadata mMetaData;
-  DOMHighResTimeStamp mTime;
   nsString mCause;
+  DOMHighResTimeStamp mTime;
+  TracingMetadata mMetaData;
 
   // While normally it is not a good idea to make a persistent root,
   // in this case changing nsDocShell to participate in cycle
   // collection was deemed too invasive, and the markers are only held
   // here temporarily to boot.
   JS::PersistentRooted<JSObject*> mStackTrace;
+
+  void SetCurrentTime();
+  void SetCustomTime(const TimeStamp& aTime);
+  void CaptureStackIfNecessary(TracingMetadata aMetaData,
+                               TimelineStackRequest aStackRequest);
 };
 
-#endif /* TimelineMarker_h_ */
+} // namespace mozilla
+
+#endif /* mozilla_TimelineMarker_h_ */

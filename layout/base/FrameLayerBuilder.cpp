@@ -30,6 +30,7 @@
 #include "nsPrintfCString.h"
 #include "nsRenderingContext.h"
 #include "nsSVGIntegrationUtils.h"
+#include "mozilla/LayerTimelineMarker.h"
 
 #include "mozilla/Move.h"
 #include "mozilla/ReverseIterator.h"
@@ -227,6 +228,24 @@ FrameLayerBuilder::DisplayItemData::~DisplayItemData()
   if (sAliveDisplayItemDatas->Count() == 0) {
     delete sAliveDisplayItemDatas;
     sAliveDisplayItemDatas = nullptr;
+  }
+}
+
+void
+FrameLayerBuilder::DisplayItemData::ClearAnimationCompositorState()
+{
+  if (mDisplayItemKey != nsDisplayItem::TYPE_TRANSFORM &&
+      mDisplayItemKey != nsDisplayItem::TYPE_OPACITY) {
+    return;
+  }
+
+  for (nsIFrame* frame : mFrameList) {
+    nsCSSProperty prop = mDisplayItemKey == nsDisplayItem::TYPE_TRANSFORM ?
+      eCSSProperty_transform : eCSSProperty_opacity;
+    frame->PresContext()->AnimationManager()->
+      ClearIsRunningOnCompositor(frame, prop);
+    frame->PresContext()->TransitionManager()->
+      ClearIsRunningOnCompositor(frame, prop);
   }
 }
 
@@ -1799,6 +1818,7 @@ FrameLayerBuilder::WillEndTransaction()
                                       GetLastPaintOffset(t));
       }
 
+      data->ClearAnimationCompositorState();
       iter.Remove();
     } else {
       ComputeGeometryChangeForItem(data);
@@ -5634,36 +5654,6 @@ static void DrawForcedBackgroundColor(DrawTarget& aDrawTarget,
   }
 }
 
-class LayerTimelineMarker : public TimelineMarker
-{
-public:
-  LayerTimelineMarker(nsDocShell* aDocShell, const nsIntRegion& aRegion)
-    : TimelineMarker(aDocShell, "Layer", TRACING_EVENT)
-    , mRegion(aRegion)
-  {
-  }
-
-  ~LayerTimelineMarker()
-  {
-  }
-
-  virtual void AddLayerRectangles(mozilla::dom::Sequence<mozilla::dom::ProfileTimelineLayerRect>& aRectangles) override
-  {
-    nsIntRegionRectIterator it(mRegion);
-    while (const nsIntRect* iterRect = it.Next()) {
-      mozilla::dom::ProfileTimelineLayerRect rect;
-      rect.mX = iterRect->X();
-      rect.mY = iterRect->Y();
-      rect.mWidth = iterRect->Width();
-      rect.mHeight = iterRect->Height();
-      aRectangles.AppendElement(rect, fallible);
-    }
-  }
-
-private:
-  nsIntRegion mRegion;
-};
-
 /*
  * A note on residual transforms:
  *
@@ -5821,8 +5811,7 @@ FrameLayerBuilder::DrawPaintedLayer(PaintedLayer* aLayer,
     bool isRecording;
     docShell->GetRecordProfileTimelineMarkers(&isRecording);
     if (isRecording) {
-      mozilla::UniquePtr<TimelineMarker> marker =
-        MakeUnique<LayerTimelineMarker>(docShell, aRegionToDraw);
+      UniquePtr<TimelineMarker> marker = MakeUnique<LayerTimelineMarker>(aRegionToDraw);
       TimelineConsumers::AddMarkerForDocShell(docShell, Move(marker));
     }
   }

@@ -4497,11 +4497,6 @@ pref("layers.offmainthreadcomposition.enabled", true);
 // 0  -> full-tilt mode: Recomposite even if not transaction occured.
 pref("layers.offmainthreadcomposition.frame-rate", -1);
 
-// Asynchonous video compositing using the ImageBridge IPDL protocol.
-// requires off-main-thread compositing.
-pref("layers.async-video.enabled", true);
-pref("layers.async-video-oop.enabled",true);
-
 #ifdef MOZ_WIDGET_UIKIT
 pref("layers.async-pan-zoom.enabled", true);
 #endif
@@ -4512,6 +4507,8 @@ pref("layers.async-pan-zoom.enabled", true);
 
 #ifdef XP_MACOSX
 pref("layers.enable-tiles", true);
+pref("layers.tile-width", 512);
+pref("layers.tile-height", 512);
 pref("layers.tiled-drawtarget.enabled", true);
 pref("layers.tiles.edge-padding", false);
 #endif

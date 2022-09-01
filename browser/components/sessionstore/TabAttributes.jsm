@@ -24,7 +24,7 @@ this.TabAttributes = Object.freeze({
 });
 
 var TabAttributesInternal = {
-  _attrs: new Set(),
+  _attrs: new Set(["muted"]),
 
   // We never want to directly read or write those attributes.
   // 'image' should not be accessed directly but handled by using the
@@ -61,7 +61,9 @@ var TabAttributesInternal = {
 
     // Set attributes.
     for (let name in data) {
-      tab.setAttribute(name, data[name]);
+      if (!this._skipAttrs.has(name)) {
+        tab.setAttribute(name, data[name]);
+      }
     }
   }
 };

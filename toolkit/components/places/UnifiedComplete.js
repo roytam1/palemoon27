@@ -506,8 +506,9 @@ XPCOMUtils.defineLazyGetter(this, "Prefs", () => {
  *        The text to unescape and modify.
  * @return the modified spec.
  */
-function fixupSearchText(spec)
-  textURIService.unEscapeURIForUI("UTF-8", stripPrefix(spec));
+function fixupSearchText(spec) {
+  return textURIService.unEscapeURIForUI("UTF-8", stripPrefix(spec));
+}
 
 /**
  * Generates the tokens used in searching from a given string.
@@ -519,8 +520,9 @@ function fixupSearchText(spec)
  *       empty string.  We don't want that, as it'll break our logic, so return
  *       an empty array then.
  */
-function getUnfilteredSearchTokens(searchString)
-  searchString.length ? searchString.split(REGEXP_SPACES) : [];
+function getUnfilteredSearchTokens(searchString) {
+  return searchString.length ? searchString.split(REGEXP_SPACES) : [];
+}
 
 /**
  * Strip prefixes from the URI that we don't care about for searching.
@@ -583,6 +585,14 @@ function makeActionURL(action, params) {
   return NetUtil.newURI(url).spec;
 }
 
+/**
+ * Returns whether the passed in string looks like a url.
+ */
+function looksLikeUrl(str) {
+  // Single word not including special chars.
+  return !REGEXP_SPACES.test(str) &&
+         ["/", "@", ":", "."].some(c => str.includes(c));
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -630,6 +640,7 @@ function Search(searchString, searchParam, autocompleteListener,
   this._enableActions = params.has("enable-actions");
   this._disablePrivateActions = params.has("disable-private-actions");
   this._inPrivateWindow = params.has("private-window");
+  this._prohibitAutoFill = params.has("prohibit-autofill");
 
   this._searchTokens =
     this.filterTokens(getUnfilteredSearchTokens(this._searchString));
@@ -953,9 +964,11 @@ Search.prototype = {
           let [match, suggestion] = this._searchSuggestionController.consume();
           if (!suggestion)
             break;
-          // Don't include the restrict token, if present.
-          let searchString = this._searchTokens.join(" ");
-          this._addSearchEngineMatch(match, searchString, suggestion);
+          if (!looksLikeUrl(suggestion)) {
+            // Don't include the restrict token, if present.
+            let searchString = this._searchTokens.join(" ");
+            this._addSearchEngineMatch(match, searchString, suggestion);
+          }
         }
       });
 
@@ -985,9 +998,7 @@ Search.prototype = {
 
     // Disallow fetching search suggestions for strings looking like URLs, to
     // avoid disclosing information about networks or passwords.
-    return tokens.some(token => {
-      return ["/", "@", ":", "."].some(c => token.includes(c));
-    });
+    return tokens.some(looksLikeUrl);
   },
 
   _matchKnownUrl: function* (conn) {
@@ -1533,18 +1544,20 @@ Search.prototype = {
    * @return an array consisting of the correctly optimized query to search the
    *         database with and an object containing the params to bound.
    */
-  get _switchToTabQuery() [
-    SQL_SWITCHTAB_QUERY,
-    {
-      query_type: QUERYTYPE_FILTERED,
-      matchBehavior: this._matchBehavior,
-      searchBehavior: this._behavior,
-      // We only want to search the tokens that we are left with - not the
-      // original search string.
-      searchString: this._searchTokens.join(" "),
-      maxResults: Prefs.maxRichResults
-    }
-  ],
+  get _switchToTabQuery() {
+    return [
+      SQL_SWITCHTAB_QUERY,
+      {
+        query_type: QUERYTYPE_FILTERED,
+        matchBehavior: this._matchBehavior,
+        searchBehavior: this._behavior,
+        // We only want to search the tokens that we are left with - not the
+        // original search string.
+        searchString: this._searchTokens.join(" "),
+        maxResults: Prefs.maxRichResults
+      }
+    ];
+  },
 
   /**
    * Obtains the query to search for adaptive results.
@@ -1552,16 +1565,18 @@ Search.prototype = {
    * @return an array consisting of the correctly optimized query to search the
    *         database with and an object containing the params to bound.
    */
-  get _adaptiveQuery() [
-    SQL_ADAPTIVE_QUERY,
-    {
-      parent: PlacesUtils.tagsFolderId,
-      search_string: this._searchString,
-      query_type: QUERYTYPE_FILTERED,
-      matchBehavior: this._matchBehavior,
-      searchBehavior: this._behavior
-    }
-  ],
+  get _adaptiveQuery() {
+    return [
+      SQL_ADAPTIVE_QUERY,
+      {
+        parent: PlacesUtils.tagsFolderId,
+        search_string: this._searchString,
+        query_type: QUERYTYPE_FILTERED,
+        matchBehavior: this._matchBehavior,
+        searchBehavior: this._behavior
+      }
+    ];
+  },
 
   /**
    * Whether we should try to autoFill.
@@ -1591,6 +1606,9 @@ Search.prototype = {
       return false;
 
     if (this._searchString.length == 0)
+      return false;
+
+    if (this._prohibitAutoFill)
       return false;
 
     return true;
@@ -1833,7 +1851,13 @@ UnifiedComplete.prototype = {
   //////////////////////////////////////////////////////////////////////////////
   //// nsIAutoCompleteSearchDescriptor
 
-  get searchType() Ci.nsIAutoCompleteSearchDescriptor.SEARCH_TYPE_IMMEDIATE,
+  get searchType() {
+    return Ci.nsIAutoCompleteSearchDescriptor.SEARCH_TYPE_IMMEDIATE;
+  },
+
+  get clearingAutoFillSearchesAgain() {
+    return true;
+  },
 
   //////////////////////////////////////////////////////////////////////////////
   //// nsISupports

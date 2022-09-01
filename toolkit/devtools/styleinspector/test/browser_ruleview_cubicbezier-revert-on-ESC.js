@@ -48,6 +48,6 @@ function* testPressingEscapeRevertsChanges(swatch, ruleView) {
   yield onHidden;
 
   yield waitForSuccess(() => {
-    return content.getComputedStyle(content.document.body).animationTimingFunction === "cubic-bezier(0, 0, 1, 1)";
+    return content.getComputedStyle(content.document.body).animationTimingFunction === "linear";
   }, "Waiting for the change to be reverted on the element");
 }

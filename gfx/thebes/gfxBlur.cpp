@@ -482,6 +482,9 @@ CreateBlurMask(const IntSize& aRectSize,
 
   IntPoint topLeft;
   RefPtr<SourceSurface> result = blur.DoBlur(&aDestDrawTarget, &topLeft);
+  if (!result) {
+    return nullptr;
+  }
 
   IntRect expandedMinRect(topLeft, result->GetSize());
   aExtendDestBy = expandedMinRect - minRect;
@@ -504,8 +507,6 @@ CreateBoxShadow(SourceSurface* aBlurMask, const Color& aShadowColor)
   if (!boxShadowDT) {
     return nullptr;
   }
-
-  MOZ_ASSERT(boxShadowDT->GetType() == aDT.GetType());
 
   ColorPattern shadowColor(ToDeviceColor(aShadowColor));
   boxShadowDT->MaskSurface(shadowColor, aBlurMask, Point(0, 0));
@@ -576,7 +577,7 @@ RepeatOrStretchSurface(DrawTarget& aDT, SourceSurface* aSurface,
   }
 
   if ((!aDT.GetTransform().IsRectilinear() &&
-      aDT.GetBackendType() != BackendType::CAIRO) ||
+       aDT.GetBackendType() != BackendType::CAIRO) ||
       (aDT.GetBackendType() == BackendType::DIRECT2D)) {
     // Use stretching if possible, since it leads to less seams when the
     // destination is transformed. However, don't do this if we're using cairo,
@@ -794,7 +795,9 @@ ComputeRectsForInsetBoxShadow(IntSize aBlurRadius,
                               Rect& aOutInnerRect,
                               Margin& aOutPathMargins,
                               const Rect& aDestRect,
-                              const Rect& aShadowClipRect)
+                              const Rect& aShadowClipRect,
+                              bool aHasBorderRadius,
+                              const RectCornerRadii& aInnerClipRectRadii)
 {
   IntSize marginSize = aBlurRadius + aSpreadRadius;
   aOutPathMargins.SizeTo(marginSize.height, marginSize.width, marginSize.height, marginSize.width);
@@ -813,6 +816,16 @@ ComputeRectsForInsetBoxShadow(IntSize aBlurRadius,
   // The outer path rect needs to be 1 blur radius past the inner edges
   aOutOuterRect.width = aOutInnerRect.XMost() + marginSize.width;
   aOutOuterRect.height = aOutInnerRect.YMost() + marginSize.height;
+
+  if (aHasBorderRadius) {
+    for (int i = 0; i < 4; i++) {
+      aOutInnerRect.width += aInnerClipRectRadii[i].width;
+      aOutInnerRect.height += aInnerClipRectRadii[i].height;
+
+      aOutOuterRect.width += aInnerClipRectRadii[i].width;
+      aOutOuterRect.height += aInnerClipRectRadii[i].height;
+    }
+  }
 
   if ((aOutOuterRect.width >= aDestRect.width) ||
       (aOutOuterRect.height >= aDestRect.height) ||
@@ -974,9 +987,9 @@ gfxAlphaBoxBlur::BlurInsetBox(gfxContext* aDestinationCtx,
   Margin pathMargins;
   ComputeRectsForInsetBoxShadow(aBlurRadius, aSpreadRadius,
                                 outerRect, innerRect,
-                                pathMargins,
-                                aDestinationRect,
-                                aShadowClipRect);
+                                pathMargins, aDestinationRect,
+                                aShadowClipRect, aHasBorderRadius,
+                                aInnerClipRadii);
 
   IntPoint topLeft;
   RefPtr<SourceSurface> minInsetBlur = GetInsetBlur(outerRect, innerRect,

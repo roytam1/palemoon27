@@ -52,13 +52,18 @@
 #include "gfxGraphiteShaper.h"
 #include "gfx2DGlue.h"
 #include "gfxGradientCache.h"
+#include "gfxUtils.h" // for NextPowerOfTwo
 
 #include "nsUnicodeRange.h"
 #include "nsServiceManagerUtils.h"
 #include "nsTArray.h"
 #include "nsILocaleService.h"
 #include "nsIObserverService.h"
+#include "nsIScreenManager.h"
 #include "MainThreadUtils.h"
+#ifdef MOZ_CRASHREPORTER
+#include "nsExceptionHandler.h"
+#endif
 
 #include "nsWeakReference.h"
 
@@ -86,12 +91,20 @@
 #endif
 
 #include "mozilla/Hal.h"
+
 #ifdef USE_SKIA
-#include "skia/include/core/SkGraphics.h"
+# ifdef __GNUC__
+#  pragma GCC diagnostic push
+#  pragma GCC diagnostic ignored "-Wshadow"
+# endif
+# include "skia/include/core/SkGraphics.h"
 # ifdef USE_SKIA_GPU
 #  include "skia/include/gpu/GrContext.h"
 #  include "skia/include/gpu/gl/GrGLInterface.h"
 #  include "SkiaGLGlue.h"
+# endif
+# ifdef __GNUC__
+#  pragma GCC diagnostic pop // -Wshadow
 # endif
 #endif
 
@@ -351,71 +364,26 @@ MemoryPressureObserver::Observe(nsISupports *aSubject,
     return NS_OK;
 }
 
-// this needs to match the list of pref font.default.xx entries listed in all.js!
-// the order *must* match the order in eFontPrefLang
+// xxx - this can probably be eliminated by reworking pref font handling code
 static const char *gPrefLangNames[] = {
-    "x-western",
-    "ja",
-    "zh-TW",
-    "zh-CN",
-    "zh-HK",
-    "ko",
-    "x-cyrillic",
-    "el",
-    "th",
-    "he",
-    "ar",
-    "x-devanagari",
-    "x-tamil",
-    "x-armn",
-    "x-beng",
-    "x-cans",
-    "x-ethi",
-    "x-geor",
-    "x-gujr",
-    "x-guru",
-    "x-khmr",
-    "x-mlym",
-    "x-orya",
-    "x-telu",
-    "x-knda",
-    "x-sinh",
-    "x-tibt",
-    "x-unicode",
+    #define FONT_PREF_LANG(enum_id_, str_, atom_id_) str_
+    #include "gfxFontPrefLangList.h"
+    #undef FONT_PREF_LANG
 };
 
-// this needs to match the list of pref font.default.xx entries listed in all.js!
-// the order *must* match the order in eFontPrefLang
-static nsIAtom* gPrefLangToLangGroups[] = {
-    nsGkAtoms::x_western,
-    nsGkAtoms::Japanese,
-    nsGkAtoms::Taiwanese,
-    nsGkAtoms::Chinese,
-    nsGkAtoms::HongKongChinese,
-    nsGkAtoms::ko,
-    nsGkAtoms::x_cyrillic,
-    nsGkAtoms::el,
-    nsGkAtoms::th,
-    nsGkAtoms::he,
-    nsGkAtoms::ar,
-    nsGkAtoms::x_devanagari,
-    nsGkAtoms::x_tamil,
-    nsGkAtoms::x_armn,
-    nsGkAtoms::x_beng,
-    nsGkAtoms::x_cans,
-    nsGkAtoms::x_ethi,
-    nsGkAtoms::x_geor,
-    nsGkAtoms::x_gujr,
-    nsGkAtoms::x_guru,
-    nsGkAtoms::x_khmr,
-    nsGkAtoms::x_mlym,
-    nsGkAtoms::x_orya,
-    nsGkAtoms::x_telu,
-    nsGkAtoms::x_knda,
-    nsGkAtoms::x_sinh,
-    nsGkAtoms::x_tibt,
-    nsGkAtoms::Unicode
-};
+static nsIAtom* PrefLangToLangGroups(uint32_t aIndex)
+{
+    // static array here avoids static constructor
+    static nsIAtom* gPrefLangToLangGroups[] = {
+        #define FONT_PREF_LANG(enum_id_, str_, atom_id_) nsGkAtoms::atom_id_
+        #include "gfxFontPrefLangList.h"
+        #undef FONT_PREF_LANG
+    };
+
+    return aIndex < ArrayLength(gPrefLangToLangGroups)
+         ? gPrefLangToLangGroups[aIndex]
+         : nsGkAtoms::Unicode;
+}
 
 gfxPlatform::gfxPlatform()
   : mTileWidth(-1)
@@ -423,6 +391,7 @@ gfxPlatform::gfxPlatform()
   , mAzureCanvasBackendCollector(this, &gfxPlatform::GetAzureBackendInfo)
   , mApzSupportCollector(this, &gfxPlatform::GetApzSupportInfo)
   , mCompositorBackend(layers::LayersBackend::LAYERS_NONE)
+  , mScreenDepth(0)
 {
     mAllowDownloadableFonts = UNINITIALIZED_VALUE;
     mFallbackUsesCmaps = UNINITIALIZED_VALUE;
@@ -546,6 +515,9 @@ gfxPlatform::Init()
 
     InitLayersAccelerationPrefs();
     InitLayersIPC();
+
+    gPlatform->PopulateScreenInfo();
+    gPlatform->ComputeTileSize();
 
     nsresult rv;
 
@@ -719,14 +691,10 @@ gfxPlatform::InitLayersIPC()
     if (XRE_IsParentProcess())
     {
         mozilla::layers::CompositorParent::StartUp();
-#ifndef MOZ_WIDGET_GONK
-        if (gfxPrefs::AsyncVideoEnabled()) {
-            mozilla::layers::ImageBridgeChild::StartUp();
-        }
-#else
-        mozilla::layers::ImageBridgeChild::StartUp();
+#ifdef MOZ_WIDGET_GONK
         SharedBufferManagerChild::StartUp();
 #endif
+        mozilla::layers::ImageBridgeChild::StartUp();
     }
 }
 
@@ -1051,31 +1019,53 @@ gfxPlatform::ComputeTileSize()
   // The tile size should be picked in the parent processes
   // and sent to the child processes over IPDL GetTileSize.
   if (!XRE_IsParentProcess()) {
-    NS_RUNTIMEABORT("wrong process.");
+    return;
   }
 
   int32_t w = gfxPrefs::LayersTileWidth();
   int32_t h = gfxPrefs::LayersTileHeight();
 
-  // TODO We may want to take the screen size into consideration here.
   if (gfxPrefs::LayersTilesAdjust()) {
+    gfx::IntSize screenSize = GetScreenSize();
+    if (screenSize.width > 0) {
+      // FIXME: we should probably make sure this is within the max texture size,
+      // but I think everything should at least support 1024
+      w = h = std::max(std::min(NextPowerOfTwo(screenSize.width) / 2, 1024), 256);
+    }
+
 #ifdef MOZ_WIDGET_GONK
-    int32_t format = android::PIXEL_FORMAT_RGBA_8888;
     android::sp<android::GraphicBuffer> alloc =
-      new android::GraphicBuffer(gfxPrefs::LayersTileWidth(), gfxPrefs::LayersTileHeight(),
-                                 format,
-                                 android::GraphicBuffer::USAGE_SW_READ_OFTEN |
-                                 android::GraphicBuffer::USAGE_SW_WRITE_OFTEN |
-                                 android::GraphicBuffer::USAGE_HW_TEXTURE);
+          new android::GraphicBuffer(w, h, android::PIXEL_FORMAT_RGBA_8888,
+                                     android::GraphicBuffer::USAGE_SW_READ_OFTEN |
+                                     android::GraphicBuffer::USAGE_SW_WRITE_OFTEN |
+                                     android::GraphicBuffer::USAGE_HW_TEXTURE);
 
     if (alloc.get()) {
       w = alloc->getStride(); // We want the tiles to be gralloc stride aligned.
-      // No need to adjust the height here.
     }
 #endif
   }
 
   SetTileSize(w, h);
+}
+
+void
+gfxPlatform::PopulateScreenInfo()
+{
+  nsCOMPtr<nsIScreenManager> manager = do_GetService("@mozilla.org/gfx/screenmanager;1");
+  MOZ_ASSERT(manager, "failed to get nsIScreenManager");
+
+  nsCOMPtr<nsIScreen> screen;
+  manager->GetPrimaryScreen(getter_AddRefs(screen));
+  if (!screen) {
+    // This can happen in xpcshell, for instance
+    return;
+  }
+
+  screen->GetColorDepth(&mScreenDepth);
+
+  int left, top;
+  screen->GetRect(&left, &top, &mScreenSize.width, &mScreenSize.height);
 }
 
 bool
@@ -1512,10 +1502,7 @@ gfxPlatform::GetLangGroupForPrefLang(eFontPrefLang aLang)
     // calls to individual CJK pref langs before getting here
     NS_ASSERTION(aLang != eFontPrefLang_CJKSet, "unresolved CJK set pref lang");
 
-    if (uint32_t(aLang) < ArrayLength(gPrefLangToLangGroups)) {
-        return gPrefLangToLangGroups[uint32_t(aLang)];
-    }
-    return nsGkAtoms::Unicode;
+    return PrefLangToLangGroups(uint32_t(aLang));
 }
 
 const char*
@@ -2171,13 +2158,6 @@ gfxPlatform::GetLog(eGfxLog aWhichLog)
     }
 
     return nullptr;
-}
-
-int
-gfxPlatform::GetScreenDepth() const
-{
-    NS_WARNING("GetScreenDepth not implemented on this platform -- returning 0!");
-    return 0;
 }
 
 mozilla::gfx::SurfaceFormat

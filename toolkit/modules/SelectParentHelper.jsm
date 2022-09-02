@@ -37,9 +37,6 @@ this.SelectParentHelper = {
   },
 
   handleEvent: function(event) {
-    let popup = event.currentTarget;
-    let menulist = popup.parentNode;
-
     switch (event.type) {
       case "command":
         if (event.target.hasAttribute("value")) {
@@ -47,14 +44,14 @@ this.SelectParentHelper = {
             value: event.target.value
           });
         }
-        popup.hidePopup();
         break;
 
       case "popuphidden":
         currentBrowser.messageManager.sendAsyncMessage("Forms:DismissedDropDown", {});
         currentBrowser = null;
+        let popup = event.target;
         this._unregisterListeners(popup);
-        menulist.hidden = true;
+        popup.parentNode.hidden = true;
         break;
     }
   },

@@ -588,7 +588,6 @@ statuspanel {
   -moz-binding: url("chrome://browser/content/tabbrowser.xml#statuspanel");
   position: fixed;
   margin-top: -3em;
-  left: 0;
   max-width: calc(100% - 5px);
   pointer-events: none;
 }
@@ -770,12 +769,7 @@ toolbarbutton[pmkit-button="true"] > .toolbarbutton-badge-container > .toolbarbu
   max-height: 350px;
 }
 
-.contentSelectDropdown-optgroup {
-  font-weight: bold;
-  /* color: menutext used to overwrite the disabled color */
-  color: menutext;
-}
-
-.contentSelectDropdown-ingroup {
-  -moz-margin-start: 2em;
+/* Indent options in optgroups */
+.contentSelectDropdown-ingroup .menu-iconic-text {
+  -moz-padding-start: 2em;
 }

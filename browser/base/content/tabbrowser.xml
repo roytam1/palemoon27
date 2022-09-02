@@ -199,7 +199,33 @@
 
           aTab._findBar = findBar;
 
+          let event = document.createEvent("Events");
+          event.initEvent("TabFindInitialized", true, false);
+          aTab.dispatchEvent(event);
+
           return findBar;
+        ]]></body>
+      </method>
+
+      <method name="getStatusPanel">
+        <body><![CDATA[
+          if (!this._statusPanel) {
+            this._statusPanel = document.createElementNS(this.namespaceURI, "statuspanel");
+            this._statusPanel.setAttribute("inactive", "true");
+            this._statusPanel.setAttribute("layer", "true");
+            this._appendStatusPanel();
+          }
+          return this._statusPanel;
+        ]]></body>
+      </method>
+
+      <method name="_appendStatusPanel">
+        <body><![CDATA[
+          if (this._statusPanel) {
+            let browser = this.selectedBrowser;
+            let browserContainer = this.getBrowserContainer(browser);
+            browserContainer.insertBefore(this._statusPanel, browser.parentNode.nextSibling);
+          }
         ]]></body>
       </method>
 
@@ -1113,6 +1139,8 @@
                 backForwardContainer.removeAttribute("switchingtabs");
               });
             }
+
+            this._appendStatusPanel();
 
             if (updateBlockedPopups)
               this.mCurrentBrowser.updateBlockedPopups();
@@ -2504,6 +2532,7 @@
             let modifiedAttrs = [];
             if (aOtherTab.hasAttribute("muted")) {
               aOurTab.setAttribute("muted", "true");
+              ourBrowser.mute();
               modifiedAttrs.push("muted");
             }
             if (aOtherTab.hasAttribute("soundplaying")) {
@@ -5426,11 +5455,27 @@
         canvas.mozOpaque = true;
         canvas.width = 160 * scale;
         canvas.height = 90 * scale;
-        if (!gMultiProcessBrowser) {
-          // Bug 863512 - Make page thumbnails work in e10s
+        let toDrag;
+        if (gMultiProcessBrowser) {
+          // Create a panel to use it in setDragImage
+          // which will tell xul to render a panel that follows
+          // the pointer while a dnd session is on.
+          var panel = document.createElement("panel");
+          panel.setAttribute("type", "drag");
+          panel.appendChild(canvas);
+          document.documentElement.appendChild(panel);
+          // PageThumb is async with e10s but that's fine
+          // since we can update the panel during the dnd.
           PageThumbs.captureToCanvas(browser, canvas);
+          toDrag = panel;
+        } else {
+          // For the non e10s case we can just use PageThumbs
+          // sync. No need for xul magic, the native dnd will
+          // be fine, so let's use the canvas for setDragImage.
+          PageThumbs.captureToCanvas(browser, canvas);
+          toDrag = canvas;
         }
-        dt.setDragImage(canvas, -16 * scale, -16 * scale);
+        dt.setDragImage(toDrag, -16 * scale, -16 * scale);
 
         // _dragData.offsetX/Y give the coordinates that the mouse should be
         // positioned relative to the corner of the new window created upon

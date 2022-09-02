@@ -921,6 +921,7 @@ var gBrowserInit = {
     DOMLinkHandler.init();
     gPageStyleMenu.init();
     BrowserOnClick.init();
+    FeedHandler.init();
     DevEdition.init();
     AboutPrivateBrowsingListener.init();
     
@@ -3985,8 +3986,7 @@ var XULBrowserWindow = {
     return this.reloadCommand = document.getElementById("Browser:Reload");
   },
   get statusTextField () {
-    delete this.statusTextField;
-    return this.statusTextField = document.getElementById("statusbar-display");
+    return gBrowser.getStatusPanel();
   },
   get isImage () {
     delete this.isImage;
@@ -4012,7 +4012,6 @@ var XULBrowserWindow = {
     delete this.throbberElement;
     delete this.stopCommand;
     delete this.reloadCommand;
-    delete this.statusTextField;
     delete this.statusText;
   },
 

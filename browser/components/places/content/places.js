@@ -1412,7 +1412,7 @@ var ViewMenu = {
   }
 }
 
-let ContentArea = {
+var ContentArea = {
   _specialViews: new Map(),
 
   init: function CA_init() {
@@ -1550,7 +1550,7 @@ let ContentArea = {
   }
 };
 
-let ContentTree = {
+var ContentTree = {
   init: function CT_init() {
     this._view = document.getElementById("placeContent");
   },

@@ -5871,7 +5871,9 @@ PanGestureTypeForEvent(NSEvent* aEvent)
   if (dragService) {
     NSPoint pnt = [NSEvent mouseLocation];
     FlipCocoaScreenCoordinate(pnt);
-    dragService->DragMoved(NSToIntRound(pnt.x), NSToIntRound(pnt.y));
+
+    nsIntPoint devPoint = mGeckoChild->CocoaPointsToDevPixels(pnt);
+    dragService->DragMoved(devPoint.x, devPoint.y);
   }
 }
 

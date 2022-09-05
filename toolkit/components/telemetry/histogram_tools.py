@@ -313,9 +313,9 @@ the histograms defined in filenames.
                 raise DefinitionException, "duplicate histogram name %s" % name
             all_histograms[name] = definition
 
-    # We require that all USE_COUNTER_* histograms be defined in a contiguous
+    # We require that all USE_COUNTER2_* histograms be defined in a contiguous
     # block.
-    use_counter_indices = filter(lambda x: x[1].startswith("USE_COUNTER_"),
+    use_counter_indices = filter(lambda x: x[1].startswith("USE_COUNTER2_"),
                                  enumerate(all_histograms.iterkeys()));
     if use_counter_indices:
         lower_bound = use_counter_indices[0][0]

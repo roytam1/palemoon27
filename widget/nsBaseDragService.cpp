@@ -57,7 +57,7 @@ nsBaseDragService::nsBaseDragService()
     mDragEventDispatchedToChildProcess(false),
     mDragAction(DRAGDROP_ACTION_NONE),
     mDragActionFromChildProcess(DRAGDROP_ACTION_UNINITIALIZED), mTargetSize(0,0),
-    mImageX(0), mImageY(0), mScreenX(-1), mScreenY(-1), mSuppressLevel(0),
+    mScreenX(-1), mScreenY(-1), mSuppressLevel(0),
     mInputSource(nsIDOMMouseEvent::MOZ_SOURCE_MOUSE),
     mEndingSession(false)
 {
@@ -248,8 +248,7 @@ nsBaseDragService::InvokeDragSessionWithImage(nsIDOMNode* aDOMNode,
   mHasImage = true;
   mDragPopup = nullptr;
   mImage = aImage;
-  mImageX = aImageX;
-  mImageY = aImageY;
+  mImageOffset = CSSIntPoint(aImageX, aImageY);
 
   aDragEvent->GetScreenX(&mScreenX);
   aDragEvent->GetScreenY(&mScreenY);
@@ -274,8 +273,7 @@ nsBaseDragService::InvokeDragSessionWithSelection(nsISelection* aSelection,
   mHasImage = true;
   mDragPopup = nullptr;
   mImage = nullptr;
-  mImageX = 0;
-  mImageY = 0;
+  mImageOffset = CSSIntPoint();
 
   aDragEvent->GetScreenX(&mScreenX);
   aDragEvent->GetScreenY(&mScreenY);
@@ -329,7 +327,8 @@ nsBaseDragService::OpenDragPopup()
   if (mDragPopup) {
     nsXULPopupManager* pm = nsXULPopupManager::GetInstance();
     if (pm) {
-      pm->ShowPopupAtScreen(mDragPopup, mScreenX - mImageX, mScreenY - mImageY, false, nullptr);
+      pm->ShowPopupAtScreen(mDragPopup, mScreenX - mImageOffset.x,
+                            mScreenY - mImageOffset.y, false, nullptr);
     }
   }
 }
@@ -388,8 +387,7 @@ nsBaseDragService::EndDragSession(bool aDoneDrag)
   mUserCancelled = false;
   mDragPopup = nullptr;
   mImage = nullptr;
-  mImageX = 0;
-  mImageY = 0;
+  mImageOffset = CSSIntPoint();
   mScreenX = -1;
   mScreenY = -1;
   mEndDragPoint = nsIntPoint(0, 0);
@@ -399,7 +397,7 @@ nsBaseDragService::EndDragSession(bool aDoneDrag)
 }
 
 NS_IMETHODIMP
-nsBaseDragService::FireDragEventAtSource(uint32_t aMsg)
+nsBaseDragService::FireDragEventAtSource(EventMessage aEventMessage)
 {
   if (mSourceNode && !mSuppressLevel) {
     nsCOMPtr<nsIDocument> doc = do_QueryInterface(mSourceDocument);
@@ -407,9 +405,9 @@ nsBaseDragService::FireDragEventAtSource(uint32_t aMsg)
       nsCOMPtr<nsIPresShell> presShell = doc->GetShell();
       if (presShell) {
         nsEventStatus status = nsEventStatus_eIgnore;
-        WidgetDragEvent event(true, static_cast<EventMessage>(aMsg), nullptr);
+        WidgetDragEvent event(true, aEventMessage, nullptr);
         event.inputSource = mInputSource;
-        if (aMsg == eDragEnd) {
+        if (aEventMessage == eDragEnd) {
           event.refPoint.x = mEndDragPoint.x;
           event.refPoint.y = mEndDragPoint.y;
           event.userCancelled = mUserCancelled;
@@ -434,7 +432,9 @@ nsBaseDragService::DragMoved(int32_t aX, int32_t aY)
   if (mDragPopup) {
     nsIFrame* frame = mDragPopup->GetPrimaryFrame();
     if (frame && frame->GetType() == nsGkAtoms::menuPopupFrame) {
-      (static_cast<nsMenuPopupFrame *>(frame))->MoveTo(aX - mImageX, aY - mImageY, true);
+      CSSIntPoint cssPos = RoundedToInt(LayoutDeviceIntPoint(aX, aY) /
+          frame->PresContext()->CSSToDevPixelScale()) - mImageOffset;
+      (static_cast<nsMenuPopupFrame *>(frame))->MoveTo(cssPos, true);
     }
   }
 
@@ -470,8 +470,8 @@ nsBaseDragService::DrawDrag(nsIDOMNode* aDOMNode,
   *aPresContext = nullptr;
 
   // use a default size, in case of an error.
-  aScreenDragRect->x = aScreenX - mImageX;
-  aScreenDragRect->y = aScreenY - mImageY;
+  aScreenDragRect->x = aScreenX - mImageOffset.x;
+  aScreenDragRect->y = aScreenY - mImageOffset.y;
   aScreenDragRect->width = 1;
   aScreenDragRect->height = 1;
 
@@ -520,8 +520,8 @@ nsBaseDragService::DrawDrag(nsIDOMNode* aDOMNode,
   int32_t sx = aScreenX, sy = aScreenY;
   ConvertToUnscaledDevPixels(*aPresContext, &sx, &sy);
 
-  aScreenDragRect->x = sx - mImageX;
-  aScreenDragRect->y = sy - mImageY;
+  aScreenDragRect->x = sx - mImageOffset.x;
+  aScreenDragRect->y = sy - mImageOffset.y;
 
   // check if drag images are disabled
   bool enableDragImages = Preferences::GetBool(DRAGIMAGES_PREF, true);
@@ -610,8 +610,8 @@ nsBaseDragService::DrawDrag(nsIDOMNode* aDOMNode,
   // if an image was specified, reposition the drag rectangle to
   // the supplied offset in mImageX and mImageY.
   if (mImage) {
-    aScreenDragRect->x = sx - mImageX;
-    aScreenDragRect->y = sy - mImageY;
+    aScreenDragRect->x = sx - mImageOffset.x;
+    aScreenDragRect->y = sy - mImageOffset.y;
   }
 
   return NS_OK;
@@ -655,29 +655,6 @@ nsBaseDragService::DrawDragForImage(nsPresContext* aPresContext,
 
   if (destSize.width == 0 || destSize.height == 0)
     return NS_ERROR_FAILURE;
-
-  // if the image is larger than half the screen size, scale it down. This
-  // scaling algorithm is the same as is used in nsPresShell::PaintRangePaintInfo
-  nsDeviceContext* deviceContext = aPresContext->DeviceContext();
-  nsRect maxSize;
-  deviceContext->GetClientRect(maxSize);
-  nscoord maxWidth = aPresContext->AppUnitsToDevPixels(maxSize.width >> 1);
-  nscoord maxHeight = aPresContext->AppUnitsToDevPixels(maxSize.height >> 1);
-  if (destSize.width > maxWidth || destSize.height > maxHeight) {
-    float scale = 1.0;
-    if (destSize.width > maxWidth)
-      scale = std::min(scale, float(maxWidth) / destSize.width);
-    if (destSize.height > maxHeight)
-      scale = std::min(scale, float(maxHeight) / destSize.height);
-
-    destSize.width = NSToIntFloor(float(destSize.width) * scale);
-    destSize.height = NSToIntFloor(float(destSize.height) * scale);
-
-    aScreenDragRect->x = NSToIntFloor(aScreenX - float(mImageX) * scale);
-    aScreenDragRect->y = NSToIntFloor(aScreenY - float(mImageY) * scale);
-    aScreenDragRect->width = destSize.width;
-    aScreenDragRect->height = destSize.height;
-  }
 
   nsresult result = NS_OK;
   if (aImageLoader) {

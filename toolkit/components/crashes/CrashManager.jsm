@@ -683,7 +683,7 @@ this.CrashManager.prototype = Object.freeze({
   },
 });
 
-let gCrashManager;
+var gCrashManager;
 
 /**
  * Interface to storage of crash data.

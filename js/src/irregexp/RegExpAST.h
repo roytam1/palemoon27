@@ -33,9 +33,12 @@
 
 #include "irregexp/RegExpEngine.h"
 
-#ifdef _MSC_VER
-#undef min
-#undef max
+// Prevent msvc build failures as indicated in bug 1205328
+#ifdef min
+# undef min
+#endif
+#ifdef max
+# undef max
 #endif
 
 namespace js {

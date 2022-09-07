@@ -108,5 +108,5 @@ PlacesCategoriesStarter.prototype = {
 ////////////////////////////////////////////////////////////////////////////////
 //// Module Registration
 
-let components = [PlacesCategoriesStarter];
+var components = [PlacesCategoriesStarter];
 this.NSGetFactory = XPCOMUtils.generateNSGetFactory(components);

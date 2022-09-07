@@ -3,17 +3,15 @@
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 /* global PrefCache, Roles, Prefilters, States, Filters, Utils,
-   TraversalRules */
-/* exported TraversalRules */
+   TraversalRules, Components, XPCOMUtils */
+/* exported TraversalRules, TraversalHelper */
 
 'use strict';
 
-const Cc = Components.classes;
 const Ci = Components.interfaces;
 const Cu = Components.utils;
-const Cr = Components.results;
 
-this.EXPORTED_SYMBOLS = ['TraversalRules']; // jshint ignore:line
+this.EXPORTED_SYMBOLS = ['TraversalRules', 'TraversalHelper']; // jshint ignore:line
 
 Cu.import('resource://gre/modules/accessibility/Utils.jsm');
 Cu.import('resource://gre/modules/XPCOMUtils.jsm');
@@ -26,26 +24,29 @@ XPCOMUtils.defineLazyModuleGetter(this, 'States',  // jshint ignore:line
 XPCOMUtils.defineLazyModuleGetter(this, 'Prefilters',  // jshint ignore:line
   'resource://gre/modules/accessibility/Constants.jsm');
 
-let gSkipEmptyImages = new PrefCache('accessibility.accessfu.skip_empty_images');
+var gSkipEmptyImages = new PrefCache('accessibility.accessfu.skip_empty_images');
 
-function BaseTraversalRule(aRoles, aMatchFunc, aPreFilter) {
+function BaseTraversalRule(aRoles, aMatchFunc, aPreFilter, aContainerRule) {
   this._explicitMatchRoles = new Set(aRoles);
   this._matchRoles = aRoles;
-  if (aRoles.indexOf(Roles.LABEL) < 0) {
-    this._matchRoles.push(Roles.LABEL);
-  }
-  if (aRoles.indexOf(Roles.INTERNAL_FRAME) < 0) {
-    // Used for traversing in to child OOP frames.
-    this._matchRoles.push(Roles.INTERNAL_FRAME);
+  if (aRoles.length) {
+    if (aRoles.indexOf(Roles.LABEL) < 0) {
+      this._matchRoles.push(Roles.LABEL);
+    }
+    if (aRoles.indexOf(Roles.INTERNAL_FRAME) < 0) {
+      // Used for traversing in to child OOP frames.
+      this._matchRoles.push(Roles.INTERNAL_FRAME);
+    }
   }
   this._matchFunc = aMatchFunc || function() { return Filters.MATCH; };
   this.preFilter = aPreFilter || gSimplePreFilter;
+  this.containerRule = aContainerRule;
 }
 
 BaseTraversalRule.prototype = {
-    getMatchRoles: function BaseTraversalRule_getmatchRoles(aRules) {
-      aRules.value = this._matchRoles;
-      return aRules.value.length;
+    getMatchRoles: function BaseTraversalRule_getmatchRoles(aRoles) {
+      aRoles.value = this._matchRoles;
+      return aRoles.value.length;
     },
 
     match: function BaseTraversalRule_match(aAccessible)
@@ -56,8 +57,9 @@ BaseTraversalRule.prototype = {
           Filters.MATCH  | Filters.IGNORE_SUBTREE : Filters.IGNORE;
       }
 
-      let matchResult = this._explicitMatchRoles.has(role) ?
-          this._matchFunc(aAccessible) : Filters.IGNORE;
+      let matchResult =
+        (this._explicitMatchRoles.has(role) || !this._explicitMatchRoles.size) ?
+        this._matchFunc(aAccessible) : Filters.IGNORE;
 
       // If we are on a label that nests a checkbox/radio we should land on it.
       // It is a bigger touch target, and it reduces clutter.
@@ -103,7 +105,9 @@ var gSimpleTraversalRoles =
    Roles.GRID_CELL,
    Roles.COLUMNHEADER,
    Roles.ROWHEADER,
-   Roles.STATUSBAR];
+   Roles.STATUSBAR,
+   Roles.SWITCH,
+   Roles.MATHML_MATH];
 
 var gSimpleMatchFunc = function gSimpleMatchFunc(aAccessible) {
   // An object is simple, if it either has a single child lineage,
@@ -218,8 +222,7 @@ this.TraversalRules = { // jshint ignore:line
     function Landmark_match(aAccessible) {
       return Utils.getLandmarkName(aAccessible) ? Filters.MATCH :
         Filters.IGNORE;
-    }
-  ),
+    }, null, true),
 
   Entry: new BaseTraversalRule(
     [Roles.ENTRY,
@@ -240,7 +243,8 @@ this.TraversalRules = { // jshint ignore:line
      Roles.RADIO_MENU_ITEM,
      Roles.SLIDER,
      Roles.CHECKBUTTON,
-     Roles.CHECK_MENU_ITEM]),
+     Roles.CHECK_MENU_ITEM,
+     Roles.SWITCH]),
 
   Graphic: new BaseTraversalRule(
     [Roles.GRAPHIC],
@@ -272,7 +276,8 @@ this.TraversalRules = { // jshint ignore:line
 
   List: new BaseTraversalRule(
     [Roles.LIST,
-     Roles.DEFINITION_LIST]),
+     Roles.DEFINITION_LIST],
+    null, null, true),
 
   PageTab: new BaseTraversalRule(
     [Roles.PAGETAB]),
@@ -302,7 +307,8 @@ this.TraversalRules = { // jshint ignore:line
 
   Checkbox: new BaseTraversalRule(
     [Roles.CHECKBUTTON,
-     Roles.CHECK_MENU_ITEM]),
+     Roles.CHECK_MENU_ITEM,
+     Roles.SWITCH /* A type of checkbox that represents on/off values */]),
 
   _shouldSkipImage: function _shouldSkipImage(aAccessible) {
     if (gSkipEmptyImages.value && aAccessible.name === '') {
@@ -310,4 +316,52 @@ this.TraversalRules = { // jshint ignore:line
     }
     return Filters.MATCH;
   }
+};
+
+this.TraversalHelper = {
+  _helperPivotCache: null,
+
+  get helperPivotCache() {
+    delete this.helperPivotCache;
+    this.helperPivotCache = new WeakMap();
+    return this.helperPivotCache;
+  },
+
+  getHelperPivot: function TraversalHelper_getHelperPivot(aRoot) {
+    let pivot = this.helperPivotCache.get(aRoot.DOMNode);
+    if (!pivot) {
+      pivot = Utils.AccRetrieval.createAccessiblePivot(aRoot);
+      this.helperPivotCache.set(aRoot.DOMNode, pivot);
+    }
+
+    return pivot;
+  },
+
+  move: function TraversalHelper_move(aVirtualCursor, aMethod, aRule) {
+    let rule = TraversalRules[aRule];
+
+    if (rule.containerRule) {
+      let moved = false;
+      let helperPivot = this.getHelperPivot(aVirtualCursor.root);
+      helperPivot.position = aVirtualCursor.position;
+
+      // We continue to step through containers until there is one with an
+      // atomic child (via 'Simple') on which we could land.
+      while (!moved) {
+        if (helperPivot[aMethod](rule)) {
+          aVirtualCursor.modalRoot = helperPivot.position;
+          moved = aVirtualCursor.moveFirst(TraversalRules.Simple);
+          aVirtualCursor.modalRoot = null;
+        } else {
+          // If we failed to step to another container, break and return false.
+          break;
+        }
+      }
+
+      return moved;
+    } else {
+      return aVirtualCursor[aMethod](rule);
+    }
+  }
+
 };

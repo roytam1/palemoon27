@@ -456,7 +456,7 @@ function sqlList(list) {
  *      The `moz_places` identifiers for the places to invalidate.
  * @return (Promise)
  */
-let invalidateFrecencies = Task.async(function*(db, idList) {
+var invalidateFrecencies = Task.async(function*(db, idList) {
   if (idList.length == 0) {
     return;
   }
@@ -476,7 +476,7 @@ let invalidateFrecencies = Task.async(function*(db, idList) {
 });
 
 // Inner implementation of History.clear().
-let clear = Task.async(function* () {
+var clear = Task.async(function* () {
   let db = yield DBConnPromised;
 
   // Remove all history.
@@ -505,7 +505,7 @@ let clear = Task.async(function* () {
 });
 
 // Inner implementation of History.remove.
-let remove = Task.async(function*({guids, urls}, onResult = null) {
+var remove = Task.async(function*({guids, urls}, onResult = null) {
   let db = yield DBConnPromised;
 
   // 1. Find out what needs to be removed

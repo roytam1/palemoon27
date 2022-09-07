@@ -21,7 +21,7 @@ initTestLogging("Trace");
 // XXX until bug 937114 is fixed
 Cu.importGlobalProperties(['atob']);
 
-let log = Log.repository.getLogger("Services.FxAccounts.test");
+var log = Log.repository.getLogger("Services.FxAccounts.test");
 log.level = Log.Level.Debug;
 
 // See verbose logging from FxAccounts.jsm

@@ -3,12 +3,12 @@
 
 const {classes: Cc, interfaces: Ci, results: Cr, utils: Cu} = Components;
 
-let gSyncProfile;
+var gSyncProfile;
 
 gSyncProfile = do_get_profile();
 
 // Init FormHistoryStartup and pretend we opened a profile.
-let fhs = Cc["@mozilla.org/satchel/form-history-startup;1"]
+var fhs = Cc["@mozilla.org/satchel/form-history-startup;1"]
             .getService(Ci.nsIObserver);
 fhs.observe(null, "profile-after-change", null);
 
@@ -16,7 +16,7 @@ fhs.observe(null, "profile-after-change", null);
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 
 // Make sure to provide the right OS so crypto loads the right binaries
-let OS = "XPCShell";
+var OS = "XPCShell";
 if ("@mozilla.org/windows-registry-key;1" in Cc)
   OS = "WINNT";
 else if ("nsILocalFileMac" in Ci)
@@ -24,7 +24,7 @@ else if ("nsILocalFileMac" in Ci)
 else
   OS = "Linux";
 
-let XULAppInfo = {
+var XULAppInfo = {
   vendor: "Mozilla",
   name: "XPCShell",
   ID: "xpcshell@tests.mozilla.org",
@@ -40,7 +40,7 @@ let XULAppInfo = {
   invalidateCachesOnRestart: function invalidateCachesOnRestart() { }
 };
 
-let XULAppInfoFactory = {
+var XULAppInfoFactory = {
   createInstance: function (outer, iid) {
     if (outer != null)
       throw Cr.NS_ERROR_NO_AGGREGATION;
@@ -48,7 +48,7 @@ let XULAppInfoFactory = {
   }
 };
 
-let registrar = Components.manager.QueryInterface(Ci.nsIComponentRegistrar);
+var registrar = Components.manager.QueryInterface(Ci.nsIComponentRegistrar);
 registrar.registerFactory(Components.ID("{fbfae60b-64a4-44ef-a911-08ceb70b9f31}"),
                           "XULAppInfo", "@mozilla.org/xre/app-info;1",
                           XULAppInfoFactory);

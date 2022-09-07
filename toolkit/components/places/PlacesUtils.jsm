@@ -1911,7 +1911,7 @@ XPCOMUtils.defineLazyGetter(this, "gAsyncDBConnPromised", () => {
 // working with GUIDs.  So, until it does, this helper object accesses the
 // Places database directly in order to switch between GUIDs and itemIds, and
 // "restore" GUIDs on items re-created items.
-let GuidHelper = {
+var GuidHelper = {
   // Cache for GUID<->itemId paris.
   guidsForIds: new Map(),
   idsForGuids: new Map(),

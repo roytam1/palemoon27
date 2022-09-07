@@ -213,7 +213,7 @@ GetBuildConfiguration(JSContext* cx, unsigned argc, Value* vp)
     if (!JS_SetProperty(cx, info, "mapped-array-buffer", value))
         return false;
 
-    value.setInt32(sizeof(void *));
+    value.setInt32(sizeof(void*));
     if (!JS_SetProperty(cx, info, "pointer-byte-size", value))
         return false;
 
@@ -814,7 +814,7 @@ class HasChildTracer : public JS::CallbackTracer
             found_ = true;
     }
 
- public:
+  public:
     HasChildTracer(JSRuntime* rt, HandleValue child)
       : JS::CallbackTracer(rt, TraceWeakMapKeysValues), child_(rt, child), found_(false)
     {}

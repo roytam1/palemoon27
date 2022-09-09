@@ -35,7 +35,10 @@ namespace js {
 static inline bool
 IsCacheableNonGlobalScope(JSObject* obj)
 {
-    bool cacheable = (obj->is<CallObject>() || obj->is<BlockObject>() || obj->is<DeclEnvObject>());
+    bool cacheable =
+        (obj->is<CallObject>() && !obj->is<ModuleEnvironmentObject>()) ||
+        obj->is<BlockObject>() ||
+        obj->is<DeclEnvObject>();
 
     MOZ_ASSERT_IF(cacheable, !obj->getOps()->lookupProperty);
     return cacheable;
@@ -215,7 +218,7 @@ InterpreterFrame::popOffScopeChain()
 }
 
 inline void
-InterpreterFrame::replaceInnermostScope(ScopeObject &scope)
+InterpreterFrame::replaceInnermostScope(ScopeObject& scope)
 {
     MOZ_ASSERT(flags_ & HAS_SCOPECHAIN);
     MOZ_ASSERT(scope.enclosingScope() == scopeChain_->as<ScopeObject>().enclosingScope());
@@ -859,7 +862,7 @@ AbstractFramePtr::newTarget() const
 }
 
 inline bool
-AbstractFramePtr::freshenBlock(JSContext *cx) const
+AbstractFramePtr::freshenBlock(JSContext* cx) const
 {
     if (isInterpreterFrame())
         return asInterpreterFrame()->freshenBlock(cx);

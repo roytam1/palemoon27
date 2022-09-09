@@ -332,11 +332,11 @@ InterpreterFrame::pushBlock(JSContext* cx, StaticBlockObject& block)
 }
 
 bool
-InterpreterFrame::freshenBlock(JSContext *cx)
+InterpreterFrame::freshenBlock(JSContext* cx)
 {
     MOZ_ASSERT(flags_ & HAS_SCOPECHAIN);
     Rooted<ClonedBlockObject*> block(cx, &scopeChain_->as<ClonedBlockObject>());
-    ClonedBlockObject *fresh = ClonedBlockObject::clone(cx, block);
+    ClonedBlockObject* fresh = ClonedBlockObject::clone(cx, block);
     if (!fresh)
         return false;
 
@@ -362,7 +362,7 @@ InterpreterFrame::popWith(JSContext* cx)
 }
 
 void
-InterpreterFrame::mark(JSTracer *trc)
+InterpreterFrame::mark(JSTracer* trc)
 {
     /*
      * Normally we would use MarkRoot here, except that generators also take
@@ -787,9 +787,17 @@ FrameIter::Data*
 FrameIter::copyData() const
 {
     Data* data = data_.cx_->new_<Data>(data_);
+    if (!data)
+        return nullptr;
+
     MOZ_ASSERT(data_.state_ != ASMJS);
     if (data && data_.jitFrames_.isIonScripted())
         data->ionInlineFrameNo_ = ionInlineFrames_.frameNo();
+    // Give the copied Data the cx of the current activation, which may be
+    // different than the cx that the current FrameIter was constructed
+    // with. This ensures that when we instantiate another FrameIter with the
+    // copied data, its cx is still alive.
+    data->cx_ = activation()->cx();
     return data;
 }
 
@@ -1551,8 +1559,11 @@ jit::JitActivation::getRematerializedFrame(JSContext* cx, const JitFrameIterator
 
     if (!rematerializedFrames_) {
         rematerializedFrames_ = cx->new_<RematerializedFrameTable>(cx);
-        if (!rematerializedFrames_ || !rematerializedFrames_->init()) {
+        if (!rematerializedFrames_)
+            return nullptr;
+        if (!rematerializedFrames_->init()) {
             rematerializedFrames_ = nullptr;
+            ReportOutOfMemory(cx);
             return nullptr;
         }
     }
@@ -1561,8 +1572,10 @@ jit::JitActivation::getRematerializedFrame(JSContext* cx, const JitFrameIterator
     RematerializedFrameTable::AddPtr p = rematerializedFrames_->lookupForAdd(top);
     if (!p) {
         RematerializedFrameVector empty(cx);
-        if (!rematerializedFrames_->add(p, top, Move(empty)))
+        if (!rematerializedFrames_->add(p, top, Move(empty))) {
+            ReportOutOfMemory(cx);
             return nullptr;
+        }
 
         // The unit of rematerialization is an uninlined frame and its inlined
         // frames. Since inlined frames do not exist outside of snapshots, it
@@ -1763,7 +1776,7 @@ ActivationIterator::settle()
         activation_ = activation_->prev();
 }
 
-JS::ProfilingFrameIterator::ProfilingFrameIterator(JSRuntime *rt, const RegisterState &state,
+JS::ProfilingFrameIterator::ProfilingFrameIterator(JSRuntime* rt, const RegisterState& state,
                                                    uint32_t sampleBufferGen)
   : rt_(rt),
     sampleBufferGen_(sampleBufferGen),

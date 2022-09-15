@@ -84,7 +84,7 @@ const IDLE_TIMEOUT_SECONDS = 5 * 60;
 
 var gLastMemoryPoll = null;
 
-let gWasDebuggerAttached = false;
+var gWasDebuggerAttached = false;
 
 function getLocale() {
   return Cc["@mozilla.org/chrome/chrome-registry;1"].
@@ -141,7 +141,7 @@ function generateUUID() {
 /**
  * This is a policy object used to override behavior for testing.
  */
-let Policy = {
+var Policy = {
   now: () => new Date(),
   setDailyTimeout: (callback, delayMs) => setTimeout(callback, delayMs),
   clearDailyTimeout: (id) => clearTimeout(id),
@@ -188,7 +188,7 @@ function toLocalTimeISOString(date) {
 /**
  * Read current process I/O counters.
  */
-let processInfo = {
+var processInfo = {
   _initialized: false,
   _IO_COUNTERS: null,
   _kernel32: null,
@@ -434,7 +434,7 @@ this.TelemetrySession = Object.freeze({
    },
 });
 
-let Impl = {
+var Impl = {
   _histograms: {},
   _initialized: false,
   _log: null,

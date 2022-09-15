@@ -1288,6 +1288,7 @@ var BookmarkingUI = {
   },
 
   _hasBookmarksObserver: false,
+  _itemIds: [],
   uninit: function BUI_uninit() {
     this._uninitView();
 

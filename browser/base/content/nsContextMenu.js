@@ -139,7 +139,7 @@ nsContextMenu.prototype = {
         this.linkURI = makeURI(this.linkURL);
       } catch (ex) {}
 
-      this.linkText = this.selectionInfo.linkText;
+      this.linkTextStr = this.selectionInfo.linkText;
       this.onPlainTextLink = true;
     }
 
@@ -357,7 +357,9 @@ nsContextMenu.prototype = {
   },
 
   initSpellingItems: function() {
-    var canSpell = InlineSpellCheckerUI.canSpellCheck && this.canSpellCheck;
+    var canSpell = InlineSpellCheckerUI.canSpellCheck &&
+                   !InlineSpellCheckerUI.initialSpellCheckPending &&
+                   this.canSpellCheck;
     var onMisspelling = InlineSpellCheckerUI.overMisspelling;
     var showUndo = canSpell && InlineSpellCheckerUI.canUndo();
     this.showItem("spell-check-enabled", canSpell);
@@ -386,7 +388,8 @@ nsContextMenu.prototype = {
     if (canSpell) {
       var dictMenu = document.getElementById("spell-dictionaries-menu");
       var dictSep = document.getElementById("spell-language-separator");
-      InlineSpellCheckerUI.addDictionaryListToMenu(dictMenu, dictSep);
+      let count = InlineSpellCheckerUI.addDictionaryListToMenu(dictMenu, dictSep);
+      this.showItem(dictSep, count > 0);
       this.showItem("spell-add-dictionaries-main", false);
     }
     else if (this.onEditableArea) {
@@ -573,7 +576,7 @@ nsContextMenu.prototype = {
     this.link              = null;
     this.linkURL           = "";
     this.linkURI           = null;
-    this.linkText          = "";
+    this.linkTextStr       = "";
     this.linkProtocol      = "";
     this.linkDownload      = "";
     this.linkHasNoReferrer = false;
@@ -744,7 +747,7 @@ nsContextMenu.prototype = {
           this.link = elem;
           this.linkURL = this.getLinkURL();
           this.linkURI = this.getLinkURI();
-          this.linkText = this.getLinkText();
+          this.linkTextStr = this.getLinkText();
           this.linkProtocol = this.getLinkProtocol();
           this.onMailtoLink = (this.linkProtocol == "mailto");
           this.onSaveableLink = this.isLinkSaveable( this.link );
@@ -1009,7 +1012,7 @@ nsContextMenu.prototype = {
     BrowserViewSourceOfDocument({
       browser: this.browser,
       URL: gContextMenuContentData.docLocation,
-      outerWindowID: gContextMenuContentData.frameOuterWindowID,
+      outerWindowID: this.frameOuterWindowID,
     });
   },
 
@@ -1054,43 +1057,38 @@ nsContextMenu.prototype = {
                                                  null, { target: this.target });
   },
 
+  _canvasToDataURL: function(target) {
+    let mm = this.browser.messageManager;
+    return new Promise(function(resolve) {
+      mm.sendAsyncMessage("ContextMenu:Canvas:ToDataURL", {}, { target });
+
+      let onMessage = (message) => {
+        mm.removeMessageListener("ContextMenu:Canvas:ToDataURL:Result", onMessage);
+        resolve(message.data.dataURL);
+      };
+      mm.addMessageListener("ContextMenu:Canvas:ToDataURL:Result", onMessage);
+    });
+  },
+
   // Change current window to the URL of the image, video, or audio.
   viewMedia: function(e) {
-    var viewURL;
-    var doc = this.target.ownerDocument;
+    let referrerURI = gContextMenuContentData.documentURIObject;
     if (this.onCanvas) {
-      var target = this.target;
-      var win = doc.defaultView;
-      if (!win) {
-        Components.utils.reportError(
-            "View Image (on the <canvas> element):\n" +
-            "This feature cannot be used, because it hasn't found " + 
-            "an appropriate window.");
-      } else {
-        new Promise.resolve({then: function (resolve) {
-          target.toBlob((blob) => {
-            resolve(win.URL.createObjectURL(blob));
-          })
-        }}).then(function (blobURL) {
-          openUILink(blobURL, e, { disallowInheritPrincipal: true,
-                                   referrerURI: doc.documentURIObject });
-        }, Components.utils.reportError);
-      }
-    } else {
-      viewURL = this.mediaURL;
-      urlSecurityCheck(viewURL,
+      this._canvasToDataURL(this.target).then(function(dataURL) {
+        openUILink(dataURL, e, { disallowInheritPrincipal: true,
+                                 referrerURI: referrerURI });
+      }, Cu.reportError);
+    }
+    else {
+      urlSecurityCheck(this.mediaURL,
                        this.browser.contentPrincipal,
                        Ci.nsIScriptSecurityManager.DISALLOW_SCRIPT);
-      let doc = this.target.ownerDocument;
-      openUILink(viewURL, e, { disallowInheritPrincipal: true,
-                               referrerURI: doc.documentURIObject });
+      openUILink(this.mediaURL, e, { disallowInheritPrincipal: true,
+                                     referrerURI: referrerURI });
     }
   },
 
   saveVideoFrameAsImage: function () {
-    urlSecurityCheck(this.mediaURL,
-                     this.browser.contentPrincipal,
-                     Ci.nsIScriptSecurityManager.DISALLOW_SCRIPT);
     let mm = this.browser.messageManager;
     let name = "";
     try {
@@ -1182,7 +1180,7 @@ nsContextMenu.prototype = {
   // Helper function to wait for appropriate MIME-type headers and
   // then prompt the user with a file picker
   saveHelper: function(linkURL, linkText, dialogTitle, bypassCache, doc, docURI,
-                       linkDownload) {
+                       windowID, linkDownload) {
     // canonical def in nsURILoader.h
     const NS_ERROR_SAVE_LINK_AS_TIMEOUT = 0x805d0020;
 
@@ -1217,7 +1215,10 @@ nsContextMenu.prototype = {
 
             const promptSvc = Cc["@mozilla.org/embedcomp/prompt-service;1"].
                               getService(Ci.nsIPromptService);
-            promptSvc.alert(doc.defaultView, title, msg);
+            const wm = Cc["@mozilla.org/appshell/window-mediator;1"].
+                       getService(Ci.nsIWindowMediator);
+            let window = wm.getOuterWindowWithId(windowID);
+            promptSvc.alert(window, title, msg);
           } catch (ex) {}
           return;
         }
@@ -1332,8 +1333,9 @@ nsContextMenu.prototype = {
   // Save URL of clicked-on link.
   saveLink: function() {
     urlSecurityCheck(this.linkURL, this.principal);
-    this.saveHelper(this.linkURL, this.linkText, null, true, this.ownerDoc,
+    this.saveHelper(this.linkURL, this.linkTextStr, null, true, this.ownerDoc,
                     gContextMenuContentData.documentURIObject,
+                    this.frameOuterWindowID,
                     this.linkDownload);
   },
 
@@ -1354,8 +1356,10 @@ nsContextMenu.prototype = {
     let referrerURI = gContextMenuContentData.documentURIObject;
     if (this.onCanvas) {
       // Bypass cache, since it's a data: URL.
-      saveImageURL(this.target.toDataURL(), "canvas.png", "SaveImageTitle",
-                   true, false, referrerURI, doc);
+      this._canvasToDataURL(this.target).then(function(dataURL) {
+        saveImageURL(dataURL, "canvas.png", "SaveImageTitle",
+                     true, false, referrerURI, doc);
+      }, Cu.reportError);
     }
     else if (this.onImage) {
       urlSecurityCheck(this.mediaURL, this.principal);
@@ -1366,7 +1370,8 @@ nsContextMenu.prototype = {
     else if (this.onVideo || this.onAudio) {
       urlSecurityCheck(this.mediaURL, this.principal);
       var dialogTitle = this.onVideo ? "SaveVideoTitle" : "SaveAudioTitle";
-      this.saveHelper(this.mediaURL, null, dialogTitle, false, doc, referrerURI, "");
+      this.saveHelper(this.mediaURL, null, dialogTitle, false, doc, referrerURI,
+                      this.frameOuterWindowID, "");
     }
   },
 
@@ -1422,10 +1427,10 @@ nsContextMenu.prototype = {
     // Let's try to unescape it using a character set
     // in case the address is not ASCII.
     try {
-      var characterSet = this.target.ownerDocument.characterSet;
       const textToSubURI = Cc["@mozilla.org/intl/texttosuburi;1"].
                            getService(Ci.nsITextToSubURI);
-      addresses = textToSubURI.unEscapeURIForUI(characterSet, addresses);
+      addresses = textToSubURI.unEscapeURIForUI(gContextMenuContentData.charSet,
+                                                addresses);
     }
     catch(ex) {
       // Do nothing.
@@ -1437,9 +1442,11 @@ nsContextMenu.prototype = {
   },
 
   copyLink: function() {
+    // If we're in a view source tab, remove the view-source: prefix
+    let linkURL = this.linkURL.replace(/^view-source:/, "");
     var clipboard = Cc["@mozilla.org/widget/clipboardhelper;1"].
                     getService(Ci.nsIClipboardHelper);
-    clipboard.copyString(this.linkURL);
+    clipboard.copyString(linkURL);
   },
 
   ///////////////
@@ -1548,6 +1555,11 @@ nsContextMenu.prototype = {
     return text;
   },
 
+  // Kept for addon compat
+  linkText: function() {
+    return this.linkTextStr;
+  },
+
   isMediaURLReusable: function(aURL) {
     return !/^(?:blob|mediasource):/.test(aURL);
   },
@@ -1615,7 +1627,7 @@ nsContextMenu.prototype = {
 
   bookmarkLink: function CM_bookmarkLink() {
     window.top.PlacesCommandHook.bookmarkLink(PlacesUtils.bookmarksMenuFolderId,
-                                              this.linkURL, this.linkText);
+                                              this.linkURL, this.linkTextStr);
   },
 
   addBookmarkForFrame: function CM_addBookmarkForFrame() {
@@ -1682,13 +1694,20 @@ nsContextMenu.prototype = {
   // Formats the 'Search <engine> for "<selection or link text>"' context menu.
   formatSearchContextItem: function() {
     var menuItem = document.getElementById("context-searchselect");
-    let selectedText = this.isTextSelected ? this.textSelected : this.linkText;
+    let selectedText = this.isTextSelected ? this.textSelected : this.linkTextStr;
 
     // Store searchTerms in context menu item so we know what to search onclick
     menuItem.searchTerms = selectedText;
 
-    if (selectedText.length > 15)
-      selectedText = selectedText.substr(0,15) + this.ellipsis;
+    // If the JS character after our truncation point is a trail surrogate,
+    // include it in the truncated string to avoid splitting a surrogate pair.
+    if (selectedText.length > 15) {
+      let truncLength = 15;
+      let truncChar = selectedText[15].charCodeAt(0);
+      if (truncChar >= 0xDC00 && truncChar <= 0xDFFF)
+        truncLength++;
+      selectedText = selectedText.substr(0,truncLength) + this.ellipsis;
+    }
 
     // Use the current engine if the search bar is visible, the default
     // engine otherwise.
@@ -1706,5 +1725,63 @@ nsContextMenu.prototype = {
                                                          selectedText]);
     menuItem.label = menuLabel;
     menuItem.accessKey = gNavigatorBundle.getString("contextMenuSearch.accesskey");
-  }
+  },
+
+  _getTelemetryClickInfo: function(aXulMenu) {
+    this._onPopupHiding = () => {
+      aXulMenu.ownerDocument.removeEventListener("command", activationHandler, true);
+      aXulMenu.removeEventListener("popuphiding", this._onPopupHiding, true);
+      delete this._onPopupHiding;
+
+      let eventKey = [
+          this._telemetryPageContext,
+          this._telemetryHadCustomItems ? "withcustom" : "withoutcustom"
+      ];
+      let target = this._telemetryClickID || "close-without-interaction";
+      BrowserUITelemetry.registerContextMenuInteraction(eventKey, target);
+    };
+    let activationHandler = (e) => {
+      // Deal with command events being routed to command elements; figure out
+      // what triggered the event (which will have the right e.target)
+      if (e.sourceEvent) {
+        e = e.sourceEvent;
+      }
+      // Target should be in the menu (this catches using shortcuts for items
+      // not in the menu while the menu is up)
+      if (!aXulMenu.contains(e.target)) {
+        return;
+      }
+
+      // Check if this is a page menu item:
+      if (e.target.hasAttribute(PageMenuParent.GENERATEDITEMID_ATTR)) {
+        this._telemetryClickID = "custom-page-item";
+      } else {
+        this._telemetryClickID = (e.target.id || "unknown").replace(/^context-/i, "");
+      }
+    };
+    aXulMenu.ownerDocument.addEventListener("command", activationHandler, true);
+    aXulMenu.addEventListener("popuphiding", this._onPopupHiding, true);
+  },
+
+  _getTelemetryPageContextInfo: function() {
+    let rv = [];
+    for (let k of ["isContentSelected", "onLink", "onImage", "onCanvas", "onVideo", "onAudio",
+                   "onTextInput", "onSocial"]) {
+      if (this[k]) {
+        rv.push(k.replace(/^(?:is|on)(.)/, (match, firstLetter) => firstLetter.toLowerCase()));
+      }
+    }
+    if (!rv.length) {
+      rv.push('other');
+    }
+
+    return JSON.stringify(rv);
+  },
+
+  _checkTelemetryForMenu: function(aXulMenu) {
+    this._telemetryClickID = null;
+    this._telemetryPageContext = this._getTelemetryPageContextInfo();
+    this._telemetryHadCustomItems = this.hasPageMenu;
+    this._getTelemetryClickInfo(aXulMenu);
+  },
 };

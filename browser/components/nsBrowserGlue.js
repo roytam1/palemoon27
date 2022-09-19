@@ -396,8 +396,15 @@ BrowserGlue.prototype = {
         this._sanitizer.onStartup();
         break;
       case "xpi-signature-changed":
-        if (JSON.parse(data).disabled.length)
-          this._notifyUnsignedAddonsDisabled();
+        let disabledAddons = JSON.parse(data).disabled;
+        AddonManager.getAddonsByIDs(disabledAddons, (addons) => {
+          for (let addon of addons) {
+            if (addon.type != "experiment") {
+              this._notifyUnsignedAddonsDisabled();
+              break;
+            }
+          }
+        });
         break;
       case "autocomplete-did-enter-text":
         this._handleURLBarTelemetry(subject.QueryInterface(Ci.nsIAutoCompleteInput));
@@ -856,8 +863,39 @@ BrowserGlue.prototype = {
                           nb.PRIORITY_WARNING_MEDIUM, buttons);
   },
 
+  _firstWindowTelemetry: function(aWindow) {
+#ifdef XP_WIN
+    let SCALING_PROBE_NAME = "DISPLAY_SCALING_MSWIN";
+#elifdef XP_MACOSX
+    let SCALING_PROBE_NAME = "DISPLAY_SCALING_OSX";
+#elifdef XP_LINUX
+    let SCALING_PROBE_NAME = "DISPLAY_SCALING_LINUX";
+#else
+    let SCALING_PROBE_NAME = "";
+#endif
+    if (SCALING_PROBE_NAME) {
+      let scaling = aWindow.devicePixelRatio * 100;
+      Services.telemetry.getHistogramById(SCALING_PROBE_NAME).add(scaling);
+    }
+
+#ifdef XP_WIN
+    if (WindowsUIUtils.inTabletMode) {
+      Services.telemetry.getHistogramById("FX_TABLET_MODE_USED_DURING_SESSION")
+                        .add(1);
+    }
+#endif
+  },
+
   // the first browser window has finished initializing
   _onFirstWindowLoaded: function BG__onFirstWindowLoaded(aWindow) {
+
+#ifdef NIGHTLY_BUILD
+    // Registering Shumway bootstrap script the child processes.
+    aWindow.messageManager.loadFrameScript("chrome://shumway/content/bootstrap-content.js", true);
+    // Initializing Shumway (shall be run after child script registration).
+    ShumwayUtils.init();
+#endif
+
 #ifdef XP_WIN
     // For windows seven, initialize the jump list module.
     const WINTASKBAR_CONTRACTID = "@mozilla.org/windows-taskbar;1";
@@ -879,6 +917,8 @@ BrowserGlue.prototype = {
         processStartupTime.getTime() - lastUse >= OFFER_PROFILE_RESET_INTERVAL_MS) {
       this._resetUnusedProfileNotification();
     }
+
+    this._firstWindowTelemetry(aWindow);
   },
 
   /**
@@ -954,6 +994,27 @@ BrowserGlue.prototype = {
 
           win.openUILinkIn("about:newaddon?id=" + aAddon.id, "tab");
         })
+      });
+    }
+
+#ifdef MOZ_REQUIRE_SIGNING
+    let signingRequired = true;
+#else
+    let signingRequired = Services.prefs.getBoolPref("xpinstall.signatures.required");
+#endif
+
+    if (signingRequired) {
+      let disabledAddons = AddonManager.getStartupChanges(AddonManager.STARTUP_CHANGE_DISABLED);
+      AddonManager.getAddonsByIDs(disabledAddons, (addons) => {
+        for (let addon of addons) {
+          if (addon.type == "experiment")
+            continue;
+
+          if (addon.signedState <= AddonManager.SIGNEDSTATE_MISSING) {
+            this._notifyUnsignedAddonsDisabled();
+            break;
+          }
+        }
       });
     }
 

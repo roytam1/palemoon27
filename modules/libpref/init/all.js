@@ -1483,25 +1483,30 @@ pref("network.protocol-handler.external-default", true);      // OK to load
 pref("network.protocol-handler.warn-external-default", true); // warn before load
 
 // Prevent using external protocol handlers for these schemes
-pref("network.protocol-handler.external.hcp", false);
-pref("network.protocol-handler.external.vbscript", false);
-pref("network.protocol-handler.external.javascript", false);
+pref("network.protocol-handler.external.afp", false);
 pref("network.protocol-handler.external.data", false);
+pref("network.protocol-handler.external.disk", false);
+pref("network.protocol-handler.external.disks", false);
+pref("network.protocol-handler.external.hcp", false);
+pref("network.protocol-handler.external.javascript", false);
 pref("network.protocol-handler.external.ie.http", false);
 pref("network.protocol-handler.external.iehistory", false);
 pref("network.protocol-handler.external.ierss", false);
 pref("network.protocol-handler.external.mk", false);
-pref("network.protocol-handler.external.ms-help", false);
+pref("network.protocol-handler.external.moz-icon", false);
 pref("network.protocol-handler.external.res", false);
 pref("network.protocol-handler.external.shell", false);
+pref("network.protocol-handler.external.vbscript", false);
 pref("network.protocol-handler.external.vnd.ms.radio", false);
+#ifdef XP_WIN
+pref("network.protocol-handler.external.ms-help", false);
+pref("network.protocol-handler.external.ms-msdt", false);
+pref("network.protocol-handler.external.search", false);
+pref("network.protocol-handler.external.search-ms", false);
+#endif
 #ifdef XP_MACOSX
 pref("network.protocol-handler.external.help", false);
 #endif
-pref("network.protocol-handler.external.disk", false);
-pref("network.protocol-handler.external.disks", false);
-pref("network.protocol-handler.external.afp", false);
-pref("network.protocol-handler.external.moz-icon", false);
 
 // Don't allow  external protocol handlers for common typos
 pref("network.protocol-handler.external.ttp", false);  // http

@@ -551,9 +551,9 @@ LIRGenerator::visitUnreachable(MUnreachable* unreachable)
 }
 
 void
-LIRGenerator::visitEncodeSnapshot(MEncodeSnapshot *mir)
+LIRGenerator::visitEncodeSnapshot(MEncodeSnapshot* mir)
 {
-    LEncodeSnapshot *lir = new(alloc()) LEncodeSnapshot();
+    LEncodeSnapshot* lir = new(alloc()) LEncodeSnapshot();
     assignSnapshot(lir, Bailout_Inevitable);
     add(lir, mir);
 }
@@ -3313,6 +3313,9 @@ LIRGenerator::visitGetElementCache(MGetElementCache* ins)
 {
     MOZ_ASSERT(ins->object()->type() == MIRType_Object);
 
+    if (ins->monitoredResult())
+        gen->setPerformsCall(); // See visitGetPropertyCache.
+
     if (ins->type() == MIRType_Value) {
         MOZ_ASSERT(ins->index()->type() == MIRType_Value);
         LGetElementCacheV* lir = new(alloc()) LGetElementCacheV(useRegister(ins->object()));
@@ -3528,6 +3531,8 @@ LIRGenerator::visitSetElementCache(MSetElementCache* ins)
 {
     MOZ_ASSERT(ins->object()->type() == MIRType_Object);
     MOZ_ASSERT(ins->index()->type() == MIRType_Value);
+
+    gen->setPerformsCall(); // See visitSetPropertyCache.
 
     // Due to lack of registers on x86, we reuse the object register as a
     // temporary. This register may be used in a 1-byte store, which on x86
@@ -4124,26 +4129,6 @@ LIRGenerator::visitSimdSwizzle(MSimdSwizzle* ins)
 }
 
 void
-LIRGenerator::visitSimdShuffle(MSimdShuffle* ins)
-{
-    MOZ_ASSERT(IsSimdType(ins->lhs()->type()));
-    MOZ_ASSERT(IsSimdType(ins->rhs()->type()));
-    MOZ_ASSERT(IsSimdType(ins->type()));
-    MOZ_ASSERT(ins->type() == MIRType_Int32x4 || ins->type() == MIRType_Float32x4);
-
-    bool zFromLHS = ins->laneZ() < 4;
-    bool wFromLHS = ins->laneW() < 4;
-    uint32_t lanesFromLHS = (ins->laneX() < 4) + (ins->laneY() < 4) + zFromLHS + wFromLHS;
-
-    LSimdShuffle* lir = new (alloc()) LSimdShuffle();
-    lowerForFPU(lir, ins, ins->lhs(), ins->rhs());
-
-    // See codegen for requirements details.
-    LDefinition temp = (lanesFromLHS == 3) ? tempCopy(ins->rhs(), 1) : LDefinition::BogusTemp();
-    lir->setTemp(0, temp);
-}
-
-void
 LIRGenerator::visitSimdGeneralShuffle(MSimdGeneralShuffle*ins)
 {
     MOZ_ASSERT(IsSimdType(ins->type()));
@@ -4171,6 +4156,26 @@ LIRGenerator::visitSimdGeneralShuffle(MSimdGeneralShuffle*ins)
 
     assignSnapshot(lir, Bailout_BoundsCheck);
     define(lir, ins);
+}
+
+void
+LIRGenerator::visitSimdShuffle(MSimdShuffle* ins)
+{
+    MOZ_ASSERT(IsSimdType(ins->lhs()->type()));
+    MOZ_ASSERT(IsSimdType(ins->rhs()->type()));
+    MOZ_ASSERT(IsSimdType(ins->type()));
+    MOZ_ASSERT(ins->type() == MIRType_Int32x4 || ins->type() == MIRType_Float32x4);
+
+    bool zFromLHS = ins->laneZ() < 4;
+    bool wFromLHS = ins->laneW() < 4;
+    uint32_t lanesFromLHS = (ins->laneX() < 4) + (ins->laneY() < 4) + zFromLHS + wFromLHS;
+
+    LSimdShuffle* lir = new (alloc()) LSimdShuffle();
+    lowerForFPU(lir, ins, ins->lhs(), ins->rhs());
+
+    // See codegen for requirements details.
+    LDefinition temp = (lanesFromLHS == 3) ? tempCopy(ins->rhs(), 1) : LDefinition::BogusTemp();
+    lir->setTemp(0, temp);
 }
 
 void

@@ -382,7 +382,6 @@ gfxDWriteFontEntry::CopyFontTable(uint32_t aTableTag,
                                   FallibleTArray<uint8_t> &aBuffer)
 {
     gfxDWriteFontList *pFontList = gfxDWriteFontList::PlatformFontList();
-    const uint32_t tagBE = NativeEndian::swapToBigEndian(aTableTag);
 
     // Don't use GDI table loading for symbol fonts or for
     // italic fonts in Arabic-script system locales because of
@@ -393,22 +392,27 @@ gfxDWriteFontEntry::CopyFontTable(uint32_t aTableTag,
         !mFont->IsSymbolFont())
     {
         LOGFONTW logfont = { 0 };
-        if (InitLogFont(mFont, &logfont)) {
-            AutoDC dc;
-            AutoSelectFont font(dc.GetDC(), &logfont);
-            if (font.IsValid()) {
-                uint32_t tableSize =
-                    ::GetFontData(dc.GetDC(), tagBE, 0, nullptr, 0);
-                if (tableSize != GDI_ERROR) {
-                    if (aBuffer.SetLength(tableSize, fallible)) {
-                        ::GetFontData(dc.GetDC(), tagBE, 0,
-                                      aBuffer.Elements(), aBuffer.Length());
-                        return NS_OK;
-                    }
-                    return NS_ERROR_OUT_OF_MEMORY;
+        if (!InitLogFont(mFont, &logfont))
+            return NS_ERROR_FAILURE;
+
+        AutoDC dc;
+        AutoSelectFont font(dc.GetDC(), &logfont);
+        if (font.IsValid()) {
+            uint32_t tableSize =
+                ::GetFontData(dc.GetDC(),
+                              NativeEndian::swapToBigEndian(aTableTag), 0,
+                              nullptr, 0);
+            if (tableSize != GDI_ERROR) {
+                if (aBuffer.SetLength(tableSize, fallible)) {
+                    ::GetFontData(dc.GetDC(),
+                                  NativeEndian::swapToBigEndian(aTableTag), 0,
+                                  aBuffer.Elements(), aBuffer.Length());
+                    return NS_OK;
                 }
+                return NS_ERROR_OUT_OF_MEMORY;
             }
         }
+        return NS_ERROR_FAILURE;
     }
 
     nsRefPtr<IDWriteFontFace> fontFace;
@@ -422,7 +426,8 @@ gfxDWriteFontEntry::CopyFontTable(uint32_t aTableTag,
     void *tableContext = nullptr;
     BOOL exists;
     HRESULT hr =
-        fontFace->TryGetFontTable(tagBE, (const void**)&tableData, &len,
+        fontFace->TryGetFontTable(NativeEndian::swapToBigEndian(aTableTag),
+                                  (const void**)&tableData, &len,
                                   &tableContext, &exists);
     if (FAILED(hr) || !exists) {
         return NS_ERROR_FAILURE;
@@ -450,9 +455,12 @@ class FontTableRec {
 public:
     FontTableRec(IDWriteFontFace *aFontFace, void *aContext)
         : mFontFace(aFontFace), mContext(aContext)
-    { }
+    {
+        MOZ_COUNT_CTOR(FontTableRec);
+    }
 
     ~FontTableRec() {
+        MOZ_COUNT_DTOR(FontTableRec);
         mFontFace->ReleaseFontTable(mContext);
     }
 
@@ -839,6 +847,12 @@ gfxDWriteFontList::MakePlatformFont(const nsAString& aFontName,
     return entry;
 }
 
+enum DWriteInitError {
+    errGDIInterop = 1,
+    errSystemFontCollection = 2,
+    errNoFonts = 3
+};
+
 nsresult
 gfxDWriteFontList::InitFontList()
 {
@@ -869,6 +883,8 @@ gfxDWriteFontList::InitFontList()
     hr = gfxWindowsPlatform::GetPlatform()->GetDWriteFactory()->
         GetGdiInterop(getter_AddRefs(mGDIInterop));
     if (FAILED(hr)) {
+        Telemetry::Accumulate(Telemetry::DWRITEFONT_INIT_PROBLEM,
+                              uint32_t(errGDIInterop));
         return NS_ERROR_FAILURE;
     }
 
@@ -881,6 +897,8 @@ gfxDWriteFontList::InitFontList()
     NS_ASSERTION(SUCCEEDED(hr), "GetSystemFontCollection failed!");
 
     if (FAILED(hr)) {
+        Telemetry::Accumulate(Telemetry::DWRITEFONT_INIT_PROBLEM,
+                              uint32_t(errSystemFontCollection));
         return NS_ERROR_FAILURE;
     }
 
@@ -892,6 +910,8 @@ gfxDWriteFontList::InitFontList()
     NS_ASSERTION(mFontFamilies.Count() != 0,
                  "no fonts found in the system fontlist -- holy crap batman!");
     if (mFontFamilies.Count() == 0) {
+        Telemetry::Accumulate(Telemetry::DWRITEFONT_INIT_PROBLEM,
+                              uint32_t(errNoFonts));
         return NS_ERROR_FAILURE;
     }
 
@@ -1721,6 +1741,7 @@ private:
     BundledFontFileEnumerator() = delete;
     BundledFontFileEnumerator(const BundledFontFileEnumerator&) = delete;
     BundledFontFileEnumerator& operator=(const BundledFontFileEnumerator&) = delete;
+    virtual ~BundledFontFileEnumerator() {}
 
     nsRefPtr<IDWriteFactory>      mFactory;
 
@@ -1788,6 +1809,7 @@ public:
 private:
     BundledFontLoader(const BundledFontLoader&) = delete;
     BundledFontLoader& operator=(const BundledFontLoader&) = delete;
+    virtual ~BundledFontLoader() { }
 };
 
 IFACEMETHODIMP

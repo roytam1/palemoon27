@@ -275,7 +275,6 @@ CodeGeneratorX86::load(Scalar::Type accessType, const Operand& srcAddr, const LD
     }
 }
 
-
 void
 CodeGeneratorX86::visitLoadTypedArrayElementStatic(LLoadTypedArrayElementStatic* ins)
 {
@@ -479,7 +478,7 @@ CodeGeneratorX86::visitAsmJSLoadHeap(LAsmJSLoadHeap* ins)
 }
 
 void
-CodeGeneratorX86::store(Scalar::Type accessType, const LAllocation *value, const Operand &dstAddr)
+CodeGeneratorX86::store(Scalar::Type accessType, const LAllocation* value, const Operand& dstAddr)
 {
     switch (accessType) {
       case Scalar::Int8:
@@ -496,7 +495,6 @@ CodeGeneratorX86::store(Scalar::Type accessType, const LAllocation *value, const
       case Scalar::MaxTypedArrayViewType: MOZ_CRASH("unexpected type");
     }
 }
-
 
 void
 CodeGeneratorX86::visitStoreTypedArrayElementStatic(LStoreTypedArrayElementStatic* ins)
@@ -638,7 +636,7 @@ CodeGeneratorX86::visitAsmJSStoreHeap(LAsmJSStoreHeap* ins)
         if (mir->isAtomicAccess())
             jumpTo = gen->outOfBoundsLabel();
         else
-            rejoin = jumpTo = alloc().lifoAlloc()->new_<Label>();
+            rejoin = jumpTo = alloc().lifoAlloc()->newInfallible<Label>();
         maybeCmpOffset = emitAsmJSBoundsCheckBranch(mir, mir, ToRegister(ptr), jumpTo);
     }
 

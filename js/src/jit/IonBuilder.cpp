@@ -703,6 +703,7 @@ IonBuilder::analyzeNewLoopTypes(MBasicBlock* entry, jsbytecode* start, jsbytecod
                 type = MIRType_Double;
                 break;
               case JSOP_STRING:
+              case JSOP_TOSTRING:
               case JSOP_TYPEOF:
               case JSOP_TYPEOFEXPR:
                 type = MIRType_String;
@@ -1544,6 +1545,7 @@ IonBuilder::traverseBytecode()
 
               case JSOP_POS:
               case JSOP_TOID:
+              case JSOP_TOSTRING:
                 // These ops may leave their input on the stack without setting
                 // the ImplicitlyUsed flag. If this value will be popped immediately,
                 // we may replace it with |undefined|, but the difference is
@@ -1684,6 +1686,9 @@ IonBuilder::inspectOpcode(JSOp op)
 
       case JSOP_NEG:
         return jsop_neg();
+
+      case JSOP_TOSTRING:
+        return jsop_tostring();
 
       case JSOP_AND:
       case JSOP_OR:
@@ -2752,6 +2757,21 @@ IonBuilder::processNextTableSwitchCase(CFGState& state)
         current->end(MGoto::New(alloc(), successor));
         if (!successor->addPredecessor(alloc(), current))
             return ControlStatus_Error;
+    } else {
+        // If this is an actual case statement, optimize by replacing the
+        // input to the switch case with the actual number of the case.
+        // This constant has been emitted when creating the case blocks.
+        if (state.tableswitch.ins->getDefault() != successor) {
+            MConstant* constant = successor->begin()->toConstant();
+            for (uint32_t j = 0; j < successor->stackDepth(); j++) {
+                MDefinition* ins = successor->getSlot(j);
+                if (ins != state.tableswitch.ins->getOperand(0))
+                    continue;
+
+                constant->setDependency(state.tableswitch.ins);
+                successor->setSlot(j, constant);
+            }
+        }
     }
 
     // Insert successor after the current block, to maintain RPO.
@@ -3412,11 +3432,16 @@ IonBuilder::tableSwitch(JSOp op, jssrcnote* sn)
             return ControlStatus_Error;
 
         // If this is an actual case (not filled gap),
-        // add this block to the list that still needs to get processed
+        // add this block to the list that still needs to get processed.
         if (casepc != pc) {
-          if (!tableswitch->addBlock(caseblock)) {
-               return ControlStatus_Error;
-          }
+            if (!tableswitch->addBlock(caseblock)) {
+                 return ControlStatus_Error;
+            }
+
+            // Add constant to indicate which case this is for use by
+            // processNextTableSwitchCase.
+            MConstant* constant = MConstant::New(alloc(), Int32Value(i + low));
+            caseblock->add(constant);
         }
 
         pc2 += JUMP_OFFSET_LEN;
@@ -3711,14 +3736,14 @@ IonBuilder::improveTypesAtNullOrUndefinedCompare(MCompare* ins, bool trueBranch,
         tmp.addType(TypeSet::PrimitiveType(ValueTypeFromMIRType(subject->type())), alloc_->lifoAlloc());
     }
 
-    if (!altersUndefined && !altersNull)
+    if (inputTypes->unknown())
         return true;
 
     TemporaryTypeSet* type;
 
     // Decide if we need to filter the type or set it.
     if ((op == JSOP_STRICTEQ || op == JSOP_EQ) ^ trueBranch) {
-        // Remover undefined/null
+        // Remove undefined/null
         TemporaryTypeSet remove;
         if (altersUndefined)
             remove.addType(TypeSet::UndefinedType(), alloc_->lifoAlloc());
@@ -4572,6 +4597,7 @@ IonBuilder::jsop_bitnot()
     MOZ_ASSERT(ins->isEffectful());
     return resumeAfter(ins);
 }
+
 bool
 IonBuilder::jsop_bitop(JSOp op)
 {
@@ -4887,6 +4913,20 @@ IonBuilder::jsop_neg()
     MDefinition* right = current->pop();
 
     return jsop_binary_arith(JSOP_MUL, negator, right);
+}
+
+bool
+IonBuilder::jsop_tostring()
+{
+    if (current->peek(-1)->type() == MIRType_String)
+        return true;
+
+    MDefinition* value = current->pop();
+    MToString* ins = MToString::New(alloc(), value);
+    current->add(ins);
+    current->push(ins);
+    MOZ_ASSERT(!ins->isEffectful());
+    return true;
 }
 
 class AutoAccumulateReturns
@@ -6904,6 +6944,10 @@ IonBuilder::compareTrySpecializedOnBaselineInspector(bool* emitted, JSOp op, MDe
     // Try to specialize based on any baseline caches that have been generated
     // for the opcode. These will cause the instruction's type policy to insert
     // fallible unboxes to the appropriate input types.
+
+    // Strict equality isn't supported.
+    if (op == JSOP_STRICTEQ || op == JSOP_STRICTNE)
+        return true;
 
     MCompare::CompareType type = inspector->expectedCompareType(pc);
     if (type == MCompare::Compare_Unknown)
@@ -9109,6 +9153,8 @@ IonBuilder::computeHeapType(const TemporaryTypeSet* objTypes, const jsid id)
 
         properties.infallibleAppend(property);
         acc = TypeSet::unionSets(acc, currentSet, lifoAlloc);
+        if (!acc)
+            return nullptr;
     }
 
     // Freeze all the properties associated with the refined type set.

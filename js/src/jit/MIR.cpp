@@ -973,7 +973,7 @@ MSimdSplatX4::foldsTo(TempAllocator& alloc)
 }
 
 MDefinition*
-MSimdUnbox::foldsTo(TempAllocator &alloc)
+MSimdUnbox::foldsTo(TempAllocator& alloc)
 {
     MDefinition* in = input();
 
@@ -1860,8 +1860,11 @@ jit::MergeTypes(MIRType* ptype, TemporaryTypeSet** ptypeSet,
                 return false;
         }
         if (newTypeSet) {
-            if (!newTypeSet->isSubset(*ptypeSet))
+            if (!newTypeSet->isSubset(*ptypeSet)) {
                 *ptypeSet = TypeSet::unionSets(*ptypeSet, newTypeSet, alloc);
+                if (!*ptypeSet)
+                    return false;
+            }
         } else {
             *ptypeSet = nullptr;
         }
@@ -2403,6 +2406,8 @@ MBinaryArithInstruction::trySpecializeFloat32(TempAllocator& alloc)
 {
     // Do not use Float32 if we can use int32.
     if (specialization_ == MIRType_Int32)
+        return;
+    if (specialization_ == MIRType_None)
         return;
 
     MDefinition* left = lhs();
@@ -3916,7 +3921,7 @@ MBeta::printOpcode(GenericPrinter& out) const
 bool
 MNewObject::shouldUseVM() const
 {
-    if (JSObject *obj = templateObject())
+    if (JSObject* obj = templateObject())
         return obj->is<PlainObject>() && obj->as<PlainObject>().hasDynamicSlots();
     return true;
 }
@@ -4322,8 +4327,8 @@ MLoadElement::foldsTo(TempAllocator& alloc)
 // Gets the MDefinition* representing the source/target object's storage.
 // Usually this is just an MElements*, but sometimes there are layers
 // of indirection or inlining, which are handled elsewhere.
-static inline const MElements *
-MaybeUnwrapElements(const MDefinition *elementsOrObj)
+static inline const MElements*
+MaybeUnwrapElements(const MDefinition* elementsOrObj)
 {
     // Sometimes there is a level of indirection for conversion.
     if (elementsOrObj->isConvertElementsToDoubles())

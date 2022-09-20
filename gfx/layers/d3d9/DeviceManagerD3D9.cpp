@@ -763,9 +763,9 @@ DeviceManagerD3D9::VerifyCaps()
   if (LACKS_CAP(caps.TextureAddressCaps, D3DPTADDRESSCAPS_CLAMP)) {
     return false;
   }
-  //Lowered from 4096 to 2048 to allow older graphic cards
+  //Lowered from 4096 to 1024 to allow older graphic cards
   mMaxTextureSize = std::min(caps.MaxTextureHeight, caps.MaxTextureWidth);
-  if(mMaxTextureSize<2048){
+  if(mMaxTextureSize < 1024){
     return false;
   }
   if ((caps.PixelShaderVersion & 0xffff) < 0x200 ||

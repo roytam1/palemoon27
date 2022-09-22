@@ -1672,6 +1672,22 @@ nsBaseWidget::GetRootAccessible()
 
 #endif // ACCESSIBILITY
 
+void
+nsBaseWidget::StartAsyncScrollbarDrag(const AsyncDragMetrics& aDragMetrics)
+{
+  if (!AsyncPanZoomEnabled()) {
+    return;
+  }
+
+  MOZ_ASSERT(XRE_IsParentProcess() && mCompositorParent);
+
+  int layersId = mCompositorParent->RootLayerTreeId();;
+  ScrollableLayerGuid guid(layersId, aDragMetrics.mPresShellId, aDragMetrics.mViewId);
+
+  APZThreadUtils::RunOnControllerThread(
+    NewRunnableMethod(mAPZC.get(), &APZCTreeManager::StartScrollbarDrag, guid, aDragMetrics));
+}
+
 nsresult
 nsIWidget::SynthesizeNativeTouchTap(nsIntPoint aPointerScreenPoint, bool aLongTap,
                                     nsIObserver* aObserver)

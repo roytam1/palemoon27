@@ -48,6 +48,7 @@ namespace plugins {
 class PluginWidgetChild;
 } // namespace plugins
 namespace layers {
+class AsyncDragMetrics;
 class Composer2D;
 class Compositor;
 class CompositorChild;
@@ -315,6 +316,7 @@ class nsIWidget : public nsISupports {
   public:
     typedef mozilla::layers::Composer2D Composer2D;
     typedef mozilla::layers::CompositorChild CompositorChild;
+    typedef mozilla::layers::AsyncDragMetrics AsyncDragMetrics;
     typedef mozilla::layers::FrameMetrics FrameMetrics;
     typedef mozilla::layers::LayerManager LayerManager;
     typedef mozilla::layers::LayerManagerComposite LayerManagerComposite;
@@ -1640,6 +1642,8 @@ class nsIWidget : public nsISupports {
      * otherwise.
      */
     virtual bool CaptureWidgetOnScreen(mozilla::RefPtr<mozilla::gfx::DrawTarget> aDT) = 0;
+
+    virtual void StartAsyncScrollbarDrag(const AsyncDragMetrics& aDragMetrics) = 0;
 
 private:
   class LongTapInfo

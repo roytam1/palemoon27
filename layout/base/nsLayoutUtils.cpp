@@ -3308,9 +3308,8 @@ nsLayoutUtils::PaintFrame(nsRenderingContext* aRenderingContext, nsIFrame* aFram
     *ss << nsPrintfCString("Painting --- before optimization (dirty %d,%d,%d,%d):\n",
             dirtyRect.x, dirtyRect.y, dirtyRect.width, dirtyRect.height).get();
     nsFrame::PrintDisplayList(&builder, list, *ss, gfxUtils::sDumpPaintingToFile);
-    if (gfxUtils::sDumpPaintingToFile) {
-      *ss << "<script>";
-    } else {
+
+    if (gfxUtils::sDumpPainting || gfxUtils::sDumpPaintItems) {
       // Flush stream now to avoid reordering dump output relative to
       // messages dumped by PaintRoot below.
       if (profilerNeedsDisplayList && !consoleNeedsDisplayList) {
@@ -3352,11 +3351,6 @@ nsLayoutUtils::PaintFrame(nsRenderingContext* aRenderingContext, nsIFrame* aFram
                                  paintStart);
 
   if (consoleNeedsDisplayList || profilerNeedsDisplayList) {
-#ifdef MOZ_DUMP_PAINTING
-    if (gfxUtils::sDumpPaintingToFile) {
-      *ss << "</script>";
-    }
-#endif
     *ss << "Painting --- after optimization:\n";
     nsFrame::PrintDisplayList(&builder, list, *ss, gfxUtils::sDumpPaintingToFile);
 

@@ -2094,9 +2094,6 @@ ContainerState::GetLayerCreationHint(const nsIFrame* aAnimatedGeometryRoot)
 {
   // Check whether the layer will be scrollable. This is used as a hint to
   // influence whether tiled layers are used or not.
-  if (mParameters.mInLowPrecisionDisplayPort) {
-    return LayerManager::SCROLLABLE;
-  }
 
   // Check whether there's any active scroll frame on the animated geometry
   // root chain.
@@ -3363,7 +3360,6 @@ void ContainerState::FinishPaintedLayerData(PaintedLayerData& aData, FindOpaqueB
     regions.mNoActionRegion = ScaleRegionToOutsidePixels(data->mNoActionRegion);
     regions.mHorizontalPanRegion = ScaleRegionToOutsidePixels(data->mHorizontalPanRegion);
     regions.mVerticalPanRegion = ScaleRegionToOutsidePixels(data->mVerticalPanRegion);
-
     // Points whose hit-region status we're not sure about need to be dispatched
     // to the content thread. If a point is in both maybeHitRegion and hitRegion
     // then it's not a "maybe" any more, and doesn't go into the dispatch-to-
@@ -3374,7 +3370,7 @@ void ContainerState::FinishPaintedLayerData(PaintedLayerData& aData, FindOpaqueB
         ScaleRegionToOutsidePixels(data->mDispatchToContentHitRegion));
     regions.mHitRegion.OrWith(maybeHitRegion);
 
-    Matrix mat = layer->GetBaseTransform().As2D();
+    Matrix mat = layer->GetTransform().As2D();
     mat.Invert();
     regions.ApplyTranslationAndScale(mat._31, mat._32, mat._11, mat._22);
 
@@ -3525,7 +3521,7 @@ PaintedLayerData::Accumulate(ContainerState* aState,
        // transparent are always added to the opaque region. This helps ensure
        // that we get as much subpixel-AA as possible in the chrome.
        if (tmp.GetNumRects() <= 4 || aItem->Frame()->PresContext()->IsChrome()) {
-        mOpaqueRegion = tmp;
+        mOpaqueRegion = Move(tmp);
       }
     }
   }
@@ -3616,9 +3612,9 @@ DumpPaintedImage(nsDisplayItem* aItem, SourceSurface* aSurface)
   nsCString string(aItem->Name());
   string.Append('-');
   string.AppendInt((uint64_t)aItem);
-  fprintf_stderr(gfxUtils::sDumpPaintFile, "array[\"%s\"]=\"", string.BeginReading());
+  fprintf_stderr(gfxUtils::sDumpPaintFile, "<script>array[\"%s\"]=\"", string.BeginReading());
   gfxUtils::DumpAsDataURI(aSurface, gfxUtils::sDumpPaintFile);
-  fprintf_stderr(gfxUtils::sDumpPaintFile, "\";");
+  fprintf_stderr(gfxUtils::sDumpPaintFile, "\";</script>\n");
 }
 #endif
 

@@ -873,12 +873,15 @@ BrowserGlue.prototype = {
 #else
     let SCALING_PROBE_NAME = "";
 #endif
+/*
     if (SCALING_PROBE_NAME) {
       let scaling = aWindow.devicePixelRatio * 100;
       Services.telemetry.getHistogramById(SCALING_PROBE_NAME).add(scaling);
     }
+*/
 
-#ifdef XP_WIN
+#if 0
+//def XP_WIN
     if (WindowsUIUtils.inTabletMode) {
       Services.telemetry.getHistogramById("FX_TABLET_MODE_USED_DURING_SESSION")
                         .add(1);

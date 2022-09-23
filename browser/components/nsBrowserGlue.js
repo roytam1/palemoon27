@@ -889,7 +889,8 @@ BrowserGlue.prototype = {
   // the first browser window has finished initializing
   _onFirstWindowLoaded: function BG__onFirstWindowLoaded(aWindow) {
 
-#ifdef NIGHTLY_BUILD
+#if 0
+//def NIGHTLY_BUILD
     // Registering Shumway bootstrap script the child processes.
     aWindow.messageManager.loadFrameScript("chrome://shumway/content/bootstrap-content.js", true);
     // Initializing Shumway (shall be run after child script registration).

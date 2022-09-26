@@ -7,7 +7,6 @@
 #define GFX_PLATFORM_GTK_H
 
 #include "gfxPlatform.h"
-#include "gfxPrefs.h"
 #include "nsAutoRef.h"
 #include "nsTArray.h"
 
@@ -110,17 +109,16 @@ public:
 #endif
     }
 
+#ifdef MOZ_X11
+    virtual void GetAzureBackendInfo(mozilla::widget::InfoObject &aObj) override {
+      gfxPlatform::GetAzureBackendInfo(aObj);
+      aObj.DefineProperty("CairoUseXRender", UseXRender());
+    }
+#endif
+
     static bool UseFcFontList() { return sUseFcFontList; }
 
-    bool UseImageOffscreenSurfaces() {
-        // We want to turn on image offscreen surfaces ONLY for GTK3 builds
-        // since GTK2 theme rendering still requires xlib surfaces per se.
-#if (MOZ_WIDGET_GTK == 3)
-        return gfxPrefs::UseImageOffscreenSurfaces();
-#else
-        return false;
-#endif
-    }
+    bool UseImageOffscreenSurfaces();
 
     virtual gfxImageFormat GetOffscreenFormat() override;
 

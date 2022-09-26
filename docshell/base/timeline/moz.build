@@ -5,6 +5,7 @@
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
 EXPORTS.mozilla += [
+    'AbstractTimelineMarker.h',
     'AutoGlobalTimelineMarker.h',
     'AutoTimelineMarker.h',
     'ConsoleTimelineMarker.h',
@@ -15,10 +16,12 @@ EXPORTS.mozilla += [
     'RestyleTimelineMarker.h',
     'TimelineConsumers.h',
     'TimelineMarker.h',
+    'TimelineMarkerEnums.h',
     'TimestampTimelineMarker.h',
 ]
 
 UNIFIED_SOURCES += [
+    'AbstractTimelineMarker.cpp',
     'AutoGlobalTimelineMarker.cpp',
     'AutoTimelineMarker.cpp',
     'ObservedDocShell.cpp',

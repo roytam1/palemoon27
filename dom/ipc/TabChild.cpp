@@ -1634,7 +1634,7 @@ TabChild::MaybeRequestPreinitCamera()
 
     nsCOMPtr<mozIApplication> app;
     nsresult rv = appsService->GetAppByLocalId(OwnAppId(), getter_AddRefs(app));
-    if (NS_WARN_IF(NS_FAILED(rv))) {
+    if (NS_WARN_IF(NS_FAILED(rv)) || !app) {
       return;
     }
 
@@ -2974,6 +2974,21 @@ TabChild::DidComposite(uint64_t aTransactionId,
     static_cast<ClientLayerManager*>(mPuppetWidget->GetLayerManager());
 
   manager->DidComposite(aTransactionId, aCompositeStart, aCompositeEnd);
+}
+
+void
+TabChild::DidRequestComposite(const TimeStamp& aCompositeReqStart,
+                              const TimeStamp& aCompositeReqEnd)
+{
+  nsCOMPtr<nsIDocShell> docShell = do_GetInterface(WebNavigation());
+  if (!docShell) {
+    return;
+  }
+
+  TimelineConsumers::AddMarkerForDocShell(docShell.get(),
+    "CompositeForwardTransaction", aCompositeReqStart, MarkerTracingType::START);
+  TimelineConsumers::AddMarkerForDocShell(docShell.get(),
+    "CompositeForwardTransaction", aCompositeReqEnd, MarkerTracingType::END);
 }
 
 void

@@ -21,6 +21,7 @@
 #include "nsThreadUtils.h"
 
 #include "BackgroundFileSaver.h"
+#include "mozilla/Telemetry.h"
 
 #ifdef XP_WIN
 #include <windows.h>
@@ -157,6 +158,8 @@ BackgroundFileSaver::Init()
 
   rv = NS_NewThread(getter_AddRefs(mWorkerThread));
   NS_ENSURE_SUCCESS(rv, rv);
+
+  sThreadCount++;
 
   return NS_OK;
 }
@@ -504,16 +507,10 @@ BackgroundFileSaver::ProcessStateChange()
         NS_ENSURE_SUCCESS(rv, rv);
       }
 
-      // We should not only update the mActualTarget with renameTarget when
-      // they point to the different files.
-      // In this way, if mActualTarget and renamedTarget point to the same file
-      // with different addresses, "CheckCompletion()" will return false forever.
+      // Now we can update the actual target file name.
+      mActualTarget = renamedTarget;
+      mActualTargetKeepPartial = renamedTargetKeepPartial;
     }
-
-    // Update mActualTarget with renameTarget,
-    // even if they point to the same file.
-    mActualTarget = renamedTarget;
-    mActualTargetKeepPartial = renamedTargetKeepPartial;
   }
 
   // Notify if the target file name actually changed.

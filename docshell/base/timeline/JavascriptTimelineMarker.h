@@ -21,8 +21,9 @@ public:
                                     const char16_t* aFunctionName,
                                     const char16_t* aFileName,
                                     uint32_t aLineNumber,
-                                    TracingMetadata aMetaData)
-    : TimelineMarker("Javascript", NS_ConvertUTF8toUTF16(aReason), aMetaData, NO_STACK)
+                                    MarkerTracingType aTracingType)
+    : TimelineMarker("Javascript", aTracingType, MarkerStackRequest::NO_STACK)
+    , mCause(NS_ConvertUTF8toUTF16(aReason))
     , mFunctionName(aFunctionName)
     , mFileName(aFileName)
     , mLineNumber(aLineNumber)
@@ -30,7 +31,7 @@ public:
 
   virtual void AddDetails(JSContext* aCx, dom::ProfileTimelineMarker& aMarker) override
   {
-    aMarker.mCauseName.Construct(GetCause());
+    aMarker.mCauseName.Construct(mCause);
 
     if (!mFunctionName.IsEmpty() || !mFileName.IsEmpty()) {
       dom::RootedDictionary<dom::ProfileTimelineStackFrame> stackFrame(aCx);
@@ -50,6 +51,7 @@ public:
   }
 
 private:
+  nsString mCause;
   nsString mFunctionName;
   nsString mFileName;
   uint32_t mLineNumber;

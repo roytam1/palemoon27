@@ -51,6 +51,8 @@ public:
   already_AddRefed<nsILoadInfo>
   CloneWithNewSecFlags(nsSecurityFlags aSecurityFlags) const;
 
+  already_AddRefed<nsILoadInfo> Clone() const;
+
   void SetIsFromProcessingFrameAttributes();
 
 private:
@@ -69,6 +71,7 @@ private:
            bool aEnforceSecurity,
            bool aInitialSecurityCheckDone,
            nsTArray<nsCOMPtr<nsIPrincipal>>& aRedirectChain);
+  LoadInfo(const LoadInfo& rhs);
 
   friend nsresult
   mozilla::ipc::LoadInfoArgsToLoadInfo(

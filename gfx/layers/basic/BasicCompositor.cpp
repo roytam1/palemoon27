@@ -161,7 +161,7 @@ BasicCompositor::CreateDataTextureSource(TextureFlags aFlags)
 bool
 BasicCompositor::SupportsEffect(EffectTypes aEffect)
 {
-  return static_cast<EffectTypes>(aEffect) != EffectTypes::YCBCR;
+  return aEffect != EffectTypes::YCBCR && aEffect != EffectTypes::COMPONENT_ALPHA;
 }
 
 static void
@@ -479,6 +479,7 @@ BasicCompositor::DrawQuad(const gfx::Rect& aRect,
 #endif
         );
     if (NS_WARN_IF(!temp)) {
+      buffer->PopClip();
       return;
     }
 

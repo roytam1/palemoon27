@@ -946,6 +946,7 @@ NS_INTERFACE_MAP_BEGIN(nsDocShell)
   NS_INTERFACE_MAP_ENTRY(nsIClipboardCommands)
   NS_INTERFACE_MAP_ENTRY(nsIDOMStorageManager)
   NS_INTERFACE_MAP_ENTRY(nsINetworkInterceptController)
+  NS_INTERFACE_MAP_ENTRY(nsIDeprecationWarner)
 NS_INTERFACE_MAP_END_INHERITING(nsDocLoader)
 
 NS_IMETHODIMP
@@ -10937,16 +10938,13 @@ nsDocShell::DoChannelLoad(nsIChannel* aChannel,
     loadFlags |= nsIChannel::LOAD_CLASSIFY_URI;
   }
 
-  (void)aChannel->SetLoadFlags(loadFlags);
-
   // If the user pressed shift-reload, then do not allow ServiceWorker
   // interception to occur. See step 12.1 of the SW HandleFetch algorithm.
   if (IsForceReloadType(mLoadType)) {
-    nsCOMPtr<nsIHttpChannelInternal> internal = do_QueryInterface(aChannel);
-    if (internal) {
-      internal->ForceNoIntercept();
-    }
+    loadFlags |= nsIChannel::LOAD_BYPASS_SERVICE_WORKER;
   }
+
+  (void)aChannel->SetLoadFlags(loadFlags);
 
   uint32_t openFlags = 0;
   if (mLoadType == LOAD_LINK) {
@@ -13959,7 +13957,7 @@ nsDocShell::NotifyJSRunToCompletionStart(const char* aReason,
   // If first start, mark interval start.
   if (timelineOn && mJSRunToCompletionDepth == 0) {
     UniquePtr<TimelineMarker> marker = MakeUnique<JavascriptTimelineMarker>(
-      aReason, aFunctionName, aFilename, aLineNumber, TRACING_INTERVAL_START);
+      aReason, aFunctionName, aFilename, aLineNumber, MarkerTracingType::START);
     TimelineConsumers::AddMarkerForDocShell(this, Move(marker));
   }
   mJSRunToCompletionDepth++;
@@ -13973,7 +13971,7 @@ nsDocShell::NotifyJSRunToCompletionStop()
   // If last stop, mark interval end.
   mJSRunToCompletionDepth--;
   if (timelineOn && mJSRunToCompletionDepth == 0) {
-    TimelineConsumers::AddMarkerForDocShell(this, "Javascript", TRACING_INTERVAL_END);
+    TimelineConsumers::AddMarkerForDocShell(this, "Javascript", MarkerTracingType::END);
   }
 }
 
@@ -14222,4 +14220,14 @@ nsDocShell::InFrameSwap()
     shell = shell->GetParentDocshell();
   } while (shell);
   return false;
+}
+
+NS_IMETHODIMP
+nsDocShell::IssueWarning(uint32_t aWarning, bool aAsError)
+{
+  nsCOMPtr<nsIDocument> doc = mContentViewer->GetDocument();
+  if (doc) {
+    doc->WarnOnceAbout(nsIDocument::DeprecatedOperations(aWarning), aAsError);
+  }
+  return NS_OK;
 }

@@ -1662,36 +1662,6 @@ this.PlacesUtils = {
   },
 
   /**
-   * Returns the passed URL with a #-moz-resolution fragment
-   * for the specified dimensions and devicePixelRatio.
-   *
-   * @param aWindow
-   *        A window from where we want to get the device
-   *        pixel Ratio
-   *
-   * @param aURL
-   *        The URL where we should add the fragment
-   *
-   * @param aWidth
-   *        The target image width
-   *
-   * @param aHeight
-   *        The target image height
-   *
-   * @return The URL with the fragment at the end
-   */
-  getImageURLForResolution:
-  function PU_getImageURLForResolution(aWindow, aURL, aWidth = 16, aHeight = 16) {
-    if (!aURL.endsWith('.ico') && !aURL.endsWith('.ICO')) {
-      return aURL;
-    }
-    let width  = Math.round(aWidth * aWindow.devicePixelRatio);
-    let height = Math.round(aHeight * aWindow.devicePixelRatio);
-    return aURL + (aURL.includes("#") ? "&" : "#") +
-           "-moz-resolution=" + width + "," + height;
-  },
-
-  /**
    * Get the unique id for an item (a bookmark, a folder or a separator) given
    * its item id.
    *
@@ -1783,6 +1753,7 @@ this.PlacesUtils = {
    *  - tags (string): csv string of the bookmark's tags.
    *  - charset (string): the last known charset of the bookmark.
    *  - keyword (string): the bookmark's keyword (unset if none).
+   *  - postData (string): the bookmark's keyword postData (unset if none).
    *  - iconuri (string): the bookmark's favicon url.
    * The last four properties are not set at all if they're irrelevant (e.g.
    * |charset| is not set if no charset was previously set for the bookmark
@@ -1797,7 +1768,7 @@ this.PlacesUtils = {
    * resolved to null.
    */
   promiseBookmarksTree: Task.async(function* (aItemGuid = "", aOptions = {}) {
-    let createItemInfoObject = (aRow, aIncludeParentGuid) => {
+    let createItemInfoObject = function* (aRow, aIncludeParentGuid) {
       let item = {};
       let copyProps = (...props) => {
         for (let prop of props) {
@@ -1836,9 +1807,11 @@ this.PlacesUtils = {
           // If this throws due to an invalid url, the item will be skipped.
           item.uri = NetUtil.newURI(aRow.getResultByName("url")).spec;
           // Keywords are cached, so this should be decently fast.
-          let keyword = PlacesUtils.bookmarks.getKeywordForBookmark(itemId);
-          if (keyword)
-            item.keyword = keyword;
+          let entry = yield PlacesUtils.keywords.fetch({ url: item.uri });
+          if (entry) {
+            item.keyword = entry.keyword;
+            item.postData = entry.postData;
+          }
           break;
         case Ci.nsINavBookmarksService.TYPE_FOLDER:
           item.type = PlacesUtils.TYPE_X_MOZ_PLACE_CONTAINER;
@@ -1860,7 +1833,7 @@ this.PlacesUtils = {
           break;
       }
       return item;
-    };
+    }.bind(this);
 
     const QUERY_STR =
       `WITH RECURSIVE
@@ -1913,40 +1886,35 @@ this.PlacesUtils = {
       return exclude;
     };
 
-    let rootItem = null, rootItemCreationEx = null;
+    let rootItem = null;
     let parentsMap = new Map();
-    try {
-      let conn = yield this.promiseDBConnection();
-      yield conn.executeCached(QUERY_STR,
-          { tags_folder: PlacesUtils.tagsFolderId,
-            charset_anno: PlacesUtils.CHARSET_ANNO,
-            item_guid: aItemGuid }, (aRow) => {
-        let item;
-        if (!rootItem) {
+    let conn = yield this.promiseDBConnection();
+    let rows = yield conn.executeCached(QUERY_STR,
+        { tags_folder: PlacesUtils.tagsFolderId,
+          charset_anno: PlacesUtils.CHARSET_ANNO,
+          item_guid: aItemGuid });
+    let yieldCounter = 0;
+    for (let row of rows) {
+      let item;
+      if (!rootItem) {
+        try {
           // This is the first row.
-          try {
-            rootItem = item = createItemInfoObject(aRow, true);
-          }
-          catch(ex) {
-            // If we couldn't figure out the root item, that is just as bad
-            // as a failed query.  Bail out.
-            rootItemCreationEx = ex;
-            throw StopIteration;
-          }
-
-          Object.defineProperty(rootItem, "itemsCount",
-                                { value: 1
-                                , writable: true
-                                , enumerable: false
-                                , configurable: false });
+          rootItem = item = yield createItemInfoObject(row, true);
+          Object.defineProperty(rootItem, "itemsCount", { value: 1
+                                                        , writable: true
+                                                        , enumerable: false
+                                                        , configurable: false });
+        } catch(ex) {
+          throw new Error("Failed to fetch the data for the root item " + ex);
         }
-        else {
+      } else {
+        try {
           // Our query guarantees that we always visit parents ahead of their
           // children.
-          item = createItemInfoObject(aRow, false);
-          let parentGuid = aRow.getResultByName("parentGuid");
+          item = yield createItemInfoObject(row, false);
+          let parentGuid = row.getResultByName("parentGuid");
           if (hasExcludeItemsCallback && shouldExcludeItem(item, parentGuid))
-            return;
+            continue;
 
           let parentItem = parentsMap.get(parentGuid);
           if ("children" in parentItem)
@@ -1955,17 +1923,23 @@ this.PlacesUtils = {
             parentItem.children = [item];
 
           rootItem.itemsCount++;
+        } catch(ex) {
+          // This is a bogus child, report and skip it.
+          Cu.reportError("Failed to fetch the data for an item " + ex);
+          continue;
         }
+      }
 
-        if (item.type == this.TYPE_X_MOZ_PLACE_CONTAINER)
-          parentsMap.set(item.guid, item);
-      });
-    } catch(e) {
-      throw new Error("Unable to query the database " + e);
-    }
-    if (rootItemCreationEx) {
-      throw new Error("Failed to fetch the data for the root item" +
-                      rootItemCreationEx);
+      if (item.type == this.TYPE_X_MOZ_PLACE_CONTAINER)
+        parentsMap.set(item.guid, item);
+
+      // With many bookmarks we end up stealing the CPU - even with yielding!
+      // So we let everyone else have a go every few items (bug 1186714).
+      if (++yieldCounter % 50 == 0) {
+        yield new Promise(resolve => {
+          Services.tm.currentThread.dispatch(resolve, Ci.nsIThread.DISPATCH_NORMAL);
+        });
+      }
     }
 
     return rootItem;
@@ -2071,7 +2045,7 @@ XPCOMUtils.defineLazyGetter(this, "bundle", function() {
 
 // A promise resolved once the Sqlite.jsm connections
 // can be closed.
-let promiseCanCloseConnection = function() {
+var promiseCanCloseConnection = function() {
   let TOPIC = "places-will-close-connection";
   return new Promise(resolve => {
     let observer = function() {
@@ -2448,16 +2422,17 @@ var GuidHelper = {
     if (cached !== undefined)
       return cached;
 
-    let conn = yield PlacesUtils.promiseDBConnection();
+    let itemId = yield PlacesUtils.withConnectionWrapper("GuidHelper.getItemId",
+                                                         Task.async(function* (db) {
+      let rows = yield db.executeCached(
+        "SELECT b.id, b.guid from moz_bookmarks b WHERE b.guid = :guid LIMIT 1",
+        { guid: aGuid });
+      if (rows.length == 0)
+        throw new Error("no item found for the given GUID");
 
-    let rows = yield conn.executeCached(
-      "SELECT b.id, b.guid from moz_bookmarks b WHERE b.guid = :guid LIMIT 1",
-      { guid: aGuid });
-    if (rows.length == 0)
-      throw new Error("no item found for the given GUID");
+      return rows[0].getResultByName("id");
+    }));
 
-    this.ensureObservingRemovedItems();
-    let itemId = rows[0].getResultByName("id");
     this.updateCache(itemId, aGuid);
     return itemId;
   }),
@@ -2467,16 +2442,18 @@ var GuidHelper = {
     if (cached !== undefined)
       return cached;
 
-    let conn = yield PlacesUtils.promiseDBConnection();
+    let guid = yield PlacesUtils.withConnectionWrapper("GuidHelper.getItemGuid",
+                                                       Task.async(function* (db) {
 
-    let rows = yield conn.executeCached(
-      "SELECT b.id, b.guid from moz_bookmarks b WHERE b.id = :id LIMIT 1",
-      { id: aItemId });
-    if (rows.length == 0)
-      throw new Error("no item found for the given itemId");
+      let rows = yield db.executeCached(
+        "SELECT b.id, b.guid from moz_bookmarks b WHERE b.id = :id LIMIT 1",
+        { id: aItemId });
+      if (rows.length == 0)
+        throw new Error("no item found for the given itemId");
 
-    this.ensureObservingRemovedItems();
-    let guid = rows[0].getResultByName("guid");
+      return rows[0].getResultByName("guid");
+    }));
+
     this.updateCache(aItemId, guid);
     return guid;
   }),
@@ -2492,6 +2469,7 @@ var GuidHelper = {
       throw new Error("Trying to update the GUIDs cache with an invalid itemId");
     if (typeof(aGuid) != "string" || !/^[a-zA-Z0-9\-_]{12}$/.test(aGuid))
       throw new Error("Trying to update the GUIDs cache with an invalid GUID");
+    this.ensureObservingRemovedItems();
     this.guidsForIds.set(aItemId, aGuid);
     this.idsForGuids.set(aGuid, aItemId);
   },
@@ -2964,7 +2942,7 @@ PlacesCreateLivemarkTransaction.prototype = {
 
   doTransaction: function CLTXN_doTransaction()
   {
-    PlacesUtils.livemarks.addLivemark(
+    this._promise = PlacesUtils.livemarks.addLivemark(
       { title: this.item.title
       , feedURI: this.item.feedURI
       , parentId: this.item.parentId
@@ -2983,7 +2961,7 @@ PlacesCreateLivemarkTransaction.prototype = {
   {
     // The getLivemark callback may fail, but it is used just to serialize,
     // so it doesn't matter.
-    PlacesUtils.livemarks.getLivemark({ id: this.item.id })
+    this._promise = PlacesUtils.livemarks.getLivemark({ id: this.item.id })
       .then(null, null).then( () => {
         PlacesUtils.bookmarks.removeItem(this.item.id);
       });

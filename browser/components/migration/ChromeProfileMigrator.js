@@ -322,8 +322,11 @@ function GetCookiesResource(aProfileFolder) {
 
     migrate: function(aCallback) {
       let dbConn = Services.storage.openUnsharedDatabase(cookiesFile);
-      let stmt = dbConn.createAsyncStatement(
-          "SELECT host_key, path, name, value, secure, httponly, expires_utc FROM cookies");
+      // We don't support decrypting cookies yet so only import plaintext ones.
+      let stmt = dbConn.createAsyncStatement(`
+        SELECT host_key, name, value, path, expires_utc, secure, httponly, encrypted_value
+        FROM cookies
+        WHERE length(encrypted_value) = 0`);
 
       stmt.executeAsync({
         handleResult : function(aResults) {
@@ -382,15 +385,14 @@ function GetWindowsPasswordsResource(aProfileFolder) {
         password_element, password_value, signon_realm, scheme, date_created,
         times_used FROM logins WHERE blacklisted_by_user = 0`);
       let crypto = new OSCrypto();
-      let utf8Converter = Cc["@mozilla.org/intl/utf8converterservice;1"].getService(Ci.nsIUTF8ConverterService);
 
       stmt.executeAsync({
         _rowToLoginInfo(row) {
           let loginInfo = {
-            username: utf8Converter.convertURISpecToUTF8(row.getResultByName("username_value"), "UTF-8"),
-            password: utf8Converter.convertURISpecToUTF8(
-                        crypto.decryptData(crypto.arrayToString(row.getResultByName("password_value")), null),
-                        "UTF-8"),
+            username: row.getResultByName("username_value"),
+            password: crypto.
+                      decryptData(crypto.arrayToString(row.getResultByName("password_value")),
+                                                       null),
             hostName: NetUtil.newURI(row.getResultByName("origin_url")).prePath,
             submitURL: null,
             httpRealm: null,
@@ -490,7 +492,7 @@ ChromiumProfileMigrator.prototype.classDescription = "Chromium Profile Migrator"
 ChromiumProfileMigrator.prototype.contractID = "@mozilla.org/profile/migrator;1?app=browser&type=chromium";
 ChromiumProfileMigrator.prototype.classID = Components.ID("{8cece922-9720-42de-b7db-7cef88cb07ca}");
 
-let componentsArray = [ChromeProfileMigrator, ChromiumProfileMigrator];
+var componentsArray = [ChromeProfileMigrator, ChromiumProfileMigrator];
 
 #if defined(XP_WIN) || defined(XP_MACOSX)
 /**

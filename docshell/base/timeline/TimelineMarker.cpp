@@ -9,89 +9,66 @@
 namespace mozilla {
 
 TimelineMarker::TimelineMarker(const char* aName,
-                               TracingMetadata aMetaData,
-                               TimelineStackRequest aStackRequest)
-  : mName(aName)
-  , mMetaData(aMetaData)
+                               MarkerTracingType aTracingType,
+                               MarkerStackRequest aStackRequest)
+  : AbstractTimelineMarker(aName, aTracingType)
 {
-  MOZ_COUNT_CTOR(TimelineMarker);
-  MOZ_ASSERT(aName);
-
-  SetCurrentTime();
-  CaptureStackIfNecessary(aMetaData, aStackRequest);
+  CaptureStackIfNecessary(aTracingType, aStackRequest);
 }
 
 TimelineMarker::TimelineMarker(const char* aName,
                                const TimeStamp& aTime,
-                               TracingMetadata aMetaData,
-                               TimelineStackRequest aStackRequest)
-  : mName(aName)
-  , mMetaData(aMetaData)
+                               MarkerTracingType aTracingType,
+                               MarkerStackRequest aStackRequest)
+  : AbstractTimelineMarker(aName, aTime, aTracingType)
 {
-  MOZ_COUNT_CTOR(TimelineMarker);
-  MOZ_ASSERT(aName);
-
-  SetCustomTime(aTime);
-  CaptureStackIfNecessary(aMetaData, aStackRequest);
+  CaptureStackIfNecessary(aTracingType, aStackRequest);
 }
 
-TimelineMarker::TimelineMarker(const char* aName,
-                               const nsAString& aCause,
-                               TracingMetadata aMetaData,
-                               TimelineStackRequest aStackRequest)
-  : mName(aName)
-  , mCause(aCause)
-  , mMetaData(aMetaData)
+bool
+TimelineMarker::Equals(const AbstractTimelineMarker& aOther)
 {
-  MOZ_COUNT_CTOR(TimelineMarker);
-  MOZ_ASSERT(aName);
-
-  SetCurrentTime();
-  CaptureStackIfNecessary(aMetaData, aStackRequest);
-}
-
-TimelineMarker::TimelineMarker(const char* aName,
-                               const nsAString& aCause,
-                               const TimeStamp& aTime,
-                               TracingMetadata aMetaData,
-                               TimelineStackRequest aStackRequest)
-  : mName(aName)
-  , mCause(aCause)
-  , mMetaData(aMetaData)
-{
-  MOZ_COUNT_CTOR(TimelineMarker);
-  MOZ_ASSERT(aName);
-
-  SetCustomTime(aTime);
-  CaptureStackIfNecessary(aMetaData, aStackRequest);
-}
-
-TimelineMarker::~TimelineMarker()
-{
-  MOZ_COUNT_DTOR(TimelineMarker);
+  // Check whether two markers should be considered the same, for the purpose
+  // of pairing start and end markers. Normally this definition suffices.
+  return strcmp(GetName(), aOther.GetName()) == 0;
 }
 
 void
-TimelineMarker::SetCurrentTime()
+TimelineMarker::AddDetails(JSContext* aCx, dom::ProfileTimelineMarker& aMarker)
 {
-  TimeStamp now = TimeStamp::Now();
-  SetCustomTime(now);
+  // Nothing to do here for plain markers.
+}
+
+JSObject*
+TimelineMarker::GetStack()
+{
+  if (mStackTrace.initialized()) {
+    return mStackTrace;
+  }
+  return nullptr;
 }
 
 void
-TimelineMarker::SetCustomTime(const TimeStamp& aTime)
+TimelineMarker::CaptureStack()
 {
-  bool isInconsistent = false;
-  mTime = (aTime - TimeStamp::ProcessCreation(isInconsistent)).ToMilliseconds();
+  JSContext* ctx = nsContentUtils::GetCurrentJSContext();
+  if (ctx) {
+    JS::RootedObject stack(ctx);
+    if (JS::CaptureCurrentStack(ctx, &stack)) {
+      mStackTrace.init(ctx, stack.get());
+    } else {
+      JS_ClearPendingException(ctx);
+    }
+  }
 }
 
 void
-TimelineMarker::CaptureStackIfNecessary(TracingMetadata aMetaData,
-                                        TimelineStackRequest aStackRequest)
+TimelineMarker::CaptureStackIfNecessary(MarkerTracingType aTracingType,
+                                        MarkerStackRequest aStackRequest)
 {
-  if ((aMetaData == TRACING_INTERVAL_START ||
-      aMetaData == TRACING_TIMESTAMP) &&
-      aStackRequest != NO_STACK) {
+  if ((aTracingType == MarkerTracingType::START ||
+      aTracingType == MarkerTracingType::TIMESTAMP) &&
+      aStackRequest != MarkerStackRequest::NO_STACK) {
     CaptureStack();
   }
 }

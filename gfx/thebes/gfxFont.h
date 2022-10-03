@@ -410,6 +410,7 @@ public:
         uint32_t    fallbackSystem;
         uint32_t    textrunConst;
         uint32_t    textrunDestr;
+        uint32_t    genericLookups;
     };
 
     uint32_t reflowCount;
@@ -443,6 +444,7 @@ public:
         cumulative.fallbackSystem += current.fallbackSystem;
         cumulative.textrunConst += current.textrunConst;
         cumulative.textrunDestr += current.textrunDestr;
+        cumulative.genericLookups += current.genericLookups;
         memset(&current, 0, sizeof(current));
     }
 };

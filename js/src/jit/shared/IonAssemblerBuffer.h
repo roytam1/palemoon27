@@ -152,8 +152,13 @@ class AssemblerBuffer
 
     bool ensureSpace(int size) {
         // Space can exist in the most recent Slice.
-        if (tail && tail->length() + size <= tail->Capacity())
+        if (tail && tail->length() + size <= tail->Capacity()) {
+            // Simulate allocation failure even when we don't need a new slice.
+            if (js::oom::ShouldFailWithOOM())
+                return fail_oom();
+
             return true;
+        }
 
         // Otherwise, a new Slice must be added.
         Slice* slice = newSlice(lifoAlloc_);
@@ -315,19 +320,6 @@ class AssemblerBuffer
         if (tail)
             return BufferOffset(bufferSize + tail->length());
         return BufferOffset(bufferSize);
-    }
-
-    // Break the instruction stream so we can go back and edit it at this point
-    void perforate() {
-        Slice* slice = newSlice(lifoAlloc_);
-        if (!slice) {
-            fail_oom();
-            return;
-        }
-
-        bufferSize += tail->length();
-        tail->setNext(slice);
-        tail = slice;
     }
 
     class AssemblerBufferInstIterator

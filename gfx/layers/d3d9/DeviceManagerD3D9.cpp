@@ -264,13 +264,46 @@ DeviceManagerD3D9::Init()
   pp.PresentationInterval = D3DPRESENT_INTERVAL_DEFAULT;
   pp.hDeviceWindow = mFocusWnd;
 
+  // XPRTM Edit:
+  // the mD3D9 object has been created, otherwise we wouldn't be here
+  // now we get the device caps, so can create a device with the correct parameters
+  DWORD     behaviorFlags = 0;
+  D3DCAPS9  pD3D9DeviceCaps;
+
+  hr = mD3D9->GetDeviceCaps(D3DADAPTER_DEFAULT,
+                            D3DDEVTYPE_HAL,
+                            &pD3D9DeviceCaps);
+
+  if (FAILED(hr)) {
+      // something wrong happened, bail out
+      return false;
+  }
+
+  // XPRTM Edit:
+  // check if hardware T&L is available
+  if (pD3D9DeviceCaps.DevCaps & D3DDEVCAPS_HWTRANSFORMANDLIGHT) {
+      if (pD3D9DeviceCaps.DevCaps & D3DDEVCAPS_PUREDEVICE) {
+          behaviorFlags |= D3DCREATE_HARDWARE_VERTEXPROCESSING |
+                           D3DCREATE_MULTITHREADED |
+                           D3DCREATE_PUREDEVICE | D3DCREATE_FPU_PRESERVE;
+      } else {
+          behaviorFlags |= D3DCREATE_HARDWARE_VERTEXPROCESSING |
+                           D3DCREATE_MULTITHREADED |
+                           D3DCREATE_FPU_PRESERVE;
+      }
+  } else {
+      behaviorFlags |= D3DCREATE_SOFTWARE_VERTEXPROCESSING |
+                       D3DCREATE_MULTITHREADED |
+                       D3DCREATE_FPU_PRESERVE;
+  }
+
+  // XPRTM Edit:
+  // now create the D3D9Ex device with the correct parameters
   if (mD3D9Ex) {
     hr = mD3D9Ex->CreateDeviceEx(D3DADAPTER_DEFAULT,
                                  D3DDEVTYPE_HAL,
                                  mFocusWnd,
-                                 D3DCREATE_FPU_PRESERVE |
-                                 D3DCREATE_MULTITHREADED |
-                                 D3DCREATE_MIXED_VERTEXPROCESSING,
+                                 behaviorFlags,
                                  &pp,
                                  nullptr,
                                  getter_AddRefs(mDeviceEx));
@@ -278,9 +311,10 @@ DeviceManagerD3D9::Init()
       mDevice = mDeviceEx;
     }
 
-    D3DCAPS9 caps;
-    if (mDeviceEx && mDeviceEx->GetDeviceCaps(&caps)) {
-      if (LACKS_CAP(caps.Caps2, D3DCAPS2_DYNAMICTEXTURES)) {
+    // XPRTM Edit:
+    // I ghanged this to avoid data dupe(getting the device caps twice)
+    if (mDeviceEx) {
+      if (LACKS_CAP(pD3D9DeviceCaps.Caps2, D3DCAPS2_DYNAMICTEXTURES)) {
         // XXX - Should we actually hit this we'll need a CanvasLayer that
         // supports static D3DPOOL_DEFAULT textures.
         NS_WARNING("D3D9Ex device not used because of lack of support for \
@@ -291,13 +325,13 @@ DeviceManagerD3D9::Init()
     }
   }
 
+  // XPRTM Edit:
+  // same as above, just create the D3D9 device with the proper parameters
   if (!mDevice) {
     hr = mD3D9->CreateDevice(D3DADAPTER_DEFAULT,
                              D3DDEVTYPE_HAL,
                              mFocusWnd,
-                             D3DCREATE_FPU_PRESERVE |
-                             D3DCREATE_MULTITHREADED |
-                             D3DCREATE_MIXED_VERTEXPROCESSING,
+                             behaviorFlags,
                              &pp,
                              getter_AddRefs(mDevice));
 
@@ -763,11 +797,13 @@ DeviceManagerD3D9::VerifyCaps()
   if (LACKS_CAP(caps.TextureAddressCaps, D3DPTADDRESSCAPS_CLAMP)) {
     return false;
   }
-  //Lowered from 4096 to 1024 to allow older graphic cards
+
+  // Lowered from 4096 to 1024 to allow older graphic cards
   mMaxTextureSize = std::min(caps.MaxTextureHeight, caps.MaxTextureWidth);
   if(mMaxTextureSize < 1024){
     return false;
   }
+
   if ((caps.PixelShaderVersion & 0xffff) < 0x200 ||
       (caps.VertexShaderVersion & 0xffff) < 0x200) {
     return false;

@@ -77,6 +77,14 @@ let AppConstants = Object.freeze({
   false,
 #endif
 
+# MOZ_B2G covers both device and desktop b2g
+  MOZ_B2G:
+#ifdef MOZ_B2G
+  true,
+#else
+  false,
+#endif
+
   platform:
 #ifdef MOZ_WIDGET_GTK
   "linux",

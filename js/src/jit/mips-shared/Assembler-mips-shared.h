@@ -332,6 +332,7 @@ enum FunctionField {
     ff_movz        = 10,
     ff_movn        = 11,
     ff_break       = 13,
+    ff_sync        = 15,
 
     ff_mfhi        = 16,
     ff_mflo        = 18,
@@ -647,8 +648,6 @@ class MIPSBufferWithExecutableCopy : public MIPSBuffer
     }
 };
 
-class Assembler;
-
 class AssemblerMIPSShared : public AssemblerShared
 {
   public:
@@ -729,12 +728,9 @@ class AssemblerMIPSShared : public AssemblerShared
         return m_buffer.getInst(bo);
     }
   public:
-    uint32_t actualOffset(uint32_t) const;
     uint32_t actualIndex(uint32_t) const;
     static uint8_t* PatchableJumpAddress(JitCode* code, uint32_t index);
   protected:
-    Assembler& asAsm();
-
     // structure for fixing up pc-relative loads/jumps when a the machine code
     // gets moved (executable copy, gc, etc.)
     struct RelativePatch
@@ -752,7 +748,6 @@ class AssemblerMIPSShared : public AssemblerShared
         { }
     };
 
-    js::Vector<CodeLabel, 0, SystemAllocPolicy> codeLabels_;
     js::Vector<RelativePatch, 8, SystemAllocPolicy> jumps_;
     js::Vector<uint32_t, 8, SystemAllocPolicy> longJumps_;
 
@@ -806,14 +801,6 @@ class AssemblerMIPSShared : public AssemblerShared
     void copyJumpRelocationTable(uint8_t* dest);
     void copyDataRelocationTable(uint8_t* dest);
     void copyPreBarrierTable(uint8_t* dest);
-
-    void addCodeLabel(CodeLabel label);
-    size_t numCodeLabels() const {
-        return codeLabels_.length();
-    }
-    CodeLabel codeLabel(size_t i) {
-        return codeLabels_[i];
-    }
 
     // Size of the instruction stream, in bytes.
     size_t size() const;
@@ -1043,20 +1030,21 @@ class AssemblerMIPSShared : public AssemblerShared
 
     // label operations
     void bind(Label* label, BufferOffset boff = BufferOffset());
+    virtual void bind(InstImm* inst, uint32_t branch, uint32_t target) = 0;
+    virtual void Bind(uint8_t* rawCode, AbsoluteLabel* label, const void* address) = 0;
     uint32_t currentOffset() {
         return nextOffset().getOffset();
     }
     void retarget(Label* label, Label* target);
 
     // See Bind
-    size_t labelOffsetToPatchOffset(size_t offset) {
-        return actualOffset(offset);
-    }
+    size_t labelOffsetToPatchOffset(size_t offset) { return offset; }
 
     void call(Label* label);
     void call(void* target);
 
     void as_break(uint32_t code);
+    void as_sync(uint32_t stype = 0);
 
   public:
     static bool SupportsFloatingPoint() {
@@ -1096,8 +1084,6 @@ class AssemblerMIPSShared : public AssemblerShared
 
     static uint32_t NopSize() { return 4; }
 
-    static void PatchDataWithValueCheck(CodeLocationLabel label, ImmPtr newValue,
-                                        ImmPtr expectedValue);
     static void PatchWrite_Imm32(CodeLocationLabel label, Imm32 imm);
 
     static uint32_t AlignDoubleArg(uint32_t offset) {

@@ -282,15 +282,9 @@ DeviceManagerD3D9::Init()
   // XPRTM Edit:
   // check if hardware T&L is available
   if (pD3D9DeviceCaps.DevCaps & D3DDEVCAPS_HWTRANSFORMANDLIGHT) {
-      if (pD3D9DeviceCaps.DevCaps & D3DDEVCAPS_PUREDEVICE) {
-          behaviorFlags |= D3DCREATE_HARDWARE_VERTEXPROCESSING |
-                           D3DCREATE_MULTITHREADED |
-                           D3DCREATE_PUREDEVICE | D3DCREATE_FPU_PRESERVE;
-      } else {
-          behaviorFlags |= D3DCREATE_HARDWARE_VERTEXPROCESSING |
-                           D3DCREATE_MULTITHREADED |
-                           D3DCREATE_FPU_PRESERVE;
-      }
+      behaviorFlags |= D3DCREATE_HARDWARE_VERTEXPROCESSING |
+                       D3DCREATE_MULTITHREADED |
+                       D3DCREATE_FPU_PRESERVE;
   } else {
       behaviorFlags |= D3DCREATE_SOFTWARE_VERTEXPROCESSING |
                        D3DCREATE_MULTITHREADED |

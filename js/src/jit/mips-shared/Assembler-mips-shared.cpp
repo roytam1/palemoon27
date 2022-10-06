@@ -89,12 +89,6 @@ AssemblerMIPSShared::finish()
 }
 
 uint32_t
-AssemblerMIPSShared::actualOffset(uint32_t off_) const
-{
-    return off_;
-}
-
-uint32_t
 AssemblerMIPSShared::actualIndex(uint32_t idx_) const
 {
     return idx_;
@@ -104,12 +98,6 @@ uint8_t*
 AssemblerMIPSShared::PatchableJumpAddress(JitCode* code, uint32_t pe_)
 {
     return code->raw() + pe_;
-}
-
-Assembler&
-AssemblerMIPSShared::asAsm()
-{
-    return *static_cast<Assembler*>(this);
 }
 
 void
@@ -138,7 +126,7 @@ AssemblerMIPSShared::processCodeLabels(uint8_t* rawCode)
 {
     for (size_t i = 0; i < codeLabels_.length(); i++) {
         CodeLabel label = codeLabels_[i];
-        asAsm().Bind(rawCode, label.dest(), rawCode + actualOffset(label.src()->offset()));
+        Bind(rawCode, label.dest(), rawCode + label.src()->offset());
     }
 }
 
@@ -229,12 +217,6 @@ AssemblerMIPSShared::oom() const
            jumpRelocations_.oom() ||
            dataRelocations_.oom() ||
            preBarriers_.oom();
-}
-
-void
-AssemblerMIPSShared::addCodeLabel(CodeLabel label)
-{
-    propagateOOM(codeLabels_.append(label));
 }
 
 // Size of the instruction stream, in bytes.
@@ -1320,7 +1302,7 @@ AssemblerMIPSShared::bind(Label* label, BufferOffset boff)
 
             // Second word holds a pointer to the next branch in label's chain.
             next = inst[1].encode();
-            asAsm().bind(reinterpret_cast<InstImm*>(inst), b.getOffset(), dest.getOffset());
+            bind(reinterpret_cast<InstImm*>(inst), b.getOffset(), dest.getOffset());
 
             b = BufferOffset(next);
         } while (next != LabelBase::INVALID_OFFSET);
@@ -1373,10 +1355,10 @@ AssemblerMIPSShared::as_break(uint32_t code)
 }
 
 void
-AssemblerMIPSShared::PatchDataWithValueCheck(CodeLocationLabel label, ImmPtr newValue, ImmPtr expectedValue)
+AssemblerMIPSShared::as_sync(uint32_t stype)
 {
-    Assembler::PatchDataWithValueCheck(label, PatchedImmPtr(newValue.value),
-                            PatchedImmPtr(expectedValue.value));
+    MOZ_ASSERT(stype <= 31);
+    writeInst(InstReg(op_special, zero, zero, zero, stype, ff_sync).encode());
 }
 
 // This just stomps over memory with 32 bits of raw data. Its purpose is to

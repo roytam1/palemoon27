@@ -573,7 +573,7 @@ let StyleSheetActor = protocol.ActorClass({
    *         Promise that resolves with a string text of the stylesheet.
    */
   _getText: function() {
-    if (this.text) {
+    if (typeof this.text === "string") {
       return promise.resolve(this.text);
     }
 

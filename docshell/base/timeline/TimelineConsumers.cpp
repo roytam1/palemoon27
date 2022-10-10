@@ -70,7 +70,7 @@ TimelineConsumers::AddMarkerForDocShell(nsDocShell* aDocShell,
                                         const char* aName,
                                         MarkerTracingType aTracingType)
 {
-  if (aDocShell->IsObserved()) {
+  if (aDocShell && aDocShell->IsObserved()) {
     aDocShell->mObserved->AddMarker(Move(MakeUnique<TimelineMarker>(aName, aTracingType)));
   }
 }
@@ -81,7 +81,7 @@ TimelineConsumers::AddMarkerForDocShell(nsDocShell* aDocShell,
                                         const TimeStamp& aTime,
                                         MarkerTracingType aTracingType)
 {
-  if (aDocShell->IsObserved()) {
+  if (aDocShell && aDocShell->IsObserved()) {
     aDocShell->mObserved->AddMarker(Move(MakeUnique<TimelineMarker>(aName, aTime, aTracingType)));
   }
 }
@@ -90,7 +90,7 @@ void
 TimelineConsumers::AddMarkerForDocShell(nsDocShell* aDocShell,
                                         UniquePtr<TimelineMarker>&& aMarker)
 {
-  if (aDocShell->IsObserved()) {
+  if (aDocShell && aDocShell->IsObserved()) {
     aDocShell->mObserved->AddMarker(Move(aMarker));
   }
 }
@@ -100,7 +100,8 @@ TimelineConsumers::AddMarkerForDocShell(nsIDocShell* aDocShell,
                                         const char* aName,
                                         MarkerTracingType aTracingType)
 {
-  AddMarkerForDocShell(static_cast<nsDocShell*>(aDocShell), aName, aTracingType);
+  if (aDocShell)
+    AddMarkerForDocShell(static_cast<nsDocShell*>(aDocShell), aName, aTracingType);
 }
 
 void
@@ -109,14 +110,16 @@ TimelineConsumers::AddMarkerForDocShell(nsIDocShell* aDocShell,
                                         const TimeStamp& aTime,
                                         MarkerTracingType aTracingType)
 {
-  AddMarkerForDocShell(static_cast<nsDocShell*>(aDocShell), aName, aTime, aTracingType);
+  if (aDocShell)
+    AddMarkerForDocShell(static_cast<nsDocShell*>(aDocShell), aName, aTime, aTracingType);
 }
 
 void
 TimelineConsumers::AddMarkerForDocShell(nsIDocShell* aDocShell,
                                         UniquePtr<TimelineMarker>&& aMarker)
 {
-  AddMarkerForDocShell(static_cast<nsDocShell*>(aDocShell), Move(aMarker));
+  if (aDocShell)
+    AddMarkerForDocShell(static_cast<nsDocShell*>(aDocShell), Move(aMarker));
 }
 
 void

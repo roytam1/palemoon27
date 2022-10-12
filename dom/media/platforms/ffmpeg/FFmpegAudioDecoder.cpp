@@ -22,8 +22,7 @@ static void (*av_init_packet1)(AVPacket*) = nullptr;
 FFmpegAudioDecoder<LIBAV_VER>::FFmpegAudioDecoder(
   FlushableTaskQueue* aTaskQueue, MediaDataDecoderCallback* aCallback,
   const AudioInfo& aConfig)
-  : FFmpegDataDecoder(aTaskQueue, GetCodecId(aConfig.mMimeType))
-  , mCallback(aCallback)
+  : FFmpegDataDecoder(aTaskQueue, aCallback, GetCodecId(aConfig.mMimeType))
 {
   MOZ_COUNT_CTOR(FFmpegAudioDecoder);
   // Use a new MediaByteBuffer as the object will be modified during initialization.
@@ -110,6 +109,7 @@ CopyAndPackAudio(AVFrame* aFrame, uint32_t aNumChannels, uint32_t aNumAFrames)
 void
 FFmpegAudioDecoder<LIBAV_VER>::DecodePacket(MediaRawData* aSample)
 {
+  MOZ_ASSERT(mTaskQueue->IsCurrentThreadIn());
   AVPacket packet;
   av_init_packet1(&packet);
 
@@ -185,12 +185,12 @@ FFmpegAudioDecoder<LIBAV_VER>::Input(MediaRawData* aSample)
   return NS_OK;
 }
 
-nsresult
-FFmpegAudioDecoder<LIBAV_VER>::Drain()
+void
+FFmpegAudioDecoder<LIBAV_VER>::ProcessDrain()
 {
-  mTaskQueue->AwaitIdle();
+  MOZ_ASSERT(mTaskQueue->IsCurrentThreadIn());
+  ProcessFlush();
   mCallback->DrainComplete();
-  return Flush();
 }
 
 AVCodecID

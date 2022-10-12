@@ -238,7 +238,9 @@ media::TimeIntervals
 MediaDecoderReader::GetBuffered()
 {
   MOZ_ASSERT(OnTaskQueue());
-  NS_ENSURE_TRUE(HaveStartTime(), media::TimeIntervals());
+  if (!HaveStartTime()) {
+    return media::TimeIntervals();
+  }
   AutoPinned<MediaResource> stream(mDecoder->GetResource());
 
   if (!mDuration.Ref().isSome()) {
@@ -257,19 +259,9 @@ MediaDecoderReader::AsyncReadMetadata()
   mDecoder->GetReentrantMonitor().AssertNotCurrentThreadIn();
   DECODER_LOG("MediaDecoderReader::AsyncReadMetadata");
 
-  if (IsWaitingMediaResources()) {
-    return MetadataPromise::CreateAndReject(Reason::WAITING_FOR_RESOURCES, __func__);
-  }
-
   // Attempt to read the metadata.
   nsRefPtr<MetadataHolder> metadata = new MetadataHolder();
   nsresult rv = ReadMetadata(&metadata->mInfo, getter_Transfers(metadata->mTags));
-
-  // Reading metadata can cause us to discover that we need resources (a hardware
-  // resource initialized but not yet ready for use).
-  if (IsWaitingMediaResources()) {
-    return MetadataPromise::CreateAndReject(Reason::WAITING_FOR_RESOURCES, __func__);
-  }
 
   // We're not waiting for anything. If we didn't get the metadata, that's an error.
   if (NS_FAILED(rv) || !metadata->mInfo.HasValidMedia()) {

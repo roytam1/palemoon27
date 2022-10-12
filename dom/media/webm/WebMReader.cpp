@@ -279,10 +279,7 @@ WebMReader::AsyncReadMetadata()
 nsresult
 WebMReader::RetrieveWebMMetadata(MediaInfo* aInfo)
 {
-  // We can't use OnTaskQueue() here because of the wacky initialization task
-  // queue that TrackBuffer uses. We should be able to fix this when we do
-  // bug 1148234.
-  MOZ_ASSERT(mDecoder->OnDecodeTaskQueue());
+  MOZ_ASSERT(OnTaskQueue());
 
   nestegg_io io;
   io.read = webm_read;
@@ -780,7 +777,9 @@ nsresult WebMReader::SeekInternal(int64_t aTarget)
 media::TimeIntervals WebMReader::GetBuffered()
 {
   MOZ_ASSERT(OnTaskQueue());
-  NS_ENSURE_TRUE(HaveStartTime(), media::TimeIntervals());
+  if (!HaveStartTime()) {
+    return media::TimeIntervals();
+  }
   AutoPinned<MediaResource> resource(mDecoder->GetResource());
 
   media::TimeIntervals buffered;

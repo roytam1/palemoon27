@@ -49,7 +49,6 @@ private:
 
 enum class ReadMetadataFailureReason : int8_t
 {
-  WAITING_FOR_RESOURCES,
   METADATA_ERROR
 };
 
@@ -69,8 +68,8 @@ public:
   };
 
   typedef MozPromise<nsRefPtr<MetadataHolder>, ReadMetadataFailureReason, /* IsExclusive = */ true> MetadataPromise;
-  typedef MozPromise<nsRefPtr<AudioData>, NotDecodedReason, /* IsExclusive = */ true> AudioDataPromise;
-  typedef MozPromise<nsRefPtr<VideoData>, NotDecodedReason, /* IsExclusive = */ true> VideoDataPromise;
+  typedef MozPromise<nsRefPtr<MediaData>, NotDecodedReason, /* IsExclusive = */ true> AudioDataPromise;
+  typedef MozPromise<nsRefPtr<MediaData>, NotDecodedReason, /* IsExclusive = */ true> VideoDataPromise;
   typedef MozPromise<int64_t, nsresult, /* IsExclusive = */ true> SeekPromise;
 
   // Note that, conceptually, WaitForData makes sense in a non-exclusive sense.
@@ -95,8 +94,6 @@ public:
   // on failure.
   virtual nsresult Init(MediaDecoderReader* aCloneDonor) = 0;
 
-  // True if this reader is waiting media resource allocation
-  virtual bool IsWaitingMediaResources() { return false; }
   // True if this reader is waiting for a Content Decryption Module to become
   // available.
   virtual bool IsWaitingOnCDMResource() { return false; }

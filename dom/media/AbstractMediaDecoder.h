@@ -55,8 +55,6 @@ public:
 
   virtual bool OnStateMachineTaskQueue() const = 0;
 
-  virtual bool OnDecodeTaskQueue() const = 0;
-
   // Get the current MediaResource being used. Its URI will be returned
   // by currentSrc. Returns what was passed to Load(), if Load() has been called.
   virtual MediaResource* GetResource() const = 0;
@@ -114,10 +112,6 @@ public:
   // on the main thread.
   virtual MediaDecoderOwner* GetOwner() = 0;
 
-  // May be called by the reader to notify the decoder that the resources
-  // required to begin playback have been acquired. Can be called on any thread.
-  virtual void NotifyWaitingForResourcesStatusChanged() = 0;
-
   // Called by the reader's MediaResource as data arrives over the network.
   // Must be called on the main thread.
   virtual void NotifyDataArrived(uint32_t aLength, int64_t aOffset,
@@ -125,9 +119,6 @@ public:
 
   // Set by Reader if the current audio track can be offloaded
   virtual void SetPlatformCanOffloadAudio(bool aCanOffloadAudio) {}
-
-  // Called by Decoder/State machine to check audio offload condtions are met
-  virtual bool CheckDecoderCanOffloadAudio() { return false; }
 
   // Called from HTMLMediaElement when owner document activity changes
   virtual void SetElementVisibility(bool aIsVisible) {}

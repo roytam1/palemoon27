@@ -140,7 +140,6 @@ public:
   enum State {
     DECODER_STATE_DECODING_NONE,
     DECODER_STATE_DECODING_METADATA,
-    DECODER_STATE_WAIT_FOR_RESOURCES,
     DECODER_STATE_WAIT_FOR_CDM,
     DECODER_STATE_DORMANT,
     DECODER_STATE_DECODING,
@@ -155,68 +154,14 @@ public:
   // Remove an output stream added with AddOutputStream.
   void RemoveOutputStream(MediaStream* aStream);
 
-  // Set/Unset dormant state.
-  void DispatchSetDormant(bool aDormant);
-
-  TimedMetadataEventSource& TimedMetadataEvent() {
-    return mMetadataManager.TimedMetadataEvent();
-  }
-
-private:
-  // Initialization that needs to happen on the task queue. This is the first
-  // task that gets run on the task queue, and is dispatched from the MDSM
-  // constructor immediately after the task queue is created.
-  void InitializationTask();
-
-  void SetDormant(bool aDormant);
-
-  void SetAudioCaptured(bool aCaptured);
-
-  void NotifyWaitingForResourcesStatusChanged();
-
-  nsRefPtr<MediaDecoder::SeekPromise> Seek(SeekTarget aTarget);
-
-  void Shutdown();
-
-public:
-  void DispatchShutdown();
-
-  void FinishShutdown();
-
-  // Immutable after construction - may be called on any thread.
-  bool IsRealTime() const { return mRealTime; }
-
-  // Functions used by assertions to ensure we're calling things
-  // on the appropriate threads.
-  bool OnDecodeTaskQueue() const;
-  bool OnTaskQueue() const;
-
   // Seeks to the decoder to aTarget asynchronously.
   nsRefPtr<MediaDecoder::SeekPromise> InvokeSeek(SeekTarget aTarget);
 
-  // Clear the flag indicating that a playback position change event
-  // is currently queued. This is called from the main thread and must
-  // be called with the decode monitor held.
-  void ClearPositionChangeFlag();
+  // Set/Unset dormant state.
+  void DispatchSetDormant(bool aDormant);
 
-  // Update the playback position. This can result in a timeupdate event
-  // and an invalidate of the frame being dispatched asynchronously if
-  // there is no such event currently queued.
-  // Only called on the decoder thread. Must be called with
-  // the decode monitor held.
-  void UpdatePlaybackPosition(int64_t aTime);
+  void DispatchShutdown();
 
-private:
-  // Causes the state machine to switch to buffering state, and to
-  // immediately stop playback and buffer downloaded data. Called on
-  // the state machine thread.
-  void StartBuffering();
-
-  bool CanPlayThrough();
-
-  MediaStatistics GetStatistics();
-
-public:
   void DispatchStartBuffering()
   {
     nsCOMPtr<nsIRunnable> runnable =
@@ -224,38 +169,73 @@ public:
     OwnerThread()->Dispatch(runnable.forget());
   }
 
-  // This is called on the state machine thread and audio thread.
-  // The decoder monitor must be obtained before calling this.
-  bool HasAudio() const {
-    MOZ_ASSERT(OnTaskQueue());
-    AssertCurrentThreadInMonitor();
-    return mInfo.HasAudio();
+  void DispatchNotifyDataArrived(uint32_t aLength, int64_t aOffset, bool aThrottleUpdates)
+  {
+    mReader->DispatchNotifyDataArrived(aLength, aOffset, aThrottleUpdates);
   }
 
-  // This is called on the state machine thread and audio thread.
-  // The decoder monitor must be obtained before calling this.
-  bool HasVideo() const {
-    MOZ_ASSERT(OnTaskQueue());
-    AssertCurrentThreadInMonitor();
-    return mInfo.HasVideo();
+  // Notifies the state machine that should minimize the number of samples
+  // decoded we preroll, until playback starts. The first time playback starts
+  // the state machine is free to return to prerolling normally. Note
+  // "prerolling" in this context refers to when we decode and buffer decoded
+  // samples in advance of when they're needed for playback.
+  void DispatchMinimizePrerollUntilPlaybackStarts()
+  {
+    nsRefPtr<MediaDecoderStateMachine> self = this;
+    nsCOMPtr<nsIRunnable> r = NS_NewRunnableFunction([self] () -> void
+    {
+      MOZ_ASSERT(self->OnTaskQueue());
+      self->mMinimizePreroll = true;
+
+      // Make sure that this arrives before playback starts, otherwise this won't
+      // have the intended effect.
+      MOZ_DIAGNOSTIC_ASSERT(self->mPlayState == MediaDecoder::PLAY_STATE_LOADING);
+    });
+    OwnerThread()->Dispatch(r.forget());
   }
 
-  // Should be called by main thread.
-  bool HaveNextFrameData();
-
-  // Must be called with the decode monitor held.
-  bool IsBuffering() const {
-    MOZ_ASSERT(OnTaskQueue());
-    AssertCurrentThreadInMonitor();
-    return mState == DECODER_STATE_BUFFERING;
+  // Set the media fragment end time. aEndTime is in microseconds.
+  void DispatchSetFragmentEndTime(int64_t aEndTime)
+  {
+    nsRefPtr<MediaDecoderStateMachine> self = this;
+    nsCOMPtr<nsIRunnable> r = NS_NewRunnableFunction([self, aEndTime] () {
+      self->mFragmentEndTime = aEndTime;
+    });
+    OwnerThread()->Dispatch(r.forget());
   }
 
-  // Must be called with the decode monitor held.
-  bool IsSeeking() const {
-    MOZ_ASSERT(OnTaskQueue());
-    AssertCurrentThreadInMonitor();
-    return mState == DECODER_STATE_SEEKING;
+  void DispatchAudioOffloading(bool aAudioOffloading)
+  {
+    nsRefPtr<MediaDecoderStateMachine> self = this;
+    nsCOMPtr<nsIRunnable> r = NS_NewRunnableFunction([=] () {
+      if (self->mAudioOffloading != aAudioOffloading) {
+        self->mAudioOffloading = aAudioOffloading;
+        self->ScheduleStateMachine();
+      }
+    });
+    OwnerThread()->Dispatch(r.forget());
   }
+
+  // Drop reference to decoder.  Only called during shutdown dance.
+  void BreakCycles() {
+    MOZ_ASSERT(NS_IsMainThread());
+    if (mReader) {
+      mReader->BreakCycles();
+    }
+    mResource = nullptr;
+    mDecoder = nullptr;
+  }
+
+  TimedMetadataEventSource& TimedMetadataEvent() {
+    return mMetadataManager.TimedMetadataEvent();
+  }
+
+  // Immutable after construction - may be called on any thread.
+  bool IsRealTime() const { return mRealTime; }
+
+  // Functions used by assertions to ensure we're calling things
+  // on the appropriate threads.
+  bool OnTaskQueue() const;
 
   size_t SizeOfVideoQueue() {
     if (mReader) {
@@ -271,17 +251,69 @@ public:
     return 0;
   }
 
-  void DispatchNotifyDataArrived(uint32_t aLength, int64_t aOffset, bool aThrottleUpdates)
-  {
-    mReader->DispatchNotifyDataArrived(aLength, aOffset, aThrottleUpdates);
+private:
+  // Initialization that needs to happen on the task queue. This is the first
+  // task that gets run on the task queue, and is dispatched from the MDSM
+  // constructor immediately after the task queue is created.
+  void InitializationTask();
+
+  void SetDormant(bool aDormant);
+
+  void SetAudioCaptured(bool aCaptured);
+
+  nsRefPtr<MediaDecoder::SeekPromise> Seek(SeekTarget aTarget);
+
+  void Shutdown();
+
+  void FinishShutdown();
+
+  // Update the playback position. This can result in a timeupdate event
+  // and an invalidate of the frame being dispatched asynchronously if
+  // there is no such event currently queued.
+  // Only called on the decoder thread. Must be called with
+  // the decode monitor held.
+  void UpdatePlaybackPosition(int64_t aTime);
+
+  // Causes the state machine to switch to buffering state, and to
+  // immediately stop playback and buffer downloaded data. Called on
+  // the state machine thread.
+  void StartBuffering();
+
+  bool CanPlayThrough();
+
+  MediaStatistics GetStatistics();
+
+  // This is called on the state machine thread and audio thread.
+  // The decoder monitor must be obtained before calling this.
+  bool HasAudio() const {
+    MOZ_ASSERT(OnTaskQueue());
+    return mInfo.HasAudio();
+  }
+
+  // This is called on the state machine thread and audio thread.
+  // The decoder monitor must be obtained before calling this.
+  bool HasVideo() const {
+    MOZ_ASSERT(OnTaskQueue());
+    return mInfo.HasVideo();
+  }
+
+  // Should be called by main thread.
+  bool HaveNextFrameData();
+
+  // Must be called with the decode monitor held.
+  bool IsBuffering() const {
+    MOZ_ASSERT(OnTaskQueue());
+    return mState == DECODER_STATE_BUFFERING;
+  }
+
+  // Must be called with the decode monitor held.
+  bool IsSeeking() const {
+    MOZ_ASSERT(OnTaskQueue());
+    return mState == DECODER_STATE_SEEKING;
   }
 
   // Returns the state machine task queue.
   TaskQueue* OwnerThread() const { return mTaskQueue; }
-
-  // Calls ScheduleStateMachine() after taking the decoder lock. Also
-  // notifies the decoder thread in case it's waiting on the decoder lock.
-  void ScheduleStateMachineWithLockAndWakeDecoder();
 
   // Schedules the shared state machine thread to run the state machine.
   //
@@ -304,32 +336,11 @@ public:
   void OnDelayedSchedule()
   {
     MOZ_ASSERT(OnTaskQueue());
-    ReentrantMonitorAutoEnter mon(mDecoder->GetReentrantMonitor());
     mDelayedScheduler.CompleteRequest();
     ScheduleStateMachine();
   }
 
   void NotReached() { MOZ_DIAGNOSTIC_ASSERT(false); }
-
-  // Set the media fragment end time. aEndTime is in microseconds.
-  void DispatchSetFragmentEndTime(int64_t aEndTime)
-  {
-    nsRefPtr<MediaDecoderStateMachine> self = this;
-    nsCOMPtr<nsIRunnable> r = NS_NewRunnableFunction([self, aEndTime] () {
-      self->mFragmentEndTime = aEndTime;
-    });
-    OwnerThread()->Dispatch(r.forget());
-  }
-
-  // Drop reference to decoder.  Only called during shutdown dance.
-  void BreakCycles() {
-    MOZ_ASSERT(NS_IsMainThread());
-    if (mReader) {
-      mReader->BreakCycles();
-    }
-    mResource = nullptr;
-    mDecoder = nullptr;
-  }
 
   // Discard audio/video data that are already played by MSG.
   void DiscardStreamData();
@@ -344,33 +355,8 @@ public:
   // be held.
   bool IsPlaying() const;
 
-  // Called when the reader may have acquired the hardware resources required
-  // to begin decoding.
-  void DispatchWaitingForResourcesStatusChanged();
-
-  // Notifies the state machine that should minimize the number of samples
-  // decoded we preroll, until playback starts. The first time playback starts
-  // the state machine is free to return to prerolling normally. Note
-  // "prerolling" in this context refers to when we decode and buffer decoded
-  // samples in advance of when they're needed for playback.
-  void DispatchMinimizePrerollUntilPlaybackStarts()
-  {
-    nsRefPtr<MediaDecoderStateMachine> self = this;
-    nsCOMPtr<nsIRunnable> r = NS_NewRunnableFunction([self] () -> void
-    {
-      MOZ_ASSERT(self->OnTaskQueue());
-      ReentrantMonitorAutoEnter mon(self->mDecoder->GetReentrantMonitor());
-      self->mMinimizePreroll = true;
-
-      // Make sure that this arrives before playback starts, otherwise this won't
-      // have the intended effect.
-      MOZ_DIAGNOSTIC_ASSERT(self->mPlayState == MediaDecoder::PLAY_STATE_LOADING);
-    });
-    OwnerThread()->Dispatch(r.forget());
-  };
-
-  void OnAudioDecoded(AudioData* aSample);
-  void OnVideoDecoded(VideoData* aSample);
+  void OnAudioDecoded(MediaData* aAudioSample);
+  void OnVideoDecoded(MediaData* aVideoSample);
   void OnNotDecoded(MediaData::Type aType, MediaDecoderReader::NotDecodedReason aReason);
   void OnAudioNotDecoded(MediaDecoderReader::NotDecodedReason aReason)
   {
@@ -390,18 +376,15 @@ public:
 protected:
   virtual ~MediaDecoderStateMachine();
 
-  void AssertCurrentThreadInMonitor() const { mDecoder->GetReentrantMonitor().AssertCurrentThreadIn(); }
-
   void SetState(State aState);
 
   void BufferedRangeUpdated();
 
   // Inserts MediaData* samples into their respective MediaQueues.
   // aSample must not be null.
-  void Push(AudioData* aSample);
-  void Push(VideoData* aSample);
-  void PushFront(AudioData* aSample);
-  void PushFront(VideoData* aSample);
+
+  void Push(MediaData* aSample, MediaData::Type aSampleType);
+  void PushFront(MediaData* aSample, MediaData::Type aSampleType);
 
   void OnAudioPopped(const nsRefPtr<MediaData>& aSample);
   void OnVideoPopped(const nsRefPtr<MediaData>& aSample);
@@ -467,8 +450,8 @@ protected:
   // to the returned stream time.
   int64_t GetClock(TimeStamp* aTimeStamp = nullptr) const;
 
-  nsresult DropAudioUpToSeekTarget(AudioData* aSample);
-  nsresult DropVideoUpToSeekTarget(VideoData* aSample);
+  nsresult DropAudioUpToSeekTarget(MediaData* aSample);
+  nsresult DropVideoUpToSeekTarget(MediaData* aSample);
 
   void SetStartTime(int64_t aStartTimeUsecs);
 
@@ -478,8 +461,9 @@ protected:
   // machine thread, caller must hold the decoder lock.
   void UpdatePlaybackPositionInternal(int64_t aTime);
 
-  // Decode monitor must be held.
-  bool CheckFrameValidity(VideoData* aData);
+  // Decode monitor must be held. To determine if MDSM needs to turn off HW
+  // acceleration.
+  void CheckFrameValidity(VideoData* aData);
 
   // Sets VideoQueue images into the VideoFrameContainer. Called on the shared
   // state machine thread. Decode monitor must be held. The first aMaxFrames
@@ -527,6 +511,10 @@ protected:
   // of media to begin or resume.
   // Must be called with the decode monitor held.
   void MaybeStartPlayback();
+
+  // Check to see if we don't have enough data to play up to the next frame.
+  // If we don't, switch to buffering mode.
+  void MaybeStartBuffering();
 
   // Moves the decoder into decoding state. Called on the state machine
   // thread. The decoder monitor must be held.
@@ -590,7 +578,6 @@ protected:
   // which is in the range [0,duration].
   int64_t GetMediaTime() const {
     MOZ_ASSERT(OnTaskQueue());
-    AssertCurrentThreadInMonitor();
     return mCurrentPosition;
   }
 
@@ -650,10 +637,6 @@ protected:
   bool IsAudioDecoding();
   bool IsVideoDecoding();
 
-  // Set the time that playback started from the system clock.
-  // Can only be called on the state machine thread.
-  void SetPlayStartTime(const TimeStamp& aTimeStamp);
-
 private:
   // Resolved by the MediaSink to signal that all outstanding work is complete
   // and the sink is shutting down.
@@ -665,6 +648,8 @@ private:
   // Return true if the video decoder's decode speed can not catch up the
   // play time.
   bool NeedToSkipToNextKeyframe();
+
+  void AdjustAudioThresholds();
 
   // The decoder object that created this state machine. The state machine
   // holds a strong reference to the decoder to ensure that the decoder stays
@@ -694,51 +679,8 @@ private:
   // yet to run.
   bool mDispatchedStateMachine;
 
-  // Class for managing delayed dispatches of the state machine.
-  class DelayedScheduler {
-  public:
-    explicit DelayedScheduler(MediaDecoderStateMachine* aSelf)
-      : mSelf(aSelf), mMediaTimer(new MediaTimer()) {}
-
-    bool IsScheduled() const { return !mTarget.IsNull(); }
-
-    void Reset()
-    {
-      MOZ_ASSERT(mSelf->OnTaskQueue(), "Must be on state machine queue to disconnect");
-      if (IsScheduled()) {
-        mRequest.Disconnect();
-        mTarget = TimeStamp();
-      }
-    }
-
-    void Ensure(mozilla::TimeStamp& aTarget)
-    {
-      MOZ_ASSERT(mSelf->OnTaskQueue());
-      if (IsScheduled() && mTarget <= aTarget) {
-        return;
-      }
-      Reset();
-      mTarget = aTarget;
-      mRequest.Begin(mMediaTimer->WaitUntil(mTarget, __func__)->Then(
-        mSelf->OwnerThread(), __func__, mSelf,
-        &MediaDecoderStateMachine::OnDelayedSchedule,
-        &MediaDecoderStateMachine::NotReached));
-    }
-
-    void CompleteRequest()
-    {
-      MOZ_ASSERT(mSelf->OnTaskQueue());
-      mRequest.Complete();
-      mTarget = TimeStamp();
-    }
-
-  private:
-    MediaDecoderStateMachine* mSelf;
-    nsRefPtr<MediaTimer> mMediaTimer;
-    MozPromiseRequestHolder<mozilla::MediaTimerPromise> mRequest;
-    TimeStamp mTarget;
-
-  } mDelayedScheduler;
+  // Used to dispatch another round schedule with specific target time.
+  DelayedScheduler mDelayedScheduler;
 
   // StartTimeRendezvous is a helper class that quarantines the first sample
   // until it gets a sample from both channels, such that we can be guaranteed
@@ -789,14 +731,14 @@ private:
       typedef typename PromiseType::ResolveValueType::element_type Type;
     };
 
-    template<typename PromiseType>
+    template<typename PromiseType, MediaData::Type SampleType>
     nsRefPtr<PromiseType> ProcessFirstSample(typename PromiseSampleType<PromiseType>::Type* aData)
     {
       typedef typename PromiseSampleType<PromiseType>::Type DataType;
       typedef typename PromiseType::Private PromisePrivate;
       MOZ_ASSERT(mOwnerThread->IsCurrentThreadIn());
 
-      MaybeSetChannelStartTime<DataType>(aData->mTime);
+      MaybeSetChannelStartTime<SampleType>(aData->mTime);
 
       nsRefPtr<PromisePrivate> p = new PromisePrivate(__func__);
       nsRefPtr<DataType> data = aData;
@@ -811,7 +753,7 @@ private:
       return p.forget();
     }
 
-    template<typename SampleType>
+    template<MediaData::Type SampleType>
     void FirstSampleRejected(MediaDecoderReader::NotDecodedReason aReason)
     {
       MOZ_ASSERT(mOwnerThread->IsCurrentThreadIn());
@@ -819,7 +761,7 @@ private:
         mHaveStartTimePromise.RejectIfExists(false, __func__);
       } else if (aReason == MediaDecoderReader::END_OF_STREAM) {
         MOZ_LOG(gMediaDecoderLog, LogLevel::Debug,
-                ("StartTimeRendezvous=%p %s Has no samples.", this, SampleType::sTypeName));
+                ("StartTimeRendezvous=%p SampleType(%d) Has no samples.", this, SampleType));
         MaybeSetChannelStartTime<SampleType>(INT64_MAX);
       }
     }
@@ -833,20 +775,20 @@ private:
   private:
     virtual ~StartTimeRendezvous() {}
 
-    template<typename SampleType>
+    template<MediaData::Type SampleType>
     void MaybeSetChannelStartTime(int64_t aStartTime)
     {
-      if (ChannelStartTime(SampleType::sType).isSome()) {
+      if (ChannelStartTime(SampleType).isSome()) {
         // If we're initialized with aForceZeroStartTime=true, the channel start
         // times are already set.
         return;
       }
 
       MOZ_LOG(gMediaDecoderLog, LogLevel::Debug,
-              ("StartTimeRendezvous=%p Setting %s start time to %lld",
-               this, SampleType::sTypeName, aStartTime));
+              ("StartTimeRendezvous=%p Setting SampleType(%d) start time to %lld",
+               this, SampleType, aStartTime));
 
-      ChannelStartTime(SampleType::sType).emplace(aStartTime);
+      ChannelStartTime(SampleType).emplace(aStartTime);
       if (HaveStartTime()) {
         mHaveStartTimePromise.ResolveIfExists(true, __func__);
       }
@@ -887,18 +829,6 @@ private:
   // the "decode thread", though in practise tasks can run on a different
   // thread every time they're called.
   TaskQueue* DecodeTaskQueue() const { return mReader->OwnerThread(); }
-
-  // The time that playback started from the system clock. This is used for
-  // timing the presentation of video frames when there's no audio.
-  // Accessed only via the state machine thread.  Must be set via SetPlayStartTime.
-  TimeStamp mPlayStartTime;
-
-  // The amount of time we've spent playing already the media. The current
-  // playback position is therefore |Now() - mPlayStartTime +
-  // mPlayDuration|, which must be adjusted by mStartTime if used with media
-  // timestamps. Accessed on state machine and main threads. Access controlled
-  // by decoder monitor.
-  int64_t mPlayDuration;
 
   // Time that buffering started. Used for buffering timeout and only
   // accessed on the state machine thread. This is null while we're not
@@ -1068,7 +998,6 @@ private:
   bool DonePrerollingAudio()
   {
     MOZ_ASSERT(OnTaskQueue());
-    AssertCurrentThreadInMonitor();
     return !IsAudioDecoding() ||
         GetDecodedAudioDuration() >= AudioPrerollUsecs() * mPlaybackRate;
   }
@@ -1076,7 +1005,6 @@ private:
   bool DonePrerollingVideo()
   {
     MOZ_ASSERT(OnTaskQueue());
-    AssertCurrentThreadInMonitor();
     return !IsVideoDecoding() ||
         static_cast<uint32_t>(VideoQueue().GetSize()) >=
             VideoPrerollFrames() * mPlaybackRate + 1;
@@ -1085,7 +1013,6 @@ private:
   void StopPrerollingAudio()
   {
     MOZ_ASSERT(OnTaskQueue());
-    AssertCurrentThreadInMonitor();
     if (mIsAudioPrerolling) {
       mIsAudioPrerolling = false;
       ScheduleStateMachine();
@@ -1095,7 +1022,6 @@ private:
   void StopPrerollingVideo()
   {
     MOZ_ASSERT(OnTaskQueue());
-    AssertCurrentThreadInMonitor();
     if (mIsVideoPrerolling) {
       mIsVideoPrerolling = false;
       ScheduleStateMachine();
@@ -1106,7 +1032,7 @@ private:
   // This is so that if we hit end of stream while we're decoding to reach
   // the seek target, we will still have a frame that we can display as the
   // last frame in the media.
-  nsRefPtr<VideoData> mFirstVideoFrameAfterSeek;
+  nsRefPtr<MediaData> mFirstVideoFrameAfterSeek;
 
   // When we start decoding (either for the first time, or after a pause)
   // we may be low on decoded data. We don't want our "low data" logic to
@@ -1159,14 +1085,7 @@ private:
   // True if we shouldn't play our audio (but still write it to any capturing
   // streams). When this is true, the audio thread will never start again after
   // it has stopped.
-  bool mAudioCaptured;
-
-  // True if an event to notify about a change in the playback
-  // position has been queued, but not yet run. It is set to false when
-  // the event is run. This allows coalescing of these events as they can be
-  // produced many times per second. Synchronised via decoder monitor.
-  // Accessed on main and state machine threads.
-  bool mPositionChangeQueued;
+  Watchable<bool> mAudioCaptured;
 
   // True if the audio playback thread has finished. It is finished
   // when either all the audio frames have completed playing, or we've moved
@@ -1258,7 +1177,7 @@ private:
   // SetStartTime because the mStartTime already set before. Also we don't need
   // to decode any audio/video since the MediaDecoder will trigger a seek
   // operation soon.
-  bool mSentFirstFrameLoadedEvent;
+  Watchable<bool> mSentFirstFrameLoadedEvent;
 
   bool mSentPlaybackEndedEvent;
 
@@ -1276,6 +1195,10 @@ private:
 
   MediaEventListener mAudioQueueListener;
   MediaEventListener mVideoQueueListener;
+
+  // True if audio is offloading.
+  // Playback will not start when audio is offloading.
+  bool mAudioOffloading;
 
 private:
   // The buffered range. Mirrored from the decoder thread.

@@ -129,7 +129,7 @@ private:
   void OnMetadataRead(MetadataHolder* aMetadata);
   void OnMetadataNotRead(ReadMetadataFailureReason aReason);
   void RequestSample();
-  void SampleDecoded(AudioData* aData);
+  void SampleDecoded(MediaData* aData);
   void SampleNotDecoded(MediaDecoderReader::NotDecodedReason aReason);
   void FinishDecode();
   void AllocateBuffer();
@@ -155,7 +155,7 @@ private:
   nsRefPtr<BufferDecoder> mBufferDecoder;
   nsRefPtr<MediaDecoderReader> mDecoderReader;
   MediaInfo mMediaInfo;
-  MediaQueue<AudioData> mAudioQueue;
+  MediaQueue<MediaData> mAudioQueue;
   bool mFirstFrameDecoded;
 };
 
@@ -272,10 +272,8 @@ MediaDecodeTask::OnMetadataRead(MetadataHolder* aMetadata)
 void
 MediaDecodeTask::OnMetadataNotRead(ReadMetadataFailureReason aReason)
 {
-  MOZ_RELEASE_ASSERT(aReason != ReadMetadataFailureReason::WAITING_FOR_RESOURCES);
   mDecoderReader->Shutdown();
   ReportFailureOnMainThread(WebAudioDecodeJob::InvalidContent);
-  return;
 }
 
 void
@@ -287,7 +285,7 @@ MediaDecodeTask::RequestSample()
 }
 
 void
-MediaDecodeTask::SampleDecoded(AudioData* aData)
+MediaDecodeTask::SampleDecoded(MediaData* aData)
 {
   MOZ_ASSERT(!NS_IsMainThread());
   mAudioQueue.Push(aData);
@@ -364,8 +362,9 @@ MediaDecodeTask::FinishDecode()
     return;
   }
 
-  nsRefPtr<AudioData> audioData;
-  while ((audioData = mAudioQueue.PopFront())) {
+  nsRefPtr<MediaData> mediaData;
+  while ((mediaData = mAudioQueue.PopFront())) {
+    nsRefPtr<AudioData> audioData = mediaData->As<AudioData>();
     audioData->EnsureAudioBuffer(); // could lead to a copy :(
     AudioDataValue* bufferData = static_cast<AudioDataValue*>
       (audioData->mAudioBuffer->Data());

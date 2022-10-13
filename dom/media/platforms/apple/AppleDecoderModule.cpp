@@ -15,14 +15,6 @@
 #include "mozilla/DebugOnly.h"
 #include "mozilla/Logging.h"
 
-PRLogModuleInfo* GetAppleMediaLog() {
-  static PRLogModuleInfo* log = nullptr;
-  if (!log) {
-    log = PR_NewLogModule("AppleMedia");
-  }
-  return log;
-}
-
 namespace mozilla {
 
 bool AppleDecoderModule::sInitialized = false;
@@ -119,7 +111,9 @@ bool
 AppleDecoderModule::SupportsMimeType(const nsACString& aMimeType)
 {
   return aMimeType.EqualsLiteral("audio/mpeg") ||
-    PlatformDecoderModule::SupportsMimeType(aMimeType);
+    aMimeType.EqualsLiteral("audio/mp4a-latm") ||
+    aMimeType.EqualsLiteral("video/mp4") ||
+    aMimeType.EqualsLiteral("video/avc");
 }
 
 PlatformDecoderModule::ConversionRequired

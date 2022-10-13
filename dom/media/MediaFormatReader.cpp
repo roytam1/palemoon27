@@ -14,7 +14,6 @@
 #include "MediaInfo.h"
 #include "MediaFormatReader.h"
 #include "MediaResource.h"
-#include "SharedDecoderManager.h"
 #include "mozilla/SharedThreadPool.h"
 #include "VideoUtils.h"
 
@@ -64,12 +63,12 @@ TrackTypeToStr(TrackInfo::TrackType aTrack)
 #endif
 
 MediaFormatReader::MediaFormatReader(AbstractMediaDecoder* aDecoder,
-                                     MediaDataDemuxer* aDemuxer,
-                                     TaskQueue* aBorrowedTaskQueue)
-  : MediaDecoderReader(aDecoder, aBorrowedTaskQueue)
-  , mDemuxer(aDemuxer)
+                                     MediaDataDemuxer* aDemuxer)
+  : MediaDecoderReader(aDecoder)
   , mAudio(this, MediaData::AUDIO_DATA, Preferences::GetUint("media.audio-decode-ahead", 2))
   , mVideo(this, MediaData::VIDEO_DATA, Preferences::GetUint("media.video-decode-ahead", 2))
+  , mDemuxer(aDemuxer)
+  , mDemuxerInitDone(false)
   , mLastReportedNumDecodedFrames(0)
   , mLayersBackendType(layers::LayersBackend::LAYERS_NONE)
   , mInitDone(false)
@@ -170,10 +169,10 @@ MediaFormatReader::InitLayersBackendType()
 static bool sIsEMEEnabled = false;
 
 nsresult
-MediaFormatReader::Init(MediaDecoderReader* aCloneDonor)
+MediaFormatReader::Init()
 {
   MOZ_ASSERT(NS_IsMainThread(), "Must be on main thread.");
-  PlatformDecoderModule::Init();
+  PDMFactory::Init();
 
   InitLayersBackendType();
 
@@ -194,20 +193,6 @@ MediaFormatReader::Init(MediaDecoderReader* aCloneDonor)
 bool MediaFormatReader::IsWaitingOnCDMResource() {
   // EME Stub
   return false;
-}
-
-bool
-MediaFormatReader::IsSupportedAudioMimeType(const nsACString& aMimeType)
-{
-  return mPlatform && (mPlatform->SupportsMimeType(aMimeType) ||
-    PlatformDecoderModule::AgnosticMimeType(aMimeType));
-}
-
-bool
-MediaFormatReader::IsSupportedVideoMimeType(const nsACString& aMimeType)
-{
-  return mPlatform && (mPlatform->SupportsMimeType(aMimeType) ||
-    PlatformDecoderModule::AgnosticMimeType(aMimeType));
 }
 
 nsRefPtr<MediaDecoderReader::MetadataPromise>
@@ -240,6 +225,8 @@ MediaFormatReader::OnDemuxerInitDone(nsresult)
 {
   MOZ_ASSERT(OnTaskQueue());
   mDemuxerInitRequest.Complete();
+
+  mDemuxerInitDone = true;
 
   // To decode, we need valid video and a place to put it.
   bool videoActive = !!mDemuxer->GetNumberTracks(TrackInfo::kVideoTrack) &&
@@ -321,21 +308,15 @@ MediaFormatReader::EnsureDecodersCreated()
   MOZ_ASSERT(OnTaskQueue());
 
   if (!mPlatform) {
+    mPlatform = new PDMFactory();
+    NS_ENSURE_TRUE(mPlatform, false);
     if (IsEncrypted()) {
       // EME not supported.
       return false;
-    } else {
-      mPlatform = PlatformDecoderModule::Create();
-      NS_ENSURE_TRUE(mPlatform, false);
     }
   }
 
-  MOZ_ASSERT(mPlatform);
-
   if (HasAudio() && !mAudio.mDecoder) {
-    NS_ENSURE_TRUE(IsSupportedAudioMimeType(mInfo.mAudio.mMimeType),
-                   false);
-
     mAudio.mDecoderInitialized = false;
     mAudio.mDecoder =
       mPlatform->CreateDecoder(mAudio.mInfo ?
@@ -347,37 +328,18 @@ MediaFormatReader::EnsureDecodersCreated()
   }
 
   if (HasVideo() && !mVideo.mDecoder) {
-    NS_ENSURE_TRUE(IsSupportedVideoMimeType(mInfo.mVideo.mMimeType),
-                   false);
-
     mVideo.mDecoderInitialized = false;
-    // If we've disabled hardware acceleration for this reader, then we can't use
-    // the shared decoder.
-    if (mSharedDecoderManager &&
-        mPlatform->SupportsSharedDecoders(mInfo.mVideo) &&
-        !mHardwareAccelerationDisabled) {
-      mVideo.mDecoder =
-        mSharedDecoderManager->CreateVideoDecoder(mPlatform,
-                                                  mVideo.mInfo ?
-                                                    *mVideo.mInfo->GetAsVideoInfo() :
-                                                    mInfo.mVideo,
-                                                  mLayersBackendType,
-                                                  mDecoder->GetImageContainer(),
-                                                  mVideo.mTaskQueue,
-                                                  mVideo.mCallback);
-    } else {
-      // Decoders use the layers backend to decide if they can use hardware decoding,
-      // so specify LAYERS_NONE if we want to forcibly disable it.
-      mVideo.mDecoder =
-        mPlatform->CreateDecoder(mVideo.mInfo ?
-                                   *mVideo.mInfo->GetAsVideoInfo() :
-                                   mInfo.mVideo,
-                                 mVideo.mTaskQueue,
-                                 mVideo.mCallback,
-                                 mHardwareAccelerationDisabled ? LayersBackend::LAYERS_NONE :
-                                                                 mLayersBackendType,
-                                 mDecoder->GetImageContainer());
-    }
+    // Decoders use the layers backend to decide if they can use hardware decoding,
+    // so specify LAYERS_NONE if we want to forcibly disable it.
+    mVideo.mDecoder =
+      mPlatform->CreateDecoder(mVideo.mInfo ?
+                                 *mVideo.mInfo->GetAsVideoInfo() :
+                                 mInfo.mVideo,
+                               mVideo.mTaskQueue,
+                               mVideo.mCallback,
+                               mHardwareAccelerationDisabled ? LayersBackend::LAYERS_NONE :
+                                                               mLayersBackendType,
+                               mDecoder->GetImageContainer());
     NS_ENSURE_TRUE(mVideo.mDecoder != nullptr, false);
   }
 
@@ -1465,22 +1427,6 @@ void MediaFormatReader::ReleaseMediaResources()
   }
 }
 
-void
-MediaFormatReader::SetIdle()
-{
-  if (mSharedDecoderManager && mVideo.mDecoder) {
-    mSharedDecoderManager->SetIdle(mVideo.mDecoder);
-  }
-}
-
-void
-MediaFormatReader::SetSharedDecoderManager(SharedDecoderManager* aManager)
-{
-#if !defined(MOZ_WIDGET_ANDROID)
-  mSharedDecoderManager = aManager;
-#endif
-}
-
 bool
 MediaFormatReader::VideoIsHardwareAccelerated() const
 {
@@ -1493,7 +1439,8 @@ MediaFormatReader::NotifyDemuxer(uint32_t aLength, int64_t aOffset)
   MOZ_ASSERT(OnTaskQueue());
 
   LOGV("aLength=%u, aOffset=%lld", aLength, aOffset);
-  if (mShutdown || !mDemuxer) {
+  if (mShutdown || !mDemuxer ||
+      (!mDemuxerInitDone && !mDemuxerInitRequest.Exists())) {
     return;
   }
 

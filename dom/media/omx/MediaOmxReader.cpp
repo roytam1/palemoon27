@@ -139,11 +139,6 @@ MediaOmxReader::~MediaOmxReader()
 {
 }
 
-nsresult MediaOmxReader::Init(MediaDecoderReader* aCloneDonor)
-{
-  return NS_OK;
-}
-
 already_AddRefed<AbstractMediaDecoder>
 MediaOmxReader::SafeGetDecoder() {
   nsRefPtr<AbstractMediaDecoder> decoder;
@@ -546,7 +541,7 @@ MediaOmxReader::Seek(int64_t aTarget, int64_t aEndTime)
     mVideoSeekTimeUs = aTarget;
 
     nsRefPtr<MediaOmxReader> self = this;
-    mSeekRequest.Begin(DecodeToFirstVideoData()->Then(OwnerThread(), __func__, [self] (VideoData* v) {
+    mSeekRequest.Begin(DecodeToFirstVideoData()->Then(OwnerThread(), __func__, [self] (MediaData* v) {
       self->mSeekRequest.Complete();
       self->mAudioSeekTimeUs = v->mTime;
       self->mSeekPromise.Resolve(self->mAudioSeekTimeUs, __func__);

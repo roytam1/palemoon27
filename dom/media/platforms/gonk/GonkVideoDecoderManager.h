@@ -42,18 +42,16 @@ public:
 
   virtual ~GonkVideoDecoderManager() override;
 
-  virtual android::sp<MediaCodecProxy> Init(MediaDataDecoderCallback* aCallback) override;
+  nsRefPtr<InitPromise> Init(MediaDataDecoderCallback* aCallback) override;
 
-  virtual nsresult Input(MediaRawData* aSample) override;
+  nsresult Input(MediaRawData* aSample) override;
 
-  virtual nsresult Output(int64_t aStreamOffset,
+  nsresult Output(int64_t aStreamOffset,
                           nsRefPtr<MediaData>& aOutput) override;
 
-  virtual nsresult Flush() override;
+  nsresult Flush() override;
 
-  virtual bool HasQueuedSample() override;
-
-  virtual TrackType GetTrackType() override { return TrackType::kVideoTrack; }
+  bool HasQueuedSample() override;
 
   static void RecycleCallback(TextureClient* aClient, void* aClosure);
 
@@ -76,7 +74,7 @@ private:
     MessageHandler(GonkVideoDecoderManager *aManager);
     ~MessageHandler();
 
-    virtual void onMessageReceived(const android::sp<android::AMessage> &aMessage);
+    void onMessageReceived(const android::sp<android::AMessage> &aMessage) override;
 
   private:
     // Forbidden
@@ -94,8 +92,8 @@ private:
     VideoResourceListener(GonkVideoDecoderManager *aManager);
     ~VideoResourceListener();
 
-    virtual void codecReserved() override;
-    virtual void codecCanceled() override;
+    void codecReserved() override;
+    void codecCanceled() override;
 
   private:
     // Forbidden
@@ -178,11 +176,12 @@ private:
 
   nsAutoCString mMimeType;
 
-  // MediaCodedc's wrapper that performs the decoding.
-  android::sp<android::MediaCodecProxy> mDecoder;
-
   // This monitor protects mQueueSample.
   Monitor mMonitor;
+
+  // This TaskQueue should be the same one in mReaderCallback->OnReaderTaskQueue().
+  // It is for codec resource mangement, decoding task should not dispatch to it.
+  nsRefPtr<TaskQueue> mReaderTaskQueue;
 
   // An queue with the MP4 samples which are waiting to be sent into OMX.
   // If an element is an empty MP4Sample, that menas EOS. There should not

@@ -29,7 +29,6 @@ H264Converter::H264Converter(PlatformDecoderModule* aPDM,
   , mCallback(aCallback)
   , mDecoder(nullptr)
   , mNeedAVCC(aPDM->DecoderNeedsConversion(aConfig) == PlatformDecoderModule::kNeedAVCC)
-  , mDecoderInitializing(false)
   , mLastError(NS_OK)
 {
   CreateDecoder();
@@ -46,8 +45,9 @@ H264Converter::Init()
     return mDecoder->Init();
   }
 
-  return MediaDataDecoder::InitPromise::CreateAndReject(
-           MediaDataDecoder::DecoderFailureReason::INIT_ERROR, __func__);
+  // We haven't been able to initialize a decoder due to a missing SPS/PPS.
+  return MediaDataDecoder::InitPromise::CreateAndResolve(
+           TrackType::kVideoTrack, __func__);
 }
 
 nsresult
@@ -63,7 +63,7 @@ H264Converter::Input(MediaRawData* aSample)
     }
   }
 
-  if (mDecoderInitializing) {
+  if (mInitPromiseRequest.Exists()) {
     mMediaRawSamples.AppendElement(aSample);
     return NS_OK;
   }
@@ -163,14 +163,13 @@ H264Converter::CreateDecoderAndInit(MediaRawData* aSample)
   nsresult rv = CreateDecoder();
 
   if (NS_SUCCEEDED(rv)) {
-    mDecoderInitializing = true;
+    // Queue the incoming sample.
+    mMediaRawSamples.AppendElement(aSample);
+
     nsRefPtr<H264Converter> self = this;
 
-    // The mVideoTaskQueue is flushable which can't be used in MediaPromise. So
-    // we get the current AbstractThread instead of it. The MOZ_ASSERT above
-    // ensures we are running in AbstractThread so we won't get a nullptr.
     mInitPromiseRequest.Begin(mDecoder->Init()
-      ->Then(AbstractThread::GetCurrent(), __func__, this,
+      ->Then(AbstractThread::GetCurrent()->AsTaskQueue(), __func__, this,
              &H264Converter::OnDecoderInitDone,
              &H264Converter::OnDecoderInitFailed));
   }
@@ -187,7 +186,6 @@ H264Converter::OnDecoderInitDone(const TrackType aTrackType)
     }
   }
   mMediaRawSamples.Clear();
-  mDecoderInitializing = false;
 }
 
 void

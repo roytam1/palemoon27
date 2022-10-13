@@ -134,7 +134,7 @@ public:
   static const Type sType = AUDIO_DATA;
   static const char* sTypeName;
 
-  // Creates a new VideoData identical to aOther, but with a different
+  // Creates a new AudioData identical to aOther, but with a different
   // specified timestamp and duration. All data from aOther is copied
   // into the new AudioData but the audio data which is transferred.
   // After such call, the original aOther is unusable.
@@ -317,20 +317,20 @@ protected:
 class CryptoTrack
 {
 public:
-  CryptoTrack() : valid(false) {}
-  bool valid;
-  int32_t mode;
-  int32_t iv_size;
-  nsTArray<uint8_t> key;
+  CryptoTrack() : mValid(false) {}
+  bool mValid;
+  int32_t mMode;
+  int32_t mIVSize;
+  nsTArray<uint8_t> mKeyId;
 };
 
 class CryptoSample : public CryptoTrack
 {
 public:
-  nsTArray<uint16_t> plain_sizes;
-  nsTArray<uint32_t> encrypted_sizes;
-  nsTArray<uint8_t> iv;
-  nsTArray<nsCString> session_ids;
+  nsTArray<uint16_t> mPlainSizes;
+  nsTArray<uint32_t> mEncryptedSizes;
+  nsTArray<uint8_t> mIV;
+  nsTArray<nsCString> mSessionIds;
 };
 
 // MediaRawData is a MediaData container used to store demuxed, still compressed

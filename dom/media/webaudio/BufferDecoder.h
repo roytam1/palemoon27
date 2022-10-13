@@ -35,8 +35,6 @@ public:
 
   virtual bool OnStateMachineTaskQueue() const final override;
 
-  virtual bool OnDecodeTaskQueue() const final override;
-
   virtual MediaResource* GetResource() const final override;
 
   virtual void NotifyBytesConsumed(int64_t aBytes, int64_t aOffset) final override;
@@ -62,8 +60,6 @@ public:
   virtual void OnReadMetadataCompleted() final override;
 
   virtual MediaDecoderOwner* GetOwner() final override;
-
-  virtual void NotifyWaitingForResourcesStatusChanged() final override;
 
   virtual void NotifyDataArrived(uint32_t, int64_t, bool) final override {};
 

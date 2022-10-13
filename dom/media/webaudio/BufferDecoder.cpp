@@ -52,13 +52,6 @@ BufferDecoder::OnStateMachineTaskQueue() const
   return true;
 }
 
-bool
-BufferDecoder::OnDecodeTaskQueue() const
-{
-  MOZ_ASSERT(mTaskQueueIdentity, "Forgot to call BeginDecoding?");
-  return mTaskQueueIdentity->IsCurrentThreadIn();
-}
-
 MediaResource*
 BufferDecoder::GetResource() const
 {
@@ -124,12 +117,6 @@ BufferDecoder::FirstFrameLoaded(nsAutoPtr<MediaInfo> aInfo, MediaDecoderEventVis
 
 void
 BufferDecoder::OnReadMetadataCompleted()
-{
-  // ignore
-}
-
-void
-BufferDecoder::NotifyWaitingForResourcesStatusChanged()
 {
   // ignore
 }

@@ -8,7 +8,7 @@
 #include "ADTSDemuxer.h"
 #include "MediaDecoderStateMachine.h"
 #include "MediaFormatReader.h"
-#include "PlatformDecoderModule.h"
+#include "PDMFactory.h"
 
 namespace mozilla {
 
@@ -32,9 +32,8 @@ ADTSDecoder::CreateStateMachine()
 /* static */ bool
 ADTSDecoder::IsEnabled()
 {
-  PlatformDecoderModule::Init();
-
-  nsRefPtr<PlatformDecoderModule> platform = PlatformDecoderModule::Create();
+  PDMFactory::Init();
+  nsRefPtr<PDMFactory> platform = new PDMFactory();
   return (platform && platform->SupportsMimeType(NS_LITERAL_CSTRING("audio/mp4a-latm")));
 }
 

@@ -10,7 +10,7 @@
 #include "MediaFormatReader.h"
 #include "MP3Demuxer.h"
 #include "mozilla/Preferences.h"
-#include "PlatformDecoderModule.h"
+#include "PDMFactory.h"
 
 namespace mozilla {
 
@@ -32,18 +32,11 @@ MP3Decoder::CreateStateMachine() {
 static already_AddRefed<MediaDataDecoder>
 CreateTestMP3Decoder(AudioInfo& aConfig)
 {
-  PlatformDecoderModule::Init();
+  PDMFactory::Init();
 
-  nsRefPtr<PlatformDecoderModule> platform = PlatformDecoderModule::Create();
-  if (!platform || !platform->SupportsMimeType(aConfig.mMimeType)) {
-    return nullptr;
-  }
-
+  nsRefPtr<PDMFactory> platform = new PDMFactory();
   nsRefPtr<MediaDataDecoder> decoder(
     platform->CreateDecoder(aConfig, nullptr, nullptr));
-  if (!decoder) {
-    return nullptr;
-  }
 
   return decoder.forget();
 }

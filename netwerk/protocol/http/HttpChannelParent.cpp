@@ -150,6 +150,7 @@ NS_IMPL_ISUPPORTS(HttpChannelParent,
                   nsIProgressEventSink,
                   nsIRequestObserver,
                   nsIStreamListener,
+                  nsIPackagedAppChannelListener,
                   nsIParentChannel,
                   nsIAuthPromptProvider,
                   nsIParentRedirectingChannel,
@@ -157,8 +158,8 @@ NS_IMPL_ISUPPORTS(HttpChannelParent,
                   nsIDeprecationWarner)
 
 NS_IMETHODIMP
-HttpChannelParent::ShouldPrepareForIntercept(nsIURI* aURI, bool aIsNavigate,
-                                             nsContentPolicyType aType,
+HttpChannelParent::ShouldPrepareForIntercept(nsIURI* aURI,
+                                             bool aIsNonSubresourceRequest,
                                              bool* aShouldIntercept)
 {
   *aShouldIntercept = mShouldIntercept;
@@ -198,7 +199,9 @@ public:
 
   NS_IMETHOD Run()
   {
-    mChannel->FinishSynthesizedResponse();
+    // The URL passed as an argument here doesn't matter, since the child will
+    // receive a redirection notification as a result of this synthesized response.
+    mChannel->FinishSynthesizedResponse(EmptyCString());
     return NS_OK;
   }
 };
@@ -222,7 +225,7 @@ private:
   }
 
   nsCOMPtr<nsIInterceptedChannel> mChannel;
-  nsRefPtr<HttpChannelParent> mParentChannel;
+  RefPtr<HttpChannelParent> mParentChannel;
 };
 
 NS_IMPL_ISUPPORTS(ResponseSynthesizer, nsIFetchEventDispatcher)
@@ -239,7 +242,7 @@ NS_IMETHODIMP
 HttpChannelParent::ChannelIntercepted(nsIInterceptedChannel* aChannel,
                                       nsIFetchEventDispatcher** aDispatcher)
 {
-  nsRefPtr<ResponseSynthesizer> dispatcher =
+  RefPtr<ResponseSynthesizer> dispatcher =
     new ResponseSynthesizer(aChannel, this);
   dispatcher.forget(aDispatcher);
   return NS_OK;
@@ -690,6 +693,7 @@ HttpChannelParent::RecvUpdateAssociatedContentSecurity(const int32_t& broken,
 bool
 HttpChannelParent::RecvRedirect2Verify(const nsresult& result,
                                        const RequestHeaderTuples& changedHeaders,
+                                       const uint32_t& loadFlags,
                                        const OptionalURIParams&   aAPIRedirectURI)
 {
   LOG(("HttpChannelParent::RecvRedirect2Verify [this=%p result=%x]\n",
@@ -712,6 +716,12 @@ HttpChannelParent::RecvRedirect2Verify(const nsresult& result,
                                            changedHeaders[i].mValue,
                                            changedHeaders[i].mMerge);
         }
+      }
+
+      // A successfully redirected channel must have the LOAD_REPLACE flag.
+      MOZ_ASSERT(loadFlags & nsIChannel::LOAD_REPLACE);
+      if (loadFlags & nsIChannel::LOAD_REPLACE) {
+        newHttpChannel->SetLoadFlags(loadFlags);
       }
     }
   }
@@ -1010,6 +1020,19 @@ HttpChannelParent::RecvRemoveCorsPreflightCacheEntry(const URIParams& uri,
 }
 
 //-----------------------------------------------------------------------------
+// HttpChannelParent::nsIPackagedAppChannelListener
+//-----------------------------------------------------------------------------
+
+NS_IMETHODIMP
+HttpChannelParent::OnStartSignedPackageRequest(const nsACString& aPackageId)
+{
+  if (mTabParent) {
+    mTabParent->OnStartSignedPackageRequest(mChannel);
+  }
+  return NS_OK;
+}
+
+//-----------------------------------------------------------------------------
 // HttpChannelParent::nsIRequestObserver
 //-----------------------------------------------------------------------------
 
@@ -1121,6 +1144,10 @@ HttpChannelParent::OnStopRequest(nsIRequest *aRequest,
   mChannel->GetAsyncOpen(&timing.fetchStart);
   mChannel->GetRedirectStart(&timing.redirectStart);
   mChannel->GetRedirectEnd(&timing.redirectEnd);
+  mChannel->GetTransferSize(&timing.transferSize);
+  mChannel->GetEncodedBodySize(&timing.encodedBodySize);
+  // decodedBodySize can be computed in the child process so it doesn't need
+  // to be passed down.
 
   if (mIPCClosed || !SendOnStopRequest(aStatusCode, timing))
     return NS_ERROR_UNEXPECTED;
@@ -1464,7 +1491,7 @@ public:
     return NS_OK;
   }
 private:
-  nsRefPtr<HttpChannelParent> mChannelParent;
+  RefPtr<HttpChannelParent> mChannelParent;
   nsresult mErrorCode;
   bool mSkipResume;
 };

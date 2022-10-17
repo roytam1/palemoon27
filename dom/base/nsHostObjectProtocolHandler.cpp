@@ -171,7 +171,7 @@ class BlobURLsReporter final : public nsIMemoryReporter
   {
     EnumArg* envp = static_cast<EnumArg*>(aUserArg);
     nsCOMPtr<nsIDOMBlob> tmp = do_QueryInterface(aInfo->mObject);
-    nsRefPtr<mozilla::dom::Blob> blob = static_cast<mozilla::dom::Blob*>(tmp.get());
+    RefPtr<mozilla::dom::Blob> blob = static_cast<mozilla::dom::Blob*>(tmp.get());
 
     if (blob) {
       NS_NAMED_LITERAL_CSTRING
@@ -481,7 +481,7 @@ nsHostObjectProtocolHandler::NewURI(const nsACString& aSpec,
 
   DataInfo* info = GetDataInfo(aSpec);
 
-  nsRefPtr<nsHostObjectURI> uri =
+  RefPtr<nsHostObjectURI> uri =
     new nsHostObjectURI(info ? info->mPrincipal.get() : nullptr);
 
   rv = uri->SetSpec(aSpec);
@@ -530,11 +530,14 @@ nsHostObjectProtocolHandler::NewChannel2(nsIURI* uri,
     return rv.StealNSResult();
   }
 
+  nsAutoString contentType;
+  blob->GetType(contentType);
+
   nsCOMPtr<nsIChannel> channel;
   rv = NS_NewInputStreamChannelInternal(getter_AddRefs(channel),
                                         uri,
                                         stream,
-                                        EmptyCString(), // aContentType
+                                        NS_ConvertUTF16toUTF8(contentType),
                                         EmptyCString(), // aContentCharset
                                         aLoadInfo);
   if (NS_WARN_IF(rv.Failed())) {
@@ -640,7 +643,7 @@ NS_GetBlobForBlobURISpec(const nsACString& aSpec, BlobImpl** aBlob)
 nsresult
 NS_GetStreamForBlobURI(nsIURI* aURI, nsIInputStream** aStream)
 {
-  nsRefPtr<BlobImpl> blobImpl;
+  RefPtr<BlobImpl> blobImpl;
   ErrorResult rv;
   rv = NS_GetBlobForBlobURI(aURI, getter_AddRefs(blobImpl));
   if (NS_WARN_IF(rv.Failed())) {
@@ -675,7 +678,7 @@ nsFontTableProtocolHandler::NewURI(const nsACString& aSpec,
                                    nsIURI *aBaseURI,
                                    nsIURI **aResult)
 {
-  nsRefPtr<nsIURI> uri;
+  RefPtr<nsIURI> uri;
 
   // Either you got here via a ref or a fonttable: uri
   if (aSpec.Length() && aSpec.CharAt(0) == '#') {

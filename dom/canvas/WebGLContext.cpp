@@ -553,7 +553,7 @@ CreateHeadlessNativeGL(CreateContextFlags flags, const nsCOMPtr<nsIGfxInfo>& gfx
         return nullptr;
     }
 
-    nsRefPtr<GLContext> gl = gl::GLContextProvider::CreateHeadless(flags);
+    RefPtr<GLContext> gl = gl::GLContextProvider::CreateHeadless(flags);
     if (!gl) {
         webgl->GenerateWarning("Error during native OpenGL init.");
         return nullptr;
@@ -570,7 +570,7 @@ static already_AddRefed<GLContext>
 CreateHeadlessANGLE(CreateContextFlags flags, const nsCOMPtr<nsIGfxInfo>& gfxInfo,
                     WebGLContext* webgl)
 {
-    nsRefPtr<GLContext> gl;
+    RefPtr<GLContext> gl;
 
 #ifdef XP_WIN
     gl = gl::GLContextProviderEGL::CreateHeadless(flags);
@@ -587,7 +587,7 @@ CreateHeadlessANGLE(CreateContextFlags flags, const nsCOMPtr<nsIGfxInfo>& gfxInf
 static already_AddRefed<GLContext>
 CreateHeadlessEGL(CreateContextFlags flags, WebGLContext* webgl)
 {
-    nsRefPtr<GLContext> gl;
+    RefPtr<GLContext> gl;
 
 #ifdef ANDROID
     gl = gl::GLContextProviderEGL::CreateHeadless(flags);
@@ -615,7 +615,7 @@ CreateHeadlessGL(CreateContextFlags flags, const nsCOMPtr<nsIGfxInfo>& gfxInfo,
         flags |= CreateContextFlags::REQUIRE_COMPAT_PROFILE;
     }
 
-    nsRefPtr<GLContext> gl;
+    RefPtr<GLContext> gl;
 
     if (preferEGL)
         gl = CreateHeadlessEGL(flags, webgl);
@@ -1224,7 +1224,7 @@ public:
     }
 
 private:
-    nsRefPtr<HTMLCanvasElement> mCanvas;
+    RefPtr<HTMLCanvasElement> mCanvas;
 };
 
 already_AddRefed<layers::CanvasLayer>
@@ -1237,11 +1237,11 @@ WebGLContext::GetCanvasLayer(nsDisplayListBuilder* builder,
 
     if (!mResetLayer && oldLayer &&
         oldLayer->HasUserData(&gWebGLLayerUserData)) {
-        nsRefPtr<layers::CanvasLayer> ret = oldLayer;
+        RefPtr<layers::CanvasLayer> ret = oldLayer;
         return ret.forget();
     }
 
-    nsRefPtr<CanvasLayer> canvasLayer = manager->CreateCanvasLayer();
+    RefPtr<CanvasLayer> canvasLayer = manager->CreateCanvasLayer();
     if (!canvasLayer) {
         NS_WARNING("CreateCanvasLayer returned null!");
         return nullptr;
@@ -1606,7 +1606,7 @@ WebGLContext::RunContextLossTimer()
 
 class UpdateContextLossStatusTask : public nsRunnable
 {
-    nsRefPtr<WebGLContext> mWebGL;
+    RefPtr<WebGLContext> mWebGL;
 
 public:
     explicit UpdateContextLossStatusTask(WebGLContext* webgl)

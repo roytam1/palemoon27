@@ -401,7 +401,7 @@ Element::GetBindingURL(nsIDocument *aDocument, css::URLValue **aResult)
   }
 
   // Get the computed -moz-binding directly from the style context
-  nsRefPtr<nsStyleContext> sc =
+  RefPtr<nsStyleContext> sc =
     nsComputedDOMStyle::GetStyleContextForElementNoFlush(this, nullptr, shell);
   NS_ENSURE_TRUE(sc, false);
 
@@ -509,7 +509,7 @@ Element::WrapObject(JSContext *aCx, JS::Handle<JSObject*> aGivenProto)
 
   {
     // Make a scope so that ~nsRefPtr can GC before returning obj.
-    nsRefPtr<nsXBLBinding> binding;
+    RefPtr<nsXBLBinding> binding;
     xblService->LoadBindings(this, uri, principal, getter_AddRefs(binding), &dummy);
 
     if (binding) {
@@ -911,7 +911,7 @@ Element::GetClientAreaRect()
 already_AddRefed<DOMRect>
 Element::GetBoundingClientRect()
 {
-  nsRefPtr<DOMRect> rect = new DOMRect(this);
+  RefPtr<DOMRect> rect = new DOMRect(this);
   
   nsIFrame* frame = GetPrimaryFrame(Flush_Layout);
   if (!frame) {
@@ -929,7 +929,7 @@ Element::GetBoundingClientRect()
 already_AddRefed<DOMRectList>
 Element::GetClientRects()
 {
-  nsRefPtr<DOMRectList> rectList = new DOMRectList(this);
+  RefPtr<DOMRectList> rectList = new DOMRectList(this);
 
   nsIFrame* frame = GetPrimaryFrame(Flush_Layout);
   if (!frame) {
@@ -990,12 +990,12 @@ Element::CreateShadowRoot(ErrorResult& aError)
 {
   nsAutoScriptBlocker scriptBlocker;
 
-  nsRefPtr<mozilla::dom::NodeInfo> nodeInfo;
+  RefPtr<mozilla::dom::NodeInfo> nodeInfo;
   nodeInfo = mNodeInfo->NodeInfoManager()->GetNodeInfo(
     nsGkAtoms::documentFragmentNodeName, nullptr, kNameSpaceID_None,
     nsIDOMNode::DOCUMENT_FRAGMENT_NODE);
 
-  nsRefPtr<nsXBLDocumentInfo> docInfo = new nsXBLDocumentInfo(OwnerDoc());
+  RefPtr<nsXBLDocumentInfo> docInfo = new nsXBLDocumentInfo(OwnerDoc());
 
   nsXBLPrototypeBinding* protoBinding = new nsXBLPrototypeBinding();
   aError = protoBinding->Init(NS_LITERAL_CSTRING("shadowroot"),
@@ -1022,7 +1022,7 @@ Element::CreateShadowRoot(ErrorResult& aError)
   // Calling SetPrototypeBinding takes ownership of protoBinding.
   docInfo->SetPrototypeBinding(NS_LITERAL_CSTRING("shadowroot"), protoBinding);
 
-  nsRefPtr<ShadowRoot> shadowRoot = new ShadowRoot(this, nodeInfo.forget(),
+  RefPtr<ShadowRoot> shadowRoot = new ShadowRoot(this, nodeInfo.forget(),
                                                    protoBinding);
 
   shadowRoot->SetIsComposedDocParticipant(IsInComposedDoc());
@@ -1047,7 +1047,7 @@ Element::CreateShadowRoot(ErrorResult& aError)
   }
 
   // xblBinding takes ownership of docInfo.
-  nsRefPtr<nsXBLBinding> xblBinding = new nsXBLBinding(shadowRoot, protoBinding);
+  RefPtr<nsXBLBinding> xblBinding = new nsXBLBinding(shadowRoot, protoBinding);
   shadowRoot->SetAssociatedBinding(xblBinding);
   xblBinding->SetBoundElement(this);
 
@@ -1138,7 +1138,7 @@ DestinationInsertionPointList::WrapObject(JSContext* aCx, JS::Handle<JSObject*> 
 already_AddRefed<DestinationInsertionPointList>
 Element::GetDestinationInsertionPoints()
 {
-  nsRefPtr<DestinationInsertionPointList> list =
+  RefPtr<DestinationInsertionPointList> list =
     new DestinationInsertionPointList(this);
   return list.forget();
 }
@@ -1304,7 +1304,7 @@ Element::SetAttributeNS(const nsAString& aNamespaceURI,
                         const nsAString& aValue,
                         ErrorResult& aError)
 {
-  nsRefPtr<mozilla::dom::NodeInfo> ni;
+  RefPtr<mozilla::dom::NodeInfo> ni;
   aError =
     nsContentUtils::GetNodeInfoFromQName(aNamespaceURI, aQualifiedName,
                                          mNodeInfo->NodeInfoManager(),
@@ -1780,7 +1780,7 @@ Element::UnbindFromTree(bool aDeep, bool aNullParent)
     }
 
     if (GetParent()) {
-      nsRefPtr<nsINode> p;
+      RefPtr<nsINode> p;
       p.swap(mParent);
     } else {
       mParent = nullptr;
@@ -2004,7 +2004,7 @@ Element::GetExistingAttrNameFromQName(const nsAString& aStr) const
     return nullptr;
   }
 
-  nsRefPtr<mozilla::dom::NodeInfo> nodeInfo;
+  RefPtr<mozilla::dom::NodeInfo> nodeInfo;
   if (name->IsAtom()) {
     nodeInfo = mNodeInfo->NodeInfoManager()->
       GetNodeInfo(name->Atom(), nullptr, kNameSpaceID_None,
@@ -2402,7 +2402,7 @@ Element::SetAttrAndNotify(int32_t aNamespaceID,
     }
   }
   else {
-    nsRefPtr<mozilla::dom::NodeInfo> ni;
+    RefPtr<mozilla::dom::NodeInfo> ni;
     ni = mNodeInfo->NodeInfoManager()->GetNodeInfo(aName, aPrefix,
                                                    aNamespaceID,
                                                    nsIDOMNode::ATTRIBUTE_NODE);
@@ -2417,7 +2417,7 @@ Element::SetAttrAndNotify(int32_t aNamespaceID,
   NS_ENSURE_SUCCESS(rv, rv);
 
   if (document || HasFlag(NODE_FORCE_XBL_BINDINGS)) {
-    nsRefPtr<nsXBLBinding> binding = GetXBLBinding();
+    RefPtr<nsXBLBinding> binding = GetXBLBinding();
     if (binding) {
       binding->AttributeChanged(aName, aNamespaceID, false, aNotify);
     }
@@ -2629,7 +2629,7 @@ Element::UnsetAttr(int32_t aNameSpaceID, nsIAtom* aName,
                                          this);
 
   // Grab the attr node if needed before we remove it from the attr map
-  nsRefPtr<Attr> attrNode;
+  RefPtr<Attr> attrNode;
   if (hasMutationListeners) {
     nsAutoString ns;
     nsContentUtils::NameSpaceManager()->GetNameSpaceURI(aNameSpaceID, ns);
@@ -2665,7 +2665,7 @@ Element::UnsetAttr(int32_t aNameSpaceID, nsIAtom* aName,
   NS_ENSURE_SUCCESS(rv, rv);
 
   if (document || HasFlag(NODE_FORCE_XBL_BINDINGS)) {
-    nsRefPtr<nsXBLBinding> binding = GetXBLBinding();
+    RefPtr<nsXBLBinding> binding = GetXBLBinding();
     if (binding) {
       binding->AttributeChanged(aName, aNameSpaceID, true, aNotify);
     }
@@ -3305,7 +3305,7 @@ Element::MozRequestFullScreen(JSContext* aCx, JS::Handle<JS::Value> aOptions,
                                     NS_LITERAL_CSTRING("DOM"), OwnerDoc(),
                                     nsContentUtils::eDOM_PROPERTIES,
                                     error);
-    nsRefPtr<AsyncEventDispatcher> asyncDispatcher =
+    RefPtr<AsyncEventDispatcher> asyncDispatcher =
       new AsyncEventDispatcher(OwnerDoc(),
                                NS_LITERAL_STRING("mozfullscreenerror"),
                                true,
@@ -3349,7 +3349,7 @@ Element::MozRequestPointerLock()
 }
 
 void
-Element::GetAnimations(nsTArray<nsRefPtr<Animation>>& aAnimations)
+Element::GetAnimations(nsTArray<RefPtr<Animation>>& aAnimations)
 {
   nsIDocument* doc = GetComposedDoc();
   if (doc) {
@@ -3376,7 +3376,7 @@ Element::GetAnimations(nsTArray<nsRefPtr<Animation>>& aAnimations)
     }
   }
 
-  aAnimations.Sort(AnimationPtrComparator<nsRefPtr<Animation>>());
+  aAnimations.Sort(AnimationPtrComparator<RefPtr<Animation>>());
 }
 
 NS_IMETHODIMP
@@ -3423,7 +3423,7 @@ Element::SetOuterHTML(const nsAString& aOuterHTML, ErrorResult& aError)
       localName = nsGkAtoms::body;
       namespaceID = kNameSpaceID_XHTML;
     }
-    nsRefPtr<DocumentFragment> fragment =
+    RefPtr<DocumentFragment> fragment =
       new DocumentFragment(OwnerDoc()->NodeInfoManager());
     nsContentUtils::ParseFragmentHTML(aOuterHTML,
                                       fragment,
@@ -3442,7 +3442,7 @@ Element::SetOuterHTML(const nsAString& aOuterHTML, ErrorResult& aError)
   } else {
     NS_ASSERTION(parent->NodeType() == nsIDOMNode::DOCUMENT_FRAGMENT_NODE,
       "How come the parent isn't a document, a fragment or an element?");
-    nsRefPtr<mozilla::dom::NodeInfo> info =
+    RefPtr<mozilla::dom::NodeInfo> info =
       OwnerDoc()->NodeInfoManager()->GetNodeInfo(nsGkAtoms::body,
                                                  nullptr,
                                                  kNameSpaceID_XHTML,
@@ -3618,7 +3618,7 @@ void
 Element::InsertAdjacentText(
   const nsAString& aWhere, const nsAString& aData, ErrorResult& aError)
 {
-  nsRefPtr<nsTextNode> textNode = OwnerDoc()->CreateTextNode(aData);
+  RefPtr<nsTextNode> textNode = OwnerDoc()->CreateTextNode(aData);
   InsertAdjacent(aWhere, textNode, aError);
 }
 

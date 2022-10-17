@@ -244,8 +244,8 @@ void nsBaseWidget::DestroyCompositor()
   if (mCompositorChild) {
     // XXX CompositorChild and CompositorParent might be re-created in
     // ClientLayerManager destructor. See bug 1133426.
-    nsRefPtr<CompositorChild> compositorChild = mCompositorChild;
-    nsRefPtr<CompositorParent> compositorParent = mCompositorParent;
+    RefPtr<CompositorChild> compositorChild = mCompositorChild;
+    RefPtr<CompositorParent> compositorParent = mCompositorParent;
     mCompositorChild->Destroy();
   }
 
@@ -877,7 +877,7 @@ void nsBaseWidget::CreateCompositor()
 already_AddRefed<GeckoContentController>
 nsBaseWidget::CreateRootContentController()
 {
-  nsRefPtr<GeckoContentController> controller = new ChromeProcessController(this, mAPZEventState);
+  RefPtr<GeckoContentController> controller = new ChromeProcessController(this, mAPZEventState);
   return controller.forget();
 }
 
@@ -889,7 +889,7 @@ void nsBaseWidget::ConfigureAPZCTreeManager()
 
   mAPZC->SetDPI(GetDPI());
 
-  nsRefPtr<APZCTreeManager> treeManager = mAPZC;  // for capture by the lambdas
+  RefPtr<APZCTreeManager> treeManager = mAPZC;  // for capture by the lambdas
 
   ContentReceivedInputBlockCallback callback(
       [treeManager](const ScrollableLayerGuid& aGuid,
@@ -912,7 +912,7 @@ void nsBaseWidget::ConfigureAPZCTreeManager()
         aInputBlockId, aFlags));
   };
 
-  nsRefPtr<GeckoContentController> controller = CreateRootContentController();
+  RefPtr<GeckoContentController> controller = CreateRootContentController();
   if (controller) {
     uint64_t rootLayerTreeId = mCompositorParent->RootLayerTreeId();
     CompositorParent::SetControllerForLayerTree(rootLayerTreeId, controller);
@@ -1090,7 +1090,7 @@ void nsBaseWidget::CreateCompositor(int aWidth, int aHeight)
 
   CreateCompositorVsyncDispatcher();
   mCompositorParent = NewCompositorParent(aWidth, aHeight);
-  nsRefPtr<ClientLayerManager> lm = new ClientLayerManager(this);
+  RefPtr<ClientLayerManager> lm = new ClientLayerManager(this);
   mCompositorChild = new CompositorChild(lm);
   mCompositorChild->OpenSameProcess(mCompositorParent);
 

@@ -77,7 +77,7 @@ public:
   }
 
 private:
-  nsRefPtr<BackgroundFileSaver> mSaver;
+  RefPtr<BackgroundFileSaver> mSaver;
   nsCOMPtr<nsIFile> mTarget;
 };
 
@@ -521,7 +521,7 @@ BackgroundFileSaver::ProcessStateChange()
     rv = mActualTarget->Clone(getter_AddRefs(actualTargetToNotify));
     NS_ENSURE_SUCCESS(rv, rv);
 
-    nsRefPtr<NotifyTargetChangeRunnable> event =
+    RefPtr<NotifyTargetChangeRunnable> event =
       new NotifyTargetChangeRunnable(this, actualTargetToNotify);
     NS_ENSURE_TRUE(event, NS_ERROR_FAILURE);
 

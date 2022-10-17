@@ -369,7 +369,7 @@ protected:
   int16_t      mSelectionStatus; // see nsIDocument.h SetDisplaySelection()
   nscolor      mSelectionTextColor;
   nscolor      mSelectionBGColor;
-  nsRefPtr<nsCSSShadowArray> mSelectionShadow;
+  RefPtr<nsCSSShadowArray> mSelectionShadow;
   bool                       mHasSelectionShadow;
 
   // Common data
@@ -1787,7 +1787,7 @@ GetFontGroupForFrame(nsIFrame* aFrame, float aFontSizeInflation,
   if (aOutFontMetrics)
     *aOutFontMetrics = nullptr;
 
-  nsRefPtr<nsFontMetrics> metrics;
+  RefPtr<nsFontMetrics> metrics;
   nsLayoutUtils::GetFontMetricsForFrame(aFrame, getter_AddRefs(metrics),
                                         aFontSizeInflation);
 
@@ -1817,7 +1817,7 @@ CreateReferenceThebesContext(nsTextFrame* aTextFrame)
 static gfxTextRun*
 GetHyphenTextRun(gfxTextRun* aTextRun, gfxContext* aContext, nsTextFrame* aTextFrame)
 {
-  nsRefPtr<gfxContext> ctx = aContext;
+  RefPtr<gfxContext> ctx = aContext;
   if (!ctx) {
     ctx = CreateReferenceThebesContext(aTextFrame);
   }
@@ -2158,14 +2158,14 @@ BuildTextRunsScanner::BuildTextRunForFrames(void* aTextBuffer)
       new MathMLTextRunFactory(transformingFactory.forget(), mathFlags,
                                sstyScriptLevel, fontInflation);
   }
-  nsTArray<nsRefPtr<nsTransformedCharStyle>> styles;
+  nsTArray<RefPtr<nsTransformedCharStyle>> styles;
   if (transformingFactory) {
     iter.SetOriginalOffset(0);
     for (uint32_t i = 0; i < mMappedFlows.Length(); ++i) {
       MappedFlow* mappedFlow = &mMappedFlows[i];
       nsTextFrame* f;
       nsStyleContext* sc = nullptr;
-      nsRefPtr<nsTransformedCharStyle> charStyle;
+      RefPtr<nsTransformedCharStyle> charStyle;
       for (f = mappedFlow->mStartFrame; f != mappedFlow->mEndFrame;
            f = static_cast<nsTextFrame*>(f->GetNextContinuation())) {
         uint32_t offset = iter.GetSkippedOffset();
@@ -2629,7 +2629,7 @@ nsTextFrame::EnsureTextRun(TextRunType aWhichTextRun,
       gTextRuns->MarkUsed(textRun);
     }
   } else {
-    nsRefPtr<gfxContext> ctx = aReferenceContext;
+    RefPtr<gfxContext> ctx = aReferenceContext;
     if (!ctx) {
       ctx = CreateReferenceThebesContext(this);
     }
@@ -2989,7 +2989,7 @@ protected:
 
   gfxTextRun*           mTextRun;
   gfxFontGroup*         mFontGroup;
-  nsRefPtr<nsFontMetrics> mFontMetrics;
+  RefPtr<nsFontMetrics> mFontMetrics;
   const nsStyleText*    mTextStyle;
   const nsTextFragment* mFrag;
   nsIFrame*             mLineContainer;
@@ -3728,7 +3728,7 @@ nsTextPaintStyle::InitSelectionColorsAndShadow()
 
   if (selectionElement &&
       selectionStatus == nsISelectionController::SELECTION_ON) {
-    nsRefPtr<nsStyleContext> sc = nullptr;
+    RefPtr<nsStyleContext> sc = nullptr;
     sc = mPresContext->StyleSet()->
       ProbePseudoElementStyle(selectionElement,
                               nsCSSPseudoElements::ePseudo_mozSelection,
@@ -6737,7 +6737,7 @@ nsTextFrame::CombineSelectionUnderlineRect(nsPresContext* aPresContext,
 
   nsRect givenRect = aRect;
 
-  nsRefPtr<nsFontMetrics> fm;
+  RefPtr<nsFontMetrics> fm;
   nsLayoutUtils::GetFontMetricsForFrame(this, getter_AddRefs(fm),
                                         GetFontSizeInflation());
   gfxFontGroup* fontGroup = fm->GetThebesFontGroup();

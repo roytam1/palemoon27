@@ -216,6 +216,15 @@ this.ForgetAboutSite = {
       throw new Error("Exception occured while clearing predictive network data: " + ex);
     }));
 
+    // Push notifications.
+    try {
+      var push = Cc["@mozilla.org/push/NotificationService;1"]
+                  .getService(Ci.nsIPushNotificationService);
+      push.clearForDomain(aDomain);
+    } catch (e) {
+      dump("Web Push may not be available.\n");
+    }
+
     let ErrorCount = 0;
     for (let promise of promises) {
       try {

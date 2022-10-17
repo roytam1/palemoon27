@@ -84,6 +84,13 @@ DoSOPChecks(nsIURI* aURI, nsILoadInfo* aLoadInfo)
   nsIPrincipal* loadingPrincipal = aLoadInfo->LoadingPrincipal();
   bool sameOriginDataInherits =
     aLoadInfo->GetSecurityMode() == nsILoadInfo::SEC_REQUIRE_SAME_ORIGIN_DATA_INHERITS;
+
+  if (sameOriginDataInherits &&
+      aLoadInfo->GetAboutBlankInherits() &&
+      NS_IsAboutBlank(aURI)) {
+    return NS_OK;
+  }
+
   return loadingPrincipal->CheckMayLoad(aURI,
                                         true, // report to console
                                         sameOriginDataInherits);
@@ -103,7 +110,7 @@ DoCORSChecks(nsIChannel* aChannel, nsILoadInfo* aLoadInfo,
   }
 
   nsIPrincipal* loadingPrincipal = aLoadInfo->LoadingPrincipal();
-  nsRefPtr<nsCORSListenerProxy> corsListener =
+  RefPtr<nsCORSListenerProxy> corsListener =
     new nsCORSListenerProxy(aInAndOutListener,
                             loadingPrincipal,
                             aLoadInfo->GetRequireCorsWithCredentials());
@@ -119,11 +126,12 @@ DoCORSChecks(nsIChannel* aChannel, nsILoadInfo* aLoadInfo,
 nsresult
 DoContentSecurityChecks(nsIURI* aURI, nsILoadInfo* aLoadInfo)
 {
-  nsContentPolicyType contentPolicyType = aLoadInfo->GetExternalContentPolicyType();
-  nsCString mimeTypeGuess;
-  nsCOMPtr<nsINode> requestingContext = nullptr;
+  nsContentPolicyType contentPolicyType =
+    aLoadInfo->GetExternalContentPolicyType();
   nsContentPolicyType internalContentPolicyType =
     aLoadInfo->InternalContentPolicyType();
+  nsCString mimeTypeGuess;
+  nsCOMPtr<nsINode> requestingContext = nullptr;
 
   switch(contentPolicyType) {
     case nsIContentPolicy::TYPE_OTHER: {
@@ -240,7 +248,12 @@ DoContentSecurityChecks(nsIURI* aURI, nsILoadInfo* aLoadInfo)
       break;
     }
 
-    case nsIContentPolicy::TYPE_FETCH:
+    case nsIContentPolicy::TYPE_FETCH: {
+      mimeTypeGuess = EmptyCString();
+      requestingContext = aLoadInfo->LoadingNode();
+      break;
+    }
+
     case nsIContentPolicy::TYPE_IMAGESET: {
       MOZ_ASSERT(false, "contentPolicyType not supported yet");
       break;

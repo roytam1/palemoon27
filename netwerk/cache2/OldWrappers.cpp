@@ -284,7 +284,7 @@ nsresult _OldGetDiskConsumption::Get(nsICacheStorageConsumptionObserver* aCallba
       do_GetService(NS_CACHESERVICE_CONTRACTID, &rv);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  nsRefPtr<_OldGetDiskConsumption> cb = new _OldGetDiskConsumption(aCallback);
+  RefPtr<_OldGetDiskConsumption> cb = new _OldGetDiskConsumption(aCallback);
 
   // _OldGetDiskConsumption stores the found size value, but until dispatched
   // to the main thread it doesn't call on the consupmtion observer. See bellow.
@@ -381,7 +381,7 @@ NS_IMPL_ISUPPORTS(_OldCacheEntryWrapper, nsICacheEntry)
 
 NS_IMETHODIMP _OldCacheEntryWrapper::AsyncDoom(nsICacheEntryDoomCallback* listener)
 {
-  nsRefPtr<DoomCallbackWrapper> cb = listener
+  RefPtr<DoomCallbackWrapper> cb = listener
     ? new DoomCallbackWrapper(listener)
     : nullptr;
   return AsyncDoom(cb);
@@ -516,7 +516,7 @@ MetaDataVisitorWrapper::VisitMetaDataElement(char const * key,
 
 NS_IMETHODIMP _OldCacheEntryWrapper::VisitMetaData(nsICacheEntryMetaDataVisitor* cb)
 {
-  nsRefPtr<MetaDataVisitorWrapper> w = new MetaDataVisitorWrapper(cb);
+  RefPtr<MetaDataVisitorWrapper> w = new MetaDataVisitorWrapper(cb);
   return mOldDesc->VisitMetaData(w);
 }
 
@@ -927,7 +927,7 @@ NS_IMETHODIMP _OldStorage::AsyncOpenURI(nsIURI *aURI,
     }
   }
 
-  nsRefPtr<_OldCacheLoad> cacheLoad =
+  RefPtr<_OldCacheLoad> cacheLoad =
     new _OldCacheLoad(scheme, cacheKey, aCallback, mAppCache,
                       mLoadInfo, mWriteToDisk, aFlags);
 
@@ -965,7 +965,7 @@ NS_IMETHODIMP _OldStorage::AsyncDoomURI(nsIURI *aURI, const nsACString & aIdExte
                        getter_AddRefs(session));
   NS_ENSURE_SUCCESS(rv, rv);
 
-  nsRefPtr<DoomCallbackWrapper> cb = aCallback
+  RefPtr<DoomCallbackWrapper> cb = aCallback
     ? new DoomCallbackWrapper(aCallback)
     : nullptr;
   rv = session->DoomEntry(cacheKey, cb);
@@ -1046,7 +1046,7 @@ NS_IMETHODIMP _OldStorage::AsyncEvictStorage(nsICacheEntryDoomCallback* aCallbac
   }
 
   if (aCallback) {
-    nsRefPtr<DoomCallbackSynchronizer> sync =
+    RefPtr<DoomCallbackSynchronizer> sync =
       new DoomCallbackSynchronizer(aCallback);
     rv = sync->Dispatch();
     NS_ENSURE_SUCCESS(rv, rv);
@@ -1077,7 +1077,7 @@ NS_IMETHODIMP _OldStorage::AsyncVisitStorage(nsICacheStorageVisitor* aVisitor,
     deviceID = const_cast<char*>("disk");
   }
 
-  nsRefPtr<_OldVisitCallbackWrapper> cb = new _OldVisitCallbackWrapper(
+  RefPtr<_OldVisitCallbackWrapper> cb = new _OldVisitCallbackWrapper(
     deviceID, aVisitor, aVisitEntries, mLoadInfo);
   rv = nsCacheService::GlobalInstance()->VisitEntriesInternal(cb);
   NS_ENSURE_SUCCESS(rv, rv);

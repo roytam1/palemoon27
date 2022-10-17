@@ -1611,7 +1611,7 @@ nsNativeThemeWin::DrawWidgetBackground(nsRenderingContext* aContext,
   tr.ScaleInverse(p2a);
   dr.ScaleInverse(p2a);
 
-  nsRefPtr<gfxContext> ctx = aContext->ThebesContext();
+  RefPtr<gfxContext> ctx = aContext->ThebesContext();
 
   gfxWindowsNativeDrawing nativeDrawing(ctx, dr, GetWidgetNativeDrawingFlags(aWidgetType));
 
@@ -3611,7 +3611,7 @@ nsresult nsNativeThemeWin::ClassicDrawWidgetBackground(nsRenderingContext* aCont
   tr.ScaleInverse(p2a);
   dr.ScaleInverse(p2a);
 
-  nsRefPtr<gfxContext> ctx = aContext->ThebesContext();
+  RefPtr<gfxContext> ctx = aContext->ThebesContext();
 
   gfxWindowsNativeDrawing nativeDrawing(ctx, dr, GetWidgetNativeDrawingFlags(aWidgetType));
 

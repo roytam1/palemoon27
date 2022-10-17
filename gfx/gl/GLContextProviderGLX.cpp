@@ -757,7 +757,7 @@ GLContextGLX::CreateGLContext(
     }
 
     GLXContext context;
-    nsRefPtr<GLContextGLX> glContext;
+    RefPtr<GLContextGLX> glContext;
     bool error;
 
     ScopedXErrorHandler xErrorHandler;
@@ -1005,7 +1005,7 @@ GLContextProviderGLX::CreateWrappingExisting(void* aContext, void* aSurface)
 
     if (aContext && aSurface) {
         SurfaceCaps caps = SurfaceCaps::Any();
-        nsRefPtr<GLContextGLX> glContext =
+        RefPtr<GLContextGLX> glContext =
             new GLContextGLX(caps,
                              nullptr, // SharedContext
                              false, // Offscreen
@@ -1117,7 +1117,7 @@ GLContextProviderGLX::CreateForWindow(nsIWidget *aWidget)
     GLContextGLX *shareContext = GetGlobalContextGLX();
 
     SurfaceCaps caps = SurfaceCaps::Any();
-    nsRefPtr<GLContextGLX> glContext = GLContextGLX::CreateGLContext(caps,
+    RefPtr<GLContextGLX> glContext = GLContextGLX::CreateGLContext(caps,
                                                                      shareContext,
                                                                      false,
                                                                      display,

@@ -152,6 +152,8 @@ CSP_ContentTypeToDirective(nsContentPolicyType aType)
     // BLock XSLT as script, see bug 910139
     case nsIContentPolicy::TYPE_XSLT:
     case nsIContentPolicy::TYPE_SCRIPT:
+    case nsIContentPolicy::TYPE_INTERNAL_SCRIPT:
+    case nsIContentPolicy::TYPE_INTERNAL_SCRIPT_PRELOAD:
       return nsIContentSecurityPolicy::SCRIPT_SRC_DIRECTIVE;
 
     case nsIContentPolicy::TYPE_STYLESHEET:
@@ -165,6 +167,11 @@ CSP_ContentTypeToDirective(nsContentPolicyType aType)
 
     case nsIContentPolicy::TYPE_WEB_MANIFEST:
       return nsIContentSecurityPolicy::WEB_MANIFEST_SRC_DIRECTIVE;
+
+    case nsIContentPolicy::TYPE_INTERNAL_WORKER:
+    case nsIContentPolicy::TYPE_INTERNAL_SHARED_WORKER:
+    case nsIContentPolicy::TYPE_INTERNAL_SERVICE_WORKER:
+      return nsIContentSecurityPolicy::CHILD_SRC_DIRECTIVE;
 
     case nsIContentPolicy::TYPE_SUBDOCUMENT:
       return nsIContentSecurityPolicy::FRAME_SRC_DIRECTIVE;
@@ -945,6 +952,11 @@ nsCSPDirective::toDomCSPStruct(mozilla::dom::CSP& outCSP) const
       // does not have any srcs
       return;
 
+    case nsIContentSecurityPolicy::CHILD_SRC_DIRECTIVE:
+      outCSP.mChild_src.Construct();
+      outCSP.mChild_src.Value() = mozilla::Move(srcs);
+      return;
+
     // REFERRER_DIRECTIVE is handled in nsCSPPolicy::toDomCSPStruct()
 
     default:
@@ -975,6 +987,49 @@ nsCSPDirective::getReportURIs(nsTArray<nsString> &outReportURIs) const
     mSrcs[i]->toString(tmpReportURI);
     outReportURIs.AppendElement(tmpReportURI);
   }
+}
+
+bool nsCSPDirective::equals(CSPDirective aDirective) const
+{
+  return (mDirective == aDirective);
+}
+
+/* =============== nsCSPChildSrcDirective ============= */
+
+nsCSPChildSrcDirective::nsCSPChildSrcDirective(CSPDirective aDirective)
+  : nsCSPDirective(aDirective)
+  , mHandleFrameSrc(false)
+{
+}
+
+nsCSPChildSrcDirective::~nsCSPChildSrcDirective()
+{
+}
+
+void nsCSPChildSrcDirective::setHandleFrameSrc()
+{
+  mHandleFrameSrc = true;
+}
+
+bool nsCSPChildSrcDirective::restrictsContentType(nsContentPolicyType aContentType) const
+{
+  if (aContentType == nsIContentPolicy::TYPE_SUBDOCUMENT) {
+    return mHandleFrameSrc;
+  }
+
+  return (aContentType == nsIContentPolicy::TYPE_INTERNAL_WORKER
+      || aContentType == nsIContentPolicy::TYPE_INTERNAL_SHARED_WORKER
+      || aContentType == nsIContentPolicy::TYPE_INTERNAL_SERVICE_WORKER
+      );
+}
+
+bool nsCSPChildSrcDirective::equals(CSPDirective aDirective) const
+{
+  if (aDirective == nsIContentSecurityPolicy::FRAME_SRC_DIRECTIVE) {
+    return mHandleFrameSrc;
+  }
+
+  return (aDirective == nsIContentSecurityPolicy::CHILD_SRC_DIRECTIVE);
 }
 
 /* =============== nsUpgradeInsecureDirective ============= */

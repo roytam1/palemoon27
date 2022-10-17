@@ -354,7 +354,7 @@ protected:
   HTMLFormElement* mForm;
 
   // Created when we're tracking responsive image state
-  nsRefPtr<ResponsiveImageSelector> mResponsiveSelector;
+  RefPtr<ResponsiveImageSelector> mResponsiveSelector;
 
 private:
   bool SourceElementMatches(nsIContent* aSourceNode);

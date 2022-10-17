@@ -111,7 +111,7 @@ public:
 
   int32_t GetDelay() { return mDelay ;}
 
-  nsRefPtr<nsDocShell> mDocShell;
+  RefPtr<nsDocShell> mDocShell;
   nsCOMPtr<nsIURI> mURI;
   nsCOMPtr<nsIPrincipal> mPrincipal;
   int32_t mDelay;
@@ -741,7 +741,7 @@ public:
     explicit RestorePresentationEvent(nsDocShell* aDs) : mDocShell(aDs) {}
     void Revoke() { mDocShell = nullptr; }
   private:
-    nsRefPtr<nsDocShell> mDocShell;
+    RefPtr<nsDocShell> mDocShell;
   };
 
 protected:
@@ -790,7 +790,7 @@ protected:
 
   nsCOMPtr<nsISupportsArray> mRefreshURIList;
   nsCOMPtr<nsISupportsArray> mSavedRefreshURIList;
-  nsRefPtr<nsDSURIContentListener> mContentListener;
+  RefPtr<nsDSURIContentListener> mContentListener;
   nsCOMPtr<nsIContentViewer> mContentViewer;
   nsCOMPtr<nsIWidget> mParentWidget;
 
@@ -798,7 +798,7 @@ protected:
   nsCOMPtr<nsIURI> mCurrentURI;
   nsCOMPtr<nsIURI> mReferrerURI;
   uint32_t mReferrerPolicy;
-  nsRefPtr<nsGlobalWindow> mScriptGlobal;
+  RefPtr<nsGlobalWindow> mScriptGlobal;
   nsCOMPtr<nsISHistory> mSessionHistory;
   nsCOMPtr<nsIGlobalHistory2> mGlobalHistory;
   nsCOMPtr<nsIWebBrowserFind> mFind;
@@ -975,7 +975,7 @@ protected:
 
   static nsIURIFixup* sURIFixup;
 
-  nsRefPtr<nsDOMNavigationTiming> mTiming;
+  RefPtr<nsDOMNavigationTiming> mTiming;
 
   // This flag means that mTiming has been initialized but nulled out.
   // We will check the innerWin's timing before creating a new one

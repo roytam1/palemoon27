@@ -51,10 +51,10 @@ public:
 class FetchEvent final : public Event
 {
   nsMainThreadPtrHandle<nsIInterceptedChannel> mChannel;
-  nsMainThreadPtrHandle<ServiceWorker> mServiceWorker;
-  nsRefPtr<ServiceWorkerClient> mClient;
-  nsRefPtr<Request> mRequest;
-  nsAutoPtr<ServiceWorkerClientInfo> mClientInfo;
+  RefPtr<ServiceWorkerClient> mClient;
+  RefPtr<Request> mRequest;
+  nsCString mScriptSpec;
+  UniquePtr<ServiceWorkerClientInfo> mClientInfo;
   bool mIsReload;
   bool mWaitToRespond;
 protected:
@@ -72,8 +72,8 @@ public:
   }
 
   void PostInit(nsMainThreadPtrHandle<nsIInterceptedChannel>& aChannel,
-                nsMainThreadPtrHandle<ServiceWorker>& aServiceWorker,
-                nsAutoPtr<ServiceWorkerClientInfo>& aClientInfo);
+                const nsACString& aScriptSpec,
+                UniquePtr<ServiceWorkerClientInfo>&& aClientInfo);
 
   static already_AddRefed<FetchEvent>
   Constructor(const GlobalObject& aGlobal,
@@ -114,7 +114,7 @@ public:
 
 class ExtendableEvent : public Event
 {
-  nsTArray<nsRefPtr<Promise>> mPromises;
+  nsTArray<RefPtr<Promise>> mPromises;
 
 protected:
   explicit ExtendableEvent(mozilla::dom::EventTarget* aOwner);
@@ -135,7 +135,7 @@ public:
               const nsAString& aType,
               const EventInit& aOptions)
   {
-    nsRefPtr<ExtendableEvent> e = new ExtendableEvent(aOwner);
+    RefPtr<ExtendableEvent> e = new ExtendableEvent(aOwner);
     bool trusted = e->Init(aOwner);
     e->InitEvent(aType, aOptions.mBubbles, aOptions.mCancelable);
     e->SetTrusted(trusted);
@@ -202,8 +202,7 @@ private:
 
 class PushEvent final : public ExtendableEvent
 {
-  nsRefPtr<PushMessageData> mData;
-  nsMainThreadPtrHandle<ServiceWorker> mServiceWorker;
+  RefPtr<PushMessageData> mData;
 
 protected:
   explicit PushEvent(mozilla::dom::EventTarget* aOwner);
@@ -235,12 +234,8 @@ public:
     return Constructor(owner, aType, aOptions, aRv);
   }
 
-  void PostInit(nsMainThreadPtrHandle<ServiceWorker>& aServiceWorker)
-  {
-    mServiceWorker = aServiceWorker;
-  }
-
-  PushMessageData* Data()
+  PushMessageData*
+  GetData() const
   {
     return mData;
   }

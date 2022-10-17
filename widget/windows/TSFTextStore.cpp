@@ -902,8 +902,8 @@ private:
   // True if OnActivated() is already called
   bool mOnActivatedCalled;
 
-  nsRefPtr<ITfThreadMgr> mThreadMgr;
-  nsRefPtr<ITfInputProcessorProfiles> mInputProcessorProfiles;
+  RefPtr<ITfThreadMgr> mThreadMgr;
+  RefPtr<ITfInputProcessorProfiles> mInputProcessorProfiles;
 
   // Active TIP keyboard's description.  If active language profile isn't TIP,
   // i.e., IMM-IME or just a keyboard layout, this is empty.
@@ -932,7 +932,7 @@ TSFStaticSink::Init(ITfThreadMgr* aThreadMgr,
   mThreadMgr = aThreadMgr;
   mInputProcessorProfiles = aInputProcessorProfiles;
 
-  nsRefPtr<ITfSource> source;
+  RefPtr<ITfSource> source;
   HRESULT hr =
     mThreadMgr->QueryInterface(IID_ITfSource, getter_AddRefs(source));
   if (FAILED(hr)) {
@@ -984,7 +984,7 @@ TSFStaticSink::Destroy()
      this, mIPProfileCookie, mLangProfileCookie));
 
   if (mIPProfileCookie != TF_INVALID_COOKIE) {
-    nsRefPtr<ITfSource> source;
+    RefPtr<ITfSource> source;
     HRESULT hr =
       mThreadMgr->QueryInterface(IID_ITfSource, getter_AddRefs(source));
     if (FAILED(hr)) {
@@ -1003,7 +1003,7 @@ TSFStaticSink::Destroy()
   }
 
   if (mLangProfileCookie != TF_INVALID_COOKIE) {
-    nsRefPtr<ITfSource> source;
+    RefPtr<ITfSource> source;
     HRESULT hr =
       mThreadMgr->QueryInterface(IID_ITfSource, getter_AddRefs(source));
     if (FAILED(hr)) {
@@ -1105,7 +1105,7 @@ TSFStaticSink::EnsureInitActiveTIPKeyboard()
   }
 
   if (IsVistaOrLater()) {
-    nsRefPtr<ITfInputProcessorProfileMgr> profileMgr;
+    RefPtr<ITfInputProcessorProfileMgr> profileMgr;
     HRESULT hr =
       mInputProcessorProfiles->QueryInterface(IID_ITfInputProcessorProfileMgr,
                                               getter_AddRefs(profileMgr));
@@ -1152,7 +1152,7 @@ TSFStaticSink::EnsureInitActiveTIPKeyboard()
     return false;
   }
 
-  nsRefPtr<IEnumTfLanguageProfiles> enumLangProfiles;
+  RefPtr<IEnumTfLanguageProfiles> enumLangProfiles;
   hr = mInputProcessorProfiles->EnumLanguageProfiles(langID,
                                   getter_AddRefs(enumLangProfiles));
   if (FAILED(hr) || !enumLangProfiles) {
@@ -1228,7 +1228,7 @@ TSFStaticSink::IsTIPCategoryKeyboard(REFCLSID aTextService, LANGID aLangID,
     return false;
   }
 
-  nsRefPtr<IEnumTfLanguageProfiles> enumLangProfiles;
+  RefPtr<IEnumTfLanguageProfiles> enumLangProfiles;
   HRESULT hr =
     mInputProcessorProfiles->EnumLanguageProfiles(aLangID,
                                getter_AddRefs(enumLangProfiles));
@@ -1480,7 +1480,7 @@ TSFTextStore::AdviseSink(REFIID riid,
   } else {
     // If sink is already installed we check to see if they are the same
     // Get IUnknown from both sides for comparison
-    nsRefPtr<IUnknown> comparison1, comparison2;
+    RefPtr<IUnknown> comparison1, comparison2;
     punk->QueryInterface(IID_IUnknown, getter_AddRefs(comparison1));
     mSink->QueryInterface(IID_IUnknown, getter_AddRefs(comparison2));
     if (comparison1 != comparison2) {
@@ -1515,7 +1515,7 @@ TSFTextStore::UnadviseSink(IUnknown* punk)
     return CONNECT_E_NOCONNECTION;
   }
   // Get IUnknown from both sides for comparison
-  nsRefPtr<IUnknown> comparison1, comparison2;
+  RefPtr<IUnknown> comparison1, comparison2;
   punk->QueryInterface(IID_IUnknown, getter_AddRefs(comparison1));
   mSink->QueryInterface(IID_IUnknown, getter_AddRefs(comparison2));
   // Unadvise only if sinks are the same
@@ -1561,7 +1561,7 @@ TSFTextStore::RequestLock(DWORD dwLockFlags,
        this, GetLockFlagNameStr(mLock).get()));
     // Don't release this instance during this lock because this is called by
     // TSF but they don't grab us during this call.
-    nsRefPtr<TSFTextStore> kungFuDeathGrip(this);
+    RefPtr<TSFTextStore> kungFuDeathGrip(this);
     *phrSession = mSink->OnLockGranted(mLock);
     MOZ_LOG(sTextStoreLog, LogLevel::Info,
       ("TSF: 0x%p   Unlocked (%s) <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<"
@@ -1661,7 +1661,7 @@ TSFTextStore::FlushPendingActions()
     return;
   }
 
-  nsRefPtr<nsWindowBase> kungFuDeathGrip(mWidget);
+  RefPtr<nsWindowBase> kungFuDeathGrip(mWidget);
   for (uint32_t i = 0; i < mPendingActions.Length(); i++) {
     PendingAction& action = mPendingActions[i];
     switch (action.mType) {
@@ -2103,7 +2103,7 @@ TSFTextStore::CurrentSelection()
 static HRESULT
 GetRangeExtent(ITfRange* aRange, LONG* aStart, LONG* aLength)
 {
-  nsRefPtr<ITfRangeACP> rangeACP;
+  RefPtr<ITfRangeACP> rangeACP;
   aRange->QueryInterface(IID_ITfRangeACP, getter_AddRefs(rangeACP));
   NS_ENSURE_TRUE(rangeACP, E_FAIL);
   return rangeACP->GetExtent(aStart, aLength);
@@ -2181,7 +2181,7 @@ TSFTextStore::GetDisplayAttribute(ITfProperty* aAttrProperty,
   }
 
   NS_ENSURE_TRUE(sDisplayAttrMgr, E_FAIL);
-  nsRefPtr<ITfDisplayAttributeInfo> info;
+  RefPtr<ITfDisplayAttributeInfo> info;
   hr = sDisplayAttrMgr->GetDisplayAttributeInfo(guid, getter_AddRefs(info),
                                                 nullptr);
   if (FAILED(hr) || !info) {
@@ -2221,8 +2221,8 @@ TSFTextStore::RestartCompositionIfNecessary(ITfRange* aRangeNew)
   }
 
   HRESULT hr;
-  nsRefPtr<ITfCompositionView> pComposition(mComposition.mView);
-  nsRefPtr<ITfRange> composingRange(aRangeNew);
+  RefPtr<ITfCompositionView> pComposition(mComposition.mView);
+  RefPtr<ITfRange> composingRange(aRangeNew);
   if (!composingRange) {
     hr = pComposition->GetRange(getter_AddRefs(composingRange));
     if (FAILED(hr)) {
@@ -2448,7 +2448,7 @@ TSFTextStore::RecordCompositionUpdateAction()
   // the display attribute manager and translate that to TextRange to be
   // sent in eCompositionChange
 
-  nsRefPtr<ITfProperty> attrPropetry;
+  RefPtr<ITfProperty> attrPropetry;
   HRESULT hr = mContext->GetProperty(GUID_PROP_ATTRIBUTE,
                                      getter_AddRefs(attrPropetry));
   if (FAILED(hr) || !attrPropetry) {
@@ -2458,7 +2458,7 @@ TSFTextStore::RecordCompositionUpdateAction()
     return FAILED(hr) ? hr : E_FAIL;
   }
 
-  nsRefPtr<ITfRange> composingRange;
+  RefPtr<ITfRange> composingRange;
   hr = mComposition.mView->GetRange(getter_AddRefs(composingRange));
   if (FAILED(hr)) {
     MOZ_LOG(sTextStoreLog, LogLevel::Error,
@@ -2467,7 +2467,7 @@ TSFTextStore::RecordCompositionUpdateAction()
     return hr;
   }
 
-  nsRefPtr<IEnumTfRanges> enumRanges;
+  RefPtr<IEnumTfRanges> enumRanges;
   hr = attrPropetry->EnumRanges(TfEditCookie(mEditCookie),
                                 getter_AddRefs(enumRanges), composingRange);
   if (FAILED(hr) || !enumRanges) {
@@ -2501,7 +2501,7 @@ TSFTextStore::RecordCompositionUpdateAction()
   newRange.mRangeType = NS_TEXTRANGE_RAWINPUT;
   action->mRanges->AppendElement(newRange);
 
-  nsRefPtr<ITfRange> range;
+  RefPtr<ITfRange> range;
   while (S_OK == enumRanges->Next(1, getter_AddRefs(range), nullptr) && range) {
 
     LONG rangeStart = 0, rangeLength = 0;
@@ -3181,7 +3181,7 @@ TSFTextStore::RetrieveRequestedAttrs(ULONG ulCount,
       switch (i) {
         case eInputScope: {
           paAttrVals[count].varValue.vt = VT_UNKNOWN;
-          nsRefPtr<IUnknown> inputScope = new InputScopeImpl(mInputScopes);
+          RefPtr<IUnknown> inputScope = new InputScopeImpl(mInputScopes);
           paAttrVals[count].varValue.punkVal = inputScope.forget().take();
           break;
         }
@@ -3339,7 +3339,7 @@ TSFTextStore::GetACPFromPoint(TsViewCookie vcView,
 
   // FYI: WidgetQueryContentEvent may cause flushing pending layout and it
   //      may cause focus change or something.
-  nsRefPtr<TSFTextStore> kungFuDeathGrip(this);
+  RefPtr<TSFTextStore> kungFuDeathGrip(this);
   DispatchEvent(charAtPt);
   if (!mWidget || mWidget->Destroyed()) {
     MOZ_LOG(sTextStoreLog, LogLevel::Error,
@@ -4054,7 +4054,7 @@ TSFTextStore::OnStartComposition(ITfCompositionView* pComposition,
     return S_OK;
   }
 
-  nsRefPtr<ITfRange> range;
+  RefPtr<ITfRange> range;
   HRESULT hr = pComposition->GetRange(getter_AddRefs(range));
   if (FAILED(hr)) {
     MOZ_LOG(sTextStoreLog, LogLevel::Error,
@@ -4308,7 +4308,7 @@ TSFTextStore::OnFocusChange(bool aGotFocus,
     return NS_ERROR_NOT_AVAILABLE;
   }
 
-  nsRefPtr<ITfDocumentMgr> prevFocusedDocumentMgr;
+  RefPtr<ITfDocumentMgr> prevFocusedDocumentMgr;
 
   // If currently sEnableTextStore has focus, notifies TSF of losing focus.
   if (ThinksHavingFocus()) {
@@ -4380,7 +4380,7 @@ TSFTextStore::CreateAndSetFocus(nsWindowBase* aFocusedWidget,
   }
   if (aContext.mIMEState.mEnabled == IMEState::PASSWORD) {
     MarkContextAsKeyboardDisabled(sEnabledTextStore->mContext);
-    nsRefPtr<ITfContext> topContext;
+    RefPtr<ITfContext> topContext;
     sEnabledTextStore->mDocumentMgr->GetTop(getter_AddRefs(topContext));
     if (topContext && topContext != sEnabledTextStore->mContext) {
       MarkContextAsKeyboardDisabled(topContext);
@@ -4395,7 +4395,7 @@ TSFTextStore::CreateAndSetFocus(nsWindowBase* aFocusedWidget,
   }
   // Use AssociateFocus() for ensuring that any native focus event
   // never steal focus from our documentMgr.
-  nsRefPtr<ITfDocumentMgr> prevFocusedDocumentMgr;
+  RefPtr<ITfDocumentMgr> prevFocusedDocumentMgr;
   hr = sThreadMgr->AssociateFocus(aFocusedWidget->GetWindowHandle(),
                                   sEnabledTextStore->mDocumentMgr,
                                   getter_AddRefs(prevFocusedDocumentMgr));
@@ -4423,7 +4423,7 @@ nsIMEUpdatePreference
 TSFTextStore::GetIMEUpdatePreference()
 {
   if (sThreadMgr && sEnabledTextStore && sEnabledTextStore->mDocumentMgr) {
-    nsRefPtr<ITfDocumentMgr> docMgr;
+    RefPtr<ITfDocumentMgr> docMgr;
     sThreadMgr->GetFocus(getter_AddRefs(docMgr));
     if (docMgr == sEnabledTextStore->mDocumentMgr) {
       nsIMEUpdatePreference updatePreference(
@@ -4669,7 +4669,7 @@ TSFTextStore::NotifyTSFOfLayoutChange(bool aFlush)
   // The layout change caused by composition string change should cause
   // calling ITfContextOwnerServices::OnLayoutChange() too.
   if (aFlush && mContext) {
-    nsRefPtr<ITfContextOwnerServices> service;
+    RefPtr<ITfContextOwnerServices> service;
     mContext->QueryInterface(IID_ITfContextOwnerServices,
                              getter_AddRefs(service));
     if (service) {
@@ -4879,10 +4879,10 @@ TSFTextStore::CommitCompositionInternal(bool aDiscard)
   }
   // Terminate two contexts, the base context (mContext) and the top
   // if the top context is not the same as the base context
-  nsRefPtr<ITfContext> context = mContext;
+  RefPtr<ITfContext> context = mContext;
   do {
     if (context) {
-      nsRefPtr<ITfContextOwnerCompositionServices> services;
+      RefPtr<ITfContextOwnerCompositionServices> services;
       context->QueryInterface(IID_ITfContextOwnerCompositionServices,
                               getter_AddRefs(services));
       if (services) {
@@ -4908,7 +4908,7 @@ GetCompartment(IUnknown* pUnk,
 {
   if (!pUnk) return false;
 
-  nsRefPtr<ITfCompartmentMgr> compMgr;
+  RefPtr<ITfCompartmentMgr> compMgr;
   pUnk->QueryInterface(IID_ITfCompartmentMgr, getter_AddRefs(compMgr));
   if (!compMgr) return false;
 
@@ -4924,7 +4924,7 @@ TSFTextStore::SetIMEOpenState(bool aState)
          ("TSF: TSFTextStore::SetIMEOpenState(aState=%s)",
           GetBoolName(aState)));
 
-  nsRefPtr<ITfCompartment> comp;
+  RefPtr<ITfCompartment> comp;
   if (!GetCompartment(sThreadMgr,
                       GUID_COMPARTMENT_KEYBOARD_OPENCLOSE,
                       getter_AddRefs(comp))) {
@@ -4948,7 +4948,7 @@ TSFTextStore::SetIMEOpenState(bool aState)
 bool
 TSFTextStore::GetIMEOpenState()
 {
-  nsRefPtr<ITfCompartment> comp;
+  RefPtr<ITfCompartment> comp;
   if (!GetCompartment(sThreadMgr,
                       GUID_COMPARTMENT_KEYBOARD_OPENCLOSE,
                       getter_AddRefs(comp)))
@@ -5003,7 +5003,7 @@ TSFTextStore::MarkContextAsKeyboardDisabled(ITfContext* aContext)
   variant_int4_value1.vt = VT_I4;
   variant_int4_value1.lVal = 1;
 
-  nsRefPtr<ITfCompartment> comp;
+  RefPtr<ITfCompartment> comp;
   if (!GetCompartment(aContext,
                       GUID_COMPARTMENT_KEYBOARD_DISABLED,
                       getter_AddRefs(comp))) {
@@ -5028,7 +5028,7 @@ TSFTextStore::MarkContextAsEmpty(ITfContext* aContext)
   variant_int4_value1.vt = VT_I4;
   variant_int4_value1.lVal = 1;
 
-  nsRefPtr<ITfCompartment> comp;
+  RefPtr<ITfCompartment> comp;
   if (!GetCompartment(aContext,
                       GUID_COMPARTMENT_EMPTYCONTEXT,
                       getter_AddRefs(comp))) {
@@ -5075,7 +5075,7 @@ TSFTextStore::Initialize()
   //     desktop apps.  However, there is no known way to obtain
   //     ITfInputProcessorProfileMgr instance without ITfInputProcessorProfiles
   //     instance.
-  nsRefPtr<ITfInputProcessorProfiles> inputProcessorProfiles;
+  RefPtr<ITfInputProcessorProfiles> inputProcessorProfiles;
   HRESULT hr =
     ::CoCreateInstance(CLSID_TF_InputProcessorProfiles, nullptr,
                        CLSCTX_INPROC_SERVER,
@@ -5088,7 +5088,7 @@ TSFTextStore::Initialize()
     return;
   }
 
-  nsRefPtr<ITfThreadMgr> threadMgr;
+  RefPtr<ITfThreadMgr> threadMgr;
   hr = ::CoCreateInstance(CLSID_TF_ThreadMgr, nullptr,
                           CLSCTX_INPROC_SERVER, IID_ITfThreadMgr,
                           getter_AddRefs(threadMgr));
@@ -5099,7 +5099,7 @@ TSFTextStore::Initialize()
     return;
   }
 
-  nsRefPtr<ITfMessagePump> messagePump;
+  RefPtr<ITfMessagePump> messagePump;
   hr = threadMgr->QueryInterface(IID_ITfMessagePump,
                                  getter_AddRefs(messagePump));
   if (FAILED(hr) || !messagePump) {
@@ -5109,7 +5109,7 @@ TSFTextStore::Initialize()
     return;
   }
 
-  nsRefPtr<ITfKeystrokeMgr> keystrokeMgr;
+  RefPtr<ITfKeystrokeMgr> keystrokeMgr;
   hr = threadMgr->QueryInterface(IID_ITfKeystrokeMgr,
                                  getter_AddRefs(keystrokeMgr));
   if (FAILED(hr) || !keystrokeMgr) {
@@ -5126,7 +5126,7 @@ TSFTextStore::Initialize()
     return;
   }
 
-  nsRefPtr<ITfDisplayAttributeMgr> displayAttributeMgr;
+  RefPtr<ITfDisplayAttributeMgr> displayAttributeMgr;
   hr = ::CoCreateInstance(CLSID_TF_DisplayAttributeMgr, nullptr,
                           CLSCTX_INPROC_SERVER, IID_ITfDisplayAttributeMgr,
                           getter_AddRefs(displayAttributeMgr));
@@ -5137,7 +5137,7 @@ TSFTextStore::Initialize()
     return;
   }
 
-  nsRefPtr<ITfCategoryMgr> categoryMgr;
+  RefPtr<ITfCategoryMgr> categoryMgr;
   hr = ::CoCreateInstance(CLSID_TF_CategoryMgr, nullptr,
                           CLSCTX_INPROC_SERVER, IID_ITfCategoryMgr,
                           getter_AddRefs(categoryMgr));
@@ -5148,7 +5148,7 @@ TSFTextStore::Initialize()
     return;
   }
 
-  nsRefPtr<ITfDocumentMgr> disabledDocumentMgr;
+  RefPtr<ITfDocumentMgr> disabledDocumentMgr;
   hr = threadMgr->CreateDocumentMgr(getter_AddRefs(disabledDocumentMgr));
   if (FAILED(hr) || !disabledDocumentMgr) {
     MOZ_LOG(sTextStoreLog, LogLevel::Error,
@@ -5157,7 +5157,7 @@ TSFTextStore::Initialize()
     return;
   }
 
-  nsRefPtr<ITfContext> disabledContext;
+  RefPtr<ITfContext> disabledContext;
   DWORD editCookie = 0;
   hr = disabledDocumentMgr->CreateContext(sClientId, 0, nullptr,
                                           getter_AddRefs(disabledContext),
@@ -5622,7 +5622,7 @@ TSFTextStore::CurrentKeyboardLayoutHasIME()
        "there is no input processor profiles instance"));
     return false;
   }
-  nsRefPtr<ITfInputProcessorProfileMgr> profileMgr;
+  RefPtr<ITfInputProcessorProfileMgr> profileMgr;
   HRESULT hr =
     sInputProcessorProfiles->QueryInterface(IID_ITfInputProcessorProfileMgr,
                                             getter_AddRefs(profileMgr));

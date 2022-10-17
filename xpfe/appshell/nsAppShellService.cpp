@@ -138,7 +138,7 @@ nsAppShellService::CreateHiddenWindowHelper(bool aIsPrivate)
   rv = NS_NewURI(getter_AddRefs(url), hiddenWindowURL);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  nsRefPtr<nsWebShellWindow> newWindow;
+  RefPtr<nsWebShellWindow> newWindow;
   if (!aIsPrivate) {
     rv = JustCreateTopWindow(nullptr, url,
                              chromeMask, initialWidth, initialHeight,
@@ -385,7 +385,7 @@ nsAppShellService::CreateWindowlessBrowser(bool aIsChrome, nsIWebNavigation **aR
    * an instance of WebBrowserChrome2Stub, which provides a stub implementation
    * of nsIWebBrowserChrome2.
    */
-  nsRefPtr<WebBrowserChrome2Stub> stub = new WebBrowserChrome2Stub();
+  RefPtr<WebBrowserChrome2Stub> stub = new WebBrowserChrome2Stub();
   if (!stub) {
     NS_ERROR("Couldn't create instance of WebBrowserChrome2Stub!");
     return NS_ERROR_FAILURE;
@@ -415,7 +415,7 @@ nsAppShellService::CreateWindowlessBrowser(bool aIsChrome, nsIWebNavigation **aR
   window->Create();
 
   nsISupports *isstub = NS_ISUPPORTS_CAST(nsIWebBrowserChrome2*, stub);
-  nsRefPtr<nsIWebNavigation> result = new WindowlessBrowserStub(browser, isstub);
+  RefPtr<nsIWebNavigation> result = new WindowlessBrowserStub(browser, isstub);
   nsCOMPtr<nsIDocShell> docshell = do_GetInterface(result);
   docshell->SetInvisible(true);
 
@@ -516,7 +516,7 @@ nsAppShellService::JustCreateTopWindow(nsIXULWindow *aParent,
   if (aChromeMask & nsIWebBrowserChrome::CHROME_DEPENDENT)
     parent = aParent;
 
-  nsRefPtr<nsWebShellWindow> window = new nsWebShellWindow(aChromeMask);
+  RefPtr<nsWebShellWindow> window = new nsWebShellWindow(aChromeMask);
   NS_ENSURE_TRUE(window, NS_ERROR_OUT_OF_MEMORY);
 
 #ifdef XP_WIN

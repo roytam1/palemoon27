@@ -215,12 +215,10 @@ ProxyAccessible::CaretOffset()
   return offset;
 }
 
-bool
+void
 ProxyAccessible::SetCaretOffset(int32_t aOffset)
 {
-  bool valid = false;
-  unused << mDoc->SendSetCaretOffset(mID, aOffset, &valid);
-  return valid;
+  unused << mDoc->SendSetCaretOffset(mID, aOffset);
 }
 
 int32_t
@@ -276,6 +274,14 @@ ProxyAccessible::GetTextBeforeOffset(int32_t aOffset,
 {
   unused << mDoc->SendGetTextBeforeOffset(mID, aOffset, aBoundaryType,
                                           &aText, aStartOffset, aEndOffset);
+}
+
+char16_t
+ProxyAccessible::CharAt(int32_t aOffset)
+{
+  uint16_t retval = 0;
+  unused << mDoc->SendCharAt(mID, aOffset, &retval);
+  return static_cast<char16_t>(retval);
 }
 
 void
@@ -429,14 +435,6 @@ ProxyAccessible::PasteText(int32_t aPosition)
   bool valid;
   unused << mDoc->SendPasteText(mID, aPosition, &valid);
   return valid;
-}
-
-char16_t
-ProxyAccessible::CharAt(int32_t aOffset)
-{
-  uint16_t retval = 0;
-  unused << mDoc->SendCharAt(mID, aOffset, &retval);
-  return static_cast<char16_t>(retval);
 }
 
 nsIntPoint
@@ -819,6 +817,24 @@ ProxyAccessible::TableIsProbablyForLayout()
   return forLayout;
 }
 
+ProxyAccessible*
+ProxyAccessible::AtkTableColumnHeader(int32_t aCol)
+{
+  uint64_t headerID = 0;
+  bool ok = false;
+  unused << mDoc->SendAtkTableColumnHeader(mID, aCol, &headerID, &ok);
+  return ok ? mDoc->GetAccessible(headerID) : nullptr;
+}
+
+ProxyAccessible*
+ProxyAccessible::AtkTableRowHeader(int32_t aRow)
+{
+  uint64_t headerID = 0;
+  bool ok = false;
+  unused << mDoc->SendAtkTableRowHeader(mID, aRow, &headerID, &ok);
+  return ok ? mDoc->GetAccessible(headerID) : nullptr;
+}
+
 void
 ProxyAccessible::SelectedItems(nsTArray<ProxyAccessible*>* aSelectedItems)
 {
@@ -931,6 +947,12 @@ ProxyAccessible::KeyboardShortcut()
   uint32_t modifierMask = 0;
   unused << mDoc->SendKeyboardShortcut(mID, &key, &modifierMask);
   return KeyBinding(key, modifierMask);
+}
+
+void
+ProxyAccessible::AtkKeyBinding(nsString& aBinding)
+{
+  unused << mDoc->SendAtkKeyBinding(mID, &aBinding);
 }
 
 double

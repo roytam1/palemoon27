@@ -641,7 +641,7 @@ NetworkMonitor.prototype = {
 
     this.openResponses[response.id] = response;
 
-    if(aTopic === "http-on-examine-cached-response") {
+    if (aTopic === "http-on-examine-cached-response") {
       // If this is a cached response, there never was a request event
       // so we need to construct one here so the frontend gets all the
       // expected events.
@@ -800,7 +800,7 @@ NetworkMonitor.prototype = {
     // associated with a load group. Bug 1160837 will hopefully introduce a
     // platform fix that will render the following code entirely useless.
     if (aChannel.loadInfo &&
-        aChannel.loadInfo.contentPolicyType == Ci.nsIContentPolicy.TYPE_BEACON) {
+        aChannel.loadInfo.externalContentPolicyType == Ci.nsIContentPolicy.TYPE_BEACON) {
       let nonE10sMatch = this.window &&
                          aChannel.loadInfo.loadingDocument === this.window.document;
       let e10sMatch = this.topFrame &&
@@ -830,7 +830,7 @@ NetworkMonitor.prototype = {
     aChannel.QueryInterface(Ci.nsIPrivateBrowsingChannel);
     httpActivity.private = aChannel.isChannelPrivate;
 
-    if(timestamp) {
+    if (timestamp) {
       httpActivity.timings.REQUEST_HEADER = {
         first: timestamp,
         last: timestamp
@@ -845,13 +845,14 @@ NetworkMonitor.prototype = {
     event.startedDateTime = (timestamp ? new Date(Math.round(timestamp / 1000)) : new Date()).toISOString();
     event.fromCache = fromCache;
 
-    if(extraStringData) {
+    if (extraStringData) {
       event.headersSize = extraStringData.length;
     }
 
     // Determine if this is an XHR request.
     httpActivity.isXHR = event.isXHR =
-        (aChannel.loadInfo && aChannel.loadInfo.contentPolicyType === Ci.nsIContentPolicy.TYPE_XMLHTTPREQUEST);
+        (aChannel.loadInfo.externalContentPolicyType === Ci.nsIContentPolicy.TYPE_XMLHTTPREQUEST ||
+         aChannel.loadInfo.externalContentPolicyType === Ci.nsIContentPolicy.TYPE_FETCH);
 
     // Determine the HTTP version.
     let httpVersionMaj = {};
@@ -1127,7 +1128,7 @@ NetworkMonitor.prototype = {
    */
   _setupHarTimings: function NM__setupHarTimings(aHttpActivity, fromCache)
   {
-    if(fromCache) {
+    if (fromCache) {
       // If it came from the browser cache, we have no timing
       // information and these should all be 0
       return {

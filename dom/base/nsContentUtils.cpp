@@ -404,7 +404,7 @@ protected:          // declared protected to silence clang warnings
   const void *mKey; // must be first, to look like PLDHashEntryStub
 
 public:
-  nsRefPtr<EventListenerManager> mListenerManager;
+  RefPtr<EventListenerManager> mListenerManager;
 };
 
 static void
@@ -488,7 +488,7 @@ nsContentUtils::Init()
 
   // We use the constructor here because we want infallible initialization; we
   // apparently don't care whether sNullSubjectPrincipal has a sane URI or not.
-  nsRefPtr<nsNullPrincipal> nullPrincipal = new nsNullPrincipal();
+  RefPtr<nsNullPrincipal> nullPrincipal = new nsNullPrincipal();
   nullPrincipal->Init();
   nullPrincipal.forget(&sNullSubjectPrincipal);
 
@@ -1767,7 +1767,7 @@ nsContentUtils::IsControlledByServiceWorker(nsIDocument* aDocument)
     return false;
   }
 
-  nsRefPtr<workers::ServiceWorkerManager> swm =
+  RefPtr<workers::ServiceWorkerManager> swm =
     workers::ServiceWorkerManager::GetInstance();
   MOZ_ASSERT(swm);
 
@@ -3229,7 +3229,7 @@ already_AddRefed<imgRequestProxy>
 nsContentUtils::GetStaticRequest(imgRequestProxy* aRequest)
 {
   NS_ENSURE_TRUE(aRequest, nullptr);
-  nsRefPtr<imgRequestProxy> retval;
+  RefPtr<imgRequestProxy> retval;
   aRequest->GetStaticRequest(getter_AddRefs(retval));
   return retval.forget();
 }
@@ -4218,7 +4218,7 @@ nsContentUtils::RemoveListenerManager(nsINode *aNode)
     auto entry = static_cast<EventListenerManagerMapEntry*>
                             (sEventListenerManagersHash->Search(aNode));
     if (entry) {
-      nsRefPtr<EventListenerManager> listenerManager;
+      RefPtr<EventListenerManager> listenerManager;
       listenerManager.swap(entry->mListenerManager);
       // Remove the entry and *then* do operations that could cause further
       // modification of sEventListenerManagersHash.  See bug 334177.
@@ -4299,7 +4299,7 @@ nsContentUtils::CreateContextualFragment(nsINode* aContextNode,
 #endif
 
   if (isHTML) {
-    nsRefPtr<DocumentFragment> frag =
+    RefPtr<DocumentFragment> frag =
       new DocumentFragment(document->NodeInfoManager());
     
     nsCOMPtr<nsIContent> contextAsContent = do_QueryInterface(aContextNode);
@@ -4629,7 +4629,7 @@ nsContentUtils::SetNodeTextContent(nsIContent* aContent,
     return NS_OK;
   }
 
-  nsRefPtr<nsTextNode> textContent =
+  RefPtr<nsTextNode> textContent =
     new nsTextNode(aContent->NodeInfo()->NodeInfoManager());
 
   textContent->SetText(aValue, true);
@@ -6227,7 +6227,7 @@ nsContentUtils::CreateBlobBuffer(JSContext* aCx,
 {
   uint32_t blobLen = aData.Length();
   void* blobData = moz_malloc(blobLen);
-  nsRefPtr<Blob> blob;
+  RefPtr<Blob> blob;
   if (blobData) {
     memcpy(blobData, aData.BeginReading(), blobLen);
     blob = mozilla::dom::Blob::CreateMemoryBlob(aParent, blobData, blobLen,
@@ -6559,7 +6559,7 @@ LayerManagerForDocumentInternal(const nsIDocument *aDoc, bool aRequirePersistent
 {
   nsIWidget *widget = nsContentUtils::WidgetForDocument(aDoc);
   if (widget) {
-    nsRefPtr<LayerManager> manager =
+    RefPtr<LayerManager> manager =
       widget->GetLayerManager(aRequirePersistent ? nsIWidget::LAYER_MANAGER_PERSISTENT : 
                               nsIWidget::LAYER_MANAGER_CURRENT,
                               aAllowRetaining);
@@ -6817,7 +6817,7 @@ CheckForWindowedPlugins(nsISupports* aSupports, void* aResult)
   if (!olc) {
     return;
   }
-  nsRefPtr<nsNPAPIPluginInstance> plugin;
+  RefPtr<nsNPAPIPluginInstance> plugin;
   olc->GetPluginInstance(getter_AddRefs(plugin));
   if (!plugin) {
     return;
@@ -7512,7 +7512,7 @@ nsContentUtils::TransferableToIPCTransferable(nsITransferable* aTransferable,
               image->GetFrame(imgIContainer::FRAME_CURRENT,
                               imgIContainer::FLAG_SYNC_DECODE);
             if (surface) {
-              mozilla::RefPtr<mozilla::gfx::DataSourceSurface> dataSurface =
+              RefPtr<mozilla::gfx::DataSourceSurface> dataSurface =
                 surface->GetDataSurface();
               size_t length;
               int32_t stride;
@@ -8150,10 +8150,21 @@ nsContentUtils::PushEnabled(JSContext* aCx, JSObject* aObj)
 
 // static
 bool
-nsContentUtils::IsWorkerLoad(nsContentPolicyType aType)
+nsContentUtils::IsNonSubresourceRequest(nsIChannel* aChannel)
 {
-  return aType == nsIContentPolicy::TYPE_INTERNAL_WORKER ||
-         aType == nsIContentPolicy::TYPE_INTERNAL_SHARED_WORKER;
+  nsLoadFlags loadFlags = 0;
+  aChannel->GetLoadFlags(&loadFlags);
+  if (loadFlags & nsIChannel::LOAD_DOCUMENT_URI) {
+    return true;
+  }
+
+  nsCOMPtr<nsILoadInfo> loadInfo = aChannel->GetLoadInfo();
+  if (!loadInfo) {
+    return false;
+  }
+  nsContentPolicyType type = loadInfo->InternalContentPolicyType();
+  return type == nsIContentPolicy::TYPE_INTERNAL_WORKER ||
+         type == nsIContentPolicy::TYPE_INTERNAL_SHARED_WORKER;
 }
 
 // static, public

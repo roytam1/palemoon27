@@ -446,7 +446,7 @@ GLContextProviderWGL::CreateForWindow(nsIWidget *aWidget)
     }
 
     SurfaceCaps caps = SurfaceCaps::ForRGBA();
-    nsRefPtr<GLContextWGL> glContext = new GLContextWGL(caps,
+    RefPtr<GLContextWGL> glContext = new GLContextWGL(caps,
                                                         shareContext,
                                                         false,
                                                         dc,
@@ -541,7 +541,7 @@ CreatePBufferOffscreenContext(const IntSize& aSize,
     }
 
     SurfaceCaps dummyCaps = SurfaceCaps::Any();
-    nsRefPtr<GLContextWGL> glContext = new GLContextWGL(dummyCaps,
+    RefPtr<GLContextWGL> glContext = new GLContextWGL(dummyCaps,
                                                         aShareContext,
                                                         true,
                                                         pbuffer,
@@ -594,7 +594,7 @@ CreateWindowOffscreenContext()
     }
 
     SurfaceCaps caps = SurfaceCaps::ForRGBA();
-    nsRefPtr<GLContextWGL> glContext = new GLContextWGL(caps,
+    RefPtr<GLContextWGL> glContext = new GLContextWGL(caps,
                                                         shareContext, true,
                                                         dc, context, win);
 
@@ -608,7 +608,7 @@ GLContextProviderWGL::CreateHeadless(CreateContextFlags)
         return nullptr;
     }
 
-    nsRefPtr<GLContextWGL> glContext;
+    RefPtr<GLContextWGL> glContext;
 
     // Always try to create a pbuffer context first, because we
     // want the context isolation.
@@ -630,7 +630,7 @@ GLContextProviderWGL::CreateHeadless(CreateContextFlags)
         return nullptr;
     }
 
-    nsRefPtr<GLContext> retGL = glContext.get();
+    RefPtr<GLContext> retGL = glContext.get();
     return retGL.forget();
 }
 
@@ -649,7 +649,7 @@ GLContextProviderWGL::CreateOffscreen(const IntSize& size,
     return gl.forget();
 }
 
-static nsRefPtr<GLContextWGL> gGlobalContext;
+static RefPtr<GLContextWGL> gGlobalContext;
 
 /*static*/ GLContext*
 GLContextProviderWGL::GetGlobalContext()

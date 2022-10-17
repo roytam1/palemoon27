@@ -268,7 +268,7 @@ FFmpegRuntimeLinker::CreateDecoderModule()
   if (!GetVersion(major, minor, micro)) {
     return  nullptr;
   }
-  nsRefPtr<PlatformDecoderModule> module;
+  RefPtr<PlatformDecoderModule> module;
   switch (major) {
 #if !defined(XP_WIN)
     case 53: module = FFmpegDecoderModule<53>::Create(); break;

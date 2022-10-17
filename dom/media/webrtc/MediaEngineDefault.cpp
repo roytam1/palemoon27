@@ -230,8 +230,8 @@ MediaEngineDefaultVideoSource::Notify(nsITimer* aTimer)
   }
 
   // Allocate a single solid color image
-  nsRefPtr<layers::Image> image = mImageContainer->CreateImage(ImageFormat::PLANAR_YCBCR);
-  nsRefPtr<layers::PlanarYCbCrImage> ycbcr_image =
+  RefPtr<layers::Image> image = mImageContainer->CreateImage(ImageFormat::PLANAR_YCBCR);
+  RefPtr<layers::PlanarYCbCrImage> ycbcr_image =
       static_cast<layers::PlanarYCbCrImage*>(image.get());
   layers::PlanarYCbCrData data;
   AllocateSolidColorFrame(data, mOpts.mWidth, mOpts.mHeight, 0x80, mCb, mCr);
@@ -270,7 +270,7 @@ MediaEngineDefaultVideoSource::NotifyPull(MediaStreamGraph* aGraph,
   }
 
   // Note: we're not giving up mImage here
-  nsRefPtr<layers::Image> image = mImage;
+  RefPtr<layers::Image> image = mImage;
   StreamTime delta = aDesiredTime - aSource->GetEndOfAppendedData(aID);
 
   if (delta > 0) {
@@ -476,7 +476,7 @@ NS_IMETHODIMP
 MediaEngineDefaultAudioSource::Notify(nsITimer* aTimer)
 {
   AudioSegment segment;
-  nsRefPtr<SharedBuffer> buffer = SharedBuffer::Create(AUDIO_FRAME_LENGTH * sizeof(int16_t));
+  RefPtr<SharedBuffer> buffer = SharedBuffer::Create(AUDIO_FRAME_LENGTH * sizeof(int16_t));
   int16_t* dest = static_cast<int16_t*>(buffer->Data());
 
   mSineGenerator->generate(dest, AUDIO_FRAME_LENGTH);
@@ -498,7 +498,7 @@ MediaEngineDefaultAudioSource::Notify(nsITimer* aTimer)
 
 void
 MediaEngineDefault::EnumerateVideoDevices(dom::MediaSourceEnum aMediaSource,
-                                          nsTArray<nsRefPtr<MediaEngineVideoSource> >* aVSources) {
+                                          nsTArray<RefPtr<MediaEngineVideoSource> >* aVSources) {
   MutexAutoLock lock(mMutex);
 
   // only supports camera sources (for now).  See Bug 1038241
@@ -509,7 +509,7 @@ MediaEngineDefault::EnumerateVideoDevices(dom::MediaSourceEnum aMediaSource,
   // We once had code here to find a VideoSource with the same settings and re-use that.
   // This no longer is possible since the resolution is being set in Allocate().
 
-  nsRefPtr<MediaEngineVideoSource> newSource = new MediaEngineDefaultVideoSource();
+  RefPtr<MediaEngineVideoSource> newSource = new MediaEngineDefaultVideoSource();
   newSource->SetHasFakeTracks(mHasFakeTracks);
   mVSources.AppendElement(newSource);
   aVSources->AppendElement(newSource);
@@ -519,14 +519,14 @@ MediaEngineDefault::EnumerateVideoDevices(dom::MediaSourceEnum aMediaSource,
 
 void
 MediaEngineDefault::EnumerateAudioDevices(dom::MediaSourceEnum aMediaSource,
-                                          nsTArray<nsRefPtr<MediaEngineAudioSource> >* aASources) {
+                                          nsTArray<RefPtr<MediaEngineAudioSource> >* aASources) {
   MutexAutoLock lock(mMutex);
   int32_t len = mASources.Length();
 
   // aMediaSource is ignored for audio devices (for now).
 
   for (int32_t i = 0; i < len; i++) {
-    nsRefPtr<MediaEngineAudioSource> source = mASources.ElementAt(i);
+    RefPtr<MediaEngineAudioSource> source = mASources.ElementAt(i);
     if (source->IsAvailable()) {
       aASources->AppendElement(source);
     }
@@ -534,7 +534,7 @@ MediaEngineDefault::EnumerateAudioDevices(dom::MediaSourceEnum aMediaSource,
 
   // All streams are currently busy, just make a new one.
   if (aASources->Length() == 0) {
-    nsRefPtr<MediaEngineAudioSource> newSource =
+    RefPtr<MediaEngineAudioSource> newSource =
       new MediaEngineDefaultAudioSource();
     newSource->SetHasFakeTracks(mHasFakeTracks);
     mASources.AppendElement(newSource);

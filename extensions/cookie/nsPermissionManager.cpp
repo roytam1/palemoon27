@@ -282,7 +282,7 @@ public:
                         bool aRebuildOnSuccess);
 
 protected:
-  nsRefPtr<nsPermissionManager> mManager;
+  RefPtr<nsPermissionManager> mManager;
   bool mRebuildOnSuccess;
 };
 
@@ -299,7 +299,7 @@ NS_IMETHODIMP
 CloseDatabaseListener::Complete(nsresult, nsISupports*)
 {
   // Help breaking cycles
-  nsRefPtr<nsPermissionManager> manager = mManager.forget();
+  RefPtr<nsPermissionManager> manager = mManager.forget();
   if (mRebuildOnSuccess && !manager->mIsShuttingDown) {
     return manager->InitDB(true);
   }
@@ -331,7 +331,7 @@ public:
   explicit DeleteFromMozHostListener(nsPermissionManager* aManager);
 
 protected:
-  nsRefPtr<nsPermissionManager> mManager;
+  RefPtr<nsPermissionManager> mManager;
 };
 
 NS_IMPL_ISUPPORTS(DeleteFromMozHostListener, mozIStorageStatementCallback)
@@ -356,7 +356,7 @@ NS_IMETHODIMP DeleteFromMozHostListener::HandleError(mozIStorageError *)
 NS_IMETHODIMP DeleteFromMozHostListener::HandleCompletion(uint16_t aReason)
 {
   // Help breaking cycles
-  nsRefPtr<nsPermissionManager> manager = mManager.forget();
+  RefPtr<nsPermissionManager> manager = mManager.forget();
 
   if (aReason == REASON_ERROR) {
     manager->CloseDB(true);
@@ -790,7 +790,7 @@ nsPermissionManager::AddInternal(nsIPrincipal* aPrincipal,
 
   // When an entry already exists, PutEntry will return that, instead
   // of adding a new one
-  nsRefPtr<PermissionKey> key = new PermissionKey(aPrincipal);
+  RefPtr<PermissionKey> key = new PermissionKey(aPrincipal);
   PermissionHashKey* entry = mPermissionTable.PutEntry(key);
   if (!entry) return NS_ERROR_FAILURE;
   if (!entry->GetKey()) {
@@ -1391,7 +1391,7 @@ nsPermissionManager::GetPermissionHashKey(const nsACString& aHost,
 {
   PermissionHashKey* entry = nullptr;
 
-  nsRefPtr<PermissionKey> key = new PermissionKey(aHost, aAppId, aIsInBrowserElement);
+  RefPtr<PermissionKey> key = new PermissionKey(aHost, aAppId, aIsInBrowserElement);
   entry = mPermissionTable.GetEntry(key);
 
   if (entry) {

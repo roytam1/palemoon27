@@ -46,7 +46,7 @@ private:
 
   // We share the state in here with other SHEntries which correspond to the
   // same document.
-  nsRefPtr<nsSHEntryShared> mShared;
+  RefPtr<nsSHEntryShared> mShared;
 
   // See nsSHEntry.idl for comments on these members.
   nsCOMPtr<nsIURI> mURI;

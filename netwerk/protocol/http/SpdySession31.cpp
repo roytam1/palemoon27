@@ -404,8 +404,8 @@ SpdySession31::QueueStream(SpdyStream31 *stream)
   LOG3(("SpdySession31::QueueStream %p stream %p queued.", this, stream));
 
 #ifdef DEBUG
-  int32_t qsize = mQueuedStreams.GetSize();
-  for (int32_t i = 0; i < qsize; i++) {
+  size_t qsize = mQueuedStreams.GetSize();
+  for (size_t i = 0; i < qsize; i++) {
     SpdyStream31 *qStream = static_cast<SpdyStream31 *>(mQueuedStreams.ObjectAt(i));
     MOZ_ASSERT(qStream != stream);
     MOZ_ASSERT(qStream->Queued());
@@ -792,7 +792,7 @@ SpdySession31::GenerateSettings()
     numberOfEntries++;
   }
 
-  nsRefPtr<nsHttpConnectionInfo> ci;
+  RefPtr<nsHttpConnectionInfo> ci;
   uint32_t cwnd = 0;
   GetConnectionInfo(getter_AddRefs(ci));
   if (ci)
@@ -967,8 +967,8 @@ SpdySession31::CleanupStream(SpdyStream31 *aStream, nsresult aResult,
 
 static void RemoveStreamFromQueue(SpdyStream31 *aStream, nsDeque &queue)
 {
-  uint32_t size = queue.GetSize();
-  for (uint32_t count = 0; count < size; ++count) {
+  size_t size = queue.GetSize();
+  for (size_t count = 0; count < size; ++count) {
     SpdyStream31 *stream = static_cast<SpdyStream31 *>(queue.PopFront());
     if (stream != aStream)
       queue.Push(stream);
@@ -1107,7 +1107,7 @@ SpdySession31::HandleSynStream(SpdySession31 *self)
   }
 
   // Create the buffering transaction and push stream
-  nsRefPtr<SpdyPush31TransactionBuffer> transactionBuffer =
+  RefPtr<SpdyPush31TransactionBuffer> transactionBuffer =
     new SpdyPush31TransactionBuffer();
   transactionBuffer->SetConnection(self);
   SpdyPushedStream31 *pushedStream =
@@ -1445,7 +1445,7 @@ SpdySession31::HandleSettings(SpdySession31 *self)
     case SETTINGS_TYPE_CWND:
       if (flags & PERSIST_VALUE)
       {
-        nsRefPtr<nsHttpConnectionInfo> ci;
+        RefPtr<nsHttpConnectionInfo> ci;
         self->GetConnectionInfo(getter_AddRefs(ci));
         if (ci)
           gHttpHandler->ConnMgr()->ReportSpdyCWNDSetting(ci, value);
@@ -1540,8 +1540,8 @@ SpdySession31::HandleGoAway(SpdySession31 *self)
   self->mStreamTransactionHash.Enumerate(GoAwayEnumerator, self);
 
   // Process the streams marked for deletion and restart.
-  uint32_t size = self->mGoAwayStreamsToRestart.GetSize();
-  for (uint32_t count = 0; count < size; ++count) {
+  size_t size = self->mGoAwayStreamsToRestart.GetSize();
+  for (size_t count = 0; count < size; ++count) {
     SpdyStream31 *stream =
       static_cast<SpdyStream31 *>(self->mGoAwayStreamsToRestart.PopFront());
 
@@ -1555,7 +1555,7 @@ SpdySession31::HandleGoAway(SpdySession31 *self)
   // in another one. (they were never sent on the network so they implicitly
   // are not covered by the last-good id.
   size = self->mQueuedStreams.GetSize();
-  for (uint32_t count = 0; count < size; ++count) {
+  for (size_t count = 0; count < size; ++count) {
     SpdyStream31 *stream =
       static_cast<SpdyStream31 *>(self->mQueuedStreams.PopFront());
     MOZ_ASSERT(stream->Queued());
@@ -2416,7 +2416,7 @@ SpdySession31::Close(nsresult aReason)
 nsHttpConnectionInfo *
 SpdySession31::ConnectionInfo()
 {
-  nsRefPtr<nsHttpConnectionInfo> ci;
+  RefPtr<nsHttpConnectionInfo> ci;
   GetConnectionInfo(getter_AddRefs(ci));
   return ci.get();
 }
@@ -2692,7 +2692,7 @@ SpdySession31::CreateTunnel(nsHttpTransaction *trans,
   // transaction so that an auth created by the connect can be mappped
   // to the correct security callbacks
 
-  nsRefPtr<SpdyConnectTransaction> connectTrans =
+  RefPtr<SpdyConnectTransaction> connectTrans =
     new SpdyConnectTransaction(ci, aCallbacks, trans->Caps(), trans, this);
   AddStream(connectTrans, nsISupportsPriority::PRIORITY_NORMAL, false, nullptr);
   SpdyStream31 *tunnel = mStreamTransactionHash.Get(connectTrans);
@@ -2943,8 +2943,8 @@ static PLDHashOperator
              nsAutoPtr<SpdyStream31> &stream,
              void *closure)
 {
-  nsTArray<nsRefPtr<nsAHttpTransaction> > *list =
-    static_cast<nsTArray<nsRefPtr<nsAHttpTransaction> > *>(closure);
+  nsTArray<RefPtr<nsAHttpTransaction> > *list =
+    static_cast<nsTArray<RefPtr<nsAHttpTransaction> > *>(closure);
 
   list->AppendElement(key);
 
@@ -2955,7 +2955,7 @@ static PLDHashOperator
 
 nsresult
 SpdySession31::TakeSubTransactions(
-  nsTArray<nsRefPtr<nsAHttpTransaction> > &outTransactions)
+  nsTArray<RefPtr<nsAHttpTransaction> > &outTransactions)
 {
   // Generally this cannot be done with spdy as transactions are
   // started right away.

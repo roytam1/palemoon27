@@ -608,7 +608,7 @@ SendPing(void* aClosure, nsIContent* aContent, nsIURI* aURI,
   loadGroup->SetNotificationCallbacks(callbacks);
   chan->SetLoadGroup(loadGroup);
 
-  nsRefPtr<nsPingListener> pingListener = new nsPingListener();
+  RefPtr<nsPingListener> pingListener = new nsPingListener();
   chan->AsyncOpen2(pingListener);
 
   // Even if AsyncOpen failed, we still count this as a successful ping.  It's
@@ -1834,7 +1834,7 @@ nsDocShell::GetPresContext(nsPresContext** aPresContext)
 NS_IMETHODIMP_(nsIPresShell*)
 nsDocShell::GetPresShell()
 {
-  nsRefPtr<nsPresContext> presContext;
+  RefPtr<nsPresContext> presContext;
   (void)GetPresContext(getter_AddRefs(presContext));
   return presContext ? presContext->GetPresShell() : nullptr;
 }
@@ -1847,7 +1847,7 @@ nsDocShell::GetEldestPresShell(nsIPresShell** aPresShell)
   NS_ENSURE_ARG_POINTER(aPresShell);
   *aPresShell = nullptr;
 
-  nsRefPtr<nsPresContext> presContext;
+  RefPtr<nsPresContext> presContext;
   (void)GetEldestPresContext(getter_AddRefs(presContext));
 
   if (presContext) {
@@ -2537,7 +2537,7 @@ nsDocShell::GetFullscreenAllowed(bool* aFullscreenAllowed)
   // If we have no parent then we're the root docshell; no ancestor of the
   // original docshell doesn't have a allowfullscreen attribute, so
   // report fullscreen as allowed.
-  nsRefPtr<nsDocShell> parent = GetParentDocshell();
+  RefPtr<nsDocShell> parent = GetParentDocshell();
   if (!parent) {
     *aFullscreenAllowed = true;
     return NS_OK;
@@ -2603,7 +2603,7 @@ nsDocShell::GetDocShellEnumerator(int32_t aItemType, int32_t aDirection,
   NS_ENSURE_ARG_POINTER(aResult);
   *aResult = nullptr;
 
-  nsRefPtr<nsDocShellEnumerator> docShellEnum;
+  RefPtr<nsDocShellEnumerator> docShellEnum;
   if (aDirection == ENUMERATE_FORWARDS) {
     docShellEnum = new nsDocShellForwardsEnumerator;
   } else {
@@ -2892,7 +2892,7 @@ nsDocShell::Now(DOMHighResTimeStamp* aWhen)
 NS_IMETHODIMP
 nsDocShell::SetWindowDraggingAllowed(bool aValue)
 {
-  nsRefPtr<nsDocShell> parent = GetParentDocshell();
+  RefPtr<nsDocShell> parent = GetParentDocshell();
   if (!aValue && mItemType == typeChrome && !parent) {
     // Window dragging is always allowed for top level
     // chrome docshells.
@@ -2908,7 +2908,7 @@ nsDocShell::GetWindowDraggingAllowed(bool* aValue)
   // window dragging regions in CSS (-moz-window-drag:drag)
   // can be slow. Default behavior is to only allow it for
   // chrome top level windows.
-  nsRefPtr<nsDocShell> parent = GetParentDocshell();
+  RefPtr<nsDocShell> parent = GetParentDocshell();
   if (mItemType == typeChrome && !parent) {
     // Top level chrome window
     *aValue = true;
@@ -2970,7 +2970,7 @@ nsDocShell::GetSessionStorageForPrincipal(nsIPrincipal* aPrincipal,
 nsresult
 nsDocShell::AddSessionStorage(nsIPrincipal* aPrincipal, nsIDOMStorage* aStorage)
 {
-  nsRefPtr<DOMStorage> storage = static_cast<DOMStorage*>(aStorage);
+  RefPtr<DOMStorage> storage = static_cast<DOMStorage*>(aStorage);
   if (!storage) {
     return NS_ERROR_UNEXPECTED;
   }
@@ -3149,7 +3149,7 @@ nsDocShell::SetItemType(int32_t aItemType)
   // disable auth prompting for anything but content
   mAllowAuth = mItemType == typeContent;
 
-  nsRefPtr<nsPresContext> presContext = nullptr;
+  RefPtr<nsPresContext> presContext = nullptr;
   GetPresContext(getter_AddRefs(presContext));
   if (presContext) {
     presContext->UpdateIsChrome();
@@ -3182,7 +3182,7 @@ void
 nsDocShell::RecomputeCanExecuteScripts()
 {
   bool old = mCanExecuteScripts;
-  nsRefPtr<nsDocShell> parent = GetParentDocshell();
+  RefPtr<nsDocShell> parent = GetParentDocshell();
 
   // If we have no tree owner, that means that we've been detached from the
   // docshell tree (this is distinct from having no parent dochshell, which
@@ -3347,8 +3347,8 @@ nsDocShell::GetRootTreeItem(nsIDocShellTreeItem** aRootTreeItem)
 {
   NS_ENSURE_ARG_POINTER(aRootTreeItem);
 
-  nsRefPtr<nsDocShell> root = this;
-  nsRefPtr<nsDocShell> parent = root->GetParentDocshell();
+  RefPtr<nsDocShell> root = this;
+  RefPtr<nsDocShell> parent = root->GetParentDocshell();
   while (parent) {
     root = parent;
     parent = root->GetParentDocshell();
@@ -3740,7 +3740,7 @@ PrintDocTree(nsIDocShellTreeItem* aParentNode, int aLevel)
   nsCOMPtr<nsIDocShell> parentAsDocShell(do_QueryInterface(aParentNode));
   int32_t type = aParentNode->ItemType();
   nsCOMPtr<nsIPresShell> presShell = parentAsDocShell->GetPresShell();
-  nsRefPtr<nsPresContext> presContext;
+  RefPtr<nsPresContext> presContext;
   parentAsDocShell->GetPresContext(getter_AddRefs(presContext));
   nsIDocument* doc = presShell->GetDocument();
 
@@ -3883,7 +3883,7 @@ nsDocShell::AddChild(nsIDocShellTreeItem* aChild)
 {
   NS_ENSURE_ARG_POINTER(aChild);
 
-  nsRefPtr<nsDocLoader> childAsDocLoader = GetAsDocLoader(aChild);
+  RefPtr<nsDocLoader> childAsDocLoader = GetAsDocLoader(aChild);
   NS_ENSURE_TRUE(childAsDocLoader, NS_ERROR_UNEXPECTED);
 
   // Make sure we're not creating a loop in the docshell tree
@@ -3995,7 +3995,7 @@ nsDocShell::RemoveChild(nsIDocShellTreeItem* aChild)
 {
   NS_ENSURE_ARG_POINTER(aChild);
 
-  nsRefPtr<nsDocLoader> childAsDocLoader = GetAsDocLoader(aChild);
+  RefPtr<nsDocLoader> childAsDocLoader = GetAsDocLoader(aChild);
   NS_ENSURE_TRUE(childAsDocLoader, NS_ERROR_UNEXPECTED);
 
   nsresult rv = RemoveChildLoader(childAsDocLoader);
@@ -4376,7 +4376,7 @@ nsDocShell::SetDeviceSizeIsPageSize(bool aValue)
 {
   if (mDeviceSizeIsPageSize != aValue) {
     mDeviceSizeIsPageSize = aValue;
-    nsRefPtr<nsPresContext> presContext;
+    RefPtr<nsPresContext> presContext;
     GetPresContext(getter_AddRefs(presContext));
     if (presContext) {
       presContext->MediaFeatureValuesChanged(nsRestyleHint(0));
@@ -5882,8 +5882,8 @@ nsDocShell::GetVisibility(bool* aVisibility)
   // for a hidden view, unless we're an off screen browser, which
   // would make this test meaningless.
 
-  nsRefPtr<nsDocShell> docShell = this;
-  nsRefPtr<nsDocShell> parentItem = docShell->GetParentDocshell();
+  RefPtr<nsDocShell> docShell = this;
+  RefPtr<nsDocShell> parentItem = docShell->GetParentDocshell();
   while (parentItem) {
     presShell = docShell->GetPresShell();
 
@@ -8216,7 +8216,7 @@ nsDocShell::RestorePresentation(nsISHEntry* aSHEntry, bool* aRestoring)
                "should only have one RestorePresentationEvent");
   mRestorePresentationEvent.Revoke();
 
-  nsRefPtr<RestorePresentationEvent> evt = new RestorePresentationEvent(this);
+  RefPtr<RestorePresentationEvent> evt = new RestorePresentationEvent(this);
   nsresult rv = NS_DispatchToCurrentThread(evt);
   if (NS_SUCCEEDED(rv)) {
     mRestorePresentationEvent = evt.get();
@@ -8256,7 +8256,7 @@ public:
 private:
   nsRevocableEventPtr<nsDocShell::RestorePresentationEvent>&
     mRestorePresentationEvent;
-  nsRefPtr<nsDocShell::RestorePresentationEvent> mEvent;
+  RefPtr<nsDocShell::RestorePresentationEvent> mEvent;
 };
 
 } // namespace
@@ -8329,7 +8329,7 @@ nsDocShell::RestoreFromHistory()
   // to be consistent with normal document loading, subframes cannot start
   // loading until after data arrives, which is after STATE_START completes.
 
-  nsRefPtr<RestorePresentationEvent> currentPresentationRestoration =
+  RefPtr<RestorePresentationEvent> currentPresentationRestoration =
     mRestorePresentationEvent.get();
   Stop();
   // Make sure we're still restoring the same presentation.
@@ -8541,7 +8541,7 @@ nsDocShell::RestoreFromHistory()
   nsCOMPtr<nsIDocument> document = do_QueryInterface(domDoc);
   uint32_t parentSuspendCount = 0;
   if (document) {
-    nsRefPtr<nsDocShell> parent = GetParentDocshell();
+    RefPtr<nsDocShell> parent = GetParentDocshell();
     if (parent) {
       nsCOMPtr<nsIDocument> d = parent->GetDocument();
       if (d) {
@@ -9381,7 +9381,7 @@ private:
   nsXPIDLCString mTypeHint;
   nsString mSrcdoc;
 
-  nsRefPtr<nsDocShell> mDocShell;
+  RefPtr<nsDocShell> mDocShell;
   nsCOMPtr<nsIURI> mURI;
   nsCOMPtr<nsIURI> mOriginalURI;
   bool mLoadReplace;
@@ -9527,7 +9527,7 @@ nsDocShell::InternalLoad2(nsIURI* aURI,
     requestingElement = mScriptGlobal->GetFrameElementInternal();
   }
 
-  nsRefPtr<nsGlobalWindow> MMADeathGrip = mScriptGlobal;
+  RefPtr<nsGlobalWindow> MMADeathGrip = mScriptGlobal;
 
   int16_t shouldLoad = nsIContentPolicy::ACCEPT;
   uint32_t contentType;
@@ -10082,7 +10082,7 @@ nsDocShell::InternalLoad2(nsIURI* aURI,
       // applies to aURI.
       CopyFavicon(currentURI, aURI, mInPrivateBrowsing);
 
-      nsRefPtr<nsGlobalWindow> win = mScriptGlobal ?
+      RefPtr<nsGlobalWindow> win = mScriptGlobal ?
         mScriptGlobal->GetCurrentInnerWindowInternal() : nullptr;
 
       // ScrollToAnchor doesn't necessarily cause us to scroll the window;
@@ -13093,7 +13093,7 @@ nsDocShell::GetNestedFrameId(uint64_t* aId)
 NS_IMETHODIMP
 nsDocShell::IsAppOfType(uint32_t aAppType, bool* aIsOfType)
 {
-  nsRefPtr<nsDocShell> shell = this;
+  RefPtr<nsDocShell> shell = this;
   while (shell) {
     uint32_t type;
     shell->GetAppType(&type);
@@ -13321,7 +13321,7 @@ public:
   }
 
 private:
-  nsRefPtr<nsDocShell> mHandler;
+  RefPtr<nsDocShell> mHandler;
   nsCOMPtr<nsIURI> mURI;
   nsString mTargetSpec;
   nsString mFileName;
@@ -13849,7 +13849,7 @@ OriginAttributes
 nsDocShell::GetOriginAttributes()
 {
   OriginAttributes attrs;
-  nsRefPtr<nsDocShell> parent = GetParentDocshell();
+  RefPtr<nsDocShell> parent = GetParentDocshell();
   if (parent) {
     attrs.InheritFromDocShellParent(parent->GetOriginAttributes());
   }
@@ -13909,7 +13909,7 @@ nsDocShell::GetAsyncPanZoomEnabled(bool* aOut)
 bool
 nsDocShell::HasUnloadedParent()
 {
-  nsRefPtr<nsDocShell> parent = GetParentDocshell();
+  RefPtr<nsDocShell> parent = GetParentDocshell();
   while (parent) {
     bool inUnload = false;
     parent->GetIsInUnload(&inUnload);
@@ -14010,8 +14010,7 @@ nsDocShell::MaybeNotifyKeywordSearchLoading(const nsString& aProvider,
 }
 
 NS_IMETHODIMP
-nsDocShell::ShouldPrepareForIntercept(nsIURI* aURI, bool aIsNavigate,
-                                      nsContentPolicyType aLoadContentType,
+nsDocShell::ShouldPrepareForIntercept(nsIURI* aURI, bool aIsNonSubresourceRequest,
                                       bool* aShouldIntercept)
 {
   *aShouldIntercept = false;
@@ -14030,7 +14029,7 @@ nsDocShell::ShouldPrepareForIntercept(nsIURI* aURI, bool aIsNavigate,
     return NS_OK;
   }
 
-  nsRefPtr<ServiceWorkerManager> swm = ServiceWorkerManager::GetInstance();
+  RefPtr<ServiceWorkerManager> swm = ServiceWorkerManager::GetInstance();
   if (!swm) {
     return NS_OK;
   }
@@ -14064,7 +14063,7 @@ nsDocShell::ShouldPrepareForIntercept(nsIURI* aURI, bool aIsNavigate,
     }
   }
 
-  if (aIsNavigate || nsContentUtils::IsWorkerLoad(aLoadContentType)) {
+  if (aIsNonSubresourceRequest) {
     OriginAttributes attrs(GetAppId(), GetIsInBrowserElement());
     *aShouldIntercept = swm->IsAvailable(attrs, aURI);
     return NS_OK;
@@ -14113,7 +14112,7 @@ NS_IMPL_ISUPPORTS(FetchEventDispatcher, nsIFetchEventDispatcher)
 NS_IMETHODIMP
 FetchEventDispatcher::Dispatch()
 {
-  nsRefPtr<ServiceWorkerManager> swm = ServiceWorkerManager::GetInstance();
+  RefPtr<ServiceWorkerManager> swm = ServiceWorkerManager::GetInstance();
   if (!swm) {
     mChannel->Cancel(NS_ERROR_INTERCEPTION_FAILED);
     return NS_OK;
@@ -14134,24 +14133,19 @@ NS_IMETHODIMP
 nsDocShell::ChannelIntercepted(nsIInterceptedChannel* aChannel,
                                nsIFetchEventDispatcher** aFetchDispatcher)
 {
-  nsRefPtr<ServiceWorkerManager> swm = ServiceWorkerManager::GetInstance();
+  RefPtr<ServiceWorkerManager> swm = ServiceWorkerManager::GetInstance();
   if (!swm) {
     aChannel->Cancel(NS_ERROR_INTERCEPTION_FAILED);
     return NS_OK;
   }
 
-  bool isNavigation = false;
-  nsresult rv = aChannel->GetIsNavigation(&isNavigation);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  nsContentPolicyType loadType;
-  rv = aChannel->GetInternalContentPolicyType(&loadType);
+  nsCOMPtr<nsIChannel> channel;
+  nsresult rv = aChannel->GetChannel(getter_AddRefs(channel));
   NS_ENSURE_SUCCESS(rv, rv);
 
   nsCOMPtr<nsIDocument> doc;
 
-  bool isSubresourceLoad = !isNavigation &&
-                           !nsContentUtils::IsWorkerLoad(loadType);
+  bool isSubresourceLoad = !nsContentUtils::IsNonSubresourceRequest(channel);
   if (isSubresourceLoad) {
     doc = GetDocument();
     if (!doc) {
@@ -14171,7 +14165,7 @@ nsDocShell::ChannelIntercepted(nsIInterceptedChannel* aChannel,
   }
 
   MOZ_ASSERT(runnable);
-  nsRefPtr<FetchEventDispatcher> dispatcher =
+  RefPtr<FetchEventDispatcher> dispatcher =
     new FetchEventDispatcher(aChannel, runnable);
   dispatcher.forget(aFetchDispatcher);
 
@@ -14212,7 +14206,7 @@ nsDocShell::GetPaymentRequestId(nsAString& aPaymentRequestId)
 bool
 nsDocShell::InFrameSwap()
 {
-  nsRefPtr<nsDocShell> shell = this;
+  RefPtr<nsDocShell> shell = this;
   do {
     if (shell->mInFrameSwap) {
       return true;

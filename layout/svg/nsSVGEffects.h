@@ -273,7 +273,7 @@ private:
     }
   }
 
-  nsTArray<nsRefPtr<nsSVGFilterReference>> mReferences;
+  nsTArray<RefPtr<nsSVGFilterReference>> mReferences;
 };
 
 class nsSVGFilterProperty : public nsSVGFilterChainObserver {

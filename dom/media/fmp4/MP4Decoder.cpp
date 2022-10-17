@@ -152,7 +152,7 @@ MP4Decoder::CanHandleMediaType(const nsACString& aMIMETypeExcludingCodecs,
 
   // Verify that we have a PDM that supports the whitelisted types.
   PDMFactory::Init();
-  nsRefPtr<PDMFactory> platform = new PDMFactory();
+  RefPtr<PDMFactory> platform = new PDMFactory();
   for (const nsCString& codecMime : codecMimes) {
     if (!platform->SupportsMimeType(codecMime)) {
       return false;
@@ -207,8 +207,8 @@ CreateTestH264Decoder(layers::LayersBackend aBackend,
 
   PDMFactory::Init();
 
-  nsRefPtr<PDMFactory> platform = new PDMFactory();
-  nsRefPtr<MediaDataDecoder> decoder(
+  RefPtr<PDMFactory> platform = new PDMFactory();
+  RefPtr<MediaDataDecoder> decoder(
     platform->CreateDecoder(aConfig, nullptr, nullptr, aBackend, nullptr));
 
   return decoder.forget();
@@ -218,12 +218,80 @@ CreateTestH264Decoder(layers::LayersBackend aBackend,
 MP4Decoder::IsVideoAccelerated(layers::LayersBackend aBackend, nsACString& aFailureReason)
 {
   VideoInfo config;
-  nsRefPtr<MediaDataDecoder> decoder(CreateTestH264Decoder(aBackend, config));
+  RefPtr<MediaDataDecoder> decoder(CreateTestH264Decoder(aBackend, config));
   if (!decoder) {
     aFailureReason.AssignLiteral("Failed to create H264 decoder");
     return false;
   }
   bool result = decoder->IsHardwareAccelerated(aFailureReason);
+  return result;
+}
+
+/* static */ bool
+MP4Decoder::CanCreateH264Decoder()
+{
+  static bool haveCachedResult = false;
+  static bool result = false;
+  if (haveCachedResult) {
+    return result;
+  }
+  VideoInfo config;
+  RefPtr<MediaDataDecoder> decoder(
+    CreateTestH264Decoder(layers::LayersBackend::LAYERS_BASIC, config));
+  if (decoder) {
+    decoder->Shutdown();
+    result = true;
+  }
+  haveCachedResult = true;
+  return result;
+}
+
+static already_AddRefed<MediaDataDecoder>
+CreateTestAACDecoder(AudioInfo& aConfig)
+{
+  PDMFactory::Init();
+
+  RefPtr<PDMFactory> platform = new PDMFactory();
+  RefPtr<MediaDataDecoder> decoder(
+    platform->CreateDecoder(aConfig, nullptr, nullptr));
+
+  return decoder.forget();
+}
+
+// bipbop.mp4's extradata/config...
+static const uint8_t sTestAACExtraData[] = {
+  0x03, 0x80, 0x80, 0x80, 0x22, 0x00, 0x02, 0x00, 0x04, 0x80,
+  0x80, 0x80, 0x14, 0x40, 0x15, 0x00, 0x00, 0x00, 0x00, 0x00,
+  0x11, 0x51, 0x00, 0x00, 0x11, 0x51, 0x05, 0x80, 0x80, 0x80,
+  0x02, 0x13, 0x90, 0x06, 0x80, 0x80, 0x80, 0x01, 0x02
+};
+
+static const uint8_t sTestAACConfig[] = { 0x13, 0x90 };
+
+/* static */ bool
+MP4Decoder::CanCreateAACDecoder()
+{
+  static bool haveCachedResult = false;
+  static bool result = false;
+  if (haveCachedResult) {
+    return result;
+  }
+  AudioInfo config;
+  config.mMimeType = "audio/mp4a-latm";
+  config.mRate = 22050;
+  config.mChannels = 2;
+  config.mBitDepth = 16;
+  config.mProfile = 2;
+  config.mExtendedProfile = 2;
+  config.mCodecSpecificConfig->AppendElements(sTestAACConfig,
+                                              MOZ_ARRAY_LENGTH(sTestAACConfig));
+  config.mExtraData->AppendElements(sTestAACExtraData,
+                                    MOZ_ARRAY_LENGTH(sTestAACExtraData));
+  RefPtr<MediaDataDecoder> decoder(CreateTestAACDecoder(config));
+  if (decoder) {
+    result = true;
+  }
+  haveCachedResult = true;
   return result;
 }
 

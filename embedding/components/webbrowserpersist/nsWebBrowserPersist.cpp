@@ -3194,7 +3194,7 @@ nsWebBrowserPersist::CloneNodeWithFixedUpAttributes(
             NS_NAMED_LITERAL_STRING(valueAttr, "value");
             // Update element node attributes with user-entered form state
             nsCOMPtr<nsIContent> content = do_QueryInterface(*aNodeOut);
-            nsRefPtr<HTMLInputElement> outElt =
+            RefPtr<HTMLInputElement> outElt =
               HTMLInputElement::FromContentOrNull(content);
             nsCOMPtr<nsIFormControl> formControl = do_QueryInterface(*aNodeOut);
             switch (formControl->GetType()) {
@@ -3665,7 +3665,7 @@ nsWebBrowserPersist::SaveDocumentWithFixup(
 {
     NS_ENSURE_ARG_POINTER(aFile);
 
-    nsRefPtr<nsEncoderNodeFixup> nodeFixup = new nsEncoderNodeFixup();
+    RefPtr<nsEncoderNodeFixup> nodeFixup = new nsEncoderNodeFixup();
     nodeFixup->mWebBrowserPersist = this;
 
     nsresult  rv = NS_OK;

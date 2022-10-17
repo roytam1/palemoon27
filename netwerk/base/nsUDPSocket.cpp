@@ -86,7 +86,7 @@ public:
   }
 
 private:
-  nsRefPtr<nsUDPSocket> mSocket;
+  RefPtr<nsUDPSocket> mSocket;
   PRSocketOptionData    mOpt;
 };
 
@@ -487,7 +487,7 @@ nsUDPSocket::OnSocketReady(PRFileDesc *fd, int16_t outFlags)
     return;
   }
 
-  nsRefPtr<nsUDPOutputStream> os = new nsUDPOutputStream(this, mFD, prClientAddr);
+  RefPtr<nsUDPOutputStream> os = new nsUDPOutputStream(this, mFD, prClientAddr);
   rv = NS_AsyncCopy(pipeIn, os, mSts,
                     NS_ASYNCCOPY_VIA_READSEGMENTS, UDP_PACKET_CHUNK_SIZE);
 
@@ -723,7 +723,7 @@ nsUDPSocket::SaveNetworkStats(bool aEnforce)
   if (aEnforce || total > NETWORK_STATS_THRESHOLD) {
     // Create the event to save the network statistics.
     // the event is then dispathed to the main thread.
-    nsRefPtr<nsRunnable> event =
+    RefPtr<nsRunnable> event =
       new SaveNetworkStatsEvent(mAppId, mIsInBrowserElement, mActiveNetworkInfo,
                                 mByteReadCount, mByteWriteCount, false);
     NS_DispatchToMainThread(event);
@@ -810,7 +810,7 @@ NS_IMETHODIMP
 SocketListenerProxy::OnPacketReceived(nsIUDPSocket* aSocket,
                                       nsIUDPMessage* aMessage)
 {
-  nsRefPtr<OnPacketReceivedRunnable> r =
+  RefPtr<OnPacketReceivedRunnable> r =
     new OnPacketReceivedRunnable(mListener, aSocket, aMessage);
   return mTargetThread->Dispatch(r, NS_DISPATCH_NORMAL);
 }
@@ -819,7 +819,7 @@ NS_IMETHODIMP
 SocketListenerProxy::OnStopListening(nsIUDPSocket* aSocket,
                                      nsresult aStatus)
 {
-  nsRefPtr<OnStopListeningRunnable> r =
+  RefPtr<OnStopListeningRunnable> r =
     new OnStopListeningRunnable(mListener, aSocket, aStatus);
   return mTargetThread->Dispatch(r, NS_DISPATCH_NORMAL);
 }
@@ -915,7 +915,7 @@ NS_IMETHODIMP
 SocketListenerProxyBackground::OnPacketReceived(nsIUDPSocket* aSocket,
                                                 nsIUDPMessage* aMessage)
 {
-  nsRefPtr<OnPacketReceivedRunnable> r =
+  RefPtr<OnPacketReceivedRunnable> r =
     new OnPacketReceivedRunnable(mListener, aSocket, aMessage);
   return mTargetThread->Dispatch(r, NS_DISPATCH_NORMAL);
 }
@@ -924,7 +924,7 @@ NS_IMETHODIMP
 SocketListenerProxyBackground::OnStopListening(nsIUDPSocket* aSocket,
                                                nsresult aStatus)
 {
-  nsRefPtr<OnStopListeningRunnable> r =
+  RefPtr<OnStopListeningRunnable> r =
     new OnStopListeningRunnable(mListener, aSocket, aStatus);
   return mTargetThread->Dispatch(r, NS_DISPATCH_NORMAL);
 }
@@ -975,7 +975,7 @@ public:
 private:
   virtual ~PendingSend() {}
 
-  nsRefPtr<nsUDPSocket> mSocket;
+  RefPtr<nsUDPSocket> mSocket;
   uint16_t mPort;
   FallibleTArray<uint8_t> mData;
 };
@@ -1018,7 +1018,7 @@ public:
 private:
   virtual ~PendingSendStream() {}
 
-  nsRefPtr<nsUDPSocket> mSocket;
+  RefPtr<nsUDPSocket> mSocket;
   uint16_t mPort;
   nsCOMPtr<nsIInputStream> mStream;
 };
@@ -1057,7 +1057,7 @@ public:
   NS_DECL_NSIRUNNABLE
 
 private:
-  nsRefPtr<nsUDPSocket> mSocket;
+  RefPtr<nsUDPSocket> mSocket;
   const NetAddr mAddr;
   FallibleTArray<uint8_t> mData;
 };
@@ -1196,7 +1196,7 @@ nsUDPSocket::SendBinaryStreamWithAddress(const NetAddr *aAddr, nsIInputStream *a
   PR_InitializeNetAddr(PR_IpAddrAny, 0, &prAddr);
   NetAddrToPRNetAddr(aAddr, &prAddr);
 
-  nsRefPtr<nsUDPOutputStream> os = new nsUDPOutputStream(this, mFD, prAddr);
+  RefPtr<nsUDPOutputStream> os = new nsUDPOutputStream(this, mFD, prAddr);
   return NS_AsyncCopy(aStream, os, mSts, NS_ASYNCCOPY_VIA_READSEGMENTS,
                       UDP_PACKET_CHUNK_SIZE);
 }

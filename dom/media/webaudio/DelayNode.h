@@ -42,7 +42,6 @@ protected:
   virtual ~DelayNode();
 
 private:
-  static void SendDelayToStream(AudioNode* aNode);
   friend class DelayNodeEngine;
 
 private:

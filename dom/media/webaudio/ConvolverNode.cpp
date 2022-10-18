@@ -102,8 +102,9 @@ public:
   }
 
   virtual void ProcessBlock(AudioNodeStream* aStream,
-                            const AudioChunk& aInput,
-                            AudioChunk* aOutput,
+                            GraphTime aFrom,
+                            const AudioBlock& aInput,
+                            AudioBlock* aOutput,
                             bool* aFinished) override
   {
     if (!mReverb) {
@@ -111,15 +112,16 @@ public:
       return;
     }
 
-    AudioChunk input = aInput;
+    AudioBlock input = aInput;
     if (aInput.IsNull()) {
       if (mLeftOverData > 0) {
         mLeftOverData -= WEBAUDIO_BLOCK_SIZE;
-        AllocateAudioBlock(1, &input);
+        input.AllocateChannels(1);
         WriteZeroesToAudioBlock(&input, 0, WEBAUDIO_BLOCK_SIZE);
       } else {
         if (mLeftOverData != INT32_MIN) {
           mLeftOverData = INT32_MIN;
+          aStream->CheckForInactive();
           RefPtr<PlayingRefChanged> refchanged =
             new PlayingRefChanged(aStream, PlayingRefChanged::RELEASE);
           aStream->Graph()->
@@ -131,8 +133,8 @@ public:
     } else {
       if (aInput.mVolume != 1.0f) {
         // Pre-multiply the input's volume
-        uint32_t numChannels = aInput.mChannelData.Length();
-        AllocateAudioBlock(numChannels, &input);
+        uint32_t numChannels = aInput.ChannelCount();
+        input.AllocateChannels(numChannels);
         for (uint32_t i = 0; i < numChannels; ++i) {
           const float* src = static_cast<const float*>(aInput.mChannelData[i]);
           float* dest = input.ChannelFloatsForWrite(i);
@@ -149,9 +151,14 @@ public:
       mLeftOverData = mBufferLength;
       MOZ_ASSERT(mLeftOverData > 0);
     }
-    AllocateAudioBlock(2, aOutput);
+    aOutput->AllocateChannels(2);
 
     mReverb->process(&input, aOutput, WEBAUDIO_BLOCK_SIZE);
+  }
+
+  virtual bool IsActive() const override
+  {
+    return mLeftOverData != INT32_MIN;
   }
 
   virtual size_t SizeOfExcludingThis(MallocSizeOf aMallocSizeOf) const override
@@ -191,7 +198,7 @@ ConvolverNode::ConvolverNode(AudioContext* aContext)
   , mNormalize(true)
 {
   ConvolverNodeEngine* engine = new ConvolverNodeEngine(this, mNormalize);
-  mStream = AudioNodeStream::Create(aContext->Graph(), engine,
+  mStream = AudioNodeStream::Create(aContext, engine,
                                     AudioNodeStream::NO_STREAM_FLAGS);
 }
 

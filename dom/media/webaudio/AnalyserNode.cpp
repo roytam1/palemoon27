@@ -59,20 +59,46 @@ public:
   }
 
   virtual void ProcessBlock(AudioNodeStream* aStream,
-                            const AudioChunk& aInput,
-                            AudioChunk* aOutput,
+                            GraphTime aFrom,
+                            const AudioBlock& aInput,
+                            AudioBlock* aOutput,
                             bool* aFinished) override
   {
     *aOutput = aInput;
 
-    RefPtr<TransferBuffer> transfer = new TransferBuffer(aStream, aInput);
+    if (aInput.IsNull()) {
+      // If AnalyserNode::mChunks has only null chunks, then there is no need
+      // to send further null chunks.
+      if (mChunksToProcess <= 0) {
+        if (mChunksToProcess != INT32_MIN) {
+          mChunksToProcess = INT32_MIN;
+          aStream->CheckForInactive();
+        }
+        return;
+      }
+
+      --mChunksToProcess;
+    } else {
+      // This many null chunks will be required to empty AnalyserNode::mChunks.
+      mChunksToProcess = CHUNK_COUNT;
+    }
+
+    RefPtr<TransferBuffer> transfer =
+      new TransferBuffer(aStream, aInput.AsAudioChunk());
     NS_DispatchToMainThread(transfer);
+  }
+
+  virtual bool IsActive() const override
+  {
+    return mChunksToProcess != INT32_MIN;
   }
 
   virtual size_t SizeOfIncludingThis(MallocSizeOf aMallocSizeOf) const override
   {
     return aMallocSizeOf(this) + SizeOfExcludingThis(aMallocSizeOf);
   }
+
+  int32_t mChunksToProcess = INT32_MIN;
 };
 
 AnalyserNode::AnalyserNode(AudioContext* aContext)
@@ -85,7 +111,7 @@ AnalyserNode::AnalyserNode(AudioContext* aContext)
   , mMaxDecibels(-30.)
   , mSmoothingTimeConstant(.8)
 {
-  mStream = AudioNodeStream::Create(aContext->Graph(),
+  mStream = AudioNodeStream::Create(aContext,
                                     new AnalyserNodeEngine(this),
                                     AudioNodeStream::NO_STREAM_FLAGS);
 
@@ -329,7 +355,7 @@ AnalyserNode::GetTimeDomainData(float* aData, size_t aLength)
 
   for (size_t writeIndex = 0; writeIndex < aLength; ) {
     const AudioChunk& chunk = mChunks[readChunk & (CHUNK_COUNT - 1)];
-    const size_t channelCount = chunk.mChannelData.Length();
+    const size_t channelCount = chunk.ChannelCount();
     size_t copyLength =
       std::min<size_t>(aLength - writeIndex, WEBAUDIO_BLOCK_SIZE);
     float* dataOut = &aData[writeIndex];

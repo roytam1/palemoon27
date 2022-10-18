@@ -57,21 +57,22 @@ public:
     START,
     STOP,
   };
-  void SetTimelineParameter(uint32_t aIndex,
-                            const AudioParamTimeline& aValue,
-                            TrackRate aSampleRate) override
+  void RecvTimelineEvent(uint32_t aIndex,
+                         AudioTimelineEvent& aEvent) override
   {
     mRecomputeParameters = true;
+
+    MOZ_ASSERT(mDestination);
+
+    WebAudioUtils::ConvertAudioTimelineEventToTicks(aEvent,
+                                                    mDestination);
+
     switch (aIndex) {
     case FREQUENCY:
-      MOZ_ASSERT(mSource && mDestination);
-      mFrequency = aValue;
-      WebAudioUtils::ConvertAudioParamToTicks(mFrequency, mSource, mDestination);
+      mFrequency.InsertEvent<int64_t>(aEvent);
       break;
     case DETUNE:
-      MOZ_ASSERT(mSource && mDestination);
-      mDetune = aValue;
-      WebAudioUtils::ConvertAudioParamToTicks(mDetune, mSource, mDestination);
+      mDetune.InsertEvent<int64_t>(aEvent);
       break;
     default:
       NS_ERROR("Bad OscillatorNodeEngine TimelineParameter");
@@ -81,7 +82,10 @@ public:
   virtual void SetStreamTimeParameter(uint32_t aIndex, StreamTime aParam) override
   {
     switch (aIndex) {
-    case START: mStart = aParam; break;
+    case START:
+      mStart = aParam;
+      mSource->SetActive();
+      break;
     case STOP: mStop = aParam; break;
     default:
       NS_ERROR("Bad OscillatorNodeEngine StreamTimeParameter");
@@ -277,19 +281,20 @@ public:
     }
   }
 
-  void ComputeSilence(AudioChunk *aOutput)
+  void ComputeSilence(AudioBlock *aOutput)
   {
     aOutput->SetNull(WEBAUDIO_BLOCK_SIZE);
   }
 
   virtual void ProcessBlock(AudioNodeStream* aStream,
-                            const AudioChunk& aInput,
-                            AudioChunk* aOutput,
+                            GraphTime aFrom,
+                            const AudioBlock& aInput,
+                            AudioBlock* aOutput,
                             bool* aFinished) override
   {
     MOZ_ASSERT(mSource == aStream, "Invalid source stream");
 
-    StreamTime ticks = aStream->GetCurrentPosition();
+    StreamTime ticks = mDestination->GraphTimeToStreamTime(aFrom);
     if (mStart == -1) {
       ComputeSilence(aOutput);
       return;
@@ -307,7 +312,7 @@ public:
       return;
     }
 
-    AllocateAudioBlock(1, aOutput);
+    aOutput->AllocateChannels(1);
     float* output = aOutput->ChannelFloatsForWrite(0);
 
     uint32_t start, end;
@@ -328,6 +333,12 @@ public:
         ComputeSilence(aOutput);
     };
 
+  }
+
+  virtual bool IsActive() const override
+  {
+    // start() has been called.
+    return mStart != -1;
   }
 
   virtual size_t SizeOfExcludingThis(MallocSizeOf aMallocSizeOf) const override
@@ -379,12 +390,13 @@ OscillatorNode::OscillatorNode(AudioContext* aContext)
               ChannelCountMode::Max,
               ChannelInterpretation::Speakers)
   , mType(OscillatorType::Sine)
-  , mFrequency(new AudioParam(this, SendFrequencyToStream, 440.0f, "frequency"))
-  , mDetune(new AudioParam(this, SendDetuneToStream, 0.0f, "detune"))
+  , mFrequency(new AudioParam(this, OscillatorNodeEngine::FREQUENCY,
+                              440.0f, "frequency"))
+  , mDetune(new AudioParam(this, OscillatorNodeEngine::DETUNE, 0.0f, "detune"))
   , mStartCalled(false)
 {
   OscillatorNodeEngine* engine = new OscillatorNodeEngine(this, aContext->Destination());
-  mStream = AudioNodeStream::Create(aContext->Graph(), engine,
+  mStream = AudioNodeStream::Create(aContext, engine,
                                     AudioNodeStream::NEED_MAIN_THREAD_FINISHED);
   engine->SetSourceStream(mStream);
   mStream->AddMainThreadListener(this);
@@ -427,26 +439,6 @@ OscillatorNode::DestroyMediaStream()
     mStream->RemoveMainThreadListener(this);
   }
   AudioNode::DestroyMediaStream();
-}
-
-void
-OscillatorNode::SendFrequencyToStream(AudioNode* aNode)
-{
-  OscillatorNode* This = static_cast<OscillatorNode*>(aNode);
-  if (!This->mStream) {
-    return;
-  }
-  SendTimelineParameterToStream(This, OscillatorNodeEngine::FREQUENCY, *This->mFrequency);
-}
-
-void
-OscillatorNode::SendDetuneToStream(AudioNode* aNode)
-{
-  OscillatorNode* This = static_cast<OscillatorNode*>(aNode);
-  if (!This->mStream) {
-    return;
-  }
-  SendTimelineParameterToStream(This, OscillatorNodeEngine::DETUNE, *This->mDetune);
 }
 
 void

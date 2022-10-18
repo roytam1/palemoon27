@@ -5,6 +5,7 @@
 
 #include <MediaStreamGraphImpl.h>
 #include "CubebUtils.h"
+#include "webaudio/AudioContext.h"
 
 #ifdef XP_MACOSX
 #include <sys/sysctl.h>
@@ -299,8 +300,6 @@ ThreadedDriver::RunThread()
                (long)mIterationStart, (long)mIterationEnd,
                (long)stateComputedTime, (long)nextStateComputedTime));
 
-    mGraphImpl->mFlushSourcesNow = mGraphImpl->mFlushSourcesOnNextIteration;
-    mGraphImpl->mFlushSourcesOnNextIteration = false;
     stillProcessing = mGraphImpl->OneIteration(nextStateComputedTime);
 
     if (mNextDriver && stillProcessing) {
@@ -967,7 +966,6 @@ AudioCallbackDriver::DeviceChangedCallback() {
   STREAM_LOG(LogLevel::Error, ("Switching to SystemClockDriver during output switch"));
   mSelfReference.Take(this);
   mCallbackReceivedWhileSwitching = 0;
-  mGraphImpl->mFlushSourcesOnNextIteration = true;
   mNextDriver = new SystemClockDriver(GraphImpl());
   mNextDriver->SetGraphTime(this, mIterationStart, mIterationEnd);
   mGraphImpl->SetCurrentDriver(mNextDriver);

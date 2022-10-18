@@ -413,7 +413,7 @@ public:
     MOZ_ASSERT(NS_IsMainThread());
 
     NS_ENSURE_TRUE(mTrackUnionStream, NS_ERROR_FAILURE);
-    mTrackUnionStream->ChangeExplicitBlockerCount(1);
+    mTrackUnionStream->Suspend();
 
     return NS_OK;
   }
@@ -424,7 +424,7 @@ public:
     MOZ_ASSERT(NS_IsMainThread());
 
     NS_ENSURE_TRUE(mTrackUnionStream, NS_ERROR_FAILURE);
-    mTrackUnionStream->ChangeExplicitBlockerCount(-1);
+    mTrackUnionStream->Resume();
 
     return NS_OK;
   }
@@ -540,8 +540,7 @@ private:
     mTrackUnionStream->SetAutofinish(true);
 
     // Bind this Track Union Stream with Source Media.
-    mInputPort = mTrackUnionStream->AllocateInputPort(mRecorder->GetSourceMediaStream(),
-                                                      MediaInputPort::FLAG_BLOCK_OUTPUT);
+    mInputPort = mTrackUnionStream->AllocateInputPort(mRecorder->GetSourceMediaStream());
 
     DOMMediaStream* domStream = mRecorder->Stream();
     if (domStream) {
@@ -773,13 +772,11 @@ MediaRecorder::MediaRecorder(AudioNode& aSrcAudioNode,
     AudioNodeStream::Flags flags =
       AudioNodeStream::EXTERNAL_OUTPUT |
       AudioNodeStream::NEED_MAIN_THREAD_FINISHED;
-    mPipeStream = AudioNodeStream::Create(ctx->Graph(), engine, flags);
+    mPipeStream = AudioNodeStream::Create(ctx, engine, flags);
     AudioNodeStream* ns = aSrcAudioNode.GetStream();
     if (ns) {
       mInputPort = mPipeStream->AllocateInputPort(aSrcAudioNode.GetStream(),
-                                                  MediaInputPort::FLAG_BLOCK_INPUT,
-                                                  0,
-                                                  aSrcOutput);
+                                                  TRACK_ANY, 0, aSrcOutput);
     }
   }
   mAudioNode = &aSrcAudioNode;

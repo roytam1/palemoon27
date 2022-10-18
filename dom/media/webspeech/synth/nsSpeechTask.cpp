@@ -19,6 +19,8 @@
 extern PRLogModuleInfo* GetSpeechSynthLog();
 #define LOG(type, msg) MOZ_LOG(GetSpeechSynthLog(), type, msg)
 
+#define AUDIO_TRACK 1
+
 namespace mozilla {
 namespace dom {
 
@@ -186,7 +188,7 @@ nsSpeechTask::Setup(nsISpeechTaskCallback* aCallback,
   mChannels = aChannels;
 
   AudioSegment* segment = new AudioSegment();
-  mStream->AddAudioTrack(1, aRate, 0, segment);
+  mStream->AddAudioTrack(AUDIO_TRACK, aRate, 0, segment);
   mStream->AddAudioOutput(this);
   mStream->SetAudioOutputVolume(this, mVolume);
 
@@ -558,7 +560,7 @@ nsSpeechTask::Pause()
   }
 
   if (mStream) {
-    mStream->ChangeExplicitBlockerCount(1);
+    mStream->Suspend();
   }
 
   if (!mInited) {
@@ -581,7 +583,7 @@ nsSpeechTask::Resume()
   }
 
   if (mStream) {
-    mStream->ChangeExplicitBlockerCount(-1);
+    mStream->Resume();
   }
 
   if (mPrePaused) {
@@ -607,7 +609,7 @@ nsSpeechTask::Cancel()
   }
 
   if (mStream) {
-    mStream->ChangeExplicitBlockerCount(1);
+    mStream->Suspend();
   }
 
   if (!mInited) {
@@ -617,6 +619,20 @@ nsSpeechTask::Cancel()
   if (!mIndirectAudio) {
     DispatchEndInner(GetCurrentTime(), GetCurrentCharOffset());
   }
+}
+
+void
+nsSpeechTask::ForceEnd()
+{
+  if (mStream) {
+    mStream->Suspend();
+  }
+
+  if (!mInited) {
+    mPreCanceled = true;
+  }
+
+  DispatchEndInner(GetCurrentTime(), GetCurrentCharOffset());
 }
 
 float

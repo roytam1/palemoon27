@@ -41,8 +41,10 @@ public:
   public:
     TrackChange(StreamListener* aListener,
                 TrackID aID, StreamTime aTrackOffset,
-                uint32_t aEvents, MediaSegment::Type aType)
+                uint32_t aEvents, MediaSegment::Type aType,
+                MediaStream* aInputStream, TrackID aInputTrackID)
       : mListener(aListener), mID(aID), mEvents(aEvents), mType(aType)
+      , mInputStream(aInputStream), mInputTrackID(aInputTrackID)
     {
     }
 
@@ -82,6 +84,8 @@ public:
     TrackID mID;
     uint32_t mEvents;
     MediaSegment::Type mType;
+    RefPtr<MediaStream> mInputStream;
+    TrackID mInputTrackID;
   };
 
   /**
@@ -94,12 +98,14 @@ public:
   virtual void NotifyQueuedTrackChanges(MediaStreamGraph* aGraph, TrackID aID,
                                         StreamTime aTrackOffset,
                                         uint32_t aTrackEvents,
-                                        const MediaSegment& aQueuedMedia) override
+                                        const MediaSegment& aQueuedMedia,
+                                        MediaStream* aInputStream,
+                                        TrackID aInputTrackID) override
   {
     if (aTrackEvents & (TRACK_EVENT_CREATED | TRACK_EVENT_ENDED)) {
       RefPtr<TrackChange> runnable =
         new TrackChange(this, aID, aTrackOffset, aTrackEvents,
-                        aQueuedMedia.GetType());
+                        aQueuedMedia.GetType(), aInputStream, aInputTrackID);
       aGraph->DispatchToMainThreadAfterStreamStateUpdate(runnable.forget());
     }
   }
@@ -302,7 +308,10 @@ DOMMediaStream::InitAudioCaptureStream(nsIDOMWindow* aWindow,
 {
   mWindow = aWindow;
 
-  InitStreamCommon(aGraph->CreateAudioCaptureStream(this));
+  const TrackID AUDIO_TRACK = 1;
+
+  InitStreamCommon(aGraph->CreateAudioCaptureStream(this, AUDIO_TRACK));
+  CreateDOMTrack(AUDIO_TRACK, MediaSegment::AUDIO);
 }
 
 void

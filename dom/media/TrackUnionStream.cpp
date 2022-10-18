@@ -96,18 +96,19 @@ TrackUnionStream::TrackUnionStream(DOMMediaStream* aWrapper) :
           if (map->mInputPort == mInputs[i] && map->mInputTrackID == tracks->GetID()) {
             bool trackFinished;
             StreamBuffer::Track* outputTrack = mBuffer.FindTrack(map->mOutputTrackID);
-            if (!outputTrack || outputTrack->IsEnded()) {
+            found = true;
+            if (!outputTrack || outputTrack->IsEnded() ||
+                !mInputs[i]->PassTrackThrough(tracks->GetID())) {
               trackFinished = true;
             } else {
               CopyTrackData(tracks.get(), j, aFrom, aTo, &trackFinished);
             }
             mappedTracksFinished[j] = trackFinished;
             mappedTracksWithMatchingInputTracks[j] = true;
-            found = true;
             break;
           }
         }
-        if (!found) {
+        if (!found && mInputs[i]->PassTrackThrough(tracks->GetID())) {
           bool trackFinished = false;
           trackAdded = true;
           uint32_t mapIndex = AddTrack(mInputs[i], tracks.get(), aFrom);
@@ -138,7 +139,7 @@ TrackUnionStream::TrackUnionStream(DOMMediaStream* aWrapper) :
       // so we're finished now.
       FinishOnGraphThread();
     } else {
-      mBuffer.AdvanceKnownTracksTime(GraphTimeToStreamTime(aTo));
+      mBuffer.AdvanceKnownTracksTime(GraphTimeToStreamTimeWithBlocking(aTo));
     }
     if (allHaveCurrentData) {
       // We can make progress if we're not blocked
@@ -183,7 +184,7 @@ TrackUnionStream::TrackUnionStream(DOMMediaStream* aWrapper) :
     // Round up the track start time so the track, if anything, starts a
     // little later than the true time. This means we'll have enough
     // samples in our input stream to go just beyond the destination time.
-    StreamTime outputStart = GraphTimeToStreamTime(aFrom);
+    StreamTime outputStart = GraphTimeToStreamTimeWithBlocking(aFrom);
 
     nsAutoPtr<MediaSegment> segment;
     segment = aTrack->GetSegment()->CreateEmptyClone();
@@ -191,7 +192,8 @@ TrackUnionStream::TrackUnionStream(DOMMediaStream* aWrapper) :
       MediaStreamListener* l = mListeners[j];
       l->NotifyQueuedTrackChanges(Graph(), id, outputStart,
                                   MediaStreamListener::TRACK_EVENT_CREATED,
-                                  *segment);
+                                  *segment,
+                                  aPort->GetSource(), aTrack->GetID());
     }
     segment->AppendNullData(outputStart);
     StreamBuffer::Track* track =
@@ -223,7 +225,9 @@ TrackUnionStream::TrackUnionStream(DOMMediaStream* aWrapper) :
       segment = outputTrack->GetSegment()->CreateEmptyClone();
       l->NotifyQueuedTrackChanges(Graph(), outputTrack->GetID(), offset,
                                   MediaStreamListener::TRACK_EVENT_ENDED,
-                                  *segment);
+                                  *segment,
+                                  mTrackMap[aIndex].mInputPort->GetSource(),
+                                  mTrackMap[aIndex].mInputTrackID);
     }
     outputTrack->SetEnded();
   }
@@ -244,7 +248,7 @@ TrackUnionStream::TrackUnionStream(DOMMediaStream* aWrapper) :
     for (GraphTime t = aFrom; t < aTo; t = next) {
       MediaInputPort::InputInterval interval = map->mInputPort->GetNextInputInterval(t);
       interval.mEnd = std::min(interval.mEnd, aTo);
-      StreamTime inputEnd = source->GraphTimeToStreamTime(interval.mEnd);
+      StreamTime inputEnd = source->GraphTimeToStreamTimeWithBlocking(interval.mEnd);
       StreamTime inputTrackEndPoint = STREAM_TIME_MAX;
 
       if (aInputTrack->IsEnded() &&
@@ -269,12 +273,12 @@ TrackUnionStream::TrackUnionStream(DOMMediaStream* aWrapper) :
       } else if (InMutedCycle()) {
         segment->AppendNullData(ticks);
       } else {
-        if (GraphImpl()->StreamSuspended(source)) {
+        if (source->IsSuspended()) {
           segment->AppendNullData(aTo - aFrom);
         } else {
-          MOZ_ASSERT(outputTrack->GetEnd() == GraphTimeToStreamTime(interval.mStart),
+          MOZ_ASSERT(outputTrack->GetEnd() == GraphTimeToStreamTimeWithBlocking(interval.mStart),
                      "Samples missing");
-          StreamTime inputStart = source->GraphTimeToStreamTime(interval.mStart);
+          StreamTime inputStart = source->GraphTimeToStreamTimeWithBlocking(interval.mStart);
           segment->AppendSlice(*aInputTrack->GetSegment(),
                                std::min(inputTrackEndPoint, inputStart),
                                std::min(inputTrackEndPoint, inputEnd));

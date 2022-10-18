@@ -1871,10 +1871,6 @@ HTMLMediaElement::CaptureStreamInternal(bool aFinishWhenEnded,
   out->mFinishWhenEnded = aFinishWhenEnded;
 
   mAudioCaptured = true;
-  // Block the output stream initially.
-  // Decoders are responsible for removing the block while they are playing
-  // back into the output stream.
-  out->mStream->GetStream()->ChangeExplicitBlockerCount(1);
   if (mDecoder) {
     mDecoder->AddOutputStream(out->mStream->GetStream()->AsProcessedStream(),
                               aFinishWhenEnded);
@@ -3037,7 +3033,9 @@ public:
   virtual void NotifyQueuedTrackChanges(MediaStreamGraph* aGraph, TrackID aID,
                                         StreamTime aTrackOffset,
                                         uint32_t aTrackEvents,
-                                        const MediaSegment& aQueuedMedia) override
+                                        const MediaSegment& aQueuedMedia,
+                                        MediaStream* aInputStream,
+                                        TrackID aInputTrackID) override
   {
     MutexAutoLock lock(mMutex);
     if (mInitialSize != gfx::IntSize(0,0) ||

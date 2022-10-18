@@ -97,6 +97,15 @@ public:
 
   virtual void Disconnect(uint32_t aOutput, ErrorResult& aRv);
 
+  // Called after input nodes have been explicitly added or removed through
+  // the Connect() or Disconnect() methods.
+  virtual void NotifyInputsChanged() {}
+  // Indicate that the node should continue indefinitely to behave as if an
+  // input is connected, even though there is no longer a corresponding entry
+  // in mInputNodes.  Called after an input node has been removed because it
+  // is being garbage collected.
+  virtual void NotifyHasPhantomInput() {}
+
   // The following two virtual methods must be implemented by each node type
   // to provide their number of input and output ports. These numbers are
   // constant for the lifetime of the node. Both default to 1.
@@ -168,7 +177,7 @@ public:
   };
 
   // Returns the stream, if any.
-  AudioNodeStream* GetStream() { return mStream; }
+  AudioNodeStream* GetStream() const { return mStream; }
 
   const nsTArray<InputNode>& InputNodes() const
   {
@@ -202,20 +211,21 @@ public:
   virtual const char* NodeType() const = 0;
 
 private:
-  friend class AudioBufferSourceNode;
-  // This could possibly delete 'this'.
+  virtual void LastRelease() override
+  {
+    // We are about to be deleted, disconnect the object from the graph before
+    // the derived type is destroyed.
+    DisconnectFromGraph();
+  }
+  // Callers must hold a reference to 'this'.
   void DisconnectFromGraph();
 
 protected:
-  static void Callback(AudioNode* aNode) { /* not implemented */ }
-
   // Helpers for sending different value types to streams
   void SendDoubleParameterToStream(uint32_t aIndex, double aValue);
   void SendInt32ParameterToStream(uint32_t aIndex, int32_t aValue);
   void SendThreeDPointParameterToStream(uint32_t aIndex, const ThreeDPoint& aValue);
   void SendChannelMixingParametersToStream();
-  static void SendTimelineParameterToStream(AudioNode* aNode, uint32_t aIndex,
-                                            const AudioParamTimeline& aValue);
 
 private:
   RefPtr<AudioContext> mContext;

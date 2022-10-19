@@ -258,10 +258,10 @@ nsHTTPCompressConv::OnDataAvailable(nsIRequest* request,
   case HTTP_COMPRESS_DEFLATE:
 
     if (mInpBuffer != nullptr && streamLen > mInpBufferLen) {
-      mInpBuffer = (unsigned char *) moz_realloc(mInpBuffer, mInpBufferLen = streamLen);
+      mInpBuffer = (unsigned char *) moz_xrealloc(mInpBuffer, mInpBufferLen = streamLen);
 
       if (mOutBufferLen < streamLen * 2) {
-        mOutBuffer = (unsigned char *) moz_realloc(mOutBuffer, mOutBufferLen = streamLen * 3);
+        mOutBuffer = (unsigned char *) moz_xrealloc(mOutBuffer, mOutBufferLen = streamLen * 3);
       }
 
       if (mInpBuffer == nullptr || mOutBuffer == nullptr) {
@@ -270,11 +270,11 @@ nsHTTPCompressConv::OnDataAvailable(nsIRequest* request,
     }
 
     if (mInpBuffer == nullptr) {
-      mInpBuffer = (unsigned char *) moz_malloc(mInpBufferLen = streamLen);
+      mInpBuffer = (unsigned char *) moz_xmalloc(mInpBufferLen = streamLen);
     }
 
     if (mOutBuffer == nullptr) {
-      mOutBuffer = (unsigned char *) moz_malloc(mOutBufferLen = streamLen * 3);
+      mOutBuffer = (unsigned char *) moz_xmalloc(mOutBufferLen = streamLen * 3);
     }
 
     if (mInpBuffer == nullptr || mOutBuffer == nullptr) {

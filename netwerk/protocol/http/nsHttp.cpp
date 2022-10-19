@@ -49,7 +49,7 @@ NewHeapAtom(const char *value) {
     int len = strlen(value);
 
     HttpHeapAtom *a =
-        reinterpret_cast<HttpHeapAtom *>(malloc(sizeof(*a) + len));
+        reinterpret_cast<HttpHeapAtom *>(moz_xmalloc(sizeof(*a) + len));
     if (!a)
         return nullptr;
     memcpy(a->value, value, len + 1);

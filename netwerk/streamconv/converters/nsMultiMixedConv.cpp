@@ -532,7 +532,7 @@ public:
   explicit AutoFree(char *buffer) : mBuffer(buffer) {}
 
   ~AutoFree() {
-    free(mBuffer);
+    moz_free(mBuffer);
   }
 
   AutoFree& operator=(char *buffer) {
@@ -609,14 +609,14 @@ nsMultiMixedConv::OnDataAvailable(nsIRequest *request, nsISupports *context,
         bufLen = count + mBufLen;
         NS_ENSURE_TRUE((bufLen >= count) && (bufLen >= mBufLen),
                        NS_ERROR_FAILURE);
-        buffer = (char *) malloc(bufLen);
+        buffer = (char *) moz_xmalloc(bufLen);
         if (!buffer)
             return NS_ERROR_OUT_OF_MEMORY;
 
         if (mBufLen) {
             // incorporate any buffered data into the parsing
             memcpy(buffer, mBuffer, mBufLen);
-            free(mBuffer);
+            moz_free(mBuffer);
             mBuffer = 0;
             mBufLen = 0;
         }
@@ -683,7 +683,7 @@ nsMultiMixedConv::OnDataAvailable(nsIRequest *request, nsISupports *context,
                 cursor = buffer;
             }
         } else if (!PL_strnstr(cursor, token, mTokenLen + 2)) {
-            char *newBuffer = (char *) realloc(buffer, bufLen + mTokenLen + 1);
+            char *newBuffer = (char *) moz_xrealloc(buffer, bufLen + mTokenLen + 1);
             if (!newBuffer)
                 return NS_ERROR_OUT_OF_MEMORY;
             buffer = newBuffer;
@@ -947,7 +947,7 @@ nsMultiMixedConv::OnStopRequest(nsIRequest *request, nsISupports *ctxt,
             (void) SendData(mBuffer, mBufLen);
             // don't bother checking the return value here, if the send failed
             // we're done anyway as we're in the OnStop() callback.
-            free(mBuffer);
+            moz_free(mBuffer);
             mBuffer = nullptr;
             mBufLen = 0;
         }
@@ -997,7 +997,7 @@ nsMultiMixedConv::nsMultiMixedConv() :
 nsMultiMixedConv::~nsMultiMixedConv() {
     NS_ASSERTION(!mBuffer, "all buffered data should be gone");
     if (mBuffer) {
-        free(mBuffer);
+        moz_free(mBuffer);
         mBuffer = nullptr;
     }
 }
@@ -1006,7 +1006,7 @@ nsresult
 nsMultiMixedConv::BufferData(char *aData, uint32_t aLen) {
     NS_ASSERTION(!mBuffer, "trying to over-write buffer");
 
-    char *buffer = (char *) malloc(aLen);
+    char *buffer = (char *) moz_xmalloc(aLen);
     if (!buffer) return NS_ERROR_OUT_OF_MEMORY;
 
     memcpy(buffer, aData, aLen);

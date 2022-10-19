@@ -152,7 +152,7 @@ EnsureSharedSurfaceSize(IntSize size)
   if (!sSharedSurfaceData || (WORDSSIZE(size) > WORDSSIZE(sSharedSurfaceSize))) {
     sSharedSurfaceSize = size;
     sSharedSurfaceData = nullptr;
-    sSharedSurfaceData = (uint8_t *)malloc(WORDSSIZE(sSharedSurfaceSize) * 4);
+    sSharedSurfaceData = (uint8_t *)moz_xmalloc(WORDSSIZE(sSharedSurfaceSize) * 4);
   }
 
   return (sSharedSurfaceData != nullptr);

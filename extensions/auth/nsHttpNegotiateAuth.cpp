@@ -236,7 +236,7 @@ nsHttpNegotiateAuth::GenerateCredentials(nsIHttpAuthenticableChannel *authChanne
             return (NS_ERROR_UNEXPECTED);
         }
         inTokenLen = (len * 3)/4;
-        inToken = malloc(inTokenLen);
+        inToken = moz_xmalloc(inTokenLen);
         if (!inToken)
             return (NS_ERROR_OUT_OF_MEMORY);
 
@@ -244,7 +244,7 @@ nsHttpNegotiateAuth::GenerateCredentials(nsIHttpAuthenticableChannel *authChanne
         // Decode the response that followed the "Negotiate" token
         //
         if (PL_Base64Decode(challenge, len, (char *) inToken) == nullptr) {
-            free(inToken);
+            moz_free(inToken);
             return(NS_ERROR_UNEXPECTED);
         }
     }
@@ -258,7 +258,7 @@ nsHttpNegotiateAuth::GenerateCredentials(nsIHttpAuthenticableChannel *authChanne
 
     nsresult rv = module->GetNextToken(inToken, inTokenLen, &outToken, &outTokenLen);
 
-    free(inToken);
+    moz_free(inToken);
 
     if (NS_FAILED(rv))
         return rv;
@@ -273,7 +273,7 @@ nsHttpNegotiateAuth::GenerateCredentials(nsIHttpAuthenticableChannel *authChanne
     //
     char *encoded_token = PL_Base64Encode((char *)outToken, outTokenLen, nullptr);
 
-    free(outToken);
+    moz_free(outToken);
 
     if (!encoded_token)
         return NS_ERROR_OUT_OF_MEMORY;
@@ -374,7 +374,7 @@ nsHttpNegotiateAuth::TestPref(nsIURI *uri, const char *pref)
         start = end + 1;
     }
     
-    free(hostList);
+    moz_free(hostList);
     return false;
 }
 

@@ -361,7 +361,7 @@ static void XMappingIter(int64_t& aVsize, int64_t& aResident)
         // prior to the release of Solaris 11.
         // Here is a workaround for it.
         nmap *= 2;
-        prmapp = (prxmap_t*)malloc((nmap + 1) * sizeof(prxmap_t));
+        prmapp = (prxmap_t*)moz_xmalloc((nmap + 1) * sizeof(prxmap_t));
         if (!prmapp) {
           // out of memory
           break;
@@ -2226,7 +2226,7 @@ nsMemoryReporterManager::GetPageFaultsHard(int64_t* aAmount)
 NS_IMETHODIMP
 nsMemoryReporterManager::GetHasMozMallocUsableSize(bool* aHas)
 {
-  void* p = malloc(16);
+  void* p = moz_xmalloc(16);
   if (!p) {
     return NS_ERROR_OUT_OF_MEMORY;
   }

@@ -74,7 +74,7 @@ EncodeString(nsIUnicodeEncoder *encoder, const nsAFlatString &str, nsACString &r
 
     char buf[256], *p = buf;
     if (uint32_t(maxlen) > sizeof(buf) - 1) {
-        p = (char *) malloc(maxlen + 1);
+        p = (char *) moz_xmalloc(maxlen + 1);
         if (!p)
             return NS_ERROR_OUT_OF_MEMORY;
     }

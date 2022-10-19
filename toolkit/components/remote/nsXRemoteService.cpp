@@ -264,7 +264,7 @@ nsXRemoteService::HandleCommandLine(char* aBuffer, nsIDOMWindow* aWindow,
 
   nsAutoCString desktopStartupID;
 
-  char **argv = (char**) malloc(sizeof(char*) * argc);
+  char **argv = (char**) moz_xmalloc(sizeof(char*) * argc);
   if (!argv) return "509 internal error";
 
   int32_t  *offset = reinterpret_cast<int32_t*>(aBuffer) + 1;

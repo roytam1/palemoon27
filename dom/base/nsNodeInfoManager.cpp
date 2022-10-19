@@ -80,7 +80,7 @@ nsNodeInfoManager::NodeInfoInnerKeyCompare(const void *key1, const void *key2)
 static void* PR_CALLBACK
 AllocTable(void* pool, size_t size)
 {
-  return malloc(size);
+  return moz_xmalloc(size);
 }
 
 static void PR_CALLBACK
@@ -92,7 +92,7 @@ FreeTable(void* pool, void* item)
 static PLHashEntry* PR_CALLBACK
 AllocEntry(void* pool, const void* key)
 {
-  return (PLHashEntry*)malloc(sizeof(PLHashEntry));
+  return (PLHashEntry*)moz_xmalloc(sizeof(PLHashEntry));
 }
 
 static void PR_CALLBACK

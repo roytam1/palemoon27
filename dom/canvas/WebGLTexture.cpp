@@ -652,7 +652,7 @@ WebGLTexture::EnsureInitializedImageData(TexImageTarget imageTarget,
 
     size_t byteCount = checked_byteLength.value();
 
-    UniquePtr<uint8_t> zeros((uint8_t*)calloc(1, byteCount));
+    UniquePtr<uint8_t> zeros((uint8_t*)moz_xcalloc(1, byteCount));
     if (zeros == nullptr) {
         // Failed to allocate memory. Lose the context. Return OOM error.
         mContext->ForceLoseContext(true);

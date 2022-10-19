@@ -658,7 +658,7 @@ uint8_t*
 PushMessageData::GetContentsCopy()
 {
   uint32_t length = mBytes.Length();
-  void* data = malloc(length);
+  void* data = moz_xmalloc(length);
   if (!data) {
     return nullptr;
   }

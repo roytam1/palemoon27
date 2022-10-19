@@ -59,7 +59,7 @@ public:
   static void*
   CountingMalloc(size_t size)
   {
-    void* p = malloc(size);
+    void* p = moz_xmalloc(size);
     sAmount += MallocSizeOfOnAlloc(p);
     return p;
   }
@@ -67,7 +67,7 @@ public:
   static void*
   CountingCalloc(size_t nmemb, size_t size)
   {
-    void* p = calloc(nmemb, size);
+    void* p = moz_xcalloc(nmemb, size);
     sAmount += MallocSizeOfOnAlloc(p);
     return p;
   }
@@ -76,7 +76,7 @@ public:
   CountingRealloc(void* p, size_t size)
   {
     size_t oldsize = MallocSizeOfOnFree(p);
-    void *pnew = realloc(p, size);
+    void *pnew = moz_xrealloc(p, size);
     if (pnew) {
       size_t newsize = MallocSizeOfOnAlloc(pnew);
       sAmount += newsize - oldsize;
@@ -121,7 +121,7 @@ public:
   CountingFree(void* p)
   {
     sAmount -= MallocSizeOfOnFree(p);
-    free(p);
+    moz_free(p);
   }
 
 private:

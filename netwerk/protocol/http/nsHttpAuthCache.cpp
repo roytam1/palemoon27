@@ -228,7 +228,7 @@ nsHttpAuthCache::LookupAuthNode(const char *scheme,
 void *
 nsHttpAuthCache::AllocTable(void *self, size_t size)
 {
-    return malloc(size);
+    return moz_xmalloc(size);
 }
 
 void
@@ -240,7 +240,7 @@ nsHttpAuthCache::FreeTable(void *self, void *item)
 PLHashEntry *
 nsHttpAuthCache::AllocEntry(void *self, const void *key)
 {
-    return (PLHashEntry *) malloc(sizeof(PLHashEntry));
+    return (PLHashEntry *) moz_xmalloc(sizeof(PLHashEntry));
 }
 
 void
@@ -340,7 +340,7 @@ nsHttpAuthIdentity::Set(const char16_t *domain,
     int passLen   = pass   ? NS_strlen(pass)   : 0;
 
     int len = userLen + 1 + passLen + 1 + domainLen + 1;
-    newUser = (char16_t *) malloc(len * sizeof(char16_t));
+    newUser = (char16_t *) moz_xmalloc(len * sizeof(char16_t));
     if (!newUser)
         return NS_ERROR_OUT_OF_MEMORY;
 
@@ -424,7 +424,7 @@ nsHttpAuthEntry::AddPath(const char *aPath)
     //Append the aPath
     nsHttpAuthPath *newAuthPath;
     int newpathLen = strlen(aPath);
-    newAuthPath = (nsHttpAuthPath *) malloc(sizeof(nsHttpAuthPath) + newpathLen);
+    newAuthPath = (nsHttpAuthPath *) moz_xmalloc(sizeof(nsHttpAuthPath) + newpathLen);
     if (!newAuthPath)
         return NS_ERROR_OUT_OF_MEMORY;
 
@@ -456,7 +456,7 @@ nsHttpAuthEntry::Set(const char *path,
     int challLen = chall ? strlen(chall) : 0;
 
     int len = realmLen + 1 + credsLen + 1 + challLen + 1;
-    newRealm = (char *) malloc(len);
+    newRealm = (char *) moz_xmalloc(len);
     if (!newRealm)
         return NS_ERROR_OUT_OF_MEMORY;
 

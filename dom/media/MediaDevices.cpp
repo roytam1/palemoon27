@@ -7,6 +7,7 @@
 #include "mozilla/dom/MediaDevicesBinding.h"
 #include "mozilla/dom/Promise.h"
 #include "mozilla/MediaManager.h"
+#include "MediaTrackConstraints.h"
 #include "nsIEventTarget.h"
 #include "nsIScriptGlobalObject.h"
 #include "nsIPermissionManager.h"
@@ -51,31 +52,34 @@ public:
   OnSuccess(nsIVariant* aDevices) override
   {
     // Cribbed from MediaPermissionGonk.cpp
-    nsIID elementIID;
-    uint16_t elementType;
 
     // Create array for nsIMediaDevice
     nsTArray<nsCOMPtr<nsIMediaDevice>> devices;
     // Contain the fumes
     {
-      void* rawArray;
-      uint32_t arrayLen;
-      nsresult rv;
-      rv = aDevices->GetAsArray(&elementType, &elementIID, &arrayLen, &rawArray);
+      uint16_t vtype;
+      nsresult rv = aDevices->GetDataType(&vtype);
       NS_ENSURE_SUCCESS(rv, rv);
+      if (vtype != nsIDataType::VTYPE_EMPTY_ARRAY) {
+        nsIID elementIID;
+        uint16_t elementType;
+        void* rawArray;
+        uint32_t arrayLen;
+        rv = aDevices->GetAsArray(&elementType, &elementIID, &arrayLen, &rawArray);
+        NS_ENSURE_SUCCESS(rv, rv);
+        if (elementType != nsIDataType::VTYPE_INTERFACE) {
+          moz_free(rawArray);
+          return NS_ERROR_FAILURE;
+        }
 
-      if (elementType != nsIDataType::VTYPE_INTERFACE) {
-        moz_free(rawArray);
-        return NS_ERROR_FAILURE;
+        nsISupports **supportsArray = reinterpret_cast<nsISupports **>(rawArray);
+        for (uint32_t i = 0; i < arrayLen; ++i) {
+          nsCOMPtr<nsIMediaDevice> device(do_QueryInterface(supportsArray[i]));
+          devices.AppendElement(device);
+          NS_IF_RELEASE(supportsArray[i]); // explicitly decrease refcount for rawptr
+        }
+        moz_free(rawArray); // explicitly free memory from nsIVariant::GetAsArray
       }
-
-      nsISupports **supportsArray = reinterpret_cast<nsISupports **>(rawArray);
-      for (uint32_t i = 0; i < arrayLen; ++i) {
-        nsCOMPtr<nsIMediaDevice> device(do_QueryInterface(supportsArray[i]));
-        devices.AppendElement(device);
-        NS_IF_RELEASE(supportsArray[i]); // explicitly decrease refcount for rawptr
-      }
-      moz_free(rawArray); // explicitly free memory from nsIVariant::GetAsArray
     }
     nsTArray<RefPtr<MediaDeviceInfo>> infos;
     for (auto& device : devices) {

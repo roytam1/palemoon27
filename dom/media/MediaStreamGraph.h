@@ -17,7 +17,6 @@
 #include "nsTArray.h"
 #include "nsIRunnable.h"
 #include "StreamBuffer.h"
-#include "TimeVarying.h"
 #include "VideoFrameContainer.h"
 #include "VideoSegment.h"
 #include "MainThreadUtils.h"
@@ -397,7 +396,7 @@ public:
    *
    * Main thread only.
    */
-  void RunAfterPendingUpdates(nsCOMPtr<nsIRunnable> aRunnable);
+  void RunAfterPendingUpdates(already_AddRefed<nsIRunnable> aRunnable);
 
   // Signal that the client is done with this MediaStream. It will be deleted later.
   virtual void Destroy();
@@ -428,7 +427,6 @@ public:
   virtual SourceMediaStream* AsSourceStream() { return nullptr; }
   virtual ProcessedMediaStream* AsProcessedStream() { return nullptr; }
   virtual AudioNodeStream* AsAudioNodeStream() { return nullptr; }
-  virtual CameraPreviewMediaStream* AsCameraPreviewStream() { return nullptr; }
 
   // These Impl methods perform the core functionality of the control methods
   // above, on the media graph thread.
@@ -442,27 +440,15 @@ public:
   void DumpTrackInfo() { return mBuffer.DumpTrackInfo(); }
 #endif
   void SetAudioOutputVolumeImpl(void* aKey, float aVolume);
-  void AddAudioOutputImpl(void* aKey)
-  {
-    mAudioOutputs.AppendElement(AudioOutput(aKey));
-  }
+  void AddAudioOutputImpl(void* aKey);
   // Returns true if this stream has an audio output.
   bool HasAudioOutput()
   {
     return !mAudioOutputs.IsEmpty();
   }
   void RemoveAudioOutputImpl(void* aKey);
-  void AddVideoOutputImpl(already_AddRefed<VideoFrameContainer> aContainer)
-  {
-    *mVideoOutputs.AppendElement() = aContainer;
-  }
-  void RemoveVideoOutputImpl(VideoFrameContainer* aContainer)
-  {
-    // Ensure that any frames currently queued for playback by the compositor
-    // are removed.
-    aContainer->ClearFutureFrames();
-    mVideoOutputs.RemoveElement(aContainer);
-  }
+  void AddVideoOutputImpl(already_AddRefed<VideoFrameContainer> aContainer);
+  void RemoveVideoOutputImpl(VideoFrameContainer* aContainer);
   void AddListenerImpl(already_AddRefed<MediaStreamListener> aListener);
   void RemoveListenerImpl(MediaStreamListener* aListener);
   void RemoveAllListenersImpl();
@@ -531,12 +517,6 @@ public:
    * taken account of in UpdateCurrentTimeForStreams.
    */
   GraphTime StreamTimeToGraphTime(StreamTime aTime);
-  /**
-   * Convert stream time to graph time. The result can be > mStateComputedTime,
-   * in which case we did the conversion optimistically assuming the stream
-   * will not be blocked after mStateComputedTime.
-   */
-  GraphTime StreamTimeToGraphTimeWithBlocking(StreamTime aTime);
 
   bool IsFinishedOnGraphThread() { return mFinished; }
   void FinishOnGraphThread();
@@ -1227,13 +1207,10 @@ public:
   ProcessedMediaStream* CreateAudioCaptureStream(DOMMediaStream* aWrapper,
                                                  TrackID aTrackId);
 
-  enum {
-    ADD_STREAM_SUSPENDED = 0x01
-  };
   /**
    * Add a new stream to the graph.  Main thread.
    */
-  void AddStream(MediaStream* aStream, uint32_t aFlags = 0);
+  void AddStream(MediaStream* aStream);
 
   /* From the main thread, ask the MSG to send back an event when the graph
    * thread is running, and audio is being processed. */

@@ -262,7 +262,7 @@ ConvolverNode::SetBuffer(JSContext* aCx, AudioBuffer* aBuffer, ErrorResult& aRv)
       length = WEBAUDIO_BLOCK_SIZE;
       RefPtr<ThreadSharedFloatArrayBufferList> paddedBuffer =
         new ThreadSharedFloatArrayBufferList(data->GetChannels());
-      float* channelData = (float*) malloc(sizeof(float) * length * data->GetChannels());
+      float* channelData = (float*) moz_malloc(sizeof(float) * length * data->GetChannels());
       for (uint32_t i = 0; i < data->GetChannels(); ++i) {
         PodCopy(channelData + length * i, data->GetData(i), mBuffer->Length());
         PodZero(channelData + length * i + mBuffer->Length(), WEBAUDIO_BLOCK_SIZE - mBuffer->Length());

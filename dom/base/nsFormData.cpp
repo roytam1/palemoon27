@@ -246,7 +246,7 @@ nsFormData::Append(const nsAString& aName, nsIVariant* aValue)
     rv = aValue->GetAsInterface(&iid, getter_AddRefs(supports));
     NS_ENSURE_SUCCESS(rv, rv);
 
-    free(iid);
+    moz_free(iid);
 
     nsCOMPtr<nsIDOMBlob> domBlob = do_QueryInterface(supports);
     RefPtr<Blob> blob = static_cast<Blob*>(domBlob.get());

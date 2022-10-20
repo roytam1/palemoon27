@@ -6,6 +6,7 @@
 #include "TextureHost.h"
 
 #include "CompositableHost.h"           // for CompositableHost
+#include "LayerScope.h"                 // for LayerScope::ContentChanged
 #include "LayersLogging.h"              // for AppendToString
 #include "mozilla/gfx/2D.h"             // for DataSourceSurface, Factory
 #include "mozilla/ipc/Shmem.h"          // for Shmem

@@ -429,6 +429,7 @@ pref("media.peerconnection.video.min_bitrate", 200);
 pref("media.peerconnection.video.start_bitrate", 300);
 pref("media.peerconnection.video.max_bitrate", 2000);
 #endif
+pref("media.navigator.audio.fake_frequency", 1000);
 pref("media.navigator.permission.disabled", false);
 pref("media.peerconnection.default_iceservers", "[]");
 pref("media.peerconnection.ice.loopback", false); // Set only for testing in offline environments.
@@ -4446,6 +4447,8 @@ pref("webgl.angle.try-d3d11", true);
 pref("webgl.angle.force-d3d11", false);
 pref("webgl.angle.force-warp", false);
 #endif
+
+pref("gfx.offscreencanvas.enabled", false);
 
 #ifdef MOZ_WIDGET_GONK
 pref("gfx.gralloc.fence-with-readpixels", false);

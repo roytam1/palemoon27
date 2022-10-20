@@ -8,7 +8,9 @@
 #define mozilla_layers_WheelScrollAnimation_h_
 
 #include "AsyncPanZoomAnimation.h"
+#include "AsyncPanZoomController.h"
 #include "AsyncScrollBase.h"
+#include "gfxPrefs.h"
 
 namespace mozilla {
 namespace layers {

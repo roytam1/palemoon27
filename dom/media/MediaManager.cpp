@@ -49,6 +49,7 @@
 #include "Latency.h"
 #include "nsProxyRelease.h"
 #include "nsNullPrincipal.h"
+#include "nsVariant.h"
 
 // For PR_snprintf
 #include "prprf.h"
@@ -640,7 +641,7 @@ class nsDOMUserMediaStream : public DOMLocalMediaStream
 {
 public:
   static already_AddRefed<nsDOMUserMediaStream>
-  CreateTrackUnionStream(nsIDOMWindow* aWindow,
+  CreateSourceStream(nsIDOMWindow* aWindow,
                          GetUserMediaCallbackMediaStreamListener* aListener,
                          AudioDevice* aAudioDevice,
                          VideoDevice* aVideoDevice,
@@ -649,7 +650,7 @@ public:
     RefPtr<nsDOMUserMediaStream> stream = new nsDOMUserMediaStream(aListener,
                                                                      aAudioDevice,
                                                                      aVideoDevice);
-    stream->InitTrackUnionStream(aWindow, aMSG);
+    stream->InitSourceStream(aWindow, aMSG);
     return stream.forget();
   }
 
@@ -676,20 +677,10 @@ public:
 
   virtual ~nsDOMUserMediaStream()
   {
-    Stop();
+    StopImpl();
 
-    if (mPort) {
-      mPort->Destroy();
-    }
-    if (mSourceStream) {
-      mSourceStream->Destroy();
-    }
-  }
-
-  virtual void Stop() override
-  {
-    if (mSourceStream) {
-      mSourceStream->EndAllTrackAndFinish();
+    if (GetSourceStream()) {
+      GetSourceStream()->Destroy();
     }
   }
 
@@ -699,8 +690,8 @@ public:
   // XXX This will not handle more complex cases well.
   virtual void StopTrack(TrackID aTrackID) override
   {
-    if (mSourceStream) {
-      mSourceStream->EndTrack(aTrackID);
+    if (GetSourceStream()) {
+      GetSourceStream()->EndTrack(aTrackID);
       // We could override NotifyMediaStreamTrackEnded(), and maybe should, but it's
       // risky to do late in a release since that will affect all track ends, and not
       // just StopTrack()s.
@@ -729,7 +720,7 @@ public:
       promise->MaybeReject(error);
       return promise.forget();
     }
-    if (!mSourceStream) {
+    if (!GetSourceStream()) {
       RefPtr<MediaStreamError> error = new MediaStreamError(window,
           NS_LITERAL_STRING("InternalError"),
           NS_LITERAL_STRING("No stream."));
@@ -777,8 +768,8 @@ public:
   // Allow getUserMedia to pass input data directly to PeerConnection/MediaPipeline
   virtual bool AddDirectListener(MediaStreamDirectListener *aListener) override
   {
-    if (mSourceStream) {
-      mSourceStream->AddDirectListener(aListener);
+    if (GetSourceStream()) {
+      GetSourceStream()->AddDirectListener(aListener);
       return true; // application should ignore NotifyQueuedTrackData
     }
     return false;
@@ -801,8 +792,8 @@ public:
 
   virtual void RemoveDirectListener(MediaStreamDirectListener *aListener) override
   {
-    if (mSourceStream) {
-      mSourceStream->RemoveDirectListener(aListener);
+    if (GetSourceStream()) {
+      GetSourceStream()->RemoveDirectListener(aListener);
     }
   }
 
@@ -836,10 +827,14 @@ public:
     return nullptr;
   }
 
-  // The actual MediaStream is a TrackUnionStream. But these resources need to be
-  // explicitly destroyed too.
-  RefPtr<SourceMediaStream> mSourceStream;
-  RefPtr<MediaInputPort> mPort;
+  SourceMediaStream* GetSourceStream()
+  {
+    if (GetInputStream()) {
+      return GetInputStream()->AsSourceStream();
+    }
+    return nullptr;
+  }
+
   RefPtr<GetUserMediaCallbackMediaStreamListener> mListener;
   RefPtr<AudioDevice> mAudioDevice; // so we can turn on AEC
   RefPtr<VideoDevice> mVideoDevice;
@@ -1002,9 +997,8 @@ public:
       MediaStreamGraph::GetInstance(graphDriverType,
                                     dom::AudioChannel::Normal);
 
-    RefPtr<SourceMediaStream> stream = msg->CreateSourceStream(nullptr);
-
     RefPtr<DOMLocalMediaStream> domStream;
+    RefPtr<SourceMediaStream> stream;
     // AudioCapture is a special case, here, in the sense that we're not really
     // using the audio source and the SourceMediaStream, which acts as
     // placeholders. We re-route a number of stream internaly in the MSG and mix
@@ -1015,38 +1009,33 @@ public:
       // It should be possible to pipe the capture stream to anything. CORS is
       // not a problem here, we got explicit user content.
       domStream->SetPrincipal(window->GetExtantDoc()->NodePrincipal());
+      stream = msg->CreateSourceStream(nullptr); // Placeholder
       msg->RegisterCaptureStreamForWindow(
             mWindowID, domStream->GetInputStream()->AsProcessedStream());
       window->SetAudioCapture(true);
     } else {
       // Normal case, connect the source stream to the track union stream to
       // avoid us blocking
-      RefPtr<nsDOMUserMediaStream> trackunion =
-        nsDOMUserMediaStream::CreateTrackUnionStream(window, mListener,
-                                                     mAudioDevice, mVideoDevice,
-                                                     msg);
-      trackunion->GetInputStream()->AsProcessedStream()->SetAutofinish(true);
-      RefPtr<MediaInputPort> port = trackunion->GetInputStream()->AsProcessedStream()->
-        AllocateInputPort(stream);
-      trackunion->mSourceStream = stream;
-      trackunion->mPort = port.forget();
-      // Log the relationship between SourceMediaStream and TrackUnion stream
-      // Make sure logger starts before capture
-      AsyncLatencyLogger::Get(true);
-      LogLatency(AsyncLatencyLogger::MediaStreamCreate,
-                 reinterpret_cast<uint64_t>(stream.get()),
-                 reinterpret_cast<int64_t>(trackunion->GetInputStream()));
+      domStream = nsDOMUserMediaStream::CreateSourceStream(window, mListener,
+                                                           mAudioDevice, mVideoDevice,
+                                                           msg);
+
+      if (mAudioDevice) {
+        domStream->CreateOwnDOMTrack(kAudioTrack, MediaSegment::AUDIO);
+      }
+      if (mVideoDevice) {
+        domStream->CreateOwnDOMTrack(kVideoTrack, MediaSegment::VIDEO);
+      }
 
       nsCOMPtr<nsIPrincipal> principal;
       if (mPeerIdentity) {
         principal = nsNullPrincipal::Create();
-        trackunion->SetPeerIdentity(mPeerIdentity.forget());
+        domStream->SetPeerIdentity(mPeerIdentity.forget());
       } else {
         principal = window->GetExtantDoc()->NodePrincipal();
       }
-      trackunion->CombineWithPrincipal(principal);
-
-      domStream = trackunion.forget();
+      domStream->CombineWithPrincipal(principal);
+      stream = domStream->GetInputStream()->AsSourceStream();
     }
 
     if (!domStream || sInShutdown) {
@@ -1068,6 +1057,7 @@ public:
     // Activate our listener. We'll call Start() on the source when get a callback
     // that the MediaStream has started consuming. The listener is freed
     // when the page is invalidated (on navigation or close).
+    MOZ_ASSERT(stream);
     mListener->Activate(stream.forget(), mAudioDevice, mVideoDevice);
 
     // Note: includes JS callbacks; must be released on MainThread
@@ -1081,7 +1071,7 @@ public:
 
     // Dispatch to the media thread to ask it to start the sources,
     // because that can take a while.
-    // Pass ownership of trackunion to the MediaOperationTask
+    // Pass ownership of domStream to the MediaOperationTask
     // to ensure it's kept alive until the MediaOperationTask runs (at least).
     MediaManager::PostTask(FROM_HERE,
         new MediaOperationTask(MEDIA_START, mListener, domStream,
@@ -1509,6 +1499,7 @@ MediaManager::MediaManager()
   : mMediaThread(nullptr)
   , mMutex("mozilla::MediaManager")
   , mBackend(nullptr) {
+  mPrefs.mFreq   = 1000; // 1KHz test tone
   mPrefs.mWidth  = 0; // adaptive default
   mPrefs.mHeight = 0; // adaptive default
   mPrefs.mFPS    = MediaEngine::DEFAULT_VIDEO_FPS;
@@ -1521,8 +1512,8 @@ MediaManager::MediaManager()
       GetPrefs(branch, nullptr);
     }
   }
-  LOG(("%s: default prefs: %dx%d @%dfps (min %d)", __FUNCTION__,
-       mPrefs.mWidth, mPrefs.mHeight, mPrefs.mFPS, mPrefs.mMinFPS));
+  LOG(("%s: default prefs: %dx%d @%dfps (min %d), %dHz test tones", __FUNCTION__,
+       mPrefs.mWidth, mPrefs.mHeight, mPrefs.mFPS, mPrefs.mMinFPS, mPrefs.mFreq));
 }
 
 NS_IMPL_ISUPPORTS(MediaManager, nsIMediaManagerService, nsIObserver)
@@ -1586,6 +1577,38 @@ MediaManager::Get() {
       prefs->AddObserver("media.navigator.video.default_fps", sSingleton, false);
       prefs->AddObserver("media.navigator.video.default_minfps", sSingleton, false);
     }
+
+    // Prepare async shutdown
+
+    nsCOMPtr<nsIAsyncShutdownClient> profileBeforeChange;
+    {
+      nsCOMPtr<nsIAsyncShutdownService> svc = services::GetAsyncShutdown();
+      MOZ_RELEASE_ASSERT(svc);
+      nsresult rv = svc->GetProfileBeforeChange(getter_AddRefs(profileBeforeChange));
+      MOZ_RELEASE_ASSERT(NS_SUCCEEDED(rv));
+    }
+
+    class Blocker : public media::ShutdownBlocker
+    {
+    public:
+      Blocker()
+      : media::ShutdownBlocker(NS_LITERAL_STRING(
+          "Media shutdown: blocking on media thread")) {}
+
+      NS_IMETHOD BlockShutdown(nsIAsyncShutdownClient* aProfileBeforeChange) override
+      {
+        MOZ_RELEASE_ASSERT(MediaManager::GetIfExists());
+        MediaManager::GetIfExists()->Shutdown();
+        return NS_OK;
+      }
+    };
+
+    sSingleton->mShutdownBlocker = new Blocker();
+    nsresult rv = profileBeforeChange->AddBlocker(sSingleton->mShutdownBlocker,
+                                                  NS_LITERAL_STRING(__FILE__),
+                                                  __LINE__,
+                                                  NS_LITERAL_STRING("Media shutdown"));
+    MOZ_RELEASE_ASSERT(NS_SUCCEEDED(rv));
 #ifdef MOZ_B2G
     // Init MediaPermissionManager before sending out any permission requests.
     (void) MediaPermissionManager::GetInstance();
@@ -2173,7 +2196,7 @@ MediaManager::AnonymizeId(nsAString& aId, const nsACString& aOriginKey)
 already_AddRefed<nsIWritableVariant>
 MediaManager::ToJSArray(SourceSet& aDevices)
 {
-  nsCOMPtr<nsIWritableVariant> var = do_CreateInstance("@mozilla.org/variant;1");
+  RefPtr<nsVariant> var = new nsVariant();
   size_t len = aDevices.Length();
   if (len) {
     nsTArray<nsIMediaDevice*> tmp(len);
@@ -2498,6 +2521,115 @@ MediaManager::GetPrefs(nsIPrefBranch *aBranch, const char *aData)
   GetPref(aBranch, "media.navigator.video.default_height", aData, &mPrefs.mHeight);
   GetPref(aBranch, "media.navigator.video.default_fps", aData, &mPrefs.mFPS);
   GetPref(aBranch, "media.navigator.video.default_minfps", aData, &mPrefs.mMinFPS);
+  GetPref(aBranch, "media.navigator.audio.fake_frequency", aData, &mPrefs.mFreq);
+}
+
+void
+MediaManager::Shutdown()
+{
+  MOZ_ASSERT(NS_IsMainThread());
+  if (sInShutdown) {
+    return;
+  }
+  sInShutdown = true;
+
+  nsCOMPtr<nsIObserverService> obs = services::GetObserverService();
+
+  obs->RemoveObserver(this, "xpcom-will-shutdown");
+  obs->RemoveObserver(this, "last-pb-context-exited");
+  obs->RemoveObserver(this, "getUserMedia:privileged:allow");
+  obs->RemoveObserver(this, "getUserMedia:response:allow");
+  obs->RemoveObserver(this, "getUserMedia:response:deny");
+  obs->RemoveObserver(this, "getUserMedia:revoke");
+
+  nsCOMPtr<nsIPrefBranch> prefs = do_GetService(NS_PREFSERVICE_CONTRACTID);
+  if (prefs) {
+    prefs->RemoveObserver("media.navigator.video.default_width", this);
+    prefs->RemoveObserver("media.navigator.video.default_height", this);
+    prefs->RemoveObserver("media.navigator.video.default_fps", this);
+    prefs->RemoveObserver("media.navigator.video.default_minfps", this);
+    prefs->RemoveObserver("media.navigator.audio.fake_frequency", this);
+  }
+
+  // Close off any remaining active windows.
+  GetActiveWindows()->Clear();
+  mActiveCallbacks.Clear();
+  mCallIds.Clear();
+  {
+    MutexAutoLock lock(mMutex);
+    if (mBackend) {
+      mBackend->Shutdown(); // ok to invoke multiple times
+    }
+  }
+
+  // Because mMediaThread is not an nsThread, we must dispatch to it so it can
+  // clean up BackgroundChild. Continue stopping thread once this is done.
+
+  class ShutdownTask : public Task
+  {
+  public:
+    ShutdownTask(already_AddRefed<MediaEngine> aBackend,
+                 nsRunnable* aReply)
+      : mReply(aReply)
+      , mBackend(aBackend) {}
+  private:
+    virtual void
+    Run()
+    {
+      LOG(("MediaManager Thread Shutdown"));
+      MOZ_ASSERT(MediaManager::IsInMediaThread());
+      mozilla::ipc::BackgroundChild::CloseForCurrentThread();
+      // must explicitly do this before dispatching the reply, since the reply may kill us with Stop()
+      mBackend = nullptr; // last reference, will invoke Shutdown() again
+
+      if (NS_FAILED(NS_DispatchToMainThread(mReply.forget()))) {
+        LOG(("Will leak thread: DispatchToMainthread of reply runnable failed in MediaManager shutdown"));
+      }
+    }
+    RefPtr<nsRunnable> mReply;
+    RefPtr<MediaEngine> mBackend;
+  };
+
+  // Post ShutdownTask to execute on mMediaThread and pass in a lambda
+  // callback to be executed back on this thread once it is done.
+  //
+  // The lambda callback "captures" the 'this' pointer for member access.
+  // This is safe since this is guaranteed to be here since sSingleton isn't
+  // cleared until the lambda function clears it.
+
+  // note that this == sSingleton
+  RefPtr<MediaManager> that(sSingleton);
+  // Release the backend (and call Shutdown()) from within the MediaManager thread
+  RefPtr<MediaEngine> temp;
+  {
+    MutexAutoLock lock(mMutex);
+    temp = mBackend.forget();
+  }
+  // Don't use MediaManager::PostTask() because we're sInShutdown=true here!
+  mMediaThread->message_loop()->PostTask(FROM_HERE, new ShutdownTask(
+      temp.forget(),
+      media::NewRunnableFrom([this, that]() mutable {
+    LOG(("MediaManager shutdown lambda running, releasing MediaManager singleton and thread"));
+    if (mMediaThread) {
+      mMediaThread->Stop();
+    }
+
+    // Remove async shutdown blocker
+
+    nsCOMPtr<nsIAsyncShutdownClient> profileBeforeChange;
+    {
+      nsCOMPtr<nsIAsyncShutdownService> svc = services::GetAsyncShutdown();
+      MOZ_RELEASE_ASSERT(svc);
+      nsresult rv = svc->GetProfileBeforeChange(getter_AddRefs(profileBeforeChange));
+      MOZ_RELEASE_ASSERT(NS_SUCCEEDED(rv));
+    }
+    profileBeforeChange->RemoveBlocker(sSingleton->mShutdownBlocker);
+
+    // we hold a ref to 'that' which is the same as sSingleton
+    sSingleton = nullptr;
+
+    return NS_OK;
+  })));
 }
 
 nsresult
@@ -2505,7 +2637,6 @@ MediaManager::Observe(nsISupports* aSubject, const char* aTopic,
   const char16_t* aData)
 {
   MOZ_ASSERT(NS_IsMainThread());
-  nsCOMPtr<nsIObserverService> obs = services::GetObserverService();
 
   if (!strcmp(aTopic, NS_PREFBRANCH_PREFCHANGE_TOPIC_ID)) {
     nsCOMPtr<nsIPrefBranch> branch( do_QueryInterface(aSubject) );
@@ -2515,92 +2646,8 @@ MediaManager::Observe(nsISupports* aSubject, const char* aTopic,
            mPrefs.mWidth, mPrefs.mHeight, mPrefs.mFPS, mPrefs.mMinFPS));
     }
   } else if (!strcmp(aTopic, "xpcom-will-shutdown")) {
-    sInShutdown = true;
-
-    obs->RemoveObserver(this, "xpcom-will-shutdown");
-    obs->RemoveObserver(this, "last-pb-context-exited");
-    obs->RemoveObserver(this, "getUserMedia:privileged:allow");
-    obs->RemoveObserver(this, "getUserMedia:response:allow");
-    obs->RemoveObserver(this, "getUserMedia:response:deny");
-    obs->RemoveObserver(this, "getUserMedia:revoke");
-
-    nsCOMPtr<nsIPrefBranch> prefs = do_GetService(NS_PREFSERVICE_CONTRACTID);
-    if (prefs) {
-      prefs->RemoveObserver("media.navigator.video.default_width", this);
-      prefs->RemoveObserver("media.navigator.video.default_height", this);
-      prefs->RemoveObserver("media.navigator.video.default_fps", this);
-      prefs->RemoveObserver("media.navigator.video.default_minfps", this);
-    }
-
-    // Close off any remaining active windows.
-    GetActiveWindows()->Clear();
-    mActiveCallbacks.Clear();
-    mCallIds.Clear();
-    {
-      MutexAutoLock lock(mMutex);
-      if (mBackend) {
-        mBackend->Shutdown(); // ok to invoke multiple times
-      }
-    }
-
-    // Because mMediaThread is not an nsThread, we must dispatch to it so it can
-    // clean up BackgroundChild. Continue stopping thread once this is done.
-
-    class ShutdownTask : public Task
-    {
-    public:
-      ShutdownTask(already_AddRefed<MediaEngine> aBackend,
-                   nsRunnable* aReply)
-        : mReply(aReply)
-        , mBackend(aBackend) {}
-    private:
-      virtual void
-      Run()
-      {
-        LOG(("MediaManager Thread Shutdown"));
-        MOZ_ASSERT(MediaManager::IsInMediaThread());
-        mozilla::ipc::BackgroundChild::CloseForCurrentThread();
-        // must explicitly do this before dispatching the reply, since the reply may kill us with Stop()
-        mBackend = nullptr; // last reference, will invoke Shutdown() again
-
-        if (NS_FAILED(NS_DispatchToMainThread(mReply.forget()))) {
-          LOG(("Will leak thread: DispatchToMainthread of reply runnable failed in MediaManager shutdown"));
-        }
-      }
-      RefPtr<nsRunnable> mReply;
-      RefPtr<MediaEngine> mBackend;
-    };
-
-    // Post ShutdownTask to execute on mMediaThread and pass in a lambda
-    // callback to be executed back on this thread once it is done.
-    //
-    // The lambda callback "captures" the 'this' pointer for member access.
-    // This is safe since this is guaranteed to be here since sSingleton isn't
-    // cleared until the lambda function clears it.
-
-    // note that this == sSingleton
-    RefPtr<MediaManager> that(sSingleton);
-    // Release the backend (and call Shutdown()) from within the MediaManager thread
-    RefPtr<MediaEngine> temp;
-    {
-      MutexAutoLock lock(mMutex);
-      temp = mBackend.forget();
-    }
-    // Don't use MediaManager::PostTask() because we're sInShutdown=true here!
-    mMediaThread->message_loop()->PostTask(FROM_HERE, new ShutdownTask(
-        temp.forget(),
-        media::NewRunnableFrom([this, that]() mutable {
-      LOG(("MediaManager shutdown lambda running, releasing MediaManager singleton and thread"));
-      if (mMediaThread) {
-        mMediaThread->Stop();
-      }
-      // we hold a ref to 'that' which is the same as sSingleton
-      sSingleton = nullptr;
-
-      return NS_OK;
-    })));
+    Shutdown();
     return NS_OK;
-
   } else if (!strcmp(aTopic, "last-pb-context-exited")) {
     // Clear memory of private-browsing-specific deviceIds. Fire and forget.
     media::SanitizeOriginKeys(0, true);
@@ -2715,27 +2762,35 @@ MediaManager::Observe(nsISupports* aSubject, const char* aTopic,
   return NS_OK;
 }
 
-static PLDHashOperator
-WindowsHashToArrayFunc (const uint64_t& aId,
-                        StreamListeners* aData,
-                        void *userArg)
+nsresult
+MediaManager::GetActiveMediaCaptureWindows(nsISupportsArray** aArray)
 {
-  nsISupportsArray *array =
-    static_cast<nsISupportsArray *>(userArg);
-  nsPIDOMWindow *window = static_cast<nsPIDOMWindow*>
-    (nsGlobalWindow::GetInnerWindowWithId(aId));
+  MOZ_ASSERT(aArray);
+  nsISupportsArray* array;
+  nsresult rv = NS_NewISupportsArray(&array); // AddRefs
+  if (NS_FAILED(rv)) {
+    return rv;
+  }
 
-  MOZ_ASSERT(window);
-  if (window) {
+  for (auto iter = mActiveWindows.Iter(); !iter.Done(); iter.Next()) {
+    const uint64_t& id = iter.Key();
+    StreamListeners* listeners = iter.UserData();
+
+    nsPIDOMWindow* window = static_cast<nsPIDOMWindow*>
+      (nsGlobalWindow::GetInnerWindowWithId(id));
+    MOZ_ASSERT(window);
+    if (!window) {
+      continue;
+    }
     // mActiveWindows contains both windows that have requested device
     // access and windows that are currently capturing media. We want
     // to return only the latter. See bug 975177.
     bool capturing = false;
-    if (aData) {
-      uint32_t length = aData->Length();
+    if (listeners) {
+      uint32_t length = listeners->Length();
       for (uint32_t i = 0; i < length; ++i) {
         RefPtr<GetUserMediaCallbackMediaStreamListener> listener =
-          aData->ElementAt(i);
+          listeners->ElementAt(i);
         if (listener->CapturingVideo() || listener->CapturingAudio() ||
             listener->CapturingScreen() || listener->CapturingWindow() ||
             listener->CapturingApplication()) {
@@ -2744,24 +2799,10 @@ WindowsHashToArrayFunc (const uint64_t& aId,
         }
       }
     }
-
-    if (capturing)
+    if (capturing) {
       array->AppendElement(window);
+    }
   }
-  return PL_DHASH_NEXT;
-}
-
-
-nsresult
-MediaManager::GetActiveMediaCaptureWindows(nsISupportsArray **aArray)
-{
-  MOZ_ASSERT(aArray);
-  nsISupportsArray *array;
-  nsresult rv = NS_NewISupportsArray(&array); // AddRefs
-  if (NS_FAILED(rv))
-    return rv;
-
-  mActiveWindows.EnumerateRead(WindowsHashToArrayFunc, array);
 
   *aArray = array;
   return NS_OK;

@@ -1034,6 +1034,7 @@ BytecodeEmitter::emitIndexOp(JSOp op, uint32_t index)
 bool
 BytecodeEmitter::emitAtomOp(JSAtom* atom, JSOp op)
 {
+    MOZ_ASSERT(atom);
     MOZ_ASSERT(JOF_OPTYPE(op) == JOF_ATOM);
 
     // .generator and .genrval lookups should be emitted as JSOP_GETALIASEDVAR
@@ -1934,13 +1935,18 @@ BytecodeEmitter::checkSideEffects(ParseNode* pn, bool* answer)
       case PNK_TRUE:
       case PNK_FALSE:
       case PNK_NULL:
-      case PNK_THIS:
       case PNK_ELISION:
       case PNK_GENERATOR:
       case PNK_NUMBER:
       case PNK_OBJECT_PROPERTY_NAME:
         MOZ_ASSERT(pn->isArity(PN_NULLARY));
         *answer = false;
+        return true;
+
+      // |this| can throw in derived class constructors.
+      case PNK_THIS:
+        MOZ_ASSERT(pn->isArity(PN_NULLARY));
+        *answer = sc->isFunctionBox() && sc->asFunctionBox()->isDerivedClassConstructor();
         return true;
 
       // Trivial binary nodes with more token pos holders.
@@ -2185,6 +2191,7 @@ BytecodeEmitter::checkSideEffects(ParseNode* pn, bool* answer)
       case PNK_NEW:
       case PNK_CALL:
       case PNK_TAGGED_TEMPLATE:
+      case PNK_SUPERCALL:
         MOZ_ASSERT(pn->isArity(PN_LIST));
         *answer = true;
         return true;
@@ -6727,6 +6734,12 @@ BytecodeEmitter::emitCallOrNew(ParseNode* pn)
         }
         callop = false;
         break;
+      case PNK_POSHOLDER:
+        MOZ_ASSERT(pn->isKind(PNK_SUPERCALL));
+        MOZ_ASSERT(parser->handler.isSuperBase(pn2, cx));
+        if (!emit1(JSOP_SUPERFUN))
+            return false;
+        break;
       default:
         if (!emitTree(pn2))
             return false;
@@ -6739,7 +6752,8 @@ BytecodeEmitter::emitCallOrNew(ParseNode* pn)
             return false;
     }
 
-    bool isNewOp = pn->getOp() == JSOP_NEW || pn->getOp() == JSOP_SPREADNEW;
+    bool isNewOp = pn->getOp() == JSOP_NEW || pn->getOp() == JSOP_SPREADNEW ||
+                   pn->getOp() == JSOP_SUPERCALL || pn->getOp() == JSOP_SPREADSUPERCALL;;
 
     /*
      * Emit code for each argument in order, then emit the JSOP_*CALL or
@@ -6755,17 +6769,27 @@ BytecodeEmitter::emitCallOrNew(ParseNode* pn)
         }
 
         if (isNewOp) {
-            // Repush the callee as new.target
-            if (!emitDupAt(argc + 1))
-                return false;
+            if (pn->isKind(PNK_SUPERCALL)) {
+                if (!emit1(JSOP_NEWTARGET))
+                    return false;
+            } else {
+                // Repush the callee as new.target
+                if (!emitDupAt(argc + 1))
+                    return false;
+            }
         }
     } else {
         if (!emitArray(pn2->pn_next, argc, JSOP_SPREADCALLARRAY))
             return false;
 
         if (isNewOp) {
-            if (!emitDupAt(2))
-                return false;
+            if (pn->isKind(PNK_SUPERCALL)) {
+                if (!emit1(JSOP_NEWTARGET))
+                    return false;
+            } else {
+                if (!emitDupAt(2))
+                    return false;
+            }
         }
     }
     emittingForInit = oldEmittingForInit;
@@ -6791,6 +6815,9 @@ BytecodeEmitter::emitCallOrNew(ParseNode* pn)
         if (!emitUint16Operand(JSOP_THROWMSG, JSMSG_BAD_LEFTSIDE_OF_ASS))
             return false;
     }
+
+    if (pn->isKind(PNK_SUPERCALL) && !emit1(JSOP_SETTHIS))
+        return false;
     return true;
 }
 
@@ -7425,7 +7452,6 @@ BytecodeEmitter::emitClass(ParseNode* pn)
             break;
         }
     }
-    MOZ_ASSERT(constructor, "For now, no default constructors");
 
     bool savedStrictness = sc->setLocalStrictMode(true);
 
@@ -7457,12 +7483,22 @@ BytecodeEmitter::emitClass(ParseNode* pn)
             return false;
     }
 
-    if (!emitFunction(constructor, !!heritageExpression))
-        return false;
-
-    if (constructor->pn_funbox->needsHomeObject()) {
-        if (!emit2(JSOP_INITHOMEOBJECT, 0))
+    if (constructor) {
+        if (!emitFunction(constructor, !!heritageExpression))
             return false;
+        if (constructor->pn_funbox->needsHomeObject()) {
+            if (!emit2(JSOP_INITHOMEOBJECT, 0))
+                return false;
+        }
+    } else {
+        JSAtom *name = names ? names->innerBinding()->pn_atom : cx->names().empty;
+        if (heritageExpression) {
+            if (!emitAtomOp(name, JSOP_DERIVEDCONSTRUCTOR))
+                return false;
+        } else {
+            if (!emitAtomOp(name, JSOP_CLASSCONSTRUCTOR))
+                return false;
+        }
     }
 
     if (!emit1(JSOP_SWAP))
@@ -7847,6 +7883,7 @@ BytecodeEmitter::emitTree(ParseNode* pn)
       case PNK_TAGGED_TEMPLATE:
       case PNK_CALL:
       case PNK_GENEXP:
+      case PNK_SUPERCALL:
         ok = emitCallOrNew(pn);
         break;
 

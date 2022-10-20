@@ -651,6 +651,7 @@ protected:
 
   class MediaLoadListener;
   class MediaStreamTracksAvailableCallback;
+  class MediaStreamTrackListener;
   class StreamListener;
   class StreamSizeListener;
 
@@ -741,6 +742,25 @@ protected:
    */
   enum { REMOVING_SRC_STREAM = 0x1 };
   void UpdateSrcMediaStreamPlaying(uint32_t aFlags = 0);
+
+  /**
+   * If loading and playing a MediaStream, for each MediaStreamTrack in the
+   * MediaStream, create a corresponding AudioTrack or VideoTrack during the
+   * phase of resource fetching.
+   */
+  void ConstructMediaTracks();
+
+  /**
+   * Called by our DOMMediaStream::TrackListener when a new MediaStreamTrack has
+   * been added to the playback stream of |mSrcStream|.
+   */
+  void NotifyMediaStreamTrackAdded(const RefPtr<MediaStreamTrack>& aTrack);
+
+  /**
+   * Called by our DOMMediaStream::TrackListener when a MediaStreamTrack in
+   * |mSrcStream|'s playback stream has ended.
+   */
+  void NotifyMediaStreamTrackRemoved(const RefPtr<MediaStreamTrack>& aTrack);
 
   /**
    * Returns an nsDOMMediaStream containing the played contents of this
@@ -1397,6 +1417,8 @@ protected:
   RefPtr<AudioTrackList> mAudioTrackList;
 
   RefPtr<VideoTrackList> mVideoTrackList;
+
+  RefPtr<MediaStreamTrackListener> mMediaStreamTrackListener;
 
   enum ElementInTreeState {
     // The MediaElement is not in the DOM tree now.

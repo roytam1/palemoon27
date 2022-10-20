@@ -52,7 +52,7 @@ using namespace mozilla;
 
 NS_GENERIC_FACTORY_CONSTRUCTOR_INIT(nsAppStartup, Init)
 
-NS_GENERIC_FACTORY_CONSTRUCTOR(nsPerformanceStatsService)
+NS_GENERIC_FACTORY_CONSTRUCTOR_INIT(nsPerformanceStatsService, Init)
 
 #if defined(MOZ_HAS_TERMINATOR)
 NS_GENERIC_FACTORY_CONSTRUCTOR(nsTerminator)

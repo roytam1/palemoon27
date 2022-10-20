@@ -492,6 +492,14 @@ ReportUninitializedLexical(JSContext* cx, HandleScript script, jsbytecode* pc);
 void
 ReportRuntimeRedeclaration(JSContext* cx, HandlePropertyName name,
                            frontend::Definition::Kind declKind);
+bool
+ThrowUninitializedThis(JSContext* cx, AbstractFramePtr frame);
+
+bool
+DefaultClassConstructor(JSContext* cx, unsigned argc, Value* vp);
+
+bool
+DefaultDerivedClassConstructor(JSContext* cx, unsigned argc, Value* vp);
 
 }  /* namespace js */
 

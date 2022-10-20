@@ -63,6 +63,7 @@
 #include "nsReadableUtils.h"
 #include "nsUnicharUtils.h"
 #include "nsLayoutUtils.h"
+#include "nsVariant.h"
 
 #include "nsIDOMMutationEvent.h"
 #include "mozilla/ContentEvents.h"
@@ -807,11 +808,12 @@ UploadLastDir::StoreLastUsedDirectory(nsIDocument* aDoc, nsIFile* aDir)
   aDir->GetPath(unicodePath);
   if (unicodePath.IsEmpty()) // nothing to do
     return NS_OK;
-  nsCOMPtr<nsIWritableVariant> prefValue = do_CreateInstance(NS_VARIANT_CONTRACTID);
-  if (!prefValue)
-    return NS_ERROR_OUT_OF_MEMORY;
+  RefPtr<nsVariant> prefValue = new nsVariant();
   prefValue->SetAsAString(unicodePath);
 
+  // Use the document's current load context to ensure that the content pref
+  // service doesn't persistently store this directory for this domain if the
+  // user is using private browsing:
   nsCOMPtr<nsILoadContext> loadContext = aDoc->GetLoadContext();
   return contentPrefService->Set(spec, CPS_PREF_NAME, prefValue, loadContext, nullptr);
 }

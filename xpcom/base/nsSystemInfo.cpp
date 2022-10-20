@@ -143,7 +143,7 @@ GetHDDInfo(const char* aSpecialDirName, nsAutoCString& aModel,
     return NS_ERROR_FAILURE;
   }
   PSTORAGE_DEVICE_DESCRIPTOR deviceOutput =
-    (PSTORAGE_DEVICE_DESCRIPTOR)malloc(outputHeader.Size);
+    (PSTORAGE_DEVICE_DESCRIPTOR)moz_xmalloc(outputHeader.Size);
   if (!::DeviceIoControl(handle, IOCTL_STORAGE_QUERY_PROPERTY,
                          &queryParameters, sizeof(queryParameters),
                          deviceOutput, outputHeader.Size, &bytesRead,

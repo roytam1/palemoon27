@@ -220,7 +220,7 @@ MediaEngineTabVideoSource::Draw() {
 
   if (mDataSize < static_cast<size_t>(stride * size.height)) {
     mDataSize = stride * size.height;
-    mData = static_cast<unsigned char*>(malloc(mDataSize));
+    mData = static_cast<unsigned char*>(moz_xmalloc(mDataSize));
   }
 
   if (!mData) {
@@ -285,6 +285,15 @@ MediaEngineTabVideoSource::Stop(mozilla::SourceMediaStream*, mozilla::TrackID)
     return NS_OK;
 
   NS_DispatchToMainThread(new StopRunnable(this));
+  return NS_OK;
+}
+
+nsresult
+MediaEngineTabVideoSource::Restart(const dom::MediaTrackConstraints& aConstraints,
+                                   const mozilla::MediaEnginePrefs& aPrefs,
+                                   const nsString& aDeviceId)
+{
+  // TODO
   return NS_OK;
 }
 

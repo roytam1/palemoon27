@@ -41,6 +41,7 @@
 #include "vm/GeneratorObject.h"
 #include "vm/Opcodes.h"
 #include "vm/Shape.h"
+#include "vm/Stopwatch.h"
 #include "vm/TraceLogging.h"
 
 #include "jsatominlines.h"
@@ -54,11 +55,6 @@
 #include "vm/Probes-inl.h"
 #include "vm/ScopeObject-inl.h"
 #include "vm/Stack-inl.h"
-
-#if defined(XP_WIN)
-#include <processthreadsapi.h>
-#include <windows.h>
-#endif // defined(XP_WIN)
 
 using namespace js;
 using namespace js::gc;
@@ -312,6 +308,17 @@ SetPropertyOperation(JSContext* cx, JSOp op, HandleValue lval, HandleId id, Hand
            result.checkStrictErrorOrWarning(cx, obj, id, op == JSOP_STRICTSETPROP);
 }
 
+static JSFunction*
+MakeDefaultConstructor(JSContext* cx, JSOp op, JSAtom* atom, HandleObject proto)
+{
+    bool derived = op == JSOP_DERIVEDCONSTRUCTOR;
+    MOZ_ASSERT(derived == !!proto);
+
+    RootedAtom name(cx, atom == cx->names().empty ? nullptr : atom);
+    JSNative native = derived ? DefaultDerivedClassConstructor : DefaultClassConstructor;
+    return NewFunctionWithProto(cx, native, 0, JSFunction::NATIVE_CLASS_CTOR, nullptr, name, proto);
+}
+
 bool
 js::ReportIsNotFunction(JSContext* cx, HandleValue v, int numToSkip, MaybeConstruct construct)
 {
@@ -340,11 +347,17 @@ RunState::maybeCreateThisForConstructor(JSContext* cx)
         InvokeState& invoke = *asInvoke();
         if (invoke.constructing() && invoke.args().thisv().isPrimitive()) {
             RootedObject callee(cx, &invoke.args().callee());
-            NewObjectKind newKind = invoke.createSingleton() ? SingletonObject : GenericObject;
-            JSObject* obj = CreateThisForFunction(cx, callee, newKind);
-            if (!obj)
-                return false;
-            invoke.args().setThis(ObjectValue(*obj));
+            if (script()->isDerivedClassConstructor()) {
+                MOZ_ASSERT(callee->as<JSFunction>().isClassConstructor());
+                invoke.args().setThis(MagicValue(JS_UNINITIALIZED_LEXICAL));
+            } else {
+                RootedObject newTarget(cx, &invoke.args().newTarget().toObject());
+                NewObjectKind newKind = invoke.createSingleton() ? SingletonObject : GenericObject;
+                JSObject* obj = CreateThisForFunction(cx, callee, newTarget, newKind);
+                if (!obj)
+                    return false;
+                invoke.args().setThis(ObjectValue(*obj));
+            }
         }
     }
     return true;
@@ -365,295 +378,6 @@ ExecuteState::pushInterpreterFrame(JSContext* cx)
     return cx->runtime()->interpreterStack().pushExecuteFrame(cx, script_, thisv_, newTargetValue_,
                                                               scopeChain_, type_, evalInFrame_);
 }
-namespace js {
-// Implementation of per-performance group performance measurement.
-//
-//
-// All mutable state is stored in `Runtime::stopwatch` (per-process
-// performance stats and logistics) and in `PerformanceGroup` (per
-// group performance stats).
-class MOZ_RAII AutoStopwatch final
-{
-    // The context with which this object was initialized.
-    // Non-null.
-    JSContext* const cx_;
-
-    // An indication of the number of times we have entered the event
-    // loop.  Used only for comparison.
-    uint64_t iteration_;
-
-    // `true` if we are monitoring jank, `false` otherwise.
-    bool isMonitoringJank_;
-    // `true` if we are monitoring CPOW, `false` otherwise.
-    bool isMonitoringCPOW_;
-
-    // Timestamps captured while starting the stopwatch.
-    uint64_t cyclesStart_;
-    uint64_t CPOWTimeStart_;
-
-    // The CPU on which we started the measure. Defined only
-    // if `isMonitoringJank_` is `true`.
-#if defined(XP_WIN) && WINVER >= _WIN32_WINNT_VISTA
-    struct cpuid_t {
-        WORD group_;
-        BYTE number_;
-        cpuid_t(WORD group, BYTE number)
-          : group_(group),
-            number_(number)
-        { }
-        cpuid_t()
-          : group_(0),
-            number_(0)
-        { }
-    };
-#elif defined(XP_LINUX)
-    typedef int cpuid_t;
-#else
-    typedef struct {} cpuid_t;
-#endif // defined(XP_WIN) || defined(XP_LINUX)
-
-    cpuid_t cpuStart_;
-
-    // The performance group shared by this compartment and possibly
-    // others, or `nullptr` if another AutoStopwatch is already in
-    // charge of monitoring that group.
-    RefPtr<js::PerformanceGroup> sharedGroup_;
-
-    // The toplevel group, representing the entire process, or `nullptr`
-    // if another AutoStopwatch is already in charge of monitoring that group.
-    RefPtr<js::PerformanceGroup> topGroup_;
-
-    // The performance group specific to this compartment, or
-    // `nullptr` if another AutoStopwatch is already in charge of
-    // monitoring that group.
-    RefPtr<js::PerformanceGroup> ownGroup_;
-
- public:
-    // If the stopwatch is active, constructing an instance of
-    // AutoStopwatch causes it to become the current owner of the
-    // stopwatch.
-    //
-    // Previous owner is restored upon destruction.
-    explicit inline AutoStopwatch(JSContext* cx MOZ_GUARD_OBJECT_NOTIFIER_PARAM)
-      : cx_(cx)
-      , iteration_(0)
-      , isMonitoringJank_(false)
-      , isMonitoringCPOW_(false)
-      , cyclesStart_(0)
-      , CPOWTimeStart_(0)
-    {
-        MOZ_GUARD_OBJECT_NOTIFIER_INIT;
-
-        JSCompartment* compartment = cx_->compartment();
-        if (compartment->scheduledForDestruction)
-            return;
-
-        JSRuntime* runtime = cx_->runtime();
-        iteration_ = runtime->stopwatch.iteration();
-
-        sharedGroup_ = acquireGroup(compartment->performanceMonitoring.getSharedGroup(cx));
-        if (sharedGroup_)
-            topGroup_ = acquireGroup(runtime->stopwatch.performance.getOwnGroup());
-
-        if (runtime->stopwatch.isMonitoringPerCompartment())
-            ownGroup_ = acquireGroup(compartment->performanceMonitoring.getOwnGroup());
-
-        if (!sharedGroup_ && !ownGroup_) {
-            // We are not in charge of monitoring anything.
-            return;
-        }
-
-        // Now that we are sure that JS code is being executed,
-        // initialize the stopwatch for this iteration, lazily.
-        runtime->stopwatch.start();
-        enter();
-    }
-    ~AutoStopwatch()
-    {
-        if (!sharedGroup_ && !ownGroup_) {
-            // We are not in charge of monitoring anything.
-            return;
-        }
-
-        JSCompartment* compartment = cx_->compartment();
-        if (compartment->scheduledForDestruction)
-            return;
-
-        JSRuntime* runtime = cx_->runtime();
-        if (iteration_ != runtime->stopwatch.iteration()) {
-            // We have entered a nested event loop at some point.
-            // Any information we may have is obsolete.
-            return;
-        }
-
-        // Finish and commit measures
-        exit();
-
-        releaseGroup(sharedGroup_);
-        releaseGroup(topGroup_);
-        releaseGroup(ownGroup_);
-    }
-   private:
-    void enter() {
-        JSRuntime* runtime = cx_->runtime();
-
-        if (runtime->stopwatch.isMonitoringCPOW()) {
-            CPOWTimeStart_ = runtime->stopwatch.totalCPOWTime;
-            isMonitoringCPOW_ = true;
-        }
-
-        if (runtime->stopwatch.isMonitoringJank()) {
-            cyclesStart_ = this->getCycles();
-            cpuStart_ = this->getCPU();
-            isMonitoringJank_ = true;
-        }
-
-    }
-
-    void exit() {
-        JSRuntime* runtime = cx_->runtime();
-
-        uint64_t cyclesDelta = 0;
-        if (isMonitoringJank_ && runtime->stopwatch.isMonitoringJank()) {
-            // We were monitoring jank when we entered and we still are.
-
-            // If possible, discard results when we don't end on the
-            // same CPU as we started.  Note that we can be
-            // rescheduled to another CPU beween `getCycles()` and
-            // `getCPU()`.  We hope that this will happen rarely
-            // enough that the impact on our statistics will remain
-            // limited.
-            const cpuid_t cpuEnd = this->getCPU();
-            if (isSameCPU(cpuStart_, cpuEnd)) {
-                const uint64_t cyclesEnd = getCycles();
-                cyclesDelta = getDelta(cyclesEnd, cyclesStart_);
-            }
-#if (defined(XP_WIN) && WINVER >= _WIN32_WINNT_VISTA) || defined(XP_LINUX)
-            if (isSameCPU(cpuStart_, cpuEnd))
-                runtime->stopwatch.testCpuRescheduling.stayed += 1;
-            else
-                runtime->stopwatch.testCpuRescheduling.moved += 1;
-#endif // defined(XP_WIN) || defined(XP_LINUX)
-        }
-
-        uint64_t CPOWTimeDelta = 0;
-        if (isMonitoringCPOW_ && runtime->stopwatch.isMonitoringCPOW()) {
-            // We were monitoring CPOW when we entered and we still are.
-            const uint64_t CPOWTimeEnd = runtime->stopwatch.totalCPOWTime;
-            CPOWTimeDelta = getDelta(CPOWTimeEnd, CPOWTimeStart_);
-
-        }
-        addToGroups(cyclesDelta, CPOWTimeDelta);
-    }
-
-    // Attempt to acquire a group
-    // If the group is `null` or if the group already has a stopwatch,
-    // do nothing and return `null`.
-    // Otherwise, bind the group to `this` for the current iteration
-    // and return `group`.
-    PerformanceGroup* acquireGroup(PerformanceGroup* group) {
-        if (!group)
-            return nullptr;
-
-        if (group->hasStopwatch(iteration_))
-            return nullptr;
-
-        group->acquireStopwatch(iteration_, this);
-        return group;
-    }
-
-    // Release a group.
-    // Noop if `group` is null or if `this` is not the stopwatch
-    // of `group` for the current iteration.
-    void releaseGroup(PerformanceGroup* group) {
-        if (group)
-            group->releaseStopwatch(iteration_, this);
-    }
-
-    // Add recent changes to all the groups owned by this stopwatch.
-    // Mark the groups as changed recently.
-    void addToGroups(uint64_t cyclesDelta, uint64_t CPOWTimeDelta) {
-        addToGroup(cyclesDelta, CPOWTimeDelta, sharedGroup_);
-        addToGroup(cyclesDelta, CPOWTimeDelta, topGroup_);
-        addToGroup(cyclesDelta, CPOWTimeDelta, ownGroup_);
-    }
-
-    // Add recent changes to a single group. Mark the group as changed recently.
-    void addToGroup(uint64_t cyclesDelta, uint64_t CPOWTimeDelta, PerformanceGroup* group) {
-        if (!group)
-            return;
-
-        MOZ_ASSERT(group->hasStopwatch(iteration_, this));
-
-        if (group->recentTicks == 0) {
-            // First time we meet this group during the tick,
-            // mark it as needing updates.
-            JSRuntime* runtime = cx_->runtime();
-            runtime->stopwatch.addChangedGroup(group);
-        }
-        group->recentTicks++;
-        group->recentCycles += cyclesDelta;
-        group->recentCPOW += CPOWTimeDelta;
-    }
-
-    // Perform a subtraction for a quantity that should be monotonic
-    // but is not guaranteed to be so.
-    //
-    // If `start <= end`, return `end - start`.
-    // Otherwise, return `0`.
-    uint64_t getDelta(const uint64_t end, const uint64_t start) const
-    {
-        if (start >= end)
-            return 0;
-        return end - start;
-    }
-
-    // Return the value of the Timestamp Counter, as provided by the CPU.
-    // 0 on platforms for which we do not have access to a Timestamp Counter.
-    uint64_t getCycles() const
-    {
-#if defined(MOZ_HAVE_RDTSC)
-        return ReadTimestampCounter();
-#else
-        return 0;
-#endif // defined(MOZ_HAVE_RDTSC)
-    }
-
-
-    // Return the identifier of the current CPU, on platforms for which we have
-    // access to the current CPU.
-    cpuid_t inline getCPU() const
-    {
-#if defined(XP_WIN) && WINVER >= _WIN32_WINNT_VISTA
-        PROCESSOR_NUMBER proc;
-        GetCurrentProcessorNumberEx(&proc);
-
-        cpuid_t result(proc.Group, proc.Number);
-        return result;
-#elif defined(XP_LINUX)
-        return sched_getcpu();
-#else
-        return {};
-#endif // defined(XP_WIN) || defined(XP_LINUX)
-    }
-
-    // Compare two CPU identifiers.
-    bool inline isSameCPU(const cpuid_t& a, const cpuid_t& b) const
-    {
-#if defined(XP_WIN)  && WINVER >= _WIN32_WINNT_VISTA
-        return a.group_ == b.group_ && a.number_ == b.number_;
-#elif defined(XP_LINUX)
-        return a == b;
-#else
-        return true;
-#endif
-    }
- private:
-    MOZ_DECL_USE_GUARD_OBJECT_NOTIFIER;
-};
-
-} // namespace js
-
 // MSVC with PGO inlines a lot of functions in RunScript, resulting in large
 // stack frames and stack overflow issues, see bug 1167883. Turn off PGO to
 // avoid this.
@@ -862,9 +586,9 @@ StackCheckIsConstructorCalleeNewTarget(JSContext* cx, HandleValue callee, Handle
         return false;
     }
 
-    // The new.target for a stack construction attempt is just the callee: no
-    // need to check that it's a constructor.
-    MOZ_ASSERT(&callee.toObject() == &newTarget.toObject());
+    // The new.target has already been vetted by previous calls, or is the callee.
+    // We can just assert that it's a constructor.
+    MOZ_ASSERT(IsConstructor(newTarget));
 
     return true;
 }
@@ -1776,6 +1500,34 @@ SetObjectElementOperation(JSContext* cx, HandleObject obj, HandleId id, HandleVa
 }
 
 /*
+ * Get the innermost enclosing function that has a 'this' binding.
+ *
+ * Implements ES6 12.3.5.2 GetSuperConstructor() steps 1-3, including
+ * the loop in ES6 8.3.2 GetThisEnvironment(). Our implementation of
+ * ES6 12.3.5.3 MakeSuperPropertyReference() also uses this code.
+ */
+static JSFunction&
+GetSuperEnvFunction(JSContext *cx, InterpreterRegs& regs)
+{
+    ScopeIter si(cx, regs.fp()->scopeChain(), regs.fp()->script()->innermostStaticScope(regs.pc));
+    for (; !si.done(); ++si) {
+        if (si.hasSyntacticScopeObject() && si.type() == ScopeIter::Call) {
+            JSFunction& callee = si.scope().as<CallObject>().callee();
+
+            // Arrow functions don't have the information we're looking for,
+            // their enclosing scopes do. Nevertheless, they might have call
+            // objects. Skip them to find what we came for.
+            if (callee.isArrow())
+                continue;
+
+            return callee;
+        }
+    }
+    MOZ_CRASH("unexpected scope chain for GetSuperEnvFunction");
+}
+
+
+/*
  * As an optimization, the interpreter creates a handful of reserved Rooted<T>
  * variables at the beginning, thus inserting them into the Rooted list once
  * upon entry. ReservedRooted "borrows" a reserved Rooted variable and uses it
@@ -2084,12 +1836,6 @@ CASE(JSOP_NOP)
 CASE(JSOP_UNUSED2)
 CASE(JSOP_UNUSED14)
 CASE(JSOP_BACKPATCH)
-CASE(JSOP_UNUSED163)
-CASE(JSOP_UNUSED164)
-CASE(JSOP_UNUSED165)
-CASE(JSOP_UNUSED166)
-CASE(JSOP_UNUSED167)
-CASE(JSOP_UNUSED168)
 CASE(JSOP_UNUSED169)
 CASE(JSOP_UNUSED170)
 CASE(JSOP_UNUSED171)
@@ -2228,8 +1974,12 @@ CASE(JSOP_RETRVAL)
      */
     CHECK_BRANCH();
 
+    if (!REGS.fp()->checkReturn(cx))
+        goto error;
+
   successful_return_continuation:
     interpReturnOK = true;
+
   return_continuation:
     if (activation.entryFrame() != REGS.fp()) {
         // Stop the engine. (No details about which engine exactly, could be
@@ -2806,6 +2556,8 @@ END_CASE(JSOP_VOID)
 CASE(JSOP_THIS)
     if (!ComputeThis(cx, REGS.fp()))
         goto error;
+    if (!REGS.fp()->checkThis(cx))
+        goto error;
     PUSH_COPY(REGS.fp()->thisValue());
 END_CASE(JSOP_THIS)
 
@@ -3027,6 +2779,7 @@ END_CASE(JSOP_EVAL)
 
 CASE(JSOP_SPREADNEW)
 CASE(JSOP_SPREADCALL)
+CASE(JSOP_SPREADSUPERCALL)
     if (REGS.fp()->hasPushedSPSFrame())
         cx->runtime()->spsProfiler.updatePC(script, REGS.pc);
     /* FALL THROUGH */
@@ -3036,7 +2789,7 @@ CASE(JSOP_STRICTSPREADEVAL)
 {
     static_assert(JSOP_SPREADEVAL_LENGTH == JSOP_STRICTSPREADEVAL_LENGTH,
                   "spreadeval and strictspreadeval must be the same size");
-    bool construct = JSOp(*REGS.pc) == JSOP_SPREADNEW;
+    bool construct = JSOp(*REGS.pc) == JSOP_SPREADNEW || JSOp(*REGS.pc) == JSOP_SPREADSUPERCALL;;
 
     MOZ_ASSERT(REGS.stackDepth() >= 3u + construct);
 
@@ -3068,12 +2821,13 @@ CASE(JSOP_FUNAPPLY)
 
 CASE(JSOP_NEW)
 CASE(JSOP_CALL)
+CASE(JSOP_SUPERCALL)
 CASE(JSOP_FUNCALL)
 {
     if (REGS.fp()->hasPushedSPSFrame())
         cx->runtime()->spsProfiler.updatePC(script, REGS.pc);
 
-    bool construct = (*REGS.pc == JSOP_NEW);
+    bool construct = (*REGS.pc == JSOP_NEW || *REGS.pc == JSOP_SUPERCALL);
     unsigned argStackSlots = GET_ARGC(REGS.pc) + construct;
 
     MOZ_ASSERT(REGS.stackDepth() >= 2u + GET_ARGC(REGS.pc));
@@ -4096,37 +3850,22 @@ END_CASE(JSOP_INITHOMEOBJECT)
 
 CASE(JSOP_SUPERBASE)
 {
-    ScopeIter si(cx, REGS.fp()->scopeChain(), REGS.fp()->script()->innermostStaticScope(REGS.pc));
-    for (; !si.done(); ++si) {
-        if (si.hasSyntacticScopeObject() && si.type() == ScopeIter::Call) {
-            JSFunction& callee = si.scope().as<CallObject>().callee();
+    JSFunction& superEnvFunc = GetSuperEnvFunction(cx, REGS);
+    MOZ_ASSERT(superEnvFunc.allowSuperProperty());
+    MOZ_ASSERT(superEnvFunc.nonLazyScript()->needsHomeObject());
+    const Value& homeObjVal = superEnvFunc.getExtendedSlot(FunctionExtended::METHOD_HOMEOBJECT_SLOT);
 
-            // Arrow functions don't have the information we're looking for,
-            // their enclosing scopes do. Nevertheless, they might have call
-            // objects. Skip them to find what we came for.
-            if (callee.isArrow())
-                continue;
+    ReservedRooted<JSObject*> homeObj(&rootObject0, &homeObjVal.toObject());
+    ReservedRooted<JSObject*> superBase(&rootObject1);
+    if (!GetPrototype(cx, homeObj, &superBase))
+        goto error;
 
-            MOZ_ASSERT(callee.allowSuperProperty());
-            MOZ_ASSERT(callee.nonLazyScript()->needsHomeObject());
-            const Value& homeObjVal = callee.getExtendedSlot(FunctionExtended::METHOD_HOMEOBJECT_SLOT);
-
-            ReservedRooted<JSObject*> homeObj(&rootObject0, &homeObjVal.toObject());
-            ReservedRooted<JSObject*> superBase(&rootObject1);
-            if (!GetPrototype(cx, homeObj, &superBase))
-                goto error;
-
-            if (!superBase) {
-                JS_ReportErrorNumber(cx, GetErrorMessage, nullptr, JSMSG_CANT_CONVERT_TO,
-                                     "null", "object");
-                goto error;
-            }
-            PUSH_OBJECT(*superBase);
-            break;
-        }
+    if (!superBase) {
+        JS_ReportErrorNumber(cx, GetErrorMessage, nullptr, JSMSG_CANT_CONVERT_TO,
+                                "null", "object");
+        goto error;
     }
-    if (si.done())
-        MOZ_CRASH("Unexpected scope chain in superbase");
+    PUSH_OBJECT(*superBase);
 }
 END_CASE(JSOP_SUPERBASE)
 
@@ -4134,6 +3873,72 @@ CASE(JSOP_NEWTARGET)
     PUSH_COPY(REGS.fp()->newTarget());
     MOZ_ASSERT(REGS.sp[-1].isObject() || REGS.sp[-1].isUndefined());
 END_CASE(JSOP_NEWTARGET)
+
+CASE(JSOP_SUPERFUN)
+{
+    ReservedRooted<JSObject*> superEnvFunc(&rootObject0, &GetSuperEnvFunction(cx, REGS));
+    MOZ_ASSERT(superEnvFunc->as<JSFunction>().isClassConstructor());
+    MOZ_ASSERT(superEnvFunc->as<JSFunction>().nonLazyScript()->isDerivedClassConstructor());
+
+    ReservedRooted<JSObject*> superFun(&rootObject1);
+
+    if (!GetPrototype(cx, superEnvFunc, &superFun))
+        goto error;
+
+    ReservedRooted<Value> superFunVal(&rootValue0, UndefinedValue());
+    if (!superFun)
+        superFunVal = NullValue();
+    else if (!superFun->isConstructor())
+        superFunVal = ObjectValue(*superFun);
+
+    if (superFunVal.isObjectOrNull()) {
+        ReportIsNotFunction(cx, superFunVal, JSDVG_IGNORE_STACK, CONSTRUCT);
+        goto error;
+    }
+
+    PUSH_OBJECT(*superFun);
+}
+END_CASE(JSOP_SUPERFUN)
+
+CASE(JSOP_SETTHIS)
+{
+    MOZ_ASSERT(REGS.fp()->isNonEvalFunctionFrame());
+    MOZ_ASSERT(REGS.fp()->script()->isDerivedClassConstructor());
+    MOZ_ASSERT(REGS.fp()->callee().isClassConstructor());
+
+    if (!REGS.fp()->thisValue().isMagic(JS_UNINITIALIZED_LEXICAL)) {
+        JS_ReportErrorNumber(cx, GetErrorMessage, nullptr, JSMSG_REINIT_THIS);
+        goto error;
+    }
+
+    ReservedRooted<JSObject*> thisv(&rootObject0, &REGS.sp[-1].toObject());
+    REGS.fp()->setDerivedConstructorThis(thisv);
+}
+END_CASE(JSOP_SETTHIS)
+
+CASE(JSOP_DERIVEDCONSTRUCTOR)
+{
+    MOZ_ASSERT(REGS.sp[-1].isObject());
+    ReservedRooted<JSObject*> proto(&rootObject0, &REGS.sp[-1].toObject());
+
+    JSFunction* constructor = MakeDefaultConstructor(cx, JSOp(*REGS.pc), script->getAtom(REGS.pc),
+                                                     proto);
+    if (!constructor)
+        goto error;
+
+    REGS.sp[-1].setObject(*constructor);
+}
+END_CASE(JSOP_DERIVEDCONSTRUCTOR)
+
+CASE(JSOP_CLASSCONSTRUCTOR)
+{
+    JSFunction* constructor = MakeDefaultConstructor(cx, JSOp(*REGS.pc), script->getAtom(REGS.pc),
+                                                     nullptr);
+    if (!constructor)
+        goto error;
+    PUSH_OBJECT(*constructor);
+}
+END_CASE(JSOP_CLASSCONSTRUCTOR)
 
 DEFAULT()
 {
@@ -4745,7 +4550,7 @@ js::SpreadCallOperation(JSContext* cx, HandleScript script, jsbytecode* pc, Hand
     RootedArrayObject aobj(cx, &arr.toObject().as<ArrayObject>());
     uint32_t length = aobj->length();
     JSOp op = JSOp(*pc);
-    bool constructing = op == JSOP_SPREADNEW;
+    bool constructing = op == JSOP_SPREADNEW || op == JSOP_SPREADSUPERCALL;
 
     if (length > ARGS_LENGTH_MAX) {
         JS_ReportErrorNumber(cx, GetErrorMessage, nullptr,
@@ -4763,7 +4568,7 @@ js::SpreadCallOperation(JSContext* cx, HandleScript script, jsbytecode* pc, Hand
         MOZ_ASSERT(!aobj->getDenseElement(i).isMagic());
 #endif
 
-    if (op == JSOP_SPREADNEW) {
+    if (constructing) {
         if (!StackCheckIsConstructorCalleeNewTarget(cx, callee, newTarget))
             return false;
 
@@ -5006,6 +4811,63 @@ js::ReportUninitializedLexical(JSContext* cx, HandleScript script, jsbytecode* p
     ReportUninitializedLexical(cx, name);
 }
 
+bool
+js::DefaultClassConstructor(JSContext* cx, unsigned argc, Value* vp)
+{
+    CallArgs args = CallArgsFromVp(argc, vp);
+    if (!args.isConstructing()) {
+        JS_ReportErrorNumber(cx, GetErrorMessage, nullptr, JSMSG_CANT_CALL_CLASS_CONSTRUCTOR);
+        return false;
+    }
+
+    RootedObject newTarget(cx, &args.newTarget().toObject());
+    RootedValue protoVal(cx);
+
+    if (!GetProperty(cx, newTarget, newTarget, cx->names().prototype, &protoVal))
+        return false;
+
+    RootedObject proto(cx);
+    if (!protoVal.isObject()) {
+        if (!GetBuiltinPrototype(cx, JSProto_Object, &proto))
+            return false;
+    } else {
+        proto = &protoVal.toObject();
+    }
+
+    JSObject* obj = NewObjectWithGivenProto(cx, &PlainObject::class_, proto);
+    if (!obj)
+        return false;
+
+    args.rval().set(ObjectValue(*obj));
+    return true;
+}
+
+bool
+js::DefaultDerivedClassConstructor(JSContext* cx, unsigned argc, Value* vp)
+{
+    CallArgs args = CallArgsFromVp(argc, vp);
+    if (!args.isConstructing()) {
+        JS_ReportErrorNumber(cx, GetErrorMessage, nullptr, JSMSG_CANT_CALL_CLASS_CONSTRUCTOR);
+        return false;
+    }
+
+    RootedObject fun(cx, &args.callee());
+    RootedObject superFun(cx);
+    if (!GetPrototype(cx, fun, &superFun))
+        return false;
+
+    RootedValue fval(cx, ObjectOrNullValue(superFun));
+    if (!IsConstructor(fval)) {
+        ReportValueError(cx, JSMSG_NOT_CONSTRUCTOR, JSDVG_IGNORE_STACK, fval, nullptr);
+        return false;
+    }
+
+    ConstructArgs constArgs(cx);
+    if (!FillArgumentsFromArraylike(cx, constArgs, args))
+        return false;
+    return Construct(cx, fval, constArgs, args.newTarget(), args.rval());
+}
+
 void
 js::ReportRuntimeRedeclaration(JSContext* cx, HandlePropertyName name,
                                frontend::Definition::Kind declKind)
@@ -5022,4 +4884,24 @@ js::ReportRuntimeRedeclaration(JSContext* cx, HandlePropertyName name,
         JS_ReportErrorNumber(cx, GetErrorMessage, nullptr, JSMSG_REDECLARED_VAR,
                              kindStr, printable.ptr());
     }
+}
+
+bool
+js::ThrowUninitializedThis(JSContext* cx, AbstractFramePtr frame)
+{
+    RootedFunction fun(cx, frame.callee());
+
+    MOZ_ASSERT(fun->isClassConstructor());
+    MOZ_ASSERT(fun->nonLazyScript()->isDerivedClassConstructor());
+
+    const char* name = "anonymous";
+    JSAutoByteString str;
+    if (fun->atom()) {
+        if (!AtomToPrintableString(cx, fun->atom(), &str))
+            return false;
+        name = str.ptr();
+    }
+
+    JS_ReportErrorNumber(cx, GetErrorMessage, nullptr, JSMSG_UNINITIALIZED_THIS, name);
+    return false;
 }

@@ -83,7 +83,7 @@ nsHttpPipeline::~nsHttpPipeline()
     Close(NS_ERROR_ABORT);
 
     if (mPushBackBuf)
-        free(mPushBackBuf);
+        moz_free(mPushBackBuf);
 }
 
 nsresult
@@ -308,7 +308,7 @@ nsHttpPipeline::PushBack(const char *data, uint32_t length)
 
     if (!mPushBackBuf) {
         mPushBackMax = length;
-        mPushBackBuf = (char *) malloc(mPushBackMax);
+        mPushBackBuf = (char *) moz_xmalloc(mPushBackMax);
         if (!mPushBackBuf)
             return NS_ERROR_OUT_OF_MEMORY;
     }
@@ -316,7 +316,7 @@ nsHttpPipeline::PushBack(const char *data, uint32_t length)
         // grow push back buffer as necessary.
         MOZ_ASSERT(length <= nsIOService::gDefaultSegmentSize, "too big");
         mPushBackMax = length;
-        mPushBackBuf = (char *) realloc(mPushBackBuf, mPushBackMax);
+        mPushBackBuf = (char *) moz_xrealloc(mPushBackBuf, mPushBackMax);
         if (!mPushBackBuf)
             return NS_ERROR_OUT_OF_MEMORY;
     }

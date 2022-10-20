@@ -57,11 +57,11 @@ nsHTTPCompressConv::nsHTTPCompressConv()
 nsHTTPCompressConv::~nsHTTPCompressConv()
 {
   if (mInpBuffer) {
-    free(mInpBuffer);
+    moz_free(mInpBuffer);
   }
 
   if (mOutBuffer) {
-    free(mOutBuffer);
+    moz_free(mOutBuffer);
   }
 
   // For some reason we are not getting Z_STREAM_END.  But this was also seen
@@ -258,10 +258,10 @@ nsHTTPCompressConv::OnDataAvailable(nsIRequest* request,
   case HTTP_COMPRESS_DEFLATE:
 
     if (mInpBuffer != nullptr && streamLen > mInpBufferLen) {
-      mInpBuffer = (unsigned char *) realloc(mInpBuffer, mInpBufferLen = streamLen);
+      mInpBuffer = (unsigned char *) moz_xrealloc(mInpBuffer, mInpBufferLen = streamLen);
 
       if (mOutBufferLen < streamLen * 2) {
-        mOutBuffer = (unsigned char *) realloc(mOutBuffer, mOutBufferLen = streamLen * 3);
+        mOutBuffer = (unsigned char *) moz_xrealloc(mOutBuffer, mOutBufferLen = streamLen * 3);
       }
 
       if (mInpBuffer == nullptr || mOutBuffer == nullptr) {
@@ -270,11 +270,11 @@ nsHTTPCompressConv::OnDataAvailable(nsIRequest* request,
     }
 
     if (mInpBuffer == nullptr) {
-      mInpBuffer = (unsigned char *) malloc(mInpBufferLen = streamLen);
+      mInpBuffer = (unsigned char *) moz_xmalloc(mInpBufferLen = streamLen);
     }
 
     if (mOutBuffer == nullptr) {
-      mOutBuffer = (unsigned char *) malloc(mOutBufferLen = streamLen * 3);
+      mOutBuffer = (unsigned char *) moz_xmalloc(mOutBufferLen = streamLen * 3);
     }
 
     if (mInpBuffer == nullptr || mOutBuffer == nullptr) {

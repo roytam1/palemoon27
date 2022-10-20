@@ -13,7 +13,6 @@
 #include "AudioSegment.h"
 #include "SelfRef.h"
 #include "mozilla/Atomics.h"
-#include "AudioContext.h"
 
 struct cubeb_stream;
 
@@ -330,8 +329,7 @@ class AudioCallbackDriver : public GraphDriver,
                             public MixerCallbackReceiver
 {
 public:
-  explicit AudioCallbackDriver(MediaStreamGraphImpl* aGraphImpl,
-                               dom::AudioChannel aChannel = dom::AudioChannel::Normal);
+  explicit AudioCallbackDriver(MediaStreamGraphImpl* aGraphImpl);
   virtual ~AudioCallbackDriver();
 
   virtual void Destroy() override;

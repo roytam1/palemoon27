@@ -185,7 +185,7 @@ NS_IMETHODIMP nsSound::OnStreamComplete(nsIStreamLoader *aLoader,
   if (data && dataLen > 0) {
     DWORD flags = SND_MEMORY | SND_NODEFAULT;
     // We try to make a copy so we can play it async.
-    mLastSound = (uint8_t *) malloc(dataLen);
+    mLastSound = (uint8_t *) moz_xmalloc(dataLen);
     if (mLastSound) {
       memcpy(mLastSound, data, dataLen);
       data = mLastSound;

@@ -301,7 +301,7 @@ XRemoteClient::GetLock(Window aWindow, bool *aDestroyed)
     
     // allocate enough space for the string plus the terminating
     // char
-    mLockData = (char *)malloc(strlen(pidstr) + strlen(sysinfobuf) + 1);
+    mLockData = (char *)moz_xmalloc(strlen(pidstr) + strlen(sysinfobuf) + 1);
     if (!mLockData)
       return NS_ERROR_OUT_OF_MEMORY;
 
@@ -640,7 +640,7 @@ XRemoteClient::DoSendCommandLine(Window aWindow, int32_t argc, char **argv,
     argvlen += len;
   }
 
-  int32_t* buffer = (int32_t*) malloc(argvlen + argc + 1 +
+  int32_t* buffer = (int32_t*) moz_xmalloc(argvlen + argc + 1 +
                                       sizeof(int32_t) * (argc + 1));
   if (!buffer)
     return NS_ERROR_OUT_OF_MEMORY;

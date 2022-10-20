@@ -72,7 +72,7 @@ public:
                              nsIOutputStream* aSink, nsInputStreamTee* aTee)
   {
     // copy the buffer - will be free'd by dtor
-    mBuf = (char*)malloc(aCount);
+    mBuf = (char*)moz_xmalloc(aCount);
     if (mBuf) {
       memcpy(mBuf, (char*)aBuf, aCount);
     }

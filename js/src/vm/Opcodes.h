@@ -79,6 +79,7 @@
  *     Object
  *     Array
  *     RegExp
+ *     Class
  *   [Other]
  */
 
@@ -1669,12 +1670,63 @@
      */ \
     macro(JSOP_DEFLET,        162,"deflet",     NULL,     5,  0,  0,  JOF_ATOM) \
     \
-    macro(JSOP_UNUSED163,     163,"unused163",  NULL,     1,  0,  0,  JOF_BYTE) \
-    macro(JSOP_UNUSED164,     164,"unused164",  NULL,     1,  0,  0,  JOF_BYTE) \
-    macro(JSOP_UNUSED165,     165,"unused165",  NULL,     1,  0,  0,  JOF_BYTE) \
-    macro(JSOP_UNUSED166,     166,"unused166",  NULL,     1,  0,  0,  JOF_BYTE) \
-    macro(JSOP_UNUSED167,     167,"unused167",  NULL,     1,  0,  0,  JOF_BYTE) \
-    macro(JSOP_UNUSED168,     168,"unused168",  NULL,     1,  0,  0,  JOF_BYTE) \
+    /*
+     * Bind the |this| value of a function to the supplied value.
+     *
+     *  Category: Variables and Scopes
+     *  Type: This
+     *  Operands:
+     *  Stack: this => this
+     */ \
+    macro(JSOP_SETTHIS  ,     163,"setthis",    NULL,     1,  1,  1,  JOF_BYTE) \
+    /*
+     * Find the function to invoke with |super()| on the scope chain.
+     *
+     *  Category: Variables and Scopes
+     *  Type: Super
+     *  Operands:
+     *  Stack: => superFun
+     */ \
+    macro(JSOP_SUPERFUN,      164,"superfun",   NULL,     1,  0,  1,  JOF_BYTE) \
+    /*
+     * Behaves exactly like JSOP_NEW, but allows JITs to distinguish the two cases.
+     *
+     *   Category: Statements
+     *   Type: Function
+     *   Operands: uint16_t argc
+     *   Stack: callee, this, args[0], ..., args[argc-1], newTarget => rval
+     *   nuses: (argc+3)
+     */ \
+    macro(JSOP_SUPERCALL,     165,"supercall",  NULL,     3, -1,  1,  JOF_UINT16|JOF_INVOKE|JOF_TYPESET) \
+    /*
+     * spreadcall variant of JSOP_SUPERCALL.
+     *
+     * Behaves exactly like JSOP_SPREADNEW.
+     *
+     *   Category: Statements
+     *   Type: Function
+     *   Operands:
+     *   Stack: callee, this, args, newTarget => rval
+     */ \
+    macro(JSOP_SPREADSUPERCALL, 166, "spreadsupercall", NULL, 1,  4,  1, JOF_BYTE|JOF_INVOKE|JOF_TYPESET) \
+    /*
+     * Push a default constructor for a base class literal.
+     *
+     *   Category: Literals
+     *   Type: Class
+     *   Operands: atom className
+     *   Stack: => constructor
+     */ \
+    macro(JSOP_CLASSCONSTRUCTOR, 167,"classconstructor", NULL, 5,  0,  1,  JOF_ATOM) \
+    /*
+     * Push a default constructor for a derived class literal.
+     *
+     *   Category: Literals
+     *   Type: Class
+     *   Operands: atom className
+     *   Stack: => constructor
+     */ \
+    macro(JSOP_DERIVEDCONSTRUCTOR, 168,"derivedconstructor", NULL, 5,  1,  1,  JOF_ATOM) \
     macro(JSOP_UNUSED169,     169,"unused169",  NULL,     1,  0,  0,  JOF_BYTE) \
     macro(JSOP_UNUSED170,     170,"unused170",  NULL,     1,  0,  0,  JOF_BYTE) \
     macro(JSOP_UNUSED171,     171,"unused171",  NULL,     1,  0,  0,  JOF_BYTE) \

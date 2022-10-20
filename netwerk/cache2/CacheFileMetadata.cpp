@@ -259,7 +259,7 @@ CacheFileMetadata::WriteMetadata(uint32_t aOffset,
 
   mIsDirty = false;
 
-  mWriteBuf = static_cast<char *>(malloc(CalcMetadataSize(mElementsSize,
+  mWriteBuf = static_cast<char *>(moz_xmalloc(CalcMetadataSize(mElementsSize,
                                                           mHashCount)));
   if (!mWriteBuf) {
     return NS_ERROR_OUT_OF_MEMORY;
@@ -357,7 +357,7 @@ CacheFileMetadata::SyncReadMetadata(nsIFile *aFile)
     return NS_ERROR_FAILURE;
   }
 
-  mBuf = static_cast<char *>(malloc(fileSize - metaOffset));
+  mBuf = static_cast<char *>(moz_xmalloc(fileSize - metaOffset));
   if (!mBuf) {
     return NS_ERROR_OUT_OF_MEMORY;
   }
@@ -703,7 +703,7 @@ CacheFileMetadata::OnDataRead(CacheFileHandle *aHandle, char *aBuf,
   if (realOffset < usedOffset) {
     uint32_t missing = usedOffset - realOffset;
     // we need to read more data
-    char *newBuf = static_cast<char *>(realloc(mBuf, mBufSize + missing));
+    char *newBuf = static_cast<char *>(moz_xrealloc(mBuf, mBufSize + missing));
     if (!newBuf) {
       LOG(("CacheFileMetadata::OnDataRead() - Error allocating %d more bytes "
            "for the missing part of the metadata, creating empty metadata. "
@@ -977,7 +977,7 @@ CacheFileMetadata::EnsureBuffer(uint32_t aSize)
       aSize = kInitialBufSize;
     }
 
-    char *newBuf = static_cast<char *>(realloc(mBuf, aSize));
+    char *newBuf = static_cast<char *>(moz_xrealloc(mBuf, aSize));
     if (!newBuf) {
       return NS_ERROR_OUT_OF_MEMORY;
     }

@@ -6598,12 +6598,6 @@ Parser<FullParseHandler>::classDefinition(YieldHandling yieldHandling,
             return null();
     }
 
-    // Default constructors not yet implemented. See bug 1105463
-    if (!seenConstructor) {
-        report(ParseError, false, null(), JSMSG_NO_CLASS_CONSTRUCTOR);
-        return null();
-    }
-
     ParseNode* nameNode = null();
     ParseNode* methodsOrBlock = classMethods;
     if (name) {
@@ -8559,9 +8553,31 @@ Parser<ParseHandler>::memberExpr(YieldHandling yieldHandling, TokenKind tt, bool
                    tt == TOK_NO_SUBS_TEMPLATE)
         {
             if (handler.isSuperBase(lhs, context)) {
-                // For now...
-                report(ParseError, false, null(), JSMSG_BAD_SUPER);
-                return null();
+                if (!pc->sc->isFunctionBox() || !pc->sc->asFunctionBox()->isDerivedClassConstructor()) {
+                    report(ParseError, false, null(), JSMSG_BAD_SUPERCALL);
+                    return null();
+                }
+
+                if (tt != TOK_LP) {
+                    report(ParseError, false, null(), JSMSG_BAD_SUPER);
+                    return null();
+                }
+
+                nextMember = handler.newList(PNK_SUPERCALL, lhs, JSOP_SUPERCALL);
+                if (!nextMember)
+                    return null();
+
+                // Despite the fact that it's impossible to have |super()| is a
+                // generator, we still inherity the yieldHandling of the
+                // memberExpression, per spec. Curious.
+                bool isSpread = false;
+                if (!argumentList(yieldHandling, nextMember, &isSpread))
+                    return null();
+
+                if (isSpread)
+                    handler.setOp(nextMember, JSOP_SPREADSUPERCALL);
+
+                return nextMember;
             }
 
             nextMember = tt == TOK_LP ? handler.newCall() : handler.newTaggedTemplate();

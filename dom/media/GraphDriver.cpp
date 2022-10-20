@@ -5,6 +5,7 @@
 
 #include <MediaStreamGraphImpl.h>
 #include "CubebUtils.h"
+#include "webaudio/AudioContext.h"
 
 #ifdef XP_MACOSX
 #include <sys/sysctl.h>
@@ -299,8 +300,6 @@ ThreadedDriver::RunThread()
                (long)mIterationStart, (long)mIterationEnd,
                (long)stateComputedTime, (long)nextStateComputedTime));
 
-    mGraphImpl->mFlushSourcesNow = mGraphImpl->mFlushSourcesOnNextIteration;
-    mGraphImpl->mFlushSourcesOnNextIteration = false;
     stillProcessing = mGraphImpl->OneIteration(nextStateComputedTime);
 
     if (mNextDriver && stillProcessing) {
@@ -500,14 +499,14 @@ StreamAndPromiseForOperation::StreamAndPromiseForOperation(MediaStream* aStream,
   , mPromise(aPromise)
   , mOperation(aOperation)
 {
-  MOZ_ASSERT(aPromise);
+  // MOZ_ASSERT(aPromise);
 }
 
-AudioCallbackDriver::AudioCallbackDriver(MediaStreamGraphImpl* aGraphImpl, dom::AudioChannel aChannel)
+AudioCallbackDriver::AudioCallbackDriver(MediaStreamGraphImpl* aGraphImpl)
   : GraphDriver(aGraphImpl)
   , mIterationDurationMS(MEDIA_GRAPH_TARGET_PERIOD_MS)
   , mStarted(false)
-  , mAudioChannel(aChannel)
+  , mAudioChannel(aGraphImpl->AudioChannel())
   , mInCallback(false)
   , mPauseRequested(false)
 #ifdef XP_MACOSX
@@ -967,7 +966,6 @@ AudioCallbackDriver::DeviceChangedCallback() {
   STREAM_LOG(LogLevel::Error, ("Switching to SystemClockDriver during output switch"));
   mSelfReference.Take(this);
   mCallbackReceivedWhileSwitching = 0;
-  mGraphImpl->mFlushSourcesOnNextIteration = true;
   mNextDriver = new SystemClockDriver(GraphImpl());
   mNextDriver->SetGraphTime(this, mIterationStart, mIterationEnd);
   mGraphImpl->SetCurrentDriver(mNextDriver);

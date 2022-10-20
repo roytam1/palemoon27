@@ -837,7 +837,7 @@ nsSocketTransport::Init(const char **types, uint32_t typeCount,
         do_GetService(kSocketProviderServiceCID, &rv);
     if (NS_FAILED(rv)) return rv;
 
-    mTypes = (char **) malloc(mTypeCount * sizeof(char *));
+    mTypes = (char **) moz_xmalloc(mTypeCount * sizeof(char *));
     if (!mTypes)
         return NS_ERROR_OUT_OF_MEMORY;
 

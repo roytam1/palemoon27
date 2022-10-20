@@ -811,7 +811,7 @@ MakeCompressedIndexDataValues(
   }
 
   UniqueFreePtr<uint8_t> blobData(
-    static_cast<uint8_t*>(malloc(blobDataLength)));
+    static_cast<uint8_t*>(moz_xmalloc(blobDataLength)));
   if (NS_WARN_IF(!blobData)) {
     IDB_REPORT_INTERNAL_ERR();
     return NS_ERROR_OUT_OF_MEMORY;
@@ -3040,7 +3040,7 @@ UpgradeKeyFunction::OnFunctionCall(mozIStorageValueArray* aValues,
 
   // Upgrading the key doesn't change the amount of space needed to hold it.
   UniqueFreePtr<uint8_t> upgradedBlobData(
-    static_cast<uint8_t*>(malloc(blobDataLength)));
+    static_cast<uint8_t*>(moz_xmalloc(blobDataLength)));
   if (NS_WARN_IF(!upgradedBlobData)) {
     IDB_REPORT_INTERNAL_ERR();
     return NS_ERROR_OUT_OF_MEMORY;
@@ -23728,7 +23728,7 @@ UpdateIndexDataValuesFunction::OnFunctionCall(mozIStorageValueArray* aValues,
     }
 
     std::pair<uint8_t *, int> copiedBlobDataPair(
-      static_cast<uint8_t*>(malloc(blobDataLength)),
+      static_cast<uint8_t*>(moz_xmalloc(blobDataLength)),
       blobDataLength);
 
     if (!copiedBlobDataPair.first) {

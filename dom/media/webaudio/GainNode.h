@@ -42,9 +42,6 @@ protected:
   virtual ~GainNode();
 
 private:
-  static void SendGainToStream(AudioNode* aNode);
-
-private:
   RefPtr<AudioParam> mGain;
 };
 

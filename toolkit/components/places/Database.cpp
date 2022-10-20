@@ -18,6 +18,7 @@
 #include "nsPlacesIndexes.h"
 #include "nsPlacesTriggers.h"
 #include "nsPlacesMacros.h"
+#include "nsVariant.h"
 #include "SQLFunctions.h"
 #include "Helpers.h"
 

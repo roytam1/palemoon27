@@ -1119,7 +1119,7 @@ NS_ReadInputStreamToBuffer(nsIInputStream *aInputStream,
     nsresult rv;
 
     if (!*aDest) {
-        *aDest = malloc(aCount);
+        *aDest = moz_xmalloc(aCount);
         if (!*aDest)
             return NS_ERROR_OUT_OF_MEMORY;
     }

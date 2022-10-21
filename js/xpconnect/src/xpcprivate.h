@@ -439,6 +439,9 @@ public:
     XPCJSContextStack* GetJSContextStack() {return mJSContextStack;}
     void DestroyJSContextStack();
 
+    void RemoveWrappedJS(nsXPCWrappedJS* wrapper);
+    void AssertInvalidWrappedJSNotInTable(nsXPCWrappedJS* wrapper) const;
+
     XPCCallContext*  GetCallContext() const {return mCallContext;}
     XPCCallContext*  SetCallContext(XPCCallContext* ccx)
         {XPCCallContext* old = mCallContext; mCallContext = ccx; return old;}
@@ -452,10 +455,10 @@ public:
         {XPCWrappedNative* old = mResolvingWrapper;
          mResolvingWrapper = w; return old;}
 
-    JSObject2WrappedJSMap*     GetWrappedJSMap()        const
+    JSObject2WrappedJSMap* GetMultiCompartmentWrappedJSMap() const
         {return mWrappedJSMap;}
 
-    IID2WrappedJSClassMap*     GetWrappedJSClassMap()   const
+    IID2WrappedJSClassMap* GetWrappedJSClassMap() const
         {return mWrappedJSClassMap;}
 
     IID2NativeInterfaceMap* GetIID2NativeInterfaceMap() const
@@ -576,7 +579,8 @@ public:
                                  JSFinalizeStatus status,
                                  bool isCompartmentGC,
                                  void* data);
-    static void WeakPointerCallback(JSRuntime* rt, void* data);
+    static void WeakPointerZoneGroupCallback(JSRuntime* rt, void* data);
+    static void WeakPointerCompartmentCallback(JSRuntime* rt, JSCompartment* comp, void* data);
 
     inline void AddVariantRoot(XPCTraceableVariant* variant);
     inline void AddWrappedJSRoot(nsXPCWrappedJS* wrappedJS);
@@ -618,7 +622,7 @@ public:
     PRTime GetWatchdogTimestamp(WatchdogTimestampCategory aCategory);
 
 private:
-    XPCJSRuntime(); // no implementation
+    XPCJSRuntime() = delete;
     explicit XPCJSRuntime(nsXPConnect* aXPConnect);
 
     void ReleaseIncrementally(nsTArray<nsISupports*>& array);
@@ -2456,6 +2460,14 @@ public:
      */
     JSObject* GetJSObjectPreserveColor() const {return mJSObj;}
 
+    // Returns true if the wrapper chain contains references to multiple
+    // compartments. If the wrapper chain contains references to multiple
+    // compartments, then it must be registered on the XPCJSRuntime. Otherwise,
+    // it should be registered in the CompartmentPrivate for the compartment of
+    // the root's JS object. This will only return correct results when called
+    // on the root wrapper and will assert if not called on a root wrapper.
+    bool IsMultiCompartment() const;
+
     nsXPCWrappedJSClass*  GetClass() const {return mClass;}
     REFNSIID GetIID() const {return GetClass()->GetIID();}
     nsXPCWrappedJS* GetRootWrapper() const {return mRoot;}
@@ -2498,7 +2510,7 @@ public:
 
     virtual ~nsXPCWrappedJS();
 protected:
-    nsXPCWrappedJS();   // not implemented
+    nsXPCWrappedJS() = delete;
     nsXPCWrappedJS(JSContext* cx,
                    JSObject* aJSObj,
                    nsXPCWrappedJSClass* aClass,
@@ -3468,6 +3480,7 @@ public:
         , allowWaivers(true)
         , wantComponents(true)
         , wantExportHelpers(false)
+        , isWebExtensionContentScript(false)
         , proto(cx)
         , addonId(cx)
         , writeToGlobalPrototype(false)
@@ -3484,6 +3497,7 @@ public:
     bool allowWaivers;
     bool wantComponents;
     bool wantExportHelpers;
+    bool isWebExtensionContentScript;
     JS::RootedObject proto;
     nsCString sandboxName;
     JS::RootedString addonId;
@@ -3681,20 +3695,7 @@ public:
         LocationHintAddon
     };
 
-    explicit CompartmentPrivate(JSCompartment* c)
-        : wantXrays(false)
-        , allowWaivers(true)
-        , writeToGlobalPrototype(false)
-        , skipWriteToGlobalPrototype(false)
-        , universalXPConnectEnabled(false)
-        , forcePermissiveCOWs(false)
-        , skipCOWCallableChecks(false)
-        , scriptability(c)
-        , scope(nullptr)
-    {
-        MOZ_COUNT_CTOR(xpc::CompartmentPrivate);
-        mozilla::PodArrayZero(wrapperDenialWarnings);
-    }
+    explicit CompartmentPrivate(JSCompartment* c);
 
     ~CompartmentPrivate();
 
@@ -3732,6 +3733,10 @@ public:
     // disable the writeToGlobalPrototype behavior (when resolving standard
     // classes, for example).
     bool skipWriteToGlobalPrototype;
+
+    // This scope corresponds to a WebExtension content script, and receives
+    // various bits of special compatibility behavior.
+    bool isWebExtensionContentScript;
 
     // This is only ever set during mochitest runs when enablePrivilege is called.
     // It's intended as a temporary stopgap measure until we can finish ripping out
@@ -3806,9 +3811,15 @@ public:
         locationURI = aLocationURI;
     }
 
+    JSObject2WrappedJSMap* GetWrappedJSMap() const { return mWrappedJSMap; }
+    void UpdateWeakPointersAfterGC(XPCJSRuntime* runtime);
+
+    size_t SizeOfIncludingThis(mozilla::MallocSizeOf mallocSizeOf);
+
 private:
     nsCString location;
     nsCOMPtr<nsIURI> locationURI;
+    JSObject2WrappedJSMap* mWrappedJSMap;
 
     bool TryParseLocationURI(LocationHint aType, nsIURI** aURI);
 };

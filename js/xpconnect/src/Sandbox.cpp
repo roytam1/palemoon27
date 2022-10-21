@@ -1025,6 +1025,7 @@ xpc::CreateSandboxObject(JSContext* cx, MutableHandleValue vp, nsISupports* prin
     CompartmentPrivate* priv = CompartmentPrivate::Get(sandbox);
     priv->allowWaivers = options.allowWaivers;
     priv->writeToGlobalPrototype = options.writeToGlobalPrototype;
+    priv->isWebExtensionContentScript = options.isWebExtensionContentScript;
 
     // Set up the wantXrays flag, which indicates whether xrays are desired even
     // for same-origin access.
@@ -1479,6 +1480,7 @@ SandboxOptions::Parse()
               ParseBoolean("allowWaivers", &allowWaivers) &&
               ParseBoolean("wantComponents", &wantComponents) &&
               ParseBoolean("wantExportHelpers", &wantExportHelpers) &&
+              ParseBoolean("isWebExtensionContentScript", &isWebExtensionContentScript) &&
               ParseString("sandboxName", sandboxName) &&
               ParseObject("sameZoneAs", &sameZoneAs) &&
               ParseBoolean("freshZone", &freshZone) &&

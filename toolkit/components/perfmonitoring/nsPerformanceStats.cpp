@@ -41,12 +41,10 @@
 #include <mach/mach_types.h>
 #include <mach/message.h>
 #include <mach/thread_info.h>
-#endif // defined(XP_MACOSX)
-
-#if defined(XP_LINUX)
+#elif defined(XP_UNIX)
 #include <sys/time.h>
 #include <sys/resource.h>
-#endif // defined(XP_LINUX)
+#endif // defined(XP_UNIX)
 /* ------------------------------------------------------
  *
  * Utility functions.
@@ -231,61 +229,51 @@ public:
 
   NS_DECL_ISUPPORTS
 
-  /* readonly attribute AString name; */
   NS_IMETHOD GetName(nsAString& aName) override {
     aName.Assign(nsPerformanceGroupDetails::Name());
     return NS_OK;
   };
 
-  /* readonly attribute AString groupId; */
   NS_IMETHOD GetGroupId(nsAString& aGroupId) override {
     aGroupId.Assign(nsPerformanceGroupDetails::GroupId());
     return NS_OK;
   };
 
-  /* readonly attribute AString addonId; */
   NS_IMETHOD GetAddonId(nsAString& aAddonId) override {
     aAddonId.Assign(nsPerformanceGroupDetails::AddonId());
     return NS_OK;
   };
 
-  /* readonly attribute uint64_t windowId; */
   NS_IMETHOD GetWindowId(uint64_t *aWindowId) override {
     *aWindowId = nsPerformanceGroupDetails::WindowId();
     return NS_OK;
   }
 
-  /* readonly attribute bool isSystem; */
   NS_IMETHOD GetIsSystem(bool *_retval) override {
     *_retval = nsPerformanceGroupDetails::IsSystem();
     return NS_OK;
   }
 
-  /* readonly attribute unsigned long long totalUserTime; */
   NS_IMETHOD GetTotalUserTime(uint64_t *aTotalUserTime) override {
     *aTotalUserTime = mPerformanceData.mTotalUserTime;
     return NS_OK;
   };
 
-  /* readonly attribute unsigned long long totalSystemTime; */
   NS_IMETHOD GetTotalSystemTime(uint64_t *aTotalSystemTime) override {
     *aTotalSystemTime = mPerformanceData.mTotalSystemTime;
     return NS_OK;
   };
 
-  /* readonly attribute unsigned long long totalCPOWTime; */
   NS_IMETHOD GetTotalCPOWTime(uint64_t *aCpowTime) override {
     *aCpowTime = mPerformanceData.mTotalCPOWTime;
     return NS_OK;
   };
 
-  /* readonly attribute unsigned long long ticks; */
   NS_IMETHOD GetTicks(uint64_t *aTicks) override {
     *aTicks = mPerformanceData.mTicks;
     return NS_OK;
   };
 
-  /* void getDurations (out unsigned long aCount, [array, size_is (aCount), retval] out unsigned long long aNumberOfOccurrences); */
   NS_IMETHOD GetDurations(uint32_t *aCount, uint64_t **aNumberOfOccurrences) override {
     const size_t length = mozilla::ArrayLength(mPerformanceData.mDurations);
     if (aCount) {
@@ -298,9 +286,6 @@ public:
     return NS_OK;
   };
 
-  /*
-    readonly attribute unsigned long long processId;
-  */
   NS_IMETHODIMP GetProcessId(uint64_t* processId) override {
     *processId = nsPerformanceGroupDetails::ProcessId();
     return NS_OK;
@@ -357,7 +342,6 @@ private:
 NS_IMPL_ISUPPORTS(nsPerformanceSnapshot, nsIPerformanceSnapshot)
 
 
-/* nsIArray getComponentsData (); */
 NS_IMETHODIMP
 nsPerformanceSnapshot::GetComponentsData(nsIArray * *aComponents)
 {
@@ -372,7 +356,6 @@ nsPerformanceSnapshot::GetComponentsData(nsIArray * *aComponents)
   return NS_OK;
 }
 
-/* nsIPerformanceStats getProcessData (); */
 NS_IMETHODIMP
 nsPerformanceSnapshot::GetProcessData(nsIPerformanceStats * *aProcess)
 {
@@ -401,10 +384,11 @@ nsPerformanceSnapshot::SetProcessStats(nsIPerformanceStats* stats)
 NS_IMPL_ISUPPORTS(nsPerformanceStatsService, nsIPerformanceStatsService, nsIObserver)
 
 nsPerformanceStatsService::nsPerformanceStatsService()
+  : mIsAvailable(false)
 #if defined(XP_WIN)
-  : mProcessId(GetCurrentProcessId())
+  , mProcessId(GetCurrentProcessId())
 #else
-  : mProcessId(getpid())
+  , mProcessId(getpid())
 #endif
   , mRuntime(xpc::GetJSRuntime())
   , mUIdCounter(0)
@@ -438,6 +422,7 @@ nsPerformanceStatsService::Dispose()
   // Make sure that we do not accidentally destroy `this` while we are
   // cleaning up back references.
   RefPtr<nsPerformanceStatsService> kungFuDeathGrip(this);
+  mIsAvailable = false;
 
   // Disconnect from nsIObserverService.
   nsCOMPtr<nsIObserverService> obs = mozilla::services::GetObserverService();
@@ -446,6 +431,7 @@ nsPerformanceStatsService::Dispose()
     obs->RemoveObserver(this, "quit-application");
     obs->RemoveObserver(this, "quit-application-granted");
     obs->RemoveObserver(this, "content-child-shutdown");
+    obs->RemoveObserver(this, "xpcom-will-shutdown");
   }
 
   // Clear up and disconnect from JSAPI.
@@ -463,6 +449,7 @@ nsPerformanceStatsService::Dispose()
   // collected, we need to break the references from these groups to
   // `this`.
   mTopGroup->Dispose();
+  mTopGroup = nullptr;
 
   // Copy references to the groups to a vector to ensure that we do
   // not modify the hashtable while iterating it.
@@ -503,6 +490,7 @@ nsPerformanceStatsService::InitInternal()
     obs->AddObserver(this, "quit-application-granted", false);
     obs->AddObserver(this, "quit-application", false);
     obs->AddObserver(this, "content-child-shutdown", false);
+    obs->AddObserver(this, "xpcom-will-shutdown", false);
   }
 
   // Connect to JSAPI.
@@ -517,6 +505,8 @@ nsPerformanceStatsService::InitInternal()
   }
 
   mTopGroup->setIsActive(true);
+  mIsAvailable = true;
+
   return NS_OK;
 }
 
@@ -528,16 +518,20 @@ nsPerformanceStatsService::Observe(nsISupports *aSubject, const char *aTopic,
   MOZ_ASSERT(strcmp(aTopic, "profile-before-change") == 0
              || strcmp(aTopic, "quit-application") == 0
              || strcmp(aTopic, "quit-application-granted") == 0
-             || strcmp(aTopic, "content-child-shutdown") == 0);
+             || strcmp(aTopic, "content-child-shutdown") == 0
+             || strcmp(aTopic, "xpcom-will-shutdown") == 0);
 
   Dispose();
   return NS_OK;
 }
 
-/* [implicit_jscontext] attribute bool isMonitoringCPOW; */
 NS_IMETHODIMP
 nsPerformanceStatsService::GetIsMonitoringCPOW(JSContext* cx, bool *aIsStopwatchActive)
 {
+  if (!mIsAvailable) {
+    return NS_ERROR_NOT_AVAILABLE;
+  }
+
   JSRuntime *runtime = JS_GetRuntime(cx);
   *aIsStopwatchActive = js::GetStopwatchIsMonitoringCPOW(runtime);
   return NS_OK;
@@ -545,6 +539,10 @@ nsPerformanceStatsService::GetIsMonitoringCPOW(JSContext* cx, bool *aIsStopwatch
 NS_IMETHODIMP
 nsPerformanceStatsService::SetIsMonitoringCPOW(JSContext* cx, bool aIsStopwatchActive)
 {
+  if (!mIsAvailable) {
+    return NS_ERROR_NOT_AVAILABLE;
+  }
+
   JSRuntime *runtime = JS_GetRuntime(cx);
   if (!js::SetStopwatchIsMonitoringCPOW(runtime, aIsStopwatchActive)) {
     return NS_ERROR_OUT_OF_MEMORY;
@@ -552,10 +550,13 @@ nsPerformanceStatsService::SetIsMonitoringCPOW(JSContext* cx, bool aIsStopwatchA
   return NS_OK;
 }
 
-/* [implicit_jscontext] attribute bool isMonitoringJank; */
 NS_IMETHODIMP
 nsPerformanceStatsService::GetIsMonitoringJank(JSContext* cx, bool *aIsStopwatchActive)
 {
+  if (!mIsAvailable) {
+    return NS_ERROR_NOT_AVAILABLE;
+  }
+
   JSRuntime *runtime = JS_GetRuntime(cx);
   *aIsStopwatchActive = js::GetStopwatchIsMonitoringJank(runtime);
   return NS_OK;
@@ -563,6 +564,10 @@ nsPerformanceStatsService::GetIsMonitoringJank(JSContext* cx, bool *aIsStopwatch
 NS_IMETHODIMP
 nsPerformanceStatsService::SetIsMonitoringJank(JSContext* cx, bool aIsStopwatchActive)
 {
+  if (!mIsAvailable) {
+    return NS_ERROR_NOT_AVAILABLE;
+  }
+
   JSRuntime *runtime = JS_GetRuntime(cx);
   if (!js::SetStopwatchIsMonitoringJank(runtime, aIsStopwatchActive)) {
     return NS_ERROR_OUT_OF_MEMORY;
@@ -570,16 +575,23 @@ nsPerformanceStatsService::SetIsMonitoringJank(JSContext* cx, bool aIsStopwatchA
   return NS_OK;
 }
 
-/* [implicit_jscontext] attribute bool isMonitoringPerCompartment; */
 NS_IMETHODIMP
 nsPerformanceStatsService::GetIsMonitoringPerCompartment(JSContext*, bool *aIsMonitoringPerCompartment)
 {
+  if (!mIsAvailable) {
+    return NS_ERROR_NOT_AVAILABLE;
+  }
+
   *aIsMonitoringPerCompartment = mIsMonitoringPerCompartment;
   return NS_OK;
 }
 NS_IMETHODIMP
 nsPerformanceStatsService::SetIsMonitoringPerCompartment(JSContext*, bool aIsMonitoringPerCompartment)
 {
+  if (!mIsAvailable) {
+    return NS_ERROR_NOT_AVAILABLE;
+  }
+
   if (aIsMonitoringPerCompartment == mIsMonitoringPerCompartment) {
     return NS_OK;
   }
@@ -639,10 +651,13 @@ nsPerformanceStatsService::GetStatsForGroup(const nsPerformanceGroup* group)
   return new nsPerformanceStats(*group, group->data);
 }
 
-/* [implicit_jscontext] nsIPerformanceSnapshot getSnapshot (); */
 NS_IMETHODIMP
 nsPerformanceStatsService::GetSnapshot(JSContext* cx, nsIPerformanceSnapshot * *aSnapshot)
 {
+  if (!mIsAvailable) {
+    return NS_ERROR_NOT_AVAILABLE;
+  }
+
   RefPtr<nsPerformanceSnapshot> snapshot = new nsPerformanceSnapshot();
   snapshot->SetProcessStats(GetStatsForGroup(mTopGroup));
 
@@ -848,7 +863,7 @@ nsPerformanceStatsService::CommitGroup(uint64_t iteration,
   group->data.mTotalCPOWTime += cpowTimeDelta;
   group->data.mTicks += ticksDelta;
 
-  const uint64_t totalTimeDelta = userTimeDelta + systemTimeDelta;
+  const uint64_t totalTimeDelta = userTimeDelta + systemTimeDelta + cpowTimeDelta;
   uint64_t duration = 1000;   // 1ms in µs
   for (size_t i = 0;
        i < mozilla::ArrayLength(group->data.mDurations) && duration < totalTimeDelta;

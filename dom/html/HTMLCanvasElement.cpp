@@ -400,7 +400,9 @@ HTMLCanvasElement::CreateContext(CanvasContextType aContextType)
   // Add Observer for webgl canvas.
   if (aContextType == CanvasContextType::WebGL1 ||
       aContextType == CanvasContextType::WebGL2) {
-    mContextObserver = new HTMLCanvasElementObserver(this);
+    if (!mContextObserver) {
+      mContextObserver = new HTMLCanvasElementObserver(this);
+    }
   }
 
   ret->SetCanvasElement(this);
@@ -447,7 +449,8 @@ HTMLCanvasElement::SetAttr(int32_t aNameSpaceID, nsIAtom* aName,
       aNameSpaceID == kNameSpaceID_None &&
       (aName == nsGkAtoms::width || aName == nsGkAtoms::height || aName == nsGkAtoms::moz_opaque))
   {
-    rv = UpdateContext(nullptr, JS::NullHandleValue);
+    ErrorResult dummy;
+    rv = UpdateContext(nullptr, JS::NullHandleValue, dummy);
     NS_ENSURE_SUCCESS(rv, rv);
   }
 
@@ -463,7 +466,8 @@ HTMLCanvasElement::UnsetAttr(int32_t aNameSpaceID, nsIAtom* aName,
       aNameSpaceID == kNameSpaceID_None &&
       (aName == nsGkAtoms::width || aName == nsGkAtoms::height || aName == nsGkAtoms::moz_opaque))
   {
-    rv = UpdateContext(nullptr, JS::NullHandleValue);
+    ErrorResult dummy;
+    rv = UpdateContext(nullptr, JS::NullHandleValue, dummy);
     NS_ENSURE_SUCCESS(rv, rv);
   }
   return rv;
@@ -779,7 +783,9 @@ HTMLCanvasElement::TransferControlToOffscreen(ErrorResult& aRv)
                                            sz.height,
                                            GetCompositorBackendType(),
                                            renderer);
-    mContextObserver = new HTMLCanvasElementObserver(this);
+    if (!mContextObserver) {
+      mContextObserver = new HTMLCanvasElementObserver(this);
+    }
   } else {
     aRv.Throw(NS_ERROR_DOM_INVALID_STATE_ERR);
   }
@@ -907,7 +913,8 @@ HTMLCanvasElement::MozGetIPCContext(const nsAString& aContextId,
     mCurrentContext->SetIsIPC(true);
     mCurrentContextType = contextType;
 
-    nsresult rv = UpdateContext(nullptr, JS::NullHandleValue);
+    ErrorResult dummy;
+    nsresult rv = UpdateContext(nullptr, JS::NullHandleValue, dummy);
     NS_ENSURE_SUCCESS(rv, rv);
   } else {
     // We already have a context of some type.

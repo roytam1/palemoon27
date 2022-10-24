@@ -344,7 +344,7 @@ const Class ModuleEnvironmentObject::class_ = {
         nullptr, nullptr,                                    /* watch/unwatch */
         nullptr,                                             /* getElements */
         ModuleEnvironmentObject::enumerate,
-        nullptr                                              /* thisObject */
+        nullptr
     }
 };
 
@@ -626,13 +626,11 @@ DynamicWithObject::create(JSContext* cx, HandleObject object, HandleObject enclo
     if (!obj)
         return nullptr;
 
-    JSObject* thisp = GetThisObject(cx, object);
-    if (!thisp)
-        return nullptr;
+    Value thisv = GetThisValue(object);
 
     obj->setEnclosingScope(enclosing);
     obj->setFixedSlot(OBJECT_SLOT, ObjectValue(*object));
-    obj->setFixedSlot(THIS_SLOT, ObjectValue(*thisp));
+    obj->setFixedSlot(THIS_SLOT, thisv);
     obj->setFixedSlot(KIND_SLOT, Int32Value(kind));
 
     return obj;
@@ -738,12 +736,6 @@ with_DeleteProperty(JSContext* cx, HandleObject obj, HandleId id, ObjectOpResult
     return DeleteProperty(cx, actual, id, result);
 }
 
-static JSObject*
-with_ThisObject(JSContext* cx, HandleObject obj)
-{
-    return &obj->as<DynamicWithObject>().withThis();
-}
-
 const Class StaticWithObject::class_ = {
     "WithTemplate",
     JSCLASS_HAS_RESERVED_SLOTS(StaticWithObject::RESERVED_SLOTS) |
@@ -779,7 +771,7 @@ const Class DynamicWithObject::class_ = {
         nullptr, nullptr,    /* watch/unwatch */
         nullptr,             /* getElements */
         nullptr,             /* enumerate (native enumeration of target doesn't work) */
-        with_ThisObject,
+        nullptr,
     }
 };
 
@@ -1045,17 +1037,14 @@ StaticBlockObject::addVar(ExclusiveContext* cx, Handle<StaticBlockObject*> block
                                              /* allowDictionary = */ false);
 }
 
-static JSObject*
-block_ThisObject(JSContext* cx, HandleObject obj)
+Value
+ClonedBlockObject::thisValue()
 {
-    // No other block objects should ever get passed to the 'this' object
-    // hook except the global lexical scope and non-syntactic ones.
-    MOZ_ASSERT(obj->as<ClonedBlockObject>().isGlobal() ||
-               !obj->as<ClonedBlockObject>().isSyntactic());
-    MOZ_ASSERT_IF(obj->as<ClonedBlockObject>().isGlobal(),
-                  obj->enclosingScope() == cx->global());
-    RootedObject enclosing(cx, obj->enclosingScope());
-    return GetThisObject(cx, enclosing);
+    // No other block objects should ever get passed to GetThisValue
+    // except the global lexical scope and non-syntactic ones.
+    MOZ_ASSERT(isGlobal() || !isSyntactic());
+    MOZ_ASSERT_IF(isGlobal(), enclosingScope() == JSObject::global());
+    return GetThisValue(&enclosingScope());
 }
 
 const Class BlockObject::class_ = {
@@ -1087,7 +1076,7 @@ const Class BlockObject::class_ = {
         nullptr, nullptr, /* watch/unwatch */
         nullptr,          /* getElements */
         nullptr,          /* enumerate (native enumeration of target doesn't work) */
-        block_ThisObject,
+        nullptr,
     }
 };
 
@@ -1258,78 +1247,79 @@ js::CloneNestedScopeObject(JSContext* cx, HandleObject enclosingScope, Handle<Ne
     }
 }
 
-/* static */ UninitializedLexicalObject*
-UninitializedLexicalObject::create(JSContext* cx, HandleObject enclosing)
+/* static */ RuntimeLexicalErrorObject*
+RuntimeLexicalErrorObject::create(JSContext* cx, HandleObject enclosing, unsigned errorNumber)
 {
-    UninitializedLexicalObject* obj =
-        NewObjectWithNullTaggedProto<UninitializedLexicalObject>(cx, GenericObject,
-                                                                 BaseShape::DELEGATE);
+    RuntimeLexicalErrorObject* obj =
+        NewObjectWithNullTaggedProto<RuntimeLexicalErrorObject>(cx, GenericObject,
+                                                                BaseShape::DELEGATE);
     if (!obj)
         return nullptr;
     obj->setEnclosingScope(enclosing);
+    obj->setReservedSlot(ERROR_SLOT, Int32Value(int32_t(errorNumber)));
     return obj;
 }
 
 static void
-ReportUninitializedLexicalId(JSContext* cx, HandleId id)
+ReportRuntimeLexicalErrorId(JSContext* cx, unsigned errorNumber, HandleId id)
 {
     if (JSID_IS_ATOM(id)) {
         RootedPropertyName name(cx, JSID_TO_ATOM(id)->asPropertyName());
-        ReportUninitializedLexical(cx, name);
+        ReportRuntimeLexicalError(cx, errorNumber, name);
         return;
     }
-    MOZ_CRASH("UninitializedLexicalObject should only be used with property names");
+    MOZ_CRASH("RuntimeLexicalErrorObject should only be used with property names");
 }
 
 static bool
-uninitialized_LookupProperty(JSContext* cx, HandleObject obj, HandleId id,
-                             MutableHandleObject objp, MutableHandleShape propp)
+lexicalError_LookupProperty(JSContext* cx, HandleObject obj, HandleId id,
+                            MutableHandleObject objp, MutableHandleShape propp)
 {
-    ReportUninitializedLexicalId(cx, id);
+    ReportRuntimeLexicalErrorId(cx, obj->as<RuntimeLexicalErrorObject>().errorNumber(), id);
     return false;
 }
 
 static bool
-uninitialized_HasProperty(JSContext* cx, HandleObject obj, HandleId id, bool* foundp)
+lexicalError_HasProperty(JSContext* cx, HandleObject obj, HandleId id, bool* foundp)
 {
-    ReportUninitializedLexicalId(cx, id);
+    ReportRuntimeLexicalErrorId(cx, obj->as<RuntimeLexicalErrorObject>().errorNumber(), id);
     return false;
 }
 
 static bool
-uninitialized_GetProperty(JSContext* cx, HandleObject obj, HandleValue receiver, HandleId id,
-                          MutableHandleValue vp)
+lexicalError_GetProperty(JSContext* cx, HandleObject obj, HandleValue receiver, HandleId id,
+                         MutableHandleValue vp)
 {
-    ReportUninitializedLexicalId(cx, id);
+    ReportRuntimeLexicalErrorId(cx, obj->as<RuntimeLexicalErrorObject>().errorNumber(), id);
     return false;
 }
 
 static bool
-uninitialized_SetProperty(JSContext* cx, HandleObject obj, HandleId id, HandleValue v,
-                          HandleValue receiver, ObjectOpResult& result)
+lexicalError_SetProperty(JSContext* cx, HandleObject obj, HandleId id, HandleValue v,
+                         HandleValue receiver, ObjectOpResult& result)
 {
-    ReportUninitializedLexicalId(cx, id);
+    ReportRuntimeLexicalErrorId(cx, obj->as<RuntimeLexicalErrorObject>().errorNumber(), id);
     return false;
 }
 
 static bool
-uninitialized_GetOwnPropertyDescriptor(JSContext* cx, HandleObject obj, HandleId id,
-                                       MutableHandle<JSPropertyDescriptor> desc)
+lexicalError_GetOwnPropertyDescriptor(JSContext* cx, HandleObject obj, HandleId id,
+                                      MutableHandle<JSPropertyDescriptor> desc)
 {
-    ReportUninitializedLexicalId(cx, id);
+    ReportRuntimeLexicalErrorId(cx, obj->as<RuntimeLexicalErrorObject>().errorNumber(), id);
     return false;
 }
 
 static bool
-uninitialized_DeleteProperty(JSContext* cx, HandleObject obj, HandleId id, ObjectOpResult& result)
+lexicalError_DeleteProperty(JSContext* cx, HandleObject obj, HandleId id, ObjectOpResult& result)
 {
-    ReportUninitializedLexicalId(cx, id);
+    ReportRuntimeLexicalErrorId(cx, obj->as<RuntimeLexicalErrorObject>().errorNumber(), id);
     return false;
 }
 
-const Class UninitializedLexicalObject::class_ = {
-    "UninitializedLexical",
-    JSCLASS_HAS_RESERVED_SLOTS(UninitializedLexicalObject::RESERVED_SLOTS) |
+const Class RuntimeLexicalErrorObject::class_ = {
+    "RuntimeLexicalError",
+    JSCLASS_HAS_RESERVED_SLOTS(RuntimeLexicalErrorObject::RESERVED_SLOTS) |
     JSCLASS_IS_ANONYMOUS,
     nullptr, /* addProperty */
     nullptr, /* delProperty */
@@ -1346,13 +1336,13 @@ const Class UninitializedLexicalObject::class_ = {
     JS_NULL_CLASS_SPEC,
     JS_NULL_CLASS_EXT,
     {
-        uninitialized_LookupProperty,
+        lexicalError_LookupProperty,
         nullptr,             /* defineProperty */
-        uninitialized_HasProperty,
-        uninitialized_GetProperty,
-        uninitialized_SetProperty,
-        uninitialized_GetOwnPropertyDescriptor,
-        uninitialized_DeleteProperty,
+        lexicalError_HasProperty,
+        lexicalError_GetProperty,
+        lexicalError_SetProperty,
+        lexicalError_GetOwnPropertyDescriptor,
+        lexicalError_DeleteProperty,
         nullptr, nullptr,    /* watch/unwatch */
         nullptr,             /* getElements */
         nullptr,             /* enumerate (native enumeration of target doesn't work) */

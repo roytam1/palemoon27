@@ -80,8 +80,8 @@ LooseEqualityOp(JSContext* cx, InterpreterRegs& regs)
     return true;
 }
 
-JSObject*
-js::BoxNonStrictThis(JSContext* cx, HandleValue thisv)
+bool
+js::BoxNonStrictThis(JSContext* cx, HandleValue thisv, MutableHandleValue vp)
 {
     /*
      * Check for SynthesizeFrame poisoning and fast constructors which
@@ -90,14 +90,21 @@ js::BoxNonStrictThis(JSContext* cx, HandleValue thisv)
     MOZ_ASSERT(!thisv.isMagic());
 
     if (thisv.isNullOrUndefined()) {
-        Rooted<GlobalObject*> global(cx, cx->global());
-        return GetThisObject(cx, global);
+        vp.set(GetThisValue(cx->global()));
+        return true;
     }
 
-    if (thisv.isObject())
-        return &thisv.toObject();
+    if (thisv.isObject()) {
+        vp.set(thisv);
+        return true;
+    }
 
-    return PrimitiveToObject(cx, thisv);
+    JSObject* obj = PrimitiveToObject(cx, thisv);
+    if (!obj)
+        return false;
+
+    vp.setObject(*obj);
+    return true;
 }
 
 /*
@@ -129,12 +136,7 @@ js::BoxNonStrictThis(JSContext* cx, const CallReceiver& call)
     MOZ_ASSERT_IF(fun && fun->isInterpreted(), !fun->strict());
 #endif
 
-    JSObject* thisObj = BoxNonStrictThis(cx, call.thisv());
-    if (!thisObj)
-        return false;
-
-    call.setThis(ObjectValue(*thisObj));
-    return true;
+    return BoxNonStrictThis(cx, call.thisv(), call.mutableThisv());
 }
 
 #if JS_HAS_NO_SUCH_METHOD
@@ -519,7 +521,7 @@ js::Invoke(JSContext* cx, const Value& thisv, const Value& fval, unsigned argc, 
 
     if (args.thisv().isObject()) {
         /*
-         * We must call the thisObject hook in case we are not called from the
+         * We must call the thisValue hook in case we are not called from the
          * interpreter, where a prior bytecode has computed an appropriate
          * |this| already.  But don't do that if fval is a DOM function.
          */
@@ -528,11 +530,8 @@ js::Invoke(JSContext* cx, const Value& thisv, const Value& fval, unsigned argc, 
             !fval.toObject().as<JSFunction>().jitInfo() ||
             fval.toObject().as<JSFunction>().jitInfo()->needsOuterizedThisObject())
         {
-            RootedObject thisObj(cx, &args.thisv().toObject());
-            JSObject* thisp = GetThisObject(cx, thisObj);
-            if (!thisp)
-                return false;
-            args.setThis(ObjectValue(*thisp));
+            JSObject* thisObj = &args.thisv().toObject();
+            args.mutableThisv().set(GetThisValue(thisObj));
         }
     }
 
@@ -666,11 +665,7 @@ js::ExecuteKernel(JSContext* cx, HandleScript script, JSObject& scopeChainArg, c
     MOZ_ASSERT_IF(type == EXECUTE_GLOBAL, IsGlobalLexicalScope(&scopeChainArg) ||
                                           !IsSyntacticScope(&scopeChainArg));
 #ifdef DEBUG
-    if (thisv.isObject()) {
-        RootedObject thisObj(cx, &thisv.toObject());
-        AutoSuppressGC nogc(cx);
-        MOZ_ASSERT(GetOuterObject(cx, thisObj) == thisObj);
-    }
+    MOZ_ASSERT_IF(thisv.isObject(), !IsWindow(&thisv.toObject()));
     RootedObject terminatingScope(cx, &scopeChainArg);
     while (IsSyntacticScope(terminatingScope))
         terminatingScope = terminatingScope->enclosingScope();
@@ -709,11 +704,16 @@ js::Execute(JSContext* cx, HandleScript script, JSObject& scopeChainArg, Value* 
     /* The scope chain is something we control, so we know it can't
        have any outer objects on it. */
     RootedObject scopeChain(cx, &scopeChainArg);
-    MOZ_ASSERT(scopeChain == GetInnerObject(scopeChain));
+    MOZ_ASSERT(!IsWindowProxy(scopeChain));
 
-    MOZ_RELEASE_ASSERT(IsGlobalLexicalScope(scopeChain) || script->hasNonSyntacticScope(),
-                       "Only scripts with non-syntactic scopes can be executed with "
-                       "interesting scopechains");
+    if (script->module()) {
+        MOZ_RELEASE_ASSERT(scopeChain == script->module()->environment(),
+                           "Module scripts can only be executed in the module's environment");
+    } else {
+        MOZ_RELEASE_ASSERT(IsGlobalLexicalScope(scopeChain) || script->hasNonSyntacticScope(),
+                           "Only global scripts with non-syntactic scopes can be executed with "
+                           "interesting scopechains");
+    }
 
     /* Ensure the scope chain is all same-compartment and terminates in a global. */
 #ifdef DEBUG
@@ -724,13 +724,10 @@ js::Execute(JSContext* cx, HandleScript script, JSObject& scopeChainArg, Value* 
     } while ((s = s->enclosingScope()));
 #endif
 
-    /* Use the scope chain as 'this', modulo outerization. */
-    JSObject* thisObj = GetThisObject(cx, scopeChain);
-    if (!thisObj)
-        return false;
-    Value thisv = ObjectValue(*thisObj);
-
     ExecuteType type = script->module() ? EXECUTE_MODULE : EXECUTE_GLOBAL;
+
+    RootedValue thisv(cx, GetThisValue(scopeChain));
+
     return ExecuteKernel(cx, script, *scopeChain, thisv, NullValue(), type,
                          NullFramePtr() /* evalInFrame */, rval);
 }
@@ -1335,7 +1332,7 @@ JS_STATIC_ASSERT(JSOP_IFNE == JSOP_IFEQ + 1);
  *    is what IsCacheableNonGlobalScope tests). Such objects-as-scopes must be
  *    censored with undefined.
  *
- * Otherwise, we bind |this| to GetThisObject(cx, obj). Only names inside
+ * Otherwise, we bind |this| to the result of GetThisValue(). Only names inside
  * |with| statements and embedding-specific scope objects fall into this
  * category.
  *
@@ -1343,27 +1340,17 @@ JS_STATIC_ASSERT(JSOP_IFNE == JSOP_IFEQ + 1);
  * in the interpreter and JITs will leave undefined as |this|. If funval is a
  * function not in strict mode, JSOP_THIS code replaces undefined with funval's
  * global.
- *
- * We set *vp to undefined early to reduce code size and bias this code for the
- * common and future-friendly cases.
  */
-static inline bool
-ComputeImplicitThis(JSContext* cx, HandleObject obj, MutableHandleValue vp)
+static inline Value
+ComputeImplicitThis(JSObject* obj)
 {
-    vp.setUndefined();
-
     if (IsGlobalLexicalScope(obj))
-        return true;
+        return UndefinedValue();
 
     if (IsCacheableNonGlobalScope(obj))
-        return true;
+        return UndefinedValue();
 
-    JSObject* nobj = GetThisObject(cx, obj);
-    if (!nobj)
-        return false;
-
-    vp.setObject(*nobj);
-    return true;
+    return GetThisValue(obj);
 }
 
 static MOZ_ALWAYS_INLINE bool
@@ -1836,8 +1823,6 @@ CASE(JSOP_NOP)
 CASE(JSOP_UNUSED2)
 CASE(JSOP_UNUSED14)
 CASE(JSOP_BACKPATCH)
-CASE(JSOP_UNUSED169)
-CASE(JSOP_UNUSED170)
 CASE(JSOP_UNUSED171)
 CASE(JSOP_UNUSED172)
 CASE(JSOP_UNUSED173)
@@ -2954,9 +2939,7 @@ CASE(JSOP_GIMPLICITTHIS)
         if (!LookupNameWithGlobalDefault(cx, name, scopeObj, &scope))
             goto error;
 
-        ReservedRooted<Value> v(&rootValue0);
-        if (!ComputeImplicitThis(cx, scope, &v))
-            goto error;
+        Value v = ComputeImplicitThis(scope);
         PUSH_COPY(v);
     } else {
         // Treat it like JSOP_UNDEFINED.
@@ -3180,6 +3163,14 @@ CASE(JSOP_SETALIASEDVAR)
     SetAliasedVarOperation(cx, script, REGS.pc, obj, sc, REGS.sp[-1], CheckLexical);
 }
 END_CASE(JSOP_SETALIASEDVAR)
+
+CASE(JSOP_THROWSETCONST)
+CASE(JSOP_THROWSETALIASEDCONST)
+{
+    ReportRuntimeConstAssignment(cx, script, REGS.pc);
+    goto error;
+}
+END_CASE(JSOP_THROWSETCONST)
 
 CASE(JSOP_CHECKLEXICAL)
 {
@@ -4460,7 +4451,8 @@ js::ImplicitThisOperation(JSContext* cx, HandleObject scopeObj, HandlePropertyNa
     if (!LookupNameWithGlobalDefault(cx, name, scopeObj, &obj))
         return false;
 
-    return ComputeImplicitThis(cx, obj, res);
+    res.set(ComputeImplicitThis(obj));
+    return true;
 }
 
 bool
@@ -4758,21 +4750,35 @@ js::NewArrayOperationWithTemplate(JSContext* cx, HandleObject templateObject)
 }
 
 void
-js::ReportUninitializedLexical(JSContext* cx, HandlePropertyName name)
+js::ReportRuntimeLexicalError(JSContext* cx, unsigned errorNumber, HandleId id)
 {
+    MOZ_ASSERT(errorNumber == JSMSG_UNINITIALIZED_LEXICAL ||
+               errorNumber == JSMSG_BAD_CONST_ASSIGN);
     JSAutoByteString printable;
-    if (AtomToPrintableString(cx, name, &printable)) {
-        JS_ReportErrorNumber(cx, GetErrorMessage, nullptr, JSMSG_UNINITIALIZED_LEXICAL,
-                             printable.ptr());
-    }
+    if (ValueToPrintable(cx, IdToValue(id), &printable))
+        JS_ReportErrorNumber(cx, GetErrorMessage, nullptr, errorNumber, printable.ptr());
 }
 
 void
-js::ReportUninitializedLexical(JSContext* cx, HandleScript script, jsbytecode* pc)
+js::ReportRuntimeLexicalError(JSContext* cx, unsigned errorNumber, HandlePropertyName name)
 {
+    RootedId id(cx, NameToId(name));
+    ReportRuntimeLexicalError(cx, errorNumber, id);
+}
+
+void
+js::ReportRuntimeLexicalError(JSContext* cx, unsigned errorNumber,
+                              HandleScript script, jsbytecode* pc)
+{
+    JSOp op = JSOp(*pc);
+    MOZ_ASSERT(op == JSOP_CHECKLEXICAL ||
+               op == JSOP_CHECKALIASEDLEXICAL ||
+               op == JSOP_THROWSETCONST ||
+               op == JSOP_THROWSETALIASEDCONST);
+
     RootedPropertyName name(cx);
 
-    if (JSOp(*pc) == JSOP_CHECKLEXICAL) {
+    if (IsLocalOp(op)) {
         uint32_t slot = GET_LOCALNO(pc);
 
         // First search for a name among body-level lets.
@@ -4804,11 +4810,11 @@ js::ReportUninitializedLexical(JSContext* cx, HandleScript script, jsbytecode* p
             name = JSID_TO_ATOM(id)->asPropertyName();
         }
     } else {
-        MOZ_ASSERT(JSOp(*pc) == JSOP_CHECKALIASEDLEXICAL);
+        MOZ_ASSERT(IsAliasedVarOp(op));
         name = ScopeCoordinateName(cx->runtime()->scopeCoordinateNameCache, script, pc);
     }
 
-    ReportUninitializedLexical(cx, name);
+    ReportRuntimeLexicalError(cx, errorNumber, name);
 }
 
 bool

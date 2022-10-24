@@ -275,7 +275,7 @@
     macro(match, match, "match") \
     macro(species, species, "species") \
     macro(hasInstance, hasInstance, "hasInstance") \
-    macro(toPrimitive, toPrimitive, "toPrimtive") \
+    macro(toPrimitive, toPrimitive, "toPrimitive") \
     macro(unscopables, unscopables, "unscopables") \
     /* Same goes for the descriptions of the well-known symbols. */ \
     macro(Symbol_create, Symbol_create, "Symbol.create") \
@@ -287,5 +287,7 @@
     macro(Symbol_hasInstance, Symbol_hasInstance, "Symbol.hasInstance") \
     macro(Symbol_toPrimitive, Symbol_toPrimitive, "Symbol.toPrimitive") \
     macro(Symbol_unscopables, Symbol_unscopables, "Symbol.unscopables") \
+    /* Function names for properties named by symbols. */ \
+    macro(Symbol_iterator_fun, Symbol_iterator_fun, "[Symbol.iterator]") \
 
 #endif /* vm_CommonPropertyNames_h */

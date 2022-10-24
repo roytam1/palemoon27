@@ -5783,6 +5783,12 @@
     "n_buckets": "29",
     "description": "The number of times AddIceCandidate failed on a given PeerConnection, given that ICE failed."
   },
+  "WEBRTC_GET_USER_MEDIA_TYPE": {
+    "expires_in_version": "never",
+    "kind": "enumerated",
+    "n_values": 8,
+    "description": "Type for media in getUserMedia calls (0=Camera, 1=Screen, 2=Application, 3=Window, 4=Browser, 5=Microphone, 6=AudioCapture, 7=Other)"
+  },
   "COOKIES_3RDPARTY_NUM_SITES_ACCEPTED": {
     "expires_in_version": "40",
     "kind": "linear",

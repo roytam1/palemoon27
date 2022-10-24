@@ -33,6 +33,7 @@
 #include "nsAppDirectoryServiceDefs.h"
 #include "nsIInputStream.h"
 #include "nsILineInputStream.h"
+#include "mozilla/Telemetry.h"
 #include "mozilla/Types.h"
 #include "mozilla/PeerIdentity.h"
 #include "mozilla/dom/ContentChild.h"
@@ -1429,25 +1430,22 @@ MediaManager::EnumerateRawDevices(uint64_t aWindowId,
   RefPtr<PledgeSourceSet> p = new PledgeSourceSet();
   uint32_t id = mOutstandingPledges.Append(*p);
 
-  // Check if the preference for using audio/video loopback devices is
-  // enabled. This is currently used for automated media tests only.
-  //
-  // If present (and we're doing non-exotic cameras and microphones) use them
-  // instead of our built-in fake devices, except if fake tracks are requested
-  // (a feature of the built-in ones only).
-
   nsAdoptingCString audioLoopDev, videoLoopDev;
-  if (!aFakeTracks) {
-    if (aVideoType == dom::MediaSourceEnum::Camera) {
-      audioLoopDev = Preferences::GetCString("media.audio_loopback_dev");
+  if (!aFake) {
+    // Fake stream not requested. The entire device stack is available.
+    // Loop in loopback devices if they are set, and their respective type is
+    // requested. This is currently used for automated media tests only.
+    if (aVideoType == MediaSourceEnum::Camera) {
       videoLoopDev = Preferences::GetCString("media.video_loopback_dev");
-
-      if (aFake && !audioLoopDev.IsEmpty() && !videoLoopDev.IsEmpty()) {
-        aFake = false;
-      }
-    } else {
-      aFake = false;
     }
+    if (aAudioType == MediaSourceEnum::Microphone) {
+      audioLoopDev = Preferences::GetCString("media.audio_loopback_dev");
+    }
+  }
+
+  if (!aFake) {
+    // Fake tracks only make sense when we have a fake stream.
+    aFakeTracks = false;
   }
 
   MediaManager::PostTask(FROM_HERE, NewTaskFrom([id, aWindowId, audioLoopDev,
@@ -1766,6 +1764,16 @@ nsresult MediaManager::GenerateUUID(nsAString& aResult)
   return NS_OK;
 }
 
+enum class GetUserMediaSecurityState {
+  Other = 0,
+  HTTPS = 1,
+  File = 2,
+  App = 3,
+  Localhost = 4,
+  Loop = 5,
+  Privileged = 6
+};
+
 /**
  * The entry point for this file. A call from Navigator::mozGetUserMedia
  * will end up here. MediaManager is a singleton that is responsible
@@ -1817,9 +1825,22 @@ MediaManager::GetUserMedia(nsPIDOMWindow* aWindow,
   bool privileged = loop || IsPrivileged();
   bool isHTTPS = false;
   docURI->SchemeIs("https", &isHTTPS);
+  nsCString host;
+  nsresult rv = docURI->GetHost(host);
+  // Test for some other schemes that ServiceWorker recognizes
+  bool isFile;
+  docURI->SchemeIs("file", &isFile);
+  bool isApp;
+  docURI->SchemeIs("app", &isApp);
+  // Same localhost check as ServiceWorkers uses
+  // (see IsFromAuthenticatedOriginInternal())
+  bool isLocalhost = NS_SUCCEEDED(rv) &&
+                     (host.LowerCaseEqualsLiteral("localhost") ||
+                      host.LowerCaseEqualsLiteral("127.0.0.1") ||
+                      host.LowerCaseEqualsLiteral("::1"));
 
   nsCString origin;
-  nsresult rv = nsPrincipal::GetOriginForURI(docURI, origin);
+  rv = nsPrincipal::GetOriginForURI(docURI, origin);
   if (NS_WARN_IF(NS_FAILED(rv))) {
     return rv;
   }
@@ -1841,6 +1862,15 @@ MediaManager::GetUserMedia(nsPIDOMWindow* aWindow,
         break;
 
       case dom::MediaSourceEnum::Browser:
+        // If no window id is passed in then default to the caller's window.
+        // Functional defaults are helpful in tests, but also a natural outcome
+        // of the constraints API's limited semantics for requiring input.
+        if (!vc.mBrowserWindow.WasPassed()) {
+          nsPIDOMWindow *outer = aWindow->GetOuterWindow();
+          vc.mBrowserWindow.Construct(outer->WindowID());
+        }
+        // | Fall through
+        // V
       case dom::MediaSourceEnum::Screen:
       case dom::MediaSourceEnum::Application:
       case dom::MediaSourceEnum::Window:
@@ -1933,7 +1963,6 @@ MediaManager::GetUserMedia(nsPIDOMWindow* aWindow,
       ac.mMediaSource.AssignASCII(EnumToASCII(dom::MediaSourceEnumValues::strings,
                                               audioType));
     }
-
     switch (audioType) {
       case dom::MediaSourceEnum::Microphone:
         break;

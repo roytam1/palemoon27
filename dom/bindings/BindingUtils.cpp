@@ -36,6 +36,7 @@
 #include "mozilla/dom/ScriptSettings.h"
 #include "mozilla/dom/DOMError.h"
 #include "mozilla/dom/DOMErrorBinding.h"
+#include "mozilla/dom/DOMException.h"
 #include "mozilla/dom/ElementBinding.h"
 #include "mozilla/dom/HTMLObjectElement.h"
 #include "mozilla/dom/HTMLObjectElementBinding.h"
@@ -142,6 +143,10 @@ ThrowMethodFailed(JSContext* cx, ErrorResult& rv)
     rv.ReportJSException(cx);
     return false;
   }
+  if (rv.IsDOMException()) {
+    rv.ReportDOMException(cx);
+    return false;
+  }
   rv.ReportGenericError(cx);
   return false;
 }
@@ -157,6 +162,9 @@ ThrowNoSetterArg(JSContext* aCx, prototypes::ID aProtoId)
 } // namespace dom
 
 struct ErrorResult::Message {
+  Message() { MOZ_COUNT_CTOR(ErrorResult::Message); }
+  ~Message() { MOZ_COUNT_DTOR(ErrorResult::Message); }
+
   nsTArray<nsString> mArgs;
   dom::ErrNum mErrorNumber;
 
@@ -169,9 +177,6 @@ struct ErrorResult::Message {
 nsTArray<nsString>&
 ErrorResult::CreateErrorMessageHelper(const dom::ErrNum errorNumber, nsresult errorType)
 {
-  if (IsErrorWithMessage()) {
-    delete mMessage;
-  }
   mResult = errorType;
 
   mMessage = new Message();
@@ -183,8 +188,8 @@ void
 ErrorResult::SerializeMessage(IPC::Message* aMsg) const
 {
   using namespace IPC;
+  MOZ_ASSERT(mUnionState == HasMessage);
   MOZ_ASSERT(mMessage);
-  MOZ_ASSERT(mHasMessage);
   WriteParam(aMsg, mMessage->mArgs);
   WriteParam(aMsg, mMessage->mErrorNumber);
 }
@@ -202,11 +207,11 @@ ErrorResult::DeserializeMessage(const IPC::Message* aMsg, void** aIter)
     return false;
   }
 
-  MOZ_ASSERT(!mHasMessage);
+  MOZ_ASSERT(mUnionState == HasNothing);
   mMessage = readMessage.forget();
 #ifdef DEBUG
-  mHasMessage = true;
-#endif
+  mUnionState = HasMessage;
+#endif // DEBUG
   return true;
 }
 
@@ -214,7 +219,7 @@ void
 ErrorResult::ReportErrorWithMessage(JSContext* aCx)
 {
   MOZ_ASSERT(mMessage, "ReportErrorWithMessage() can be called only once");
-  MOZ_ASSERT(mHasMessage);
+  MOZ_ASSERT(mUnionState == HasMessage);
 
   Message* message = mMessage;
   MOZ_RELEASE_ASSERT(message->HasCorrectNumberOfArguments());
@@ -239,8 +244,8 @@ ErrorResult::ClearMessage()
   delete mMessage;
   mMessage = nullptr;
 #ifdef DEBUG
-  mHasMessage = false;
-#endif
+  mUnionState = HasNothing;
+#endif // DEBUG
 }
 
 void
@@ -249,12 +254,7 @@ ErrorResult::ThrowJSException(JSContext* cx, JS::Handle<JS::Value> exn)
   MOZ_ASSERT(mMightHaveUnreportedJSException,
              "Why didn't you tell us you planned to throw a JS exception?");
 
-  if (IsErrorWithMessage()) {
-    delete mMessage;
-#ifdef DEBUG
-    mHasMessage = false;
-#endif
-  }
+  ClearUnionData();
 
   // Make sure mJSException is initialized _before_ we try to root it.  But
   // don't set it to exn yet, because we don't want to do that until after we
@@ -267,6 +267,9 @@ ErrorResult::ThrowJSException(JSContext* cx, JS::Handle<JS::Value> exn)
   } else {
     mJSException = exn;
     mResult = NS_ERROR_DOM_JS_EXCEPTION;
+#ifdef DEBUG
+    mUnionState = HasJSException;
+#endif // DEBUG
   }
 }
 
@@ -275,6 +278,7 @@ ErrorResult::ReportJSException(JSContext* cx)
 {
   MOZ_ASSERT(!mMightHaveUnreportedJSException,
              "Why didn't you tell us you planned to handle JS exceptions?");
+  MOZ_ASSERT(mUnionState == HasJSException);
 
   JS::Rooted<JS::Value> exception(cx, mJSException);
   if (JS_WrapValue(cx, &exception)) {
@@ -288,6 +292,9 @@ ErrorResult::ReportJSException(JSContext* cx)
   // We no longer have a useful exception but we do want to signal that an error
   // occured.
   mResult = NS_ERROR_FAILURE;
+#ifdef DEBUG
+  mUnionState = HasNothing;
+#endif // DEBUG
 }
 
 void
@@ -297,10 +304,107 @@ ErrorResult::StealJSException(JSContext* cx,
   MOZ_ASSERT(!mMightHaveUnreportedJSException,
              "Must call WouldReportJSException unconditionally in all codepaths that might call StealJSException");
   MOZ_ASSERT(IsJSException(), "No exception to steal");
+  MOZ_ASSERT(mUnionState == HasJSException);
 
   value.set(mJSException);
   js::RemoveRawValueRoot(cx, &mJSException);
   mResult = NS_OK;
+#ifdef DEBUG
+  mUnionState = HasNothing;
+#endif // DEBUG
+}
+
+struct ErrorResult::DOMExceptionInfo {
+  DOMExceptionInfo(nsresult rv, const nsACString& message)
+    : mMessage(message)
+    , mRv(rv)
+  {}
+
+  nsCString mMessage;
+  nsresult mRv;
+};
+
+void
+ErrorResult::SerializeDOMExceptionInfo(IPC::Message* aMsg) const
+{
+  using namespace IPC;
+  MOZ_ASSERT(mDOMExceptionInfo);
+  MOZ_ASSERT(mUnionState == HasDOMExceptionInfo);
+  WriteParam(aMsg, mDOMExceptionInfo->mMessage);
+  WriteParam(aMsg, mDOMExceptionInfo->mRv);
+}
+
+bool
+ErrorResult::DeserializeDOMExceptionInfo(const IPC::Message* aMsg, void** aIter)
+{
+  using namespace IPC;
+  nsCString message;
+  nsresult rv;
+  if (!ReadParam(aMsg, aIter, &message) ||
+      !ReadParam(aMsg, aIter, &rv)) {
+    return false;
+  }
+
+  MOZ_ASSERT(mUnionState == HasNothing);
+  MOZ_ASSERT(IsDOMException());
+  mDOMExceptionInfo = new DOMExceptionInfo(rv, message);
+#ifdef DEBUG
+  mUnionState = HasDOMExceptionInfo;
+#endif // DEBUG
+  return true;
+}
+
+void
+ErrorResult::ThrowDOMException(nsresult rv, const nsACString& message)
+{
+  ClearUnionData();
+
+  mResult = NS_ERROR_DOM_DOMEXCEPTION;
+  mDOMExceptionInfo = new DOMExceptionInfo(rv, message);
+#ifdef DEBUG
+  mUnionState = HasDOMExceptionInfo;
+#endif
+}
+
+void
+ErrorResult::ReportDOMException(JSContext* cx)
+{
+  MOZ_ASSERT(mDOMExceptionInfo, "ReportDOMException() can be called only once");
+  MOZ_ASSERT(mUnionState == HasDOMExceptionInfo);
+
+  dom::Throw(cx, mDOMExceptionInfo->mRv, mDOMExceptionInfo->mMessage);
+
+  ClearDOMExceptionInfo();
+}
+
+void
+ErrorResult::ClearDOMExceptionInfo()
+{
+  MOZ_ASSERT(IsDOMException());
+  MOZ_ASSERT(mUnionState == HasDOMExceptionInfo || !mDOMExceptionInfo);
+  delete mDOMExceptionInfo;
+  mDOMExceptionInfo = nullptr;
+#ifdef DEBUG
+  mUnionState = HasNothing;
+#endif // DEBUG
+}
+
+void
+ErrorResult::ClearUnionData()
+{
+  if (IsJSException()) {
+    JSContext* cx = nsContentUtils::GetDefaultJSContextForThread();
+    MOZ_ASSERT(cx);
+    mJSException.setUndefined();
+    js::RemoveRawValueRoot(cx, &mJSException);
+#ifdef DEBUG
+    mUnionState = HasNothing;
+#endif // DEBUG
+  } else if (IsErrorWithMessage()) {
+    ClearMessage();
+  } else if (IsDOMException()) {
+    ClearDOMExceptionInfo();
+  }
 }
 
 void
@@ -308,12 +412,17 @@ ErrorResult::ReportGenericError(JSContext* cx)
 {
   MOZ_ASSERT(!IsErrorWithMessage());
   MOZ_ASSERT(!IsJSException());
+  MOZ_ASSERT(!IsDOMException());
   dom::Throw(cx, ErrorCode());
 }
 
 ErrorResult&
 ErrorResult::operator=(ErrorResult&& aRHS)
 {
+  // Clear out any union members we may have right now, before we
+  // start writing to it.
+  ClearUnionData();
+
 #ifdef DEBUG
   mMightHaveUnreportedJSException = aRHS.mMightHaveUnreportedJSException;
   aRHS.mMightHaveUnreportedJSException = false;
@@ -321,10 +430,6 @@ ErrorResult::operator=(ErrorResult&& aRHS)
   if (aRHS.IsErrorWithMessage()) {
     mMessage = aRHS.mMessage;
     aRHS.mMessage = nullptr;
-#ifdef DEBUG
-    mHasMessage = aRHS.mHasMessage;
-    aRHS.mHasMessage = false;
-#endif
   } else if (aRHS.IsJSException()) {
     JSContext* cx = nsContentUtils::GetDefaultJSContextForThread();
     MOZ_ASSERT(cx);
@@ -335,13 +440,19 @@ ErrorResult::operator=(ErrorResult&& aRHS)
     mJSException = aRHS.mJSException;
     aRHS.mJSException.setUndefined();
     js::RemoveRawValueRoot(cx, &aRHS.mJSException);
+  } else if (aRHS.IsDOMException()) {
+    mDOMExceptionInfo = aRHS.mDOMExceptionInfo;
+    aRHS.mDOMExceptionInfo = nullptr;
   } else {
     // Null out the union on both sides for hygiene purposes.
     mMessage = aRHS.mMessage = nullptr;
-#ifdef DEBUG
-    mHasMessage = aRHS.mHasMessage = false;
-#endif
   }
+
+#ifdef DEBUG
+  mUnionState = aRHS.mUnionState;
+  aRHS.mUnionState = HasNothing;
+#endif // DEBUG
+
   // Note: It's important to do this last, since this affects the condition
   // checks above!
   mResult = aRHS.mResult;
@@ -353,15 +464,7 @@ void
 ErrorResult::SuppressException()
 {
   WouldReportJSException();
-  if (IsErrorWithMessage()) {
-    ClearMessage();
-  } else if (IsJSException()) {
-    JSContext* cx = nsContentUtils::GetDefaultJSContextForThread();
-    // Just steal it into a stack value (unrooting it in the process)
-    // that we then allow to die.
-    JS::Rooted<JS::Value> temp(cx);
-    StealJSException(cx, &temp);
-  }
+  ClearUnionData();
   // We don't use AssignErrorCode, because we want to override existing error
   // states, which AssignErrorCode is not allowed to do.
   mResult = NS_OK;
@@ -894,7 +997,7 @@ QueryInterface(JSContext* cx, unsigned argc, JS::Value* vp)
   // unwrap.
   JS::Rooted<JSObject*> origObj(cx, &thisv.toObject());
   JS::Rooted<JSObject*> obj(cx, js::CheckedUnwrap(origObj,
-                                                  /* stopAtOuter = */ false));
+                                                  /* stopAtWindowProxy = */ false));
   if (!obj) {
       JS_ReportError(cx, "Permission denied to access object");
       return false;
@@ -1905,7 +2008,7 @@ GlobalObject::GlobalObject(JSContext* aCx, JSObject* aObject)
   MOZ_ASSERT(mCx);
   JS::Rooted<JSObject*> obj(aCx, aObject);
   if (js::IsWrapper(obj)) {
-    obj = js::CheckedUnwrap(obj, /* stopAtOuter = */ false);
+    obj = js::CheckedUnwrap(obj, /* stopAtWindowProxy = */ false);
     if (!obj) {
       // We should never end up here on a worker thread, since there shouldn't
       // be any security wrappers to worry about.
@@ -1976,7 +2079,8 @@ InterfaceHasInstance(JSContext* cx, JS::Handle<JSObject*> obj,
   const DOMIfaceAndProtoJSClass* clasp =
     DOMIfaceAndProtoJSClass::FromJSClass(js::GetObjectClass(obj));
 
-  const DOMJSClass* domClass = GetDOMClass(js::UncheckedUnwrap(instance, /* stopAtOuter = */ false));
+  const DOMJSClass* domClass =
+    GetDOMClass(js::UncheckedUnwrap(instance, /* stopAtWindowProxy = */ false));
 
   MOZ_ASSERT(!domClass || clasp->mPrototypeID != prototypes::id::_ID_Count,
              "Why do we have a hasInstance hook if we don't have a prototype "
@@ -2812,7 +2916,7 @@ GetMaplikeSetlikeBackingObject(JSContext* aCx, JS::Handle<JSObject*> aObj,
 {
   JS::Rooted<JSObject*> reflector(aCx);
   reflector = IsDOMObject(aObj) ? aObj : js::UncheckedUnwrap(aObj,
-                                                             /* stopAtOuter = */ false);
+                                                             /* stopAtWindowProxy = */ false);
 
   // Retrieve the backing object from the reserved slot on the maplike/setlike
   // object. If it doesn't exist yet, create it.

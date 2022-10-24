@@ -99,7 +99,7 @@ WebGLContext::CreateShaderValidator(GLenum shaderType) const
     if (mBypassShaderValidation)
         return nullptr;
 
-    ShShaderSpec spec = SH_WEBGL_SPEC;
+    ShShaderSpec spec = IsWebGL2() ? SH_WEBGL2_SPEC : SH_WEBGL_SPEC;
     ShShaderOutput outputLanguage = gl->IsGLES() ? SH_ESSL_OUTPUT
                                                  : SH_GLSL_COMPATIBILITY_OUTPUT;
 
@@ -367,6 +367,38 @@ ShaderValidator::FindAttribMappedNameByUserName(const std::string& userName,
     return false;
 }
 
+bool
+ShaderValidator::FindVaryingByMappedName(const std::string& mappedName,
+                                         std::string* const out_userName,
+                                         bool* const out_isArray) const
+{
+    const std::vector<sh::Varying>& varyings = *ShGetVaryings(mHandle);
+    for (auto itr = varyings.begin(); itr != varyings.end(); ++itr) {
+        const sh::ShaderVariable* found;
+        if (!itr->findInfoByMappedName(mappedName, &found, out_userName))
+            continue;
+
+        *out_isArray = found->isArray();
+        return true;
+    }
+
+    return false;
+}
+
+bool
+ShaderValidator::FindVaryingMappedNameByUserName(const std::string& userName,
+                                                 const std::string** const out_mappedName) const
+{
+    const std::vector<sh::Varying>& attribs = *ShGetVaryings(mHandle);
+    for (auto itr = attribs.begin(); itr != attribs.end(); ++itr) {
+        if (itr->name == userName) {
+            *out_mappedName = &(itr->mappedName);
+            return true;
+        }
+    }
+
+    return false;
+}
 // This must handle names like "foo.bar[0]".
 bool
 ShaderValidator::FindUniformByMappedName(const std::string& mappedName,
@@ -381,6 +413,34 @@ ShaderValidator::FindUniformByMappedName(const std::string& mappedName,
 
         *out_isArray = found->isArray();
         return true;
+    }
+
+    const std::vector<sh::InterfaceBlock>& interfaces = *ShGetInterfaceBlocks(mHandle);
+    for (const auto& interface : interfaces) {
+        for (const auto& field : interface.fields) {
+            const sh::ShaderVariable* found;
+
+            if (!field.findInfoByMappedName(mappedName, &found, out_userName))
+                continue;
+
+            *out_isArray = found->isArray();
+            return true;
+        }
+    }
+
+    return false;
+}
+
+bool
+ShaderValidator::FindUniformBlockByMappedName(const std::string& mappedName,
+                                              std::string* const out_userName) const
+{
+    const std::vector<sh::InterfaceBlock>& interfaces = *ShGetInterfaceBlocks(mHandle);
+    for (const auto& interface : interfaces) {
+        if (mappedName == interface.mappedName) {
+            *out_userName = interface.name;
+            return true;
+        }
     }
 
     return false;

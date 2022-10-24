@@ -222,6 +222,7 @@ JSRuntime::JSRuntime(JSRuntime* parentRuntime)
     ionPcScriptCache(nullptr),
     scriptEnvironmentPreparer(nullptr),
     ctypesActivityCallback(nullptr),
+    windowProxyClass_(nullptr),
     offthreadIonCompilationEnabled_(true),
     parallelParsingEnabled_(true),
     autoWritableJitCodeActive_(false),

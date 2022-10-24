@@ -1402,6 +1402,7 @@ struct JSRuntime : public JS::shadow::Runtime,
 
   private:
     JS::RuntimeOptions options_;
+    const js::Class* windowProxyClass_;
 
     // Settings for how helper threads can be used.
     bool offthreadIonCompilationEnabled_;
@@ -1437,6 +1438,13 @@ struct JSRuntime : public JS::shadow::Runtime,
     }
     JS::RuntimeOptions& options() {
         return options_;
+    }
+
+    const js::Class* maybeWindowProxyClass() const {
+        return windowProxyClass_;
+    }
+    void setWindowProxyClass(const js::Class* clasp) {
+        windowProxyClass_ = clasp;
     }
 
 #ifdef DEBUG

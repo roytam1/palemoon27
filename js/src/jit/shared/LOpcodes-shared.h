@@ -274,8 +274,6 @@
     _(GetPropertyCacheT)            \
     _(GetPropertyPolymorphicV)      \
     _(GetPropertyPolymorphicT)      \
-    _(GetElementCacheV)             \
-    _(GetElementCacheT)             \
     _(BindNameCache)                \
     _(CallGetProperty)              \
     _(GetNameCache)                 \
@@ -286,8 +284,7 @@
     _(CallSetProperty)              \
     _(CallDeleteProperty)           \
     _(CallDeleteElement)            \
-    _(SetPropertyCacheV)            \
-    _(SetPropertyCacheT)            \
+    _(SetPropertyCache)             \
     _(SetElementCacheV)             \
     _(SetElementCacheT)             \
     _(SetPropertyPolymorphicV)      \

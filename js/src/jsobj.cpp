@@ -75,23 +75,6 @@ using mozilla::DebugOnly;
 using mozilla::Maybe;
 using mozilla::UniquePtr;
 
-JS_FRIEND_API(JSObject*)
-JS_ObjectToInnerObject(JSContext* cx, HandleObject obj)
-{
-    if (!obj) {
-        JS_ReportErrorNumber(cx, GetErrorMessage, nullptr, JSMSG_INACTIVE);
-        return nullptr;
-    }
-    return GetInnerObject(obj);
-}
-
-JS_FRIEND_API(JSObject*)
-JS_ObjectToOuterObject(JSContext* cx, HandleObject obj)
-{
-    assertSameCompartment(cx, obj);
-    return GetOuterObject(cx, obj);
-}
-
 void
 js::ReportNotObject(JSContext* cx, const Value& v)
 {
@@ -2229,11 +2212,17 @@ js::LookupNameUnqualified(JSContext* cx, HandlePropertyName name, HandleObject s
             break;
     }
 
-    // See note above UninitializedLexicalObject.
-    if (pobj == scope && IsUninitializedLexicalSlot(scope, shape)) {
-        scope = UninitializedLexicalObject::create(cx, scope);
-        if (!scope)
-            return false;
+    // See note above RuntimeLexicalErrorObject.
+    if (pobj == scope) {
+        if (IsUninitializedLexicalSlot(scope, shape)) {
+            scope = RuntimeLexicalErrorObject::create(cx, scope, JSMSG_UNINITIALIZED_LEXICAL);
+            if (!scope)
+                return false;
+        } else if (scope->is<ScopeObject>() && !scope->is<DeclEnvObject>() && !shape->writable()) {
+            scope = RuntimeLexicalErrorObject::create(cx, scope, JSMSG_BAD_CONST_ASSIGN);
+            if (!scope)
+                return false;
+        }
     }
 
     objp.set(scope);
@@ -2469,14 +2458,14 @@ js::SetPrototype(JSContext* cx, HandleObject obj, HandleObject proto, JS::Object
 
     /*
      * ES6 9.1.2 step 6 forbids generating cyclical prototype chains. But we
-     * have to do this comparison on the observable outer objects, not on the
-     * possibly-inner object we're setting the proto on.
+     * have to do this comparison on the observable WindowProxy, not on the
+     * possibly-Window object we're setting the proto on.
      */
-    RootedObject outerObj(cx, GetOuterObject(cx, obj));
+    RootedObject objMaybeWindowProxy(cx, ToWindowProxyIfWindow(obj));
     RootedObject obj2(cx);
     for (obj2 = proto; obj2; ) {
-        MOZ_ASSERT(GetOuterObject(cx, obj2) == obj2);
-        if (obj2 == outerObj)
+        MOZ_ASSERT(!IsWindow(obj2));
+        if (obj2 == objMaybeWindowProxy)
             return result.fail(JSMSG_CANT_SET_PROTO_CYCLE);
 
         if (!GetPrototype(cx, obj2, &obj2))
@@ -2752,7 +2741,7 @@ js::GetPropertyDescriptor(JSContext* cx, HandleObject obj, HandleId id,
 bool
 js::WatchGuts(JSContext* cx, JS::HandleObject origObj, JS::HandleId id, JS::HandleObject callable)
 {
-    RootedObject obj(cx, GetInnerObject(origObj));
+    RootedObject obj(cx, ToWindowIfWindowProxy(origObj));
     if (obj->isNative()) {
         // Use sparse indexes for watched objects, as dense elements can be
         // written to without checking the watchpoint map.
@@ -2781,7 +2770,7 @@ js::UnwatchGuts(JSContext* cx, JS::HandleObject origObj, JS::HandleId id)
 {
     // Looking in the map for an unsupported object will never hit, so we don't
     // need to check for nativeness or watchable-ness here.
-    RootedObject obj(cx, GetInnerObject(origObj));
+    RootedObject obj(cx, ToWindowIfWindowProxy(origObj));
     if (WatchpointMap* wpmap = cx->compartment()->watchpointMap)
         wpmap->unwatch(obj, id, nullptr, nullptr);
     return true;
@@ -3092,6 +3081,24 @@ js::ToObjectSlow(JSContext* cx, JS::HandleValue val, bool reportScanStack)
     }
 
     return PrimitiveToObject(cx, val);
+}
+
+Value
+js::GetThisValue(JSObject* obj)
+{
+    if (obj->is<GlobalObject>())
+        return ObjectValue(*ToWindowProxyIfWindow(obj));
+
+    if (obj->is<ClonedBlockObject>())
+        return obj->as<ClonedBlockObject>().thisValue();
+
+    if (obj->is<ModuleEnvironmentObject>())
+        return UndefinedValue();
+
+    if (obj->is<DynamicWithObject>())
+        return ObjectValue(*obj->as<DynamicWithObject>().withThis());
+
+    return ObjectValue(*obj);
 }
 
 class GetObjectSlotNameFunctor : public JS::CallbackTracer::ContextFunctor

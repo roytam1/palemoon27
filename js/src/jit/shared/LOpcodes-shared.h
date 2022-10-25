@@ -285,8 +285,6 @@
     _(CallDeleteProperty)           \
     _(CallDeleteElement)            \
     _(SetPropertyCache)             \
-    _(SetElementCacheV)             \
-    _(SetElementCacheT)             \
     _(SetPropertyPolymorphicV)      \
     _(SetPropertyPolymorphicT)      \
     _(CallIteratorStart)            \
@@ -361,7 +359,7 @@
     _(AssertResultV)                \
     _(AssertResultT)                \
     _(LexicalCheck)                 \
-    _(ThrowUninitializedLexical)    \
+    _(ThrowRuntimeLexicalError)     \
     _(GlobalNameConflictsCheck)     \
     _(Debugger)                     \
     _(NewTarget)                    \

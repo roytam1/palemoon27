@@ -330,6 +330,8 @@ class CallObject : public ScopeObject
 
     /* True if this is for a strict mode eval frame. */
     bool isForEval() const {
+        if (is<ModuleEnvironmentObject>())
+            return false;
         MOZ_ASSERT(getFixedSlot(CALLEE_SLOT).isObjectOrNull());
         MOZ_ASSERT_IF(getFixedSlot(CALLEE_SLOT).isObject(),
                       getFixedSlot(CALLEE_SLOT).toObject().is<JSFunction>());
@@ -341,6 +343,7 @@ class CallObject : public ScopeObject
      * only be called if !isForEval.)
      */
     JSFunction& callee() const {
+        MOZ_ASSERT(!is<ModuleEnvironmentObject>());
         return getFixedSlot(CALLEE_SLOT).toObject().as<JSFunction>();
     }
 
@@ -1111,13 +1114,13 @@ class LiveScopeVal
  * now incomplete: it may not contain all, or any, of the ScopeObjects to
  * represent the current scope.
  *
- * To resolve this, the debugger first calls GetDebugScopeFor(Function|Frame)
- * to synthesize a "debug scope chain". A debug scope chain is just a chain of
- * objects that fill in missing scopes and protect the engine from unexpected
- * access. (The latter means that some debugger operations, like redefining a
- * lexical binding, can fail when a true eval would succeed.) To do both of
- * these things, GetDebugScopeFor* creates a new proxy DebugScopeObject to sit
- * in front of every existing ScopeObject.
+ * To resolve this, the debugger first calls GetDebugScopeFor* to synthesize a
+ * "debug scope chain". A debug scope chain is just a chain of objects that
+ * fill in missing scopes and protect the engine from unexpected access. (The
+ * latter means that some debugger operations, like redefining a lexical
+ * binding, can fail when a true eval would succeed.) To do both of these
+ * things, GetDebugScopeFor* creates a new proxy DebugScopeObject to sit in
+ * front of every existing ScopeObject.
  *
  * GetDebugScopeFor* ensures the invariant that the same DebugScopeObject is
  * always produced for the same underlying scope (optimized or not!). This is
@@ -1129,6 +1132,9 @@ GetDebugScopeForFunction(JSContext* cx, HandleFunction fun);
 
 extern JSObject*
 GetDebugScopeForFrame(JSContext* cx, AbstractFramePtr frame, jsbytecode* pc);
+
+extern JSObject*
+GetDebugScopeForGlobalLexicalScope(JSContext* cx);
 
 /* Provides debugger access to a scope. */
 class DebugScopeObject : public ProxyObject

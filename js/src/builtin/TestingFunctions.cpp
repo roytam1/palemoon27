@@ -85,6 +85,14 @@ GetBuildConfiguration(JSContext* cx, unsigned argc, Value* vp)
     if (!JS_SetProperty(cx, info, "debug", value))
         return false;
 
+#ifdef RELEASE_BUILD
+    value = BooleanValue(true);
+#else
+    value = BooleanValue(false);
+#endif
+    if (!JS_SetProperty(cx, info, "release", value))
+        return false;
+
 #ifdef JS_HAS_CTYPES
     value = BooleanValue(true);
 #else
@@ -2843,15 +2851,6 @@ GetLcovInfo(JSContext* cx, unsigned argc, Value* vp)
     return true;
 }
 
-static bool
-EnableNoSuchMethod(JSContext* cx, unsigned argc, Value* vp)
-{
-    CallArgs args = CallArgsFromVp(argc, vp);
-    cx->runtime()->options().setNoSuchMethod(true);
-    args.rval().setUndefined();
-    return true;
-}
-
 #ifdef DEBUG
 static bool
 SetRNGState(JSContext* cx, unsigned argc, Value* vp)
@@ -3405,10 +3404,6 @@ gc::ZealModeHelpText),
 "getLcovInfo(global)",
 "  Generate LCOV tracefile for the given compartment.  If no global are provided then\n"
 "  the current global is used as the default one.\n"),
-
-    JS_FN_HELP("enableNoSuchMethod", EnableNoSuchMethod, 0, 0,
-"enableNoSuchMethod()",
-"  Enables the deprecated, non-standard __noSuchMethod__ feature.\n"),
 
 #ifdef DEBUG
     JS_FN_HELP("setRNGState", SetRNGState, 1, 0,

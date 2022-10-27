@@ -139,87 +139,6 @@ js::BoxNonStrictThis(JSContext* cx, const CallReceiver& call)
     return BoxNonStrictThis(cx, call.thisv(), call.mutableThisv());
 }
 
-#if JS_HAS_NO_SUCH_METHOD
-
-static const uint32_t JSSLOT_FOUND_FUNCTION = 0;
-static const uint32_t JSSLOT_SAVED_ID = 1;
-
-static const Class js_NoSuchMethodClass = {
-    "NoSuchMethod",
-    JSCLASS_HAS_RESERVED_SLOTS(2) | JSCLASS_IS_ANONYMOUS
-};
-
-/*
- * When JSOP_CALLPROP or JSOP_CALLELEM does not find the method property of
- * the base object, we search for the __noSuchMethod__ method in the base.
- * If it exists, we store the method and the property's id into an object of
- * NoSuchMethod class and store this object into the callee's stack slot.
- * Later, Invoke will recognise such an object and transfer control to
- * NoSuchMethod that invokes the method like:
- *
- *   this.__noSuchMethod__(id, args)
- *
- * where id is the name of the method that this invocation attempted to
- * call by name, and args is an Array containing this invocation's actual
- * parameters.
- */
-bool
-js::OnUnknownMethod(JSContext* cx, HandleObject obj, Value idval_, MutableHandleValue vp)
-{
-    if (!cx->runtime()->options().noSuchMethod())
-        return true;
-
-    RootedValue idval(cx, idval_);
-
-    RootedValue value(cx);
-    if (!GetProperty(cx, obj, obj, cx->names().noSuchMethod, &value))
-        return false;
-
-    if (value.isObject()) {
-        NativeObject* obj = NewNativeObjectWithClassProto(cx, &js_NoSuchMethodClass, nullptr);
-        if (!obj)
-            return false;
-
-        obj->setSlot(JSSLOT_FOUND_FUNCTION, value);
-        obj->setSlot(JSSLOT_SAVED_ID, idval);
-        vp.setObject(*obj);
-    }
-    return true;
-}
-
-static bool
-NoSuchMethod(JSContext* cx, unsigned argc, Value* vp)
-{
-    if (!cx->compartment()->warnedAboutNoSuchMethod) {
-        if (!JS_ReportWarning(cx, "__noSuchMethod__ is deprecated"))
-            return false;
-        cx->compartment()->warnedAboutNoSuchMethod = true;
-    }
-
-    InvokeArgs args(cx);
-    if (!args.init(2))
-        return false;
-
-    MOZ_ASSERT(vp[0].isObject());
-    MOZ_ASSERT(vp[1].isObject());
-    NativeObject* obj = &vp[0].toObject().as<NativeObject>();
-    MOZ_ASSERT(obj->getClass() == &js_NoSuchMethodClass);
-
-    args.setCallee(obj->getReservedSlot(JSSLOT_FOUND_FUNCTION));
-    args.setThis(vp[1]);
-    args[0].set(obj->getReservedSlot(JSSLOT_SAVED_ID));
-    JSObject* argsobj = NewDenseCopiedArray(cx, argc, vp + 2);
-    if (!argsobj)
-        return false;
-    args[1].setObject(*argsobj);
-    bool ok = Invoke(cx, args);
-    vp[0] = args.rval();
-
-    return ok;
-}
-
-#endif /* JS_HAS_NO_SUCH_METHOD */
-
 static inline bool
 GetPropertyOperation(JSContext* cx, InterpreterFrame* fp, HandleScript script, jsbytecode* pc,
                      MutableHandleValue lval, MutableHandleValue vp)
@@ -243,14 +162,6 @@ GetPropertyOperation(JSContext* cx, InterpreterFrame* fp, HandleScript script, j
         return true;
     }
 
-    if (op == JSOP_CALLPROP) {
-        // The __noSuchMethod__ code in CallProperty requires non-aliasing
-        // v and vp arguments.
-        RootedValue v(cx, lval);
-        return CallProperty(cx, v, name, vp);
-    }
-
-    MOZ_ASSERT(op == JSOP_GETPROP || op == JSOP_LENGTH);
     // Copy lval, because it might alias vp.
     RootedValue v(cx, lval);
     return GetProperty(cx, v, name, vp);
@@ -459,14 +370,8 @@ js::Invoke(JSContext* cx, const CallArgs& args, MaybeConstruct construct)
     if (args.calleev().isPrimitive())
         return ReportIsNotFunction(cx, args.calleev(), skipForCallee, construct);
 
-    const Class* clasp = args.callee().getClass();
-
     /* Invoke non-functions. */
-    if (MOZ_UNLIKELY(clasp != &JSFunction::class_)) {
-#if JS_HAS_NO_SUCH_METHOD
-        if (MOZ_UNLIKELY(clasp == &js_NoSuchMethodClass))
-            return NoSuchMethod(cx, args.length(), args.base());
-#endif
+    if (MOZ_UNLIKELY(!args.callee().is<JSFunction>())) {
         MOZ_ASSERT_IF(construct, !args.callee().constructHook());
         JSNative call = args.callee().callHook();
         if (!call)
@@ -1822,6 +1727,7 @@ CASE(EnableInterruptsPseudoOpcode)
 CASE(JSOP_NOP)
 CASE(JSOP_UNUSED14)
 CASE(JSOP_BACKPATCH)
+CASE(JSOP_UNUSED145)
 CASE(JSOP_UNUSED171)
 CASE(JSOP_UNUSED172)
 CASE(JSOP_UNUSED173)
@@ -2161,16 +2067,6 @@ CASE(JSOP_PICK)
     REGS.sp[-1] = lval;
 }
 END_CASE(JSOP_PICK)
-
-CASE(JSOP_BINDINTRINSIC)
-{
-    NativeObject* holder = GlobalObject::getIntrinsicsHolder(cx, cx->global());
-    if (!holder)
-        goto error;
-
-    PUSH_OBJECT(*holder);
-}
-END_CASE(JSOP_BINDINTRINSIC)
 
 CASE(JSOP_BINDGNAME)
 CASE(JSOP_BINDNAME)
@@ -2595,9 +2491,6 @@ CASE(JSOP_SETINTRINSIC)
 
     if (!SetIntrinsicOperation(cx, script, REGS.pc, value))
         goto error;
-
-    REGS.sp[-2] = REGS.sp[-1];
-    REGS.sp--;
 }
 END_CASE(JSOP_SETINTRINSIC)
 
@@ -4058,26 +3951,6 @@ js::GetProperty(JSContext* cx, HandleValue v, HandlePropertyName name, MutableHa
 }
 
 bool
-js::CallProperty(JSContext* cx, HandleValue v, HandlePropertyName name, MutableHandleValue vp)
-{
-    // __noSuchMethod__ code below depends on this.
-    MOZ_ASSERT(v.address() != vp.address());
-
-    if (!GetProperty(cx, v, name, vp))
-        return false;
-
-#if JS_HAS_NO_SUCH_METHOD
-    if (MOZ_UNLIKELY(vp.isUndefined()) && v.isObject()) {
-        RootedObject obj(cx, &v.toObject());
-        if (!OnUnknownMethod(cx, obj, StringValue(name), vp))
-            return false;
-    }
-#endif
-
-    return true;
-}
-
-bool
 js::GetScopeName(JSContext* cx, HandleObject scopeChain, HandlePropertyName name, MutableHandleValue vp)
 {
     RootedShape shape(cx);
@@ -4552,6 +4425,20 @@ js::SpreadCallOperation(JSContext* cx, HandleScript script, jsbytecode* pc, Hand
                              constructing ? JSMSG_TOO_MANY_CON_SPREADARGS
                                           : JSMSG_TOO_MANY_FUN_SPREADARGS);
         return false;
+    }
+
+    // Do our own checks for the callee being a function, as Invoke uses the
+    // expression decompiler to decompile the callee stack operand based on
+    // the number of arguments. Spread operations have the callee at sp - 3
+    // when not constructing, and sp - 4 when constructing.
+    if (callee.isPrimitive()) {
+        return ReportIsNotFunction(cx, callee, 2 + constructing,
+                                   constructing ? CONSTRUCT : NO_CONSTRUCT);
+    }
+
+    if (MOZ_UNLIKELY(!callee.toObject().is<JSFunction>()) && !callee.toObject().callHook()) {
+        return ReportIsNotFunction(cx, callee, 2 + constructing,
+                                   constructing ? CONSTRUCT : NO_CONSTRUCT);
     }
 
 #ifdef DEBUG

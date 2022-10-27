@@ -17,6 +17,7 @@
 #include "mozilla/BasePrincipal.h"
 
 class nsINode;
+class nsXMLHttpRequest;
 
 namespace mozilla {
 
@@ -33,6 +34,11 @@ LoadInfoArgsToLoadInfo(const mozilla::net::OptionalLoadInfoArgs& aLoadInfoArgs,
 
 /**
  * Class that provides an nsILoadInfo implementation.
+ *
+ * Note that there is no reason why this class should be MOZ_EXPORT, but
+ * Thunderbird relies on some insane hacks which require this, so we'll leave it
+ * as is for now, but hopefully we'll be able to remove the MOZ_EXPORT keyword
+ * from this class at some point.  See bug 1149127 for the discussion.
  */
 class MOZ_EXPORT LoadInfo final : public nsILoadInfo
 {
@@ -83,6 +89,12 @@ private:
     nsILoadInfo** outLoadInfo);
 
   ~LoadInfo();
+
+  // This function is the *only* function which can change the securityflags
+  // of a loadinfo. It only exists because of the XHR code. Don't call it
+  // from anywhere else!
+  void SetWithCredentialsSecFlag();
+  friend class ::nsXMLHttpRequest;
 
   nsCOMPtr<nsIPrincipal>           mLoadingPrincipal;
   nsCOMPtr<nsIPrincipal>           mTriggeringPrincipal;

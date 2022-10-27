@@ -6352,8 +6352,7 @@ ParseFunction(ModuleValidator& m, ParseNode** fnOut)
         return false;
 
     Directives newDirectives = directives;
-    AsmJSParseContext funpc(&m.parser(), outerpc, fn, funbox, &newDirectives,
-                            /* blockScopeDepth = */ 0);
+    AsmJSParseContext funpc(&m.parser(), outerpc, fn, funbox, &newDirectives);
     if (!funpc.init(m.parser()))
         return false;
 
@@ -8213,6 +8212,10 @@ EstablishPreconditions(ExclusiveContext* cx, AsmJSParser& parser)
 
     if (parser.pc->isArrowFunction())
         return Warn(parser, JSMSG_USE_ASM_TYPE_FAIL, "Disabled by arrow function context");
+
+    // Class constructors are also methods
+    if (parser.pc->isMethod())
+        return Warn(parser, JSMSG_USE_ASM_TYPE_FAIL, "Disabled by class constructor or method context");
 
     return true;
 }

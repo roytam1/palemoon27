@@ -962,7 +962,6 @@ const Class UnboxedPlainObject::class_ = {
         nullptr,   /* No unwatch needed, as watch() converts the object to native */
         nullptr,   /* getElements */
         UnboxedPlainObject::obj_enumerate,
-        nullptr, /* thisObject */
     }
 };
 
@@ -1635,8 +1634,6 @@ const Class UnboxedArrayObject::class_ = {
     UnboxedArrayObject::trace,
     JS_NULL_CLASS_SPEC,
     {
-        nullptr,    /* outerObject */
-        nullptr,    /* innerObject */
         false,      /* isWrappedNative */
         nullptr,    /* weakmapKeyDelegateOp */
         UnboxedArrayObject::objectMoved
@@ -1653,7 +1650,6 @@ const Class UnboxedArrayObject::class_ = {
         nullptr,   /* No unwatch needed, as watch() converts the object to native */
         nullptr,   /* getElements */
         UnboxedArrayObject::obj_enumerate,
-        nullptr,   /* thisObject */
     }
 };
 
@@ -1780,10 +1776,7 @@ ComputePlainObjectLayout(ExclusiveContext* cx, Shape* templateShape,
     // properties, which will allow us to generate better code if the objects
     // have a subtype/supertype relation and are accessed at common sites.
     UnboxedLayout* bestExisting = nullptr;
-    for (UnboxedLayout* existing = cx->compartment()->unboxedLayouts.getFirst();
-         existing;
-         existing = existing->getNext())
-    {
+    for (UnboxedLayout* existing : cx->compartment()->unboxedLayouts) {
         if (PropertiesAreSuperset(properties, existing)) {
             if (!bestExisting ||
                 existing->properties().length() > bestExisting->properties().length())

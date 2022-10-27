@@ -4371,6 +4371,56 @@ BluetoothDBusService::GattClientWriteDescriptorValueInternal(
 }
 
 void
+BluetoothDBusService::ReplyTovCardPulling(
+  BlobParent* aBlobParent,
+  BlobChild* aBlobChild,
+  BluetoothReplyRunnable* aRunnable)
+{
+}
+
+void
+BluetoothDBusService::ReplyTovCardPulling(
+  Blob* aBlob,
+  BluetoothReplyRunnable* aRunnable)
+{
+}
+
+void
+BluetoothDBusService::ReplyToPhonebookPulling(
+  BlobParent* aBlobParent,
+  BlobChild* aBlobChild,
+  uint16_t aPhonebookSize,
+  BluetoothReplyRunnable* aRunnable)
+{
+}
+
+void
+BluetoothDBusService::ReplyToPhonebookPulling(
+  Blob* aBlob,
+  uint16_t aPhonebookSize,
+  BluetoothReplyRunnable* aRunnable)
+{
+}
+
+void
+BluetoothDBusService::ReplyTovCardListing(
+  BlobParent* aBlobParent,
+  BlobChild* aBlobChild,
+  uint16_t aPhonebookSize,
+  BluetoothReplyRunnable* aRunnable)
+{
+}
+
+void
+BluetoothDBusService::ReplyTovCardListing(
+  Blob* aBlob,
+  uint16_t aPhonebookSize,
+  BluetoothReplyRunnable* aRunnable)
+{
+}
+
+
+void
 BluetoothDBusService::GattServerConnectPeripheralInternal(
   const nsAString& aAppUuid, const nsAString& aAddress,
   BluetoothReplyRunnable* aRunnable)
@@ -4391,50 +4441,76 @@ BluetoothDBusService::UnregisterGattServerInternal(
 }
 
 void
-BluetoothDBusService::ReplyTovCardPulling(
-  BlobParent* aBlobParent,
-  BlobChild* aBlobChild,
+BluetoothDBusService::GattServerAddServiceInternal(
+  const nsAString& aAppUuid,
+  const BluetoothGattServiceId& aServiceId,
+  uint16_t aHandleCount,
   BluetoothReplyRunnable* aRunnable)
 {
 }
 
 void
-BluetoothDBusService::ReplyTovCardPulling(
-  Blob* aBlob,
+BluetoothDBusService::GattServerAddIncludedServiceInternal(
+  const nsAString& aAppUuid,
+  const BluetoothAttributeHandle& aServiceHandle,
+  const BluetoothAttributeHandle& aIncludedServiceHandle,
   BluetoothReplyRunnable* aRunnable)
 {
 }
 
 void
-BluetoothDBusService::ReplyToPhonebookPulling(
-  BlobParent* aBlobParent,
-  BlobChild* aBlobChild,
-  uint16_t aPhonebookSize,
+BluetoothDBusService::GattServerAddCharacteristicInternal(
+  const nsAString& aAppUuid,
+  const BluetoothAttributeHandle& aServiceHandle,
+  const BluetoothUuid& aCharacteristicUuid,
+  BluetoothGattAttrPerm aPermissions,
+  BluetoothGattCharProp aProperties,
   BluetoothReplyRunnable* aRunnable)
 {
 }
 
 void
-BluetoothDBusService::ReplyToPhonebookPulling(
-  Blob* aBlob,
-  uint16_t aPhonebookSize,
+BluetoothDBusService::GattServerAddDescriptorInternal(
+  const nsAString& aAppUuid,
+  const BluetoothAttributeHandle& aServiceHandle,
+  const BluetoothAttributeHandle& aCharacteristicHandle,
+  const BluetoothUuid& aDescriptorUuid,
+  BluetoothGattAttrPerm aPermissions,
   BluetoothReplyRunnable* aRunnable)
 {
 }
 
 void
-BluetoothDBusService::ReplyTovCardListing(
-  BlobParent* aBlobParent,
-  BlobChild* aBlobChild,
-  uint16_t aPhonebookSize,
+BluetoothDBusService::GattServerRemoveServiceInternal(
+  const nsAString& aAppUuid,
+  const BluetoothAttributeHandle& aServiceHandle,
   BluetoothReplyRunnable* aRunnable)
 {
 }
 
 void
-BluetoothDBusService::ReplyTovCardListing(
-  Blob* aBlob,
-  uint16_t aPhonebookSize,
+BluetoothDBusService::GattServerStartServiceInternal(
+  const nsAString& aAppUuid,
+  const BluetoothAttributeHandle& aServiceHandle,
+  BluetoothReplyRunnable* aRunnable)
+{
+}
+
+void
+BluetoothDBusService::GattServerStopServiceInternal(
+  const nsAString& aAppUuid,
+  const BluetoothAttributeHandle& aServiceHandle,
+  BluetoothReplyRunnable* aRunnable)
+{
+}
+
+void
+BluetoothDBusService::GattServerSendResponseInternal(
+  const nsAString& aAppUuid,
+  const nsAString& aAddress,
+  uint16_t aStatus,
+  int32_t aRequestId,
+  const BluetoothGattResponse& aRsp,
   BluetoothReplyRunnable* aRunnable)
 {
 }

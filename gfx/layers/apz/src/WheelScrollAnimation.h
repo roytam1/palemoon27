@@ -15,6 +15,8 @@
 namespace mozilla {
 namespace layers {
 
+class AsyncPanZoomController;
+
 class WheelScrollAnimation
   : public AsyncPanZoomAnimation,
     public AsyncScrollBase

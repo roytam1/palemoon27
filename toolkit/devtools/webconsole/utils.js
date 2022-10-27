@@ -1977,7 +1977,7 @@ ConsoleReflowListener.prototype =
   {
     let frame = components.stack.caller.caller;
 
-    let filename = frame.filename;
+    let filename = frame ? frame.filename : null;
 
     if (filename) {
       // Because filename could be of the form "xxx.js -> xxx.js -> xxx.js",
@@ -1990,8 +1990,8 @@ ConsoleReflowListener.prototype =
       start: aStart,
       end: aEnd,
       sourceURL: filename,
-      sourceLine: frame.lineNumber,
-      functionName: frame.name
+      sourceLine: frame ? frame.lineNumber : null,
+      functionName: frame ? frame.name : null
     });
   },
 

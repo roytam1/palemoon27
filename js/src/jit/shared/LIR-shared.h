@@ -5482,10 +5482,12 @@ class LCallGetIntrinsicValue : public LCallInstructionHelper<BOX_PIECES, 0, 0>
 
 // Patchable jump to stubs generated for a GetProperty cache, which loads a
 // boxed value.
-class LGetPropertyCacheV : public LInstructionHelper<BOX_PIECES, 1, 0>
+class LGetPropertyCacheV : public LInstructionHelper<BOX_PIECES, 1 + BOX_PIECES, 0>
 {
   public:
     LIR_HEADER(GetPropertyCacheV)
+
+    static const size_t Id = 1;
 
     explicit LGetPropertyCacheV(const LAllocation& object) {
         setOperand(0, object);
@@ -5497,10 +5499,12 @@ class LGetPropertyCacheV : public LInstructionHelper<BOX_PIECES, 1, 0>
 
 // Patchable jump to stubs generated for a GetProperty cache, which loads a
 // value of a known type, possibly into an FP register.
-class LGetPropertyCacheT : public LInstructionHelper<1, 1, 0>
+class LGetPropertyCacheT : public LInstructionHelper<1, 1 + BOX_PIECES, 0>
 {
   public:
     LIR_HEADER(GetPropertyCacheT)
+
+    static const size_t Id = 1;
 
     explicit LGetPropertyCacheT(const LAllocation& object) {
         setOperand(0, object);
@@ -5610,47 +5614,6 @@ class LSetPropertyPolymorphicT : public LInstructionHelper<0, 2, 1>
     }
     const char* extraName() const {
         return StringFromMIRType(valueType_);
-    }
-};
-
-class LGetElementCacheV : public LInstructionHelper<BOX_PIECES, 1 + BOX_PIECES, 0>
-{
-  public:
-    LIR_HEADER(GetElementCacheV)
-
-    static const size_t Index = 1;
-
-    explicit LGetElementCacheV(const LAllocation& object) {
-        setOperand(0, object);
-    }
-    const LAllocation* object() {
-        return getOperand(0);
-    }
-    const MGetElementCache* mir() const {
-        return mir_->toGetElementCache();
-    }
-};
-
-class LGetElementCacheT : public LInstructionHelper<1, 2, 0>
-{
-  public:
-    LIR_HEADER(GetElementCacheT)
-
-    LGetElementCacheT(const LAllocation& object, const LAllocation& index) {
-        setOperand(0, object);
-        setOperand(1, index);
-    }
-    const LAllocation* object() {
-        return getOperand(0);
-    }
-    const LAllocation* index() {
-        return getOperand(1);
-    }
-    const LDefinition* output() {
-        return getDef(0);
-    }
-    const MGetElementCache* mir() const {
-        return mir_->toGetElementCache();
     }
 };
 
@@ -5958,128 +5921,33 @@ class LCallDeleteElement : public LCallInstructionHelper<1, 2 * BOX_PIECES, 0>
     }
 };
 
-// Patchable jump to stubs generated for a SetProperty cache, which stores a
-// boxed value.
-class LSetPropertyCacheV : public LInstructionHelper<0, 1 + BOX_PIECES, 1>
+// Patchable jump to stubs generated for a SetProperty cache.
+class LSetPropertyCache : public LInstructionHelper<0, 1 + 2 * BOX_PIECES, 4>
 {
   public:
-    LIR_HEADER(SetPropertyCacheV)
+    LIR_HEADER(SetPropertyCache)
 
-    LSetPropertyCacheV(const LAllocation& object, const LDefinition& slots) {
-        setOperand(0, object);
-        setTemp(0, slots);
-    }
-
-    static const size_t Value = 1;
-
-    const MSetPropertyCache* mir() const {
-        return mir_->toSetPropertyCache();
-    }
-};
-
-// Patchable jump to stubs generated for a SetProperty cache, which stores a
-// value of a known type.
-class LSetPropertyCacheT : public LInstructionHelper<0, 2, 1>
-{
-    MIRType valueType_;
-
-  public:
-    LIR_HEADER(SetPropertyCacheT)
-
-    LSetPropertyCacheT(const LAllocation& object, const LDefinition& slots,
-                       const LAllocation& value, MIRType valueType)
-        : valueType_(valueType)
-    {
-        setOperand(0, object);
-        setOperand(1, value);
-        setTemp(0, slots);
-    }
-
-    const MSetPropertyCache* mir() const {
-        return mir_->toSetPropertyCache();
-    }
-    MIRType valueType() {
-        return valueType_;
-    }
-    const char* extraName() const {
-        return StringFromMIRType(valueType_);
-    }
-};
-
-class LSetElementCacheV : public LInstructionHelper<0, 1 + 2 * BOX_PIECES, 4>
-{
-  public:
-    LIR_HEADER(SetElementCacheV);
-
-    static const size_t Index = 1;
-    static const size_t Value = 1 + BOX_PIECES;
-
-    LSetElementCacheV(const LAllocation& object, const LDefinition& tempToUnboxIndex,
-                      const LDefinition& temp, const LDefinition& tempDouble,
-                      const LDefinition& tempFloat32)
-    {
-        setOperand(0, object);
-        setTemp(0, tempToUnboxIndex);
-        setTemp(1, temp);
-        setTemp(2, tempDouble);
-        setTemp(3, tempFloat32);
-    }
-    const MSetElementCache* mir() const {
-        return mir_->toSetElementCache();
-    }
-
-    const LAllocation* object() {
-        return getOperand(0);
-    }
-    const LDefinition* tempToUnboxIndex() {
-        return getTemp(0);
-    }
-    const LDefinition* temp() {
-        return getTemp(1);
-    }
-    const LDefinition* tempDouble() {
-        return getTemp(2);
-    }
-    const LDefinition* tempFloat32() {
-        if (hasUnaliasedDouble())
-            return getTemp(3);
-        return getTemp(2);
-    }
-
-};
-
-class LSetElementCacheT : public LInstructionHelper<0, 2 + BOX_PIECES, 4>
-{
-  public:
-    LIR_HEADER(SetElementCacheT);
-
-    static const size_t Index = 2;
-
-    LSetElementCacheT(const LAllocation& object, const LAllocation& value,
-                      const LDefinition& tempToUnboxIndex,
-                      const LDefinition& temp, const LDefinition& tempDouble,
+    LSetPropertyCache(const LAllocation& object, const LDefinition& temp,
+                      const LDefinition& tempToUnboxIndex, const LDefinition& tempDouble,
                       const LDefinition& tempFloat32) {
         setOperand(0, object);
-        setOperand(1, value);
-        setTemp(0, tempToUnboxIndex);
-        setTemp(1, temp);
+        setTemp(0, temp);
+        setTemp(1, tempToUnboxIndex);
         setTemp(2, tempDouble);
         setTemp(3, tempFloat32);
     }
-    const MSetElementCache* mir() const {
-        return mir_->toSetElementCache();
+
+    static const size_t Id = 1;
+    static const size_t Value = 1 + BOX_PIECES;
+
+    const MSetPropertyCache* mir() const {
+        return mir_->toSetPropertyCache();
     }
 
-    const LAllocation* object() {
-        return getOperand(0);
-    }
-    const LAllocation* value() {
-        return getOperand(1);
-    }
-    const LDefinition* tempToUnboxIndex() {
+    const LDefinition* temp() {
         return getTemp(0);
     }
-    const LDefinition* temp() {
+    const LDefinition* tempToUnboxIndex() {
         return getTemp(1);
     }
     const LDefinition* tempDouble() {
@@ -6090,7 +5958,6 @@ class LSetElementCacheT : public LInstructionHelper<0, 2 + BOX_PIECES, 4>
             return getTemp(3);
         return getTemp(2);
     }
-
 };
 
 class LCallIteratorStart : public LCallInstructionHelper<1, 1, 0>
@@ -7130,13 +6997,13 @@ class LLexicalCheck : public LInstructionHelper<0, BOX_PIECES, 0>
     static const size_t Input = 0;
 };
 
-class LThrowUninitializedLexical : public LCallInstructionHelper<0, 0, 0>
+class LThrowRuntimeLexicalError : public LCallInstructionHelper<0, 0, 0>
 {
   public:
-    LIR_HEADER(ThrowUninitializedLexical)
+    LIR_HEADER(ThrowRuntimeLexicalError)
 
-    MLexicalCheck* mir() {
-        return mir_->toLexicalCheck();
+    MThrowRuntimeLexicalError* mir() {
+        return mir_->toThrowRuntimeLexicalError();
     }
 };
 

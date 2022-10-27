@@ -1149,8 +1149,7 @@ class JS_PUBLIC_API(RuntimeOptions) {
         asyncStack_(true),
         werror_(false),
         strictMode_(false),
-        extraWarnings_(false),
-        noSuchMethod_(false)
+        extraWarnings_(false)
     {
     }
 
@@ -1242,12 +1241,6 @@ class JS_PUBLIC_API(RuntimeOptions) {
         return *this;
     }
 
-    bool noSuchMethod() const { return noSuchMethod_; }
-    RuntimeOptions& setNoSuchMethod(bool flag) {
-        noSuchMethod_ = flag;
-        return *this;
-    }
-
   private:
     bool baseline_ : 1;
     bool ion_ : 1;
@@ -1259,7 +1252,6 @@ class JS_PUBLIC_API(RuntimeOptions) {
     bool werror_ : 1;
     bool strictMode_ : 1;
     bool extraWarnings_ : 1;
-    bool noSuchMethod_ : 1;
 };
 
 JS_PUBLIC_API(RuntimeOptions&)
@@ -5387,6 +5379,10 @@ CaptureCurrentStack(JSContext* cx, MutableHandleObject stackp, unsigned maxFrame
  * same compartment as the cx, and the various out parameters are _NOT_
  * guaranteed to be in the same compartment as cx.
  *
+ * You may consider or skip over self-hosted frames by passing
+ * `SavedFrameSelfHosted::Include` or `SavedFrameSelfHosted::Exclude`
+ * respectively.
+ *
  * Additionally, it may be the case that there is no such SavedFrame object
  * whose captured frame's principals are subsumed by the caller's compartment's
  * principals! If the `HandleObject savedFrame` argument is null, or the
@@ -5402,24 +5398,32 @@ enum class SavedFrameResult {
     AccessDenied
 };
 
+enum class SavedFrameSelfHosted {
+    Include,
+    Exclude
+};
+
 /**
  * Given a SavedFrame JSObject, get its source property. Defaults to the empty
  * string.
  */
 extern JS_PUBLIC_API(SavedFrameResult)
-GetSavedFrameSource(JSContext* cx, HandleObject savedFrame, MutableHandleString sourcep);
+GetSavedFrameSource(JSContext* cx, HandleObject savedFrame, MutableHandleString sourcep,
+                    SavedFrameSelfHosted selfHosted = SavedFrameSelfHosted::Include);
 
 /**
  * Given a SavedFrame JSObject, get its line property. Defaults to 0.
  */
 extern JS_PUBLIC_API(SavedFrameResult)
-GetSavedFrameLine(JSContext* cx, HandleObject savedFrame, uint32_t* linep);
+GetSavedFrameLine(JSContext* cx, HandleObject savedFrame, uint32_t* linep,
+                  SavedFrameSelfHosted selfHosted = SavedFrameSelfHosted::Include);
 
 /**
  * Given a SavedFrame JSObject, get its column property. Defaults to 0.
  */
 extern JS_PUBLIC_API(SavedFrameResult)
-GetSavedFrameColumn(JSContext* cx, HandleObject savedFrame, uint32_t* columnp);
+GetSavedFrameColumn(JSContext* cx, HandleObject savedFrame, uint32_t* columnp,
+                    SavedFrameSelfHosted selfHosted = SavedFrameSelfHosted::Include);
 
 /**
  * Given a SavedFrame JSObject, get its functionDisplayName string, or nullptr
@@ -5427,13 +5431,15 @@ GetSavedFrameColumn(JSContext* cx, HandleObject savedFrame, uint32_t* columnp);
  * function. Defaults to nullptr.
  */
 extern JS_PUBLIC_API(SavedFrameResult)
-GetSavedFrameFunctionDisplayName(JSContext* cx, HandleObject savedFrame, MutableHandleString namep);
+GetSavedFrameFunctionDisplayName(JSContext* cx, HandleObject savedFrame, MutableHandleString namep,
+                                 SavedFrameSelfHosted selfHosted = SavedFrameSelfHosted::Include);
 
 /**
  * Given a SavedFrame JSObject, get its asyncCause string. Defaults to nullptr.
  */
 extern JS_PUBLIC_API(SavedFrameResult)
-GetSavedFrameAsyncCause(JSContext* cx, HandleObject savedFrame, MutableHandleString asyncCausep);
+GetSavedFrameAsyncCause(JSContext* cx, HandleObject savedFrame, MutableHandleString asyncCausep,
+                        SavedFrameSelfHosted selfHosted = SavedFrameSelfHosted::Include);
 
 /**
  * Given a SavedFrame JSObject, get its asyncParent SavedFrame object or nullptr
@@ -5441,7 +5447,8 @@ GetSavedFrameAsyncCause(JSContext* cx, HandleObject savedFrame, MutableHandleStr
  * guaranteed to be in the cx's compartment. Defaults to nullptr.
  */
 extern JS_PUBLIC_API(SavedFrameResult)
-GetSavedFrameAsyncParent(JSContext* cx, HandleObject savedFrame, MutableHandleObject asyncParentp);
+GetSavedFrameAsyncParent(JSContext* cx, HandleObject savedFrame, MutableHandleObject asyncParentp,
+                SavedFrameSelfHosted selfHosted = SavedFrameSelfHosted::Include);
 
 /**
  * Given a SavedFrame JSObject, get its parent SavedFrame object or nullptr if
@@ -5449,7 +5456,8 @@ GetSavedFrameAsyncParent(JSContext* cx, HandleObject savedFrame, MutableHandleOb
  * guaranteed to be in the cx's compartment. Defaults to nullptr.
  */
 extern JS_PUBLIC_API(SavedFrameResult)
-GetSavedFrameParent(JSContext* cx, HandleObject savedFrame, MutableHandleObject parentp);
+GetSavedFrameParent(JSContext* cx, HandleObject savedFrame, MutableHandleObject parentp,
+                    SavedFrameSelfHosted selfHosted = SavedFrameSelfHosted::Include);
 
 /**
  * Given a SavedFrame JSObject stack, stringify it in the same format as

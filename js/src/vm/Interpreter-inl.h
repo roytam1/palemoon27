@@ -40,6 +40,11 @@ ComputeThis(JSContext* cx, AbstractFramePtr frame)
         return true;
     }
 
+    if (frame.isModuleFrame()) {
+        MOZ_ASSERT(frame.thisValue().isUndefined());
+        return true;
+    }
+
     if (frame.thisValue().isObject())
         return true;
     RootedValue thisv(cx, frame.thisValue());
@@ -58,11 +63,11 @@ ComputeThis(JSContext* cx, AbstractFramePtr frame)
         MOZ_ASSERT_IF(frame.isEvalFrame(), thisv.isUndefined() || thisv.isNull());
     }
 
-    JSObject* thisObj = BoxNonStrictThis(cx, thisv);
-    if (!thisObj)
+    RootedValue result(cx);
+    if (!BoxNonStrictThis(cx, thisv, &result))
         return false;
 
-    frame.thisValue().setObject(*thisObj);
+    frame.thisValue() = result;
     return true;
 }
 
@@ -139,6 +144,18 @@ IsUninitializedLexicalSlot(HandleObject obj, HandleShape shape)
     return IsUninitializedLexical(obj->as<NativeObject>().getSlot(shape->slot()));
 }
 
+static inline void
+ReportUninitializedLexical(JSContext* cx, HandlePropertyName name)
+{
+    ReportRuntimeLexicalError(cx, JSMSG_UNINITIALIZED_LEXICAL, name);
+}
+
+static inline void
+ReportUninitializedLexical(JSContext* cx, HandleScript script, jsbytecode* pc)
+{
+    ReportRuntimeLexicalError(cx, JSMSG_UNINITIALIZED_LEXICAL, script, pc);
+}
+
 static inline bool
 CheckUninitializedLexical(JSContext* cx, PropertyName* name_, HandleValue val)
 {
@@ -158,6 +175,18 @@ CheckUninitializedLexical(JSContext* cx, HandleScript script, jsbytecode* pc, Ha
         return false;
     }
     return true;
+}
+
+static inline void
+ReportRuntimeConstAssignment(JSContext* cx, HandlePropertyName name)
+{
+    ReportRuntimeLexicalError(cx, JSMSG_BAD_CONST_ASSIGN, name);
+}
+
+static inline void
+ReportRuntimeConstAssignment(JSContext* cx, HandleScript script, jsbytecode* pc)
+{
+    ReportRuntimeLexicalError(cx, JSMSG_BAD_CONST_ASSIGN, script, pc);
 }
 
 inline bool
@@ -277,7 +306,7 @@ SetNameOperation(JSContext* cx, JSScript* script, jsbytecode* pc, HandleObject s
                   !script->hasNonSyntacticScope(),
                   scope == cx->global() ||
                   scope == &cx->global()->lexicalScope() ||
-                  scope->is<UninitializedLexicalObject>());
+                  scope->is<RuntimeLexicalErrorObject>());
 
     bool strict = *pc == JSOP_STRICTSETNAME || *pc == JSOP_STRICTSETGNAME;
     RootedPropertyName name(cx, script->getName(pc));
@@ -396,8 +425,8 @@ inline bool
 CheckEvalDeclarationConflicts(JSContext* cx, HandleScript script,
                               HandleObject scopeChain, HandleObject varObj)
 {
-    MOZ_ASSERT(script->bindings.numBodyLevelLexicals() == 0);
-
+    // We don't need to check body-level lexical bindings for conflict. Eval
+    // scripts always execute under their own lexical scope.
     if (script->bindings.numVars() == 0)
         return true;
 
@@ -600,13 +629,6 @@ GetObjectElementOperation(JSContext* cx, JSOp op, JS::HandleObject obj, JS::Hand
             return false;
     } while (false);
 
-#if JS_HAS_NO_SUCH_METHOD
-    if (op == JSOP_CALLELEM && MOZ_UNLIKELY(res.isUndefined())) {
-        if (!OnUnknownMethod(cx, receiver, key, res))
-            return false;
-    }
-#endif
-
     assertSameCompartmentDebugOnly(cx, res);
     return true;
 }
@@ -653,8 +675,6 @@ GetPrimitiveElementOperation(JSContext* cx, JSOp op, JS::HandleValue receiver,
         if (!GetProperty(cx, boxed, receiver, id, res))
             return false;
     } while (false);
-
-    // Note: we don't call a __noSuchMethod__ hook when |this| was primitive.
 
     assertSameCompartmentDebugOnly(cx, res);
     return true;

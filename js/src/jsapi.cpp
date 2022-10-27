@@ -256,6 +256,12 @@ JS::ObjectOpResult::failCantPreventExtensions()
 }
 
 JS_PUBLIC_API(bool)
+JS::ObjectOpResult::failCantSetProto()
+{
+    return fail(JSMSG_CANT_SET_PROTO);
+}
+
+JS_PUBLIC_API(bool)
 JS::ObjectOpResult::failNoNamedSetter()
 {
     return fail(JSMSG_NO_NAMED_SETTER);

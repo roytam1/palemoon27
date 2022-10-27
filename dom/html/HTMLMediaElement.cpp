@@ -2091,6 +2091,7 @@ HTMLMediaElement::HTMLMediaElement(already_AddRefed<mozilla::dom::NodeInfo>& aNo
     mMediaStreamTrackListener(nullptr),
     mElementInTreeState(ELEMENT_NOT_INTREE),
     mHasUserInteraction(false),
+    mFirstFrameLoaded(false),
     mDefaultPlaybackStartPosition(0.0)
 {
   if (!gMediaElementLog) {
@@ -2670,9 +2671,6 @@ HTMLMediaElement::ReportMSETelemetry()
 
   Telemetry::Accumulate(Telemetry::VIDEO_MSE_PLAY_TIME_MS, SECONDS_TO_MS(mPlayTime.Total()));
   LOG(LogLevel::Debug, ("%p VIDEO_MSE_PLAY_TIME_MS = %f", this, mPlayTime.Total()));
-
-  Telemetry::Accumulate(Telemetry::VIDEO_MSE_BUFFERING_COUNT, mRebufferTime.Count());
-  LOG(LogLevel::Debug, ("%p VIDEO_MSE_BUFFERING_COUNT = %d", this, mRebufferTime.Count()));
 
   double latency = mJoinLatency.Count() ? mJoinLatency.Total() / mJoinLatency.Count() : 0.0;
   Telemetry::Accumulate(Telemetry::VIDEO_MSE_JOIN_LATENCY_MS, SECONDS_TO_MS(latency));
@@ -3432,6 +3430,11 @@ void HTMLMediaElement::FirstFrameLoaded()
 {
   NS_ASSERTION(!mSuspendedAfterFirstFrame, "Should not have already suspended");
 
+  if (!mFirstFrameLoaded) {
+    mFirstFrameLoaded = true;
+    UpdateReadyStateInternal();
+  }
+
   ChangeDelayLoadStatus(false);
   
   // FIXME: This is a workaround for DoneCreatingElement() not being called
@@ -3785,7 +3788,8 @@ HTMLMediaElement::UpdateReadyStateInternal()
     return;
   }
 
-  if (mDownloadSuspendedByCache && mDecoder && !mDecoder->IsEndedOrShutdown()) {
+  if (mDownloadSuspendedByCache && mDecoder && !mDecoder->IsEndedOrShutdown() &&
+      mFirstFrameLoaded) {
     // The decoder has signaled that the download has been suspended by the
     // media cache. So move readyState into HAVE_ENOUGH_DATA, in case there's
     // script waiting for a "canplaythrough" event; without this forced
@@ -3802,12 +3806,20 @@ HTMLMediaElement::UpdateReadyStateInternal()
   }
 
   if (nextFrameStatus != MediaDecoderOwner::NEXT_FRAME_AVAILABLE) {
-    ChangeReadyState(nsIDOMHTMLMediaElement::HAVE_CURRENT_DATA);
+    if (mFirstFrameLoaded) {
+      ChangeReadyState(nsIDOMHTMLMediaElement::HAVE_CURRENT_DATA);
+    }
     if (!mWaitingFired && nextFrameStatus == MediaDecoderOwner::NEXT_FRAME_UNAVAILABLE_BUFFERING) {
       FireTimeUpdate(false);
       DispatchAsyncEvent(NS_LITERAL_STRING("waiting"));
       mWaitingFired = true;
     }
+    return;
+  }
+
+  if (!mFirstFrameLoaded) {
+    // We haven't yet loaded the first frame, making us unable to determine
+    // if we have enough valid data at the present stage.
     return;
   }
 
@@ -3826,8 +3838,7 @@ HTMLMediaElement::UpdateReadyStateInternal()
   // autoplay elements for live streams will never play. Otherwise we
   // move to HAVE_ENOUGH_DATA if we can play through the entire media
   // without stopping to buffer.
-  if (mDecoder->CanPlayThrough())
-  {
+  if (mDecoder->CanPlayThrough()) {
     LOG(LogLevel::Debug, ("MediaElement %p UpdateReadyStateInternal() "
                           "Decoder can play through", this));
     ChangeReadyState(nsIDOMHTMLMediaElement::HAVE_ENOUGH_DATA);
@@ -4073,11 +4084,10 @@ nsresult HTMLMediaElement::DispatchAsyncEvent(const nsAString& aName)
 
   if ((aName.EqualsLiteral("play") || aName.EqualsLiteral("playing"))) {
     mPlayTime.Start();
-    mRebufferTime.Pause();
     mJoinLatency.Pause();
   } else if (aName.EqualsLiteral("waiting")) {
     mPlayTime.Pause();
-    mRebufferTime.Start();
+    Telemetry::Accumulate(Telemetry::VIDEO_MSE_BUFFERING_COUNT, 1);
   } else if (aName.EqualsLiteral("pause")) {
     mPlayTime.Pause();
   }

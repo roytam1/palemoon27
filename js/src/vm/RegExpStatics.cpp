@@ -118,3 +118,9 @@ RegExpStatics::executeLazy(JSContext* cx)
 
     return true;
 }
+
+bool
+RegExpStatics::checkRestoredFromModifiedMatch(JSContext* cx)
+{
+    return true;
+}

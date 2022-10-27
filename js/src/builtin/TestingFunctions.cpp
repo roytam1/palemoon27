@@ -85,6 +85,14 @@ GetBuildConfiguration(JSContext* cx, unsigned argc, Value* vp)
     if (!JS_SetProperty(cx, info, "debug", value))
         return false;
 
+#ifdef RELEASE_BUILD
+    value = BooleanValue(true);
+#else
+    value = BooleanValue(false);
+#endif
+    if (!JS_SetProperty(cx, info, "release", value))
+        return false;
+
 #ifdef JS_HAS_CTYPES
     value = BooleanValue(true);
 #else
@@ -2843,15 +2851,6 @@ GetLcovInfo(JSContext* cx, unsigned argc, Value* vp)
     return true;
 }
 
-static bool
-EnableNoSuchMethod(JSContext* cx, unsigned argc, Value* vp)
-{
-    CallArgs args = CallArgsFromVp(argc, vp);
-    cx->runtime()->options().setNoSuchMethod(true);
-    args.rval().setUndefined();
-    return true;
-}
-
 #ifdef DEBUG
 static bool
 SetRNGState(JSContext* cx, unsigned argc, Value* vp)
@@ -2868,6 +2867,80 @@ SetRNGState(JSContext* cx, unsigned argc, Value* vp)
     return true;
 }
 #endif
+
+static ModuleEnvironmentObject*
+GetModuleEnvironment(JSContext* cx, HandleValue moduleValue)
+{
+    RootedModuleObject module(cx, &moduleValue.toObject().as<ModuleObject>());
+
+    // Use the initial environment so that tests can check bindings exists
+    // before they have been instantiated.
+    RootedModuleEnvironmentObject env(cx, &module->initialEnvironment());
+    MOZ_ASSERT(env);
+    MOZ_ASSERT_IF(module->environment(), module->environment() == env);
+
+    return env;
+}
+
+static bool
+GetModuleEnvironmentNames(JSContext* cx, unsigned argc, Value* vp)
+{
+    CallArgs args = CallArgsFromVp(argc, vp);
+    if (args.length() != 1) {
+        JS_ReportError(cx, "Wrong number of arguments");
+        return false;
+    }
+
+    if (!args[0].isObject() || !args[0].toObject().is<ModuleObject>()) {
+        JS_ReportError(cx, "First argument should be a ModuleObject");
+        return false;
+    }
+
+    RootedModuleEnvironmentObject env(cx, GetModuleEnvironment(cx, args[0]));
+    Rooted<IdVector> ids(cx, IdVector(cx));
+    if (!JS_Enumerate(cx, env, &ids))
+        return false;
+
+    uint32_t length = ids.length();
+    RootedArrayObject array(cx, NewDenseFullyAllocatedArray(cx, length));
+    if (!array)
+        return false;
+
+    array->setDenseInitializedLength(length);
+    for (uint32_t i = 0; i < length; i++)
+        array->initDenseElement(i, StringValue(JSID_TO_STRING(ids[i])));
+
+    args.rval().setObject(*array);
+    return true;
+}
+
+static bool
+GetModuleEnvironmentValue(JSContext* cx, unsigned argc, Value* vp)
+{
+    CallArgs args = CallArgsFromVp(argc, vp);
+    if (args.length() != 2) {
+        JS_ReportError(cx, "Wrong number of arguments");
+        return false;
+    }
+
+    if (!args[0].isObject() || !args[0].toObject().is<ModuleObject>()) {
+        JS_ReportError(cx, "First argument should be a ModuleObject");
+        return false;
+    }
+
+    if (!args[1].isString()) {
+        JS_ReportError(cx, "Second argument should be a string");
+        return false;
+    }
+
+    RootedModuleEnvironmentObject env(cx, GetModuleEnvironment(cx, args[0]));
+    RootedString name(cx, args[1].toString());
+    RootedId id(cx);
+    if (!JS_StringToId(cx, name, &id))
+        return false;
+
+    return GetProperty(cx, env, env, id, args.rval());
+}
 
 static const JSFunctionSpecWithHelp TestingFunctions[] = {
     JS_FN_HELP("gc", ::GC, 0, 0,
@@ -3332,15 +3405,19 @@ gc::ZealModeHelpText),
 "  Generate LCOV tracefile for the given compartment.  If no global are provided then\n"
 "  the current global is used as the default one.\n"),
 
-    JS_FN_HELP("enableNoSuchMethod", EnableNoSuchMethod, 0, 0,
-"enableNoSuchMethod()",
-"  Enables the deprecated, non-standard __noSuchMethod__ feature.\n"),
-
 #ifdef DEBUG
     JS_FN_HELP("setRNGState", SetRNGState, 1, 0,
 "setRNGState(seed)",
 "  Set this compartment's RNG state.\n"),
 #endif
+
+    JS_FN_HELP("getModuleEnvironmentNames", GetModuleEnvironmentNames, 1, 0,
+"getModuleEnvironmentNames(module)",
+"  Get the list of a module environment's bound names for a specified module.\n"),
+
+    JS_FN_HELP("getModuleEnvironmentValue", GetModuleEnvironmentValue, 2, 0,
+"getModuleEnvironmentValue(module, name)",
+"  Get the value of a bound name in a module environment.\n"),
 
     JS_FS_HELP_END
 };

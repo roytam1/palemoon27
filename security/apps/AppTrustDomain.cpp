@@ -23,6 +23,11 @@
 // Trusted Hosted Apps Certificates
 #include "manifest-signing-root.inc"
 #include "manifest-signing-test-root.inc"
+// Add-on signing Certificates
+#include "addons-public.inc"
+#include "addons-stage.inc"
+// Privileged Package Certificates
+#include "privileged-package-root.inc"
 
 using namespace mozilla::pkix;
 
@@ -79,6 +84,21 @@ AppTrustDomain::SetTrustedRoot(AppTrustedRoot trustedRoot)
     case nsIX509CertDB::AppXPCShellRoot:
       trustedDER.data = const_cast<uint8_t*>(xpcshellRoot);
       trustedDER.len = mozilla::ArrayLength(xpcshellRoot);
+      break;
+
+    case nsIX509CertDB::AddonsPublicRoot:
+      trustedDER.data = const_cast<uint8_t*>(addonsPublicRoot);
+      trustedDER.len = mozilla::ArrayLength(addonsPublicRoot);
+      break;
+
+    case nsIX509CertDB::AddonsStageRoot:
+      trustedDER.data = const_cast<uint8_t*>(addonsStageRoot);
+      trustedDER.len = mozilla::ArrayLength(addonsStageRoot);
+      break;
+
+    case nsIX509CertDB::PrivilegedPackageRoot:
+      trustedDER.data = const_cast<uint8_t*>(privilegedPackageRoot);
+      trustedDER.len = mozilla::ArrayLength(privilegedPackageRoot);
       break;
 
     default:

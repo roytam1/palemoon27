@@ -274,8 +274,6 @@
     _(GetPropertyCacheT)            \
     _(GetPropertyPolymorphicV)      \
     _(GetPropertyPolymorphicT)      \
-    _(GetElementCacheV)             \
-    _(GetElementCacheT)             \
     _(BindNameCache)                \
     _(CallGetProperty)              \
     _(GetNameCache)                 \
@@ -286,10 +284,7 @@
     _(CallSetProperty)              \
     _(CallDeleteProperty)           \
     _(CallDeleteElement)            \
-    _(SetPropertyCacheV)            \
-    _(SetPropertyCacheT)            \
-    _(SetElementCacheV)             \
-    _(SetElementCacheT)             \
+    _(SetPropertyCache)             \
     _(SetPropertyPolymorphicV)      \
     _(SetPropertyPolymorphicT)      \
     _(CallIteratorStart)            \
@@ -364,7 +359,7 @@
     _(AssertResultV)                \
     _(AssertResultT)                \
     _(LexicalCheck)                 \
-    _(ThrowUninitializedLexical)    \
+    _(ThrowRuntimeLexicalError)     \
     _(GlobalNameConflictsCheck)     \
     _(Debugger)                     \
     _(NewTarget)                    \

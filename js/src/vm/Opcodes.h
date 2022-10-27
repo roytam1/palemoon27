@@ -102,7 +102,14 @@
      *   Stack: => undefined
      */ \
     macro(JSOP_UNDEFINED, 1,  js_undefined_str, "",       1,  0,  1, JOF_BYTE) \
-    macro(JSOP_UNUSED2,   2,  "unused2",    NULL,         1,  1,  0, JOF_BYTE) \
+    /*
+     * Pushes stack frame's 'rval' onto the stack.
+     *   Category: Statements
+     *   Type: Function
+     *   Operands:
+     *   Stack: => rval
+     */ \
+    macro(JSOP_GETRVAL,   2,  "getrval",    NULL,         1,  0,  1, JOF_BYTE) \
     /*
      * Pops the top of stack value, converts it to an object, and adds a
      * 'DynamicWithObject' wrapping that object to the scope chain.
@@ -1467,24 +1474,14 @@
      */ \
     macro(JSOP_GETINTRINSIC,  143, "getintrinsic",  NULL, 5,  0,  1, JOF_ATOM|JOF_NAME|JOF_TYPESET) \
     /*
-     * Pops the top two values on the stack as 'val' and 'scope', sets intrinsic
-     * as 'val', and pushes 'val' onto the stack.
-     *
-     * 'scope' is not used.
+     * Stores the top stack value in the specified intrinsic.
      *   Category: Variables and Scopes
      *   Type: Intrinsics
      *   Operands: uint32_t nameIndex
-     *   Stack: scope, val => val
+     *   Stack: val => val
      */ \
-    macro(JSOP_SETINTRINSIC,  144, "setintrinsic",  NULL, 5,  2,  1, JOF_ATOM|JOF_NAME|JOF_SET|JOF_DETECTING) \
-    /*
-     * Pushes 'intrinsicHolder' onto the stack.
-     *   Category: Variables and Scopes
-     *   Type: Intrinsics
-     *   Operands: uint32_t nameIndex
-     *   Stack: => intrinsicHolder
-     */ \
-    macro(JSOP_BINDINTRINSIC, 145, "bindintrinsic", NULL, 5,  0,  1, JOF_ATOM|JOF_NAME|JOF_SET) \
+    macro(JSOP_SETINTRINSIC,  144, "setintrinsic",  NULL, 5,  1,  1, JOF_ATOM|JOF_NAME|JOF_SET|JOF_DETECTING) \
+    macro(JSOP_UNUSED145,     145, "unused145",     NULL, 1,  0,  0, JOF_BYTE) \
     /*
      * Initialize a non-configurable, non-writable, non-enumerable data-property on an object.
      *
@@ -1727,8 +1724,26 @@
      *   Stack: => constructor
      */ \
     macro(JSOP_DERIVEDCONSTRUCTOR, 168,"derivedconstructor", NULL, 5,  1,  1,  JOF_ATOM) \
-    macro(JSOP_UNUSED169,     169,"unused169",  NULL,     1,  0,  0,  JOF_BYTE) \
-    macro(JSOP_UNUSED170,     170,"unused170",  NULL,     1,  0,  0,  JOF_BYTE) \
+    /*
+     * Throws a runtime TypeError for invalid assignment to 'const'. The
+     * localno is used for better error messages.
+     *
+     *   Category: Variables and Scopes
+     *   Type: Local Variables
+     *   Operands: uint32_t localno
+     *   Stack: =>
+     */ \
+    macro(JSOP_THROWSETCONST,        169, "throwsetconst",        NULL, 4,  1,  1, JOF_LOCAL|JOF_NAME|JOF_SET|JOF_DETECTING) \
+    /*
+     * Throws a runtime TypeError for invalid assignment to 'const'. The
+     * scope coordinate is used for better error messages.
+     *
+     *   Category: Variables and Scopes
+     *   Type: Aliased Variables
+     *   Operands: uint8_t hops, uint24_t slot
+     *   Stack: =>
+     */ \
+    macro(JSOP_THROWSETALIASEDCONST, 170, "throwsetaliasedconst", NULL, 5,  1,  1, JOF_SCOPECOORD|JOF_NAME|JOF_SET|JOF_DETECTING) \
     macro(JSOP_UNUSED171,     171,"unused171",  NULL,     1,  0,  0,  JOF_BYTE) \
     macro(JSOP_UNUSED172,     172,"unused172",  NULL,     1,  0,  0,  JOF_BYTE) \
     macro(JSOP_UNUSED173,     173,"unused173",  NULL,     1,  0,  0,  JOF_BYTE) \

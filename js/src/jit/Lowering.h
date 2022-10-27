@@ -226,7 +226,6 @@ class LIRGenerator : public LIRGeneratorSpecific
     void visitGetPropertyCache(MGetPropertyCache* ins);
     void visitGetPropertyPolymorphic(MGetPropertyPolymorphic* ins);
     void visitSetPropertyPolymorphic(MSetPropertyPolymorphic* ins);
-    void visitGetElementCache(MGetElementCache* ins);
     void visitBindNameCache(MBindNameCache* ins);
     void visitGuardObjectIdentity(MGuardObjectIdentity* ins);
     void visitGuardClass(MGuardClass* ins);
@@ -246,7 +245,6 @@ class LIRGenerator : public LIRGeneratorSpecific
     void visitCallSetElement(MCallSetElement* ins);
     void visitCallInitElementArray(MCallInitElementArray* ins);
     void visitSetPropertyCache(MSetPropertyCache* ins);
-    void visitSetElementCache(MSetElementCache* ins);
     void visitCallSetProperty(MCallSetProperty* ins);
     void visitIteratorStart(MIteratorStart* ins);
     void visitIteratorMore(MIteratorMore* ins);
@@ -300,7 +298,7 @@ class LIRGenerator : public LIRGeneratorSpecific
     void visitArrayState(MArrayState* ins);
     void visitUnknownValue(MUnknownValue* ins);
     void visitLexicalCheck(MLexicalCheck* ins);
-    void visitThrowUninitializedLexical(MThrowUninitializedLexical* ins);
+    void visitThrowRuntimeLexicalError(MThrowRuntimeLexicalError* ins);
     void visitGlobalNameConflictsCheck(MGlobalNameConflictsCheck* ins);
     void visitDebugger(MDebugger* ins);
     void visitNewTarget(MNewTarget* ins);

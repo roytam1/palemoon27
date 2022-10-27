@@ -5089,7 +5089,7 @@ CodeGenerator::visitReturnFromCtor(LReturnFromCtor* lir)
     masm.bind(&end);
 }
 
-typedef JSObject* (*BoxNonStrictThisFn)(JSContext*, HandleValue);
+typedef bool (*BoxNonStrictThisFn)(JSContext*, HandleValue, MutableHandleValue);
 static const VMFunction BoxNonStrictThisInfo = FunctionInfo<BoxNonStrictThisFn>(BoxNonStrictThis);
 
 void
@@ -5098,13 +5098,11 @@ CodeGenerator::visitComputeThis(LComputeThis* lir)
     ValueOperand value = ToValue(lir, LComputeThis::ValueIndex);
     Register output = ToRegister(lir->output());
 
-    OutOfLineCode* ool = oolCallVM(BoxNonStrictThisInfo, lir, ArgList(value),
-                                   StoreRegisterTo(output));
+    OutOfLineCode* ool = oolCallVM(BoxNonStrictThisInfo, lir, ArgList(value), StoreValueTo(value));
 
     masm.branchTestObject(Assembler::NotEqual, value, ool->entry());
-    masm.unboxObject(value, output);
-
     masm.bind(ool->rejoin());
+    masm.unboxObject(value, output);
 }
 
 void
@@ -8184,6 +8182,12 @@ CodeGenerator::link(JSContext* cx, CompilerConstraintList* constraints)
 
             entry.firstStub()->toFallbackStub()->fixupICEntry(&entry);
         }
+
+        // for generating inline caches during the execution.
+        if (runtimeData_.length())
+            ionScript->copyRuntimeData(&runtimeData_[0]);
+        if (cacheList_.length())
+            ionScript->copyCacheEntries(&cacheList_[0], masm);
     }
 
     JitSpew(JitSpew_Codegen, "Created IonScript %p (raw %p)",
@@ -8200,12 +8204,6 @@ CodeGenerator::link(JSContext* cx, CompilerConstraintList* constraints)
     if (PerfEnabled())
         perfSpewer_.writeProfile(script, code, masm);
 #endif
-
-    // for generating inline caches during the execution.
-    if (runtimeData_.length())
-        ionScript->copyRuntimeData(&runtimeData_[0]);
-    if (cacheList_.length())
-        ionScript->copyCacheEntries(&cacheList_[0], masm);
 
     // for marking during GC.
     if (safepointIndices_.length())
@@ -8308,7 +8306,6 @@ CodeGenerator::visitOutOfLineUnboxFloatingPoint(OutOfLineUnboxFloatingPoint* ool
 
 typedef bool (*GetPropertyFn)(JSContext*, HandleValue, HandlePropertyName, MutableHandleValue);
 static const VMFunction GetPropertyInfo = FunctionInfo<GetPropertyFn>(GetProperty);
-static const VMFunction CallPropertyInfo = FunctionInfo<GetPropertyFn>(CallProperty);
 
 void
 CodeGenerator::visitCallGetProperty(LCallGetProperty* lir)
@@ -8316,10 +8313,7 @@ CodeGenerator::visitCallGetProperty(LCallGetProperty* lir)
     pushArg(ImmGCPtr(lir->mir()->name()));
     pushArg(ToValue(lir, LCallGetProperty::Value));
 
-    if (lir->mir()->callprop())
-        callVM(CallPropertyInfo, lir);
-    else
-        callVM(GetPropertyInfo, lir);
+    callVM(GetPropertyInfo, lir);
 }
 
 typedef bool (*GetOrCallElementFn)(JSContext*, MutableHandleValue, HandleValue, MutableHandleValue);
@@ -8463,35 +8457,39 @@ CodeGenerator::visitNameIC(OutOfLineUpdateCache* ool, DataPtr<NameIC>& ic)
 
 void
 CodeGenerator::addGetPropertyCache(LInstruction* ins, LiveRegisterSet liveRegs, Register objReg,
-                                   PropertyName* name, TypedOrValueRegister output,
-                                   bool monitoredResult, jsbytecode* profilerLeavePc)
+                                   ConstantOrRegister id, TypedOrValueRegister output,
+                                   bool monitoredResult, bool allowDoubleResult,
+                                   jsbytecode* profilerLeavePc)
 {
-    GetPropertyIC cache(liveRegs, objReg, name, output, monitoredResult);
+    GetPropertyIC cache(liveRegs, objReg, id, output, monitoredResult, allowDoubleResult);
     cache.setProfilerLeavePC(profilerLeavePc);
     addCache(ins, allocateCache(cache));
 }
 
 void
 CodeGenerator::addSetPropertyCache(LInstruction* ins, LiveRegisterSet liveRegs, Register objReg,
-                                   PropertyName* name, ConstantOrRegister value, bool strict,
-                                   bool needsTypeBarrier, jsbytecode* profilerLeavePc)
+                                   Register temp, Register tempUnbox, FloatRegister tempDouble,
+                                   FloatRegister tempF32, ConstantOrRegister id, ConstantOrRegister value,
+                                   bool strict, bool needsTypeBarrier, bool guardHoles,
+                                   jsbytecode* profilerLeavePc)
 {
-    SetPropertyIC cache(liveRegs, objReg, name, value, strict, needsTypeBarrier);
+    SetPropertyIC cache(liveRegs, objReg, temp, tempUnbox, tempDouble, tempF32, id, value, strict,
+                        needsTypeBarrier, guardHoles);
     cache.setProfilerLeavePC(profilerLeavePc);
     addCache(ins, allocateCache(cache));
 }
 
-void
-CodeGenerator::addSetElementCache(LInstruction* ins, Register obj, Register unboxIndex,
-                                  Register temp, FloatRegister tempDouble,
-                                  FloatRegister tempFloat32, ValueOperand index,
-                                  ConstantOrRegister value, bool strict, bool guardHoles,
-                                  jsbytecode* profilerLeavePc)
+ConstantOrRegister
+CodeGenerator::toConstantOrRegister(LInstruction* lir, size_t n, MIRType type)
 {
-    SetElementIC cache(obj, unboxIndex, temp, tempDouble, tempFloat32, index, value, strict,
-                       guardHoles);
-    cache.setProfilerLeavePC(profilerLeavePc);
-    addCache(ins, allocateCache(cache));
+    if (type == MIRType_Value)
+        return TypedOrValueRegister(ToValue(lir, n));
+
+    const LAllocation* value = lir->getOperand(n);
+    if (value->isConstant())
+        return ConstantOrRegister(*value->toConstant());
+
+    return TypedOrValueRegister(type, ToAnyRegister(value));
 }
 
 void
@@ -8499,12 +8497,12 @@ CodeGenerator::visitGetPropertyCacheV(LGetPropertyCacheV* ins)
 {
     LiveRegisterSet liveRegs = ins->safepoint()->liveRegs();
     Register objReg = ToRegister(ins->getOperand(0));
-    PropertyName* name = ins->mir()->name();
+    ConstantOrRegister id = toConstantOrRegister(ins, LGetPropertyCacheV::Id, ins->mir()->idval()->type());
     bool monitoredResult = ins->mir()->monitoredResult();
     TypedOrValueRegister output = TypedOrValueRegister(GetValueOutput(ins));
 
-    addGetPropertyCache(ins, liveRegs, objReg, name, output, monitoredResult,
-                        ins->mir()->profilerLeavePc());
+    addGetPropertyCache(ins, liveRegs, objReg, id, output, monitoredResult,
+                        ins->mir()->allowDoubleResult(), ins->mir()->profilerLeavePc());
 }
 
 void
@@ -8512,15 +8510,15 @@ CodeGenerator::visitGetPropertyCacheT(LGetPropertyCacheT* ins)
 {
     LiveRegisterSet liveRegs = ins->safepoint()->liveRegs();
     Register objReg = ToRegister(ins->getOperand(0));
-    PropertyName* name = ins->mir()->name();
+    ConstantOrRegister id = toConstantOrRegister(ins, LGetPropertyCacheT::Id, ins->mir()->idval()->type());
     bool monitoredResult = ins->mir()->monitoredResult();
     TypedOrValueRegister output(ins->mir()->type(), ToAnyRegister(ins->getDef(0)));
 
-    addGetPropertyCache(ins, liveRegs, objReg, name, output, monitoredResult,
-                        ins->mir()->profilerLeavePc());
+    addGetPropertyCache(ins, liveRegs, objReg, id, output, monitoredResult,
+                        ins->mir()->allowDoubleResult(), ins->mir()->profilerLeavePc());
 }
 
-typedef bool (*GetPropertyICFn)(JSContext*, HandleScript, size_t, HandleObject,
+typedef bool (*GetPropertyICFn)(JSContext*, HandleScript, size_t, HandleObject, HandleValue,
                                 MutableHandleValue);
 const VMFunction GetPropertyIC::UpdateInfo = FunctionInfo<GetPropertyICFn>(GetPropertyIC::update);
 
@@ -8540,126 +8538,13 @@ CodeGenerator::visitGetPropertyIC(OutOfLineUpdateCache* ool, DataPtr<GetProperty
 
     saveLive(lir);
 
+    pushArg(ic->id());
     pushArg(ic->object());
     pushArg(Imm32(ool->getCacheIndex()));
     pushArg(ImmGCPtr(gen->info().script()));
     callVM(GetPropertyIC::UpdateInfo, lir);
     StoreValueTo(ic->output()).generate(this);
     restoreLiveIgnore(lir, StoreValueTo(ic->output()).clobbered());
-
-    masm.jump(ool->rejoin());
-}
-
-void
-CodeGenerator::addGetElementCache(LInstruction* ins, Register obj, TypedOrValueRegister index,
-                                  TypedOrValueRegister output, bool monitoredResult,
-                                  bool allowDoubleResult, jsbytecode* profilerLeavePc)
-{
-    LiveRegisterSet liveRegs = ins->safepoint()->liveRegs();
-    GetElementIC cache(liveRegs, obj, index, output, monitoredResult, allowDoubleResult);
-    cache.setProfilerLeavePC(profilerLeavePc);
-    addCache(ins, allocateCache(cache));
-}
-
-void
-CodeGenerator::visitGetElementCacheV(LGetElementCacheV* ins)
-{
-    Register obj = ToRegister(ins->object());
-    TypedOrValueRegister index = TypedOrValueRegister(ToValue(ins, LGetElementCacheV::Index));
-    TypedOrValueRegister output = TypedOrValueRegister(GetValueOutput(ins));
-    const MGetElementCache* mir = ins->mir();
-
-    addGetElementCache(ins, obj, index, output, mir->monitoredResult(),
-                       mir->allowDoubleResult(), mir->profilerLeavePc());
-}
-
-void
-CodeGenerator::visitGetElementCacheT(LGetElementCacheT* ins)
-{
-    Register obj = ToRegister(ins->object());
-    TypedOrValueRegister index = TypedOrValueRegister(MIRType_Int32, ToAnyRegister(ins->index()));
-    TypedOrValueRegister output(ins->mir()->type(), ToAnyRegister(ins->output()));
-    const MGetElementCache* mir = ins->mir();
-
-    addGetElementCache(ins, obj, index, output, mir->monitoredResult(),
-                       mir->allowDoubleResult(), mir->profilerLeavePc());
-}
-
-typedef bool (*GetElementICFn)(JSContext*, HandleScript, size_t, HandleObject, HandleValue,
-                               MutableHandleValue);
-const VMFunction GetElementIC::UpdateInfo = FunctionInfo<GetElementICFn>(GetElementIC::update);
-
-void
-CodeGenerator::visitGetElementIC(OutOfLineUpdateCache* ool, DataPtr<GetElementIC>& ic)
-{
-    LInstruction* lir = ool->lir();
-    saveLive(lir);
-
-    pushArg(ic->index());
-    pushArg(ic->object());
-    pushArg(Imm32(ool->getCacheIndex()));
-    pushArg(ImmGCPtr(gen->info().script()));
-    callVM(GetElementIC::UpdateInfo, lir);
-    StoreValueTo(ic->output()).generate(this);
-    restoreLiveIgnore(lir, StoreValueTo(ic->output()).clobbered());
-
-    masm.jump(ool->rejoin());
-}
-
-void
-CodeGenerator::visitSetElementCacheV(LSetElementCacheV* ins)
-{
-    Register obj = ToRegister(ins->object());
-    Register unboxIndex = ToTempUnboxRegister(ins->tempToUnboxIndex());
-    Register temp = ToRegister(ins->temp());
-    FloatRegister tempDouble = ToFloatRegister(ins->tempDouble());
-    FloatRegister tempFloat32 = ToFloatRegister(ins->tempFloat32());
-    ValueOperand index = ToValue(ins, LSetElementCacheV::Index);
-    ConstantOrRegister value = TypedOrValueRegister(ToValue(ins, LSetElementCacheV::Value));
-
-    addSetElementCache(ins, obj, unboxIndex, temp, tempDouble, tempFloat32, index, value,
-                       ins->mir()->strict(), ins->mir()->guardHoles(),
-                       ins->mir()->profilerLeavePc());
-}
-
-void
-CodeGenerator::visitSetElementCacheT(LSetElementCacheT* ins)
-{
-    Register obj = ToRegister(ins->object());
-    Register unboxIndex = ToTempUnboxRegister(ins->tempToUnboxIndex());
-    Register temp = ToRegister(ins->temp());
-    FloatRegister tempDouble = ToFloatRegister(ins->tempDouble());
-    FloatRegister tempFloat32 = ToFloatRegister(ins->tempFloat32());
-    ValueOperand index = ToValue(ins, LSetElementCacheT::Index);
-    ConstantOrRegister value;
-    const LAllocation* tmp = ins->value();
-    if (tmp->isConstant())
-        value = *tmp->toConstant();
-    else
-        value = TypedOrValueRegister(ins->mir()->value()->type(), ToAnyRegister(tmp));
-
-    addSetElementCache(ins, obj, unboxIndex, temp, tempDouble, tempFloat32, index, value,
-                       ins->mir()->strict(), ins->mir()->guardHoles(),
-                       ins->mir()->profilerLeavePc());
-}
-
-typedef bool (*SetElementICFn)(JSContext*, HandleScript, size_t, HandleObject, HandleValue,
-                               HandleValue);
-const VMFunction SetElementIC::UpdateInfo = FunctionInfo<SetElementICFn>(SetElementIC::update);
-
-void
-CodeGenerator::visitSetElementIC(OutOfLineUpdateCache* ool, DataPtr<SetElementIC>& ic)
-{
-    LInstruction* lir = ool->lir();
-    saveLive(lir);
-
-    pushArg(ic->value());
-    pushArg(ic->index());
-    pushArg(ic->object());
-    pushArg(Imm32(ool->getCacheIndex()));
-    pushArg(ImmGCPtr(gen->info().script()));
-    callVM(SetElementIC::UpdateInfo, lir);
-    restoreLive(lir);
 
     masm.jump(ool->rejoin());
 }
@@ -8752,35 +8637,27 @@ CodeGenerator::visitCallDeleteElement(LCallDeleteElement* lir)
 }
 
 void
-CodeGenerator::visitSetPropertyCacheV(LSetPropertyCacheV* ins)
+CodeGenerator::visitSetPropertyCache(LSetPropertyCache* ins)
 {
     LiveRegisterSet liveRegs = ins->safepoint()->liveRegs();
     Register objReg = ToRegister(ins->getOperand(0));
-    ConstantOrRegister value = TypedOrValueRegister(ToValue(ins, LSetPropertyCacheV::Value));
+    Register temp = ToRegister(ins->temp());
+    Register tempUnbox = ToTempUnboxRegister(ins->tempToUnboxIndex());
+    FloatRegister tempDouble = ToTempFloatRegisterOrInvalid(ins->tempDouble());
+    FloatRegister tempF32 = ToTempFloatRegisterOrInvalid(ins->tempFloat32());
 
-    addSetPropertyCache(ins, liveRegs, objReg, ins->mir()->name(), value,
-                        ins->mir()->strict(), ins->mir()->needsTypeBarrier(),
-                        ins->mir()->profilerLeavePc());
+    ConstantOrRegister id =
+        toConstantOrRegister(ins, LSetPropertyCache::Id, ins->mir()->idval()->type());
+    ConstantOrRegister value =
+        toConstantOrRegister(ins, LSetPropertyCache::Value, ins->mir()->value()->type());
+
+    addSetPropertyCache(ins, liveRegs, objReg, temp, tempUnbox, tempDouble, tempF32,
+                        id, value, ins->mir()->strict(), ins->mir()->needsTypeBarrier(),
+                        ins->mir()->guardHoles(), ins->mir()->profilerLeavePc());
 }
 
-void
-CodeGenerator::visitSetPropertyCacheT(LSetPropertyCacheT* ins)
-{
-    LiveRegisterSet liveRegs = ins->safepoint()->liveRegs();
-    Register objReg = ToRegister(ins->getOperand(0));
-    ConstantOrRegister value;
-
-    if (ins->getOperand(1)->isConstant())
-        value = ConstantOrRegister(*ins->getOperand(1)->toConstant());
-    else
-        value = TypedOrValueRegister(ins->valueType(), ToAnyRegister(ins->getOperand(1)));
-
-    addSetPropertyCache(ins, liveRegs, objReg, ins->mir()->name(), value,
-                        ins->mir()->strict(), ins->mir()->needsTypeBarrier(),
-                        ins->mir()->profilerLeavePc());
-}
-
-typedef bool (*SetPropertyICFn)(JSContext*, HandleScript, size_t, HandleObject, HandleValue);
+typedef bool (*SetPropertyICFn)(JSContext*, HandleScript, size_t, HandleObject, HandleValue,
+                                HandleValue);
 const VMFunction SetPropertyIC::UpdateInfo = FunctionInfo<SetPropertyICFn>(SetPropertyIC::update);
 
 void
@@ -8790,6 +8667,7 @@ CodeGenerator::visitSetPropertyIC(OutOfLineUpdateCache* ool, DataPtr<SetProperty
     saveLive(lir);
 
     pushArg(ic->value());
+    pushArg(ic->id());
     pushArg(ic->object());
     pushArg(Imm32(ool->getCacheIndex()));
     pushArg(ImmGCPtr(gen->info().script()));
@@ -10266,14 +10144,15 @@ CodeGenerator::visitLexicalCheck(LLexicalCheck* ins)
     bailoutFrom(&bail, ins->snapshot());
 }
 
-typedef bool (*ThrowUninitializedLexicalFn)(JSContext*);
-static const VMFunction ThrowUninitializedLexicalInfo =
-    FunctionInfo<ThrowUninitializedLexicalFn>(ThrowUninitializedLexical);
+typedef bool (*ThrowRuntimeLexicalErrorFn)(JSContext*, unsigned);
+static const VMFunction ThrowRuntimeLexicalErrorInfo =
+    FunctionInfo<ThrowRuntimeLexicalErrorFn>(ThrowRuntimeLexicalError);
 
 void
-CodeGenerator::visitThrowUninitializedLexical(LThrowUninitializedLexical* ins)
+CodeGenerator::visitThrowRuntimeLexicalError(LThrowRuntimeLexicalError* ins)
 {
-    callVM(ThrowUninitializedLexicalInfo, ins);
+    pushArg(Imm32(ins->mir()->errorNumber()));
+    callVM(ThrowRuntimeLexicalErrorInfo, ins);
 }
 
 typedef bool (*GlobalNameConflictsCheckFromIonFn)(JSContext*, HandleScript);

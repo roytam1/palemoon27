@@ -484,7 +484,7 @@ BaselineCompiler::emitOutOfLinePostBarrierSlot()
     // On ARM, save the link register before calling.  It contains the return
     // address.  The |masm.ret()| later will pop this into |pc| to return.
     masm.push(lr);
-#elif defined(JS_CODEGEN_MIPS32)
+#elif defined(JS_CODEGEN_MIPS32) || defined(JS_CODEGEN_MIPS64)
     masm.push(ra);
 #endif
     masm.pushValue(R0);
@@ -1964,6 +1964,12 @@ BaselineCompiler::emit_JSOP_INITELEM()
     return true;
 }
 
+bool
+BaselineCompiler::emit_JSOP_INITHIDDENELEM()
+{
+    return emit_JSOP_INITELEM();
+}
+
 typedef bool (*MutateProtoFn)(JSContext* cx, HandlePlainObject obj, HandleValue newProto);
 static const VMFunction MutateProtoInfo = FunctionInfo<MutateProtoFn>(MutatePrototype);
 
@@ -2436,7 +2442,10 @@ BaselineCompiler::emit_JSOP_BINDNAME()
 {
     frame.syncStack(0);
 
-    masm.loadPtr(frame.addressOfScopeChain(), R0.scratchReg());
+    if (*pc == JSOP_BINDGNAME && !script->hasNonSyntacticScope())
+        masm.movePtr(ImmGCPtr(&script->global().lexicalScope()), R0.scratchReg());
+    else
+        masm.loadPtr(frame.addressOfScopeChain(), R0.scratchReg());
 
     // Call IC.
     ICBindName_Fallback::Compiler stubCompiler(cx);
@@ -2566,7 +2575,9 @@ bool
 BaselineCompiler::emitInitPropGetterSetter()
 {
     MOZ_ASSERT(JSOp(*pc) == JSOP_INITPROP_GETTER ||
-               JSOp(*pc) == JSOP_INITPROP_SETTER);
+               JSOp(*pc) == JSOP_INITHIDDENPROP_GETTER ||
+               JSOp(*pc) == JSOP_INITPROP_SETTER ||
+               JSOp(*pc) == JSOP_INITHIDDENPROP_SETTER);
 
     // Keep values on the stack for the decompiler.
     frame.syncStack(0);
@@ -2595,7 +2606,19 @@ BaselineCompiler::emit_JSOP_INITPROP_GETTER()
 }
 
 bool
+BaselineCompiler::emit_JSOP_INITHIDDENPROP_GETTER()
+{
+    return emitInitPropGetterSetter();
+}
+
+bool
 BaselineCompiler::emit_JSOP_INITPROP_SETTER()
+{
+    return emitInitPropGetterSetter();
+}
+
+bool
+BaselineCompiler::emit_JSOP_INITHIDDENPROP_SETTER()
 {
     return emitInitPropGetterSetter();
 }
@@ -2609,7 +2632,9 @@ bool
 BaselineCompiler::emitInitElemGetterSetter()
 {
     MOZ_ASSERT(JSOp(*pc) == JSOP_INITELEM_GETTER ||
-               JSOp(*pc) == JSOP_INITELEM_SETTER);
+               JSOp(*pc) == JSOP_INITHIDDENELEM_GETTER ||
+               JSOp(*pc) == JSOP_INITELEM_SETTER ||
+               JSOp(*pc) == JSOP_INITHIDDENELEM_SETTER);
 
     // Load index and value in R0 and R1, but keep values on the stack for the
     // decompiler.
@@ -2639,7 +2664,19 @@ BaselineCompiler::emit_JSOP_INITELEM_GETTER()
 }
 
 bool
+BaselineCompiler::emit_JSOP_INITHIDDENELEM_GETTER()
+{
+    return emitInitElemGetterSetter();
+}
+
+bool
 BaselineCompiler::emit_JSOP_INITELEM_SETTER()
+{
+    return emitInitElemGetterSetter();
+}
+
+bool
+BaselineCompiler::emit_JSOP_INITHIDDENELEM_SETTER()
 {
     return emitInitElemGetterSetter();
 }

@@ -4842,7 +4842,7 @@ CodeGenerator::visitNewStringObject(LNewStringObject* lir)
     masm.bind(ool->rejoin());
 }
 
-typedef bool(*InitElemFn)(JSContext* cx, HandleObject obj,
+typedef bool(*InitElemFn)(JSContext* cx, jsbytecode* pc, HandleObject obj,
                           HandleValue id, HandleValue value);
 static const VMFunction InitElemInfo =
     FunctionInfo<InitElemFn>(InitElemOperation);
@@ -4855,6 +4855,7 @@ CodeGenerator::visitInitElem(LInitElem* lir)
     pushArg(ToValue(lir, LInitElem::ValueIndex));
     pushArg(ToValue(lir, LInitElem::IdIndex));
     pushArg(objReg);
+    pushArg(ImmPtr(lir->mir()->resumePoint()->pc()));
 
     callVM(InitElemInfo, lir);
 }
@@ -5277,7 +5278,7 @@ CodeGenerator::visitAbsI(LAbsI* ins)
     masm.branchTest32(Assembler::NotSigned, input, input, &positive);
     masm.neg32(input);
     LSnapshot* snapshot = ins->snapshot();
-#ifdef JS_CODEGEN_MIPS32
+#if defined(JS_CODEGEN_MIPS32) || defined(JS_CODEGEN_MIPS64)
     if (snapshot)
         bailoutCmp32(Assembler::Equal, input, Imm32(INT32_MIN), snapshot);
 #else
@@ -6945,7 +6946,7 @@ CodeGenerator::visitOutOfLineStoreElementHole(OutOfLineStoreElementHole* ool)
     // If index > initializedLength, call a stub. Note that this relies on the
     // condition flags sticking from the incoming branch.
     Label callStub;
-#ifdef JS_CODEGEN_MIPS32
+#if defined(JS_CODEGEN_MIPS32) || defined(JS_CODEGEN_MIPS64)
     // Had to reimplement for MIPS because there are no flags.
     if (unboxedType == JSVAL_TYPE_MAGIC) {
         Address initLength(elements, ObjectElements::offsetOfInitializedLength());
@@ -7798,7 +7799,7 @@ CodeGenerator::generateAsmJS(AsmJSFunctionLabels* labels)
     if (!generateOutOfLineCode())
         return false;
 
-    masm.bind(&labels->end);
+    masm.bind(&labels->endAfterOOL);
 
     // The only remaining work needed to compile this function is to patch the
     // switch-statement jump tables (the entries of the table need the absolute
@@ -9288,49 +9289,6 @@ CodeGenerator::visitAtomicIsLockFree(LAtomicIsLockFree* lir)
         masm.bind(&Lfailed);
     masm.move32(Imm32(0), output);
     masm.bind(&Ldone);
-}
-
-void
-CodeGenerator::visitCompareExchangeTypedArrayElement(LCompareExchangeTypedArrayElement* lir)
-{
-    Register elements = ToRegister(lir->elements());
-    AnyRegister output = ToAnyRegister(lir->output());
-    Register temp = lir->temp()->isBogusTemp() ? InvalidReg : ToRegister(lir->temp());
-
-    Register oldval = ToRegister(lir->oldval());
-    Register newval = ToRegister(lir->newval());
-
-    Scalar::Type arrayType = lir->mir()->arrayType();
-    int width = Scalar::byteSize(arrayType);
-
-    if (lir->index()->isConstant()) {
-        Address dest(elements, ToInt32(lir->index()) * width);
-        masm.compareExchangeToTypedIntArray(arrayType, dest, oldval, newval, temp, output);
-    } else {
-        BaseIndex dest(elements, ToRegister(lir->index()), ScaleFromElemWidth(width));
-        masm.compareExchangeToTypedIntArray(arrayType, dest, oldval, newval, temp, output);
-    }
-}
-
-void
-CodeGenerator::visitAtomicExchangeTypedArrayElement(LAtomicExchangeTypedArrayElement* lir)
-{
-    Register elements = ToRegister(lir->elements());
-    AnyRegister output = ToAnyRegister(lir->output());
-    Register temp = lir->temp()->isBogusTemp() ? InvalidReg : ToRegister(lir->temp());
-
-    Register value = ToRegister(lir->value());
-
-    Scalar::Type arrayType = lir->mir()->arrayType();
-    int width = Scalar::byteSize(arrayType);
-
-    if (lir->index()->isConstant()) {
-        Address dest(elements, ToInt32(lir->index()) * width);
-        masm.atomicExchangeToTypedIntArray(arrayType, dest, value, temp, output);
-    } else {
-        BaseIndex dest(elements, ToRegister(lir->index()), ScaleFromElemWidth(width));
-        masm.atomicExchangeToTypedIntArray(arrayType, dest, value, temp, output);
-    }
 }
 
 void

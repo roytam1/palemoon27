@@ -1320,7 +1320,7 @@ intrinsic_LocalTZA(JSContext* cx, unsigned argc, Value* vp)
     CallArgs args = CallArgsFromVp(argc, vp);
     MOZ_ASSERT(args.length() == 0, "the LocalTZA intrinsic takes no arguments");
 
-    args.rval().setDouble(cx->runtime()->dateTimeInfo.localTZA());
+    args.rval().setDouble(DateTimeInfo::localTZA());
     return true;
 }
 
@@ -1450,6 +1450,16 @@ intrinsic_CreateNamespaceBinding(JSContext* cx, unsigned argc, Value* vp)
 
     args.rval().setUndefined();
     return true;
+}
+
+static bool
+intrinsic_InstantiateModuleFunctionDeclarations(JSContext* cx, unsigned argc, Value* vp)
+{
+    CallArgs args = CallArgsFromVp(argc, vp);
+    MOZ_ASSERT(args.length() == 1);
+    RootedModuleObject module(cx, &args[0].toObject().as<ModuleObject>());
+    args.rval().setUndefined();
+    return ModuleObject::instantiateFunctionDeclarations(cx, module);
 }
 
 static bool
@@ -1783,6 +1793,8 @@ static const JSFunctionSpec intrinsic_functions[] = {
     JS_FN("CreateModuleEnvironment", intrinsic_CreateModuleEnvironment, 1, 0),
     JS_FN("CreateImportBinding", intrinsic_CreateImportBinding, 4, 0),
     JS_FN("CreateNamespaceBinding", intrinsic_CreateNamespaceBinding, 3, 0),
+    JS_FN("InstantiateModuleFunctionDeclarations",
+          intrinsic_InstantiateModuleFunctionDeclarations, 1, 0),
     JS_FN("SetModuleEvaluated", intrinsic_SetModuleEvaluated, 1, 0),
     JS_FN("EvaluateModule", intrinsic_EvaluateModule, 1, 0),
     JS_FN("IsModuleNamespace", intrinsic_IsModuleNamespace, 1, 0),

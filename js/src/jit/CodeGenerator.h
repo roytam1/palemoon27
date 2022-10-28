@@ -22,6 +22,8 @@
 # include "jit/arm64/CodeGenerator-arm64.h"
 #elif defined(JS_CODEGEN_MIPS32)
 # include "jit/mips32/CodeGenerator-mips32.h"
+#elif defined(JS_CODEGEN_MIPS64)
+# include "jit/mips64/CodeGenerator-mips64.h"
 #elif defined(JS_CODEGEN_NONE)
 # include "jit/none/CodeGenerator-none.h"
 #else
@@ -286,8 +288,6 @@ class CodeGenerator : public CodeGeneratorSpecific
     void visitStoreUnboxedScalar(LStoreUnboxedScalar* lir);
     void visitStoreTypedArrayElementHole(LStoreTypedArrayElementHole* lir);
     void visitAtomicIsLockFree(LAtomicIsLockFree* lir);
-    void visitCompareExchangeTypedArrayElement(LCompareExchangeTypedArrayElement* lir);
-    void visitAtomicExchangeTypedArrayElement(LAtomicExchangeTypedArrayElement* lir);
     void visitClampIToUint8(LClampIToUint8* lir);
     void visitClampDToUint8(LClampDToUint8* lir);
     void visitClampVToUint8(LClampVToUint8* lir);

@@ -81,6 +81,8 @@ function testStartSession() {
       gScript.sendAsyncMessage('trigger-incoming-answer');
     });
 
+    ok(!navigator.presentation.receiver, "Sender shouldn't get a presentation receiver instance.");
+
     navigator.presentation.defaultRequest.onsessionconnect = function(aEvent) {
       navigator.presentation.defaultRequest.onsessionconnect = null;
       session = aEvent.session;
@@ -139,7 +141,6 @@ SpecialPowers.pushPermissions([
   {type: 'presentation', allow: true, context: document},
 ], function() {
   SpecialPowers.pushPrefEnv({ 'set': [["dom.presentation.enabled", true],
-                                      ["dom.ignore_webidl_scope_checks", true],
                                       ["dom.presentation.test.enabled", true],
                                       ["dom.presentation.test.stage", 0]]},
                             runTests);

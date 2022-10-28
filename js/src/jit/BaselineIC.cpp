@@ -3494,6 +3494,7 @@ DoSetElemFallback(JSContext* cx, BaselineFrame* frame, ICSetElem_Fallback* stub_
     MOZ_ASSERT(op == JSOP_SETELEM ||
                op == JSOP_STRICTSETELEM ||
                op == JSOP_INITELEM ||
+               op == JSOP_INITHIDDENELEM ||
                op == JSOP_INITELEM_ARRAY ||
                op == JSOP_INITELEM_INC);
 
@@ -3511,8 +3512,8 @@ DoSetElemFallback(JSContext* cx, BaselineFrame* frame, ICSetElem_Fallback* stub_
         oldInitLength = GetAnyBoxedOrUnboxedInitializedLength(obj);
     }
 
-    if (op == JSOP_INITELEM) {
-        if (!InitElemOperation(cx, obj, index, rhs))
+    if (op == JSOP_INITELEM || op == JSOP_INITHIDDENELEM) {
+        if (!InitElemOperation(cx, pc, obj, index, rhs))
             return false;
     } else if (op == JSOP_INITELEM_ARRAY) {
         MOZ_ASSERT(uint32_t(index.toInt32()) <= INT32_MAX,
@@ -3863,8 +3864,9 @@ ICSetElem_DenseOrUnboxedArray::Compiler::generateStubCode(MacroAssembler& masm)
     EmitReturnFromIC(masm);
 
     if (failurePopR0.used()) {
+        // Failure case: restore the value of R0
         masm.bind(&failurePopR0);
-        masm.Pop(R0);
+        masm.popValue(R0);
     }
 
     // Failure case - jump to next stub
@@ -4099,8 +4101,9 @@ ICSetElemDenseOrUnboxedArrayAddCompiler::generateStubCode(MacroAssembler& masm)
     EmitReturnFromIC(masm);
 
     if (failurePopR0.used()) {
+        // Failure case: restore the value of R0
         masm.bind(&failurePopR0);
-        masm.Pop(R0);
+        masm.popValue(R0);
         masm.jump(&failure);
     }
 

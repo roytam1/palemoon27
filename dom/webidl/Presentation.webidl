@@ -5,8 +5,7 @@
  */
 
 [Pref="dom.presentation.enabled",
- CheckAnyPermissions="presentation",
- AvailableIn="PrivilegedApps"]
+ CheckAnyPermissions="presentation"]
 interface Presentation : EventTarget {
  /*
   * This should be used by the UA as the default presentation request for the
@@ -19,26 +18,9 @@ interface Presentation : EventTarget {
   attribute PresentationRequest? defaultRequest;
 
   /*
-   * Get the first connected presentation session in a presenting browsing
-   * context.
-   *
-   * Only used by presenting browsing context (receivers).
+   * This should be available on the receiving browsing context in order to
+   * access the controlling browsing context and communicate with them.
    */
-  [Throws]
-  Promise<PresentationSession> getSession();
-
-  /*
-   * Get all connected presentation sessions in a presenting browsing context.
-   *
-   * Only used by presenting browsing context (receivers).
-   */
-  [Throws]
-  Promise<sequence<PresentationSession>> getSessions();
-
-  /*
-   * It is called when an incoming session is connecting.
-   *
-   * Only used by presenting browsing context (receivers).
-   */
-  attribute EventHandler onsessionavailable;
+  [SameObject]
+  readonly attribute PresentationReceiver? receiver;
 };

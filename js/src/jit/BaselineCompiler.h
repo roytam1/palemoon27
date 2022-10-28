@@ -18,6 +18,8 @@
 # include "jit/arm64/BaselineCompiler-arm64.h"
 #elif defined(JS_CODEGEN_MIPS32)
 # include "jit/mips32/BaselineCompiler-mips32.h"
+#elif defined(JS_CODEGEN_MIPS64)
+# include "jit/mips64/BaselineCompiler-mips64.h"
 #elif defined(JS_CODEGEN_NONE)
 # include "jit/none/BaselineCompiler-none.h"
 #else
@@ -206,7 +208,12 @@ namespace jit {
     _(JSOP_SUPERCALL)          \
     _(JSOP_SPREADSUPERCALL)    \
     _(JSOP_THROWSETCONST)      \
-    _(JSOP_THROWSETALIASEDCONST)
+    _(JSOP_THROWSETALIASEDCONST) \
+    _(JSOP_INITHIDDENPROP_GETTER) \
+    _(JSOP_INITHIDDENPROP_SETTER) \
+    _(JSOP_INITHIDDENELEM)     \
+    _(JSOP_INITHIDDENELEM_GETTER) \
+    _(JSOP_INITHIDDENELEM_SETTER)
 
 class BaselineCompiler : public BaselineCompilerSpecific
 {

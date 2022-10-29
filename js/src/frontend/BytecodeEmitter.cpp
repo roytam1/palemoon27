@@ -5316,7 +5316,7 @@ BytecodeEmitter::emitForInOrOfVariables(ParseNode* pn, bool* letDecl)
             if (!emitVariables(pn, DefineVars))
                 return false;
         } else {
-            MOZ_ASSERT(pn->isKind(PNK_LET));
+            MOZ_ASSERT(pn->isKind(PNK_LET) || pn->isKind(PNK_CONST));
             if (!emitVariables(pn, InitializeVars))
                 return false;
         }

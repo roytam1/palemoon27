@@ -32,28 +32,27 @@ if not CONFIG['JS_STANDALONE']:
         'probes',
     ]
 
-if not CONFIG['LIBXUL_SDK']:
+DIRS += [
+    'mfbt',
+    'config/external/zlib',
+]
+
+if not CONFIG['JS_STANDALONE']:
+
+    if CONFIG['MOZ_MEMORY']:
+        DIRS += ['memory']
+
     DIRS += [
-        'mfbt',
-        'config/external/zlib',
+        'mozglue',
+        'memory/fallible',
+        'memory/mozalloc',
+        'memory/volatile',
     ]
-
-    if not CONFIG['JS_STANDALONE']:
-
-        if CONFIG['MOZ_MEMORY']:
-            DIRS += ['memory']
-
-        DIRS += [
-            'mozglue',
-            'memory/fallible',
-            'memory/mozalloc',
-            'memory/volatile',
-        ]
 
 if not CONFIG['JS_STANDALONE']:
     DIRS += ['xpcom/xpidl']
 
-if CONFIG['COMPILE_ENVIRONMENT'] and not CONFIG['LIBXUL_SDK']:
+if CONFIG['COMPILE_ENVIRONMENT']:
     DIRS += ['config/external/nspr']
 
     if not CONFIG['JS_STANDALONE']:

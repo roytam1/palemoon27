@@ -1037,20 +1037,55 @@ xpc::CreateSandboxObject(JSContext* cx, MutableHandleValue vp, nsISupports* prin
     {
         JSAutoCompartment ac(cx, sandbox);
 
+        nsCOMPtr<nsIScriptObjectPrincipal> sbp =
+            new SandboxPrivate(principal, sandbox);
+
+        // Pass on ownership of sbp to |sandbox|.
+        JS_SetPrivate(sandbox, sbp.forget().take());
+
+        {
+            // Don't try to mirror standard class properties, if we're using a
+            // mirroring sandbox.  (This is meaningless for non-mirroring
+            // sandboxes.)
+            AutoSkipPropertyMirroring askip(CompartmentPrivate::Get(sandbox));
+
+            // Ensure |Object.prototype| is instantiated before prototype-
+            // splicing below.  For write-to-global-prototype behavior, extend
+            // this to all builtin properties.
+            if (options.writeToGlobalPrototype) {
+                if (!JS_EnumerateStandardClasses(cx, sandbox))
+                    return NS_ERROR_XPC_UNEXPECTED;
+            } else {
+                if (!JS_GetObjectPrototype(cx, sandbox))
+                    return NS_ERROR_XPC_UNEXPECTED;
+            }
+        }
+
         if (options.proto) {
             bool ok = JS_WrapObject(cx, &options.proto);
             if (!ok)
                 return NS_ERROR_XPC_UNEXPECTED;
 
-            // Now check what sort of thing we've got in |proto|
-            JSObject* unwrappedProto = js::CheckedUnwrap(options.proto, false);
-            if (!unwrappedProto) {
-                JS_ReportError(cx, "Sandbox must subsume sandboxPrototype");
-                return NS_ERROR_INVALID_ARG;
+            // Now check what sort of thing we've got in |proto|, and figure out
+            // if we need a SandboxProxyHandler.
+            //
+            // Note that, in the case of a window, we can't require that the
+            // Sandbox subsumes the prototype, because we have to hold our
+            // reference to it via an outer window, and the window may navigate
+            // at any time. So we have to handle that case separately.
+            bool useSandboxProxy = !!WindowOrNull(js::UncheckedUnwrap(options.proto, false));
+            if (!useSandboxProxy) {
+                JSObject* unwrappedProto = js::CheckedUnwrap(options.proto, false);
+                if (!unwrappedProto) {
+                    JS_ReportError(cx, "Sandbox must subsume sandboxPrototype");
+                    return NS_ERROR_INVALID_ARG;
+                }
+                const js::Class* unwrappedClass = js::GetObjectClass(unwrappedProto);
+                useSandboxProxy = IS_WN_CLASS(unwrappedClass) ||
+                                  mozilla::dom::IsDOMClass(Jsvalify(unwrappedClass));
             }
-            const js::Class* unwrappedClass = js::GetObjectClass(unwrappedProto);
-            if (IS_WN_CLASS(unwrappedClass) ||
-                mozilla::dom::IsDOMClass(Jsvalify(unwrappedClass))) {
+
+            if (useSandboxProxy) {
                 // Wrap it up in a proxy that will do the right thing in terms
                 // of this-binding for methods.
                 RootedValue priv(cx, ObjectValue(*options.proto));
@@ -1060,16 +1095,10 @@ xpc::CreateSandboxObject(JSContext* cx, MutableHandleValue vp, nsISupports* prin
                     return NS_ERROR_OUT_OF_MEMORY;
             }
 
-            ok = JS_SetPrototype(cx, sandbox, options.proto);
+            ok = JS_SplicePrototype(cx, sandbox, options.proto);
             if (!ok)
                 return NS_ERROR_XPC_UNEXPECTED;
         }
-
-        nsCOMPtr<nsIScriptObjectPrincipal> sbp =
-            new SandboxPrivate(principal, sandbox);
-
-        // Pass on ownership of sbp to |sandbox|.
-        JS_SetPrivate(sandbox, sbp.forget().take());
 
         // Don't try to mirror the properties that are set below.
         AutoSkipPropertyMirroring askip(CompartmentPrivate::Get(sandbox));
@@ -1099,10 +1128,6 @@ xpc::CreateSandboxObject(JSContext* cx, MutableHandleValue vp, nsISupports* prin
         // Promise is supposed to be part of ES, and therefore should appear on
         // every global.
         if (!dom::PromiseBinding::GetConstructorObject(cx, sandbox))
-            return NS_ERROR_XPC_UNEXPECTED;
-
-        // Resolve standard classes eagerly to avoid triggering mirroring hooks for them.
-        if (options.writeToGlobalPrototype && !JS_EnumerateStandardClasses(cx, sandbox))
             return NS_ERROR_XPC_UNEXPECTED;
     }
 

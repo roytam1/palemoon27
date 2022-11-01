@@ -685,12 +685,12 @@ getRoleCB(AtkObject *aAtkObj)
   else if (aAtkObj->role == ATK_ROLE_TABLE_ROW && !IsAtkVersionAtLeast(2, 1))
     aAtkObj->role = ATK_ROLE_LIST_ITEM;
   else if (aAtkObj->role == ATK_ROLE_MATH && !IsAtkVersionAtLeast(2, 12))
-    aAtkObj->role = ATK_ROLE_PANEL;
+    aAtkObj->role = ATK_ROLE_SECTION;
   else if (aAtkObj->role == ATK_ROLE_STATIC && !IsAtkVersionAtLeast(2, 16))
     aAtkObj->role = ATK_ROLE_TEXT;
   else if ((aAtkObj->role == ATK_ROLE_MATH_FRACTION ||
             aAtkObj->role == ATK_ROLE_MATH_ROOT) && !IsAtkVersionAtLeast(2, 16))
-    aAtkObj->role = ATK_ROLE_UNKNOWN;
+    aAtkObj->role = ATK_ROLE_SECTION;
 
   return aAtkObj->role;
 }
@@ -807,7 +807,11 @@ getParentCB(AtkObject *aAtkObj)
       atkParent = GetWrapperFor(parent);
     } else {
       // Otherwise this should be the proxy for the tab's top level document.
-      atkParent = AccessibleWrap::GetAtkObject(proxy->OuterDocOfRemoteBrowser());
+      Accessible* outerDocParent = proxy->OuterDocOfRemoteBrowser();
+      NS_ASSERTION(outerDocParent, "this document should have an outerDoc as a parent");
+      if (outerDocParent) {
+        atkParent = AccessibleWrap::GetAtkObject(outerDocParent);
+      }
     }
   }
 
@@ -825,7 +829,15 @@ getChildCountCB(AtkObject *aAtkObj)
       return 0;
     }
 
-    return static_cast<gint>(accWrap->EmbeddedChildCount());
+    uint32_t count = accWrap->EmbeddedChildCount();
+    if (count) {
+      return static_cast<gint>(count);
+    }
+
+    OuterDocAccessible* outerDoc = accWrap->AsOuterDoc();
+    if (outerDoc && outerDoc->RemoteChildDoc()) {
+      return 1;
+    }
   }
 
   ProxyAccessible* proxy = GetProxy(aAtkObj);
@@ -973,6 +985,13 @@ UpdateAtkRelation(RelationType aType, Accessible* aAcc,
   while ((tempAcc = rel.Next()))
     targets.AppendElement(AccessibleWrap::GetAtkObject(tempAcc));
 
+  if (aType == RelationType::EMBEDS && aAcc->IsRoot()) {
+    if (ProxyAccessible* proxyDoc =
+        aAcc->AsRoot()->GetPrimaryRemoteTopLevelContentDoc()) {
+      targets.AppendElement(GetWrapperFor(proxyDoc));
+    }
+  }
+
   if (targets.Length()) {
     atkRelation = atk_relation_new(targets.Elements(),
                                    targets.Length(), aAtkType);
@@ -1091,19 +1110,27 @@ GetInterfacesForProxy(ProxyAccessible* aProxy, uint32_t aInterfaces)
         | (1 << MAI_INTERFACE_EDITABLE_TEXT);
 
   if (aInterfaces & Interfaces::HYPERLINK)
-    interfaces |= MAI_INTERFACE_HYPERLINK_IMPL;
+    interfaces |= 1 << MAI_INTERFACE_HYPERLINK_IMPL;
 
   if (aInterfaces & Interfaces::VALUE)
-    interfaces |= MAI_INTERFACE_VALUE;
+    interfaces |= 1 << MAI_INTERFACE_VALUE;
 
   if (aInterfaces & Interfaces::TABLE)
-    interfaces |= MAI_INTERFACE_TABLE;
+    interfaces |= 1 << MAI_INTERFACE_TABLE;
 
   if (aInterfaces & Interfaces::IMAGE)
-    interfaces |= MAI_INTERFACE_IMAGE;
+    interfaces |= 1 << MAI_INTERFACE_IMAGE;
 
   if (aInterfaces & Interfaces::DOCUMENT)
-    interfaces |= MAI_INTERFACE_DOCUMENT;
+    interfaces |= 1 << MAI_INTERFACE_DOCUMENT;
+
+  if (aInterfaces & Interfaces::SELECTION) {
+    interfaces |= 1 << MAI_INTERFACE_SELECTION;
+  }
+
+  if (aInterfaces & Interfaces::ACTION) {
+    interfaces |= 1 << MAI_INTERFACE_ACTION;
+  }
 
   return interfaces;
 }
@@ -1141,6 +1168,10 @@ AccessibleWrap::HandleAccEvent(AccEvent* aEvent)
 {
   nsresult rv = Accessible::HandleAccEvent(aEvent);
   NS_ENSURE_SUCCESS(rv, rv);
+
+  if (IPCAccessibilityActive()) {
+    return NS_OK;
+  }
 
     Accessible* accessible = aEvent->GetAccessible();
     NS_ENSURE_TRUE(accessible, NS_ERROR_FAILURE);
@@ -1237,6 +1268,11 @@ AccessibleWrap::HandleAccEvent(AccEvent* aEvent)
       g_signal_emit_by_name(atkObj, "selection_changed");
       break;
     }
+
+    case nsIAccessibleEvent::EVENT_ALERT:
+      // A hack using state change showing events as alert events.
+      atk_object_notify_state_change(atkObj, ATK_STATE_SHOWING, true);
+      break;
 
     case nsIAccessibleEvent::EVENT_TEXT_SELECTION_CHANGED:
         g_signal_emit_by_name(atkObj, "text_selection_changed");
@@ -1411,9 +1447,34 @@ void
 a11y::ProxyEvent(ProxyAccessible* aTarget, uint32_t aEventType)
 {
   AtkObject* wrapper = GetWrapperFor(aTarget);
-  if (aEventType == nsIAccessibleEvent::EVENT_FOCUS) {
+
+  switch (aEventType) {
+  case nsIAccessibleEvent::EVENT_FOCUS:
     atk_focus_tracker_notify(wrapper);
     atk_object_notify_state_change(wrapper, ATK_STATE_FOCUSED, true);
+    break;
+  case nsIAccessibleEvent::EVENT_DOCUMENT_LOAD_COMPLETE:
+    g_signal_emit_by_name(wrapper, "load_complete");
+    break;
+  case nsIAccessibleEvent::EVENT_DOCUMENT_RELOAD:
+    g_signal_emit_by_name(wrapper, "reload");
+    break;
+  case nsIAccessibleEvent::EVENT_DOCUMENT_LOAD_STOPPED:
+    g_signal_emit_by_name(wrapper, "load_stopped");
+    break;
+  case nsIAccessibleEvent::EVENT_MENUPOPUP_START:
+    atk_focus_tracker_notify(wrapper); // fire extra focus event
+    atk_object_notify_state_change(wrapper, ATK_STATE_VISIBLE, true);
+    atk_object_notify_state_change(wrapper, ATK_STATE_SHOWING, true);
+    break;
+  case nsIAccessibleEvent::EVENT_MENUPOPUP_END:
+    atk_object_notify_state_change(wrapper, ATK_STATE_VISIBLE, false);
+    atk_object_notify_state_change(wrapper, ATK_STATE_SHOWING, false);
+    break;
+  case nsIAccessibleEvent::EVENT_ALERT:
+    // A hack using state change showing events as alert events.
+    atk_object_notify_state_change(wrapper, ATK_STATE_SHOWING, true);
+    break;
   }
 }
 

@@ -36,6 +36,3 @@ EXTRA_PP_JS_MODULES += [
     'AboutHome.jsm',
     'RecentWindow.jsm',
 ]
-
-if CONFIG['MOZILLA_OFFICIAL']:
-    DEFINES['MOZILLA_OFFICIAL'] = 1

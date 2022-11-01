@@ -379,6 +379,8 @@ enum Interfaces
   TABLE = 16,
   TABLECELL = 32,
   DOCUMENT = 64,
+  SELECTION = 128,
+  ACTION = 256,
 };
 
 }

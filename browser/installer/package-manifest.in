@@ -152,7 +152,7 @@
 @BINPATH@/browser/VisualElements/VisualElements_150.png
 @BINPATH@/browser/VisualElements/VisualElements_70.png
 #else
-@RESPATH@/@MOZ_APP_NAME@-bin
+@BINPATH@/@MOZ_APP_NAME@-bin
 @BINPATH@/@MOZ_APP_NAME@
 #endif
 @RESPATH@/application.ini
@@ -285,7 +285,6 @@
 @RESPATH@/components/jsdownloads.xpt
 @RESPATH@/components/jsinspector.xpt
 @RESPATH@/components/layout_base.xpt
-
 #ifdef NS_PRINTING
 @RESPATH@/components/layout_printing.xpt
 #endif
@@ -327,7 +326,9 @@
 @RESPATH@/components/plugin.xpt
 @RESPATH@/components/pref.xpt
 @RESPATH@/components/prefetch.xpt
-@RESPATH@/components/profile.xpt
+#ifdef MOZ_ENABLE_PROFILER_SPS
+@RESPATH@/components/profiler.xpt
+#endif
 @RESPATH@/components/rdf.xpt
 @RESPATH@/components/satchel.xpt
 @RESPATH@/components/saxparser.xpt
@@ -521,9 +522,6 @@
 #endif
 #ifdef XP_MACOSX
 @RESPATH@/browser/components/SafariProfileMigrator.js
-#endif
-#ifdef MOZ_ENABLE_DBUS
-@RESPATH@/components/@DLL_PREFIX@dbusservice@DLL_SUFFIX@
 #endif
 #ifdef MOZ_ENABLE_GNOME_COMPONENT
 @RESPATH@/components/@DLL_PREFIX@mozgnome@DLL_SUFFIX@
@@ -860,12 +858,12 @@ bin/libfreebl_32int64_3.so
 @BINPATH@/clang_rt.asan_dynamic-i386.dll
 #endif
 
-#ifdef MOZ_MULET
-#include ../../b2g/installer/package-manifest.in
-#endif
-
 ; gfx
 #ifdef XP_WIN
 @RESPATH@/components/GfxSanityTest.manifest
 @RESPATH@/components/SanityTest.js
+#endif
+
+#ifdef MOZ_MULET
+#include ../../b2g/installer/package-manifest.in
 #endif

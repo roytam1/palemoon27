@@ -192,12 +192,16 @@ bool
 IonBuilder::abort(const char* message, ...)
 {
     // Don't call PCToLineNumber in release builds.
-#ifdef DEBUG
+#ifdef JS_JITSPEW
     va_list ap;
     va_start(ap, message);
     abortFmt(message, ap);
     va_end(ap);
+# ifdef DEBUG
     JitSpew(JitSpew_IonAbort, "aborted @ %s:%d", script()->filename(), PCToLineNumber(script(), pc));
+# else
+    JitSpew(JitSpew_IonAbort, "aborted @ %s", script()->filename());
+# endif
 #endif
     trackActionableAbort(message);
     return false;
@@ -807,7 +811,7 @@ IonBuilder::build()
     if (!current)
         return false;
 
-#ifdef DEBUG
+#ifdef JS_JITSPEW
     if (info().isAnalysis()) {
         JitSpew(JitSpew_IonScripts, "Analyzing script %s:%" PRIuSIZE " (%p) %s",
                 script()->filename(), script()->lineno(), (void*)script(),
@@ -1638,6 +1642,8 @@ IonBuilder::snoopControlFlow(JSOp op)
 bool
 IonBuilder::inspectOpcode(JSOp op)
 {
+    MOZ_ASSERT(analysis_.maybeInfo(pc), "Compiling unreachable op");
+
     switch (op) {
       case JSOP_NOP:
       case JSOP_LINENO:
@@ -3421,19 +3427,33 @@ IonBuilder::tableSwitch(JSOp op, jssrcnote* sn)
         casepc = pc + GET_JUMP_OFFSET(pc2);
 
         MOZ_ASSERT(casepc >= pc && casepc <= exitpc);
+        MBasicBlock* caseblock;
 
-        MBasicBlock* caseblock = newBlock(current, casepc);
-        if (!caseblock)
-            return ControlStatus_Error;
-
-        // If the casepc equals the current pc, it is not a written case,
-        // but a filled gap. That way we can use a tableswitch instead of
-        // condswitch, even if not all numbers are consecutive.
-        // In that case this block goes to the default case
         if (casepc == pc) {
+            // If the casepc equals the current pc, it is not a written case,
+            // but a filled gap. That way we can use a tableswitch instead of
+            // condswitch, even if not all numbers are consecutive.
+            // In that case this block goes to the default case
+            caseblock = newBlock(current, defaultpc);
+            if (!caseblock)
+                return ControlStatus_Error;
             caseblock->end(MGoto::New(alloc(), defaultcase));
             if (!defaultcase->addPredecessor(alloc(), caseblock))
                 return ControlStatus_Error;
+        } else {
+            // If this is an actual case (not filled gap),
+            // add this block to the list that still needs to get processed.
+            caseblock = newBlock(current, casepc);
+            if (!caseblock)
+                return ControlStatus_Error;
+
+            if (!tableswitch->addBlock(caseblock))
+                return ControlStatus_Error;
+
+            // Add constant to indicate which case this is for use by
+            // processNextTableSwitchCase.
+            MConstant* constant = MConstant::New(alloc(), Int32Value(i + low));
+            caseblock->add(constant);
         }
 
         size_t caseIndex;
@@ -3442,19 +3462,6 @@ IonBuilder::tableSwitch(JSOp op, jssrcnote* sn)
 
         if (!tableswitch->addCase(caseIndex))
             return ControlStatus_Error;
-
-        // If this is an actual case (not filled gap),
-        // add this block to the list that still needs to get processed.
-        if (casepc != pc) {
-            if (!tableswitch->addBlock(caseblock)) {
-                 return ControlStatus_Error;
-            }
-
-            // Add constant to indicate which case this is for use by
-            // processNextTableSwitchCase.
-            MConstant* constant = MConstant::New(alloc(), Int32Value(i + low));
-            caseblock->add(constant);
-        }
 
         pc2 += JUMP_OFFSET_LEN;
     }
@@ -8231,8 +8238,15 @@ IonBuilder::testGlobalLexicalBinding(PropertyName* name)
         // In the case that it is found on the global but is non-configurable,
         // the binding cannot be shadowed by a global lexical binding.
         HeapTypeSetKey lexicalProperty = lexicalKey->property(id);
-        if (!obj->containsPure(name)) {
-            Shape* shape = script()->global().lookupPure(name);
+        Shape* shape = obj->lookupPure(name);
+        if (shape) {
+            if ((JSOp(*pc) != JSOP_GETGNAME && !shape->writable()) ||
+                obj->getSlot(shape->slot()).isMagic(JS_UNINITIALIZED_LEXICAL))
+            {
+                return nullptr;
+            }
+        } else {
+            shape = script()->global().lookupPure(name);
             if (!shape || shape->configurable())
                 MOZ_ALWAYS_FALSE(lexicalProperty.isOwnProperty(constraints()));
             obj = &script()->global();
@@ -10577,7 +10591,7 @@ IonBuilder::annotateGetPropertyCache(MDefinition* obj, PropertyName* name,
         return true;
     }
 
-#ifdef DEBUG
+#ifdef JS_JITSPEW
     if (inlinePropTable->numEntries() > 0)
         JitSpew(JitSpew_Inlining, "Annotated GetPropertyCache with %d/%d inline cases",
                                     (int) inlinePropTable->numEntries(), (int) objCount);

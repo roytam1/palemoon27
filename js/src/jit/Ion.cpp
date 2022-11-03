@@ -1505,7 +1505,8 @@ OptimizeMIR(MIRGenerator* mir)
 
     {
         AutoTraceLog log(logger, TraceLogger_FoldTests);
-        FoldTests(graph);
+        if (!FoldTests(graph))
+            return false;
         gs.spewPass("Fold Tests");
         AssertBasicGraphCoherency(graph);
 
@@ -2197,6 +2198,11 @@ IonCompile(JSContext* cx, JSScript* script,
             TrackIonAbort(cx, abortScript, abortPc, abortMessage);
         }
 
+        if (cx->isThrowingOverRecursed()) {
+            // Non-analysis compilations should never fail with stack overflow.
+            MOZ_CRASH("Stack overflow during compilation");
+        }
+
         return reason;
     }
 
@@ -2833,7 +2839,7 @@ InvalidateActivation(FreeOp* fop, const JitActivationIterator& activations, bool
     for (JitFrameIterator it(activations); !it.done(); ++it, ++frameno) {
         MOZ_ASSERT_IF(frameno == 1, it.isExitFrame() || it.type() == JitFrame_Bailout);
 
-#ifdef DEBUG
+#ifdef JS_JITSPEW
         switch (it.type()) {
           case JitFrame_Exit:
           case JitFrame_LazyLink:
@@ -2883,7 +2889,7 @@ InvalidateActivation(FreeOp* fop, const JitActivationIterator& activations, bool
             JitSpew(JitSpew_IonInvalidate, "#%d entry frame @ %p", frameno, it.fp());
             break;
         }
-#endif
+#endif // JS_JITSPEW
 
         if (!it.isIonScripted())
             continue;

@@ -95,6 +95,10 @@ add_task(function*() {
     blocklistURL: "http://example.com/addon9@tests.mozilla.org",
     name: "Test add-on 9",
     blocklistState: Ci.nsIBlocklistService.STATE_VULNERABLE_NO_UPDATE,
+  }, {
+    id: "addon15@tests.mozilla.org",
+    name: "Test add-on 15",
+    hidden: true,
   }]);
 
   gManagerWindow = yield open_manager(null);
@@ -705,6 +709,10 @@ add_task(function*() {
     description: "A test add-on with a new description",
     updateDate: gDate,
     operationsRequiringRestart: AddonManager.OP_NEEDS_RESTART_NONE
+  }, {
+    id: "addon14@tests.mozilla.org",
+    name: "Test add-on 14",
+    hidden: true,
   }]);
 
   let items = get_test_items();

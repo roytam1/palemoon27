@@ -65,15 +65,23 @@ exports.validationAttributes = valid;
  * @param {Object} validation
  *    validation rule passed to `api-utils`
  */
-function validate(suspect, validation) validateOptions(
-  { $: suspect },
-  { $: validation }
-).$
+function validate(suspect, validation) {
+  return validateOptions(
+    { $: suspect },
+    { $: validation }
+  ).$;
+}
 
-function Allow(script) ({
-  get script() script,
-  set script(value) script = !!value
-})
+function Allow(script) {
+  return {
+    get script() {
+      return script;
+    },
+    set script(value) {
+      script = !!value;
+    }
+  };
+}
 
 /**
  * Trait is intended to be used in some composition. It provides set of core

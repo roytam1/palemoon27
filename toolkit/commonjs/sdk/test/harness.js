@@ -342,7 +342,9 @@ function getPotentialLeaks() {
         principal: details[1],
         location: details[2] ? details[2].replace("\\", "/", "g") : undefined,
         source: details[3] ? details[3].split(" -> ").reverse() : undefined,
-        toString: function() this.location
+        toString: function() {
+          return this.location;
+        }
       };
 
       if (!isPossibleLeak(item))
@@ -366,7 +368,9 @@ function getPotentialLeaks() {
         path: matches[1],
         location: details[1].replace("\\", "/", "g"),
         source: [details[1].replace("\\", "/", "g")],
-        toString: function() this.location
+        toString: function() {
+          return this.location;
+        }
       };
 
       if (!isPossibleLeak(item))
@@ -636,7 +640,7 @@ var runTests = exports.runTests = function runTests(options) {
       fileName: { value: e.fileName, writable: true, configurable: true },
       lineNumber: { value: e.lineNumber, writable: true, configurable: true },
       stack: { value: stack, writable: true, configurable: true },
-      toString: { value: function() String(e), writable: true, configurable: true },
+      toString: { value: () => String(e), writable: true, configurable: true },
     });
 
     print("Error: " + error + " \n " + format(error));

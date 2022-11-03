@@ -265,7 +265,7 @@ UpdateTestSuccessors(TempAllocator& alloc, MBasicBlock* block,
     ifFalse->addPredecessorSameInputsAs(block, existingPred);
 }
 
-static void
+static bool
 MaybeFoldConditionBlock(MIRGraph& graph, MBasicBlock* initialBlock)
 {
     // Optimize the MIR graph to improve the code generated for conditional
@@ -294,44 +294,41 @@ MaybeFoldConditionBlock(MIRGraph& graph, MBasicBlock* initialBlock)
 
     MInstruction* ins = initialBlock->lastIns();
     if (!ins->isTest())
-        return;
+        return true;
     MTest* initialTest = ins->toTest();
 
     MBasicBlock* trueBranch = initialTest->ifTrue();
     if (trueBranch->numPredecessors() != 1 || trueBranch->numSuccessors() != 1)
-        return;
+        return true;
     MBasicBlock* falseBranch = initialTest->ifFalse();
     if (falseBranch->numPredecessors() != 1 || falseBranch->numSuccessors() != 1)
-        return;
+        return true;
     MBasicBlock* phiBlock = trueBranch->getSuccessor(0);
     if (phiBlock != falseBranch->getSuccessor(0))
-        return;
+        return true;
     if (phiBlock->numPredecessors() != 2)
-        return;
+        return true;
 
     if (initialBlock->isLoopBackedge() || trueBranch->isLoopBackedge() || falseBranch->isLoopBackedge())
-        return;
+        return true;
 
     MBasicBlock* testBlock = phiBlock;
     if (testBlock->numSuccessors() == 1) {
         if (testBlock->isLoopBackedge())
-            return;
+            return true;
         testBlock = testBlock->getSuccessor(0);
         if (testBlock->numPredecessors() != 1)
-            return;
+            return true;
     }
 
     // Make sure the test block does not have any outgoing loop backedges.
-    {
-        AutoEnterOOMUnsafeRegion oomUnsafe;
-        if (!SplitCriticalEdgesForBlock(graph, testBlock))
-            oomUnsafe.crash("MaybeFoldConditionBlock");
-    }
+    if (!SplitCriticalEdgesForBlock(graph, testBlock))
+        return false;
 
     MPhi* phi;
     MTest* finalTest;
     if (!BlockIsSingleTest(phiBlock, testBlock, &phi, &finalTest))
-        return;
+        return true;
 
     MDefinition* trueResult = phi->getOperand(phiBlock->indexForPredecessor(trueBranch));
     MDefinition* falseResult = phi->getOperand(phiBlock->indexForPredecessor(falseBranch));
@@ -405,13 +402,18 @@ MaybeFoldConditionBlock(MIRGraph& graph, MBasicBlock* initialBlock)
     finalTest->ifTrue()->removePredecessor(testBlock);
     finalTest->ifFalse()->removePredecessor(testBlock);
     graph.removeBlock(testBlock);
+
+    return true;
 }
 
-void
+bool
 jit::FoldTests(MIRGraph& graph)
 {
-    for (MBasicBlockIterator block(graph.begin()); block != graph.end(); block++)
-        MaybeFoldConditionBlock(graph, *block);
+    for (MBasicBlockIterator block(graph.begin()); block != graph.end(); block++) {
+        if (!MaybeFoldConditionBlock(graph, *block))
+            return false;
+    }
+    return true;
 }
 
 static void
@@ -3318,8 +3320,9 @@ jit::AnalyzeNewScriptDefiniteProperties(JSContext* cx, JSFunction* fun,
                        &inspector, &info, optimizationInfo, /* baselineFrame = */ nullptr);
 
     if (!builder.build()) {
-        if (builder.abortReason() == AbortReason_Alloc)
+        if (cx->isThrowingOverRecursed() || builder.abortReason() == AbortReason_Alloc)
             return false;
+        MOZ_ASSERT(!cx->isExceptionPending());
         return true;
     }
 
@@ -3538,8 +3541,9 @@ jit::AnalyzeArgumentsUsage(JSContext* cx, JSScript* scriptArg)
                        &inspector, &info, optimizationInfo, /* baselineFrame = */ nullptr);
 
     if (!builder.build()) {
-        if (builder.abortReason() == AbortReason_Alloc)
+        if (cx->isThrowingOverRecursed() || builder.abortReason() == AbortReason_Alloc)
             return false;
+        MOZ_ASSERT(!cx->isExceptionPending());
         return true;
     }
 

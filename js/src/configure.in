@@ -3187,6 +3187,20 @@ MOZ_ARG_ENABLE_BOOL(vtune,
     MOZ_VTUNE= )
 
 dnl ========================================================
+dnl JitSpew.  Enabled by default in debug builds.
+dnl ========================================================
+MOZ_ARG_ENABLE_BOOL(jitspew,
+[  --enable-jitspew        Enable the Jit spew and IONFLAGS.],
+    JS_JITSPEW=1,
+    JS_JITSPEW= )
+
+if test -n "$JS_JITSPEW" -o -n "$MOZ_DEBUG"; then
+    AC_DEFINE(JS_JITSPEW)
+fi
+
+AC_SUBST(JS_JITSPEW)
+
+dnl ========================================================
 dnl Debug (see Bug 939505)
 dnl ========================================================
 if test -n "$MOZ_DEBUG"; then
@@ -3597,8 +3611,6 @@ AC_SUBST(FILTER)
 AC_SUBST(BIN_FLAGS)
 AC_SUBST(MOZ_DEBUG)
 AC_SUBST(MOZ_DEBUG_SYMBOLS)
-AC_SUBST(MOZ_DEBUG_ENABLE_DEFS)
-AC_SUBST(MOZ_DEBUG_DISABLE_DEFS)
 AC_SUBST(MOZ_DEBUG_LDFLAGS)
 AC_SUBST(WARNINGS_AS_ERRORS)
 AC_SUBST(MOZ_JPROF)
@@ -3768,6 +3780,17 @@ if test "$ACCESSIBILITY" -a "$MOZ_ENABLE_GTK" ; then
     AC_DEFINE_UNQUOTED(ATK_REV_VERSION, $ATK_REV_VERSION)
 fi
 
+dnl ========================================================
+dnl Determine options to use for running the preprocessor.
+dnl ========================================================
+
+if test -z "$GNU_CC" -a "$OS_ARCH" = "WINNT"; then
+    PREPROCESS_OPTION="-P -Fi"
+else
+    PREPROCESS_OPTION="-E -o "
+fi
+
+AC_SUBST(PREPROCESS_OPTION)
 
 dnl ========================================================
 dnl ECMAScript Internationalization API Support (uses ICU)

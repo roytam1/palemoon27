@@ -5144,11 +5144,12 @@ Parser<FullParseHandler>::isValidForStatementLHS(ParseNode* pn1, JSVersion versi
                                                  ParseNodeKind headKind)
 {
     if (isForDecl)
-        return pn1->pn_count < 2 && !pn1->isKind(PNK_CONST);
+        return pn1->pn_count < 2/* && !pn1->isKind(PNK_CONST)*/;
 
     switch (pn1->getKind()) {
       case PNK_ARRAY:
       case PNK_CALL:
+      case PNK_CONST:
       case PNK_DOT:
       case PNK_ELEM:
       case PNK_NAME:
@@ -5295,7 +5296,7 @@ Parser<FullParseHandler>::forStatement(YieldHandling yieldHandling)
                     (*letStmt)->isForLetBlock = true;
 
                     MOZ_ASSERT(CurrentLexicalStaticBlock(pc) == blockObj);
-                    pn1 = variables(yieldHandling, constDecl ? PNK_CONST : PNK_LET, InForInit,
+                    pn1 = variables(yieldHandling, /*constDecl ? PNK_CONST :*/ PNK_LET, InForInit,
                                     nullptr, blockObj, HoistVars);
                 } else {
                     pn1 = expr(InProhibited, yieldHandling, TripledotProhibited);

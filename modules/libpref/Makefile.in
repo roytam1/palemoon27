@@ -31,7 +31,7 @@ GRE_BUILDID   := $(strip $(firstword $(shell cat $(DEPTH)/config/buildid 2>/dev/
 DEFINES += -DGRE_BUILDID=$(GRE_BUILDID)
 
 gecko.js: $(grepref_files)
-	$(call py_action,preprocessor,$(PREF_PPFLAGS) $(DEFINES) $(ACDEFINES) $(XULPPFLAGS) $^ -o $@)
+	$(call py_action,preprocessor,$(PREF_PPFLAGS) $(DEFINES) $(ACDEFINES) $(MOZ_DEBUG_DEFINES) $^ -o $@)
 
 libs:: gecko.js
 	$(INSTALL) $^ $(DIST)/bin/

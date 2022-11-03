@@ -98,10 +98,8 @@ for var in ('ANDROID_PACKAGE_NAME',
             'MOZ_APP_VERSION'):
             DEFINES[var] = CONFIG[var]
 
-for var in ('MOZILLA_OFFICIAL',
-            'MOZ_TOOLKIT_SEARCH'):
-    if CONFIG[var]:
-        DEFINES[var] = True
+if CONFIG['MOZ_TOOLKIT_SEARCH']:
+    DEFINES['MOZ_TOOLKIT_SEARCH'] = True
 
 EXTRA_PP_JS_MODULES += [
     'AppConstants.jsm',

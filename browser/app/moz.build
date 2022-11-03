@@ -16,11 +16,6 @@ JS_PREFERENCE_FILES += [
     'profile/palemoon.js',
 ]
 
-if CONFIG['LIBXUL_SDK']:
-    PREF_JS_EXPORTS += [
-        'profile/channel-prefs.js',
-    ]
-
 SOURCES += [
     'nsBrowserApp.cpp',
 ]
@@ -29,10 +24,6 @@ FINAL_TARGET_FILES += ['blocklist.xml']
 FINAL_TARGET_FILES.defaults.profile += ['profile/prefs.js']
 
 DEFINES['APP_VERSION'] = CONFIG['MOZ_APP_VERSION']
-
-for var in ('MOZILLA_OFFICIAL', 'LIBXUL_SDK'):
-    if CONFIG[var]:
-        DEFINES[var] = True
 
 DEFINES['XPCOM_GLUE'] = True
 

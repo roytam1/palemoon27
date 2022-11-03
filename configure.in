@@ -3313,11 +3313,7 @@ MOZ_CONFIG_NSPR()
 
 dnl set GRE_MILESTONE
 dnl ========================================================
-if test -n "$LIBXUL_SDK"; then
-    GRE_MILESTONE=`$PYTHON "$_topsrcdir"/config/printconfigsetting.py "$LIBXUL_DIST"/bin/platform.ini Build Milestone`
-else
-    GRE_MILESTONE=`tail -n 1 "$_topsrcdir"/config/milestone.txt 2>/dev/null || tail -1 "$_topsrcdir"/config/milestone.txt`
-fi
+GRE_MILESTONE=`tail -n 1 "$_topsrcdir"/config/milestone.txt 2>/dev/null || tail -1 "$_topsrcdir"/config/milestone.txt`
 AC_SUBST(GRE_MILESTONE)
 
 # set RELEASE_BUILD and NIGHTLY_BUILD variables depending on the cycle we're in
@@ -3921,15 +3917,6 @@ WITH_APP_BASENAME=$withval,
 if test -n "$WITH_APP_BASENAME" ; then
     MOZ_APP_BASENAME="$WITH_APP_BASENAME"
 fi
-
-# Now is a good time to test for logic errors, define mismatches, etc.
-case "$MOZ_BUILD_APP" in
-xulrunner)
-  if test "$LIBXUL_SDK"; then
-    AC_MSG_ERROR([Building XULRunner --with-libxul-sdk doesn't make sense; XULRunner provides the libxul SDK.])
-  fi
-  ;;
-esac
 
 # Special cases where we need to AC_DEFINE something. Also a holdover for apps
 # that haven't made a confvars.sh yet. Don't add new stuff here, use
@@ -5973,11 +5960,6 @@ if test -z "$MOZ_ENABLE_GIO" -a `echo "$MOZ_EXTENSIONS" | grep -c gio` -ne 0; th
     if test -n "$MOZ_X11"; then
         AC_MSG_WARN([Removing gio from MOZ_EXTENSIONS due to --disable-gio.])
     fi
-    MOZ_EXTENSIONS=`echo $MOZ_EXTENSIONS | sed -e 's|gio||'`
-fi
-
-dnl Do not build gio with libxul based apps
-if test -n "$LIBXUL_SDK_DIR" -a `echo "$MOZ_EXTENSIONS" | grep -c gio` -ne 0; then
     MOZ_EXTENSIONS=`echo $MOZ_EXTENSIONS | sed -e 's|gio||'`
 fi
 
@@ -8165,8 +8147,6 @@ AC_SUBST(MOZ_AUTH_EXTENSION)
 AC_SUBST(MOZ_PREF_EXTENSIONS)
 AC_SUBST(MOZ_DEBUG)
 AC_SUBST(MOZ_DEBUG_SYMBOLS)
-AC_SUBST(MOZ_DEBUG_ENABLE_DEFS)
-AC_SUBST(MOZ_DEBUG_DISABLE_DEFS)
 AC_SUBST(MOZ_DEBUG_LDFLAGS)
 AC_SUBST(WARNINGS_AS_ERRORS)
 AC_SUBST(MOZ_EXTENSIONS)
@@ -8377,9 +8357,9 @@ AC_SUBST(MOZ_APP_STATIC_INI)
 AC_SUBST(MOZ_PKG_SPECIAL)
 
 AC_SUBST(MOZILLA_OFFICIAL)
-
-# Build revisions should always be present in official builds
 if test "$MOZILLA_OFFICIAL"; then
+    AC_DEFINE(MOZILLA_OFFICIAL)
+    # Build revisions should always be present in official builds
     MOZ_INCLUDE_SOURCE_INFO=1
 fi
 
@@ -8729,6 +8709,18 @@ HAVE_SYS_MOUNT_H
 "
 
 dnl ========================================================
+dnl Determine options to use for running the preprocessor.
+dnl ========================================================
+
+if test -z "$GNU_CC" -a "$OS_ARCH" = "WINNT"; then
+    PREPROCESS_OPTION="-P -Fi"
+else
+    PREPROCESS_OPTION="-E -o "
+fi
+
+AC_SUBST(PREPROCESS_OPTION)
+
+dnl ========================================================
 dnl ICU Support
 dnl ========================================================
 
@@ -8756,8 +8748,7 @@ AC_SUBST(JS_SHARED_LIBRARY)
 
 MOZ_CREATE_CONFIG_STATUS()
 
-# No need to run subconfigures when building with LIBXUL_SDK_DIR
-if test "$COMPILE_ENVIRONMENT" -a -z "$LIBXUL_SDK_DIR"; then
+if test "$COMPILE_ENVIRONMENT"; then
   MOZ_SUBCONFIGURE_ICU()
   MOZ_SUBCONFIGURE_FFI()
 fi
@@ -8826,8 +8817,7 @@ if test -n "$_subconfigure_subdir"; then
   srcdir="$_save_srcdir"
 fi
 
-# No need to run subconfigures when building with LIBXUL_SDK_DIR
-if test "$COMPILE_ENVIRONMENT" -a -z "$LIBXUL_SDK_DIR"; then
+if test "$COMPILE_ENVIRONMENT"; then
 
 export WRAP_LDFLAGS
 
@@ -8908,7 +8898,7 @@ fi
 AC_OUTPUT_SUBDIRS(js/src,$cache_file)
 ac_configure_args="$_SUBDIR_CONFIG_ARGS"
 
-fi # COMPILE_ENVIRONMENT && !LIBXUL_SDK_DIR
+fi # COMPILE_ENVIRONMENT
 
 export WRITE_MOZINFO=1
 dnl we need to run config.status after js/src subconfigure because we're

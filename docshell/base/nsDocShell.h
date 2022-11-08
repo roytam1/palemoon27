@@ -279,7 +279,6 @@ public:
 private:
   // An observed docshell wrapper is created when recording markers is enabled.
   mozilla::UniquePtr<mozilla::ObservedDocShell> mObserved;
-  bool IsObserved() const { return !!mObserved; }
 
   // It is necessary to allow adding a timeline marker wherever a docshell
   // instance is available. This operation happens frequently and needs to
@@ -293,7 +292,7 @@ private:
   friend void mozilla::TimelineConsumers::AddMarkerForDocShell(
     nsDocShell*, const char*, const TimeStamp&, MarkerTracingType);
   friend void mozilla::TimelineConsumers::AddMarkerForDocShell(
-    nsDocShell*, UniquePtr<TimelineMarker>&&);
+    nsDocShell*, UniquePtr<AbstractTimelineMarker>&&);
 
 public:
   // Tell the favicon service that aNewURI has the same favicon as aOldURI.

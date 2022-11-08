@@ -839,7 +839,7 @@ nsDocShell::nsDocShell()
 
 nsDocShell::~nsDocShell()
 {
-  MOZ_ASSERT(!IsObserved());
+  MOZ_ASSERT(!mObserved);
 
   // Avoid notifying observers while we're in the dtor.
   mIsBeingDestroyed = true;
@@ -2840,14 +2840,25 @@ NS_IMETHODIMP
 nsDocShell::SetRecordProfileTimelineMarkers(bool aValue)
 {
   bool currentValue = nsIDocShell::GetRecordProfileTimelineMarkers();
-  if (currentValue != aValue) {
-    if (aValue) {
-      TimelineConsumers::AddConsumer(this);
-      UseEntryScriptProfiling();
-    } else {
-      TimelineConsumers::RemoveConsumer(this);
-      UnuseEntryScriptProfiling();
-    }
+  if (currentValue == aValue) {
+    return NS_OK;
+  }
+
+  RefPtr<TimelineConsumers> timelines = TimelineConsumers::Get();
+  if (!timelines) {
+    return NS_OK;
+  }
+
+  if (aValue) {
+    MOZ_ASSERT(!timelines->HasConsumer(this));
+    timelines->AddConsumer(this);
+    MOZ_ASSERT(timelines->HasConsumer(this));
+    UseEntryScriptProfiling();
+  } else {
+    MOZ_ASSERT(timelines->HasConsumer(this));
+    timelines->RemoveConsumer(this);
+    MOZ_ASSERT(!timelines->HasConsumer(this));
+    UnuseEntryScriptProfiling();
   }
 
   return NS_OK;
@@ -2856,7 +2867,7 @@ nsDocShell::SetRecordProfileTimelineMarkers(bool aValue)
 NS_IMETHODIMP
 nsDocShell::GetRecordProfileTimelineMarkers(bool* aValue)
 {
-  *aValue = IsObserved();
+  *aValue = !!mObserved;
   return NS_OK;
 }
 
@@ -2868,7 +2879,7 @@ nsDocShell::PopProfileTimelineMarkers(
   nsTArray<dom::ProfileTimelineMarker> store;
   SequenceRooter<dom::ProfileTimelineMarker> rooter(aCx, &store);
 
-  if (IsObserved()) {
+  if (mObserved) {
     mObserved->PopMarkers(aCx, store);
   }
 
@@ -4781,6 +4792,9 @@ nsDocShell::DisplayLoadError(nsresult aError, nsIURI* aURI,
       tsi->GetSecurityState(&securityState);
       if (securityState & nsIWebProgressListener::STATE_USES_SSL_3) {
         error.AssignLiteral("sslv3Used");
+        addHostPort = true;
+      } else if (securityState & nsIWebProgressListener::STATE_USES_WEAK_CRYPTO) {
+        error.AssignLiteral("weakCryptoUsed");
         addHostPort = true;
       } else {
         // Usually we should have aFailedChannel and get a detailed message
@@ -11155,8 +11169,11 @@ nsDocShell::OnNewURI(nsIURI* aURI, nsIChannel* aChannel, nsISupports* aOwner,
                           aLoadType == LOAD_ERROR_PAGE ||
                           aLoadType & LOAD_CMD_HISTORY);
 
-  // We don't update session history on reload.
-  bool updateSHistory = updateGHistory && (!(aLoadType & LOAD_CMD_RELOAD));
+  // We don't update session history on reload unless we're loading
+  // an iframe in shift-reload case.
+  bool updateSHistory = updateGHistory &&
+                        (!(aLoadType & LOAD_CMD_RELOAD) ||
+                         (IsForceReloadType(aLoadType) && IsFrame()));
 
   // Create SH Entry (mLSHE) only if there is a SessionHistory object in the
   // current frame or in the root docshell.
@@ -11229,9 +11246,9 @@ nsDocShell::OnNewURI(nsIURI* aURI, nsIChannel* aChannel, nsISupports* aOwner,
    * see bug 90098
    */
   if (aChannel && IsForceReloadType(aLoadType)) {
-    NS_ASSERTION(!updateSHistory,
-                 "We shouldn't be updating session history for forced"
-                 " reloads!");
+    MOZ_ASSERT(!updateSHistory || IsFrame(),
+               "We shouldn't be updating session history for forced"
+               " reloads unless we're in a newly created iframe!");
 
     nsCOMPtr<nsICacheInfoChannel> cacheChannel(do_QueryInterface(aChannel));
     nsCOMPtr<nsISupports> cacheKey;
@@ -11668,7 +11685,12 @@ nsDocShell::AddState(JS::Handle<JS::Value> aData, const nsAString& aTitle,
   // FireOnLocationChange(...) breaks security UI.
   if (!equalURIs) {
     document->SetDocumentURI(newURI);
-    SetCurrentURI(newURI, nullptr, true, LOCATION_CHANGE_SAME_DOCUMENT);
+    // We can't trust SetCurrentURI to do always fire locationchange events
+    // when we expect it to, so we hack around that by doing it ourselves...
+    SetCurrentURI(newURI, nullptr, false, LOCATION_CHANGE_SAME_DOCUMENT);
+    if (mLoadType != LOAD_ERROR_PAGE) {
+      FireDummyOnLocationChange();
+    }
 
     AddURIVisit(newURI, oldURI, oldURI, 0);
 
@@ -13950,28 +13972,35 @@ void
 nsDocShell::NotifyJSRunToCompletionStart(const char* aReason,
                                          const char16_t* aFunctionName,
                                          const char16_t* aFilename,
-                                         const uint32_t aLineNumber)
+                                         const uint32_t aLineNumber,
+                                         JS::Handle<JS::Value> aAsyncStack,
+                                         JS::Handle<JS::Value> aAsyncCause)
 {
-  bool timelineOn = nsIDocShell::GetRecordProfileTimelineMarkers();
-
   // If first start, mark interval start.
-  if (timelineOn && mJSRunToCompletionDepth == 0) {
-    UniquePtr<TimelineMarker> marker = MakeUnique<JavascriptTimelineMarker>(
-      aReason, aFunctionName, aFilename, aLineNumber, MarkerTracingType::START);
-    TimelineConsumers::AddMarkerForDocShell(this, Move(marker));
+  if (mJSRunToCompletionDepth == 0) {
+    RefPtr<TimelineConsumers> timelines = TimelineConsumers::Get();
+    if (timelines && timelines->HasConsumer(this)) {
+      timelines->AddMarkerForDocShell(this, Move(
+        MakeUnique<JavascriptTimelineMarker>(
+          aReason, aFunctionName, aFilename, aLineNumber, MarkerTracingType::START,
+          aAsyncStack, aAsyncCause)));
+    }
   }
+
   mJSRunToCompletionDepth++;
 }
 
 void
 nsDocShell::NotifyJSRunToCompletionStop()
 {
-  bool timelineOn = nsIDocShell::GetRecordProfileTimelineMarkers();
+  mJSRunToCompletionDepth--;
 
   // If last stop, mark interval end.
-  mJSRunToCompletionDepth--;
-  if (timelineOn && mJSRunToCompletionDepth == 0) {
-    TimelineConsumers::AddMarkerForDocShell(this, "Javascript", MarkerTracingType::END);
+  if (mJSRunToCompletionDepth == 0) {
+    RefPtr<TimelineConsumers> timelines = TimelineConsumers::Get();
+    if (timelines && timelines->HasConsumer(this)) {
+      timelines->AddMarkerForDocShell(this, "Javascript", MarkerTracingType::END);
+    }
   }
 }
 

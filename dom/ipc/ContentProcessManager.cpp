@@ -150,10 +150,10 @@ ContentProcessManager::AllocateTabId(const TabId& aOpenerTabId,
 
   struct RemoteFrameInfo info;
 
-  const IPCTabAppBrowserContext& appBrowser = aContext.appBrowserContext();
+  const IPCTabContextUnion& contextUnion = aContext.contextUnion();
   // If it's a PopupIPCTabContext, it's the case that a TabChild want to
   // open a new tab. aOpenerTabId has to be it's parent frame's opener id.
-  if (appBrowser.type() == IPCTabAppBrowserContext::TPopupIPCTabContext) {
+  if (contextUnion.type() == IPCTabContextUnion::TPopupIPCTabContext) {
     auto remoteFrameIter = iter->second.mRemoteFrames.find(aOpenerTabId);
     if (remoteFrameIter == iter->second.mRemoteFrames.end()) {
       ASSERT_UNLESS_FUZZING("Failed to find parent frame's opener id.");
@@ -162,7 +162,7 @@ ContentProcessManager::AllocateTabId(const TabId& aOpenerTabId,
 
     info.mOpenerTabId = remoteFrameIter->second.mOpenerTabId;
 
-    const PopupIPCTabContext &ipcContext = appBrowser.get_PopupIPCTabContext();
+    const PopupIPCTabContext &ipcContext = contextUnion.get_PopupIPCTabContext();
     MOZ_ASSERT(ipcContext.opener().type() == PBrowserOrId::TTabId);
 
     remoteFrameIter = iter->second.mRemoteFrames.find(ipcContext.opener().get_TabId());
@@ -290,10 +290,9 @@ ContentProcessManager::GetTabParentByProcessAndTabId(const ContentParentId& aChi
     return nullptr;
   }
 
-  const InfallibleTArray<PBrowserParent*>& browsers =
-    iter->second.mCp->ManagedPBrowserParent();
-  for (uint32_t i = 0; i < browsers.Length(); i++) {
-    RefPtr<TabParent> tab = TabParent::GetFrom(browsers[i]);
+  const ManagedContainer<PBrowserParent>& browsers = iter->second.mCp->ManagedPBrowserParent();
+  for (auto iter = browsers.ConstIter(); !iter.Done(); iter.Next()) {
+    RefPtr<TabParent> tab = TabParent::GetFrom(iter.Get()->GetKey());
     if (tab->GetTabId() == aChildTabId) {
       return tab.forget();
     }

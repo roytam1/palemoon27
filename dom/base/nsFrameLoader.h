@@ -43,6 +43,7 @@ namespace dom {
 class ContentParent;
 class PBrowserParent;
 class TabParent;
+class MutableTabContext;
 } // namespace dom
 
 namespace ipc {
@@ -92,11 +93,11 @@ public:
    */
   virtual bool DoLoadMessageManagerScript(const nsAString& aURL,
                                           bool aRunInGlobalScope) override;
-  virtual bool DoSendAsyncMessage(JSContext* aCx,
-                                  const nsAString& aMessage,
-                                  mozilla::dom::ipc::StructuredCloneData& aData,
-                                  JS::Handle<JSObject *> aCpows,
-                                  nsIPrincipal* aPrincipal) override;
+  virtual nsresult DoSendAsyncMessage(JSContext* aCx,
+                                      const nsAString& aMessage,
+                                      mozilla::dom::ipc::StructuredCloneData& aData,
+                                      JS::Handle<JSObject *> aCpows,
+                                      nsIPrincipal* aPrincipal) override;
   virtual bool CheckPermission(const nsAString& aPermission) override;
   virtual bool CheckManifestURL(const nsAString& aManifestURL) override;
   virtual bool CheckAppHasPermission(const nsAString& aPermission) override;
@@ -317,6 +318,10 @@ private:
   void ResetPermissionManagerStatus();
 
   void InitializeBrowserAPI();
+
+  nsresult GetNewTabContext(mozilla::dom::MutableTabContext* aTabContext,
+                            const nsACString& aSignedPkgNoSuffix = EmptyCString(),
+                            const nsACString& aPackageId = EmptyCString());
 
   enum TabParentChange {
     eTabParentRemoved,

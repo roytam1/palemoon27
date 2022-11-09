@@ -70,6 +70,9 @@
 #include "nsIWidget.h"
 #include "nsIWindowMediator.h"
 #include "nsIWindowWatcher.h"
+#ifndef XP_WIN
+#include "nsJARProtocolHandler.h"
+#endif
 #include "nsOpenURIInFrameParams.h"
 #include "nsPIDOMWindow.h"
 #include "nsPIWindowWatcher.h"
@@ -517,7 +520,8 @@ TabParent::ShouldSwitchProcess(nsIChannel* aChannel)
 }
 
 void
-TabParent::OnStartSignedPackageRequest(nsIChannel* aChannel)
+TabParent::OnStartSignedPackageRequest(nsIChannel* aChannel,
+                                       const nsACString& aPackageId)
 {
   if (!ShouldSwitchProcess(aChannel)) {
     return;
@@ -536,7 +540,7 @@ TabParent::OnStartSignedPackageRequest(nsIChannel* aChannel)
   RefPtr<nsFrameLoader> frameLoader = GetFrameLoader();
   NS_ENSURE_TRUE_VOID(frameLoader);
 
-  nsresult rv = frameLoader->SwitchProcessAndLoadURI(uri);
+  nsresult rv = frameLoader->SwitchProcessAndLoadURI(uri, aPackageId);
   if (NS_FAILED(rv)) {
     NS_WARNING("Failed to switch process.");
   }
@@ -562,9 +566,11 @@ TabParent::DestroyInternal()
   // Let all PluginWidgets know we are tearing down. Prevents
   // these objects from sending async events after the child side
   // is shut down.
-  const nsTArray<PPluginWidgetParent*>& kids = ManagedPPluginWidgetParent();
-  for (uint32_t idx = 0; idx < kids.Length(); ++idx) {
-      static_cast<mozilla::plugins::PluginWidgetParent*>(kids[idx])->ParentDestroy();
+  const ManagedContainer<PPluginWidgetParent>& kids =
+    ManagedPPluginWidgetParent();
+  for (auto iter = kids.ConstIter(); !iter.Done(); iter.Next()) {
+    static_cast<mozilla::plugins::PluginWidgetParent*>(
+       iter.Get()->GetKey())->ParentDestroy();
   }
 }
 
@@ -1065,9 +1071,21 @@ TabParent::LoadURL(nsIURI* aURI)
                 rv = packageFile->GetPath(path);
                 NS_ENSURE_SUCCESS_VOID(rv);
 
-                RefPtr<OpenFileAndSendFDRunnable> openFileRunnable =
-                    new OpenFileAndSendFDRunnable(path, this);
-                openFileRunnable->Dispatch();
+#ifndef XP_WIN
+                PRFileDesc* cachedFd = nullptr;
+                gJarHandler->JarCache()->GetFd(packageFile, &cachedFd);
+
+                if (cachedFd) {
+                    FileDescriptor::PlatformHandleType handle =
+                        FileDescriptor::PlatformHandleType(PR_FileDesc2NativeHandle(cachedFd));
+                    unused << SendCacheFileDescriptor(path, FileDescriptor(handle));
+                } else
+#endif
+                {
+                    RefPtr<OpenFileAndSendFDRunnable> openFileRunnable =
+                        new OpenFileAndSendFDRunnable(path, this);
+                    openFileRunnable->Dispatch();
+                }
             }
         }
     }
@@ -1434,14 +1452,16 @@ TabParent::GetTopLevelDocAccessible() const
 #ifdef ACCESSIBILITY
   // XXX Consider managing non top level PDocAccessibles with their parent
   // document accessible.
-  const nsTArray<PDocAccessibleParent*>& docs = ManagedPDocAccessibleParent();
-  size_t docCount = docs.Length();
-  for (size_t i = 0; i < docCount; i++) {
-    auto doc = static_cast<a11y::DocAccessibleParent*>(docs[i]);
+  const ManagedContainer<PDocAccessibleParent>& docs = ManagedPDocAccessibleParent();
+  for (auto iter = docs.ConstIter(); !iter.Done(); iter.Next()) {
+    auto doc = static_cast<a11y::DocAccessibleParent*>(iter.Get()->GetKey());
     if (!doc->ParentDoc()) {
       return doc;
     }
   }
+
+  MOZ_ASSERT(docs.Count() == 0, "If there isn't a top level accessible doc "
+                                "there shouldn't be an accessible doc at all!");
 #endif
   return nullptr;
 }
@@ -2576,10 +2596,8 @@ TabParent::GetTabIdFrom(nsIDocShell *docShell)
 RenderFrameParent*
 TabParent::GetRenderFrame()
 {
-  if (ManagedPRenderFrameParent().IsEmpty()) {
-    return nullptr;
-  }
-  return static_cast<RenderFrameParent*>(ManagedPRenderFrameParent()[0]);
+  PRenderFrameParent* p = LoneManagedOrNull(ManagedPRenderFrameParent());
+  return static_cast<RenderFrameParent*>(p);
 }
 
 bool

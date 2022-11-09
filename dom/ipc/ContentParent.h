@@ -195,11 +195,11 @@ public:
      */
     virtual bool DoLoadMessageManagerScript(const nsAString& aURL,
                                             bool aRunInGlobalScope) override;
-    virtual bool DoSendAsyncMessage(JSContext* aCx,
-                                    const nsAString& aMessage,
-                                    StructuredCloneData& aData,
-                                    JS::Handle<JSObject *> aCpows,
-                                    nsIPrincipal* aPrincipal) override;
+    virtual nsresult DoSendAsyncMessage(JSContext* aCx,
+                                        const nsAString& aMessage,
+                                        StructuredCloneData& aData,
+                                        JS::Handle<JSObject *> aCpows,
+                                        nsIPrincipal* aPrincipal) override;
     virtual bool CheckPermission(const nsAString& aPermission) override;
     virtual bool CheckManifestURL(const nsAString& aManifestURL) override;
     virtual bool CheckAppHasPermission(const nsAString& aPermission) override;
@@ -749,6 +749,8 @@ private:
 
     virtual bool RecvCloseAlert(const nsString& aName,
                                 const IPC::Principal& aPrincipal) override;
+
+    virtual bool RecvDisableNotifications(const IPC::Principal& aPrincipal) override;
 
     virtual bool RecvLoadURIExternal(const URIParams& uri) override;
 

@@ -456,6 +456,7 @@ WebSocketChannelChild::OnServerClose(const uint16_t& aCode,
 NS_IMETHODIMP
 WebSocketChannelChild::AsyncOpen(nsIURI *aURI,
                                  const nsACString &aOrigin,
+                                 uint64_t aInnerWindowID,
                                  nsIWebSocketListener *aListener,
                                  nsISupports *aContext)
 {
@@ -488,9 +489,10 @@ WebSocketChannelChild::AsyncOpen(nsIURI *aURI,
   NS_ENSURE_SUCCESS(rv, rv);
 
   gNeckoChild->SendPWebSocketConstructor(this, tabChild,
-                                         IPC::SerializedLoadContext(this));
-  if (!SendAsyncOpen(uri, nsCString(aOrigin), mProtocol, mEncrypted,
-                     mPingInterval, mClientSetPingInterval,
+                                         IPC::SerializedLoadContext(this),
+                                         mSerial);
+  if (!SendAsyncOpen(uri, nsCString(aOrigin), aInnerWindowID, mProtocol,
+                     mEncrypted, mPingInterval, mClientSetPingInterval,
                      mPingResponseTimeout, mClientSetPingTimeout, loadInfoArgs)) {
     return NS_ERROR_UNEXPECTED;
   }

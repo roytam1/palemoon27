@@ -145,12 +145,14 @@ CSSTransition::QueueEvents()
   if (!presContext) {
     return;
   }
-  nsTransitionManager* manager = presContext->TransitionManager();
 
-  manager->QueueEvent(
-    TransitionEventInfo(owningElement, TransitionProperty(),
-                        mEffect->Timing().mIterationDuration,
-                        owningPseudoType));
+  nsTransitionManager* manager = presContext->TransitionManager();
+  manager->QueueEvent(TransitionEventInfo(owningElement, owningPseudoType,
+                                          TransitionProperty(),
+                                          mEffect->Timing()
+                                            .mIterationDuration,
+                                          AnimationTimeToTimeStamp(EffectEnd()),
+                                          this));
 }
 
 bool

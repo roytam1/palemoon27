@@ -244,11 +244,13 @@ CSSAnimation::QueueEvents()
     // First notifying for start of 0th iteration by appending an
     // 'animationstart':
     StickyTimeDuration elapsedTime =
-      std::min(StickyTimeDuration(mEffect->InitialAdvance()),
+      std::min(StickyTimeDuration(InitialAdvance()),
                computedTiming.mActiveDuration);
-    manager->QueueEvent(
-      AnimationEventInfo(owningElement, mAnimationName, eAnimationStart,
-                         elapsedTime, owningPseudoType));
+    manager->QueueEvent(AnimationEventInfo(owningElement, owningPseudoType,
+                                           eAnimationStart, mAnimationName,
+                                           elapsedTime,
+                                           ElapsedTimeToTimeStamp(elapsedTime),
+                                           this));
     // Then have the shared code below append an 'animationend':
     message = eAnimationEnd;
   } else {
@@ -261,15 +263,16 @@ CSSAnimation::QueueEvents()
     TimeDuration iterationStart = mEffect->Timing().mIterationDuration *
                                     computedTiming.mCurrentIteration;
     elapsedTime = StickyTimeDuration(std::max(iterationStart,
-                                              mEffect->InitialAdvance()));
+                                              InitialAdvance()));
   } else {
     MOZ_ASSERT(message == eAnimationEnd);
     elapsedTime = computedTiming.mActiveDuration;
   }
 
-  manager->QueueEvent(
-    AnimationEventInfo(owningElement, mAnimationName, message, elapsedTime,
-                       owningPseudoType));
+  manager->QueueEvent(AnimationEventInfo(owningElement, owningPseudoType,
+                                         message, mAnimationName, elapsedTime,
+                                         ElapsedTimeToTimeStamp(elapsedTime),
+                                         this));
 }
 
 bool
@@ -308,6 +311,30 @@ CSSAnimation::UpdateTiming(SeekFlag aSeekFlag, SyncNotifyFlag aSyncNotifyFlag)
   }
 
   Animation::UpdateTiming(aSeekFlag, aSyncNotifyFlag);
+}
+
+TimeStamp
+CSSAnimation::ElapsedTimeToTimeStamp(const StickyTimeDuration&
+                                       aElapsedTime) const
+{
+  // Initializes to null. We always return this object to benefit from
+  // return-value-optimization.
+  TimeStamp result;
+
+  // Currently we may dispatch animationstart events before resolving
+  // mStartTime if we have a delay <= 0. This will change in bug 1134163
+  // but until then we should just use the latest refresh driver time as
+  // the event timestamp in that case.
+  if (!mEffect || mStartTime.IsNull()) {
+    nsPresContext* presContext = GetPresContext();
+    if (presContext) {
+      result = presContext->RefreshDriver()->MostRecentRefresh();
+    }
+    return result;
+  }
+
+  result = AnimationTimeToTimeStamp(aElapsedTime + mEffect->Timing().mDelay);
+  return result;
 }
 
 ////////////////////////// nsAnimationManager ////////////////////////////
@@ -366,8 +393,9 @@ nsIStyleRule*
 nsAnimationManager::CheckAnimationRule(nsStyleContext* aStyleContext,
                                        mozilla::dom::Element* aElement)
 {
-  if (!mPresContext->IsDynamic()) {
-    // For print or print preview, ignore animations.
+  // Ignore animations for print or print preview, and for elements
+  // that are not attached to the document tree.
+  if (!mPresContext->IsDynamic() || !aElement->IsInComposedDoc()) {
     return nullptr;
   }
 
@@ -465,7 +493,7 @@ nsAnimationManager::CheckAnimationRule(nsStyleContext* aStyleContext,
           animationChanged =
             oldEffect->Timing() != newEffect->Timing() ||
             oldEffect->Properties() != newEffect->Properties();
-          oldEffect->SetTiming(newEffect->Timing(), *oldAnim);
+          oldEffect->SetTiming(newEffect->Timing());
           oldEffect->Properties() = newEffect->Properties();
         }
 

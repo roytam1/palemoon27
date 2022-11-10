@@ -44,7 +44,6 @@ class nsLayoutStylesheetCache final
   static mozilla::CSSStyleSheet* MinimalXULSheet();
   static mozilla::CSSStyleSheet* XULSheet();
   static mozilla::CSSStyleSheet* QuirkSheet();
-  static mozilla::CSSStyleSheet* FullScreenOverrideSheet();
   static mozilla::CSSStyleSheet* SVGSheet();
   static mozilla::CSSStyleSheet* MathMLSheet();
   static mozilla::CSSStyleSheet* CounterStylesSheet();
@@ -52,6 +51,8 @@ class nsLayoutStylesheetCache final
   static mozilla::CSSStyleSheet* NoFramesSheet();
   static mozilla::CSSStyleSheet* ChromePreferenceSheet(nsPresContext* aPresContext);
   static mozilla::CSSStyleSheet* ContentPreferenceSheet(nsPresContext* aPresContext);
+  static mozilla::CSSStyleSheet* ContentEditableSheet();
+  static mozilla::CSSStyleSheet* DesignModeSheet();
 
   static void InvalidatePreferenceSheets();
 
@@ -85,10 +86,11 @@ private:
   static mozilla::StaticRefPtr<nsLayoutStylesheetCache> gStyleCache;
   static mozilla::css::Loader* gCSSLoader;
   RefPtr<mozilla::CSSStyleSheet> mChromePreferenceSheet;
+  RefPtr<mozilla::CSSStyleSheet> mContentEditableSheet;
   RefPtr<mozilla::CSSStyleSheet> mContentPreferenceSheet;
   RefPtr<mozilla::CSSStyleSheet> mCounterStylesSheet;
+  RefPtr<mozilla::CSSStyleSheet> mDesignModeSheet;
   RefPtr<mozilla::CSSStyleSheet> mFormsSheet;
-  RefPtr<mozilla::CSSStyleSheet> mFullScreenOverrideSheet;
   RefPtr<mozilla::CSSStyleSheet> mHTMLSheet;
   RefPtr<mozilla::CSSStyleSheet> mMathMLSheet;
   RefPtr<mozilla::CSSStyleSheet> mMinimalXULSheet;

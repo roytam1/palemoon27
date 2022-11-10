@@ -66,12 +66,36 @@ using std::min;
 using namespace mozilla;
 using namespace mozilla::dom;
 
-#define NS_SET_IMAGE_REQUEST(method_, context_, request_)                   \
+void*
+nsConditionalResetStyleData::GetConditionalStyleData(nsStyleStructID aSID,
+                               nsStyleContext* aStyleContext) const
+{
+  Entry* e = static_cast<Entry*>(mEntries[aSID]);
+  MOZ_ASSERT(e, "if mConditionalBits bit is set, we must have at least one "
+                "conditional style struct");
+  do {
+    if (e->mConditions.Matches(aStyleContext)) {
+      void* data = e->mStyleStruct;
+
+      // For reset structs with conditions, we cache the data on the
+      // style context.
+      // Tell the style context that it doesn't own the data
+      aStyleContext->AddStyleBit(GetBitForSID(aSID));
+      aStyleContext->SetStyle(aSID, data);
+
+      return data;
+    }
+    e = e->mNext;
+  } while (e);
+  return nullptr;
+}
+
+#define NS_SET_IMAGE_REQUEST(method_, context_, request_)                     \
   if ((context_)->PresContext()->IsDynamic()) {                               \
-    method_(request_);                                                      \
-  } else {                                                                  \
+    method_(request_);                                                        \
+  } else {                                                                    \
     RefPtr<imgRequestProxy> req = nsContentUtils::GetStaticRequest(request_); \
-    method_(req);                                                           \
+    method_(req);                                                             \
   }
 
 #define NS_SET_IMAGE_REQUEST_WITH_DOC(method_, context_, requestgetter_)      \
@@ -505,6 +529,10 @@ static nscoord CalcLengthWith(const nsCSSValue& aValue,
   }
   switch (aValue.GetUnit()) {
     case eCSSUnit_EM: {
+      if (aValue.GetFloatValue() == 0.0f) {
+        // Don't call SetFontSizeDependency for '0em'.
+        return 0;
+      }
       // CSS2.1 specifies that this unit scales to the computed font
       // size, not the em-width in the font metrics, despite the name.
       aConditions.SetFontSizeDependency(aFontSize);
@@ -1466,11 +1494,11 @@ nsRuleNode::DestroyInternal(nsRuleNode ***aDestroyQueueTail)
 nsRuleNode* nsRuleNode::CreateRootNode(nsPresContext* aPresContext)
 {
   return new (aPresContext)
-    nsRuleNode(aPresContext, nullptr, nullptr, 0xff, false);
+    nsRuleNode(aPresContext, nullptr, nullptr, SheetType::Unknown, false);
 }
 
 nsRuleNode::nsRuleNode(nsPresContext* aContext, nsRuleNode* aParent,
-                       nsIStyleRule* aRule, uint8_t aLevel,
+                       nsIStyleRule* aRule, SheetType aLevel,
                        bool aIsImportant)
   : mPresContext(aContext),
     mParent(aParent),
@@ -1505,9 +1533,9 @@ nsRuleNode::nsRuleNode(nsPresContext* aContext, nsRuleNode* aParent,
 
   // nsStyleSet::GetContext depends on there being only one animation
   // rule.
-  MOZ_ASSERT(IsRoot() || GetLevel() != nsStyleSet::eAnimationSheet ||
+  MOZ_ASSERT(IsRoot() || GetLevel() != SheetType::Animation ||
              mParent->IsRoot() ||
-             mParent->GetLevel() != nsStyleSet::eAnimationSheet,
+             mParent->GetLevel() != SheetType::Animation,
              "must be only one rule at animation level");
 }
 
@@ -1522,7 +1550,7 @@ nsRuleNode::~nsRuleNode()
 }
 
 nsRuleNode*
-nsRuleNode::Transition(nsIStyleRule* aRule, uint8_t aLevel,
+nsRuleNode::Transition(nsIStyleRule* aRule, SheetType aLevel,
                        bool aIsImportantRule)
 {
   nsRuleNode* next = nullptr;
@@ -2181,6 +2209,12 @@ nsRuleNode::ResolveVariableReferences(const nsStyleStructID aSID,
       &aContext->StyleVariables()->mVariables;
     nsCSSValueTokenStream* tokenStream = value->GetTokenStreamValue();
 
+    MOZ_ASSERT(tokenStream->mLevel != SheetType::Count,
+               "Token stream should have a defined level");
+
+    AutoRestore<SheetType> saveLevel(aRuleData->mLevel);
+    aRuleData->mLevel = tokenStream->mLevel;
+
     // Note that ParsePropertyWithVariableReferences relies on the fact
     // that the nsCSSValue in aRuleData for the property we are re-parsing
     // is still the token stream value.  When
@@ -2339,6 +2373,11 @@ nsRuleNode::WalkRuleTree(const nsStyleStructID aSID,
     // branch that they never need to examine their rules for this particular struct type
     // ever again.
     PropagateDependentBit(aSID, ruleNode, startStruct);
+    // For inherited structs, mark the struct (which will be set on
+    // the context by our caller) as not being owned by the context.
+    if (!isReset) {
+      aContext->AddStyleBit(nsCachedStyleData::GetBitForSID(aSID));
+    }
     return startStruct;
   }
   if ((!startStruct && !isReset &&
@@ -2708,11 +2747,10 @@ nsRuleNode::SetDefaultOnRoot(const nsStyleStructID aSID, nsStyleContext* aContex
     /* Propagate the bit down. */                                             \
     PropagateDependentBit(eStyleStruct_##type_, aHighestNode, data_);         \
     /* Tell the style context that it doesn't own the data */                 \
-    aContext->                                                                \
-      AddStyleBit(nsCachedStyleData::GetBitForSID(eStyleStruct_##type_));     \
+    aContext->AddStyleBit(NS_STYLE_INHERIT_BIT(type_));                       \
   }                                                                           \
-  /* Always cache inherited data on the style context */                      \
-  aContext->SetStyle##type_(data_);                                           \
+  /* For inherited structs, our caller will cache the data on the */          \
+  /* style context */                                                         \
                                                                               \
   return data_;
 
@@ -2751,8 +2789,7 @@ nsRuleNode::SetDefaultOnRoot(const nsStyleStructID aSID, nsStyleContext* aContex
     mStyleData.mResetData->                                                   \
       SetStyleData(eStyleStruct_##type_, mPresContext, data_, conditions);    \
     /* Tell the style context that it doesn't own the data */                 \
-    aContext->                                                                \
-      AddStyleBit(nsCachedStyleData::GetBitForSID(eStyleStruct_##type_));     \
+    aContext->AddStyleBit(NS_STYLE_INHERIT_BIT(type_));                       \
     aContext->SetStyle(eStyleStruct_##type_, data_);                          \
   } else {                                                                    \
     /* We can't be cached in the rule node.  We have to be put right */       \
@@ -4375,7 +4412,7 @@ nsRuleNode::ComputeTextData(void* aStartStruct,
               conditions,
               SETDSC_ENUMERATED | SETDSC_UNSET_INHERIT,
               parentText->mControlCharacterVisibility,
-              NS_STYLE_CONTROL_CHARACTER_VISIBILITY_VISIBLE, 0, 0, 0, 0);
+              nsCSSParser::ControlCharVisibilityDefault(), 0, 0, 0, 0);
 
   COMPUTE_END_INHERITED(Text, text)
 }
@@ -4815,8 +4852,9 @@ CountTransitionProps(const TransitionPropInfo* aInfo,
   return numTransitions;
 }
 
-static void
-ComputeTimingFunction(const nsCSSValue& aValue, nsTimingFunction& aResult)
+/* static */ void
+nsRuleNode::ComputeTimingFunction(const nsCSSValue& aValue,
+                                  nsTimingFunction& aResult)
 {
   switch (aValue.GetUnit()) {
     case eCSSUnit_Enumerated:
@@ -5442,6 +5480,13 @@ nsRuleNode::ComputeDisplayData(void* aStartStruct,
               parentDisplay->mIsolation, NS_STYLE_ISOLATION_AUTO,
               0, 0, 0, 0);
 
+  // -moz-top-layer: enum, inherit, initial
+  SetDiscrete(*aRuleData->ValueForTopLayer(), display->mTopLayer,
+              conditions,
+              SETDSC_ENUMERATED | SETDSC_UNSET_INITIAL,
+              parentDisplay->mTopLayer, NS_STYLE_TOP_LAYER_NONE,
+              0, 0, 0, 0);
+
   // Backup original display value for calculation of a hypothetical
   // box (CSS2 10.6.4/10.6.5), in addition to getting our style data right later.
   // See nsHTMLReflowState::CalculateHypotheticalBox
@@ -5481,6 +5526,16 @@ nsRuleNode::ComputeDisplayData(void* aStartStruct,
               SETDSC_ENUMERATED | SETDSC_UNSET_INITIAL,
               parentDisplay->mPosition,
               NS_STYLE_POSITION_STATIC, 0, 0, 0, 0);
+  // If an element is put in the top layer, while it is not absolutely
+  // positioned, the position value should be computed to 'absolute' per
+  // the Fullscreen API spec.
+  if (display->mTopLayer != NS_STYLE_TOP_LAYER_NONE &&
+      !display->IsAbsolutelyPositionedStyle()) {
+    display->mPosition = NS_STYLE_POSITION_ABSOLUTE;
+    // We cannot cache this struct because otherwise it may be used as
+    // an aStartStruct for some other elements.
+    conditions.SetUncacheable();
+  }
 
   // clear: enum, inherit, initial
   SetDiscrete(*aRuleData->ValueForClear(), display->mBreakType, conditions,
@@ -9364,15 +9419,23 @@ nsRuleNode::GetStyleData(nsStyleStructID aSID,
                "if we ever call this on rule nodes that aren't used "
                "directly, we should adjust handling of mDependentBits "
                "in some way.");
+  MOZ_ASSERT(!aContext->GetCachedStyleData(aSID),
+             "style context should not have cached data for struct");
 
   const void *data;
 
   // Never use cached data for animated style inside a pseudo-element;
   // see comment on cacheability in AnimValuesStyleRule::MapRuleInfoInto.
   if (!(HasAnimationData() && ParentHasPseudoElementData(aContext))) {
-    data = mStyleData.GetStyleData(aSID, aContext);
-    if (MOZ_LIKELY(data != nullptr))
+    data = mStyleData.GetStyleData(aSID, aContext, aComputeData);
+    if (MOZ_LIKELY(data != nullptr)) {
+      // For inherited structs, mark the struct (which will be set on
+      // the context by our caller) as not being owned by the context.
+      if (!nsCachedStyleData::IsReset(aSID)) {
+        aContext->AddStyleBit(nsCachedStyleData::GetBitForSID(aSID));
+      }
       return data; // We have a fully specified struct. Just return it.
+    }
   }
 
   if (MOZ_UNLIKELY(!aComputeData))
@@ -9663,8 +9726,8 @@ nsRuleNode::HasAuthorSpecifiedRules(nsStyleContext* aStyleContext,
 
         rule->MapRuleInfoInto(&ruleData);
 
-        if (ruleData.mLevel == nsStyleSet::eAgentSheet ||
-            ruleData.mLevel == nsStyleSet::eUserSheet) {
+        if (ruleData.mLevel == SheetType::Agent ||
+            ruleData.mLevel == SheetType::User) {
           // This is a rule whose effect we want to ignore, so if any of
           // the properties we care about were set, set them to the dummy
           // value that they'll never otherwise get.
@@ -9786,7 +9849,7 @@ nsRuleNode::ComputePropertiesOverridingAnimation(
       // property) for transitions yet (which will make their
       // MapRuleInfoInto skip the properties that are currently
       // animating), we should skip them explicitly.
-      if (ruleData.mLevel == nsStyleSet::eTransitionSheet) {
+      if (ruleData.mLevel == SheetType::Transition) {
         continue;
       }
 
@@ -9836,3 +9899,12 @@ nsRuleNode::ParentHasPseudoElementData(nsStyleContext* aContext)
   nsStyleContext* parent = aContext->GetParent();
   return parent && parent->HasPseudoElementData();
 }
+
+#ifdef DEBUG
+bool
+nsRuleNode::ContextHasCachedData(nsStyleContext* aContext,
+                                 nsStyleStructID aSID)
+{
+  return !!aContext->GetCachedStyleData(aSID);
+}
+#endif

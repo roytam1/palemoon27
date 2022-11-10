@@ -14,6 +14,7 @@
 #include "mozilla/ArenaObjectID.h"
 #include "mozilla/Attributes.h"
 #include "mozilla/CSSVariableValues.h"
+#include "mozilla/SheetType.h"
 #include "nsColor.h"
 #include "nsCoord.h"
 #include "nsMargin.h"
@@ -36,6 +37,7 @@ class nsStyleContext;
 class nsTextFrame;
 class nsStyleContext;
 class imgIContainer;
+struct nsStyleVisibility;
 
 // Includes nsStyleStructID.
 #include "nsStyleStructFwd.h"
@@ -89,6 +91,10 @@ class imgIContainer;
 
 // Additional bits for nsRuleNode's mNoneBits:
 #define NS_RULE_NODE_HAS_ANIMATION_DATA     0x80000000
+
+static_assert(int(mozilla::SheetType::Count) - 1 <=
+                (NS_RULE_NODE_LEVEL_MASK >> NS_RULE_NODE_LEVEL_SHIFT),
+              "NS_RULE_NODE_LEVEL_MASK cannot fit SheetType");
 
 // The lifetime of these objects is managed by the presshell's arena.
 
@@ -2016,6 +2022,7 @@ struct nsStyleDisplay {
   uint8_t mOrient;              // [reset] see nsStyleConsts.h
   uint8_t mMixBlendMode;        // [reset] see nsStyleConsts.h
   uint8_t mIsolation;           // [reset] see nsStyleConsts.h
+  uint8_t mTopLayer;            // [reset] see nsStyleConsts.h
   uint8_t mWillChangeBitField;  // [reset] see nsStyleConsts.h. Stores a
                                 // bitfield representation of the properties
                                 // that are frequently queried. This should
@@ -2263,7 +2270,7 @@ struct nsStylePosition {
   }
 
   nsChangeHint CalcDifference(const nsStylePosition& aOther,
-                              nsStyleContext* aContext) const;
+                              const nsStyleVisibility* aOldStyleVisibility) const;
   static nsChangeHint MaxDifference() {
     return NS_CombineHint(NS_STYLE_HINT_REFLOW,
                           nsChangeHint(nsChangeHint_RecomputePosition |

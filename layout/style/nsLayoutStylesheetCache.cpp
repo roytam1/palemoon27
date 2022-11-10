@@ -158,13 +158,6 @@ nsLayoutStylesheetCache::QuirkSheet()
 }
 
 CSSStyleSheet*
-nsLayoutStylesheetCache::FullScreenOverrideSheet()
-{
-  EnsureGlobal();
-  return gStyleCache->mFullScreenOverrideSheet;
-}
-
-CSSStyleSheet*
 nsLayoutStylesheetCache::SVGSheet()
 {
   EnsureGlobal();
@@ -244,6 +237,32 @@ nsLayoutStylesheetCache::ContentPreferenceSheet(nsPresContext* aPresContext)
   return gStyleCache->mContentPreferenceSheet;
 }
 
+/* static */ CSSStyleSheet*
+nsLayoutStylesheetCache::ContentEditableSheet()
+{
+  EnsureGlobal();
+
+  if (!gStyleCache->mContentEditableSheet) {
+    LoadSheetURL("resource://gre/res/contenteditable.css",
+                 gStyleCache->mContentEditableSheet, true);
+  }
+
+  return gStyleCache->mContentEditableSheet;
+}
+
+/* static */ CSSStyleSheet*
+nsLayoutStylesheetCache::DesignModeSheet()
+{
+  EnsureGlobal();
+
+  if (!gStyleCache->mDesignModeSheet) {
+    LoadSheetURL("resource://gre/res/designmode.css",
+                 gStyleCache->mDesignModeSheet, true);
+  }
+
+  return gStyleCache->mDesignModeSheet;
+}
+
 void
 nsLayoutStylesheetCache::Shutdown()
 {
@@ -272,10 +291,11 @@ nsLayoutStylesheetCache::SizeOfIncludingThis(mozilla::MallocSizeOf aMallocSizeOf
   #define MEASURE(s) n += s ? s->SizeOfIncludingThis(aMallocSizeOf) : 0;
 
   MEASURE(mChromePreferenceSheet);
+  MEASURE(mContentEditableSheet);
   MEASURE(mContentPreferenceSheet);
   MEASURE(mCounterStylesSheet);
+  MEASURE(mDesignModeSheet);
   MEASURE(mFormsSheet);
-  MEASURE(mFullScreenOverrideSheet);
   MEASURE(mHTMLSheet);
   MEASURE(mMathMLSheet);
   MEASURE(mMinimalXULSheet);
@@ -316,8 +336,6 @@ nsLayoutStylesheetCache::nsLayoutStylesheetCache()
   // per-profile, since they're profile-invariant.
   LoadSheetURL("resource://gre-resources/counterstyles.css",
                mCounterStylesSheet, true);
-  LoadSheetURL("resource://gre-resources/full-screen-override.css",
-               mFullScreenOverrideSheet, true);
   LoadSheetURL("chrome://global/content/minimal-xul.css",
                mMinimalXULSheet, true);
   LoadSheetURL("resource://gre-resources/quirk.css",

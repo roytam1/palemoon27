@@ -59,7 +59,7 @@ struct ElementPropertyTransition : public dom::KeyframeEffectReadOnly
   // mProperties[0].mSegments[0].mFromValue, except when this transition
   // started as the reversal of another in-progress transition.
   // Needed so we can handle two reverses in a row.
-  mozilla::StyleAnimationValue mStartForReversingTest;
+  StyleAnimationValue mStartForReversingTest;
   // Likewise, the portion (in value space) of the "full" reversed
   // transition that we're actually covering.  For example, if a :hover
   // effect has a transition that moves the element 10px to the right
@@ -195,14 +195,21 @@ protected:
 } // namespace dom
 
 struct TransitionEventInfo {
-  nsCOMPtr<nsIContent> mElement;
+  RefPtr<dom::Element> mElement;
+  RefPtr<dom::Animation> mAnimation;
   InternalTransitionEvent mEvent;
+  TimeStamp mTimeStamp;
 
-  TransitionEventInfo(nsIContent *aElement, nsCSSProperty aProperty,
+  TransitionEventInfo(dom::Element* aElement,
+                      nsCSSPseudoElements::Type aPseudoType,
+                      nsCSSProperty aProperty,
                       TimeDuration aDuration,
-                      nsCSSPseudoElements::Type aPseudoType)
+                      const TimeStamp& aTimeStamp,
+                      dom::Animation* aAnimation)
     : mElement(aElement)
+    , mAnimation(aAnimation)
     , mEvent(true, eTransitionEnd)
+    , mTimeStamp(aTimeStamp)
   {
     // XXX Looks like nobody initialize WidgetEvent::time
     mEvent.propertyName =
@@ -213,9 +220,11 @@ struct TransitionEventInfo {
 
   // InternalTransitionEvent doesn't support copy-construction, so we need
   // to ourselves in order to work with nsTArray
-  TransitionEventInfo(const TransitionEventInfo &aOther)
+  TransitionEventInfo(const TransitionEventInfo& aOther)
     : mElement(aOther.mElement)
+    , mAnimation(aOther.mAnimation)
     , mEvent(true, eTransitionEnd)
+    , mTimeStamp(aOther.mTimeStamp)
   {
     mEvent.AssignTransitionEventData(aOther.mEvent, false);
   }
@@ -295,6 +304,7 @@ public:
   }
 
   void DispatchEvents()  { mEventDispatcher.DispatchEvents(mPresContext); }
+  void SortEvents()      { mEventDispatcher.SortEvents(); }
   void ClearEventQueue() { mEventDispatcher.ClearEventQueue(); }
 
 protected:

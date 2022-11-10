@@ -173,8 +173,8 @@ FontFaceSet::ParseFontShorthandForMatching(
                             ErrorResult& aRv)
 {
   // Parse aFont as a 'font' property value.
-  Declaration declaration;
-  declaration.InitializeEmpty();
+  RefPtr<Declaration> declaration = new Declaration;
+  declaration->InitializeEmpty();
 
   bool changed = false;
   nsCSSParser parser;
@@ -183,23 +183,23 @@ FontFaceSet::ParseFontShorthandForMatching(
                        mDocument->GetDocumentURI(),
                        mDocument->GetDocumentURI(),
                        mDocument->NodePrincipal(),
-                       &declaration,
+                       declaration,
                        &changed,
                        /* aIsImportant */ false);
 
   // All of the properties we are interested in should have been set at once.
-  MOZ_ASSERT(changed == (declaration.HasProperty(eCSSProperty_font_family) &&
-                         declaration.HasProperty(eCSSProperty_font_style) &&
-                         declaration.HasProperty(eCSSProperty_font_weight) &&
-                         declaration.HasProperty(eCSSProperty_font_stretch)));
+  MOZ_ASSERT(changed == (declaration->HasProperty(eCSSProperty_font_family) &&
+                         declaration->HasProperty(eCSSProperty_font_style) &&
+                         declaration->HasProperty(eCSSProperty_font_weight) &&
+                         declaration->HasProperty(eCSSProperty_font_stretch)));
 
   if (!changed) {
     aRv.Throw(NS_ERROR_DOM_SYNTAX_ERR);
     return;
   }
 
-  nsCSSCompressedDataBlock* data = declaration.GetNormalBlock();
-  MOZ_ASSERT(!declaration.GetImportantBlock());
+  nsCSSCompressedDataBlock* data = declaration->GetNormalBlock();
+  MOZ_ASSERT(!declaration->GetImportantBlock());
 
   const nsCSSValue* family = data->ValueFor(eCSSProperty_font_family);
   if (family->GetUnit() != eCSSUnit_FontFamilyList) {
@@ -426,7 +426,7 @@ FontFaceSet::Add(FontFace& aFontFace, ErrorResult& aRv)
 
   FontFaceRecord* rec = mNonRuleFaces.AppendElement();
   rec->mFontFace = &aFontFace;
-  rec->mSheetType = 0;  // unused for mNonRuleFaces
+  rec->mSheetType = SheetType::Unknown;  // unused for mNonRuleFaces
   rec->mLoadEventShouldFire =
     aFontFace.Status() == FontFaceLoadStatus::Unloaded ||
     aFontFace.Status() == FontFaceLoadStatus::Loading;
@@ -834,7 +834,7 @@ FontFaceSet::InsertNonRuleFontFace(FontFace* aFontFace,
     // InsertRuleFontFace does?
     RefPtr<gfxUserFontEntry> entry =
       FindOrCreateUserFontEntryFromFontFace(fontfamily, aFontFace,
-                                            nsStyleSet::eDocSheet);
+                                            SheetType::Doc);
     if (!entry) {
       return;
     }
@@ -846,7 +846,7 @@ FontFaceSet::InsertNonRuleFontFace(FontFace* aFontFace,
 }
 
 void
-FontFaceSet::InsertRuleFontFace(FontFace* aFontFace, uint8_t aSheetType,
+FontFaceSet::InsertRuleFontFace(FontFace* aFontFace, SheetType aSheetType,
                                 nsTArray<FontFaceRecord>& aOldRecords,
                                 bool& aFontSetModified)
 {
@@ -957,13 +957,13 @@ FontFaceSet::FindOrCreateUserFontEntryFromFontFace(FontFace* aFontFace)
   }
 
   return FindOrCreateUserFontEntryFromFontFace(fontfamily, aFontFace,
-                                               nsStyleSet::eDocSheet);
+                                               SheetType::Doc);
 }
 
 /* static */ already_AddRefed<gfxUserFontEntry>
 FontFaceSet::FindOrCreateUserFontEntryFromFontFace(const nsAString& aFamilyName,
                                                    FontFace* aFontFace,
-                                                   uint8_t aSheetType)
+                                                   SheetType aSheetType)
 {
   FontFaceSet* set = aFontFace->GetPrimaryFontFaceSet();
 
@@ -1102,8 +1102,8 @@ FontFaceSet::FindOrCreateUserFontEntryFromFontFace(const nsAString& aFamilyName,
           // the same-site origin check and access control headers are
           // enforced against the sheet principal rather than the document
           // principal to allow user stylesheets to include @font-face rules
-          face->mUseOriginPrincipal = (aSheetType == nsStyleSet::eUserSheet ||
-                                       aSheetType == nsStyleSet::eAgentSheet);
+          face->mUseOriginPrincipal = (aSheetType == SheetType::User ||
+                                       aSheetType == SheetType::Agent);
 
           face->mLocalName.Truncate();
           face->mFormatFlags = 0;

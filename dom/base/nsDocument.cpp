@@ -69,7 +69,8 @@
 #include "mozilla/dom/TreeWalker.h"
 
 #include "nsIServiceManager.h"
-#include "nsIServiceWorkerManager.h"
+#include "mozilla/dom/workers/ServiceWorkerManager.h"
+#include "imgLoader.h"
 
 #include "nsCanvasFrame.h"
 #include "nsContentCID.h"
@@ -376,30 +377,14 @@ CustomDefinitionsTraverse(CustomElementHashKey* aKey,
   return PL_DHASH_NEXT;
 }
 
-struct CustomDefinitionTraceArgs
-{
-  const TraceCallbacks& callbacks;
-  void* closure;
-};
-
-static PLDHashOperator
-CustomDefinitionTrace(CustomElementHashKey *aKey,
-                      CustomElementDefinition *aData,
-                      void *aArg)
-{
-  CustomDefinitionTraceArgs* traceArgs = static_cast<CustomDefinitionTraceArgs*>(aArg);
-  MOZ_ASSERT(aData, "Definition must not be null");
-  traceArgs->callbacks.Trace(&aData->mPrototype, "mCustomDefinitions prototype",
-                             traceArgs->closure);
-  return PL_DHASH_NEXT;
-}
-
 NS_IMPL_CYCLE_COLLECTION_CLASS(Registry)
 
 NS_IMPL_CYCLE_COLLECTION_TRACE_BEGIN(Registry)
-  CustomDefinitionTraceArgs customDefinitionArgs = { aCallbacks, aClosure };
-  tmp->mCustomDefinitions.EnumerateRead(CustomDefinitionTrace,
-                                        &customDefinitionArgs);
+  for (auto iter = tmp->mCustomDefinitions.Iter(); !iter.Done(); iter.Next()) {
+    aCallbacks.Trace(&iter.UserData()->mPrototype,
+                     "mCustomDefinitions prototype",
+                     aClosure);
+  }
 NS_IMPL_CYCLE_COLLECTION_TRACE_END
 
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN(Registry)
@@ -929,57 +914,16 @@ nsExternalResourceMap::RequestResource(nsIURI* aURI,
   return nullptr;
 }
 
-struct
-nsExternalResourceEnumArgs
-{
-  nsIDocument::nsSubDocEnumFunc callback;
-  void *data;
-};
-
-static PLDHashOperator
-ExternalResourceEnumerator(nsIURI* aKey,
-                           nsExternalResourceMap::ExternalResource* aData,
-                           void* aClosure)
-{
-  nsExternalResourceEnumArgs* args =
-    static_cast<nsExternalResourceEnumArgs*>(aClosure);
-  bool next =
-    aData->mDocument ? args->callback(aData->mDocument, args->data) : true;
-  return next ? PL_DHASH_NEXT : PL_DHASH_STOP;
-}
-
 void
 nsExternalResourceMap::EnumerateResources(nsIDocument::nsSubDocEnumFunc aCallback,
                                           void* aData)
 {
-  nsExternalResourceEnumArgs args = { aCallback, aData };
-  mMap.EnumerateRead(ExternalResourceEnumerator, &args);
-}
-
-static PLDHashOperator
-ExternalResourceTraverser(nsIURI* aKey,
-                          nsExternalResourceMap::ExternalResource* aData,
-                          void* aClosure)
-{
-  nsCycleCollectionTraversalCallback *cb =
-    static_cast<nsCycleCollectionTraversalCallback*>(aClosure);
-
-  NS_CYCLE_COLLECTION_NOTE_EDGE_NAME(*cb,
-                                     "mExternalResourceMap.mMap entry"
-                                     "->mDocument");
-  cb->NoteXPCOMChild(aData->mDocument);
-
-  NS_CYCLE_COLLECTION_NOTE_EDGE_NAME(*cb,
-                                     "mExternalResourceMap.mMap entry"
-                                     "->mViewer");
-  cb->NoteXPCOMChild(aData->mViewer);
-
-  NS_CYCLE_COLLECTION_NOTE_EDGE_NAME(*cb,
-                                     "mExternalResourceMap.mMap entry"
-                                     "->mLoadGroup");
-  cb->NoteXPCOMChild(aData->mLoadGroup);
-
-  return PL_DHASH_NEXT;
+  for (auto iter = mMap.Iter(); !iter.Done(); iter.Next()) {
+    nsExternalResourceMap::ExternalResource* resource = iter.UserData();
+    if (resource->mDocument && !aCallback(resource->mDocument, aData)) {
+      break;
+    }
+  }
 }
 
 void
@@ -987,7 +931,24 @@ nsExternalResourceMap::Traverse(nsCycleCollectionTraversalCallback* aCallback) c
 {
   // mPendingLoads will get cleared out as the requests complete, so
   // no need to worry about those here.
-  mMap.EnumerateRead(ExternalResourceTraverser, aCallback);
+  for (auto iter = mMap.ConstIter(); !iter.Done(); iter.Next()) {
+    nsExternalResourceMap::ExternalResource* resource = iter.UserData();
+
+    NS_CYCLE_COLLECTION_NOTE_EDGE_NAME(*aCallback,
+                                       "mExternalResourceMap.mMap entry"
+                                       "->mDocument");
+    aCallback->NoteXPCOMChild(resource->mDocument);
+
+    NS_CYCLE_COLLECTION_NOTE_EDGE_NAME(*aCallback,
+                                       "mExternalResourceMap.mMap entry"
+                                       "->mViewer");
+    aCallback->NoteXPCOMChild(resource->mViewer);
+
+    NS_CYCLE_COLLECTION_NOTE_EDGE_NAME(*aCallback,
+                                       "mExternalResourceMap.mMap entry"
+                                       "->mLoadGroup");
+    aCallback->NoteXPCOMChild(resource->mLoadGroup);
+  }
 }
 
 static PLDHashOperator
@@ -2099,19 +2060,11 @@ NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(nsDocument)
   tmp->mInUnlinkOrDeletion = false;
 NS_IMPL_CYCLE_COLLECTION_UNLINK_END
 
-static bool sPrefsInitialized = false;
-static uint32_t sOnloadDecodeLimit = 0;
-
 nsresult
 nsDocument::Init()
 {
   if (mCSSLoader || mStyleImageLoader || mNodeInfoManager || mScriptLoader) {
     return NS_ERROR_ALREADY_INITIALIZED;
-  }
-
-  if (!sPrefsInitialized) {
-    sPrefsInitialized = true;
-    Preferences::AddUintVarCache(&sOnloadDecodeLimit, "image.onload.decode.limit", 0);
   }
 
   // Force initialization.
@@ -2395,7 +2348,7 @@ nsDocument::RemoveDocStyleSheetsFromStyleSets()
 }
 
 void
-nsDocument::RemoveStyleSheetsFromStyleSets(nsCOMArray<nsIStyleSheet>& aSheets, nsStyleSet::sheetType aType)
+nsDocument::RemoveStyleSheetsFromStyleSets(nsCOMArray<nsIStyleSheet>& aSheets, SheetType aType)
 {
   // The stylesheets should forget us
   int32_t indx = aSheets.Count();
@@ -2422,16 +2375,17 @@ nsDocument::ResetStylesheetsToURI(nsIURI* aURI)
 
   mozAutoDocUpdate upd(this, UPDATE_STYLE, true);
   RemoveDocStyleSheetsFromStyleSets();
-  RemoveStyleSheetsFromStyleSets(mOnDemandBuiltInUASheets, nsStyleSet::eAgentSheet);
-  RemoveStyleSheetsFromStyleSets(mAdditionalSheets[eAgentSheet], nsStyleSet::eAgentSheet);
-  RemoveStyleSheetsFromStyleSets(mAdditionalSheets[eUserSheet], nsStyleSet::eUserSheet);
-  RemoveStyleSheetsFromStyleSets(mAdditionalSheets[eAuthorSheet], nsStyleSet::eDocSheet);
+  RemoveStyleSheetsFromStyleSets(mOnDemandBuiltInUASheets, SheetType::Agent);
+  RemoveStyleSheetsFromStyleSets(mAdditionalSheets[eAgentSheet], SheetType::Agent);
+  RemoveStyleSheetsFromStyleSets(mAdditionalSheets[eUserSheet], SheetType::User);
+  RemoveStyleSheetsFromStyleSets(mAdditionalSheets[eAuthorSheet], SheetType::Doc);
 
   // Release all the sheets
   mStyleSheets.Clear();
   mOnDemandBuiltInUASheets.Clear();
-  for (uint32_t i = 0; i < SheetTypeCount; ++i)
-    mAdditionalSheets[i].Clear();
+  for (auto& sheets : mAdditionalSheets) {
+    sheets.Clear();
+  }
 
   // NOTE:  We don't release the catalog sheets.  It doesn't really matter
   // now, but it could in the future -- in which case not releasing them
@@ -2465,14 +2419,14 @@ static bool
 AppendAuthorSheet(nsIStyleSheet *aSheet, void *aData)
 {
   nsStyleSet *styleSet = static_cast<nsStyleSet*>(aData);
-  styleSet->AppendStyleSheet(nsStyleSet::eDocSheet, aSheet);
+  styleSet->AppendStyleSheet(SheetType::Doc, aSheet);
   return true;
 }
 
 static void
 AppendSheetsToStyleSet(nsStyleSet* aStyleSet,
                        const nsCOMArray<nsIStyleSheet>& aSheets,
-                       nsStyleSet::sheetType aType)
+                       SheetType aType)
 {
   for (int32_t i = aSheets.Count() - 1; i >= 0; --i) {
     aStyleSet->AppendStyleSheet(aType, aSheets[i]);
@@ -2484,13 +2438,8 @@ void
 nsDocument::FillStyleSet(nsStyleSet* aStyleSet)
 {
   NS_PRECONDITION(aStyleSet, "Must have a style set");
-  NS_PRECONDITION(aStyleSet->SheetCount(nsStyleSet::eDocSheet) == 0,
+  NS_PRECONDITION(aStyleSet->SheetCount(SheetType::Doc) == 0,
                   "Style set already has document sheets?");
-
-  // We could consider moving this to nsStyleSet::Init, to match its
-  // handling of the eAnimationSheet and eTransitionSheet levels.
-  aStyleSet->DirtyRuleProcessors(nsStyleSet::ePresHintSheet);
-  aStyleSet->DirtyRuleProcessors(nsStyleSet::eStyleAttrSheet);
 
   int32_t i;
   for (i = mStyleSheets.Count() - 1; i >= 0; --i) {
@@ -2510,16 +2459,16 @@ nsDocument::FillStyleSet(nsStyleSet* aStyleSet)
   for (i = mOnDemandBuiltInUASheets.Count() - 1; i >= 0; --i) {
     nsIStyleSheet* sheet = mOnDemandBuiltInUASheets[i];
     if (sheet->IsApplicable()) {
-      aStyleSet->PrependStyleSheet(nsStyleSet::eAgentSheet, sheet);
+      aStyleSet->PrependStyleSheet(SheetType::Agent, sheet);
     }
   }
 
   AppendSheetsToStyleSet(aStyleSet, mAdditionalSheets[eAgentSheet],
-                         nsStyleSet::eAgentSheet);
+                         SheetType::Agent);
   AppendSheetsToStyleSet(aStyleSet, mAdditionalSheets[eUserSheet],
-                         nsStyleSet::eUserSheet);
+                         SheetType::User);
   AppendSheetsToStyleSet(aStyleSet, mAdditionalSheets[eAuthorSheet],
-                         nsStyleSet::eDocSheet);
+                         SheetType::Doc);
 }
 
 static void
@@ -4180,7 +4129,7 @@ nsDocument::AddOnDemandBuiltInUASheet(CSSStyleSheet* aSheet)
       // do not override Firefox OS/Mobile's content.css sheet. Maybe we should
       // have an insertion point to match the order of
       // nsDocumentViewer::CreateStyleSet though?
-      shell->StyleSet()->PrependStyleSheet(nsStyleSet::eAgentSheet, aSheet);
+      shell->StyleSet()->PrependStyleSheet(SheetType::Agent, aSheet);
     }
   }
 
@@ -4412,20 +4361,20 @@ nsDocument::NotifyStyleSheetApplicableStateChanged()
   }
 }
 
-static nsStyleSet::sheetType
+static SheetType
 ConvertAdditionalSheetType(nsIDocument::additionalSheetType aType)
 {
   switch(aType) {
     case nsIDocument::eAgentSheet:
-      return nsStyleSet::eAgentSheet;
+      return SheetType::Agent;
     case nsIDocument::eUserSheet:
-      return nsStyleSet::eUserSheet;
+      return SheetType::User;
     case nsIDocument::eAuthorSheet:
-      return nsStyleSet::eDocSheet;
+      return SheetType::Doc;
     default:
-      NS_ASSERTION(false, "wrong type");
+      MOZ_ASSERT(false, "wrong type");
       // we must return something although this should never happen
-      return nsStyleSet::eSheetTypeCount;
+      return SheetType::Count;
   }
 }
 
@@ -4480,7 +4429,7 @@ nsDocument::AddAdditionalStyleSheet(additionalSheetType aType, nsIStyleSheet* aS
   BeginUpdate(UPDATE_STYLE);
   nsCOMPtr<nsIPresShell> shell = GetShell();
   if (shell) {
-    nsStyleSet::sheetType type = ConvertAdditionalSheetType(aType);
+    SheetType type = ConvertAdditionalSheetType(aType);
     shell->StyleSet()->AppendStyleSheet(type, aSheet);
   }
 
@@ -4508,7 +4457,7 @@ nsDocument::RemoveAdditionalStyleSheet(additionalSheetType aType, nsIURI* aSheet
       MOZ_ASSERT(sheetRef->IsApplicable());
       nsCOMPtr<nsIPresShell> shell = GetShell();
       if (shell) {
-        nsStyleSet::sheetType type = ConvertAdditionalSheetType(aType);
+        SheetType type = ConvertAdditionalSheetType(aType);
         shell->StyleSet()->RemoveStyleSheet(type, sheetRef);
       }
     }
@@ -7609,42 +7558,36 @@ nsIDocument::GetCompatMode(nsString& aCompatMode) const
   }
 }
 
-static void BlastSubtreeToPieces(nsINode *aNode);
-
-PLDHashOperator
-BlastFunc(nsAttrHashKey::KeyType aKey, Attr *aData, void* aUserArg)
-{
-  nsCOMPtr<nsIAttribute> *attr =
-    static_cast<nsCOMPtr<nsIAttribute>*>(aUserArg);
-
-  *attr = aData;
-
-  NS_ASSERTION(attr->get(),
-               "non-nsIAttribute somehow made it into the hashmap?!");
-
-  return PL_DHASH_STOP;
-}
-
-static void
-BlastSubtreeToPieces(nsINode *aNode)
+void
+nsDOMAttributeMap::BlastSubtreeToPieces(nsINode *aNode)
 {
   if (aNode->IsElement()) {
     Element *element = aNode->AsElement();
     const nsDOMAttributeMap *map = element->GetAttributeMap();
     if (map) {
       nsCOMPtr<nsIAttribute> attr;
-      while (map->Enumerate(BlastFunc, &attr) > 0) {
+
+      // This non-standard style of iteration is presumably used because some
+      // of the code in the loop body can trigger element removal, which
+      // invalidates the iterator.
+      while (true) {
+        auto iter = map->mAttributeCache.ConstIter();
+        if (iter.Done()) {
+          break;
+        }
+        nsCOMPtr<nsIAttribute> attr = iter.UserData();
+        NS_ASSERTION(attr.get(),
+                     "non-nsIAttribute somehow made it into the hashmap?!");
+
         BlastSubtreeToPieces(attr);
 
-#ifdef DEBUG
-        nsresult rv =
-#endif
+        DebugOnly<nsresult> rv =
           element->UnsetAttr(attr->NodeInfo()->NamespaceID(),
                              attr->NodeInfo()->NameAtom(),
                              false);
 
         // XXX Should we abort here?
-        NS_ASSERTION(NS_SUCCEEDED(rv), "Uhoh, UnsetAttr shouldn't fail!");
+        NS_ASSERTION(NS_SUCCEEDED(rv), "Uh-oh, UnsetAttr shouldn't fail!");
       }
     }
   }
@@ -7811,7 +7754,7 @@ nsIDocument::AdoptNode(nsINode& aAdoptedNode, ErrorResult& rv)
   if (rv.Failed()) {
     // Disconnect all nodes from their parents, since some have the old document
     // as their ownerDocument and some have this as their ownerDocument.
-    BlastSubtreeToPieces(adoptedNode);
+    nsDOMAttributeMap::BlastSubtreeToPieces(adoptedNode);
 
     if (!sameDocument && oldDocument) {
       uint32_t count = nodesWithProperties.Count();
@@ -7840,7 +7783,7 @@ nsIDocument::AdoptNode(nsINode& aAdoptedNode, ErrorResult& rv)
 
     if (rv.Failed()) {
       // Disconnect all nodes from their parents.
-      BlastSubtreeToPieces(adoptedNode);
+      nsDOMAttributeMap::BlastSubtreeToPieces(adoptedNode);
 
       return nullptr;
     }
@@ -8869,11 +8812,6 @@ nsDocument::Destroy()
 
   mRegistry = nullptr;
 
-  nsCOMPtr<nsIServiceWorkerManager> swm = mozilla::services::GetServiceWorkerManager();
-  if (swm) {
-    swm->MaybeStopControlling(this);
-  }
-
   // XXX We really should let cycle collection do this, but that currently still
   //     leaks (see https://bugzilla.mozilla.org/show_bug.cgi?id=406684).
   ReleaseWrapper(static_cast<nsINode*>(this));
@@ -8884,6 +8822,19 @@ nsDocument::RemovedFromDocShell()
 {
   if (mRemovedFromDocShell)
     return;
+
+  using mozilla::dom::workers::ServiceWorkerManager;
+  RefPtr<ServiceWorkerManager> swm = ServiceWorkerManager::GetInstance();
+  if (swm) {
+    ErrorResult error;
+    if (swm->IsControlled(this, error)) {
+      imgLoader* loader = nsContentUtils::GetImgLoaderForDocument(this);
+      if (loader) {
+        loader->ClearCacheForControlledDocument(this);
+      }
+    }
+    swm->MaybeStopControlling(this);
+  }
 
   mRemovedFromDocShell = true;
   EnumerateActivityObservers(NotifyActivityChanged, nullptr);
@@ -10454,12 +10405,8 @@ nsDocument::AddImage(imgIRequest* aImage)
 
   // If this is the first insertion and we're locking images, lock this image
   // too.
-  if (oldCount == 0) {
-    if (mLockingImages)
-      rv = aImage->LockImage();
-    if (NS_SUCCEEDED(rv) && (!sOnloadDecodeLimit ||
-                             mImageTracker.Count() < sOnloadDecodeLimit))
-      rv = aImage->StartDecoding();
+  if (oldCount == 0 && mLockingImages) {
+    rv = aImage->LockImage();
   }
 
   // If this is the first insertion and we're animating images, request
@@ -10590,7 +10537,6 @@ PLDHashOperator LockEnumerator(imgIRequest* aKey,
                                void*    userArg)
 {
   aKey->LockImage();
-  aKey->RequestDecode();
   return PL_DHASH_NEXT;
 }
 
@@ -11638,6 +11584,19 @@ nsDocument::FullScreenStackTop()
   NS_ASSERTION(element->IsInDoc(), "Full-screen element should be in doc");
   NS_ASSERTION(element->OwnerDoc() == this, "Full-screen element should be in this doc");
   return element;
+}
+
+/* virtual */ nsTArray<Element*>
+nsDocument::GetFullscreenStack() const
+{
+  nsTArray<Element*> elements;
+  for (const nsWeakPtr& ptr : mFullScreenStack) {
+    if (nsCOMPtr<Element> elem = do_QueryReferent(ptr)) {
+      MOZ_ASSERT(elem->State().HasState(NS_EVENT_STATE_FULL_SCREEN));
+      elements.AppendElement(elem);
+    }
+  }
+  return elements;
 }
 
 // Returns true if aDoc is in the focused tab in the active window.

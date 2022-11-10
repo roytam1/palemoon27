@@ -83,11 +83,11 @@ inDOMUtils::GetAllStyleSheets(nsIDOMDocument *aDocument, uint32_t *aLength,
   nsIPresShell* presShell = document->GetShell();
   if (presShell) {
     nsStyleSet* styleSet = presShell->StyleSet();
-    nsStyleSet::sheetType sheetType = nsStyleSet::eAgentSheet;
+    SheetType sheetType = SheetType::Agent;
     for (int32_t i = 0; i < styleSet->SheetCount(sheetType); i++) {
       sheets.AppendElement(styleSet->StyleSheetAt(sheetType, i));
     }
-    sheetType = nsStyleSet::eUserSheet;
+    sheetType = SheetType::User;
     for (int32_t i = 0; i < styleSet->SheetCount(sheetType); i++) {
       sheets.AppendElement(styleSet->StyleSheetAt(sheetType, i));
     }
@@ -511,14 +511,14 @@ inDOMUtils::GetCSSPropertyNames(uint32_t aFlags, uint32_t* aCount,
   char16_t** props =
     static_cast<char16_t**>(moz_xmalloc(maxCount * sizeof(char16_t*)));
 
-#define DO_PROP(_prop)                                                  \
-  PR_BEGIN_MACRO                                                        \
-    nsCSSProperty cssProp = nsCSSProperty(_prop);                       \
-    if (nsCSSProps::IsEnabled(cssProp)) {                               \
-      props[propCount] =                                                \
-        ToNewUnicode(nsDependentCString(kCSSRawProperties[_prop]));     \
-      ++propCount;                                                      \
-    }                                                                   \
+#define DO_PROP(_prop)                                                       \
+  PR_BEGIN_MACRO                                                             \
+    nsCSSProperty cssProp = nsCSSProperty(_prop);                            \
+    if (nsCSSProps::IsEnabled(cssProp, nsCSSProps::eEnabledForAllContent)) { \
+      props[propCount] =                                                     \
+        ToNewUnicode(nsDependentCString(kCSSRawProperties[_prop]));          \
+      ++propCount;                                                           \
+    }                                                                        \
   PR_END_MACRO
 
   // prop is the property id we're considering; propCount is how many properties
@@ -1259,7 +1259,7 @@ inDOMUtils::ParseStyleSheet(nsIDOMCSSStyleSheet *aSheet,
   RefPtr<CSSStyleSheet> sheet = do_QueryObject(aSheet);
   NS_ENSURE_ARG_POINTER(sheet);
 
-  return sheet->ParseSheet(aInput);
+  return sheet->ReparseSheet(aInput);
 }
 
 NS_IMETHODIMP

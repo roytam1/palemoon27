@@ -682,7 +682,7 @@ CSS_PROP_LOGICAL(
         CSS_PROPERTY_VALUE_NONNEGATIVE |
         CSS_PROPERTY_STORES_CALC |
         CSS_PROPERTY_GETCS_NEEDS_LAYOUT_FLUSH |
-        CSS_PROPERTY_ALWAYS_ENABLED_IN_UA_SHEETS |
+        CSS_PROPERTY_ENABLED_IN_UA_SHEETS |
         CSS_PROPERTY_LOGICAL |
         CSS_PROPERTY_LOGICAL_AXIS |
         CSS_PROPERTY_LOGICAL_BLOCK_AXIS,
@@ -704,14 +704,14 @@ CSS_PROP_SHORTHAND(
     border_block_end,
     BorderBlockEnd,
     CSS_PROPERTY_PARSE_FUNCTION |
-        CSS_PROPERTY_ALWAYS_ENABLED_IN_UA_SHEETS,
+        CSS_PROPERTY_ENABLED_IN_UA_SHEETS,
     "layout.css.vertical-text.enabled")
 CSS_PROP_SHORTHAND(
     border-block-start,
     border_block_start,
     BorderBlockStart,
     CSS_PROPERTY_PARSE_FUNCTION |
-        CSS_PROPERTY_ALWAYS_ENABLED_IN_UA_SHEETS,
+        CSS_PROPERTY_ENABLED_IN_UA_SHEETS,
     "layout.css.vertical-text.enabled")
 CSS_PROP_LOGICAL(
     border-block-end-color,
@@ -719,7 +719,7 @@ CSS_PROP_LOGICAL(
     BorderBlockEndColor,
     CSS_PROPERTY_PARSE_VALUE |
         CSS_PROPERTY_APPLIES_TO_FIRST_LETTER |
-        CSS_PROPERTY_ALWAYS_ENABLED_IN_UA_SHEETS |
+        CSS_PROPERTY_ENABLED_IN_UA_SHEETS |
         CSS_PROPERTY_LOGICAL |
         CSS_PROPERTY_LOGICAL_BLOCK_AXIS |
         CSS_PROPERTY_LOGICAL_END_EDGE,
@@ -736,7 +736,7 @@ CSS_PROP_LOGICAL(
     BorderBlockEndStyle,
     CSS_PROPERTY_PARSE_VALUE |
         CSS_PROPERTY_APPLIES_TO_FIRST_LETTER |
-        CSS_PROPERTY_ALWAYS_ENABLED_IN_UA_SHEETS |
+        CSS_PROPERTY_ENABLED_IN_UA_SHEETS |
         CSS_PROPERTY_LOGICAL |
         CSS_PROPERTY_LOGICAL_BLOCK_AXIS |
         CSS_PROPERTY_LOGICAL_END_EDGE,
@@ -755,7 +755,7 @@ CSS_PROP_LOGICAL(
         CSS_PROPERTY_VALUE_NONNEGATIVE |
         CSS_PROPERTY_APPLIES_TO_FIRST_LETTER |
         CSS_PROPERTY_GETCS_NEEDS_LAYOUT_FLUSH |
-        CSS_PROPERTY_ALWAYS_ENABLED_IN_UA_SHEETS |
+        CSS_PROPERTY_ENABLED_IN_UA_SHEETS |
         CSS_PROPERTY_LOGICAL |
         CSS_PROPERTY_LOGICAL_BLOCK_AXIS |
         CSS_PROPERTY_LOGICAL_END_EDGE,
@@ -772,7 +772,7 @@ CSS_PROP_LOGICAL(
     BorderBlockStartColor,
     CSS_PROPERTY_PARSE_VALUE |
         CSS_PROPERTY_APPLIES_TO_FIRST_LETTER |
-        CSS_PROPERTY_ALWAYS_ENABLED_IN_UA_SHEETS |
+        CSS_PROPERTY_ENABLED_IN_UA_SHEETS |
         CSS_PROPERTY_LOGICAL |
         CSS_PROPERTY_LOGICAL_BLOCK_AXIS,
     "layout.css.vertical-text.enabled",
@@ -788,7 +788,7 @@ CSS_PROP_LOGICAL(
     BorderBlockStartStyle,
     CSS_PROPERTY_PARSE_VALUE |
         CSS_PROPERTY_APPLIES_TO_FIRST_LETTER |
-        CSS_PROPERTY_ALWAYS_ENABLED_IN_UA_SHEETS |
+        CSS_PROPERTY_ENABLED_IN_UA_SHEETS |
         CSS_PROPERTY_LOGICAL |
         CSS_PROPERTY_LOGICAL_BLOCK_AXIS,
     "layout.css.vertical-text.enabled",
@@ -806,7 +806,7 @@ CSS_PROP_LOGICAL(
         CSS_PROPERTY_VALUE_NONNEGATIVE |
         CSS_PROPERTY_GETCS_NEEDS_LAYOUT_FLUSH |
         CSS_PROPERTY_APPLIES_TO_FIRST_LETTER |
-        CSS_PROPERTY_ALWAYS_ENABLED_IN_UA_SHEETS |
+        CSS_PROPERTY_ENABLED_IN_UA_SHEETS |
         CSS_PROPERTY_LOGICAL |
         CSS_PROPERTY_LOGICAL_BLOCK_AXIS,
     "layout.css.vertical-text.enabled",
@@ -2181,7 +2181,7 @@ CSS_PROP_LOGICAL(
         CSS_PROPERTY_VALUE_NONNEGATIVE |
         CSS_PROPERTY_STORES_CALC |
         CSS_PROPERTY_GETCS_NEEDS_LAYOUT_FLUSH |
-        CSS_PROPERTY_ALWAYS_ENABLED_IN_UA_SHEETS |
+        CSS_PROPERTY_ENABLED_IN_UA_SHEETS |
         CSS_PROPERTY_LOGICAL |
         CSS_PROPERTY_LOGICAL_AXIS,
     "layout.css.vertical-text.enabled",
@@ -2286,7 +2286,7 @@ CSS_PROP_LOGICAL(
         CSS_PROPERTY_STORES_CALC |
         CSS_PROPERTY_APPLIES_TO_PAGE_RULE |
         CSS_PROPERTY_GETCS_NEEDS_LAYOUT_FLUSH |
-        CSS_PROPERTY_ALWAYS_ENABLED_IN_UA_SHEETS |
+        CSS_PROPERTY_ENABLED_IN_UA_SHEETS |
         CSS_PROPERTY_LOGICAL |
         CSS_PROPERTY_LOGICAL_BLOCK_AXIS |
         CSS_PROPERTY_LOGICAL_END_EDGE,
@@ -2306,7 +2306,7 @@ CSS_PROP_LOGICAL(
         CSS_PROPERTY_STORES_CALC |
         CSS_PROPERTY_APPLIES_TO_PAGE_RULE |
         CSS_PROPERTY_GETCS_NEEDS_LAYOUT_FLUSH |
-        CSS_PROPERTY_ALWAYS_ENABLED_IN_UA_SHEETS |
+        CSS_PROPERTY_ENABLED_IN_UA_SHEETS |
         CSS_PROPERTY_LOGICAL |
         CSS_PROPERTY_LOGICAL_BLOCK_AXIS,
     "layout.css.vertical-text.enabled",
@@ -2436,7 +2436,7 @@ CSS_PROP_LOGICAL(
         CSS_PROPERTY_VALUE_NONNEGATIVE |
         CSS_PROPERTY_STORES_CALC |
         CSS_PROPERTY_GETCS_NEEDS_LAYOUT_FLUSH |
-        CSS_PROPERTY_ALWAYS_ENABLED_IN_UA_SHEETS |
+        CSS_PROPERTY_ENABLED_IN_UA_SHEETS |
         CSS_PROPERTY_LOGICAL |
         CSS_PROPERTY_LOGICAL_AXIS |
         CSS_PROPERTY_LOGICAL_BLOCK_AXIS,
@@ -2469,7 +2469,7 @@ CSS_PROP_LOGICAL(
         CSS_PROPERTY_VALUE_NONNEGATIVE |
         CSS_PROPERTY_STORES_CALC |
         CSS_PROPERTY_GETCS_NEEDS_LAYOUT_FLUSH |
-        CSS_PROPERTY_ALWAYS_ENABLED_IN_UA_SHEETS |
+        CSS_PROPERTY_ENABLED_IN_UA_SHEETS |
         CSS_PROPERTY_LOGICAL |
         CSS_PROPERTY_LOGICAL_AXIS,
     "layout.css.vertical-text.enabled",
@@ -2515,7 +2515,7 @@ CSS_PROP_LOGICAL(
         CSS_PROPERTY_VALUE_NONNEGATIVE |
         CSS_PROPERTY_STORES_CALC |
         CSS_PROPERTY_GETCS_NEEDS_LAYOUT_FLUSH |
-        CSS_PROPERTY_ALWAYS_ENABLED_IN_UA_SHEETS |
+        CSS_PROPERTY_ENABLED_IN_UA_SHEETS |
         CSS_PROPERTY_LOGICAL |
         CSS_PROPERTY_LOGICAL_AXIS |
         CSS_PROPERTY_LOGICAL_BLOCK_AXIS,
@@ -2534,7 +2534,7 @@ CSS_PROP_LOGICAL(
         CSS_PROPERTY_VALUE_NONNEGATIVE |
         CSS_PROPERTY_STORES_CALC |
         CSS_PROPERTY_GETCS_NEEDS_LAYOUT_FLUSH |
-        CSS_PROPERTY_ALWAYS_ENABLED_IN_UA_SHEETS |
+        CSS_PROPERTY_ENABLED_IN_UA_SHEETS |
         CSS_PROPERTY_LOGICAL |
         CSS_PROPERTY_LOGICAL_AXIS,
     "layout.css.vertical-text.enabled",
@@ -2585,7 +2585,7 @@ CSS_PROP_POSITION(
     object_fit,
     ObjectFit,
     CSS_PROPERTY_PARSE_VALUE |
-        CSS_PROPERTY_ALWAYS_ENABLED_IN_UA_SHEETS,
+        CSS_PROPERTY_ENABLED_IN_UA_SHEETS,
     "layout.css.object-fit-and-position.enabled",
     VARIANT_HK,
     kObjectFitKTable,
@@ -2597,7 +2597,7 @@ CSS_PROP_POSITION(
     ObjectPosition,
     CSS_PROPERTY_PARSE_FUNCTION |
         CSS_PROPERTY_STORES_CALC |
-        CSS_PROPERTY_ALWAYS_ENABLED_IN_UA_SHEETS,
+        CSS_PROPERTY_ENABLED_IN_UA_SHEETS,
     "layout.css.object-fit-and-position.enabled",
     0,
     kBackgroundPositionKTable,
@@ -2610,7 +2610,7 @@ CSS_PROP_LOGICAL(
     CSS_PROPERTY_PARSE_VALUE |
         CSS_PROPERTY_STORES_CALC |
         CSS_PROPERTY_GETCS_NEEDS_LAYOUT_FLUSH |
-        CSS_PROPERTY_ALWAYS_ENABLED_IN_UA_SHEETS |
+        CSS_PROPERTY_ENABLED_IN_UA_SHEETS |
         CSS_PROPERTY_LOGICAL |
         CSS_PROPERTY_LOGICAL_BLOCK_AXIS |
         CSS_PROPERTY_LOGICAL_END_EDGE,
@@ -2628,7 +2628,7 @@ CSS_PROP_LOGICAL(
     CSS_PROPERTY_PARSE_VALUE |
         CSS_PROPERTY_STORES_CALC |
         CSS_PROPERTY_GETCS_NEEDS_LAYOUT_FLUSH |
-        CSS_PROPERTY_ALWAYS_ENABLED_IN_UA_SHEETS |
+        CSS_PROPERTY_ENABLED_IN_UA_SHEETS |
         CSS_PROPERTY_LOGICAL |
         CSS_PROPERTY_LOGICAL_BLOCK_AXIS,
     "layout.css.vertical-text.enabled",
@@ -2645,7 +2645,7 @@ CSS_PROP_LOGICAL(
     CSS_PROPERTY_PARSE_VALUE |
         CSS_PROPERTY_STORES_CALC |
         CSS_PROPERTY_GETCS_NEEDS_LAYOUT_FLUSH |
-        CSS_PROPERTY_ALWAYS_ENABLED_IN_UA_SHEETS |
+        CSS_PROPERTY_ENABLED_IN_UA_SHEETS |
         CSS_PROPERTY_LOGICAL |
         CSS_PROPERTY_LOGICAL_END_EDGE,
     "layout.css.vertical-text.enabled",
@@ -2662,7 +2662,7 @@ CSS_PROP_LOGICAL(
     CSS_PROPERTY_PARSE_VALUE |
         CSS_PROPERTY_STORES_CALC |
         CSS_PROPERTY_GETCS_NEEDS_LAYOUT_FLUSH |
-        CSS_PROPERTY_ALWAYS_ENABLED_IN_UA_SHEETS |
+        CSS_PROPERTY_ENABLED_IN_UA_SHEETS |
         CSS_PROPERTY_LOGICAL,
     "layout.css.vertical-text.enabled",
     VARIANT_AHLP | VARIANT_CALC,
@@ -2761,7 +2761,7 @@ CSS_PROP_DISPLAY(
     overflow_clip_box,
     OverflowClipBox,
     CSS_PROPERTY_PARSE_VALUE |
-        CSS_PROPERTY_ALWAYS_ENABLED_IN_UA_SHEETS |
+        CSS_PROPERTY_ENABLED_IN_UA_SHEETS |
         CSS_PROPERTY_APPLIES_TO_PLACEHOLDER,
     "layout.css.overflow-clip-box.enabled",
     VARIANT_HK,
@@ -2810,7 +2810,7 @@ CSS_PROP_LOGICAL(
         CSS_PROPERTY_APPLIES_TO_PLACEHOLDER |
         CSS_PROPERTY_STORES_CALC |
         CSS_PROPERTY_GETCS_NEEDS_LAYOUT_FLUSH |
-        CSS_PROPERTY_ALWAYS_ENABLED_IN_UA_SHEETS |
+        CSS_PROPERTY_ENABLED_IN_UA_SHEETS |
         CSS_PROPERTY_LOGICAL |
         CSS_PROPERTY_LOGICAL_BLOCK_AXIS |
         CSS_PROPERTY_LOGICAL_END_EDGE,
@@ -2832,7 +2832,7 @@ CSS_PROP_LOGICAL(
         CSS_PROPERTY_APPLIES_TO_PLACEHOLDER |
         CSS_PROPERTY_STORES_CALC |
         CSS_PROPERTY_GETCS_NEEDS_LAYOUT_FLUSH |
-        CSS_PROPERTY_ALWAYS_ENABLED_IN_UA_SHEETS |
+        CSS_PROPERTY_ENABLED_IN_UA_SHEETS |
         CSS_PROPERTY_LOGICAL |
         CSS_PROPERTY_LOGICAL_BLOCK_AXIS,
     "layout.css.vertical-text.enabled",
@@ -3276,7 +3276,7 @@ CSS_PROP_VISIBILITY(
     text_orientation,
     TextOrientation,
     CSS_PROPERTY_PARSE_VALUE |
-        CSS_PROPERTY_ALWAYS_ENABLED_IN_UA_SHEETS,
+        CSS_PROPERTY_ENABLED_IN_UA_SHEETS,
     "layout.css.vertical-text.enabled",
     VARIANT_HK,
     kTextOrientationKTable,
@@ -3423,7 +3423,21 @@ CSS_PROP_POSITION(
     nullptr,
     offsetof(nsStylePosition, mOffset),
     eStyleAnimType_Sides_Top)
- CSS_PROP_DISPLAY(
+#ifndef CSS_PROP_LIST_EXCLUDE_INTERNAL
+CSS_PROP_DISPLAY(
+    -moz-top-layer,
+    _moz_top_layer,
+    CSS_PROP_DOMPROP_PREFIXED(TopLayer),
+    CSS_PROPERTY_INTERNAL |
+        CSS_PROPERTY_PARSE_VALUE |
+        CSS_PROPERTY_ENABLED_IN_UA_SHEETS,
+    "",
+    VARIANT_HK,
+    kTopLayerKTable,
+    CSS_PROP_NO_OFFSET,
+    eStyleAnimType_None)
+#endif // CSS_PROP_LIST_EXCLUDE_INTERNAL
+CSS_PROP_DISPLAY(
     touch-action,
     touch_action,
     TouchAction,
@@ -3599,11 +3613,14 @@ CSS_PROP_POSITION(
     kWidthKTable,
     offsetof(nsStylePosition, mWidth),
     eStyleAnimType_Coord)
+#ifndef CSS_PROP_LIST_EXCLUDE_INTERNAL
 CSS_PROP_USERINTERFACE(
     -moz-window-dragging,
     _moz_window_dragging,
     CSS_PROP_DOMPROP_PREFIXED(WindowDragging),
-    CSS_PROPERTY_PARSE_VALUE,
+    CSS_PROPERTY_INTERNAL |
+        CSS_PROPERTY_PARSE_VALUE |
+        CSS_PROPERTY_ENABLED_IN_UA_SHEETS_AND_CHROME,
     "",
     VARIANT_HK,
     kWindowDraggingKTable,
@@ -3613,12 +3630,15 @@ CSS_PROP_UIRESET(
     -moz-window-shadow,
     _moz_window_shadow,
     CSS_PROP_DOMPROP_PREFIXED(WindowShadow),
-    CSS_PROPERTY_PARSE_VALUE,
+    CSS_PROPERTY_INTERNAL |
+        CSS_PROPERTY_PARSE_VALUE |
+        CSS_PROPERTY_ENABLED_IN_UA_SHEETS_AND_CHROME,
     "",
     VARIANT_HK,
     kWindowShadowKTable,
     CSS_PROP_NO_OFFSET,
     eStyleAnimType_None)
+#endif
 CSS_PROP_TEXT(
     word-break,
     word_break,
@@ -3667,7 +3687,7 @@ CSS_PROP_VISIBILITY(
     writing_mode,
     WritingMode,
     CSS_PROPERTY_PARSE_VALUE |
-        CSS_PROPERTY_ALWAYS_ENABLED_IN_UA_SHEETS,
+        CSS_PROPERTY_ENABLED_IN_UA_SHEETS,
     "layout.css.vertical-text.enabled",
     VARIANT_HK,
     kWritingModeKTable,
@@ -3763,10 +3783,11 @@ CSS_PROP_FONT(
     -moz-script-level,
     script_level,
     ScriptLevel,
-    // REVIEW: no range restriction?
-    // NOTE: CSSParserImpl::ParseSingleValueProperty only accepts this
-    // property when mUnsafeRulesEnabled is set.
+    // We only allow 'script-level' when unsafe rules are enabled, because
+    // otherwise it could interfere with rulenode optimizations if used in
+    // a non-MathML-enabled document.
     CSS_PROPERTY_INTERNAL |
+        CSS_PROPERTY_ENABLED_IN_UA_SHEETS |
         CSS_PROPERTY_PARSE_VALUE,
     "",
     // script-level can take Auto, Integer and Number values, but only Auto
@@ -3780,7 +3801,6 @@ CSS_PROP_FONT(
     -moz-script-size-multiplier,
     script_size_multiplier,
     ScriptSizeMultiplier,
-    // REVIEW: no range restriction?
     CSS_PROPERTY_INTERNAL |
         CSS_PROPERTY_PARSE_INACCESSIBLE,
     "",
@@ -3792,7 +3812,6 @@ CSS_PROP_FONT(
     -moz-script-min-size,
     script_min_size,
     ScriptMinSize,
-    // REVIEW: no range restriction?
     CSS_PROPERTY_INTERNAL |
         CSS_PROPERTY_PARSE_INACCESSIBLE,
     "",
@@ -3815,9 +3834,8 @@ CSS_PROP_FONT(
     -moz-math-display,
     math_display,
     MathDisplay,
-    // NOTE: CSSParserImpl::ParseSingleValueProperty only accepts this
-    // property when mUnsafeRulesEnabled is set.
     CSS_PROPERTY_INTERNAL |
+        CSS_PROPERTY_ENABLED_IN_UA_SHEETS |
         CSS_PROPERTY_PARSE_VALUE,
     "",
     VARIANT_HK,

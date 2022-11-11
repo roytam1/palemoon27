@@ -51,6 +51,7 @@ FetchDriver::FetchDriver(InternalRequest* aRequest, nsIPrincipal* aPrincipal,
   , mLoadGroup(aLoadGroup)
   , mRequest(aRequest)
   , mHasBeenCrossSite(false)
+  , mFoundOpaqueRedirect(false)
   , mResponseAvailableCalled(false)
   , mFetchCalled(false)
 {
@@ -128,14 +129,14 @@ FetchDriver::SetTainting()
 
   // request's mode is "no-cors"
   if (mRequest->Mode() == RequestMode::No_cors) {
-    mRequest->SetResponseTainting(InternalRequest::RESPONSETAINT_OPAQUE);
+    mRequest->MaybeIncreaseResponseTainting(LoadTainting::Opaque);
     // What the spec calls "basic fetch" is handled within our necko channel
     // code.  Therefore everything goes through HTTP Fetch
     return NS_OK;
   }
 
   // Otherwise
-  mRequest->SetResponseTainting(InternalRequest::RESPONSETAINT_CORS);
+  mRequest->MaybeIncreaseResponseTainting(LoadTainting::CORS);
 
   return NS_OK;
 }
@@ -302,12 +303,22 @@ FetchDriver::HttpFetch()
     // Set the same headers.
     nsAutoTArray<InternalHeaders::Entry, 5> headers;
     mRequest->Headers()->GetEntries(headers);
+    bool hasAccept = false;
     for (uint32_t i = 0; i < headers.Length(); ++i) {
+      if (!hasAccept && headers[i].mName.EqualsLiteral("accept")) {
+        hasAccept = true;
+      }
       if (headers[i].mValue.IsEmpty()) {
         httpChan->SetEmptyRequestHeader(headers[i].mName);
       } else {
         httpChan->SetRequestHeader(headers[i].mName, headers[i].mValue, false /* merge */);
       }
+    }
+
+    if (!hasAccept) {
+      httpChan->SetRequestHeader(NS_LITERAL_CSTRING("accept"),
+                                 NS_LITERAL_CSTRING("*/*"),
+                                 false /* merge */);
     }
 
     // Step 2. Set the referrer.
@@ -444,24 +455,23 @@ FetchDriver::BeginAndGetFilteredResponse(InternalResponse* aResponse, nsIURI* aF
   DebugOnly<nsresult> rv = aResponse->StripFragmentAndSetUrl(reqURL);
   MOZ_ASSERT(NS_SUCCEEDED(rv));
 
-  // FIXME(nsm): Handle mixed content check, step 7 of fetch.
-
   RefPtr<InternalResponse> filteredResponse;
-  switch (mRequest->GetResponseTainting()) {
-    case InternalRequest::RESPONSETAINT_BASIC:
-      filteredResponse = aResponse->BasicResponse();
-      break;
-    case InternalRequest::RESPONSETAINT_CORS:
-      filteredResponse = aResponse->CORSResponse();
-      break;
-    case InternalRequest::RESPONSETAINT_OPAQUE:
-      filteredResponse = aResponse->OpaqueResponse();
-      break;
-    case InternalRequest::RESPONSETAINT_OPAQUEREDIRECT:
-      filteredResponse = aResponse->OpaqueRedirectResponse();
-      break;
-    default:
-      MOZ_CRASH("Unexpected case");
+  if (mFoundOpaqueRedirect) {
+    filteredResponse = aResponse->OpaqueRedirectResponse();
+  } else {
+    switch (mRequest->GetResponseTainting()) {
+      case LoadTainting::Basic:
+        filteredResponse = aResponse->BasicResponse();
+        break;
+      case LoadTainting::CORS:
+        filteredResponse = aResponse->CORSResponse();
+        break;
+      case LoadTainting::Opaque:
+        filteredResponse = aResponse->OpaqueResponse();
+        break;
+      default:
+        MOZ_CRASH("Unexpected case");
+    }
   }
 
   MOZ_ASSERT(filteredResponse);
@@ -610,7 +620,9 @@ FetchDriver::OnStartRequest(nsIRequest* aRequest,
   rv = NS_NewPipe(getter_AddRefs(pipeInputStream),
                   getter_AddRefs(mPipeOutputStream),
                   0, /* default segment size */
-                  UINT32_MAX /* infinite pipe */);
+                  UINT32_MAX /* infinite pipe */,
+                  true /* non-blocking input, otherwise you deadlock */,
+                  false /* blocking output, since the pipe is 'in'finite */ );
   if (NS_WARN_IF(NS_FAILED(rv))) {
     FailWithNetworkError();
     // Cancel request.
@@ -627,6 +639,26 @@ FetchDriver::OnStartRequest(nsIRequest* aRequest,
     // Cancel request.
     return rv;
   }
+
+  nsCOMPtr<nsILoadInfo> loadInfo;
+  rv = channel->GetLoadInfo(getter_AddRefs(loadInfo));
+  if (NS_WARN_IF(NS_FAILED(rv))) {
+    FailWithNetworkError();
+    return rv;
+  }
+
+  LoadTainting channelTainting = LoadTainting::Basic;
+  if (loadInfo) {
+    channelTainting = loadInfo->GetTainting();
+  }
+
+  // Propagate any tainting from the channel back to our response here.  This
+  // step is not reflected in the spec because the spec is written such that
+  // FetchEvent.respondWith() just passes the already-tainted Response back to
+  // the outer fetch().  In gecko, however, we serialize the Response through
+  // the channel and must regenerate the tainting from the channel in the
+  // interception case.
+  mRequest->MaybeIncreaseResponseTainting(channelTainting);
 
   // Resolves fetch() promise which may trigger code running in a worker.  Make
   // sure the Response is fully initialized before calling this.
@@ -747,7 +779,8 @@ FetchDriver::AsyncOnChannelRedirect(nsIChannel* aOldChannel,
     // will result in OnStartRequest() getting called twice, but the second
     // time will be with an error response (from the Cancel) which will
     // be ignored.
-    mRequest->SetResponseTainting(InternalRequest::RESPONSETAINT_OPAQUEREDIRECT);
+    MOZ_ASSERT(!mFoundOpaqueRedirect);
+    mFoundOpaqueRedirect = true;
     unused << OnStartRequest(aOldChannel, nullptr);
     unused << OnStopRequest(aOldChannel, nullptr, NS_OK);
 

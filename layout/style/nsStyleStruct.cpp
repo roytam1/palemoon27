@@ -16,6 +16,7 @@
 #include "nsPresContext.h"
 #include "nsIWidget.h"
 #include "nsCRTGlue.h"
+#include "nsCSSParser.h"
 #include "nsCSSProps.h"
 
 #include "nsCOMPtr.h"
@@ -1501,7 +1502,7 @@ IsAutonessEqual(const nsStyleSides& aSides1, const nsStyleSides& aSides2)
 
 nsChangeHint
 nsStylePosition::CalcDifference(const nsStylePosition& aOther,
-                                nsStyleContext* aContext) const
+                                const nsStyleVisibility* aOldStyleVisibility) const
 {
   nsChangeHint hint = nsChangeHint(0);
 
@@ -1599,23 +1600,43 @@ nsStylePosition::CalcDifference(const nsStylePosition& aOther,
   bool heightChanged = mHeight != aOther.mHeight ||
                        mMinHeight != aOther.mMinHeight ||
                        mMaxHeight != aOther.mMaxHeight;
-  bool isVertical = WritingMode(aContext).IsVertical();
-  if (isVertical ? widthChanged : heightChanged) {
-    // Block-size changes can affect descendant intrinsic sizes due to replaced
-    // elements with percentage bsizes in descendants which also have
-    // percentage bsizes. This is handled via nsChangeHint_UpdateComputedBSize
-    // which clears intrinsic sizes for frames that have such replaced elements.
-    NS_UpdateHint(hint, nsChangeHint_NeedReflow |
-        nsChangeHint_UpdateComputedBSize |
-        nsChangeHint_ReflowChangesSizeOrPosition);
-  }
 
-  if (isVertical ? heightChanged : widthChanged) {
-    // None of our inline-size differences can affect descendant intrinsic
-    // sizes and none of them need to force children to reflow.
-    NS_UpdateHint(hint, NS_SubtractHint(nsChangeHint_AllReflowHints,
-                                        NS_CombineHint(nsChangeHint_ClearDescendantIntrinsics,
-                                                       nsChangeHint_NeedDirtyReflow)));
+  // If aOldStyleVisibility is null, we don't need to bother with any of
+  // these tests, since we know that the element never had its
+  // nsStyleVisibility accessed, which means it couldn't have done
+  // layout.
+  // Note that we pass an nsStyleVisibility here because we don't want
+  // to cause a new struct to be computed during
+  // nsStyleContext::CalcStyleDifference, which can lead to incorrect
+  // style data.
+  // It doesn't matter whether we're looking at the old or new
+  // visibility struct, since a change between vertical and horizontal
+  // writing-mode will cause a reframe, and it's easier to pass the old.
+  if (aOldStyleVisibility) {
+    bool isVertical = WritingMode(aOldStyleVisibility).IsVertical();
+    if (isVertical ? widthChanged : heightChanged) {
+      // Block-size changes can affect descendant intrinsic sizes due to
+      // replaced elements with percentage bsizes in descendants which
+      // also have percentage bsizes. This is handled via
+      // nsChangeHint_UpdateComputedBSize which clears intrinsic sizes
+      // for frames that have such replaced elements.
+      NS_UpdateHint(hint, nsChangeHint_NeedReflow |
+          nsChangeHint_UpdateComputedBSize |
+          nsChangeHint_ReflowChangesSizeOrPosition);
+    }
+
+    if (isVertical ? heightChanged : widthChanged) {
+      // None of our inline-size differences can affect descendant
+      // intrinsic sizes and none of them need to force children to
+      // reflow.
+      NS_UpdateHint(hint, NS_SubtractHint(nsChangeHint_AllReflowHints,
+                                          NS_CombineHint(nsChangeHint_ClearDescendantIntrinsics,
+                                                         nsChangeHint_NeedDirtyReflow)));
+    }
+  } else {
+    if (widthChanged || heightChanged) {
+      NS_UpdateHint(hint, nsChangeHint_NeutralChange);
+    }
   }
 
   // If any of the offsets have changed, then return the respective hints
@@ -2641,6 +2662,7 @@ nsStyleDisplay::nsStyleDisplay()
   mMixBlendMode = NS_STYLE_BLEND_NORMAL;
   mIsolation = NS_STYLE_ISOLATION_AUTO;
   mTouchAction = NS_STYLE_TOUCH_ACTION_AUTO;
+  mTopLayer = NS_STYLE_TOP_LAYER_NONE;
   mScrollBehavior = NS_STYLE_SCROLL_BEHAVIOR_AUTO;
   mScrollSnapTypeX = NS_STYLE_SCROLL_SNAP_TYPE_NONE;
   mScrollSnapTypeY = NS_STYLE_SCROLL_SNAP_TYPE_NONE;
@@ -2695,6 +2717,7 @@ nsStyleDisplay::nsStyleDisplay(const nsStyleDisplay& aSource)
   , mOrient(aSource.mOrient)
   , mMixBlendMode(aSource.mMixBlendMode)
   , mIsolation(aSource.mIsolation)
+  , mTopLayer(aSource.mTopLayer)
   , mWillChangeBitField(aSource.mWillChangeBitField)
   , mWillChange(aSource.mWillChange)
   , mTouchAction(aSource.mTouchAction)
@@ -2752,6 +2775,7 @@ nsChangeHint nsStyleDisplay::CalcDifference(const nsStyleDisplay& aOther) const
       || mScrollSnapPointsX != aOther.mScrollSnapPointsX
       || mScrollSnapPointsY != aOther.mScrollSnapPointsY
       || mScrollSnapDestination != aOther.mScrollSnapDestination
+      || mTopLayer != aOther.mTopLayer
       || mResize != aOther.mResize)
     NS_UpdateHint(hint, nsChangeHint_ReconstructFrame);
 
@@ -3442,7 +3466,7 @@ nsStyleText::nsStyleText(void)
   mRubyPosition = NS_STYLE_RUBY_POSITION_OVER;
   mTextSizeAdjust = NS_STYLE_TEXT_SIZE_ADJUST_AUTO;
   mTextCombineUpright = NS_STYLE_TEXT_COMBINE_UPRIGHT_NONE;
-  mControlCharacterVisibility = NS_STYLE_CONTROL_CHARACTER_VISIBILITY_VISIBLE;
+  mControlCharacterVisibility = nsCSSParser::ControlCharVisibilityDefault();
 
   mLetterSpacing.SetNormalValue();
   mLineHeight.SetNormalValue();

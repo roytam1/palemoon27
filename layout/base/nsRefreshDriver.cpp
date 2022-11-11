@@ -1437,13 +1437,20 @@ HasPendingAnimations(nsIPresShell* aShell)
 static void GetProfileTimelineSubDocShells(nsDocShell* aRootDocShell,
                                            nsTArray<nsDocShell*>& aShells)
 {
-  if (!aRootDocShell || TimelineConsumers::IsEmpty()) {
+  if (!aRootDocShell) {
+    return;
+  }
+
+  RefPtr<TimelineConsumers> timelines = TimelineConsumers::Get();
+  if (!timelines || timelines->IsEmpty()) {
     return;
   }
 
   nsCOMPtr<nsISimpleEnumerator> enumerator;
-  nsresult rv = aRootDocShell->GetDocShellEnumerator(nsIDocShellTreeItem::typeAll,
-    nsIDocShell::ENUMERATE_BACKWARDS, getter_AddRefs(enumerator));
+  nsresult rv = aRootDocShell->GetDocShellEnumerator(
+    nsIDocShellTreeItem::typeAll,
+    nsIDocShell::ENUMERATE_BACKWARDS,
+    getter_AddRefs(enumerator));
 
   if (NS_FAILED(rv)) {
     return;
@@ -1479,44 +1486,32 @@ TakeFrameRequestCallbacksFrom(nsIDocument* aDocument,
   aDocument->TakeFrameRequestCallbacks(aTarget.LastElement().mCallbacks);
 }
 
-namespace {
-  enum class AnimationEventType {
-    CSSAnimations,
-    CSSTransitions
-  };
-
-  struct DispatchAnimationEventParams {
-    AnimationEventType mEventType;
-    nsRefreshDriver* mRefreshDriver;
-  };
-}
-
 static bool
 DispatchAnimationEventsOnSubDocuments(nsIDocument* aDocument,
-                                      void* aParams)
+                                      void* aRefreshDriver)
 {
-  MOZ_ASSERT(aParams, "Animation event parameters should be set");
-  auto params = static_cast<DispatchAnimationEventParams*>(aParams);
-
   nsIPresShell* shell = aDocument->GetShell();
   if (!shell) {
     return true;
   }
 
   nsPresContext* context = shell->GetPresContext();
-  if (!context || context->RefreshDriver() != params->mRefreshDriver) {
+  if (!context || context->RefreshDriver() != aRefreshDriver) {
     return true;
   }
 
   nsCOMPtr<nsIDocument> kungFuDeathGrip(aDocument);
 
-  if (params->mEventType == AnimationEventType::CSSAnimations) {
-    context->AnimationManager()->DispatchEvents();
-  } else {
-    context->TransitionManager()->DispatchEvents();
-  }
+  context->TransitionManager()->SortEvents();
+  context->AnimationManager()->SortEvents();
+
+  // Dispatch transition events first since transitions conceptually sit
+  // below animations in terms of compositing order.
+  context->TransitionManager()->DispatchEvents();
+  context->AnimationManager()->DispatchEvents();
+
   aDocument->EnumerateSubDocuments(DispatchAnimationEventsOnSubDocuments,
-                                   aParams);
+                                   aRefreshDriver);
 
   return true;
 }
@@ -1528,19 +1523,7 @@ nsRefreshDriver::DispatchAnimationEvents()
     return;
   }
 
-  nsIDocument* doc = mPresContext->Document();
-
-  // Dispatch transition events first since transitions conceptually sit
-  // below animations in terms of compositing order.
-  DispatchAnimationEventParams params { AnimationEventType::CSSTransitions,
-                                        this };
-  DispatchAnimationEventsOnSubDocuments(doc, &params);
-  if (!mPresContext) {
-    return;
-  }
-
-  params.mEventType = AnimationEventType::CSSAnimations;
-  DispatchAnimationEventsOnSubDocuments(doc, &params);
+  DispatchAnimationEventsOnSubDocuments(mPresContext->Document(), this);
 }
 
 void
@@ -1861,13 +1844,18 @@ nsRefreshDriver::Tick(int64_t aNowEpoch, TimeStamp aNowTime)
   mPresShellsToInvalidateIfHidden.Clear();
 
   if (mViewManagerFlushIsPending) {
+    RefPtr<TimelineConsumers> timelines = TimelineConsumers::Get();
+
     nsTArray<nsDocShell*> profilingDocShells;
     GetProfileTimelineSubDocShells(GetDocShell(mPresContext), profilingDocShells);
     for (nsDocShell* docShell : profilingDocShells) {
       // For the sake of the profile timeline's simplicity, this is flagged as
       // paint even if it includes creating display lists
-      TimelineConsumers::AddMarkerForDocShell(docShell, "Paint",  MarkerTracingType::START);
+      MOZ_ASSERT(timelines);
+      MOZ_ASSERT(timelines->HasConsumer(docShell));
+      timelines->AddMarkerForDocShell(docShell, "Paint",  MarkerTracingType::START);
     }
+
 #ifdef MOZ_DUMP_PAINTING
     if (nsLayoutUtils::InvalidationDebuggingIsEnabled()) {
       printf_stderr("Starting ProcessPendingUpdates\n");
@@ -1877,13 +1865,17 @@ nsRefreshDriver::Tick(int64_t aNowEpoch, TimeStamp aNowTime)
     mViewManagerFlushIsPending = false;
     RefPtr<nsViewManager> vm = mPresContext->GetPresShell()->GetViewManager();
     vm->ProcessPendingUpdates();
+
 #ifdef MOZ_DUMP_PAINTING
     if (nsLayoutUtils::InvalidationDebuggingIsEnabled()) {
       printf_stderr("Ending ProcessPendingUpdates\n");
     }
 #endif
+
     for (nsDocShell* docShell : profilingDocShells) {
-      TimelineConsumers::AddMarkerForDocShell(docShell, "Paint",  MarkerTracingType::END);
+      MOZ_ASSERT(timelines);
+      MOZ_ASSERT(timelines->HasConsumer(docShell));
+      timelines->AddMarkerForDocShell(docShell, "Paint",  MarkerTracingType::END);
     }
 
     if (nsContentUtils::XPConnect()) {

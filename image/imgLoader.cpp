@@ -52,6 +52,7 @@
 #include "nsIHttpChannelInternal.h"
 #include "nsILoadContext.h"
 #include "nsILoadGroupChild.h"
+#include "nsIDOMDocument.h"
 
 using namespace mozilla;
 using namespace mozilla::image;
@@ -1403,21 +1404,13 @@ imgLoader::ClearCache(bool chrome)
 }
 
 NS_IMETHODIMP
-imgLoader::RemoveEntry(nsIURI* aURI)
-{
-  if (aURI && RemoveFromCache(ImageCacheKey(aURI))) {
-    return NS_OK;
-  }
-
-  return NS_ERROR_NOT_AVAILABLE;
-}
-
-NS_IMETHODIMP
-imgLoader::FindEntryProperties(nsIURI* uri, nsIProperties** _retval)
+imgLoader::FindEntryProperties(nsIURI* uri,
+                               nsIDOMDocument* doc,
+                               nsIProperties** _retval)
 {
   *_retval = nullptr;
 
-  ImageCacheKey key(uri);
+  ImageCacheKey key(uri, doc);
   imgCacheTable& cache = GetCache(key);
 
   RefPtr<imgCacheEntry> entry;
@@ -1434,6 +1427,25 @@ imgLoader::FindEntryProperties(nsIURI* uri, nsIProperties** _retval)
   }
 
   return NS_OK;
+}
+
+NS_IMETHODIMP_(void)
+imgLoader::ClearCacheForControlledDocument(nsIDocument* aDoc)
+{
+  MOZ_ASSERT(aDoc);
+  nsAutoTArray<RefPtr<imgCacheEntry>, 128> entriesToBeRemoved;
+  imgCacheTable& cache = GetCache(false);
+  for (auto iter = cache.Iter(); !iter.Done(); iter.Next()) {
+    auto& key = iter.Key();
+    if (key.ControlledDocument() == aDoc) {
+      entriesToBeRemoved.AppendElement(iter.Data());
+    }
+  }
+  for (auto& entry : entriesToBeRemoved) {
+    if (!RemoveFromCache(entry)) {
+      NS_WARNING("Couldn't remove an entry from the cache in ClearCacheForControlledDocument()\n");
+    }
+  }
 }
 
 void
@@ -2187,7 +2199,8 @@ imgLoader::LoadImage(nsIURI* aURI,
   // XXX For now ignore aCacheKey. We will need it in the future
   // for correctly dealing with image load requests that are a result
   // of post data.
-  ImageCacheKey key(aURI);
+  nsCOMPtr<nsIDOMDocument> doc = do_QueryInterface(aCX);
+  ImageCacheKey key(aURI, doc);
   imgCacheTable& cache = GetCache(key);
 
   if (cache.Get(key, getter_AddRefs(entry)) && entry) {
@@ -2416,7 +2429,8 @@ imgLoader::LoadImageWithChannel(nsIChannel* channel,
 
   nsCOMPtr<nsIURI> uri;
   channel->GetURI(getter_AddRefs(uri));
-  ImageCacheKey key(uri);
+  nsCOMPtr<nsIDOMDocument> doc = do_QueryInterface(aCX);
+  ImageCacheKey key(uri, doc);
 
   nsLoadFlags requestFlags = nsIRequest::LOAD_NORMAL;
   channel->GetLoadFlags(&requestFlags);
@@ -2510,7 +2524,7 @@ imgLoader::LoadImageWithChannel(nsIChannel* channel,
     // constructed above with the *current URI* and not the *original URI*. I'm
     // pretty sure this is a bug, and it's preventing us from ever getting a
     // cache hit in LoadImageWithChannel when redirects are involved.
-    ImageCacheKey originalURIKey(originalURI);
+    ImageCacheKey originalURIKey(originalURI, doc);
 
     // Default to doing a principal check because we don't know who
     // started that load and whether their principal ended up being

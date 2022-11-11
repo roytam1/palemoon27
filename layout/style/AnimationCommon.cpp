@@ -362,7 +362,7 @@ CommonAnimationManager::GetAnimations(dom::Element *aElement,
 }
 
 void
-CommonAnimationManager::FlushAnimations(FlushFlags aFlags)
+CommonAnimationManager::FlushAnimations()
 {
   TimeStamp now = mPresContext->RefreshDriver()->MostRecentRefresh();
   for (AnimationCollection* collection = mElementCollections.getFirst();
@@ -371,15 +371,13 @@ CommonAnimationManager::FlushAnimations(FlushFlags aFlags)
       continue;
     }
 
-    if (aFlags == Cannot_Throttle) {
-      collection->RequestRestyle(AnimationCollection::RestyleType::Standard);
-    }
+    MOZ_ASSERT(collection->mElement->GetComposedDoc() ==
+                 mPresContext->Document(),
+               "Should not have a transition/animation collection for an "
+               "element that is not part of the document tree");
 
-    nsAutoAnimationMutationBatch mb(collection->mElement->OwnerDoc());
-    collection->Tick();
+    collection->RequestRestyle(AnimationCollection::RestyleType::Standard);
   }
-
-  MaybeStartOrStopObservingRefreshDriver();
 }
 
 nsIStyleRule*
@@ -911,10 +909,6 @@ AnimationCollection::RequestRestyle(RestyleType aRestyleType)
     return;
   }
 
-  MOZ_ASSERT(mElement->GetCrossShadowCurrentDoc() == presContext->Document(),
-             "Element::UnbindFromTree should have destroyed the element "
-             "transition/animations object");
-
   // Steps for Restyle::Layer:
 
   if (aRestyleType == RestyleType::Layer) {
@@ -995,7 +989,7 @@ AnimationCollection::HasCurrentAnimationsForProperties(
     const Animation& anim = *mAnimations[animIdx];
     const KeyframeEffectReadOnly* effect = anim.GetEffect();
     if (effect &&
-        effect->IsCurrent(anim) &&
+        effect->IsCurrent() &&
         effect->HasAnimationOfProperties(aProperties, aPropertyCount)) {
       return true;
     }

@@ -21,6 +21,7 @@ namespace a11y {
 void
 ProxyAccessible::Shutdown()
 {
+  MOZ_DIAGNOSTIC_ASSERT(!IsDoc());
   NS_ASSERTION(!mOuterDoc, "Why do we still have a child doc?");
 
   // XXX Ideally  this wouldn't be necessary, but it seems OuterDoc accessibles
@@ -33,7 +34,7 @@ ProxyAccessible::Shutdown()
     if (mChildren.Length() != 1)
       MOZ_CRASH("outer doc doesn't own adoc!");
 
-    static_cast<DocAccessibleParent*>(mChildren[0])->Unbind();
+    mChildren[0]->AsDoc()->Unbind();
   }
 
   mChildren.Clear();
@@ -903,6 +904,18 @@ ProxyAccessible::UnselectAll()
   return success;
 }
 
+void
+ProxyAccessible::TakeSelection()
+{
+  unused << mDoc->SendTakeSelection(mID);
+}
+
+void
+ProxyAccessible::SetSelected(bool aSelect)
+{
+  unused << mDoc->SendSetSelected(mID, aSelect);
+}
+
 bool
 ProxyAccessible::DoAction(uint8_t aIndex)
 {
@@ -1021,6 +1034,14 @@ ProxyAccessible::IndexOfEmbeddedChild(const ProxyAccessible* aChild)
 ProxyAccessible*
 ProxyAccessible::EmbeddedChildAt(size_t aChildIdx)
 {
+  // For an outer doc the only child is a document, which is of course an
+  // embedded child.  Further asking the child process for the id of the child
+  // document won't work because the id of the child doc will be 0, which we
+  // would interpret as being our parent document.
+  if (mOuterDoc) {
+    return ChildAt(aChildIdx);
+  }
+
   uint64_t childID;
   unused << mDoc->SendEmbeddedChildAt(mID, aChildIdx, &childID);
   return mDoc->GetAccessible(childID);

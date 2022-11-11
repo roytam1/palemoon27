@@ -1183,6 +1183,7 @@ public:
   virtual Element* FindImageMap(const nsAString& aNormalizedMapName) override;
 
   virtual Element* GetFullScreenElement() override;
+  virtual nsTArray<Element*> GetFullscreenStack() const override;
   virtual void AsyncRequestFullScreen(Element* aElement,
                                       mozilla::dom::FullScreenOptions& aOptions) override;
   virtual void RestorePreviousFullScreenState() override;
@@ -1502,7 +1503,7 @@ protected:
 
   void RemoveDocStyleSheetsFromStyleSets();
   void RemoveStyleSheetsFromStyleSets(nsCOMArray<nsIStyleSheet>& aSheets, 
-                                      nsStyleSet::sheetType aType);
+                                      mozilla::SheetType aType);
   void ResetStylesheetsToURI(nsIURI* aURI);
   void FillStyleSet(nsStyleSet* aStyleSet);
 
@@ -1552,7 +1553,7 @@ protected:
 
   nsCOMArray<nsIStyleSheet> mStyleSheets;
   nsCOMArray<nsIStyleSheet> mOnDemandBuiltInUASheets;
-  nsCOMArray<nsIStyleSheet> mAdditionalSheets[SheetTypeCount];
+  nsCOMArray<nsIStyleSheet> mAdditionalSheets[AdditionalSheetTypeCount];
 
   // Array of observers
   nsTObserverArray<nsIDocumentObserver*> mObservers;

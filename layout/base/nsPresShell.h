@@ -191,12 +191,14 @@ public:
   RenderNode(nsIDOMNode* aNode,
              nsIntRegion* aRegion,
              nsIntPoint& aPoint,
-             nsIntRect* aScreenRect) override;
+             nsIntRect* aScreenRect,
+             uint32_t aFlags) override;
 
   virtual already_AddRefed<SourceSurface>
   RenderSelection(nsISelection* aSelection,
                   nsIntPoint& aPoint,
-                  nsIntRect* aScreenRect) override;
+                  nsIntRect* aScreenRect,
+                  uint32_t aFlags) override;
 
   virtual already_AddRefed<nsPIDOMWindow> GetRootWindow() override;
 
@@ -543,6 +545,8 @@ protected:
    * aPoint - reference point, typically the mouse position
    * aScreenRect - [out] set to the area of the screen the painted area should
    *               be displayed at
+   * aFlags - set RENDER_AUTO_SCALE to scale down large images, but it must not
+   *          be set if a custom image was specified
    */
   already_AddRefed<SourceSurface>
   PaintRangePaintInfo(nsTArray<nsAutoPtr<RangePaintInfo> >* aItems,
@@ -550,7 +554,8 @@ protected:
                       nsIntRegion* aRegion,
                       nsRect aArea,
                       nsIntPoint& aPoint,
-                      nsIntRect* aScreenRect);
+                      nsIntRect* aScreenRect,
+                      uint32_t aFlags);
 
   /**
    * Methods to handle changes to user and UA sheet lists that we get
@@ -559,7 +564,7 @@ protected:
   void AddUserSheet(nsISupports* aSheet);
   void AddAgentSheet(nsISupports* aSheet);
   void AddAuthorSheet(nsISupports* aSheet);
-  void RemoveSheet(nsStyleSet::sheetType aType, nsISupports* aSheet);
+  void RemoveSheet(mozilla::SheetType aType, nsISupports* aSheet);
 
   // Hide a view if it is a popup
   void HideViewIfPopup(nsView* aView);

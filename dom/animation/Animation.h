@@ -232,11 +232,11 @@ public:
 
   bool HasInPlayEffect() const
   {
-    return GetEffect() && GetEffect()->IsInPlay(*this);
+    return GetEffect() && GetEffect()->IsInPlay();
   }
   bool HasCurrentEffect() const
   {
-    return GetEffect() && GetEffect()->IsCurrent(*this);
+    return GetEffect() && GetEffect()->IsCurrent();
   }
   bool IsInEffect() const
   {
@@ -357,6 +357,7 @@ protected:
 
   bool IsPossiblyOrphanedPendingAnimation() const;
   StickyTimeDuration EffectEnd() const;
+  TimeStamp AnimationTimeToTimeStamp(const StickyTimeDuration& aTime) const;
 
   nsIDocument* GetRenderedDocument() const;
   nsPresContext* GetPresContext() const;

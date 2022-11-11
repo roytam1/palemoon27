@@ -68,7 +68,8 @@ SerializeTree(Accessible* aRoot, nsTArray<AccessibleData>& aTree)
   // OuterDocAccessibles are special because we don't want to serialize the
   // child doc here, we'll call PDocAccessibleConstructor in
   // NotificationController.
-  if (childCount == 1 && aRoot->GetChildAt(0)->IsDoc())
+  MOZ_ASSERT(!aRoot->IsDoc(), "documents shouldn't be serialized");
+  if (aRoot->IsOuterDoc())
     childCount = 0;
 
   aTree.AppendElement(AccessibleData(id, role, childCount, interfaces));
@@ -273,9 +274,9 @@ DocAccessibleChild::RecvRelationByType(const uint64_t& aID,
                                        const uint32_t& aType,
                                        nsTArray<uint64_t>* aTargets)
 {
-  Accessible* acc = mDoc->GetAccessibleByUniqueID((void*)aID);
+  Accessible* acc = IdToAccessible(aID);
   if (!acc)
-    return false;
+    return true;
 
   auto type = static_cast<RelationType>(aType);
   Relation rel = acc->RelationByType(type);
@@ -306,9 +307,9 @@ bool
 DocAccessibleChild::RecvRelations(const uint64_t& aID,
                                   nsTArray<RelationTargets>* aRelations)
 {
-  Accessible* acc = mDoc->GetAccessibleByUniqueID((void*)aID);
-  if (!aID)
-    return false;
+  Accessible* acc = IdToAccessible(aID);
+  if (!acc)
+    return true;
 
 #define RELATIONTYPE(gecko, s, a, m, i) AddRelation(acc, RelationType::gecko, aRelations);
 
@@ -1618,6 +1619,28 @@ DocAccessibleChild::RecvUnselectAll(const uint64_t& aID,
 }
 
 bool
+DocAccessibleChild::RecvTakeSelection(const uint64_t& aID)
+{
+  Accessible* acc = IdToAccessible(aID);
+  if (acc) {
+    acc->TakeSelection();
+  }
+
+  return true;
+}
+
+bool
+DocAccessibleChild::RecvSetSelected(const uint64_t& aID, const bool& aSelect)
+{
+  Accessible* acc = IdToAccessible(aID);
+  if (acc) {
+    acc->SetSelected(aSelect);
+  }
+
+  return true;
+}
+
+bool
 DocAccessibleChild::RecvDoAction(const uint64_t& aID,
                                  const uint8_t& aIndex,
                                  bool* aSuccess)
@@ -1984,7 +2007,7 @@ DocAccessibleChild::RecvExtents(const uint64_t& aID,
   *aWidth = 0;
   *aHeight = 0;
   Accessible* acc = IdToAccessible(aID);
-  if (acc && !acc->IsDefunct() && !nsAccUtils::MustPrune(acc)) {
+  if (acc && !acc->IsDefunct()) {
     nsIntRect screenRect = acc->Bounds();
     if (!screenRect.IsEmpty()) {
       if (aNeedsScreenCoords) {

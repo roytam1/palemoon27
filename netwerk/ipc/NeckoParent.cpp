@@ -13,6 +13,7 @@
 #include "mozilla/net/WyciwygChannelParent.h"
 #include "mozilla/net/FTPChannelParent.h"
 #include "mozilla/net/WebSocketChannelParent.h"
+#include "mozilla/net/WebSocketEventListenerParent.h"
 #include "mozilla/net/DataChannelParent.h"
 #ifdef NECKO_PROTOCOL_rtsp
 #include "mozilla/net/RtspControllerParent.h"
@@ -319,7 +320,8 @@ NeckoParent::DeallocPWyciwygChannelParent(PWyciwygChannelParent* channel)
 
 PWebSocketParent*
 NeckoParent::AllocPWebSocketParent(const PBrowserOrId& browser,
-                                   const SerializedLoadContext& serialized)
+                                   const SerializedLoadContext& serialized,
+                                   const uint32_t& aSerial)
 {
   nsCOMPtr<nsILoadContext> loadContext;
   const char *error = CreateChannelLoadContext(browser, Manager(),
@@ -334,7 +336,8 @@ NeckoParent::AllocPWebSocketParent(const PBrowserOrId& browser,
   RefPtr<TabParent> tabParent = TabParent::GetFrom(browser.get_PBrowserParent());
   PBOverrideStatus overrideStatus = PBOverrideStatusFromLoadContext(serialized);
   WebSocketChannelParent* p = new WebSocketChannelParent(tabParent, loadContext,
-                                                         overrideStatus);
+                                                         overrideStatus,
+                                                         aSerial);
   p->AddRef();
   return p;
 }
@@ -344,6 +347,23 @@ NeckoParent::DeallocPWebSocketParent(PWebSocketParent* actor)
 {
   WebSocketChannelParent* p = static_cast<WebSocketChannelParent*>(actor);
   p->Release();
+  return true;
+}
+
+PWebSocketEventListenerParent*
+NeckoParent::AllocPWebSocketEventListenerParent(const uint64_t& aInnerWindowID)
+{
+  RefPtr<WebSocketEventListenerParent> c =
+    new WebSocketEventListenerParent(aInnerWindowID);
+  return c.forget().take();
+}
+
+bool
+NeckoParent::DeallocPWebSocketEventListenerParent(PWebSocketEventListenerParent* aActor)
+{
+  RefPtr<WebSocketEventListenerParent> c =
+    dont_AddRef(static_cast<WebSocketEventListenerParent*>(aActor));
+  MOZ_ASSERT(c);
   return true;
 }
 

@@ -3887,7 +3887,7 @@ nsGlobalWindow::GetContentOuter(JSContext* aCx,
 {
   MOZ_RELEASE_ASSERT(IsOuterWindow());
 
-  nsCOMPtr<nsIDOMWindow> content = GetContentInternal(aError);
+  nsCOMPtr<nsIDOMWindow> content = GetContentInternal(aError, !nsContentUtils::IsCallerChrome());
   if (aError.Failed()) {
     return;
   }
@@ -3916,7 +3916,7 @@ nsGlobalWindow::GetContent(JSContext* aCx,
 }
 
 already_AddRefed<nsIDOMWindow>
-nsGlobalWindow::GetContentInternal(ErrorResult& aError)
+nsGlobalWindow::GetContentInternal(ErrorResult& aError, bool aUnprivilegedCaller)
 {
   MOZ_ASSERT(IsOuterWindow());
 
@@ -3934,7 +3934,7 @@ nsGlobalWindow::GetContentInternal(ErrorResult& aError)
   }
 
   nsCOMPtr<nsIDocShellTreeItem> primaryContent;
-  if (!nsContentUtils::IsCallerChrome()) {
+  if (aUnprivilegedCaller) {
     // If we're called by non-chrome code, make sure we don't return
     // the primary content window if the calling tab is hidden. In
     // such a case we return the same-type root in the hidden tab,
@@ -3967,17 +3967,6 @@ nsGlobalWindow::GetContentInternal(ErrorResult& aError)
 
   domWindow = primaryContent->GetWindow();
   return domWindow.forget();
-}
-
-NS_IMETHODIMP
-nsGlobalWindow::GetContent(nsIDOMWindow** aContent)
-{
-  FORWARD_TO_OUTER(GetContent, (aContent), NS_ERROR_UNEXPECTED);
-
-  ErrorResult rv;
-  *aContent = GetContentInternal(rv).take();
-
-  return rv.StealNSResult();
 }
 
 MozSelfSupport*
@@ -13415,18 +13404,6 @@ nsGlobalWindow::RemoveGamepad(uint32_t aIndex)
   mGamepads.Remove(aIndex);
 }
 
-// static
-PLDHashOperator
-nsGlobalWindow::EnumGamepadsForGet(const uint32_t& aKey, Gamepad* aData,
-                                   void* aUserArg)
-{
-  nsTArray<RefPtr<Gamepad> >* array =
-    static_cast<nsTArray<RefPtr<Gamepad> >*>(aUserArg);
-  array->EnsureLengthAtLeast(aData->Index() + 1);
-  (*array)[aData->Index()] = aData;
-  return PL_DHASH_NEXT;
-}
-
 void
 nsGlobalWindow::GetGamepads(nsTArray<RefPtr<Gamepad> >& aGamepads)
 {
@@ -13434,7 +13411,11 @@ nsGlobalWindow::GetGamepads(nsTArray<RefPtr<Gamepad> >& aGamepads)
   aGamepads.Clear();
   // mGamepads.Count() may not be sufficient, but it's not harmful.
   aGamepads.SetCapacity(mGamepads.Count());
-  mGamepads.EnumerateRead(EnumGamepadsForGet, &aGamepads);
+  for (auto iter = mGamepads.Iter(); !iter.Done(); iter.Next()) {
+    Gamepad* gamepad = iter.UserData();
+    aGamepads.EnsureLengthAtLeast(gamepad->Index() + 1);
+    aGamepads[gamepad->Index()] = gamepad;
+  }
 }
 
 already_AddRefed<Gamepad>
@@ -13464,22 +13445,15 @@ nsGlobalWindow::HasSeenGamepadInput()
   return mHasSeenGamepadInput;
 }
 
-// static
-PLDHashOperator
-nsGlobalWindow::EnumGamepadsForSync(const uint32_t& aKey, Gamepad* aData,
-                                    void* aUserArg)
-{
-  RefPtr<GamepadService> gamepadsvc(GamepadService::GetService());
-  gamepadsvc->SyncGamepadState(aKey, aData);
-  return PL_DHASH_NEXT;
-}
-
 void
 nsGlobalWindow::SyncGamepadState()
 {
   MOZ_ASSERT(IsInnerWindow());
   if (mHasSeenGamepadInput) {
-    mGamepads.EnumerateRead(EnumGamepadsForSync, nullptr);
+    RefPtr<GamepadService> gamepadsvc(GamepadService::GetService());
+    for (auto iter = mGamepads.Iter(); !iter.Done(); iter.Next()) {
+      gamepadsvc->SyncGamepadState(iter.Key(), iter.UserData());
+    }
   }
 }
 #endif // MOZ_GAMEPAD
@@ -13522,9 +13496,7 @@ NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN_INHERITED(nsGlobalChromeWindow,
       tmp->mMessageManager.get())->Disconnect();
     NS_IMPL_CYCLE_COLLECTION_UNLINK(mMessageManager)
   }
-
-  tmp->mGroupMessageManagers.EnumerateRead(DisconnectGroupMessageManager, nullptr);
-  tmp->mGroupMessageManagers.Clear();
+  tmp->DisconnectAndClearGroupMessageManagers();
   NS_IMPL_CYCLE_COLLECTION_UNLINK(mGroupMessageManagers)
 NS_IMPL_CYCLE_COLLECTION_UNLINK_END
 

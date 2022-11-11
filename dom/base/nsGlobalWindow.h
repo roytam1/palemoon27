@@ -40,6 +40,7 @@
 #include "mozilla/dom/StorageEvent.h"
 #include "mozilla/dom/StorageEventBinding.h"
 #include "mozilla/dom/UnionTypes.h"
+#include "mozilla/ErrorResult.h"
 #include "nsFrameMessageManager.h"
 #include "mozilla/LinkedList.h"
 #include "mozilla/TimeStamp.h"
@@ -337,6 +338,8 @@ public:
 #else
   { }
 #endif
+
+  static nsGlobalWindow* Cast(nsPIDOMWindow* aPIWin) { return static_cast<nsGlobalWindow*>(aPIWin); }
 
   // public methods
   nsPIDOMWindow* GetPrivateParent();
@@ -762,12 +765,6 @@ public:
   void SetHasSeenGamepadInput(bool aHasSeen);
   bool HasSeenGamepadInput();
   void SyncGamepadState();
-  static PLDHashOperator EnumGamepadsForSync(const uint32_t& aKey,
-                                             mozilla::dom::Gamepad* aData,
-                                             void* aUserArg);
-  static PLDHashOperator EnumGamepadsForGet(const uint32_t& aKey,
-                                            mozilla::dom::Gamepad* aData,
-                                            void* aUserArg);
 #endif
 
   // Inner windows only.
@@ -1106,12 +1103,21 @@ public:
   OpenDialog(const nsAString& aUrl, const nsAString& aName,
              const nsAString& aOptions,
              nsISupports* aExtraArgument, nsIDOMWindow** _retval) override;
+  already_AddRefed<nsIDOMWindow>
+    GetContentInternal(mozilla::ErrorResult& aError, bool aUnprivilegedCaller);
   void GetContentOuter(JSContext* aCx,
                        JS::MutableHandle<JSObject*> aRetval,
                        mozilla::ErrorResult& aError);
   void GetContent(JSContext* aCx,
                   JS::MutableHandle<JSObject*> aRetval,
                   mozilla::ErrorResult& aError);
+  already_AddRefed<nsIDOMWindow> GetContent()
+  {
+    MOZ_ASSERT(IsOuterWindow());
+    mozilla::ErrorResult ignored;
+    return GetContentInternal(ignored, /* aUnprivilegedCaller = */ false);
+  }
+
   void Get_content(JSContext* aCx,
                    JS::MutableHandle<JSObject*> aRetval,
                    mozilla::ErrorResult& aError)
@@ -1609,9 +1615,6 @@ protected:
     ShowModalDialog(const nsAString& aUrl, nsIVariant* aArgument,
                     const nsAString& aOptions, mozilla::ErrorResult& aError);
 
-  already_AddRefed<nsIDOMWindow>
-    GetContentInternal(mozilla::ErrorResult& aError);
-
   // Ask the user if further dialogs should be blocked, if dialogs are currently
   // being abused. This is used in the cases where we have no modifiable UI to
   // show, in that case we show a separate dialog to ask this question.
@@ -1873,15 +1876,15 @@ public:
 
   static already_AddRefed<nsGlobalChromeWindow> Create(nsGlobalWindow *aOuterWindow);
 
-  static PLDHashOperator
-  DisconnectGroupMessageManager(const nsAString& aKey,
-                                nsIMessageBroadcaster* aMM,
-                                void* aUserArg)
+  void DisconnectAndClearGroupMessageManagers()
   {
-    if (aMM) {
-      static_cast<nsFrameMessageManager*>(aMM)->Disconnect();
+    for (auto iter = mGroupMessageManagers.Iter(); !iter.Done(); iter.Next()) {
+      nsIMessageBroadcaster* mm = iter.UserData();
+      if (mm) {
+        static_cast<nsFrameMessageManager*>(mm)->Disconnect();
+      }
     }
-    return PL_DHASH_NEXT;
+    mGroupMessageManagers.Clear();
   }
 
 protected:
@@ -1898,8 +1901,7 @@ protected:
     MOZ_ASSERT(mCleanMessageManager,
                "chrome windows may always disconnect the msg manager");
 
-    mGroupMessageManagers.EnumerateRead(DisconnectGroupMessageManager, nullptr);
-    mGroupMessageManagers.Clear();
+    DisconnectAndClearGroupMessageManagers();
 
     if (mMessageManager) {
       static_cast<nsFrameMessageManager *>(

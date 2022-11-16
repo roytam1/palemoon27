@@ -2473,7 +2473,7 @@ var gCSSProperties = {
     inherited: false,
     type: CSS_TYPE_LONGHAND,
     initial_values: [ "none" ],
-    other_values: [ "left", "right", "both" ],
+    other_values: [ "left", "right", "both", "inline-start", "inline-end" ],
     invalid_values: []
   },
   "clip": {
@@ -2543,7 +2543,7 @@ var gCSSProperties = {
     type: CSS_TYPE_LONGHAND,
     initial_values: [ "inline" ],
     /* XXX none will really mess with other properties */
-    prerequisites: { "float": "none", "position": "static" },
+    prerequisites: { "float": "none", "position": "static", "contain": "none" },
     other_values: [
       "block",
       "flex",
@@ -2577,7 +2577,7 @@ var gCSSProperties = {
     inherited: false,
     type: CSS_TYPE_LONGHAND,
     initial_values: [ "none" ],
-    other_values: [ "left", "right" ],
+    other_values: [ "left", "right", "inline-start", "inline-end" ],
     invalid_values: []
   },
   "font": {
@@ -3221,7 +3221,7 @@ var gCSSProperties = {
     domProp: "overflow",
     inherited: false,
     type: CSS_TYPE_SHORTHAND_AND_LONGHAND,
-    prerequisites: { "display": "block" },
+    prerequisites: { "display": "block", "contain": "none" },
     subproperties: [ "overflow-x", "overflow-y" ],
     initial_values: [ "visible" ],
     other_values: [ "auto", "scroll", "hidden", "-moz-hidden-unscrollable", "-moz-scrollbars-none" ],
@@ -3231,7 +3231,7 @@ var gCSSProperties = {
     domProp: "overflowX",
     inherited: false,
     type: CSS_TYPE_LONGHAND,
-    prerequisites: { "display": "block", "overflow-y": "visible" },
+    prerequisites: { "display": "block", "overflow-y": "visible", "contain": "none" },
     initial_values: [ "visible" ],
     other_values: [ "auto", "scroll", "hidden", "-moz-hidden-unscrollable" ],
     invalid_values: []
@@ -3240,7 +3240,7 @@ var gCSSProperties = {
     domProp: "overflowY",
     inherited: false,
     type: CSS_TYPE_LONGHAND,
-    prerequisites: { "display": "block", "overflow-x": "visible" },
+    prerequisites: { "display": "block", "overflow-x": "visible", "contain": "none" },
     initial_values: [ "visible" ],
     other_values: [ "auto", "scroll", "hidden", "-moz-hidden-unscrollable" ],
     invalid_values: []
@@ -3764,10 +3764,11 @@ var gCSSProperties = {
     initial_values: [ "normal", "0", "0px", "-0em",
       "calc(-0px)", "calc(0em)"
     ],
-    other_values: [ "1em", "2px", "-3px",
+    other_values: [ "1em", "2px", "-3px", "0%", "50%", "-120%",
       "calc(1em)", "calc(1em + 3px)",
       "calc(15px / 2)", "calc(15px/2)",
-      "calc(-2em)"
+      "calc(-2em)", "calc(0% + 0px)",
+      "calc(-10%/2 - 1em)"
     ],
     invalid_values: [],
     quirks_values: { "5": "5px" },

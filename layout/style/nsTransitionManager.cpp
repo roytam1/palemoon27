@@ -57,14 +57,14 @@ ElementPropertyTransition::CurrentValuePortion() const
   timingToUse.mFillMode = NS_STYLE_ANIMATION_FILL_MODE_BOTH;
   ComputedTiming computedTiming = GetComputedTiming(&timingToUse);
 
-  MOZ_ASSERT(computedTiming.mProgress != ComputedTiming::kNullProgress,
+  MOZ_ASSERT(!computedTiming.mProgress.IsNull(),
              "Got a null progress for a fill mode of 'both'");
   MOZ_ASSERT(mProperties.Length() == 1,
              "Should have one animation property for a transition");
   MOZ_ASSERT(mProperties[0].mSegments.Length() == 1,
              "Animation property should have one segment for a transition");
   return mProperties[0].mSegments[0].mTimingFunction
-         .GetValue(computedTiming.mProgress);
+         .GetValue(computedTiming.mProgress.Value());
 }
 
 ////////////////////////// CSSTransition ////////////////////////////
@@ -153,17 +153,6 @@ CSSTransition::QueueEvents()
                                             .mIterationDuration,
                                           AnimationTimeToTimeStamp(EffectEnd()),
                                           this));
-}
-
-bool
-CSSTransition::HasEndEventToQueue() const
-{
-  if (!mEffect) {
-    return false;
-  }
-
-  return !mWasFinishedOnLastTick &&
-         PlayState() == AnimationPlayState::Finished;
 }
 
 void
@@ -487,7 +476,7 @@ nsTransitionManager::StyleContextChanged(dom::Element *aElement,
     // creates a new style rule if we started *or* stopped transitions.
     collection->mStyleRuleRefreshTime = TimeStamp();
     collection->UpdateCheckGeneration(mPresContext);
-    collection->mNeedsRefreshes = true;
+    collection->mStyleChanging = true;
     TimeStamp now = mPresContext->RefreshDriver()->MostRecentRefresh();
     collection->EnsureStyleRuleFor(now);
   }

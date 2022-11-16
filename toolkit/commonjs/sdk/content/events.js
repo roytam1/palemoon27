@@ -34,7 +34,7 @@ function streamEventsFrom({document}) {
   // Map supported event types to a streams of those events on the given
   // `window` for the inserted document and than merge these streams into
   // single form stream off all window state change events.
-  var stateChanges = TYPES.map(function(type) {
+  let stateChanges = TYPES.map(function(type) {
     return open(document, type, { capture: true });
   });
 

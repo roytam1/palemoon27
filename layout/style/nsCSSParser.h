@@ -9,6 +9,7 @@
 #define nsCSSParser_h___
 
 #include "mozilla/Attributes.h"
+#include "mozilla/css/Loader.h"
 
 #include "nsCSSProperty.h"
 #include "nsCSSScanner.h"
@@ -32,8 +33,6 @@ class CSSVariableValues;
 namespace css {
 class Rule;
 class Declaration;
-class Loader;
-class LoaderReusableStyleSheets;
 class StyleRule;
 } // namespace css
 } // namespace mozilla
@@ -78,8 +77,7 @@ public:
    * @param aSheetPrincipal the principal of the stylesheet.  This must match
    *                        the principal of the sheet passed to SetStyleSheet.
    * @param aLineNumber the line number of the first line of the sheet.
-   * @param aAllowUnsafeRules see aEnableUnsafeRules in
-   *                          mozilla::css::Loader::LoadSheetSync
+   * @param aParsingMode  see SheetParsingMode in css/Loader.h
    * @param aReusableSheets style sheets that can be reused by an @import.
    *                        This can be nullptr.
    */
@@ -88,18 +86,18 @@ public:
                       nsIURI*          aBaseURI,
                       nsIPrincipal*    aSheetPrincipal,
                       uint32_t         aLineNumber,
-                      bool             aAllowUnsafeRules,
+                      mozilla::css::SheetParsingMode aParsingMode,
                       mozilla::css::LoaderReusableStyleSheets* aReusableSheets =
                         nullptr);
 
   // Parse HTML style attribute or its equivalent in other markup
   // languages.  aBaseURL is the base url to use for relative links in
   // the declaration.
-  nsresult ParseStyleAttribute(const nsAString&  aAttributeValue,
+  already_AddRefed<mozilla::css::Declaration>
+           ParseStyleAttribute(const nsAString&  aAttributeValue,
                                nsIURI*           aDocURL,
                                nsIURI*           aBaseURL,
-                               nsIPrincipal*     aNodePrincipal,
-                               mozilla::css::StyleRule** aResult);
+                               nsIPrincipal*     aNodePrincipal);
 
   // Parse the body of a declaration block.  Very similar to
   // ParseStyleAttribute, but used under different circumstances.

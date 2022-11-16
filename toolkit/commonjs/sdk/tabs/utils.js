@@ -11,10 +11,11 @@ module.metadata = {
 // NOTE: This file should only deal with xul/native tabs
 
 
-const { Ci } = require('chrome');
+const { Ci, Cu } = require('chrome');
 const { defer } = require("../lang/functional");
 const { windows, isBrowser } = require('../window/utils');
 const { isPrivateBrowsingSupported } = require('../self');
+const { ShimWaiver } = Cu.import("resource://gre/modules/ShimWaiver.jsm");
 
 // Bug 834961: ignore private windows when they are not supported
 function getWindows() {
@@ -215,14 +216,25 @@ function getTabForId(id) {
 exports.getTabForId = getTabForId;
 
 function getTabTitle(tab) {
-  return getBrowserForTab(tab).contentDocument.title || tab.label || "";
+  return getBrowserForTab(tab).contentTitle || tab.label || "";
 }
 exports.getTabTitle = getTabTitle;
 
 function setTabTitle(tab, title) {
   title = String(title);
-  if (tab.browser)
+  if (tab.browser) {
+    // Fennec
     tab.browser.contentDocument.title = title;
+  }
+  else {
+    let browser = getBrowserForTab(tab);
+    // Note that we aren't actually setting the document title in e10s, just
+    // the title the browser thinks the content has
+    if (browser.isRemoteBrowser)
+      browser._contentTitle = title;
+    else
+      browser.contentDocument.title = title;
+  }
   tab.label = String(title);
 }
 exports.setTabTitle = setTabTitle;
@@ -251,18 +263,24 @@ function getTabForContentWindow(window) {
 }
 exports.getTabForContentWindow = getTabForContentWindow;
 
+// only sdk/selection.js is relying on shims
+function getTabForContentWindowNoShim(window) {
+  function getTabContentWindowNoShim(tab) {
+    let browser = getBrowserForTab(tab);
+    return ShimWaiver.getProperty(browser, "contentWindow");
+  }
+  return getTabs().find(tab => getTabContentWindowNoShim(tab) === window.top) || null;
+}
+exports.getTabForContentWindowNoShim = getTabForContentWindowNoShim;
+
 function getTabURL(tab) {
-  if (tab.browser) // fennec
-    return String(tab.browser.currentURI.spec);
   return String(getBrowserForTab(tab).currentURI.spec);
 }
 exports.getTabURL = getTabURL;
 
 function setTabURL(tab, url) {
-  url = String(url);
-  if (tab.browser)
-    return tab.browser.loadURI(url);
-  return getBrowserForTab(tab).loadURI(url);
+  let browser = getBrowserForTab(tab);
+  browser.loadURI(String(url));
 }
 // "TabOpen" event is fired when it's still "about:blank" is loaded in the
 // changing `location` property of the `contentDocument` has no effect since
@@ -296,7 +314,9 @@ function getTabForBrowser(browser) {
         return tab;
     }
   }
-  return null;
+
+  let tabbrowser = browser.getTabBrowser && browser.getTabBrowser()
+  return !!tabbrowser && tabbrowser.getTabForBrowser(browser);
 }
 exports.getTabForBrowser = getTabForBrowser;
 
@@ -320,11 +340,7 @@ function isPinned(tab) {
 exports.isPinned = isPinned;
 
 function reload(tab) {
-  let gBrowser = getTabBrowserForTab(tab);
-  // Firefox
-  if (gBrowser) gBrowser.unpinTab(tab);
-  // Fennec
-  else if (tab.browser) tab.browser.reload();
+  getBrowserForTab(tab).reload();
 }
 exports.reload = reload
 
@@ -332,8 +348,7 @@ function getIndex(tab) {
   let gBrowser = getTabBrowserForTab(tab);
   // Firefox
   if (gBrowser) {
-    let document = getBrowserForTab(tab).contentDocument;
-    return gBrowser.getBrowserIndexForDocument(document);
+    return tab._tPos;
   }
   // Fennec
   else {

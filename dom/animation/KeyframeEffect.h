@@ -13,7 +13,8 @@
 #include "nsIDocument.h"
 #include "nsWrapperCache.h"
 #include "mozilla/Attributes.h"
-#include "mozilla/LayerAnimationInfo.h" // LayerAnimations::kRecords
+#include "mozilla/ComputedTimingFunction.h" // ComputedTimingFunction
+#include "mozilla/LayerAnimationInfo.h"     // LayerAnimations::kRecords
 #include "mozilla/StickyTimeDuration.h"
 #include "mozilla/StyleAnimationValue.h"
 #include "mozilla/TimeStamp.h"
@@ -21,8 +22,6 @@
 #include "mozilla/dom/Element.h"
 #include "mozilla/dom/KeyframeBinding.h"
 #include "mozilla/dom/Nullable.h"
-#include "nsSMILKeySpline.h"
-#include "nsStyleStruct.h" // for nsTimingFunction
 
 struct JSContext;
 class nsCSSPropertySet;
@@ -30,6 +29,10 @@ class nsCSSPropertySet;
 namespace mozilla {
 
 class AnimValuesStyleRule;
+
+namespace dom {
+struct ComputedTimingProperties;
+}
 
 /**
  * Input timing parameters.
@@ -72,73 +75,25 @@ struct AnimationTiming
  */
 struct ComputedTiming
 {
-  ComputedTiming()
-    : mProgress(kNullProgress)
-    , mCurrentIteration(0)
-    , mPhase(AnimationPhase_Null)
-  { }
-
-  static const double kNullProgress;
-
   // The total duration of the animation including all iterations.
   // Will equal StickyTimeDuration::Forever() if the animation repeats
   // indefinitely.
-  StickyTimeDuration mActiveDuration;
-
+  StickyTimeDuration  mActiveDuration;
   // Progress towards the end of the current iteration. If the effect is
   // being sampled backwards, this will go from 1.0 to 0.0.
-  // Will be kNullProgress if the animation is neither animating nor
+  // Will be null if the animation is neither animating nor
   // filling at the sampled time.
-  double mProgress;
+  Nullable<double>    mProgress;
+  // Zero-based iteration index (meaningless if mProgress is null).
+  uint64_t            mCurrentIteration = 0;
 
-  // Zero-based iteration index (meaningless if mProgress is kNullProgress).
-  uint64_t mCurrentIteration;
-
-  enum {
-    // Not sampled (null sample time)
-    AnimationPhase_Null,
-    // Sampled prior to the start of the active interval
-    AnimationPhase_Before,
-    // Sampled within the active interval
-    AnimationPhase_Active,
-    // Sampled after (or at) the end of the active interval
-    AnimationPhase_After
-  } mPhase;
-};
-
-class ComputedTimingFunction
-{
-public:
-  typedef nsTimingFunction::Type Type;
-  typedef nsTimingFunction::StepSyntax StepSyntax;
-  void Init(const nsTimingFunction &aFunction);
-  double GetValue(double aPortion) const;
-  const nsSMILKeySpline* GetFunction() const {
-    NS_ASSERTION(HasSpline(), "Type mismatch");
-    return &mTimingFunction;
-  }
-  Type GetType() const { return mType; }
-  bool HasSpline() const { return nsTimingFunction::IsSplineType(mType); }
-  uint32_t GetSteps() const { return mSteps; }
-  StepSyntax GetStepSyntax() const { return mStepSyntax; }
-  bool operator==(const ComputedTimingFunction& aOther) const {
-    return mType == aOther.mType &&
-           (HasSpline() ?
-            mTimingFunction == aOther.mTimingFunction :
-            (mSteps == aOther.mSteps &&
-             mStepSyntax == aOther.mStepSyntax));
-  }
-  bool operator!=(const ComputedTimingFunction& aOther) const {
-    return !(*this == aOther);
-  }
-  int32_t Compare(const ComputedTimingFunction& aRhs) const;
-  void AppendToString(nsAString& aResult) const;
-
-private:
-  Type mType;
-  nsSMILKeySpline mTimingFunction;
-  uint32_t mSteps;
-  StepSyntax mStepSyntax;
+  enum class AnimationPhase {
+    Null,   // Not sampled (null sample time)
+    Before, // Sampled prior to the start of the active interval
+    Active, // Sampled within the active interval
+    After   // Sampled after (or at) the end of the active interval
+  };
+  AnimationPhase      mPhase = AnimationPhase::Null;
 };
 
 struct AnimationPropertySegment
@@ -263,8 +218,8 @@ public:
   // active duration are calculated. All other members of the returned object
   // are given a null/initial value.
   //
-  // This function returns ComputedTiming::kNullProgress for the mProgress
-  // member of the return value if the animation should not be run
+  // This function returns a null mProgress member of the return value
+  // if the animation should not be run
   // (because it is not currently active and is not filling at this time).
   static ComputedTiming
   GetComputedTimingAt(const Nullable<TimeDuration>& aLocalTime,
@@ -272,10 +227,14 @@ public:
 
   // Shortcut for that gets the computed timing using the current local time as
   // calculated from the timeline time.
-  ComputedTiming GetComputedTiming(const AnimationTiming* aTiming
-                                     = nullptr) const {
+  ComputedTiming
+  GetComputedTiming(const AnimationTiming* aTiming = nullptr) const
+  {
     return GetComputedTimingAt(GetLocalTime(), aTiming ? *aTiming : mTiming);
   }
+
+  void
+  GetComputedTimingAsDict(ComputedTimingProperties& aRetVal) const override;
 
   // Return the duration of the active interval for the given timing parameters.
   static StickyTimeDuration

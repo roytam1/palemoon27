@@ -39,7 +39,10 @@ private:
 void
 FontFaceBufferSource::TakeBuffer(uint8_t*& aBuffer, uint32_t& aLength)
 {
+  MOZ_ASSERT(mFontFace, "only call TakeBuffer once on a given "
+                        "FontFaceBufferSource object");
   mFontFace->TakeBuffer(aBuffer, aLength);
+  mFontFace = nullptr;
 }
 
 // -- Utility functions ------------------------------------------------------
@@ -471,10 +474,11 @@ FontFace::ParseDescriptor(nsCSSFontDesc aDescID,
   nsCOMPtr<nsIPrincipal> principal = global->PrincipalOrNull();
 
   nsCOMPtr<nsPIDOMWindow> window = do_QueryInterface(mParent);
+  nsCOMPtr<nsIURI> docURI = window->GetDocumentURI();
   nsCOMPtr<nsIURI> base = window->GetDocBaseURI();
 
   if (!parser.ParseFontFaceDescriptor(aDescID, aString,
-                                      nullptr, // aSheetURL
+                                      docURI, // aSheetURL
                                       base,
                                       principal,
                                       aResult)) {

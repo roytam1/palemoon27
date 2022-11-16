@@ -1910,20 +1910,20 @@ Element::GetSMILOverrideStyle()
   return slots->mSMILOverrideStyle;
 }
 
-css::StyleRule*
-Element::GetSMILOverrideStyleRule()
+css::Declaration*
+Element::GetSMILOverrideStyleDeclaration()
 {
   Element::nsDOMSlots *slots = GetExistingDOMSlots();
-  return slots ? slots->mSMILOverrideStyleRule.get() : nullptr;
+  return slots ? slots->mSMILOverrideStyleDeclaration.get() : nullptr;
 }
 
 nsresult
-Element::SetSMILOverrideStyleRule(css::StyleRule* aStyleRule,
-                                           bool aNotify)
+Element::SetSMILOverrideStyleDeclaration(css::Declaration* aDeclaration,
+                                         bool aNotify)
 {
   Element::nsDOMSlots *slots = DOMSlots();
 
-  slots->mSMILOverrideStyleRule = aStyleRule;
+  slots->mSMILOverrideStyleDeclaration = aDeclaration;
 
   if (aNotify) {
     nsIDocument* doc = GetComposedDoc();
@@ -1958,18 +1958,18 @@ Element::IsInteractiveHTMLContent(bool aIgnoreTabindex) const
   return false;
 }
 
-css::StyleRule*
-Element::GetInlineStyleRule()
+css::Declaration*
+Element::GetInlineStyleDeclaration()
 {
   return nullptr;
 }
 
 nsresult
-Element::SetInlineStyleRule(css::StyleRule* aStyleRule,
-                            const nsAString* aSerialized,
-                            bool aNotify)
+Element::SetInlineStyleDeclaration(css::Declaration* aDeclaration,
+                                   const nsAString* aSerialized,
+                                   bool aNotify)
 {
-  NS_NOTYETIMPLEMENTED("Element::SetInlineStyleRule");
+  NS_NOTYETIMPLEMENTED("Element::SetInlineStyleDeclaration");
   return NS_ERROR_NOT_IMPLEMENTED;
 }
 

@@ -102,9 +102,6 @@ struct nsStyleFont {
   nsStyleFont(const nsFont& aFont, nsPresContext *aPresContext);
   nsStyleFont(const nsStyleFont& aStyleFont);
   explicit nsStyleFont(nsPresContext *aPresContext);
-private:
-  void Init(nsPresContext *aPresContext);
-public:
   ~nsStyleFont(void) {
     MOZ_COUNT_DTOR(nsStyleFont);
   }
@@ -125,6 +122,7 @@ public:
 
   static nscoord ZoomText(nsPresContext* aPresContext, nscoord aSize);
   static nscoord UnZoomText(nsPresContext* aPresContext, nscoord aSize);
+  static already_AddRefed<nsIAtom> GetLanguage(nsPresContext* aPresContext);
 
   void* operator new(size_t sz, nsPresContext* aContext) CPP_THROW_NEW {
     return aContext->PresShell()->
@@ -150,6 +148,9 @@ public:
   uint8_t mMathVariant;          // [inherited]
   // MathML displaystyle support
   uint8_t mMathDisplay;         // [inherited]
+
+  // allow different min font-size for certain cases
+  uint8_t mMinFontSizeRatio;     // [inherited] percent * 100
 
   // was mLanguage set based on a lang attribute in the document?
   bool mExplicitLanguage;        // [inherited]
@@ -1536,10 +1537,10 @@ struct nsStyleText {
   uint8_t mControlCharacterVisibility;  // [inherited] see nsStyleConsts.h
   int32_t mTabSize;                     // [inherited] see nsStyleConsts.h
 
-  nscoord mWordSpacing;                 // [inherited]
-  nsStyleCoord  mLetterSpacing;         // [inherited] coord, normal
-  nsStyleCoord  mLineHeight;            // [inherited] coord, factor, normal
-  nsStyleCoord  mTextIndent;            // [inherited] coord, percent, calc
+  nsStyleCoord mWordSpacing;            // [inherited] coord, percent, calc
+  nsStyleCoord mLetterSpacing;          // [inherited] coord, normal
+  nsStyleCoord mLineHeight;             // [inherited] coord, factor, normal
+  nsStyleCoord mTextIndent;             // [inherited] coord, percent, calc
 
   RefPtr<nsCSSShadowArray> mTextShadow; // [inherited] nullptr in case of a zero-length
 
@@ -2174,6 +2175,10 @@ struct nsStyleDisplay {
            mOverflowX != NS_STYLE_OVERFLOW_CLIP;
   }
 
+  bool IsContainPaint() const {
+    return NS_STYLE_CONTAIN_PAINT & mContain;
+  }
+
   /* Returns whether the element has the -moz-transform property
    * or a related property. */
   bool HasTransformStyle() const {
@@ -2221,6 +2226,12 @@ struct nsStyleDisplay {
    * aContextFrame is the frame for which this is the nsStylePosition.
    */
   inline bool IsFixedPosContainingBlock(const nsIFrame* aContextFrame) const;
+
+  // Return the 'float' and 'clear' properties, with inline-{start,end} values
+  // resolved to {left,right} according to the given writing mode. These are
+  // defined in WritingModes.h.
+  inline uint8_t PhysicalFloats(mozilla::WritingMode aWM) const;
+  inline uint8_t PhysicalBreakType(mozilla::WritingMode aWM) const;
 };
 
 struct nsStyleTable {

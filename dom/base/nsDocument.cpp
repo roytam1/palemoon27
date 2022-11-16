@@ -330,13 +330,6 @@ nsIdentifierMapEntry::RemoveContentChangeCallback(nsIDocument::IDTargetObserver 
   }
 }
 
-// XXX Workaround for bug 980560 to maintain the existing broken semantics
-template<>
-struct nsIStyleRule::COMTypeInfo<css::Rule, void> {
-  static const nsIID kIID;
-};
-const nsIID nsIStyleRule::COMTypeInfo<css::Rule, void>::kIID = NS_ISTYLE_RULE_IID;
-
 namespace mozilla {
 namespace dom {
 
@@ -4396,7 +4389,8 @@ FindSheet(const nsCOMArray<nsIStyleSheet>& aSheets, nsIURI* aSheetURI)
 }
 
 nsresult
-nsDocument::LoadAdditionalStyleSheet(additionalSheetType aType, nsIURI* aSheetURI)
+nsDocument::LoadAdditionalStyleSheet(additionalSheetType aType,
+                                     nsIURI* aSheetURI)
 {
   NS_PRECONDITION(aSheetURI, "null arg");
 
@@ -4405,11 +4399,29 @@ nsDocument::LoadAdditionalStyleSheet(additionalSheetType aType, nsIURI* aSheetUR
     return NS_ERROR_INVALID_ARG;
 
   // Loading the sheet sync.
-  RefPtr<mozilla::css::Loader> loader = new mozilla::css::Loader();
+  RefPtr<css::Loader> loader = new css::Loader();
+
+  css::SheetParsingMode parsingMode;
+  switch (aType) {
+    case nsIDocument::eAgentSheet:
+      parsingMode = css::eAgentSheetFeatures;
+      break;
+
+    case nsIDocument::eUserSheet:
+      parsingMode = css::eUserSheetFeatures;
+      break;
+
+    case nsIDocument::eAuthorSheet:
+      parsingMode = css::eAuthorSheetFeatures;
+      break;
+
+    default:
+      MOZ_CRASH("impossible value for aType");
+  }
 
   RefPtr<CSSStyleSheet> sheet;
-  nsresult rv = loader->LoadSheetSync(aSheetURI, aType == eAgentSheet,
-    true, getter_AddRefs(sheet));
+  nsresult rv = loader->LoadSheetSync(aSheetURI, parsingMode, true,
+                                      getter_AddRefs(sheet));
   NS_ENSURE_SUCCESS(rv, rv);
 
   sheet->SetOwningDocument(this);
@@ -5194,51 +5206,51 @@ nsDocument::DocumentStatesChanged(EventStates aStateMask)
 
 void
 nsDocument::StyleRuleChanged(nsIStyleSheet* aSheet,
-                             nsIStyleRule* aOldStyleRule,
-                             nsIStyleRule* aNewStyleRule)
+                             css::Rule* aOldStyleRule,
+                             css::Rule* aNewStyleRule)
 {
   NS_DOCUMENT_NOTIFY_OBSERVERS(StyleRuleChanged,
                                (this, aSheet,
                                 aOldStyleRule, aNewStyleRule));
 
   if (StyleSheetChangeEventsEnabled()) {
-    nsCOMPtr<css::Rule> rule = do_QueryInterface(aNewStyleRule);
     DO_STYLESHEET_NOTIFICATION(StyleRuleChangeEvent,
                                "StyleRuleChanged",
                                mRule,
-                               rule ? rule->GetDOMRule() : nullptr);
+                               aNewStyleRule ? aNewStyleRule->GetDOMRule()
+                                             : nullptr);
   }
 }
 
 void
 nsDocument::StyleRuleAdded(nsIStyleSheet* aSheet,
-                           nsIStyleRule* aStyleRule)
+                           css::Rule* aStyleRule)
 {
   NS_DOCUMENT_NOTIFY_OBSERVERS(StyleRuleAdded,
                                (this, aSheet, aStyleRule));
 
   if (StyleSheetChangeEventsEnabled()) {
-    nsCOMPtr<css::Rule> rule = do_QueryInterface(aStyleRule);
     DO_STYLESHEET_NOTIFICATION(StyleRuleChangeEvent,
                                "StyleRuleAdded",
                                mRule,
-                               rule ? rule->GetDOMRule() : nullptr);
+                               aStyleRule ? aStyleRule->GetDOMRule()
+                                          : nullptr);
   }
 }
 
 void
 nsDocument::StyleRuleRemoved(nsIStyleSheet* aSheet,
-                             nsIStyleRule* aStyleRule)
+                             css::Rule* aStyleRule)
 {
   NS_DOCUMENT_NOTIFY_OBSERVERS(StyleRuleRemoved,
                                (this, aSheet, aStyleRule));
 
   if (StyleSheetChangeEventsEnabled()) {
-    nsCOMPtr<css::Rule> rule = do_QueryInterface(aStyleRule);
     DO_STYLESHEET_NOTIFICATION(StyleRuleChangeEvent,
                                "StyleRuleRemoved",
                                mRule,
-                               rule ? rule->GetDOMRule() : nullptr);
+                               aStyleRule ? aStyleRule->GetDOMRule()
+                                          : nullptr);
   }
 }
 
@@ -9855,7 +9867,10 @@ nsresult
 nsDocument::LoadChromeSheetSync(nsIURI* uri, bool isAgentSheet,
                                 CSSStyleSheet** sheet)
 {
-  return CSSLoader()->LoadSheetSync(uri, isAgentSheet, isAgentSheet, sheet);
+  css::SheetParsingMode mode =
+    isAgentSheet ? css::eAgentSheetFeatures
+                 : css::eAuthorSheetFeatures;
+  return CSSLoader()->LoadSheetSync(uri, mode, isAgentSheet, sheet);
 }
 
 class nsDelayedEventDispatcher : public nsRunnable

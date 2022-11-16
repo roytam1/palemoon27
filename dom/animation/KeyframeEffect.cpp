@@ -5,6 +5,7 @@
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "mozilla/dom/KeyframeEffect.h"
+#include "mozilla/dom/AnimationEffectReadOnlyBinding.h"
 #include "mozilla/dom/KeyframeEffectBinding.h"
 #include "mozilla/dom/PropertyIndexedKeyframesBinding.h"
 #include "mozilla/FloatingPoint.h"
@@ -15,99 +16,75 @@
 #include "nsCSSProps.h" // For nsCSSProps::PropHasFlags
 #include "nsCSSValue.h"
 #include "nsStyleUtil.h"
+#include <algorithm>    // std::max
 
 namespace mozilla {
 
-void
-ComputedTimingFunction::Init(const nsTimingFunction &aFunction)
+// Helper functions for generating a ComputedTimingProperties dictionary
+static dom::FillMode
+ConvertFillMode(uint8_t aFill)
 {
-  mType = aFunction.mType;
-  if (nsTimingFunction::IsSplineType(mType)) {
-    mTimingFunction.Init(aFunction.mFunc.mX1, aFunction.mFunc.mY1,
-                         aFunction.mFunc.mX2, aFunction.mFunc.mY2);
-  } else {
-    mSteps = aFunction.mSteps;
-    mStepSyntax = aFunction.mStepSyntax;
-  }
-}
-
-static inline double
-StepEnd(uint32_t aSteps, double aPortion)
-{
-  MOZ_ASSERT(0.0 <= aPortion && aPortion <= 1.0, "out of range");
-  uint32_t step = uint32_t(aPortion * aSteps); // floor
-  return double(step) / double(aSteps);
-}
-
-double
-ComputedTimingFunction::GetValue(double aPortion) const
-{
-  if (HasSpline()) {
-    return mTimingFunction.GetSplineValue(aPortion);
-  }
-  if (mType == nsTimingFunction::Type::StepStart) {
-    // There are diagrams in the spec that seem to suggest this check
-    // and the bounds point should not be symmetric with StepEnd, but
-    // should actually step up at rather than immediately after the
-    // fraction points.  However, we rely on rounding negative values
-    // up to zero, so we can't do that.  And it's not clear the spec
-    // really meant it.
-    return 1.0 - StepEnd(mSteps, 1.0 - aPortion);
-  }
-  MOZ_ASSERT(mType == nsTimingFunction::Type::StepEnd, "bad type");
-  return StepEnd(mSteps, aPortion);
-}
-
-int32_t
-ComputedTimingFunction::Compare(const ComputedTimingFunction& aRhs) const
-{
-  if (mType != aRhs.mType) {
-    return int32_t(mType) - int32_t(aRhs.mType);
-  }
-
-  if (mType == nsTimingFunction::Type::CubicBezier) {
-    int32_t order = mTimingFunction.Compare(aRhs.mTimingFunction);
-    if (order != 0) {
-      return order;
-    }
-  } else if (mType == nsTimingFunction::Type::StepStart ||
-             mType == nsTimingFunction::Type::StepEnd) {
-    if (mSteps != aRhs.mSteps) {
-      return int32_t(mSteps) - int32_t(aRhs.mSteps);
-    }
-    if (mStepSyntax != aRhs.mStepSyntax) {
-      return int32_t(mStepSyntax) - int32_t(aRhs.mStepSyntax);
-    }
-  }
-
-  return 0;
-}
-
-void
-ComputedTimingFunction::AppendToString(nsAString& aResult) const
-{
-  switch (mType) {
-    case nsTimingFunction::Type::CubicBezier:
-      nsStyleUtil::AppendCubicBezierTimingFunction(mTimingFunction.X1(),
-                                                   mTimingFunction.Y1(),
-                                                   mTimingFunction.X2(),
-                                                   mTimingFunction.Y2(),
-                                                   aResult);
-      break;
-    case nsTimingFunction::Type::StepStart:
-    case nsTimingFunction::Type::StepEnd:
-      nsStyleUtil::AppendStepsTimingFunction(mType, mSteps, mStepSyntax,
-                                             aResult);
-      break;
+  switch (aFill) {
+    case NS_STYLE_ANIMATION_FILL_MODE_NONE:
+      return dom::FillMode::None;
+    case NS_STYLE_ANIMATION_FILL_MODE_FORWARDS:
+      return dom::FillMode::Forwards;
+    case NS_STYLE_ANIMATION_FILL_MODE_BACKWARDS:
+      return dom::FillMode::Backwards;
+    case NS_STYLE_ANIMATION_FILL_MODE_BOTH:
+      return dom::FillMode::Both;
     default:
-      nsStyleUtil::AppendCubicBezierKeywordTimingFunction(mType, aResult);
-      break;
+      MOZ_ASSERT(false, "The mapping of FillMode is not correct");
+      return dom::FillMode::None;
   }
 }
 
-// In the Web Animations model, the iteration progress can be outside the range
-// [0.0, 1.0] but it shouldn't be Infinity.
-const double ComputedTiming::kNullProgress = PositiveInfinity<double>();
+static dom::PlaybackDirection
+ConvertPlaybackDirection(uint8_t aDirection)
+{
+  switch (aDirection) {
+    case NS_STYLE_ANIMATION_DIRECTION_NORMAL:
+      return dom::PlaybackDirection::Normal;
+    case NS_STYLE_ANIMATION_DIRECTION_REVERSE:
+      return dom::PlaybackDirection::Reverse;
+    case NS_STYLE_ANIMATION_DIRECTION_ALTERNATE:
+      return dom::PlaybackDirection::Alternate;
+    case NS_STYLE_ANIMATION_DIRECTION_ALTERNATE_REVERSE:
+      return dom::PlaybackDirection::Alternate_reverse;
+    default:
+      MOZ_ASSERT(false, "The mapping of PlaybackDirection is not correct");
+      return dom::PlaybackDirection::Normal;
+  }
+}
+
+static void
+GetComputedTimingDictionary(const ComputedTiming& aComputedTiming,
+                            const Nullable<TimeDuration>& aLocalTime,
+                            const AnimationTiming& aTiming,
+                            dom::ComputedTimingProperties& aRetVal)
+{
+  // AnimationEffectTimingProperties
+  aRetVal.mDelay = aTiming.mDelay.ToMilliseconds();
+  aRetVal.mFill = ConvertFillMode(aTiming.mFillMode);
+  aRetVal.mIterations = aTiming.mIterationCount;
+  aRetVal.mDuration.SetAsUnrestrictedDouble() = aTiming.mIterationDuration.ToMilliseconds();
+  aRetVal.mDirection = ConvertPlaybackDirection(aTiming.mDirection);
+
+  // ComputedTimingProperties
+  aRetVal.mActiveDuration = aComputedTiming.mActiveDuration.ToMilliseconds();
+  aRetVal.mEndTime
+    = std::max(aRetVal.mDelay + aRetVal.mActiveDuration + aRetVal.mEndDelay, 0.0);
+  aRetVal.mLocalTime = dom::AnimationUtils::TimeDurationToDouble(aLocalTime);
+  aRetVal.mProgress = aComputedTiming.mProgress;
+  if (!aRetVal.mProgress.IsNull()) {
+    // Convert the returned currentIteration into Infinity if we set
+    // (uint64_t) aComputedTiming.mCurrentIteration to UINT64_MAX
+    double iteration = aComputedTiming.mCurrentIteration == UINT64_MAX
+                     ? PositiveInfinity<double>()
+                     : static_cast<double>(aComputedTiming.mCurrentIteration);
+    aRetVal.mCurrentIteration.SetValue(iteration);
+  }
+}
 
 namespace dom {
 
@@ -171,6 +148,16 @@ KeyframeEffectReadOnly::GetLocalTime() const
   return result;
 }
 
+void
+KeyframeEffectReadOnly::GetComputedTimingAsDict(ComputedTimingProperties& aRetVal) const
+{
+  const Nullable<TimeDuration> currentTime = GetLocalTime();
+  GetComputedTimingDictionary(GetComputedTimingAt(currentTime, mTiming),
+                              currentTime,
+                              mTiming,
+                              aRetVal);
+}
+
 ComputedTiming
 KeyframeEffectReadOnly::GetComputedTimingAt(
                           const Nullable<TimeDuration>& aLocalTime,
@@ -206,10 +193,10 @@ KeyframeEffectReadOnly::GetComputedTimingAt(
   // Get the normalized time within the active interval.
   StickyTimeDuration activeTime;
   if (localTime >= aTiming.mDelay + result.mActiveDuration) {
-    result.mPhase = ComputedTiming::AnimationPhase_After;
+    result.mPhase = ComputedTiming::AnimationPhase::After;
     if (!aTiming.FillsForwards()) {
       // The animation isn't active or filling at this time.
-      result.mProgress = ComputedTiming::kNullProgress;
+      result.mProgress.SetNull();
       return result;
     }
     activeTime = result.mActiveDuration;
@@ -219,17 +206,17 @@ KeyframeEffectReadOnly::GetComputedTimingAt(
       aTiming.mIterationCount != 0.0 &&
       aTiming.mIterationCount == floor(aTiming.mIterationCount);
   } else if (localTime < aTiming.mDelay) {
-    result.mPhase = ComputedTiming::AnimationPhase_Before;
+    result.mPhase = ComputedTiming::AnimationPhase::Before;
     if (!aTiming.FillsBackwards()) {
       // The animation isn't active or filling at this time.
-      result.mProgress = ComputedTiming::kNullProgress;
+      result.mProgress.SetNull();
       return result;
     }
     // activeTime is zero
   } else {
     MOZ_ASSERT(result.mActiveDuration != zeroDuration,
                "How can we be in the middle of a zero-duration interval?");
-    result.mPhase = ComputedTiming::AnimationPhase_Active;
+    result.mPhase = ComputedTiming::AnimationPhase::Active;
     activeTime = localTime - aTiming.mDelay;
   }
 
@@ -245,8 +232,8 @@ KeyframeEffectReadOnly::GetComputedTimingAt(
   if (isEndOfFinalIteration) {
     result.mCurrentIteration =
       aTiming.mIterationCount == NS_IEEEPositiveInfinity()
-      ? UINT64_MAX // FIXME: When we return this via the API we'll need
-                   // to make sure it ends up being infinity.
+      ? UINT64_MAX // In GetComputedTimingDictionary(), we will convert this
+                   // into Infinity.
       : static_cast<uint64_t>(aTiming.mIterationCount) - 1;
   } else if (activeTime == zeroDuration) {
     // If the active time is zero we're either in the first iteration
@@ -254,7 +241,7 @@ KeyframeEffectReadOnly::GetComputedTimingAt(
     // iteration duration of zero that is filling forwards (but we're not at
     // the exact end of an iteration since we deal with that above).
     result.mCurrentIteration =
-      result.mPhase == ComputedTiming::AnimationPhase_After
+      result.mPhase == ComputedTiming::AnimationPhase::After
       ? static_cast<uint64_t>(aTiming.mIterationCount) // floor
       : 0;
   } else {
@@ -263,19 +250,21 @@ KeyframeEffectReadOnly::GetComputedTimingAt(
   }
 
   // Normalize the iteration time into a fraction of the iteration duration.
-  if (result.mPhase == ComputedTiming::AnimationPhase_Before) {
-    result.mProgress = 0.0;
-  } else if (result.mPhase == ComputedTiming::AnimationPhase_After) {
-    result.mProgress = isEndOfFinalIteration
-                       ? 1.0
-                       : fmod(aTiming.mIterationCount, 1.0f);
+  if (result.mPhase == ComputedTiming::AnimationPhase::Before) {
+    result.mProgress.SetValue(0.0);
+  } else if (result.mPhase == ComputedTiming::AnimationPhase::After) {
+    double progress = isEndOfFinalIteration
+                      ? 1.0
+                      : fmod(aTiming.mIterationCount, 1.0f);
+    result.mProgress.SetValue(progress);
   } else {
     // We are in the active phase so the iteration duration can't be zero.
     MOZ_ASSERT(aTiming.mIterationDuration != zeroDuration,
                "In the active phase of a zero-duration animation?");
-    result.mProgress = aTiming.mIterationDuration == TimeDuration::Forever()
-                       ? 0.0
-                       : iterationTime / aTiming.mIterationDuration;
+    double progress = aTiming.mIterationDuration == TimeDuration::Forever()
+                      ? 0.0
+                      : iterationTime / aTiming.mIterationDuration;
+    result.mProgress.SetValue(progress);
   }
 
   bool thisIterationReverse = false;
@@ -294,7 +283,7 @@ KeyframeEffectReadOnly::GetComputedTimingAt(
       break;
   }
   if (thisIterationReverse) {
-    result.mProgress = 1.0 - result.mProgress;
+    result.mProgress.SetValue(1.0 - result.mProgress.Value());
   }
 
   return result;
@@ -324,7 +313,7 @@ KeyframeEffectReadOnly::IsInPlay() const
     return false;
   }
 
-  return GetComputedTiming().mPhase == ComputedTiming::AnimationPhase_Active;
+  return GetComputedTiming().mPhase == ComputedTiming::AnimationPhase::Active;
 }
 
 // https://w3c.github.io/web-animations/#current
@@ -336,8 +325,8 @@ KeyframeEffectReadOnly::IsCurrent() const
   }
 
   ComputedTiming computedTiming = GetComputedTiming();
-  return computedTiming.mPhase == ComputedTiming::AnimationPhase_Before ||
-         computedTiming.mPhase == ComputedTiming::AnimationPhase_Active;
+  return computedTiming.mPhase == ComputedTiming::AnimationPhase::Before ||
+         computedTiming.mPhase == ComputedTiming::AnimationPhase::Active;
 }
 
 // https://w3c.github.io/web-animations/#in-effect
@@ -345,7 +334,7 @@ bool
 KeyframeEffectReadOnly::IsInEffect() const
 {
   ComputedTiming computedTiming = GetComputedTiming();
-  return computedTiming.mProgress != ComputedTiming::kNullProgress;
+  return !computedTiming.mProgress.IsNull();
 }
 
 void
@@ -391,12 +380,13 @@ KeyframeEffectReadOnly::ComposeStyle(RefPtr<AnimValuesStyleRule>& aStyleRule,
 
   // If the progress is null, we don't have fill data for the current
   // time so we shouldn't animate.
-  if (computedTiming.mProgress == ComputedTiming::kNullProgress) {
+  if (computedTiming.mProgress.IsNull()) {
     return;
   }
 
-  MOZ_ASSERT(0.0 <= computedTiming.mProgress &&
-             computedTiming.mProgress <= 1.0,
+  MOZ_ASSERT(!computedTiming.mProgress.IsNull() &&
+             0.0 <= computedTiming.mProgress.Value() &&
+             computedTiming.mProgress.Value() <= 1.0,
              "iteration progress should be in [0-1]");
 
   for (size_t propIdx = 0, propEnd = mProperties.Length();
@@ -434,7 +424,7 @@ KeyframeEffectReadOnly::ComposeStyle(RefPtr<AnimValuesStyleRule>& aStyleRule,
     // FIXME: Maybe cache the current segment?
     const AnimationPropertySegment *segment = prop.mSegments.Elements(),
                                 *segmentEnd = segment + prop.mSegments.Length();
-    while (segment->mToKey < computedTiming.mProgress) {
+    while (segment->mToKey < computedTiming.mProgress.Value()) {
       MOZ_ASSERT(segment->mFromKey < segment->mToKey, "incorrect keys");
       ++segment;
       if (segment == segmentEnd) {
@@ -458,7 +448,7 @@ KeyframeEffectReadOnly::ComposeStyle(RefPtr<AnimValuesStyleRule>& aStyleRule,
     }
 
     double positionInSegment =
-      (computedTiming.mProgress - segment->mFromKey) /
+      (computedTiming.mProgress.Value() - segment->mFromKey) /
       (segment->mToKey - segment->mFromKey);
     double valuePosition =
       segment->mTimingFunction.GetValue(positionInSegment);

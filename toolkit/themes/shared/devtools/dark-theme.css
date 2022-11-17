@@ -43,6 +43,8 @@
   --theme-graphs-orange: #d96629;
   --theme-graphs-red: #eb5368;
   --theme-graphs-grey: #757873;
+  --theme-graphs-full-red: #f00;
+  --theme-graphs-full-blue: #00f;
 }
 
 .theme-body {

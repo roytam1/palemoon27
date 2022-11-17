@@ -369,34 +369,44 @@ JS_GetTraceThingInfo(char* buf, size_t bufsize, JSTracer* trc,
 
 namespace js {
 
-// Automates static dispatch for tracing for TraceableContainers.
-template <typename, typename=void> struct DefaultTracer;
+// Automates static dispatch for GC interaction with TraceableContainers.
+template <typename>
+struct DefaultGCPolicy;
 
-// The default for POD, non-pointer types is to do nothing.
+// This policy dispatches GC methods to a method on the type.
 template <typename T>
-struct DefaultTracer<T, typename mozilla::EnableIf<!mozilla::IsPointer<T>::value &&
-                                                   mozilla::IsPod<T>::value>::Type> {
+struct StructGCPolicy {
     static void trace(JSTracer* trc, T* t, const char* name) {
-        MOZ_ASSERT(mozilla::IsPod<T>::value);
-        MOZ_ASSERT(!mozilla::IsPointer<T>::value);
-    }
-};
-
-// The default for non-pod (e.g. struct) types is to call the trace method.
-template <typename T>
-struct DefaultTracer<T, typename mozilla::EnableIf<!mozilla::IsPod<T>::value>::Type> {
-    static void trace(JSTracer* trc, T* t, const char* name) {
+        // This is the default GC policy for storing GC things in containers.
+        // If your build is failing here, it means you either need an
+        // implementation of DefaultGCPolicy<T> for your type or, if this is
+        // the right policy for you, your struct or container is missing a
+        // trace method.
         t->trace(trc);
     }
 };
 
+// This policy ignores any GC interaction, e.g. for non-GC types.
+template <typename T>
+struct IgnoreGCPolicy {
+    static void trace(JSTracer* trc, uint32_t* id, const char* name) {}
+};
+
+// The default policy when no other more specific policy fits (e.g. for a
+// direct GC pointer), is to assume a struct type that implements the needed
+// methods.
+template <typename T>
+struct DefaultGCPolicy : public StructGCPolicy<T> {};
+
 template <>
-struct DefaultTracer<jsid>
+struct DefaultGCPolicy<jsid>
 {
     static void trace(JSTracer* trc, jsid* id, const char* name) {
         JS_CallUnbarrieredIdTracer(trc, id, name);
     }
 };
+
+template <> struct DefaultGCPolicy<uint32_t> : public IgnoreGCPolicy<uint32_t> {};
 
 } // namespace js
 

@@ -33,6 +33,7 @@ LoadInfo::LoadInfo(nsIPrincipal* aLoadingPrincipal,
   , mInternalContentPolicyType(aContentPolicyType)
   , mTainting(LoadTainting::Basic)
   , mUpgradeInsecureRequests(false)
+  , mUpgradeInsecurePreloads(false)
   , mInnerWindowID(0)
   , mOuterWindowID(0)
   , mParentOuterWindowID(0)
@@ -80,6 +81,7 @@ LoadInfo::LoadInfo(nsIPrincipal* aLoadingPrincipal,
     }
 
     mUpgradeInsecureRequests = aLoadingContext->OwnerDoc()->GetUpgradeInsecureRequests();
+    mUpgradeInsecurePreloads = aLoadingContext->OwnerDoc()->GetUpgradeInsecurePreloads();
   }
 
   mOriginAttributes = BasePrincipal::Cast(mLoadingPrincipal)->OriginAttributesRef();
@@ -91,12 +93,18 @@ LoadInfo::LoadInfo(const LoadInfo& rhs)
   , mLoadingContext(rhs.mLoadingContext)
   , mSecurityFlags(rhs.mSecurityFlags)
   , mInternalContentPolicyType(rhs.mInternalContentPolicyType)
+  , mTainting(rhs.mTainting)
   , mUpgradeInsecureRequests(rhs.mUpgradeInsecureRequests)
+  , mUpgradeInsecurePreloads(rhs.mUpgradeInsecurePreloads)
   , mInnerWindowID(rhs.mInnerWindowID)
   , mOuterWindowID(rhs.mOuterWindowID)
   , mParentOuterWindowID(rhs.mParentOuterWindowID)
-  , mEnforceSecurity(false)
-  , mInitialSecurityCheckDone(false)
+  , mEnforceSecurity(rhs.mEnforceSecurity)
+  , mInitialSecurityCheckDone(rhs.mInitialSecurityCheckDone)
+  , mOriginAttributes(rhs.mOriginAttributes)
+  , mRedirectChainIncludingInternalRedirects(
+      rhs.mRedirectChainIncludingInternalRedirects)
+  , mRedirectChain(rhs.mRedirectChain)
   , mIsFromProcessingFrameAttributes(rhs.mIsFromProcessingFrameAttributes)
 {
 }
@@ -106,6 +114,7 @@ LoadInfo::LoadInfo(nsIPrincipal* aLoadingPrincipal,
                    nsSecurityFlags aSecurityFlags,
                    nsContentPolicyType aContentPolicyType,
                    bool aUpgradeInsecureRequests,
+                   bool aUpgradeInsecurePreloads,
                    uint64_t aInnerWindowID,
                    uint64_t aOuterWindowID,
                    uint64_t aParentOuterWindowID,
@@ -119,6 +128,7 @@ LoadInfo::LoadInfo(nsIPrincipal* aLoadingPrincipal,
   , mSecurityFlags(aSecurityFlags)
   , mInternalContentPolicyType(aContentPolicyType)
   , mUpgradeInsecureRequests(aUpgradeInsecureRequests)
+  , mUpgradeInsecurePreloads(aUpgradeInsecurePreloads)
   , mInnerWindowID(aInnerWindowID)
   , mOuterWindowID(aOuterWindowID)
   , mParentOuterWindowID(aParentOuterWindowID)
@@ -154,6 +164,17 @@ already_AddRefed<nsILoadInfo>
 LoadInfo::Clone() const
 {
   RefPtr<LoadInfo> copy(new LoadInfo(*this));
+  return copy.forget();
+}
+
+already_AddRefed<nsILoadInfo>
+LoadInfo::CloneForNewRequest() const
+{
+  RefPtr<LoadInfo> copy(new LoadInfo(*this));
+  copy->mEnforceSecurity = false;
+  copy->mInitialSecurityCheckDone = false;
+  copy->mRedirectChainIncludingInternalRedirects.Clear();
+  copy->mRedirectChain.Clear();
   return copy.forget();
 }
 
@@ -284,6 +305,13 @@ NS_IMETHODIMP
 LoadInfo::GetUpgradeInsecureRequests(bool* aResult)
 {
   *aResult = mUpgradeInsecureRequests;
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+LoadInfo::GetUpgradeInsecurePreloads(bool* aResult)
+{
+  *aResult = mUpgradeInsecurePreloads;
   return NS_OK;
 }
 

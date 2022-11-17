@@ -3568,6 +3568,16 @@ nsNativeThemeCocoa::ThemeSupportsWidget(nsPresContext* aPresContext, nsIFrame* a
   }
 
   switch (aWidgetType) {
+    // Combobox dropdowns don't support native theming in vertical mode.
+    case NS_THEME_DROPDOWN:
+    case NS_THEME_DROPDOWN_BUTTON:
+    case NS_THEME_DROPDOWN_TEXT:
+    case NS_THEME_DROPDOWN_TEXTFIELD:
+      if (aFrame && aFrame->GetWritingMode().IsVertical()) {
+        return false;
+      }
+      // fall through
+
     case NS_THEME_LISTBOX:
 
     case NS_THEME_DIALOG:
@@ -3645,11 +3655,6 @@ nsNativeThemeCocoa::ThemeSupportsWidget(nsPresContext* aPresContext, nsIFrame* a
     case NS_THEME_SCROLLBAR_TRACK_VERTICAL:
     case NS_THEME_SCROLLBAR_TRACK_HORIZONTAL:
     case NS_THEME_SCROLLBAR_NON_DISAPPEARING:
-
-    case NS_THEME_DROPDOWN:
-    case NS_THEME_DROPDOWN_BUTTON:
-    case NS_THEME_DROPDOWN_TEXT:
-    case NS_THEME_DROPDOWN_TEXTFIELD:
       return !IsWidgetStyled(aPresContext, aFrame, aWidgetType);
       break;
 

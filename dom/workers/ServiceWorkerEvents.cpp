@@ -203,6 +203,7 @@ class RespondWithHandler final : public PromiseNativeHandler
   const DebugOnly<bool> mIsClientRequest;
   const bool mIsNavigationRequest;
   const nsCString mScriptSpec;
+  bool mRequestWasHandled;
 public:
   NS_DECL_ISUPPORTS
 
@@ -215,6 +216,7 @@ public:
     , mIsClientRequest(aIsClientRequest)
     , mIsNavigationRequest(aIsNavigationRequest)
     , mScriptSpec(aScriptSpec)
+    , mRequestWasHandled(false)
   {
   }
 
@@ -224,7 +226,12 @@ public:
 
   void CancelRequest(nsresult aStatus);
 private:
-  ~RespondWithHandler() {}
+  ~RespondWithHandler()
+  {
+    if (!mRequestWasHandled) {
+      CancelRequest(NS_ERROR_INTERCEPTION_FAILED);
+    }
+  }
 };
 
 struct RespondWithClosure
@@ -406,6 +413,7 @@ RespondWithHandler::ResolvedCallback(JSContext* aCx, JS::Handle<JS::Value> aValu
 
   MOZ_ASSERT(!closure);
   autoCancel.Reset();
+  mRequestWasHandled = true;
 }
 
 void
@@ -420,6 +428,7 @@ RespondWithHandler::CancelRequest(nsresult aStatus)
   nsCOMPtr<nsIRunnable> runnable =
     new CancelChannelRunnable(mInterceptedChannel, aStatus);
   NS_DispatchToMainThread(runnable);
+  mRequestWasHandled = true;
 }
 
 } // namespace
@@ -432,7 +441,17 @@ FetchEvent::RespondWith(Promise& aArg, ErrorResult& aRv)
     return;
   }
 
+  // 4.5.3.2 If the respond-with entered flag is set, then:
+  // Throw an "InvalidStateError" exception.
+  // Here we use |mPromise != nullptr| as respond-with enter flag
+  if (mPromise) {
+    aRv.Throw(NS_ERROR_DOM_INVALID_STATE_ERR);
+    return;
+  }
+  mPromise = &aArg;
+
   RefPtr<InternalRequest> ir = mRequest->GetInternalRequest();
+  StopImmediatePropagation();
   mWaitToRespond = true;
   RefPtr<RespondWithHandler> handler =
     new RespondWithHandler(mChannel, mRequest->Mode(), ir->IsClientRequest(),
@@ -464,7 +483,8 @@ NS_IMPL_RELEASE_INHERITED(FetchEvent, Event)
 NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION_INHERITED(FetchEvent)
 NS_INTERFACE_MAP_END_INHERITING(Event)
 
-NS_IMPL_CYCLE_COLLECTION_INHERITED(FetchEvent, Event, mRequest, mClient)
+NS_IMPL_CYCLE_COLLECTION_INHERITED(FetchEvent, Event, mRequest, mClient,
+                                   mPromise)
 
 ExtendableEvent::ExtendableEvent(EventTarget* aOwner)
   : Event(aOwner, nullptr, nullptr)

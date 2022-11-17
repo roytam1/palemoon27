@@ -1833,7 +1833,7 @@ MediaManager::GetUserMedia(nsPIDOMWindow* aWindow,
   bool isApp;
   docURI->SchemeIs("app", &isApp);
   // Same localhost check as ServiceWorkers uses
-  // (see IsFromAuthenticatedOriginInternal())
+  // (see IsURIPotentiallyTrustworthy())
   bool isLocalhost = NS_SUCCEEDED(rv) &&
                      (host.LowerCaseEqualsLiteral("localhost") ||
                       host.LowerCaseEqualsLiteral("127.0.0.1") ||

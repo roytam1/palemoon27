@@ -4003,6 +4003,18 @@ nsComputedDOMStyle::DoGetJustifyItems()
 }
 
 CSSValue*
+nsComputedDOMStyle::DoGetJustifySelf()
+{
+  nsROCSSPrimitiveValue* val = new nsROCSSPrimitiveValue;
+  nsAutoString str;
+  auto justify = StylePosition()->
+    ComputedJustifySelf(StyleDisplay(), mStyleContext->GetParent());
+  nsCSSValue::AppendAlignJustifyValueToString(justify, str);
+  val->SetString(str);
+  return val;
+}
+
+CSSValue*
 nsComputedDOMStyle::DoGetFloatEdge()
 {
   nsROCSSPrimitiveValue *val = new nsROCSSPrimitiveValue;

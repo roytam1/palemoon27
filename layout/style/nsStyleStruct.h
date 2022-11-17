@@ -872,9 +872,10 @@ struct nsStyleBorder {
 
   nsChangeHint CalcDifference(const nsStyleBorder& aOther) const;
   static nsChangeHint MaxDifference() {
-    return NS_CombineHint(NS_STYLE_HINT_REFLOW,
-                          NS_CombineHint(nsChangeHint_BorderStyleNoneChange,
-                                         nsChangeHint_NeutralChange));
+    return NS_STYLE_HINT_REFLOW |
+           nsChangeHint_UpdateOverflow |
+           nsChangeHint_BorderStyleNoneChange |
+           nsChangeHint_NeutralChange;
   }
   static nsChangeHint DifferenceAlwaysHandledForDescendants() {
     // CalcDifference never returns the reflow hints that are sometimes
@@ -1511,7 +1512,8 @@ struct nsStyleText {
 
   nsChangeHint CalcDifference(const nsStyleText& aOther) const;
   static nsChangeHint MaxDifference() {
-    return NS_STYLE_HINT_FRAMECHANGE;
+    return NS_STYLE_HINT_FRAMECHANGE |
+           nsChangeHint_UpdateSubtreeOverflow;
   }
   static nsChangeHint DifferenceAlwaysHandledForDescendants() {
     // CalcDifference never returns the reflow hints that are sometimes
@@ -2298,12 +2300,21 @@ struct nsStylePosition {
   // XXXdholbert nsStyleBackground::Position should probably be moved to a
   // different scope, since we're now using it in multiple style structs.
   typedef nsStyleBackground::Position Position;
+
   /**
    * Return the computed value for 'justify-items' given our 'display' value in
    * aDisplay and the parent StyleContext aParent (or null for the root).
    */
   uint8_t ComputedJustifyItems(const nsStyleDisplay* aDisplay,
                                nsStyleContext* aParent) const;
+
+  /**
+   * Return the computed value for 'justify-self' given our 'display' value in
+   * aDisplay and the parent StyleContext aParent (or null for the root).
+   */
+  uint8_t ComputedJustifySelf(const nsStyleDisplay* aDisplay,
+                              nsStyleContext* aParent) const;
+
   Position      mObjectPosition;        // [reset]
   nsStyleSides  mOffset;                // [reset] coord, percent, calc, auto
   nsStyleCoord  mWidth;                 // [reset] coord, percent, enum, calc, auto
@@ -2324,7 +2335,12 @@ struct nsStylePosition {
   uint8_t       mAlignSelf;             // [reset] see nsStyleConsts.h
 private:
   friend class nsRuleNode;
+  // Helper for the ComputedAlign/Justify* methods.
+  uint8_t MapLeftRightToStart(uint8_t aAlign, mozilla::LogicalAxis aAxis,
+                              const nsStyleDisplay* aDisplay) const;
+
   uint8_t       mJustifyItems;          // [reset] see nsStyleConsts.h
+  uint8_t       mJustifySelf;           // [reset] see nsStyleConsts.h
 public:
   uint8_t       mFlexDirection;         // [reset] see nsStyleConsts.h
   uint8_t       mFlexWrap;              // [reset] see nsStyleConsts.h

@@ -96,6 +96,16 @@ const TIMELINE_BLUEPRINT = {
     label: L10N.getStr("timeline.label.domevent"),
     fields: Formatters.DOMEventFields,
   },
+  "document::DOMContentLoaded": {
+    group: 1,
+    colorName: "graphs-full-red",
+    label: "DOMContentLoaded"
+  },
+  "document::Load": {
+    group: 1,
+    colorName: "graphs-full-blue",
+    label: "Load"
+  },
   "Javascript": {
     group: 1,
     colorName: "graphs-yellow",

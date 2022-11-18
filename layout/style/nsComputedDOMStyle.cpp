@@ -3531,7 +3531,7 @@ CSSValue*
 nsComputedDOMStyle::DoGetWordSpacing()
 {
   nsROCSSPrimitiveValue *val = new nsROCSSPrimitiveValue;
-  val->SetAppUnits(StyleText()->mWordSpacing);
+  SetValueToCoord(val, StyleText()->mWordSpacing, false);
   return val;
 }
 
@@ -3997,6 +3997,18 @@ nsComputedDOMStyle::DoGetJustifyItems()
   nsAutoString str;
   auto justify = StylePosition()->
     ComputedJustifyItems(StyleDisplay(), mStyleContext->GetParent());
+  nsCSSValue::AppendAlignJustifyValueToString(justify, str);
+  val->SetString(str);
+  return val;
+}
+
+CSSValue*
+nsComputedDOMStyle::DoGetJustifySelf()
+{
+  nsROCSSPrimitiveValue* val = new nsROCSSPrimitiveValue;
+  nsAutoString str;
+  auto justify = StylePosition()->
+    ComputedJustifySelf(StyleDisplay(), mStyleContext->GetParent());
   nsCSSValue::AppendAlignJustifyValueToString(justify, str);
   val->SetString(str);
   return val;

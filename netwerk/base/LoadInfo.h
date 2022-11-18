@@ -59,7 +59,12 @@ public:
   already_AddRefed<nsILoadInfo>
   CloneWithNewSecFlags(nsSecurityFlags aSecurityFlags) const;
 
+  // create an exact copy of the loadinfo
   already_AddRefed<nsILoadInfo> Clone() const;
+  // creates a copy of the loadinfo which is appropriate to use for a
+  // separate request. I.e. not for a redirect or an inner channel, but
+  // when a separate request is made with the same security properties.
+  already_AddRefed<nsILoadInfo> CloneForNewRequest() const;
 
   void SetIsFromProcessingFrameAttributes();
 
@@ -73,6 +78,7 @@ private:
            nsSecurityFlags aSecurityFlags,
            nsContentPolicyType aContentPolicyType,
            bool aUpgradeInsecureRequests,
+           bool aUpgradeInsecurePreloads,
            uint64_t aInnerWindowID,
            uint64_t aOuterWindowID,
            uint64_t aParentOuterWindowID,
@@ -96,6 +102,7 @@ private:
   void SetWithCredentialsSecFlag();
   friend class ::nsXMLHttpRequest;
 
+  // if you add a member, please also update the copy constructor
   nsCOMPtr<nsIPrincipal>           mLoadingPrincipal;
   nsCOMPtr<nsIPrincipal>           mTriggeringPrincipal;
   nsWeakPtr                        mLoadingContext;
@@ -103,6 +110,7 @@ private:
   nsContentPolicyType              mInternalContentPolicyType;
   LoadTainting                     mTainting;
   bool                             mUpgradeInsecureRequests;
+  bool                             mUpgradeInsecurePreloads;
   uint64_t                         mInnerWindowID;
   uint64_t                         mOuterWindowID;
   uint64_t                         mParentOuterWindowID;

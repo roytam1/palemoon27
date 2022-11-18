@@ -107,6 +107,12 @@ struct CSSParserInputState {
   bool mHavePushBack;
 };
 
+static_assert(eAuthorSheetFeatures == 0 &&
+              eUserSheetFeatures == 1 &&
+              eAgentSheetFeatures == 2,
+              "sheet parsing mode constants won't fit "
+              "in CSSParserImpl::mParsingMode");
+
 // Your basic top-down recursive descent style parser
 // The exposed methods and members of this class are precisely those
 // needed by nsCSSParser, far below.
@@ -131,14 +137,14 @@ public:
                       nsIURI*          aBaseURI,
                       nsIPrincipal*    aSheetPrincipal,
                       uint32_t         aLineNumber,
-                      bool             aAllowUnsafeRules,
+                      SheetParsingMode aParsingMode,
                       LoaderReusableStyleSheets* aReusableSheets);
 
-  nsresult ParseStyleAttribute(const nsAString&  aAttributeValue,
+  already_AddRefed<css::Declaration>
+           ParseStyleAttribute(const nsAString&  aAttributeValue,
                                nsIURI*           aDocURL,
                                nsIURI*           aBaseURL,
-                               nsIPrincipal*     aNodePrincipal,
-                               css::StyleRule**  aResult);
+                               nsIPrincipal*     aNodePrincipal);
 
   nsresult ParseDeclarations(const nsAString&  aBuffer,
                              nsIURI*           aSheetURL,
@@ -322,12 +328,20 @@ public:
                                            uint32_t aLineNumber,
                                            uint32_t aLineOffset);
 
+  bool AgentRulesEnabled() const {
+    return mParsingMode == eAgentSheetFeatures;
+  }
+  bool UserRulesEnabled() const {
+    return mParsingMode == eAgentSheetFeatures ||
+           mParsingMode == eUserSheetFeatures;
+  }
+
   nsCSSProps::EnabledState PropertyEnabledState() const {
     static_assert(nsCSSProps::eEnabledForAllContent == 0,
                   "nsCSSProps::eEnabledForAllContent should be zero for "
                   "this bitfield to work");
     nsCSSProps::EnabledState enabledState = nsCSSProps::eEnabledForAllContent;
-    if (mUnsafeRulesEnabled) {
+    if (AgentRulesEnabled()) {
       enabledState |= nsCSSProps::eEnabledInUASheets;
     }
     if (mIsChrome) {
@@ -933,6 +947,7 @@ protected:
   bool ParseAlignJustifyPosition(nsCSSValue& aResult,
                                  const KTableValue aTable[]);
   bool ParseJustifyItems();
+  bool ParseJustifySelf();
 
   // for 'clip' and '-moz-image-region'
   bool ParseRect(nsCSSProperty aPropID);
@@ -1302,8 +1317,12 @@ protected:
   // True when the unitless length quirk applies.
   bool mUnitlessLengthQuirk : 1;
 
-  // True if unsafe rules should be allowed
-  bool mUnsafeRulesEnabled : 1;
+  // Controls access to nonstandard style constructs that are not safe
+  // for use on the public Web but necessary in UA sheets and/or
+  // useful in user sheets.  The only values stored in this field are
+  // 0, 1, and 2; three bits are allocated to avoid issues should the
+  // enum type be signed.
+  SheetParsingMode mParsingMode : 3;
 
   // True if we are in parsing rules for the chrome.
   bool mIsChrome : 1;
@@ -1430,7 +1449,7 @@ CSSParserImpl::CSSParserImpl()
     mNavQuirkMode(false),
     mHashlessColorQuirk(false),
     mUnitlessLengthQuirk(false),
-    mUnsafeRulesEnabled(false),
+    mParsingMode(eAuthorSheetFeatures),
     mIsChrome(false),
     mViewportUnitsEnabled(true),
     mHTMLMediaMode(false),
@@ -1537,7 +1556,7 @@ CSSParserImpl::ParseSheet(const nsAString& aInput,
                           nsIURI*          aBaseURI,
                           nsIPrincipal*    aSheetPrincipal,
                           uint32_t         aLineNumber,
-                          bool             aAllowUnsafeRules,
+                          SheetParsingMode aParsingMode,
                           LoaderReusableStyleSheets* aReusableSheets)
 {
   NS_PRECONDITION(aSheetPrincipal, "Must have principal here!");
@@ -1583,7 +1602,7 @@ CSSParserImpl::ParseSheet(const nsAString& aInput,
     mSection = eCSSSection_Charset; // sheet is empty, any rules are fair
   }
 
-  mUnsafeRulesEnabled = aAllowUnsafeRules;
+  mParsingMode = aParsingMode;
   mIsChrome = nsContentUtils::IsSystemPrincipal(aSheetPrincipal);
   mReusableSheets = aReusableSheets;
 
@@ -1608,11 +1627,10 @@ CSSParserImpl::ParseSheet(const nsAString& aInput,
   }
   ReleaseScanner();
 
-  mUnsafeRulesEnabled = false;
+  mParsingMode = eAuthorSheetFeatures;
   mIsChrome = false;
   mReusableSheets = nullptr;
 
-  // XXX check for low level errors
   return NS_OK;
 }
 
@@ -1629,12 +1647,11 @@ NonMozillaVendorIdentifier(const nsAString& ident)
 
 }
 
-nsresult
+already_AddRefed<css::Declaration>
 CSSParserImpl::ParseStyleAttribute(const nsAString& aAttributeValue,
                                    nsIURI*          aDocURI,
                                    nsIURI*          aBaseURI,
-                                   nsIPrincipal*    aNodePrincipal,
-                                   css::StyleRule** aResult)
+                                   nsIPrincipal*    aNodePrincipal)
 {
   NS_PRECONDITION(aNodePrincipal, "Must have principal here!");
   NS_PRECONDITION(aBaseURI, "need base URI");
@@ -1649,17 +1666,10 @@ CSSParserImpl::ParseStyleAttribute(const nsAString& aAttributeValue,
   uint32_t parseFlags = eParseDeclaration_AllowImportant;
 
   RefPtr<css::Declaration> declaration = ParseDeclarationBlock(parseFlags);
-  if (declaration) {
-    // Create a style rule for the declaration
-    NS_ADDREF(*aResult = new css::StyleRule(nullptr, declaration, 0, 0));
-  } else {
-    *aResult = nullptr;
-  }
 
   ReleaseScanner();
 
-  // XXX check for low level errors
-  return NS_OK;
+  return declaration.forget();
 }
 
 nsresult
@@ -5715,7 +5725,7 @@ CSSParserImpl::ParsePseudoSelector(int32_t&       aDataMask,
   bool pseudoClassIsUserAction =
     nsCSSPseudoClasses::IsUserActionPseudoClass(pseudoClassType);
 
-  if (!mUnsafeRulesEnabled &&
+  if (!AgentRulesEnabled() &&
       ((pseudoElementType < nsCSSPseudoElements::ePseudo_PseudoElementCount &&
         nsCSSPseudoElements::PseudoElementIsUASheetOnly(pseudoElementType)) ||
        (pseudoClassType != nsCSSPseudoClasses::ePseudoClass_NotPseudoClass &&
@@ -5751,10 +5761,10 @@ CSSParserImpl::ParsePseudoSelector(int32_t&       aDataMask,
   bool isPseudoElement =
     (pseudoElementType < nsCSSPseudoElements::ePseudo_PseudoElementCount);
   // anonymous boxes are only allowed if they're the tree boxes or we have
-  // enabled unsafe rules
+  // enabled agent rules
   bool isAnonBox = isTreePseudo ||
     (pseudoElementType == nsCSSPseudoElements::ePseudo_AnonBox &&
-     mUnsafeRulesEnabled);
+     AgentRulesEnabled());
   bool isPseudoClass =
     (pseudoClassType != nsCSSPseudoClasses::ePseudoClass_NotPseudoClass);
 
@@ -9447,7 +9457,23 @@ CSSParserImpl::ParseJustifyItems()
   return true;
 }
 
-
+// auto | stretch | <baseline-position> |
+// [ <overflow-position>? && <self-position> ] 
+bool
+CSSParserImpl::ParseJustifySelf()
+{
+  nsCSSValue value;
+  if (!ParseSingleTokenVariant(value, VARIANT_INHERIT, nullptr)) {
+    if (!ParseEnum(value, nsCSSProps::kAlignAutoStretchBaseline)) {
+      if (!ParseAlignJustifyPosition(value, nsCSSProps::kAlignSelfPosition) ||
+          value.GetUnit() == eCSSUnit_Null) {
+        return false;
+      }
+    }
+  }
+  AppendValue(eCSSProperty_justify_self, value);
+  return true;
+}
 
 // <color-stop> : <color> [ <percentage> | <length> ]?
 bool
@@ -10577,6 +10603,8 @@ CSSParserImpl::ParsePropertyByFunction(nsCSSProperty aPropID)
     return ParseRect(eCSSProperty_image_region);
   case eCSSProperty_justify_items:
     return ParseJustifyItems();
+  case eCSSProperty_justify_self:
+    return ParseJustifySelf();
   case eCSSProperty_list_style:
     return ParseListStyle();
   case eCSSProperty_margin:
@@ -16263,24 +16291,22 @@ nsCSSParser::ParseSheet(const nsAString& aInput,
                         nsIURI*          aBaseURI,
                         nsIPrincipal*    aSheetPrincipal,
                         uint32_t         aLineNumber,
-                        bool             aAllowUnsafeRules,
+                        SheetParsingMode aParsingMode,
                         LoaderReusableStyleSheets* aReusableSheets)
 {
   return static_cast<CSSParserImpl*>(mImpl)->
     ParseSheet(aInput, aSheetURI, aBaseURI, aSheetPrincipal, aLineNumber,
-               aAllowUnsafeRules, aReusableSheets);
+               aParsingMode, aReusableSheets);
 }
 
-nsresult
+already_AddRefed<css::Declaration>
 nsCSSParser::ParseStyleAttribute(const nsAString&  aAttributeValue,
                                  nsIURI*           aDocURI,
                                  nsIURI*           aBaseURI,
-                                 nsIPrincipal*     aNodePrincipal,
-                                 css::StyleRule**  aResult)
+                                 nsIPrincipal*     aNodePrincipal)
 {
   return static_cast<CSSParserImpl*>(mImpl)->
-    ParseStyleAttribute(aAttributeValue, aDocURI, aBaseURI,
-                        aNodePrincipal, aResult);
+    ParseStyleAttribute(aAttributeValue, aDocURI, aBaseURI, aNodePrincipal);
 }
 
 nsresult

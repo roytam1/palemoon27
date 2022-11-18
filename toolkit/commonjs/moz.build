@@ -227,14 +227,23 @@ EXTRA_JS_MODULES.commonjs.sdk.console += [
 EXTRA_JS_MODULES.commonjs.sdk.content += [
     'sdk/content/content-worker.js',
     'sdk/content/content.js',
+    'sdk/content/context-menu.js',
     'sdk/content/events.js',
+    'sdk/content/l10n-html.js',
     'sdk/content/loader.js',
     'sdk/content/mod.js',
+    'sdk/content/page-mod.js',
+    'sdk/content/page-worker.js',
     'sdk/content/sandbox.js',
+    'sdk/content/tab-events.js',
     'sdk/content/thumbnail.js',
     'sdk/content/utils.js',
     'sdk/content/worker-child.js',
     'sdk/content/worker.js',
+]
+
+EXTRA_JS_MODULES.commonjs.sdk.content.sandbox += [
+    'sdk/content/sandbox/events.js',
 ]
 
 EXTRA_JS_MODULES.commonjs.sdk.core += [
@@ -255,6 +264,7 @@ EXTRA_JS_MODULES.commonjs.sdk.deprecated.traits += [
 ]
 
 EXTRA_JS_MODULES.commonjs.sdk.dom += [
+    'sdk/dom/events-shimmed.js',
     'sdk/dom/events.js',
 ]
 
@@ -376,6 +386,7 @@ EXTRA_JS_MODULES.commonjs.sdk.stylesheet += [
 EXTRA_JS_MODULES.commonjs.sdk.system += [
     'sdk/system/child_process.js',
     'sdk/system/environment.js',
+    'sdk/system/events-shimmed.js',
     'sdk/system/events.js',
     'sdk/system/globals.js',
     'sdk/system/process.js',

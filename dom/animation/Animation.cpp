@@ -75,7 +75,7 @@ Animation::SetTimeline(AnimationTimeline* aTimeline)
   }
 
   if (mTimeline) {
-    mTimeline->RemoveAnimation(*this);
+    mTimeline->NotifyAnimationUpdated(*this);
   }
 
   mTimeline = aTimeline;
@@ -362,15 +362,18 @@ Animation::SetCurrentTimeAsDouble(const Nullable<double>& aCurrentTime,
 void
 Animation::Tick()
 {
-  // Since we are not guaranteed to get only one call per refresh driver tick,
-  // it's possible that mPendingReadyTime is set to a time in the future.
-  // In that case, we should wait until the next refresh driver tick before
-  // resuming.
+  // Finish pending if we have a pending ready time, but only if we also
+  // have an active timeline.
   if (mPendingState != PendingState::NotPending &&
       !mPendingReadyTime.IsNull() &&
       mTimeline &&
-      !mTimeline->GetCurrentTime().IsNull() &&
-      mPendingReadyTime.Value() <= mTimeline->GetCurrentTime().Value()) {
+      !mTimeline->GetCurrentTime().IsNull()) {
+    // Even though mPendingReadyTime is initialized using TimeStamp::Now()
+    // during the *previous* tick of the refresh driver, it can still be
+    // ahead of the *current* timeline time when we are using the
+    // vsync timer so we need to clamp it to the timeline time.
+    mPendingReadyTime.SetValue(std::min(mTimeline->GetCurrentTime().Value(),
+                                        mPendingReadyTime.Value()));
     FinishPendingAt(mPendingReadyTime.Value());
     mPendingReadyTime.SetNull();
   }
@@ -577,7 +580,7 @@ Animation::CanThrottle() const
 void
 Animation::ComposeStyle(RefPtr<AnimValuesStyleRule>& aStyleRule,
                         nsCSSPropertySet& aSetProperties,
-                        bool& aNeedsRefreshes)
+                        bool& aStyleChanging)
 {
   if (!mEffect) {
     return;
@@ -585,9 +588,8 @@ Animation::ComposeStyle(RefPtr<AnimValuesStyleRule>& aStyleRule,
 
   AnimationPlayState playState = PlayState();
   if (playState == AnimationPlayState::Running ||
-      playState == AnimationPlayState::Pending ||
-      HasEndEventToQueue()) {
-    aNeedsRefreshes = true;
+      playState == AnimationPlayState::Pending) {
+    aStyleChanging = true;
   }
 
   if (!IsInEffect()) {
@@ -845,39 +847,8 @@ Animation::UpdateTiming(SeekFlag aSeekFlag, SyncNotifyFlag aSyncNotifyFlag)
   UpdateFinishedState(aSeekFlag, aSyncNotifyFlag);
   UpdateEffect();
 
-  // Unconditionally Add/Remove from the timeline. This is ok because if the
-  // animation has already been added/removed (which will be true more often
-  // than not) the work done by AnimationTimeline/DocumentTimeline is still
-  // negligible and its easier than trying to detect whenever we are switching
-  // to/from being relevant.
-  //
-  // We need to do this after calling UpdateEffect since it updates some
-  // cached state used by IsRelevant.
-  //
-  // Note that we only store relevant animations on the timeline since they
-  // are the only ones that need ticks and are the only ones returned from
-  // AnimationTimeline::GetAnimations. Storing any more than that would mean
-  // that we fail to garbage collect irrelevant animations since the timeline
-  // keeps a strong reference to each animation.
-  //
-  // Once we tick animations from the their timeline, and once we expect
-  // timelines to go in and out of being inactive, we will also need to store
-  // non-idle animations that are waiting for their timeline to become active
-  // on their timeline (as otherwise once the timeline becomes active it will
-  // have no way of notifying its animations). For now, however, we can
-  // simply store just the relevant animations.
   if (mTimeline) {
-    // FIXME: Once we expect animations to go back and forth betweeen being
-    // inactive and active, we will need to store more than just relevant
-    // animations on the timeline. This is because an animation might be
-    // deemed irrelevant because its timeline is inactive. If it is removed
-    // from the timeline at that point the timeline will have no way of
-    // getting the animation to add itself again once it becomes active.
-    if (IsRelevant()) {
-      mTimeline->AddAnimation(*this);
-    } else {
-      mTimeline->RemoveAnimation(*this);
-    }
+    mTimeline->NotifyAnimationUpdated(*this);
   }
 }
 

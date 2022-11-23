@@ -1224,6 +1224,8 @@ XRE_XPCShellMain(int argc, char** argv, char** envp)
 
     NS_LogInit();
 
+    mozilla::LogModule::Init();
+
     if (PR_GetEnv("MOZ_CHAOSMODE")) {
         ChaosFeature feature = ChaosFeature::Any;
         long featureInt = strtol(PR_GetEnv("MOZ_CHAOSMODE"), nullptr, 16);

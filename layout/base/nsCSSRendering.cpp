@@ -401,13 +401,14 @@ struct ColorStop {
 };
 
 /* Local functions */
-static void DrawBorderImage(nsPresContext* aPresContext,
-                            nsRenderingContext& aRenderingContext,
-                            nsIFrame* aForFrame,
-                            const nsRect& aBorderArea,
-                            const nsStyleBorder& aStyleBorder,
-                            const nsRect& aDirtyRect,
-                            Sides aSkipSides);
+static DrawResult DrawBorderImage(nsPresContext* aPresContext,
+                                  nsRenderingContext& aRenderingContext,
+                                  nsIFrame* aForFrame,
+                                  const nsRect& aBorderArea,
+                                  const nsStyleBorder& aStyleBorder,
+                                  const nsRect& aDirtyRect,
+                                  Sides aSkipSides,
+                                  PaintBorderFlags aFlags);
 
 static nscolor MakeBevelColor(mozilla::css::Side whichSide, uint8_t style,
                               nscolor aBackgroundColor,
@@ -616,13 +617,14 @@ nsCSSRendering::ComputePixelRadii(const nscoord *aAppUnitsRadii,
                                radii[NS_CORNER_BOTTOM_LEFT_Y]);
 }
 
-void
+DrawResult
 nsCSSRendering::PaintBorder(nsPresContext* aPresContext,
                             nsRenderingContext& aRenderingContext,
                             nsIFrame* aForFrame,
                             const nsRect& aDirtyRect,
                             const nsRect& aBorderArea,
                             nsStyleContext* aStyleContext,
+                            PaintBorderFlags aFlags,
                             Sides aSkipSides)
 {
   PROFILER_LABEL("nsCSSRendering", "PaintBorder",
@@ -633,10 +635,9 @@ nsCSSRendering::PaintBorder(nsPresContext* aPresContext,
   // Don't check RelevantLinkVisited here, since we want to take the
   // same amount of time whether or not it's true.
   if (!styleIfVisited) {
-    PaintBorderWithStyleBorder(aPresContext, aRenderingContext, aForFrame,
-                               aDirtyRect, aBorderArea, *styleBorder,
-                               aStyleContext, aSkipSides);
-    return;
+    return PaintBorderWithStyleBorder(aPresContext, aRenderingContext, aForFrame,
+                                      aDirtyRect, aBorderArea, *styleBorder,
+                                      aStyleContext, aFlags, aSkipSides);
   }
 
   nsStyleBorder newStyleBorder(*styleBorder);
@@ -650,17 +651,20 @@ nsCSSRendering::PaintBorder(nsPresContext* aPresContext,
       aStyleContext->GetVisitedDependentColor(
         nsCSSProps::SubpropertyEntryFor(eCSSProperty_border_color)[side]));
   }
-  PaintBorderWithStyleBorder(aPresContext, aRenderingContext, aForFrame,
-                             aDirtyRect, aBorderArea, newStyleBorder,
-                             aStyleContext, aSkipSides);
+  DrawResult result =
+    PaintBorderWithStyleBorder(aPresContext, aRenderingContext, aForFrame,
+                               aDirtyRect, aBorderArea, newStyleBorder,
+                               aStyleContext, aFlags, aSkipSides);
 
   // We could do something fancy to avoid the TrackImage/UntrackImage
   // work, but it doesn't seem worth it.  (We need to call UntrackImage
   // since we're not going through nsStyleBorder::Destroy.)
   newStyleBorder.UntrackImage(aPresContext);
+
+  return result;
 }
 
-void
+DrawResult
 nsCSSRendering::PaintBorderWithStyleBorder(nsPresContext* aPresContext,
                                            nsRenderingContext& aRenderingContext,
                                            nsIFrame* aForFrame,
@@ -668,6 +672,7 @@ nsCSSRendering::PaintBorderWithStyleBorder(nsPresContext* aPresContext,
                                            const nsRect& aBorderArea,
                                            const nsStyleBorder& aStyleBorder,
                                            nsStyleContext* aStyleContext,
+                                           PaintBorderFlags aFlags,
                                            Sides aSkipSides)
 {
   DrawTarget& aDrawTarget = *aRenderingContext.GetDrawTarget();
@@ -680,14 +685,26 @@ nsCSSRendering::PaintBorderWithStyleBorder(nsPresContext* aPresContext,
   const nsStyleDisplay* displayData = aStyleContext->StyleDisplay();
   if (displayData->mAppearance) {
     nsITheme *theme = aPresContext->GetTheme();
-    if (theme && theme->ThemeSupportsWidget(aPresContext, aForFrame, displayData->mAppearance))
-      return; // Let the theme handle it.
+    if (theme &&
+        theme->ThemeSupportsWidget(aPresContext, aForFrame,
+                                   displayData->mAppearance)) {
+      return DrawResult::SUCCESS; // Let the theme handle it.
+    }
   }
 
   if (aStyleBorder.IsBorderImageLoaded()) {
-    DrawBorderImage(aPresContext, aRenderingContext, aForFrame,
-                    aBorderArea, aStyleBorder, aDirtyRect, aSkipSides);
-    return;
+    return DrawBorderImage(aPresContext, aRenderingContext, aForFrame,
+                           aBorderArea, aStyleBorder, aDirtyRect,
+                           aSkipSides, aFlags);
+  }
+
+  DrawResult result = DrawResult::SUCCESS;
+
+  // If we had a border-image, but it wasn't loaded, then we should return
+  // DrawResult::NOT_READY; we'll want to try again if we do a paint with sync
+  // decoding enabled.
+  if (aStyleBorder.mBorderImageSource.GetType() != eStyleImageType_Null) {
+    result = DrawResult::NOT_READY;
   }
 
   // Get our style context's color struct.
@@ -705,7 +722,7 @@ nsCSSRendering::PaintBorderWithStyleBorder(nsPresContext* aPresContext,
   if (0 == border.left && 0 == border.right &&
       0 == border.top  && 0 == border.bottom) {
     // Empty border area
-    return;
+    return result;
   }
 
   // Compute the outermost boundary of the area that might be painted.
@@ -792,6 +809,8 @@ nsCSSRendering::PaintBorderWithStyleBorder(nsPresContext* aPresContext,
   ctx->Restore();
 
   PrintAsStringNewline();
+
+  return result;
 }
 
 static nsRect
@@ -875,8 +894,8 @@ nsCSSRendering::PaintOutline(nsPresContext* aPresContext,
   RectCornerRadii outlineRadii;
   ComputePixelRadii(twipsRadii, twipsPerPixel, &outlineRadii);
 
-  if (nsLayoutUtils::IsOutlineStyleAutoEnabled()) {
-    if (outlineStyle == NS_STYLE_BORDER_STYLE_AUTO) {
+  if (outlineStyle == NS_STYLE_BORDER_STYLE_AUTO) {
+    if (nsLayoutUtils::IsOutlineStyleAutoEnabled()) {
       nsITheme* theme = aPresContext->GetTheme();
       if (theme && theme->ThemeSupportsWidget(aPresContext, aForFrame,
                                               NS_THEME_FOCUS_OUTLINE)) {
@@ -884,13 +903,14 @@ nsCSSRendering::PaintOutline(nsPresContext* aPresContext,
                                     NS_THEME_FOCUS_OUTLINE, innerRect,
                                     aDirtyRect);
         return;
-      } else if (width == 0) {
-        return; // empty outline
       }
-      // http://dev.w3.org/csswg/css-ui/#outline
-      // "User agents may treat 'auto' as 'solid'."
-      outlineStyle = NS_STYLE_BORDER_STYLE_SOLID;
     }
+    if (width == 0) {
+      return; // empty outline
+    }
+    // http://dev.w3.org/csswg/css-ui/#outline
+    // "User agents may treat 'auto' as 'solid'."
+    outlineStyle = NS_STYLE_BORDER_STYLE_SOLID;
   }
 
   uint8_t outlineStyles[4] = { outlineStyle, outlineStyle,
@@ -1608,11 +1628,15 @@ nsCSSRendering::PaintBoxShadowInner(nsPresContext* aPresContext,
 
     nsContextBoxBlur insetBoxBlur;
     gfxRect destRect = nsLayoutUtils::RectToGfxRect(shadowPaintRect, twipsPerPixel);
+    Point shadowOffset(shadowItem->mXOffset / twipsPerPixel,
+                       shadowItem->mYOffset / twipsPerPixel);
+
     insetBoxBlur.InsetBoxBlur(renderContext, ToRect(destRect),
                               shadowClipGfxRect, shadowColor,
                               blurRadius, spreadDistanceAppUnits,
                               twipsPerPixel, hasBorderRadius,
-                              clipRectRadii, ToRect(skipGfxRect));
+                              clipRectRadii, ToRect(skipGfxRect),
+                              shadowOffset);
     renderContext->Restore();
   }
 }
@@ -2841,9 +2865,6 @@ nsCSSRendering::PaintBackgroundWithSC(nsPresContext* aPresContext,
   NS_PRECONDITION(aForFrame,
                   "Frame is expected to be provided to PaintBackground");
 
-  // Initialize our result to success. We update it only if its value is
-  // currently DrawResult::SUCCESS, which means that as soon as we hit our first
-  // non-successful draw, we stop updating and will return that value.
   DrawResult result = DrawResult::SUCCESS;
 
   // Check to see if we have an appearance defined.  If so, we let the theme
@@ -3012,6 +3033,8 @@ nsCSSRendering::PaintBackgroundWithSC(nsPresContext* aPresContext,
           !clipState.mDirtyRectGfx.IsEmpty()) {
         nsBackgroundLayerState state = PrepareBackgroundLayer(aPresContext, aForFrame,
             aFlags, paintBorderArea, clipState.mBGClipArea, layer);
+        result &= state.mImageRenderer.PrepareResult();
+
         if (!state.mFillArea.IsEmpty()) {
           if (state.mCompositionOp != CompositionOp::OP_OVER) {
             NS_ASSERTION(ctx->CurrentOp() == CompositionOp::OP_OVER,
@@ -3019,16 +3042,12 @@ nsCSSRendering::PaintBackgroundWithSC(nsPresContext* aPresContext,
             ctx->SetOp(state.mCompositionOp);
           }
 
-          DrawResult resultForLayer =
+          result &=
             state.mImageRenderer.DrawBackground(aPresContext, aRenderingContext,
                                                 state.mDestArea, state.mFillArea,
                                                 state.mAnchor + paintBorderArea.TopLeft(),
                                                 clipState.mDirtyRect,
                                                 state.mRepeatSize);
-
-          if (result == DrawResult::SUCCESS) {
-            result = resultForLayer;
-          }
 
           if (state.mCompositionOp != CompositionOp::OP_OVER) {
             ctx->SetOp(CompositionOp::OP_OVER);
@@ -3463,22 +3482,28 @@ nsCSSRendering::GetBackgroundLayerRect(nsPresContext* aPresContext,
   return state.mFillArea;
 }
 
-static void
+static DrawResult
 DrawBorderImage(nsPresContext*       aPresContext,
                 nsRenderingContext&  aRenderingContext,
                 nsIFrame*            aForFrame,
                 const nsRect&        aBorderArea,
                 const nsStyleBorder& aStyleBorder,
                 const nsRect&        aDirtyRect,
-                Sides                aSkipSides)
+                Sides                aSkipSides,
+                PaintBorderFlags     aFlags)
 {
   NS_PRECONDITION(aStyleBorder.IsBorderImageLoaded(),
                   "drawing border image that isn't successfully loaded");
 
-  if (aDirtyRect.IsEmpty())
-    return;
+  if (aDirtyRect.IsEmpty()) {
+    return DrawResult::SUCCESS;
+  }
 
-  nsImageRenderer renderer(aForFrame, &aStyleBorder.mBorderImageSource, 0);
+  uint32_t irFlags = 0;
+  if (aFlags & PaintBorderFlags::SYNC_DECODE_IMAGES) {
+    irFlags |= nsImageRenderer::FLAG_SYNC_DECODE_IMAGES;
+  }
+  nsImageRenderer renderer(aForFrame, &aStyleBorder.mBorderImageSource, irFlags);
 
   // Ensure we get invalidated for loads and animations of the image.
   // We need to do this here because this might be the only code that
@@ -3489,7 +3514,7 @@ DrawBorderImage(nsPresContext*       aPresContext,
   aForFrame->AssociateImage(aStyleBorder.mBorderImageSource, aPresContext);
 
   if (!renderer.PrepareImage()) {
-    return;
+    return renderer.PrepareResult();
   }
 
   // NOTE: no Save() yet, we do that later by calling autoSR.EnsureSaved()
@@ -3665,6 +3690,8 @@ DrawBorderImage(nsPresContext*       aPresContext,
     slice.bottom,
   };
 
+  DrawResult result = DrawResult::SUCCESS;
+
   for (int i = LEFT; i <= RIGHT; i++) {
     for (int j = TOP; j <= BOTTOM; j++) {
       uint8_t fillStyleH, fillStyleV;
@@ -3749,16 +3776,19 @@ DrawBorderImage(nsPresContext*       aPresContext,
       nsRect subArea(sliceX[i], sliceY[j], sliceWidth[i], sliceHeight[j]);
       nsIntRect intSubArea = subArea.ToOutsidePixels(nsPresContext::AppUnitsPerCSSPixel());
 
-      renderer.DrawBorderImageComponent(aPresContext,
-                                        aRenderingContext, aDirtyRect,
-                                        destArea, CSSIntRect(intSubArea.x,
-                                                             intSubArea.y,
-                                                             intSubArea.width,
-                                                             intSubArea.height),
-                                        fillStyleH, fillStyleV,
-                                        unitSize, j * (RIGHT + 1) + i);
+      result &=
+        renderer.DrawBorderImageComponent(aPresContext,
+                                          aRenderingContext, aDirtyRect,
+                                          destArea, CSSIntRect(intSubArea.x,
+                                                               intSubArea.y,
+                                                               intSubArea.width,
+                                                               intSubArea.height),
+                                          fillStyleH, fillStyleV,
+                                          unitSize, j * (RIGHT + 1) + i);
     }
   }
+
+  return result;
 }
 
 // Begin table border-collapsing section
@@ -3856,29 +3886,13 @@ DrawSolidBorderSegment(nsRenderingContext& aContext,
   ColorPattern color(ToDeviceColor(aColor));
   DrawOptions drawOptions(1.f, CompositionOp::OP_OVER, AntialiasMode::NONE);
 
+  // We don't need to bevel single pixel borders
   if ((aRect.width == aTwipsPerPixel) || (aRect.height == aTwipsPerPixel) ||
       ((0 == aStartBevelOffset) && (0 == aEndBevelOffset))) {
-    // simple line or rectangle
-    if ((NS_SIDE_TOP == aStartBevelSide) || (NS_SIDE_BOTTOM == aStartBevelSide)) {
-      if (1 == aRect.height)
-        StrokeLineWithSnapping(aRect.TopLeft(), aRect.BottomLeft(),
-                               aAppUnitsPerDevPixel, *drawTarget,
-                               color, StrokeOptions(), drawOptions);
-      else
-        drawTarget->FillRect(NSRectToSnappedRect(aRect, aAppUnitsPerDevPixel,
-                                                 *drawTarget),
-                             color, drawOptions);
-    }
-    else {
-      if (1 == aRect.width)
-        StrokeLineWithSnapping(aRect.TopLeft(), aRect.TopRight(),
-                               aAppUnitsPerDevPixel, *drawTarget,
-                               color, StrokeOptions(), drawOptions);
-      else
-        drawTarget->FillRect(NSRectToSnappedRect(aRect, aAppUnitsPerDevPixel,
-                                                 *drawTarget),
-                             color, drawOptions);
-    }
+    // simple rectangle
+    drawTarget->FillRect(NSRectToSnappedRect(aRect, aAppUnitsPerDevPixel,
+                                             *drawTarget),
+                         color, drawOptions);
   }
   else {
     // polygon with beveling
@@ -4749,7 +4763,7 @@ nsImageRenderer::nsImageRenderer(nsIFrame* aForFrame,
   , mImageContainer(nullptr)
   , mGradientData(nullptr)
   , mPaintServerFrame(nullptr)
-  , mIsReady(false)
+  , mPrepareResult(DrawResult::NOT_READY)
   , mSize(0, 0)
   , mFlags(aFlags)
 {
@@ -4759,27 +4773,60 @@ nsImageRenderer::~nsImageRenderer()
 {
 }
 
+static bool
+ShouldTreatAsCompleteDueToSyncDecode(const nsStyleImage* aImage,
+                                     uint32_t aFlags)
+{
+  if (!(aFlags & nsImageRenderer::FLAG_SYNC_DECODE_IMAGES)) {
+    return false;
+  }
+
+  if (aImage->GetType() != eStyleImageType_Image) {
+    return false;
+  }
+
+  uint32_t status = 0;
+  if (NS_FAILED(aImage->GetImageData()->GetImageStatus(&status))) {
+    return false;
+  }
+
+  if (status & imgIRequest::STATUS_ERROR) {
+    // The image is "complete" since it's a corrupt image. If we created an
+    // imgIContainer at all, return true.
+    nsCOMPtr<imgIContainer> image;
+    aImage->GetImageData()->GetImage(getter_AddRefs(image));
+    return bool(image);
+  }
+
+  if (!(status & imgIRequest::STATUS_LOAD_COMPLETE)) {
+    // We must have loaded all of the image's data and the size must be
+    // available, or else sync decoding won't be able to decode the image.
+    return false;
+  }
+
+  return true;
+}
+
 bool
 nsImageRenderer::PrepareImage()
 {
-  if (mImage->IsEmpty())
+  if (mImage->IsEmpty()) {
+    mPrepareResult = DrawResult::BAD_IMAGE;
     return false;
+  }
 
   if (!mImage->IsComplete()) {
-    // Make sure the image is actually decoding
+    // Make sure the image is actually decoding.
     mImage->StartDecoding();
 
-    // check again to see if we finished
-    if (!mImage->IsComplete()) {
-      // We can not prepare the image for rendering if it is not fully loaded.
-      //
-      // Special case: If we requested a sync decode and we have an image, push
-      // on through because the Draw() will do a sync decode then
-      nsCOMPtr<imgIContainer> img;
-      if (!((mFlags & FLAG_SYNC_DECODE_IMAGES) &&
-            (mType == eStyleImageType_Image) &&
-            (NS_SUCCEEDED(mImage->GetImageData()->GetImage(getter_AddRefs(img))))))
-        return false;
+    // Check again to see if we finished.
+    // We cannot prepare the image for rendering if it is not fully loaded.
+    // Special case: If we requested a sync decode and the image has loaded, push
+    // on through because the Draw() will do a sync decode then.
+    if (!mImage->IsComplete() &&
+        !ShouldTreatAsCompleteDueToSyncDecode(mImage, mFlags)) {
+      mPrepareResult = DrawResult::NOT_READY;
+      return false;
     }
   }
 
@@ -4803,6 +4850,7 @@ nsImageRenderer::PrepareImage()
         NS_ASSERTION(success, "ComputeActualCropRect() should not fail here");
         if (!success || actualCropRect.IsEmpty()) {
           // The cropped image has zero size
+          mPrepareResult = DrawResult::BAD_IMAGE;
           return false;
         }
         if (isEntireImage) {
@@ -4813,12 +4861,12 @@ nsImageRenderer::PrepareImage()
           mImageContainer.swap(subImage);
         }
       }
-      mIsReady = true;
+      mPrepareResult = DrawResult::SUCCESS;
       break;
     }
     case eStyleImageType_Gradient:
       mGradientData = mImage->GetGradientData();
-      mIsReady = true;
+      mPrepareResult = DrawResult::SUCCESS;
       break;
     case eStyleImageType_Element:
     {
@@ -4831,19 +4879,24 @@ nsImageRenderer::PrepareImage()
       nsSVGPaintingProperty* property = nsSVGEffects::GetPaintingPropertyForURI(
           targetURI, mForFrame->FirstContinuation(),
           nsSVGEffects::BackgroundImageProperty());
-      if (!property)
+      if (!property) {
+        mPrepareResult = DrawResult::BAD_IMAGE;
         return false;
-      mPaintServerFrame = property->GetReferencedFrame();
-
-      // If the referenced element doesn't have a frame we might still be able
-      // to paint it if it's an <img>, <canvas>, or <video> element.
-      if (!mPaintServerFrame) {
-        mImageElementSurface =
-          nsLayoutUtils::SurfaceFromElement(property->GetReferencedElement());
-        if (!mImageElementSurface.mSourceSurface)
-          return false;
       }
-      mIsReady = true;
+
+      // If the referenced element is an <img>, <canvas>, or <video> element,
+      // prefer SurfaceFromElement as it's more reliable.
+      mImageElementSurface =
+        nsLayoutUtils::SurfaceFromElement(property->GetReferencedElement());
+      if (!mImageElementSurface.mSourceSurface) {
+        mPaintServerFrame = property->GetReferencedFrame();
+        if (!mPaintServerFrame) {
+          mPrepareResult = DrawResult::BAD_IMAGE;
+          return false;
+        }
+      }
+
+      mPrepareResult = DrawResult::SUCCESS;
       break;
     }
     case eStyleImageType_Null:
@@ -4851,7 +4904,7 @@ nsImageRenderer::PrepareImage()
       break;
   }
 
-  return mIsReady;
+  return IsReady();
 }
 
 nsSize
@@ -4878,8 +4931,8 @@ CSSSizeOrRatio::ComputeConcreteSize() const
 CSSSizeOrRatio
 nsImageRenderer::ComputeIntrinsicSize()
 {
-  NS_ASSERTION(mIsReady, "Ensure PrepareImage() has returned true "
-                         "before calling me");
+  NS_ASSERTION(IsReady(), "Ensure PrepareImage() has returned true "
+                          "before calling me");
 
   CSSSizeOrRatio result;
   switch (mType) {
@@ -5081,7 +5134,7 @@ nsImageRenderer::Draw(nsPresContext*       aPresContext,
                       const nsSize&        aRepeatSize,
                       const CSSIntRect&    aSrc)
 {
-  if (!mIsReady) {
+  if (!IsReady()) {
     NS_NOTREACHED("Ensure PrepareImage() has returned true before calling me");
     return DrawResult::TEMPORARY_ERROR;
   }
@@ -5129,17 +5182,18 @@ nsImageRenderer::Draw(nsPresContext*       aPresContext,
       }
 
       nsCOMPtr<imgIContainer> image(ImageOps::CreateFromDrawable(drawable));
-      nsLayoutUtils::DrawImage(*aRenderingContext.ThebesContext(),
-                               aPresContext, image,
-                               filter, aDest, aFill, aAnchor, aDirtyRect,
-                               ConvertImageRendererToDrawFlags(mFlags));
+      DrawResult result =
+        nsLayoutUtils::DrawImage(*aRenderingContext.ThebesContext(),
+                                 aPresContext, image,
+                                 filter, aDest, aFill, aAnchor, aDirtyRect,
+                                 ConvertImageRendererToDrawFlags(mFlags));
 
       if (op != CompositionOp::OP_OVER) {
         ctx->PopGroupToSource();
         ctx->Paint();
       }
 
-      return DrawResult::SUCCESS;
+      return result;
     }
     case eStyleImageType_Null:
     default:
@@ -5154,6 +5208,12 @@ nsImageRenderer::DrawableForElement(const nsRect& aImageRect,
   NS_ASSERTION(mType == eStyleImageType_Element,
                "DrawableForElement only makes sense if backed by an element");
   if (mPaintServerFrame) {
+    // XXX(seth): In order to not pass FLAG_SYNC_DECODE_IMAGES here,
+    // DrawableFromPaintServer would have to return a DrawResult indicating
+    // whether any images could not be painted because they weren't fully
+    // decoded. Even always passing FLAG_SYNC_DECODE_IMAGES won't eliminate all
+    // problems, as it won't help if there are image which haven't finished
+    // loading, but it's better than nothing.
     int32_t appUnitsPerDevPixel = mForFrame->PresContext()->AppUnitsPerDevPixel();
     nsRect destRect = aImageRect - aImageRect.TopLeft();
     nsIntSize roundedOut = destRect.ToOutsidePixels(appUnitsPerDevPixel).Size();
@@ -5163,9 +5223,7 @@ nsImageRenderer::DrawableForElement(const nsRect& aImageRect,
         mPaintServerFrame, mForFrame, mSize, imageSize,
         aRenderingContext.GetDrawTarget(),
         aRenderingContext.ThebesContext()->CurrentMatrix(),
-        mFlags & FLAG_SYNC_DECODE_IMAGES
-          ? nsSVGIntegrationUtils::FLAG_SYNC_DECODE_IMAGES
-          : 0);
+        nsSVGIntegrationUtils::FLAG_SYNC_DECODE_IMAGES);
 
     return drawable.forget();
   }
@@ -5185,7 +5243,7 @@ nsImageRenderer::DrawBackground(nsPresContext*       aPresContext,
                                 const nsRect&        aDirty,
                                 const nsSize&        aRepeatSize)
 {
-  if (!mIsReady) {
+  if (!IsReady()) {
     NS_NOTREACHED("Ensure PrepareImage() has returned true before calling me");
     return DrawResult::TEMPORARY_ERROR;
   }
@@ -5272,7 +5330,7 @@ RequiresScaling(const nsRect&        aFill,
           aUnitSize.height != aFill.height);
 }
 
-void
+DrawResult
 nsImageRenderer::DrawBorderImageComponent(nsPresContext*       aPresContext,
                                           nsRenderingContext&  aRenderingContext,
                                           const nsRect&        aDirtyRect,
@@ -5283,12 +5341,12 @@ nsImageRenderer::DrawBorderImageComponent(nsPresContext*       aPresContext,
                                           const nsSize&        aUnitSize,
                                           uint8_t              aIndex)
 {
-  if (!mIsReady) {
+  if (!IsReady()) {
     NS_NOTREACHED("Ensure PrepareImage() has returned true before calling me");
-    return;
+    return DrawResult::BAD_ARGS;
   }
   if (aFill.IsEmpty() || aSrc.IsEmpty()) {
-    return;
+    return DrawResult::SUCCESS;
   }
 
   if (mType == eStyleImageType_Image || mType == eStyleImageType_Element) {
@@ -5314,7 +5372,7 @@ nsImageRenderer::DrawBorderImageComponent(nsPresContext*       aPresContext,
                                                           aRenderingContext);
       if (!drawable) {
         NS_WARNING("Could not create drawable for element");
-        return;
+        return DrawResult::TEMPORARY_ERROR;
       }
 
       nsCOMPtr<imgIContainer> image(ImageOps::CreateFromDrawable(drawable));
@@ -5324,32 +5382,30 @@ nsImageRenderer::DrawBorderImageComponent(nsPresContext*       aPresContext,
     Filter filter = nsLayoutUtils::GetGraphicsFilterForFrame(mForFrame);
 
     if (!RequiresScaling(aFill, aHFill, aVFill, aUnitSize)) {
-      nsLayoutUtils::DrawSingleImage(*aRenderingContext.ThebesContext(),
-                                     aPresContext,
-                                     subImage,
-                                     filter,
-                                     aFill, aDirtyRect,
-                                     nullptr,
-                                     imgIContainer::FLAG_NONE);
-      return;
+      return nsLayoutUtils::DrawSingleImage(*aRenderingContext.ThebesContext(),
+                                            aPresContext,
+                                            subImage,
+                                            filter,
+                                            aFill, aDirtyRect,
+                                            nullptr,
+                                            ConvertImageRendererToDrawFlags(mFlags));
     }
 
     nsRect tile = ComputeTile(aFill, aHFill, aVFill, aUnitSize);
-    nsLayoutUtils::DrawImage(*aRenderingContext.ThebesContext(),
-                             aPresContext,
-                             subImage,
-                             filter,
-                             tile, aFill, tile.TopLeft(), aDirtyRect,
-                             imgIContainer::FLAG_NONE);
-    return;
+    return nsLayoutUtils::DrawImage(*aRenderingContext.ThebesContext(),
+                                    aPresContext,
+                                    subImage,
+                                    filter,
+                                    tile, aFill, tile.TopLeft(), aDirtyRect,
+                                    ConvertImageRendererToDrawFlags(mFlags));
   }
 
   nsRect destTile = RequiresScaling(aFill, aHFill, aVFill, aUnitSize)
                   ? ComputeTile(aFill, aHFill, aVFill, aUnitSize)
                   : aFill;
 
-  Draw(aPresContext, aRenderingContext, aDirtyRect, destTile,
-       aFill, destTile.TopLeft(), nsSize(0, 0), aSrc);
+  return Draw(aPresContext, aRenderingContext, aDirtyRect, destTile,
+              aFill, destTile.TopLeft(), nsSize(0, 0), aSrc);
 }
 
 bool
@@ -5643,12 +5699,14 @@ nsContextBoxBlur::InsetBoxBlur(gfxContext* aDestinationCtx,
                                int32_t aAppUnitsPerDevPixel,
                                bool aHasBorderRadius,
                                RectCornerRadii& aInnerClipRectRadii,
-                               Rect aSkipRect)
+                               Rect aSkipRect, Point aShadowOffset)
 {
   if (aDestinationRect.IsEmpty()) {
     mContext = nullptr;
     return false;
   }
+
+  gfxContextAutoSaveRestore autoRestore(aDestinationCtx);
 
   IntSize blurRadius;
   IntSize spreadRadius;
@@ -5663,31 +5721,35 @@ nsContextBoxBlur::InsetBoxBlur(gfxContext* aDestinationCtx,
   // inset blur to the invert of the dest context, then rescale it back
   // when we draw to the destination surface.
   gfxSize scale = aDestinationCtx->CurrentMatrix().ScaleFactors(true);
-  Matrix currentMatrix = ToMatrix(aDestinationCtx->CurrentMatrix());
+  Matrix transform = ToMatrix(aDestinationCtx->CurrentMatrix());
 
-  Rect transformedDestRect = currentMatrix.TransformBounds(aDestinationRect);
-  Rect transformedShadowClipRect = currentMatrix.TransformBounds(aShadowClipRect);
-  Rect transformedSkipRect = currentMatrix.TransformBounds(aSkipRect);
+  // XXX: we could probably handle negative scales but for now it's easier just to fallback
+  if (!transform.HasNonAxisAlignedTransform() && transform._11 > 0.0 && transform._22 > 0.0) {
+    // If we don't have a rotation, we're pre-transforming all the rects.
+    aDestinationCtx->SetMatrix(gfxMatrix());
+  } else {
+    // Don't touch anything, we have a rotation.
+    transform = Matrix();
+  }
+
+  Rect transformedDestRect = transform.TransformBounds(aDestinationRect);
+  Rect transformedShadowClipRect = transform.TransformBounds(aShadowClipRect);
+  Rect transformedSkipRect = transform.TransformBounds(aSkipRect);
 
   transformedDestRect.Round();
   transformedShadowClipRect.Round();
   transformedSkipRect.RoundIn();
 
   for (size_t i = 0; i < 4; i++) {
-    aInnerClipRectRadii[i].width = scale.width * aInnerClipRectRadii[i].width;
-    aInnerClipRectRadii[i].height = scale.height * aInnerClipRectRadii[i].height;
+    aInnerClipRectRadii[i].width = std::floor(scale.width * aInnerClipRectRadii[i].width);
+    aInnerClipRectRadii[i].height = std::floor(scale.height * aInnerClipRectRadii[i].height);
   }
 
-  {
-    gfxContextAutoSaveRestore autoRestore(aDestinationCtx);
-    aDestinationCtx->SetMatrix(gfxMatrix());
-
-    mAlphaBoxBlur.BlurInsetBox(aDestinationCtx, transformedDestRect,
-                               transformedShadowClipRect,
-                               blurRadius, spreadRadius,
-                               aShadowColor,
-                               aHasBorderRadius,
-                               aInnerClipRectRadii, transformedSkipRect);
-  }
+  mAlphaBoxBlur.BlurInsetBox(aDestinationCtx, transformedDestRect,
+                             transformedShadowClipRect,
+                             blurRadius, spreadRadius,
+                             aShadowColor, aHasBorderRadius,
+                             aInnerClipRectRadii, transformedSkipRect,
+                             aShadowOffset);
   return true;
 }

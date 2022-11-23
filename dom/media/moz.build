@@ -151,8 +151,6 @@ EXPORTS += [
 
 EXPORTS.mozilla += [
     'MediaManager.h',
-    'StateMirroring.h',
-    'StateWatching.h',
 ]
 
 EXPORTS.mozilla.media.webrtc += [

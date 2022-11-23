@@ -8,7 +8,9 @@
 
 #include "mozilla/ClearOnShutdown.h"
 #include "mozilla/Maybe.h"
+#include "mozilla/MozPromise.h" // We initialize the MozPromise logging in this file.
 #include "mozilla/StaticPtr.h"
+#include "mozilla/StateWatching.h" // We initialize the StateWatching logging in this file.
 #include "mozilla/TaskQueue.h"
 #include "mozilla/TaskDispatcher.h"
 #include "mozilla/unused.h"
@@ -19,6 +21,9 @@
 
 
 namespace mozilla {
+
+LazyLogModule gMozPromiseLog("MozPromise");
+LazyLogModule gStateWatchingLog("StateWatching");
 
 StaticRefPtr<AbstractThread> sMainThread;
 ThreadLocal<AbstractThread*> AbstractThread::sCurrentThreadTLS;

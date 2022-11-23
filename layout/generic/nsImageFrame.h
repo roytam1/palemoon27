@@ -144,10 +144,10 @@ public:
   static bool ShouldCreateImageFrameFor(mozilla::dom::Element* aElement,
                                           nsStyleContext* aStyleContext);
   
-  void DisplayAltFeedback(nsRenderingContext& aRenderingContext,
-                          const nsRect&        aDirtyRect,
-                          imgIRequest*         aRequest,
-                          nsPoint              aPt);
+  DrawResult DisplayAltFeedback(nsRenderingContext& aRenderingContext,
+                                const nsRect& aDirtyRect,
+                                nsPoint aPt,
+                                uint32_t aFlags);
 
   nsRect GetInnerArea() const;
 
@@ -315,7 +315,7 @@ private:
   void InvalidateSelf(const nsIntRect* aLayerInvalidRect,
                       const nsRect* aFrameInvalidRect);
 
-  nsImageMap*         mImageMap;
+  RefPtr<nsImageMap> mImageMap;
 
   nsCOMPtr<imgINotificationObserver> mListener;
 
@@ -380,6 +380,7 @@ private:
     RefPtr<imgRequestProxy> mBrokenImage;
     bool             mPrefForceInlineAltText;
     bool             mPrefShowPlaceholders;
+    bool             mPrefShowLoadingPlaceholder;
   };
   
 public:

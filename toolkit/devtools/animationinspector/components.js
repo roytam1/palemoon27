@@ -21,7 +21,7 @@
 //    c.destroy();
 
 const {Cu} = require("chrome");
-Cu.import("resource:///modules/devtools/ViewHelpers.jsm");
+Cu.import("resource://gre/modules/devtools/ViewHelpers.jsm");
 const {
   createNode,
   drawGraphElementBackground,

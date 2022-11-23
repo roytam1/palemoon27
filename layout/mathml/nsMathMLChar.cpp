@@ -9,6 +9,7 @@
 #include "gfxUtils.h"
 #include "mozilla/gfx/2D.h"
 #include "mozilla/MathAlgorithms.h"
+#include "mozilla/unused.h"
 
 #include "nsCOMPtr.h"
 #include "nsDeviceContext.h"
@@ -163,9 +164,7 @@ LoadProperties(const nsString& aName,
   uriStr.StripWhitespace(); // that may come from aName
   uriStr.AppendLiteral(".properties");
   return NS_LoadPersistentPropertiesFromURISpec(getter_AddRefs(aProperties),
-                                                NS_ConvertUTF16toUTF8(uriStr),
-                                                nsContentUtils::GetSystemPrincipal(),
-                                                nsIContentPolicy::TYPE_OTHER);
+                                                NS_ConvertUTF16toUTF8(uriStr));
 }
 
 class nsPropertiesTable final : public nsGlyphTable {
@@ -734,9 +733,7 @@ InitGlobals(nsPresContext* aPresContext)
   // observer and will be deleted at shutdown. We now add some private
   // per font-family tables for stretchy operators, in order of preference.
   // Do not include the Unicode table in this list.
-  if (!glyphTableList->AddGlyphTable(NS_LITERAL_STRING("MathJax_Main")) ||
-      !glyphTableList->AddGlyphTable(NS_LITERAL_STRING("STIXGeneral")) ||
-      !glyphTableList->AddGlyphTable(NS_LITERAL_STRING("Standard Symbols L"))
+  if (!glyphTableList->AddGlyphTable(NS_LITERAL_STRING("STIXGeneral"))
 #ifdef XP_WIN
       || !glyphTableList->AddGlyphTable(NS_LITERAL_STRING("Symbol"))
 #endif
@@ -1706,6 +1703,11 @@ nsMathMLChar::StretchInternal(nsPresContext*           aPresContext,
     MFR->RecordScript(MOZ_SCRIPT_MATHEMATICAL_NOTATION);
   }
 
+  // If the scale_stretchy_operators option is disabled, we are done.
+  if (!Preferences::GetBool("mathml.scale_stretchy_operators.enabled", true)) {
+    return NS_OK;
+  }
+  
   // stretchy character
   if (stretchy) {
     if (isVertical) {
@@ -1825,8 +1827,7 @@ nscoord
 nsMathMLChar::GetMaxWidth(nsPresContext* aPresContext,
                           nsRenderingContext& aRenderingContext,
                           float aFontSizeInflation,
-                          uint32_t aStretchHint,
-                          float aMaxSize, bool aMaxSizeIsAbsolute)
+                          uint32_t aStretchHint)
 {
   nsBoundingMetrics bm;
   nsStretchDirection direction = NS_STRETCH_DIRECTION_VERTICAL;
@@ -2023,8 +2024,17 @@ void nsDisplayMathMLCharDebug::Paint(nsDisplayListBuilder* aBuilder,
   nsPresContext* presContext = mFrame->PresContext();
   nsStyleContext* styleContext = mFrame->StyleContext();
   nsRect rect = mRect + ToReferenceFrame();
-  nsCSSRendering::PaintBorder(presContext, *aCtx, mFrame,
-                              mVisibleRect, rect, styleContext, skipSides);
+
+  PaintBorderFlags flags = aBuilder->ShouldSyncDecodeImages()
+                         ? PaintBorderFlags::SYNC_DECODE_IMAGES
+                         : PaintBorderFlags();
+
+  // Since this is used only for debugging, we don't need to worry about
+  // tracking the DrawResult.
+  unused <<
+    nsCSSRendering::PaintBorder(presContext, *aCtx, mFrame, mVisibleRect,
+                                rect, styleContext, flags, skipSides);
+
   nsCSSRendering::PaintOutline(presContext, *aCtx, mFrame,
                                mVisibleRect, rect, styleContext);
 }

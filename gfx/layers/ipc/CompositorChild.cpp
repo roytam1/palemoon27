@@ -302,8 +302,6 @@ CompositorChild::RecvUpdatePluginConfigurations(const nsIntPoint& aContentOffset
       // Handle invalidation, this can be costly, avoid if it is not needed.
       if (isVisible) {
         // invalidate region (widget origin)
-        gfx::IntRect bounds = aPlugins[pluginsIdx].bounds();
-        gfx::IntRect rect(0, 0, bounds.width, bounds.height);
 #if defined(XP_WIN)
         // Work around for flash's crummy sandbox. See bug 762948. This call
         // digs down into the window hirearchy, invalidating regions on
@@ -320,21 +318,27 @@ CompositorChild::RecvUpdatePluginConfigurations(const nsIntPoint& aContentOffset
   // Any plugins we didn't update need to be hidden, as they are
   // not associated with visible content.
   nsIWidget::UpdateRegisteredPluginWindowVisibility((uintptr_t)parent, visiblePluginIds);
+#if defined(XP_WIN)
+  SendRemotePluginsReady();
+#endif
   return true;
 #endif // !defined(XP_WIN) && !defined(MOZ_WIDGET_GTK)
 }
 
 bool
-CompositorChild::RecvUpdatePluginVisibility(const uintptr_t& aOwnerWidget,
-                                            nsTArray<uintptr_t>&& aVisibleIdList)
+CompositorChild::RecvHideAllPlugins(const uintptr_t& aParentWidget)
 {
 #if !defined(XP_WIN) && !defined(MOZ_WIDGET_GTK)
-  NS_NOTREACHED("CompositorChild::RecvUpdatePluginVisibility calls "
+  NS_NOTREACHED("CompositorChild::RecvHideAllPlugins calls "
                 "unexpected on this platform.");
   return false;
 #else
   MOZ_ASSERT(NS_IsMainThread());
-  nsIWidget::UpdateRegisteredPluginWindowVisibility(aOwnerWidget, aVisibleIdList);
+  nsTArray<uintptr_t> list;
+  nsIWidget::UpdateRegisteredPluginWindowVisibility(aParentWidget, list);
+#if defined(XP_WIN)
+  SendRemotePluginsReady();
+#endif
   return true;
 #endif // !defined(XP_WIN) && !defined(MOZ_WIDGET_GTK)
 }

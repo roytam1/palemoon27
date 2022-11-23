@@ -53,8 +53,6 @@ bool OriginAttributes::CopyFromLoadContext(nsILoadContext* aLoadContext)
 void
 OriginAttributes::CreateSuffix(nsACString& aStr) const
 {
-  MOZ_RELEASE_ASSERT(mAppId != nsIScriptSecurityManager::UNKNOWN_APP_ID);
-
   UniquePtr<URLParams> params(new URLParams());
   nsAutoString value;
 
@@ -124,10 +122,6 @@ public:
       nsresult rv;
       mOriginAttributes->mAppId = aValue.ToInteger(&rv);
       if (NS_WARN_IF(NS_FAILED(rv))) {
-        return false;
-      }
-
-      if (mOriginAttributes->mAppId == nsIScriptSecurityManager::UNKNOWN_APP_ID) {
         return false;
       }
 
@@ -380,8 +374,6 @@ BasePrincipal::GetIsSystemPrincipal(bool* aResult)
 NS_IMETHODIMP
 BasePrincipal::GetJarPrefix(nsACString& aJarPrefix)
 {
-  MOZ_ASSERT(AppId() != nsIScriptSecurityManager::UNKNOWN_APP_ID);
-
   mozilla::GetJarPrefix(mOriginAttributes.mAppId, mOriginAttributes.mInBrowser, aJarPrefix);
   return NS_OK;
 }

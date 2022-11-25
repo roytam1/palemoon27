@@ -81,6 +81,7 @@ class ContentParent final : public PContentParent
     typedef mozilla::ipc::PFileDescriptorSetParent PFileDescriptorSetParent;
     typedef mozilla::ipc::TestShellParent TestShellParent;
     typedef mozilla::ipc::URIParams URIParams;
+    typedef mozilla::ipc::PrincipalInfo PrincipalInfo;
     typedef mozilla::dom::ClonedMessageData ClonedMessageData;
 
 public:
@@ -175,6 +176,10 @@ public:
                                                nsTArray<nsCString>&& aTags,
                                                bool* aHasPlugin,
                                                nsCString* aVersion) override;
+    virtual bool RecvIsGMPPresentOnDisk(const nsString& aKeySystem,
+                                        const nsCString& aVersion,
+                                        bool* aIsPresent,
+                                        nsCString* aMessage) override;
 
     virtual bool RecvLoadPlugin(const uint32_t& aPluginId, nsresult* aRv, uint32_t* aRunID) override;
     virtual bool RecvConnectPluginBridge(const uint32_t& aPluginId, nsresult* aRv) override;
@@ -388,12 +393,14 @@ public:
     virtual POfflineCacheUpdateParent*
     AllocPOfflineCacheUpdateParent(const URIParams& aManifestURI,
                                    const URIParams& aDocumentURI,
+                                   const PrincipalInfo& aLoadingPrincipalInfo,
                                    const bool& aStickDocument,
                                    const TabId& aTabId) override;
     virtual bool
     RecvPOfflineCacheUpdateConstructor(POfflineCacheUpdateParent* aActor,
                                        const URIParams& aManifestURI,
                                        const URIParams& aDocumentURI,
+                                       const PrincipalInfo& aLoadingPrincipal,
                                        const bool& stickDocument,
                                        const TabId& aTabId) override;
     virtual bool

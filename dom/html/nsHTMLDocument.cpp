@@ -1532,7 +1532,7 @@ nsHTMLDocument::Open(JSContext* cx,
 
     if (cv) {
       bool okToUnload;
-      if (NS_SUCCEEDED(cv->PermitUnload(false, &okToUnload)) && !okToUnload) {
+      if (NS_SUCCEEDED(cv->PermitUnload(&okToUnload)) && !okToUnload) {
         // We don't want to unload, so stop here, but don't throw an
         // exception.
         nsCOMPtr<nsIDocument> ret = this;
@@ -2934,7 +2934,7 @@ nsHTMLDocument::SetDesignMode(const nsAString & aDesignMode)
 void
 nsHTMLDocument::SetDesignMode(const nsAString& aDesignMode, ErrorResult& rv)
 {
-  if (!nsContentUtils::SubjectPrincipal()->Subsumes(NodePrincipal())) {
+  if (!nsContentUtils::LegacyIsCallerNativeCode() && !nsContentUtils::SubjectPrincipal()->Subsumes(NodePrincipal())) {
     rv.Throw(NS_ERROR_DOM_PROP_ACCESS_DENIED);
     return;
   }

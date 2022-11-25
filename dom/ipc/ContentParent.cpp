@@ -114,6 +114,7 @@
 #include "nsIClipboard.h"
 #include "nsContentPermissionHelper.h"
 #include "nsICycleCollectorListener.h"
+#include "nsIDocShellTreeOwner.h"
 #include "nsIDocument.h"
 #include "nsIDOMGeoGeolocation.h"
 #include "nsIDOMGeoPositionError.h"
@@ -124,6 +125,7 @@
 #include "nsIFormProcessor.h"
 #include "nsIGfxInfo.h"
 #include "nsIIdleService.h"
+#include "nsIInterfaceRequestorUtils.h"
 #include "nsIMemoryInfoDumper.h"
 #include "nsIMemoryReporter.h"
 #include "nsIMozBrowserFrame.h"
@@ -1121,6 +1123,23 @@ ContentParent::RecvGetGMPPluginVersionForAPI(const nsCString& aAPI,
 }
 
 bool
+ContentParent::RecvIsGMPPresentOnDisk(const nsString& aKeySystem,
+                                      const nsCString& aVersion,
+                                      bool* aIsPresent,
+                                      nsCString* aMessage)
+{
+#ifdef MOZ_EME
+    *aIsPresent = MediaKeySystemAccess::IsGMPPresentOnDisk(aKeySystem,
+                                                           aVersion,
+                                                           *aMessage);
+#else
+    *aIsPresent = false;
+#endif
+
+    return true;
+}
+
+bool
 ContentParent::RecvLoadPlugin(const uint32_t& aPluginId, nsresult* aRv, uint32_t* aRunID)
 {
     *aRv = NS_OK;
@@ -1146,12 +1165,15 @@ ContentParent::RecvGetBlocklistState(const uint32_t& aPluginId,
 
     RefPtr<nsPluginHost> pluginHost = nsPluginHost::GetInst();
     if (!pluginHost) {
+        NS_WARNING("Plugin host not found");
         return false;
     }
     nsPluginTag* tag =  pluginHost->PluginWithId(aPluginId);
 
     if (!tag) {
-        return false;
+        // Default state is blocked anyway
+        NS_WARNING("Plugin tag not found. This should never happen, but to avoid a crash we're forcibly blocking it");
+        return true;
     }
 
     return NS_SUCCEEDED(tag->GetBlocklistState(aState));
@@ -1214,7 +1236,18 @@ ContentParent::CreateBrowserOrApp(const TabContext& aContext,
                                   constructorSender->ChildID());
         }
         if (constructorSender) {
+            nsCOMPtr<nsIDocShellTreeOwner> treeOwner;
+            docShell->GetTreeOwner(getter_AddRefs(treeOwner));
+            if (!treeOwner) {
+                return nullptr;
+            }
+
+            nsCOMPtr<nsIWebBrowserChrome> wbc = do_GetInterface(treeOwner);
+            if (!wbc) {
+                return nullptr;
+            }
             uint32_t chromeFlags = 0;
+            wbc->GetChromeFlags(&chromeFlags);
 
             nsCOMPtr<nsILoadContext> loadContext = do_QueryInterface(docShell);
             if (loadContext && loadContext->UsePrivateBrowsing()) {
@@ -2665,7 +2698,8 @@ ContentParent::RecvSetClipboard(const IPCDataTransfer& aDataTransfer,
 
         NS_ENSURE_SUCCESS(rv, true);
       } else if (item.data().type() == IPCDataTransferData::TnsCString) {
-        if (item.flavor().EqualsLiteral(kJPEGImageMime) ||
+        if (item.flavor().EqualsLiteral(kNativeImageMime) ||
+            item.flavor().EqualsLiteral(kJPEGImageMime) ||
             item.flavor().EqualsLiteral(kJPGImageMime) ||
             item.flavor().EqualsLiteral(kPNGImageMime) ||
             item.flavor().EqualsLiteral(kGIFImageMime)) {
@@ -3428,6 +3462,14 @@ ContentParent::DeallocPRemoteSpellcheckEngineParent(PRemoteSpellcheckEngineParen
 /* static */ void
 ContentParent::ForceKillTimerCallback(nsITimer* aTimer, void* aClosure)
 {
+#ifdef ENABLE_TESTS
+    // We don't want to time out the content process during XPCShell tests. This
+    // is the easiest way to ensure that.
+    if (PR_GetEnv("XPCSHELL_TEST_PROFILE_DIR")) {
+        return;
+    }
+#endif
+
     auto self = static_cast<ContentParent*>(aClosure);
     self->KillHard("ShutDownKill");
 }
@@ -5057,6 +5099,7 @@ ContentParent::GetManagedTabContext()
 mozilla::docshell::POfflineCacheUpdateParent*
 ContentParent::AllocPOfflineCacheUpdateParent(const URIParams& aManifestURI,
                                               const URIParams& aDocumentURI,
+                                              const PrincipalInfo& aLoadingPrincipalInfo,
                                               const bool& aStickDocument,
                                               const TabId& aTabId)
 {
@@ -5077,6 +5120,7 @@ bool
 ContentParent::RecvPOfflineCacheUpdateConstructor(POfflineCacheUpdateParent* aActor,
                                                   const URIParams& aManifestURI,
                                                   const URIParams& aDocumentURI,
+                                                  const PrincipalInfo& aLoadingPrincipal,
                                                   const bool& aStickDocument,
                                                   const TabId& aTabId)
 {
@@ -5085,7 +5129,7 @@ ContentParent::RecvPOfflineCacheUpdateConstructor(POfflineCacheUpdateParent* aAc
     RefPtr<mozilla::docshell::OfflineCacheUpdateParent> update =
         static_cast<mozilla::docshell::OfflineCacheUpdateParent*>(aActor);
 
-    nsresult rv = update->Schedule(aManifestURI, aDocumentURI, aStickDocument);
+    nsresult rv = update->Schedule(aManifestURI, aDocumentURI, aLoadingPrincipal, aStickDocument);
     if (NS_FAILED(rv) && IsAlive()) {
         // Inform the child of failure.
         unused << update->SendFinish(false, false);

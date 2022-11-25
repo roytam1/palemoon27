@@ -5,23 +5,23 @@
  */
 
 [Pref="dom.presentation.enabled",
- CheckAnyPermissions="presentation"]
+ Func="Navigator::HasPresentationSupport"]
 interface PresentationReceiver : EventTarget {
   /*
-   * Get the first connected presentation session in a receiving browsing
+   * Get the first connected presentation connection in a receiving browsing
    * context.
    */
   [Throws]
-  Promise<PresentationSession> getSession();
+  Promise<PresentationConnection> getConnection();
 
   /*
-   * Get all connected presentation sessions in a receiving browsing context.
+   * Get all connected presentation connections in a receiving browsing context.
    */
   [Throws]
-  Promise<sequence<PresentationSession>> getSessions();
+  Promise<sequence<PresentationConnection>> getConnections();
 
   /*
-   * It is called when an incoming session is connecting.
+   * It is called when an incoming connection is connecting.
    */
-  attribute EventHandler onsessionavailable;
+  attribute EventHandler onconnectionavailable;
 };

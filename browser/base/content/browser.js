@@ -1683,7 +1683,7 @@ var gBrowserInit = {
       let itemArray = itemBranch.getChildList("");
 
       // See if any privacy.item prefs are set
-      let doMigrate = itemArray.some(function (name) itemBranch.prefHasUserValue(name));
+      let doMigrate = itemArray.some(name => itemBranch.prefHasUserValue(name));
       // Or if sanitizeOnShutdown is set
       if (!doMigrate)
         doMigrate = gPrefService.getBoolPref("privacy.sanitize.sanitizeOnShutdown");
@@ -3166,7 +3166,7 @@ function FillInHTMLTooltip(tipElement)
 }
 
 var browserDragAndDrop = {
-  canDropLink: function (aEvent) Services.droppedLinkHandler.canDropLink(aEvent, true),
+  canDropLink: aEvent => Services.droppedLinkHandler.canDropLink(aEvent, true),
 
   dragOver: function (aEvent)
   {
@@ -3343,7 +3343,7 @@ const BrowserSearch = {
 
     // Check to see whether we've already added an engine with this title
     if (browser.engines) {
-      if (browser.engines.some(function (e) e.title == engine.title))
+      if (browser.engines.some(e => e.title == engine.title))
         return;
     }
 
@@ -4542,7 +4542,9 @@ var LinkTargetDisplay = {
   DELAY_HIDE: 250,
   _timer: 0,
 
-  get _isVisible () XULBrowserWindow.statusTextField.label != "",
+  get _isVisible () {
+    return XULBrowserWindow.statusTextField.label != "";
+  },
 
   update: function () {
     clearTimeout(this._timer);
@@ -4938,7 +4940,11 @@ nsBrowserAccess.prototype = {
   },
 
   isTabContentWindow: function (aWindow) {
-    return gBrowser.browsers.some(function (browser) browser.contentWindow == aWindow);
+    return gBrowser.browsers.some(browser => browser.contentWindow == aWindow);
+  },
+
+  canClose() {
+    return CanCloseWindow();
   },
 }
 
@@ -5173,8 +5179,9 @@ var TabsInTitlebar = {
   },
 
   _update: function (aForce=false) {
-    function $(id) document.getElementById(id);
-    function rect(ele) ele.getBoundingClientRect();
+    let $ = id => document.getElementById(id);
+    let rect = ele => ele.getBoundingClientRect();
+    let verticalMargins = cstyle => parseFloat(cstyle.marginBottom) + parseFloat(cstyle.marginTop);
 
     if (!this._initialized || window.fullScreen)
       return;
@@ -6378,6 +6385,26 @@ var IndexedDBPromptHelper = {
   }
 };
 
+function CanCloseWindow()
+{
+  // Avoid redundant calls to canClose from showing multiple
+  // PermitUnload dialogs.
+  if (window.skipNextCanClose) {
+    return true;
+  }
+
+  for (let browser of gBrowser.browsers) {
+    let {permitUnload, timedOut} = browser.permitUnload();
+    if (timedOut) {
+      return true;
+    }
+    if (!permitUnload) {
+      return false;
+    }
+  }
+  return true;
+}
+
 function WindowIsClosing()
 {
   let event = document.createEvent("Events");
@@ -6388,17 +6415,19 @@ function WindowIsClosing()
   if (!closeWindow(false, warnAboutClosingWindow))
     return false;
 
-  // Bug 967873 - Proxy nsDocumentViewer::PermitUnload to the child process
-  if (gMultiProcessBrowser)
+  // In theory we should exit here and the Window's internal Close
+  // method should trigger canClose on nsBrowserAccess. However, by
+  // that point it's too late to be able to show a prompt for
+  // PermitUnload. So we do it here, when we still can.
+  if (CanCloseWindow()) {
+    // This flag ensures that the later canClose call does nothing.
+    // It's only needed to make tests pass, since they detect the
+    // prompt even when it's not actually shown.
+    window.skipNextCanClose = true;
     return true;
-
-  for (let browser of gBrowser.browsers) {
-    let ds = browser.docShell;
-    if (ds.contentViewer && !ds.contentViewer.permitUnload())
-      return false;
   }
 
-  return true;
+  return false;
 }
 
 /**

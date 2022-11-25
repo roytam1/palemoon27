@@ -2034,7 +2034,7 @@ nsGlobalWindow::SetInitialPrincipalToSubject()
   MOZ_ASSERT(IsOuterWindow());
 
   // First, grab the subject principal.
-  nsCOMPtr<nsIPrincipal> newWindowPrincipal = nsContentUtils::SubjectPrincipal();
+  nsCOMPtr<nsIPrincipal> newWindowPrincipal = nsContentUtils::SubjectPrincipalOrSystemIfNativeCaller();
 
   // Now, if we're about to use the system principal or an nsExpandedPrincipal,
   // make sure we're not using it for a content docshell.
@@ -4356,7 +4356,7 @@ nsGlobalWindow::GetApplicationCache(ErrorResult& aError)
 
   if (!mApplicationCache) {
     nsCOMPtr<nsIWebNavigation> webNav(do_QueryInterface(GetDocShell()));
-    if (!webNav) {
+    if (!webNav || !mDoc) {
       aError.Throw(NS_ERROR_FAILURE);
       return nullptr;
     }
@@ -4371,7 +4371,7 @@ nsGlobalWindow::GetApplicationCache(ErrorResult& aError)
     nsContentUtils::GetOfflineAppManifest(mDoc, getter_AddRefs(manifestURI));
 
     RefPtr<nsDOMOfflineResourceList> applicationCache =
-      new nsDOMOfflineResourceList(manifestURI, uri, this);
+      new nsDOMOfflineResourceList(manifestURI, uri, mDoc->NodePrincipal(), this);
 
     applicationCache->Init();
 
@@ -4483,7 +4483,7 @@ nsGlobalWindow::GetOpenerWindowOuter()
   nsGlobalWindow* win = static_cast<nsGlobalWindow*>(opener.get());
 
   // First, check if we were called from a privileged chrome script
-  if (nsContentUtils::IsCallerChrome()) {
+  if (nsContentUtils::LegacyIsCallerChromeOrNativeCode()) {
     // Catch the case where we're chrome but the opener is not...
     if (GetPrincipal() == nsContentUtils::GetSystemPrincipal() &&
         win->GetPrincipal() != nsContentUtils::GetSystemPrincipal()) {
@@ -6459,7 +6459,7 @@ nsGlobalWindow::SetFullscreenInternal(FullscreenReason aReason,
 
   // Only chrome can change our fullscreen mode. Otherwise, the state
   // can only be changed for DOM fullscreen.
-  if (aReason == eForFullscreenMode && !nsContentUtils::IsCallerChrome()) {
+  if (aReason == eForFullscreenMode && !nsContentUtils::LegacyIsCallerChromeOrNativeCode()) {
     return NS_OK;
   }
 
@@ -6875,7 +6875,9 @@ nsGlobalWindow::AlertOrConfirm(bool aAlert,
   MOZ_ASSERT(IsOuterWindow());
 
   if (!AreDialogsEnabled()) {
-    aError.Throw(NS_ERROR_NOT_AVAILABLE);
+    // Just silently return.  In the case of alert(), the return value is
+    // ignored.  In the case of confirm(), returning false is the same thing as
+    // would happen if the user cancels.
     return false;
   }
 
@@ -7015,7 +7017,7 @@ nsGlobalWindow::PromptOuter(const nsAString& aMessage, const nsAString& aInitial
   SetDOMStringToNull(aReturn);
 
   if (!AreDialogsEnabled()) {
-    aError.Throw(NS_ERROR_NOT_AVAILABLE);
+    // Return null, as if the user just canceled the prompt.
     return;
   }
 
@@ -7206,13 +7208,11 @@ nsGlobalWindow::FocusOuter(ErrorResult& aError)
     }
     return;
   }
-  if (nsCOMPtr<nsITabChild> child = do_GetInterface(mDocShell)) {
-    child->SendRequestFocus(canFocus);
-    return;
-  }
+
   if (canFocus) {
     // if there is no parent, this must be a toplevel window, so raise the
-    // window if canFocus is true
+    // window if canFocus is true. If this is a child process, the raise
+    // window request will get forwarded to the parent by the puppet widget.
     aError = fm->SetActiveWindow(this);
   }
 }
@@ -7452,6 +7452,8 @@ nsGlobalWindow::PrintOuter(ErrorResult& aError)
   }
 
   if (!AreDialogsEnabled()) {
+    // We probably want to keep throwing here; silently doing nothing is a bit
+    // weird given the typical use cases of print().
     aError.Throw(NS_ERROR_NOT_AVAILABLE);
     return;
   }
@@ -8183,7 +8185,7 @@ bool
 nsGlobalWindow::CanSetProperty(const char *aPrefName)
 {
   // Chrome can set any property.
-  if (nsContentUtils::IsCallerChrome()) {
+  if (nsContentUtils::LegacyIsCallerChromeOrNativeCode()) {
     return true;
   }
 
@@ -8701,6 +8703,17 @@ nsGlobalWindow::CanClose()
 {
   MOZ_ASSERT(IsOuterWindow());
 
+  if (mIsChrome) {
+    nsCOMPtr<nsIBrowserDOMWindow> bwin;
+    nsIDOMChromeWindow* chromeWin = static_cast<nsGlobalChromeWindow*>(this);
+    chromeWin->GetBrowserDOMWindow(getter_AddRefs(bwin));
+
+    bool canClose = true;
+    if (bwin && NS_SUCCEEDED(bwin->CanClose(&canClose))) {
+      return canClose;
+    }
+  }
+
   if (!mDocShell) {
     return true;
   }
@@ -8714,7 +8727,7 @@ nsGlobalWindow::CanClose()
   mDocShell->GetContentViewer(getter_AddRefs(cv));
   if (cv) {
     bool canClose;
-    nsresult rv = cv->PermitUnload(false, &canClose);
+    nsresult rv = cv->PermitUnload(&canClose);
     if (NS_SUCCEEDED(rv) && !canClose)
       return false;
 
@@ -9507,6 +9520,8 @@ nsGlobalWindow::ShowModalDialogOuter(const nsAString& aUrl, nsIVariant* aArgumen
   EnsureReflowFlushAndPaint();
 
   if (!AreDialogsEnabled()) {
+    // We probably want to keep throwing here; silently doing nothing is a bit
+    // weird given the typical use cases of showModalDialog().
     aError.Throw(NS_ERROR_NOT_AVAILABLE);
     return nullptr;
   }
@@ -9993,6 +10008,7 @@ nsGlobalWindow::AddSystemEventListener(const nsAString& aType,
                "explicit by making optional_argc non-zero.");
 
   if (IsOuterWindow() && mInnerWindow &&
+      !nsContentUtils::LegacyIsCallerNativeCode() &&
       !nsContentUtils::CanCallerAccess(mInnerWindow)) {
     return NS_ERROR_DOM_SECURITY_ERR;
   }
@@ -12143,7 +12159,7 @@ nsGlobalWindow::OpenInternal(const nsAString& aUrl, const nsAString& aName,
     }
   }
 
-  const bool checkForPopup = !nsContentUtils::IsCallerChrome() &&
+  const bool checkForPopup = !nsContentUtils::LegacyIsCallerChromeOrNativeCode() &&
     !isApp && !aDialog && !WindowExists(aName, !aCalledNoScript);
 
   // Note: it's very important that this be an nsXPIDLCString, since we want

@@ -83,26 +83,30 @@ GMPContentChild::DeallocPGMPDecryptorChild(PGMPDecryptorChild* aActor)
 PGMPVideoDecoderChild*
 GMPContentChild::AllocPGMPVideoDecoderChild()
 {
-  return new GMPVideoDecoderChild(this);
+  GMPVideoDecoderChild* actor = new GMPVideoDecoderChild(this);
+  actor->AddRef();
+  return actor;
 }
 
 bool
 GMPContentChild::DeallocPGMPVideoDecoderChild(PGMPVideoDecoderChild* aActor)
 {
-  delete aActor;
+  static_cast<GMPVideoDecoderChild*>(aActor)->Release();
   return true;
 }
 
 PGMPVideoEncoderChild*
 GMPContentChild::AllocPGMPVideoEncoderChild()
 {
-  return new GMPVideoEncoderChild(this);
+  GMPVideoEncoderChild* actor = new GMPVideoEncoderChild(this);
+  actor->AddRef();
+  return actor;
 }
 
 bool
 GMPContentChild::DeallocPGMPVideoEncoderChild(PGMPVideoEncoderChild* aActor)
 {
-  delete aActor;
+  static_cast<GMPVideoEncoderChild*>(aActor)->Release();
   return true;
 }
 

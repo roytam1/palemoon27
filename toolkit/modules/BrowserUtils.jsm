@@ -257,4 +257,20 @@ this.BrowserUtils = {
     let values = rel.split(/[ \t\r\n\f]/);
     return values.indexOf('noreferrer') != -1;
   },
+
+  // Iterates through every docshell in the window and calls PermitUnload.
+  canCloseWindow(window) {
+    let docShell = window.QueryInterface(Ci.nsIInterfaceRequestor)
+                         .getInterface(Ci.nsIWebNavigation);
+    let node = docShell.QueryInterface(Ci.nsIDocShellTreeItem);
+    for (let i = 0; i < node.childCount; ++i) {
+      let docShell = node.getChildAt(i).QueryInterface(Ci.nsIDocShell);
+      let contentViewer = docShell.contentViewer;
+      if (contentViewer && !contentViewer.permitUnload()) {
+        return false;
+      }
+    }
+
+    return true;
+  },
 };

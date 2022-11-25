@@ -1523,7 +1523,7 @@ nsDocShell::LoadURI(nsIURI* aURI,
   }
   if (!owner && !inheritOwner && !ownerIsExplicit) {
     // See if there's system or chrome JS code running
-    inheritOwner = nsContentUtils::IsCallerChrome();
+    inheritOwner = nsContentUtils::LegacyIsCallerChromeOrNativeCode();
   }
 
   if (aLoadFlags & LOAD_FLAGS_DISALLOW_INHERIT_OWNER) {
@@ -9794,8 +9794,7 @@ nsDocShell::InternalLoad2(nsIURI* aURI,
           // So, the best we can do, is to tear down the new window
           // that was just created!
           //
-          nsCOMPtr<nsPIDOMWindow> domWin = targetDocShell->GetWindow();
-          if (domWin) {
+          if (nsCOMPtr<nsPIDOMWindow> domWin = targetDocShell->GetWindow()) {
             domWin->Close();
           }
         }

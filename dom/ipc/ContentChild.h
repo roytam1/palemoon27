@@ -450,6 +450,7 @@ public:
     virtual POfflineCacheUpdateChild* AllocPOfflineCacheUpdateChild(
             const URIParams& manifestURI,
             const URIParams& documentURI,
+            const PrincipalInfo& aLoadingPrincipalInfo,
             const bool& stickDocument,
             const TabId& aTabId) override;
     virtual bool

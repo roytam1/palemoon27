@@ -163,6 +163,7 @@ IonBuilder::IonBuilder(JSContext* analysisContext, CompileCompartment* comp,
     maybeFallbackFunctionGetter_(nullptr)
 {
     script_ = info->script();
+    scriptHasIonScript_ = script_->hasIonScript();
     pc = info->startPC();
     abortReason_ = AbortReason_Disable;
 
@@ -737,12 +738,9 @@ IonBuilder::analyzeNewLoopTypes(MBasicBlock* entry, jsbytecode* start, jsbytecod
 bool
 IonBuilder::pushLoop(CFGState::State initial, jsbytecode* stopAt, MBasicBlock* entry, bool osr,
                      jsbytecode* loopHead, jsbytecode* initialPc,
-                     jsbytecode* bodyStart, jsbytecode* bodyEnd, jsbytecode* exitpc,
-                     jsbytecode* continuepc)
+                     jsbytecode* bodyStart, jsbytecode* bodyEnd,
+                     jsbytecode* exitpc, jsbytecode* continuepc)
 {
-    if (!continuepc)
-        continuepc = entry->pc();
-
     ControlFlowInfo loop(cfgStack_.length(), continuepc);
     if (!loops_.append(loop))
         return false;
@@ -817,7 +815,7 @@ IonBuilder::build()
                 script()->filename(), script()->lineno(), (void*)script(),
                 AnalysisModeString(info().analysisMode()));
     } else {
-        JitSpew(JitSpew_IonScripts, "%sompiling script %s:%" PRIuSIZE " (%p) (warmup-counter=%" PRIuSIZE ", level=%s)",
+        JitSpew(JitSpew_IonScripts, "%sompiling script %s:%" PRIuSIZE " (%p) (warmup-counter=%" PRIu32 ", level=%s)",
                 (script()->hasIonScript() ? "Rec" : "C"),
                 script()->filename(), script()->lineno(), (void*)script(),
                 script()->getWarmUpCount(), OptimizationLevelString(optimizationInfo().level()));
@@ -3146,7 +3144,7 @@ IonBuilder::doWhileLoop(JSOp op, jssrcnote* sn)
     bool osr = info().hasOsrAt(loopEntry);
 
     if (osr) {
-        MBasicBlock* preheader = newOsrPreheader(current, loopEntry);
+        MBasicBlock* preheader = newOsrPreheader(current, loopEntry, pc);
         if (!preheader)
             return ControlStatus_Error;
         current->end(MGoto::New(alloc(), preheader));
@@ -3155,7 +3153,7 @@ IonBuilder::doWhileLoop(JSOp op, jssrcnote* sn)
     }
 
     unsigned stackPhiCount = 0;
-    MBasicBlock* header = newPendingLoopHeader(current, pc, osr, canOsr, stackPhiCount);
+    MBasicBlock* header = newPendingLoopHeader(current, loopEntry, osr, canOsr, stackPhiCount);
     if (!header)
         return ControlStatus_Error;
     current->end(MGoto::New(alloc(), header));
@@ -3211,7 +3209,7 @@ IonBuilder::whileOrForInLoop(jssrcnote* sn)
     bool osr = info().hasOsrAt(loopEntry);
 
     if (osr) {
-        MBasicBlock* preheader = newOsrPreheader(current, loopEntry);
+        MBasicBlock* preheader = newOsrPreheader(current, loopEntry, pc);
         if (!preheader)
             return ControlStatus_Error;
         current->end(MGoto::New(alloc(), preheader));
@@ -3227,7 +3225,7 @@ IonBuilder::whileOrForInLoop(jssrcnote* sn)
     else
         stackPhiCount = 0;
 
-    MBasicBlock* header = newPendingLoopHeader(current, pc, osr, canOsr, stackPhiCount);
+    MBasicBlock* header = newPendingLoopHeader(current, loopEntry, osr, canOsr, stackPhiCount);
     if (!header)
         return ControlStatus_Error;
     current->end(MGoto::New(alloc(), header));
@@ -3237,10 +3235,11 @@ IonBuilder::whileOrForInLoop(jssrcnote* sn)
     jsbytecode* bodyStart = GetNextPc(loopHead);
     jsbytecode* bodyEnd = pc + GetJumpOffset(pc);
     jsbytecode* exitpc = GetNextPc(ifne);
+    jsbytecode* continuepc = pc;
     if (!analyzeNewLoopTypes(header, bodyStart, exitpc))
         return ControlStatus_Error;
     if (!pushLoop(CFGState::WHILE_LOOP_COND, ifne, header, osr,
-                  loopHead, bodyEnd, bodyStart, bodyEnd, exitpc))
+                  loopHead, bodyEnd, bodyStart, bodyEnd, exitpc, continuepc))
     {
         return ControlStatus_Error;
     }
@@ -3312,7 +3311,7 @@ IonBuilder::forLoop(JSOp op, jssrcnote* sn)
     bool canOsr = LoopEntryCanIonOsr(loopEntry);
 
     if (osr) {
-        MBasicBlock* preheader = newOsrPreheader(current, loopEntry);
+        MBasicBlock* preheader = newOsrPreheader(current, loopEntry, pc);
         if (!preheader)
             return ControlStatus_Error;
         current->end(MGoto::New(alloc(), preheader));
@@ -3321,7 +3320,7 @@ IonBuilder::forLoop(JSOp op, jssrcnote* sn)
     }
 
     unsigned stackPhiCount = 0;
-    MBasicBlock* header = newPendingLoopHeader(current, pc, osr, canOsr, stackPhiCount);
+    MBasicBlock* header = newPendingLoopHeader(current, loopEntry, osr, canOsr, stackPhiCount);
     if (!header)
         return ControlStatus_Error;
     current->end(MGoto::New(alloc(), header));
@@ -7309,6 +7308,8 @@ IonBuilder::addBlock(MBasicBlock* block, uint32_t loopDepth)
 {
     if (!block)
         return nullptr;
+    if (block->pc() && script()->hasScriptCounts())
+        block->setHitCount(script()->getHitCount(block->pc()));
     graph().addBlock(block);
     block->setLoopDepth(loopDepth);
     return block;
@@ -7345,6 +7346,7 @@ IonBuilder::newBlockAfter(MBasicBlock* at, MBasicBlock* predecessor, jsbytecode*
                                           bytecodeSite(pc), MBasicBlock::NORMAL);
     if (!block)
         return nullptr;
+    block->setHitCount(0); // osr block
     graph().insertBlockAfter(at, block);
     return block;
 }
@@ -7358,7 +7360,7 @@ IonBuilder::newBlock(MBasicBlock* predecessor, jsbytecode* pc, uint32_t loopDept
 }
 
 MBasicBlock*
-IonBuilder::newOsrPreheader(MBasicBlock* predecessor, jsbytecode* loopEntry)
+IonBuilder::newOsrPreheader(MBasicBlock* predecessor, jsbytecode* loopEntry, jsbytecode* beforeLoopEntry)
 {
     MOZ_ASSERT(LoopEntryCanIonOsr(loopEntry));
     MOZ_ASSERT(loopEntry == info().osrPc());
@@ -7370,6 +7372,10 @@ IonBuilder::newOsrPreheader(MBasicBlock* predecessor, jsbytecode* loopEntry)
     MBasicBlock* preheader = newBlock(predecessor, loopEntry);
     if (!osrBlock || !preheader)
         return nullptr;
+
+    // Give the pre-header the same hit count as the code before the loop.
+    if (script()->hasScriptCounts())
+        preheader->setHitCount(script()->getHitCount(beforeLoopEntry));
 
     MOsrEntry* entry = MOsrEntry::New(alloc());
     osrBlock->add(entry);

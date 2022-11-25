@@ -113,7 +113,10 @@ let AnimationsController = {
                                                           "setPlaybackRate");
     this.hasTargetNode = yield target.actorHasMethod("domwalker",
                                                      "getNodeFromActor");
-    this.isNewUI = Services.prefs.getBoolPref("devtools.inspector.animationInspectorV3");
+    try {
+      this.isNewUI = Services.prefs.getBoolPref("devtools.inspector.animationInspectorV3");
+    } catch(ex) {
+    }
 
     if (this.destroyed) {
       console.warn("Could not fully initialize the AnimationsController");

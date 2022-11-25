@@ -12,6 +12,7 @@
 #include "gfxMatrix.h"
 #include "mozilla/gfx/2D.h"
 #include "mozilla/BasicEvents.h"
+#include "mozilla/MouseEvents.h"
 #ifdef XP_WIN
 // This is needed for DoublePassRenderingEvent.
 #include "mozilla/plugins/PluginMessageUtils.h"
@@ -155,7 +156,9 @@ protected:
 
 nsPluginFrame::nsPluginFrame(nsStyleContext* aContext)
   : nsPluginFrameSuper(aContext)
+  , mInstanceOwner(nullptr)
   , mReflowCallbackPosted(false)
+  , mIsHiddenDueToScroll(false)
 {
   MOZ_LOG(GetObjectFrameLog(), LogLevel::Debug,
          ("Created new nsPluginFrame %p\n", this));
@@ -763,6 +766,23 @@ nsPluginFrame::IsHidden(bool aCheckVisibilityStyle) const
   return false;
 }
 
+// Clips windowed plugin frames during remote content scroll operations managed
+// by nsGfxScrollFrame.
+void
+nsPluginFrame::SetScrollVisibility(bool aState)
+{
+  // Limit this setting to windowed plugins by checking if we have a widget
+  if (mWidget) {
+    bool changed = mIsHiddenDueToScroll != aState;
+    mIsHiddenDueToScroll = aState;
+    // Force a paint so plugin window visibility gets flushed via
+    // the compositor.
+    if (changed) {
+      SchedulePaint();
+    }
+  }
+}
+
 mozilla::LayoutDeviceIntPoint
 nsPluginFrame::GetRemoteTabChromeOffset()
 {
@@ -1096,6 +1116,11 @@ nsPluginFrame::DidSetWidgetGeometry()
 bool
 nsPluginFrame::IsOpaque() const
 {
+  // Insure underlying content gets painted when we clip windowed plugins
+  // during remote content scroll operations managed by nsGfxScrollFrame.
+  if (mIsHiddenDueToScroll) {
+    return false;
+  }
 #if defined(XP_MACOSX)
   return false;
 #elif defined(MOZ_WIDGET_ANDROID)
@@ -1141,6 +1166,12 @@ nsPluginFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
                                 const nsRect&           aDirtyRect,
                                 const nsDisplayListSet& aLists)
 {
+  // Clip windowed plugin frames from the list during remote content scroll
+  // operations managed by nsGfxScrollFrame.
+  if (mIsHiddenDueToScroll) {
+    return;
+  }
+
   // XXX why are we painting collapsed object frames?
   if (!IsVisibleOrCollapsedForPainting(aBuilder))
     return;
@@ -1815,6 +1846,50 @@ nsPluginFrame::HandleEvent(nsPresContext* aPresContext,
 #endif
 
   return rv;
+}
+
+void
+nsPluginFrame::HandleWheelEventAsDefaultAction(WidgetWheelEvent* aWheelEvent)
+{
+  MOZ_ASSERT(WantsToHandleWheelEventAsDefaultAction());
+  MOZ_ASSERT(!aWheelEvent->mFlags.mDefaultPrevented);
+
+  if (NS_WARN_IF(!mInstanceOwner) ||
+      NS_WARN_IF(aWheelEvent->mMessage != eWheel)) {
+    return;
+  }
+
+  // If the wheel event has native message, it should may be handled by
+  // HandleEvent() in the future.  In such case, we should do nothing here.
+  if (NS_WARN_IF(!!aWheelEvent->mPluginEvent)) {
+    return;
+  }
+
+  mInstanceOwner->ProcessEvent(*aWheelEvent);
+  // We need to assume that the event is always consumed/handled by the
+  // plugin.  There is no way to know if it's actually consumed/handled.
+  aWheelEvent->mViewPortIsOverscrolled = false;
+  aWheelEvent->overflowDeltaX = 0;
+  aWheelEvent->overflowDeltaY = 0;
+  // Consume the event explicitly.
+  aWheelEvent->PreventDefault();
+}
+
+bool
+nsPluginFrame::WantsToHandleWheelEventAsDefaultAction() const
+{
+#ifdef XP_WIN
+  if (!mInstanceOwner) {
+    return false;
+  }
+  NPWindow* window = nullptr;
+  mInstanceOwner->GetWindow(window);
+  // On Windows, only when the plugin is windowless, we need to send wheel
+  // events as default action.
+  return window->type == NPWindowTypeDrawable;
+#else
+  return false;
+#endif
 }
 
 nsresult

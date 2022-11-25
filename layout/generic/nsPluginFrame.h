@@ -9,6 +9,7 @@
 #define nsPluginFrame_h___
 
 #include "mozilla/Attributes.h"
+#include "mozilla/EventForwards.h"
 #include "nsIObjectFrame.h"
 #include "nsFrame.h"
 #include "nsRegion.h"
@@ -24,6 +25,7 @@
 #undef GetClassName
 #undef GetBinaryType
 #undef RemoveDirectory
+#undef LoadIcon
 #endif
 
 class nsPresContext;
@@ -200,6 +202,24 @@ public:
 
   void SetInstanceOwner(nsPluginInstanceOwner* aOwner);
 
+  /**
+   * Helper for hiding windowed plugins during async scroll operations.
+   */
+  void SetScrollVisibility(bool aState);
+
+  /**
+   * HandleWheelEventAsDefaultAction() handles eWheel event as default action.
+   * This should be called only when WantsToHandleWheelEventAsDefaultAction()
+   * returns true.
+   */
+  void HandleWheelEventAsDefaultAction(mozilla::WidgetWheelEvent* aEvent);
+
+  /**
+   * WantsToHandleWheelEventAsDefaultAction() returns true if the plugin
+   * may want to handle wheel events as default action.
+   */
+  bool WantsToHandleWheelEventAsDefaultAction() const;
+
 protected:
   explicit nsPluginFrame(nsStyleContext* aContext);
   virtual ~nsPluginFrame();
@@ -303,6 +323,10 @@ private:
   // This is only non-null while we have a plugin registered for geometry
   // updates.
   RefPtr<nsRootPresContext> mRootPresContextRegisteredWith;
+
+  // Tracks windowed plugin visibility during scroll operations. See
+  // SetScrollVisibility.
+  bool mIsHiddenDueToScroll;
 };
 
 class nsDisplayPlugin : public nsDisplayItem {

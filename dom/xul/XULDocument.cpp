@@ -239,19 +239,14 @@ NS_NewXULDocument(nsIXULDocument** result)
     if (! result)
         return NS_ERROR_NULL_POINTER;
 
-    XULDocument* doc = new XULDocument();
-    if (! doc)
-        return NS_ERROR_OUT_OF_MEMORY;
-
-    NS_ADDREF(doc);
+    RefPtr<XULDocument> doc = new XULDocument();
 
     nsresult rv;
     if (NS_FAILED(rv = doc->Init())) {
-        NS_RELEASE(doc);
         return rv;
     }
 
-    *result = doc;
+    doc.forget(result);
     return NS_OK;
 }
 
@@ -447,8 +442,6 @@ XULDocument::StartDocumentLoad(const char* aCommand, nsIChannel* aChannel,
         // the interesting work happens below XULDocument::EndLoad, from
         // the call there to mCurrentPrototype->NotifyLoadDone().
         *aDocListener = new CachedChromeStreamListener(this, loaded);
-        if (! *aDocListener)
-            return NS_ERROR_OUT_OF_MEMORY;
     }
     else {
         bool useXULCache = nsXULPrototypeCache::GetInstance()->IsEnabled();
@@ -1628,9 +1621,6 @@ XULDocument::AddElementToDocumentPre(Element* aElement)
     // later.
     if (listener && !resolved && (mResolutionPhase != nsForwardReference::eDone)) {
         BroadcasterHookup* hookup = new BroadcasterHookup(this, aElement);
-        if (! hookup)
-            return NS_ERROR_OUT_OF_MEMORY;
-
         rv = AddForwardReference(hookup);
         if (NS_FAILED(rv)) return rv;
     }
@@ -1661,9 +1651,6 @@ XULDocument::AddElementToDocumentPost(Element* aElement)
         }
         else {
             TemplateBuilderHookup* hookup = new TemplateBuilderHookup(aElement);
-            if (! hookup)
-                return NS_ERROR_OUT_OF_MEMORY;
-
             rv = AddForwardReference(hookup);
             if (NS_FAILED(rv))
                 return rv;
@@ -1868,7 +1855,6 @@ XULDocument::Init()
 
     // Create our command dispatcher and hook it up.
     mCommandDispatcher = new nsXULCommandDispatcher(this);
-    NS_ENSURE_TRUE(mCommandDispatcher, NS_ERROR_OUT_OF_MEMORY);
 
     if (gRefCnt++ == 0) {
         // ensure that the XUL prototype cache is instantiated successfully,
@@ -2000,7 +1986,6 @@ XULDocument::PrepareToLoadPrototype(nsIURI* aURI, const char* aCommand,
     // Create a XUL content sink, a parser, and kick off a load for
     // the overlay.
     RefPtr<XULContentSinkImpl> sink = new XULContentSinkImpl();
-    if (!sink) return NS_ERROR_OUT_OF_MEMORY;
 
     rv = sink->Init(this, mCurrentPrototype);
     NS_ASSERTION(NS_SUCCEEDED(rv), "Unable to initialize datasource sink");
@@ -2188,9 +2173,6 @@ XULDocument::ContextStack::Push(nsXULPrototypeElement* aPrototype,
                                 nsIContent* aElement)
 {
     Entry* entry = new Entry;
-    if (! entry)
-        return NS_ERROR_OUT_OF_MEMORY;
-
     entry->mPrototype = aPrototype;
     entry->mElement   = aElement;
     NS_IF_ADDREF(entry->mElement);
@@ -2643,14 +2625,10 @@ XULDocument::LoadOverlayInternal(nsIURI* aURI, bool aIsDynamic,
         // Add an observer to the parser; this'll get called when
         // Necko fires its On[Start|Stop]Request() notifications,
         // and will let us recover from a missing overlay.
-        ParserObserver* parserObserver =
+        RefPtr<ParserObserver> parserObserver =
             new ParserObserver(this, mCurrentPrototype);
-        if (! parserObserver)
-            return NS_ERROR_OUT_OF_MEMORY;
-
-        NS_ADDREF(parserObserver);
         parser->Parse(aURI, parserObserver);
-        NS_RELEASE(parserObserver);
+        parserObserver = nullptr;
 
         nsCOMPtr<nsILoadGroup> group = do_QueryReferent(mDocumentLoadGroup);
         nsCOMPtr<nsIChannel> channel;
@@ -3626,8 +3604,6 @@ XULDocument::CreateOverlayElement(nsXULPrototypeElement* aPrototype,
 
     OverlayForwardReference* fwdref =
         new OverlayForwardReference(this, element);
-    if (! fwdref)
-        return NS_ERROR_OUT_OF_MEMORY;
 
     // transferring ownership to ya...
     rv = AddForwardReference(fwdref);

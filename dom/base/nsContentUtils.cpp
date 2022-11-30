@@ -3510,6 +3510,8 @@ nsContentUtils::MaybeReportInterceptionErrorToConsole(nsIDocument* aDocument,
     messageName = "BadOpaqueRedirectInterception";
   } else if (aError == NS_ERROR_INTERCEPTION_CANCELED) {
     messageName = "InterceptionCanceled";
+  } else if (aError == NS_ERROR_REJECTED_RESPONSE_INTERCEPTION) {
+    messageName = "InterceptionRejectedResponse";
   }
 
   if (messageName) {
@@ -3799,9 +3801,7 @@ nsresult GetEventAndTarget(nsIDocument* aDoc, nsISupports* aTarget,
     domDoc->CreateEvent(NS_LITERAL_STRING("Events"), getter_AddRefs(event));
   NS_ENSURE_SUCCESS(rv, rv);
 
-  rv = event->InitEvent(aEventName, aCanBubble, aCancelable);
-  NS_ENSURE_SUCCESS(rv, rv);
-
+  event->InitEvent(aEventName, aCanBubble, aCancelable);
   event->SetTrusted(aTrusted);
 
   rv = event->SetTarget(target);

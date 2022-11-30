@@ -2198,7 +2198,7 @@ nsDOMWindowUtils::SuspendTimeouts()
   nsCOMPtr<nsPIDOMWindow> window = do_QueryReferent(mWindow);
   NS_ENSURE_TRUE(window, NS_ERROR_FAILURE);
 
-  window->SuspendTimeouts();
+  window->SuspendTimeouts(1, true, false);
 
   return NS_OK;
 }
@@ -2211,7 +2211,7 @@ nsDOMWindowUtils::ResumeTimeouts()
   nsCOMPtr<nsPIDOMWindow> window = do_QueryReferent(mWindow);
   NS_ENSURE_TRUE(window, NS_ERROR_FAILURE);
 
-  window->ResumeTimeouts();
+  window->ResumeTimeouts(true, false);
 
   return NS_OK;
 }

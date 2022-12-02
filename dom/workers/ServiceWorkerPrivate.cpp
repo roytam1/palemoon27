@@ -10,16 +10,18 @@
 #include "nsStringStream.h"
 #include "mozilla/dom/FetchUtil.h"
 
-#include "nsIConsoleReportCollector.h"
-#include "nsIScriptError.h"
-#include "nsIScriptError.h"
-
 using namespace mozilla;
 using namespace mozilla::dom;
 
 BEGIN_WORKERS_NAMESPACE
 
-NS_IMPL_ISUPPORTS0(ServiceWorkerPrivate)
+NS_IMPL_CYCLE_COLLECTING_ADDREF(ServiceWorkerPrivate)
+NS_IMPL_CYCLE_COLLECTING_RELEASE(ServiceWorkerPrivate)
+NS_IMPL_CYCLE_COLLECTION(ServiceWorkerPrivate, mSupportsArray)
+
+NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(ServiceWorkerPrivate)
+  NS_INTERFACE_MAP_ENTRY(nsISupports)
+NS_INTERFACE_MAP_END
 
 // Tracks the "dom.disable_open_click_delay" preference.  Modified on main
 // thread, read on worker threads.
@@ -73,6 +75,7 @@ ServiceWorkerPrivate::~ServiceWorkerPrivate()
   MOZ_ASSERT(!mWorkerPrivate);
   MOZ_ASSERT(!mTokenCount);
   MOZ_ASSERT(!mInfo);
+  MOZ_ASSERT(mSupportsArray.IsEmpty());
 
   mIdleWorkerTimer->Cancel();
 }
@@ -99,12 +102,15 @@ namespace {
 
 class CheckScriptEvaluationWithCallback final : public WorkerRunnable
 {
+  nsMainThreadPtrHandle<KeepAliveToken> mKeepAliveToken;
   RefPtr<nsRunnable> mCallback;
 
 public:
   CheckScriptEvaluationWithCallback(WorkerPrivate* aWorkerPrivate,
+                                    KeepAliveToken* aKeepAliveToken,
                                     nsRunnable* aCallback)
-    : WorkerRunnable(aWorkerPrivate, WorkerThreadUnchangedBusyCount)
+    : WorkerRunnable(aWorkerPrivate, WorkerThreadModifyBusyCount)
+    , mKeepAliveToken(new nsMainThreadPtrHolder<KeepAliveToken>(aKeepAliveToken))
     , mCallback(aCallback)
   {
     AssertIsOnMainThread();
@@ -133,7 +139,9 @@ ServiceWorkerPrivate::ContinueOnSuccessfulScriptEvaluation(nsRunnable* aCallback
   nsresult rv = SpawnWorkerIfNeeded(LifeCycleEvent, nullptr);
   NS_ENSURE_SUCCESS(rv, rv);
 
+  MOZ_ASSERT(mKeepAliveToken);
   RefPtr<WorkerRunnable> r = new CheckScriptEvaluationWithCallback(mWorkerPrivate,
+                                                                     mKeepAliveToken,
                                                                      aCallback);
   AutoJSAPI jsapi;
   jsapi.Init();
@@ -409,10 +417,9 @@ public:
 
     RefPtr<xpc::ErrorReport> xpcReport = new xpc::ErrorReport();
     xpcReport->Init(report.report(), report.message(),
-                    /* aIsChrome = */ false, /* aWindowID = */ 0);
+                    /* aIsChrome = */ false, workerPrivate->WindowID());
 
-    RefPtr<AsyncErrorReporter> aer =
-      new AsyncErrorReporter(CycleCollectedJSRuntime::Get()->Runtime(), xpcReport);
+    RefPtr<AsyncErrorReporter> aer = new AsyncErrorReporter(xpcReport);
     NS_DispatchToMainThread(aer);
   }
 };
@@ -1131,6 +1138,12 @@ private:
 
     request->SetContentPolicyType(mContentPolicyType);
 
+    request->GetInternalHeaders()->SetGuard(HeadersGuardEnum::Immutable, result);
+    if (NS_WARN_IF(result.Failed())) {
+      result.SuppressException();
+      return false;
+    }
+
     // TODO: remove conditional on http here once app protocol support is
     //       removed from service worker interception
     MOZ_ASSERT_IF(mIsHttpChannel && internalReq->IsNavigationRequest(),
@@ -1157,19 +1170,7 @@ private:
     if (NS_WARN_IF(NS_FAILED(rv2)) || !event->WaitToRespond()) {
       nsCOMPtr<nsIRunnable> runnable;
       if (event->DefaultPrevented(aCx)) {
-        nsCOMPtr<nsIChannel> inner;
-        mInterceptedChannel->GetChannel(getter_AddRefs(inner));
-        nsCOMPtr<nsIConsoleReportCollector> reporter = do_QueryInterface(inner);
-        if (reporter) {
-          NS_ConvertUTF8toUTF16 requestURL(mSpec);
-          reporter->AddConsoleReport(nsIScriptError::errorFlag,
-                                     NS_LITERAL_CSTRING("Service Worker Interception"),
-                                     nsContentUtils::eDOM_PROPERTIES,
-                                     mScriptSpec, 0, 0,
-                                     NS_LITERAL_CSTRING("InterceptionCanceledWithURL"),
-                                     &requestURL);
-
-        }
+        event->ReportCanceled();
         runnable = new CancelChannelRunnable(mInterceptedChannel,
                                              NS_ERROR_INTERCEPTION_FAILED);
       } else {
@@ -1314,6 +1315,10 @@ ServiceWorkerPrivate::SpawnWorkerIfNeeded(WakeUpReason aWhy,
     return NS_OK;
   }
 
+  // Sanity check: mSupportsArray should be empty if we're about to
+  // spin up a new worker.
+  MOZ_ASSERT(mSupportsArray.IsEmpty());
+
   if (NS_WARN_IF(!mInfo)) {
     NS_WARNING("Trying to wake up a dead service worker.");
     return NS_ERROR_FAILURE;
@@ -1391,6 +1396,23 @@ ServiceWorkerPrivate::SpawnWorkerIfNeeded(WakeUpReason aWhy,
 }
 
 void
+ServiceWorkerPrivate::StoreISupports(nsISupports* aSupports)
+{
+  AssertIsOnMainThread();
+  MOZ_ASSERT(mWorkerPrivate);
+  MOZ_ASSERT(!mSupportsArray.Contains(aSupports));
+
+  mSupportsArray.AppendElement(aSupports);
+}
+
+void
+ServiceWorkerPrivate::RemoveISupports(nsISupports* aSupports)
+{
+  AssertIsOnMainThread();
+  mSupportsArray.RemoveElement(aSupports);
+}
+
+void
 ServiceWorkerPrivate::TerminateWorker()
 {
   AssertIsOnMainThread();
@@ -1409,6 +1431,7 @@ ServiceWorkerPrivate::TerminateWorker()
     jsapi.Init();
     NS_WARN_IF(!mWorkerPrivate->Terminate(jsapi.cx()));
     mWorkerPrivate = nullptr;
+    mSupportsArray.Clear();
   }
 }
 

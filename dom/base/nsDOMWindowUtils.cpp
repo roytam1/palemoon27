@@ -2097,15 +2097,20 @@ nsDOMWindowUtils::GetVisitedDependentComputedStyle(
   MOZ_RELEASE_ASSERT(nsContentUtils::IsCallerChrome());
 
   nsCOMPtr<nsPIDOMWindow> window = do_QueryReferent(mWindow);
+  nsCOMPtr<Element> element = do_QueryInterface(aElement);
+  NS_ENSURE_STATE(window && element);
+  window = window->GetCurrentInnerWindow();
   NS_ENSURE_STATE(window);
 
   nsCOMPtr<nsIDOMCSSStyleDeclaration> decl;
-  nsresult rv =
-    window->GetComputedStyle(aElement, aPseudoElement, getter_AddRefs(decl));
-  NS_ENSURE_SUCCESS(rv, rv);
+  {
+    ErrorResult rv;
+    decl = window->GetComputedStyle(*element, aPseudoElement, rv);
+    ENSURE_SUCCESS(rv, rv.StealNSResult());
+  }
 
   static_cast<nsComputedDOMStyle*>(decl.get())->SetExposeVisitedStyle(true);
-  rv = decl->GetPropertyValue(aPropertyName, aResult);
+  nsresult rv = decl->GetPropertyValue(aPropertyName, aResult);
   static_cast<nsComputedDOMStyle*>(decl.get())->SetExposeVisitedStyle(false);
 
   return rv;

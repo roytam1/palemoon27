@@ -67,7 +67,7 @@ protected:
   // to the parent if there's nothing there.
   already_AddRefed<nsIDocShellTreeItem> GetCallerTreeItem(
     nsIDocShellTreeItem* aParentItem);
-
+  
   // Unlike GetWindowByName this will look for a caller on the JS
   // stack, and then fall back on aCurrentWindow if it can't find one.
   nsPIDOMWindow* SafeGetWindowByName(const nsAString& aName,
@@ -90,7 +90,7 @@ protected:
   static nsresult URIfromURL(const char* aURL,
                              nsIDOMWindow* aParent,
                              nsIURI** aURI);
-
+  
   static uint32_t CalculateChromeFlags(nsIDOMWindow* aParent,
                                        const char* aFeatures,
                                        bool aFeaturesSpecified,
@@ -104,7 +104,7 @@ protected:
   /* Compute the right SizeSpec based on aFeatures */
   static void CalcSizeSpec(const char* aFeatures, SizeSpec& aResult);
   static nsresult ReadyOpenedDocShellItem(nsIDocShellTreeItem* aOpenedItem,
-                                          nsIDOMWindow* aParent,
+                                          nsPIDOMWindow* aParent,
                                           bool aWindowIsNew,
                                           nsIDOMWindow** aOpenedWindow);
   static void SizeOpenedDocShellItem(nsIDocShellTreeItem* aDocShellItem,
@@ -124,3 +124,4 @@ protected:
 };
 
 #endif
+

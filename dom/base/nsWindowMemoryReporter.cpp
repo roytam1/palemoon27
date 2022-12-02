@@ -63,10 +63,12 @@ AddNonJSSizeOfWindowAndItsDescendents(nsGlobalWindow* aWindow,
     innerWindowSizes.addToTabSizes(aSizes);
   }
 
-  nsCOMPtr<nsIDOMWindowCollection> frames = aWindow->GetFrames();
+  nsCOMPtr<nsIDOMWindowCollection> frames;
+  nsresult rv = aWindow->GetFrames(getter_AddRefs(frames));
+  NS_ENSURE_SUCCESS(rv, rv);
 
   uint32_t length;
-  nsresult rv = frames->GetLength(&length);
+  rv = frames->GetLength(&length);
   NS_ENSURE_SUCCESS(rv, rv);
 
   // Measure this window's descendents.
@@ -747,7 +749,7 @@ CheckForGhostWindowsEnumerator(nsISupports *aKey, TimeStamp& aTimeStamp,
   // Avoid calling GetTop() if we have no outer window.  Nothing will break if
   // we do, but it will spew debug output, which can cause our test logs to
   // overflow.
-  nsCOMPtr<nsPIDOMWindow> top;
+  nsCOMPtr<nsIDOMWindow> top;
   if (window->GetOuterWindow()) {
     top = window->GetOuterWindow()->GetTop();
   }

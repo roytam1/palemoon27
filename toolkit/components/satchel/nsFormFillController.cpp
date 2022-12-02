@@ -101,8 +101,8 @@ nsFormFillController::~nsFormFillController()
   // Remove ourselves as a focus listener from all cached docShells
   uint32_t count = mDocShells.Length();
   for (uint32_t i = 0; i < count; ++i) {
-    nsCOMPtr<nsPIDOMWindow> window = GetWindowForDocShell(mDocShells[i]);
-    RemoveWindowListeners(window);
+    nsCOMPtr<nsIDOMWindow> domWindow = GetWindowForDocShell(mDocShells[i]);
+    RemoveWindowListeners(domWindow);
   }
 }
 
@@ -241,8 +241,8 @@ nsFormFillController::AttachToBrowser(nsIDocShell *aDocShell, nsIAutoCompletePop
   mPopups.AppendElement(aPopup);
 
   // Listen for focus events on the domWindow of the docShell
-  nsCOMPtr<nsPIDOMWindow> window = GetWindowForDocShell(aDocShell);
-  AddWindowListeners(window);
+  nsCOMPtr<nsIDOMWindow> domWindow = GetWindowForDocShell(aDocShell);
+  AddWindowListeners(domWindow);
 
   return NS_OK;
 }
@@ -254,9 +254,9 @@ nsFormFillController::DetachFromBrowser(nsIDocShell *aDocShell)
   NS_ENSURE_TRUE(index >= 0, NS_ERROR_FAILURE);
 
   // Stop listening for focus events on the domWindow of the docShell
-  nsCOMPtr<nsPIDOMWindow> window =
+  nsCOMPtr<nsIDOMWindow> domWindow =
     GetWindowForDocShell(mDocShells.SafeElementAt(index));
-  RemoveWindowListeners(window);
+  RemoveWindowListeners(domWindow);
 
   mDocShells.RemoveElementAt(index);
   mPopups.RemoveElementAt(index);
@@ -1080,12 +1080,15 @@ nsFormFillController::MouseDown(nsIDOMEvent* aEvent)
 //// nsFormFillController
 
 void
-nsFormFillController::AddWindowListeners(nsPIDOMWindow *aWindow)
+nsFormFillController::AddWindowListeners(nsIDOMWindow *aWindow)
 {
   if (!aWindow)
     return;
 
-  EventTarget* target = aWindow->GetChromeEventHandler();
+  nsCOMPtr<nsPIDOMWindow> privateDOMWindow(do_QueryInterface(aWindow));
+  EventTarget* target = nullptr;
+  if (privateDOMWindow)
+    target = privateDOMWindow->GetChromeEventHandler();
 
   if (!target)
     return;
@@ -1112,18 +1115,23 @@ nsFormFillController::AddWindowListeners(nsPIDOMWindow *aWindow)
 }
 
 void
-nsFormFillController::RemoveWindowListeners(nsPIDOMWindow *aWindow)
+nsFormFillController::RemoveWindowListeners(nsIDOMWindow *aWindow)
 {
   if (!aWindow)
     return;
 
   StopControllingInput();
 
-  nsCOMPtr<nsIDocument> doc = aWindow->GetDoc();
+  nsCOMPtr<nsIDOMDocument> domDoc;
+  aWindow->GetDocument(getter_AddRefs(domDoc));
+  nsCOMPtr<nsIDocument> doc = do_QueryInterface(domDoc);
   PwmgrInputsEnumData ed(this, doc);
   mPwmgrInputs.Enumerate(RemoveForDocumentEnumerator, &ed);
 
-  EventTarget* target = aWindow->GetChromeEventHandler();
+  nsCOMPtr<nsPIDOMWindow> privateDOMWindow(do_QueryInterface(aWindow));
+  EventTarget* target = nullptr;
+  if (privateDOMWindow)
+    target = privateDOMWindow->GetChromeEventHandler();
 
   if (!target)
     return;
@@ -1238,7 +1246,7 @@ nsFormFillController::GetDocShellForInput(nsIDOMHTMLInputElement *aInput)
   return win->GetDocShell();
 }
 
-nsPIDOMWindow *
+nsIDOMWindow *
 nsFormFillController::GetWindowForDocShell(nsIDocShell *aDocShell)
 {
   nsCOMPtr<nsIContentViewer> contentViewer;

@@ -26,7 +26,7 @@
 #include "nsNameSpaceManager.h"
 #include "nsGkAtoms.h"
 #include "nsIDOMElement.h"
-#include "nsICSSDeclaration.h"
+#include "nsIDOMCSSStyleDeclaration.h"
 #include "nsIDOMCSSValue.h"
 #include "nsIDOMCSSPrimitiveValue.h"
 #include "nsIDOMRect.h"
@@ -42,7 +42,6 @@
 #include "nsContentUtils.h"
 #include "nsIContentPolicy.h"
 
-using mozilla::dom::Element;
 using mozilla::gfx::SourceSurface;
 
 static const uint32_t kIconWidth = 16;
@@ -168,7 +167,7 @@ nsMenuItemIconX::GetIconURI(nsIURI** aIconURI)
 
   nsresult rv;
   nsCOMPtr<nsIDOMCSSValue> cssValue;
-  nsCOMPtr<nsICSSDeclaration> cssStyleDecl;
+  nsCOMPtr<nsIDOMCSSStyleDeclaration> cssStyleDecl;
   nsCOMPtr<nsIDOMCSSPrimitiveValue> primitiveValue;
   uint16_t primitiveType;
   if (!hasImageAttr) {
@@ -182,19 +181,14 @@ nsMenuItemIconX::GetIconURI(nsIURI** aIconURI)
     if (!window)
       return NS_ERROR_FAILURE;
 
-    window = window->GetCurrentInnerWindow();
-    if (!window)
-      return NS_ERROR_FAILURE;
-
-    nsCOMPtr<Element> domElement = do_QueryInterface(mContent);
+    nsCOMPtr<nsIDOMElement> domElement = do_QueryInterface(mContent);
     if (!domElement)
       return NS_ERROR_FAILURE;
 
-    ErrorResult dummy;
-    cssStyleDecl = window->GetComputedStyle(*domElement, EmptyString(), dummy);
-    dummy.SuppressException();
-    if (!cssStyleDecl)
-      return NS_ERROR_FAILURE;
+    rv = window->GetComputedStyle(domElement, EmptyString(),
+                                  getter_AddRefs(cssStyleDecl));
+    if (NS_FAILED(rv))
+      return rv;
 
     NS_NAMED_LITERAL_STRING(listStyleImage, "list-style-image");
     rv = cssStyleDecl->GetPropertyCSSValue(listStyleImage,

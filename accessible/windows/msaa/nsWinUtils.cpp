@@ -15,15 +15,13 @@
 #include "mozilla/Preferences.h"
 #include "nsArrayUtils.h"
 #include "nsIArray.h"
-#include "nsICSSDeclaration.h"
 #include "nsIDocument.h"
 #include "nsIDocShellTreeItem.h"
-#include "mozilla/dom/Element.h"
+#include "nsIDOMElement.h"
 #include "nsXULAppAPI.h"
 
 using namespace mozilla;
 using namespace mozilla::a11y;
-using mozilla::dom::Element;
 
 // Window property used by ipc related code in identifying accessible
 // tab windows.
@@ -45,18 +43,15 @@ nsWinUtils::GetComputedStyleDeclaration(nsIContent* aContent)
     return nullptr;
 
   // Returns number of items in style declaration
-  nsCOMPtr<nsPIDOMWindow> window =
+  nsCOMPtr<nsIDOMWindow> window =
     do_QueryInterface(elm->OwnerDoc()->GetWindow());
   if (!window)
     return nullptr;
 
-  ErrorResult dummy;
-  nsCOMPtr<nsICSSDeclaration> cssDecl;
-  nsCOMPtr<Element> domElement(do_QueryInterface(elm));
-  cssDecl = window->GetComputedStyle(*domElement, EmptyString(), dummy);
-  nsCOMPtr<nsIDOMCSSStyleDeclaration> domDecl = do_QueryInterface(cssDecl);
-  dummy.SuppressException();
-  return domDecl.forget();
+  nsCOMPtr<nsIDOMCSSStyleDeclaration> cssDecl;
+  nsCOMPtr<nsIDOMElement> domElement(do_QueryInterface(elm));
+  window->GetComputedStyle(domElement, EmptyString(), getter_AddRefs(cssDecl));
+  return cssDecl.forget();
 }
 
 bool

@@ -158,9 +158,9 @@ nsDocShellEditorData::DetachFromWindow()
   mDetachedMakeEditable = mMakeEditable;
   mMakeEditable = false;
 
-  nsCOMPtr<nsPIDOMWindow> window = do_QueryInterface(domWindow);
-  nsCOMPtr<nsIDocument> doc = window->GetDoc();
-  nsCOMPtr<nsIHTMLDocument> htmlDoc = do_QueryInterface(doc);
+  nsCOMPtr<nsIDOMDocument> domDoc;
+  domWindow->GetDocument(getter_AddRefs(domDoc));
+  nsCOMPtr<nsIHTMLDocument> htmlDoc = do_QueryInterface(domDoc);
   if (htmlDoc) {
     mDetachedEditingState = htmlDoc->GetEditingState();
   }
@@ -183,9 +183,9 @@ nsDocShellEditorData::ReattachToWindow(nsIDocShell* aDocShell)
   mIsDetached = false;
   mMakeEditable = mDetachedMakeEditable;
 
-  nsCOMPtr<nsPIDOMWindow> window = do_QueryInterface(domWindow);
-  nsCOMPtr<nsIDocument> doc = window->GetDoc();
-  nsCOMPtr<nsIHTMLDocument> htmlDoc = do_QueryInterface(doc);
+  nsCOMPtr<nsIDOMDocument> domDoc;
+  domWindow->GetDocument(getter_AddRefs(domDoc));
+  nsCOMPtr<nsIHTMLDocument> htmlDoc = do_QueryInterface(domDoc);
   if (htmlDoc) {
     htmlDoc->SetEditingState(mDetachedEditingState);
   }

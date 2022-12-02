@@ -1136,7 +1136,7 @@ nsSiteWindow::Blur(void)
       return NS_OK;
     }
 
-    nsCOMPtr<nsPIDOMWindow> domWindow = do_QueryInterface(docshell->GetWindow());
+    nsCOMPtr<nsIDOMWindow> domWindow(docshell->GetWindow());
     if (domWindow)
       domWindow->Focus();
   }

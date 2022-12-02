@@ -3184,11 +3184,12 @@ nsIDocument::HasFocus(ErrorResult& rv) const
     return false;
   }
 
-  nsCOMPtr<nsPIDOMWindow> piWindow = do_QueryInterface(focusedWindow);
-  MOZ_ASSERT(piWindow);
-
   // Are we an ancestor of the focused DOMWindow?
-  for (nsIDocument* currentDoc = piWindow->GetDoc(); currentDoc;
+  nsCOMPtr<nsIDOMDocument> domDocument;
+  focusedWindow->GetDocument(getter_AddRefs(domDocument));
+  nsCOMPtr<nsIDocument> document = do_QueryInterface(domDocument);
+
+  for (nsIDocument* currentDoc = document; currentDoc;
        currentDoc = currentDoc->GetParentDocument()) {
     if (currentDoc == this) {
       // Yes, we are an ancestor
@@ -6949,11 +6950,9 @@ nsIDocument::GetLocation() const
     return nullptr;
   }
 
-  nsGlobalWindow* window = static_cast<nsGlobalWindow*>(w.get());
-  ErrorResult dummy;
-  RefPtr<nsLocation> loc = window->GetLocation(dummy);
-  dummy.SuppressException();
-  return loc.forget();
+  nsCOMPtr<nsIDOMLocation> loc;
+  w->GetLocation(getter_AddRefs(loc));
+  return loc.forget().downcast<nsLocation>();
 }
 
 Element*

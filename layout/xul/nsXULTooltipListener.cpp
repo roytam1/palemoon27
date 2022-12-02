@@ -564,7 +564,10 @@ nsXULTooltipListener::FindTooltip(nsIContent* aTarget, nsIContent** aTooltip)
     return NS_OK;
   }
 
-  if (window->Closed()) {
+  bool closed;
+  window->GetClosed(&closed);
+
+  if (closed) {
     return NS_OK;
   }
 

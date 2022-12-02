@@ -5269,8 +5269,12 @@ FindMostRecentOpenWindow()
         MOZ_ALWAYS_TRUE(NS_SUCCEEDED(windowEnumerator->GetNext(getter_AddRefs(item))));
         nsCOMPtr<nsPIDOMWindow> window = do_QueryInterface(item);
 
-        if (window && !window->Closed()) {
-            latest = window;
+        if (window) {
+            bool closed = false;
+            window->GetClosed(&closed);
+            if (!closed) {
+                latest = window;
+            }
         }
 
         MOZ_ALWAYS_TRUE(NS_SUCCEEDED(windowEnumerator->HasMoreElements(&hasMore)));
@@ -5339,8 +5343,12 @@ ContentParent::RecvCreateWindow(PBrowserParent* aThisTab,
 
         // If our chrome window is in the process of closing, don't try to open a
         // new tab in it.
-        if (parent && parent->Closed()) {
-            parent = nullptr;
+        if (parent) {
+            bool closed = false;
+            parent->GetClosed(&closed);
+            if (closed) {
+                parent = nullptr;
+            }
         }
     }
 

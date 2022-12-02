@@ -7474,7 +7474,7 @@ nsDocShell::EndPageLoad(nsIWebProgress* aProgress,
         return NS_OK;
       }
 
-      frameElement = thisWindow->GetFrameElement();
+      thisWindow->GetFrameElement(getter_AddRefs(frameElement));
       if (!frameElement) {
         return NS_OK;
       }

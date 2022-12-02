@@ -4119,20 +4119,19 @@ GetWindowInnerRectCenter(nsPIDOMWindow* aWindow,
 {
   NS_ENSURE_TRUE(aWindow && aWidget && aContext, LayoutDeviceIntPoint(0, 0));
 
-  nsGlobalWindow* window = nsGlobalWindow::Cast(aWindow);
-
-  float cssInnerX = window->GetMozInnerScreenXOuter();
+  float cssInnerX = 0.0;
+  aWindow->GetMozInnerScreenX(&cssInnerX);
   int32_t innerX = int32_t(NS_round(cssInnerX));
 
-  float cssInnerY = window->GetMozInnerScreenYOuter();
+  float cssInnerY = 0.0;
+  aWindow->GetMozInnerScreenY(&cssInnerY);
   int32_t innerY = int32_t(NS_round(cssInnerY));
+ 
+  int32_t innerWidth = 0;
+  aWindow->GetInnerWidth(&innerWidth);
 
-  ErrorResult dummy;
-  int32_t innerWidth = window->GetInnerWidthOuter(dummy);
-  dummy.SuppressException();
-
-  int32_t innerHeight = window->GetInnerHeightOuter(dummy);
-  dummy.SuppressException();
+  int32_t innerHeight = 0;
+  aWindow->GetInnerHeight(&innerHeight);
 
   nsIntRect screen;
   aWidget->GetScreenBounds(screen);

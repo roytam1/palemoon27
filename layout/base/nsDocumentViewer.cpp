@@ -3825,9 +3825,9 @@ nsDocumentViewer::PrintPreview(nsIPrintSettings* aPrintSettings,
     return NS_ERROR_FAILURE;
   }
 
-  nsCOMPtr<nsPIDOMWindow> window = do_QueryInterface(aChildDOMWin);
-  MOZ_ASSERT(window);
-  nsCOMPtr<nsIDocument> doc = window->GetDoc();
+  nsCOMPtr<nsIDOMDocument> domDoc;
+  aChildDOMWin->GetDocument(getter_AddRefs(domDoc));
+  nsCOMPtr<nsIDocument> doc = do_QueryInterface(domDoc);
   NS_ENSURE_STATE(doc);
 
   nsAutoPtr<nsPrintEventDispatcher> beforeAndAfterPrint(
@@ -4408,9 +4408,9 @@ nsDocumentViewer::OnDonePrinting()
     if (mDeferredWindowClose) {
       mDeferredWindowClose = false;
       if (mContainer) {
-        if (nsCOMPtr<nsPIDOMWindow> win = do_QueryInterface(mContainer->GetWindow())) {
+        nsCOMPtr<nsIDOMWindow> win = mContainer->GetWindow();
+        if (win)
           win->Close();
-        }
       }
     } else if (mClosingWhilePrinting) {
       if (mDocument) {

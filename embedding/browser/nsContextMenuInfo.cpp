@@ -1,5 +1,4 @@
-/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* vim: set ts=8 sts=2 et sw=2 tw=80: */
+/* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -17,7 +16,7 @@
 #include "nsIDOMHTMLAreaElement.h"
 #include "nsIDOMHTMLLinkElement.h"
 #include "nsIDOMWindow.h"
-#include "nsICSSDeclaration.h"
+#include "nsIDOMCSSStyleDeclaration.h"
 #include "nsIDOMCSSValue.h"
 #include "nsIDOMCSSPrimitiveValue.h"
 #include "nsNetUtil.h"
@@ -28,9 +27,6 @@
 #include "nsIContentPolicy.h"
 #include "nsAutoPtr.h"
 #include "imgRequestProxy.h"
-
-using mozilla::dom::Element;
-using mozilla::ErrorResult;
 
 NS_IMPL_ISUPPORTS(nsContextMenuInfo, nsIContextMenuInfo)
 
@@ -263,11 +259,6 @@ nsContextMenuInfo::GetBackgroundImageRequestInternal(nsIDOMNode* aDOMNode,
   document->GetDefaultView(getter_AddRefs(window));
   NS_ENSURE_TRUE(window, NS_ERROR_FAILURE);
 
-  nsCOMPtr<nsPIDOMWindow> piWindow = do_QueryInterface(window);
-  MOZ_ASSERT(piWindow);
-  piWindow = piWindow->GetCurrentInnerWindow();
-  MOZ_ASSERT(piWindow);
-
   nsCOMPtr<nsIDOMCSSPrimitiveValue> primitiveValue;
   nsAutoString bgStringValue;
 
@@ -275,16 +266,15 @@ nsContextMenuInfo::GetBackgroundImageRequestInternal(nsIDOMNode* aDOMNode,
   nsCOMPtr<nsIPrincipal> principal = doc ? doc->NodePrincipal() : nullptr;
 
   while (true) {
-    nsCOMPtr<Element> domElement(do_QueryInterface(domNode));
+    nsCOMPtr<nsIDOMElement> domElement(do_QueryInterface(domNode));
     // bail for the parent node of the root element or null argument
     if (!domElement) {
       break;
     }
 
-    ErrorResult dummy;
-    nsCOMPtr<nsICSSDeclaration> computedStyle =
-      piWindow->GetComputedStyle(*domElement, EmptyString(), dummy);
-    dummy.SuppressException();
+    nsCOMPtr<nsIDOMCSSStyleDeclaration> computedStyle;
+    window->GetComputedStyle(domElement, EmptyString(),
+                             getter_AddRefs(computedStyle));
     if (computedStyle) {
       nsCOMPtr<nsIDOMCSSValue> cssValue;
       computedStyle->GetPropertyCSSValue(NS_LITERAL_STRING("background-image"),

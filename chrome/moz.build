@@ -33,7 +33,6 @@ GENERATED_INCLUDES += [
 ]
 
 LOCAL_INCLUDES += [
-    '/dom/base',
     '/netwerk/base',
     '/netwerk/protocol/res',
     '/xpcom/components'

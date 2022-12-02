@@ -636,7 +636,11 @@ nsWindowWatcher::OpenWindowInternal(nsIDOMWindow* aParent,
     // If the parent trying to open a new window is sandboxed
     // without 'allow-popups', this is not allowed and we fail here.
     if (aParent) {
-      if (nsIDocument* doc = parentWindow->GetDoc()) {
+      nsCOMPtr<nsIDOMDocument> domdoc;
+      aParent->GetDocument(getter_AddRefs(domdoc));
+      nsCOMPtr<nsIDocument> doc = do_QueryInterface(domdoc);
+
+      if (doc) {
         // Save sandbox flags for copying to new browsing context (docShell).
         activeDocsSandboxFlags = doc->GetSandboxFlags();
         if (activeDocsSandboxFlags & SANDBOXED_AUXILIARY_NAVIGATION) {
@@ -1444,11 +1448,11 @@ nsWindowWatcher::URIfromURL(const char* aURL,
                             nsIURI** aURI)
 {
   // Build the URI relative to the entry global.
-  nsCOMPtr<nsPIDOMWindow> baseWindow = do_QueryInterface(GetEntryGlobal());
+  nsCOMPtr<nsIDOMWindow> baseWindow = do_QueryInterface(GetEntryGlobal());
 
   // failing that, build it relative to the parent window, if possible
   if (!baseWindow) {
-    baseWindow = do_QueryInterface(aParent);
+    baseWindow = aParent;
   }
 
   // failing that, use the given URL unmodified. It had better not be relative.
@@ -1457,8 +1461,14 @@ nsWindowWatcher::URIfromURL(const char* aURL,
 
   // get baseWindow's document URI
   if (baseWindow) {
-    if (nsIDocument* doc = baseWindow->GetDoc()) {
-      baseURI = doc->GetDocBaseURI();
+    nsCOMPtr<nsIDOMDocument> domDoc;
+    baseWindow->GetDocument(getter_AddRefs(domDoc));
+    if (domDoc) {
+      nsCOMPtr<nsIDocument> doc;
+      doc = do_QueryInterface(domDoc);
+      if (doc) {
+        baseURI = doc->GetDocBaseURI();
+      }
     }
   }
 
@@ -1648,9 +1658,13 @@ nsWindowWatcher::CalculateChromeFlags(nsIDOMWindow* aParent,
   branch->GetBoolPref("dom.disable_window_open_dialog_feature",
                       &disableDialogFeature);
 
-  if (openedFromContentScript) {
-    // If the caller context is content, we do not support the
-    // dialog feature. See bug 1095236.
+  bool isFullScreen = false;
+  if (aParent) {
+    aParent->GetFullScreen(&isFullScreen);
+  }
+  if (isFullScreen && openedFromContentScript) {
+    // If the parent window is in fullscreen & the caller context is content,
+    // dialog feature is disabled. (see bug 803675)
     disableDialogFeature = true;
   }
 
@@ -1880,7 +1894,7 @@ nsWindowWatcher::SafeGetWindowByName(const nsAString& aName,
    is acceptable. */
 nsresult
 nsWindowWatcher::ReadyOpenedDocShellItem(nsIDocShellTreeItem* aOpenedItem,
-                                         nsIDOMWindow* aParent,
+                                         nsPIDOMWindow* aParent,
                                          bool aWindowIsNew,
                                          nsIDOMWindow** aOpenedWindow)
 {
@@ -2011,11 +2025,14 @@ nsWindowWatcher::SizeOpenedDocShellItem(nsIDocShellTreeItem* aDocShellItem,
 
   double openerZoom = 1.0;
   if (aParent) {
-    nsCOMPtr<nsPIDOMWindow> piWindow = do_QueryInterface(aParent);
-    MOZ_ASSERT(piWindow);
-    if (nsIDocument* doc = piWindow->GetDoc()) {
-      if (nsIPresShell* shell = doc->GetShell()) {
-        if (nsPresContext* presContext = shell->GetPresContext()) {
+    nsCOMPtr<nsIDOMDocument> openerDoc;
+    aParent->GetDocument(getter_AddRefs(openerDoc));
+    if (openerDoc) {
+      nsCOMPtr<nsIDocument> doc = do_QueryInterface(openerDoc);
+      nsIPresShell* shell = doc->GetShell();
+      if (shell) {
+        nsPresContext* presContext = shell->GetPresContext();
+        if (presContext) {
           openerZoom = presContext->GetFullZoom();
         }
       }
@@ -2221,8 +2238,8 @@ nsWindowWatcher::GetWindowOpenLocation(nsIDOMWindow* aParent,
                                        bool aSizeSpecified)
 {
   bool isFullScreen = false;
-  if (nsCOMPtr<nsPIDOMWindow> piParent = do_QueryInterface(aParent)) {
-    isFullScreen = piParent->GetFullScreen();
+  if (aParent) {
+    aParent->GetFullScreen(&isFullScreen);
   }
 
   // Where should we open this?

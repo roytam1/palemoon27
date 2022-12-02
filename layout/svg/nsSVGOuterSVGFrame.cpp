@@ -871,13 +871,14 @@ nsSVGOuterSVGFrame::IsRootOfReplacedElementSubDoc(nsIFrame **aEmbeddingFrame)
   if (!mContent->GetParent()) {
     // Our content is the document element
     nsCOMPtr<nsIDocShell> docShell = PresContext()->GetDocShell();
-    nsCOMPtr<nsPIDOMWindow> window;
+    nsCOMPtr<nsIDOMWindow> window;
     if (docShell) {
       window = docShell->GetWindow();
     }
 
     if (window) {
-      nsCOMPtr<nsIDOMElement> frameElement = window->GetFrameElement();
+      nsCOMPtr<nsIDOMElement> frameElement;
+      window->GetFrameElement(getter_AddRefs(frameElement));
       nsCOMPtr<nsIObjectLoadingContent> olc = do_QueryInterface(frameElement);
       if (olc) {
         // Our document is inside an HTML 'object', 'embed' or 'applet' element

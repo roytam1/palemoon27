@@ -313,10 +313,15 @@ nsChromeRegistry::ConvertChromeURL(nsIURI* aChromeURI, nsIURI* *aResult)
 // theme stuff
 
 
-static void FlushSkinBindingsForWindow(nsPIDOMWindow* aWindow)
+static void FlushSkinBindingsForWindow(nsIDOMWindow* aWindow)
 {
-  // Get the document.
-  nsCOMPtr<nsIDocument> document = aWindow->GetDoc();
+  // Get the DOM document.
+  nsCOMPtr<nsIDOMDocument> domDocument;
+  aWindow->GetDocument(getter_AddRefs(domDocument));
+  if (!domDocument)
+    return;
+
+  nsCOMPtr<nsIDocument> document = do_QueryInterface(domDocument);
   if (!document)
     return;
 
@@ -340,7 +345,7 @@ NS_IMETHODIMP nsChromeRegistry::RefreshSkins()
     nsCOMPtr<nsISupports> protoWindow;
     windowEnumerator->GetNext(getter_AddRefs(protoWindow));
     if (protoWindow) {
-      nsCOMPtr<nsPIDOMWindow> domWindow = do_QueryInterface(protoWindow);
+      nsCOMPtr<nsIDOMWindow> domWindow = do_QueryInterface(protoWindow);
       if (domWindow)
         FlushSkinBindingsForWindow(domWindow);
     }
@@ -355,7 +360,7 @@ NS_IMETHODIMP nsChromeRegistry::RefreshSkins()
     nsCOMPtr<nsISupports> protoWindow;
     windowEnumerator->GetNext(getter_AddRefs(protoWindow));
     if (protoWindow) {
-      nsCOMPtr<nsPIDOMWindow> domWindow = do_QueryInterface(protoWindow);
+      nsCOMPtr<nsIDOMWindow> domWindow = do_QueryInterface(protoWindow);
       if (domWindow)
         RefreshWindow(domWindow);
     }
@@ -377,23 +382,28 @@ nsChromeRegistry::FlushSkinCaches()
 }
 
 // XXXbsmedberg: move this to windowmediator
-nsresult nsChromeRegistry::RefreshWindow(nsPIDOMWindow* aWindow)
+nsresult nsChromeRegistry::RefreshWindow(nsIDOMWindow* aWindow)
 {
   // Deal with our subframes first.
-  nsCOMPtr<nsIDOMWindowCollection> frames = aWindow->GetFrames();
+  nsCOMPtr<nsIDOMWindowCollection> frames;
+  aWindow->GetFrames(getter_AddRefs(frames));
   uint32_t length;
   frames->GetLength(&length);
   uint32_t j;
   for (j = 0; j < length; j++) {
     nsCOMPtr<nsIDOMWindow> childWin;
     frames->Item(j, getter_AddRefs(childWin));
-    nsCOMPtr<nsPIDOMWindow> piWindow = do_QueryInterface(childWin);
-    RefreshWindow(piWindow);
+    RefreshWindow(childWin);
   }
 
   nsresult rv;
-  // Get the document.
-  nsCOMPtr<nsIDocument> document = aWindow->GetDoc();
+  // Get the DOM document.
+  nsCOMPtr<nsIDOMDocument> domDocument;
+  aWindow->GetDocument(getter_AddRefs(domDocument));
+  if (!domDocument)
+    return NS_OK;
+
+  nsCOMPtr<nsIDocument> document = do_QueryInterface(domDocument);
   if (!document)
     return NS_OK;
 
@@ -511,9 +521,10 @@ nsChromeRegistry::ReloadChrome()
         nsCOMPtr<nsISupports> protoWindow;
         rv = windowEnumerator->GetNext(getter_AddRefs(protoWindow));
         if (NS_SUCCEEDED(rv)) {
-          nsCOMPtr<nsPIDOMWindow> domWindow = do_QueryInterface(protoWindow);
+          nsCOMPtr<nsIDOMWindow> domWindow = do_QueryInterface(protoWindow);
           if (domWindow) {
-            nsIDOMLocation* location = domWindow->GetLocation();
+            nsCOMPtr<nsIDOMLocation> location;
+            domWindow->GetLocation(getter_AddRefs(location));
             if (location) {
               rv = location->Reload(false);
               if (NS_FAILED(rv)) return rv;

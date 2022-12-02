@@ -120,13 +120,15 @@ nsXULPopupListener::HandleEvent(nsIDOMEvent* aEvent)
 
   if (!targetNode && mIsContext) {
     // Not a DOM node, see if it's the DOM window (bug 380818).
-    nsCOMPtr<nsPIDOMWindow> domWin = do_QueryInterface(target);
+    nsCOMPtr<nsIDOMWindow> domWin = do_QueryInterface(target);
     if (!domWin) {
       return NS_ERROR_DOM_WRONG_TYPE_ERR;
     }
     // Try to use the root node as target node.
-    nsCOMPtr<nsIDocument> doc = domWin->GetDoc();
+    nsCOMPtr<nsIDOMDocument> domDoc;
+    domWin->GetDocument(getter_AddRefs(domDoc));
 
+    nsCOMPtr<nsIDocument> doc = do_QueryInterface(domDoc);
     if (doc)
       targetNode = do_QueryInterface(doc->GetRootElement());
     if (!targetNode) {

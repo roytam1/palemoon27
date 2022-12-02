@@ -1,6 +1,6 @@
-/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* vim: set ts=8 sts=2 et sw=2 tw=80: */
-/* This Source Code Form is subject to the terms of the Mozilla Public
+/* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*-
+ *
+ * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
@@ -322,20 +322,16 @@ IsInNativeAnonymousSubtree(nsIContent* aContent)
     return false;
 }
 
-void
-nsWebBrowserFind::SetSelectionAndScroll(nsIDOMWindow* aWindow,
-                                        nsIDOMRange* aRange)
+void nsWebBrowserFind::SetSelectionAndScroll(nsIDOMWindow* aWindow,
+                                             nsIDOMRange*  aRange)
 {
-  nsCOMPtr<nsPIDOMWindow> piWindow = do_QueryInterface(aWindow);
-  nsCOMPtr<nsIDocument> doc = piWindow->GetDoc();
-  if (!doc) {
-    return;
-  }
+  nsCOMPtr<nsIDOMDocument> domDoc;    
+  aWindow->GetDocument(getter_AddRefs(domDoc));
+  if (!domDoc) return;
 
+  nsCOMPtr<nsIDocument> doc(do_QueryInterface(domDoc));
   nsIPresShell* presShell = doc->GetShell();
-  if (!presShell) {
-    return;
-  }
+  if (!presShell) return;
 
   nsCOMPtr<nsIDOMNode> node;
   aRange->GetStartContainer(getter_AddRefs(node));
@@ -650,47 +646,47 @@ NS_IMETHODIMP nsWebBrowserFind::SetSearchParentFrames(bool aSearchParentFrames)
     This method handles finding in a single window (aka frame).
 
 */
-nsresult
-nsWebBrowserFind::SearchInFrame(nsIDOMWindow* aWindow, bool aWrapping,
-                                bool* aDidFind)
+nsresult nsWebBrowserFind::SearchInFrame(nsIDOMWindow* aWindow,
+                                         bool aWrapping,
+                                         bool* aDidFind)
 {
-  NS_ENSURE_ARG(aWindow);
-  NS_ENSURE_ARG_POINTER(aDidFind);
+    NS_ENSURE_ARG(aWindow);
+    NS_ENSURE_ARG_POINTER(aDidFind);
 
-  *aDidFind = false;
+    *aDidFind = false;
 
-  nsCOMPtr<nsPIDOMWindow> piWindow = do_QueryInterface(aWindow);
+    nsCOMPtr<nsIDOMDocument> domDoc;    
+    nsresult rv = aWindow->GetDocument(getter_AddRefs(domDoc));
+    NS_ENSURE_SUCCESS(rv, rv);
+    if (!domDoc) return NS_ERROR_FAILURE;
 
-  // Do security check, to ensure that the frame we're searching is
-  // acccessible from the frame where the Find is being run.
+    // Do security check, to ensure that the frame we're searching is
+    // acccessible from the frame where the Find is being run.
 
-  // get a uri for the window
-  nsCOMPtr<nsIDocument> theDoc = piWindow->GetDoc();
-  if (!theDoc) {
-    return NS_ERROR_FAILURE;
-  }
+    // get a uri for the window
+    nsCOMPtr<nsIDocument> theDoc = do_QueryInterface(domDoc);
+    if (!theDoc) return NS_ERROR_FAILURE;
 
-  if (!nsContentUtils::SubjectPrincipal()->Subsumes(theDoc->NodePrincipal())) {
-    return NS_ERROR_DOM_PROP_ACCESS_DENIED;
-  }
+    if (!nsContentUtils::SubjectPrincipal()->Subsumes(theDoc->NodePrincipal())) {
+      return NS_ERROR_DOM_PROP_ACCESS_DENIED;
+    }
 
-  nsresult rv;
-  nsCOMPtr<nsIFind> find = do_CreateInstance(NS_FIND_CONTRACTID, &rv);
-  NS_ENSURE_SUCCESS(rv, rv);
+    nsCOMPtr<nsIFind> find = do_CreateInstance(NS_FIND_CONTRACTID, &rv);
+    NS_ENSURE_SUCCESS(rv, rv);
 
-  (void)find->SetCaseSensitive(mMatchCase);
-  (void)find->SetFindBackwards(mFindBackwards);
+    (void) find->SetCaseSensitive(mMatchCase);
+    (void) find->SetFindBackwards(mFindBackwards);
 
-  // XXX Make and set a line breaker here, once that's implemented.
-  (void)find->SetWordBreaker(nullptr);
+    // XXX Make and set a line breaker here, once that's implemented.
+    (void) find->SetWordBreaker(0);
 
-  // Now make sure the content (for actual finding) and frame (for
-  // selection) models are up to date.
-  theDoc->FlushPendingNotifications(Flush_Frames);
+    // Now make sure the content (for actual finding) and frame (for
+    // selection) models are up to date.
+    theDoc->FlushPendingNotifications(Flush_Frames);
 
-  nsCOMPtr<nsISelection> sel;
-  GetFrameSelection(aWindow, getter_AddRefs(sel));
-  NS_ENSURE_ARG_POINTER(sel);
+    nsCOMPtr<nsISelection> sel;
+    GetFrameSelection(aWindow, getter_AddRefs(sel));
+    NS_ENSURE_ARG_POINTER(sel);
 
     nsCOMPtr<nsIDOMRange> searchRange = new nsRange(theDoc);
     NS_ENSURE_ARG_POINTER(searchRange);
@@ -699,10 +695,7 @@ nsWebBrowserFind::SearchInFrame(nsIDOMWindow* aWindow, bool aWrapping,
     nsCOMPtr<nsIDOMRange> endPt  = new nsRange(theDoc);
     NS_ENSURE_ARG_POINTER(endPt);
 
-  nsCOMPtr<nsIDOMRange> foundRange;
-
-  nsCOMPtr<nsIDOMDocument> domDoc = do_QueryInterface(theDoc);
-  MOZ_ASSERT(domDoc);
+    nsCOMPtr<nsIDOMRange> foundRange;
 
     // If !aWrapping, search from selection to end
     if (!aWrapping)
@@ -750,26 +743,24 @@ nsresult nsWebBrowserFind::OnEndSearchFrame(nsIDOMWindow *aWindow)
 }
 
 void
-nsWebBrowserFind::GetFrameSelection(nsIDOMWindow* aWindow, nsISelection** aSel)
+nsWebBrowserFind::GetFrameSelection(nsIDOMWindow* aWindow, 
+                                    nsISelection** aSel)
 {
-  *aSel = nullptr;
+    *aSel = nullptr;
 
-  nsCOMPtr<nsPIDOMWindow> piWindow = do_QueryInterface(aWindow);
-  nsCOMPtr<nsIDocument> doc = piWindow->GetDoc();
-  if (!doc) {
-    return;
-  }
+    nsCOMPtr<nsIDOMDocument> domDoc;    
+    aWindow->GetDocument(getter_AddRefs(domDoc));
+    if (!domDoc) return;
 
-  nsIPresShell* presShell = doc->GetShell();
-  if (!presShell) {
-    return;
-  }
+    nsCOMPtr<nsIDocument> doc(do_QueryInterface(domDoc));
+    nsIPresShell* presShell = doc->GetShell();
+    if (!presShell) return;
 
-  // text input controls have their independent selection controllers that we
-  // must use when they have focus.
-  nsPresContext* presContext = presShell->GetPresContext();
+    // text input controls have their independent selection controllers
+    // that we must use when they have focus.
+    nsPresContext *presContext = presShell->GetPresContext();
 
-  nsCOMPtr<nsPIDOMWindow> window(do_QueryInterface(aWindow));
+    nsCOMPtr<nsPIDOMWindow> window(do_QueryInterface(aWindow));
 
     nsCOMPtr<nsPIDOMWindow> focusedWindow;
     nsCOMPtr<nsIContent> focusedContent =

@@ -488,9 +488,11 @@ RootAccessible::RelationByType(RelationType aType)
   nsPIDOMWindow* rootWindow = mDocumentNode->GetWindow();
   if (rootWindow) {
     nsCOMPtr<nsIDOMWindow> contentWindow = nsGlobalWindow::Cast(rootWindow)->GetContent();
-    nsCOMPtr<nsPIDOMWindow> piWindow = do_QueryInterface(contentWindow);
-    if (piWindow) {
-      nsCOMPtr<nsIDocument> contentDocumentNode = piWindow->GetDoc();
+    if (contentWindow) {
+      nsCOMPtr<nsIDOMDocument> contentDOMDocument;
+      contentWindow->GetDocument(getter_AddRefs(contentDOMDocument));
+      nsCOMPtr<nsIDocument> contentDocumentNode =
+        do_QueryInterface(contentDOMDocument);
       if (contentDocumentNode) {
         DocAccessible* contentDocument =
           GetAccService()->GetDocAccessible(contentDocumentNode);

@@ -147,7 +147,8 @@ nsPluginArray::Refresh(bool aReloadDocuments)
 
   mPlugins.Clear();
 
-  nsCOMPtr<nsIDOMNavigator> navigator = mWindow->GetNavigator();
+  nsCOMPtr<nsIDOMNavigator> navigator;
+  mWindow->GetNavigator(getter_AddRefs(navigator));
 
   if (!navigator) {
     return;

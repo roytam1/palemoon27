@@ -393,7 +393,7 @@ DragDataProducer::Produce(DataTransfer* aDataTransfer,
       return NS_OK;
   }
   else {
-    selection = mWindow->GetSelection();
+    mWindow->GetSelection(getter_AddRefs(selection));
     if (!selection)
       return NS_OK;
 

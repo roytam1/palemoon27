@@ -2507,7 +2507,8 @@ nsresult nsExternalAppHandler::MaybeCloseWindow()
     // dialogs have a parent
     nsCOMPtr<nsPIDOMWindow> opener = window->GetOpener();
 
-    if (opener && !opener->Closed()) {
+    bool isClosed;
+    if (opener && NS_SUCCEEDED(opener->GetClosed(&isClosed)) && !isClosed) {
       mContentContext = do_GetInterface(opener);
 
       // Now close the old window.  Do it on a timer so that we don't run
@@ -2531,8 +2532,7 @@ nsExternalAppHandler::Notify(nsITimer* timer)
 {
   NS_ASSERTION(mWindowToClose, "No window to close after timer fired");
 
-  nsCOMPtr<nsPIDOMWindow> window = do_QueryInterface(mWindowToClose);
-  window->Close();
+  mWindowToClose->Close();
   mWindowToClose = nullptr;
   mTimer = nullptr;
 

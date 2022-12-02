@@ -1,5 +1,5 @@
-/* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* vim:expandtab:shiftwidth=2:tabstop=2:
+/* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*- */
+/* vim:expandtab:shiftwidth=4:tabstop=4:
  */
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
@@ -193,10 +193,12 @@ ApplicationAccessible::CacheChildren()
   while (hasMore) {
     nsCOMPtr<nsISupports> window;
     windowEnumerator->GetNext(getter_AddRefs(window));
-    nsCOMPtr<nsPIDOMWindow> DOMWindow = do_QueryInterface(window);
+    nsCOMPtr<nsIDOMWindow> DOMWindow = do_QueryInterface(window);
     if (DOMWindow) {
-      nsCOMPtr<nsIDocument> docNode = DOMWindow->GetDoc();
-      if (docNode) {
+      nsCOMPtr<nsIDOMDocument> DOMDocument;
+      DOMWindow->GetDocument(getter_AddRefs(DOMDocument));
+      if (DOMDocument) {
+        nsCOMPtr<nsIDocument> docNode(do_QueryInterface(DOMDocument));
         GetAccService()->GetDocAccessible(docNode); // ensure creation
       }
     }

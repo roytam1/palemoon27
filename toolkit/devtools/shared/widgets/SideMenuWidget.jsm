@@ -73,7 +73,7 @@ SideMenuWidget.prototype = {
   /**
    * The comparator used to sort groups.
    */
-  groupSortPredicate: function(a, b) a.localeCompare(b),
+  groupSortPredicate: (a, b) => a.localeCompare(b),
 
   /**
    * Specifies that the container viewport should be "stuck" to the
@@ -460,8 +460,12 @@ function SideMenuGroup(aWidget, aName, aOptions={}) {
 }
 
 SideMenuGroup.prototype = {
-  get _orderedGroupElementsArray() this.ownerView._orderedGroupElementsArray,
-  get _orderedMenuElementsArray() this.ownerView._orderedMenuElementsArray,
+  get _orderedGroupElementsArray() {
+    return this.ownerView._orderedGroupElementsArray;
+  },
+  get _orderedMenuElementsArray() {
+    return this.ownerView._orderedMenuElementsArray;
+  },
   get _itemsByElement() { return this.ownerView._itemsByElement; },
 
   /**
@@ -567,8 +571,12 @@ function SideMenuItem(aGroup, aContents, aAttachment={}, aOptions={}) {
 }
 
 SideMenuItem.prototype = {
-  get _orderedGroupElementsArray() this.ownerView._orderedGroupElementsArray,
-  get _orderedMenuElementsArray() this.ownerView._orderedMenuElementsArray,
+  get _orderedGroupElementsArray() {
+    return this.ownerView._orderedGroupElementsArray;
+  },
+  get _orderedMenuElementsArray() {
+    return this.ownerView._orderedMenuElementsArray;
+  },
   get _itemsByElement() { return this.ownerView._itemsByElement; },
 
   /**

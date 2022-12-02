@@ -140,6 +140,12 @@ public:
   void
   ThawWorkersForWindow(nsPIDOMWindow* aWindow);
 
+  void
+  SuspendWorkersForWindow(nsPIDOMWindow* aWindow);
+
+  void
+  ResumeWorkersForWindow(nsPIDOMWindow* aWindow);
+
   nsresult
   CreateSharedWorker(const GlobalObject& aGlobal,
                      const nsAString& aScriptURL,

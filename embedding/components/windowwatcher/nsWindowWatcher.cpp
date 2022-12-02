@@ -551,13 +551,11 @@ nsWindowWatcher::OpenWindowInternal(nsIDOMWindow* aParent,
 
   // no extant window? make a new one.
 
-  // If no parent, consider it chrome.
-  bool hasChromeParent = true;
+  // If no parent, consider it chrome when running in the parent process.
+  bool hasChromeParent = XRE_IsContentProcess() ? false : true;
   if (aParent) {
     // Check if the parent document has chrome privileges.
-    nsCOMPtr<nsIDOMDocument> domdoc;
-    aParent->GetDocument(getter_AddRefs(domdoc));
-    nsCOMPtr<nsIDocument> doc = do_QueryInterface(domdoc);
+    nsIDocument* doc = parentWindow->GetDoc();
     hasChromeParent =
       doc && nsContentUtils::IsChromeDoc(doc) && !openedFromRemoteTab;
   }
@@ -621,7 +619,9 @@ nsWindowWatcher::OpenWindowInternal(nsIDOMWindow* aParent,
     // based on whether the docshell type is chrome or content.
 
     nsCOMPtr<nsIGlobalObject> parentGlobalObject = do_QueryInterface(aParent);
-    if (NS_WARN_IF(!jsapiChromeGuard.Init(parentGlobalObject))) {
+    if (!aParent) {
+      jsapiChromeGuard.Init();
+    } else if (NS_WARN_IF(!jsapiChromeGuard.Init(parentGlobalObject))) {
       return NS_ERROR_UNEXPECTED;
     }
   }
@@ -657,10 +657,16 @@ nsWindowWatcher::OpenWindowInternal(nsIDOMWindow* aParent,
         !(chromeFlags & (nsIWebBrowserChrome::CHROME_MODAL |
                          nsIWebBrowserChrome::CHROME_OPENAS_DIALOG |
                          nsIWebBrowserChrome::CHROME_OPENAS_CHROME))) {
-      nsCOMPtr<nsIWindowProvider> provider = do_GetInterface(parentTreeOwner);
-      if (provider) {
-        NS_ASSERTION(aParent, "We've _got_ to have a parent here!");
+      nsCOMPtr<nsIWindowProvider> provider;
+      if (parentTreeOwner) {
+        provider = do_GetInterface(parentTreeOwner);
+      } else if (XRE_IsContentProcess()) {
+        // we're in a content process but we don't have a tabchild we can
+        // use.
+        provider = nsContentUtils::GetWindowProviderForContentProcess();
+      }
 
+      if (provider) {
         nsCOMPtr<nsIDOMWindow> newWindow;
         rv = provider->ProvideWindow(aParent, chromeFlags, aCalledFromJS,
                                      sizeSpec.PositionSpecified(),

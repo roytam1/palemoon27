@@ -53,13 +53,30 @@ private:
   bool StartupPDM(PlatformDecoderModule* aPDM);
   // Returns the first PDM in our list supporting the mimetype.
   already_AddRefed<PlatformDecoderModule> GetDecoder(const nsACString& aMimeType);
+  already_AddRefed<MediaDataDecoder>
+  CreateDecoderWithPDM(PlatformDecoderModule* aPDM,
+                       const TrackInfo& aConfig,
+                       FlushableTaskQueue* aTaskQueue,
+                       MediaDataDecoderCallback* aCallback,
+                       layers::LayersBackend aLayersBackend,
+                       layers::ImageContainer* aImageContainer);
 
-  // Caches pref media.fragmented-mp4.use-blank-decoder
+  // PDM pref caches...
   static bool sUseBlankDecoder;
+#ifdef MOZ_GONK_MEDIACODEC
   static bool sGonkDecoderEnabled;
+#endif
+#ifdef MOZ_WIDGET_ANDROID
   static bool sAndroidMCDecoderPreferred;
   static bool sAndroidMCDecoderEnabled;
+#endif
   static bool sGMPDecoderEnabled;
+#ifdef MOZ_FFMPEG
+  static bool sFFmpegDecoderEnabled;
+#endif
+#ifdef XP_WIN
+  static bool sWMFDecoderEnabled;
+#endif
   static bool sEnableFuzzingWrapper;
   static uint32_t sVideoOutputMinimumInterval_ms;
   static bool sDontDelayInputExhausted;

@@ -1020,7 +1020,7 @@ bool MediaDecoderStateMachine::IsPlaying() const
   return mMediaSink->IsPlaying();
 }
 
-nsresult MediaDecoderStateMachine::Init(MediaDecoderStateMachine* aCloneDonor)
+nsresult MediaDecoderStateMachine::Init()
 {
   MOZ_ASSERT(NS_IsMainThread());
   nsresult rv = mReader->Init();
@@ -2432,7 +2432,7 @@ MediaDecoderStateMachine::CheckFrameValidity(VideoData* aData)
 
   // Update corrupt-frames statistics
   if (aData->mImage && !aData->mImage->IsValid()) {
-    MediaDecoder::FrameStatistics& frameStats = mDecoder->GetFrameStatistics();
+    FrameStatistics& frameStats = mDecoder->GetFrameStatistics();
     frameStats.NotifyCorruptFrame();
     // If more than 10% of the last 30 frames have been corrupted, then try disabling
     // hardware acceleration. We use 10 as the corrupt value because RollingMean<>
@@ -2565,7 +2565,7 @@ void MediaDecoderStateMachine::UpdateRenderedVideoFrames()
     VideoQueue().PushFront(currentFrame);
     if (framesRemoved > 0) {
       mVideoFrameEndTime = currentFrame->GetEndTime();
-      MediaDecoder::FrameStatistics& frameStats = mDecoder->GetFrameStatistics();
+      FrameStatistics& frameStats = mDecoder->GetFrameStatistics();
       frameStats.NotifyPresentedFrame();
     }
   }
@@ -2682,7 +2682,7 @@ MediaDecoderStateMachine::DropAudioUpToSeekTarget(MediaData* aSample)
   }
   uint32_t frames = audio->mFrames - static_cast<uint32_t>(framesToPrune.value());
   uint32_t channels = audio->mChannels;
-  nsAutoArrayPtr<AudioDataValue> audioData(new AudioDataValue[frames * channels]);
+  auto audioData = MakeUnique<AudioDataValue[]>(frames * channels);
   memcpy(audioData.get(),
          audio->mAudioData.get() + (framesToPrune.value() * channels),
          frames * channels * sizeof(AudioDataValue));
@@ -2691,12 +2691,12 @@ MediaDecoderStateMachine::DropAudioUpToSeekTarget(MediaData* aSample)
     return NS_ERROR_FAILURE;
   }
   RefPtr<AudioData> data(new AudioData(audio->mOffset,
-                                         mCurrentSeek.mTarget.mTime,
-                                         duration.value(),
-                                         frames,
-                                         audioData.forget(),
-                                         channels,
-                                         audio->mRate));
+                                       mCurrentSeek.mTarget.mTime,
+                                       duration.value(),
+                                       frames,
+                                       Move(audioData),
+                                       channels,
+                                       audio->mRate));
   PushFront(data, MediaData::AUDIO_DATA);
 
   return NS_OK;

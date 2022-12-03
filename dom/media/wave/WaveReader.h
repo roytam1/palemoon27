@@ -26,16 +26,6 @@ public:
   virtual bool DecodeVideoFrame(bool &aKeyframeSkip,
                                   int64_t aTimeThreshold) override;
 
-  virtual bool HasAudio() override
-  {
-    return true;
-  }
-
-  virtual bool HasVideo() override
-  {
-    return false;
-  }
-
   virtual nsresult ReadMetadata(MediaInfo* aInfo,
                                 MetadataTags** aTags) override;
   virtual RefPtr<SeekPromise>
@@ -48,7 +38,6 @@ public:
 private:
   bool ReadAll(char* aBuf, int64_t aSize, int64_t* aBytesRead = nullptr);
   bool LoadRIFFChunk();
-  bool GetNextChunk(uint32_t* aChunk, uint32_t* aChunkSize);
   bool LoadFormatChunk(uint32_t aChunkSize);
   bool FindDataOffset(uint32_t aChunkSize);
   bool LoadListChunk(uint32_t aChunkSize, nsAutoPtr<dom::HTMLMediaElement::MetadataTags> &aTags);

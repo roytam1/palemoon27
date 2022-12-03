@@ -69,6 +69,14 @@ protected:
   ~WebMReader();
 
 public:
+  // Returns a pointer to the decoder.
+  AbstractMediaDecoder* GetDecoder()
+  {
+    return mDecoder;
+  }
+
+  MediaInfo GetMediaInfo() { return mInfo; }
+
   virtual RefPtr<ShutdownPromise> Shutdown() override;
   virtual nsresult Init() override;
   virtual nsresult ResetDecode() override;
@@ -76,18 +84,6 @@ public:
 
   virtual bool DecodeVideoFrame(bool &aKeyframeSkip,
                                 int64_t aTimeThreshold) override;
-
-  virtual bool HasAudio() override
-  {
-    MOZ_ASSERT(OnTaskQueue());
-    return mHasAudio;
-  }
-
-  virtual bool HasVideo() override
-  {
-    MOZ_ASSERT(OnTaskQueue());
-    return mHasVideo;
-  }
 
   virtual RefPtr<MetadataPromise> AsyncReadMetadata() override;
 
@@ -122,7 +118,7 @@ public:
   uint64_t GetCodecDelay() { return mCodecDelay; }
 
 protected:
-  virtual void NotifyDataArrivedInternal(uint32_t aLength, int64_t aOffset) override;
+  virtual void NotifyDataArrivedInternal() override;
 
   // Decode a nestegg packet of audio data. Push the audio data on the
   // audio queue. Returns true when there's more audio to decode,

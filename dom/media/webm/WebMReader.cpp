@@ -784,13 +784,23 @@ media::TimeIntervals WebMReader::GetBuffered()
   return buffered;
 }
 
-void WebMReader::NotifyDataArrivedInternal(uint32_t aLength, int64_t aOffset)
+void WebMReader::NotifyDataArrivedInternal()
 {
   MOZ_ASSERT(OnTaskQueue());
-  RefPtr<MediaByteBuffer> bytes =
-    mDecoder->GetResource()->MediaReadAt(aOffset, aLength);
-  NS_ENSURE_TRUE_VOID(bytes);
-  mBufferedState->NotifyDataArrived(bytes->Elements(), aLength, aOffset);
+  AutoPinned<MediaResource> resource(mDecoder->GetResource());
+  nsTArray<MediaByteRange> byteRanges;
+  nsresult rv = resource->GetCachedRanges(byteRanges);
+
+  if (NS_FAILED(rv)) {
+    return;
+  }
+
+  for (auto& range : byteRanges) {
+    RefPtr<MediaByteBuffer> bytes =
+      resource->MediaReadAt(range.mStart, range.Length());
+    NS_ENSURE_TRUE_VOID(bytes);
+    mBufferedState->NotifyDataArrived(bytes->Elements(), bytes->Length(), range.mStart);
+  }
 }
 
 int WebMReader::GetVideoCodec()

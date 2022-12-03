@@ -23,7 +23,10 @@ class MediaFormatReader final : public MediaDecoderReader
   typedef media::Interval<int64_t> ByteInterval;
 
 public:
-  MediaFormatReader(AbstractMediaDecoder* aDecoder, MediaDataDemuxer* aDemuxer);
+  MediaFormatReader(AbstractMediaDecoder* aDecoder,
+                    MediaDataDemuxer* aDemuxer,
+                    VideoFrameContainer* aVideoFrameContainer = nullptr,
+                    layers::LayersBackend aLayersBackend = layers::LayersBackend::LAYERS_NONE);
 
   virtual ~MediaFormatReader();
 
@@ -36,16 +39,6 @@ public:
   RequestVideoData(bool aSkipToNextKeyframe, int64_t aTimeThreshold) override;
 
   RefPtr<AudioDataPromise> RequestAudioData() override;
-
-  bool HasVideo() override
-  {
-    return mVideo.mTrackDemuxer;
-  }
-
-  bool HasAudio() override
-  {
-    return mAudio.mTrackDemuxer;
-  }
 
   RefPtr<MetadataPromise> AsyncReadMetadata() override;
 
@@ -60,10 +53,9 @@ public:
   }
 
 protected:
-  void NotifyDataArrivedInternal(uint32_t aLength, int64_t aOffset) override;
-public:
-  void NotifyDataRemoved() override;
+  void NotifyDataArrivedInternal() override;
 
+public:
   media::TimeIntervals GetBuffered() override;
 
   bool ForceZeroStartTime() const override;
@@ -92,12 +84,14 @@ public:
   }
 
 private:
+  bool HasVideo() { return mVideo.mTrackDemuxer; }
+  bool HasAudio() { return mAudio.mTrackDemuxer; }
 
   bool InitDemuxer();
   // Notify the demuxer that new data has been received.
   // The next queued task calling GetBuffered() is guaranteed to have up to date
   // buffered ranges.
-  void NotifyDemuxer(uint32_t aLength, int64_t aOffset);
+  void NotifyDemuxer();
   void ReturnOutput(MediaData* aData, TrackType aTrack);
 
   bool EnsureDecodersCreated();
@@ -414,6 +408,9 @@ private:
 
   // Pending decoders initialization.
   MozPromiseRequestHolder<MediaDataDecoder::InitPromise::AllPromiseType> mDecodersInitRequest;
+
+  RefPtr<VideoFrameContainer> mVideoFrameContainer;
+  layers::ImageContainer* GetImageContainer();
 
 #if defined(READER_DORMANT_HEURISTIC)
   const bool mDormantEnabled;

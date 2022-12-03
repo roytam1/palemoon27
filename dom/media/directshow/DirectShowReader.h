@@ -47,9 +47,6 @@ public:
   bool DecodeVideoFrame(bool &aKeyframeSkip,
                         int64_t aTimeThreshold) override;
 
-  bool HasAudio() override;
-  bool HasVideo() override;
-
   nsresult ReadMetadata(MediaInfo* aInfo,
                         MetadataTags** aTags) override;
 
@@ -57,8 +54,7 @@ public:
   Seek(int64_t aTime, int64_t aEndTime) override;
 
 protected:
-  void NotifyDataArrivedInternal(uint32_t aLength,
-                                 int64_t aOffset) override;
+  void NotifyDataArrivedInternal() override;
 public:
 
   bool IsMediaSeekable() override;

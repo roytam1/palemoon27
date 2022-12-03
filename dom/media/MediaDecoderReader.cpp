@@ -90,6 +90,9 @@ MediaDecoderReader::MediaDecoderReader(AbstractMediaDecoder* aDecoder)
 void
 MediaDecoderReader::InitializationTask()
 {
+  if (!mDecoder) {
+    return;
+  }
   if (mDecoder->CanonicalDurationOrNull()) {
     mDuration.Connect(mDecoder->CanonicalDurationOrNull());
   }
@@ -101,7 +104,6 @@ MediaDecoderReader::InitializationTask()
 MediaDecoderReader::~MediaDecoderReader()
 {
   MOZ_ASSERT(mShutdown);
-  MOZ_ASSERT(!mDecoder);
   ResetDecode();
   MOZ_COUNT_DTOR(MediaDecoderReader);
 }
@@ -182,21 +184,10 @@ MediaDecoderReader::UpdateBuffered()
 }
 
 void
-MediaDecoderReader::ThrottledNotifyDataArrived(const Interval<int64_t>& aInterval)
+MediaDecoderReader::ThrottledNotifyDataArrived()
 {
   MOZ_ASSERT(OnTaskQueue());
   NS_ENSURE_TRUE_VOID(!mShutdown);
-
-  if (mThrottledInterval.isNothing()) {
-    mThrottledInterval.emplace(aInterval);
-  } else if (mThrottledInterval.ref().Contains(aInterval)) {
-    return;
-  } else if (!mThrottledInterval.ref().Contiguous(aInterval)) {
-    DoThrottledNotify();
-    mThrottledInterval.emplace(aInterval);
-  } else {
-    mThrottledInterval = Some(mThrottledInterval.ref().Span(aInterval));
-  }
 
   // If it's been long enough since our last update, do it.
   if (TimeStamp::Now() - mLastThrottledNotify > mThrottleDuration) {
@@ -226,9 +217,7 @@ MediaDecoderReader::DoThrottledNotify()
   MOZ_ASSERT(OnTaskQueue());
   mLastThrottledNotify = TimeStamp::Now();
   mThrottledNotify.DisconnectIfExists();
-  Interval<int64_t> interval = mThrottledInterval.ref();
-  mThrottledInterval.reset();
-  NotifyDataArrived(interval);
+  NotifyDataArrived();
 }
 
 media::TimeIntervals
@@ -253,7 +242,6 @@ MediaDecoderReader::AsyncReadMetadata()
   typedef ReadMetadataFailureReason Reason;
 
   MOZ_ASSERT(OnTaskQueue());
-  mDecoder->GetReentrantMonitor().AssertNotCurrentThreadIn();
   DECODER_LOG("MediaDecoderReader::AsyncReadMetadata");
 
   // Attempt to read the metadata.

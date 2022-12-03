@@ -72,7 +72,7 @@ protected:
   // Used to retrieve some special information that can only be retrieved after
   // all contents have been continuously parsed. (ex. total duration of some
   // variable-bit-rate MP3 files.)
-  virtual void NotifyDataArrivedInternal(uint32_t aLength, int64_t aOffset) override;
+  virtual void NotifyDataArrivedInternal() override;
 public:
 
   // Flush the TaskQueue, flush MediaCodec and raise the mDiscontinuity.
@@ -85,9 +85,6 @@ public:
 
   // Disptach a DecodeAduioDataTask to decode video data.
   virtual RefPtr<AudioDataPromise> RequestAudioData() override;
-
-  virtual bool HasAudio();
-  virtual bool HasVideo();
 
   virtual RefPtr<MediaDecoderReader::MetadataPromise> AsyncReadMetadata() override;
 
@@ -181,6 +178,8 @@ protected:
   MozPromiseHolder<MediaResourcePromise> mMediaResourcePromise;
 
 private:
+  virtual bool HasAudio() override;
+  virtual bool HasVideo() override;
 
   // An intermediary class that can be managed by android::sp<T>.
   // Redirect codecReserved() and codecCanceled() to MediaCodecReader.

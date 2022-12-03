@@ -71,7 +71,7 @@ public:
   ~MediaOmxReader();
 
 protected:
-  virtual void NotifyDataArrivedInternal(uint32_t aLength, int64_t aOffset) override;
+  virtual void NotifyDataArrivedInternal() override;
 public:
 
   virtual nsresult ResetDecode()
@@ -84,16 +84,6 @@ public:
   virtual bool DecodeAudioData();
   virtual bool DecodeVideoFrame(bool &aKeyframeSkip,
                                 int64_t aTimeThreshold);
-
-  virtual bool HasAudio()
-  {
-    return mHasAudio;
-  }
-
-  virtual bool HasVideo()
-  {
-    return mHasVideo;
-  }
 
   virtual void ReleaseMediaResources();
 
@@ -117,6 +107,9 @@ public:
 private:
   class ProcessCachedDataTask;
   class NotifyDataArrivedRunnable;
+
+  virtual bool HasAudio() override { return mHasAudio; }
+  virtual bool HasVideo() override { return mHasVideo; }
 
   bool IsShutdown() {
     MutexAutoLock lock(mShutdownMutex);

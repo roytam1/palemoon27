@@ -28,9 +28,6 @@ public:
   virtual bool DecodeVideoFrame(bool &aKeyframeSkip,
                                 int64_t aTimeThreshold) override;
 
-  virtual bool HasAudio() override;
-  virtual bool HasVideo() override;
-
   virtual nsresult ReadMetadata(MediaInfo* aInfo,
                                 MetadataTags** aTags) override;
 
@@ -47,8 +44,7 @@ public:
                              UInt32 *aFlags);
 
 protected:
-  virtual void NotifyDataArrivedInternal(uint32_t aLength,
-                                         int64_t aOffset) override;
+  virtual void NotifyDataArrivedInternal() override;
 public:
 
   virtual bool IsMediaSeekable() override;

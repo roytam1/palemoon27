@@ -919,6 +919,11 @@ pref("dom.ipc.plugins.enabled.x86_64", true);
 pref("dom.ipc.plugins.enabled", true);
 #endif
 
+// If decoding-via-gmp is turned on for <video>, default to using
+// Adobe's GMP for decoding.
+pref("media.gmp.decoder.aac", 2);
+pref("media.gmp.decoder.h264", 2);
+
 pref("browser.tabs.remote", false);
 
 #if defined(XP_WIN) && defined(MOZ_SANDBOX)

@@ -200,10 +200,12 @@ destroying the MediaDecoder object.
 #include "nsITimer.h"
 
 #include "AbstractMediaDecoder.h"
+#include "FrameStatistics.h"
 #include "MediaDecoderOwner.h"
 #include "MediaEventSource.h"
 #include "MediaMetadataManager.h"
 #include "MediaResource.h"
+#include "MediaResourceCallback.h"
 #include "MediaStatistics.h"
 #include "MediaStreamGraph.h"
 #include "TimeUnits.h"
@@ -267,7 +269,7 @@ struct SeekTarget {
   MediaDecoderEventVisibility mEventVisibility;
 };
 
-class MediaDecoder : public AbstractMediaDecoder
+class MediaDecoder : public AbstractMediaDecoder, public MediaResourceCallback
 {
 public:
   struct SeekResolveValue {
@@ -294,23 +296,17 @@ public:
   // Must be called exactly once, on the main thread, during startup.
   static void InitStatics();
 
-  MediaDecoder();
+  explicit MediaDecoder(MediaDecoderOwner* aOwner);
 
   // Reset the decoder and notify the media element that
   // server connection is closed.
-  virtual void ResetConnectionState();
+  virtual void ResetConnectionState() override;
   // Create a new decoder of the same type as this one.
   // Subclasses must implement this.
-  virtual MediaDecoder* Clone() = 0;
+  virtual MediaDecoder* Clone(MediaDecoderOwner* aOwner) = 0;
   // Create a new state machine to run this decoder.
   // Subclasses must implement this.
   virtual MediaDecoderStateMachine* CreateStateMachine() = 0;
-
-  // Call on the main thread only.
-  // Perform any initialization required for the decoder.
-  // Return true on successful initialisation, false
-  // on failure.
-  virtual bool Init(MediaDecoderOwner* aOwner);
 
   // Cleanup internal data structures. Must be called on the main
   // thread by the owning object before that object disposes of this object.
@@ -319,8 +315,7 @@ public:
   // Start downloading the media. Decode the downloaded data up to the
   // point of the first frame of data.
   // This is called at most once per decoder, after Init().
-  virtual nsresult Load(nsIStreamListener** aListener,
-                        MediaDecoder* aCloneDonor);
+  virtual nsresult Load(nsIStreamListener** aListener);
 
   // Called in |Load| to open mResource.
   nsresult OpenResource(nsIStreamListener** aStreamListener);
@@ -359,7 +354,7 @@ public:
   virtual nsresult Seek(double aTime, SeekTarget::Type aSeekType);
 
   // Initialize state machine and schedule it.
-  nsresult InitializeStateMachine(MediaDecoder* aCloneDonor);
+  nsresult InitializeStateMachine();
 
   // Start playback of a video. 'Load' must have previously been
   // called.
@@ -412,7 +407,7 @@ public:
   //
   // When the media stream ends, we can know the duration, thus the stream is
   // no longer considered to be infinite.
-  virtual void SetInfinite(bool aInfinite);
+  virtual void SetInfinite(bool aInfinite) override;
 
   // Return true if the stream is infinite (see SetInfinite).
   virtual bool IsInfinite();
@@ -421,11 +416,11 @@ public:
   // If MediaResource::IsSuspendedByCache returns true, then the decoder
   // should stop buffering or otherwise waiting for download progress and
   // start consuming data, if possible, because the cache is full.
-  virtual void NotifySuspendedStatusChanged();
+  virtual void NotifySuspendedStatusChanged() override;
 
   // Called by MediaResource when some data has been received.
   // Call on the main thread only.
-  virtual void NotifyBytesDownloaded();
+  virtual void NotifyBytesDownloaded() override;
 
   // Called by nsChannelToPipeListener or MediaResource when the
   // download has ended. Called on the main thread only. aStatus is
@@ -434,12 +429,11 @@ public:
 
   // Called as data arrives on the stream and is read into the cache.  Called
   // on the main thread only.
-  virtual void NotifyDataArrived(uint32_t aLength, int64_t aOffset,
-                                 bool aThrottleUpdates) override;
+  virtual void NotifyDataArrived(bool aThrottleUpdates) override;
 
   // Called by MediaResource when the principal of the resource has
   // changed. Called on main thread only.
-  virtual void NotifyPrincipalChanged();
+  virtual void NotifyPrincipalChanged() override;
 
   // Called by the MediaResource to keep track of the number of bytes read
   // from the resource. Called on the main by an event runner dispatched
@@ -511,16 +505,10 @@ public:
   void SetLoadInBackground(bool aLoadInBackground);
 
   // Returns a weak reference to the media decoder owner.
-  MediaDecoderOwner* GetMediaOwner() const;
-
-  bool OnStateMachineTaskQueue() const override;
+  MediaDecoderOwner* GetMediaOwner() const override;
 
   MediaDecoderStateMachine* GetStateMachine() const;
   void SetStateMachine(MediaDecoderStateMachine* aStateMachine);
-
-  // Returns the monitor for other threads to synchronise access to
-  // state.
-  ReentrantMonitor& GetReentrantMonitor() override;
 
   // Constructs the time ranges representing what segments of the media
   // are buffered and playable.
@@ -733,99 +721,6 @@ private:
   // at any time.
   MediaStatistics GetStatistics();
 
-  // Frame decoding/painting related performance counters.
-  // Threadsafe.
-  class FrameStatistics {
-  public:
-
-    FrameStatistics() :
-        mReentrantMonitor("MediaDecoder::FrameStats"),
-        mParsedFrames(0),
-        mDecodedFrames(0),
-        mPresentedFrames(0),
-        mDroppedFrames(0),
-        mCorruptFrames(0) {}
-
-    // Returns number of frames which have been parsed from the media.
-    // Can be called on any thread.
-    uint32_t GetParsedFrames() {
-      ReentrantMonitorAutoEnter mon(mReentrantMonitor);
-      return mParsedFrames;
-    }
-
-    // Returns the number of parsed frames which have been decoded.
-    // Can be called on any thread.
-    uint32_t GetDecodedFrames() {
-      ReentrantMonitorAutoEnter mon(mReentrantMonitor);
-      return mDecodedFrames;
-    }
-
-    // Returns the number of decoded frames which have been sent to the rendering
-    // pipeline for painting ("presented").
-    // Can be called on any thread.
-    uint32_t GetPresentedFrames() {
-      ReentrantMonitorAutoEnter mon(mReentrantMonitor);
-      return mPresentedFrames;
-    }
-
-    // Number of frames that have been skipped because they have missed their
-    // compoisition deadline.
-    uint32_t GetDroppedFrames() {
-      ReentrantMonitorAutoEnter mon(mReentrantMonitor);
-      return mDroppedFrames + mCorruptFrames;
-    }
-
-    uint32_t GetCorruptedFrames() {
-      ReentrantMonitorAutoEnter mon(mReentrantMonitor);
-      return mCorruptFrames;
-    }
-
-    // Increments the parsed and decoded frame counters by the passed in counts.
-    // Can be called on any thread.
-    void NotifyDecodedFrames(uint32_t aParsed, uint32_t aDecoded,
-                             uint32_t aDropped) {
-      if (aParsed == 0 && aDecoded == 0 && aDropped == 0)
-        return;
-      ReentrantMonitorAutoEnter mon(mReentrantMonitor);
-      mParsedFrames += aParsed;
-      mDecodedFrames += aDecoded;
-      mDroppedFrames += aDropped;
-    }
-
-    // Increments the presented frame counters.
-    // Can be called on any thread.
-    void NotifyPresentedFrame() {
-      ReentrantMonitorAutoEnter mon(mReentrantMonitor);
-      ++mPresentedFrames;
-    }
-
-    void NotifyCorruptFrame() {
-      ReentrantMonitorAutoEnter mon(mReentrantMonitor);
-      ++mCorruptFrames;
-    }
-
-  private:
-
-    // ReentrantMonitor to protect access of playback statistics.
-    ReentrantMonitor mReentrantMonitor;
-
-    // Number of frames parsed and demuxed from media.
-    // Access protected by mReentrantMonitor.
-    uint32_t mParsedFrames;
-
-    // Number of parsed frames which were actually decoded.
-    // Access protected by mReentrantMonitor.
-    uint32_t mDecodedFrames;
-
-    // Number of decoded frames which were actually sent down the rendering
-    // pipeline to be painted ("presented"). Access protected by mReentrantMonitor.
-    uint32_t mPresentedFrames;
-
-    uint32_t mDroppedFrames;
-
-    uint32_t mCorruptFrames;
-  };
-
   // Return the frame decode/paint related statistics.
   FrameStatistics& GetFrameStatistics() { return mFrameStats; }
 
@@ -927,11 +822,6 @@ private:
   //
   // Explicitly private to force access via accessors.
   RefPtr<MediaDecoderStateMachine> mDecoderStateMachine;
-
-  // |ReentrantMonitor| for detecting when the video play state changes. A call
-  // to |Wait| on this monitor will block the thread until the next state
-  // change.  Explicitly private for force access via GetReentrantMonitor.
-  ReentrantMonitor mReentrantMonitor;
 
 protected:
 
@@ -1149,6 +1039,13 @@ public:
   AbstractCanonical<bool>* CanonicalMediaSeekable() {
     return &mMediaSeekable;
   }
+
+private:
+  /* MediaResourceCallback functions */
+  virtual nsresult FinishDecoderSetup(MediaResource* aResource) override;
+  virtual void NotifyNetworkError() override;
+  virtual void NotifyDecodeError() override;
+  virtual void NotifyDataEnded(nsresult aStatus) override;
 };
 
 } // namespace mozilla

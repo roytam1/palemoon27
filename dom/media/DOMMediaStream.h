@@ -173,7 +173,6 @@ class MediaStreamDirectListener;
  */
 class DOMMediaStream : public DOMEventTargetHelper
 {
-  class TrackPort;
   friend class DOMLocalMediaStream;
   typedef dom::MediaStreamTrack MediaStreamTrack;
   typedef dom::AudioStreamTrack AudioStreamTrack;
@@ -208,7 +207,83 @@ public:
     virtual ~TrackListener() {}
   };
 
-  DOMMediaStream();
+  /**
+   * TrackPort is a representation of a MediaStreamTrack-MediaInputPort pair
+   * that make up a link between the Owned stream and the Playback stream.
+   *
+   * Semantically, the track is the identifier/key and the port the value of this
+   * connection.
+   *
+   * The input port can be shared between several TrackPorts. This is the case
+   * for DOMMediaStream's mPlaybackPort which forwards all tracks in its
+   * mOwnedStream automatically.
+   *
+   * If the MediaStreamTrack is owned by another DOMMediaStream (called A) than
+   * the one owning the TrackPort (called B), the input port (locked to the
+   * MediaStreamTrack's TrackID) connects A's mOwnedStream to B's mPlaybackStream.
+   *
+   * A TrackPort may never leave the DOMMediaStream it was created in. Internal
+   * use only.
+   */
+  class TrackPort
+  {
+  public:
+    NS_INLINE_DECL_CYCLE_COLLECTING_NATIVE_REFCOUNTING(TrackPort)
+    NS_DECL_CYCLE_COLLECTION_NATIVE_CLASS(TrackPort)
+
+    /**
+     * Indicates MediaInputPort ownership to the TrackPort.
+     *
+     * OWNED    - Owned by the TrackPort itself. TrackPort must destroy the
+     *            input port when it's destructed.
+     * EXTERNAL - Owned by another entity. It's the caller's responsibility to
+     *            ensure the the MediaInputPort outlives the TrackPort.
+     */
+    enum class InputPortOwnership {
+      OWNED = 1,
+      EXTERNAL
+    };
+
+    TrackPort(MediaInputPort* aInputPort,
+              MediaStreamTrack* aTrack,
+              const InputPortOwnership aOwnership);
+
+  protected:
+    virtual ~TrackPort();
+
+  public:
+    void DestroyInputPort();
+
+    /**
+     * Returns the source stream of the input port.
+     */
+    MediaStream* GetSource() const;
+
+    /**
+     * Returns the track ID this track is locked to in the source stream of the
+     * input port.
+     */
+    TrackID GetSourceTrackId() const;
+
+    MediaInputPort* GetInputPort() const { return mInputPort; }
+    MediaStreamTrack* GetTrack() const { return mTrack; }
+
+    /**
+     * Blocks aTrackId from going into mInputPort unless the port has been
+     * destroyed.
+     */
+    void BlockTrackId(TrackID aTrackId);
+
+  private:
+    RefPtr<MediaInputPort> mInputPort;
+    RefPtr<MediaStreamTrack> mTrack;
+
+    // Defines if we've been given ownership of the input port or if it's owned
+    // externally. The owner is responsible for destroying the port.
+    const InputPortOwnership mOwnership;
+  };
+
+ DOMMediaStream();
 
   NS_DECL_ISUPPORTS_INHERITED
   NS_REALLY_FORWARD_NSIDOMEVENTTARGET(DOMEventTargetHelper)
@@ -223,13 +298,28 @@ public:
   virtual JSObject* WrapObject(JSContext* aCx, JS::Handle<JSObject*> aGivenProto) override;
 
   // WebIDL
+
+  static already_AddRefed<DOMMediaStream>
+  Constructor(const dom::GlobalObject& aGlobal,
+              ErrorResult& aRv);
+
+  static already_AddRefed<DOMMediaStream>
+  Constructor(const dom::GlobalObject& aGlobal,
+              const DOMMediaStream& aStream,
+              ErrorResult& aRv);
+
+  static already_AddRefed<DOMMediaStream>
+  Constructor(const dom::GlobalObject& aGlobal,
+              const dom::Sequence<OwningNonNull<MediaStreamTrack>>& aTracks,
+              ErrorResult& aRv);
+
   double CurrentTime();
 
   void GetId(nsAString& aID) const;
 
-  void GetAudioTracks(nsTArray<RefPtr<AudioStreamTrack> >& aTracks);
-  void GetVideoTracks(nsTArray<RefPtr<VideoStreamTrack> >& aTracks);
-  void GetTracks(nsTArray<RefPtr<MediaStreamTrack> >& aTracks);
+  void GetAudioTracks(nsTArray<RefPtr<AudioStreamTrack> >& aTracks) const;
+  void GetVideoTracks(nsTArray<RefPtr<VideoStreamTrack> >& aTracks) const;
+  void GetTracks(nsTArray<RefPtr<MediaStreamTrack> >& aTracks) const;
   void AddTrack(MediaStreamTrack& aTrack);
   void RemoveTrack(MediaStreamTrack& aTrack);
 
@@ -357,20 +447,20 @@ public:
   void AssignId(const nsAString& aID) { mID = aID; }
 
   /**
-   * Create an nsDOMMediaStream whose underlying stream is a SourceMediaStream.
+   * Create a DOMMediaStream whose underlying input stream is a SourceMediaStream.
    */
   static already_AddRefed<DOMMediaStream> CreateSourceStream(nsIDOMWindow* aWindow,
                                                              MediaStreamGraph* aGraph);
 
   /**
-   * Create an nsDOMMediaStream whose underlying stream is a TrackUnionStream.
+   * Create a DOMMediaStream whose underlying input stream is a TrackUnionStream.
    */
   static already_AddRefed<DOMMediaStream> CreateTrackUnionStream(nsIDOMWindow* aWindow,
                                                                  MediaStreamGraph* aGraph);
 
   /**
-   * Create an nsDOMMediaStream whose underlying stream is an
-   * AudioCaptureStream
+   * Create an DOMMediaStream whose underlying input stream is an
+   * AudioCaptureStream.
    */
   static already_AddRefed<DOMMediaStream> CreateAudioCaptureStream(
     nsIDOMWindow* aWindow, MediaStreamGraph* aGraph);
@@ -393,15 +483,14 @@ public:
     virtual ~OnTracksAvailableCallback() {}
     virtual void NotifyTracksAvailable(DOMMediaStream* aStream) = 0;
   };
-  // When one track of the appropriate type has been added for each bit set
-  // in aCallback->GetExpectedTracks(), run aCallback->NotifyTracksAvailable.
+  // When the initial set of tracks has been added, run
+  // aCallback->NotifyTracksAvailable.
   // It is allowed to do anything, including run script.
   // aCallback may run immediately during this call if tracks are already
   // available!
   // We only care about track additions, we'll fire the notification even if
   // some of the tracks have been removed.
   // Takes ownership of aCallback.
-  // If GetExpectedTracks() returns 0, the callback will be fired as soon as there are any tracks.
   void OnTracksAvailable(OnTracksAvailableCallback* aCallback);
 
   /**
@@ -425,7 +514,23 @@ protected:
   void InitSourceStream(nsIDOMWindow* aWindow, MediaStreamGraph* aGraph);
   void InitTrackUnionStream(nsIDOMWindow* aWindow, MediaStreamGraph* aGraph);
   void InitAudioCaptureStream(nsIDOMWindow* aWindow, MediaStreamGraph* aGraph);
-  void InitStreamCommon(MediaStream* aStream, MediaStreamGraph* aGraph);
+
+  // Sets up aStream as mInputStream. A producer may append data to a
+  // SourceMediaStream input stream, or connect another stream to a
+  // TrackUnionStream input stream.
+  void InitInputStreamCommon(MediaStream* aStream, MediaStreamGraph* aGraph);
+
+  // Sets up a new TrackUnionStream as mOwnedStream and connects it to
+  // mInputStream with a TRACK_ANY MediaInputPort if available.
+  // If this DOMMediaStream should have an input stream (producing data),
+  // it has to be initiated before the owned stream.
+  void InitOwnedStreamCommon(MediaStreamGraph* aGraph);
+
+  // Sets up a new TrackUnionStream as mPlaybackStream and connects it to
+  // mOwnedStream with a TRACK_ANY MediaInputPort if available.
+  // If this DOMMediaStream should have an owned stream (producer or clone),
+  // it has to be initiated before the playback stream.
+  void InitPlaybackStreamCommon(MediaStreamGraph* aGraph);
 
   void CheckTracksAvailable();
 

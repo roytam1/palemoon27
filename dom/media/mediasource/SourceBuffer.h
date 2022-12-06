@@ -147,7 +147,7 @@ public:
     return mUpdating;
   }
 
-  already_AddRefed<TimeRanges> GetBuffered(ErrorResult& aRv);
+  TimeRanges* GetBuffered(ErrorResult& aRv);
   media::TimeIntervals GetTimeIntervals();
 
   double TimestampOffset() const
@@ -269,10 +269,10 @@ private:
 
   mozilla::Atomic<bool> mActive;
 
-  int64_t mReportedOffset;
-
   MozPromiseRequestHolder<SourceBufferContentManager::AppendPromise> mPendingAppend;
   const nsCString mType;
+
+  RefPtr<TimeRanges> mBuffered;
 };
 
 } // namespace dom

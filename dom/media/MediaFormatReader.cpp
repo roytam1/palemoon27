@@ -77,6 +77,7 @@ MediaFormatReader::MediaFormatReader(AbstractMediaDecoder* aDecoder,
   , mIsEncrypted(false)
   , mTrackDemuxersMayBlock(false)
   , mHardwareAccelerationDisabled(false)
+  , mDemuxOnly(false)
   , mVideoFrameContainer(aVideoFrameContainer)
 {
   MOZ_ASSERT(aDemuxer);
@@ -475,7 +476,7 @@ MediaFormatReader::ShouldSkip(bool aSkipToNextKeyframe, media::TimeUnit aTimeThr
 
 RefPtr<MediaDecoderReader::VideoDataPromise>
 MediaFormatReader::RequestVideoData(bool aSkipToNextKeyframe,
-                                     int64_t aTimeThreshold)
+                                    int64_t aTimeThreshold)
 {
   MOZ_ASSERT(OnTaskQueue());
   MOZ_DIAGNOSTIC_ASSERT(mSeekPromise.IsEmpty(), "No sample requests allowed while seeking");
@@ -503,6 +504,7 @@ MediaFormatReader::RequestVideoData(bool aSkipToNextKeyframe,
 
   media::TimeUnit timeThreshold{media::TimeUnit::FromMicroseconds(aTimeThreshold)};
   if (ShouldSkip(aSkipToNextKeyframe, timeThreshold)) {
+    mVideo.mDecodingRequested = false;
     Flush(TrackInfo::kVideoTrack);
     RefPtr<VideoDataPromise> p = mVideo.mPromise.Ensure(__func__);
     SkipVideoDemuxToNextKeyFrame(timeThreshold);
@@ -510,7 +512,8 @@ MediaFormatReader::RequestVideoData(bool aSkipToNextKeyframe,
   }
 
   RefPtr<VideoDataPromise> p = mVideo.mPromise.Ensure(__func__);
-  ScheduleUpdate(TrackInfo::kVideoTrack);
+  NotifyDecodingRequested(TrackInfo::kVideoTrack);
+
   return p;
 }
 
@@ -592,7 +595,7 @@ MediaFormatReader::RequestAudioData()
   }
 
   RefPtr<AudioDataPromise> p = mAudio.mPromise.Ensure(__func__);
-  ScheduleUpdate(TrackType::kAudioTrack);
+  NotifyDecodingRequested(TrackInfo::kAudioTrack);
 
   return p;
 }
@@ -687,6 +690,15 @@ MediaFormatReader::NotifyEndOfStream(TrackType aTrack)
   ScheduleUpdate(aTrack);
 }
 
+void
+MediaFormatReader::NotifyDecodingRequested(TrackType aTrack)
+{
+  MOZ_ASSERT(OnTaskQueue());
+  auto& decoder = GetDecoderData(aTrack);
+  decoder.mDecodingRequested = true;
+  ScheduleUpdate(aTrack);
+}
+
 bool
 MediaFormatReader::NeedInput(DecoderData& aDecoder)
 {
@@ -699,12 +711,12 @@ MediaFormatReader::NeedInput(DecoderData& aDecoder)
   return
     !aDecoder.mDraining &&
     !aDecoder.mError &&
-    aDecoder.HasPromise() &&
+    aDecoder.mDecodingRequested &&
     !aDecoder.mDemuxRequest.Exists() &&
-    aDecoder.mOutput.IsEmpty() &&
+    aDecoder.mOutput.Length() <= aDecoder.mDecodeAhead &&
     (aDecoder.mInputExhausted || !aDecoder.mQueuedSamples.IsEmpty() ||
      aDecoder.mTimeThreshold.isSome() ||
-     aDecoder.mNumSamplesInput - aDecoder.mNumSamplesOutput < aDecoder.mDecodeAhead);
+     aDecoder.mNumSamplesInput - aDecoder.mNumSamplesOutput <= aDecoder.mDecodeAhead);
 }
 
 void
@@ -793,8 +805,21 @@ MediaFormatReader::RequestDemuxSamples(TrackType aTrack)
   }
 }
 
-void
+bool
 MediaFormatReader::DecodeDemuxedSamples(TrackType aTrack,
+                                        MediaRawData* aSample)
+{
+  MOZ_ASSERT(OnTaskQueue());
+  auto& decoder = GetDecoderData(aTrack);
+  if (NS_FAILED(decoder.mDecoder->Input(aSample))) {
+      LOG("Unable to pass frame to decoder");
+      return false;
+  }
+  return true;
+}
+
+void
+MediaFormatReader::HandleDemuxedSamples(TrackType aTrack,
                                         AbstractMediaDecoder::AutoNotifyDecoded& aA)
 {
   MOZ_ASSERT(OnTaskQueue());
@@ -895,12 +920,20 @@ MediaFormatReader::DecodeDemuxedSamples(TrackType aTrack,
     if (aTrack == TrackInfo::kVideoTrack) {
       aA.mParsed++;
     }
-    if (NS_FAILED(decoder.mDecoder->Input(sample))) {
-      LOG("Unable to pass frame to decoder");
+
+    if (mDemuxOnly) {
+      ReturnOutput(sample, aTrack);
+    } else if (!DecodeDemuxedSamples(aTrack, sample)) {
       NotifyError(aTrack);
       return;
     }
+
     decoder.mQueuedSamples.RemoveElementAt(0);
+    if (mDemuxOnly) {
+      // If demuxed-only case, ReturnOutput will resolve with one demuxed data.
+      // Then we should stop doing the iteration.
+      return;
+    }
     samplesPending = true;
   }
 
@@ -1027,16 +1060,23 @@ MediaFormatReader::Update(TrackType aTrack)
   }
 
   if (!NeedInput(decoder)) {
-    LOGV("No need for additional input");
+    LOGV("No need for additional input (pending:%u)",
+         uint32_t(decoder.mOutput.Length()));
     return;
   }
 
   needInput = true;
 
+  LOGV("Update(%s) ni=%d no=%d ie=%d, in:%llu out:%llu qs=%u pending:%u ahead:%d sid:%u",
+       TrackTypeToStr(aTrack), needInput, needOutput, decoder.mInputExhausted,
+       decoder.mNumSamplesInput, decoder.mNumSamplesOutput,
+       uint32_t(size_t(decoder.mSizeOfQueue)), uint32_t(decoder.mOutput.Length()),
+       !decoder.HasPromise(), decoder.mLastStreamSourceID);
+
   // Demux samples if we don't have some.
   RequestDemuxSamples(aTrack);
-  // Decode all pending demuxed samples.
-  DecodeDemuxedSamples(aTrack, a);
+
+  HandleDemuxedSamples(aTrack, a);
 }
 
 void
@@ -1051,20 +1091,21 @@ MediaFormatReader::ReturnOutput(MediaData* aData, TrackType aTrack)
   }
 
   if (aTrack == TrackInfo::kAudioTrack) {
-    AudioData* audioData = static_cast<AudioData*>(aData);
+    if (aData->mType != MediaData::RAW_DATA) {
+      AudioData* audioData = static_cast<AudioData*>(aData);
 
-    if (audioData->mChannels != mInfo.mAudio.mChannels ||
-        audioData->mRate != mInfo.mAudio.mRate) {
-      LOG("change of audio format (rate:%d->%d). "
-          "This is an unsupported configuration",
-          mInfo.mAudio.mRate, audioData->mRate);
-      mInfo.mAudio.mRate = audioData->mRate;
-      mInfo.mAudio.mChannels = audioData->mChannels;
+      if (audioData->mChannels != mInfo.mAudio.mChannels ||
+          audioData->mRate != mInfo.mAudio.mRate) {
+        LOG("change of audio format (rate:%d->%d). "
+            "This is an unsupported configuration",
+            mInfo.mAudio.mRate, audioData->mRate);
+        mInfo.mAudio.mRate = audioData->mRate;
+        mInfo.mAudio.mChannels = audioData->mChannels;
+      }
     }
-
-    mAudio.mPromise.Resolve(audioData, __func__);
+    mAudio.mPromise.Resolve(aData, __func__);
   } else if (aTrack == TrackInfo::kVideoTrack) {
-    mVideo.mPromise.Resolve(static_cast<VideoData*>(aData), __func__);
+    mVideo.mPromise.Resolve(aData, __func__);
   }
   LOG("Resolved data promise for %s", TrackTypeToStr(aTrack));
 }
@@ -1211,6 +1252,7 @@ MediaFormatReader::SkipVideoDemuxToNextKeyFrame(media::TimeUnit aTimeThreshold)
 
   MOZ_ASSERT(mVideo.mDecoder);
   MOZ_ASSERT(mVideo.HasPromise());
+  MOZ_ASSERT(!mVideo.mDecodingRequested);
   LOG("Skipping up to %lld", aTimeThreshold.ToMicroseconds());
 
   if (mVideo.mError) {
@@ -1236,7 +1278,7 @@ MediaFormatReader::OnVideoSkipCompleted(uint32_t aSkipped)
   }
   MOZ_ASSERT(!mVideo.mError); // We have flushed the decoder, no frame could
                               // have been decoded (and as such errored)
-  ScheduleUpdate(TrackInfo::kVideoTrack);
+  NotifyDecodingRequested(TrackInfo::kVideoTrack);
 }
 
 void

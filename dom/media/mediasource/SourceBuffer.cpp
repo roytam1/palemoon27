@@ -97,19 +97,31 @@ SourceBuffer::SetTimestampOffset(double aTimestampOffset, ErrorResult& aRv)
   }
 }
 
-already_AddRefed<TimeRanges>
+TimeRanges*
 SourceBuffer::GetBuffered(ErrorResult& aRv)
 {
   MOZ_ASSERT(NS_IsMainThread());
+  // http://w3c.github.io/media-source/index.html#widl-SourceBuffer-buffered
+  // 1. If this object has been removed from the sourceBuffers attribute of the parent media source then throw an InvalidStateError exception and abort these steps.
   if (!IsAttached()) {
     aRv.Throw(NS_ERROR_DOM_INVALID_STATE_ERR);
     return nullptr;
   }
-  media::TimeIntervals ranges = mContentManager->Buffered();
-  MSE_DEBUGV("ranges=%s", DumpTimeRanges(ranges).get());
-  RefPtr<dom::TimeRanges> tr = new dom::TimeRanges();
-  ranges.ToTimeRanges(tr);
-  return tr.forget();
+  bool rangeChanged = true;
+  media::TimeIntervals intersection = mContentManager->Buffered();
+  MSE_DEBUGV("intersection=%s", DumpTimeRanges(intersection).get());
+  if (mBuffered) {
+    media::TimeIntervals currentValue(mBuffered);
+    rangeChanged = (intersection != currentValue);
+    MSE_DEBUGV("currentValue=%s", DumpTimeRanges(currentValue).get());
+  }
+  // 5. If intersection ranges does not contain the exact same range information as the current value of this attribute, then update the current value of this attribute to intersection ranges.
+  if (rangeChanged) {
+    mBuffered = new TimeRanges(ToSupports(this));
+    intersection.ToTimeRanges(mBuffered);
+  }
+  // 6. Return the current value of this attribute.
+  return mBuffered;
 }
 
 media::TimeIntervals
@@ -270,7 +282,7 @@ SourceBuffer::Ended()
   mContentManager->Ended();
   // We want the MediaSourceReader to refresh its buffered range as it may
   // have been modified (end lined up).
-  mMediaSource->GetDecoder()->NotifyDataArrived(/* aThrottleUpdates = */ false);
+  mMediaSource->GetDecoder()->NotifyDataArrived();
 }
 
 SourceBuffer::SourceBuffer(MediaSource* aMediaSource, const nsACString& aType)
@@ -278,7 +290,6 @@ SourceBuffer::SourceBuffer(MediaSource* aMediaSource, const nsACString& aType)
   , mMediaSource(aMediaSource)
   , mUpdating(false)
   , mActive(false)
-  , mReportedOffset(0)
   , mType(aType)
 {
   MOZ_ASSERT(NS_IsMainThread());
@@ -431,9 +442,7 @@ SourceBuffer::AppendDataCompletedWithSuccess(bool aHasActiveTracks)
   }
   if (mActive) {
     // Tell our parent decoder that we have received new data.
-    // The information provided do not matter much so long as it is monotonically
-    // increasing.
-    mMediaSource->GetDecoder()->NotifyDataArrived(/* aThrottleUpdates = */ false);
+    mMediaSource->GetDecoder()->NotifyDataArrived();
     // Send progress event.
     mMediaSource->GetDecoder()->NotifyBytesDownloaded();
   }
@@ -584,11 +593,13 @@ NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(SourceBuffer)
     manager->Detach();
   }
   NS_IMPL_CYCLE_COLLECTION_UNLINK(mMediaSource)
+  NS_IMPL_CYCLE_COLLECTION_UNLINK(mBuffered)
 NS_IMPL_CYCLE_COLLECTION_UNLINK_END_INHERITED(DOMEventTargetHelper)
 
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INHERITED(SourceBuffer,
                                                   DOMEventTargetHelper)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mMediaSource)
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mBuffered)
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 
 NS_IMPL_ADDREF_INHERITED(SourceBuffer, DOMEventTargetHelper)

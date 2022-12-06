@@ -159,6 +159,14 @@ public:
     MOZ_CRASH();
   }
 
+  // By default, the reader return the decoded data. Some readers support
+  // retuning demuxed data.
+  virtual bool IsDemuxOnlySupported() const { return false; }
+
+  // Configure the reader to return demuxed or decoded data
+  // upon calls to Request{Audio,Video}Data.
+  virtual void SetDemuxOnly(bool /*aDemuxedOnly*/) {}
+
   // The default implementation of AsyncReadMetadata is implemented in terms of
   // synchronous ReadMetadata() calls. Implementations may also
   // override AsyncReadMetadata to create a more proper async implementation.
@@ -213,18 +221,10 @@ public:
   virtual size_t SizeOfVideoQueueInFrames();
   virtual size_t SizeOfAudioQueueInFrames();
 
-  // In situations where these notifications come from stochastic network
-  // activity, we can save significant recomputation by throttling the delivery
-  // of these updates to the reader implementation. We don't want to do this
-  // throttling when the update comes from MSE code, since that code needs the
-  // updates to be observable immediately, and is generally less
-  // trigger-happy with notifications anyway.
-  void DispatchNotifyDataArrived(bool aThrottleUpdates)
+  void DispatchNotifyDataArrived()
   {
     RefPtr<nsRunnable> r = NS_NewRunnableMethod(
-      this,
-      aThrottleUpdates ? &MediaDecoderReader::ThrottledNotifyDataArrived :
-                         &MediaDecoderReader::NotifyDataArrived);
+      this, &MediaDecoderReader::NotifyDataArrived);
 
     OwnerThread()->Dispatch(
       r.forget(), AbstractThread::DontAssertDispatchSuccess);
@@ -340,9 +340,6 @@ protected:
   // State-watching manager.
   WatchManager<MediaDecoderReader> mWatchManager;
 
-  // MediaTimer.
-  RefPtr<MediaTimer> mTimer;
-
   // Buffered range.
   Canonical<media::TimeIntervals> mBuffered;
 
@@ -351,12 +348,6 @@ protected:
 
   // Duration, mirrored from the state machine task queue.
   Mirror<media::NullableTimeUnit> mDuration;
-
-  // State for ThrottledNotifyDataArrived.
-  MozPromiseRequestHolder<MediaTimerPromise> mThrottledNotify;
-  const TimeDuration mThrottleDuration;
-  TimeStamp mLastThrottledNotify;
-  Maybe<media::Interval<int64_t>> mThrottledInterval;
 
   // Whether we should accept media that we know we can't play
   // directly, because they have a number of channel higher than
@@ -405,11 +396,6 @@ private:
   virtual void UpdateBuffered();
 
   virtual void NotifyDataArrivedInternal() {}
-
-  // Invokes NotifyDataArrived while throttling the calls to occur
-  // at most every mThrottleDuration ms.
-  void ThrottledNotifyDataArrived();
-  void DoThrottledNotify();
 
   // Overrides of this function should decodes an unspecified amount of
   // audio data, enqueuing the audio data in mAudioQueue. Returns true

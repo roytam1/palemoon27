@@ -39,6 +39,8 @@ namespace dom {
 } // namespace dom
 class ErrorResult;
 class StartRecordingHelper;
+class RecorderPosterHelper;
+class TrackCreatedListener;
 
 #define NS_DOM_CAMERA_CONTROL_CID \
 { 0x3700c096, 0xf920, 0x438d, \
@@ -71,6 +73,10 @@ public:
   nsPIDOMWindow* GetParentObject() const { return mWindow; }
 
   MediaStream* GetCameraStream() const override;
+
+  // Called by TrackCreatedListener when the underlying track has been created.
+  // XXX Bug 1124630. This can be removed with CameraPreviewMediaStream.
+  void TrackCreated(TrackID aTrackID);
 
   // Attributes.
   void GetEffect(nsString& aEffect, ErrorResult& aRv);
@@ -121,6 +127,8 @@ public:
                                                 const nsAString& filename,
                                                 ErrorResult& aRv);
   void StopRecording(ErrorResult& aRv);
+  void PauseRecording(ErrorResult& aRv);
+  void ResumeRecording(ErrorResult& aRv);
   void ResumePreview(ErrorResult& aRv);
   already_AddRefed<dom::Promise> ReleaseHardware(ErrorResult& aRv);
   void ResumeContinuousFocus(ErrorResult& aRv);
@@ -142,6 +150,7 @@ public:
   IMPL_EVENT_HANDLER(focus)
   IMPL_EVENT_HANDLER(picture)
   IMPL_EVENT_HANDLER(configurationchange)
+  IMPL_EVENT_HANDLER(poster)
 
 protected:
   virtual ~nsDOMCameraControl();
@@ -165,6 +174,7 @@ protected:
 
   friend class DOMCameraControlListener;
   friend class mozilla::StartRecordingHelper;
+  friend class mozilla::RecorderPosterHelper;
 
   void OnCreatedFileDescriptor(bool aSucceeded);
 
@@ -172,6 +182,7 @@ protected:
   void OnAutoFocusMoving(bool aIsMoving);
   void OnTakePictureComplete(nsIDOMBlob* aPicture);
   void OnFacesDetected(const nsTArray<ICameraControl::Face>& aFaces);
+  void OnPoster(dom::BlobImpl* aPoster);
 
   void OnGetCameraComplete();
   void OnHardwareStateChange(DOMCameraControlListener::HardwareState aState, nsresult aReason);
@@ -220,6 +231,9 @@ protected:
   // our viewfinder stream
   RefPtr<CameraPreviewMediaStream> mInput;
 
+  // A listener on mInput for adding tracks to the DOM side.
+  RefPtr<TrackCreatedListener> mTrackCreatedListener;
+
   // set once when this object is created
   nsCOMPtr<nsPIDOMWindow>   mWindow;
 
@@ -227,6 +241,7 @@ protected:
   RefPtr<DeviceStorageFileDescriptor> mDSFileDescriptor;
   DOMCameraControlListener::PreviewState mPreviewState;
   bool mRecording;
+  bool mRecordingStoppedDeferred;
   bool mSetInitialConfig;
 
 #ifdef MOZ_WIDGET_GONK

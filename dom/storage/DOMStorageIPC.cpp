@@ -309,7 +309,7 @@ private:
     if (db) {
       InfallibleTArray<nsCString> scopes;
       db->GetScopesHavingData(&scopes);
-      mozilla::unused << mParent->SendScopesHavingData(scopes);
+      mozilla::Unused << mParent->SendScopesHavingData(scopes);
     }
 
     // We need to check if the device is in a low disk space situation, so
@@ -323,7 +323,7 @@ private:
     bool lowDiskSpace = false;
     diskSpaceWatcher->GetIsDiskFull(&lowDiskSpace);
     if (lowDiskSpace) {
-      mozilla::unused << mParent->SendObserve(
+      mozilla::Unused << mParent->SendObserve(
         nsDependentCString("low-disk-space"), EmptyCString());
     }
 
@@ -519,7 +519,7 @@ DOMStorageDBParent::RecvAsyncAddItem(const nsCString& aScope,
 
   nsresult rv = db->AsyncAddItem(NewCache(aScope), aKey, aValue);
   if (NS_FAILED(rv) && mIPCOpen) {
-    mozilla::unused << SendError(rv);
+    mozilla::Unused << SendError(rv);
   }
 
   return true;
@@ -537,7 +537,7 @@ DOMStorageDBParent::RecvAsyncUpdateItem(const nsCString& aScope,
 
   nsresult rv = db->AsyncUpdateItem(NewCache(aScope), aKey, aValue);
   if (NS_FAILED(rv) && mIPCOpen) {
-    mozilla::unused << SendError(rv);
+    mozilla::Unused << SendError(rv);
   }
 
   return true;
@@ -554,7 +554,7 @@ DOMStorageDBParent::RecvAsyncRemoveItem(const nsCString& aScope,
 
   nsresult rv = db->AsyncRemoveItem(NewCache(aScope), aKey);
   if (NS_FAILED(rv) && mIPCOpen) {
-    mozilla::unused << SendError(rv);
+    mozilla::Unused << SendError(rv);
   }
 
   return true;
@@ -570,7 +570,7 @@ DOMStorageDBParent::RecvAsyncClear(const nsCString& aScope)
 
   nsresult rv = db->AsyncClear(NewCache(aScope));
   if (NS_FAILED(rv) && mIPCOpen) {
-    mozilla::unused << SendError(rv);
+    mozilla::Unused << SendError(rv);
   }
 
   return true;
@@ -599,7 +599,7 @@ DOMStorageDBParent::Observe(const char* aTopic,
     if (!(static_cast<ContentParent*>(Manager())->IsNuwaProcess() &&
           ContentParent::IsNuwaReady())) {
 #endif
-      mozilla::unused << SendObserve(nsDependentCString(aTopic),
+      mozilla::Unused << SendObserve(nsDependentCString(aTopic),
                                      nsCString(aScopePrefix));
 #ifdef MOZ_NUWA_PROCESS
     }
@@ -659,10 +659,10 @@ private:
     switch (mType)
     {
     case loadItem:
-      mozilla::unused << mParent->SendLoadItem(mScope, mKey, mValue);
+      mozilla::Unused << mParent->SendLoadItem(mScope, mKey, mValue);
       break;
     case loadDone:
-      mozilla::unused << mParent->SendLoadDone(mScope, mRv);
+      mozilla::Unused << mParent->SendLoadDone(mScope, mRv);
       break;
     }
 
@@ -731,7 +731,7 @@ private:
       return NS_OK;
     }
 
-    mozilla::unused << mParent->SendLoadUsage(mScope, mUsage);
+    mozilla::Unused << mParent->SendLoadUsage(mScope, mUsage);
     return NS_OK;
   }
 

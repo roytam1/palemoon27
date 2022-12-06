@@ -24,7 +24,7 @@ DeviceStorageRequestParent::DeviceStorageRequestParent(
   const DeviceStorageParams& aParams)
   : mParams(aParams)
   , mMutex("DeviceStorageRequestParent::mMutex")
-  , mActorDestoryed(false)
+  , mActorDestroyed(false)
 {
   MOZ_COUNT_CTOR(DeviceStorageRequestParent);
 
@@ -161,32 +161,6 @@ DeviceStorageRequestParent::Dispatch()
       RefPtr<UsedSpaceFileEvent> r = new UsedSpaceFileEvent(this, dsf);
 
       usedSpaceCache->Dispatch(r);
-      break;
-    }
-
-    case DeviceStorageParams::TDeviceStorageAvailableParams:
-    {
-      DeviceStorageAvailableParams p = mParams;
-
-      RefPtr<DeviceStorageFile> dsf =
-        new DeviceStorageFile(p.type(), p.storageName());
-      RefPtr<PostAvailableResultEvent> r
-        = new PostAvailableResultEvent(this, dsf);
-      DebugOnly<nsresult> rv = NS_DispatchToMainThread(r);
-      MOZ_ASSERT(NS_SUCCEEDED(rv));
-      break;
-    }
-
-    case DeviceStorageParams::TDeviceStorageStatusParams:
-    {
-      DeviceStorageStatusParams p = mParams;
-
-      RefPtr<DeviceStorageFile> dsf =
-        new DeviceStorageFile(p.type(), p.storageName());
-      RefPtr<PostStatusResultEvent> r
-        = new PostStatusResultEvent(this, dsf);
-      DebugOnly<nsresult> rv = NS_DispatchToMainThread(r);
-      MOZ_ASSERT(NS_SUCCEEDED(rv));
       break;
     }
 
@@ -418,7 +392,7 @@ void
 DeviceStorageRequestParent::ActorDestroy(ActorDestroyReason)
 {
   MutexAutoLock lock(mMutex);
-  mActorDestoryed = true;
+  mActorDestroyed = true;
   int32_t count = mRunnables.Length();
   for (int32_t index = 0; index < count; index++) {
     mRunnables[index]->Cancel();
@@ -441,7 +415,7 @@ DeviceStorageRequestParent::PostFreeSpaceResultEvent::CancelableRun() {
   MOZ_ASSERT(NS_IsMainThread());
 
   FreeSpaceStorageResponse response(mFreeSpace);
-  unused << mParent->Send__delete__(mParent, response);
+  Unused << mParent->Send__delete__(mParent, response);
   return NS_OK;
 }
 
@@ -463,7 +437,7 @@ DeviceStorageRequestParent::PostUsedSpaceResultEvent::CancelableRun() {
   MOZ_ASSERT(NS_IsMainThread());
 
   UsedSpaceStorageResponse response(mUsedSpace);
-  unused << mParent->Send__delete__(mParent, response);
+  Unused << mParent->Send__delete__(mParent, response);
   return NS_OK;
 }
 
@@ -481,7 +455,7 @@ DeviceStorageRequestParent::PostErrorEvent::CancelableRun() {
   MOZ_ASSERT(NS_IsMainThread());
 
   ErrorResponse response(mError);
-  unused << mParent->Send__delete__(mParent, response);
+  Unused << mParent->Send__delete__(mParent, response);
   return NS_OK;
 }
 
@@ -498,7 +472,7 @@ DeviceStorageRequestParent::PostSuccessEvent::CancelableRun() {
   MOZ_ASSERT(NS_IsMainThread());
 
   SuccessResponse response;
-  unused << mParent->Send__delete__(mParent, response);
+  Unused << mParent->Send__delete__(mParent, response);
   return NS_OK;
 }
 
@@ -535,14 +509,14 @@ DeviceStorageRequestParent::PostBlobSuccessEvent::CancelableRun() {
   BlobParent* actor = cp->GetOrCreateActorForBlobImpl(blob);
   if (!actor) {
     ErrorResponse response(NS_LITERAL_STRING(POST_ERROR_EVENT_UNKNOWN));
-    unused << mParent->Send__delete__(mParent, response);
+    Unused << mParent->Send__delete__(mParent, response);
     return NS_OK;
   }
 
   BlobResponse response;
   response.blobParent() = actor;
 
-  unused << mParent->Send__delete__(mParent, response);
+  Unused << mParent->Send__delete__(mParent, response);
   return NS_OK;
 }
 
@@ -566,7 +540,7 @@ DeviceStorageRequestParent::PostEnumerationSuccessEvent::CancelableRun() {
   MOZ_ASSERT(NS_IsMainThread());
 
   EnumerationResponse response(mStorageType, mRelPath, mPaths);
-  unused << mParent->Send__delete__(mParent, response);
+  Unused << mParent->Send__delete__(mParent, response);
   return NS_OK;
 }
 
@@ -893,7 +867,7 @@ DeviceStorageRequestParent::PostPathResultEvent::CancelableRun()
   MOZ_ASSERT(NS_IsMainThread());
 
   SuccessResponse response;
-  unused << mParent->Send__delete__(mParent, response);
+  Unused << mParent->Send__delete__(mParent, response);
   return NS_OK;
 }
 
@@ -916,63 +890,7 @@ DeviceStorageRequestParent::PostFileDescriptorResultEvent::CancelableRun()
   MOZ_ASSERT(NS_IsMainThread());
 
   FileDescriptorResponse response(mFileDescriptor);
-  unused << mParent->Send__delete__(mParent, response);
-  return NS_OK;
-}
-
-DeviceStorageRequestParent::PostAvailableResultEvent::
-  PostAvailableResultEvent(DeviceStorageRequestParent* aParent,
-                           DeviceStorageFile* aFile)
-  : CancelableRunnable(aParent)
-  , mFile(aFile)
-{
-}
-
-DeviceStorageRequestParent::PostAvailableResultEvent::
-  ~PostAvailableResultEvent()
-{
-}
-
-nsresult
-DeviceStorageRequestParent::PostAvailableResultEvent::CancelableRun()
-{
-  MOZ_ASSERT(NS_IsMainThread());
-
-  nsString state = NS_LITERAL_STRING("unavailable");
-  if (mFile) {
-    mFile->GetStatus(state);
-  }
-
-  AvailableStorageResponse response(state);
-  unused << mParent->Send__delete__(mParent, response);
-  return NS_OK;
-}
-
-DeviceStorageRequestParent::PostStatusResultEvent::
-  PostStatusResultEvent(DeviceStorageRequestParent* aParent,
-                           DeviceStorageFile* aFile)
-  : CancelableRunnable(aParent)
-  , mFile(aFile)
-{
-}
-
-DeviceStorageRequestParent::PostStatusResultEvent::
-  ~PostStatusResultEvent()
-{
-}
-
-nsresult
-DeviceStorageRequestParent::PostStatusResultEvent::CancelableRun()
-{
-  MOZ_ASSERT(NS_IsMainThread());
-
-  nsString state = NS_LITERAL_STRING("undefined");
-  if (mFile) {
-    mFile->GetStorageStatus(state);
-  }
-
-  StorageStatusResponse response(state);
-  unused << mParent->Send__delete__(mParent, response);
+  Unused << mParent->Send__delete__(mParent, response);
   return NS_OK;
 }
 
@@ -1000,7 +918,7 @@ DeviceStorageRequestParent::PostFormatResultEvent::CancelableRun()
   }
 
   FormatStorageResponse response(state);
-  unused << mParent->Send__delete__(mParent, response);
+  Unused << mParent->Send__delete__(mParent, response);
   return NS_OK;
 }
 
@@ -1028,7 +946,7 @@ DeviceStorageRequestParent::PostMountResultEvent::CancelableRun()
   }
 
   MountStorageResponse response(state);
-  unused << mParent->Send__delete__(mParent, response);
+  Unused << mParent->Send__delete__(mParent, response);
   return NS_OK;
 }
 
@@ -1056,7 +974,7 @@ DeviceStorageRequestParent::PostUnmountResultEvent::CancelableRun()
   }
 
   UnmountStorageResponse response(state);
-  unused << mParent->Send__delete__(mParent, response);
+  Unused << mParent->Send__delete__(mParent, response);
   return NS_OK;
 }
 

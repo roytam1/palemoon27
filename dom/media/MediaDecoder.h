@@ -429,7 +429,7 @@ public:
 
   // Called as data arrives on the stream and is read into the cache.  Called
   // on the main thread only.
-  virtual void NotifyDataArrived(bool aThrottleUpdates) override;
+  virtual void NotifyDataArrived() override;
 
   // Called by MediaResource when the principal of the resource has
   // changed. Called on main thread only.
@@ -734,7 +734,8 @@ private:
 
   void UpdateReadyState()
   {
-    if (mOwner) {
+    MOZ_ASSERT(NS_IsMainThread());
+    if (!mShuttingDown) {
       mOwner->UpdateReadyState();
     }
   }
@@ -854,12 +855,12 @@ protected:
   // This should only ever be accessed from the main thread.
   // It is set in Init and cleared in Shutdown when the element goes away.
   // The decoder does not add a reference the element.
-  MediaDecoderOwner* mOwner;
+  MediaDecoderOwner* const mOwner;
 
   // Counters related to decode and presentation of frames.
   FrameStatistics mFrameStats;
 
-  RefPtr<VideoFrameContainer> mVideoFrameContainer;
+  const RefPtr<VideoFrameContainer> mVideoFrameContainer;
 
   // Data needed to estimate playback data rate. The timeline used for
   // this estimate is "decode time" (where the "current time" is the

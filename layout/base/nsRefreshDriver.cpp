@@ -395,7 +395,7 @@ private:
       // send the unobserveVsync message to disable vsync event. We don't need
       // to handle the cleanup stuff of this actor. PVsyncChild::ActorDestroy()
       // will be called and clean up this actor.
-      unused << mVsyncChild->SendUnobserve();
+      Unused << mVsyncChild->SendUnobserve();
       mVsyncChild->SetVsyncObserver(nullptr);
       mVsyncChild = nullptr;
     }
@@ -414,7 +414,7 @@ private:
     if (XRE_IsParentProcess()) {
       mVsyncDispatcher->SetParentRefreshTimer(mVsyncObserver);
     } else {
-      unused << mVsyncChild->SendObserve();
+      Unused << mVsyncChild->SendObserve();
     }
   }
 
@@ -423,7 +423,7 @@ private:
     if (XRE_IsParentProcess()) {
       mVsyncDispatcher->SetParentRefreshTimer(nullptr);
     } else {
-      unused << mVsyncChild->SendUnobserve();
+      Unused << mVsyncChild->SendUnobserve();
     }
   }
 

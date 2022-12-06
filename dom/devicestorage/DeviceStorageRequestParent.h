@@ -242,26 +242,6 @@ private:
       uint64_t mUsedSpace;
  };
 
- class PostAvailableResultEvent : public CancelableRunnable
- {
-    public:
-      PostAvailableResultEvent(DeviceStorageRequestParent* aParent, DeviceStorageFile* aFile);
-      virtual ~PostAvailableResultEvent();
-      virtual nsresult CancelableRun();
-    private:
-      RefPtr<DeviceStorageFile> mFile;
- };
-
- class PostStatusResultEvent : public CancelableRunnable
- {
-    public:
-      PostStatusResultEvent(DeviceStorageRequestParent* aParent, DeviceStorageFile* aFile);
-      virtual ~PostStatusResultEvent();
-      virtual nsresult CancelableRun();
-    private:
-      RefPtr<DeviceStorageFile> mFile;
- };
-
  class PostFormatResultEvent : public CancelableRunnable
  {
     public:
@@ -295,7 +275,7 @@ private:
 protected:
   bool AddRunnable(CancelableRunnable* aRunnable) {
     MutexAutoLock lock(mMutex);
-    if (mActorDestoryed)
+    if (mActorDestroyed)
       return false;
 
     mRunnables.AppendElement(aRunnable);
@@ -308,7 +288,7 @@ protected:
   }
 
   Mutex mMutex;
-  bool mActorDestoryed;
+  bool mActorDestroyed;
   nsTArray<RefPtr<CancelableRunnable> > mRunnables;
 };
 

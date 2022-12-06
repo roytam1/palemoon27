@@ -12199,7 +12199,7 @@ nsGlobalWindow::SetTimeoutOrInterval(nsIScriptTimeoutHandler *aHandler,
     }
 
     // The timeout is now also held in the timer's closure.
-    unused << copy.forget();
+    Unused << copy.forget();
   } else {
     // If we are frozen, however, then we instead simply set
     // timeout->mTimeRemaining to be the "time remaining" in the timeout (i.e.,
@@ -12595,7 +12595,7 @@ nsGlobalWindow::RunTimeout(nsTimeout *aTimeout)
       // through a timeout that fired while a modal (to this window)
       // dialog was open or through other non-obvious paths.
       MOZ_ASSERT(dummy_timeout->HasRefCntOne(), "dummy_timeout may leak");
-      unused << timeoutExtraRef.forget().take();
+      Unused << timeoutExtraRef.forget().take();
 
       mTimeoutInsertionPoint = last_insertion_point;
 
@@ -13098,7 +13098,7 @@ nsGlobalWindow::SuspendTimeouts(uint32_t aIncrease,
     // Suspend all of the AudioContexts for this window
     for (uint32_t i = 0; i < mAudioContexts.Length(); ++i) {
       ErrorResult dummy;
-      unused << mAudioContexts[i]->Suspend(dummy);
+      RefPtr<Promise> d = mAudioContexts[i]->Suspend(dummy);
     }
   }
 

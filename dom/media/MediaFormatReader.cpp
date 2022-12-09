@@ -95,7 +95,6 @@ MediaFormatReader::Shutdown()
   MOZ_ASSERT(OnTaskQueue());
 
   mDemuxerInitRequest.DisconnectIfExists();
-  mDecodersInitRequest.DisconnectIfExists();
   mMetadataPromise.RejectIfExists(ReadMetadataFailureReason::METADATA_ERROR, __func__);
   mSeekPromise.RejectIfExists(NS_ERROR_FAILURE, __func__);
   mSkipRequest.DisconnectIfExists();
@@ -105,6 +104,7 @@ MediaFormatReader::Shutdown()
     if (mAudio.HasPromise()) {
       mAudio.RejectPromise(CANCELED, __func__);
     }
+    mAudio.mInitPromise.DisconnectIfExists();
     mAudio.mDecoder->Shutdown();
     mAudio.mDecoder = nullptr;
   }
@@ -125,6 +125,7 @@ MediaFormatReader::Shutdown()
     if (mVideo.HasPromise()) {
       mVideo.RejectPromise(CANCELED, __func__);
     }
+    mVideo.mInitPromise.DisconnectIfExists();
     mVideo.mDecoder->Shutdown();
     mVideo.mDecoder = nullptr;
   }
@@ -196,7 +197,9 @@ MediaFormatReader::Init()
   return NS_OK;
 }
 
-bool MediaFormatReader::IsWaitingOnCDMResource() {
+bool
+MediaFormatReader::IsWaitingOnCDMResource() {
+  MOZ_ASSERT(OnTaskQueue());
   // EME Stub
   return false;
 }
@@ -206,18 +209,17 @@ MediaFormatReader::AsyncReadMetadata()
 {
   MOZ_ASSERT(OnTaskQueue());
 
-  RefPtr<MetadataPromise> p = mMetadataPromise.Ensure(__func__);
+  MOZ_DIAGNOSTIC_ASSERT(mMetadataPromise.IsEmpty());
 
   if (mInitDone) {
     // We are returning from dormant.
-    if (!EnsureDecodersCreated()) {
-      mMetadataPromise.Reject(ReadMetadataFailureReason::METADATA_ERROR, __func__);
-      return p;
-    }
-    MOZ_ASSERT(!mDecodersInitRequest.Exists());
-    EnsureDecodersInitialized();
-    return p;
+    RefPtr<MetadataHolder> metadata = new MetadataHolder();
+    metadata->mInfo = mInfo;
+    metadata->mTags = nullptr;
+    return MetadataPromise::CreateAndResolve(metadata, __func__);
   }
+
+  RefPtr<MetadataPromise> p = mMetadataPromise.Ensure(__func__);
 
   mDemuxerInitRequest.Begin(mDemuxer->Init()
                        ->Then(OwnerThread(), __func__, this,
@@ -241,7 +243,10 @@ MediaFormatReader::OnDemuxerInitDone(nsresult)
   if (videoActive) {
     // We currently only handle the first video track.
     mVideo.mTrackDemuxer = mDemuxer->GetTrackDemuxer(TrackInfo::kVideoTrack, 0);
-    MOZ_ASSERT(mVideo.mTrackDemuxer);
+    if (!mVideo.mTrackDemuxer) {
+      mMetadataPromise.Reject(ReadMetadataFailureReason::METADATA_ERROR, __func__);
+      return;
+    }
     mInfo.mVideo = *mVideo.mTrackDemuxer->GetInfo()->GetAsVideoInfo();
     mVideo.mCallback = new DecoderCallback(this, TrackInfo::kVideoTrack);
     mVideo.mTimeRanges = mVideo.mTrackDemuxer->GetBuffered();
@@ -251,7 +256,10 @@ MediaFormatReader::OnDemuxerInitDone(nsresult)
   bool audioActive = !!mDemuxer->GetNumberTracks(TrackInfo::kAudioTrack);
   if (audioActive) {
     mAudio.mTrackDemuxer = mDemuxer->GetTrackDemuxer(TrackInfo::kAudioTrack, 0);
-    MOZ_ASSERT(mAudio.mTrackDemuxer);
+    if (!mAudio.mTrackDemuxer) {
+      mMetadataPromise.Reject(ReadMetadataFailureReason::METADATA_ERROR, __func__);
+      return;
+    }
     mInfo.mAudio = *mAudio.mTrackDemuxer->GetInfo()->GetAsAudioInfo();
     mAudio.mCallback = new DecoderCallback(this, TrackInfo::kAudioTrack);
     mAudio.mTimeRanges = mAudio.mTrackDemuxer->GetBuffered();
@@ -262,7 +270,7 @@ MediaFormatReader::OnDemuxerInitDone(nsresult)
 
   mIsEncrypted = crypto && crypto->IsEncrypted();
 
- if (mDecoder && crypto && crypto->IsEncrypted()) {
+  if (mDecoder && crypto && crypto->IsEncrypted()) {
     mInfo.mCrypto = *crypto;
   }
 
@@ -281,24 +289,11 @@ MediaFormatReader::OnDemuxerInitDone(nsresult)
     return;
   }
 
-  if (IsWaitingOnCDMResource()) {
-    // Decoder can't be allocated before CDM resource is ready, so resolving the
-    // mMetadataPromise here to wait for CDM on MDSM.
-    mInitDone = true;
-    RefPtr<MetadataHolder> metadata = new MetadataHolder();
-    metadata->mInfo = mInfo;
-    metadata->mTags = nullptr;
-    mMetadataPromise.Resolve(metadata, __func__);
-    return;
-  }
-
-  if (!EnsureDecodersCreated()) {
-    mMetadataPromise.Reject(ReadMetadataFailureReason::METADATA_ERROR, __func__);
-    return;
-  }
-
-  MOZ_ASSERT(!mDecodersInitRequest.Exists());
-  EnsureDecodersInitialized();
+  mInitDone = true;
+  RefPtr<MetadataHolder> metadata = new MetadataHolder();
+  metadata->mInfo = mInfo;
+  metadata->mTags = nullptr;
+  mMetadataPromise.Resolve(metadata, __func__);
 }
 
 void
@@ -353,78 +348,33 @@ MediaFormatReader::EnsureDecodersCreated()
 }
 
 bool
-MediaFormatReader::EnsureDecodersInitialized()
+MediaFormatReader::EnsureDecoderInitialized(TrackType aTrack)
 {
   MOZ_ASSERT(OnTaskQueue());
-  MOZ_ASSERT(mVideo.mDecoder || mAudio.mDecoder);
+  auto& decoder = GetDecoderData(aTrack);
 
-  // DecodeDemuxedSample() could call this function before mDecodersInitRequest
-  // is completed. And it is ok to return false here because DecodeDemuxedSample
-  // will call ScheduleUpdate() again.
-  // It also avoids calling decoder->Init() multiple times.
-  if (mDecodersInitRequest.Exists()) {
+  if (!decoder.mDecoder || decoder.mInitPromise.Exists()) {
+    MOZ_ASSERT(decoder.mDecoder);
     return false;
   }
-
-  nsTArray<RefPtr<MediaDataDecoder::InitPromise>> promises;
-
-  if (mVideo.mDecoder && !mVideo.mDecoderInitialized) {
-    promises.AppendElement(mVideo.mDecoder->Init());
+  if (decoder.mDecoderInitialized) {
+    return true;
   }
-
-  if (mAudio.mDecoder && !mAudio.mDecoderInitialized) {
-    promises.AppendElement(mAudio.mDecoder->Init());
-  }
-
-  if (promises.Length()) {
-    mDecodersInitRequest.Begin(MediaDataDecoder::InitPromise::All(OwnerThread(), promises)
-      ->Then(OwnerThread(), __func__, this,
-             &MediaFormatReader::OnDecoderInitDone,
-             &MediaFormatReader::OnDecoderInitFailed));
-  }
-
-  LOG("Init decoders: audio: %p, audio init: %d, video: %p, video init: %d",
-       mAudio.mDecoder.get(), mAudio.mDecoderInitialized,
-       mVideo.mDecoder.get(), mVideo.mDecoderInitialized);
-
-  // Return false if any decoder is under initialization.
-  return !promises.Length();
-}
-
-void
-MediaFormatReader::OnDecoderInitDone(const nsTArray<TrackType>& aTrackTypes)
-{
-  MOZ_ASSERT(OnTaskQueue());
-  mDecodersInitRequest.Complete();
-
-  for (const auto& track : aTrackTypes) {
-    auto& decoder = GetDecoderData(track);
-    decoder.mDecoderInitialized = true;
-
-    ScheduleUpdate(track);
-  }
-
-  if (!mMetadataPromise.IsEmpty()) {
-    mInitDone = true;
-    RefPtr<MetadataHolder> metadata = new MetadataHolder();
-    metadata->mInfo = mInfo;
-    metadata->mTags = nullptr;
-    mMetadataPromise.Resolve(metadata, __func__);
-  }
-}
-
-void
-MediaFormatReader::OnDecoderInitFailed(MediaDataDecoder::DecoderFailureReason aReason)
-{
-  MOZ_ASSERT(OnTaskQueue());
-  mDecodersInitRequest.Complete();
-
-  NS_WARNING("Failed to init decoder");
-
-  mMetadataPromise.RejectIfExists(ReadMetadataFailureReason::METADATA_ERROR, __func__);
-
-  NotifyError(TrackType::kAudioTrack);
-  NotifyError(TrackType::kVideoTrack);
+  RefPtr<MediaFormatReader> self = this;
+  decoder.mInitPromise.Begin(decoder.mDecoder->Init()
+       ->Then(OwnerThread(), __func__,
+              [self] (TrackType aTrack) {
+                auto& decoder = self->GetDecoderData(aTrack);
+                decoder.mInitPromise.Complete();
+                decoder.mDecoderInitialized = true;
+                self->ScheduleUpdate(aTrack);
+              },
+              [self, aTrack] (MediaDataDecoder::DecoderFailureReason aResult) {
+                auto& decoder = self->GetDecoderData(aTrack);
+                decoder.mInitPromise.Complete();
+                self->NotifyError(aTrack);
+              }));
+  return false;
 }
 
 void
@@ -835,8 +785,7 @@ MediaFormatReader::HandleDemuxedSamples(TrackType aTrack,
     return;
   }
 
-  if (!EnsureDecodersInitialized()) {
-    ScheduleUpdate(aTrack);
+  if (!EnsureDecoderInitialized(aTrack)) {
     return;
   }
 
@@ -970,7 +919,7 @@ MediaFormatReader::Update(TrackType aTrack)
 {
   MOZ_ASSERT(OnTaskQueue());
 
-  if (mShutdown) {
+  if (mShutdown || !mInitDone) {
     return;
   }
 
@@ -1475,6 +1424,7 @@ void MediaFormatReader::ReleaseMediaResources()
     mVideoFrameContainer->ClearCurrentFrame();
   }
   if (mVideo.mDecoder) {
+    mVideo.mInitPromise.DisconnectIfExists();
     mVideo.mDecoder->Shutdown();
     mVideo.mDecoder = nullptr;
   }

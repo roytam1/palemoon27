@@ -3868,9 +3868,12 @@ nsresult nsDisplayWrapper::WrapListsInPlace(nsDisplayListBuilder* aBuilder,
 }
 
 nsDisplayOpacity::nsDisplayOpacity(nsDisplayListBuilder* aBuilder,
-                                   nsIFrame* aFrame, nsDisplayList* aList)
+                                   nsIFrame* aFrame, nsDisplayList* aList,
+                                   bool aForEventsOnly)
     : nsDisplayWrapList(aBuilder, aFrame, aList)
-    , mOpacity(aFrame->StyleDisplay()->mOpacity) {
+    , mOpacity(aFrame->StyleDisplay()->mOpacity)
+    , mForEventsOnly(aForEventsOnly)
+{
   MOZ_COUNT_CTOR(nsDisplayOpacity);
 }
 
@@ -3894,9 +3897,11 @@ already_AddRefed<Layer>
 nsDisplayOpacity::BuildLayer(nsDisplayListBuilder* aBuilder,
                              LayerManager* aManager,
                              const ContainerLayerParameters& aContainerParameters) {
+  ContainerLayerParameters params = aContainerParameters;
+  params.mForEventsOnly = mForEventsOnly;
   RefPtr<Layer> container = aManager->GetLayerBuilder()->
     BuildContainerLayerFor(aBuilder, aManager, mFrame, this, &mList,
-                           aContainerParameters, nullptr,
+                           params, nullptr,
                            FrameLayerBuilder::CONTAINER_ALLOW_PULL_BACKGROUND_COLOR);
   if (!container)
     return nullptr;
@@ -4001,6 +4006,14 @@ nsDisplayItem::LayerState
 nsDisplayOpacity::GetLayerState(nsDisplayListBuilder* aBuilder,
                                 LayerManager* aManager,
                                 const ContainerLayerParameters& aParameters) {
+  // If we only created this item so that we'd get correct nsDisplayEventRegions for child
+  // frames, then force us to inactive to avoid unnecessary layerization changes for content
+  // that won't ever be painted.
+  if (mForEventsOnly) {
+    MOZ_ASSERT(mOpacity == 0);
+    return LAYER_INACTIVE;
+  }
+
   if (NeedsActiveLayer(aBuilder))
     return LAYER_ACTIVE;
 
@@ -4165,6 +4178,17 @@ nsDisplayBlendContainer::BuildLayer(nsDisplayListBuilder* aBuilder,
   
   container->SetForceIsolatedGroup(true);
   return container.forget();
+}
+
+LayerState
+nsDisplayBlendContainer::GetLayerState(nsDisplayListBuilder* aBuilder,
+                                       LayerManager* aManager,
+                                       const ContainerLayerParameters& aParameters)
+{
+  if (mCanBeActive && aManager->SupportsMixBlendModes(mContainedBlendModes)) {
+    return mozilla::LAYER_ACTIVE;
+  }
+  return mozilla::LAYER_INACTIVE;
 }
 
 bool nsDisplayBlendContainer::TryMerge(nsDisplayListBuilder* aBuilder, nsDisplayItem* aItem) {

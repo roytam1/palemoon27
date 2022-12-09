@@ -45,10 +45,21 @@ extern already_AddRefed<PlatformDecoderModule> CreateAgnosticDecoderModule();
 extern already_AddRefed<PlatformDecoderModule> CreateBlankDecoderModule();
 
 bool PDMFactory::sUseBlankDecoder = false;
+#ifdef MOZ_GONK_MEDIACODEC
 bool PDMFactory::sGonkDecoderEnabled = false;
+#endif
+#ifdef MOZ_WIDGET_ANDROID
 bool PDMFactory::sAndroidMCDecoderEnabled = false;
 bool PDMFactory::sAndroidMCDecoderPreferred = false;
+#endif
 bool PDMFactory::sGMPDecoderEnabled = false;
+#ifdef MOZ_FFMPEG
+bool PDMFactory::sFFmpegDecoderEnabled = false;
+#endif
+#ifdef XP_WIN
+bool PDMFactory::sWMFDecoderEnabled = false;
+#endif
+
 bool PDMFactory::sEnableFuzzingWrapper = false;
 uint32_t PDMFactory::sVideoOutputMinimumInterval_ms = 0;
 bool PDMFactory::sDontDelayInputExhausted = false;
@@ -65,20 +76,28 @@ PDMFactory::Init()
   alreadyInitialized = true;
 
   Preferences::AddBoolVarCache(&sUseBlankDecoder,
-                               "media.fragmented-mp4.use-blank-decoder");
+                               "media.use-blank-decoder");
 #ifdef MOZ_GONK_MEDIACODEC
   Preferences::AddBoolVarCache(&sGonkDecoderEnabled,
-                               "media.fragmented-mp4.gonk.enabled", false);
+                               "media.gonk.enabled", false);
 #endif
 #ifdef MOZ_WIDGET_ANDROID
   Preferences::AddBoolVarCache(&sAndroidMCDecoderEnabled,
-                               "media.fragmented-mp4.android-media-codec.enabled", false);
+                               "media.android-media-codec.enabled", false);
   Preferences::AddBoolVarCache(&sAndroidMCDecoderPreferred,
-                               "media.fragmented-mp4.android-media-codec.preferred", false);
+                               "media.android-media-codec.preferred", false);
 #endif
 
   Preferences::AddBoolVarCache(&sGMPDecoderEnabled,
-                               "media.fragmented-mp4.gmp.enabled", false);
+                               "media.gmp.decoder.enabled", false);
+#ifdef MOZ_FFMPEG
+  Preferences::AddBoolVarCache(&sFFmpegDecoderEnabled,
+                               "media.ffmpeg.enabled", false);
+#endif
+#ifdef XP_WIN
+  Preferences::AddBoolVarCache(&sWMFDecoderEnabled,
+                               "media.wmf.enabled", false);
+#endif
 
   Preferences::AddBoolVarCache(&sEnableFuzzingWrapper,
                                "media.decoder.fuzzing.enabled", false);
@@ -96,6 +115,7 @@ PDMFactory::Init()
 #ifdef MOZ_FFMPEG
   FFmpegRuntimeLinker::Link();
 #endif
+  GMPDecoderModule::Init();
 }
 
 PDMFactory::PDMFactory()
@@ -114,18 +134,51 @@ PDMFactory::CreateDecoder(const TrackInfo& aConfig,
                           layers::LayersBackend aLayersBackend,
                           layers::ImageContainer* aImageContainer)
 {
-  RefPtr<PlatformDecoderModule> current = (mEMEPDM && aConfig.mCrypto.mValid)
-    ? mEMEPDM : GetDecoder(aConfig.mMimeType);
+  bool isEncrypted = mEMEPDM && aConfig.mCrypto.mValid;
 
-  if (!current) {
-    return nullptr;
+  if (isEncrypted) {
+    return CreateDecoderWithPDM(mEMEPDM,
+                                aConfig,
+                                aTaskQueue,
+                                aCallback,
+                                aLayersBackend,
+                                aImageContainer);
   }
+
+  for (auto& current : mCurrentPDMs) {
+    if (!current->SupportsMimeType(aConfig.mMimeType)) {
+      continue;
+    }
+    RefPtr<MediaDataDecoder> m =
+      CreateDecoderWithPDM(current,
+                           aConfig,
+                           aTaskQueue,
+                           aCallback,
+                           aLayersBackend,
+                           aImageContainer);
+    if (m) {
+      return m.forget();
+    }
+  }
+  NS_WARNING("Unable to create a decoder, no platform found.");
+  return nullptr;
+}
+
+already_AddRefed<MediaDataDecoder>
+PDMFactory::CreateDecoderWithPDM(PlatformDecoderModule* aPDM,
+                                 const TrackInfo& aConfig,
+                                 FlushableTaskQueue* aTaskQueue,
+                                 MediaDataDecoderCallback* aCallback,
+                                 layers::LayersBackend aLayersBackend,
+                                 layers::ImageContainer* aImageContainer)
+{
+  MOZ_ASSERT(aPDM);
   RefPtr<MediaDataDecoder> m;
 
   if (aConfig.GetAsAudioInfo()) {
-    m = current->CreateAudioDecoder(*aConfig.GetAsAudioInfo(),
-                                    aTaskQueue,
-                                    aCallback);
+    m = aPDM->CreateAudioDecoder(*aConfig.GetAsAudioInfo(),
+                                 aTaskQueue,
+                                 aCallback);
     return m.forget();
   }
 
@@ -145,7 +198,7 @@ PDMFactory::CreateDecoder(const TrackInfo& aConfig,
 
   if (H264Converter::IsH264(aConfig)) {
     RefPtr<H264Converter> h
-      = new H264Converter(current,
+      = new H264Converter(aPDM,
                           *aConfig.GetAsVideoInfo(),
                           aLayersBackend,
                           aImageContainer,
@@ -159,11 +212,11 @@ PDMFactory::CreateDecoder(const TrackInfo& aConfig,
       m = h.forget();
     }
   } else {
-    m = current->CreateVideoDecoder(*aConfig.GetAsVideoInfo(),
-                                    aLayersBackend,
-                                    aImageContainer,
-                                    aTaskQueue,
-                                    callback);
+    m = aPDM->CreateVideoDecoder(*aConfig.GetAsVideoInfo(),
+                                 aLayersBackend,
+                                 aImageContainer,
+                                 aTaskQueue,
+                                 callback);
   }
 
   if (callbackWrapper && m) {

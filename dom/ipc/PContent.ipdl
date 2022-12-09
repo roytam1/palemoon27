@@ -673,6 +673,11 @@ child:
      */
     async NotifyPresentationReceiverCleanUp(nsString aSessionId);
 
+    /**
+     * Notify the child that the Gecko Media Plugins installed changed.
+     */
+    async NotifyGMPsChanged();
+
 parent:
     /**
      * Tell the content process some attributes of itself.  This is
@@ -837,6 +842,8 @@ parent:
     CloseAlert(nsString name, Principal principal);
 
     DisableNotifications(Principal principal);
+
+    OpenNotificationSettings(Principal principal);
 
     PPSMContentDownloader(uint32_t aCertType);
 

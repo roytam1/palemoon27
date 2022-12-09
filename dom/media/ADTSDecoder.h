@@ -14,8 +14,8 @@ namespace mozilla {
 class ADTSDecoder : public MediaDecoder {
 public:
   // MediaDecoder interface.
-  explicit ADTSDecoder() : MediaDecoder() {}
-  MediaDecoder* Clone() override;
+  explicit ADTSDecoder(MediaDecoderOwner* aOwner) : MediaDecoder(aOwner) {}
+  MediaDecoder* Clone(MediaDecoderOwner* aOwner) override;
   MediaDecoderStateMachine* CreateStateMachine() override;
 
   // Returns true if the ADTS backend is pref'ed on, and we're running on a

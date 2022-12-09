@@ -1342,11 +1342,17 @@ pref("browser.newtab.preload", false);
 // Toggles the content of 'about:newtab'. Shows the grid when enabled.
 pref("browser.newtabpage.enabled", true);
 
+// Toggles the enhanced content of 'about:newtab'. Shows sponsored tiles.
+sticky_pref("browser.newtabpage.enhanced", false);
+
 // number of columns of newtab grid
 pref("browser.newtabpage.columns", 4);
 
 // number of rows of newtab grid
 pref("browser.newtabpage.rows", 4);
+
+// activates the remote-hosted newtab page
+pref("browser.newtabpage.remote", false);
 
 // Enable the DOM fullscreen API.
 pref("full-screen-api.enabled", true);

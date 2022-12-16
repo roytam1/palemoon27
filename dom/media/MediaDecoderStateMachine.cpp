@@ -412,14 +412,17 @@ bool MediaDecoderStateMachine::HaveNextFrameData()
          (!HasVideo() || VideoQueue().GetSize() > 1);
 }
 
-int64_t MediaDecoderStateMachine::GetDecodedAudioDuration()
+int64_t
+MediaDecoderStateMachine::GetDecodedAudioDuration()
 {
   MOZ_ASSERT(OnTaskQueue());
-  int64_t audioDecoded = AudioQueue().Duration();
   if (mMediaSink->IsStarted()) {
-    audioDecoded += AudioEndTime() - GetMediaTime();
+    // |mDecodedAudioEndTime == -1| means no decoded audio at all so the
+    // returned duration is 0.
+    return mDecodedAudioEndTime != -1 ? mDecodedAudioEndTime - GetClock() : 0;
   }
-  return audioDecoded;
+  // MediaSink not started. All audio samples are in the queue.
+  return AudioQueue().Duration();
 }
 
 void MediaDecoderStateMachine::DiscardStreamData()
@@ -884,14 +887,16 @@ MediaDecoderStateMachine::OnVideoDecoded(MediaData* aVideoSample)
         StopPrerollingVideo();
       }
 
-      // Schedule the state machine to send stream data as soon as possible or
-      // the VideoQueue() is empty before the Push().
-      // VideoQueue() is empty implies the state machine thread doesn't have
-      // precise time information about video frames. Once the first video
-      // frame pushed in the queue, schedule the state machine as soon as
-      // possible to render the video frame or delay the state machine thread
-      // accurately.
-      if (VideoQueue().GetSize() == 1) {
+      // Schedule the state machine to send stream data as soon as possible if
+      // the VideoQueue() is empty or contains one frame before the Push().
+      //
+      // The state machine threads requires a frame in VideoQueue() that is `in
+      // the future` to gather precise timing information. The head of
+      // VideoQueue() is always `in the past`.
+      //
+      // Schedule the state machine as soon as possible to render the video
+      // frame or delay the state machine thread accurately.
+      if (VideoQueue().GetSize() <= 2) {
         ScheduleStateMachine();
       }
 
@@ -1806,12 +1811,6 @@ int64_t MediaDecoderStateMachine::AudioDecodedUsecs()
   // already decoded and pushed to the hardware, plus the amount of audio
   // data waiting to be pushed to the hardware.
   int64_t pushed = mMediaSink->IsStarted() ? (AudioEndTime() - GetMediaTime()) : 0;
-
-  // Currently for real time streams, AudioQueue().Duration() produce
-  // wrong values (Bug 1114434), so we use frame counts to calculate duration.
-  if (IsRealTime()) {
-    return pushed + FramesToUsecs(AudioQueue().FrameCount(), mInfo.mAudio.mRate).value();
-  }
   return pushed + AudioQueue().Duration();
 }
 
@@ -2411,6 +2410,9 @@ nsresult MediaDecoderStateMachine::RunStateMachine()
         int64_t clockTime = std::max(AudioEndTime(), VideoEndTime());
         clockTime = std::max(int64_t(0), std::max(clockTime, Duration().ToMicroseconds()));
         UpdatePlaybackPosition(clockTime);
+
+        // Ensure readyState is updated before firing the 'ended' event.
+        UpdateNextFrameStatus();
 
         nsCOMPtr<nsIRunnable> event =
           NS_NewRunnableMethod(mDecoder, &MediaDecoder::PlaybackEnded);

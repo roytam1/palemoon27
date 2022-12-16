@@ -10,11 +10,11 @@
 #include "mozilla/gfx/Coord.h"
 #include "mozilla/gfx/Point.h"
 #include "mozilla/gfx/Rect.h"
-#include "mozilla/gfx/RegionTyped.h"
 #include "mozilla/gfx/ScaleFactor.h"
 #include "mozilla/gfx/ScaleFactors2D.h"
-#include "nsRect.h"
 #include "nsMargin.h"
+#include "nsRect.h"
+#include "nsRegion.h"
 #include "mozilla/AppUnits.h"
 #include "mozilla/TypeTraits.h"
 
@@ -287,6 +287,11 @@ struct LayoutDevicePixel {
     return LayoutDeviceIntSize(
       NSAppUnitsToIntPixels(aSize.width, aAppUnitsPerDevPixel),
       NSAppUnitsToIntPixels(aSize.height, aAppUnitsPerDevPixel));
+  }
+
+  static nsPoint ToAppUnits(const LayoutDeviceIntPoint& aPoint, nscoord aAppUnitsPerDevPixel) {
+    return nsPoint(aPoint.x * aAppUnitsPerDevPixel,
+                   aPoint.y * aAppUnitsPerDevPixel);
   }
 
   static nsSize ToAppUnits(const LayoutDeviceIntSize& aSize, nscoord aAppUnitsPerDevPixel) {

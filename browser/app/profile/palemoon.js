@@ -946,8 +946,13 @@ pref("dom.ipc.plugins.enabled", true);
 
 pref("dom.ipc.shims.enabledWarnings", false);
 
-// If decoding-via-gmp is turned on for <video>, default to using
-// Adobe's GMP for decoding.
+// Decode using Gecko Media Plugins in <video>, if a system decoder is not
+// availble and the preferred GMP is available.
+pref("media.gmp.decoder.enabled", true);
+
+// If decoding-via-GMP is turned on for <video>, use Adobe's GMP for decoding,
+// if it's available. Note: We won't fallback to another GMP if Adobe's is not
+// installed.
 pref("media.gmp.decoder.aac", 2);
 pref("media.gmp.decoder.h264", 2);
 
@@ -1443,11 +1448,12 @@ pref("view_source.tab", true);
 // Disable reader mode by default.
 pref("reader.parse-on-load.enabled", false);
 
-// Enable Service Workers for desktop on non-release builds
-#ifndef RELEASE_BUILD
+// Enable ServiceWorkers for Push API consumers.
+// Interception is still disabled.
 pref("dom.serviceWorkers.enabled", true);
-pref("dom.serviceWorkers.interception.enabled", true);
-#endif
+
+// Enable Push API.
+pref("dom.push.enabled", true);
 
 // Token server used by the FxA Sync identity.
 pref("identity.sync.tokenserver.uri", "https://token.services.mozilla.com/1.0/sync/1.5");

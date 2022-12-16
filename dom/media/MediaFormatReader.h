@@ -208,6 +208,7 @@ private:
       , mDrainComplete(false)
       , mNumSamplesInput(0)
       , mNumSamplesOutput(0)
+      , mNumSamplesOutputTotal(0)
       , mSizeOfQueue(0)
       , mIsHardwareAccelerated(false)
       , mLastStreamSourceID(UINT32_MAX)
@@ -267,6 +268,7 @@ private:
     nsTArray<RefPtr<MediaData>> mOutput;
     uint64_t mNumSamplesInput;
     uint64_t mNumSamplesOutput;
+    uint64_t mNumSamplesOutputTotal;
 
     // These get overriden in the templated concrete class.
     // Indicate if we have a pending promise for decoded frame.
@@ -290,6 +292,7 @@ private:
       mReceivedNewData = false;
       mDiscontinuity = true;
       mQueuedSamples.Clear();
+      mDecodingRequested = false;
       mOutputRequested = false;
       mInputExhausted = false;
       mNeedDraining = false;
@@ -299,6 +302,7 @@ private:
       mOutput.Clear();
       mNumSamplesInput = 0;
       mNumSamplesOutput = 0;
+      mSizeOfQueue = 0;
       mNextStreamSourceID.reset();
     }
 
@@ -421,6 +425,7 @@ private:
     OnSeekFailed(TrackType::kAudioTrack, aFailure);
   }
   // Temporary seek information while we wait for the data
+  Maybe<media::TimeUnit> mOriginalSeekTime;
   Maybe<media::TimeUnit> mPendingSeekTime;
   MozPromiseHolder<SeekPromise> mSeekPromise;
 

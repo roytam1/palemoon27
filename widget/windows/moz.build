@@ -67,6 +67,7 @@ SOURCES += [
     'nsBidiKeyboard.cpp',
     'nsFilePicker.cpp',
     'nsWidgetFactory.cpp',
+    'WindowsUIUtils.cpp',
     'WinMouseScrollHandler.cpp',
 ]
 

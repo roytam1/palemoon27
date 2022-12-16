@@ -587,9 +587,7 @@ CompositorParent::CompositorParent(nsIWidget* aWidget,
     mApzcTreeManager = new APZCTreeManager();
   }
 
-  gfxDebugOnce() << "Enabling vsync compositor";
   mCompositorScheduler = new CompositorVsyncScheduler(this, aWidget);
-
   LayerScope::SetPixelScale(mWidget->GetDefaultScale().scale);
 }
 
@@ -1472,8 +1470,6 @@ CompositorParent::AllocPLayerTransactionParent(const nsTArray<LayersBackend>& aB
 {
   MOZ_ASSERT(aId == 0);
 
-  gfx::IntRect rect;
-  mWidget->GetClientBounds(rect);
   InitializeLayerManager(aBackendHints);
 
   if (!mLayerManager) {

@@ -7,7 +7,6 @@
 #ifndef mozilla_image_decoders_nsICODecoder_h
 #define mozilla_image_decoders_nsICODecoder_h
 
-#include "nsAutoPtr.h"
 #include "StreamingLexer.h"
 #include "Decoder.h"
 #include "imgFrame.h"
@@ -88,8 +87,6 @@ private:
   // Gets decoder state from the contained decoder so it's visible externally.
   void GetFinalStateFromContainedDecoder();
 
-  // Creates a bitmap file header buffer, returns true if successful
-  bool FillBitmapFileHeaderBuffer(int8_t* bfh);
   /**
    * Verifies that the width and height values in @aBIH are valid and match the
    * values we read from the ICO directory entry. If everything looks OK, the
@@ -122,7 +119,7 @@ private:
   StreamingLexer<ICOState, 32> mLexer; // The lexer.
   RefPtr<Decoder> mContainedDecoder; // Either a BMP or PNG decoder.
   UniquePtr<uint8_t[]> mMaskBuffer;    // A temporary buffer for the alpha mask.
-  char mBIHraw[40];                    // The bitmap information header.
+  char mBIHraw[bmp::InfoHeaderLength::WIN_ICO]; // The bitmap information header.
   IconDirEntry mDirEntry;              // The dir entry for the selected resource.
   gfx::IntSize mBiggestResourceSize;        // Used to select the intrinsic size.
   gfx::IntSize mBiggestResourceHotSpot;     // Used to select the intrinsic size.

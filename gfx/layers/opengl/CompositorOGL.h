@@ -209,8 +209,6 @@ public:
                                GetMaxTextureSize(),
                                mFBOTextureTarget == LOCAL_GL_TEXTURE_2D,
                                SupportsPartialTextureUpdate());
-    result.mSupportedBlendModes += gfx::CompositionOp::OP_SCREEN;
-    result.mSupportedBlendModes += gfx::CompositionOp::OP_MULTIPLY;
     result.mSupportedBlendModes += gfx::CompositionOp::OP_SOURCE;
     return result;
   }
@@ -234,8 +232,6 @@ public:
                         const gfx::Rect& aVisibleRect) override;
 
   virtual void EndFrame() override;
-  virtual void SetDispAcquireFence(Layer* aLayer, nsIWidget* aWidget) override;
-  virtual FenceHandle GetReleaseFence() override;
   virtual void EndFrameForExternalComposition(const gfx::Matrix& aTransform) override;
 
   virtual bool SupportsPartialTextureUpdate() override;
@@ -454,7 +450,6 @@ private:
    */
   gfx::IntSize mViewportSize;
 
-  FenceHandle mReleaseFenceHandle;
   ShaderProgramOGL *mCurrentProgram;
 
   gfx::Rect mRenderBound;

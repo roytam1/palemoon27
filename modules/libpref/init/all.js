@@ -157,7 +157,6 @@ pref("dom.workers.maxPerDomain", 20);
 // Whether or not Shared Web Workers are enabled.
 pref("dom.workers.sharedWorkers.enabled", true);
 
-// Service workers
 pref("dom.serviceWorkers.enabled", false);
 
 // Allow service workers to intercept network requests using the fetch event
@@ -1405,7 +1404,7 @@ pref("privacy.trackingprotection.enabled",  false);
 
 pref("dom.event.contextmenu.enabled",       true);
 pref("dom.event.clipboardevents.enabled",   true);
-#if defined(XP_WIN) && !defined(RELEASE_BUILD)
+#if defined(XP_WIN) && !defined(RELEASE_BUILD) || defined(MOZ_WIDGET_GTK) && !defined(RELEASE_BUILD)
 pref("dom.event.highrestimestamp.enabled",  true);
 #else
 pref("dom.event.highrestimestamp.enabled",  false);
@@ -2607,6 +2606,14 @@ pref("layout.css.unicode-range.enabled", false);
 
 // Is support for CSS "text-align: unsafe X" enabled?
 pref("layout.css.text-align-unsafe-value.enabled", false);
+
+// Is support for CSS "float: inline-{start,end}" and
+// "clear: inline-{start,end}" enabled?
+#if defined(MOZ_B2G) || defined(NIGHTLY_BUILD)
+pref("layout.css.float-logical-values.enabled", true);
+#else
+pref("layout.css.float-logical-values.enabled", false);
+#endif
 
 // Is support for the CSS4 image-orientation property enabled?
 pref("layout.css.image-orientation.enabled", true);
@@ -4419,10 +4426,6 @@ pref("image.multithreaded_decoding.limit", -1);
 // cache.
 pref("canvas.image.cache.limit", 0);
 
-// Allow track-fobics to deliberately poison canvas data for
-// toDataURL() and getImageData()
-pref("canvas.poisondata", false);
-
 // WebGL prefs
 #ifdef ANDROID
 // Disable MSAA on mobile.
@@ -4731,9 +4734,14 @@ pref("dom.mozContacts.enabled", false);
 pref("dom.mozAlarms.enabled", false);
 
 // Push
+
 pref("dom.push.enabled", false);
 
-pref("dom.push.debug", false);
+#if !defined(RELEASE_BUILD)
+pref("dom.push.debug", true);
+#endif
+
+
 pref("dom.push.serverURL", "wss://push.services.mozilla.com/");
 pref("dom.push.userAgentID", "");
 
@@ -4786,8 +4794,12 @@ pref("dom.mozSettings.enabled", false);
 pref("dom.mozPermissionSettings.enabled", false);
 
 // W3C touch events
-// 0 - disabled, 1 - enabled, 2 - autodetect (win)
+// 0 - disabled, 1 - enabled, 2 - autodetect (win/gtk3)
 #ifdef XP_WIN
+pref("dom.w3c_touch_events.enabled", 2);
+#endif
+
+#if MOZ_WIDGET_GTK == 3
 pref("dom.w3c_touch_events.enabled", 2);
 #endif
 
@@ -5318,13 +5330,6 @@ pref("media.gmp.insecure.allow", false);
 #endif
 
 pref("dom.audiochannel.mutedByDefault", false);
-
-// Use vsync aligned rendering. b2g prefs are in b2g.js.
-// Hardware vsync supported on windows, os x, and b2g.
-// Linux and fennec will use software vsync.
-#if defined(XP_MACOSX) || defined(XP_WIN) || defined(XP_LINUX)
-pref("gfx.vsync.refreshdriver", true);
-#endif
 
 // Secure Element API
 #ifdef MOZ_SECUREELEMENT

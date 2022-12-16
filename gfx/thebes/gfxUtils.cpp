@@ -7,6 +7,7 @@
 
 #include "cairo.h"
 #include "gfxContext.h"
+#include "gfxEnv.h"
 #include "gfxImageSurface.h"
 #include "gfxPlatform.h"
 #include "gfxDrawable.h"
@@ -20,6 +21,7 @@
 #include "mozilla/gfx/Logging.h"
 #include "mozilla/Maybe.h"
 #include "mozilla/RefPtr.h"
+#include "mozilla/UniquePtrExtensions.h"
 #include "mozilla/Vector.h"
 #include "nsComponentManagerUtils.h"
 #include "nsIClipboardHelper.h"
@@ -73,7 +75,7 @@ void mozilla_dump_image(void* bytes, int width, int height, int bytepp,
     // TODO more flexible; parse string?
     switch (bytepp) {
     case 2:
-        format = SurfaceFormat::R5G6B5;
+        format = SurfaceFormat::R5G6B5_UINT16;
         break;
     case 4:
     default:
@@ -395,7 +397,7 @@ IsSafeImageTransformComponent(gfxFloat aValue)
   return aValue >= -32768 && aValue <= 32767;
 }
 
-#if !defined(MOZ_GFX_OPTIMIZE_MOBILE) && !defined(MOZ_WIDGET_COCOA)
+#if !defined(MOZ_GFX_OPTIMIZE_MOBILE)
 /**
  * This returns the fastest operator to use for solid surfaces which have no
  * alpha channel or their alpha channel is uniformly opaque.
@@ -464,7 +466,7 @@ CreateSamplingRestrictedDrawable(gfxDrawable* aDrawable,
     RefPtr<gfxDrawable> drawable = new gfxSurfaceDrawable(surface, size, gfxMatrix::Translation(-needed.TopLeft()));
     return drawable.forget();
 }
-#endif // !MOZ_GFX_OPTIMIZE_MOBILE && !MOZ_WIDGET_COCOA
+#endif // !MOZ_GFX_OPTIMIZE_MOBILE
 
 // working around cairo/pixman bug (bug 364968)
 // Our device-space-to-image-space transform may not be acceptable to pixman.
@@ -761,7 +763,7 @@ gfxUtils::DrawPixelSnapped(gfxContext*         aContext,
             // On Mobile, we don't ever want to do this; it has the potential for
             // allocating very large temporary surfaces, especially since we'll
             // do full-page snapshots often (see bug 749426).
-#if !defined(MOZ_GFX_OPTIMIZE_MOBILE) && !defined(MOZ_WIDGET_COCOA)
+#if !defined(MOZ_GFX_OPTIMIZE_MOBILE)
             RefPtr<gfxDrawable> restrictedDrawable =
               CreateSamplingRestrictedDrawable(aDrawable, aContext,
                                                aRegion, aFormat);
@@ -1546,26 +1548,24 @@ gfxUtils::CopyAsDataURI(DrawTarget* aDT)
   }
 }
 
-/* static */ void
+/* static */ UniquePtr<uint8_t[]>
 gfxUtils::GetImageBuffer(gfx::DataSourceSurface* aSurface,
                          bool aIsAlphaPremultiplied,
-                         uint8_t** outImageBuffer,
                          int32_t* outFormat)
 {
-    *outImageBuffer = nullptr;
     *outFormat = 0;
 
     DataSourceSurface::MappedSurface map;
     if (!aSurface->Map(DataSourceSurface::MapType::READ, &map))
-        return;
+        return nullptr;
 
     uint32_t bufferSize = aSurface->GetSize().width * aSurface->GetSize().height * 4;
-    uint8_t* imageBuffer = new (fallible) uint8_t[bufferSize];
+    auto imageBuffer = MakeUniqueFallible<uint8_t[]>(bufferSize);
     if (!imageBuffer) {
         aSurface->Unmap();
-        return;
+        return nullptr;
     }
-    memcpy(imageBuffer, map.mData, bufferSize);
+    memcpy(imageBuffer.get(), map.mData, bufferSize);
 
     aSurface->Unmap();
 
@@ -1576,12 +1576,12 @@ gfxUtils::GetImageBuffer(gfx::DataSourceSurface* aSurface,
         // Yes, it is THAT silly.
         // Except for different lossy conversions by color,
         // we could probably just change the label, and not change the data.
-        gfxUtils::ConvertBGRAtoRGBA(imageBuffer, bufferSize);
+        gfxUtils::ConvertBGRAtoRGBA(imageBuffer.get(), bufferSize);
         format = imgIEncoder::INPUT_FORMAT_RGBA;
     }
 
-    *outImageBuffer = imageBuffer;
     *outFormat = format;
+    return imageBuffer;
 }
 
 /* static */ nsresult
@@ -1597,15 +1597,14 @@ gfxUtils::GetInputStream(gfx::DataSourceSurface* aSurface,
     if (!encoder)
         return NS_ERROR_FAILURE;
 
-    nsAutoArrayPtr<uint8_t> imageBuffer;
     int32_t format = 0;
-    GetImageBuffer(aSurface, aIsAlphaPremultiplied, getter_Transfers(imageBuffer), &format);
+    UniquePtr<uint8_t[]> imageBuffer = GetImageBuffer(aSurface, aIsAlphaPremultiplied, &format);
     if (!imageBuffer)
         return NS_ERROR_FAILURE;
 
     return dom::ImageEncoder::GetInputStream(aSurface->GetSize().width,
                                              aSurface->GetSize().height,
-                                             imageBuffer, format,
+                                             imageBuffer.get(), format,
                                              encoder, aEncoderOptions, outStream);
 }
 
@@ -1671,18 +1670,6 @@ gfxUtils::DumpDisplayList() {
 }
 
 FILE *gfxUtils::sDumpPaintFile = stderr;
-
-#ifdef MOZ_DUMP_PAINTING
-bool gfxUtils::sDumpPainting = getenv("MOZ_DUMP_PAINT") != 0;
-bool gfxUtils::sDumpPaintingIntermediate = getenv("MOZ_DUMP_PAINT_INTERMEDIATE") != 0;
-bool gfxUtils::sDumpPaintingToFile = getenv("MOZ_DUMP_PAINT_TO_FILE") != 0;
-bool gfxUtils::sDumpPaintItems = getenv("MOZ_DUMP_PAINT_ITEMS") != 0;
-#else
-bool gfxUtils::sDumpPainting = false;
-bool gfxUtils::sDumpPaintingIntermediate = false;
-bool gfxUtils::sDumpPaintingToFile = false;
-bool gfxUtils::sDumpPaintItems = false;
-#endif
 
 namespace mozilla {
 namespace gfx {

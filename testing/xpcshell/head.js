@@ -216,7 +216,9 @@ var _fakeIdleService = {
       Components.manager.QueryInterface(Components.interfaces.nsIComponentRegistrar);
   },
   contractID: "@mozilla.org/widget/idleservice;1",
-  get CID() this.registrar.contractIDToCID(this.contractID),
+  get CID() {
+    return this.registrar.contractIDToCID(this.contractID);
+  },
 
   activate: function FIS_activate()
   {
@@ -268,7 +270,9 @@ var _fakeIdleService = {
   },
 
   // nsIIdleService
-  get idleTime() 0,
+  get idleTime() {
+    return 0;
+  },
   addIdleObserver: function () {},
   removeIdleObserver: function () {},
 

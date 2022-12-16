@@ -61,6 +61,3 @@
 
     // Make sure SelfSupport doesn't hit the network.
     branch.setCharPref("browser.selfsupport.url", "https://%(server)s/selfsupport-dummy/");
-
-    // Disable periodic updates of service workers.
-    branch.setBoolPref("dom.serviceWorkers.periodic-updates.enabled", false);

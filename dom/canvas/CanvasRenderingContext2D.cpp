@@ -1648,26 +1648,24 @@ CanvasRenderingContext2D::SetContextOptions(JSContext* aCx,
   return NS_OK;
 }
 
-void
-CanvasRenderingContext2D::GetImageBuffer(uint8_t** aImageBuffer,
-                                         int32_t* aFormat)
+UniquePtr<uint8_t[]>
+CanvasRenderingContext2D::GetImageBuffer(int32_t* aFormat)
 {
-  *aImageBuffer = nullptr;
   *aFormat = 0;
 
   EnsureTarget();
   RefPtr<SourceSurface> snapshot = mTarget->Snapshot();
   if (!snapshot) {
-    return;
+    return nullptr;
   }
 
   RefPtr<DataSourceSurface> data = snapshot->GetDataSurface();
   if (!data || data->GetSize() != IntSize(mWidth, mHeight)) {
-    return;
+    return nullptr;
   }
 
-  *aImageBuffer = SurfaceToPackedBGRA(data);
   *aFormat = imgIEncoder::INPUT_FORMAT_HOSTARGB;
+  return SurfaceToPackedBGRA(data);
 }
 
 nsString CanvasRenderingContext2D::GetHitRegion(const mozilla::gfx::Point& aPoint)
@@ -1693,29 +1691,15 @@ CanvasRenderingContext2D::GetInputStream(const char *aMimeType,
     return NS_ERROR_FAILURE;
   }
 
-  nsAutoArrayPtr<uint8_t> imageBuffer;
   int32_t format = 0;
-  GetImageBuffer(getter_Transfers(imageBuffer), &format);
+  UniquePtr<uint8_t[]> imageBuffer = GetImageBuffer(&format);
   if (!imageBuffer) {
     return NS_ERROR_FAILURE;
   }
-  
-  bool PoisonData = Preferences::GetBool("canvas.poisondata",false);
-  if (PoisonData) {
-    srand(time(nullptr));
-    // Image buffer is always a packed BGRA array (BGRX -> BGR[FF])
-    // so always 4-value pixels.
-    // GetImageBuffer => SurfaceToPackedBGRA [=> ConvertBGRXToBGRA]
-    int32_t dataSize = mWidth * mHeight * 4;
-#pragma omp parallel for
-    for (int32_t j = 0; j < dataSize; ++j) {
-      if (imageBuffer[j] !=0 && imageBuffer[j] != 255)
-        imageBuffer[j] += rand() % 3 - 1;
-    }
-  }
 
-  return ImageEncoder::GetInputStream(mWidth, mHeight, imageBuffer, format,
-                                      encoder, aEncoderOptions, aStream);
+  return ImageEncoder::GetInputStream(mWidth, mHeight, imageBuffer.get(),
+                                      format, encoder, aEncoderOptions,
+                                      aStream);
 }
 
 SurfaceFormat
@@ -4496,7 +4480,7 @@ CanvasRenderingContext2D::DrawImage(const CanvasImageSource& image,
     if (ok) {
       NativeSurface texSurf;
       texSurf.mType = NativeSurfaceType::OPENGL_TEXTURE;
-      texSurf.mFormat = SurfaceFormat::R5G6B5;
+      texSurf.mFormat = SurfaceFormat::R5G6B5_UINT16;
       texSurf.mSize.width = mCurrentVideoSize.width;
       texSurf.mSize.height = mCurrentVideoSize.height;
       texSurf.mSurface = (void*)((uintptr_t)mVideoTexture);
@@ -5153,14 +5137,6 @@ CanvasRenderingContext2D::GetImageData(JSContext* aCx, double aSx,
   return imageData.forget();
 }
 
-inline uint8_t PoisonValue(uint8_t v)
-{
-  if (v==0 || v==255)
-    return v; //don't fuzz edges to prevent overflow/underflow
-    
-  return v + rand() %3 -1;
-}
-
 nsresult
 CanvasRenderingContext2D::GetImageDataArray(JSContext* aCx,
                                             int32_t aX,
@@ -5174,10 +5150,6 @@ CanvasRenderingContext2D::GetImageDataArray(JSContext* aCx,
   }
 
   MOZ_ASSERT(aWidth && aHeight);
-  
-  bool PoisonData = Preferences::GetBool("canvas.poisondata",false);
-  if (PoisonData)
-    srand(time(nullptr));
 
   CheckedInt<uint32_t> len = CheckedInt<uint32_t>(aWidth) * aHeight * 4;
   if (!len.isValid() || len.value() > INT32_MAX) {
@@ -5253,14 +5225,6 @@ CanvasRenderingContext2D::GetImageDataArray(JSContext* aCx,
         g = *src++;
         b = *src++;
 #endif
-
-        // Poison data for trackers if enabled
-        if (PoisonData) {
-          PoisonValue(r);
-          PoisonValue(g);
-          PoisonValue(b);
-        }
-
         *dst++ = r;
         *dst++ = g;
         *dst++ = b;
@@ -5284,15 +5248,6 @@ CanvasRenderingContext2D::GetImageDataArray(JSContext* aCx,
       g = *src++;
       b = *src++;
 #endif
-
-      // Poison data for trackers if enabled
-      if (PoisonData) {
-        PoisonValue(a);
-        PoisonValue(r);
-        PoisonValue(g);
-        PoisonValue(b);
-      }
-
       // Convert to non-premultiplied color
       *dst++ = gfxUtils::sUnpremultiplyTable[a * 256 + r];
       *dst++ = gfxUtils::sUnpremultiplyTable[a * 256 + g];

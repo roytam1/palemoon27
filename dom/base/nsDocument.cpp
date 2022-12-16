@@ -10591,13 +10591,13 @@ nsIDocument::CreateTouch(nsIDOMWindow* aView,
                          float aForce)
 {
   RefPtr<Touch> touch = new Touch(aTarget,
-                                    aIdentifier,
-                                    aPageX, aPageY,
-                                    aScreenX, aScreenY,
-                                    aClientX, aClientY,
-                                    aRadiusX, aRadiusY,
-                                    aRotationAngle,
-                                    aForce);
+                                  aIdentifier,
+                                  aPageX, aPageY,
+                                  aScreenX, aScreenY,
+                                  aClientX, aClientY,
+                                  aRadiusX, aRadiusY,
+                                  aRotationAngle,
+                                  aForce);
   return touch.forget();
 }
 

@@ -912,7 +912,10 @@ html|*.urlbar-input:-moz-lwtheme::-moz-placeholder,
 }
 
 .urlbar-icon {
-    padding: 0 3px;
+  padding: 0 3px;
+  /* 16x16 icon with border-box sizing */
+  width: 22px;
+  height: 16px;
 }
 
 .searchbar-engine-button,
@@ -1276,8 +1279,8 @@ richlistitem[type~="action"][actiontype="switchtab"][selected="true"] > .ac-url-
 /* popup blocker button */
 
 #page-report-button {
-    list-style-image: url("chrome://browser/skin/urlbar-popup-blocked.png");
-    -moz-image-region: rect(0, 16px, 16px, 0);
+  list-style-image: url("chrome://browser/skin/urlbar-popup-blocked.png");
+  -moz-image-region: rect(0, 16px, 16px, 0);
 }
 
 #page-report-button:hover {

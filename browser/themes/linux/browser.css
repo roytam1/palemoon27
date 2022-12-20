@@ -937,9 +937,6 @@ toolbar[iconsize="small"] #webrtc-status-button {
 .urlbar-icon {
   cursor: pointer;
   padding: 0 3px;
-  /* 16x16 icon with border-box sizing */
-  width: 22px;
-  height: 16px;
 }
 
 #urlbar-search-splitter {

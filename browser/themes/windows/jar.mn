@@ -56,7 +56,6 @@ browser.jar:
         skin/classic/browser/monitor_16-10.png
         skin/classic/browser/pageInfo.css
         skin/classic/browser/pageInfo.png
-        skin/classic/browser/page-livemarks.png                      (feeds/feedIcon16.png)
         skin/classic/browser/pointerLock-16.png
         skin/classic/browser/pointerLock-64.png
         skin/classic/browser/Privacy-16.png
@@ -109,10 +108,6 @@ browser.jar:
 *       skin/classic/browser/downloads/indicator.css                 (downloads/indicator.css)
         skin/classic/browser/feeds/feedIcon.png                      (feeds/feedIcon.png)
         skin/classic/browser/feeds/feedIcon16.png                    (feeds/feedIcon16.png)
-        skin/classic/browser/feeds/videoFeedIcon.png                 (feeds/feedIcon.png)
-        skin/classic/browser/feeds/videoFeedIcon16.png               (feeds/feedIcon16.png)
-        skin/classic/browser/feeds/audioFeedIcon.png                 (feeds/feedIcon.png)
-        skin/classic/browser/feeds/audioFeedIcon16.png               (feeds/feedIcon16.png)
         skin/classic/browser/feeds/feed-icons-16.png                 (feeds/feed-icons-16.png)
         skin/classic/browser/feeds/subscribe.css                     (feeds/subscribe.css)
         skin/classic/browser/feeds/subscribe-ui.css                  (feeds/subscribe-ui.css)
@@ -186,6 +181,13 @@ browser.jar:
         skin/classic/browser/syncCommon.css
         skin/classic/browser/syncQuota.css
 #endif
+
+../extensions/{972ce4c6-7e08-4474-a285-3208198ce6fd}/chrome.jar:
+% override chrome://browser/skin/page-livemarks.png                   chrome://browser/skin/feeds/feedIcon16.png
+% override chrome://browser/skin/feeds/audioFeedIcon.png              chrome://browser/skin/feeds/feedIcon.png
+% override chrome://browser/skin/feeds/audioFeedIcon16.png            chrome://browser/skin/feeds/feedIcon16.png
+% override chrome://browser/skin/feeds/videoFeedIcon.png              chrome://browser/skin/feeds/feedIcon.png
+% override chrome://browser/skin/feeds/videoFeedIcon16.png            chrome://browser/skin/feeds/feedIcon16.png
 
 % override chrome://browser/skin/customizableui/thumburger.png        chrome://browser/skin/customizableui/thumburger-XP.png            os=WINNT osversion<6
 % override chrome://browser/skin/customizableui/thumburger.png        chrome://browser/skin/customizableui/thumburger-aero.png          os=WINNT osversion=6

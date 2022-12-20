@@ -1845,7 +1845,7 @@ NS_METHOD nsWindow::SetFocus(bool aRaise)
 // Return the window's full dimensions in screen coordinates.
 // If the window has a parent, converts the origin to an offset
 // of the parent's screen origin.
-NS_METHOD nsWindow::GetBounds(nsIntRect &aRect)
+NS_METHOD nsWindow::GetBoundsUntyped(nsIntRect &aRect)
 {
   if (mWnd) {
     RECT r;
@@ -1899,7 +1899,7 @@ NS_METHOD nsWindow::GetBounds(nsIntRect &aRect)
       // adjust for chrome
       nsWindow* pWidget = static_cast<nsWindow*>(GetParent());
       if (pWidget && pWidget->IsTopLevelWidget()) {
-        nsIntPoint clientOffset = pWidget->GetClientOffset();
+        LayoutDeviceIntPoint clientOffset = pWidget->GetClientOffset();
         r.left -= clientOffset.x;
         r.top  -= clientOffset.y;
       }
@@ -1913,15 +1913,15 @@ NS_METHOD nsWindow::GetBounds(nsIntRect &aRect)
 }
 
 // Get this component dimension
-NS_METHOD nsWindow::GetClientBounds(nsIntRect &aRect)
+NS_METHOD nsWindow::GetClientBoundsUntyped(nsIntRect &aRect)
 {
   if (mWnd) {
     RECT r;
     VERIFY(::GetClientRect(mWnd, &r));
 
     nsIntRect bounds;
-    GetBounds(bounds);
-    aRect.MoveTo(bounds.TopLeft() + GetClientOffset());
+    GetBoundsUntyped(bounds);
+    aRect.MoveTo(bounds.TopLeft() + GetClientOffsetUntyped());
     aRect.width  = r.right - r.left;
     aRect.height = r.bottom - r.top;
 
@@ -1932,7 +1932,7 @@ NS_METHOD nsWindow::GetClientBounds(nsIntRect &aRect)
 }
 
 // Like GetBounds, but don't offset by the parent
-NS_METHOD nsWindow::GetScreenBounds(nsIntRect &aRect)
+NS_METHOD nsWindow::GetScreenBoundsUntyped(nsIntRect &aRect)
 {
   if (mWnd) {
     RECT r;
@@ -1948,7 +1948,7 @@ NS_METHOD nsWindow::GetScreenBounds(nsIntRect &aRect)
   return NS_OK;
 }
 
-NS_METHOD nsWindow::GetRestoredBounds(nsIntRect &aRect)
+NS_METHOD nsWindow::GetRestoredBounds(LayoutDeviceIntRect &aRect)
 {
   if (SizeMode() == nsSizeMode_Normal) {
     return GetScreenBounds(aRect);
@@ -1976,7 +1976,8 @@ NS_METHOD nsWindow::GetRestoredBounds(nsIntRect &aRect)
 
 // return the x,y offset of the client area from the origin
 // of the window. If the window is borderless returns (0,0).
-nsIntPoint nsWindow::GetClientOffset()
+nsIntPoint
+nsWindow::GetClientOffsetUntyped()
 {
   if (!mWnd) {
     return nsIntPoint(0, 0);
@@ -1998,17 +1999,17 @@ nsWindow::SetDrawsInTitlebar(bool aState)
 
   if (aState) {
     // top, right, bottom, left for nsIntMargin
-    nsIntMargin margins(0, -1, -1, -1);
+    LayoutDeviceIntMargin margins(0, -1, -1, -1);
     SetNonClientMargins(margins);
   }
   else {
-    nsIntMargin margins(-1, -1, -1, -1);
+    LayoutDeviceIntMargin margins(-1, -1, -1, -1);
     SetNonClientMargins(margins);
   }
 }
 
 NS_IMETHODIMP
-nsWindow::GetNonClientMargins(nsIntMargin &margins)
+nsWindow::GetNonClientMargins(LayoutDeviceIntMargin &margins)
 {
   nsWindow * window = GetTopLevelWindow(true);
   if (window && window != this) {
@@ -2283,7 +2284,7 @@ nsWindow::UpdateNonClientMargins(int32_t aSizeMode, bool aReflowWindow)
 }
 
 NS_IMETHODIMP
-nsWindow::SetNonClientMargins(nsIntMargin &margins)
+nsWindow::SetNonClientMargins(LayoutDeviceIntMargin &margins)
 {
   if (!mIsTopWidgetWindow ||
       mBorderStyle == eBorderStyle_none)
@@ -2648,12 +2649,12 @@ void nsWindow::UpdateOpaqueRegion(const nsIntRegion &aOpaqueRegion)
       if (child->IsPlugin()) {
         // Collect the bounds of all plugins for GetLargestRectangle.
         nsIntRect childBounds;
-        child->GetBounds(childBounds);
+        child->GetBoundsUntyped(childBounds);
         pluginBounds.UnionRect(pluginBounds, childBounds);
       }
     }
 
-    nsIntRect clientBounds;
+    LayoutDeviceIntRect clientBounds;
     GetClientBounds(clientBounds);
 
     // Find the largest rectangle and use that to calculate the inset. Our top
@@ -3354,7 +3355,7 @@ nsWindow::GetLayerManager(PLayerTransactionChild* aShadowManager,
  **************************************************************/
  
 NS_IMETHODIMP
-nsWindow::OnDefaultButtonLoaded(const nsIntRect &aButtonRect)
+nsWindow::OnDefaultButtonLoaded(const LayoutDeviceIntRect& aButtonRect)
 {
   if (aButtonRect.IsEmpty())
     return NS_OK;
@@ -3377,13 +3378,13 @@ nsWindow::OnDefaultButtonLoaded(const nsIntRect &aButtonRect)
       return NS_OK;
   }
 
-  nsIntRect widgetRect;
+  LayoutDeviceIntRect widgetRect;
   nsresult rv = GetScreenBounds(widgetRect);
   NS_ENSURE_SUCCESS(rv, rv);
-  nsIntRect buttonRect(aButtonRect + widgetRect.TopLeft());
+  LayoutDeviceIntRect buttonRect(aButtonRect + widgetRect.TopLeft());
 
-  nsIntPoint centerOfButton(buttonRect.x + buttonRect.width / 2,
-                            buttonRect.y + buttonRect.height / 2);
+  LayoutDeviceIntPoint centerOfButton(buttonRect.x + buttonRect.width / 2,
+                                      buttonRect.y + buttonRect.height / 2);
   // The center of the button can be outside of the widget.
   // E.g., it could be hidden by scrolling.
   if (!widgetRect.Contains(centerOfButton)) {
@@ -3604,16 +3605,15 @@ nsWindow::GetMaxTouchPoints() const
  *
  **************************************************************/
 
-// Event intialization
-void nsWindow::InitEvent(WidgetGUIEvent& event, nsIntPoint* aPoint)
+// Event initialization
+void nsWindow::InitEvent(WidgetGUIEvent& event, LayoutDeviceIntPoint* aPoint)
 {
   if (nullptr == aPoint) {     // use the point from the event
     // get the message position in client coordinates
     if (mWnd != nullptr) {
-
       DWORD pos = ::GetMessagePos();
       POINT cpos;
-      
+
       cpos.x = GET_X_LPARAM(pos);
       cpos.y = GET_Y_LPARAM(pos);
 
@@ -3624,11 +3624,9 @@ void nsWindow::InitEvent(WidgetGUIEvent& event, nsIntPoint* aPoint)
       event.refPoint.x = 0;
       event.refPoint.y = 0;
     }
-  }
-  else {  
+  } else {
     // use the point override if provided
-    event.refPoint.x = aPoint->x;
-    event.refPoint.y = aPoint->y;
+    event.refPoint = *aPoint;
   }
 
   event.time = ::GetMessageTime();
@@ -3838,15 +3836,13 @@ nsWindow::DispatchMouseEvent(EventMessage aEventMessage, WPARAM wParam,
 
   } // switch
 
-  nsIntPoint eventPoint;
-  eventPoint.x = GET_X_LPARAM(lParam);
-  eventPoint.y = GET_Y_LPARAM(lParam);
+  LayoutDeviceIntPoint eventPoint(GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam));
 
   WidgetMouseEvent event(true, aEventMessage, this, WidgetMouseEvent::eReal,
                          aIsContextMenuKey ? WidgetMouseEvent::eContextMenuKey :
                                              WidgetMouseEvent::eNormal);
   if (aEventMessage == eContextMenu && aIsContextMenuKey) {
-    nsIntPoint zero(0, 0);
+    LayoutDeviceIntPoint zero(0, 0);
     InitEvent(event, &zero);
   } else {
     InitEvent(event, &eventPoint);
@@ -3860,7 +3856,7 @@ nsWindow::DispatchMouseEvent(EventMessage aEventMessage, WPARAM wParam,
   // convert it to pointer events as well
   event.convertToPointer = true;
 
-  nsIntPoint mpScreen = eventPoint + WidgetToScreenOffsetUntyped();
+  LayoutDeviceIntPoint mpScreen = eventPoint + WidgetToScreenOffset();
 
   // Suppress mouse moves caused by widget creation
   if (aEventMessage == eMouseMove) {
@@ -4010,12 +4006,12 @@ nsWindow::DispatchMouseEvent(EventMessage aEventMessage, WPARAM wParam,
       if (nsToolkit::gMouseTrailer && !sIsInMouseCapture) {
         nsToolkit::gMouseTrailer->SetMouseTrailerWindow(mWnd);
       }
-      nsIntRect rect;
+      LayoutDeviceIntRect rect;
       GetBounds(rect);
       rect.x = 0;
       rect.y = 0;
 
-      if (rect.Contains(LayoutDeviceIntPoint::ToUntyped(event.refPoint))) {
+      if (rect.Contains(event.refPoint)) {
         if (sCurrentWindow == nullptr || sCurrentWindow != this) {
           if ((nullptr != sCurrentWindow) && (!sCurrentWindow->mInDtor)) {
             LPARAM pos = sCurrentWindow->lParamToClient(lParamToScreen(lParam));
@@ -5401,7 +5397,7 @@ nsWindow::ProcessMessage(UINT msg, WPARAM& wParam, LPARAM& lParam,
         touchPoint = gestureinfo->ptsLocation;
         touchPoint.ScreenToClient(mWnd);
         WidgetGestureNotifyEvent gestureNotifyEvent(true, eGestureNotify, this);
-        gestureNotifyEvent.refPoint = LayoutDeviceIntPoint::FromUntyped(touchPoint);
+        gestureNotifyEvent.refPoint = LayoutDeviceIntPoint::FromUnknownPoint(touchPoint);
         nsEventStatus status;
         DispatchEvent(&gestureNotifyEvent, status);
         mDisplayPanFeedback = gestureNotifyEvent.displayPanFeedback;
@@ -6203,7 +6199,7 @@ bool nsWindow::OnTouch(WPARAM wParam, LPARAM lParam)
 
       // Initialize the touch data.
       SingleTouchData touchData(pInputs[i].dwID,                                      // aIdentifier
-                                ScreenIntPoint::FromUntyped(touchPoint),              // aScreenPoint
+                                ScreenIntPoint::FromUnknownPoint(touchPoint),         // aScreenPoint
                                 /* radius, if known */
                                 pInputs[i].dwFlags & TOUCHINPUTMASKF_CONTACTAREA
                                   ? ScreenSize(
@@ -6328,7 +6324,7 @@ nsWindow::ConfigureChildren(const nsTArray<Configuration>& aConfigurations)
                  "Configured widget is not a child");
     nsresult rv = w->SetWindowClipRegion(configuration.mClipRegion, true);
     NS_ENSURE_SUCCESS(rv, rv);
-    nsIntRect bounds;
+    LayoutDeviceIntRect bounds;
     w->GetBounds(bounds);
     if (bounds.Size() != configuration.mBounds.Size()) {
       w->Resize(configuration.mBounds.x, configuration.mBounds.y,
@@ -6345,7 +6341,7 @@ nsWindow::ConfigureChildren(const nsTArray<Configuration>& aConfigurations)
         // plugin window that might be touched by moving content somehow. The
         // underlying problem should be found and fixed!
         nsIntRegion r;
-        r.Sub(bounds, configuration.mBounds);
+        r.Sub(bounds.ToUnknownRect(), configuration.mBounds.ToUnknownRect());
         r.MoveBy(-bounds.x,
                  -bounds.y);
         nsIntRect toInvalidate = r.GetBounds();

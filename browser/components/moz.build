@@ -11,6 +11,7 @@ DIRS += [
     'downloads',
     'feeds',
     'fuel',
+    'migration',
     'places',
     'preferences',
     'privatebrowsing',
@@ -18,7 +19,6 @@ DIRS += [
     'sessionstore',
     'shell',
     'selfsupport',
-    'migration',
 ]
 
 if CONFIG['MOZ_BROWSER_STATUSBAR']:

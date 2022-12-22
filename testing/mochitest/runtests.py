@@ -337,7 +337,7 @@ class MochitestServer(object):
         if isinstance(options, Namespace):
             options = vars(options)
         self._log = logger
-        self._closeWhenDone = options['closeWhenDone']
+        self._keep_open = bool(options['keep_open'])
         self._utilityPath = options['utilityPath']
         self._xrePath = options['xrePath']
         self._profileDir = options['profilePath']
@@ -395,7 +395,7 @@ class MochitestServer(object):
                 "server": self.webServer,
                 "testPrefix": self.testPrefix,
                 "displayResults": str(
-                    not self._closeWhenDone).lower()},
+                    self._keep_open).lower()},
             "-f",
             os.path.join(
                 SCRIPT_DIR,
@@ -600,7 +600,7 @@ class MochitestUtilsMixin(object):
                 self.urlOpts.append("timeout=%d" % options.timeout)
             if options.maxTimeouts:
                 self.urlOpts.append("maxTimeouts=%d" % options.maxTimeouts)
-            if options.closeWhenDone:
+            if not options.keep_open:
                 self.urlOpts.append("closeWhenDone=1")
             if options.webapprtContent:
                 self.urlOpts.append("testRoot=webapprtContent")
@@ -2212,6 +2212,11 @@ class Mochitest(MochitestUtilsMixin):
             if self.urlOpts:
                 testURL += "?" + "&".join(self.urlOpts)
 
+            # On Mac, pass the path to the runtime, to ensure the test app
+            # uses that specific runtime instead of another one on the system.
+            if mozinfo.isMac and options.webapprtChrome:
+                options.browserArgs.extend(('-runtime', os.path.dirname(os.path.dirname(options.xrePath))))
+
             if options.webapprtContent:
                 options.browserArgs.extend(('-test-mode', testURL))
                 testURL = None
@@ -2533,6 +2538,8 @@ class Mochitest(MochitestUtilsMixin):
         d = dict((k, v) for k, v in options.__dict__.items() if (v is None) or
             isinstance(v,(basestring,numbers.Number)))
         d['testRoot'] = self.testRoot
+        if not options.keep_open:
+            d['closeWhenDone'] = '1'
         content = json.dumps(d)
 
         with open(os.path.join(options.profilePath, "testConfig.js"), "w") as config:

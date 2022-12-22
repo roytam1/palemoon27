@@ -5,19 +5,18 @@
 
 var { classes: Cc, interfaces: Ci, utils: Cu, results: Cr } = Components;
 var { Services } = Cu.import("resource://gre/modules/Services.jsm", {});
-var { gDevTools } = Cu.import("resource:///modules/devtools/client/framework/gDevTools.jsm", {});
+var { gDevTools } = Cu.import("resource://devtools/client/framework/gDevTools.jsm", {});
 var { console } = Cu.import("resource://gre/modules/Console.jsm", {});
-var { require } = Cu.import("resource://gre/modules/devtools/shared/Loader.jsm", {});
+var { require } = Cu.import("resource://devtools/shared/Loader.jsm", {});
 var { TargetFactory } = require("devtools/client/framework/target");
 var DevToolsUtils = require("devtools/shared/DevToolsUtils");
 var promise = require("promise");
 var { Task } = Cu.import("resource://gre/modules/Task.jsm", {});
-var { MemoryController } = require("devtools/client/memory/controller");
 var { expectState } = require("devtools/server/actors/common");
 var HeapSnapshotFileUtils = require("devtools/shared/heapsnapshot/HeapSnapshotFileUtils");
 var { addDebuggerToGlobal } = require("resource://gre/modules/jsdebugger.jsm");
+var Store = require("devtools/client/memory/store");
 var SYSTEM_PRINCIPAL = Cc["@mozilla.org/systemprincipal;1"].createInstance(Ci.nsIPrincipal);
-var { setTimeout } = require("sdk/timers");
 
 DevToolsUtils.testing = true;
 
@@ -46,11 +45,17 @@ StubbedMemoryFront.prototype.saveHeapSnapshot = expectState("attached", Task.asy
 
 function waitUntilState (store, predicate) {
   let deferred = promise.defer();
-  let unsubscribe = store.subscribe(() => {
+  let unsubscribe = store.subscribe(check);
+
+  function check () {
     if (predicate(store.getState())) {
       unsubscribe();
       deferred.resolve()
     }
-  });
+  }
+
+  // Fire the check immediately incase the action has already occurred
+  check();
+
   return deferred.promise;
 }

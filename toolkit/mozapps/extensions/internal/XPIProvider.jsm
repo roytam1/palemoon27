@@ -2505,7 +2505,7 @@ this.XPIProvider = {
       if (!REQUIRE_SIGNING)
         Services.prefs.addObserver(PREF_XPI_SIGNATURES_REQUIRED, this, false);
       Services.obs.addObserver(this, NOTIFICATION_FLUSH_PERMISSIONS, false);
-      if (Cu.isModuleLoaded("resource://gre/modules/devtools/ToolboxProcess.jsm")) {
+      if (Cu.isModuleLoaded("resource://devtools/client/framework/ToolboxProcess.jsm")) {
         // If BrowserToolboxProcess is already loaded, set the boolean to true
         // and do whatever is needed
         this._toolboxProcessLoaded = true;

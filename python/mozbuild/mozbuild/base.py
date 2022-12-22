@@ -278,9 +278,6 @@ class MozbuildObject(ProcessExecutionMixin):
 
     @property
     def bindir(self):
-        import mozinfo
-        if mozinfo.os == "mac":
-            return os.path.join(self.topobjdir, 'dist', self.substs['MOZ_MACBUNDLE_NAME'], 'Contents', 'Resources')
         return os.path.join(self.topobjdir, 'dist', 'bin')
 
     @property
@@ -313,12 +310,25 @@ class MozbuildObject(ProcessExecutionMixin):
             return False
         return Clobberer(self.topsrcdir, self.topobjdir).clobber_needed()
 
+    def have_winrm(self):
+        # `winrm -h` should print 'winrm version ...' and exit 1
+        try:
+            p = subprocess.Popen(['winrm.exe', '-h'],
+                                 stdout=subprocess.PIPE,
+                                 stderr=subprocess.STDOUT)
+            return p.wait() == 1 and p.stdout.read().startswith('winrm')
+        except:
+            return False
+
     def remove_objdir(self):
         """Remove the entire object directory."""
 
-        # We use mozfile because it is faster than shutil.rmtree().
-        # mozfile doesn't like unicode arguments (bug 818783).
-        rmtree(self.topobjdir.encode('utf-8'))
+        if sys.platform.startswith('win') and self.have_winrm():
+            subprocess.check_call(['winrm', '-rf', self.topobjdir])
+        else:
+            # We use mozfile because it is faster than shutil.rmtree().
+            # mozfile doesn't like unicode arguments (bug 818783).
+            rmtree(self.topobjdir.encode('utf-8'))
 
     def get_binary_path(self, what='app', validate_exists=True, where='default'):
         """Obtain the path to a compiled binary for this build configuration.

@@ -5,8 +5,8 @@
 
 "use strict";
 
-const Cu = Components.utils;
-Cu.import("resource://gre/modules/devtools/Loader.jsm");
+var Cu = Components.utils;
+Cu.import("resource://devtools/shared/Loader.jsm");
 const {escapeCSSComment, _unescapeCSSComment} =
       devtools.require("devtools/client/shared/css-parsing-utils");
 

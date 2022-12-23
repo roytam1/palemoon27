@@ -1040,9 +1040,14 @@ SetupOOMFailure(JSContext* cx, bool failAlways, unsigned argc, Value* vp)
         return false;
     }
 
-    uint32_t count;
-    if (!JS::ToUint32(cx, args.get(0), &count))
+    int32_t count;
+    if (!JS::ToInt32(cx, args.get(0), &count))
         return false;
+
+    if (count <= 0) {
+        JS_ReportError(cx, "OOM cutoff should be positive");
+        return false;
+    }
 
     uint32_t targetThread = js::oom::THREAD_TYPE_MAIN;
     if (args.length() > 1 && !ToUint32(cx, args[1], &targetThread))
@@ -1055,8 +1060,13 @@ SetupOOMFailure(JSContext* cx, bool failAlways, unsigned argc, Value* vp)
 
     HelperThreadState().waitForAllThreads();
     js::oom::targetThread = targetThread;
+    if (uint64_t(OOM_counter) + count >= UINT32_MAX) {
+        JS_ReportError(cx, "OOM cutoff out of range");
+        return false;
+    }
     OOM_maxAllocations = OOM_counter + count;
     OOM_failAlways = failAlways;
+    args.rval().setUndefined();
     return true;
 }
 
@@ -1096,6 +1106,9 @@ OOMTest(JSContext* cx, unsigned argc, Value* vp)
         args.rval().setUndefined();
         return true;
     }
+
+    MOZ_ASSERT(!cx->isExceptionPending());
+    cx->runtime()->hadOutOfMemory = false;
 
     RootedFunction function(cx, &args[0].toObject().as<JSFunction>());
 
@@ -1145,7 +1158,6 @@ OOMTest(JSContext* cx, unsigned argc, Value* vp)
             OOM_maxAllocations = UINT32_MAX;
 
             MOZ_ASSERT_IF(ok, !cx->isExceptionPending());
-            MOZ_ASSERT_IF(!ok, cx->isExceptionPending());
 
             // Note that it is possible that the function throws an exception
             // unconnected to OOM, in which case we ignore it. More correct
@@ -2600,7 +2612,16 @@ ByteSizeOfScript(JSContext*cx, unsigned argc, Value* vp)
         return false;
     }
 
-    RootedScript script(cx, args[0].toObject().as<JSFunction>().getOrCreateScript(cx));
+    JSFunction* fun = &args[0].toObject().as<JSFunction>();
+    if (fun->isNative()) {
+        JS_ReportError(cx, "Argument must be a scripted function");
+        return false;
+    }
+
+    RootedScript script(cx, fun->getOrCreateScript(cx));
+    if (!script)
+        return false;
+
     mozilla::MallocSizeOf mallocSizeOf = cx->runtime()->debuggerMallocSizeOf;
 
     {

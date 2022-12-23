@@ -4,17 +4,17 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
+#include "jit/mips64/Bailouts-mips64.h"
+
 #include "jscntxt.h"
 #include "jscompartment.h"
-
-#include "jit/mips-shared/Bailouts-mips-shared.h"
 
 using namespace js;
 using namespace js::jit;
 
 BailoutFrameInfo::BailoutFrameInfo(const JitActivationIterator& activations,
                                    BailoutStack* bailout)
-  : machine_(bailout->machine())
+  : machine_(bailout->machineState())
 {
     uint8_t* sp = bailout->parentStackPointer();
     framePointer_ = sp + bailout->frameSize();

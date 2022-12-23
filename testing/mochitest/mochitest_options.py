@@ -4,6 +4,7 @@
 
 from abc import ABCMeta, abstractmethod, abstractproperty
 from argparse import ArgumentParser, SUPPRESS
+from distutils.util import strtobool
 from urlparse import urlparse
 import os
 import tempfile
@@ -66,10 +67,12 @@ class MochitestArguments(ArgumentContainer):
                   "(to run recursively). If omitted, the entire suite is run.",
           }],
         [["--keep-open"],
-         {"action": "store_false",
-          "dest": "closeWhenDone",
-          "default": True,
-          "help": "Always keep the browser open after tests complete.",
+         {"nargs": "?",
+          "type": strtobool,
+          "const": "true",
+          "default": None,
+          "help": "Always keep the browser open after tests complete. Or always close the "
+                  "browser with --keep-open=false",
           }],
         [["--appname"],
          {"dest": "app",
@@ -787,7 +790,7 @@ class B2GArguments(ArgumentContainer):
           }],
         [["--adbpath"],
          {"dest": "adbPath",
-          "default": "adb",
+          "default": None,
           "help": "Path to adb binary.",
           "suppress": True,
           }],
@@ -1016,12 +1019,6 @@ class AndroidArguments(ArgumentContainer):
           "default": "",
           "help": "name of the Robocop APK to use for ADB test running",
           }],
-        [["--robocop-ids"],
-         {"dest": "robocopIds",
-          "default": "",
-          "help": "name of the file containing the view ID map \
-                   (fennec_ids.txt)",
-          }],
         [["--remoteTestRoot"],
          {"dest": "remoteTestRoot",
           "default": None,
@@ -1120,7 +1117,8 @@ class AndroidArguments(ArgumentContainer):
             options.robocopIni = os.path.abspath(options.robocopIni)
 
             if not options.robocopApk and build_obj:
-                options.robocopApk = os.path.join(build_obj.topobjdir, 'build', 'mobile',
+                options.robocopApk = os.path.join(build_obj.topobjdir, 'mobile', 'android',
+                                                  'tests', 'browser',
                                                   'robocop', 'robocop-debug.apk')
 
         if options.robocopApk != "":
@@ -1129,13 +1127,6 @@ class AndroidArguments(ArgumentContainer):
                     "Unable to find robocop APK '%s'" %
                     options.robocopApk)
             options.robocopApk = os.path.abspath(options.robocopApk)
-
-        if options.robocopIds != "":
-            if not os.path.exists(options.robocopIds):
-                parser.error(
-                    "Unable to find specified robocop IDs file '%s'" %
-                    options.robocopIds)
-            options.robocopIds = os.path.abspath(options.robocopIds)
 
         # allow us to keep original application around for cleanup while
         # running robocop via 'am'

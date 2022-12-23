@@ -47,6 +47,14 @@ class js::jit::OutOfLineTableSwitch : public OutOfLineCodeBase<CodeGeneratorMIPS
 };
 
 void
+CodeGeneratorMIPS64::visitOutOfLineBailout(OutOfLineBailout* ool)
+{
+    masm.push(ImmWord(ool->snapshot()->snapshotOffset()));
+
+    masm.jump(&deoptLabel_);
+}
+
+void
 CodeGeneratorMIPS64::visitOutOfLineTableSwitch(OutOfLineTableSwitch* ool)
 {
     MTableSwitch* mir = ool->mir();

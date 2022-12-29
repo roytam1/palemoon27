@@ -2,12 +2,8 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
-import base64
-import json
 import os
-import shutil
 import sys
-import tempfile
 import traceback
 
 sys.path.insert(
@@ -20,8 +16,6 @@ from remoteautomation import RemoteAutomation, fennecLogcatFilters
 from runtests import Mochitest, MessageLogger
 from mochitest_options import MochitestArgumentParser
 
-from manifestparser import TestManifest
-from manifestparser.filters import chunk_by_slice
 import devicemanager
 import mozinfo
 
@@ -309,11 +303,22 @@ def main(args):
     if options is None:
         raise ValueError("Invalid options specified, use --help for a list of valid options")
 
+    options.runByDir = False
+
+    dm = options.dm
+    auto.setDeviceManager(dm)
     mochitest = MochiRemote(auto, dm, options)
 
     log = mochitest.log
     message_logger.logger = log
     mochitest.message_logger = message_logger
+
+    # Check that Firefox is installed
+    expected = options.app.split('/')[-1]
+    installed = dm.shellCheckOutput(['pm', 'list', 'packages', expected])
+    if expected not in installed:
+        log.error("%s is not installed on this device" % expected)
+        return 1
 
     productPieces = options.remoteProductName.split('.')
     if (productPieces is not None):

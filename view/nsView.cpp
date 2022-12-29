@@ -19,6 +19,7 @@
 #include "nsIWidgetListener.h"
 #include "nsContentUtils.h" // for nsAutoScriptBlocker
 #include "mozilla/TimelineConsumers.h"
+#include "mozilla/CompositeTimelineMarker.h"
 
 using namespace mozilla;
 
@@ -136,7 +137,12 @@ void nsView::DestroyWidget()
       nsCOMPtr<nsIRunnable> widgetDestroyer =
         new DestroyWidgetRunnable(mWindow);
 
-      NS_DispatchToMainThread(widgetDestroyer);
+      // Don't leak if we happen to arrive here after the main thread
+      // has disappeared.
+      nsCOMPtr<nsIThread> mainThread = do_GetMainThread();
+      if (mainThread) {
+        mainThread->Dispatch(widgetDestroyer.forget(), NS_DISPATCH_NORMAL);
+      }
     }
 
     mWindow = nullptr;
@@ -1093,9 +1099,9 @@ nsView::DidCompositeWindow(const TimeStamp& aCompositeStart,
 
     if (timelines && timelines->HasConsumer(docShell)) {
       timelines->AddMarkerForDocShell(docShell,
-        "Composite", aCompositeStart, MarkerTracingType::START);
+        MakeUnique<CompositeTimelineMarker>(aCompositeStart, MarkerTracingType::START));
       timelines->AddMarkerForDocShell(docShell,
-        "Composite", aCompositeEnd, MarkerTracingType::END);
+        MakeUnique<CompositeTimelineMarker>(aCompositeEnd, MarkerTracingType::END));
     }
   }
 }

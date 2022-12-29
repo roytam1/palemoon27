@@ -994,12 +994,6 @@ Convert(const ConvertArray<Tin>& aIn, Tout& aOut)
 //
 
 nsresult
-PackPDU(bool aIn, DaemonSocketPDU& aPDU)
-{
-  return PackPDU(PackConversion<bool, uint8_t>(aIn), aPDU);
-}
-
-nsresult
 PackPDU(const BluetoothAddress& aIn, DaemonSocketPDU& aPDU)
 {
   return PackPDU(PackArray<uint8_t>(aIn.mAddr, sizeof(aIn.mAddr)), aPDU);
@@ -1365,18 +1359,6 @@ PackPDU(BluetoothGattWriteType aIn, DaemonSocketPDU& aPDU)
 //
 // Unpacking
 //
-
-nsresult
-UnpackPDU(DaemonSocketPDU& aPDU, bool& aOut)
-{
-  return UnpackPDU(aPDU, UnpackConversion<uint8_t, bool>(aOut));
-}
-
-nsresult
-UnpackPDU(DaemonSocketPDU& aPDU, char& aOut)
-{
-  return UnpackPDU(aPDU, UnpackConversion<uint8_t, char>(aOut));
-}
 
 nsresult
 UnpackPDU(DaemonSocketPDU& aPDU, BluetoothA2dpAudioState& aOut)

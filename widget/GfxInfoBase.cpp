@@ -119,11 +119,11 @@ GetPrefNameForFeature(int32_t aFeature)
     case nsIGfxInfo::FEATURE_DIRECT3D_11_LAYERS:
       name = BLACKLIST_PREF_BRANCH "layers.direct3d11";
       break;
-    case nsIGfxInfo::FEATURE_HARDWARE_VIDEO_DECODING:
-      name = BLACKLIST_PREF_BRANCH "hardwarevideodecoding";
-      break;
     case nsIGfxInfo::FEATURE_DIRECT3D_11_ANGLE:
       name = BLACKLIST_PREF_BRANCH "direct3d11angle";
+      break;
+    case nsIGfxInfo::FEATURE_HARDWARE_VIDEO_DECODING:
+      name = BLACKLIST_PREF_BRANCH "hardwarevideodecoding";
       break;
     case nsIGfxInfo::FEATURE_OPENGL_LAYERS:
       name = BLACKLIST_PREF_BRANCH "layers.opengl";
@@ -355,7 +355,8 @@ BlacklistFeatureStatusToGfxFeatureStatus(const nsAString& aStatus)
   else if (aStatus.EqualsLiteral("BLOCKED_OS_VERSION"))
     return nsIGfxInfo::FEATURE_BLOCKED_OS_VERSION;
 
-  // Do not allow it to set STATUS_UNKNOWN.
+  // Do not allow it to set STATUS_UNKNOWN.  Also, we are not
+  // expecting the "mismatch" status showing up here.
 
   return nsIGfxInfo::FEATURE_STATUS_OK;
 }
@@ -987,6 +988,7 @@ GfxInfoBase::EvaluateDownloadedBlacklist(nsTArray<GfxDriverInfo>& aDriverInfo)
           }
           // FALLTHROUGH
 
+        case nsIGfxInfo::FEATURE_BLOCKED_MISMATCHED_VERSION:
         case nsIGfxInfo::FEATURE_BLOCKED_DEVICE:
         case nsIGfxInfo::FEATURE_DISCOURAGED:
         case nsIGfxInfo::FEATURE_BLOCKED_OS_VERSION:

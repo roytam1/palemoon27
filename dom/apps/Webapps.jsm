@@ -328,6 +328,10 @@ this.DOMApplicationRegistry = {
           app.enabled = true;
         }
 
+        if (app.blockedStatus === undefined) {
+          app.blockedStatus = Ci.nsIBlocklistService.STATE_NOT_BLOCKED;
+        }
+
         // At startup we can't be downloading, and the $TMP directory
         // will be empty so we can't just apply a staged update.
         app.downloading = false;
@@ -1182,12 +1186,65 @@ this.DOMApplicationRegistry = {
         ppmm.removeMessageListener(msgName, this);
       }).bind(this));
       Services.obs.removeObserver(this, "xpcom-shutdown");
+      Services.obs.removeObserver(this, "memory-pressure");
       cpmm = null;
       ppmm = null;
+      if (AppConstants.MOZ_B2GDROID) {
+        AndroidUtils.uninit();
+      }
     } else if (aTopic == "memory-pressure") {
       // Clear the manifest cache on memory pressure.
       this._manifestCache = {};
     }
+  },
+
+  // Check extensions to be blocked.
+  blockExtensions: function(aExtensions) {
+    debug("blockExtensions");
+    let app;
+    let runtime = Services.appinfo.QueryInterface(Ci.nsIXULRuntime);
+
+    aExtensions.filter(extension => {
+      // Filter out id-less items and those who don't have a matching installed
+      // extension.
+      if (!extension.attributes.has("id")) {
+        return false;
+      }
+      // Check that we have an app with this extension id.
+      let extId = extension.attributes.get("id");
+      for (let id in this.webapps) {
+        if (this.webapps[id].blocklistId == extId) {
+          app = this.webapps[id];
+          return true;
+        }
+      }
+      // No webapp found for this extension id.
+      return false;
+    }).forEach(extension => {
+      // `extension` is a object such as:
+      //  {"versions":[{"minVersion":"0.1",
+      //                "maxVersion":"1.3.328.4",
+      //                "severity":"1",
+      //                "vulnerabilityStatus":0,
+      //                "targetApps":{
+      //                  "{ec8030f7-c20a-464f-9b0e-13a3a9e97384}":[{"minVersion":"3.7a1pre","maxVersion":"*"}]
+      //                }
+      //               }],
+      //   "prefs":[],
+      //   "blockID":"i24",
+      //   "attributes": Map()
+      //  }
+      //
+      // `versions` is array of BlocklistItemData (see nsBlocklistService.js)
+      let severity = Ci.nsIBlocklistService.STATE_NOT_BLOCKED;
+      for (let item of extension.versions) {
+        if (item.includesItem(app.extensionVersion, runtime.version, runtime.platformVersion)) {
+          severity = item.severity;
+          break;
+        }
+      }
+      this.setBlockedStatus(app.manifestURL, severity);
+    });
   },
 
   formatMessage: function(aData) {
@@ -1873,6 +1930,9 @@ this.DOMApplicationRegistry = {
     }
 
     delete app.retryingDownload;
+
+    // Once updated we are not in the blocklist anymore.
+    app.blockedStatus = Ci.nsIBlocklistService.STATE_NOT_BLOCKED;
 
     // Update the asm.js scripts we need to compile.
     yield ScriptPreloader.preload(app, newManifest);
@@ -2904,6 +2964,10 @@ this.DOMApplicationRegistry = {
     this._writeManifestFile(app.id, false, aManifest);
     if (aUpdateManifest) {
       this._writeManifestFile(app.id, true, aUpdateManifest);
+      // If there is an id in the mini-manifest, use it for blocklisting purposes.
+      if (aData.isPackage && ("id" in aUpdateManifest)) {
+        this.webapps[app.id].blocklistId = aUpdateManifest["id"];
+      }
     }
 
     this._saveApps().then(() => {
@@ -2938,6 +3002,10 @@ this.DOMApplicationRegistry = {
 
     let jsonManifest = aData.isPackage ? app.updateManifest : app.manifest;
     yield this._writeManifestFile(id, aData.isPackage, jsonManifest);
+    // If there is an id in the mini-manifest, use it for blocklisting purposes.
+    if (aData.isPackage && ("id" in jsonManifest)) {
+      app.blocklistId = jsonManifest["id"];
+    }
 
     debug("app.origin: " + app.origin);
     let manifest =
@@ -3421,6 +3489,10 @@ this.DOMApplicationRegistry = {
       // nsILoadContext
       appId: aOldApp.installerAppId,
       isInBrowserElement: aOldApp.installerIsBrowser,
+      originAttributes: {
+        appId: aOldApp.installerAppId,
+        inBrowser: aOldApp.installerIsBrowser
+      },
       usePrivateBrowsing: false,
       isContent: false,
       associatedWindow: null,
@@ -3742,6 +3814,10 @@ this.DOMApplicationRegistry = {
         throw "INVALID_MANIFEST";
       }
       newManifest = UserCustomizations.convertManifest(newManifest);
+      // Keep track of the add-on version, to use for blocklisting.
+      if (newManifest.version) {
+        aNewApp.extensionVersion = newManifest.version;
+      }
     }
 
     if (!AppsUtils.checkManifest(newManifest, aOldApp)) {
@@ -4502,6 +4578,20 @@ this.DOMApplicationRegistry = {
     });
   },
 
+  setBlockedStatus: function(aManifestURL, aSeverity) {
+    let id = this._appIdForManifestURL(aManifestURL);
+    if (!id || !this.webapps[id]) {
+      return;
+    }
+
+    debug(`Setting blocked status ${aSeverity} on ${id}`);
+    let app = this.webapps[id];
+
+    app.blockedStatus = aSeverity;
+    let enabled = aSeverity == Ci.nsIBlocklistService.STATE_NOT_BLOCKED;
+    this.setEnabled({ manifestURL: aManifestURL, enabled });
+  },
+
   setEnabled: function(aData) {
     debug("setEnabled " + aData.manifestURL + " : " + aData.enabled);
     let id = this._appIdForManifestURL(aData.manifestURL);
@@ -4511,7 +4601,13 @@ this.DOMApplicationRegistry = {
 
     debug("Enabling " + id);
     let app = this.webapps[id];
-    app.enabled = aData.enabled;
+
+    // If we try to enable an app, check if it's not blocked.
+    if (!aData.enabled ||
+        app.blockedStatus == Ci.nsIBlocklistService.STATE_NOT_BLOCKED) {
+      app.enabled = aData.enabled;
+    }
+
     this._saveApps().then(() => {
       MessageBroadcaster.broadcastMessage("Webapps:UpdateState", {
         app: app,
@@ -4568,7 +4664,7 @@ this.DOMApplicationRegistry = {
   },
 
   // Returns a promise that resolves to the app object with the manifest.
-  getFullAppByManifestURL: function(aManifestURL, aEntryPoint) {
+  getFullAppByManifestURL: function(aManifestURL, aEntryPoint, aLang) {
     let app = this.getAppByManifestURL(aManifestURL);
     if (!app) {
       return Promise.reject("NoSuchApp");
@@ -4586,7 +4682,8 @@ this.DOMApplicationRegistry = {
         manifest.version = aManifest.version;
       }
 
-      app.manifest = new ManifestHelper(manifest, app.origin, app.manifestURL);
+      app.manifest =
+        new ManifestHelper(manifest, app.origin, app.manifestURL, aLang);
       return app;
     });
   },

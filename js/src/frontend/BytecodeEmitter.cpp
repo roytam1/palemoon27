@@ -5747,6 +5747,13 @@ BytecodeEmitter::emitCStyleFor(ParseNode* pn, ptrdiff_t top)
 
         if (!emitTree(forHead->pn_kid2))
             return false;
+    } else if (!forHead->pn_kid3) {
+        // If there is no condition clause and no update clause, mark
+        // the loop-ending "goto" with the location of the "for".
+        // This ensures that the debugger will stop on each loop
+        // iteration.
+        if (!updateSourceCoordNotes(pn->pn_pos.begin))
+            return false;
     }
 
     /* Set the first note offset so we can find the loop condition. */
@@ -8474,11 +8481,9 @@ CGBlockScopeList::findEnclosingScope(uint32_t index)
             // scope contains POS, it should still be open, so its length should
             // be zero.
             return list[index].index;
-        } else {
-            // Conversely, if the length is not zero, it should not contain
-            // POS.
-            MOZ_ASSERT_IF(inPrologue == list[index].endInPrologue, list[index].end <= pos);
         }
+        // Conversely, if the length is not zero, it should not contain POS.
+        MOZ_ASSERT_IF(inPrologue == list[index].endInPrologue, list[index].end <= pos);
     }
 
     return BlockScopeNote::NoBlockScopeIndex;

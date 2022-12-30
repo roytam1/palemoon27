@@ -566,8 +566,6 @@ pref("layout.event-regions.enabled", false);
 // gfx/layers/apz/src/AsyncPanZoomController.cpp.
 pref("apz.allow_checkerboarding", true);
 pref("apz.allow_zooming", false);
-pref("apz.asyncscroll.throttle", 100);
-pref("apz.asyncscroll.timeout", 300);
 
 // Whether to lock touch scrolling to one axis at a time
 // 0 = FREE (No locking at all)
@@ -4472,6 +4470,7 @@ pref("webgl.vendor-string-override", "");
 pref("webgl.angle.try-d3d11", true);
 pref("webgl.angle.force-d3d11", false);
 pref("webgl.angle.force-warp", false);
+pref("webgl.dxgl.enabled", false);
 #endif
 
 pref("gfx.offscreencanvas.enabled", false);

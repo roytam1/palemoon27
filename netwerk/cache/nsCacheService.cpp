@@ -1568,9 +1568,6 @@ NS_IMETHODIMP nsCacheService::GetCacheIOTarget(nsIEventTarget * *aCacheIOTarget)
     return rv;
 }
 
-/* nsICacheServiceInternal
- * readonly attribute double lockHeldTime;
-*/
 NS_IMETHODIMP nsCacheService::GetLockHeldTime(double *aLockHeldTime)
 {
     MutexAutoLock lock(mTimeStampLock);

@@ -210,6 +210,7 @@ TextureHost::Create(const SurfaceDescriptor& aDesc,
 
     case SurfaceDescriptor::TEGLImageDescriptor:
     case SurfaceDescriptor::TSurfaceTextureDescriptor:
+    case SurfaceDescriptor::TSurfaceDescriptorSharedGLTexture:
       return CreateTextureHostOGL(aDesc, aDeallocator, aFlags);
 
     case SurfaceDescriptor::TNewSurfaceDescriptorGralloc:
@@ -410,7 +411,7 @@ BufferTextureHost::UpdatedInternal(const nsIntRegion* aRegion)
   // If the last frame wasn't uploaded yet, and we -don't- have a partial update,
   // we still need to update the full surface.
   if (aRegion && !mNeedsFullUpdate) {
-    mMaybeUpdatedRegion = mMaybeUpdatedRegion.Or(mMaybeUpdatedRegion, *aRegion);
+    mMaybeUpdatedRegion.OrWith(*aRegion);
   } else {
     mNeedsFullUpdate = true;
   }

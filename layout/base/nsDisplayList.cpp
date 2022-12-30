@@ -3560,8 +3560,8 @@ nsDisplayBoxShadowOuter::ComputeInvalidationRegion(nsDisplayListBuilder* aBuilde
       oldShadow = geometry->mBounds;
       newShadow = GetBounds(aBuilder, &snap);
     } else {
-      oldShadow = oldShadow.Sub(geometry->mBounds, geometry->mBorderRect);
-      newShadow = newShadow.Sub(GetBounds(aBuilder, &snap), GetBorderRect());
+      oldShadow.Sub(geometry->mBounds, geometry->mBorderRect);
+      newShadow.Sub(GetBounds(aBuilder, &snap), GetBorderRect());
     }
     aInvalidRegion->Or(oldShadow, newShadow);
   }

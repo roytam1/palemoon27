@@ -42,7 +42,7 @@ let _add_params = function (params) {
 };
 
 let _dumpLog = function (raw_msg) {
-  dump("\n" + raw_msg + "\n");
+  dump("\n" + JSON.stringify(raw_msg) + "\n");
 }
 
 let _LoggerClass = Components.utils.import("resource://testing-common/StructuredLog.jsm", null).StructuredLogger;

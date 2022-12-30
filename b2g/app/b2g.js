@@ -966,7 +966,6 @@ pref("apz.allow_zooming", true);
 
 // Gaia relies heavily on scroll events for now, so lets fire them
 // more often than the default value (100).
-pref("apz.asyncscroll.throttle", 40);
 pref("apz.pan_repaint_interval", 16);
 
 // APZ physics settings, tuned by UX designers
@@ -1105,3 +1104,8 @@ pref("dom.performance.enable_notify_performance_timing", true);
 pref("b2g.multiscreen.chrome_remote_url", "chrome://b2g/content/shell_remote.html");
 pref("b2g.multiscreen.system_remote_url", "index_remote.html");
 
+// Blocklist service
+pref("extensions.blocklist.enabled", true);
+pref("extensions.blocklist.interval", 86400);
+pref("extensions.blocklist.url", "https://blocklist.addons.mozilla.org/blocklist/3/%APP_ID%/%APP_VERSION%/%PRODUCT%/%BUILD_ID%/%BUILD_TARGET%/%LOCALE%/%CHANNEL%/%OS_VERSION%/%DISTRIBUTION%/%DISTRIBUTION_VERSION%/%PING_COUNT%/%TOTAL_PING_COUNT%/%DAYS_SINCE_LAST_PING%/");
+pref("extensions.blocklist.detailsURL", "https://www.mozilla.com/%LOCALE%/blocklist/");

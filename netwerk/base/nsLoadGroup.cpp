@@ -37,8 +37,7 @@ using namespace mozilla::net;
 // this enables LogLevel::Debug level information and places all output in
 // the file nspr.log
 //
-static PRLogModuleInfo* gLoadGroupLog = nullptr;
-
+static LazyLogModule gLoadGroupLog("LoadGroup");
 #undef LOG
 #define LOG(args) MOZ_LOG(gLoadGroupLog, mozilla::LogLevel::Debug, args)
 
@@ -114,11 +113,6 @@ nsLoadGroup::nsLoadGroup(nsISupports* outer)
     , mTimedNonCachedRequestsUntilOnEndPageLoad(0)
 {
     NS_INIT_AGGREGATED(outer);
-
-    // Initialize the global PRLogModule for nsILoadGroup logging
-    if (nullptr == gLoadGroupLog)
-        gLoadGroupLog = PR_NewLogModule("LoadGroup");
-
     LOG(("LOADGROUP [%x]: Created.\n", this));
 }
 

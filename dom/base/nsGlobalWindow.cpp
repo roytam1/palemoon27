@@ -20,6 +20,9 @@
 #include "mozilla/dom/DOMStorage.h"
 #include "mozilla/dom/StorageEvent.h"
 #include "mozilla/dom/StorageEventBinding.h"
+#if defined(MOZ_WIDGET_ANDROID) || defined(MOZ_WIDGET_GONK)
+#include "mozilla/dom/WindowOrientationObserver.h"
+#endif
 #include "nsDOMOfflineResourceList.h"
 #include "nsError.h"
 #include "nsIIdleService.h"
@@ -42,6 +45,7 @@
 #include "WindowNamedPropertiesHandler.h"
 #include "nsFrameSelection.h"
 #include "nsNetUtil.h"
+#include "nsVariant.h"
 
 // Helper Classes
 #include "nsJSUtils.h"
@@ -561,6 +565,27 @@ nsTimeout::HasRefCntOne()
   return mRefCnt.get() == 1;
 }
 
+static already_AddRefed<nsIVariant>
+CreateVoidVariant()
+{
+  RefPtr<nsVariantCC> writable = new nsVariantCC();
+  writable->SetAsVoid();
+  return writable.forget();
+}
+
+nsresult
+DialogValueHolder::Get(nsIPrincipal* aSubject, nsIVariant** aResult)
+{
+  nsCOMPtr<nsIVariant> result;
+  if (aSubject->SubsumesConsideringDomain(mOrigin)) {
+    result = mValue;
+  } else {
+    result = CreateVoidVariant();
+  }
+  result.forget(aResult);
+  return NS_OK;
+}
+
 namespace mozilla {
 namespace dom {
 extern uint64_t
@@ -677,10 +702,12 @@ public:
   static const nsOuterWindowProxy singleton;
 
 protected:
-  static nsGlobalWindow* GetWindow(JSObject *proxy)
+  static nsGlobalWindow* GetOuterWindow(JSObject *proxy)
   {
-    return nsGlobalWindow::FromSupports(
+    nsGlobalWindow* outerWindow = nsGlobalWindow::FromSupports(
       static_cast<nsISupports*>(js::GetProxyExtra(proxy, 0).toPrivate()));
+    MOZ_ASSERT_IF(outerWindow, outerWindow->IsOuterWindow());
+    return outerWindow;
   }
 
   // False return value means we threw an exception.  True return value
@@ -720,15 +747,15 @@ nsOuterWindowProxy::className(JSContext *cx, JS::Handle<JSObject*> proxy) const
 void
 nsOuterWindowProxy::finalize(JSFreeOp *fop, JSObject *proxy) const
 {
-  nsGlobalWindow* global = GetWindow(proxy);
-  if (global) {
-    global->ClearWrapper();
+  nsGlobalWindow* outerWindow = GetOuterWindow(proxy);
+  if (outerWindow) {
+    outerWindow->ClearWrapper();
 
     // Ideally we would use OnFinalize here, but it's possible that
     // EnsureScriptEnvironment will later be called on the window, and we don't
     // want to create a new script object in that case. Therefore, we need to
     // write a non-null value that will reliably crash when dereferenced.
-    global->PoisonOuterWindowProxy(proxy);
+    outerWindow->PoisonOuterWindowProxy(proxy);
   }
 }
 
@@ -770,6 +797,9 @@ nsOuterWindowProxy::getOwnPropertyDescriptor(JSContext* cx,
   }
   // else fall through to js::Wrapper
 
+  // When we change this to always claim the property is configurable (bug
+  // 1178639), update the comments in nsOuterWindowProxy::defineProperty
+  // accordingly.
   return js::Wrapper::getOwnPropertyDescriptor(cx, proxy, id, desc);
 }
 
@@ -788,13 +818,28 @@ nsOuterWindowProxy::defineProperty(JSContext* cx,
     return result.failCantDefineWindowElement();
   }
 
+#ifndef RELEASE_BUILD // To be turned on in bug 1178638.
   // For now, allow chrome code to define non-configurable properties
   // on windows, until we sort out what exactly the addon SDK is
   // doing.  In the meantime, this still allows us to test web compat
   // behavior.
-  if (false && !desc.configurable() && !nsContentUtils::IsCallerChrome()) {
+  if (desc.hasConfigurable() && !desc.configurable() &&
+      !nsContentUtils::IsCallerChrome()) {
     return ThrowErrorMessage(cx, MSG_DEFINE_NON_CONFIGURABLE_PROP_ON_WINDOW);
   }
+
+  // Note that if hasConfigurable() is false we do NOT want to
+  // setConfigurable(true).  That would make this code:
+  //
+  //   var x;
+  //   window.x = 5;
+  //
+  // fail, because the JS engine ends up converting the assignment into a define
+  // with !hasConfigurable(), but the var actually declared a non-configurable
+  // property on our underlying Window object, so the set would fail if we
+  // forced setConfigurable(true) here.  What we want to do instead is change
+  // getOwnPropertyDescriptor to always claim configurable.  See bug 1178639.
+#endif
 
   return js::Wrapper::defineProperty(cx, proxy, id, desc, result);
 }
@@ -976,7 +1021,7 @@ nsOuterWindowProxy::GetSubframeWindow(JSContext *cx,
     return nullptr;
   }
 
-  nsGlobalWindow* win = GetWindow(proxy);
+  nsGlobalWindow* win = GetOuterWindow(proxy);
   MOZ_ASSERT(win->IsOuterWindow());
   return win->IndexedGetterOuter(index);
 }
@@ -985,7 +1030,7 @@ bool
 nsOuterWindowProxy::AppendIndexedPropertyNames(JSContext *cx, JSObject *proxy,
                                                JS::AutoIdVector &props) const
 {
-  uint32_t length = GetWindow(proxy)->Length();
+  uint32_t length = GetOuterWindow(proxy)->Length();
   MOZ_ASSERT(int32_t(length) >= 0);
   if (!props.reserve(props.length() + length)) {
     return false;
@@ -1014,9 +1059,9 @@ nsOuterWindowProxy::unwatch(JSContext *cx, JS::Handle<JSObject*> proxy,
 void
 nsOuterWindowProxy::ObjectMoved(JSObject *obj, const JSObject *old)
 {
-  nsGlobalWindow* global = GetWindow(obj);
-  if (global) {
-    global->UpdateWrapper(obj, old);
+  nsGlobalWindow* outerWindow = GetOuterWindow(obj);
+  if (outerWindow) {
+    outerWindow->UpdateWrapper(obj, old);
   }
 }
 
@@ -1483,6 +1528,10 @@ nsGlobalWindow::CleanUp()
   mSpeechSynthesis = nullptr;
 #endif
 
+#if defined(MOZ_WIDGET_ANDROID) || defined(MOZ_WIDGET_GONK)
+  mOrientationChangeObserver = nullptr;
+#endif
+
   ClearControllers();
 
   mOpener = nullptr;             // Forces Release
@@ -1596,6 +1645,10 @@ nsGlobalWindow::FreeInnerObjects(bool aForDocumentOpen)
   if (mScreen) {
     mScreen = nullptr;
   }
+
+#if defined(MOZ_WIDGET_ANDROID) || defined(MOZ_WIDGET_GONK)
+  mOrientationChangeObserver = nullptr;
+#endif
 
   if (mDoc) {
     // Remember the document's principal and URI.
@@ -1923,10 +1976,7 @@ nsGlobalWindow::UnmarkGrayTimers()
     if (timeout->mScriptHandler) {
       Function* f = timeout->mScriptHandler->GetCallback();
       if (f) {
-        // Callable() already does xpc_UnmarkGrayObject.
-        DebugOnly<JS::Handle<JSObject*> > o = f->Callable();
-        MOZ_ASSERT(!JS::ObjectIsMarkedGray(o.value),
-                   "Should have been unmarked");
+        f->MarkForCC();
       }
     }
   }
@@ -3713,7 +3763,9 @@ void
 nsPIDOMWindow::RefreshMediaElements()
 {
   RefPtr<AudioChannelService> service = AudioChannelService::GetOrCreate();
-  service->RefreshAgentsVolume(GetOuterWindow());
+  if (service) {
+    service->RefreshAgentsVolume(GetOuterWindow());
+  }
 }
 
 bool
@@ -3731,7 +3783,9 @@ nsPIDOMWindow::SetAudioCapture(bool aCapture)
   mAudioCaptured = aCapture;
 
   RefPtr<AudioChannelService> service = AudioChannelService::GetOrCreate();
-  service->RefreshAgentsCapture(GetOuterWindow(), mWindowID);
+  if (service) {
+    service->RefreshAgentsCapture(GetOuterWindow(), mWindowID);
+  }
 
   return NS_OK;
 }
@@ -4880,7 +4934,7 @@ nsGlobalWindow::GetInnerWidth(int32_t* aInnerWidth)
 }
 
 void
-nsGlobalWindow::SetInnerWidthOuter(int32_t aInnerWidth, ErrorResult& aError)
+nsGlobalWindow::SetInnerWidthOuter(int32_t aInnerWidth, ErrorResult& aError, bool aCallerIsChrome)
 {
   MOZ_RELEASE_ASSERT(IsOuterWindow());
 
@@ -4889,7 +4943,7 @@ nsGlobalWindow::SetInnerWidthOuter(int32_t aInnerWidth, ErrorResult& aError)
     return;
   }
 
-  CheckSecurityWidthAndHeight(&aInnerWidth, nullptr);
+  CheckSecurityWidthAndHeight(&aInnerWidth, nullptr, aCallerIsChrome);
 
   RefPtr<nsIPresShell> presShell = mDocShell->GetPresShell();
 
@@ -4918,7 +4972,7 @@ nsGlobalWindow::SetInnerWidthOuter(int32_t aInnerWidth, ErrorResult& aError)
 void
 nsGlobalWindow::SetInnerWidth(int32_t aInnerWidth, ErrorResult& aError)
 {
-  FORWARD_TO_OUTER_OR_THROW(SetInnerWidthOuter, (aInnerWidth, aError), aError, );
+  FORWARD_TO_OUTER_OR_THROW(SetInnerWidthOuter, (aInnerWidth, aError, nsContentUtils::IsCallerChrome()), aError, );
 }
 
 void
@@ -4981,7 +5035,7 @@ nsGlobalWindow::GetInnerHeight(int32_t* aInnerHeight)
 }
 
 void
-nsGlobalWindow::SetInnerHeightOuter(int32_t aInnerHeight, ErrorResult& aError)
+nsGlobalWindow::SetInnerHeightOuter(int32_t aInnerHeight, ErrorResult& aError, bool aCallerIsChrome)
 {
   MOZ_RELEASE_ASSERT(IsOuterWindow());
 
@@ -5000,7 +5054,7 @@ nsGlobalWindow::SetInnerHeightOuter(int32_t aInnerHeight, ErrorResult& aError)
     nsRect shellArea = presContext->GetVisibleArea();
     nscoord height = aInnerHeight;
     nscoord width = shellArea.width;
-    CheckSecurityWidthAndHeight(nullptr, &height);
+    CheckSecurityWidthAndHeight(nullptr, &height, aCallerIsChrome);
     SetCSSViewportWidthAndHeight(width,
                                  nsPresContext::CSSPixelsToAppUnits(height));
     return;
@@ -5011,14 +5065,14 @@ nsGlobalWindow::SetInnerHeightOuter(int32_t aInnerHeight, ErrorResult& aError)
 
   nsCOMPtr<nsIBaseWindow> docShellAsWin(do_QueryInterface(mDocShell));
   docShellAsWin->GetSize(&width, &height);
-  CheckSecurityWidthAndHeight(nullptr, &aInnerHeight);
+  CheckSecurityWidthAndHeight(nullptr, &aInnerHeight, aCallerIsChrome);
   aError = SetDocShellWidthAndHeight(width, CSSToDevIntPixels(aInnerHeight));
 }
 
 void
 nsGlobalWindow::SetInnerHeight(int32_t aInnerHeight, ErrorResult& aError)
 {
-  FORWARD_TO_OUTER_OR_THROW(SetInnerHeightOuter, (aInnerHeight, aError), aError, );
+  FORWARD_TO_OUTER_OR_THROW(SetInnerHeightOuter, (aInnerHeight, aError, nsContentUtils::IsCallerChrome()), aError, );
 }
 
 void
@@ -5144,7 +5198,7 @@ nsGlobalWindow::GetOuterHeight(int32_t* aOuterHeight)
 
 void
 nsGlobalWindow::SetOuterSize(int32_t aLengthCSSPixels, bool aIsWidth,
-                             ErrorResult& aError)
+                             ErrorResult& aError, bool aCallerIsChrome)
 {
   MOZ_ASSERT(IsOuterWindow());
 
@@ -5155,7 +5209,8 @@ nsGlobalWindow::SetOuterSize(int32_t aLengthCSSPixels, bool aIsWidth,
   }
 
   CheckSecurityWidthAndHeight(aIsWidth ? &aLengthCSSPixels : nullptr,
-                              aIsWidth ? nullptr : &aLengthCSSPixels);
+                              aIsWidth ? nullptr : &aLengthCSSPixels,
+                              aCallerIsChrome);
 
   int32_t width, height;
   aError = treeOwnerAsWin->GetSize(&width, &height);
@@ -5173,17 +5228,17 @@ nsGlobalWindow::SetOuterSize(int32_t aLengthCSSPixels, bool aIsWidth,
 }
 
 void
-nsGlobalWindow::SetOuterWidthOuter(int32_t aOuterWidth, ErrorResult& aError)
+nsGlobalWindow::SetOuterWidthOuter(int32_t aOuterWidth, ErrorResult& aError, bool aCallerIsChrome)
 {
   MOZ_RELEASE_ASSERT(IsOuterWindow());
 
-  SetOuterSize(aOuterWidth, true, aError);
+  SetOuterSize(aOuterWidth, true, aError, aCallerIsChrome);
 }
 
 void
 nsGlobalWindow::SetOuterWidth(int32_t aOuterWidth, ErrorResult& aError)
 {
-  FORWARD_TO_OUTER_OR_THROW(SetOuterWidthOuter, (aOuterWidth, aError), aError, );
+  FORWARD_TO_OUTER_OR_THROW(SetOuterWidthOuter, (aOuterWidth, aError, nsContentUtils::IsCallerChrome()), aError, );
 }
 
 void
@@ -5210,17 +5265,17 @@ nsGlobalWindow::SetOuterWidth(int32_t aOuterWidth)
 }
 
 void
-nsGlobalWindow::SetOuterHeightOuter(int32_t aOuterHeight, ErrorResult& aError)
+nsGlobalWindow::SetOuterHeightOuter(int32_t aOuterHeight, ErrorResult& aError, bool aCallerIsChrome)
 {
   MOZ_RELEASE_ASSERT(IsOuterWindow());
 
-  SetOuterSize(aOuterHeight, false, aError);
+  SetOuterSize(aOuterHeight, false, aError, aCallerIsChrome);
 }
 
 void
 nsGlobalWindow::SetOuterHeight(int32_t aOuterHeight, ErrorResult& aError)
 {
-  FORWARD_TO_OUTER_OR_THROW(SetOuterHeightOuter, (aOuterHeight, aError), aError, );
+  FORWARD_TO_OUTER_OR_THROW(SetOuterHeightOuter, (aOuterHeight, aError, nsContentUtils::IsCallerChrome()), aError, );
 }
 
 void
@@ -5563,7 +5618,7 @@ nsGlobalWindow::MatchMedia(const nsAString& aMediaQueryList,
 }
 
 void
-nsGlobalWindow::SetScreenXOuter(int32_t aScreenX, ErrorResult& aError)
+nsGlobalWindow::SetScreenXOuter(int32_t aScreenX, ErrorResult& aError, bool aCallerIsChrome)
 {
   MOZ_RELEASE_ASSERT(IsOuterWindow());
 
@@ -5579,7 +5634,7 @@ nsGlobalWindow::SetScreenXOuter(int32_t aScreenX, ErrorResult& aError)
     return;
   }
 
-  CheckSecurityLeftAndTop(&aScreenX, nullptr);
+  CheckSecurityLeftAndTop(&aScreenX, nullptr, aCallerIsChrome);
   x = CSSToDevIntPixels(aScreenX);
 
   aError = treeOwnerAsWin->SetPosition(x, y);
@@ -5588,7 +5643,7 @@ nsGlobalWindow::SetScreenXOuter(int32_t aScreenX, ErrorResult& aError)
 void
 nsGlobalWindow::SetScreenX(int32_t aScreenX, ErrorResult& aError)
 {
-  FORWARD_TO_OUTER_OR_THROW(SetScreenXOuter, (aScreenX, aError), aError, );
+  FORWARD_TO_OUTER_OR_THROW(SetScreenXOuter, (aScreenX, aError, nsContentUtils::IsCallerChrome()), aError, );
 }
 
 void
@@ -5649,7 +5704,7 @@ nsGlobalWindow::GetScreenY(JSContext* aCx,
 }
 
 void
-nsGlobalWindow::SetScreenYOuter(int32_t aScreenY, ErrorResult& aError)
+nsGlobalWindow::SetScreenYOuter(int32_t aScreenY, ErrorResult& aError, bool aCallerIsChrome)
 {
   MOZ_RELEASE_ASSERT(IsOuterWindow());
 
@@ -5665,7 +5720,7 @@ nsGlobalWindow::SetScreenYOuter(int32_t aScreenY, ErrorResult& aError)
     return;
   }
 
-  CheckSecurityLeftAndTop(nullptr, &aScreenY);
+  CheckSecurityLeftAndTop(nullptr, &aScreenY, aCallerIsChrome);
   y = CSSToDevIntPixels(aScreenY);
 
   aError = treeOwnerAsWin->SetPosition(x, y);
@@ -5674,7 +5729,7 @@ nsGlobalWindow::SetScreenYOuter(int32_t aScreenY, ErrorResult& aError)
 void
 nsGlobalWindow::SetScreenY(int32_t aScreenY, ErrorResult& aError)
 {
-  FORWARD_TO_OUTER_OR_THROW(SetScreenYOuter, (aScreenY, aError), aError, );
+  FORWARD_TO_OUTER_OR_THROW(SetScreenYOuter, (aScreenY, aError, nsContentUtils::IsCallerChrome()), aError, );
 }
 
 void
@@ -5703,12 +5758,12 @@ nsGlobalWindow::SetScreenY(int32_t aScreenY)
 // NOTE: Arguments to this function should have values scaled to
 // CSS pixels, not device pixels.
 void
-nsGlobalWindow::CheckSecurityWidthAndHeight(int32_t* aWidth, int32_t* aHeight)
+nsGlobalWindow::CheckSecurityWidthAndHeight(int32_t* aWidth, int32_t* aHeight, bool aCallerIsChrome)
 {
   MOZ_ASSERT(IsOuterWindow());
 
 #ifdef MOZ_XUL
-  if (!nsContentUtils::IsCallerChrome()) {
+  if (!aCallerIsChrome) {
     // if attempting to resize the window, hide any open popups
     nsContentUtils::HidePopupsInDocument(mDoc);
   }
@@ -5767,7 +5822,7 @@ nsGlobalWindow::SetCSSViewportWidthAndHeight(nscoord aInnerWidth, nscoord aInner
 // NOTE: Arguments to this function should have values scaled to
 // CSS pixels, not device pixels.
 void
-nsGlobalWindow::CheckSecurityLeftAndTop(int32_t* aLeft, int32_t* aTop)
+nsGlobalWindow::CheckSecurityLeftAndTop(int32_t* aLeft, int32_t* aTop, bool aCallerIsChrome)
 {
   MOZ_ASSERT(IsOuterWindow());
 
@@ -5775,7 +5830,7 @@ nsGlobalWindow::CheckSecurityLeftAndTop(int32_t* aLeft, int32_t* aTop)
 
   // Check security state for use in determing window dimensions
 
-  if (!nsContentUtils::IsCallerChrome()) {
+  if (!aCallerIsChrome) {
 #ifdef MOZ_XUL
     // if attempting to move the window, hide any open popups
     nsContentUtils::HidePopupsInDocument(mDoc);
@@ -6536,12 +6591,12 @@ nsGlobalWindow::MakeScriptDialogTitle(nsAString &aOutTitle)
 }
 
 bool
-nsGlobalWindow::CanMoveResizeWindows()
+nsGlobalWindow::CanMoveResizeWindows(bool aCallerIsChrome)
 {
   MOZ_ASSERT(IsOuterWindow());
 
   // When called from chrome, we can avoid the following checks.
-  if (!nsContentUtils::IsCallerChrome()) {
+  if (!aCallerIsChrome) {
     // Don't allow scripts to move or resize windows that were not opened by a
     // script.
     if (!mHadOriginalOpener) {
@@ -7256,7 +7311,7 @@ nsGlobalWindow::Print()
 }
 
 void
-nsGlobalWindow::MoveToOuter(int32_t aXPos, int32_t aYPos, ErrorResult& aError)
+nsGlobalWindow::MoveToOuter(int32_t aXPos, int32_t aYPos, ErrorResult& aError, bool aCallerIsChrome)
 {
   MOZ_RELEASE_ASSERT(IsOuterWindow());
   /*
@@ -7264,7 +7319,7 @@ nsGlobalWindow::MoveToOuter(int32_t aXPos, int32_t aYPos, ErrorResult& aError)
    * prevent window.moveTo() by exiting early
    */
 
-  if (!CanMoveResizeWindows() || IsFrame()) {
+  if (!CanMoveResizeWindows(aCallerIsChrome) || IsFrame()) {
     return;
   }
 
@@ -7276,7 +7331,7 @@ nsGlobalWindow::MoveToOuter(int32_t aXPos, int32_t aYPos, ErrorResult& aError)
 
   // Mild abuse of a "size" object so we don't need more helper functions.
   nsIntSize cssPos(aXPos, aYPos);
-  CheckSecurityLeftAndTop(&cssPos.width, &cssPos.height);
+  CheckSecurityLeftAndTop(&cssPos.width, &cssPos.height, aCallerIsChrome);
 
   nsIntSize devPos = CSSToDevIntPixels(cssPos);
 
@@ -7286,7 +7341,7 @@ nsGlobalWindow::MoveToOuter(int32_t aXPos, int32_t aYPos, ErrorResult& aError)
 void
 nsGlobalWindow::MoveTo(int32_t aXPos, int32_t aYPos, ErrorResult& aError)
 {
-  FORWARD_TO_OUTER_OR_THROW(MoveToOuter, (aXPos, aYPos, aError), aError, );
+  FORWARD_TO_OUTER_OR_THROW(MoveToOuter, (aXPos, aYPos, aError, nsContentUtils::IsCallerChrome()), aError, );
 }
 
 NS_IMETHODIMP
@@ -7301,7 +7356,7 @@ nsGlobalWindow::MoveTo(int32_t aXPos, int32_t aYPos)
 }
 
 void
-nsGlobalWindow::MoveByOuter(int32_t aXDif, int32_t aYDif, ErrorResult& aError)
+nsGlobalWindow::MoveByOuter(int32_t aXDif, int32_t aYDif, ErrorResult& aError, bool aCallerIsChrome)
 {
   MOZ_RELEASE_ASSERT(IsOuterWindow());
 
@@ -7310,7 +7365,7 @@ nsGlobalWindow::MoveByOuter(int32_t aXDif, int32_t aYDif, ErrorResult& aError)
    * prevent window.moveBy() by exiting early
    */
 
-  if (!CanMoveResizeWindows() || IsFrame()) {
+  if (!CanMoveResizeWindows(aCallerIsChrome) || IsFrame()) {
     return;
   }
 
@@ -7336,7 +7391,7 @@ nsGlobalWindow::MoveByOuter(int32_t aXDif, int32_t aYDif, ErrorResult& aError)
   cssPos.width += aXDif;
   cssPos.height += aYDif;
   
-  CheckSecurityLeftAndTop(&cssPos.width, &cssPos.height);
+  CheckSecurityLeftAndTop(&cssPos.width, &cssPos.height, aCallerIsChrome);
 
   nsIntSize newDevPos(CSSToDevIntPixels(cssPos));
 
@@ -7346,22 +7401,22 @@ nsGlobalWindow::MoveByOuter(int32_t aXDif, int32_t aYDif, ErrorResult& aError)
 void
 nsGlobalWindow::MoveBy(int32_t aXDif, int32_t aYDif, ErrorResult& aError)
 {
-  FORWARD_TO_OUTER_OR_THROW(MoveByOuter, (aXDif, aYDif, aError), aError, );
+  FORWARD_TO_OUTER_OR_THROW(MoveByOuter, (aXDif, aYDif, aError, nsContentUtils::IsCallerChrome()), aError, );
 }
 
 NS_IMETHODIMP
 nsGlobalWindow::MoveBy(int32_t aXDif, int32_t aYDif)
 {
-  FORWARD_TO_INNER(MoveBy, (aXDif, aYDif), NS_ERROR_UNEXPECTED);
+  FORWARD_TO_OUTER(MoveBy, (aXDif, aYDif), NS_ERROR_UNEXPECTED);
 
   ErrorResult rv;
-  MoveBy(aXDif, aYDif, rv);
+  MoveByOuter(aXDif, aYDif, rv, /* aCallerIsChrome = */ true);
 
   return rv.StealNSResult();
 }
 
 void
-nsGlobalWindow::ResizeToOuter(int32_t aWidth, int32_t aHeight, ErrorResult& aError)
+nsGlobalWindow::ResizeToOuter(int32_t aWidth, int32_t aHeight, ErrorResult& aError, bool aCallerIsChrome)
 {
   MOZ_RELEASE_ASSERT(IsOuterWindow());
 
@@ -7383,7 +7438,7 @@ nsGlobalWindow::ResizeToOuter(int32_t aWidth, int32_t aHeight, ErrorResult& aErr
    * prevent window.resizeTo() by exiting early
    */
 
-  if (!CanMoveResizeWindows() || IsFrame()) {
+  if (!CanMoveResizeWindows(aCallerIsChrome) || IsFrame()) {
     return;
   }
 
@@ -7394,7 +7449,7 @@ nsGlobalWindow::ResizeToOuter(int32_t aWidth, int32_t aHeight, ErrorResult& aErr
   }
   
   nsIntSize cssSize(aWidth, aHeight);
-  CheckSecurityWidthAndHeight(&cssSize.width, &cssSize.height);
+  CheckSecurityWidthAndHeight(&cssSize.width, &cssSize.height, aCallerIsChrome);
 
   nsIntSize devSz(CSSToDevIntPixels(cssSize));
 
@@ -7404,7 +7459,7 @@ nsGlobalWindow::ResizeToOuter(int32_t aWidth, int32_t aHeight, ErrorResult& aErr
 void
 nsGlobalWindow::ResizeTo(int32_t aWidth, int32_t aHeight, ErrorResult& aError)
 {
-  FORWARD_TO_OUTER_OR_THROW(ResizeToOuter, (aWidth, aHeight, aError), aError, );
+  FORWARD_TO_OUTER_OR_THROW(ResizeToOuter, (aWidth, aHeight, aError, nsContentUtils::IsCallerChrome()), aError, );
 }
 
 NS_IMETHODIMP
@@ -7420,7 +7475,7 @@ nsGlobalWindow::ResizeTo(int32_t aWidth, int32_t aHeight)
 
 void
 nsGlobalWindow::ResizeByOuter(int32_t aWidthDif, int32_t aHeightDif,
-                              ErrorResult& aError)
+                              ErrorResult& aError, bool aCallerIsChrome)
 {
   MOZ_RELEASE_ASSERT(IsOuterWindow());
 
@@ -7449,7 +7504,7 @@ nsGlobalWindow::ResizeByOuter(int32_t aWidthDif, int32_t aHeightDif,
    * prevent window.resizeBy() by exiting early
    */
 
-  if (!CanMoveResizeWindows() || IsFrame()) {
+  if (!CanMoveResizeWindows(aCallerIsChrome) || IsFrame()) {
     return;
   }
 
@@ -7474,7 +7529,7 @@ nsGlobalWindow::ResizeByOuter(int32_t aWidthDif, int32_t aHeightDif,
   cssSize.width += aWidthDif;
   cssSize.height += aHeightDif;
 
-  CheckSecurityWidthAndHeight(&cssSize.width, &cssSize.height);
+  CheckSecurityWidthAndHeight(&cssSize.width, &cssSize.height, aCallerIsChrome);
 
   nsIntSize newDevSize(CSSToDevIntPixels(cssSize));
 
@@ -7485,7 +7540,7 @@ void
 nsGlobalWindow::ResizeBy(int32_t aWidthDif, int32_t aHeightDif,
                          ErrorResult& aError)
 {
-  FORWARD_TO_OUTER_OR_THROW(ResizeByOuter, (aWidthDif, aHeightDif, aError), aError, );
+  FORWARD_TO_OUTER_OR_THROW(ResizeByOuter, (aWidthDif, aHeightDif, aError, nsContentUtils::IsCallerChrome()), aError, );
 }
 
 NS_IMETHODIMP
@@ -7500,7 +7555,7 @@ nsGlobalWindow::ResizeBy(int32_t aWidthDif, int32_t aHeightDif)
 }
 
 void
-nsGlobalWindow::SizeToContentOuter(ErrorResult& aError)
+nsGlobalWindow::SizeToContentOuter(ErrorResult& aError, bool aCallerIsChrome)
 {
   MOZ_RELEASE_ASSERT(IsOuterWindow());
 
@@ -7513,7 +7568,7 @@ nsGlobalWindow::SizeToContentOuter(ErrorResult& aError)
    * prevent window.sizeToContent() by exiting early
    */
 
-  if (!CanMoveResizeWindows() || IsFrame()) {
+  if (!CanMoveResizeWindows(aCallerIsChrome) || IsFrame()) {
     return;
   }
 
@@ -7541,7 +7596,7 @@ nsGlobalWindow::SizeToContentOuter(ErrorResult& aError)
   }
 
   nsIntSize cssSize(DevToCSSIntPixels(nsIntSize(width, height)));
-  CheckSecurityWidthAndHeight(&cssSize.width, &cssSize.height);
+  CheckSecurityWidthAndHeight(&cssSize.width, &cssSize.height, aCallerIsChrome);
 
   nsIntSize newDevSize(CSSToDevIntPixels(cssSize));
 
@@ -7552,7 +7607,7 @@ nsGlobalWindow::SizeToContentOuter(ErrorResult& aError)
 void
 nsGlobalWindow::SizeToContent(ErrorResult& aError)
 {
-  FORWARD_TO_OUTER_OR_THROW(SizeToContentOuter, (aError), aError, );
+  FORWARD_TO_OUTER_OR_THROW(SizeToContentOuter, (aError, nsContentUtils::IsCallerChrome()), aError, );
 }
 
 NS_IMETHODIMP
@@ -8448,7 +8503,7 @@ nsGlobalWindow::CanClose()
 }
 
 void
-nsGlobalWindow::CloseOuter()
+nsGlobalWindow::CloseOuter(bool aTrustedCaller)
 {
   MOZ_RELEASE_ASSERT(IsOuterWindow());
 
@@ -8480,7 +8535,7 @@ nsGlobalWindow::CloseOuter()
   mDoc->GetURL(url);
   if (!mDocShell->GetIsApp() &&
       !StringBeginsWith(url, NS_LITERAL_STRING("about:neterror")) &&
-      !mHadOriginalOpener && !nsContentUtils::IsCallerChrome()) {
+      !mHadOriginalOpener && !aTrustedCaller) {
     bool allowClose = mAllowScriptsToClose ||
       Preferences::GetBool("dom.allow_scripts_to_close_windows", true);
     if (!allowClose) {
@@ -8524,18 +8579,15 @@ nsGlobalWindow::CloseOuter()
 void
 nsGlobalWindow::Close(ErrorResult& aError)
 {
-  FORWARD_TO_OUTER_OR_THROW(CloseOuter, (), aError, );
+  FORWARD_TO_OUTER_OR_THROW(CloseOuter, (nsContentUtils::IsCallerChrome()), aError, );
 }
 
 NS_IMETHODIMP
 nsGlobalWindow::Close()
 {
-  FORWARD_TO_INNER(Close, (), NS_ERROR_UNEXPECTED);
-
-  ErrorResult rv;
-  Close(rv);
-
-  return rv.StealNSResult();
+  FORWARD_TO_OUTER(Close, (), NS_ERROR_UNEXPECTED);
+  CloseOuter(/* aTrustedCaller = */ true);
+  return NS_OK;
 }
 
 void
@@ -9658,11 +9710,6 @@ nsGlobalWindow::AddEventListener(const nsAString& aType,
                "Won't check if this is chrome, you want to set "
                "aWantsUntrusted to false or make the aWantsUntrusted "
                "explicit by making optional_argc non-zero.");
-
-  if (IsOuterWindow() && mInnerWindow &&
-      !nsContentUtils::CanCallerAccess(mInnerWindow)) {
-    return NS_ERROR_DOM_SECURITY_ERR;
-  }
 
   if (!aWantsUntrusted &&
       (aOptionalArgc < 2 && !nsContentUtils::IsChromeDoc(mDoc))) {
@@ -11497,6 +11544,8 @@ nsGlobalWindow::Observe(nsISupports* aSubject, const char* aTopic,
     nsCOMPtr<nsIDOMStorage> istorage = changingStorage.get();
 
     bool fireMozStorageChanged = false;
+    nsAutoString eventType;
+    eventType.AssignLiteral("storage");
     principal = GetPrincipal();
     if (!principal) {
       return NS_OK;
@@ -11532,6 +11581,9 @@ nsGlobalWindow::Observe(nsISupports* aSubject, const char* aTopic,
       }
 
       fireMozStorageChanged = mSessionStorage == changingStorage;
+      if (fireMozStorageChanged) {
+        eventType.AssignLiteral("MozSessionStorageChanged");
+      }
       break;
     }
 
@@ -11549,6 +11601,9 @@ nsGlobalWindow::Observe(nsISupports* aSubject, const char* aTopic,
         return NS_OK;
 
       fireMozStorageChanged = mLocalStorage == changingStorage;
+      if (fireMozStorageChanged) {
+        eventType.AssignLiteral("MozLocalStorageChanged");
+      };
       break;
     }
     default:
@@ -11558,11 +11613,8 @@ nsGlobalWindow::Observe(nsISupports* aSubject, const char* aTopic,
     // Clone the storage event included in the observer notification. We want
     // to dispatch clones rather than the original event.
     ErrorResult error;
-    RefPtr<StorageEvent> newEvent =
-      CloneStorageEvent(fireMozStorageChanged ?
-                          NS_LITERAL_STRING("MozStorageChanged") :
-                          NS_LITERAL_STRING("storage"),
-                        event, error);
+    RefPtr<StorageEvent> newEvent = CloneStorageEvent(eventType,
+                                                        event, error);
     if (error.Failed()) {
       return error.StealNSResult();
     }
@@ -12376,6 +12428,12 @@ nsGlobalWindow::RunTimeoutHandler(nsTimeout* aTimeout,
   // point anyway, and the script context should have already reported
   // the script error in the usual way - so we just drop it.
 
+  // Since we might be processing more timeouts, go ahead and flush the promise
+  // queue now before we do that.  We need to do that while we're still in our
+  // "running JS is safe" state (e.g. mRunningTimeout is set, timeout->mRunning
+  // is false).
+  Promise::PerformMicroTaskCheckpoint();
+
   if (trackNestingLevel) {
     sNestingLevel = nestingLevel;
   }
@@ -12385,6 +12443,7 @@ nsGlobalWindow::RunTimeoutHandler(nsTimeout* aTimeout,
 
   mRunningTimeout = last_running_timeout;
   timeout->mRunning = false;
+
   return timeout->mCleared;
 }
 
@@ -12504,14 +12563,17 @@ nsGlobalWindow::RunTimeout(nsTimeout *aTimeout)
     deadline = now;
   }
 
-  // The timeout list is kept in deadline order. Discover the latest
-  // timeout whose deadline has expired. On some platforms, native
-  // timeout events fire "early", so we need to test the timer as well
-  // as the deadline.
+  // The timeout list is kept in deadline order. Discover the latest timeout
+  // whose deadline has expired. On some platforms, native timeout events fire
+  // "early", but we handled that above by setting deadline to aTimeout->mWhen
+  // if the timer fired early.  So we can stop walking if we get to timeouts
+  // whose mWhen is greater than deadline, since once that happens we know
+  // nothing past that point is expired.
   last_expired_timeout = nullptr;
-  for (nsTimeout *timeout = mTimeouts.getFirst(); timeout; timeout = timeout->getNext()) {
-    if (((timeout == aTimeout) || (timeout->mWhen <= deadline)) &&
-        (timeout->mFiringDepth == 0)) {
+  for (nsTimeout *timeout = mTimeouts.getFirst();
+       timeout && timeout->mWhen <= deadline;
+       timeout = timeout->getNext()) {
+    if (timeout->mFiringDepth == 0) {
       // Mark any timeouts that are on the list to be fired with the
       // firing depth so that we can reentrantly run timeouts
       timeout->mFiringDepth = firingDepth;
@@ -13318,6 +13380,27 @@ nsGlobalWindow::DisableDeviceSensor(uint32_t aType)
     ac->RemoveWindowListener(aType, this);
   }
 }
+
+#if defined(MOZ_WIDGET_ANDROID) || defined(MOZ_WIDGET_GONK)
+void
+nsGlobalWindow::EnableOrientationChangeListener()
+{
+  MOZ_ASSERT(IsInnerWindow());
+
+  if (!mOrientationChangeObserver) {
+    mOrientationChangeObserver =
+      new WindowOrientationObserver(this);
+  }
+}
+
+void
+nsGlobalWindow::DisableOrientationChangeListener()
+{
+  MOZ_ASSERT(IsInnerWindow());
+
+  mOrientationChangeObserver = nullptr;
+}
+#endif
 
 void
 nsGlobalWindow::SetHasGamepadEventListener(bool aHasGamepad/* = true*/)
@@ -14150,6 +14233,14 @@ nsGlobalWindow::IsModalContentWindow(JSContext* aCx, JSObject* aGlobal)
   return xpc::WindowOrNull(aGlobal)->IsModalContentWindow();
 }
 
+#if defined(MOZ_WIDGET_ANDROID) || defined(MOZ_WIDGET_GONK)
+int16_t
+nsGlobalWindow::Orientation() const
+{
+  return WindowOrientationObserver::OrientationAngle();
+}
+#endif
+
 NS_IMETHODIMP
 nsGlobalWindow::GetConsole(JSContext* aCx,
                            JS::MutableHandle<JS::Value> aConsole)
@@ -14385,7 +14476,7 @@ nsGlobalWindow::SetReplaceableWindowCoord(JSContext* aCx,
    * just treat this the way we would an IDL replaceable property.
    */
   nsGlobalWindow* outer = GetOuterWindowInternal();
-  if (!outer || !outer->CanMoveResizeWindows() || outer->IsFrame()) {
+  if (!outer || !outer->CanMoveResizeWindows(nsContentUtils::IsCallerChrome()) || outer->IsFrame()) {
     RedefineProperty(aCx, aPropName, aValue, aError);
     return;
   }

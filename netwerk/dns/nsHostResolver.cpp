@@ -67,7 +67,7 @@ PR_STATIC_ASSERT (HighThreadThreshold <= MAX_RESOLVER_THREADS);
 
 //----------------------------------------------------------------------------
 
-static PRLogModuleInfo *gHostResolverLog = nullptr;
+static LazyLogModule gHostResolverLog("nsHostResolver");
 #define LOG(args) MOZ_LOG(gHostResolverLog, mozilla::LogLevel::Debug, args)
 
 #define LOG_HOST(host, interface) host,                                        \
@@ -1399,9 +1399,6 @@ nsHostResolver::Create(uint32_t maxCacheEntries,
                        uint32_t defaultGracePeriod,
                        nsHostResolver **result)
 {
-    if (!gHostResolverLog)
-        gHostResolverLog = PR_NewLogModule("nsHostResolver");
-
     nsHostResolver *res = new nsHostResolver(maxCacheEntries, defaultCacheEntryLifetime,
                                              defaultGracePeriod);
     NS_ADDREF(res);

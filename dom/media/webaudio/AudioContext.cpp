@@ -119,14 +119,21 @@ AudioContext::AudioContext(nsPIDOMWindow* aWindow,
   }
 }
 
-void
+nsresult
 AudioContext::Init()
 {
   // We skip calling SetIsOnlyNodeForContext and the creation of the
   // audioChannelAgent during mDestination's constructor, because we can only
   // call them after mDestination has been set up.
-  mDestination->CreateAudioChannelAgent();
-  mDestination->SetIsOnlyNodeForContext(true);
+  if (!mIsOffline) {
+    nsresult rv = mDestination->CreateAudioChannelAgent();
+    if (NS_WARN_IF(NS_FAILED(rv))) {
+      return rv;
+    }
+    mDestination->SetIsOnlyNodeForContext(true);
+  }
+
+  return NS_OK;
 }
 
 AudioContext::~AudioContext()
@@ -153,20 +160,9 @@ AudioContext::WrapObject(JSContext* aCx, JS::Handle<JSObject*> aGivenProto)
 AudioContext::Constructor(const GlobalObject& aGlobal,
                           ErrorResult& aRv)
 {
-  nsCOMPtr<nsPIDOMWindow> window = do_QueryInterface(aGlobal.GetAsSupports());
-  if (!window) {
-    aRv.Throw(NS_ERROR_FAILURE);
-    return nullptr;
-  }
-
-  RefPtr<AudioContext> object =
-    new AudioContext(window, false,
-                     AudioChannelService::GetDefaultAudioChannel());
-  object->Init();
-
-  RegisterWeakMemoryReporter(object);
-
-  return object.forget();
+  return AudioContext::Constructor(aGlobal,
+                                   AudioChannelService::GetDefaultAudioChannel(),
+                                   aRv);
 }
 
 /* static */ already_AddRefed<AudioContext>
@@ -181,7 +177,10 @@ AudioContext::Constructor(const GlobalObject& aGlobal,
   }
 
   RefPtr<AudioContext> object = new AudioContext(window, false, aChannel);
-  object->Init();
+  aRv = object->Init();
+  if (NS_WARN_IF(aRv.Failed())) {
+     return nullptr;
+  }
 
   RegisterWeakMemoryReporter(object);
 

@@ -30,11 +30,6 @@ var observerService = SpecialPowers.Cc["@mozilla.org/observer-service;1"]
 
 var tests = [
   function() {
-    iframe = document.querySelector("iframe");
-    SpecialPowers.pushPrefEnv({"set": [["media.useAudioChannelService", true]]}, runTest);
-  },
-
-  function() {
     observerService.addObserver(observer, "media-playback", false);
     ok(true, "Observer set");
     runTest();

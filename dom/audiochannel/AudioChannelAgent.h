@@ -54,6 +54,8 @@ private:
                         nsIAudioChannelAgentCallback* aCallback,
                         bool aUseWeakRef);
 
+  void Shutdown();
+
   nsCOMPtr<nsPIDOMWindow> mWindow;
   nsCOMPtr<nsIAudioChannelAgentCallback> mCallback;
 
@@ -62,6 +64,7 @@ private:
   int32_t mAudioChannelType;
   uint64_t mInnerWindowID;
   bool mIsRegToService;
+  bool mNotifyPlayback;
 };
 
 } // namespace dom

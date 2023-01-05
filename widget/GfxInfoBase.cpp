@@ -35,6 +35,10 @@
 #include "gfxPrefs.h"
 #include "gfxPlatform.h"
 
+#if defined(MOZ_CRASHREPORTER)
+#include "nsExceptionHandler.h"
+#endif
+
 using namespace mozilla::widget;
 using namespace mozilla;
 using mozilla::MutexAutoLock;
@@ -142,6 +146,12 @@ GetPrefNameForFeature(int32_t aFeature)
       break;
     case nsIGfxInfo::FEATURE_WEBRTC_HW_ACCELERATION:
       name = BLACKLIST_PREF_BRANCH "webrtc.hw.acceleration";
+      break;
+    case nsIGfxInfo::FEATURE_WEBRTC_HW_ACCELERATION_ENCODE:
+      name = BLACKLIST_PREF_BRANCH "webrtc.hw.acceleration.encode";
+      break;
+    case nsIGfxInfo::FEATURE_WEBRTC_HW_ACCELERATION_DECODE:
+      name = BLACKLIST_PREF_BRANCH "webrtc.hw.acceleration.decode";
       break;
     default:
       break;
@@ -254,6 +264,8 @@ BlacklistOSToOperatingSystem(const nsAString& os)
     return DRIVER_OS_WINDOWS_8;
   else if (os.EqualsLiteral("WINNT 6.3"))
     return DRIVER_OS_WINDOWS_8_1;
+  else if (os.EqualsLiteral("WINNT 10.0"))
+    return DRIVER_OS_WINDOWS_10;
   else if (os.EqualsLiteral("Linux"))
     return DRIVER_OS_LINUX;
   else if (os.EqualsLiteral("Darwin 9"))
@@ -330,6 +342,10 @@ BlacklistFeatureToGfxFeature(const nsAString& aFeature)
     return nsIGfxInfo::FEATURE_WEBGL_MSAA;
   else if (aFeature.EqualsLiteral("STAGEFRIGHT"))
     return nsIGfxInfo::FEATURE_STAGEFRIGHT;
+  else if (aFeature.EqualsLiteral("WEBRTC_HW_ACCELERATION_ENCODE"))
+    return nsIGfxInfo::FEATURE_WEBRTC_HW_ACCELERATION_ENCODE;
+  else if (aFeature.EqualsLiteral("WEBRTC_HW_ACCELERATION_DECODE"))
+    return nsIGfxInfo::FEATURE_WEBRTC_HW_ACCELERATION_DECODE;
   else if (aFeature.EqualsLiteral("WEBRTC_HW_ACCELERATION"))
     return nsIGfxInfo::FEATURE_WEBRTC_HW_ACCELERATION;
 
@@ -699,9 +715,10 @@ GfxInfoBase::FindBlocklistedDeviceInList(const nsTArray<GfxDriverInfo>& info,
   uint32_t i = 0;
   for (; i < info.Length(); i++) {
     // Do the operating system check first, no point in getting the driver
-    // info if we won't need to use it. Note we also catch and skips the
-    // application version mismatches that would leave operating system
-    // set to unknown.
+    // info if we won't need to use it.  If the OS of the system we are running
+    // on is unknown, we still let DRIVER_OS_ALL catch and disable it; 
+    // if the OS of the downloadable entry is unknown, we skip the entry
+    // as invalid.
     if (info[i].mOperatingSystem == DRIVER_OS_UNKNOWN ||
         (info[i].mOperatingSystem != DRIVER_OS_ALL &&
          info[i].mOperatingSystem != os))
@@ -874,6 +891,11 @@ GfxInfoBase::GetFeatureStatusImpl(int32_t aFeature,
                                   const nsTArray<GfxDriverInfo>& aDriverInfo,
                                   OperatingSystem* aOS /* = nullptr */)
 {
+  if (aFeature <= 0) {
+    gfxWarning() << "Invalid feature <= 0";
+    return NS_OK;
+  }
+
   if (*aStatus != nsIGfxInfo::FEATURE_STATUS_UNKNOWN) {
     // Terminate now with the status determined by the derived type (OS-specific
     // code).
@@ -957,6 +979,8 @@ GfxInfoBase::EvaluateDownloadedBlacklist(nsTArray<GfxDriverInfo>& aDriverInfo)
     nsIGfxInfo::FEATURE_OPENGL_LAYERS,
     nsIGfxInfo::FEATURE_WEBGL_OPENGL,
     nsIGfxInfo::FEATURE_WEBGL_ANGLE,
+    nsIGfxInfo::FEATURE_WEBRTC_HW_ACCELERATION_ENCODE,
+    nsIGfxInfo::FEATURE_WEBRTC_HW_ACCELERATION_DECODE,
     nsIGfxInfo::FEATURE_WEBGL_MSAA,
     nsIGfxInfo::FEATURE_STAGEFRIGHT,
     nsIGfxInfo::FEATURE_WEBRTC_HW_ACCELERATION,
@@ -986,7 +1010,7 @@ GfxInfoBase::EvaluateDownloadedBlacklist(nsTArray<GfxDriverInfo>& aDriverInfo)
           } else {
             RemovePrefForDriverVersion();
           }
-          // FALLTHROUGH
+          MOZ_FALLTHROUGH;
 
         case nsIGfxInfo::FEATURE_BLOCKED_MISMATCHED_VERSION:
         case nsIGfxInfo::FEATURE_BLOCKED_DEVICE:

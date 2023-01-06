@@ -287,7 +287,6 @@ static BOOL IsToolbarStyleContainer(nsIFrame* aFrame)
 
   switch (aFrame->StyleDisplay()->mAppearance) {
     case NS_THEME_TOOLBAR:
-    case NS_THEME_MOZ_MAC_UNIFIED_TOOLBAR:
     case NS_THEME_STATUSBAR:
       return YES;
     default:
@@ -2573,7 +2572,6 @@ nsNativeThemeCocoa::DrawWidgetBackground(nsRenderingContext* aContext,
     }
       break;
 
-    case NS_THEME_MOZ_MAC_UNIFIED_TOOLBAR:
     case NS_THEME_TOOLBAR: {
       NSWindow* win = NativeWindowForFrame(aFrame);
       if (ToolbarCanBeUnified(cgContext, macRect, win)) {
@@ -3483,7 +3481,6 @@ nsNativeThemeCocoa::WidgetStateChanged(nsIFrame* aFrame, uint8_t aWidgetType,
     case NS_THEME_WINDOW_TITLEBAR:
     case NS_THEME_TOOLBOX:
     case NS_THEME_TOOLBAR:
-    case NS_THEME_MOZ_MAC_UNIFIED_TOOLBAR:
     case NS_THEME_STATUSBAR:
     case NS_THEME_STATUSBAR_PANEL:
     case NS_THEME_STATUSBAR_RESIZER_PANEL:
@@ -3609,7 +3606,6 @@ nsNativeThemeCocoa::ThemeSupportsWidget(nsPresContext* aPresContext, nsIFrame* a
     case NS_THEME_SPINNER_UP_BUTTON:
     case NS_THEME_SPINNER_DOWN_BUTTON:
     case NS_THEME_TOOLBAR:
-    case NS_THEME_MOZ_MAC_UNIFIED_TOOLBAR:
     case NS_THEME_STATUSBAR:
     case NS_THEME_NUMBER_INPUT:
     case NS_THEME_TEXTFIELD:
@@ -3839,7 +3835,6 @@ nsNativeThemeCocoa::ThemeGeometryTypeForWidget(nsIFrame* aFrame, uint8_t aWidget
     case NS_THEME_WINDOW_TITLEBAR:
       return eThemeGeometryTypeTitlebar;
     case NS_THEME_TOOLBAR:
-    case NS_THEME_MOZ_MAC_UNIFIED_TOOLBAR:
       return eThemeGeometryTypeToolbar;
     case NS_THEME_TOOLBOX:
       return eThemeGeometryTypeToolbox;
@@ -3890,7 +3885,6 @@ nsNativeThemeCocoa::GetWidgetTransparency(nsIFrame* aFrame, uint8_t aWidgetType)
     return eOpaque;
 
   case NS_THEME_TOOLBAR:
-  case NS_THEME_MOZ_MAC_UNIFIED_TOOLBAR:
     return eOpaque;
 
   default:

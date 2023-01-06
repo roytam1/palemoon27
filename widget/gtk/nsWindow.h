@@ -214,7 +214,7 @@ public:
                                                 nsIntRegion& aInvalidRegion) override;
 
 private:
-    void               UpdateAlpha(gfxPattern* aPattern, nsIntRect aBoundsRect);
+    void               UpdateAlpha(mozilla::gfx::SourceSurface* aSourceSurface, nsIntRect aBoundsRect);
 
     void               NativeMove();
     void               NativeResize();

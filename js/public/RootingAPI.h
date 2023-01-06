@@ -575,7 +575,7 @@ struct GCMethods<JSFunction*>
 // aggregate Lookup kinds embed a JSObject* that is frequently null and do not
 // null test before dispatching to the hasher.
 template <typename T>
-struct JS_PUBLIC_API(MovableCellHasher)
+struct JS_EXPORT_API(MovableCellHasher)
 {
     using Key = T;
     using Lookup = T;
@@ -583,6 +583,17 @@ struct JS_PUBLIC_API(MovableCellHasher)
     static HashNumber hash(const Lookup& l);
     static bool match(const Key& k, const Lookup& l);
     static void rekey(Key& k, const Key& newKey) { k = newKey; }
+};
+
+template <typename T>
+struct JS_EXPORT_API(MovableCellHasher<JS::Heap<T>>)
+{
+    using Key = JS::Heap<T>;
+    using Lookup = T;
+
+    static HashNumber hash(const Lookup& l) { return MovableCellHasher<T>::hash(l); }
+    static bool match(const Key& k, const Lookup& l) { return MovableCellHasher<T>::match(k, l); }
+    static void rekey(Key& k, const Key& newKey) { k.unsafeSet(newKey); }
 };
 
 } /* namespace js */

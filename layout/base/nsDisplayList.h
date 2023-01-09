@@ -1200,7 +1200,7 @@ protected:
  * class represents an entity that can be drawn on the screen, e.g., a
  * frame's CSS background, or a frame's text string.
  * 
- * nsDisplayListItems can be containers --- i.e., they can perform hit testing
+ * nsDisplayItems can be containers --- i.e., they can perform hit testing
  * and painting by recursively traversing a list of child items.
  * 
  * These are arena-allocated during display list construction. A typical
@@ -1248,13 +1248,15 @@ public:
 #include "nsDisplayItemTypes.h"
 
   struct HitTestState {
-    explicit HitTestState() {}
+    explicit HitTestState() : mInPreserves3D(false) {}
 
     ~HitTestState() {
       NS_ASSERTION(mItemBuffer.Length() == 0,
                    "mItemBuffer should have been cleared");
     }
 
+    // Handling transform items for preserve 3D frames.
+    bool mInPreserves3D;
     nsAutoTArray<nsDisplayItem*, 100> mItemBuffer;
   };
 
@@ -1823,8 +1825,8 @@ public:
   }
   
   /**
-   * Append a new item to the top of the list. If the item is null we return
-   * NS_ERROR_OUT_OF_MEMORY. The intended usage is AppendNewToTop(new ...);
+   * Append a new item to the top of the list. The intended usage is
+   * AppendNewToTop(new ...);
    */
   void AppendNewToTop(nsDisplayItem* aItem) {
     if (aItem) {
@@ -1833,8 +1835,8 @@ public:
   }
   
   /**
-   * Append a new item to the bottom of the list. If the item is null we return
-   * NS_ERROR_OUT_OF_MEMORY. The intended usage is AppendNewToBottom(new ...);
+   * Append a new item to the bottom of the list. The intended usage is
+   * AppendNewToBottom(new ...);
    */
   void AppendNewToBottom(nsDisplayItem* aItem) {
     if (aItem) {
@@ -3757,7 +3759,7 @@ public:
    * Return the transform that is aggregation of all transform on the
    * preserves3d chain.
    */
-  const Matrix4x4& GetAccumulatedPreserved3DTransform();
+  const Matrix4x4& GetAccumulatedPreserved3DTransform(nsDisplayListBuilder* aBuilder);
 
   float GetHitDepthAtPoint(nsDisplayListBuilder* aBuilder, const nsPoint& aPoint);
 

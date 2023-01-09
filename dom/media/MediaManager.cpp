@@ -798,17 +798,6 @@ public:
     }
   }
 
-  // let us intervene for direct listeners when someone does track.enabled = false
-  virtual void SetTrackEnabled(TrackID aTrackID, bool aEnabled) override
-  {
-    // We encapsulate the SourceMediaStream and TrackUnion into one entity, so
-    // we can handle the disabling at the SourceMediaStream
-
-    // We need to find the input track ID for output ID aTrackID, so we let the TrackUnion
-    // forward the request to the source and translate the ID
-    GetInputStream()->AsProcessedStream()->ForwardTrackEnabled(aTrackID, aEnabled);
-  }
-
   virtual DOMLocalMediaStream* AsDOMLocalMediaStream() override
   {
     return this;
@@ -1495,7 +1484,6 @@ MediaManager::EnumerateRawDevices(uint64_t aWindowId,
 
 MediaManager::MediaManager()
   : mMediaThread(nullptr)
-  , mMutex("mozilla::MediaManager")
   , mBackend(nullptr) {
   mPrefs.mFreq   = 1000; // 1KHz test tone
   mPrefs.mWidth  = 0; // adaptive default
@@ -1898,7 +1886,7 @@ MediaManager::GetUserMedia(nsPIDOMWindow* aWindow,
             (!privileged && !HostHasPermission(*docURI))) {
           RefPtr<MediaStreamError> error =
               new MediaStreamError(aWindow,
-                                   NS_LITERAL_STRING("PermissionDeniedError"));
+                                   NS_LITERAL_STRING("SecurityError"));
           onFailure->OnError(error);
           return NS_OK;
         }
@@ -1930,12 +1918,12 @@ MediaManager::GetUserMedia(nsPIDOMWindow* aWindow,
     if (!privileged) {
       // only allow privileged content to set the window id
       if (vc.mBrowserWindow.WasPassed()) {
-        vc.mBrowserWindow.Construct(-1);
+        vc.mBrowserWindow.Value() = -1;
       }
       if (vc.mAdvanced.WasPassed()) {
         for (MediaTrackConstraintSet& cs : vc.mAdvanced.Value()) {
           if (cs.mBrowserWindow.WasPassed()) {
-            cs.mBrowserWindow.Construct(-1);
+            cs.mBrowserWindow.Value() = -1;
           }
         }
       }
@@ -1973,7 +1961,7 @@ MediaManager::GetUserMedia(nsPIDOMWindow* aWindow,
         if (!Preferences::GetBool("media.getusermedia.audiocapture.enabled")) {
           RefPtr<MediaStreamError> error =
             new MediaStreamError(aWindow,
-                                 NS_LITERAL_STRING("PermissionDeniedError"));
+                                 NS_LITERAL_STRING("SecurityError"));
           onFailure->OnError(error);
           return NS_OK;
         }
@@ -2033,7 +2021,7 @@ MediaManager::GetUserMedia(nsPIDOMWindow* aWindow,
     if ((!IsOn(c.mAudio) || audioPerm == nsIPermissionManager::DENY_ACTION) &&
         (!IsOn(c.mVideo) || videoPerm == nsIPermissionManager::DENY_ACTION)) {
       RefPtr<MediaStreamError> error =
-          new MediaStreamError(aWindow, NS_LITERAL_STRING("PermissionDeniedError"));
+          new MediaStreamError(aWindow, NS_LITERAL_STRING("SecurityError"));
       onFailure->OnError(error);
       RemoveFromWindowList(windowID, listener);
       return NS_OK;
@@ -2385,10 +2373,10 @@ MediaManager::GetUserMediaDevices(nsPIDOMWindow* aWindow,
 MediaEngine*
 MediaManager::GetBackend(uint64_t aWindowId)
 {
+  MOZ_ASSERT(MediaManager::IsInMediaThread());
   // Plugin backends as appropriate. The default engine also currently
   // includes picture support for Android.
   // This IS called off main-thread.
-  MutexAutoLock lock(mMutex);
   if (!mBackend) {
     MOZ_RELEASE_ASSERT(!sInShutdown);  // we should never create a new backend in shutdown
 #if defined(MOZ_WEBRTC)
@@ -2585,12 +2573,6 @@ MediaManager::Shutdown()
   GetActiveWindows()->Clear();
   mActiveCallbacks.Clear();
   mCallIds.Clear();
-  {
-    MutexAutoLock lock(mMutex);
-    if (mBackend) {
-      mBackend->Shutdown(); // ok to invoke multiple times
-    }
-  }
 
   // Because mMediaThread is not an nsThread, we must dispatch to it so it can
   // clean up BackgroundChild. Continue stopping thread once this is done.
@@ -2598,26 +2580,32 @@ MediaManager::Shutdown()
   class ShutdownTask : public Task
   {
   public:
-    ShutdownTask(already_AddRefed<MediaEngine> aBackend,
+    ShutdownTask(MediaManager* aManager,
                  nsRunnable* aReply)
-      : mReply(aReply)
-      , mBackend(aBackend) {}
+      : mManager(aManager)
+      , mReply(aReply) {}
   private:
     virtual void
     Run()
     {
       LOG(("MediaManager Thread Shutdown"));
       MOZ_ASSERT(MediaManager::IsInMediaThread());
+      // Must shutdown backend on MediaManager thread, since that's where we started it from!
+      {
+        if (mManager->mBackend) {
+          mManager->mBackend->Shutdown(); // ok to invoke multiple times
+        }
+      }
       mozilla::ipc::BackgroundChild::CloseForCurrentThread();
       // must explicitly do this before dispatching the reply, since the reply may kill us with Stop()
-      mBackend = nullptr; // last reference, will invoke Shutdown() again
+      mManager->mBackend = nullptr; // last reference, will invoke Shutdown() again
 
       if (NS_FAILED(NS_DispatchToMainThread(mReply.forget()))) {
         LOG(("Will leak thread: DispatchToMainthread of reply runnable failed in MediaManager shutdown"));
       }
     }
+    RefPtr<MediaManager> mManager;
     RefPtr<nsRunnable> mReply;
-    RefPtr<MediaEngine> mBackend;
   };
 
   // Post ShutdownTask to execute on mMediaThread and pass in a lambda
@@ -2630,14 +2618,8 @@ MediaManager::Shutdown()
   // note that this == sSingleton
   RefPtr<MediaManager> that(sSingleton);
   // Release the backend (and call Shutdown()) from within the MediaManager thread
-  RefPtr<MediaEngine> temp;
-  {
-    MutexAutoLock lock(mMutex);
-    temp = mBackend.forget();
-  }
   // Don't use MediaManager::PostTask() because we're sInShutdown=true here!
-  mMediaThread->message_loop()->PostTask(FROM_HERE, new ShutdownTask(
-      temp.forget(),
+  mMediaThread->message_loop()->PostTask(FROM_HERE, new ShutdownTask(this,
       media::NewRunnableFrom([this, that]() mutable {
     LOG(("MediaManager shutdown lambda running, releasing MediaManager singleton and thread"));
     if (mMediaThread) {
@@ -2700,7 +2682,7 @@ MediaManager::Observe(nsISupports* aSubject, const char* aTopic,
       array->Count(&len);
       if (!len) {
         // neither audio nor video were selected
-        task->Denied(NS_LITERAL_STRING("PermissionDeniedError"));
+        task->Denied(NS_LITERAL_STRING("SecurityError"));
         return NS_OK;
       }
       bool videoFound = false, audioFound = false;
@@ -2737,7 +2719,7 @@ MediaManager::Observe(nsISupports* aSubject, const char* aTopic,
     return NS_OK;
 
   } else if (!strcmp(aTopic, "getUserMedia:response:deny")) {
-    nsString errorMessage(NS_LITERAL_STRING("PermissionDeniedError"));
+    nsString errorMessage(NS_LITERAL_STRING("SecurityError"));
 
     if (aSubject) {
       nsCOMPtr<nsISupportsString> msg(do_QueryInterface(aSubject));

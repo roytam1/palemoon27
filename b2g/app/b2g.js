@@ -945,7 +945,7 @@ pref("devtools.debugger.unix-domain-socket", "/data/local/debugger-socket");
 // falling back to Skia/software for smaller canvases
 #ifdef MOZ_WIDGET_GONK
 pref("gfx.canvas.azure.backends", "skia");
-pref("gfx.canvas.azure.accelerated", false);
+pref("gfx.canvas.azure.accelerated", true);
 #endif
 
 // Turn on dynamic cache size for Skia
@@ -980,7 +980,6 @@ pref("media.webspeech.synth.enabled", true);
 
 // Enable Web Speech recognition API
 pref("media.webspeech.recognition.enable", true);
-pref("media.webspeech.service.default", "pocketsphinx");
 
 // Downloads API
 pref("dom.mozDownloads.enabled", true);

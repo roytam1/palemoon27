@@ -11,8 +11,6 @@
 
 namespace mozilla {
 
-extern LazyLogModule gMediaDecoderLog;
-
 NS_IMPL_ISUPPORTS0(BufferDecoder)
 
 BufferDecoder::BufferDecoder(MediaResource* aResource)

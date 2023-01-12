@@ -52,13 +52,11 @@
 
 #include "mozilla/CheckedInt.h"
 
-#if defined(PR_LOGGING)
-GFX2D_API PRLogModuleInfo *
+#if defined(MOZ_LOGGING)
+GFX2D_API mozilla::LogModule*
 GetGFX2DLog()
 {
-  static PRLogModuleInfo *sLog;
-  if (!sLog)
-    sLog = PR_NewLogModule("gfx2d");
+  static mozilla::LazyLogModule sLog("gfx2d");
   return sLog;
 }
 #endif
@@ -236,6 +234,17 @@ Factory::HasSSE2()
     sDetectionState = HasCPUIDBit(1u, edx, (1u<<26)) ? HAS_SSE2 : NO_SSE2;
   }
   return sDetectionState == HAS_SSE2;
+#else
+  return false;
+#endif
+}
+
+bool
+Factory::HasVMX()
+{
+#if (defined(__powerpc__) || defined(__POWERPC__)) \
+    && (defined(__ALTIVEC__) || defined(__APPLE_ALTIVEC__))
+  return true;
 #else
   return false;
 #endif

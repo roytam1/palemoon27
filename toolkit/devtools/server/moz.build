@@ -21,15 +21,28 @@ EXPORTS.mozilla.devtools += [
     'AutoMemMap.h',
     'CoreDump.pb.h',
     'DeserializedNode.h',
+    'DominatorTree.h',
+    'FileDescriptorOutputStream.h',
     'HeapSnapshot.h',
+    'HeapSnapshotTempFileHelperChild.h',
+    'HeapSnapshotTempFileHelperParent.h',
     'ZeroCopyNSIOutputStream.h',
 ]
+
+IPDL_SOURCES += [
+    'PHeapSnapshotTempFileHelper.ipdl',
+]
+
+include('/ipc/chromium/chromium-config.mozbuild')
 
 SOURCES += [
     'AutoMemMap.cpp',
     'CoreDump.pb.cc',
     'DeserializedNode.cpp',
+    'DominatorTree.cpp',
+    'FileDescriptorOutputStream.cpp',
     'HeapSnapshot.cpp',
+    'HeapSnapshotTempFileHelperParent.cpp',
     'nsJSInspector.cpp',
     'ZeroCopyNSIOutputStream.cpp',
 ]

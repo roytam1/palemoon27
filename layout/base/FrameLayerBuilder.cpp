@@ -3882,6 +3882,13 @@ ContainerState::ProcessDisplayItems(nsDisplayList* aList)
       aList->SetNeedsTransparentSurface();
     }
 
+    nsDisplayItem::Type itemType = item->GetType();
+
+    if (mParameters.mForEventsOnly && !item->GetChildren() &&
+        itemType != nsDisplayItem::TYPE_LAYER_EVENT_REGIONS) {
+      continue;
+    }
+
     LayerState layerState = item->GetLayerState(mBuilder, mManager, mParameters);
     if (layerState == LAYER_INACTIVE &&
         nsDisplayItem::ForceActiveLayers()) {
@@ -3919,8 +3926,6 @@ ContainerState::ProcessDisplayItems(nsDisplayList* aList)
     if (!animatedGeometryRootForScrollMetadata) {
       animatedGeometryRootForScrollMetadata = animatedGeometryRoot;
     }
-
-    nsDisplayItem::Type itemType = item->GetType();
 
     if (animatedGeometryRoot != realAnimatedGeometryRootOfItem) {
       // Pick up any scroll clips that should apply to the item and apply them.
@@ -6136,13 +6141,8 @@ ContainerState::CreateMaskLayer(Layer *aLayer,
     // build the image and container
     container = aLayer->Manager()->CreateImageContainer();
     NS_ASSERTION(container, "Could not create image container for mask layer.");
-    RefPtr<Image> image = container->CreateImage(ImageFormat::CAIRO_SURFACE);
-    NS_ASSERTION(image, "Could not create image container for mask layer.");
-    CairoImage::Data data;
-    data.mSize = surfaceSizeInt;
-    data.mSourceSurface = surface;
 
-    static_cast<CairoImage*>(image.get())->SetData(data);
+    RefPtr<CairoImage> image = new CairoImage(surfaceSizeInt, surface);
     container->SetCurrentImageInTransaction(image);
 
     GetMaskLayerImageCache()->PutImage(newKey.forget(), container);

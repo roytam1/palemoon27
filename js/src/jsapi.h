@@ -1501,6 +1501,13 @@ JS_GetArrayPrototype(JSContext* cx, JS::HandleObject forObj);
 extern JS_PUBLIC_API(JSObject*)
 JS_GetErrorPrototype(JSContext* cx);
 
+/**
+ * Returns the %IteratorPrototype% object that all built-in iterator prototype
+ * chains go through for the global object of the current compartment of cx.
+ */
+extern JS_PUBLIC_API(JSObject*)
+JS_GetIteratorPrototype(JSContext* cx);
+
 extern JS_PUBLIC_API(JSObject*)
 JS_GetGlobalForObject(JSContext* cx, JSObject* obj);
 
@@ -3568,6 +3575,8 @@ namespace JS {
  *   derived from ReadOnlyCompileOptions, so the compiler accepts it.
  */
 
+enum class AsmJSOption : uint8_t { Enabled, Disabled, DisabledByDebugger };
+
 /**
  * The common base class for the CompileOptions hierarchy.
  *
@@ -3610,7 +3619,7 @@ class JS_FRIEND_API(TransitiveCompileOptions)
         strictOption(false),
         extraWarningsOption(false),
         werrorOption(false),
-        asmJSOption(false),
+        asmJSOption(AsmJSOption::Disabled),
         throwOnAsmJSValidationFailureOption(false),
         forceAsync(false),
         installedFile(false),
@@ -3645,7 +3654,7 @@ class JS_FRIEND_API(TransitiveCompileOptions)
     bool strictOption;
     bool extraWarningsOption;
     bool werrorOption;
-    bool asmJSOption;
+    AsmJSOption asmJSOption;
     bool throwOnAsmJSValidationFailureOption;
     bool forceAsync;
     bool installedFile;  // 'true' iff pre-compiling js file in packaged app

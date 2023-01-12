@@ -9,11 +9,14 @@
 #include "js/HashTable.h"
 #include "mozilla/ErrorResult.h"
 #include "mozilla/devtools/DeserializedNode.h"
+#include "mozilla/devtools/DominatorTree.h"
 #include "mozilla/dom/BindingDeclarations.h"
+#include "mozilla/dom/Nullable.h"
 #include "mozilla/HashFunctions.h"
 #include "mozilla/Maybe.h"
 #include "mozilla/RefCounted.h"
 #include "mozilla/RefPtr.h"
+#include "mozilla/TimeStamp.h"
 #include "mozilla/UniquePtr.h"
 
 #include "CoreDump.pb.h"
@@ -57,11 +60,13 @@ class HeapSnapshot final : public nsISupports
   // Initialize this HeapSnapshot from the given buffer that contains a
   // serialized core dump. Do NOT take ownership of the buffer, only borrow it
   // for the duration of the call. Return false on failure.
-  bool init(const uint8_t* buffer, uint32_t size);
+  bool init(JSContext* cx, const uint8_t* buffer, uint32_t size);
+
+  using NodeIdSet = js::HashSet<NodeId>;
 
   // Save the given `protobuf::Node` message in this `HeapSnapshot` as a
   // `DeserializedNode`.
-  bool saveNode(const protobuf::Node& node);
+  bool saveNode(const protobuf::Node& node, NodeIdSet& edgeReferents);
 
   // Save the given `protobuf::StackFrame` message in this `HeapSnapshot` as a
   // `DeserializedStackFrame`. The saved stack frame's id is returned via the
@@ -69,6 +74,13 @@ class HeapSnapshot final : public nsISupports
   bool saveStackFrame(const protobuf::StackFrame& frame,
                       StackFrameId& outFrameId);
 
+public:
+  // The maximum number of stack frames that we will serialize into a core
+  // dump. This helps prevent over-recursion in the protobuf library when
+  // deserializing stacks.
+  static const size_t MAX_STACK_DEPTH = 60;
+
+private:
   // If present, a timestamp in the same units that `PR_Now` gives.
   Maybe<uint64_t> timestamp;
 
@@ -109,6 +121,12 @@ public:
                                                uint32_t size,
                                                ErrorResult& rv);
 
+  // Creates the `$TEMP_DIR/XXXXXX-XXX.fxsnapshot` core dump file that heap
+  // snapshots are serialized into.
+  static already_AddRefed<nsIFile> CreateUniqueCoreDumpFile(ErrorResult& rv,
+                                                            const TimeStamp& now,
+                                                            nsAString& outFilePath);
+
   NS_DECL_CYCLE_COLLECTING_ISUPPORTS
   NS_DECL_CYCLE_COLLECTION_SCRIPT_HOLDER_CLASS(HeapSnapshot)
   MOZ_DECLARE_REFCOUNTED_TYPENAME(HeapSnapshot)
@@ -132,6 +150,17 @@ public:
 
   void TakeCensus(JSContext* cx, JS::HandleObject options,
                   JS::MutableHandleValue rval, ErrorResult& rv);
+
+  already_AddRefed<DominatorTree> ComputeDominatorTree(ErrorResult& rv);
+
+  dom::Nullable<uint64_t> GetCreationTime() {
+    static const uint64_t maxTime = uint64_t(1) << 53;
+    if (timestamp.isSome() && timestamp.ref() <= maxTime) {
+      return dom::Nullable<uint64_t>(timestamp.ref());
+    }
+
+    return dom::Nullable<uint64_t>();
+  }
 };
 
 // A `CoreDumpWriter` is given the data we wish to save in a core dump and

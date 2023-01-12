@@ -688,6 +688,8 @@ static const CipherPref sCipherPrefs[] = {
  // Deprecated (RSA key exchange):
  { "security.ssl3.rsa_aes_256_gcm_sha384",
    TLS_RSA_WITH_AES_256_GCM_SHA384, true }, 
+ {"security.ssl3.rsa_aes_128_gcm_sha256",
+   TLS_RSA_WITH_AES_128_GCM_SHA256, true },
  { "security.ssl3.rsa_aes_256_sha256",
    TLS_RSA_WITH_AES_256_CBC_SHA256, true }, 
  {"security.ssl3.rsa_camellia_128_sha",
@@ -717,7 +719,6 @@ static const CipherPref sCipherPrefs[] = {
  {"security.ssl3.rsa_fips_des_ede3_sha", SSL_RSA_FIPS_WITH_3DES_EDE_CBC_SHA, false, true },
  {"security.ssl3.dhe_dss_camellia_256_sha", TLS_DHE_DSS_WITH_CAMELLIA_256_CBC_SHA, false, false },
  {"security.ssl3.dhe_dss_camellia_128_sha", TLS_DHE_DSS_WITH_CAMELLIA_128_CBC_SHA, false, false },
- {"security.ssl3.rsa_aes_128_gcm_sha256", TLS_RSA_WITH_AES_128_GCM_SHA256, false, false },
  {"security.ssl3.rsa_aes_128_sha256", TLS_RSA_WITH_AES_128_CBC_SHA256, false, false },
  // Vulnerable
  {"security.ssl3.rsa_des_ede3_sha", TLS_RSA_WITH_3DES_EDE_CBC_SHA, false, true }, // (3DES)
@@ -920,6 +921,11 @@ void nsNSSComponent::setValidationOptions(bool isInitialSetting,
                                                   true);
   PublicSSLState()->SetOCSPStaplingEnabled(ocspStaplingEnabled);
   PrivateSSLState()->SetOCSPStaplingEnabled(ocspStaplingEnabled);
+
+  bool ocspMustStapleEnabled = Preferences::GetBool("security.ssl.enable_ocsp_must_staple",
+                                                    false);
+  PublicSSLState()->SetOCSPMustStapleEnabled(ocspMustStapleEnabled);
+  PrivateSSLState()->SetOCSPMustStapleEnabled(ocspMustStapleEnabled);
 
   CertVerifier::PinningMode pinningMode =
     static_cast<CertVerifier::PinningMode>
@@ -1422,6 +1428,7 @@ nsNSSComponent::Observe(nsISupports* aSubject, const char* aTopic,
                prefName.EqualsLiteral("security.OCSP.GET.enabled") ||
                prefName.EqualsLiteral("security.pki.cert_short_lifetime_in_days") ||
                prefName.EqualsLiteral("security.ssl.enable_ocsp_stapling") ||
+               prefName.EqualsLiteral("security.ssl.enable_ocsp_must_staple") ||
                prefName.EqualsLiteral("security.cert_pinning.enforcement_level") ||
                prefName.EqualsLiteral("security.pki.sha1_enforcement_level")) {
       MutexAutoLock lock(mutex);

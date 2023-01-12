@@ -11,7 +11,7 @@
 #include <sys/sysctl.h>
 #endif
 
-extern PRLogModuleInfo* gMediaStreamGraphLog;
+extern mozilla::LazyLogModule gMediaStreamGraphLog;
 #define STREAM_LOG(type, msg) MOZ_LOG(gMediaStreamGraphLog, type, msg)
 
 // We don't use NSPR log here because we want this interleaved with adb logcat

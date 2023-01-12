@@ -52,6 +52,8 @@ using ::google::protobuf::io::ZeroCopyInputStream;
 
 using JS::ubi::AtomOrTwoByteChars;
 
+/*** Cycle Collection Boilerplate *****************************************************************/
+
 NS_IMPL_CYCLE_COLLECTION_CLASS(HeapSnapshot)
 
 NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(HeapSnapshot)
@@ -89,7 +91,7 @@ HeapSnapshot::Create(JSContext* cx,
                      ErrorResult& rv)
 {
   RefPtr<HeapSnapshot> snapshot = new HeapSnapshot(cx, global.GetAsSupports());
-  if (!snapshot->init(buffer, size)) {
+  if (!snapshot->init(cx, buffer, size)) {
     rv.Throw(NS_ERROR_UNEXPECTED);
     return nullptr;
   }
@@ -104,6 +106,15 @@ parseMessage(ZeroCopyInputStream& stream, MessageType& message)
   // 64MB limit is applied per-message rather than to the whole stream.
   CodedInputStream codedStream(&stream);
 
+  // The protobuf message nesting that core dumps exhibit is dominated by
+  // allocation stacks' frames. In the most deeply nested case, each frame has
+  // two messages: a StackFrame message and a StackFrame::Data message. These
+  // frames are on top of a small constant of other messages. There are a
+  // MAX_STACK_DEPTH number of frames, so we multiply this by 3 to make room for
+  // the two messages per frame plus some head room for the constant number of
+  // non-dominating messages.
+  codedStream.SetRecursionLimit(HeapSnapshot::MAX_STACK_DEPTH * 3);
+
   // Because protobuf messages aren't self-delimiting, we serialize each message
   // preceeded by its size in bytes. When deserializing, we read this size and
   // then limit reading from the stream to the given byte size. If we didn't,
@@ -115,7 +126,8 @@ parseMessage(ZeroCopyInputStream& stream, MessageType& message)
 
   auto limit = codedStream.PushLimit(size);
   if (NS_WARN_IF(!message.ParseFromCodedStream(&codedStream)) ||
-      NS_WARN_IF(!codedStream.ConsumedEntireMessage()))
+      NS_WARN_IF(!codedStream.ConsumedEntireMessage()) ||
+      NS_WARN_IF(codedStream.BytesUntilLimit() != 0))
   {
     return false;
   }
@@ -191,7 +203,7 @@ HeapSnapshot::getOrInternString(InternedStringSet& internedStrings,
        : Nothing())
 
 bool
-HeapSnapshot::saveNode(const protobuf::Node& node)
+HeapSnapshot::saveNode(const protobuf::Node& node, NodeIdSet& edgeReferents)
 {
   // NB: de-duplicated string properties must be read back and interned in the
   // same order here as they are written and serialized in
@@ -235,6 +247,9 @@ HeapSnapshot::saveNode(const protobuf::Node& node)
     if (NS_WARN_IF(!protoEdge.has_referent()))
       return false;
     NodeId referent = protoEdge.referent();
+
+    if (NS_WARN_IF(!edgeReferents.put(referent)))
+      return false;
 
     const char16_t* edgeName = nullptr;
     if (protoEdge.EdgeNameOrRef_case() != protobuf::Edge::EDGENAMEORREF_NOT_SET) {
@@ -357,6 +372,9 @@ HeapSnapshot::saveStackFrame(const protobuf::StackFrame& frame,
   return true;
 }
 
+#undef GET_STRING_OR_REF_WITH_PROP_NAMES
+#undef GET_STRING_OR_REF
+
 static inline bool
 StreamHasData(GzipInputStream& stream)
 {
@@ -381,7 +399,7 @@ StreamHasData(GzipInputStream& stream)
 }
 
 bool
-HeapSnapshot::init(const uint8_t* buffer, uint32_t size)
+HeapSnapshot::init(JSContext* cx, const uint8_t* buffer, uint32_t size)
 {
   if (!nodes.init() || !frames.init())
     return false;
@@ -409,7 +427,12 @@ HeapSnapshot::init(const uint8_t* buffer, uint32_t size)
     return false;
   rootId = root.id();
 
-  if (NS_WARN_IF(!saveNode(root)))
+  // The set of all node ids we've found edges pointing to.
+  NodeIdSet edgeReferents(cx);
+  if (NS_WARN_IF(!edgeReferents.init()))
+    return false;
+
+  if (NS_WARN_IF(!saveNode(root, edgeReferents)))
     return false;
 
   // Finally, the rest of the nodes in the core dump.
@@ -418,7 +441,15 @@ HeapSnapshot::init(const uint8_t* buffer, uint32_t size)
     protobuf::Node node;
     if (!parseMessage(gzipStream, node))
       return false;
-    if (NS_WARN_IF(!saveNode(node)))
+    if (NS_WARN_IF(!saveNode(node, edgeReferents)))
+      return false;
+  }
+
+  // Check the set of node ids referred to by edges we found and ensure that we
+  // have the node corresponding to each id. If we don't have all of them, it is
+  // unsafe to perform analyses of this heap snapshot.
+  for (auto range = edgeReferents.all(); !range.empty(); range.popFront()) {
+    if (NS_WARN_IF(!nodes.has(range.front())))
       return false;
   }
 
@@ -478,8 +509,26 @@ HeapSnapshot::TakeCensus(JSContext* cx, JS::HandleObject options,
   }
 }
 
-#undef GET_STRING_OR_REF_WITH_PROP_NAMES
-#undef GET_STRING_OR_REF
+already_AddRefed<DominatorTree>
+HeapSnapshot::ComputeDominatorTree(ErrorResult& rv)
+{
+  Maybe<JS::ubi::DominatorTree> maybeTree;
+  {
+    auto ccrt = CycleCollectedJSRuntime::Get();
+    MOZ_ASSERT(ccrt);
+    auto rt = ccrt->Runtime();
+    MOZ_ASSERT(rt);
+    JS::AutoCheckCannotGC nogc(rt);
+    maybeTree = JS::ubi::DominatorTree::Create(rt, nogc, getRoot());
+  }
+
+  if (maybeTree.isNothing()) {
+    rv.Throw(NS_ERROR_OUT_OF_MEMORY);
+    return nullptr;
+  }
+
+  return MakeAndAddRef<DominatorTree>(Move(*maybeTree), mParent);
+}
 
 
 /*** Saving Heap Snapshots ************************************************************************/
@@ -909,7 +958,8 @@ class MOZ_STACK_CLASS StreamWriter : public CoreDumpWriter
     return true;
   }
 
-  protobuf::StackFrame* getProtobufStackFrame(JS::ubi::StackFrame& frame) {
+  protobuf::StackFrame* getProtobufStackFrame(JS::ubi::StackFrame& frame,
+                                              size_t depth = 1) {
     // NB: de-duplicated string properties must be written in the same order
     // here as they are read in `HeapSnapshot::saveStackFrame` or else indices
     // in references to already serialized strings will be off.
@@ -957,8 +1007,8 @@ class MOZ_STACK_CLASS StreamWriter : public CoreDumpWriter
     }
 
     auto parent = frame.parent();
-    if (parent) {
-      auto protobufParent = getProtobufStackFrame(parent);
+    if (parent && depth < HeapSnapshot::MAX_STACK_DEPTH) {
+      auto protobufParent = getProtobufStackFrame(parent, depth + 1);
       if (!protobufParent)
         return nullptr;
       data->set_allocated_parent(protobufParent);
@@ -1294,7 +1344,6 @@ using namespace devtools;
 
 /* static */ void
 ThreadSafeChromeUtils::SaveHeapSnapshot(GlobalObject& global,
-                                        JSContext* cx,
                                         const HeapSnapshotBoundaries& boundaries,
                                         nsAString& outFilePath,
                                         ErrorResult& rv)
@@ -1313,6 +1362,7 @@ ThreadSafeChromeUtils::SaveHeapSnapshot(GlobalObject& global,
   ZeroCopyNSIOutputStream zeroCopyStream(outputStream);
   ::google::protobuf::io::GzipOutputStream gzipStream(&zeroCopyStream);
 
+  JSContext* cx = global.Context();
   StreamWriter writer(cx, gzipStream, wantNames);
   if (NS_WARN_IF(!writer.init())) {
     rv.Throw(NS_ERROR_OUT_OF_MEMORY);
@@ -1358,7 +1408,6 @@ ThreadSafeChromeUtils::SaveHeapSnapshot(GlobalObject& global,
 
 /* static */ already_AddRefed<HeapSnapshot>
 ThreadSafeChromeUtils::ReadHeapSnapshot(GlobalObject& global,
-                                        JSContext* cx,
                                         const nsAString& filePath,
                                         ErrorResult& rv)
 {
@@ -1376,7 +1425,8 @@ ThreadSafeChromeUtils::ReadHeapSnapshot(GlobalObject& global,
     return nullptr;
 
   RefPtr<HeapSnapshot> snapshot = HeapSnapshot::Create(
-      cx, global, reinterpret_cast<const uint8_t*>(mm.address()), mm.size(), rv);
+      global.Context(), global, reinterpret_cast<const uint8_t*>(mm.address()),
+      mm.size(), rv);
 
   if (!rv.Failed())
     Telemetry::AccumulateTimeDelta(Telemetry::DEVTOOLS_READ_HEAP_SNAPSHOT_MS,

@@ -11,8 +11,8 @@
 
 namespace mozilla {
 
-class MediaResource;
 class MediaDecoderOwner;
+class MediaResource;
 
 /**
  * A callback used by MediaResource (sub-classes like FileMediaResource,
@@ -25,6 +25,8 @@ class MediaDecoderOwner;
  */
 class MediaResourceCallback {
 public:
+  NS_INLINE_DECL_THREADSAFE_REFCOUNTING(MediaResourceCallback);
+
   // Returns a weak reference to the media decoder owner.
   virtual MediaDecoderOwner* GetMediaOwner() const { return nullptr; }
 
@@ -68,6 +70,9 @@ public:
 
   // Notify the number of bytes read from the resource.
   virtual void NotifyBytesConsumed(int64_t aBytes, int64_t aOffset) {}
+
+protected:
+  virtual ~MediaResourceCallback() {}
 };
 
 } // namespace mozilla

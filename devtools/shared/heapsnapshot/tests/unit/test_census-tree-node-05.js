@@ -39,61 +39,97 @@ function run_test() {
 
   const EXPECTED = {
     name: null,
-    bytes: undefined,
-    count: undefined,
+    bytes: 0,
+    totalBytes: 150,
+    count: 0,
+    totalCount: 15,
     children: [
       {
-        name: "noStack",
-        bytes: 50,
-        count: 5,
-        children: undefined
-      },
-      {
         name: stack.parent.parent,
-        bytes: undefined,
-        count: undefined,
+        bytes: 0,
+        totalBytes: 100,
+        count: 0,
+        totalCount: 10,
         children: [
           {
             name: stack.parent,
-            bytes: undefined,
-            count: undefined,
+            bytes: 0,
+            totalBytes: 100,
+            count: 0,
+            totalCount: 10,
             children: [
               {
                 name: stack,
-                bytes: undefined,
-                count: undefined,
+                bytes: 0,
+                totalBytes: 100,
+                count: 0,
+                totalCount: 10,
                 children: [
                   {
                     name: "other",
                     bytes: 40,
+                    totalBytes: 40,
                     count: 4,
-                    children: undefined
+                    totalCount: 4,
+                    children: undefined,
+                    id: 8,
+                    parent: 4,
                   },
                   {
                     name: "Baz",
                     bytes: 30,
+                    totalBytes: 30,
                     count: 3,
-                    children: undefined
+                    totalCount: 3,
+                    children: undefined,
+                    id: 7,
+                    parent: 4,
                   },
                   {
                     name: "Bar",
                     bytes: 20,
+                    totalBytes: 20,
                     count: 2,
-                    children: undefined
+                    totalCount: 2,
+                    children: undefined,
+                    id: 6,
+                    parent: 4,
                   },
                   {
                     name: "Foo",
                     bytes: 10,
+                    totalBytes: 10,
                     count: 1,
-                    children: undefined
+                    totalCount: 1,
+                    children: undefined,
+                    id: 5,
+                    parent: 4,
                   },
-                ]
+                ],
+                id: 4,
+                parent: 3,
               }
-            ]
+            ],
+            id: 3,
+            parent: 2,
           }
-        ]
-      }
-    ]
+        ],
+        id: 2,
+        parent: 1,
+      },
+      {
+        name: "noStack",
+        bytes: 50,
+        totalBytes: 50,
+        count: 5,
+        totalCount: 5,
+        children: undefined,
+        id: 9,
+        parent: 1,
+      },
+    ],
+    id: 1,
+    parent: undefined,
   };
 
   compareCensusViewData(BREAKDOWN, REPORT, EXPECTED);

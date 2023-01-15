@@ -758,3 +758,18 @@ exports.openFileStream = function (filePath) {
     );
   });
 }
+
+exports.isGenerator = function (fn) {
+  return typeof fn === "function" && fn.isGenerator();
+};
+
+exports.isPromise = function (p) {
+  return p && typeof p.then === "function";
+};
+
+/**
+ * Return true if `thing` is a SavedFrame, false otherwise.
+ */
+exports.isSavedFrame = function (thing) {
+  return Object.prototype.toString.call(thing) === "[object SavedFrame]";
+};

@@ -34,9 +34,6 @@
 #include "mozilla/ChaosMode.h"
 #include "mozilla/unused.h"
 
-// defined by the socket transport service while active
-extern PRThread *gSocketThread;
-
 namespace mozilla {
 namespace net {
 

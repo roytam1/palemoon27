@@ -247,6 +247,9 @@ public:
   void
   FlushConsoleReports(nsIDocument* aDocument) override;
 
+  void
+  FlushConsoleReports(nsIConsoleReportCollector* aCollector) override;
+
   class nsContentEncodings : public nsIUTF8StringEnumerator
     {
     public:
@@ -312,7 +315,8 @@ protected:
   void AddCookiesToRequest();
   virtual nsresult SetupReplacementChannel(nsIURI *,
                                            nsIChannel *,
-                                           bool preserveMethod);
+                                           bool preserveMethod,
+                                           uint32_t redirectFlags);
 
   // bundle calling OMR observers and marking flag into one function
   inline void CallOnModifyRequestObservers() {

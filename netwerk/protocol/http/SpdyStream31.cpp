@@ -27,11 +27,6 @@
 
 #include <algorithm>
 
-#ifdef DEBUG
-// defined by the socket transport service while active
-extern PRThread *gSocketThread;
-#endif
-
 namespace mozilla {
 namespace net {
 

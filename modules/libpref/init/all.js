@@ -1400,8 +1400,10 @@ pref("privacy.popups.disable_from_plugins", 2);
 
 // send "do not track" HTTP header, disabled by default
 pref("privacy.donottrackheader.enabled",    false);
-// Enforce tracking protection
+// Enforce tracking protection in all modes
 pref("privacy.trackingprotection.enabled",  false);
+// Enforce tracking protection in Private Browsing mode
+pref("privacy.trackingprotection.pbmode.enabled",  true);
 
 pref("dom.event.contextmenu.enabled",       true);
 pref("dom.event.clipboardevents.enabled",   true);
@@ -2134,7 +2136,7 @@ pref("network.cookie.cookieBehavior",       0); // 0-Accept, 1-dontAcceptForeign
 pref("network.cookie.cookieBehavior",       0); // Keep the old default of accepting all cookies
 #endif
 pref("network.cookie.thirdparty.sessionOnly", false);
-pref("network.cookie.lifetimePolicy",       0); // 0-accept normally, 2-acceptForSession,3-acceptForNDays
+pref("network.cookie.lifetimePolicy",       0); // 0-accept, 2-acceptForSession, 3-acceptForNDays
 pref("network.cookie.alwaysAcceptSessionCookies", false);
 pref("network.cookie.prefsMigrated",        false);
 pref("network.cookie.lifetime.days",        90);

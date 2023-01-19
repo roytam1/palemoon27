@@ -1855,7 +1855,7 @@ NS_METHOD nsWindow::SetFocus(bool aRaise)
 // Return the window's full dimensions in screen coordinates.
 // If the window has a parent, converts the origin to an offset
 // of the parent's screen origin.
-NS_METHOD nsWindow::GetBoundsUntyped(nsIntRect &aRect)
+NS_METHOD nsWindow::GetBounds(LayoutDeviceIntRect& aRect)
 {
   if (mWnd) {
     RECT r;
@@ -1917,21 +1917,21 @@ NS_METHOD nsWindow::GetBoundsUntyped(nsIntRect &aRect)
     aRect.x = r.left;
     aRect.y = r.top;
   } else {
-    aRect = mBounds;
+    aRect = LayoutDeviceIntRect::FromUnknownRect(mBounds);
   }
   return NS_OK;
 }
 
 // Get this component dimension
-NS_METHOD nsWindow::GetClientBoundsUntyped(nsIntRect &aRect)
+NS_METHOD nsWindow::GetClientBounds(LayoutDeviceIntRect& aRect)
 {
   if (mWnd) {
     RECT r;
     VERIFY(::GetClientRect(mWnd, &r));
 
-    nsIntRect bounds;
-    GetBoundsUntyped(bounds);
-    aRect.MoveTo(bounds.TopLeft() + GetClientOffsetUntyped());
+    LayoutDeviceIntRect bounds;
+    GetBounds(bounds);
+    aRect.MoveTo(bounds.TopLeft() + GetClientOffset());
     aRect.width  = r.right - r.left;
     aRect.height = r.bottom - r.top;
 
@@ -1942,7 +1942,7 @@ NS_METHOD nsWindow::GetClientBoundsUntyped(nsIntRect &aRect)
 }
 
 // Like GetBounds, but don't offset by the parent
-NS_METHOD nsWindow::GetScreenBoundsUntyped(nsIntRect &aRect)
+NS_METHOD nsWindow::GetScreenBounds(LayoutDeviceIntRect& aRect)
 {
   if (mWnd) {
     RECT r;
@@ -1952,9 +1952,9 @@ NS_METHOD nsWindow::GetScreenBoundsUntyped(nsIntRect &aRect)
     aRect.height = r.bottom - r.top;
     aRect.x = r.left;
     aRect.y = r.top;
-  } else
-    aRect = mBounds;
-
+  } else {
+    aRect = LayoutDeviceIntRect::FromUnknownRect(mBounds);
+  }
   return NS_OK;
 }
 
@@ -1984,19 +1984,19 @@ NS_METHOD nsWindow::GetRestoredBounds(LayoutDeviceIntRect &aRect)
   return NS_OK;
 }
 
-// return the x,y offset of the client area from the origin
-// of the window. If the window is borderless returns (0,0).
-nsIntPoint
-nsWindow::GetClientOffsetUntyped()
+// Return the x,y offset of the client area from the origin of the window. If
+// the window is borderless returns (0,0).
+LayoutDeviceIntPoint
+nsWindow::GetClientOffset()
 {
   if (!mWnd) {
-    return nsIntPoint(0, 0);
+    return LayoutDeviceIntPoint(0, 0);
   }
 
   RECT r1;
   GetWindowRect(mWnd, &r1);
   LayoutDeviceIntPoint pt = WidgetToScreenOffset();
-  return nsIntPoint(pt.x - r1.left, pt.y - r1.top);
+  return LayoutDeviceIntPoint(pt.x - r1.left, pt.y - r1.top);
 }
 
 void

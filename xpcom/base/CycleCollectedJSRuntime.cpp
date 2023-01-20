@@ -60,7 +60,6 @@
 #include "mozilla/AutoRestore.h"
 #include "mozilla/MemoryReporting.h"
 #include "mozilla/Telemetry.h"
-#include "mozilla/dom/BindingUtils.h"
 #include "mozilla/DebuggerOnGCRunnable.h"
 #include "mozilla/dom/DOMJSClass.h"
 #include "mozilla/dom/Promise.h"
@@ -1138,7 +1137,9 @@ CycleCollectedJSRuntime::RunInMetastableState(already_AddRefed<nsIRunnable>&& aR
   data.mRecursionDepth = RecursionDepth();
 
   // There must be an event running to get here.
+#ifndef MOZ_WIDGET_COCOA
   MOZ_ASSERT(data.mRecursionDepth > mBaseRecursionDepth);
+#endif
 
   mMetastableStateEvents.AppendElement(Move(data));
 }

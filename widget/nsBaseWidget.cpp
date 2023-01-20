@@ -221,6 +221,7 @@ void
 WidgetShutdownObserver::Unregister()
 {
   if (mRegistered) {
+    mWidget = nullptr;
     nsContentUtils::UnregisterShutdownObserver(this);
     mRegistered = false;
   }
@@ -790,15 +791,10 @@ NS_IMETHODIMP nsBaseWidget::MakeFullScreen(bool aFullScreen, nsIScreen* aScreen)
   HideWindowChrome(aFullScreen);
 
   if (aFullScreen) {
-    if (!mOriginalBounds)
-      mOriginalBounds = new nsIntRect();
-    GetScreenBoundsUntyped(*mOriginalBounds);
-    // convert dev pix to display pix for window manipulation
-    CSSToLayoutDeviceScale scale = GetDefaultScale();
-    mOriginalBounds->x = NSToIntRound(mOriginalBounds->x / scale.scale);
-    mOriginalBounds->y = NSToIntRound(mOriginalBounds->y / scale.scale);
-    mOriginalBounds->width = NSToIntRound(mOriginalBounds->width / scale.scale);
-    mOriginalBounds->height = NSToIntRound(mOriginalBounds->height / scale.scale);
+    if (!mOriginalBounds) {
+      mOriginalBounds = new CSSIntRect();
+    }
+    *mOriginalBounds = GetScaledScreenBounds();
 
     // Move to top-left corner of screen and size to the screen dimensions
     nsCOMPtr<nsIScreenManager> screenManager;
@@ -1286,18 +1282,18 @@ NS_METHOD nsBaseWidget::ResizeClient(double aX,
 * If the implementation of nsWindow supports borders this method MUST be overridden
 *
 **/
-NS_METHOD nsBaseWidget::GetClientBoundsUntyped(nsIntRect &aRect)
+NS_METHOD nsBaseWidget::GetClientBounds(LayoutDeviceIntRect &aRect)
 {
-  return GetBoundsUntyped(aRect);
+  return GetBounds(aRect);
 }
 
 /**
 * If the implementation of nsWindow supports borders this method MUST be overridden
 *
 **/
-NS_METHOD nsBaseWidget::GetBoundsUntyped(nsIntRect &aRect)
+NS_METHOD nsBaseWidget::GetBounds(LayoutDeviceIntRect &aRect)
 {
-  aRect = mBounds;
+  aRect = LayoutDeviceIntRect::FromUnknownRect(mBounds);
   return NS_OK;
 }
 
@@ -1306,12 +1302,12 @@ NS_METHOD nsBaseWidget::GetBoundsUntyped(nsIntRect &aRect)
 * this method must be overridden
 *
 **/
-NS_METHOD nsBaseWidget::GetScreenBoundsUntyped(nsIntRect &aRect)
+NS_METHOD nsBaseWidget::GetScreenBounds(LayoutDeviceIntRect& aRect)
 {
-  return GetBoundsUntyped(aRect);
+  return GetBounds(aRect);
 }
 
-NS_METHOD nsBaseWidget::GetRestoredBounds(LayoutDeviceIntRect &aRect)
+NS_METHOD nsBaseWidget::GetRestoredBounds(LayoutDeviceIntRect& aRect)
 {
   if (SizeMode() != nsSizeMode_Normal) {
     return NS_ERROR_FAILURE;
@@ -1319,10 +1315,10 @@ NS_METHOD nsBaseWidget::GetRestoredBounds(LayoutDeviceIntRect &aRect)
   return GetScreenBounds(aRect);
 }
 
-nsIntPoint
-nsBaseWidget::GetClientOffsetUntyped()
+LayoutDeviceIntPoint
+nsBaseWidget::GetClientOffset()
 {
-  return nsIntPoint(0, 0);
+  return LayoutDeviceIntPoint(0, 0);
 }
 
 NS_IMETHODIMP
@@ -1699,6 +1695,18 @@ nsBaseWidget::StartAsyncScrollbarDrag(const AsyncDragMetrics& aDragMetrics)
 
   APZThreadUtils::RunOnControllerThread(
     NewRunnableMethod(mAPZC.get(), &APZCTreeManager::StartScrollbarDrag, guid, aDragMetrics));
+}
+
+CSSIntRect
+nsBaseWidget::GetScaledScreenBounds()
+{
+  LayoutDeviceIntRect bounds;
+  GetScreenBounds(bounds);
+
+  // *Dividing* a LayoutDeviceIntRect by a CSSToLayoutDeviceScale gives a
+  // CSSIntRect.
+  CSSToLayoutDeviceScale scale = GetDefaultScale();
+  return RoundedToInt(bounds / scale);
 }
 
 nsresult

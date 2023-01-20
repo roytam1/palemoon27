@@ -260,6 +260,6 @@ private:
 };
 
 extern nsSocketTransportService *gSocketTransportService;
-extern PRThread                 *gSocketThread;
+extern mozilla::Atomic<PRThread*, mozilla::Relaxed> gSocketThread;
 
 #endif // !nsSocketTransportService_h__

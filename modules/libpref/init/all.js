@@ -3578,6 +3578,18 @@ pref("ui.window_class_override", "");
 // page back/forward actions, or if pinch-to-zoom does not work.
 pref("ui.elantech_gesture_hacks.enabled", -1);
 
+// Show the Windows on-screen keyboard (osk.exe) when a text field is focused.
+#ifdef RELEASE_BUILD
+pref("ui.osk.enabled", false);
+#else
+pref("ui.osk.enabled", true);
+#endif
+// Only show the on-screen keyboard if there are no physical keyboards attached
+// to the device.
+pref("ui.osk.detect_physical_keyboard", true);
+// Path to TabTip.exe on local machine. Cached for performance reasons.
+pref("ui.osk.on_screen_keyboard_path", "");
+
 # XP_WIN
 #endif
 
@@ -5200,10 +5212,6 @@ pref("dom.presentation.discoverable", false);
 #ifdef XP_MACOSX
 // Use raw ICU instead of CoreServices API in Unicode collation
 pref("intl.collation.mac.use_icu", true);
-
-// Enable NSTextInput protocol for use with IMEs that have not
-// been updated to use the NSTextInputClient protocol.
-pref("intl.ime.nstextinput.enable", false);
 
 #if !defined(RELEASE_BUILD) || defined(DEBUG)
 // In non-release builds we crash by default on insecure text input (when a

@@ -1580,8 +1580,7 @@ NS_IMETHODIMP nsCocoaWindow::GetClientBounds(mozilla::LayoutDeviceIntRect& aRect
 
   CGFloat scaleFactor = BackingScaleFactor();
   if (!mWindow) {
-    aRect = LayoutDeviceIntRect::FromUnknownRect(
-      nsCocoaUtils::CocoaRectToGeckoRectDevPix(NSZeroRect, scaleFactor));
+    aRect = nsCocoaUtils::CocoaRectToGeckoRectDevPix(NSZeroRect, scaleFactor);
     return NS_OK;
   }
 
@@ -1593,8 +1592,7 @@ NS_IMETHODIMP nsCocoaWindow::GetClientBounds(mozilla::LayoutDeviceIntRect& aRect
     r = [mWindow contentRectForFrameRect:[mWindow frame]];
   }
 
-  aRect = LayoutDeviceIntRect::FromUnknownRect(
-    nsCocoaUtils::CocoaRectToGeckoRectDevPix(r, scaleFactor));
+  aRect = nsCocoaUtils::CocoaRectToGeckoRectDevPix(r, scaleFactor);
 
   return NS_OK;
 
@@ -1608,7 +1606,8 @@ nsCocoaWindow::UpdateBounds()
   if (mWindow) {
     frame = [mWindow frame];
   }
-  mBounds = nsCocoaUtils::CocoaRectToGeckoRectDevPix(frame, BackingScaleFactor());
+  mBounds = nsCocoaUtils::CocoaRectToGeckoRectDevPix(
+    frame, BackingScaleFactor()).ToUnknownRect();
 }
 
 NS_IMETHODIMP nsCocoaWindow::GetScreenBounds(LayoutDeviceIntRect &aRect)
@@ -1616,8 +1615,8 @@ NS_IMETHODIMP nsCocoaWindow::GetScreenBounds(LayoutDeviceIntRect &aRect)
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK_NSRESULT;
 
 #ifdef DEBUG
-  nsIntRect r = nsCocoaUtils::CocoaRectToGeckoRectDevPix([mWindow frame], BackingScaleFactor());
-  NS_ASSERTION(mWindow && mBounds == r, "mBounds out of sync!");
+  LayoutDeviceIntRect r = nsCocoaUtils::CocoaRectToGeckoRectDevPix([mWindow frame], BackingScaleFactor());
+  NS_ASSERTION(mWindow && mBounds == r.ToUnknownRect(), "mBounds out of sync!");
 #endif
 
   aRect = LayoutDeviceIntRect::FromUnknownRect(mBounds);
@@ -1996,13 +1995,13 @@ LayoutDeviceIntPoint nsCocoaWindow::WidgetToScreenOffset()
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK_RETURN;
 
   NSRect rect = NSZeroRect;
-  nsIntRect r;
+  LayoutDeviceIntRect r;
   if (mWindow) {
     rect = [mWindow contentRectForFrameRect:[mWindow frame]];
   }
   r = nsCocoaUtils::CocoaRectToGeckoRectDevPix(rect, BackingScaleFactor());
 
-  return LayoutDeviceIntPoint::FromUnknownPoint(r.TopLeft());
+  return r.TopLeft();
 
   NS_OBJC_END_TRY_ABORT_BLOCK_RETURN(LayoutDeviceIntPoint(0,0));
 }
@@ -2029,12 +2028,12 @@ nsCocoaWindow::ClientToWindowSize(const LayoutDeviceIntSize& aClientSize)
     return LayoutDeviceIntSize(0, 0);
 
   CGFloat backingScale = BackingScaleFactor();
-  nsIntRect r(0, 0, aClientSize.width, aClientSize.height);
+  LayoutDeviceIntRect r(0, 0, aClientSize.width, aClientSize.height);
   NSRect rect = nsCocoaUtils::DevPixelsToCocoaPoints(r, backingScale);
 
   NSRect inflatedRect = [mWindow frameRectForContentRect:rect];
   r = nsCocoaUtils::CocoaRectToGeckoRectDevPix(inflatedRect, backingScale);
-  return LayoutDeviceIntSize(r.width, r.height);
+  return r.Size();
 
   NS_OBJC_END_TRY_ABORT_BLOCK_RETURN(LayoutDeviceIntSize(0,0));
 }
@@ -2303,16 +2302,8 @@ nsCocoaWindow::NotifyIMEInternal(const IMENotification& aIMENotification)
 {
   switch (aIMENotification.mMessage) {
     case NOTIFY_IME_OF_FOCUS:
-      if (mInputContext.IsPasswordEditor()) {
-        TextInputHandler::EnableSecureEventInput();
-      } else {
-        TextInputHandler::EnsureSecureEventInputDisabled();
-      }
       return NS_OK;
     case NOTIFY_IME_OF_BLUR:
-      // When we're going to be deactive, we must disable the secure event input
-      // mode, see the Carbon Event Manager Reference.
-      TextInputHandler::EnsureSecureEventInputDisabled();
       return NS_OK;
     default:
       return NS_ERROR_NOT_IMPLEMENTED;
@@ -2325,16 +2316,6 @@ nsCocoaWindow::SetInputContext(const InputContext& aContext,
 {
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK;
 
-  if (mWindow &&
-      [mWindow firstResponder] == mWindow &&
-      [mWindow isKeyWindow] &&
-      [[NSApplication sharedApplication] isActive]) {
-    if (aContext.IsPasswordEditor()) {
-      TextInputHandler::EnableSecureEventInput();
-    } else {
-      TextInputHandler::EnsureSecureEventInputDisabled();
-    }
-  }
   mInputContext = aContext;
 
   NS_OBJC_END_TRY_ABORT_BLOCK;
@@ -2571,6 +2552,16 @@ nsCocoaWindow::ExecuteNativeKeyBinding(NativeKeyBindingsType aType,
   if ([window isSheet])
     [WindowDelegate paintMenubarForWindow:window];
 
+  nsChildView* mainChildView =
+    static_cast<nsChildView*>([[(BaseWindow*)window mainChildView] widget]);
+  if (mainChildView) {
+    if (mainChildView->GetInputContext().IsPasswordEditor()) {
+      TextInputHandler::EnableSecureEventInput();
+    } else {
+      TextInputHandler::EnsureSecureEventInputDisabled();
+    }
+  }
+
   NS_OBJC_END_TRY_ABORT_BLOCK;
 }
 
@@ -2586,6 +2577,8 @@ nsCocoaWindow::ExecuteNativeKeyBinding(NativeKeyBindingsType aType,
   NSWindow* window = [aNotification object];
   if ([window isSheet])
     [WindowDelegate paintMenubarForWindow:[NSApp mainWindow]];
+
+  TextInputHandler::EnsureSecureEventInputDisabled();
 
   NS_OBJC_END_TRY_ABORT_BLOCK;
 }

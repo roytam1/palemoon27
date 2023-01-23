@@ -335,6 +335,7 @@ class nsIWidget : public nsISupports {
     typedef mozilla::LayoutDeviceIntMargin LayoutDeviceIntMargin;
     typedef mozilla::LayoutDeviceIntPoint LayoutDeviceIntPoint;
     typedef mozilla::LayoutDeviceIntRect LayoutDeviceIntRect;
+    typedef mozilla::LayoutDeviceIntRegion LayoutDeviceIntRegion;
     typedef mozilla::LayoutDeviceIntSize LayoutDeviceIntSize;
 
     // Used in UpdateThemeGeometries.
@@ -1258,7 +1259,8 @@ class nsIWidget : public nsISupports {
      *
      * Always called from the compositing thread.
      */
-    virtual void DrawWindowOverlay(LayerManagerComposite* aManager, nsIntRect aRect) = 0;
+    virtual void DrawWindowOverlay(LayerManagerComposite* aManager,
+                                   LayoutDeviceIntRect aRect) = 0;
 
     /**
      * Return a DrawTarget for the window which can be composited into.
@@ -1500,7 +1502,7 @@ class nsIWidget : public nsISupports {
      * @param aResizerRect The resizer's rect in device pixels.
      * @return Whether a resize widget is shown.
      */
-    virtual bool ShowsResizeIndicator(nsIntRect* aResizerRect) = 0;
+    virtual bool ShowsResizeIndicator(LayoutDeviceIntRect* aResizerRect) = 0;
 
     /**
      * Return the popup that was last rolled up, or null if there isn't one.
@@ -1836,17 +1838,6 @@ public:
                         const mozilla::WidgetKeyboardEvent& aEvent,
                         DoCommandCallback aCallback,
                         void* aCallbackData) = 0;
-
-    /*
-     * Get toggled key states.
-     * aKeyCode should be NS_VK_CAPS_LOCK or  NS_VK_NUM_LOCK or
-     * NS_VK_SCROLL_LOCK.
-     * aLEDState is the result for current LED state of the key.
-     * If the LED is 'ON', it returns TRUE, otherwise, FALSE.
-     * If the platform doesn't support the LED state (or we cannot get the
-     * state), this method returns NS_ERROR_NOT_IMPLEMENTED.
-     */
-    NS_IMETHOD GetToggledKeyState(uint32_t aKeyCode, bool* aLEDState) = 0;
 
     /*
      * Retrieves preference for IME updates

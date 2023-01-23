@@ -86,6 +86,7 @@ public:
 class nsBaseWidget : public nsIWidget, public nsSupportsWeakReference
 {
   friend class nsAutoRollup;
+  friend class DispatchWheelEventOnMainThread;
 
 protected:
   typedef base::Thread Thread;
@@ -166,7 +167,7 @@ public:
   virtual bool            PreRender(LayerManagerComposite* aManager) override { return true; }
   virtual void            PostRender(LayerManagerComposite* aManager) override {}
   virtual void            DrawWindowUnderlay(LayerManagerComposite* aManager, nsIntRect aRect) override {}
-  virtual void            DrawWindowOverlay(LayerManagerComposite* aManager, nsIntRect aRect) override {}
+  virtual void            DrawWindowOverlay(LayerManagerComposite* aManager, LayoutDeviceIntRect aRect) override {}
   virtual already_AddRefed<mozilla::gfx::DrawTarget> StartRemoteDrawing() override;
   virtual void            EndRemoteDrawing() override { };
   virtual void            CleanupRemoteDrawing() override { };
@@ -201,7 +202,7 @@ public:
   NS_IMETHOD              SetIcon(const nsAString &anIconSpec) override;
   NS_IMETHOD              SetWindowTitlebarColor(nscolor aColor, bool aActive) override;
   virtual void            SetDrawsInTitlebar(bool aState) override {}
-  virtual bool            ShowsResizeIndicator(nsIntRect* aResizerRect) override;
+  virtual bool            ShowsResizeIndicator(LayoutDeviceIntRect* aResizerRect) override;
   virtual void            FreeNativeData(void * data, uint32_t aDataType) override {}
   NS_IMETHOD              BeginResizeDrag(mozilla::WidgetGUIEvent* aEvent,
                                           int32_t aHorizontal,
@@ -223,7 +224,6 @@ public:
                             DoCommandCallback aCallback,
                             void* aCallbackData) override { return false; }
   virtual bool            ComputeShouldAccelerate();
-  NS_IMETHOD              GetToggledKeyState(uint32_t aKeyCode, bool* aLEDState) override { return NS_ERROR_NOT_IMPLEMENTED; }
   virtual nsIMEUpdatePreference GetIMEUpdatePreference() override { return nsIMEUpdatePreference(); }
   NS_IMETHOD              OnDefaultButtonLoaded(const LayoutDeviceIntRect& aButtonRect) override { return NS_ERROR_NOT_IMPLEMENTED; }
   NS_IMETHOD              OverrideSystemMouseScrollSpeed(double aOriginalDeltaX,
@@ -526,6 +526,21 @@ protected:
   // the last rolled up popup. Only set this when an nsAutoRollup is in scope,
   // so it can be cleared automatically.
   static nsIContent* mLastRollup;
+
+  struct InitialZoomConstraints {
+    InitialZoomConstraints(const uint32_t& aPresShellID,
+                           const FrameMetrics::ViewID& aViewID,
+                           const ZoomConstraints& aConstraints)
+      : mPresShellID(aPresShellID), mViewID(aViewID), mConstraints(aConstraints)
+    {
+    }
+
+    uint32_t mPresShellID;
+    FrameMetrics::ViewID mViewID;
+    ZoomConstraints mConstraints;
+  };
+
+  mozilla::Maybe<InitialZoomConstraints> mInitialZoomConstraints;
 
 #ifdef DEBUG
 protected:

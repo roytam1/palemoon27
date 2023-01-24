@@ -17,7 +17,7 @@ Cu.import("resource://gre/modules/Promise.jsm");
 const GONK_MMSSERVICE_CONTRACTID = "@mozilla.org/mms/gonkmmsservice;1";
 const GONK_MMSSERVICE_CID = Components.ID("{9b069b8c-8697-11e4-a406-474f5190272b}");
 
-let DEBUG = false;
+var DEBUG = false;
 function debug(s) {
   dump("-@- MmsService: " + s + "\n");
 };
@@ -1072,8 +1072,9 @@ CancellableTransaction.prototype = {
         break;
       }
       case kSmsDeletedObserverTopic: {
-        if (subject && subject.deletedMessageIds &&
-            subject.deletedMessageIds.indexOf(this.cancellableId) >= 0) {
+        let deletedInfo = subject.QueryInterface(Ci.nsIDeletedMessageInfo);
+        if (deletedInfo && deletedInfo.deletedMessageIds &&
+            deletedInfo.deletedMessageIds.indexOf(this.cancellableId) >= 0) {
           this.cancelRunning(_MMS_ERROR_MESSAGE_DELETED);
         }
         break;

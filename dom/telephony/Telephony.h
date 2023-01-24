@@ -189,14 +189,9 @@ private:
   static bool
   IsValidServiceId(uint32_t aServiceId);
 
-  static bool
-  IsActiveState(uint16_t aCallState);
-
   uint32_t
-  ProvidedOrDefaultServiceId(const Optional<uint32_t>& aServiceId);
-
-  bool
-  HasDialingCall();
+  GetServiceId(const Optional<uint32_t>& aServiceId,
+               bool aGetIfActiveCall = false);
 
   already_AddRefed<Promise>
   DialInternal(uint32_t aServiceId, const nsAString& aNumber, bool aEmergency,
@@ -213,9 +208,13 @@ private:
 
   already_AddRefed<TelephonyCall>
   CreateCall(TelephonyCallId* aId,
-             uint32_t aServiceId, uint32_t aCallIndex, uint16_t aCallState,
-             bool aEmergency = false, bool aConference = false,
-             bool aSwitchable = true, bool aMergeable = true);
+             uint32_t aServiceId,
+             uint32_t aCallIndex,
+             TelephonyCallState aState,
+             bool aEmergency = false,
+             bool aConference = false,
+             bool aSwitchable = true,
+             bool aMergeable = true);
 
   nsresult
   NotifyEvent(const nsAString& aType);

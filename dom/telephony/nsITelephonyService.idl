@@ -7,7 +7,7 @@
 interface nsIMobileCallForwardingOptions;
 interface nsITelephonyCallInfo;
 
-[scriptable, uuid(37fb45bb-ae10-4cfd-b24e-d656a9787a0a)]
+[scriptable, uuid(baa9f5f3-5cab-40e0-81e9-ae0abd917907)]
 interface nsITelephonyListener : nsISupports
 {
   /**
@@ -30,17 +30,6 @@ interface nsITelephonyListener : nsISupports
                         [array, size_is(length)] in nsITelephonyCallInfo allInfo);
 
   /**
-   * Called when participants of a conference call have been updated, and the
-   * conference call state changes.
-   *
-   * @param callState
-   *        Possible values are: nsITelephonyService::CALL_STATE_UNKNOWN,
-   *        nsITelephonyService::CALL_STATE_HELD,
-   *        nsITelephonyService::CALL_STATE_CONNECTED.
-   */
-  void conferenceCallStateChanged(in unsigned short callState);
-
-  /**
    * Notify when RIL receives supplementary service notification.
    *
    * @param clientId
@@ -53,20 +42,6 @@ interface nsITelephonyListener : nsISupports
   void supplementaryServiceNotification(in unsigned long clientId,
                                         in long callIndex,
                                         in unsigned short notification);
-
-  /**
-   * Called when RIL error occurs.
-   *
-   * @param clientId
-            Indicate the RIL client, 0 ~ (number of client - 1).
-   * @param callIndex
-   *        Call identifier assigned by the RIL. -1 if no connection
-   * @param error
-   *        Error from RIL.
-   */
-  void notifyError(in unsigned long clientId,
-                   in long callIndex,
-                   in AString error);
 
   /**
    * Called when a waiting call comes in CDMA networks.

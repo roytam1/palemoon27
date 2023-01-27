@@ -6865,6 +6865,44 @@ BytecodeEmitter::emitCallOrNew(ParseNode* pn)
 }
 
 bool
+BytecodeEmitter::emitRightAssociative(ParseNode* pn)
+{
+    // ** is the only right-associative operator.
+    MOZ_ASSERT(pn->isKind(PNK_POW));
+    MOZ_ASSERT(pn->isArity(PN_LIST));
+
+    // Right-associative operator chain.
+    for (ParseNode* subexpr = pn->pn_head; subexpr; subexpr = subexpr->pn_next) {
+        if (!emitTree(subexpr))
+            return false;
+    }
+    for (uint32_t i = 0; i < pn->pn_count - 1; i++) {
+        if (!emit1(JSOP_POW))
+            return false;
+    }
+    return true;
+}
+
+bool
+BytecodeEmitter::emitLeftAssociative(ParseNode* pn)
+{
+    MOZ_ASSERT(pn->isArity(PN_LIST));
+
+    // Left-associative operator chain.
+    if (!emitTree(pn->pn_head))
+        return false;
+    JSOp op = pn->getOp();
+    ParseNode* nextExpr = pn->pn_head->pn_next;
+    do {
+        if (!emitTree(nextExpr))
+            return false;
+        if (!emit1(op))
+            return false;
+    } while ((nextExpr = nextExpr->pn_next));
+    return true;
+}
+
+bool
 BytecodeEmitter::emitLogical(ParseNode* pn)
 {
     MOZ_ASSERT(pn->isArity(PN_LIST));
@@ -6915,6 +6953,22 @@ BytecodeEmitter::emitLogical(ParseNode* pn)
         top += tmp;
     } while ((pn2 = pn2->pn_next)->pn_next);
 
+    return true;
+}
+
+bool
+BytecodeEmitter::emitSequenceExpr(ParseNode* pn)
+{
+    for (ParseNode* child = pn->pn_head; ; child = child->pn_next) {
+        if (!updateSourceCoordNotes(child->pn_pos.begin))
+            return false;
+        if (!emitTree(child))
+            return false;
+        if (!child->pn_next)
+            break;
+        if (!emit1(JSOP_POP))
+            return false;
+    }
     return true;
 }
 
@@ -7289,8 +7343,49 @@ BytecodeEmitter::emitSpread()
 }
 
 bool
+BytecodeEmitter::emitArrayLiteral(ParseNode* pn)
+{
+    if (!(pn->pn_xflags & PNX_NONCONST) && pn->pn_head) {
+        if (checkSingletonContext()) {
+            // Bake in the object entirely if it will only be created once.
+            return emitSingletonInitialiser(pn);
+        }
+
+        // If the array consists entirely of primitive values, make a
+        // template object with copy on write elements that can be reused
+        // every time the initializer executes.
+        if (emitterMode != BytecodeEmitter::SelfHosting && pn->pn_count != 0) {
+            RootedValue value(cx);
+            if (!pn->getConstantValue(cx, ParseNode::ForCopyOnWriteArray, &value))
+                return false;
+            if (!value.isMagic(JS_GENERIC_MAGIC)) {
+                // Note: the group of the template object might not yet reflect
+                // that the object has copy on write elements. When the
+                // interpreter or JIT compiler fetches the template, it should
+                // use ObjectGroup::getOrFixupCopyOnWriteObject to make sure the
+                // group for the template is accurate. We don't do this here as we
+                // want to use ObjectGroup::allocationSiteGroup, which requires a
+                // finished script.
+                JSObject* obj = &value.toObject();
+                MOZ_ASSERT(obj->is<ArrayObject>() &&
+                           obj->as<ArrayObject>().denseElementsAreCopyOnWrite());
+
+                ObjectBox* objbox = parser->newObjectBox(obj);
+                if (!objbox)
+                    return false;
+
+                return emitObjectOp(objbox, JSOP_NEWARRAY_COPYONWRITE);
+            }
+        }
+    }
+
+    return emitArray(pn->pn_head, pn->pn_count, JSOP_NEWARRAY);
+}
+
+bool
 BytecodeEmitter::emitArray(ParseNode* pn, uint32_t count, JSOp op)
 {
+
     /*
      * Emit code for [a, b, c] that is equivalent to constructing a new
      * array and in source order evaluating each element value and adding
@@ -7401,6 +7496,95 @@ BytecodeEmitter::emitTypeof(ParseNode* node, JSOp op)
 
     emittingForInit = oldEmittingForInit;
     return emit1(op);
+}
+
+bool
+BytecodeEmitter::emitArgsBody(ParseNode *pn)
+{
+    RootedFunction fun(cx, sc->asFunctionBox()->function());
+    ParseNode* pnlast = pn->last();
+
+    // Carefully emit everything in the right order:
+    // 1. Defaults and Destructuring for each argument
+    // 2. Functions
+    ParseNode* pnchild = pnlast->pn_head;
+    bool hasDefaults = sc->asFunctionBox()->hasDefaults();
+    ParseNode* rest = nullptr;
+    bool restIsDefn = false;
+    if (fun->hasRest() && hasDefaults) {
+        // Defaults with a rest parameter need special handling. The
+        // rest parameter needs to be undefined while defaults are being
+        // processed. To do this, we create the rest argument and let it
+        // sit on the stack while processing defaults. The rest
+        // parameter's slot is set to undefined for the course of
+        // default processing.
+        rest = pn->pn_head;
+        while (rest->pn_next != pnlast)
+            rest = rest->pn_next;
+        restIsDefn = rest->isDefn();
+        if (!emit1(JSOP_REST))
+            return false;
+        checkTypeSet(JSOP_REST);
+
+        // Only set the rest parameter if it's not aliased by a nested
+        // function in the body.
+        if (restIsDefn) {
+            if (!emit1(JSOP_UNDEFINED))
+                return false;
+            if (!bindNameToSlot(rest))
+                return false;
+            if (!emitVarOp(rest, JSOP_SETARG))
+                return false;
+            if (!emit1(JSOP_POP))
+                return false;
+        }
+    }
+    if (!emitDefaultsAndDestructuring(pn))
+        return false;
+    if (fun->hasRest() && hasDefaults) {
+        if (restIsDefn && !emitVarOp(rest, JSOP_SETARG))
+            return false;
+        if (!emit1(JSOP_POP))
+            return false;
+    }
+    for (ParseNode* pn2 = pn->pn_head; pn2 != pnlast; pn2 = pn2->pn_next) {
+        // Only bind the parameter if it's not aliased by a nested function
+        // in the body.
+        if (!pn2->isDefn())
+            continue;
+        if (!bindNameToSlot(pn2))
+            return false;
+        if (pn2->pn_next == pnlast && fun->hasRest() && !hasDefaults) {
+            // Fill rest parameter. We handled the case with defaults above.
+            switchToPrologue();
+            if (!emit1(JSOP_REST))
+                return false;
+            checkTypeSet(JSOP_REST);
+            if (!emitVarOp(pn2, JSOP_SETARG))
+                return false;
+            if (!emit1(JSOP_POP))
+                return false;
+            switchToMain();
+        }
+    }
+    if (pnlast->pn_xflags & PNX_FUNCDEFS) {
+        // This block contains top-level function definitions. To ensure
+        // that we emit the bytecode defining them before the rest of code
+        // in the block we use a separate pass over functions. During the
+        // main pass later the emitter will add JSOP_NOP with source notes
+        // for the function to preserve the original functions position
+        // when decompiling.
+        //
+        // Currently this is used only for functions, as compile-as-we go
+        // mode for scripts does not allow separate emitter passes.
+        for (ParseNode* pn2 = pnchild; pn2; pn2 = pn2->pn_next) {
+            if (pn2->isKind(PNK_FUNCTION) && pn2->functionIsHoisted()) {
+                if (!emitTree(pn2))
+                    return false;
+            }
+        }
+    }
+    return emitTree(pnlast);
 }
 
 bool
@@ -7608,8 +7792,6 @@ BytecodeEmitter::emitTree(ParseNode* pn, EmitLineNumberNote emitLineNote)
 
     EmitLevelManager elm(this);
 
-    bool ok = true;
-
     /* Emit notes to tell the current bytecode's source line number.
        However, a couple trees require special treatment; see the
        relevant emitter functions for details. */
@@ -7619,128 +7801,53 @@ BytecodeEmitter::emitTree(ParseNode* pn, EmitLineNumberNote emitLineNote)
 
     switch (pn->getKind()) {
       case PNK_FUNCTION:
-        ok = emitFunction(pn);
+        if (!emitFunction(pn))
+            return false;
         break;
 
       case PNK_ARGSBODY:
-      {
-        RootedFunction fun(cx, sc->asFunctionBox()->function());
-        ParseNode* pnlast = pn->last();
-
-        // Carefully emit everything in the right order:
-        // 1. Defaults and Destructuring for each argument
-        // 2. Functions
-        ParseNode* pnchild = pnlast->pn_head;
-        bool hasDefaults = sc->asFunctionBox()->hasDefaults();
-        ParseNode* rest = nullptr;
-        bool restIsDefn = false;
-        if (fun->hasRest() && hasDefaults) {
-            // Defaults with a rest parameter need special handling. The
-            // rest parameter needs to be undefined while defaults are being
-            // processed. To do this, we create the rest argument and let it
-            // sit on the stack while processing defaults. The rest
-            // parameter's slot is set to undefined for the course of
-            // default processing.
-            rest = pn->pn_head;
-            while (rest->pn_next != pnlast)
-                rest = rest->pn_next;
-            restIsDefn = rest->isDefn();
-            if (!emit1(JSOP_REST))
-                return false;
-            checkTypeSet(JSOP_REST);
-
-            // Only set the rest parameter if it's not aliased by a nested
-            // function in the body.
-            if (restIsDefn) {
-                if (!emit1(JSOP_UNDEFINED))
-                    return false;
-                if (!bindNameToSlot(rest))
-                    return false;
-                if (!emitVarOp(rest, JSOP_SETARG))
-                    return false;
-                if (!emit1(JSOP_POP))
-                    return false;
-            }
-        }
-        if (!emitDefaultsAndDestructuring(pn))
+        if (!emitArgsBody(pn))
             return false;
-        if (fun->hasRest() && hasDefaults) {
-            if (restIsDefn && !emitVarOp(rest, JSOP_SETARG))
-                return false;
-            if (!emit1(JSOP_POP))
-                return false;
-        }
-        for (ParseNode* pn2 = pn->pn_head; pn2 != pnlast; pn2 = pn2->pn_next) {
-            // Only bind the parameter if it's not aliased by a nested function
-            // in the body.
-            if (!pn2->isDefn())
-                continue;
-            if (!bindNameToSlot(pn2))
-                return false;
-            if (pn2->pn_next == pnlast && fun->hasRest() && !hasDefaults) {
-                // Fill rest parameter. We handled the case with defaults above.
-                switchToPrologue();
-                if (!emit1(JSOP_REST))
-                    return false;
-                checkTypeSet(JSOP_REST);
-                if (!emitVarOp(pn2, JSOP_SETARG))
-                    return false;
-                if (!emit1(JSOP_POP))
-                    return false;
-                switchToMain();
-            }
-        }
-        if (pnlast->pn_xflags & PNX_FUNCDEFS) {
-            // This block contains top-level function definitions. To ensure
-            // that we emit the bytecode defining them before the rest of code
-            // in the block we use a separate pass over functions. During the
-            // main pass later the emitter will add JSOP_NOP with source notes
-            // for the function to preserve the original functions position
-            // when decompiling.
-            //
-            // Currently this is used only for functions, as compile-as-we go
-            // mode for scripts does not allow separate emitter passes.
-            for (ParseNode* pn2 = pnchild; pn2; pn2 = pn2->pn_next) {
-                if (pn2->isKind(PNK_FUNCTION) && pn2->functionIsHoisted()) {
-                    if (!emitTree(pn2))
-                        return false;
-                }
-            }
-        }
-        ok = emitTree(pnlast);
         break;
-      }
 
       case PNK_IF:
-        ok = emitIf(pn);
+        if (!emitIf(pn))
+            return false;
         break;
 
       case PNK_SWITCH:
-        ok = emitSwitch(pn);
+        if (!emitSwitch(pn))
+            return false;
         break;
 
       case PNK_WHILE:
-        ok = emitWhile(pn);
+        if (!emitWhile(pn))
+            return false;
         break;
 
       case PNK_DOWHILE:
-        ok = emitDo(pn);
+        if (!emitDo(pn))
+            return false;
         break;
 
       case PNK_FOR:
-        ok = emitFor(pn);
+        if (!emitFor(pn))
+            return false;
         break;
 
       case PNK_BREAK:
-        ok = emitBreak(pn->as<BreakStatement>().label());
+        if (!emitBreak(pn->as<BreakStatement>().label()))
+            return false;
         break;
 
       case PNK_CONTINUE:
-        ok = emitContinue(pn->as<ContinueStatement>().label());
+        if (!emitContinue(pn->as<ContinueStatement>().label()))
+            return false;
         break;
 
       case PNK_WITH:
-        ok = emitWith(pn);
+        if (!emitWith(pn))
+            return false;
         break;
 
       case PNK_TRY:
@@ -7759,11 +7866,13 @@ BytecodeEmitter::emitTree(ParseNode* pn, EmitLineNumberNote emitLineNote)
         break;
 
       case PNK_RETURN:
-        ok = emitReturn(pn);
+        if (!emitReturn(pn))
+            return false;
         break;
 
       case PNK_YIELD_STAR:
-        ok = emitYieldStar(pn->pn_left, pn->pn_right);
+        if (!emitYieldStar(pn->pn_left, pn->pn_right))
+            return false;
         break;
 
       case PNK_GENERATOR:
@@ -7772,35 +7881,29 @@ BytecodeEmitter::emitTree(ParseNode* pn, EmitLineNumberNote emitLineNote)
         break;
 
       case PNK_YIELD:
-        ok = emitYield(pn);
+        if (!emitYield(pn))
+            return false;
         break;
 
       case PNK_STATEMENTLIST:
-        ok = emitStatementList(pn);
+        if (!emitStatementList(pn))
+            return false;
         break;
 
       case PNK_SEMI:
-        ok = emitStatement(pn);
+        if (!emitStatement(pn))
+            return false;
         break;
 
       case PNK_LABEL:
-        ok = emitLabeledStatement(&pn->as<LabeledStatement>());
+        if (!emitLabeledStatement(&pn->as<LabeledStatement>()))
+            return false;
         break;
 
       case PNK_COMMA:
-      {
-        for (ParseNode* pn2 = pn->pn_head; ; pn2 = pn2->pn_next) {
-            if (!updateSourceCoordNotes(pn2->pn_pos.begin))
-                return false;
-            if (!emitTree(pn2))
-                return false;
-            if (!pn2->pn_next)
-                break;
-            if (!emit1(JSOP_POP))
-                return false;
-        }
+        if (!emitSequenceExpr(pn))
+            return false;
         break;
-      }
 
       case PNK_ASSIGN:
       case PNK_ADDASSIGN:
@@ -7820,12 +7923,14 @@ BytecodeEmitter::emitTree(ParseNode* pn, EmitLineNumberNote emitLineNote)
         break;
 
       case PNK_CONDITIONAL:
-        ok = emitConditionalExpression(pn->as<ConditionalExpression>());
+        if (!emitConditionalExpression(pn->as<ConditionalExpression>()))
+            return false;
         break;
 
       case PNK_OR:
       case PNK_AND:
-        ok = emitLogical(pn);
+        if (!emitLogical(pn))
+            return false;
         break;
 
       case PNK_ADD:
@@ -7848,42 +7953,24 @@ BytecodeEmitter::emitTree(ParseNode* pn, EmitLineNumberNote emitLineNote)
       case PNK_URSH:
       case PNK_STAR:
       case PNK_DIV:
-      case PNK_MOD: {
-        MOZ_ASSERT(pn->isArity(PN_LIST));
-        /* Left-associative operator chain: avoid too much recursion. */
-        ParseNode* subexpr = pn->pn_head;
-        if (!emitTree(subexpr))
+      case PNK_MOD:
+        if (!emitLeftAssociative(pn))
             return false;
-        JSOp op = pn->getOp();
-        while ((subexpr = subexpr->pn_next) != nullptr) {
-            if (!emitTree(subexpr))
-                return false;
-            if (!emit1(op))
-                return false;
-        }
         break;
-      }
 
-      case PNK_POW: {
-        MOZ_ASSERT(pn->isArity(PN_LIST));
-        /* Right-associative operator chain. */
-        for (ParseNode* subexpr = pn->pn_head; subexpr; subexpr = subexpr->pn_next) {
-            if (!emitTree(subexpr))
-                return false;
-        }
-        for (uint32_t i = 0; i < pn->pn_count - 1; i++) {
-            if (!emit1(JSOP_POW))
-                return false;
-        }
+      case PNK_POW:
+        if (!emitRightAssociative(pn))
+            return false;
         break;
-      }
 
       case PNK_TYPEOFNAME:
-        ok = emitTypeof(pn, JSOP_TYPEOF);
+        if (!emitTypeof(pn, JSOP_TYPEOF))
+            return false;
         break;
 
       case PNK_TYPEOFEXPR:
-        ok = emitTypeof(pn, JSOP_TYPEOFEXPR);
+        if (!emitTypeof(pn, JSOP_TYPEOFEXPR))
+            return false;
         break;
 
       case PNK_THROW:
@@ -7892,30 +7979,36 @@ BytecodeEmitter::emitTree(ParseNode* pn, EmitLineNumberNote emitLineNote)
       case PNK_BITNOT:
       case PNK_POS:
       case PNK_NEG:
-        ok = emitUnary(pn);
+        if (!emitUnary(pn))
+            return false;
         break;
 
       case PNK_PREINCREMENT:
       case PNK_PREDECREMENT:
       case PNK_POSTINCREMENT:
       case PNK_POSTDECREMENT:
-        ok = emitIncOrDec(pn);
+        if (!emitIncOrDec(pn))
+            return false;
         break;
 
       case PNK_DELETENAME:
-        ok = emitDeleteName(pn);
+        if (!emitDeleteName(pn))
+            return false;
         break;
 
       case PNK_DELETEPROP:
-        ok = emitDeleteProperty(pn);
+        if (!emitDeleteProperty(pn))
+            return false;
         break;
 
       case PNK_DELETEELEM:
-        ok = emitDeleteElement(pn);
+        if (!emitDeleteElement(pn))
+            return false;
         break;
 
       case PNK_DELETEEXPR:
-        ok = emitDeleteExpression(pn);
+        if (!emitDeleteExpression(pn))
+            return false;
         break;
 
       case PNK_DOT:
@@ -7943,52 +8036,55 @@ BytecodeEmitter::emitTree(ParseNode* pn, EmitLineNumberNote emitLineNote)
       case PNK_CALL:
       case PNK_GENEXP:
       case PNK_SUPERCALL:
-        ok = emitCallOrNew(pn);
+        if (!emitCallOrNew(pn))
+            return false;
         break;
 
       case PNK_LEXICALSCOPE:
-        ok = emitLexicalScope(pn);
+        if (!emitLexicalScope(pn))
+            return false;
         break;
 
       case PNK_LETBLOCK:
-        ok = emitLetBlock(pn);
+        if (!emitLetBlock(pn))
+            return false;
         break;
 
       case PNK_CONST:
       case PNK_LET:
-        ok = emitVariables(pn, InitializeVars);
+        if (!emitVariables(pn, InitializeVars))
+            return false;
         break;
 
       case PNK_IMPORT:
-        if (!checkIsModule())
-            return false;
-        ok = true;
+        MOZ_ASSERT(sc->isModuleBox());
         break;
 
       case PNK_EXPORT:
-        if (!checkIsModule())
-            return false;
-        if (pn->pn_kid->getKind() != PNK_EXPORT_SPEC_LIST)
-            ok = emitTree(pn->pn_kid);
-        else
-            ok = true;
+        MOZ_ASSERT(sc->isModuleBox());
+        if (pn->pn_kid->getKind() != PNK_EXPORT_SPEC_LIST) {
+            if (!emitTree(pn->pn_kid))
+                return false;
+        }
         break;
 
       case PNK_EXPORT_DEFAULT:
-        if (!checkIsModule())
+        MOZ_ASSERT(sc->isModuleBox());
+        if (!emitTree(pn->pn_kid))
             return false;
-        ok = emitTree(pn->pn_kid);
-        if (ok && pn->pn_right)
-            ok = emitLexicalInitialization(pn->pn_right, JSOP_DEFCONST) && emit1(JSOP_POP);
+        if (pn->pn_right) {
+            if (!emitLexicalInitialization(pn->pn_right, JSOP_DEFCONST))
+                return false;
+            if (!emit1(JSOP_POP))
+                return false;
+        }
         break;
 
       case PNK_EXPORT_FROM:
-        if (!checkIsModule())
-            return false;
-        ok = true;
+        MOZ_ASSERT(sc->isModuleBox());
         break;
 
-      case PNK_ARRAYPUSH: {
+      case PNK_ARRAYPUSH:
         /*
          * The array object's stack index is in arrayCompDepth. See below
          * under the array initialiser code generator for array comprehension
@@ -8002,58 +8098,25 @@ BytecodeEmitter::emitTree(ParseNode* pn, EmitLineNumberNote emitLineNote)
         if (!emit1(JSOP_ARRAYPUSH))
             return false;
         break;
-      }
 
       case PNK_CALLSITEOBJ:
-        ok = emitCallSiteObject(pn);
+        if (!emitCallSiteObject(pn))
+            return false;
         break;
 
       case PNK_ARRAY:
-        if (!(pn->pn_xflags & PNX_NONCONST) && pn->pn_head) {
-            if (checkSingletonContext()) {
-                // Bake in the object entirely if it will only be created once.
-                ok = emitSingletonInitialiser(pn);
-                break;
-            }
-
-            // If the array consists entirely of primitive values, make a
-            // template object with copy on write elements that can be reused
-            // every time the initializer executes.
-            if (emitterMode != BytecodeEmitter::SelfHosting && pn->pn_count != 0) {
-                RootedValue value(cx);
-                if (!pn->getConstantValue(cx, ParseNode::ForCopyOnWriteArray, &value))
-                    return false;
-                if (!value.isMagic(JS_GENERIC_MAGIC)) {
-                    // Note: the group of the template object might not yet reflect
-                    // that the object has copy on write elements. When the
-                    // interpreter or JIT compiler fetches the template, it should
-                    // use ObjectGroup::getOrFixupCopyOnWriteObject to make sure the
-                    // group for the template is accurate. We don't do this here as we
-                    // want to use ObjectGroup::allocationSiteGroup, which requires a
-                    // finished script.
-                    JSObject* obj = &value.toObject();
-                    MOZ_ASSERT(obj->is<ArrayObject>() &&
-                               obj->as<ArrayObject>().denseElementsAreCopyOnWrite());
-
-                    ObjectBox* objbox = parser->newObjectBox(obj);
-                    if (!objbox)
-                        return false;
-
-                    ok = emitObjectOp(objbox, JSOP_NEWARRAY_COPYONWRITE);
-                    break;
-                }
-            }
-        }
-
-        ok = emitArray(pn->pn_head, pn->pn_count, JSOP_NEWARRAY);
+        if (!emitArrayLiteral(pn))
+            return false;
         break;
 
-       case PNK_ARRAYCOMP:
-        ok = emitArrayComp(pn);
+      case PNK_ARRAYCOMP:
+        if (!emitArrayComp(pn))
+            return false;
         break;
 
       case PNK_OBJECT:
-        ok = emitObject(pn);
+        if (!emitObject(pn))
+            return false;
         break;
 
       case PNK_NAME:
@@ -8062,20 +8125,24 @@ BytecodeEmitter::emitTree(ParseNode* pn, EmitLineNumberNote emitLineNote)
         break;
 
       case PNK_TEMPLATE_STRING_LIST:
-        ok = emitTemplateString(pn);
+        if (!emitTemplateString(pn))
+            return false;
         break;
 
       case PNK_TEMPLATE_STRING:
       case PNK_STRING:
-        ok = emitAtomOp(pn, JSOP_STRING);
+        if (!emitAtomOp(pn, JSOP_STRING))
+            return false;
         break;
 
       case PNK_NUMBER:
-        ok = emitNumberOp(pn->pn_dval);
+        if (!emitNumberOp(pn->pn_dval))
+            return false;
         break;
 
       case PNK_REGEXP:
-        ok = emitRegExp(regexpList.add(pn->as<RegExpLiteral>().objbox()));
+        if (!emitRegExp(regexpList.add(pn->as<RegExpLiteral>().objbox())))
+            return false;
         break;
 
       case PNK_TRUE:
@@ -8098,7 +8165,8 @@ BytecodeEmitter::emitTree(ParseNode* pn, EmitLineNumberNote emitLineNote)
         break;
 
       case PNK_CLASS:
-        ok = emitClass(pn);
+        if (!emitClass(pn))
+            return false;
         break;
 
       case PNK_NEWTARGET:
@@ -8114,20 +8182,9 @@ BytecodeEmitter::emitTree(ParseNode* pn, EmitLineNumberNote emitLineNote)
     }
 
     /* bce->emitLevel == 1 means we're last on the stack, so finish up. */
-    if (ok && emitLevel == 1) {
+    if (emitLevel == 1) {
         if (!updateSourceCoordNotes(pn->pn_pos.end))
             return false;
-    }
-
-    return ok;
-}
-
-bool
-BytecodeEmitter::checkIsModule()
-{
-    if (!sc->isModuleBox()) {
-        reportError(nullptr, JSMSG_INVALID_OUTSIDE_MODULE);
-        return false;
     }
     return true;
 }

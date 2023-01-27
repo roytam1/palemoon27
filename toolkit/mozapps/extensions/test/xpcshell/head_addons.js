@@ -1258,7 +1258,9 @@ function check_test_completed(aArgs) {
   if (gExpectedInstalls instanceof Array &&
       gExpectedInstalls.length > 0)
     return undefined;
-  else for each (let installList in gExpectedInstalls) {
+
+  for (let id in gExpectedInstalls) {
+    let installList = gExpectedInstalls[id];
     if (installList.length > 0)
       return undefined;
   }

@@ -691,7 +691,7 @@ LoginManagerStorage_mozStorage.prototype = {
       httpRealm: httpRealm
     };
     let matchData = { };
-    for each (let field in ["hostname", "formSubmitURL", "httpRealm"])
+    for (let field of ["hostname", "formSubmitURL", "httpRealm"])
       if (loginData[field] != '')
         matchData[field] = loginData[field];
     let [logins, ids] = this._searchLogins(matchData);
@@ -785,7 +785,7 @@ LoginManagerStorage_mozStorage.prototype = {
    */
   _getIdForLogin : function (login) {
     let matchData = { };
-    for each (let field in ["hostname", "formSubmitURL", "httpRealm"])
+    for (let field of ["hostname", "formSubmitURL", "httpRealm"])
       if (login[field] != '')
         matchData[field] = login[field];
     let [logins, ids] = this._searchLogins(matchData);
@@ -939,7 +939,7 @@ LoginManagerStorage_mozStorage.prototype = {
   _decryptLogins : function (logins) {
     let result = [];
 
-    for each (let login in logins) {
+    for (let login of logins) {
       try {
         login.username = this._crypto.decrypt(login.username);
         login.password = this._crypto.decrypt(login.password);
@@ -1133,7 +1133,7 @@ LoginManagerStorage_mozStorage.prototype = {
 
     // Generate a GUID for each login and update the DB.
     query = "UPDATE moz_logins SET guid = :guid WHERE id = :id";
-    for each (let id in ids) {
+    for (let id of ids) {
       let params = {
         id:   id,
         guid: this._uuidService.generateUUID().toString()
@@ -1199,7 +1199,7 @@ LoginManagerStorage_mozStorage.prototype = {
 
     // Determine encryption type for each login and update the DB.
     query = "UPDATE moz_logins SET encType = :encType WHERE id = :id";
-    for each (let params in logins) {
+    for (let params of logins) {
       try {
         stmt = this._dbCreateStatement(query, params);
         stmt.execute();
@@ -1224,7 +1224,7 @@ LoginManagerStorage_mozStorage.prototype = {
   _dbMigrateToVersion4 : function () {
     let query;
     // Add the new columns, if needed.
-    for each (let column in ["timeCreated", "timeLastUsed", "timePasswordChanged", "timesUsed"]) {
+    for (let column of ["timeCreated", "timeLastUsed", "timePasswordChanged", "timesUsed"]) {
       if (!this._dbColumnExists(column)) {
         query = "ALTER TABLE moz_logins ADD COLUMN " + column + " INTEGER";
         this._dbConnection.executeSimpleSQL(query);
@@ -1256,7 +1256,7 @@ LoginManagerStorage_mozStorage.prototype = {
       id:       null,
       initTime: Date.now()
     };
-    for each (let id in ids) {
+    for (let id of ids) {
       params.id = id;
       try {
         stmt = this._dbCreateStatement(query, params);
@@ -1352,7 +1352,8 @@ LoginManagerStorage_mozStorage.prototype = {
   _dbClose : function () {
     this.log("Closing the DB connection.");
     // Finalize all statements to free memory, avoid errors later
-    for each (let stmt in this._dbStmts) {
+    for (let query in this._dbStmts) {
+      let stmt = this._dbStmts[query];
       stmt.finalize();
     }
     this._dbStmts = {};

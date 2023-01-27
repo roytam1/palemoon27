@@ -4036,7 +4036,7 @@ nsWindow::DispatchMouseEvent(EventMessage aEventMessage, WPARAM wParam,
       }
     }
 
-    result = ConvertStatus(DispatchInputEvent(&event));
+    result = ConvertStatus(DispatchAPZAwareEvent(&event));
 
     if (nsToolkit::gMouseTrailer)
       nsToolkit::gMouseTrailer->Enable();
@@ -6664,17 +6664,6 @@ nsWindow::GetInputContext()
     mInputContext.mIMEState.mOpen = IMEState::CLOSED;
   }
   return mInputContext;
-}
-
-NS_IMETHODIMP
-nsWindow::GetToggledKeyState(uint32_t aKeyCode, bool* aLEDState)
-{
-#ifdef DEBUG_KBSTATE
-  MOZ_LOG(gWindowsLog, LogLevel::Info, ("GetToggledKeyState\n"));
-#endif 
-  NS_ENSURE_ARG_POINTER(aLEDState);
-  *aLEDState = (::GetKeyState(aKeyCode) & 1) != 0;
-  return NS_OK;
 }
 
 nsIMEUpdatePreference

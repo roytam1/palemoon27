@@ -291,8 +291,6 @@ public:
                         const mozilla::WidgetKeyboardEvent& aEvent,
                         DoCommandCallback aCallback,
                         void* aCallbackData) override;
-    NS_IMETHOD GetToggledKeyState(uint32_t aKeyCode,
-                                  bool* aLEDState) override;
 
     // These methods are for toplevel windows only.
     void               ResizeTransparencyBitmap();
@@ -351,7 +349,8 @@ protected:
     // event handling code
     void DispatchActivateEvent(void);
     void DispatchDeactivateEvent(void);
-    void DispatchResized(int32_t aWidth, int32_t aHeight);
+    void DispatchResized();
+    void MaybeDispatchResized();
 
     // Helper for SetParent and ReparentNativeWidget.
     void ReparentNativeWidgetInternal(nsIWidget* aNewParent,
@@ -372,6 +371,8 @@ protected:
 
     // Should we send resize events on all resizes?
     bool                mListenForResizes;
+    // Does WindowResized need to be called on listeners?
+    bool                mNeedsDispatchResized;
     // This flag tracks if we're hidden or shown.
     bool                mIsShown;
     bool                mNeedsShow;
@@ -383,6 +384,8 @@ protected:
     // whether we handle touch event
     bool                mHandleTouchEvent;
 #endif
+    // true if this is a drag and drop feedback popup
+    bool               mIsDragPopup;
 
 private:
     void               DestroyChildWindows();

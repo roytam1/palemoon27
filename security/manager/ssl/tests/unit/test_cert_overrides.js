@@ -13,20 +13,6 @@
 
 do_get_profile();
 
-function add_non_overridable_test(aHost, aExpectedError) {
-  add_connection_test(
-    aHost, aExpectedError, null,
-    function (securityInfo) {
-      // bug 754369 - no SSLStatus probably means this is a non-overridable
-      // error, which is what we're testing (although it would be best to test
-      // this directly).
-      securityInfo.QueryInterface(Ci.nsISSLStatusProvider);
-      equal(securityInfo.SSLStatus, null,
-            "As a proxy to checking that the connection error is" +
-            " non-overridable, SSLStatus should be null");
-    });
-}
-
 function run_test() {
   Services.prefs.setIntPref("security.OCSP.enabled", 1);
   add_tls_server_setup("BadCertServer");
@@ -90,22 +76,24 @@ function add_simple_tests() {
                          Ci.nsICertOverrideService.ERROR_UNTRUSTED,
                          SEC_ERROR_UNKNOWN_ISSUER);
 
-  add_non_overridable_test("inadequatekeyusage.example.com",
-                           SEC_ERROR_INADEQUATE_KEY_USAGE);
+  add_prevented_cert_override_test("inadequatekeyusage.example.com",
+                                   Ci.nsICertOverrideService.ERROR_UNTRUSTED,
+                                   SEC_ERROR_INADEQUATE_KEY_USAGE);
 
   // This is intended to test the case where a verification has failed for one
   // overridable reason (e.g. unknown issuer) but then, in the process of
   // reporting that error, a non-overridable error is encountered. The
   // non-overridable error should be prioritized.
   add_test(function() {
-    let rootCert = constructCertFromFile("tlsserver/test-ca.der");
+    let rootCert = constructCertFromFile("tlsserver/test-ca.pem");
     setCertTrust(rootCert, ",,");
     run_next_test();
   });
-  add_non_overridable_test("nsCertTypeCritical.example.com",
-                           SEC_ERROR_UNKNOWN_CRITICAL_EXTENSION);
+  add_prevented_cert_override_test("nsCertTypeCritical.example.com",
+                                   Ci.nsICertOverrideService.ERROR_UNTRUSTED,
+                                   SEC_ERROR_UNKNOWN_CRITICAL_EXTENSION);
   add_test(function() {
-    let rootCert = constructCertFromFile("tlsserver/test-ca.der");
+    let rootCert = constructCertFromFile("tlsserver/test-ca.pem");
     setCertTrust(rootCert, "CTu,,");
     run_next_test();
   });
@@ -131,7 +119,7 @@ function add_simple_tests() {
     let certOverrideService = Cc["@mozilla.org/security/certoverride;1"]
                                 .getService(Ci.nsICertOverrideService);
     certOverrideService.clearValidityOverride("end-entity-issued-by-v1-cert.example.com", 8443);
-    let v1Cert = constructCertFromFile("tlsserver/v1Cert.der");
+    let v1Cert = constructCertFromFile("tlsserver/v1Cert.pem");
     setCertTrust(v1Cert, "CTu,,");
     clearSessionCache();
     run_next_test();
@@ -140,7 +128,7 @@ function add_simple_tests() {
                       PRErrorCodeSuccess);
   // Reset the trust for that certificate.
   add_test(function() {
-    let v1Cert = constructCertFromFile("tlsserver/v1Cert.der");
+    let v1Cert = constructCertFromFile("tlsserver/v1Cert.pem");
     setCertTrust(v1Cert, ",,");
     clearSessionCache();
     run_next_test();
@@ -152,10 +140,11 @@ function add_simple_tests() {
                          Ci.nsICertOverrideService.ERROR_UNTRUSTED,
                          SEC_ERROR_CA_CERT_INVALID);
 
-  // This host presents a 1008-bit RSA key. NSS determines this key is too
+  // This host presents a 1016-bit RSA key. NSS determines this key is too
   // small and terminates the connection. The error is not overridable.
-  add_non_overridable_test("inadequate-key-size-ee.example.com",
-                           SSL_ERROR_WEAK_SERVER_CERT_KEY);
+  add_prevented_cert_override_test("inadequate-key-size-ee.example.com",
+                                   Ci.nsICertOverrideService.ERROR_UNTRUSTED,
+                                   SSL_ERROR_WEAK_SERVER_CERT_KEY);
 
   add_cert_override_test("ipAddressAsDNSNameInSAN.example.com",
                          Ci.nsICertOverrideService.ERROR_MISMATCH,
@@ -206,13 +195,13 @@ function add_distrust_tests() {
   // Before we specifically distrust this certificate, it should be trusted.
   add_connection_test("untrusted.example.com", PRErrorCodeSuccess);
 
-  add_distrust_test("tlsserver/default-ee.der", "untrusted.example.com",
+  add_distrust_test("tlsserver/default-ee.pem", "untrusted.example.com",
                     SEC_ERROR_UNTRUSTED_CERT);
 
-  add_distrust_test("tlsserver/other-test-ca.der",
+  add_distrust_test("tlsserver/other-test-ca.pem",
                     "untrustedissuer.example.com", SEC_ERROR_UNTRUSTED_ISSUER);
 
-  add_distrust_test("tlsserver/test-ca.der",
+  add_distrust_test("tlsserver/test-ca.pem",
                     "ca-used-as-end-entity.example.com",
                     SEC_ERROR_UNTRUSTED_ISSUER);
 }
@@ -226,7 +215,9 @@ function add_distrust_test(certFileName, hostName, expectedResult) {
     clearSessionCache();
     run_next_test();
   });
-  add_non_overridable_test(hostName, expectedResult);
+  add_prevented_cert_override_test(hostName,
+                                   Ci.nsICertOverrideService.ERROR_UNTRUSTED,
+                                   expectedResult);
   add_test(function () {
     setCertTrust(certToDistrust, "u,,");
     run_next_test();

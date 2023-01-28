@@ -41,3 +41,7 @@ EXPORTS += [
 EXTRA_JS_MODULES += [
     'AsyncSpellCheckTestHelper.jsm',
 ]
+
+if CONFIG['_MSC_VER']:
+    CFLAGS += ["-GL -Gw"]
+    CXXFLAGS += ["-GL -Gw"]

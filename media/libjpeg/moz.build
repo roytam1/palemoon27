@@ -153,3 +153,6 @@ if CONFIG['GKMEDIAS_SHARED_LIBRARY']:
 
 FINAL_LIBRARY = 'gkmedias'
 
+if CONFIG['_MSC_VER']:
+    CFLAGS += ["-GL -Gw"]
+    CXXFLAGS += ["-GL -Gw"]

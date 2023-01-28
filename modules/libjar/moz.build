@@ -49,3 +49,7 @@ FAIL_ON_WARNINGS = True
 include('/ipc/chromium/chromium-config.mozbuild')
 
 FINAL_LIBRARY = 'xul'
+
+if CONFIG['_MSC_VER']:
+    CFLAGS += ["-GL -Gw"]
+    CXXFLAGS += ["-GL -Gw"]

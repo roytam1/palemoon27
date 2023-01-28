@@ -14,3 +14,7 @@ DIRS += ['build']
 
 if CONFIG['MOZ_REPLACE_MALLOC']:
     DIRS += ['replace']
+
+if CONFIG['_MSC_VER']:
+    CFLAGS += ["-GL -Gw"]
+    CXXFLAGS += ["-GL -Gw"]

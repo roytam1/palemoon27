@@ -41,3 +41,7 @@ MOCHITEST_MANIFESTS += [
 
 REFTEST_MANIFESTS += ['reftests/reftest.list']
 CRASHTEST_MANIFESTS += ['../testing/crashtest/crashtests.list']
+
+if CONFIG['_MSC_VER']:
+    CFLAGS += ["-GL -Gw"]
+    CXXFLAGS += ["-GL -Gw"]

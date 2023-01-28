@@ -9,3 +9,7 @@ DIRS += [
     'exthandler',
     'prefetch',
 ]
+
+if CONFIG['_MSC_VER']:
+    CFLAGS += ["-GL -Gw"]
+    CXXFLAGS += ["-GL -Gw"]

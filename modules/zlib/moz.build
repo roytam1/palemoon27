@@ -6,3 +6,7 @@
 
 DIRS += ['src']
 
+
+if CONFIG['_MSC_VER']:
+    CFLAGS += ["-GL -Gw"]
+    CXXFLAGS += ["-GL -Gw"]

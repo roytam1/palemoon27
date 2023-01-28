@@ -17,3 +17,7 @@ DIRS += [
     'uconv',
     'build',
 ]
+
+if CONFIG['_MSC_VER']:
+    CFLAGS += ["-GL -Gw"]
+    CXXFLAGS += ["-GL -Gw"]

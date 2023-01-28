@@ -121,3 +121,7 @@ DISABLE_STL_WRAPPING = True
 if CONFIG['GNU_CXX']:
     # TODO: Remove this LZ4 warning suppression after bug 993267 is fixed.
     SOURCES['/mfbt/Compression.cpp'].flags += ['-Wno-unused-function']
+
+if CONFIG['_MSC_VER']:
+    CFLAGS += ["-GL -Gw"]
+    CXXFLAGS += ["-GL -Gw"]

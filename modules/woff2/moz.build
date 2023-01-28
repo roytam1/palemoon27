@@ -18,3 +18,7 @@ UNIFIED_SOURCES += [
 ]
 
 Library('woff2')
+
+if CONFIG['_MSC_VER']:
+    CFLAGS += ["-GL -Gw"]
+    CXXFLAGS += ["-GL -Gw"]

@@ -31,3 +31,7 @@ BROWSER_CHROME_MANIFESTS += [
     'test/browser/browser.ini',
     'test/navigation/browser.ini',
 ]
+
+if CONFIG['_MSC_VER']:
+    CFLAGS += ["-GL -Gw"]
+    CXXFLAGS += ["-GL -Gw"]

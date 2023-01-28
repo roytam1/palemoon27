@@ -21,3 +21,7 @@ if CONFIG['MOZ_XUL']:
     DIRS += ['xul']
 
 TEST_DIRS += ['tests/mochitest']
+
+if CONFIG['_MSC_VER']:
+    CFLAGS += ["-GL -Gw"]
+    CXXFLAGS += ["-GL -Gw"]

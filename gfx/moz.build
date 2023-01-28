@@ -31,3 +31,6 @@ if CONFIG['ENABLE_TESTS']:
 
 TEST_DIRS += ['tests']
 
+if CONFIG['_MSC_VER']:
+    CFLAGS += ["-GL -Gw"]
+    CXXFLAGS += ["-GL -Gw"]

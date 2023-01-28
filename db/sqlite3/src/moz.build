@@ -77,3 +77,6 @@ if CONFIG['GNU_CC']:
         '-Wno-sign-compare',
         '-Wno-type-limits',
     ]
+
+if CONFIG['_MSC_VER']:
+    CFLAGS += ["-GL -Gw"]

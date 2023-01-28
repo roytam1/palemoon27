@@ -115,3 +115,7 @@ LOCAL_INCLUDES += [
 ]
 
 CXXFLAGS += CONFIG['SQLITE_CFLAGS']
+
+if CONFIG['_MSC_VER']:
+    CFLAGS += ["-GL -Gw"]
+    CXXFLAGS += ["-GL -Gw"]

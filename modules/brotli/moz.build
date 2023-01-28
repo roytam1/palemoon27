@@ -77,3 +77,7 @@ HOST_SOURCES += [
 #    HOST_OS_LIBS += [
 #        'm' # for log2() function used by Brotli encoder
 #    ]
+
+if CONFIG['_MSC_VER']:
+    CFLAGS += ["-GL -Gw"]
+    CXXFLAGS += ["-GL -Gw"]

@@ -10,3 +10,7 @@ EXPORTS += [
     'nsCharsetSource.h',
 ]
 
+
+if CONFIG['_MSC_VER']:
+    CFLAGS += ["-GL -Gw"]
+    CXXFLAGS += ["-GL -Gw"]

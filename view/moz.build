@@ -20,3 +20,7 @@ FAIL_ON_WARNINGS = True
 FINAL_LIBRARY = 'xul'
 
 CXXFLAGS += CONFIG['MOZ_CAIRO_CFLAGS']
+
+if CONFIG['_MSC_VER']:
+    CFLAGS += ["-GL -Gw"]
+    CXXFLAGS += ["-GL -Gw"]

@@ -8,3 +8,7 @@ DIRS += ['ssl', 'locales']
 
 if CONFIG['MOZ_XUL'] and CONFIG['MOZ_BUILD_APP'] != 'mobile/android':
     DIRS += ['pki']
+
+if CONFIG['_MSC_VER']:
+    CFLAGS += ["-GL -Gw"]
+    CXXFLAGS += ["-GL -Gw"]

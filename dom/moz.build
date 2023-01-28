@@ -167,3 +167,6 @@ TEST_DIRS += [
 if CONFIG['MOZ_WIDGET_TOOLKIT'] in ('gtk2', 'gtk3', 'cocoa', 'windows', 'android', 'qt'):
     TEST_DIRS += ['plugins/test']
 
+if CONFIG['_MSC_VER']:
+    CFLAGS += ["-GL -Gw"]
+    CXXFLAGS += ["-GL -Gw"]

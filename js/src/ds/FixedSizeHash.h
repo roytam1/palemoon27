@@ -65,7 +65,7 @@ class FixedSizeHashSet
         return false;
     }
 
-    void insert(const Lookup& lookup, const T& newEntry)
+    void insert(const Lookup& lookup, const T& entry)
     {
         size_t buckets[NumHashes];
         getBuckets(lookup, buckets);
@@ -74,7 +74,7 @@ class FixedSizeHashSet
         for (size_t i = 0; i < NumHashes; i++) {
             const T& entry = entries[buckets[i]];
             if (HashPolicy::isCleared(entry)) {
-                entries[buckets[i]] = newEntry;
+                entries[buckets[i]] = entry;
                 lastOperations[buckets[i]] = numOperations++;
                 return;
             }
@@ -82,7 +82,7 @@ class FixedSizeHashSet
                 min = buckets[i];
         }
 
-        entries[min] = newEntry;
+        entries[min] = entry;
         lastOperations[min] = numOperations++;
     }
 

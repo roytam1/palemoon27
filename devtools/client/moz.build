@@ -7,6 +7,7 @@
 include('../templates.mozbuild')
 
 DIRS += [
+    'aboutdebugging/components',
     'animationinspector',
     'app-manager',
     'canvasdebugger',
@@ -16,8 +17,10 @@ DIRS += [
     'fontinspector',
     'framework',
     'inspector',
+    'jsonview',
     'layoutview',
     'markupview',
+    'memory',
     'netmonitor',
     'performance',
     'preferences',

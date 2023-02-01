@@ -88,6 +88,9 @@ static RedirEntry kRedirMap[] = {
     nsIAboutModule::ALLOW_SCRIPT },
   { "downloads", "chrome://browser/content/downloads/contentAreaDownloadsView.xul",
     nsIAboutModule::ALLOW_SCRIPT },
+  {
+    "debugging", "chrome://devtools/content/aboutdebugging/aboutdebugging.xhtml",
+    nsIAboutModule::ALLOW_SCRIPT },
 };
 static const int kRedirTotal = ArrayLength(kRedirMap);
 

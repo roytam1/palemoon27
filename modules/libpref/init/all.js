@@ -873,6 +873,8 @@ pref("toolkit.identity.debug", false);
 
 // AsyncShutdown delay before crashing in case of shutdown freeze
 pref("toolkit.asyncshutdown.timeout.crash", 60000);
+// Extra logging for AsyncShutdown barriers and phases
+pref("toolkit.asyncshutdown.log", false);
 
 // Enable deprecation warnings.
 pref("devtools.errorconsole.deprecation_warnings", false);
@@ -4119,6 +4121,9 @@ pref("gfx.font_rendering.fontconfig.fontlist.enabled", false);
 #else
 pref("gfx.font_rendering.fontconfig.fontlist.enabled", true);
 #endif
+
+// maximum number of fonts to substitute for a generic
+pref("gfx.font_rendering.fontconfig.max_generic_substitutions", 3);
 #endif
 
 # XP_UNIX

@@ -34,7 +34,7 @@ XPCOMUtils.defineLazyServiceGetter(this, "gContentSecurityManager",
 this.EXPORTED_SYMBOLS = ["PushService"];
 
 XPCOMUtils.defineLazyGetter(this, "console", () => {
-  let {ConsoleAPI} = Cu.import("resource://gre/modules/Console.jsm", {});
+  let {ConsoleAPI} = Cu.import("resource://gre/modules/devtools/Console.jsm", {});
   return new ConsoleAPI({
     maxLogLevelPref: "dom.push.loglevel",
     prefix: "PushService",

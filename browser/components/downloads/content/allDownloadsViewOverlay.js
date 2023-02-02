@@ -1168,13 +1168,9 @@ DownloadsPlacesView.prototype = {
   },
 
   get selectedNodes() {
-    let placesNodes = [];
-    let selectedElements = this._richlistbox.selectedItems;
-    for (let elt of selectedElements) {
-      if (elt._shell.placesNode)
-        placesNodes.push(elt._shell.placesNode);
-    }
-    return placesNodes;
+    return [for (element of this._richlistbox.selectedItems)
+            if (element._shell.placesNode)
+            element._shell.placesNode];
   },
 
   get selectedNode() {
@@ -1182,7 +1178,9 @@ DownloadsPlacesView.prototype = {
     return selectedNodes.length == 1 ? selectedNodes[0] : null;
   },
 
-  get hasSelection() this.selectedNodes.length > 0,
+  get hasSelection() {
+    return this.selectedNodes.length > 0;
+  },
 
   containerStateChanged:
   function DPV_containerStateChanged(aNode, aOldState, aNewState) {
@@ -1293,9 +1291,14 @@ DownloadsPlacesView.prototype = {
   nodeURIChanged: function() {},
   batching: function() {},
 
-  get controller() this._richlistbox.controller,
+  get controller() {
+    return this._richlistbox.controller;
+  },
 
-  get searchTerm() this._searchTerm,
+  get searchTerm() {
+    return this._searchTerm;
+  },
+
   set searchTerm(aValue) {
     if (this._searchTerm != aValue) {
       for (let element of this._richlistbox.childNodes) {
@@ -1331,11 +1334,11 @@ DownloadsPlacesView.prototype = {
         // first item is activated, and pass the item to the richlistbox
         // setters only at a point we know for sure the binding is attached.
         firstDownloadElement._shell.ensureActive();
-        Services.tm.mainThread.dispatch(function() {
+        Services.tm.mainThread.dispatch(() => {
           this._richlistbox.selectedItem = firstDownloadElement;
           this._richlistbox.currentItem = firstDownloadElement;
           this._initiallySelectedElement = firstDownloadElement;
-        }.bind(this), Ci.nsIThread.DISPATCH_NORMAL);
+        }, Ci.nsIThread.DISPATCH_NORMAL);
       }
     }
   },
@@ -1385,9 +1388,8 @@ DownloadsPlacesView.prototype = {
       case "downloadsCmd_clearDownloads":
         return this._canClearDownloads();
       default:
-        return Array.every(this._richlistbox.selectedItems, function(element) {
-          return element._shell.isCommandEnabled(aCommand);
-        });
+        return Array.every(this._richlistbox.selectedItems,
+                           element => element._shell.isCommandEnabled(aCommand));
     }
   },
 
@@ -1405,11 +1407,12 @@ DownloadsPlacesView.prototype = {
 
   _copySelectedDownloadsToClipboard:
   function DPV__copySelectedDownloadsToClipboard() {
-    let selectedElements = this._richlistbox.selectedItems;
-    let urls = [e._shell.downloadURI for each (e in selectedElements)];
+    let urls = [for (element of this._richlistbox.selectedItems)
+                element._shell.downloadURI];
 
-    Cc["@mozilla.org/widget/clipboardhelper;1"].
-    getService(Ci.nsIClipboardHelper).copyString(urls.join("\n"), document);
+    Cc["@mozilla.org/widget/clipboardhelper;1"]
+      .getService(Ci.nsIClipboardHelper)
+      .copyString(urls.join("\n"));
   },
 
   _getURLFromClipboardData: function DPV__getURLFromClipboardData() {

@@ -36,7 +36,7 @@ const TABS_PINNED_AVG_HISTOGRAM = "DEVTOOLS_TABS_PINNED_AVERAGE_LINEAR";
 const FORBIDDEN_IDS = new Set(["toolbox", ""]);
 const MAX_ORDINAL = 99;
 
-const bundle = Services.strings.createBundle("chrome://browser/locale/devtools/toolbox.properties");
+const bundle = Services.strings.createBundle("chrome://devtools/locale/toolbox.properties");
 
 /**
  * DevTools is a class that represents a set of developer tools, it holds a
@@ -608,10 +608,6 @@ var gDevToolsBrowser = {
       gDevToolsBrowser.uninstallWebIDEWidget();
     }
 
-    // Enable App Manager?
-    let appMgrEnabled = Services.prefs.getBoolPref("devtools.appmanager.enabled");
-    toggleCmd("Tools:DevAppMgr", !webIDEEnabled && appMgrEnabled);
-
     // Enable Browser Toolbox?
     let chromeEnabled = Services.prefs.getBoolPref("devtools.chrome.enabled");
     let devtoolsRemoteEnabled = Services.prefs.getBoolPref("devtools.debugger.remote-enabled");
@@ -692,13 +688,6 @@ var gDevToolsBrowser = {
    */
   openConnectScreen: function(gBrowser) {
     gBrowser.selectedTab = gBrowser.addTab("chrome://devtools/content/framework/connect/connect.xhtml");
-  },
-
-  /**
-   * Open the App Manager
-   */
-  openAppManager: function(gBrowser) {
-    gBrowser.selectedTab = gBrowser.addTab("about:app-manager");
   },
 
   /**

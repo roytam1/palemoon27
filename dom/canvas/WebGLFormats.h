@@ -131,6 +131,16 @@ enum class EffectiveFormat : EffectiveFormatValueT {
     // OES_compressed_ETC1_RGB8_texture
     ETC1_RGB8,
 
+    // OES_texture_float
+    Luminance32FAlpha32F,
+    Luminance32F,
+    Alpha32F,
+
+    // OES_texture_half_float
+    Luminance16FAlpha16F,
+    Luminance16F,
+    Alpha16F,
+
     MAX,
 };
 
@@ -241,15 +251,21 @@ public:
     void AddUnpackOption(GLenum unpackFormat, GLenum unpackType,
                          EffectiveFormat effectiveFormat);
 
-    FormatUsageInfo* GetInfo(EffectiveFormat format);
-
-    FormatUsageInfo* GetInfo(const FormatInfo* format)
+    FormatUsageInfo* GetUsage(EffectiveFormat format);
+    FormatUsageInfo* GetUsage(const FormatInfo* format)
     {
-        return GetInfo(format->effectiveFormat);
+        if (!format)
+            return nullptr;
+
+        return GetUsage(format->effectiveFormat);
     }
 };
 
-////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
+
+GLint GetComponentSize(EffectiveFormat format, GLenum component);
+GLenum GetComponentType(EffectiveFormat format);
+GLenum GetColorEncoding(EffectiveFormat format);
 
 } // namespace webgl
 } // namespace mozilla

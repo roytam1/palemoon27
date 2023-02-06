@@ -8,9 +8,16 @@
 #include "GLContext.h"
 #include "GLScreenBuffer.h"
 #include "WebGLContextUtils.h"
+#include "WebGLFormats.h"
 #include "WebGLFramebuffer.h"
 
 namespace mozilla {
+
+using gl::GLContext;
+using gl::GLFormats;
+using webgl::EffectiveFormat;
+using webgl::FormatInfo;
+using webgl::ComponentType;
 
 // Returns one of FLOAT, INT, UNSIGNED_INT.
 // Fixed-points (normalized ints) are considered FLOAT.
@@ -189,9 +196,9 @@ WebGL2Context::BlitFramebuffer(GLint srcX0, GLint srcY0, GLint srcX1, GLint srcY
     }
 
     GLsizei srcSamples;
-    GLenum srcColorFormat;
-    GLenum srcDepthFormat;
-    GLenum srcStencilFormat;
+    GLenum srcColorFormat = 0;
+    GLenum srcDepthFormat = 0;
+    GLenum srcStencilFormat = 0;
 
     if (mBoundReadFramebuffer) {
         if (!GetFBInfoForBlit(mBoundReadFramebuffer, this, "READ_FRAMEBUFFER",
@@ -220,9 +227,9 @@ WebGL2Context::BlitFramebuffer(GLint srcX0, GLint srcY0, GLint srcX1, GLint srcY
     }
 
     GLsizei dstSamples;
-    GLenum dstColorFormat;
-    GLenum dstDepthFormat;
-    GLenum dstStencilFormat;
+    GLenum dstColorFormat = 0;
+    GLenum dstDepthFormat = 0;
+    GLenum dstStencilFormat = 0;
 
     if (mBoundDrawFramebuffer) {
         if (!GetFBInfoForBlit(mBoundDrawFramebuffer, this, "DRAW_FRAMEBUFFER",
@@ -418,6 +425,103 @@ WebGL2Context::FramebufferTextureLayer(GLenum target, GLenum attachment,
     fb->FramebufferTextureLayer(attachment, texture, level, layer);
 }
 
+JS::Value
+WebGL2Context::GetFramebufferAttachmentParameter(JSContext* cx,
+                                                 GLenum target,
+                                                 GLenum attachment,
+                                                 GLenum pname,
+                                                 ErrorResult& rv)
+{
+    if (IsContextLost())
+        return JS::NullValue();
+
+    // OpenGL ES 3.0.4 (August 27, 2014) 6.1. QUERYING GL STATE 240
+    // "getFramebufferAttachmentParamter returns information about attachments of a bound
+    // framebuffer object. target must be DRAW_FRAMEBUFFER, READ_FRAMEBUFFER, or
+    // FRAMEBUFFER."
+
+    if (!ValidateFramebufferTarget(target, "getFramebufferAttachmentParameter"))
+        return JS::NullValue();
+
+    // FRAMEBUFFER is equivalent to DRAW_FRAMEBUFFER.
+    if (target == LOCAL_GL_FRAMEBUFFER)
+        target = LOCAL_GL_DRAW_FRAMEBUFFER;
+
+    WebGLFramebuffer* boundFB = nullptr;
+    switch (target) {
+    case LOCAL_GL_DRAW_FRAMEBUFFER: boundFB = mBoundDrawFramebuffer; break;
+    case LOCAL_GL_READ_FRAMEBUFFER: boundFB = mBoundReadFramebuffer; break;
+    }
+
+    if (boundFB) {
+        return boundFB->GetAttachmentParameter(cx, attachment, pname, rv);
+    }
+
+    // Handle default FB
+    const gl::GLFormats& formats = gl->GetGLFormats();
+    GLenum internalFormat = LOCAL_GL_NONE;
+
+    /* If the default framebuffer is bound to target, then attachment must be BACK,
+       identifying the color buffer; DEPTH, identifying the depth buffer; or STENCIL,
+       identifying the stencil buffer. */
+    switch (attachment) {
+    case LOCAL_GL_BACK:
+        internalFormat = formats.color_texInternalFormat;
+        break;
+
+    case LOCAL_GL_DEPTH:
+        internalFormat = formats.depth;
+        break;
+
+    case LOCAL_GL_STENCIL:
+        internalFormat = formats.stencil;
+        break;
+
+    default:
+        ErrorInvalidEnum("getFramebufferAttachmentParameter: Can only query "
+                         "attachment BACK, DEPTH, or STENCIL from default "
+                         "framebuffer");
+        return JS::NullValue();
+    }
+
+    const FormatInfo* info = webgl::GetInfoBySizedFormat(internalFormat);
+    MOZ_RELEASE_ASSERT(info);
+    EffectiveFormat effectiveFormat = info->effectiveFormat;
+
+    switch (pname) {
+    case LOCAL_GL_FRAMEBUFFER_ATTACHMENT_OBJECT_TYPE:
+        return JS::Int32Value(LOCAL_GL_FRAMEBUFFER_DEFAULT);
+
+    case LOCAL_GL_FRAMEBUFFER_ATTACHMENT_RED_SIZE:
+    case LOCAL_GL_FRAMEBUFFER_ATTACHMENT_GREEN_SIZE:
+    case LOCAL_GL_FRAMEBUFFER_ATTACHMENT_BLUE_SIZE:
+    case LOCAL_GL_FRAMEBUFFER_ATTACHMENT_ALPHA_SIZE:
+    case LOCAL_GL_FRAMEBUFFER_ATTACHMENT_DEPTH_SIZE:
+    case LOCAL_GL_FRAMEBUFFER_ATTACHMENT_STENCIL_SIZE:
+        return JS::Int32Value(webgl::GetComponentSize(effectiveFormat, pname));
+
+    case LOCAL_GL_FRAMEBUFFER_ATTACHMENT_COMPONENT_TYPE:
+        if (attachment == LOCAL_GL_DEPTH_STENCIL_ATTACHMENT &&
+            pname == LOCAL_GL_FRAMEBUFFER_ATTACHMENT_COMPONENT_TYPE)
+        {
+            ErrorInvalidOperation("getFramebufferAttachmentParameter: Querying "
+                                  "FRAMEBUFFER_ATTACHMENT_COMPONENT_TYPE against "
+                                  "DEPTH_STENCIL_ATTACHMENT is an error.");
+            return JS::NullValue();
+        }
+
+        return JS::Int32Value(webgl::GetComponentType(effectiveFormat));
+
+    case LOCAL_GL_FRAMEBUFFER_ATTACHMENT_COLOR_ENCODING:
+        return JS::Int32Value(webgl::GetColorEncoding(effectiveFormat));
+    }
+
+    /* Any combinations of framebuffer type and pname not described above will generate an
+       INVALID_ENUM error. */
+    ErrorInvalidEnum("getFramebufferAttachmentParameter: Invalid combination of ");
+    return JS::NullValue();
+}
+
 // Map attachments intended for the default buffer, to attachments for a non-
 // default buffer.
 static bool
@@ -487,6 +591,13 @@ WebGL2Context::InvalidateFramebuffer(GLenum target,
         }
     }
 
+    // InvalidateFramebuffer is a hint to the driver. Should be OK to
+    // skip calls if not supported, for example by OSX 10.9 GL
+    // drivers.
+    static bool invalidateFBSupported = gl->IsSupported(gl::GLFeature::invalidate_framebuffer);
+    if (!invalidateFBSupported)
+        return;
+
     if (!fb && !isDefaultFB) {
         dom::Sequence<GLenum> tmpAttachments;
         if (!TranslateDefaultAttachments(attachments, &tmpAttachments)) {
@@ -538,6 +649,13 @@ WebGL2Context::InvalidateSubFramebuffer(GLenum target, const dom::Sequence<GLenu
             return;
         }
     }
+
+    // InvalidateFramebuffer is a hint to the driver. Should be OK to
+    // skip calls if not supported, for example by OSX 10.9 GL
+    // drivers.
+    static bool invalidateFBSupported = gl->IsSupported(gl::GLFeature::invalidate_framebuffer);
+    if (!invalidateFBSupported)
+        return;
 
     if (!fb && !isDefaultFB) {
         dom::Sequence<GLenum> tmpAttachments;

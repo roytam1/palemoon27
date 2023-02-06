@@ -12,6 +12,7 @@
 #include "WebGLShader.h"
 #include "WebGLProgram.h"
 #include "WebGLUniformLocation.h"
+#include "WebGLFormats.h"
 #include "WebGLFramebuffer.h"
 #include "WebGLRenderbuffer.h"
 #include "WebGLShaderPrecisionFormat.h"
@@ -758,8 +759,12 @@ WebGLContext::GetFramebufferAttachmentParameter(JSContext* cx,
         return JS::NullValue();
     }
 
-    if (IsExtensionEnabled(WebGLExtensionID::WEBGL_draw_buffers))
+    if (IsExtensionEnabled(WebGLExtensionID::WEBGL_draw_buffers) &&
+        attachment >= LOCAL_GL_COLOR_ATTACHMENT0 &&
+        attachment <= LOCAL_GL_COLOR_ATTACHMENT15)
+    {
         fb->EnsureColorAttachPoints(attachment - LOCAL_GL_COLOR_ATTACHMENT0);
+    }
 
     MakeContextCurrent();
 
@@ -834,6 +839,13 @@ WebGLContext::GetFramebufferAttachmentParameter(JSContext* cx,
                 if (IsExtensionEnabled(WebGLExtensionID::EXT_sRGB)) {
                     const TexInternalFormat effectiveInternalFormat =
                         fba.Texture()->ImageInfoBase().EffectiveInternalFormat();
+
+                    if (effectiveInternalFormat == LOCAL_GL_NONE) {
+                        ErrorInvalidOperation("getFramebufferAttachmentParameter: "
+                                              "texture contains no data");
+                        return JS::NullValue();
+                    }
+
                     TexInternalFormat unsizedinternalformat = LOCAL_GL_NONE;
                     TexType type = LOCAL_GL_NONE;
                     UnsizedInternalFormatAndTypeFromEffectiveInternalFormat(
@@ -1370,10 +1382,32 @@ IsFormatAndTypeUnpackable(GLenum format, GLenum type)
     }
 }
 
+// This function is temporary, and will be removed once https://bugzilla.mozilla.org/show_bug.cgi?id=1176214 lands, which will
+// collapse the SharedArrayBufferView and ArrayBufferView into one.
+void
+ComputeLengthAndData(const dom::ArrayBufferViewOrSharedArrayBufferView& view,
+                     void** const out_data, size_t* const out_length,
+                     js::Scalar::Type* const out_type)
+{
+    if (view.IsArrayBufferView()) {
+        const dom::ArrayBufferView& pixbuf = view.GetAsArrayBufferView();
+        pixbuf.ComputeLengthAndData();
+        *out_length = pixbuf.Length();
+        *out_data = pixbuf.Data();
+        *out_type = JS_GetArrayBufferViewType(pixbuf.Obj());
+    } else {
+        const dom::SharedArrayBufferView& pixbuf = view.GetAsSharedArrayBufferView();
+        pixbuf.ComputeLengthAndData();
+        *out_length = pixbuf.Length();
+        *out_data = pixbuf.Data();
+        *out_type = JS_GetSharedArrayBufferViewType(pixbuf.Obj());
+    }
+}
+
 void
 WebGLContext::ReadPixels(GLint x, GLint y, GLsizei width,
                          GLsizei height, GLenum format,
-                         GLenum type, const dom::Nullable<dom::ArrayBufferView>& pixels,
+                         GLenum type, const dom::Nullable<dom::ArrayBufferViewOrSharedArrayBufferView>& pixels,
                          ErrorResult& rv)
 {
     if (IsContextLost())
@@ -1449,8 +1483,13 @@ WebGLContext::ReadPixels(GLint x, GLint y, GLsizei width,
         MOZ_CRASH("bad `type`");
     }
 
-    const dom::ArrayBufferView& pixbuf = pixels.Value();
-    int dataType = pixbuf.Type();
+    const dom::ArrayBufferViewOrSharedArrayBufferView &view = pixels.Value();
+    // Compute length and data.  Don't reenter after this point, lest the
+    // precomputed go out of sync with the instant length/data.
+    size_t dataByteLen;
+    void* data;
+    js::Scalar::Type dataType;
+    ComputeLengthAndData(view, &data, &dataByteLen, &dataType);
 
     // Check the pixels param type
     if (dataType != requiredDataType)
@@ -1468,15 +1507,9 @@ WebGLContext::ReadPixels(GLint x, GLint y, GLsizei width,
     if (!checked_neededByteLength.isValid())
         return ErrorInvalidOperation("readPixels: integer overflow computing the needed buffer size");
 
-    // Compute length and data.  Don't reenter after this point, lest the
-    // precomputed go out of sync with the instant length/data.
-    pixbuf.ComputeLengthAndData();
-
-    uint32_t dataByteLen = pixbuf.Length();
     if (checked_neededByteLength.value() > dataByteLen)
         return ErrorInvalidOperation("readPixels: buffer too small");
 
-    void* data = pixbuf.Data();
     if (!data) {
         ErrorOutOfMemory("readPixels: buffer storage is null. Did we run out of memory?");
         return rv.Throw(NS_ERROR_OUT_OF_MEMORY);
@@ -1670,42 +1703,16 @@ WebGLContext::RenderbufferStorage_base(const char* funcName, GLenum target,
         return;
     }
 
+    // Convert DEPTH_STENCIL to sized type for testing
+    GLenum sizedInternalFormat = internalFormat;
+    if (sizedInternalFormat == LOCAL_GL_DEPTH_STENCIL)
+        sizedInternalFormat = LOCAL_GL_DEPTH24_STENCIL8;
+
     bool isFormatValid = false;
-    switch (internalFormat) {
-    case LOCAL_GL_RGBA4:
-    case LOCAL_GL_RGB5_A1:
-    case LOCAL_GL_RGB565:
-    case LOCAL_GL_DEPTH_COMPONENT16:
-    case LOCAL_GL_STENCIL_INDEX8:
-    case LOCAL_GL_DEPTH_STENCIL:
-        isFormatValid = true;
-        break;
-
-    case LOCAL_GL_SRGB8_ALPHA8_EXT:
-        if (IsExtensionEnabled(WebGLExtensionID::EXT_sRGB))
-            isFormatValid = true;
-        break;
-
-    case LOCAL_GL_RGB16F:
-    case LOCAL_GL_RGBA16F:
-        if (IsExtensionEnabled(WebGLExtensionID::OES_texture_half_float) &&
-            IsExtensionEnabled(WebGLExtensionID::EXT_color_buffer_half_float))
-        {
-            isFormatValid = true;
-        }
-        break;
-
-    case LOCAL_GL_RGB32F:
-    case LOCAL_GL_RGBA32F:
-        if (IsExtensionEnabled(WebGLExtensionID::OES_texture_float) &&
-            IsExtensionEnabled(WebGLExtensionID::WEBGL_color_buffer_float))
-        {
-            isFormatValid = true;
-        }
-        break;
-
-    default:
-        break;
+    const webgl::FormatInfo* info = webgl::GetInfoBySizedFormat(sizedInternalFormat);
+    if (info) {
+        const webgl::FormatUsageInfo* usage = mFormatUsage->GetUsage(info);
+        isFormatValid = usage && usage->asRenderbuffer;
     }
 
     if (!isFormatValid) {

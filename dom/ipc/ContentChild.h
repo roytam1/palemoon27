@@ -148,7 +148,7 @@ public:
     AllocPProcessHangMonitorChild(Transport* aTransport,
                                   ProcessId aOtherProcess) override;
 
-    virtual bool RecvSetProcessSandbox() override;
+    virtual bool RecvSetProcessSandbox(const MaybeFileDesc& aBroker) override;
 
     PBackgroundChild*
     AllocPBackgroundChild(Transport* aTransport, ProcessId aOtherProcess)
@@ -267,6 +267,9 @@ public:
             PBrowserChild* aBrowser) override;
     virtual bool DeallocPExternalHelperAppChild(PExternalHelperAppChild *aService) override;
 
+    virtual PHandlerServiceChild* AllocPHandlerServiceChild() override;
+    virtual bool DeallocPHandlerServiceChild(PHandlerServiceChild*) override;
+
     virtual PCellBroadcastChild* AllocPCellBroadcastChild() override;
     PCellBroadcastChild* SendPCellBroadcastConstructor(PCellBroadcastChild* aActor);
     virtual bool DeallocPCellBroadcastChild(PCellBroadcastChild* aActor) override;
@@ -331,6 +334,13 @@ public:
                                            const uint32_t& aMemoryAvailable) override;
 
     virtual bool RecvPreferenceUpdate(const PrefSetting& aPref) override;
+
+    virtual bool RecvDataStoragePut(const nsString& aFilename,
+                                    const DataStorageItem& aItem) override;
+    virtual bool RecvDataStorageRemove(const nsString& aFilename,
+                                       const nsCString& aKey,
+                                       const DataStorageType& aType) override;
+    virtual bool RecvDataStorageClear(const nsString& aFilename) override;
 
     virtual bool RecvNotifyAlertsObserver(const nsCString& aType,
                                           const nsString& aData) override;

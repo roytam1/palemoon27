@@ -519,7 +519,7 @@ Factory::GetMaxSurfaceSize(BackendType aType)
   case BackendType::COREGRAPHICS_ACCELERATED:
     return DrawTargetCG::GetMaxSurfaceSize();
 #endif
-#if defined(USE_SKIA)
+#ifdef USE_SKIA
   case BackendType::SKIA:
     return DrawTargetSkia::GetMaxSurfaceSize();
 #endif

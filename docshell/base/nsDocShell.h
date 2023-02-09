@@ -296,6 +296,7 @@ public:
   // Tell the favicon service that aNewURI has the same favicon as aOldURI.
   static void CopyFavicon(nsIURI* aOldURI,
                           nsIURI* aNewURI,
+                          nsIPrincipal* aLoadingPrincipal,
                           bool aInPrivateBrowsing);
 
   static nsDocShell* Cast(nsIDocShell* aDocShell)
@@ -487,6 +488,8 @@ protected:
                                      nsIChannel* aNewChannel,
                                      uint32_t aRedirectFlags,
                                      uint32_t aStateFlags) override;
+
+  nsresult SetIsActiveInternal(bool aIsActive, bool aIsHidden);
 
   /**
    * Helper function that determines if channel is an HTTP POST.

@@ -65,6 +65,7 @@ include PBackgroundSharedTypes;
 include PContentPermission;
 include BrowserConfiguration;
 include GraphicsMessages;
+include ProfilerTypes;
 
 // Workaround to prevent error if PContentChild.cpp & PContentBridgeParent.cpp
 // are put into different UnifiedProtocolsXX.cpp files.
@@ -654,8 +655,7 @@ child:
     /**
      * Control the Gecko Profiler in the child process.
      */
-    async StartProfiler(uint32_t aEntries, double aInterval, nsCString[] aFeatures,
-                        nsCString[] aThreadNameFilters);
+    async StartProfiler(ProfilerInitParams params);
     async StopProfiler();
     async PauseProfiler(bool aPause);
 
@@ -776,7 +776,7 @@ parent:
      * process. |newPluginEpoch| is the current epoch in the chrome process. If
      * |pluginEpoch == newPluginEpoch|, then |plugins| will be left empty.
      */
-    sync FindPlugins(uint32_t pluginEpoch) returns (PluginTag[] plugins, uint32_t newPluginEpoch);
+    sync FindPlugins(uint32_t pluginEpoch) returns (nsresult aResult, PluginTag[] plugins, uint32_t newPluginEpoch);
 
     async PJavaScript();
 
@@ -966,7 +966,7 @@ parent:
 
     sync NotifyKeywordSearchLoading(nsString providerName, nsString keyword);
 
-    async CopyFavicon(URIParams oldURI, URIParams newURI, bool isPrivate);
+    async CopyFavicon(URIParams oldURI, URIParams newURI, Principal aLoadingPrincipal, bool isPrivate);
 
     // Tell the compositor to allocate a layer tree id for nested remote mozbrowsers.
     sync AllocateLayerTreeId()

@@ -1220,10 +1220,12 @@ ContentParent::RecvGetBlocklistState(const uint32_t& aPluginId,
 
 bool
 ContentParent::RecvFindPlugins(const uint32_t& aPluginEpoch,
+                               nsresult* aRv,
                                nsTArray<PluginTag>* aPlugins,
                                uint32_t* aNewPluginEpoch)
 {
-    return mozilla::plugins::FindPluginsForContent(aPluginEpoch, aPlugins, aNewPluginEpoch);
+    *aRv = mozilla::plugins::FindPluginsForContent(aPluginEpoch, aPlugins, aNewPluginEpoch);
+    return true;
 }
 
 /*static*/ TabParent*
@@ -1549,6 +1551,21 @@ ContentParent::Init()
     // process.
     if (nsIPresShell::IsAccessibilityActive()) {
         Unused << SendActivateA11y();
+    }
+#endif
+
+#ifdef MOZ_ENABLE_PROFILER_SPS
+    nsCOMPtr<nsIProfiler> profiler(do_GetService("@mozilla.org/tools/profiler;1"));
+    bool profilerActive = false;
+    DebugOnly<nsresult> rv = profiler->IsActive(&profilerActive);
+    MOZ_ASSERT(NS_SUCCEEDED(rv));
+
+    if (profilerActive) {
+        nsCOMPtr<nsIProfilerStartParams> currentProfilerParams;
+        rv = profiler->GetStartParams(getter_AddRefs(currentProfilerParams));
+        MOZ_ASSERT(NS_SUCCEEDED(rv));
+
+        StartProfiler(currentProfilerParams);
     }
 #endif
 }
@@ -3276,13 +3293,7 @@ ContentParent::Observe(nsISupports* aSubject,
 #ifdef MOZ_ENABLE_PROFILER_SPS
     else if (!strcmp(aTopic, "profiler-started")) {
         nsCOMPtr<nsIProfilerStartParams> params(do_QueryInterface(aSubject));
-        uint32_t entries;
-        double interval;
-        params->GetEntries(&entries);
-        params->GetInterval(&interval);
-        const nsTArray<nsCString>& features = params->GetFeatures();
-        const nsTArray<nsCString>& threadFilterNames = params->GetThreadFilterNames();
-        Unused << SendStartProfiler(entries, interval, features, threadFilterNames);
+        StartProfiler(params);
     }
     else if (!strcmp(aTopic, "profiler-stopped")) {
         Unused << SendStopProfiler();
@@ -3514,6 +3525,18 @@ bool
 ContentParent::DeallocPBlobParent(PBlobParent* aActor)
 {
     return nsIContentParent::DeallocPBlobParent(aActor);
+}
+
+bool
+ContentParent::RecvPBlobConstructor(PBlobParent* aActor,
+                                    const BlobConstructorParams& aParams)
+{
+  const ParentBlobConstructorParams& params = aParams.get_ParentBlobConstructorParams();
+  if (params.blobParams().type() == AnyBlobConstructorParams::TKnownBlobConstructorParams) {
+    return aActor->SendCreatedFromKnownBlob();
+  }
+
+  return true;
 }
 
 mozilla::PRemoteSpellcheckEngineParent *
@@ -5759,6 +5782,26 @@ ContentParent::RecvGetAndroidSystemInfo(AndroidSystemInfo* aInfo)
 #else
   MOZ_CRASH("wrong platform!");
   return false;
+#endif
+}
+
+void
+ContentParent::StartProfiler(nsIProfilerStartParams* aParams)
+{
+#ifdef MOZ_ENABLE_PROFILER_SPS
+    if (NS_WARN_IF(!aParams)) {
+        return;
+    }
+
+    ProfilerInitParams ipcParams;
+
+    ipcParams.enabled() = true;
+    aParams->GetEntries(&ipcParams.entries());
+    aParams->GetInterval(&ipcParams.interval());
+    ipcParams.features() = aParams->GetFeatures();
+    ipcParams.threadFilters() = aParams->GetThreadFilterNames();
+
+    Unused << SendStartProfiler(ipcParams);
 #endif
 }
 

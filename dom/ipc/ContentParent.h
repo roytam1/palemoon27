@@ -191,6 +191,7 @@ public:
     virtual bool RecvConnectPluginBridge(const uint32_t& aPluginId, nsresult* aRv) override;
     virtual bool RecvGetBlocklistState(const uint32_t& aPluginId, uint32_t* aIsBlocklisted) override;
     virtual bool RecvFindPlugins(const uint32_t& aPluginEpoch,
+                                 nsresult* aRv,
                                  nsTArray<PluginTag>* aPlugins,
                                  uint32_t* aNewPluginEpoch) override;
 
@@ -647,6 +648,9 @@ private:
                                           override;
     virtual bool DeallocPBlobParent(PBlobParent* aActor) override;
 
+    virtual bool RecvPBlobConstructor(PBlobParent* aActor,
+                                      const BlobConstructorParams& params) override;
+
     virtual bool DeallocPCrashReporterParent(PCrashReporterParent* crashreporter) override;
 
     virtual bool RecvGetRandomValues(const uint32_t& length,
@@ -940,6 +944,7 @@ private:
     virtual bool RecvGamepadListenerRemoved() override;
     virtual bool RecvProfile(const nsCString& aProfile) override;
     virtual bool RecvGetGraphicsDeviceInitData(DeviceInitData* aOut) override;
+    void StartProfiler(nsIProfilerStartParams* aParams);
 
     virtual bool RecvGetDeviceStorageLocation(const nsString& aType,
                                               nsString* aPath) override;

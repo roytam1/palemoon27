@@ -335,7 +335,7 @@ public:
   virtual void VerifyStyleTree() override;
 #endif
 
-  static PRLogModuleInfo* gLog;
+  static mozilla::LazyLogModule gLog;
 
   virtual void DisableNonTestMouseEvents(bool aDisable) override;
 
@@ -355,7 +355,7 @@ public:
 
   virtual nscolor ComputeBackstopColor(nsView* aDisplayRoot) override;
 
-  virtual nsresult SetIsActive(bool aIsActive) override;
+  virtual nsresult SetIsActive(bool aIsActive, bool aIsHidden = true) override;
 
   virtual bool GetIsViewportOverridden() override {
     return (mMobileViewportManager != nullptr);

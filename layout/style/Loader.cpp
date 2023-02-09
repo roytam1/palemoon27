@@ -266,33 +266,18 @@ private:
 
 #include "mozilla/Logging.h"
 
-static PRLogModuleInfo *
-GetLoaderLog()
-{
-  static PRLogModuleInfo *sLog;
-  if (!sLog)
-    sLog = PR_NewLogModule("nsCSSLoader");
-  return sLog;
-}
+static mozilla::LazyLogModule sCssLoaderLog("nsCSSLoader");
 
-static PRLogModuleInfo*
-GetSriLog()
-{
-  static PRLogModuleInfo *gSriPRLog;
-  if (!gSriPRLog) {
-    gSriPRLog = PR_NewLogModule("SRI");
-  }
-  return gSriPRLog;
-}
+static mozilla::LazyLogModule gSriPRLog("SRI");
 
-#define LOG_ERROR(args) MOZ_LOG(GetLoaderLog(), mozilla::LogLevel::Error, args)
-#define LOG_WARN(args) MOZ_LOG(GetLoaderLog(), mozilla::LogLevel::Warning, args)
-#define LOG_DEBUG(args) MOZ_LOG(GetLoaderLog(), mozilla::LogLevel::Debug, args)
+#define LOG_ERROR(args) MOZ_LOG(sCssLoaderLog, mozilla::LogLevel::Error, args)
+#define LOG_WARN(args) MOZ_LOG(sCssLoaderLog, mozilla::LogLevel::Warning, args)
+#define LOG_DEBUG(args) MOZ_LOG(sCssLoaderLog, mozilla::LogLevel::Debug, args)
 #define LOG(args) LOG_DEBUG(args)
 
-#define LOG_ERROR_ENABLED() MOZ_LOG_TEST(GetLoaderLog(), mozilla::LogLevel::Error)
-#define LOG_WARN_ENABLED() MOZ_LOG_TEST(GetLoaderLog(), mozilla::LogLevel::Warning)
-#define LOG_DEBUG_ENABLED() MOZ_LOG_TEST(GetLoaderLog(), mozilla::LogLevel::Debug)
+#define LOG_ERROR_ENABLED() MOZ_LOG_TEST(sCssLoaderLog, mozilla::LogLevel::Error)
+#define LOG_WARN_ENABLED() MOZ_LOG_TEST(sCssLoaderLog, mozilla::LogLevel::Warning)
+#define LOG_DEBUG_ENABLED() MOZ_LOG_TEST(sCssLoaderLog, mozilla::LogLevel::Debug)
 #define LOG_ENABLED() LOG_DEBUG_ENABLED()
 
 #define LOG_URI(format, uri)                        \
@@ -437,7 +422,7 @@ SheetLoadData::SheetLoadData(Loader* aLoader,
 
 SheetLoadData::~SheetLoadData()
 {
-  NS_IF_RELEASE(mNext);
+  NS_CSS_NS_RELEASE_LIST_MEMBER(SheetLoadData, this, mNext);
 }
 
 NS_IMETHODIMP
@@ -600,24 +585,6 @@ Loader::DropDocumentReference(void)
   }
 }
 
-static PLDHashOperator
-CollectNonAlternates(URIPrincipalReferrerPolicyAndCORSModeHashKey *aKey,
-                     SheetLoadData* &aData,
-                     void* aClosure)
-{
-  NS_PRECONDITION(aData, "Must have a data");
-  NS_PRECONDITION(aClosure, "Must have an array");
-
-  // Note that we don't want to affect what the selected style set is,
-  // so use true for aHasAlternateRel.
-  if (aData->mLoader->IsAlternate(aData->mTitle, true)) {
-    return PL_DHASH_NEXT;
-  }
-
-  static_cast<Loader::LoadDataArray*>(aClosure)->AppendElement(aData);
-  return PL_DHASH_REMOVE;
-}
-
 nsresult
 Loader::SetPreferredSheet(const nsAString& aTitle)
 {
@@ -639,7 +606,17 @@ Loader::SetPreferredSheet(const nsAString& aTitle)
   // start any pending alternates that aren't alternates anymore
   if (mSheets) {
     LoadDataArray arr(mSheets->mPendingDatas.Count());
-    mSheets->mPendingDatas.Enumerate(CollectNonAlternates, &arr);
+    for (auto iter = mSheets->mPendingDatas.Iter(); !iter.Done(); iter.Next()) {
+      SheetLoadData* data = iter.Data();
+      MOZ_ASSERT(data, "Must have a data");
+
+      // Note that we don't want to affect what the selected style set is, so
+      // use true for aHasAlternateRel.
+      if (!data->mLoader->IsAlternate(data->mTitle, true)) {
+        arr.AppendElement(data);
+        iter.Remove();
+      }
+    }
 
     mDatasToNotifyOn += arr.Length();
     for (uint32_t i = 0; i < arr.Length(); ++i) {
@@ -982,7 +959,7 @@ SheetLoadData::OnStreamComplete(nsIUnicharStreamLoader* aLoader,
                                           mSheet->GetCORSMode(), aBuffer,
                                           mLoader->mDocument))) {
     LOG(("  Load was blocked by SRI"));
-    MOZ_LOG(GetSriLog(), mozilla::LogLevel::Debug,
+    MOZ_LOG(gSriPRLog, mozilla::LogLevel::Debug,
             ("css::Loader::OnStreamComplete, bad metadata"));
     mLoader->SheetComplete(this, NS_ERROR_SRI_CORRUPT);
     return NS_OK;
@@ -1021,21 +998,6 @@ Loader::IsAlternate(const nsAString& aTitle, bool aHasAlternateRel)
   return !aTitle.Equals(mPreferredSheet);
 }
 
-/* static */ PLDHashOperator
-Loader::RemoveEntriesWithURI(URIPrincipalReferrerPolicyAndCORSModeHashKey* aKey,
-                             RefPtr<CSSStyleSheet>& aSheet,
-                             void* aUserData)
-{
-  nsIURI* obsoleteURI = static_cast<nsIURI*>(aUserData);
-  nsIURI* sheetURI = aKey->GetURI();
-  bool areEqual;
-  nsresult rv = sheetURI->Equals(obsoleteURI, &areEqual);
-  if (NS_SUCCEEDED(rv) && areEqual) {
-    return PL_DHASH_REMOVE;
-  }
-  return PL_DHASH_NEXT;
-}
-
 nsresult
 Loader::ObsoleteSheet(nsIURI* aURI)
 {
@@ -1045,7 +1007,14 @@ Loader::ObsoleteSheet(nsIURI* aURI)
   if (!aURI) {
     return NS_ERROR_INVALID_ARG;
   }
-  mSheets->mCompleteSheets.Enumerate(RemoveEntriesWithURI, aURI);
+  for (auto iter = mSheets->mCompleteSheets.Iter(); !iter.Done(); iter.Next()) {
+    nsIURI* sheetURI = iter.Key()->GetURI();
+    bool areEqual;
+    nsresult rv = sheetURI->Equals(aURI, &areEqual);
+    if (NS_SUCCEEDED(rv) && areEqual) {
+      iter.Remove();
+    }
+  }
   return NS_OK;
 }
 
@@ -1271,7 +1240,7 @@ Loader::CreateSheet(nsIURI* aURI,
 
     SRIMetadata sriMetadata;
     if (!aIntegrity.IsEmpty()) {
-      MOZ_LOG(GetSriLog(), mozilla::LogLevel::Debug,
+      MOZ_LOG(gSriPRLog, mozilla::LogLevel::Debug,
               ("css::Loader::CreateSheet, integrity=%s",
                NS_ConvertUTF16toUTF8(aIntegrity).get()));
       SRICheck::IntegrityMetadata(aIntegrity, mDocument, &sriMetadata);
@@ -2505,36 +2474,36 @@ Loader::HandleLoadEvent(SheetLoadData* aEvent)
   }
 }
 
-static PLDHashOperator
-StopLoadingSheetCallback(URIPrincipalReferrerPolicyAndCORSModeHashKey* aKey,
-                         SheetLoadData*& aData,
-                         void* aClosure)
+static void
+StopLoadingSheets(
+  nsDataHashtable<URIPrincipalReferrerPolicyAndCORSModeHashKey, SheetLoadData*>& aDatas,
+  Loader::LoadDataArray& aArr)
 {
-  NS_PRECONDITION(aData, "Must have a data!");
-  NS_PRECONDITION(aClosure, "Must have a loader");
+  for (auto iter = aDatas.Iter(); !iter.Done(); iter.Next()) {
+    SheetLoadData* data = iter.Data();
+    MOZ_ASSERT(data, "Must have a data!");
 
-  aData->mIsLoading = false; // we will handle the removal right here
-  aData->mIsCancelled = true;
+    data->mIsLoading = false; // we will handle the removal right here
+    data->mIsCancelled = true;
 
-  static_cast<Loader::LoadDataArray*>(aClosure)->AppendElement(aData);
+    aArr.AppendElement(data);
 
-  return PL_DHASH_REMOVE;
+    iter.Remove();
+  }
 }
 
 nsresult
 Loader::Stop()
 {
-  uint32_t pendingCount =
-    mSheets ? mSheets->mPendingDatas.Count() : 0;
-  uint32_t loadingCount =
-    mSheets ? mSheets->mLoadingDatas.Count() : 0;
+  uint32_t pendingCount = mSheets ? mSheets->mPendingDatas.Count() : 0;
+  uint32_t loadingCount = mSheets ? mSheets->mLoadingDatas.Count() : 0;
   LoadDataArray arr(pendingCount + loadingCount + mPostedEvents.Length());
 
   if (pendingCount) {
-    mSheets->mPendingDatas.Enumerate(StopLoadingSheetCallback, &arr);
+    StopLoadingSheets(mSheets->mPendingDatas, arr);
   }
   if (loadingCount) {
-    mSheets->mLoadingDatas.Enumerate(StopLoadingSheetCallback, &arr);
+    StopLoadingSheets(mSheets->mLoadingDatas, arr);
   }
 
   uint32_t i;
@@ -2589,21 +2558,15 @@ Loader::RemoveObserver(nsICSSLoaderObserver* aObserver)
   mObservers.RemoveElement(aObserver);
 }
 
-static PLDHashOperator
-CollectLoadDatas(URIPrincipalReferrerPolicyAndCORSModeHashKey *aKey,
-                 SheetLoadData* &aData,
-                 void* aClosure)
-{
-  static_cast<Loader::LoadDataArray*>(aClosure)->AppendElement(aData);
-  return PL_DHASH_REMOVE;
-}
-
 void
 Loader::StartAlternateLoads()
 {
   NS_PRECONDITION(mSheets, "Don't call me!");
   LoadDataArray arr(mSheets->mPendingDatas.Count());
-  mSheets->mPendingDatas.Enumerate(CollectLoadDatas, &arr);
+  for (auto iter = mSheets->mPendingDatas.Iter(); !iter.Done(); iter.Next()) {
+    arr.AppendElement(iter.Data());
+    iter.Remove();
+  }
 
   mDatasToNotifyOn += arr.Length();
   for (uint32_t i = 0; i < arr.Length(); ++i) {
@@ -2612,23 +2575,16 @@ Loader::StartAlternateLoads()
   }
 }
 
-static PLDHashOperator
-TraverseSheet(URIPrincipalReferrerPolicyAndCORSModeHashKey*,
-              CSSStyleSheet* aSheet,
-              void* aClosure)
-{
-  nsCycleCollectionTraversalCallback* cb =
-    static_cast<nsCycleCollectionTraversalCallback*>(aClosure);
-  NS_CYCLE_COLLECTION_NOTE_EDGE_NAME(*cb, "Sheet cache nsCSSLoader");
-  cb->NoteXPCOMChild(NS_ISUPPORTS_CAST(nsIStyleSheet*, aSheet));
-  return PL_DHASH_NEXT;
-}
-
 NS_IMPL_CYCLE_COLLECTION_CLASS(Loader)
 
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN(Loader)
   if (tmp->mSheets) {
-    tmp->mSheets->mCompleteSheets.EnumerateRead(TraverseSheet, &cb);
+    for (auto iter = tmp->mSheets->mCompleteSheets.Iter();
+         !iter.Done();
+         iter.Next()) {
+      NS_CYCLE_COLLECTION_NOTE_EDGE_NAME(cb, "Sheet cache nsCSSLoader");
+      cb.NoteXPCOMChild(NS_ISUPPORTS_CAST(nsIStyleSheet*, iter.UserData()));
+    }
   }
   nsTObserverArray<nsCOMPtr<nsICSSLoaderObserver>>::ForwardIterator
     it(tmp->mObservers);

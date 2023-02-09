@@ -524,30 +524,6 @@ static inline mozilla::css::Side operator++(mozilla::css::Side& side, int) {
 #define NS_STYLE_JUSTIFY_ALL_SHIFT        NS_STYLE_ALIGN_ALL_SHIFT
 
 // See nsStylePosition
-#define NS_STYLE_ALIGN_CONTENT_FLEX_START       0
-#define NS_STYLE_ALIGN_CONTENT_FLEX_END         1
-#define NS_STYLE_ALIGN_CONTENT_CENTER           2
-#define NS_STYLE_ALIGN_CONTENT_SPACE_BETWEEN    3
-#define NS_STYLE_ALIGN_CONTENT_SPACE_AROUND     4
-#define NS_STYLE_ALIGN_CONTENT_STRETCH          5
-
-// See nsStylePosition
-#define NS_STYLE_ALIGN_ITEMS_FLEX_START         0
-#define NS_STYLE_ALIGN_ITEMS_FLEX_END           1
-#define NS_STYLE_ALIGN_ITEMS_CENTER             2
-#define NS_STYLE_ALIGN_ITEMS_BASELINE           3
-#define NS_STYLE_ALIGN_ITEMS_STRETCH            4
-
-// For convenience/clarity (since we use this default value in multiple places)
-#define NS_STYLE_ALIGN_ITEMS_INITIAL_VALUE      NS_STYLE_ALIGN_ITEMS_STRETCH
-
-// The "align-self" property accepts all of the normal "align-items" values
-// (above) plus a special 'auto' value that computes to the parent's
-// "align-items" value. Our computed style code internally represents 'auto'
-// with this enum until we actually evaluate it:
-#define NS_STYLE_ALIGN_SELF_AUTO                5
-
-// See nsStylePosition
 #define NS_STYLE_FLEX_DIRECTION_ROW             0
 #define NS_STYLE_FLEX_DIRECTION_ROW_REVERSE     1
 #define NS_STYLE_FLEX_DIRECTION_COLUMN          2
@@ -563,12 +539,12 @@ static inline mozilla::css::Side operator++(mozilla::css::Side& side, int) {
 // (rather than an internal numerical representation of some keyword).
 #define NS_STYLE_ORDER_INITIAL                  0
 
-// See nsStylePosition
-#define NS_STYLE_JUSTIFY_CONTENT_FLEX_START     0
-#define NS_STYLE_JUSTIFY_CONTENT_FLEX_END       1
-#define NS_STYLE_JUSTIFY_CONTENT_CENTER         2
-#define NS_STYLE_JUSTIFY_CONTENT_SPACE_BETWEEN  3
-#define NS_STYLE_JUSTIFY_CONTENT_SPACE_AROUND   4
+// XXX remove in a later patch after updating flexbox code with the new names
+#define NS_STYLE_JUSTIFY_CONTENT_FLEX_START     NS_STYLE_JUSTIFY_FLEX_START
+#define NS_STYLE_JUSTIFY_CONTENT_FLEX_END       NS_STYLE_JUSTIFY_FLEX_END
+#define NS_STYLE_JUSTIFY_CONTENT_CENTER         NS_STYLE_JUSTIFY_CENTER
+#define NS_STYLE_JUSTIFY_CONTENT_SPACE_BETWEEN  NS_STYLE_JUSTIFY_SPACE_BETWEEN
+#define NS_STYLE_JUSTIFY_CONTENT_SPACE_AROUND   NS_STYLE_JUSTIFY_SPACE_AROUND
 
 // See nsStyleDisplay
 #define NS_STYLE_FLOAT_NONE                     0

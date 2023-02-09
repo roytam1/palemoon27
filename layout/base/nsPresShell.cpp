@@ -537,7 +537,7 @@ private:
 
 bool PresShell::sDisableNonTestMouseEvents = false;
 
-PRLogModuleInfo* PresShell::gLog;
+mozilla::LazyLogModule PresShell::gLog("PresShell");
 
 #ifdef DEBUG
 static void
@@ -765,9 +765,7 @@ PresShell::PresShell()
   mReflowCountMgr->SetPresShell(this);
 #endif
   mLoadBegin = TimeStamp::Now();
-  if (!gLog) {
-    gLog = PR_NewLogModule("PresShell");
-  }
+
   mSelectionFlags = nsISelectionDisplay::DISPLAY_TEXT | nsISelectionDisplay::DISPLAY_IMAGES;
   mIsThemeSupportDisabled = false;
   mIsActive = true;
@@ -2476,7 +2474,7 @@ PresShell::BeginLoad(nsIDocument *aDocument)
     tp = mPresContext->GetTextPerfMetrics();
   }
 
-  bool shouldLog = gLog && MOZ_LOG_TEST(gLog, LogLevel::Debug);
+  bool shouldLog = MOZ_LOG_TEST(gLog, LogLevel::Debug);
   if (shouldLog || tp) {
     mLoadBegin = TimeStamp::Now();
   }
@@ -2512,7 +2510,7 @@ PresShell::LoadComplete()
   }
 
   // log load
-  bool shouldLog = gLog && MOZ_LOG_TEST(gLog, LogLevel::Debug);
+  bool shouldLog = MOZ_LOG_TEST(gLog, LogLevel::Debug);
   if (shouldLog || tp) {
     TimeDuration loadTime = TimeStamp::Now() - mLoadBegin;
     nsIURI* uri = mDocument->GetDocumentURI();
@@ -4338,21 +4336,6 @@ PresShell::ContentInserted(nsIDocument* aDocument,
   VERIFY_STYLE_TREE;
 }
 
-PLDHashOperator
-ReleasePointerCaptureFromRemovedContent(const uint32_t& aKey,
-                                        nsIPresShell::PointerCaptureInfo* aData,
-                                        void* aChildLink)
-{
-  if (aChildLink && aData && aData->mOverrideContent) {
-    if (nsIContent* content = static_cast<nsIContent*>(aChildLink)) {
-      if (nsContentUtils::ContentIsDescendantOf(aData->mOverrideContent, content)) {
-        nsIPresShell::ReleasePointerCapturingContent(aKey, aData->mOverrideContent);
-      }
-    }
-  }
-  return PLDHashOperator::PL_DHASH_NEXT;
-}
-
 void
 PresShell::ContentRemoved(nsIDocument *aDocument,
                           nsIContent* aContainer,
@@ -4399,7 +4382,17 @@ PresShell::ContentRemoved(nsIDocument *aDocument,
 
   // We should check that aChild does not contain pointer capturing elements.
   // If it does we should release the pointer capture for the elements.
-  gPointerCaptureList->EnumerateRead(ReleasePointerCaptureFromRemovedContent, aChild);
+  if (aChild) {
+    for (auto iter = gPointerCaptureList->Iter(); !iter.Done(); iter.Next()) {
+      nsIPresShell::PointerCaptureInfo* data = iter.UserData();
+      if (data && data->mOverrideContent &&
+          nsContentUtils::ContentIsDescendantOf(data->mOverrideContent,
+                                                aChild)) {
+        nsIPresShell::ReleasePointerCapturingContent(
+          iter.Key(), data->mOverrideContent);
+      }
+    }
+  }
 
   bool didReconstruct;
   mFrameConstructor->ContentRemoved(aContainer, aChild, oldNextSibling,
@@ -6586,22 +6579,6 @@ PresShell::RecordMouseLocation(WidgetGUIEvent* aEvent)
   }
 }
 
-static PLDHashOperator
-FindAnyTarget(const uint32_t& aKey, RefPtr<dom::Touch>& aData,
-              void* aAnyTarget)
-{
-  if (aData) {
-    dom::EventTarget* target = aData->GetTarget();
-    if (target) {
-      nsCOMPtr<nsIContent>* content =
-        static_cast<nsCOMPtr<nsIContent>*>(aAnyTarget);
-      *content = do_QueryInterface(target);
-      return PL_DHASH_STOP;
-    }
-  }
-  return PL_DHASH_NEXT;
-}
-
 nsIFrame* GetNearestFrameContainingPresShell(nsIPresShell* aPresShell)
 {
   nsView* view = aPresShell->GetViewManager()->GetRootView();
@@ -7305,9 +7282,18 @@ PresShell::HandleEvent(nsIFrame* aFrame,
         // the capture list
         nsCOMPtr<nsIContent> anyTarget;
         if (TouchManager::gCaptureTouchList->Count() > 0 && touchEvent->touches.Length() > 1) {
-          TouchManager::gCaptureTouchList->Enumerate(&FindAnyTarget, &anyTarget);
-        } else {
-          TouchManager::gPreventMouseEvents = false;
+          for (auto iter = TouchManager::gCaptureTouchList->Iter();
+               !iter.Done();
+               iter.Next()) {
+            RefPtr<dom::Touch>& touch = iter.Data();
+            if (touch) {
+              dom::EventTarget* target = touch->GetTarget();
+              if (target) {
+                anyTarget = do_QueryInterface(target);
+                break;
+              }
+            }
+          }
         }
 
         for (int32_t i = touchEvent->touches.Length(); i; ) {
@@ -8123,14 +8109,7 @@ PresShell::DispatchTouchEventToDOM(WidgetEvent* aEvent,
     }
   }
 
-  // if preventDefault was called on any of the events dispatched
-  // and this is touchstart, or the first touchmove, widget should consume
-  // other events that would be associated with this touch session
   if (preventDefault && canPrevent) {
-    TouchManager::gPreventMouseEvents = true;
-  }
-
-  if (TouchManager::gPreventMouseEvents) {
     *aStatus = nsEventStatus_eConsumeNoDefault;
   } else {
     *aStatus = nsEventStatus_eIgnore;
@@ -10615,7 +10594,7 @@ SetPluginIsActive(nsISupports* aSupports, void* aClosure)
 }
 
 nsresult
-PresShell::SetIsActive(bool aIsActive)
+PresShell::SetIsActive(bool aIsActive, bool aIsHidden)
 {
   NS_PRECONDITION(mDocument, "should only be called with a document");
 
@@ -10659,21 +10638,22 @@ PresShell::SetIsActive(bool aIsActive)
   // and (ii) has easy access to the TabChild.  So we use this
   // notification to signal the TabChild to drop its layer tree and
   // stop trying to repaint.
-  if (TabChild* tab = TabChild::GetFrom(this)) {
-    if (aIsActive) {
-      tab->MakeVisible();
-      if (!mIsZombie) {
-        if (nsIFrame* root = mFrameConstructor->GetRootFrame()) {
-          FrameLayerBuilder::InvalidateAllLayersForFrame(
-            nsLayoutUtils::GetDisplayRootFrame(root));
-          root->SchedulePaint();
+  if (aIsHidden) {
+    if (TabChild* tab = TabChild::GetFrom(this)) {
+      if (aIsActive) {
+        tab->MakeVisible();
+        if (!mIsZombie) {
+          if (nsIFrame* root = mFrameConstructor->GetRootFrame()) {
+            FrameLayerBuilder::InvalidateAllLayersForFrame(
+              nsLayoutUtils::GetDisplayRootFrame(root));
+            root->SchedulePaint();
+          }
         }
+      } else {
+        tab->MakeHidden();
       }
-    } else {
-      tab->MakeHidden();
     }
   }
-
   return rv;
 }
 

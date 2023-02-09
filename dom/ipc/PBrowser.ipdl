@@ -687,7 +687,7 @@ child:
     /**
      * Update the child side docShell active (resource use) state.
      */
-    SetDocShellIsActive(bool aIsActive);
+    SetDocShellIsActive(bool aIsActive, bool aIsHidden);
 
     /**
      * Navigate by key (Tab/Shift+Tab/F6/Shift+f6).

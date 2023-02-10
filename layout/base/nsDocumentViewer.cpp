@@ -136,15 +136,9 @@ using namespace mozilla::dom;
 #include "mozilla/Logging.h"
 
 #ifdef NS_PRINTING
-static PRLogModuleInfo *
-GetPrintingLog()
-{
-  static PRLogModuleInfo *sLog;
-  if (!sLog)
-    sLog = PR_NewLogModule("printing");
-  return sLog;
-}
-#define PR_PL(_p1)  MOZ_LOG(GetPrintingLog(), mozilla::LogLevel::Debug, _p1);
+static mozilla::LazyLogModule gPrintingLog("printing");
+
+#define PR_PL(_p1)  MOZ_LOG(gPrintingLog, mozilla::LogLevel::Debug, _p1);
 #endif // NS_PRINTING
 
 #define PRT_YESNO(_p) ((_p)?"YES":"NO")
@@ -2906,17 +2900,6 @@ nsDocumentViewer::CallChildren(CallChildFunc aFunc, void* aClosure)
   }
 }
 
-static void
-ChangeChildPaintingEnabled(nsIContentViewer* aChild, void* aClosure)
-{
-  bool* enablePainting = (bool*) aClosure;
-  if (*enablePainting) {
-    aChild->ResumePainting();
-  } else {
-    aChild->PausePainting();
-  }
-}
-
 struct ZoomInfo
 {
   float mZoom;
@@ -3343,34 +3326,6 @@ NS_IMETHODIMP nsDocumentViewer::AppendSubtree(nsTArray<nsCOMPtr<nsIContentViewer
 {
   aArray.AppendElement(this);
   CallChildren(AppendChildSubtree, &aArray);
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-nsDocumentViewer::PausePainting()
-{
-  bool enablePaint = false;
-  CallChildren(ChangeChildPaintingEnabled, &enablePaint);
-
-  nsIPresShell* presShell = GetPresShell();
-  if (presShell) {
-    presShell->PausePainting();
-  }
-
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-nsDocumentViewer::ResumePainting()
-{
-  bool enablePaint = true;
-  CallChildren(ChangeChildPaintingEnabled, &enablePaint);
-
-  nsIPresShell* presShell = GetPresShell();
-  if (presShell) {
-    presShell->ResumePainting();
-  }
-
   return NS_OK;
 }
 

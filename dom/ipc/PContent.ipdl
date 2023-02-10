@@ -16,6 +16,7 @@ include protocol PCycleCollectWithLogs;
 include protocol PCrashReporter;
 include protocol PPSMContentDownloader;
 include protocol PExternalHelperApp;
+include protocol PHandlerService;
 include protocol PDeviceStorageRequest;
 include protocol PFileDescriptorSet;
 include protocol PFMRadio;
@@ -63,6 +64,7 @@ include PBackgroundSharedTypes;
 include PContentPermission;
 include BrowserConfiguration;
 include GraphicsMessages;
+include ProfilerTypes;
 
 // Workaround to prevent error if PContentChild.cpp & PContentBridgeParent.cpp
 // are put into different UnifiedProtocolsXX.cpp files.
@@ -90,6 +92,7 @@ using mozilla::dom::TabId from "mozilla/dom/ipc/IdType.h";
 using mozilla::dom::ContentParentId from "mozilla/dom/ipc/IdType.h";
 using struct LookAndFeelInt from "mozilla/widget/WidgetMessageUtils.h";
 using class mozilla::dom::ipc::StructuredCloneData from "ipc/IPCMessageUtils.h";
+using mozilla::DataStorageType from "ipc/DataStorageIPCUtils.h";
 
 union ChromeRegistryItem
 {
@@ -323,6 +326,12 @@ struct PrefSetting {
   MaybePrefValue userValue;
 };
 
+struct DataStorageItem {
+  nsCString key;
+  nsCString value;
+  DataStorageType type;
+};
+
 struct DataStoreSetting {
   nsString name;
   nsString originURL;
@@ -415,6 +424,16 @@ struct FrameScriptInfo
     bool runInGlobalScope;
 };
 
+struct AndroidSystemInfo
+{
+    nsString device;
+    nsString manufacturer;
+    nsString release_version;
+    nsString hardware;
+    uint32_t sdk_version;
+    bool     isTablet;
+};
+
 prio(normal upto urgent) sync protocol PContent
 {
     parent spawns PPluginModule;
@@ -440,6 +459,7 @@ prio(normal upto urgent) sync protocol PContent
     manages PFileDescriptorSet;
     manages PFMRadio;
     manages PHal;
+    manages PHandlerService;
     manages PHeapSnapshotTempFileHelper;
     manages PIcc;
     manages PMedia;
@@ -499,7 +519,7 @@ child:
      * usually only be performed zero or one times.  The child may
      * abnormally exit if this fails; the details are OS-specific.
      */
-    async SetProcessSandbox();
+    async SetProcessSandbox(MaybeFileDesc aBroker);
 
     PMemoryReportRequest(uint32_t generation, bool anonymize,
                          bool minimizeMemoryUsage, MaybeFileDesc DMDFile);
@@ -539,6 +559,10 @@ child:
     async SystemMemoryAvailable(uint64_t getterId, uint32_t memoryAvailable);
 
     PreferenceUpdate(PrefSetting pref);
+
+    DataStoragePut(nsString aFilename, DataStorageItem aItem);
+    DataStorageRemove(nsString aFilename, nsCString aKey, DataStorageType aType);
+    DataStorageClear(nsString aFilename);
 
     NotifyAlertsObserver(nsCString topic, nsString data);
 
@@ -622,8 +646,7 @@ child:
     /**
      * Control the Gecko Profiler in the child process.
      */
-    async StartProfiler(uint32_t aEntries, double aInterval, nsCString[] aFeatures,
-                        nsCString[] aThreadNameFilters);
+    async StartProfiler(ProfilerInitParams params);
     async StopProfiler();
     async PauseProfiler(bool aPause);
 
@@ -744,7 +767,7 @@ parent:
      * process. |newPluginEpoch| is the current epoch in the chrome process. If
      * |pluginEpoch == newPluginEpoch|, then |plugins| will be left empty.
      */
-    sync FindPlugins(uint32_t pluginEpoch) returns (PluginTag[] plugins, uint32_t newPluginEpoch);
+    sync FindPlugins(uint32_t pluginEpoch) returns (nsresult aResult, PluginTag[] plugins, uint32_t newPluginEpoch);
 
     async PJavaScript();
 
@@ -820,6 +843,9 @@ parent:
 
     sync ReadFontList() returns (FontListEntry[] retValue);
 
+    sync ReadDataStorageArray(nsString aFilename)
+      returns (DataStorageItem[] retValue);
+
     sync SyncMessage(nsString aMessage, ClonedMessageData aData,
                      CpowEntry[] aCpows, Principal aPrincipal)
       returns (StructuredCloneData[] retval);
@@ -857,6 +883,8 @@ parent:
                        int64_t aContentLength,
                        OptionalURIParams aReferrer,
                        nullable PBrowser aBrowser);
+
+    PHandlerService();
 
     AddGeolocationListener(Principal principal, bool highAccuracy);
     RemoveGeolocationListener();
@@ -1125,6 +1153,16 @@ parent:
     sync GetDeviceStorageLocation(nsString type)
         returns (nsString path);
 
+    sync GetAndroidSystemInfo()
+        returns (AndroidSystemInfo info);
+
+    /**
+     * Tells the parent to ungrab the pointer on the default display.
+     *
+     * This is for GTK platforms where we have to ensure the pointer ungrab happens in the
+     * chrome process as that's the process that receives the pointer event.
+     */
+    sync UngrabPointer(uint32_t time);
 both:
      AsyncMessage(nsString aMessage, ClonedMessageData aData,
                   CpowEntry[] aCpows, Principal aPrincipal);

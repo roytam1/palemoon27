@@ -56,30 +56,32 @@ add_test(function test_query_result_favicon_changed_on_child()
                                                        PlacesUtils.favicons.FAVICON_LOAD_NON_PRIVATE);
       }
     },
-    nodeIconChanged: function QRFCOC_nodeIconChanged(aNode) {
+    nodeIconChanged(aNode) {
       do_throw("The icon should be set only for the page," +
                " not for the containing query.");
     }
   };
   result.addObserver(resultObserver, false);
 
-  waitForFaviconChanged(PAGE_URI, SMALLPNG_DATA_URI,
-                        function QRFCOC_faviconChanged() {
-    // We must wait for the asynchronous database thread to finish the
-    // operation, and then for the main thread to process any pending
-    // notifications that came from the asynchronous thread, before we can be
-    // sure that nodeIconChanged was not invoked in the meantime.
-    PlacesTestUtils.promiseAsyncUpdates().then(function QRFCOC_asyncUpdates() {
-      do_execute_soon(function QRFCOC_soon() {
-        result.removeObserver(resultObserver);
-
-        // Free the resources immediately.
-        result.root.containerOpen = false;
-        run_next_test();
-      });
-    });
-  });
-
-  // Open the container and wait for containerStateChanged.
+  // Open the container and wait for containerStateChanged. We should start
+  // observing before setting |containerOpen| as that's caused by the
+  // setAndFetchFaviconForPage() call caused by the containerStateChanged
+  // observer above.
+  let promise = promiseFaviconChanged(PAGE_URI, SMALLPNG_DATA_URI);
   result.root.containerOpen = true;
+  yield promise;
+
+  // We must wait for the asynchronous database thread to finish the
+  // operation, and then for the main thread to process any pending
+  // notifications that came from the asynchronous thread, before we can be
+  // sure that nodeIconChanged was not invoked in the meantime.
+  yield PlacesTestUtils.promiseAsyncUpdates();
+  result.removeObserver(resultObserver);
+
+  // Free the resources immediately.
+  result.root.containerOpen = false;
 });
+
+function run_test() {
+  run_next_test();
+}

@@ -335,7 +335,7 @@ public:
   virtual void VerifyStyleTree() override;
 #endif
 
-  static PRLogModuleInfo* gLog;
+  static mozilla::LazyLogModule gLog;
 
   virtual void DisableNonTestMouseEvents(bool aDisable) override;
 
@@ -355,7 +355,7 @@ public:
 
   virtual nscolor ComputeBackstopColor(nsView* aDisplayRoot) override;
 
-  virtual nsresult SetIsActive(bool aIsActive) override;
+  virtual nsresult SetIsActive(bool aIsActive, bool aIsHidden = true) override;
 
   virtual bool GetIsViewportOverridden() override {
     return (mMobileViewportManager != nullptr);
@@ -436,10 +436,8 @@ protected:
    * Callback handler for whether reflow happened.
    *
    * @param aInterruptible Whether or not reflow interruption is allowed.
-   * @param aWasInterrupted Whether or not the reflow was interrupted earlier.
-   *
    */
-  void     DidDoReflow(bool aInterruptible, bool aWasInterrupted);
+  void     DidDoReflow(bool aInterruptible);
   // ProcessReflowCommands returns whether we processed all our dirty roots
   // without interruptions.
   bool     ProcessReflowCommands(bool aInterruptible);
@@ -731,9 +729,6 @@ protected:
   virtual void SysColorChanged() override { mPresContext->SysColorChanged(); }
   virtual void ThemeChanged() override { mPresContext->ThemeChanged(); }
   virtual void BackingScaleFactorChanged() override { mPresContext->UIResolutionChanged(); }
-
-  virtual void PausePainting() override;
-  virtual void ResumePainting() override;
 
   void UpdateImageVisibility();
   void UpdateActivePointerState(mozilla::WidgetGUIEvent* aEvent);

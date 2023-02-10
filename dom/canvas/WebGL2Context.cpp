@@ -21,13 +21,17 @@ WebGL2Context::WebGL2Context()
 {
     MOZ_ASSERT(IsSupported(), "not supposed to create a WebGL2Context"
                               "context when not supported");
-
-    mFormatUsage = Move(webgl::FormatUsageAuthority::CreateForWebGL2());
 }
 
 WebGL2Context::~WebGL2Context()
 {
 
+}
+
+UniquePtr<webgl::FormatUsageAuthority>
+WebGL2Context::CreateFormatUsage() const
+{
+    return webgl::FormatUsageAuthority::CreateForWebGL2();
 }
 
 /*static*/ bool
@@ -58,9 +62,7 @@ static const WebGLExtensionID kNativelySupportedExtensions[] = {
     WebGLExtensionID::EXT_sRGB,
     WebGLExtensionID::OES_element_index_uint,
     WebGLExtensionID::OES_standard_derivatives,
-    WebGLExtensionID::OES_texture_float,
     WebGLExtensionID::OES_texture_float_linear,
-    WebGLExtensionID::OES_texture_half_float,
     WebGLExtensionID::OES_texture_half_float_linear,
     WebGLExtensionID::OES_vertex_array_object,
     WebGLExtensionID::WEBGL_depth_texture,
@@ -83,7 +85,6 @@ static const gl::GLFeature kRequiredFeatures[] = {
     gl::GLFeature::gpu_shader4,
     gl::GLFeature::instanced_arrays,
     gl::GLFeature::instanced_non_arrays,
-    gl::GLFeature::invalidate_framebuffer,
     gl::GLFeature::map_buffer_range,
     gl::GLFeature::occlusion_query2,
     gl::GLFeature::packed_depth_stencil,

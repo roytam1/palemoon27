@@ -16,6 +16,7 @@
 #include "mozilla/HalTypes.h"
 #include "mozilla/LinkedList.h"
 #include "mozilla/StaticPtr.h"
+#include "mozilla/UniquePtr.h"
 
 #include "nsDataHashtable.h"
 #include "nsFrameMessageManager.h"
@@ -41,6 +42,11 @@ namespace mozilla {
 class PRemoteSpellcheckEngineParent;
 #ifdef MOZ_ENABLE_PROFILER_SPS
 class ProfileGatherer;
+#endif
+
+#if defined(XP_LINUX) && defined(MOZ_CONTENT_SANDBOX)
+class SandboxBroker;
+class SandboxBrokerPolicyFactory;
 #endif
 
 namespace ipc {
@@ -185,8 +191,11 @@ public:
     virtual bool RecvConnectPluginBridge(const uint32_t& aPluginId, nsresult* aRv) override;
     virtual bool RecvGetBlocklistState(const uint32_t& aPluginId, uint32_t* aIsBlocklisted) override;
     virtual bool RecvFindPlugins(const uint32_t& aPluginEpoch,
+                                 nsresult* aRv,
                                  nsTArray<PluginTag>* aPlugins,
                                  uint32_t* aNewPluginEpoch) override;
+
+    virtual bool RecvUngrabPointer(const uint32_t& aTime) override;
 
     NS_DECL_CYCLE_COLLECTION_CLASS_AMBIGUOUS(ContentParent, nsIObserver)
 
@@ -639,6 +648,9 @@ private:
                                           override;
     virtual bool DeallocPBlobParent(PBlobParent* aActor) override;
 
+    virtual bool RecvPBlobConstructor(PBlobParent* aActor,
+                                      const BlobConstructorParams& params) override;
+
     virtual bool DeallocPCrashReporterParent(PCrashReporterParent* crashreporter) override;
 
     virtual bool RecvGetRandomValues(const uint32_t& length,
@@ -694,6 +706,9 @@ private:
             PBrowserParent* aBrowser) override;
     virtual bool DeallocPExternalHelperAppParent(PExternalHelperAppParent* aService) override;
 
+    virtual PHandlerServiceParent* AllocPHandlerServiceParent() override;
+    virtual bool DeallocPHandlerServiceParent(PHandlerServiceParent*) override;
+
     virtual PCellBroadcastParent* AllocPCellBroadcastParent() override;
     virtual bool DeallocPCellBroadcastParent(PCellBroadcastParent*) override;
     virtual bool RecvPCellBroadcastConstructor(PCellBroadcastParent* aActor) override;
@@ -730,6 +745,9 @@ private:
 
     virtual bool RecvReadPrefsArray(InfallibleTArray<PrefSetting>* aPrefs) override;
     virtual bool RecvReadFontList(InfallibleTArray<FontListEntry>* retValue) override;
+
+    virtual bool RecvReadDataStorageArray(const nsString& aFilename,
+                                          InfallibleTArray<DataStorageItem>* aValues) override;
 
     virtual bool RecvReadPermissions(InfallibleTArray<IPC::Permission>* aPermissions) override;
 
@@ -926,9 +944,13 @@ private:
     virtual bool RecvGamepadListenerRemoved() override;
     virtual bool RecvProfile(const nsCString& aProfile) override;
     virtual bool RecvGetGraphicsDeviceInitData(DeviceInitData* aOut) override;
+    void StartProfiler(nsIProfilerStartParams* aParams);
 
     virtual bool RecvGetDeviceStorageLocation(const nsString& aType,
                                               nsString* aPath) override;
+
+    virtual bool RecvGetAndroidSystemInfo(AndroidSystemInfo* aInfo) override;
+
     // If you add strong pointers to cycle collected objects here, be sure to
     // release these objects in ShutDownProcess.  See the comment there for more
     // details.
@@ -1017,6 +1039,12 @@ private:
     nsCString mProfile;
 
     UniquePtr<gfx::DriverCrashGuard> mDriverCrashGuard;
+
+#if defined(XP_LINUX) && defined(MOZ_CONTENT_SANDBOX)
+    mozilla::UniquePtr<SandboxBroker> mSandboxBroker;
+    static mozilla::UniquePtr<SandboxBrokerPolicyFactory>
+        sSandboxBrokerPolicyFactory;
+#endif
 };
 
 } // namespace dom

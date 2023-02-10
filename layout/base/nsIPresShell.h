@@ -140,10 +140,10 @@ typedef struct CapturingContentInfo {
   mozilla::StaticRefPtr<nsIContent> mContent;
 } CapturingContentInfo;
 
-// b07c5323-3061-4ca9-95ed-84cccbffadac
+// ae50e013-b2f1-4d4e-94c7-77cbcdab1c23
 #define NS_IPRESSHELL_IID \
-{ 0xb07c5323, 0x3061, 0x4ca9, \
-  { 0x95, 0xed, 0x84, 0xcc, 0xcb, 0xff, 0xad, 0xac } }
+{ 0xae50e013, 0xb2f1, 0x4d4e, \
+  { 0x94, 0xc7, 0x77, 0xcb, 0xcd, 0xab, 0x1c, 0x23 } }
 
 // debug VerifyReflow flags
 #define VERIFY_REFLOW_ON                    0x01
@@ -937,20 +937,6 @@ public:
   bool IsPaintingSuppressed() const { return mPaintingSuppressed; }
 
   /**
-   * Pause painting by freezing the refresh driver of this and all parent
-   * presentations. This may not have the desired effect if this pres shell
-   * has its own refresh driver.
-   */
-  virtual void PausePainting() = 0;
-
-  /**
-   * Resume painting by thawing the refresh driver of this and all parent
-   * presentations. This may not have the desired effect if this pres shell
-   * has its own refresh driver.
-   */
-  virtual void ResumePainting() = 0;
-
-  /**
    * Unsuppress painting.
    */
   virtual void UnsuppressPainting() = 0;
@@ -1261,7 +1247,7 @@ public:
     return mObservesMutationsForPrint;
   }
 
-  virtual nsresult SetIsActive(bool aIsActive) = 0;
+  virtual nsresult SetIsActive(bool aIsActive, bool aIsHidden = true) = 0;
 
   bool IsActive()
   {
@@ -1671,26 +1657,6 @@ public:
   virtual void BackingScaleFactorChanged() = 0;
 
   /**
-   * Returns whether or not there is a reflow on zoom event pending. A reflow
-   * on zoom event is a change to the max line box width, followed by a reflow.
-   * This subsequent reflow event should treat all frames as though they resized
-   * horizontally (and thus reflow all their descendants), rather than marking
-   * all frames dirty from the root. This is the way the pres shell indicates
-   * that an hresize reflow should take place during reflow state construction.
-   */
-  bool IsReflowOnZoomPending() {
-    return mReflowOnZoomPending;
-  }
-
-  /**
-   * Clear the flag indicating whether a reflow on zoom event is pending. This
-   * is performed at the very end of DoReflow().
-   */
-  void ClearReflowOnZoomPending() {
-    mReflowOnZoomPending = false;
-  }
-
-  /**
    * Documents belonging to an invisible DocShell must not be painted ever.
    */
   bool IsNeverPainting() {
@@ -1818,14 +1784,9 @@ protected:
   bool mFontSizeInflationForceEnabled;
   bool mFontSizeInflationDisabledInMasterProcess;
   bool mFontSizeInflationEnabled;
-  bool mPaintingIsFrozen;
 
   // Dirty bit indicating that mFontSizeInflationEnabled needs to be recomputed.
   bool mFontSizeInflationEnabledIsDirty;
-
-  // Flag to indicate whether or not there is a reflow on zoom event pending.
-  // See IsReflowOnZoomPending() for more information.
-  bool mReflowOnZoomPending;
 
   // If a document belongs to an invisible DocShell, this flag must be set
   // to true, so we can avoid any paint calls for widget related to this

@@ -31,10 +31,12 @@
 #include "BlobParent.h"
 #include "CrashReporterParent.h"
 #include "GMPServiceParent.h"
+#include "HandlerServiceParent.h"
 #include "IHistory.h"
 #include "imgIContainer.h"
 #include "mozIApplication.h"
 #include "mozilla/ClearOnShutdown.h"
+#include "mozilla/DataStorage.h"
 #include "mozilla/devtools/HeapSnapshotTempFileHelperParent.h"
 #include "mozilla/docshell/OfflineCacheUpdateParent.h"
 #include "mozilla/dom/DataStoreService.h"
@@ -215,6 +217,10 @@
 using namespace mozilla::system;
 #endif
 
+#ifdef MOZ_WIDGET_GTK
+#include <gdk/gdk.h>
+#endif
+
 #ifdef MOZ_B2G_BT
 #include "BluetoothParent.h"
 #include "BluetoothService.h"
@@ -241,6 +247,8 @@ using namespace mozilla::system;
 
 #if defined(MOZ_CONTENT_SANDBOX) && defined(XP_LINUX)
 #include "mozilla/SandboxInfo.h"
+#include "mozilla/SandboxBroker.h"
+#include "mozilla/SandboxBrokerPolicyFactory.h"
 #endif
 
 #ifdef MOZ_TOOLKIT_SEARCH
@@ -642,6 +650,9 @@ nsDataHashtable<nsStringHashKey, ContentParent*>* ContentParent::sAppContentPare
 nsTArray<ContentParent*>* ContentParent::sNonAppContentParents;
 nsTArray<ContentParent*>* ContentParent::sPrivateContent;
 StaticAutoPtr<LinkedList<ContentParent> > ContentParent::sContentParents;
+#if defined(XP_LINUX) && defined(MOZ_CONTENT_SANDBOX)
+UniquePtr<SandboxBrokerPolicyFactory> ContentParent::sSandboxBrokerPolicyFactory;
+#endif
 
 #ifdef MOZ_NUWA_PROCESS
 // The pref updates sent to the Nuwa process.
@@ -849,6 +860,10 @@ ContentParent::StartUp()
     MaybeTestPBackground();
 
     sDisableUnsafeCPOWWarnings = PR_GetEnv("DISABLE_UNSAFE_CPOW_WARNINGS");
+
+#if defined(XP_LINUX) && defined(MOZ_CONTENT_SANDBOX)
+    sSandboxBrokerPolicyFactory = MakeUnique<SandboxBrokerPolicyFactory>();
+#endif
 }
 
 /*static*/ void
@@ -857,6 +872,10 @@ ContentParent::ShutDown()
     // No-op for now.  We rely on normal process shutdown and
     // ClearOnShutdown() to clean up our state.
     sCanLaunchSubprocesses = false;
+
+#if defined(XP_LINUX) && defined(MOZ_CONTENT_SANDBOX)
+    sSandboxBrokerPolicyFactory = nullptr;
+#endif
 }
 
 /*static*/ void
@@ -1155,6 +1174,18 @@ ContentParent::RecvLoadPlugin(const uint32_t& aPluginId, nsresult* aRv, uint32_t
 }
 
 bool
+ContentParent::RecvUngrabPointer(const uint32_t& aTime)
+{
+#if !defined(MOZ_WIDGET_GTK)
+    NS_RUNTIMEABORT("This message only makes sense on GTK platforms");
+    return false;
+#else
+    gdk_pointer_ungrab(aTime);
+    return true;
+#endif
+}
+
+bool
 ContentParent::RecvConnectPluginBridge(const uint32_t& aPluginId, nsresult* aRv)
 {
     *aRv = NS_OK;
@@ -1189,10 +1220,12 @@ ContentParent::RecvGetBlocklistState(const uint32_t& aPluginId,
 
 bool
 ContentParent::RecvFindPlugins(const uint32_t& aPluginEpoch,
+                               nsresult* aRv,
                                nsTArray<PluginTag>* aPlugins,
                                uint32_t* aNewPluginEpoch)
 {
-    return mozilla::plugins::FindPluginsForContent(aPluginEpoch, aPlugins, aNewPluginEpoch);
+    *aRv = mozilla::plugins::FindPluginsForContent(aPluginEpoch, aPlugins, aNewPluginEpoch);
+    return true;
 }
 
 /*static*/ TabParent*
@@ -1518,6 +1551,21 @@ ContentParent::Init()
     // process.
     if (nsIPresShell::IsAccessibilityActive()) {
         Unused << SendActivateA11y();
+    }
+#endif
+
+#ifdef MOZ_ENABLE_PROFILER_SPS
+    nsCOMPtr<nsIProfiler> profiler(do_GetService("@mozilla.org/tools/profiler;1"));
+    bool profilerActive = false;
+    DebugOnly<nsresult> rv = profiler->IsActive(&profilerActive);
+    MOZ_ASSERT(NS_SUCCEEDED(rv));
+
+    if (profilerActive) {
+        nsCOMPtr<nsIProfilerStartParams> currentProfilerParams;
+        rv = profiler->GetStartParams(getter_AddRefs(currentProfilerParams));
+        MOZ_ASSERT(NS_SUCCEEDED(rv));
+
+        StartProfiler(currentProfilerParams);
     }
 #endif
 }
@@ -2571,7 +2619,25 @@ ContentParent::InitInternal(ProcessPriority aInitialPriority,
         shouldSandbox = false;
     }
 #endif
-    if (shouldSandbox && !SendSetProcessSandbox()) {
+    MaybeFileDesc brokerFd = void_t();
+#ifdef XP_LINUX
+    if (shouldSandbox) {
+        MOZ_ASSERT(!mSandboxBroker);
+        UniquePtr<SandboxBroker::Policy> policy =
+            sSandboxBrokerPolicyFactory->GetContentPolicy(Pid());
+        if (policy) {
+            brokerFd = FileDescriptor();
+            mSandboxBroker = SandboxBroker::Create(Move(policy), Pid(),
+                                                   brokerFd);
+            if (!mSandboxBroker) {
+                KillHard("SandboxBroker::Create failed");
+                return;
+            }
+            MOZ_ASSERT(static_cast<const FileDescriptor&>(brokerFd).IsValid());
+        }
+    }
+#endif
+    if (shouldSandbox && !SendSetProcessSandbox(brokerFd)) {
         KillHard("SandboxInitFailed");
     }
 #endif
@@ -2619,6 +2685,15 @@ ContentParent::RecvReadFontList(InfallibleTArray<FontListEntry>* retValue)
 #ifdef ANDROID
     gfxAndroidPlatform::GetPlatform()->GetSystemFontList(retValue);
 #endif
+    return true;
+}
+
+bool
+ContentParent::RecvReadDataStorageArray(const nsString& aFilename,
+                                        InfallibleTArray<DataStorageItem>* aValues)
+{
+    RefPtr<DataStorage> storage = DataStorage::Get(aFilename);
+    storage->GetAll(aValues);
     return true;
 }
 
@@ -3218,13 +3293,7 @@ ContentParent::Observe(nsISupports* aSubject,
 #ifdef MOZ_ENABLE_PROFILER_SPS
     else if (!strcmp(aTopic, "profiler-started")) {
         nsCOMPtr<nsIProfilerStartParams> params(do_QueryInterface(aSubject));
-        uint32_t entries;
-        double interval;
-        params->GetEntries(&entries);
-        params->GetInterval(&interval);
-        const nsTArray<nsCString>& features = params->GetFeatures();
-        const nsTArray<nsCString>& threadFilterNames = params->GetThreadFilterNames();
-        Unused << SendStartProfiler(entries, interval, features, threadFilterNames);
+        StartProfiler(params);
     }
     else if (!strcmp(aTopic, "profiler-stopped")) {
         Unused << SendStopProfiler();
@@ -3456,6 +3525,18 @@ bool
 ContentParent::DeallocPBlobParent(PBlobParent* aActor)
 {
     return nsIContentParent::DeallocPBlobParent(aActor);
+}
+
+bool
+ContentParent::RecvPBlobConstructor(PBlobParent* aActor,
+                                    const BlobConstructorParams& aParams)
+{
+  const ParentBlobConstructorParams& params = aParams.get_ParentBlobConstructorParams();
+  if (params.blobParams().type() == AnyBlobConstructorParams::TKnownBlobConstructorParams) {
+    return aActor->SendCreatedFromKnownBlob();
+  }
+
+  return true;
 }
 
 mozilla::PRemoteSpellcheckEngineParent *
@@ -3836,6 +3917,21 @@ ContentParent::DeallocPExternalHelperAppParent(PExternalHelperAppParent* aServic
 {
     ExternalHelperAppParent *parent = static_cast<ExternalHelperAppParent *>(aService);
     parent->Release();
+    return true;
+}
+
+PHandlerServiceParent*
+ContentParent::AllocPHandlerServiceParent()
+{
+    HandlerServiceParent* actor = new HandlerServiceParent();
+    actor->AddRef();
+    return actor;
+}
+
+bool
+ContentParent::DeallocPHandlerServiceParent(PHandlerServiceParent* aHandlerServiceParent)
+{
+    static_cast<HandlerServiceParent*>(aHandlerServiceParent)->Release();
     return true;
 }
 
@@ -5674,6 +5770,38 @@ ContentParent::RecvGetDeviceStorageLocation(const nsString& aType,
   return true;
 #else
   return false;
+#endif
+}
+
+bool
+ContentParent::RecvGetAndroidSystemInfo(AndroidSystemInfo* aInfo)
+{
+#ifdef MOZ_WIDGET_ANDROID
+  nsSystemInfo::GetAndroidSystemInfo(aInfo);
+  return true;
+#else
+  MOZ_CRASH("wrong platform!");
+  return false;
+#endif
+}
+
+void
+ContentParent::StartProfiler(nsIProfilerStartParams* aParams)
+{
+#ifdef MOZ_ENABLE_PROFILER_SPS
+    if (NS_WARN_IF(!aParams)) {
+        return;
+    }
+
+    ProfilerInitParams ipcParams;
+
+    ipcParams.enabled() = true;
+    aParams->GetEntries(&ipcParams.entries());
+    aParams->GetInterval(&ipcParams.interval());
+    ipcParams.features() = aParams->GetFeatures();
+    ipcParams.threadFilters() = aParams->GetThreadFilterNames();
+
+    Unused << SendStartProfiler(ipcParams);
 #endif
 }
 

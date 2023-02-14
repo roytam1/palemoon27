@@ -119,6 +119,7 @@ class nsLayoutUtils
   typedef mozilla::gfx::SourceSurface SourceSurface;
   typedef mozilla::gfx::Color Color;
   typedef mozilla::gfx::DrawTarget DrawTarget;
+  typedef mozilla::gfx::ExtendMode ExtendMode;
   typedef mozilla::gfx::Filter Filter;
   typedef mozilla::gfx::Float Float;
   typedef mozilla::gfx::Point Point;
@@ -915,18 +916,6 @@ public:
   static nsRect MatrixTransformRect(const nsRect &aBounds,
                                     const Matrix4x4 &aMatrix, float aFactor);
 
-  /**
-   * Helper function that, given a rectangle and a matrix, returns the smallest
-   * rectangle containing the image of the source rectangle rounded out to the nearest
-   * pixel value.
-   *
-   * @param aBounds The rectangle to transform.
-   * @param aMatrix The matrix to transform it with.
-   * @param aFactor The number of app units per graphics unit.
-   * @return The smallest rect that contains the image of aBounds.
-   */
-  static nsRect MatrixTransformRectOut(const nsRect &aBounds,
-                                       const Matrix4x4 &aMatrix, float aFactor);
   /**
    * Helper function that, given a point and a matrix, returns the image
    * of that point under the matrix transform.
@@ -1734,7 +1723,8 @@ public:
    *   @param aAnchor           A point in aFill which we will ensure is
    *                            pixel-aligned in the output.
    *   @param aDirty            Pixels outside this area may be skipped.
-   *   @param aImageFlags       Image flags of the imgIContainer::FLAG_* variety
+   *   @param aImageFlags       Image flags of the imgIContainer::FLAG_* variety.
+   *   @param aExtendMode       How to extend the image over the dest rect.
    */
   static DrawResult DrawBackgroundImage(gfxContext&         aContext,
                                         nsPresContext*      aPresContext,
@@ -1746,7 +1736,8 @@ public:
                                         const nsSize&       aRepeatSize,
                                         const nsPoint&      aAnchor,
                                         const nsRect&       aDirty,
-                                        uint32_t            aImageFlags);
+                                        uint32_t            aImageFlags,
+                                        ExtendMode          aExtendMode);
 
   /**
    * Draw an image.

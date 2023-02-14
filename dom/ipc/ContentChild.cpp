@@ -883,8 +883,7 @@ ContentChild::ProvideWindowCommon(TabChild* aTabOpener,
         renderFrame = nullptr;
     }
 
-  ShowInfo showInfo(EmptyString(), false, false, true,
-                    aTabOpener->mDPI, aTabOpener->mDefaultScale);
+  ShowInfo showInfo(EmptyString(), false, false, true, 0, 0);
   nsCOMPtr<nsPIDOMWindow> opener = do_QueryInterface(aParent);
   nsIDocShell* openerShell;
   if (opener && (openerShell = opener->GetDocShell())) {
@@ -2175,8 +2174,7 @@ ContentChild::ActorDestroy(ActorDestroyReason why)
     // going through the full XPCOM shutdown path, because it doesn't
     // keep persistent state.
     QuickExit();
-#endif
-
+#else
     if (sFirstIdleTask) {
         sFirstIdleTask->Cancel();
     }
@@ -2201,6 +2199,7 @@ ContentChild::ActorDestroy(ActorDestroyReason why)
 #endif
 
     XRE_ShutdownChildProcess();
+#endif // NS_FREE_PERMANENT_DATA
 }
 
 void
@@ -3013,6 +3012,7 @@ ContentChild::AllocPContentPermissionRequestChild(const InfallibleTArray<Permiss
 bool
 ContentChild::DeallocPContentPermissionRequestChild(PContentPermissionRequestChild* actor)
 {
+    nsContentPermissionUtils::NotifyRemoveContentPermissionRequestChild(actor);
     auto child = static_cast<RemotePermissionRequest*>(actor);
     child->IPDLRelease();
     return true;

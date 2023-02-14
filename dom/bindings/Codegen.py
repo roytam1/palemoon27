@@ -1724,9 +1724,7 @@ class CGConstructNavigatorObject(CGAbstractMethod):
             JS::Rooted<JS::Value> v(aCx);
             {  // Scope to make sure |result| goes out of scope while |v| is rooted
               RefPtr<mozilla::dom::${descriptorName}> result = ConstructNavigatorObjectHelper(aCx, global, rv);
-              rv.WouldReportJSException();
-              if (rv.Failed()) {
-                ThrowMethodFailed(aCx, rv);
+              if (rv.MaybeSetPendingException(aCx)) {
                 return nullptr;
               }
               if (!GetOrCreateDOMReflector(aCx, result, &v)) {
@@ -4401,11 +4399,13 @@ def getJSToNativeConversionInfo(type, descriptorProvider, failureCode=None,
         templateBody = "${declName} = &${val}.toObject();\n"
 
         # For JS-implemented APIs, we refuse to allow passing objects that the
-        # API consumer does not subsume.
+        # API consumer does not subsume. The extra parens around
+        # ($${passedToJSImpl}) suppress unreachable code warnings when
+        # $${passedToJSImpl} is the literal `false`.
         if not isinstance(descriptorProvider, Descriptor) or descriptorProvider.interface.isJSImplemented():
             templateBody = fill(
                 """
-                if ($${passedToJSImpl} && !CallerSubsumes($${val})) {
+                if (($${passedToJSImpl}) && !CallerSubsumes($${val})) {
                   ThrowErrorMessage(cx, MSG_PERMISSION_DENIED_TO_PASS_ARG, "${sourceDescription}");
                   $*{exceptionCode}
                 }
@@ -5091,8 +5091,7 @@ def getJSToNativeConversionInfo(type, descriptorProvider, failureCode=None,
                   }
                   ErrorResult promiseRv;
                   $${declName} = Promise::Resolve(promiseGlobal, $${val}, promiseRv);
-                  if (promiseRv.Failed()) {
-                    ThrowMethodFailed(cx, promiseRv);
+                  if (promiseRv.MaybeSetPendingException(cx)) {
                     $*{exceptionCode}
                   }
                 }
@@ -5448,11 +5447,13 @@ def getJSToNativeConversionInfo(type, descriptorProvider, failureCode=None,
         templateBody = "${declName} = ${val};\n"
 
         # For JS-implemented APIs, we refuse to allow passing objects that the
-        # API consumer does not subsume.
+        # API consumer does not subsume. The extra parens around
+        # ($${passedToJSImpl}) suppress unreachable code warnings when
+        # $${passedToJSImpl} is the literal `false`.
         if not isinstance(descriptorProvider, Descriptor) or descriptorProvider.interface.isJSImplemented():
             templateBody = fill(
                 """
-                if ($${passedToJSImpl} && !CallerSubsumes($${val})) {
+                if (($${passedToJSImpl}) && !CallerSubsumes($${val})) {
                   ThrowErrorMessage(cx, MSG_PERMISSION_DENIED_TO_PASS_ARG, "${sourceDescription}");
                   $*{exceptionCode}
                 }
@@ -6652,22 +6653,17 @@ class CGCallGenerator(CGThing):
     A class to generate an actual call to a C++ object.  Assumes that the C++
     object is stored in a variable whose name is given by the |object| argument.
 
-    errorReport should be a CGThing for an error report or None if no
-    error reporting is needed.
+    isFallible is a boolean indicating whether the call should be fallible.
 
     resultVar: If the returnType is not void, then the result of the call is
     stored in a C++ variable named by resultVar. The caller is responsible for
     declaring the result variable. If the caller doesn't care about the result
     value, resultVar can be omitted.
     """
-    def __init__(self, errorReport, arguments, argsPre, returnType,
+    def __init__(self, isFallible, arguments, argsPre, returnType,
                  extendedAttributes, descriptorProvider, nativeMethodName,
                  static, object="self", argsPost=[], resultVar=None):
         CGThing.__init__(self)
-
-        assert errorReport is None or isinstance(errorReport, CGThing)
-
-        isFallible = errorReport is not None
 
         result, resultOutParam, resultRooter, resultArgs, resultConversion = \
             getRetvalDeclarationForType(returnType, descriptorProvider)
@@ -6763,10 +6759,12 @@ class CGCallGenerator(CGThing):
 
         if isFallible:
             self.cgRoot.prepend(CGGeneric("ErrorResult rv;\n"))
-            self.cgRoot.append(CGGeneric("rv.WouldReportJSException();\n"))
-            self.cgRoot.append(CGGeneric("if (MOZ_UNLIKELY(rv.Failed())) {\n"))
-            self.cgRoot.append(CGIndenter(errorReport))
-            self.cgRoot.append(CGGeneric("}\n"))
+            self.cgRoot.append(CGGeneric(dedent(
+                """
+                if (MOZ_UNLIKELY(rv.MaybeSetPendingException(cx))) {
+                  return false;
+                }
+                """)))
 
         self.cgRoot.append(CGGeneric("MOZ_ASSERT(!JS_IsExceptionPending(cx));\n"))
 
@@ -7160,7 +7158,7 @@ class CGPerSignatureCall(CGThing):
                                                           idlNode.identifier.name))
         else:
             cgThings.append(CGCallGenerator(
-                self.getErrorReport() if self.isFallible() else None,
+                self.isFallible(),
                 self.getArguments(), argsPre, returnType,
                 self.extendedAttributes, descriptor, nativeMethodName,
                 static, argsPost=argsPost, resultVar=resultVar))
@@ -7267,9 +7265,6 @@ class CGPerSignatureCall(CGThing):
                 maybeWrap=getMaybeWrapValueFuncForType(self.idlNode.type))
         return wrapCode
 
-    def getErrorReport(self):
-        return CGGeneric('return ThrowMethodFailed(cx, rv);\n')
-
     def define(self):
         return (self.cgRoot.define() + self.wrap_return_value())
 
@@ -7311,7 +7306,7 @@ class CGCase(CGList):
         self.append(CGGeneric("case " + expression + ": {\n"))
         bodyList = CGList([body])
         if fallThrough:
-            bodyList.append(CGGeneric("/* Fall through */\n"))
+            bodyList.append(CGGeneric("MOZ_FALLTHROUGH;\n"))
         else:
             bodyList.append(CGGeneric("break;\n"))
         self.append(CGIndenter(bodyList))
@@ -8238,9 +8233,8 @@ class CGEnumerateHook(CGAbstractBindingMethod):
             nsAutoTArray<nsString, 8> names;
             ErrorResult rv;
             self->GetOwnPropertyNames(cx, names, rv);
-            rv.WouldReportJSException();
-            if (rv.Failed()) {
-              return ThrowMethodFailed(cx, rv);
+            if (rv.MaybeSetPendingException(cx)) {
+              return false;
             }
             bool dummy;
             for (uint32_t i = 0; i < names.Length(); ++i) {
@@ -10296,9 +10290,8 @@ class CGEnumerateOwnPropertiesViaGetOwnPropertyNames(CGAbstractBindingMethod):
             nsAutoTArray<nsString, 8> names;
             ErrorResult rv;
             self->GetOwnPropertyNames(cx, names, rv);
-            rv.WouldReportJSException();
-            if (rv.Failed()) {
-              return ThrowMethodFailed(cx, rv);
+            if (rv.MaybeSetPendingException(cx)) {
+              return false;
             }
             // OK to pass null as "proxy" because it's ignored if
             // shadowPrototypeProperties is true

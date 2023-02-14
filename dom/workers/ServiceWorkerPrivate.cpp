@@ -406,21 +406,10 @@ public:
       NS_RUNTIMEABORT("Failed to dispatch life cycle event handler.");
     }
 
-    JS::Rooted<JSObject*> obj(aCx, workerPrivate->GlobalScope()->GetWrapper());
-    JS::ExposeValueToActiveJS(aValue);
-
-    js::ErrorReport report(aCx);
-    if (NS_WARN_IF(!report.init(aCx, aValue))) {
-      JS_ClearPendingException(aCx);
-      return;
-    }
-
-    RefPtr<xpc::ErrorReport> xpcReport = new xpc::ErrorReport();
-    xpcReport->Init(report.report(), report.message(),
-                    /* aIsChrome = */ false, workerPrivate->WindowID());
-
-    RefPtr<AsyncErrorReporter> aer = new AsyncErrorReporter(xpcReport);
-    NS_DispatchToMainThread(aer);
+    // Note, all WaitUntil() rejections are reported to client consoles
+    // by the WaitUntilHandler in ServiceWorkerEvents.  This ensures that
+    // errors in non-lifecycle events like FetchEvent and PushEvent are
+    // reported properly.
   }
 };
 
@@ -1171,6 +1160,10 @@ private:
       nsCOMPtr<nsIRunnable> runnable;
       if (event->DefaultPrevented(aCx)) {
         event->ReportCanceled();
+        runnable = new CancelChannelRunnable(mInterceptedChannel,
+                                             NS_ERROR_INTERCEPTION_FAILED);
+      } else if (event->GetInternalNSEvent()->mFlags.mExceptionHasBeenRisen) {
+        // Exception logged via the WorkerPrivate ErrorReporter
         runnable = new CancelChannelRunnable(mInterceptedChannel,
                                              NS_ERROR_INTERCEPTION_FAILED);
       } else {

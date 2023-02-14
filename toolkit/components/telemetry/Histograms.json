@@ -4038,17 +4038,21 @@
     "description": "Average paint duration during any tab open/close animation (excluding tabstrip scroll)"
   },
   "FX_REFRESH_DRIVER_CHROME_FRAME_DELAY_MS": {
-    "expires_in_version": "default",
+    "alert_emails": ["perf-telemetry-alerts@mozilla.com"],
+    "expires_in_version": "never",
     "kind": "exponential",
     "high": "10000",
     "n_buckets": 50,
+    "bug_numbers": [1220699],
     "description": "Delay in ms between the target and the actual handling time of the frame at refresh driver in the chrome process."
   },
   "FX_REFRESH_DRIVER_CONTENT_FRAME_DELAY_MS": {
-    "expires_in_version": "default",
+    "alert_emails": ["perf-telemetry-alerts@mozilla.com"],
+    "expires_in_version": "never",
     "kind": "exponential",
     "high": "10000",
     "n_buckets": 50,
+    "bug_numbers": [1221674],
     "description": "Delay in ms between the target and the actual handling time of the frame at refresh driver in the content process."
   },
   "FX_TAB_SWITCH_UPDATE_MS": {
@@ -4310,60 +4314,10 @@
     "kind": "flag",
     "description": "Whether the character encoding menu was used to override an encoding in this session."
   },
-  "DECODER_INSTANTIATED_HZ": {
-    "expires_in_version": "default",
-    "kind": "flag",
-    "description": "Whether the decoder for HZ has been instantiated in this session."
-  },
-  "DECODER_INSTANTIATED_ISO2022CN": {
-    "expires_in_version": "40",
-    "kind": "flag",
-    "description": "Whether the decoder for ISO-2022-CN has been instantiated in this session."
-  },
-  "DECODER_INSTANTIATED_ISO2022KR": {
-    "expires_in_version": "40",
-    "kind": "flag",
-    "description": "Whether the decoder for ISO-2022-KR has been instantiated in this session."
-  },
   "DECODER_INSTANTIATED_ISO2022JP": {
     "expires_in_version": "never",
     "kind": "flag",
     "description": "Whether the decoder for ISO-2022-JP has been instantiated in this session."
-  },
-  "DECODER_INSTANTIATED_JOHAB": {
-    "expires_in_version": "32",
-    "kind": "flag",
-    "description": "Whether the decoder for JOHAB has been instantiated in this session."
-  },
-  "DECODER_INSTANTIATED_T61": {
-    "expires_in_version": "32",
-    "kind": "flag",
-    "description": "Whether the decoder for T.61 has been instantiated in this session."
-  },
-  "DECODER_INSTANTIATED_IBM850": {
-    "expires_in_version": "38",
-    "kind": "flag",
-    "description": "Whether the decoder for IBM850 has been instantiated in this session."
-  },
-  "DECODER_INSTANTIATED_IBM852": {
-    "expires_in_version": "38",
-    "kind": "flag",
-    "description": "Whether the decoder for IBM852 has been instantiated in this session."
-  },
-  "DECODER_INSTANTIATED_IBM855": {
-    "expires_in_version": "38",
-    "kind": "flag",
-    "description": "Whether the decoder for IBM855 has been instantiated in this session."
-  },
-  "DECODER_INSTANTIATED_IBM857": {
-    "expires_in_version": "38",
-    "kind": "flag",
-    "description": "Whether the decoder for IBM857 has been instantiated in this session."
-  },
-  "DECODER_INSTANTIATED_IBM862": {
-    "expires_in_version": "38",
-    "kind": "flag",
-    "description": "Whether the decoder for IBM862 has been instantiated in this session."
   },
   "DECODER_INSTANTIATED_IBM866": {
     "expires_in_version": "never",
@@ -4434,31 +4388,6 @@
     "expires_in_version": "never",
     "kind": "flag",
     "description": "Whether the decoder for MACGURMUKHI has been instantiated in this session."
-  },
-  "DECODER_INSTANTIATED_ISOIR111": {
-    "expires_in_version": "38",
-    "kind": "flag",
-    "description": "Whether the decoder for ISOIR111 has been instantiated in this session."
-  },
-  "DECODER_INSTANTIATED_ARMSCII8": {
-    "expires_in_version": "default",
-    "kind": "flag",
-    "description": "Whether the decoder for ARMSCII8 has been instantiated in this session."
-  },
-  "DECODER_INSTANTIATED_VISCII": {
-    "expires_in_version": "40",
-    "kind": "flag",
-    "description": "Whether the decoder for VISCII has been instantiated in this session."
-  },
-  "DECODER_INSTANTIATED_VIETTCVN5712": {
-    "expires_in_version": "40",
-    "kind": "flag",
-    "description": "Whether the decoder for VIETTCVN5712 has been instantiated in this session."
-  },
-  "DECODER_INSTANTIATED_VIETVPS": {
-    "expires_in_version": "40",
-    "kind": "flag",
-    "description": "Whether the decoder for VIETVPS has been instantiated in this session."
   },
   "DECODER_INSTANTIATED_KOI8R": {
     "expires_in_version": "never",
@@ -4717,6 +4646,7 @@
     "kind": "linear",
     "high": "13",
     "n_buckets": 12,
+    "bug_numbers": [1162538],
     "description": "Number of directories in the archive at scan"
   },
   "TELEMETRY_ARCHIVE_OLDEST_DIRECTORY_AGE": {
@@ -4725,6 +4655,7 @@
     "kind": "linear",
     "high": "13",
     "n_buckets": 12,
+    "bug_numbers": [1162538],
     "description": "The age of the oldest Telemetry archive directory in months"
   },
   "TELEMETRY_ARCHIVE_SCAN_PING_COUNT": {
@@ -4733,12 +4664,14 @@
     "kind": "exponential",
     "high": "100000",
     "n_buckets": 100,
+    "bug_numbers": [1162538],
     "description": "Number of Telemetry pings in the archive at scan"
   },
   "TELEMETRY_ARCHIVE_SESSION_PING_COUNT": {
     "alert_emails": ["telemetry-client-dev@mozilla.com"],
     "expires_in_version": "never",
     "kind": "count",
+    "bug_numbers": [1162538],
     "description": "Number of Telemetry pings added to the archive during the session"
   },
   "TELEMETRY_ARCHIVE_SIZE_MB": {
@@ -4747,6 +4680,7 @@
     "kind": "linear",
     "high": "300",
     "n_buckets": 60,
+    "bug_numbers": [1162538],
     "description": "The size of the Telemetry archive (MB)"
   },
   "TELEMETRY_ARCHIVE_EVICTED_OVER_QUOTA": {
@@ -4755,6 +4689,7 @@
     "kind": "exponential",
     "high": "100000",
     "n_buckets": 100,
+    "bug_numbers": [1162538],
     "description": "Number of Telemetry pings evicted from the archive during cleanup, because they were over the quota"
   },
   "TELEMETRY_ARCHIVE_EVICTED_OLD_DIRS": {
@@ -4763,6 +4698,7 @@
     "kind": "linear",
     "high": "13",
     "n_buckets": 12,
+    "bug_numbers": [1162538],
     "description": "Number of Telemetry directories evicted from the archive during cleanup, because they were too old"
   },
   "TELEMETRY_ARCHIVE_EVICTING_DIRS_MS": {
@@ -4771,6 +4707,7 @@
     "kind": "exponential",
     "high": "300000",
     "n_buckets": 20,
+    "bug_numbers": [1162538],
     "description": "Time (ms) it takes for evicting old directories"
   },
   "TELEMETRY_ARCHIVE_CHECKING_OVER_QUOTA_MS": {
@@ -4779,6 +4716,7 @@
     "kind": "exponential",
     "high": "300000",
     "n_buckets": 20,
+    "bug_numbers": [1162538],
     "description": "Time (ms) it takes for checking if the archive is over-quota"
   },
   "TELEMETRY_ARCHIVE_EVICTING_OVER_QUOTA_MS": {
@@ -4787,6 +4725,7 @@
     "kind": "exponential",
     "high": "300000",
     "n_buckets": 20,
+    "bug_numbers": [1162538],
     "description": "Time (ms) it takes for evicting over-quota pings"
   },
   "TELEMETRY_DISCARDED_CONTENT_PINGS_COUNT": {

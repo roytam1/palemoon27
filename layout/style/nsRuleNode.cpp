@@ -14,6 +14,7 @@
 #include "mozilla/ArrayUtils.h"
 #include "mozilla/Assertions.h"
 #include "mozilla/DebugOnly.h"
+#include "mozilla/dom/AnimationEffectReadOnlyBinding.h" // for PlaybackDirection
 #include "mozilla/Likely.h"
 #include "mozilla/LookAndFeel.h"
 
@@ -53,6 +54,7 @@
 #include "mozilla/RuleNodeCacheConditions.h"
 #include "nsDeviceContext.h"
 #include "nsQueryObject.h"
+#include "nsUnicodeProperties.h"
 
 #if defined(_MSC_VER) || defined(__MINGW32__)
 #include <malloc.h>
@@ -1307,14 +1309,14 @@ SetDiscrete(const nsCSSValue& aValue, FieldT & aField,
     // but they have to say which
   case eCSSUnit_Enumerated:
     if (aMask & SETDSC_ENUMERATED) {
-      aField = aValue.GetIntValue();
+      aField = FieldT(aValue.GetIntValue());
       return;
     }
     break;
 
   case eCSSUnit_Integer:
     if (aMask & SETDSC_INTEGER) {
-      aField = aValue.GetIntValue();
+      aField = FieldT(aValue.GetIntValue());
       return;
     }
     break;
@@ -2486,7 +2488,7 @@ nsRuleNode::SetDefaultOnRoot(const nsStyleStructID aSID, nsStyleContext* aContex
     }
     case eStyleStruct_Text:
     {
-      nsStyleText* text = new (mPresContext) nsStyleText();
+      nsStyleText* text = new (mPresContext) nsStyleText(mPresContext);
       aContext->SetStyle(eStyleStruct_Text, text);
       return text;
     }
@@ -4222,6 +4224,62 @@ nsRuleNode::GetShadowData(const nsCSSValueList* aList,
   return shadowList.forget();
 }
 
+struct TextEmphasisChars
+{
+  const char16_t* mFilled;
+  const char16_t* mOpen;
+};
+
+#define TEXT_EMPHASIS_CHARS_LIST() \
+  TEXT_EMPHASIS_CHARS_ITEM("", "", NONE) \
+  TEXT_EMPHASIS_CHARS_ITEM("\u2022", "\u25e6", DOT) \
+  TEXT_EMPHASIS_CHARS_ITEM("\u25cf", "\u25cb", CIRCLE) \
+  TEXT_EMPHASIS_CHARS_ITEM("\u25c9", "\u25ce", DOUBLE_CIRCLE) \
+  TEXT_EMPHASIS_CHARS_ITEM("\u25b2", "\u25b3", TRIANGLE) \
+  TEXT_EMPHASIS_CHARS_ITEM("\ufe45", "\ufe46", SESAME)
+
+static MOZ_CONSTEXPR_VAR TextEmphasisChars kTextEmphasisChars[] =
+{
+#define TEXT_EMPHASIS_CHARS_ITEM(filled_, open_, type_) \
+  { MOZ_UTF16(filled_), MOZ_UTF16(open_) }, // type_
+  TEXT_EMPHASIS_CHARS_LIST()
+#undef TEXT_EMPHASIS_CHARS_ITEM
+};
+
+// MSVC before 2015 doesn't consider string literal as a constant expr,
+// and doesn't have constexpr either, so we cannot do the checks below.
+#if !defined(_MSC_VER) || _MSC_VER >= 1900
+#define TEXT_EMPHASIS_CHARS_ITEM(filled_, open_, type_) \
+  static_assert(ArrayLength(MOZ_UTF16(filled_)) <= 2 && \
+                ArrayLength(MOZ_UTF16(open_)) <= 2, \
+                "emphasis marks should have no more than one char"); \
+  static_assert( \
+    *kTextEmphasisChars[NS_STYLE_TEXT_EMPHASIS_STYLE_##type_].mFilled == \
+    *MOZ_UTF16(filled_), "filled " #type_ " should be " #filled_); \
+  static_assert( \
+    *kTextEmphasisChars[NS_STYLE_TEXT_EMPHASIS_STYLE_##type_].mOpen == \
+    *MOZ_UTF16(open_), "open " #type_ " should be " #open_);
+TEXT_EMPHASIS_CHARS_LIST()
+#undef TEXT_EMPHASIS_CHARS_ITEM
+#endif
+
+#undef TEXT_EMPHASIS_CHARS_LIST
+
+static void
+TruncateStringToSingleGrapheme(nsAString& aStr)
+{
+  unicode::ClusterIterator iter(aStr.Data(), aStr.Length());
+  if (!iter.AtEnd()) {
+    iter.Next();
+    if (!iter.AtEnd()) {
+      // Not mutating the string for common cases helps memory use
+      // since we share the buffer from the specified style into the
+      // computed style.
+      aStr.Truncate(iter - aStr.Data());
+    }
+  }
+}
+
 const void*
 nsRuleNode::ComputeTextData(void* aStartStruct,
                             const nsRuleData* aRuleData,
@@ -4230,7 +4288,7 @@ nsRuleNode::ComputeTextData(void* aStartStruct,
                             const RuleDetail aRuleDetail,
                             const RuleNodeCacheConditions aConditions)
 {
-  COMPUTE_START_INHERITED(Text, (), text, parentText)
+  COMPUTE_START_INHERITED(Text, (mPresContext), text, parentText)
 
   // tab-size: integer, inherit
   SetDiscrete(*aRuleData->ValueForTabSize(),
@@ -4466,6 +4524,92 @@ nsRuleNode::ComputeTextData(void* aStartStruct,
               SETDSC_ENUMERATED | SETDSC_UNSET_INHERIT,
               parentText->mTextCombineUpright,
               NS_STYLE_TEXT_COMBINE_UPRIGHT_NONE, 0, 0, 0, 0);
+
+  // text-emphasis-color: color, string, inherit, initial
+  const nsCSSValue*
+    textEmphasisColorValue = aRuleData->ValueForTextEmphasisColor();
+  if (textEmphasisColorValue->GetUnit() == eCSSUnit_Null) {
+    // We don't want to change anything in this case.
+  } else if (textEmphasisColorValue->GetUnit() == eCSSUnit_Inherit ||
+             textEmphasisColorValue->GetUnit() == eCSSUnit_Unset) {
+    conditions.SetUncacheable();
+    text->mTextEmphasisColorForeground =
+      parentText->mTextEmphasisColorForeground;
+    text->mTextEmphasisColor = parentText->mTextEmphasisColor;
+  } else if ((textEmphasisColorValue->GetUnit() == eCSSUnit_EnumColor &&
+              textEmphasisColorValue->GetIntValue() == NS_COLOR_CURRENTCOLOR) ||
+             textEmphasisColorValue->GetUnit() == eCSSUnit_Initial) {
+    text->mTextEmphasisColorForeground = true;
+    text->mTextEmphasisColor = mPresContext->DefaultColor();
+  } else {
+    text->mTextEmphasisColorForeground = false;
+    SetColor(*textEmphasisColorValue, 0, mPresContext, aContext,
+             text->mTextEmphasisColor, conditions);
+  }
+
+  // text-emphasis-position: enum, inherit, initial
+  SetDiscrete(*aRuleData->ValueForTextEmphasisPosition(),
+              text->mTextEmphasisPosition,
+              conditions,
+              SETDSC_ENUMERATED | SETDSC_UNSET_INHERIT,
+              parentText->mTextEmphasisPosition,
+              NS_STYLE_TEXT_EMPHASIS_POSITION_OVER |
+              NS_STYLE_TEXT_EMPHASIS_POSITION_RIGHT, 0, 0, 0, 0);
+
+  // text-emphasis-style: string, enum, inherit, initial
+  const nsCSSValue* textEmphasisStyleValue =
+    aRuleData->ValueForTextEmphasisStyle();
+  switch (textEmphasisStyleValue->GetUnit()) {
+    case eCSSUnit_Null:
+      break;
+    case eCSSUnit_Initial:
+    case eCSSUnit_None: {
+      text->mTextEmphasisStyle = NS_STYLE_TEXT_EMPHASIS_STYLE_NONE;
+      text->mTextEmphasisStyleString = MOZ_UTF16("");
+      break;
+    }
+    case eCSSUnit_Inherit:
+    case eCSSUnit_Unset: {
+      conditions.SetUncacheable();
+      text->mTextEmphasisStyle = parentText->mTextEmphasisStyle;
+      text->mTextEmphasisStyleString = parentText->mTextEmphasisStyleString;
+      break;
+    }
+    case eCSSUnit_Enumerated: {
+      auto style = textEmphasisStyleValue->GetIntValue();
+      // If shape part is not specified, compute it according to the
+      // writing-mode. Note that, if the fill part (filled/open) is not
+      // specified, we compute it to filled per spec. Since that value
+      // is zero, no additional computation is needed. See the assertion
+      // in CSSParserImpl::ParseTextEmphasisStyle().
+      if (!(style & NS_STYLE_TEXT_EMPHASIS_STYLE_SHAPE_MASK)) {
+        conditions.SetUncacheable();
+        if (WritingMode(aContext).IsVertical()) {
+          style |= NS_STYLE_TEXT_EMPHASIS_STYLE_SESAME;
+        } else {
+          style |= NS_STYLE_TEXT_EMPHASIS_STYLE_CIRCLE;
+        }
+      }
+      text->mTextEmphasisStyle = style;
+      size_t shape = style & NS_STYLE_TEXT_EMPHASIS_STYLE_SHAPE_MASK;
+      MOZ_ASSERT(shape > 0 && shape < ArrayLength(kTextEmphasisChars));
+      const TextEmphasisChars& chars = kTextEmphasisChars[shape];
+      text->mTextEmphasisStyleString =
+        (style & NS_STYLE_TEXT_EMPHASIS_STYLE_FILL_MASK) ==
+        NS_STYLE_TEXT_EMPHASIS_STYLE_FILLED ? chars.mFilled : chars.mOpen;
+      break;
+    }
+    case eCSSUnit_String: {
+      text->mTextEmphasisStyle = NS_STYLE_TEXT_EMPHASIS_STYLE_STRING;
+      nsString strValue;
+      textEmphasisStyleValue->GetStringValue(strValue);
+      TruncateStringToSingleGrapheme(strValue);
+      text->mTextEmphasisStyleString = strValue;
+      break;
+    }
+    default:
+      MOZ_ASSERT_UNREACHABLE("Unknown value unit type");
+  }
 
   // -moz-control-character-visibility: enum, inherit, initial
   SetDiscrete(*aRuleData->ValueForControlCharacterVisibility(),
@@ -5278,12 +5422,13 @@ nsRuleNode::ComputeDisplayData(void* aStartStruct,
       animation->SetDirection(parentDisplay->mAnimations[i].GetDirection());
     } else if (animDirection.unit == eCSSUnit_Initial ||
                animDirection.unit == eCSSUnit_Unset) {
-      animation->SetDirection(NS_STYLE_ANIMATION_DIRECTION_NORMAL);
+      animation->SetDirection(dom::PlaybackDirection::Normal);
     } else if (animDirection.list) {
       MOZ_ASSERT(animDirection.list->mValue.GetUnit() == eCSSUnit_Enumerated,
                  "Invalid animation-direction unit");
 
-      animation->SetDirection(animDirection.list->mValue.GetIntValue());
+      animation->SetDirection(
+          static_cast<dom::PlaybackDirection>(animDirection.list->mValue.GetIntValue()));
     }
 
     if (i >= animFillMode.num) {
@@ -5296,12 +5441,13 @@ nsRuleNode::ComputeDisplayData(void* aStartStruct,
       animation->SetFillMode(parentDisplay->mAnimations[i].GetFillMode());
     } else if (animFillMode.unit == eCSSUnit_Initial ||
                animFillMode.unit == eCSSUnit_Unset) {
-      animation->SetFillMode(NS_STYLE_ANIMATION_FILL_MODE_NONE);
+      animation->SetFillMode(dom::FillMode::None);
     } else if (animFillMode.list) {
       MOZ_ASSERT(animFillMode.list->mValue.GetUnit() == eCSSUnit_Enumerated,
                  "Invalid animation-fill-mode unit");
 
-      animation->SetFillMode(animFillMode.list->mValue.GetIntValue());
+      animation->SetFillMode(
+          static_cast<dom::FillMode>(animFillMode.list->mValue.GetIntValue()));
     }
 
     if (i >= animPlayState.num) {
@@ -7864,7 +8010,11 @@ nsRuleNode::ComputePositionData(void* aStartStruct,
               pos->mBoxSizing, conditions,
               SETDSC_ENUMERATED | SETDSC_UNSET_INITIAL,
               parentPos->mBoxSizing,
-              NS_STYLE_BOX_SIZING_CONTENT, 0, 0, 0, 0);
+              StyleBoxSizing::Content,
+              StyleBoxSizing::Content /* ignored */,
+              StyleBoxSizing::Content /* ignored */,
+              StyleBoxSizing::Content /* ignored */,
+              StyleBoxSizing::Content /* ignored */);
 
   // align-content: enum, inherit, initial
   const auto& alignContentValue = *aRuleData->ValueForAlignContent();

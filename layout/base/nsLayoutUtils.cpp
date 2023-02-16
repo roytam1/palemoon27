@@ -2106,7 +2106,9 @@ nsLayoutUtils::GetEventCoordinatesRelativeTo(nsIWidget* aWidget,
       nsPresContext* presContext = aFrame->PresContext();
       nsPoint pt(presContext->DevPixelsToAppUnits(aPoint.x),
                  presContext->DevPixelsToAppUnits(aPoint.y));
-      return pt - view->ViewToWidgetOffset();
+      pt = pt - view->ViewToWidgetOffset();
+      pt = pt.RemoveResolution(presContext->PresShell()->GetCumulativeScaleResolution());
+      return pt;
     }
   }
 
@@ -2141,6 +2143,10 @@ nsLayoutUtils::GetEventCoordinatesRelativeTo(nsIWidget* aWidget,
   int32_t rootAPD = rootFrame->PresContext()->AppUnitsPerDevPixel();
   int32_t localAPD = aFrame->PresContext()->AppUnitsPerDevPixel();
   widgetToView = widgetToView.ScaleToOtherAppUnits(rootAPD, localAPD);
+  nsIPresShell* shell = aFrame->PresContext()->PresShell();
+
+  // XXX Bug 1224748 - Update nsLayoutUtils functions to correctly handle nsPresShell resolution
+  widgetToView = widgetToView.RemoveResolution(shell->GetCumulativeScaleResolution());
 
   /* If we encountered a transform, we can't do simple arithmetic to figure
    * out how to convert back to aFrame's coordinates and must use the CTM.
@@ -2892,8 +2898,9 @@ nsLayoutUtils::TranslateViewToWidget(nsPresContext* aPresContext,
     return LayoutDeviceIntPoint(NS_UNCONSTRAINEDSIZE, NS_UNCONSTRAINEDSIZE);
   }
 
-  LayoutDeviceIntPoint relativeToViewWidget(aPresContext->AppUnitsToDevPixels(aPt.x + viewOffset.x),
-                                            aPresContext->AppUnitsToDevPixels(aPt.y + viewOffset.y));
+  nsPoint pt = (aPt + viewOffset).ApplyResolution(aPresContext->PresShell()->GetCumulativeScaleResolution());
+  LayoutDeviceIntPoint relativeToViewWidget(aPresContext->AppUnitsToDevPixels(pt.x),
+                                            aPresContext->AppUnitsToDevPixels(pt.y));
   return relativeToViewWidget + WidgetToWidgetOffset(viewWidget, aWidget);
 }
 
@@ -7194,20 +7201,23 @@ nsLayoutUtils::SurfaceFromElement(HTMLVideoElement* aElement,
   if (!principal)
     return result;
 
-  ImageContainer *container = aElement->GetImageContainer();
+  ImageContainer* container = aElement->GetImageContainer();
   if (!container)
     return result;
 
   AutoLockImage lockImage(container);
-  layers::Image* image = lockImage.GetImage();
-  if (!image) {
-    return result;
-  }
-  result.mSourceSurface = image->GetAsSourceSurface();
-  if (!result.mSourceSurface)
+
+  result.mLayersImage = lockImage.GetImage();
+  if (!result.mLayersImage)
     return result;
 
   if (aTarget) {
+    // They gave us a DrawTarget to optimize for, so even though we have a layers::Image,
+    // we should unconditionally grab a SourceSurface and try to optimize it.
+    result.mSourceSurface = result.mLayersImage->GetAsSourceSurface();
+    if (!result.mSourceSurface)
+      return result;
+
     RefPtr<SourceSurface> opt = aTarget->OptimizeSourceSurface(result.mSourceSurface);
     if (opt) {
       result.mSourceSurface = opt;
@@ -7216,7 +7226,7 @@ nsLayoutUtils::SurfaceFromElement(HTMLVideoElement* aElement,
 
   result.mCORSUsed = aElement->GetCORSMode() != CORS_NONE;
   result.mHasSize = true;
-  result.mSize = image->GetSize();
+  result.mSize = result.mLayersImage->GetSize();
   result.mPrincipal = principal.forget();
   result.mIsWriteOnly = false;
 
@@ -8288,6 +8298,9 @@ nsLayoutUtils::IsAPZTestLoggingEnabled()
   return gfxPrefs::APZTestLoggingEnabled();
 }
 
+////////////////////////////////////////
+// SurfaceFromElementResult
+
 nsLayoutUtils::SurfaceFromElementResult::SurfaceFromElementResult()
   // Use safe default values here
   : mIsWriteOnly(true)
@@ -8297,6 +8310,18 @@ nsLayoutUtils::SurfaceFromElementResult::SurfaceFromElementResult()
   , mIsPremultiplied(true)
 {
 }
+
+const RefPtr<mozilla::gfx::SourceSurface>&
+nsLayoutUtils::SurfaceFromElementResult::GetSourceSurface()
+{
+  if (!mSourceSurface && mLayersImage) {
+    mSourceSurface = mLayersImage->GetAsSourceSurface();
+  }
+
+  return mSourceSurface;
+}
+
+////////////////////////////////////////
 
 bool
 nsLayoutUtils::IsNonWrapperBlock(nsIFrame* aFrame)
@@ -8476,21 +8501,13 @@ nsLayoutUtils::HasDocumentLevelListenersForApzAwareEvents(nsIPresShell* aShell)
 /* static */ float
 nsLayoutUtils::GetResolution(nsIPresShell* aPresShell)
 {
-  nsIScrollableFrame* sf = aPresShell->GetRootScrollFrameAsScrollable();
-  if (sf) {
-    return sf->GetResolution();
-  }
   return aPresShell->GetResolution();
 }
 
 /* static */ void
 nsLayoutUtils::SetResolutionAndScaleTo(nsIPresShell* aPresShell, float aResolution)
 {
-  nsIScrollableFrame* sf = aPresShell->GetRootScrollFrameAsScrollable();
-  if (sf) {
-    sf->SetResolutionAndScaleTo(aResolution);
-    aPresShell->SetResolutionAndScaleTo(aResolution);
-  }
+  aPresShell->SetResolutionAndScaleTo(aResolution);
 }
 
 static void

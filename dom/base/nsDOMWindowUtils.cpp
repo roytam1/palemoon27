@@ -471,11 +471,7 @@ nsDOMWindowUtils::SetResolution(float aResolution)
     return NS_ERROR_FAILURE;
   }
 
-  nsIScrollableFrame* sf = presShell->GetRootScrollFrameAsScrollable();
-  if (sf) {
-    sf->SetResolution(aResolution);
-    presShell->SetResolution(aResolution);
-  }
+  presShell->SetResolution(aResolution);
 
   return NS_OK;
 }
@@ -513,8 +509,7 @@ nsDOMWindowUtils::GetIsResolutionSet(bool* aIsResolutionSet) {
     return NS_ERROR_FAILURE;
   }
 
-  const nsIScrollableFrame* sf = presShell->GetRootScrollFrameAsScrollable();
-  *aIsResolutionSet = sf && sf->IsResolutionSet();
+  *aIsResolutionSet = presShell->IsResolutionSet();
 
   return NS_OK;
 }
@@ -988,7 +983,7 @@ nsDOMWindowUtils::SendKeyEvent(const nsAString& aType,
 {
   // get the widget to send the event to
   nsCOMPtr<nsIWidget> widget = GetWidget();
-  
+
   return nsContentUtils::SendKeyEvent(widget, aType, aKeyCode, aCharCode,
                                       aModifiers, aAdditionalFlags,
                                       aDefaultActionTaken);
@@ -1317,7 +1312,7 @@ nsDOMWindowUtils::NodesFromRect(float aX, float aY,
   nsCOMPtr<nsIDocument> doc = GetDocument();
   NS_ENSURE_STATE(doc);
 
-  return doc->NodesFromRectHelper(aX, aY, aTopSize, aRightSize, aBottomSize, aLeftSize, 
+  return doc->NodesFromRectHelper(aX, aY, aTopSize, aRightSize, aBottomSize, aLeftSize,
                                   aIgnoreRootScrollFrame, aFlushLayout, aReturn);
 }
 
@@ -1413,7 +1408,9 @@ CanvasToDataSourceSurface(nsIDOMHTMLCanvasElement* aCanvas)
              "be an element.");
   nsLayoutUtils::SurfaceFromElementResult result =
     nsLayoutUtils::SurfaceFromElement(node->AsElement());
-  return result.mSourceSurface->GetDataSurface();
+
+  MOZ_ASSERT(result.GetSourceSurface());
+  return result.GetSourceSurface()->GetDataSurface();
 }
 
 NS_IMETHODIMP
@@ -1754,7 +1751,7 @@ nsDOMWindowUtils::GetFullZoom(float* aFullZoom)
 
   return NS_OK;
 }
- 
+
 NS_IMETHODIMP
 nsDOMWindowUtils::DispatchDOMEventViaPresShell(nsIDOMNode* aTarget,
                                                nsIDOMEvent* aEvent,
@@ -2455,7 +2452,7 @@ nsDOMWindowUtils::RenderDocument(const nsRect& aRect,
     return presShell->RenderDocument(aRect, aFlags, aBackgroundColor, aThebesContext);
 }
 
-NS_IMETHODIMP 
+NS_IMETHODIMP
 nsDOMWindowUtils::GetCursorType(int16_t *aCursor)
 {
   NS_ENSURE_ARG_POINTER(aCursor);

@@ -218,6 +218,7 @@ public:
   }
   virtual bool ScaleToResolution() const override;
   virtual float GetCumulativeResolution() override;
+  virtual float GetCumulativeScaleResolution() override;
 
   //nsIViewObserver interface
 
@@ -480,7 +481,7 @@ protected:
       : mResolution(aPresShell->mResolution)
       , mRenderFlags(aPresShell->mRenderFlags)
     { }
-    float mResolution;
+    mozilla::Maybe<float> mResolution;
     RenderFlags mRenderFlags;
   };
 

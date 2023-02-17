@@ -171,6 +171,9 @@ pref("dom.serviceWorkers.idle_timeout", 30000);
 // The amount of time (milliseconds) service workers can be kept running using waitUntil promises.
 pref("dom.serviceWorkers.idle_extended_timeout", 300000);
 
+// Enable test for 24 hours update, service workers will always treat last update check time is over 24 hours
+pref("dom.serviceWorkers.testUpdateOverOneDay", false);
+
 // Whether nonzero values can be returned from performance.timing.*
 pref("dom.enable_performance", true);
 
@@ -2744,6 +2747,9 @@ pref("layout.css.control-characters.visible", false);
 pref("layout.css.control-characters.visible", true);
 #endif
 
+// Is support for text-emphasis enabled?
+pref("layout.css.text-emphasis.enabled", false);
+
 // pref for which side vertical scrollbars should be on
 // 0 = end-side in UI direction
 // 1 = end-side in document/content direction
@@ -4482,6 +4488,8 @@ pref("webgl.enable-privileged-extensions", false);
 pref("webgl.bypass-shader-validation", false);
 pref("webgl.enable-prototype-webgl2", false);
 pref("webgl.disable-fail-if-major-performance-caveat", false);
+pref("webgl.disable-DOM-blit-uploads", false);
+pref("webgl.webgl2-compat-mode", false);
 
 #ifdef RELEASE_BUILD
 // Keep this disabled on Release and Beta for now. (see bug 1171228)
@@ -4615,6 +4623,11 @@ pref("layers.tiled-drawtarget.enabled", true);
 pref("layers.tiles.edge-padding", false);
 #endif
 
+
+#ifdef MOZ_WIDGET_ANDROID
+pref("layers.tiled-drawtarget.enabled", true);
+pref("layers.tiles.edge-padding", true);
+#endif
 
 // same effect as layers.offmainthreadcomposition.enabled, but specifically for
 // use with tests.
@@ -5093,9 +5106,6 @@ pref("dom.voicemail.enabled", false);
 // parameter omitted.
 pref("dom.voicemail.defaultServiceId", 0);
 
-// DOM BroadcastChannel API.
-pref("dom.broadcastChannel.enabled", true);
-
 // DOM Inter-App Communication API.
 pref("dom.inter-app-communication-api.enabled", false);
 
@@ -5210,9 +5220,6 @@ pref("dom.system_update.debug", false);
 
 // UDPSocket API
 pref("dom.udpsocket.enabled", false);
-
-// MessageChannel enabled by default.
-pref("dom.messageChannel.enabled", true);
 
 // Disable before keyboard events and after keyboard events by default.
 pref("dom.beforeAfterKeyboardEvent.enabled", false);

@@ -784,7 +784,6 @@ PresShell::PresShell()
   mPresArenaAllocCount = 0;
 #endif
   mRenderFlags = 0;
-  mResolution = 1.0;
 
   mScrollPositionClampingScrollPortSizeSet = false;
 
@@ -5336,11 +5335,12 @@ nsresult PresShell::SetResolutionImpl(float aResolution, bool aScaleToResolution
   if (!(aResolution > 0.0)) {
     return NS_ERROR_ILLEGAL_VALUE;
   }
-  if (aResolution == mResolution) {
+  if (aResolution == mResolution.valueOr(0.0)) {
+    MOZ_ASSERT(mResolution.isSome());
     return NS_OK;
   }
   RenderingState state(this);
-  state.mResolution = aResolution;
+  state.mResolution = Some(aResolution);
   SetRenderingState(state);
   mScaleToResolution = aScaleToResolution;
   if (mMobileViewportManager) {
@@ -5361,6 +5361,22 @@ float PresShell::GetCumulativeResolution()
   nsPresContext* parentCtx = GetPresContext()->GetParentPresContext();
   if (parentCtx) {
     resolution *= parentCtx->PresShell()->GetCumulativeResolution();
+  }
+  return resolution;
+}
+
+float PresShell::GetCumulativeScaleResolution()
+{
+  float resolution = 1.0;
+  nsIPresShell* currentShell = this;
+  while (currentShell) {
+    resolution *=  currentShell->ScaleToResolution() ? currentShell->GetResolution() : 1.0f;
+    nsPresContext* parentCtx = currentShell->GetPresContext()->GetParentPresContext();
+    if (parentCtx) {
+      currentShell = parentCtx->PresShell();
+    } else {
+      currentShell = nullptr;
+    }
   }
   return resolution;
 }
@@ -6138,7 +6154,7 @@ PresShell::Paint(nsView*        aViewToPaint,
       pc->GetVisibleArea().ToOutsidePixels(pc->AppUnitsPerDevPixel());
     bgcolor = NS_ComposeColors(bgcolor, mCanvasBackgroundColor);
     root->SetColor(Color::FromABGR(bgcolor));
-    root->SetVisibleRegion(bounds);
+    root->SetVisibleRegion(LayerIntRegion::FromUnknownRegion(bounds));
     layerManager->SetRoot(root);
   }
   MaybeSetupTransactionIdAllocator(layerManager, aViewToPaint);
@@ -7119,8 +7135,9 @@ PresShell::HandleEvent(nsIFrame* aFrame,
       // document that is being captured.
       retargetEventDoc = capturingContent->GetCrossShadowCurrentDoc();
 #ifdef ANDROID
-    } else if (aEvent->mClass == eTouchEventClass ||
-              (aEvent->AsMouseEvent() && aEvent->AsMouseEvent()->inputSource == nsIDOMMouseEvent::MOZ_SOURCE_TOUCH)) {
+    } else if ((aEvent->mClass == eTouchEventClass) ||
+               (aEvent->mClass == eMouseEventClass) ||
+               (aEvent->mClass == eWheelEventClass)) {
       retargetEventDoc = GetTouchEventTargetDocument();
 #endif
     }

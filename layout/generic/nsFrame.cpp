@@ -61,6 +61,7 @@
 
 #include "nsBidiPresUtils.h"
 #include "RubyUtils.h"
+#include "nsAnimationManager.h"
 
 // For triple-click pref
 #include "imgIContainer.h"
@@ -686,7 +687,7 @@ nsFrame::DestroyFrom(nsIFrame* aDestructRoot)
     }
   }
 
-  if (nsLayoutUtils::HasCurrentAnimations(static_cast<nsIFrame*>(this))) {
+  if (HasCSSAnimations()) {
     // If no new frame for this element is created by the end of the
     // restyling process, stop animations for this frame
     RestyleManager::AnimationsWithDestroyedFrame* adf =
@@ -1905,7 +1906,7 @@ CheckForApzAwareEventHandlers(nsDisplayListBuilder* aBuilder, nsIFrame* aFrame)
  * True if aDescendant participates the context aAncestor participating.
  */
 static bool
-Participate3DContextFrame(nsIFrame* aAncestor, nsIFrame* aDescendant) {
+FrameParticipatesIn3DContext(nsIFrame* aAncestor, nsIFrame* aDescendant) {
   MOZ_ASSERT(aAncestor != aDescendant);
   MOZ_ASSERT(aAncestor->Extend3DContext());
   nsIFrame* frame;
@@ -1918,6 +1919,20 @@ Participate3DContextFrame(nsIFrame* aAncestor, nsIFrame* aDescendant) {
   }
   MOZ_ASSERT(frame == aAncestor);
   return true;
+}
+
+static bool
+ItemParticipatesIn3DContext(nsIFrame* aAncestor, nsDisplayItem* aItem)
+{
+  nsIFrame* transformFrame;
+  if (aItem->GetType() == nsDisplayItem::TYPE_TRANSFORM) {
+    transformFrame = aItem->Frame();
+  } else if (aItem->GetType() == nsDisplayItem::TYPE_PERSPECTIVE) {
+    transformFrame = static_cast<nsDisplayPerspective*>(aItem)->TransformFrame();
+  } else {
+    return false;
+  }
+  return FrameParticipatesIn3DContext(aAncestor, transformFrame);
 }
 
 static void
@@ -2044,6 +2059,8 @@ nsIFrame::BuildDisplayListForStackingContext(nsDisplayListBuilder* aBuilder,
   }
 
   DisplayListClipState::AutoSaveRestore clipState(aBuilder);
+
+  nsDisplayListBuilder::AutoSaveRestorePerspectiveIndex perspectiveIndex(aBuilder, this);
 
   if (isTransformed || useBlendMode || usingSVGEffects || useStickyPosition) {
     // We don't need to pass ancestor clipping down to our children;
@@ -2200,8 +2217,7 @@ nsIFrame::BuildDisplayListForStackingContext(nsDisplayListBuilder* aBuilder,
       int index = 1;
 
       while (nsDisplayItem* item = resultList.RemoveBottom()) {
-        if (item->GetType() == nsDisplayItem::TYPE_TRANSFORM &&
-            Participate3DContextFrame(this, item->Frame())) {
+        if (ItemParticipatesIn3DContext(this, item)) {
           // The frame of this item participates the same 3D context.
           WrapSeparatorTransform(aBuilder, this, dirtyRect,
                                  &nonparticipants, &participants, index++);
@@ -2223,7 +2239,9 @@ nsIFrame::BuildDisplayListForStackingContext(nsDisplayListBuilder* aBuilder,
     }
 
     // Restore clip state now so nsDisplayTransform is clipped properly.
-    clipState.Restore();
+    if (!HasPerspective()) {
+      clipState.Restore();
+    }
     // Revert to the dirtyrect coming in from the parent, without our transform
     // taken into account.
     buildingDisplayList.SetDirtyRect(dirtyRectOutsideTransform);
@@ -2238,6 +2256,15 @@ nsIFrame::BuildDisplayListForStackingContext(nsDisplayListBuilder* aBuilder,
     nsDisplayTransform *transformItem =
       new (aBuilder) nsDisplayTransform(aBuilder, this, &resultList, dirtyRect);
     resultList.AppendNewToTop(transformItem);
+
+    if (HasPerspective()) {
+      clipState.Restore();
+      resultList.AppendNewToTop(
+        new (aBuilder) nsDisplayPerspective(
+          aBuilder, this,
+          GetContainingBlock()->GetContent()->GetPrimaryFrame(), &resultList));
+    }
+
   }
 
   /* If we're doing VR rendering, then we need to wrap everything in a nsDisplayVR
@@ -2297,7 +2324,8 @@ WrapInWrapList(nsDisplayListBuilder* aBuilder,
                nsIFrame* aFrame, nsDisplayList* aList)
 {
   nsDisplayItem* item = aList->GetBottom();
-  if (!item || item->GetAbove() || item->Frame() != aFrame) {
+  if (!item || item->GetAbove() ||
+      (item->Frame() != aFrame && item->GetType() != nsDisplayItem::TYPE_PERSPECTIVE)) {
     return new (aBuilder) nsDisplayWrapList(aBuilder, aFrame, aList);
   }
   aList->RemoveBottom();
@@ -4312,11 +4340,15 @@ nsFrame::ComputeSize(nsRenderingContext *aRenderingContext,
   const nsStylePosition *stylePos = StylePosition();
 
   switch (stylePos->mBoxSizing) {
-    case NS_STYLE_BOX_SIZING_BORDER:
+    case StyleBoxSizing::Border:
       boxSizingAdjust += aBorder;
       // fall through
-    case NS_STYLE_BOX_SIZING_PADDING:
+    case StyleBoxSizing::Padding:
       boxSizingAdjust += aPadding;
+      // fall through
+    case StyleBoxSizing::Content:
+      // nothing
+      break;
   }
   nscoord boxSizingToMarginEdgeISize =
     aMargin.ISize(aWM) + aBorder.ISize(aWM) + aPadding.ISize(aWM) -
@@ -5034,7 +5066,8 @@ nsIFrame::GetTransformMatrix(const nsIFrame* aStopAtAncestor,
     int32_t scaleFactor = PresContext()->AppUnitsPerDevPixel();
 
     Matrix4x4 result = nsDisplayTransform::GetResultingTransformMatrix(this,
-                         nsPoint(0, 0), scaleFactor, nullptr, aOutAncestor);
+                         nsPoint(0, 0), scaleFactor, nsDisplayTransform::INCLUDE_PERSPECTIVE,
+                         nullptr, aOutAncestor);
     // XXXjwatt: seems like this will double count offsets in the face of preserve-3d:
     nsPoint delta = GetOffsetToCrossDoc(*aOutAncestor);
     /* Combine the raw transform with a translation to our parent. */
@@ -7474,6 +7507,7 @@ UnionBorderBoxes(nsIFrame* aFrame, bool aApplyTransform,
   nsIAtom* fType = aFrame->GetType();
   if (nsFrame::ShouldApplyOverflowClipping(aFrame, disp) ||
       fType == nsGkAtoms::scrollFrame ||
+      fType == nsGkAtoms::listControlFrame ||
       fType == nsGkAtoms::svgOuterSVGFrame) {
     return u;
   }
@@ -9052,6 +9086,14 @@ nsIFrame::CaretPosition::CaretPosition()
 
 nsIFrame::CaretPosition::~CaretPosition()
 {
+}
+
+bool
+nsFrame::HasCSSAnimations()
+{
+  AnimationCollection* collection =
+    PresContext()->AnimationManager()->GetAnimationCollection(this);
+  return collection && collection->mAnimations.Length() > 0;
 }
 
 // Box layout debugging

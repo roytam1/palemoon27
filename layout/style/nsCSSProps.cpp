@@ -17,6 +17,7 @@
 #include "nsIWidget.h"
 #include "nsThemeConstants.h"  // For system widget appearance types
 
+#include "mozilla/dom/AnimationEffectReadOnlyBinding.h" // for PlaybackDirection
 #include "mozilla/LookAndFeel.h" // for system colors
 
 #include "nsString.h"
@@ -702,18 +703,18 @@ nsCSSProps::GetStringValue(nsCSSCounterDesc aCounterDesc)
 /***************************************************************************/
 
 const KTableEntry nsCSSProps::kAnimationDirectionKTable[] = {
-  { eCSSKeyword_normal, NS_STYLE_ANIMATION_DIRECTION_NORMAL },
-  { eCSSKeyword_reverse, NS_STYLE_ANIMATION_DIRECTION_REVERSE },
-  { eCSSKeyword_alternate, NS_STYLE_ANIMATION_DIRECTION_ALTERNATE },
-  { eCSSKeyword_alternate_reverse, NS_STYLE_ANIMATION_DIRECTION_ALTERNATE_REVERSE },
+  { eCSSKeyword_normal, static_cast<uint32_t>(dom::PlaybackDirection::Normal) },
+  { eCSSKeyword_reverse, static_cast<uint32_t>(dom::PlaybackDirection::Reverse) },
+  { eCSSKeyword_alternate, static_cast<uint32_t>(dom::PlaybackDirection::Alternate) },
+  { eCSSKeyword_alternate_reverse, static_cast<uint32_t>(dom::PlaybackDirection::Alternate_reverse) },
   { eCSSKeyword_UNKNOWN, -1 }
 };
 
 const KTableEntry nsCSSProps::kAnimationFillModeKTable[] = {
-  { eCSSKeyword_none, NS_STYLE_ANIMATION_FILL_MODE_NONE },
-  { eCSSKeyword_forwards, NS_STYLE_ANIMATION_FILL_MODE_FORWARDS },
-  { eCSSKeyword_backwards, NS_STYLE_ANIMATION_FILL_MODE_BACKWARDS },
-  { eCSSKeyword_both, NS_STYLE_ANIMATION_FILL_MODE_BOTH },
+  { eCSSKeyword_none, static_cast<uint32_t>(dom::FillMode::None) },
+  { eCSSKeyword_forwards, static_cast<uint32_t>(dom::FillMode::Forwards) },
+  { eCSSKeyword_backwards, static_cast<uint32_t>(dom::FillMode::Backwards) },
+  { eCSSKeyword_both, static_cast<uint32_t>(dom::FillMode::Both) },
   { eCSSKeyword_UNKNOWN, -1 }
 };
 
@@ -992,9 +993,9 @@ const KTableEntry nsCSSProps::kBoxShadowTypeKTable[] = {
 };
 
 const KTableEntry nsCSSProps::kBoxSizingKTable[] = {
-  { eCSSKeyword_content_box,  NS_STYLE_BOX_SIZING_CONTENT },
-  { eCSSKeyword_border_box,   NS_STYLE_BOX_SIZING_BORDER },
-  { eCSSKeyword_padding_box,  NS_STYLE_BOX_SIZING_PADDING },
+  { eCSSKeyword_content_box,  uint8_t(StyleBoxSizing::Content) },
+  { eCSSKeyword_border_box,   uint8_t(StyleBoxSizing::Border) },
+  { eCSSKeyword_padding_box,  uint8_t(StyleBoxSizing::Padding) },
   { eCSSKeyword_UNKNOWN,      -1 }
 };
 
@@ -1906,6 +1907,29 @@ const KTableEntry nsCSSProps::kTextOrientationKTable[] = {
   { eCSSKeyword_UNKNOWN, -1 }
 };
 
+const KTableEntry nsCSSProps::kTextEmphasisPositionKTable[] = {
+  { eCSSKeyword_over, NS_STYLE_TEXT_EMPHASIS_POSITION_OVER },
+  { eCSSKeyword_under, NS_STYLE_TEXT_EMPHASIS_POSITION_UNDER },
+  { eCSSKeyword_left, NS_STYLE_TEXT_EMPHASIS_POSITION_LEFT },
+  { eCSSKeyword_right, NS_STYLE_TEXT_EMPHASIS_POSITION_RIGHT },
+  { eCSSKeyword_UNKNOWN, -1 }
+};
+
+const KTableEntry nsCSSProps::kTextEmphasisStyleFillKTable[] = {
+  { eCSSKeyword_filled, NS_STYLE_TEXT_EMPHASIS_STYLE_FILLED },
+  { eCSSKeyword_open, NS_STYLE_TEXT_EMPHASIS_STYLE_OPEN },
+  { eCSSKeyword_UNKNOWN, -1 }
+};
+
+const KTableEntry nsCSSProps::kTextEmphasisStyleShapeKTable[] = {
+  { eCSSKeyword_dot, NS_STYLE_TEXT_EMPHASIS_STYLE_DOT },
+  { eCSSKeyword_circle, NS_STYLE_TEXT_EMPHASIS_STYLE_CIRCLE },
+  { eCSSKeyword_double_circle, NS_STYLE_TEXT_EMPHASIS_STYLE_DOUBLE_CIRCLE },
+  { eCSSKeyword_triangle, NS_STYLE_TEXT_EMPHASIS_STYLE_TRIANGLE },
+  { eCSSKeyword_sesame, NS_STYLE_TEXT_EMPHASIS_STYLE_SESAME} ,
+  { eCSSKeyword_UNKNOWN, -1 }
+};
+
 const KTableEntry nsCSSProps::kTextOverflowKTable[] = {
   { eCSSKeyword_clip, NS_STYLE_TEXT_OVERFLOW_CLIP },
   { eCSSKeyword_ellipsis, NS_STYLE_TEXT_OVERFLOW_ELLIPSIS },
@@ -2759,6 +2783,12 @@ static const nsCSSProperty gTextDecorationSubpropTable[] = {
   eCSSProperty_text_decoration_color,
   eCSSProperty_text_decoration_line,
   eCSSProperty_text_decoration_style,
+  eCSSProperty_UNKNOWN
+};
+
+static const nsCSSProperty gTextEmphasisSubpropTable[] = {
+  eCSSProperty_text_emphasis_style,
+  eCSSProperty_text_emphasis_color,
   eCSSProperty_UNKNOWN
 };
 

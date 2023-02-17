@@ -29,6 +29,7 @@
 #include "Units.h"
 #include "mozilla/ToString.h"
 #include "nsHTMLReflowMetrics.h"
+#include "ImageContainer.h"
 
 #include <limits>
 #include <algorithm>
@@ -67,6 +68,7 @@ struct IntrinsicSize;
 struct ContainerLayerParameters;
 class WritingMode;
 namespace dom {
+class CanvasRenderingContext2D;
 class DOMRectList;
 class Element;
 class HTMLImageElement;
@@ -78,6 +80,7 @@ namespace gfx {
 struct RectCornerRadii;
 } // namespace gfx
 namespace layers {
+class Image;
 class Layer;
 } // namespace layers
 } // namespace mozilla
@@ -119,6 +122,7 @@ class nsLayoutUtils
   typedef mozilla::gfx::SourceSurface SourceSurface;
   typedef mozilla::gfx::Color Color;
   typedef mozilla::gfx::DrawTarget DrawTarget;
+  typedef mozilla::gfx::ExtendMode ExtendMode;
   typedef mozilla::gfx::Filter Filter;
   typedef mozilla::gfx::Float Float;
   typedef mozilla::gfx::Point Point;
@@ -915,18 +919,6 @@ public:
   static nsRect MatrixTransformRect(const nsRect &aBounds,
                                     const Matrix4x4 &aMatrix, float aFactor);
 
-  /**
-   * Helper function that, given a rectangle and a matrix, returns the smallest
-   * rectangle containing the image of the source rectangle rounded out to the nearest
-   * pixel value.
-   *
-   * @param aBounds The rectangle to transform.
-   * @param aMatrix The matrix to transform it with.
-   * @param aFactor The number of app units per graphics unit.
-   * @return The smallest rect that contains the image of aBounds.
-   */
-  static nsRect MatrixTransformRectOut(const nsRect &aBounds,
-                                       const Matrix4x4 &aMatrix, float aFactor);
   /**
    * Helper function that, given a point and a matrix, returns the image
    * of that point under the matrix transform.
@@ -1734,7 +1726,8 @@ public:
    *   @param aAnchor           A point in aFill which we will ensure is
    *                            pixel-aligned in the output.
    *   @param aDirty            Pixels outside this area may be skipped.
-   *   @param aImageFlags       Image flags of the imgIContainer::FLAG_* variety
+   *   @param aImageFlags       Image flags of the imgIContainer::FLAG_* variety.
+   *   @param aExtendMode       How to extend the image over the dest rect.
    */
   static DrawResult DrawBackgroundImage(gfxContext&         aContext,
                                         nsPresContext*      aPresContext,
@@ -1746,7 +1739,8 @@ public:
                                         const nsSize&       aRepeatSize,
                                         const nsPoint&      aAnchor,
                                         const nsRect&       aDirty,
-                                        uint32_t            aImageFlags);
+                                        uint32_t            aImageFlags,
+                                        ExtendMode          aExtendMode);
 
   /**
    * Draw an image.
@@ -2061,10 +2055,25 @@ public:
   };
 
   struct SurfaceFromElementResult {
-    SurfaceFromElementResult();
+    friend class mozilla::dom::CanvasRenderingContext2D;
+    friend class nsLayoutUtils;
 
-    /* mSourceSurface will contain the resulting surface, or will be nullptr on error */
-    RefPtr<SourceSurface> mSourceSurface;
+    /* If SFEResult contains a valid surface, it either mLayersImage or mSourceSurface
+     * will be non-null, and GetSourceSurface() will not be null.
+     *
+     * For valid surfaces, mSourceSurface may be null if mLayersImage is non-null, but
+     * GetSourceSurface() will create mSourceSurface from mLayersImage when called.
+     */
+
+    /* Video elements (at least) often are already decoded as layers::Images. */
+    RefPtr<mozilla::layers::Image> mLayersImage;
+
+protected:
+    /* GetSourceSurface() fills this and returns its non-null value if this SFEResult
+     * was successful. */
+    RefPtr<mozilla::gfx::SourceSurface> mSourceSurface;
+
+public:
     /* Contains info for drawing when there is no mSourceSurface. */
     DirectDrawInfo mDrawInfo;
 
@@ -2086,6 +2095,13 @@ public:
     bool mCORSUsed;
     /* Whether the returned image contains premultiplied pixel data */
     bool mIsPremultiplied;
+
+    // Methods:
+
+    SurfaceFromElementResult();
+
+    // Gets mSourceSurface, or makes a SourceSurface from mLayersImage.
+    const RefPtr<mozilla::gfx::SourceSurface>& GetSourceSurface();
   };
 
   static SurfaceFromElementResult SurfaceFromElement(mozilla::dom::Element *aElement,
@@ -2616,7 +2632,7 @@ public:
 
   /**
    * Log a key/value pair for APZ testing during a paint.
-   * @param aManager   The data will be written to the APZTestData associated 
+   * @param aManager   The data will be written to the APZTestData associated
    *                   with this layer manager.
    * @param aScrollId Identifies the scroll frame to which the data pertains.
    * @param aKey The key under which to log the data.
@@ -2707,19 +2723,6 @@ public:
                                       mozilla::WritingMode aFrameWM);
 
   static bool HasDocumentLevelListenersForApzAwareEvents(nsIPresShell* aShell);
-
-  /**
-   * Get the resolution at which rescalable web content is drawn
-   * (see nsIDOMWindowUtils.getResolution).
-   */
-  static float GetResolution(nsIPresShell* aPresShell);
-
-  /**
-   * Set the resolution at which rescalable web content is drawn,
-   * and scales the content by the amount of the resolution
-   * (see nsIDOMWindowUtils.setResolutionAndScaleTo).
-   */
-  static void SetResolutionAndScaleTo(nsIPresShell* aPresShell, float aResolution);
 
   /**
    * Set the scroll port size for the purpose of clamping the scroll position

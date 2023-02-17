@@ -55,12 +55,16 @@ UpdategDisableXULCache()
 static void
 DisableXULCacheChangedCallback(const char* aPref, void* aClosure)
 {
+    bool wasEnabled = !gDisableXULCache;
     UpdategDisableXULCache();
 
-    // Flush the cache, regardless
-    nsXULPrototypeCache* cache = nsXULPrototypeCache::GetInstance();
-    if (cache)
-        cache->Flush();
+    if (wasEnabled && gDisableXULCache) {
+        nsXULPrototypeCache* cache = nsXULPrototypeCache::GetInstance();
+        if (cache) {
+            // AbortCaching() calls Flush() for us.
+            cache->AbortCaching();
+        }
+    }
 }
 
 //----------------------------------------------------------------------
@@ -308,8 +312,6 @@ nsXULPrototypeCache::IsEnabled()
     return !gDisableXULCache;
 }
 
-static bool gDisableXULDiskCache = false;           // enabled by default
-
 void
 nsXULPrototypeCache::AbortCaching()
 {
@@ -322,7 +324,7 @@ nsXULPrototypeCache::AbortCaching()
     Flush();
 
     // Clear the cache set
-    mCacheURITable.Clear();
+    mStartupCacheURITable.Clear();
 }
 
 
@@ -427,7 +429,7 @@ nsXULPrototypeCache::FinishOutputStream(nsIURI* uri)
                                     &len);
     NS_ENSURE_SUCCESS(rv, rv);
 
-    if (!mCacheURITable.GetEntry(uri)) {
+    if (!mStartupCacheURITable.GetEntry(uri)) {
         nsAutoCString spec(kXULCachePrefix);
         rv = PathifyURI(uri, spec);
         if (NS_FAILED(rv))
@@ -435,7 +437,7 @@ nsXULPrototypeCache::FinishOutputStream(nsIURI* uri)
         rv = sc->PutBuffer(spec.get(), buf, len);
         if (NS_SUCCEEDED(rv)) {
             mOutputStreamTable.Remove(uri);
-            mCacheURITable.RemoveEntry(uri);
+            mStartupCacheURITable.PutEntry(uri);
         }
     }
 
@@ -470,22 +472,6 @@ nsXULPrototypeCache::HasData(nsIURI* uri, bool* exists)
     return NS_OK;
 }
 
-static void
-CachePrefChangedCallback(const char* aPref, void* aClosure)
-{
-    bool wasEnabled = !gDisableXULDiskCache;
-    gDisableXULDiskCache =
-        Preferences::GetBool(kDisableXULCachePref,
-                             gDisableXULDiskCache);
-
-    if (wasEnabled && gDisableXULDiskCache) {
-        nsXULPrototypeCache* cache = nsXULPrototypeCache::GetInstance();
-
-        if (cache)
-            cache->AbortCaching();
-    }
-}
-
 nsresult
 nsXULPrototypeCache::BeginCaching(nsIURI* aURI)
 {
@@ -500,13 +486,7 @@ nsXULPrototypeCache::BeginCaching(nsIURI* aURI)
     if (!startupCache)
         return NS_ERROR_FAILURE;
 
-    gDisableXULDiskCache =
-        Preferences::GetBool(kDisableXULCachePref, gDisableXULDiskCache);
-
-    Preferences::RegisterCallback(CachePrefChangedCallback,
-                                  kDisableXULCachePref);
-
-    if (gDisableXULDiskCache)
+    if (gDisableXULCache)
         return NS_ERROR_NOT_AVAILABLE;
 
     // Get the chrome directory to validate against the one stored in the
@@ -558,6 +538,7 @@ nsXULPrototypeCache::BeginCaching(nsIURI* aURI)
             // XXX This blows away work that other consumers (like
             // mozJSComponentLoader) have done, need more fine-grained control.
             startupCache->InvalidateCache();
+            mStartupCacheURITable.Clear();
             rv = NS_ERROR_UNEXPECTED;
         }
     } else if (rv != NS_ERROR_NOT_AVAILABLE)
@@ -612,13 +593,10 @@ nsXULPrototypeCache::BeginCaching(nsIURI* aURI)
         // Failed again, just bail.
         if (NS_FAILED(rv)) {
             startupCache->InvalidateCache();
+            mStartupCacheURITable.Clear();
             return NS_ERROR_FAILURE;
         }
     }
-
-    // Success!  Insert this URI into the mCacheURITable
-    // and commit locals to globals.
-    mCacheURITable.PutEntry(aURI);
 
     return NS_OK;
 }

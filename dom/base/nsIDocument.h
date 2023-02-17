@@ -30,6 +30,7 @@
 #include "mozilla/UseCounter.h"
 #include "mozilla/WeakPtr.h"
 #include "Units.h"
+#include "nsContentListDeclarations.h"
 #include "nsExpirationTracker.h"
 #include "nsClassHashtable.h"
 #include "prclist.h"
@@ -180,11 +181,6 @@ enum DocumentFlavor {
 
 // Some function forward-declarations
 class nsContentList;
-
-already_AddRefed<nsContentList>
-NS_GetContentList(nsINode* aRootNode,
-                  int32_t aMatchNameSpaceId,
-                  const nsAString& aTagname);
 
 //----------------------------------------------------------------------
 

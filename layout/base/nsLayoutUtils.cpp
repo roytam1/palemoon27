@@ -2106,7 +2106,9 @@ nsLayoutUtils::GetEventCoordinatesRelativeTo(nsIWidget* aWidget,
       nsPresContext* presContext = aFrame->PresContext();
       nsPoint pt(presContext->DevPixelsToAppUnits(aPoint.x),
                  presContext->DevPixelsToAppUnits(aPoint.y));
-      return pt - view->ViewToWidgetOffset();
+      pt = pt - view->ViewToWidgetOffset();
+      pt = pt.RemoveResolution(presContext->PresShell()->GetCumulativeScaleResolution());
+      return pt;
     }
   }
 
@@ -2141,6 +2143,10 @@ nsLayoutUtils::GetEventCoordinatesRelativeTo(nsIWidget* aWidget,
   int32_t rootAPD = rootFrame->PresContext()->AppUnitsPerDevPixel();
   int32_t localAPD = aFrame->PresContext()->AppUnitsPerDevPixel();
   widgetToView = widgetToView.ScaleToOtherAppUnits(rootAPD, localAPD);
+  nsIPresShell* shell = aFrame->PresContext()->PresShell();
+
+  // XXX Bug 1224748 - Update nsLayoutUtils functions to correctly handle nsPresShell resolution
+  widgetToView = widgetToView.RemoveResolution(shell->GetCumulativeScaleResolution());
 
   /* If we encountered a transform, we can't do simple arithmetic to figure
    * out how to convert back to aFrame's coordinates and must use the CTM.
@@ -2392,23 +2398,6 @@ nsLayoutUtils::RoundedRectIntersectsRect(const nsRect& aRoundedRect,
          CheckCorner(insets.left, insets.bottom,
                      aRadii[NS_CORNER_BOTTOM_LEFT_X],
                      aRadii[NS_CORNER_BOTTOM_LEFT_Y]);
-}
-
-nsRect
-nsLayoutUtils::MatrixTransformRectOut(const nsRect &aBounds,
-                                      const Matrix4x4 &aMatrix, float aFactor)
-{
-  nsRect outside = aBounds;
-  outside.ScaleRoundOut(1/aFactor);
-  RectDouble image = RectDouble(outside.x, outside.y,
-                                outside.width, outside.height);
-
-  RectDouble maxBounds = RectDouble(double(nscoord_MIN) / aFactor * 0.5,
-                                    double(nscoord_MIN) / aFactor * 0.5,
-                                    double(nscoord_MAX) / aFactor,
-                                    double(nscoord_MAX) / aFactor);
-  image = aMatrix.TransformAndClipBounds(image, maxBounds);
-  return RoundGfxRectToAppRect(ThebesRect(image), aFactor);
 }
 
 nsRect
@@ -2909,8 +2898,9 @@ nsLayoutUtils::TranslateViewToWidget(nsPresContext* aPresContext,
     return LayoutDeviceIntPoint(NS_UNCONSTRAINEDSIZE, NS_UNCONSTRAINEDSIZE);
   }
 
-  LayoutDeviceIntPoint relativeToViewWidget(aPresContext->AppUnitsToDevPixels(aPt.x + viewOffset.x),
-                                            aPresContext->AppUnitsToDevPixels(aPt.y + viewOffset.y));
+  nsPoint pt = (aPt + viewOffset).ApplyResolution(aPresContext->PresShell()->GetCumulativeScaleResolution());
+  LayoutDeviceIntPoint relativeToViewWidget(aPresContext->AppUnitsToDevPixels(pt.x),
+                                            aPresContext->AppUnitsToDevPixels(pt.y));
   return relativeToViewWidget + WidgetToWidgetOffset(viewWidget, aWidget);
 }
 
@@ -4488,7 +4478,7 @@ AddIntrinsicSizeOffset(nsRenderingContext* aRenderingContext,
                        nsIFrame* aFrame,
                        const nsIFrame::IntrinsicISizeOffsetData& aOffsets,
                        nsLayoutUtils::IntrinsicISizeType aType,
-                       uint8_t aBoxSizing,
+                       StyleBoxSizing aBoxSizing,
                        nscoord aContentSize,
                        nscoord aContentMinSize,
                        const nsStyleCoord& aStyleSize,
@@ -4509,7 +4499,7 @@ AddIntrinsicSizeOffset(nsRenderingContext* aRenderingContext,
     coordOutsideSize += aOffsets.hPadding;
     pctOutsideSize += aOffsets.hPctPadding;
 
-    if (aBoxSizing == NS_STYLE_BOX_SIZING_PADDING) {
+    if (aBoxSizing == StyleBoxSizing::Padding) {
       min += coordOutsideSize;
       result = NSCoordSaturatingAdd(result, coordOutsideSize);
       pctTotal += pctOutsideSize;
@@ -4521,7 +4511,7 @@ AddIntrinsicSizeOffset(nsRenderingContext* aRenderingContext,
 
   coordOutsideSize += aOffsets.hBorder;
 
-  if (aBoxSizing == NS_STYLE_BOX_SIZING_BORDER) {
+  if (aBoxSizing == StyleBoxSizing::Border) {
     min += coordOutsideSize;
     result = NSCoordSaturatingAdd(result, coordOutsideSize);
     pctTotal += pctOutsideSize;
@@ -4649,7 +4639,7 @@ nsLayoutUtils::IntrinsicForAxis(PhysicalAxis        aAxis,
   // so we work in the parent's writing mode; but if aFrame is orthogonal to
   // its parent, we'll need to look at its BSize instead of min/pref-ISize.
   const nsStylePosition* stylePos = aFrame->StylePosition();
-  uint8_t boxSizing = stylePos->mBoxSizing;
+  StyleBoxSizing boxSizing = stylePos->mBoxSizing;
 
   const nsStyleCoord& styleMinISize =
     horizontalAxis ? stylePos->mMinWidth : stylePos->mMinHeight;
@@ -4706,7 +4696,7 @@ nsLayoutUtils::IntrinsicForAxis(PhysicalAxis        aAxis,
     // widths just like auto.
     // For -moz-max-content and -moz-min-content, we handle them like
     // specified widths, but ignore box-sizing.
-    boxSizing = NS_STYLE_BOX_SIZING_CONTENT;
+    boxSizing = StyleBoxSizing::Content;
   } else if (!styleISize.ConvertsToLength() &&
              !(haveFixedMinISize && haveFixedMaxISize && maxISize <= minISize)) {
 #ifdef DEBUG_INTRINSIC_WIDTH
@@ -4768,14 +4758,14 @@ nsLayoutUtils::IntrinsicForAxis(PhysicalAxis        aAxis,
 
         nscoord bSizeTakenByBoxSizing = 0;
         switch (boxSizing) {
-        case NS_STYLE_BOX_SIZING_BORDER: {
+        case StyleBoxSizing::Border: {
           const nsStyleBorder* styleBorder = aFrame->StyleBorder();
           bSizeTakenByBoxSizing +=
             horizontalAxis ? styleBorder->GetComputedBorder().TopBottom()
                            : styleBorder->GetComputedBorder().LeftRight();
           // fall through
         }
-        case NS_STYLE_BOX_SIZING_PADDING: {
+        case StyleBoxSizing::Padding: {
           if (!(aFlags & IGNORE_PADDING)) {
             const nsStyleSides& stylePadding =
               aFrame->StylePadding()->mPadding;
@@ -4795,7 +4785,7 @@ nsLayoutUtils::IntrinsicForAxis(PhysicalAxis        aAxis,
           }
           // fall through
         }
-        case NS_STYLE_BOX_SIZING_CONTENT:
+        case StyleBoxSizing::Content:
         default:
           break;
         }
@@ -5197,11 +5187,15 @@ nsLayoutUtils::ComputeSizeWithIntrinsicDimensions(WritingMode aWM,
 
   LogicalSize boxSizingAdjust(aWM);
   switch (stylePos->mBoxSizing) {
-    case NS_STYLE_BOX_SIZING_BORDER:
+    case StyleBoxSizing::Border:
       boxSizingAdjust += aBorder;
       // fall through
-    case NS_STYLE_BOX_SIZING_PADDING:
+    case StyleBoxSizing::Padding:
       boxSizingAdjust += aPadding;
+      // fall through
+    case StyleBoxSizing::Content:
+      // nothing
+      break;
   }
   nscoord boxSizingToMarginEdgeISize =
     aMargin.ISize(aWM) + aBorder.ISize(aWM) + aPadding.ISize(aWM) -
@@ -6221,7 +6215,8 @@ ComputeSnappedImageDrawingParameters(gfxContext*     aCtx,
                                      const nsRect    aDirty,
                                      imgIContainer*  aImage,
                                      Filter          aGraphicsFilter,
-                                     uint32_t        aImageFlags)
+                                     uint32_t        aImageFlags,
+                                     ExtendMode      aExtendMode)
 {
   if (aDest.IsEmpty() || aFill.IsEmpty())
     return SnappedImageDrawingParameters();
@@ -6390,8 +6385,17 @@ ComputeSnappedImageDrawingParameters(gfxContext*     aCtx,
     transform = transform * currentMatrix;
   }
 
+  ExtendMode extendMode = (aImageFlags & imgIContainer::FLAG_CLAMP)
+                          ? ExtendMode::CLAMP
+                          : aExtendMode;
+  // We were passed in the default extend mode but need to tile.
+  if (extendMode == ExtendMode::CLAMP && doTile) {
+    MOZ_ASSERT(!(aImageFlags & imgIContainer::FLAG_CLAMP));
+    extendMode = ExtendMode::REPEAT;
+  }
+
   ImageRegion region =
-    ImageRegion::CreateWithSamplingRestriction(imageSpaceFill, subimage);
+    ImageRegion::CreateWithSamplingRestriction(imageSpaceFill, subimage, extendMode);
 
   return SnappedImageDrawingParameters(transform, intImageSize,
                                        region, svgViewportSize);
@@ -6408,7 +6412,8 @@ DrawImageInternal(gfxContext&            aContext,
                   const nsPoint&         aAnchor,
                   const nsRect&          aDirty,
                   const SVGImageContext* aSVGContext,
-                  uint32_t               aImageFlags)
+                  uint32_t               aImageFlags,
+                  ExtendMode             aExtendMode = ExtendMode::CLAMP)
 {
   DrawResult result = DrawResult::SUCCESS;
 
@@ -6426,7 +6431,7 @@ DrawImageInternal(gfxContext&            aContext,
   SnappedImageDrawingParameters params =
     ComputeSnappedImageDrawingParameters(&aContext, appUnitsPerDevPixel, aDest,
                                          aFill, aAnchor, aDirty, aImage,
-                                         aGraphicsFilter, aImageFlags);
+                                         aGraphicsFilter, aImageFlags, aExtendMode);
 
   if (!params.shouldDraw) {
     return result;
@@ -6638,7 +6643,8 @@ nsLayoutUtils::DrawBackgroundImage(gfxContext&         aContext,
                                    const nsSize&       aRepeatSize,
                                    const nsPoint&      aAnchor,
                                    const nsRect&       aDirty,
-                                   uint32_t            aImageFlags)
+                                   uint32_t            aImageFlags,
+                                   ExtendMode          aExtendMode)
 {
   PROFILER_LABEL("layout", "nsLayoutUtils::DrawBackgroundImage",
                  js::ProfileEntry::Category::GRAPHICS);
@@ -6653,7 +6659,7 @@ nsLayoutUtils::DrawBackgroundImage(gfxContext&         aContext,
   if (aRepeatSize.width == aDest.width && aRepeatSize.height == aDest.height) {
     return DrawImageInternal(aContext, aPresContext, aImage,
                              aGraphicsFilter, aDest, aFill, aAnchor,
-                             aDirty, &svgContext, aImageFlags);
+                             aDirty, &svgContext, aImageFlags, aExtendMode);
   }
 
   nsPoint firstTilePos = aDest.TopLeft() +
@@ -6664,7 +6670,7 @@ nsLayoutUtils::DrawBackgroundImage(gfxContext&         aContext,
       nsRect dest(i, j, aDest.width, aDest.height);
       DrawResult result = DrawImageInternal(aContext, aPresContext, aImage, aGraphicsFilter,
                                             dest, dest, aAnchor, aDirty, &svgContext,
-                                            aImageFlags);
+                                            aImageFlags, aExtendMode);
       if (result != DrawResult::SUCCESS) {
         return result;
       }
@@ -7195,20 +7201,23 @@ nsLayoutUtils::SurfaceFromElement(HTMLVideoElement* aElement,
   if (!principal)
     return result;
 
-  ImageContainer *container = aElement->GetImageContainer();
+  ImageContainer* container = aElement->GetImageContainer();
   if (!container)
     return result;
 
   AutoLockImage lockImage(container);
-  layers::Image* image = lockImage.GetImage();
-  if (!image) {
-    return result;
-  }
-  result.mSourceSurface = image->GetAsSourceSurface();
-  if (!result.mSourceSurface)
+
+  result.mLayersImage = lockImage.GetImage();
+  if (!result.mLayersImage)
     return result;
 
   if (aTarget) {
+    // They gave us a DrawTarget to optimize for, so even though we have a layers::Image,
+    // we should unconditionally grab a SourceSurface and try to optimize it.
+    result.mSourceSurface = result.mLayersImage->GetAsSourceSurface();
+    if (!result.mSourceSurface)
+      return result;
+
     RefPtr<SourceSurface> opt = aTarget->OptimizeSourceSurface(result.mSourceSurface);
     if (opt) {
       result.mSourceSurface = opt;
@@ -7217,7 +7226,7 @@ nsLayoutUtils::SurfaceFromElement(HTMLVideoElement* aElement,
 
   result.mCORSUsed = aElement->GetCORSMode() != CORS_NONE;
   result.mHasSize = true;
-  result.mSize = image->GetSize();
+  result.mSize = result.mLayersImage->GetSize();
   result.mPrincipal = principal.forget();
   result.mIsWriteOnly = false;
 
@@ -8289,6 +8298,9 @@ nsLayoutUtils::IsAPZTestLoggingEnabled()
   return gfxPrefs::APZTestLoggingEnabled();
 }
 
+////////////////////////////////////////
+// SurfaceFromElementResult
+
 nsLayoutUtils::SurfaceFromElementResult::SurfaceFromElementResult()
   // Use safe default values here
   : mIsWriteOnly(true)
@@ -8298,6 +8310,18 @@ nsLayoutUtils::SurfaceFromElementResult::SurfaceFromElementResult()
   , mIsPremultiplied(true)
 {
 }
+
+const RefPtr<mozilla::gfx::SourceSurface>&
+nsLayoutUtils::SurfaceFromElementResult::GetSourceSurface()
+{
+  if (!mSourceSurface && mLayersImage) {
+    mSourceSurface = mLayersImage->GetAsSourceSurface();
+  }
+
+  return mSourceSurface;
+}
+
+////////////////////////////////////////
 
 bool
 nsLayoutUtils::IsNonWrapperBlock(nsIFrame* aFrame)
@@ -8472,26 +8496,6 @@ nsLayoutUtils::HasDocumentLevelListenersForApzAwareEvents(nsIPresShell* aShell)
     }
   }
   return false;
-}
-
-/* static */ float
-nsLayoutUtils::GetResolution(nsIPresShell* aPresShell)
-{
-  nsIScrollableFrame* sf = aPresShell->GetRootScrollFrameAsScrollable();
-  if (sf) {
-    return sf->GetResolution();
-  }
-  return aPresShell->GetResolution();
-}
-
-/* static */ void
-nsLayoutUtils::SetResolutionAndScaleTo(nsIPresShell* aPresShell, float aResolution)
-{
-  nsIScrollableFrame* sf = aPresShell->GetRootScrollFrameAsScrollable();
-  if (sf) {
-    sf->SetResolutionAndScaleTo(aResolution);
-    aPresShell->SetResolutionAndScaleTo(aResolution);
-  }
 }
 
 static void

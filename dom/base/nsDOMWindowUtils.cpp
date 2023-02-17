@@ -503,7 +503,7 @@ nsDOMWindowUtils::SetResolutionAndScaleTo(float aResolution)
     return NS_ERROR_FAILURE;
   }
 
-  nsLayoutUtils::SetResolutionAndScaleTo(presShell, aResolution);
+  presShell->SetResolutionAndScaleTo(aResolution);
 
   return NS_OK;
 }
@@ -518,7 +518,7 @@ nsDOMWindowUtils::GetResolution(float* aResolution)
     return NS_ERROR_FAILURE;
   }
 
-  *aResolution = nsLayoutUtils::GetResolution(presShell);
+  *aResolution = presShell->GetResolution();
 
   return NS_OK;
 }
@@ -2710,7 +2710,7 @@ CheckLeafLayers(Layer* aLayer, const nsIntPoint& aOffset, nsIntRegion* aCoveredR
       child = child->GetNextSibling();
     }
   } else {
-    nsIntRegion rgn = aLayer->GetVisibleRegion();
+    nsIntRegion rgn = aLayer->GetVisibleRegion().ToUnknownRegion();
     rgn.MoveBy(offset);
     nsIntRegion tmp;
     tmp.And(rgn, *aCoveredRegion);
@@ -2748,7 +2748,7 @@ nsDOMWindowUtils::LeafLayersPartitionWindow(bool* aResult)
   if (!CheckLeafLayers(root, offset, &coveredRegion)) {
     *aResult = false;
   }
-  if (!coveredRegion.IsEqual(root->GetVisibleRegion())) {
+  if (!coveredRegion.IsEqual(root->GetVisibleRegion().ToUnknownRegion())) {
     *aResult = false;
   }
 #endif

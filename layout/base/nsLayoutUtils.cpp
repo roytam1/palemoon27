@@ -8498,18 +8498,6 @@ nsLayoutUtils::HasDocumentLevelListenersForApzAwareEvents(nsIPresShell* aShell)
   return false;
 }
 
-/* static */ float
-nsLayoutUtils::GetResolution(nsIPresShell* aPresShell)
-{
-  return aPresShell->GetResolution();
-}
-
-/* static */ void
-nsLayoutUtils::SetResolutionAndScaleTo(nsIPresShell* aPresShell, float aResolution)
-{
-  aPresShell->SetResolutionAndScaleTo(aResolution);
-}
-
 static void
 MaybeReflowForInflationScreenSizeChange(nsPresContext *aPresContext)
 {

@@ -675,6 +675,7 @@ struct NewLayerEntry {
     , mPropagateComponentAlphaFlattening(true)
     , mUntransformedVisibleRegion(false)
     , mIsCaret(false)
+    , mIsPerspectiveItem(false)
   {}
   // mLayer is null if the previous entry is for a PaintedLayer that hasn't
   // been optimized to some other form (yet).
@@ -716,6 +717,7 @@ struct NewLayerEntry {
   // transform.
   bool mUntransformedVisibleRegion;
   bool mIsCaret;
+  bool mIsPerspectiveItem;
 };
 
 class PaintedLayerDataTree;
@@ -2282,7 +2284,7 @@ ComputeAndSetIgnoreInvalidationRect(PaintedLayer* aLayer,
   nsIntRect maxNewVisibleBounds =
     dirtyRect.ScaleToOutsidePixels(aData->mXScale, aData->mYScale,
                                    aData->mAppUnitsPerDevPixel) - aLayerTranslation;
-  aData->mOldVisibleBounds = aLayer->GetVisibleRegion().GetBounds();
+  aData->mOldVisibleBounds = aLayer->GetVisibleRegion().ToUnknownRegion().GetBounds();
 
   // When the visible region of aLayer changes (e.g. due to scrolling),
   // three distinct types of invalidations need to be triggered:
@@ -2460,7 +2462,7 @@ SetOuterVisibleRegion(Layer* aLayer, nsIntRegion* aOuterVisibleRegion,
     }
   }
 
-  aLayer->SetVisibleRegion(*aOuterVisibleRegion);
+  aLayer->SetVisibleRegion(LayerIntRegion::FromUnknownRegion(*aOuterVisibleRegion));
 }
 
 void
@@ -3179,7 +3181,7 @@ void ContainerState::FinishPaintedLayerData(PaintedLayerData& aData, FindOpaqueB
       // can find and recycle it later.
       ParentLayerIntRect emptyRect;
       data->mLayer->SetClipRect(Some(emptyRect));
-      data->mLayer->SetVisibleRegion(nsIntRegion());
+      data->mLayer->SetVisibleRegion(LayerIntRegion());
       data->mLayer->InvalidateRegion(data->mLayer->GetValidRegion().GetBounds());
       data->mLayer->SetEventRegions(EventRegions());
     }
@@ -4118,6 +4120,9 @@ ContainerState::ProcessDisplayItems(nsDisplayList* aList)
       newLayerEntry->mAnimatedGeometryRoot = animatedGeometryRoot;
       newLayerEntry->mAnimatedGeometryRootForScrollMetadata = animatedGeometryRootForScrollMetadata;
       newLayerEntry->mFixedPosFrameForLayerData = fixedPosFrame;
+      if (itemType == nsDisplayItem::TYPE_PERSPECTIVE) {
+        newLayerEntry->mIsPerspectiveItem = true;
+      }
 
       // Don't attempt to flatten compnent alpha layers that are within
       // a forced active layer, or an active transform;
@@ -4134,9 +4139,11 @@ ContainerState::ProcessDisplayItems(nsDisplayList* aList)
                    "Transform items must set layerContentsVisibleRect!");
       if (mLayerBuilder->IsBuildingRetainedLayers()) {
         newLayerEntry->mLayerContentsVisibleRect = layerContentsVisibleRect;
-        if (itemType == nsDisplayItem::TYPE_TRANSFORM &&
-            (item->Frame()->Extend3DContext() ||
-             item->Frame()->Combines3DTransformWithAncestors())) {
+        if (itemType == nsDisplayItem::TYPE_PERSPECTIVE ||
+            (itemType == nsDisplayItem::TYPE_TRANSFORM &&
+             (item->Frame()->Extend3DContext() ||
+              item->Frame()->Combines3DTransformWithAncestors() ||
+              item->Frame()->HasPerspective()))) {
           // Give untransformed visible region as outer visible region
           // to avoid failure caused by singular transforms.
           newLayerEntry->mUntransformedVisibleRegion = true;
@@ -4803,7 +4810,7 @@ InvalidateVisibleBoundsChangesForScrolledLayer(PaintedLayer* aLayer)
     // window that are in the visible region's bounds but not in the visible
     // region itself, but that is acceptable for scrolled layers.
     nsIntRegion rgn;
-    rgn.Or(data->mOldVisibleBounds, aLayer->GetVisibleRegion().GetBounds());
+    rgn.Or(data->mOldVisibleBounds, aLayer->GetVisibleRegion().ToUnknownRegion().GetBounds());
     rgn.Sub(rgn, *data->mIgnoreInvalidationsOutsideRect);
     if (!rgn.IsEmpty()) {
       aLayer->InvalidateRegion(rgn);
@@ -5095,7 +5102,9 @@ ChooseScaleAndSetTransform(FrameLayerBuilder* aLayerBuilder,
   bool canDraw2D = transform.CanDraw2D(&transform2d);
   gfxSize scale;
   // XXX Should we do something for 3D transforms?
-  if (canDraw2D && !aContainerFrame->Combines3DTransformWithAncestors()) {
+  if (canDraw2D &&
+      !aContainerFrame->Combines3DTransformWithAncestors() &&
+      !aContainerFrame->HasPerspective()) {
     // If the container's transform is animated off main thread, fix a suitable scale size
     // for animation
     if (aContainerItem &&
@@ -5399,7 +5408,7 @@ FrameLayerBuilder::BuildContainerLayerFor(nsDisplayListBuilder* aBuilder,
   // If aContainerItem is non-null some BuildContainerLayer further up the
   // call stack is responsible for setting containerLayer's visible region.
   if (!aContainerItem) {
-    containerLayer->SetVisibleRegion(pixBounds);
+    containerLayer->SetVisibleRegion(LayerIntRegion::FromUnknownRegion(pixBounds));
   }
   if (aParameters.mLayerContentsVisibleRect) {
     *aParameters.mLayerContentsVisibleRect = pixBounds + scaleParameters.mOffset;
@@ -5734,7 +5743,7 @@ static void DrawForcedBackgroundColor(DrawTarget& aDrawTarget,
                                       aBackgroundColor)
 {
   if (NS_GET_A(aBackgroundColor) > 0) {
-    nsIntRect r = aLayer->GetVisibleRegion().GetBounds();
+    LayerIntRect r = aLayer->GetVisibleRegion().GetBounds();
     ColorPattern color(ToDeviceColor(aBackgroundColor));
     aDrawTarget.FillRect(Rect(r.x, r.y, r.width, r.height), color);
   }

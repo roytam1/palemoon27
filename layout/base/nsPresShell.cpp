@@ -6153,7 +6153,7 @@ PresShell::Paint(nsView*        aViewToPaint,
       pc->GetVisibleArea().ToOutsidePixels(pc->AppUnitsPerDevPixel());
     bgcolor = NS_ComposeColors(bgcolor, mCanvasBackgroundColor);
     root->SetColor(Color::FromABGR(bgcolor));
-    root->SetVisibleRegion(bounds);
+    root->SetVisibleRegion(LayerIntRegion::FromUnknownRegion(bounds));
     layerManager->SetRoot(root);
   }
   MaybeSetupTransactionIdAllocator(layerManager, aViewToPaint);

@@ -5376,13 +5376,33 @@
     "kind": "boolean",
     "description": "Count the number of times the user clicked 'allow' on the hidden-plugin infobar."
   },
-  "POPUP_NOTIFICATION_MAINACTION_TRIGGERED_MS": {
-    "expires_in_version": "40",
-    "kind": "linear",
-    "low": 25,
-    "high": "80 * 25",
-    "n_buckets": "80 + 1",
-    "description": "The time (in milliseconds) after showing a PopupNotification that the mainAction was first triggered"
+  "POPUP_NOTIFICATION_STATS": {
+    "alert_emails": ["firefox-dev@mozilla.org"],
+    "expires_in_version": "48",
+    "kind": "enumerated",
+    "keyed": true,
+    "n_values": 40,
+    "description": "(Bug 1207089) Usage of popup notifications, keyed by ID (0 = Offered, 1..4 = Action, 5 = Click outside, 6 = Leave page, 7 = Use 'X', 8 = Not now, 10 = Open submenu, 11 = Learn more. Add 20 if happened after reopen.)"
+  },
+  "POPUP_NOTIFICATION_MAIN_ACTION_MS": {
+    "alert_emails": ["firefox-dev@mozilla.org"],
+    "expires_in_version": "48",
+    "kind": "exponential",
+    "keyed": true,
+    "low": 100,
+    "high": 600000,
+    "n_buckets": 40,
+    "description": "(Bug 1207089) Time in ms between initially requesting a popup notification and triggering the main action, keyed by ID"
+  },
+  "POPUP_NOTIFICATION_DISMISSAL_MS": {
+    "alert_emails": ["firefox-dev@mozilla.org"],
+    "expires_in_version": "48",
+    "kind": "exponential",
+    "keyed": true,
+    "low": 200,
+    "high": 20000,
+    "n_buckets": 50,
+    "description": "(Bug 1207089) Time in ms between displaying a popup notification and dismissing it without an action the first time, keyed by ID"
   },
   "DEVTOOLS_DEBUGGER_RDP_LOCAL_RELOAD_MS": {
     "expires_in_version": "never",
@@ -5984,18 +6004,6 @@
     "expires_in_version": "never",
     "kind": "boolean",
     "description": "The number of failed ICE Connections (0) vs. number of successful ICE connections (1)."
-  },
-  "WEBRTC_CANDIDATE_TYPES_GIVEN_SUCCESS": {
-    "expires_in_version": "never",
-    "kind": "enumerated",
-    "n_values": 128,
-    "description": "A bitpattern indicating what types of candidates were present. Bit 0: Remote server reflexive. Bit 1: Remote relayed. Bit 2: Local server reflexive. Bits 3-6: Local UDP, TCP, TLS, and HTTPS relay respectively."
-  },
-  "WEBRTC_CANDIDATE_TYPES_GIVEN_FAILURE": {
-    "expires_in_version": "never",
-    "kind": "enumerated",
-    "n_values": 128,
-    "description": "Identical to WEBRTC_CANDIDATE_TYPES_GIVEN_SUCCEESS, except recorded only when ICE fails on the stream in question."
   },
   "WEBRTC_STUN_RATE_LIMIT_EXCEEDED_BY_TYPE_GIVEN_SUCCESS": {
     "expires_in_version": "never",
@@ -7206,13 +7214,6 @@
     "expires_in_version": "never",
     "kind": "boolean",
     "description": "The result of the startup default desktop browser check."
-  },
-  "WIN_10_DEFAULT_BROWSER_AB_TEST": {
-    "alert_emails": ["jwein@mozilla.com"],
-    "expires_in_version": "45",
-    "kind": "enumerated",
-    "n_values": 4,
-    "description": "A/B test of different default browser dialogs on Windows 10 (0=openas-notdefault, 1=openas-default, 2=modernsettings-notdefault, 3=modernsettings-default)."
   },
   "BROWSER_IS_ASSIST_DEFAULT": {
     "expires_in_version": "never",
@@ -8823,18 +8824,6 @@
     "kind": "boolean",
     "description": "The number of failed ICE Connections (0) vs. number of successful ICE connections (1)."
   },
-  "LOOP_CANDIDATE_TYPES_GIVEN_SUCCESS": {
-    "expires_in_version": "never",
-    "kind": "enumerated",
-    "n_values": 128,
-    "description": "A bitpattern indicating what types of candidates were present. Bit 0: Remote server reflexive. Bit 1: Remote relayed. Bit 2: Local server reflexive. Bits 3-6: Local UDP, TCP, TLS, and HTTPS relay respectively."
-  },
-  "LOOP_CANDIDATE_TYPES_GIVEN_FAILURE": {
-    "expires_in_version": "never",
-    "kind": "enumerated",
-    "n_values": 128,
-    "description": "Identical to LOOP_CANDIDATE_TYPES_GIVEN_SUCCEESS, except recorded only when ICE fails on the stream in question."
-  },
   "LOOP_VIDEO_QUALITY_INBOUND_BANDWIDTH_KBITS": {
     "expires_in_version": "never",
     "kind": "exponential",
@@ -9250,5 +9239,96 @@
     "n_values": 100,
     "releaseChannelCollection": "opt-out",
     "description": "Graphics Crash Reason (...)"
+  },
+  "PLUGIN_ACTIVATION_COUNT": {
+    "alert_emails": ["cpeterson@mozilla.com"],
+    "expires_in_version": "48",
+    "kind": "count",
+    "keyed": true,
+    "releaseChannelCollection": "opt-out",
+    "description": "Counts number of times a certain plugin has been activated."
+  },
+  "YOUTUBE_EMBED_SEEN": {
+    "alert_emails": ["cpeterson@mozilla.com"],
+    "expires_in_version": "48",
+    "kind": "flag",
+    "description": "Flag activated whenever a youtube flash embed is seen during a session."
+  },
+  "WEBFONT_DOWNLOAD_TIME": {
+    "alert_emails": ["jdaggett@mozilla.com"],
+    "expires_in_version": "never",
+    "kind": "exponential",
+    "high": "60000",
+    "n_buckets": 50,
+    "extended_statistics_ok": true,
+    "description": "Time to download a webfont (ms)"
+  },
+  "WEBFONT_DOWNLOAD_TIME_AFTER_START": {
+    "alert_emails": ["jdaggett@mozilla.com"],
+    "expires_in_version": "never",
+    "kind": "exponential",
+    "high": "60000",
+    "n_buckets": 50,
+    "extended_statistics_ok": true,
+    "description": "Time after navigationStart webfont download completed (ms)"
+  },
+  "WEBFONT_FONTTYPE": {
+    "alert_emails": ["jdaggett@mozilla.com"],
+    "expires_in_version": "never",
+    "kind": "enumerated",
+    "n_values": 10,
+    "description": "Font format type (woff/woff2/ttf/...)"
+  },
+  "WEBFONT_SRCTYPE": {
+    "alert_emails": ["jdaggett@mozilla.com"],
+    "expires_in_version": "never",
+    "kind": "enumerated",
+    "n_values": 5,
+    "description": "Font src type loaded (1 = local, 2 = url, 3 = data)"
+  },
+  "WEBFONT_PER_PAGE": {
+    "alert_emails": ["jdaggett@mozilla.com"],
+    "expires_in_version": "never",
+    "kind": "count",
+    "description": "Number of fonts loaded at page load"
+  },
+  "WEBFONT_SIZE_PER_PAGE": {
+    "alert_emails": ["jdaggett@mozilla.com"],
+    "expires_in_version": "never",
+    "kind": "exponential",
+    "high": "5000",
+    "n_buckets": 50,
+    "extended_statistics_ok": true,
+    "description": "Size of all fonts loaded at page load (kb)"
+  },
+  "WEBFONT_SIZE": {
+    "alert_emails": ["jdaggett@mozilla.com"],
+    "expires_in_version": "never",
+    "kind": "exponential",
+    "high": "5000",
+    "n_buckets": 50,
+    "extended_statistics_ok": true,
+    "description": "Size of font loaded (kb)"
+  },
+  "WEBFONT_COMPRESSION_WOFF": {
+    "alert_emails": ["jdaggett@mozilla.com"],
+    "expires_in_version": "never",
+    "kind": "enumerated",
+    "n_values": 50,
+    "description": "Compression ratio of WOFF data (%)"
+  },
+  "WEBFONT_COMPRESSION_WOFF2": {
+    "alert_emails": ["jdaggett@mozilla.com"],
+    "expires_in_version": "never",
+    "kind": "enumerated",
+    "n_values": 50,
+    "description": "Compression ratio of WOFF2 data (%)"
+  },
+  "WEBRTC_ICE_CHECKING_RATE": {
+    "alert_emails": ["webrtc-ice-telemetry-alerts@mozilla.com"],
+    "expires_in_version": "53",
+    "kind": "boolean",
+    "bug_numbers": [1188391],
+    "description": "The number of ICE connections which immediately failed (0) vs. reached at least checking state (1)."
   }
 }

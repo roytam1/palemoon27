@@ -562,6 +562,9 @@ pref("media.video_stats.enabled", true);
 // Whether to enable the audio writing APIs on the audio element
 pref("media.audio_data.enabled", false);
 
+// Weather we allow AMD switchable graphics
+pref("layers.amd-switchable-gfx.enabled", true);
+
 // Whether to use async panning and zooming
 pref("layers.async-pan-zoom.enabled", false);
 
@@ -720,7 +723,7 @@ pref("gfx.font_rendering.wordcache.maxentries", 10000);
 pref("gfx.font_rendering.graphite.enabled", true);
 
 #ifdef XP_WIN
-pref("gfx.font_rendering.directwrite.enabled", false);
+pref("gfx.font_rendering.directwrite.force-enabled", false);
 pref("gfx.font_rendering.directwrite.use_gdi_table_loading", true);
 #endif
 

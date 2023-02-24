@@ -213,15 +213,6 @@ public:
                                   uint64_t* aOutInputBlockId);
 
   /**
-   * A helper for transforming coordinates to gecko coordinate space.
-   *
-   * @param aPoint point to transform
-   * @param aOutTransformedPoint resulting transformed point
-   */
-  void TransformCoordinateToGecko(const ScreenIntPoint& aPoint,
-                                  LayoutDeviceIntPoint* aOutTransformedPoint);
-
-  /**
    * Kicks an animation to zoom to a rect. This may be either a zoom out or zoom
    * in. The actual animation is done on the compositor thread after being set
    * up. |aRect| must be given in CSS pixels, relative to the document.
@@ -412,6 +403,14 @@ public:
    * Build the chain of APZCs that will handle overscroll for a pan starting at |aInitialTarget|.
    */
   RefPtr<const OverscrollHandoffChain> BuildOverscrollHandoffChain(const RefPtr<AsyncPanZoomController>& aInitialTarget);
+
+  /**
+   * Function used to disable LongTap gestures.
+   *
+   * On slow running tests, drags and touch events can be misinterpreted
+   * as a long tap. This allows tests to disable long tap gesture detection.
+   */
+  static void SetLongTapEnabled(bool aTapGestureEnabled);
 
 protected:
   // Protected destructor, to discourage deletion outside of Release():

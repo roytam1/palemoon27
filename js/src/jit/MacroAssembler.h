@@ -667,6 +667,9 @@ class MacroAssembler : public MacroAssemblerSpecific
     // corresponds to.
     inline void enterFakeExitFrame(enum ExitFrameTokenValues token);
 
+    // Push an exit frame token for a native call.
+    inline void enterFakeExitFrameForNative(bool isConstructing);
+
     // Pop ExitFrame footer in addition to the extra frame.
     inline void leaveExitFrame(size_t extraFrame = 0);
 
@@ -714,6 +717,13 @@ class MacroAssembler : public MacroAssemblerSpecific
 
     inline void xorPtr(Register src, Register dest) PER_ARCH;
     inline void xorPtr(Imm32 imm, Register dest) PER_ARCH;
+
+    // ===============================================================
+    // Arithmetic functions
+
+    inline void sub32(const Address& src, Register dest) PER_SHARED_ARCH;
+    inline void sub32(Register src, Register dest) PER_SHARED_ARCH;
+    inline void sub32(Imm32 imm, Register dest) PER_SHARED_ARCH;
 
     // ===============================================================
     // Shift functions

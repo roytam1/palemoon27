@@ -74,6 +74,7 @@
     _(CallGeneric)                  \
     _(CallNative)                   \
     _(ApplyArgsGeneric)             \
+    _(ApplyArrayGeneric)            \
     _(Bail)                         \
     _(Unreachable)                  \
     _(EncodeSnapshot)               \
@@ -89,7 +90,6 @@
     _(SetArgumentsObjectArg)        \
     _(ReturnFromCtor)               \
     _(ComputeThis)                  \
-    _(LoadArrowThis)                \
     _(BitNotI)                      \
     _(BitNotV)                      \
     _(BitOpI)                       \

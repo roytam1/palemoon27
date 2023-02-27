@@ -212,7 +212,7 @@ class SyntaxParseHandler
         return true;
     }
 
-    Node newThisLiteral(const TokenPos& pos) { return NodeGeneric; }
+    Node newThisLiteral(const TokenPos& pos, Node thisName) { return NodeGeneric; }
     Node newNullLiteral(const TokenPos& pos) { return NodeGeneric; }
 
     template <class Boxer>
@@ -268,7 +268,7 @@ class SyntaxParseHandler
 
     Node newNewTarget(Node newHolder, Node targetHolder) { return NodeGeneric; }
     Node newPosHolder(const TokenPos& pos) { return NodeGeneric; }
-    Node newSuperBase(const TokenPos& pos, ExclusiveContext* cx) { return NodeSuperBase; }
+    Node newSuperBase(Node thisName, const TokenPos& pos) { return NodeSuperBase; }
 
     bool addPrototypeMutation(Node literal, uint32_t begin, Node expr) { return true; }
     bool addPropertyDefinition(Node literal, Node name, Node expr) { return true; }
@@ -284,6 +284,8 @@ class SyntaxParseHandler
     void addStatementToList(Node list, Node stmt, ParseContext<SyntaxParseHandler>* pc) {}
     bool prependInitialYield(Node stmtList, Node gen) { return true; }
     Node newEmptyStatement(const TokenPos& pos) { return NodeEmptyStatement; }
+
+    Node newSetThis(Node thisName, Node value) { return value; }
 
     Node newExprStatement(Node expr, uint32_t end) {
         return expr == NodeUnparenthesizedString ? NodeStringExprStatement : NodeGeneric;
@@ -418,9 +420,7 @@ class SyntaxParseHandler
                pn == NodeEmptyStatement;
     }
 
-    bool isSuperBase(Node pn, ExclusiveContext* cx) {
-        // While NodePosHolder is used in other places than just as super-base,
-        // it is unique enough for our purposes.
+    bool isSuperBase(Node pn) {
         return pn == NodeSuperBase;
     }
 

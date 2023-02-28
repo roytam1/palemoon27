@@ -97,8 +97,10 @@ BaselineCompiler::compile()
     // When a Debugger set the collectCoverageInfo flag, we recompile baseline
     // scripts without entering the interpreter again. We have to create the
     // ScriptCounts if they do not exist.
-    if (!script->hasScriptCounts() && cx->compartment()->collectCoverage())
-        script->initScriptCounts(cx);
+    if (!script->hasScriptCounts() && cx->compartment()->collectCoverage()) {
+        if (!script->initScriptCounts(cx))
+            return Method_Error;
+    }
 
     // Pin analysis info during compilation.
     AutoEnterAnalysis autoEnterAnalysis(cx);
@@ -889,7 +891,7 @@ BaselineCompiler::emitProfilerEnterFrame()
     masm.bind(&noInstrument);
 
     // Store the start offset in the appropriate location.
-    MOZ_ASSERT(profilerEnterFrameToggleOffset_.offset() == 0);
+    MOZ_ASSERT(!profilerEnterFrameToggleOffset_.used());
     profilerEnterFrameToggleOffset_ = toggleOffset;
 }
 
@@ -904,7 +906,7 @@ BaselineCompiler::emitProfilerExitFrame()
     masm.bind(&noInstrument);
 
     // Store the start offset in the appropriate location.
-    MOZ_ASSERT(profilerExitFrameToggleOffset_.offset() == 0);
+    MOZ_ASSERT(!profilerExitFrameToggleOffset_.used());
     profilerExitFrameToggleOffset_ = toggleOffset;
 }
 

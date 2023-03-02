@@ -14,6 +14,7 @@
 
 #include "gc/Marking.h"
 
+#include "jit/arm64/Architecture-arm64.h"
 #include "jit/arm64/MacroAssembler-arm64.h"
 #include "jit/ExecutableAllocator.h"
 #include "jit/JitCompartment.h"
@@ -227,27 +228,25 @@ Assembler::bind(Label* label, BufferOffset targetOffset)
 
     // Get the most recent instruction that used the label, as stored in the label.
     // This instruction is the head of an implicit linked list of label uses.
-    uint32_t branchOffset = label->offset();
+    BufferOffset branchOffset(label);
 
-    while ((int32_t)branchOffset != LabelBase::INVALID_OFFSET) {
-        Instruction* link = getInstructionAt(BufferOffset(branchOffset));
-
+    while (branchOffset.assigned()) {
         // Before overwriting the offset in this instruction, get the offset of
         // the next link in the implicit branch list.
-        uint32_t nextLinkOffset = uint32_t(link->ImmPCRawOffset());
-        if (nextLinkOffset != uint32_t(LabelBase::INVALID_OFFSET))
-            nextLinkOffset += branchOffset;
+        BufferOffset nextOffset = NextLink(branchOffset);
+
         // Linking against the actual (Instruction*) would be invalid,
         // since that Instruction could be anywhere in memory.
         // Instead, just link against the correct relative offset, assuming
         // no constant pools, which will be taken into consideration
         // during finalization.
-        ptrdiff_t relativeByteOffset = targetOffset.getOffset() - branchOffset;
-        Instruction* target = (Instruction*)(((uint8_t*)link) + relativeByteOffset);
+        ptrdiff_t relativeByteOffset = targetOffset.getOffset() - branchOffset.getOffset();
+        Instruction* link = getInstructionAt(branchOffset);
 
         // Write a new relative offset into the instruction.
-        link->SetImmPCOffsetTarget(target);
-        branchOffset = nextLinkOffset;
+        link->SetImmPCOffsetTarget(link + relativeByteOffset);
+
+        branchOffset = nextOffset;
     }
 
     // Bind the label, so that future uses may encode the offset immediately.
@@ -384,38 +383,46 @@ Assembler::ToggleToCmp(CodeLocationLabel inst_)
 void
 Assembler::ToggleCall(CodeLocationLabel inst_, bool enabled)
 {
-    Instruction* first = (Instruction*)inst_.raw();
+    const Instruction* first = reinterpret_cast<Instruction*>(inst_.raw());
     Instruction* load;
     Instruction* call;
 
-    if (first->InstructionBits() == 0x9100039f) {
-        load = (Instruction*)NextInstruction(first);
-        call = NextInstruction(load);
-    } else {
-        load = first;
-        call = NextInstruction(first);
-    }
+    // There might be a constant pool at the very first instruction.
+    first = first->skipPool();
+
+    // Skip the stack pointer restore instruction.
+    if (first->IsStackPtrSync())
+        first = first->InstructionAtOffset(vixl::kInstructionSize)->skipPool();
+
+    load = const_cast<Instruction*>(first);
+
+    // The call instruction follows the load, but there may be an injected
+    // constant pool.
+    call = const_cast<Instruction*>(load->InstructionAtOffset(vixl::kInstructionSize)->skipPool());
 
     if (call->IsBLR() == enabled)
         return;
 
     if (call->IsBLR()) {
-        // if the second instruction is blr(), then wehave:
-        // ldr x17, [pc, offset]
-        // blr x17
-        // we want to transform this to:
-        // adr xzr, [pc, offset]
-        // nop
+        // If the second instruction is blr(), then wehave:
+        //   ldr x17, [pc, offset]
+        //   blr x17
+        MOZ_ASSERT(load->IsLDR());
+        // We want to transform this to:
+        //   adr xzr, [pc, offset]
+        //   nop
         int32_t offset = load->ImmLLiteral();
         adr(load, xzr, int32_t(offset));
         nop(call);
     } else {
-        // we have adr xzr, [pc, offset]
-        // nop
-        // transform this to
-        // ldr x17, [pc, offset]
-        // blr x17
-
+        // We have:
+        //   adr xzr, [pc, offset] (or ldr x17, [pc, offset])
+        //   nop
+        MOZ_ASSERT(load->IsADR() || load->IsLDR());
+        MOZ_ASSERT(call->IsNOP());
+        // Transform this to:
+        //   ldr x17, [pc, offset]
+        //   blr x17
         int32_t offset = (int)load->ImmPCRawOffset();
         MOZ_ASSERT(vixl::is_int19(offset));
         ldr(load, ScratchReg2_64, int32_t(offset));
@@ -566,12 +573,6 @@ Assembler::FixupNurseryObjects(JSContext* cx, JitCode* code, CompactBufferReader
         cx->runtime()->gc.storeBuffer.putWholeCell(code);
 }
 
-int32_t
-Assembler::ExtractCodeLabelOffset(uint8_t* code)
-{
-    return *(int32_t*)code;
-}
-
 void
 Assembler::PatchInstructionImmediate(uint8_t* code, PatchedImmPtr imm)
 {
@@ -601,17 +602,18 @@ Assembler::retarget(Label* label, Label* target)
             // The target is not bound but used. Prepend label's branch list
             // onto target's.
             BufferOffset labelBranchOffset(label);
-            BufferOffset next;
 
             // Find the head of the use chain for label.
-            while (nextLink(labelBranchOffset, &next))
+            BufferOffset next = NextLink(labelBranchOffset);
+            while (next.assigned()) {
                 labelBranchOffset = next;
+                next = NextLink(next);
+            }
 
             // Then patch the head of label's use chain to the tail of target's
             // use chain, prepending the entire use chain of target.
-            Instruction* branch = getInstructionAt(labelBranchOffset);
+            SetNextLink(labelBranchOffset, BufferOffset(target));
             target->use(label->offset());
-            branch->SetImmPCOffsetTarget(branch - labelBranchOffset.getOffset());
         } else {
             // The target is unbound and unused. We can just take the head of
             // the list hanging off of label, and dump that into target.

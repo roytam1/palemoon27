@@ -1820,6 +1820,25 @@ static JSScript*
 ValueToScript(JSContext* cx, Value vArg, JSFunction** funp = nullptr)
 {
     RootedValue v(cx, vArg);
+
+    if (v.isString()) {
+        // To convert a string to a script, compile it. Parse it as an ES6 Program.
+        RootedLinearString linearStr(cx, StringToLinearString(cx, v.toString()));
+        if (!linearStr)
+            return nullptr;
+        size_t len = GetLinearStringLength(linearStr);
+        AutoStableStringChars linearChars(cx);
+        if (!linearChars.initTwoByte(cx, linearStr))
+            return nullptr;
+        const char16_t* chars = linearChars.twoByteRange().start().get();
+
+        RootedScript script(cx);
+        CompileOptions options(cx);
+        if (!JS::Compile(cx, options, chars, len, &script))
+            return nullptr;
+        return script;
+    }
+
     RootedFunction fun(cx, JS_ValueToFunction(cx, v));
     if (!fun)
         return nullptr;
@@ -2137,8 +2156,8 @@ BlockNotes(JSContext* cx, HandleScript script, Sprinter* sp)
 }
 
 static bool
-DisassembleScript(JSContext* cx, HandleScript script, HandleFunction fun, bool lines,
-                  bool recursive, Sprinter* sp)
+DisassembleScript(JSContext* cx, HandleScript script, HandleFunction fun,
+                  bool lines, bool recursive, bool sourceNotes, Sprinter* sp)
 {
     if (fun) {
         Sprint(sp, "flags:");
@@ -2161,7 +2180,8 @@ DisassembleScript(JSContext* cx, HandleScript script, HandleFunction fun, bool l
 
     if (!Disassemble(cx, script, lines, sp))
         return false;
-    SrcNotes(cx, script, sp);
+    if (sourceNotes)
+        SrcNotes(cx, script, sp);
     TryNotes(cx, script, sp);
     BlockNotes(cx, script, sp);
 
@@ -2174,8 +2194,10 @@ DisassembleScript(JSContext* cx, HandleScript script, HandleFunction fun, bool l
                 RootedFunction fun(cx, &obj->as<JSFunction>());
                 if (fun->isInterpreted()) {
                     RootedScript script(cx, fun->getOrCreateScript(cx));
-                    if (!script || !DisassembleScript(cx, script, fun, lines, recursive, sp))
-                        return false;
+                    if (script) {
+                        if (!DisassembleScript(cx, script, fun, lines, recursive, sourceNotes, sp))
+                            return false;
+                    }
                 } else {
                     Sprint(sp, "[native code]\n");
                 }
@@ -2188,13 +2210,14 @@ DisassembleScript(JSContext* cx, HandleScript script, HandleFunction fun, bool l
 namespace {
 
 struct DisassembleOptionParser {
-    unsigned   argc;
-    Value*  argv;
-    bool    lines;
-    bool    recursive;
+    unsigned argc;
+    Value* argv;
+    bool lines;
+    bool recursive;
+    bool sourceNotes;
 
     DisassembleOptionParser(unsigned argc, Value* argv)
-      : argc(argc), argv(argv), lines(false), recursive(false) {}
+      : argc(argc), argv(argv), lines(false), recursive(false), sourceNotes(true) {}
 
     bool parse(JSContext* cx) {
         /* Read options off early arguments */
@@ -2207,6 +2230,8 @@ struct DisassembleOptionParser {
                 lines = true;
             else if (JS_FlatStringEqualsAscii(flatStr, "-r"))
                 recursive = true;
+            else if (JS_FlatStringEqualsAscii(flatStr, "-S"))
+                sourceNotes = false;
             else
                 break;
             argv++, argc--;
@@ -2247,7 +2272,7 @@ DisassembleToSprinter(JSContext* cx, unsigned argc, Value* vp, Sprinter* sprinte
                 script = ValueToScript(cx, value, fun.address());
             if (!script)
                 return false;
-            if (!DisassembleScript(cx, script, fun, p.lines, p.recursive, sprinter))
+            if (!DisassembleScript(cx, script, fun, p.lines, p.recursive, p.sourceNotes, sprinter))
                 return false;
         }
     }
@@ -2326,7 +2351,7 @@ DisassFile(JSContext* cx, unsigned argc, Value* vp)
     Sprinter sprinter(cx);
     if (!sprinter.init())
         return false;
-    bool ok = DisassembleScript(cx, script, nullptr, p.lines, p.recursive, &sprinter);
+    bool ok = DisassembleScript(cx, script, nullptr, p.lines, p.recursive, p.sourceNotes, &sprinter);
     if (ok)
         fprintf(stdout, "%s\n", sprinter.string());
     if (!ok)
@@ -3947,6 +3972,11 @@ NewGlobal(JSContext* cx, unsigned argc, Value* vp)
         if (v.isBoolean())
             options.setCloneSingletons(v.toBoolean());
 
+        if (!JS_GetProperty(cx, opts, "disableLazyParsing", &v))
+            return false;
+        if (v.isBoolean())
+            options.setDisableLazyParsing(v.toBoolean());
+
         if (!JS_GetProperty(cx, opts, "principal", &v))
             return false;
         if (!v.isUndefined()) {
@@ -4837,22 +4867,23 @@ static const JSFunctionSpecWithHelp shell_functions[] = {
 
 #ifdef DEBUG
     JS_FN_HELP("disassemble", DisassembleToString, 1, 0,
-"disassemble([fun])",
-"  Return the disassembly for the given function."),
+"disassemble([fun/code])",
+"  Return the disassembly for the given function or code.\n"
+"  All disassembly functions take these options as leading string arguments:\n"
+"    \"-r\" (disassemble recursively)\n"
+"    \"-l\" (show line numbers)\n"
+"    \"-S\" (omit source notes)"),
 
     JS_FN_HELP("dis", Disassemble, 1, 0,
-"dis([fun])",
+"dis([fun/code])",
 "  Disassemble functions into bytecodes."),
 
     JS_FN_HELP("disfile", DisassFile, 1, 0,
 "disfile('foo.js')",
-"  Disassemble script file into bytecodes.\n"
-"  dis and disfile take these options as preceeding string arguments:\n"
-"    \"-r\" (disassemble recursively)\n"
-"    \"-l\" (show line numbers)"),
+"  Disassemble script file into bytecodes.\n"),
 
     JS_FN_HELP("dissrc", DisassWithSrc, 1, 0,
-"dissrc([fun])",
+"dissrc([fun/code])",
 "  Disassemble functions with source lines."),
 
     JS_FN_HELP("notes", Notes, 1, 0,

@@ -40,8 +40,8 @@ using js::jit::BufferOffset;
 
 
 class MozBaseAssembler;
-typedef js::jit::AssemblerBufferWithConstantPools<1024, 4, Instruction, MozBaseAssembler> ARMBuffer;
-
+typedef js::jit::AssemblerBufferWithConstantPools<1024, 4, Instruction, MozBaseAssembler,
+                                                  NumShortBranchRangeTypes> ARMBuffer;
 
 // Base class for vixl::Assembler, for isolating Moz-specific changes to VIXL.
 class MozBaseAssembler : public js::jit::AssemblerShared {
@@ -169,6 +169,8 @@ class MozBaseAssembler : public js::jit::AssemblerShared {
   // Static interface used by IonAssemblerBufferWithConstantPools.
   static void InsertIndexIntoTag(uint8_t* load, uint32_t index);
   static bool PatchConstantPoolLoad(void* loadAddr, void* constPoolAddr);
+  static void PatchShortRangeBranchToVeneer(ARMBuffer*, unsigned rangeIdx, BufferOffset deadline,
+                                            BufferOffset veneer);
   static uint32_t PlaceConstantPoolBarrier(int offset);
 
   static void WritePoolHeader(uint8_t* start, js::jit::Pool* p, bool isNatural);
@@ -193,13 +195,13 @@ class MozBaseAssembler : public js::jit::AssemblerShared {
   // Link the current (not-yet-emitted) instruction to the specified label,
   // then return a raw offset to be encoded in the instruction.
   ptrdiff_t LinkAndGetByteOffsetTo(BufferOffset branch, js::jit::Label* label);
-  ptrdiff_t LinkAndGetInstructionOffsetTo(BufferOffset branch, js::jit::Label* label);
+  ptrdiff_t LinkAndGetInstructionOffsetTo(BufferOffset branch, ImmBranchRangeType branchRange,
+                                          js::jit::Label* label);
   ptrdiff_t LinkAndGetPageOffsetTo(BufferOffset branch, js::jit::Label* label);
 
   // A common implementation for the LinkAndGet<Type>OffsetTo helpers.
-  template <int element_size>
-  ptrdiff_t LinkAndGetOffsetTo(BufferOffset branch, js::jit::Label* label);
-
+  ptrdiff_t LinkAndGetOffsetTo(BufferOffset branch, ImmBranchRangeType branchRange,
+                               unsigned elementSizeBits, js::jit::Label* label);
 
  protected:
   // The buffer into which code and relocation info are generated.

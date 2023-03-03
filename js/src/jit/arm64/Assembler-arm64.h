@@ -64,9 +64,6 @@ static constexpr Register ZeroRegister = { Registers::sp };
 static constexpr ARMRegister ZeroRegister64 = { Registers::sp, 64 };
 static constexpr ARMRegister ZeroRegister32 = { Registers::sp, 32 };
 
-static constexpr FloatRegister ReturnFloatReg = { FloatRegisters::d0, FloatRegisters::Single };
-static constexpr FloatRegister ScratchFloatReg = { FloatRegisters::d31, FloatRegisters::Single };
-
 static constexpr FloatRegister ReturnSimdReg = InvalidFloatReg;
 static constexpr FloatRegister ScratchSimdReg = InvalidFloatReg;
 
@@ -341,11 +338,6 @@ class Assembler : public vixl::Assembler
     static void FixupNurseryObjects(JSContext* cx, JitCode* code, CompactBufferReader& reader,
                                     const ObjectVector& nurseryObjects);
 
-    // Convert a BufferOffset to a final byte offset from the start of the code buffer.
-    size_t toFinalOffset(BufferOffset offset) {
-        return size_t(offset.getOffset());
-    }
-
   public:
     // A Jump table entry is 2 instructions, with 8 bytes of raw data
     static const size_t SizeOfJumpTableEntry = 16;
@@ -400,13 +392,6 @@ class Assembler : public vixl::Assembler
           : jump(jump), extendedTableIndex(extendedTableIndex)
         { }
     };
-
-    // Because ARM and A64 use a code buffer that allows for constant pool insertion,
-    // the actual offset of each jump cannot be known until finalization.
-    // These vectors store the WIP offsets.
-    js::Vector<BufferOffset, 0, SystemAllocPolicy> tmpDataRelocations_;
-    js::Vector<BufferOffset, 0, SystemAllocPolicy> tmpPreBarriers_;
-    js::Vector<JumpRelocation, 0, SystemAllocPolicy> tmpJumpRelocations_;
 
     // Structure for fixing up pc-relative loads/jumps when the machine
     // code gets moved (executable copy, gc, etc.).

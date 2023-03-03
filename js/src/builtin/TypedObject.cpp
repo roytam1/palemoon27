@@ -412,36 +412,26 @@ js::ReferenceTypeDescr::call(JSContext* cx, unsigned argc, Value* vp)
  * Note: these are partially defined in SIMD.cpp
  */
 
-static const int32_t SimdSizes[] = {
-#define SIMD_SIZE(_kind, _type, _name, _lanes)                 \
-    sizeof(_type) * _lanes,
-    JS_FOR_EACH_SIMD_TYPE_REPR(SIMD_SIZE) 0
-#undef SIMD_SIZE
-};
-
-static int32_t SimdLanes[] = {
-#define SIMD_LANE(_kind, _type, _name, _lanes)                 \
-    _lanes,
-    JS_FOR_EACH_SIMD_TYPE_REPR(SIMD_LANE) 0
-#undef SIMD_LANE
-};
-
 int32_t
 SimdTypeDescr::size(Type t)
 {
-    return SimdSizes[t];
+    MOZ_ASSERT(unsigned(t) <= SimdTypeDescr::Type::LAST_TYPE);
+    switch (t) {
+      case SimdTypeDescr::Int8x16:
+      case SimdTypeDescr::Int16x8:
+      case SimdTypeDescr::Int32x4:
+      case SimdTypeDescr::Float32x4:
+      case SimdTypeDescr::Float64x2:
+        return 16;
+    }
+    MOZ_CRASH("unexpected SIMD type");
 }
 
 int32_t
 SimdTypeDescr::alignment(Type t)
 {
-    return SimdSizes[t];
-}
-
-int32_t
-SimdTypeDescr::lanes(Type t)
-{
-    return SimdLanes[t];
+    MOZ_ASSERT(unsigned(t) <= SimdTypeDescr::Type::LAST_TYPE);
+    return size(t);
 }
 
 /***************************************************************************

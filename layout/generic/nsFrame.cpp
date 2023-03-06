@@ -4139,7 +4139,7 @@ nsIFrame::InlineMinISizeData::OptionallyBreak(nsRenderingContext *aRenderingCont
 void
 nsIFrame::InlinePrefISizeData::ForceBreak(nsRenderingContext *aRenderingContext)
 {
-  if (floats.Length() != 0) {
+  if (lineContainer && floats.Length() != 0) {
             // preferred widths accumulated for floats that have already
             // been cleared past
     nscoord floats_done = 0,

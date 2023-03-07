@@ -4139,7 +4139,7 @@ nsIFrame::InlineMinISizeData::OptionallyBreak(nsRenderingContext *aRenderingCont
 void
 nsIFrame::InlinePrefISizeData::ForceBreak(nsRenderingContext *aRenderingContext)
 {
-  if (floats.Length() != 0) {
+  if (lineContainer && floats.Length() != 0) {
             // preferred widths accumulated for floats that have already
             // been cleared past
     nscoord floats_done = 0,
@@ -6597,7 +6597,7 @@ FindBlockFrameOrBR(nsIFrame* aFrame, nsDirection aDirection)
 
   // Iterate over children and call ourselves recursively
   if (aDirection == eDirPrevious) {
-    nsIFrame* child = aFrame->GetLastChild(nsIFrame::kPrincipalList);
+    nsIFrame* child = aFrame->GetChildList(nsIFrame::kPrincipalList).LastChild();
     while(child && !result.mContent) {
       result = FindBlockFrameOrBR(child, aDirection);
       child = child->GetPrevSibling();

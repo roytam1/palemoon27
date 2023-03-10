@@ -1001,8 +1001,8 @@ static nsresult openPrefFile(nsIFile* aFile)
   if (NS_FAILED(rv)) 
     return rv;        
 
-  uint64_t fileSize64;
-  rv = inStr->Available(&fileSize64);
+  int64_t fileSize64;
+  rv = aFile->GetFileSize(&fileSize64);
   if (NS_FAILED(rv))
     return rv;
   NS_ENSURE_TRUE(fileSize64 <= UINT32_MAX, NS_ERROR_FILE_TOO_BIG);
@@ -1018,6 +1018,7 @@ static nsresult openPrefFile(nsIFile* aFile)
   // Read is not guaranteed to return a buf the size of fileSize,
   // but usually will.
   nsresult rv2 = NS_OK;
+  uint32_t offset = 0;
   for (;;) {
     uint32_t amtRead = 0;
     rv = inStr->Read((char*)fileBuffer, fileSize, &amtRead);
@@ -1025,6 +1026,10 @@ static nsresult openPrefFile(nsIFile* aFile)
       break;
     if (!PREF_ParseBuf(&ps, fileBuffer, amtRead))
       rv2 = NS_ERROR_FILE_CORRUPTED;
+    offset += amtRead;
+    if (offset == fileSize) {
+      break;
+    }
   }
 
   PREF_FinalizeParseState(&ps);
@@ -1515,7 +1520,7 @@ Preferences::SetCString(const char* aPref, const nsACString &aValue)
 
 // static
 nsresult
-Preferences::SetString(const char* aPref, const char16_t* aValue)
+Preferences::SetString(const char* aPref, const char16ptr_t aValue)
 {
   ENSURE_MAIN_PROCESS("Cannot SetString from content process:", aPref);
   NS_ENSURE_TRUE(InitStaticMembers(), NS_ERROR_NOT_AVAILABLE);

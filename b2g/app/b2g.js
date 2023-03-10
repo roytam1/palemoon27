@@ -1056,6 +1056,9 @@ pref("dom.wakelock.enabled", true);
 // Enable webapps add-ons
 pref("dom.apps.customization.enabled", true);
 
+// New implementation to unify touch-caret and selection-carets.
+pref("layout.accessiblecaret.enabled", true);
+
 // Enable touch caret by default
 pref("touchcaret.enabled", true);
 

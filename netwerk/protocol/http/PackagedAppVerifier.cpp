@@ -16,12 +16,13 @@
 #include "mozilla/Preferences.h"
 #include "nsIPackagedAppUtils.h"
 #include "nsIInputStream.h"
+#include "nsComponentManagerUtils.h"
+#include "nsIURL.h"
+#include "mozilla/BasePrincipal.h"
 
 static const short kResourceHashType = nsICryptoHash::SHA256;
 
-// If it's true, all the verification will be skipped and the package will
-// be treated signed.
-static bool gDeveloperMode = false;
+static bool gSignedAppEnabled = false;
 
 namespace mozilla {
 namespace net {
@@ -32,7 +33,7 @@ NS_IMPL_ISUPPORTS(PackagedAppVerifier, nsIPackagedAppVerifier, nsIVerificationCa
 
 NS_IMPL_ISUPPORTS(PackagedAppVerifier::ResourceCacheInfo, nsISupports)
 
-const char* PackagedAppVerifier::kSignedPakOriginMetadataKey = "signed-pak-origin";
+const char* PackagedAppVerifier::kSignedPakIdMetadataKey = "package-id";
 
 PackagedAppVerifier::PackagedAppVerifier()
 {
@@ -67,18 +68,23 @@ NS_IMETHODIMP PackagedAppVerifier::Init(nsIPackagedAppVerifierListener* aListene
 {
   static bool onceThru = false;
   if (!onceThru) {
-    Preferences::AddBoolVarCache(&gDeveloperMode,
-                                 "network.http.packaged-apps-developer-mode", false);
+    Preferences::AddBoolVarCache(&gSignedAppEnabled,
+                                 "network.http.signed-packages.enabled", false);
     onceThru = true;
   }
 
   mListener = aListener;
   mState = STATE_UNKNOWN;
-  mPackageOrigin = aPackageOrigin;
   mSignature = aSignature;
   mIsPackageSigned = false;
   mPackageCacheEntry = aPackageCacheEntry;
   mIsFirstResource = true;
+  mManifest = EmptyCString();
+
+  nsAutoCString originNoSuffix;
+  OriginAttributes().PopulateFromOrigin(aPackageOrigin, originNoSuffix);
+  mBypassVerification = (originNoSuffix ==
+      Preferences::GetCString("network.http.signed-packages.trusted-origin"));
 
   nsresult rv;
   mPackagedAppUtils = do_CreateInstance(NS_PACKAGEDAPPUTILS_CONTRACTID, &rv);
@@ -127,7 +133,7 @@ PackagedAppVerifier::WriteManifest(nsIInputStream* aStream,
                                    uint32_t* aWriteCount)
 {
   LOG(("WriteManifest: length %u", aCount));
-  LOG(("%s", aFromRawSegment));
+  LOG(("%s", nsCString(aFromRawSegment, aCount).get()));
   nsCString* manifest = static_cast<nsCString*>(aManifest);
   manifest->AppendASCII(aFromRawSegment, aCount);
   *aWriteCount = aCount;
@@ -268,12 +274,6 @@ PackagedAppVerifier::VerifyManifest(const ResourceCacheInfo* aInfo)
 
   mState = STATE_MANIFEST_VERIFYING;
 
-  if (gDeveloperMode) {
-    LOG(("Developer mode! Bypass verification."));
-    FireVerifiedEvent(true, true);
-    return;
-  }
-
   if (mSignature.IsEmpty()) {
     LOG(("No signature. No need to do verification."));
     FireVerifiedEvent(true, true);
@@ -282,7 +282,11 @@ PackagedAppVerifier::VerifyManifest(const ResourceCacheInfo* aInfo)
 
   LOG(("Signature: length = %u\n%s", mSignature.Length(), mSignature.get()));
   LOG(("Manifest: length = %u\n%s", mManifest.Length(), mManifest.get()));
-  nsresult rv = mPackagedAppUtils->VerifyManifest(mSignature, mManifest, this);
+
+  bool useDeveloperRoot =
+    !Preferences::GetCString("network.http.signed-packages.developer-root").IsEmpty();
+  nsresult rv = mPackagedAppUtils->VerifyManifest(mSignature, mManifest,
+                                                  this, useDeveloperRoot);
   if (NS_FAILED(rv)) {
     LOG(("VerifyManifest FAILED rv = %u", (unsigned)rv));
   }
@@ -309,8 +313,8 @@ PackagedAppVerifier::VerifyResource(const ResourceCacheInfo* aInfo)
     MOZ_CRASH();
   }
 
-  if (gDeveloperMode) {
-    LOG(("Developer mode! Bypass integrity check."));
+  if (mBypassVerification) {
+    LOG(("Origin is trusted. Bypass integrity check."));
     FireVerifiedEvent(false, true);
     return;
   }
@@ -349,6 +353,12 @@ PackagedAppVerifier::OnManifestVerified(bool aSuccess)
     return;
   }
 
+
+  if (!aSuccess && mBypassVerification) {
+    aSuccess = true;
+    LOG(("Developer mode! Treat junk signature valid."));
+  }
+
   // Only when the manifest verified and package has signature would we
   // regard this package is signed.
   mIsPackageSigned = aSuccess && !mSignature.IsEmpty();
@@ -356,14 +366,24 @@ PackagedAppVerifier::OnManifestVerified(bool aSuccess)
   mState = aSuccess ? STATE_MANIFEST_VERIFIED_OK
                     : STATE_MANIFEST_VERIFIED_FAILED;
 
-  // TODO: Update mPackageOrigin.
+  // Obtain the package identifier from manifest if the package is signed.
+  if (mIsPackageSigned) {
+    mPackagedAppUtils->GetPackageIdentifier(mPackageIdentifer);
+    LOG(("PackageIdentifer is: %s", mPackageIdentifer.get()));
+  }
+
+  // If the signature verification failed, doom the package cache to
+  // make its subresources unavailable in the subsequent requests.
+  if (!aSuccess && mPackageCacheEntry) {
+    mPackageCacheEntry->AsyncDoom(nullptr);
+  }
 
   // If the package is signed, add related info to the package cache.
   if (mIsPackageSigned && mPackageCacheEntry) {
     LOG(("This package is signed. Add this info to the cache channel."));
     if (mPackageCacheEntry) {
-      mPackageCacheEntry->SetMetaDataElement(kSignedPakOriginMetadataKey,
-                                             mPackageOrigin.get());
+      mPackageCacheEntry->SetMetaDataElement(kSignedPakIdMetadataKey,
+                                             mPackageIdentifer.get());
       mPackageCacheEntry = nullptr; // the cache entry is no longer needed.
     }
   }
@@ -418,14 +438,20 @@ PackagedAppVerifier::SetHasBrokenLastPart(nsresult aStatusCode)
   mPendingResourceCacheInfoList.insertBack(info);
 }
 
+bool
+PackagedAppVerifier::WouldVerify() const
+{
+  return gSignedAppEnabled && !mSignature.IsEmpty();
+}
+
 //---------------------------------------------------------------
 // nsIPackagedAppVerifier.
 //---------------------------------------------------------------
 
 NS_IMETHODIMP
-PackagedAppVerifier::GetPackageOrigin(nsACString& aPackageOrigin)
+PackagedAppVerifier::GetPackageIdentifier(nsACString& aPackageIdentifier)
 {
-  aPackageOrigin = mPackageOrigin;
+  aPackageIdentifier = mPackageIdentifer;
   return NS_OK;
 }
 

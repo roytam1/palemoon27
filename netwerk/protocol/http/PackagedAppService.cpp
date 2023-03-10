@@ -360,19 +360,19 @@ PackagedAppService::PackagedAppChannelListener::OnStartRequest(nsIRequest *aRequ
   // to know if it's a signed package. Notify requesters if it's signed.
   if (isFromCache) {
     bool isPackageSigned = false;
-    nsCString signedPackageOrigin;
+    nsCString signedPackageId;
     nsCOMPtr<nsICacheEntry> packageCacheEntry = GetPackageCacheEntry(aRequest);
     if (packageCacheEntry) {
-      const char* key = PackagedAppVerifier::kSignedPakOriginMetadataKey;
+      const char* key = PackagedAppVerifier::kSignedPakIdMetadataKey;
       nsXPIDLCString value;
       nsresult rv = packageCacheEntry->GetMetaDataElement(key,
                                                           getter_Copies(value));
       isPackageSigned = (NS_SUCCEEDED(rv) && !value.IsEmpty());
-      signedPackageOrigin = value;
+      signedPackageId = value;
     }
     if (isPackageSigned) {
       LOG(("The cached package is signed. Notify the requesters."));
-      mDownloader->NotifyOnStartSignedPackageRequest(signedPackageOrigin);
+      mDownloader->NotifyOnStartSignedPackageRequest(signedPackageId);
     }
   }
 
@@ -476,6 +476,12 @@ PackagedAppService::PackagedAppDownloader::OnStartRequest(nsIRequest *aRequest,
   NS_WARN_IF(NS_FAILED(rv));
 
   EnsureVerifier(aRequest);
+
+  if (!mVerifier->WouldVerify()) {
+    // It means there's no signature or the signed app is disabled.
+    return NS_OK;
+  }
+
   mVerifier->OnStartRequest(nullptr, uri);
 
   // Since the header is considered as a part of the streaming data,
@@ -635,7 +641,7 @@ PackagedAppService::PackagedAppDownloader::OnStopRequest(nsIRequest *aRequest,
       // Chances to get here:
       //   1) Very likely the package has been cached or
       //   2) Less likely the package is malformed.
-      if (!mVerifier) {
+      if (!mVerifier || !mVerifier->WouldVerify()) {
         FinalizeDownload(aStatusCode);
       } else {
         // We've got a broken last part and some resources might be still
@@ -671,6 +677,12 @@ PackagedAppService::PackagedAppDownloader::OnStopRequest(nsIRequest *aRequest,
   RefPtr<ResourceCacheInfo> info =
     new ResourceCacheInfo(uri, entry, aStatusCode, lastPart);
 
+  if (!mVerifier->WouldVerify()) {
+    // No manifest at all. Everything is simply a resource.
+    OnResourceVerified(info, true);
+    return NS_OK;
+  }
+
   mVerifier->OnStopRequest(nullptr, info, aStatusCode);
 
   return NS_OK;
@@ -698,6 +710,11 @@ PackagedAppService::PackagedAppDownloader::ConsumeData(nsIInputStream *aStream,
   }
 
   self->mWriter->ConsumeData(aFromRawSegment, aCount, aWriteCount);
+
+  if (!self->mVerifier->WouldVerify()) {
+    // No signature or signed app support is disabled.
+    return NS_OK;
+  }
 
   nsCOMPtr<nsIInputStream> stream = CreateSharedStringStream(aFromRawSegment, aCount);
   return self->mVerifier->OnDataAvailable(nullptr, nullptr, stream, 0, aCount);
@@ -742,7 +759,7 @@ PackagedAppService::PackagedAppDownloader::AddCallback(nsIURI *aURI,
       if (mVerifier && mVerifier->GetIsPackageSigned()) {
         // TODO: Bug 1178526 will deal with the package identifier things.
         //       For now we just use the origin as the identifier.
-        listener->OnStartSignedPackageRequest(mVerifier->GetPackageOrigin());
+        listener->OnStartSignedPackageRequest(mVerifier->GetPackageIdentifier());
         listener = nullptr; // So that the request will not be added to the queue.
       }
       mCacheStorage->AsyncOpenURI(aURI, EmptyCString(),
@@ -876,7 +893,24 @@ PackagedAppService::PackagedAppDownloader::NotifyOnStartSignedPackageRequest(con
   mRequesters.Clear();
 }
 
-void PackagedAppService::PackagedAppDownloader::InstallSignedPackagedApp()
+static bool
+AddPackageIdToOrigin(nsACString& aOrigin, const nsACString& aPackageId)
+{
+  nsAutoCString originNoSuffix;
+  mozilla::OriginAttributes attrs;
+  if (!attrs.PopulateFromOrigin(aOrigin, originNoSuffix)) {
+    return false;
+  }
+
+  attrs.mSignedPkg = NS_ConvertUTF8toUTF16(aPackageId);
+  nsAutoCString suffixWithPackageId;
+  attrs.CreateSuffix(suffixWithPackageId);
+  aOrigin = originNoSuffix + suffixWithPackageId;
+  return true;
+}
+
+void
+PackagedAppService::PackagedAppDownloader::InstallSignedPackagedApp()
 {
   // TODO: Bug 1178533 to register permissions, system messages etc on navigation to
   //       signed packages.
@@ -935,9 +969,7 @@ PackagedAppService::PackagedAppDownloader::OnManifestVerified(const ResourceCach
     return;
   }
 
-  nsCString packageOrigin;
-  mVerifier->GetPackageOrigin(packageOrigin);
-  NotifyOnStartSignedPackageRequest(packageOrigin);
+  NotifyOnStartSignedPackageRequest(mVerifier->GetPackageIdentifier());
   InstallSignedPackagedApp();
 }
 
@@ -955,7 +987,7 @@ PackagedAppService::PackagedAppDownloader::OnResourceVerified(const ResourceCach
   if (mVerifier->GetIsPackageSigned()) {
     // TODO: Bug 1178526 will deal with the package identifier things.
     //       For now we just use the origin as the identifier.
-    NotifyOnStartSignedPackageRequest(mVerifier->GetPackageOrigin());
+    NotifyOnStartSignedPackageRequest(mVerifier->GetPackageIdentifier());
   }
 
   // Serve this resource to all listeners.

@@ -1773,10 +1773,9 @@ pref("network.http.enforce-framing.soft", true);
 // See http://www.w3.org/TR/web-packaging/#streamable-package-format
 pref("network.http.enable-packaged-apps", false);
 
-// Enable this pref to skip verification process. The packaged app
-// will be considered signed no matter the package has a valid/invalid
-// signature or no signature.
-pref("network.http.packaged-apps-developer-mode", false);
+// Enable this to bring in the signature verification if the signature exists.
+// Set to false if you don't need the signed packaged web app support (i.e. NSec).
+pref("network.http.signed-packages.enabled", false);
 
 // default values for FTP
 // in a DSCP environment this should be 40 (0x28, or AF11), per RFC-4594,
@@ -2120,7 +2119,7 @@ pref("network.generic-ntlm-auth.workstation", "WORKSTATION");
 //   1 - allow sub-resources to open HTTP authentication credentials dialogs,
 //       but don't allow it for cross-origin sub-resources
 //   2 - allow the cross-origin authentication as well.
-pref("network.auth.allow-subresource-auth", 1);
+pref("network.auth.subresource-http-auth-allow", 2);
 
 pref("permissions.default.image",           1); // 1-Accept, 2-Deny, 3-dontAcceptForeign
 
@@ -4626,10 +4625,6 @@ pref("layers.offmainthreadcomposition.frame-rate", -1);
 pref("layers.async-pan-zoom.enabled", true);
 #endif
 
-#ifdef MOZ_WIDGET_UIKIT
-pref("layers.async-pan-zoom.enabled", true);
-#endif
-
 #ifdef XP_MACOSX
 pref("layers.enable-tiles", true);
 pref("layers.tile-width", 512);
@@ -5152,7 +5147,7 @@ pref("browser.trackingprotection.gethashURL", "https://tracking.services.mozilla
 // Turn off Spatial navigation by default.
 pref("snav.enabled", false);
 
-// Turn off touch caret by default.
+// Original caret implementation on collapsed selection.
 pref("touchcaret.enabled", false);
 
 // This will inflate the size of the touch caret frame when checking if user
@@ -5164,7 +5159,7 @@ pref("touchcaret.inflatesize.threshold", 40);
 // In milliseconds. (0 means disable this feature)
 pref("touchcaret.expiration.time", 3000);
 
-// Turn off selection caret by default
+// Original caret implementation on non-collapsed selection.
 pref("selectioncaret.enabled", false);
 
 // This will inflate size of selection caret frame when we checking if

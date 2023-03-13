@@ -832,6 +832,7 @@ TabChild::NotifyTabContextUpdated()
         } else {
           docShell->SetIsApp(OwnAppId());
         }
+        docShell->SetIsSignedPackage(OriginAttributesRef().mSignedPkg);
     }
 }
 

@@ -34,8 +34,8 @@ class nsIRunnable;
 namespace mozilla {
 namespace dom {
 class OptionalContentId;
-}
-}
+} // namespace dom
+} // namespace mozilla
 
 BEGIN_QUOTA_NAMESPACE
 
@@ -468,21 +468,6 @@ private:
                          MozBrowserPatternFlag aBrowserFlag,
                          const nsACString& aOrigin,
                          nsAutoCString& _retval);
-
-  static PLDHashOperator
-  RemoveQuotaCallback(const nsACString& aKey,
-                      nsAutoPtr<GroupInfoPair>& aValue,
-                      void* aUserArg);
-
-  static PLDHashOperator
-  GetOriginsExceedingGroupLimit(const nsACString& aKey,
-                                GroupInfoPair* aValue,
-                                void* aUserArg);
-
-  static PLDHashOperator
-  GetAllTemporaryStorageOrigins(const nsACString& aKey,
-                                GroupInfoPair* aValue,
-                                void* aUserArg);
 
   mozilla::Mutex mQuotaMutex;
 

@@ -101,6 +101,7 @@ MACH_MODULES = [
     'tools/docs/mach_commands.py',
     'tools/mercurial/mach_commands.py',
     'tools/mach_commands.py',
+    'tools/power/mach_commands.py',
 ]
 
 

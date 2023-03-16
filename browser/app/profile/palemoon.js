@@ -1270,6 +1270,8 @@ pref("view_source.tab", false);
 // Interception is still disabled.
 pref("dom.serviceWorkers.enabled", true);
 
+pref("dom.serviceWorkers.openWindow.enabled", true);
+
 // Enable Push API.
 pref("dom.push.enabled", true);
 

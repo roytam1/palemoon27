@@ -21,11 +21,19 @@ interface nsIServiceWorkerUnregisterCallback : nsISupports
   void unregisterFailed();
 };
 
-[scriptable, builtinclass, uuid(1a1e71dd-0f78-4e2e-a2db-a946fe02cddf)]
+interface nsIWorkerDebugger;
+
+[scriptable, builtinclass, uuid(76e357ed-208d-4e4c-9165-1c4059707879)]
 interface nsIServiceWorkerInfo : nsISupports
 {
   readonly attribute DOMString scriptSpec;
   readonly attribute DOMString cacheName;
+
+  readonly attribute nsIWorkerDebugger debugger;
+
+  void attachDebugger();
+
+  void detachDebugger();
 };
 
 [scriptable, uuid(87e63548-d440-4b8a-b158-65ad1de0211E)]
@@ -59,7 +67,7 @@ interface nsIServiceWorkerManagerListener : nsISupports
   void onUnregister(in nsIServiceWorkerRegistrationInfo aInfo);
 };
 
-[scriptable, builtinclass, uuid(2f61820a-1e9a-4c16-bf1c-ce182c5f5d6d)]
+[scriptable, builtinclass, uuid(a03f2b64-7aaf-423a-97b0-e1f733cce0f6)]
 interface nsIServiceWorkerManager : nsISupports
 {
   /**
@@ -98,7 +106,7 @@ interface nsIServiceWorkerManager : nsISupports
    *
    * This MUST only be called once per document!
    */
-  [notxpcom,nostdcall] void MaybeStartControlling(in nsIDocument aDoc);
+  [notxpcom,nostdcall] void MaybeStartControlling(in nsIDocument aDoc, in DOMString aDocumentId);
 
   /**
    * Documents that have called MaybeStartControlling() should call this when
@@ -174,6 +182,8 @@ interface nsIServiceWorkerManager : nsISupports
   void addListener(in nsIServiceWorkerManagerListener aListener);
 
   void removeListener(in nsIServiceWorkerManagerListener aListener);
+
+  bool shouldReportToWindow(in nsIDOMWindow aWindow, in ACString aScope);
 };
 
 %{ C++

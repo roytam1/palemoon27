@@ -4583,7 +4583,13 @@ pref("layers.acceleration.force-enabled", false);
 pref("layers.acceleration.draw-fps", false);
 
 // Enable DEAA antialiasing for transformed layers in the compositor
+#if !defined(MOZ_WIDGET_GONK) && !defined(MOZ_WIDGET_ANDROID)
+// Desktop prefs
+pref("layers.deaa.enabled", true);
+#else
+// Mobile prefs
 pref("layers.deaa.enabled", false);
+#endif
 
 pref("layers.dump", false);
 #ifdef MOZ_DUMP_PAINTING
@@ -4722,7 +4728,8 @@ pref("browser.history.maxStateObjectSize", 655360);
 // XPInstall prefs
 pref("xpinstall.whitelist.required", true);
 pref("extensions.alwaysUnpack", false);
-pref("extensions.minCompatiblePlatformVersion", "1.8");
+pref("extensions.minCompatiblePlatformVersion", "2.0");
+pref("extensions.webExtensionsMinPlatformVersion", "42.0a1");
 
 pref("network.buffer.cache.count", 24);
 pref("network.buffer.cache.size",  32768);

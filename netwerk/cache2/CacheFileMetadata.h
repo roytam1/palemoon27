@@ -146,7 +146,7 @@ public:
   nsresult SyncReadMetadata(nsIFile *aFile);
 
   bool     IsAnonymous() const { return mAnonymous; }
-  mozilla::OriginAttributes const & OriginAttributes() const { return mOriginAttributes; }
+  mozilla::NeckoOriginAttributes const & OriginAttributes() const { return mOriginAttributes; }
   bool     Pinned() const      { return !!(mMetaHdr.mFlags & kCacheEntryIsPinned); }
 
   const char * GetElement(const char *aKey);
@@ -212,7 +212,7 @@ private:
   bool                                mIsDirty        : 1;
   bool                                mAnonymous      : 1;
   bool                                mAllocExactSize : 1;
-  mozilla::OriginAttributes           mOriginAttributes;
+  mozilla::NeckoOriginAttributes      mOriginAttributes;
   uint32_t                            mAppId;
   nsCOMPtr<CacheFileMetadataListener> mListener;
 };

@@ -108,7 +108,7 @@ nsresult
 GetPrincipalFromOrigin(const nsACString& aOrigin, nsIPrincipal** aPrincipal)
 {
   nsAutoCString originNoSuffix;
-  mozilla::OriginAttributes attrs;
+  mozilla::PrincipalOriginAttributes attrs;
   if (!attrs.PopulateFromOrigin(aOrigin, originNoSuffix)) {
     return NS_ERROR_FAILURE;
   }
@@ -135,7 +135,7 @@ GetPrincipal(nsIURI* aURI, uint32_t aAppId, bool aIsInBrowserElement, nsIPrincip
 nsresult
 GetPrincipal(nsIURI* aURI, nsIPrincipal** aPrincipal)
 {
-  mozilla::OriginAttributes attrs;
+  mozilla::PrincipalOriginAttributes attrs;
   nsCOMPtr<nsIPrincipal> principal = mozilla::BasePrincipal::CreateCodebasePrincipal(aURI, attrs);
   NS_ENSURE_TRUE(principal, NS_ERROR_FAILURE);
 
@@ -1700,7 +1700,7 @@ nsPermissionManager::GetPermissionHashKey(nsIPrincipal* aPrincipal,
     }
 
     // Copy the attributes over
-    mozilla::OriginAttributes attrs = mozilla::BasePrincipal::Cast(aPrincipal)->OriginAttributesRef();
+    mozilla::PrincipalOriginAttributes attrs = mozilla::BasePrincipal::Cast(aPrincipal)->OriginAttributesRef();
     nsCOMPtr<nsIPrincipal> principal = mozilla::BasePrincipal::CreateCodebasePrincipal(newURI, attrs);
 
     return GetPermissionHashKey(principal, aType, aExactHostMatch);

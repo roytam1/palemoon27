@@ -57,7 +57,6 @@
 #include "OriginScope.h"
 #include "QuotaObject.h"
 #include "UsageInfo.h"
-#include "Utilities.h"
 
 // The amount of time, in milliseconds, that our IO thread will stay alive
 // after the last event it processes.
@@ -843,6 +842,14 @@ AssertNoUnderflow(T aDest, U aArg)
   IntChecker<T>::Assert(aDest);
   IntChecker<T>::Assert(aArg);
   MOZ_ASSERT(uint64_t(aDest) >= uint64_t(aArg));
+}
+
+bool
+PatternMatchesOrigin(const nsACString& aPatternString,
+                     const nsACString& aOrigin)
+{
+  // Aren't we smart!
+  return StringBeginsWith(aOrigin, aPatternString);
 }
 
 } // namespace
@@ -2235,51 +2242,8 @@ QuotaManager::CollectOriginsForEviction(
   MOZ_ASSERT(NS_IsMainThread());
   MOZ_ASSERT(aLocks.IsEmpty());
 
-  class MOZ_STACK_CLASS Closure final
+  struct MOZ_STACK_CLASS Helper final
   {
-    nsTArray<DirectoryLockImpl*>& mTemporaryStorageLocks;
-    nsTArray<DirectoryLockImpl*>& mDefaultStorageLocks;
-    nsTArray<OriginInfo*>& mInactiveOriginInfos;
-
-  public:
-    Closure(nsTArray<DirectoryLockImpl*>& aTemporaryStorageLocks,
-            nsTArray<DirectoryLockImpl*>& aDefaultStorageLocks,
-            nsTArray<OriginInfo*>& aInactiveOriginInfos)
-      : mTemporaryStorageLocks(aTemporaryStorageLocks)
-      , mDefaultStorageLocks(aDefaultStorageLocks)
-      , mInactiveOriginInfos(aInactiveOriginInfos)
-    { }
-
-    static PLDHashOperator
-    GetInactiveTemporaryStorageOrigins(const nsACString& aKey,
-                                       GroupInfoPair* aValue,
-                                       void* aUserArg)
-    {
-      MOZ_ASSERT(!aKey.IsEmpty());
-      MOZ_ASSERT(aValue);
-      MOZ_ASSERT(aUserArg);
-
-      auto* closure = static_cast<Closure*>(aUserArg);
-
-      RefPtr<GroupInfo> groupInfo =
-        aValue->LockedGetGroupInfo(PERSISTENCE_TYPE_TEMPORARY);
-      if (groupInfo) {
-        GetInactiveOriginInfos(groupInfo->mOriginInfos,
-                               closure->mTemporaryStorageLocks,
-                               closure->mInactiveOriginInfos);
-      }
-
-      groupInfo = aValue->LockedGetGroupInfo(PERSISTENCE_TYPE_DEFAULT);
-      if (groupInfo) {
-        GetInactiveOriginInfos(groupInfo->mOriginInfos,
-                               closure->mDefaultStorageLocks,
-                               closure->mInactiveOriginInfos);
-      }
-
-      return PL_DHASH_NEXT;
-    }
-
-  private:
     static void
     GetInactiveOriginInfos(nsTArray<RefPtr<OriginInfo>>& aOriginInfos,
                            nsTArray<DirectoryLockImpl*>& aLocks,
@@ -2335,14 +2299,31 @@ QuotaManager::CollectOriginsForEviction(
 
   nsTArray<OriginInfo*> inactiveOrigins;
 
-  Closure closure(temporaryStorageLocks, defaultStorageLocks, inactiveOrigins);
-
   // Enumerate and process inactive origins. This must be protected by the
   // mutex.
   MutexAutoLock lock(mQuotaMutex);
 
-  mGroupInfoPairs.EnumerateRead(Closure::GetInactiveTemporaryStorageOrigins,
-                                &closure);
+  for (auto iter = mGroupInfoPairs.Iter(); !iter.Done(); iter.Next()) {
+    GroupInfoPair* pair = iter.UserData();
+
+    MOZ_ASSERT(!iter.Key().IsEmpty());
+    MOZ_ASSERT(pair);
+
+    RefPtr<GroupInfo> groupInfo =
+      pair->LockedGetGroupInfo(PERSISTENCE_TYPE_TEMPORARY);
+    if (groupInfo) {
+      Helper::GetInactiveOriginInfos(groupInfo->mOriginInfos,
+                                     temporaryStorageLocks,
+                                     inactiveOrigins);
+    }
+
+    groupInfo = pair->LockedGetGroupInfo(PERSISTENCE_TYPE_DEFAULT);
+    if (groupInfo) {
+      Helper::GetInactiveOriginInfos(groupInfo->mOriginInfos,
+                                     defaultStorageLocks,
+                                     inactiveOrigins);
+    }
+  }
 
 #ifdef DEBUG
   // Make sure the array is sorted correctly.
@@ -2556,35 +2537,30 @@ QuotaManager::UpdateOriginAccessTime(PersistenceType aPersistenceType,
   }
 }
 
-// static
-PLDHashOperator
-QuotaManager::RemoveQuotaCallback(const nsACString& aKey,
-                                  nsAutoPtr<GroupInfoPair>& aValue,
-                                  void* aUserArg)
-{
-  NS_ASSERTION(!aKey.IsEmpty(), "Empty key!");
-  NS_ASSERTION(aValue, "Null pointer!");
-
-  RefPtr<GroupInfo> groupInfo =
-    aValue->LockedGetGroupInfo(PERSISTENCE_TYPE_TEMPORARY);
-  if (groupInfo) {
-    groupInfo->LockedRemoveOriginInfos();
-  }
-
-  groupInfo = aValue->LockedGetGroupInfo(PERSISTENCE_TYPE_DEFAULT);
-  if (groupInfo) {
-    groupInfo->LockedRemoveOriginInfos();
-  }
-
-  return PL_DHASH_REMOVE;
-}
-
 void
 QuotaManager::RemoveQuota()
 {
   MutexAutoLock lock(mQuotaMutex);
 
-  mGroupInfoPairs.Enumerate(RemoveQuotaCallback, nullptr);
+  for (auto iter = mGroupInfoPairs.Iter(); !iter.Done(); iter.Next()) {
+    nsAutoPtr<GroupInfoPair>& pair = iter.Data();
+
+    MOZ_ASSERT(!iter.Key().IsEmpty(), "Empty key!");
+    MOZ_ASSERT(pair, "Null pointer!");
+
+    RefPtr<GroupInfo> groupInfo =
+      pair->LockedGetGroupInfo(PERSISTENCE_TYPE_TEMPORARY);
+    if (groupInfo) {
+      groupInfo->LockedRemoveOriginInfos();
+    }
+
+    groupInfo = pair->LockedGetGroupInfo(PERSISTENCE_TYPE_DEFAULT);
+    if (groupInfo) {
+      groupInfo->LockedRemoveOriginInfos();
+    }
+
+    iter.Remove();
+  }
 
   NS_ASSERTION(mTemporaryStorageUsage == 0, "Should be zero!");
 }
@@ -3997,88 +3973,6 @@ QuotaManager::ClearStoragesForApp(uint32_t aAppId, bool aBrowserOnly)
   return NS_OK;
 }
 
-// static
-PLDHashOperator
-QuotaManager::GetOriginsExceedingGroupLimit(const nsACString& aKey,
-                                            GroupInfoPair* aValue,
-                                            void* aUserArg)
-{
-  NS_ASSERTION(!aKey.IsEmpty(), "Empty key!");
-  NS_ASSERTION(aValue, "Null pointer!");
-
-  uint64_t groupUsage = 0;
-
-  RefPtr<GroupInfo> temporaryGroupInfo =
-    aValue->LockedGetGroupInfo(PERSISTENCE_TYPE_TEMPORARY);
-  if (temporaryGroupInfo) {
-    groupUsage += temporaryGroupInfo->mUsage;
-  }
-
-  RefPtr<GroupInfo> defaultGroupInfo =
-    aValue->LockedGetGroupInfo(PERSISTENCE_TYPE_DEFAULT);
-  if (defaultGroupInfo) {
-    groupUsage += defaultGroupInfo->mUsage;
-  }
-
-  if (groupUsage > 0) {
-    QuotaManager* quotaManager = QuotaManager::Get();
-    NS_ASSERTION(quotaManager, "Shouldn't be null!");
-
-    if (groupUsage > quotaManager->GetGroupLimit()) {
-      nsTArray<OriginInfo*>* doomedOriginInfos =
-        static_cast<nsTArray<OriginInfo*>*>(aUserArg);
-
-      nsTArray<OriginInfo*> originInfos;
-      if (temporaryGroupInfo) {
-        originInfos.AppendElements(temporaryGroupInfo->mOriginInfos);
-      }
-      if (defaultGroupInfo) {
-        originInfos.AppendElements(defaultGroupInfo->mOriginInfos);
-      }
-      originInfos.Sort(OriginInfoLRUComparator());
-
-      for (uint32_t i = 0; i < originInfos.Length(); i++) {
-        OriginInfo* originInfo = originInfos[i];
-
-        doomedOriginInfos->AppendElement(originInfo);
-        groupUsage -= originInfo->mUsage;
-
-        if (groupUsage <= quotaManager->GetGroupLimit()) {
-          break;
-        }
-      }
-    }
-  }
-
-  return PL_DHASH_NEXT;
-}
-
-// static
-PLDHashOperator
-QuotaManager::GetAllTemporaryStorageOrigins(const nsACString& aKey,
-                                            GroupInfoPair* aValue,
-                                            void* aUserArg)
-{
-  NS_ASSERTION(!aKey.IsEmpty(), "Empty key!");
-  NS_ASSERTION(aValue, "Null pointer!");
-
-  nsTArray<OriginInfo*>* originInfos =
-    static_cast<nsTArray<OriginInfo*>*>(aUserArg);
-
-  RefPtr<GroupInfo> groupInfo =
-    aValue->LockedGetGroupInfo(PERSISTENCE_TYPE_TEMPORARY);
-  if (groupInfo) {
-    originInfos->AppendElements(groupInfo->mOriginInfos);
-  }
-
-  groupInfo = aValue->LockedGetGroupInfo(PERSISTENCE_TYPE_DEFAULT);
-  if (groupInfo) {
-    originInfos->AppendElements(groupInfo->mOriginInfos);
-  }
-
-  return PL_DHASH_NEXT;
-}
-
 void
 QuotaManager::CheckTemporaryStorageLimits()
 {
@@ -4088,8 +3982,53 @@ QuotaManager::CheckTemporaryStorageLimits()
   {
     MutexAutoLock lock(mQuotaMutex);
 
-    mGroupInfoPairs.EnumerateRead(GetOriginsExceedingGroupLimit,
-                                  &doomedOriginInfos);
+    for (auto iter = mGroupInfoPairs.Iter(); !iter.Done(); iter.Next()) {
+      GroupInfoPair* pair = iter.UserData();
+
+      MOZ_ASSERT(!iter.Key().IsEmpty(), "Empty key!");
+      MOZ_ASSERT(pair, "Null pointer!");
+
+      uint64_t groupUsage = 0;
+
+      RefPtr<GroupInfo> temporaryGroupInfo =
+        pair->LockedGetGroupInfo(PERSISTENCE_TYPE_TEMPORARY);
+      if (temporaryGroupInfo) {
+        groupUsage += temporaryGroupInfo->mUsage;
+      }
+
+      RefPtr<GroupInfo> defaultGroupInfo =
+        pair->LockedGetGroupInfo(PERSISTENCE_TYPE_DEFAULT);
+      if (defaultGroupInfo) {
+        groupUsage += defaultGroupInfo->mUsage;
+      }
+
+      if (groupUsage > 0) {
+        QuotaManager* quotaManager = QuotaManager::Get();
+        MOZ_ASSERT(quotaManager, "Shouldn't be null!");
+
+        if (groupUsage > quotaManager->GetGroupLimit()) {
+          nsTArray<OriginInfo*> originInfos;
+          if (temporaryGroupInfo) {
+            originInfos.AppendElements(temporaryGroupInfo->mOriginInfos);
+          }
+          if (defaultGroupInfo) {
+            originInfos.AppendElements(defaultGroupInfo->mOriginInfos);
+          }
+          originInfos.Sort(OriginInfoLRUComparator());
+
+          for (uint32_t i = 0; i < originInfos.Length(); i++) {
+            OriginInfo* originInfo = originInfos[i];
+
+            doomedOriginInfos.AppendElement(originInfo);
+            groupUsage -= originInfo->mUsage;
+
+            if (groupUsage <= quotaManager->GetGroupLimit()) {
+              break;
+            }
+          }
+        }
+      }
+    }
 
     uint64_t usage = 0;
     for (uint32_t index = 0; index < doomedOriginInfos.Length(); index++) {
@@ -4099,8 +4038,23 @@ QuotaManager::CheckTemporaryStorageLimits()
     if (mTemporaryStorageUsage - usage > mTemporaryStorageLimit) {
       nsTArray<OriginInfo*> originInfos;
 
-      mGroupInfoPairs.EnumerateRead(GetAllTemporaryStorageOrigins,
-                                    &originInfos);
+      for (auto iter = mGroupInfoPairs.Iter(); !iter.Done(); iter.Next()) {
+        GroupInfoPair* pair = iter.UserData();
+
+        MOZ_ASSERT(!iter.Key().IsEmpty(), "Empty key!");
+        MOZ_ASSERT(pair, "Null pointer!");
+
+        RefPtr<GroupInfo> groupInfo =
+          pair->LockedGetGroupInfo(PERSISTENCE_TYPE_TEMPORARY);
+        if (groupInfo) {
+          originInfos.AppendElements(groupInfo->mOriginInfos);
+        }
+
+        groupInfo = pair->LockedGetGroupInfo(PERSISTENCE_TYPE_DEFAULT);
+        if (groupInfo) {
+          originInfos.AppendElements(groupInfo->mOriginInfos);
+        }
+      }
 
       for (uint32_t index = originInfos.Length(); index > 0; index--) {
         if (doomedOriginInfos.Contains(originInfos[index - 1])) {
@@ -5307,7 +5261,7 @@ StorageDirectoryHelper::RunOnMainThread()
           rv = secMan->GetSimpleCodebasePrincipal(uri,
                                                   getter_AddRefs(principal));
         } else {
-          OriginAttributes attrs(originProps.mAppId, originProps.mInMozBrowser);
+          PrincipalOriginAttributes attrs(originProps.mAppId, originProps.mInMozBrowser);
           principal = BasePrincipal::CreateCodebasePrincipal(uri, attrs);
           rv = principal ? NS_OK : NS_ERROR_FAILURE;
         }

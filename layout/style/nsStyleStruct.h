@@ -2324,10 +2324,9 @@ struct nsStylePosition {
   typedef nsStyleBackground::Position Position;
 
   /**
-   * Return the computed value for 'align-content' given our 'display' value in
-   * aDisplay.
+   * Return the computed value for 'align-content'.
    */
-  uint16_t ComputedAlignContent(const nsStyleDisplay* aDisplay) const;
+  uint16_t ComputedAlignContent() const { return mAlignContent; }
 
   /**
    * Return the computed value for 'align-items' given our 'display' value in
@@ -2379,9 +2378,6 @@ struct nsStylePosition {
   mozilla::StyleBoxSizing mBoxSizing;   // [reset] see nsStyleConsts.h
 private:
   friend class nsRuleNode;
-  // Helper for the ComputedAlign/Justify* methods.
-  uint8_t MapLeftRightToStart(uint8_t aAlign, mozilla::LogicalAxis aAxis,
-                              const nsStyleDisplay* aDisplay) const;
 
   uint16_t      mAlignContent;          // [reset] fallback value in the high byte
   uint8_t       mAlignItems;            // [reset] see nsStyleConsts.h

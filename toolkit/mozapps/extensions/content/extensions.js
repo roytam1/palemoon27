@@ -15,6 +15,12 @@ Cu.import("resource://gre/modules/DownloadUtils.jsm");
 Cu.import("resource://gre/modules/AddonManager.jsm");
 Cu.import("resource://gre/modules/addons/AddonRepository.jsm");
 
+const CONSTANTS = {};
+Cu.import("resource://gre/modules/addons/AddonConstants.jsm", CONSTANTS);
+const SIGNING_REQUIRED = CONSTANTS.REQUIRE_SIGNING ?
+                         true :
+                         Services.prefs.getBoolPref("xpinstall.signatures.required");
+
 XPCOMUtils.defineLazyModuleGetter(this, "PluralForm",
                                   "resource://gre/modules/PluralForm.jsm");
 
@@ -202,6 +208,9 @@ function loadView(aViewId) {
 }
 
 function isCorrectlySigned(aAddon) {
+  // temporary add-ons do not require signing
+  if (aAddon.scope == AddonManager.SCOPE_TEMPORARY)
+      return true;
   if (aAddon.signedState <= AddonManager.SIGNEDSTATE_MISSING)
     return false;
   if (aAddon.foreignInstall && aAddon.signedState < AddonManager.SIGNEDSTATE_SIGNED)
@@ -870,7 +879,6 @@ var gViewController = {
       }
     },
 
-/* Plugincheck service is currently N/A for Pale Moon
     cmd_pluginCheck: {
       isEnabled: function cmd_pluginCheck_isEnabled() {
         return true;
@@ -879,7 +887,6 @@ var gViewController = {
         openURL(Services.urlFormatter.formatURLPref("plugins.update.url"));
       }
     },
-*/
 
     cmd_toggleAutoUpdateDefault: {
       isEnabled: function cmd_toggleAutoUpdateDefault_isEnabled() {
@@ -2002,18 +2009,6 @@ var gHeader = {
 
   onKeyPress: function gHeader_onKeyPress(aEvent) {
     if (String.fromCharCode(aEvent.charCode) == "/") {
-      this.focusSearchBox();
-      return;
-    }
-
-    // XXXunf Temporary until bug 371900 is fixed.
-    let key = document.getElementById("focusSearch").getAttribute("key");
-#ifdef XP_MACOSX
-    let keyModifier = aEvent.metaKey;
-#else
-    let keyModifier = aEvent.ctrlKey;
-#endif
-    if (String.fromCharCode(aEvent.charCode) == key && keyModifier) {
       this.focusSearchBox();
       return;
     }
@@ -3805,9 +3800,3 @@ var gDragDrop = {
     aEvent.preventDefault();
   }
 };
-
-#ifdef MOZ_REQUIRE_SIGNING
-const SIGNING_REQUIRED = true;
-#else
-const SIGNING_REQUIRED = Services.prefs.getBoolPref("xpinstall.signatures.required");
-#endif

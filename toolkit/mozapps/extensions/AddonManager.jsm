@@ -21,6 +21,9 @@ if ("@mozilla.org/xre/app-info;1" in Cc) {
   }
 }
 
+Cu.import("resource://gre/modules/AppConstants.jsm");
+
+const MOZ_COMPATIBILITY_NIGHTLY = !['aurora', 'beta', 'release', 'esr'].includes(AppConstants.MOZ_UPDATE_CHANNEL);
 
 const PREF_BLOCKLIST_PINGCOUNTVERSION = "extensions.blocklist.pingCountVersion";
 const PREF_DEFAULT_PROVIDERS_ENABLED  = "extensions.defaultProviders.enabled";
@@ -55,7 +58,9 @@ const FILE_BLOCKLIST                  = "blocklist.xml";
 
 const BRANCH_REGEXP                   = /^([^\.]+\.[0-9]+[a-z]*).*/gi;
 const PREF_EM_CHECK_COMPATIBILITY_BASE = "extensions.checkCompatibility";
-var PREF_EM_CHECK_COMPATIBILITY;
+var PREF_EM_CHECK_COMPATIBILITY = MOZ_COMPATIBILITY_NIGHTLY ?
+                                  PREF_EM_CHECK_COMPATIBILITY_BASE + ".nightly" :
+                                  undefined;
 
 const TOOLKIT_ID                      = "toolkit@mozilla.org";
 
@@ -80,6 +85,7 @@ XPCOMUtils.defineLazyGetter(this, "CertUtils", function certUtilsLazyGetter() {
   return certUtils;
 });
 
+const INTEGER = /^[1-9]\d*$/;
 
 this.EXPORTED_SYMBOLS = [ "AddonManager", "AddonManagerPrivate" ];
 
@@ -178,6 +184,19 @@ function safeCall(aCallback, ...aArgs) {
 }
 
 /**
+ * Creates a function that will call the passed callback catching and logging
+ * any exceptions.
+ *
+ * @param  aCallback
+ *         The callback method to call
+ */
+function makeSafe(aCallback) {
+  return function(...aArgs) {
+    safeCall(aCallback, ...aArgs);
+  }
+}
+
+/**
  * Report an exception thrown by a provider API method.
  */
 function reportProviderError(aProvider, aMethod, aError) {
@@ -239,6 +258,26 @@ function callProviderAsync(aProvider, aMethod, ...aArgs) {
     callback(undefined);
     return;
   }
+}
+
+/**
+ * Calls a method on a provider if it exists and consumes any thrown exception.
+ * Parameters after aMethod are passed to aProvider.aMethod() and an additional
+ * callback is added for the provider to return a result to.
+ *
+ * @param  aProvider
+ *         The provider to call
+ * @param  aMethod
+ *         The method name to call
+ * @return {Promise}
+ * @resolves The result the provider returns, or |undefined| if the provider
+ *           does not implement the method or the method throws.
+ * @rejects  Never
+ */
+function promiseCallProvider(aProvider, aMethod, ...aArgs) {
+  return new Promise(resolve => {
+    callProviderAsync(aProvider, aMethod, ...aArgs, resolve);
+  });
 }
 
 /**
@@ -873,8 +912,10 @@ var AddonManagerInternal = {
         this.validateBlocklist();
       }
 
-      PREF_EM_CHECK_COMPATIBILITY = PREF_EM_CHECK_COMPATIBILITY_BASE + "." +
-                                    Services.appinfo.version.replace(BRANCH_REGEXP, "$1");
+      if (!MOZ_COMPATIBILITY_NIGHTLY) {
+        PREF_EM_CHECK_COMPATIBILITY = PREF_EM_CHECK_COMPATIBILITY_BASE + "." +
+                                      Services.appinfo.version.replace(BRANCH_REGEXP, "$1");
+      }
 
       try {
         gCheckCompatibility = Services.prefs.getBoolPref(PREF_EM_CHECK_COMPATIBILITY);
@@ -2277,6 +2318,27 @@ var AddonManagerInternal = {
   },
 
   /**
+   * Starts installation of a temporary add-on from a local directory.
+   * @param  aDirectory
+   *         The directory of the add-on to be temporarily installed
+   * @return a Promise that rejects if the add-on is not restartless
+   *         or an add-on with the same ID is already temporarily installed
+   */
+  installTemporaryAddon: function AMI_installTemporaryAddon(aFile) {
+    if (!gStarted)
+      throw Components.Exception("AddonManager is not initialized",
+                                 Cr.NS_ERROR_NOT_INITIALIZED);
+
+    if (!(aFile instanceof Ci.nsIFile))
+      throw Components.Exception("aFile must be a nsIFile",
+                                 Cr.NS_ERROR_INVALID_ARG);
+
+    return AddonManagerInternal._getProviderByName("XPIProvider")
+                               .installTemporaryAddon(aFile);
+  },
+
+
+  /**
    * Gets an icon from the icon set provided by the add-on
    * that is closest to the specified size.
    *
@@ -2286,7 +2348,10 @@ var AddonManagerInternal = {
    * match an icon of size 96px.
    *
    * @param  aAddon
-   *         The addon to find an icon for
+   *         An addon object, meaning:
+   *         An object with either an icons property that is a key-value
+   *         list of icon size and icon URL, or an object having an iconURL
+   *         and icon64URL property.
    * @param  aSize
    *         Ideal icon size in pixels
    * @param  aWindow
@@ -2320,11 +2385,12 @@ var AddonManagerInternal = {
     let bestSize = null;
 
     for (let size of Object.keys(icons)) {
-      size = parseInt(size, 10);
-      if (isNaN(size)) {
+      if (!INTEGER.test(size)) {
         throw Components.Exception("Invalid icon size, must be an integer",
                                    Cr.NS_ERROR_ILLEGAL_VALUE);
       }
+
+      size = parseInt(size, 10);
 
       if (!bestSize) {
         bestSize = size;
@@ -2351,11 +2417,12 @@ var AddonManagerInternal = {
    *
    * @param  aID
    *         The ID of the add-on to retrieve
-   * @param  aCallback
-   *         The callback to pass the retrieved add-on to
-   * @throws if the aID or aCallback arguments are not specified
+   * @return {Promise}
+   * @resolves The found Addon or null if no such add-on exists.
+   * @rejects  Never
+   * @throws if the aID argument is not specified
    */
-  getAddonByID: function AMI_getAddonByID(aID, aCallback) {
+  getAddonByID: function AMI_getAddonByID(aID) {
     if (!gStarted)
       throw Components.Exception("AddonManager is not initialized",
                                  Cr.NS_ERROR_NOT_INITIALIZED);
@@ -2364,24 +2431,9 @@ var AddonManagerInternal = {
       throw Components.Exception("aID must be a non-empty string",
                                  Cr.NS_ERROR_INVALID_ARG);
 
-    if (typeof aCallback != "function")
-      throw Components.Exception("aCallback must be a function",
-                                 Cr.NS_ERROR_INVALID_ARG);
-
-    new AsyncObjectCaller(this.providers, "getAddonByID", {
-      nextObject: function getAddonByID_nextObject(aCaller, aProvider) {
-        callProviderAsync(aProvider, "getAddonByID", aID,
-                          function getAddonByID_safeCall(aAddon) {
-          if (aAddon)
-            safeCall(aCallback, aAddon);
-          else
-            aCaller.callNext();
-        });
-      },
-
-      noMoreObjects: function getAddonByID_noMoreObjects(aCaller) {
-        safeCall(aCallback, null);
-      }
+    let promises = [for (p of this.providers) promiseCallProvider(p, "getAddonByID", aID)];
+    return Promise.all(promises).then(aAddons => {
+      return aAddons.find(a => !!a) || null;
     });
   },
 
@@ -2430,11 +2482,12 @@ var AddonManagerInternal = {
    *
    * @param  aIDs
    *         The array of IDs to retrieve
-   * @param  aCallback
-   *         The callback to pass an array of Addons to
-   * @throws if the aID or aCallback arguments are not specified
+   * @return {Promise}
+   * @resolves The array of found add-ons.
+   * @rejects  Never
+   * @throws if the aIDs argument is not specified
    */
-  getAddonsByIDs: function AMI_getAddonsByIDs(aIDs, aCallback) {
+  getAddonsByIDs: function AMI_getAddonsByIDs(aIDs) {
     if (!gStarted)
       throw Components.Exception("AddonManager is not initialized",
                                  Cr.NS_ERROR_NOT_INITIALIZED);
@@ -2443,25 +2496,8 @@ var AddonManagerInternal = {
       throw Components.Exception("aIDs must be an array",
                                  Cr.NS_ERROR_INVALID_ARG);
 
-    if (typeof aCallback != "function")
-      throw Components.Exception("aCallback must be a function",
-                                 Cr.NS_ERROR_INVALID_ARG);
-
-    let addons = [];
-
-    new AsyncObjectCaller(aIDs, null, {
-      nextObject: function getAddonsByIDs_nextObject(aCaller, aID) {
-        AddonManagerInternal.getAddonByID(aID,
-                             function getAddonsByIDs_getAddonByID(aAddon) {
-          addons.push(aAddon);
-          aCaller.callNext();
-        });
-      },
-
-      noMoreObjects: function getAddonsByIDs_noMoreObjects(aCaller) {
-        safeCall(aCallback, addons);
-      }
-    });
+    let promises = [AddonManagerInternal.getAddonByID(i) for (i of aIDs)];
+    return Promise.all(promises);
   },
 
   /**
@@ -3017,8 +3053,10 @@ this.AddonManager = {
   SCOPE_APPLICATION: 4,
   // Installed for all users of the computer.
   SCOPE_SYSTEM: 8,
+  // Installed temporarily
+  SCOPE_TEMPORARY: 16,
   // The combination of all scopes.
-  SCOPE_ALL: 15,
+  SCOPE_ALL: 31,
 
   // Add-on type is expected to be displayed in the UI in a list.
   VIEW_TYPE_LIST: "list",
@@ -3107,11 +3145,9 @@ this.AddonManager = {
   // case-by-case basis.
   STATE_ASK_TO_ACTIVATE: "askToActivate",
 
-#ifdef MOZ_EM_DEBUG
   get __AddonManagerInternal__() {
-    return AddonManagerInternal;
+    return AppConstants.DEBUG ? AddonManagerInternal : undefined;
   },
-#endif
 
   get isReady() {
     return gStartupComplete && !gShutdownInProgress;
@@ -3142,7 +3178,13 @@ this.AddonManager = {
   },
 
   getAddonByID: function AM_getAddonByID(aID, aCallback) {
-    AddonManagerInternal.getAddonByID(aID, aCallback);
+    if (typeof aCallback != "function")
+      throw Components.Exception("aCallback must be a function",
+                                 Cr.NS_ERROR_INVALID_ARG);
+
+    AddonManagerInternal.getAddonByID(aID)
+                        .then(makeSafe(aCallback))
+                        .catch(logger.error);
   },
 
   getAddonBySyncGUID: function AM_getAddonBySyncGUID(aGUID, aCallback) {
@@ -3150,7 +3192,13 @@ this.AddonManager = {
   },
 
   getAddonsByIDs: function AM_getAddonsByIDs(aIDs, aCallback) {
-    AddonManagerInternal.getAddonsByIDs(aIDs, aCallback);
+    if (typeof aCallback != "function")
+      throw Components.Exception("aCallback must be a function",
+                                 Cr.NS_ERROR_INVALID_ARG);
+
+    AddonManagerInternal.getAddonsByIDs(aIDs)
+                        .then(makeSafe(aCallback))
+                        .catch(logger.error);
   },
 
   getAddonsWithOperationsByTypes:
@@ -3192,6 +3240,10 @@ this.AddonManager = {
     AddonManagerInternal.installAddonsFromWebpage(aType, aBrowser,
                                                   ensurePrincipal(aInstallingPrincipal),
                                                   aInstalls);
+  },
+
+  installTemporaryAddon: function AM_installTemporaryAddon(aDirectory) {
+    return AddonManagerInternal.installTemporaryAddon(aDirectory);
   },
 
   addManagerListener: function AM_addManagerListener(aListener) {

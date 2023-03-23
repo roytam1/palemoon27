@@ -321,6 +321,9 @@ var GlobalManager = {
 
     let eventHandler = docShell.chromeEventHandler;
     let listener = event => {
+      if (event.target != docShell.contentViewer.DOMDocument) {
+        return;
+      }
       eventHandler.removeEventListener("unload", listener);
       context.unload();
     };
@@ -482,7 +485,9 @@ ExtensionData.prototype = {
 
     if (!(this.rootURI instanceof Ci.nsIJARURI &&
           this.rootURI.JARFile instanceof Ci.nsIFileURL)) {
-      throw Error("Invalid extension root URL");
+      // This currently happens for app:// URLs passed to us by
+      // UserCustomizations.jsm
+      return [];
     }
 
     // FIXME: We need a way to do this without main thread IO.

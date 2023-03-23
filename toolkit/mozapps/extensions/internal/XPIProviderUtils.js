@@ -41,9 +41,6 @@ const FILE_JSON_DB                    = "extensions.json";
 const FILE_OLD_DATABASE               = "extensions.rdf";
 const FILE_XPI_ADDONS_LIST            = "extensions.ini";
 
-// The value for this is in Makefile.in
-#expand const DB_SCHEMA               = __MOZ_EXTENSIONS_DB_SCHEMA__;
-
 // The last version of DB_SCHEMA implemented in SQLITE
 const LAST_SQLITE_DB_SCHEMA           = 14;
 const PREF_DB_SCHEMA                  = "extensions.databaseSchema";
@@ -319,11 +316,13 @@ function copyRowProperties(aRow, aProperties, aTarget) {
  *        Addon data fields loaded from JSON or the addon manifest.
  */
 function DBAddonInternal(aLoaded) {
+  AddonInternal.call(this);
+
   copyProperties(aLoaded, PROP_JSON_FIELDS, this);
 
   if (aLoaded._installLocation) {
     this._installLocation = aLoaded._installLocation;
-    this.location = aLoaded._installLocation._name;
+    this.location = aLoaded._installLocation.name;
   }
   else if (aLoaded.location) {
     this._installLocation = XPIProvider.installLocationsByName[this.location];
@@ -357,41 +356,48 @@ function DBAddonInternal(aLoaded) {
     });
 }
 
-function DBAddonInternalPrototype()
-{
-  this.applyCompatibilityUpdate =
-    function(aUpdate, aSyncCompatibility) {
-      this.targetApplications.forEach(function(aTargetApp) {
-        aUpdate.targetApplications.forEach(function(aUpdateTarget) {
-          if (aTargetApp.id == aUpdateTarget.id && (aSyncCompatibility ||
-              Services.vc.compare(aTargetApp.maxVersion, aUpdateTarget.maxVersion) < 0)) {
-            aTargetApp.minVersion = aUpdateTarget.minVersion;
-            aTargetApp.maxVersion = aUpdateTarget.maxVersion;
-            XPIDatabase.saveChanges();
-          }
-        });
+DBAddonInternal.prototype = Object.create(AddonInternal.prototype);
+Object.assign(DBAddonInternal.prototype, {
+  applyCompatibilityUpdate: function(aUpdate, aSyncCompatibility) {
+    let wasCompatible = this.isCompatible;
+
+    this.targetApplications.forEach(function(aTargetApp) {
+      aUpdate.targetApplications.forEach(function(aUpdateTarget) {
+        if (aTargetApp.id == aUpdateTarget.id && (aSyncCompatibility ||
+            Services.vc.compare(aTargetApp.maxVersion, aUpdateTarget.maxVersion) < 0)) {
+          aTargetApp.minVersion = aUpdateTarget.minVersion;
+          aTargetApp.maxVersion = aUpdateTarget.maxVersion;
+          XPIDatabase.saveChanges();
+        }
       });
-      if (aUpdate.multiprocessCompatible !== undefined &&
-          aUpdate.multiprocessCompatible != this.multiprocessCompatible) {
-        this.multiprocessCompatible = aUpdate.multiprocessCompatible;
-        XPIDatabase.saveChanges();
-      }
+    });
+    if (aUpdate.multiprocessCompatible !== undefined &&
+        aUpdate.multiprocessCompatible != this.multiprocessCompatible) {
+      this.multiprocessCompatible = aUpdate.multiprocessCompatible;
+      XPIDatabase.saveChanges();
+    }
+
+    if (wasCompatible != this.isCompatible)
       XPIProvider.updateAddonDisabledState(this);
-    };
+  },
 
-  this.toJSON =
-    function() {
-      return copyProperties(this, PROP_JSON_FIELDS);
-    };
+  toJSON: function() {
+    let jsonData = copyProperties(this, PROP_JSON_FIELDS);
 
-  Object.defineProperty(this, "inDatabase",
-                        { get: function() { return true; },
-                          enumerable: true,
-                          configurable: true });
-}
-DBAddonInternalPrototype.prototype = AddonInternal.prototype;
+    // Experiments are serialized as disabled so they aren't run on the next
+    // startup.
+    if (this.type == "experiment") {
+      jsonData.userDisabled = true;
+      jsonData.active = false;
+    }
 
-DBAddonInternal.prototype = new DBAddonInternalPrototype();
+    return jsonData;
+  },
+
+  get inDatabase() {
+    return true;
+  }
+});
 
 /**
  * Internal interface: find an addon from an already loaded addonDB
@@ -2087,7 +2093,8 @@ this.XPIDatabaseReconcile = {
           version: currentAddon.version,
           type: currentAddon.type,
           descriptor: currentAddon._sourceBundle.persistentDescriptor,
-          multiprocessCompatible: currentAddon.multiprocessCompatible
+          multiprocessCompatible: currentAddon.multiprocessCompatible,
+          runInSafeMode: canRunInSafeMode(currentAddon),
         };
       }
 

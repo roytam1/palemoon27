@@ -304,7 +304,7 @@ this.LightweightThemeManager = {
     if (aData)
       _prefs.setCharPref("selectedThemeID", aData.id);
     else
-      _prefs.clearUserPref("selectedThemeID");
+      _prefs.setCharPref("selectedThemeID", "");
 
     _notifyWindows(aData);
     Services.obs.notifyObservers(null, "lightweight-theme-changed", null);
@@ -491,7 +491,7 @@ function AddonWrapper(aTheme) {
   }, this);
 
   this.__defineGetter__("creator", function AddonWrapper_creatorGetter() {
-    return new AddonManagerPrivate.AddonAuthor(aTheme.author);
+    return "author" in aTheme ? new AddonManagerPrivate.AddonAuthor(aTheme.author) : null;
   });
 
   this.__defineGetter__("screenshots", function AddonWrapper_screenshotsGetter() {

@@ -291,7 +291,7 @@ IndexedDatabaseManager::~IndexedDatabaseManager()
 bool IndexedDatabaseManager::sIsMainProcess = false;
 bool IndexedDatabaseManager::sFullSynchronousMode = false;
 
-PRLogModuleInfo* IndexedDatabaseManager::sLoggingModule;
+mozilla::LazyLogModule IndexedDatabaseManager::sLoggingModule("IndexedDB");
 
 Atomic<IndexedDatabaseManager::LoggingMode>
   IndexedDatabaseManager::sLoggingMode(
@@ -312,10 +312,6 @@ IndexedDatabaseManager::GetOrCreate()
 
   if (!gDBManager) {
     sIsMainProcess = XRE_IsParentProcess();
-
-    if (!sLoggingModule) {
-      sLoggingModule = PR_NewLogModule("IndexedDB");
-    }
 
     if (sIsMainProcess && Preferences::GetBool("disk_space_watcher.enabled", false)) {
       // See if we're starting up in low disk space conditions.
@@ -703,7 +699,7 @@ IndexedDatabaseManager::GetLoggingMode()
 }
 
 // static
-PRLogModuleInfo*
+mozilla::LogModule*
 IndexedDatabaseManager::GetLoggingModule()
 {
   MOZ_ASSERT(gDBManager,

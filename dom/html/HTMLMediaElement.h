@@ -215,9 +215,9 @@ public:
   // suspended the channel.
   virtual void NotifySuspendedByCache(bool aIsSuspended) final override;
 
-  virtual bool IsActive() final override;
+  virtual bool IsActive() const final override;
 
-  virtual bool IsHidden() final override;
+  virtual bool IsHidden() const final override;
 
   // In order to create overlayImageContainer to support DOMHwMediaStream.
   VideoFrameContainer* GetOverlayImageVideoFrameContainer();
@@ -1043,6 +1043,9 @@ protected:
   // desired, and we'll seek to the sync point (keyframe and/or start of the
   // next block of audio samples) preceeding seek target.
   void Seek(double aTime, SeekTarget::Type aSeekType, ErrorResult& aRv);
+
+  // A method to check if we are playing through the AudioChannel.
+  bool IsPlayingThroughTheAudioChannel() const;
 
   // Update the audio channel playing state
   void UpdateAudioChannelPlayingState();

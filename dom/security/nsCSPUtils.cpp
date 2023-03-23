@@ -16,12 +16,10 @@
 
 #define DEFAULT_PORT -1
 
-static PRLogModuleInfo*
+static mozilla::LogModule*
 GetCspUtilsLog()
 {
-  static PRLogModuleInfo* gCspUtilsPRLog;
-  if (!gCspUtilsPRLog)
-    gCspUtilsPRLog = PR_NewLogModule("CSPUtils");
+  static mozilla::LazyLogModule gCspUtilsPRLog("CSPUtils");
   return gCspUtilsPRLog;
 }
 
@@ -517,6 +515,21 @@ nsCSPHostSrc::permits(nsIURI* aUri, const nsAString& aNonce, bool aWasRedirected
 
   // 2) host matching: Enforce a single *
   if (mHost.EqualsASCII("*")) {
+    // The single ASTERISK character (*) does not match a URI's scheme of a type
+    // designating a globally unique identifier (such as blob:, data:, or filesystem:)
+    // At the moment firefox does not support filesystem; but for future compatibility
+    // we support it in CSP according to the spec, see: 4.2.2 Matching Source Expressions
+    // Note, that whitelisting any of these schemes would call nsCSPSchemeSrc::permits().
+    bool isBlobScheme =
+      (NS_SUCCEEDED(aUri->SchemeIs("blob", &isBlobScheme)) && isBlobScheme);
+    bool isDataScheme =
+      (NS_SUCCEEDED(aUri->SchemeIs("data", &isDataScheme)) && isDataScheme);
+    bool isFileScheme =
+      (NS_SUCCEEDED(aUri->SchemeIs("filesystem", &isFileScheme)) && isFileScheme);
+
+    if (isBlobScheme || isDataScheme || isFileScheme) {
+      return false;
+    }
     return true;
   }
 
@@ -664,6 +677,11 @@ nsCSPKeywordSrc::allows(enum CSPKeyword aKeyword, const nsAString& aHashOrNonce)
 void
 nsCSPKeywordSrc::toString(nsAString& outStr) const
 {
+  if (mInvalidated) {
+    MOZ_ASSERT(mKeyword == CSP_UNSAFE_INLINE,
+               "can only ignore 'unsafe-inline' within toString()");
+    return;
+  }
   outStr.AppendASCII(CSP_EnumToKeyword(mKeyword));
 }
 
@@ -671,8 +689,8 @@ void
 nsCSPKeywordSrc::invalidate()
 {
   mInvalidated = true;
-  NS_ASSERTION(mInvalidated == CSP_UNSAFE_INLINE,
-               "invalidate 'unsafe-inline' only within script-src");
+  MOZ_ASSERT(mKeyword == CSP_UNSAFE_INLINE,
+             "invalidate 'unsafe-inline' only within script-src");
 }
 
 /* ===== nsCSPNonceSrc ==================== */
@@ -1150,8 +1168,13 @@ nsCSPPolicy::allows(nsContentPolicyType aContentType,
     }
   }
 
-  // Only match {nonce,hash}-source on specific directives (not default-src)
+  // {nonce,hash}-source should not consult default-src:
+  //   * return false if default-src is specified
+  //   * but allow the load if default-src is *not* specified (Bug 1198422)
   if (aKeyword == CSP_NONCE || aKeyword == CSP_HASH) {
+     if (!defaultDir) {
+       return true;
+     }
     return false;
   }
 

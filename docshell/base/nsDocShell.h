@@ -274,7 +274,7 @@ public:
   }
   bool InFrameSwap();
 
-  mozilla::DocShellOriginAttributes GetOriginAttributes();
+  mozilla::OriginAttributes GetOriginAttributes();
 
   void GetInterceptedDocumentId(nsAString& aId)
   {

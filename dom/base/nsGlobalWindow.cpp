@@ -263,7 +263,7 @@ using namespace mozilla;
 using namespace mozilla::dom;
 using namespace mozilla::dom::ipc;
 using mozilla::BasePrincipal;
-using mozilla::PrincipalOriginAttributes;
+using mozilla::OriginAttributes;
 using mozilla::TimeStamp;
 using mozilla::TimeDuration;
 using mozilla::dom::cache::CacheStorage;
@@ -8364,7 +8364,7 @@ nsGlobalWindow::PostMessageMozOuter(JSContext* aCx, JS::Handle<JS::Value> aMessa
     nsCOMPtr<nsIPrincipal> principal = nsContentUtils::SubjectPrincipal();
     MOZ_ASSERT(principal);
 
-    PrincipalOriginAttributes attrs = BasePrincipal::Cast(principal)->OriginAttributesRef();
+    OriginAttributes attrs = BasePrincipal::Cast(principal)->OriginAttributesRef();
     // Create a nsIPrincipal inheriting the app/browser attributes from the
     // caller.
     providedPrincipal = BasePrincipal::CreateCodebasePrincipal(originURI, attrs);

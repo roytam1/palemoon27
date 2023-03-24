@@ -58,7 +58,7 @@
   }
 
 using mozilla::BasePrincipal;
-using mozilla::PrincipalOriginAttributes;
+using mozilla::OriginAttributes;
 
 namespace mozilla {
 namespace dom {
@@ -211,7 +211,7 @@ ResetPermission(uint32_t aAppId, const nsAString& aOriginURL,
     return rv;
   }
 
-  PrincipalOriginAttributes attrs(aAppId, false);
+  OriginAttributes attrs(aAppId, false);
   nsCOMPtr<nsIPrincipal> principal =
     BasePrincipal::CreateCodebasePrincipal(uri, attrs);
   NS_ENSURE_TRUE(principal, NS_ERROR_FAILURE);

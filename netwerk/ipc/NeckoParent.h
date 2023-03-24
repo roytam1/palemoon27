@@ -39,7 +39,7 @@ public:
   static const char *
   GetValidatedAppInfo(const SerializedLoadContext& aSerialized,
                       PContentParent* aBrowser,
-                      mozilla::DocShellOriginAttributes& aAttrs);
+                      mozilla::OriginAttributes& aAttrs);
 
   /*
    * Creates LoadContext for parent-side of an e10s channel.

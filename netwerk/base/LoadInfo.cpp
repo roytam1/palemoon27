@@ -89,8 +89,7 @@ LoadInfo::LoadInfo(nsIPrincipal* aLoadingPrincipal,
     mUpgradeInsecurePreloads = aLoadingContext->OwnerDoc()->GetUpgradeInsecurePreloads();
   }
 
-  const PrincipalOriginAttributes attrs = BasePrincipal::Cast(mLoadingPrincipal)->OriginAttributesRef();
-  mOriginAttributes.InheritFromDocToNecko(attrs);
+  mOriginAttributes = BasePrincipal::Cast(mLoadingPrincipal)->OriginAttributesRef();
 }
 
 LoadInfo::LoadInfo(const LoadInfo& rhs)
@@ -128,7 +127,7 @@ LoadInfo::LoadInfo(nsIPrincipal* aLoadingPrincipal,
                    bool aEnforceSecurity,
                    bool aInitialSecurityCheckDone,
                    bool aIsThirdPartyContext,
-                   const NeckoOriginAttributes& aOriginAttributes,
+                   const OriginAttributes& aOriginAttributes,
                    nsTArray<nsCOMPtr<nsIPrincipal>>& aRedirectChainIncludingInternalRedirects,
                    nsTArray<nsCOMPtr<nsIPrincipal>>& aRedirectChain)
   : mLoadingPrincipal(aLoadingPrincipal)
@@ -417,7 +416,7 @@ NS_IMETHODIMP
 LoadInfo::SetScriptableOriginAttributes(JSContext* aCx,
   JS::Handle<JS::Value> aOriginAttributes)
 {
-  NeckoOriginAttributes attrs;
+  OriginAttributes attrs;
   if (!aOriginAttributes.isObject() || !attrs.Init(aCx, aOriginAttributes)) {
     return NS_ERROR_INVALID_ARG;
   }
@@ -427,7 +426,7 @@ LoadInfo::SetScriptableOriginAttributes(JSContext* aCx,
 }
 
 nsresult
-LoadInfo::GetOriginAttributes(mozilla::NeckoOriginAttributes* aOriginAttributes)
+LoadInfo::GetOriginAttributes(mozilla::OriginAttributes* aOriginAttributes)
 {
   NS_ENSURE_ARG(aOriginAttributes);
   *aOriginAttributes = mOriginAttributes;
@@ -435,7 +434,7 @@ LoadInfo::GetOriginAttributes(mozilla::NeckoOriginAttributes* aOriginAttributes)
 }
 
 nsresult
-LoadInfo::SetOriginAttributes(const mozilla::NeckoOriginAttributes& aOriginAttributes)
+LoadInfo::SetOriginAttributes(const mozilla::OriginAttributes& aOriginAttributes)
 {
   mOriginAttributes = aOriginAttributes;
   return NS_OK;

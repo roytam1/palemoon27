@@ -160,7 +160,7 @@ nsJSPrincipals::ReadKnownPrincipalType(JSContext* aCx,
             return false;
         }
 
-        PrincipalOriginAttributes attrs;
+        OriginAttributes attrs;
         attrs.PopulateFromSuffix(suffix);
         info = ContentPrincipalInfo(attrs, spec);
     }

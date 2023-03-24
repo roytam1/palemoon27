@@ -37,7 +37,7 @@ public:
 
 private:
   // Results
-  NeckoOriginAttributes originAttribs;
+  OriginAttributes originAttribs;
   bool isPrivate;
   bool isAnonymous;
   nsCString idEnhance;
@@ -206,7 +206,7 @@ AppendKeyPrefix(nsILoadContextInfo* aInfo, nsACString &_retval)
    * Keep the attributes list sorted according their ASCII code.
    */
 
-  NeckoOriginAttributes const *oa = aInfo->OriginAttributesPtr();
+  OriginAttributes const *oa = aInfo->OriginAttributesPtr();
   nsAutoCString suffix;
   oa->CreateSuffix(suffix);
   if (!suffix.IsEmpty()) {

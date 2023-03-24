@@ -45,8 +45,7 @@
 #include "mozilla/net/OfflineObserver.h"
 #include "nsISpeculativeConnect.h"
 
-using mozilla::DocShellOriginAttributes;
-using mozilla::NeckoOriginAttributes;
+using mozilla::OriginAttributes;
 using mozilla::dom::ContentParent;
 using mozilla::dom::TabContext;
 using mozilla::dom::TabParent;
@@ -112,7 +111,7 @@ PBOverrideStatusFromLoadContext(const SerializedLoadContext& aSerialized)
 const char*
 NeckoParent::GetValidatedAppInfo(const SerializedLoadContext& aSerialized,
                                  PContentParent* aContent,
-                                 DocShellOriginAttributes& aAttrs)
+                                 OriginAttributes& aAttrs)
 {
   if (UsingNeckoIPCSecurity()) {
     if (!aSerialized.IsNotNull()) {
@@ -149,7 +148,7 @@ NeckoParent::GetValidatedAppInfo(const SerializedLoadContext& aSerialized,
         aSerialized.mOriginAttributes.mSignedPkg != tabContext.OriginAttributesRef().mSignedPkg) {
       continue;
     }
-    aAttrs = DocShellOriginAttributes(appId, inBrowserElement);
+    aAttrs = OriginAttributes(appId, inBrowserElement);
     aAttrs.mSignedPkg = tabContext.OriginAttributesRef().mSignedPkg;
     return nullptr;
   }
@@ -163,7 +162,7 @@ NeckoParent::GetValidatedAppInfo(const SerializedLoadContext& aSerialized,
     if (aSerialized.IsNotNull()) {
       aAttrs = aSerialized.mOriginAttributes;
     } else {
-      aAttrs = DocShellOriginAttributes(NECKO_NO_APP_ID, false);
+      aAttrs = OriginAttributes(NECKO_NO_APP_ID, false);
     }
     return nullptr;
   }
@@ -177,7 +176,7 @@ NeckoParent::CreateChannelLoadContext(const PBrowserOrId& aBrowser,
                                       const SerializedLoadContext& aSerialized,
                                       nsCOMPtr<nsILoadContext> &aResult)
 {
-  DocShellOriginAttributes attrs;
+  OriginAttributes attrs;
   const char* error = GetValidatedAppInfo(aSerialized, aContent, attrs);
   if (error) {
     return error;
@@ -890,7 +889,7 @@ NeckoParent::RecvPredPredict(const ipc::OptionalURIParams& aTargetURI,
   // We only actually care about the loadContext.mPrivateBrowsing, so we'll just
   // pass dummy params for nestFrameId, and originAttributes.
   uint64_t nestedFrameId = 0;
-  DocShellOriginAttributes attrs(NECKO_UNKNOWN_APP_ID, false);
+  OriginAttributes attrs(NECKO_UNKNOWN_APP_ID, false);
   nsCOMPtr<nsILoadContext> loadContext;
   if (aLoadContext.IsNotNull()) {
     loadContext = new LoadContext(aLoadContext, nestedFrameId, attrs);
@@ -922,7 +921,7 @@ NeckoParent::RecvPredLearn(const ipc::URIParams& aTargetURI,
   // We only actually care about the loadContext.mPrivateBrowsing, so we'll just
   // pass dummy params for nestFrameId, and originAttributes;
   uint64_t nestedFrameId = 0;
-  DocShellOriginAttributes attrs(NECKO_UNKNOWN_APP_ID, false);
+  OriginAttributes attrs(NECKO_UNKNOWN_APP_ID, false);
   nsCOMPtr<nsILoadContext> loadContext;
   if (aLoadContext.IsNotNull()) {
     loadContext = new LoadContext(aLoadContext, nestedFrameId, attrs);

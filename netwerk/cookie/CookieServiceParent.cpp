@@ -19,8 +19,7 @@
 
 using namespace mozilla::ipc;
 using mozilla::BasePrincipal;
-using mozilla::NeckoOriginAttributes;
-using mozilla::PrincipalOriginAttributes;
+using mozilla::OriginAttributes;
 using mozilla::dom::PContentParent;
 using mozilla::net::NeckoParent;
 
@@ -29,16 +28,13 @@ namespace {
 // Ignore failures from this function, as they only affect whether we do or
 // don't show a dialog box in private browsing mode if the user sets a pref.
 void
-CreateDummyChannel(nsIURI* aHostURI, NeckoOriginAttributes& aAttrs, bool aIsPrivate,
-                   nsIChannel** aChannel)
+CreateDummyChannel(nsIURI* aHostURI, OriginAttributes &aAttrs, bool aIsPrivate,
+                   nsIChannel **aChannel)
 {
   MOZ_ASSERT(aAttrs.mAppId != nsIScriptSecurityManager::UNKNOWN_APP_ID);
 
-  PrincipalOriginAttributes attrs;
-  attrs.InheritFromNecko(aAttrs);
-
   nsCOMPtr<nsIPrincipal> principal =
-    BasePrincipal::CreateCodebasePrincipal(aHostURI, attrs);
+    BasePrincipal::CreateCodebasePrincipal(aHostURI, aAttrs);
   if (!principal) {
     return;
   }
@@ -70,15 +66,14 @@ namespace net {
 MOZ_WARN_UNUSED_RESULT
 bool
 CookieServiceParent::GetOriginAttributesFromParams(const IPC::SerializedLoadContext &aLoadContext,
-                                                   NeckoOriginAttributes& aAttrs,
+                                                   OriginAttributes& aAttrs,
                                                    bool& aIsPrivate)
 {
   aIsPrivate = false;
 
-  DocShellOriginAttributes docShellAttrs;
   const char* error = NeckoParent::GetValidatedAppInfo(aLoadContext,
                                                        Manager()->Manager(),
-                                                       docShellAttrs);
+                                                       aAttrs);
   if (error) {
     NS_WARNING(nsPrintfCString("CookieServiceParent: GetOriginAttributesFromParams: "
                                "FATAL error: %s: KILLING CHILD PROCESS\n",
@@ -89,8 +84,6 @@ CookieServiceParent::GetOriginAttributesFromParams(const IPC::SerializedLoadCont
   if (aLoadContext.IsPrivateBitValid()) {
     aIsPrivate = aLoadContext.mUsePrivateBrowsing;
   }
-
-  aAttrs.InheritFromDocShellToNecko(docShellAttrs);
   return true;
 }
 
@@ -133,7 +126,7 @@ CookieServiceParent::RecvGetCookieString(const URIParams& aHost,
   if (!hostURI)
     return false;
 
-  NeckoOriginAttributes attrs;
+  OriginAttributes attrs;
   bool isPrivate;
   bool valid = GetOriginAttributesFromParams(aLoadContext, attrs, isPrivate);
   if (!valid) {
@@ -163,7 +156,7 @@ CookieServiceParent::RecvSetCookieString(const URIParams& aHost,
   if (!hostURI)
     return false;
 
-  NeckoOriginAttributes attrs;
+  OriginAttributes attrs;
   bool isPrivate;
   bool valid = GetOriginAttributesFromParams(aLoadContext, attrs, isPrivate);
   if (!valid) {

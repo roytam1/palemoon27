@@ -52,9 +52,9 @@ public:
 
   // Returns null on failure.
   static already_AddRefed<nsNullPrincipal>
-  Create(const mozilla::PrincipalOriginAttributes& aOriginAttributes = mozilla::PrincipalOriginAttributes());
+    Create(const mozilla::OriginAttributes& aOriginAttributes = mozilla::OriginAttributes());
 
-  nsresult Init(const mozilla::PrincipalOriginAttributes& aOriginAttributes = mozilla::PrincipalOriginAttributes());
+  nsresult Init(const mozilla::OriginAttributes& aOriginAttributes = mozilla::OriginAttributes());
 
   virtual void GetScriptLocation(nsACString &aStr) override;
 

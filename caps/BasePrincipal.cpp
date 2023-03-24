@@ -28,74 +28,26 @@ namespace mozilla {
 
 using dom::URLParams;
 
-void
-PrincipalOriginAttributes::InheritFromDocShellToDoc(const DocShellOriginAttributes& aAttrs,
-                                                    const nsIURI* aURI)
+void OriginAttributes::InheritFromDocShellParent(const OriginAttributes& aParent)
 {
-  mAppId = aAttrs.mAppId;
-  mInBrowser = aAttrs.mInBrowser;
-
-  // addonId is computed from the principal URI and never propagated
-  mUserContextId = aAttrs.mUserContextId;
-
-  // TODO:
-  // Bug 1225349 - PrincipalOriginAttributes should inherit mSignedPkg
-  // accordingly by URI
-  mSignedPkg = aAttrs.mSignedPkg;
+  mAppId = aParent.mAppId;
+  mInBrowser = aParent.mInBrowser;
+  mUserContextId = aParent.mUserContextId;
+  mSignedPkg = aParent.mSignedPkg;
 }
 
-void
-PrincipalOriginAttributes::InheritFromNecko(const NeckoOriginAttributes& aAttrs)
+bool OriginAttributes::CopyFromLoadContext(nsILoadContext* aLoadContext)
 {
-  mAppId = aAttrs.mAppId;
-  mInBrowser = aAttrs.mInBrowser;
+  OriginAttributes attrs;
+  bool result = aLoadContext->GetOriginAttributes(attrs);
+  NS_ENSURE_TRUE(result, false);
 
-  // addonId is computed from the principal URI and never propagated
-  mUserContextId = aAttrs.mUserContextId;
-  mSignedPkg = aAttrs.mSignedPkg;
-}
-
-void
-DocShellOriginAttributes::InheritFromDocToChildDocShell(const PrincipalOriginAttributes& aAttrs)
-{
-  mAppId = aAttrs.mAppId;
-  mInBrowser = aAttrs.mInBrowser;
-
-  // addonId is computed from the principal URI and never propagated
-  mUserContextId = aAttrs.mUserContextId;
-
-  // TODO:
-  // Bug 1225353 - DocShell/NeckoOriginAttributes should inherit
-  // mSignedPkg accordingly by mSignedPkgInBrowser
-  mSignedPkg = aAttrs.mSignedPkg;
-}
-
-void
-NeckoOriginAttributes::InheritFromDocToNecko(const PrincipalOriginAttributes& aAttrs)
-{
-  mAppId = aAttrs.mAppId;
-  mInBrowser = aAttrs.mInBrowser;
-
-  // addonId is computed from the principal URI and never propagated
-  mUserContextId = aAttrs.mUserContextId;
-
-  // TODO:
-  // Bug 1225353 - DocShell/NeckoOriginAttributes should inherit
-  // mSignedPkg accordingly by mSignedPkgInBrowser
-}
-
-void
-NeckoOriginAttributes::InheritFromDocShellToNecko(const DocShellOriginAttributes& aAttrs)
-{
-  mAppId = aAttrs.mAppId;
-  mInBrowser = aAttrs.mInBrowser;
-
-  // addonId is computed from the principal URI and never propagated
-  mUserContextId = aAttrs.mUserContextId;
-
-  // TODO:
-  // Bug 1225353 - DocShell/NeckoOriginAttributes should inherit
-  // mSignedPkg accordingly by mSignedPkgInBrowser
+  mAppId = attrs.mAppId;
+  mInBrowser = attrs.mInBrowser;
+  mAddonId = attrs.mAddonId;
+  mUserContextId = attrs.mUserContextId;
+  mSignedPkg = attrs.mSignedPkg;
+  return true;
 }
 
 void
@@ -490,7 +442,7 @@ BasePrincipal::GetUnknownAppId(bool* aUnknownAppId)
 }
 
 already_AddRefed<BasePrincipal>
-BasePrincipal::CreateCodebasePrincipal(nsIURI* aURI, const PrincipalOriginAttributes& aAttrs)
+BasePrincipal::CreateCodebasePrincipal(nsIURI* aURI, const OriginAttributes& aAttrs)
 {
   // If the URI is supposed to inherit the security context of whoever loads it,
   // we shouldn't make a codebase principal for it.

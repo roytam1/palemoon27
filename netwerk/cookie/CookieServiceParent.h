@@ -10,7 +10,7 @@
 #include "SerializedLoadContext.h"
 
 class nsCookieService;
-namespace mozilla { class NeckoOriginAttributes; }
+namespace mozilla { class OriginAttributes; }
 
 namespace mozilla {
 namespace net {
@@ -24,7 +24,7 @@ public:
 protected:
   MOZ_WARN_UNUSED_RESULT bool
   GetOriginAttributesFromParams(const IPC::SerializedLoadContext &aLoadContext,
-                                NeckoOriginAttributes& aAttrs,
+                                OriginAttributes& aAttrs,
                                 bool& aIsPrivate);
 
   virtual void ActorDestroy(ActorDestroyReason aWhy) override;

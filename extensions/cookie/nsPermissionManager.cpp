@@ -122,7 +122,7 @@ GetPrincipal(const nsACString& aHost, uint32_t aAppId, bool aIsInBrowserElement,
   }
 
   // TODO: Bug 1165267 - Use OriginAttributes for nsCookieService
-  mozilla::PrincipalOriginAttributes attrs(aAppId, aIsInBrowserElement);
+  mozilla::OriginAttributes attrs(aAppId, aIsInBrowserElement);
   nsCOMPtr<nsIPrincipal> principal = mozilla::BasePrincipal::CreateCodebasePrincipal(uri, attrs);
   NS_ENSURE_TRUE(principal, NS_ERROR_FAILURE);
 

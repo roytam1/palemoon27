@@ -11,7 +11,7 @@
 
 namespace mozilla {
 
-class PrincipalOriginAttributes;
+class OriginAttributes;
 
 namespace ipc {
 class BackgroundParentImpl;
@@ -42,7 +42,7 @@ private:
   virtual bool RecvUnregister(const PrincipalInfo& aPrincipalInfo,
                               const nsString& aScope) override;
 
-  virtual bool RecvPropagateSoftUpdate(const PrincipalOriginAttributes& aOriginAttributes,
+  virtual bool RecvPropagateSoftUpdate(const OriginAttributes& aOriginAttributes,
                                        const nsString& aScope) override;
 
   virtual bool RecvPropagateUnregister(const PrincipalInfo& aPrincipalInfo,

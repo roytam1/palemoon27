@@ -779,7 +779,7 @@ GetRequiredScopeStringPrefix(nsIURI* aScriptURI, nsACString& aPrefix,
 class PropagateSoftUpdateRunnable final : public nsRunnable
 {
 public:
-  PropagateSoftUpdateRunnable(const PrincipalOriginAttributes& aOriginAttributes,
+  PropagateSoftUpdateRunnable(const OriginAttributes& aOriginAttributes,
                               const nsAString& aScope)
     : mOriginAttributes(aOriginAttributes)
     , mScope(aScope)
@@ -800,7 +800,7 @@ private:
   ~PropagateSoftUpdateRunnable()
   {}
 
-  const PrincipalOriginAttributes mOriginAttributes;
+  const OriginAttributes mOriginAttributes;
   const nsString mScope;
 };
 
@@ -2056,7 +2056,7 @@ ServiceWorkerManager::SendPushEvent(const nsACString& aOriginAttributes,
 #ifdef MOZ_SIMPLEPUSH
   return NS_ERROR_NOT_AVAILABLE;
 #else
-  PrincipalOriginAttributes attrs;
+  OriginAttributes attrs;
   if (!attrs.PopulateFromSuffix(aOriginAttributes)) {
     return NS_ERROR_INVALID_ARG;
   }
@@ -2089,7 +2089,7 @@ ServiceWorkerManager::SendPushSubscriptionChangeEvent(const nsACString& aOriginA
 #ifdef MOZ_SIMPLEPUSH
   return NS_ERROR_NOT_AVAILABLE;
 #else
-  PrincipalOriginAttributes attrs;
+  OriginAttributes attrs;
   if (!attrs.PopulateFromSuffix(aOriginAttributes)) {
     return NS_ERROR_INVALID_ARG;
   }
@@ -2115,7 +2115,7 @@ ServiceWorkerManager::SendNotificationClickEvent(const nsACString& aOriginSuffix
                                                  const nsAString& aData,
                                                  const nsAString& aBehavior)
 {
-  PrincipalOriginAttributes attrs;
+  OriginAttributes attrs;
   if (!attrs.PopulateFromSuffix(aOriginSuffix)) {
     return NS_ERROR_INVALID_ARG;
   }
@@ -2239,8 +2239,8 @@ ServiceWorkerManager::CheckReadyPromise(nsPIDOMWindow* aWindow,
 }
 
 ServiceWorkerInfo*
-ServiceWorkerManager::GetActiveWorkerInfoForScope(const PrincipalOriginAttributes& aOriginAttributes,
-                                                  const nsACString& aScope)
+ServiceWorkerManager::GetActiveWorkerInfoForScope(const OriginAttributes& aOriginAttributes,
+                                              const nsACString& aScope)
 {
   AssertIsOnMainThread();
 
@@ -2846,7 +2846,7 @@ ServiceWorkerManager::GetServiceWorkerRegistrationInfo(nsIPrincipal* aPrincipal,
 }
 
 already_AddRefed<ServiceWorkerRegistrationInfo>
-ServiceWorkerManager::GetServiceWorkerRegistrationInfo(const PrincipalOriginAttributes& aOriginAttributes,
+ServiceWorkerManager::GetServiceWorkerRegistrationInfo(const OriginAttributes& aOriginAttributes,
                                                        nsIURI* aURI)
 {
   MOZ_ASSERT(aURI);
@@ -3335,7 +3335,7 @@ public:
 } // anonymous namespace
 
 already_AddRefed<nsIRunnable>
-ServiceWorkerManager::PrepareFetchEvent(const PrincipalOriginAttributes& aOriginAttributes,
+ServiceWorkerManager::PrepareFetchEvent(const OriginAttributes& aOriginAttributes,
                                         nsIDocument* aDoc,
                                         const nsAString& aDocumentIdForTopLevelNavigation,
                                         nsIInterceptedChannel* aChannel,
@@ -3430,7 +3430,7 @@ ServiceWorkerManager::DispatchPreparedFetchEvent(nsIInterceptedChannel* aChannel
 }
 
 bool
-ServiceWorkerManager::IsAvailable(const PrincipalOriginAttributes& aOriginAttributes,
+ServiceWorkerManager::IsAvailable(const OriginAttributes& aOriginAttributes,
                                   nsIURI* aURI)
 {
   MOZ_ASSERT(aURI);
@@ -4209,7 +4209,7 @@ ServiceWorkerManager::PropagateRemoveAll()
 }
 
 void
-ServiceWorkerManager::RemoveAllRegistrations(PrincipalOriginAttributes* aParams)
+ServiceWorkerManager::RemoveAllRegistrations(OriginAttributes* aParams)
 {
   AssertIsOnMainThread();
 
@@ -4442,7 +4442,7 @@ ServiceWorkerManager::Observe(nsISupports* aSubject,
 
   if (strcmp(aTopic, CLEAR_ORIGIN_DATA) == 0) {
     MOZ_ASSERT(XRE_IsParentProcess());
-    PrincipalOriginAttributes attrs;
+    OriginAttributes attrs;
     MOZ_ALWAYS_TRUE(attrs.Init(nsAutoString(aData)));
 
     RemoveAllRegistrations(&attrs);
@@ -4485,7 +4485,7 @@ ServiceWorkerManager::PropagateSoftUpdate(JS::Handle<JS::Value> aOriginAttribute
 {
   AssertIsOnMainThread();
 
-  PrincipalOriginAttributes attrs;
+  OriginAttributes attrs;
   if (!aOriginAttributes.isObject() || !attrs.Init(aCx, aOriginAttributes)) {
     return NS_ERROR_INVALID_ARG;
   }
@@ -4495,7 +4495,7 @@ ServiceWorkerManager::PropagateSoftUpdate(JS::Handle<JS::Value> aOriginAttribute
 }
 
 void
-ServiceWorkerManager::PropagateSoftUpdate(const PrincipalOriginAttributes& aOriginAttributes,
+ServiceWorkerManager::PropagateSoftUpdate(const OriginAttributes& aOriginAttributes,
                                           const nsAString& aScope)
 {
   AssertIsOnMainThread();

@@ -15,7 +15,7 @@ namespace net {
 
 NS_IMPL_ISUPPORTS(LoadContextInfo, nsILoadContextInfo)
 
-LoadContextInfo::LoadContextInfo(bool aIsPrivate, bool aIsAnonymous, NeckoOriginAttributes aOriginAttributes)
+LoadContextInfo::LoadContextInfo(bool aIsPrivate, bool aIsAnonymous, OriginAttributes aOriginAttributes)
   : mIsPrivate(aIsPrivate)
   , mIsAnonymous(aIsAnonymous)
   , mOriginAttributes(aOriginAttributes)
@@ -38,7 +38,7 @@ NS_IMETHODIMP LoadContextInfo::GetIsAnonymous(bool *aIsAnonymous)
   return NS_OK;
 }
 
-NeckoOriginAttributes const* LoadContextInfo::OriginAttributesPtr()
+OriginAttributes const* LoadContextInfo::OriginAttributesPtr()
 {
   return &mOriginAttributes;
 }
@@ -58,21 +58,21 @@ NS_IMPL_ISUPPORTS(LoadContextInfoFactory, nsILoadContextInfoFactory)
 
 NS_IMETHODIMP LoadContextInfoFactory::GetDefault(nsILoadContextInfo * *aDefault)
 {
-  nsCOMPtr<nsILoadContextInfo> info = GetLoadContextInfo(false, false, NeckoOriginAttributes());
+  nsCOMPtr<nsILoadContextInfo> info = GetLoadContextInfo(false, false, OriginAttributes());
   info.forget(aDefault);
   return NS_OK;
 }
 
 NS_IMETHODIMP LoadContextInfoFactory::GetPrivate(nsILoadContextInfo * *aPrivate)
 {
-  nsCOMPtr<nsILoadContextInfo> info = GetLoadContextInfo(true, false, NeckoOriginAttributes());
+  nsCOMPtr<nsILoadContextInfo> info = GetLoadContextInfo(true, false, OriginAttributes());
   info.forget(aPrivate);
   return NS_OK;
 }
 
 NS_IMETHODIMP LoadContextInfoFactory::GetAnonymous(nsILoadContextInfo * *aAnonymous)
 {
-  nsCOMPtr<nsILoadContextInfo> info = GetLoadContextInfo(false, true, NeckoOriginAttributes());
+  nsCOMPtr<nsILoadContextInfo> info = GetLoadContextInfo(false, true, OriginAttributes());
   info.forget(aAnonymous);
   return NS_OK;
 }
@@ -81,7 +81,7 @@ NS_IMETHODIMP LoadContextInfoFactory::Custom(bool aPrivate, bool aAnonymous,
                                              JS::HandleValue aOriginAttributes, JSContext *cx,
                                              nsILoadContextInfo * *_retval)
 {
-  NeckoOriginAttributes attrs;
+  OriginAttributes attrs;
   bool status = attrs.Init(cx, aOriginAttributes);
   NS_ENSURE_TRUE(status, NS_ERROR_FAILURE);
 
@@ -122,7 +122,7 @@ GetLoadContextInfo(nsIChannel * aChannel)
     anon = !!(loadFlags & nsIChannel::LOAD_ANONYMOUS);
   }
 
-  NeckoOriginAttributes oa;
+  OriginAttributes oa;
   NS_GetOriginAttributes(aChannel, oa);
 
   return new LoadContextInfo(pb, anon, oa);
@@ -133,17 +133,14 @@ GetLoadContextInfo(nsILoadContext *aLoadContext, bool aIsAnonymous)
 {
   if (!aLoadContext) {
     return new LoadContextInfo(false, aIsAnonymous,
-                               NeckoOriginAttributes(nsILoadContextInfo::NO_APP_ID, false));
+                               OriginAttributes(nsILoadContextInfo::NO_APP_ID, false));
   }
 
   bool pb = aLoadContext->UsePrivateBrowsing();
-  DocShellOriginAttributes doa;
-  aLoadContext->GetOriginAttributes(doa);
+  OriginAttributes oa;
+  aLoadContext->GetOriginAttributes(oa);
 
-  NeckoOriginAttributes noa;
-  noa.InheritFromDocShellToNecko(doa);
-
-  return new LoadContextInfo(pb, aIsAnonymous, noa);
+  return new LoadContextInfo(pb, aIsAnonymous, oa);
 }
 
 LoadContextInfo*
@@ -167,7 +164,7 @@ GetLoadContextInfo(nsILoadContextInfo *aInfo)
 LoadContextInfo *
 GetLoadContextInfo(bool const aIsPrivate,
                    bool const aIsAnonymous,
-                   NeckoOriginAttributes const &aOriginAttributes)
+                   OriginAttributes const &aOriginAttributes)
 {
   return new LoadContextInfo(aIsPrivate,
                              aIsAnonymous,

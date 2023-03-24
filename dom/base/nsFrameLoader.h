@@ -317,7 +317,7 @@ private:
   void InitializeBrowserAPI();
 
   nsresult GetNewTabContext(mozilla::dom::MutableTabContext* aTabContext,
-                            nsIURI* aURI = nullptr,
+                            const nsACString& aSignedPkgNoSuffix = EmptyCString(),
                             const nsACString& aPackageId = EmptyCString());
 
   enum TabParentChange {

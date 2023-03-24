@@ -16,11 +16,10 @@ class nsIPrincipal;
 
 namespace IPC {
 
-namespace detail {
-template<class ParamType>
-struct OriginAttributesParamTraits
+template<>
+struct ParamTraits<mozilla::OriginAttributes>
 {
-  typedef ParamType paramType;
+  typedef mozilla::OriginAttributes paramType;
 
   static void Write(Message* aMsg, const paramType& aParam)
   {
@@ -36,23 +35,6 @@ struct OriginAttributesParamTraits
            aResult->PopulateFromSuffix(suffix);
   }
 };
-} // namespace detail
-
-template<>
-struct ParamTraits<mozilla::PrincipalOriginAttributes>
-  : public detail::OriginAttributesParamTraits<mozilla::PrincipalOriginAttributes> {};
-
-template<>
-struct ParamTraits<mozilla::DocShellOriginAttributes>
-  : public detail::OriginAttributesParamTraits<mozilla::DocShellOriginAttributes> {};
-
-template<>
-struct ParamTraits<mozilla::NeckoOriginAttributes>
-  : public detail::OriginAttributesParamTraits<mozilla::NeckoOriginAttributes> {};
-
-template<>
-struct ParamTraits<mozilla::GenericOriginAttributes>
-  : public detail::OriginAttributesParamTraits<mozilla::GenericOriginAttributes> {};
 
 } // namespace IPC
 

@@ -56,7 +56,7 @@ ChromeUtils::OriginAttributesToSuffix(dom::GlobalObject& aGlobal,
                                       nsCString& aSuffix)
 
 {
-  GenericOriginAttributes attrs(aAttrs);
+  OriginAttributes attrs(aAttrs);
   attrs.CreateSuffix(aSuffix);
 }
 
@@ -65,7 +65,7 @@ ChromeUtils::OriginAttributesMatchPattern(dom::GlobalObject& aGlobal,
                                           const dom::OriginAttributesDictionary& aAttrs,
                                           const dom::OriginAttributesPatternDictionary& aPattern)
 {
-  GenericOriginAttributes attrs(aAttrs);
+  OriginAttributes attrs(aAttrs);
   OriginAttributesPattern pattern(aPattern);
   return pattern.Matches(attrs);
 }

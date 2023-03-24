@@ -36,7 +36,7 @@ class mozIApplicationClearPrivateDataParams;
 
 namespace mozilla {
 
-class PrincipalOriginAttributes;
+class OriginAttributes;
 
 namespace dom {
 
@@ -353,13 +353,13 @@ public:
   nsClassHashtable<nsCStringHashKey, InterceptionList> mNavigationInterceptions;
 
   bool
-  IsAvailable(const PrincipalOriginAttributes& aOriginAttributes, nsIURI* aURI);
+  IsAvailable(const OriginAttributes& aOriginAttributes, nsIURI* aURI);
 
   bool
   IsControlled(nsIDocument* aDocument, ErrorResult& aRv);
 
   already_AddRefed<nsIRunnable>
-  PrepareFetchEvent(const PrincipalOriginAttributes& aOriginAttributes,
+  PrepareFetchEvent(const OriginAttributes& aOriginAttributes,
                     nsIDocument* aDoc,
                     const nsAString& aDocumentIdForTopLevelNavigation,
                     nsIInterceptedChannel* aChannel,
@@ -382,7 +382,7 @@ public:
              const nsACString& aScope);
 
   void
-  PropagateSoftUpdate(const PrincipalOriginAttributes& aOriginAttributes,
+  PropagateSoftUpdate(const OriginAttributes& aOriginAttributes,
                       const nsAString& aScope);
 
   void
@@ -515,7 +515,7 @@ private:
                            nsISupports** aServiceWorker);
 
   ServiceWorkerInfo*
-  GetActiveWorkerInfoForScope(const PrincipalOriginAttributes& aOriginAttributes,
+  GetActiveWorkerInfoForScope(const OriginAttributes& aOriginAttributes,
                               const nsACString& aScope);
 
   ServiceWorkerInfo*
@@ -546,7 +546,7 @@ private:
   GetServiceWorkerRegistrationInfo(nsIPrincipal* aPrincipal, nsIURI* aURI);
 
   already_AddRefed<ServiceWorkerRegistrationInfo>
-  GetServiceWorkerRegistrationInfo(const PrincipalOriginAttributes& aOriginAttributes,
+  GetServiceWorkerRegistrationInfo(const OriginAttributes& aOriginAttributes,
                                    nsIURI* aURI);
 
   already_AddRefed<ServiceWorkerRegistrationInfo>
@@ -629,7 +629,7 @@ private:
   // Removes all service worker registrations that matches the given
   // mozIApplicationClearPrivateDataParams.
   void
-  RemoveAllRegistrations(PrincipalOriginAttributes* aParams);
+  RemoveAllRegistrations(OriginAttributes* aParams);
 
   RefPtr<ServiceWorkerManagerChild> mActor;
 

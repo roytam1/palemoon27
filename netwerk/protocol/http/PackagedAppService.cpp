@@ -897,7 +897,7 @@ static bool
 AddPackageIdToOrigin(nsACString& aOrigin, const nsACString& aPackageId)
 {
   nsAutoCString originNoSuffix;
-  mozilla::NeckoOriginAttributes attrs;
+  mozilla::OriginAttributes attrs;
   if (!attrs.PopulateFromOrigin(aOrigin, originNoSuffix)) {
     return false;
   }

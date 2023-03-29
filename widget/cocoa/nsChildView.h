@@ -351,10 +351,10 @@ public:
   nsChildView();
 
   // nsIWidget interface
-  NS_IMETHOD              Create(nsIWidget *aParent,
+  NS_IMETHOD              Create(nsIWidget* aParent,
                                  nsNativeWidget aNativeParent,
-                                 const nsIntRect &aRect,
-                                 nsWidgetInitData *aInitData = nullptr) override;
+                                 const LayoutDeviceIntRect& aRect,
+                                 nsWidgetInitData* aInitData = nullptr) override;
 
   NS_IMETHOD              Destroy() override;
 
@@ -395,7 +395,7 @@ public:
 
   virtual int32_t         RoundsWidgetCoordinatesTo() override;
 
-  NS_IMETHOD              Invalidate(const nsIntRect &aRect) override;
+  NS_IMETHOD              Invalidate(const LayoutDeviceIntRect &aRect) override;
 
   virtual void*           GetNativeData(uint32_t aDataType) override;
   virtual nsresult        ConfigureChildren(const nsTArray<Configuration>& aConfigurations) override;
@@ -489,7 +489,7 @@ public:
 
   virtual void UpdateThemeGeometries(const nsTArray<ThemeGeometry>& aThemeGeometries) override;
 
-  virtual void UpdateWindowDraggingRegion(const nsIntRegion& aRegion) override;
+  virtual void UpdateWindowDraggingRegion(const LayoutDeviceIntRegion& aRegion) override;
   const LayoutDeviceIntRegion& GetDraggableRegion() { return mDraggableRegion; }
 
   virtual void ReportSwipeStarted(uint64_t aInputBlockId, bool aStartSwipe) override;

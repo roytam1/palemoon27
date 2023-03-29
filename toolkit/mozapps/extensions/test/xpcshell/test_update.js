@@ -23,7 +23,6 @@ const PARAMS = "?%REQ_VERSION%/%ITEM_ID%/%ITEM_VERSION%/%ITEM_MAXAPPVERSION%/" +
 
 var gInstallDate;
 
-Components.utils.import("resource://testing-common/httpd.js");
 var testserver = createHttpServer();
 gPort = testserver.identity.primaryPort;
 mapFile("/data/test_update.rdf", testserver);
@@ -231,7 +230,7 @@ for (let test of testParams) {
 
       startupManager();
 
-      do_check_true(isExtensionInAddonsList(profileDir, olda1.id));
+      do_check_true(isExtensionInAddonsList(profileDir, "addon1@tests.mozilla.org"));
 
       AddonManager.getAddonByID("addon1@tests.mozilla.org", function(a1) {
         do_check_neq(a1, null);
@@ -1172,7 +1171,7 @@ for (let test of testParams) {
     });
   }
 
-  add_task(function cleanup() {
+  add_task(function* cleanup() {
     let addons = yield new Promise(resolve => {
       AddonManager.getAddonsByTypes(["extension"], resolve);
     });

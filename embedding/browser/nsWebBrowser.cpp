@@ -1171,7 +1171,8 @@ nsWebBrowser::Create()
     widgetInit.clipChildren = true;
 
     widgetInit.mWindowType = eWindowType_child;
-    nsIntRect bounds(mInitInfo->x, mInitInfo->y, mInitInfo->cx, mInitInfo->cy);
+    LayoutDeviceIntRect bounds(mInitInfo->x, mInitInfo->y,
+                               mInitInfo->cx, mInitInfo->cy);
 
     mInternalWidget->SetWidgetListener(this);
     mInternalWidget->Create(nullptr, mParentNativeWindow, bounds, &widgetInit);

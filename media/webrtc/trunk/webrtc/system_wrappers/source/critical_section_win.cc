@@ -7,24 +7,27 @@
  *  in the file PATENTS.  All contributing project authors may
  *  be found in the AUTHORS file in the root of the source tree.
  */
-#include "critical_section_win.h"
+
+#include "webrtc/system_wrappers/source/critical_section_win.h"
+
 namespace webrtc {
-CriticalSectionWindows::CriticalSectionWindows()
-{
-    InitializeCriticalSection(&crit);
+
+CriticalSectionWindows::CriticalSectionWindows() {
+  InitializeCriticalSection(&crit);
 }
-CriticalSectionWindows::~CriticalSectionWindows()
-{
-    DeleteCriticalSection(&crit);
+
+CriticalSectionWindows::~CriticalSectionWindows() {
+  DeleteCriticalSection(&crit);
 }
+
 void
-CriticalSectionWindows::Enter()
-{
-    EnterCriticalSection(&crit);
+CriticalSectionWindows::Enter() {
+  EnterCriticalSection(&crit);
 }
+
 void
-CriticalSectionWindows::Leave()
-{
-    LeaveCriticalSection(&crit);
+CriticalSectionWindows::Leave() {
+  LeaveCriticalSection(&crit);
 }
-} // namespace webrtc
+
+}  // namespace webrtc

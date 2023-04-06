@@ -11,7 +11,7 @@ function run_test() {
   run_next_test();
 }
 
-add_task(function isTopSiteGivenProvider() {
+add_task(function* isTopSiteGivenProvider() {
   let expectedLinks = makeLinks(0, 10, 2);
 
   // The lowest 2 frecencies have the same base domain.
@@ -50,7 +50,7 @@ add_task(function isTopSiteGivenProvider() {
   NewTabUtils.links.removeProvider(provider);
 });
 
-add_task(function multipleProviders() {
+add_task(function* multipleProviders() {
   // Make each provider generate NewTabUtils.links.maxNumLinks links to check
   // that no more than maxNumLinks are actually returned in the merged list.
   let evenLinks = makeLinks(0, 2 * NewTabUtils.links.maxNumLinks, 2);
@@ -76,7 +76,7 @@ add_task(function multipleProviders() {
   NewTabUtils.links.removeProvider(oddProvider);
 });
 
-add_task(function changeLinks() {
+add_task(function* changeLinks() {
   let expectedLinks = makeLinks(0, 20, 2);
   let provider = new TestProvider(done => done(expectedLinks));
 
@@ -131,7 +131,7 @@ add_task(function changeLinks() {
   NewTabUtils.links.removeProvider(provider);
 });
 
-add_task(function oneProviderAlreadyCached() {
+add_task(function* oneProviderAlreadyCached() {
   let links1 = makeLinks(0, 10, 1);
   let provider1 = new TestProvider(done => done(links1));
 
@@ -153,7 +153,7 @@ add_task(function oneProviderAlreadyCached() {
   NewTabUtils.links.removeProvider(provider2);
 });
 
-add_task(function newLowRankedLink() {
+add_task(function* newLowRankedLink() {
   // Init a provider with 10 links and make its maximum number also 10.
   let links = makeLinks(0, 10, 1);
   let provider = new TestProvider(done => done(links));
@@ -181,7 +181,7 @@ add_task(function newLowRankedLink() {
   NewTabUtils.links.removeProvider(provider);
 });
 
-add_task(function extractSite() {
+add_task(function* extractSite() {
   // All these should extract to the same site
   [ "mozilla.org",
     "m.mozilla.org",

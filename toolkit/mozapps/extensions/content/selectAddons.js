@@ -123,7 +123,7 @@ var gChecking = {
     if (this._completeCount < this._addonCount)
       return;
 
-    var addons = [gAddons[id] for (id in gAddons)];
+    let addons = Object.values(gAddons);
 
     addons.sort(function sortAddons(a, b) {
       let orderA = orderForScope(a.addon.scope);

@@ -61,7 +61,7 @@ const Cc = Components.classes;
 const Ci = Components.interfaces;
 const Cu = Components.utils;
 
-Cu.importGlobalProperties(['File']);
+Cu.importGlobalProperties(['File', 'FileReader']);
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 
 XPCOMUtils.defineLazyModuleGetter(this, "Dict",
@@ -102,8 +102,7 @@ this.PropertyListUtils = Object.freeze({
           file = new File(file);
         }
 
-        let fileReader = Cc["@mozilla.org/files/filereader;1"].
-                         createInstance(Ci.nsIDOMFileReader);
+        let fileReader = new FileReader();
         let onLoadEnd = function() {
           let root = null;
           try {
@@ -694,7 +693,7 @@ XMLPropertyListReader.prototype = {
         // Strip spaces and new lines.
         let base64str = aDOMElt.textContent.replace(/\s*/g, "");
         let decoded = atob(base64str);
-        return new Uint8Array([decoded.charCodeAt(i) for (i in decoded)]);
+        return new Uint8Array(Array.from(decoded, c => c.charCodeAt(0)));
       case "dict":
         return this._wrapDictionary(aDOMElt);
       case "array":

@@ -1323,7 +1323,7 @@ function escapeAddonURI(aAddon, aUri, aUpdateType, aAppVersion)
 }
 
 function removeAsync(aFile) {
-  return Task.spawn(function () {
+  return Task.spawn(function*() {
     let info = null;
     try {
       info = yield OS.File.stat(aFile.path);
@@ -1332,7 +1332,9 @@ function removeAsync(aFile) {
       else
         yield OS.File.remove(aFile.path);
     }
-    catch (e if e instanceof OS.File.Error && e.becauseNoSuchFile) {
+    catch (e) {
+      if (!(e instanceof OS.File.Error) || ! e.becauseNoSuchFile)
+        throw e;
       // The file has already gone away
       return;
     }
@@ -2559,7 +2561,9 @@ this.XPIProvider = {
         try {
           isDir = stageDirEntry.isDirectory();
         }
-        catch (e if e.result == Cr.NS_ERROR_FILE_TARGET_DOES_NOT_EXIST) {
+        catch (e) {
+          if (e.result != Cr.NS_ERROR_FILE_TARGET_DOES_NOT_EXIST)
+            throw e;
           // If the file has already gone away then don't worry about it, this
           // can happen on OSX where the resource fork is automatically moved
           // with the data fork for the file. See bug 733436.
@@ -3608,8 +3612,8 @@ this.XPIProvider = {
 
     // XXX This will go away when we fold bootstrappedAddons into XPIStates.
     if (updateReasons.length == 0) {
-      let bootstrapDescriptors = new Set([for (b of Object.keys(this.bootstrappedAddons))
-                                          this.bootstrappedAddons[b].descriptor]);
+      let bootstrapDescriptors = new Set(Object.keys(this.bootstrappedAddons)
+        .map(b => this.bootstrappedAddons[b].descriptor));
 
       for (let location of XPIStates.db.values()) {
         for (let state of location.values()) {
@@ -3619,7 +3623,7 @@ this.XPIProvider = {
 
       if (bootstrapDescriptors.size > 0) {
         logger.warn("Bootstrap state is invalid (missing add-ons: "
-            + [for (b of bootstrapDescriptors) b] + ")");
+            + Array.from(bootstrapDescriptors).join(", ") + ")");
         updateReasons.push("missingBootstrapAddon");
       }
     }
@@ -4818,7 +4822,8 @@ function getHashStringForCrypto(aCrypto) {
 
   // convert the binary hash data to a hex string.
   let binary = aCrypto.finish(false);
-  return [toHexString(binary.charCodeAt(i)) for (i in binary)].join("").toLowerCase()
+  let hash = Array.from(binary, c => toHexString(c.charCodeAt(0)))
+  return hash.join("").toLowerCase();
 }
 
 /**
@@ -5779,7 +5784,7 @@ AddonInstall.prototype = {
     let stagingDir = this.installLocation.getStagingDir();
     let stagedAddon = stagingDir.clone();
 
-    Task.spawn((function() {
+    Task.spawn((function*() {
       let installedUnpacked = 0;
       yield this.installLocation.requestStagingDir();
 

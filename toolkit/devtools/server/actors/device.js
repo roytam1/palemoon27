@@ -10,6 +10,7 @@ const {Promise: promise} = Cu.import("resource://gre/modules/Promise.jsm", {});
 const {LongStringActor} = require("devtools/server/actors/string");
 const {DebuggerServer} = require("devtools/server/main");
 
+Cu.importGlobalProperties(["FileReader"]);
 Cu.import("resource://gre/modules/PermissionsTable.jsm")
 
 const APP_MAP = {
@@ -145,7 +146,6 @@ let DeviceActor = exports.DeviceActor = protocol.ActorClass({
   getWallpaper: method(function() {
     let deferred = promise.defer();
     this._getSetting("wallpaper.image").then((blob) => {
-      let FileReader = CC("@mozilla.org/files/filereader;1");
       let reader = new FileReader();
       let conn = this.conn;
       reader.addEventListener("load", function() {

@@ -795,7 +795,7 @@ nsXMLHttpRequest::CreateResponseParsedJSON(JSContext* aCx)
 }
 
 void
-nsXMLHttpRequest::CreatePartialBlob()
+nsXMLHttpRequest::CreatePartialBlob(ErrorResult& aRv)
 {
   if (mDOMBlob) {
     // Use progress info to determine whether load is complete, but use
@@ -804,9 +804,8 @@ nsXMLHttpRequest::CreatePartialBlob()
     if (mLoadTotal == mLoadTransferred) {
       mResponseBlob = mDOMBlob;
     } else {
-      ErrorResult rv;
       mResponseBlob = mDOMBlob->CreateSlice(0, mDataAvailable,
-                                            EmptyString(), rv);
+                                            EmptyString(), aRv);
     }
     return;
   }
@@ -821,7 +820,7 @@ nsXMLHttpRequest::CreatePartialBlob()
     mChannel->GetContentType(contentType);
   }
 
-  mResponseBlob = mBlobSet->GetBlobInternal(GetOwner(), contentType);
+  mResponseBlob = mBlobSet->GetBlobInternal(GetOwner(), contentType, aRv);
 }
 
 NS_IMETHODIMP nsXMLHttpRequest::GetResponseType(nsAString& aResponseType)
@@ -1015,7 +1014,7 @@ nsXMLHttpRequest::GetResponse(JSContext* aCx,
       }
 
       if (!mResponseBlob) {
-        CreatePartialBlob();
+        CreatePartialBlob(aRv);
       }
     }
 
@@ -1687,8 +1686,10 @@ nsXMLHttpRequest::Open(const nsACString& inMethod, const nsACString& url,
                nsILoadInfo::SEC_FORCE_INHERIT_PRINCIPAL;
   }
 
-  // If we have the document, use it
-  if (doc) {
+  // If we have the document, use it. Unfortunately, for dedicated workers
+  // 'doc' ends up being the parent document, which is not the document
+  // that we want to use. So make sure to avoid using 'doc' in that situation.
+  if (doc && doc->NodePrincipal() == mPrincipal) {
     rv = NS_NewChannel(getter_AddRefs(mChannel),
                        uri,
                        doc,
@@ -2221,8 +2222,14 @@ nsXMLHttpRequest::OnStopRequest(nsIRequest *request, nsISupports *ctxt, nsresult
       // Also, no-store response cannot be written in persistent cache.
       nsAutoCString contentType;
       mChannel->GetContentType(contentType);
-      mResponseBlob = mBlobSet->GetBlobInternal(GetOwner(), contentType);
+
+      ErrorResult rv;
+      mResponseBlob = mBlobSet->GetBlobInternal(GetOwner(), contentType, rv);
       mBlobSet = nullptr;
+
+      if (NS_WARN_IF(rv.Failed())) {
+        return rv.StealNSResult();
+      }
     }
     NS_ASSERTION(mResponseBody.IsEmpty(), "mResponseBody should be empty");
     NS_ASSERTION(mResponseText.IsEmpty(), "mResponseText should be empty");

@@ -53,6 +53,7 @@ vpx_codec_vp9_dx
 vpx_img_free
 vpx_codec_enc_config_set
 vpx_codec_enc_init_ver
+vpx_codec_enc_init_multi_ver
 vpx_codec_vp8_cx
 vpx_codec_vp9_cx
 vpx_img_set_rect

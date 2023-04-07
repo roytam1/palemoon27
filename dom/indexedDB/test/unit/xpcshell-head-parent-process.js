@@ -52,7 +52,7 @@ if (!this.runTest) {
       enableExperimental();
     }
 
-    Cu.importGlobalProperties(["indexedDB", "Blob", "File"]);
+    Cu.importGlobalProperties(["indexedDB", "Blob", "File", "FileReader"]);
 
     do_test_pending();
     testGenerator.next();
@@ -342,12 +342,6 @@ function getFile(name, type, str)
   return new File([str], name, {type: type});
 }
 
-function getFileReader()
-{
-  return SpecialPowers.Cc["@mozilla.org/files/filereader;1"]
-                      .createInstance(SpecialPowers.Ci.nsIDOMFileReader);
-}
-
 function compareBuffers(buffer1, buffer2)
 {
   if (buffer1.byteLength != buffer2.byteLength) {
@@ -391,7 +385,7 @@ function verifyBlob(blob1, blob2)
   }
 
   if (!buffer2) {
-    let reader = getFileReader();
+    let reader = new FileReader();
     reader.readAsArrayBuffer(blob2);
     reader.onload = function(event) {
       buffer2 = event.target.result;
@@ -403,7 +397,7 @@ function verifyBlob(blob1, blob2)
     }
   }
 
-  let reader = getFileReader();
+  let reader = new FileReader();
   reader.readAsArrayBuffer(blob1);
   reader.onload = function(event) {
     buffer1 = event.target.result;

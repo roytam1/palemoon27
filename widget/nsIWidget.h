@@ -122,8 +122,8 @@ typedef void* nsNativeWidget;
 #endif
 
 #define NS_IWIDGET_IID \
-{ 0xd953b7a1, 0x6981, 0x4ed7, \
-  { 0xbc, 0xf0, 0xed, 0x96, 0x70, 0xee, 0x23, 0x28 } }
+{ 0x7b736a0c, 0x2262, 0x4f37, \
+  { 0xbd, 0xed, 0xe5, 0x60, 0x88, 0x1c, 0x36, 0xdd } }
 
 /*
  * Window shadow styles
@@ -336,6 +336,7 @@ class nsIWidget : public nsISupports {
     typedef mozilla::LayoutDeviceIntRect LayoutDeviceIntRect;
     typedef mozilla::LayoutDeviceIntRegion LayoutDeviceIntRegion;
     typedef mozilla::LayoutDeviceIntSize LayoutDeviceIntSize;
+    typedef mozilla::ScreenIntPoint ScreenIntPoint;
 
     // Used in UpdateThemeGeometries.
     struct ThemeGeometry {
@@ -1276,6 +1277,13 @@ class nsIWidget : public nsISupports {
     virtual void UpdateWindowDraggingRegion(const LayoutDeviceIntRegion& aRegion) {}
 
     /**
+     * Tells the widget whether the given input block results in a swipe.
+     * Should be called in response to a WidgetWheelEvent that has
+     * mFlags.mCanTriggerSwipe set on it.
+     */
+    virtual void ReportSwipeStarted(uint64_t aInputBlockId, bool aStartSwipe) {}
+
+    /**
      * Internal methods
      */
 
@@ -1608,7 +1616,7 @@ class nsIWidget : public nsISupports {
      */
     virtual nsresult SynthesizeNativeTouchPoint(uint32_t aPointerId,
                                                 TouchPointerState aPointerState,
-                                                nsIntPoint aPointerScreenPoint,
+                                                ScreenIntPoint aPointerScreenPoint,
                                                 double aPointerPressure,
                                                 uint32_t aPointerOrientation,
                                                 nsIObserver* aObserver) = 0;
@@ -1621,7 +1629,7 @@ class nsIWidget : public nsISupports {
      * @param aObserver The observer that will get notified once the events
      * have been dispatched.
      */
-    virtual nsresult SynthesizeNativeTouchTap(nsIntPoint aPointerScreenPoint,
+    virtual nsresult SynthesizeNativeTouchTap(ScreenIntPoint aPointerScreenPoint,
                                               bool aLongTap,
                                               nsIObserver* aObserver);
 
@@ -1657,7 +1665,7 @@ private:
   class LongTapInfo
   {
   public:
-    LongTapInfo(int32_t aPointerId, nsIntPoint& aPoint,
+    LongTapInfo(int32_t aPointerId, ScreenIntPoint& aPoint,
                 mozilla::TimeDuration aDuration,
                 nsIObserver* aObserver) :
       mPointerId(aPointerId),
@@ -1669,7 +1677,7 @@ private:
     }
 
     int32_t mPointerId;
-    nsIntPoint mPosition;
+    ScreenIntPoint mPosition;
     mozilla::TimeDuration mDuration;
     nsCOMPtr<nsIObserver> mObserver;
     mozilla::TimeStamp mStamp;

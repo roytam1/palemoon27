@@ -442,6 +442,22 @@ PluginInstanceChild::NPN_GetValue(NPNVariable aVar,
 #endif
     }
 
+    case NPNVsupportsAsyncBitmapSurfaceBool: {
+        bool value = false;
+        CallNPN_GetValue_SupportsAsyncBitmapSurface(&value);
+        *((NPBool*)aValue) = value;
+        return NPERR_NO_ERROR;
+    }
+
+#ifdef XP_WIN
+    case NPNVsupportsAsyncWindowsDXGISurfaceBool: {
+        bool value = false;
+        CallNPN_GetValue_SupportsAsyncDXGISurface(&value);
+        *((NPBool*)aValue) = value;
+        return NPERR_NO_ERROR;
+    }
+#endif
+
 #ifdef XP_MACOSX
    case NPNVsupportsCoreGraphicsBool: {
         *((NPBool*)aValue) = true;
@@ -2531,6 +2547,50 @@ PluginInstanceChild::NPN_URLRedirectResponse(void* notifyData, NPBool allow)
     NS_ASSERTION(false, "Couldn't find stream for redirect response!");
 }
 
+bool
+PluginInstanceChild::IsUsingDirectDrawing()
+{
+    return IsDrawingModelDirect(mDrawingModel);
+}
+
+NPError
+PluginInstanceChild::NPN_InitAsyncSurface(NPSize *size, NPImageFormat format,
+                                          void *initData, NPAsyncSurface *surface)
+{
+    AssertPluginThread();
+
+    surface->bitmap.data = NULL;
+
+    if (!IsUsingDirectDrawing()) {
+        return NPERR_GENERIC_ERROR;
+    }
+
+    MOZ_CRASH("NYI");
+    return NPERR_GENERIC_ERROR;
+}
+
+NPError
+PluginInstanceChild::NPN_FinalizeAsyncSurface(NPAsyncSurface *surface)
+{
+    AssertPluginThread();
+
+    if (!IsUsingDirectDrawing()) {
+        return NPERR_GENERIC_ERROR;
+    }
+
+    MOZ_CRASH("NYI");
+    return NPERR_GENERIC_ERROR;
+}
+
+void
+PluginInstanceChild::NPN_SetCurrentAsyncSurface(NPAsyncSurface *surface, NPRect *changed)
+{
+    if (!IsUsingDirectDrawing()) {
+        return;
+    }
+    MOZ_CRASH("NYI");
+}
+
 void
 PluginInstanceChild::DoAsyncRedraw()
 {
@@ -2954,6 +3014,9 @@ PluginInstanceChild::PaintRectToPlatformSurface(const nsIntRect& aRect,
 {
     UpdateWindowAttributes();
 
+    // We should not send an async surface if we're using direct rendering.
+    MOZ_ASSERT(!IsUsingDirectDrawing());
+
 #ifdef MOZ_X11
     {
         NS_ASSERTION(aSurface->GetType() == gfxSurfaceType::Xlib,
@@ -3188,6 +3251,10 @@ PluginInstanceChild::ShowPluginFrame()
     if (!mLayersRendering || mPendingPluginCall) {
         return false;
     }
+
+    // We should not attempt to asynchronously show the plugin if we're using
+    // direct rendering.
+    MOZ_ASSERT(!IsUsingDirectDrawing());
 
     AutoRestore<bool> pending(mPendingPluginCall);
     mPendingPluginCall = true;
@@ -3468,6 +3535,13 @@ PluginInstanceChild::AsyncShowPluginFrame(void)
         return;
     }
 
+    // When the plugin is using direct surfaces to draw, it is not driving
+    // paints via paint events - it will drive painting via its own events
+    // and/or DidComposite callbacks.
+    if (IsUsingDirectDrawing()) {
+        return;
+    }
+
     mCurrentInvalidateTask =
         NewRunnableMethod(this, &PluginInstanceChild::InvalidateRectDelayed);
     MessageLoop::current()->PostTask(FROM_HERE, mCurrentInvalidateTask);
@@ -3488,6 +3562,11 @@ PluginInstanceChild::InvalidateRect(NPRect* aInvalidRect)
       return;
     }
 #endif
+
+    if (IsUsingDirectDrawing()) {
+        NS_ASSERTION(false, "Should not call InvalidateRect() in direct surface mode!");
+        return;
+    }
 
     if (mLayersRendering) {
         nsIntRect r(aInvalidRect->left, aInvalidRect->top,

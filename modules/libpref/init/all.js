@@ -475,6 +475,12 @@ pref("media.getusermedia.noise_enabled", false);
 pref("media.getusermedia.aec_enabled", true);
 pref("media.getusermedia.noise_enabled", true);
 #endif
+pref("media.getusermedia.aec_extended_filter", true);
+#if defined(ANDROID)
+pref("media.getusermedia.aec_delay_agnostic", true);
+#else
+pref("media.getusermedia.aec_delay_agnostic", false);
+#endif
 pref("media.getusermedia.noise", 1);
 pref("media.getusermedia.agc_enabled", false);
 pref("media.getusermedia.agc", 1);
@@ -2900,6 +2906,9 @@ pref("dom.ipc.plugins.asyncInit.enabled", false);
 #else
 pref("dom.ipc.plugins.asyncInit.enabled", true);
 #endif
+
+// Allow the AsyncDrawing mode to be used for plugins.
+pref("dom.ipc.plugins.asyncdrawing.enabled", false);
 
 pref("dom.ipc.processCount", 1);
 

@@ -1019,6 +1019,9 @@ nsBaseWidget::ProcessUntransformedAPZEvent(WidgetInputEvent* aEvent,
     } else if (WidgetWheelEvent* wheelEvent = aEvent->AsWheelEvent()) {
       APZCCallbackHelper::SendSetTargetAPZCNotification(this, GetDocument(), *aEvent,
                 aGuid, aInputBlockId);
+        if (wheelEvent->mCanTriggerSwipe) {
+          ReportSwipeStarted(aInputBlockId, wheelEvent->TriggersSwipe());
+        }
       mAPZEventState->ProcessWheelEvent(*wheelEvent, aGuid, aInputBlockId);
     } else if (WidgetMouseEvent* mouseEvent = aEvent->AsMouseEvent()) {
       mAPZEventState->ProcessMouseEvent(*mouseEvent, aGuid, aInputBlockId);
@@ -1814,7 +1817,7 @@ nsBaseWidget::GetScaledScreenBounds()
 }
 
 nsresult
-nsIWidget::SynthesizeNativeTouchTap(nsIntPoint aPointerScreenPoint, bool aLongTap,
+nsIWidget::SynthesizeNativeTouchTap(ScreenIntPoint aPointerScreenPoint, bool aLongTap,
                                     nsIObserver* aObserver)
 {
   AutoObserverNotifier notifier(aObserver, "touchtap");
@@ -1890,7 +1893,7 @@ nsIWidget::OnLongTapTimerCallback(nsITimer* aTimer, void* aClosure)
     return;
   }
 
-  AutoObserverNotifier notiifer(self->mLongTapTouchPoint->mObserver, "touchtap");
+  AutoObserverNotifier notifier(self->mLongTapTouchPoint->mObserver, "touchtap");
 
   // finished, remove the touch point
   self->mLongTapTimer->Cancel();

@@ -232,6 +232,8 @@ public:
     virtual bool RecvUpdateZoomConstraints(const uint32_t& aPresShellId,
                                            const ViewID& aViewId,
                                            const MaybeZoomConstraints& aConstraints) override;
+    virtual bool RecvRespondStartSwipeEvent(const uint64_t& aInputBlockId,
+                                            const bool& aStartSwipe) override;
     virtual bool RecvContentReceivedInputBlock(const ScrollableLayerGuid& aGuid,
                                                const uint64_t& aInputBlockId,
                                                const bool& aPreventDefault) override;
@@ -324,11 +326,11 @@ public:
                                                       const uint64_t& aObserverId) override;
     virtual bool RecvSynthesizeNativeTouchPoint(const uint32_t& aPointerId,
                                                 const TouchPointerState& aPointerState,
-                                                const nsIntPoint& aPointerScreenPoint,
+                                                const ScreenIntPoint& aPointerScreenPoint,
                                                 const double& aPointerPressure,
                                                 const uint32_t& aPointerOrientation,
                                                 const uint64_t& aObserverId) override;
-    virtual bool RecvSynthesizeNativeTouchTap(const nsIntPoint& aPointerScreenPoint,
+    virtual bool RecvSynthesizeNativeTouchTap(const ScreenIntPoint& aPointerScreenPoint,
                                               const bool& aLongTap,
                                               const uint64_t& aObserverId) override;
     virtual bool RecvClearNativeTouchSequence(const uint64_t& aObserverId) override;

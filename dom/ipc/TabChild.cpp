@@ -1793,7 +1793,11 @@ TabChild::RecvMouseWheelEvent(const WidgetWheelEvent& aEvent,
   event.widget = mPuppetWidget;
   APZCCallbackHelper::DispatchWidgetEvent(event);
 
-  if (AsyncPanZoomEnabled()) {
+  if (event.mCanTriggerSwipe) {
+    SendRespondStartSwipeEvent(aInputBlockId, event.TriggersSwipe());
+  }
+
+  if (event.mFlags.mHandledByAPZ) {
     mAPZEventState->ProcessWheelEvent(event, aGuid, aInputBlockId);
   }
   return true;

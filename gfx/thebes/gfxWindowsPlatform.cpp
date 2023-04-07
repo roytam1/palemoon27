@@ -3062,3 +3062,9 @@ gfxWindowsPlatform::GetDeviceInitData(DeviceInitData* aOut)
     aOut->adapter() = DxgiAdapterDesc::From(desc);
   }
 }
+
+bool
+gfxWindowsPlatform::SupportsPluginDirectDXGIDrawing()
+{
+  return false;
+}

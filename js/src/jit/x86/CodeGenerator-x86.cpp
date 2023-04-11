@@ -398,7 +398,7 @@ CodeGeneratorX86::emitSimdLoad(LAsmJSLoadHeap* ins)
     uint32_t maybeCmpOffset = AsmJSHeapAccess::NoLengthCheck;
     if (gen->needsAsmJSBoundsCheckBranch(mir))
         maybeCmpOffset = emitAsmJSBoundsCheckBranch(mir, mir, ToRegister(ptr),
-                                                    gen->outOfBoundsLabel());
+                                                    masm.asmOnOutOfBoundsLabel());
 
     unsigned numElems = mir->numSimdElems();
     if (numElems == 3) {
@@ -457,7 +457,7 @@ CodeGeneratorX86::visitAsmJSLoadHeap(LAsmJSLoadHeap* ins)
     if (gen->needsAsmJSBoundsCheckBranch(mir)) {
         Label* jumpTo = nullptr;
         if (mir->isAtomicAccess()) {
-            jumpTo = gen->outOfBoundsLabel();
+            jumpTo = masm.asmOnOutOfBoundsLabel();
         } else {
             ool = new(alloc()) OutOfLineLoadTypedArrayOutOfBounds(ToAnyRegister(out), accessType);
             addOutOfLineCode(ool, mir);
@@ -576,7 +576,7 @@ CodeGeneratorX86::emitSimdStore(LAsmJSStoreHeap* ins)
     uint32_t maybeCmpOffset = AsmJSHeapAccess::NoLengthCheck;
     if (gen->needsAsmJSBoundsCheckBranch(mir))
         maybeCmpOffset = emitAsmJSBoundsCheckBranch(mir, mir, ToRegister(ptr),
-                                                    gen->outOfBoundsLabel());
+                                                    masm.asmOnOutOfBoundsLabel());
 
     unsigned numElems = mir->numSimdElems();
     if (numElems == 3) {
@@ -634,7 +634,7 @@ CodeGeneratorX86::visitAsmJSStoreHeap(LAsmJSStoreHeap* ins)
     if (gen->needsAsmJSBoundsCheckBranch(mir)) {
         Label* jumpTo = nullptr;
         if (mir->isAtomicAccess())
-            jumpTo = gen->outOfBoundsLabel();
+            jumpTo = masm.asmOnOutOfBoundsLabel();
         else
             rejoin = jumpTo = alloc().lifoAlloc()->newInfallible<Label>();
         maybeCmpOffset = emitAsmJSBoundsCheckBranch(mir, mir, ToRegister(ptr), jumpTo);
@@ -685,7 +685,7 @@ CodeGeneratorX86::asmJSAtomicComputeAddress(Register addrTemp, Register ptrReg, 
 
     if (boundsCheck) {
         maybeCmpOffset = masm.cmp32WithPatch(ptrReg, Imm32(-endOffset)).offset();
-        masm.j(Assembler::Above, gen->outOfBoundsLabel());
+        masm.j(Assembler::Above, masm.asmOnOutOfBoundsLabel());
     }
 
     // Add in the actual heap pointer explicitly, to avoid opening up
@@ -778,7 +778,7 @@ CodeGeneratorX86::visitAsmJSLoadGlobalVar(LAsmJSLoadGlobalVar* ins)
     MIRType type = mir->type();
     MOZ_ASSERT(IsNumberType(type) || IsSimdType(type));
 
-    CodeOffsetLabel label;
+    CodeOffset label;
     switch (type) {
       case MIRType_Int32:
         label = masm.movlWithPatch(PatchedAbsoluteAddress(), ToRegister(ins->output()));
@@ -811,7 +811,7 @@ CodeGeneratorX86::visitAsmJSStoreGlobalVar(LAsmJSStoreGlobalVar* ins)
     MIRType type = mir->value()->type();
     MOZ_ASSERT(IsNumberType(type) || IsSimdType(type));
 
-    CodeOffsetLabel label;
+    CodeOffset label;
     switch (type) {
       case MIRType_Int32:
         label = masm.movlWithPatch(ToRegister(ins->value()), PatchedAbsoluteAddress());
@@ -843,7 +843,7 @@ CodeGeneratorX86::visitAsmJSLoadFuncPtr(LAsmJSLoadFuncPtr* ins)
 
     Register index = ToRegister(ins->index());
     Register out = ToRegister(ins->output());
-    CodeOffsetLabel label = masm.movlWithPatch(PatchedAbsoluteAddress(), index, TimesFour, out);
+    CodeOffset label = masm.movlWithPatch(PatchedAbsoluteAddress(), index, TimesFour, out);
     masm.append(AsmJSGlobalAccess(label, mir->globalDataOffset()));
 }
 
@@ -853,7 +853,7 @@ CodeGeneratorX86::visitAsmJSLoadFFIFunc(LAsmJSLoadFFIFunc* ins)
     MAsmJSLoadFFIFunc* mir = ins->mir();
 
     Register out = ToRegister(ins->output());
-    CodeOffsetLabel label = masm.movlWithPatch(PatchedAbsoluteAddress(), out);
+    CodeOffset label = masm.movlWithPatch(PatchedAbsoluteAddress(), out);
     masm.append(AsmJSGlobalAccess(label, mir->globalDataOffset()));
 }
 

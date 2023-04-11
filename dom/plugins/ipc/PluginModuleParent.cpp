@@ -40,6 +40,7 @@
 #include "GeckoProfiler.h"
 #include "nsPluginTags.h"
 #include "nsUnicharUtils.h"
+#include "mozilla/layers/TextureClientRecycleAllocator.h"
 
 #ifdef XP_WIN
 #include "mozilla/plugins/PluginSurfaceParent.h"
@@ -2990,6 +2991,15 @@ PluginModuleChromeParent::RecvNotifyContentModuleDestroyed()
         host->NotifyContentModuleDestroyed(mPluginId);
     }
     return true;
+}
+
+layers::TextureClientRecycleAllocator*
+PluginModuleParent::EnsureTextureAllocator()
+{
+    if (!mTextureAllocator) {
+        mTextureAllocator = new TextureClientRecycleAllocator(ImageBridgeChild::GetSingleton());
+    }
+    return mTextureAllocator;
 }
 
 #ifdef MOZ_CRASHREPORTER_INJECTOR

@@ -17,7 +17,6 @@
 #include "jsnum.h"
 #include "jsprf.h"
 
-#include "asmjs/AsmJSModule.h"
 #include "builtin/Eval.h"
 #include "builtin/TypedObject.h"
 #include "gc/Nursery.h"
@@ -1701,10 +1700,10 @@ CodeGenerator::emitSharedStub(ICStub::Kind kind, LInstruction* lir)
     masm.Push(Imm32(descriptor));
 
     // Call into the stubcode.
-    CodeOffsetLabel patchOffset;
+    CodeOffset patchOffset;
     IonICEntry entry(script->pcToOffset(pc), ICEntry::Kind_Op, script);
     EmitCallIC(&patchOffset, masm);
-    entry.setReturnOffset(CodeOffsetLabel(masm.currentOffset()));
+    entry.setReturnOffset(CodeOffset(masm.currentOffset()));
 
     SharedStub sharedStub(kind, entry, patchOffset);
     masm.propagateOOM(sharedStubs_.append(sharedStub));
@@ -3989,7 +3988,7 @@ struct ScriptCountBlockState
 void
 CodeGenerator::branchIfInvalidated(Register temp, Label* invalidated)
 {
-    CodeOffsetLabel label = masm.movWithPatch(ImmWord(uintptr_t(-1)), temp);
+    CodeOffset label = masm.movWithPatch(ImmWord(uintptr_t(-1)), temp);
     masm.propagateOOM(ionScriptLabels_.append(label));
 
     // If IonScript::invalidationCount_ != 0, the script has been invalidated.
@@ -5243,7 +5242,7 @@ CodeGenerator::visitTypedArrayLength(LTypedArrayLength* lir)
 {
     Register obj = ToRegister(lir->object());
     Register out = ToRegister(lir->output());
-    masm.unboxInt32(Address(obj, TypedArrayLayout::lengthOffset()), out);
+    masm.unboxInt32(Address(obj, TypedArrayObject::lengthOffset()), out);
 }
 
 void
@@ -5251,7 +5250,7 @@ CodeGenerator::visitTypedArrayElements(LTypedArrayElements* lir)
 {
     Register obj = ToRegister(lir->object());
     Register out = ToRegister(lir->output());
-    masm.loadPtr(Address(obj, TypedArrayLayout::dataOffset()), out);
+    masm.loadPtr(Address(obj, TypedArrayObject::dataOffset()), out);
 }
 
 void
@@ -7511,6 +7510,21 @@ CodeGenerator::visitCallIteratorStart(LCallIteratorStart* lir)
 }
 
 void
+CodeGenerator::branchIfNotEmptyObjectElements(Register obj, Label* target)
+{
+    Label emptyObj;
+    masm.branchPtr(Assembler::Equal,
+                   Address(obj, NativeObject::offsetOfElements()),
+                   ImmPtr(js::emptyObjectElements),
+                   &emptyObj);
+    masm.branchPtr(Assembler::NotEqual,
+                   Address(obj, NativeObject::offsetOfElements()),
+                   ImmPtr(js::emptyObjectElementsShared),
+                   target);
+    masm.bind(&emptyObj);
+}
+
+void
 CodeGenerator::visitIteratorStart(LIteratorStart* lir)
 {
     const Register obj = ToRegister(lir->object());
@@ -7553,10 +7567,7 @@ CodeGenerator::visitIteratorStart(LIteratorStart* lir)
 
         // Ensure the object does not have any elements. The presence of dense
         // elements is not captured by the shape tests above.
-        masm.branchPtr(Assembler::NotEqual,
-                       Address(obj, NativeObject::offsetOfElements()),
-                       ImmPtr(js::emptyObjectElements),
-                       ool->entry());
+        branchIfNotEmptyObjectElements(obj, ool->entry());
         masm.jump(&guardDone);
 
         masm.bind(&shapeMismatch);
@@ -7564,10 +7575,7 @@ CodeGenerator::visitIteratorStart(LIteratorStart* lir)
         masm.branchPtr(Assembler::NotEqual, groupAddr, temp1, ool->entry());
         masm.loadPtr(Address(obj, UnboxedPlainObject::offsetOfExpando()), temp1);
         masm.branchTestPtr(Assembler::Zero, temp1, temp1, &noExpando);
-        masm.branchPtr(Assembler::NotEqual,
-                       Address(temp1, NativeObject::offsetOfElements()),
-                       ImmPtr(js::emptyObjectElements),
-                       ool->entry());
+        branchIfNotEmptyObjectElements(temp1, ool->entry());
         masm.loadObjShape(temp1, temp1);
         masm.bind(&noExpando);
         masm.branchPtr(Assembler::NotEqual, shapeAddr, temp1, ool->entry());
@@ -7579,10 +7587,7 @@ CodeGenerator::visitIteratorStart(LIteratorStart* lir)
     // have the delegate flag set). Also check for the absence of dense elements.
     Address prototypeShapeAddr(temp2, sizeof(ReceiverGuard) + offsetof(ReceiverGuard, shape));
     masm.loadObjProto(obj, temp1);
-    masm.branchPtr(Assembler::NotEqual,
-                   Address(temp1, NativeObject::offsetOfElements()),
-                   ImmPtr(js::emptyObjectElements),
-                   ool->entry());
+    branchIfNotEmptyObjectElements(temp1, ool->entry());
     masm.loadObjShape(temp1, temp1);
     masm.branchPtr(Assembler::NotEqual, prototypeShapeAddr, temp1, ool->entry());
 
@@ -7873,20 +7878,41 @@ CodeGenerator::visitRest(LRest* lir)
 }
 
 bool
-CodeGenerator::generateAsmJS(AsmJSFunctionLabels* labels)
+CodeGenerator::generateAsmJS(AsmJSFunctionOffsets* offsets)
 {
     JitSpew(JitSpew_Codegen, "# Emitting asm.js code");
 
-    if (!omitOverRecursedCheck())
-        labels->overflowThunk.emplace();
+    GenerateAsmJSFunctionPrologue(masm, frameSize(), offsets);
 
-    GenerateAsmJSFunctionPrologue(masm, frameSize(), labels);
+    // Overflow checks are omitted by CodeGenerator in some cases (leaf
+    // functions with small framePushed). Perform overflow-checking after
+    // pushing framePushed to catch cases with really large frames.
+    Label onOverflow;
+    if (!omitOverRecursedCheck()) {
+        // See comment below.
+        Label* target = frameSize() > 0 ? &onOverflow : masm.asmStackOverflowLabel();
+        masm.branchPtr(Assembler::AboveOrEqual,
+                       AsmJSAbsoluteAddress(AsmJSImm_StackLimit),
+                       masm.getStackPointer(),
+                       target);
+    }
+
 
     if (!generateBody())
         return false;
 
     masm.bind(&returnLabel_);
-    GenerateAsmJSFunctionEpilogue(masm, frameSize(), labels);
+    GenerateAsmJSFunctionEpilogue(masm, frameSize(), offsets);
+
+    if (onOverflow.used()) {
+        // The stack overflow stub assumes that only sizeof(AsmJSFrame) bytes have
+        // been pushed. The overflow check occurs after incrementing by
+        // framePushed, so pop that before jumping to the overflow exit.
+        masm.bind(&onOverflow);
+        masm.addToStackPtr(Imm32(frameSize()));
+        masm.jump(masm.asmStackOverflowLabel());
+    }
+
 
 #if defined(JS_ION_PERF)
     // Note the end of the inline code and start of the OOL code.
@@ -7896,7 +7922,7 @@ CodeGenerator::generateAsmJS(AsmJSFunctionLabels* labels)
     if (!generateOutOfLineCode())
         return false;
 
-    masm.bind(&labels->endAfterOOL);
+    offsets->end = masm.currentOffset();
 
     // The only remaining work needed to compile this function is to patch the
     // switch-statement jump tables (the entries of the table need the absolute
@@ -8274,7 +8300,7 @@ CodeGenerator::link(JSContext* cx, CompilerConstraintList* constraints)
 #endif
         // Patch shared stub IC loads using IC entries
         for (size_t i = 0; i < sharedStubs_.length(); i++) {
-            CodeOffsetLabel label = sharedStubs_[i].label;
+            CodeOffset label = sharedStubs_[i].label;
 
             IonICEntry& entry = ionScript->sharedStubList()[i];
             entry = sharedStubs_[i].entry;
@@ -9295,7 +9321,7 @@ CodeGenerator::visitLoadTypedArrayElementHole(LLoadTypedArrayElementHole* lir)
     // Load the length.
     Register scratch = out.scratchReg();
     Int32Key key = ToInt32Key(lir->index());
-    masm.unboxInt32(Address(object, TypedArrayLayout::lengthOffset()), scratch);
+    masm.unboxInt32(Address(object, TypedArrayObject::lengthOffset()), scratch);
 
     // Load undefined unless length > key.
     Label inbounds, done;
@@ -9305,7 +9331,7 @@ CodeGenerator::visitLoadTypedArrayElementHole(LLoadTypedArrayElementHole* lir)
 
     // Load the elements vector.
     masm.bind(&inbounds);
-    masm.loadPtr(Address(object, TypedArrayLayout::dataOffset()), scratch);
+    masm.loadPtr(Address(object, TypedArrayObject::dataOffset()), scratch);
 
     Scalar::Type arrayType = lir->mir()->arrayType();
     int width = Scalar::byteSize(arrayType);
@@ -9427,6 +9453,20 @@ CodeGenerator::visitAtomicIsLockFree(LAtomicIsLockFree* lir)
         masm.bind(&Lfailed);
     masm.move32(Imm32(0), output);
     masm.bind(&Ldone);
+}
+
+void
+CodeGenerator::visitGuardSharedTypedArray(LGuardSharedTypedArray* guard)
+{
+    Register obj = ToRegister(guard->input());
+    Register tmp = ToRegister(guard->tempInt());
+
+    // The shared-memory flag is a bit in the ObjectElements header
+    // that is set if the TypedArray is mapping a SharedArrayBuffer.
+    // The flag is set at construction and does not change subsequently.
+    masm.loadPtr(Address(obj, TypedArrayObject::offsetOfElements()), tmp);
+    masm.load32(Address(tmp, ObjectElements::offsetOfFlags()), tmp);
+    bailoutTest32(Assembler::Zero, tmp, Imm32(ObjectElements::SHARED_MEMORY), guard->snapshot());
 }
 
 void
@@ -10221,7 +10261,7 @@ CodeGenerator::visitRecompileCheck(LRecompileCheck* ins)
     }
 
     // Check if not yet recompiling.
-    CodeOffsetLabel label = masm.movWithPatch(ImmWord(uintptr_t(-1)), tmp);
+    CodeOffset label = masm.movWithPatch(ImmWord(uintptr_t(-1)), tmp);
     masm.propagateOOM(ionScriptLabels_.append(label));
     masm.branch32(Assembler::Equal,
                   Address(tmp, IonScript::offsetOfRecompiling()),

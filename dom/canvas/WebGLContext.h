@@ -47,7 +47,6 @@
 #include "mozilla/dom/HTMLCanvasElement.h"
 #include "nsWrapperCache.h"
 #include "nsLayoutUtils.h"
-#include "mozilla/dom/UnionTypes.h"
 
 class nsIDocShell;
 
@@ -110,7 +109,6 @@ class Element;
 class ImageData;
 class OwningHTMLCanvasElementOrOffscreenCanvas;
 struct WebGLContextAttributes;
-class ArrayBufferViewOrSharedArrayBufferView;
 template<typename> struct Nullable;
 } // namespace dom
 
@@ -544,7 +542,7 @@ protected:
 public:
     void ReadPixels(GLint x, GLint y, GLsizei width, GLsizei height,
                     GLenum format, GLenum type,
-                    const dom::Nullable<dom::ArrayBufferViewOrSharedArrayBufferView>& pixels,
+                    const dom::Nullable<dom::ArrayBufferView>& pixels,
                     ErrorResult& rv);
     void RenderbufferStorage(GLenum target, GLenum internalFormat,
                              GLsizei width, GLsizei height);
@@ -776,8 +774,6 @@ public:
                     GLenum usage);
     void BufferData(GLenum target, const dom::SharedArrayBuffer& data,
                     GLenum usage);
-    void BufferData(GLenum target, const dom::SharedArrayBufferView& data,
-                    GLenum usage);
 
 private:
     template<typename BufferT>
@@ -791,8 +787,6 @@ public:
                        const dom::Nullable<dom::ArrayBuffer>& maybeData);
     void BufferSubData(GLenum target, WebGLsizeiptr byteOffset,
                        const dom::SharedArrayBuffer& data);
-    void BufferSubData(GLenum target, WebGLsizeiptr byteOffset,
-                       const dom::SharedArrayBufferView& data);
     already_AddRefed<WebGLBuffer> CreateBuffer();
     void DeleteBuffer(WebGLBuffer* buf);
     bool IsBuffer(WebGLBuffer* buf);
@@ -888,10 +882,10 @@ protected:
 public:
     void CompressedTexImage2D(GLenum texImageTarget, GLint level, GLenum internalFormat,
                               GLsizei width, GLsizei height, GLint border,
-                              const dom::ArrayBufferViewOrSharedArrayBufferView& view);
+                              const dom::ArrayBufferView& view);
     void CompressedTexSubImage2D(GLenum texImageTarget, GLint level, GLint xOffset,
                                  GLint yOffset, GLsizei width, GLsizei height,
-                                 GLenum unpackFormat, const dom::ArrayBufferViewOrSharedArrayBufferView& view);
+                                 GLenum unpackFormat, const dom::ArrayBufferView& view);
 
     void CopyTexImage2D(GLenum texImageTarget, GLint level, GLenum internalFormat,
                         GLint x, GLint y, GLsizei width, GLsizei height, GLint border);
@@ -902,7 +896,7 @@ public:
     void TexImage2D(GLenum texImageTarget, GLint level, GLenum internalFormat,
                     GLsizei width, GLsizei height, GLint border, GLenum unpackFormat,
                     GLenum unpackType,
-                    const dom::Nullable<dom::ArrayBufferViewOrSharedArrayBufferView>& maybeView,
+                    const dom::Nullable<dom::ArrayBufferView>& maybeView,
                     ErrorResult&);
     void TexImage2D(GLenum texImageTarget, GLint level, GLenum internalFormat,
                     GLenum unpackFormat, GLenum unpackType, dom::ImageData* imageData,
@@ -914,7 +908,7 @@ public:
     void TexSubImage2D(GLenum texImageTarget, GLint level, GLint xOffset, GLint yOffset,
                        GLsizei width, GLsizei height, GLenum unpackFormat,
                        GLenum unpackType,
-                       const dom::Nullable<dom::ArrayBufferViewOrSharedArrayBufferView>& maybeView,
+                       const dom::Nullable<dom::ArrayBufferView>& maybeView,
                        ErrorResult&);
     void TexSubImage2D(GLenum texImageTarget, GLint level, GLint xOffset, GLint yOffset,
                        GLenum unpackFormat, GLenum unpackType, dom::ImageData* imageData,

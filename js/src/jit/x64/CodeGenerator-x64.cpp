@@ -313,7 +313,7 @@ CodeGeneratorX64::emitSimdLoad(LAsmJSLoadHeap* ins)
     uint32_t maybeCmpOffset = AsmJSHeapAccess::NoLengthCheck;
     if (gen->needsAsmJSBoundsCheckBranch(mir))
         maybeCmpOffset = emitAsmJSBoundsCheckBranch(mir, mir, ToRegister(ptr),
-                                                    gen->outOfBoundsLabel());
+                                                    masm.asmOnOutOfBoundsLabel());
 
     unsigned numElems = mir->numSimdElems();
     if (numElems == 3) {
@@ -377,7 +377,7 @@ CodeGeneratorX64::visitAsmJSLoadHeap(LAsmJSLoadHeap* ins)
     if (gen->needsAsmJSBoundsCheckBranch(mir)) {
         Label* jumpTo = nullptr;
         if (mir->isAtomicAccess()) {
-            jumpTo = gen->outOfBoundsLabel();
+            jumpTo = masm.asmOnOutOfBoundsLabel();
         } else {
             ool = new(alloc()) OutOfLineLoadTypedArrayOutOfBounds(ToAnyRegister(out), accessType);
             addOutOfLineCode(ool, mir);
@@ -467,7 +467,7 @@ CodeGeneratorX64::emitSimdStore(LAsmJSStoreHeap* ins)
     uint32_t maybeCmpOffset = AsmJSHeapAccess::NoLengthCheck;
     if (gen->needsAsmJSBoundsCheckBranch(mir))
         maybeCmpOffset = emitAsmJSBoundsCheckBranch(mir, mir, ToRegister(ptr),
-                                                    gen->outOfBoundsLabel());
+                                                    masm.asmOnOutOfBoundsLabel());
 
     unsigned numElems = mir->numSimdElems();
     if (numElems == 3) {
@@ -529,7 +529,7 @@ CodeGeneratorX64::visitAsmJSStoreHeap(LAsmJSStoreHeap* ins)
     if (gen->needsAsmJSBoundsCheckBranch(mir)) {
         Label* jumpTo = nullptr;
         if (mir->isAtomicAccess())
-            jumpTo = gen->outOfBoundsLabel();
+            jumpTo = masm.asmOnOutOfBoundsLabel();
         else
             rejoin = jumpTo = alloc().lifoAlloc()->newInfallible<Label>();
         maybeCmpOffset = emitAsmJSBoundsCheckBranch(mir, mir, ToRegister(ptr), jumpTo);
@@ -599,7 +599,7 @@ CodeGeneratorX64::visitAsmJSCompareExchangeHeap(LAsmJSCompareExchangeHeap* ins)
     uint32_t maybeCmpOffset = AsmJSHeapAccess::NoLengthCheck;
     if (mir->needsBoundsCheck()) {
         maybeCmpOffset = masm.cmp32WithPatch(ToRegister(ptr), Imm32(-mir->endOffset())).offset();
-        masm.j(Assembler::Above, gen->outOfBoundsLabel());
+        masm.j(Assembler::Above, masm.asmOnOutOfBoundsLabel());
     }
     uint32_t before = masm.size();
     masm.compareExchangeToTypedIntArray(accessType == Scalar::Uint32 ? Scalar::Int32 : accessType,
@@ -634,7 +634,7 @@ CodeGeneratorX64::visitAsmJSAtomicExchangeHeap(LAsmJSAtomicExchangeHeap* ins)
     uint32_t maybeCmpOffset = AsmJSHeapAccess::NoLengthCheck;
     if (mir->needsBoundsCheck()) {
         maybeCmpOffset = masm.cmp32WithPatch(ToRegister(ptr), Imm32(-mir->endOffset())).offset();
-        masm.j(Assembler::Above, gen->outOfBoundsLabel());
+        masm.j(Assembler::Above, masm.asmOnOutOfBoundsLabel());
     }
     uint32_t before = masm.size();
     masm.atomicExchangeToTypedIntArray(accessType == Scalar::Uint32 ? Scalar::Int32 : accessType,
@@ -669,7 +669,7 @@ CodeGeneratorX64::visitAsmJSAtomicBinopHeap(LAsmJSAtomicBinopHeap* ins)
     uint32_t maybeCmpOffset = AsmJSHeapAccess::NoLengthCheck;
     if (mir->needsBoundsCheck()) {
         maybeCmpOffset = masm.cmp32WithPatch(ptrReg, Imm32(-mir->endOffset())).offset();
-        masm.j(Assembler::Above, gen->outOfBoundsLabel());
+        masm.j(Assembler::Above, masm.asmOnOutOfBoundsLabel());
     }
     uint32_t before = masm.size();
     if (value->isConstant()) {
@@ -713,7 +713,7 @@ CodeGeneratorX64::visitAsmJSAtomicBinopHeapForEffect(LAsmJSAtomicBinopHeapForEff
     uint32_t maybeCmpOffset = AsmJSHeapAccess::NoLengthCheck;
     if (mir->needsBoundsCheck()) {
         maybeCmpOffset = masm.cmp32WithPatch(ptrReg, Imm32(-mir->endOffset())).offset();
-        masm.j(Assembler::Above, gen->outOfBoundsLabel());
+        masm.j(Assembler::Above, masm.asmOnOutOfBoundsLabel());
     }
 
     uint32_t before = masm.size();
@@ -735,7 +735,7 @@ CodeGeneratorX64::visitAsmJSLoadGlobalVar(LAsmJSLoadGlobalVar* ins)
     MIRType type = mir->type();
     MOZ_ASSERT(IsNumberType(type) || IsSimdType(type));
 
-    CodeOffsetLabel label;
+    CodeOffset label;
     switch (type) {
       case MIRType_Int32:
         label = masm.loadRipRelativeInt32(ToRegister(ins->output()));
@@ -769,7 +769,7 @@ CodeGeneratorX64::visitAsmJSStoreGlobalVar(LAsmJSStoreGlobalVar* ins)
     MIRType type = mir->value()->type();
     MOZ_ASSERT(IsNumberType(type) || IsSimdType(type));
 
-    CodeOffsetLabel label;
+    CodeOffset label;
     switch (type) {
       case MIRType_Int32:
         label = masm.storeRipRelativeInt32(ToRegister(ins->value()));
@@ -804,7 +804,7 @@ CodeGeneratorX64::visitAsmJSLoadFuncPtr(LAsmJSLoadFuncPtr* ins)
     Register tmp = ToRegister(ins->temp());
     Register out = ToRegister(ins->output());
 
-    CodeOffsetLabel label = masm.leaRipRelative(tmp);
+    CodeOffset label = masm.leaRipRelative(tmp);
     masm.loadPtr(Operand(tmp, index, TimesEight, 0), out);
     masm.append(AsmJSGlobalAccess(label, mir->globalDataOffset()));
 }
@@ -814,7 +814,7 @@ CodeGeneratorX64::visitAsmJSLoadFFIFunc(LAsmJSLoadFFIFunc* ins)
 {
     MAsmJSLoadFFIFunc* mir = ins->mir();
 
-    CodeOffsetLabel label = masm.loadRipRelativeInt64(ToRegister(ins->output()));
+    CodeOffset label = masm.loadRipRelativeInt64(ToRegister(ins->output()));
     masm.append(AsmJSGlobalAccess(label, mir->globalDataOffset()));
 }
 

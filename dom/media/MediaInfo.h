@@ -37,7 +37,7 @@ public:
             const nsAString& aLabel,
             const nsAString& aLanguage,
             bool aEnabled,
-            TrackID aTrackId = TRACK_INVALID)
+            TrackID aTrackId)
     : mId(aId)
     , mKind(aKind)
     , mLabel(aLabel)
@@ -46,26 +46,24 @@ public:
     , mTrackId(aTrackId)
     , mDuration(0)
     , mMediaTime(0)
+    , mIsRenderedExternally(false)
     , mType(aType)
   {
     MOZ_COUNT_CTOR(TrackInfo);
   }
 
   // Only used for backward compatibility. Do not use in new code.
-  void Init(TrackType aType,
-            const nsAString& aId,
+  void Init(const nsAString& aId,
             const nsAString& aKind,
             const nsAString& aLabel,
             const nsAString& aLanguage,
-            bool aEnabled,
-            TrackID aTrackId = TRACK_INVALID)
+            bool aEnabled)
   {
     mId = aId;
     mKind = aKind;
     mLabel = aLabel;
     mLanguage = aLanguage;
     mEnabled = aEnabled;
-    mTrackId = aTrackId;
   }
 
   // Fields common with MediaTrack object.
@@ -81,6 +79,10 @@ public:
   int64_t mDuration;
   int64_t mMediaTime;
   CryptoTrack mCrypto;
+
+  // True if the track is gonna be (decrypted)/decoded and
+  // rendered directly by non-gecko components.
+  bool mIsRenderedExternally;
 
   virtual AudioInfo* GetAsAudioInfo()
   {
@@ -146,6 +148,7 @@ protected:
     mDuration = aOther.mDuration;
     mMediaTime = aOther.mMediaTime;
     mCrypto = aOther.mCrypto;
+    mIsRenderedExternally = aOther.mIsRenderedExternally;
     mType = aOther.mType;
     MOZ_COUNT_CTOR(TrackInfo);
   }
@@ -399,6 +402,17 @@ public:
   bool HasValidMedia() const
   {
     return HasVideo() || HasAudio();
+  }
+
+  void AssertValid() const
+  {
+    NS_ASSERTION(!HasAudio() || mAudio.mTrackId != TRACK_INVALID,
+                 "Audio track ID must be valid");
+    NS_ASSERTION(!HasVideo() || mVideo.mTrackId != TRACK_INVALID,
+                 "Audio track ID must be valid");
+    NS_ASSERTION(!HasAudio() || !HasVideo() ||
+                 mAudio.mTrackId != mVideo.mTrackId,
+                 "Duplicate track IDs");
   }
 
   // TODO: Store VideoInfo and AudioIndo in arrays to support multi-tracks.

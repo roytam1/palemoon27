@@ -3483,7 +3483,7 @@ js::DumpInterpreterFrame(JSContext* cx, InterpreterFrame* start)
 
         if (jsbytecode* pc = i.pc()) {
             fprintf(stderr, "  pc = %p\n", pc);
-            fprintf(stderr, "  current op: %s\n", js_CodeName[*pc]);
+            fprintf(stderr, "  current op: %s\n", CodeName[*pc]);
             MaybeDumpObject("staticScope", i.script()->getStaticBlockScope(pc));
         }
         if (i.isNonEvalFunctionFrame())
@@ -3565,7 +3565,7 @@ JSObject::allocKindForTenure(const js::Nursery& nursery) const
      * Typed arrays in the nursery may have a lazily allocated buffer, make
      * sure there is room for the array's fixed data when moving the array.
      */
-    if (is<TypedArrayObject>() && !as<TypedArrayObject>().buffer()) {
+    if (is<TypedArrayObject>() && !as<TypedArrayObject>().hasBuffer()) {
         size_t nbytes = as<TypedArrayObject>().byteLength();
         return GetBackgroundAllocKind(TypedArrayObject::AllocKindForLazyBuffer(nbytes));
     }

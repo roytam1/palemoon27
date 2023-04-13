@@ -3402,6 +3402,16 @@ LIRGenerator::visitGuardString(MGuardString* ins)
 }
 
 void
+LIRGenerator::visitGuardSharedTypedArray(MGuardSharedTypedArray* ins)
+{
+    MOZ_ASSERT(ins->input()->type() == MIRType_Object);
+    LGuardSharedTypedArray* guard =
+        new(alloc()) LGuardSharedTypedArray(useRegister(ins->obj()), temp());
+    assignSnapshot(guard, Bailout_NonSharedTypedArrayInput);
+    add(guard, ins);
+}
+
+void
 LIRGenerator::visitPolyInlineGuard(MPolyInlineGuard* ins)
 {
     MOZ_ASSERT(ins->input()->type() == MIRType_Object);
@@ -4039,7 +4049,7 @@ LIRGenerator::visitSimdConvert(MSimdConvert* ins)
     if (ins->type() == MIRType_Int32x4) {
         MOZ_ASSERT(input->type() == MIRType_Float32x4);
         LFloat32x4ToInt32x4* lir = new(alloc()) LFloat32x4ToInt32x4(use, temp());
-        if (!gen->conversionErrorLabel())
+        if (!gen->compilingAsmJS())
             assignSnapshot(lir, Bailout_BoundsCheck);
         define(lir, ins);
     } else if (ins->type() == MIRType_Float32x4) {

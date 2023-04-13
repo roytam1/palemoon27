@@ -249,6 +249,14 @@ nsPluginInstanceOwner::GetImageContainer()
 }
 
 void
+nsPluginInstanceOwner::DidComposite()
+{
+  if (mInstance) {
+    mInstance->DidComposite();
+  }
+}
+
+void
 nsPluginInstanceOwner::SetBackgroundUnknown()
 {
   if (mInstance) {
@@ -3020,7 +3028,7 @@ void nsPluginInstanceOwner::FixUpPluginWindow(int32_t inPaintState)
 
   SetPluginPort();
 
-  nsIntSize widgetClip = mPluginFrame->GetWidgetlessClipRect().Size();
+  LayoutDeviceIntSize widgetClip = mPluginFrame->GetWidgetlessClipRect().Size();
 
   mPluginWindow->x = 0;
   mPluginWindow->y = 0;

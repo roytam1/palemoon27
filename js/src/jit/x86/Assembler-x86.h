@@ -46,12 +46,10 @@ static MOZ_CONSTEXPR_VAR Register FramePointer = ebp;
 static MOZ_CONSTEXPR_VAR Register ReturnReg = eax;
 static MOZ_CONSTEXPR_VAR FloatRegister ReturnFloat32Reg = FloatRegister(X86Encoding::xmm0, FloatRegisters::Single);
 static MOZ_CONSTEXPR_VAR FloatRegister ReturnDoubleReg = FloatRegister(X86Encoding::xmm0, FloatRegisters::Double);
-static MOZ_CONSTEXPR_VAR FloatRegister ReturnInt32x4Reg = FloatRegister(X86Encoding::xmm0, FloatRegisters::Int32x4);
-static MOZ_CONSTEXPR_VAR FloatRegister ReturnFloat32x4Reg = FloatRegister(X86Encoding::xmm0, FloatRegisters::Float32x4);
+static MOZ_CONSTEXPR_VAR FloatRegister ReturnSimd128Reg = FloatRegister(X86Encoding::xmm0, FloatRegisters::Simd128);
 static MOZ_CONSTEXPR_VAR FloatRegister ScratchFloat32Reg = FloatRegister(X86Encoding::xmm7, FloatRegisters::Single);
 static MOZ_CONSTEXPR_VAR FloatRegister ScratchDoubleReg = FloatRegister(X86Encoding::xmm7, FloatRegisters::Double);
-static MOZ_CONSTEXPR_VAR FloatRegister ScratchSimdReg = xmm7;
-static MOZ_CONSTEXPR_VAR FloatRegister ScratchInt32x4Reg = FloatRegister(X86Encoding::xmm7, FloatRegisters::Int32x4);
+static MOZ_CONSTEXPR_VAR FloatRegister ScratchSimd128Reg = FloatRegister(X86Encoding::xmm7, FloatRegisters::Simd128);
 
 // Avoid ebp, which is the FramePointer, which is unavailable in some modes.
 static MOZ_CONSTEXPR_VAR Register ArgumentsRectifierReg = esi;
@@ -286,9 +284,9 @@ class Assembler : public AssemblerX86Shared
     void mov(ImmPtr imm, Register dest) {
         mov(ImmWord(uintptr_t(imm.value)), dest);
     }
-    void mov(AsmJSImmPtr imm, Register dest) {
+    void mov(wasm::SymbolicAddress imm, Register dest) {
         masm.movl_i32r(-1, dest.encoding());
-        append(AsmJSAbsoluteLink(CodeOffset(masm.currentOffset()), imm.kind()));
+        append(AsmJSAbsoluteLink(CodeOffset(masm.currentOffset()), imm));
     }
     void mov(const Operand& src, Register dest) {
         movl(src, dest);
@@ -365,13 +363,13 @@ class Assembler : public AssemblerX86Shared
             MOZ_CRASH("unexpected operand kind");
         }
     }
-    void cmpl(Register rhs, AsmJSAbsoluteAddress lhs) {
+    void cmpl(Register rhs, wasm::SymbolicAddress lhs) {
         masm.cmpl_rm_disp32(rhs.encoding(), (void*)-1);
-        append(AsmJSAbsoluteLink(CodeOffset(masm.currentOffset()), lhs.kind()));
+        append(AsmJSAbsoluteLink(CodeOffset(masm.currentOffset()), lhs));
     }
-    void cmpl(Imm32 rhs, AsmJSAbsoluteAddress lhs) {
+    void cmpl(Imm32 rhs, wasm::SymbolicAddress lhs) {
         JmpSrc src = masm.cmpl_im_disp32(rhs.value, (void*)-1);
-        append(AsmJSAbsoluteLink(CodeOffset(src.offset()), lhs.kind()));
+        append(AsmJSAbsoluteLink(CodeOffset(src.offset()), lhs));
     }
 
     void adcl(Imm32 imm, Register dest) {
@@ -902,7 +900,7 @@ class Assembler : public AssemblerX86Shared
 
     void loadAsmJSActivation(Register dest) {
         CodeOffset label = movlWithPatch(PatchedAbsoluteAddress(), dest);
-        append(AsmJSGlobalAccess(label, AsmJSActivationGlobalDataOffset));
+        append(AsmJSGlobalAccess(label, wasm::ActivationGlobalDataOffset));
     }
     void loadAsmJSHeapRegisterFromGlobalData() {
         // x86 doesn't have a pinned heap register.

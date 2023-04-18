@@ -1157,9 +1157,7 @@ class StoreOp
         else if (reg.isSingle())
             masm.storeFloat32(reg, dump);
 #if defined(JS_CODEGEN_X86) || defined(JS_CODEGEN_X64)
-        else if (reg.isInt32x4())
-            masm.storeUnalignedInt32x4(reg, dump);
-        else if (reg.isFloat32x4())
+        else if (reg.isSimd128())
             masm.storeUnalignedFloat32x4(reg, dump);
 #endif
         else
@@ -1468,7 +1466,7 @@ CodeGeneratorShared::visitOutOfLineTruncateSlow(OutOfLineTruncateSlow* ool)
     masm.setupUnalignedABICall(dest);
     masm.passABIArg(src, MoveOp::DOUBLE);
     if (gen->compilingAsmJS())
-        masm.callWithABI(AsmJSImm_ToInt32);
+        masm.callWithABI(wasm::SymbolicAddress::ToInt32);
     else
         masm.callWithABI(BitwiseCast<void*, int32_t(*)(double)>(JS::ToInt32));
     masm.storeCallResult(dest);
@@ -1522,7 +1520,7 @@ CodeGeneratorShared::emitAsmJSCall(LAsmJSCall* ins)
         masm.call(mir->desc(), ToRegister(ins->getOperand(mir->dynamicCalleeOperandIndex())));
         break;
       case MAsmJSCall::Callee::Builtin:
-        masm.call(AsmJSImmPtr(callee.builtin()));
+        masm.call(BuiltinToImmediate(callee.builtin()));
         break;
     }
 

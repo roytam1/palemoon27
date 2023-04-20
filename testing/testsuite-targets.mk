@@ -392,6 +392,7 @@ PKG_STAGE = $(DIST)/test-stage
 package-tests: \
   stage-config \
   stage-mach \
+  stage-extensions \
   stage-mochitest \
   stage-reftest \
   stage-xpcshell \
@@ -406,6 +407,7 @@ package-tests: \
   stage-web-platform-tests \
   stage-luciddream \
   test-packages-manifest \
+  test-packages-manifest-tc \
   $(NULL)
 ifdef MOZ_WEBRTC
 package-tests: stage-steeplechase
@@ -424,6 +426,14 @@ TEST_PKGS := \
   $(NULL)
 
 PKG_ARG = --$(1) '$(PKG_BASENAME).$(1).tests.zip'
+
+test-packages-manifest-tc:
+	$(PYTHON) $(topsrcdir)/build/gen_test_packages_manifest.py \
+      --jsshell $(JSSHELL_NAME) \
+      --dest-file $(MOZ_TEST_PACKAGES_FILE_TC) \
+      --use-short-names \
+      $(call PKG_ARG,common) \
+      $(foreach pkg,$(TEST_PKGS),$(call PKG_ARG,$(pkg)))
 
 test-packages-manifest:
 	@rm -f $(MOZ_TEST_PACKAGES_FILE)
@@ -597,6 +607,14 @@ stage-web-platform-tests: make-stage-dir
 stage-instrumentation-tests: make-stage-dir
 	$(MAKE) -C $(DEPTH)/testing/instrumentation stage-package
 
+TEST_EXTENSIONS := \
+    specialpowers@mozilla.org.xpi \
+	$(NULL)
+
+stage-extensions: make-stage-dir
+	$(NSINSTALL) -D $(PKG_STAGE)/extensions/
+	@$(foreach ext,$(TEST_EXTENSIONS), cp -RL $(DIST)/xpi-stage/$(ext) $(PKG_STAGE)/extensions;)
+
 .PHONY: \
   mochitest \
   mochitest-plain \
@@ -627,5 +645,6 @@ stage-instrumentation-tests: make-stage-dir
   stage-instrumentation-tests \
   stage-luciddream \
   test-packages-manifest \
+  test-packages-manifest-tc \
   $(NULL)
 

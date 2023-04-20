@@ -76,7 +76,6 @@ browser.jar:
         skin/classic/browser/urlbar-arrow.png
         skin/classic/browser/urlbar-popup-blocked.png
         skin/classic/browser/urlbar-history-dropmarker.png
-        skin/classic/browser/reader-mode-16.png             (../shared/reader/reader-mode-16.png)
         skin/classic/browser/reader-mode-16@2x.png          (../shared/reader/reader-mode-16@2x.png)
         skin/classic/browser/webapps-16.png
         skin/classic/browser/webapps-64.png
@@ -86,7 +85,6 @@ browser.jar:
   skin/classic/browser/webRTC-sharingMicrophone-menubar@2x.png
   skin/classic/browser/webRTC-sharingScreen-menubar.png
   skin/classic/browser/webRTC-sharingScreen-menubar@2x.png
-  skin/classic/browser/webRTC-indicator.css
 *       skin/classic/browser/controlcenter/panel.css        (controlcenter/panel.css)
 *       skin/classic/browser/downloads/allDownloadsViewOverlay.css   (downloads/allDownloadsViewOverlay.css)
         skin/classic/browser/downloads/buttons.png                   (downloads/buttons.png)
@@ -157,15 +155,12 @@ browser.jar:
 #endif
         skin/classic/browser/tabbrowser/alltabs.png                  (tabbrowser/alltabs.png)
         skin/classic/browser/tabbrowser/alltabs-inverted.png         (tabbrowser/alltabs-inverted.png)
-	skin/classic/browser/tabbrowser/crashed.svg                            (../shared/tabbrowser/crashed.svg)
         skin/classic/browser/tabbrowser/newtab.png                   (tabbrowser/newtab.png)
         skin/classic/browser/tabbrowser/newtab-inverted.png          (tabbrowser/newtab-inverted.png)
         skin/classic/browser/tabbrowser/connecting.png               (tabbrowser/connecting.png)
         skin/classic/browser/tabbrowser/loading.png                  (tabbrowser/loading.png)
         skin/classic/browser/tabbrowser/tab-arrow-left.png           (tabbrowser/tab-arrow-left.png)
         skin/classic/browser/tabbrowser/tab-arrow-left-inverted.png  (tabbrowser/tab-arrow-left-inverted.png)
-        skin/classic/browser/tabbrowser/tab-audio.svg                (../shared/tabbrowser/tab-audio.svg)
-        skin/classic/browser/tabbrowser/tab-audio-small.svg          (../shared/tabbrowser/tab-audio-small.svg)
         skin/classic/browser/tabbrowser/tab-overflow-border.png      (tabbrowser/tab-overflow-border.png)
         skin/classic/browser/tabbrowser/tabDragIndicator.png         (tabbrowser/tabDragIndicator.png)
 #ifdef MOZ_SERVICES_SYNC

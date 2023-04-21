@@ -79,21 +79,21 @@ MacroAssembler::PushWithPatch(ImmPtr imm)
 // Simple call functions.
 
 void
-MacroAssembler::call(const CallSiteDesc& desc, const Register reg)
+MacroAssembler::call(const wasm::CallSiteDesc& desc, const Register reg)
 {
     CodeOffset l = call(reg);
     append(desc, l, framePushed());
 }
 
 void
-MacroAssembler::call(const CallSiteDesc& desc, Label* label)
+MacroAssembler::call(const wasm::CallSiteDesc& desc, Label* label)
 {
     CodeOffset l = call(label);
     append(desc, l, framePushed());
 }
 
 void
-MacroAssembler::call(const CallSiteDesc& desc, AsmJSInternalCallee callee)
+MacroAssembler::call(const wasm::CallSiteDesc& desc, AsmJSInternalCallee callee)
 {
     CodeOffset l = callWithPatch();
     append(desc, l, framePushed(), callee.index);
@@ -310,7 +310,7 @@ MacroAssembler::leaveExitFrame(size_t extraFrame)
 bool
 MacroAssembler::hasSelfReference() const
 {
-    return selfReferencePatch_.used();
+    return selfReferencePatch_.bound();
 }
 
 //}}} check_macroassembler_style

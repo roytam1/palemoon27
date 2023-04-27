@@ -34,7 +34,6 @@ toolkit.jar:
   skin/classic/mozapps/extensions/toolbarbutton-dropmarker.png    (extensions/toolbarbutton-dropmarker.png)
   skin/classic/mozapps/extensions/heart.png                       (extensions/heart.png)
   skin/classic/mozapps/extensions/search.png                      (extensions/search.png)
-  skin/classic/mozapps/extensions/about.css                       (extensions/about.css)
 * skin/classic/mozapps/extensions/extensions.css                  (extensions/extensions.css)
 * skin/classic/mozapps/extensions/selectAddons.css                (extensions/selectAddons.css)
   skin/classic/mozapps/extensions/update.css                      (extensions/update.css)

@@ -1103,9 +1103,9 @@ or run without that action (ie: --no-{action})"
             if os.path.exists(source_path):
                 hg = self.query_exe('hg', return_type='list')
                 revision = self.get_output_from_command(
-                    hg + ['parent', '--template', '{node|short}'], cwd=source_path
+                    hg + ['parent', '--template', '{node}'], cwd=source_path
                 )
-        return revision[0:12].encode('ascii', 'replace') if revision else None
+        return revision.encode('ascii', 'replace') if revision else None
 
     def _checkout_source(self):
         """use vcs_checkout to grab source needed for build."""

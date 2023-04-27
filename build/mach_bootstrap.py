@@ -29,29 +29,16 @@ want to export this environment variable from your shell's init scripts.
 NO_MERCURIAL_SETUP = '''
 *** MERCURIAL NOT CONFIGURED ***
 
-mach has detected that you have never run `mach mercurial-setup`.
+mach has detected that you have never run `{mach} mercurial-setup`.
 
 Running this command will ensure your Mercurial version control tool is up
 to date and optimally configured for a better, more productive experience
 when working on Mozilla projects.
 
-Please run `mach mercurial-setup` now.
-'''.strip()
+Please run `{mach} mercurial-setup` now.
 
-OLD_MERCURIAL_TOOLS = '''
-*** MERCURIAL CONFIGURATION POTENTIALLY OUT OF DATE ***
-
-mach has detected that it has been a while since you have run
-`mach mercurial-setup`.
-
-Having the latest Mercurial tools and configuration should lead to a better,
-more productive experience when working on Mozilla projects.
-
-Please run `mach mercurial-setup` now.
-
-To avoid this message in the future, run `mach mercurial-setup` once a month.
-Or, schedule `mach mercurial-setup --update-only` to run automatically in
-the background at least once a month.
+Note: `{mach} mercurial-setup` does not make any changes without prompting
+you first.
 '''.strip()
 
 MERCURIAL_SETUP_FATAL_INTERVAL = 31 * 24 * 60 * 60
@@ -271,10 +258,7 @@ def bootstrap(topsrcdir, mozilla_dir=None):
 
         # No last run file means mercurial-setup has never completed.
         if mtime is None:
-            print(NO_MERCURIAL_SETUP, file=sys.stderr)
-            sys.exit(2)
-        elif time.time() - mtime > MERCURIAL_SETUP_FATAL_INTERVAL:
-            print(OLD_MERCURIAL_TOOLS, file=sys.stderr)
+            print(NO_MERCURIAL_SETUP.format(mach=sys.argv[0]), file=sys.stderr)
             sys.exit(2)
 
     def populate_context(context, key=None):

@@ -519,10 +519,7 @@
 #ifdef MOZ_ENABLE_DBUS
 @RESPATH@/components/@DLL_PREFIX@dbusservice@DLL_SUFFIX@
 #endif
-#ifdef MOZ_ENABLE_GNOME_COMPONENT
-@RESPATH@/components/@DLL_PREFIX@mozgnome@DLL_SUFFIX@
-#endif
-#if defined(MOZ_ENABLE_DBUS) || defined(MOZ_ENABLE_GNOME_COMPONENT)
+#if defined(MOZ_ENABLE_DBUS)
 @RESPATH@/components/components.manifest
 #endif
 @RESPATH@/components/nsINIProcessor.manifest

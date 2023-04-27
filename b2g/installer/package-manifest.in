@@ -726,11 +726,6 @@
 @RESPATH@/components/PrivateBrowsingTrackingProtectionWhitelist.js
 @RESPATH@/components/url-classifier.xpt
 
-; GNOME hooks
-#ifdef MOZ_ENABLE_GNOME_COMPONENT
-@RESPATH@/components/@DLL_PREFIX@mozgnome@DLL_SUFFIX@
-#endif
-
 ; ANGLE on Win32
 #ifdef XP_WIN32
 #ifndef HAVE_64BIT_BUILD

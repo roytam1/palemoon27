@@ -310,10 +310,6 @@ private:
     void             CloseAllStreams();
     void             FireClearNetworkCacheStoredAnywhereNotification();
 
-    static
-    PLDHashOperator  ShutdownCustomCacheDeviceEnum(const nsAString& aProfileDir,
-                                                   RefPtr<nsOfflineCacheDevice>& aDevice,
-                                                   void* aUserArg);
     void LogCacheStatistics();
 
     nsresult         SetDiskSmartSize_Locked();

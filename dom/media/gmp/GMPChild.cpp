@@ -634,6 +634,7 @@ GMPChild::ShutdownComplete()
 {
   LOGD("%s", __FUNCTION__);
   MOZ_ASSERT(mGMPMessageLoop == MessageLoop::current());
+  mAsyncShutdown = nullptr;
   SendAsyncShutdownComplete();
 }
 

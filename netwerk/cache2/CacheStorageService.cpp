@@ -1130,21 +1130,6 @@ void CacheStorageService::ForceEntryValidFor(nsACString &aCacheEntryKey,
   mForcedValidEntries.Put(aCacheEntryKey, validUntil);
 }
 
-namespace {
-
-PLDHashOperator PruneForcedValidEntries(
-  const nsACString& aKey, TimeStamp& aTimeStamp, void* aClosure)
-{
-  TimeStamp* now = static_cast<TimeStamp*>(aClosure);
-  if (aTimeStamp < *now) {
-    return PL_DHASH_REMOVE;
-  }
-
-  return PL_DHASH_NEXT;
-}
-
-} // namespace
-
 // Cleans out the old entries in mForcedValidEntries
 void CacheStorageService::ForcedValidEntriesPrune(TimeStamp &now)
 {
@@ -1153,7 +1138,11 @@ void CacheStorageService::ForcedValidEntriesPrune(TimeStamp &now)
   if (now < dontPruneUntil)
     return;
 
-  mForcedValidEntries.Enumerate(PruneForcedValidEntries, &now);
+  for (auto iter = mForcedValidEntries.Iter(); !iter.Done(); iter.Next()) {
+    if (iter.Data() < now) {
+      iter.Remove();
+    }
+  }
   dontPruneUntil = now + oneMinute;
 }
 

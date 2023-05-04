@@ -4,16 +4,15 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
-EXPORTS += [
-    'AppleDecoder.h',
-    'AppleMP3Reader.h',
-]
-
 UNIFIED_SOURCES += [
-    'AppleDecoder.cpp',
-    'AppleMP3Reader.cpp',
+    'TestContainerParser.cpp',
 ]
 
-FINAL_LIBRARY = 'xul'
+LOCAL_INCLUDES += [
+    '/dom/media',
+    '/dom/media/mediasource',
+]
 
-OS_LIBS += ['-framework AudioToolbox']
+FINAL_LIBRARY = 'xul-gtest'
+
+FAIL_ON_WARNINGS = True

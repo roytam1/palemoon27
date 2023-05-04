@@ -1165,16 +1165,6 @@ nsCacheService::Init()
     return NS_OK;
 }
 
-// static
-PLDHashOperator
-nsCacheService::ShutdownCustomCacheDeviceEnum(const nsAString& aProfileDir,
-                                              RefPtr<nsOfflineCacheDevice>& aDevice,
-                                              void* aUserArg)
-{
-    aDevice->Shutdown();
-    return PL_DHASH_REMOVE;
-}
-
 void
 nsCacheService::Shutdown()
 {
@@ -1239,7 +1229,11 @@ nsCacheService::Shutdown()
 
         NS_IF_RELEASE(mOfflineDevice);
 
-        mCustomOfflineDevices.Enumerate(&nsCacheService::ShutdownCustomCacheDeviceEnum, nullptr);
+        for (auto iter = mCustomOfflineDevices.Iter();
+             !iter.Done(); iter.Next()) {
+            iter.Data()->Shutdown();
+            iter.Remove();
+        }
 
         LogCacheStatistics();
 
@@ -2375,8 +2369,11 @@ nsCacheService::OnProfileShutdown()
     if (gService->mOfflineDevice && gService->mEnableOfflineDevice) {
         gService->mOfflineDevice->Shutdown();
     }
-    gService->mCustomOfflineDevices.Enumerate(
-        &nsCacheService::ShutdownCustomCacheDeviceEnum, nullptr);
+    for (auto iter = gService->mCustomOfflineDevices.Iter();
+         !iter.Done(); iter.Next()) {
+        iter.Data()->Shutdown();
+        iter.Remove();
+    }
 
     gService->mEnableOfflineDevice = false;
 

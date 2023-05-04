@@ -70,6 +70,10 @@ EXPORTS.demuxer += [
     'binding/include/demuxer/TrackDemuxer.h',
 ]
 
+EXPORTS += [
+    'binding/include/mp4parse.h',
+]
+
 SOURCES += [
     'frameworks/av/media/libstagefright/foundation/hexdump.cpp',
     'frameworks/av/media/libstagefright/MetaData.cpp',
@@ -78,6 +82,11 @@ SOURCES += [
     'system/core/libutils/String8.cpp',
     'system/core/libutils/VectorImpl.cpp',
 ]
+
+if CONFIG['MOZ_RUST']:
+    SOURCES += [
+        'binding/MP4Metadata.rs',
+    ]
 
 UNIFIED_SOURCES += [
     'binding/Adts.cpp',

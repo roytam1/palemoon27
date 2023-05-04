@@ -1607,16 +1607,6 @@ MediaDecoder::IsOmxEnabled()
 {
   return Preferences::GetBool("media.omx.enabled", false);
 }
-
-bool
-MediaDecoder::IsOmxAsyncEnabled()
-{
-#if ANDROID_VERSION >= 16
-  return Preferences::GetBool("media.omx.async.enabled", false);
-#else
-  return false;
-#endif
-}
 #endif
 
 #ifdef MOZ_ANDROID_OMX
@@ -1624,14 +1614,6 @@ bool
 MediaDecoder::IsAndroidMediaEnabled()
 {
   return Preferences::GetBool("media.plugins.enabled");
-}
-#endif
-
-#ifdef MOZ_APPLEMEDIA
-bool
-MediaDecoder::IsAppleMP3Enabled()
-{
-  return Preferences::GetBool("media.apple.mp3.enabled");
 }
 #endif
 

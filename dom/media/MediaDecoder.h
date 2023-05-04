@@ -699,7 +699,6 @@ private:
 
 #ifdef MOZ_OMX_DECODER
   static bool IsOmxEnabled();
-  static bool IsOmxAsyncEnabled();
 #endif
 
 #ifdef MOZ_ANDROID_OMX
@@ -708,10 +707,6 @@ private:
 
 #ifdef MOZ_WMF
   static bool IsWMFEnabled();
-#endif
-
-#ifdef MOZ_APPLEMEDIA
-  static bool IsAppleMP3Enabled();
 #endif
 
   // Return statistics. This is used for progress events and other things.

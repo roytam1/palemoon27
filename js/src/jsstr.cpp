@@ -3481,7 +3481,7 @@ LambdaIsGetElem(JSContext* cx, JSObject& lambda, MutableHandleNativeObject pobj)
         return true;
 
     RootedFunction fun(cx, &lambda.as<JSFunction>());
-    if (!fun->isInterpreted())
+    if (!fun->isInterpreted() || fun->isClassConstructor())
         return true;
 
     JSScript* script = fun->getOrCreateScript(cx);
@@ -4079,7 +4079,12 @@ js::StringConstructor(JSContext* cx, unsigned argc, Value* vp)
     }
 
     if (args.isConstructing()) {
-        StringObject* strobj = StringObject::create(cx, str);
+        RootedObject proto(cx);
+        RootedObject newTarget(cx, &args.newTarget().toObject());
+        if (!GetPrototypeFromConstructor(cx, newTarget, &proto))
+            return false;
+
+        StringObject* strobj = StringObject::create(cx, str, proto);
         if (!strobj)
             return false;
         args.rval().setObject(*strobj);

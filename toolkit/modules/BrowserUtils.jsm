@@ -309,7 +309,7 @@ this.BrowserUtils = {
       if (elt instanceof win.HTMLInputElement && elt.mozIsTextField(false))
         return false;
 
-      if (elt.isContentEditable)
+      if (elt.isContentEditable || win.document.designMode == "on")
         return false;
 
       if (elt instanceof win.HTMLTextAreaElement ||
@@ -333,20 +333,6 @@ this.BrowserUtils = {
          win.document.documentElement.getAttribute("disablefastfind") == "true"))
       return false;
 
-    if (win) {
-      try {
-        let editingSession = win.QueryInterface(Components.interfaces.nsIInterfaceRequestor)
-          .getInterface(Components.interfaces.nsIWebNavigation)
-          .QueryInterface(Components.interfaces.nsIInterfaceRequestor)
-          .getInterface(Components.interfaces.nsIEditingSession);
-        if (editingSession.windowIsEditable(win))
-          return false;
-      }
-      catch (e) {
-        Cu.reportError(e);
-        // If someone built with composer disabled, we can't get an editing session.
-      }
-    }
     return true;
   },
 

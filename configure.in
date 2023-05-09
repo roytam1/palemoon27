@@ -338,6 +338,7 @@ if test -n "$gonkdir" ; then
     AC_DEFINE(HAVE_PTHREADS)
     MOZ_CHROME_FILE_FORMAT=omni
     direct_nspr_config=1
+    android_cxx_stl=mozstlport
 else
     MOZ_ANDROID_NDK
 
@@ -528,6 +529,7 @@ case "$target" in
 
         AC_DEFINE(_CRT_SECURE_NO_WARNINGS)
         AC_DEFINE(_CRT_NONSTDC_NO_WARNINGS)
+        AC_DEFINE(_USE_MATH_DEFINES) # Otherwise MSVC's math.h doesn't #define M_PI.
 
         if test "$_CC_MAJOR_VERSION" = "18" -a "$_CC_BUILD_VERSION" -ge "30723"; then
             _CC_SUITE=12
@@ -658,7 +660,7 @@ See https://developer.mozilla.org/en/Windows_Build_Prerequisites.])
         fi
 
         if test "$WRAP_STL_INCLUDES" = "1"; then
-            STL_FLAGS='-I$(DIST)/stl_wrappers'
+            STL_FLAGS="-I${DIST}/stl_wrappers"
         fi
         CFLAGS="$CFLAGS -D_HAS_EXCEPTIONS=0"
         CXXFLAGS="$CXXFLAGS -D_HAS_EXCEPTIONS=0"
@@ -2557,7 +2559,7 @@ if test "$GNU_CC" -a "$OS_TARGET" != WINNT; then
     VISIBILITY_FLAGS='-fvisibility=hidden -fvisibility-inlines-hidden'
     ;;
   *)
-    VISIBILITY_FLAGS='-I$(DIST)/system_wrappers -include $(MOZILLA_DIR)/config/gcc_hidden.h'
+    VISIBILITY_FLAGS="-I${DIST}/system_wrappers -include ${_topsrcdir}/config/gcc_hidden.h"
     WRAP_SYSTEM_INCLUDES=1
     ;;
   esac
@@ -2572,13 +2574,13 @@ case "${OS_TARGET}" in
 WINNT|Darwin|Android)
   ;;
 *)
-  STL_FLAGS='-I$(DIST)/stl_wrappers'
+  STL_FLAGS="-I${DIST}/stl_wrappers"
   WRAP_STL_INCLUDES=1
   ;;
 esac
 
 AC_SUBST(WRAP_SYSTEM_INCLUDES)
-AC_SUBST(VISIBILITY_FLAGS)
+AC_SUBST_LIST(VISIBILITY_FLAGS)
 
 dnl Checks for header files.
 dnl ========================================================
@@ -2664,14 +2666,6 @@ if test "x$enable_dtrace" = "xyes"; then
   fi
 fi
 AC_SUBST(HAVE_DTRACE)
-
-case $target in
-*-aix4.3*|*-aix5*)
-    ;;
-*)
-    MOZ_CHECK_HEADERS(sys/cdefs.h)
-    ;;
-esac
 
 MOZ_LINUX_PERF_EVENT
 
@@ -3776,12 +3770,10 @@ MOZ_TIME_MANAGER=
 MOZ_SIMPLEPUSH=
 MOZ_PAY=
 MOZ_AUDIO_CHANNEL_MANAGER=
-NSS_NO_LIBPKIX=
 MOZ_CONTENT_SANDBOX=
 MOZ_GMP_SANDBOX=
 MOZ_SANDBOX=
 MOZ_BINARY_EXTENSIONS=
-MOZ_DEVTOOLS=
 MOZ_ADDON_SIGNING=
 MOZ_REQUIRE_SIGNING=
 MOZ_DEVTOOLS=server
@@ -3977,14 +3969,14 @@ fi
 case "$MOZ_BUILD_APP" in
 browser)
   AC_DEFINE(MOZ_PHOENIX)
-
-  BUILD_BACKENDS="$BUILD_BACKENDS FasterMake"
   ;;
 
 xulrunner)
   AC_DEFINE(MOZ_XULRUNNER)
   ;;
 esac
+
+BUILD_BACKENDS="$BUILD_BACKENDS FasterMake"
 
 if test -n "$MOZ_B2G"; then
     AC_DEFINE(MOZ_B2G)
@@ -4594,7 +4586,7 @@ then
     MOZ_ARG_DISABLE_BOOL(gconf,
     [  --disable-gconf      Disable Gconf support ],
         MOZ_ENABLE_GCONF=,
-        MOZ_ENABLE_GCONF=force)
+        MOZ_ENABLE_GCONF=1)
 
     if test "$MOZ_ENABLE_GCONF"
     then
@@ -4602,11 +4594,12 @@ then
             MOZ_GCONF_LIBS=`$PKG_CONFIG --libs gobject-2.0`
             MOZ_ENABLE_GCONF=1
         ],[
-            if test "$MOZ_ENABLE_GCONF" = "force"
+            if test -n "$MOZ_ENABLE_GCONF";
             then
                 AC_MSG_ERROR([* * * Could not find gconf-2.0 ])
+            else
+                AC_MSG_WARN([Many automated tests will fail with --disable-gconf. See bug 1167201.])
             fi
-            MOZ_ENABLE_GCONF=
         ])
     fi
 
@@ -6040,6 +6033,74 @@ elif test -n "$MOZ_LIBJPEG_TURBO"; then
 fi
 
 dnl ========================================================
+dnl = libav-fft configuration
+dnl ========================================================
+
+MOZ_LIBAV_FFT=
+
+dnl Turn on libav-fft for 32-bit windows, and all 64-bit supported platforms.
+dnl 32-bit linux/os x have text relocation issues.
+
+case "$OS_ARCH:$CPU_ARCH" in
+  WINNT:x86)
+      MOZ_LIBAV_FFT=1
+  ;;
+  *:x86_64)
+      MOZ_LIBAV_FFT=1
+  ;;
+esac
+
+dnl Detect if we can use yasm to compile libav's assembly
+
+if test -n "$MOZ_LIBAV_FFT"; then
+  AC_DEFINE(MOZ_LIBAV_FFT)
+  dnl Do we support libav-fft on this platform?
+  case "$OS_ARCH:$CPU_ARCH" in
+  Darwin:x86_64)
+    LIBAV_FFT_ASFLAGS="-f macho64 -rnasm -pnasm -D__x86_64__ -DPIC -DMACHO"
+  ;;
+  WINNT:x86)
+    LIBAV_FFT_ASFLAGS="-f win32 -rnasm -pnasm -DPIC -DWIN32"
+  ;;
+  WINNT:x86_64)
+    LIBAV_FFT_ASFLAGS="-f win64 -rnasm -pnasm -D__x86_64__ -DPIC -DWIN64 -DMSVC"
+  ;;
+  *:x86_64)
+    if $CC -E -dM -</dev/null | grep -q __ELF__; then
+      LIBAV_FFT_ASFLAGS="-f elf64 -rnasm -pnasm -D__x86_64__ -DPIC -DELF"
+    fi
+  ;;
+  *)
+    AC_MSG_ERROR([libav's FFT routines are only available for 32-bit windows or 64-bit x86 based platforms.])
+  ;;
+  esac
+fi
+
+if test -n "$LIBAV_FFT_ASFLAGS"; then
+  dnl If we're on an x86 or x64 system which supports libav-fft's asm routines
+  dnl check for Yasm, and error out if it doesn't exist or we have too old of a
+  dnl version.
+  LIBAV_FFT_AS=$YASM
+  if test -z "$LIBAV_FFT_AS" ; then
+    AC_MSG_ERROR([Yasm is required to build with libav's optimized FFT routines, but you do not appear to have Yasm installed. See https://developer.mozilla.org/en/YASM for more details.])
+  fi
+  dnl Check that we have the right yasm version.  We require 1.0.1 or newer
+  dnl on Linux and 1.1 or newer everywhere else.
+  if test "$OS_ARCH" = "Linux" ; then
+    if test "$_YASM_MAJOR_VERSION" -lt "1" -o \( "$_YASM_MAJOR_VERSION" -eq "1" -a "$_YASM_MINOR_VERSION" -eq "0" -a "$_YASM_RELEASE" -lt "1" \) ; then
+      AC_MSG_ERROR([Yasm 1.0.1 or greater is required to build with libav's optimized FFT routines, but you do not appear to have Yasm installed.  See https://developer.mozilla.org/en/YASM for more details.])
+    fi
+  else
+    if test "$_YASM_MAJOR_VERSION" -lt "1" -o \( "$_YASM_MAJOR_VERSION" -eq "1" -a "$_YASM_MINOR_VERSION" -lt "1" \) ; then
+      AC_MSG_ERROR([Yasm 1.1 or greater is required to build with libav's optimized FFT routines, but you do not appear to have Yasm installed.  See https://developer.mozilla.org/en/YASM for more details.])
+    fi
+  fi
+elif test -n "$MOZ_LIBAV_FFT" -a "${CPU_ARCH}" != "arm"; then
+  dnl Warn if we're not building either libav or opendl-max optimized routines.
+  AC_MSG_WARN([No assembler or assembly support for libav-fft.  Using unoptimized C routines.])
+fi
+
+dnl ========================================================
 dnl = Enable compilation of specific extension modules
 dnl ========================================================
 
@@ -6074,9 +6135,6 @@ if test `echo "$MOZ_EXTENSIONS" | grep -c gio` -ne 0; then
     MOZ_EXTENSIONS=`echo $MOZ_EXTENSIONS | sed -e 's|gio||'`
 fi
 AC_SUBST(MOZ_GIO_COMPONENT)
-
-dnl Remove dupes
-MOZ_EXTENSIONS=`$PYTHON ${srcdir}/build/unix/uniq.py ${MOZ_EXTENSIONS}`
 
 dnl Ensure every extension exists, to avoid mostly-inscrutable error messages
 dnl when trying to build a nonexistent extension.
@@ -6308,16 +6366,16 @@ fi
 AC_SUBST(MOZ_NO_EV_CERTS)
 
 dnl ========================================================
-dnl = Disable libpkix
-dnl ========================================================
-if test -n "$NSS_NO_LIBPKIX"; then
-    AC_DEFINE(NSS_NO_LIBPKIX)
-fi
-AC_SUBST(NSS_NO_LIBPKIX)
-
-dnl ========================================================
 dnl = Sandboxing support
 dnl ========================================================
+if test -n "$MOZ_TSAN"; then
+    # Bug 1182565: TSan conflicts with sandboxing on Linux.
+    case $OS_TARGET in
+    Linux|Android)
+        MOZ_SANDBOX=
+        ;;
+    esac
+fi
 MOZ_ARG_ENABLE_BOOL(sandbox,
 [  --enable-sandbox        Enable sandboxing support],
     MOZ_SANDBOX=1,
@@ -6776,18 +6834,10 @@ elif test "$GNU_CC"; then
 fi
 
 dnl ========================================================
-dnl = Disable runtime logging checks
+dnl = Enable runtime logging
 dnl ========================================================
-MOZ_ARG_DISABLE_BOOL(logging,
-[  --disable-logging       Disable logging facilities],
-    NS_DISABLE_LOGGING=1,
-    NS_DISABLE_LOGGING= )
-if test "$NS_DISABLE_LOGGING"; then
-    AC_DEFINE(NS_DISABLE_LOGGING)
-else
-    AC_DEFINE(MOZ_LOGGING)
-    AC_DEFINE(FORCE_PR_LOG)
-fi
+AC_DEFINE(MOZ_LOGGING)
+AC_DEFINE(FORCE_PR_LOG)
 
 dnl ========================================================
 dnl = This will enable logging of addref, release, ctor, dtor.
@@ -7918,7 +7968,7 @@ fi
 
 # Check for headers defining standard int types.
 if test -n "$COMPILE_ENVIRONMENT"; then
-    MOZ_CHECK_HEADERS(stdint.h inttypes.h sys/int_types.h)
+    MOZ_CHECK_HEADERS(stdint.h inttypes.h)
 
     if test "${ac_cv_header_inttypes_h}" = "yes"; then
         HAVE_INTTYPES_H=1
@@ -8112,8 +8162,6 @@ MOZ_ARG_ENABLE_STRING(necko-protocols,
     fi
 done],
     NECKO_PROTOCOLS="$NECKO_PROTOCOLS_DEFAULT")
-dnl Remove dupes
-NECKO_PROTOCOLS=`$PYTHON ${srcdir}/build/unix/uniq.py ${NECKO_PROTOCOLS}`
 AC_SUBST_SET(NECKO_PROTOCOLS)
 for p in $NECKO_PROTOCOLS; do
     AC_DEFINE_UNQUOTED(NECKO_PROTOCOL_$p)
@@ -8288,7 +8336,7 @@ AC_SUBST(MOZ_DEBUG)
 AC_SUBST(MOZ_DEBUG_SYMBOLS)
 AC_SUBST(MOZ_DEBUG_LDFLAGS)
 AC_SUBST(WARNINGS_AS_ERRORS)
-AC_SUBST(MOZ_EXTENSIONS)
+AC_SUBST_SET(MOZ_EXTENSIONS)
 AC_SUBST(MOZ_JPROF)
 AC_SUBST(MOZ_INSTRUMENTS)
 AC_SUBST(MOZ_CALLGRIND)
@@ -8708,6 +8756,9 @@ AC_SUBST(MOZ_INSTRUMENT_EVENT_LOOP)
 AC_SUBST(MOZ_CODE_COVERAGE)
 AC_SUBST(LIBJPEG_TURBO_AS)
 AC_SUBST_LIST(LIBJPEG_TURBO_ASFLAGS)
+AC_SUBST(MOZ_LIBAV_FFT)
+AC_SUBST(LIBAV_FFT_AS)
+AC_SUBST_LIST(LIBAV_FFT_ASFLAGS)
 AC_SUBST(MOZ_DEVTOOLS)
 
 AC_SUBST(MOZ_PACKAGE_JSSHELL)
@@ -9047,6 +9098,7 @@ export MOZILLA_CENTRAL_PATH=$_topsrcdir
 export STLPORT_CPPFLAGS
 export STLPORT_LIBS
 export JS_STANDALONE=no
+export DIST
 export MOZ_LINKER
 export ZLIB_IN_MOZGLUE
 

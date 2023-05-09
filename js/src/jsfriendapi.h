@@ -882,6 +882,27 @@ CopyFlatStringChars(char16_t* dest, JSFlatString* s, size_t len)
     CopyLinearStringChars(dest, FlatStringToLinearString(s), len);
 }
 
+/**
+ * Add some or all property keys of obj to the id vector *props.
+ *
+ * The flags parameter controls which property keys are added. Pass a
+ * combination of the following bits:
+ *
+ *     JSITER_OWNONLY - Don't also search the prototype chain; only consider
+ *       obj's own properties.
+ *
+ *     JSITER_HIDDEN - Include nonenumerable properties.
+ *
+ *     JSITER_SYMBOLS - Include property keys that are symbols. The default
+ *       behavior is to filter out symbols.
+ *
+ *     JSITER_SYMBOLSONLY - Exclude non-symbol property keys.
+ *
+ * This is the closest C++ API we have to `Reflect.ownKeys(obj)`, or
+ * equivalently, the ES6 [[OwnPropertyKeys]] internal method. Pass
+ * `JSITER_OWNONLY | JSITER_HIDDEN | JSITER_SYMBOLS` as flags to get
+ * results that match the output of Reflect.ownKeys.
+ */
 JS_FRIEND_API(bool)
 GetPropertyKeys(JSContext* cx, JS::HandleObject obj, unsigned flags, JS::AutoIdVector* props);
 
@@ -2524,11 +2545,16 @@ IdToValue(jsid id)
  * PrepareScriptEnvironmentAndInvoke will call the preparer's 'invoke' method
  * with the given |closure|, with the assumption that the preparer will set up
  * any state necessary to run script in |scope|, invoke |closure| with a valid
- * JSContext*, and return.
+ * JSContext*, report any exceptions thrown from the closure, and return.
  *
  * If no preparer is registered, PrepareScriptEnvironmentAndInvoke will assert
  * that |rt| has exactly one JSContext associated with it, enter the compartment
  * of |scope| on that context, and invoke |closure|.
+ *
+ * In both cases, PrepareScriptEnvironmentAndInvoke will report any exceptions
+ * that are thrown by the closure.  Consumers who want to propagate back
+ * whether the closure succeeded should do so via members of the closure
+ * itself.
  */
 
 struct ScriptEnvironmentPreparer {
@@ -2536,11 +2562,11 @@ struct ScriptEnvironmentPreparer {
         virtual bool operator()(JSContext* cx) = 0;
     };
 
-    virtual bool invoke(JS::HandleObject scope, Closure& closure) = 0;
+    virtual void invoke(JS::HandleObject scope, Closure& closure) = 0;
 };
 
-extern JS_FRIEND_API(bool)
-PrepareScriptEnvironmentAndInvoke(JSRuntime* rt, JS::HandleObject scope,
+extern JS_FRIEND_API(void)
+PrepareScriptEnvironmentAndInvoke(JSContext* cx, JS::HandleObject scope,
                                   ScriptEnvironmentPreparer::Closure& closure);
 
 JS_FRIEND_API(void)
@@ -2767,9 +2793,9 @@ JS_FRIEND_API(bool)
 IsWindowProxy(JSObject* obj);
 
 /**
- * If `obj` is a Window, get its associated WindowProxy (or a CCW if the
- * page was navigated away from), else return `obj`. This function is
- * infallible and never returns nullptr.
+ * If `obj` is a Window, get its associated WindowProxy (or a CCW or dead
+ * wrapper if the page was navigated away from), else return `obj`. This
+ * function is infallible and never returns nullptr.
  */
 extern JS_FRIEND_API(JSObject*)
 ToWindowProxyIfWindow(JSObject* obj);

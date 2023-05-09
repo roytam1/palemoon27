@@ -2449,7 +2449,7 @@ void
 jit::AssertGraphCoherency(MIRGraph& graph)
 {
 #ifdef DEBUG
-    if (!js_JitOptions.checkGraphConsistency)
+    if (!JitOptions.checkGraphConsistency)
         return;
     AssertBasicGraphCoherency(graph);
     AssertReversePostorder(graph);
@@ -2536,7 +2536,7 @@ jit::AssertExtendedGraphCoherency(MIRGraph& graph)
     // are split)
 
 #ifdef DEBUG
-    if (!js_JitOptions.checkGraphConsistency)
+    if (!JitOptions.checkGraphConsistency)
         return;
 
     AssertGraphCoherency(graph);

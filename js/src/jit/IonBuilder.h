@@ -433,6 +433,8 @@ class IonBuilder
     bool getPropTryConstant(bool* emitted, MDefinition* obj, jsid id, TemporaryTypeSet* types);
     bool getPropTryDefiniteSlot(bool* emitted, MDefinition* obj, PropertyName* name,
                                 BarrierKind barrier, TemporaryTypeSet* types);
+    bool getPropTryModuleNamespace(bool* emitted, MDefinition* obj, PropertyName* name,
+                                   BarrierKind barrier, TemporaryTypeSet* types);
     bool getPropTryUnboxed(bool* emitted, MDefinition* obj, PropertyName* name,
                            BarrierKind barrier, TemporaryTypeSet* types);
     bool getPropTryCommonGetter(bool* emitted, MDefinition* obj, PropertyName* name,
@@ -1266,7 +1268,7 @@ class IonBuilder
     }
 
     bool forceInlineCaches() {
-        return MOZ_UNLIKELY(js_JitOptions.forceInlineCaches);
+        return MOZ_UNLIKELY(JitOptions.forceInlineCaches);
     }
 
     // Out-of-line variants that don't check if optimization tracking is

@@ -30,6 +30,7 @@ struct LoadInfoArgs
   PrincipalInfo    triggeringPrincipalInfo;
   uint32_t         securityFlags;
   uint32_t         contentPolicyType;
+  uint32_t         tainting;
   bool             upgradeInsecureRequests;
   bool             upgradeInsecurePreloads;
   uint64_t         innerWindowID;
@@ -41,6 +42,9 @@ struct LoadInfoArgs
   OriginAttributes originAttributes;
   PrincipalInfo[]  redirectChainIncludingInternalRedirects;
   PrincipalInfo[]  redirectChain;
+  nsCString[]      corsUnsafeHeaders;
+  bool             forcePreflight;
+  bool             isPreflight;
 };
 
 /**
@@ -64,8 +68,6 @@ union OptionalHttpResponseHead
 
 struct CorsPreflightArgs
 {
-  bool          withCredentials;
-  PrincipalInfo preflightPrincipal;
   nsCString[]   unsafeHeaders;
 };
 

@@ -36,10 +36,10 @@ elif test -n "$gonkdir" -a "$ANDROID_VERSION" -ge 17; then
     MOZ_NATIVE_ICU=1
     MOZ_SHARED_ICU=1
 else
-    MOZ_ICU_CFLAGS='-I$(topsrcdir)/intl/icu/source/common -I$(topsrcdir)/intl/icu/source/i18n'
-    AC_SUBST_LIST(MOZ_ICU_CFLAGS)
+    MOZ_ICU_INCLUDES="/intl/icu/source/common /intl/icu/source/i18n"
 fi
 
+AC_SUBST_LIST(MOZ_ICU_INCLUDES)
 AC_SUBST(MOZ_NATIVE_ICU)
 
 MOZ_ARG_WITH_STRING(intl-api,

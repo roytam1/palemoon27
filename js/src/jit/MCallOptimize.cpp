@@ -1349,8 +1349,10 @@ IonBuilder::inlineMathRandom(CallInfo& callInfo)
     if (getInlineReturnType() != MIRType_Double)
         return InliningStatus_NotInlined;
 
-    MOZ_ASSERT(script()->compartment()->randomNumberGenerator.isSome(),
-               "MRandom JIT code depends on RNG being initialized");
+    // MRandom JIT code directly accesses the RNG. It's (barely) possible to
+    // inline Math.random without it having been called yet, so ensure RNG
+    // state that isn't guaranteed to be initialized already.
+    script()->compartment()->ensureRandomNumberGenerator();
 
     callInfo.setImplicitlyUsedUnchecked();
 
@@ -2561,7 +2563,7 @@ IonBuilder::inlineAssertRecoveredOnBailout(CallInfo& callInfo)
     if (callInfo.argc() != 2)
         return InliningStatus_NotInlined;
 
-    if (js_JitOptions.checkRangeAnalysis) {
+    if (JitOptions.checkRangeAnalysis) {
         // If we are checking the range of all instructions, then the guards
         // inserted by Range Analysis prevent the use of recover
         // instruction. Thus, we just disable these checks.

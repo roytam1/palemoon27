@@ -242,9 +242,10 @@ public:
   // Returns true if the given WidgetWheelEvent will resolve to a scroll action.
   static bool WheelEventIsScrollAction(WidgetWheelEvent* aEvent);
 
-  // Returns true if user prefs for wheel deltas apply to the given
-  // WidgetWheelEvent.
-  static bool WheelEventNeedsDeltaMultipliers(WidgetWheelEvent* aEvent);
+  // Returns user-set multipliers for a wheel event.
+  static void GetUserPrefsForWheelEvent(WidgetWheelEvent* aEvent,
+                                        double* aOutMultiplierX,
+                                        double* aOutMultiplierY);
 
   // Returns whether or not a frame can be vertically scrolled with a mouse
   // wheel (as opposed to, say, a selection or touch scroll).
@@ -384,11 +385,8 @@ protected:
                                             nsIContent* aMouseTarget,
                                             nsWeakFrame aCurrentTarget,
                                             bool aNoContentDispatch);
-  nsresult SetClickCount(nsPresContext* aPresContext,
-                         WidgetMouseEvent* aEvent,
-                         nsEventStatus* aStatus);
-  nsresult CheckForAndDispatchClick(nsPresContext* aPresContext,
-                                    WidgetMouseEvent* aEvent,
+  nsresult SetClickCount(WidgetMouseEvent* aEvent, nsEventStatus* aStatus);
+  nsresult CheckForAndDispatchClick(WidgetMouseEvent* aEvent,
                                     nsEventStatus* aStatus);
   void EnsureDocument(nsPresContext* aPresContext);
   void FlushPendingEvents(nsPresContext* aPresContext);
@@ -456,7 +454,9 @@ protected:
      * Returns whether or not ApplyUserPrefsToDelta() would change the delta
      * values of an event.
      */
-    bool HasUserPrefsForDelta(WidgetWheelEvent* aEvent);
+    void GetUserPrefsForEvent(WidgetWheelEvent* aEvent,
+                              double* aOutMultiplierX,
+                              double* aOutMultiplierY);
 
     /**
      * If ApplyUserPrefsToDelta() changed the delta values with customized

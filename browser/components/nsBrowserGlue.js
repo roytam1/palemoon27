@@ -880,14 +880,6 @@ BrowserGlue.prototype = {
       Services.telemetry.getHistogramById(SCALING_PROBE_NAME).add(scaling);
     }
 */
-
-#if 0
-//def XP_WIN
-    if (WindowsUIUtils.inTabletMode) {
-      Services.telemetry.getHistogramById("FX_TABLET_MODE_USED_DURING_SESSION")
-                        .add(1);
-    }
-#endif
   },
 
   // the first browser window has finished initializing

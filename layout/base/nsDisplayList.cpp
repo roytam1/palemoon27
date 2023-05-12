@@ -2721,7 +2721,6 @@ nsDisplayBackgroundImage::ComputeVisibility(nsDisplayListBuilder* aBuilder,
 
 /* static */ nsRegion
 nsDisplayBackgroundImage::GetInsideClipRegion(nsDisplayItem* aItem,
-                                              nsPresContext* aPresContext,
                                               uint8_t aClip, const nsRect& aRect,
                                               bool* aSnap)
 {
@@ -2779,8 +2778,7 @@ nsDisplayBackgroundImage::GetOpaqueRegion(nsDisplayListBuilder* aBuilder,
     if (layer.mImage.IsOpaque() && layer.mBlendMode == NS_STYLE_BLEND_NORMAL &&
         layer.mRepeat.mXRepeat != NS_STYLE_BG_REPEAT_SPACE &&
         layer.mRepeat.mYRepeat != NS_STYLE_BG_REPEAT_SPACE) {
-      nsPresContext* presContext = mFrame->PresContext();
-      result = GetInsideClipRegion(this, presContext, layer.mClip, mBounds, aSnap);
+      result = GetInsideClipRegion(this, layer.mClip, mBounds, aSnap);
     }
   }
 
@@ -3187,8 +3185,8 @@ nsDisplayBackgroundColor::GetOpaqueRegion(nsDisplayListBuilder* aBuilder,
 
   const nsStyleBackground::Layer& bottomLayer = mBackgroundStyle->BottomLayer();
   nsRect borderBox = nsRect(ToReferenceFrame(), mFrame->GetSize());
-  nsPresContext* presContext = mFrame->PresContext();
-  return nsDisplayBackgroundImage::GetInsideClipRegion(this, presContext, bottomLayer.mClip, borderBox, aSnap);
+  return nsDisplayBackgroundImage::GetInsideClipRegion(this, bottomLayer.mClip,
+                                                       borderBox, aSnap);
 }
 
 bool

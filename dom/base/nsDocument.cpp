@@ -5194,19 +5194,17 @@ nsDocument::DocumentStatesChanged(EventStates aStateMask)
 
 void
 nsDocument::StyleRuleChanged(nsIStyleSheet* aSheet,
-                             css::Rule* aOldStyleRule,
-                             css::Rule* aNewStyleRule)
+                             css::Rule* aStyleRule)
 {
   NS_DOCUMENT_NOTIFY_OBSERVERS(StyleRuleChanged,
                                (this, aSheet,
-                                aOldStyleRule, aNewStyleRule));
+                                aStyleRule));
 
   if (StyleSheetChangeEventsEnabled()) {
     DO_STYLESHEET_NOTIFICATION(StyleRuleChangeEvent,
                                "StyleRuleChanged",
                                mRule,
-                               aNewStyleRule ? aNewStyleRule->GetDOMRule()
-                                             : nullptr);
+                               aStyleRule ? aStyleRule->GetDOMRule() : nullptr);
   }
 }
 

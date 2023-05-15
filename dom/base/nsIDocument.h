@@ -161,8 +161,8 @@ struct FullScreenOptions {
 } // namespace mozilla
 
 #define NS_IDOCUMENT_IID \
-{ 0x4307abe8, 0x5386, 0x4024, \
-  { 0xa2, 0xfe, 0x4a, 0x80, 0xe8, 0x47, 0x46, 0x90 } }
+{ 0x13011a82, 0x46cd, 0x4c33, \
+  { 0x9d, 0x4e, 0x31, 0x41, 0xbb, 0x3f, 0x18, 0xe9 } }
 
 // Enum for requesting a particular type of document when creating a doc
 enum DocumentFlavor {
@@ -1299,8 +1299,7 @@ public:
   // Observation hooks for style data to propagate notifications
   // to document observers
   virtual void StyleRuleChanged(nsIStyleSheet* aStyleSheet,
-                                mozilla::css::Rule* aOldStyleRule,
-                                mozilla::css::Rule* aNewStyleRule) = 0;
+                                mozilla::css::Rule* aStyleRule) = 0;
   virtual void StyleRuleAdded(nsIStyleSheet* aStyleSheet,
                               mozilla::css::Rule* aStyleRule) = 0;
   virtual void StyleRuleRemoved(nsIStyleSheet* aStyleSheet,

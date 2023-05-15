@@ -2144,7 +2144,7 @@ nsCSSKeyframeRule::SetKeyText(const nsAString& aKeyText)
     sheet->SetModifiedByChildRule();
 
     if (doc) {
-      doc->StyleRuleChanged(sheet, this, this);
+      doc->StyleRuleChanged(sheet, this);
     }
   }
 
@@ -2181,7 +2181,7 @@ nsCSSKeyframeRule::ChangeDeclaration(css::Declaration* aDeclaration)
     sheet->SetModifiedByChildRule();
 
     if (doc) {
-      doc->StyleRuleChanged(sheet, this, this);
+      doc->StyleRuleChanged(sheet, this);
     }
   }
 }
@@ -2330,7 +2330,7 @@ nsCSSKeyframesRule::SetName(const nsAString& aName)
     sheet->SetModifiedByChildRule();
 
     if (doc) {
-      doc->StyleRuleChanged(sheet, this, this);
+      doc->StyleRuleChanged(sheet, this);
     }
   }
 
@@ -2365,7 +2365,7 @@ nsCSSKeyframesRule::AppendRule(const nsAString& aRule)
       sheet->SetModifiedByChildRule();
 
       if (doc) {
-        doc->StyleRuleChanged(sheet, this, this);
+        doc->StyleRuleChanged(sheet, this);
       }
     }
   }
@@ -2413,7 +2413,7 @@ nsCSSKeyframesRule::DeleteRule(const nsAString& aKey)
       sheet->SetModifiedByChildRule();
 
       if (doc) {
-        doc->StyleRuleChanged(sheet, this, this);
+        doc->StyleRuleChanged(sheet, this);
       }
     }
   }
@@ -2981,7 +2981,7 @@ nsCSSCounterStyleRule::SetName(const nsAString& aName)
     if (sheet) {
       sheet->SetModifiedByChildRule();
       if (doc) {
-        doc->StyleRuleChanged(sheet, this, this);
+        doc->StyleRuleChanged(sheet, this);
       }
     }
   }
@@ -3027,7 +3027,7 @@ nsCSSCounterStyleRule::SetDesc(nsCSSCounterDesc aDescID, const nsCSSValue& aValu
   if (sheet) {
     sheet->SetModifiedByChildRule();
     if (doc) {
-      doc->StyleRuleChanged(sheet, this, this);
+      doc->StyleRuleChanged(sheet, this);
     }
   }
 }

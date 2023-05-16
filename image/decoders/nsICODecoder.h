@@ -21,8 +21,6 @@ class RasterImage;
 
 enum class ICOState
 {
-  SUCCESS,
-  FAILURE,
   HEADER,
   DIR_ENTRY,
   SKIP_TO_RESOURCE,
@@ -96,12 +94,6 @@ private:
    * @return true if the width and height values in @aBIH are valid and correct.
    */
   bool CheckAndFixBitmapSize(int8_t* aBIH);
-  // Extract bitmap info header size count from BMP information header
-  int32_t ReadBIHSize(const char* aBIH);
-  // Extract bit count from BMP information header
-  int32_t ReadBPP(const char* aBIH);
-  // Calculates the row size in bytes for the AND mask table
-  uint32_t CalcAlphaRowSize();
   // Obtains the number of colors from the BPP, mBPP must be filled in
   uint16_t GetNumColors();
 

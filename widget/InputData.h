@@ -452,6 +452,9 @@ public:
   // point is implementation-specific, but can for example be the midpoint
   // between the very first and very last touch. This is in device pixels and
   // are the coordinates on the screen of this midpoint.
+  // For PINCHGESTURE_END events, this instead will hold the coordinates of
+  // the remaining finger, if there is one. If there isn't one then it will
+  // store -1, -1.
   ScreenPoint mFocusPoint;
 
   // |mFocusPoint| transformed to the local coordinates of the APZC targeted
@@ -536,6 +539,7 @@ public:
     // There are three kinds of scroll delta modes in Gecko: "page", "line" and
     // "pixel". For apz, we currently only support the "line" and "pixel" modes.
     SCROLLDELTA_LINE,
+    SCROLLDELTA_PAGE,
     SCROLLDELTA_PIXEL
   };
 
@@ -545,6 +549,8 @@ public:
     switch (aDeltaMode) {
       case nsIDOMWheelEvent::DOM_DELTA_LINE:
         return SCROLLDELTA_LINE;
+      case nsIDOMWheelEvent::DOM_DELTA_PAGE:
+        return SCROLLDELTA_PAGE;
       case nsIDOMWheelEvent::DOM_DELTA_PIXEL:
         return SCROLLDELTA_PIXEL;
       default:

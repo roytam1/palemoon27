@@ -4553,8 +4553,7 @@ PresShell::StyleSheetApplicableStateChanged(nsIDocument *aDocument,
 void
 PresShell::StyleRuleChanged(nsIDocument *aDocument,
                             nsIStyleSheet* aStyleSheet,
-                            mozilla::css::Rule* aOldStyleRule,
-                            mozilla::css::Rule* aNewStyleRule)
+                            mozilla::css::Rule* aStyleRule)
 {
   RecordStyleSheetChange(aStyleSheet);
 }

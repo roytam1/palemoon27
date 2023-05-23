@@ -571,7 +571,7 @@ PlacesViewBase.prototype = {
     if (!parentElt._built)
       return;
 
-    let index = Array.indexOf(parentElt.childNodes, parentElt._startMarker) +
+    let index = Array.prototype.indexOf.call(parentElt.childNodes, parentElt._startMarker) +
                 aIndex + 1;
     this._insertNewItemToPopup(aPlacesNode, parentElt,
                                parentElt.childNodes[index]);
@@ -601,7 +601,7 @@ PlacesViewBase.prototype = {
     if (parentElt._built) {
       // Move the node.
       parentElt.removeChild(elt);
-      let index = Array.indexOf(parentElt.childNodes, parentElt._startMarker) +
+      let index = Array.prototype.indexOf.call(parentElt.childNodes, parentElt._startMarker) +
                   aNewIndex + 1;
       parentElt.insertBefore(elt, parentElt.childNodes[index]);
     }
@@ -1312,7 +1312,7 @@ PlacesToolbar.prototype = {
     if (elt._placesNode && elt != this._rootElt &&
         elt.localName != "menupopup") {
       let eltRect = elt.getBoundingClientRect();
-      let eltIndex = Array.indexOf(this._rootElt.childNodes, elt);
+      let eltIndex = Array.prototype.indexOf.call(this._rootElt.childNodes, elt);
       if (PlacesUtils.nodeIsFolder(elt._placesNode) &&
           !PlacesUIUtils.isContentsReadOnly(elt._placesNode)) {
         // This is a folder.

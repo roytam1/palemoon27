@@ -275,8 +275,16 @@ public:
       } else {
         mode = ExtendMode::REPEAT;
       }
+
+      Filter filter;
+      if (state.imageSmoothingEnabled) {
+        filter = Filter::GOOD;
+      } else {
+        filter = Filter::POINT;
+      }
+
       mPattern.InitSurfacePattern(state.patternStyles[aStyle]->mSurface, mode,
-                                  state.patternStyles[aStyle]->mTransform);
+                                  state.patternStyles[aStyle]->mTransform, filter);
     }
 
     return *mPattern.GetPattern();
@@ -1198,6 +1206,13 @@ bool CanvasRenderingContext2D::SwitchRenderingMode(RenderingMode aRenderingMode)
   }
 
 #ifdef USE_SKIA_GPU
+  // Do not attempt to switch into GL mode if the platform doesn't allow it.
+  if ((aRenderingMode == RenderingMode::OpenGLBackendMode) &&
+      (!gfxPlatform::GetPlatform()->HaveChoiceOfHWAndSWCanvas() ||
+       !gfxPlatform::GetPlatform()->UseAcceleratedSkiaCanvas())) {
+      return false;
+  }
+
   if (mRenderingMode == RenderingMode::OpenGLBackendMode) {
     if (mVideoTexture) {
       gfxPlatform::GetPlatform()->GetSkiaGLGlue()->GetGLContext()->MakeCurrent();
@@ -1238,7 +1253,7 @@ bool CanvasRenderingContext2D::SwitchRenderingMode(RenderingMode aRenderingMode)
   mTarget->DrawSurface(snapshot, r, r);
 
   // Restore the clips and transform
-  for (uint32_t i = 0; i < CurrentState().clipsPushed.size(); i++) {
+  for (uint32_t i = 0; i < CurrentState().clipsPushed.Length(); i++) {
     mTarget->PushClip(CurrentState().clipsPushed[i]);
   }
 
@@ -1729,7 +1744,7 @@ CanvasRenderingContext2D::Restore()
 
   TransformWillUpdate();
 
-  for (uint32_t i = 0; i < CurrentState().clipsPushed.size(); i++) {
+  for (uint32_t i = 0; i < CurrentState().clipsPushed.Length(); i++) {
     mTarget->PopClip();
   }
 
@@ -2448,10 +2463,15 @@ private:
 void
 CanvasRenderingContext2D::UpdateFilter()
 {
-  nsIPresShell* presShell = GetPresShell();
+  nsCOMPtr<nsIPresShell> presShell = GetPresShell();
   if (!presShell || presShell->IsDestroying()) {
     return;
   }
+
+  // The filter might reference an SVG filter that is declared inside this
+  // document. Flush frames so that we'll have an nsSVGFilterFrame to work
+  // with.
+  presShell->FlushPendingNotifications(Flush_Frames);
 
   CurrentState().filter =
     nsFilterInstance::GetFilterDescription(mCanvasElement,
@@ -2862,7 +2882,7 @@ CanvasRenderingContext2D::Clip(const CanvasWindingRule& winding)
   }
 
   mTarget->PushClip(mPath);
-  CurrentState().clipsPushed.push_back(mPath);
+  CurrentState().clipsPushed.AppendElement(mPath);
 }
 
 void
@@ -2877,7 +2897,7 @@ CanvasRenderingContext2D::Clip(const CanvasPath& path, const CanvasWindingRule& 
   }
 
   mTarget->PushClip(gfxpath);
-  CurrentState().clipsPushed.push_back(gfxpath);
+  CurrentState().clipsPushed.AppendElement(gfxpath);
 }
 
 void
@@ -4322,7 +4342,8 @@ CanvasRenderingContext2D::CachedSurfaceFromElement(Element* aElement)
     return res;
   }
 
-  res.mSourceSurface = CanvasImageCache::SimpleLookup(aElement);
+  res.mSourceSurface =
+    CanvasImageCache::SimpleLookup(aElement, mIsSkiaGL);
   if (!res.mSourceSurface) {
     return res;
   }
@@ -4343,6 +4364,25 @@ CanvasRenderingContext2D::CachedSurfaceFromElement(Element* aElement)
 //
 // image
 //
+
+static void
+ClipImageDimension(double& aSourceCoord, double& aSourceSize, int32_t aImageSize,
+                   double& aDestCoord, double& aDestSize)
+{
+  double scale = aDestSize / aSourceSize;
+  if (aSourceCoord < 0.0) {
+    double destEnd = aDestCoord + aDestSize;
+    aDestCoord -= aSourceCoord * scale;
+    aDestSize = destEnd - aDestCoord;
+    aSourceSize += aSourceCoord;
+    aSourceCoord = 0.0;
+  }
+  double delta = aImageSize - (aSourceCoord + aSourceSize);
+  if (delta < 0.0) {
+    aDestSize += delta * scale;
+    aSourceSize = aImageSize - aSourceCoord;
+  }
+}
 
 // drawImage(in HTMLImageElement image, in float dx, in float dy);
 //   -- render image from 0,0 at dx,dy top-left coords
@@ -4411,13 +4451,14 @@ CanvasRenderingContext2D::DrawImage(const CanvasImageSource& image,
     }
 
     srcSurf =
-      CanvasImageCache::Lookup(element, mCanvasElement, &imgSize);
+      CanvasImageCache::Lookup(element, mCanvasElement, &imgSize, mIsSkiaGL);
   }
 
   nsLayoutUtils::DirectDrawInfo drawInfo;
 
 #ifdef USE_SKIA_GPU
   if (mRenderingMode == RenderingMode::OpenGLBackendMode &&
+      mIsSkiaGL &&
       !srcSurf &&
       image.IsHTMLVideoElement() &&
       gfxPlatform::GetPlatform()->GetSkiaGLGlue()) {
@@ -4552,7 +4593,7 @@ CanvasRenderingContext2D::DrawImage(const CanvasImageSource& image,
     if (res.mSourceSurface) {
       if (res.mImageRequest) {
         CanvasImageCache::NotifyDrawImage(element, mCanvasElement, res.mImageRequest,
-                                          res.mSourceSurface, imgSize);
+                                          res.mSourceSurface, imgSize, mIsSkiaGL);
       }
 
       srcSurf = res.mSourceSurface;
@@ -4576,18 +4617,12 @@ CanvasRenderingContext2D::DrawImage(const CanvasImageSource& image,
     return;
   }
 
-  if (dw == 0.0 || dh == 0.0) {
-    // not really failure, but nothing to do --
-    // and noone likes a divide-by-zero
-    return;
-  }
+  ClipImageDimension(sx, sw, imgSize.width, dx, dw);
+  ClipImageDimension(sy, sh, imgSize.height, dy, dh);
 
-  if (sx < 0.0 || sy < 0.0 ||
-      sw < 0.0 || sw > (double) imgSize.width ||
-      sh < 0.0 || sh > (double) imgSize.height ||
-      dw < 0.0 || dh < 0.0) {
-    // XXX - Unresolved spec issues here, for now return error.
-    error.Throw(NS_ERROR_DOM_INDEX_SIZE_ERR);
+  if (sw <= 0.0 || sh <= 0.0 ||
+      dw <= 0.0 || dh <= 0.0) {
+    // source and/or destination are fully clipped, so nothing is painted
     return;
   }
 

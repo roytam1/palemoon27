@@ -4,20 +4,12 @@
 
 "use strict";
 
-// Check that a player's playbackRate can be changed.
-
-const {AnimationsFront} = require("devtools/server/actors/animation");
-const {InspectorFront} = require("devtools/server/actors/inspector");
+// Check that a player's playbackRate can be changed, and that multiple players
+// can have their rates changed at the same time.
 
 add_task(function*() {
-  yield addTab(MAIN_DOMAIN + "animation.html");
-
-  initDebuggerServer();
-  let client = new DebuggerClient(DebuggerServer.connectPipe());
-  let form = yield connectDebuggerClient(client);
-  let inspector = InspectorFront(client, form);
-  let walker = yield inspector.getWalker();
-  let animations = AnimationsFront(client, form);
+  let {client, walker, animations} =
+    yield initAnimationsFrontForUrl(MAIN_DOMAIN + "animation.html");
 
   info("Retrieve an animated node");
   let node = yield walker.querySelector(walker.rootNode, ".simple-animation");
@@ -40,6 +32,19 @@ add_task(function*() {
   info("Query the state again");
   state = yield player.getCurrentState();
   is(state.playbackRate, 1, "The playbackRate was changed back");
+
+  info("Retrieve several animation players and set their rates");
+  node = yield walker.querySelector(walker.rootNode, "body");
+  let players = yield animations.getAnimationPlayersForNode(node);
+
+  info("Change all animations in <body> to .5 rate");
+  yield animations.setPlaybackRates(players, .5);
+
+  info("Query their states and check they are correct");
+  for (let player of players) {
+    let state = yield player.getCurrentState();
+    is(state.playbackRate, .5, "The playbackRate was updated");
+  }
 
   yield closeDebuggerClient(client);
   gBrowser.removeCurrentTab();

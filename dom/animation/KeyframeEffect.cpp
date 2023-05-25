@@ -1353,6 +1353,8 @@ BuildSegmentsFromValueEntries(nsTArray<KeyframeValueEntry>& aEntries,
       lastProperty = aEntries[i].mProperty;
     }
 
+    MOZ_ASSERT(animationProperty, "animationProperty should be valid pointer.");
+
     // Now generate the segment.
     AnimationPropertySegment* segment =
       animationProperty->mSegments.AppendElement();
@@ -1725,7 +1727,8 @@ KeyframeEffectReadOnly::GetFrames(JSContext*& aCx,
         entry->mProperty = property.mProperty;
         entry->mValue = segment.mToValue;
         entry->mOffset = segment.mToKey;
-        entry->mTimingFunction = &segment.mTimingFunction;
+        entry->mTimingFunction =
+          segment.mToKey == 1.0f ? nullptr : &segment.mTimingFunction;
         entry->mPosition =
           segment.mFromKey == segment.mToKey && segment.mToKey == 1.0f ?
             ValuePosition::Last :

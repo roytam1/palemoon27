@@ -7917,12 +7917,10 @@ Parser<FullParseHandler>::legacyComprehensionTail(ParseNode* bodyExpr, unsigned 
                      JSMSG_ARRAY_INIT_TOO_BIG);
 
     while (true) {
-        /*
-         * FOR node is binary, left is loop control and right is body.  Use
-         * index to count each block-local let-variable on the left-hand side
-         * of the in/of.
-         */
-        ParseNode* pn2 = handler.new_<BinaryNode>(PNK_FOR, JSOP_ITER, pos(),
+        // PNK_COMPREHENSIONFOR is binary: left is loop control, right is body.
+        // Use index to count each block-local let-variable on the left-hand
+        // side of the in/of.
+        ParseNode* pn2 = handler.new_<BinaryNode>(PNK_COMPREHENSIONFOR, JSOP_ITER, pos(),
                                                   nullptr, nullptr);
         if (!pn2)
             return null();
@@ -8372,7 +8370,7 @@ Parser<ParseHandler>::comprehensionFor(GeneratorKind comprehensionKind)
     if (!tail)
         return null();
 
-    return handler.newForStatement(begin, head, tail, JSOP_ITER);
+    return handler.newComprehensionFor(begin, head, tail);
 }
 
 template <typename ParseHandler>

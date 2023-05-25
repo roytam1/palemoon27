@@ -766,6 +766,11 @@ WebGLContext::SetDimensions(int32_t signedWidth, int32_t signedHeight)
         // If we've already drawn, we should commit the current buffer.
         PresentScreenBuffer();
 
+        if (IsContextLost()) {
+            GenerateWarning("WebGL context was lost due to swap failure.");
+            return NS_OK;
+        }
+
         // ResizeOffscreen scraps the current prod buffer before making a new one.
         if (!ResizeBackbuffer(width, height)) {
             GenerateWarning("WebGL context failed to resize.");
@@ -902,6 +907,7 @@ WebGLContext::SetDimensions(int32_t signedWidth, int32_t signedHeight)
     AssertCachedBindings();
     AssertCachedState();
 
+    reporter.SetSuccessful();
     return NS_OK;
 }
 
@@ -1704,7 +1710,7 @@ WebGLContext::GetSurfaceSnapshot(bool* out_premultAlpha)
     if (!srcPremultAlpha) {
         if (out_premultAlpha) {
             *out_premultAlpha = false;
-        } else {
+        } else if(hasAlpha) {
             gfxUtils::PremultiplyDataSurface(surf, surf);
         }
     }

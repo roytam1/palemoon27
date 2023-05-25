@@ -2281,7 +2281,9 @@ public:
     }
 
     // unref stored DBusMessages before clearing the hashtable
-    sPairingReqTable->EnumerateRead(UnrefDBusMessage, nullptr);
+    for (auto iter = sPairingReqTable->Iter(); !iter.Done(); iter.Next()) {
+      dbus_message_unref(iter.UserData());
+    }
     sPairingReqTable->Clear();
 
     sIsPairing = 0;
@@ -2298,14 +2300,6 @@ public:
     if (NS_FAILED(NS_DispatchToMainThread(runnable))) {
       BT_WARNING("Failed to dispatch to BT thread!");
     }
-  }
-
-private:
-  static PLDHashOperator
-  UnrefDBusMessage(const BluetoothAddress& key, DBusMessage* value, void* arg)
-  {
-    dbus_message_unref(value);
-    return PL_DHASH_NEXT;
   }
 };
 
@@ -4448,6 +4442,14 @@ BluetoothDBusService::ReplyTovCardListing(
 }
 
 void
+BluetoothDBusService::ReplyTovCardListing(
+  Blob* aBlob,
+  uint16_t aPhonebookSize,
+  BluetoothReplyRunnable* aRunnable)
+{
+}
+
+void
 BluetoothDBusService::ReplyToMapFolderListing(long aMasId,
   const nsAString& aFolderlists,
   BluetoothReplyRunnable* aRunnable)
@@ -4510,15 +4512,6 @@ BluetoothDBusService::ReplyToMapMessageUpdate(long aMasId, bool aStatus,
   BluetoothReplyRunnable* aRunnable)
 {
 }
-
-void
-BluetoothDBusService::ReplyTovCardListing(
-  Blob* aBlob,
-  uint16_t aPhonebookSize,
-  BluetoothReplyRunnable* aRunnable)
-{
-}
-
 
 void
 BluetoothDBusService::GattServerConnectPeripheralInternal(

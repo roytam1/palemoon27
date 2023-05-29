@@ -689,6 +689,7 @@ class IonBuilder
     bool jsop_intrinsic(PropertyName* name);
     bool jsop_getimport(PropertyName* name);
     bool jsop_bindname(PropertyName* name);
+    bool jsop_bindvar();
     bool jsop_getelem();
     bool jsop_getelem_dense(MDefinition* obj, MDefinition* index, JSValueType unboxedType);
     bool jsop_getelem_typed(MDefinition* obj, MDefinition* index, ScalarTypeDescr::Type arrayType);
@@ -723,6 +724,7 @@ class IonBuilder
     bool jsop_lambda(JSFunction* fun);
     bool jsop_lambda_arrow(JSFunction* fun);
     bool jsop_functionthis();
+    bool jsop_globalthis();
     bool jsop_typeof();
     bool jsop_toid();
     bool jsop_iter(uint8_t flags);

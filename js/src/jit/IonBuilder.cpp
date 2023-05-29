@@ -1950,6 +1950,9 @@ IonBuilder::inspectOpcode(JSOp op)
       case JSOP_BINDNAME:
         return jsop_bindname(info().getName(pc));
 
+      case JSOP_BINDVAR:
+        return jsop_bindvar();
+
       case JSOP_DUP:
         current->pushSlot(current->stackDepth() - 1);
         return true;
@@ -2001,6 +2004,9 @@ IonBuilder::inspectOpcode(JSOp op)
 
       case JSOP_FUNCTIONTHIS:
         return jsop_functionthis();
+
+      case JSOP_GLOBALTHIS:
+        return jsop_globalthis();
 
       case JSOP_CALLEE: {
          MDefinition* callee = getCallee();
@@ -8422,6 +8428,16 @@ IonBuilder::jsop_bindname(PropertyName* name)
     return resumeAfter(ins);
 }
 
+bool
+IonBuilder::jsop_bindvar()
+{
+    MOZ_ASSERT(analysis().usesScopeChain());
+    MCallBindVar* ins = MCallBindVar::New(alloc(), current->scopeChain());
+    current->add(ins);
+    current->push(ins);
+    return true;
+}
+
 static MIRType
 GetElemKnownType(bool needsHoleCheck, TemporaryTypeSet* types)
 {
@@ -12973,6 +12989,20 @@ IonBuilder::jsop_functionthis()
     current->push(thisObj);
 
     return resumeAfter(thisObj);
+}
+
+bool
+IonBuilder::jsop_globalthis()
+{
+    if (script()->hasNonSyntacticScope()) {
+        // Ion does not compile global scripts with a non-syntactic scope, but
+        // we can end up here when we're compiling an arrow function.
+        return abort("JSOP_GLOBALTHIS in script with non-syntactic scope");
+    }
+
+    ClonedBlockObject* globalLexical = &script()->global().lexicalScope();
+    pushConstant(globalLexical->thisValue());
+    return true;
 }
 
 bool

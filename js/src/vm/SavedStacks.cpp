@@ -1033,13 +1033,7 @@ SavedStacks::copyAsyncStack(JSContext* cx, HandleObject asyncStack, HandleString
 void
 SavedStacks::sweep(JSRuntime* rt)
 {
-    if (frames.initialized()) {
-        for (SavedFrame::Set::Enum e(frames); !e.empty(); e.popFront()) {
-            if (IsAboutToBeFinalized(&e.mutableFront()))
-                e.removeFront();
-        }
-    }
-
+    frames.sweep();
     sweepPCLocationMap();
 }
 

@@ -1789,7 +1789,6 @@ CASE(JSOP_UNUSED209)
 CASE(JSOP_UNUSED210)
 CASE(JSOP_UNUSED211)
 CASE(JSOP_UNUSED212)
-CASE(JSOP_UNUSED213)
 CASE(JSOP_UNUSED219)
 CASE(JSOP_UNUSED220)
 CASE(JSOP_UNUSED221)
@@ -2124,6 +2123,12 @@ CASE(JSOP_BINDNAME)
                   "We're sharing the END_CASE so the lengths better match");
 }
 END_CASE(JSOP_BINDNAME)
+
+CASE(JSOP_BINDVAR)
+{
+    PUSH_OBJECT(REGS.fp()->varObj());
+}
+END_CASE(JSOP_BINDVAR)
 
 #define BITWISE_OP(OP)                                                        \
     JS_BEGIN_MACRO                                                            \
@@ -3264,10 +3269,7 @@ CASE(JSOP_SETLOCAL)
 {
     uint32_t i = GET_LOCALNO(REGS.pc);
 
-    // Derived class constructors store the TDZ Value in the .this slot
-    // before a super() call.
-    MOZ_ASSERT_IF(!script->isDerivedClassConstructor(),
-                  !IsUninitializedLexical(REGS.fp()->unaliasedLocal(i)));
+    MOZ_ASSERT(!IsUninitializedLexical(REGS.fp()->unaliasedLocal(i)));
 
     REGS.fp()->unaliasedLocal(i) = REGS.sp[-1];
 }
@@ -4878,9 +4880,6 @@ bool
 js::ThrowUninitializedThis(JSContext* cx, AbstractFramePtr frame)
 {
     RootedFunction fun(cx, frame.callee());
-
-    MOZ_ASSERT(fun->isClassConstructor());
-    MOZ_ASSERT(fun->nonLazyScript()->isDerivedClassConstructor());
 
     const char* name = "anonymous";
     JSAutoByteString str;

@@ -56,6 +56,13 @@ let AppConstants = Object.freeze({
   false,
 #endif
 
+  MOZ_DATA_REPORTING:
+#ifdef MOZ_DATA_REPORTING
+  true,
+#else
+  false,
+#endif
+
   MOZ_DEVICES:
 #ifdef MOZ_DEVICES
   true,
@@ -77,9 +84,8 @@ let AppConstants = Object.freeze({
   false,
 #endif
 
-# MOZ_B2G covers both device and desktop b2g
-  MOZ_B2G:
-#ifdef MOZ_B2G
+  MOZ_B2G_RIL:
+#ifdef MOZ_B2G_RIL
   true,
 #else
   false,

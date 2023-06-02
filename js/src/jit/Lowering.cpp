@@ -469,8 +469,6 @@ LIRGenerator::visitCall(MCall* call)
     } else if (target) {
         // Call known functions.
         if (target->isNative()) {
-            MOZ_ASSERT(!target->isClassConstructor());
-
             Register cxReg, numReg, vpReg, tmpReg;
             GetTempRegForIntArg(0, 0, &cxReg);
             GetTempRegForIntArg(1, 0, &numReg);
@@ -3362,6 +3360,16 @@ LIRGenerator::visitBindNameCache(MBindNameCache* ins)
     LBindNameCache* lir = new(alloc()) LBindNameCache(useRegister(ins->scopeChain()));
     define(lir, ins);
     assignSafepoint(lir, ins);
+}
+
+void
+LIRGenerator::visitCallBindVar(MCallBindVar* ins)
+{
+    MOZ_ASSERT(ins->scopeChain()->type() == MIRType_Object);
+    MOZ_ASSERT(ins->type() == MIRType_Object);
+
+    LCallBindVar* lir = new(alloc()) LCallBindVar(useRegister(ins->scopeChain()));
+    define(lir, ins);
 }
 
 void

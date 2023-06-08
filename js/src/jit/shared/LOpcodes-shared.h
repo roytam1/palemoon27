@@ -367,6 +367,8 @@
     _(Debugger)                     \
     _(NewTarget)                    \
     _(ArrowNewTarget)               \
-    _(CheckReturn)
+    _(CheckReturn)                  \
+    _(CheckObjCoercible)            \
+    _(DebugCheckSelfHosted)
 
 #endif /* jit_shared_LOpcodes_shared_h */

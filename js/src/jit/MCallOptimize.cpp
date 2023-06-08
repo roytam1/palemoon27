@@ -2967,7 +2967,7 @@ IonBuilder::atomicsMeetsPreconditions(CallInfo& callInfo, Scalar::Type* arrayTyp
         // be.
         return checkResult == DontCheckAtomicResult || getInlineReturnType() == MIRType_Double;
       default:
-        // Excludes floating types and Uint8Clamped
+        // Excludes floating types and Uint8Clamped.
         return false;
     }
 }

@@ -634,6 +634,9 @@ public:
 
     return slots->mAttributeMap;
   }
+
+  void GetAttributeNames(nsTArray<nsString>& aResult);
+
   void GetAttribute(const nsAString& aName, nsString& aReturn)
   {
     DOMString str;
@@ -680,12 +683,6 @@ public:
                            ErrorResult& aError);
   already_AddRefed<nsIHTMLCollection>
     GetElementsByClassName(const nsAString& aClassNames);
-  bool MozMatchesSelector(const nsAString& aSelector,
-                          ErrorResult& aError)
-  {
-    return Matches(aSelector, aError);
-  }
-
 private:
   /**
    * Implement the algorithm specified at
@@ -1111,7 +1108,7 @@ public:
    */
   float FontSizeInflation();
 
-  net::ReferrerPolicy GetReferrerPolicy();
+  net::ReferrerPolicy GetReferrerPolicyAsEnum();
 
 protected:
   /*
@@ -1817,8 +1814,8 @@ NS_IMETHOD MozMatchesSelector(const nsAString& selector,                      \
                               bool* _retval) final override                   \
 {                                                                             \
   mozilla::ErrorResult rv;                                                    \
-  *_retval = Element::MozMatchesSelector(selector, rv);                       \
-  return rv.StealNSResult();                                                      \
+  *_retval = Element::Matches(selector, rv);                                  \
+  return rv.StealNSResult();                                                  \
 }                                                                             \
 NS_IMETHOD SetCapture(bool retargetToElement) final override                  \
 {                                                                             \

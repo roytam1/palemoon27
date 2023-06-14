@@ -2892,9 +2892,11 @@ var BrowserOnClick = {
   onAboutBlocked: function (elementId, reason, isTopFrame, location) {
     // Depending on what page we are displaying here (malware/phishing/unwanted)
     // use the right strings and links for each.
-    let bucketName = "WARNING_PHISHING_PAGE_";
+    let bucketName = "";
     if (reason === 'malware') {
       bucketName = "WARNING_MALWARE_PAGE_";
+    } else if (reason === 'phishing') {
+      bucketName = "WARNING_PHISHING_PAGE_";
     } else if (reason === 'unwanted') {
       bucketName = "WARNING_UNWANTED_PAGE_";
     }
@@ -2915,7 +2917,9 @@ var BrowserOnClick = {
         break;
 
       case "ignoreWarningButton":
-        this.ignoreWarningButton(reason);
+        if (gPrefService.getBoolPref("browser.safebrowsing.allowOverride")) {
+          this.ignoreWarningButton(reason);
+        }
         break;
     }
   },
@@ -2983,6 +2987,8 @@ var BrowserOnClick = {
       title = gNavigatorBundle.getString("safebrowsing.reportedUnwantedSite");
       // There is no button for reporting errors since Google doesn't currently
       // provide a URL endpoint for these reports.
+    } else {
+      return; // no notifications for forbidden sites
     }
 
     let notificationBox = gBrowser.getNotificationBox();

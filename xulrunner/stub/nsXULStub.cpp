@@ -446,7 +446,7 @@ main(int argc, char **argv)
   return retval;
 }
 
-#ifdef MOZ_XULRUNNER
+#if 0//def MOZ_XULRUNNER
 namespace mozilla {
 namespace detail {
 

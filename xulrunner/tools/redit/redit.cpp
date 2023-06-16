@@ -15,7 +15,7 @@
 
 // Mozilla headers (alphabetical)
 #include "mozilla/FileUtils.h"  // ScopedClose
-#include "mozilla/UniquePtrExtensions.h"
+#include "nsAutoPtr.h"          // nsAutoArrayPtr
 
 /*
 Icon files are made up of:
@@ -120,12 +120,12 @@ wmain(int argc, wchar_t** argv)
 
   // Load all the data from the icon file
   long filesize = _filelength(file);
-  auto data = MakeUniqueFallible<BYTE[]>(filesize);
+  nsAutoArrayPtr<BYTE> data(new BYTE[filesize]);
   if(!data) {
     fprintf(stderr, "Failed to allocate memory for icon file.\n");
     return 1;
   }
-  _read(file, data.get(), filesize);
+  _read(file, data, filesize);
 
   IconHeader* header = reinterpret_cast<IconHeader*>(data.get());
 
@@ -139,18 +139,18 @@ wmain(int argc, wchar_t** argv)
   // Allocate the group resource entry
   long groupSize = sizeof(IconHeader)
                  + header->ImageCount * sizeof(IconResEntry);
-  auto group = MakeUniqueFallible<BYTE[]>(groupSize);
+  nsAutoArrayPtr<BYTE> group(new BYTE[groupSize]);
   if(!group) {
     fprintf(stderr, "Failed to allocate memory for new images.\n");
     return 1;
   }
-  memcpy(group.get(), data.get(), sizeof(IconHeader));
+  memcpy(group, data, sizeof(IconHeader));
 
   IconDirEntry* sourceIcon =
-                    reinterpret_cast<IconDirEntry*>(data.get()
+                    reinterpret_cast<IconDirEntry*>(data
                                                   + sizeof(IconHeader));
   IconResEntry* targetIcon =
-                    reinterpret_cast<IconResEntry*>(group.get()
+                    reinterpret_cast<IconResEntry*>(group
                                                   + sizeof(IconHeader));
 
   for (int id = 1; id <= header->ImageCount; id++) {

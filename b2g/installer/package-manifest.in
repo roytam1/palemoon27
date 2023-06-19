@@ -772,7 +772,6 @@
 #endif
 @RESPATH@/@PREF_DIR@/channel-prefs.js
 @RESPATH@/gecko.js
-@RESPATH@/defaults/autoconfig/platform.js
 @RESPATH@/defaults/autoconfig/prefcalls.js
 @RESPATH@/defaults/profile/prefs.js
 

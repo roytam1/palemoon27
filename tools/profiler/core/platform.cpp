@@ -30,6 +30,10 @@
 #endif
 #include "ProfilerMarkers.h"
 
+#ifdef MOZ_TASK_TRACER
+#include "GeckoTaskTracer.h"
+#endif
+
 #if defined(SPS_OS_android) && !defined(MOZ_WIDGET_GONK)
   #include "AndroidBridge.h"
 #endif
@@ -437,6 +441,10 @@ void mozilla_sampler_init(void* stackTop)
   if (stack_key_initialized)
     return;
 
+#ifdef MOZ_TASK_TRACER
+  mozilla::tasktracer::InitTaskTracer();
+#endif
+
 #ifdef SPS_STANDALONE
   mozilla::TimeStamp::Startup();
 #endif
@@ -537,6 +545,10 @@ void mozilla_sampler_shutdown()
   PseudoStack *stack = tlsPseudoStack.get();
   stack->deref();
   tlsPseudoStack.set(nullptr);
+
+#ifdef MOZ_TASK_TRACER
+  mozilla::tasktracer::ShutdownTaskTracer();
+#endif
 }
 
 void mozilla_sampler_save()
@@ -613,6 +625,26 @@ void mozilla_sampler_get_profiler_start_params(int* aEntrySize,
   for (size_t i = 0; i < featureList.length(); ++i) {
     (*aFeatures)[i] = featureList[i].c_str();
   }
+}
+
+void mozilla_sampler_get_gatherer(nsISupports** aRetVal)
+{
+  if (!aRetVal) {
+    return;
+  }
+
+  if (NS_WARN_IF(!profiler_is_active())) {
+    *aRetVal = nullptr;
+    return;
+  }
+
+  GeckoSampler *t = tlsTicker.get();
+  if (NS_WARN_IF(!t)) {
+    *aRetVal = nullptr;
+    return;
+  }
+
+  t->GetGatherer(aRetVal);
 }
 
 #endif
@@ -952,7 +984,7 @@ void mozilla_sampler_unlock()
 #endif
 }
 
-bool mozilla_sampler_register_thread(const char* aName, void* stackTop)
+bool mozilla_sampler_register_thread(const char* aName, void* aGuessStackTop)
 {
   if (sInitCount == 0) {
     return false;
@@ -971,6 +1003,7 @@ bool mozilla_sampler_register_thread(const char* aName, void* stackTop)
   PseudoStack* stack = PseudoStack::create();
   tlsPseudoStack.set(stack);
   bool isMainThread = is_main_thread_name(aName);
+  void* stackTop = GetStackTop(aGuessStackTop);
   return Sampler::RegisterCurrentThread(aName, stack, isMainThread, stackTop);
 }
 

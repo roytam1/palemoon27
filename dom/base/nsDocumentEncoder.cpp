@@ -1254,8 +1254,6 @@ nsresult
 NS_NewTextEncoder(nsIDocumentEncoder** aResult)
 {
   *aResult = new nsDocumentEncoder;
-  if (!*aResult)
-    return NS_ERROR_OUT_OF_MEMORY;
  NS_ADDREF(*aResult);
  return NS_OK;
 }
@@ -1998,8 +1996,6 @@ nsresult
 NS_NewHTMLCopyTextEncoder(nsIDocumentEncoder** aResult)
 {
   *aResult = new nsHTMLCopyEncoder;
-  if (!*aResult)
-    return NS_ERROR_OUT_OF_MEMORY;
  NS_ADDREF(*aResult);
  return NS_OK;
 }

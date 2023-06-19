@@ -38,6 +38,7 @@
 #include "nsDirectoryServiceDefs.h"
 #include "nsIObserverService.h"
 #include "mozilla/Services.h"
+#include "PlatformMacros.h"
 #include "nsTArray.h"
 
 #include "mozilla/ProfileGatherer.h"
@@ -246,6 +247,8 @@ GeckoSampler::GeckoSampler(double aInterval, int aEntrySize,
     mozilla::tasktracer::StartLogging();
   }
 #endif
+
+  mGatherer = new mozilla::ProfileGatherer(this);
 }
 
 GeckoSampler::~GeckoSampler()
@@ -278,6 +281,10 @@ GeckoSampler::~GeckoSampler()
 #if defined(XP_WIN)
   delete mIntelPowerGadget;
 #endif
+
+  // Cancel any in-flight async profile gatherering
+  // requests
+  mGatherer->Cancel();
 }
 
 void GeckoSampler::HandleSaveRequest()
@@ -398,35 +405,18 @@ JSObject* GeckoSampler::ToJSObject(JSContext *aCx, double aSinceTime)
   {
     UniquePtr<char[]> buf = ToJSON(aSinceTime);
     NS_ConvertUTF8toUTF16 js_string(nsDependentCString(buf.get()));
-    bool rv = JS_ParseJSON(aCx, static_cast<const char16_t*>(js_string.get()),
-                           js_string.Length(), &val);
-    if (!rv) {
-#ifdef NIGHTLY_BUILD
-      // XXXshu: Temporary code to help debug malformed JSON. See bug 1172157.
-      nsCOMPtr<nsIFile> path;
-      nsresult rv = NS_GetSpecialDirectory("TmpD", getter_AddRefs(path));
-      if (!NS_FAILED(rv)) {
-        rv = path->Append(NS_LITERAL_STRING("bad-profile.json"));
-        if (!NS_FAILED(rv)) {
-          nsCString cpath;
-          rv = path->GetNativePath(cpath);
-          if (!NS_FAILED(rv)) {
-            std::ofstream stream;
-            stream.open(cpath.get());
-            if (stream.is_open()) {
-              stream << buf.get();
-              stream.close();
-              printf_stderr("Malformed profiler JSON dumped to %s! "
-                            "Please upload to https://bugzil.la/1172157\n",
-                            cpath.get());
-            }
-          }
-        }
-      }
-#endif
-    }
+    MOZ_ALWAYS_TRUE(JS_ParseJSON(aCx, static_cast<const char16_t*>(js_string.get()),
+                                 js_string.Length(), &val));
   }
   return &val.toObject();
+}
+
+void GeckoSampler::GetGatherer(nsISupports** aRetVal)
+{
+  if (!aRetVal || NS_WARN_IF(!mGatherer)) {
+    return;
+  }
+  NS_ADDREF(*aRetVal = mGatherer);
 }
 #endif
 
@@ -440,17 +430,11 @@ UniquePtr<char[]> GeckoSampler::ToJSON(double aSinceTime)
 void GeckoSampler::ToJSObjectAsync(double aSinceTime,
                                   mozilla::dom::Promise* aPromise)
 {
-  if (NS_WARN_IF(mGatherer)) {
+  if (NS_WARN_IF(!mGatherer)) {
     return;
   }
 
-  mGatherer = new mozilla::ProfileGatherer(this, aSinceTime, aPromise);
-  mGatherer->Start();
-}
-
-void GeckoSampler::ProfileGathered()
-{
-  mGatherer = nullptr;
+  mGatherer->Start(aSinceTime, aPromise);
 }
 
 struct SubprocessClosure {
@@ -579,7 +563,11 @@ void GeckoSampler::StreamJSON(SpliceableJSONWriter& aWriter, double aSinceTime)
       if (ProfileJava()) {
         mozilla::widget::GeckoJavaSampler::PauseJavaProfiling();
 
-        BuildJavaThreadJSObject(aWriter);
+        aWriter.Start();
+        {
+          BuildJavaThreadJSObject(aWriter);
+        }
+        aWriter.End();
 
         mozilla::widget::GeckoJavaSampler::UnpauseJavaProfiling();
       }
@@ -853,6 +841,17 @@ void mergeStacksIntoProfile(ThreadProfile& aProfile, TickSample* aSample, Native
     if (nativeIndex >= 0)
       nativeStackAddr = (uint8_t *) aNativeStack.sp_array[nativeIndex];
 
+    // If there's a native stack entry which has the same SP as a
+    // pseudo stack entry, pretend we didn't see the native stack
+    // entry.  Ditto for a native stack entry which has the same SP as
+    // a JS stack entry.  In effect this means pseudo or JS entries
+    // trump conflicting native entries.
+    if (nativeStackAddr && (pseudoStackAddr == nativeStackAddr || jsStackAddr == nativeStackAddr)) {
+      nativeStackAddr = nullptr;
+      nativeIndex--;
+      MOZ_ASSERT(pseudoStackAddr || jsStackAddr);
+    }
+
     // Sanity checks.
     MOZ_ASSERT_IF(pseudoStackAddr, pseudoStackAddr != jsStackAddr &&
                                    pseudoStackAddr != nativeStackAddr);
@@ -944,10 +943,6 @@ void StackWalkCallback(uint32_t aFrameNumber, void* aPC, void* aSP,
 
 void GeckoSampler::doNativeBacktrace(ThreadProfile &aProfile, TickSample* aSample)
 {
-#ifndef XP_MACOSX
-  uintptr_t thread = GetThreadHandle(aSample->threadProfile->GetPlatformData());
-  MOZ_ASSERT(thread);
-#endif
   void* pc_array[1000];
   void* sp_array[1000];
   NativeStack nativeStack = {
@@ -964,11 +959,8 @@ void GeckoSampler::doNativeBacktrace(ThreadProfile &aProfile, TickSample* aSampl
   StackWalkCallback(/* frameNumber */ 0, aSample->pc, aSample->sp, &nativeStack);
 
   uint32_t maxFrames = uint32_t(nativeStack.size - nativeStack.count);
-#ifdef XP_MACOSX
-  pthread_t pt = GetProfiledThread(aSample->threadProfile->GetPlatformData());
-  void *stackEnd = reinterpret_cast<void*>(-1);
-  if (pt)
-    stackEnd = static_cast<char*>(pthread_get_stackaddr_np(pt));
+#if defined(XP_MACOSX) || defined(XP_WIN)
+  void *stackEnd = aSample->threadProfile->GetStackTop();
   bool rv = true;
   if (aSample->fp >= aSample->sp && aSample->fp <= stackEnd)
     rv = FramePointerStackWalk(StackWalkCallback, /* skipFrames */ 0,
@@ -976,15 +968,9 @@ void GeckoSampler::doNativeBacktrace(ThreadProfile &aProfile, TickSample* aSampl
                                reinterpret_cast<void**>(aSample->fp), stackEnd);
 #else
   void *platformData = nullptr;
-#ifdef XP_WIN
-  if (aSample->isSamplingCurrentThread) {
-    // In this case we want MozStackWalk to know that it's walking the
-    // current thread's stack, so we pass 0 as the thread handle.
-    thread = 0;
-  }
-  platformData = aSample->context;
-#endif // XP_WIN
 
+  uintptr_t thread = GetThreadHandle(aSample->threadProfile->GetPlatformData());
+  MOZ_ASSERT(thread);
   bool rv = MozStackWalk(StackWalkCallback, /* skipFrames */ 0, maxFrames,
                              &nativeStack, thread, platformData);
 #endif

@@ -719,7 +719,6 @@
 @RESPATH@/browser/@PREF_DIR@/palemoon.js
 @RESPATH@/browser/@PREF_DIR@/palemoon-branding.js
 @RESPATH@/greprefs.js
-@RESPATH@/defaults/autoconfig/platform.js
 @RESPATH@/defaults/autoconfig/prefcalls.js
 @RESPATH@/browser/defaults/profile/prefs.js
 

@@ -510,7 +510,6 @@ nsNodeSupportsWeakRefTearoff::GetWeakReference(nsIWeakReference** aInstancePtr)
   nsINode::nsSlots* slots = mNode->Slots();
   if (!slots->mWeakReference) {
     slots->mWeakReference = new nsNodeWeakReference(mNode);
-    NS_ENSURE_TRUE(slots->mWeakReference, NS_ERROR_OUT_OF_MEMORY);
   }
 
   NS_ADDREF(*aInstancePtr = slots->mWeakReference);
@@ -1160,7 +1159,7 @@ void
 FragmentOrElement::GetTextContentInternal(nsAString& aTextContent,
                                           ErrorResult& aError)
 {
-  if(!nsContentUtils::GetNodeTextContent(this, true, aTextContent, fallible)) {
+  if (!nsContentUtils::GetNodeTextContent(this, true, aTextContent, fallible)) {
     aError.Throw(NS_ERROR_OUT_OF_MEMORY);
   }
 }

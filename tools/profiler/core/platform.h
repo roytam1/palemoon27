@@ -57,6 +57,7 @@
 #include "PlatformMacros.h"
 #include "v8-support.h"
 #include <vector>
+#include "StackTop.h"
 
 // We need a definition of gettid(), but glibc doesn't provide a
 // wrapper for it.
@@ -273,18 +274,18 @@ class ThreadProfile;
 class TickSample {
  public:
   TickSample()
-      :
-        pc(NULL),
-        sp(NULL),
-        fp(NULL),
+      : pc(NULL)
+      , sp(NULL)
+      , fp(NULL)
 #ifdef ENABLE_ARM_LR_SAVING
-        lr(NULL),
+      , lr(NULL)
 #endif
-        context(NULL),
-        isSamplingCurrentThread(false),
-        threadProfile(nullptr),
-        rssMemory(0),
-        ussMemory(0) {}
+      , context(NULL)
+      , isSamplingCurrentThread(false)
+      , threadProfile(nullptr)
+      , rssMemory(0)
+      , ussMemory(0)
+  {}
 
   void PopulateContext(void* aContext);
 

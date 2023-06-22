@@ -76,22 +76,29 @@ static inline pid_t gettid()
 
 #define ASSERT(a) MOZ_ASSERT(a)
 
+bool moz_profiler_verbose();
+
 #ifdef ANDROID
 # if defined(__arm__) || defined(__thumb__)
 #  define ENABLE_SPS_LEAF_DATA
 #  define ENABLE_ARM_LR_SAVING
 # endif
 # define LOG(text) \
-    __android_log_write(ANDROID_LOG_ERROR, "Profiler", text)
-# define LOGF(format, ...) \
-    __android_log_print(ANDROID_LOG_ERROR, "Profiler", format, __VA_ARGS__)
-#else
-extern bool moz_profiler_verbose();
-# define LOG(text) \
-    do { if (moz_profiler_verbose()) printf("Profiler: %s\n", text); \
+    do { if (moz_profiler_verbose()) \
+           __android_log_write(ANDROID_LOG_ERROR, "Profiler", text); \
     } while (0)
 # define LOGF(format, ...) \
-    do { if (moz_profiler_verbose()) printf("Profiler: " format         \
+    do { if (moz_profiler_verbose()) \
+           __android_log_print(ANDROID_LOG_ERROR, "Profiler", format, \
+                               __VA_ARGS__); \
+    } while (0)
+
+#else
+# define LOG(text) \
+    do { if (moz_profiler_verbose()) fprintf(stderr, "Profiler: %s\n", text); \
+    } while (0)
+# define LOGF(format, ...) \
+    do { if (moz_profiler_verbose()) fprintf(stderr, "Profiler: " format \
                                              "\n", __VA_ARGS__);        \
     } while (0)
 
@@ -260,6 +267,8 @@ bool set_profiler_entries(const char*);
 bool set_profiler_scan(const char*);
 bool is_native_unwinding_avail();
 
+void set_tls_stack_top(void* stackTop);
+
 // ----------------------------------------------------------------------------
 // Sampler
 //
@@ -369,7 +378,7 @@ class Sampler {
 
   static bool RegisterCurrentThread(const char* aName,
                                     PseudoStack* aPseudoStack,
-                                    bool aIsMainThread);
+                                    bool aIsMainThread, void* stackTop);
   static void UnregisterCurrentThread();
 
   static void Startup();

@@ -321,11 +321,11 @@ pref("media.wakelock_timeout", 2000);
 // opened as top-level documents, as opposed to inside a media element.
 pref("media.play-stand-alone", true);
 
-pref("media.hardware-video-decoding.enabled", true);
-
 // Whether we should delay actioning a "play()" JS function call and autoplay
 // attribute until the media element's owner document is visible.
 pref("media.block-play-until-visible", false);
+
+pref("media.hardware-video-decoding.enabled", true);
 
 pref("media.decoder.heuristic.dormant.enabled", true);
 pref("media.decoder.heuristic.dormant.timeout", 60000);
@@ -457,13 +457,17 @@ pref("media.navigator.permission.disabled", false);
 pref("media.peerconnection.default_iceservers", "[]");
 pref("media.peerconnection.ice.loopback", false); // Set only for testing in offline environments.
 pref("media.peerconnection.ice.tcp", false);
+pref("media.peerconnection.ice.tcp_so_sock_count", 0); // Disable SO gathering
 pref("media.peerconnection.ice.link_local", false); // Set only for testing IPV6 in networks that don't assign IPV6 addresses
+pref("media.peerconnection.ice.force_interface", ""); // Limit to only a single interface
 pref("media.peerconnection.ice.relay_only", false); // Limit candidates to TURN
 pref("media.peerconnection.use_document_iceservers", true);
 pref("media.peerconnection.identity.enabled", true);
 pref("media.peerconnection.identity.timeout", 10000);
 pref("media.peerconnection.ice.stun_client_maximum_transmits", 7);
 pref("media.peerconnection.ice.trickle_grace_period", 5000);
+pref("media.peerconnection.ice.default_address_only", false);
+
 // These values (aec, agc, and noice) are from media/webrtc/trunk/webrtc/common_types.h
 // kXxxUnchanged = 0, kXxxDefault = 1, and higher values are specific to each
 // setting (for Xxx = Ec, Agc, or Ns).  Defaults are all set to kXxxDefault here.
@@ -2954,7 +2958,7 @@ pref("font.minimum-size.ko", 0);
 pref("font.size.variable.ko", 16);
 pref("font.size.fixed.ko", 16);
 
-pref("font.default.th", "serif");
+pref("font.default.th", "sans-serif");
 pref("font.minimum-size.th", 0);
 pref("font.size.variable.th", 16);
 pref("font.size.fixed.th", 13);
@@ -3071,7 +3075,10 @@ pref("font.size.fixed.zh-TW", 16);
 
 // mathml.css sets font-size to "inherit" and font-family to "serif" so only
 // font.name.*.x-math and font.minimum-size.x-math are really relevant.
+pref("font.default.x-math", "serif");
 pref("font.minimum-size.x-math", 0);
+pref("font.size.variable.x-math", 16);
+pref("font.size.fixed.x-math", 13);
 
 /*
  * A value greater than zero enables font size inflation for
@@ -4616,6 +4623,9 @@ pref("layers.tiled-drawtarget.enabled", true);
 pref("layers.tiles.edge-padding", false);
 #endif
 
+#ifdef MOZ_WIDGET_GONK
+pref("layers.tiled-drawtarget.enabled", true);
+#endif
 
 #ifdef MOZ_WIDGET_ANDROID
 pref("layers.tiled-drawtarget.enabled", true);
@@ -5304,7 +5314,7 @@ pref("browser.search.official", true);
 //pref("media.gmp-manager.url.override", "");
 
 // Update service URL for GMP install/updates:
-pref("media.gmp-manager.url", "https://aus4.mozilla.org/update/3/GMP/%VERSION%/%BUILD_ID%/%BUILD_TARGET%/%LOCALE%/%CHANNEL%/%OS_VERSION%/%DISTRIBUTION%/%DISTRIBUTION_VERSION%/update.xml");
+pref("media.gmp-manager.url", "https://aus5.mozilla.org/update/3/GMP/%VERSION%/%BUILD_ID%/%BUILD_TARGET%/%LOCALE%/%CHANNEL%/%OS_VERSION%/%DISTRIBUTION%/%DISTRIBUTION_VERSION%/update.xml");
 
 // When |media.gmp-manager.cert.requireBuiltIn| is true or not specified the
 // final certificate and all certificates the connection is redirected to before
@@ -5329,10 +5339,10 @@ pref("media.gmp-manager.cert.requireBuiltIn", true);
 // IMPORTANT! app.update.certs.* prefs should also be updated if these
 // are updated.
 pref("media.gmp-manager.cert.checkAttributes", true);
-pref("media.gmp-manager.certs.1.issuerName", "CN=DigiCert Secure Server CA,O=DigiCert Inc,C=US");
-pref("media.gmp-manager.certs.1.commonName", "aus4.mozilla.org");
-pref("media.gmp-manager.certs.2.issuerName", "CN=Thawte SSL CA,O=\"Thawte, Inc.\",C=US");
-pref("media.gmp-manager.certs.2.commonName", "aus4.mozilla.org");
+pref("media.gmp-manager.certs.1.issuerName", "CN=DigiCert SHA2 Secure Server CA,O=DigiCert Inc,C=US");
+pref("media.gmp-manager.certs.1.commonName", "aus5.mozilla.org");
+pref("media.gmp-manager.certs.2.issuerName", "CN=thawte SSL CA - G2,O=\"thawte, Inc.\",C=US");
+pref("media.gmp-manager.certs.2.commonName", "aus5.mozilla.org");
 #endif
 
 // Whether or not to perform reader mode article parsing on page load.
@@ -5417,5 +5427,8 @@ pref("dom.requestcache.enabled", false);
 pref("dom.requestcontext.enabled", false);
 
 pref("dom.mozKillSwitch.enabled", false);
+
+// Allow customization of the fallback directory for file uploads
+pref("dom.input.fallbackUploadDir", "");
 
 pref("devtools.serviceWorkers.testing.enabled", false);

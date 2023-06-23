@@ -564,6 +564,7 @@ nsComboboxControlFrame::GetAvailableDropdownSpace(WritingMode aWM,
                                                   nscoord* aAfter,
                                                   LogicalPoint* aTranslation)
 {
+  MOZ_ASSERT(!XRE_IsContentProcess());
   // Note: At first glance, it appears that you could simply get the
   // absolute bounding box for the dropdown list by first getting its
   // view, then getting the view's nsIWidget, then asking the nsIWidget
@@ -631,6 +632,10 @@ nsComboboxControlFrame::GetAvailableDropdownSpace(WritingMode aWM,
 nsComboboxControlFrame::DropDownPositionState
 nsComboboxControlFrame::AbsolutelyPositionDropDown()
 {
+  if (XRE_IsContentProcess()) {
+    return eDropDownPositionSuppressed;
+  }
+
   WritingMode wm = GetWritingMode();
   LogicalPoint translation(wm);
   nscoord before, after;
@@ -688,6 +693,10 @@ nsComboboxControlFrame::AbsolutelyPositionDropDown()
 void
 nsComboboxControlFrame::NotifyGeometryChange()
 {
+  if (XRE_IsContentProcess()) {
+    return;
+  }
+
   // We don't need to resize if we're not dropped down since ShowDropDown
   // does that, or if we're dirty then the reflow callback does it,
   // or if we have a delayed ShowDropDown pending.
@@ -918,6 +927,7 @@ nsComboboxControlFrame::GetFrameName(nsAString& aResult) const
 void
 nsComboboxControlFrame::ShowDropDown(bool aDoDropDown)
 {
+  MOZ_ASSERT(!XRE_IsContentProcess());
   mDelayedShowDropDown = false;
   EventStates eventStates = mContent->AsElement()->State();
   if (aDoDropDown && eventStates.HasState(NS_EVENT_STATE_DISABLED)) {
@@ -1225,6 +1235,14 @@ nsComboboxControlFrame::CreateAnonymousContent(nsTArray<ContentInfo>& aElements)
   // Set tabindex="-1" so that the button is not tabbable
   mButtonContent->SetAttr(kNameSpaceID_None, nsGkAtoms::tabindex,
                           NS_LITERAL_STRING("-1"), false);
+
+  WritingMode wm = GetWritingMode();
+  if (wm.IsVertical()) {
+    mButtonContent->SetAttr(kNameSpaceID_None, nsGkAtoms::orientation,
+                            wm.IsVerticalRL() ? NS_LITERAL_STRING("left")
+                                              : NS_LITERAL_STRING("right"),
+                            false);
+  }
 
   if (!aElements.AppendElement(mButtonContent))
     return NS_ERROR_OUT_OF_MEMORY;

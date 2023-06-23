@@ -7,7 +7,6 @@
 #include "BasicLayersImpl.h"            // for FillRectWithMask
 #include "TextureHostBasic.h"
 #include "mozilla/layers/Effects.h"
-#include "mozilla/layers/YCbCrImageDataSerializer.h"
 #include "nsIWidget.h"
 #include "gfx2DGlue.h"
 #include "mozilla/gfx/2D.h"
@@ -148,7 +147,7 @@ BasicCompositor::CreateRenderTargetFromSource(const IntRect &aRect,
                                               const CompositingRenderTarget *aSource,
                                               const IntPoint &aSourcePoint)
 {
-  MOZ_CRASH("Shouldn't be called!");
+  MOZ_CRASH("GFX: Shouldn't be called!");
   return nullptr;
 }
 

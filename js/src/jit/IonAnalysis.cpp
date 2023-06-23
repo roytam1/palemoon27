@@ -3689,7 +3689,7 @@ jit::AnalyzeNewScriptDefiniteProperties(JSContext* cx, JSFunction* fun,
                      script->needsArgsObj(),
                      inlineScriptTree);
 
-    const OptimizationInfo* optimizationInfo = IonOptimizations.get(Optimization_Normal);
+    const OptimizationInfo* optimizationInfo = IonOptimizations.get(OptimizationLevel::Normal);
 
     CompilerConstraintList* constraints = NewCompilerConstraintList(temp);
     if (!constraints) {
@@ -3910,7 +3910,7 @@ jit::AnalyzeArgumentsUsage(JSContext* cx, JSScript* scriptArg)
                      /* needsArgsObj = */ true,
                      inlineScriptTree);
 
-    const OptimizationInfo* optimizationInfo = IonOptimizations.get(Optimization_Normal);
+    const OptimizationInfo* optimizationInfo = IonOptimizations.get(OptimizationLevel::Normal);
 
     CompilerConstraintList* constraints = NewCompilerConstraintList(temp);
     if (!constraints) {

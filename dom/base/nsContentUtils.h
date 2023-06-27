@@ -236,8 +236,6 @@ public:
     return SubjectPrincipal();
   }
 
-  static bool     IsImageSrcSetDisabled();
-
   static bool LookupBindingMember(JSContext* aCx, nsIContent *aContent,
                                   JS::Handle<jsid> aId,
                                   JS::MutableHandle<JSPropertyDescriptor> aDesc);
@@ -2576,6 +2574,13 @@ public:
    * (if that is possible, the caller should use StorageAllowedForWindow)
    */
   static StorageAccess StorageAllowedForPrincipal(nsIPrincipal* aPrincipal);
+
+  /*
+   * Serializes a HTML nsINode into its markup representation.
+   */
+  static bool SerializeNodeToMarkup(nsINode* aRoot,
+                                    bool aDescendentsOnly,
+                                    nsAString& aOut);
 
 private:
   static bool InitializeEventTable();

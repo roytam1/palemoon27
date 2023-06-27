@@ -12,15 +12,14 @@
 
 #include "OggDecoder.h"
 #include "OggReader.h"
-#ifdef MOZ_WAVE
+
 #include "WaveDecoder.h"
 #include "WaveReader.h"
-#endif
-#ifdef MOZ_WEBM
+
 #include "WebMDecoder.h"
 #include "WebMReader.h"
 #include "WebMDemuxer.h"
-#endif
+
 #ifdef MOZ_RAW
 #include "RawDecoder.h"
 #include "RawReader.h"
@@ -132,7 +131,6 @@ IsOggType(const nsACString& aType)
   return CodecListContains(gOggTypes, aType);
 }
 
-#ifdef MOZ_WAVE
 // See http://www.rfc-editor.org/rfc/rfc2361.txt for the definitions
 // of WAVE media types and codec types. However, the audio/vnd.wave
 // MIME type described there is not used.
@@ -158,33 +156,24 @@ IsWaveType(const nsACString& aType)
 
   return CodecListContains(gWaveTypes, aType);
 }
-#endif
 
-#ifdef MOZ_WEBM
 static bool
 IsWebMSupportedType(const nsACString& aType,
                     const nsAString& aCodecs = EmptyString())
 {
   return WebMDecoder::CanHandleMediaType(aType, aCodecs);
 }
-#endif
 
 /* static */ bool
 DecoderTraits::IsWebMTypeAndEnabled(const nsACString& aType)
 {
-#ifdef MOZ_WEBM
   return IsWebMSupportedType(aType);
-#endif
-  return false;
 }
 
 /* static */ bool
 DecoderTraits::IsWebMAudioType(const nsACString& aType)
 {
-#ifdef MOZ_WEBM
   return aType.EqualsASCII("audio/webm");
-#endif
-  return false;
 }
 
 #ifdef MOZ_GSTREAMER
@@ -371,7 +360,6 @@ IsAACSupportedType(const nsACString& aType,
 /* static */
 bool DecoderTraits::ShouldHandleMediaType(const char* aMIMEType)
 {
-#ifdef MOZ_WAVE
   if (IsWaveType(nsDependentCString(aMIMEType))) {
     // We should not return true for Wave types, since there are some
     // Wave codecs actually in use in the wild that we don't support, and
@@ -380,7 +368,6 @@ bool DecoderTraits::ShouldHandleMediaType(const char* aMIMEType)
     // means.
     return false;
   }
-#endif
   return CanHandleMediaType(aMIMEType, false, EmptyString()) != CANPLAY_NO;
 }
 
@@ -398,11 +385,9 @@ DecoderTraits::CanHandleCodecsType(const char* aMIMEType,
   if (IsOggType(nsDependentCString(aMIMEType))) {
     codecList = MediaDecoder::IsOpusEnabled() ? gOggCodecsWithOpus : gOggCodecs;
   }
-#ifdef MOZ_WAVE
   if (IsWaveType(nsDependentCString(aMIMEType))) {
     codecList = gWaveCodecs;
   }
-#endif
 #if !defined(MOZ_OMX_WEBM_DECODER)
   if (IsWebMTypeAndEnabled(nsDependentCString(aMIMEType))) {
     if (IsWebMSupportedType(nsDependentCString(aMIMEType), aRequestedCodecs)) {
@@ -500,11 +485,9 @@ DecoderTraits::CanHandleMediaType(const char* aMIMEType,
   if (IsOggType(nsDependentCString(aMIMEType))) {
     return CANPLAY_MAYBE;
   }
-#ifdef MOZ_WAVE
   if (IsWaveType(nsDependentCString(aMIMEType))) {
     return CANPLAY_MAYBE;
   }
-#endif
   if (IsMP4TypeAndEnabled(nsDependentCString(aMIMEType))) {
     return CANPLAY_MAYBE;
   }
@@ -581,12 +564,10 @@ InstantiateDecoder(const nsACString& aType, MediaDecoderOwner* aOwner)
     decoder = new OggDecoder(aOwner);
     return decoder.forget();
   }
-#ifdef MOZ_WAVE
   if (IsWaveType(aType)) {
     decoder = new WaveDecoder(aOwner);
     return decoder.forget();
   }
-#endif
 #ifdef MOZ_OMX_DECODER
   if (IsOmxSupportedType(aType)) {
     // we are discouraging Web and App developers from using those formats in
@@ -621,12 +602,12 @@ InstantiateDecoder(const nsACString& aType, MediaDecoderOwner* aOwner)
     return decoder.forget();
   }
 #endif
-#ifdef MOZ_WEBM
+
   if (IsWebMSupportedType(aType)) {
     decoder = new WebMDecoder(aOwner);
     return decoder.forget();
   }
-#endif
+
 #ifdef MOZ_DIRECTSHOW
   // Note: DirectShow should come before WMF, so that we prefer DirectShow's
   // MP3 support over WMF's.
@@ -680,11 +661,9 @@ if (IsAACSupportedType(aType)) {
   if (IsOggType(aType)) {
     decoderReader = new OggReader(aDecoder);
   } else
-#ifdef MOZ_WAVE
   if (IsWaveType(aType)) {
     decoderReader = new WaveReader(aDecoder);
   } else
-#endif
 #ifdef MOZ_OMX_DECODER
   if (IsOmxSupportedType(aType)) {
     decoderReader = new MediaOmxReader(aDecoder);
@@ -696,13 +675,13 @@ if (IsAACSupportedType(aType)) {
     decoderReader = new AndroidMediaReader(aDecoder, aType);
   } else
 #endif
-#ifdef MOZ_WEBM
+
   if (IsWebMSupportedType(aType)) {
     decoderReader = Preferences::GetBool("media.format-reader.webm", true) ?
       static_cast<MediaDecoderReader*>(new MediaFormatReader(aDecoder, new WebMDemuxer(aDecoder->GetResource()))) :
       new WebMReader(aDecoder);
   } else
-#endif
+
 #ifdef MOZ_DIRECTSHOW
   if (IsDirectShowSupportedType(aType)) {
     decoderReader = new DirectShowReader(aDecoder);
@@ -733,9 +712,7 @@ bool DecoderTraits::IsSupportedInVideoDocument(const nsACString& aType)
     (IsOmxSupportedType(aType) &&
      !IsB2GSupportOnlyType(aType)) ||
 #endif
-#ifdef MOZ_WEBM
     IsWebMSupportedType(aType) ||
-#endif
 #ifdef MOZ_GSTREAMER
     IsGStreamerSupportedType(aType) ||
 #endif

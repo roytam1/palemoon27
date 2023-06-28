@@ -636,9 +636,10 @@ protected:
   // Common processing at the end of a touch block.
   void OnTouchEndOrCancel();
 
-  // This is called by OverscrollAnimation to notify us when the overscroll
-  // animation is ending.
-  void OverscrollAnimationEnding();
+  // This is called to request that the main thread snap the scroll position
+  // to a nearby snap position if appropriate. The current scroll position is
+  // used as the final destination.
+  void RequestSnap();
 
   uint64_t mLayersId;
   RefPtr<CompositorParent> mCompositorParent;
@@ -741,11 +742,6 @@ protected:
 
     PAN_MOMENTUM,             /* like PANNING, but controlled by momentum PanGestureInput events */
 
-    CROSS_SLIDING_X,          /* Panning disabled while user does a horizontal gesture
-                                 on a vertically-scrollable view. This used for the
-                                 Windows Metro "cross-slide" gesture. */
-    CROSS_SLIDING_Y,          /* as above for Y axis */
-
     PINCHING,                 /* nth touch-start, where n > 1. this mode allows pan and zoom */
     ANIMATING_ZOOM,           /* animated zoom to a new rect */
     OVERSCROLL_ANIMATION,     /* Spring-based animation used to relieve overscroll once
@@ -805,9 +801,9 @@ public:
   bool ArePointerEventsConsumable(TouchBlockState* aBlock, uint32_t aTouchPoints);
 
   /**
-   * Clear internal state relating to input handling.
+   * Clear internal state relating to touch input handling.
    */
-  void ResetInputState();
+  void ResetTouchInputState();
 
 private:
   void CancelAnimationAndGestureState();

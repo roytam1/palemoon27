@@ -4824,7 +4824,7 @@ HTMLMediaElement::NotifyAudioChannelAgent(bool aPlaying)
 
 NS_IMETHODIMP HTMLMediaElement::WindowVolumeChanged(float aVolume, bool aMuted)
 {
-  NS_ENSURE_TRUE(nsContentUtils::IsCallerChrome(), NS_ERROR_NOT_AVAILABLE);
+  MOZ_ASSERT(NS_IsMainThread());
 
   UpdateChannelMuteState(aVolume, aMuted);
 
@@ -4993,7 +4993,7 @@ NS_IMETHODIMP HTMLMediaElement::WindowAudioCaptureChanged()
       uint64_t id = window->WindowID();
       MediaStreamGraph* msg =
         MediaStreamGraph::GetInstance(MediaStreamGraph::AUDIO_THREAD_DRIVER,
-                                      AudioChannel::Normal);
+                                      mAudioChannel);
 
       if (GetSrcMediaStream()) {
         mCaptureStreamPort = msg->ConnectToCaptureStream(id, GetSrcMediaStream());

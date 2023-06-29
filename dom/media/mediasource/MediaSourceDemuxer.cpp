@@ -22,14 +22,13 @@ using media::TimeIntervals;
 MediaSourceDemuxer::MediaSourceDemuxer()
   : mTaskQueue(new TaskQueue(GetMediaThreadPool(MediaThreadType::PLAYBACK),
                              /* aSupportsTailDispatch = */ false))
-  , mInitDone(false)
   , mMonitor("MediaSourceDemuxer")
 {
   MOZ_ASSERT(NS_IsMainThread());
 }
 
-// Gap allowed between frames. Due to inaccuracies in determining buffer end
-// frames (see Mozilla bug 1065207). This value is based on the end of frame
+// Due to inaccuracies in determining buffer end
+// frames (Bug 1065207). This value is based on the end of frame
 // default value used in Blink, kDefaultBufferDurationInMs.
 const TimeUnit MediaSourceDemuxer::EOS_FUZZ = media::TimeUnit::FromMicroseconds(125000);
 
@@ -46,7 +45,6 @@ MediaSourceDemuxer::AttemptInit()
   MOZ_ASSERT(OnTaskQueue());
 
   if (ScanSourceBuffersForContent()) {
-    mInitDone = true;
     return InitPromise::CreateAndResolve(NS_OK, __func__);
   }
 
@@ -78,12 +76,10 @@ void MediaSourceDemuxer::NotifyDataArrived()
   RefPtr<MediaSourceDemuxer> self = this;
   nsCOMPtr<nsIRunnable> task =
     NS_NewRunnableFunction([self] () {
-      if (self->mInitDone) {
+      if (self->mInitPromise.IsEmpty()) {
         return;
       }
-      MOZ_ASSERT(!self->mInitPromise.IsEmpty());
       if (self->ScanSourceBuffersForContent()) {
-        self->mInitDone = true;
         self->mInitPromise.ResolveIfExists(NS_OK, __func__);
       }
     });

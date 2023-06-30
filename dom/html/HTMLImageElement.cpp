@@ -472,12 +472,8 @@ HTMLImageElement::PreHandleEvent(EventChainPreVisitor& aVisitor)
   // twice, once by the image frame for the map and once by the Anchor
   // element. (bug 39723)
   WidgetMouseEvent* mouseEvent = aVisitor.mEvent->AsMouseEvent();
-  if (mouseEvent && mouseEvent->IsLeftClickEvent()) {
-    bool isMap = false;
-    GetIsMap(&isMap);
-    if (isMap) {
-      aVisitor.mEventStatus = nsEventStatus_eConsumeNoDefault;
-    }
+  if (mouseEvent && mouseEvent->IsLeftClickEvent() && IsMap()) {
+    aVisitor.mEventStatus = nsEventStatus_eConsumeNoDefault;
   }
   return nsGenericHTMLElement::PreHandleEvent(aVisitor);
 }
@@ -538,12 +534,6 @@ HTMLImageElement::SetAttr(int32_t aNameSpaceID, nsIAtom* aName,
   // Both cases handle unsetting src in AfterSetAttr
   if (aNameSpaceID == kNameSpaceID_None &&
       aName == nsGkAtoms::src) {
-
-    // This is for dom.disable_image_src_set, which predates "srcset"
-    // as an attribute. See Bug 773429
-    if (nsContentUtils::IsImageSrcSetDisabled()) {
-      return NS_OK;
-    }
 
     if (InResponsiveMode()) {
       if (mResponsiveSelector &&
@@ -766,7 +756,7 @@ HTMLImageElement::NaturalHeight()
 
   if (mResponsiveSelector) {
     double density = mResponsiveSelector->GetSelectedImageDensity();
-    MOZ_ASSERT(IsFinite(density) && density > 0.0);
+    MOZ_ASSERT(density >= 0.0);
     height = NSToIntRound(double(height) / density);
     height = std::max(height, 0u);
   }
@@ -794,7 +784,7 @@ HTMLImageElement::NaturalWidth()
 
   if (mResponsiveSelector) {
     double density = mResponsiveSelector->GetSelectedImageDensity();
-    MOZ_ASSERT(IsFinite(density) && density > 0.0);
+    MOZ_ASSERT(density >= 0.0);
     width = NSToIntRound(double(width) / density);
     width = std::max(width, 0u);
   }
@@ -1006,7 +996,7 @@ HTMLImageElement::PictureSourceSrcsetChanged(nsIContent *aSourceNode,
     mResponsiveSelector->SetCandidatesFromSourceSet(aNewValue);
   }
 
-  if (!mInDocResponsiveContent) {
+  if (!mInDocResponsiveContent && IsInComposedDoc()) {
     nsIDocument* doc = GetOurOwnerDoc();
     if (doc) {
       doc->AddResponsiveContent(this);
@@ -1319,6 +1309,8 @@ void
 HTMLImageElement::DestroyContent()
 {
   mResponsiveSelector = nullptr;
+
+  nsGenericHTMLElement::DestroyContent();
 }
 
 void

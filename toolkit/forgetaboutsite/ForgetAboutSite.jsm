@@ -217,13 +217,15 @@ this.ForgetAboutSite = {
     }));
 
     // Push notifications.
-    try {
-      var push = Cc["@mozilla.org/push/NotificationService;1"]
-                  .getService(Ci.nsIPushNotificationService);
-      push.clearForDomain(aDomain);
-    } catch (e) {
+    promises.push(new Promise(resolve => {
+      var push = Cc["@mozilla.org/push/Service;1"]
+                  .getService(Ci.nsIPushService);
+      push.clearForDomain(aDomain, status => {
+        (Components.isSuccessCode(status) ? resolve : reject)(status);
+      });
+    }).catch(e => {
       dump("Web Push may not be available.\n");
-    }
+    }));
 
     let ErrorCount = 0;
     for (let promise of promises) {

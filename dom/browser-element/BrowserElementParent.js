@@ -93,7 +93,7 @@ BrowserElementParentProxyCallHandler.prototype = {
     "contextmenu", "securitychange", "locationchange",
     "iconchange", "scrollareachanged", "titlechange",
     "opensearch", "manifestchange", "metachange",
-    "resize", "selectionstatechanged", "scrollviewchange",
+    "resize", "scrollviewchange",
     "caretstatechanged", "activitydone", "scroll", "opentab"]),
 
   init: function(frameElement, mm) {
@@ -264,6 +264,7 @@ function BrowserElementParent() {
   Services.obs.addObserver(this, 'oop-frameloader-crashed', /* ownsWeak = */ true);
   Services.obs.addObserver(this, 'copypaste-docommand', /* ownsWeak = */ true);
   Services.obs.addObserver(this, 'ask-children-to-execute-copypaste-command', /* ownsWeak = */ true);
+  Services.obs.addObserver(this, 'back-docommand', /* ownsWeak = */ true);
 
   this.proxyCallHandler = new BrowserElementParentProxyCallHandler();
 }
@@ -387,7 +388,6 @@ BrowserElementParent.prototype = {
       "got-visible": this._gotDOMRequestResult,
       "visibilitychange": this._childVisibilityChange,
       "got-set-input-method-active": this._gotDOMRequestResult,
-      "selectionstatechanged": this._handleSelectionStateChanged,
       "scrollviewchange": this._handleScrollViewChange,
       "caretstatechanged": this._handleCaretStateChanged,
       "findchange": this._handleFindChange,
@@ -623,12 +623,6 @@ BrowserElementParent.prototype = {
       // evt.detail.unblock().
       sendUnblockMsg();
     }
-  },
-
-  _handleSelectionStateChanged: function(data) {
-    let evt = this._createEvent('selectionstatechanged', data.json,
-                                /* cancelable = */ false);
-    this._frameElement.dispatchEvent(evt);
   },
 
   // Called when state of accessible caret in child has changed.
@@ -1186,7 +1180,7 @@ BrowserElementParent.prototype = {
     try {
       let nfcContentHelper =
         Cc["@mozilla.org/nfc/content-helper;1"].getService(Ci.nsINfcBrowserAPI);
-      nfcContentHelper.setFocusApp(tabId, isFocus);
+      nfcContentHelper.setFocusTab(tabId, isFocus);
     } catch(e) {
       // Not all platforms support NFC
     }
@@ -1306,6 +1300,11 @@ BrowserElementParent.prototype = {
     case 'ask-children-to-execute-copypaste-command':
       if (this._isAlive() && this._frameElement == subject.wrappedJSObject) {
         this._sendAsyncMsg('copypaste-do-command', { command: data });
+      }
+      break;
+    case 'back-docommand':
+      if (this._isAlive() && this._frameLoader.visible) {
+          this.goBack();
       }
       break;
     default:

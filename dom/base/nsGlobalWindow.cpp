@@ -208,7 +208,6 @@
 #include "prrng.h"
 #include "nsSandboxFlags.h"
 #include "TimeChangeObserver.h"
-#include "TouchCaret.h"
 #include "mozilla/dom/AudioContext.h"
 #include "mozilla/dom/BrowserElementDictionariesBinding.h"
 #include "mozilla/dom/cache/CacheStorage.h"
@@ -5968,9 +5967,7 @@ int32_t
 nsGlobalWindow::GetScrollMinY(ErrorResult& aError)
 {
   MOZ_ASSERT(IsInnerWindow());
-  int32_t scrollMinY = 0;
-  FORWARD_TO_OUTER_OR_THROW(GetScrollBoundaryOuter, (eSideTop), aError, scrollMinY);
-  return scrollMinY;
+  FORWARD_TO_OUTER_OR_THROW(GetScrollBoundaryOuter, (eSideTop), aError, 0);
 }
 
 NS_IMETHODIMP
@@ -5987,9 +5984,7 @@ int32_t
 nsGlobalWindow::GetScrollMaxX(ErrorResult& aError)
 {
   MOZ_ASSERT(IsInnerWindow());
-  int32_t scrollMaxX = 0;
-  FORWARD_TO_OUTER_OR_THROW(GetScrollBoundaryOuter, (eSideRight), aError, scrollMaxX);
-  return scrollMaxX;
+  FORWARD_TO_OUTER_OR_THROW(GetScrollBoundaryOuter, (eSideRight), aError, 0);
 }
 
 NS_IMETHODIMP
@@ -6008,9 +6003,7 @@ int32_t
 nsGlobalWindow::GetScrollMaxY(ErrorResult& aError)
 {
   MOZ_ASSERT(IsInnerWindow());
-  int32_t scrollMaxY = 0;
-  FORWARD_TO_OUTER_OR_THROW(GetScrollBoundaryOuter, (eSideBottom), aError, scrollMaxY);
-  return scrollMaxY;
+  FORWARD_TO_OUTER_OR_THROW(GetScrollBoundaryOuter, (eSideBottom), aError, 0);
 }
 
 NS_IMETHODIMP

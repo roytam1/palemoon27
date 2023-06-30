@@ -63,8 +63,8 @@ struct nsStyleVisibility;
 #define NS_STYLE_RELEVANT_LINK_VISITED     0x004000000
 // See nsStyleContext::IsStyleIfVisited
 #define NS_STYLE_IS_STYLE_IF_VISITED       0x008000000
-// See nsStyleContext::UsesGrandancestorStyle
-#define NS_STYLE_USES_GRANDANCESTOR_STYLE  0x010000000
+// See nsStyleContext::HasChildThatUsesGrandancestorStyle
+#define NS_STYLE_CHILD_USES_GRANDANCESTOR_STYLE 0x010000000
 // See nsStyleContext::IsShared
 #define NS_STYLE_IS_SHARED                 0x020000000
 // See nsStyleContext::AssertStructsNotUsedElsewhere
@@ -1908,10 +1908,13 @@ struct StyleTransition {
   void SetDuration(float aDuration) { mDuration = aDuration; }
   void SetProperty(nsCSSProperty aProperty)
     {
-      NS_ASSERTION(aProperty != eCSSProperty_UNKNOWN, "invalid property");
+      NS_ASSERTION(aProperty != eCSSProperty_UNKNOWN &&
+                   aProperty != eCSSPropertyExtra_variable,
+                   "invalid property");
       mProperty = aProperty;
     }
-  void SetUnknownProperty(const nsAString& aUnknownProperty);
+  void SetUnknownProperty(nsCSSProperty aProperty,
+                          const nsAString& aPropertyString);
   void CopyPropertyFrom(const StyleTransition& aOther)
     {
       mProperty = aOther.mProperty;
@@ -1930,7 +1933,8 @@ private:
   float mDelay;
   nsCSSProperty mProperty;
   nsCOMPtr<nsIAtom> mUnknownProperty; // used when mProperty is
-                                      // eCSSProperty_UNKNOWN
+                                      // eCSSProperty_UNKNOWN or
+                                      // eCSSPropertyExtra_variable
 };
 
 struct StyleAnimation {

@@ -1884,8 +1884,10 @@ class CookieNotifierRunnable : public nsRunnable
 {
 public:
   CookieNotifierRunnable(HttpBaseChannel* aChannel, char const * aCookie)
-    : mChannel(aChannel), mCookie(aCookie)
-  { }
+    : mChannel(aChannel)
+  {
+    CopyASCIItoUTF16(aCookie, mCookie);
+  }
 
   NS_IMETHOD Run()
   {
@@ -1900,7 +1902,7 @@ public:
 
 private:
   RefPtr<HttpBaseChannel> mChannel;
-  NS_ConvertASCIItoUTF16 mCookie;
+  nsString mCookie;
 };
 
 } // namespace

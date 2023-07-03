@@ -4118,7 +4118,10 @@ nsCSSFrameConstructor::GetAnonymousContent(nsIContent* aParent,
     return NS_OK;
 
   nsresult rv = creator->CreateAnonymousContent(aContent);
-  NS_ENSURE_SUCCESS(rv, rv);
+  if (NS_FAILED(rv)) {
+    // CreateAnonymousContent failed, e.g. because the page has a <use> loop.
+    return rv;
+  }
 
   uint32_t count = aContent.Length();
   for (uint32_t i=0; i < count; i++) {
@@ -5197,7 +5200,8 @@ nsCSSFrameConstructor::FindSVGData(Element* aElement,
   }
 
   if ((aTag != nsGkAtoms::svg && !parentIsSVG) ||
-      (aTag == nsGkAtoms::desc || aTag == nsGkAtoms::title)) {
+      (aTag == nsGkAtoms::desc || aTag == nsGkAtoms::title ||
+       aTag == nsGkAtoms::metadata)) {
     // Sections 5.1 and G.4 of SVG 1.1 say that SVG elements other than
     // svg:svg not contained within svg:svg are incorrect, although they
     // don't seem to specify error handling.  Ignore them, since many of
@@ -5208,7 +5212,7 @@ nsCSSFrameConstructor::FindSVGData(Element* aElement,
     // Style mutation can't change this situation, so don't bother
     // adding to the undisplayed content map.
     //
-    // We don't currently handle any UI for desc/title
+    // We don't currently handle any UI for desc/title/metadata
     return &sSuppressData;
   }
 

@@ -964,8 +964,6 @@ PRStatus
 nsNSSSocketInfo::CloseSocketAndDestroy(
     const nsNSSShutDownPreventionLock& /*proofOfLock*/)
 {
-  nsNSSShutDownList::trackSSLSocketClose();
-
   PRFileDesc* popped = PR_PopIOLayer(mFd, PR_TOP_IO_LAYER);
   NS_ASSERTION(popped &&
                popped->identity == nsSSLIOLayerHelpers::nsSSLIOLayerIdentity,
@@ -2306,18 +2304,11 @@ ClientAuthDataRunnable::RunOnTargetThread()
         goto loser;
       }
 
-      {
-        nsPSMUITracker tracker;
-        if (tracker.isUIForbidden()) {
-          rv = NS_ERROR_NOT_AVAILABLE;
-        } else {
-          rv = dialogs->ChooseCertificate(mSocketInfo, cn_host_port.get(),
-            org.get(), issuer.get(),
-            (const char16_t**)certNicknameList,
-            (const char16_t**)certDetailsList,
-            CertsToUse, &selectedIndex, &canceled);
-        }
-      }
+      rv = dialogs->ChooseCertificate(mSocketInfo, cn_host_port.get(),
+                                      org.get(), issuer.get(),
+                                      (const char16_t**)certNicknameList,
+                                      (const char16_t**)certDetailsList,
+                                      CertsToUse, &selectedIndex, &canceled);
 
       NS_RELEASE(dialogs);
       NS_FREE_XPCOM_ALLOCATED_POINTER_ARRAY(CertsToUse, certNicknameList);
@@ -2605,8 +2596,6 @@ nsSSLIOLayerAddToSocket(int32_t family,
   if (stat == PR_FAILURE) {
     goto loser;
   }
-
-  nsNSSShutDownList::trackSSLSocketCreate();
 
   MOZ_LOG(gPIPNSSLog, LogLevel::Debug, ("[%p] Socket set up\n", (void*) sslSock));
   infoObject->QueryInterface(NS_GET_IID(nsISupports), (void**) (info));

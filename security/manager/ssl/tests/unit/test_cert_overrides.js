@@ -13,9 +13,43 @@
 
 do_get_profile();
 
+// Internally, specifying "port" -1 is the same as port 443. This tests that.
+function run_port_equivalency_test(inPort, outPort) {
+  Assert.ok((inPort == 443 && outPort == -1) || (inPort == -1 && outPort == 443),
+            "The two specified ports must be -1 and 443 (in any order)");
+  let certOverrideService = Cc["@mozilla.org/security/certoverride;1"]
+                              .getService(Ci.nsICertOverrideService);
+  let cert = constructCertFromFile("bad_certs/default-ee.pem");
+  let expectedBits = Ci.nsICertOverrideService.ERROR_UNTRUSTED
+  let expectedTemporary = true;
+  certOverrideService.rememberValidityOverride("example.com", inPort, cert,
+                                               expectedBits, expectedTemporary);
+  let actualBits = {};
+  let actualTemporary = {};
+  Assert.ok(certOverrideService.hasMatchingOverride("example.com", outPort,
+                                                    cert, actualBits,
+                                                    actualTemporary),
+            `override set on port ${inPort} should match port ${outPort}`);
+  equal(actualBits.value, expectedBits,
+        "input override bits should match output bits");
+  equal(actualTemporary.value, expectedTemporary,
+        "input override temporary value should match output temporary value");
+  Assert.ok(!certOverrideService.hasMatchingOverride("example.com", 563,
+                                                     cert, {}, {}),
+            `override set on port ${inPort} should not match port 563`);
+  certOverrideService.clearValidityOverride("example.com", inPort);
+  Assert.ok(!certOverrideService.hasMatchingOverride("example.com", outPort,
+                                                     cert, actualBits, {}),
+            `override cleared on port ${inPort} should match port ${outPort}`);
+  equal(actualBits.value, 0, "should have no bits set if there is no override");
+}
+
 function run_test() {
+  run_port_equivalency_test(-1, 443);
+  run_port_equivalency_test(443, -1);
+
   Services.prefs.setIntPref("security.OCSP.enabled", 1);
-  add_tls_server_setup("BadCertServer");
+  add_tls_server_setup("BadCertServer", "bad_certs");
 
   let fakeOCSPResponder = new HttpServer();
   fakeOCSPResponder.registerPrefixHandler("/", function (request, response) {
@@ -70,8 +104,7 @@ function add_simple_tests() {
                          SSL_ERROR_BAD_CERT_DOMAIN);
 
   // A Microsoft IIS utility generates self-signed certificates with
-  // properties similar to the one this "host" will present (see
-  // tlsserver/generate_certs.sh).
+  // properties similar to the one this "host" will present.
   add_cert_override_test("selfsigned-inadequateEKU.example.com",
                          Ci.nsICertOverrideService.ERROR_UNTRUSTED,
                          SEC_ERROR_UNKNOWN_ISSUER);
@@ -85,7 +118,7 @@ function add_simple_tests() {
   // reporting that error, a non-overridable error is encountered. The
   // non-overridable error should be prioritized.
   add_test(function() {
-    let rootCert = constructCertFromFile("tlsserver/test-ca.pem");
+    let rootCert = constructCertFromFile("bad_certs/test-ca.pem");
     setCertTrust(rootCert, ",,");
     run_next_test();
   });
@@ -93,7 +126,7 @@ function add_simple_tests() {
                                    Ci.nsICertOverrideService.ERROR_UNTRUSTED,
                                    SEC_ERROR_UNKNOWN_CRITICAL_EXTENSION);
   add_test(function() {
-    let rootCert = constructCertFromFile("tlsserver/test-ca.pem");
+    let rootCert = constructCertFromFile("bad_certs/test-ca.pem");
     setCertTrust(rootCert, "CTu,,");
     run_next_test();
   });
@@ -119,7 +152,7 @@ function add_simple_tests() {
     let certOverrideService = Cc["@mozilla.org/security/certoverride;1"]
                                 .getService(Ci.nsICertOverrideService);
     certOverrideService.clearValidityOverride("end-entity-issued-by-v1-cert.example.com", 8443);
-    let v1Cert = constructCertFromFile("tlsserver/v1Cert.pem");
+    let v1Cert = constructCertFromFile("bad_certs/v1Cert.pem");
     setCertTrust(v1Cert, "CTu,,");
     clearSessionCache();
     run_next_test();
@@ -128,7 +161,7 @@ function add_simple_tests() {
                       PRErrorCodeSuccess);
   // Reset the trust for that certificate.
   add_test(function() {
-    let v1Cert = constructCertFromFile("tlsserver/v1Cert.pem");
+    let v1Cert = constructCertFromFile("bad_certs/v1Cert.pem");
     setCertTrust(v1Cert, ",,");
     clearSessionCache();
     run_next_test();
@@ -155,6 +188,23 @@ function add_simple_tests() {
   add_cert_override_test("badSubjectAltNames.example.com",
                          Ci.nsICertOverrideService.ERROR_MISMATCH,
                          SSL_ERROR_BAD_CERT_DOMAIN);
+
+  add_cert_override_test("bug413909.xn--hxajbheg2az3al.xn--jxalpdlp",
+                         Ci.nsICertOverrideService.ERROR_UNTRUSTED,
+                         SEC_ERROR_UNKNOWN_ISSUER);
+  add_test(function() {
+    // At this point, the override for bug413909.xn--hxajbheg2az3al.xn--jxalpdlp
+    // is still valid. Do some additional tests relating to IDN handling.
+    let certOverrideService = Cc["@mozilla.org/security/certoverride;1"]
+                                .getService(Ci.nsICertOverrideService);
+    let uri = Services.io.newURI("https://bug413909.xn--hxajbheg2az3al.xn--jxalpdlp", null, null);
+    let cert = constructCertFromFile("bad_certs/idn-certificate.pem");
+    Assert.ok(certOverrideService.hasMatchingOverride(uri.asciiHost, 8443, cert, {}, {}),
+              "IDN certificate should have matching override using ascii host");
+    Assert.ok(!certOverrideService.hasMatchingOverride(uri.host, 8443, cert, {}, {}),
+              "IDN certificate should not have matching override using (non-ascii) host");
+    run_next_test();
+  });
 }
 
 function add_combo_tests() {
@@ -195,13 +245,13 @@ function add_distrust_tests() {
   // Before we specifically distrust this certificate, it should be trusted.
   add_connection_test("untrusted.example.com", PRErrorCodeSuccess);
 
-  add_distrust_test("tlsserver/default-ee.pem", "untrusted.example.com",
+  add_distrust_test("bad_certs/default-ee.pem", "untrusted.example.com",
                     SEC_ERROR_UNTRUSTED_CERT);
 
-  add_distrust_test("tlsserver/other-test-ca.pem",
+  add_distrust_test("bad_certs/other-test-ca.pem",
                     "untrustedissuer.example.com", SEC_ERROR_UNTRUSTED_ISSUER);
 
-  add_distrust_test("tlsserver/test-ca.pem",
+  add_distrust_test("bad_certs/test-ca.pem",
                     "ca-used-as-end-entity.example.com",
                     SEC_ERROR_UNTRUSTED_ISSUER);
 }

@@ -4,16 +4,14 @@
  */
 "use strict";
 
-const { 'classes': Cc, 'interfaces': Ci, 'utils': Cu, 'results': Cr } = Components;
+var { 'classes': Cc, 'interfaces': Ci, 'utils': Cu, 'results': Cr } = Components;
 
-let { NetUtil } = Cu.import("resource://gre/modules/NetUtil.jsm", {});
-let { FileUtils } = Cu.import("resource://gre/modules/FileUtils.jsm", {});
-let { Services } = Cu.import("resource://gre/modules/Services.jsm", {});
-let { Promise } = Cu.import("resource://gre/modules/Promise.jsm", {});
-let { HttpServer } = Cu.import("resource://testing-common/httpd.js", {});
-let { ctypes } = Cu.import("resource://gre/modules/ctypes.jsm");
-
-let gIsWindows = ("@mozilla.org/windows-registry-key;1" in Cc);
+var { NetUtil } = Cu.import("resource://gre/modules/NetUtil.jsm", {});
+var { FileUtils } = Cu.import("resource://gre/modules/FileUtils.jsm", {});
+var { Services } = Cu.import("resource://gre/modules/Services.jsm", {});
+var { Promise } = Cu.import("resource://gre/modules/Promise.jsm", {});
+var { HttpServer } = Cu.import("resource://testing-common/httpd.js", {});
+var { ctypes } = Cu.import("resource://gre/modules/ctypes.jsm");
 
 const isDebugBuild = Cc["@mozilla.org/xpcom/debug;1"]
                        .getService(Ci.nsIDebug2).isDebugBuild;
@@ -37,6 +35,7 @@ const PRErrorCodeSuccess = 0;
 // Sort in numerical order
 const SEC_ERROR_INVALID_TIME                            = SEC_ERROR_BASE +   8;
 const SEC_ERROR_BAD_DER                                 = SEC_ERROR_BASE +   9;
+const SEC_ERROR_BAD_SIGNATURE                           = SEC_ERROR_BASE +  10;
 const SEC_ERROR_EXPIRED_CERTIFICATE                     = SEC_ERROR_BASE +  11;
 const SEC_ERROR_REVOKED_CERTIFICATE                     = SEC_ERROR_BASE +  12; // -8180
 const SEC_ERROR_UNKNOWN_ISSUER                          = SEC_ERROR_BASE +  13;
@@ -75,6 +74,7 @@ const MOZILLA_PKIX_ERROR_V1_CERT_USED_AS_CA             = MOZILLA_PKIX_ERROR_BAS
 const MOZILLA_PKIX_ERROR_NOT_YET_VALID_CERTIFICATE      = MOZILLA_PKIX_ERROR_BASE +   5;
 const MOZILLA_PKIX_ERROR_NOT_YET_VALID_ISSUER_CERTIFICATE = MOZILLA_PKIX_ERROR_BASE + 6;
 const MOZILLA_PKIX_ERROR_OCSP_RESPONSE_FOR_CERT_MISSING = MOZILLA_PKIX_ERROR_BASE +   8;
+const MOZILLA_PKIX_ERROR_REQUIRED_TLS_FEATURE_MISSING   = MOZILLA_PKIX_ERROR_BASE +  10;
 
 // Supported Certificate Usages
 const certificateUsageSSLClient              = 0x0001;
@@ -266,7 +266,7 @@ function clearSessionCache() {
 
 function run_test() {
   do_get_profile();
-  add_tls_server_setup("<test-server-name>");
+  add_tls_server_setup("<test-server-name>", "<path-to-certificate-directory>");
 
   add_connection_test("<test-name-1>.example.com",
                       SEC_ERROR_xxx,
@@ -278,11 +278,11 @@ function run_test() {
 
   run_next_test();
 }
-
 */
-function add_tls_server_setup(serverBinName) {
+
+function add_tls_server_setup(serverBinName, certsPath) {
   add_test(function() {
-    _setupTLSServerTest(serverBinName);
+    _setupTLSServerTest(serverBinName, certsPath);
   });
 }
 
@@ -408,7 +408,7 @@ function _getBinaryUtil(binaryUtilName) {
                            .getService(Ci.nsIProperties);
 
   let utilBin = directoryService.get("CurProcD", Ci.nsILocalFile);
-  utilBin.append(binaryUtilName + (gIsWindows ? ".exe" : ""));
+  utilBin.append(binaryUtilName + mozinfo.bin_suffix);
   // If we're testing locally, the above works. If not, the server executable
   // is in another location.
   if (!utilBin.exists()) {
@@ -417,7 +417,7 @@ function _getBinaryUtil(binaryUtilName) {
       utilBin = utilBin.parent;
     }
     utilBin.append("bin");
-    utilBin.append(binaryUtilName + (gIsWindows ? ".exe" : ""));
+    utilBin.append(binaryUtilName + mozinfo.bin_suffix);
   }
   // But maybe we're on Android or B2G, where binaries are in /data/local/xpcb.
   if (!utilBin.exists()) {
@@ -429,12 +429,12 @@ function _getBinaryUtil(binaryUtilName) {
 }
 
 // Do not call this directly; use add_tls_server_setup
-function _setupTLSServerTest(serverBinName)
+function _setupTLSServerTest(serverBinName, certsPath)
 {
   let certdb = Cc["@mozilla.org/security/x509certdb;1"]
                   .getService(Ci.nsIX509CertDB);
   // The trusted CA that is typically used for "good" certificates.
-  addCertFromFile(certdb, "tlsserver/test-ca.pem", "CTu,u,u");
+  addCertFromFile(certdb, `${certsPath}/test-ca.pem`, "CTu,u,u");
 
   const CALLBACK_PORT = 8444;
 
@@ -467,8 +467,8 @@ function _setupTLSServerTest(serverBinName)
   let process = Cc["@mozilla.org/process/util;1"].createInstance(Ci.nsIProcess);
   process.init(serverBin);
   let certDir = directoryService.get("CurWorkD", Ci.nsILocalFile);
-  certDir.append("tlsserver");
-  Assert.ok(certDir.exists(), "tlsserver folder should exist");
+  certDir.append(`${certsPath}`);
+  Assert.ok(certDir.exists(), `certificate folder (${certsPath}) should exist`);
   // Using "sql:" causes the SQL DB to be used so we can run tests on Android.
   process.run(false, [ "sql:" + certDir.path ], 1);
 
@@ -612,7 +612,7 @@ function startOCSPResponder(serverPort, identity, invalidIdentities,
 }
 
 // A prototype for a fake, error-free sslstatus
-let FakeSSLStatus = function(certificate) {
+var FakeSSLStatus = function(certificate) {
   this.serverCert = certificate;
 };
 
@@ -647,7 +647,8 @@ function add_cert_override(aHost, aExpectedBits, aSecurityInfo) {
     (sslstatus.isUntrusted ? Ci.nsICertOverrideService.ERROR_UNTRUSTED : 0) |
     (sslstatus.isDomainMismatch ? Ci.nsICertOverrideService.ERROR_MISMATCH : 0) |
     (sslstatus.isNotValidAtThisTime ? Ci.nsICertOverrideService.ERROR_TIME : 0);
-  do_check_eq(bits, aExpectedBits);
+  Assert.equal(bits, aExpectedBits,
+               "Actual and expected override bits should match");
   let cert = sslstatus.serverCert;
   let certOverrideService = Cc["@mozilla.org/security/certoverride;1"]
                               .getService(Ci.nsICertOverrideService);
@@ -662,7 +663,7 @@ function add_cert_override(aHost, aExpectedBits, aSecurityInfo) {
 function add_cert_override_test(aHost, aExpectedBits, aExpectedError) {
   add_connection_test(aHost, aExpectedError, null,
                       add_cert_override.bind(this, aHost, aExpectedBits));
-  add_connection_test(aHost, Cr.NS_OK);
+  add_connection_test(aHost, PRErrorCodeSuccess);
 }
 
 // Helper function for add_prevented_cert_override_test. This is much like

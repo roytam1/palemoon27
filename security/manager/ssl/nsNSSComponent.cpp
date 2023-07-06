@@ -19,6 +19,7 @@
 #include "mozilla/Preferences.h"
 #include "nsThreadUtils.h"
 #include "mozilla/PublicSSL.h"
+#include "mozilla/Services.h"
 #include "mozilla/StaticPtr.h"
 
 #ifndef MOZ_NO_SMART_CARDS
@@ -817,7 +818,6 @@ public:
   NS_DECL_NSIOBSERVER
 
   static nsresult StartObserve();
-  static nsresult StopObserve();
 
 protected:
   virtual ~CipherSuiteChangeObserver() {}
@@ -844,22 +844,13 @@ CipherSuiteChangeObserver::StartObserve()
       sObserver = nullptr;
       return rv;
     }
-    sObserver = observer;
-  }
-  return NS_OK;
-}
 
-// static
-nsresult
-CipherSuiteChangeObserver::StopObserve()
-{
-  NS_ASSERTION(NS_IsMainThread(), "CipherSuiteChangeObserver::StopObserve() can only be accessed in main thread");
-  if (sObserver) {
-    nsresult rv = Preferences::RemoveObserver(sObserver.get(), "security.");
-    sObserver = nullptr;
-    if (NS_FAILED(rv)) {
-      return rv;
-    }
+    nsCOMPtr<nsIObserverService> observerService =
+      mozilla::services::GetObserverService();
+    observerService->AddObserver(observer, NS_XPCOM_SHUTDOWN_OBSERVER_ID,
+                                 false);
+
+    sObserver = observer;
   }
   return NS_OK;
 }
@@ -897,6 +888,13 @@ CipherSuiteChangeObserver::Observe(nsISupports* aSubject,
         break;
       }
     }
+  } else if (nsCRT::strcmp(aTopic, NS_XPCOM_SHUTDOWN_OBSERVER_ID) == 0) {
+    Preferences::RemoveObserver(this, "security.");
+    MOZ_ASSERT(sObserver.get() == this);
+    sObserver = nullptr;
+    nsCOMPtr<nsIObserverService> observerService =
+      mozilla::services::GetObserverService();
+    observerService->RemoveObserver(this, NS_XPCOM_SHUTDOWN_OBSERVER_ID);
   }
   return NS_OK;
 }
@@ -1069,9 +1067,11 @@ nsNSSComponent::InitializeNSS()
   }
 
   SECStatus init_rv = SECFailure;
-  if (!profileStr.IsEmpty()) {
+  bool nocertdb = Preferences::GetBool("security.nocertdb", false);
+
+  if (!nocertdb && !profileStr.IsEmpty()) {
     // First try to initialize the NSS DB in read/write mode.
-    SECStatus init_rv = ::mozilla::psm::InitializeNSS(profileStr.get(), false);
+    init_rv = ::mozilla::psm::InitializeNSS(profileStr.get(), false);
     // If that fails, attempt read-only mode.
     if (init_rv != SECSuccess) {
       MOZ_LOG(gPIPNSSLog, LogLevel::Debug, ("could not init NSS r/w in %s\n", profileStr.get()));
@@ -1082,9 +1082,9 @@ nsNSSComponent::InitializeNSS()
     }
   }
   // If we haven't succeeded in initializing the DB in our profile
-  // directory or we don't have a profile at all, attempt to initialize
-  // with no DB.
-  if (init_rv != SECSuccess) {
+  // directory or we don't have a profile at all, or the "security.nocertdb"
+  // pref has been set to "true", attempt to initialize with no DB.
+  if (nocertdb || init_rv != SECSuccess) {
     init_rv = NSS_NoDB_Init(nullptr);
   }
   if (init_rv != SECSuccess) {
@@ -1195,9 +1195,6 @@ nsNSSComponent::ShutdownNSS()
     PK11_SetPasswordFunc((PK11PasswordFunc)nullptr);
 
     Preferences::RemoveObserver(this, "security.");
-    if (NS_FAILED(CipherSuiteChangeObserver::StopObserve())) {
-      MOZ_LOG(gPIPNSSLog, LogLevel::Error, ("nsNSSComponent::ShutdownNSS cannot stop observing cipher suite change\n"));
-    }
 
 #ifndef MOZ_NO_SMART_CARDS
     ShutdownSmartCardThreads();
@@ -1324,8 +1321,6 @@ static const char* const PROFILE_CHANGE_NET_TEARDOWN_TOPIC
   = "profile-change-net-teardown";
 static const char* const PROFILE_CHANGE_NET_RESTORE_TOPIC
   = "profile-change-net-restore";
-static const char* const PROFILE_CHANGE_TEARDOWN_TOPIC
-  = "profile-change-teardown";
 static const char* const PROFILE_BEFORE_CHANGE_TOPIC = "profile-before-change";
 static const char* const PROFILE_DO_CHANGE_TOPIC = "profile-do-change";
 
@@ -1333,11 +1328,7 @@ NS_IMETHODIMP
 nsNSSComponent::Observe(nsISupports* aSubject, const char* aTopic,
                         const char16_t* someData)
 {
-  if (nsCRT::strcmp(aTopic, PROFILE_CHANGE_TEARDOWN_TOPIC) == 0) {
-    MOZ_LOG(gPIPNSSLog, LogLevel::Debug, ("in PSM code, receiving change-teardown\n"));
-    DoProfileChangeTeardown(aSubject);
-  }
-  else if (nsCRT::strcmp(aTopic, PROFILE_BEFORE_CHANGE_TOPIC) == 0) {
+  if (nsCRT::strcmp(aTopic, PROFILE_BEFORE_CHANGE_TOPIC) == 0) {
     MOZ_LOG(gPIPNSSLog, LogLevel::Debug, ("receiving profile change topic\n"));
     DoProfileBeforeChange(aSubject);
   }
@@ -1351,7 +1342,6 @@ nsNSSComponent::Observe(nsISupports* aSubject, const char* aTopic,
       // profiles. The order of function calls must correspond to the order
       // of notifications sent by Profile Manager (nsProfile).
       DoProfileChangeNetTeardown();
-      DoProfileChangeTeardown(aSubject);
       DoProfileBeforeChange(aSubject);
       DoProfileChangeNetRestore();
     }
@@ -1477,13 +1467,7 @@ nsNSSComponent::ShowAlertWithConstructedString(const nsString& message)
   nsCOMPtr<nsIPrompt> prompter;
   nsresult rv = GetNewPrompter(getter_AddRefs(prompter));
   if (prompter) {
-    nsPSMUITracker tracker;
-    if (tracker.isUIForbidden()) {
-      NS_WARNING("Suppressing alert because PSM UI is forbidden");
-      rv = NS_ERROR_UNEXPECTED;
-    } else {
-      rv = prompter->Alert(nullptr, message.get());
-    }
+    rv = prompter->Alert(nullptr, message.get());
   }
   return rv;
 }
@@ -1538,7 +1522,6 @@ nsNSSComponent::RegisterObservers()
 
     observerService->AddObserver(this, NS_XPCOM_SHUTDOWN_OBSERVER_ID, false);
 
-    observerService->AddObserver(this, PROFILE_CHANGE_TEARDOWN_TOPIC, false);
     observerService->AddObserver(this, PROFILE_BEFORE_CHANGE_TOPIC, false);
     observerService->AddObserver(this, PROFILE_DO_CHANGE_TOPIC, false);
     observerService->AddObserver(this, PROFILE_CHANGE_NET_TEARDOWN_TOPIC, false);
@@ -1561,7 +1544,6 @@ nsNSSComponent::DeregisterObservers()
 
     observerService->RemoveObserver(this, NS_XPCOM_SHUTDOWN_OBSERVER_ID);
 
-    observerService->RemoveObserver(this, PROFILE_CHANGE_TEARDOWN_TOPIC);
     observerService->RemoveObserver(this, PROFILE_BEFORE_CHANGE_TOPIC);
     observerService->RemoveObserver(this, PROFILE_DO_CHANGE_TOPIC);
     observerService->RemoveObserver(this, PROFILE_CHANGE_NET_TEARDOWN_TOPIC);
@@ -1576,12 +1558,6 @@ nsNSSComponent::DoProfileChangeNetTeardown()
   if (mCertVerificationThread)
     mCertVerificationThread->requestExit();
   mIsNetworkDown = true;
-}
-
-void
-nsNSSComponent::DoProfileChangeTeardown(nsISupports* aSubject)
-{
-  mShutdownObjectList->ifPossibleDisallowUI();
 }
 
 void
@@ -1605,7 +1581,6 @@ nsNSSComponent::DoProfileBeforeChange(nsISupports* aSubject)
   if (needsCleanup) {
     ShutdownNSS();
   }
-  mShutdownObjectList->allowUI();
 }
 
 void
@@ -1705,9 +1680,9 @@ getNSSDialogs(void** _result, REFNSIID aIID, const char* contract)
 }
 
 nsresult
-setPassword(PK11SlotInfo* slot, nsIInterfaceRequestor* ctx)
+setPassword(PK11SlotInfo* slot, nsIInterfaceRequestor* ctx,
+            nsNSSShutDownPreventionLock& /*proofOfLock*/)
 {
-  nsNSSShutDownPreventionLock locker;
   nsresult rv = NS_OK;
 
   if (PK11_NeedUserInit(slot)) {
@@ -1721,17 +1696,8 @@ setPassword(PK11SlotInfo* slot, nsIInterfaceRequestor* ctx)
 
     if (NS_FAILED(rv)) goto loser;
 
-    {
-      nsPSMUITracker tracker;
-      if (tracker.isUIForbidden()) {
-        rv = NS_ERROR_NOT_AVAILABLE;
-      }
-      else {
-        rv = dialogs->SetPassword(ctx,
-                                  tokenName.get(),
-                                  &canceled);
-      }
-    }
+    rv = dialogs->SetPassword(ctx, tokenName.get(), &canceled);
+
     NS_RELEASE(dialogs);
     if (NS_FAILED(rv)) goto loser;
 

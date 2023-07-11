@@ -1435,6 +1435,7 @@ nsIDocument::nsIDocument()
     mPostedFlushUserFontSet(false),
     mPartID(0),
     mDidFireDOMContentLoaded(true),
+    mHasScrollLinkedEffect(false),
     mUserHasInteracted(false)
 {
   SetInDocument();
@@ -1555,6 +1556,8 @@ nsDocument::~nsDocument()
         mixedContentLevel = MIXED_DISPLAY_CONTENT;
       }
       Accumulate(Telemetry::MIXED_CONTENT_PAGE_LOAD, mixedContentLevel);
+
+      Accumulate(Telemetry::SCROLL_LINKED_EFFECT_FOUND, mHasScrollLinkedEffect);
     }
   }
 
@@ -2313,6 +2316,11 @@ nsDocument::ResetStylesheetsToURI(nsIURI* aURI)
   RemoveStyleSheetsFromStyleSets(mAdditionalSheets[eAgentSheet], SheetType::Agent);
   RemoveStyleSheetsFromStyleSets(mAdditionalSheets[eUserSheet], SheetType::User);
   RemoveStyleSheetsFromStyleSets(mAdditionalSheets[eAuthorSheet], SheetType::Doc);
+
+  nsStyleSheetService *sheetService = nsStyleSheetService::GetInstance();
+  if (sheetService) {
+    RemoveStyleSheetsFromStyleSets(*sheetService->AuthorStyleSheets(), SheetType::Doc);
+  }
 
   // Release all the sheets
   mStyleSheets.Clear();
@@ -5082,6 +5090,14 @@ nsDocument::DispatchContentLoadedEvents()
     nsContentUtils::DispatchChromeEvent(this, static_cast<nsIDocument*>(this),
                                         NS_LITERAL_STRING("MozApplicationManifest"),
                                         true, true);
+  }
+
+  if (mMaybeServiceWorkerControlled) {
+    using mozilla::dom::workers::ServiceWorkerManager;
+    RefPtr<ServiceWorkerManager> swm = ServiceWorkerManager::GetInstance();
+    if (swm) {
+      swm->MaybeCheckNavigationUpdate(this);
+    }
   }
 
   UnblockOnload(true);
@@ -13137,14 +13153,8 @@ nsIDocument::CreateHTMLElement(nsIAtom* aTag)
 nsresult
 nsIDocument::GenerateDocumentId(nsAString& aId)
 {
-  nsresult rv;
-  nsCOMPtr<nsIUUIDGenerator> uuidgen = do_GetService("@mozilla.org/uuid-generator;1", &rv);
-  if (NS_WARN_IF(NS_FAILED(rv))) {
-    return rv;
-  }
-
   nsID id;
-  rv = uuidgen->GenerateUUIDInPlace(&id);
+  nsresult rv = nsContentUtils::GenerateUUIDInPlace(id);
   if (NS_WARN_IF(NS_FAILED(rv))) {
     return rv;
   }
@@ -13334,6 +13344,20 @@ nsIDocument::Fonts()
     GetUserFontSet();  // this will cause the user font set to be created/updated
   }
   return mFontFaceSet;
+}
+
+void
+nsIDocument::ReportHasScrollLinkedEffect()
+{
+  if (mHasScrollLinkedEffect) {
+    // We already did this once for this document, don't do it again.
+    return;
+  }
+  mHasScrollLinkedEffect = true;
+  nsContentUtils::ReportToConsole(nsIScriptError::warningFlag,
+                                  NS_LITERAL_CSTRING("Async Pan/Zoom"),
+                                  this, nsContentUtils::eLAYOUT_PROPERTIES,
+                                  "ScrollLinkedEffectFound");
 }
 
 Selection*

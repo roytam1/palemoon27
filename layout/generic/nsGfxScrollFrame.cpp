@@ -61,6 +61,7 @@
 #include "nsPluginFrame.h"
 #include <mozilla/layers/AxisPhysicsModel.h>
 #include <mozilla/layers/AxisPhysicsMSDModel.h>
+#include "mozilla/layers/ScrollLinkedEffectDetector.h"
 #include "mozilla/unused.h"
 #include <algorithm>
 #include <cstdlib> // for std::abs(int/long)
@@ -1096,7 +1097,7 @@ ScrollFrameHelper::HandleScrollbarStyleSwitching()
   }
 }
 
-#if defined(MOZ_B2G) || (defined(MOZ_WIDGET_ANDROID) && !defined(MOZ_ANDROID_APZ))
+#if defined(MOZ_B2G) || defined(MOZ_WIDGET_ANDROID)
 static bool IsFocused(nsIContent* aContent)
 {
   // Some content elements, like the GetContent() of a scroll frame
@@ -1138,7 +1139,7 @@ ScrollFrameHelper::WantAsyncScroll() const
   bool isHScrollable = !!(directions & nsIScrollableFrame::HORIZONTAL) &&
                        (styles.mHorizontal != NS_STYLE_OVERFLOW_HIDDEN);
 
-#if defined(MOZ_B2G) || (defined(MOZ_WIDGET_ANDROID) && !defined(MOZ_ANDROID_APZ))
+#if defined(MOZ_B2G) || defined(MOZ_WIDGET_ANDROID)
   // Mobile platforms need focus to scroll.
   bool canScrollWithoutScrollbars = IsFocused(mOuter->GetContent());
 #else
@@ -4246,6 +4247,7 @@ ScrollFrameHelper::FireScrollEvent()
   nsPresContext* prescontext = mOuter->PresContext();
   // Fire viewport scroll events at the document (where they
   // will bubble to the window)
+  mozilla::layers::ScrollLinkedEffectDetector detector(content->GetComposedDoc());
   if (mIsRoot) {
     nsIDocument* doc = content->GetCurrentDoc();
     if (doc) {

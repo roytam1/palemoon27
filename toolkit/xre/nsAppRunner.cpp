@@ -194,6 +194,10 @@
 #include "AndroidBridge.h"
 #endif
 
+#if defined(MOZ_SANDBOX) && defined(XP_LINUX) && !defined(ANDROID)
+#include "mozilla/SandboxInfo.h"
+#endif
+
 extern uint32_t gRestartMode;
 extern void InstallSignalHandlers(const char *ProgramName);
 
@@ -4269,6 +4273,10 @@ int
 XREMain::XRE_main(int argc, char* argv[], const nsXREAppData* aAppData)
 {
   ScopedLogging log;
+
+#if defined(MOZ_SANDBOX) && defined(XP_LINUX) && !defined(ANDROID)
+  SandboxInfo::ThreadingCheck();
+#endif
 
   char aLocal;
   GeckoProfilerInitRAII profilerGuard(&aLocal);

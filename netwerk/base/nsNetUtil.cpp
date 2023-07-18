@@ -951,8 +951,8 @@ NS_ParseResponseContentType(const nsACString &rawContentType,
     NS_ENSURE_SUCCESS(rv, rv);
     nsCString charset;
     bool hadCharset;
-    rv = util->ParseRequestContentType(rawContentType, charset, &hadCharset,
-                                       contentType);
+    rv = util->ParseResponseContentType(rawContentType, charset, &hadCharset,
+                                        contentType);
     if (NS_SUCCEEDED(rv) && hadCharset)
         contentCharset = charset;
     return rv;
@@ -1124,6 +1124,22 @@ NS_BufferOutputStream(nsIOutputStream *aOutputStream,
 
     bos = aOutputStream;
     return bos.forget();
+}
+
+already_AddRefed<nsIInputStream>
+NS_BufferInputStream(nsIInputStream *aInputStream,
+                      uint32_t aBufferSize)
+{
+    NS_ASSERTION(aInputStream, "No input stream given!");
+
+    nsCOMPtr<nsIInputStream> bis;
+    nsresult rv = NS_NewBufferedInputStream(getter_AddRefs(bis), aInputStream,
+                                            aBufferSize);
+    if (NS_SUCCEEDED(rv))
+        return bis.forget();
+
+    bis = aInputStream;
+    return bis.forget();
 }
 
 nsresult

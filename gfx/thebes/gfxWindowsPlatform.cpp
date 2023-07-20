@@ -690,9 +690,7 @@ gfxWindowsPlatform::CreatePlatformFontList()
 #ifdef CAIRO_HAS_DWRITE_FONT
     // bug 630201 - older pre-RTM versions of Direct2D/DirectWrite cause odd
     // crashers so blacklist them altogether
-    if (IsNotWin7PreRTM() && GetDWriteFactory() &&
-        // Skia doesn't support DirectWrite fonts yet.
-       (gfxPlatform::GetDefaultContentBackend() != BackendType::SKIA)) {
+    if (IsNotWin7PreRTM() && GetDWriteFactory()) {
         pfl = new gfxDWriteFontList();
         if (NS_SUCCEEDED(pfl->InitFontList())) {
             return pfl;
@@ -2996,7 +2994,7 @@ gfxWindowsPlatform::CreateHardwareVsyncSource()
 bool
 gfxWindowsPlatform::SupportsApzTouchInput() const
 {
-  int value = Preferences::GetInt("dom.w3c_touch_events.enabled", 0);
+  int value = gfxPrefs::TouchEventsEnabled();
   return value == 1 || value == 2;
 }
 

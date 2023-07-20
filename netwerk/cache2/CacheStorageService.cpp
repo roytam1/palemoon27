@@ -1742,8 +1742,7 @@ CacheStorageService::DoomStorageEntries(nsCSubstring const& aContextKey,
     sGlobalEntryTables->RemoveAndForget(memoryStorageID, memoryEntries);
 
     CacheEntryTable* diskEntries;
-    sGlobalEntryTables->Get(aContextKey, &diskEntries);
-    if (memoryEntries && diskEntries) {
+    if (memoryEntries && sGlobalEntryTables->Get(aContextKey, &diskEntries)) {
       for (auto iter = memoryEntries->Iter(); !iter.Done(); iter.Next()) {
         auto entry = iter.Data();
         RemoveExactEntry(diskEntries, iter.Key(), entry, false);

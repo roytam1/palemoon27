@@ -21,6 +21,7 @@
 
 #if defined(WIN32)
 #include "ScaledFontWin.h"
+#include "NativeFontResourceGDI.h"
 #endif
 
 #ifdef XP_DARWIN
@@ -36,6 +37,7 @@
 #include "DrawTargetD2D.h"
 #include "DrawTargetD2D1.h"
 #include "ScaledFontDWrite.h"
+#include "NativeFontResourceDWrite.h"
 #include <d3d10_1.h>
 #include "HelpersD2D.h"
 #endif
@@ -48,6 +50,7 @@
 
 #include "DrawEventRecorder.h"
 
+#include "Preferences.h"
 #include "Logging.h"
 
 #include "mozilla/CheckedInt.h"
@@ -152,31 +155,9 @@ HasCPUIDBit(unsigned int level, CPUIDRegister reg, unsigned int bit)
 namespace mozilla {
 namespace gfx {
 
-// These values we initialize with should match those in
-// PreferenceAccess::RegisterAll method.
-int32_t PreferenceAccess::sGfxLogLevel = LOG_DEFAULT;
-
-PreferenceAccess* PreferenceAccess::sAccess = nullptr;
-PreferenceAccess::~PreferenceAccess()
-{
-}
-
-// Just a placeholder, the derived class will set the variable to default
-// if the preference doesn't exist.
-void PreferenceAccess::LivePref(const char* aName, int32_t* aVar, int32_t aDef)
-{
-  *aVar = aDef;
-}
-
-// This will be called with the derived class, so we will want to register
-// the callbacks with it.
-void PreferenceAccess::SetAccess(PreferenceAccess* aAccess) {
-  sAccess = aAccess;
-  if (sAccess) {
-    RegisterAll();
-  }
-}
-
+int32_t LoggingPrefs::sGfxLogLevel =
+  PreferenceAccess::RegisterLivePref("gfx.logging.level", &sGfxLogLevel,
+                                     LOG_DEFAULT);
 
 #ifdef WIN32
 ID3D10Device1 *Factory::mD3D10Device;
@@ -552,7 +533,7 @@ Factory::CreateScaledFontForNativeFont(const NativeFont &aNativeFont, Float aSiz
 #if defined(USE_CAIRO) || defined(USE_SKIA)
   case NativeFontType::GDI_FONT_FACE:
     {
-      return MakeAndAddRef<ScaledFontWin>(static_cast<LOGFONT*>(aNativeFont.mFont), aSize);
+      return MakeAndAddRef<ScaledFontWin>(static_cast<LOGFONTW*>(aNativeFont.mFont), aSize);
     }
 #endif
 #endif
@@ -574,20 +555,35 @@ Factory::CreateScaledFontForNativeFont(const NativeFont &aNativeFont, Float aSiz
   }
 }
 
-already_AddRefed<ScaledFont>
-Factory::CreateScaledFontForTrueTypeData(uint8_t *aData, uint32_t aSize,
-                                         uint32_t aFaceIndex, Float aGlyphSize,
-                                         FontType aType)
+already_AddRefed<NativeFontResource>
+Factory::CreateNativeFontResource(uint8_t *aData, uint32_t aSize,
+                                  FontType aType)
 {
   switch (aType) {
 #ifdef WIN32
   case FontType::DWRITE:
     {
-      return MakeAndAddRef<ScaledFontDWrite>(aData, aSize, aFaceIndex, aGlyphSize);
+      return NativeFontResourceDWrite::Create(aData, aSize,
+                                              /* aNeedsCairo = */ false);
     }
 #endif
+  case FontType::CAIRO:
+    {
+#ifdef WIN32
+      if (GetDirect3D11Device()) {
+        return NativeFontResourceDWrite::Create(aData, aSize,
+                                                /* aNeedsCairo = */ true);
+      } else {
+        return NativeFontResourceGDI::Create(aData, aSize,
+                                             /* aNeedsCairo = */ true);
+      }
+#else
+      gfxWarning() << "Unable to create cairo scaled font from truetype data";
+      return nullptr;
+#endif
+    }
   default:
-    gfxWarning() << "Unable to create requested font type from truetype data";
+    gfxWarning() << "Unable to create requested font resource from truetype data";
     return nullptr;
   }
 }
@@ -801,6 +797,15 @@ Factory::D2DCleanup()
   }
   DrawTargetD2D1::CleanupD2D();
   DrawTargetD2D::CleanupD2D();
+}
+
+already_AddRefed<ScaledFont>
+Factory::CreateScaledFontForDWriteFont(IDWriteFont* aFont,
+                                       IDWriteFontFamily* aFontFamily,
+                                       IDWriteFontFace* aFontFace,
+                                       float aSize)
+{
+  return MakeAndAddRef<ScaledFontDWrite>(aFont, aFontFamily, aFontFace, aSize);
 }
 
 #endif // XP_WIN

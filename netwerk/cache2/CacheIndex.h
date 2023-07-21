@@ -16,7 +16,7 @@
 #include "nsThreadUtils.h"
 #include "nsWeakReference.h"
 #include "mozilla/SHA1.h"
-#include "mozilla/Mutex.h"
+#include "mozilla/StaticMutex.h"
 #include "mozilla/Endian.h"
 #include "mozilla/TimeStamp.h"
 
@@ -693,8 +693,6 @@ public:
 
 private:
   friend class CacheIndexEntryAutoManage;
-  friend class CacheIndexAutoLock;
-  friend class CacheIndexAutoUnlock;
   friend class FileOpenHelper;
   friend class CacheIndexIterator;
 
@@ -709,10 +707,6 @@ private:
   NS_IMETHOD OnFileDoomed(CacheFileHandle *aHandle, nsresult aResult) override;
   NS_IMETHOD OnEOFSet(CacheFileHandle *aHandle, nsresult aResult) override;
   NS_IMETHOD OnFileRenamed(CacheFileHandle *aHandle, nsresult aResult) override;
-
-  void     Lock();
-  void     Unlock();
-  void     AssertOwnsLock();
 
   nsresult InitInternal(nsIFile *aCacheDirectory);
   void     PreShutdownInternal();
@@ -926,10 +920,10 @@ private:
   size_t SizeOfExcludingThisInternal(mozilla::MallocSizeOf mallocSizeOf) const;
 
   static CacheIndex *gInstance;
+  static StaticMutex sLock;
 
   nsCOMPtr<nsIFile> mCacheDirectory;
 
-  mozilla::Mutex mLock;
   EState         mState;
   // Timestamp of time when the index was initialized. We use it to delay
   // initial update or build of index.
@@ -1082,70 +1076,6 @@ private:
 
   // List of async observers that want to get disk consumption information
   nsTArray<RefPtr<DiskConsumptionObserver> > mDiskConsumptionObservers;
-};
-
-class CacheIndexAutoLock {
-public:
-  explicit CacheIndexAutoLock(CacheIndex *aIndex)
-    : mIndex(aIndex)
-    , mLocked(true)
-  {
-    mIndex->Lock();
-  }
-  ~CacheIndexAutoLock()
-  {
-    if (mLocked) {
-      mIndex->Unlock();
-    }
-  }
-  void Lock()
-  {
-    MOZ_ASSERT(!mLocked);
-    mIndex->Lock();
-    mLocked = true;
-  }
-  void Unlock()
-  {
-    MOZ_ASSERT(mLocked);
-    mIndex->Unlock();
-    mLocked = false;
-  }
-
-private:
-  RefPtr<CacheIndex> mIndex;
-  bool mLocked;
-};
-
-class CacheIndexAutoUnlock {
-public:
-  explicit CacheIndexAutoUnlock(CacheIndex *aIndex)
-    : mIndex(aIndex)
-    , mLocked(false)
-  {
-    mIndex->Unlock();
-  }
-  ~CacheIndexAutoUnlock()
-  {
-    if (!mLocked) {
-      mIndex->Lock();
-    }
-  }
-  void Lock()
-  {
-    MOZ_ASSERT(!mLocked);
-    mIndex->Lock();
-    mLocked = true;
-  }
-  void Unlock()
-  {
-    MOZ_ASSERT(mLocked);
-    mIndex->Unlock();
-    mLocked = false;
-  }
-
-private:
-  RefPtr<CacheIndex> mIndex;
-  bool mLocked;
 };
 
 } // namespace net

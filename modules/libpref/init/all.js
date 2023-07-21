@@ -1324,6 +1324,13 @@ pref("print.print_edge_left", 0);
 pref("print.print_edge_right", 0);
 pref("print.print_edge_bottom", 0);
 
+// Print via the parent process. This is only used when e10s is enabled.
+#if defined(XP_WIN)
+pref("print.print_via_parent", true);
+#else
+pref("print.print_via_parent", false);
+#endif
+
 // Pref used by the spellchecker extension to control the
 // maximum number of misspelled words that will be underlined
 // in a document.
@@ -2012,6 +2019,13 @@ pref("network.dnsCacheExpirationGracePeriod", 300);
 
 // This preference can be used to turn off DNS prefetch.
 pref("network.dns.disablePrefetch", true);
+
+// This preference controls whether .onion hostnames are
+// rejected before being given to DNS. RFC 7686
+pref("network.dns.blockDotOnion", true);
+
+// These domains are treated as localhost equivalent
+pref("network.dns.localDomains", "");
 
 // Contols whether or not "localhost" should resolve when offline
 pref("network.dns.offline-localhost", true);
@@ -4484,10 +4498,15 @@ pref("webgl.max-warnings-per-context", 32);
 pref("webgl.enable-draft-extensions", false);
 pref("webgl.enable-privileged-extensions", false);
 pref("webgl.bypass-shader-validation", false);
-pref("webgl.enable-prototype-webgl2", false);
 pref("webgl.disable-fail-if-major-performance-caveat", false);
 pref("webgl.disable-DOM-blit-uploads", false);
 pref("webgl.webgl2-compat-mode", false);
+
+#ifdef NIGHTLY_BUILD
+pref("webgl.enable-prototype-webgl2", true);
+#else
+pref("webgl.enable-prototype-webgl2", false);
+#endif
 
 #ifdef RELEASE_BUILD
 // Keep this disabled on Release and Beta for now. (see bug 1171228)

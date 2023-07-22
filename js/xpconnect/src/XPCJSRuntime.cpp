@@ -44,6 +44,7 @@
 #include "mozilla/Atomics.h"
 #include "mozilla/Attributes.h"
 #include "mozilla/ProcessHangMonitor.h"
+#include "mozilla/unused.h"
 #include "AccessCheck.h"
 #include "nsGlobalWindow.h"
 #include "nsAboutProtocolUtils.h"
@@ -2655,7 +2656,7 @@ class JSMainRuntimeCompartmentsReporter final : public nsIMemoryReporter
                     ? NS_LITERAL_CSTRING("js-main-runtime-compartments/system/")
                     : NS_LITERAL_CSTRING("js-main-runtime-compartments/user/"),
                     0);
-        data->paths.append(path);
+        mozilla::Unused << data->paths.append(path);
     }
 
     NS_IMETHOD CollectReports(nsIMemoryReporterCallback* cb,

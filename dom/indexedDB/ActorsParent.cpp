@@ -3059,8 +3059,6 @@ UpgradeKeyFunction::OnFunctionCall(mozIStorageValueArray* aValues,
 
   nsCOMPtr<nsIVariant> result = new mozilla::storage::AdoptedBlobVariant(data);
 
-  upgradedBlobData.release();
-
   result.forget(_retval);
   return NS_OK;
 }
@@ -4010,11 +4008,9 @@ UpgradeIndexDataValuesFunction::OnFunctionCall(mozIStorageValueArray* aArguments
   uint32_t newIdvLength;
   rv = MakeCompressedIndexDataValues(oldIdv, newIdv, &newIdvLength);
 
-  std::pair<uint8_t*, int> data(newIdv.get(), newIdvLength);
+  std::pair<uint8_t*, int> data(newIdv.release(), newIdvLength);
   
   nsCOMPtr<nsIVariant> result = new storage::AdoptedBlobVariant(data);
-
-  newIdv.release();
 
   result.forget(aResult);
   return NS_OK;
@@ -19051,13 +19047,11 @@ DatabaseOperationBase::UpdateIndexValues(
 
   if (indexDataValues) {
     rv = updateStmt->BindAdoptedBlobByName(indexDataValuesString,
-                                           indexDataValues.get(),
+                                           indexDataValues.release(),
                                            indexDataValuesLength);
     if (NS_WARN_IF(NS_FAILED(rv))) {
       return rv;
     }
-
-    indexDataValues.release();
   } else {
     rv = updateStmt->BindNullByName(indexDataValuesString);
     if (NS_WARN_IF(NS_FAILED(rv))) {
@@ -23812,12 +23806,10 @@ UpdateIndexDataValuesFunction::OnFunctionCall(mozIStorageValueArray* aValues,
     return rv;
   }
 
-  std::pair<uint8_t *, int> copiedBlobDataPair(indexValuesBlob.get(),
+  std::pair<uint8_t *, int> copiedBlobDataPair(indexValuesBlob.release(),
                                                indexValuesBlobLength);
 
   value = new storage::AdoptedBlobVariant(copiedBlobDataPair);
-
-  indexValuesBlob.release();
 
   value.forget(_retval);
   return NS_OK;
@@ -24764,12 +24756,9 @@ ObjectStoreAddOrPutRequestOp::DoDatabaseWork(DatabaseConnection* aConnection)
     uint8_t* dataBuffer = reinterpret_cast<uint8_t*>(compressed);
     size_t dataBufferLength = compressedLength;
 
-    // If this call succeeds, | compressed | is now owned by the statement, and
-    // we are no longer responsible for it.
     rv = stmt->BindAdoptedBlobByName(NS_LITERAL_CSTRING("data"), dataBuffer,
                                      dataBufferLength);
     if (NS_WARN_IF(NS_FAILED(rv))) {
-      free(compressed);
       return rv;
     }
   }

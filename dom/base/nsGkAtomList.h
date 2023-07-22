@@ -2417,6 +2417,9 @@ GK_ATOM(onboundary, "onboundary")
 
 GK_ATOM(vr_state, "vr-state")
 
+// Contextual Identity / Containers
+GK_ATOM(usercontextid, "usercontextid")
+
 // MSE
 GK_ATOM(onsourceopen, "onsourceopen")
 GK_ATOM(onsourceended, "onsourceended")

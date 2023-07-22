@@ -1284,29 +1284,30 @@ INSTALL_TARGETS += %(prefix)s
 
     def _process_final_target_files(self, obj, files, backend_file):
         target = obj.install_target
-        for path in (
-                'dist/bin',
-                'dist/xpi-stage',
-                '_tests',
-                'dist/include',
-        ):
-            manifest = path.replace('/', '_')
-            if target.startswith(path):
-                install_manifest = self._install_manifests[manifest]
-                reltarget = mozpath.relpath(target, path)
-                break
-        else:
+        path = mozpath.basedir(target, (
+            'dist/bin',
+            'dist/xpi-stage',
+            '_tests',
+            'dist/include',
+        ))
+        if not path:
             raise Exception("Cannot install to " + target)
+
+        manifest = path.replace('/', '_')
+        install_manifest = self._install_manifests[manifest]
+        reltarget = mozpath.relpath(target, path)
 
         for path, files in files.walk():
             target_var = (mozpath.join(target, path)
                           if path else target).replace('/', '_')
             have_objdir_files = False
             for f in files:
+                dest = mozpath.join(reltarget, path,
+                                    mozpath.basename(f.full_path))
                 if not isinstance(f, ObjDirPath):
-                    dest = mozpath.join(reltarget, path, mozpath.basename(f))
                     install_manifest.add_symlink(f.full_path, dest)
                 else:
+                    install_manifest.add_optional_exists(dest)
                     backend_file.write('%s_FILES += %s\n' % (
                         target_var, self._pretty_path(f, backend_file)))
                     have_objdir_files = True

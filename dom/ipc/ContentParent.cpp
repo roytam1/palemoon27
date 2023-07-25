@@ -2153,7 +2153,7 @@ ContentParent::ActorDestroy(ActorDestroyReason why)
             // There's a window in which child processes can crash
             // after IPC is established, but before a crash reporter
             // is created.
-            if (PCrashReporterParent* p = LoneManagedOrNull(ManagedPCrashReporterParent())) {
+            if (PCrashReporterParent* p = LoneManagedOrNullAsserts(ManagedPCrashReporterParent())) {
                 CrashReporterParent* crashReporter =
                     static_cast<CrashReporterParent*>(p);
 
@@ -2334,7 +2334,7 @@ ContentParent::NotifyTabDestroyed(const TabId& aTabId,
 jsipc::CPOWManager*
 ContentParent::GetCPOWManager()
 {
-    if (PJavaScriptParent* p = LoneManagedOrNull(ManagedPJavaScriptParent())) {
+    if (PJavaScriptParent* p = LoneManagedOrNullAsserts(ManagedPJavaScriptParent())) {
         return CPOWManagerFor(p);
     }
     return nullptr;
@@ -2355,7 +2355,7 @@ ContentParent::DestroyTestShell(TestShellParent* aTestShell)
 TestShellParent*
 ContentParent::GetTestShellSingleton()
 {
-    PTestShellParent* p = LoneManagedOrNull(ManagedPTestShellParent());
+    PTestShellParent* p = LoneManagedOrNullAsserts(ManagedPTestShellParent());
     return static_cast<TestShellParent*>(p);
 }
 
@@ -2739,6 +2739,9 @@ bool
 ContentParent::RecvReadDataStorageArray(const nsString& aFilename,
                                         InfallibleTArray<DataStorageItem>* aValues)
 {
+    // Ensure the SSS is initialized before we try to use its storage.
+    nsCOMPtr<nsISiteSecurityService> sss = do_GetService("@mozilla.org/ssservice;1");
+
     RefPtr<DataStorage> storage = DataStorage::Get(aFilename);
     storage->GetAll(aValues);
     return true;
@@ -3632,7 +3635,7 @@ ContentParent::KillHard(const char* aReason)
     // We're about to kill the child process associated with this content.
     // Something has gone wrong to get us here, so we generate a minidump
     // of the parent and child for submission to the crash server.
-    if (PCrashReporterParent* p = LoneManagedOrNull(ManagedPCrashReporterParent())) {
+    if (PCrashReporterParent* p = LoneManagedOrNullAsserts(ManagedPCrashReporterParent())) {
         CrashReporterParent* crashReporter =
             static_cast<CrashReporterParent*>(p);
         // GeneratePairedMinidump creates two minidumps for us - the main
@@ -4392,23 +4395,24 @@ ContentParent::HasNotificationPermission(const IPC::Principal& aPrincipal)
 }
 
 bool
-ContentParent::RecvShowAlertNotification(const nsString& aImageUrl, const nsString& aTitle,
-                                         const nsString& aText, const bool& aTextClickable,
-                                         const nsString& aCookie, const nsString& aName,
-                                         const nsString& aBidi, const nsString& aLang,
-                                         const nsString& aData,
-                                         const IPC::Principal& aPrincipal,
-                                         const bool& aInPrivateBrowsing)
+ContentParent::RecvShowAlert(const AlertNotificationType& aAlert)
 {
-    if (!HasNotificationPermission(aPrincipal)) {
+    nsCOMPtr<nsIAlertNotification> alert(dont_AddRef(aAlert));
+    if (NS_WARN_IF(!alert)) {
+        return true;
+    }
+
+    nsCOMPtr<nsIPrincipal> principal;
+    nsresult rv = alert->GetPrincipal(getter_AddRefs(principal));
+    if (NS_WARN_IF(NS_FAILED(rv)) ||
+        !HasNotificationPermission(IPC::Principal(principal))) {
+
         return true;
     }
 
     nsCOMPtr<nsIAlertsService> sysAlerts(do_GetService(NS_ALERTSERVICE_CONTRACTID));
     if (sysAlerts) {
-        sysAlerts->ShowAlertNotification(aImageUrl, aTitle, aText, aTextClickable,
-                                         aCookie, this, aName, aBidi, aLang,
-                                         aData, aPrincipal, aInPrivateBrowsing);
+        sysAlerts->ShowAlert(alert, this);
     }
     return true;
 }

@@ -318,7 +318,7 @@ private:
     void PurgeAll(uint32_t aWhat);
 
   private:
-    uint32_t const Limit() const;
+    uint32_t Limit() const;
     MemoryPool() = delete;
   };
 

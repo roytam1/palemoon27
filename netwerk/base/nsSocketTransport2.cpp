@@ -15,7 +15,6 @@
 #include "nsProxyInfo.h"
 #include "nsNetCID.h"
 #include "nsNetUtil.h"
-#include "ClosingService.h"
 #include "nsAutoPtr.h"
 #include "nsCOMPtr.h"
 #include "plstr.h"
@@ -1214,7 +1213,7 @@ nsSocketTransport::InitiateSocket()
     bool isLocal;
     IsLocal(&isLocal);
 
-    if (gIOService->IsShutdown()) {
+    if (gIOService->IsNetTearingDown()) {
         return NS_ERROR_ABORT;
     }
     if (gIOService->IsOffline()) {
@@ -1314,9 +1313,6 @@ nsSocketTransport::InitiateSocket()
 
     // Attach network activity monitor
     mozilla::net::NetworkActivityMonitor::AttachIOLayer(fd);
-
-    // Attach closing service.
-    ClosingService::AttachIOLayer(fd);
 
     PRStatus status;
 
@@ -1696,7 +1692,12 @@ nsSocketTransport::ReleaseFD_Locked(PRFileDesc *fd)
     SOCKET_LOG(("JIMB: ReleaseFD_Locked: mFDref = %d\n", mFDref));
 
     if (--mFDref == 0) {
-        if (PR_GetCurrentThread() == gSocketThread) {
+        if (gIOService->IsNetTearingDown() &&
+            ((PR_IntervalNow() - gIOService->NetTearingDownStarted()) >
+             gSocketTransportService->MaxTimeForPrClosePref())) {
+          // If shutdown last to long, let the socket leak and do not close it.
+          SOCKET_LOG(("Intentional leak"));
+        } else if (PR_GetCurrentThread() == gSocketThread) {
             SOCKET_LOG(("nsSocketTransport: calling PR_Close [this=%p]\n", this));
             PR_Close(mFD);
         } else {
@@ -1923,7 +1924,7 @@ nsSocketTransport::OnSocketDetached(PRFileDesc *fd)
     }
 
     // If we are not shutting down try again.
-    if (!gIOService->IsShutdown() && RecoverFromError())
+    if (!gIOService->IsNetTearingDown() && RecoverFromError())
         mCondition = NS_OK;
     else {
         mState = STATE_CLOSED;

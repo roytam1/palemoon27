@@ -26,7 +26,7 @@
 // Entries with no expiration go in the first queue.
 
 const char *gMemoryDeviceID      = "memory";
-
+using namespace mozilla;
 
 nsMemoryCacheDevice::nsMemoryCacheDevice()
     : mInitialized(false),

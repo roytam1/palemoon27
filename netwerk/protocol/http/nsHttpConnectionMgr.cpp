@@ -33,6 +33,7 @@
 #include <algorithm>
 #include "mozilla/ChaosMode.h"
 #include "mozilla/unused.h"
+#include "nsIURI.h"
 
 namespace mozilla {
 namespace net {

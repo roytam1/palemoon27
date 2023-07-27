@@ -1067,7 +1067,7 @@ CopyToDisjointArray(TypedArrayObject* target, uint32_t targetOffset, SharedMem<v
       }
 
       default:
-        MOZ_CRASH("setFromAnyTypedArray with a typed array with bogus type");
+        MOZ_CRASH("setFromTypedArray with a typed array with bogus type");
     }
 }
 
@@ -1147,7 +1147,7 @@ intrinsic_SetOverlappingTypedElements(JSContext* cx, unsigned argc, Value* vp)
     if (!copyOfSrcData)
         return false;
 
-    jit::AtomicOperations::memcpySafeWhenRacy(copyOfSrcData.get(),
+    jit::AtomicOperations::memcpySafeWhenRacy(SharedMem<uint8_t*>::unshared(copyOfSrcData.get()),
                                               unsafeSrcCrossCompartment->viewDataEither().cast<uint8_t*>(),
                                               sourceByteLen);
 
@@ -1258,7 +1258,7 @@ intrinsic_ConstructorForTypedArray(JSContext* cx, unsigned argc, Value* vp)
     CallArgs args = CallArgsFromVp(argc, vp);
     MOZ_ASSERT(args.length() == 1);
     MOZ_ASSERT(args[0].isObject());
-    MOZ_ASSERT(IsAnyTypedArray(&args[0].toObject()));
+    MOZ_ASSERT(args[0].toObject().is<TypedArrayObject>());
 
     RootedObject object(cx, &args[0].toObject());
     JSProtoKey protoKey = StandardProtoKeyOrNull(object);
@@ -1514,6 +1514,10 @@ static const JSFunctionSpec intrinsic_functions[] = {
     JS_INLINABLE_FN("std_SIMD_Int32x4_extractLane",   simd_int32x4_extractLane,  2,0, SimdInt32x4),
     JS_INLINABLE_FN("std_SIMD_Float32x4_extractLane", simd_float32x4_extractLane,2,0, SimdFloat32x4),
     JS_FN("std_SIMD_Float64x2_extractLane",      simd_float64x2_extractLane,   2,0),
+    JS_FN("std_SIMD_Bool8x16_extractLane",       simd_bool8x16_extractLane,    2,0),
+    JS_FN("std_SIMD_Bool16x8_extractLane",       simd_bool16x8_extractLane,    2,0),
+    JS_FN("std_SIMD_Bool32x4_extractLane",       simd_bool32x4_extractLane,    2,0),
+    JS_FN("std_SIMD_Bool64x2_extractLane",       simd_bool64x2_extractLane,    2,0),
 
     // Helper funtions after this point.
     JS_INLINABLE_FN("ToObject",      intrinsic_ToObject,                1,0, IntrinsicToObject),
@@ -1656,6 +1660,10 @@ static const JSFunctionSpec intrinsic_functions[] = {
     JS_FN("GetInt8x16TypeDescr",            js::GetInt8x16TypeDescr, 0, 0),
     JS_FN("GetInt16x8TypeDescr",            js::GetInt16x8TypeDescr, 0, 0),
     JS_FN("GetInt32x4TypeDescr",            js::GetInt32x4TypeDescr, 0, 0),
+    JS_FN("GetBool8x16TypeDescr",           js::GetBool8x16TypeDescr, 0, 0),
+    JS_FN("GetBool16x8TypeDescr",           js::GetBool16x8TypeDescr, 0, 0),
+    JS_FN("GetBool32x4TypeDescr",           js::GetBool32x4TypeDescr, 0, 0),
+    JS_FN("GetBool64x2TypeDescr",           js::GetBool64x2TypeDescr, 0, 0),
 
     JS_INLINABLE_FN("ObjectIsTypeDescr"    ,          js::ObjectIsTypeDescr, 1, 0,
                     IntrinsicObjectIsTypeDescr),

@@ -1188,11 +1188,6 @@
     "kind": "boolean",
     "description": "Whether a HTTP transaction routed via Alt-Svc was scheme=http"
   },
-  "HTTP_WAP_CONTENT_TYPE_RECEIVED": {
-    "expires_in_version": "45",
-    "kind": "boolean",
-    "description": "Whether a WAP content type response is served to the browser."
-  },
   "HTTP_SCHEME_UPGRADE": {
     "expires_in_version": "never",
     "kind": "enumerated",
@@ -4960,21 +4955,18 @@
      "n_buckets": 10,
      "description": "Whenever the same-process MessageManager cannot be sent through sendAsyncMessage as it would cause an OOM, the size of the message content, in kb."
   },
-  "MISBEHAVING_ADDONS_CPOW_TIME_MS": {
-    "expires_in_version": "never",
-    "kind": "exponential",
-    "low": 1,
-    "high": 10000,
-    "n_buckets": 20,
-    "keyed": true,
-    "description": "Time spent by an add-on performing blocking cross-process communications (ms, keyed by add-on ID, updated every 15s by default)"
-  },
-  "MISBEHAVING_ADDONS_JANK_LEVEL": {
+  "SLOW_ADDON_WARNING_STATES": {
     "expires_in_version": "never",
     "kind": "enumerated",
-    "n_values": 10,
-    "keyed": true,
-    "description": "Longest blocking operation performed by the add-on (log2(duration in ms), keyed by add-on, updated every 15s by default)"
+    "n_values": 20,
+    "description": "The states the Slow Add-on Warning goes through. 0: Displayed the warning. 1: User clicked on 'Disable add-on'. 2: User clicked 'Ignore add-on for now'. 3: User clicked 'Ignore add-on permanently'. 4: User closed notification. Other values are reserved for future uses."
+  },
+  "SLOW_ADDON_WARNING_RESPONSE_TIME": {
+    "expires_in_version": "never",
+    "kind": "exponential",
+    "high": "86400000",
+    "n_buckets": 30,
+    "description": "Time elapsed between before responding to Slow Add-on Warning UI (ms). Not updated if the user doesn't respond at all."
   },
   "SEARCH_COUNTS": {
     "expires_in_version": "never",
@@ -8873,6 +8865,24 @@
     "n_buckets": "20",
     "description": "Proportion (%) of reschedulings of the main process to another CPU during the execution of code inside a JS compartment. Updated while we are measuring jank."
   },
+  "PERF_MONITORING_SLOW_ADDON_JANK_US": {
+    "expires_in_version": "never",
+    "kind": "exponential",
+    "low": 1,
+    "high": 10000000,
+    "n_buckets": 20,
+    "keyed": true,
+    "description": "Contiguous time spent by an add-on blocking the main loop (microseconds, keyed by add-on ID)."
+  },
+  "PERF_MONITORING_SLOW_ADDON_CPOW_US": {
+    "expires_in_version": "70",
+    "kind": "exponential",
+    "low": 1,
+    "high": 10000000,
+    "n_buckets": 20,
+    "keyed": true,
+    "description": "Contiguous time spent by an add-on blocking the main loop by performing a blocking cross-process call (microseconds, keyed by add-on ID)."
+  },
   "FXA_CONFIGURED": {
     "alert_emails": ["fx-team@mozilla.com"],
     "expires_in_version": "45",
@@ -9127,6 +9137,28 @@
     "kind": "flag",
     "description": "Flag activated whenever a youtube flash embed is seen during a session."
   },
+  "WEB_NOTIFICATION_CLICKED": {
+    "alert_emails": ["firefox-dev@mozilla.org"],
+    "bug_numbers": [1225336],
+    "expires_in_version": "50",
+    "kind": "count",
+    "description": "Count of times a web notification was clicked"
+  },
+  "WEB_NOTIFICATION_MENU": {
+    "alert_emails": ["firefox-dev@mozilla.org"],
+    "bug_numbers": [1225336],
+    "expires_in_version": "50",
+    "kind": "enumerated",
+    "n_values": 5,
+    "description": "Count of times a contextual menu item was used from a Notification (0: DND, 1: Disable, 2: Settings)"
+  },
+  "WEB_NOTIFICATION_SHOWN": {
+    "alert_emails": ["firefox-dev@mozilla.org"],
+    "bug_numbers": [1225336],
+    "expires_in_version": "50",
+    "kind": "count",
+    "description": "Count of times a Notification was rendered (accounting for XUL DND). A system backend may put the notification directly into the tray if its own DND is on."
+  },
   "WEBFONT_DOWNLOAD_TIME": {
     "alert_emails": ["jdaggett@mozilla.com"],
     "expires_in_version": "never",
@@ -9199,5 +9231,49 @@
     "kind": "boolean",
     "bug_numbers": [1188391],
     "description": "The number of ICE connections which immediately failed (0) vs. reached at least checking state (1)."
+  },
+  "ALERTS_SERVICE_DND_ENABLED": {
+    "alert_emails": ["firefox-dev@mozilla.org"],
+    "bug_numbers": [1219030],
+    "expires_in_version": "50",
+    "kind": "boolean",
+    "description": "XUL-only: whether the user has toggled do not disturb."
+  },
+  "ALERTS_SERVICE_DND_SUPPORTED_FLAG": {
+    "alert_emails": ["firefox-dev@mozilla.org"],
+    "bug_numbers": [1219030],
+    "expires_in_version": "50",
+    "kind": "flag",
+    "description": "Whether the do not disturb option is supported. True if the browser uses XUL alerts."
+  },
+  "WEB_NOTIFICATION_EXCEPTIONS_OPENED": {
+    "alert_emails": ["firefox-dev@mozilla.org"],
+    "bug_numbers": [1219030],
+    "expires_in_version": "50",
+    "kind": "count",
+    "description": "Number of times the Notification Permissions dialog has been opened."
+  },
+  "WEB_NOTIFICATION_PERMISSIONS": {
+    "alert_emails": ["firefox-dev@mozilla.org"],
+    "bug_numbers": [1219030],
+    "expires_in_version": "50",
+    "kind": "enumerated",
+    "n_values": 10,
+    "description": "Number of origins with the web notifications permission (0 = denied, 1 = allowed)."
+  },
+  "WEB_NOTIFICATION_PERMISSION_REMOVED": {
+    "alert_emails": ["firefox-dev@mozilla.org"],
+    "bug_numbers": [1219030],
+    "expires_in_version": "50",
+    "kind": "enumerated",
+    "n_values": 10,
+    "description": "Number of removed web notifications permissions (0 = remove deny, 1 = remove allow)."
+  },
+  "WEB_NOTIFICATION_SENDERS": {
+    "alert_emails": ["firefox-dev@mozilla.org"],
+    "bug_numbers": [1219030],
+    "expires_in_version": "50",
+    "kind": "count",
+    "description": "Number of origins that have shown a web notification. Excludes system alerts like update reminders and add-ons."
   }
 }

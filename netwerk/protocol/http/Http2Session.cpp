@@ -35,6 +35,7 @@
 #include "sslt.h"
 #include "mozilla/Snprintf.h"
 #include "nsSocketTransportService2.h"
+#include "nsNetUtil.h"
 
 namespace mozilla {
 namespace net {

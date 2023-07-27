@@ -941,7 +941,7 @@ Layer::ApplyPendingUpdatesForThisTransaction()
   }
 }
 
-const float
+float
 Layer::GetLocalOpacity()
 {
   float opacity = mOpacity;
@@ -2430,7 +2430,7 @@ void
 SetAntialiasingFlags(Layer* aLayer, DrawTarget* aTarget)
 {
   bool permitSubpixelAA = !(aLayer->GetContentFlags() & Layer::CONTENT_DISABLE_SUBPIXEL_AA);
-  if (aTarget->GetFormat() != SurfaceFormat::B8G8R8A8) {
+  if (aTarget->IsCurrentGroupOpaque()) {
     aTarget->SetPermitSubpixelAA(permitSubpixelAA);
     return;
   }

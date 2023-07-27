@@ -906,7 +906,7 @@ MConstant::canProduceFloat32() const
 MDefinition*
 MSimdValueX4::foldsTo(TempAllocator& alloc)
 {
-    DebugOnly<MIRType> laneType = SimdTypeToLaneType(type());
+    DebugOnly<MIRType> laneType = SimdTypeToLaneArgumentType(type());
     bool allConstants = true;
     bool allSame = true;
 
@@ -925,6 +925,13 @@ MSimdValueX4::foldsTo(TempAllocator& alloc)
     if (allConstants) {
         SimdConstant cst;
         switch (type()) {
+          case MIRType_Bool32x4: {
+            int32_t a[4];
+            for (size_t i = 0; i < 4; ++i)
+                a[i] = getOperand(i)->constantToBoolean() ? -1 : 0;
+            cst = SimdConstant::CreateX4(a);
+            break;
+          }
           case MIRType_Int32x4: {
             int32_t a[4];
             for (size_t i = 0; i < 4; ++i)
@@ -952,7 +959,7 @@ MSimdValueX4::foldsTo(TempAllocator& alloc)
 MDefinition*
 MSimdSplatX4::foldsTo(TempAllocator& alloc)
 {
-    DebugOnly<MIRType> laneType = SimdTypeToLaneType(type());
+    DebugOnly<MIRType> laneType = SimdTypeToLaneArgumentType(type());
     MDefinition* op = getOperand(0);
     if (!op->isConstantValue())
         return this;
@@ -960,20 +967,19 @@ MSimdSplatX4::foldsTo(TempAllocator& alloc)
 
     SimdConstant cst;
     switch (type()) {
+      case MIRType_Bool32x4: {
+        int32_t v = op->constantToBoolean() ? -1 : 0;
+        cst = SimdConstant::SplatX4(v);
+        break;
+      }
       case MIRType_Int32x4: {
-        int32_t a[4];
-        int32_t v = getOperand(0)->constantValue().toInt32();
-        for (size_t i = 0; i < 4; ++i)
-            a[i] = v;
-        cst = SimdConstant::CreateX4(a);
+        int32_t v = op->constantValue().toInt32();
+        cst = SimdConstant::SplatX4(v);
         break;
       }
       case MIRType_Float32x4: {
-        float a[4];
-        float v = getOperand(0)->constantValue().toNumber();
-        for (size_t i = 0; i < 4; ++i)
-            a[i] = v;
-        cst = SimdConstant::CreateX4(a);
+        float v = op->constantValue().toNumber();
+        cst = SimdConstant::SplatX4(v);
         break;
       }
       default: MOZ_CRASH("unexpected type in MSimdSplatX4::foldsTo");
@@ -4666,13 +4672,13 @@ InlinePropertyTable::buildTypeSetForFunction(JSFunction* func) const
 SharedMem<void*>
 MLoadTypedArrayElementStatic::base() const
 {
-    return AnyTypedArrayViewData(someTypedArray_);
+    return someTypedArray_->as<TypedArrayObject>().viewDataEither();
 }
 
 size_t
 MLoadTypedArrayElementStatic::length() const
 {
-    return AnyTypedArrayByteLength(someTypedArray_);
+    return someTypedArray_->as<TypedArrayObject>().byteLength();
 }
 
 bool
@@ -4695,7 +4701,7 @@ MLoadTypedArrayElementStatic::congruentTo(const MDefinition* ins) const
 SharedMem<void*>
 MStoreTypedArrayElementStatic::base() const
 {
-    return AnyTypedArrayViewData(someTypedArray_);
+    return someTypedArray_->as<TypedArrayObject>().viewDataEither();
 }
 
 bool
@@ -4710,7 +4716,7 @@ MGetPropertyCache::allowDoubleResult() const
 size_t
 MStoreTypedArrayElementStatic::length() const
 {
-    return AnyTypedArrayByteLength(someTypedArray_);
+    return someTypedArray_->as<TypedArrayObject>().byteLength();
 }
 
 bool
@@ -4944,7 +4950,7 @@ jit::ElementAccessIsDenseNative(CompilerConstraintList* constraints,
 
     // Typed arrays are native classes but do not have dense elements.
     const Class* clasp = types->getKnownClass(constraints);
-    return clasp && clasp->isNative() && !IsAnyTypedArrayClass(clasp);
+    return clasp && clasp->isNative() && !IsTypedArrayClass(clasp);
 }
 
 JSValueType
@@ -4990,9 +4996,9 @@ jit::UnboxedArrayElementType(CompilerConstraintList* constraints, MDefinition* o
 }
 
 bool
-jit::ElementAccessIsAnyTypedArray(CompilerConstraintList* constraints,
-                                  MDefinition* obj, MDefinition* id,
-                                  Scalar::Type* arrayType)
+jit::ElementAccessIsTypedArray(CompilerConstraintList* constraints,
+                               MDefinition* obj, MDefinition* id,
+                               Scalar::Type* arrayType)
 {
     if (obj->mightBeType(MIRType_String))
         return false;
@@ -5401,7 +5407,7 @@ jit::TypeCanHaveExtraIndexedProperties(IonBuilder* builder, TemporaryTypeSet* ty
     // Note: typed arrays have indexed properties not accounted for by type
     // information, though these are all in bounds and will be accounted for
     // by JIT paths.
-    if (!clasp || (ClassCanHaveExtraProperties(clasp) && !IsAnyTypedArrayClass(clasp)))
+    if (!clasp || (ClassCanHaveExtraProperties(clasp) && !IsTypedArrayClass(clasp)))
         return true;
 
     if (types->hasObjectFlags(builder->constraints(), OBJECT_FLAG_SPARSE_INDEXES))
@@ -5588,7 +5594,7 @@ jit::PropertyWriteNeedsTypeBarrier(TempAllocator& alloc, CompilerConstraintList*
 
         // TI doesn't track TypedArray indexes and should never insert a type
         // barrier for them.
-        if (!name && IsAnyTypedArrayClass(key->clasp()))
+        if (!name && IsTypedArrayClass(key->clasp()))
             continue;
 
         jsid id = name ? NameToId(name) : JSID_VOID;
@@ -5641,7 +5647,7 @@ jit::PropertyWriteNeedsTypeBarrier(TempAllocator& alloc, CompilerConstraintList*
         if (!key->hasStableClassAndProto(constraints))
             return true;
 
-        if (!name && IsAnyTypedArrayClass(key->clasp()))
+        if (!name && IsTypedArrayClass(key->clasp()))
             continue;
 
         jsid id = name ? NameToId(name) : JSID_VOID;

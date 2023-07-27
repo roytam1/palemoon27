@@ -234,7 +234,7 @@ nsFrameLoader::LoadFrame()
   if (NS_SUCCEEDED(rv)) {
     rv = LoadURI(uri);
   }
-  
+
   if (NS_FAILED(rv)) {
     FireErrorEvent();
 
@@ -325,7 +325,7 @@ nsFrameLoader::ReallyStartLoading()
   if (NS_FAILED(rv)) {
     FireErrorEvent();
   }
-  
+
   return rv;
 }
 
@@ -345,7 +345,7 @@ nsFrameLoader::ReallyStartLoadingInternal()
 
     // FIXME get error codes from child
     mRemoteBrowser->LoadURL(mURIToLoad);
-    
+
     if (!mRemoteBrowserShown && !ShowRemoteFrame(ScreenIntSize(0, 0))) {
       NS_WARNING("[nsFrameLoader] ReallyStartLoadingInternal tried but couldn't show remote browser.\n");
     }
@@ -378,7 +378,7 @@ nsFrameLoader::ReallyStartLoadingInternal()
   loadInfo->SetOwner(mOwnerContent->NodePrincipal());
 
   nsCOMPtr<nsIURI> referrer;
-  
+
   nsAutoString srcdoc;
   bool isSrcdoc = mOwnerContent->IsHTMLElement(nsGkAtoms::iframe) &&
                   mOwnerContent->GetAttr(kNameSpaceID_None, nsGkAtoms::srcdoc,
@@ -552,7 +552,7 @@ nsFrameLoader::AddTreeItemToTreeOwner(nsIDocShellTreeItem* aItem,
 {
   NS_PRECONDITION(aItem, "Must have docshell treeitem");
   NS_PRECONDITION(mOwnerContent, "Must have owning content");
-  
+
   nsAutoString value;
   bool isContent = false;
   mOwnerContent->GetAttr(kNameSpaceID_None, TypeAttrName(), value);
@@ -1133,7 +1133,7 @@ nsFrameLoader::SwapWithOtherLoader(nsFrameLoader* aOther,
        !AllDescendantsOfType(otherDocshell, otherType))) {
     return NS_ERROR_NOT_IMPLEMENTED;
   }
-  
+
   // Save off the tree owners, frame elements, chrome event handlers, and
   // docshell and document parents before doing anything else.
   nsCOMPtr<nsIDocShellTreeOwner> ourOwner, otherOwner;
@@ -1243,7 +1243,7 @@ nsFrameLoader::SwapWithOtherLoader(nsFrameLoader* aOther,
     ourOwner->ContentShellRemoved(ourDocshell);
     otherOwner->ContentShellRemoved(otherDocshell);
   }
-  
+
   ourParentItem->AddChild(otherDocshell);
   otherParentItem->AddChild(ourDocshell);
 
@@ -1794,6 +1794,23 @@ nsFrameLoader::MaybeCreateDocShell()
     mDocShell->SetName(frameName);
   }
 
+  //Grab the userContextId from owner if XUL
+  nsAutoString userContextIdStr;
+  if (namespaceID == kNameSpaceID_XUL) {
+    if (mOwnerContent->HasAttr(kNameSpaceID_None, nsGkAtoms::usercontextid)) {
+      mOwnerContent->GetAttr(kNameSpaceID_None,
+                             nsGkAtoms::usercontextid,
+                             userContextIdStr);
+    }
+  }
+
+  if (!userContextIdStr.IsEmpty()) {
+    nsresult err;
+    nsDocShell * ds = nsDocShell::Cast(mDocShell);
+    ds->SetUserContextId(userContextIdStr.ToInteger(&err));
+    NS_ENSURE_SUCCESS(err, err);
+  }
+
   // Inform our docShell that it has a new child.
   // Note: This logic duplicates a lot of logic in
   // nsSubDocumentFrame::AttributeChanged.  We should fix that.
@@ -1967,7 +1984,7 @@ nsFrameLoader::CheckForRecursiveLoad(nsIURI* aURI)
   NS_WARN_IF_FALSE(treeOwner,
                    "Trying to load a new url to a docshell without owner!");
   NS_ENSURE_STATE(treeOwner);
-  
+
   if (mDocShell->ItemType() != nsIDocShellTreeItem::typeContent) {
     // No need to do recursion-protection here XXXbz why not??  Do we really
     // trust people not to screw up with non-content docshells?
@@ -1981,7 +1998,7 @@ nsFrameLoader::CheckForRecursiveLoad(nsIURI* aURI)
   int32_t depth = 0;
   while (parentAsItem) {
     ++depth;
-    
+
     if (depth >= MAX_DEPTH_CONTENT_FRAMES) {
       mDepthTooGreat = true;
       NS_WARNING("Too many nested content frames so giving up");
@@ -2022,7 +2039,7 @@ nsFrameLoader::CheckForRecursiveLoad(nsIURI* aURI)
         bool equal;
         rv = aURI->EqualsExceptRef(parentURI, &equal);
         NS_ENSURE_SUCCESS(rv, rv);
-        
+
         if (equal) {
           matchCount++;
           if (matchCount >= MAX_SAME_URL_CONTENT_FRAMES) {
@@ -3038,6 +3055,23 @@ nsFrameLoader::GetNewTabContext(MutableTabContext* aTabContext,
 
   // Populate packageId to signedPkg.
   attrs.mSignedPkg = NS_ConvertUTF8toUTF16(aPackageId);
+
+  // set the userContextId on the attrs before we pass them into
+  // the tab context
+  if (mOwnerContent) {
+    nsAutoString userContextIdStr;
+    if (mOwnerContent->HasAttr(kNameSpaceID_None, nsGkAtoms::usercontextid)) {
+      mOwnerContent->GetAttr(kNameSpaceID_None,
+                             nsGkAtoms::usercontextid,
+                             userContextIdStr);
+    }
+    if (!userContextIdStr.IsEmpty()) {
+      nsresult err;
+      uint32_t userContextId = userContextIdStr.ToInteger(&err);
+      NS_ENSURE_SUCCESS(err, err);
+      attrs.mUserContextId = userContextId;
+    }
+  }
 
   bool tabContextUpdated = aTabContext->SetTabContext(ownApp, containingApp,
                                                       attrs, aSignedPkgOriginNoSuffix);

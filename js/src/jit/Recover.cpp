@@ -406,12 +406,15 @@ MMul::writeRecoverData(CompactBufferWriter& writer) const
     MOZ_ASSERT(canRecoverOnBailout());
     writer.writeUnsigned(uint32_t(RInstruction::Recover_Mul));
     writer.writeByte(specialization_ == MIRType_Float32);
+    MOZ_ASSERT(Mode(uint8_t(mode_)) == mode_);
+    writer.writeByte(uint8_t(mode_));
     return true;
 }
 
 RMul::RMul(CompactBufferReader& reader)
 {
     isFloatOperation_ = reader.readByte();
+    mode_ = reader.readByte();
 }
 
 bool
@@ -421,13 +424,19 @@ RMul::recover(JSContext* cx, SnapshotIterator& iter) const
     RootedValue rhs(cx, iter.read());
     RootedValue result(cx);
 
-    if (!js::MulValues(cx, &lhs, &rhs, &result))
-        return false;
+    if (MMul::Mode(mode_) == MMul::Normal) {
+        if (!js::MulValues(cx, &lhs, &rhs, &result))
+            return false;
 
-    // MIRType_Float32 is a specialization embedding the fact that the result is
-    // rounded to a Float32.
-    if (isFloatOperation_ && !RoundFloat32(cx, result, &result))
-        return false;
+        // MIRType_Float32 is a specialization embedding the fact that the
+        // result is rounded to a Float32.
+        if (isFloatOperation_ && !RoundFloat32(cx, result, &result))
+            return false;
+    } else {
+        MOZ_ASSERT(MMul::Mode(mode_) == MMul::Integer);
+        if (!js::math_imul_handle(cx, lhs, rhs, &result))
+            return false;
+    }
 
     iter.storeInstructionResult(result);
     return true;
@@ -1339,6 +1348,11 @@ RSimdBox::recover(JSContext* cx, SnapshotIterator& iter) const
     MOZ_ASSERT(iter.allocationReadable(a));
     const FloatRegisters::RegisterContent* raw = iter.floatAllocationPointer(a);
     switch (SimdTypeDescr::Type(type_)) {
+      case SimdTypeDescr::Bool32x4:
+        MOZ_ASSERT_IF(a.mode() == RValueAllocation::ANY_FLOAT_REG,
+                      a.fpuReg().isSimd128());
+        resultObject = js::CreateSimd<Bool32x4>(cx, (const Bool32x4::Elem*) raw);
+        break;
       case SimdTypeDescr::Int32x4:
         MOZ_ASSERT_IF(a.mode() == RValueAllocation::ANY_FLOAT_REG,
                       a.fpuReg().isSimd128());
@@ -1357,6 +1371,15 @@ RSimdBox::recover(JSContext* cx, SnapshotIterator& iter) const
         break;
       case SimdTypeDescr::Int16x8:
         MOZ_CRASH("NYI, RSimdBox of Int16x8");
+        break;
+      case SimdTypeDescr::Bool8x16:
+        MOZ_CRASH("NYI, RSimdBox of Bool8x16");
+        break;
+      case SimdTypeDescr::Bool16x8:
+        MOZ_CRASH("NYI, RSimdBox of Bool16x8");
+        break;
+      case SimdTypeDescr::Bool64x2:
+        MOZ_CRASH("NYI, RSimdBox of Bool64x2");
         break;
     }
 

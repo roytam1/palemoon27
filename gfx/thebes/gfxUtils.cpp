@@ -92,11 +92,11 @@ void mozilla_dump_image(void* bytes, int width, int height, int bytepp,
 
 }
 
-static const uint8_t PremultiplyValue(uint8_t a, uint8_t v) {
+static uint8_t PremultiplyValue(uint8_t a, uint8_t v) {
     return gfxUtils::sPremultiplyTable[a*256+v];
 }
 
-static const uint8_t UnpremultiplyValue(uint8_t a, uint8_t v) {
+static uint8_t UnpremultiplyValue(uint8_t a, uint8_t v) {
     return gfxUtils::sUnpremultiplyTable[a*256+v];
 }
 
@@ -1314,7 +1314,9 @@ EncodeSourceSurfaceInternal(SourceSurface* aSurface,
                                &numReadThisTime)) == NS_OK && numReadThisTime > 0)
   {
     // Update the length of the vector without overwriting the new data.
-    imgData.growByUninitialized(numReadThisTime);
+    if (!imgData.growByUninitialized(numReadThisTime)) {
+      return NS_ERROR_OUT_OF_MEMORY;
+    }
 
     imgSize += numReadThisTime;
     if (imgSize == bufSize) {

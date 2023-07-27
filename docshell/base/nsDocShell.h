@@ -235,6 +235,7 @@ public:
   NS_IMETHOD GetUseRemoteTabs(bool*) override;
   NS_IMETHOD SetRemoteTabs(bool) override;
   NS_IMETHOD GetOriginAttributes(JS::MutableHandle<JS::Value>) override;
+  NS_IMETHOD SetUserContextId(uint32_t);
 
   // Restores a cached presentation from history (mLSHE).
   // This method swaps out the content viewer and simulates loads for
@@ -796,6 +797,7 @@ protected:
   nsIntRect mBounds;
   nsString mName;
   nsString mTitle;
+  nsString mCustomUserAgent;
 
   /**
    * Content-Type Hint of the most-recently initiated load. Used for
@@ -1010,6 +1012,9 @@ protected:
   // containing app frame might be in another process, in which case we won't
   // find it by walking up the docshell hierarchy.)
   uint32_t mOwnOrContainingAppId;
+
+  // userContextId signifying which container we are in
+  uint32_t mUserContextId;
 
   nsString mPaymentRequestId;
 

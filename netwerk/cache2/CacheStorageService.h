@@ -15,6 +15,7 @@
 #include "nsString.h"
 #include "nsThreadUtils.h"
 #include "nsProxyRelease.h"
+#include "mozilla/Monitor.h"
 #include "mozilla/Mutex.h"
 #include "mozilla/Atomics.h"
 #include "mozilla/TimeStamp.h"
@@ -318,7 +319,7 @@ private:
     void PurgeAll(uint32_t aWhat);
 
   private:
-    uint32_t const Limit() const;
+    uint32_t Limit() const;
     MemoryPool() = delete;
   };
 

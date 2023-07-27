@@ -29,8 +29,8 @@
 #define NS_IPC_IOSERVICE_SET_OFFLINE_TOPIC "ipc:network:set-offline"
 #define NS_IPC_IOSERVICE_SET_CONNECTIVITY_TOPIC "ipc:network:set-connectivity"
 
-static const char gScheme[][sizeof("resource")] =
-    {"chrome", "file", "http", "https", "jar", "data", "resource"};
+static const char gScheme[][sizeof("moz-safe-about")] =
+    {"chrome", "file", "http", "https", "jar", "data", "about", "moz-safe-about", "resource"};
 
 class nsAsyncRedirectVerifyHelper;
 class nsINetworkLinkService;
@@ -79,7 +79,17 @@ public:
                                     nsAsyncRedirectVerifyHelper *helper);
 
     bool IsOffline() { return mOffline; }
-    bool IsShutdown() { return mShutdown; }
+    bool IsNetTearingDown() { return mShutdown || mOfflineForProfileChange ||
+                                     mHttpHandlerAlreadyShutingDown; }
+    PRIntervalTime NetTearingDownStarted() { return mNetTearingDownStarted; }
+
+    // nsHttpHandler is going to call this function to inform nsIOService that network
+    // is in process of tearing down. Moving nsHttpConnectionMgr::Shutdown to nsIOService
+    // caused problems (bug 1242755) so we doing it in this way.
+    // As soon as nsIOService gets notification that it is shutdown it is going to
+    // reset mHttpHandlerAlreadyShutingDown.
+    void SetHttpHandlerAlreadyShutingDown();
+
     bool IsLinkUp();
 
     // Should only be called from NeckoChild. Use SetAppOffline instead.
@@ -133,7 +143,7 @@ private:
 
 private:
     bool                                 mOffline;
-    bool                                 mOfflineForProfileChange;
+    mozilla::Atomic<bool, mozilla::Relaxed>  mOfflineForProfileChange;
     bool                                 mManageLinkStatus;
     bool                                 mConnectivity;
     // If true, the connectivity state will be mirrored by IOService.offline
@@ -145,7 +155,8 @@ private:
     bool                                 mSettingOffline;
     bool                                 mSetOfflineValue;
 
-    bool                                 mShutdown;
+    mozilla::Atomic<bool, mozilla::Relaxed> mShutdown;
+    mozilla::Atomic<bool, mozilla::Relaxed> mHttpHandlerAlreadyShutingDown;
 
     nsCOMPtr<nsPISocketTransportService> mSocketTransportService;
     nsCOMPtr<nsPIDNSService>             mDNSService;
@@ -169,6 +180,8 @@ private:
     // that is used especially in IsAppOffline
     nsDataHashtable<nsUint32HashKey, int32_t> mAppsOfflineStatus;
 
+    // Time a network tearing down started.
+    mozilla::Atomic<PRIntervalTime> mNetTearingDownStarted;
 public:
     // Used for all default buffer sizes that necko allocates.
     static uint32_t   gDefaultSegmentSize;

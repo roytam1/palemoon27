@@ -27,6 +27,7 @@
 #include "mozilla/StartupTimeline.h"
 #include "mozilla/Telemetry.h"
 #include "mozilla/unused.h"
+#include "Navigator.h"
 #include "URIUtils.h"
 
 #include "nsIContent.h"
@@ -3128,6 +3129,38 @@ nsDocShell::NameEquals(const char16_t* aName, bool* aResult)
   return NS_OK;
 }
 
+NS_IMETHODIMP
+nsDocShell::GetCustomUserAgent(nsAString& aCustomUserAgent)
+{
+  aCustomUserAgent = mCustomUserAgent;
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+nsDocShell::SetCustomUserAgent(const nsAString& aCustomUserAgent)
+{
+  mCustomUserAgent = aCustomUserAgent;
+  RefPtr<nsGlobalWindow> win = mScriptGlobal ?
+    mScriptGlobal->GetCurrentInnerWindowInternal() : nullptr;
+  if (win) {
+    ErrorResult ignored;
+    Navigator* navigator = win->GetNavigator(ignored);
+    ignored.SuppressException();
+    if (navigator) {
+      navigator->ClearUserAgentCache();
+    }
+  }
+
+  uint32_t childCount = mChildList.Length();
+  for (uint32_t i = 0; i < childCount; ++i) {
+    nsCOMPtr<nsIDocShell> childShell = do_QueryInterface(ChildAt(i));
+    if (childShell) {
+      childShell->SetCustomUserAgent(aCustomUserAgent);
+    }
+  }
+  return NS_OK;
+}
+
 /* virtual */ int32_t
 nsDocShell::ItemType()
 {
@@ -3255,6 +3288,7 @@ nsDocShell::SetDocLoaderParent(nsDocLoader* aParent)
   // If parent is another docshell, we inherit all their flags for
   // allowing plugins, scripting etc.
   bool value;
+  nsString customUserAgent;
   nsCOMPtr<nsIDocShell_ESR38> parentAsDocShell(do_QueryInterface(parent));
   if (parentAsDocShell) {
     if (NS_SUCCEEDED(parentAsDocShell->GetAllowPlugins(&value))) {
@@ -3283,6 +3317,10 @@ nsDocShell::SetDocLoaderParent(nsDocLoader* aParent)
     }
     if (parentAsDocShell->GetIsPrerendered()) {
       SetIsPrerendered(true);
+    }
+    if (NS_SUCCEEDED(parentAsDocShell->GetCustomUserAgent(customUserAgent)) &&
+        !customUserAgent.IsEmpty()) {
+      SetCustomUserAgent(customUserAgent);
     }
     if (NS_FAILED(parentAsDocShell->GetAllowDNSPrefetch(&value))) {
       value = false;
@@ -13794,6 +13832,13 @@ nsDocShell::SetIsSignedPackage(const nsAString& aSignedPkg)
   return NS_OK;
 }
 
+NS_IMETHODIMP
+nsDocShell::SetUserContextId(uint32_t aUserContextId)
+{
+  mUserContextId = aUserContextId;
+  return NS_OK;
+}
+
 /* [infallible] */ NS_IMETHODIMP
 nsDocShell::GetIsBrowserElement(bool* aIsBrowser)
 {
@@ -13896,6 +13941,8 @@ nsDocShell::GetOriginAttributes()
   if (mOwnOrContainingAppId != nsIScriptSecurityManager::UNKNOWN_APP_ID) {
     attrs.mAppId = mOwnOrContainingAppId;
   }
+
+  attrs.mUserContextId = mUserContextId;
 
   if (mFrameType == eFrameTypeBrowser) {
     attrs.mInBrowser = true;

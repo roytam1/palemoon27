@@ -932,10 +932,9 @@ nsCSSRendering::PaintOutline(nsPresContext* aPresContext,
                              Float(width / twipsPerPixel) };
 
   // start drawing
-  gfxContext *ctx = aRenderingContext.ThebesContext();
 
   nsCSSBorderRenderer br(aPresContext->Type(),
-                         ctx->GetDrawTarget(),
+                         aRenderingContext.GetDrawTarget(),
                          oRect,
                          outlineStyles,
                          outlineWidths,
@@ -1480,8 +1479,7 @@ void
 nsCSSRendering::PaintBoxShadowInner(nsPresContext* aPresContext,
                                     nsRenderingContext& aRenderingContext,
                                     nsIFrame* aForFrame,
-                                    const nsRect& aFrameArea,
-                                    const nsRect& aDirtyRect)
+                                    const nsRect& aFrameArea)
 {
   const nsStyleBorder* styleBorder = aForFrame->StyleBorder();
   nsCSSShadowArray* shadows = styleBorder->mBoxShadow;

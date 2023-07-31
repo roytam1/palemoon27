@@ -2733,7 +2733,7 @@ SetLazyParsingDisabled(JSContext* cx, unsigned argc, Value* vp)
     CallArgs args = CallArgsFromVp(argc, vp);
 
     bool disable = !args.hasDefined(0) || ToBoolean(args[0]);
-    JS::CompartmentOptionsRef(cx->compartment()).setDisableLazyParsing(disable);
+    cx->compartment()->behaviors().setDisableLazyParsing(disable);
 
     args.rval().setUndefined();
     return true;
@@ -2745,7 +2745,7 @@ SetDiscardSource(JSContext* cx, unsigned argc, Value* vp)
     CallArgs args = CallArgsFromVp(argc, vp);
 
     bool discard = !args.hasDefined(0) || ToBoolean(args[0]);
-    JS::CompartmentOptionsRef(cx->compartment()).setDiscardSource(discard);
+    cx->compartment()->behaviors().setDiscardSource(discard);
 
     args.rval().setUndefined();
     return true;
@@ -3126,6 +3126,15 @@ GetModuleEnvironmentValue(JSContext* cx, unsigned argc, Value* vp)
         return false;
 
     return GetProperty(cx, env, env, id, args.rval());
+}
+
+static bool
+EnableMatchFlagArgument(JSContext* cx, unsigned argc, Value* vp)
+{
+    CallArgs args = CallArgsFromVp(argc, vp);
+    cx->runtime()->options().setMatchFlagArgument(true);
+    args.rval().setUndefined();
+    return true;
 }
 
 static const JSFunctionSpecWithHelp TestingFunctions[] = {
@@ -3614,6 +3623,11 @@ gc::ZealModeHelpText),
     JS_FN_HELP("getModuleEnvironmentValue", GetModuleEnvironmentValue, 2, 0,
 "getModuleEnvironmentValue(module, name)",
 "  Get the value of a bound name in a module environment.\n"),
+
+    JS_FN_HELP("enableMatchFlagArgument", EnableMatchFlagArgument, 0, 0,
+"enableMatchFlagArgument()",
+"  Enables the deprecated, non-standard flag argument of\n"
+"  String.prototype.{match,search,replace}.\n"),
 
     JS_FS_HELP_END
 };

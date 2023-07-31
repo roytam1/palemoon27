@@ -131,10 +131,7 @@ struct AnimationProperty
   // For CSS Animations, which are overridden by !important rules in the
   // cascade, we actually determine this from the CSS cascade
   // computations, and then use it for OMTA.
-  // **NOTE**: For CSS animations, we only bother setting mWinsInCascade
-  // accurately for properties that we can animate on the compositor.
-  // For other properties, we make it always be true.
-  // **NOTE 2**: This member is not included when comparing AnimationProperty
+  // **NOTE**: This member is not included when comparing AnimationProperty
   // objects for equality.
   bool mWinsInCascade = true;
 
@@ -229,7 +226,7 @@ public:
   const AnimationTiming& Timing() const { return mTiming; }
   AnimationTiming& Timing() { return mTiming; }
   void SetTiming(const AnimationTiming& aTiming);
-  void NotifyAnimationTimingUpdated() { UpdateTargetRegistration(); }
+  void NotifyAnimationTimingUpdated();
 
   Nullable<TimeDuration> GetLocalTime() const;
 
@@ -348,6 +345,10 @@ protected:
   nsCSSPseudoElements::Type mPseudoType;
 
   InfallibleTArray<AnimationProperty> mProperties;
+
+  // We need to track when we go to or from being "in effect" since
+  // we need to re-evaluate the cascade of animations when that changes.
+  bool mInEffectOnLastAnimationTimingUpdate;
 
 private:
   nsIFrame* GetAnimationFrame() const;

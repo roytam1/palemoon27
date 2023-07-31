@@ -1934,6 +1934,9 @@ ItemParticipatesIn3DContext(nsIFrame* aAncestor, nsDisplayItem* aItem)
   } else {
     return false;
   }
+  if (aAncestor == transformFrame) {
+    return true;
+  }
   return FrameParticipatesIn3DContext(aAncestor, transformFrame);
 }
 
@@ -2070,7 +2073,11 @@ nsIFrame::BuildDisplayListForStackingContext(nsDisplayListBuilder* aBuilder,
     // item itself will be clipped.
     // For transforms we also need to clear ancestor clipping because it's
     // relative to the wrong display item reference frame anyway.
-    clipState.Clear();
+    // We clear both regular and scroll clips here. Our content needs to be
+    // able to walk up the complete cross stacking context scroll clip chain,
+    // so we call a special method on the clip state that keeps the ancestor
+    // scroll clip around.
+    clipState.ClearForStackingContextContents();
   }
 
   nsDisplayListCollection set;
@@ -2121,7 +2128,7 @@ nsIFrame::BuildDisplayListForStackingContext(nsDisplayListBuilder* aBuilder,
   // across lines and has absolutely positioned children; all the abs-pos
   // children should be z-ordered after all the boxes for the position:relative
   // element itself.
-  set.PositionedDescendants()->SortByZOrder(aBuilder);
+  set.PositionedDescendants()->SortByZOrder();
 
   nsDisplayList resultList;
   // Now follow the rules of http://www.w3.org/TR/CSS21/zindex.html
@@ -2153,7 +2160,7 @@ nsIFrame::BuildDisplayListForStackingContext(nsDisplayListBuilder* aBuilder,
     content = PresContext()->Document()->GetRootElement();
   }
   if (content) {
-    set.Outlines()->SortByContentOrder(aBuilder, content);
+    set.Outlines()->SortByContentOrder(content);
   }
 #ifdef DEBUG
   DisplayDebugBorders(aBuilder, this, set);
@@ -2187,16 +2194,19 @@ nsIFrame::BuildDisplayListForStackingContext(nsDisplayListBuilder* aBuilder,
     // Don't clip nsDisplayOpacity items. We clip their descendants instead.
     // The clip we would set on an element with opacity would clip
     // all descendant content, but some should not be clipped.
+    // We clear both regular clips and scroll clips. If this item's animated
+    // geometry root has async scrolling, then the async scroll transform will
+    // be applied on the opacity's descendants (because that's where the
+    // scroll clip will be). However, this won't work if the opacity item is
+    // inactive, which is why we record the pre-clear scroll clip here.
+    const DisplayItemScrollClip* scrollClipForSameAGRChildren =
+      aBuilder->ClipState().GetCurrentInnermostScrollClip();
     DisplayListClipState::AutoSaveRestore opacityClipState(aBuilder);
-    opacityClipState.Clear();
+    opacityClipState.ClearIncludingScrollClip();
     resultList.AppendNewToTop(
-        new (aBuilder) nsDisplayOpacity(aBuilder, this, &resultList, opacityItemForEventsOnly));
-  }
-  /* If we have sticky positioning, wrap it in a sticky position item.
-   */
-  if (useStickyPosition) {
-    resultList.AppendNewToTop(
-        new (aBuilder) nsDisplayStickyPosition(aBuilder, this, &resultList));
+        new (aBuilder) nsDisplayOpacity(aBuilder, this, &resultList,
+                                        scrollClipForSameAGRChildren,
+                                        opacityItemForEventsOnly));
   }
 
   /* If we're going to apply a transformation and don't have preserve-3d set, wrap
@@ -2267,6 +2277,13 @@ nsIFrame::BuildDisplayListForStackingContext(nsDisplayListBuilder* aBuilder,
           GetContainingBlock()->GetContent()->GetPrimaryFrame(), &resultList));
     }
 
+  }
+
+  /* If we have sticky positioning, wrap it in a sticky position item.
+   */
+  if (useStickyPosition) {
+    resultList.AppendNewToTop(
+        new (aBuilder) nsDisplayStickyPosition(aBuilder, this, &resultList));
   }
 
   /* If we're doing VR rendering, then we need to wrap everything in a nsDisplayVR
@@ -2506,6 +2523,8 @@ nsIFrame::BuildDisplayListForChild(nsDisplayListBuilder*   aBuilder,
   if (savedOutOfFlowData) {
     clipState.SetClipForContainingBlockDescendants(
       &savedOutOfFlowData->mContainingBlockClip);
+    clipState.SetScrollClipForContainingBlockDescendants(
+      savedOutOfFlowData->mContainingBlockScrollClip);
   }
 
   // Setup clipping for the parent's overflow:-moz-hidden-unscrollable,

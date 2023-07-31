@@ -29,6 +29,7 @@
 #include "harfbuzz/hb.h"
 #include "mozilla/gfx/2D.h"
 
+typedef struct _cairo cairo_t;
 typedef struct _cairo_scaled_font cairo_scaled_font_t;
 //typedef struct gr_face            gr_face;
 
@@ -613,6 +614,8 @@ protected:
 
 class gfxFontShaper {
 public:
+    typedef mozilla::gfx::DrawTarget DrawTarget;
+
     explicit gfxFontShaper(gfxFont *aFont)
         : mFont(aFont)
     {
@@ -645,6 +648,10 @@ public:
                       void* aHandleFeatureData);
 
 protected:
+    // Work out whether cairo will snap inter-glyph spacing to pixels.
+    static void GetRoundOffsetsToPixels(DrawTarget* aDrawTarget,
+                                        bool* aRoundX, bool* aRoundY);
+
     // the font this shaper is working with. The font owns a nsAutoPtr reference
     // to this object, and will destroy it before it dies. Thus, mFont will always
     // be valid.
@@ -1656,12 +1663,12 @@ public:
 
     gfxGlyphExtents *GetOrCreateGlyphExtents(int32_t aAppUnitsPerDevUnit);
 
-    // You need to call SetupCairoFont on the aCR just before calling this
-    virtual void SetupGlyphExtents(gfxContext *aContext, uint32_t aGlyphID,
+    // You need to call SetupCairoFont on aDrawTarget just before calling this.
+    virtual void SetupGlyphExtents(DrawTarget* aDrawTarget, uint32_t aGlyphID,
                                    bool aNeedTight, gfxGlyphExtents *aExtents);
 
     // This is called by the default Draw() implementation above.
-    virtual bool SetupCairoFont(gfxContext *aContext) = 0;
+    virtual bool SetupCairoFont(DrawTarget* aDrawTarget) = 0;
 
     virtual bool AllowSubpixelAA() { return true; }
 
@@ -1843,6 +1850,11 @@ public:
     virtual already_AddRefed<gfxFont>
     GetSubSuperscriptFont(int32_t aAppUnitsPerDevPixel);
 
+    /**
+     * Return the reference cairo_t object from aDT.
+     */
+    static cairo_t* RefCairo(mozilla::gfx::DrawTarget* aDT);
+
 protected:
     virtual const Metrics& GetHorizontalMetrics() = 0;
 
@@ -1927,12 +1939,12 @@ protected:
     // Helper to adjust for synthetic bold and set character-type flags
     // in the shaped text; implementations of ShapeText should call this
     // after glyph shaping has been completed.
-    void PostShapingFixup(gfxContext      *aContext,
-                          const char16_t *aText,
-                          uint32_t         aOffset, // position within aShapedText
-                          uint32_t         aLength,
-                          bool             aVertical,
-                          gfxShapedText   *aShapedText);
+    void PostShapingFixup(DrawTarget*     aContext,
+                          const char16_t* aText,
+                          uint32_t        aOffset, // position within aShapedText
+                          uint32_t        aLength,
+                          bool            aVertical,
+                          gfxShapedText*  aShapedText);
 
     // Shape text directly into a range within a textrun, without using the
     // font's word cache. Intended for use when the font has layout features
@@ -2126,7 +2138,7 @@ protected:
                         gfxTextRunDrawCallbacks *aCallbacks,
                         bool& aEmittedGlyphs) const;
 
-    bool RenderColorGlyph(gfxContext* aContext,
+    bool RenderColorGlyph(DrawTarget* aDrawTarget,
                           mozilla::gfx::ScaledFont* scaledFont,
                           mozilla::gfx::GlyphRenderingOptions* renderingOptions,
                           mozilla::gfx::DrawOptions drawOptions,
@@ -2140,7 +2152,7 @@ protected:
     // the second draw occurs at a constant offset in device pixels.
     // This helper calculates the scale factor we need to apply to the
     // synthetic-bold offset.
-    static double CalcXScale(gfxContext *aContext);
+    static double CalcXScale(DrawTarget* aDrawTarget);
 };
 
 // proportion of ascent used for x-height, if unable to read value from font

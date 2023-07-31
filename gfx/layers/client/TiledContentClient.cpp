@@ -55,7 +55,8 @@ static void DrawDebugOverlay(mozilla::gfx::DrawTarget* dt, int x, int y, int wid
   ss << x << ", " << y;
 
   // Draw text using cairo toy text API
-  cairo_t* cr = c.GetCairo();
+  // XXX: this drawing will silently fail if |dt| doesn't have a Cairo backend
+  cairo_t* cr = gfxFont::RefCairo(dt);
   cairo_set_font_size(cr, 25);
   cairo_text_extents_t extents;
   cairo_text_extents(cr, ss.str().c_str(), &extents);
@@ -1327,8 +1328,6 @@ ClientMultiTiledLayerBuffer::ValidateTile(TileClient& aTile,
   RefPtr<DrawTarget> drawTarget = backBuffer->BorrowDrawTarget();
   drawTarget->SetTransform(Matrix());
 
-  RefPtr<gfxContext> ctxt = new gfxContext(drawTarget);
-
   // XXX Perhaps we should just copy the bounding rectangle here?
   RefPtr<gfx::SourceSurface> source = mSinglePaintDrawTarget->Snapshot();
   nsIntRegionRectIterator it(aDirtyRegion);
@@ -1362,7 +1361,6 @@ ClientMultiTiledLayerBuffer::ValidateTile(TileClient& aTile,
                    aTileOrigin.y * GetPresShellResolution(), GetTileLength(), GetTileLength());
 #endif
 
-  ctxt = nullptr;
   drawTarget = nullptr;
 
   nsIntRegion tileRegion =

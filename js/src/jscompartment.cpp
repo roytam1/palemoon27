@@ -41,7 +41,8 @@ using mozilla::DebugOnly;
 using mozilla::PodArrayZero;
 
 JSCompartment::JSCompartment(Zone* zone, const JS::CompartmentOptions& options = JS::CompartmentOptions())
-  : options_(options),
+  : creationOptions_(options.creationOptions()),
+    behaviors_(options.behaviors()),
     zone_(zone),
     runtime_(zone->runtimeFromMainThread()),
     principals_(nullptr),
@@ -51,7 +52,6 @@ JSCompartment::JSCompartment(Zone* zone, const JS::CompartmentOptions& options =
     warnedAboutFlagsArgument(false),
     warnedAboutExprClosure(false),
     warnedAboutRegExpMultiline(false),
-    addonId(options.addonIdOrNull()),
 #ifdef DEBUG
     firedOnNewGlobalObject(false),
 #endif
@@ -71,7 +71,6 @@ JSCompartment::JSCompartment(Zone* zone, const JS::CompartmentOptions& options =
     lazyArrayBuffers(nullptr),
     nonSyntacticLexicalScopes_(nullptr),
     gcIncomingGrayPointers(nullptr),
-    gcPreserveJitCode(options.preserveJitCode()),
     debugModeBits(0),
     watchpointMap(nullptr),
     scriptCountsMap(nullptr),
@@ -87,7 +86,8 @@ JSCompartment::JSCompartment(Zone* zone, const JS::CompartmentOptions& options =
     lcovOutput()
 {
     runtime_->numCompartments++;
-    MOZ_ASSERT_IF(options.mergeable(), options.invisibleToDebugger());
+    MOZ_ASSERT_IF(creationOptions_.mergeable(),
+                  creationOptions_.invisibleToDebugger());
 }
 
 JSCompartment::~JSCompartment()

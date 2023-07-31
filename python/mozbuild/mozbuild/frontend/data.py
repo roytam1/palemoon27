@@ -206,20 +206,6 @@ class TestHarnessFiles(ContextDerived):
         self.srcdir_pattern_files = srcdir_pattern_files
         self.objdir_files = objdir_files
 
-class BrandingFiles(ContextDerived):
-    """Sandbox container object for BRANDING_FILES, which is a
-    HierarchicalStringList.
-
-    We need an object derived from ContextDerived for use in the backend, so
-    this object fills that role. It just has a reference to the underlying
-    HierarchicalStringList, which is created when parsing BRANDING_FILES.
-    """
-    __slots__ = ('files')
-
-    def __init__(self, sandbox, files):
-        ContextDerived.__init__(self, sandbox)
-        self.files = files
-
 class IPDLFile(ContextDerived):
     """Describes an individual .ipdl source file."""
 
@@ -327,7 +313,7 @@ class LinkageWrongKindError(Exception):
 class Linkable(ContextDerived):
     """Generic context derived container object for programs and libraries"""
     __slots__ = (
-        'defines',
+        'lib_defines',
         'linked_libraries',
         'linked_system_libs',
     )
@@ -336,7 +322,7 @@ class Linkable(ContextDerived):
         ContextDerived.__init__(self, context)
         self.linked_libraries = []
         self.linked_system_libs = []
-        self.defines = Defines(context, {})
+        self.lib_defines = Defines(context, {})
 
     def link_library(self, obj):
         assert isinstance(obj, BaseLibrary)
@@ -465,6 +451,7 @@ class SharedLibrary(Library):
     __slots__ = (
         'soname',
         'variant',
+        'symbols_file',
     )
 
     FRAMEWORK = 1
@@ -472,7 +459,7 @@ class SharedLibrary(Library):
     MAX_VARIANT = 3
 
     def __init__(self, context, basename, real_name=None, is_sdk=False,
-            soname=None, variant=None):
+            soname=None, variant=None, symbols_file=False):
         assert(variant in range(1, self.MAX_VARIANT) or variant is None)
         Library.__init__(self, context, basename, real_name, is_sdk)
         self.variant = variant
@@ -500,6 +487,11 @@ class SharedLibrary(Library):
             )
         else:
             self.soname = self.lib_name
+
+        if symbols_file:
+            self.symbols_file = '%s.symbols' % self.lib_name
+        else:
+            self.symbols_file = None
 
 
 class ExternalLibrary(object):
@@ -824,6 +816,19 @@ class Exports(FinalTargetFiles):
     @property
     def install_target(self):
         return 'dist/include'
+
+
+class BrandingFiles(FinalTargetFiles):
+    """Sandbox container object for BRANDING_FILES, which is a
+    HierarchicalStringList.
+
+    We need an object derived from ContextDerived for use in the backend, so
+    this object fills that role. It just has a reference to the underlying
+    HierarchicalStringList, which is created when parsing BRANDING_FILES.
+    """
+    @property
+    def install_target(self):
+        return 'dist/branding'
 
 
 class GeneratedFile(ContextDerived):

@@ -478,6 +478,19 @@ EXTRA_DEPS += $(LD_VERSION_SCRIPT)
 endif
 endif
 
+ifdef SYMBOLS_FILE
+ifdef GCC_USE_GNU_LD
+EXTRA_DSO_LDOPTS += -Wl,--version-script,$(SYMBOLS_FILE)
+else
+ifeq ($(OS_TARGET),Darwin)
+EXTRA_DSO_LDOPTS += -Wl,-exported_symbols_list,$(SYMBOLS_FILE)
+endif
+ifeq ($(OS_TARGET),WINNT)
+EXTRA_DSO_LDOPTS += -DEF:$(call normalizepath,$(SYMBOLS_FILE))
+endif
+endif
+EXTRA_DEPS += $(SYMBOLS_FILE)
+endif
 #
 # GNU doesn't have path length limitation
 #
@@ -1449,6 +1462,8 @@ $(PP_TARGETS_ALL_RESULTS):
 	$(if $(filter-out $(notdir $@),$(notdir $(<:.in=))),$(error Looks like $@ has an unexpected dependency on $< which breaks PP_TARGETS))
 	$(RM) '$@'
 	$(call py_action,preprocessor,--depend $(MDDEPDIR)/$(@F).pp $(PP_TARGET_FLAGS) $(DEFINES) $(ACDEFINES) $(MOZ_DEBUG_DEFINES) '$<' -o '$@')
+
+$(filter %.css,$(PP_TARGETS_ALL_RESULTS)): PP_TARGET_FLAGS+=--marker %
 
 # The depfile is based on the filename, and we don't want conflicts. So check
 # there's only one occurrence of any given filename in PP_TARGETS_ALL_RESULTS.

@@ -11237,6 +11237,9 @@ IonBuilder::SimdTypeDescrToMIRType(SimdTypeDescr::Type type)
       case SimdTypeDescr::Bool32x4:  return MIRType_Bool32x4;
       case SimdTypeDescr::Int8x16:
       case SimdTypeDescr::Int16x8:
+      case SimdTypeDescr::Uint8x16:
+      case SimdTypeDescr::Uint16x8:
+      case SimdTypeDescr::Uint32x4:
       case SimdTypeDescr::Float64x2:
       case SimdTypeDescr::Bool8x16:
       case SimdTypeDescr::Bool16x8:
@@ -12757,7 +12760,7 @@ IonBuilder::jsop_lambda(JSFunction* fun)
     MOZ_ASSERT(analysis().usesScopeChain());
     MOZ_ASSERT(!fun->isArrow());
 
-    if (fun->isNative() && IsAsmJSModuleNative(fun->native()))
+    if (IsAsmJSModule(fun))
         return abort("asm.js module function");
 
     MConstant* cst = MConstant::NewConstraintlessObject(alloc(), fun);
@@ -12909,7 +12912,7 @@ bool
 IonBuilder::jsop_deffun(uint32_t index)
 {
     JSFunction* fun = script()->getFunction(index);
-    if (fun->isNative() && IsAsmJSModuleNative(fun->native()))
+    if (IsAsmJSModule(fun))
         return abort("asm.js module function");
 
     MOZ_ASSERT(analysis().usesScopeChain());

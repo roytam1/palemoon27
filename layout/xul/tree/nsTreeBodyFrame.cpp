@@ -1319,10 +1319,12 @@ nsTreeBodyFrame::AdjustForCellText(nsAutoString& aText,
 {
   NS_PRECONDITION(aColumn && aColumn->GetFrame(), "invalid column passed");
 
+  DrawTarget* drawTarget = aRenderingContext.GetDrawTarget();
+
   nscoord maxWidth = aTextRect.width;
   bool widthIsGreater = nsLayoutUtils::StringWidthIsGreaterThan(aText,
                                                                 aFontMetrics,
-                                                                aRenderingContext,
+                                                                drawTarget,
                                                                 maxWidth);
 
   if (aColumn->Overflow()) {
@@ -1354,7 +1356,7 @@ nsTreeBodyFrame::AdjustForCellText(nsAutoString& aText,
           maxWidth += width;
           widthIsGreater = nsLayoutUtils::StringWidthIsGreaterThan(aText,
                                                                    aFontMetrics,
-                                                                   aRenderingContext,
+                                                                   drawTarget,
                                                                    maxWidth);
 
           nextColumn = nextColumn->GetNext();
@@ -1373,8 +1375,7 @@ nsTreeBodyFrame::AdjustForCellText(nsAutoString& aText,
     const nsDependentString& kEllipsis = nsContentUtils::GetLocalizedEllipsis();
     aFontMetrics.SetTextRunRTL(false);
     nscoord ellipsisWidth =
-      nsLayoutUtils::AppUnitWidthOfString(kEllipsis, aFontMetrics,
-                                          aRenderingContext);
+      nsLayoutUtils::AppUnitWidthOfString(kEllipsis, aFontMetrics, drawTarget);
 
     width = maxWidth;
     if (ellipsisWidth > width)
@@ -1400,7 +1401,7 @@ nsTreeBodyFrame::AdjustForCellText(nsAutoString& aText,
             char16_t ch = aText[i];
             // XXX this is horrible and doesn't handle clusters
             cwidth = nsLayoutUtils::AppUnitWidthOfString(ch, aFontMetrics,
-                                                         aRenderingContext);
+                                                         drawTarget);
             if (twidth + cwidth > width)
               break;
             twidth += cwidth;
@@ -1419,7 +1420,7 @@ nsTreeBodyFrame::AdjustForCellText(nsAutoString& aText,
           for (i=length-1; i >= 0; --i) {
             char16_t ch = aText[i];
             cwidth = nsLayoutUtils::AppUnitWidthOfString(ch, aFontMetrics,
-                                                         aRenderingContext);
+                                                         drawTarget);
             if (twidth + cwidth > width)
               break;
             twidth += cwidth;
@@ -1442,7 +1443,7 @@ nsTreeBodyFrame::AdjustForCellText(nsAutoString& aText,
           for (int32_t leftPos = 0; leftPos < rightPos; ++leftPos) {
             char16_t ch = aText[leftPos];
             cwidth = nsLayoutUtils::AppUnitWidthOfString(ch, aFontMetrics,
-                                                         aRenderingContext);
+                                                         drawTarget);
             twidth += cwidth;
             if (twidth > width)
               break;
@@ -1450,7 +1451,7 @@ nsTreeBodyFrame::AdjustForCellText(nsAutoString& aText,
 
             ch = aText[rightPos];
             cwidth = nsLayoutUtils::AppUnitWidthOfString(ch, aFontMetrics,
-                                                         aRenderingContext);
+                                                         drawTarget);
             twidth += cwidth;
             if (twidth > width)
               break;

@@ -16,7 +16,7 @@
 using namespace js;
 using namespace js::frontend;
 
-template<typename T, Value ValueGetter(T* obj)>
+template<typename T, Value ValueGetter(const T* obj)>
 static bool
 ModuleValueGetterImpl(JSContext* cx, const CallArgs& args)
 {
@@ -24,7 +24,7 @@ ModuleValueGetterImpl(JSContext* cx, const CallArgs& args)
     return true;
 }
 
-template<typename T, Value ValueGetter(T* obj)>
+template<typename T, Value ValueGetter(const T* obj)>
 static bool
 ModuleValueGetter(JSContext* cx, unsigned argc, Value* vp)
 {
@@ -34,7 +34,7 @@ ModuleValueGetter(JSContext* cx, unsigned argc, Value* vp)
 
 #define DEFINE_GETTER_FUNCTIONS(cls, name, slot)                              \
     static Value                                                              \
-    cls##_##name##Value(cls* obj) {                                           \
+    cls##_##name##Value(const cls* obj) {                                     \
         return obj->getFixedSlot(cls::slot);                                  \
     }                                                                         \
                                                                               \
@@ -46,7 +46,7 @@ ModuleValueGetter(JSContext* cx, unsigned argc, Value* vp)
 
 #define DEFINE_ATOM_ACCESSOR_METHOD(cls, name)                                \
     JSAtom*                                                                   \
-    cls::name()                                                               \
+    cls::name() const                                                         \
     {                                                                         \
         Value value = cls##_##name##Value(this);                              \
         return &value.toString()->asAtom();                                   \
@@ -54,7 +54,7 @@ ModuleValueGetter(JSContext* cx, unsigned argc, Value* vp)
 
 #define DEFINE_ATOM_OR_NULL_ACCESSOR_METHOD(cls, name)                        \
     JSAtom*                                                                   \
-    cls::name()                                                               \
+    cls::name() const                                                         \
     {                                                                         \
         Value value = cls##_##name##Value(this);                              \
         if (value.isNull())                                                   \
@@ -906,37 +906,8 @@ ModuleBuilder::ModuleBuilder(JSContext* cx, HandleModuleObject module)
 {}
 
 bool
-ModuleBuilder::buildAndInit(frontend::ParseNode* moduleNode)
+ModuleBuilder::initModule()
 {
-    MOZ_ASSERT(moduleNode->isKind(PNK_MODULE));
-
-    ParseNode* stmtsNode = moduleNode->pn_expr;
-    MOZ_ASSERT(stmtsNode->isKind(PNK_STATEMENTLIST));
-    MOZ_ASSERT(stmtsNode->isArity(PN_LIST));
-
-    for (ParseNode* pn = stmtsNode->pn_head; pn; pn = pn->pn_next) {
-        switch (pn->getKind()) {
-          case PNK_IMPORT:
-            if (!processImport(pn))
-                return false;
-            break;
-
-          case PNK_EXPORT:
-          case PNK_EXPORT_DEFAULT:
-            if (!processExport(pn))
-                return false;
-            break;
-
-          case PNK_EXPORT_FROM:
-            if (!processExportFrom(pn))
-                return false;
-            break;
-
-          default:
-            break;
-        }
-    }
-
     for (const auto& e : exportEntries_) {
         RootedExportEntryObject exp(cx_, e);
         if (!exp->moduleRequest()) {
@@ -1017,6 +988,7 @@ ModuleBuilder::appendLocalExportEntry(HandleExportEntryObject exp)
 bool
 ModuleBuilder::processImport(frontend::ParseNode* pn)
 {
+    MOZ_ASSERT(pn->isKind(PNK_IMPORT));
     MOZ_ASSERT(pn->isArity(PN_BINARY));
     MOZ_ASSERT(pn->pn_left->isKind(PNK_IMPORT_SPEC_LIST));
     MOZ_ASSERT(pn->pn_right->isKind(PNK_STRING));
@@ -1048,6 +1020,7 @@ ModuleBuilder::processImport(frontend::ParseNode* pn)
 bool
 ModuleBuilder::processExport(frontend::ParseNode* pn)
 {
+    MOZ_ASSERT(pn->isKind(PNK_EXPORT) || pn->isKind(PNK_EXPORT_DEFAULT));
     MOZ_ASSERT(pn->getArity() == pn->isKind(PNK_EXPORT) ? PN_UNARY : PN_BINARY);
 
     bool isDefault = pn->getKind() == PNK_EXPORT_DEFAULT;
@@ -1114,6 +1087,7 @@ ModuleBuilder::processExport(frontend::ParseNode* pn)
 bool
 ModuleBuilder::processExportFrom(frontend::ParseNode* pn)
 {
+    MOZ_ASSERT(pn->isKind(PNK_EXPORT_FROM));
     MOZ_ASSERT(pn->isArity(PN_BINARY));
     MOZ_ASSERT(pn->pn_left->isKind(PNK_EXPORT_SPEC_LIST));
     MOZ_ASSERT(pn->pn_right->isKind(PNK_STRING));
@@ -1140,13 +1114,23 @@ ModuleBuilder::processExportFrom(frontend::ParseNode* pn)
 }
 
 ImportEntryObject*
-ModuleBuilder::importEntryFor(JSAtom* localName)
+ModuleBuilder::importEntryFor(JSAtom* localName) const
 {
     for (auto import : importEntries_) {
         if (import->localName() == localName)
             return import;
     }
     return nullptr;
+}
+
+bool
+ModuleBuilder::hasExportedName(JSAtom* name) const
+{
+    for (auto entry : exportEntries_) {
+        if (entry->exportName() == name)
+            return true;
+    }
+    return false;
 }
 
 bool

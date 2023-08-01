@@ -43,7 +43,7 @@
 #include "jsweakmap.h"
 #include "jswrapper.h"
 
-#include "asmjs/AsmJSLink.h"
+#include "asmjs/AsmJS.h"
 #include "builtin/AtomicsObject.h"
 #include "builtin/Eval.h"
 #include "builtin/Intl.h"
@@ -3546,7 +3546,7 @@ CloneFunctionObject(JSContext* cx, HandleObject funobj, HandleObject dynamicScop
         return nullptr;
     }
 
-    if (fun->isNative() && IsAsmJSModuleNative(fun->native())) {
+    if (IsAsmJSModule(fun)) {
         JS_ReportErrorNumber(cx, GetErrorMessage, nullptr, JSMSG_CANT_CLONE_OBJECT);
         return nullptr;
     }
@@ -5041,14 +5041,7 @@ JS_EncodeStringToUTF8(JSContext* cx, HandleString str)
     AssertHeapIsIdle(cx);
     CHECK_REQUEST(cx);
 
-    JSLinearString* linear = str->ensureLinear(cx);
-    if (!linear)
-        return nullptr;
-
-    JS::AutoCheckCannotGC nogc;
-    return linear->hasLatin1Chars()
-           ? JS::CharsToNewUTF8CharsZ(cx, linear->latin1Range(nogc)).c_str()
-           : JS::CharsToNewUTF8CharsZ(cx, linear->twoByteRange(nogc)).c_str();
+    return StringToNewUTF8CharsZ(cx, *str).release();
 }
 
 JS_PUBLIC_API(size_t)
@@ -5941,24 +5934,8 @@ JS_IsIdentifier(const char16_t* chars, size_t length)
 
 namespace JS {
 
-void
-AutoFilename::reset(void* newScriptSource)
-{
-    if (newScriptSource)
-        reinterpret_cast<ScriptSource*>(newScriptSource)->incref();
-    if (scriptSource_)
-        reinterpret_cast<ScriptSource*>(scriptSource_)->decref();
-    scriptSource_ = newScriptSource;
-}
-
-const char*
-AutoFilename::get() const
-{
-    return scriptSource_ ? reinterpret_cast<ScriptSource*>(scriptSource_)->filename() : nullptr;
-}
-
 JS_PUBLIC_API(bool)
-DescribeScriptedCaller(JSContext* cx, AutoFilename* filename, unsigned* lineno,
+DescribeScriptedCaller(JSContext* cx, UniqueChars* filename, unsigned* lineno,
                        unsigned* column)
 {
     if (lineno)
@@ -5975,8 +5952,12 @@ DescribeScriptedCaller(JSContext* cx, AutoFilename* filename, unsigned* lineno,
     if (i.activation()->scriptedCallerIsHidden())
         return false;
 
-    if (filename)
-        filename->reset(i.scriptSource());
+    if (filename) {
+        UniqueChars copy = make_string_copy(i.filename());
+        if (!copy)
+            return false;
+        *filename = Move(copy);
+    }
 
     if (lineno)
         *lineno = i.computeLine(column);

@@ -3160,8 +3160,10 @@ IonBuilder::inlineSimdInt32x4(CallInfo& callInfo, JSNative native)
 
     if (native == js::simd_int32x4_shiftLeftByScalar)
         return inlineBinarySimd<MSimdShift>(callInfo, native, MSimdShift::lsh, SimdTypeDescr::Int32x4);
-    if (native == js::simd_int32x4_shiftRightArithmeticByScalar)
+    if (native == js::simd_int32x4_shiftRightArithmeticByScalar ||
+        native == js::simd_int32x4_shiftRightByScalar) {
         return inlineBinarySimd<MSimdShift>(callInfo, native, MSimdShift::rsh, SimdTypeDescr::Int32x4);
+    }
     if (native == js::simd_int32x4_shiftRightLogicalByScalar)
         return inlineBinarySimd<MSimdShift>(callInfo, native, MSimdShift::ursh, SimdTypeDescr::Int32x4);
 
@@ -3649,6 +3651,9 @@ SimdTypeToArrayElementType(SimdTypeDescr::Type type)
       // Not yet implemented.
       case SimdTypeDescr::Int8x16:
       case SimdTypeDescr::Int16x8:
+      case SimdTypeDescr::Uint8x16:
+      case SimdTypeDescr::Uint16x8:
+      case SimdTypeDescr::Uint32x4:
       case SimdTypeDescr::Float64x2: break;
     }
     MOZ_CRASH("unexpected simd type");

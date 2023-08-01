@@ -530,7 +530,7 @@ class Parser : private JS::AutoGCRooter, public StrictModeGetter
         return newFunctionBox(fn, fun, outerpc, directives, generatorKind, enclosing);
     }
 
-    ModuleBox* newModuleBox(Node pn, HandleModuleObject module);
+    ModuleBox* newModuleBox(Node pn, HandleModuleObject module, ModuleBuilder& builder);
 
     /*
      * Create a new function object given a name (which is optional if this is
@@ -598,7 +598,7 @@ class Parser : private JS::AutoGCRooter, public StrictModeGetter
     Node globalBody();
 
     // Parse a module.
-    Node standaloneModule(Handle<ModuleObject*> module);
+    Node standaloneModule(Handle<ModuleObject*> module, ModuleBuilder& builder);
 
     // Parse a function, given only its body. Used for the Function and
     // Generator constructors.
@@ -760,8 +760,8 @@ class Parser : private JS::AutoGCRooter, public StrictModeGetter
 
     Node newBoundImportForCurrentName();
     bool namedImportsOrNamespaceImport(TokenKind tt, Node importSpecSet);
-    bool addExportName(JSAtom* exportName);
-    bool addExportNamesForDeclaration(Node node);
+    bool checkExportedName(JSAtom* exportName);
+    bool checkExportedNamesForDeclaration(Node node);
 
     enum ClassContext { ClassStatement, ClassExpression };
     Node classDefinition(YieldHandling yieldHandling, ClassContext classContext, DefaultHandling defaultHandling);

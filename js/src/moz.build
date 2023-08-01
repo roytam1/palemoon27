@@ -150,14 +150,14 @@ EXPORTS.js += [
 ]
 
 UNIFIED_SOURCES += [
-    'asmjs/AsmJSFrameIterator.cpp',
-    'asmjs/AsmJSLink.cpp',
-    'asmjs/AsmJSModule.cpp',
-    'asmjs/AsmJSSignalHandlers.cpp',
-    'asmjs/AsmJSValidate.cpp',
+    'asmjs/AsmJS.cpp',
+    'asmjs/WasmFrameIterator.cpp',
     'asmjs/WasmGenerator.cpp',
     'asmjs/WasmIonCompile.cpp',
+    'asmjs/WasmModule.cpp',
+    'asmjs/WasmSignalHandlers.cpp',
     'asmjs/WasmStubs.cpp',
+    'asmjs/WasmTypes.cpp',
     'builtin/AtomicsObject.cpp',
     'builtin/Eval.cpp',
     'builtin/Intl.cpp',
@@ -621,6 +621,9 @@ if CONFIG['MOZ_ETW']:
 
 if CONFIG['NIGHTLY_BUILD']:
     DEFINES['ENABLE_BINARYDATA'] = True
+
+# Also in shell/moz.build
+if CONFIG['NIGHTLY_BUILD']:
     DEFINES['ENABLE_SHARED_ARRAY_BUFFER'] = True
     DEFINES['ENABLE_SIMD'] = True
 

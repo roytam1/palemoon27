@@ -28,7 +28,7 @@
 #include "jsscript.h"
 #include "jstypes.h"
 
-#include "asmjs/AsmJSValidate.h"
+#include "asmjs/AsmJS.h"
 #include "builtin/ModuleObject.h"
 #include "builtin/SelfHostingDefines.h"
 #include "frontend/BytecodeCompiler.h"
@@ -807,18 +807,18 @@ Parser<ParseHandler>::newFunctionBox(Node fn, JSFunction* fun,
 
 template <typename ParseHandler>
 ModuleBox::ModuleBox(ExclusiveContext* cx, ObjectBox* traceListHead, ModuleObject* module,
-                     ParseContext<ParseHandler>* outerpc)
+                     ModuleBuilder& builder, ParseContext<ParseHandler>* outerpc)
   : ObjectBox(module, traceListHead),
     SharedContext(cx, Directives(true), false),
     bindings(),
-    exportNames(cx)
+    builder(builder)
 {
     computeThisBinding(staticScope());
 }
 
 template <typename ParseHandler>
 ModuleBox*
-Parser<ParseHandler>::newModuleBox(Node pn, HandleModuleObject module)
+Parser<ParseHandler>::newModuleBox(Node pn, HandleModuleObject module, ModuleBuilder& builder)
 {
     MOZ_ASSERT(module);
 
@@ -830,7 +830,7 @@ Parser<ParseHandler>::newModuleBox(Node pn, HandleModuleObject module)
      */
     ParseContext<ParseHandler>* outerpc = nullptr;
     ModuleBox* modbox =
-        alloc.new_<ModuleBox>(context, traceListHead, module, outerpc);
+        alloc.new_<ModuleBox>(context, traceListHead, module, builder, outerpc);
     if (!modbox) {
         ReportOutOfMemory(context);
         return nullptr;
@@ -845,7 +845,7 @@ Parser<ParseHandler>::newModuleBox(Node pn, HandleModuleObject module)
 
 template <>
 ModuleBox*
-Parser<SyntaxParseHandler>::newModuleBox(Node pn, HandleModuleObject module)
+Parser<SyntaxParseHandler>::newModuleBox(Node pn, HandleModuleObject module, ModuleBuilder& builder)
 {
     MOZ_ALWAYS_FALSE(abortIfSyntaxParser());
     return nullptr;
@@ -950,7 +950,7 @@ Parser<ParseHandler>::checkStrictBinding(PropertyName* name, Node pn)
 
 template <typename ParseHandler>
 typename ParseHandler::Node
-Parser<ParseHandler>::standaloneModule(HandleModuleObject module)
+Parser<ParseHandler>::standaloneModule(HandleModuleObject module, ModuleBuilder& builder)
 {
     MOZ_ASSERT(checkOptionsCalled);
 
@@ -958,7 +958,7 @@ Parser<ParseHandler>::standaloneModule(HandleModuleObject module)
     if (!mn)
         return null();
 
-    ModuleBox* modulebox = newModuleBox(mn, module);
+    ModuleBox* modulebox = newModuleBox(mn, module, builder);
     if (!modulebox)
         return null();
     handler.setModuleBox(mn, modulebox);
@@ -998,7 +998,7 @@ Parser<ParseHandler>::standaloneModule(HandleModuleObject module)
 
 template <>
 SyntaxParseHandler::Node
-Parser<SyntaxParseHandler>::standaloneModule(HandleModuleObject module)
+Parser<SyntaxParseHandler>::standaloneModule(HandleModuleObject module, ModuleBuilder& builder)
 {
     MOZ_ALWAYS_FALSE(abortIfSyntaxParser());
     return SyntaxParseHandler::NodeFailure;
@@ -3323,7 +3323,7 @@ Parser<FullParseHandler>::asmJS(Node list)
     // function from the beginning. Reparsing is triggered by marking that a
     // new directive has been encountered and returning 'false'.
     bool validated;
-    if (!ValidateAsmJS(context, *this, list, &validated))
+    if (!CompileAsmJS(context, *this, list, &validated))
         return false;
     if (!validated) {
         pc->newDirectives->setAsmJS();
@@ -4923,9 +4923,9 @@ Parser<SyntaxParseHandler>::namedImportsOrNamespaceImport(TokenKind tt, Node imp
     return false;
 }
 
-template<typename ParseHandler>
-typename ParseHandler::Node
-Parser<ParseHandler>::importDeclaration()
+template<>
+ParseNode*
+Parser<FullParseHandler>::importDeclaration()
 {
     MOZ_ASSERT(tokenStream.currentToken().type == TOK_IMPORT);
 
@@ -5011,7 +5011,12 @@ Parser<ParseHandler>::importDeclaration()
     if (!MatchOrInsertSemicolonAfterNonExpression(tokenStream))
         return null();
 
-    return handler.newImportDeclaration(importSpecSet, moduleSpec, TokenPos(begin, pos().end));
+    ParseNode* node =
+        handler.newImportDeclaration(importSpecSet, moduleSpec, TokenPos(begin, pos().end));
+    if (!node || !pc->sc->asModuleBox()->builder.processImport(node))
+        return null();
+
+    return node;
 }
 
 template<>
@@ -5031,24 +5036,22 @@ Parser<FullParseHandler>::classDefinition(YieldHandling yieldHandling,
 
 template<>
 bool
-Parser<FullParseHandler>::addExportName(JSAtom* exportName)
+Parser<FullParseHandler>::checkExportedName(JSAtom* exportName)
 {
-    TraceableVector<JSAtom*>& exportNames = pc->sc->asModuleBox()->exportNames;
-    for (JSAtom* name : exportNames) {
-        if (name == exportName) {
-            JSAutoByteString str;
-            if (AtomToPrintableString(context, exportName, &str))
-                report(ParseError, false, null(), JSMSG_DUPLICATE_EXPORT_NAME, str.ptr());
-            return false;
-        }
-    }
+    if (!pc->sc->asModuleBox()->builder.hasExportedName(exportName))
+        return true;
 
-    return exportNames.append(exportName);
+    JSAutoByteString str;
+    if (!AtomToPrintableString(context, exportName, &str))
+        return false;
+
+    report(ParseError, false, null(), JSMSG_DUPLICATE_EXPORT_NAME, str.ptr());
+    return false;
 }
 
 template<>
 bool
-Parser<SyntaxParseHandler>::addExportName(JSAtom* exportName)
+Parser<SyntaxParseHandler>::checkExportedName(JSAtom* exportName)
 {
     MOZ_ALWAYS_FALSE(abortIfSyntaxParser());
     return false;
@@ -5056,14 +5059,14 @@ Parser<SyntaxParseHandler>::addExportName(JSAtom* exportName)
 
 template<>
 bool
-Parser<FullParseHandler>::addExportNamesForDeclaration(ParseNode* node)
+Parser<FullParseHandler>::checkExportedNamesForDeclaration(ParseNode* node)
 {
     MOZ_ASSERT(node->isArity(PN_LIST));
     for (ParseNode* binding = node->pn_head; binding; binding = binding->pn_next) {
         if (binding->isKind(PNK_ASSIGN))
             binding = binding->pn_left;
         MOZ_ASSERT(binding->isKind(PNK_NAME));
-        if (!addExportName(binding->pn_atom))
+        if (!checkExportedName(binding->pn_atom))
             return false;
     }
 
@@ -5072,7 +5075,7 @@ Parser<FullParseHandler>::addExportNamesForDeclaration(ParseNode* node)
 
 template<>
 bool
-Parser<SyntaxParseHandler>::addExportNamesForDeclaration(Node node)
+Parser<SyntaxParseHandler>::checkExportedNamesForDeclaration(Node node)
 {
     MOZ_ALWAYS_FALSE(abortIfSyntaxParser());
     return false;
@@ -5131,7 +5134,7 @@ Parser<FullParseHandler>::exportDeclaration()
             if (!exportName)
                 return null();
 
-            if (!addExportName(exportName->pn_atom))
+            if (!checkExportedName(exportName->pn_atom))
                 return null();
 
             Node exportSpec = handler.newBinary(PNK_EXPORT_SPEC, bindingName, exportName);
@@ -5180,7 +5183,11 @@ Parser<FullParseHandler>::exportDeclaration()
             if (!MatchOrInsertSemicolonAfterNonExpression(tokenStream))
                 return null();
 
-            return handler.newExportFromDeclaration(begin, kid, moduleSpec);
+            ParseNode* node = handler.newExportFromDeclaration(begin, kid, moduleSpec);
+            if (!node || !pc->sc->asModuleBox()->builder.processExportFrom(node))
+                return null();
+
+            return node;
         }
 
         tokenStream.ungetToken();
@@ -5222,7 +5229,12 @@ Parser<FullParseHandler>::exportDeclaration()
         if (!MatchOrInsertSemicolonAfterNonExpression(tokenStream))
             return null();
 
-        return handler.newExportFromDeclaration(begin, kid, moduleSpec);
+        ParseNode* node = handler.newExportFromDeclaration(begin, kid, moduleSpec);
+        if (!node || !pc->sc->asModuleBox()->builder.processExportFrom(node))
+            return null();
+
+        return node;
+
       }
 
       case TOK_FUNCTION:
@@ -5230,7 +5242,7 @@ Parser<FullParseHandler>::exportDeclaration()
         if (!kid)
             return null();
 
-        if (!addExportName(kid->pn_funbox->function()->atom()))
+        if (!checkExportedName(kid->pn_funbox->function()->atom()))
             return null();
         break;
 
@@ -5241,7 +5253,7 @@ Parser<FullParseHandler>::exportDeclaration()
 
         const ClassNode& cls = kid->as<ClassNode>();
         MOZ_ASSERT(cls.names());
-        if (!addExportName(cls.names()->innerBinding()->pn_atom))
+        if (!checkExportedName(cls.names()->innerBinding()->pn_atom))
             return null();
         break;
       }
@@ -5252,7 +5264,7 @@ Parser<FullParseHandler>::exportDeclaration()
             return null();
         if (!MatchOrInsertSemicolonAfterExpression(tokenStream))
             return null();
-        if (!addExportNamesForDeclaration(kid))
+        if (!checkExportedNamesForDeclaration(kid))
             return null();
         break;
 
@@ -5260,7 +5272,7 @@ Parser<FullParseHandler>::exportDeclaration()
         if (!tokenStream.getToken(&tt, TokenStream::Operand))
             return null();
 
-        if (!addExportName(context->names().default_))
+        if (!checkExportedName(context->names().default_))
             return null();
 
         ParseNode* binding = nullptr;
@@ -5289,7 +5301,11 @@ Parser<FullParseHandler>::exportDeclaration()
             break;
         }
 
-        return handler.newExportDefaultDeclaration(kid, binding, TokenPos(begin, pos().end));
+        ParseNode* node = handler.newExportDefaultDeclaration(kid, binding, TokenPos(begin, pos().end));
+        if (!node || !pc->sc->asModuleBox()->builder.processExport(node))
+            return null();
+
+        return node;
       }
 
       case TOK_LET:
@@ -5297,7 +5313,7 @@ Parser<FullParseHandler>::exportDeclaration()
         kid = lexicalDeclaration(YieldIsName, tt == TOK_CONST);
         if (!kid)
             return null();
-        if (!addExportNamesForDeclaration(kid))
+        if (!checkExportedNamesForDeclaration(kid))
             return null();
         break;
 
@@ -5306,7 +5322,11 @@ Parser<FullParseHandler>::exportDeclaration()
         return null();
     }
 
-    return handler.newExportDeclaration(kid, TokenPos(begin, pos().end));
+    ParseNode* node = handler.newExportDeclaration(kid, TokenPos(begin, pos().end));
+    if (!node || !pc->sc->asModuleBox()->builder.processExport(node))
+        return null();
+
+    return node;
 }
 
 template<>

@@ -9,7 +9,7 @@
 #include "jscntxt.h"
 #include "jsscript.h"
 
-#include "asmjs/AsmJSLink.h"
+#include "asmjs/AsmJS.h"
 #include "builtin/ModuleObject.h"
 #include "frontend/BytecodeEmitter.h"
 #include "frontend/FoldConstants.h"
@@ -576,7 +576,8 @@ ModuleObject* BytecodeCompiler::compileModule()
 
     module->init(script);
 
-    ParseNode* pn = parser->standaloneModule(module);
+    ModuleBuilder builder(cx->asJSContext(), module);
+    ParseNode* pn = parser->standaloneModule(module, builder);
     if (!pn)
         return nullptr;
 
@@ -601,8 +602,7 @@ ModuleObject* BytecodeCompiler::compileModule()
         return nullptr;
     }
 
-    ModuleBuilder builder(cx->asJSContext(), module);
-    if (!builder.buildAndInit(pn))
+    if (!builder.initModule())
         return nullptr;
 
     parser->handler.freeTree(pn);
@@ -663,7 +663,7 @@ BytecodeCompiler::compileFunctionBody(MutableHandleFunction fun,
         }
     } else {
         fun.set(fn->pn_funbox->function());
-        MOZ_ASSERT(IsAsmJSModuleNative(fun->native()));
+        MOZ_ASSERT(IsAsmJSModule(fun));
     }
 
     if (!maybeCompleteCompressSource())

@@ -162,7 +162,7 @@ CodeGenerator::CodeGenerator(MIRGenerator* gen, LIRGraph* graph, MacroAssembler*
 
 CodeGenerator::~CodeGenerator()
 {
-    MOZ_ASSERT_IF(!gen->compilingAsmJS(), masm.numAsmJSAbsoluteLinks() == 0);
+    MOZ_ASSERT_IF(!gen->compilingAsmJS(), masm.numAsmJSAbsoluteAddresses() == 0);
     js_delete(scriptCounts_);
 }
 
@@ -8057,11 +8057,11 @@ CodeGenerator::visitRest(LRest* lir)
 }
 
 bool
-CodeGenerator::generateAsmJS(AsmJSFunctionOffsets* offsets)
+CodeGenerator::generateAsmJS(wasm::FuncOffsets* offsets)
 {
     JitSpew(JitSpew_Codegen, "# Emitting asm.js code");
 
-    GenerateAsmJSFunctionPrologue(masm, frameSize(), offsets);
+    wasm::GenerateFunctionPrologue(masm, frameSize(), offsets);
 
     // Overflow checks are omitted by CodeGenerator in some cases (leaf
     // functions with small framePushed). Perform overflow-checking after
@@ -8076,12 +8076,11 @@ CodeGenerator::generateAsmJS(AsmJSFunctionOffsets* offsets)
                        target);
     }
 
-
     if (!generateBody())
         return false;
 
     masm.bind(&returnLabel_);
-    GenerateAsmJSFunctionEpilogue(masm, frameSize(), offsets);
+    wasm::GenerateFunctionEpilogue(masm, frameSize(), offsets);
 
     if (onOverflow.used()) {
         // The stack overflow stub assumes that only sizeof(AsmJSFrame) bytes have
@@ -8091,7 +8090,6 @@ CodeGenerator::generateAsmJS(AsmJSFunctionOffsets* offsets)
         masm.addToStackPtr(Imm32(frameSize()));
         masm.jump(masm.asmStackOverflowLabel());
     }
-
 
 #if defined(JS_ION_PERF)
     // Note the end of the inline code and start of the OOL code.

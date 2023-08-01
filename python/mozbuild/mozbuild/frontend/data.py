@@ -18,7 +18,6 @@ structures.
 from __future__ import absolute_import, unicode_literals
 
 from mozbuild.util import StrictOrderingOnAppendList
-from mozbuild.shellutil import quote as shell_quote
 from mozpack.chrome.manifest import ManifestEntry
 
 import mozpack.path as mozpath
@@ -78,8 +77,20 @@ class ContextDerived(TreeMetadata):
         return self._context['FINAL_TARGET']
 
     @property
+    def defines(self):
+        defines = self._context['DEFINES']
+        return Defines(self._context, defines) if defines else None
+
+    @property
     def relobjdir(self):
         return mozpath.relpath(self.objdir, self.topobjdir)
+
+
+class HostMixin(object):
+    @property
+    def defines(self):
+        defines = self._context['HOST_DEFINES']
+        return HostDefines(self._context, defines) if defines else None
 
 
 class DirectoryTraversal(ContextDerived):
@@ -176,7 +187,7 @@ class BaseDefines(ContextDerived):
             elif value is False:
                 yield('-U%s' % define)
             else:
-                yield('-D%s=%s' % (define, shell_quote(value)))
+                yield('-D%s=%s' % (define, value))
 
     def update(self, more_defines):
         if isinstance(more_defines, Defines):
@@ -376,7 +387,7 @@ class Program(BaseProgram):
     KIND = 'target'
 
 
-class HostProgram(BaseProgram):
+class HostProgram(HostMixin, BaseProgram):
     """Context derived container object for HOST_PROGRAM"""
     SUFFIX_VAR = 'HOST_BIN_SUFFIX'
     KIND = 'host'
@@ -388,7 +399,7 @@ class SimpleProgram(BaseProgram):
     KIND = 'target'
 
 
-class HostSimpleProgram(BaseProgram):
+class HostSimpleProgram(HostMixin, BaseProgram):
     """Context derived container object for each program in
     HOST_SIMPLE_PROGRAMS"""
     SUFFIX_VAR = 'HOST_BIN_SUFFIX'
@@ -508,7 +519,7 @@ class ExternalSharedLibrary(SharedLibrary, ExternalLibrary):
     build system."""
 
 
-class HostLibrary(BaseLibrary):
+class HostLibrary(HostMixin, BaseLibrary):
     """Context derived container object for a host library"""
     KIND = 'host'
 
@@ -702,7 +713,7 @@ class GeneratedSources(BaseSources):
         BaseSources.__init__(self, context, files, canonical_suffix)
 
 
-class HostSources(BaseSources):
+class HostSources(HostMixin, BaseSources):
     """Represents files to be compiled for the host during the build."""
 
     def __init__(self, context, files, canonical_suffix):

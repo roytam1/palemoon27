@@ -671,9 +671,9 @@ BrowserGlue.prototype = {
     this._syncSearchEngines();
 
     PageThumbs.init();
-    NewTabUtils.init();
     webrtcUI.init();
     AboutHome.init();
+    NewTabUtils.init();
     SessionStore.init();
     ContentSearch.init();
     FormValidationHandler.init();
@@ -869,15 +869,17 @@ BrowserGlue.prototype = {
   },
 
   _firstWindowTelemetry: function(aWindow) {
-#ifdef XP_WIN
-    let SCALING_PROBE_NAME = "DISPLAY_SCALING_MSWIN";
-#elifdef XP_MACOSX
-    let SCALING_PROBE_NAME = "DISPLAY_SCALING_OSX";
-#elifdef XP_LINUX
-    let SCALING_PROBE_NAME = "DISPLAY_SCALING_LINUX";
-#else
-    let SCALING_PROBE_NAME = "";
-#endif
+    switch (AppConstants.platform) {
+      case "win":
+        SCALING_PROBE_NAME = "DISPLAY_SCALING_MSWIN";
+        break;
+      case "macosx":
+        SCALING_PROBE_NAME = "DISPLAY_SCALING_OSX";
+        break;
+      case "linux":
+        SCALING_PROBE_NAME = "DISPLAY_SCALING_LINUX";
+        break;
+    }
 /*
     if (SCALING_PROBE_NAME) {
       let scaling = aWindow.devicePixelRatio * 100;
@@ -889,24 +891,23 @@ BrowserGlue.prototype = {
   // the first browser window has finished initializing
   _onFirstWindowLoaded: function BG__onFirstWindowLoaded(aWindow) {
 
-#if 0
-//def NIGHTLY_BUILD
-    // Registering Shumway bootstrap script the child processes.
-    aWindow.messageManager.loadFrameScript("chrome://shumway/content/bootstrap-content.js", true);
-    // Initializing Shumway (shall be run after child script registration).
-    ShumwayUtils.init();
-#endif
-
-#ifdef XP_WIN
-    // For windows seven, initialize the jump list module.
-    const WINTASKBAR_CONTRACTID = "@mozilla.org/windows-taskbar;1";
-    if (WINTASKBAR_CONTRACTID in Cc &&
-        Cc[WINTASKBAR_CONTRACTID].getService(Ci.nsIWinTaskbar).available) {
-      let temp = {};
-      Cu.import("resource:///modules/WindowsJumpLists.jsm", temp);
-      temp.WinTaskbarJumpList.startup();
+    if (0 && AppConstants.NIGHTLY_BUILD) {
+      // Registering Shumway bootstrap script the child processes.
+      Services.ppmm.loadProcessScript("chrome://shumway/content/bootstrap-content.js", true);
+      // Initializing Shumway (shall be run after child script registration).
+      ShumwayUtils.init();
     }
-#endif
+
+    if (AppConstants.platform == "win") {
+      // For Windows 7, initialize the jump list module.
+      const WINTASKBAR_CONTRACTID = "@mozilla.org/windows-taskbar;1";
+      if (WINTASKBAR_CONTRACTID in Cc &&
+          Cc[WINTASKBAR_CONTRACTID].getService(Ci.nsIWinTaskbar).available) {
+        let temp = {};
+        Cu.import("resource:///modules/WindowsJumpLists.jsm", temp);
+        temp.WinTaskbarJumpList.startup();
+      }
+    }
 
     this._trackSlowStartup();
 

@@ -22,6 +22,7 @@
 #include "asmjs/WasmTypes.h"
 #include "gc/Barrier.h"
 #include "vm/MallocProvider.h"
+#include "vm/NativeObject.h"
 
 namespace js {
 
@@ -103,16 +104,14 @@ class Export
 {
     MallocSig sig_;
     struct CacheablePod {
-        uint32_t funcIndex_;
         uint32_t stubOffset_;
     } pod;
 
   public:
     Export() = default;
-    Export(MallocSig&& sig, uint32_t funcIndex)
+    explicit Export(MallocSig&& sig)
       : sig_(Move(sig))
     {
-        pod.funcIndex_ = funcIndex;
         pod.stubOffset_ = UINT32_MAX;
     }
     Export(Export&& rhs)
@@ -125,9 +124,6 @@ class Export
         pod.stubOffset_ = stubOffset;
     }
 
-    uint32_t funcIndex() const {
-        return pod.funcIndex_;
-    }
     uint32_t stubOffset() const {
         return pod.stubOffset_;
     }
@@ -325,6 +321,22 @@ typedef JS::UniquePtr<uint8_t, CodeDeleter> UniqueCodePtr;
 UniqueCodePtr
 AllocateCode(ExclusiveContext* cx, size_t bytes);
 
+// A wasm module can either use no heap, a unshared heap (ArrayBuffer) or shared
+// heap (SharedArrayBuffer).
+
+enum class HeapUsage
+{
+    None = false,
+    Unshared = 1,
+    Shared = 2
+};
+
+static inline bool
+UsesHeap(HeapUsage heapUsage)
+{
+    return bool(heapUsage);
+}
+
 // Module represents a compiled WebAssembly module which lives until the last
 // reference to any exported functions is dropped. Modules must be wrapped by a
 // rooted JSObject immediately after creation so that Module::trace() is called
@@ -375,8 +387,7 @@ class Module
         const uint32_t           functionBytes_;
         const uint32_t           codeBytes_;
         const uint32_t           globalBytes_;
-        const bool               usesHeap_;
-        const bool               sharedHeap_;
+        const HeapUsage          heapUsage_;
         const bool               mutedErrors_;
         const bool               usesSignalHandlersForOOB_;
         const bool               usesSignalHandlersForInterrupt_;
@@ -400,14 +411,11 @@ class Module
 
     // Initialized during dynamicallyLink:
     bool                         dynamicallyLinked_;
-    BufferPtr                    maybeHeap_;
-    Module**                     prev_;
-    Module*                      next_;
+    BufferPtr                    heap_;
 
     // Mutated after dynamicallyLink:
     bool                         profilingEnabled_;
     FuncLabelVector              funcLabels_;
-    bool                         interrupted_;
 
     class AutoMutateCode;
 
@@ -418,7 +426,7 @@ class Module
     void specializeToHeap(ArrayBufferObjectMaybeShared* heap);
     void despecializeFromHeap(ArrayBufferObjectMaybeShared* heap);
     void sendCodeRangesToProfiler(JSContext* cx);
-    void setProfilingEnabled(bool enabled, JSContext* cx);
+    MOZ_WARN_UNUSED_RESULT bool setProfilingEnabled(JSContext* cx, bool enabled);
     ImportExit& importToExit(const Import& import);
 
     enum CacheBool { NotLoadedFromCache = false, LoadedFromCache = true };
@@ -448,16 +456,13 @@ class Module
     static const unsigned OffsetOfImportExitFun = offsetof(ImportExit, fun);
     static const unsigned SizeOfEntryArg = sizeof(EntryArg);
 
-    enum HeapBool { DoesntUseHeap = false, UsesHeap = true };
-    enum SharedBool { UnsharedHeap = false, SharedHeap = true };
     enum MutedBool { DontMuteErrors = false, MuteErrors = true };
 
     Module(CompileArgs args,
            uint32_t functionBytes,
            uint32_t codeBytes,
            uint32_t globalBytes,
-           HeapBool usesHeap,
-           SharedBool sharedHeap,
+           HeapUsage heapUsage,
            MutedBool mutedErrors,
            UniqueCodePtr code,
            ImportVector&& imports,
@@ -474,8 +479,9 @@ class Module
     uint8_t* code() const { return code_.get(); }
     uint8_t* globalData() const { return code() + pod.codeBytes_; }
     uint32_t globalBytes() const { return pod.globalBytes_; }
-    bool usesHeap() const { return pod.usesHeap_; }
-    bool sharedHeap() const { return pod.sharedHeap_; }
+    HeapUsage heapUsage() const { return pod.heapUsage_; }
+    bool usesHeap() const { return UsesHeap(pod.heapUsage_); }
+    bool hasSharedHeap() const { return pod.heapUsage_ == HeapUsage::Shared; }
     bool mutedErrors() const { return pod.mutedErrors_; }
     CompileArgs compileArgs() const;
     const ImportVector& imports() const { return imports_; }
@@ -515,20 +521,8 @@ class Module
 
     // The wasm heap, established by dynamicallyLink.
 
-    ArrayBufferObjectMaybeShared* maybeBuffer() const;
-    SharedMem<uint8_t*> maybeHeap() const;
+    SharedMem<uint8_t*> heap() const;
     size_t heapLength() const;
-
-    // asm.js may detach and change the heap at any time. As an internal detail,
-    // the heap may not be changed while the module has been asynchronously
-    // interrupted.
-    //
-    // N.B. These methods and asm.js change-heap support will be removed soon.
-
-    bool changeHeap(Handle<ArrayBufferObject*> newBuffer, JSContext* cx);
-    bool detachHeap(JSContext* cx);
-    void setInterrupted(bool interrupted);
-    Module* nextLinked() const;
 
     // The exports of a wasm module are called by preparing an array of
     // arguments (coerced to the corresponding types of the Export signature)

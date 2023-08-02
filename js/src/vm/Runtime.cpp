@@ -201,7 +201,6 @@ JSRuntime::JSRuntime(JSRuntime* parentRuntime)
     destroyPrincipals(nullptr),
     readPrincipals(nullptr),
     errorReporter(nullptr),
-    linkedWasmModules(nullptr),
     propertyRemovals(0),
 #if !EXPOSE_INTL_API
     thousandsSeparator(0),
@@ -733,6 +732,15 @@ JSRuntime::triggerActivityCallback(bool active)
     AutoSuppressGC suppress(this);
 
     activityCallback(activityCallbackArg, active);
+}
+
+FreeOp::~FreeOp()
+{
+    for (size_t i = 0; i < freeLaterList.length(); i++)
+        free_(freeLaterList[i]);
+
+    if (!jitPoisonRanges.empty())
+        jit::ExecutableAllocator::poisonCode(runtime(), jitPoisonRanges);
 }
 
 void

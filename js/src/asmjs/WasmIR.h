@@ -430,8 +430,21 @@ enum NeedsBoundsCheck : uint8_t
 // referenced by the FuncIR.
 class FuncIR
 {
-    typedef Vector<wasm::Val, 4, LifoAllocPolicy<Fallible>> VarInitVector;
+    typedef Vector<ValType, 4, LifoAllocPolicy<Fallible>> ValTypeVector;
     typedef Vector<uint8_t, 4096, LifoAllocPolicy<Fallible>> Bytecode;
+
+  public:
+    // Source coordinates for a call site. As they're read sequentially, we
+    // don't need to store the call's bytecode offset, unless we want to
+    // check its consistency in debug mode.
+    struct SourceCoords {
+        DebugOnly<uint32_t> offset; // after call opcode
+        uint32_t line;
+        uint32_t column;
+    };
+
+  private:
+    typedef Vector<SourceCoords, 4, LifoAllocPolicy<Fallible>> SourceCoordsVector;
 
     // Note: this unrooted field assumes AutoKeepAtoms via TokenStream via
     // asm.js compilation.
@@ -440,8 +453,9 @@ class FuncIR
     unsigned column_;
 
     uint32_t index_;
-    const wasm::LifoSig* sig_;
-    VarInitVector varInits_;
+    const LifoSig* sig_;
+    ValTypeVector localVars_;
+    SourceCoordsVector callSourceCoords_;
     Bytecode bytecode_;
     unsigned generateTime_;
 
@@ -452,16 +466,21 @@ class FuncIR
         column_(column),
         index_(UINT_MAX),
         sig_(nullptr),
-        varInits_(alloc),
+        localVars_(alloc),
+        callSourceCoords_(alloc),
         bytecode_(alloc),
         generateTime_(UINT_MAX)
     {}
 
-    bool addVariable(wasm::Val v) {
-        return varInits_.append(v);
+    bool addVariable(ValType v) {
+        return localVars_.append(v);
+    }
+    bool addSourceCoords(uint32_t line, uint32_t column) {
+        SourceCoords sc = { bytecode_.length(), line, column };
+        return callSourceCoords_.append(sc);
     }
 
-    void finish(uint32_t funcIndex, const wasm::LifoSig& sig, unsigned generateTime) {
+    void finish(uint32_t funcIndex, const LifoSig& sig, unsigned generateTime) {
         MOZ_ASSERT(index_ == UINT_MAX);
         MOZ_ASSERT(!sig_);
         MOZ_ASSERT(generateTime_ == UINT_MAX);
@@ -506,12 +525,12 @@ class FuncIR
         return pos;
     }
 
-    uint8_t              readU8 (size_t* pc) const { return readPrimitive<uint8_t>(pc); }
-    int32_t              readI32(size_t* pc) const { return readPrimitive<int32_t>(pc); }
-    float                readF32(size_t* pc) const { return readPrimitive<float>(pc); }
-    uint32_t             readU32(size_t* pc) const { return readPrimitive<uint32_t>(pc); }
-    double               readF64(size_t* pc) const { return readPrimitive<double>(pc); }
-    const wasm::LifoSig* readSig(size_t* pc) const { return readPrimitive<wasm::LifoSig*>(pc); }
+    uint8_t        readU8 (size_t* pc) const { return readPrimitive<uint8_t>(pc); }
+    int32_t        readI32(size_t* pc) const { return readPrimitive<int32_t>(pc); }
+    float          readF32(size_t* pc) const { return readPrimitive<float>(pc); }
+    uint32_t       readU32(size_t* pc) const { return readPrimitive<uint32_t>(pc); }
+    double         readF64(size_t* pc) const { return readPrimitive<double>(pc); }
+    const LifoSig* readSig(size_t* pc) const { return readPrimitive<LifoSig*>(pc); }
 
     jit::SimdConstant readI32X4(size_t* pc) const {
         int32_t x = readI32(pc);
@@ -532,7 +551,7 @@ class FuncIR
     bool pcIsPatchable(size_t pc, unsigned size) const {
         bool patchable = true;
         for (unsigned i = 0; patchable && i < size; i++)
-            patchable &= wasm::Stmt(bytecode_[pc]) == wasm::Stmt::Bad;
+            patchable &= Stmt(bytecode_[pc]) == Stmt::Bad;
         return patchable;
     }
 #endif
@@ -550,9 +569,9 @@ class FuncIR
         memcpy(&bytecode_[pc], &i, sizeof(uint32_t));
     }
 
-    void patchSig(size_t pc, const wasm::LifoSig* ptr) {
-        MOZ_ASSERT(pcIsPatchable(pc, sizeof(wasm::LifoSig*)));
-        memcpy(&bytecode_[pc], &ptr, sizeof(wasm::LifoSig*));
+    void patchSig(size_t pc, const LifoSig* ptr) {
+        MOZ_ASSERT(pcIsPatchable(pc, sizeof(LifoSig*)));
+        memcpy(&bytecode_[pc], &ptr, sizeof(LifoSig*));
     }
 
     // Read-only interface
@@ -561,11 +580,12 @@ class FuncIR
     unsigned column() const { return column_; }
     uint32_t index() const { MOZ_ASSERT(index_ != UINT32_MAX); return index_; }
     size_t size() const { return bytecode_.length(); }
-    const wasm::LifoSig& sig() const { MOZ_ASSERT(sig_); return *sig_; }
-    size_t numVarInits() const { return varInits_.length(); }
-    wasm::Val varInit(size_t i) const { return varInits_[i]; }
-    size_t numLocals() const { return sig_->args().length() + varInits_.length(); }
+    const LifoSig& sig() const { MOZ_ASSERT(sig_); return *sig_; }
+    size_t numLocalVars() const { return localVars_.length(); }
+    ValType localVarType(size_t i) const { return localVars_[i]; }
+    size_t numLocals() const { return sig_->args().length() + numLocalVars(); }
     unsigned generateTime() const { MOZ_ASSERT(generateTime_ != UINT_MAX); return generateTime_; }
+    const SourceCoords& sourceCoords(size_t i) const { return callSourceCoords_[i]; }
 };
 
 } // namespace wasm

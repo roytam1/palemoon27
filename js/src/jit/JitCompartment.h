@@ -526,9 +526,9 @@ void FinishInvalidation(FreeOp* fop, JSScript* script);
 const unsigned WINDOWS_BIG_FRAME_TOUCH_INCREMENT = 4096 - 1;
 #endif
 
-// If ExecutableAllocator::nonWritableJitCode is |true|, this class will ensure
-// JIT code is writable (has RW permissions) in its scope. If nonWritableJitCode
-// is |false|, it's a no-op.
+// If NON_WRITABLE_JIT_CODE is enabled, this class will ensure
+// JIT code is writable (has RW permissions) in its scope.
+// Otherwise it's a no-op.
 class MOZ_STACK_CLASS AutoWritableJitCode
 {
     // Backedge patching from the signal handler will change memory protection
@@ -543,7 +543,8 @@ class MOZ_STACK_CLASS AutoWritableJitCode
       : preventPatching_(rt), rt_(rt), addr_(addr), size_(size)
     {
         rt_->toggleAutoWritableJitCodeActive(true);
-        ExecutableAllocator::makeWritable(addr_, size_);
+        if (!ExecutableAllocator::makeWritable(addr_, size_))
+            MOZ_CRASH();
     }
     AutoWritableJitCode(void* addr, size_t size)
       : AutoWritableJitCode(TlsPerThreadData.get()->runtimeFromMainThread(), addr, size)
@@ -552,7 +553,8 @@ class MOZ_STACK_CLASS AutoWritableJitCode
       : AutoWritableJitCode(code->runtimeFromMainThread(), code->raw(), code->bufferSize())
     {}
     ~AutoWritableJitCode() {
-        ExecutableAllocator::makeExecutable(addr_, size_);
+        if (!ExecutableAllocator::makeExecutable(addr_, size_))
+            MOZ_CRASH();
         rt_->toggleAutoWritableJitCodeActive(false);
     }
 };

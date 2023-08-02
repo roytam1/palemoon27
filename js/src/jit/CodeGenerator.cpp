@@ -10,6 +10,7 @@
 #include "mozilla/Attributes.h"
 #include "mozilla/DebugOnly.h"
 #include "mozilla/MathAlgorithms.h"
+#include "mozilla/ScopeExit.h"
 #include "mozilla/SizePrintfMacros.h"
 
 #include "jslibmath.h"
@@ -1123,7 +1124,7 @@ PrepareAndExecuteRegExp(JSContext* cx, MacroAssembler& masm, Register regexp, Re
         masm.branch32(Assembler::Above, temp3, Imm32(unicode::LeadSurrogateMax), &done);
 
         // Move lastIndex to lead surrogate.
-        masm.subPtr(Imm32(2), lastIndex);
+        masm.subPtr(Imm32(1), lastIndex);
 
         masm.bind(&done);
     }
@@ -1644,6 +1645,8 @@ CodeGenerator::visitOutOfLineRegExpMatcher(OutOfLineRegExpMatcher* ool)
     pushArg(input);
     pushArg(regexp);
 
+    // We are not using oolCallVM because we are in a Call, and that live
+    // registers are already saved by the the register allocator.
     callVM(RegExpMatcherRawInfo, lir);
 
     masm.jump(ool->rejoin());
@@ -1795,6 +1798,8 @@ CodeGenerator::visitOutOfLineRegExpTester(OutOfLineRegExpTester* ool)
     pushArg(input);
     pushArg(regexp);
 
+    // We are not using oolCallVM because we are in a Call, and that live
+    // registers are already saved by the the register allocator.
     callVM(RegExpTesterRawInfo, lir);
 
     masm.jump(ool->rejoin());
@@ -3873,7 +3878,7 @@ CodeGenerator::visitCallDirectEval(LCallDirectEval* lir)
     pushArg(ImmPtr(lir->mir()->pc()));
     pushArg(string);
     pushArg(ToValue(lir, LCallDirectEval::NewTarget));
-    pushArg(ImmGCPtr(gen->info().script()));
+    pushArg(ImmGCPtr(current->mir()->info().script()));
     pushArg(scopeChain);
 
     callVM(DirectEvalStringInfo, lir);
@@ -7045,7 +7050,7 @@ CodeGenerator::visitStoreElementT(LStoreElementT* store)
     const LAllocation* index = store->index();
 
     if (store->mir()->needsBarrier())
-        emitPreBarrier(elements, index);
+        emitPreBarrier(elements, index, store->mir()->offsetAdjustment());
 
     if (store->mir()->needsHoleCheck())
         emitStoreHoleCheck(elements, index, store->mir()->offsetAdjustment(), store->snapshot());
@@ -7063,7 +7068,7 @@ CodeGenerator::visitStoreElementV(LStoreElementV* lir)
     const LAllocation* index = lir->index();
 
     if (lir->mir()->needsBarrier())
-        emitPreBarrier(elements, index);
+        emitPreBarrier(elements, index, lir->mir()->offsetAdjustment());
 
     if (lir->mir()->needsHoleCheck())
         emitStoreHoleCheck(elements, index, lir->mir()->offsetAdjustment(), lir->snapshot());
@@ -7095,7 +7100,7 @@ CodeGenerator::visitStoreElementHoleT(LStoreElementHoleT* lir)
         masm.branchKey(Assembler::BelowOrEqual, initLength, ToInt32Key(index), ool->entry());
 
         if (lir->mir()->needsBarrier())
-            emitPreBarrier(elements, index);
+            emitPreBarrier(elements, index, 0);
 
         masm.bind(ool->rejoinStore());
         emitStoreElementTyped(lir->value(), lir->mir()->value()->type(), lir->mir()->elementType(),
@@ -7145,7 +7150,7 @@ CodeGenerator::visitStoreElementHoleV(LStoreElementHoleV* lir)
         masm.branchKey(Assembler::BelowOrEqual, initLength, ToInt32Key(index), ool->entry());
 
         if (lir->mir()->needsBarrier())
-            emitPreBarrier(elements, index);
+            emitPreBarrier(elements, index, 0);
 
         masm.bind(ool->rejoinStore());
         if (index->isConstant())
@@ -8208,33 +8213,6 @@ CodeGenerator::generate()
     return !masm.oom();
 }
 
-struct AutoDiscardIonCode
-{
-    JSContext* cx;
-    RecompileInfo* recompileInfo;
-    IonScript* ionScript;
-    bool keep;
-
-    AutoDiscardIonCode(JSContext* cx, RecompileInfo* recompileInfo)
-      : cx(cx), recompileInfo(recompileInfo), ionScript(nullptr), keep(false) {}
-
-    ~AutoDiscardIonCode() {
-        if (keep)
-            return;
-
-        // Use js_free instead of IonScript::Destroy: the cache list and
-        // backedge list are still uninitialized.
-        if (ionScript)
-            js_free(ionScript);
-
-        recompileInfo->compilerOutput(cx->zone()->types)->invalidate();
-    }
-
-    void keepIonCode() {
-        keep = true;
-    }
-};
-
 bool
 CodeGenerator::linkSharedStubs(JSContext* cx)
 {
@@ -8305,13 +8283,20 @@ CodeGenerator::link(JSContext* cx, CompilerConstraintList* constraints)
     // Check to make sure we didn't have a mid-build invalidation. If so, we
     // will trickle to jit::Compile() and return Method_Skipped.
     uint32_t warmUpCount = script->getWarmUpCount();
-    RecompileInfo recompileInfo;
-    bool isValid;
-    if (!FinishCompilation(cx, script, constraints, &recompileInfo, &isValid))
-        return false;
 
-    if (!isValid)
+    // Record constraints. If an error occured, returns false and potentially
+    // prevent future compilations. Otherwise, if an invalidation occured, then
+    // skip the current compilation.
+    RecompileInfo recompileInfo;
+    bool validRecompiledInfo = false;
+    if (!FinishCompilation(cx, script, constraints, &recompileInfo, &validRecompiledInfo))
+        return false;
+    if (!validRecompiledInfo)
         return true;
+    auto guardRecordedConstraints = mozilla::MakeScopeExit([&] {
+        // In case of error, invalidate the current recompileInfo.
+        recompileInfo.compilerOutput(cx->zone()->types)->invalidate();
+    });
 
     // IonMonkey could have inferred better type information during
     // compilation. Since adding the new information to the actual type
@@ -8329,20 +8314,22 @@ CodeGenerator::link(JSContext* cx, CompilerConstraintList* constraints)
     if (!encodeSafepoints())
         return false;
 
-    AutoDiscardIonCode discardIonCode(cx, &recompileInfo);
-
     IonScript* ionScript =
-      IonScript::New(cx, recompileInfo,
-                     graph.totalSlotCount(), argumentSlots, scriptFrameSize,
-                     snapshots_.listSize(), snapshots_.RVATableSize(),
-                     recovers_.size(), bailouts_.length(), graph.numConstants(),
-                     safepointIndices_.length(), osiIndices_.length(),
-                     cacheList_.length(), runtimeData_.length(),
-                     safepoints_.size(), patchableBackedges_.length(),
-                     sharedStubs_.length(), optimizationLevel);
+        IonScript::New(cx, recompileInfo,
+                       graph.totalSlotCount(), argumentSlots, scriptFrameSize,
+                       snapshots_.listSize(), snapshots_.RVATableSize(),
+                       recovers_.size(), bailouts_.length(), graph.numConstants(),
+                       safepointIndices_.length(), osiIndices_.length(),
+                       cacheList_.length(), runtimeData_.length(),
+                       safepoints_.size(), patchableBackedges_.length(),
+                       sharedStubs_.length(), optimizationLevel);
     if (!ionScript)
         return false;
-    discardIonCode.ionScript = ionScript;
+    auto guardIonScript = mozilla::MakeScopeExit([&ionScript] {
+        // Use js_free instead of IonScript::Destroy: the cache list and
+        // backedge list are still uninitialized.
+        js_free(ionScript);
+    });
 
     // Also, note that creating the code here during an incremental GC will
     // trace the code and mark all GC things it refers to. This captures any
@@ -8545,9 +8532,8 @@ CodeGenerator::link(JSContext* cx, CompilerConstraintList* constraints)
     if (IonScriptCounts* counts = extractScriptCounts())
         script->addIonCounts(counts);
 
-    // Make sure that AutoDiscardIonCode does not free the relevant info.
-    discardIonCode.keepIonCode();
-
+    guardIonScript.release();
+    guardRecordedConstraints.release();
     return true;
 }
 

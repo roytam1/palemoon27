@@ -7511,6 +7511,7 @@ class MRegExpMatcher
         initOperand(2, lastIndex);
         initOperand(3, sticky);
 
+        setMovable();
         // May be object or null.
         setResultType(MIRType_Value);
     }
@@ -7540,10 +7541,7 @@ class MRegExpMatcher
     bool writeRecoverData(CompactBufferWriter& writer) const override;
 
     bool canRecoverOnBailout() const override {
-        // XXX: always return false for now, to work around bug 1132128.
-        if (false && regexp()->isRegExp())
-            return !regexp()->toRegExp()->source()->needUpdateLastIndex();
-        return false;
+        return true;
     }
 
     bool possiblyCalls() const override {
@@ -7566,6 +7564,7 @@ class MRegExpTester
         initOperand(2, lastIndex);
         initOperand(3, sticky);
 
+        setMovable();
         setResultType(MIRType_Int32);
     }
 
@@ -7597,13 +7596,7 @@ class MRegExpTester
 
     bool writeRecoverData(CompactBufferWriter& writer) const override;
     bool canRecoverOnBailout() const override {
-        // RegExpTester has a side-effect on the regexp object's lastIndex
-        // when sticky or global flags are set.
-        // Return false unless we are sure it's not the case.
-        // XXX: always return false for now, to work around bug 1132128.
-        if (false && regexp()->isRegExp())
-            return !regexp()->toRegExp()->source()->needUpdateLastIndex();
-        return false;
+        return true;
     }
 };
 

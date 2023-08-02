@@ -49,6 +49,7 @@ ModuleGenerator::ModuleGenerator(ExclusiveContext* cx)
     freeTasks_(cx),
     funcBytes_(0),
     funcEntryOffsets_(cx),
+    exportFuncIndices_(cx),
     activeFunc_(nullptr),
     finishedFuncs_(false)
 {
@@ -312,16 +313,16 @@ ModuleGenerator::defineImport(uint32_t index, ProfilingOffsets interpExit, Profi
 }
 
 bool
-ModuleGenerator::declareExport(MallocSig&& sig, uint32_t funcIndex, uint32_t* index)
+ModuleGenerator::declareExport(MallocSig&& sig, uint32_t funcIndex)
 {
-    *index = exports_.length();
-    return exports_.emplaceBack(Move(sig), funcIndex);
+    return exports_.emplaceBack(Move(sig)) &&
+           exportFuncIndices_.append(funcIndex);
 }
 
 uint32_t
 ModuleGenerator::exportFuncIndex(uint32_t index) const
 {
-    return exports_[index].funcIndex();
+    return exportFuncIndices_[index];
 }
 
 const MallocSig&
@@ -499,8 +500,7 @@ ModuleGenerator::defineOutOfBoundsStub(Offsets offsets)
 }
 
 Module*
-ModuleGenerator::finish(Module::HeapBool usesHeap,
-                        Module::SharedBool sharedHeap,
+ModuleGenerator::finish(HeapUsage heapUsage,
                         Module::MutedBool mutedErrors,
                         CacheableChars filename,
                         CacheableTwoByteChars displayURL,
@@ -510,7 +510,7 @@ ModuleGenerator::finish(Module::HeapBool usesHeap,
     MOZ_ASSERT(!activeFunc_);
     MOZ_ASSERT(finishedFuncs_);
 
-    if (!GenerateStubs(*this, usesHeap))
+    if (!GenerateStubs(*this, UsesHeap(heapUsage)))
         return nullptr;
 
     masm_.finish();
@@ -616,8 +616,7 @@ ModuleGenerator::finish(Module::HeapBool usesHeap,
                              funcBytes_,
                              codeBytes,
                              globalBytes_,
-                             usesHeap,
-                             sharedHeap,
+                             heapUsage,
                              mutedErrors,
                              Move(code),
                              Move(imports_),

@@ -380,6 +380,7 @@ class NewObjectCache
 class FreeOp : public JSFreeOp
 {
     Vector<void*, 0, SystemAllocPolicy> freeLaterList;
+    jit::JitPoisonRangeVector jitPoisonRanges;
     ThreadType threadType;
 
   public:
@@ -391,10 +392,7 @@ class FreeOp : public JSFreeOp
       : JSFreeOp(rt), threadType(thread)
     {}
 
-    ~FreeOp() {
-        for (size_t i = 0; i < freeLaterList.length(); i++)
-            free_(freeLaterList[i]);
-    }
+    ~FreeOp();
 
     bool onBackgroundThread() {
         return threadType == BackgroundThread;
@@ -402,6 +400,8 @@ class FreeOp : public JSFreeOp
 
     inline void free_(void* p);
     inline void freeLater(void* p);
+
+    inline bool appendJitPoisonRange(const jit::JitPoisonRange& range);
 
     template <class T>
     inline void delete_(T* p) {
@@ -1193,9 +1193,6 @@ struct JSRuntime : public JS::shadow::Runtime,
     /* AsmJSCache callbacks are runtime-wide. */
     JS::AsmJSCacheOps   asmJSCacheOps;
 
-    /* Head of the linked list of linked wasm modules. */
-    js::wasm::Module*   linkedWasmModules;
-
     /*
      * The propertyRemovals counter is incremented for every JSObject::clear,
      * and for each JSObject::remove method call that frees a slot in the given
@@ -1601,6 +1598,16 @@ FreeOp::freeLater(void* p)
     AutoEnterOOMUnsafeRegion oomUnsafe;
     if (!freeLaterList.append(p))
         oomUnsafe.crash("FreeOp::freeLater");
+}
+
+inline bool
+FreeOp::appendJitPoisonRange(const jit::JitPoisonRange& range)
+{
+    // FreeOps other than the defaultFreeOp() are constructed on the stack,
+    // and won't hold onto the pointers to free indefinitely.
+    MOZ_ASSERT(this != runtime()->defaultFreeOp());
+
+    return jitPoisonRanges.append(range);
 }
 
 /*

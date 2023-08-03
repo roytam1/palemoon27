@@ -294,47 +294,26 @@ namespace JS {
 // is dependent on the object's address. For example, if the object's address
 // is used as a key in a hashtable, then the object must be removed and
 // re-inserted with the correct hash.
+//
+// Note that while |edgep| must never be null, it is fine for |*edgep| to be
+// nullptr.
 template <typename T>
 extern JS_PUBLIC_API(void)
 TraceEdge(JSTracer* trc, JS::Heap<T>* edgep, const char* name);
 
-// As with JS::TraceEdge, but checks if *edgep is a nullptr before proceeding.
-// Note that edgep itself must always be non-null.
+extern JS_PUBLIC_API(void)
+TraceEdge(JSTracer* trc, JS::TenuredHeap<JSObject*>* edgep, const char* name);
+
+// Edges that are always traced as part of root marking do not require
+// incremental barriers. This function allows for marking non-barriered
+// pointers, but asserts that this happens during root marking.
+//
+// Note that while |edgep| must never be null, it is fine for |*edgep| to be
+// nullptr.
 template <typename T>
 extern JS_PUBLIC_API(void)
-TraceNullableEdge(JSTracer* trc, JS::Heap<T>* edgep, const char* name);
+UnsafeTraceRoot(JSTracer* trc, T* edgep, const char* name);
 
-} // namespace JS
-
-// The following JS_CallUnbarriered*Tracer functions should only be called where
-// you know for sure that a heap post barrier is not required.  Use with extreme
-// caution!
-extern JS_PUBLIC_API(void)
-JS_CallUnbarrieredValueTracer(JSTracer* trc, JS::Value* valuep, const char* name);
-
-extern JS_PUBLIC_API(void)
-JS_CallUnbarrieredIdTracer(JSTracer* trc, jsid* idp, const char* name);
-
-extern JS_PUBLIC_API(void)
-JS_CallUnbarrieredObjectTracer(JSTracer* trc, JSObject** objp, const char* name);
-
-extern JS_PUBLIC_API(void)
-JS_CallUnbarrieredStringTracer(JSTracer* trc, JSString** strp, const char* name);
-
-extern JS_PUBLIC_API(void)
-JS_CallUnbarrieredScriptTracer(JSTracer* trc, JSScript** scriptp, const char* name);
-
-/**
- * Trace an object that is known to always be tenured.  No post barriers are
- * required in this case.
- */
-extern JS_PUBLIC_API(void)
-JS_CallTenuredObjectTracer(JSTracer* trc, JS::TenuredHeap<JSObject*>* objp, const char* name);
-
-extern JS_PUBLIC_API(void)
-JS_TraceRuntime(JSTracer* trc);
-
-namespace JS {
 extern JS_PUBLIC_API(void)
 TraceChildren(JSTracer* trc, GCCellPtr thing);
 
@@ -353,6 +332,16 @@ JS_GetTraceThingInfo(char* buf, size_t bufsize, JSTracer* trc,
                      void* thing, JS::TraceKind kind, bool includeDetails);
 
 namespace js {
+
+// Trace an edge that is not a GC root and is not wrapped in a barriered
+// wrapper for some reason.
+//
+// This method does not check if |*edgep| is non-null before tracing through
+// it, so callers must check any nullable pointer before calling this method.
+template <typename T>
+extern JS_PUBLIC_API(void)
+UnsafeTraceManuallyBarrieredEdge(JSTracer* trc, T* edgep, const char* name);
+
 namespace gc {
 template <typename T>
 extern JS_PUBLIC_API(bool)
@@ -396,8 +385,8 @@ struct DefaultGCPolicy : public StructGCPolicy<T> {};
 template <>
 struct DefaultGCPolicy<jsid>
 {
-    static void trace(JSTracer* trc, jsid* id, const char* name) {
-        JS_CallUnbarrieredIdTracer(trc, id, name);
+    static void trace(JSTracer* trc, jsid* idp, const char* name) {
+        js::UnsafeTraceManuallyBarrieredEdge(trc, idp, name);
     }
 };
 

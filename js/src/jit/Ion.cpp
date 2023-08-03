@@ -2307,6 +2307,7 @@ CheckFrame(JSContext* cx, BaselineFrame* frame)
 {
     MOZ_ASSERT(!frame->script()->isGenerator());
     MOZ_ASSERT(!frame->isDebuggerEvalFrame());
+    MOZ_ASSERT(!frame->isEvalFrame());
 
     // This check is to not overrun the stack.
     if (frame->isFunctionFrame()) {
@@ -2639,9 +2640,9 @@ MethodStatus
 jit::CompileFunctionForBaseline(JSContext* cx, HandleScript script, BaselineFrame* frame)
 {
     MOZ_ASSERT(jit::IsIonEnabled(cx));
-    MOZ_ASSERT(frame->fun()->nonLazyScript()->canIonCompile());
-    MOZ_ASSERT(!frame->fun()->nonLazyScript()->isIonCompilingOffThread());
-    MOZ_ASSERT(!frame->fun()->nonLazyScript()->hasIonScript());
+    MOZ_ASSERT(frame->callee()->nonLazyScript()->canIonCompile());
+    MOZ_ASSERT(!frame->callee()->nonLazyScript()->isIonCompilingOffThread());
+    MOZ_ASSERT(!frame->callee()->nonLazyScript()->hasIonScript());
     MOZ_ASSERT(frame->isFunctionFrame());
 
     // Mark as forbidden if frame can't be handled.
@@ -2791,27 +2792,18 @@ jit::SetEnterJitData(JSContext* cx, EnterJitData& data, RunState& state, AutoVal
 
         data.calleeToken = CalleeToToken(state.script());
 
-        if (state.script()->isForEval() &&
-            !(state.asExecute()->type() & InterpreterFrame::GLOBAL))
-        {
-            ScriptFrameIter iter(cx);
-            if (iter.isFunctionFrame())
-                data.calleeToken = CalleeToToken(iter.callee(cx), /* constructing = */ false);
-
+        if (state.script()->isForEval() && state.script()->isDirectEvalInFunction()) {
             // Push newTarget onto the stack.
             if (!vals.reserve(1))
                 return false;
 
+            ScriptFrameIter iter(cx);
             data.maxArgc = 1;
             data.maxArgv = vals.begin();
-            if (iter.isFunctionFrame()) {
-                if (state.asExecute()->newTarget().isNull())
-                    vals.infallibleAppend(iter.newTarget());
-                else
-                    vals.infallibleAppend(state.asExecute()->newTarget());
-            } else {
-                vals.infallibleAppend(NullValue());
-            }
+            if (state.asExecute()->newTarget().isNull())
+                vals.infallibleAppend(iter.newTarget());
+            else
+                vals.infallibleAppend(state.asExecute()->newTarget());
         }
     }
 

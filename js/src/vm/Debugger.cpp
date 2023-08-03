@@ -6320,7 +6320,7 @@ static bool
 DebuggerFrame_getCallee(JSContext* cx, unsigned argc, Value* vp)
 {
     THIS_FRAME(cx, argc, vp, "get callee", args, thisobj, frame);
-    RootedValue calleev(cx, frame.isNonEvalFunctionFrame() ? frame.calleev() : NullValue());
+    RootedValue calleev(cx, frame.isFunctionFrame() ? frame.calleev() : NullValue());
     if (!Debugger::fromChildJSObject(thisobj)->wrapDebuggeeValue(cx, &calleev))
         return false;
     args.rval().set(calleev);
@@ -6509,7 +6509,7 @@ DebuggerFrame_getScript(JSContext* cx, unsigned argc, Value* vp)
     Debugger* debug = Debugger::fromChildJSObject(thisobj);
 
     RootedObject scriptObject(cx);
-    if (frame.isFunctionFrame() && !frame.isEvalFrame()) {
+    if (frame.isFunctionFrame()) {
         RootedFunction callee(cx, frame.callee());
         if (callee->isInterpreted()) {
             RootedScript script(cx, callee->nonLazyScript());
@@ -6709,8 +6709,7 @@ EvaluateInEnv(JSContext* cx, Handle<Env*> env, AbstractFramePtr frame,
         script->setActiveEval();
     }
 
-    ExecuteType type = !frame ? EXECUTE_GLOBAL : EXECUTE_DEBUG;
-    return ExecuteKernel(cx, script, *env, NullValue(), type, frame, rval.address());
+    return ExecuteKernel(cx, script, *env, NullValue(), frame, rval.address());
 }
 
 enum EvalBindings { EvalHasExtraBindings = true, EvalWithDefaultBindings = false };
@@ -7244,7 +7243,7 @@ DebuggerObject_getBoundArguments(JSContext* cx, unsigned argc, Value* vp)
     if (!boundArgs.resize(length))
         return false;
     for (size_t i = 0; i < length; i++) {
-        boundArgs[i].set(fun->getBoundFunctionArgument(i));
+        boundArgs[i].set(fun->getBoundFunctionArgument(cx, i));
         if (!dbg->wrapDebuggeeValue(cx, boundArgs[i]))
             return false;
     }

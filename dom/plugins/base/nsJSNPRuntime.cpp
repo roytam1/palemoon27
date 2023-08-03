@@ -287,9 +287,9 @@ TraceJSObjWrappers(JSTracer *trc, void *data)
   // any of them moved.
   for (JSObjWrapperTable::Enum e(sJSObjWrappers); !e.empty(); e.popFront()) {
     nsJSObjWrapperKey key = e.front().key();
-    JS_CallUnbarrieredObjectTracer(trc, &key.mJSObj, "sJSObjWrappers key object");
+    JS::UnsafeTraceRoot(trc, &key.mJSObj, "sJSObjWrappers key object");
     nsJSObjWrapper *wrapper = e.front().value();
-    JS::TraceNullableEdge(trc, &wrapper->mJSObj, "sJSObjWrappers wrapper object");
+    JS::TraceEdge(trc, &wrapper->mJSObj, "sJSObjWrappers wrapper object");
     if (key != e.front().key()) {
       e.rekeyFront(key);
     }
@@ -1102,7 +1102,7 @@ JSObjWrapperKeyMarkCallback(JSTracer* trc, JSObject* obj, void* data) {
   if (!p)
     return;
 
-  JS_CallUnbarrieredObjectTracer(trc, &obj, "sJSObjWrappers key object");
+  js::UnsafeTraceManuallyBarrieredEdge(trc, &obj, "sJSObjWrappers key object");
   nsJSObjWrapperKey newKey(obj, npp);
   sJSObjWrappers.rekeyIfMoved(oldKey, newKey);
 }
@@ -2274,8 +2274,8 @@ NPObjectMember_Trace(JSTracer* trc, JSObject* obj)
   // There's no strong reference from our private data to the
   // NPObject, so make sure to mark the NPObject wrapper to keep the
   // NPObject alive as long as this NPObjectMember is alive.
-  JS::TraceNullableEdge(trc, &memberPrivate->npobjWrapper,
-                        "NPObject Member => npobjWrapper");
+  JS::TraceEdge(trc, &memberPrivate->npobjWrapper,
+                "NPObject Member => npobjWrapper");
 }
 
 static bool

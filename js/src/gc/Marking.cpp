@@ -413,21 +413,31 @@ template <typename T>
 JS_PUBLIC_API(void)
 JS::TraceEdge(JSTracer* trc, JS::Heap<T>* thingp, const char* name)
 {
-    DispatchToTracer(trc, ConvertToBase(thingp->unsafeGet()), name);
+    MOZ_ASSERT(thingp);
+    if (InternalBarrierMethods<T>::isMarkable(thingp->get()))
+        DispatchToTracer(trc, ConvertToBase(thingp->unsafeGet()), name);
 }
 
-template <typename T>
 JS_PUBLIC_API(void)
-JS::TraceNullableEdge(JSTracer* trc, JS::Heap<T>* thingp, const char* name)
+JS::TraceEdge(JSTracer* trc, JS::TenuredHeap<JSObject*>* thingp, const char* name)
 {
     MOZ_ASSERT(thingp);
-    if (InternalGCMethods<T>::isMarkable(thingp->get()))
-        DispatchToTracer(trc, ConvertToBase(thingp->unsafeGet()), name);
+    if (JSObject* ptr = thingp->getPtr()) {
+        DispatchToTracer(trc, &ptr, name);
+        thingp->setPtr(ptr);
+    }
 }
 
 template <typename T>
 void
 js::TraceManuallyBarrieredEdge(JSTracer* trc, T* thingp, const char* name)
+{
+    DispatchToTracer(trc, ConvertToBase(thingp), name);
+}
+
+template <typename T>
+JS_PUBLIC_API(void)
+js::UnsafeTraceManuallyBarrieredEdge(JSTracer* trc, T* thingp, const char* name)
 {
     DispatchToTracer(trc, ConvertToBase(thingp), name);
 }
@@ -464,7 +474,7 @@ void
 js::TraceNullableRoot(JSTracer* trc, T* thingp, const char* name)
 {
     AssertRootMarkingPhase(trc);
-    if (InternalGCMethods<T>::isMarkableTaggedPointer(*thingp))
+    if (InternalBarrierMethods<T>::isMarkableTaggedPointer(*thingp))
         DispatchToTracer(trc, ConvertToBase(thingp), name);
 }
 
@@ -476,12 +486,20 @@ js::TraceNullableRoot(JSTracer* trc, ReadBarriered<T>* thingp, const char* name)
 }
 
 template <typename T>
+JS_PUBLIC_API(void)
+JS::UnsafeTraceRoot(JSTracer* trc, T* thingp, const char* name)
+{
+    MOZ_ASSERT(thingp);
+    js::TraceNullableRoot(trc, thingp, name);
+}
+
+template <typename T>
 void
 js::TraceRange(JSTracer* trc, size_t len, WriteBarrieredBase<T>* vec, const char* name)
 {
     JS::AutoTracingIndex index(trc);
     for (auto i : MakeRange(len)) {
-        if (InternalGCMethods<T>::isMarkable(vec[i].get()))
+        if (InternalBarrierMethods<T>::isMarkable(vec[i].get()))
             DispatchToTracer(trc, ConvertToBase(vec[i].unsafeUnbarrieredForTracing()), name);
         ++index;
     }
@@ -494,7 +512,7 @@ js::TraceRootRange(JSTracer* trc, size_t len, T* vec, const char* name)
     AssertRootMarkingPhase(trc);
     JS::AutoTracingIndex index(trc);
     for (auto i : MakeRange(len)) {
-        if (InternalGCMethods<T>::isMarkable(vec[i]))
+        if (InternalBarrierMethods<T>::isMarkable(vec[i]))
             DispatchToTracer(trc, ConvertToBase(&vec[i]), name);
         ++index;
     }
@@ -516,8 +534,9 @@ FOR_EACH_GC_POINTER_TYPE(INSTANTIATE_ALL_VALID_TRACE_FUNCTIONS)
 
 #define INSTANTIATE_PUBLIC_TRACE_FUNCTIONS(type) \
     template JS_PUBLIC_API(void) JS::TraceEdge<type>(JSTracer*, JS::Heap<type>*, const char*); \
-    template JS_PUBLIC_API(void) JS::TraceNullableEdge<type>(JSTracer*, JS::Heap<type>*, \
-                                                             const char*);
+    template JS_PUBLIC_API(void) JS::UnsafeTraceRoot<type>(JSTracer*, type*, const char*); \
+    template JS_PUBLIC_API(void) js::UnsafeTraceManuallyBarrieredEdge<type>(JSTracer*, type*, \
+                                                                            const char*);
 FOR_EACH_PUBLIC_GC_POINTER_TYPE(INSTANTIATE_PUBLIC_TRACE_FUNCTIONS)
 #undef INSTANTIATE_PUBLIC_TRACE_FUNCTIONS
 

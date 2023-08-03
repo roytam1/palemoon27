@@ -394,6 +394,11 @@ JS_FRIEND_API(JSFunction*)
 js::GetOutermostEnclosingFunctionOfScriptedCaller(JSContext* cx)
 {
     ScriptFrameIter iter(cx);
+
+    // Skip eval frames.
+    while (!iter.done() && iter.isEvalFrame())
+        ++iter;
+
     if (iter.done())
         return nullptr;
 
@@ -715,7 +720,7 @@ FormatFrame(JSContext* cx, const ScriptFrameIter& iter, char* buf, int num,
 
     RootedValue thisVal(cx);
     if (iter.hasUsableAbstractFramePtr() &&
-        iter.isNonEvalFunctionFrame() &&
+        iter.isFunctionFrame() &&
         fun && !fun->isArrow() && !fun->isDerivedClassConstructor())
     {
         if (!GetFunctionThis(cx, iter.abstractFramePtr(), &thisVal))

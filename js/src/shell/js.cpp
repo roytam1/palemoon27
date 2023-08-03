@@ -2170,8 +2170,6 @@ DisassembleScript(JSContext* cx, HandleScript script, HandleFunction fun,
             Sprint(sp, " CONSTRUCTOR");
         if (fun->isExprBody())
             Sprint(sp, " EXPRESSION_CLOSURE");
-        if (fun->isFunctionPrototype())
-            Sprint(sp, " Function.prototype");
         if (fun->isSelfHostedBuiltin())
             Sprint(sp, " SELF_HOSTED");
         if (fun->isArrow())
@@ -3974,6 +3972,11 @@ NewGlobal(JSContext* cx, unsigned argc, Value* vp)
             return false;
         if (v.isBoolean())
             creationOptions.setCloneSingletons(v.toBoolean());
+
+        if (!JS_GetProperty(cx, opts, "experimentalDateTimeFormatFormatToPartsEnabled", &v))
+            return true;
+        if (v.isBoolean())
+            creationOptions.setExperimentalDateTimeFormatFormatToPartsEnabled(v.toBoolean());
 
         if (!JS_GetProperty(cx, opts, "sameZoneAs", &v))
             return false;

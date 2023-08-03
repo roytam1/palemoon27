@@ -176,7 +176,6 @@ Bindings::initWithTemporaryStorage(ExclusiveContext* cx, MutableHandle<Bindings>
 
     uint32_t slot = CallObject::RESERVED_SLOTS;
     for (BindingIter bi(self); bi; bi++) {
-        MOZ_ASSERT_IF(isModule, bi->aliased());
         if (!bi->aliased())
             continue;
 
@@ -627,6 +626,7 @@ js::XDRScript(XDRState<mode>* xdr, HandleObject enclosingScopeArg, HandleScript 
         HasInnerFunctions,
         NeedsHomeObject,
         IsDerivedClassConstructor,
+        IsDefaultClassConstructor,
     };
 
     uint32_t length, lineno, column, nslots;
@@ -772,6 +772,8 @@ js::XDRScript(XDRState<mode>* xdr, HandleObject enclosingScopeArg, HandleScript 
             scriptBits |= (1 << NeedsHomeObject);
         if (script->isDerivedClassConstructor())
             scriptBits |= (1 << IsDerivedClassConstructor);
+        if (script->isDefaultClassConstructor())
+            scriptBits |= (1 << IsDefaultClassConstructor);
     }
 
     if (!xdr->codeUint32(&prologueLength))
@@ -916,6 +918,8 @@ js::XDRScript(XDRState<mode>* xdr, HandleObject enclosingScopeArg, HandleScript 
             script->needsHomeObject_ = true;
         if (scriptBits & (1 << IsDerivedClassConstructor))
             script->isDerivedClassConstructor_ = true;
+        if (scriptBits & (1 << IsDefaultClassConstructor))
+            script->isDefaultClassConstructor_ = true;
 
         if (scriptBits & (1 << IsLegacyGenerator)) {
             MOZ_ASSERT(!(scriptBits & (1 << IsStarGenerator)));
@@ -3392,8 +3396,17 @@ CloneInnerInterpretedFunction(JSContext* cx, HandleObject enclosingScope, Handle
     }
 
     gc::AllocKind allocKind = srcFun->getAllocKind();
-    RootedFunction clone(cx, NewFunctionWithProto(cx, nullptr, 0,
-                                                  JSFunction::INTERPRETED, nullptr, nullptr,
+    uint16_t flags = srcFun->flags();
+    if (srcFun->isSelfHostedBuiltin()) {
+        // Functions in the self-hosting compartment are only extended in
+        // debug mode. For top-level functions, FUNCTION_EXTENDED gets used by
+        // the cloning algorithm. Do the same for inner functions here.
+        allocKind = gc::AllocKind::FUNCTION_EXTENDED;
+        flags |= JSFunction::Flags::EXTENDED;
+    }
+    RootedAtom atom(cx, srcFun->displayAtom());
+    RootedFunction clone(cx, NewFunctionWithProto(cx, nullptr, srcFun->nargs(),
+                                                  JSFunction::Flags(flags), nullptr, atom,
                                                   cloneProto, allocKind, TenuredObject));
     if (!clone)
         return nullptr;
@@ -3405,9 +3418,6 @@ CloneInnerInterpretedFunction(JSContext* cx, HandleObject enclosingScope, Handle
     if (!cloneScript)
         return nullptr;
 
-    clone->setArgCount(srcFun->nargs());
-    clone->setFlags(srcFun->flags());
-    clone->initAtom(srcFun->displayAtom());
     if (!JSFunction::setTypeForScriptedFunction(cx, clone))
         return nullptr;
 
@@ -3572,6 +3582,9 @@ js::detail::CopyScript(JSContext* cx, HandleObject scriptStaticScope, HandleScri
     dst->hasInnerFunctions_ = src->hasInnerFunctions();
     dst->isGeneratorExp_ = src->isGeneratorExp();
     dst->setGeneratorKind(src->generatorKind());
+    dst->isDerivedClassConstructor_ = src->isDerivedClassConstructor();
+    dst->needsHomeObject_ = src->needsHomeObject();
+    dst->isDefaultClassConstructor_ = src->isDefaultClassConstructor();
 
     if (nconsts != 0) {
         HeapValue* vector = Rebase<HeapValue>(dst, src, src->consts()->vector);

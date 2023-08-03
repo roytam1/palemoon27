@@ -138,12 +138,12 @@ js::BoxNonStrictThis(JSContext* cx, const CallReceiver& call)
 bool
 js::GetFunctionThis(JSContext* cx, AbstractFramePtr frame, MutableHandleValue res)
 {
-    MOZ_ASSERT(frame.isNonEvalFunctionFrame());
-    MOZ_ASSERT(!frame.fun()->isArrow());
+    MOZ_ASSERT(frame.isFunctionFrame());
+    MOZ_ASSERT(!frame.callee()->isArrow());
 
     if (frame.thisArgument().isObject() ||
-        frame.fun()->strict() ||
-        frame.fun()->isSelfHostedBuiltin())
+        frame.callee()->strict() ||
+        frame.callee()->isSelfHostedBuiltin())
     {
         res.set(frame.thisArgument());
         return true;
@@ -293,9 +293,26 @@ MakeDefaultConstructor(JSContext* cx, JSOp op, JSAtom* atom, HandleObject proto)
     bool derived = op == JSOP_DERIVEDCONSTRUCTOR;
     MOZ_ASSERT(derived == !!proto);
 
+    PropertyName* lookup = derived ? cx->names().DefaultDerivedClassConstructor
+                                   : cx->names().DefaultBaseClassConstructor;
+
+    RootedPropertyName selfHostedName(cx, lookup);
     RootedAtom name(cx, atom == cx->names().empty ? nullptr : atom);
-    JSNative native = derived ? DefaultDerivedClassConstructor : DefaultClassConstructor;
-    return NewFunctionWithProto(cx, native, 0, JSFunction::NATIVE_CLASS_CTOR, nullptr, name, proto);
+
+    RootedFunction ctor(cx);
+    if (!cx->runtime()->createLazySelfHostedFunctionClone(cx, selfHostedName, name,
+                                                          /* nargs = */ 0,
+                                                          proto, TenuredObject, &ctor))
+    {
+        return nullptr;
+    }
+
+    ctor->setIsConstructor();
+    ctor->setIsClassConstructor();
+
+    MOZ_ASSERT(ctor->infallibleIsDefaultClassConstructor(cx));
+
+    return ctor;
 }
 
 bool
@@ -326,7 +343,9 @@ RunState::maybeCreateThisForConstructor(JSContext* cx)
         InvokeState& invoke = *asInvoke();
         if (invoke.constructing() && invoke.args().thisv().isPrimitive()) {
             RootedObject callee(cx, &invoke.args().callee());
-            if (script()->isDerivedClassConstructor()) {
+            if (callee->isBoundFunction()) {
+                invoke.args().setThis(MagicValue(JS_UNINITIALIZED_LEXICAL));
+            } else if (script()->isDerivedClassConstructor()) {
                 MOZ_ASSERT(callee->as<JSFunction>().isClassConstructor());
                 invoke.args().setThis(MagicValue(JS_UNINITIALIZED_LEXICAL));
             } else {
@@ -348,14 +367,14 @@ Interpret(JSContext* cx, RunState& state);
 InterpreterFrame*
 InvokeState::pushInterpreterFrame(JSContext* cx)
 {
-    return cx->runtime()->interpreterStack().pushInvokeFrame(cx, args_, initial_);
+    return cx->runtime()->interpreterStack().pushInvokeFrame(cx, args_, construct_);
 }
 
 InterpreterFrame*
 ExecuteState::pushInterpreterFrame(JSContext* cx)
 {
     return cx->runtime()->interpreterStack().pushExecuteFrame(cx, script_, newTargetValue_,
-                                                              scopeChain_, type_, evalInFrame_);
+                                                              scopeChain_, evalInFrame_);
 }
 // MSVC with PGO inlines a lot of functions in RunScript, resulting in large
 // stack frames and stack overflow issues, see bug 1167883. Turn off PGO to
@@ -429,9 +448,6 @@ js::Invoke(JSContext* cx, const CallArgs& args, MaybeConstruct construct)
     /* Perform GC if necessary on exit from the function. */
     AutoGCIfRequested gcIfRequested(cx->runtime());
 
-    /* MaybeConstruct is a subset of InitialFrameFlags */
-    InitialFrameFlags initial = (InitialFrameFlags) construct;
-
     unsigned skipForCallee = args.length() + 1 + (construct == CONSTRUCT);
     if (args.calleev().isPrimitive())
         return ReportIsNotFunction(cx, args.calleev(), skipForCallee, construct);
@@ -461,7 +477,7 @@ js::Invoke(JSContext* cx, const CallArgs& args, MaybeConstruct construct)
         return false;
 
     /* Run function until JSOP_RETRVAL, JSOP_RETURN or error. */
-    InvokeState state(cx, args, initial);
+    InvokeState state(cx, args, construct);
 
     // Check to see if createSingleton flag should be set for this frame.
     if (construct) {
@@ -629,12 +645,11 @@ js::InvokeSetter(JSContext* cx, const Value& thisv, Value fval, HandleValue v)
 
 bool
 js::ExecuteKernel(JSContext* cx, HandleScript script, JSObject& scopeChainArg,
-                  const Value& newTargetValue, ExecuteType type, AbstractFramePtr evalInFrame,
+                  const Value& newTargetValue, AbstractFramePtr evalInFrame,
                   Value* result)
 {
-    MOZ_ASSERT_IF(evalInFrame, type == EXECUTE_DEBUG);
-    MOZ_ASSERT_IF(type == EXECUTE_GLOBAL, IsGlobalLexicalScope(&scopeChainArg) ||
-                                          !IsSyntacticScope(&scopeChainArg));
+    MOZ_ASSERT_IF(script->isGlobalCode(),
+                  IsGlobalLexicalScope(&scopeChainArg) || !IsSyntacticScope(&scopeChainArg));
 #ifdef DEBUG
     RootedObject terminatingScope(cx, &scopeChainArg);
     while (IsSyntacticScope(terminatingScope))
@@ -659,7 +674,7 @@ js::ExecuteKernel(JSContext* cx, HandleScript script, JSObject& scopeChainArg,
     }
 
     probes::StartExecution(script);
-    ExecuteState state(cx, script, newTargetValue, scopeChainArg, type, evalInFrame, result);
+    ExecuteState state(cx, script, newTargetValue, scopeChainArg, evalInFrame, result);
     bool ok = RunScript(cx, state);
     probes::StopExecution(script);
 
@@ -692,9 +707,7 @@ js::Execute(JSContext* cx, HandleScript script, JSObject& scopeChainArg, Value* 
     } while ((s = s->enclosingScope()));
 #endif
 
-    ExecuteType type = script->module() ? EXECUTE_MODULE : EXECUTE_GLOBAL;
-
-    return ExecuteKernel(cx, script, *scopeChain, NullValue(), type,
+    return ExecuteKernel(cx, script, *scopeChain, NullValue(),
                          NullFramePtr() /* evalInFrame */, rval);
 }
 
@@ -1505,11 +1518,11 @@ class ReservedRooted : public ReservedRootedBase<T>
     }
 
     explicit ReservedRooted(Rooted<T>* root) : savedRoot(root) {
-        *root = js::GCMethods<T>::initial();
+        *root = js::GCPolicy<T>::initial();
     }
 
     ~ReservedRooted() {
-        *savedRoot = js::GCMethods<T>::initial();
+        *savedRoot = js::GCPolicy<T>::initial();
     }
 
     void set(const T& p) const { *savedRoot = p; }
@@ -2798,7 +2811,7 @@ CASE(JSOP_FUNCALL)
     if (REGS.fp()->hasPushedSPSFrame())
         cx->runtime()->spsProfiler.updatePC(script, REGS.pc);
 
-    bool construct = (*REGS.pc == JSOP_NEW || *REGS.pc == JSOP_SUPERCALL);
+    MaybeConstruct construct = MaybeConstruct(*REGS.pc == JSOP_NEW || *REGS.pc == JSOP_SUPERCALL);
     unsigned argStackSlots = GET_ARGC(REGS.pc) + construct;
 
     MOZ_ASSERT(REGS.stackDepth() >= 2u + GET_ARGC(REGS.pc));
@@ -2836,13 +2849,12 @@ CASE(JSOP_FUNCALL)
         if (!funScript)
             goto error;
 
-        InitialFrameFlags initial = construct ? INITIAL_CONSTRUCT : INITIAL_NONE;
         bool createSingleton = ObjectGroup::useSingletonForNewObject(cx, script, REGS.pc);
 
         TypeMonitorCall(cx, args, construct);
 
         mozilla::Maybe<InvokeState> state;
-        state.emplace(cx, args, initial);
+        state.emplace(cx, args, construct);
 
         if (createSingleton)
             state->setCreateSingleton();
@@ -2876,7 +2888,7 @@ CASE(JSOP_FUNCALL)
         state.reset();
         funScript = fun->nonLazyScript();
 
-        if (!activation.pushInlineFrame(args, funScript, initial))
+        if (!activation.pushInlineFrame(args, funScript, construct))
             goto error;
 
         if (createSingleton)
@@ -3361,7 +3373,7 @@ CASE(JSOP_LAMBDA_ARROW)
 END_CASE(JSOP_LAMBDA_ARROW)
 
 CASE(JSOP_CALLEE)
-    MOZ_ASSERT(REGS.fp()->isNonEvalFunctionFrame());
+    MOZ_ASSERT(REGS.fp()->isFunctionFrame());
     PUSH_COPY(REGS.fp()->calleev());
 END_CASE(JSOP_CALLEE)
 
@@ -3713,7 +3725,7 @@ END_CASE(JSOP_GENERATOR)
 CASE(JSOP_INITIALYIELD)
 {
     MOZ_ASSERT(!cx->isExceptionPending());
-    MOZ_ASSERT(REGS.fp()->isNonEvalFunctionFrame());
+    MOZ_ASSERT(REGS.fp()->isFunctionFrame());
     ReservedRooted<JSObject*> obj(&rootObject0, &REGS.sp[-1].toObject());
     POP_RETURN_VALUE();
     MOZ_ASSERT(REGS.stackDepth() == 0);
@@ -3725,7 +3737,7 @@ CASE(JSOP_INITIALYIELD)
 CASE(JSOP_YIELD)
 {
     MOZ_ASSERT(!cx->isExceptionPending());
-    MOZ_ASSERT(REGS.fp()->isNonEvalFunctionFrame());
+    MOZ_ASSERT(REGS.fp()->isFunctionFrame());
     ReservedRooted<JSObject*> obj(&rootObject0, &REGS.sp[-1].toObject());
     if (!GeneratorObject::normalSuspend(cx, obj, REGS.fp(), REGS.pc,
                                         REGS.spForStackDepth(0), REGS.stackDepth() - 2))
@@ -4843,50 +4855,6 @@ js::ReportRuntimeLexicalError(JSContext* cx, unsigned errorNumber,
     }
 
     ReportRuntimeLexicalError(cx, errorNumber, name);
-}
-
-bool
-js::DefaultClassConstructor(JSContext* cx, unsigned argc, Value* vp)
-{
-    CallArgs args = CallArgsFromVp(argc, vp);
-    if (!args.isConstructing()) {
-        JS_ReportErrorNumber(cx, GetErrorMessage, nullptr, JSMSG_CANT_CALL_CLASS_CONSTRUCTOR);
-        return false;
-    }
-
-    RootedObject newTarget(cx, &args.newTarget().toObject());
-    JSObject* obj = CreateThis(cx, &PlainObject::class_, newTarget);
-    if (!obj)
-        return false;
-
-    args.rval().set(ObjectValue(*obj));
-    return true;
-}
-
-bool
-js::DefaultDerivedClassConstructor(JSContext* cx, unsigned argc, Value* vp)
-{
-    CallArgs args = CallArgsFromVp(argc, vp);
-    if (!args.isConstructing()) {
-        JS_ReportErrorNumber(cx, GetErrorMessage, nullptr, JSMSG_CANT_CALL_CLASS_CONSTRUCTOR);
-        return false;
-    }
-
-    RootedObject fun(cx, &args.callee());
-    RootedObject superFun(cx);
-    if (!GetPrototype(cx, fun, &superFun))
-        return false;
-
-    RootedValue fval(cx, ObjectOrNullValue(superFun));
-    if (!IsConstructor(fval)) {
-        ReportValueError(cx, JSMSG_NOT_CONSTRUCTOR, JSDVG_IGNORE_STACK, fval, nullptr);
-        return false;
-    }
-
-    ConstructArgs constArgs(cx);
-    if (!FillArgumentsFromArraylike(cx, constArgs, args))
-        return false;
-    return Construct(cx, fval, constArgs, args.newTarget(), args.rval());
 }
 
 void

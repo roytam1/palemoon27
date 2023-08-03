@@ -24,7 +24,7 @@
 #include "builtin/ModuleObject.h"
 #include "builtin/Object.h"
 #include "builtin/RegExp.h"
-#include "builtin/SIMD.h"
+#include "builtin/SelfHostingDefines.h"
 #include "builtin/SymbolObject.h"
 #include "builtin/TypedObject.h"
 #include "builtin/WeakMapObject.h"
@@ -690,8 +690,12 @@ GlobalObject::getSelfHostedFunction(JSContext* cx, Handle<GlobalObject*> global,
     }
 
     RootedFunction fun(cx);
-    if (!cx->runtime()->createLazySelfHostedFunctionClone(cx, selfHostedName, name, nargs, &fun))
+    if (!cx->runtime()->createLazySelfHostedFunctionClone(cx, selfHostedName, name, nargs,
+                                                          /* proto = */ nullptr,
+                                                          SingletonObject, &fun))
+    {
         return false;
+    }
     funVal.setObject(*fun);
 
     return GlobalObject::addIntrinsicValue(cx, global, selfHostedName, funVal);

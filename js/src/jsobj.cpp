@@ -3606,7 +3606,7 @@ js::DumpInterpreterFrame(JSContext* cx, InterpreterFrame* start)
             v.setObject(*fun);
             dumpValue(v);
         } else {
-            fprintf(stderr, "global frame, no callee");
+            fprintf(stderr, "global or eval frame, no callee");
         }
         fputc('\n', stderr);
 
@@ -3618,7 +3618,7 @@ js::DumpInterpreterFrame(JSContext* cx, InterpreterFrame* start)
             fprintf(stderr, "  current op: %s\n", CodeName[*pc]);
             MaybeDumpObject("staticScope", i.script()->getStaticBlockScope(pc));
         }
-        if (i.isNonEvalFunctionFrame())
+        if (i.isFunctionFrame())
             MaybeDumpValue("this", i.thisArgument(cx));
         if (!i.isJit()) {
             fprintf(stderr, "  rval: ");

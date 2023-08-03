@@ -251,7 +251,7 @@ CallObject::createForFunction(JSContext* cx, HandleObject enclosing, HandleFunct
 CallObject*
 CallObject::createForFunction(JSContext* cx, AbstractFramePtr frame)
 {
-    MOZ_ASSERT(frame.isNonEvalFunctionFrame());
+    MOZ_ASSERT(frame.isFunctionFrame());
     assertSameCompartment(cx, frame);
 
     RootedObject scopeChain(cx, frame.scopeChain());
@@ -1451,7 +1451,7 @@ ScopeIter::settle()
 {
     // Check for trying to iterate a function frame before the prologue has
     // created the CallObject, in which case we have to skip.
-    if (frame_ && frame_.isNonEvalFunctionFrame() && frame_.fun()->needsCallObject() &&
+    if (frame_ && frame_.isFunctionFrame() && frame_.callee()->needsCallObject() &&
         !frame_.hasCallObj())
     {
         MOZ_ASSERT(ssi_.type() == StaticScopeIter<CanGC>::Function);
@@ -2608,7 +2608,7 @@ DebugScopes::onPopCall(AbstractFramePtr frame, JSContext* cx)
 
     Rooted<DebugScopeObject*> debugScope(cx, nullptr);
 
-    if (frame.fun()->needsCallObject()) {
+    if (frame.callee()->needsCallObject()) {
         /*
          * The frame may be observed before the prologue has created the
          * CallObject. See ScopeIter::settle.
@@ -2616,7 +2616,7 @@ DebugScopes::onPopCall(AbstractFramePtr frame, JSContext* cx)
         if (!frame.hasCallObj())
             return;
 
-        if (frame.fun()->isGenerator())
+        if (frame.callee()->isGenerator())
             return;
 
         CallObject& callobj = frame.scopeChain()->as<CallObject>();

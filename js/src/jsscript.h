@@ -1195,6 +1195,7 @@ class JSScript : public js::gc::TenuredCell
     bool needsHomeObject_:1;
 
     bool isDerivedClassConstructor_:1;
+    bool isDefaultClassConstructor_:1;
 
     // Add padding so JSScript is gc::Cell aligned. Make padding protected
     // instead of private to suppress -Wunused-private-field compiler warnings.
@@ -1287,23 +1288,23 @@ class JSScript : public js::gc::TenuredCell
 
     void setColumn(size_t column) { column_ = column; }
 
-    // The fixed part of a stack frame is comprised of vars (in function code)
-    // and block-scoped locals (in all kinds of code).
+    // The fixed part of a stack frame is comprised of vars (in function and
+    // module code) and block-scoped locals (in all kinds of code).
     size_t nfixed() const {
-        return function_ ? bindings.numFixedLocals() : bindings.numBlockScoped();
+        return isGlobalOrEvalCode() ? bindings.numBlockScoped() : bindings.numFixedLocals();
     }
 
     // Number of fixed slots reserved for vars.  Only nonzero for function
-    // code.
+    // or module code.
     size_t nfixedvars() const {
-        return function_ ? bindings.numUnaliasedVars() : 0;
+        return isGlobalOrEvalCode() ? 0 : bindings.numUnaliasedVars();
     }
 
     // Number of fixed slots reserved for body-level lexicals and vars. This
     // value minus nfixedvars() is the number of body-level lexicals. Only
-    // nonzero for function code.
+    // nonzero for function or module code.
     size_t nbodyfixed() const {
-        return function_ ? bindings.numUnaliasedBodyLevelLocals() : 0;
+        return isGlobalOrEvalCode() ? 0 : bindings.numUnaliasedBodyLevelLocals();
     }
 
     // Calculate the number of fixed slots that are live at a particular bytecode.
@@ -1426,6 +1427,9 @@ class JSScript : public js::gc::TenuredCell
     bool failedLexicalCheck() const {
         return failedLexicalCheck_;
     }
+    bool isDefaultClassConstructor() const {
+        return isDefaultClassConstructor_;
+    }
 
     void setFailedBoundsCheck() { failedBoundsCheck_ = true; }
     void setFailedShapeGuard() { failedShapeGuard_ = true; }
@@ -1434,6 +1438,7 @@ class JSScript : public js::gc::TenuredCell
     void setUninlineable() { uninlineable_ = true; }
     void setInvalidatedIdempotentCache() { invalidatedIdempotentCache_ = true; }
     void setFailedLexicalCheck() { failedLexicalCheck_ = true; }
+    void setIsDefaultClassConstructor() { isDefaultClassConstructor_ = true; }
 
     bool hasScriptCounts() const { return hasScriptCounts_; }
 
@@ -1638,6 +1643,13 @@ class JSScript : public js::gc::TenuredCell
     }
     inline void setModule(js::ModuleObject* module);
 
+    bool isGlobalOrEvalCode() const {
+        return !function_ && !module_;
+    }
+    bool isGlobalCode() const {
+        return isGlobalOrEvalCode() && !isForEval();
+    }
+
     JSFlatString* sourceData(JSContext* cx);
 
     static bool loadSource(JSContext* cx, js::ScriptSource* ss, bool* worked);
@@ -1656,7 +1668,10 @@ class JSScript : public js::gc::TenuredCell
   public:
 
     /* Return whether this script was compiled for 'eval' */
-    bool isForEval() { return isCachedEval() || isActiveEval(); }
+    bool isForEval() const { return isCachedEval() || isActiveEval(); }
+
+    /* Return whether this is a 'direct eval' script in a function scope. */
+    bool isDirectEvalInFunction() const { return isForEval() && savedCallerFun(); }
 
     /*
      * Return whether this script is a top-level script.

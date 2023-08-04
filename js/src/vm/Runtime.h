@@ -14,7 +14,6 @@
 #include "mozilla/PodOperations.h"
 #include "mozilla/Scoped.h"
 #include "mozilla/ThreadLocal.h"
-#include "mozilla/UniquePtr.h"
 #include "mozilla/Vector.h"
 
 #include <setjmp.h>
@@ -33,11 +32,12 @@
 #include "gc/Tracer.h"
 #include "irregexp/RegExpStack.h"
 #include "js/Debug.h"
+#include "js/GCVector.h"
 #include "js/HashTable.h"
 #ifdef DEBUG
 # include "js/Proxy.h" // For AutoEnterPolicy
 #endif
-#include "js/TraceableVector.h"
+#include "js/UniquePtr.h"
 #include "js/Vector.h"
 #include "vm/CodeCoverage.h"
 #include "vm/CommonPropertyNames.h"
@@ -146,7 +146,7 @@ struct ScopeCoordinateNameCache {
     void purge();
 };
 
-using ScriptAndCountsVector = TraceableVector<ScriptAndCounts, 0, SystemAllocPolicy>;
+using ScriptAndCountsVector = GCVector<ScriptAndCounts, 0, SystemAllocPolicy>;
 
 struct EvalCacheEntry
 {
@@ -1920,7 +1920,7 @@ class MOZ_RAII AutoEnterIonCompilation
 template <typename T>
 class MOZ_STACK_CLASS AutoInitGCManagedObject
 {
-    typedef mozilla::UniquePtr<T, JS::DeletePolicy<T>> UniquePtrT;
+    typedef UniquePtr<T> UniquePtrT;
 
     UniquePtrT ptr_;
 

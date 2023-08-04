@@ -262,7 +262,7 @@ GenerateEntry(ModuleGenerator& mg, unsigned exportIndex, bool usesHeap)
         MOZ_CRASH("no int64 in asm.js");
       case ExprType::F32:
         masm.convertFloat32ToDouble(ReturnFloat32Reg, ReturnDoubleReg);
-        // Fall through as ReturnDoubleReg now contains a Double
+        MOZ_FALLTHROUGH; // as ReturnDoubleReg now contains a Double
       case ExprType::F64:
         masm.canonicalizeDouble(ReturnDoubleReg);
         masm.storeDouble(ReturnDoubleReg, Address(argv, 0));
@@ -1074,14 +1074,14 @@ GenerateThrowStub(ModuleGenerator& mg, Label* throwLabel)
 bool
 wasm::GenerateStubs(ModuleGenerator& mg, bool usesHeap)
 {
-    for (unsigned i = 0; i < mg.numDeclaredExports(); i++) {
+    for (unsigned i = 0; i < mg.numExports(); i++) {
         if (!GenerateEntry(mg, i, usesHeap))
             return false;
     }
 
     Label onThrow;
 
-    for (size_t i = 0; i < mg.numDeclaredImports(); i++) {
+    for (size_t i = 0; i < mg.numImports(); i++) {
         ProfilingOffsets interp;
         if (!GenerateInterpExitStub(mg, i, &onThrow, &interp))
             return false;

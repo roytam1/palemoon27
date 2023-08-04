@@ -119,6 +119,7 @@ EXPORTS.js += [
     '../public/Debug.h',
     '../public/GCAPI.h',
     '../public/GCHashTable.h',
+    '../public/GCVector.h',
     '../public/HashTable.h',
     '../public/HeapAPI.h',
     '../public/Id.h',
@@ -133,7 +134,6 @@ EXPORTS.js += [
     '../public/RootingAPI.h',
     '../public/SliceBudget.h',
     '../public/StructuredClone.h',
-    '../public/TraceableVector.h',
     '../public/TraceKind.h',
     '../public/TracingAPI.h',
     '../public/TrackedOptimizationInfo.h',
@@ -143,6 +143,7 @@ EXPORTS.js += [
     '../public/UbiNodeCensus.h',
     '../public/UbiNodeDominatorTree.h',
     '../public/UbiNodePostOrder.h',
+    '../public/UniquePtr.h',
     '../public/Utility.h',
     '../public/Value.h',
     '../public/Vector.h',
@@ -269,7 +270,6 @@ UNIFIED_SOURCES += [
     'jscntxt.cpp',
     'jscompartment.cpp',
     'jsdate.cpp',
-    'jsdtoa.cpp',
     'jsexn.cpp',
     'jsfriendapi.cpp',
     'jsfun.cpp',
@@ -357,6 +357,8 @@ UNIFIED_SOURCES += [
 # without PGO
 # frontend/Parser.cpp cannot be built in unified mode because of explicit
 # template instantiations.
+# jsdtoa.cpp cannot be built in unified mode because we want to suppress
+# compiler warnings in third-party dtoa.c.
 # jsmath.cpp cannot be built in unified mode because it needs to pull rand_s
 # from <stdlib.h> on Windows through a preprocessor define.
 # jsutil.cpp cannot be built in unified mode because it is needed for
@@ -370,6 +372,7 @@ SOURCES += [
     'gc/StoreBuffer.cpp',
     'jsarray.cpp',
     'jsatom.cpp',
+    'jsdtoa.cpp',
     'jsmath.cpp',
     'jsutil.cpp',
     'vm/Initialization.cpp',
@@ -727,3 +730,7 @@ if CONFIG['JS_HAS_CTYPES']:
     else:
         # Windows needs this to be linked with a static library.
         DEFINES['FFI_BUILDING'] = True
+
+# Suppress warnings in third-party code.
+if CONFIG['CLANG_CXX']:
+    SOURCES['jsdtoa.cpp'].flags += ['-Wno-implicit-fallthrough']

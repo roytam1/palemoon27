@@ -12,7 +12,6 @@
 
 #include "mozilla/FloatingPoint.h"
 #include "mozilla/PodOperations.h"
-#include "mozilla/UniquePtr.h"
 
 #include <ctype.h>
 #include <stdarg.h>
@@ -68,6 +67,7 @@
 #include "js/Proxy.h"
 #include "js/SliceBudget.h"
 #include "js/StructuredClone.h"
+#include "js/UniquePtr.h"
 #include "vm/DateObject.h"
 #include "vm/Debugger.h"
 #include "vm/ErrorObject.h"
@@ -100,7 +100,6 @@ using namespace js::gc;
 using mozilla::Maybe;
 using mozilla::PodCopy;
 using mozilla::PodZero;
-using mozilla::UniquePtr;
 
 using JS::AutoGCRooter;
 using JS::ToInt32;
@@ -1481,19 +1480,6 @@ JS_GetGCParameter(JSRuntime* rt, JSGCParamKey key)
 {
     AutoLockGC lock(rt);
     return rt->gc.getParameter(key, lock);
-}
-
-JS_PUBLIC_API(void)
-JS_SetGCParameterForThread(JSContext* cx, JSGCParamKey key, uint32_t value)
-{
-    MOZ_ASSERT(key == JSGC_MAX_CODE_CACHE_BYTES);
-}
-
-JS_PUBLIC_API(uint32_t)
-JS_GetGCParameterForThread(JSContext* cx, JSGCParamKey key)
-{
-    MOZ_ASSERT(key == JSGC_MAX_CODE_CACHE_BYTES);
-    return 0;
 }
 
 static const size_t NumGCConfigs = 14;
@@ -3888,7 +3874,7 @@ JS::OwningCompileOptions::setFileAndLine(JSContext* cx, const char* f, unsigned 
 bool
 JS::OwningCompileOptions::setSourceMapURL(JSContext* cx, const char16_t* s)
 {
-    UniquePtr<char16_t[], JS::FreePolicy> copy;
+    UniqueTwoByteChars copy;
     if (s) {
         copy = DuplicateString(cx, s);
         if (!copy)
@@ -3973,7 +3959,7 @@ static bool
 Compile(JSContext* cx, const ReadOnlyCompileOptions& options, SyntacticScopeOption scopeOption,
         const char* bytes, size_t length, MutableHandleScript script)
 {
-    mozilla::UniquePtr<char16_t, JS::FreePolicy> chars;
+    UniqueTwoByteChars chars;
     if (options.utf8)
         chars.reset(UTF8CharsToNewTwoByteCharsZ(cx, UTF8Chars(bytes, length), &length).get());
     else
@@ -4302,7 +4288,7 @@ JS::CompileFunction(JSContext* cx, AutoObjectVector& scopeChain,
                     const char* name, unsigned nargs, const char* const* argnames,
                     const char* bytes, size_t length, MutableHandleFunction fun)
 {
-    mozilla::UniquePtr<char16_t, JS::FreePolicy> chars;
+    UniqueTwoByteChars chars;
     if (options.utf8)
         chars.reset(UTF8CharsToNewTwoByteCharsZ(cx, UTF8Chars(bytes, length), &length).get());
     else
@@ -5947,6 +5933,8 @@ JS_PUBLIC_API(bool)
 DescribeScriptedCaller(JSContext* cx, UniqueChars* filename, unsigned* lineno,
                        unsigned* column)
 {
+    if (filename)
+        filename->reset();
     if (lineno)
         *lineno = 0;
     if (column)
@@ -5961,8 +5949,8 @@ DescribeScriptedCaller(JSContext* cx, UniqueChars* filename, unsigned* lineno,
     if (i.activation()->scriptedCallerIsHidden())
         return false;
 
-    if (filename) {
-        UniqueChars copy = make_string_copy(i.filename());
+    if (filename && i.filename()) {
+        UniqueChars copy = DuplicateString(i.filename());
         if (!copy)
             return false;
         *filename = Move(copy);

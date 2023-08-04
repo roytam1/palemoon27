@@ -98,12 +98,10 @@ using namespace js::shell;
 
 using mozilla::ArrayLength;
 using mozilla::Atomic;
-using mozilla::MakeUnique;
 using mozilla::Maybe;
 using mozilla::NumberEqualsInt32;
 using mozilla::PodCopy;
 using mozilla::PodEqual;
-using mozilla::UniquePtr;
 
 enum JSShellExitCode {
     EXITCODE_RUNTIME_ERROR      = 3,
@@ -597,7 +595,7 @@ RunModule(JSContext* cx, const char* filename, FILE* file, bool compileOnly)
     RootedFunction importFun(cx);
     MOZ_ALWAYS_TRUE(GetImportMethod(cx, loaderObj, &importFun));
 
-    AutoValueArray<2> args(cx);
+    JS::AutoValueArray<2> args(cx);
     args[0].setString(JS_NewStringCopyZ(cx, filename));
     args[1].setUndefined();
 
@@ -2665,7 +2663,7 @@ EvalInContext(JSContext* cx, unsigned argc, Value* vp)
         return true;
     }
 
-    JS::AutoFilename filename;
+    JS::UniqueChars filename;
     unsigned lineno;
 
     DescribeScriptedCaller(cx, &filename, &lineno);
@@ -2725,7 +2723,7 @@ WorkerMain(void* arg)
         return;
     }
 
-    mozilla::UniquePtr<ShellRuntime> sr = MakeUnique<ShellRuntime>();
+    UniquePtr<ShellRuntime> sr = MakeUnique<ShellRuntime>();
     if (!sr) {
         JS_DestroyRuntime(rt);
         js_delete(input);
@@ -3309,7 +3307,7 @@ ParseModule(JSContext* cx, unsigned argc, Value* vp)
     if (!scriptContents)
         return false;
 
-    mozilla::UniquePtr<char, JS::FreePolicy> filename;
+    UniqueChars filename;
     CompileOptions options(cx);
     if (args.length() > 1) {
         if (!args[1].isString()) {
@@ -3906,7 +3904,7 @@ ThisFilename(JSContext* cx, unsigned argc, Value* vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
 
-    JS::AutoFilename filename;
+    JS::UniqueChars filename;
     if (!DescribeScriptedCaller(cx, &filename) || !filename.get()) {
         args.rval().setString(cx->runtime()->emptyString);
         return true;
@@ -4108,12 +4106,12 @@ WithSourceHook(JSContext* cx, unsigned argc, Value* vp)
         return false;
     }
 
-    UniquePtr<ShellSourceHook> hook =
-        MakeUnique<ShellSourceHook>(cx, args[0].toObject().as<JSFunction>());
+    mozilla::UniquePtr<ShellSourceHook> hook =
+        mozilla::MakeUnique<ShellSourceHook>(cx, args[0].toObject().as<JSFunction>());
     if (!hook)
         return false;
 
-    UniquePtr<SourceHook> savedHook = js::ForgetSourceHook(cx->runtime());
+    mozilla::UniquePtr<SourceHook> savedHook = js::ForgetSourceHook(cx->runtime());
     js::SetSourceHook(cx->runtime(), Move(hook));
 
     RootedObject fun(cx, &args[1].toObject());
@@ -4595,7 +4593,7 @@ class ShellAutoEntryMonitor : JS::dbg::AutoEntryMonitor {
             return;
         }
 
-        oom = !log.append(make_string_copy("anonymous"));
+        oom = !log.append(DuplicateString("anonymous"));
     }
 
     void Entry(JSContext* cx, JSScript* script, JS::HandleValue asyncStack,
@@ -4764,6 +4762,32 @@ EntryPoints(JSContext* cx, unsigned argc, Value* vp)
 
     JS_ReportError(cx, "bad 'params' object");
     return false;
+}
+
+static bool
+SetARMHwCapFlags(JSContext* cx, unsigned argc, Value* vp)
+{
+    CallArgs args = CallArgsFromVp(argc, vp);
+
+    if (args.length() != 1) {
+        JS_ReportError(cx, "Wrong number of arguments");
+        return false;
+    }
+
+    RootedString flagsListString(cx, JS::ToString(cx, args.get(0)));
+    if (!flagsListString)
+        return false;
+
+#if defined(JS_CODEGEN_ARM)
+    JSAutoByteString flagsList(cx, flagsListString);
+    if (!flagsList)
+        return false;
+
+    jit::ParseARMHwCapFlags(flagsList.ptr());
+#endif
+
+    args.rval().setUndefined();
+    return true;
 }
 
 static const JSFunctionSpecWithHelp shell_functions[] = {
@@ -5226,6 +5250,11 @@ TestAssertRecoveredOnBailout,
 "  Prints the static scope chain of an interpreted function or a module."),
 #endif
 
+    JS_FN_HELP("setARMHwCapFlags", SetARMHwCapFlags, 1, 0,
+"setARMHwCapFlags(\"flag1,flag2 flag3\")",
+"  On non-ARM, no-op. On ARM, set the hardware capabilities. The list of \n"
+"  flags is available by calling this function with \"help\" as the flag's name"),
+
     JS_FS_HELP_END
 };
 
@@ -5427,7 +5456,7 @@ PrintStackTrace(JSContext* cx, HandleValue exn)
     if (!BuildStackString(cx, stackObj, &stackStr, 2))
         return false;
 
-    UniquePtr<char[], JS::FreePolicy> stack(JS_EncodeStringToUTF8(cx, stackStr));
+    UniqueChars stack(JS_EncodeStringToUTF8(cx, stackStr));
     if (!stack)
         return false;
 
@@ -6840,7 +6869,7 @@ main(int argc, char** argv, char** envp)
     if (!rt)
         return 1;
 
-    mozilla::UniquePtr<ShellRuntime> sr = MakeUnique<ShellRuntime>();
+    UniquePtr<ShellRuntime> sr = MakeUnique<ShellRuntime>();
     if (!sr)
         return 1;
 
@@ -6881,7 +6910,6 @@ main(int argc, char** argv, char** envp)
         return 1;
 
     JS_SetGCParameter(rt, JSGC_MODE, JSGC_MODE_INCREMENTAL);
-    JS_SetGCParameterForThread(cx, JSGC_MAX_CODE_CACHE_BYTES, 16 * 1024 * 1024);
 
     JS::SetLargeAllocationFailureCallback(rt, my_LargeAllocFailCallback, (void*)cx);
 

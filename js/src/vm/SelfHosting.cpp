@@ -55,7 +55,6 @@ using JS::AutoCheckCannotGC;
 using mozilla::IsInRange;
 using mozilla::Maybe;
 using mozilla::PodMove;
-using mozilla::UniquePtr;
 using mozilla::Maybe;
 
 static void
@@ -235,8 +234,7 @@ ThrowErrorWithType(JSContext* cx, JSExnType type, const CallArgs& args)
         } else if (val.isString()) {
             errorArgs[i - 1].encodeLatin1(cx, val.toString());
         } else {
-            UniquePtr<char[], JS::FreePolicy> bytes =
-                DecompileValueGenerator(cx, JSDVG_SEARCH_STACK, val, nullptr);
+            UniqueChars bytes = DecompileValueGenerator(cx, JSDVG_SEARCH_STACK, val, nullptr);
             if (!bytes)
                 return;
             errorArgs[i - 1].initBytes(bytes.release());
@@ -540,14 +538,7 @@ intrinsic_IsPackedArray(JSContext* cx, unsigned argc, Value* vp)
     CallArgs args = CallArgsFromVp(argc, vp);
     MOZ_ASSERT(args.length() == 1);
     MOZ_ASSERT(args[0].isObject());
-
-    JSObject* obj = &args[0].toObject();
-    bool isPacked = obj->is<ArrayObject>() && !obj->hasLazyGroup() &&
-                    !obj->group()->hasAllFlags(OBJECT_FLAG_NON_PACKED) &&
-                    obj->as<ArrayObject>().getDenseInitializedLength() ==
-                        obj->as<ArrayObject>().length();
-
-    args.rval().setBoolean(isPacked);
+    args.rval().setBoolean(IsPackedArray(&args[0].toObject()));
     return true;
 }
 

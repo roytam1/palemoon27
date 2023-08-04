@@ -7,7 +7,6 @@
 #include "jit/BaselineCompiler.h"
 
 #include "mozilla/Casting.h"
-#include "mozilla/UniquePtr.h"
 
 #include "jit/BaselineIC.h"
 #include "jit/BaselineJIT.h"
@@ -21,6 +20,8 @@
 #endif
 #include "jit/SharedICHelpers.h"
 #include "jit/VMFunctions.h"
+#include "js/UniquePtr.h"
+#include "vm/Interpreter.h"
 #include "vm/ScopeObject.h"
 #include "vm/TraceLogging.h"
 
@@ -195,7 +196,7 @@ BaselineCompiler::compile()
     // Note: There is an extra entry in the bytecode type map for the search hint, see below.
     size_t bytecodeTypeMapEntries = script->nTypeSets() + 1;
 
-    mozilla::UniquePtr<BaselineScript, JS::DeletePolicy<BaselineScript> > baselineScript(
+    UniquePtr<BaselineScript> baselineScript(
         BaselineScript::New(script, prologueOffset_.offset(),
                             epilogueOffset_.offset(),
                             profilerEnterFrameToggleOffset_.offset(),
@@ -3182,6 +3183,27 @@ bool
 BaselineCompiler::emit_JSOP_STRICTSPREADEVAL()
 {
     return emitSpreadCall();
+}
+
+typedef bool (*OptimizeSpreadCallFn)(JSContext*, HandleValue, bool*);
+static const VMFunction OptimizeSpreadCallInfo =
+    FunctionInfo<OptimizeSpreadCallFn>(OptimizeSpreadCall);
+
+bool
+BaselineCompiler::emit_JSOP_OPTIMIZE_SPREADCALL()
+{
+    frame.syncStack(0);
+    masm.loadValue(frame.addressOfStackValue(frame.peek(-1)), R0);
+
+    prepareVMCall();
+    pushArg(R0);
+
+    if (!callVM(OptimizeSpreadCallInfo))
+        return false;
+
+    masm.boxNonDouble(JSVAL_TYPE_BOOLEAN, ReturnReg, R0);
+    frame.push(R0);
+    return true;
 }
 
 typedef bool (*ImplicitThisFn)(JSContext*, HandleObject, HandlePropertyName,

@@ -26,7 +26,7 @@
 #include "jit/SharedICHelpers.h"
 #include "jit/VMFunctions.h"
 #include "js/Conversions.h"
-#include "js/TraceableVector.h"
+#include "js/GCVector.h"
 #include "vm/Opcodes.h"
 #include "vm/TypedArrayCommon.h"
 
@@ -1181,6 +1181,7 @@ RemoveExistingGetElemNativeStubs(JSContext* cx, ICGetElem_Fallback* stub, Handle
           case ICStub::GetElem_NativeSlotSymbol:
             if (indirect)
                 continue;
+            MOZ_FALLTHROUGH;
           case ICStub::GetElem_NativePrototypeSlotName:
           case ICStub::GetElem_NativePrototypeSlotSymbol:
           case ICStub::GetElem_NativePrototypeCallNativeName:

@@ -14106,7 +14106,7 @@ nsDocShell::NotifyJSRunToCompletionStart(const char* aReason,
     RefPtr<TimelineConsumers> timelines = TimelineConsumers::Get();
     if (timelines && timelines->HasConsumer(this)) {
       timelines->AddMarkerForDocShell(this, Move(
-        MakeUnique<JavascriptTimelineMarker>(
+        mozilla::MakeUnique<JavascriptTimelineMarker>(
           aReason, aFunctionName, aFilename, aLineNumber, MarkerTracingType::START,
           aAsyncStack, aAsyncCause)));
     }

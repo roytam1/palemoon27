@@ -2448,7 +2448,7 @@ ASTSerializer::statement(ParseNode* pn, MutableHandleValue dst)
         pn = pn->pn_expr;
         if (!pn->isKind(PNK_STATEMENTLIST))
             return statement(pn, dst);
-        /* FALL THROUGH */
+        MOZ_FALLTHROUGH;
 
       case PNK_STATEMENTLIST:
         return blockStatement(pn, dst);
@@ -3745,7 +3745,8 @@ reflect_parse(JSContext* cx, uint32_t argc, Value* vp)
         if (!module)
             return false;
 
-        pn = parser.standaloneModule(module);
+        ModuleBuilder builder(cx, module);
+        pn = parser.standaloneModule(module, builder);
         if (!pn)
             return false;
 

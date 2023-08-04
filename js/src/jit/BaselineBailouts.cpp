@@ -1721,7 +1721,7 @@ CopyFromRematerializedFrame(JSContext* cx, JitActivation* act, uint8_t* fp, size
 
     frame->setScopeChain(rematFrame->scopeChain());
 
-    if (frame->isNonEvalFunctionFrame())
+    if (frame->isFunctionFrame())
         frame->thisArgument() = rematFrame->thisArgument();
 
     for (unsigned i = 0; i < frame->numActualArgs(); i++)
@@ -1913,7 +1913,7 @@ jit::FinishBailoutToBaseline(BaselineBailoutInfo* bailoutInfo)
       // Invalid assumption based on baseline code.
       case Bailout_OverflowInvalidate:
         outerScript->setHadOverflowBailout();
-        // FALL THROUGH
+        MOZ_FALLTHROUGH;
       case Bailout_NonStringInputInvalidate:
       case Bailout_DoubleOutput:
       case Bailout_ObjectIdentityOrTypeGuard:

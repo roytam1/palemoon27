@@ -15,7 +15,6 @@
 #include "mozilla/FloatingPoint.h"
 #include "mozilla/Maybe.h"
 #include "mozilla/PodOperations.h"
-#include "mozilla/UniquePtr.h"
 
 #include <string.h>
 
@@ -29,7 +28,7 @@
 #include "jstypes.h"
 #include "jsutil.h"
 
-#include "asmjs/AsmJSLink.h"
+#include "asmjs/AsmJS.h"
 #include "frontend/Parser.h"
 #include "frontend/TokenStream.h"
 #include "vm/Debugger.h"
@@ -54,7 +53,6 @@ using mozilla::Some;
 using mozilla::DebugOnly;
 using mozilla::NumberIsInt32;
 using mozilla::PodCopy;
-using mozilla::UniquePtr;
 
 struct frontend::StmtInfoBCE : public StmtInfoBase
 {
@@ -2109,6 +2107,7 @@ BytecodeEmitter::checkSideEffects(ParseNode* pn, bool* answer)
       // Any subexpression of a comma expression could be effectful.
       case PNK_COMMA:
         MOZ_ASSERT(pn->pn_count > 0);
+        MOZ_FALLTHROUGH;
       // Subcomponents of a literal may be effectful.
       case PNK_ARRAY:
       case PNK_OBJECT:
@@ -3973,9 +3972,9 @@ BytecodeEmitter::emitDestructuringLHS(ParseNode* target, VarEmitOption emitOptio
 }
 
 bool
-BytecodeEmitter::emitIteratorNext(ParseNode* pn)
+BytecodeEmitter::emitIteratorNext(ParseNode* pn, bool allowSelfHosted)
 {
-    MOZ_ASSERT(emitterMode != BytecodeEmitter::SelfHosting,
+    MOZ_ASSERT(allowSelfHosted || emitterMode != BytecodeEmitter::SelfHosting,
                ".next() iteration is prohibited in self-hosted code because it "
                "can run user-modifiable iteration code");
 
@@ -5514,7 +5513,7 @@ BytecodeEmitter::emitForInOrOfVariables(ParseNode* pn)
 }
 
 bool
-BytecodeEmitter::emitForOf(StmtType type, ParseNode* pn)
+BytecodeEmitter::emitForOf(StmtType type, ParseNode* pn, bool allowSelfHosted)
 {
     MOZ_ASSERT(type == StmtType::FOR_OF_LOOP || type == StmtType::SPREAD);
 #ifdef DEBUG
@@ -5623,7 +5622,7 @@ BytecodeEmitter::emitForOf(StmtType type, ParseNode* pn)
         if (!emitDupAt(2))                                // ITER ARR I ITER
             return false;
     }
-    if (!emitIteratorNext(forHead))                       // ... RESULT
+    if (!emitIteratorNext(forHead, allowSelfHosted))      // ... RESULT
         return false;
     if (!emit1(JSOP_DUP))                                 // ... RESULT RESULT
         return false;
@@ -6363,7 +6362,7 @@ BytecodeEmitter::emitFunction(ParseNode* pn, bool needsProto)
         if (outersc->isFunctionBox())
             outersc->asFunctionBox()->function()->nonLazyScript()->setHasInnerFunctions(true);
     } else {
-        MOZ_ASSERT(IsAsmJSModuleNative(fun->native()));
+        MOZ_ASSERT(IsAsmJSModule(fun));
     }
 
     /* Make the function object a literal in the outer script's pool. */
@@ -7048,8 +7047,7 @@ BytecodeEmitter::emitStatement(ParseNode* pn)
                     directive = js_useStrict_str;
             } else if (atom == cx->names().useAsm) {
                 if (sc->isFunctionBox()) {
-                    JSFunction* fun = sc->asFunctionBox()->function();
-                    if (fun->isNative() && IsAsmJSModuleNative(fun->native()))
+                    if (IsAsmJSModule(sc->asFunctionBox()->function()))
                         directive = js_useAsm_str;
                 }
             }
@@ -7194,12 +7192,15 @@ BytecodeEmitter::emitSelfHostedCallFunction(ParseNode* pn)
         return false;
     }
 
-    if (pn->getOp() != JSOP_CALL) {
+    JSOp callOp = pn->getOp();
+    if (callOp != JSOP_CALL) {
         reportError(pn, JSMSG_NOT_CONSTRUCTOR, errorName);
         return false;
     }
 
     ParseNode* funNode = pn2->pn_next;
+    if (funNode->getKind() == PNK_NAME && funNode->name() == cx->names().std_Function_apply)
+        callOp = JSOP_FUNAPPLY;
     if (!emitTree(funNode))
         return false;
 
@@ -7223,10 +7224,10 @@ BytecodeEmitter::emitSelfHostedCallFunction(ParseNode* pn)
     emittingForInit = oldEmittingForInit;
 
     uint32_t argc = pn->pn_count - 3;
-    if (!emitCall(pn->getOp(), argc))
+    if (!emitCall(callOp, argc))
         return false;
 
-    checkTypeSet(pn->getOp());
+    checkTypeSet(callOp);
     return true;
 }
 
@@ -7267,6 +7268,88 @@ BytecodeEmitter::emitSelfHostedForceInterpreter(ParseNode* pn)
         return false;
     if (!emit1(JSOP_UNDEFINED))
         return false;
+    return true;
+}
+
+bool
+BytecodeEmitter::emitSelfHostedAllowContentSpread(ParseNode* pn)
+{
+    if (pn->pn_count != 2) {
+        reportError(pn, JSMSG_MORE_ARGS_NEEDED, "allowContentSpread", "1", "");
+        return false;
+    }
+
+    // We're just here as a sentinel. Pass the value through directly.
+    return emitTree(pn->pn_head->pn_next);
+}
+
+bool
+BytecodeEmitter::isRestParameter(ParseNode* pn, bool* result)
+{
+    if (!sc->isFunctionBox()) {
+        *result = false;
+        return true;
+    }
+
+    RootedFunction fun(cx, sc->asFunctionBox()->function());
+    if (!fun->hasRest()) {
+        *result = false;
+        return true;
+    }
+
+    if (!pn->isKind(PNK_NAME)) {
+        if (emitterMode == BytecodeEmitter::SelfHosting && pn->isKind(PNK_CALL)) {
+            ParseNode* pn2 = pn->pn_head;
+            if (pn2->getKind() == PNK_NAME && pn2->name() == cx->names().allowContentSpread)
+                return isRestParameter(pn2->pn_next, result);
+        }
+        *result = false;
+        return true;
+    }
+
+    if (!bindNameToSlot(pn))
+        return false;
+
+    *result = pn->getOp() == JSOP_GETARG && pn->pn_scopecoord.slot() == fun->nargs() - 1;
+    return true;
+}
+
+bool
+BytecodeEmitter::emitOptimizeSpread(ParseNode* arg0, ptrdiff_t* jmp, bool* emitted)
+{
+    // Emit a pereparation code to optimize the spread call with a rest
+    // parameter:
+    //
+    //   function f(...args) {
+    //     g(...args);
+    //   }
+    //
+    // If the spread operand is a rest parameter and it's optimizable array,
+    // skip spread operation and pass it directly to spread call operation.
+    // See the comment in OptimizeSpreadCall in Interpreter.cpp for the
+    // optimizable conditons.
+    bool result = false;
+    if (!isRestParameter(arg0, &result))
+        return false;
+
+    if (!result) {
+        *emitted = false;
+        return true;
+    }
+
+    if (!emitTree(arg0))
+        return false;
+
+    if (!emit1(JSOP_OPTIMIZE_SPREADCALL))
+        return false;
+
+    if (!emitJump(JSOP_IFNE, 0, jmp))
+        return false;
+
+    if (!emit1(JSOP_POP))
+        return false;
+
+    *emitted = true;
     return true;
 }
 
@@ -7318,6 +7401,8 @@ BytecodeEmitter::emitCallOrNew(ParseNode* pn)
                 return emitSelfHostedResumeGenerator(pn);
             if (pn2->name() == cx->names().forceInterpreter)
                 return emitSelfHostedForceInterpreter(pn);
+            if (pn2->name() == cx->names().allowContentSpread)
+                return emitSelfHostedAllowContentSpread(pn);
             // Fall through.
         }
         if (!emitNameOp(pn2, callop))
@@ -7420,8 +7505,19 @@ BytecodeEmitter::emitCallOrNew(ParseNode* pn)
             }
         }
     } else {
-        if (!emitArray(pn2->pn_next, argc, JSOP_SPREADCALLARRAY))
+        ParseNode* args = pn2->pn_next;
+        ptrdiff_t jmp;
+        bool optCodeEmitted = false;
+        if (argc == 1) {
+            if (!emitOptimizeSpread(args->pn_kid, &jmp, &optCodeEmitted))
+                return false;
+        }
+
+        if (!emitArray(args, argc, JSOP_SPREADCALLARRAY))
             return false;
+
+        if (optCodeEmitted)
+            setJumpOffsetAt(jmp);
 
         if (isNewOp) {
             if (pn->isKind(PNK_SUPERCALL)) {
@@ -7933,9 +8029,9 @@ BytecodeEmitter::emitArrayComp(ParseNode* pn)
 }
 
 bool
-BytecodeEmitter::emitSpread()
+BytecodeEmitter::emitSpread(bool allowSelfHosted)
 {
-    return emitForOf(StmtType::SPREAD, nullptr);
+    return emitForOf(StmtType::SPREAD, nullptr, allowSelfHosted);
 }
 
 bool
@@ -8025,11 +8121,25 @@ BytecodeEmitter::emitArray(ParseNode* pn, uint32_t count, JSOp op)
         }
         if (!updateSourceCoordNotes(pn2->pn_pos.begin))
             return false;
+
+        bool allowSelfHostedSpread = false;
         if (pn2->isKind(PNK_ELISION)) {
             if (!emit1(JSOP_HOLE))
                 return false;
         } else {
-            ParseNode* expr = pn2->isKind(PNK_SPREAD) ? pn2->pn_kid : pn2;
+            ParseNode* expr;
+            if (pn2->isKind(PNK_SPREAD)) {
+                expr = pn2->pn_kid;
+
+                if (emitterMode == BytecodeEmitter::SelfHosting &&
+                    expr->isKind(PNK_CALL) &&
+                    expr->pn_head->name() == cx->names().allowContentSpread)
+                {
+                    allowSelfHostedSpread = true;
+                }
+            } else {
+                expr = pn2;
+            }
             if (!emitTree(expr))                                         // ARRAY INDEX? VALUE
                 return false;
         }
@@ -8040,7 +8150,7 @@ BytecodeEmitter::emitArray(ParseNode* pn, uint32_t count, JSOp op)
                 return false;
             if (!emit2(JSOP_PICK, 2))                                    // ITER ARRAY INDEX
                 return false;
-            if (!emitSpread())                                           // ARRAY INDEX
+            if (!emitSpread(allowSelfHostedSpread))                      // ARRAY INDEX
                 return false;
         } else if (afterSpread) {
             if (!emit1(JSOP_INITELEM_INC))
@@ -8775,7 +8885,7 @@ BytecodeEmitter::emitTree(ParseNode* pn, EmitLineNumberNote emitLineNote)
         break;
 
       case PNK_POSHOLDER:
-        MOZ_ASSERT_UNREACHABLE("Should never try to emit PNK_POSHOLDER");
+        MOZ_FALLTHROUGH_ASSERT("Should never try to emit PNK_POSHOLDER");
 
       default:
         MOZ_ASSERT(0);

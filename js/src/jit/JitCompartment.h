@@ -402,14 +402,14 @@ class JitCompartment
     // which may occur off thread and whose barriers are captured during
     // CodeGenerator::link.
     JitCode* stringConcatStub_;
-    JitCode* regExpExecStub_;
-    JitCode* regExpTestStub_;
+    JitCode* regExpMatcherStub_;
+    JitCode* regExpTesterStub_;
 
     mozilla::Array<ReadBarrieredObject, SimdTypeDescr::LAST_TYPE + 1> simdTemplateObjects_;
 
     JitCode* generateStringConcatStub(JSContext* cx);
-    JitCode* generateRegExpExecStub(JSContext* cx);
-    JitCode* generateRegExpTestStub(JSContext* cx);
+    JitCode* generateRegExpMatcherStub(JSContext* cx);
+    JitCode* generateRegExpTesterStub(JSContext* cx);
 
   public:
     JSObject* getSimdTemplateObjectFor(JSContext* cx, Handle<SimdTypeDescr*> descr) {
@@ -493,26 +493,26 @@ class JitCompartment
         return stringConcatStub_;
     }
 
-    JitCode* regExpExecStubNoBarrier() const {
-        return regExpExecStub_;
+    JitCode* regExpMatcherStubNoBarrier() const {
+        return regExpMatcherStub_;
     }
 
-    bool ensureRegExpExecStubExists(JSContext* cx) {
-        if (regExpExecStub_)
+    bool ensureRegExpMatcherStubExists(JSContext* cx) {
+        if (regExpMatcherStub_)
             return true;
-        regExpExecStub_ = generateRegExpExecStub(cx);
-        return regExpExecStub_ != nullptr;
+        regExpMatcherStub_ = generateRegExpMatcherStub(cx);
+        return regExpMatcherStub_ != nullptr;
     }
 
-    JitCode* regExpTestStubNoBarrier() const {
-        return regExpTestStub_;
+    JitCode* regExpTesterStubNoBarrier() const {
+        return regExpTesterStub_;
     }
 
-    bool ensureRegExpTestStubExists(JSContext* cx) {
-        if (regExpTestStub_)
+    bool ensureRegExpTesterStubExists(JSContext* cx) {
+        if (regExpTesterStub_)
             return true;
-        regExpTestStub_ = generateRegExpTestStub(cx);
-        return regExpTestStub_ != nullptr;
+        regExpTesterStub_ = generateRegExpTesterStub(cx);
+        return regExpTesterStub_ != nullptr;
     }
 };
 
@@ -526,9 +526,9 @@ void FinishInvalidation(FreeOp* fop, JSScript* script);
 const unsigned WINDOWS_BIG_FRAME_TOUCH_INCREMENT = 4096 - 1;
 #endif
 
-// If ExecutableAllocator::nonWritableJitCode is |true|, this class will ensure
-// JIT code is writable (has RW permissions) in its scope. If nonWritableJitCode
-// is |false|, it's a no-op.
+// If NON_WRITABLE_JIT_CODE is enabled, this class will ensure
+// JIT code is writable (has RW permissions) in its scope.
+// Otherwise it's a no-op.
 class MOZ_STACK_CLASS AutoWritableJitCode
 {
     // Backedge patching from the signal handler will change memory protection
@@ -543,7 +543,8 @@ class MOZ_STACK_CLASS AutoWritableJitCode
       : preventPatching_(rt), rt_(rt), addr_(addr), size_(size)
     {
         rt_->toggleAutoWritableJitCodeActive(true);
-        ExecutableAllocator::makeWritable(addr_, size_);
+        if (!ExecutableAllocator::makeWritable(addr_, size_))
+            MOZ_CRASH();
     }
     AutoWritableJitCode(void* addr, size_t size)
       : AutoWritableJitCode(TlsPerThreadData.get()->runtimeFromMainThread(), addr, size)
@@ -552,7 +553,8 @@ class MOZ_STACK_CLASS AutoWritableJitCode
       : AutoWritableJitCode(code->runtimeFromMainThread(), code->raw(), code->bufferSize())
     {}
     ~AutoWritableJitCode() {
-        ExecutableAllocator::makeExecutable(addr_, size_);
+        if (!ExecutableAllocator::makeExecutable(addr_, size_))
+            MOZ_CRASH();
         rt_->toggleAutoWritableJitCodeActive(false);
     }
 };

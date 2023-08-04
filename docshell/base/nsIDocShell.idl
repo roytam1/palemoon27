@@ -1073,6 +1073,12 @@ interface nsIDocShell : nsIDocShellTreeItem
    * top level chrome docshell.
    */
   attribute boolean windowDraggingAllowed;
+
+  /**
+   * Sets/gets the current scroll restoration mode.
+   * @see https://html.spec.whatwg.org/#dom-history-scroll-restoration
+  */
+  attribute boolean currentScrollRestorationIsManual;
 };
 
 [scriptable, builtinclass, uuid(395c6a79-80ae-4ede-9e05-93bee6c3d9a1)]

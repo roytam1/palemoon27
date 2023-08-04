@@ -113,6 +113,7 @@ UNIFIED_SOURCES += [
     'nsConsoleMessage.cpp',
     'nsConsoleService.cpp',
     'nsCycleCollector.cpp',
+    'nsCycleCollectorTraceJSHelpers.cpp',
     'nsDumpUtils.cpp',
     'nsErrorService.cpp',
     'nsGZFileWriter.cpp',

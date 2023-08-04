@@ -84,12 +84,6 @@ public:
         return CurrentSurface(nullptr, nullptr);
     }
 
-    /**
-     * Return the reference cairo_t object from aDT.
-     * XXX this should be moved into gfxFont at some point.
-     */
-    static cairo_t* RefCairo(mozilla::gfx::DrawTarget* aDT);
-
     mozilla::gfx::DrawTarget *GetDrawTarget() { return mDT; }
 
     /**
@@ -366,13 +360,6 @@ public:
     gfxFloat CurrentMiterLimit() const;
 
     /**
-     ** Fill Properties
-     **/
-
-    void SetFillRule(FillRule rule);
-    FillRule CurrentFillRule() const;
-
-    /**
      * Sets the operator used for all further drawing. The operator affects
      * how drawing something will modify the destination. For example, the
      * OVER operator will do alpha blending of source and destination, while
@@ -451,9 +438,6 @@ public:
 
     mozilla::gfx::Point GetDeviceOffset() const;
 
-    // Work out whether cairo will snap inter-glyph spacing to pixels.
-    void GetRoundOffsetsToPixels(bool *aRoundX, bool *aRoundY);
-
 #ifdef MOZ_DUMP_PAINTING
     /**
      * Debug functions to encode the current surface as a PNG and export it.
@@ -495,8 +479,6 @@ private:
     AzureState()
       : op(mozilla::gfx::CompositionOp::OP_OVER)
       , color(0, 0, 0, 1.0f)
-      , clipWasReset(false)
-      , fillRule(mozilla::gfx::FillRule::FILL_WINDING)
       , aaMode(mozilla::gfx::AntialiasMode::SUBPIXEL)
       , patternTransformChanged(false)
     {}
@@ -516,11 +498,8 @@ private:
     };
     nsTArray<PushedClip> pushedClips;
     nsTArray<Float> dashPattern;
-    bool clipWasReset;
-    mozilla::gfx::FillRule fillRule;
     StrokeOptions strokeOptions;
     RefPtr<DrawTarget> drawTarget;
-    RefPtr<DrawTarget> parentTarget;
     mozilla::gfx::AntialiasMode aaMode;
     bool patternTransformChanged;
     Matrix patternTransform;
@@ -558,8 +537,6 @@ private:
 
   AzureState &CurrentState() { return mStateStack[mStateStack.Length() - 1]; }
   const AzureState &CurrentState() const { return mStateStack[mStateStack.Length() - 1]; }
-
-  cairo_t *mRefCairo;
 
   RefPtr<DrawTarget> mDT;
   RefPtr<DrawTarget> mOriginalDT;

@@ -83,7 +83,7 @@ struct JS_FRIEND_API(CountDeleter) {
     void operator()(CountBase*);
 };
 
-using CountBasePtr = UniquePtr<CountBase, CountDeleter>;
+using CountBasePtr = js::UniquePtr<CountBase, CountDeleter>;
 
 // Abstract base class for CountType nodes.
 struct JS_FRIEND_API(CountType) {
@@ -111,7 +111,7 @@ struct JS_FRIEND_API(CountType) {
     virtual bool report(JSContext* cx, CountBase& count, MutableHandleValue report) = 0;
 };
 
-using CountTypePtr = UniquePtr<CountType, JS::DeletePolicy<CountType>>;
+using CountTypePtr = js::UniquePtr<CountType>;
 
 // An abstract base class for count tree nodes.
 class JS_FRIEND_API(CountBase) {

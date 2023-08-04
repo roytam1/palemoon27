@@ -38,36 +38,34 @@ class FunctionCompiler
     typedef HashMap<uint32_t, BlockVector, DefaultHasher<uint32_t>, SystemAllocPolicy> LabeledBlockMap;
     typedef HashMap<size_t, BlockVector, DefaultHasher<uint32_t>, SystemAllocPolicy> UnlabeledBlockMap;
     typedef Vector<size_t, 4, SystemAllocPolicy> PositionStack;
-    typedef Vector<ValType, 4, SystemAllocPolicy> LocalTypes;
 
-    CompileArgs              args_;
-    const FuncIR&            func_;
-    size_t                   pc_;
+    const FuncBytecode& func_;
+    Decoder             decoder_;
+    size_t              nextId_;
+    size_t              lastReadCallSite_;
 
-    TempAllocator&           alloc_;
-    MIRGraph&                graph_;
-    const CompileInfo&       info_;
-    MIRGenerator&            mirGen_;
+    TempAllocator&      alloc_;
+    MIRGraph&           graph_;
+    const CompileInfo&  info_;
+    MIRGenerator&       mirGen_;
 
-    MBasicBlock*             curBlock_;
+    MBasicBlock*        curBlock_;
 
-    PositionStack            loopStack_;
-    PositionStack            breakableStack_;
-    UnlabeledBlockMap        unlabeledBreaks_;
-    UnlabeledBlockMap        unlabeledContinues_;
-    LabeledBlockMap          labeledBreaks_;
-    LabeledBlockMap          labeledContinues_;
+    PositionStack       loopStack_;
+    PositionStack       breakableStack_;
+    UnlabeledBlockMap   unlabeledBreaks_;
+    UnlabeledBlockMap   unlabeledContinues_;
+    LabeledBlockMap     labeledBreaks_;
+    LabeledBlockMap     labeledContinues_;
 
-    LocalTypes               localTypes_;
-
-    FunctionCompileResults&  compileResults_;
+    FuncCompileResults& compileResults_;
 
   public:
-    FunctionCompiler(CompileArgs args, const FuncIR& func, MIRGenerator& mirGen,
-                     FunctionCompileResults& compileResults)
-      : args_(args),
-        func_(func),
-        pc_(0),
+    FunctionCompiler(const FuncBytecode& func, MIRGenerator& mirGen, FuncCompileResults& compileResults)
+      : func_(func),
+        decoder_(func.bytecode()),
+        nextId_(0),
+        lastReadCallSite_(0),
         alloc_(mirGen.alloc()),
         graph_(mirGen.graph()),
         info_(mirGen.info()),
@@ -95,6 +93,8 @@ class FunctionCompiler
         const LifoSig::ArgVector& args = func_.sig().args();
         unsigned firstVarSlot = args.length();
 
+        if (!mirGen_.ensureBallast())
+            return false;
         if (!newBlock(/* pred = */ nullptr, &curBlock_))
             return false;
 
@@ -104,42 +104,37 @@ class FunctionCompiler
             curBlock_->initSlot(info().localSlot(i.index()), ins);
             if (!mirGen_.ensureBallast())
                 return false;
-            if (!localTypes_.append(args[i.index()]))
-                return false;
         }
 
-        for (unsigned i = 0; i < func_.numVarInits(); i++) {
-            Val v = func_.varInit(i);
+        for (size_t i = 0; i < func_.numLocalVars(); i++) {
             MInstruction* ins = nullptr;
-            switch (v.type()) {
+            switch (func_.localVarType(i)) {
               case ValType::I32:
-                ins = MConstant::NewAsmJS(alloc(), Int32Value(v.i32()), MIRType_Int32);
+                ins = MConstant::NewAsmJS(alloc(), Int32Value(0), MIRType_Int32);
                 break;
               case ValType::I64:
                 MOZ_CRASH("int64");
               case ValType::F32:
-                ins = MConstant::NewAsmJS(alloc(), Float32Value(v.f32()), MIRType_Float32);
+                ins = MConstant::NewAsmJS(alloc(), Float32Value(0.f), MIRType_Float32);
                 break;
               case ValType::F64:
-                ins = MConstant::NewAsmJS(alloc(), DoubleValue(v.f64()), MIRType_Double);
+                ins = MConstant::NewAsmJS(alloc(), DoubleValue(0.0), MIRType_Double);
                 break;
               case ValType::I32x4:
-                ins = MSimdConstant::New(alloc(), SimdConstant::CreateX4(v.i32x4()), MIRType_Int32x4);
+                ins = MSimdConstant::New(alloc(), SimdConstant::SplatX4(0), MIRType_Int32x4);
                 break;
               case ValType::F32x4:
-                ins = MSimdConstant::New(alloc(), SimdConstant::CreateX4(v.f32x4()), MIRType_Float32x4);
+                ins = MSimdConstant::New(alloc(), SimdConstant::SplatX4(0.f), MIRType_Float32x4);
                 break;
               case ValType::B32x4:
                 // Bool32x4 uses the same data layout as Int32x4.
-                ins = MSimdConstant::New(alloc(), SimdConstant::CreateX4(v.i32x4()), MIRType_Bool32x4);
+                ins = MSimdConstant::New(alloc(), SimdConstant::SplatX4(0), MIRType_Bool32x4);
                 break;
             }
 
             curBlock_->add(ins);
             curBlock_->initSlot(info().localSlot(firstVarSlot + i), ins);
             if (!mirGen_.ensureBallast())
-                return false;
-            if (!localTypes_.append(v.type()))
                 return false;
         }
 
@@ -154,7 +149,7 @@ class FunctionCompiler
         MOZ_ASSERT(labeledBreaks_.empty());
         MOZ_ASSERT(labeledContinues_.empty());
         MOZ_ASSERT(inDeadCode());
-        MOZ_ASSERT(pc_ == func_.size(), "all bytecode must be consumed");
+        MOZ_ASSERT(decoder_.done(), "all bytecode must be consumed");
     }
 
     /************************* Read-only interface (after local scope setup) */
@@ -770,7 +765,7 @@ class FunctionCompiler
         return callPrivate(MAsmJSCall::Callee(ptrFun), call, ret, def);
     }
 
-    bool builtinCall(Builtin builtin, const Call& call, ValType type, MDefinition** def)
+    bool builtinCall(SymbolicAddress builtin, const Call& call, ValType type, MDefinition** def)
     {
         return callPrivate(MAsmJSCall::Callee(builtin), call, ToExprType(type), def);
     }
@@ -898,9 +893,9 @@ class FunctionCompiler
         return curBlock_->pop();
     }
 
-    bool startPendingLoop(size_t pos, MBasicBlock** loopEntry)
+    bool startPendingLoop(size_t id, MBasicBlock** loopEntry)
     {
-        if (!loopStack_.append(pos) || !breakableStack_.append(pos))
+        if (!loopStack_.append(id) || !breakableStack_.append(id))
             return false;
         if (inDeadCode()) {
             *loopEntry = nullptr;
@@ -943,10 +938,10 @@ class FunctionCompiler
   private:
     size_t popLoop()
     {
-        size_t pos = loopStack_.popCopy();
-        MOZ_ASSERT(!unlabeledContinues_.has(pos));
+        size_t id = loopStack_.popCopy();
+        MOZ_ASSERT(!unlabeledContinues_.has(id));
         breakableStack_.popBack();
-        return pos;
+        return id;
     }
 
     void fixupRedundantPhis(MBasicBlock* b)
@@ -1007,11 +1002,11 @@ class FunctionCompiler
   public:
     bool closeLoop(MBasicBlock* loopEntry, MBasicBlock* afterLoop)
     {
-        size_t pos = popLoop();
+        size_t id = popLoop();
         if (!loopEntry) {
             MOZ_ASSERT(!afterLoop);
             MOZ_ASSERT(inDeadCode());
-            MOZ_ASSERT(!unlabeledBreaks_.has(pos));
+            MOZ_ASSERT(!unlabeledBreaks_.has(id));
             return true;
         }
         MOZ_ASSERT(loopEntry->loopDepth() == loopStack_.length() + 1);
@@ -1025,15 +1020,15 @@ class FunctionCompiler
         curBlock_ = afterLoop;
         if (curBlock_)
             mirGraph().moveBlockToEnd(curBlock_);
-        return bindUnlabeledBreaks(pos);
+        return bindUnlabeledBreaks(id);
     }
 
     bool branchAndCloseDoWhileLoop(MDefinition* cond, MBasicBlock* loopEntry)
     {
-        size_t pos = popLoop();
+        size_t id = popLoop();
         if (!loopEntry) {
             MOZ_ASSERT(inDeadCode());
-            MOZ_ASSERT(!unlabeledBreaks_.has(pos));
+            MOZ_ASSERT(!unlabeledBreaks_.has(id));
             return true;
         }
         MOZ_ASSERT(loopEntry->loopDepth() == loopStack_.length() + 1);
@@ -1062,13 +1057,13 @@ class FunctionCompiler
                 curBlock_ = afterLoop;
             }
         }
-        return bindUnlabeledBreaks(pos);
+        return bindUnlabeledBreaks(id);
     }
 
-    bool bindContinues(size_t pos, const LabelVector* maybeLabels)
+    bool bindContinues(size_t id, const LabelVector* maybeLabels)
     {
         bool createdJoinBlock = false;
-        if (UnlabeledBlockMap::Ptr p = unlabeledContinues_.lookup(pos)) {
+        if (UnlabeledBlockMap::Ptr p = unlabeledContinues_.lookup(id)) {
             if (!bindBreaksOrContinues(&p->value(), &createdJoinBlock))
                 return false;
             unlabeledContinues_.remove(p);
@@ -1094,10 +1089,10 @@ class FunctionCompiler
         return addBreakOrContinue(loopStack_.back(), &unlabeledContinues_);
     }
 
-    bool startSwitch(size_t pos, MDefinition* expr, int32_t low, int32_t high,
+    bool startSwitch(size_t id, MDefinition* expr, int32_t low, int32_t high,
                      MBasicBlock** switchBlock)
     {
-        if (!breakableStack_.append(pos))
+        if (!breakableStack_.append(id))
             return false;
         if (inDeadCode()) {
             *switchBlock = nullptr;
@@ -1138,7 +1133,7 @@ class FunctionCompiler
 
     bool joinSwitch(MBasicBlock* switchBlock, const BlockVector& cases, MBasicBlock* defaultBlock)
     {
-        size_t pos = breakableStack_.popCopy();
+        size_t id = breakableStack_.popCopy();
         if (!switchBlock)
             return true;
         MTableSwitch* mir = switchBlock->lastIns()->toTableSwitch();
@@ -1164,29 +1159,38 @@ class FunctionCompiler
             curBlock_->end(MGoto::New(alloc(), next));
             curBlock_ = next;
         }
-        return bindUnlabeledBreaks(pos);
+        return bindUnlabeledBreaks(id);
     }
+
+    // Provides unique identifiers for internal uses in the control flow stacks;
+    // these ids have to grow monotonically.
+    unsigned nextId() { return nextId_++; }
 
     /************************************************************ DECODING ***/
 
-    uint8_t        readU8()     { return func_.readU8(&pc_); }
-    uint32_t       readU32()    { return func_.readU32(&pc_); }
-    int32_t        readI32()    { return func_.readI32(&pc_); }
-    float          readF32()    { return func_.readF32(&pc_); }
-    double         readF64()    { return func_.readF64(&pc_); }
-    const LifoSig* readSig()    { return func_.readSig(&pc_); }
-    SimdConstant   readI32X4()  { return func_.readI32X4(&pc_); }
-    SimdConstant   readF32X4()  { return func_.readF32X4(&pc_); }
+    uint8_t        readU8()     { return decoder_.uncheckedReadU8(); }
+    uint32_t       readU32()    { return decoder_.uncheckedReadU32(); }
+    int32_t        readI32()    { return decoder_.uncheckedReadI32(); }
+    float          readF32()    { return decoder_.uncheckedReadF32(); }
+    double         readF64()    { return decoder_.uncheckedReadF64(); }
+    const LifoSig* readSig()    { return decoder_.uncheckedReadSig(); }
+    SimdConstant   readI32X4()  { return decoder_.uncheckedReadI32X4(); }
+    SimdConstant   readF32X4()  { return decoder_.uncheckedReadF32X4(); }
+
     Stmt           readStmtOp() { return Stmt(readU8()); }
 
-    void assertDebugCheckPoint() {
-#ifdef DEBUG
-        MOZ_ASSERT(Stmt(readU8()) == Stmt::DebugCheckPoint);
-#endif
+    void readCallLineCol(uint32_t* line, uint32_t* column) {
+        const SourceCoords& sc = func_.sourceCoords(lastReadCallSite_++);
+        decoder_.assertCurrentIs(sc.offset);
+        *line = sc.line;
+        *column = sc.column;
     }
 
-    bool done() const { return pc_ == func_.size(); }
-    size_t pc() const { return pc_; }
+    void assertDebugCheckPoint() {
+        MOZ_ASSERT(Stmt(readU8()) == Stmt::DebugCheckPoint);
+    }
+
+    bool done() const { return decoder_.done(); }
 
     /*************************************************************************/
   private:
@@ -1269,10 +1273,10 @@ class FunctionCompiler
         return true;
     }
 
-    bool bindUnlabeledBreaks(size_t pos)
+    bool bindUnlabeledBreaks(size_t id)
     {
         bool createdJoinBlock = false;
-        if (UnlabeledBlockMap::Ptr p = unlabeledBreaks_.lookup(pos)) {
+        if (UnlabeledBlockMap::Ptr p = unlabeledBreaks_.lookup(id)) {
             if (!bindBreaksOrContinues(&p->value(), &createdJoinBlock))
                 return false;
             unlabeledBreaks_.remove(p);
@@ -1566,13 +1570,6 @@ EmitCallArgs(FunctionCompiler& f, const LifoSig& sig, FunctionCompiler::Call* ca
     return true;
 }
 
-static void
-ReadCallLineCol(FunctionCompiler& f, uint32_t* line, uint32_t* column)
-{
-    *line = f.readU32();
-    *column = f.readU32();
-}
-
 static bool
 EmitInternalCall(FunctionCompiler& f, ExprType ret, MDefinition** def)
 {
@@ -1581,7 +1578,7 @@ EmitInternalCall(FunctionCompiler& f, ExprType ret, MDefinition** def)
     MOZ_ASSERT_IF(!IsVoid(sig.ret()), sig.ret() == ret);
 
     uint32_t lineno, column;
-    ReadCallLineCol(f, &lineno, &column);
+    f.readCallLineCol(&lineno, &column);
 
     FunctionCompiler::Call call(f, lineno, column);
     if (!EmitCallArgs(f, sig, &call))
@@ -1600,7 +1597,7 @@ EmitFuncPtrCall(FunctionCompiler& f, ExprType ret, MDefinition** def)
     MOZ_ASSERT_IF(!IsVoid(sig.ret()), sig.ret() == ret);
 
     uint32_t lineno, column;
-    ReadCallLineCol(f, &lineno, &column);
+    f.readCallLineCol(&lineno, &column);
 
     MDefinition *index;
     if (!EmitI32Expr(f, &index))
@@ -1622,7 +1619,7 @@ EmitFFICall(FunctionCompiler& f, ExprType ret, MDefinition** def)
     MOZ_ASSERT_IF(!IsVoid(sig.ret()), sig.ret() == ret);
 
     uint32_t lineno, column;
-    ReadCallLineCol(f, &lineno, &column);
+    f.readCallLineCol(&lineno, &column);
 
     FunctionCompiler::Call call(f, lineno, column);
     if (!EmitCallArgs(f, sig, &call))
@@ -1637,7 +1634,7 @@ EmitMathBuiltinCall(FunctionCompiler& f, F32 f32, MDefinition** def)
     MOZ_ASSERT(f32 == F32::Ceil || f32 == F32::Floor);
 
     uint32_t lineno, column;
-    ReadCallLineCol(f, &lineno, &column);
+    f.readCallLineCol(&lineno, &column);
 
     FunctionCompiler::Call call(f, lineno, column);
     f.startCallArgs(&call);
@@ -1648,7 +1645,7 @@ EmitMathBuiltinCall(FunctionCompiler& f, F32 f32, MDefinition** def)
 
     f.finishCallArgs(&call);
 
-    Builtin callee = f32 == F32::Ceil ? Builtin::CeilF : Builtin::FloorF;
+    SymbolicAddress callee = f32 == F32::Ceil ? SymbolicAddress::CeilF : SymbolicAddress::FloorF;
     return f.builtinCall(callee, call, ValType::F32, def);
 }
 
@@ -1656,7 +1653,7 @@ static bool
 EmitMathBuiltinCall(FunctionCompiler& f, F64 f64, MDefinition** def)
 {
     uint32_t lineno, column;
-    ReadCallLineCol(f, &lineno, &column);
+    f.readCallLineCol(&lineno, &column);
 
     FunctionCompiler::Call call(f, lineno, column);
     f.startCallArgs(&call);
@@ -1671,20 +1668,20 @@ EmitMathBuiltinCall(FunctionCompiler& f, F64 f64, MDefinition** def)
             return false;
     }
 
-    Builtin callee;
+    SymbolicAddress callee;
     switch (f64) {
-      case F64::Ceil:  callee = Builtin::CeilD; break;
-      case F64::Floor: callee = Builtin::FloorD; break;
-      case F64::Sin:   callee = Builtin::SinD; break;
-      case F64::Cos:   callee = Builtin::CosD; break;
-      case F64::Tan:   callee = Builtin::TanD; break;
-      case F64::Asin:  callee = Builtin::ASinD; break;
-      case F64::Acos:  callee = Builtin::ACosD; break;
-      case F64::Atan:  callee = Builtin::ATanD; break;
-      case F64::Exp:   callee = Builtin::ExpD; break;
-      case F64::Log:   callee = Builtin::LogD; break;
-      case F64::Pow:   callee = Builtin::PowD; break;
-      case F64::Atan2: callee = Builtin::ATan2D; break;
+      case F64::Ceil:  callee = SymbolicAddress::CeilD; break;
+      case F64::Floor: callee = SymbolicAddress::FloorD; break;
+      case F64::Sin:   callee = SymbolicAddress::SinD; break;
+      case F64::Cos:   callee = SymbolicAddress::CosD; break;
+      case F64::Tan:   callee = SymbolicAddress::TanD; break;
+      case F64::Asin:  callee = SymbolicAddress::ASinD; break;
+      case F64::Acos:  callee = SymbolicAddress::ACosD; break;
+      case F64::Atan:  callee = SymbolicAddress::ATanD; break;
+      case F64::Exp:   callee = SymbolicAddress::ExpD; break;
+      case F64::Log:   callee = SymbolicAddress::LogD; break;
+      case F64::Pow:   callee = SymbolicAddress::PowD; break;
+      case F64::Atan2: callee = SymbolicAddress::ATan2D; break;
       default: MOZ_CRASH("unexpected double math builtin callee");
     }
 
@@ -2297,10 +2294,10 @@ EmitInterruptCheckLoop(FunctionCompiler& f)
 static bool
 EmitWhile(FunctionCompiler& f, const LabelVector* maybeLabels)
 {
-    size_t headPc = f.pc();
+    size_t headId = f.nextId();
 
     MBasicBlock* loopEntry;
-    if (!f.startPendingLoop(headPc, &loopEntry))
+    if (!f.startPendingLoop(headId, &loopEntry))
         return false;
 
     MDefinition* condDef;
@@ -2314,7 +2311,7 @@ EmitWhile(FunctionCompiler& f, const LabelVector* maybeLabels)
     if (!EmitStatement(f))
         return false;
 
-    if (!f.bindContinues(headPc, maybeLabels))
+    if (!f.bindContinues(headId, maybeLabels))
         return false;
 
     return f.closeLoop(loopEntry, afterLoop);
@@ -2325,7 +2322,7 @@ EmitFor(FunctionCompiler& f, Stmt stmt, const LabelVector* maybeLabels)
 {
     MOZ_ASSERT(stmt == Stmt::ForInitInc || stmt == Stmt::ForInitNoInc ||
                stmt == Stmt::ForNoInitInc || stmt == Stmt::ForNoInitNoInc);
-    size_t headPc = f.pc();
+    size_t headId = f.nextId();
 
     if (stmt == Stmt::ForInitInc || stmt == Stmt::ForInitNoInc) {
         if (!EmitStatement(f))
@@ -2333,7 +2330,7 @@ EmitFor(FunctionCompiler& f, Stmt stmt, const LabelVector* maybeLabels)
     }
 
     MBasicBlock* loopEntry;
-    if (!f.startPendingLoop(headPc, &loopEntry))
+    if (!f.startPendingLoop(headId, &loopEntry))
         return false;
 
     MDefinition* condDef;
@@ -2347,7 +2344,7 @@ EmitFor(FunctionCompiler& f, Stmt stmt, const LabelVector* maybeLabels)
     if (!EmitStatement(f))
         return false;
 
-    if (!f.bindContinues(headPc, maybeLabels))
+    if (!f.bindContinues(headId, maybeLabels))
         return false;
 
     if (stmt == Stmt::ForInitInc || stmt == Stmt::ForNoInitInc) {
@@ -2363,16 +2360,16 @@ EmitFor(FunctionCompiler& f, Stmt stmt, const LabelVector* maybeLabels)
 static bool
 EmitDoWhile(FunctionCompiler& f, const LabelVector* maybeLabels)
 {
-    size_t headPc = f.pc();
+    size_t headId = f.nextId();
 
     MBasicBlock* loopEntry;
-    if (!f.startPendingLoop(headPc, &loopEntry))
+    if (!f.startPendingLoop(headId, &loopEntry))
         return false;
 
     if (!EmitStatement(f))
         return false;
 
-    if (!f.bindContinues(headPc, maybeLabels))
+    if (!f.bindContinues(headId, maybeLabels))
         return false;
 
     MDefinition* condDef;
@@ -2475,7 +2472,7 @@ EmitSwitch(FunctionCompiler& f)
         return false;
 
     MBasicBlock* switchBlock;
-    if (!f.startSwitch(f.pc(), exprDef, low, high, &switchBlock))
+    if (!f.startSwitch(f.nextId(), exprDef, low, high, &switchBlock))
         return false;
 
     while (numCases--) {
@@ -3046,26 +3043,25 @@ EmitB32X4Expr(FunctionCompiler& f, MDefinition** def)
 }
 
 bool
-wasm::CompileFunction(CompileTask* task)
+wasm::IonCompileFunction(IonCompileTask* task)
 {
     int64_t before = PRMJ_Now();
 
-    CompileArgs args = task->args();
-    const FuncIR& func = task->func();
-    FunctionCompileResults& results = task->results();
+    const FuncBytecode& func = task->func();
+    FuncCompileResults& results = task->results();
 
-    JitContext jitContext(CompileRuntime::get(args.runtime), &results.alloc());
+    JitContext jitContext(CompileRuntime::get(task->runtime()), &results.alloc());
 
     const JitCompileOptions options;
     MIRGraph graph(&results.alloc());
     CompileInfo compileInfo(func.numLocals());
     MIRGenerator mir(nullptr, options, &results.alloc(), &graph, &compileInfo,
                      IonOptimizations.get(OptimizationLevel::AsmJS),
-                     args.usesSignalHandlersForOOB);
+                     task->args().useSignalHandlersForOOB);
 
     // Build MIR graph
     {
-        FunctionCompiler f(args, func, mir, results);
+        FunctionCompiler f(func, mir, results);
         if (!f.init())
             return false;
 
@@ -3079,7 +3075,6 @@ wasm::CompileFunction(CompileTask* task)
 
     // Compile MIR graph
     {
-
         jit::SpewBeginFunction(&mir, nullptr);
         jit::AutoSpewEndFunction spewEndFunction(&mir);
 

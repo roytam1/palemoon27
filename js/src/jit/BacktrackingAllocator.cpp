@@ -1035,7 +1035,7 @@ BacktrackingAllocator::tryMergeReusedRegister(VirtualRegister& def, VirtualRegis
     MOZ_ASSERT(!inputRange->hasUses());
 
     JitSpew(JitSpew_RegAlloc, "  splitting reused input at %u to try to help grouping",
-            inputOf(def.ins()));
+            inputOf(def.ins()).bits());
 
     LiveBundle* firstBundle = inputRange->bundle();
     input.removeRange(inputRange);
@@ -2481,6 +2481,7 @@ BacktrackingAllocator::computeSpillWeight(LiveBundle* bundle)
 
               case LUse::FIXED:
                 fixed = true;
+                MOZ_FALLTHROUGH;
               case LUse::REGISTER:
                 usesTotal += 2000;
                 break;

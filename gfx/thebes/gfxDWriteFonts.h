@@ -33,7 +33,7 @@ public:
 
     virtual uint32_t GetSpaceGlyph() override;
 
-    virtual bool SetupCairoFont(gfxContext *aContext) override;
+    virtual bool SetupCairoFont(DrawTarget* aDrawTarget) override;
 
     virtual bool AllowSubpixelAA() override
     { return mAllowManualShowGlyphs; }
@@ -50,7 +50,7 @@ public:
     virtual RunMetrics Measure(gfxTextRun *aTextRun,
                                uint32_t aStart, uint32_t aEnd,
                                BoundingBoxType aBoundingBoxType,
-                               gfxContext *aContextForTightBoundingBox,
+                               DrawTarget *aDrawTargetForTightBoundingBox,
                                Spacing *aSpacing,
                                uint16_t aOrientation) override;
 

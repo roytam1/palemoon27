@@ -236,7 +236,7 @@ struct MOZ_STACK_CLASS ParseContext : public GenericParseContext
     OwnedAtomDefnMapPtr lexdeps;    /* unresolved lexical name dependencies */
 
     // All inner functions in this context. Only filled in when parsing syntax.
-    Rooted<TraceableVector<JSFunction*>> innerFunctions;
+    Rooted<GCVector<JSFunction*>> innerFunctions;
 
     // In a function context, points to a Directive struct that can be updated
     // to reflect new directives encountered in the Directive Prologue that
@@ -272,7 +272,7 @@ struct MOZ_STACK_CLASS ParseContext : public GenericParseContext
         parserPC(&prs->pc),
         oldpc(prs->pc),
         lexdeps(prs->context),
-        innerFunctions(prs->context, TraceableVector<JSFunction*>(prs->context)),
+        innerFunctions(prs->context, GCVector<JSFunction*>(prs->context)),
         newDirectives(newDirectives),
         inDeclDestructuring(false)
     {
@@ -329,11 +329,6 @@ struct MOZ_STACK_CLASS ParseContext : public GenericParseContext
     // True if we are at the topmost level of a module only.
     bool atModuleLevel() {
         return atBodyLevel() && sc->isModuleBox();
-    }
-
-    // True if the current lexical scope is the topmost level of a module.
-    bool atModuleScope() {
-        return sc->isModuleBox() && !innermostScopeStmt();
     }
 
     // True if this is the ParseContext for the body of a function created by
@@ -530,7 +525,7 @@ class Parser : private JS::AutoGCRooter, public StrictModeGetter
         return newFunctionBox(fn, fun, outerpc, directives, generatorKind, enclosing);
     }
 
-    ModuleBox* newModuleBox(Node pn, HandleModuleObject module);
+    ModuleBox* newModuleBox(Node pn, HandleModuleObject module, ModuleBuilder& builder);
 
     /*
      * Create a new function object given a name (which is optional if this is
@@ -598,7 +593,7 @@ class Parser : private JS::AutoGCRooter, public StrictModeGetter
     Node globalBody();
 
     // Parse a module.
-    Node standaloneModule(Handle<ModuleObject*> module);
+    Node standaloneModule(Handle<ModuleObject*> module, ModuleBuilder& builder);
 
     // Parse a function, given only its body. Used for the Function and
     // Generator constructors.
@@ -760,8 +755,8 @@ class Parser : private JS::AutoGCRooter, public StrictModeGetter
 
     Node newBoundImportForCurrentName();
     bool namedImportsOrNamespaceImport(TokenKind tt, Node importSpecSet);
-    bool addExportName(JSAtom* exportName);
-    bool addExportNamesForDeclaration(Node node);
+    bool checkExportedName(JSAtom* exportName);
+    bool checkExportedNamesForDeclaration(Node node);
 
     enum ClassContext { ClassStatement, ClassExpression };
     Node classDefinition(YieldHandling yieldHandling, ClassContext classContext, DefaultHandling defaultHandling);

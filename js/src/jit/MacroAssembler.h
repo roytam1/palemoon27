@@ -381,15 +381,14 @@ class MacroAssembler : public MacroAssemblerSpecific
 
     // asm.js compilation handles its own JitContext-pushing
     struct AsmJSToken {};
-    explicit MacroAssembler(AsmJSToken, TempAllocator *alloc)
+    explicit MacroAssembler(AsmJSToken, TempAllocator& alloc)
       : framePushed_(0),
 #ifdef DEBUG
         inCall_(false),
 #endif
         emitProfilingInstrumentation_(false)
     {
-        if (alloc)
-            moveResolver_.setAllocator(*alloc);
+        moveResolver_.setAllocator(alloc);
 
 #if defined(JS_CODEGEN_ARM)
         initWithAllocator();
@@ -902,6 +901,15 @@ class MacroAssembler : public MacroAssemblerSpecific
         Address flags(str, JSString::offsetOfFlags());
         static_assert(JSString::ROPE_FLAGS == 0, "Rope type flags must be 0");
         branchTest32(Assembler::Zero, flags, Imm32(JSString::TYPE_FLAGS_MASK), label);
+    }
+
+    void branchLatin1String(Register string, Label* label) {
+        branchTest32(Assembler::NonZero, Address(string, JSString::offsetOfFlags()),
+                     Imm32(JSString::LATIN1_CHARS_BIT), label);
+    }
+    void branchTwoByteString(Register string, Label* label) {
+        branchTest32(Assembler::Zero, Address(string, JSString::offsetOfFlags()),
+                     Imm32(JSString::LATIN1_CHARS_BIT), label);
     }
 
     void loadJSContext(Register dest) {
@@ -1421,7 +1429,7 @@ class MacroAssembler : public MacroAssemblerSpecific
         return &asmOnConversionErrorLabel_;
     }
 
-    bool asmMergeWith(const MacroAssembler& masm);
+    bool asmMergeWith(MacroAssembler& masm);
     void finish();
     void link(JitCode* code);
 

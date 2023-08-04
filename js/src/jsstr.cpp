@@ -13,7 +13,6 @@
 #include "mozilla/PodOperations.h"
 #include "mozilla/Range.h"
 #include "mozilla/TypeTraits.h"
-#include "mozilla/UniquePtr.h"
 
 #include <ctype.h>
 #include <string.h>
@@ -34,6 +33,7 @@
 #include "builtin/RegExp.h"
 #include "jit/InlinableNatives.h"
 #include "js/Conversions.h"
+#include "js/UniquePtr.h"
 #if ENABLE_INTL_API
 #include "unicode/unorm.h"
 #endif
@@ -69,7 +69,6 @@ using mozilla::Move;
 using mozilla::PodCopy;
 using mozilla::PodEqual;
 using mozilla::RangedPtr;
-using mozilla::UniquePtr;
 
 using JS::AutoCheckCannotGC;
 
@@ -1129,13 +1128,13 @@ FirstCharMatcherUnrolled(const TextChar* text, uint32_t n, const PatChar pat)
     const TextChar* t = text;
 
     switch ((textend - t) & 7) {
-        case 0: if (*t++ == pat) return t - 1;
-        case 7: if (*t++ == pat) return t - 1;
-        case 6: if (*t++ == pat) return t - 1;
-        case 5: if (*t++ == pat) return t - 1;
-        case 4: if (*t++ == pat) return t - 1;
-        case 3: if (*t++ == pat) return t - 1;
-        case 2: if (*t++ == pat) return t - 1;
+        case 0: if (*t++ == pat) return t - 1; MOZ_FALLTHROUGH;
+        case 7: if (*t++ == pat) return t - 1; MOZ_FALLTHROUGH;
+        case 6: if (*t++ == pat) return t - 1; MOZ_FALLTHROUGH;
+        case 5: if (*t++ == pat) return t - 1; MOZ_FALLTHROUGH;
+        case 4: if (*t++ == pat) return t - 1; MOZ_FALLTHROUGH;
+        case 3: if (*t++ == pat) return t - 1; MOZ_FALLTHROUGH;
+        case 2: if (*t++ == pat) return t - 1; MOZ_FALLTHROUGH;
         case 1: if (*t++ == pat) return t - 1;
     }
     while (textend != t) {
@@ -2185,18 +2184,27 @@ class MOZ_STACK_CLASS StringRegExpGuard
         /* Build RegExp from pattern string. */
         RootedString opt(cx);
         if (optarg < args.length()) {
+            // flag argument is enabled only in release build by default.
+            // In non-release build, both telemetry and warning are still
+            // enabled, but the value of flag argument is ignored.
+
+            bool flagArgumentEnabled = cx->runtime()->options().matchFlagArgument();
             if (!cx->compartment()->warnedAboutFlagsArgument) {
                 if (!JS_ReportErrorFlagsAndNumber(cx, JSREPORT_WARNING, GetErrorMessage, nullptr,
-                                                  JSMSG_DEPRECATED_FLAGS_ARG))
+                                                  flagArgumentEnabled
+                                                  ? JSMSG_DEPRECATED_FLAGS_ARG
+                                                  : JSMSG_OBSOLETE_FLAGS_ARG))
+                {
                     return false;
+                }
                 cx->compartment()->warnedAboutFlagsArgument = true;
             }
 
-            opt = ToString<CanGC>(cx, args[optarg]);
-            if (!opt)
-                return false;
-        } else {
-            opt = nullptr;
+            if (flagArgumentEnabled) {
+                opt = ToString<CanGC>(cx, args[optarg]);
+                if (!opt)
+                    return false;
+            }
         }
 
         Rooted<JSAtom*> pat(cx);
@@ -2251,7 +2259,8 @@ DoMatchLocal(JSContext* cx, const CallArgs& args, RegExpStatics* res, HandleLine
              RegExpShared& re)
 {
     ScopedMatchPairs matches(&cx->tempLifoAlloc());
-    RegExpRunStatus status = re.execute(cx, input, 0, &matches);
+    bool sticky = re.sticky();
+    RegExpRunStatus status = re.execute(cx, input, 0, sticky, &matches, nullptr);
     if (status == RegExpRunStatus_Error)
         return false;
 
@@ -2362,12 +2371,13 @@ DoMatchGlobal(JSContext* cx, const CallArgs& args, RegExpStatics* res, HandleLin
     size_t charsLen = input->length();
     RegExpShared& re = g.regExp();
     bool unicode = re.unicode();
+    bool sticky = re.sticky();
     for (size_t searchIndex = 0; searchIndex <= charsLen; ) {
         if (!CheckForInterrupt(cx))
             return false;
 
         // Steps 8f(i-ii), minus "lastIndex" updates (see above).
-        RegExpRunStatus status = re.execute(cx, input, searchIndex, &matches);
+        RegExpRunStatus status = re.execute(cx, input, searchIndex, sticky, &matches, nullptr);
         if (status == RegExpRunStatus_Error)
             return false;
 
@@ -2400,7 +2410,7 @@ DoMatchGlobal(JSContext* cx, const CallArgs& args, RegExpStatics* res, HandleLin
     // The last *successful* match updates the RegExpStatics. (Interestingly,
     // this implies that String.prototype.match's semantics aren't those
     // implied by the RegExp.prototype.exec calls in the ES5 algorithm.)
-    res->updateLazily(cx, input, &re, lastSuccessfulStart);
+    res->updateLazily(cx, input, &re, lastSuccessfulStart, sticky);
 
     // Steps 8b, 8f(iii)(5-6), 8h.
     JSObject* array = NewDenseCopiedArray(cx, elements.length(), elements.begin());
@@ -2531,12 +2541,14 @@ js::str_search(JSContext* cx, unsigned argc, Value* vp)
 
     /* Per ECMAv5 15.5.4.12 (5) The last index property is ignored and left unchanged. */
     ScopedMatchPairs matches(&cx->tempLifoAlloc());
-    RegExpRunStatus status = g.regExp().execute(cx, linearStr, 0, &matches);
+    RegExpShared& re = g.regExp();
+    bool sticky = re.sticky();
+    RegExpRunStatus status = re.execute(cx, linearStr, 0, sticky, &matches, nullptr);
     if (status == RegExpRunStatus_Error)
         return false;
 
     if (status == RegExpRunStatus_Success)
-        res->updateLazily(cx, linearStr, &g.regExp(), 0);
+        res->updateLazily(cx, linearStr, &re, 0, sticky);
 
     args.rval().setInt32(status == RegExpRunStatus_Success_NotFound ? -1 : matches[0].start);
     return true;
@@ -2628,7 +2640,8 @@ DoMatchForReplaceLocal(JSContext* cx, RegExpStatics* res, HandleLinearString lin
                        RegExpShared& re, ReplaceData& rdata, size_t* rightContextOffset)
 {
     ScopedMatchPairs matches(&cx->tempLifoAlloc());
-    RegExpRunStatus status = re.execute(cx, linearStr, 0, &matches);
+    bool sticky = re.sticky();
+    RegExpRunStatus status = re.execute(cx, linearStr, 0, sticky, &matches, nullptr);
     if (status == RegExpRunStatus_Error)
         return false;
 
@@ -2649,13 +2662,14 @@ DoMatchForReplaceGlobal(JSContext* cx, RegExpStatics* res, HandleLinearString li
                         RegExpShared& re, ReplaceData& rdata, size_t* rightContextOffset)
 {
     bool unicode = re.unicode();
+    bool sticky = re.sticky();
     size_t charsLen = linearStr->length();
     ScopedMatchPairs matches(&cx->tempLifoAlloc());
     for (size_t count = 0, searchIndex = 0; searchIndex <= charsLen; ++count) {
         if (!CheckForInterrupt(cx))
             return false;
 
-        RegExpRunStatus status = re.execute(cx, linearStr, searchIndex, &matches);
+        RegExpRunStatus status = re.execute(cx, linearStr, searchIndex, sticky, &matches, nullptr);
         if (status == RegExpRunStatus_Error)
             return false;
 
@@ -3266,11 +3280,12 @@ StrReplaceRegexpRemove(JSContext* cx, HandleString str, RegExpShared& re)
 
     /* Accumulate StringRanges for unmatched substrings. */
     bool unicode = re.unicode();
+    bool sticky = re.sticky();
     while (startIndex <= charsLen) {
         if (!CheckForInterrupt(cx))
             return nullptr;
 
-        RegExpRunStatus status = re.execute(cx, linearStr, startIndex, &matches);
+        RegExpRunStatus status = re.execute(cx, linearStr, startIndex, sticky, &matches, nullptr);
         if (status == RegExpRunStatus_Error)
             return nullptr;
         if (status == RegExpRunStatus_Success_NotFound)
@@ -3303,7 +3318,7 @@ StrReplaceRegexpRemove(JSContext* cx, HandleString str, RegExpShared& re)
             res = cx->global()->getRegExpStatics(cx);
             if (!res)
                 return nullptr;
-            res->updateLazily(cx, linearStr, &re, lazyIndex);
+            res->updateLazily(cx, linearStr, &re, lazyIndex, sticky);
         }
 
         return str;
@@ -3314,7 +3329,7 @@ StrReplaceRegexpRemove(JSContext* cx, HandleString str, RegExpShared& re)
     if (!res)
         return nullptr;
 
-    res->updateLazily(cx, linearStr, &re, lazyIndex);
+    res->updateLazily(cx, linearStr, &re, lazyIndex, sticky);
 
     /* Include any remaining part of the string. */
     if (lastIndex < charsLen) {
@@ -3835,9 +3850,12 @@ class SplitRegExpMatcher
 {
     RegExpShared& re;
     RegExpStatics* res;
+    bool sticky;
 
   public:
-    SplitRegExpMatcher(RegExpShared& re, RegExpStatics* res) : re(re), res(res) {}
+    SplitRegExpMatcher(RegExpShared& re, RegExpStatics* res) : re(re), res(res) {
+        sticky = re.sticky();
+    }
 
     static const bool returnsCaptures = true;
 
@@ -3845,7 +3863,7 @@ class SplitRegExpMatcher
                     SplitMatchResult* result) const
     {
         ScopedMatchPairs matches(&cx->tempLifoAlloc());
-        RegExpRunStatus status = re.execute(cx, str, index, &matches);
+        RegExpRunStatus status = re.execute(cx, str, index, sticky, &matches, nullptr);
         if (status == RegExpRunStatus_Error)
             return false;
 
@@ -4225,7 +4243,7 @@ static const JSFunctionSpec string_static_methods[] = {
     JS_INLINABLE_FN("fromCharCode", js::str_fromCharCode, 1, 0, StringFromCharCode),
 
     JS_SELF_HOSTED_FN("fromCodePoint",   "String_static_fromCodePoint", 1,0),
-    JS_SELF_HOSTED_FN("raw",             "String_static_raw",           2,0),
+    JS_SELF_HOSTED_FN("raw",             "String_static_raw",           1,0),
     JS_SELF_HOSTED_FN("substring",       "String_static_substring",     3,0),
     JS_SELF_HOSTED_FN("substr",          "String_static_substr",        3,0),
     JS_SELF_HOSTED_FN("slice",           "String_static_slice",         3,0),
@@ -4583,7 +4601,7 @@ js_strcmp(const char16_t* lhs, const char16_t* rhs)
     }
 }
 
-UniquePtr<char[], JS::FreePolicy>
+UniqueChars
 js::DuplicateString(js::ExclusiveContext* cx, const char* s)
 {
     size_t n = strlen(s) + 1;
@@ -4594,7 +4612,7 @@ js::DuplicateString(js::ExclusiveContext* cx, const char* s)
     return ret;
 }
 
-UniquePtr<char16_t[], JS::FreePolicy>
+UniqueTwoByteChars
 js::DuplicateString(js::ExclusiveContext* cx, const char16_t* s)
 {
     size_t n = js_strlen(s) + 1;
@@ -4605,11 +4623,17 @@ js::DuplicateString(js::ExclusiveContext* cx, const char16_t* s)
     return ret;
 }
 
-UniquePtr<char16_t[], JS::FreePolicy>
+UniqueChars
+js::DuplicateString(const char* s)
+{
+    return UniqueChars(js_strdup(s));
+}
+
+UniqueTwoByteChars
 js::DuplicateString(const char16_t* s)
 {
     size_t n = js_strlen(s) + 1;
-    UniquePtr<char16_t[], JS::FreePolicy> ret(js_pod_malloc<char16_t>(n));
+    UniqueTwoByteChars ret(js_pod_malloc<char16_t>(n));
     if (!ret)
         return nullptr;
     PodCopy(ret.get(), s, n);

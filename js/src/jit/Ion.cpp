@@ -401,8 +401,8 @@ JitCompartment::JitCompartment()
     baselineGetPropReturnAddr_(nullptr),
     baselineSetPropReturnAddr_(nullptr),
     stringConcatStub_(nullptr),
-    regExpExecStub_(nullptr),
-    regExpTestStub_(nullptr)
+    regExpMatcherStub_(nullptr),
+    regExpTesterStub_(nullptr)
 {
     baselineCallReturnAddrs_[0] = baselineCallReturnAddrs_[1] = nullptr;
 }
@@ -747,11 +747,11 @@ JitCompartment::sweep(FreeOp* fop, JSCompartment* compartment)
     if (stringConcatStub_ && !IsMarkedUnbarriered(&stringConcatStub_))
         stringConcatStub_ = nullptr;
 
-    if (regExpExecStub_ && !IsMarkedUnbarriered(&regExpExecStub_))
-        regExpExecStub_ = nullptr;
+    if (regExpMatcherStub_ && !IsMarkedUnbarriered(&regExpMatcherStub_))
+        regExpMatcherStub_ = nullptr;
 
-    if (regExpTestStub_ && !IsMarkedUnbarriered(&regExpTestStub_))
-        regExpTestStub_ = nullptr;
+    if (regExpTesterStub_ && !IsMarkedUnbarriered(&regExpTesterStub_))
+        regExpTesterStub_ = nullptr;
 
     for (size_t i = 0; i <= SimdTypeDescr::LAST_TYPE; i++) {
         ReadBarrieredObject& obj = simdTemplateObjects_[i];
@@ -764,10 +764,10 @@ void
 JitCompartment::toggleBarriers(bool enabled)
 {
     // Toggle barriers in compartment wide stubs that have patchable pre barriers.
-    if (regExpExecStub_)
-        regExpExecStub_->togglePreBarriers(enabled, Reprotect);
-    if (regExpTestStub_)
-        regExpTestStub_->togglePreBarriers(enabled, Reprotect);
+    if (regExpMatcherStub_)
+        regExpMatcherStub_->togglePreBarriers(enabled, Reprotect);
+    if (regExpTesterStub_)
+        regExpTesterStub_->togglePreBarriers(enabled, Reprotect);
 
     // Toggle barriers in baseline IC stubs.
     for (ICStubCodeMap::Enum e(*stubCodes_); !e.empty(); e.popFront()) {
@@ -848,18 +848,16 @@ JitCode::traceChildren(JSTracer* trc)
     if (invalidated())
         return;
 
-    // If we're moving objects, we need writable JIT code.
-    ReprotectCode reprotect = (trc->runtime()->isHeapMinorCollecting() || zone()->isGCCompacting())
-                              ? Reprotect
-                              : DontReprotect;
-    MaybeAutoWritableJitCode awjc(this, reprotect);
-
     if (jumpRelocTableBytes_) {
         uint8_t* start = code_ + jumpRelocTableOffset();
         CompactBufferReader reader(start, start + jumpRelocTableBytes_);
         MacroAssembler::TraceJumpRelocations(trc, this, reader);
     }
     if (dataRelocTableBytes_) {
+        // If we're moving objects, we need writable JIT code.
+        bool movingObjects = trc->runtime()->isHeapMinorCollecting() || zone()->isGCCompacting();
+        MaybeAutoWritableJitCode awjc(this, movingObjects ? Reprotect : DontReprotect);
+
         uint8_t* start = code_ + dataRelocTableOffset();
         CompactBufferReader reader(start, start + dataRelocTableBytes_);
         MacroAssembler::TraceDataRelocations(trc, this, reader);
@@ -879,24 +877,22 @@ JitCode::finalize(FreeOp* fop)
     }
 #endif
 
-    // Buffer can be freed at any time hereafter. Catch use-after-free bugs.
-    // Don't do this if the Ion code is protected, as the signal handler will
-    // deadlock trying to reacquire the interrupt lock.
-    {
-        AutoWritableJitCode awjc(this);
-        memset(code_, JS_SWEPT_CODE_PATTERN, bufferSize_);
-        code_ = nullptr;
-    }
+    MOZ_ASSERT(pool_);
 
-    // Code buffers are stored inside JSC pools.
-    // Pools are refcounted. Releasing the pool may free it.
-    if (pool_) {
-        // Horrible hack: if we are using perf integration, we don't
-        // want to reuse code addresses, so we just leak the memory instead.
-        if (!PerfEnabled())
-            pool_->release(headerSize_ + bufferSize_, CodeKind(kind_));
-        pool_ = nullptr;
-    }
+    // With W^X JIT code, reprotecting memory for each JitCode instance is
+    // slow, so we record the ranges and poison them later all at once. It's
+    // safe to ignore OOM here, it just means we won't poison the code.
+    if (fop->appendJitPoisonRange(JitPoisonRange(pool_, code_, bufferSize_)))
+        pool_->addRef();
+    code_ = nullptr;
+
+    // Code buffers are stored inside ExecutablePools. Pools are refcounted.
+    // Releasing the pool may free it. Horrible hack: if we are using perf
+    // integration, we don't want to reuse code addresses, so we just leak the
+    // memory instead.
+    if (!PerfEnabled())
+        pool_->release(headerSize_ + bufferSize_, CodeKind(kind_));
+    pool_ = nullptr;
 }
 
 void
@@ -1364,6 +1360,9 @@ IonScript::purgeCaches()
     // ICs therefore are required to check for invalidation before patching,
     // to ensure the same invariant.
     if (invalidated())
+        return;
+
+    if (numCaches() == 0)
         return;
 
     AutoWritableJitCode awjc(method());
@@ -2308,6 +2307,7 @@ CheckFrame(JSContext* cx, BaselineFrame* frame)
 {
     MOZ_ASSERT(!frame->script()->isGenerator());
     MOZ_ASSERT(!frame->isDebuggerEvalFrame());
+    MOZ_ASSERT(!frame->isEvalFrame());
 
     // This check is to not overrun the stack.
     if (frame->isFunctionFrame()) {
@@ -2640,9 +2640,9 @@ MethodStatus
 jit::CompileFunctionForBaseline(JSContext* cx, HandleScript script, BaselineFrame* frame)
 {
     MOZ_ASSERT(jit::IsIonEnabled(cx));
-    MOZ_ASSERT(frame->fun()->nonLazyScript()->canIonCompile());
-    MOZ_ASSERT(!frame->fun()->nonLazyScript()->isIonCompilingOffThread());
-    MOZ_ASSERT(!frame->fun()->nonLazyScript()->hasIonScript());
+    MOZ_ASSERT(frame->callee()->nonLazyScript()->canIonCompile());
+    MOZ_ASSERT(!frame->callee()->nonLazyScript()->isIonCompilingOffThread());
+    MOZ_ASSERT(!frame->callee()->nonLazyScript()->hasIonScript());
     MOZ_ASSERT(frame->isFunctionFrame());
 
     // Mark as forbidden if frame can't be handled.
@@ -2792,27 +2792,18 @@ jit::SetEnterJitData(JSContext* cx, EnterJitData& data, RunState& state, AutoVal
 
         data.calleeToken = CalleeToToken(state.script());
 
-        if (state.script()->isForEval() &&
-            !(state.asExecute()->type() & InterpreterFrame::GLOBAL))
-        {
-            ScriptFrameIter iter(cx);
-            if (iter.isFunctionFrame())
-                data.calleeToken = CalleeToToken(iter.callee(cx), /* constructing = */ false);
-
+        if (state.script()->isForEval() && state.script()->isDirectEvalInFunction()) {
             // Push newTarget onto the stack.
             if (!vals.reserve(1))
                 return false;
 
+            ScriptFrameIter iter(cx);
             data.maxArgc = 1;
             data.maxArgv = vals.begin();
-            if (iter.isFunctionFrame()) {
-                if (state.asExecute()->newTarget().isNull())
-                    vals.infallibleAppend(iter.newTarget());
-                else
-                    vals.infallibleAppend(state.asExecute()->newTarget());
-            } else {
-                vals.infallibleAppend(NullValue());
-            }
+            if (state.asExecute()->newTarget().isNull())
+                vals.infallibleAppend(iter.newTarget());
+            else
+                vals.infallibleAppend(state.asExecute()->newTarget());
         }
     }
 
@@ -3300,6 +3291,7 @@ AutoFlushICache::flush(uintptr_t start, size_t len)
     PerThreadData* pt = TlsPerThreadData.get();
     AutoFlushICache* afc = pt ? pt->PerThreadData::autoFlushICache() : nullptr;
     if (!afc) {
+        MOZ_ASSERT(!IsCompilingAsmJS(), "asm.js should always create an AutoFlushICache");
         JitSpewCont(JitSpew_CacheFlush, "#");
         ExecutableAllocator::cacheFlush((void*)start, len);
         MOZ_ASSERT(len <= 32);
@@ -3313,6 +3305,7 @@ AutoFlushICache::flush(uintptr_t start, size_t len)
         return;
     }
 
+    MOZ_ASSERT(!IsCompilingAsmJS(), "asm.js should always flush within the range");
     JitSpewCont(JitSpew_CacheFlush, afc->inhibit_ ? "x" : "*");
     ExecutableAllocator::cacheFlush((void*)start, len);
 #endif

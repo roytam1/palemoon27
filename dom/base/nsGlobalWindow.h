@@ -473,7 +473,7 @@ public:
     FullscreenReason aReason, bool aIsFullscreen,
     mozilla::gfx::VRDeviceProxy *aHMD = nullptr) override final;
   virtual void FinishFullscreenChange(bool aIsFullscreen) override final;
-  void SetWidgetFullscreen(FullscreenReason aReason, bool aIsFullscreen,
+  bool SetWidgetFullscreen(FullscreenReason aReason, bool aIsFullscreen,
                            nsIWidget* aWidget, nsIScreen* aScreen);
   bool FullScreen() const;
 
@@ -1614,8 +1614,8 @@ protected:
   // Outer windows only.
   void PreloadLocalStorage();
 
-  // Returns device pixels.  Outer windows only.
-  nsIntPoint GetScreenXY(mozilla::ErrorResult& aError);
+  // Returns desktop pixels.  Outer windows only.
+  mozilla::DesktopIntPoint GetScreenXY(mozilla::ErrorResult& aError);
 
   nsGlobalWindow* InnerForSetTimeoutOrInterval(mozilla::ErrorResult& aError);
 

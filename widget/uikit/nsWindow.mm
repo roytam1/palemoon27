@@ -51,7 +51,7 @@ UIKitPointsToDevPixels(CGPoint aPoint, CGFloat aBackingScale)
 }
 
 static CGRect
-DevPixelsToUIKitPoints(const nsIntRect& aRect, CGFloat aBackingScale)
+DevPixelsToUIKitPoints(const LayoutDeviceIntRect& aRect, CGFloat aBackingScale)
 {
     return CGRectMake((CGFloat)aRect.x / aBackingScale,
                       (CGFloat)aRect.y / aBackingScale,
@@ -377,7 +377,7 @@ private:
   }
 
   // Set up the clip region.
-  LayoutDeviceIntRegion::RectIterator iter(region);
+  LayoutDeviceIntRegion::OldRectIterator iter(region);
   targetContext->NewPath();
   for (;;) {
     const LayoutDeviceIntRect* r = iter.Next();
@@ -493,7 +493,7 @@ nsWindow::Create(nsIWidget* aParent,
             mBounds.height = cgRect.size.height;
         }
     } else {
-        mBounds = aRect.ToUnknownRect();
+        mBounds = aRect;
     }
 
     ALOG("nsWindow[%p]::Create bounds: %d %d %d %d", (void*)this,

@@ -183,14 +183,14 @@ nsCocoaWindow::~nsCocoaWindow()
 // Find the screen that overlaps aRect the most,
 // if none are found default to the mainScreen.
 static NSScreen*
-FindTargetScreenForRect(const LayoutDeviceIntRect& aRect)
+FindTargetScreenForRect(const DesktopIntRect& aRect)
 {
   NSScreen *targetScreen = [NSScreen mainScreen];
   NSEnumerator *screenEnum = [[NSScreen screens] objectEnumerator];
   int largestIntersectArea = 0;
   while (NSScreen *screen = [screenEnum nextObject]) {
-    LayoutDeviceIntRect screenRect =
-      LayoutDeviceIntRect::FromUnknownRect(
+    DesktopIntRect screenRect =
+      DesktopIntRect::FromUnknownRect(
         nsCocoaUtils::CocoaRectToGeckoRect([screen visibleFrame]));
     screenRect = screenRect.Intersect(aRect);
     int area = screenRect.width * screenRect.height;
@@ -204,9 +204,9 @@ FindTargetScreenForRect(const LayoutDeviceIntRect& aRect)
 
 // fits the rect to the screen that contains the largest area of it,
 // or to aScreen if a screen is passed in
-// NB: this operates with aRect in global display pixels
+// NB: this operates with aRect in desktop pixels
 static void
-FitRectToVisibleAreaForScreen(LayoutDeviceIntRect& aRect, NSScreen* aScreen)
+FitRectToVisibleAreaForScreen(DesktopIntRect& aRect, NSScreen* aScreen)
 {
   if (!aScreen) {
     aScreen = FindTargetScreenForRect(aRect);
@@ -249,10 +249,10 @@ static bool UseNativePopupWindows()
 #endif /* MOZ_USE_NATIVE_POPUP_WINDOWS */
 }
 
-// aRect here is specified in global display pixels
+// aRect here is specified in desktop pixels
 nsresult nsCocoaWindow::Create(nsIWidget* aParent,
                                nsNativeWidget aNativeParent,
-                               const LayoutDeviceIntRect& aRect,
+                               const DesktopIntRect& aRect,
                                nsWidgetInitData* aInitData)
 {
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK_NSRESULT;
@@ -261,7 +261,7 @@ nsresult nsCocoaWindow::Create(nsIWidget* aParent,
   // we have to provide an autorelease pool (see bug 559075).
   nsAutoreleasePool localPool;
 
-  LayoutDeviceIntRect newBounds = aRect;
+  DesktopIntRect newBounds = aRect;
   FitRectToVisibleAreaForScreen(newBounds, nullptr);
 
   // Set defaults which can be overriden from aInitData in BaseCreate
@@ -291,12 +291,9 @@ nsresult nsCocoaWindow::Create(nsIWidget* aParent,
     }
     // now we can convert newBounds to device pixels for the window we created,
     // as the child view expects a rect expressed in the dev pix of its parent
-    double scale = BackingScaleFactor();
-    newBounds.x *= scale;
-    newBounds.y *= scale;
-    newBounds.width *= scale;
-    newBounds.height *= scale;
-    return CreatePopupContentView(newBounds);
+    LayoutDeviceIntRect devRect =
+      RoundedToInt(newBounds * GetDesktopToDeviceScale());
+    return CreatePopupContentView(devRect);
   }
 
   mIsAnimationSuppressed = aInitData->mIsAnimationSuppressed;
@@ -304,6 +301,16 @@ nsresult nsCocoaWindow::Create(nsIWidget* aParent,
   return NS_OK;
 
   NS_OBJC_END_TRY_ABORT_BLOCK_NSRESULT;
+}
+
+nsresult nsCocoaWindow::Create(nsIWidget* aParent,
+                               nsNativeWidget aNativeParent,
+                               const LayoutDeviceIntRect& aRect,
+                               nsWidgetInitData* aInitData)
+{
+  DesktopIntRect desktopRect =
+    RoundedToInt(aRect / GetDesktopToDeviceScale());
+  return Create(aParent, aNativeParent, desktopRect, aInitData);
 }
 
 static unsigned int WindowMaskForBorderStyle(nsBorderStyle aBorderStyle)
@@ -1187,7 +1194,7 @@ void nsCocoaWindow::SetSizeConstraints(const SizeConstraints& aConstraints)
   NS_OBJC_END_TRY_ABORT_BLOCK;
 }
 
-// Coordinates are global display pixels
+// Coordinates are desktop pixels
 NS_IMETHODIMP nsCocoaWindow::Move(double aX, double aY)
 {
   if (!mWindow) {
@@ -1521,7 +1528,7 @@ nsCocoaWindow::DoMakeFullScreen(bool aFullScreen, bool aUseSystemTransition)
   NS_OBJC_END_TRY_ABORT_BLOCK_NSRESULT;
 }
 
-// Coordinates are global display pixels
+// Coordinates are desktop pixels
 nsresult nsCocoaWindow::DoResize(double aX, double aY,
                                  double aWidth, double aHeight,
                                  bool aRepaint,
@@ -1543,9 +1550,9 @@ nsresult nsCocoaWindow::DoResize(double aX, double aY,
   int32_t height = NSToIntRound(aHeight * scale);
   ConstrainSize(&width, &height);
 
-  LayoutDeviceIntRect newBounds(NSToIntRound(aX), NSToIntRound(aY),
-                                NSToIntRound(width / scale),
-                                NSToIntRound(height / scale));
+  DesktopIntRect newBounds(NSToIntRound(aX), NSToIntRound(aY),
+                           NSToIntRound(width / scale),
+                           NSToIntRound(height / scale));
 
   // constrain to the screen that contains the largest area of the new rect
   FitRectToVisibleAreaForScreen(newBounds, aConstrainToCurrentScreen ?
@@ -1575,7 +1582,7 @@ nsresult nsCocoaWindow::DoResize(double aX, double aY,
   NS_OBJC_END_TRY_ABORT_BLOCK_NSRESULT;
 }
 
-// Coordinates are global display pixels
+// Coordinates are desktop pixels
 NS_IMETHODIMP nsCocoaWindow::Resize(double aX, double aY,
                                     double aWidth, double aHeight,
                                     bool aRepaint)
@@ -1583,7 +1590,7 @@ NS_IMETHODIMP nsCocoaWindow::Resize(double aX, double aY,
   return DoResize(aX, aY, aWidth, aHeight, aRepaint, false);
 }
 
-// Coordinates are global display pixels
+// Coordinates are desktop pixels
 NS_IMETHODIMP nsCocoaWindow::Resize(double aWidth, double aHeight, bool aRepaint)
 {
   double invScale = 1.0 / GetDefaultScale().scale;
@@ -1623,8 +1630,8 @@ nsCocoaWindow::UpdateBounds()
   if (mWindow) {
     frame = [mWindow frame];
   }
-  mBounds = nsCocoaUtils::CocoaRectToGeckoRectDevPix(
-    frame, BackingScaleFactor()).ToUnknownRect();
+  mBounds =
+    nsCocoaUtils::CocoaRectToGeckoRectDevPix(frame, BackingScaleFactor());
 }
 
 NS_IMETHODIMP nsCocoaWindow::GetScreenBounds(LayoutDeviceIntRect &aRect)
@@ -1633,10 +1640,10 @@ NS_IMETHODIMP nsCocoaWindow::GetScreenBounds(LayoutDeviceIntRect &aRect)
 
 #ifdef DEBUG
   LayoutDeviceIntRect r = nsCocoaUtils::CocoaRectToGeckoRectDevPix([mWindow frame], BackingScaleFactor());
-  NS_ASSERTION(mWindow && mBounds == r.ToUnknownRect(), "mBounds out of sync!");
+  NS_ASSERTION(mWindow && mBounds == r, "mBounds out of sync!");
 #endif
 
-  aRect = LayoutDeviceIntRect::FromUnknownRect(mBounds);
+  aRect = mBounds;
   return NS_OK;
 
   NS_OBJC_END_TRY_ABORT_BLOCK_NSRESULT;
@@ -1690,7 +1697,7 @@ GetBackingScaleFactor(NSWindow* aWindow)
   // Then identify the screen it belongs to, and return its scale factor.
   NSScreen *screen =
     FindTargetScreenForRect(
-      LayoutDeviceIntRect::FromUnknownRect(nsCocoaUtils::CocoaRectToGeckoRect(frame)));
+      DesktopIntRect::FromUnknownRect(nsCocoaUtils::CocoaRectToGeckoRect(frame)));
   return nsCocoaUtils::GetBackingScaleFactor(screen);
 }
 
@@ -2028,8 +2035,7 @@ LayoutDeviceIntPoint nsCocoaWindow::GetClientOffset()
   LayoutDeviceIntRect clientRect;
   GetClientBounds(clientRect);
 
-  return clientRect.TopLeft() -
-         LayoutDeviceIntPoint::FromUnknownPoint(mBounds.TopLeft());
+  return clientRect.TopLeft() - mBounds.TopLeft();
 
   NS_OBJC_END_TRY_ABORT_BLOCK_RETURN(LayoutDeviceIntPoint(0, 0));
 }

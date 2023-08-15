@@ -1085,7 +1085,7 @@ nsWindow::Show(bool aState)
 NS_IMETHODIMP
 nsWindow::Resize(double aWidth, double aHeight, bool aRepaint)
 {
-    CSSToLayoutDeviceScale scale = BoundsUseDisplayPixels() ? GetDefaultScale()
+    CSSToLayoutDeviceScale scale = BoundsUseDesktopPixels() ? GetDefaultScale()
                                     : CSSToLayoutDeviceScale(1.0);
     int32_t width = NSToIntRound(scale.scale * aWidth);
     int32_t height = NSToIntRound(scale.scale * aHeight);
@@ -1117,7 +1117,7 @@ NS_IMETHODIMP
 nsWindow::Resize(double aX, double aY, double aWidth, double aHeight,
                  bool aRepaint)
 {
-    CSSToLayoutDeviceScale scale = BoundsUseDisplayPixels() ? GetDefaultScale()
+    CSSToLayoutDeviceScale scale = BoundsUseDesktopPixels() ? GetDefaultScale()
                                     : CSSToLayoutDeviceScale(1.0);
     int32_t width = NSToIntRound(scale.scale * aWidth);
     int32_t height = NSToIntRound(scale.scale * aHeight);
@@ -1183,7 +1183,7 @@ nsWindow::Move(double aX, double aY)
     LOG(("nsWindow::Move [%p] %f %f\n", (void *)this,
          aX, aY));
 
-    CSSToLayoutDeviceScale scale = BoundsUseDisplayPixels() ? GetDefaultScale()
+    CSSToLayoutDeviceScale scale = BoundsUseDesktopPixels() ? GetDefaultScale()
                                    : CSSToLayoutDeviceScale(1.0);
     int32_t x = NSToIntRound(aX * scale.scale);
     int32_t y = NSToIntRound(aY * scale.scale);
@@ -1496,7 +1496,7 @@ nsWindow::GetScreenBounds(LayoutDeviceIntRect& aRect)
     // bounds (bug 581863).  gdk_window_get_frame_extents would give the
     // frame bounds, but mBounds.Size() is returned here for consistency
     // with Resize.
-    aRect.SizeTo(LayoutDeviceIntSize::FromUnknownSize(mBounds.Size()));
+    aRect.SizeTo(mBounds.Size());
     LOG(("GetScreenBounds %d,%d | %dx%d\n",
          aRect.x, aRect.y, aRect.width, aRect.height));
     return NS_OK;
@@ -2418,7 +2418,7 @@ nsWindow::OnConfigureEvent(GtkWidget *aWidget, GdkEventConfigure *aEvent)
         return FALSE;
     }
 
-    mBounds.MoveTo(screenBounds.TopLeft().ToUnknownPoint());
+    mBounds.MoveTo(screenBounds.TopLeft());
 
     // XXX mozilla will invalidate the entire window after this move
     // complete.  wtf?
@@ -2449,7 +2449,7 @@ nsWindow::OnSizeAllocate(GtkAllocation *aAllocation)
          (void *)this, aAllocation->x, aAllocation->y,
          aAllocation->width, aAllocation->height));
 
-    nsIntSize size = GdkRectToDevicePixels(*aAllocation).Size();
+    LayoutDeviceIntSize size = GdkRectToDevicePixels(*aAllocation).Size();
 
     if (mBounds.Size() == size)
         return;
@@ -3541,7 +3541,7 @@ nsWindow::Create(nsIWidget* aParent,
     CommonCreate(aParent, listenForResizes);
 
     // save our bounds
-    mBounds = aRect.ToUnknownRect();
+    mBounds = aRect;
     ConstrainSize(&mBounds.width, &mBounds.height);
 
     // figure out our parent window
@@ -4034,7 +4034,7 @@ nsWindow::NativeResize()
     }
 
     GdkRectangle size = DevicePixelsToGdkSizeRoundUp(mBounds.Size());
-    
+
     LOG(("nsWindow::NativeResize [%p] %d %d\n", (void *)this,
          size.width, size.height));
 
@@ -4300,14 +4300,12 @@ nsWindow::ConfigureChildren(const nsTArray<Configuration>& aConfigurations)
         nsWindow* w = static_cast<nsWindow*>(configuration.mChild.get());
         NS_ASSERTION(w->GetParent() == this,
                      "Configured widget is not a child");
-        LayoutDeviceIntRect wBounds =
-            LayoutDeviceIntRect::FromUnknownRect(w->mBounds);
         w->SetWindowClipRegion(configuration.mClipRegion, true);
-        if (wBounds.Size() != configuration.mBounds.Size()) {
+        if (w->mBounds.Size() != configuration.mBounds.Size()) {
             w->Resize(configuration.mBounds.x, configuration.mBounds.y,
                       configuration.mBounds.width, configuration.mBounds.height,
                       true);
-        } else if (wBounds.TopLeft() != configuration.mBounds.TopLeft()) {
+        } else if (w->mBounds.TopLeft() != configuration.mBounds.TopLeft()) {
             w->Move(configuration.mBounds.x, configuration.mBounds.y);
         }
         w->SetWindowClipRegion(configuration.mClipRegion, false);
@@ -4971,11 +4969,28 @@ nsWindow::PerformFullscreenTransition(FullscreenTransitionStage aStage,
                        transitionData, nullptr);
 }
 
+static bool
+IsFullscreenSupported(GtkWidget* aShell)
+{
+#ifdef MOZ_X11
+    GdkScreen* screen = gtk_widget_get_screen(aShell);
+    GdkAtom atom = gdk_atom_intern("_NET_WM_STATE_FULLSCREEN", FALSE);
+    if (!gdk_x11_screen_supports_net_wm_hint(screen, atom)) {
+        return false;
+    }
+#endif
+    return true;
+}
+
 NS_IMETHODIMP
 nsWindow::MakeFullScreen(bool aFullScreen, nsIScreen* aTargetScreen)
 {
     LOG(("nsWindow::MakeFullScreen [%p] aFullScreen %d\n",
          (void *)this, aFullScreen));
+
+    if (!IsFullscreenSupported(mShell)) {
+        return NS_ERROR_NOT_AVAILABLE;
+    }
 
     if (aFullScreen) {
         if (mSizeMode != nsSizeMode_Fullscreen)
@@ -6667,7 +6682,7 @@ nsWindow::DevicePixelsToGdkCoordRoundDown(int pixels) {
 }
 
 GdkPoint
-nsWindow::DevicePixelsToGdkPointRoundDown(nsIntPoint point) {
+nsWindow::DevicePixelsToGdkPointRoundDown(LayoutDeviceIntPoint point) {
     gint scale = GdkScaleFactor();
     return { point.x / scale, point.y / scale };
 }
@@ -6683,7 +6698,7 @@ nsWindow::DevicePixelsToGdkRectRoundOut(LayoutDeviceIntRect rect) {
 }
 
 GdkRectangle
-nsWindow::DevicePixelsToGdkSizeRoundUp(nsIntSize pixelSize) {
+nsWindow::DevicePixelsToGdkSizeRoundUp(LayoutDeviceIntSize pixelSize) {
     gint scale = GdkScaleFactor();
     gint width = (pixelSize.width + scale - 1) / scale;
     gint height = (pixelSize.height + scale - 1) / scale;
@@ -6709,13 +6724,13 @@ nsWindow::GdkPointToDevicePixels(GdkPoint point) {
                                 point.y * scale);
 }
 
-nsIntRect
+LayoutDeviceIntRect
 nsWindow::GdkRectToDevicePixels(GdkRectangle rect) {
     gint scale = GdkScaleFactor();
-    return nsIntRect(rect.x * scale,
-                     rect.y * scale,
-                     rect.width * scale,
-                     rect.height * scale);
+    return LayoutDeviceIntRect(rect.x * scale,
+                               rect.y * scale,
+                               rect.width * scale,
+                               rect.height * scale);
 }
 
 nsresult

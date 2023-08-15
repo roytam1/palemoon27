@@ -95,6 +95,7 @@ public:
     bool AreBoundsSane(void);
 
     // nsIWidget
+    using nsBaseWidget::Create; // for Create signature not overridden here
     NS_IMETHOD         Create(nsIWidget* aParent,
                               nsNativeWidget aNativeParent,
                               const LayoutDeviceIntRect& aRect,
@@ -339,14 +340,14 @@ public:
     // To GDK
     gint DevicePixelsToGdkCoordRoundUp(int pixels);
     gint DevicePixelsToGdkCoordRoundDown(int pixels);
-    GdkPoint DevicePixelsToGdkPointRoundDown(nsIntPoint point);
-    GdkRectangle DevicePixelsToGdkSizeRoundUp(nsIntSize pixelSize);
+    GdkPoint DevicePixelsToGdkPointRoundDown(LayoutDeviceIntPoint point);
+    GdkRectangle DevicePixelsToGdkSizeRoundUp(LayoutDeviceIntSize pixelSize);
 
     // From GDK
     int GdkCoordToDevicePixels(gint coord);
     LayoutDeviceIntPoint GdkPointToDevicePixels(GdkPoint point);
     LayoutDeviceIntPoint GdkEventCoordsToDevicePixels(gdouble x, gdouble y);
-    nsIntRect GdkRectToDevicePixels(GdkRectangle rect);
+    LayoutDeviceIntRect GdkRectToDevicePixels(GdkRectangle rect);
 
 protected:
     virtual ~nsWindow();

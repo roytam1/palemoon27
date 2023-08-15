@@ -693,15 +693,17 @@ private:
     // Stores state and data for frame intervals and paint times recording.
     // see LayerManager::StartFrameTimeRecording() at Layers.cpp for more details.
     FramesTimingRecording()
-      : mIsPaused(true)
-      , mNextIndex(0)
+      : mNextIndex(0)
+      , mLatestStartIndex(0)
+      , mCurrentRunStartIndex(0)
+      , mIsPaused(true)
     {}
-    bool mIsPaused;
-    uint32_t mNextIndex;
-    TimeStamp mLastFrameTime;
     nsTArray<float> mIntervals;
+    TimeStamp mLastFrameTime;
+    uint32_t mNextIndex;
     uint32_t mLatestStartIndex;
     uint32_t mCurrentRunStartIndex;
+    bool mIsPaused;
   };
   FramesTimingRecording mRecording;
 
@@ -2129,8 +2131,12 @@ public:
   /**
    * VR
    */
-  void SetVRHMDInfo(gfx::VRHMDInfo* aHMD) { mHMDInfo = aHMD; }
-  gfx::VRHMDInfo* GetVRHMDInfo() { return mHMDInfo; }
+  void SetVRDeviceID(uint32_t aVRDeviceID) {
+    mVRDeviceID = aVRDeviceID;
+  }
+  uint32_t GetVRDeviceID() {
+    return mVRDeviceID;
+  }
 
   /**
    * Replace the current effective transform with the given one,
@@ -2206,7 +2212,7 @@ protected:
   // the intermediate surface.
   bool mChildrenChanged;
   EventRegionsOverride mEventRegionsOverride;
-  RefPtr<gfx::VRHMDInfo> mHMDInfo;
+  uint32_t mVRDeviceID;
 };
 
 /**

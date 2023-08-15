@@ -103,7 +103,7 @@ PuppetWidget::Create(nsIWidget* aParent,
 {
   MOZ_ASSERT(!aNativeParent, "got a non-Puppet native parent");
 
-  BaseCreate(nullptr, aRect, aInitData);
+  BaseCreate(nullptr, aInitData);
 
   mBounds = aRect.ToUnknownRect();
   mEnabled = true;
@@ -683,6 +683,15 @@ PuppetWidget::SetPluginFocused(bool& aFocused)
     return NS_ERROR_FAILURE;
   }
   return NS_OK;
+}
+
+void
+PuppetWidget::DefaultProcOfPluginEvent(const WidgetPluginEvent& aEvent)
+{
+  if (!mTabChild) {
+    return;
+  }
+  mTabChild->SendDefaultProcOfPluginEvent(aEvent);
 }
 
 NS_IMETHODIMP_(void)
@@ -1395,6 +1404,16 @@ PuppetWidget::GetCurrentWidgetListener()
   }
 
   return mAttachedWidgetListener;
+}
+
+void
+PuppetWidget::SetCandidateWindowForPlugin(int32_t aX, int32_t aY)
+{
+  if (!mTabChild) {
+    return;
+  }
+
+  mTabChild->SendSetCandidateWindowForPlugin(aX, aY);
 }
 
 } // namespace widget

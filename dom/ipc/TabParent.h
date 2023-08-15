@@ -1,5 +1,5 @@
-/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*- */
-/* vim: set sw=4 ts=8 et tw=80 : */
+/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
+/* vim: set ts=8 sts=2 et sw=2 tw=80: */
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -196,6 +196,10 @@ public:
                                     const int32_t& aPanelY,
                                     nsString* aCommitted) override;
     virtual bool RecvSetPluginFocused(const bool& aFocused) override;
+    virtual bool RecvSetCandidateWindowForPlugin(const int32_t& aX,
+                                                 const int32_t& aY) override;
+    virtual bool RecvDefaultProcOfPluginEvent(
+                   const WidgetPluginEvent& aEvent) override;
     virtual bool RecvGetInputContext(int32_t* aIMEEnabled,
                                      int32_t* aIMEOpen) override;
     virtual bool RecvSetInputContext(const int32_t& aIMEEnabled,
@@ -501,7 +505,7 @@ protected:
 
     // Decide whether we have to use a new process to reload the URI associated
     // with the given channel.
-    bool ShouldSwitchProcess(nsIChannel* aChannel);
+    bool ShouldSwitchProcess(nsIChannel* aChannel, const nsACString& aSignedPkg);
 
     ContentCacheInParent mContentCache;
 

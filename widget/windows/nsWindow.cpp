@@ -500,7 +500,7 @@ nsWindow::Create(nsIWidget* aParent,
   // Ensure that the toolkit is created.
   nsToolkit::GetToolkit();
 
-  BaseCreate(baseParent, aRect, aInitData);
+  BaseCreate(baseParent, aInitData);
 
   HWND parent;
   if (aParent) { // has a nsIWidget parent
@@ -6969,7 +6969,7 @@ void nsWindow::ResizeTranslucentWindow(int32_t aNewWidth, int32_t aNewHeight, bo
     return;
 
   RefPtr<gfxWindowsSurface> newSurface =
-    new gfxWindowsSurface(IntSize(aNewWidth, aNewHeight), gfxImageFormat::ARGB32);
+    new gfxWindowsSurface(IntSize(aNewWidth, aNewHeight), SurfaceFormat::A8R8G8B8_UINT32);
   mTransparentSurface = newSurface;
   mMemoryDC = newSurface->GetDC();
 }
@@ -7786,6 +7786,39 @@ nsWindow::ComputeShouldAccelerate()
     return false;
   }
   return nsBaseWidget::ComputeShouldAccelerate();
+}
+
+void
+nsWindow::SetCandidateWindowForPlugin(int32_t aX, int32_t aY)
+{
+  CANDIDATEFORM form;
+  form.dwIndex = 0;
+  form.dwStyle = CFS_CANDIDATEPOS;
+  form.ptCurrentPos.x = aX;
+  form.ptCurrentPos.y = aY;
+
+  IMEHandler::SetCandidateWindow(this, &form);
+}
+
+void
+nsWindow::DefaultProcOfPluginEvent(const WidgetPluginEvent& aEvent)
+{
+  const NPEvent* pPluginEvent =
+   static_cast<const NPEvent*>(aEvent.mPluginEvent);
+
+  if (NS_WARN_IF(!pPluginEvent)) {
+    return;
+  }
+
+  if (!mWnd) {
+    return;
+  }
+
+  // For WM_IME_*COMPOSITION
+  IMEHandler::DefaultProcOfPluginEvent(this, pPluginEvent);
+
+  CallWindowProcW(GetPrevWindowProc(), mWnd, pPluginEvent->event,
+                  pPluginEvent->wParam, pPluginEvent->lParam);
 }
 
 /**************************************************************

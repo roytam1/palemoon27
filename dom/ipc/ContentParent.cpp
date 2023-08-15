@@ -1,5 +1,5 @@
-/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*- */
-/* vim: set sw=4 ts=8 et tw=80 : */
+/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
+/* vim: set ts=8 sts=2 et sw=2 tw=80: */
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -30,6 +30,7 @@
 #include "AudioChannelService.h"
 #include "BlobParent.h"
 #include "CrashReporterParent.h"
+#include "DeviceStorageStatics.h"
 #include "GMPServiceParent.h"
 #include "HandlerServiceParent.h"
 #include "IHistory.h"
@@ -265,7 +266,14 @@ using namespace mozilla::system;
 #include "mozilla/dom/GamepadMonitoring.h"
 #endif
 
+#include "VRManagerParent.h"            // for VRManagerParent
+
 static NS_DEFINE_CID(kCClipboardCID, NS_CLIPBOARD_CID);
+
+#if defined(XP_WIN)
+// e10s forced enable pref, defined in nsAppRunner.cpp
+extern const char* kForceEnableE10sPref;
+#endif
 
 using base::ChildPrivileges;
 using base::KillProcess;
@@ -1551,7 +1559,15 @@ ContentParent::Init()
     // If accessibility is running in chrome process then start it in content
     // process.
     if (nsIPresShell::IsAccessibilityActive()) {
+#if !defined(XP_WIN)
         Unused << SendActivateA11y();
+#else
+        // On Windows we currently only enable a11y in the content process
+        // for testing purposes.
+        if (Preferences::GetBool(kForceEnableE10sPref, false)) {
+            Unused << SendActivateA11y();
+        }
+#endif
     }
 #endif
 
@@ -1586,10 +1602,14 @@ ContentParent::ForwardKnownInfo()
 #ifdef MOZ_WIDGET_GONK
     InfallibleTArray<VolumeInfo> volumeInfo;
     RefPtr<nsVolumeService> vs = nsVolumeService::GetSingleton();
-    if (vs && !mIsForBrowser) {
+    if (vs) {
         vs->GetVolumesForIPC(&volumeInfo);
         Unused << SendVolumes(volumeInfo);
     }
+#else
+    DeviceStorageAreaInfo areaInfo;
+    DeviceStorageStatics::GetDeviceStorageAreasForIPC(areaInfo);
+    Unused << SendDeviceStorageAreas(areaInfo);
 #endif /* MOZ_WIDGET_GONK */
 
     nsCOMPtr<nsISystemMessagesInternal> systemMessenger =
@@ -2623,6 +2643,9 @@ ContentParent::InitInternal(ProcessPriority aInitialPriority,
 
             opened = PImageBridge::Open(this);
             MOZ_ASSERT(opened);
+
+            opened = gfx::PVRManager::Open(this);
+            MOZ_ASSERT(opened);
         }
 #ifdef MOZ_WIDGET_GONK
         DebugOnly<bool> opened = PSharedBufferManager::Open(this);
@@ -3333,7 +3356,15 @@ ContentParent::Observe(nsISupports* aSubject,
     // gets initiated in chrome process.
     else if (aData && (*aData == '1') &&
              !strcmp(aTopic, "a11y-init-or-shutdown")) {
+#if !defined(XP_WIN)
         Unused << SendActivateA11y();
+#else
+        // On Windows we currently only enable a11y in the content process
+        // for testing purposes.
+        if (Preferences::GetBool(kForceEnableE10sPref, false)) {
+            Unused << SendActivateA11y();
+        }
+#endif
     }
 #endif
     else if (!strcmp(aTopic, "app-theme-changed")) {
@@ -3388,6 +3419,13 @@ ContentParent::AllocPCompositorParent(mozilla::ipc::Transport* aTransport,
                                       base::ProcessId aOtherProcess)
 {
     return CompositorParent::Create(aTransport, aOtherProcess);
+}
+
+gfx::PVRManagerParent*
+ContentParent::AllocPVRManagerParent(Transport* aTransport,
+                                     ProcessId aOtherProcess)
+{
+  return gfx::VRManagerParent::CreateCrossProcess(aTransport, aOtherProcess);
 }
 
 PImageBridgeParent*

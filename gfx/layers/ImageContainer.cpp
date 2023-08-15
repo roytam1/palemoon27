@@ -59,6 +59,10 @@ ImageFactory::CreatePlanarYCbCrImage(const gfx::IntSize& aScaleHint, BufferRecyc
 
 BufferRecycleBin::BufferRecycleBin()
   : mLock("mozilla.layers.BufferRecycleBin.mLock")
+  // This member is only valid when the bin is not empty and will be properly
+  // initialized in RecycleBuffer, but initializing it here avoids static analysis
+  // noise.
+  , mRecycledBufferSize(0)
 {
 }
 
@@ -389,7 +393,7 @@ ImageContainer::NotifyCompositeInternal(const ImageCompositeNotification& aNotif
 
 PlanarYCbCrImage::PlanarYCbCrImage()
   : Image(nullptr, ImageFormat::PLANAR_YCBCR)
-  , mOffscreenFormat(gfxImageFormat::Unknown)
+  , mOffscreenFormat(SurfaceFormat::UNKNOWN)
   , mBufferSize(0)
 {
 }
@@ -501,7 +505,7 @@ RecyclingPlanarYCbCrImage::SetData(const Data &aData)
 gfxImageFormat
 PlanarYCbCrImage::GetOffscreenFormat()
 {
-  return mOffscreenFormat == gfxImageFormat::Unknown ?
+  return mOffscreenFormat == SurfaceFormat::UNKNOWN ?
     gfxPlatform::GetPlatform()->GetOffscreenFormat() :
     mOffscreenFormat;
 }

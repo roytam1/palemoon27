@@ -56,15 +56,15 @@ class LayerManager;
 class LayerManagerComposite;
 class PLayerTransactionChild;
 struct ScrollableLayerGuid;
-}
+} // namespace layers
 namespace gfx {
 class DrawTarget;
 class SourceSurface;
-}
+} // namespace gfx
 namespace widget {
 class TextEventDispatcher;
-}
-}
+} // namespace widget
+} // namespace mozilla
 
 /**
  * Callback function that processes events.
@@ -127,10 +127,13 @@ typedef void* nsNativeWidget;
 // set/get nsPluginNativeWindowGtk, e10s specific
 #define NS_NATIVE_PLUGIN_OBJECT_PTR    104
 #endif
+#ifdef MOZ_WIDGET_ANDROID
+#define NS_NATIVE_NEW_EGL_SURFACE      100
+#endif
 
 #define NS_IWIDGET_IID \
-{ 0x7b736a0c, 0x2262, 0x4f37, \
-  { 0xbd, 0xed, 0xe5, 0x60, 0x88, 0x1c, 0x36, 0xdd } }
+{ 0x73c0a475, 0x450f, 0x4202, \
+  { 0xab, 0xb4, 0x62, 0xf8, 0x9d, 0xbe, 0xf7, 0x9a } }
 
 /*
  * Window shadow styles
@@ -1225,7 +1228,7 @@ class nsIWidget : public nsISupports {
      * before each composition.
      */
     virtual already_AddRefed<mozilla::gfx::DrawTarget> StartRemoteDrawing() = 0;
-    virtual already_AddRefed<mozilla::gfx::DrawTarget> StartRemoteDrawingInRegion(nsIntRegion& aInvalidRegion) {
+    virtual already_AddRefed<mozilla::gfx::DrawTarget> StartRemoteDrawingInRegion(LayoutDeviceIntRegion& aInvalidRegion) {
       return StartRemoteDrawing();
     }
 
@@ -1237,7 +1240,7 @@ class nsIWidget : public nsISupports {
      * after each composition.
      */
     virtual void EndRemoteDrawing() = 0;
-    virtual void EndRemoteDrawingInRegion(mozilla::gfx::DrawTarget* aDrawTarget, nsIntRegion& aInvalidRegion) {
+    virtual void EndRemoteDrawingInRegion(mozilla::gfx::DrawTarget* aDrawTarget, LayoutDeviceIntRegion& aInvalidRegion) {
       EndRemoteDrawing();
     }
 
@@ -1759,6 +1762,25 @@ public:
      * aFocused  Whether or not a plugin is focused
      */
     NS_IMETHOD SetPluginFocused(bool& aFocused) = 0;
+
+    /*
+     * Tell the plugin has focus.  It is unnecessary to use IPC
+     */
+    bool PluginHasFocus() 
+    {
+      return GetInputContext().mIMEState.mEnabled == IMEState::PLUGIN;
+    }
+
+    /**
+     * Set IME candidate window position by windowless plugin.
+     */
+    virtual void SetCandidateWindowForPlugin(int32_t aX, int32_t aY) = 0;
+
+    /**
+     * Handle default action when PluginEvent isn't handled
+     */
+    virtual void DefaultProcOfPluginEvent(
+                   const mozilla::WidgetPluginEvent& aEvent) = 0;
 
     /*
      * Notifies the input context changes.

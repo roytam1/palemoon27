@@ -2923,7 +2923,7 @@ pref("dom.ipc.plugins.asyncInit.enabled", true);
 #endif
 
 // Allow the AsyncDrawing mode to be used for plugins.
-pref("dom.ipc.plugins.asyncdrawing.enabled", false);
+pref("dom.ipc.plugins.asyncdrawing.enabled", true);
 
 pref("dom.ipc.processCount", 1);
 
@@ -3507,9 +3507,6 @@ pref("plugin.scan.WindowsMediaPlayer", "7.0");
 // Which is currently HKLM\Software\MozillaPlugins\xxxPLIDxxx\Path
 pref("plugin.scan.plid.all", true);
 
-// Allow the new AsyncDrawing mode to be used for plugins.
-pref("plugin.allow.asyncdrawing", false);
-
 // Help Windows NT, 2000, and XP dialup a RAS connection
 // when a network address is unreachable.
 pref("network.autodial-helper.enabled", true);
@@ -3621,9 +3618,9 @@ pref("ui.osk.enabled", true);
 pref("ui.osk.detect_physical_keyboard", true);
 // Path to TabTip.exe on local machine. Cached for performance reasons.
 pref("ui.osk.on_screen_keyboard_path", "");
-// Only show the on-screen keyboard when Windows is in Tablet mode. Setting
-// this pref to false will allow the OSK to show in regular non-tablet mode.
-pref("ui.osk.require_tablet_mode", true);
+// Only try to show the on-screen keyboard on Windows 10 and later. Setting
+// this pref to false will allow the OSK to show on Windows 8 and 8.1.
+pref("ui.osk.require_win10", false);
 // This pref stores the "reason" that the on-screen keyboard was either
 // shown or not shown when focus is moved to an editable text field. It is
 // used to help debug why the keyboard is either not appearing when expected
@@ -4658,9 +4655,6 @@ pref("layers.tiles.edge-padding", true);
 // same effect as layers.offmainthreadcomposition.enabled, but specifically for
 // use with tests.
 pref("layers.offmainthreadcomposition.testing.enabled", false);
-
-// whether to allow use of the basic compositor
-pref("layers.offmainthreadcomposition.force-basic", false);
 
 // Whether to animate simple opacity and transforms on the compositor
 #ifdef RELEASE_BUILD

@@ -53,6 +53,7 @@ include protocol PJavaScript;
 include protocol PRemoteSpellcheckEngine;
 include protocol PWebrtcGlobal;
 include protocol PPresentation;
+include protocol PVRManager;
 include DOMTypes;
 include JavaScriptTypes;
 include InputStreamParams;
@@ -367,6 +368,15 @@ struct VolumeInfo {
   bool isHotSwappable;
 };
 
+struct DeviceStorageAreaInfo {
+  nsString music;
+  nsString pictures;
+  nsString videos;
+  nsString sdcard;
+  nsString apps;
+  nsString crashes;
+};
+
 struct ClipboardCapabilities {
   bool supportsSelectionClipboard;
   bool supportsFindClipboard;
@@ -454,6 +464,7 @@ prio(normal upto urgent) sync protocol PContent
     parent opens PSharedBufferManager;
     parent opens PImageBridge;
     parent opens PGMPService;
+    parent opens PVRManager;
     child opens PBackground;
 
     manages PBlob;
@@ -589,6 +600,8 @@ child:
     ScreenSizeChanged(IntSize size);
 
     Volumes(VolumeInfo[] volumes);
+
+    DeviceStorageAreas(DeviceStorageAreaInfo areaInfo);
 
     FlushMemory(nsString reason);
 

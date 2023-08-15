@@ -41,7 +41,7 @@ class Element;
 class ServiceWorkerRegistrationMainThread;
 } // namespace dom
 namespace gfx {
-class VRHMDInfo;
+class VRDeviceProxy;
 } // namespace gfx
 } // namespace mozilla
 
@@ -500,7 +500,7 @@ public:
    * Outer windows only.
    */
   virtual nsresult SetFullScreenInternal(bool aIsFullscreen, bool aFullscreenMode,
-                                         mozilla::gfx::VRHMDInfo *aHMD = nullptr) = 0;
+                                         mozilla::gfx::VRDeviceProxy *aHMD = nullptr) = 0;
 
   /**
    * Call this to check whether some node (this window, its document,

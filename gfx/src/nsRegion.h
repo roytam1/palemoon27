@@ -351,6 +351,45 @@ public:
   void VisitEdges(visitFn, void *closure);
 
   nsCString ToString() const;
+
+  class RectIterator
+  {
+    int mCurrent;               // Index of the current entry
+    int mLimit;                 // Index one past the final entry.
+    mutable nsRect mTmp;        // The most recently gotten rectangle.
+    pixman_box32_t *mBoxes;
+
+  public:
+    explicit RectIterator(const nsRegion& aRegion)
+    {
+      mCurrent = 0;
+      mBoxes = pixman_region32_rectangles(aRegion.Impl(), &mLimit);
+      // Work around pixman bug. Sometimes pixman creates regions with 1 rect
+      // that's empty.
+      if (mLimit == 1 && nsRegion::BoxToRect(mBoxes[0]).IsEmpty()) {
+        mLimit = 0;
+      }
+    }
+
+    bool Done() const { return mCurrent == mLimit; }
+
+    const nsRect& Get() const
+    {
+      MOZ_ASSERT(!Done());
+      mTmp = nsRegion::BoxToRect(mBoxes[mCurrent]);
+      NS_ASSERTION(!mTmp.IsEmpty(), "Shouldn't return empty rect");
+      return mTmp;
+    }
+
+    void Next()
+    {
+      MOZ_ASSERT(!Done());
+      mCurrent++;
+    }
+  };
+
+  RectIterator RectIter() const { return RectIterator(*this); }
+
 private:
   pixman_region32_t mImpl;
 
@@ -701,10 +740,8 @@ public:
   nsRegion ToAppUnits (nscoord aAppUnitsPerPixel) const
   {
     nsRegion result;
-    RectIterator rgnIter(*this);
-    const Rect* currentRect;
-    while ((currentRect = rgnIter.Next())) {
-      nsRect appRect = ::ToAppUnits(*currentRect, aAppUnitsPerPixel);
+    for (auto iter = RectIter(); !iter.Done(); iter.Next()) {
+      nsRect appRect = ::ToAppUnits(iter.Get(), aAppUnitsPerPixel);
       result.Or(result, appRect);
     }
     return result;
@@ -768,13 +805,14 @@ public:
 
   nsCString ToString() const { return mImpl.ToString(); }
 
-  class RectIterator
+  // XXX: this is going away soon in favour of RectIterator
+  class OldRectIterator
   {
     nsRegionRectIterator mImpl;
     Rect mTmp;
 
   public:
-    explicit RectIterator (const BaseIntRegion& aRegion) : mImpl (aRegion.mImpl) {}
+    explicit OldRectIterator (const BaseIntRegion& aRegion) : mImpl (aRegion.mImpl) {}
 
     const Rect* Next ()
     {
@@ -799,6 +837,29 @@ public:
       mImpl.Reset ();
     }
   };
+
+  class RectIterator
+  {
+    nsRegion::RectIterator mImpl; // The underlying iterator.
+    mutable Rect mTmp;            // The most recently gotten rectangle.
+
+  public:
+    explicit RectIterator(const BaseIntRegion& aRegion)
+      : mImpl(aRegion.mImpl)
+    {}
+
+    bool Done() const { return mImpl.Done(); }
+
+    const Rect& Get() const
+    {
+      mTmp = FromRect(mImpl.Get());
+      return mTmp;
+    }
+
+    void Next() { mImpl.Next(); }
+  };
+
+  RectIterator RectIter() const { return RectIterator(*this); }
 
 protected:
   // Expose enough to derived classes from them to define conversions
@@ -875,6 +936,6 @@ private:
 } // namespace mozilla
 
 typedef mozilla::gfx::IntRegion nsIntRegion;
-typedef nsIntRegion::RectIterator nsIntRegionRectIterator;
+typedef nsIntRegion::OldRectIterator nsIntRegionRectIterator;
 
 #endif

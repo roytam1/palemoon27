@@ -3760,13 +3760,10 @@ NSEvent* gLastDragMouseDownEvent = nil;
   RefPtr<gfxContext> targetContext = new gfxContext(dt);
 
   // Set up the clip region.
-  LayoutDeviceIntRegion::OldRectIterator iter(region);
   targetContext->NewPath();
-  for (;;) {
-    const LayoutDeviceIntRect* r = iter.Next();
-    if (!r)
-      break;
-    targetContext->Rectangle(gfxRect(r->x, r->y, r->width, r->height));
+  for (auto iter = region.RectIter(); !iter.Done(); iter.Next()) {
+    const LayoutDeviceIntRect& r = iter.Get();
+    targetContext->Rectangle(gfxRect(r.x, r.y, r.width, r.height));
   }
   targetContext->Clip();
 
@@ -4639,13 +4636,8 @@ NewCGSRegionFromRegion(const LayoutDeviceIntRegion& aRegion,
                        CGRect (^aRectConverter)(const LayoutDeviceIntRect&))
 {
   nsTArray<CGRect> rects;
-  LayoutDeviceIntRegion::OldRectIterator iter(aRegion);
-  for (;;) {
-    const LayoutDeviceIntRect* r = iter.Next();
-    if (!r) {
-      break;
-    }
-    rects.AppendElement(aRectConverter(*r));
+  for (auto iter = aRegion.RectIter(); !iter.Done(); iter.Next()) {
+    rects.AppendElement(aRectConverter(iter.Get()));
   }
 
   CGSRegionObj region;
@@ -4982,7 +4974,8 @@ PanGestureTypeForEvent(NSEvent* aEvent)
                                 ScrollWheelInput::SCROLLDELTA_PIXEL,
                                 position,
                                 preciseDelta.x,
-                                preciseDelta.y);
+                                preciseDelta.y,
+                                false);
     wheelEvent.mLineOrPageDeltaX = lineOrPageDeltaX;
     wheelEvent.mLineOrPageDeltaY = lineOrPageDeltaY;
     wheelEvent.mIsMomentum = nsCocoaUtils::IsMomentumScrollEvent(theEvent);
@@ -4997,7 +4990,8 @@ PanGestureTypeForEvent(NSEvent* aEvent)
                                 ScrollWheelInput::SCROLLDELTA_LINE,
                                 position,
                                 lineOrPageDeltaX,
-                                lineOrPageDeltaY);
+                                lineOrPageDeltaY,
+                                false);
     wheelEvent.mLineOrPageDeltaX = lineOrPageDeltaX;
     wheelEvent.mLineOrPageDeltaY = lineOrPageDeltaY;
     mGeckoChild->DispatchAPZWheelInputEvent(wheelEvent, false);

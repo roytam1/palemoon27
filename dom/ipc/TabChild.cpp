@@ -1210,7 +1210,7 @@ TabChild::SetProcessNameToAppName()
 }
 
 bool
-TabChild::IsRootContentDocument()
+TabChild::IsRootContentDocument() const
 {
     // A TabChild is a "root content document" if it's
     //
@@ -1688,7 +1688,7 @@ TabChild::RecvHandleDoubleTap(const CSSPoint& aPoint, const Modifiers& aModifier
     ViewID viewId;
     if (APZCCallbackHelper::GetOrCreateScrollIdentifiers(
         document->GetDocumentElement(), &presShellId, &viewId)) {
-      SendZoomToRect(presShellId, viewId, zoomToRect);
+      SendZoomToRect(presShellId, viewId, zoomToRect, DEFAULT_BEHAVIOR);
     }
 
     return true;

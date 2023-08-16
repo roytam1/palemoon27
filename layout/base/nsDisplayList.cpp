@@ -47,8 +47,6 @@
 #include "nsSVGElement.h"
 #include "nsSVGClipPathFrame.h"
 #include "GeckoProfiler.h"
-#include "nsAnimationManager.h"
-#include "nsTransitionManager.h"
 #include "nsViewManager.h"
 #include "ImageLayers.h"
 #include "ImageContainer.h"
@@ -61,6 +59,7 @@
 #include "mozilla/PendingAnimationTracker.h"
 #include "mozilla/Preferences.h"
 #include "mozilla/UniquePtr.h"
+#include "mozilla/unused.h"
 #include "ActiveLayerTracker.h"
 #include "nsContentUtils.h"
 #include "nsPrintfCString.h"
@@ -522,14 +521,10 @@ nsDisplayListBuilder::AddAnimationsAndTransitionsToLayer(Layer* aLayer,
   // Otherwise, in RestyleManager we'll notice the discrepancy between the
   // animation generation numbers and update the layer indefinitely.
   uint64_t animationGeneration =
-    RestyleManager::GetMaxAnimationGenerationForFrame(aFrame);
+    RestyleManager::GetAnimationGenerationForFrame(aFrame);
   aLayer->SetAnimationGeneration(animationGeneration);
 
-  nsPresContext* presContext = aFrame->PresContext();
-  presContext->TransitionManager()->ClearIsRunningOnCompositor(aFrame,
-                                                               aProperty);
-  presContext->AnimationManager()->ClearIsRunningOnCompositor(aFrame,
-                                                              aProperty);
+  EffectCompositor::ClearIsRunningOnCompositor(aFrame, aProperty);
   nsTArray<RefPtr<dom::Animation>> compositorAnimations =
     EffectCompositor::GetAnimationsForCompositor(aFrame, aProperty);
   if (compositorAnimations.IsEmpty()) {
@@ -540,14 +535,14 @@ nsDisplayListBuilder::AddAnimationsAndTransitionsToLayer(Layer* aLayer,
   // Do this check only during layer construction; during updating the
   // caller is required to check it appropriately.
   if (aItem && !aItem->CanUseAsyncAnimations(aBuilder)) {
-    // AnimationManager or TransitionManager need to know that we refused to
-    // run this animation asynchronously so that they will not throttle the
-    // main thread animation.
+    // EffectCompositor needs to know that we refused to run this animation
+    // asynchronously so that it will not throttle the main thread
+    // animation.
     aFrame->Properties().Set(nsIFrame::RefusedAsyncAnimationProperty(),
                             reinterpret_cast<void*>(intptr_t(true)));
 
-    // We need to schedule another refresh driver run so that AnimationManager
-    // or TransitionManager get a chance to unthrottle the animation.
+    // We need to schedule another refresh driver run so that EffectCompositor
+    // gets a chance to unthrottle the animation.
     aFrame->SchedulePaint();
     return;
   }
@@ -1436,9 +1431,9 @@ TreatAsOpaque(nsDisplayItem* aItem, nsDisplayListBuilder* aBuilder)
     return opaque;
   }
   nsRegion opaqueClipped;
-  nsRegionRectIterator iter(opaque);
-  for (const nsRect* r = iter.Next(); r; r = iter.Next()) {
-    opaqueClipped.Or(opaqueClipped, aItem->GetClip().ApproximateIntersectInward(*r));
+  for (auto iter = opaque.RectIter(); !iter.Done(); iter.Next()) {
+    opaqueClipped.Or(opaqueClipped,
+                     aItem->GetClip().ApproximateIntersectInward(iter.Get()));
   }
   return opaqueClipped;
 }
@@ -2228,7 +2223,6 @@ nsDisplayBackgroundImage::nsDisplayBackgroundImage(nsDisplayListBuilder* aBuilde
                                                    const nsStyleBackground* aBackgroundStyle)
   : nsDisplayImageContainer(aBuilder, aFrame)
   , mBackgroundStyle(aBackgroundStyle)
-  , mAnimatedGeometryRootForScrollMetadata(mAnimatedGeometryRoot)
   , mLayer(aLayer)
 {
   MOZ_COUNT_CTOR(nsDisplayBackgroundImage);
@@ -2415,7 +2409,13 @@ nsDisplayBackgroundImage::AppendBackgroundItemsToTop(nsDisplayListBuilder* aBuil
 
     nsDisplayBackgroundImage* bgItem =
       new (aBuilder) nsDisplayBackgroundImage(aBuilder, aFrame, i, bg);
-    bgItemList.AppendNewToTop(bgItem);
+
+    if (bgItem->ShouldFixToViewport(aBuilder)) {
+      bgItemList.AppendNewToTop(
+        nsDisplayFixedPosition::CreateForFixedBackground(aBuilder, aFrame, bgItem, i));
+    } else {
+      bgItemList.AppendNewToTop(bgItem);
+    }
   }
 
   if (needBlendContainer) {
@@ -2979,6 +2979,13 @@ nsDisplayBackgroundImage::GetPerFrameKey()
 {
   return (mLayer << nsDisplayItem::TYPE_BITS) |
     nsDisplayItem::GetPerFrameKey();
+}
+
+void
+nsDisplayBackgroundImage::MarkBoundsAsVisible(nsDisplayListBuilder* aBuilder)
+{
+  bool snap;
+  mVisibleRect = GetBounds(aBuilder, &snap);
 }
 
 nsDisplayThemedBackground::nsDisplayThemedBackground(nsDisplayListBuilder* aBuilder,
@@ -3608,24 +3615,25 @@ ComputeDisjointRectangles(const nsRegion& aRegion,
                           nsTArray<nsRect>* aRects) {
   nscoord accumulationMargin = nsPresContext::CSSPixelsToAppUnits(25);
   nsRect accumulated;
-  nsRegionRectIterator iter(aRegion);
-  while (true) {
-    const nsRect* r = iter.Next();
-    if (r && !accumulated.IsEmpty() &&
-        accumulated.YMost() >= r->y - accumulationMargin) {
-      accumulated.UnionRect(accumulated, *r);
+
+  for (auto iter = aRegion.RectIter(); !iter.Done(); iter.Next()) {
+    const nsRect& r = iter.Get();
+    if (accumulated.IsEmpty()) {
+      accumulated = r;
       continue;
     }
 
-    if (!accumulated.IsEmpty()) {
+    if (accumulated.YMost() >= r.y - accumulationMargin) {
+      accumulated.UnionRect(accumulated, r);
+    } else {
       aRects->AppendElement(accumulated);
-      accumulated.SetEmpty();
+      accumulated = r;
     }
+  }
 
-    if (!r)
-      break;
-
-    accumulated = *r;
+  // Finish the in-flight rectangle, if there is one.
+  if (!accumulated.IsEmpty()) {
+    aRects->AppendElement(accumulated);
   }
 }
 
@@ -4483,11 +4491,10 @@ nsDisplaySubDocument::ComputeFrameMetrics(Layer* aLayer,
 }
 
 static bool
-UseDisplayPortForViewport(nsDisplayListBuilder* aBuilder, nsIFrame* aFrame,
-                          nsRect* aDisplayPort = nullptr)
+UseDisplayPortForViewport(nsDisplayListBuilder* aBuilder, nsIFrame* aFrame)
 {
   return aBuilder->IsPaintingToWindow() &&
-      nsLayoutUtils::ViewportHasDisplayPort(aFrame->PresContext(), aDisplayPort);
+      nsLayoutUtils::ViewportHasDisplayPort(aFrame->PresContext());
 }
 
 nsRect
@@ -4507,12 +4514,17 @@ bool
 nsDisplaySubDocument::ComputeVisibility(nsDisplayListBuilder* aBuilder,
                                         nsRegion* aVisibleRegion)
 {
-  nsRect displayport;
-  bool usingDisplayPort = UseDisplayPortForViewport(aBuilder, mFrame, &displayport);
+  bool usingDisplayPort = UseDisplayPortForViewport(aBuilder, mFrame);
 
   if (!(mFlags & GENERATE_SCROLLABLE_LAYER) || !usingDisplayPort) {
     return nsDisplayWrapList::ComputeVisibility(aBuilder, aVisibleRegion);
   }
+
+  nsRect displayport;
+  nsIFrame* rootScrollFrame = mFrame->PresContext()->PresShell()->GetRootScrollFrame();
+  MOZ_ASSERT(rootScrollFrame);
+  Unused << nsLayoutUtils::GetDisplayPort(rootScrollFrame->GetContent(), &displayport,
+    RelativeTo::ScrollFrame);
 
   nsRegion childVisibleRegion;
   // The visible region for the children may be much bigger than the hole we
@@ -4605,6 +4617,117 @@ nsDisplayResolution::BuildLayer(nsDisplayListBuilder* aBuilder,
   layer->AsContainerLayer()->SetScaleToResolution(
       presShell->ScaleToResolution(), presShell->GetResolution());
   return layer.forget();
+}
+
+nsDisplayFixedPosition::nsDisplayFixedPosition(nsDisplayListBuilder* aBuilder,
+                                               nsIFrame* aFrame,
+                                               nsDisplayList* aList)
+  : nsDisplayOwnLayer(aBuilder, aFrame, aList)
+  , mIndex(0)
+  , mIsFixedBackground(false)
+{
+  MOZ_COUNT_CTOR(nsDisplayFixedPosition);
+  Init(aBuilder);
+}
+
+nsDisplayFixedPosition::nsDisplayFixedPosition(nsDisplayListBuilder* aBuilder,
+                                               nsIFrame* aFrame,
+                                               nsDisplayList* aList,
+                                               uint32_t aIndex)
+  : nsDisplayOwnLayer(aBuilder, aFrame, aList)
+  , mIndex(aIndex)
+  , mIsFixedBackground(true)
+{
+  MOZ_COUNT_CTOR(nsDisplayFixedPosition);
+  Init(aBuilder);
+}
+
+void
+nsDisplayFixedPosition::Init(nsDisplayListBuilder* aBuilder)
+{
+  bool snap;
+  mVisibleRect = GetBounds(aBuilder, &snap);
+  mAnimatedGeometryRootForScrollMetadata = mAnimatedGeometryRoot;
+  if (ShouldFixToViewport(aBuilder)) {
+    mAnimatedGeometryRoot = aBuilder->FindAnimatedGeometryRootFor(this);
+  }
+}
+
+/* static */ nsDisplayFixedPosition*
+nsDisplayFixedPosition::CreateForFixedBackground(nsDisplayListBuilder* aBuilder,
+                                                 nsIFrame* aFrame,
+                                                 nsDisplayBackgroundImage* aImage,
+                                                 uint32_t aIndex)
+{
+  // Clear clipping on the child item, since we will apply it to the
+  // fixed position item as well.
+  aImage->SetClip(aBuilder, DisplayItemClip());
+  aImage->SetScrollClip(nullptr);
+  aImage->MarkBoundsAsVisible(aBuilder);
+
+  nsDisplayList temp;
+  temp.AppendToTop(aImage);
+
+  return new (aBuilder) nsDisplayFixedPosition(aBuilder, aFrame, &temp, aIndex + 1);
+}
+
+
+#ifdef NS_BUILD_REFCNT_LOGGING
+nsDisplayFixedPosition::~nsDisplayFixedPosition() {
+  MOZ_COUNT_DTOR(nsDisplayFixedPosition);
+}
+#endif
+
+already_AddRefed<Layer>
+nsDisplayFixedPosition::BuildLayer(nsDisplayListBuilder* aBuilder,
+                                   LayerManager* aManager,
+                                   const ContainerLayerParameters& aContainerParameters) {
+  RefPtr<Layer> layer =
+    nsDisplayOwnLayer::BuildLayer(aBuilder, aManager, aContainerParameters);
+
+  layer->SetIsFixedPosition(true);
+
+  nsPresContext* presContext = Frame()->PresContext();
+  nsIFrame* fixedFrame = mIsFixedBackground ? presContext->PresShell()->GetRootFrame() : Frame();
+
+  const nsIFrame* viewportFrame = fixedFrame->GetParent();
+  // anchorRect will be in the container's coordinate system (aLayer's parent layer).
+  // This is the same as the display items' reference frame.
+  nsRect anchorRect;
+  if (viewportFrame) {
+    // Fixed position frames are reflowed into the scroll-port size if one has
+    // been set.
+    if (presContext->PresShell()->IsScrollPositionClampingScrollPortSizeSet()) {
+      anchorRect.SizeTo(presContext->PresShell()->GetScrollPositionClampingScrollPortSize());
+    } else {
+      anchorRect.SizeTo(viewportFrame->GetSize());
+    }
+  } else {
+    // A display item directly attached to the viewport.
+    // For background-attachment:fixed items, the anchor point is always the
+    // top-left of the viewport currently.
+    viewportFrame = fixedFrame;
+  }
+  // The anchorRect top-left is always the viewport top-left.
+  anchorRect.MoveTo(viewportFrame->GetOffsetToCrossDoc(ReferenceFrame()));
+
+  nsLayoutUtils::SetFixedPositionLayerData(layer,
+      viewportFrame, anchorRect, fixedFrame, presContext, aContainerParameters, !mIsFixedBackground);
+
+  return layer.forget();
+}
+
+bool nsDisplayFixedPosition::TryMerge(nsDisplayItem* aItem) {
+  if (aItem->GetType() != TYPE_FIXED_POSITION)
+    return false;
+  // Items with the same fixed position frame can be merged.
+  nsDisplayFixedPosition* other = static_cast<nsDisplayFixedPosition*>(aItem);
+  if (other->mFrame != mFrame)
+    return false;
+  if (aItem->GetClip() != GetClip())
+    return false;
+  MergeFromTrackingMergedFrames(other);
+  return true;
 }
 
 nsDisplayStickyPosition::nsDisplayStickyPosition(nsDisplayListBuilder* aBuilder,

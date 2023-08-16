@@ -10,6 +10,7 @@
 #include "nsWrapperCache.h"
 #include "nsCycleCollectionParticipant.h"
 #include "mozilla/Attributes.h"
+#include "mozilla/EffectCompositor.h" // For EffectCompositor::CascadeLevel
 #include "mozilla/LinkedList.h"
 #include "mozilla/TimeStamp.h" // for TimeStamp, TimeDuration
 #include "mozilla/dom/AnimationBinding.h" // for AnimationPlayState
@@ -38,9 +39,7 @@ class nsPresContext;
 
 namespace mozilla {
 
-struct AnimationCollection;
 class AnimValuesStyleRule;
-class CommonAnimationManager;
 
 namespace dom {
 
@@ -286,16 +285,13 @@ public:
   virtual bool HasLowerCompositeOrderThan(const Animation& aOther) const;
 
    /**
-   * Returns true if effect(s) associated with this Animation are applied to
-   * the transitions level of the cascade. Otherwise, it is assumed that
-   * animated values are applies to the animations level of the cascade.
-   *
-   * This is used in determining which animations are sent to the compositor
-   * since animations applied to the transitions level of the cascade are not
-   * overridden by higher-priority style values in the same way that
-   * regular animations that apply to the animations level of the cascade are.
+   * Returns the level at which the effect(s) associated with this Animation
+   * are applied to the CSS cascade.
    */
-  virtual bool AppliesToTransitionsLevel() const { return false; }
+  virtual EffectCompositor::CascadeLevel CascadeLevel() const
+  {
+    return EffectCompositor::CascadeLevel::Animations;
+  }
 
   /**
    * Returns true if this animation does not currently need to update
@@ -308,17 +304,11 @@ public:
    * if any.
    * Any properties already contained in |aSetProperties| are not changed. Any
    * properties that are changed are added to |aSetProperties|.
-   * |aStyleChanging| will be set to true if this animation expects to update
-   * the style rule on the next refresh driver tick as well (because it
-   * is running and has an effect to sample).
    */
   void ComposeStyle(RefPtr<AnimValuesStyleRule>& aStyleRule,
-                    nsCSSPropertySet& aSetProperties,
-                    bool& aStyleChanging);
+                    nsCSSPropertySet& aSetProperties);
 
   void NotifyEffectTimingUpdated();
-
-  AnimationCollection* GetCollection() const;
 
 protected:
   void SilentlySetCurrentTime(const TimeDuration& aNewCurrentTime);
@@ -378,7 +368,6 @@ protected:
 
   nsIDocument* GetRenderedDocument() const;
   nsPresContext* GetPresContext() const;
-  virtual CommonAnimationManager* GetAnimationManager() const = 0;
 
   RefPtr<AnimationTimeline> mTimeline;
   RefPtr<KeyframeEffectReadOnly> mEffect;

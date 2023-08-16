@@ -100,6 +100,7 @@ protected:
   typedef mozilla::layers::APZEventState APZEventState;
   typedef mozilla::layers::SetAllowedTouchBehaviorCallback SetAllowedTouchBehaviorCallback;
   typedef mozilla::CSSIntRect CSSIntRect;
+  typedef mozilla::CSSRect CSSRect;
   typedef mozilla::ScreenRotation ScreenRotation;
 
   virtual ~nsBaseWidget();
@@ -237,10 +238,6 @@ public:
   virtual bool            ComputeShouldAccelerate();
   virtual nsIMEUpdatePreference GetIMEUpdatePreference() override { return nsIMEUpdatePreference(); }
   NS_IMETHOD              OnDefaultButtonLoaded(const LayoutDeviceIntRect& aButtonRect) override { return NS_ERROR_NOT_IMPLEMENTED; }
-  NS_IMETHOD              OverrideSystemMouseScrollSpeed(double aOriginalDeltaX,
-                                                         double aOriginalDeltaY,
-                                                         double& aOverriddenDeltaX,
-                                                         double& aOverriddenDeltaY) override;
   virtual already_AddRefed<nsIWidget>
   CreateChild(const LayoutDeviceIntRect& aRect,
               nsWidgetInitData* aInitData = nullptr,
@@ -251,7 +248,10 @@ public:
   virtual nsIWidgetListener* GetPreviouslyAttachedWidgetListener() override;
   virtual void               SetPreviouslyAttachedWidgetListener(nsIWidgetListener* aListener) override;
   NS_IMETHOD_(TextEventDispatcher*) GetTextEventDispatcher() override final;
-
+  virtual void ZoomToRect(const uint32_t& aPresShellId,
+                          const FrameMetrics::ViewID& aViewId,
+                          const CSSRect& aRect,
+                          const uint32_t& aFlags) override;
   // Helper function for dispatching events which are not processed by APZ,
   // but need to be transformed by APZ.
   nsEventStatus DispatchInputEvent(mozilla::WidgetInputEvent* aEvent) override;
@@ -528,7 +528,9 @@ protected:
   bool              mUpdateCursor;
   bool              mUseAttachedEvents;
   bool              mIMEHasFocus;
-
+#ifdef XP_WIN
+  bool              mAccessibilityInUseFlag;
+#endif
   static nsIRollupListener* gRollupListener;
 
   // the last rolled up popup. Only set this when an nsAutoRollup is in scope,

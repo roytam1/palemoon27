@@ -138,6 +138,7 @@ PrintDisplayItemTo(nsDisplayListBuilder* aBuilder, nsDisplayItem* aItem,
   nsDisplayList* list = aItem->GetChildren();
   const DisplayItemClip& clip = aItem->GetClip();
   nsRegion opaque = aItem->GetOpaqueRegion(aBuilder, &snap);
+
 #ifdef MOZ_DUMP_PAINTING
   if (aDumpHtml && aItem->Painted()) {
     nsCString string(aItem->Name());
@@ -146,6 +147,7 @@ PrintDisplayItemTo(nsDisplayListBuilder* aBuilder, nsDisplayItem* aItem,
     aStream << nsPrintfCString("<a href=\"javascript:ViewImage('%s')\">", string.BeginReading());
   }
 #endif
+
   aStream << nsPrintfCString("%s p=0x%p f=0x%p(%s) %sbounds(%d,%d,%d,%d) layerBounds(%d,%d,%d,%d) visible(%d,%d,%d,%d) componentAlpha(%d,%d,%d,%d) clip(%s) scrollClip(%s)%s ref=0x%p agr=0x%p",
           aItem->Name(), aItem, (void*)f, NS_ConvertUTF16toUTF8(contentData).get(),
           (aItem->ZIndex() ? nsPrintfCString("z=%d ", aItem->ZIndex()).get() : ""),
@@ -156,15 +158,11 @@ PrintDisplayItemTo(nsDisplayListBuilder* aBuilder, nsDisplayItem* aItem,
           clip.ToString().get(),
           DisplayItemScrollClip::ToString(aItem->ScrollClip()).get(),
           aItem->IsUniform(aBuilder, &color) ? " uniform" : "",
-          aItem->ReferenceFrame(), *aItem->GetAnimatedGeometryRoot());
+          aItem->ReferenceFrame(), aItem->GetAnimatedGeometryRoot()->mFrame);
 
-  nsRegionRectIterator iter(opaque);
-  for (const nsRect* r = iter.Next(); r; r = iter.Next()) {
-    aStream << nsPrintfCString(" (opaque %d,%d,%d,%d)", r->x, r->y, r->width, r->height);
-  }
-
-  if (aItem->ShouldFixToViewport(aBuilder)) {
-    aStream << " fixed";
+  for (auto iter = opaque.RectIter(); !iter.Done(); iter.Next()) {
+    const nsRect& r = iter.Get();
+    aStream << nsPrintfCString(" (opaque %d,%d,%d,%d)", r.x, r.y, r.width, r.height);
   }
 
   if (aItem->Frame()->StyleDisplay()->mWillChange.Length() > 0) {

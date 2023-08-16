@@ -32,9 +32,8 @@ using namespace mozilla::widget;
 static void
 InvalidateRegion(nsIWidget* aWidget, const LayoutDeviceIntRegion& aRegion)
 {
-  LayoutDeviceIntRegion::OldRectIterator it(aRegion);
-  while(const LayoutDeviceIntRect* r = it.Next()) {
-    aWidget->Invalidate(*r);
+  for (auto iter = aRegion.RectIter(); !iter.Done(); iter.Next()) {
+    aWidget->Invalidate(iter.Get());
   }
 }
 
@@ -1415,6 +1414,19 @@ PuppetWidget::SetCandidateWindowForPlugin(int32_t aX, int32_t aY)
   }
 
   mTabChild->SendSetCandidateWindowForPlugin(aX, aY);
+}
+
+void
+PuppetWidget::ZoomToRect(const uint32_t& aPresShellId,
+                         const FrameMetrics::ViewID& aViewId,
+                         const CSSRect& aRect,
+                         const uint32_t& aFlags)
+{
+  if (!mTabChild) {
+    return;
+  }
+
+  mTabChild->SendZoomToRect(aPresShellId, aViewId, aRect, aFlags);
 }
 
 } // namespace widget

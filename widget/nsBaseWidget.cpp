@@ -167,6 +167,9 @@ nsBaseWidget::nsBaseWidget()
 , mUpdateCursor(true)
 , mUseAttachedEvents(false)
 , mIMEHasFocus(false)
+#ifdef XP_WIN
+, mAccessibilityInUseFlag(false)
+#endif
 {
 #ifdef NOISY_WIDGET_LEAKS
   gNumWidgets++;
@@ -232,6 +235,18 @@ WidgetShutdownObserver::Unregister()
   }
 }
 
+#ifdef XP_WIN
+// defined in nsAppRunner.cpp
+extern const char* kAccessibilityLastRunDatePref;
+
+static inline uint32_t
+PRTimeToSeconds(PRTime t_usec)
+{
+  PRTime usec_per_sec = PR_USEC_PER_SEC;
+  return uint32_t(t_usec /= usec_per_sec);
+}
+#endif
+
 void
 nsBaseWidget::Shutdown()
 {
@@ -242,6 +257,12 @@ nsBaseWidget::Shutdown()
     delete sPluginWidgetList;
     sPluginWidgetList = nullptr;
   }
+#if defined(XP_WIN)
+  if (mAccessibilityInUseFlag) {
+    uint32_t now = PRTimeToSeconds(PR_Now());
+    Preferences::SetInt(kAccessibilityLastRunDatePref, now);
+  }
+#endif
 #endif
 }
 
@@ -285,6 +306,7 @@ nsBaseWidget::FreeShutdownObserver()
 // nsBaseWidget destructor
 //
 //-------------------------------------------------------------------------
+
 nsBaseWidget::~nsBaseWidget()
 {
   IMEStateManager::WidgetDestroyed(this);
@@ -735,9 +757,8 @@ void
 nsBaseWidget::ArrayFromRegion(const LayoutDeviceIntRegion& aRegion,
                               nsTArray<LayoutDeviceIntRect>& aRects)
 {
-  const LayoutDeviceIntRect* r;
-  for (LayoutDeviceIntRegion::OldRectIterator iter(aRegion); (r = iter.Next()); ) {
-    aRects.AppendElement(*r);
+  for (auto iter = aRegion.RectIter(); !iter.Done(); iter.Next()) {
+    aRects.AppendElement(iter.Get());
   }
 }
 
@@ -1002,7 +1023,11 @@ nsBaseWidget::ProcessUntransformedAPZEvent(WidgetInputEvent* aEvent,
         GetDefaultScale());
   }
 
+  // Make a copy of the original event for the APZCCallbackHelper helpers that
+  // we call later, because the event passed to DispatchEvent can get mutated in
+  // ways that we don't want (i.e. touch points can get stripped out).
   nsEventStatus status;
+  UniquePtr<WidgetEvent> original(aEvent->Duplicate());
   DispatchEvent(aEvent, status);
 
   if (mAPZC && !context.WasRoutedToChildProcess()) {
@@ -1013,18 +1038,19 @@ nsBaseWidget::ProcessUntransformedAPZEvent(WidgetInputEvent* aEvent,
     if (WidgetTouchEvent* touchEvent = aEvent->AsTouchEvent()) {
       if (touchEvent->mMessage == eTouchStart) {
         if (gfxPrefs::TouchActionEnabled()) {
-          APZCCallbackHelper::SendSetAllowedTouchBehaviorNotification(this, *touchEvent,
-              aInputBlockId, mSetAllowedTouchBehaviorCallback);
+          APZCCallbackHelper::SendSetAllowedTouchBehaviorNotification(this,
+              *(original->AsTouchEvent()), aInputBlockId,
+              mSetAllowedTouchBehaviorCallback);
         }
-        APZCCallbackHelper::SendSetTargetAPZCNotification(this, GetDocument(), *aEvent,
-            aGuid, aInputBlockId);
+        APZCCallbackHelper::SendSetTargetAPZCNotification(this, GetDocument(),
+            *(original->AsTouchEvent()), aGuid, aInputBlockId);
       }
       mAPZEventState->ProcessTouchEvent(*touchEvent, aGuid, aInputBlockId,
           aApzResponse, status);
     } else if (WidgetWheelEvent* wheelEvent = aEvent->AsWheelEvent()) {
       if (wheelEvent->mFlags.mHandledByAPZ) {
-        APZCCallbackHelper::SendSetTargetAPZCNotification(this, GetDocument(), *aEvent,
-                  aGuid, aInputBlockId);
+        APZCCallbackHelper::SendSetTargetAPZCNotification(this, GetDocument(),
+            *(original->AsWheelEvent()), aGuid, aInputBlockId);
         if (wheelEvent->mCanTriggerSwipe) {
           ReportSwipeStarted(aInputBlockId, wheelEvent->TriggersSwipe());
         }
@@ -1500,51 +1526,6 @@ nsBaseWidget::ShowsResizeIndicator(LayoutDeviceIntRect* aResizerRect)
   return false;
 }
 
-NS_IMETHODIMP
-nsBaseWidget::OverrideSystemMouseScrollSpeed(double aOriginalDeltaX,
-                                             double aOriginalDeltaY,
-                                             double& aOverriddenDeltaX,
-                                             double& aOverriddenDeltaY)
-{
-  aOverriddenDeltaX = aOriginalDeltaX;
-  aOverriddenDeltaY = aOriginalDeltaY;
-
-  static bool sInitialized = false;
-  static bool sIsOverrideEnabled = false;
-  static int32_t sIntFactorX = 0;
-  static int32_t sIntFactorY = 0;
-
-  if (!sInitialized) {
-    Preferences::AddBoolVarCache(&sIsOverrideEnabled,
-      "mousewheel.system_scroll_override_on_root_content.enabled", false);
-    Preferences::AddIntVarCache(&sIntFactorX,
-      "mousewheel.system_scroll_override_on_root_content.horizontal.factor", 0);
-    Preferences::AddIntVarCache(&sIntFactorY,
-      "mousewheel.system_scroll_override_on_root_content.vertical.factor", 0);
-    sIntFactorX = std::max(sIntFactorX, 0);
-    sIntFactorY = std::max(sIntFactorY, 0);
-    sInitialized = true;
-  }
-
-  if (!sIsOverrideEnabled) {
-    return NS_OK;
-  }
-
-  // The pref value must be larger than 100, otherwise, we don't override the
-  // delta value.
-  if (sIntFactorX > 100) {
-    double factor = static_cast<double>(sIntFactorX) / 100;
-    aOverriddenDeltaX *= factor;
-  }
-  if (sIntFactorY > 100) {
-    double factor = static_cast<double>(sIntFactorY) / 100;
-    aOverriddenDeltaY *= factor;
-  }
-
-  return NS_OK;
-}
-
-
 /**
  * Modifies aFile to point at an icon file with the given name and suffix.  The
  * suffix may correspond to a file extension with leading '.' if appropriate.
@@ -1776,17 +1757,20 @@ nsBaseWidget::GetTextEventDispatcher()
   return mTextEventDispatcher;
 }
 
-#ifdef ACCESSIBILITY
-
-// defined in nsAppRunner.cpp
-extern const char* kAccessibilityLastRunDatePref;
-
-static inline uint32_t
-PRTimeToSeconds(PRTime t_usec)
+void
+nsBaseWidget::ZoomToRect(const uint32_t& aPresShellId,
+                         const FrameMetrics::ViewID& aViewId,
+                         const CSSRect& aRect,
+                         const uint32_t& aFlags)
 {
-  PRTime usec_per_sec = PR_USEC_PER_SEC;
-  return uint32_t(t_usec /= usec_per_sec);
+  if (!mCompositorParent || !mAPZC) {
+    return;
+  }
+  uint64_t layerId = mCompositorParent->RootLayerTreeId();
+  mAPZC->ZoomToRect(ScrollableLayerGuid(layerId, aPresShellId, aViewId), aRect, aFlags);
 }
+
+#ifdef ACCESSIBILITY
 
 a11y::Accessible*
 nsBaseWidget::GetRootAccessible()
@@ -1806,8 +1790,9 @@ nsBaseWidget::GetRootAccessible()
   nsCOMPtr<nsIAccessibilityService> accService =
     services::GetAccessibilityService();
   if (accService) {
-    uint32_t now = PRTimeToSeconds(PR_Now());
-    Preferences::SetInt(kAccessibilityLastRunDatePref, now);
+#ifdef XP_WIN
+    mAccessibilityInUseFlag = true;
+#endif
     return accService->GetRootDocumentAccessible(presShell, nsContentUtils::IsSafeToRunScript());
   }
 

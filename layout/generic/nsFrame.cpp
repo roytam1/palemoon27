@@ -113,7 +113,7 @@ typedef nsAbsoluteContainingBlock::AbsPosReflowFlags AbsPosReflowFlags;
 
 namespace mozilla {
 namespace gfx {
-class VRHMDInfo;
+class VRDeviceProxy;
 } // namespace gfx
 } // namespace mozilla
 
@@ -2054,20 +2054,21 @@ nsIFrame::BuildDisplayListForStackingContext(nsDisplayListBuilder* aBuilder,
                         nsLayoutUtils::GetNearestScrollableFrame(GetParent(),
                         nsLayoutUtils::SCROLLABLE_SAME_DOC |
                         nsLayoutUtils::SCROLLABLE_INCLUDE_HIDDEN));
+  bool useFixedPosition = nsLayoutUtils::IsFixedPosFrameInDisplayPort(this);
 
   nsDisplayListBuilder::AutoBuildingDisplayList
     buildingDisplayList(aBuilder, this, dirtyRect, true);
 
-  mozilla::gfx::VRHMDInfo* vrHMDInfo = nullptr;
+  mozilla::gfx::VRDeviceProxy* vrHMDInfo = nullptr;
   if ((GetStateBits() & NS_FRAME_HAS_VR_CONTENT)) {
-    vrHMDInfo = static_cast<mozilla::gfx::VRHMDInfo*>(mContent->GetProperty(nsGkAtoms::vr_state));
+    vrHMDInfo = static_cast<mozilla::gfx::VRDeviceProxy*>(mContent->GetProperty(nsGkAtoms::vr_state));
   }
 
   DisplayListClipState::AutoSaveRestore clipState(aBuilder);
 
   nsDisplayListBuilder::AutoSaveRestorePerspectiveIndex perspectiveIndex(aBuilder, this);
 
-  if (isTransformed || useBlendMode || usingSVGEffects || useStickyPosition) {
+  if (isTransformed || useBlendMode || usingSVGEffects || useFixedPosition || useStickyPosition) {
     // We don't need to pass ancestor clipping down to our children;
     // everything goes inside a display item's child list, and the display
     // item itself will be clipped.
@@ -2281,7 +2282,10 @@ nsIFrame::BuildDisplayListForStackingContext(nsDisplayListBuilder* aBuilder,
 
   /* If we have sticky positioning, wrap it in a sticky position item.
    */
-  if (useStickyPosition) {
+  if (useFixedPosition) {
+    resultList.AppendNewToTop(
+        new (aBuilder) nsDisplayFixedPosition(aBuilder, this, &resultList));
+  } else if (useStickyPosition) {
     resultList.AppendNewToTop(
         new (aBuilder) nsDisplayStickyPosition(aBuilder, this, &resultList));
   }

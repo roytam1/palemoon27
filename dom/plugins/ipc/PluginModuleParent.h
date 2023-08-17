@@ -81,6 +81,9 @@ class FinishInjectorInitTask;
 class PluginModuleParent
     : public PPluginModuleParent
     , public PluginLibrary
+#ifdef MOZ_CRASHREPORTER_INJECTOR
+    , public CrashReporter::InjectorCrashCallback
+#endif
 {
 protected:
     typedef mozilla::PluginLibrary PluginLibrary;
@@ -246,9 +249,8 @@ protected:
     virtual nsresult SetBackgroundUnknown(NPP instance) override;
     virtual nsresult BeginUpdateBackground(NPP instance,
                                            const nsIntRect& aRect,
-                                           gfxContext** aCtx) override;
+                                           DrawTarget** aDrawTarget) override;
     virtual nsresult EndUpdateBackground(NPP instance,
-                                         gfxContext* aCtx,
                                          const nsIntRect& aRect) override;
 
 #if defined(XP_UNIX) && !defined(XP_MACOSX) && !defined(MOZ_WIDGET_GONK)
@@ -314,6 +316,7 @@ protected:
     TimeDuration mTimeBlocked;
     nsCString mPluginName;
     nsCString mPluginVersion;
+    int32_t mSandboxLevel;
     bool mIsFlashPlugin;
 
 #ifdef MOZ_X11
@@ -360,6 +363,10 @@ class PluginModuleContentParent : public PluginModuleParent
   private:
     virtual bool ShouldContinueFromReplyTimeout() override;
     virtual void OnExitedSyncSend() override;
+
+#ifdef MOZ_CRASHREPORTER_INJECTOR
+    void OnCrash(DWORD processID) override {}
+#endif
 
     static PluginModuleContentParent* sSavedModuleParent;
 
@@ -533,7 +540,6 @@ private:
     PluginHangUIParent *mHangUIParent;
     bool mHangUIEnabled;
     bool mIsTimerReset;
-    int32_t mSandboxLevel;
 #ifdef MOZ_CRASHREPORTER
     /**
      * This mutex protects the crash reporter when the Plugin Hang UI event

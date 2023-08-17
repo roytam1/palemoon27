@@ -11,6 +11,7 @@
 #include "gfx2DGlue.h"
 #include "mozilla/gfx/2D.h"
 #include "mozilla/gfx/Helpers.h"
+#include "mozilla/gfx/Tools.h"
 #include "gfxUtils.h"
 #include "YCbCrUtils.h"
 #include <algorithm>
@@ -351,7 +352,6 @@ BasicCompositor::DrawQuad(const gfx::Rect& aRect,
   // |dest| is a temporary surface.
   RefPtr<DrawTarget> dest = buffer;
 
-  buffer->PushClipRect(aClipRect);
   AutoRestoreTransform autoRestoreTransform(dest);
 
   Matrix newTransform;
@@ -374,6 +374,10 @@ BasicCompositor::DrawQuad(const gfx::Rect& aRect,
     transformBounds = aTransform.TransformAndClipBounds(aRect, Rect(offset.x, offset.y, buffer->GetSize().width, buffer->GetSize().height));
     transformBounds.RoundOut();
 
+    if (transformBounds.IsEmpty()) {
+      return;
+    }
+
     // Propagate the coordinate offset to our 2D draw target.
     newTransform = Matrix::Translation(transformBounds.x, transformBounds.y);
 
@@ -381,6 +385,8 @@ BasicCompositor::DrawQuad(const gfx::Rect& aRect,
     // surface, so undo the coordinate offset.
     new3DTransform = Matrix4x4::Translation(aRect.x, aRect.y, 0) * aTransform;
   }
+
+  buffer->PushClipRect(aClipRect);
 
   newTransform.PostTranslate(-offset.x, -offset.y);
   buffer->SetTransform(newTransform);
@@ -406,8 +412,17 @@ BasicCompositor::DrawQuad(const gfx::Rect& aRect,
       EffectSolidColor* effectSolidColor =
         static_cast<EffectSolidColor*>(aEffectChain.mPrimaryEffect.get());
 
+      bool unboundedOp = !IsOperatorBoundByMask(blendMode);
+      if (unboundedOp) {
+        dest->PushClipRect(aRect);
+      }
+
       FillRectWithMask(dest, aRect, effectSolidColor->mColor,
                        DrawOptions(aOpacity, blendMode), sourceMask, &maskTransform);
+
+      if (unboundedOp) {
+        dest->PopClip();
+      }
       break;
     }
     case EffectTypes::RGB: {
@@ -505,11 +520,10 @@ BasicCompositor::BeginFrame(const nsIntRegion& aInvalidRegion,
                             gfx::Rect *aClipRectOut /* = nullptr */,
                             gfx::Rect *aRenderBoundsOut /* = nullptr */)
 {
-  mWidgetSize = mWidget->GetClientSize().ToUnknownSize();
-  IntRect intRect = gfx::IntRect(IntPoint(), mWidgetSize);
+  LayoutDeviceIntRect intRect(LayoutDeviceIntPoint(), mWidget->GetClientSize());
   Rect rect = Rect(0, 0, intRect.width, intRect.height);
 
-  nsIntRegion invalidRegionSafe;
+  LayoutDeviceIntRegion invalidRegionSafe;
   if (mDidExternalComposition) {
     // We do not know rendered region during external composition, just redraw
     // whole widget.
@@ -517,19 +531,15 @@ BasicCompositor::BeginFrame(const nsIntRegion& aInvalidRegion,
     mDidExternalComposition = false;
   } else {
     // Sometimes the invalid region is larger than we want to draw.
-    invalidRegionSafe.And(aInvalidRegion, intRect);
+    invalidRegionSafe.And(
+      LayoutDeviceIntRegion::FromUnknownRegion(aInvalidRegion), intRect);
   }
 
-  IntRect invalidRect = invalidRegionSafe.GetBounds();
-  mInvalidRect = IntRect(invalidRect.x, invalidRect.y, invalidRect.width, invalidRect.height);
   mInvalidRegion = invalidRegionSafe;
+  mInvalidRect = mInvalidRegion.GetBounds();
 
   if (aRenderBoundsOut) {
     *aRenderBoundsOut = Rect();
-  }
-
-  if (mInvalidRect.width <= 0 || mInvalidRect.height <= 0) {
-    return;
   }
 
   if (mTarget) {
@@ -537,15 +547,26 @@ BasicCompositor::BeginFrame(const nsIntRegion& aInvalidRegion,
     // placeholder so that CreateRenderTarget() works.
     mDrawTarget = gfxPlatform::GetPlatform()->ScreenReferenceDrawTarget();
   } else {
+    // StartRemoteDrawingInRegion can mutate mInvalidRegion.
     mDrawTarget = mWidget->StartRemoteDrawingInRegion(mInvalidRegion);
+    if (!mDrawTarget) {
+      return;
+    }
+    mInvalidRect = mInvalidRegion.GetBounds();
+    if (mInvalidRect.IsEmpty()) {
+      mWidget->EndRemoteDrawingInRegion(mDrawTarget, mInvalidRegion);
+      return;
+    }
   }
-  if (!mDrawTarget) {
+
+  if (!mDrawTarget || mInvalidRect.IsEmpty()) {
     return;
   }
 
   // Setup an intermediate render target to buffer all compositing. We will
   // copy this into mDrawTarget (the widget), and/or mTarget in EndFrame()
-  RefPtr<CompositingRenderTarget> target = CreateRenderTarget(mInvalidRect, INIT_MODE_CLEAR);
+  RefPtr<CompositingRenderTarget> target =
+    CreateRenderTarget(mInvalidRect.ToUnknownRect(), INIT_MODE_CLEAR);
   if (!target) {
     if (!mTarget) {
       mWidget->EndRemoteDrawingInRegion(mDrawTarget, mInvalidRegion);
@@ -556,10 +577,11 @@ BasicCompositor::BeginFrame(const nsIntRegion& aInvalidRegion,
 
   // We only allocate a surface sized to the invalidated region, so we need to
   // translate future coordinates.
-  mRenderTarget->mDrawTarget->SetTransform(Matrix::Translation(-invalidRect.x,
-                                                               -invalidRect.y));
+  mRenderTarget->mDrawTarget->SetTransform(Matrix::Translation(-mInvalidRect.x,
+                                                               -mInvalidRect.y));
 
-  gfxUtils::ClipToRegion(mRenderTarget->mDrawTarget, invalidRegionSafe);
+  gfxUtils::ClipToRegion(mRenderTarget->mDrawTarget,
+                         mInvalidRegion.ToUnknownRegion());
 
   if (aRenderBoundsOut) {
     *aRenderBoundsOut = rect;
@@ -586,8 +608,9 @@ BasicCompositor::EndFrame()
     float g = float(rand()) / RAND_MAX;
     float b = float(rand()) / RAND_MAX;
     // We're still clipped to mInvalidRegion, so just fill the bounds.
-    mRenderTarget->mDrawTarget->FillRect(IntRectToRect(mInvalidRegion.GetBounds()),
-                                         ColorPattern(Color(r, g, b, 0.2f)));
+    mRenderTarget->mDrawTarget->FillRect(
+      IntRectToRect(mInvalidRegion.GetBounds()).ToUnknownRect(),
+      ColorPattern(Color(r, g, b, 0.2f)));
   }
 
   // Pop aInvalidregion
@@ -603,11 +626,11 @@ BasicCompositor::EndFrame()
   // The source DrawTarget is clipped to the invalidation region, so we have
   // to copy the individual rectangles in the region or else we'll draw blank
   // pixels.
-  nsIntRegionRectIterator iter(mInvalidRegion);
-  for (const IntRect *r = iter.Next(); r; r = iter.Next()) {
+  for (auto iter = mInvalidRegion.RectIter(); !iter.Done(); iter.Next()) {
+    const LayoutDeviceIntRect& r = iter.Get();
     dest->CopySurface(source,
-                      IntRect(r->x - mInvalidRect.x, r->y - mInvalidRect.y, r->width, r->height),
-                      IntPoint(r->x - offset.x, r->y - offset.y));
+                      IntRect(r.x - mInvalidRect.x, r.y - mInvalidRect.y, r.width, r.height),
+                      IntPoint(r.x - offset.x, r.y - offset.y));
   }
   if (!mTarget) {
     mWidget->EndRemoteDrawingInRegion(mDrawTarget, mInvalidRegion);

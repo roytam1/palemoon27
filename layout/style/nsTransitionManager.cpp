@@ -19,6 +19,7 @@
 #include "nsRuleWalker.h"
 #include "nsCSSPropertySet.h"
 #include "mozilla/EffectCompositor.h"
+#include "mozilla/EffectSet.h"
 #include "mozilla/EventDispatcher.h"
 #include "mozilla/StyleAnimationValue.h"
 #include "mozilla/dom/DocumentTimeline.h"
@@ -100,17 +101,6 @@ CSSTransition::PlayFromJS(ErrorResult& aRv)
 {
   FlushStyle();
   Animation::PlayFromJS(aRv);
-}
-
-CommonAnimationManager*
-CSSTransition::GetAnimationManager() const
-{
-  nsPresContext* context = GetPresContext();
-  if (!context) {
-    return nullptr;
-  }
-
-  return context->TransitionManager();
 }
 
 void
@@ -333,8 +323,8 @@ nsTransitionManager::StyleContextChanged(dom::Element *aElement,
   }
 
   NS_WARN_IF_FALSE(!nsLayoutUtils::AreAsyncAnimationsEnabled() ||
-                     mPresContext->RestyleManager()->
-                       ThrottledAnimationStyleIsUpToDate(),
+                   !mPresContext->EffectCompositor()->
+                     HasThrottledStyleUpdates(),
                    "throttled animations not up to date");
 
   // Compute what the css-transitions spec calls the "after-change
@@ -464,7 +454,10 @@ nsTransitionManager::StyleContextChanged(dom::Element *aElement,
           currentValue != segment.mToValue) {
         // stop the transition
         if (anim->HasCurrentEffect()) {
-          collection->UpdateAnimationGeneration(mPresContext);
+          EffectSet* effectSet = EffectSet::GetEffectSet(aElement, pseudoType);
+          if (effectSet) {
+            effectSet->UpdateAnimationGeneration(mPresContext);
+          }
         }
         anim->CancelFromStyle();
         animations.RemoveElementAt(i);
@@ -480,17 +473,17 @@ nsTransitionManager::StyleContextChanged(dom::Element *aElement,
   MOZ_ASSERT(!startedAny || collection,
              "must have element transitions if we started any transitions");
 
+  EffectCompositor::CascadeLevel cascadeLevel =
+    EffectCompositor::CascadeLevel::Transitions;
+
   if (collection) {
     EffectCompositor::UpdateCascadeResults(aElement, pseudoType,
                                            newStyleContext);
 
-    // Set the style rule refresh time to null so that EnsureStyleRuleFor
-    // creates a new style rule if we started *or* stopped transitions.
-    collection->mStyleRuleRefreshTime = TimeStamp();
     collection->UpdateCheckGeneration(mPresContext);
-    collection->mStyleChanging = true;
-    TimeStamp now = mPresContext->RefreshDriver()->MostRecentRefresh();
-    collection->EnsureStyleRuleFor(now);
+    mPresContext->EffectCompositor()->MaybeUpdateAnimationRule(aElement,
+                                                               pseudoType,
+                                                               cascadeLevel);
   }
 
   // We want to replace the new style context with the after-change style.
@@ -500,7 +493,9 @@ nsTransitionManager::StyleContextChanged(dom::Element *aElement,
     // The check of collection->mCheckGeneration against the restyle
     // manager's GetAnimationGeneration() will ensure that we don't go
     // through the rest of this function again when we do.
-    collection->PostRestyleForAnimation(mPresContext);
+    mPresContext->EffectCompositor()->PostRestyleForAnimation(aElement,
+                                                              pseudoType,
+                                                              cascadeLevel);
   }
 }
 
@@ -604,7 +599,11 @@ nsTransitionManager::ConsiderStartingTransition(
       animations[currentIndex]->CancelFromStyle();
       oldPT = nullptr; // Clear pointer so it doesn't dangle
       animations.RemoveElementAt(currentIndex);
-      aElementTransitions->UpdateAnimationGeneration(mPresContext);
+      EffectSet* effectSet =
+        EffectSet::GetEffectSet(aElement, aNewStyleContext->GetPseudoType());
+      if (effectSet) {
+        effectSet->UpdateAnimationGeneration(mPresContext);
+      }
 
       if (animations.IsEmpty()) {
         aElementTransitions->Destroy();
@@ -735,7 +734,12 @@ nsTransitionManager::ConsiderStartingTransition(
       return;
     }
   }
-  aElementTransitions->UpdateAnimationGeneration(mPresContext);
+
+  EffectSet* effectSet =
+    EffectSet::GetEffectSet(aElement, aNewStyleContext->GetPseudoType());
+  if (effectSet) {
+    effectSet->UpdateAnimationGeneration(mPresContext);
+  }
 
   *aStartedAny = true;
   aWhichStarted->AddProperty(aProperty);

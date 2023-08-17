@@ -1989,7 +1989,7 @@ this.DOMApplicationRegistry = {
         Services.scriptSecurityManager.createCodebasePrincipal(appURI,
                                                                {appId: aApp.localId});
       let cacheUpdate = updateSvc.scheduleAppUpdate(
-        appcacheURI, docURI, principal, aApp.localId, false, aProfileDir);
+        appcacheURI, docURI, principal, aProfileDir);
 
       // We save the download details for potential further usage like
       // cancelling it.
@@ -2143,7 +2143,7 @@ this.DOMApplicationRegistry = {
           Services.scriptSecurityManager.createCodebasePrincipal(appURI,
                                                                  {appId: aApp.localId});
         updateSvc.checkForUpdate(Services.io.newURI(helper.fullAppcachePath(), null, null),
-                                 principal, app.localId, false, updateObserver);
+                                 principal, updateObserver);
       });
       return;
     }
@@ -2418,8 +2418,7 @@ this.DOMApplicationRegistry = {
                                                                {appId: aApp.localId});
 
       updateSvc.checkForUpdate(Services.io.newURI(manifest.fullAppcachePath(), null, null),
-                               principal, aApp.localId, false,
-                               (aSubject, aTopic, aData) => updateDeferred.resolve(aTopic));
+                               principal, (aSubject, aTopic, aData) => updateDeferred.resolve(aTopic));
 
       let topic = yield updateDeferred.promise;
 

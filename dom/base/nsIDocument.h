@@ -103,10 +103,6 @@ class ImageLoader;
 class Rule;
 } // namespace css
 
-namespace gfx {
-class VRHMDInfo;
-} // namespace gfx
-
 namespace dom {
 class AnonymousContent;
 class Attr;
@@ -154,7 +150,7 @@ typedef CallbackObjectHolder<NodeFilter, nsIDOMNodeFilter> NodeFilterHolder;
 
 struct FullScreenOptions {
   FullScreenOptions();
-  RefPtr<gfx::VRHMDInfo> mVRHMDDevice;
+  RefPtr<gfx::VRDeviceProxy> mVRHMDDevice;
 };
 
 } // namespace dom

@@ -95,6 +95,7 @@ public:
     bool AreBoundsSane(void);
 
     // nsIWidget
+    using nsBaseWidget::Create; // for Create signature not overridden here
     NS_IMETHOD         Create(nsIWidget* aParent,
                               nsNativeWidget aNativeParent,
                               const LayoutDeviceIntRect& aRect,
@@ -209,9 +210,9 @@ public:
 #endif
 
     virtual already_AddRefed<mozilla::gfx::DrawTarget>
-                       StartRemoteDrawingInRegion(nsIntRegion& aInvalidRegion) override;
+                       StartRemoteDrawingInRegion(LayoutDeviceIntRegion& aInvalidRegion) override;
     virtual void       EndRemoteDrawingInRegion(mozilla::gfx::DrawTarget* aDrawTarget,
-                                                nsIntRegion& aInvalidRegion) override;
+                                                LayoutDeviceIntRegion& aInvalidRegion) override;
 
 private:
     void               UpdateAlpha(mozilla::gfx::SourceSurface* aSourceSurface, nsIntRect aBoundsRect);
@@ -302,7 +303,7 @@ public:
    virtual nsresult    ConfigureChildren(const nsTArray<Configuration>& aConfigurations) override;
    nsresult            UpdateTranslucentWindowAlphaInternal(const nsIntRect& aRect,
                                                             uint8_t* aAlphas, int32_t aStride);
-    virtual already_AddRefed<mozilla::gfx::DrawTarget> GetDrawTarget(const nsIntRegion& aRegion);
+    virtual already_AddRefed<mozilla::gfx::DrawTarget> GetDrawTarget(const LayoutDeviceIntRegion& aRegion);
 
 #if (MOZ_WIDGET_GTK == 2)
     static already_AddRefed<gfxASurface> GetSurfaceForGdkDrawable(GdkDrawable* aDrawable,
@@ -334,14 +335,14 @@ public:
     // To GDK
     gint DevicePixelsToGdkCoordRoundUp(int pixels);
     gint DevicePixelsToGdkCoordRoundDown(int pixels);
-    GdkPoint DevicePixelsToGdkPointRoundDown(nsIntPoint point);
-    GdkRectangle DevicePixelsToGdkSizeRoundUp(nsIntSize pixelSize);
+    GdkPoint DevicePixelsToGdkPointRoundDown(LayoutDeviceIntPoint point);
+    GdkRectangle DevicePixelsToGdkSizeRoundUp(LayoutDeviceIntSize pixelSize);
 
     // From GDK
     int GdkCoordToDevicePixels(gint coord);
     LayoutDeviceIntPoint GdkPointToDevicePixels(GdkPoint point);
     LayoutDeviceIntPoint GdkEventCoordsToDevicePixels(gdouble x, gdouble y);
-    nsIntRect GdkRectToDevicePixels(GdkRectangle rect);
+    LayoutDeviceIntRect GdkRectToDevicePixels(GdkRectangle rect);
 
 protected:
     virtual ~nsWindow();

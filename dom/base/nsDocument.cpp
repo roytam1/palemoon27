@@ -10970,7 +10970,7 @@ nsIDocument::MozCancelFullScreen()
 // Element::UnbindFromTree().
 class nsSetWindowFullScreen : public nsRunnable {
 public:
-  nsSetWindowFullScreen(nsIDocument* aDoc, bool aValue, gfx::VRHMDInfo* aHMD = nullptr)
+  nsSetWindowFullScreen(nsIDocument* aDoc, bool aValue, gfx::VRDeviceProxy* aHMD = nullptr)
     : mDoc(aDoc), mValue(aValue), mHMD(aHMD) {}
 
   NS_IMETHOD Run()
@@ -10984,7 +10984,7 @@ public:
 private:
   nsCOMPtr<nsIDocument> mDoc;
   bool mValue;
-  RefPtr<gfx::VRHMDInfo> mHMD;
+  RefPtr<gfx::VRDeviceProxy> mHMD;
 };
 
 static nsIDocument*
@@ -11004,7 +11004,7 @@ GetFullscreenRootDocument(nsIDocument* aDoc)
 }
 
 static void
-SetWindowFullScreen(nsIDocument* aDoc, bool aValue, gfx::VRHMDInfo *aVRHMD = nullptr)
+SetWindowFullScreen(nsIDocument* aDoc, bool aValue, gfx::VRDeviceProxy *aVRHMD = nullptr)
 {
   // Maintain list of fullscreen root documents.
   nsCOMPtr<nsIDocument> root = GetFullscreenRootDocument(aDoc);
@@ -11651,10 +11651,10 @@ nsresult nsDocument::RemoteFrameFullscreenReverted()
 }
 
 static void
-ReleaseHMDInfoRef(void *, nsIAtom*, void *aPropertyValue, void *)
+ReleaseVRDeviceProxyRef(void *, nsIAtom*, void *aPropertyValue, void *)
 {
   if (aPropertyValue) {
-    static_cast<gfx::VRHMDInfo*>(aPropertyValue)->Release();
+    static_cast<gfx::VRDeviceProxy*>(aPropertyValue)->Release();
   }
 }
 
@@ -11751,9 +11751,9 @@ nsDocument::RequestFullScreen(Element* aElement,
 
   // Process options -- in this case, just HMD
   if (aOptions.mVRHMDDevice) {
-    RefPtr<gfx::VRHMDInfo> hmdRef = aOptions.mVRHMDDevice;
+    RefPtr<gfx::VRDeviceProxy> hmdRef = aOptions.mVRHMDDevice;
     aElement->SetProperty(nsGkAtoms::vr_state, hmdRef.forget().take(),
-                          ReleaseHMDInfoRef,
+                          ReleaseVRDeviceProxyRef,
                           true);
   }
 

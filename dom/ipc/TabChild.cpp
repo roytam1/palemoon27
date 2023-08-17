@@ -1209,7 +1209,7 @@ TabChild::SetProcessNameToAppName()
 }
 
 bool
-TabChild::IsRootContentDocument()
+TabChild::IsRootContentDocument() const
 {
     // A TabChild is a "root content document" if it's
     //
@@ -1497,7 +1497,12 @@ TabChild::ApplyShowInfo(const ShowInfo& aInfo)
 void
 TabChild::MaybeRequestPreinitCamera()
 {
-    // Check if this tab will use the `camera` permission.
+    // Check if this tab is an app (not a browser frame) and will use the
+    // `camera` permission,
+    if (IsBrowserElement()) {
+      return;
+    }
+
     nsCOMPtr<nsIAppsService> appsService = do_GetService("@mozilla.org/AppsService;1");
     if (NS_WARN_IF(!appsService)) {
       return;
@@ -1668,7 +1673,7 @@ TabChild::RecvHandleDoubleTap(const CSSPoint& aPoint, const Modifiers& aModifier
     ViewID viewId;
     if (APZCCallbackHelper::GetOrCreateScrollIdentifiers(
         document->GetDocumentElement(), &presShellId, &viewId)) {
-      SendZoomToRect(presShellId, viewId, zoomToRect);
+      SendZoomToRect(presShellId, viewId, zoomToRect, DEFAULT_BEHAVIOR);
     }
 
     return true;
@@ -1920,6 +1925,19 @@ TabChild::RecvRealDragEvent(const WidgetDragEvent& aEvent,
   }
 
   APZCCallbackHelper::DispatchWidgetEvent(localEvent);
+  return true;
+}
+
+bool
+TabChild::RecvPluginEvent(const WidgetPluginEvent& aEvent)
+{
+  WidgetPluginEvent localEvent(aEvent);
+  localEvent.widget = mPuppetWidget;
+  nsEventStatus status = APZCCallbackHelper::DispatchWidgetEvent(localEvent);
+  if (status != nsEventStatus_eConsumeNoDefault) {
+    // If not consumed, we should call default action
+    SendDefaultProcOfPluginEvent(aEvent);
+  }
   return true;
 }
 

@@ -42,13 +42,14 @@ function PushRecord(props) {
   this.p256dhPublicKey = props.p256dhPublicKey;
   this.p256dhPrivateKey = props.p256dhPrivateKey;
   this.authenticationSecret = props.authenticationSecret;
+  this.systemRecord = !!props.systemRecord;
   this.setQuota(props.quota);
   this.ctime = (typeof props.ctime === "number") ? props.ctime : 0;
 }
 
 PushRecord.prototype = {
   setQuota(suggestedQuota) {
-    if (!isNaN(suggestedQuota) && suggestedQuota >= 0) {
+    if (this.quotaApplies() && !isNaN(suggestedQuota) && suggestedQuota >= 0) {
       this.quota = suggestedQuota;
     } else {
       this.resetQuota();
@@ -56,7 +57,8 @@ PushRecord.prototype = {
   },
 
   resetQuota() {
-    this.quota = prefs.get("maxQuotaPerSubscription");
+    this.quota = this.quotaApplies() ?
+                 prefs.get("maxQuotaPerSubscription") : Infinity;
   },
 
   updateQuota(lastVisit) {
@@ -90,6 +92,9 @@ PushRecord.prototype = {
   },
 
   reduceQuota() {
+    if (!this.quotaApplies()) {
+      return;
+    }
     this.quota = Math.max(this.quota - 1, 0);
     // We check for ctime > 0 to skip older records that did not have ctime.
     if (this.isExpired() && this.ctime > 0) {
@@ -200,9 +205,13 @@ PushRecord.prototype = {
 
   /**
    * Indicates whether the registration can deliver push messages to its
-   * associated service worker.
+   * associated service worker. System subscriptions are exempt from the
+   * permission check.
    */
   hasPermission() {
+    if (this.systemRecord || prefs.get("testing.ignorePermission")) {
+      return true;
+    }
     let permission = this.pushPermission();
     return permission == Ci.nsIPermissionManager.ALLOW_ACTION;
   },
@@ -216,7 +225,7 @@ PushRecord.prototype = {
   },
 
   quotaApplies() {
-    return Number.isFinite(this.quota);
+    return !this.systemRecord;
   },
 
   isExpired() {
@@ -224,6 +233,9 @@ PushRecord.prototype = {
   },
 
   matchesOriginAttributes(pattern) {
+    if (this.systemRecord) {
+      return false;
+    }
     return ChromeUtils.originAttributesMatchPattern(
       this.principal.originAttributes, pattern);
   },
@@ -246,6 +258,9 @@ let principals = new WeakMap();
 Object.defineProperties(PushRecord.prototype, {
   principal: {
     get() {
+      if (this.systemRecord) {
+        return Services.scriptSecurityManager.getSystemPrincipal();
+      }
       let principal = principals.get(this);
       if (!principal) {
         let url = this.scope;

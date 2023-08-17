@@ -298,8 +298,6 @@ public:
   bool IsRunningOnCompositor() const;
   void SetIsRunningOnCompositor(nsCSSProperty aProperty, bool aIsRunning);
 
-  bool CanThrottle() const;
-
   // Returns true if this effect, applied to |aFrame|, contains
   // properties that mean we shouldn't run *any* compositor animations on this
   // element.
@@ -354,6 +352,11 @@ protected:
 
   InfallibleTArray<AnimationProperty> mProperties;
 
+  // The computed progress last time we composed the style rule. This is
+  // used to detect when the progress is not changing (e.g. due to a step
+  // timing function) so we can avoid unnecessary style updates.
+  Nullable<double> mProgressOnLastCompose;
+
   // We need to track when we go to or from being "in effect" since
   // we need to re-evaluate the cascade of animations when that changes.
   bool mInEffectOnLastAnimationTimingUpdate;
@@ -361,6 +364,7 @@ protected:
 private:
   nsIFrame* GetAnimationFrame() const;
 
+  bool CanThrottle() const;
   bool CanThrottleTransformChanges(nsIFrame& aFrame) const;
 
   // Returns true unless Gecko limitations prevent performing transform

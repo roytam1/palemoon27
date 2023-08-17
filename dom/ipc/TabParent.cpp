@@ -435,7 +435,7 @@ TabParent::GetAppType(nsAString& aOut)
 }
 
 bool
-TabParent::IsVisible()
+TabParent::IsVisible() const
 {
   RefPtr<nsFrameLoader> frameLoader = GetFrameLoader();
   if (!frameLoader) {
@@ -2372,6 +2372,31 @@ TabParent::RecvSetPluginFocused(const bool& aFocused)
   return true;
 }
 
+ bool
+TabParent::RecvSetCandidateWindowForPlugin(
+             const CandidateWindowPosition& aPosition)
+{
+  nsCOMPtr<nsIWidget> widget = GetWidget();
+  if (!widget) {
+    return true;
+  }
+
+  widget->SetCandidateWindowForPlugin(aPosition);
+  return true;
+}
+
+bool
+TabParent::RecvDefaultProcOfPluginEvent(const WidgetPluginEvent& aEvent)
+{
+  nsCOMPtr<nsIWidget> widget = GetWidget();
+  if (!widget) {
+    return true;
+  }
+
+  widget->DefaultProcOfPluginEvent(aEvent);
+  return true;
+}
+
 bool
 TabParent::RecvGetInputContext(int32_t* aIMEEnabled,
                                int32_t* aIMEOpen)
@@ -2766,10 +2791,11 @@ TabParent::RecvBrowserFrameOpenWindow(PBrowserParent* aOpener,
 bool
 TabParent::RecvZoomToRect(const uint32_t& aPresShellId,
                           const ViewID& aViewId,
-                          const CSSRect& aRect)
+                          const CSSRect& aRect,
+                          const uint32_t& aFlags)
 {
   if (RenderFrameParent* rfp = GetRenderFrame()) {
-    rfp->ZoomToRect(aPresShellId, aViewId, aRect);
+    rfp->ZoomToRect(aPresShellId, aViewId, aRect, aFlags);
   }
   return true;
 }

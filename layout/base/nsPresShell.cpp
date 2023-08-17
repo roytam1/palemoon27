@@ -34,6 +34,7 @@
 #include "mozilla/TextEvents.h"
 #include "mozilla/TouchEvents.h"
 #include "mozilla/UniquePtr.h"
+#include "mozilla/unused.h"
 #include <algorithm>
 
 #ifdef XP_WIN
@@ -3965,15 +3966,8 @@ PresShell::FlushPendingNotifications(mozilla::ChangesToFlush aFlush)
         mDocument->GetAnimationController()->FlushResampleRequests();
       }
 
-      if (aFlush.mFlushAnimations &&
-          !mPresContext->StyleUpdateForAllAnimationsIsUpToDate()) {
-        if (mPresContext->AnimationManager()) {
-          mPresContext->AnimationManager()->FlushAnimations();
-        }
-        if (mPresContext->TransitionManager()) {
-          mPresContext->TransitionManager()->FlushAnimations();
-        }
-        mPresContext->TickLastStyleUpdateForAllAnimations();
+      if (aFlush.mFlushAnimations && mPresContext->EffectCompositor()) {
+        mPresContext->EffectCompositor()->PostRestyleForThrottledAnimations();
       }
 
       // The FlushResampleRequests() above flushed style changes.
@@ -4290,8 +4284,7 @@ PresShell::ContentRemoved(nsIDocument *aDocument,
       if (data && data->mOverrideContent &&
           nsContentUtils::ContentIsDescendantOf(data->mOverrideContent,
                                                 aChild)) {
-        nsIPresShell::ReleasePointerCapturingContent(
-          iter.Key(), data->mOverrideContent);
+        nsIPresShell::ReleasePointerCapturingContent(iter.Key());
       }
     }
   }
@@ -4897,10 +4890,9 @@ PresShell::PaintRangePaintInfo(nsTArray<nsAutoPtr<RangePaintInfo> >* aItems,
     nsIntRegion region =
       aRegion->ToAppUnits(nsPresContext::AppUnitsPerCSSPixel())
         .ToOutsidePixels(pc->AppUnitsPerDevPixel());
-    nsIntRegionRectIterator iter(region);
-    const nsIntRect* rect;
-    while ((rect = iter.Next())) {
-      ctx->Clip(gfxRect(rect->x, rect->y, rect->width, rect->height));
+    for (auto iter = region.RectIter(); !iter.Done(); iter.Next()) {
+      const nsIntRect& rect = iter.Get();
+      ctx->Clip(gfxRect(rect.x, rect.y, rect.width, rect.height));
     }
   }
 
@@ -5257,13 +5249,16 @@ float PresShell::GetCumulativeResolution()
   return resolution;
 }
 
-float PresShell::GetCumulativeScaleResolution()
+float PresShell::GetCumulativeNonRootScaleResolution()
 {
   float resolution = 1.0;
   nsIPresShell* currentShell = this;
   while (currentShell) {
-    resolution *=  currentShell->ScaleToResolution() ? currentShell->GetResolution() : 1.0f;
-    nsPresContext* parentCtx = currentShell->GetPresContext()->GetParentPresContext();
+    nsPresContext* currentCtx = currentShell->GetPresContext();
+    if (currentCtx != currentCtx->GetRootPresContext()) {
+      resolution *=  currentShell->ScaleToResolution() ? currentShell->GetResolution() : 1.0f;
+    }
+    nsPresContext* parentCtx = currentCtx->GetParentPresContext();
     if (parentCtx) {
       currentShell = parentCtx->PresShell();
     } else {
@@ -5600,8 +5595,8 @@ PresShell::MarkImagesInSubtreeVisible(nsIFrame* aFrame, const nsRect& aRect)
   if (scrollFrame) {
     nsRect displayPort;
     bool usingDisplayport =
-      nsLayoutUtils::GetDisplayPortForVisibilityTesting(aFrame->GetContent(),
-                                                        &displayPort);
+      nsLayoutUtils::GetDisplayPortForVisibilityTesting(
+        aFrame->GetContent(), &displayPort, RelativeTo::ScrollFrame);
     if (usingDisplayport) {
       rect = displayPort;
     } else {
@@ -5704,7 +5699,7 @@ PresShell::UpdateImageVisibility()
   if (rootScroll) {
     nsIContent* content = rootScroll->GetContent();
     if (content) {
-      nsLayoutUtils::GetDisplayPort(content, &updateRect);
+      Unused << nsLayoutUtils::GetDisplayPort(content, &updateRect, RelativeTo::ScrollFrame);
     }
 
     if (IgnoringViewportScrolling()) {
@@ -6118,7 +6113,7 @@ nsIPresShell::SetPointerCapturingContent(uint32_t aPointerId, nsIContent* aConte
 }
 
 /* static */ void
-nsIPresShell::ReleasePointerCapturingContent(uint32_t aPointerId, nsIContent* aContent)
+nsIPresShell::ReleasePointerCapturingContent(uint32_t aPointerId)
 {
   if (gActivePointersIds->Get(aPointerId)) {
     SetCapturingContent(nullptr, CAPTURE_PREVENTDRAG);
@@ -6616,24 +6611,24 @@ class ReleasePointerCaptureCaller
 public:
   ReleasePointerCaptureCaller() :
     mPointerId(0),
-    mContent(nullptr)
+    mIsSet(false)
   {
   }
   ~ReleasePointerCaptureCaller()
   {
-    if (mContent) {
-      nsIPresShell::ReleasePointerCapturingContent(mPointerId, mContent);
+    if (mIsSet) {
+      nsIPresShell::ReleasePointerCapturingContent(mPointerId);
     }
   }
-  void SetTarget(uint32_t aPointerId, nsIContent* aContent)
+  void SetTarget(uint32_t aPointerId)
   {
     mPointerId = aPointerId;
-    mContent = aContent;
+    mIsSet = true;
   }
 
 private:
   int32_t mPointerId;
-  nsCOMPtr<nsIContent> mContent;
+  bool mIsSet;
 };
 
 static bool
@@ -7305,7 +7300,7 @@ PresShell::HandleEvent(nsIFrame* aFrame,
             // Implicitly releasing capture for given pointer.
             // ePointerLostCapture should be send after ePointerUp or
             // ePointerCancel.
-            releasePointerCaptureCaller.SetTarget(pointerId, pointerCapturingContent);
+            releasePointerCaptureCaller.SetTarget(pointerId);
           }
         }
       }

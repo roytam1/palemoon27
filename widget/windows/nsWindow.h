@@ -31,7 +31,7 @@
 #include "nsRegionFwd.h"
 
 #include "nsWinGesture.h"
-
+#include "WinUtils.h"
 #include "WindowHook.h"
 #include "TaskbarWindowPreview.h"
 
@@ -95,6 +95,7 @@ public:
   using nsWindowBase::DispatchPluginEvent;
 
   // nsIWidget interface
+  using nsWindowBase::Create; // for Create signature not overridden here
   NS_IMETHOD              Create(nsIWidget* aParent,
                                  nsNativeWidget aNativeParent,
                                  const LayoutDeviceIntRect& aRect,
@@ -103,11 +104,22 @@ public:
   NS_IMETHOD              SetParent(nsIWidget *aNewParent) override;
   virtual nsIWidget*      GetParent(void) override;
   virtual float           GetDPI() override;
-  virtual double          GetDefaultScaleInternal() override;
+  double                  GetDefaultScaleInternal() final;
+  int32_t                 LogToPhys(double aValue) final;
+  mozilla::DesktopToLayoutDeviceScale GetDesktopToDeviceScale() final
+  {
+    if (mozilla::widget::WinUtils::IsPerMonitorDPIAware()) {
+      return mozilla::DesktopToLayoutDeviceScale(1.0);
+    } else {
+      return mozilla::DesktopToLayoutDeviceScale(GetDefaultScaleInternal());
+    }
+  }
+
   NS_IMETHOD              Show(bool bState) override;
   virtual bool            IsVisible() const override;
   NS_IMETHOD              ConstrainPosition(bool aAllowSlop, int32_t *aX, int32_t *aY) override;
   virtual void            SetSizeConstraints(const SizeConstraints& aConstraints) override;
+  virtual const SizeConstraints GetSizeConstraints() override;
   NS_IMETHOD              Move(double aX, double aY) override;
   NS_IMETHOD              Resize(double aWidth, double aHeight, bool aRepaint) override;
   NS_IMETHOD              Resize(double aX, double aY, double aWidth, double aHeight, bool aRepaint);
@@ -155,11 +167,6 @@ public:
                                           LayerManagerPersistence aPersistence = LAYER_MANAGER_CURRENT,
                                           bool* aAllowRetaining = nullptr) override;
   NS_IMETHOD              OnDefaultButtonLoaded(const LayoutDeviceIntRect& aButtonRect) override;
-  NS_IMETHOD              OverrideSystemMouseScrollSpeed(double aOriginalDeltaX,
-                                                         double aOriginalDeltaY,
-                                                         double& aOverriddenDeltaX,
-                                                         double& aOverriddenDeltaY) override;
-
   virtual nsresult        SynthesizeNativeKeyEvent(int32_t aNativeKeyboardLayout,
                                                    int32_t aNativeKeyCode,
                                                    uint32_t aModifierFlags,
@@ -292,6 +299,12 @@ public:
 
   const IMEContext& DefaultIMC() const { return mDefaultIMC; }
 
+  virtual void SetCandidateWindowForPlugin(
+                 const mozilla::widget::CandidateWindowPosition&
+                   aPosition) override;
+  virtual void DefaultProcOfPluginEvent(
+                 const mozilla::WidgetPluginEvent& aEvent) override;
+
 protected:
   virtual ~nsWindow();
 
@@ -380,7 +393,7 @@ protected:
   static bool             ConvertStatus(nsEventStatus aStatus);
   static void             PostSleepWakeNotification(const bool aIsSleepMode);
   int32_t                 ClientMarginHitTestPoint(int32_t mx, int32_t my);
-  static TimeStamp        GetMessageTimeStamp(LONG aEventTime);
+  TimeStamp               GetMessageTimeStamp(LONG aEventTime);
   static void             UpdateFirstEventTime(DWORD aEventTime);
 
   /**
@@ -395,6 +408,8 @@ protected:
   void                    OnWindowPosChanged(WINDOWPOS* wp);
   void                    OnWindowPosChanging(LPWINDOWPOS& info);
   void                    OnSysColorChanged();
+  void                    OnDPIChanged(int32_t x, int32_t y,
+                                       int32_t width, int32_t height);
 
   /**
    * Function that registers when the user has been active (used for detecting
@@ -530,6 +545,8 @@ protected:
   // Height of the caption plus border
   int32_t               mCaptionHeight;
 
+  double                mDefaultScale;
+
   nsCOMPtr<nsIIdleServiceInternal> mIdleService;
 
   // Draggable titlebar region maintained by UpdateWindowDraggingRegion
@@ -558,7 +575,7 @@ protected:
   HDC                   mPaintDC; // only set during painting
   HDC                   mCompositeDC; // only set during StartRemoteDrawing
 
-  nsIntRect             mLastPaintBounds;
+  LayoutDeviceIntRect   mLastPaintBounds;
 
   // Transparency
 #ifdef MOZ_XUL
@@ -583,6 +600,9 @@ protected:
   // window below. This is currently only used for popups.
   bool                  mMouseTransparent;
 
+  // Whether we're in the process of sending a WM_SETTEXT ourselves
+  bool                  mSendingSetText;
+
   // The point in time at which the last paint completed. We use this to avoid
   //  painting too rapidly in response to frequent input events.
   TimeStamp mLastPaintEndTime;
@@ -596,6 +616,8 @@ protected:
   static void InitMouseWheelScrollData();
 
   CRITICAL_SECTION mPresentLock;
+
+  double mSizeConstraintsScale; // scale in effect when setting constraints
 };
 
 /**

@@ -1180,8 +1180,7 @@ nsGlobalWindow::nsGlobalWindow(nsGlobalWindow *aOuterWindow)
     mCleanedUp(false),
     mDialogAbuseCount(0),
     mAreDialogsEnabled(true),
-    mCanSkipCCGeneration(0),
-    mVRDevicesInitialized(false)
+    mCanSkipCCGeneration(0)
 {
   AssertIsOnMainThread();
 
@@ -5318,25 +5317,30 @@ nsGlobalWindow::SetOuterHeight(int32_t aOuterHeight)
   return rv.StealNSResult();
 }
 
-nsIntPoint
+DesktopIntPoint
 nsGlobalWindow::GetScreenXY(ErrorResult& aError)
 {
   MOZ_ASSERT(IsOuterWindow());
 
   // When resisting fingerprinting, always return (0,0)
   if (nsContentUtils::ShouldResistFingerprinting(mDocShell)) {
-    return nsIntPoint(0, 0);
+    return DesktopIntPoint(0, 0);
   }
 
   nsCOMPtr<nsIBaseWindow> treeOwnerAsWin = GetTreeOwnerWindow();
   if (!treeOwnerAsWin) {
     aError.Throw(NS_ERROR_FAILURE);
-    return nsIntPoint(0, 0);
+    return DesktopIntPoint(0, 0);
   }
 
   int32_t x = 0, y = 0;
   aError = treeOwnerAsWin->GetPosition(&x, &y);
-  return nsIntPoint(x, y);
+
+  nsCOMPtr<nsIWidget> widget = GetMainWidget();
+  DesktopToLayoutDeviceScale scale = widget ? widget->GetDesktopToDeviceScale()
+                                            : DesktopToLayoutDeviceScale(1.0);
+  DesktopPoint pt = LayoutDeviceIntPoint(x, y) / scale;
+  return DesktopIntPoint(NSToIntRound(pt.x), NSToIntRound(pt.y));
 }
 
 int32_t
@@ -5344,7 +5348,7 @@ nsGlobalWindow::GetScreenXOuter(ErrorResult& aError)
 {
   MOZ_RELEASE_ASSERT(IsOuterWindow());
 
-  return DevToCSSIntPixels(GetScreenXY(aError).x);
+  return GetScreenXY(aError).x;
 }
 
 int32_t
@@ -5691,7 +5695,7 @@ nsGlobalWindow::GetScreenYOuter(ErrorResult& aError)
 {
   MOZ_RELEASE_ASSERT(IsOuterWindow());
 
-  return DevToCSSIntPixels(GetScreenXY(aError).y);
+  return GetScreenXY(aError).y;
 }
 
 int32_t
@@ -6284,7 +6288,7 @@ nsGlobalWindow::SetFullScreen(bool aFullScreen)
 
 nsresult
 nsGlobalWindow::SetFullScreenInternal(bool aFullScreen, bool aFullscreenMode,
-                                      gfx::VRHMDInfo* aHMD)
+                                      gfx::VRDeviceProxy* aHMD)
 {
   MOZ_ASSERT(IsOuterWindow());
 
@@ -7342,13 +7346,15 @@ nsGlobalWindow::MoveToOuter(int32_t aXPos, int32_t aYPos, ErrorResult& aError, b
     return;
   }
 
-  // Mild abuse of a "size" object so we don't need more helper functions.
-  nsIntSize cssPos(aXPos, aYPos);
-  CheckSecurityLeftAndTop(&cssPos.width, &cssPos.height, aCallerIsChrome);
+  DesktopIntPoint pt(aXPos, aYPos);
+  CheckSecurityLeftAndTop(&pt.x, &pt.y, aCallerIsChrome);
 
-  nsIntSize devPos = CSSToDevIntPixels(cssPos);
+  nsCOMPtr<nsIWidget> widget = GetMainWidget();
+  DesktopToLayoutDeviceScale scale = widget ? widget->GetDesktopToDeviceScale()
+                                            : DesktopToLayoutDeviceScale(1.0);
+  LayoutDevicePoint devPos = pt * scale;
 
-  aError = treeOwnerAsWin->SetPosition(devPos.width, devPos.height);
+  aError = treeOwnerAsWin->SetPosition(devPos.x, devPos.y);
 }
 
 void
@@ -13579,19 +13585,11 @@ nsGlobalWindow::SyncGamepadState()
 #endif // MOZ_GAMEPAD
 
 bool
-nsGlobalWindow::GetVRDevices(nsTArray<RefPtr<mozilla::dom::VRDevice>>& aDevices)
+nsGlobalWindow::UpdateVRDevices(nsTArray<RefPtr<mozilla::dom::VRDevice>>& aDevices)
 {
-  FORWARD_TO_INNER(GetVRDevices, (aDevices), false);
+  FORWARD_TO_INNER(UpdateVRDevices, (aDevices), false);
 
-  if (!mVRDevicesInitialized) {
-    bool ok = mozilla::dom::VRDevice::CreateAllKnownVRDevices(ToSupports(this), mVRDevices);
-    if (!ok) {
-      mVRDevices.Clear();
-      return false;
-    }
-  }
-
-  mVRDevicesInitialized = true;
+  VRDevice::UpdateVRDevices(mVRDevices, ToSupports(this));
   aDevices = mVRDevices;
   return true;
 }

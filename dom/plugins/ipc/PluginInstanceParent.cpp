@@ -1149,7 +1149,7 @@ PluginInstanceParent::SetBackgroundUnknown()
 
 nsresult
 PluginInstanceParent::BeginUpdateBackground(const nsIntRect& aRect,
-                                            gfxContext** aCtx)
+                                            DrawTarget** aDrawTarget)
 {
     PLUGIN_LOG_DEBUG(
         ("[InstanceParent][%p] BeginUpdateBackground for <x=%d,y=%d, w=%d,h=%d>",
@@ -1163,7 +1163,7 @@ PluginInstanceParent::BeginUpdateBackground(const nsIntRect& aRect,
         MOZ_ASSERT(aRect.TopLeft() == nsIntPoint(0, 0),
                    "Expecting rect for whole frame");
         if (!CreateBackground(aRect.Size())) {
-            *aCtx = nullptr;
+            *aDrawTarget = nullptr;
             return NS_OK;
         }
     }
@@ -1176,15 +1176,13 @@ PluginInstanceParent::BeginUpdateBackground(const nsIntRect& aRect,
 
     RefPtr<gfx::DrawTarget> dt = gfxPlatform::GetPlatform()->
       CreateDrawTargetForSurface(mBackground, gfx::IntSize(sz.width, sz.height));
-    RefPtr<gfxContext> ctx = new gfxContext(dt);
-    ctx.forget(aCtx);
+    dt.forget(aDrawTarget);
 
     return NS_OK;
 }
 
 nsresult
-PluginInstanceParent::EndUpdateBackground(gfxContext* aCtx,
-                                          const nsIntRect& aRect)
+PluginInstanceParent::EndUpdateBackground(const nsIntRect& aRect)
 {
     PLUGIN_LOG_DEBUG(
         ("[InstanceParent][%p] EndUpdateBackground for <x=%d,y=%d, w=%d,h=%d>",
@@ -2441,13 +2439,13 @@ PluginInstanceParent::RecvGetCompositionString(const uint32_t& aIndex,
 }
 
 bool
-PluginInstanceParent::RecvSetCandidateWindow(const int32_t& aX,
-                                             const int32_t& aY)
+PluginInstanceParent::RecvSetCandidateWindow(
+    const mozilla::widget::CandidateWindowPosition& aPosition)
 {
 #if defined(OS_WIN)
     nsPluginInstanceOwner* owner = GetOwner();
     if (owner) {
-        owner->SetCandidateWindow(aX, aY);
+        owner->SetCandidateWindow(aPosition);
     }
 #endif
     return true;

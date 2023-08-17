@@ -454,7 +454,6 @@ public:
   virtual bool RecvLastPrivateDocShellDestroyed() override;
 
   virtual bool RecvVolumes(InfallibleTArray<VolumeInfo>&& aVolumes) override;
-  virtual bool RecvDeviceStorageAreas(const DeviceStorageAreaInfo& areaInfo) override;
 
   virtual bool RecvFilePathUpdate(const nsString& aStorageType,
                                   const nsString& aStorageName,
@@ -574,8 +573,7 @@ public:
   AllocPOfflineCacheUpdateChild(const URIParams& manifestURI,
                                 const URIParams& documentURI,
                                 const PrincipalInfo& aLoadingPrincipalInfo,
-                                const bool& stickDocument,
-                                const TabId& aTabId) override;
+                                const bool& stickDocument) override;
 
   virtual bool
   DeallocPOfflineCacheUpdateChild(POfflineCacheUpdateChild* offlineCacheUpdate) override;
@@ -623,6 +621,19 @@ private:
   ContentParentId mID;
 
   AppInfo mAppInfo;
+
+  virtual bool
+  RecvPush(const nsCString& aScope,
+           const IPC::Principal& aPrincipal) override;
+
+  virtual bool
+  RecvPushWithData(const nsCString& aScope,
+                   const IPC::Principal& aPrincipal,
+                   InfallibleTArray<uint8_t>&& aData) override;
+
+  virtual bool
+  RecvPushSubscriptionChange(const nsCString& aScope,
+                             const IPC::Principal& aPrincipal) override;
 
 #ifdef ANDROID
   gfx::IntSize mScreenSize;

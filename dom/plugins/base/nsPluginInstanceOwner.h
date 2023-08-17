@@ -28,6 +28,10 @@ class nsPluginDOMContextMenuListener;
 class nsPluginFrame;
 class nsDisplayListBuilder;
 
+#if defined(MOZ_X11) || defined(ANDROID)
+class gfxContext;
+#endif
+
 namespace mozilla {
 class TextComposition;
 namespace dom {
@@ -54,6 +58,8 @@ class nsPluginInstanceOwner final : public nsIPluginInstanceOwner,
                                     public nsSupportsWeakReference
 {
 public:
+  typedef mozilla::gfx::DrawTarget DrawTarget;
+
   nsPluginInstanceOwner();
   
   NS_DECL_ISUPPORTS
@@ -236,9 +242,9 @@ public:
   // The eventual target of these operations is PluginInstanceParent,
   // but it takes several hops to get there.
   void SetBackgroundUnknown();
-  already_AddRefed<gfxContext> BeginUpdateBackground(const nsIntRect& aRect);
-  void EndUpdateBackground(gfxContext* aContext, const nsIntRect& aRect);
-  
+  already_AddRefed<DrawTarget> BeginUpdateBackground(const nsIntRect& aRect);
+  void EndUpdateBackground(const nsIntRect& aRect);
+
   bool UseAsyncRendering();
 
   already_AddRefed<nsIURI> GetBaseURI() const;
@@ -263,7 +269,8 @@ public:
 
   bool GetCompositionString(uint32_t aIndex, nsTArray<uint8_t>* aString,
                             int32_t* aLength);
-  bool SetCandidateWindow(int32_t aX, int32_t aY);
+  bool SetCandidateWindow(
+           const mozilla::widget::CandidateWindowPosition& aPosition);
   bool RequestCommitOrCancel(bool aCommitted);
 
 private:
@@ -289,9 +296,12 @@ private:
 #if defined(XP_WIN)
   nsIWidget* GetContainingWidgetIfOffset();
   already_AddRefed<mozilla::TextComposition> GetTextComposition();
-
+  void HandleNoConsumedCompositionMessage(
+    mozilla::WidgetCompositionEvent* aCompositionEvent,
+    const NPEvent* aPluginEvent);
   bool mGotCompositionData;
   bool mSentStartComposition;
+  bool mPluginDidNotHandleIMEComposition;
 #endif
  
   nsPluginNativeWindow       *mPluginWindow;

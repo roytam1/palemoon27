@@ -17,7 +17,6 @@
 #include "BlobChild.h"
 #include "CrashReporterChild.h"
 #include "GeckoProfiler.h"
-#include "DeviceStorageStatics.h"
 #include "TabChild.h"
 #include "HandlerServiceChild.h"
 
@@ -162,6 +161,10 @@
 
 #ifdef MOZ_GAMEPAD
 #include "mozilla/dom/GamepadService.h"
+#endif
+
+#ifndef MOZ_SIMPLEPUSH
+#include "mozilla/dom/PushNotifier.h"
 #endif
 
 #include "mozilla/dom/File.h"
@@ -2607,15 +2610,6 @@ ContentChild::RecvVolumes(nsTArray<VolumeInfo>&& aVolumes)
 }
 
 bool
-ContentChild::RecvDeviceStorageAreas(const DeviceStorageAreaInfo& areaInfo)
-{
-#if !defined(MOZ_WIDGET_GONK)
-    DeviceStorageStatics::RecvDeviceStorageAreasFromParent(areaInfo);
-#endif
-    return true;
-}
-
-bool
 ContentChild::RecvFilePathUpdate(const nsString& aStorageType,
                                  const nsString& aStorageName,
                                  const nsString& aPath,
@@ -2801,8 +2795,7 @@ POfflineCacheUpdateChild*
 ContentChild::AllocPOfflineCacheUpdateChild(const URIParams& manifestURI,
                                             const URIParams& documentURI,
                                             const PrincipalInfo& aLoadingPrincipalInfo,
-                                            const bool& stickDocument,
-                                            const TabId& aTabId)
+                                            const bool& stickDocument)
 {
   NS_RUNTIMEABORT("unused");
   return nullptr;
@@ -3202,6 +3195,63 @@ ContentChild::RecvTestGraphicsDeviceReset(const uint32_t& aResetReason)
 {
 #if defined(XP_WIN)
   gfxPlatform::GetPlatform()->TestDeviceReset(DeviceResetReason(aResetReason));
+#endif
+  return true;
+}
+
+bool
+ContentChild::RecvPush(const nsCString& aScope,
+                       const IPC::Principal& aPrincipal)
+{
+#ifndef MOZ_SIMPLEPUSH
+  nsCOMPtr<nsIPushNotifier> pushNotifierIface =
+      do_GetService("@mozilla.org/push/Notifier;1");
+  if (NS_WARN_IF(!pushNotifierIface)) {
+      return true;
+  }
+  PushNotifier* pushNotifier =
+    static_cast<PushNotifier*>(pushNotifierIface.get());
+  nsresult rv = pushNotifier->NotifyPushWorkers(aScope, aPrincipal, Nothing());
+  Unused << NS_WARN_IF(NS_FAILED(rv));
+#endif
+  return true;
+}
+
+bool
+ContentChild::RecvPushWithData(const nsCString& aScope,
+                               const IPC::Principal& aPrincipal,
+                               InfallibleTArray<uint8_t>&& aData)
+{
+#ifndef MOZ_SIMPLEPUSH
+  nsCOMPtr<nsIPushNotifier> pushNotifierIface =
+      do_GetService("@mozilla.org/push/Notifier;1");
+  if (NS_WARN_IF(!pushNotifierIface)) {
+      return true;
+  }
+  PushNotifier* pushNotifier =
+    static_cast<PushNotifier*>(pushNotifierIface.get());
+  nsresult rv = pushNotifier->NotifyPushWorkers(aScope, aPrincipal,
+                                                Some(aData));
+  Unused << NS_WARN_IF(NS_FAILED(rv));
+#endif
+  return true;
+}
+
+bool
+ContentChild::RecvPushSubscriptionChange(const nsCString& aScope,
+                                         const IPC::Principal& aPrincipal)
+{
+#ifndef MOZ_SIMPLEPUSH
+  nsCOMPtr<nsIPushNotifier> pushNotifierIface =
+      do_GetService("@mozilla.org/push/Notifier;1");
+  if (NS_WARN_IF(!pushNotifierIface)) {
+      return true;
+  }
+  PushNotifier* pushNotifier =
+    static_cast<PushNotifier*>(pushNotifierIface.get());
+  nsresult rv = pushNotifier->NotifySubscriptionChangeWorkers(aScope,
+                                                              aPrincipal);
+  Unused << NS_WARN_IF(NS_FAILED(rv));
 #endif
   return true;
 }

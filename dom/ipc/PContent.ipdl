@@ -220,6 +220,15 @@ union DeviceStorageParams
   DeviceStorageUnmountParams;
 };
 
+struct DeviceStorageLocationInfo {
+  nsString music;
+  nsString pictures;
+  nsString videos;
+  nsString sdcard;
+  nsString apps;
+  nsString crashes;
+};
+
 struct FMRadioRequestEnableParams
 {
   double frequency;
@@ -364,15 +373,6 @@ struct VolumeInfo {
   bool isUnmounting;
   bool isRemovable;
   bool isHotSwappable;
-};
-
-struct DeviceStorageAreaInfo {
-  nsString music;
-  nsString pictures;
-  nsString videos;
-  nsString sdcard;
-  nsString apps;
-  nsString crashes;
 };
 
 struct ClipboardCapabilities {
@@ -607,8 +607,6 @@ child:
 
     Volumes(VolumeInfo[] volumes);
 
-    DeviceStorageAreas(DeviceStorageAreaInfo areaInfo);
-
     FlushMemory(nsString reason);
 
     GarbageCollect();
@@ -729,6 +727,21 @@ child:
      * Notify the child that the Gecko Media Plugins installed changed.
      */
     async NotifyGMPsChanged();
+
+    /**
+     * Send a `push` event without data to a service worker in the child.
+     */
+    Push(nsCString scope, Principal principal);
+
+    /**
+     * Send a `push` event with data to a service worker in the child.
+     */
+    PushWithData(nsCString scope, Principal principal, uint8_t[] data);
+
+    /**
+     * Send a `pushsubscriptionchange` event to a service worker in the child.
+     */
+    PushSubscriptionChange(nsCString scope, Principal principal);
 
 parent:
     /**
@@ -1087,8 +1100,7 @@ parent:
      *   To identify which tab owns the app.
      */
     POfflineCacheUpdate(URIParams manifestURI, URIParams documentURI,
-                        PrincipalInfo loadingPrincipal, bool stickDocument,
-                        TabId tabId);
+                        PrincipalInfo loadingPrincipal, bool stickDocument);
 
     /**
      * Sets "offline-app" permission for the principal.  Called when we hit
@@ -1164,6 +1176,9 @@ parent:
 
     sync GetDeviceStorageLocation(nsString type)
         returns (nsString path);
+
+    sync GetDeviceStorageLocations()
+	returns (DeviceStorageLocationInfo info);
 
     sync GetAndroidSystemInfo()
         returns (AndroidSystemInfo info);

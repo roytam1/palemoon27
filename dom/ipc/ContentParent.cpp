@@ -1592,10 +1592,6 @@ ContentParent::ForwardKnownInfo()
     vs->GetVolumesForIPC(&volumeInfo);
     Unused << SendVolumes(volumeInfo);
   }
-#else
-  DeviceStorageAreaInfo areaInfo;
-  DeviceStorageStatics::GetDeviceStorageAreasForIPC(areaInfo);
-  Unused << SendDeviceStorageAreas(areaInfo);
 #endif /* MOZ_WIDGET_GONK */
 
   nsCOMPtr<nsISystemMessagesInternal> systemMessenger =
@@ -5241,17 +5237,10 @@ mozilla::docshell::POfflineCacheUpdateParent*
 ContentParent::AllocPOfflineCacheUpdateParent(const URIParams& aManifestURI,
                                               const URIParams& aDocumentURI,
                                               const PrincipalInfo& aLoadingPrincipalInfo,
-                                              const bool& aStickDocument,
-                                              const TabId& aTabId)
+                                              const bool& aStickDocument)
 {
-  TabContext tabContext;
-  if (!ContentProcessManager::GetSingleton()->
-    GetTabContextByProcessAndTabId(this->ChildID(), aTabId, &tabContext)) {
-    return nullptr;
-  }
   RefPtr<mozilla::docshell::OfflineCacheUpdateParent> update =
-    new mozilla::docshell::OfflineCacheUpdateParent(
-      tabContext.OriginAttributesRef());
+        new mozilla::docshell::OfflineCacheUpdateParent();
   // Use this reference as the IPDL reference.
   return update.forget().take();
 }
@@ -5261,8 +5250,7 @@ ContentParent::RecvPOfflineCacheUpdateConstructor(POfflineCacheUpdateParent* aAc
                                                   const URIParams& aManifestURI,
                                                   const URIParams& aDocumentURI,
                                                   const PrincipalInfo& aLoadingPrincipal,
-                                                  const bool& aStickDocument,
-                                                  const TabId& aTabId)
+                                                  const bool& aStickDocument)
 {
   MOZ_ASSERT(aActor);
 
@@ -5771,6 +5759,13 @@ ContentParent::RecvGetDeviceStorageLocation(const nsString& aType,
 #else
   return false;
 #endif
+}
+
+bool
+ContentParent::RecvGetDeviceStorageLocations(DeviceStorageLocationInfo* info)
+{
+    DeviceStorageStatics::GetDeviceStorageLocationsForIPC(info);
+    return true;
 }
 
 bool

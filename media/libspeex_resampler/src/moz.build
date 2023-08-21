@@ -1,5 +1,4 @@
-# -*- Mode: python; c-basic-offset: 4; indent-tabs-mode: nil; tab-width: 40 -*-
-# vim: set filetype=python:
+# -*- Mode: python; indent-tabs-mode: nil; tab-width: 40 -*-
 # This Source Code Form is subject to the terms of the Mozilla Public
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
@@ -15,6 +14,7 @@ SOURCES += [
     'simd_detect.cpp',
 ]
 
+# We allow warnings for third-party code that can be updated from upstream.
 ALLOW_COMPILER_WARNINGS = True
 
 FINAL_LIBRARY = 'gkmedias'
@@ -35,15 +35,15 @@ else:
 
 # Only use SSE code when using floating point samples, and on x86
 if CONFIG['INTEL_ARCHITECTURE'] and not CONFIG['MOZ_SAMPLE_TYPE_S16']:
-    DEFINES['_USE_SSE'] = True
-    DEFINES['_USE_SSE2'] = True
+    DEFINES['USE_SSE'] = True
+    DEFINES['USE_SSE2'] = True
     SOURCES += [
         'resample_sse.c'
     ]
     SOURCES['resample_sse.c'].flags += CONFIG['SSE2_FLAGS']
 
 if CONFIG['CPU_ARCH'] == 'arm' and CONFIG['BUILD_ARM_NEON']:
-    DEFINES['_USE_NEON'] = True
+    DEFINES['USE_NEON'] = True
     SOURCES += [
         'resample_neon.c'
     ]

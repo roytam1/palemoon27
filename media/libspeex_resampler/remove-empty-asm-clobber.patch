@@ -11,15 +11,12 @@ resample_neon.c:50: error: expected string literal before ')' token
 diff --git a/media/libspeex_resampler/src/resample_neon.c b/media/libspeex_resampler/src/resample_neon.c
 --- a/media/libspeex_resampler/src/resample_neon.c
 +++ b/media/libspeex_resampler/src/resample_neon.c
-@@ -41,18 +41,17 @@
- #include <arm_neon.h>
- 
- #ifdef FIXED_POINT
- #ifdef __thumb2__
+@@ -56,12 +56,11 @@
+ #elif defined(__thumb2__)
  static inline int32_t saturate_32bit_to_16bit(int32_t a) {
      int32_t ret;
      asm ("ssat %[ret], #16, %[a]"
-          : [ret] "=&r" (ret)
+          : [ret] "=r" (ret)
 -         : [a] "r" (a)
 -         : );
 +         : [a] "r" (a));
@@ -28,6 +25,3 @@ diff --git a/media/libspeex_resampler/src/resample_neon.c b/media/libspeex_resam
  #else
  static inline int32_t saturate_32bit_to_16bit(int32_t a) {
      int32_t ret;
-     asm ("vmov.s32 d0[0], %[a]\n"
-          "vqmovn.s32 d0, q0\n"
-          "vmov.s16 %[ret], d0[0]\n"

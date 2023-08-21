@@ -1146,7 +1146,7 @@ CanTextCrossFrameBoundary(nsIFrame* aFrame, nsIAtom* aType)
     }
   } else {
     if (continuesTextRun) {
-      result.mFrameToScan = aFrame->GetFirstPrincipalChild();
+      result.mFrameToScan = aFrame->PrincipalChildList().FirstChild();
       result.mOverflowFrameToScan =
         aFrame->GetChildList(nsIFrame::kOverflowList).FirstChild();
       NS_WARN_IF_FALSE(!result.mOverflowFrameToScan,

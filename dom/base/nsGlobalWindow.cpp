@@ -3773,6 +3773,19 @@ nsGlobalWindow::GetSpeechSynthesis(ErrorResult& aError)
 
   return mSpeechSynthesis;
 }
+
+bool
+nsGlobalWindow::HasActiveSpeechSynthesis()
+{
+  MOZ_ASSERT(IsInnerWindow());
+
+  if (mSpeechSynthesis) {
+    return !mSpeechSynthesis->HasEmptyQueue();
+  }
+
+  return false;
+}
+
 #endif
 
 already_AddRefed<nsIDOMWindow>
@@ -9878,13 +9891,11 @@ static nsCanvasFrame* FindCanvasFrame(nsIFrame* aFrame)
         return canvasFrame;
     }
 
-    nsIFrame* kid = aFrame->GetFirstPrincipalChild();
-    while (kid) {
+    for (nsIFrame* kid : aFrame->PrincipalChildList()) {
         canvasFrame = FindCanvasFrame(kid);
         if (canvasFrame) {
             return canvasFrame;
         }
-        kid = kid->GetNextSibling();
     }
 
     return nullptr;

@@ -46,6 +46,7 @@ bool AudioClassifier::Analysis(const int16_t* input,
   // Only mono or stereo are allowed.
   assert(channels == 1 || channels == 2);
 
+#ifndef MOZ_SAMPLE_TYPE_S16
   // Call Opus' classifier, defined in
   // "third_party/opus/src/src/analysis.h", with lsb_depth = 16.
   // Also uses a down-mixing function downmix_int, defined in
@@ -65,6 +66,9 @@ bool AudioClassifier::Analysis(const int16_t* input,
                &analysis_info_);
   music_probability_ = analysis_info_.music_prob;
   is_music_ = music_probability_ > kDefaultThreshold;
+#else
+  is_music_ = false;
+#endif
   return is_music_;
 }
 

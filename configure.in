@@ -4962,11 +4962,25 @@ AC_SUBST(MOZ_SCTP)
 AC_SUBST(MOZ_SRTP)
 AC_SUBST_LIST(MOZ_WEBRTC_X11_LIBS)
 
+dnl ========================================================
+dnl Use integers over floats for audio
+dnl ========================================================
+
+MOZ_SAMPLE_USE_INT=
 dnl Use integers over floats for audio on B2G and Android
 dnl (regarless of the CPU architecture, because audio
 dnl backends for those platforms don't support floats. We also
 dnl use integers on ARM with other OS, because it's more efficient.
 if test "$OS_TARGET" = "Android" -o "$CPU_ARCH" = "arm"; then
+    MOZ_SAMPLE_USE_INT=1
+fi
+
+MOZ_ARG_ENABLE_BOOL(int-audio-sample,
+[  --enable-int-audio-sample        Use int audio output type instead of float type],
+    MOZ_SAMPLE_USE_INT=1,
+    MOZ_SAMPLE_USE_INT=)
+
+if test -n "$MOZ_SAMPLE_USE_INT"; then
     MOZ_SAMPLE_TYPE_S16=1
     AC_DEFINE(MOZ_SAMPLE_TYPE_S16)
     AC_SUBST(MOZ_SAMPLE_TYPE_S16)

@@ -61,7 +61,7 @@ vpx_img_alloc
 vpx_codec_encode
 vpx_codec_err_to_string
 #endif
-#ifdef MOZ_VORBIS
+#if defined(MOZ_VORBIS) || defined(MOZ_TREMOR)
 ogg_page_bos
 ogg_page_granulepos
 ogg_page_serialno
@@ -82,19 +82,25 @@ ogg_sync_init
 ogg_sync_pageseek
 ogg_sync_reset
 ogg_sync_wrote
+#ifdef MOZ_VORBIS
 vorbis_analysis
 vorbis_analysis_blockout
 vorbis_analysis_buffer
 vorbis_analysis_init
 vorbis_analysis_headerout
 vorbis_analysis_wrote
+#endif
 vorbis_block_clear
 vorbis_block_init
+#ifdef MOZ_VORBIS
 vorbis_comment_add_tag
+#endif
 vorbis_comment_clear
 vorbis_comment_init
 vorbis_dsp_clear
+#ifdef MOZ_VORBIS
 vorbis_encode_init_vbr
+#endif
 vorbis_info_clear
 vorbis_info_init
 vorbis_packet_blocksize
@@ -108,6 +114,7 @@ vorbis_synthesis_restart
 #endif
 moz_speex_resampler_init
 moz_speex_resampler_destroy
+moz_speex_resampler_process_int
 moz_speex_resampler_process_float
 moz_speex_resampler_process_interleaved_float
 moz_speex_resampler_process_interleaved_int
@@ -155,11 +162,15 @@ opus_decoder_destroy
 opus_decoder_ctl
 opus_decoder_get_nb_samples
 opus_decode
+#ifdef MOZ_SAMPLE_TYPE_FLOAT32
 opus_decode_float
+#endif
 opus_multistream_decoder_create
 opus_multistream_decoder_ctl
 opus_multistream_decoder_destroy
+#ifdef MOZ_SAMPLE_TYPE_FLOAT32
 opus_multistream_decode_float
+#endif
 opus_multistream_decode
 opus_packet_get_nb_frames
 opus_packet_get_samples_per_frame
@@ -167,7 +178,9 @@ opus_encoder_create
 opus_encoder_destroy
 opus_encoder_ctl
 opus_encode
+#ifdef MOZ_SAMPLE_TYPE_FLOAT32
 opus_encode_float
+#endif
 #ifndef MOZ_NATIVE_PNG
 MOZ_APNG_get_first_frame_is_hidden
 MOZ_APNG_get_next_frame_blend_op
@@ -648,7 +661,9 @@ BrotliDecoderStateCleanup
 BrotliDecoderDecompressStream
 #ifdef MOZ_WEBRTC
 downmix_int
+#ifdef MOZ_SAMPLE_TYPE_FLOAT32
 run_analysis
+#endif
 #endif
 
 

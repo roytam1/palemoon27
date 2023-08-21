@@ -8774,6 +8774,13 @@ nsDocument::CanSavePresentation(nsIRequest *aNewRequest)
     }
   }
 
+  #ifdef MOZ_WEBSPEECH
+  nsGlobalWindow* globalWindow = static_cast<nsGlobalWindow*>(win);
+  if (globalWindow->HasActiveSpeechSynthesis()) {
+    return false;
+  }
+  #endif
+
   return true;
 }
 

@@ -1,10 +1,7 @@
 diff --git a/media/libspeex_resampler/src/resample.c b/media/libspeex_resampler/src/resample.c
 --- a/media/libspeex_resampler/src/resample.c
 +++ b/media/libspeex_resampler/src/resample.c
-@@ -56,16 +56,18 @@
-    (e.g. 2/3), and get rid of the rounding operations in the inner loop. 
-    The latter both reduces CPU time and makes the algorithm more SIMD-friendly.
- */
+@@ -59,10 +59,12 @@
  
  #ifdef HAVE_CONFIG_H
  #include "config.h"
@@ -14,22 +11,15 @@ diff --git a/media/libspeex_resampler/src/resample.c b/media/libspeex_resampler/
 +
  #ifdef OUTSIDE_SPEEX
  #include <stdlib.h>
- static void *speex_alloc (int size) {return calloc(size,1);}
- static void *speex_realloc (void *ptr, int size) {return realloc(ptr, size);}
- static void speex_free (void *ptr) {free(ptr);}
- #include "speex_resampler.h"
- #include "arch.h"
- #else /* OUTSIDE_SPEEX */
-@@ -632,25 +634,26 @@ static int update_filter(SpeexResamplerS
-          st->oversample >>= 1;
-       if (st->oversample < 1)
-          st->oversample = 1;
+ static void *speex_alloc(int size) {return calloc(size,1);}
+ static void *speex_realloc(void *ptr, int size) {return realloc(ptr, size);}
+ static void speex_free(void *ptr) {free(ptr);}
+@@ -646,19 +648,20 @@
     } else {
        /* up-sampling */
        st->cutoff = quality_map[st->quality].upsample_bandwidth;
     }
-    
--   /* Choose the resampling type that requires the least amount of memory */
+ 
 -#ifdef RESAMPLE_FULL_SINC_TABLE
 -   use_direct = 1;
 -   if (INT_MAX/sizeof(spx_word16_t)/st->den_rate < st->filt_len)
@@ -40,17 +30,14 @@ diff --git a/media/libspeex_resampler/src/resample.c b/media/libspeex_resampler/
 +         when resampling any multiple of 100 to 44100. */
 +      st->den_rate <= 441
  #else
+    /* Choose the resampling type that requires the least amount of memory */
 -   use_direct = st->filt_len*st->den_rate <= st->filt_len*st->oversample+8
-+      /* Choose the resampling type that requires the least amount of memory */
+-                && INT_MAX/sizeof(spx_word16_t)/st->den_rate >= st->filt_len;
 +      st->filt_len*st->den_rate <= st->filt_len*st->oversample+8
-+#endif
-                 && INT_MAX/sizeof(spx_word16_t)/st->den_rate >= st->filt_len;
--#endif
+ #endif
++                && INT_MAX/sizeof(spx_word16_t)/st->den_rate >= st->filt_len;
     if (use_direct)
     {
        min_sinc_table_length = st->filt_len*st->den_rate;
     } else {
        if ((INT_MAX/sizeof(spx_word16_t)-8)/st->oversample < st->filt_len)
-          goto fail;
- 
-       min_sinc_table_length = st->filt_len*st->oversample+8;

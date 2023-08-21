@@ -971,11 +971,11 @@ private:
   void OnNewProcessCreated(uint32_t aPid,
                            UniquePtr<nsTArray<ProtocolFdMapping>>&& aFds);
 
-  virtual bool RecvCreateFakeVolume(const nsString& fsName,
-                                    const nsString& mountPoint) override;
+  virtual bool RecvCreateFakeVolume(const nsString& aFsName,
+                                    const nsString& aMountPoint) override;
 
-  virtual bool RecvSetFakeVolumeState(const nsString& fsName,
-                                      const int32_t& fsState) override;
+  virtual bool RecvSetFakeVolumeState(const nsString& aFsName,
+                                      const int32_t& aFsState) override;
 
   virtual bool RecvRemoveFakeVolume(const nsString& fsName) override;
 
@@ -1045,7 +1045,7 @@ private:
                         bool* aResult) override;
 
   virtual bool
-  RecvFlushPendingFileDeletions() override;
+    RecvFlushPendingFileDeletions() override;
 
   virtual PWebrtcGlobalParent* AllocPWebrtcGlobalParent() override;
 

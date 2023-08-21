@@ -44,11 +44,14 @@ if CONFIG['OS_TARGET'] == 'Darwin':
 if CONFIG['OS_TARGET'] == 'WINNT':
     SOURCES += [
         'cubeb_resampler.cpp',
-        'cubeb_wasapi.cpp',
         'cubeb_winmm.c',
     ]
     DEFINES['USE_WINMM'] = True
-    DEFINES['USE_WASAPI'] = True
+    if CONFIG['MOZ_SAMPLE_TYPE_FLOAT32']:
+        DEFINES['USE_WASAPI'] = True
+        SOURCES += [
+            'cubeb_wasapi.cpp',
+        ]
     if CONFIG['_MSC_VER']:
         CXXFLAGS += ['-wd4005'] # C4005: '_USE_MATH_DEFINES' : macro redefinition
 

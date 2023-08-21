@@ -531,9 +531,12 @@ gfxXlibNativeRenderer::Draw(gfxContext* ctx, IntSize size,
     DrawingMethod method;
     Matrix dtTransform = drawTarget->GetTransform();
     gfxPoint deviceTranslation = gfxPoint(dtTransform._31, dtTransform._32);
-    cairo_surface_t* cairoTarget = static_cast<cairo_surface_t*>
-            (drawTarget->GetNativeSurface(NativeSurfaceType::CAIRO_SURFACE));
+    cairo_t* cairo = static_cast<cairo_t*>
+        (drawTarget->GetNativeSurface(NativeSurfaceType::CAIRO_CONTEXT));
+    if (!cairo)
+        return;
 
+    cairo_surface_t* cairoTarget = cairo_get_group_target(cairo);
     cairo_surface_t* tempXlibSurface =
         CreateTempXlibSurface(cairoTarget, drawTarget, size,
                               canDrawOverBackground, flags, screen, visual,
@@ -572,13 +575,8 @@ gfxXlibNativeRenderer::Draw(gfxContext* ctx, IntSize size,
             SurfaceFormat::B8G8R8A8 : SurfaceFormat::B8G8R8X8;
     if (method != eAlphaExtraction) {
         if (drawTarget) {
-            NativeSurface native;
-            native.mFormat = moz2DFormat;
-            native.mType = NativeSurfaceType::CAIRO_SURFACE;
-            native.mSurface = tempXlibSurface;
-            native.mSize = size;
             RefPtr<SourceSurface> sourceSurface =
-                drawTarget->CreateSourceSurfaceFromNativeSurface(native);
+                Factory::CreateSourceSurfaceForCairoSurface(tempXlibSurface, size, moz2DFormat);
             if (sourceSurface) {
                 drawTarget->DrawSurface(sourceSurface,
                     Rect(offset.x, offset.y, size.width, size.height),
@@ -614,13 +612,9 @@ gfxXlibNativeRenderer::Draw(gfxContext* ctx, IntSize size,
 
         gfxASurface* paintSurface = blackImage;
         if (drawTarget) {
-            NativeSurface native;
-            native.mFormat = moz2DFormat;
-            native.mType = NativeSurfaceType::CAIRO_SURFACE;
-            native.mSurface = paintSurface->CairoSurface();
-            native.mSize = size;
             RefPtr<SourceSurface> sourceSurface =
-                drawTarget->CreateSourceSurfaceFromNativeSurface(native);
+                Factory::CreateSourceSurfaceForCairoSurface(paintSurface->CairoSurface(),
+                                                            size, moz2DFormat);
             if (sourceSurface) {
                 drawTarget->DrawSurface(sourceSurface,
                     Rect(offset.x, offset.y, size.width, size.height),

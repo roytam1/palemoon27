@@ -1653,7 +1653,7 @@ nsRuleNode::ConvertChildrenToHash(int32_t aNumKids)
     Key key = curr->GetKey();
     // This will never fail because of the initial size we gave the table.
     auto entry =
-      static_cast<ChildrenHashEntry*>(hash->Add(&key, fallible));
+      static_cast<ChildrenHashEntry*>(hash->Add(&key));
     NS_ASSERTION(!entry->mRuleNode, "duplicate entries in list");
     entry->mRuleNode = curr;
   }
@@ -8098,26 +8098,16 @@ nsRuleNode::ComputePositionData(void* aStartStruct,
               pos->mAlignContent, conditions,
               SETDSC_ENUMERATED | SETDSC_UNSET_INITIAL,
               parentPos->mAlignContent,
-              NS_STYLE_ALIGN_AUTO, 0, 0, 0, 0);
+              NS_STYLE_ALIGN_NORMAL, 0, 0, 0, 0);
 
   // align-items: enum, inherit, initial
-  const auto& alignItemsValue = *aRuleData->ValueForAlignItems();
-  if (MOZ_UNLIKELY(alignItemsValue.GetUnit() == eCSSUnit_Inherit)) {
-    if (MOZ_LIKELY(parentContext)) {
-      pos->mAlignItems =
-        parentPos->ComputedAlignItems(parentContext->StyleDisplay());
-    } else {
-      pos->mAlignItems = NS_STYLE_ALIGN_AUTO;
-    }
-    conditions.SetUncacheable();
-  } else {
-    SetDiscrete(alignItemsValue,
-                pos->mAlignItems, conditions,
-                SETDSC_ENUMERATED | SETDSC_UNSET_INITIAL,
-                parentPos->mAlignItems, // unused, we handle 'inherit' above
-                NS_STYLE_ALIGN_AUTO, 0, 0, 0, 0);
-  }
+  SetDiscrete(*aRuleData->ValueForAlignItems(),
+              pos->mAlignItems, conditions,
+              SETDSC_ENUMERATED | SETDSC_UNSET_INITIAL,
+              parentPos->mAlignItems,
+              NS_STYLE_ALIGN_NORMAL, 0, 0, 0, 0);
 
+  // align-self: enum, inherit, initial
   const auto& alignSelfValue = *aRuleData->ValueForAlignSelf();
   if (MOZ_UNLIKELY(alignSelfValue.GetUnit() == eCSSUnit_Inherit)) {
     if (MOZ_LIKELY(parentContext)) {
@@ -8125,11 +8115,9 @@ nsRuleNode::ComputePositionData(void* aStartStruct,
       if (MOZ_LIKELY(grandparentContext)) {
         parentContext->AddStyleBit(NS_STYLE_CHILD_USES_GRANDANCESTOR_STYLE);
       }
-      pos->mAlignSelf =
-        parentPos->ComputedAlignSelf(parentContext->StyleDisplay(),
-                                     grandparentContext);
+      pos->mAlignSelf = parentPos->ComputedAlignSelf(grandparentContext);
     } else {
-      pos->mAlignSelf = NS_STYLE_ALIGN_START;
+      pos->mAlignSelf = NS_STYLE_ALIGN_NORMAL;
     }
     conditions.SetUncacheable();
   } else {
@@ -8141,31 +8129,20 @@ nsRuleNode::ComputePositionData(void* aStartStruct,
   }
 
   // justify-content: enum, inherit, initial
-  const auto& justifyContentValue = *aRuleData->ValueForJustifyContent();
-  if (MOZ_UNLIKELY(justifyContentValue.GetUnit() == eCSSUnit_Inherit)) {
-    if (MOZ_LIKELY(parentContext)) {
-      pos->mJustifyContent =
-        parentPos->ComputedJustifyContent(parentContext->StyleDisplay());
-    } else {
-      pos->mJustifyContent = NS_STYLE_JUSTIFY_AUTO;
-    }
-    conditions.SetUncacheable();
-  } else {
-    SetDiscrete(justifyContentValue,
-                pos->mJustifyContent, conditions,
-                SETDSC_ENUMERATED | SETDSC_UNSET_INITIAL,
-                parentPos->mJustifyContent, // unused, we handle 'inherit' above
-                NS_STYLE_JUSTIFY_AUTO, 0, 0, 0, 0);
-  }
+  SetDiscrete(*aRuleData->ValueForJustifyContent(),
+              pos->mJustifyContent, conditions,
+              SETDSC_ENUMERATED | SETDSC_UNSET_INITIAL,
+              parentPos->mJustifyContent,
+              NS_STYLE_JUSTIFY_NORMAL, 0, 0, 0, 0);
+
   // justify-items: enum, inherit, initial
   const auto& justifyItemsValue = *aRuleData->ValueForJustifyItems();
   if (MOZ_UNLIKELY(justifyItemsValue.GetUnit() == eCSSUnit_Inherit)) {
     if (MOZ_LIKELY(parentContext)) {
       pos->mJustifyItems =
-        parentPos->ComputedJustifyItems(parentContext->StyleDisplay(),
-                                        parentContext);
+        parentPos->ComputedJustifyItems(parentContext->GetParent());
     } else {
-      pos->mJustifyItems = NS_STYLE_JUSTIFY_AUTO;
+      pos->mJustifyItems = NS_STYLE_JUSTIFY_NORMAL;
     }
     conditions.SetUncacheable();
   } else {
@@ -8184,11 +8161,9 @@ nsRuleNode::ComputePositionData(void* aStartStruct,
       if (MOZ_LIKELY(grandparentContext)) {
         parentContext->AddStyleBit(NS_STYLE_CHILD_USES_GRANDANCESTOR_STYLE);
       }
-      pos->mJustifySelf =
-        parentPos->ComputedJustifySelf(parentContext->StyleDisplay(),
-                                       grandparentContext);
+      pos->mJustifySelf = parentPos->ComputedJustifySelf(grandparentContext);
     } else {
-      pos->mJustifySelf = NS_STYLE_JUSTIFY_START;
+      pos->mJustifySelf = NS_STYLE_JUSTIFY_NORMAL;
     }
     conditions.SetUncacheable();
   } else {

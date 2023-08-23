@@ -2732,6 +2732,12 @@ pref("layout.css.box-decoration-break.enabled", true);
 // Is layout of CSS outline-style:auto enabled?
 pref("layout.css.outline-style-auto.enabled", false);
 
+// Is support for CSS Animation enabled?
+pref("layout.css.animation.enabled", true);
+
+// Is support for CSS Transition enabled?
+pref("layout.css.transition.enabled", true);
+
 // Is CSSOM-View scroll-behavior and its MSD smooth scrolling enabled?
 pref("layout.css.scroll-behavior.enabled", true);
 

@@ -5,6 +5,7 @@
  
 /* the interface (to internal code) for retrieving computed style data */
 
+#include "CSSVariableImageTable.h"
 #include "mozilla/DebugOnly.h"
 
 #include "nsCSSAnonBoxes.h"
@@ -167,6 +168,9 @@ nsStyleContext::~nsStyleContext()
   if (mCachedResetData) {
     mCachedResetData->Destroy(mBits, presContext);
   }
+
+  // Free any ImageValues we were holding on to for CSS variable values.
+  CSSVariableImageTable::RemoveAll(this);
 }
 
 #ifdef DEBUG
@@ -600,7 +604,7 @@ nsStyleContext::ApplyStyleFixups(bool aSkipParentDisplayBasedStyleFixup)
         presContext->StyleSet()->ResolveStyleFor(docElement, nullptr);
       auto dir = rootStyle->StyleVisibility()->mDirection;
       if (dir != StyleVisibility()->mDirection) {
-        nsStyleVisibility* uniqueVisibility = 
+        nsStyleVisibility* uniqueVisibility =
           (nsStyleVisibility*)GetUniqueStyleData(eStyleStruct_Visibility);
         uniqueVisibility->mDirection = dir;
       }
@@ -1596,6 +1600,6 @@ nsStyleContext::Initialize()
 {
   Preferences::AddBoolVarCache(
       &sExpensiveStyleStructAssertionsEnabled,
-      "layout.css.expensive-style-struct-assertions.enabed");
+      "layout.css.expensive-style-struct-assertions.enabled");
 }
 #endif

@@ -162,6 +162,8 @@ var validGradientAndElementValues = [
   "-moz-linear-gradient(10% 10em, red, blue)",
   "-moz-linear-gradient(44px top, red, blue)",
 
+  "-moz-linear-gradient(0px, red, blue)",
+  "-moz-linear-gradient(0, red, blue)",
   "-moz-linear-gradient(top left 45deg, red, blue)",
   "-moz-linear-gradient(20% bottom -300deg, red, blue)",
   "-moz-linear-gradient(center 20% 1.95929rad, red, blue)",
@@ -386,6 +388,10 @@ var invalidGradientAndElementValues = [
   "-moz-linear-gradient(10 10px -45deg, red, blue) repeat",
   "-moz-linear-gradient(10px 10 -45deg, red, blue) repeat",
   "linear-gradient(red -99, yellow, green, blue 120%)",
+  /* Unitless 0 is invalid as an <angle> */
+  "-moz-linear-gradient(top left 0, red, blue)",
+  "-moz-linear-gradient(5px 5px 0, red, blue)",
+  "linear-gradient(0, red, blue)",
   /* Invalid color, calc() or -moz-image-rect() function */
   "linear-gradient(red, rgb(0, rubbish, 0) 50%, red)",
   "linear-gradient(red, red calc(50% + rubbish), red)",
@@ -701,6 +707,11 @@ if (IsCSSPropertyPrefEnabled("layout.css.prefixes.webkit")) {
     // Angled linear-gradients (valid when prefixed or unprefixed):
     "-webkit-linear-gradient(135deg, red, blue)",
     "-webkit-linear-gradient(280deg, red 60%, blue)",
+
+    // Linear-gradient with unitless-0 <angle> (normally invalid for <angle>
+    // but accepted here for better webkit emulation):
+    "-webkit-linear-gradient(0, red, blue)",
+    "-webkit-linear-gradient(0 red, blue)",
 
     // Basic radial-gradient syntax (valid when prefixed or unprefixed):
     "-webkit-radial-gradient(circle, white, black)",
@@ -4848,6 +4859,25 @@ function logical_box_prop_get_computed(cs, property)
   return cs.getPropertyValue(property);
 }
 
+// Helper to get computed style of "-webkit-box-orient" from "flex-direction"
+// and the "writing-mode".
+function webkit_orient_get_computed(cs, property)
+{
+  var writingMode = cs.getPropertyValue("writing-mode") || "horizontal-tb";
+
+  var mapping; // map from flex-direction values to -webkit-box-orient values.
+  if (writingMode == "horizontal-tb") {
+    // Horizontal writing-mode
+    mapping = { "row" : "horizontal", "column" : "vertical"};
+  } else {
+    // Vertical writing-mode
+    mapping = { "row" : "vertical",   "column" : "horizontal"};
+  }
+
+  var flexDirection = cs.getPropertyValue("flex-direction");
+  return mapping[flexDirection];
+}
+
 // Get the computed value for a property.  For shorthands, return the
 // computed values of all the subproperties, delimited by " ; ".
 function get_computed_value(cs, property)
@@ -6991,6 +7021,21 @@ if (IsCSSPropertyPrefEnabled("layout.css.prefixes.webkit")) {
     type: CSS_TYPE_SHORTHAND_AND_LONGHAND,
     alias_for: "order",
     subproperties: [ "order" ],
+  };
+  /* This one is not an alias - it's implemented as a logical property: */
+  gCSSProperties["-webkit-box-orient"] = {
+    domProp: "webkitBoxOrient",
+    inherited: false,
+    type: CSS_TYPE_LONGHAND,
+    logical: true,
+    get_computed: webkit_orient_get_computed,
+    initial_values: [ "horizontal" ],
+    other_values: [ "vertical" ],
+    invalid_values: [
+      "0", "0px", "auto",
+      /* Flex-direction values: */
+      "row", "column", "row-reverse", "column-reverse",
+    ],
   };
   gCSSProperties["-webkit-box-align"] = {
     domProp: "webkitBoxAlign",

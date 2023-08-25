@@ -557,9 +557,9 @@ skip-if(B2G||Mulet) == 363858-1.html 363858-1-ref.html # Initial mulet triage: p
 skip-if(B2G||Mulet) == 363858-2.html 363858-2-ref.html # Initial mulet triage: parity with B2G/B2G Desktop
 skip-if(B2G||Mulet) == 363858-3.html 363858-3-ref.html # Initial mulet triage: parity with B2G/B2G Desktop
 skip-if(B2G||Mulet) == 363858-4.html 363858-4-ref.html # Initial mulet triage: parity with B2G/B2G Desktop
-fuzzy-if(OSX>=1008,45,2) == 363858-5a.html 363858-5-ref.html
+fuzzy-if(OSX>=1008,45,2) fuzzy-if(winWidget,114,1) == 363858-5a.html 363858-5-ref.html
 == 363858-5b.html 363858-5-ref.html
-fuzzy-if(OSX>=1008,45,2) == 363858-6a.html 363858-6-ref.html
+fuzzy-if(OSX>=1008,45,2) fuzzy-if(winWidget,114,1) == 363858-6a.html 363858-6-ref.html
 == 363858-6b.html 363858-6-ref.html
 == 363874.html 363874-ref.html
 == 363874-max-width.html 363874-max-width-ref.html
@@ -1942,3 +1942,4 @@ fuzzy(1,74) fuzzy-if(gtkWidget,6,79) == 1174332-1.html 1174332-1-ref.html
 == 1209994-3.html 1209994-3-ref.html
 == 1209994-4.html 1209994-4-ref.html
 == 1222226-1.html 1222226-1-ref.html
+pref(browser.display.focus_ring_width,2) == 1234758-1.html 1234758-1-ref.html

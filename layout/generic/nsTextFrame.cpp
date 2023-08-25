@@ -871,6 +871,7 @@ public:
     mCurrentFramesAllSameTextRun(nullptr),
     mDrawTarget(aDrawTarget),
     mLineContainer(aLineContainer),
+    mCommonAncestorWithLastFrame(nullptr),
     mMissingFonts(aPresContext->MissingFontRecorder()),
     mBidiEnabled(aPresContext->BidiEnabled()),
     mSkipIncompleteTextRuns(false),
@@ -4217,12 +4218,15 @@ nsContinuingTextFrame::Init(nsIContent*       aContent,
     FramePropertyTable *propTable = PresContext()->PropertyTable();
     // Get all the properties from the prev-in-flow first to take
     // advantage of the propTable's cache and simplify the assertion below
-    void* embeddingLevel = propTable->Get(aPrevInFlow, EmbeddingLevelProperty());
-    void* baseLevel = propTable->Get(aPrevInFlow, BaseLevelProperty());
-    void* paragraphDepth = propTable->Get(aPrevInFlow, ParagraphDepthProperty());
-    propTable->Set(this, EmbeddingLevelProperty(), embeddingLevel);
-    propTable->Set(this, BaseLevelProperty(), baseLevel);
-    propTable->Set(this, ParagraphDepthProperty(), paragraphDepth);
+    void* embeddingLevel =
+      propTable->Get(aPrevInFlow, nsBidi::EmbeddingLevelProperty());
+    void* baseLevel =
+      propTable->Get(aPrevInFlow, nsBidi::BaseLevelProperty());
+    void* paragraphDepth =
+      propTable->Get(aPrevInFlow, nsBidi::ParagraphDepthProperty());
+    propTable->Set(this, nsBidi::EmbeddingLevelProperty(), embeddingLevel);
+    propTable->Set(this, nsBidi::BaseLevelProperty(), baseLevel);
+    propTable->Set(this, nsBidi::ParagraphDepthProperty(), paragraphDepth);
 
     if (nextContinuation) {
       SetNextContinuation(nextContinuation);
@@ -4231,9 +4235,12 @@ nsContinuingTextFrame::Init(nsIContent*       aContent,
       while (nextContinuation &&
              nextContinuation->GetContentOffset() < mContentOffset) {
         NS_ASSERTION(
-          embeddingLevel == propTable->Get(nextContinuation, EmbeddingLevelProperty()) &&
-          baseLevel == propTable->Get(nextContinuation, BaseLevelProperty()) &&
-          paragraphDepth == propTable->Get(nextContinuation, ParagraphDepthProperty()),
+          embeddingLevel == propTable->Get(
+            nextContinuation, nsBidi::EmbeddingLevelProperty()) &&
+          baseLevel == propTable->Get(
+            nextContinuation, nsBidi::BaseLevelProperty()) &&
+          paragraphDepth == propTable->Get(
+            nextContinuation, nsBidi::ParagraphDepthProperty()),
           "stealing text from different type of BIDI continuation");
         nextContinuation->mContentOffset = mContentOffset;
         nextContinuation = static_cast<nsTextFrame*>(nextContinuation->GetNextContinuation());
@@ -5159,6 +5166,15 @@ GetInflationForTextDecorations(nsIFrame* aFrame, nscoord aInflationMinFontSize)
   }
   return nsLayoutUtils::FontSizeInflationInner(aFrame, aInflationMinFontSize);
 }
+
+struct EmphasisMarkInfo
+{
+  nsAutoPtr<gfxTextRun> textRun;
+  gfxFloat advance;
+  gfxFloat baselineOffset;
+};
+
+NS_DECLARE_FRAME_PROPERTY(EmphasisMarkProperty, DeleteValue<EmphasisMarkInfo>)
 
 static gfxTextRun*
 GenerateTextRunForEmphasisMarks(nsTextFrame* aFrame, nsFontMetrics* aFontMetrics,
@@ -6251,7 +6267,6 @@ nsTextFrame::DrawEmphasisMarks(gfxContext* aContext, WritingMode aWM,
   auto info = static_cast<const EmphasisMarkInfo*>(
     Properties().Get(EmphasisMarkProperty()));
   if (!info) {
-    MOZ_ASSERT(!StyleText()->HasTextEmphasis());
     return;
   }
 
@@ -7918,7 +7933,9 @@ nsTextFrame::AddInlineMinISizeForFlow(nsRenderingContext *aRenderingContext,
 
     if (i > wordStart) {
       nscoord width =
-        NSToCoordCeilClamped(textRun->GetAdvanceWidth(wordStart, i - wordStart, &provider));
+        NSToCoordCeilClamped(textRun->GetAdvanceWidth(wordStart, i - wordStart,
+                                                      &provider));
+      width = std::max(0, width);
       aData->currentLine = NSCoordSaturatingAdd(aData->currentLine, width);
       aData->atStartOfLine = false;
 
@@ -7930,8 +7947,11 @@ nsTextFrame::AddInlineMinISizeForFlow(nsRenderingContext *aRenderingContext,
           aData->trailingWhitespace += width;
         } else {
           // Some non-whitespace so the old trailingWhitespace is no longer trailing
-          aData->trailingWhitespace =
-            NSToCoordCeilClamped(textRun->GetAdvanceWidth(trimStart, i - trimStart, &provider));
+          nscoord wsWidth =
+            NSToCoordCeilClamped(textRun->GetAdvanceWidth(trimStart,
+                                                          i - trimStart,
+                                                          &provider));
+          aData->trailingWhitespace = std::max(0, wsWidth);
         }
       } else {
         aData->trailingWhitespace = 0;
@@ -8069,7 +8089,9 @@ nsTextFrame::AddInlinePrefISizeForFlow(nsRenderingContext *aRenderingContext,
 
     if (i > lineStart) {
       nscoord width =
-        NSToCoordCeilClamped(textRun->GetAdvanceWidth(lineStart, i - lineStart, &provider));
+        NSToCoordCeilClamped(textRun->GetAdvanceWidth(lineStart, i - lineStart,
+                                                      &provider));
+      width = std::max(0, width);
       aData->currentLine = NSCoordSaturatingAdd(aData->currentLine, width);
 
       if (collapseWhitespace) {
@@ -8080,8 +8102,11 @@ nsTextFrame::AddInlinePrefISizeForFlow(nsRenderingContext *aRenderingContext,
           aData->trailingWhitespace += width;
         } else {
           // Some non-whitespace so the old trailingWhitespace is no longer trailing
-          aData->trailingWhitespace =
-            NSToCoordCeilClamped(textRun->GetAdvanceWidth(trimStart, i - trimStart, &provider));
+          nscoord wsWidth =
+            NSToCoordCeilClamped(textRun->GetAdvanceWidth(trimStart,
+                                                          i - trimStart,
+                                                          &provider));
+          aData->trailingWhitespace = std::max(0, wsWidth);
         }
       } else {
         aData->trailingWhitespace = 0;
@@ -9593,6 +9618,8 @@ nsTextFrame::UpdateOverflow()
   return FinishAndStoreOverflow(overflowAreas, GetSize());
 }
 
+NS_DECLARE_FRAME_PROPERTY(JustificationAssignmentProperty, nullptr)
+
 void
 nsTextFrame::AssignJustificationGaps(
     const mozilla::JustificationAssignment& aAssign)
@@ -9601,14 +9628,14 @@ nsTextFrame::AssignJustificationGaps(
   static_assert(sizeof(aAssign) == 1,
                 "The encoding might be broken if JustificationAssignment "
                 "is larger than 1 byte");
-  Properties().Set(JustificationAssignment(), NS_INT32_TO_PTR(encoded));
+  Properties().Set(JustificationAssignmentProperty(), NS_INT32_TO_PTR(encoded));
 }
 
 mozilla::JustificationAssignment
 nsTextFrame::GetJustificationAssignment() const
 {
   int32_t encoded =
-    NS_PTR_TO_INT32(Properties().Get(JustificationAssignment()));
+    NS_PTR_TO_INT32(Properties().Get(JustificationAssignmentProperty()));
   mozilla::JustificationAssignment result;
   result.mGapsAtStart = encoded >> 8;
   result.mGapsAtEnd = encoded & 0xFF;

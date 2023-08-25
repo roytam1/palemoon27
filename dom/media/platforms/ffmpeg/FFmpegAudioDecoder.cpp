@@ -57,7 +57,11 @@ FFmpegAudioDecoder<LIBAV_VER>::InitCodecContext()
   FFmpegRuntimeLinker::GetVersion(major, minor, micro);
   // LibAV 0.8 produces rubbish float interleaved samples, request 16 bits audio.
   mCodecContext->request_sample_fmt =
+#ifdef MOZ_SAMPLE_TYPE_FLOAT32
     (major == 53) ? AV_SAMPLE_FMT_S16 : AV_SAMPLE_FMT_FLT;
+#else
+    AV_SAMPLE_FMT_S16;
+#endif
 }
 
 static UniquePtr<AudioDataValue[]>
@@ -68,11 +72,23 @@ CopyAndPackAudio(AVFrame* aFrame, uint32_t aNumChannels, uint32_t aNumAFrames)
   auto audio = MakeUnique<AudioDataValue[]>(aNumChannels * aNumAFrames);
 
   if (aFrame->format == AV_SAMPLE_FMT_FLT) {
+#ifdef MOZ_SAMPLE_TYPE_FLOAT32
     // Audio data already packed. No need to do anything other than copy it
     // into a buffer we own.
     memcpy(audio.get(), aFrame->data[0],
            aNumChannels * aNumAFrames * sizeof(AudioDataValue));
+#else
+    // Audio data already packed. Need to convert from 32 bits Float to S16
+    AudioDataValue* tmp = audio.get();
+    float* data = reinterpret_cast<float**>(aFrame->data)[0];
+    for (uint32_t frame = 0; frame < aNumAFrames; frame++) {
+      for (uint32_t channel = 0; channel < aNumChannels; channel++) {
+        *tmp++ = FloatToAudioSample<int16_t>(*data++);
+      }
+    }
+#endif
   } else if (aFrame->format == AV_SAMPLE_FMT_FLTP) {
+#ifdef MOZ_SAMPLE_TYPE_FLOAT32
     // Planar audio data. Pack it into something we can understand.
     AudioDataValue* tmp = audio.get();
     AudioDataValue** data = reinterpret_cast<AudioDataValue**>(aFrame->data);
@@ -81,7 +97,19 @@ CopyAndPackAudio(AVFrame* aFrame, uint32_t aNumChannels, uint32_t aNumAFrames)
         *tmp++ = data[channel][frame];
       }
     }
+#else
+    // Planar audio data. Convert it from 32 bits Float to S16
+    // and pack it into something we can understand.
+    AudioDataValue* tmp = audio.get();
+    float** data = reinterpret_cast<float**>(aFrame->data);
+    for (uint32_t frame = 0; frame < aNumAFrames; frame++) {
+      for (uint32_t channel = 0; channel < aNumChannels; channel++) {
+        *tmp++ = FloatToAudioSample<int16_t>(data[channel][frame]);
+      }
+    }
+#endif
   } else if (aFrame->format == AV_SAMPLE_FMT_S16) {
+#ifdef MOZ_SAMPLE_TYPE_FLOAT32
     // Audio data already packed. Need to convert from S16 to 32 bits Float
     AudioDataValue* tmp = audio.get();
     int16_t* data = reinterpret_cast<int16_t**>(aFrame->data)[0];
@@ -90,7 +118,14 @@ CopyAndPackAudio(AVFrame* aFrame, uint32_t aNumChannels, uint32_t aNumAFrames)
         *tmp++ = AudioSampleToFloat(*data++);
       }
     }
+#else
+    // Audio data already packed. No need to do anything other than copy it
+    // into a buffer we own.
+    memcpy(audio.get(), aFrame->data[0],
+           aNumChannels * aNumAFrames * sizeof(AudioDataValue));
+#endif
   } else if (aFrame->format == AV_SAMPLE_FMT_S16P) {
+#ifdef MOZ_SAMPLE_TYPE_FLOAT32
     // Planar audio data. Convert it from S16 to 32 bits float
     // and pack it into something we can understand.
     AudioDataValue* tmp = audio.get();
@@ -100,6 +135,16 @@ CopyAndPackAudio(AVFrame* aFrame, uint32_t aNumChannels, uint32_t aNumAFrames)
         *tmp++ = AudioSampleToFloat(data[channel][frame]);
       }
     }
+#else
+    // Planar audio data. Pack it into something we can understand.
+    AudioDataValue* tmp = audio.get();
+    AudioDataValue** data = reinterpret_cast<AudioDataValue**>(aFrame->data);
+    for (uint32_t frame = 0; frame < aNumAFrames; frame++) {
+      for (uint32_t channel = 0; channel < aNumChannels; channel++) {
+        *tmp++ = data[channel][frame];
+      }
+    }
+#endif
   }
 
   return audio;

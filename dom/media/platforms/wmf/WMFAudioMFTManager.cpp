@@ -284,7 +284,11 @@ WMFAudioMFTManager::Output(int64_t aStreamOffset,
 
   int16_t* pcm = (int16_t*)data;
   for (int32_t i = 0; i < numSamples; ++i) {
+#ifdef MOZ_SAMPLE_TYPE_FLOAT32
     audioData[i] = AudioSampleToFloat(pcm[i]);
+#else
+    audioData[i] = pcm[i];
+#endif
   }
 
   buffer->Unlock();

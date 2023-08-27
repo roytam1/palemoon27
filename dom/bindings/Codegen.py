@@ -8105,7 +8105,7 @@ class CGGenericMethod(CGAbstractBindingMethod):
     """
     def __init__(self, descriptor, allowCrossOriginThis=False):
         unwrapFailureCode = (
-            'return ThrowInvalidThis(cx, args, GetInvalidThisErrorForMethod(%%(securityError)s), "%s");\n' %
+            'return ThrowInvalidThis(cx, args, %%(securityError)s, "%s");\n' %
             descriptor.interface.identifier.name)
         name = "genericCrossOriginMethod" if allowCrossOriginThis else "genericMethod"
         CGAbstractBindingMethod.__init__(self, descriptor, name,
@@ -8136,7 +8136,7 @@ class CGGenericPromiseReturningMethod(CGAbstractBindingMethod):
     """
     def __init__(self, descriptor):
         unwrapFailureCode = dedent("""
-            ThrowInvalidThis(cx, args, GetInvalidThisErrorForMethod(%%(securityError)s), "%s");\n
+            ThrowInvalidThis(cx, args, %%(securityError)s, "%s");\n
             return ConvertExceptionToPromise(cx, xpc::XrayAwareCalleeGlobal(callee),
                                              args.rval());\n""" %
                                    descriptor.interface.identifier.name)
@@ -8477,7 +8477,7 @@ class CGGenericGetter(CGAbstractBindingMethod):
             else:
                 name = "genericGetter"
             unwrapFailureCode = (
-                'return ThrowInvalidThis(cx, args, GetInvalidThisErrorForGetter(%%(securityError)s), "%s");\n' %
+                'return ThrowInvalidThis(cx, args, %%(securityError)s, "%s");\n' %
                 descriptor.interface.identifier.name)
         CGAbstractBindingMethod.__init__(self, descriptor, name, JSNativeArguments(),
                                          unwrapFailureCode,
@@ -8608,7 +8608,7 @@ class CGGenericSetter(CGAbstractBindingMethod):
             else:
                 name = "genericSetter"
             unwrapFailureCode = (
-                'return ThrowInvalidThis(cx, args, GetInvalidThisErrorForSetter(%%(securityError)s), "%s");\n' %
+                'return ThrowInvalidThis(cx, args, %%(securityError)s, "%s");\n' %
                 descriptor.interface.identifier.name)
 
         CGAbstractBindingMethod.__init__(self, descriptor, name, JSNativeArguments(),
@@ -8772,7 +8772,7 @@ class CGMemberJITInfo(CGThing):
                 {
                   { ${opName} },
                   { prototypes::id::${name} },
-                  PrototypeTraits<prototypes::id::${name}>::Depth,
+                  { PrototypeTraits<prototypes::id::${name}>::Depth },
                   JSJitInfo::${opType},
                   JSJitInfo::${aliasSet}, /* aliasSet.  Not relevant for setters. */
                   ${returnType},  /* returnType.  Not relevant for setters. */
@@ -9152,7 +9152,7 @@ class CGStaticMethodJitinfo(CGGeneric):
             "\n"
             "static const JSJitInfo %s_methodinfo = {\n"
             "  { (JSJitGetterOp)%s },\n"
-            "  { prototypes::id::_ID_Count }, 0, JSJitInfo::StaticMethod,\n"
+            "  { prototypes::id::_ID_Count }, { 0 }, JSJitInfo::StaticMethod,\n"
             "  JSJitInfo::AliasEverything, JSVAL_TYPE_MISSING, false, false,\n"
             "  false, false, 0\n"
             "};\n" %

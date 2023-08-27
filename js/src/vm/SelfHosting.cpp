@@ -31,6 +31,7 @@
 #include "builtin/TypedObject.h"
 #include "builtin/WeakSetObject.h"
 #include "gc/Marking.h"
+#include "gc/Policy.h"
 #include "jit/AtomicOperations.h"
 #include "jit/InlinableNatives.h"
 #include "js/Date.h"
@@ -744,6 +745,42 @@ intrinsic_GeneratorSetClosed(JSContext* cx, unsigned argc, Value* vp)
 }
 
 static bool
+intrinsic_ArrayBufferByteLength(JSContext* cx, unsigned argc, Value* vp)
+{
+    CallArgs args = CallArgsFromVp(argc, vp);
+    MOZ_ASSERT(args.length() == 1);
+    MOZ_ASSERT(args[0].isObject());
+    MOZ_ASSERT(args[0].toObject().is<ArrayBufferObject>());
+
+    size_t byteLength = args[0].toObject().as<ArrayBufferObject>().byteLength();
+    args.rval().setInt32(mozilla::AssertedCast<int32_t>(byteLength));
+    return true;
+}
+
+static bool
+intrinsic_ArrayBufferCopyData(JSContext* cx, unsigned argc, Value* vp)
+{
+    CallArgs args = CallArgsFromVp(argc, vp);
+    MOZ_ASSERT(args.length() == 4);
+    MOZ_ASSERT(args[0].isObject());
+    MOZ_ASSERT(args[0].toObject().is<ArrayBufferObject>());
+    MOZ_ASSERT(args[1].isObject());
+    MOZ_ASSERT(args[1].toObject().is<ArrayBufferObject>());
+    MOZ_ASSERT(args[2].isInt32());
+    MOZ_ASSERT(args[3].isInt32());
+
+    Rooted<ArrayBufferObject*> toBuffer(cx, &args[0].toObject().as<ArrayBufferObject>());
+    Rooted<ArrayBufferObject*> fromBuffer(cx, &args[1].toObject().as<ArrayBufferObject>());
+    uint32_t fromIndex = uint32_t(args[2].toInt32());
+    uint32_t count = uint32_t(args[3].toInt32());
+
+    ArrayBufferObject::copyData(toBuffer, fromBuffer, fromIndex, count);
+
+    args.rval().setUndefined();
+    return true;
+}
+
+static bool
 intrinsic_IsPossiblyWrappedTypedArray(JSContext* cx, unsigned argc, Value* vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
@@ -818,6 +855,26 @@ intrinsic_TypedArrayLength(JSContext* cx, unsigned argc, Value* vp)
 }
 
 static bool
+intrinsic_PossiblyWrappedTypedArrayLength(JSContext* cx, unsigned argc, Value* vp)
+{
+    CallArgs args = CallArgsFromVp(argc, vp);
+    MOZ_ASSERT(args.length() == 1);
+    MOZ_ASSERT(args[0].isObject());
+
+    JSObject* obj = CheckedUnwrap(&args[0].toObject());
+
+    if (!obj) {
+        JS_ReportError(cx, "Permission denied to access object");
+        return false;
+    }
+
+    MOZ_ASSERT(obj->is<TypedArrayObject>());
+    uint32_t typedArrayLength = obj->as<TypedArrayObject>().length();
+    args.rval().setInt32(mozilla::AssertedCast<int32_t>(typedArrayLength));
+    return true;
+}
+
+static bool
 intrinsic_MoveTypedArrayElements(JSContext* cx, unsigned argc, Value* vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
@@ -830,9 +887,9 @@ intrinsic_MoveTypedArrayElements(JSContext* cx, unsigned argc, Value* vp)
 
     MOZ_ASSERT(count > 0,
                "don't call this method if copying no elements, because then "
-               "the not-neutered requirement is wrong");
+               "the not-detached requirement is wrong");
 
-    if (tarray->isNeutered() && tarray->hasBuffer()) {
+    if (tarray->hasDetachedBuffer()) {
         JS_ReportErrorNumber(cx, GetErrorMessage, nullptr, JSMSG_TYPED_ARRAY_BAD_ARGS);
         return false;
     }
@@ -914,8 +971,9 @@ intrinsic_SetFromTypedArrayApproach(JSContext* cx, unsigned argc, Value* vp)
     MOZ_ASSERT(args.length() == 4);
 
     Rooted<TypedArrayObject*> target(cx, &args[0].toObject().as<TypedArrayObject>());
-    MOZ_ASSERT(!target->hasBuffer() || !target->isNeutered(),
-               "something should have defended against a neutered target");
+    MOZ_ASSERT(!target->hasDetachedBuffer(),
+               "something should have defended against a target viewing a "
+               "detached buffer");
 
     // As directed by |DangerouslyUnwrapTypedArray|, sigil this pointer and all
     // variables derived from it to counsel extreme caution here.
@@ -934,9 +992,7 @@ intrinsic_SetFromTypedArrayApproach(JSContext* cx, unsigned argc, Value* vp)
     // that might abort processing (other than for reason of internal error.)
 
     // Steps 12-13.
-    if (unsafeTypedArrayCrossCompartment->hasBuffer() &&
-        unsafeTypedArrayCrossCompartment->isNeutered())
-    {
+    if (unsafeTypedArrayCrossCompartment->hasDetachedBuffer()) {
         JS_ReportErrorNumber(cx, GetErrorMessage, nullptr, JSMSG_TYPED_ARRAY_DETACHED);
         return false;
     }
@@ -1160,9 +1216,9 @@ intrinsic_SetDisjointTypedElements(JSContext* cx, unsigned argc, Value* vp)
     MOZ_ASSERT(args.length() == 3);
 
     Rooted<TypedArrayObject*> target(cx, &args[0].toObject().as<TypedArrayObject>());
-    MOZ_ASSERT(!target->hasBuffer() || !target->isNeutered(),
-               "a neutered typed array has no elements to set, so "
-               "it's nonsensical to be setting them");
+    MOZ_ASSERT(!target->hasDetachedBuffer(),
+               "a typed array viewing a detached buffer has no elements to "
+               "set, so it's nonsensical to be setting them");
 
     uint32_t targetOffset = uint32_t(args[1].toInt32());
 
@@ -1186,8 +1242,8 @@ intrinsic_SetOverlappingTypedElements(JSContext* cx, unsigned argc, Value* vp)
     MOZ_ASSERT(args.length() == 3);
 
     Rooted<TypedArrayObject*> target(cx, &args[0].toObject().as<TypedArrayObject>());
-    MOZ_ASSERT(!target->hasBuffer() || !target->isNeutered(),
-               "shouldn't be setting elements if neutered");
+    MOZ_ASSERT(!target->hasDetachedBuffer(),
+               "shouldn't set elements if underlying buffer is detached");
 
     uint32_t targetOffset = uint32_t(args[1].toInt32());
 
@@ -1320,7 +1376,12 @@ intrinsic_ConstructFunction(JSContext* cx, unsigned argc, Value* vp)
     for (uint32_t index = 0; index < len; index++)
         constructArgs[index].set(argsList->getDenseElement(index));
 
-    return Construct(cx, args[0], constructArgs, args.rval());
+    RootedObject res(cx);
+    if (!Construct(cx, args[0], constructArgs, args[0], &res))
+        return false;
+
+    args.rval().setObject(*res);
+    return true;
 }
 
 
@@ -1704,6 +1765,9 @@ static const JSFunctionSpec intrinsic_functions[] = {
     JS_FN("IsSharedArrayBuffer",
           intrinsic_IsInstanceOfBuiltin<SharedArrayBufferObject>,       1,0),
 
+    JS_FN("ArrayBufferByteLength",   intrinsic_ArrayBufferByteLength,   1,0),
+    JS_FN("ArrayBufferCopyData",     intrinsic_ArrayBufferCopyData,     4,0),
+
     JS_INLINABLE_FN("IsTypedArray",
                     intrinsic_IsInstanceOfBuiltin<TypedArrayObject>,    1,0,
                     IntrinsicIsTypedArray),
@@ -1716,6 +1780,8 @@ static const JSFunctionSpec intrinsic_functions[] = {
 
     JS_INLINABLE_FN("TypedArrayLength", intrinsic_TypedArrayLength,     1,0,
                     IntrinsicTypedArrayLength),
+    JS_INLINABLE_FN("PossiblyWrappedTypedArrayLength", intrinsic_PossiblyWrappedTypedArrayLength,
+                    1, 0, IntrinsicPossiblyWrappedTypedArrayLength),
 
     JS_FN("MoveTypedArrayElements",  intrinsic_MoveTypedArrayElements,  4,0),
     JS_FN("SetFromTypedArrayApproach",intrinsic_SetFromTypedArrayApproach, 4, 0),
@@ -1724,6 +1790,8 @@ static const JSFunctionSpec intrinsic_functions[] = {
     JS_INLINABLE_FN("SetDisjointTypedElements",intrinsic_SetDisjointTypedElements,3,0,
                     IntrinsicSetDisjointTypedElements),
 
+    JS_FN("CallArrayBufferMethodIfWrapped",
+          CallNonGenericSelfhostedMethod<Is<ArrayBufferObject>>, 2, 0),
     JS_FN("CallTypedArrayMethodIfWrapped",
           CallNonGenericSelfhostedMethod<Is<TypedArrayObject>>, 2, 0),
 

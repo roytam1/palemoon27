@@ -50,9 +50,6 @@ with Files('../public/TrackedOptimizationInfo.h'):
     BUG_COMPONENT = component_jit
 
 
-if CONFIG['DEHYDRA_PATH']:
-    DIRS += ['analysis-tests']
-
 if CONFIG['JS_BUNDLED_EDITLINE']:
     DIRS += ['editline']
 
@@ -119,6 +116,7 @@ EXPORTS.js += [
     '../public/Debug.h',
     '../public/GCAPI.h',
     '../public/GCHashTable.h',
+    '../public/GCPolicyAPI.h',
     '../public/GCVector.h',
     '../public/HashTable.h',
     '../public/HeapAPI.h',
@@ -152,12 +150,14 @@ EXPORTS.js += [
 
 UNIFIED_SOURCES += [
     'asmjs/AsmJS.cpp',
+    'asmjs/Wasm.cpp',
     'asmjs/WasmFrameIterator.cpp',
     'asmjs/WasmGenerator.cpp',
     'asmjs/WasmIonCompile.cpp',
     'asmjs/WasmModule.cpp',
     'asmjs/WasmSignalHandlers.cpp',
     'asmjs/WasmStubs.cpp',
+    'asmjs/WasmText.cpp',
     'asmjs/WasmTypes.cpp',
     'builtin/AtomicsObject.cpp',
     'builtin/Eval.cpp',
@@ -719,6 +719,7 @@ selfhosted.inputs = [
     'builtin/RegExp.js',
     'builtin/String.js',
     'builtin/Set.js',
+    'builtin/Sorting.js',
     'builtin/TypedArray.js',
     'builtin/TypedObject.js',
     'builtin/WeakSet.js'

@@ -63,7 +63,7 @@ class TraceLoggerThread;
 #endif
 
 /* Thread Local Storage slot for storing the runtime for a thread. */
-extern mozilla::ThreadLocal<PerThreadData*> TlsPerThreadData;
+extern MOZ_THREAD_LOCAL(PerThreadData*) TlsPerThreadData;
 
 } // namespace js
 
@@ -1062,7 +1062,7 @@ struct JSRuntime : public JS::shadow::Runtime,
     /* Garbage collector state has been successfully initialized. */
     bool                gcInitialized;
 
-    int gcZeal() { return gc.zeal(); }
+    bool hasZealMode(js::gc::ZealMode mode) { return gc.hasZealMode(mode); }
 
     void lockGC() {
         assertCanLock(js::GCLock);

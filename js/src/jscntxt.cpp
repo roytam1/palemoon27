@@ -152,7 +152,7 @@ js::DestroyContext(JSContext* cx, DestroyContextMode mode)
         MOZ_CRASH("Attempted to destroy a context while it is in a request.");
 
     cx->roots.checkNoGCRooters();
-    FinishPersistentRootedChains(cx->roots);
+    cx->roots.finishPersistentRoots();
 
     if (mode != DCM_NEW_FAILED) {
         if (JSContextCallback cxCallback = rt->cxCallback) {
@@ -186,8 +186,9 @@ js::DestroyContext(JSContext* cx, DestroyContextMode mode)
 void
 RootLists::checkNoGCRooters() {
 #ifdef DEBUG
-    for (int i = 0; i < THING_ROOT_LIMIT; ++i)
-        MOZ_ASSERT(stackRoots_[i] == nullptr);
+    for (auto const& stackRootPtr : stackRoots_) {
+        MOZ_ASSERT(stackRootPtr == nullptr);
+    }
 #endif
 }
 
@@ -301,7 +302,7 @@ js::ReportOutOfMemory(ExclusiveContext* cxArg)
         oomCallback(cx, cx->runtime()->oomCallbackData);
     }
 
-    if (JS_IsRunning(cx)) {
+    if (cx->options().autoJSAPIOwnsErrorReporting() || JS_IsRunning(cx)) {
         cx->setPendingException(StringValue(cx->names().outOfMemory));
         return;
     }

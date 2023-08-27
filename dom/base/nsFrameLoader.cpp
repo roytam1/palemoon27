@@ -1555,6 +1555,9 @@ nsFrameLoader::DestroyComplete()
   if (mChildMessageManager) {
     static_cast<nsInProcessTabChildGlobal*>(mChildMessageManager.get())->Disconnect();
   }
+
+  mMessageManager = nullptr;
+  mChildMessageManager = nullptr;
 }
 
 NS_IMETHODIMP

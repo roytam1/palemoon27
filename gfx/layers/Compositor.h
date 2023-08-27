@@ -119,6 +119,7 @@ namespace layers {
 struct Effect;
 struct EffectChain;
 class Image;
+class ImageHostOverlay;
 class Layer;
 class TextureSource;
 class DataTextureSource;
@@ -453,6 +454,12 @@ public:
   // these methods properly.
   virtual nsIWidget* GetWidget() const { return nullptr; }
 
+  virtual bool HasImageHostOverlays() { return false; }
+
+  virtual void AddImageHostOverlay(ImageHostOverlay* aOverlay) {}
+
+  virtual void RemoveImageHostOverlay(ImageHostOverlay* aOverlay) {}
+
   /**
    * Debug-build assertion that can be called to ensure code is running on the
    * compositor thread.
@@ -550,6 +557,31 @@ size_t DecomposeIntoNoRepeatRects(const gfx::Rect& aRect,
                                   const gfx::Rect& aTexCoordRect,
                                   decomposedRectArrayT* aLayerRects,
                                   decomposedRectArrayT* aTextureRects);
+
+static inline bool
+BlendOpIsMixBlendMode(gfx::CompositionOp aOp)
+{
+  switch (aOp) {
+  case gfx::CompositionOp::OP_MULTIPLY:
+  case gfx::CompositionOp::OP_SCREEN:
+  case gfx::CompositionOp::OP_OVERLAY:
+  case gfx::CompositionOp::OP_DARKEN:
+  case gfx::CompositionOp::OP_LIGHTEN:
+  case gfx::CompositionOp::OP_COLOR_DODGE:
+  case gfx::CompositionOp::OP_COLOR_BURN:
+  case gfx::CompositionOp::OP_HARD_LIGHT:
+  case gfx::CompositionOp::OP_SOFT_LIGHT:
+  case gfx::CompositionOp::OP_DIFFERENCE:
+  case gfx::CompositionOp::OP_EXCLUSION:
+  case gfx::CompositionOp::OP_HUE:
+  case gfx::CompositionOp::OP_SATURATION:
+  case gfx::CompositionOp::OP_COLOR:
+  case gfx::CompositionOp::OP_LUMINOSITY:
+    return true;
+  default:
+    return false;
+  }
+}
 
 } // namespace layers
 } // namespace mozilla

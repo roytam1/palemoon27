@@ -43,6 +43,7 @@
 #include "builtin/SymbolObject.h"
 #include "frontend/BytecodeCompiler.h"
 #include "gc/Marking.h"
+#include "gc/Policy.h"
 #include "jit/BaselineJIT.h"
 #include "js/MemoryMetrics.h"
 #include "js/Proxy.h"
@@ -1923,6 +1924,9 @@ js::SetClassAndProto(JSContext* cx, HandleObject obj,
     RootedObject oldproto(cx, obj);
     while (oldproto && oldproto->isNative()) {
         if (oldproto->isSingleton()) {
+            // We always generate a new shape if the object is a singleton,
+            // regardless of the uncacheable-proto flag. ICs may rely on
+            // this.
             if (!oldproto->as<NativeObject>().generateOwnShape(cx))
                 return false;
         } else {

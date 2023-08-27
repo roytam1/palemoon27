@@ -15,6 +15,7 @@
 
 #include "builtin/Eval.h"
 #include "builtin/SIMD.h"
+#include "gc/Policy.h"
 #include "jit/BaselineDebugModeOSR.h"
 #include "jit/BaselineJIT.h"
 #include "jit/JitSpewer.h"
@@ -1717,9 +1718,9 @@ TryAttachGetElemStub(JSContext* cx, JSScript* script, jsbytecode* pc, ICGetElem_
             return true;
         }
 
-        // Don't attach typed object stubs if they might be neutered, as the
-        // stub will always bail out.
-        if (IsPrimitiveArrayTypedObject(obj) && cx->compartment()->neuteredTypedObjects)
+        // Don't attach typed object stubs if the underlying storage could be
+        // detached, as the stub will always bail out.
+        if (IsPrimitiveArrayTypedObject(obj) && cx->compartment()->detachedTypedObjects)
             return true;
 
         JitSpew(JitSpew_BaselineIC, "  Generating GetElem(TypedArray[Int32]) stub");
@@ -2385,7 +2386,7 @@ ICGetElem_TypedArray::Compiler::generateStubCode(MacroAssembler& masm)
     Label failure;
 
     if (layout_ != Layout_TypedArray)
-        CheckForNeuteredTypedObject(cx, masm, &failure);
+        CheckForTypedObjectWithDetachedStorage(cx, masm, &failure);
 
     masm.branchTestObject(Assembler::NotEqual, R0, &failure);
 
@@ -2871,9 +2872,10 @@ DoSetElemFallback(JSContext* cx, BaselineFrame* frame, ICSetElem_Fallback* stub_
                 return true;
             expectOutOfBounds = false;
 
-            // Don't attach stubs if typed objects in the compartment might be
-            // neutered, as the stub will always bail out.
-            if (cx->compartment()->neuteredTypedObjects)
+            // Don't attach stubs if the underlying storage for typed objects
+            // in the compartment could be detached, as the stub will always
+            // bail out.
+            if (cx->compartment()->detachedTypedObjects)
                 return true;
         }
 
@@ -3429,7 +3431,7 @@ ICSetElem_TypedArray::Compiler::generateStubCode(MacroAssembler& masm)
     Label failure;
 
     if (layout_ != Layout_TypedArray)
-        CheckForNeuteredTypedObject(cx, masm, &failure);
+        CheckForTypedObjectWithDetachedStorage(cx, masm, &failure);
 
     masm.branchTestObject(Assembler::NotEqual, R0, &failure);
 
@@ -5220,7 +5222,7 @@ ICSetProp_TypedObject::Compiler::generateStubCode(MacroAssembler& masm)
 
     Label failure;
 
-    CheckForNeuteredTypedObject(cx, masm, &failure);
+    CheckForTypedObjectWithDetachedStorage(cx, masm, &failure);
 
     // Guard input is an object.
     masm.branchTestObject(Assembler::NotEqual, R0, &failure);
@@ -6165,8 +6167,12 @@ DoCallFallback(JSContext* cx, BaselineFrame* frame, ICCall_Fallback* stub_, uint
                    "either callee == newTarget, or the initial |new| checked "
                    "that IsConstructor(newTarget)");
 
-        if (!Construct(cx, callee, cargs, newTarget, res))
+        RootedObject obj(cx);
+        if (!Construct(cx, callee, cargs, newTarget, &obj))
             return false;
+
+        res.setObject(*obj);
+
     } else if ((op == JSOP_EVAL || op == JSOP_STRICTEVAL) &&
                frame->scopeChain()->global().valueIsEval(callee))
     {
@@ -7754,8 +7760,10 @@ ICTableSwitch::Compiler::getStub(ICStubSpace* space)
     pc += JUMP_OFFSET_LEN;
 
     void** table = (void**) space->alloc(sizeof(void*) * length);
-    if (!table)
+    if (!table) {
+        ReportOutOfMemory(cx);
         return nullptr;
+    }
 
     jsbytecode* defaultpc = pc_ + GET_JUMP_OFFSET(pc_);
 

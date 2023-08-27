@@ -44,8 +44,8 @@ js::gcstats::ExplainInvocationKind(JSGCInvocationKind gckind)
          return "Shrinking";
 }
 
-const char*
-js::gcstats::ExplainReason(JS::gcreason::Reason reason)
+JS_PUBLIC_API(const char*)
+JS::gcreason::ExplainReason(JS::gcreason::Reason reason)
 {
     switch (reason) {
 #define SWITCH_REASON(name)                         \
@@ -747,6 +747,7 @@ Statistics::Statistics(JSRuntime* rt)
     activeDagSlot(PHASE_DAG_NONE),
     suspendedPhaseNestingDepth(0),
     sliceCallback(nullptr),
+    nurseryCollectionCallback(nullptr),
     aborted(false)
 {
     PodArrayZero(phaseTotals);
@@ -835,6 +836,14 @@ Statistics::setSliceCallback(JS::GCSliceCallback newCallback)
 {
     JS::GCSliceCallback oldCallback = sliceCallback;
     sliceCallback = newCallback;
+    return oldCallback;
+}
+
+JS::GCNurseryCollectionCallback
+Statistics::setNurseryCollectionCallback(JS::GCNurseryCollectionCallback newCallback)
+{
+    auto oldCallback = nurseryCollectionCallback;
+    nurseryCollectionCallback = newCallback;
     return oldCallback;
 }
 

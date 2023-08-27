@@ -619,6 +619,7 @@ typedef enum JSExnType {
         JSEXN_SYNTAXERR,
         JSEXN_TYPEERR,
         JSEXN_URIERR,
+        JSEXN_DEBUGGEEWOULDRUN,
         JSEXN_LIMIT
 } JSExnType;
 
@@ -2181,7 +2182,8 @@ class JS_PUBLIC_API(CompartmentCreationOptions)
         mergeable_(false),
         preserveJitCode_(false),
         cloneSingletons_(false),
-        experimentalDateTimeFormatFormatToPartsEnabled_(false)
+        experimentalDateTimeFormatFormatToPartsEnabled_(false),
+        sharedMemoryAndAtomics_(false)
     {
         zone_.spec = JS::FreshZone;
     }
@@ -2261,6 +2263,8 @@ class JS_PUBLIC_API(CompartmentCreationOptions)
         return *this;
     }
 
+    bool getSharedMemoryAndAtomicsEnabled() const;
+    CompartmentCreationOptions& setSharedMemoryAndAtomicsEnabled(bool flag);
 
   private:
     JSAddonId* addonId_;
@@ -2274,6 +2278,7 @@ class JS_PUBLIC_API(CompartmentCreationOptions)
     bool preserveJitCode_;
     bool cloneSingletons_;
     bool experimentalDateTimeFormatFormatToPartsEnabled_;
+    bool sharedMemoryAndAtomics_;
 };
 
 /**
@@ -3325,21 +3330,18 @@ Call(JSContext* cx, JS::HandleValue thisv, JS::HandleObject funObj, const JS::Ha
  */
 extern JS_PUBLIC_API(bool)
 Construct(JSContext* cx, JS::HandleValue fun, HandleObject newTarget,
-          const JS::HandleValueArray &args, MutableHandleValue rval);
+          const JS::HandleValueArray &args, MutableHandleObject objp);
 
 /**
  * Invoke a constructor. This is the C++ equivalent of
  * `rval = new fun(...args)`.
- *
- * The value left in rval on success is always an object in practice,
- * though at the moment this is not enforced by the C++ type system.
  *
  * Implements: ES6 7.3.13 Construct(F, [argumentsList], [newTarget]), when
  * newTarget is omitted.
  */
 extern JS_PUBLIC_API(bool)
 Construct(JSContext* cx, JS::HandleValue fun, const JS::HandleValueArray& args,
-          MutableHandleValue rval);
+          MutableHandleObject objp);
 
 } /* namespace JS */
 
@@ -3459,7 +3461,7 @@ JS_CreateMappedArrayBufferContents(int fd, size_t offset, size_t length);
  * Release the allocated resource of mapped array buffer contents before the
  * object is created.
  * If a new object has been created by JS_NewMappedArrayBufferWithContents()
- * with this content, then JS_NeuterArrayBuffer() should be used instead to
+ * with this content, then JS_DetachArrayBuffer() should be used instead to
  * release the resource used by the object.
  */
 extern JS_PUBLIC_API(void)
@@ -5251,7 +5253,7 @@ JS_NewObjectForConstructor(JSContext* cx, const JSClass* clasp, const JS::CallAr
 #define JS_DEFAULT_ZEAL_FREQ 100
 
 extern JS_PUBLIC_API(void)
-JS_GetGCZeal(JSContext* cx, uint8_t* zeal, uint32_t* frequency, uint32_t* nextScheduled);
+JS_GetGCZealBits(JSContext* cx, uint32_t* zealBits, uint32_t* frequency, uint32_t* nextScheduled);
 
 extern JS_PUBLIC_API(void)
 JS_SetGCZeal(JSContext* cx, uint8_t zeal, uint32_t frequency);

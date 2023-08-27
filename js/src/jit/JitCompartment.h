@@ -11,14 +11,13 @@
 #include "mozilla/DebugOnly.h"
 #include "mozilla/MemoryReporting.h"
 
-#include "jsweakcache.h"
-
-#include "builtin/TypedObject.h"
+#include "builtin/SIMD.h"
 #include "jit/CompileInfo.h"
 #include "jit/ICStubSpace.h"
 #include "jit/IonCode.h"
 #include "jit/JitFrames.h"
 #include "jit/shared/Assembler-shared.h"
+#include "js/GCHashTable.h"
 #include "js/Value.h"
 #include "vm/Stack.h"
 
@@ -149,7 +148,7 @@ class JitRuntime
     void* baselineDebugModeOSRHandlerNoFrameRegPopAddr_;
 
     // Map VMFunction addresses to the JitCode of the wrapper.
-    typedef WeakCache<const VMFunction*, JitCode*> VMWrapperMap;
+    typedef GCRekeyableHashMap<const VMFunction*, JitCode*> VMWrapperMap;
     VMWrapperMap* functionWrappers_;
 
     // Buffer for OSR from baseline to Ion. To avoid holding on to this for
@@ -235,7 +234,9 @@ class JitRuntime
         // This two-arg constructor is provided for JSRuntime::createJitRuntime,
         // where we have a JitRuntime but didn't set rt->jitRuntime_ yet.
         AutoPreventBackedgePatching(JSRuntime* rt, JitRuntime* jrt)
-          : rt_(rt), jrt_(jrt)
+          : rt_(rt),
+            jrt_(jrt),
+            prev_(false)  // silence GCC warning
         {
             MOZ_ASSERT(CurrentThreadCanAccessRuntime(rt));
             if (jrt_) {
@@ -385,8 +386,18 @@ class JitCompartment
 {
     friend class JitActivation;
 
+    struct IcStubCodeMapGCPolicy {
+        static bool needsSweep(uint32_t* key, ReadBarrieredJitCode* value) {
+            return IsAboutToBeFinalized(value);
+        }
+    };
+
     // Map ICStub keys to ICStub shared code objects.
-    typedef WeakValueCache<uint32_t, ReadBarrieredJitCode> ICStubCodeMap;
+    using ICStubCodeMap = GCHashMap<uint32_t,
+                                    ReadBarrieredJitCode,
+                                    DefaultHasher<uint32_t>,
+                                    RuntimeAllocPolicy,
+                                    IcStubCodeMapGCPolicy>;
     ICStubCodeMap* stubCodes_;
 
     // Keep track of offset into various baseline stubs' code at return
@@ -405,7 +416,7 @@ class JitCompartment
     JitCode* regExpMatcherStub_;
     JitCode* regExpTesterStub_;
 
-    mozilla::Array<ReadBarrieredObject, SimdTypeDescr::LAST_TYPE + 1> simdTemplateObjects_;
+    mozilla::EnumeratedArray<SimdType, SimdType::Count, ReadBarrieredObject> simdTemplateObjects_;
 
     JitCode* generateStringConcatStub(JSContext* cx);
     JitCode* generateRegExpMatcherStub(JSContext* cx);
@@ -419,7 +430,7 @@ class JitCompartment
         return tpl.get();
     }
 
-    JSObject* maybeGetSimdTemplateObjectFor(SimdTypeDescr::Type type) const {
+    JSObject* maybeGetSimdTemplateObjectFor(SimdType type) const {
         const ReadBarrieredObject& tpl = simdTemplateObjects_[type];
 
         // This function is used by Eager Simd Unbox phase, so we cannot use the
@@ -430,7 +441,7 @@ class JitCompartment
 
     // This function is used to call the read barrier, to mark the SIMD template
     // type as used. This function can only be called from the main thread.
-    void registerSimdTemplateObjectFor(SimdTypeDescr::Type type) {
+    void registerSimdTemplateObjectFor(SimdType type) {
         ReadBarrieredObject& tpl = simdTemplateObjects_[type];
         MOZ_ASSERT(tpl.unbarrieredGet());
         tpl.get();

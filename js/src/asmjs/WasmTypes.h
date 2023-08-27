@@ -20,6 +20,7 @@
 #define wasm_types_h
 
 #include "mozilla/DebugOnly.h"
+#include "mozilla/EnumeratedArray.h"
 #include "mozilla/HashFunctions.h"
 #include "mozilla/Move.h"
 
@@ -41,6 +42,8 @@ using mozilla::Move;
 using mozilla::DebugOnly;
 using mozilla::MallocSizeOf;
 
+typedef Vector<uint32_t, 0, SystemAllocPolicy> Uint32Vector;
+
 // The ValType enum represents the WebAssembly "value type", which are used to
 // specify the type of locals and parameters.
 
@@ -52,19 +55,17 @@ enum class ValType : uint8_t
     F64,
     I32x4,
     F32x4,
-    B32x4
+    B32x4,
+
+    Limit
 };
+
+typedef Vector<ValType, 8, SystemAllocPolicy> ValTypeVector;
 
 static inline bool
 IsSimdType(ValType vt)
 {
     return vt == ValType::I32x4 || vt == ValType::F32x4 || vt == ValType::B32x4;
-}
-
-static inline bool
-IsSimdBoolType(ValType vt)
-{
-    return vt == ValType::B32x4;
 }
 
 static inline jit::MIRType
@@ -78,6 +79,7 @@ ToMIRType(ValType vt)
       case ValType::I32x4: return jit::MIRType_Int32x4;
       case ValType::F32x4: return jit::MIRType_Float32x4;
       case ValType::B32x4: return jit::MIRType_Bool32x4;
+      case ValType::Limit: break;
     }
     MOZ_MAKE_COMPILER_ASSUME_IS_UNREACHABLE("bad type");
 }
@@ -149,7 +151,9 @@ enum class ExprType : uint8_t
     I32x4 = uint8_t(ValType::I32x4),
     F32x4 = uint8_t(ValType::F32x4),
     B32x4 = uint8_t(ValType::B32x4),
-    Void
+    Void,
+
+    Limit
 };
 
 static inline bool
@@ -177,6 +181,12 @@ IsSimdType(ExprType et)
     return IsVoid(et) ? false : IsSimdType(ValType(et));
 }
 
+static inline bool
+IsSimdBoolType(ExprType vt)
+{
+    return vt == ExprType::B32x4;
+}
+
 static inline jit::MIRType
 ToMIRType(ExprType et)
 {
@@ -193,84 +203,68 @@ ToMIRType(ExprType et)
 // duration of module validation+compilation). Thus, long-lived objects like
 // WasmModule must use malloced allocation.
 
-template <class AllocPolicy>
 class Sig
 {
-  public:
-    typedef Vector<ValType, 4, AllocPolicy> ArgVector;
-
-  private:
-    ArgVector args_;
+    ValTypeVector args_;
     ExprType ret_;
 
-  protected:
-    explicit Sig(AllocPolicy alloc = AllocPolicy()) : args_(alloc) {}
-    Sig(Sig&& rhs) : args_(Move(rhs.args_)), ret_(rhs.ret_) {}
-    Sig(ArgVector&& args, ExprType ret) : args_(Move(args)), ret_(ret) {}
+    Sig(const Sig&) = delete;
+    Sig& operator=(const Sig&) = delete;
 
   public:
-    void init(ArgVector&& args, ExprType ret) {
+    Sig() : args_(), ret_(ExprType::Void) {}
+    Sig(Sig&& rhs) : args_(Move(rhs.args_)), ret_(rhs.ret_) {}
+    Sig(ValTypeVector&& args, ExprType ret) : args_(Move(args)), ret_(ret) {}
+
+    bool clone(const Sig& rhs) {
+        ret_ = rhs.ret_;
         MOZ_ASSERT(args_.empty());
-        args_ = Move(args);
-        ret_ = ret;
+        return args_.appendAll(rhs.args_);
+    }
+    Sig& operator=(Sig&& rhs) {
+        ret_ = rhs.ret_;
+        args_ = Move(rhs.args_);
+        return *this;
     }
 
     ValType arg(unsigned i) const { return args_[i]; }
-    const ArgVector& args() const { return args_; }
+    const ValTypeVector& args() const { return args_; }
     const ExprType& ret() const { return ret_; }
 
     HashNumber hash() const {
-        HashNumber hn = HashNumber(ret_);
-        for (unsigned i = 0; i < args_.length(); i++)
-            hn = mozilla::AddToHash(hn, HashNumber(args_[i]));
-        return hn;
+        return AddContainerToHash(args_, HashNumber(ret_));
     }
-
-    template <class AllocPolicy2>
-    bool operator==(const Sig<AllocPolicy2>& rhs) const {
-        if (ret() != rhs.ret())
-            return false;
-        if (args().length() != rhs.args().length())
-            return false;
-        for (unsigned i = 0; i < args().length(); i++) {
-            if (arg(i) != rhs.arg(i))
-                return false;
-        }
-        return true;
+    bool operator==(const Sig& rhs) const {
+        return ret() == rhs.ret() && EqualContainers(args(), rhs.args());
     }
-
-    template <class AllocPolicy2>
-    bool operator!=(const Sig<AllocPolicy2>& rhs) const {
+    bool operator!=(const Sig& rhs) const {
         return !(*this == rhs);
     }
 };
 
-class MallocSig : public Sig<SystemAllocPolicy>
+struct SigHashPolicy
 {
-    typedef Sig<SystemAllocPolicy> BaseSig;
-
-  public:
-    MallocSig() = default;
-    MallocSig(MallocSig&& rhs) : BaseSig(Move(rhs)) {}
-    MallocSig(ArgVector&& args, ExprType ret) : BaseSig(Move(args), ret) {}
+    typedef const Sig& Lookup;
+    static HashNumber hash(Lookup sig) { return sig.hash(); }
+    static bool match(const Sig* lhs, Lookup rhs) { return *lhs == rhs; }
 };
 
-class LifoSig : public Sig<LifoAllocPolicy<Fallible>>
-{
-    typedef Sig<LifoAllocPolicy<Fallible>> BaseSig;
-    LifoSig(ArgVector&& args, ExprType ret) : BaseSig(Move(args), ret) {}
+// A "declared" signature is a Sig object that is created and owned by the
+// ModuleGenerator. These signature objects are read-only and have the same
+// lifetime as the ModuleGenerator. This type is useful since some uses of Sig
+// need this extended lifetime and want to statically distinguish from the
+// common stack-allocated Sig objects that get passed around.
 
-  public:
-    static LifoSig* new_(LifoAlloc& lifo, const MallocSig& src) {
-        void* mem = lifo.alloc(sizeof(LifoSig));
-        if (!mem)
-            return nullptr;
-        ArgVector args(lifo);
-        if (!args.appendAll(src.args()))
-            return nullptr;
-        return new (mem) LifoSig(Move(args), src.ret());
-    }
+struct DeclaredSig : Sig
+{
+    DeclaredSig() = default;
+    DeclaredSig(DeclaredSig&& rhs) : Sig(Move(rhs)) {}
+    explicit DeclaredSig(Sig&& sig) : Sig(Move(sig)) {}
+    void operator=(Sig&& rhs) { Sig& base = *this; base = Move(rhs); }
 };
+
+typedef Vector<DeclaredSig, 0, SystemAllocPolicy> DeclaredSigVector;
+typedef Vector<const DeclaredSig*, 0, SystemAllocPolicy> DeclaredSigPtrVector;
 
 // The (,Profiling,Func)Offsets classes are used to record the offsets of
 // different key points in a CodeRange during compilation.
@@ -350,8 +344,7 @@ struct FuncOffsets : ProfilingOffsets
 
 class CallSiteDesc
 {
-    uint32_t line_;
-    uint32_t column_ : 31;
+    uint32_t lineOrBytecode_ : 31;
     uint32_t kind_ : 1;
   public:
     enum Kind {
@@ -360,15 +353,14 @@ class CallSiteDesc
     };
     CallSiteDesc() {}
     explicit CallSiteDesc(Kind kind)
-      : line_(0), column_(0), kind_(kind)
+      : lineOrBytecode_(0), kind_(kind)
     {}
-    CallSiteDesc(uint32_t line, uint32_t column, Kind kind)
-      : line_(line), column_(column), kind_(kind)
+    CallSiteDesc(uint32_t lineOrBytecode, Kind kind)
+      : lineOrBytecode_(lineOrBytecode), kind_(kind)
     {
-        MOZ_ASSERT(column_ == column, "column must fit in 31 bits");
+        MOZ_ASSERT(lineOrBytecode_ == lineOrBytecode, "must fit in 31 bits");
     }
-    uint32_t line() const { return line_; }
-    uint32_t column() const { return column_; }
+    uint32_t lineOrBytecode() const { return lineOrBytecode_; }
     Kind kind() const { return Kind(kind_); }
 };
 
@@ -570,6 +562,22 @@ enum class SymbolicAddress
 void*
 AddressOf(SymbolicAddress imm, ExclusiveContext* cx);
 
+// A wasm::JumpTarget represents one of a special set of stubs that can be
+// jumped to from any function. Because wasm modules can be larger than the
+// range of a plain jump, these potentially out-of-range jumps must be recorded
+// and patched specially by the MacroAssembler and ModuleGenerator.
+
+enum class JumpTarget
+{
+    StackOverflow,
+    OutOfBounds,
+    ConversionError,
+    Throw,
+    Limit
+};
+
+typedef mozilla::EnumeratedArray<JumpTarget, JumpTarget::Limit, Uint32Vector> JumpSiteArray;
+
 // The CompileArgs struct captures global parameters that affect all wasm code
 // generation. It also currently is the single source of truth for whether or
 // not to use signal handlers for different purposes.
@@ -583,6 +591,14 @@ struct CompileArgs
     explicit CompileArgs(ExclusiveContext* cx);
     bool operator==(CompileArgs rhs) const;
     bool operator!=(CompileArgs rhs) const { return !(*this == rhs); }
+};
+
+// A Module can either be asm.js or wasm.
+
+enum ModuleKind
+{
+    Wasm,
+    AsmJS
 };
 
 // Constants:

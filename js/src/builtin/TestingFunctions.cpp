@@ -19,6 +19,7 @@
 #include "jswrapper.h"
 
 #include "asmjs/AsmJS.h"
+#include "asmjs/Wasm.h"
 #include "jit/InlinableNatives.h"
 #include "jit/JitFrameIterator.h"
 #include "js/Debug.h"
@@ -615,10 +616,10 @@ ScheduleGC(JSContext* cx, unsigned argc, Value* vp)
         PrepareZoneForGC(args[0].toString()->zone());
     }
 
-    uint8_t zeal;
+    uint32_t zealBits;
     uint32_t freq;
     uint32_t next;
-    JS_GetGCZeal(cx, &zeal, &freq, &next);
+    JS_GetGCZealBits(cx, &zealBits, &freq, &next);
     args.rval().setInt32(next);
     return true;
 }
@@ -726,6 +727,40 @@ DeterministicGC(JSContext* cx, unsigned argc, Value* vp)
 #endif /* JS_GC_ZEAL */
 
 static bool
+ValidateGC(JSContext* cx, unsigned argc, Value* vp)
+{
+    CallArgs args = CallArgsFromVp(argc, vp);
+
+    if (args.length() != 1) {
+        RootedObject callee(cx, &args.callee());
+        ReportUsageError(cx, callee, "Wrong number of arguments");
+        return false;
+    }
+
+#ifndef JS_GC_ZEAL
+    RootedObject callee(cx, &args.callee());
+    ReportUsageError(cx, callee, "Called ValidateGC in a build without GC Zeal.");
+    return false;
+#else
+    uint8_t zeal;
+    uint32_t freq;
+    uint32_t scheduled;
+    cx->runtime()->gc.getZeal(&zeal, &freq, &scheduled);
+    if (zeal != 0 && zeal != js::gc::ZealIncrementalMarkingValidator) {
+        RootedObject callee(cx, &args.callee());
+        ReportUsageError(cx, callee, "Attempting to enter Marking Validation while another Zeal "
+                                     "mode is set.");
+        return false;
+    }
+
+    int zealMode = ToBoolean(args[0]) ? 11 : 0;
+    JS_SetGCZeal(cx, zealMode, 0);
+    args.rval().setUndefined();
+    return true;
+#endif // JS_GC_ZEAL
+}
+
+static bool
 StartGC(JSContext* cx, unsigned argc, Value* vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
@@ -808,22 +843,6 @@ AbortGC(JSContext* cx, unsigned argc, Value* vp)
     }
 
     cx->runtime()->gc.abortGC();
-    args.rval().setUndefined();
-    return true;
-}
-
-static bool
-ValidateGC(JSContext* cx, unsigned argc, Value* vp)
-{
-    CallArgs args = CallArgsFromVp(argc, vp);
-
-    if (args.length() != 1) {
-        RootedObject callee(cx, &args.callee());
-        ReportUsageError(cx, callee, "Wrong number of arguments");
-        return false;
-    }
-
-    cx->runtime()->gc.setValidate(ToBoolean(args[0]));
     args.rval().setUndefined();
     return true;
 }
@@ -2046,13 +2065,14 @@ Neuter(JSContext* cx, unsigned argc, Value* vp)
         return false;
     }
 
-    NeuterDataDisposition changeData;
     RootedString str(cx, JS::ToString(cx, args[1]));
     if (!str)
         return false;
     JSAutoByteString dataDisposition(cx, str);
     if (!dataDisposition)
         return false;
+
+    DetachDataDisposition changeData;
     if (strcmp(dataDisposition.ptr(), "same-data") == 0) {
         changeData = KeepData;
     } else if (strcmp(dataDisposition.ptr(), "change-data") == 0) {
@@ -2062,7 +2082,7 @@ Neuter(JSContext* cx, unsigned argc, Value* vp)
         return false;
     }
 
-    if (!JS_NeuterArrayBuffer(cx, obj, changeData))
+    if (!JS_DetachArrayBuffer(cx, obj, changeData))
         return false;
 
     args.rval().setUndefined();
@@ -2138,11 +2158,7 @@ static bool
 SharedMemoryEnabled(JSContext* cx, unsigned argc, Value* vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
-#ifdef ENABLE_SHARED_ARRAY_BUFFER
-    args.rval().setBoolean(true);
-#else
-    args.rval().setBoolean(false);
-#endif
+    args.rval().setBoolean(cx->compartment()->creationOptions().getSharedMemoryAndAtomicsEnabled());
     return true;
 }
 
@@ -3665,6 +3681,9 @@ js::DefineTestingFunctions(JSContext* cx, HandleObject obj, bool fuzzingSafe_,
         fuzzingSafe = true;
 
     disableOOMFunctions = disableOOMFunctions_;
+
+    if (!wasm::DefineTestingFunctions(cx, obj))
+        return false;
 
     if (!JS_DefineProperties(cx, obj, TestingProperties))
         return false;

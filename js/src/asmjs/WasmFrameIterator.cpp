@@ -95,7 +95,6 @@ FrameIterator::settle()
         break;
       case CodeRange::ImportJitExit:
       case CodeRange::ImportInterpExit:
-      case CodeRange::Interrupt:
       case CodeRange::Inline:
         MOZ_CRASH("Should not encounter an exit during iteration");
     }
@@ -106,7 +105,13 @@ FrameIterator::functionDisplayAtom() const
 {
     MOZ_ASSERT(!done());
 
-    const char* chars = module_->functionName(codeRange_->funcNameIndex());
+    UniqueChars owner;
+    const char* chars = module_->getFuncName(cx_, codeRange_->funcIndex(), &owner);
+    if (!chars) {
+        cx_->clearPendingException();
+        return cx_->names().empty;
+    }
+
     JSAtom* atom = AtomizeUTF8Chars(cx_, chars, strlen(chars));
     if (!atom) {
         cx_->clearPendingException();
@@ -117,12 +122,10 @@ FrameIterator::functionDisplayAtom() const
 }
 
 unsigned
-FrameIterator::computeLine(uint32_t* column) const
+FrameIterator::lineOrBytecode() const
 {
     MOZ_ASSERT(!done());
-    if (column)
-        *column = callsite_->column();
-    return callsite_->line();
+    return callsite_->lineOrBytecode();
 }
 
 /*****************************************************************************/
@@ -188,7 +191,7 @@ PushRetAddr(MacroAssembler& masm)
 // generated code.
 static void
 GenerateProfilingPrologue(MacroAssembler& masm, unsigned framePushed, ExitReason reason,
-                          ProfilingOffsets* offsets, Label* maybeEntry = nullptr)
+                          ProfilingOffsets* offsets)
 {
 #if !defined (JS_CODEGEN_ARM)
     Register scratch = ABIArgGenerator::NonArg_VolatileReg;
@@ -211,8 +214,6 @@ GenerateProfilingPrologue(MacroAssembler& masm, unsigned framePushed, ExitReason
 #endif
 
         offsets->begin = masm.currentOffset();
-        if (maybeEntry)
-            masm.bind(maybeEntry);
 
         PushRetAddr(masm);
         MOZ_ASSERT_IF(!masm.oom(), PushedRetAddr == masm.currentOffset() - offsets->begin);
@@ -381,10 +382,10 @@ wasm::GenerateFunctionEpilogue(MacroAssembler& masm, unsigned framePushed, FuncO
 
 void
 wasm::GenerateExitPrologue(MacroAssembler& masm, unsigned framePushed, ExitReason reason,
-                           ProfilingOffsets* offsets, Label* maybeEntry)
+                           ProfilingOffsets* offsets)
 {
     masm.haltingAlign(CodeAlignment);
-    GenerateProfilingPrologue(masm, framePushed, reason, offsets, maybeEntry);
+    GenerateProfilingPrologue(masm, framePushed, reason, offsets);
     masm.setFramePushed(framePushed);
 }
 
@@ -489,7 +490,6 @@ ProfilingFrameIterator::initFromFP(const WasmActivation& activation)
         break;
       case CodeRange::ImportJitExit:
       case CodeRange::ImportInterpExit:
-      case CodeRange::Interrupt:
       case CodeRange::Inline:
         MOZ_CRASH("Unexpected CodeRange kind");
     }
@@ -541,8 +541,7 @@ ProfilingFrameIterator::ProfilingFrameIterator(const WasmActivation& activation,
     switch (codeRange->kind()) {
       case CodeRange::Function:
       case CodeRange::ImportJitExit:
-      case CodeRange::ImportInterpExit:
-      case CodeRange::Interrupt: {
+      case CodeRange::ImportInterpExit: {
         // When the pc is inside the prologue/epilogue, the innermost
         // call's AsmJSFrame is not complete and thus fp points to the the
         // second-to-innermost call's AsmJSFrame. Since fp can only tell you
@@ -654,7 +653,6 @@ ProfilingFrameIterator::operator++()
       case CodeRange::Function:
       case CodeRange::ImportJitExit:
       case CodeRange::ImportInterpExit:
-      case CodeRange::Interrupt:
       case CodeRange::Inline:
         stackAddress_ = callerFP_;
         callerPC_ = ReturnAddressFromFP(callerFP_);
@@ -692,11 +690,10 @@ ProfilingFrameIterator::label() const
     }
 
     switch (codeRange_->kind()) {
-      case CodeRange::Function:         return module_->profilingLabel(codeRange_->funcNameIndex());
+      case CodeRange::Function:         return module_->profilingLabel(codeRange_->funcIndex());
       case CodeRange::Entry:            return "entry trampoline (in asm.js)";
       case CodeRange::ImportJitExit:    return importJitDescription;
       case CodeRange::ImportInterpExit: return importInterpDescription;
-      case CodeRange::Interrupt:        return nativeDescription;
       case CodeRange::Inline:           return "inline stub (in asm.js)";
     }
 

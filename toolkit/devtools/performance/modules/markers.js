@@ -140,6 +140,12 @@ const TIMELINE_BLUEPRINT = {
       { property: "nonincrementalReason", label: "Non-incremental Reason:" }
     ],
   },
+  "MinorGC": {
+    group: 1,
+    colorName: "graphs-red",
+    label: L10N.getStr("marker.label.minorGC"),
+    fields: Formatters.MinorGCFields,
+  },
   "nsCycleCollector::Collect": {
     group: 1,
     colorName: "graphs-red",

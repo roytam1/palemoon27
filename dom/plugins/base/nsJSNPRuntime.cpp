@@ -1166,8 +1166,7 @@ nsJSObjWrapper::GetNewOrUsed(NPP npp, JSContext* cx, JS::Handle<JSObject*> obj)
 
   // Insert the new wrapper into the hashtable, rooting the JSObject. Its
   // lifetime is now tied to that of the NPObject.
-  nsJSObjWrapperKey key(obj, npp);
-  if (!sJSObjWrappers.putNew(key, wrapper)) {
+  if (!sJSObjWrappers.putNew(nsJSObjWrapperKey(obj, npp), wrapper)) {
     // Out of memory, free the wrapper we created.
     _releaseobject(wrapper);
     return nullptr;
@@ -1651,6 +1650,8 @@ NPObjWrapper_Resolve(JSContext* cx, JS::Handle<JSObject*> obj, JS::Handle<jsid> 
   if (JSID_IS_SYMBOL(id))
     return true;
 
+  PROFILER_LABEL_FUNC(js::ProfileEntry::Category::JS);
+
   NPObject* npobj = GetNPObject(cx, obj);
 
   if (!npobj || !npobj->_class || !npobj->_class->hasProperty ||
@@ -2118,6 +2119,8 @@ static bool
 NPObjectMember_GetProperty(JSContext *cx, JS::HandleObject obj, JS::HandleId id,
                            JS::MutableHandleValue vp)
 {
+  PROFILER_LABEL_FUNC(js::ProfileEntry::Category::OTHER);
+
   if (JSID_IS_SYMBOL(id)) {
     JS::RootedSymbol sym(cx, JSID_TO_SYMBOL(id));
     if (JS::GetSymbolCode(sym) == JS::SymbolCode::toPrimitive) {

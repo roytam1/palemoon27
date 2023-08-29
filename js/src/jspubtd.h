@@ -99,7 +99,6 @@ struct JSFunctionSpec;
 struct JSLocaleCallbacks;
 struct JSObjectMap;
 struct JSPrincipals;
-struct JS_PUBLIC_API(JSPropertyDescriptor);
 struct JSPropertyName;
 struct JSPropertySpec;
 struct JSRuntime;
@@ -136,6 +135,8 @@ class StoreBuffer;
 } // namespace js
 
 namespace JS {
+
+struct PropertyDescriptor;
 
 typedef void (*OffThreadCompileCallback)(void* token, void* callbackData);
 
@@ -239,6 +240,13 @@ class JS_PUBLIC_API(AutoGCRooter)
     /* No copy or assignment semantics. */
     AutoGCRooter(AutoGCRooter& ida) = delete;
     void operator=(AutoGCRooter& ida) = delete;
+};
+
+// Our instantiations of Rooted<void*> and PersistentRooted<void*> require an
+// instantiation of MapTypeToRootKind.
+template <>
+struct MapTypeToRootKind<void*> {
+    static const RootKind kind = RootKind::Traceable;
 };
 
 } /* namespace JS */

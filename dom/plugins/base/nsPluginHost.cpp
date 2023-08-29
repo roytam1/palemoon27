@@ -1332,6 +1332,7 @@ nsresult nsPluginHost::EnsurePluginLoaded(nsPluginTag* aPluginTag)
 nsresult
 nsPluginHost::GetPluginForContentProcess(uint32_t aPluginId, nsNPAPIPlugin** aPlugin)
 {
+  PROFILER_LABEL_FUNC(js::ProfileEntry::Category::OTHER);
   MOZ_ASSERT(XRE_IsParentProcess());
 
   // If plugins haven't been scanned yet, do so now
@@ -3530,6 +3531,7 @@ nsPluginHost::AddHeadersToChannel(const char *aHeadersData,
 nsresult
 nsPluginHost::StopPluginInstance(nsNPAPIPluginInstance* aInstance)
 {
+  PROFILER_LABEL_FUNC(js::ProfileEntry::Category::OTHER);
   if (PluginDestructionGuard::DelayDestroy(aInstance)) {
     return NS_OK;
   }

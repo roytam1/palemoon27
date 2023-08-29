@@ -799,13 +799,90 @@ enum class SimdType : uint8_t {
     Count
 };
 
+// The integer SIMD types have a lot of operations that do the exact same thing
+// for signed and unsigned integer types. Sometimes it is simpler to treat
+// signed and unsigned integer SIMD types as the same type, using a SimdSign to
+// distinguish the few cases where there is a difference.
+enum class SimdSign {
+    // Signedness is not applicable to this type. (i.e., Float or Bool).
+    NotApplicable,
+    // Treat as an unsigned integer with a range 0 .. 2^N-1.
+    Unsigned,
+    // Treat as a signed integer in two's complement encoding.
+    Signed,
+};
+
+// Get the signedness of a SIMD type.
+inline SimdSign
+GetSimdSign(SimdType t)
+{
+    switch(t) {
+      case SimdType::Int8x16:
+      case SimdType::Int16x8:
+      case SimdType::Int32x4:
+        return SimdSign::Signed;
+
+      case SimdType::Uint8x16:
+      case SimdType::Uint16x8:
+      case SimdType::Uint32x4:
+        return SimdSign::Unsigned;
+
+      default:
+        return SimdSign::NotApplicable;
+    }
+}
+
+inline bool
+IsSignedIntSimdType(SimdType type)
+{
+    return GetSimdSign(type) == SimdSign::Signed;
+}
+
+// Get the boolean SIMD type with the same shape as t.
+//
+// This is the result type of a comparison operation, and it can also be used to
+// identify the geometry of a SIMD type.
+inline SimdType
+GetBooleanSimdType(SimdType t)
+{
+    switch(t) {
+      case SimdType::Int8x16:
+      case SimdType::Uint8x16:
+      case SimdType::Bool8x16:
+        return SimdType::Bool8x16;
+
+      case SimdType::Int16x8:
+      case SimdType::Uint16x8:
+      case SimdType::Bool16x8:
+        return SimdType::Bool16x8;
+
+      case SimdType::Int32x4:
+      case SimdType::Uint32x4:
+      case SimdType::Float32x4:
+      case SimdType::Bool32x4:
+        return SimdType::Bool32x4;
+
+      case SimdType::Float64x2:
+      case SimdType::Bool64x2:
+        return SimdType::Bool64x2;
+
+      case SimdType::Count:
+        break;
+    }
+    MOZ_MAKE_COMPILER_ASSUME_IS_UNREACHABLE("Bad SIMD type");
+}
+
 // Complete set of SIMD operations.
 //
 // No SIMD types implement all of these operations.
 //
 // C++ defines keywords and/or/xor/not, so prepend Fn_ to all named functions to
 // avoid clashes.
-enum class SimdOperation : uint8_t {
+//
+// Note: because of a gcc < v4.8's compiler bug, uint8_t can't be used as the
+// storage class here. See bug 1243810. See also
+// https://gcc.gnu.org/bugzilla/show_bug.cgi?id=64037 .
+enum class SimdOperation {
     // The constructor call. No Fn_ prefix here.
     Constructor,
 
@@ -828,6 +905,8 @@ enum class SimdOperation : uint8_t {
     Fn_fromUint32x4Bits,
     Fn_fromFloat32x4Bits,
     Fn_fromFloat64x2Bits,
+
+    Last = Fn_fromFloat64x2Bits
 };
 
 class SimdObject : public JSObject
@@ -1007,8 +1086,6 @@ struct Bool64x2 {
     }
 };
 
-bool IsSignedIntSimdType(SimdType type);
-
 PropertyName* SimdTypeToName(JSContext* cx, SimdType type);
 
 template<typename V>
@@ -1019,6 +1096,16 @@ bool IsVectorObject(HandleValue v);
 
 template<typename V>
 bool ToSimdConstant(JSContext* cx, HandleValue v, jit::SimdConstant* out);
+
+JSObject*
+InitSimdClass(JSContext* cx, HandleObject obj);
+
+namespace jit {
+
+extern const JSJitInfo JitInfo_SimdInt32x4_extractLane;
+extern const JSJitInfo JitInfo_SimdFloat32x4_extractLane;
+
+} // namespace jit
 
 #define DECLARE_SIMD_FLOAT32X4_FUNCTION(Name, Func, Operands)   \
 extern bool                                                     \
@@ -1091,9 +1178,6 @@ extern bool                                                     \
 simd_bool64x2_##Name(JSContext* cx, unsigned argc, Value* vp);
 BOOL64X2_FUNCTION_LIST(DECLARE_SIMD_BOOL64x2_FUNCTION)
 #undef DECLARE_SIMD_BOOL64x2_FUNCTION
-
-JSObject*
-InitSimdClass(JSContext* cx, HandleObject obj);
 
 }  /* namespace js */
 

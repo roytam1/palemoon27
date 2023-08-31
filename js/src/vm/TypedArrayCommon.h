@@ -179,8 +179,7 @@ class ElementSpecific
         uint32_t count = source->as<TypedArrayObject>().length();
 
         if (source->as<TypedArrayObject>().type() == target->type()) {
-            Ops::podCopy(dest.template cast<uint8_t*>(),
-                         source->as<TypedArrayObject>().viewDataEither().template cast<uint8_t*>(),
+            Ops::podCopy(dest, source->as<TypedArrayObject>().viewDataEither().template cast<T*>(),
                          count);
             return true;
         }
@@ -745,7 +744,7 @@ class TypedArrayMethods
   private:
      static bool
      setFromTypedArray(JSContext* cx, Handle<SomeTypedArray*> target, HandleObject source,
-                          uint32_t offset)
+                       uint32_t offset)
      {
          MOZ_ASSERT(source->is<TypedArrayObject>(), "use setFromNonTypedArray");
 

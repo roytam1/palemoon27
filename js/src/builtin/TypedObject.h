@@ -75,7 +75,7 @@
  *   which can be either an array buffer or an inline typed object. Outline
  *   typed objects may be attached or unattached. An unattached typed object
  *   has no data associated with it. When first created, objects are always
- *   attached, but they can become unattached if their buffer is neutered.
+ *   attached, but they can become unattached if their buffer becomes detached.
  *
  * Note that whether a typed object is opaque is not directly
  * connected to its type. That is, opaque types are *always*
@@ -327,42 +327,23 @@ class ComplexTypeDescr : public TypeDescr
     }
 };
 
+enum class SimdType : uint8_t;
+
 /*
  * SIMD Type descriptors.
  */
 class SimdTypeDescr : public ComplexTypeDescr
 {
   public:
-    enum Type {
-        Int8x16   = JS_SIMDTYPEREPR_INT8X16,
-        Int16x8   = JS_SIMDTYPEREPR_INT16X8,
-        Int32x4   = JS_SIMDTYPEREPR_INT32X4,
-        Uint8x16  = JS_SIMDTYPEREPR_UINT8X16,
-        Uint16x8  = JS_SIMDTYPEREPR_UINT16X8,
-        Uint32x4  = JS_SIMDTYPEREPR_UINT32X4,
-        Float32x4 = JS_SIMDTYPEREPR_FLOAT32X4,
-        Float64x2 = JS_SIMDTYPEREPR_FLOAT64X2,
-        Bool8x16  = JS_SIMDTYPEREPR_BOOL8X16,
-        Bool16x8  = JS_SIMDTYPEREPR_BOOL16X8,
-        Bool32x4  = JS_SIMDTYPEREPR_BOOL32X4,
-        Bool64x2  = JS_SIMDTYPEREPR_BOOL64X2,
-        LAST_TYPE = Bool64x2
-    };
-
     static const type::Kind Kind = type::Simd;
     static const bool Opaque = false;
     static const Class class_;
-    static int32_t size(Type t);
-    static int32_t alignment(Type t);
-
-    SimdTypeDescr::Type type() const {
-        uint32_t t = uint32_t(getReservedSlot(JS_DESCR_SLOT_TYPE).toInt32());
-        MOZ_ASSERT(t <= LAST_TYPE);
-        return SimdTypeDescr::Type(t);
-    }
-
+    static int32_t size(SimdType t);
+    static int32_t alignment(SimdType t);
     static bool call(JSContext* cx, unsigned argc, Value* vp);
     static bool is(const Value& v);
+
+    SimdType type() const;
 };
 
 bool IsTypedObjectClass(const Class* clasp); // Defined below
@@ -525,7 +506,7 @@ class TypedObject : public JSObject
                                    MutableHandleShape propp);
 
     static bool obj_defineProperty(JSContext* cx, HandleObject obj, HandleId id,
-                                   Handle<JSPropertyDescriptor> desc,
+                                   Handle<PropertyDescriptor> desc,
                                    ObjectOpResult& result);
 
     static bool obj_hasProperty(JSContext* cx, HandleObject obj, HandleId id, bool* foundp);
@@ -540,7 +521,7 @@ class TypedObject : public JSObject
                                 HandleValue receiver, ObjectOpResult& result);
 
     static bool obj_getOwnPropertyDescriptor(JSContext* cx, HandleObject obj, HandleId id,
-                                             MutableHandle<JSPropertyDescriptor> desc);
+                                             MutableHandle<PropertyDescriptor> desc);
 
     static bool obj_deleteProperty(JSContext* cx, HandleObject obj, HandleId id,
                                    ObjectOpResult& result);
@@ -666,7 +647,7 @@ class OutlineTypedObject : public TypedObject
     void attach(JSContext* cx, TypedObject& typedObj, int32_t offset);
 
     // Invoked when array buffer is transferred elsewhere
-    void neuter(void* newData);
+    void notifyBufferDetached(void* newData);
 
     static void obj_trace(JSTracer* trace, JSObject* object);
 };
@@ -836,100 +817,14 @@ bool ClampToUint8(JSContext* cx, unsigned argc, Value* vp);
 bool GetTypedObjectModule(JSContext* cx, unsigned argc, Value* vp);
 
 /*
- * Usage: GetFloat32x4TypeDescr()
+ * Usage: GetSimdTypeDescr(simdTypeRepr)
  *
- * Returns the Float32x4 type object. SIMD pseudo-module must have
- * been initialized for this to be safe.
- */
-bool GetFloat32x4TypeDescr(JSContext* cx, unsigned argc, Value* vp);
-
-/*
- * Usage: GetFloat64x2TypeDescr()
+ * Returns one of the SIMD type objects, identified by `simdTypeRepr` which must
+ * be one of the JS_SIMDTYPEREPR_* constants.
  *
- * Returns the Float64x2 type object. SIMD pseudo-module must have
- * been initialized for this to be safe.
+ * The SIMD pseudo-module must have been initialized for this to be safe.
  */
-bool GetFloat64x2TypeDescr(JSContext* cx, unsigned argc, Value* vp);
-
-/*
- * Usage: GetBool8x16TypeDescr()
- *
- * Returns the Bool8x16 type object. SIMD pseudo-module must have
- * been initialized for this to be safe.
- */
-bool GetBool8x16TypeDescr(JSContext* cx, unsigned argc, Value* vp);
-
-/*
- * Usage: GetBool16x8TypeDescr()
- *
- * Returns the Bool16x8 type object. SIMD pseudo-module must have
- * been initialized for this to be safe.
- */
-bool GetBool16x8TypeDescr(JSContext* cx, unsigned argc, Value* vp);
-
-/*
- * Usage: GetBool32x4TypeDescr()
- *
- * Returns the Bool32x4 type object. SIMD pseudo-module must have
- * been initialized for this to be safe.
- */
-bool GetBool32x4TypeDescr(JSContext* cx, unsigned argc, Value* vp);
-
-/*
- * Usage: GetBool64x2TypeDescr()
- *
- * Returns the Bool64x2 type object. SIMD pseudo-module must have
- * been initialized for this to be safe.
- */
-bool GetBool64x2TypeDescr(JSContext* cx, unsigned argc, Value* vp);
-
-/*
- * Usage: GetInt8x16TypeDescr()
- *
- * Returns the Int8x16 type object. SIMD pseudo-module must have
- * been initialized for this to be safe.
- */
-bool GetInt8x16TypeDescr(JSContext* cx, unsigned argc, Value* vp);
-
-/*
- * Usage: GetInt16x8TypeDescr()
- *
- * Returns the Int16x8 type object. SIMD pseudo-module must have
- * been initialized for this to be safe.
- */
-bool GetInt16x8TypeDescr(JSContext* cx, unsigned argc, Value* vp);
-
-/*
- * Usage: GetInt32x4TypeDescr()
- *
- * Returns the Int32x4 type object. SIMD pseudo-module must have
- * been initialized for this to be safe.
- */
-bool GetInt32x4TypeDescr(JSContext* cx, unsigned argc, Value* vp);
-
-/*
- * Usage: GetUint8x16TypeDescr()
- *
- * Returns the Uint8x16 type object. SIMD pseudo-module must have
- * been initialized for this to be safe.
- */
-bool GetUint8x16TypeDescr(JSContext* cx, unsigned argc, Value* vp);
-
-/*
- * Usage: GetUint16x8TypeDescr()
- *
- * Returns the Uint16x8 type object. SIMD pseudo-module must have
- * been initialized for this to be safe.
- */
-bool GetUint16x8TypeDescr(JSContext* cx, unsigned argc, Value* vp);
-
-/*
- * Usage: GetUint32x4TypeDescr()
- *
- * Returns the Uint32x4 type object. SIMD pseudo-module must have
- * been initialized for this to be safe.
- */
-bool GetUint32x4TypeDescr(JSContext* cx, unsigned argc, Value* vp);
+bool GetSimdTypeDescr(JSContext* cx, unsigned argc, Value* vp);
 
 /*
  * Usage: Store_int8(targetDatum, targetOffset, value)

@@ -6,6 +6,8 @@
 
 #include "jit/VMFunctions.h"
 
+#include "jsgc.h"
+
 #include "builtin/TypedObject.h"
 #include "frontend/BytecodeCompiler.h"
 #include "jit/arm/Simulator-arm.h"
@@ -77,9 +79,20 @@ InvokeFunction(JSContext* cx, HandleObject obj, bool constructing, uint32_t argc
 
         RootedValue newTarget(cx, argvWithoutThis[argc]);
 
-        // If |this| hasn't been created, we can use normal construction code.
-        if (thisv.isMagic(JS_IS_CONSTRUCTING))
-            return Construct(cx, fval, cargs, newTarget, rval);
+        // If |this| hasn't been created, or is JS_UNINITIALIZED_LEXICAL,
+        // we can use normal construction code without creating an extraneous
+        // object.
+        if (thisv.isMagic()) {
+            MOZ_ASSERT(thisv.whyMagic() == JS_IS_CONSTRUCTING ||
+                       thisv.whyMagic() == JS_UNINITIALIZED_LEXICAL);
+
+            RootedObject obj(cx);
+            if (!Construct(cx, fval, cargs, newTarget, &obj))
+                return false;
+
+            rval.setObject(*obj);
+            return true;
+        }
 
         // Otherwise the default |this| has already been created.  We could
         // almost perform a *call* at this point, but we'd break |new.target|
@@ -601,6 +614,25 @@ PostWriteBarrier(JSRuntime* rt, JSObject* obj)
 {
     MOZ_ASSERT(!IsInsideNursery(obj));
     rt->gc.storeBuffer.putWholeCell(obj);
+}
+
+static const size_t MAX_WHOLE_CELL_BUFFER_SIZE = 4096;
+
+void
+PostWriteElementBarrier(JSRuntime* rt, JSObject* obj, size_t index)
+{
+    MOZ_ASSERT(!IsInsideNursery(obj));
+    if (obj->is<NativeObject>() &&
+        (obj->as<NativeObject>().getDenseInitializedLength() > MAX_WHOLE_CELL_BUFFER_SIZE
+#ifdef JS_GC_ZEAL
+         || rt->hasZealMode(gc::ZealMode::ElementsBarrier)
+#endif
+            ))
+    {
+        rt->gc.storeBuffer.putSlot(&obj->as<NativeObject>(), HeapSlot::Element, index, 1);
+    } else {
+        rt->gc.storeBuffer.putWholeCell(obj);
+    }
 }
 
 void

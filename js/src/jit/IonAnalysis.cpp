@@ -200,14 +200,14 @@ FlagAllOperandsAsHavingRemovedUses(MBasicBlock* block)
 
     // Flag observable operands of the entry resume point as having removed uses.
     MResumePoint* rp = block->entryResumePoint();
-    do {
+    while (rp) {
         for (size_t i = 0, e = rp->numOperands(); i < e; i++) {
             if (!rp->isObservableOperand(i))
                 continue;
             rp->getOperand(i)->setUseRemovedUnchecked();
         }
         rp = rp->caller();
-    } while (rp);
+    }
 
     // Flag Phi inputs of the successors has having removed uses.
     MPhiVector worklist;
@@ -1193,7 +1193,7 @@ class TypeAnalyzer
     bool propagateSpecialization(MPhi* phi);
     bool specializePhis();
     void replaceRedundantPhi(MPhi* phi);
-    void adjustPhiInputs(MPhi* phi);
+    bool adjustPhiInputs(MPhi* phi);
     bool adjustInputs(MDefinition* def);
     bool insertConversions();
 
@@ -1408,7 +1408,7 @@ TypeAnalyzer::specializePhis()
     return true;
 }
 
-void
+bool
 TypeAnalyzer::adjustPhiInputs(MPhi* phi)
 {
     MIRType phiType = phi->type();
@@ -1423,6 +1423,9 @@ TypeAnalyzer::adjustPhiInputs(MPhi* phi)
             MDefinition* in = phi->getOperand(i);
             if (in->type() == phiType)
                 continue;
+
+            if (!alloc().ensureBallast())
+                return false;
 
             if (in->isBox() && in->toBox()->input()->type() == phiType) {
                 phi->replaceOperand(i, in->toBox()->input());
@@ -1467,7 +1470,7 @@ TypeAnalyzer::adjustPhiInputs(MPhi* phi)
             }
         }
 
-        return;
+        return true;
     }
 
     // Box every typed input.
@@ -1481,10 +1484,15 @@ TypeAnalyzer::adjustPhiInputs(MPhi* phi)
             // the original box.
             phi->replaceOperand(i, in->toUnbox()->input());
         } else {
+            if (!alloc().ensureBallast())
+                return false;
+
             MDefinition* box = AlwaysBoxAt(alloc(), in->block()->lastIns(), in);
             phi->replaceOperand(i, box);
         }
     }
+
+    return true;
 }
 
 bool
@@ -1552,13 +1560,17 @@ TypeAnalyzer::insertConversions()
                 replaceRedundantPhi(phi);
                 block->discardPhi(phi);
             } else {
-                adjustPhiInputs(phi);
+                if (!adjustPhiInputs(phi))
+                    return false;
             }
         }
 
         // AdjustInputs can add/remove/mutate instructions before and after the
         // current instruction. Only increment the iterator after it is finished.
         for (MInstructionIterator iter(block->begin()); iter != block->end(); iter++) {
+            if (!alloc().ensureBallast())
+                return false;
+
             if (!adjustInputs(*iter))
                 return false;
         }
@@ -1927,6 +1939,17 @@ jit::RemoveUnmarkedBlocks(MIRGenerator* mir, MIRGraph& graph, uint32_t numMarked
         // since we may have removed edges even if we didn't remove any blocks.
         graph.unmarkBlocks();
     } else {
+        // As we are going to remove edges and basic blocks, we have to mark
+        // instructions which would be needed by baseline if we were to
+        // bailout.
+        for (PostorderIterator it(graph.poBegin()); it != graph.poEnd();) {
+            MBasicBlock* block = *it++;
+            if (!block->isMarked())
+                continue;
+
+            FlagAllOperandsAsHavingRemovedUses(block);
+        }
+
         // Find unmarked blocks and remove them.
         for (ReversePostorderIterator iter(graph.rpoBegin()); iter != graph.rpoEnd();) {
             MBasicBlock* block = *iter++;
@@ -3170,7 +3193,7 @@ NeedsKeepAlive(MInstruction* slotsOrElements, MInstruction* use)
     MOZ_CRASH("Unreachable");
 }
 
-void
+bool
 jit::AddKeepAliveInstructions(MIRGraph& graph)
 {
     for (MBasicBlockIterator i(graph.begin()); i != graph.end(); i++) {
@@ -3232,11 +3255,15 @@ jit::AddKeepAliveInstructions(MIRGraph& graph)
                 if (!NeedsKeepAlive(ins, use))
                     continue;
 
+                if (!graph.alloc().ensureBallast())
+                    return false;
                 MKeepAliveObject* keepAlive = MKeepAliveObject::New(graph.alloc(), ownerObject);
                 use->block()->insertAfter(use, keepAlive);
             }
         }
     }
+
+    return true;
 }
 
 bool

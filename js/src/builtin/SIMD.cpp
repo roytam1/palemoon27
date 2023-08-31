@@ -37,8 +37,23 @@ using mozilla::NumberIsInt32;
 ///////////////////////////////////////////////////////////////////////////
 // SIMD
 
+static_assert(unsigned(SimdType::Count) == 12, "sync with TypedObjectConstants.h");
+
+PropertyName*
+js::SimdTypeToName(JSContext* cx, SimdType type)
+{
+    switch (type) {
+      case SimdType::Int32x4:   return cx->names().Int32x4;
+      case SimdType::Float32x4: return cx->names().Float32x4;
+      case SimdType::Bool32x4:  return cx->names().Bool32x4;
+      default:                  break;
+    }
+    MOZ_MAKE_COMPILER_ASSUME_IS_UNREACHABLE("unexpected SIMD type");
+}
+
+
 static bool
-CheckVectorObject(HandleValue v, SimdTypeDescr::Type expectedType)
+CheckVectorObject(HandleValue v, SimdType expectedType)
 {
     if (!v.isObject())
         return false;
@@ -110,7 +125,7 @@ static SimdTypeDescr*
 GetTypeDescr(JSContext* cx)
 {
     RootedGlobalObject global(cx, cx->global());
-    return GlobalObject::getOrCreateSimdTypeDescr<T>(cx, global);
+    return GlobalObject::getOrCreateSimdTypeDescr(cx, global, T::type);
 }
 
 template<typename V>
@@ -162,7 +177,7 @@ namespace {
 #define DEFINE_DEFN_(TypeName)                                       \
 class TypeName##Defn {                                               \
   public:                                                            \
-    static const SimdTypeDescr::Type type = SimdTypeDescr::TypeName; \
+    static const SimdType type = SimdType::TypeName;                 \
     static const JSFunctionSpec Methods[];                           \
 };
 
@@ -185,9 +200,59 @@ static const JSFunctionSpec SimdTypedObjectMethods[] = {
     JS_FS_END
 };
 
+// Provide JSJitInfo structs for those types that are supported by Ion.
+// The controlling SIMD type is encoded as the InlinableNative primary opcode.
+// The SimdOperation within the type is encoded in the .depth field.
+//
+// The JS_INLINABLE_FN macro refers to js::JitInfo_##native which we provide as
+// Simd##Type##_##Operation
+//
+// /!\ Don't forget to keep this list in sync with the SIMD instrinics used in
+// SelfHosting.cpp.
+
+namespace js {
+namespace jit {
+
+static_assert(uint64_t(SimdOperation::Last) <= UINT16_MAX, "SimdOperation must fit in uint16_t");
+
+// See also JitInfo_* in MCallOptimize.cpp. We provide a JSJitInfo for all the
+// named functions here. The default JitInfo_SimdInt32x4 etc structs represent the
+// SimdOperation::Constructor.
+#define DEFN(TYPE, OP) const JSJitInfo JitInfo_Simd##TYPE##_##OP = {                             \
+     /* .getter, unused for inlinable natives. */                                                \
+    { nullptr },                                                                                 \
+    /* .inlinableNative, but we have to init first union member: .protoID. */                    \
+    { uint16_t(InlinableNative::Simd##TYPE) },                                                   \
+    /* .nativeOp. Actually initializing first union member .depth. */                            \
+    { uint16_t(SimdOperation::Fn_##OP) },                                                        \
+    /* .type_ bitfield says this in an inlinable native function. */                             \
+    JSJitInfo::InlinableNative                                                                   \
+    /* Remaining fields are not used for inlinable natives. They are zero-initialized. */        \
+};
+
+// This list of inlinable types should match the one in jit/InlinableNatives.h.
+#define TDEFN(Name, Func, Operands) DEFN(Float32x4, Name)
+FLOAT32X4_FUNCTION_LIST(TDEFN)
+#undef TDEFN
+
+#define TDEFN(Name, Func, Operands) DEFN(Int32x4, Name)
+INT32X4_FUNCTION_LIST(TDEFN)
+#undef TDEFN
+
+#define TDEFN(Name, Func, Operands) DEFN(Uint32x4, Name)
+UINT32X4_FUNCTION_LIST(TDEFN)
+#undef TDEFN
+
+#define TDEFN(Name, Func, Operands) DEFN(Bool32x4, Name)
+BOOL32X4_FUNCTION_LIST(TDEFN)
+#undef TDEFN
+
+} // namespace jit
+} // namespace js
+
 const JSFunctionSpec Float32x4Defn::Methods[] = {
 #define SIMD_FLOAT32X4_FUNCTION_ITEM(Name, Func, Operands) \
-    JS_INLINABLE_FN(#Name, js::simd_float32x4_##Name, Operands, 0, SimdFloat32x4),
+    JS_INLINABLE_FN(#Name, js::simd_float32x4_##Name, Operands, 0, SimdFloat32x4_##Name),
     FLOAT32X4_FUNCTION_LIST(SIMD_FLOAT32X4_FUNCTION_ITEM)
 #undef SIMD_FLOAT32x4_FUNCTION_ITEM
     JS_FS_END
@@ -219,7 +284,7 @@ const JSFunctionSpec Int16x8Defn::Methods[] = {
 
 const JSFunctionSpec Int32x4Defn::Methods[] = {
 #define SIMD_INT32X4_FUNCTION_ITEM(Name, Func, Operands) \
-    JS_INLINABLE_FN(#Name, js::simd_int32x4_##Name, Operands, 0, SimdInt32x4),
+    JS_INLINABLE_FN(#Name, js::simd_int32x4_##Name, Operands, 0, SimdInt32x4_##Name),
     INT32X4_FUNCTION_LIST(SIMD_INT32X4_FUNCTION_ITEM)
 #undef SIMD_INT32X4_FUNCTION_ITEM
     JS_FS_END
@@ -243,7 +308,7 @@ const JSFunctionSpec Uint16x8Defn::Methods[] = {
 
 const JSFunctionSpec Uint32x4Defn::Methods[] = {
 #define SIMD_UINT32X4_FUNCTION_ITEM(Name, Func, Operands) \
-    JS_FN(#Name, js::simd_uint32x4_##Name, Operands, 0),
+    JS_INLINABLE_FN(#Name, js::simd_uint32x4_##Name, Operands, 0, SimdUint32x4_##Name),
     UINT32X4_FUNCTION_LIST(SIMD_UINT32X4_FUNCTION_ITEM)
 #undef SIMD_UINT32X4_FUNCTION_ITEM
     JS_FS_END
@@ -310,10 +375,11 @@ SimdTypeDescr::call(JSContext* cx, unsigned argc, Value* vp)
         return false;
 
 #define CASE_CALL_(Type) \
-      case SimdTypeDescr::Type:   return FillLanes< ::Type>(cx, result, args);
+      case SimdType::Type:   return FillLanes< ::Type>(cx, result, args);
 
     switch (descr->type()) {
       FOR_EACH_SIMD(CASE_CALL_)
+      case SimdType::Count: break;
     }
 
 #undef CASE_CALL_
@@ -324,11 +390,9 @@ SimdTypeDescr::call(JSContext* cx, unsigned argc, Value* vp)
 ///////////////////////////////////////////////////////////////////////////
 // SIMD class
 
-static const uint32_t SIMD_SLOTS_COUNT = SimdTypeDescr::LAST_TYPE + 1;
-
-const Class SIMDObject::class_ = {
+const Class SimdObject::class_ = {
     "SIMD",
-    JSCLASS_HAS_RESERVED_SLOTS(SIMD_SLOTS_COUNT),
+    JSCLASS_HAS_RESERVED_SLOTS(uint32_t(SimdType::Count)),
     nullptr, /* addProperty */
     nullptr, /* delProperty */
     nullptr, /* getProperty */
@@ -353,7 +417,7 @@ GlobalObject::initSimdObject(JSContext* cx, Handle<GlobalObject*> global)
     if (!objProto)
         return false;
 
-    globalSimdObject = NewObjectWithGivenProto(cx, &SIMDObject::class_, objProto, SingletonObject);
+    globalSimdObject = NewObjectWithGivenProto(cx, &SimdObject::class_, objProto, SingletonObject);
     if (!globalSimdObject)
         return false;
 
@@ -368,9 +432,9 @@ GlobalObject::initSimdObject(JSContext* cx, Handle<GlobalObject*> global)
     return true;
 }
 
-template<typename /* TypeDefn */ T>
 static bool
-CreateSimdType(JSContext* cx, Handle<GlobalObject*> global, HandlePropertyName stringRepr)
+CreateSimdType(JSContext* cx, Handle<GlobalObject*> global, HandlePropertyName stringRepr,
+               SimdType simdType, const JSFunctionSpec* methods)
 {
     RootedObject funcProto(cx, global->getOrCreateFunctionPrototype(cx));
     if (!funcProto)
@@ -382,13 +446,12 @@ CreateSimdType(JSContext* cx, Handle<GlobalObject*> global, HandlePropertyName s
     if (!typeDescr)
         return false;
 
-    const SimdTypeDescr::Type type = T::type;
     typeDescr->initReservedSlot(JS_DESCR_SLOT_KIND, Int32Value(type::Simd));
     typeDescr->initReservedSlot(JS_DESCR_SLOT_STRING_REPR, StringValue(stringRepr));
-    typeDescr->initReservedSlot(JS_DESCR_SLOT_ALIGNMENT, Int32Value(SimdTypeDescr::alignment(type)));
-    typeDescr->initReservedSlot(JS_DESCR_SLOT_SIZE, Int32Value(SimdTypeDescr::size(type)));
+    typeDescr->initReservedSlot(JS_DESCR_SLOT_ALIGNMENT, Int32Value(SimdTypeDescr::alignment(simdType)));
+    typeDescr->initReservedSlot(JS_DESCR_SLOT_SIZE, Int32Value(SimdTypeDescr::size(simdType)));
     typeDescr->initReservedSlot(JS_DESCR_SLOT_OPAQUE, BooleanValue(false));
-    typeDescr->initReservedSlot(JS_DESCR_SLOT_TYPE, Int32Value(T::type));
+    typeDescr->initReservedSlot(JS_DESCR_SLOT_TYPE, Int32Value(uint8_t(simdType)));
 
     if (!CreateUserSizeAndAlignmentProperties(cx, typeDescr))
         return false;
@@ -418,7 +481,7 @@ CreateSimdType(JSContext* cx, Handle<GlobalObject*> global, HandlePropertyName s
     MOZ_ASSERT(globalSimdObject);
 
     RootedValue typeValue(cx, ObjectValue(*typeDescr));
-    if (!JS_DefineFunctions(cx, typeDescr, T::Methods) ||
+    if (!JS_DefineFunctions(cx, typeDescr, methods) ||
         !DefineProperty(cx, globalSimdObject, stringRepr, typeValue, nullptr, nullptr,
                         JSPROP_READONLY | JSPROP_PERMANENT | JSPROP_RESOLVING))
     {
@@ -432,21 +495,45 @@ CreateSimdType(JSContext* cx, Handle<GlobalObject*> global, HandlePropertyName s
 }
 
 bool
-GlobalObject::initSimdType(JSContext* cx, Handle<GlobalObject*> global, uint32_t simdTypeDescrType)
+GlobalObject::initSimdType(JSContext* cx, Handle<GlobalObject*> global, SimdType simdType)
 {
 #define CREATE_(Type) \
-    case SimdTypeDescr::Type: return CreateSimdType<Type##Defn>(cx, global, cx->names().Type);
+    case SimdType::Type: \
+      return CreateSimdType(cx, global, cx->names().Type, simdType, Type##Defn::Methods);
 
-    switch (SimdTypeDescr::Type(simdTypeDescrType)) {
+    switch (simdType) {
       FOR_EACH_SIMD(CREATE_)
+      case SimdType::Count: break;
     }
     MOZ_CRASH("unexpected simd type");
 
 #undef CREATE_
 }
 
+SimdTypeDescr*
+GlobalObject::getOrCreateSimdTypeDescr(JSContext* cx, Handle<GlobalObject*> global,
+                                       SimdType simdType)
+{
+    MOZ_ASSERT(unsigned(simdType) < unsigned(SimdType::Count), "Invalid SIMD type");
+
+    RootedObject globalSimdObject(cx, global->getOrCreateSimdGlobalObject(cx));
+    if (!globalSimdObject)
+       return nullptr;
+
+    uint32_t typeSlotIndex = uint32_t(simdType);
+    if (globalSimdObject->as<NativeObject>().getReservedSlot(typeSlotIndex).isUndefined() &&
+        !GlobalObject::initSimdType(cx, global, simdType))
+    {
+        return nullptr;
+    }
+
+    const Value& slot = globalSimdObject->as<NativeObject>().getReservedSlot(typeSlotIndex);
+    MOZ_ASSERT(slot.isObject());
+    return &slot.toObject().as<SimdTypeDescr>();
+}
+
 bool
-SIMDObject::resolve(JSContext* cx, JS::HandleObject obj, JS::HandleId id, bool* resolved)
+SimdObject::resolve(JSContext* cx, JS::HandleObject obj, JS::HandleId id, bool* resolved)
 {
     *resolved = false;
     if (!JSID_IS_ATOM(id))
@@ -455,7 +542,8 @@ SIMDObject::resolve(JSContext* cx, JS::HandleObject obj, JS::HandleId id, bool* 
     Rooted<GlobalObject*> global(cx, cx->global());
 #define TRY_RESOLVE_(Type)                                                    \
     if (str == cx->names().Type) {                                            \
-        *resolved = CreateSimdType<Type##Defn>(cx, global, cx->names().Type); \
+        *resolved = CreateSimdType(cx, global, cx->names().Type,              \
+                                   SimdType::Type, Type##Defn::Methods);      \
         return *resolved;                                                     \
     }
     FOR_EACH_SIMD(TRY_RESOLVE_)
@@ -464,7 +552,7 @@ SIMDObject::resolve(JSContext* cx, JS::HandleObject obj, JS::HandleId id, bool* 
 }
 
 JSObject*
-js::InitSIMDClass(JSContext* cx, HandleObject obj)
+js::InitSimdClass(JSContext* cx, HandleObject obj)
 {
     Rooted<GlobalObject*> global(cx, &obj->as<GlobalObject>());
     return global->getOrCreateSimdGlobalObject(cx);

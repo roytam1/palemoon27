@@ -56,7 +56,7 @@ class FrameIterator
     void operator++();
     bool done() const { return !fp_; }
     JSAtom* functionDisplayAtom() const;
-    unsigned computeLine(uint32_t* column) const;
+    unsigned lineOrBytecode() const;
 };
 
 // An ExitReason describes the possible reasons for leaving compiled wasm code
@@ -98,7 +98,7 @@ class ProfilingFrameIterator
 // Prologue/epilogue code generation
 void
 GenerateExitPrologue(jit::MacroAssembler& masm, unsigned framePushed, ExitReason reason,
-                     ProfilingOffsets* offsets, jit::Label* maybeEntry = nullptr);
+                     ProfilingOffsets* offsets);
 void
 GenerateExitEpilogue(jit::MacroAssembler& masm, unsigned framePushed, ExitReason reason,
                      ProfilingOffsets* offsets);

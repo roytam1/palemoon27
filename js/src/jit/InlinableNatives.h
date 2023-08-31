@@ -80,6 +80,7 @@
     _(ObjectCreate)                 \
                                     \
     _(SimdInt32x4)                  \
+    _(SimdUint32x4)                 \
     _(SimdFloat32x4)                \
     _(SimdBool32x4)                 \
                                     \
@@ -111,6 +112,7 @@
     _(IntrinsicIsTypedArray)        \
     _(IntrinsicIsPossiblyWrappedTypedArray) \
     _(IntrinsicTypedArrayLength)    \
+    _(IntrinsicPossiblyWrappedTypedArrayLength)    \
     _(IntrinsicSetDisjointTypedElements) \
                                     \
     _(IntrinsicObjectIsTypedObject) \

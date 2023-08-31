@@ -58,17 +58,15 @@
 using namespace js;
 using namespace js::jit;
 
-using mozilla::ThreadLocal;
-
 // Assert that JitCode is gc::Cell aligned.
 JS_STATIC_ASSERT(sizeof(JitCode) % gc::CellSize == 0);
 
-static ThreadLocal<JitContext*> TlsJitContext;
+static MOZ_THREAD_LOCAL(JitContext*) TlsJitContext;
 
 static JitContext*
 CurrentJitContext()
 {
-    if (!TlsJitContext.initialized())
+    if (!TlsJitContext.init())
         return nullptr;
     return TlsJitContext.get();
 }
@@ -155,7 +153,7 @@ JitContext::~JitContext()
 bool
 jit::InitializeIon()
 {
-    if (!TlsJitContext.initialized() && !TlsJitContext.init())
+    if (!TlsJitContext.init())
         return false;
     CheckLogging();
 #if defined(JS_CODEGEN_ARM)
@@ -415,7 +413,7 @@ JitCompartment::~JitCompartment()
 bool
 JitCompartment::initialize(JSContext* cx)
 {
-    stubCodes_ = cx->new_<ICStubCodeMap>(cx);
+    stubCodes_ = cx->new_<ICStubCodeMap>(cx->runtime());
     if (!stubCodes_)
         return false;
 
@@ -730,7 +728,7 @@ JitCompartment::sweep(FreeOp* fop, JSCompartment* compartment)
     CancelOffThreadIonCompile(compartment, nullptr);
     FinishAllOffThreadCompilations(compartment);
 
-    stubCodes_->sweep(fop);
+    stubCodes_->sweep();
 
     // If the sweep removed the ICCall_Fallback stub, nullptr the baselineCallReturnAddr_ field.
     if (!stubCodes_->lookup(ICCall_Fallback::Compiler::BASELINE_CALL_KEY))
@@ -753,8 +751,7 @@ JitCompartment::sweep(FreeOp* fop, JSCompartment* compartment)
     if (regExpTesterStub_ && !IsMarkedUnbarriered(&regExpTesterStub_))
         regExpTesterStub_ = nullptr;
 
-    for (size_t i = 0; i <= SimdTypeDescr::LAST_TYPE; i++) {
-        ReadBarrieredObject& obj = simdTemplateObjects_[i];
+    for (ReadBarrieredObject& obj : simdTemplateObjects_) {
         if (obj && IsAboutToBeFinalized(&obj))
             obj.set(nullptr);
     }
@@ -1889,7 +1886,8 @@ OptimizeMIR(MIRGenerator* mir)
 
     if (!mir->compilingAsmJS()) {
         AutoTraceLog log(logger, TraceLogger_AddKeepAliveInstructions);
-        AddKeepAliveInstructions(graph);
+        if (!AddKeepAliveInstructions(graph))
+            return false;
         gs.spewPass("Add KeepAlive Instructions");
         AssertGraphCoherency(graph);
     }
@@ -3150,7 +3148,7 @@ jit::IonScript::invalidate(JSContext* cx, bool resetUses, const char* reason)
     Invalidate(cx, list, resetUses, true);
 }
 
-bool
+void
 jit::Invalidate(JSContext* cx, JSScript* script, bool resetUses, bool cancelOffThread)
 {
     MOZ_ASSERT(script->hasIonScript());
@@ -3165,15 +3163,14 @@ jit::Invalidate(JSContext* cx, JSScript* script, bool resetUses, bool cancelOffT
         if (filename == nullptr)
             filename = "<unknown>";
 
-        size_t len = strlen(filename) + 20;
-        char* buf = js_pod_malloc<char>(len);
-        if (!buf)
-            return false;
-
         // Construct the descriptive string.
-        JS_snprintf(buf, len, "Invalidate %s:%" PRIuSIZE, filename, script->lineno());
-        cx->runtime()->spsProfiler.markEvent(buf);
-        js_free(buf);
+        char* buf = JS_smprintf("Invalidate %s:%" PRIuSIZE, filename, script->lineno());
+
+        // Ignore the event on allocation failure.
+        if (buf) {
+            cx->runtime()->spsProfiler.markEvent(buf);
+            JS_smprintf_free(buf);
+        }
     }
 
     // RecompileInfoVector has inline space for at least one element.
@@ -3183,7 +3180,6 @@ jit::Invalidate(JSContext* cx, JSScript* script, bool resetUses, bool cancelOffT
     scripts.infallibleAppend(script->ionScript()->recompileInfo());
 
     Invalidate(cx, scripts, resetUses, cancelOffThread);
-    return true;
 }
 
 static void
@@ -3221,15 +3217,8 @@ jit::ForbidCompilation(JSContext* cx, JSScript* script)
 
     CancelOffThreadIonCompile(cx->compartment(), script);
 
-    if (script->hasIonScript()) {
-        // It is only safe to modify script->ion if the script is not currently
-        // running, because JitFrameIterator needs to tell what ionScript to
-        // use (either the one on the JSScript, or the one hidden in the
-        // breadcrumbs Invalidation() leaves). Therefore, if invalidation
-        // fails, we cannot disable the script.
-        if (!Invalidate(cx, script, false))
-            return;
-    }
+    if (script->hasIonScript())
+        Invalidate(cx, script, false);
 
     script->setIonScript(cx, ION_DISABLED_SCRIPT);
 }

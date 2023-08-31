@@ -354,6 +354,29 @@ DecomposeIntoNoRepeatRects(const gfx::Rect& aRect,
   return 4;
 }
 
+gfx::IntRect
+Compositor::ComputeBackdropCopyRect(const gfx::Rect& aRect,
+                                    const gfx::Rect& aClipRect,
+                                    const gfx::Matrix4x4& aTransform)
+{
+  gfx::Rect renderBounds = mRenderBounds;
+
+  // Compute the clip.
+  gfx::IntPoint offset = GetCurrentRenderTarget()->GetOrigin();
+  renderBounds.IntersectRect(renderBounds, aClipRect);
+  renderBounds.MoveBy(offset);
+
+  // Apply the layer transform.
+  gfx::Rect dest = aTransform.TransformAndClipBounds(aRect, renderBounds);
+  dest -= offset;
+
+  // Round out to integer.
+  gfx::IntRect result;
+  dest.RoundOut();
+  dest.ToIntRect(&result);
+  return result;
+}
+
 #if defined(MOZ_WIDGET_GONK) && ANDROID_VERSION >= 17
 void
 Compositor::SetDispAcquireFence(Layer* aLayer, nsIWidget* aWidget)

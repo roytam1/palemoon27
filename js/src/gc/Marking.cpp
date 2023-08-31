@@ -17,6 +17,7 @@
 
 #include "builtin/ModuleObject.h"
 #include "gc/GCInternals.h"
+#include "gc/Policy.h"
 #include "jit/IonCode.h"
 #include "js/SliceBudget.h"
 #include "vm/ArgumentsObject.h"
@@ -538,6 +539,7 @@ FOR_EACH_GC_POINTER_TYPE(INSTANTIATE_ALL_VALID_TRACE_FUNCTIONS)
     template JS_PUBLIC_API(void) js::UnsafeTraceManuallyBarrieredEdge<type>(JSTracer*, type*, \
                                                                             const char*);
 FOR_EACH_PUBLIC_GC_POINTER_TYPE(INSTANTIATE_PUBLIC_TRACE_FUNCTIONS)
+FOR_EACH_PUBLIC_TAGGED_GC_POINTER_TYPE(INSTANTIATE_PUBLIC_TRACE_FUNCTIONS)
 #undef INSTANTIATE_PUBLIC_TRACE_FUNCTIONS
 
 template <typename T>
@@ -1700,6 +1702,7 @@ MarkStack::setBaseCapacity(JSGCMode mode)
 void
 MarkStack::setMaxCapacity(size_t maxCapacity)
 {
+    MOZ_ASSERT(maxCapacity != 0);
     MOZ_ASSERT(isEmpty());
     maxCapacity_ = maxCapacity;
     if (baseCapacity_ > maxCapacity_)
@@ -1717,6 +1720,7 @@ MarkStack::reset()
         return;
     }
 
+    MOZ_ASSERT(baseCapacity_ != 0);
     uintptr_t* newStack = (uintptr_t*)js_realloc(stack_, sizeof(uintptr_t) * baseCapacity_);
     if (!newStack) {
         // If the realloc fails, just keep using the existing stack; it's
@@ -1736,6 +1740,7 @@ MarkStack::enlarge(unsigned count)
 
     size_t tosIndex = position();
 
+    MOZ_ASSERT(newCapacity != 0);
     uintptr_t* newStack = (uintptr_t*)js_realloc(stack_, sizeof(uintptr_t) * newCapacity);
     if (!newStack)
         return false;
@@ -1809,8 +1814,11 @@ GCMarker::stop()
 
     /* Free non-ballast stack memory. */
     stack.reset();
-    for (GCZonesIter zone(runtime()); !zone.done(); zone.next())
-        zone->gcWeakKeys.clear();
+    AutoEnterOOMUnsafeRegion oomUnsafe;
+    for (GCZonesIter zone(runtime()); !zone.done(); zone.next()) {
+        if (!zone->gcWeakKeys.clear())
+            oomUnsafe.crash("clearing weak keys in GCMarker::stop()");
+    }
 }
 
 void
@@ -1865,8 +1873,11 @@ GCMarker::leaveWeakMarkingMode()
 
     // Table is expensive to maintain when not in weak marking mode, so we'll
     // rebuild it upon entry rather than allow it to contain stale data.
-    for (GCZonesIter zone(runtime()); !zone.done(); zone.next())
-        zone->gcWeakKeys.clear();
+    AutoEnterOOMUnsafeRegion oomUnsafe;
+    for (GCZonesIter zone(runtime()); !zone.done(); zone.next()) {
+        if (!zone->gcWeakKeys.clear())
+            oomUnsafe.crash("clearing weak keys in GCMarker::leaveWeakMarkingMode()");
+    }
 }
 
 void

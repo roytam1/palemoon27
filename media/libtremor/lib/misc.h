@@ -22,10 +22,10 @@
 
 #ifdef _LOW_ACCURACY_
 #  define X(n) (((((n)>>22)+1)>>1) - ((((n)>>22)+1)>>9))
-#  define LOOKUP_T const unsigned char
+#  define LOOKUP_T unsigned char
 #else
 #  define X(n) (n)
-#  define LOOKUP_T const ogg_int32_t
+#  define LOOKUP_T ogg_int32_t
 #endif
 
 #include "asm_arm.h"
@@ -37,29 +37,22 @@
 #ifndef  _LOW_ACCURACY_
 /* 64 bit multiply */
 
-#if !(defined WIN32 && defined WINCE)
+#ifdef HAVE_SYS_TYPES_H
 #include <sys/types.h>
 #endif
 
-#if BYTE_ORDER==LITTLE_ENDIAN
 union magic {
   struct {
-    ogg_int32_t lo;
-    ogg_int32_t hi;
-  } halves;
-  ogg_int64_t whole;
-};
-#endif 
-
-#if BYTE_ORDER==BIG_ENDIAN
-union magic {
-  struct {
+#ifdef WORDS_BIGENDIAN
     ogg_int32_t hi;
     ogg_int32_t lo;
-  } halves;
-  ogg_int64_t whole;
-};
+#else /* little endian */
+    ogg_int32_t lo;
+    ogg_int32_t hi;
 #endif
+  } halves;
+  ogg_int64_t whole;
+};
 
 STIN ogg_int32_t MULT32(ogg_int32_t x, ogg_int32_t y) {
   union magic magic;
@@ -246,7 +239,3 @@ STIN ogg_int32_t VFLOAT_ADD(ogg_int32_t a,ogg_int32_t ap,
 }
 
 #endif
-
-
-
-

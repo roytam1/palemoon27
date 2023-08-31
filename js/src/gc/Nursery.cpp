@@ -139,7 +139,7 @@ js::Nursery::enable()
     setCurrentChunk(0);
     currentStart_ = position();
 #ifdef JS_GC_ZEAL
-    if (runtime()->gcZeal() == ZealGenerationalGCValue)
+    if (runtime()->hasZealMode(ZealMode::GenerationalGC))
         enterZealMode();
 #endif
 }
@@ -161,7 +161,7 @@ js::Nursery::isEmpty() const
     MOZ_ASSERT(runtime_);
     if (!isEnabled())
         return true;
-    MOZ_ASSERT_IF(runtime_->gcZeal() != ZealGenerationalGCValue, currentStart_ == start());
+    MOZ_ASSERT_IF(!runtime_->hasZealMode(ZealMode::GenerationalGC), currentStart_ == start());
     return position() == currentStart_;
 }
 
@@ -418,8 +418,7 @@ js::Nursery::collect(JSRuntime* rt, JS::gcreason::Reason reason, ObjectGroupList
 
     rt->gc.incMinorGcNumber();
 
-    rt->gc.stats.count(gcstats::STAT_MINOR_GC);
-
+    rt->gc.stats.beginNurseryCollection(reason);
     TraceMinorGCStart();
 
     int64_t timestampStart_total = PRMJ_Now();
@@ -517,7 +516,7 @@ js::Nursery::collect(JSRuntime* rt, JS::gcreason::Reason reason, ObjectGroupList
     // Make sure hashtables have been updated after the collection.
     TIME_START(checkHashTables);
 #ifdef JS_GC_ZEAL
-    if (rt->gcZeal() == ZealCheckHashTablesOnMinorGC)
+    if (rt->hasZealMode(ZealMode::CheckHashTablesOnMinorGC))
         CheckHashTablesAfterMovingGC(rt);
 #endif
     TIME_END(checkHashTables);
@@ -559,6 +558,7 @@ js::Nursery::collect(JSRuntime* rt, JS::gcreason::Reason reason, ObjectGroupList
 
     int64_t totalTime = PRMJ_Now() - timestampStart_total;
 
+    rt->gc.stats.endNurseryCollection(reason);
     TraceMinorGCEnd();
 
     if (enableProfiling_ && totalTime >= profileThreshold_) {
@@ -596,7 +596,7 @@ js::Nursery::collect(JSRuntime* rt, JS::gcreason::Reason reason, ObjectGroupList
         }
 
 #define FMT " %6" PRIu64
-        fprintf(stderr, "MinorGC: %20s %5.1f%% %4d " FMT, js::gcstats::ExplainReason(reason),
+        fprintf(stderr, "MinorGC: %20s %5.1f%% %4d " FMT, JS::gcreason::ExplainReason(reason),
                 promotionRate * 100, numActiveChunks_, totalTime);
         for (auto &entry : PrintList) {
             fprintf(stderr, FMT, entry.time);
@@ -674,7 +674,7 @@ js::Nursery::sweep()
     for (int i = 0; i < numNurseryChunks_; ++i)
         initChunk(i);
 
-    if (runtime()->gcZeal() == ZealGenerationalGCValue) {
+    if (runtime()->hasZealMode(ZealMode::GenerationalGC)) {
         MOZ_ASSERT(numActiveChunks_ == numNurseryChunks_);
 
         /* Only reset the alloc point when we are close to the end. */
@@ -700,7 +700,7 @@ void
 js::Nursery::growAllocableSpace()
 {
 #ifdef JS_GC_ZEAL
-    MOZ_ASSERT_IF(runtime()->gcZeal() == ZealGenerationalGCValue,
+    MOZ_ASSERT_IF(runtime()->hasZealMode(ZealMode::GenerationalGC),
                   numActiveChunks_ == numNurseryChunks_);
 #endif
     numActiveChunks_ = Min(numActiveChunks_ * 2, numNurseryChunks_);
@@ -710,7 +710,7 @@ void
 js::Nursery::shrinkAllocableSpace()
 {
 #ifdef JS_GC_ZEAL
-    if (runtime()->gcZeal() == ZealGenerationalGCValue)
+    if (runtime()->hasZealMode(ZealMode::GenerationalGC))
         return;
 #endif
     numActiveChunks_ = Max(numActiveChunks_ - 1, 1);

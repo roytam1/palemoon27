@@ -29,13 +29,12 @@
 
 #include "jswrapper.h"
 
+#include "asmjs/Wasm.h"
 #include "asmjs/WasmGenerator.h"
 #include "asmjs/WasmSerialize.h"
 #include "builtin/SIMD.h"
 #include "frontend/Parser.h"
-#include "jit/AtomicOperations.h"
-#include "jit/MIR.h"
-#include "js/Class.h"
+#include "gc/Policy.h"
 #include "js/MemoryMetrics.h"
 #include "vm/StringBuffer.h"
 #include "vm/Time.h"
@@ -56,6 +55,7 @@ using mozilla::Compression::LZ4;
 using mozilla::HashGeneric;
 using mozilla::IsNaN;
 using mozilla::IsNegativeZero;
+using mozilla::Maybe;
 using mozilla::Move;
 using mozilla::PodCopy;
 using mozilla::PodEqual;
@@ -104,41 +104,13 @@ enum AsmJSAtomicsBuiltinFunction
     AsmJSAtomicsBuiltin_isLockFree
 };
 
-// Set of known global object SIMD's attributes, i.e. types
-enum AsmJSSimdType
-{
-    AsmJSSimdType_int32x4,
-    AsmJSSimdType_float32x4,
-    AsmJSSimdType_bool32x4
-};
-
-static inline bool
-IsSignedIntSimdType(AsmJSSimdType type)
-{
-    switch (type) {
-      case AsmJSSimdType_int32x4:
-        return true;
-      case AsmJSSimdType_float32x4:
-      case AsmJSSimdType_bool32x4:
-        return false;
-    }
-    MOZ_MAKE_COMPILER_ASSUME_IS_UNREACHABLE("Unknown SIMD type");
-}
-
-// Set of known operations, for a given SIMD type (int32x4, float32x4,...)
-enum AsmJSSimdOperation
-{
-#define ASMJSSIMDOPERATION(op) AsmJSSimdOperation_##op,
-    FORALL_SIMD_ASMJS_OP(ASMJSSIMDOPERATION)
-#undef ASMJSSIMDOPERATION
-};
 
 // An AsmJSGlobal represents a JS global variable in the asm.js module function.
 class AsmJSGlobal
 {
   public:
     enum Which { Variable, FFI, ArrayView, ArrayViewCtor, MathBuiltinFunction,
-                 AtomicsBuiltinFunction, Constant, SimdCtor, SimdOperation };
+                 AtomicsBuiltinFunction, Constant, SimdCtor, SimdOp };
     enum VarInitKind { InitConstant, InitImport };
     enum ConstantKind { GlobalConstant, MathConstant };
 
@@ -158,10 +130,10 @@ class AsmJSGlobal
             Scalar::Type viewType_;
             AsmJSMathBuiltinFunction mathBuiltinFunc_;
             AsmJSAtomicsBuiltinFunction atomicsBuiltinFunc_;
-            AsmJSSimdType simdCtorType_;
+            SimdType simdCtorType_;
             struct {
-                AsmJSSimdType type_;
-                AsmJSSimdOperation which_;
+                SimdType type_;
+                SimdOperation which_;
             } simdOp;
             struct {
                 ConstantKind kind_;
@@ -246,7 +218,7 @@ class AsmJSGlobal
         MOZ_ASSERT(pod.which_ == AtomicsBuiltinFunction);
         return pod.u.atomicsBuiltinFunc_;
     }
-    AsmJSSimdType simdCtorType() const {
+    SimdType simdCtorType() const {
         MOZ_ASSERT(pod.which_ == SimdCtor);
         return pod.u.simdCtorType_;
     }
@@ -255,15 +227,15 @@ class AsmJSGlobal
         return name_;
     }
     PropertyName* simdOperationName() const {
-        MOZ_ASSERT(pod.which_ == SimdOperation);
+        MOZ_ASSERT(pod.which_ == SimdOp);
         return name_;
     }
-    AsmJSSimdOperation simdOperation() const {
-        MOZ_ASSERT(pod.which_ == SimdOperation);
+    SimdOperation simdOperation() const {
+        MOZ_ASSERT(pod.which_ == SimdOp);
         return pod.u.simdOp.which_;
     }
-    AsmJSSimdType simdOperationType() const {
-        MOZ_ASSERT(pod.which_ == SimdOperation);
+    SimdType simdOperationType() const {
+        MOZ_ASSERT(pod.which_ == SimdOp);
         return pod.u.simdOp.type_;
     }
     PropertyName* constantName() const {
@@ -341,7 +313,6 @@ struct AsmJSModuleData : AsmJSModuleCacheablePod
     AsmJSGlobalVector       globals;
     AsmJSImportVector       imports;
     AsmJSExportVector       exports;
-    ExportMap               exportMap;
     PropertyName*           globalArgumentName;
     PropertyName*           importArgumentName;
     PropertyName*           bufferArgumentName;
@@ -390,15 +361,18 @@ class js::AsmJSModule final : public Module
     typedef UniquePtr<const AsmJSModuleData> UniqueConstAsmJSModuleData;
     typedef UniquePtr<const StaticLinkData> UniqueConstStaticLinkData;
 
-    const UniqueConstStaticLinkData link_;
+    const UniqueConstStaticLinkData  link_;
+    const UniqueExportMap            exportMap_;
     const UniqueConstAsmJSModuleData module_;
 
   public:
     AsmJSModule(UniqueModuleData base,
                 UniqueStaticLinkData link,
+                UniqueExportMap exportMap,
                 UniqueAsmJSModuleData module)
-      : Module(Move(base), Module::IsAsmJS),
+      : Module(Move(base)),
         link_(Move(link)),
+        exportMap_(Move(exportMap)),
         module_(Move(module))
     {}
 
@@ -409,7 +383,14 @@ class js::AsmJSModule final : public Module
     virtual void addSizeOfMisc(MallocSizeOf mallocSizeOf, size_t* code, size_t* data) override {
         Module::addSizeOfMisc(mallocSizeOf, code, data);
         *data += mallocSizeOf(link_.get()) + link_->sizeOfExcludingThis(mallocSizeOf);
+        *data += mallocSizeOf(exportMap_.get()) + exportMap_->sizeOfExcludingThis(mallocSizeOf);
         *data += mallocSizeOf(module_.get()) + module_->sizeOfExcludingThis(mallocSizeOf);
+    }
+    virtual bool mutedErrors() const override {
+        return scriptSource()->mutedErrors();
+    }
+    virtual const char16_t* displayURL() const override {
+        return scriptSource()->hasDisplayURL() ? scriptSource()->displayURL() : nullptr;
     }
 
     uint32_t minHeapLength() const { return module_->minHeapLength; }
@@ -419,7 +400,6 @@ class js::AsmJSModule final : public Module
     const AsmJSGlobalVector& asmJSGlobals() const { return module_->globals; }
     const AsmJSImportVector& asmJSImports() const { return module_->imports; }
     const AsmJSExportVector& asmJSExports() const { return module_->exports; }
-    const ExportMap& exportMap() const { return module_->exportMap; }
     PropertyName* globalArgumentName() const { return module_->globalArgumentName; }
     PropertyName* importArgumentName() const { return module_->importArgumentName; }
     PropertyName* bufferArgumentName() const { return module_->bufferArgumentName; }
@@ -447,6 +427,13 @@ class js::AsmJSModule final : public Module
 
     bool staticallyLink(ExclusiveContext* cx) {
         return Module::staticallyLink(cx, *link_);
+    }
+    bool dynamicallyLink(JSContext* cx,
+                         Handle<WasmModuleObject*> moduleObj,
+                         Handle<ArrayBufferObjectMaybeShared*> heap,
+                         Handle<FunctionVector> imports,
+                         MutableHandleObject exportObj) {
+        return Module::dynamicallyLink(cx, moduleObj, heap, imports, *exportMap_, exportObj);
     }
 
     // Clone this AsmJSModule into a new AsmJSModule that isn't statically or
@@ -1007,6 +994,29 @@ class NumLit
         return which_ != OutOfRangeInt;
     }
 
+    bool isZeroBits() const {
+        MOZ_ASSERT(valid());
+        switch (which()) {
+          case NumLit::Fixnum:
+          case NumLit::NegativeInt:
+          case NumLit::BigUnsigned:
+            return toInt32() == 0;
+          case NumLit::Double:
+            return toDouble() == 0.0 && !IsNegativeZero(toDouble());
+          case NumLit::Float:
+            return toFloat() == 0.f && !IsNegativeZero(toFloat());
+          case NumLit::Int32x4:
+            return simdValue() == SimdConstant::SplatX4(0);
+          case NumLit::Float32x4:
+            return simdValue() == SimdConstant::SplatX4(0.f);
+          case NumLit::Bool32x4:
+            return simdValue() == SimdConstant::SplatX4(0);
+          case NumLit::OutOfRangeInt:
+            MOZ_CRASH("can't be here because of valid() check above");
+        }
+        return false;
+    }
+
     ValType type() const {
         switch (which_) {
           case NumLit::Fixnum:
@@ -1078,19 +1088,14 @@ class Type
   public:
     Type() = default;
     MOZ_IMPLICIT Type(Which w) : which_(w) {}
-    MOZ_IMPLICIT Type(AsmJSSimdType type) {
+    MOZ_IMPLICIT Type(SimdType type) {
         switch (type) {
-          case AsmJSSimdType_int32x4:
-            which_ = Int32x4;
-            return;
-          case AsmJSSimdType_float32x4:
-            which_ = Float32x4;
-            return;
-          case AsmJSSimdType_bool32x4:
-            which_ = Bool32x4;
-            return;
+          case SimdType::Int32x4:   which_ = Int32x4;   return;
+          case SimdType::Float32x4: which_ = Float32x4; return;
+          case SimdType::Bool32x4:  which_ = Bool32x4;  return;
+          default:                  break;
         }
-        MOZ_MAKE_COMPILER_ASSUME_IS_UNREACHABLE("bad AsmJSSimdType");
+        MOZ_MAKE_COMPILER_ASSUME_IS_UNREACHABLE("bad SimdType");
     }
 
     static Type var(ValType t) {
@@ -1102,6 +1107,7 @@ class Type
           case ValType::I32x4: return Int32x4;
           case ValType::F32x4: return Float32x4;
           case ValType::B32x4: return Bool32x4;
+          case ValType::Limit: break;
         }
         MOZ_MAKE_COMPILER_ASSUME_IS_UNREACHABLE("bad type");
     }
@@ -1116,6 +1122,7 @@ class Type
           case ExprType::I32x4:  return Int32x4;
           case ExprType::F32x4:  return Float32x4;
           case ExprType::B32x4:  return Bool32x4;
+          case ExprType::Limit:  break;
         }
         MOZ_MAKE_COMPILER_ASSUME_IS_UNREACHABLE("bad type");
     }
@@ -1164,6 +1171,7 @@ class Type
           case ValType::I32x4:  return isInt32x4();
           case ValType::F32x4:  return isFloat32x4();
           case ValType::B32x4:  return isBool32x4();
+          case ValType::Limit:  break;
         }
         MOZ_MAKE_COMPILER_ASSUME_IS_UNREACHABLE("Unexpected rhs type");
     }
@@ -1250,6 +1258,9 @@ class Type
             return ValType::F64;
         else if (isInt32x4())
             return ValType::I32x4;
+        else if (isBool32x4())
+            return ValType::B32x4;
+        MOZ_ASSERT(isFloat32x4());
         return ValType::F32x4;
     }
 
@@ -1281,15 +1292,15 @@ class Type
         MOZ_MAKE_COMPILER_ASSUME_IS_UNREACHABLE("Invalid Type");
     }
 
-    AsmJSSimdType simdType() const {
+    SimdType simdType() const {
         MOZ_ASSERT(isSimd());
         switch (which_) {
           case Int32x4:
-            return AsmJSSimdType_int32x4;
+            return SimdType::Int32x4;
           case Float32x4:
-            return AsmJSSimdType_float32x4;
+            return SimdType::Float32x4;
           case Bool32x4:
-            return AsmJSSimdType_bool32x4;
+            return SimdType::Bool32x4;
           // Scalar types
           case Double:
           case DoubleLit:
@@ -1351,7 +1362,6 @@ class MOZ_STACK_CLASS ModuleValidator
   public:
     class Func
     {
-        const LifoSig& sig_;
         PropertyName* name_;
         uint32_t firstUse_;
         uint32_t index_;
@@ -1360,8 +1370,8 @@ class MOZ_STACK_CLASS ModuleValidator
         bool defined_;
 
       public:
-        Func(PropertyName* name, uint32_t firstUse, const LifoSig& sig, uint32_t index)
-          : sig_(sig), name_(name), firstUse_(firstUse), index_(index),
+        Func(PropertyName* name, uint32_t firstUse, uint32_t index)
+          : name_(name), firstUse_(firstUse), index_(index),
             srcBegin_(0), srcEnd_(0), defined_(false)
         {}
 
@@ -1379,7 +1389,6 @@ class MOZ_STACK_CLASS ModuleValidator
 
         uint32_t srcBegin() const { MOZ_ASSERT(defined_); return srcBegin_; }
         uint32_t srcEnd() const { MOZ_ASSERT(defined_); return srcEnd_; }
-        const LifoSig& sig() const { return sig_; }
     };
 
     typedef Vector<const Func*> ConstFuncVector;
@@ -1387,7 +1396,7 @@ class MOZ_STACK_CLASS ModuleValidator
 
     class FuncPtrTable
     {
-        const LifoSig& sig_;
+        uint32_t sigIndex_;
         PropertyName* name_;
         uint32_t firstUse_;
         uint32_t mask_;
@@ -1396,12 +1405,11 @@ class MOZ_STACK_CLASS ModuleValidator
         FuncPtrTable(FuncPtrTable&& rhs) = delete;
 
       public:
-        FuncPtrTable(ExclusiveContext* cx, PropertyName* name, uint32_t firstUse,
-                     const LifoSig& sig, uint32_t mask)
-          : sig_(sig), name_(name), firstUse_(firstUse), mask_(mask), defined_(false)
+        FuncPtrTable(uint32_t sigIndex, PropertyName* name, uint32_t firstUse, uint32_t mask)
+          : sigIndex_(sigIndex), name_(name), firstUse_(firstUse), mask_(mask), defined_(false)
         {}
 
-        const LifoSig& sig() const { return sig_; }
+        uint32_t sigIndex() const { return sigIndex_; }
         PropertyName* name() const { return name_; }
         uint32_t firstUse() const { return firstUse_; }
         unsigned mask() const { return mask_; }
@@ -1426,7 +1434,7 @@ class MOZ_STACK_CLASS ModuleValidator
             MathBuiltinFunction,
             AtomicsBuiltinFunction,
             SimdCtor,
-            SimdOperation
+            SimdOp
         };
 
       private:
@@ -1434,7 +1442,7 @@ class MOZ_STACK_CLASS ModuleValidator
         union {
             struct {
                 Type::Which type_;
-                uint32_t globalDataOffset_;
+                unsigned index_;
                 NumLit literalValue_;
             } varOrConst;
             uint32_t funcIndex_;
@@ -1445,10 +1453,10 @@ class MOZ_STACK_CLASS ModuleValidator
             } viewInfo;
             AsmJSMathBuiltinFunction mathBuiltinFunc_;
             AsmJSAtomicsBuiltinFunction atomicsBuiltinFunc_;
-            AsmJSSimdType simdCtorType_;
+            SimdType simdCtorType_;
             struct {
-                AsmJSSimdType type_;
-                AsmJSSimdOperation which_;
+                SimdType type_;
+                SimdOperation which_;
             } simdOp;
         } u;
 
@@ -1465,9 +1473,10 @@ class MOZ_STACK_CLASS ModuleValidator
             MOZ_ASSERT(which_ == Variable || which_ == ConstantLiteral || which_ == ConstantImport);
             return u.varOrConst.type_;
         }
-        uint32_t varOrConstGlobalDataOffset() const {
+        unsigned varOrConstIndex() const {
             MOZ_ASSERT(which_ == Variable || which_ == ConstantImport);
-            return u.varOrConst.globalDataOffset_;
+            MOZ_ASSERT(u.varOrConst.index_ != -1u);
+            return u.varOrConst.index_;
         }
         bool isConst() const {
             return which_ == ConstantLiteral || which_ == ConstantImport;
@@ -1512,19 +1521,19 @@ class MOZ_STACK_CLASS ModuleValidator
         bool isSimdCtor() const {
             return which_ == SimdCtor;
         }
-        AsmJSSimdType simdCtorType() const {
+        SimdType simdCtorType() const {
             MOZ_ASSERT(which_ == SimdCtor);
             return u.simdCtorType_;
         }
         bool isSimdOperation() const {
-            return which_ == SimdOperation;
+            return which_ == SimdOp;
         }
-        AsmJSSimdOperation simdOperation() const {
-            MOZ_ASSERT(which_ == SimdOperation);
+        SimdOperation simdOperation() const {
+            MOZ_ASSERT(which_ == SimdOp);
             return u.simdOp.which_;
         }
-        AsmJSSimdType simdOperationType() const {
-            MOZ_ASSERT(which_ == SimdOperation);
+        SimdType simdOperationType() const {
+            MOZ_ASSERT(which_ == SimdOp);
             return u.simdOp.type_;
         }
     };
@@ -1558,43 +1567,43 @@ class MOZ_STACK_CLASS ModuleValidator
         Scalar::Type type;
     };
 
-    class ImportDescriptor
+  private:
+    class NamedSig
     {
         PropertyName* name_;
-        const LifoSig* sig_;
+        const DeclaredSig* sig_;
 
       public:
-        ImportDescriptor(PropertyName* name, const LifoSig& sig)
+        NamedSig(PropertyName* name, const DeclaredSig& sig)
           : name_(name), sig_(&sig)
         {}
-
         PropertyName* name() const {
             return name_;
         }
-        const LifoSig& sig() const {
+        const Sig& sig() const {
             return *sig_;
         }
 
-        struct Lookup {  // implements HashPolicy
-            PropertyName* name_;
-            const MallocSig& sig_;
-            Lookup(PropertyName* name, const MallocSig& sig) : name_(name), sig_(sig) {}
+        // Implement HashPolicy:
+        struct Lookup {
+            PropertyName* name;
+            const Sig& sig;
+            Lookup(PropertyName* name, const Sig& sig) : name(name), sig(sig) {}
         };
-        static HashNumber hash(const Lookup& l) {
-            return HashGeneric(l.name_, l.sig_.hash());
+        static HashNumber hash(Lookup l) {
+            return HashGeneric(l.name, l.sig.hash());
         }
-        static bool match(const ImportDescriptor& lhs, const Lookup& rhs) {
-            return lhs.name_ == rhs.name_ && *lhs.sig_ == rhs.sig_;
+        static bool match(NamedSig lhs, Lookup rhs) {
+            return lhs.name_ == rhs.name && *lhs.sig_ == rhs.sig;
         }
     };
-
-  private:
+    typedef HashMap<NamedSig, uint32_t, NamedSig> ImportMap;
+    typedef HashMap<const DeclaredSig*, uint32_t, SigHashPolicy> SigMap;
     typedef HashMap<PropertyName*, Global*> GlobalMap;
     typedef HashMap<PropertyName*, MathBuiltin> MathNameMap;
     typedef HashMap<PropertyName*, AsmJSAtomicsBuiltinFunction> AtomicsNameMap;
-    typedef HashMap<PropertyName*, AsmJSSimdOperation> SimdOperationNameMap;
+    typedef HashMap<PropertyName*, SimdOperation> SimdOperationNameMap;
     typedef Vector<ArrayView> ArrayViewVector;
-    typedef HashMap<ImportDescriptor, unsigned, ImportDescriptor> ImportMap;
 
     ExclusiveContext*     cx_;
     AsmJSParser&          parser_;
@@ -1609,6 +1618,7 @@ class MOZ_STACK_CLASS ModuleValidator
     FuncVector            functions_;
     FuncPtrTableVector    funcPtrTables_;
     GlobalMap             globalMap_;
+    SigMap                sigMap_;
     ImportMap             importMap_;
     ArrayViewVector       arrayViews_;
     bool                  atomicsPresent_;
@@ -1643,11 +1653,26 @@ class MOZ_STACK_CLASS ModuleValidator
             return false;
         return standardLibraryAtomicsNames_.putNew(atom->asPropertyName(), func);
     }
-    bool addStandardLibrarySimdOpName(const char* name, AsmJSSimdOperation op) {
+    bool addStandardLibrarySimdOpName(const char* name, SimdOperation op) {
         JSAtom* atom = Atomize(cx_, name, strlen(name));
         if (!atom)
             return false;
         return standardLibrarySimdOpNames_.putNew(atom->asPropertyName(), op);
+    }
+    bool declareSig(Sig&& sig, uint32_t* sigIndex) {
+        SigMap::AddPtr p = sigMap_.lookupForAdd(sig);
+        if (p) {
+            *sigIndex = p->value();
+            MOZ_ASSERT(mg_.sig(*sigIndex) == sig);
+            return true;
+        }
+
+        *sigIndex = sigMap_.count();
+        if (*sigIndex >= MaxSigs)
+            return failCurrentOffset("too many unique signatures");
+
+        mg_.initSig(*sigIndex, Move(sig));
+        return sigMap_.add(p, &mg_.sig(*sigIndex), *sigIndex);
     }
 
   public:
@@ -1663,6 +1688,7 @@ class MOZ_STACK_CLASS ModuleValidator
         functions_(cx),
         funcPtrTables_(cx),
         globalMap_(cx),
+        sigMap_(cx),
         importMap_(cx),
         arrayViews_(cx),
         atomicsPresent_(false),
@@ -1694,7 +1720,7 @@ class MOZ_STACK_CLASS ModuleValidator
         module_->strict = parser_.pc->sc->strict() && !parser_.pc->sc->hasExplicitUseStrict();
         module_->scriptSource.reset(parser_.ss);
 
-        if (!globalMap_.init() || !importMap_.init())
+        if (!globalMap_.init() || !sigMap_.init() || !importMap_.init())
             return false;
 
         if (!standardLibraryMathNames_.init() ||
@@ -1745,7 +1771,7 @@ class MOZ_STACK_CLASS ModuleValidator
             return false;
         }
 
-#define ADDSTDLIBSIMDOPNAME(op) || !addStandardLibrarySimdOpName(#op, AsmJSSimdOperation_##op)
+#define ADDSTDLIBSIMDOPNAME(op) || !addStandardLibrarySimdOpName(#op, SimdOperation::Fn_##op)
         if (!standardLibrarySimdOpNames_.init()
             FORALL_SIMD_ASMJS_OP(ADDSTDLIBSIMDOPNAME))
         {
@@ -1753,7 +1779,23 @@ class MOZ_STACK_CLASS ModuleValidator
         }
 #undef ADDSTDLIBSIMDOPNAME
 
-        return mg_.init();
+        UniqueModuleGeneratorData genData = MakeUnique<ModuleGeneratorData>();
+        if (!genData ||
+            !genData->sigs.resize(MaxSigs) ||
+            !genData->funcSigs.resize(MaxFuncs) ||
+            !genData->imports.resize(MaxImports))
+        {
+            return false;
+        }
+
+        CacheableChars filename;
+        if (parser_.ss->filename()) {
+            filename = DuplicateString(parser_.ss->filename());
+            if (!filename)
+                return false;
+        }
+
+        return mg_.init(Move(genData), Move(filename), ModuleKind::AsmJS);
     }
 
     ExclusiveContext* cx() const             { return cx_; }
@@ -1785,15 +1827,15 @@ class MOZ_STACK_CLASS ModuleValidator
         module_->bufferArgumentName = n;
     }
     bool addGlobalVarInit(PropertyName* var, const NumLit& lit, bool isConst) {
-        uint32_t globalDataOffset;
-        if (!mg_.allocateGlobalVar(lit.type(), &globalDataOffset))
+        uint32_t index;
+        if (!mg_.allocateGlobalVar(lit.type(), isConst, &index))
             return false;
 
         Global::Which which = isConst ? Global::ConstantLiteral : Global::Variable;
         Global* global = validationLifo_.new_<Global>(which);
         if (!global)
             return false;
-        global->u.varOrConst.globalDataOffset_ = globalDataOffset;
+        global->u.varOrConst.index_ = index;
         global->u.varOrConst.type_ = (isConst ? Type::lit(lit) : Type::var(lit.type())).which();
         if (isConst)
             global->u.varOrConst.literalValue_ = lit;
@@ -1803,19 +1845,19 @@ class MOZ_STACK_CLASS ModuleValidator
         AsmJSGlobal g(AsmJSGlobal::Variable, nullptr);
         g.pod.u.var.initKind_ = AsmJSGlobal::InitConstant;
         g.pod.u.var.u.val_ = lit.value();
-        g.pod.u.var.globalDataOffset_ = globalDataOffset;
+        g.pod.u.var.globalDataOffset_ = mg_.globalVar(index).globalDataOffset;
         return module_->globals.append(g);
     }
     bool addGlobalVarImport(PropertyName* var, PropertyName* field, ValType type, bool isConst) {
-        uint32_t globalDataOffset;
-        if (!mg_.allocateGlobalVar(type, &globalDataOffset))
+        uint32_t index;
+        if (!mg_.allocateGlobalVar(type, isConst, &index))
             return false;
 
         Global::Which which = isConst ? Global::ConstantImport : Global::Variable;
         Global* global = validationLifo_.new_<Global>(which);
         if (!global)
             return false;
-        global->u.varOrConst.globalDataOffset_ = globalDataOffset;
+        global->u.varOrConst.index_ = index;
         global->u.varOrConst.type_ = Type::var(type).which();
         if (!globalMap_.putNew(var, global))
             return false;
@@ -1823,7 +1865,7 @@ class MOZ_STACK_CLASS ModuleValidator
         AsmJSGlobal g(AsmJSGlobal::Variable, field);
         g.pod.u.var.initKind_ = AsmJSGlobal::InitImport;
         g.pod.u.var.u.importType_ = type;
-        g.pod.u.var.globalDataOffset_ = globalDataOffset;
+        g.pod.u.var.globalDataOffset_ = mg_.globalVar(index).globalDataOffset;
         return module_->globals.append(g);
     }
     bool addArrayView(PropertyName* var, Scalar::Type vt, PropertyName* maybeField) {
@@ -1899,7 +1941,7 @@ class MOZ_STACK_CLASS ModuleValidator
         g.pod.u.atomicsBuiltinFunc_ = func;
         return module_->globals.append(g);
     }
-    bool addSimdCtor(PropertyName* var, AsmJSSimdType type, PropertyName* field) {
+    bool addSimdCtor(PropertyName* var, SimdType type, PropertyName* field) {
         Global* global = validationLifo_.new_<Global>(Global::SimdCtor);
         if (!global)
             return false;
@@ -1911,10 +1953,9 @@ class MOZ_STACK_CLASS ModuleValidator
         g.pod.u.simdCtorType_ = type;
         return module_->globals.append(g);
     }
-    bool addSimdOperation(PropertyName* var, AsmJSSimdType type, AsmJSSimdOperation op,
-                          PropertyName* opName)
+    bool addSimdOperation(PropertyName* var, SimdType type, SimdOperation op, PropertyName* opName)
     {
-        Global* global = validationLifo_.new_<Global>(Global::SimdOperation);
+        Global* global = validationLifo_.new_<Global>(Global::SimdOp);
         if (!global)
             return false;
         global->u.simdOp.type_ = type;
@@ -1922,7 +1963,7 @@ class MOZ_STACK_CLASS ModuleValidator
         if (!globalMap_.putNew(var, global))
             return false;
 
-        AsmJSGlobal g(AsmJSGlobal::SimdOperation, opName);
+        AsmJSGlobal g(AsmJSGlobal::SimdOp, opName);
         g.pod.u.simdOp.type_ = type;
         g.pod.u.simdOp.which_ = op;
         return module_->globals.append(g);
@@ -1962,59 +2003,41 @@ class MOZ_STACK_CLASS ModuleValidator
             fieldName = StringToNewUTF8CharsZ(cx_, *maybeFieldName);
         else
             fieldName = DuplicateString("");
-        if (!fieldName || !module_->exportMap.fieldNames.append(Move(fieldName)))
+        if (!fieldName)
             return false;
 
         // Declare which function is exported which gives us an index into the
         // module ExportVector.
-        MallocSig::ArgVector args;
-        if (!args.appendAll(func.sig().args()))
-            return false;
         uint32_t exportIndex;
-        if (!mg_.declareExport(MallocSig(Move(args), func.sig().ret()), func.index(), &exportIndex))
-            return false;
-
-        // Add a mapping from the given field to the Export's index.
-        if (!module_->exportMap.fieldsToExports.append(exportIndex))
+        if (!mg_.declareExport(Move(fieldName), func.index(), &exportIndex))
             return false;
 
         // The exported function might have already been exported in which case
         // the index will refer into the range of AsmJSExports.
         MOZ_ASSERT(exportIndex <= module_->exports.length());
-        if (exportIndex < module_->exports.length())
-            return true;
-
-        // If this is a new export, record the src info for later toString.
-        CacheableChars exportName = StringToNewUTF8CharsZ(cx_, *func.name());
-        return exportName &&
-               module_->exportMap.exportNames.emplaceBack(Move(exportName)) &&
+        return exportIndex < module_->exports.length() ||
                module_->exports.emplaceBack(func.srcBegin() - module_->srcStart,
                                             func.srcEnd() - module_->srcStart);
     }
-  private:
-    const LifoSig* getLifoSig(const LifoSig& sig) {
-        return &sig;
-    }
-    const LifoSig* getLifoSig(const MallocSig& sig) {
-        return mg_.newLifoSig(sig);
-    }
-  public:
-    bool addFunction(PropertyName* name, uint32_t firstUse, const MallocSig& sig, Func** func) {
+    bool addFunction(PropertyName* name, uint32_t firstUse, Sig&& sig, Func** func) {
+        uint32_t sigIndex;
+        if (!declareSig(Move(sig), &sigIndex))
+            return false;
         uint32_t funcIndex = numFunctions();
+        if (funcIndex >= MaxFuncs)
+            return failCurrentOffset("too many functions");
+        if (!mg_.initFuncSig(funcIndex, sigIndex))
+            return false;
         Global* global = validationLifo_.new_<Global>(Global::Function);
         if (!global)
             return false;
         global->u.funcIndex_ = funcIndex;
         if (!globalMap_.putNew(name, global))
             return false;
-        const LifoSig* lifoSig = getLifoSig(sig);
-        if (!lifoSig)
-            return false;
-        *func = validationLifo_.new_<Func>(name, firstUse, *lifoSig, funcIndex);
+        *func = validationLifo_.new_<Func>(name, firstUse, funcIndex);
         return *func && functions_.append(*func);
     }
-    template <class SigT>
-    bool declareFuncPtrTable(PropertyName* name, uint32_t firstUse, SigT& sig, uint32_t mask,
+    bool declareFuncPtrTable(Sig&& sig, PropertyName* name, uint32_t firstUse, uint32_t mask,
                              uint32_t* index)
     {
         if (!mg_.declareFuncPtrTable(/* numElems = */ mask + 1, index))
@@ -2026,10 +2049,10 @@ class MOZ_STACK_CLASS ModuleValidator
         global->u.funcPtrTableIndex_ = *index;
         if (!globalMap_.putNew(name, global))
             return false;
-        const LifoSig* lifoSig = getLifoSig(sig);
-        if (!lifoSig)
+        uint32_t sigIndex;
+        if (!declareSig(Move(sig), &sigIndex))
             return false;
-        FuncPtrTable* t = validationLifo_.new_<FuncPtrTable>(cx_, name, firstUse, *lifoSig, mask);
+        FuncPtrTable* t = validationLifo_.new_<FuncPtrTable>(sigIndex, name, firstUse, mask);
         return t && funcPtrTables_.append(t);
     }
     bool defineFuncPtrTable(uint32_t funcPtrTableIndex, const Vector<uint32_t>& elems) {
@@ -2040,25 +2063,23 @@ class MOZ_STACK_CLASS ModuleValidator
         mg_.defineFuncPtrTable(funcPtrTableIndex, elems);
         return true;
     }
-    bool addImport(PropertyName* name, MallocSig&& sig, unsigned ffiIndex, unsigned* importIndex,
-                 const LifoSig** lifoSig)
-    {
-        ImportDescriptor::Lookup lookup(name, sig);
-        ImportMap::AddPtr p = importMap_.lookupForAdd(lookup);
+    bool declareImport(PropertyName* name, Sig&& sig, unsigned ffiIndex, uint32_t* importIndex) {
+        ImportMap::AddPtr p = importMap_.lookupForAdd(NamedSig::Lookup(name, sig));
         if (p) {
-            *lifoSig = &p->key().sig();
             *importIndex = p->value();
             return true;
         }
-        *lifoSig = getLifoSig(sig);
-        if (!*lifoSig)
+        *importIndex = module_->imports.length();
+        if (*importIndex >= MaxImports)
+            return failCurrentOffset("too many imports");
+        if (!module_->imports.emplaceBack(ffiIndex))
             return false;
-        if (!mg_.declareImport(Move(sig), importIndex))
+        uint32_t sigIndex;
+        if (!declareSig(Move(sig), &sigIndex))
             return false;
-        if (!importMap_.add(p, ImportDescriptor(name, **lifoSig), *importIndex))
+        if (!mg_.initImport(*importIndex, sigIndex))
             return false;
-        MOZ_ASSERT(module_->imports.length() == *importIndex);
-        return module_->imports.emplaceBack(ffiIndex);
+        return importMap_.add(p, NamedSig(name, mg_.sig(sigIndex)), *importIndex);
     }
 
     bool tryConstantAccess(uint64_t start, uint64_t width) {
@@ -2084,6 +2105,10 @@ class MOZ_STACK_CLASS ModuleValidator
         errorOffset_ = offset;
         errorString_ = DuplicateString(str);
         return false;
+    }
+
+    bool failCurrentOffset(const char* str) {
+        return failOffset(tokenStream().currentToken().pos.begin, str);
     }
 
     bool fail(ParseNode* pn, const char* str) {
@@ -2181,7 +2206,7 @@ class MOZ_STACK_CLASS ModuleValidator
         }
         return false;
     }
-    bool lookupStandardSimdOpName(PropertyName* name, AsmJSSimdOperation* op) const {
+    bool lookupStandardSimdOpName(PropertyName* name, SimdOperation* op) const {
         if (SimdOperationNameMap::Ptr p = standardLibrarySimdOpNames_.lookup(name)) {
             *op = p->value();
             return true;
@@ -2190,37 +2215,19 @@ class MOZ_STACK_CLASS ModuleValidator
     }
 
     bool startFunctionBodies() {
-        if (atomicsPresent_) {
-#if !defined(ENABLE_SHARED_ARRAY_BUFFER)
-            return failOffset(parser_.tokenStream.currentToken().pos.begin,
-                              "shared memory and atomics not supported by this build");
-#endif
-        }
-        return true;
+        return mg_.startFuncDefs();
     }
     bool finishFunctionBodies() {
-        return mg_.finishFuncs();
+        return mg_.finishFuncDefs();
     }
     bool finish(MutableHandle<WasmModuleObject*> moduleObj, SlowFunctionVector* slowFuncs) {
-        HeapUsage heap = arrayViews_.empty()
-                              ? HeapUsage::None
-                              : atomicsPresent_
-                                ? HeapUsage::Shared
-                                : HeapUsage::Unshared;
+        if (!arrayViews_.empty())
+            mg_.initHeapUsage(atomicsPresent_ ? HeapUsage::Shared : HeapUsage::Unshared);
 
-        auto muted = MutedErrorsBool(parser_.ss->mutedErrors());
-
-        CacheableChars filename;
-        if (parser_.ss->filename()) {
-            filename = DuplicateString(parser_.ss->filename());
-            if (!filename)
-                return false;
-        }
-
-        CacheableTwoByteChars displayURL;
-        if (parser_.ss->hasDisplayURL()) {
-            displayURL = DuplicateString(parser_.ss->displayURL());
-            if (!displayURL)
+        CacheableCharsVector funcNames;
+        for (const Func* func : functions_) {
+            CacheableChars funcName = StringToNewUTF8CharsZ(cx_, *func->name());
+            if (!funcName || !funcNames.emplaceBack(Move(funcName)))
                 return false;
         }
 
@@ -2234,14 +2241,15 @@ class MOZ_STACK_CLASS ModuleValidator
 
         UniqueModuleData base;
         UniqueStaticLinkData link;
-        if (!mg_.finish(heap, muted, Move(filename), Move(displayURL), &base, &link, slowFuncs))
+        UniqueExportMap exportMap;
+        if (!mg_.finish(Move(funcNames), &base, &link, &exportMap, slowFuncs))
             return false;
 
         moduleObj.set(WasmModuleObject::create(cx_));
         if (!moduleObj)
             return false;
 
-        return moduleObj->init(cx_->new_<AsmJSModule>(Move(base), Move(link), Move(module_)));
+        return moduleObj->init(js_new<AsmJSModule>(Move(base), Move(link), Move(exportMap), Move(module_)));
     }
 };
 
@@ -2271,6 +2279,18 @@ IsCallToGlobal(ModuleValidator& m, ParseNode* pn, const ModuleValidator::Global*
     return !!*global;
 }
 
+static ValType
+ToValType(SimdType type)
+{
+    switch (type) {
+      case SimdType::Int32x4:   return ValType::I32x4;
+      case SimdType::Float32x4: return ValType::F32x4;
+      case SimdType::Bool32x4:  return ValType::B32x4;
+      default:                  break;
+    }
+    MOZ_CRASH("unexpected SIMD type");
+}
+
 static bool
 IsCoercionCall(ModuleValidator& m, ParseNode* pn, ValType* coerceTo, ParseNode** coercedExpr)
 {
@@ -2289,18 +2309,9 @@ IsCoercionCall(ModuleValidator& m, ParseNode* pn, ValType* coerceTo, ParseNode**
         return true;
     }
 
-    if (global->isSimdOperation() && global->simdOperation() == AsmJSSimdOperation_check) {
-        switch (global->simdOperationType()) {
-          case AsmJSSimdType_int32x4:
-            *coerceTo = ValType::I32x4;
-            return true;
-          case AsmJSSimdType_float32x4:
-            *coerceTo = ValType::F32x4;
-            return true;
-          case AsmJSSimdType_bool32x4:
-            *coerceTo = ValType::B32x4;
-            return true;
-        }
+    if (global->isSimdOperation() && global->simdOperation() == SimdOperation::Fn_check) {
+        *coerceTo = ToValType(global->simdOperationType());
+        return true;
     }
 
     return false;
@@ -2320,19 +2331,21 @@ IsFloatLiteral(ModuleValidator& m, ParseNode* pn)
 }
 
 static unsigned
-SimdTypeToLength(AsmJSSimdType type)
+SimdTypeToLength(SimdType type)
 {
     switch (type) {
-      case AsmJSSimdType_int32x4:
-      case AsmJSSimdType_float32x4:
-      case AsmJSSimdType_bool32x4:
+      case SimdType::Int32x4:
+      case SimdType::Float32x4:
+      case SimdType::Bool32x4:
         return 4;
+      default:
+        break;
     }
     MOZ_CRASH("unexpected SIMD type");
 }
 
 static bool
-IsSimdTuple(ModuleValidator& m, ParseNode* pn, AsmJSSimdType* type)
+IsSimdTuple(ModuleValidator& m, ParseNode* pn, SimdType* type)
 {
     const ModuleValidator::Global* global;
     if (!IsCallToGlobal(m, pn, &global))
@@ -2360,7 +2373,7 @@ IsLiteralInt(ModuleValidator& m, ParseNode* pn, uint32_t* u32);
 static bool
 IsSimdLiteral(ModuleValidator& m, ParseNode* pn)
 {
-    AsmJSSimdType type;
+    SimdType type;
     if (!IsSimdTuple(m, pn, &type))
         return false;
 
@@ -2372,14 +2385,17 @@ IsSimdLiteral(ModuleValidator& m, ParseNode* pn)
 
         uint32_t _;
         switch (type) {
-          case AsmJSSimdType_int32x4:
-          case AsmJSSimdType_bool32x4:
+          case SimdType::Int32x4:
+          case SimdType::Bool32x4:
             if (!IsLiteralInt(m, arg, &_))
                 return false;
-            MOZ_FALLTHROUGH;
-          case AsmJSSimdType_float32x4:
+            break;
+          case SimdType::Float32x4:
             if (!IsNumericNonFloatLiteral(arg))
                 return false;
+            break;
+          default:
+            MOZ_CRASH("unhandled simd type");
         }
 
         arg = NextNode(arg);
@@ -2421,12 +2437,12 @@ ExtractSimdValue(ModuleValidator& m, ParseNode* pn)
 {
     MOZ_ASSERT(IsSimdLiteral(m, pn));
 
-    AsmJSSimdType type = AsmJSSimdType_int32x4;
+    SimdType type;
     JS_ALWAYS_TRUE(IsSimdTuple(m, pn, &type));
 
     ParseNode* arg = CallArgList(pn);
     switch (type) {
-      case AsmJSSimdType_int32x4: {
+      case SimdType::Int32x4: {
         MOZ_ASSERT(SimdTypeToLength(type) == 4);
         int32_t val[4];
         for (size_t i = 0; i < 4; i++, arg = NextNode(arg)) {
@@ -2437,7 +2453,7 @@ ExtractSimdValue(ModuleValidator& m, ParseNode* pn)
         MOZ_ASSERT(arg== nullptr);
         return NumLit(NumLit::Int32x4, SimdConstant::CreateX4(val));
       }
-      case AsmJSSimdType_float32x4: {
+      case SimdType::Float32x4: {
         MOZ_ASSERT(SimdTypeToLength(type) == 4);
         float val[4];
         for (size_t i = 0; i < 4; i++, arg = NextNode(arg))
@@ -2445,7 +2461,7 @@ ExtractSimdValue(ModuleValidator& m, ParseNode* pn)
         MOZ_ASSERT(arg == nullptr);
         return NumLit(NumLit::Float32x4, SimdConstant::CreateX4(val));
       }
-      case AsmJSSimdType_bool32x4: {
+      case SimdType::Bool32x4: {
         MOZ_ASSERT(SimdTypeToLength(type) == 4);
         int32_t val[4];
         for (size_t i = 0; i < 4; i++, arg = NextNode(arg)) {
@@ -2456,6 +2472,8 @@ ExtractSimdValue(ModuleValidator& m, ParseNode* pn)
         MOZ_ASSERT(arg == nullptr);
         return NumLit(NumLit::Bool32x4, SimdConstant::CreateX4(val));
       }
+      default:
+        break;
     }
 
     MOZ_CRASH("Unexpected SIMD type.");
@@ -2541,6 +2559,41 @@ IsLiteralInt(ModuleValidator& m, ParseNode* pn, uint32_t* u32)
 
 namespace {
 
+#define CASE(TYPE, OP) case SimdOperation::Fn_##OP: return Expr::TYPE##OP;
+#define I32CASE(OP) CASE(I32x4, OP)
+#define F32CASE(OP) CASE(F32x4, OP)
+#define B32CASE(OP) CASE(B32x4, OP)
+#define ENUMERATE(TYPE, FOR_ALL, DO)                                     \
+    switch(op) {                                                         \
+        case SimdOperation::Constructor: return Expr::TYPE##Constructor; \
+        FOR_ALL(DO)                                                      \
+        default: break;                                                  \
+    }
+
+static inline Expr
+SimdToExpr(SimdType type, SimdOperation op)
+{
+    switch (type) {
+      case SimdType::Int32x4: {
+        ENUMERATE(I32x4, FORALL_INT32X4_ASMJS_OP, I32CASE)
+      }
+      case SimdType::Float32x4: {
+        ENUMERATE(F32x4, FORALL_FLOAT32X4_ASMJS_OP, F32CASE)
+      }
+      case SimdType::Bool32x4: {
+        ENUMERATE(B32x4, FORALL_BOOL_SIMD_OP, B32CASE)
+      }
+      default: break;
+    }
+    MOZ_CRASH("unexpected SIMD type x operator combination");
+}
+
+#undef CASE
+#undef I32CASE
+#undef F32CASE
+#undef B32CASE
+#undef ENUMERATE
+
 // Encapsulates the building of an asm bytecode function from an asm.js function
 // source code, packing the asm.js code into the asm bytecode form that can
 // be decoded and compiled with a FunctionCompiler.
@@ -2562,7 +2615,7 @@ class MOZ_STACK_CLASS FunctionValidator
     ParseNode*        fn_;
 
     FunctionGenerator fg_;
-    Encoder           encoder_;
+    Maybe<Encoder>    encoder_;
 
     LocalMap          locals_;
     LabelMap          labels_;
@@ -2583,16 +2636,19 @@ class MOZ_STACK_CLASS FunctionValidator
     ExclusiveContext* cx() const      { return m_.cx(); }
     ParseNode* fn() const             { return fn_; }
 
-    bool init(PropertyName* name, unsigned line, unsigned column) {
-        UniqueBytecode recycled;
-        return m_.mg().startFunc(name, line, column, &recycled, &fg_) &&
-               encoder_.init(Move(recycled)) &&
-               locals_.init() &&
-               labels_.init();
+    bool init(PropertyName* name, unsigned line) {
+        if (!locals_.init() || !labels_.init())
+            return false;
+
+        if (!m_.mg().startFuncDef(line, &fg_))
+            return false;
+
+        encoder_.emplace(fg_.bytecode());
+        return true;
     }
 
-    bool finish(uint32_t funcIndex, const LifoSig& sig, unsigned generateTime) {
-        return m_.mg().finishFunc(funcIndex, sig, encoder().finish(), generateTime, &fg_);
+    bool finish(uint32_t funcIndex, unsigned generateTime) {
+        return m_.mg().finishFuncDef(funcIndex, generateTime, &fg_);
     }
 
     bool fail(ParseNode* pn, const char* str) {
@@ -2613,16 +2669,12 @@ class MOZ_STACK_CLASS FunctionValidator
 
     /***************************************************** Local scope setup */
 
-    bool addFormal(ParseNode* pn, PropertyName* name, ValType type) {
+    bool addLocal(ParseNode* pn, PropertyName* name, ValType type) {
         LocalMap::AddPtr p = locals_.lookupForAdd(name);
         if (p)
             return failName(pn, "duplicate local name '%s' not allowed", name);
-        return locals_.add(p, name, Local(type, locals_.count()));
-    }
-
-    bool addVariable(ParseNode* pn, PropertyName* name, ValType type) {
-        return addFormal(pn, name, type) &&
-               fg_.addVariable(type);
+        return locals_.add(p, name, Local(type, locals_.count())) &&
+               fg_.addLocal(type);
     }
 
     /****************************** For consistency of returns in a function */
@@ -2676,44 +2728,50 @@ class MOZ_STACK_CLASS FunctionValidator
     size_t numLocals() const { return locals_.count(); }
 
     /************************************************* Packing interface */
-    Encoder& encoder() { return encoder_; }
 
-    bool noteLineCol(ParseNode* pn) {
-        uint32_t line, column;
-        m().tokenStream().srcCoords.lineNumAndColumnIndex(pn->pn_pos.begin, &line, &column);
-        return fg_.addSourceCoords(encoder().bytecodeOffset(), line, column);
+    Encoder& encoder() { return *encoder_; }
+
+    bool writeCall(ParseNode* pn, Expr op) {
+        return writeOp(op) &&
+               fg_.addCallSiteLineNum(m().tokenStream().srcCoords.lineNum(pn->pn_pos.begin));
     }
-
-    template<class T>
-    MOZ_WARN_UNUSED_RESULT
-    bool writeOp(T op) {
-        static_assert(sizeof(T) == sizeof(uint8_t), "opcodes must be uint8");
-        return encoder().writeU8(uint8_t(op));
+    bool tempCall(ParseNode* pn, size_t* offset) {
+        return tempOp(offset) &&
+               fg_.addCallSiteLineNum(m().tokenStream().srcCoords.lineNum(pn->pn_pos.begin));
     }
 
     MOZ_WARN_UNUSED_RESULT
-    bool writeDebugCheckPoint() {
-#ifdef DEBUG
-        return writeOp(Stmt::DebugCheckPoint);
-#endif
-        return true;
+    bool writeOp(Expr op) {
+        return encoder().writeExpr(op);
+    }
+    MOZ_WARN_UNUSED_RESULT
+    bool writeExprType(ExprType type) {
+        return encoder().writeExprType(type);
+    }
+    MOZ_WARN_UNUSED_RESULT
+    bool writeSimdOp(SimdType simdType, SimdOperation op) {
+        return writeOp(SimdToExpr(simdType, op));
     }
 
     MOZ_WARN_UNUSED_RESULT
-    bool writeU8(uint8_t u) {
-        return encoder().writeU8(u);
+    bool writeU8(uint8_t u8) {
+        return encoder().writeU8(u8);
     }
     MOZ_WARN_UNUSED_RESULT
-    bool writeU32(uint32_t u) {
-        return encoder().writeU32(u);
+    bool writeVarU32(uint32_t u32) {
+        return encoder().writeVarU32(u32);
     }
     MOZ_WARN_UNUSED_RESULT
-    bool writeI32(int32_t u) {
-        return encoder().writeI32(u);
+    bool writeU32(uint32_t u32) {
+        return encoder().writeU32(u32);
     }
     MOZ_WARN_UNUSED_RESULT
-    bool writeInt32Lit(int32_t i) {
-        return writeOp(I32::Literal) && encoder().writeI32(i);
+    bool writeI32(int32_t i32) {
+        return encoder().writeI32(i32);
+    }
+    MOZ_WARN_UNUSED_RESULT
+    bool writeInt32Lit(int32_t i32) {
+        return writeOp(Expr::I32Const) && encoder().writeVarU32(i32);
     }
 
     MOZ_WARN_UNUSED_RESULT
@@ -2724,26 +2782,24 @@ class MOZ_STACK_CLASS FunctionValidator
           case NumLit::BigUnsigned:
             return writeInt32Lit(lit.toInt32());
           case NumLit::Float:
-            return writeOp(F32::Literal) && encoder().writeF32(lit.toFloat());
+            return writeOp(Expr::F32Const) && encoder().writeF32(lit.toFloat());
           case NumLit::Double:
-            return writeOp(F64::Literal) && encoder().writeF64(lit.toDouble());
+            return writeOp(Expr::F64Const) && encoder().writeF64(lit.toDouble());
           case NumLit::Int32x4:
-            return writeOp(I32X4::Literal) && encoder().writeI32X4(lit.simdValue().asInt32x4());
+            return writeOp(Expr::I32x4Const) && encoder().writeI32X4(lit.simdValue().asInt32x4());
           case NumLit::Float32x4:
-            return writeOp(F32X4::Literal) && encoder().writeF32X4(lit.simdValue().asFloat32x4());
+            return writeOp(Expr::F32x4Const) && encoder().writeF32X4(lit.simdValue().asFloat32x4());
           case NumLit::Bool32x4:
             // Boolean vectors use the Int32x4 memory representation.
-            return writeOp(B32X4::Literal) && encoder().writeI32X4(lit.simdValue().asInt32x4());
+            return writeOp(Expr::B32x4Const) && encoder().writeI32X4(lit.simdValue().asInt32x4());
           case NumLit::OutOfRangeInt:
             break;
         }
         MOZ_CRASH("unexpected literal type");
     }
 
-    template<class T>
-    void patchOp(size_t pos, T stmt) {
-        static_assert(sizeof(T) == sizeof(uint8_t), "opcodes must be uint8");
-        encoder().patchU8(pos, uint8_t(stmt));
+    void patchOp(size_t pos, Expr stmt) {
+        encoder().patchExpr(pos, stmt);
     }
     void patchU8(size_t pos, uint8_t u8) {
         encoder().patchU8(pos, u8);
@@ -2753,39 +2809,25 @@ class MOZ_STACK_CLASS FunctionValidator
         static_assert(sizeof(T) == sizeof(uint32_t), "patch32 is used for 4-bytes long ops");
         encoder().patch32(pos, val);
     }
-    void patchSig(size_t pos, const LifoSig* ptr) {
-        encoder().patchSig(pos, ptr);
-    }
 
     MOZ_WARN_UNUSED_RESULT
     bool tempU8(size_t* offset) {
-        return encoder().writeU8(uint8_t(Stmt::Bad), offset);
+        return encoder().writeU8(uint8_t(Expr::Unreachable), offset);
     }
     MOZ_WARN_UNUSED_RESULT
     bool tempOp(size_t* offset) {
-        return tempU8(offset);
+        return encoder().writeExpr(Expr::Unreachable, offset);
     }
     MOZ_WARN_UNUSED_RESULT
     bool temp32(size_t* offset) {
-        if (!encoder().writeU8(uint8_t(Stmt::Bad), offset))
+        if (!encoder().writeU8(uint8_t(Expr::Unreachable), offset))
             return false;
         for (size_t i = 1; i < 4; i++) {
-            if (!encoder().writeU8(uint8_t(Stmt::Bad)))
+            if (!encoder().writeU8(uint8_t(Expr::Unreachable)))
                 return false;
         }
         return true;
     }
-    MOZ_WARN_UNUSED_RESULT
-    bool tempPtr(size_t* offset) {
-        if (!encoder().writeU8(uint8_t(Stmt::Bad), offset))
-            return false;
-        for (size_t i = 1; i < sizeof(intptr_t); i++) {
-            if (!encoder().writeU8(uint8_t(Stmt::Bad)))
-                return false;
-        }
-        return true;
-    }
-    /************************************************** End of build helpers */
 };
 
 } /* anonymous namespace */
@@ -3062,45 +3104,47 @@ CheckNewArrayView(ModuleValidator& m, PropertyName* varName, ParseNode* newExpr)
 }
 
 static bool
-IsSimdTypeName(ModuleValidator& m, PropertyName* name, AsmJSSimdType* type)
+IsSimdTypeName(ModuleValidator& m, PropertyName* name, SimdType* type)
 {
     if (name == m.cx()->names().Int32x4) {
-        *type = AsmJSSimdType_int32x4;
+        *type = SimdType::Int32x4;
         return true;
     }
     if (name == m.cx()->names().Float32x4) {
-        *type = AsmJSSimdType_float32x4;
+        *type = SimdType::Float32x4;
         return true;
     }
     if (name == m.cx()->names().Bool32x4) {
-        *type = AsmJSSimdType_bool32x4;
+        *type = SimdType::Bool32x4;
         return true;
     }
     return false;
 }
 
 static bool
-IsSimdValidOperationType(AsmJSSimdType type, AsmJSSimdOperation op)
+IsSimdValidOperationType(SimdType type, SimdOperation op)
 {
-#define CASE(op) case AsmJSSimdOperation_##op:
+#define CASE(op) case SimdOperation::Fn_##op:
     switch(type) {
-      case AsmJSSimdType_int32x4:
+      case SimdType::Int32x4:
         switch (op) {
           FORALL_INT32X4_ASMJS_OP(CASE) return true;
           default: return false;
         }
         break;
-      case AsmJSSimdType_float32x4:
+      case SimdType::Float32x4:
         switch (op) {
           FORALL_FLOAT32X4_ASMJS_OP(CASE) return true;
           default: return false;
         }
         break;
-      case AsmJSSimdType_bool32x4:
+      case SimdType::Bool32x4:
         switch (op) {
           FORALL_BOOL_SIMD_OP(CASE) return true;
           default: return false;
         }
+        break;
+      default:
         break;
     }
 #undef CASE
@@ -3147,7 +3191,7 @@ CheckGlobalSimdImport(ModuleValidator& m, ParseNode* initNode, PropertyName* var
         return m.fail(initNode, "SIMD is not supported on this platform");
 
     // SIMD constructor, with the form glob.SIMD.[[type]]
-    AsmJSSimdType simdType;
+    SimdType simdType;
     if (!IsSimdTypeName(m, field, &simdType))
         return m.failName(initNode, "'%s' is not a standard SIMD type", field);
     return m.addSimdCtor(varName, simdType, field);
@@ -3157,8 +3201,8 @@ static bool
 CheckGlobalSimdOperationImport(ModuleValidator& m, const ModuleValidator::Global* global,
                                ParseNode* initNode, PropertyName* varName, PropertyName* opName)
 {
-    AsmJSSimdType simdType = global->simdCtorType();
-    AsmJSSimdOperation simdOp;
+    SimdType simdType = global->simdCtorType();
+    SimdOperation simdOp;
     if (!m.lookupStandardSimdOpName(opName, &simdOp))
         return m.failName(initNode, "'%s' is not a standard SIMD operation", opName);
     if (!IsSimdValidOperationType(simdType, simdOp))
@@ -3266,15 +3310,13 @@ CheckModuleProcessingDirectives(ModuleValidator& m)
             return true;
 
         if (!IsIgnoredDirectiveName(m.cx(), ts.currentToken().atom()))
-            return m.failOffset(ts.currentToken().pos.begin, "unsupported processing directive");
+            return m.failCurrentOffset("unsupported processing directive");
 
         TokenKind tt;
         if (!ts.getToken(&tt))
             return false;
-        if (tt != TOK_SEMI) {
-            return m.failOffset(ts.currentToken().pos.begin,
-                                "expected semicolon after string literal");
-        }
+        if (tt != TOK_SEMI)
+            return m.failCurrentOffset("expected semicolon after string literal");
     }
 }
 
@@ -3342,7 +3384,7 @@ CheckProcessingDirectives(ModuleValidator& m, ParseNode** stmtIter)
 }
 
 static bool
-CheckArguments(FunctionValidator& f, ParseNode** stmtIter, MallocSig::ArgVector* argTypes)
+CheckArguments(FunctionValidator& f, ParseNode** stmtIter, ValTypeVector* argTypes)
 {
     ParseNode* stmt = *stmtIter;
 
@@ -3361,7 +3403,7 @@ CheckArguments(FunctionValidator& f, ParseNode** stmtIter, MallocSig::ArgVector*
         if (!argTypes->append(type))
             return false;
 
-        if (!f.addFormal(argpn, name, type))
+        if (!f.addLocal(argpn, name, type))
             return false;
     }
 
@@ -3393,26 +3435,20 @@ CheckFinalReturn(FunctionValidator& f, ParseNode* lastNonEmptyStmt)
 {
     if (!f.hasAlreadyReturned()) {
         f.setReturnedType(ExprType::Void);
-        return f.writeOp(Stmt::Ret);
+        return true;
     }
 
-    if (!lastNonEmptyStmt->isKind(PNK_RETURN)) {
-        if (!IsVoid(f.returnedType()))
-            return f.fail(lastNonEmptyStmt, "void incompatible with previous return type");
-
-        return f.writeOp(Stmt::Ret);
-    }
+    if (!lastNonEmptyStmt->isKind(PNK_RETURN) && !IsVoid(f.returnedType()))
+        return f.fail(lastNonEmptyStmt, "void incompatible with previous return type");
 
     return true;
 }
 
-template<class T>
 static bool
-SetLocal(FunctionValidator& f, Stmt exprStmt, T setLocal, NumLit lit)
+SetLocal(FunctionValidator& f, NumLit lit)
 {
-    return f.writeOp(exprStmt) &&
-           f.writeOp(setLocal) &&
-           f.writeU32(f.numLocals()) &&
+    return f.writeOp(Expr::SetLocal) &&
+           f.writeVarU32(f.numLocals()) &&
            f.writeLit(lit);
 }
 
@@ -3438,43 +3474,10 @@ CheckVariable(FunctionValidator& f, ParseNode* var)
     if (!lit.valid())
         return f.failName(var, "var '%s' initializer out of range", name);
 
-    switch (lit.which()) {
-      case NumLit::Fixnum:
-      case NumLit::NegativeInt:
-      case NumLit::BigUnsigned:
-        if (lit.toInt32() != 0 && !SetLocal(f, Stmt::I32Expr, I32::SetLocal, lit))
-            return false;
-        break;
-      case NumLit::Double:
-        if ((lit.toDouble() != 0.0 || IsNegativeZero(lit.toDouble())) &&
-            !SetLocal(f, Stmt::F64Expr, F64::SetLocal, lit))
-            return false;
-        break;
-      case NumLit::Float:
-        if ((lit.toFloat() != 0.f || !IsNegativeZero(lit.toFloat())) &&
-            !SetLocal(f, Stmt::F32Expr, F32::SetLocal, lit))
-            return false;
-        break;
-      case NumLit::Int32x4:
-        if (lit.simdValue() != SimdConstant::SplatX4(0) &&
-            !SetLocal(f, Stmt::I32X4Expr, I32X4::SetLocal, lit))
-            return false;
-        break;
-      case NumLit::Float32x4:
-        if (lit.simdValue() != SimdConstant::SplatX4(0.f) &&
-            !SetLocal(f, Stmt::F32X4Expr, F32X4::SetLocal, lit))
-            return false;
-        break;
-      case NumLit::Bool32x4:
-        if (lit.simdValue() != SimdConstant::SplatX4(0) &&
-            !SetLocal(f, Stmt::B32X4Expr, B32X4::SetLocal, lit))
-            return false;
-        break;
-      case NumLit::OutOfRangeInt:
-        MOZ_CRASH("can't be here because of valid() check above");
-    }
+    if (!lit.isZeroBits() && !SetLocal(f, lit))
+        return false;
 
-    return f.addVariable(var, name, lit.type());
+    return f.addLocal(var, name, lit.type());
 }
 
 static bool
@@ -3512,16 +3515,10 @@ CheckVarRef(FunctionValidator& f, ParseNode* varRef, Type* type)
     PropertyName* name = varRef->name();
 
     if (const FunctionValidator::Local* local = f.lookupLocal(name)) {
-        switch (local->type) {
-          case ValType::I32:    if (!f.writeOp(I32::GetLocal))   return false; break;
-          case ValType::I64:    MOZ_CRASH("no int64 in asm.js");
-          case ValType::F32:    if (!f.writeOp(F32::GetLocal))   return false; break;
-          case ValType::F64:    if (!f.writeOp(F64::GetLocal))   return false; break;
-          case ValType::I32x4:  if (!f.writeOp(I32X4::GetLocal)) return false; break;
-          case ValType::F32x4:  if (!f.writeOp(F32X4::GetLocal)) return false; break;
-          case ValType::B32x4:  if (!f.writeOp(B32X4::GetLocal)) return false; break;
-        }
-        if (!f.writeU32(local->slot))
+        if (!f.writeOp(Expr::GetLocal))
+            return false;
+        MOZ_ASSERT(local->type != ValType::I64, "no int64 in asm.js");
+        if (!f.writeVarU32(local->slot))
             return false;
         *type = Type::var(local->type);
         return true;
@@ -3535,18 +3532,7 @@ CheckVarRef(FunctionValidator& f, ParseNode* varRef, Type* type)
           case ModuleValidator::Global::ConstantImport:
           case ModuleValidator::Global::Variable: {
             *type = global->varOrConstType();
-            switch (type->which()) {
-              case Type::Int:       if (!f.writeOp(I32::GetGlobal))   return false; break;
-              case Type::Double:    if (!f.writeOp(F64::GetGlobal))   return false; break;
-              case Type::Float:     if (!f.writeOp(F32::GetGlobal))   return false; break;
-              case Type::Int32x4:   if (!f.writeOp(I32X4::GetGlobal)) return false; break;
-              case Type::Float32x4: if (!f.writeOp(F32X4::GetGlobal)) return false; break;
-              case Type::Bool32x4:  if (!f.writeOp(B32X4::GetGlobal)) return false; break;
-              default: MOZ_CRASH("unexpected global type");
-            }
-            if (!f.writeU32(global->varOrConstGlobalDataOffset()))
-                return false;
-            return f.writeU8(uint8_t(global->isConst()));
+            return f.writeOp(Expr::LoadGlobal) && f.writeVarU32(global->varOrConstIndex());
           }
           case ModuleValidator::Global::Function:
           case ModuleValidator::Global::FFI:
@@ -3556,7 +3542,7 @@ CheckVarRef(FunctionValidator& f, ParseNode* varRef, Type* type)
           case ModuleValidator::Global::ArrayView:
           case ModuleValidator::Global::ArrayViewCtor:
           case ModuleValidator::Global::SimdCtor:
-          case ModuleValidator::Global::SimdOperation:
+          case ModuleValidator::Global::SimdOp:
             break;
         }
         return f.failName(varRef, "'%s' may not be accessed by ordinary expressions", name);
@@ -3699,11 +3685,11 @@ CheckAndPrepareArrayAccess(FunctionValidator& f, ParseNode* viewName, ParseNode*
     // Don't generate the mask op if there is no need for it which could happen for
     // a shift of zero or a SIMD access.
     if (*mask != NoMask) {
-        f.patchOp(prepareAt, I32::BitAnd);
+        f.patchOp(prepareAt, Expr::I32And);
         return f.writeInt32Lit(*mask);
     }
 
-    f.patchOp(prepareAt, I32::Id);
+    f.patchOp(prepareAt, Expr::Id);
     return true;
 }
 
@@ -3723,14 +3709,14 @@ CheckLoadArray(FunctionValidator& f, ParseNode* elem, Type* type)
         return false;
 
     switch (viewType) {
-      case Scalar::Int8:    f.patchOp(opcodeAt, I32::SLoad8);  break;
-      case Scalar::Int16:   f.patchOp(opcodeAt, I32::SLoad16); break;
-      case Scalar::Int32:   f.patchOp(opcodeAt, I32::SLoad32); break;
-      case Scalar::Uint8:   f.patchOp(opcodeAt, I32::ULoad8);  break;
-      case Scalar::Uint16:  f.patchOp(opcodeAt, I32::ULoad16); break;
-      case Scalar::Uint32:  f.patchOp(opcodeAt, I32::ULoad32); break;
-      case Scalar::Float32: f.patchOp(opcodeAt, F32::Load);    break;
-      case Scalar::Float64: f.patchOp(opcodeAt, F64::Load);    break;
+      case Scalar::Int8:    f.patchOp(opcodeAt, Expr::I32LoadMem8S);  break;
+      case Scalar::Uint8:   f.patchOp(opcodeAt, Expr::I32LoadMem8U);  break;
+      case Scalar::Int16:   f.patchOp(opcodeAt, Expr::I32LoadMem16S); break;
+      case Scalar::Uint16:  f.patchOp(opcodeAt, Expr::I32LoadMem16U); break;
+      case Scalar::Uint32:
+      case Scalar::Int32:   f.patchOp(opcodeAt, Expr::I32LoadMem);    break;
+      case Scalar::Float32: f.patchOp(opcodeAt, Expr::F32LoadMem);    break;
+      case Scalar::Float64: f.patchOp(opcodeAt, Expr::F64LoadMem);    break;
       default: MOZ_CRASH("unexpected scalar type");
     }
 
@@ -3800,27 +3786,27 @@ CheckStoreArray(FunctionValidator& f, ParseNode* lhs, ParseNode* rhs, Type* type
     switch (viewType) {
       case Scalar::Int8:
       case Scalar::Uint8:
-        f.patchOp(opcodeAt, I32::Store8);
+        f.patchOp(opcodeAt, Expr::I32StoreMem8);
         break;
       case Scalar::Int16:
       case Scalar::Uint16:
-        f.patchOp(opcodeAt, I32::Store16);
+        f.patchOp(opcodeAt, Expr::I32StoreMem16);
         break;
       case Scalar::Int32:
       case Scalar::Uint32:
-        f.patchOp(opcodeAt, I32::Store32);
+        f.patchOp(opcodeAt, Expr::I32StoreMem);
         break;
       case Scalar::Float32:
         if (rhsType.isFloatish())
-            f.patchOp(opcodeAt, F32::StoreF32);
+            f.patchOp(opcodeAt, Expr::F32StoreMem);
         else
-            f.patchOp(opcodeAt, F64::StoreF32);
+            f.patchOp(opcodeAt, Expr::F64StoreMemF32);
         break;
       case Scalar::Float64:
         if (rhsType.isFloatish())
-            f.patchOp(opcodeAt, F32::StoreF64);
+            f.patchOp(opcodeAt, Expr::F32StoreMemF64);
         else
-            f.patchOp(opcodeAt, F64::StoreF64);
+            f.patchOp(opcodeAt, Expr::F64StoreMem);
         break;
       default: MOZ_CRASH("unexpected scalar type");
     }
@@ -3836,32 +3822,19 @@ CheckAssignName(FunctionValidator& f, ParseNode* lhs, ParseNode* rhs, Type* type
 {
     RootedPropertyName name(f.cx(), lhs->name());
 
-    size_t opcodeAt;
-    size_t indexAt;
-    if (!f.tempOp(&opcodeAt) || !f.temp32(&indexAt))
-        return false;
-
-    Type rhsType;
-    if (!CheckExpr(f, rhs, &rhsType))
-        return false;
-
     if (const FunctionValidator::Local* lhsVar = f.lookupLocal(name)) {
+        if (!f.writeOp(Expr::SetLocal) || !f.writeVarU32(lhsVar->slot))
+            return false;
+
+        Type rhsType;
+        if (!CheckExpr(f, rhs, &rhsType))
+            return false;
+
         if (!(rhsType <= lhsVar->type)) {
             return f.failf(lhs, "%s is not a subtype of %s",
                            rhsType.toChars(), Type::var(lhsVar->type).toChars());
         }
-
-        switch (lhsVar->type) {
-          case ValType::I32:    f.patchOp(opcodeAt, I32::SetLocal);   break;
-          case ValType::I64:    MOZ_CRASH("no int64 in asm.js");
-          case ValType::F64:    f.patchOp(opcodeAt, F64::SetLocal);   break;
-          case ValType::F32:    f.patchOp(opcodeAt, F32::SetLocal);   break;
-          case ValType::I32x4:  f.patchOp(opcodeAt, I32X4::SetLocal); break;
-          case ValType::F32x4:  f.patchOp(opcodeAt, F32X4::SetLocal); break;
-          case ValType::B32x4:  f.patchOp(opcodeAt, B32X4::SetLocal); break;
-        }
-
-        f.patch32(indexAt, lhsVar->slot);
+        MOZ_ASSERT(lhsVar->type != ValType::I64, "no int64 in asm.js");
         *type = rhsType;
         return true;
     }
@@ -3870,22 +3843,16 @@ CheckAssignName(FunctionValidator& f, ParseNode* lhs, ParseNode* rhs, Type* type
         if (global->which() != ModuleValidator::Global::Variable)
             return f.failName(lhs, "'%s' is not a mutable variable", name);
 
-        if (!(rhsType <= global->varOrConstType())) {
-            return f.failf(lhs, "%s is not a subtype of %s",
-                           rhsType.toChars(), global->varOrConstType().toChars());
-        }
+        if (!f.writeOp(Expr::StoreGlobal) || !f.writeVarU32(global->varOrConstIndex()))
+            return false;
 
-        switch (global->varOrConstType().which()) {
-          case Type::Int:       f.patchOp(opcodeAt, I32::SetGlobal);   break;
-          case Type::Float:     f.patchOp(opcodeAt, F32::SetGlobal);   break;
-          case Type::Double:    f.patchOp(opcodeAt, F64::SetGlobal);   break;
-          case Type::Int32x4:   f.patchOp(opcodeAt, I32X4::SetGlobal); break;
-          case Type::Float32x4: f.patchOp(opcodeAt, F32X4::SetGlobal); break;
-          case Type::Bool32x4:  f.patchOp(opcodeAt, B32X4::SetGlobal); break;
-          default: MOZ_CRASH("unexpected global type");
-        }
+        Type rhsType;
+        if (!CheckExpr(f, rhs, &rhsType))
+            return false;
 
-        f.patch32(indexAt, global->varOrConstGlobalDataOffset());
+        Type globType = global->varOrConstType();
+        if (!(rhsType <= globType))
+            return f.failf(lhs, "%s is not a subtype of %s", rhsType.toChars(), globType.toChars());
         *type = rhsType;
         return true;
     }
@@ -3919,7 +3886,7 @@ CheckMathIMul(FunctionValidator& f, ParseNode* call, Type* type)
     ParseNode* lhs = CallArgList(call);
     ParseNode* rhs = NextNode(lhs);
 
-    if (!f.writeOp(I32::Mul))
+    if (!f.writeOp(Expr::I32Mul))
         return false;
 
     Type lhsType;
@@ -3945,7 +3912,7 @@ CheckMathClz32(FunctionValidator& f, ParseNode* call, Type* type)
     if (CallArgListLength(call) != 1)
         return f.fail(call, "Math.clz32 must be passed 1 argument");
 
-    if (!f.writeOp(I32::Clz))
+    if (!f.writeOp(Expr::I32Clz))
         return false;
 
     ParseNode* arg = CallArgList(call);
@@ -3978,19 +3945,19 @@ CheckMathAbs(FunctionValidator& f, ParseNode* call, Type* type)
         return false;
 
     if (argType.isSigned()) {
-        f.patchOp(opcodeAt, I32::Abs);
+        f.patchOp(opcodeAt, Expr::I32Abs);
         *type = Type::Unsigned;
         return true;
     }
 
     if (argType.isMaybeDouble()) {
-        f.patchOp(opcodeAt, F64::Abs);
+        f.patchOp(opcodeAt, Expr::F64Abs);
         *type = Type::Double;
         return true;
     }
 
     if (argType.isMaybeFloat()) {
-        f.patchOp(opcodeAt, F32::Abs);
+        f.patchOp(opcodeAt, Expr::F32Abs);
         *type = Type::Floatish;
         return true;
     }
@@ -4015,13 +3982,13 @@ CheckMathSqrt(FunctionValidator& f, ParseNode* call, Type* type)
         return false;
 
     if (argType.isMaybeDouble()) {
-        f.patchOp(opcodeAt, F64::Sqrt);
+        f.patchOp(opcodeAt, Expr::F64Sqrt);
         *type = Type::Double;
         return true;
     }
 
     if (argType.isMaybeFloat()) {
-        f.patchOp(opcodeAt, F32::Sqrt);
+        f.patchOp(opcodeAt, Expr::F32Sqrt);
         *type = Type::Floatish;
         return true;
     }
@@ -4036,8 +4003,7 @@ CheckMathMinMax(FunctionValidator& f, ParseNode* callNode, bool isMax, Type* typ
         return f.fail(callNode, "Math.min/max must be passed at least 2 arguments");
 
     size_t opcodeAt;
-    size_t numArgsAt;
-    if (!f.tempOp(&opcodeAt) || !f.tempU8(&numArgsAt))
+    if (!f.tempOp(&opcodeAt))
         return false;
 
     ParseNode* firstArg = CallArgList(callNode);
@@ -4045,28 +4011,31 @@ CheckMathMinMax(FunctionValidator& f, ParseNode* callNode, bool isMax, Type* typ
     if (!CheckExpr(f, firstArg, &firstType))
         return false;
 
+    Expr expr;
     if (firstType.isMaybeDouble()) {
         *type = Type::Double;
         firstType = Type::MaybeDouble;
-        f.patchOp(opcodeAt, isMax ? F64::Max : F64::Min);
+        expr = isMax ? Expr::F64Max : Expr::F64Min;
     } else if (firstType.isMaybeFloat()) {
         *type = Type::Float;
         firstType = Type::MaybeFloat;
-        f.patchOp(opcodeAt, isMax ? F32::Max : F32::Min);
+        expr = isMax ? Expr::F32Max : Expr::F32Min;
     } else if (firstType.isSigned()) {
         *type = Type::Signed;
         firstType = Type::Signed;
-        f.patchOp(opcodeAt, isMax ? I32::Max : I32::Min);
+        expr = isMax ? Expr::I32Max : Expr::I32Min;
     } else {
         return f.failf(firstArg, "%s is not a subtype of double?, float? or signed",
                        firstType.toChars());
     }
+    f.patchOp(opcodeAt, expr);
 
     unsigned numArgs = CallArgListLength(callNode);
-    f.patchU8(numArgsAt, numArgs);
-
     ParseNode* nextArg = NextNode(firstArg);
     for (unsigned i = 1; i < numArgs; i++, nextArg = NextNode(nextArg)) {
+        if (i != numArgs - 1 && !f.writeOp(expr))
+            return false;
+
         Type nextType;
         if (!CheckExpr(f, nextArg, &nextType))
             return false;
@@ -4114,12 +4083,11 @@ CheckAtomicsFence(FunctionValidator& f, ParseNode* call, Type* type)
         return f.fail(call, "Atomics.fence must be passed 0 arguments");
 
     *type = Type::Void;
-    return f.writeOp(Stmt::AtomicsFence);
+    return f.writeOp(Expr::AtomicsFence);
 }
 
-template<class T>
 static bool
-WriteAtomicOperator(FunctionValidator& f, T opcode, size_t* needsBoundsCheckAt, size_t* viewTypeAt)
+WriteAtomicOperator(FunctionValidator& f, Expr opcode, size_t* needsBoundsCheckAt, size_t* viewTypeAt)
 {
     return f.writeOp(opcode) &&
            f.tempU8(needsBoundsCheckAt) &&
@@ -4137,7 +4105,7 @@ CheckAtomicsLoad(FunctionValidator& f, ParseNode* call, Type* type)
 
     size_t needsBoundsCheckAt;
     size_t viewTypeAt;
-    if (!WriteAtomicOperator(f, I32::AtomicsLoad, &needsBoundsCheckAt, &viewTypeAt))
+    if (!WriteAtomicOperator(f, Expr::I32AtomicsLoad, &needsBoundsCheckAt, &viewTypeAt))
         return false;
 
     Scalar::Type viewType;
@@ -4165,7 +4133,7 @@ CheckAtomicsStore(FunctionValidator& f, ParseNode* call, Type* type)
 
     size_t needsBoundsCheckAt;
     size_t viewTypeAt;
-    if (!WriteAtomicOperator(f, I32::AtomicsStore, &needsBoundsCheckAt, &viewTypeAt))
+    if (!WriteAtomicOperator(f, Expr::I32AtomicsStore, &needsBoundsCheckAt, &viewTypeAt))
         return false;
 
     Scalar::Type viewType;
@@ -4200,7 +4168,7 @@ CheckAtomicsBinop(FunctionValidator& f, ParseNode* call, Type* type, AtomicOp op
 
     size_t needsBoundsCheckAt;
     size_t viewTypeAt;
-    if (!WriteAtomicOperator(f, I32::AtomicsBinOp, &needsBoundsCheckAt, &viewTypeAt))
+    if (!WriteAtomicOperator(f, Expr::I32AtomicsBinOp, &needsBoundsCheckAt, &viewTypeAt))
         return false;
     if (!f.writeU8(uint8_t(op)))
         return false;
@@ -4254,7 +4222,7 @@ CheckAtomicsCompareExchange(FunctionValidator& f, ParseNode* call, Type* type)
 
     size_t needsBoundsCheckAt;
     size_t viewTypeAt;
-    if (!WriteAtomicOperator(f, I32::AtomicsCompareExchange, &needsBoundsCheckAt, &viewTypeAt))
+    if (!WriteAtomicOperator(f, Expr::I32AtomicsCompareExchange, &needsBoundsCheckAt, &viewTypeAt))
         return false;
 
     Scalar::Type viewType;
@@ -4296,7 +4264,7 @@ CheckAtomicsExchange(FunctionValidator& f, ParseNode* call, Type* type)
 
     size_t needsBoundsCheckAt;
     size_t viewTypeAt;
-    if (!WriteAtomicOperator(f, I32::AtomicsExchange, &needsBoundsCheckAt, &viewTypeAt))
+    if (!WriteAtomicOperator(f, Expr::I32AtomicsExchange, &needsBoundsCheckAt, &viewTypeAt))
         return false;
 
     Scalar::Type viewType;
@@ -4355,7 +4323,7 @@ typedef bool (*CheckArgType)(FunctionValidator& f, ParseNode* argNode, Type type
 
 template <CheckArgType checkArg>
 static bool
-CheckCallArgs(FunctionValidator& f, ParseNode* callNode, MallocSig::ArgVector* args)
+CheckCallArgs(FunctionValidator& f, ParseNode* callNode, ValTypeVector* args)
 {
     ParseNode* argNode = CallArgList(callNode);
     for (unsigned i = 0; i < CallArgListLength(callNode); i++, argNode = NextNode(argNode)) {
@@ -4372,10 +4340,8 @@ CheckCallArgs(FunctionValidator& f, ParseNode* callNode, MallocSig::ArgVector* a
     return true;
 }
 
-template <class SigT>
 static bool
-CheckSignatureAgainstExisting(ModuleValidator& m, ParseNode* usepn, SigT& sig,
-                              const LifoSig& existing)
+CheckSignatureAgainstExisting(ModuleValidator& m, ParseNode* usepn, const Sig& sig, const Sig& existing)
 {
     if (sig.args().length() != existing.args().length()) {
         return m.failf(usepn, "incompatible number of arguments (%u here vs. %u before)",
@@ -4399,17 +4365,17 @@ CheckSignatureAgainstExisting(ModuleValidator& m, ParseNode* usepn, SigT& sig,
 }
 
 static bool
-CheckFunctionSignature(ModuleValidator& m, ParseNode* usepn, const MallocSig& sig,
-                       PropertyName* name, ModuleValidator::Func** func)
+CheckFunctionSignature(ModuleValidator& m, ParseNode* usepn, Sig&& sig, PropertyName* name,
+                       ModuleValidator::Func** func)
 {
     ModuleValidator::Func* existing = m.lookupFunction(name);
     if (!existing) {
         if (!CheckModuleLevelName(m, usepn, name))
             return false;
-        return m.addFunction(name, usepn->pn_pos.begin, sig, func);
+        return m.addFunction(name, usepn->pn_pos.begin, Move(sig), func);
     }
 
-    if (!CheckSignatureAgainstExisting(m, usepn, sig, existing->sig()))
+    if (!CheckSignatureAgainstExisting(m, usepn, sig, m.mg().funcSig(existing->index())))
         return false;
 
     *func = existing;
@@ -4428,47 +4394,30 @@ static bool
 CheckInternalCall(FunctionValidator& f, ParseNode* callNode, PropertyName* calleeName,
                   ExprType ret, Type* type)
 {
-    switch (ret) {
-      case ExprType::Void:   if (!f.writeOp(Stmt::CallInternal))  return false; break;
-      case ExprType::I32:    if (!f.writeOp(I32::CallInternal))   return false; break;
-      case ExprType::I64:    MOZ_CRASH("no int64 in asm.js");
-      case ExprType::F32:    if (!f.writeOp(F32::CallInternal))   return false; break;
-      case ExprType::F64:    if (!f.writeOp(F64::CallInternal))   return false; break;
-      case ExprType::I32x4:  if (!f.writeOp(I32X4::CallInternal)) return false; break;
-      case ExprType::F32x4:  if (!f.writeOp(F32X4::CallInternal)) return false; break;
-      case ExprType::B32x4:  if (!f.writeOp(B32X4::CallInternal)) return false; break;
-    }
+    if (!f.writeCall(callNode, Expr::Call))
+        return false;
 
     // Function's index, to find out the function's entry
     size_t funcIndexAt;
-    // Function's signature in lifo
-    size_t sigAt;
-    if (!f.temp32(&funcIndexAt) || !f.tempPtr(&sigAt))
+    if (!f.temp32(&funcIndexAt))
         return false;
 
-    if (!f.noteLineCol(callNode))
-        return false;
-
-    MallocSig::ArgVector args;
+    ValTypeVector args;
     if (!CheckCallArgs<CheckIsVarType>(f, callNode, &args))
         return false;
 
-    MallocSig sig(Move(args), ret);
-
     ModuleValidator::Func* callee;
-    if (!CheckFunctionSignature(f.m(), callNode, sig, calleeName, &callee))
+    if (!CheckFunctionSignature(f.m(), callNode, Sig(Move(args), ret), calleeName, &callee))
         return false;
 
     f.patch32(funcIndexAt, callee->index());
-    f.patchSig(sigAt, &callee->sig());
     *type = Type::ret(ret);
     return true;
 }
 
-template <class SigT>
 static bool
 CheckFuncPtrTableAgainstExisting(ModuleValidator& m, ParseNode* usepn, PropertyName* name,
-                                 SigT& sig, unsigned mask, uint32_t* funcPtrTableIndex)
+                                 Sig&& sig, unsigned mask, uint32_t* funcPtrTableIndex)
 {
     if (const ModuleValidator::Global* existing = m.lookupGlobal(name)) {
         if (existing->which() != ModuleValidator::Global::FuncPtrTable)
@@ -4478,7 +4427,7 @@ CheckFuncPtrTableAgainstExisting(ModuleValidator& m, ParseNode* usepn, PropertyN
         if (mask != table.mask())
             return m.failf(usepn, "mask does not match previous value (%u)", table.mask());
 
-        if (!CheckSignatureAgainstExisting(m, usepn, sig, table.sig()))
+        if (!CheckSignatureAgainstExisting(m, usepn, sig, m.mg().sig(table.sigIndex())))
             return false;
 
         *funcPtrTableIndex = existing->funcPtrTableIndex();
@@ -4488,7 +4437,7 @@ CheckFuncPtrTableAgainstExisting(ModuleValidator& m, ParseNode* usepn, PropertyN
     if (!CheckModuleLevelName(m, usepn, name))
         return false;
 
-    if (!m.declareFuncPtrTable(name, usepn->pn_pos.begin, sig, mask, funcPtrTableIndex))
+    if (!m.declareFuncPtrTable(Move(sig), name, usepn->pn_pos.begin, mask, funcPtrTableIndex))
         return m.fail(usepn, "table too big");
 
     return true;
@@ -4521,29 +4470,21 @@ CheckFuncPtrCall(FunctionValidator& f, ParseNode* callNode, ExprType ret, Type* 
         return f.fail(maskNode, "function-pointer table index mask value must be a power of two minus 1");
 
     // Opcode
-    switch (ret) {
-      case ExprType::Void:   if (!f.writeOp(Stmt::CallIndirect))  return false; break;
-      case ExprType::I32:    if (!f.writeOp(I32::CallIndirect))   return false; break;
-      case ExprType::I64:    MOZ_CRASH("no in64 in asm.js");
-      case ExprType::F32:    if (!f.writeOp(F32::CallIndirect))   return false; break;
-      case ExprType::F64:    if (!f.writeOp(F64::CallIndirect))   return false; break;
-      case ExprType::I32x4:  if (!f.writeOp(I32X4::CallIndirect)) return false; break;
-      case ExprType::F32x4:  if (!f.writeOp(F32X4::CallIndirect)) return false; break;
-      case ExprType::B32x4:  if (!f.writeOp(B32X4::CallIndirect)) return false; break;
-    }
+    if (!f.writeCall(callNode, Expr::CallIndirect))
+        return false;
+
     // Table's mask
     if (!f.writeU32(mask))
         return false;
+
     // Global data offset
     size_t globalDataOffsetAt;
     if (!f.temp32(&globalDataOffsetAt))
         return false;
-    // Signature
-    size_t sigAt;
-    if (!f.tempPtr(&sigAt))
-        return false;
 
-    if (!f.noteLineCol(callNode))
+    // Call signature
+    size_t sigIndexAt;
+    if (!f.temp32(&sigIndexAt))
         return false;
 
     Type indexType;
@@ -4553,18 +4494,18 @@ CheckFuncPtrCall(FunctionValidator& f, ParseNode* callNode, ExprType ret, Type* 
     if (!indexType.isIntish())
         return f.failf(indexNode, "%s is not a subtype of intish", indexType.toChars());
 
-    MallocSig::ArgVector args;
+    ValTypeVector args;
     if (!CheckCallArgs<CheckIsVarType>(f, callNode, &args))
         return false;
 
-    MallocSig sig(Move(args), ret);
+    Sig sig(Move(args), ret);
 
-    uint32_t funcPtrTableIndex;
-    if (!CheckFuncPtrTableAgainstExisting(f.m(), tableNode, name, sig, mask, &funcPtrTableIndex))
+    uint32_t tableIndex;
+    if (!CheckFuncPtrTableAgainstExisting(f.m(), tableNode, name, Move(sig), mask, &tableIndex))
         return false;
 
-    f.patch32(globalDataOffsetAt, f.m().mg().funcPtrTableGlobalDataOffset(funcPtrTableIndex));
-    f.patchSig(sigAt, &f.m().funcPtrTable(funcPtrTableIndex).sig());
+    f.patch32(globalDataOffsetAt, f.m().mg().funcPtrTableGlobalDataOffset(tableIndex));
+    f.patch32(sigIndexAt, f.m().funcPtrTable(tableIndex).sigIndex());
 
     *type = Type::ret(ret);
     return true;
@@ -4589,42 +4530,25 @@ CheckFFICall(FunctionValidator& f, ParseNode* callNode, unsigned ffiIndex, ExprT
     if (IsSimdType(ret))
         return f.fail(callNode, "FFI calls can't return SIMD values");
 
-    switch (ret) {
-      case ExprType::Void:   if (!f.writeOp(Stmt::CallImport))  return false; break;
-      case ExprType::I32:    if (!f.writeOp(I32::CallImport))   return false; break;
-      case ExprType::I64:    MOZ_CRASH("no int64 in asm.js");
-      case ExprType::F32:    if (!f.writeOp(F32::CallImport))   return false; break;
-      case ExprType::F64:    if (!f.writeOp(F64::CallImport))   return false; break;
-      case ExprType::I32x4:  if (!f.writeOp(I32X4::CallImport)) return false; break;
-      case ExprType::F32x4:  if (!f.writeOp(F32X4::CallImport)) return false; break;
-      case ExprType::B32x4:  if (!f.writeOp(B32X4::CallImport)) return false; break;
-    }
-
-    // Global data offset
-    size_t offsetAt;
-    if (!f.temp32(&offsetAt))
-        return false;
-    // Pointer to the import's signature in the module's lifo
-    size_t sigAt;
-    if (!f.tempPtr(&sigAt))
+    // Opcode
+    if (!f.writeCall(callNode, Expr::CallImport))
         return false;
 
-    if (!f.noteLineCol(callNode))
+    // Import index
+    size_t importIndexAt;
+    if (!f.temp32(&importIndexAt))
         return false;
 
-    MallocSig::ArgVector args;
+    ValTypeVector args;
     if (!CheckCallArgs<CheckIsExternType>(f, callNode, &args))
         return false;
 
-    MallocSig sig(Move(args), ret);
-
-    unsigned importIndex = 0;
-    const LifoSig* lifoSig = nullptr;
-    if (!f.m().addImport(calleeName, Move(sig), ffiIndex, &importIndex, &lifoSig))
+    uint32_t importIndex;
+    if (!f.m().declareImport(calleeName, Sig(Move(args), ret), ffiIndex, &importIndex))
         return false;
 
-    f.patch32(offsetAt, f.m().mg().importExitGlobalDataOffset(importIndex));
-    f.patchSig(sigAt, lifoSig);
+    f.patch32(importIndexAt, importIndex);
+
     *type = Type::ret(ret);
     return true;
 }
@@ -4634,19 +4558,19 @@ CheckFloatCoercionArg(FunctionValidator& f, ParseNode* inputNode, Type inputType
                       size_t opcodeAt)
 {
     if (inputType.isMaybeDouble()) {
-        f.patchOp(opcodeAt, F32::FromF64);
+        f.patchOp(opcodeAt, Expr::F32DemoteF64);
         return true;
     }
     if (inputType.isSigned()) {
-        f.patchOp(opcodeAt, F32::FromS32);
+        f.patchOp(opcodeAt, Expr::F32ConvertSI32);
         return true;
     }
     if (inputType.isUnsigned()) {
-        f.patchOp(opcodeAt, F32::FromU32);
+        f.patchOp(opcodeAt, Expr::F32ConvertUI32);
         return true;
     }
     if (inputType.isFloatish()) {
-        f.patchOp(opcodeAt, F32::Id);
+        f.patchOp(opcodeAt, Expr::Id);
         return true;
     }
 
@@ -4680,22 +4604,15 @@ CheckCoercionArg(FunctionValidator& f, ParseNode* arg, ValType expected, Type* t
       case ValType::I64:
         MOZ_CRASH("no int64 in asm.js");
       case ValType::I32x4:
-        if (!argType.isInt32x4())
-            return f.fail(arg, "argument to SIMD int32x4 coercion isn't int32x4");
-        f.patchOp(opcodeAt, I32X4::Id);
-        break;
       case ValType::F32x4:
-        if (!argType.isFloat32x4())
-            return f.fail(arg, "argument to SIMD float32x4 coercion isn't float32x4");
-        f.patchOp(opcodeAt, F32X4::Id);
-        break;
       case ValType::B32x4:
-        if (!argType.isBool32x4())
-            return f.fail(arg, "argument to SIMD bool32x4 coercion isn't bool32x4");
-        f.patchOp(opcodeAt, B32X4::Id);
+        if (!(argType <= expected))
+            return f.fail(arg, "argument to SIMD coercion isn't from the correct SIMD type");
+        f.patchOp(opcodeAt, Expr::Id);
         break;
       case ValType::I32:
       case ValType::F64:
+      case ValType::Limit:
         MOZ_CRASH("not call coercions");
     }
 
@@ -4724,8 +4641,8 @@ CheckMathBuiltinCall(FunctionValidator& f, ParseNode* callNode, AsmJSMathBuiltin
                      Type* type)
 {
     unsigned arity = 0;
-    F32 f32;
-    F64 f64;
+    Expr f32;
+    Expr f64;
     switch (func) {
       case AsmJSMathBuiltin_imul:   return CheckMathIMul(f, callNode, type);
       case AsmJSMathBuiltin_clz32:  return CheckMathClz32(f, callNode, type);
@@ -4734,18 +4651,18 @@ CheckMathBuiltinCall(FunctionValidator& f, ParseNode* callNode, AsmJSMathBuiltin
       case AsmJSMathBuiltin_fround: return CheckMathFRound(f, callNode, type);
       case AsmJSMathBuiltin_min:    return CheckMathMinMax(f, callNode, /* isMax = */ false, type);
       case AsmJSMathBuiltin_max:    return CheckMathMinMax(f, callNode, /* isMax = */ true, type);
-      case AsmJSMathBuiltin_ceil:   arity = 1; f64 = F64::Ceil;  f32 = F32::Ceil;  break;
-      case AsmJSMathBuiltin_floor:  arity = 1; f64 = F64::Floor; f32 = F32::Floor; break;
-      case AsmJSMathBuiltin_sin:    arity = 1; f64 = F64::Sin;   f32 = F32::Bad;   break;
-      case AsmJSMathBuiltin_cos:    arity = 1; f64 = F64::Cos;   f32 = F32::Bad;   break;
-      case AsmJSMathBuiltin_tan:    arity = 1; f64 = F64::Tan;   f32 = F32::Bad;   break;
-      case AsmJSMathBuiltin_asin:   arity = 1; f64 = F64::Asin;  f32 = F32::Bad;   break;
-      case AsmJSMathBuiltin_acos:   arity = 1; f64 = F64::Acos;  f32 = F32::Bad;   break;
-      case AsmJSMathBuiltin_atan:   arity = 1; f64 = F64::Atan;  f32 = F32::Bad;   break;
-      case AsmJSMathBuiltin_exp:    arity = 1; f64 = F64::Exp;   f32 = F32::Bad;   break;
-      case AsmJSMathBuiltin_log:    arity = 1; f64 = F64::Log;   f32 = F32::Bad;   break;
-      case AsmJSMathBuiltin_pow:    arity = 2; f64 = F64::Pow;   f32 = F32::Bad;   break;
-      case AsmJSMathBuiltin_atan2:  arity = 2; f64 = F64::Atan2; f32 = F32::Bad;   break;
+      case AsmJSMathBuiltin_ceil:   arity = 1; f64 = Expr::F64Ceil;  f32 = Expr::F32Ceil;     break;
+      case AsmJSMathBuiltin_floor:  arity = 1; f64 = Expr::F64Floor; f32 = Expr::F32Floor;    break;
+      case AsmJSMathBuiltin_sin:    arity = 1; f64 = Expr::F64Sin;   f32 = Expr::Unreachable; break;
+      case AsmJSMathBuiltin_cos:    arity = 1; f64 = Expr::F64Cos;   f32 = Expr::Unreachable; break;
+      case AsmJSMathBuiltin_tan:    arity = 1; f64 = Expr::F64Tan;   f32 = Expr::Unreachable; break;
+      case AsmJSMathBuiltin_asin:   arity = 1; f64 = Expr::F64Asin;  f32 = Expr::Unreachable; break;
+      case AsmJSMathBuiltin_acos:   arity = 1; f64 = Expr::F64Acos;  f32 = Expr::Unreachable; break;
+      case AsmJSMathBuiltin_atan:   arity = 1; f64 = Expr::F64Atan;  f32 = Expr::Unreachable; break;
+      case AsmJSMathBuiltin_exp:    arity = 1; f64 = Expr::F64Exp;   f32 = Expr::Unreachable; break;
+      case AsmJSMathBuiltin_log:    arity = 1; f64 = Expr::F64Log;   f32 = Expr::Unreachable; break;
+      case AsmJSMathBuiltin_pow:    arity = 2; f64 = Expr::F64Pow;   f32 = Expr::Unreachable; break;
+      case AsmJSMathBuiltin_atan2:  arity = 2; f64 = Expr::F64Atan2; f32 = Expr::Unreachable; break;
       default: MOZ_CRASH("unexpected mathBuiltin function");
     }
 
@@ -4754,10 +4671,7 @@ CheckMathBuiltinCall(FunctionValidator& f, ParseNode* callNode, AsmJSMathBuiltin
         return f.failf(callNode, "call passed %u arguments, expected %u", actualArity, arity);
 
     size_t opcodeAt;
-    if (!f.tempOp(&opcodeAt))
-        return false;
-
-    if (!f.noteLineCol(callNode))
+    if (!f.tempCall(callNode, &opcodeAt))
         return false;
 
     Type firstType;
@@ -4769,7 +4683,7 @@ CheckMathBuiltinCall(FunctionValidator& f, ParseNode* callNode, AsmJSMathBuiltin
         return f.fail(argNode, "arguments to math call should be a subtype of double? or float?");
 
     bool opIsDouble = firstType.isMaybeDouble();
-    if (!opIsDouble && f32 == F32::Bad)
+    if (!opIsDouble && f32 == Expr::Unreachable)
         return f.fail(callNode, "math builtin cannot be used as float");
 
     if (opIsDouble)
@@ -4849,7 +4763,7 @@ class CheckArgIsSubtypeOf
     Type formalType_;
 
   public:
-    explicit CheckArgIsSubtypeOf(AsmJSSimdType t) : formalType_(t) {}
+    explicit CheckArgIsSubtypeOf(SimdType t) : formalType_(t) {}
 
     bool operator()(FunctionValidator& f, ParseNode* arg, unsigned argIndex, Type actualType) const
     {
@@ -4862,25 +4776,27 @@ class CheckArgIsSubtypeOf
 };
 
 static inline Type
-SimdToCoercedScalarType(AsmJSSimdType t)
+SimdToCoercedScalarType(SimdType t)
 {
     switch (t) {
-      case AsmJSSimdType_int32x4:
-      case AsmJSSimdType_bool32x4:
+      case SimdType::Int32x4:
+      case SimdType::Bool32x4:
         return Type::Intish;
-      case AsmJSSimdType_float32x4:
+      case SimdType::Float32x4:
         return Type::Floatish;
+      default:
+        break;
     }
     MOZ_MAKE_COMPILER_ASSUME_IS_UNREACHABLE("unexpected SIMD type");
 }
 
 class CheckSimdScalarArgs
 {
-    AsmJSSimdType simdType_;
+    SimdType simdType_;
     Type formalType_;
 
   public:
-    explicit CheckSimdScalarArgs(AsmJSSimdType simdType)
+    explicit CheckSimdScalarArgs(SimdType simdType)
       : simdType_(simdType), formalType_(SimdToCoercedScalarType(simdType))
     {}
 
@@ -4890,28 +4806,23 @@ class CheckSimdScalarArgs
         if (!(actualType <= formalType_)) {
             // As a special case, accept doublelit arguments to float32x4 ops by
             // re-emitting them as float32 constants.
-            if (simdType_ != AsmJSSimdType_float32x4 || !actualType.isDoubleLit()) {
+            if (simdType_ != SimdType::Float32x4 || !actualType.isDoubleLit()) {
                 return f.failf(arg, "%s is not a subtype of %s%s",
                                actualType.toChars(), formalType_.toChars(),
-                               simdType_ == AsmJSSimdType_float32x4 ? " or doublelit" : "");
+                               simdType_ == SimdType::Float32x4 ? " or doublelit" : "");
             }
 
             // We emitted a double literal and actually want a float32.
             MOZ_ASSERT(patchAt != size_t(-1));
-            f.patchOp(patchAt, F32::FromF64);
+            f.patchOp(patchAt, Expr::F32DemoteF64);
             return true;
         }
 
         if (patchAt == size_t(-1))
             return true;
 
-        switch (simdType_) {
-          case AsmJSSimdType_bool32x4:
-          case AsmJSSimdType_int32x4:   f.patchOp(patchAt, I32::Id); return true;
-          case AsmJSSimdType_float32x4: f.patchOp(patchAt, F32::Id); return true;
-        }
-
-        MOZ_CRASH("unexpected simd type");
+        f.patchOp(patchAt, Expr::Id);
+        return true;
     }
 };
 
@@ -4920,7 +4831,7 @@ class CheckSimdSelectArgs
     Type formalType_;
 
   public:
-    explicit CheckSimdSelectArgs(AsmJSSimdType t) : formalType_(t) {}
+    explicit CheckSimdSelectArgs(SimdType t) : formalType_(t) {}
 
     bool operator()(FunctionValidator& f, ParseNode* arg, unsigned argIndex, Type actualType) const
     {
@@ -4941,10 +4852,10 @@ class CheckSimdSelectArgs
 
 class CheckSimdVectorScalarArgs
 {
-    AsmJSSimdType formalSimdType_;
+    SimdType formalSimdType_;
 
   public:
-    explicit CheckSimdVectorScalarArgs(AsmJSSimdType t) : formalSimdType_(t) {}
+    explicit CheckSimdVectorScalarArgs(SimdType t) : formalSimdType_(t) {}
 
     bool operator()(FunctionValidator& f, ParseNode* arg, unsigned argIndex, Type actualType,
                     size_t patchAt = -1) const
@@ -4960,13 +4871,8 @@ class CheckSimdVectorScalarArgs
             if (patchAt == size_t(-1))
                 return true;
 
-            switch (formalSimdType_) {
-              case AsmJSSimdType_int32x4:   f.patchOp(patchAt, I32X4::Id); return true;
-              case AsmJSSimdType_float32x4: f.patchOp(patchAt, F32X4::Id); return true;
-              case AsmJSSimdType_bool32x4:  f.patchOp(patchAt, B32X4::Id); return true;
-            }
-
-            MOZ_CRASH("unexpected simd type");
+            f.patchOp(patchAt, Expr::Id);
+            return true;
         }
 
         // Second argument is the scalar
@@ -4976,10 +4882,10 @@ class CheckSimdVectorScalarArgs
 
 class CheckSimdExtractLaneArgs
 {
-    AsmJSSimdType formalSimdType_;
+    SimdType formalSimdType_;
 
   public:
-    explicit CheckSimdExtractLaneArgs(AsmJSSimdType t) : formalSimdType_(t) {}
+    explicit CheckSimdExtractLaneArgs(SimdType t) : formalSimdType_(t) {}
 
     bool operator()(FunctionValidator& f, ParseNode* arg, unsigned argIndex, Type actualType) const
     {
@@ -5005,10 +4911,10 @@ class CheckSimdExtractLaneArgs
 
 class CheckSimdReplaceLaneArgs
 {
-    AsmJSSimdType formalSimdType_;
+    SimdType formalSimdType_;
 
   public:
-    explicit CheckSimdReplaceLaneArgs(AsmJSSimdType t) : formalSimdType_(t) {}
+    explicit CheckSimdReplaceLaneArgs(SimdType t) : formalSimdType_(t) {}
 
     bool operator()(FunctionValidator& f, ParseNode* arg, unsigned argIndex, Type actualType,
                     size_t patchAt) const
@@ -5022,11 +4928,7 @@ class CheckSimdReplaceLaneArgs
                 return f.failf(arg, "%s is not a subtype of %s", actualType.toChars(),
                                Type(formalSimdType_).toChars());
             }
-            switch (formalSimdType_) {
-              case AsmJSSimdType_int32x4:   f.patchOp(patchAt, I32X4::Id); break;
-              case AsmJSSimdType_float32x4: f.patchOp(patchAt, F32X4::Id); break;
-              case AsmJSSimdType_bool32x4:  f.patchOp(patchAt, B32X4::Id); break;
-            }
+            f.patchOp(patchAt, Expr::Id);
             return true;
           case 1:
             // Second argument is the lane (< vector length).
@@ -5034,7 +4936,7 @@ class CheckSimdReplaceLaneArgs
                 return f.failf(arg, "lane selector should be a constant integer literal");
             if (u32 >= SimdTypeToLength(formalSimdType_))
                 return f.failf(arg, "lane selector should be in bounds");
-            f.patchOp(patchAt, I32::Id);
+            f.patchOp(patchAt, Expr::Id);
             return true;
           case 2:
             // Third argument is the scalar
@@ -5047,23 +4949,10 @@ class CheckSimdReplaceLaneArgs
 } // namespace
 
 static bool
-SwitchPackOp(FunctionValidator& f, AsmJSSimdType type, I32X4 i32x4, F32X4 f32x4, B32X4 b32x4)
+CheckSimdUnary(FunctionValidator& f, ParseNode* call, SimdType opType, SimdOperation op,
+               Type* type)
 {
-    switch (type) {
-      case AsmJSSimdType_int32x4:   return f.writeOp(i32x4);
-      case AsmJSSimdType_float32x4: return f.writeOp(f32x4);
-      case AsmJSSimdType_bool32x4:  return f.writeOp(b32x4);
-    }
-    MOZ_CRASH("unexpected simd type");
-}
-
-static bool
-CheckSimdUnary(FunctionValidator& f, ParseNode* call, AsmJSSimdType opType,
-               MSimdUnaryArith::Operation op, Type* type)
-{
-    if (!SwitchPackOp(f, opType, I32X4::Unary, F32X4::Unary, B32X4::Unary))
-        return false;
-    if (!f.writeU8(uint8_t(op)))
+    if (!f.writeSimdOp(opType, op))
         return false;
     if (!CheckSimdCallArgs(f, call, 1, CheckArgIsSubtypeOf(opType)))
         return false;
@@ -5071,64 +4960,11 @@ CheckSimdUnary(FunctionValidator& f, ParseNode* call, AsmJSSimdType opType,
     return true;
 }
 
-template<class OpKind>
-inline bool
-CheckSimdBinaryGuts(FunctionValidator& f, ParseNode* call, AsmJSSimdType opType, OpKind op,
-                    Type* type)
-{
-    if (!f.writeU8(uint8_t(op)))
-        return false;
-    if (!CheckSimdCallArgs(f, call, 2, CheckArgIsSubtypeOf(opType)))
-        return false;
-    *type = opType;
-    return true;
-}
-
 static bool
-CheckSimdBinary(FunctionValidator& f, ParseNode* call, AsmJSSimdType opType,
-                MSimdBinaryArith::Operation op, Type* type)
+CheckSimdBinaryShift(FunctionValidator& f, ParseNode* call, SimdType opType, SimdOperation op,
+                     Type *type)
 {
-    return SwitchPackOp(f, opType, I32X4::Binary, F32X4::Binary, B32X4::Binary) &&
-           CheckSimdBinaryGuts(f, call, opType, op, type);
-}
-
-static bool
-CheckSimdBinary(FunctionValidator& f, ParseNode* call, AsmJSSimdType opType,
-                MSimdBinaryBitwise::Operation op, Type* type)
-{
-    return SwitchPackOp(f, opType, I32X4::BinaryBitwise, F32X4::Bad, B32X4::BinaryBitwise) &&
-           CheckSimdBinaryGuts(f, call, opType, op, type);
-}
-
-static bool
-CheckSimdBinary(FunctionValidator& f, ParseNode* call, AsmJSSimdType opType,
-                MSimdBinaryComp::Operation op, Type* type)
-{
-    switch (opType) {
-      case AsmJSSimdType_int32x4:
-        if (!f.writeOp(B32X4::BinaryCompI32X4))
-            return false;
-        break;
-      case AsmJSSimdType_float32x4:
-        if (!f.writeOp(B32X4::BinaryCompF32X4))
-            return false;
-        break;
-      case AsmJSSimdType_bool32x4:
-        MOZ_MAKE_COMPILER_ASSUME_IS_UNREACHABLE("Can't compare boolean vectors");
-    }
-    if (!f.writeU8(uint8_t(op)))
-        return false;
-    if (!CheckSimdCallArgs(f, call, 2, CheckArgIsSubtypeOf(opType)))
-        return false;
-    *type = Type::Bool32x4;
-    return true;
-}
-
-static bool
-CheckSimdBinary(FunctionValidator& f, ParseNode* call, AsmJSSimdType opType,
-                MSimdShift::Operation op, Type* type)
-{
-    if (!f.writeOp(I32X4::BinaryShift) || !f.writeU8(uint8_t(op)))
+    if (!f.writeSimdOp(opType, op))
         return false;
     if (!CheckSimdCallArgs(f, call, 2, CheckSimdVectorScalarArgs(opType)))
         return false;
@@ -5137,32 +4973,47 @@ CheckSimdBinary(FunctionValidator& f, ParseNode* call, AsmJSSimdType opType,
 }
 
 static bool
-CheckSimdExtractLane(FunctionValidator& f, ParseNode* call, AsmJSSimdType opType, Type* type)
+CheckSimdBinaryComp(FunctionValidator& f, ParseNode* call, SimdType opType, SimdOperation op,
+                    Type *type)
 {
+    if (!f.writeSimdOp(opType, op))
+        return false;
+    if (!CheckSimdCallArgs(f, call, 2, CheckArgIsSubtypeOf(opType)))
+        return false;
+    *type = Type::Bool32x4;
+    return true;
+}
+
+static bool
+CheckSimdBinary(FunctionValidator& f, ParseNode* call, SimdType opType, SimdOperation op,
+                Type* type)
+{
+    if (!f.writeSimdOp(opType, op))
+        return false;
+    if (!CheckSimdCallArgs(f, call, 2, CheckArgIsSubtypeOf(opType)))
+        return false;
+    *type = opType;
+    return true;
+}
+
+static bool
+CheckSimdExtractLane(FunctionValidator& f, ParseNode* call, SimdType opType, Type* type)
+{
+    if (!f.writeSimdOp(opType, SimdOperation::Fn_extractLane))
+        return false;
     switch (opType) {
-      case AsmJSSimdType_int32x4:
-        if (!f.writeOp(I32::I32X4ExtractLane))
-            return false;
-        *type = Type::Signed;
-        break;
-      case AsmJSSimdType_float32x4:
-        if (!f.writeOp(F32::F32X4ExtractLane))
-            return false;
-        *type = Type::Float;
-        break;
-      case AsmJSSimdType_bool32x4:
-        if (!f.writeOp(I32::B32X4ExtractLane))
-            return false;
-        *type = Type::Int;
-        break;
+      case SimdType::Int32x4:   *type = Type::Signed; break;
+      case SimdType::Float32x4: *type = Type::Float; break;
+      case SimdType::Bool32x4:  *type = Type::Int; break;
+      default:                  MOZ_CRASH("unhandled simd type");
     }
     return CheckSimdCallArgs(f, call, 2, CheckSimdExtractLaneArgs(opType));
 }
 
 static bool
-CheckSimdReplaceLane(FunctionValidator& f, ParseNode* call, AsmJSSimdType opType, Type* type)
+CheckSimdReplaceLane(FunctionValidator& f, ParseNode* call, SimdType opType, Type* type)
 {
-    if (!SwitchPackOp(f, opType, I32X4::ReplaceLane, F32X4::ReplaceLane, B32X4::ReplaceLane))
+    if (!f.writeSimdOp(opType, SimdOperation::Fn_replaceLane))
         return false;
     if (!CheckSimdCallArgsPatchable(f, call, 3, CheckSimdReplaceLaneArgs(opType)))
         return false;
@@ -5170,22 +5021,17 @@ CheckSimdReplaceLane(FunctionValidator& f, ParseNode* call, AsmJSSimdType opType
     return true;
 }
 
-typedef bool IsBitCast;
+typedef bool Bitcast;
 
 namespace {
 // Include CheckSimdCast in unnamed namespace to avoid MSVC name lookup bug (due to the use of Type).
 
 static bool
-CheckSimdCast(FunctionValidator& f, ParseNode* call, AsmJSSimdType fromType, AsmJSSimdType toType,
-              bool bitcast, Type* type)
+CheckSimdCast(FunctionValidator& f, ParseNode* call, SimdType fromType, SimdType toType,
+              SimdOperation op, Type* type)
 {
-    if (!SwitchPackOp(f, toType,
-                 bitcast ? I32X4::FromF32X4Bits : I32X4::FromF32X4,
-                 bitcast ? F32X4::FromI32X4Bits : F32X4::FromI32X4,
-                 B32X4::Bad))
-    {
+    if (!f.writeSimdOp(toType, op))
         return false;
-    }
     if (!CheckSimdCallArgs(f, call, 1, CheckArgIsSubtypeOf(fromType)))
         return false;
     *type = toType;
@@ -5209,13 +5055,13 @@ CheckSimdShuffleSelectors(FunctionValidator& f, ParseNode* lane, int32_t lanes[4
 }
 
 static bool
-CheckSimdSwizzle(FunctionValidator& f, ParseNode* call, AsmJSSimdType opType, Type* type)
+CheckSimdSwizzle(FunctionValidator& f, ParseNode* call, SimdType opType, Type* type)
 {
     unsigned numArgs = CallArgListLength(call);
     if (numArgs != 5)
         return f.failf(call, "expected 5 arguments to SIMD swizzle, got %u", numArgs);
 
-    if (!SwitchPackOp(f, opType, I32X4::Swizzle, F32X4::Swizzle, B32X4::Bad))
+    if (!f.writeSimdOp(opType, SimdOperation::Fn_swizzle))
         return false;
 
     Type retType = opType;
@@ -5240,13 +5086,13 @@ CheckSimdSwizzle(FunctionValidator& f, ParseNode* call, AsmJSSimdType opType, Ty
 }
 
 static bool
-CheckSimdShuffle(FunctionValidator& f, ParseNode* call, AsmJSSimdType opType, Type* type)
+CheckSimdShuffle(FunctionValidator& f, ParseNode* call, SimdType opType, Type* type)
 {
     unsigned numArgs = CallArgListLength(call);
     if (numArgs != 6)
         return f.failf(call, "expected 6 arguments to SIMD shuffle, got %u", numArgs);
 
-    if (!SwitchPackOp(f, opType, I32X4::Shuffle, F32X4::Shuffle, B32X4::Bad))
+    if (!f.writeSimdOp(opType, SimdOperation::Fn_shuffle))
         return false;
 
     Type retType = opType;
@@ -5273,8 +5119,7 @@ CheckSimdShuffle(FunctionValidator& f, ParseNode* call, AsmJSSimdType opType, Ty
 }
 
 static bool
-CheckSimdLoadStoreArgs(FunctionValidator& f, ParseNode* call, AsmJSSimdType opType,
-                       Scalar::Type* viewType, NeedsBoundsCheck* needsBoundsCheck)
+CheckSimdLoadStoreArgs(FunctionValidator& f, ParseNode* call)
 {
     ParseNode* view = CallArgList(call);
     if (!view->isKind(PNK_NAME))
@@ -5288,23 +5133,16 @@ CheckSimdLoadStoreArgs(FunctionValidator& f, ParseNode* call, AsmJSSimdType opTy
         return f.fail(view, "expected Uint8Array view as SIMD.*.load/store first argument");
     }
 
-    *needsBoundsCheck = NEEDS_BOUNDS_CHECK;
-
-    switch (opType) {
-      case AsmJSSimdType_int32x4:   *viewType = Scalar::Int32x4;   break;
-      case AsmJSSimdType_float32x4: *viewType = Scalar::Float32x4; break;
-      case AsmJSSimdType_bool32x4:  MOZ_CRASH("Cannot load/store boolean SIMD type");
-    }
-
     ParseNode* indexExpr = NextNode(view);
     uint32_t indexLit;
     if (IsLiteralOrConstInt(f, indexExpr, &indexLit)) {
         if (!f.m().tryConstantAccess(indexLit, Simd128DataSize))
             return f.fail(indexExpr, "constant index out of range");
-
-        *needsBoundsCheck = NO_BOUNDS_CHECK;
-        return f.writeInt32Lit(indexLit);
+        return f.writeU8(NO_BOUNDS_CHECK) && f.writeInt32Lit(indexLit);
     }
+
+    if (!f.writeU8(NEEDS_BOUNDS_CHECK))
+        return false;
 
     Type indexType;
     if (!CheckExpr(f, indexExpr, &indexType))
@@ -5317,52 +5155,35 @@ CheckSimdLoadStoreArgs(FunctionValidator& f, ParseNode* call, AsmJSSimdType opTy
 }
 
 static bool
-CheckSimdLoad(FunctionValidator& f, ParseNode* call, AsmJSSimdType opType,
-              unsigned numElems, Type* type)
+CheckSimdLoad(FunctionValidator& f, ParseNode* call, SimdType opType, SimdOperation op,
+              Type* type)
 {
     unsigned numArgs = CallArgListLength(call);
     if (numArgs != 2)
         return f.failf(call, "expected 2 arguments to SIMD load, got %u", numArgs);
 
-    if (!SwitchPackOp(f, opType, I32X4::Load, F32X4::Load, B32X4::Bad))
+    if (!f.writeSimdOp(opType, op))
         return false;
 
-    size_t viewTypeAt;
-    size_t needsBoundsCheckAt;
-    if (!f.tempU8(&viewTypeAt) || !f.tempU8(&needsBoundsCheckAt) || !f.writeU8(numElems))
+    if (!CheckSimdLoadStoreArgs(f, call))
         return false;
-
-    Scalar::Type viewType;
-    NeedsBoundsCheck needsBoundsCheck;
-    if (!CheckSimdLoadStoreArgs(f, call, opType, &viewType, &needsBoundsCheck))
-        return false;
-
-    f.patchU8(needsBoundsCheckAt, uint8_t(needsBoundsCheck));
-    f.patchU8(viewTypeAt, uint8_t(viewType));
 
     *type = opType;
     return true;
 }
 
 static bool
-CheckSimdStore(FunctionValidator& f, ParseNode* call, AsmJSSimdType opType,
-               unsigned numElems, Type* type)
+CheckSimdStore(FunctionValidator& f, ParseNode* call, SimdType opType, SimdOperation op,
+               Type* type)
 {
     unsigned numArgs = CallArgListLength(call);
     if (numArgs != 3)
         return f.failf(call, "expected 3 arguments to SIMD store, got %u", numArgs);
 
-    if (!SwitchPackOp(f, opType, I32X4::Store, F32X4::Store, B32X4::Bad))
+    if (!f.writeSimdOp(opType, op))
         return false;
 
-    size_t viewTypeAt;
-    size_t needsBoundsCheckAt;
-    if (!f.tempU8(&viewTypeAt) || !f.tempU8(&needsBoundsCheckAt) || !f.writeU8(numElems))
-        return false;
-
-    Scalar::Type viewType;
-    NeedsBoundsCheck needsBoundsCheck;
-    if (!CheckSimdLoadStoreArgs(f, call, opType, &viewType, &needsBoundsCheck))
+    if (!CheckSimdLoadStoreArgs(f, call))
         return false;
 
     Type retType = opType;
@@ -5370,20 +5191,18 @@ CheckSimdStore(FunctionValidator& f, ParseNode* call, AsmJSSimdType opType,
     Type vecType;
     if (!CheckExpr(f, vecExpr, &vecType))
         return false;
+
     if (!(vecType <= retType))
         return f.failf(vecExpr, "%s is not a subtype of %s", vecType.toChars(), retType.toChars());
-
-    f.patchU8(needsBoundsCheckAt, uint8_t(needsBoundsCheck));
-    f.patchU8(viewTypeAt, uint8_t(viewType));
 
     *type = vecType;
     return true;
 }
 
 static bool
-CheckSimdSelect(FunctionValidator& f, ParseNode* call, AsmJSSimdType opType, Type* type)
+CheckSimdSelect(FunctionValidator& f, ParseNode* call, SimdType opType, Type* type)
 {
-    if (!SwitchPackOp(f, opType, I32X4::Select, F32X4::Select, B32X4::Bad))
+    if (!f.writeSimdOp(opType, SimdOperation::Fn_select))
         return false;
     if (!CheckSimdCallArgs(f, call, 3, CheckSimdSelectArgs(opType)))
         return false;
@@ -5392,17 +5211,10 @@ CheckSimdSelect(FunctionValidator& f, ParseNode* call, AsmJSSimdType opType, Typ
 }
 
 static bool
-CheckSimdAllTrue(FunctionValidator& f, ParseNode* call, AsmJSSimdType opType, Type* type)
+CheckSimdAllTrue(FunctionValidator& f, ParseNode* call, SimdType opType, Type* type)
 {
-    switch (opType) {
-      case AsmJSSimdType_bool32x4:
-        if (!f.writeOp(I32::B32X4AllTrue))
-            return false;
-        break;
-      case AsmJSSimdType_int32x4:
-      case AsmJSSimdType_float32x4:
-        MOZ_CRASH("allTrue is only defined on bool SIMD types");
-    }
+    if (!f.writeSimdOp(opType, SimdOperation::Fn_allTrue))
+        return false;
     if (!CheckSimdCallArgs(f, call, 1, CheckArgIsSubtypeOf(opType)))
         return false;
     *type = Type::Int;
@@ -5410,17 +5222,10 @@ CheckSimdAllTrue(FunctionValidator& f, ParseNode* call, AsmJSSimdType opType, Ty
 }
 
 static bool
-CheckSimdAnyTrue(FunctionValidator& f, ParseNode* call, AsmJSSimdType opType, Type* type)
+CheckSimdAnyTrue(FunctionValidator& f, ParseNode* call, SimdType opType, Type* type)
 {
-    switch (opType) {
-      case AsmJSSimdType_bool32x4:
-        if (!f.writeOp(I32::B32X4AnyTrue))
-            return false;
-        break;
-      case AsmJSSimdType_int32x4:
-      case AsmJSSimdType_float32x4:
-        MOZ_CRASH("anyTrue is only defined on bool SIMD types");
-    }
+    if (!f.writeSimdOp(opType, SimdOperation::Fn_anyTrue))
+        return false;
     if (!CheckSimdCallArgs(f, call, 1, CheckArgIsSubtypeOf(opType)))
         return false;
     *type = Type::Int;
@@ -5428,7 +5233,7 @@ CheckSimdAnyTrue(FunctionValidator& f, ParseNode* call, AsmJSSimdType opType, Ty
 }
 
 static bool
-CheckSimdCheck(FunctionValidator& f, ParseNode* call, AsmJSSimdType opType, Type* type)
+CheckSimdCheck(FunctionValidator& f, ParseNode* call, SimdType opType, Type* type)
 {
     ValType coerceTo;
     ParseNode* argNode;
@@ -5438,9 +5243,9 @@ CheckSimdCheck(FunctionValidator& f, ParseNode* call, AsmJSSimdType opType, Type
 }
 
 static bool
-CheckSimdSplat(FunctionValidator& f, ParseNode* call, AsmJSSimdType opType, Type* type)
+CheckSimdSplat(FunctionValidator& f, ParseNode* call, SimdType opType, Type* type)
 {
-    if (!SwitchPackOp(f, opType, I32X4::Splat, F32X4::Splat, B32X4::Splat))
+    if (!f.writeSimdOp(opType, SimdOperation::Fn_splat))
         return false;
     if (!CheckSimdCallArgsPatchable(f, call, 1, CheckSimdScalarArgs(opType)))
         return false;
@@ -5454,109 +5259,82 @@ CheckSimdOperationCall(FunctionValidator& f, ParseNode* call, const ModuleValida
 {
     MOZ_ASSERT(global->isSimdOperation());
 
-    AsmJSSimdType opType = global->simdOperationType();
+    SimdType opType = global->simdOperationType();
 
-    switch (global->simdOperation()) {
-      case AsmJSSimdOperation_check:
+    switch (SimdOperation op = global->simdOperation()) {
+      case SimdOperation::Fn_check:
         return CheckSimdCheck(f, call, opType, type);
 
-#define OP_CHECK_CASE_LIST_(OP)                                                         \
-      case AsmJSSimdOperation_##OP:                                                     \
-        return CheckSimdBinary(f, call, opType, MSimdBinaryArith::Op_##OP, type);
-      FOREACH_NUMERIC_SIMD_BINOP(OP_CHECK_CASE_LIST_)
-      FOREACH_FLOAT_SIMD_BINOP(OP_CHECK_CASE_LIST_)
-#undef OP_CHECK_CASE_LIST_
+#define _CASE(OP) case SimdOperation::Fn_##OP:
+      FOREACH_SHIFT_SIMD_OP(_CASE)
+        return CheckSimdBinaryShift(f, call, opType, op, type);
 
-      case AsmJSSimdOperation_lessThan:
-        return CheckSimdBinary(f, call, opType, MSimdBinaryComp::lessThan, type);
-      case AsmJSSimdOperation_lessThanOrEqual:
-        return CheckSimdBinary(f, call, opType, MSimdBinaryComp::lessThanOrEqual, type);
-      case AsmJSSimdOperation_equal:
-        return CheckSimdBinary(f, call, opType, MSimdBinaryComp::equal, type);
-      case AsmJSSimdOperation_notEqual:
-        return CheckSimdBinary(f, call, opType, MSimdBinaryComp::notEqual, type);
-      case AsmJSSimdOperation_greaterThan:
-        return CheckSimdBinary(f, call, opType, MSimdBinaryComp::greaterThan, type);
-      case AsmJSSimdOperation_greaterThanOrEqual:
-        return CheckSimdBinary(f, call, opType, MSimdBinaryComp::greaterThanOrEqual, type);
+      FOREACH_COMP_SIMD_OP(_CASE)
+        return CheckSimdBinaryComp(f, call, opType, op, type);
 
-      case AsmJSSimdOperation_and:
-        return CheckSimdBinary(f, call, opType, MSimdBinaryBitwise::and_, type);
-      case AsmJSSimdOperation_or:
-        return CheckSimdBinary(f, call, opType, MSimdBinaryBitwise::or_, type);
-      case AsmJSSimdOperation_xor:
-        return CheckSimdBinary(f, call, opType, MSimdBinaryBitwise::xor_, type);
+      FOREACH_NUMERIC_SIMD_BINOP(_CASE)
+      FOREACH_FLOAT_SIMD_BINOP(_CASE)
+      FOREACH_BITWISE_SIMD_BINOP(_CASE)
+        return CheckSimdBinary(f, call, opType, op, type);
+#undef _CASE
 
-      case AsmJSSimdOperation_extractLane:
+      case SimdOperation::Fn_extractLane:
         return CheckSimdExtractLane(f, call, opType, type);
-      case AsmJSSimdOperation_replaceLane:
+      case SimdOperation::Fn_replaceLane:
         return CheckSimdReplaceLane(f, call, opType, type);
 
-      case AsmJSSimdOperation_fromInt32x4:
-        return CheckSimdCast(f, call, AsmJSSimdType_int32x4, opType, IsBitCast(false), type);
-      case AsmJSSimdOperation_fromFloat32x4:
-        return CheckSimdCast(f, call, AsmJSSimdType_float32x4, opType, IsBitCast(false), type);
-      case AsmJSSimdOperation_fromInt32x4Bits:
-        return CheckSimdCast(f, call, AsmJSSimdType_int32x4, opType, IsBitCast(true), type);
-      case AsmJSSimdOperation_fromFloat32x4Bits:
-        return CheckSimdCast(f, call, AsmJSSimdType_float32x4, opType, IsBitCast(true), type);
+      case SimdOperation::Fn_fromInt32x4:
+      case SimdOperation::Fn_fromInt32x4Bits:
+        return CheckSimdCast(f, call, SimdType::Int32x4, opType, op, type);
+      case SimdOperation::Fn_fromFloat32x4:
+      case SimdOperation::Fn_fromFloat32x4Bits:
+        return CheckSimdCast(f, call, SimdType::Float32x4, opType, op, type);
 
-      case AsmJSSimdOperation_shiftLeftByScalar:
-        return CheckSimdBinary(f, call, opType, MSimdShift::lsh, type);
-      case AsmJSSimdOperation_shiftRightByScalar:
-        return CheckSimdBinary(f, call, opType,
-                               IsSignedIntSimdType(opType) ? MSimdShift::rsh : MSimdShift::ursh,
-                               type);
-      case AsmJSSimdOperation_shiftRightArithmeticByScalar:
-        return CheckSimdBinary(f, call, opType, MSimdShift::rsh, type);
-      case AsmJSSimdOperation_shiftRightLogicalByScalar:
-        return CheckSimdBinary(f, call, opType, MSimdShift::ursh, type);
+      case SimdOperation::Fn_abs:
+      case SimdOperation::Fn_neg:
+      case SimdOperation::Fn_not:
+      case SimdOperation::Fn_sqrt:
+      case SimdOperation::Fn_reciprocalApproximation:
+      case SimdOperation::Fn_reciprocalSqrtApproximation:
+        return CheckSimdUnary(f, call, opType, op, type);
 
-      case AsmJSSimdOperation_abs:
-        return CheckSimdUnary(f, call, opType, MSimdUnaryArith::abs, type);
-      case AsmJSSimdOperation_neg:
-        return CheckSimdUnary(f, call, opType, MSimdUnaryArith::neg, type);
-      case AsmJSSimdOperation_not:
-        return CheckSimdUnary(f, call, opType, MSimdUnaryArith::not_, type);
-      case AsmJSSimdOperation_sqrt:
-        return CheckSimdUnary(f, call, opType, MSimdUnaryArith::sqrt, type);
-      case AsmJSSimdOperation_reciprocalApproximation:
-        return CheckSimdUnary(f, call, opType, MSimdUnaryArith::reciprocalApproximation, type);
-      case AsmJSSimdOperation_reciprocalSqrtApproximation:
-        return CheckSimdUnary(f, call, opType, MSimdUnaryArith::reciprocalSqrtApproximation, type);
-
-      case AsmJSSimdOperation_swizzle:
+      case SimdOperation::Fn_swizzle:
         return CheckSimdSwizzle(f, call, opType, type);
-      case AsmJSSimdOperation_shuffle:
+      case SimdOperation::Fn_shuffle:
         return CheckSimdShuffle(f, call, opType, type);
 
-      case AsmJSSimdOperation_load:
-        return CheckSimdLoad(f, call, opType, 4, type);
-      case AsmJSSimdOperation_load1:
-        return CheckSimdLoad(f, call, opType, 1, type);
-      case AsmJSSimdOperation_load2:
-        return CheckSimdLoad(f, call, opType, 2, type);
-      case AsmJSSimdOperation_load3:
-        return CheckSimdLoad(f, call, opType, 3, type);
-      case AsmJSSimdOperation_store:
-        return CheckSimdStore(f, call, opType, 4, type);
-      case AsmJSSimdOperation_store1:
-        return CheckSimdStore(f, call, opType, 1, type);
-      case AsmJSSimdOperation_store2:
-        return CheckSimdStore(f, call, opType, 2, type);
-      case AsmJSSimdOperation_store3:
-        return CheckSimdStore(f, call, opType, 3, type);
+      case SimdOperation::Fn_load:
+      case SimdOperation::Fn_load1:
+      case SimdOperation::Fn_load2:
+      case SimdOperation::Fn_load3:
+        return CheckSimdLoad(f, call, opType, op, type);
+      case SimdOperation::Fn_store:
+      case SimdOperation::Fn_store1:
+      case SimdOperation::Fn_store2:
+      case SimdOperation::Fn_store3:
+        return CheckSimdStore(f, call, opType, op, type);
 
-      case AsmJSSimdOperation_select:
+      case SimdOperation::Fn_select:
         return CheckSimdSelect(f, call, opType, type);
 
-      case AsmJSSimdOperation_splat:
+      case SimdOperation::Fn_splat:
         return CheckSimdSplat(f, call, opType, type);
 
-      case AsmJSSimdOperation_allTrue:
+      case SimdOperation::Fn_allTrue:
         return CheckSimdAllTrue(f, call, opType, type);
-      case AsmJSSimdOperation_anyTrue:
+      case SimdOperation::Fn_anyTrue:
         return CheckSimdAnyTrue(f, call, opType, type);
+
+      case SimdOperation::Constructor:
+        MOZ_CRASH("constructors are handled in CheckSimdCtorCall");
+      case SimdOperation::Fn_fromUint32x4:
+      case SimdOperation::Fn_fromInt8x16Bits:
+      case SimdOperation::Fn_fromInt16x8Bits:
+      case SimdOperation::Fn_fromUint8x16Bits:
+      case SimdOperation::Fn_fromUint16x8Bits:
+      case SimdOperation::Fn_fromUint32x4Bits:
+      case SimdOperation::Fn_fromFloat64x2Bits:
+        MOZ_CRASH("NYI");
     }
     MOZ_CRASH("unexpected simd operation in CheckSimdOperationCall");
 }
@@ -5567,8 +5345,8 @@ CheckSimdCtorCall(FunctionValidator& f, ParseNode* call, const ModuleValidator::
 {
     MOZ_ASSERT(call->isKind(PNK_CALL));
 
-    AsmJSSimdType simdType = global->simdCtorType();
-    if (!SwitchPackOp(f, simdType, I32X4::Ctor, F32X4::Ctor, B32X4::Ctor))
+    SimdType simdType = global->simdCtorType();
+    if (!f.writeSimdOp(simdType, SimdOperation::Constructor))
         return false;
 
     unsigned length = SimdTypeToLength(simdType);
@@ -5610,27 +5388,12 @@ CoerceResult(FunctionValidator& f, ParseNode* expr, ExprType expected, Type actu
     //      | patchAt | the thing we wanted to coerce | current position |>
     switch (expected) {
       case ExprType::Void:
-        if (actual.isIntish())
-            f.patchOp(patchAt, Stmt::I32Expr);
-        else if (actual.isFloatish())
-            f.patchOp(patchAt, Stmt::F32Expr);
-        else if (actual.isMaybeDouble())
-            f.patchOp(patchAt, Stmt::F64Expr);
-        else if (actual.isInt32x4())
-            f.patchOp(patchAt, Stmt::I32X4Expr);
-        else if (actual.isFloat32x4())
-            f.patchOp(patchAt, Stmt::F32X4Expr);
-        else if (actual.isBool32x4())
-            f.patchOp(patchAt, Stmt::B32X4Expr);
-        else if (actual.isVoid())
-            f.patchOp(patchAt, Stmt::Id);
-        else
-            MOZ_CRASH("unhandled return type");
+        f.patchOp(patchAt, Expr::Id);
         break;
       case ExprType::I32:
         if (!actual.isIntish())
             return f.failf(expr, "%s is not a subtype of intish", actual.toChars());
-        f.patchOp(patchAt, I32::Id);
+        f.patchOp(patchAt, Expr::Id);
         break;
       case ExprType::I64:
         MOZ_CRASH("no int64 in asm.js");
@@ -5640,31 +5403,33 @@ CoerceResult(FunctionValidator& f, ParseNode* expr, ExprType expected, Type actu
         break;
       case ExprType::F64:
         if (actual.isMaybeDouble())
-            f.patchOp(patchAt, F64::Id);
+            f.patchOp(patchAt, Expr::Id);
         else if (actual.isMaybeFloat())
-            f.patchOp(patchAt, F64::FromF32);
+            f.patchOp(patchAt, Expr::F64PromoteF32);
         else if (actual.isSigned())
-            f.patchOp(patchAt, F64::FromS32);
+            f.patchOp(patchAt, Expr::F64ConvertSI32);
         else if (actual.isUnsigned())
-            f.patchOp(patchAt, F64::FromU32);
+            f.patchOp(patchAt, Expr::F64ConvertUI32);
         else
             return f.failf(expr, "%s is not a subtype of double?, float?, signed or unsigned", actual.toChars());
         break;
       case ExprType::I32x4:
         if (!actual.isInt32x4())
             return f.failf(expr, "%s is not a subtype of int32x4", actual.toChars());
-        f.patchOp(patchAt, I32X4::Id);
+        f.patchOp(patchAt, Expr::Id);
         break;
       case ExprType::F32x4:
         if (!actual.isFloat32x4())
             return f.failf(expr, "%s is not a subtype of float32x4", actual.toChars());
-        f.patchOp(patchAt, F32X4::Id);
+        f.patchOp(patchAt, Expr::Id);
         break;
       case ExprType::B32x4:
         if (!actual.isBool32x4())
             return f.failf(expr, "%s is not a subtype of bool32x4", actual.toChars());
-        f.patchOp(patchAt, B32X4::Id);
+        f.patchOp(patchAt, Expr::Id);
         break;
+      case ExprType::Limit:
+        MOZ_CRASH("Limit");
     }
 
     *type = Type::ret(expected);
@@ -5760,7 +5525,7 @@ CheckCoercedCall(FunctionValidator& f, ParseNode* call, ExprType ret, Type* type
           case ModuleValidator::Global::ArrayViewCtor:
             return f.failName(callee, "'%s' is not callable function", callee->name());
           case ModuleValidator::Global::SimdCtor:
-          case ModuleValidator::Global::SimdOperation:
+          case ModuleValidator::Global::SimdOp:
             return CheckCoercedSimdCall(f, call, global, ret, type);
           case ModuleValidator::Global::Function:
             break;
@@ -5796,7 +5561,7 @@ CheckNot(FunctionValidator& f, ParseNode* expr, Type* type)
     MOZ_ASSERT(expr->isKind(PNK_NOT));
     ParseNode* operand = UnaryKid(expr);
 
-    if (!f.writeOp(I32::Not))
+    if (!f.writeOp(Expr::I32Not))
         return false;
 
     Type operandType;
@@ -5825,19 +5590,19 @@ CheckNeg(FunctionValidator& f, ParseNode* expr, Type* type)
         return false;
 
     if (operandType.isInt()) {
-        f.patchOp(opcodeAt, I32::Neg);
+        f.patchOp(opcodeAt, Expr::I32Neg);
         *type = Type::Intish;
         return true;
     }
 
     if (operandType.isMaybeDouble()) {
-        f.patchOp(opcodeAt, F64::Neg);
+        f.patchOp(opcodeAt, Expr::F64Neg);
         *type = Type::Double;
         return true;
     }
 
     if (operandType.isMaybeFloat()) {
-        f.patchOp(opcodeAt, F32::Neg);
+        f.patchOp(opcodeAt, Expr::F32Neg);
         *type = Type::Floatish;
         return true;
     }
@@ -5860,7 +5625,8 @@ CheckCoerceToInt(FunctionValidator& f, ParseNode* expr, Type* type)
         return false;
 
     if (operandType.isMaybeDouble() || operandType.isMaybeFloat()) {
-        f.patchOp(opcodeAt, operandType.isMaybeDouble() ? I32::FromF64 : I32::FromF32);
+        Expr opcode = operandType.isMaybeDouble() ? Expr::I32TruncSF64 : Expr::I32TruncSF32;
+        f.patchOp(opcodeAt, opcode);
         *type = Type::Signed;
         return true;
     }
@@ -5868,7 +5634,7 @@ CheckCoerceToInt(FunctionValidator& f, ParseNode* expr, Type* type)
     if (!operandType.isIntish())
         return f.failf(operand, "%s is not a subtype of double?, float? or intish", operandType.toChars());
 
-    f.patchOp(opcodeAt, I32::Id);
+    f.patchOp(opcodeAt, Expr::Id);
     *type = Type::Signed;
     return true;
 }
@@ -5882,7 +5648,7 @@ CheckBitNot(FunctionValidator& f, ParseNode* neg, Type* type)
     if (operand->isKind(PNK_BITNOT))
         return CheckCoerceToInt(f, operand, type);
 
-    if (!f.writeOp(I32::BitNot))
+    if (!f.writeOp(Expr::I32BitNot))
         return false;
 
     Type operandType;
@@ -5905,8 +5671,7 @@ CheckComma(FunctionValidator& f, ParseNode* comma, Type* type)
     MOZ_ASSERT(comma->isKind(PNK_COMMA));
     ParseNode* operands = ListHead(comma);
 
-    size_t commaAt;
-    if (!f.tempOp(&commaAt) || !f.writeU32(ListLength(comma)))
+    if (!f.writeOp(Expr::Block) || !f.writeVarU32(ListLength(comma)))
         return false;
 
     ParseNode* pn = operands;
@@ -5915,25 +5680,7 @@ CheckComma(FunctionValidator& f, ParseNode* comma, Type* type)
             return false;
     }
 
-    if (!CheckExpr(f, pn, type))
-        return false;
-
-    if (type->isIntish())
-        f.patchOp(commaAt, I32::Comma);
-    else if (type->isFloatish())
-        f.patchOp(commaAt, F32::Comma);
-    else if (type->isMaybeDouble())
-        f.patchOp(commaAt, F64::Comma);
-    else if (type->isInt32x4())
-        f.patchOp(commaAt, I32X4::Comma);
-    else if (type->isFloat32x4())
-        f.patchOp(commaAt, F32X4::Comma);
-    else if (type->isBool32x4())
-        f.patchOp(commaAt, B32X4::Comma);
-    else
-        MOZ_CRASH("unexpected or unimplemented expression statement");
-
-    return true;
+    return CheckExpr(f, pn, type);
 }
 
 static bool
@@ -5941,8 +5688,7 @@ CheckConditional(FunctionValidator& f, ParseNode* ternary, Type* type)
 {
     MOZ_ASSERT(ternary->isKind(PNK_CONDITIONAL));
 
-    size_t opcodeAt;
-    if (!f.tempOp(&opcodeAt))
+    if (!f.writeOp(Expr::IfElse))
         return false;
 
     ParseNode* cond = TernaryKid1(ternary);
@@ -5965,22 +5711,16 @@ CheckConditional(FunctionValidator& f, ParseNode* ternary, Type* type)
         return false;
 
     if (thenType.isInt() && elseType.isInt()) {
-        f.patchOp(opcodeAt, I32::Conditional);
         *type = Type::Int;
     } else if (thenType.isDouble() && elseType.isDouble()) {
-        f.patchOp(opcodeAt, F64::Conditional);
         *type = Type::Double;
     } else if (thenType.isFloat() && elseType.isFloat()) {
-        f.patchOp(opcodeAt, F32::Conditional);
         *type = Type::Float;
     } else if (elseType.isInt32x4() && thenType.isInt32x4()) {
-        f.patchOp(opcodeAt, I32X4::Conditional);
         *type = Type::Int32x4;
     } else if (elseType.isFloat32x4() && thenType.isFloat32x4()) {
-        f.patchOp(opcodeAt, F32X4::Conditional);
         *type = Type::Float32x4;
     } else if (elseType.isBool32x4() && thenType.isBool32x4()) {
-        f.patchOp(opcodeAt, B32X4::Conditional);
         *type = Type::Bool32x4;
     } else {
         return f.failf(ternary, "then/else branches of conditional must both produce int, float, "
@@ -6039,19 +5779,19 @@ CheckMultiply(FunctionValidator& f, ParseNode* star, Type* type)
     if (lhsType.isInt() && rhsType.isInt()) {
         if (!IsValidIntMultiplyConstant(f.m(), lhs) && !IsValidIntMultiplyConstant(f.m(), rhs))
             return f.fail(star, "one arg to int multiply must be a small (-2^20, 2^20) int literal");
-        f.patchOp(opcodeAt, I32::Mul);
+        f.patchOp(opcodeAt, Expr::I32Mul);
         *type = Type::Intish;
         return true;
     }
 
     if (lhsType.isMaybeDouble() && rhsType.isMaybeDouble()) {
-        f.patchOp(opcodeAt, F64::Mul);
+        f.patchOp(opcodeAt, Expr::F64Mul);
         *type = Type::Double;
         return true;
     }
 
     if (lhsType.isMaybeFloat() && rhsType.isMaybeFloat()) {
-        f.patchOp(opcodeAt, F32::Mul);
+        f.patchOp(opcodeAt, Expr::F32Mul);
         *type = Type::Floatish;
         return true;
     }
@@ -6102,13 +5842,13 @@ CheckAddOrSub(FunctionValidator& f, ParseNode* expr, Type* type, unsigned* numAd
         return f.fail(expr, "too many + or - without intervening coercion");
 
     if (lhsType.isInt() && rhsType.isInt()) {
-        f.patchOp(opcodeAt, expr->isKind(PNK_ADD) ? I32::Add : I32::Sub);
+        f.patchOp(opcodeAt, expr->isKind(PNK_ADD) ? Expr::I32Add : Expr::I32Sub);
         *type = Type::Intish;
     } else if (lhsType.isMaybeDouble() && rhsType.isMaybeDouble()) {
-        f.patchOp(opcodeAt, expr->isKind(PNK_ADD) ? F64::Add : F64::Sub);
+        f.patchOp(opcodeAt, expr->isKind(PNK_ADD) ? Expr::F64Add : Expr::F64Sub);
         *type = Type::Double;
     } else if (lhsType.isMaybeFloat() && rhsType.isMaybeFloat()) {
-        f.patchOp(opcodeAt, expr->isKind(PNK_ADD) ? F32::Add : F32::Sub);
+        f.patchOp(opcodeAt, expr->isKind(PNK_ADD) ? Expr::F32Add : Expr::F32Sub);
         *type = Type::Floatish;
     } else {
         return f.failf(expr, "operands to + or - must both be int, float? or double?, got %s and %s",
@@ -6139,14 +5879,14 @@ CheckDivOrMod(FunctionValidator& f, ParseNode* expr, Type* type)
         return false;
 
     if (lhsType.isMaybeDouble() && rhsType.isMaybeDouble()) {
-        f.patchOp(opcodeAt, expr->isKind(PNK_DIV) ? F64::Div : F64::Mod);
+        f.patchOp(opcodeAt, expr->isKind(PNK_DIV) ? Expr::F64Div : Expr::F64Mod);
         *type = Type::Double;
         return true;
     }
 
     if (lhsType.isMaybeFloat() && rhsType.isMaybeFloat()) {
         if (expr->isKind(PNK_DIV))
-            f.patchOp(opcodeAt, F32::Div);
+            f.patchOp(opcodeAt, Expr::F32Div);
         else
             return f.fail(expr, "modulo cannot receive float arguments");
         *type = Type::Floatish;
@@ -6154,13 +5894,13 @@ CheckDivOrMod(FunctionValidator& f, ParseNode* expr, Type* type)
     }
 
     if (lhsType.isSigned() && rhsType.isSigned()) {
-        f.patchOp(opcodeAt, expr->isKind(PNK_DIV) ? I32::SDiv : I32::SMod);
+        f.patchOp(opcodeAt, expr->isKind(PNK_DIV) ? Expr::I32DivS : Expr::I32RemS);
         *type = Type::Intish;
         return true;
     }
 
     if (lhsType.isUnsigned() && rhsType.isUnsigned()) {
-        f.patchOp(opcodeAt, expr->isKind(PNK_DIV) ? I32::UDiv : I32::UMod);
+        f.patchOp(opcodeAt, expr->isKind(PNK_DIV) ? Expr::I32DivU : Expr::I32RemU);
         *type = Type::Intish;
         return true;
     }
@@ -6197,45 +5937,45 @@ CheckComparison(FunctionValidator& f, ParseNode* comp, Type* type)
                        "%s and %s are given", lhsType.toChars(), rhsType.toChars());
     }
 
-    I32 stmt;
+    Expr stmt;
     if (lhsType.isSigned() && rhsType.isSigned()) {
         switch (comp->getOp()) {
-          case JSOP_EQ: stmt = I32::EqI32;  break;
-          case JSOP_NE: stmt = I32::NeI32;  break;
-          case JSOP_LT: stmt = I32::SLtI32; break;
-          case JSOP_LE: stmt = I32::SLeI32; break;
-          case JSOP_GT: stmt = I32::SGtI32; break;
-          case JSOP_GE: stmt = I32::SGeI32; break;
+          case JSOP_EQ: stmt = Expr::I32Eq;  break;
+          case JSOP_NE: stmt = Expr::I32Ne;  break;
+          case JSOP_LT: stmt = Expr::I32LtS; break;
+          case JSOP_LE: stmt = Expr::I32LeS; break;
+          case JSOP_GT: stmt = Expr::I32GtS; break;
+          case JSOP_GE: stmt = Expr::I32GeS; break;
           default: MOZ_CRASH("unexpected comparison op");
         }
     } else if (lhsType.isUnsigned() && rhsType.isUnsigned()) {
         switch (comp->getOp()) {
-          case JSOP_EQ: stmt = I32::EqI32;  break;
-          case JSOP_NE: stmt = I32::NeI32;  break;
-          case JSOP_LT: stmt = I32::ULtI32; break;
-          case JSOP_LE: stmt = I32::ULeI32; break;
-          case JSOP_GT: stmt = I32::UGtI32; break;
-          case JSOP_GE: stmt = I32::UGeI32; break;
+          case JSOP_EQ: stmt = Expr::I32Eq;  break;
+          case JSOP_NE: stmt = Expr::I32Ne;  break;
+          case JSOP_LT: stmt = Expr::I32LtU; break;
+          case JSOP_LE: stmt = Expr::I32LeU; break;
+          case JSOP_GT: stmt = Expr::I32GtU; break;
+          case JSOP_GE: stmt = Expr::I32GeU; break;
           default: MOZ_CRASH("unexpected comparison op");
         }
     } else if (lhsType.isDouble()) {
         switch (comp->getOp()) {
-          case JSOP_EQ: stmt = I32::EqF64;  break;
-          case JSOP_NE: stmt = I32::NeF64;  break;
-          case JSOP_LT: stmt = I32::LtF64; break;
-          case JSOP_LE: stmt = I32::LeF64; break;
-          case JSOP_GT: stmt = I32::GtF64; break;
-          case JSOP_GE: stmt = I32::GeF64; break;
+          case JSOP_EQ: stmt = Expr::F64Eq; break;
+          case JSOP_NE: stmt = Expr::F64Ne; break;
+          case JSOP_LT: stmt = Expr::F64Lt; break;
+          case JSOP_LE: stmt = Expr::F64Le; break;
+          case JSOP_GT: stmt = Expr::F64Gt; break;
+          case JSOP_GE: stmt = Expr::F64Ge; break;
           default: MOZ_CRASH("unexpected comparison op");
         }
     } else if (lhsType.isFloat()) {
         switch (comp->getOp()) {
-          case JSOP_EQ: stmt = I32::EqF32;  break;
-          case JSOP_NE: stmt = I32::NeF32;  break;
-          case JSOP_LT: stmt = I32::LtF32; break;
-          case JSOP_LE: stmt = I32::LeF32; break;
-          case JSOP_GT: stmt = I32::GtF32; break;
-          case JSOP_GE: stmt = I32::GeF32; break;
+          case JSOP_EQ: stmt = Expr::F32Eq; break;
+          case JSOP_NE: stmt = Expr::F32Ne; break;
+          case JSOP_LT: stmt = Expr::F32Lt; break;
+          case JSOP_LE: stmt = Expr::F32Le; break;
+          case JSOP_GT: stmt = Expr::F32Gt; break;
+          case JSOP_GE: stmt = Expr::F32Ge; break;
           default: MOZ_CRASH("unexpected comparison op");
         }
     } else {
@@ -6288,12 +6028,12 @@ CheckBitwise(FunctionValidator& f, ParseNode* bitwise, Type* type)
     }
 
     switch (bitwise->getKind()) {
-      case PNK_BITOR:  if (!f.writeOp(I32::BitOr))    return false; break;
-      case PNK_BITAND: if (!f.writeOp(I32::BitAnd))   return false; break;
-      case PNK_BITXOR: if (!f.writeOp(I32::BitXor))   return false; break;
-      case PNK_LSH:    if (!f.writeOp(I32::Lsh))      return false; break;
-      case PNK_RSH:    if (!f.writeOp(I32::ArithRsh)) return false; break;
-      case PNK_URSH:   if (!f.writeOp(I32::LogicRsh)) return false; break;
+      case PNK_BITOR:  if (!f.writeOp(Expr::I32Or))   return false; break;
+      case PNK_BITAND: if (!f.writeOp(Expr::I32And))  return false; break;
+      case PNK_BITXOR: if (!f.writeOp(Expr::I32Xor))  return false; break;
+      case PNK_LSH:    if (!f.writeOp(Expr::I32Shl))  return false; break;
+      case PNK_RSH:    if (!f.writeOp(Expr::I32ShrS)) return false; break;
+      case PNK_URSH:   if (!f.writeOp(Expr::I32ShrU)) return false; break;
       default: MOZ_CRASH("not a bitwise op");
     }
 
@@ -6366,35 +6106,10 @@ CheckStatement(FunctionValidator& f, ParseNode* stmt);
 static bool
 CheckAsExprStatement(FunctionValidator& f, ParseNode* expr)
 {
-    if (expr->isKind(PNK_CALL)) {
-        Type _;
-        return CheckCoercedCall(f, expr, ExprType::Void, &_);
-    }
-
-    size_t opcodeAt;
-    if (!f.tempOp(&opcodeAt))
-        return false;
-
-    Type type;
-    if (!CheckExpr(f, expr, &type))
-        return false;
-
-    if (type.isIntish())
-        f.patchOp(opcodeAt, Stmt::I32Expr);
-    else if (type.isFloatish())
-        f.patchOp(opcodeAt, Stmt::F32Expr);
-    else if (type.isMaybeDouble())
-        f.patchOp(opcodeAt, Stmt::F64Expr);
-    else if (type.isInt32x4())
-        f.patchOp(opcodeAt, Stmt::I32X4Expr);
-    else if (type.isFloat32x4())
-        f.patchOp(opcodeAt, Stmt::F32X4Expr);
-    else if (type.isBool32x4())
-        f.patchOp(opcodeAt, Stmt::B32X4Expr);
-    else
-        MOZ_CRASH("unexpected or unimplemented expression statement");
-
-    return true;
+    Type ignored;
+    if (expr->isKind(PNK_CALL))
+        return CheckCoercedCall(f, expr, ExprType::Void, &ignored);
+    return CheckExpr(f, expr, &ignored);
 }
 
 static bool
@@ -6403,7 +6118,7 @@ CheckExprStatement(FunctionValidator& f, ParseNode* exprStmt)
     MOZ_ASSERT(exprStmt->isKind(PNK_SEMI));
     ParseNode* expr = UnaryKid(exprStmt);
     if (!expr)
-        return f.writeOp(Stmt::Noop);
+        return f.writeOp(Expr::Nop);
     return CheckAsExprStatement(f, expr);
 }
 
@@ -6420,19 +6135,16 @@ MaybeAddInterruptCheck(FunctionValidator& f, InterruptCheckPosition pos, ParseNo
 
     switch (pos) {
       case InterruptCheckPosition::Head:
-        if (!f.writeOp(Stmt::InterruptCheckHead))
+        if (!f.writeOp(Expr::InterruptCheckHead))
             return false;
         break;
       case InterruptCheckPosition::Loop:
-        if (!f.writeOp(Stmt::InterruptCheckLoop))
+        if (!f.writeOp(Expr::InterruptCheckLoop))
             return false;
         break;
     }
 
-    unsigned lineno = 0, column = 0;
-    f.m().tokenStream().srcCoords.lineNumAndColumnIndex(pn->pn_pos.begin, &lineno, &column);
-    return f.writeU32(lineno) &&
-           f.writeU32(column);
+    return true;
 }
 
 static bool
@@ -6442,7 +6154,7 @@ CheckWhile(FunctionValidator& f, ParseNode* whileStmt)
     ParseNode* cond = BinaryLeft(whileStmt);
     ParseNode* body = BinaryRight(whileStmt);
 
-    if (!f.writeOp(Stmt::While))
+    if (!f.writeOp(Expr::While))
         return false;
 
     Type condType;
@@ -6469,8 +6181,8 @@ CheckFor(FunctionValidator& f, ParseNode* forStmt)
     ParseNode* maybeCond = TernaryKid2(forHead);
     ParseNode* maybeInc = TernaryKid3(forHead);
 
-    Stmt stmt = maybeInit ? (maybeInc ? Stmt::ForInitInc   : Stmt::ForInitNoInc)
-                          : (maybeInc ? Stmt::ForNoInitInc : Stmt::ForNoInitNoInc);
+    Expr stmt = maybeInit ? (maybeInc ? Expr::ForInitInc   : Expr::ForInitNoInc)
+                          : (maybeInc ? Expr::ForNoInitInc : Expr::ForNoInitNoInc);
     if (!f.writeOp(stmt))
         return false;
 
@@ -6496,7 +6208,7 @@ CheckFor(FunctionValidator& f, ParseNode* forStmt)
     if (maybeInc && !CheckAsExprStatement(f, maybeInc))
         return false;
 
-    return f.writeDebugCheckPoint();
+    return true;
 }
 
 static bool
@@ -6506,7 +6218,7 @@ CheckDoWhile(FunctionValidator& f, ParseNode* whileStmt)
     ParseNode* body = BinaryLeft(whileStmt);
     ParseNode* cond = BinaryRight(whileStmt);
 
-    if (!f.writeOp(Stmt::DoWhile))
+    if (!f.writeOp(Expr::DoWhile))
         return false;
 
     if (!MaybeAddInterruptCheck(f, InterruptCheckPosition::Loop, cond))
@@ -6531,7 +6243,7 @@ CheckLabel(FunctionValidator& f, ParseNode* labeledStmt)
     PropertyName* label = LabeledStatementLabel(labeledStmt);
     ParseNode* stmt = LabeledStatementStatement(labeledStmt);
 
-    if (!f.writeOp(Stmt::Label))
+    if (!f.writeOp(Expr::Label))
         return false;
 
     uint32_t labelId;
@@ -6571,9 +6283,9 @@ CheckIf(FunctionValidator& f, ParseNode* ifStmt)
         return false;
 
     if (!elseStmt) {
-        f.patchOp(opcodeAt, Stmt::IfThen);
+        f.patchOp(opcodeAt, Expr::If);
     } else {
-        f.patchOp(opcodeAt, Stmt::IfElse);
+        f.patchOp(opcodeAt, Expr::IfElse);
 
         if (elseStmt->isKind(PNK_IF)) {
             ifStmt = elseStmt;
@@ -6677,7 +6389,7 @@ CheckSwitch(FunctionValidator& f, ParseNode* switchStmt)
 {
     MOZ_ASSERT(switchStmt->isKind(PNK_SWITCH));
 
-    if (!f.writeOp(Stmt::Switch))
+    if (!f.writeOp(Expr::TableSwitch))
         return false;
 
     // Has default
@@ -6776,7 +6488,7 @@ CheckReturn(FunctionValidator& f, ParseNode* returnStmt)
 {
     ParseNode* expr = ReturnExpr(returnStmt);
 
-    if (!f.writeOp(Stmt::Ret))
+    if (!f.writeOp(Expr::Return))
         return false;
 
     if (!expr)
@@ -6812,7 +6524,7 @@ CheckStatementList(FunctionValidator& f, ParseNode* stmtList)
 {
     MOZ_ASSERT(stmtList->isKind(PNK_STATEMENTLIST));
 
-    if (!f.writeOp(Stmt::Block) || !f.writeU32(ListLength(stmtList)))
+    if (!f.writeOp(Expr::Block) || !f.writeVarU32(ListLength(stmtList)))
         return false;
 
     for (ParseNode* stmt = ListHead(stmtList); stmt; stmt = NextNode(stmt)) {
@@ -6820,12 +6532,12 @@ CheckStatementList(FunctionValidator& f, ParseNode* stmtList)
             return false;
     }
 
-    return f.writeDebugCheckPoint();
+    return true;
 }
 
 static bool
 CheckBreakOrContinue(FunctionValidator& f, PropertyName* maybeLabel,
-                     Stmt withoutLabel, Stmt withLabel)
+                     Expr withoutLabel, Expr withLabel)
 {
     if (!maybeLabel)
         return f.writeOp(withoutLabel);
@@ -6855,9 +6567,9 @@ CheckStatement(FunctionValidator& f, ParseNode* stmt)
       case PNK_RETURN:        return CheckReturn(f, stmt);
       case PNK_STATEMENTLIST: return CheckStatementList(f, stmt);
       case PNK_BREAK:         return CheckBreakOrContinue(f, LoopControlMaybeLabel(stmt),
-                                                          Stmt::Break, Stmt::BreakLabel);
+                                                          Expr::Break, Expr::BreakLabel);
       case PNK_CONTINUE:      return CheckBreakOrContinue(f, LoopControlMaybeLabel(stmt),
-                                                          Stmt::Continue, Stmt::ContinueLabel);
+                                                          Expr::Continue, Expr::ContinueLabel);
       default:;
     }
 
@@ -6865,12 +6577,12 @@ CheckStatement(FunctionValidator& f, ParseNode* stmt)
 }
 
 static bool
-ParseFunction(ModuleValidator& m, ParseNode** fnOut, unsigned* line, unsigned* column)
+ParseFunction(ModuleValidator& m, ParseNode** fnOut, unsigned* line)
 {
     TokenStream& tokenStream = m.tokenStream();
 
     tokenStream.consumeKnownToken(TOK_FUNCTION, TokenStream::Operand);
-    tokenStream.srcCoords.lineNumAndColumnIndex(tokenStream.currentToken().pos.end, line, column);
+    *line = tokenStream.srcCoords.lineNum(tokenStream.currentToken().pos.end);
 
     RootedPropertyName name(m.cx());
 
@@ -6937,15 +6649,15 @@ CheckFunction(ModuleValidator& m)
     int64_t before = PRMJ_Now();
 
     ParseNode* fn = nullptr;
-    unsigned line = 0, column = 0;
-    if (!ParseFunction(m, &fn, &line, &column))
+    unsigned line = 0;
+    if (!ParseFunction(m, &fn, &line))
         return false;
 
     if (!CheckFunctionHead(m, fn))
         return false;
 
     FunctionValidator f(m, fn);
-    if (!f.init(FunctionName(fn), line, column))
+    if (!f.init(FunctionName(fn), line))
         return m.fail(fn, "internal compiler failure (probably out of memory)");
 
     ParseNode* stmtIter = ListHead(FunctionStatementList(fn));
@@ -6953,7 +6665,7 @@ CheckFunction(ModuleValidator& m)
     if (!CheckProcessingDirectives(m, &stmtIter))
         return false;
 
-    MallocSig::ArgVector args;
+    ValTypeVector args;
     if (!CheckArguments(f, &stmtIter, &args))
         return false;
 
@@ -6974,10 +6686,8 @@ CheckFunction(ModuleValidator& m)
     if (!CheckFinalReturn(f, lastNonEmptyStmt))
         return false;
 
-    MallocSig sig(Move(args), f.returnedType());
-
     ModuleValidator::Func* func = nullptr;
-    if (!CheckFunctionSignature(m, fn, sig, FunctionName(fn), &func))
+    if (!CheckFunctionSignature(m, fn, Sig(Move(args), f.returnedType()), FunctionName(fn), &func))
         return false;
 
     if (func->defined())
@@ -6985,7 +6695,7 @@ CheckFunction(ModuleValidator& m)
 
     func->define(fn);
 
-    if (!f.finish(func->index(), func->sig(), (PRMJ_Now() - before) / PRMJ_USEC_PER_MSEC))
+    if (!f.finish(func->index(), (PRMJ_Now() - before) / PRMJ_USEC_PER_MSEC))
         return m.fail(fn, "internal compiler failure (probably out of memory)");
 
     // Release the parser's lifo memory only after the last use of a parse node.
@@ -7041,7 +6751,7 @@ CheckFuncPtrTable(ModuleValidator& m, ParseNode* var)
     unsigned mask = length - 1;
 
     Vector<uint32_t> elemFuncIndices(m.cx());
-    const LifoSig* sig = nullptr;
+    const Sig* sig = nullptr;
     for (ParseNode* elem = ListHead(arrayLiteral); elem; elem = NextNode(elem)) {
         if (!elem->isKind(PNK_NAME))
             return m.fail(elem, "function-pointer table's elements must be names of functions");
@@ -7051,22 +6761,27 @@ CheckFuncPtrTable(ModuleValidator& m, ParseNode* var)
         if (!func)
             return m.fail(elem, "function-pointer table's elements must be names of functions");
 
+        const Sig& funcSig = m.mg().funcSig(func->index());
         if (sig) {
-            if (*sig != func->sig())
+            if (*sig != funcSig)
                 return m.fail(elem, "all functions in table must have same signature");
         } else {
-            sig = &func->sig();
+            sig = &funcSig;
         }
 
         if (!elemFuncIndices.append(func->index()))
             return false;
     }
 
-    uint32_t funcPtrTableIndex;
-    if (!CheckFuncPtrTableAgainstExisting(m, var, var->name(), *sig, mask, &funcPtrTableIndex))
+    Sig copy;
+    if (!copy.clone(*sig))
         return false;
 
-    if (!m.defineFuncPtrTable(funcPtrTableIndex, elemFuncIndices))
+    uint32_t tableIndex;
+    if (!CheckFuncPtrTableAgainstExisting(m, var, var->name(), Move(copy), mask, &tableIndex))
+        return false;
+
+    if (!m.defineFuncPtrTable(tableIndex, elemFuncIndices))
         return m.fail(var, "duplicate function-pointer definition");
 
     return true;
@@ -7146,10 +6861,9 @@ CheckModuleReturn(ModuleValidator& m)
         return false;
     TokenStream& ts = m.parser().tokenStream;
     if (tk != TOK_RETURN) {
-        const char* msg = (tk == TOK_RC || tk == TOK_EOF)
-                          ? "expecting return statement"
-                          : "invalid asm.js. statement";
-        return m.failOffset(ts.currentToken().pos.begin, msg);
+        return m.failCurrentOffset((tk == TOK_RC || tk == TOK_EOF)
+                                   ? "expecting return statement"
+                                   : "invalid asm.js. statement");
     }
     ts.ungetToken();
 
@@ -7184,10 +6898,8 @@ CheckModuleEnd(ModuleValidator &m)
     if (!GetToken(m.parser(), &tk))
         return false;
 
-    if (tk != TOK_EOF && tk != TOK_RC) {
-        return m.failOffset(m.parser().tokenStream.currentToken().pos.begin,
-                            "top-level export (return) must be the last statement");
-    }
+    if (tk != TOK_EOF && tk != TOK_RC)
+        return m.failCurrentOffset("top-level export (return) must be the last statement");
 
     m.parser().tokenStream.ungetToken();
     return true;
@@ -7336,6 +7048,8 @@ ValidateGlobalVariable(JSContext* cx, const AsmJSGlobal& global, uint8_t* global
           case ValType::F32x4:
             memcpy(datum, v.f32x4(), Simd128DataSize);
             break;
+          case ValType::Limit:
+            MOZ_CRASH("Limit");
         }
         break;
       }
@@ -7386,6 +7100,8 @@ ValidateGlobalVariable(JSContext* cx, const AsmJSGlobal& global, uint8_t* global
             memcpy(datum, simdConstant.asInt32x4(), Simd128DataSize);
             break;
           }
+          case ValType::Limit:
+            MOZ_CRASH("Limit");
         }
         break;
       }
@@ -7403,7 +7119,7 @@ ValidateFFI(JSContext* cx, const AsmJSGlobal& global, HandleValue importVal,
     if (!GetDataProperty(cx, importVal, field, &v))
         return false;
 
-    if (!v.isObject() || !v.toObject().is<JSFunction>())
+    if (!IsFunctionObject(v))
         return LinkFail(cx, "FFI imports must be functions");
 
     ffis[global.ffiIndex()].set(&v.toObject().as<JSFunction>());
@@ -7468,28 +7184,6 @@ ValidateMathBuiltinFunction(JSContext* cx, const AsmJSGlobal& global, HandleValu
     return true;
 }
 
-static PropertyName*
-SimdTypeToName(JSContext* cx, AsmJSSimdType type)
-{
-    switch (type) {
-      case AsmJSSimdType_int32x4:   return cx->names().Int32x4;
-      case AsmJSSimdType_float32x4: return cx->names().Float32x4;
-      case AsmJSSimdType_bool32x4:  return cx->names().Bool32x4;
-    }
-    MOZ_MAKE_COMPILER_ASSUME_IS_UNREACHABLE("unexpected SIMD type");
-}
-
-static SimdTypeDescr::Type
-AsmJSSimdTypeToTypeDescrType(AsmJSSimdType type)
-{
-    switch (type) {
-      case AsmJSSimdType_int32x4: return Int32x4::type;
-      case AsmJSSimdType_float32x4: return Float32x4::type;
-      case AsmJSSimdType_bool32x4: return Bool32x4::type;
-    }
-    MOZ_MAKE_COMPILER_ASSUME_IS_UNREACHABLE("unexpected AsmJSSimdType");
-}
-
 static bool
 ValidateSimdType(JSContext* cx, const AsmJSGlobal& global, HandleValue globalVal,
                  MutableHandleValue out)
@@ -7498,7 +7192,7 @@ ValidateSimdType(JSContext* cx, const AsmJSGlobal& global, HandleValue globalVal
     if (!GetDataProperty(cx, globalVal, cx->names().SIMD, &v))
         return false;
 
-    AsmJSSimdType type;
+    SimdType type;
     if (global.which() == AsmJSGlobal::SimdCtor)
         type = global.simdCtorType();
     else
@@ -7515,7 +7209,7 @@ ValidateSimdType(JSContext* cx, const AsmJSGlobal& global, HandleValue globalVal
     if (!simdDesc->is<SimdTypeDescr>())
         return LinkFail(cx, "bad SIMD type");
 
-    if (AsmJSSimdTypeToTypeDescrType(type) != simdDesc->as<SimdTypeDescr>().type())
+    if (type != simdDesc->as<SimdTypeDescr>().type())
         return LinkFail(cx, "bad SIMD type");
 
     out.set(v);
@@ -7543,34 +7237,29 @@ ValidateSimdOperation(JSContext* cx, const AsmJSGlobal& global, HandleValue glob
 
     Native native = nullptr;
     switch (global.simdOperationType()) {
-#define SET_NATIVE_INT32X4(op) case AsmJSSimdOperation_##op: native = simd_int32x4_##op; break;
-#define SET_NATIVE_FLOAT32X4(op) case AsmJSSimdOperation_##op: native = simd_float32x4_##op; break;
-#define SET_NATIVE_BOOL32X4(op) case AsmJSSimdOperation_##op: native = simd_bool32x4_##op; break;
-#define FALLTHROUGH(op) case AsmJSSimdOperation_##op:
-      case AsmJSSimdType_int32x4:
+#define SET_NATIVE_INT32X4(op) case SimdOperation::Fn_##op: native = simd_int32x4_##op; break;
+#define SET_NATIVE_FLOAT32X4(op) case SimdOperation::Fn_##op: native = simd_float32x4_##op; break;
+#define SET_NATIVE_BOOL32X4(op) case SimdOperation::Fn_##op: native = simd_bool32x4_##op; break;
+#define FALLTHROUGH(op) case SimdOperation::Fn_##op:
+      case SimdType::Int32x4:
         switch (global.simdOperation()) {
           FORALL_INT32X4_ASMJS_OP(SET_NATIVE_INT32X4)
-          default:
-            MOZ_MAKE_COMPILER_ASSUME_IS_UNREACHABLE("shouldn't have been validated in the first "
-                                                    "place");
+          default: MOZ_CRASH("shouldn't have been validated in the first place");
         }
         break;
-      case AsmJSSimdType_float32x4:
+      case SimdType::Float32x4:
         switch (global.simdOperation()) {
           FORALL_FLOAT32X4_ASMJS_OP(SET_NATIVE_FLOAT32X4)
-          default:
-             MOZ_MAKE_COMPILER_ASSUME_IS_UNREACHABLE("shouldn't have been validated in the first "
-                                                     "place");
+          default: MOZ_CRASH("shouldn't have been validated in the first place");
         }
         break;
-      case AsmJSSimdType_bool32x4:
+      case SimdType::Bool32x4:
         switch (global.simdOperation()) {
           FORALL_BOOL_SIMD_OP(SET_NATIVE_BOOL32X4)
-          default:
-             MOZ_MAKE_COMPILER_ASSUME_IS_UNREACHABLE("shouldn't have been validated in the first "
-                                                     "place");
+          default: MOZ_CRASH("shouldn't have been validated in the first place");
         }
         break;
+      default: MOZ_CRASH("unhandled simd type");
 #undef FALLTHROUGH
 #undef SET_NATIVE_FLOAT32X4
 #undef SET_NATIVE_INT32X4
@@ -7693,8 +7382,11 @@ CheckBuffer(JSContext* cx, AsmJSModule& module, HandleValue bufferVal,
 }
 
 static bool
-DynamicallyLinkModule(JSContext* cx, const CallArgs& args, AsmJSModule& module)
+DynamicallyLinkModule(JSContext* cx, const CallArgs& args, Handle<WasmModuleObject*> moduleObj,
+                      MutableHandleObject exportObj)
 {
+    AsmJSModule& module = moduleObj->module().asAsmJS();
+
     HandleValue globalVal = args.get(0);
     HandleValue importVal = args.get(1);
     HandleValue bufferVal = args.get(2);
@@ -7738,7 +7430,7 @@ DynamicallyLinkModule(JSContext* cx, const CallArgs& args, AsmJSModule& module)
             if (!ValidateSimdType(cx, global, globalVal))
                 return false;
             break;
-          case AsmJSGlobal::SimdOperation:
+          case AsmJSGlobal::SimdOp:
             if (!ValidateSimdOperation(cx, global, globalVal))
                 return false;
             break;
@@ -7751,7 +7443,7 @@ DynamicallyLinkModule(JSContext* cx, const CallArgs& args, AsmJSModule& module)
             return false;
     }
 
-    return module.dynamicallyLink(cx, buffer, imports);
+    return module.dynamicallyLink(cx, moduleObj, buffer, imports, exportObj);
 }
 
 static bool
@@ -7861,18 +7553,13 @@ LinkAsmJS(JSContext* cx, unsigned argc, JS::Value* vp)
     // asm.js spec and then patching the generated module to associate it with
     // the given heap (ArrayBuffer) and a new global data segment (the closure
     // state shared by the inner asm.js functions).
-    if (!DynamicallyLinkModule(cx, args, *module)) {
+    RootedObject exportObj(cx);
+    if (!DynamicallyLinkModule(cx, args, moduleObj, &exportObj)) {
         // Linking failed, so reparse the entire asm.js module from scratch to
         // get normal interpreted bytecode which we can simply Invoke. Very slow.
         RootedPropertyName name(cx, fun->name());
         return HandleDynamicLinkFailure(cx, args, *module, name);
     }
-
-    // Link-time validation succeed!
-
-    RootedObject exportObj(cx);
-    if (!module->createExportObject(cx, moduleObj, module->exportMap(), &exportObj))
-        return false;
 
     args.rval().set(ObjectValue(*exportObj));
     return true;
@@ -7938,7 +7625,6 @@ AsmJSModuleData::serializedSize() const
            SerializedVectorSize(globals) +
            SerializedPodVectorSize(imports) +
            SerializedPodVectorSize(exports) +
-           exportMap.serializedSize() +
            SerializedNameSize(globalArgumentName) +
            SerializedNameSize(importArgumentName) +
            SerializedNameSize(bufferArgumentName);
@@ -7951,7 +7637,6 @@ AsmJSModuleData::serialize(uint8_t* cursor) const
     cursor = SerializeVector(cursor, globals);
     cursor = SerializePodVector(cursor, imports);
     cursor = SerializePodVector(cursor, exports);
-    cursor = exportMap.serialize(cursor);
     cursor = SerializeName(cursor, globalArgumentName);
     cursor = SerializeName(cursor, importArgumentName);
     cursor = SerializeName(cursor, bufferArgumentName);
@@ -7965,7 +7650,6 @@ AsmJSModuleData::deserialize(ExclusiveContext* cx, const uint8_t* cursor)
     (cursor = DeserializeVector(cx, cursor, &globals)) &&
     (cursor = DeserializePodVector(cx, cursor, &imports)) &&
     (cursor = DeserializePodVector(cx, cursor, &exports)) &&
-    (cursor = exportMap.deserialize(cx, cursor)) &&
     (cursor = DeserializeName(cx, cursor, &globalArgumentName)) &&
     (cursor = DeserializeName(cx, cursor, &importArgumentName)) &&
     (cursor = DeserializeName(cx, cursor, &bufferArgumentName));
@@ -7985,8 +7669,7 @@ AsmJSModuleData::clone(JSContext* cx, AsmJSModuleData* out) const
     out->scriptSource.reset(scriptSource.get());
     return CloneVector(cx, globals, &out->globals) &&
            ClonePodVector(cx, imports, &out->imports) &&
-           ClonePodVector(cx, exports, &out->exports) &&
-           exportMap.clone(cx, &out->exportMap);
+           ClonePodVector(cx, exports, &out->exports);
 }
 
 size_t
@@ -7994,8 +7677,7 @@ AsmJSModuleData::sizeOfExcludingThis(MallocSizeOf mallocSizeOf) const
 {
     return globals.sizeOfExcludingThis(mallocSizeOf) +
            imports.sizeOfExcludingThis(mallocSizeOf) +
-           exports.sizeOfExcludingThis(mallocSizeOf) +
-           exportMap.sizeOfExcludingThis(mallocSizeOf);
+           exports.sizeOfExcludingThis(mallocSizeOf);
 }
 
 size_t
@@ -8003,6 +7685,7 @@ AsmJSModule::serializedSize() const
 {
     return base().serializedSize() +
            link_->serializedSize() +
+           exportMap_->serializedSize() +
            module_->serializedSize();
 }
 
@@ -8011,6 +7694,7 @@ AsmJSModule::serialize(uint8_t* cursor) const
 {
     cursor = base().serialize(cursor);
     cursor = link_->serialize(cursor);
+    cursor = exportMap_->serialize(cursor);
     cursor = module_->serialize(cursor);
     return cursor;
 }
@@ -8019,6 +7703,10 @@ AsmJSModule::serialize(uint8_t* cursor) const
 AsmJSModule::deserialize(ExclusiveContext* cx, const uint8_t* cursor, AsmJSParser& parser,
                          MutableHandle<WasmModuleObject*> moduleObj)
 {
+    moduleObj.set(WasmModuleObject::create(cx));
+    if (!moduleObj)
+        return nullptr;
+
     // Deserialization GC-allocates a bunch of atoms and stores them in unrooted
     // Vectors so, for simplicity, inhibit GC of the atoms zone.
     AutoKeepAtoms aka(cx->perThreadData);
@@ -8040,6 +7728,13 @@ AsmJSModule::deserialize(ExclusiveContext* cx, const uint8_t* cursor, AsmJSParse
     if (!cursor)
         return nullptr;
 
+    UniqueExportMap exportMap = cx->make_unique<ExportMap>();
+    if (!exportMap)
+        return nullptr;
+    cursor = exportMap->deserialize(cx, cursor);
+    if (!cursor)
+        return nullptr;
+
     UniqueAsmJSModuleData module = cx->make_unique<AsmJSModuleData>();
     if (!module)
         return nullptr;
@@ -8053,11 +7748,7 @@ AsmJSModule::deserialize(ExclusiveContext* cx, const uint8_t* cursor, AsmJSParse
     module->strict = parser.pc->sc->strict() && !parser.pc->sc->hasExplicitUseStrict();
     module->scriptSource.reset(parser.ss);
 
-    moduleObj.set(WasmModuleObject::create(cx));
-    if (!moduleObj)
-        return nullptr;
-
-    if (!moduleObj->init(cx->new_<AsmJSModule>(Move(base), Move(link), Move(module))))
+    if (!moduleObj->init(js_new<AsmJSModule>(Move(base), Move(link), Move(exportMap), Move(module))))
         return nullptr;
 
     return cursor;
@@ -8066,6 +7757,10 @@ AsmJSModule::deserialize(ExclusiveContext* cx, const uint8_t* cursor, AsmJSParse
 bool
 AsmJSModule::clone(JSContext* cx, MutableHandle<WasmModuleObject*> moduleObj) const
 {
+    moduleObj.set(WasmModuleObject::create(cx));
+    if (!moduleObj)
+        return false;
+
     // Prevent any GC that may move the temporarily-unrooted atoms being cloned.
     AutoKeepAtoms aka(cx->perThreadData);
 
@@ -8077,15 +7772,15 @@ AsmJSModule::clone(JSContext* cx, MutableHandle<WasmModuleObject*> moduleObj) co
     if (!link || !link_->clone(cx, link.get()))
         return false;
 
+    UniqueExportMap exportMap = cx->make_unique<ExportMap>();
+    if (!exportMap || !exportMap_->clone(cx, exportMap.get()))
+        return false;
+
     UniqueAsmJSModuleData module = cx->make_unique<AsmJSModuleData>();
     if (!module || !module_->clone(cx, module.get()))
         return false;
 
-    moduleObj.set(WasmModuleObject::create(cx));
-    if (!moduleObj)
-        return false;
-
-    if (!moduleObj->init(cx->new_<AsmJSModule>(Move(base), Move(link), Move(module))))
+    if (!moduleObj->init(js_new<AsmJSModule>(Move(base), Move(link), Move(exportMap), Move(module))))
         return false;
 
     return Module::clone(cx, *link_, &moduleObj->module());
@@ -8393,15 +8088,8 @@ Warn(AsmJSParser& parser, int errorNumber, const char* str)
 static bool
 EstablishPreconditions(ExclusiveContext* cx, AsmJSParser& parser)
 {
-#if defined(JS_CODEGEN_NONE) || defined(JS_CODEGEN_ARM64)
-    return Warn(parser, JSMSG_USE_ASM_TYPE_FAIL, "Disabled by lack of a JIT compiler");
-#endif
-
-    if (!cx->jitSupportsFloatingPoint())
-        return Warn(parser, JSMSG_USE_ASM_TYPE_FAIL, "Disabled by lack of floating point support");
-
-    if (cx->gcSystemPageSize() != AsmJSPageSize)
-        return Warn(parser, JSMSG_USE_ASM_TYPE_FAIL, "Disabled by non 4KiB system page size");
+    if (!HasCompilerSupport(cx))
+        return Warn(parser, JSMSG_USE_ASM_TYPE_FAIL, "Disabled by lack of compiler support");
 
     switch (parser.options().asmJSOption) {
       case AsmJSOption::Disabled:
@@ -8438,12 +8126,11 @@ BuildConsoleMessage(ExclusiveContext* cx, AsmJSModule& module, unsigned time,
 
         for (unsigned i = 0; i < slowFuncs.length(); i++) {
             const SlowFunction& func = slowFuncs[i];
-            JSAutoByteString name;
-            if (!AtomToPrintableString(cx, func.name, &name))
-                return nullptr;
-
-            slowText.reset(JS_smprintf("%s%s:%u:%u (%ums)%s", slowText.get(),
-                                       name.ptr(), func.line, func.column, func.ms,
+            slowText.reset(JS_smprintf("%s%s:%u (%ums)%s",
+                                       slowText.get(),
+                                       module.prettyFuncName(func.index),
+                                       func.lineOrBytecode,
+                                       func.ms,
                                        i+1 < slowFuncs.length() ? ", " : ""));
             if (!slowText)
                 return nullptr;
@@ -8500,7 +8187,6 @@ js::CompileAsmJS(ExclusiveContext* cx, AsmJSParser& parser, ParseNode* stmtList,
     // Various conditions disable asm.js optimizations.
     if (!EstablishPreconditions(cx, parser))
         return NoExceptionPending(cx);
-
 
     // Before spending any time parsing the module, try to look it up in the
     // embedding's cache using the chars about to be parsed as the key.
@@ -8583,13 +8269,7 @@ js::IsAsmJSCompilationAvailable(JSContext* cx, unsigned argc, Value* vp)
     CallArgs args = CallArgsFromVp(argc, vp);
 
     // See EstablishPreconditions.
-#if defined(JS_CODEGEN_NONE) || defined(JS_CODEGEN_ARM64)
-    bool available = false;
-#else
-    bool available = cx->jitSupportsFloatingPoint() &&
-                     cx->gcSystemPageSize() == AsmJSPageSize &&
-                     cx->runtime()->options().asmJS();
-#endif
+    bool available = HasCompilerSupport(cx) && cx->runtime()->options().asmJS();
 
     args.rval().set(BooleanValue(available));
     return true;
@@ -8815,31 +8495,7 @@ js::AsmJSFunctionToString(JSContext* cx, HandleFunction fun)
 /*****************************************************************************/
 // asm.js heap
 
-static const size_t MinHeapLength = 64 * 1024;
-static_assert(MinHeapLength % AsmJSPageSize == 0, "Invalid page size");
-
-#if defined(ASMJS_MAY_USE_SIGNAL_HANDLERS_FOR_OOB)
-
-// Targets define AsmJSImmediateRange to be the size of an address immediate,
-// and AsmJSCheckedImmediateRange, to be the size of an address immediate that
-// can be supported by signal-handler OOB handling.
-static_assert(AsmJSCheckedImmediateRange <= AsmJSImmediateRange,
-              "AsmJSImmediateRange should be the size of an unconstrained "
-              "address immediate");
-
-// To support the use of signal handlers for catching Out Of Bounds accesses,
-// the internal ArrayBuffer data array is inflated to 4GiB (only the
-// byteLength portion of which is accessible) so that out-of-bounds accesses
-// (made using a uint32 index) are guaranteed to raise a SIGSEGV.
-// Then, an additional extent is added to permit folding of immediate
-// values into addresses. And finally, unaligned accesses and mask optimizations
-// might also try to access a few bytes after this limit, so just inflate it by
-// AsmJSPageSize.
-const size_t js::AsmJSMappedSize = 4 * 1024ULL * 1024ULL * 1024ULL +
-                                   AsmJSImmediateRange +
-                                   AsmJSPageSize;
-
-#endif // ASMJS_MAY_USE_SIGNAL_HANDLERS_FOR_OOB
+static const size_t MinHeapLength = PageSize;
 
 // From the asm.js spec Linking section:
 //  the heap object's byteLength must be either
@@ -8854,7 +8510,7 @@ js::IsValidAsmJSHeapLength(uint32_t length)
                  (IsPowerOfTwo(length) ||
                   (length & 0x00ffffff) == 0);
 
-    MOZ_ASSERT_IF(valid, length % AsmJSPageSize == 0);
+    MOZ_ASSERT_IF(valid, length % PageSize == 0);
     MOZ_ASSERT_IF(valid, length == RoundUpToNextValidAsmJSHeapLength(length));
 
     return valid;

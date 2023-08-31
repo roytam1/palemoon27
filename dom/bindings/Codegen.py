@@ -8105,7 +8105,7 @@ class CGGenericMethod(CGAbstractBindingMethod):
     """
     def __init__(self, descriptor, allowCrossOriginThis=False):
         unwrapFailureCode = (
-            'return ThrowInvalidThis(cx, args, GetInvalidThisErrorForMethod(%%(securityError)s), "%s");\n' %
+            'return ThrowInvalidThis(cx, args, %%(securityError)s, "%s");\n' %
             descriptor.interface.identifier.name)
         name = "genericCrossOriginMethod" if allowCrossOriginThis else "genericMethod"
         CGAbstractBindingMethod.__init__(self, descriptor, name,
@@ -8136,7 +8136,7 @@ class CGGenericPromiseReturningMethod(CGAbstractBindingMethod):
     """
     def __init__(self, descriptor):
         unwrapFailureCode = dedent("""
-            ThrowInvalidThis(cx, args, GetInvalidThisErrorForMethod(%%(securityError)s), "%s");\n
+            ThrowInvalidThis(cx, args, %%(securityError)s, "%s");\n
             return ConvertExceptionToPromise(cx, xpc::XrayAwareCalleeGlobal(callee),
                                              args.rval());\n""" %
                                    descriptor.interface.identifier.name)
@@ -8305,7 +8305,7 @@ class CGResolveHook(CGAbstractClassHook):
 
     def generate_code(self):
         return dedent("""
-            JS::Rooted<JSPropertyDescriptor> desc(cx);
+            JS::Rooted<JS::PropertyDescriptor> desc(cx);
             if (!self->DoResolve(cx, obj, id, &desc)) {
               return false;
             }
@@ -8477,7 +8477,7 @@ class CGGenericGetter(CGAbstractBindingMethod):
             else:
                 name = "genericGetter"
             unwrapFailureCode = (
-                'return ThrowInvalidThis(cx, args, GetInvalidThisErrorForGetter(%%(securityError)s), "%s");\n' %
+                'return ThrowInvalidThis(cx, args, %%(securityError)s, "%s");\n' %
                 descriptor.interface.identifier.name)
         CGAbstractBindingMethod.__init__(self, descriptor, name, JSNativeArguments(),
                                          unwrapFailureCode,
@@ -8608,7 +8608,7 @@ class CGGenericSetter(CGAbstractBindingMethod):
             else:
                 name = "genericSetter"
             unwrapFailureCode = (
-                'return ThrowInvalidThis(cx, args, GetInvalidThisErrorForSetter(%%(securityError)s), "%s");\n' %
+                'return ThrowInvalidThis(cx, args, %%(securityError)s, "%s");\n' %
                 descriptor.interface.identifier.name)
 
         CGAbstractBindingMethod.__init__(self, descriptor, name, JSNativeArguments(),
@@ -8772,7 +8772,7 @@ class CGMemberJITInfo(CGThing):
                 {
                   { ${opName} },
                   { prototypes::id::${name} },
-                  PrototypeTraits<prototypes::id::${name}>::Depth,
+                  { PrototypeTraits<prototypes::id::${name}>::Depth },
                   JSJitInfo::${opType},
                   JSJitInfo::${aliasSet}, /* aliasSet.  Not relevant for setters. */
                   ${returnType},  /* returnType.  Not relevant for setters. */
@@ -9152,7 +9152,7 @@ class CGStaticMethodJitinfo(CGGeneric):
             "\n"
             "static const JSJitInfo %s_methodinfo = {\n"
             "  { (JSJitGetterOp)%s },\n"
-            "  { prototypes::id::_ID_Count }, 0, JSJitInfo::StaticMethod,\n"
+            "  { prototypes::id::_ID_Count }, { 0 }, JSJitInfo::StaticMethod,\n"
             "  JSJitInfo::AliasEverything, JSVAL_TYPE_MISSING, false, false,\n"
             "  false, false, 0\n"
             "};\n" %
@@ -10371,7 +10371,7 @@ class CGResolveOwnProperty(CGAbstractStaticMethod):
                 Argument('JS::Handle<JSObject*>', 'wrapper'),
                 Argument('JS::Handle<JSObject*>', 'obj'),
                 Argument('JS::Handle<jsid>', 'id'),
-                Argument('JS::MutableHandle<JSPropertyDescriptor>', 'desc'),
+                Argument('JS::MutableHandle<JS::PropertyDescriptor>', 'desc'),
                 ]
         CGAbstractStaticMethod.__init__(self, descriptor, "ResolveOwnProperty",
                                         "bool", args)
@@ -10390,7 +10390,7 @@ class CGResolveOwnPropertyViaResolve(CGAbstractBindingMethod):
                 Argument('JS::Handle<JSObject*>', 'wrapper'),
                 Argument('JS::Handle<JSObject*>', 'obj'),
                 Argument('JS::Handle<jsid>', 'id'),
-                Argument('JS::MutableHandle<JSPropertyDescriptor>', 'desc')]
+                Argument('JS::MutableHandle<JS::PropertyDescriptor>', 'desc')]
         CGAbstractBindingMethod.__init__(self, descriptor,
                                          "ResolveOwnPropertyViaResolve",
                                          args, getThisObj="",
@@ -10406,7 +10406,7 @@ class CGResolveOwnPropertyViaResolve(CGAbstractBindingMethod):
               // to avoid re-resolving the properties if someone deletes
               // them.
               JSAutoCompartment ac(cx, obj);
-              JS::Rooted<JSPropertyDescriptor> objDesc(cx);
+              JS::Rooted<JS::PropertyDescriptor> objDesc(cx);
               if (!self->DoResolve(cx, obj, id, &objDesc)) {
                 return false;
               }
@@ -10842,7 +10842,7 @@ class CGDOMJSProxyHandler_getOwnPropDescriptor(ClassMethod):
                 Argument('JS::Handle<JSObject*>', 'proxy'),
                 Argument('JS::Handle<jsid>', 'id'),
                 Argument('bool', 'ignoreNamedProps'),
-                Argument('JS::MutableHandle<JSPropertyDescriptor>', 'desc')]
+                Argument('JS::MutableHandle<JS::PropertyDescriptor>', 'desc')]
         ClassMethod.__init__(self, "getOwnPropDescriptor", "bool", args,
                              virtual=True, override=True, const=True)
         self.descriptor = descriptor
@@ -10958,7 +10958,7 @@ class CGDOMJSProxyHandler_defineProperty(ClassMethod):
         args = [Argument('JSContext*', 'cx'),
                 Argument('JS::Handle<JSObject*>', 'proxy'),
                 Argument('JS::Handle<jsid>', 'id'),
-                Argument('JS::Handle<JSPropertyDescriptor>', 'desc'),
+                Argument('JS::Handle<JS::PropertyDescriptor>', 'desc'),
                 Argument('JS::ObjectOpResult&', 'opresult'),
                 Argument('bool*', 'defined')]
         ClassMethod.__init__(self, "defineProperty", "bool", args, virtual=True, override=True, const=True)

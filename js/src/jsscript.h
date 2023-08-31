@@ -165,7 +165,7 @@ class YieldOffsetArray {
     }
 };
 
-class Binding : public JS::Traceable
+class Binding
 {
     // One JSScript stores one Binding per formal/variable so we use a
     // packed-word representation.
@@ -214,7 +214,7 @@ JS_STATIC_ASSERT(sizeof(Binding) == sizeof(uintptr_t));
  * both function and top-level scripts (the latter is needed to track names in
  * strict mode eval code, to give such code its own lexical environment).
  */
-class Bindings : public JS::Traceable
+class Bindings
 {
     friend class BindingIter;
     friend class AliasedFormalIter;
@@ -1953,7 +1953,7 @@ class JSScript : public js::gc::TenuredCell
     void finalize(js::FreeOp* fop);
     void fixupAfterMovingGC() {}
 
-    static inline js::ThingRootKind rootKind() { return js::THING_ROOT_SCRIPT; }
+    static const JS::TraceKind TraceKind = JS::TraceKind::Script;
 
     void traceChildren(JSTracer* trc);
 
@@ -2395,7 +2395,7 @@ class LazyScript : public gc::TenuredCell
     void finalize(js::FreeOp* fop);
     void fixupAfterMovingGC() {}
 
-    static inline js::ThingRootKind rootKind() { return js::THING_ROOT_LAZY_SCRIPT; }
+    static const JS::TraceKind TraceKind = JS::TraceKind::LazyScript;
 
     size_t sizeOfExcludingThis(mozilla::MallocSizeOf mallocSizeOf)
     {

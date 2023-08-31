@@ -787,6 +787,7 @@ bool
 nsFrameLoader::ShowRemoteFrame(const ScreenIntSize& size,
                                nsSubDocumentFrame *aFrame)
 {
+  PROFILER_LABEL_FUNC(js::ProfileEntry::Category::GRAPHICS);
   NS_ASSERTION(IsRemoteFrame(), "ShowRemote only makes sense on remote frames.");
 
   if (!mRemoteBrowser && !TryRemoteBrowser()) {
@@ -1555,6 +1556,9 @@ nsFrameLoader::DestroyComplete()
   if (mChildMessageManager) {
     static_cast<nsInProcessTabChildGlobal*>(mChildMessageManager.get())->Disconnect();
   }
+
+  mMessageManager = nullptr;
+  mChildMessageManager = nullptr;
 }
 
 NS_IMETHODIMP
@@ -2595,6 +2599,8 @@ nsFrameLoader::EnsureMessageManager()
     if (!parentManager) {
       chromeWindow->GetMessageManager(getter_AddRefs(parentManager));
     }
+  } else {
+    parentManager = do_GetService("@mozilla.org/globalmessagemanager;1");
   }
 
   mMessageManager = new nsFrameMessageManager(nullptr,

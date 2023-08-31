@@ -2450,7 +2450,7 @@ Debugger::markCrossCompartmentEdges(JSTracer* trc)
     // `Debugger::logTenurePromotion`, we can't hold onto CCWs inside the log,
     // and instead have unwrapped cross-compartment edges. We need to be sure to
     // mark those here.
-    TenurePromotionsLog::trace(&tenurePromotionsLog, trc);
+    tenurePromotionsLog.trace(trc);
 }
 
 /*
@@ -2626,8 +2626,8 @@ Debugger::trace(JSTracer* trc)
         TraceEdge(trc, &frameobj, "live Debugger.Frame");
     }
 
-    AllocationsLog::trace(&allocationsLog, trc);
-    TenurePromotionsLog::trace(&tenurePromotionsLog, trc);
+    allocationsLog.trace(trc);
+    tenurePromotionsLog.trace(trc);
 
     /* Trace the weak map from JSScript instances to Debugger.Script objects. */
     scripts.trace(trc);
@@ -8374,7 +8374,11 @@ JS_DefineDebuggerObject(JSContext* cx, HandleObject obj)
         objectProto(cx),
         envProto(cx),
         memoryProto(cx);
-    objProto = obj->as<GlobalObject>().getOrCreateObjectPrototype(cx);
+    RootedObject debuggeeWouldRunProto(cx);
+    RootedValue debuggeeWouldRunCtor(cx);
+    Rooted<GlobalObject*> global(cx, &obj->as<GlobalObject>());
+
+    objProto = global->getOrCreateObjectPrototype(cx);
     if (!objProto)
         return false;
     debugProto = InitClass(cx, obj,
@@ -8411,17 +8415,31 @@ JS_DefineDebuggerObject(JSContext* cx, HandleObject obj)
                             nullptr, nullptr);
     if (!objectProto)
         return false;
+
     envProto = InitClass(cx, debugCtor, objProto, &DebuggerEnv_class,
                          DebuggerEnv_construct, 0,
                          DebuggerEnv_properties, DebuggerEnv_methods,
                          nullptr, nullptr);
     if (!envProto)
         return false;
+
     memoryProto = InitClass(cx, debugCtor, objProto, &DebuggerMemory::class_,
                             DebuggerMemory::construct, 0, DebuggerMemory::properties,
                             DebuggerMemory::methods, nullptr, nullptr);
     if (!memoryProto)
         return false;
+
+    debuggeeWouldRunProto =
+        GlobalObject::getOrCreateCustomErrorPrototype(cx, global, JSEXN_DEBUGGEEWOULDRUN);
+    if (!debuggeeWouldRunProto)
+        return false;
+    debuggeeWouldRunCtor = global->getConstructor(JSProto_DebuggeeWouldRun);
+    RootedId debuggeeWouldRunId(cx, NameToId(ClassName(JSProto_DebuggeeWouldRun, cx)));
+    if (!DefineProperty(cx, debugCtor, debuggeeWouldRunId, debuggeeWouldRunCtor,
+                        nullptr, nullptr, 0))
+    {
+        return false;
+    }
 
     debugProto->setReservedSlot(Debugger::JSSLOT_DEBUG_FRAME_PROTO, ObjectValue(*frameProto));
     debugProto->setReservedSlot(Debugger::JSSLOT_DEBUG_OBJECT_PROTO, ObjectValue(*objectProto));
@@ -8502,7 +8520,7 @@ GarbageCollectionEvent::Create(JSRuntime* rt, ::js::gcstats::Statistics& stats, 
             // reasons this data is stored and replicated on each slice. Each
             // slice used to have its own GCReason, but now they are all the
             // same.
-            data->reason = gcstats::ExplainReason(range.front().reason);
+            data->reason = gcreason::ExplainReason(range.front().reason);
             MOZ_ASSERT(data->reason);
         }
 

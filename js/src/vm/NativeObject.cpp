@@ -134,7 +134,7 @@ js::NativeObject::checkShapeConsistency()
         for (int n = throttle; --n >= 0 && shape->parent; shape = shape->parent) {
             MOZ_ASSERT_IF(lastProperty() != shape, !shape->hasTable());
 
-            ShapeTable::Entry& entry = table.search(shape->propid(), false);
+            ShapeTable::Entry& entry = table.search<MaybeAdding::NotAdding>(shape->propid());
             MOZ_ASSERT(entry.shape() == shape);
         }
 
@@ -155,7 +155,7 @@ js::NativeObject::checkShapeConsistency()
                 ShapeTable& table = shape->table();
                 MOZ_ASSERT(shape->parent);
                 for (Shape::Range<NoGC> r(shape); !r.empty(); r.popFront()) {
-                    ShapeTable::Entry& entry = table.search(r.front().propid(), false);
+                    ShapeTable::Entry& entry = table.search<MaybeAdding::NotAdding>(r.front().propid());
                     MOZ_ASSERT(entry.shape() == &r.front());
                 }
             }
@@ -356,7 +356,7 @@ void
 NativeObject::setLastPropertyMakeNative(ExclusiveContext* cx, Shape* shape)
 {
     MOZ_ASSERT(getClass()->isNative());
-    MOZ_ASSERT(shape->isNative());
+    MOZ_ASSERT(shape->getObjectClass()->isNative());
     MOZ_ASSERT(!shape->inDictionary());
 
     // This method is used to convert unboxed objects into native objects. In
@@ -430,9 +430,13 @@ NativeObject::growSlots(ExclusiveContext* cx, uint32_t oldCount, uint32_t newCou
 }
 
 /* static */ bool
-NativeObject::growSlotsStatic(ExclusiveContext* cx, NativeObject* obj, uint32_t newCount)
+NativeObject::growSlotsDontReportOOM(ExclusiveContext* cx, NativeObject* obj, uint32_t newCount)
 {
-    return obj->growSlots(cx, obj->numDynamicSlots(), newCount);
+    if (!obj->growSlots(cx, obj->numDynamicSlots(), newCount)) {
+        cx->recoverFromOutOfMemory();
+        return false;
+    }
+    return true;
 }
 
 static void

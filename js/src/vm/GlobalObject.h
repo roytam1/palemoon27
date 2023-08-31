@@ -31,6 +31,7 @@ class StaticBlockObject;
 class ClonedBlockObject;
 
 class SimdTypeDescr;
+enum class SimdType : uint8_t;
 
 /*
  * Global object slots are reserved as follows:
@@ -442,22 +443,11 @@ class GlobalObject : public NativeObject
         return getOrCreateObject(cx, APPLICATION_SLOTS + JSProto_SIMD, initSimdObject);
     }
 
-    template<class /* SimdTypeDescriptor (cf SIMD.h) */ T>
-    static SimdTypeDescr*
-    getOrCreateSimdTypeDescr(JSContext* cx, Handle<GlobalObject*> global) {
-        RootedObject globalSimdObject(cx, global->getOrCreateSimdGlobalObject(cx));
-        if (!globalSimdObject)
-            return nullptr;
-        uint32_t typeSlotIndex(T::type);
-        if (globalSimdObject->as<NativeObject>().getReservedSlot(typeSlotIndex).isUndefined() &&
-            !GlobalObject::initSimdType(cx, global, typeSlotIndex))
-        {
-            return nullptr;
-        }
-        const Value& slot = globalSimdObject->as<NativeObject>().getReservedSlot(typeSlotIndex);
-        MOZ_ASSERT(slot.isObject());
-        return &slot.toObject().as<SimdTypeDescr>();
-    }
+    // Get the type descriptor for one of the SIMD types.
+    // simdType is one of the JS_SIMDTYPEREPR_* constants.
+    // Implemented in builtin/SIMD.cpp.
+    static SimdTypeDescr* getOrCreateSimdTypeDescr(JSContext* cx, Handle<GlobalObject*> global,
+                                                   SimdType simdType);
 
     TypedObjectModuleObject& getTypedObjectModule() const;
 
@@ -580,25 +570,30 @@ class GlobalObject : public NativeObject
 
     static NativeObject* getIntrinsicsHolder(JSContext* cx, Handle<GlobalObject*> global);
 
-    Value maybeExistingIntrinsicValue(PropertyName* name) {
+    bool maybeExistingIntrinsicValue(PropertyName* name, Value* vp) {
         Value slot = getReservedSlot(INTRINSICS);
         // If we're in the self-hosting compartment itself, the
         // intrinsics-holder isn't initialized at this point.
-        if (slot.isUndefined())
-            return UndefinedValue();
+        if (slot.isUndefined()) {
+            *vp = UndefinedValue();
+            return false;
+        }
 
         NativeObject* holder = &slot.toObject().as<NativeObject>();
-
         Shape* shape = holder->lookupPure(name);
-        if (!shape)
-            return UndefinedValue();
+        if (!shape) {
+            *vp = UndefinedValue();
+            return false;
+        }
 
-        return holder->getSlot(shape->slot());
+        *vp = holder->getSlot(shape->slot());
+        return true;
     }
 
     Value existingIntrinsicValue(PropertyName* name) {
-        Value val = maybeExistingIntrinsicValue(name);
-        MOZ_ASSERT(!val.isUndefined(), "intrinsic must already have been added to holder");
+        Value val;
+        mozilla::DebugOnly<bool> exists = maybeExistingIntrinsicValue(name, &val);
+        MOZ_ASSERT(exists, "intrinsic must already have been added to holder");
 
         return val;
     }
@@ -720,9 +715,9 @@ class GlobalObject : public NativeObject
     // Implemented in builtin/TypedObject.cpp
     static bool initTypedObjectModule(JSContext* cx, Handle<GlobalObject*> global);
 
-    // Implemented in builtim/SIMD.cpp
+    // Implemented in builtin/SIMD.cpp
     static bool initSimdObject(JSContext* cx, Handle<GlobalObject*> global);
-    static bool initSimdType(JSContext* cx, Handle<GlobalObject*> global, uint32_t simdTypeDescrType);
+    static bool initSimdType(JSContext* cx, Handle<GlobalObject*> global, SimdType simdType);
 
     static bool initStandardClasses(JSContext* cx, Handle<GlobalObject*> global);
     static bool initSelfHostingBuiltins(JSContext* cx, Handle<GlobalObject*> global,

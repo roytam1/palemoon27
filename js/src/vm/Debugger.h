@@ -282,7 +282,7 @@ class Debugger : private mozilla::LinkedListElement<Debugger>
     void logTenurePromotion(JSRuntime* rt, JSObject& obj, double when);
     static SavedFrame* getObjectAllocationSite(JSObject& obj);
 
-    struct TenurePromotionsLogEntry : public JS::Traceable
+    struct TenurePromotionsLogEntry
     {
         TenurePromotionsLogEntry(JSRuntime* rt, JSObject& obj, double when);
 
@@ -291,13 +291,13 @@ class Debugger : private mozilla::LinkedListElement<Debugger>
         RelocatablePtrObject frame;
         size_t size;
 
-        static void trace(TenurePromotionsLogEntry* e, JSTracer* trc) {
-            if (e->frame)
-                TraceEdge(trc, &e->frame, "Debugger::TenurePromotionsLogEntry::frame");
+        void trace(JSTracer* trc) {
+            if (frame)
+                TraceEdge(trc, &frame, "Debugger::TenurePromotionsLogEntry::frame");
         }
     };
 
-    struct AllocationsLogEntry : public JS::Traceable
+    struct AllocationsLogEntry
     {
         AllocationsLogEntry(HandleObject frame, double when, const char* className,
                             HandleAtom ctorName, size_t size, bool inNursery)
@@ -318,11 +318,11 @@ class Debugger : private mozilla::LinkedListElement<Debugger>
         size_t size;
         bool inNursery;
 
-        static void trace(AllocationsLogEntry* e, JSTracer* trc) {
-            if (e->frame)
-                TraceEdge(trc, &e->frame, "Debugger::AllocationsLogEntry::frame");
-            if (e->ctorName)
-                TraceEdge(trc, &e->ctorName, "Debugger::AllocationsLogEntry::ctorName");
+        void trace(JSTracer* trc) {
+            if (frame)
+                TraceEdge(trc, &frame, "Debugger::AllocationsLogEntry::frame");
+            if (ctorName)
+                TraceEdge(trc, &ctorName, "Debugger::AllocationsLogEntry::ctorName");
         }
     };
 
@@ -939,20 +939,6 @@ class Debugger : private mozilla::LinkedListElement<Debugger>
   private:
     Debugger(const Debugger&) = delete;
     Debugger & operator=(const Debugger&) = delete;
-};
-
-template<>
-struct DefaultGCPolicy<Debugger::TenurePromotionsLogEntry> {
-    static void trace(JSTracer* trc, Debugger::TenurePromotionsLogEntry* e, const char*) {
-        Debugger::TenurePromotionsLogEntry::trace(e, trc);
-    }
-};
-
-template<>
-struct DefaultGCPolicy<Debugger::AllocationsLogEntry> {
-    static void trace(JSTracer* trc, Debugger::AllocationsLogEntry* e, const char*) {
-        Debugger::AllocationsLogEntry::trace(e, trc);
-    }
 };
 
 class BreakpointSite {

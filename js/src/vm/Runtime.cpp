@@ -141,7 +141,11 @@ JSRuntime::JSRuntime(JSRuntime* parentRuntime)
     asyncCauseForNewActivations(this),
     asyncCallIsExplicit(false),
     entryMonitor(nullptr),
+    noExecuteDebuggerTop(nullptr),
     parentRuntime(parentRuntime),
+#ifdef DEBUG
+    updateChildRuntimeCount(parentRuntime),
+#endif
     interrupt_(false),
     handlingSegFault(false),
     handlingJitInterrupt_(false),
@@ -358,6 +362,7 @@ JSRuntime::init(uint32_t maxbytes, uint32_t maxNurseryBytes)
 JSRuntime::~JSRuntime()
 {
     MOZ_ASSERT(!isHeapBusy());
+    MOZ_ASSERT(childRuntimeCount == 0);
 
     fx.destroyInstance();
 

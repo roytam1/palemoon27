@@ -30,7 +30,6 @@ EXTRA_JS_MODULES += [
     'PageMenu.jsm',
     'PluginContent.jsm',
     'ProcessHangMonitor.jsm',
-    'QuotaManager.jsm',
     'ReaderParent.jsm',
     'RecentWindow.jsm',
     'Sanitizer.jsm',

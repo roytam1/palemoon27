@@ -389,9 +389,12 @@ js::RunScript(JSContext* cx, RunState& state)
 {
     JS_CHECK_RECURSION(cx, return false);
 
-#if defined(NIGHTLY_BUILD) && defined(MOZ_HAVE_RDTSC)
+    if (!Debugger::checkNoExecute(cx, state.script()))
+        return false;
+
+#if defined(MOZ_HAVE_RDTSC)
     js::AutoStopwatch stopwatch(cx);
-#endif // defined(NIGHTLY_BUILD) && defined(MOZ_HAVE_RDTSC)
+#endif // defined(MOZ_HAVE_RDTSC)
 
     SPSEntryMarker marker(cx->runtime(), state.script());
 
@@ -968,7 +971,7 @@ bool
 js::EnterWithOperation(JSContext* cx, AbstractFramePtr frame, HandleValue val,
                        HandleObject staticWith)
 {
-    MOZ_ASSERT(staticWith->is<StaticWithObject>());
+    MOZ_ASSERT(staticWith->is<StaticWithScope>());
     RootedObject obj(cx);
     if (val.isObject()) {
         obj = &val.toObject();
@@ -1057,7 +1060,7 @@ js::UnwindScopeToTryPc(JSScript* script, JSTryNote* tn)
 static bool
 ForcedReturn(JSContext* cx, ScopeIter& si, InterpreterRegs& regs, bool frameOk = true)
 {
-    bool ok = Debugger::onLeaveFrame(cx, regs.fp(), frameOk);
+    bool ok = Debugger::onLeaveFrame(cx, regs.fp(), regs.pc, frameOk);
     UnwindAllScopesInFrame(cx, si);
     // Point the frame to the end of the script, regardless of error. The
     // caller must jump to the correct continuation depending on 'ok'.
@@ -1243,7 +1246,7 @@ HandleError(JSContext* cx, InterpreterRegs& regs)
         }
 
         ok = HandleClosingGeneratorReturn(cx, regs.fp(), ok);
-        ok = Debugger::onLeaveFrame(cx, regs.fp(), ok);
+        ok = Debugger::onLeaveFrame(cx, regs.fp(), regs.pc, ok);
     } else {
         // We may be propagating a forced return from the interrupt
         // callback, which cannot easily force a return.
@@ -1943,7 +1946,7 @@ CASE(JSOP_RETRVAL)
         TraceLogStopEvent(logger, TraceLogger_Engine);
         TraceLogStopEvent(logger, TraceLogger_Scripts);
 
-        interpReturnOK = Debugger::onLeaveFrame(cx, REGS.fp(), interpReturnOK);
+        interpReturnOK = Debugger::onLeaveFrame(cx, REGS.fp(), REGS.pc, interpReturnOK);
 
         REGS.fp()->epilogue(cx);
 
@@ -3674,11 +3677,11 @@ END_CASE(JSOP_DEBUGGER)
 
 CASE(JSOP_PUSHBLOCKSCOPE)
 {
-    StaticBlockObject& blockObj = script->getObject(REGS.pc)->as<StaticBlockObject>();
+    StaticBlockScope& blockScope = script->getObject(REGS.pc)->as<StaticBlockScope>();
 
-    MOZ_ASSERT(blockObj.needsClone());
+    MOZ_ASSERT(blockScope.needsClone());
     // Clone block and push on scope chain.
-    if (!REGS.fp()->pushBlock(cx, blockObj))
+    if (!REGS.fp()->pushBlock(cx, blockScope))
         goto error;
 }
 END_CASE(JSOP_PUSHBLOCKSCOPE)
@@ -3687,10 +3690,10 @@ CASE(JSOP_POPBLOCKSCOPE)
 {
 #ifdef DEBUG
     // Pop block from scope chain.
-    NestedScopeObject* scope = script->getStaticBlockScope(REGS.pc);
-    MOZ_ASSERT(scope && scope->is<StaticBlockObject>());
-    StaticBlockObject& blockObj = scope->as<StaticBlockObject>();
-    MOZ_ASSERT(blockObj.needsClone());
+    NestedStaticScope* scope = script->getStaticBlockScope(REGS.pc);
+    MOZ_ASSERT(scope && scope->is<StaticBlockScope>());
+    StaticBlockScope& blockScope = scope->as<StaticBlockScope>();
+    MOZ_ASSERT(blockScope.needsClone());
 #endif
 
     if (MOZ_UNLIKELY(cx->compartment()->isDebuggee()))
@@ -3704,8 +3707,8 @@ END_CASE(JSOP_POPBLOCKSCOPE)
 CASE(JSOP_DEBUGLEAVEBLOCK)
 {
     MOZ_ASSERT(script->getStaticBlockScope(REGS.pc));
-    MOZ_ASSERT(script->getStaticBlockScope(REGS.pc)->is<StaticBlockObject>());
-    MOZ_ASSERT(!script->getStaticBlockScope(REGS.pc)->as<StaticBlockObject>().needsClone());
+    MOZ_ASSERT(script->getStaticBlockScope(REGS.pc)->is<StaticBlockScope>());
+    MOZ_ASSERT(!script->getStaticBlockScope(REGS.pc)->as<StaticBlockScope>().needsClone());
 
     // FIXME: This opcode should not be necessary.  The debugger shouldn't need
     // help from bytecode to do its job.  See bug 927782.
@@ -4029,7 +4032,7 @@ DEFAULT()
     MOZ_CRASH("Invalid HandleError continuation");
 
   exit:
-    interpReturnOK = Debugger::onLeaveFrame(cx, REGS.fp(), interpReturnOK);
+    interpReturnOK = Debugger::onLeaveFrame(cx, REGS.fp(), REGS.pc, interpReturnOK);
 
     REGS.fp()->epilogue(cx);
 
@@ -4870,11 +4873,11 @@ js::ReportRuntimeLexicalError(JSContext* cx, unsigned errorNumber,
         // Failing that, it must be a block-local let.
         if (!name) {
             // Skip to the right scope.
-            Rooted<NestedScopeObject*> scope(cx, script->getStaticBlockScope(pc));
-            MOZ_ASSERT(scope && scope->is<StaticBlockObject>());
-            Rooted<StaticBlockObject*> block(cx, &scope->as<StaticBlockObject>());
+            Rooted<NestedStaticScope*> scope(cx, script->getStaticBlockScope(pc));
+            MOZ_ASSERT(scope && scope->is<StaticBlockScope>());
+            Rooted<StaticBlockScope*> block(cx, &scope->as<StaticBlockScope>());
             while (slot < block->localOffset())
-                block = &block->enclosingNestedScope()->as<StaticBlockObject>();
+                block = &block->enclosingNestedScope()->as<StaticBlockScope>();
 
             // Translate the frame slot to the block slot, then find the name
             // of the slot.

@@ -49,6 +49,20 @@ let AppConstants = Object.freeze({
   false,
 #endif
 
+  MOZ_DEV_EDITION:
+#ifdef MOZ_DEV_EDITION
+  true,
+#else
+  false,
+#endif
+
+  MOZ_DEV_EDITION:
+#ifdef MOZ_DEV_EDITION
+  true,
+#else
+  false,
+#endif
+
   MOZ_SERVICES_HEALTHREPORT:
 #ifdef MOZ_SERVICES_HEALTHREPORT
   true,

@@ -747,8 +747,8 @@ ToDisassemblySource(JSContext* cx, HandleValue v, JSAutoByteString* bytes)
 
     if (v.isObject()) {
         JSObject& obj = v.toObject();
-        if (obj.is<StaticBlockObject>()) {
-            Rooted<StaticBlockObject*> block(cx, &obj.as<StaticBlockObject>());
+        if (obj.is<StaticBlockScope>()) {
+            Rooted<StaticBlockScope*> block(cx, &obj.as<StaticBlockScope>());
             char* source = JS_sprintf_append(nullptr, "depth %d {", block->localOffset());
             if (!source) {
                 ReportOutOfMemory(cx);
@@ -901,7 +901,7 @@ js::Disassemble1(JSContext* cx, HandleScript script, jsbytecode* pc,
       }
 
       case JOF_REGEXP: {
-        JSObject* obj = script->getRegExp(GET_UINT32_INDEX(pc));
+        js::RegExpObject* obj = script->getRegExp(pc);
         JSAutoByteString bytes;
         RootedValue v(cx, ObjectValue(*obj));
         if (!ToDisassemblySource(cx, v, &bytes))
@@ -1281,13 +1281,13 @@ ExpressionDecompiler::getLocal(uint32_t local, jsbytecode* pc)
 
         MOZ_CRASH("No binding");
     }
-    for (NestedScopeObject* chain = script->getStaticBlockScope(pc);
+    for (NestedStaticScope* chain = script->getStaticBlockScope(pc);
          chain;
          chain = chain->enclosingNestedScope())
     {
-        if (!chain->is<StaticBlockObject>())
+        if (!chain->is<StaticBlockScope>())
             continue;
-        StaticBlockObject& block = chain->as<StaticBlockObject>();
+        StaticBlockScope& block = chain->as<StaticBlockScope>();
         if (local < block.localOffset())
             continue;
         local -= block.localOffset();

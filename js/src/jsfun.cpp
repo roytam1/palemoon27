@@ -839,7 +839,6 @@ CreateFunctionPrototype(JSContext* cx, JSProtoKey key)
     Rooted<GlobalObject*> self(cx, cx->global());
 
     RootedObject objectProto(cx, &self->getPrototype(JSProto_Object).toObject());
-
     /*
      * Bizarrely, |Function.prototype| must be an interpreted function, so
      * give it the guts to be one.

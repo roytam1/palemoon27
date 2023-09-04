@@ -109,7 +109,7 @@ let gGrid = {
 
     // (Re-)initialize all cells.
     let cellElements = this.node.querySelectorAll(".newtab-cell");
-    this._cells = [new Cell(this, cell) for (cell of cellElements)];
+    this._cells = Array.from(cellElements, (cell) => new Cell(this, cell));
   },
 
   /**

@@ -76,7 +76,7 @@ bool
 InterpreterFrame::isNonGlobalEvalFrame() const
 {
     return isEvalFrame() &&
-           script()->enclosingStaticScope()->as<StaticEvalObject>().isNonGlobal();
+           script()->enclosingStaticScope()->as<StaticEvalScope>().isNonGlobal();
 }
 
 bool
@@ -312,11 +312,11 @@ InterpreterFrame::checkReturn(JSContext* cx, HandleValue thisv)
 }
 
 bool
-InterpreterFrame::pushBlock(JSContext* cx, StaticBlockObject& block)
+InterpreterFrame::pushBlock(JSContext* cx, StaticBlockScope& block)
 {
     MOZ_ASSERT(block.needsClone());
 
-    Rooted<StaticBlockObject*> blockHandle(cx, &block);
+    Rooted<StaticBlockScope*> blockHandle(cx, &block);
     ClonedBlockObject* clone = ClonedBlockObject::create(cx, blockHandle, this);
     if (!clone)
         return false;
@@ -1388,6 +1388,9 @@ ActivationEntryMonitor::ActivationEntryMonitor(JSContext* cx, InterpreterFrame* 
   : ActivationEntryMonitor(cx)
 {
     if (entryMonitor_) {
+        // The InterpreterFrame is not yet part of an Activation, so it won't
+        // be traced if we trigger GC here. Suppress GC to avoid this.
+        gc::AutoSuppressGC suppressGC(cx);
         RootedValue stack(cx, asyncStack(cx));
         RootedString asyncCause(cx, cx->runtime()->asyncCauseForNewActivations);
         if (entryFrame->isFunctionFrame())
@@ -1401,6 +1404,9 @@ ActivationEntryMonitor::ActivationEntryMonitor(JSContext* cx, jit::CalleeToken e
   : ActivationEntryMonitor(cx)
 {
     if (entryMonitor_) {
+        // The CalleeToken is not traced at this point and we also don't want
+        // a GC to discard the code we're about to enter, so we suppress GC.
+        gc::AutoSuppressGC suppressGC(cx);
         RootedValue stack(cx, asyncStack(cx));
         RootedString asyncCause(cx, cx->runtime()->asyncCauseForNewActivations);
         if (jit::CalleeTokenIsFunction(entryToken))
@@ -1415,7 +1421,6 @@ ActivationEntryMonitor::ActivationEntryMonitor(JSContext* cx, jit::CalleeToken e
 jit::JitActivation::JitActivation(JSContext* cx, bool active)
   : Activation(cx, Jit),
     active_(active),
-    isLazyLinkExitFrame_(false),
     rematerializedFrames_(nullptr),
     ionRecovery_(cx),
     bailoutData_(nullptr),

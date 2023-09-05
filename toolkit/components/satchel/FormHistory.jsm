@@ -465,7 +465,7 @@ function dbCreate() {
   log("Creating DB -- tables");
   for (let name in dbSchema.tables) {
     let table = dbSchema.tables[name];
-    let tSQL = [[col, table[col]].join(" ") for (col in table)].join(", ");
+    let tSQL = Object.keys(table).map(col => [col, table[col]].join(" ")).join(", ");
     log("Creating table " + name + " with " + tSQL);
     _dbConnection.createTable(name, tSQL);
   }
@@ -532,7 +532,7 @@ var Migrators = {
   dbMigrateToVersion4: function dbMigrateToVersion4() {
     if (!_dbConnection.tableExists("moz_deleted_formhistory")) {
       let table = dbSchema.tables["moz_deleted_formhistory"];
-      let tSQL = [[col, table[col]].join(" ") for (col in table)].join(", ");
+      let tSQL = Object.keys(table).map(col => [col, table[col]].join(" ")).join(", ");
       _dbConnection.createTable("moz_deleted_formhistory", tSQL);
     }
   }
@@ -548,7 +548,7 @@ function dbAreExpectedColumnsPresent() {
   for (let name in dbSchema.tables) {
     let table = dbSchema.tables[name];
     let query = "SELECT " +
-                [col for (col in table)].join(", ") +
+                Object.keys(table).join(", ") +
                 " FROM " + name;
     try {
       let stmt = _dbConnection.createStatement(query);
@@ -601,7 +601,7 @@ function dbClose(aShutdown) {
   dbStmts = new Map();
 
   let closed = false;
-  _dbConnection.asyncClose(() => closed = true);
+  _dbConnection.asyncClose(function () closed = true);
 
   if (!aShutdown) {
     let thread = Services.tm.currentThread;
@@ -773,9 +773,7 @@ function expireOldEntriesVacuum(aExpireTime, aBeginningCount) {
 }
 
 this.FormHistory = {
-  get enabled() {
-    return Prefs.enabled;
-  },
+  get enabled() Prefs.enabled,
 
   search : function formHistorySearch(aSelectTerms, aSearchData, aCallbacks) {
     // if no terms selected, select everything

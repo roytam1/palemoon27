@@ -867,10 +867,8 @@ DownloadsDataCtor.prototype = {
     // Sort backwards by start time, ensuring that the most recent
     // downloads are added first regardless of their state.
     let loadedItemsArray = Array.from(this.dataItems).filter((dataItem) => dataItem);
-    loadedItemsArray.sort(function(a, b) b.startTime - a.startTime);
-    loadedItemsArray.forEach(
-      function (dataItem) aView.onDataItemAdded(dataItem, false)
-    );
+    loadedItemsArray.sort((a, b) => b.startTime - a.startTime);
+    loadedItemsArray.forEach(dataItem => aView.onDataItemAdded(dataItem, false));
 
     // Notify the view that all data is available unless loading is in progress.
     if (!this._pendingStatement) {

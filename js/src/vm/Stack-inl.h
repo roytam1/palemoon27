@@ -35,7 +35,8 @@ namespace js {
 static inline bool
 IsCacheableNonGlobalScope(JSObject* obj)
 {
-    bool cacheable = obj->is<CallObject>() || obj->is<BlockObject>() || obj->is<DeclEnvObject>();
+    bool cacheable =
+        obj->is<CallObject>() || obj->is<ClonedBlockObject>() || obj->is<DeclEnvObject>();
 
     MOZ_ASSERT_IF(cacheable, !obj->getOps()->lookupProperty);
     return cacheable;
@@ -847,6 +848,12 @@ AbstractFramePtr::popWith(JSContext* cx) const
         return;
     }
     asBaselineFrame()->popWith(cx);
+}
+
+inline bool
+AbstractFramePtr::debuggerNeedsCheckPrimitiveReturn() const
+{
+    return script()->isDerivedClassConstructor();
 }
 
 ActivationEntryMonitor::~ActivationEntryMonitor()

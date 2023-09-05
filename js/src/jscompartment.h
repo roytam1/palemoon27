@@ -316,7 +316,7 @@ struct JSCompartment
     JS::CompartmentBehaviors& behaviors() { return behaviors_; }
     const JS::CompartmentBehaviors& behaviors() const { return behaviors_; }
 
-    JSRuntime* runtimeFromMainThread() {
+    JSRuntime* runtimeFromMainThread() const {
         MOZ_ASSERT(CurrentThreadCanAccessRuntime(runtime_));
         return runtime_;
     }
@@ -753,6 +753,7 @@ struct JSCompartment
         DeprecatedFlagsArgument = 7,        // JS 1.3 or older
         // NO LONGER USING 8
         // NO LONGER USING 9
+        DeprecatedBlockScopeFunRedecl = 10,
         DeprecatedLanguageExtensionCount
     };
 

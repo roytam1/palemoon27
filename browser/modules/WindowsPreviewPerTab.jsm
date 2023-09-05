@@ -31,7 +31,7 @@
  * Screen real estate is limited so when there are too many thumbnails to fit
  * on the screen, the taskbar stops displaying thumbnails and instead displays
  * just the title, icon and close button in a similar fashion to previous
- * versions of the taskbar. If there are still too many previews to fit on the 
+ * versions of the taskbar. If there are still too many previews to fit on the
  * screen, the taskbar resorts to a scroll up and scroll down button pair to let
  * the user scroll through the list of tabs. Since this is undoubtedly
  * inconvenient for users with many tabs, the AeroPeek objects turns off all of
@@ -142,6 +142,7 @@ function PreviewController(win, tab) {
   this.preview = this.win.createTabPreview(this);
 
   this.linkedBrowser.addEventListener("MozAfterPaint", this, false);
+  this.linkedBrowser.addEventListener("resize", this, false);
   this.tab.addEventListener("TabAttrModified", this, false);
 
   XPCOMUtils.defineLazyGetter(this, "canvasPreview", function () {
@@ -171,6 +172,7 @@ PreviewController.prototype = {
                                          Ci.nsIDOMEventListener]),
   destroy: function () {
     this.tab.removeEventListener("TabAttrModified", this, false);
+    this.linkedBrowser.removeEventListener("resize", this, false);
     this.linkedBrowser.removeEventListener("MozAfterPaint", this, false);
 
     // Break cycles, otherwise we end up leaking the window with everything
@@ -202,8 +204,18 @@ PreviewController.prototype = {
   // updateCanvasPreview() will detect the size mismatch as a resize event
   // the next time it is called.
   resetCanvasPreview: function () {
-    this.canvasPreview.width = 0;
-    this.canvasPreview.height = 0;
+    this.resizeCanvasPreview(0, 0);
+  },
+
+  resizeCanvasPreview: function (width, height) {
+    this.canvasPreview.width = width;
+    this.canvasPreview.height = height;
+  },
+
+  get wasResizedSinceLastPreview () {
+    let bx = this.linkedBrowser.boxObject;
+    return bx.width != this.canvasPreview.width ||
+           bx.height != this.canvasPreview.height;
   },
 
   get zoom() {
@@ -219,13 +231,15 @@ PreviewController.prototype = {
   updateCanvasPreview: function () {
     let win = this.linkedBrowser.contentWindow;
     let bx = this.linkedBrowser.boxObject;
+    // If we resized then we need to flush layout so that the previews are up
+    // to date. Layout flushing for resizes is deferred for background tabs so
+    // we may need to force it. (bug 526620)
+    let flushLayout = this.wasResizedSinceLastPreview;
     // Check for resize
-    if (bx.width != this.canvasPreview.width ||
-        bx.height != this.canvasPreview.height) {
+    if (flushLayout) {
       // Invalidate the entire area and repaint
       this.onTabPaint({left:0, top:0, right:win.innerWidth, bottom:win.innerHeight});
-      this.canvasPreview.width = bx.width;
-      this.canvasPreview.height = bx.height;
+      this.resizeCanvasPreview(bx.width, bx.height);
     }
 
     // Draw dirty regions
@@ -233,6 +247,9 @@ PreviewController.prototype = {
     let scale = this.zoom;
 
     let flags = this.canvasPreviewFlags;
+    if (flushLayout)
+      flags &= ~Ci.nsIDOMCanvasRenderingContext2D.DRAWWINDOW_DO_NOT_FLUSH;
+
     // The dirty region may include parts that are offscreen so we clip to the
     // canvas area.
     this.dirtyRegion.intersectRect(0, 0, win.innerWidth, win.innerHeight);
@@ -293,8 +310,7 @@ PreviewController.prototype = {
   },
 
   drawPreview: function (ctx) {
-    let self = this;
-    this.win.tabbrowser.previewTab(this.tab, function () self.previewTabCallback(ctx));
+    this.win.tabbrowser.previewTab(this.tab, () => this.previewTabCallback(ctx));
 
     // We must avoid having the frame drawn around the window. See bug 520807
     return false;
@@ -371,6 +387,19 @@ PreviewController.prototype = {
         break;
       case "TabAttrModified":
         this.updateTitleAndTooltip();
+        break;
+      case "resize":
+        // We need to invalidate our window's other tabs' previews since layout
+        // due to resizing is delayed for background tabs. Note that this
+        // resize may not be the first after the main window has been resized -
+        // the user may be switching to our tab which forces the resize.
+        this.win.previews.forEach(function (p) {
+          let controller = p.controller.wrappedJSObject;
+          if (controller.wasResizedSinceLastPreview) {
+            controller.resetCanvasPreview();
+            if (p.visible) p.invalidate();
+          }
+        });
         break;
     }
   }
@@ -508,14 +537,19 @@ TabWindow.prototype = {
     let previews = this.previews;
     let tabs = this.tabbrowser.tabs;
 
-    // Previews are internally stored using a map, so we need to iterate over
-    // the tabbrowser's array of tabs to retrieve previews in the same order.
-    let inorder = [previews.get(t) for (t of tabs) if (previews.has(t))];
+    // Previews are internally stored using a map, so we need to iterate the
+    // tabbrowser's array of tabs to retrieve previews in the same order.
+    let inorder = [];
+    for (let t of tabs) {
+      if (previews.has(t)) {
+        inorder.push(previews.get(t));
+      }
+    }
 
-    // Since the internal taskbar array has not yet been updated, we must force
-    // the sorting order of our local array on it.  To do so, we must walk
-    // the local array backwards, because otherwise we would send move requests
-    // in the wrong order.  See bug 522610 for details.
+    // Since the internal taskbar array has not yet been updated we must force
+    // on it the sorting order of our local array.  To do so we must walk
+    // the local array backwards, otherwise we would send move requests in the
+    // wrong order.  See bug 522610 for details.
     for (let i = inorder.length - 1; i >= 0; i--) {
       inorder[i].move(inorder[i + 1] || null);
     }
@@ -697,7 +731,7 @@ this.AeroPeek = {
   }
 };
 
-XPCOMUtils.defineLazyGetter(AeroPeek, "cacheTimer", function ()
+XPCOMUtils.defineLazyGetter(AeroPeek, "cacheTimer", () =>
   Cc["@mozilla.org/timer;1"].createInstance(Ci.nsITimer)
 );
 

@@ -1988,7 +1988,7 @@ Engine.prototype = {
       __searchForm: this.__searchForm,
       _iconURL: this._iconURL,
       _iconMapObj: this._iconMapObj,
-      _urls: [url._serializeToJSON() for each(url in this._urls)]
+      _urls: Array.from(this._urls, (url) => url._serializeToJSON())
     };
 
     if (this._file instanceof Ci.nsILocalFile)
@@ -2802,7 +2802,7 @@ SearchService.prototype = {
       cachePaths.indexOf(aPathToLoad.path) == -1;
 
     let buildID = Services.appinfo.platformBuildID;
-    let cachePaths = [path for (path in cache.directories)];
+    let cachePaths = Object.keys(cache.directories);
 
     let rebuildCache = !cache.directories ||
                        cache.version != CACHE_VERSION ||
@@ -2911,7 +2911,7 @@ SearchService.prototype = {
         cachePaths.indexOf(aPathToLoad.path) == -1;
 
       let buildID = Services.appinfo.platformBuildID;
-      let cachePaths = [path for (path in cache.directories)];
+      let cachePaths = Object.keys(cache.directories);
 
       let rebuildCache = !cache.directories ||
                          cache.version != CACHE_VERSION ||

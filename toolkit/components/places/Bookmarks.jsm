@@ -276,7 +276,7 @@ var Bookmarks = Object.freeze({
              SELECT guid FROM moz_bookmarks
              WHERE id IN descendants
             `, { id: item._id, type: this.TYPE_FOLDER });
-          if ([r.getResultByName("guid") for (r of rows)].indexOf(updateInfo.parentGuid) != -1)
+          if (rows.map(r => r.getResultByName("guid")).indexOf(updateInfo.parentGuid) != -1)
             throw new Error("Cannot insert a folder into itself or one of its descendants");
         }
 
@@ -751,7 +751,7 @@ function* updateBookmark(info, item, newParent) {
 
     yield db.executeCached(
       `UPDATE moz_bookmarks
-       SET ${[tuples.get(v).fragment || `${v} = :${v}` for (v of tuples.keys())].join(", ")}
+         SET ${Array.from(tuples.keys()).map(v => tuples.get(v).fragment || `${v} = :${v}`).join(", ")}
        WHERE guid = :guid
       `, Object.assign({ guid: info.guid },
                        [...tuples.entries()].reduce((p, c) => { p[c[0]] = c[1].value; return p; }, {})));
@@ -1406,7 +1406,7 @@ Task.async(function* (db, folderGuids) {
 
   // TODO (Bug 1087576): this may leave orphan tags behind.
 
-  let urls = [for (item of itemsRemoved) if (item.url) item.url];
+  let urls = itemsRemoved.filter(item => "url" in item).map(item => item.url);
   updateFrecency(db, urls).then(null, Cu.reportError);
 
   // Send onItemRemoved notifications to listeners.

@@ -415,7 +415,7 @@ let Impl = {
   sendPersistedPings: function sendPersistedPings() {
     this._log.trace("sendPersistedPings");
     let pingsIterator = Iterator(this.popPayloads());
-    let p = [data for (data in pingsIterator)].map(data => this.doPing(data, true));
+    let p = Object.keys(pingsIterator).map(data => this.doPing(data, true));
     return Promise.all(p);
   },
 

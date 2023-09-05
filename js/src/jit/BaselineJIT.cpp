@@ -106,6 +106,15 @@ EnterBaseline(JSContext* cx, EnterJitData& data)
         JS_CHECK_RECURSION(cx, return JitExec_Aborted);
     }
 
+#ifdef DEBUG
+    // Assert we don't GC before entering JIT code. A GC could discard JIT code
+    // or move the function stored in the CalleeToken (it won't be traced at
+    // this point). We use Maybe<> here so we can call reset() to call the
+    // AutoAssertOnGC destructor before we enter JIT code.
+    mozilla::Maybe<JS::AutoAssertOnGC> nogc;
+    nogc.emplace(cx->runtime());
+#endif
+
     MOZ_ASSERT(jit::IsBaselineEnabled(cx));
     MOZ_ASSERT_IF(data.osrFrame, CheckFrame(data.osrFrame));
 
@@ -130,6 +139,9 @@ EnterBaseline(JSContext* cx, EnterJitData& data)
         if (data.osrFrame)
             data.osrFrame->setRunningInJit();
 
+#ifdef DEBUG
+        nogc.reset();
+#endif
         // Single transition point from Interpreter to Baseline.
         CALL_GENERATED_CODE(enter, data.jitcode, data.maxArgc, data.maxArgv, data.osrFrame, data.calleeToken,
                             data.scopeChain.get(), data.osrNumStackValues, data.result.address());
@@ -686,6 +698,18 @@ BaselineScript::stackCheckICEntry(bool earlyCheck)
 }
 
 ICEntry&
+BaselineScript::warmupCountICEntry()
+{
+    // The stack check will be at a very low offset, so just do a linear search
+    // from the beginning.
+    for (size_t i = 0; i < numICEntries() && icEntry(i).pcOffset() == 0; i++) {
+        if (icEntry(i).kind() == ICEntry::Kind_WarmupCounter)
+            return icEntry(i);
+    }
+    MOZ_CRASH("No warmup count ICEntry found.");
+}
+
+ICEntry&
 BaselineScript::icEntryFromReturnAddress(uint8_t* returnAddr)
 {
     MOZ_ASSERT(returnAddr > method_->raw());
@@ -1165,11 +1189,12 @@ MarkActiveBaselineScripts(JSRuntime* rt, const JitActivationIterator& activation
           case JitFrame_BaselineJS:
             iter.script()->baselineScript()->setActive();
             break;
-          case JitFrame_LazyLink: {
-            LazyLinkExitFrameLayout* ll = iter.exitFrame()->as<LazyLinkExitFrameLayout>();
-            ScriptFromCalleeToken(ll->jsFrame()->calleeToken())->baselineScript()->setActive();
+          case JitFrame_Exit:
+            if (iter.exitFrame()->is<LazyLinkExitFrameLayout>()) {
+                LazyLinkExitFrameLayout* ll = iter.exitFrame()->as<LazyLinkExitFrameLayout>();
+                ScriptFromCalleeToken(ll->jsFrame()->calleeToken())->baselineScript()->setActive();
+            }
             break;
-          }
           case JitFrame_Bailout:
           case JitFrame_IonJS: {
             // Keep the baseline script around, since bailouts from the ion

@@ -1804,49 +1804,46 @@ Engine.prototype = {
       case "https":
       case "ftp":
         // No use downloading the icon if the engine file is read-only
-        if (!this._readOnly ||
-            getBoolPref(BROWSER_SEARCH_PREF + "cache.enabled", true)) {
-          LOG("_setIcon: Downloading icon: \"" + uri.spec +
-              "\" for engine: \"" + this.name + "\"");
-          var chan = NetUtil.ioService.newChannelFromURI2(uri,
-                                                          null,      // aLoadingNode
-                                                          Services.scriptSecurityManager.getSystemPrincipal(),
-                                                          null,      // aTriggeringPrincipal
-                                                          Ci.nsILoadInfo.SEC_NORMAL,
+        LOG("_setIcon: Downloading icon: \"" + uri.spec +
+            "\" for engine: \"" + this.name + "\"");
+        var chan = NetUtil.ioService.newChannelFromURI2(uri,
+                                                        null,      // aLoadingNode
+                                                        Services.scriptSecurityManager.getSystemPrincipal(),
+                                                        null,      // aTriggeringPrincipal
+                                                        Ci.nsILoadInfo.SEC_NORMAL,
                                                         Ci.nsIContentPolicy.TYPE_INTERNAL_IMAGE);
 
-          let iconLoadCallback = function (aByteArray, aEngine) {
-            // This callback may run after we've already set a preferred icon,
-            // so check again.
-            if (aEngine._hasPreferredIcon && !aIsPreferred)
-              return;
+        let iconLoadCallback = function (aByteArray, aEngine) {
+          // This callback may run after we've already set a preferred icon,
+          // so check again.
+          if (aEngine._hasPreferredIcon && !aIsPreferred)
+            return;
 
-            if (!aByteArray || aByteArray.length > MAX_ICON_SIZE) {
-              LOG("iconLoadCallback: load failed, or the icon was too large!");
-              return;
-            }
-
-            var str = btoa(String.fromCharCode.apply(null, aByteArray));
-            let dataURL = ICON_DATAURL_PREFIX + str;
-            aEngine._iconURI = makeURI(dataURL);
-
-            if (aWidth && aHeight) {
-              aEngine._addIconToMap(aWidth, aHeight, dataURL)
-            }
-
-            notifyAction(aEngine, SEARCH_ENGINE_CHANGED);
-            aEngine._hasPreferredIcon = aIsPreferred;
+          if (!aByteArray || aByteArray.length > MAX_ICON_SIZE) {
+            LOG("iconLoadCallback: load failed, or the icon was too large!");
+            return;
           }
 
-          // If we're currently acting as an "update engine", then the callback
-          // should set the icon on the engine we're updating and not us, since
-          // |this| might be gone by the time the callback runs.
-          var engineToSet = this._engineToUpdate || this;
+          var str = btoa(String.fromCharCode.apply(null, aByteArray));
+          let dataURL = ICON_DATAURL_PREFIX + str;
+          aEngine._iconURI = makeURI(dataURL);
 
-          var listener = new loadListener(chan, engineToSet, iconLoadCallback);
-          chan.notificationCallbacks = listener;
-          chan.asyncOpen(listener, null);
+          if (aWidth && aHeight) {
+            aEngine._addIconToMap(aWidth, aHeight, dataURL)
+          }
+
+          notifyAction(aEngine, SEARCH_ENGINE_CHANGED);
+          aEngine._hasPreferredIcon = aIsPreferred;
         }
+
+        // If we're currently acting as an "update engine", then the callback
+        // should set the icon on the engine we're updating and not us, since
+        // |this| might be gone by the time the callback runs.
+        var engineToSet = this._engineToUpdate || this;
+
+        var listener = new loadListener(chan, engineToSet, iconLoadCallback);
+        chan.notificationCallbacks = listener;
+        chan.asyncOpen(listener, null);
         break;
     }
   },
@@ -2227,6 +2224,86 @@ Engine.prototype = {
       return this._uri.spec;
 
     return this._loadPath;
+  },
+
+  // This indicates where we found the .xml file to load the engine,
+  // and attempts to hide user-identifiable data (such as username).
+  getAnonymizedLoadPath(file, uri) {
+    /* Examples of expected output:
+     *   jar:[app]/omni.ja!browser/engine.xml
+     *     'browser' here is the name of the chrome package, not a folder.
+     *   [profile]/searchplugins/engine.xml
+     *   [distribution]/searchplugins/common/engine.xml
+     *   [other]/engine.xml
+     */
+
+    let leafName = this._shortName;
+    if (!leafName)
+      return "null";
+    leafName += ".xml";
+
+    let prefix = "", suffix = "";
+    if (!file) {
+      if (uri.schemeIs("resource")) {
+        uri = makeURI(Services.io.getProtocolHandler("resource")
+                              .QueryInterface(Ci.nsISubstitutingProtocolHandler)
+                              .resolveURI(uri));
+      }
+      let scheme = uri.scheme;
+      let packageName = "";
+      if (scheme == "chrome") {
+        packageName = uri.hostPort;
+        uri = gChromeReg.convertChromeURL(uri);
+      }
+      if (uri instanceof Ci.nsINestedURI) {
+        prefix = "jar:";
+        suffix = "!" + packageName + "/" + leafName;
+        uri = uri.innermostURI;
+      }
+      if (uri instanceof Ci.nsIFileURL) {
+        file = uri.file;
+      } else {
+        let path = "[" + scheme + "]";
+        if (/^(?:https?|ftp)$/.test(scheme)) {
+          path += uri.host;
+        }
+        return path + "/" + leafName;
+      }
+    }
+
+    let id;
+    let enginePath = file.path;
+
+    const NS_XPCOM_CURRENT_PROCESS_DIR = "XCurProcD";
+    const NS_APP_USER_PROFILE_50_DIR = "ProfD";
+    const XRE_APP_DISTRIBUTION_DIR = "XREAppDist";
+
+    const knownDirs = {
+      app: NS_XPCOM_CURRENT_PROCESS_DIR,
+      profile: NS_APP_USER_PROFILE_50_DIR,
+      distribution: XRE_APP_DISTRIBUTION_DIR
+    };
+
+    for (let key in knownDirs) {
+      let path;
+      try {
+        path = getDir(knownDirs[key]).path;
+      } catch(e) {
+        // Getting XRE_APP_DISTRIBUTION_DIR throws during unit tests.
+        continue;
+      }
+      if (enginePath.startsWith(path)) {
+        id = "[" + key + "]" + enginePath.slice(path.length).replace(/\\/g, "/");
+        break;
+      }
+    }
+
+    // If the folder doesn't have a known ancestor, don't record its path to
+    // avoid leaking user identifiable data.
+    if (!id)
+      id = "[other]/" + file.leafName;
+
+    return prefix + id + suffix;
   },
 
   get _isDefault() {
@@ -2760,9 +2837,6 @@ SearchService.prototype = {
   },
 
   _buildCache: function SRCH_SVC__buildCache() {
-    if (!getBoolPref(BROWSER_SEARCH_PREF + "cache.enabled", true))
-      return;
-
     TelemetryStopwatch.start("SEARCH_SERVICE_BUILD_CACHE_MS");
     let cache = {};
     let locale = getLocale();
@@ -2865,7 +2939,7 @@ SearchService.prototype = {
                        this._visibleDefaultEngines.some(notInCacheVisibleEngines) ||
                        otherDirs.some(modifiedDir);
 
-    if (!cacheEnabled || rebuildCache) {
+    if (rebuildCache) {
       LOG("_loadEngines: Absent or outdated cache. Loading engines from disk.");
       distDirs.forEach(this._loadEnginesFromDir, this);
 
@@ -2877,8 +2951,7 @@ SearchService.prototype = {
       otherDirs.forEach(this._loadEnginesFromDir, this);
 
       this._loadEnginesMetadataFromCache(cache);
-      if (cacheEnabled)
-        this._buildCache();
+      this._buildCache();
       return;
     }
 
@@ -2897,7 +2970,6 @@ SearchService.prototype = {
   _asyncLoadEngines: function SRCH_SVC__asyncLoadEngines(cache) {
     return Task.spawn(function() {
       LOG("_asyncLoadEngines: start");
-      // See if we have a cache file so we don't have to parse a bunch of XML.
       Services.obs.notifyObservers(null, SEARCH_SERVICE_TOPIC, "find-jar-engines");
       let chromeURIs =
         yield checkForSyncCompletion(this._asyncFindJAREngines());
@@ -2994,7 +3066,7 @@ SearchService.prototype = {
                          this._visibleDefaultEngines.some(notInCacheVisibleEngines) ||
                          (yield checkForSyncCompletion(hasModifiedDir(otherDirs)));
 
-      if (!cacheEnabled || rebuildCache) {
+      if (rebuildCache) {
         LOG("_asyncLoadEngines: Absent or outdated cache. Loading engines from disk.");
         for (let loadDir of distDirs) {
           let enginesFromDir =
@@ -3015,8 +3087,7 @@ SearchService.prototype = {
         }
 
         this._loadEnginesMetadataFromCache(cache);
-        if (cacheEnabled)
-          this._buildCache();
+        this._buildCache();
         return;
       }
 
@@ -4079,6 +4150,69 @@ SearchService.prototype = {
     notifyAction(this._currentEngine, SEARCH_ENGINE_CURRENT);
   },
 
+  getDefaultEngineInfo() {
+    let result = {};
+
+    let engine;
+    try {
+      engine = this.defaultEngine;
+    } catch(e) {
+      // The defaultEngine getter will throw if there's no engine at all,
+      // which shouldn't happen unless an add-on or a test deleted all of them.
+      // Our preferences UI doesn't let users do that.
+      Cu.reportError("getDefaultEngineInfo: No default engine");
+    }
+
+    if (!engine) {
+      result.name = "NONE";
+    } else {
+      if (engine.name)
+        result.name = engine.name;
+
+      result.loadPath = engine._loadPath;
+
+      // For privacy, we only collect the submission URL for default engines...
+      let sendSubmissionURL = engine._isDefault;
+
+      // ... or engines sorted by default near the top of the list.
+      if (!sendSubmissionURL) {
+        let extras =
+          Services.prefs.getChildList(BROWSER_SEARCH_PREF + "order.extra.");
+
+        for (let prefName of extras) {
+          try {
+            if (result.name == Services.prefs.getCharPref(prefName)) {
+              sendSubmissionURL = true;
+              break;
+            }
+          } catch(e) {}
+        }
+
+        let prefNameBase = getGeoSpecificPrefName(BROWSER_SEARCH_PREF + "order");
+        let i = 0;
+        while (!sendSubmissionURL) {
+          let prefName = prefNameBase + "." + (++i);
+          let engineName = getLocalizedPref(prefName);
+          if (!engineName)
+            break;
+          if (result.name == engineName) {
+            sendSubmissionURL = true;
+            break;
+          }
+        }
+      }
+
+      if (sendSubmissionURL) {
+        let uri = engine._getURLOfType("text/html")
+                        .getSubmission("", engine, "searchbar").uri;
+        uri.userPass = ""; // Avoid reporting a username or password.
+        result.submissionURL = uri.spec;
+      }
+    }
+
+    return result;
+  },
+
   /**
    * This map is built lazily after the available search engines change.  It
    * allows quick parsing of an URL representing a search submission into the
@@ -4410,12 +4544,6 @@ var engineUpdateService = {
     let engine = aEngine.wrappedJSObject;
     ULOG("update called for " + aEngine._name);
     if (!getBoolPref(BROWSER_SEARCH_PREF + "update", true) || !engine._hasUpdates)
-      return;
-
-    // We use the cache to store updated app engines, so refuse to update if the
-    // cache is disabled.
-    if (engine._readOnly &&
-        !getBoolPref(BROWSER_SEARCH_PREF + "cache.enabled", true))
       return;
 
     let testEngine = null;

@@ -4749,6 +4749,16 @@
       <field name="mCorrespondingMenuitem">null</field>
       <field name="closing">false</field>
       <field name="lastAccessed">0</field>
+
+      <method name="setUserContextId">
+        <parameter name="aUserContextId"/>
+        <body>
+        <![CDATA[
+          this.linkedBrowser.setAttribute("usercontextid", aUserContextId);
+          this.setAttribute("usercontextid", aUserContextId);
+        ]]>
+        </body>
+      </method>
     </implementation>
 
     <handlers>

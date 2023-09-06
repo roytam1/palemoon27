@@ -2524,20 +2524,25 @@ nsDocShell::GetFullscreenAllowed(bool* aFullscreenAllowed)
   // Assume false until we determine otherwise...
   *aFullscreenAllowed = false;
 
-  // For non-browsers/apps, check that the enclosing iframe element
-  // has the allowfullscreen attribute set to true. If any ancestor
-  // iframe does not have mozallowfullscreen=true, then fullscreen is
-  // prohibited.
   nsCOMPtr<nsPIDOMWindow> win = GetWindow();
   if (!win) {
     return NS_OK;
   }
   nsCOMPtr<Element> frameElement = win->GetFrameElementInternal();
-  if (frameElement &&
-      frameElement->IsHTMLElement(nsGkAtoms::iframe) &&
-      !frameElement->HasAttr(kNameSpaceID_None, nsGkAtoms::allowfullscreen) &&
-      !frameElement->HasAttr(kNameSpaceID_None, nsGkAtoms::mozallowfullscreen)) {
-    return NS_OK;
+  if (frameElement && !frameElement->IsXULElement()) {
+    // We do not allow document inside any containing element other
+    // than iframe to enter fullscreen.
+    if (!frameElement->IsHTMLElement(nsGkAtoms::iframe)) {
+      return NS_OK;
+    }
+    // If any ancestor iframe does not have allowfullscreen attribute
+    // set, then fullscreen is not allowed.
+    if (!frameElement->HasAttr(kNameSpaceID_None,
+                               nsGkAtoms::allowfullscreen) &&
+        !frameElement->HasAttr(kNameSpaceID_None,
+                               nsGkAtoms::mozallowfullscreen)) {
+      return NS_OK;
+    }
   }
 
   // If we have no parent then we're the root docshell; no ancestor of the
@@ -3295,26 +3300,26 @@ nsDocShell::SetDocLoaderParent(nsDocLoader* aParent)
   nsString customUserAgent;
   nsCOMPtr<nsIDocShell> parentAsDocShell(do_QueryInterface(parent));
   if (parentAsDocShell) {
-    if (NS_SUCCEEDED(parentAsDocShell->GetAllowPlugins(&value))) {
+    if (mAllowPlugins && NS_SUCCEEDED(parentAsDocShell->GetAllowPlugins(&value))) {
       SetAllowPlugins(value);
     }
-    if (NS_SUCCEEDED(parentAsDocShell->GetAllowJavascript(&value))) {
+    if (mAllowJavascript && NS_SUCCEEDED(parentAsDocShell->GetAllowJavascript(&value))) {
       SetAllowJavascript(value);
     }
-    if (NS_SUCCEEDED(parentAsDocShell->GetAllowMetaRedirects(&value))) {
+    if (mAllowMetaRedirects && NS_SUCCEEDED(parentAsDocShell->GetAllowMetaRedirects(&value))) {
       SetAllowMetaRedirects(value);
     }
-    if (NS_SUCCEEDED(parentAsDocShell->GetAllowSubframes(&value))) {
+    if (mAllowSubframes && NS_SUCCEEDED(parentAsDocShell->GetAllowSubframes(&value))) {
       SetAllowSubframes(value);
     }
-    if (NS_SUCCEEDED(parentAsDocShell->GetAllowImages(&value))) {
+    if (mAllowImages && NS_SUCCEEDED(parentAsDocShell->GetAllowImages(&value))) {
       SetAllowImages(value);
     }
-    SetAllowMedia(parentAsDocShell->GetAllowMedia());
-    if (NS_SUCCEEDED(parentAsDocShell->GetAllowWindowControl(&value))) {
+    SetAllowMedia(parentAsDocShell->GetAllowMedia() && mAllowMedia);
+    if (mAllowWindowControl && NS_SUCCEEDED(parentAsDocShell->GetAllowWindowControl(&value))) {
       SetAllowWindowControl(value);
     }
-    SetAllowContentRetargeting(
+    SetAllowContentRetargeting(mAllowContentRetargeting &&
       parentAsDocShell->GetAllowContentRetargetingOnChildren());
     if (NS_SUCCEEDED(parentAsDocShell->GetIsActive(&value))) {
       SetIsActive(value);
@@ -3329,7 +3334,7 @@ nsDocShell::SetDocLoaderParent(nsDocLoader* aParent)
     if (NS_FAILED(parentAsDocShell->GetAllowDNSPrefetch(&value))) {
       value = false;
     }
-    SetAllowDNSPrefetch(value);
+    SetAllowDNSPrefetch(mAllowDNSPrefetch && value);
     value = parentAsDocShell->GetAffectPrivateSessionLifetime();
     SetAffectPrivateSessionLifetime(value);
     uint32_t flags;
@@ -3492,17 +3497,22 @@ nsDocShell::CanAccessItem(nsIDocShellTreeItem* aTargetItem,
 
   nsCOMPtr<nsIDocShell> targetDS = do_QueryInterface(aTargetItem);
   nsCOMPtr<nsIDocShell> accessingDS = do_QueryInterface(aAccessingItem);
-  if (!!targetDS != !!accessingDS) {
-    // We must be able to convert both or neither to nsIDocShell.
+  if (!targetDS || !accessingDS) {
+    // We must be able to convert both to nsIDocShell.
     return false;
   }
 
-  if (targetDS && accessingDS &&
-      (targetDS->GetIsInBrowserElement() !=
-         accessingDS->GetIsInBrowserElement() ||
-       targetDS->GetAppId() != accessingDS->GetAppId())) {
+  if (targetDS->GetIsInBrowserElement() != accessingDS->GetIsInBrowserElement() ||
+      targetDS->GetAppId() != accessingDS->GetAppId()) {
     return false;
   }
+
+  // A private document can't access a non-private one, and vice versa.
+  if (static_cast<nsDocShell*>(targetDS.get())->UsePrivateBrowsing() !=
+      static_cast<nsDocShell*>(accessingDS.get())->UsePrivateBrowsing()) {
+    return false;
+  }
+
 
   nsCOMPtr<nsIDocShellTreeItem> accessingRoot;
   aAccessingItem->GetSameTypeRootTreeItem(getter_AddRefs(accessingRoot));
@@ -4006,6 +4016,7 @@ nsDocShell::AddChild(nsIDocShellTreeItem* aChild)
   }
 
   aChild->SetTreeOwner(mTreeOwner);
+  childDocShell->SetUserContextId(mUserContextId);
 
   nsCOMPtr<nsIDocShell> childAsDocShell(do_QueryInterface(aChild));
   if (!childAsDocShell) {
@@ -12159,11 +12170,10 @@ nsDocShell::LoadHistoryEntry(nsISHEntry* aEntry, uint32_t aLoadType)
   NS_ENSURE_TRUE(aEntry, NS_ERROR_FAILURE);
 
   NS_ENSURE_SUCCESS(aEntry->GetURI(getter_AddRefs(uri)), NS_ERROR_FAILURE);
-
   NS_ENSURE_SUCCESS(aEntry->GetOriginalURI(getter_AddRefs(originalURI)),
                     NS_ERROR_FAILURE);
   NS_ENSURE_SUCCESS(aEntry->GetLoadReplace(&loadReplace),
-                      NS_ERROR_FAILURE);
+                    NS_ERROR_FAILURE);
   NS_ENSURE_SUCCESS(aEntry->GetReferrerURI(getter_AddRefs(referrerURI)),
                     NS_ERROR_FAILURE);
   NS_ENSURE_SUCCESS(aEntry->GetReferrerPolicy(&referrerPolicy),
@@ -12619,13 +12629,9 @@ nsDocShell::ShouldDiscardLayoutState(nsIHttpChannel* aChannel)
   }
 
   // figure out if SH should be saving layout state
-  nsCOMPtr<nsISupports> securityInfo;
-  bool noStore = false, noCache = false;
-  aChannel->GetSecurityInfo(getter_AddRefs(securityInfo));
+  bool noStore = false;
   aChannel->IsNoStoreResponse(&noStore);
-  aChannel->IsNoCacheResponse(&noCache);
-
-  return (noStore || (noCache && securityInfo));
+  return noStore;
 }
 
 NS_IMETHODIMP
@@ -13950,6 +13956,17 @@ NS_IMETHODIMP
 nsDocShell::SetUserContextId(uint32_t aUserContextId)
 {
   mUserContextId = aUserContextId;
+
+  nsTObserverArray<nsDocLoader*>::ForwardIterator iter(mChildList);
+  while (iter.HasMore()) {
+    nsCOMPtr<nsIDocShell> docshell = do_QueryObject(iter.GetNext());
+    if (!docshell || docshell->ItemType() != ItemType()) {
+      continue;
+    }
+
+    docshell->SetUserContextId(aUserContextId);
+  }
+
   return NS_OK;
 }
 
@@ -14107,7 +14124,9 @@ nsDocShell::GetAsyncPanZoomEnabled(bool* aOut)
     return NS_OK;
   }
 
-  *aOut = false;
+  // If we don't have a presShell, fall back to the default platform value of
+  // whether or not APZ is enabled.
+  *aOut = gfxPlatform::AsyncPanZoomEnabled();
   return NS_OK;
 }
 
@@ -14443,9 +14462,11 @@ nsDocShell::InFrameSwap()
 NS_IMETHODIMP
 nsDocShell::IssueWarning(uint32_t aWarning, bool aAsError)
 {
-  nsCOMPtr<nsIDocument> doc = mContentViewer->GetDocument();
-  if (doc) {
-    doc->WarnOnceAbout(nsIDocument::DeprecatedOperations(aWarning), aAsError);
+  if (mContentViewer) {
+    nsCOMPtr<nsIDocument> doc = mContentViewer->GetDocument();
+    if (doc) {
+      doc->WarnOnceAbout(nsIDocument::DeprecatedOperations(aWarning), aAsError);
+    }
   }
   return NS_OK;
 }

@@ -46,7 +46,7 @@ interface nsITabParent;
  
 typedef unsigned long nsLoadFlags;
 
-[scriptable, builtinclass, uuid(bc3524bd-023c-4fc8-ace1-472bc999fb12)]
+[scriptable, builtinclass, uuid(98358234-3936-4b95-b051-fcda4e55b52d)]
 interface nsIDocShell : nsIDocShellTreeItem
 {
   /**
@@ -1079,6 +1079,11 @@ interface nsIDocShell : nsIDocShellTreeItem
    * @see https://html.spec.whatwg.org/#dom-history-scroll-restoration
   */
   attribute boolean currentScrollRestorationIsManual;
+
+  /*
+   * Sets the user context ID for this docshell.
+   */
+  void setUserContextId(in unsigned long aUserContextId);
 };
 
 [scriptable, builtinclass, uuid(395c6a79-80ae-4ede-9e05-93bee6c3d9a1)]

@@ -3258,11 +3258,9 @@ nsHttpChannel::OnCacheEntryCheck(nsICacheEntry* entry, nsIApplicationCache* appC
     // which we must validate the cached response with the server.
     else if (mLoadFlags & nsIRequest::VALIDATE_NEVER) {
         LOG(("VALIDATE_NEVER set\n"));
-        // if no-store or if no-cache and ssl, validate cached response (see
-        // bug 112564 for an explanation of this logic)
-        if (mCachedResponseHead->NoStore() ||
-           (mCachedResponseHead->NoCache() && isHttps)) {
-            LOG(("Validating based on (no-store || (no-cache && ssl)) logic\n"));
+        // if no-store validate cached response (see bug 112564)
+        if (mCachedResponseHead->NoStore()) {
+            LOG(("Validating based on no-store logic\n"));
             doValidation = true;
         }
         else {
@@ -4827,6 +4825,7 @@ NS_INTERFACE_MAP_BEGIN(nsHttpChannel)
     NS_INTERFACE_MAP_ENTRY(nsICachingChannel)
     NS_INTERFACE_MAP_ENTRY(nsIClassOfService)
     NS_INTERFACE_MAP_ENTRY(nsIUploadChannel)
+    NS_INTERFACE_MAP_ENTRY(nsIFormPOSTActionChannel)
     NS_INTERFACE_MAP_ENTRY(nsIUploadChannel2)
     NS_INTERFACE_MAP_ENTRY(nsICacheEntryOpenCallback)
     NS_INTERFACE_MAP_ENTRY(nsIHttpChannelInternal)

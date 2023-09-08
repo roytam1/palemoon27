@@ -43,8 +43,8 @@ nsWinUtils::GetComputedStyleDeclaration(nsIContent* aContent)
     return nullptr;
 
   // Returns number of items in style declaration
-  nsCOMPtr<nsIDOMWindow> window =
-    do_QueryInterface(elm->OwnerDoc()->GetWindow());
+  nsCOMPtr<nsPIDOMWindow> window =
+    do_QueryInterface(elm->OwnerDoc()->GetInnerWindow());
   if (!window)
     return nullptr;
 

@@ -104,6 +104,7 @@
 #include "nsEscape.h"
 
 // Interfaces Needed
+#include "nsIFormPOSTActionChannel.h"
 #include "nsIUploadChannel.h"
 #include "nsIUploadChannel2.h"
 #include "nsIWebProgress.h"
@@ -803,6 +804,7 @@ nsDocShell::nsDocShell()
   , mBlankTiming(false)
   , mFrameType(eFrameTypeRegular)
   , mOwnOrContainingAppId(nsIScriptSecurityManager::UNKNOWN_APP_ID)
+  , mUserContextId(nsIScriptSecurityManager::DEFAULT_USER_CONTEXT_ID)
   , mParentCharsetSource(0)
   , mJSRunToCompletionDepth(0)
 {
@@ -2520,20 +2522,25 @@ nsDocShell::GetFullscreenAllowed(bool* aFullscreenAllowed)
   // Assume false until we determine otherwise...
   *aFullscreenAllowed = false;
 
-  // For non-browsers/apps, check that the enclosing iframe element
-  // has the allowfullscreen attribute set to true. If any ancestor
-  // iframe does not have mozallowfullscreen=true, then fullscreen is
-  // prohibited.
   nsCOMPtr<nsPIDOMWindow> win = GetWindow();
   if (!win) {
     return NS_OK;
   }
   nsCOMPtr<Element> frameElement = win->GetFrameElementInternal();
-  if (frameElement &&
-      frameElement->IsHTMLElement(nsGkAtoms::iframe) &&
-      !frameElement->HasAttr(kNameSpaceID_None, nsGkAtoms::allowfullscreen) &&
-      !frameElement->HasAttr(kNameSpaceID_None, nsGkAtoms::mozallowfullscreen)) {
-    return NS_OK;
+  if (frameElement && !frameElement->IsXULElement()) {
+    // We do not allow document inside any containing element other
+    // than iframe to enter fullscreen.
+    if (!frameElement->IsHTMLElement(nsGkAtoms::iframe)) {
+      return NS_OK;
+    }
+    // If any ancestor iframe does not have allowfullscreen attribute
+    // set, then fullscreen is not allowed.
+    if (!frameElement->HasAttr(kNameSpaceID_None,
+                               nsGkAtoms::allowfullscreen) &&
+        !frameElement->HasAttr(kNameSpaceID_None,
+                               nsGkAtoms::mozallowfullscreen)) {
+      return NS_OK;
+    }
   }
 
   // If we have no parent then we're the root docshell; no ancestor of the
@@ -3291,23 +3298,23 @@ nsDocShell::SetDocLoaderParent(nsDocLoader* aParent)
   nsString customUserAgent;
   nsCOMPtr<nsIDocShell_ESR38> parentAsDocShell(do_QueryInterface(parent));
   if (parentAsDocShell) {
-    if (NS_SUCCEEDED(parentAsDocShell->GetAllowPlugins(&value))) {
+    if (mAllowPlugins && NS_SUCCEEDED(parentAsDocShell->GetAllowPlugins(&value))) {
       SetAllowPlugins(value);
     }
-    if (NS_SUCCEEDED(parentAsDocShell->GetAllowJavascript(&value))) {
+    if (mAllowJavascript && NS_SUCCEEDED(parentAsDocShell->GetAllowJavascript(&value))) {
       SetAllowJavascript(value);
     }
-    if (NS_SUCCEEDED(parentAsDocShell->GetAllowMetaRedirects(&value))) {
+    if (mAllowMetaRedirects && NS_SUCCEEDED(parentAsDocShell->GetAllowMetaRedirects(&value))) {
       SetAllowMetaRedirects(value);
     }
-    if (NS_SUCCEEDED(parentAsDocShell->GetAllowSubframes(&value))) {
+    if (mAllowSubframes && NS_SUCCEEDED(parentAsDocShell->GetAllowSubframes(&value))) {
       SetAllowSubframes(value);
     }
     if (NS_SUCCEEDED(parentAsDocShell->GetAllowImages(&value))) {
       SetAllowImages(value);
     }
-    SetAllowMedia(parentAsDocShell->GetAllowMedia());
-    if (NS_SUCCEEDED(parentAsDocShell->GetAllowWindowControl(&value))) {
+    SetAllowMedia(parentAsDocShell->GetAllowMedia() && mAllowMedia);
+    if (mAllowWindowControl && NS_SUCCEEDED(parentAsDocShell->GetAllowWindowControl(&value))) {
       SetAllowWindowControl(value);
     }
     SetAllowContentRetargeting(
@@ -3325,7 +3332,7 @@ nsDocShell::SetDocLoaderParent(nsDocLoader* aParent)
     if (NS_FAILED(parentAsDocShell->GetAllowDNSPrefetch(&value))) {
       value = false;
     }
-    SetAllowDNSPrefetch(value);
+    SetAllowDNSPrefetch(mAllowDNSPrefetch && value);
     value = parentAsDocShell->GetAffectPrivateSessionLifetime();
     SetAffectPrivateSessionLifetime(value);
     uint32_t flags;
@@ -3469,17 +3476,22 @@ nsDocShell::CanAccessItem(nsIDocShellTreeItem* aTargetItem,
 
   nsCOMPtr<nsIDocShell> targetDS = do_QueryInterface(aTargetItem);
   nsCOMPtr<nsIDocShell> accessingDS = do_QueryInterface(aAccessingItem);
-  if (!!targetDS != !!accessingDS) {
-    // We must be able to convert both or neither to nsIDocShell.
+  if (!targetDS || !accessingDS) {
+    // We must be able to convert both to nsIDocShell.
     return false;
   }
 
-  if (targetDS && accessingDS &&
-      (targetDS->GetIsInBrowserElement() !=
-         accessingDS->GetIsInBrowserElement() ||
-       targetDS->GetAppId() != accessingDS->GetAppId())) {
+  if (targetDS->GetIsInBrowserElement() != accessingDS->GetIsInBrowserElement() ||
+      targetDS->GetAppId() != accessingDS->GetAppId()) {
     return false;
   }
+
+  // A private document can't access a non-private one, and vice versa.
+  if (static_cast<nsDocShell*>(targetDS.get())->UsePrivateBrowsing() !=
+      static_cast<nsDocShell*>(accessingDS.get())->UsePrivateBrowsing()) {
+    return false;
+  }
+
 
   nsCOMPtr<nsIDocShellTreeItem> accessingRoot;
   aAccessingItem->GetSameTypeRootTreeItem(getter_AddRefs(accessingRoot));
@@ -3983,6 +3995,7 @@ nsDocShell::AddChild(nsIDocShellTreeItem* aChild)
   }
 
   aChild->SetTreeOwner(mTreeOwner);
+  childDocShell->SetUserContextId(mUserContextId);
 
   nsCOMPtr<nsIDocShell> childAsDocShell(do_QueryInterface(aChild));
   if (!childAsDocShell) {
@@ -10777,23 +10790,21 @@ nsDocShell::DoURILoad(nsIURI* aURI,
                                   aReferrerURI);
   }
 
-  //
-  // If this is a HTTP channel, then set up the HTTP specific information
-  // (ie. POST data, referrer, ...)
-  //
-  if (httpChannel) {
-    nsCOMPtr<nsICacheInfoChannel> cacheChannel(do_QueryInterface(httpChannel));
-    /* Get the cache Key from SH */
-    nsCOMPtr<nsISupports> cacheKey;
+  nsCOMPtr<nsICacheInfoChannel> cacheChannel(do_QueryInterface(channel));
+  /* Get the cache Key from SH */
+  nsCOMPtr<nsISupports> cacheKey;
+  if (cacheChannel) {
     if (mLSHE) {
       mLSHE->GetCacheKey(getter_AddRefs(cacheKey));
     } else if (mOSHE) {  // for reload cases
       mOSHE->GetCacheKey(getter_AddRefs(cacheKey));
     }
+  }
 
-    // figure out if we need to set the post data stream on the channel...
-    // right now, this is only done for http channels.....
-    if (aPostData) {
+  // figure out if we need to set the post data stream on the channel...
+  if (aPostData) {
+    nsCOMPtr<nsIFormPOSTActionChannel> postChannel(do_QueryInterface(channel));
+    if (postChannel) {
       // XXX it's a bit of a hack to rewind the postdata stream here but
       // it has to be done in case the post data is being reused multiple
       // times.
@@ -10804,44 +10815,45 @@ nsDocShell::DoURILoad(nsIURI* aURI,
         NS_ENSURE_SUCCESS(rv, rv);
       }
 
-      nsCOMPtr<nsIUploadChannel> uploadChannel(do_QueryInterface(httpChannel));
-      NS_ASSERTION(uploadChannel, "http must support nsIUploadChannel");
-
       // we really need to have a content type associated with this stream!!
-      uploadChannel->SetUploadStream(aPostData, EmptyCString(), -1);
-      /* If there is a valid postdata *and* it is a History Load,
-       * set up the cache key on the channel, to retrieve the
-       * data *only* from the cache. If it is a normal reload, the
-       * cache is free to go to the server for updated postdata.
-       */
-      if (cacheChannel && cacheKey) {
-        if (mLoadType == LOAD_HISTORY ||
-            mLoadType == LOAD_RELOAD_CHARSET_CHANGE) {
-          cacheChannel->SetCacheKey(cacheKey);
-          uint32_t loadFlags;
-          if (NS_SUCCEEDED(channel->GetLoadFlags(&loadFlags))) {
-            channel->SetLoadFlags(
-              loadFlags | nsICachingChannel::LOAD_ONLY_FROM_CACHE);
-          }
-        } else if (mLoadType == LOAD_RELOAD_NORMAL) {
-          cacheChannel->SetCacheKey(cacheKey);
-        }
-      }
-    } else {
-      /* If there is no postdata, set the cache key on the channel, and
-       * do not set the LOAD_ONLY_FROM_CACHE flag, so that the channel
-       * will be free to get it from net if it is not found in cache.
-       * New cache may use it creatively on CGI pages with GET
-       * method and even on those that say "no-cache"
-       */
+      postChannel->SetUploadStream(aPostData, EmptyCString(), -1);
+    }
+
+    /* If there is a valid postdata *and* it is a History Load,
+     * set up the cache key on the channel, to retrieve the
+     * data *only* from the cache. If it is a normal reload, the
+     * cache is free to go to the server for updated postdata.
+     */
+    if (cacheChannel && cacheKey) {
       if (mLoadType == LOAD_HISTORY ||
-          mLoadType == LOAD_RELOAD_NORMAL ||
           mLoadType == LOAD_RELOAD_CHARSET_CHANGE) {
-        if (cacheChannel && cacheKey) {
-          cacheChannel->SetCacheKey(cacheKey);
+        cacheChannel->SetCacheKey(cacheKey);
+        uint32_t loadFlags;
+        if (NS_SUCCEEDED(channel->GetLoadFlags(&loadFlags))) {
+          channel->SetLoadFlags(
+            loadFlags | nsICachingChannel::LOAD_ONLY_FROM_CACHE);
         }
+      } else if (mLoadType == LOAD_RELOAD_NORMAL) {
+        cacheChannel->SetCacheKey(cacheKey);
       }
     }
+  } else {
+    /* If there is no postdata, set the cache key on the channel, and
+     * do not set the LOAD_ONLY_FROM_CACHE flag, so that the channel
+     * will be free to get it from net if it is not found in cache.
+     * New cache may use it creatively on CGI pages with GET
+     * method and even on those that say "no-cache"
+     */
+    if (mLoadType == LOAD_HISTORY ||
+        mLoadType == LOAD_RELOAD_NORMAL ||
+        mLoadType == LOAD_RELOAD_CHARSET_CHANGE) {
+      if (cacheChannel && cacheKey) {
+        cacheChannel->SetCacheKey(cacheKey);
+      }
+    }
+  }
+
+  if (httpChannel) {
     if (aHeadersData) {
       rv = AddHeadersToChannel(aHeadersData, httpChannel);
     }
@@ -12580,13 +12592,9 @@ nsDocShell::ShouldDiscardLayoutState(nsIHttpChannel* aChannel)
   }
 
   // figure out if SH should be saving layout state
-  nsCOMPtr<nsISupports> securityInfo;
-  bool noStore = false, noCache = false;
-  aChannel->GetSecurityInfo(getter_AddRefs(securityInfo));
+  bool noStore = false;
   aChannel->IsNoStoreResponse(&noStore);
-  aChannel->IsNoCacheResponse(&noCache);
-
-  return (noStore || (noCache && securityInfo));
+  return noStore;
 }
 
 NS_IMETHODIMP
@@ -13911,6 +13919,17 @@ NS_IMETHODIMP
 nsDocShell::SetUserContextId(uint32_t aUserContextId)
 {
   mUserContextId = aUserContextId;
+
+  nsTObserverArray<nsDocLoader*>::ForwardIterator iter(mChildList);
+  while (iter.HasMore()) {
+    nsCOMPtr<nsIDocShell> docshell = do_QueryObject(iter.GetNext());
+    if (!docshell || docshell->ItemType() != ItemType()) {
+      continue;
+    }
+
+    docshell->SetUserContextId(aUserContextId);
+  }
+
   return NS_OK;
 }
 
@@ -14066,7 +14085,9 @@ nsDocShell::GetAsyncPanZoomEnabled(bool* aOut)
     return NS_OK;
   }
 
-  *aOut = false;
+  // If we don't have a presShell, fall back to the default platform value of
+  // whether or not APZ is enabled.
+  *aOut = gfxPlatform::AsyncPanZoomEnabled();
   return NS_OK;
 }
 
@@ -14396,9 +14417,11 @@ nsDocShell::InFrameSwap()
 NS_IMETHODIMP
 nsDocShell::IssueWarning(uint32_t aWarning, bool aAsError)
 {
-  nsCOMPtr<nsIDocument> doc = mContentViewer->GetDocument();
-  if (doc) {
-    doc->WarnOnceAbout(nsIDocument::DeprecatedOperations(aWarning), aAsError);
+  if (mContentViewer) {
+    nsCOMPtr<nsIDocument> doc = mContentViewer->GetDocument();
+    if (doc) {
+      doc->WarnOnceAbout(nsIDocument::DeprecatedOperations(aWarning), aAsError);
+    }
   }
   return NS_OK;
 }

@@ -1428,7 +1428,7 @@ static void GetProfileTimelineSubDocShells(nsDocShell* aRootDocShell,
     }
 
     aShells.AppendElement(shell);
-  };
+  }
 }
 
 static void

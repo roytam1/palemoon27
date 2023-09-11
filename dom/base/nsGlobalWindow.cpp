@@ -11049,7 +11049,7 @@ nsGlobalWindow::Observe(nsISupports* aSubject, const char* aTopic,
       fireMozStorageChanged = mLocalStorage == changingStorage;
       if (fireMozStorageChanged) {
         eventType.AssignLiteral("MozLocalStorageChanged");
-      };
+      }
       break;
     }
     default:

@@ -133,6 +133,7 @@ using mozilla::dom::FakePluginTagInit;
 #define kPluginTmpDirName NS_LITERAL_CSTRING("plugtmp")
 
 static const char *kPrefWhitelist = "plugin.allowed_types";
+static const char *kPrefLoadInParentPrefix = "plugin.load_in_parent_process.";
 static const char *kPrefDisableFullPage = "plugin.disable_full_page_plugin_for_types";
 static const char *kPrefJavaMIME = "plugin.java.mime";
 
@@ -182,6 +183,37 @@ LazyLogModule nsPluginLogging::gPluginLog(PLUGIN_LOG_NAME);
 
 nsIFile *nsPluginHost::sPluginTempDir;
 nsPluginHost *nsPluginHost::sInst;
+
+/* to cope with short read */
+/* we should probably put this into a global library now that this is the second
+   time we need this. */
+static
+int32_t
+busy_beaver_PR_Read(PRFileDesc *fd, void * start, int32_t len)
+{
+    int n;
+    int32_t remaining = len;
+
+    while (remaining > 0)
+    {
+        n = PR_Read(fd, start, remaining);
+        if (n < 0)
+        {
+            /* may want to repeat if errno == EINTR */
+            if( (len - remaining) == 0 ) // no octet is ever read
+                return -1;
+            break;
+        }
+        else
+        {
+            remaining -= n;
+            char *cp = (char *) start;
+            cp += n;
+            start = cp;
+        }
+    }
+    return len - remaining;
+}
 
 NS_IMPL_ISUPPORTS0(nsInvalidPluginTag)
 
@@ -2775,6 +2807,14 @@ nsPluginHost::IsTypeWhitelisted(const char *aMimeType)
   return IsTypeInList(wrap, whitelist);
 }
 
+/* static */ bool
+nsPluginHost::ShouldLoadTypeInParent(const nsACString& aMimeType)
+{
+  nsCString prefName(kPrefLoadInParentPrefix);
+  prefName += aMimeType;
+  return Preferences::GetBool(prefName.get(), false);
+}
+
 void
 nsPluginHost::RegisterWithCategoryManager(const nsCString& aMimeType,
                                           nsRegisterType aType)
@@ -3037,7 +3077,9 @@ nsPluginHost::ReadPluginInfo()
   // set rv to return an error on goto out
   rv = NS_ERROR_FAILURE;
 
-  int32_t bread = PR_Read(fd, registry, flen);
+  // We know how many octes we are supposed to read.
+  // So let use the busy_beaver_PR_Read version.
+  int32_t bread = busy_beaver_PR_Read(fd, registry, flen);
 
   PRStatus prrc;
   prrc = PR_Close(fd);
@@ -3048,6 +3090,7 @@ nsPluginHost::ReadPluginInfo()
     return rv;
   }
 
+  // short read error, so to speak.
   if (flen > bread)
     return rv;
 
@@ -3408,7 +3451,9 @@ nsresult nsPluginHost::NewPluginURLStream(const nsString& aURL,
                      nsILoadInfo::SEC_FORCE_INHERIT_PRINCIPAL,
                      nsIContentPolicy::TYPE_OBJECT_SUBREQUEST,
                      nullptr,  // aLoadGroup
-                     listenerPeer);
+                     listenerPeer,
+                     nsIRequest::LOAD_NORMAL | nsIChannel::LOAD_CLASSIFY_URI |
+                     nsIChannel::LOAD_BYPASS_SERVICE_WORKER);
   NS_ENSURE_SUCCESS(rv, rv);
 
   if (doc) {

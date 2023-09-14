@@ -21,6 +21,7 @@ class SynthStreamListener;
 
 class nsSpeechTask : public nsISpeechTask
                    , public nsIAudioChannelAgentCallback
+                   , public nsSupportsWeakReference
 {
   friend class SynthStreamListener;
 
@@ -48,7 +49,8 @@ public:
 
   void SetSpeechSynthesis(SpeechSynthesis* aSpeechSynthesis);
 
-  void Init(ProcessedMediaStream* aStream);
+  void InitDirectAudio();
+  void InitIndirectAudio();
 
   void SetChosenVoiceURI(const nsAString& aUri);
 

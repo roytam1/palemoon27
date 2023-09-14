@@ -111,7 +111,7 @@ size_t
 StaticLinkData::SymbolicLinkArray::serializedSize() const
 {
     size_t size = 0;
-    for (const OffsetVector& offsets : *this)
+    for (const Uint32Vector& offsets : *this)
         size += SerializedPodVectorSize(offsets);
     return size;
 }
@@ -119,7 +119,7 @@ StaticLinkData::SymbolicLinkArray::serializedSize() const
 uint8_t*
 StaticLinkData::SymbolicLinkArray::serialize(uint8_t* cursor) const
 {
-    for (const OffsetVector& offsets : *this)
+    for (const Uint32Vector& offsets : *this)
         cursor = SerializePodVector(cursor, offsets);
     return cursor;
 }
@@ -127,7 +127,7 @@ StaticLinkData::SymbolicLinkArray::serialize(uint8_t* cursor) const
 const uint8_t*
 StaticLinkData::SymbolicLinkArray::deserialize(ExclusiveContext* cx, const uint8_t* cursor)
 {
-    for (OffsetVector& offsets : *this) {
+    for (Uint32Vector& offsets : *this) {
         cursor = DeserializePodVector(cx, cursor, &offsets);
         if (!cursor)
             return nullptr;
@@ -149,7 +149,7 @@ size_t
 StaticLinkData::SymbolicLinkArray::sizeOfExcludingThis(MallocSizeOf mallocSizeOf) const
 {
     size_t size = 0;
-    for (const OffsetVector& offsets : *this)
+    for (const Uint32Vector& offsets : *this)
         size += offsets.sizeOfExcludingThis(mallocSizeOf);
     return size;
 }
@@ -235,7 +235,7 @@ StaticLinkData::sizeOfExcludingThis(MallocSizeOf mallocSizeOf) const
                   symbolicLinks.sizeOfExcludingThis(mallocSizeOf) +
                   SizeOfVectorExcludingThis(funcPtrTables, mallocSizeOf);
 
-    for (const OffsetVector& offsets : symbolicLinks)
+    for (const Uint32Vector& offsets : symbolicLinks)
         size += offsets.sizeOfExcludingThis(mallocSizeOf);
 
     return size;
@@ -360,7 +360,7 @@ CodeRange::CodeRange(Kind kind, Offsets offsets)
     u.kind_ = kind;
 
     MOZ_ASSERT(begin_ <= end_);
-    MOZ_ASSERT(u.kind_ == Entry || u.kind_ == Inline);
+    MOZ_ASSERT(u.kind_ == Entry || u.kind_ == Inline || u.kind_ == CallThunk);
 }
 
 CodeRange::CodeRange(Kind kind, ProfilingOffsets offsets)
@@ -502,6 +502,7 @@ ModuleData::serializedSize() const
            SerializedPodVectorSize(heapAccesses) +
            SerializedPodVectorSize(codeRanges) +
            SerializedPodVectorSize(callSites) +
+           SerializedPodVectorSize(callThunks) +
            SerializedVectorSize(prettyFuncNames) +
            filename.serializedSize();
 }
@@ -516,6 +517,7 @@ ModuleData::serialize(uint8_t* cursor) const
     cursor = SerializePodVector(cursor, heapAccesses);
     cursor = SerializePodVector(cursor, codeRanges);
     cursor = SerializePodVector(cursor, callSites);
+    cursor = SerializePodVector(cursor, callThunks);
     cursor = SerializeVector(cursor, prettyFuncNames);
     cursor = filename.serialize(cursor);
     return cursor;
@@ -536,6 +538,7 @@ ModuleData::deserialize(ExclusiveContext* cx, const uint8_t* cursor)
     (cursor = DeserializePodVector(cx, cursor, &heapAccesses)) &&
     (cursor = DeserializePodVector(cx, cursor, &codeRanges)) &&
     (cursor = DeserializePodVector(cx, cursor, &callSites)) &&
+    (cursor = DeserializePodVector(cx, cursor, &callThunks)) &&
     (cursor = DeserializeVector(cx, cursor, &prettyFuncNames)) &&
     (cursor = filename.deserialize(cx, cursor));
     return cursor;
@@ -556,6 +559,7 @@ ModuleData::clone(JSContext* cx, ModuleData* out) const
            ClonePodVector(cx, heapAccesses, &out->heapAccesses) &&
            ClonePodVector(cx, codeRanges, &out->codeRanges) &&
            ClonePodVector(cx, callSites, &out->callSites) &&
+           ClonePodVector(cx, callThunks, &out->callThunks) &&
            CloneVector(cx, prettyFuncNames, &out->prettyFuncNames) &&
            filename.clone(cx, &out->filename);
 }
@@ -569,6 +573,7 @@ ModuleData::sizeOfExcludingThis(MallocSizeOf mallocSizeOf) const
            heapAccesses.sizeOfExcludingThis(mallocSizeOf) +
            codeRanges.sizeOfExcludingThis(mallocSizeOf) +
            callSites.sizeOfExcludingThis(mallocSizeOf) +
+           callThunks.sizeOfExcludingThis(mallocSizeOf) +
            prettyFuncNames.sizeOfExcludingThis(mallocSizeOf) +
            filename.sizeOfExcludingThis(mallocSizeOf);
 }
@@ -786,6 +791,9 @@ Module::setProfilingEnabled(JSContext* cx, bool enabled)
         for (const CallSite& callSite : module_->callSites)
             EnableProfilingPrologue(*this, callSite, enabled);
 
+        for (const CallThunk& callThunk : module_->callThunks)
+            EnableProfilingThunk(*this, callThunk, enabled);
+
         for (const CodeRange& codeRange : module_->codeRanges)
             EnableProfilingEpilogue(*this, codeRange, enabled);
     }
@@ -833,7 +841,7 @@ Module::clone(JSContext* cx, const StaticLinkData& link, Module* out) const
     // in Module::staticallyLink are valid.
     for (auto imm : MakeEnumeratedRange(SymbolicAddress::Limit)) {
         void* callee = AddressOf(imm, cx);
-        const StaticLinkData::OffsetVector& offsets = link.symbolicLinks[imm];
+        const Uint32Vector& offsets = link.symbolicLinks[imm];
         for (uint32_t offset : offsets) {
             jit::Assembler::PatchDataWithValueCheck(jit::CodeLocationLabel(out->code() + offset),
                                                     jit::PatchedImmPtr((void*)-1),
@@ -1026,7 +1034,7 @@ Module::staticallyLink(ExclusiveContext* cx, const StaticLinkData& linkData)
     }
 
     for (auto imm : MakeEnumeratedRange(SymbolicAddress::Limit)) {
-        const StaticLinkData::OffsetVector& offsets = linkData.symbolicLinks[imm];
+        const Uint32Vector& offsets = linkData.symbolicLinks[imm];
         for (size_t i = 0; i < offsets.length(); i++) {
             uint8_t* patchAt = code() + offsets[i];
             void* target = AddressOf(imm, cx);

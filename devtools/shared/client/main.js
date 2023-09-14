@@ -242,7 +242,7 @@ DebuggerClient.requester = function (aPacketSkeleton,
                                      { telemetry, before, after }) {
   return DevToolsUtils.makeInfallible(function (...args) {
     let histogram, startTime;
-    if (telemetry) {
+    if (0 && telemetry) {
       let transportType = this._transport.onOutputStreamReady === undefined
         ? "LOCAL_"
         : "REMOTE_";

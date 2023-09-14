@@ -34,7 +34,7 @@ const TOOLBAR_ORDER_POPUP_POSITION = "topcenter bottomleft";
 /**
  * Object defining the debugger view components.
  */
-let DebuggerView = {
+var DebuggerView = {
   /**
    * Initializes the debugger view.
    *

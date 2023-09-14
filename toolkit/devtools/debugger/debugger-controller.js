@@ -136,10 +136,12 @@ Object.defineProperty(this, "NetworkHelper", {
   enumerable: true
 });
 
+let wantLogging = Services.prefs.getBoolPref("devtools.debugger.log");
+
 /**
  * Object defining the debugger controller components.
  */
-let DebuggerController = {
+var DebuggerController = {
   /**
    * Initializes the debugger controller.
    */
@@ -2536,4 +2538,3 @@ function dumpn(str) {
   }
 }
 
-let wantLogging = Services.prefs.getBoolPref("devtools.debugger.log");

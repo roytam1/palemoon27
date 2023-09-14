@@ -3797,7 +3797,7 @@ nsPIDOMWindow::SetAudioCapture(bool aCapture)
 
   RefPtr<AudioChannelService> service = AudioChannelService::GetOrCreate();
   if (service) {
-    service->RefreshAgentsCapture(GetOuterWindow(), mWindowID);
+    service->SetWindowAudioCaptured(GetOuterWindow(), mWindowID, aCapture);
   }
 
   return NS_OK;
@@ -11641,7 +11641,7 @@ nsGlobalWindow::Observe(nsISupports* aSubject, const char* aTopic,
       fireMozStorageChanged = mLocalStorage == changingStorage;
       if (fireMozStorageChanged) {
         eventType.AssignLiteral("MozLocalStorageChanged");
-      };
+      }
       break;
     }
     default:

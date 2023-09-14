@@ -514,26 +514,27 @@ ClientLayerManager::MakeSnapshotIfRequired()
       if (!bounds.IsEmpty() &&
           mForwarder->AllocSurfaceDescriptor(bounds.Size(),
                                              gfxContentType::COLOR_ALPHA,
-                                             &inSnapshot) &&
-          remoteRenderer->SendMakeSnapshot(inSnapshot, bounds)) {
-        RefPtr<DataSourceSurface> surf = GetSurfaceForDescriptor(inSnapshot);
-        DrawTarget* dt = mShadowTarget->GetDrawTarget();
+                                             &inSnapshot)) {
+        if (remoteRenderer->SendMakeSnapshot(inSnapshot, bounds)) {
+          RefPtr<DataSourceSurface> surf = GetSurfaceForDescriptor(inSnapshot);
+          DrawTarget* dt = mShadowTarget->GetDrawTarget();
 
-        Rect dstRect(bounds.x, bounds.y, bounds.width, bounds.height);
-        Rect srcRect(0, 0, bounds.width, bounds.height);
+          Rect dstRect(bounds.x, bounds.y, bounds.width, bounds.height);
+          Rect srcRect(0, 0, bounds.width, bounds.height);
 
-        gfx::Matrix rotate =
-          ComputeTransformForUnRotation(outerBounds.ToUnknownRect(),
-                                        mTargetRotation);
+          gfx::Matrix rotate =
+            ComputeTransformForUnRotation(outerBounds.ToUnknownRect(),
+                                          mTargetRotation);
 
-        gfx::Matrix oldMatrix = dt->GetTransform();
-        dt->SetTransform(rotate * oldMatrix);
-        dt->DrawSurface(surf, dstRect, srcRect,
-                        DrawSurfaceOptions(),
-                        DrawOptions(1.0f, CompositionOp::OP_OVER));
-        dt->SetTransform(oldMatrix);
+          gfx::Matrix oldMatrix = dt->GetTransform();
+          dt->SetTransform(rotate * oldMatrix);
+          dt->DrawSurface(surf, dstRect, srcRect,
+                          DrawSurfaceOptions(),
+                          DrawOptions(1.0f, CompositionOp::OP_OVER));
+          dt->SetTransform(oldMatrix);
+        }
+        mForwarder->DestroySharedSurface(&inSnapshot);
       }
-      mForwarder->DestroySharedSurface(&inSnapshot);
     }
   }
   mShadowTarget = nullptr;
@@ -590,15 +591,6 @@ ClientLayerManager::ForwardTransaction(bool aScheduleComposite)
     mForwarder->GetSyncObject()->FinalizeFrame();
   }
 
-  if (!mTransactionIdAllocator) {
-    // We are being called without a transaction ID manager.
-    // Probably incorrect application init. Clean up as well as we are
-    // able to at this point and return.
-    mForwarder->RemoveTexturesIfNecessary();
-    mKeepAlive.Clear();
-    return;
-  }
-
   mPhase = PHASE_FORWARD;
 
   mLatestTransactionId = mTransactionIdAllocator->GetTransactionId();
@@ -653,8 +645,6 @@ ClientLayerManager::ForwardTransaction(bool aScheduleComposite)
     mTransactionIdAllocator->RevokeTransactionId(mLatestTransactionId);
   }
 
-  mForwarder->RemoveTexturesIfNecessary();
-  mForwarder->RemoveCompositablesIfNecessary();
   mForwarder->SendPendingAsyncMessges();
   mPhase = PHASE_NONE;
 
@@ -722,24 +712,6 @@ ClientLayerManager::GetTexturePool(SurfaceFormat aFormat, TextureFlags aFlags)
                             mForwarder));
 
   return mTexturePools.LastElement();
-}
-
-void
-ClientLayerManager::ReturnTextureClientDeferred(TextureClient& aClient) {
-  GetTexturePool(aClient.GetFormat(),
-                 aClient.GetFlags())->ReturnTextureClientDeferred(&aClient);
-}
-
-void
-ClientLayerManager::ReturnTextureClient(TextureClient& aClient) {
-  GetTexturePool(aClient.GetFormat(),
-                 aClient.GetFlags())->ReturnTextureClient(&aClient);
-}
-
-void
-ClientLayerManager::ReportClientLost(TextureClient& aClient) {
-  GetTexturePool(aClient.GetFormat(),
-                 aClient.GetFlags())->ReportClientLost();
 }
 
 void

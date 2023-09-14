@@ -156,7 +156,7 @@ Object.defineProperty(this, "NetworkHelper", {
 /**
  * Object defining the network monitor controller components.
  */
-let NetMonitorController = {
+var NetMonitorController = {
   /**
    * Initializes the view.
    *

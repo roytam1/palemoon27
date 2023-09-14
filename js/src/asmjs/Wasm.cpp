@@ -30,6 +30,8 @@
 using namespace js;
 using namespace js::wasm;
 
+using mozilla::IsNaN;
+
 typedef Handle<WasmModuleObject*> HandleWasmModule;
 typedef MutableHandle<WasmModuleObject*> MutableHandleWasmModule;
 
@@ -604,6 +606,8 @@ DecodeSignatureSection(JSContext* cx, Decoder& d, ModuleGeneratorData* init)
         return Fail(cx, d, "too many signatures");
 
     if (!init->sigs.resize(numSigs))
+        return false;
+    if (!init->sigToTable.resize(numSigs))
         return false;
 
     SigSet dupSet(cx);

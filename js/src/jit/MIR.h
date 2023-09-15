@@ -836,12 +836,7 @@ class MDefinition : public MNode
     MIR_OPCODE_LIST(OPCODE_CASTS)
 #   undef OPCODE_CASTS
 
-    bool isConstantValue() const {
-        return isConstant() || (isBox() && getOperand(0)->isConstant());
-    }
-    const Value& constantValue();
-    const Value* constantVp();
-    bool constantToBoolean();
+    inline MConstant* maybeConstantValue();
 
     inline MInstruction* toInstruction();
     inline const MInstruction* toInstruction() const;
@@ -1378,9 +1373,17 @@ class MConstant : public MNullaryInstruction
     const js::Value* vp() const {
         return &value_;
     }
-    bool valueToBoolean() const {
-        // A hack to avoid this wordy pattern everywhere in the JIT.
-        return ToBoolean(HandleValue::fromMarkedLocation(&value_));
+
+    // Try to convert this constant to boolean, similar to js::ToBoolean.
+    // Returns false if the type is MIRType_Magic*.
+    bool valueToBoolean(bool* res) const;
+
+    // Like valueToBoolean, but returns the result directly instead of using
+    // an outparam. Should not be used if this constant might be a magic value.
+    bool valueToBooleanInfallible() const {
+        bool res;
+        MOZ_ALWAYS_TRUE(valueToBoolean(&res));
+        return res;
     }
 
     void printOpcode(GenericPrinter& out) const override;
@@ -13948,25 +13951,39 @@ class MAsmJSLoadFuncPtr
   : public MUnaryInstruction,
     public NoTypePolicy::Data
 {
-    MAsmJSLoadFuncPtr(unsigned globalDataOffset, MDefinition* index)
-      : MUnaryInstruction(index), globalDataOffset_(globalDataOffset)
+    MAsmJSLoadFuncPtr(MDefinition* index, bool hasLimit, uint32_t limit, bool alwaysThrow,
+                      unsigned globalDataOffset)
+      : MUnaryInstruction(index), hasLimit_(hasLimit), limit_(limit), alwaysThrow_(alwaysThrow),
+        globalDataOffset_(globalDataOffset)
     {
         setResultType(MIRType_Pointer);
     }
 
+    bool hasLimit_;
+    uint32_t limit_;
+    bool alwaysThrow_;
     unsigned globalDataOffset_;
 
   public:
     INSTRUCTION_HEADER(AsmJSLoadFuncPtr)
 
-    static MAsmJSLoadFuncPtr* New(TempAllocator& alloc, unsigned globalDataOffset,
-                                  MDefinition* index)
+    static MAsmJSLoadFuncPtr* New(TempAllocator& alloc, MDefinition* index, uint32_t limit,
+                                  bool alwaysThrow, unsigned globalDataOffset)
     {
-        return new(alloc) MAsmJSLoadFuncPtr(globalDataOffset, index);
+        return new(alloc) MAsmJSLoadFuncPtr(index, true, limit, alwaysThrow, globalDataOffset);
     }
 
-    unsigned globalDataOffset() const { return globalDataOffset_; }
+    static MAsmJSLoadFuncPtr* New(TempAllocator& alloc, MDefinition* index,
+                                  unsigned globalDataOffset)
+    {
+        return new(alloc) MAsmJSLoadFuncPtr(index, false, 0, false, globalDataOffset);
+    }
+
     MDefinition* index() const { return getOperand(0); }
+    bool hasLimit() const { return hasLimit_; }
+    uint32_t limit() const { MOZ_ASSERT(hasLimit_); return limit_; }
+    bool alwaysThrow() const { return alwaysThrow_; }
+    unsigned globalDataOffset() const { return globalDataOffset_; }
 
     HashNumber valueHash() const override;
     bool congruentTo(const MDefinition* ins) const override;
@@ -14201,33 +14218,50 @@ void MUse::releaseProducer()
 
 // Implement cast functions now that the compiler can see the inheritance.
 
-MDefinition* MNode::toDefinition()
+MDefinition*
+MNode::toDefinition()
 {
     MOZ_ASSERT(isDefinition());
     return (MDefinition*)this;
 }
 
-MResumePoint* MNode::toResumePoint()
+MResumePoint*
+MNode::toResumePoint()
 {
     MOZ_ASSERT(isResumePoint());
     return (MResumePoint*)this;
 }
 
-MInstruction* MDefinition::toInstruction()
+MInstruction*
+MDefinition::toInstruction()
 {
     MOZ_ASSERT(!isPhi());
     return (MInstruction*)this;
 }
 
-const MInstruction* MDefinition::toInstruction() const
+const MInstruction*
+MDefinition::toInstruction() const
 {
     MOZ_ASSERT(!isPhi());
     return (const MInstruction*)this;
 }
 
-MControlInstruction* MDefinition::toControlInstruction() {
+MControlInstruction*
+MDefinition::toControlInstruction()
+{
     MOZ_ASSERT(isControlInstruction());
     return (MControlInstruction*)this;
+}
+
+MConstant*
+MDefinition::maybeConstantValue()
+{
+    MDefinition* op = this;
+    if (op->isBox())
+        op = op->toBox()->input();
+    if (op->isConstant())
+        return op->toConstant();
+    return nullptr;
 }
 
 // Helper functions used to decide how to build MIR.

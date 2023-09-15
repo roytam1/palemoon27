@@ -165,6 +165,17 @@ DecodeExprType(JSContext* cx, Decoder& d, ExprType *type)
 }
 
 static bool
+DecodeCallWithSig(FunctionDecoder& f, const Sig& sig, ExprType expected)
+{
+    for (ValType argType : sig.args()) {
+        if (!DecodeExpr(f, ToExprType(argType)))
+            return false;
+    }
+
+    return CheckType(f, sig.ret(), expected);
+}
+
+static bool
 DecodeCall(FunctionDecoder& f, ExprType expected)
 {
     uint32_t funcIndex;
@@ -174,14 +185,7 @@ DecodeCall(FunctionDecoder& f, ExprType expected)
     if (funcIndex >= f.mg().numFuncSigs())
         return f.fail("callee index out of range");
 
-    const DeclaredSig& sig = f.mg().funcSig(funcIndex);
-
-    for (ValType argType : sig.args()) {
-        if (!DecodeExpr(f, ToExprType(argType)))
-            return false;
-    }
-
-    return CheckType(f, sig.ret(), expected);
+    return DecodeCallWithSig(f, f.mg().funcSig(funcIndex), expected);
 }
 
 static bool
@@ -194,14 +198,23 @@ DecodeCallImport(FunctionDecoder& f, ExprType expected)
     if (importIndex >= f.mg().numImports())
         return f.fail("import index out of range");
 
-    const DeclaredSig& sig = *f.mg().import(importIndex).sig;
+    return DecodeCallWithSig(f, *f.mg().import(importIndex).sig, expected);
+}
 
-    for (ValType argType : sig.args()) {
-        if (!DecodeExpr(f, ToExprType(argType)))
-            return false;
-    }
+static bool
+DecodeCallIndirect(FunctionDecoder& f, ExprType expected)
+{
+    uint32_t sigIndex;
+    if (!f.d().readU32(&sigIndex))
+        return f.fail("unable to read indirect call signature index");
 
-    return CheckType(f, sig.ret(), expected);
+    if (sigIndex >= f.mg().numSigs())
+        return f.fail("signature index out of range");
+
+    if (!DecodeExpr(f, ExprType::I32))
+        return false;
+
+    return DecodeCallWithSig(f, f.mg().sig(sigIndex), expected);
 }
 
 static bool
@@ -347,6 +360,33 @@ DecodeIfElse(FunctionDecoder& f, bool hasElse, ExprType expected)
 }
 
 static bool
+DecodeLoadStoreAddress(FunctionDecoder &f)
+{
+    uint32_t offset, align;
+    return DecodeExpr(f, ExprType::I32) &&
+           f.d().readVarU32(&offset) &&
+           f.d().readVarU32(&align) &&
+           mozilla::IsPowerOfTwo(align) &&
+           (offset == 0 || f.fail("NYI: address offsets")) &&
+           f.fail("NYI: wasm loads and stores");
+}
+
+static bool
+DecodeLoad(FunctionDecoder& f, ExprType expected, ExprType type)
+{
+    return DecodeLoadStoreAddress(f) &&
+           CheckType(f, type, expected);
+}
+
+static bool
+DecodeStore(FunctionDecoder& f, ExprType expected, ExprType type)
+{
+    return DecodeLoadStoreAddress(f) &&
+           DecodeExpr(f, expected) &&
+           CheckType(f, type, expected);
+}
+
+static bool
 DecodeExpr(FunctionDecoder& f, ExprType expected)
 {
     Expr expr;
@@ -360,6 +400,8 @@ DecodeExpr(FunctionDecoder& f, ExprType expected)
         return DecodeCall(f, expected);
       case Expr::CallImport:
         return DecodeCallImport(f, expected);
+      case Expr::CallIndirect:
+        return DecodeCallIndirect(f, expected);
       case Expr::I32Const:
         return DecodeConstI32(f, expected);
       case Expr::I64Const:
@@ -539,6 +581,38 @@ DecodeExpr(FunctionDecoder& f, ExprType expected)
                DecodeConversionOperator(f, expected, ExprType::F64, ExprType::I64);
       case Expr::F64PromoteF32:
         return DecodeConversionOperator(f, expected, ExprType::F64, ExprType::F32);
+      case Expr::I32LoadMem:
+      case Expr::I32LoadMem8S:
+      case Expr::I32LoadMem8U:
+      case Expr::I32LoadMem16S:
+      case Expr::I32LoadMem16U:
+        return DecodeLoad(f, expected, ExprType::I32);
+      case Expr::I64LoadMem:
+      case Expr::I64LoadMem8S:
+      case Expr::I64LoadMem8U:
+      case Expr::I64LoadMem16S:
+      case Expr::I64LoadMem16U:
+      case Expr::I64LoadMem32S:
+      case Expr::I64LoadMem32U:
+        return DecodeLoad(f, expected, ExprType::I64);
+      case Expr::F32LoadMem:
+        return DecodeLoad(f, expected, ExprType::F32);
+      case Expr::F64LoadMem:
+        return DecodeLoad(f, expected, ExprType::F64);
+      case Expr::I32StoreMem:
+      case Expr::I32StoreMem8:
+      case Expr::I32StoreMem16:
+        return DecodeStore(f, expected, ExprType::I32);
+      case Expr::I64StoreMem:
+      case Expr::I64StoreMem8:
+      case Expr::I64StoreMem16:
+      case Expr::I64StoreMem32:
+        return f.fail("NYI: i64") &&
+               DecodeStore(f, expected, ExprType::I64);
+      case Expr::F32StoreMem:
+        return DecodeStore(f, expected, ExprType::F32);
+      case Expr::F64StoreMem:
+        return DecodeStore(f, expected, ExprType::F64);
       default:
         break;
     }
@@ -693,6 +767,66 @@ DecodeDeclarationSection(JSContext* cx, Decoder& d, ModuleGeneratorData* init)
 
     if (!d.finishSection(sectionStart))
         return Fail(cx, d, "decls section byte size mismatch");
+
+    return true;
+}
+
+static bool
+DecodeTableSection(JSContext* cx, Decoder& d, ModuleGeneratorData* init)
+{
+    if (!d.readCStringIf(TableSection))
+        return true;
+
+    uint32_t sectionStart;
+    if (!d.startSection(&sectionStart))
+        return Fail(cx, d, "expected table section byte size");
+
+    if (!d.readVarU32(&init->numTableElems))
+        return Fail(cx, d, "expected number of table elems");
+
+    if (init->numTableElems > MaxTableElems)
+        return Fail(cx, d, "too many table elements");
+
+    Uint32Vector elems;
+    if (!elems.resize(init->numTableElems))
+        return false;
+
+    for (uint32_t i = 0; i < init->numTableElems; i++) {
+        uint32_t funcIndex;
+        if (!d.readVarU32(&funcIndex))
+            return Fail(cx, d, "expected table element");
+
+        if (funcIndex >= init->funcSigs.length())
+            return Fail(cx, d, "table element out of range");
+
+        elems[i] = funcIndex;
+    }
+
+    if (!d.finishSection(sectionStart))
+        return Fail(cx, d, "table section byte size mismatch");
+
+    // Convert the single (heterogeneous) indirect function table into an
+    // internal set of asm.js-like homogeneous tables indexed by signature.
+    // Every element in the heterogeneous table is present in only one
+    // homogeneous table (as determined by its signature). An element's index in
+    // the heterogeneous table is the same as its index in its homogeneous table
+    // and all other homogeneous tables are given an entry that will fault if
+    // called for at that element's index.
+
+    for (uint32_t elemIndex = 0; elemIndex < elems.length(); elemIndex++) {
+        uint32_t funcIndex = elems[elemIndex];
+        TableModuleGeneratorData& table = init->sigToTable[init->funcSigIndex(funcIndex)];
+        if (table.numElems == 0) {
+            table.numElems = elems.length();
+            if (!table.elemFuncIndices.appendN(ModuleGenerator::BadIndirectCall, elems.length()))
+                return false;
+        }
+    }
+
+    for (uint32_t elemIndex = 0; elemIndex < elems.length(); elemIndex++) {
+        uint32_t funcIndex = elems[elemIndex];
+        init->sigToTable[init->funcSigIndex(funcIndex)].elemFuncIndices[elemIndex] = funcIndex;
+    }
 
     return true;
 }
@@ -955,7 +1089,7 @@ DecodeCodeSection(JSContext* cx, Decoder& d, ModuleGenerator& mg)
     }
 
     if (funcIndex != mg.numFuncSigs())
-        return Fail(cx, d, "fewer function definitions than declarations");
+        return Fail(cx, d, "different number of definitions than declarations");
 
     if (!mg.finishFuncDefs())
         return false;
@@ -968,6 +1102,9 @@ DecodeDataSection(JSContext* cx, Decoder& d, Handle<ArrayBufferObject*> heap)
 {
     if (!d.readCStringIf(DataSection))
         return true;
+
+    if (!heap)
+        return Fail(cx, d, "data section requires a memory section");
 
     uint32_t sectionStart;
     if (!d.startSection(&sectionStart))
@@ -1025,7 +1162,8 @@ DecodeUnknownSection(JSContext* cx, Decoder& d)
         !strcmp(sectionName.get(), DeclSection) ||
         !strcmp(sectionName.get(), ExportSection) ||
         !strcmp(sectionName.get(), CodeSection) ||
-        !strcmp(sectionName.get(), DataSection))
+        !strcmp(sectionName.get(), DataSection) ||
+        !strcmp(sectionName.get(), TableSection))
     {
         return Fail(cx, d, "known section out of order");
     }
@@ -1061,6 +1199,9 @@ DecodeModule(JSContext* cx, UniqueChars file, const uint8_t* bytes, uint32_t len
         return false;
 
     if (!DecodeDeclarationSection(cx, d, init.get()))
+        return false;
+
+    if (!DecodeTableSection(cx, d, init.get()))
         return false;
 
     ModuleGenerator mg(cx);
@@ -1184,26 +1325,13 @@ ImportFunctions(JSContext* cx, HandleObject importObj, const ImportNameVector& i
     return true;
 }
 
-static bool
-WasmEval(JSContext* cx, unsigned argc, Value* vp)
+bool
+wasm::Eval(JSContext* cx, Handle<ArrayBufferObject*> code,
+           HandleObject importObj, MutableHandleObject exportObj)
 {
     if (!CheckCompilerSupport(cx))
         return false;
 
-    CallArgs args = CallArgsFromVp(argc, vp);
-    RootedObject callee(cx, &args.callee());
-
-    if (args.length() < 1 || args.length() > 2) {
-        ReportUsageError(cx, callee, "Wrong number of arguments");
-        return false;
-    }
-
-    if (!args[0].isObject() || !args[0].toObject().is<ArrayBufferObject>()) {
-        ReportUsageError(cx, callee, "First argument must be an ArrayBuffer");
-        return false;
-    }
-
-    Rooted<ArrayBufferObject*> code(cx, &args[0].toObject().as<ArrayBufferObject>());
     const uint8_t* bytes = code->dataPointer();
     uint32_t length = code->byteLength();
 
@@ -1212,15 +1340,6 @@ WasmEval(JSContext* cx, unsigned argc, Value* vp)
         if (!copy.append(bytes, length))
             return false;
         bytes = copy.begin();
-    }
-
-    RootedObject importObj(cx);
-    if (!args.get(1).isUndefined()) {
-        if (!args.get(1).isObject()) {
-            ReportUsageError(cx, callee, "Second argument, if present, must be an Object");
-            return false;
-        }
-        importObj = &args[1].toObject();
     }
 
     UniqueChars file;
@@ -1241,8 +1360,42 @@ WasmEval(JSContext* cx, unsigned argc, Value* vp)
     if (!ImportFunctions(cx, importObj, importNames, &imports))
         return false;
 
+    if (!moduleObj->module().dynamicallyLink(cx, moduleObj, heap, imports, *exportMap, exportObj))
+        return false;
+
+    return true;
+}
+
+
+static bool
+WasmEval(JSContext* cx, unsigned argc, Value* vp)
+{
+    CallArgs args = CallArgsFromVp(argc, vp);
+    RootedObject callee(cx, &args.callee());
+
+    if (args.length() < 1 || args.length() > 2) {
+        ReportUsageError(cx, callee, "Wrong number of arguments");
+        return false;
+    }
+
+    if (!args[0].isObject() || !args[0].toObject().is<ArrayBufferObject>()) {
+        ReportUsageError(cx, callee, "First argument must be an ArrayBuffer");
+        return false;
+    }
+
+    RootedObject importObj(cx);
+    if (!args.get(1).isUndefined()) {
+        if (!args.get(1).isObject()) {
+            ReportUsageError(cx, callee, "Second argument, if present, must be an Object");
+            return false;
+        }
+        importObj = &args[1].toObject();
+    }
+
+    Rooted<ArrayBufferObject*> code(cx, &args[0].toObject().as<ArrayBufferObject>());
+
     RootedObject exportObj(cx);
-    if (!moduleObj->module().dynamicallyLink(cx, moduleObj, heap, imports, *exportMap, &exportObj))
+    if (!Eval(cx, code, importObj, &exportObj))
         return false;
 
     args.rval().setObject(*exportObj);

@@ -1596,7 +1596,7 @@ LIRGenerator::visitMul(MMul* ins)
 
         // If our RHS is a constant -1 and we don't have to worry about
         // overflow, we can optimize to an LNegI.
-        if (!ins->fallible() && rhs->isConstant() && rhs->toConstant()->value().toInt32() == -1)
+        if (!ins->fallible() && rhs->isConstant() && rhs->toConstant()->toInt32() == -1)
             defineReuseInput(new(alloc()) LNegI(useRegisterAtStart(lhs)), ins, 0);
         else
             lowerMulI(ins, lhs, rhs);
@@ -1605,7 +1605,7 @@ LIRGenerator::visitMul(MMul* ins)
         ReorderCommutative(&lhs, &rhs, ins);
 
         // If our RHS is a constant -1.0, we can optimize to an LNegD.
-        if (rhs->isConstant() && rhs->toConstant()->value().toDouble() == -1.0)
+        if (rhs->isConstant() && rhs->toConstant()->toDouble() == -1.0)
             defineReuseInput(new(alloc()) LNegD(useRegisterAtStart(lhs)), ins, 0);
         else
             lowerForFPU(new(alloc()) LMathD(JSOP_MUL), ins, lhs, rhs);
@@ -1614,7 +1614,7 @@ LIRGenerator::visitMul(MMul* ins)
         ReorderCommutative(&lhs, &rhs, ins);
 
         // We apply the same optimizations as for doubles
-        if (rhs->isConstant() && rhs->toConstant()->value().toDouble() == -1.0)
+        if (rhs->isConstant() && rhs->toConstant()->toFloat32() == -1.0f)
             defineReuseInput(new(alloc()) LNegF(useRegisterAtStart(lhs)), ins, 0);
         else
             lowerForFPU(new(alloc()) LMathF(JSOP_MUL), ins, lhs, rhs);
@@ -2477,6 +2477,17 @@ LIRGenerator::visitMonitorTypes(MMonitorTypes* ins)
     add(lir, ins);
 }
 
+// Returns true iff |def| is a constant that's either not a GC thing or is not
+// allocated in the nursery.
+static bool
+IsNonNurseryConstant(MDefinition* def)
+{
+    if (!def->isConstant())
+        return false;
+    Value v = def->toConstant()->toJSValue();
+    return !v.isMarkable() || !IsInsideNursery(v.toGCThing());
+}
+
 void
 LIRGenerator::visitPostWriteBarrier(MPostWriteBarrier* ins)
 {
@@ -2486,9 +2497,7 @@ LIRGenerator::visitPostWriteBarrier(MPostWriteBarrier* ins)
     // object is tenured, and does not need to be tested for being in the
     // nursery. Ensure that assumption holds by lowering constant nursery
     // objects to a register.
-    bool useConstantObject =
-        ins->object()->isConstant() &&
-        !IsInsideNursery(&ins->object()->toConstant()->value().toObject());
+    bool useConstantObject = IsNonNurseryConstant(ins->object());
 
     switch (ins->value()->type()) {
       case MIRType_Object:
@@ -2534,7 +2543,7 @@ LIRGenerator::visitPostWriteElementBarrier(MPostWriteElementBarrier* ins)
     // objects to a register.
     bool useConstantObject =
         ins->object()->isConstant() &&
-        !IsInsideNursery(&ins->object()->toConstant()->value().toObject());
+        !IsInsideNursery(&ins->object()->toConstant()->toObject());
 
     switch (ins->value()->type()) {
       case MIRType_Object:
@@ -3643,6 +3652,7 @@ LIRGenerator::visitSetPropertyCache(MSetPropertyCache* ins)
     // If this is a SETPROP, the id is a constant string. Allow passing it as a
     // constant to reduce register allocation pressure.
     bool useConstId = id->type() == MIRType_String || id->type() == MIRType_Symbol;
+    bool useConstValue = IsNonNurseryConstant(ins->value());
 
     // Set the performs-call flag so that we don't omit the overrecursed check.
     // This is necessary because the cache can attach a scripted setter stub
@@ -3665,7 +3675,7 @@ LIRGenerator::visitSetPropertyCache(MSetPropertyCache* ins)
     LInstruction* lir = new(alloc()) LSetPropertyCache(useRegister(ins->object()), temp(),
                                                        tempToUnboxIndex, tempD, tempF32);
     useBoxOrTypedOrConstant(lir, LSetPropertyCache::Id, id, useConstId);
-    useBoxOrTypedOrConstant(lir, LSetPropertyCache::Value, ins->value(), /* useConstant = */ true);
+    useBoxOrTypedOrConstant(lir, LSetPropertyCache::Value, ins->value(), useConstValue);
 
     add(lir, ins);
     assignSafepoint(lir, ins);

@@ -398,7 +398,7 @@ public:
     MOZ_ASSERT(aId);
 
     SelfType closure(aId, aName);
-    aEnumerable.EnumerateRead(Enumerate, &closure);
+    MatchHelper(aEnumerable, &closure);
 
     return closure.mMetadata;
   }
@@ -411,7 +411,7 @@ public:
     MOZ_ASSERT(aId);
 
     SelfType closure(aId);
-    aEnumerable.EnumerateRead(Enumerate, &closure);
+    MatchHelper(aEnumerable, &closure);
 
     return closure.mMetadata;
   }
@@ -436,25 +436,29 @@ private:
     MOZ_ASSERT(aId);
   }
 
-  static PLDHashOperator
-  Enumerate(const uint64_t& aKey, MetadataType* aValue, void* aClosure)
+  template <class Enumerable>
+  static void
+  MatchHelper(const Enumerable& aEnumerable, SelfType* aClosure)
   {
     AssertIsOnBackgroundThread();
-    MOZ_ASSERT(aKey);
-    MOZ_ASSERT(aValue);
     MOZ_ASSERT(aClosure);
 
-    auto* closure = static_cast<SelfType*>(aClosure);
+    for (auto iter = aEnumerable.ConstIter(); !iter.Done(); iter.Next()) {
+#ifdef DEBUG
+      const uint64_t key = iter.Key();
+#endif
+      MetadataType* value = iter.UserData();
+      MOZ_ASSERT(key != 0);
+      MOZ_ASSERT(value);
 
-    if (!aValue->mDeleted &&
-        (closure->mId == aValue->mCommonMetadata.id() ||
-         (closure->mCheckName &&
-          closure->mName == aValue->mCommonMetadata.name()))) {
-      closure->mMetadata = aValue;
-      return PL_DHASH_STOP;
+      if (!value->mDeleted &&
+          (aClosure->mId == value->mCommonMetadata.id() ||
+           (aClosure->mCheckName &&
+            aClosure->mName == value->mCommonMetadata.name()))) {
+        aClosure->mMetadata = value;
+        break;
+      }
     }
-
-    return PL_DHASH_NEXT;
   }
 };
 
@@ -8702,7 +8706,6 @@ class QuotaClient final
   // then we will attempt a full vacuum.
   static const int32_t kPercentUnusedThreshold = 20;
 
-  class AbortOperationsRunnable;
   class AutoProgressHandler;
   class GetDirectoryLockListener;
   struct MaintenanceInfoBase;
@@ -9092,48 +9095,6 @@ private:
   {
     MOZ_ASSERT(!mQuotaClient);
   }
-
-  NS_DECL_NSIRUNNABLE
-};
-
-class QuotaClient::AbortOperationsRunnable final
-  : public nsRunnable
-{
-  const ContentParentId mContentParentId;
-  const nsCString mOrigin;
-
-  nsTArray<RefPtr<Database>> mDatabases;
-
-public:
-  explicit AbortOperationsRunnable(const nsACString& aOrigin)
-    : mOrigin(aOrigin)
-  {
-    MOZ_ASSERT(NS_IsMainThread());
-    MOZ_ASSERT(!mOrigin.IsEmpty());
-  }
-
-  explicit AbortOperationsRunnable(ContentParentId aContentParentId)
-    : mContentParentId(aContentParentId)
-  {
-    MOZ_ASSERT(NS_IsMainThread());
-    MOZ_ASSERT(mOrigin.IsEmpty());
-  }
-
-  NS_DECL_ISUPPORTS_INHERITED
-
-private:
-  ~AbortOperationsRunnable()
-  { }
-
-  static PLDHashOperator
-  MatchOrigin(const nsACString& aKey,
-              DatabaseActorInfo* aValue,
-              void* aClosure);
-
-  static PLDHashOperator
-  MatchContentParentId(const nsACString& aKey,
-                       DatabaseActorInfo* aValue,
-                       void* aClosure);
 
   NS_DECL_NSIRUNNABLE
 };
@@ -15135,56 +15096,6 @@ VersionChangeTransaction::RecvDeleteObjectStore(const int64_t& aObjectStoreId)
 {
   AssertIsOnBackgroundThread();
 
-  class MOZ_STACK_CLASS Helper final
-  {
-    const int64_t mObjectStoreId;
-    bool mIsLastObjectStore;
-    DebugOnly<bool> mFoundTargetId;
-
-  public:
-    static bool
-    IsLastObjectStore(const FullDatabaseMetadata* aDatabaseMetadata,
-                      const int64_t aObjectStoreId)
-    {
-      AssertIsOnBackgroundThread();
-      MOZ_ASSERT(aDatabaseMetadata);
-      MOZ_ASSERT(aObjectStoreId);
-
-      Helper helper(aObjectStoreId);
-      aDatabaseMetadata->mObjectStores.EnumerateRead(&Enumerate, &helper);
-
-      MOZ_ASSERT_IF(helper.mIsLastObjectStore, helper.mFoundTargetId);
-
-      return helper.mIsLastObjectStore;
-    }
-
-  private:
-    explicit
-    Helper(const int64_t aObjectStoreId)
-      : mObjectStoreId(aObjectStoreId)
-      , mIsLastObjectStore(true)
-      , mFoundTargetId(false)
-    { }
-
-    static PLDHashOperator
-    Enumerate(const uint64_t& aKey,
-              FullObjectStoreMetadata* aValue,
-              void* aClosure)
-    {
-      auto* helper = static_cast<Helper*>(aClosure);
-      MOZ_ASSERT(helper);
-
-      if (uint64_t(helper->mObjectStoreId) == aKey) {
-        helper->mFoundTargetId = true;
-      } else if(!aValue->mDeleted) {
-        helper->mIsLastObjectStore = false;
-        return PL_DHASH_STOP;
-      }
-
-      return PL_DHASH_NEXT;
-    }
-  };
-
   if (NS_WARN_IF(!aObjectStoreId)) {
     ASSERT_UNLESS_FUZZING();
     return false;
@@ -15214,11 +15125,22 @@ VersionChangeTransaction::RecvDeleteObjectStore(const int64_t& aObjectStoreId)
 
   foundMetadata->mDeleted = true;
 
+  bool isLastObjectStore = true;
+  DebugOnly<bool> foundTargetId = false;
+  for (auto iter = dbMetadata->mObjectStores.Iter();
+       !iter.Done();
+       iter.Next()) {
+    if (uint64_t(aObjectStoreId) == iter.Key()) {
+      foundTargetId = true;
+    } else if (!iter.UserData()->mDeleted) {
+      isLastObjectStore = false;
+      break;
+    }
+  }
+  MOZ_ASSERT_IF(isLastObjectStore, foundTargetId);
+
   RefPtr<DeleteObjectStoreOp> op =
-    new DeleteObjectStoreOp(this,
-                            foundMetadata,
-                            Helper::IsLastObjectStore(dbMetadata,
-                                                      aObjectStoreId));
+    new DeleteObjectStoreOp(this, foundMetadata, isLastObjectStore);
 
   if (NS_WARN_IF(!op->Init(this))) {
     op->Cleanup();
@@ -15306,54 +15228,6 @@ VersionChangeTransaction::RecvDeleteIndex(const int64_t& aObjectStoreId,
 {
   AssertIsOnBackgroundThread();
 
-  class MOZ_STACK_CLASS Helper final
-  {
-    const int64_t mIndexId;
-    bool mIsLastIndex;
-    DebugOnly<bool> mFoundTargetId;
-
-  public:
-    static bool
-    IsLastIndex(const FullObjectStoreMetadata* aObjectStoreMetadata,
-                const int64_t aIndexId)
-    {
-      AssertIsOnBackgroundThread();
-      MOZ_ASSERT(aObjectStoreMetadata);
-      MOZ_ASSERT(aIndexId);
-
-      Helper helper(aIndexId);
-      aObjectStoreMetadata->mIndexes.EnumerateRead(&Enumerate, &helper);
-
-      MOZ_ASSERT_IF(helper.mIsLastIndex, helper.mFoundTargetId);
-
-      return helper.mIsLastIndex;
-    }
-
-  private:
-    explicit
-    Helper(const int64_t aIndexId)
-      : mIndexId(aIndexId)
-      , mIsLastIndex(true)
-      , mFoundTargetId(false)
-    { }
-
-    static PLDHashOperator
-    Enumerate(const uint64_t& aKey, FullIndexMetadata* aValue, void* aClosure)
-    {
-      auto* helper = static_cast<Helper*>(aClosure);
-      MOZ_ASSERT(helper);
-
-      if (uint64_t(helper->mIndexId) == aKey) {
-        helper->mFoundTargetId = true;
-      } else if (!aValue->mDeleted) {
-        helper->mIsLastIndex = false;
-        return PL_DHASH_STOP;
-      }
-
-      return PL_DHASH_NEXT;
-    }
-  };
-
   if (NS_WARN_IF(!aObjectStoreId)) {
     ASSERT_UNLESS_FUZZING();
     return false;
@@ -15402,12 +15276,26 @@ VersionChangeTransaction::RecvDeleteIndex(const int64_t& aObjectStoreId,
 
   foundIndexMetadata->mDeleted = true;
 
+  bool isLastIndex = true;
+  DebugOnly<bool> foundTargetId = false;
+  for (auto iter = foundObjectStoreMetadata->mIndexes.ConstIter();
+       !iter.Done();
+       iter.Next()) {
+    if (uint64_t(aIndexId) == iter.Key()) {
+      foundTargetId = true;
+    } else if (!iter.UserData()->mDeleted) {
+      isLastIndex = false;
+      break;
+    }
+  }
+  MOZ_ASSERT_IF(isLastIndex, foundTargetId);
+
   RefPtr<DeleteIndexOp> op =
     new DeleteIndexOp(this,
                       aObjectStoreId,
                       aIndexId,
                       foundIndexMetadata->mCommonMetadata.unique(),
-                      Helper::IsLastIndex(foundObjectStoreMetadata, aIndexId));
+                      isLastIndex);
 
   if (NS_WARN_IF(!op->Init(this))) {
     op->Cleanup();
@@ -16744,29 +16632,55 @@ QuotaClient::ReleaseIOThreadObjects()
 void
 QuotaClient::AbortOperations(const nsACString& aOrigin)
 {
-  if (mBackgroundThread) {
-    RefPtr<AbortOperationsRunnable> runnable =
-      new AbortOperationsRunnable(aOrigin);
+  AssertIsOnBackgroundThread();
 
-    if (NS_FAILED(mBackgroundThread->Dispatch(runnable, NS_DISPATCH_NORMAL))) {
-      // This can happen if the thread has shut down already.
-      return;
+  if (!gLiveDatabaseHashtable) {
+    return;
+  }
+
+  nsTArray<RefPtr<Database>> databases;
+
+  for (auto iter = gLiveDatabaseHashtable->ConstIter();
+       !iter.Done(); iter.Next()) {
+    for (Database* database : iter.Data()->mLiveDatabases) {
+      if (aOrigin.IsVoid() || database->Origin() == aOrigin) {
+        databases.AppendElement(database);
+      }
     }
   }
+
+  for (Database* database : databases) {
+    database->Invalidate();
+  }
+
+  databases.Clear();
 }
 
 void
 QuotaClient::AbortOperationsForProcess(ContentParentId aContentParentId)
 {
-  if (mBackgroundThread) {
-    RefPtr<AbortOperationsRunnable> runnable =
-      new AbortOperationsRunnable(aContentParentId);
+  AssertIsOnBackgroundThread();
 
-    if (NS_FAILED(mBackgroundThread->Dispatch(runnable, NS_DISPATCH_NORMAL))) {
-      // This can happen if the thread has shut down already.
-      return;
+  if (!gLiveDatabaseHashtable) {
+    return;
+  }
+
+  nsTArray<RefPtr<Database>> databases;
+
+  for (auto iter = gLiveDatabaseHashtable->ConstIter();
+       !iter.Done(); iter.Next()) {
+    for (Database* database : iter.Data()->mLiveDatabases) {
+      if (database->IsOwnedByProcess(aContentParentId)) {
+        databases.AppendElement(database);
+      }
     }
   }
+
+  for (Database* database : databases) {
+    database->Invalidate();
+  }
+
+  databases.Clear();
 }
 
 void
@@ -18036,79 +17950,6 @@ ShutdownWorkThreadsRunnable::Run()
   return NS_OK;
 }
 
-// static
-PLDHashOperator
-QuotaClient::
-AbortOperationsRunnable::MatchOrigin(const nsACString& aKey,
-                                     DatabaseActorInfo* aValue,
-                                     void* aClosure)
-{
-  AssertIsOnBackgroundThread();
-  MOZ_ASSERT(!aKey.IsEmpty());
-  MOZ_ASSERT(aValue);
-  MOZ_ASSERT(aClosure);
-
-  auto* closure = static_cast<AbortOperationsRunnable*>(aClosure);
-
-  for (Database* database : aValue->mLiveDatabases) {
-    if (closure->mOrigin.IsVoid() || closure->mOrigin == database->Origin()) {
-      closure->mDatabases.AppendElement(database);
-    }
-  }
-
-  return PL_DHASH_NEXT;
-}
-
-// static
-PLDHashOperator
-QuotaClient::
-AbortOperationsRunnable::MatchContentParentId(const nsACString& aKey,
-                                              DatabaseActorInfo* aValue,
-                                              void* aClosure)
-{
-  AssertIsOnBackgroundThread();
-  MOZ_ASSERT(!aKey.IsEmpty());
-  MOZ_ASSERT(aValue);
-  MOZ_ASSERT(aClosure);
-
-  auto* closure = static_cast<AbortOperationsRunnable*>(aClosure);
-
-  for (Database* database : aValue->mLiveDatabases) {
-    if (database->IsOwnedByProcess(closure->mContentParentId)) {
-      closure->mDatabases.AppendElement(database);
-    }
-  }
-
-  return PL_DHASH_NEXT;
-}
-
-NS_IMPL_ISUPPORTS_INHERITED0(QuotaClient::AbortOperationsRunnable, nsRunnable)
-
-NS_IMETHODIMP
-QuotaClient::
-AbortOperationsRunnable::Run()
-{
-  AssertIsOnBackgroundThread();
-
-  if (!gLiveDatabaseHashtable) {
-    return NS_OK;
-  }
-
-  if (mOrigin.IsEmpty()) {
-    gLiveDatabaseHashtable->EnumerateRead(MatchContentParentId, this);
-  } else {
-    gLiveDatabaseHashtable->EnumerateRead(MatchOrigin, this);
-  }
-
-  for (Database* database : mDatabases) {
-    database->Invalidate();
-  }
-
-  mDatabases.Clear();
-
-  return NS_OK;
-}
-
 void
 QuotaClient::
 GetDirectoryLockListener::DirectoryLockAcquired(DirectoryLock* aLock)
@@ -18555,51 +18396,7 @@ DatabaseOperationBase::GetUniqueIndexTableForObjectStore(
   MOZ_ASSERT(aObjectStoreId);
   MOZ_ASSERT(aMaybeUniqueIndexTable.isNothing());
 
-  class MOZ_STACK_CLASS Helper final
-  {
-  public:
-    static nsresult
-    CopyUniqueValues(const IndexTable& aIndexes,
-                     Maybe<UniqueIndexTable>& aMaybeUniqueIndexTable)
-    {
-      const uint32_t indexCount = aIndexes.Count();
-      MOZ_ASSERT(indexCount);
-
-      aMaybeUniqueIndexTable.emplace();
-
-      aIndexes.EnumerateRead(Enumerate, aMaybeUniqueIndexTable.ptr());
-
-      if (NS_WARN_IF(aMaybeUniqueIndexTable.ref().Count() != indexCount)) {
-        IDB_REPORT_INTERNAL_ERR();
-        aMaybeUniqueIndexTable.reset();
-        return NS_ERROR_OUT_OF_MEMORY;
-      }
-
-#ifdef DEBUG
-      aMaybeUniqueIndexTable.ref().MarkImmutable();
-#endif
-      return NS_OK;
-    }
-
-  private:
-    static PLDHashOperator
-    Enumerate(const uint64_t& aKey, FullIndexMetadata* aValue, void* aClosure)
-    {
-      auto* uniqueIndexTable = static_cast<UniqueIndexTable*>(aClosure);
-      MOZ_ASSERT(uniqueIndexTable);
-      MOZ_ASSERT(!uniqueIndexTable->Get(aValue->mCommonMetadata.id()));
-
-      if (NS_WARN_IF(!uniqueIndexTable->Put(aValue->mCommonMetadata.id(),
-                                            aValue->mCommonMetadata.unique(),
-                                            fallible))) {
-        return PL_DHASH_STOP;
-      }
-
-      return PL_DHASH_NEXT;
-    }
-  };
-
-  const RefPtr<FullObjectStoreMetadata> objectStoreMetadata = 
+  const RefPtr<FullObjectStoreMetadata> objectStoreMetadata =
     aTransaction->GetMetadataForObjectStoreId(aObjectStoreId);
   MOZ_ASSERT(objectStoreMetadata);
 
@@ -18607,11 +18404,34 @@ DatabaseOperationBase::GetUniqueIndexTableForObjectStore(
     return NS_OK;
   }
 
-  nsresult rv = Helper::CopyUniqueValues(objectStoreMetadata->mIndexes,
-                                         aMaybeUniqueIndexTable);
-  if (NS_WARN_IF(NS_FAILED(rv))) {
-    return rv;
+  const uint32_t indexCount = objectStoreMetadata->mIndexes.Count();
+  MOZ_ASSERT(indexCount > 0);
+
+  aMaybeUniqueIndexTable.emplace();
+  UniqueIndexTable* uniqueIndexTable = aMaybeUniqueIndexTable.ptr();
+  MOZ_ASSERT(uniqueIndexTable);
+
+  for (auto iter = objectStoreMetadata->mIndexes.Iter(); !iter.Done(); iter.Next()) {
+    FullIndexMetadata* value = iter.UserData();
+    MOZ_ASSERT(!uniqueIndexTable->Get(value->mCommonMetadata.id()));
+
+    if (NS_WARN_IF(!uniqueIndexTable->Put(value->mCommonMetadata.id(),
+                                          value->mCommonMetadata.unique(),
+                                          fallible))) {
+      break;
+    }
   }
+
+  if (NS_WARN_IF(aMaybeUniqueIndexTable.ref().Count() != indexCount)) {
+    IDB_REPORT_INTERNAL_ERR();
+    aMaybeUniqueIndexTable.reset();
+    NS_WARNING("out of memory");
+    return NS_ERROR_OUT_OF_MEMORY;
+  }
+
+#ifdef DEBUG
+  aMaybeUniqueIndexTable.ref().MarkImmutable();
+#endif
 
   return NS_OK;
 }
@@ -19585,9 +19405,6 @@ FactoryOp::WaitForTransactions()
              mState == State::WaitingForOtherDatabasesToClose);
   MOZ_ASSERT(!mDatabaseId.IsEmpty());
   MOZ_ASSERT(!IsActorDestroyed());
-
-  nsTArray<nsCString> databaseIds;
-  databaseIds.AppendElement(mDatabaseId);
 
   mState = State::WaitingForTransactionsToComplete;
 
@@ -21177,79 +20994,32 @@ OpenDatabaseOp::MetadataToSpec(DatabaseSpec& aSpec)
   AssertIsOnOwningThread();
   MOZ_ASSERT(mMetadata);
 
-  class MOZ_STACK_CLASS Helper final
-  {
-    DatabaseSpec& mSpec;
-    ObjectStoreSpec* mCurrentObjectStoreSpec;
+  aSpec.metadata() = mMetadata->mCommonMetadata;
 
-  public:
-    static void
-    CopyToSpec(const FullDatabaseMetadata* aMetadata, DatabaseSpec& aSpec)
-    {
-      AssertIsOnBackgroundThread();
-      MOZ_ASSERT(aMetadata);
+  for (auto objectStoreIter = mMetadata->mObjectStores.ConstIter();
+       !objectStoreIter.Done();
+       objectStoreIter.Next()) {
+    FullObjectStoreMetadata* metadata = objectStoreIter.UserData();
+    MOZ_ASSERT(objectStoreIter.Key());
+    MOZ_ASSERT(metadata);
 
-      aSpec.metadata() = aMetadata->mCommonMetadata;
+    // XXX This should really be fallible...
+    ObjectStoreSpec* objectStoreSpec = aSpec.objectStores().AppendElement();
+    objectStoreSpec->metadata() = metadata->mCommonMetadata;
 
-      Helper helper(aSpec);
-      aMetadata->mObjectStores.EnumerateRead(Enumerate, &helper);
-    }
-
-  private:
-    explicit Helper(DatabaseSpec& aSpec)
-      : mSpec(aSpec)
-      , mCurrentObjectStoreSpec(nullptr)
-    { }
-
-    static PLDHashOperator
-    Enumerate(const uint64_t& aKey,
-              FullObjectStoreMetadata* aValue,
-              void* aClosure)
-    {
-      MOZ_ASSERT(aKey);
-      MOZ_ASSERT(aValue);
-      MOZ_ASSERT(aClosure);
-
-      auto* helper = static_cast<Helper*>(aClosure);
-
-      MOZ_ASSERT(!helper->mCurrentObjectStoreSpec);
+    for (auto indexIter = metadata->mIndexes.Iter();
+         !indexIter.Done();
+         indexIter.Next()) {
+      FullIndexMetadata* indexMetadata = indexIter.UserData();
+      MOZ_ASSERT(indexIter.Key());
+      MOZ_ASSERT(indexMetadata);
 
       // XXX This should really be fallible...
-      ObjectStoreSpec* objectStoreSpec =
-        helper->mSpec.objectStores().AppendElement();
-      objectStoreSpec->metadata() = aValue->mCommonMetadata;
-
-      AutoRestore<ObjectStoreSpec*> ar(helper->mCurrentObjectStoreSpec);
-      helper->mCurrentObjectStoreSpec = objectStoreSpec;
-
-      aValue->mIndexes.EnumerateRead(Enumerate, helper);
-
-      return PL_DHASH_NEXT;
+      IndexMetadata* metadata = objectStoreSpec->indexes().AppendElement();
+      *metadata = indexMetadata->mCommonMetadata;
     }
-
-    static PLDHashOperator
-    Enumerate(const uint64_t& aKey, FullIndexMetadata* aValue, void* aClosure)
-    {
-      MOZ_ASSERT(aKey);
-      MOZ_ASSERT(aValue);
-      MOZ_ASSERT(aClosure);
-
-      auto* helper = static_cast<Helper*>(aClosure);
-
-      MOZ_ASSERT(helper->mCurrentObjectStoreSpec);
-
-      // XXX This should really be fallible...
-      IndexMetadata* metadata =
-        helper->mCurrentObjectStoreSpec->indexes().AppendElement();
-      *metadata = aValue->mCommonMetadata;
-
-      return PL_DHASH_NEXT;
-    }
-  };
-
-  Helper::CopyToSpec(mMetadata, aSpec);
+  }
 }
-
 
 #ifdef DEBUG
 
@@ -21257,110 +21027,6 @@ void
 OpenDatabaseOp::AssertMetadataConsistency(const FullDatabaseMetadata* aMetadata)
 {
   AssertIsOnBackgroundThread();
-
-  class MOZ_STACK_CLASS Helper final
-  {
-    const ObjectStoreTable& mOtherObjectStores;
-    IndexTable* mCurrentOtherIndexTable;
-
-  public:
-    static void
-    AssertConsistent(const ObjectStoreTable& aThisObjectStores,
-                     const ObjectStoreTable& aOtherObjectStores)
-    {
-      Helper helper(aOtherObjectStores);
-      aThisObjectStores.EnumerateRead(Enumerate, &helper);
-    }
-
-  private:
-    explicit Helper(const ObjectStoreTable& aOtherObjectStores)
-      : mOtherObjectStores(aOtherObjectStores)
-      , mCurrentOtherIndexTable(nullptr)
-    { }
-
-    static PLDHashOperator
-    Enumerate(const uint64_t& /* aKey */,
-              FullObjectStoreMetadata* aThisObjectStore,
-              void* aClosure)
-    {
-      MOZ_ASSERT(aThisObjectStore);
-      MOZ_ASSERT(!aThisObjectStore->mDeleted);
-      MOZ_ASSERT(aClosure);
-
-      auto* helper = static_cast<Helper*>(aClosure);
-
-      MOZ_ASSERT(!helper->mCurrentOtherIndexTable);
-
-      auto* otherObjectStore =
-        MetadataNameOrIdMatcher<FullObjectStoreMetadata>::Match(
-          helper->mOtherObjectStores, aThisObjectStore->mCommonMetadata.id());
-      MOZ_ASSERT(otherObjectStore);
-
-      MOZ_ASSERT(aThisObjectStore != otherObjectStore);
-
-      MOZ_ASSERT(aThisObjectStore->mCommonMetadata.id() ==
-                   otherObjectStore->mCommonMetadata.id());
-      MOZ_ASSERT(aThisObjectStore->mCommonMetadata.name() ==
-                   otherObjectStore->mCommonMetadata.name());
-      MOZ_ASSERT(aThisObjectStore->mCommonMetadata.autoIncrement() ==
-                   otherObjectStore->mCommonMetadata.autoIncrement());
-      MOZ_ASSERT(aThisObjectStore->mCommonMetadata.keyPath() ==
-                   otherObjectStore->mCommonMetadata.keyPath());
-      // mNextAutoIncrementId and mComittedAutoIncrementId may be modified
-      // concurrently with this OpenOp, so it is not possible to assert equality
-      // here.
-      MOZ_ASSERT(aThisObjectStore->mNextAutoIncrementId <=
-                   otherObjectStore->mNextAutoIncrementId);
-      MOZ_ASSERT(aThisObjectStore->mComittedAutoIncrementId <=
-                   otherObjectStore->mComittedAutoIncrementId);
-      MOZ_ASSERT(!otherObjectStore->mDeleted);
-
-      MOZ_ASSERT(aThisObjectStore->mIndexes.Count() ==
-                   otherObjectStore->mIndexes.Count());
-
-      AutoRestore<IndexTable*> ar(helper->mCurrentOtherIndexTable);
-      helper->mCurrentOtherIndexTable = &otherObjectStore->mIndexes;
-
-      aThisObjectStore->mIndexes.EnumerateRead(Enumerate, helper);
-
-      return PL_DHASH_NEXT;
-    }
-
-    static PLDHashOperator
-    Enumerate(const uint64_t& /* aKey */,
-              FullIndexMetadata* aThisIndex,
-              void* aClosure)
-    {
-      MOZ_ASSERT(aThisIndex);
-      MOZ_ASSERT(!aThisIndex->mDeleted);
-      MOZ_ASSERT(aClosure);
-
-      auto* helper = static_cast<Helper*>(aClosure);
-
-      MOZ_ASSERT(helper->mCurrentOtherIndexTable);
-
-      auto* otherIndex =
-        MetadataNameOrIdMatcher<FullIndexMetadata>::Match(
-          *helper->mCurrentOtherIndexTable, aThisIndex->mCommonMetadata.id());
-      MOZ_ASSERT(otherIndex);
-
-      MOZ_ASSERT(aThisIndex != otherIndex);
-
-      MOZ_ASSERT(aThisIndex->mCommonMetadata.id() ==
-                   otherIndex->mCommonMetadata.id());
-      MOZ_ASSERT(aThisIndex->mCommonMetadata.name() ==
-                   otherIndex->mCommonMetadata.name());
-      MOZ_ASSERT(aThisIndex->mCommonMetadata.keyPath() ==
-                   otherIndex->mCommonMetadata.keyPath());
-      MOZ_ASSERT(aThisIndex->mCommonMetadata.unique() ==
-                   otherIndex->mCommonMetadata.unique());
-      MOZ_ASSERT(aThisIndex->mCommonMetadata.multiEntry() ==
-                   otherIndex->mCommonMetadata.multiEntry());
-      MOZ_ASSERT(!otherIndex->mDeleted);
-
-      return PL_DHASH_NEXT;
-    }
-  };
 
   const FullDatabaseMetadata* thisDB = mMetadata;
   const FullDatabaseMetadata* otherDB = aMetadata;
@@ -21386,7 +21052,67 @@ OpenDatabaseOp::AssertMetadataConsistency(const FullDatabaseMetadata* aMetadata)
 
   MOZ_ASSERT(thisDB->mObjectStores.Count() == otherDB->mObjectStores.Count());
 
-  Helper::AssertConsistent(thisDB->mObjectStores, otherDB->mObjectStores);
+  for (auto objectStoreIter = thisDB->mObjectStores.ConstIter();
+       !objectStoreIter.Done();
+       objectStoreIter.Next()) {
+    FullObjectStoreMetadata* thisObjectStore = objectStoreIter.UserData();
+    MOZ_ASSERT(thisObjectStore);
+    MOZ_ASSERT(!thisObjectStore->mDeleted);
+
+    auto* otherObjectStore =
+      MetadataNameOrIdMatcher<FullObjectStoreMetadata>::Match(
+        otherDB->mObjectStores, thisObjectStore->mCommonMetadata.id());
+    MOZ_ASSERT(otherObjectStore);
+
+    MOZ_ASSERT(thisObjectStore != otherObjectStore);
+
+    MOZ_ASSERT(thisObjectStore->mCommonMetadata.id() ==
+                 otherObjectStore->mCommonMetadata.id());
+    MOZ_ASSERT(thisObjectStore->mCommonMetadata.name() ==
+                 otherObjectStore->mCommonMetadata.name());
+    MOZ_ASSERT(thisObjectStore->mCommonMetadata.autoIncrement() ==
+                 otherObjectStore->mCommonMetadata.autoIncrement());
+    MOZ_ASSERT(thisObjectStore->mCommonMetadata.keyPath() ==
+                 otherObjectStore->mCommonMetadata.keyPath());
+    // mNextAutoIncrementId and mComittedAutoIncrementId may be modified
+    // concurrently with this OpenOp, so it is not possible to assert equality
+    // here.
+    MOZ_ASSERT(thisObjectStore->mNextAutoIncrementId <=
+                 otherObjectStore->mNextAutoIncrementId);
+    MOZ_ASSERT(thisObjectStore->mComittedAutoIncrementId <=
+                 otherObjectStore->mComittedAutoIncrementId);
+    MOZ_ASSERT(!otherObjectStore->mDeleted);
+
+    MOZ_ASSERT(thisObjectStore->mIndexes.Count() ==
+                 otherObjectStore->mIndexes.Count());
+
+    for (auto indexIter = thisObjectStore->mIndexes.Iter();
+         !indexIter.Done();
+         indexIter.Next()) {
+      FullIndexMetadata* thisIndex = indexIter.UserData();
+      MOZ_ASSERT(thisIndex);
+      MOZ_ASSERT(!thisIndex->mDeleted);
+
+      auto* otherIndex =
+        MetadataNameOrIdMatcher<FullIndexMetadata>::
+          Match(otherObjectStore->mIndexes, thisIndex->mCommonMetadata.id());
+      MOZ_ASSERT(otherIndex);
+
+      MOZ_ASSERT(thisIndex != otherIndex);
+
+      MOZ_ASSERT(thisIndex->mCommonMetadata.id() ==
+                   otherIndex->mCommonMetadata.id());
+      MOZ_ASSERT(thisIndex->mCommonMetadata.name() ==
+                   otherIndex->mCommonMetadata.name());
+      MOZ_ASSERT(thisIndex->mCommonMetadata.keyPath() ==
+                   otherIndex->mCommonMetadata.keyPath());
+      MOZ_ASSERT(thisIndex->mCommonMetadata.unique() ==
+                   otherIndex->mCommonMetadata.unique());
+      MOZ_ASSERT(thisIndex->mCommonMetadata.multiEntry() ==
+                   otherIndex->mCommonMetadata.multiEntry());
+      MOZ_ASSERT(!otherIndex->mDeleted);
+    }
+  }
 }
 
 #endif // DEBUG

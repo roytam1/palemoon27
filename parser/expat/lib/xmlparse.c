@@ -390,8 +390,10 @@ setContext(XML_Parser parser, const XML_Char *context);
 static void FASTCALL normalizePublicId(XML_Char *s);
 
 static DTD * dtdCreate(const XML_Memory_Handling_Suite *ms);
+/* BEGIN MOZILLA CHANGE (unused API) */
 /* do not call if parentParser != NULL */
-static void dtdReset(DTD *p, const XML_Memory_Handling_Suite *ms);
+//static void dtdReset(DTD *p, const XML_Memory_Handling_Suite *ms);
+/* END MOZILLA CHANGE */
 static void
 dtdDestroy(DTD *p, XML_Bool isDocEntity, const XML_Memory_Handling_Suite *ms);
 static int
@@ -403,7 +405,9 @@ static NAMED *
 lookup(HASH_TABLE *table, KEY name, size_t createSize);
 static void FASTCALL
 hashTableInit(HASH_TABLE *, const XML_Memory_Handling_Suite *ms);
-static void FASTCALL hashTableClear(HASH_TABLE *);
+/* BEGIN MOZILLA CHANGE (unused API) */
+//static void FASTCALL hashTableClear(HASH_TABLE *);
+/* END MOZILLA CHANGE */
 static void FASTCALL hashTableDestroy(HASH_TABLE *);
 static void FASTCALL
 hashTableIterInit(HASH_TABLE_ITER *, const HASH_TABLE *);
@@ -878,6 +882,8 @@ parserInit(XML_Parser parser, const XML_Char *encodingName)
 #endif
 }
 
+/* BEGIN MOZILLA CHANGE (unused API) */
+#if 0
 /* moves list of bindings to freeBindingList */
 static void FASTCALL
 moveToFreeBindingList(XML_Parser parser, BINDING *bindings)
@@ -890,8 +896,6 @@ moveToFreeBindingList(XML_Parser parser, BINDING *bindings)
   }
 }
 
-/* BEGIN MOZILLA CHANGE (unused API) */
-#if 0
 XML_Bool XMLCALL
 XML_ParserReset(XML_Parser parser, const XML_Char *encodingName)
 {
@@ -3067,7 +3071,6 @@ storeAtts(XML_Parser parser, const ENCODING *enc,
         static const XML_Char xmlnsPrefix[] = {
           'x', 'm', 'l', 'n', 's', '\0'
         };
-        XML_Bool appendXMLNS = XML_TRUE;
 
         ((XML_Char *)s)[-1] = 0;  /* clear flag */
         if (!poolAppendString(&tempPool, xmlnsNamespace)
@@ -5901,6 +5904,8 @@ dtdCreate(const XML_Memory_Handling_Suite *ms)
   return p;
 }
 
+/* BEGIN MOZILLA CHANGE (unused API) */
+#if 0
 static void
 dtdReset(DTD *p, const XML_Memory_Handling_Suite *ms)
 {
@@ -5942,6 +5947,8 @@ dtdReset(DTD *p, const XML_Memory_Handling_Suite *ms)
   p->hasParamEntityRefs = XML_FALSE;
   p->standalone = XML_FALSE;
 }
+#endif
+/* END MOZILLA CHANGE */
 
 static void
 dtdDestroy(DTD *p, XML_Bool isDocEntity, const XML_Memory_Handling_Suite *ms)
@@ -6281,6 +6288,8 @@ lookup(HASH_TABLE *table, KEY name, size_t createSize)
   return table->v[i];
 }
 
+/* BEGIN MOZILLA CHANGE (unused API) */
+#if 0
 static void FASTCALL
 hashTableClear(HASH_TABLE *table)
 {
@@ -6291,6 +6300,8 @@ hashTableClear(HASH_TABLE *table)
   }
   table->used = 0;
 }
+#endif
+/* END MOZILLA CHANGE */
 
 static void FASTCALL
 hashTableDestroy(HASH_TABLE *table)

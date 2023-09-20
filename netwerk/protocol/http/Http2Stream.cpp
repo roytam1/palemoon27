@@ -39,6 +39,8 @@ Http2Stream::Http2Stream(nsAHttpTransaction *httpTransaction,
                          int32_t priority)
   : mStreamID(0)
   , mSession(session)
+  , mSegmentReader(nullptr)
+  , mSegmentWriter(nullptr)
   , mUpstreamState(GENERATING_HEADERS)
   , mState(IDLE)
   , mRequestHeadersDone(0)
@@ -47,8 +49,6 @@ Http2Stream::Http2Stream(nsAHttpTransaction *httpTransaction,
   , mQueued(0)
   , mTransaction(httpTransaction)
   , mSocketTransport(session->SocketTransport())
-  , mSegmentReader(nullptr)
-  , mSegmentWriter(nullptr)
   , mChunkSize(session->SendingChunkSize())
   , mRequestBlockedOnRead(0)
   , mRecvdFin(0)
@@ -486,8 +486,8 @@ Http2Stream::ParseHttpRequestHeaders(const char *buf,
           mSession, hashkey.get(), schedulingContext, cache, pushedStream));
 
     if (pushedStream) {
-      LOG3(("Pushed Stream Match located id=0x%X key=%s\n",
-            pushedStream->StreamID(), hashkey.get()));
+      LOG3(("Pushed Stream Match located %p id=0x%X key=%s\n",
+            pushedStream, pushedStream->StreamID(), hashkey.get()));
       pushedStream->SetConsumerStream(this);
       mPushSource = pushedStream;
       SetSentFin(true);
@@ -1385,6 +1385,11 @@ Http2Stream::OnReadSegment(const char *buf,
 
   case SENDING_FIN_STREAM:
     MOZ_ASSERT(false, "resuming partial fin stream out of OnReadSegment");
+    break;
+
+  case UPSTREAM_COMPLETE:
+    MOZ_ASSERT(mPushSource);
+    rv = TransmitFrame(nullptr, nullptr, true);
     break;
 
   default:

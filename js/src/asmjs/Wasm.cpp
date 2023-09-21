@@ -362,13 +362,24 @@ DecodeIfElse(FunctionDecoder& f, bool hasElse, ExprType expected)
 static bool
 DecodeLoadStoreAddress(FunctionDecoder &f)
 {
-    uint32_t offset, align;
-    return DecodeExpr(f, ExprType::I32) &&
-           f.d().readVarU32(&offset) &&
-           f.d().readVarU32(&align) &&
-           mozilla::IsPowerOfTwo(align) &&
-           (offset == 0 || f.fail("NYI: address offsets")) &&
-           f.fail("NYI: wasm loads and stores");
+    uint32_t offset;
+    if (!f.d().readVarU32(&offset))
+        return f.fail("expected memory access offset");
+
+    if (offset != 0)
+        return f.fail("NYI: address offsets");
+
+    uint32_t align;
+    if (!f.d().readVarU32(&align))
+        return f.fail("expected memory access alignment");
+
+    if (!mozilla::IsPowerOfTwo(align))
+        return f.fail("memory access alignment must be a power of two");
+
+    if (!DecodeExpr(f, ExprType::I32))
+        return false;
+
+    return f.fail("NYI: wasm loads and stores");
 }
 
 static bool
@@ -384,6 +395,13 @@ DecodeStore(FunctionDecoder& f, ExprType expected, ExprType type)
     return DecodeLoadStoreAddress(f) &&
            DecodeExpr(f, expected) &&
            CheckType(f, type, expected);
+}
+
+static bool
+DecodeReturn(FunctionDecoder& f)
+{
+    return f.ret() == ExprType::Void ||
+           DecodeExpr(f, f.ret());
 }
 
 static bool
@@ -613,6 +631,8 @@ DecodeExpr(FunctionDecoder& f, ExprType expected)
         return DecodeStore(f, expected, ExprType::F32);
       case Expr::F64StoreMem:
         return DecodeStore(f, expected, ExprType::F64);
+      case Expr::Return:
+        return DecodeReturn(f);
       default:
         break;
     }
@@ -847,6 +867,20 @@ DecodeTableSection(JSContext* cx, Decoder& d, ModuleGeneratorData* init)
 }
 
 static bool
+CheckTypeForJS(JSContext* cx, Decoder& d, const Sig& sig)
+{
+    for (ValType argType : sig.args()) {
+        if (argType == ValType::I64)
+            return Fail(cx, d, "cannot import/export i64 argument");
+    }
+
+    if (sig.ret() == ExprType::I64)
+        return Fail(cx, d, "cannot import/export i64 return type");
+
+    return true;
+}
+
+static bool
 DecodeImport(JSContext* cx, Decoder& d, ModuleGeneratorData* init, ImportNameVector* importNames)
 {
     const DeclaredSig* sig;
@@ -854,6 +888,9 @@ DecodeImport(JSContext* cx, Decoder& d, ModuleGeneratorData* init, ImportNameVec
         return false;
 
     if (!init->imports.emplaceBack(sig))
+        return false;
+
+    if (!CheckTypeForJS(cx, d, *sig))
         return false;
 
     UniqueChars moduleName = d.readCString();
@@ -968,6 +1005,9 @@ DecodeFunctionExport(JSContext* cx, Decoder& d, ModuleGenerator& mg, CStringSet*
 
     if (funcIndex >= mg.numFuncSigs())
         return Fail(cx, d, "export function index out of range");
+
+    if (!CheckTypeForJS(cx, d, mg.funcSig(funcIndex)))
+        return false;
 
     UniqueChars fieldName = DecodeFieldName(cx, d, dupSet);
     if (!fieldName)
@@ -1255,14 +1295,6 @@ wasm::HasCompilerSupport(ExclusiveContext* cx)
 }
 
 static bool
-WasmIsSupported(JSContext* cx, unsigned argc, Value* vp)
-{
-    CallArgs args = CallArgsFromVp(argc, vp);
-    args.rval().setBoolean(HasCompilerSupport(cx));
-    return true;
-}
-
-static bool
 CheckCompilerSupport(JSContext* cx)
 {
     if (!HasCompilerSupport(cx)) {
@@ -1356,100 +1388,4 @@ wasm::Eval(JSContext* cx, Handle<ArrayBufferObject*> code,
         return false;
 
     return true;
-}
-
-static bool
-WasmEval(JSContext* cx, unsigned argc, Value* vp)
-{
-    CallArgs args = CallArgsFromVp(argc, vp);
-    RootedObject callee(cx, &args.callee());
-
-    if (args.length() < 1 || args.length() > 2) {
-        ReportUsageError(cx, callee, "Wrong number of arguments");
-        return false;
-    }
-
-    if (!args[0].isObject() || !args[0].toObject().is<ArrayBufferObject>()) {
-        ReportUsageError(cx, callee, "First argument must be an ArrayBuffer");
-        return false;
-    }
-
-    RootedObject importObj(cx);
-    if (!args.get(1).isUndefined()) {
-        if (!args.get(1).isObject()) {
-            ReportUsageError(cx, callee, "Second argument, if present, must be an Object");
-            return false;
-        }
-        importObj = &args[1].toObject();
-    }
-
-    Rooted<ArrayBufferObject*> code(cx, &args[0].toObject().as<ArrayBufferObject>());
-
-    RootedObject exportObj(cx);
-    if (!Eval(cx, code, importObj, &exportObj))
-        return false;
-
-    args.rval().setObject(*exportObj);
-    return true;
-}
-
-static bool
-WasmTextToBinary(JSContext* cx, unsigned argc, Value* vp)
-{
-    CallArgs args = CallArgsFromVp(argc, vp);
-    RootedObject callee(cx, &args.callee());
-
-    if (args.length() != 1) {
-        ReportUsageError(cx, callee, "Wrong number of arguments");
-        return false;
-    }
-
-    if (!args[0].isString()) {
-        ReportUsageError(cx, callee, "First argument must be a String");
-        return false;
-    }
-
-    AutoStableStringChars twoByteChars(cx);
-    if (!twoByteChars.initTwoByte(cx, args[0].toString()))
-        return false;
-
-    UniqueChars error;
-    UniqueBytecode bytes = TextToBinary(twoByteChars.twoByteChars(), &error);
-    if (!bytes) {
-        JS_ReportErrorNumber(cx, GetErrorMessage, nullptr, JSMSG_WASM_TEXT_FAIL,
-                             error.get() ? error.get() : "out of memory");
-        return false;
-    }
-
-    Rooted<ArrayBufferObject*> buffer(cx, ArrayBufferObject::create(cx, bytes->length()));
-    if (!buffer)
-        return false;
-
-    memcpy(buffer->dataPointer(), bytes->begin(), bytes->length());
-
-    args.rval().setObject(*buffer);
-    return true;
-}
-
-static const JSFunctionSpecWithHelp WasmTestingFunctions[] = {
-    JS_FN_HELP("wasmIsSupported", WasmIsSupported, 0, 0,
-"wasmIsSupported()",
-"  Returns a boolean indicating whether WebAssembly is supported on the current device."),
-
-    JS_FN_HELP("wasmEval", WasmEval, 2, 0,
-"wasmEval(buffer, imports)",
-"  Compiles the given binary wasm module given by 'buffer' (which must be an ArrayBuffer)\n"
-"  and links the module's imports with the given 'imports' object."),
-
-    JS_FN_HELP("wasmTextToBinary", WasmTextToBinary, 1, 0,
-"wasmTextToBinary(str)",
-"  Translates the given text wasm module into its binary encoding."),
-
-    JS_FS_HELP_END
-};
-
-bool
-wasm::DefineTestingFunctions(JSContext* cx, HandleObject globalObj)
-{
-    return JS_DefineFunctionsWithHelp(cx, globalObj, WasmTestingFunctions);
 }

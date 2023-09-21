@@ -1276,7 +1276,7 @@ IonBuilder::inlineMathPowHelper(MDefinition* lhs, MDefinition* rhs, MIRType outp
 
     // Optimize some constant powers.
     if (rhs->isConstant()) {
-        double pow = rhs->toConstant()->toNumber();
+        double pow = rhs->toConstant()->numberToDouble();
 
         // Math.pow(x, 0.5) is a sqrt with edge-case detection.
         if (pow == 0.5) {
@@ -1482,7 +1482,7 @@ IonBuilder::inlineMathMinMax(CallInfo& callInfo, bool max)
             // Don't force a double MMinMax for arguments that would be a NOP
             // when doing an integer MMinMax.
             if (arg->isConstant()) {
-                double cte = arg->toConstant()->toNumber();
+                double cte = arg->toConstant()->numberToDouble();
                 // min(int32, cte >= INT32_MAX) = int32
                 if (cte >= INT32_MAX && !max)
                     break;
@@ -3296,10 +3296,12 @@ IonBuilder::inlineConstructSimdObject(CallInfo& callInfo, SimdTypeDescr* descr)
             defVal = constant(Int32Value(0));
         } else if (laneType == MIRType_Boolean) {
             defVal = constant(BooleanValue(false));
-        } else {
-            MOZ_ASSERT(IsFloatingPointType(laneType));
+        } else if (laneType == MIRType_Double) {
             defVal = constant(DoubleNaNValue());
-            defVal->setResultType(laneType);
+        } else {
+            MOZ_ASSERT(laneType == MIRType_Float32);
+            defVal = MConstant::NewFloat32(alloc(), GenericNaN());
+            current->add(defVal);
         }
     }
 

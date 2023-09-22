@@ -46,19 +46,6 @@ struct keywordSearchData
   nsString keyword;
 };
 
-PLDHashOperator
-SearchBookmarkForKeyword(nsTrimInt64HashKey::KeyType aKey,
-                         const nsString aValue,
-                         void* aUserArg)
-{
-  keywordSearchData* data = reinterpret_cast<keywordSearchData*>(aUserArg);
-  if (data->keyword.Equals(aValue)) {
-    data->itemId = aKey;
-    return PL_DHASH_STOP;
-  }
-  return PL_DHASH_NEXT;
-}
-
 template<typename Method, typename DataType>
 class AsyncGetBookmarksForURI : public AsyncStatementCallback
 {
@@ -2277,7 +2264,12 @@ nsNavBookmarks::UpdateKeywordsHashForRemovedBookmark(int64_t aItemId)
     keywordSearchData searchData;
     searchData.keyword.Assign(keyword);
     searchData.itemId = -1;
-    mBookmarkToKeywordHash.EnumerateRead(SearchBookmarkForKeyword, &searchData);
+    for (auto iter = mBookmarkToKeywordHash.Iter(); !iter.Done(); iter.Next()) {
+      if (searchData.keyword.Equals(iter.Data())) {
+        searchData.itemId = iter.Key();
+        break;
+      }
+    }
     if (searchData.itemId == -1) {
       nsCOMPtr<mozIStorageAsyncStatement> stmt = mDB->GetAsyncStatement(
         "DELETE FROM moz_keywords "
@@ -2469,7 +2461,12 @@ nsNavBookmarks::GetURIForKeyword(const nsAString& aUserCasedKeyword,
   keywordSearchData searchData;
   searchData.keyword.Assign(keyword);
   searchData.itemId = -1;
-  mBookmarkToKeywordHash.EnumerateRead(SearchBookmarkForKeyword, &searchData);
+  for (auto iter = mBookmarkToKeywordHash.Iter(); !iter.Done(); iter.Next()) {
+    if (searchData.keyword.Equals(iter.Data())) {
+      searchData.itemId = iter.Key();
+      break;
+    }
+  }
 
   if (searchData.itemId == -1) {
     // Not found.

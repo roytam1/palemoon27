@@ -120,7 +120,7 @@ ModuleGenerator::init(UniqueModuleGeneratorData shared, UniqueChars filename)
         return false;
 
     module_->globalBytes = InitialGlobalDataBytes;
-    module_->compileArgs = CompileArgs(cx_);
+    module_->compileArgs = shared->args;
     module_->kind = shared->kind;
     module_->heapUsage = HeapUsage::None;
     module_->filename = Move(filename);
@@ -522,20 +522,6 @@ ModuleGenerator::finishStaticLinkData(uint8_t* code, uint32_t codeBytes, StaticL
     }
 #endif
 
-#if defined(JS_CODEGEN_MIPS32) || defined(JS_CODEGEN_MIPS64)
-    // On MIPS we need to update all the long jumps because they contain an
-    // absolute adress. The values are correctly patched for the current address
-    // space, but not after serialization or profiling-mode toggling.
-    for (size_t i = 0; i < masm_.numLongJumps(); i++) {
-        size_t off = masm_.longJump(i);
-        StaticLinkData::InternalLink inLink(StaticLinkData::InternalLink::InstructionImmediate);
-        inLink.patchAtOffset = off;
-        inLink.targetOffset = Assembler::ExtractInstructionImmediate(code + off) - uintptr_t(code);
-        if (!link->internalLinks.append(inLink))
-            return false;
-    }
-#endif
-
 #if defined(JS_CODEGEN_X64)
     // Global data accesses on x64 use rip-relative addressing and thus do
     // not need patching after deserialization.
@@ -651,6 +637,15 @@ ModuleGenerator::initFuncSig(uint32_t funcIndex, uint32_t sigIndex)
     return true;
 }
 
+void
+ModuleGenerator::bumpMinHeapLength(uint32_t newMinHeapLength)
+{
+    MOZ_ASSERT(isAsmJS());
+    MOZ_ASSERT(newMinHeapLength >= shared_->minHeapLength);
+
+    shared_->minHeapLength = newMinHeapLength;
+}
+
 const DeclaredSig&
 ModuleGenerator::funcSig(uint32_t funcIndex) const
 {
@@ -741,9 +736,6 @@ ModuleGenerator::startFuncDefs()
     if (!threadView_)
         return false;
 
-    if (!funcIndexToExport_.init())
-        return false;
-
     uint32_t numTasks;
     if (ParallelCompilationEnabled(cx_) &&
         HelperThreadState().wasmCompilationInProgress.compareExchange(false, true))
@@ -767,7 +759,7 @@ ModuleGenerator::startFuncDefs()
         return false;
     JSRuntime* rt = cx_->compartment()->runtimeFromAnyThread();
     for (size_t i = 0; i < numTasks; i++)
-        tasks_.infallibleEmplaceBack(rt, args(), *threadView_, COMPILATION_LIFO_DEFAULT_CHUNK_SIZE);
+        tasks_.infallibleEmplaceBack(rt, *threadView_, COMPILATION_LIFO_DEFAULT_CHUNK_SIZE);
 
     if (!freeTasks_.reserve(numTasks))
         return false;

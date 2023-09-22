@@ -124,6 +124,20 @@ SpewRange(MDefinition* def)
 #endif
 }
 
+static inline void
+SpewTruncate(MDefinition* def, MDefinition::TruncateKind kind, bool shouldClone)
+{
+#ifdef JS_JITSPEW
+    if (JitSpewEnabled(JitSpew_Range)) {
+        JitSpewHeader(JitSpew_Range);
+        Fprinter& out = JitSpewPrinter();
+        out.printf("truncating ");
+        def->printName(out);
+        out.printf(" (kind: %s, clone: %d)\n", MDefinition::TruncateKindString(kind), shouldClone);
+    }
+#endif
+}
+
 TempAllocator&
 RangeAnalysis::alloc() const
 {
@@ -182,12 +196,12 @@ RangeAnalysis::addBetaNodes()
 
         MConstant* leftConst = left->maybeConstantValue();
         MConstant* rightConst = right->maybeConstantValue();
-        if (leftConst && leftConst->value().isNumber()) {
-            bound = leftConst->value().toNumber();
+        if (leftConst && leftConst->isTypeRepresentableAsDouble()) {
+            bound = leftConst->numberToDouble();
             val = right;
             jsop = ReverseCompareOp(jsop);
-        } else if (rightConst && rightConst->value().isNumber()) {
-            bound = rightConst->value().toNumber();
+        } else if (rightConst && rightConst->isTypeRepresentableAsDouble()) {
+            bound = rightConst->numberToDouble();
             val = left;
         } else if (left->type() == MIRType_Int32 && right->type() == MIRType_Int32) {
             MDefinition* smaller = nullptr;
@@ -1275,11 +1289,11 @@ MBeta::computeRange(TempAllocator& alloc)
 void
 MConstant::computeRange(TempAllocator& alloc)
 {
-    if (value().isNumber()) {
-        double d = value().toNumber();
+    if (isTypeRepresentableAsDouble()) {
+        double d = numberToDouble();
         setRange(Range::NewDoubleSingletonRange(alloc, d));
-    } else if (value().isBoolean()) {
-        bool b = value().toBoolean();
+    } else if (type() == MIRType_Boolean) {
+        bool b = toBoolean();
         setRange(Range::NewInt32Range(alloc, b, b));
     }
 }
@@ -1348,7 +1362,7 @@ MLsh::computeRange(TempAllocator& alloc)
 
     MConstant* rhsConst = getOperand(1)->maybeConstantValue();
     if (rhsConst && rhsConst->type() == MIRType_Int32) {
-        int32_t c = rhsConst->value().toInt32();
+        int32_t c = rhsConst->toInt32();
         setRange(Range::lsh(alloc, &left, c));
         return;
     }
@@ -1366,7 +1380,7 @@ MRsh::computeRange(TempAllocator& alloc)
 
     MConstant* rhsConst = getOperand(1)->maybeConstantValue();
     if (rhsConst && rhsConst->type() == MIRType_Int32) {
-        int32_t c = rhsConst->value().toInt32();
+        int32_t c = rhsConst->toInt32();
         setRange(Range::rsh(alloc, &left, c));
         return;
     }
@@ -1391,7 +1405,7 @@ MUrsh::computeRange(TempAllocator& alloc)
 
     MConstant* rhsConst = getOperand(1)->maybeConstantValue();
     if (rhsConst && rhsConst->type() == MIRType_Int32) {
-        int32_t c = rhsConst->value().toInt32();
+        int32_t c = rhsConst->toInt32();
         setRange(Range::ursh(alloc, &left, c));
     } else {
         setRange(Range::ursh(alloc, &left, &right));
@@ -2383,7 +2397,7 @@ MDefinition::truncate()
 bool
 MConstant::needTruncation(TruncateKind kind)
 {
-    return value_.isDouble();
+    return IsFloatingPointType(type());
 }
 
 void
@@ -2392,8 +2406,9 @@ MConstant::truncate()
     MOZ_ASSERT(needTruncation(Truncate));
 
     // Truncate the double to int, since all uses truncates it.
-    int32_t res = ToInt32(value_.toDouble());
-    value_.setInt32(res);
+    int32_t res = ToInt32(numberToDouble());
+    payload_.asBits = 0;
+    payload_.i32 = res;
     setResultType(MIRType_Int32);
     if (range())
         range()->setInt32(res, res);
@@ -3033,6 +3048,8 @@ RangeAnalysis::truncate()
             if (!iter->needTruncation(kind))
                 continue;
 
+            SpewTruncate(*iter, kind, shouldClone);
+
             // If needed, clone the current instruction for keeping it for the
             // bailout path.  This give us the ability to truncate instructions
             // even after the removal of branches.
@@ -3056,6 +3073,9 @@ RangeAnalysis::truncate()
             // Truncate this phi if possible.
             if (shouldClone || !iter->needTruncation(kind))
                 continue;
+
+            SpewTruncate(*iter, kind, shouldClone);
+
             iter->truncate();
 
             // Delay updates of inputs/outputs to avoid creating node which
@@ -3322,13 +3342,13 @@ MBinaryBitwiseInstruction::collectRangeInfoPreTrunc()
     Range rhsRange(rhs());
 
     if (lhs()->isConstant() && lhs()->type() == MIRType_Int32 &&
-        DoesMaskMatchRange(lhs()->toConstant()->value().toInt32(), rhsRange))
+        DoesMaskMatchRange(lhs()->toConstant()->toInt32(), rhsRange))
     {
         maskMatchesRightRange = true;
     }
 
     if (rhs()->isConstant() && rhs()->type() == MIRType_Int32 &&
-        DoesMaskMatchRange(rhs()->toConstant()->value().toInt32(), lhsRange))
+        DoesMaskMatchRange(rhs()->toConstant()->toInt32(), lhsRange))
     {
         maskMatchesLeftRange = true;
     }

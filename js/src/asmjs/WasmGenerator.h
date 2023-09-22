@@ -96,8 +96,10 @@ typedef Vector<AsmJSGlobalVariable, 0, SystemAllocPolicy> AsmJSGlobalVariableVec
 
 struct ModuleGeneratorData
 {
+    CompileArgs                     args;
     ModuleKind                      kind;
     uint32_t                        numTableElems;
+    mozilla::Atomic<uint32_t>       minHeapLength;
 
     DeclaredSigVector               sigs;
     TableModuleGeneratorDataVector  sigToTable;
@@ -109,8 +111,8 @@ struct ModuleGeneratorData
         return funcSigs[funcIndex] - sigs.begin();
     }
 
-    explicit ModuleGeneratorData(ModuleKind kind = ModuleKind::Wasm)
-      : kind(kind), numTableElems(0)
+    explicit ModuleGeneratorData(ExclusiveContext* cx, ModuleKind kind = ModuleKind::Wasm)
+      : args(cx), kind(kind), numTableElems(0), minHeapLength(0)
     {}
 };
 
@@ -129,12 +131,18 @@ class ModuleGeneratorThreadView
     explicit ModuleGeneratorThreadView(const ModuleGeneratorData& shared)
       : shared_(shared)
     {}
+    CompileArgs args() const {
+        return shared_.args;
+    }
     bool isAsmJS() const {
         return shared_.kind == ModuleKind::AsmJS;
     }
     uint32_t numTableElems() const {
         MOZ_ASSERT(!isAsmJS());
         return shared_.numTableElems;
+    }
+    uint32_t minHeapLength() const {
+        return shared_.minHeapLength;
     }
     const DeclaredSig& sig(uint32_t sigIndex) const {
         return shared_.sigs[sigIndex];
@@ -254,6 +262,7 @@ class MOZ_STACK_CLASS ModuleGenerator
     bool initImport(uint32_t importIndex, uint32_t sigIndex);
     bool initSigTableLength(uint32_t sigIndex, uint32_t numElems);
     void initSigTableElems(uint32_t sigIndex, Uint32Vector&& elemFuncIndices);
+    void bumpMinHeapLength(uint32_t newMinHeapLength);
 
     // asm.js global variables:
     bool allocateGlobalVar(ValType type, bool isConst, uint32_t* index);

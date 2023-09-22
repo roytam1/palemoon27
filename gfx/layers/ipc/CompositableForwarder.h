@@ -111,6 +111,15 @@ public:
                                                   CompositableClient* aCompositable,
                                                   TextureClient* aTexture) {}
 
+  /**
+   * Forcibly remove texture data from TextureClient
+   * This function needs to be called after a tansaction with Compositor.
+   */
+  virtual void RemoveTexturesIfNecessary()
+  {
+    mTexturesToRemove.Clear();
+  }
+
   struct TimedTextureClient {
     TimedTextureClient()
         : mTextureClient(nullptr), mFrameID(0), mProducerID(0), mInputFrameID(0) {}

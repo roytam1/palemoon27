@@ -26,6 +26,7 @@ import mozpack.path as mozpath
 
 from mozbuild.frontend.context import (
     Path,
+    RenamedSourcePath,
     SourcePath,
     ObjDirPath,
 )
@@ -820,19 +821,6 @@ class RecursiveMakeBackend(CommonBackend):
 
         self._fill_root_mk()
 
-        # Write out a dependency file used to determine whether a config.status
-        # re-run is needed.
-        inputs = sorted(p.replace(os.sep, '/') for p in self.backend_input_files)
-
-        # We need to use $(DEPTH) so the target here matches what's in
-        # rules.mk. If they are different, the dependencies don't get pulled in
-        # properly.
-        with self._write_file('%s.pp' % self._backend_output_list_file) as backend_deps:
-            backend_deps.write('$(DEPTH)/backend.%s: %s\n' %
-                (self.__class__.__name__, ' '.join(inputs)))
-            for path in inputs:
-                backend_deps.write('%s:\n' % path)
-
         # Make the master test manifest files.
         for flavor, t in self._test_manifests.items():
             install_prefix, manifests = t
@@ -1277,8 +1265,8 @@ INSTALL_TARGETS += %(prefix)s
                           if path else target).replace('/', '_')
             have_objdir_files = False
             for f in files:
-                dest = mozpath.join(reltarget, path,
-                                    mozpath.basename(f.full_path))
+                assert not isinstance(f, RenamedSourcePath)
+                dest = mozpath.join(reltarget, path, f.target_basename)
                 if not isinstance(f, ObjDirPath):
                     install_manifest.add_symlink(f.full_path, dest)
                 else:

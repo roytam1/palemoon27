@@ -114,7 +114,7 @@ if test "$_conflict_files"; then
 fi
 MOZ_BUILD_ROOT=`pwd -W 2>/dev/null || pwd -P`
 
-MOZ_BUILD_BACKEND
+MOZ_BUILD_BACKEND(../..)
 
 MOZ_DEFAULT_COMPILER
 
@@ -2964,24 +2964,6 @@ elif test "$GNU_CC"; then
         MOZ_CXX_SUPPORTS_WARNING(-W, no-error=coverage-mismatch, ac_cxx_has_noerror_coverage_mismatch)
         MOZ_C_SUPPORTS_WARNING(-W, no-error=free-nonheap-object, ac_c_has_noerror_free_nonheap_object)
         MOZ_CXX_SUPPORTS_WARNING(-W, no-error=free-nonheap-object, ac_cxx_has_noerror_free_nonheap_object)
-    fi
-fi
-
-dnl ========================================================
-dnl = Enable DMD
-dnl ========================================================
-
-MOZ_ARG_ENABLE_BOOL(dmd,
-[  --enable-dmd            Enable DMD; also enables jemalloc and replace-malloc],
-    MOZ_DMD=1,
-    MOZ_DMD= )
-
-if test "$MOZ_DMD"; then
-    AC_DEFINE(MOZ_DMD)
-
-    if test "${CPU_ARCH}" = "arm"; then
-        CFLAGS="$CFLAGS -funwind-tables"
-        CXXFLAGS="$CXXFLAGS -funwind-tables"
     fi
 fi
 

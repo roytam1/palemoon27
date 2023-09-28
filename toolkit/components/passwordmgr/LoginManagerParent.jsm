@@ -173,7 +173,9 @@ var LoginManagerParent = {
 
     XPCOMUtils.defineLazyGetter(this, "recipeParentPromise", () => {
       const { LoginRecipesParent } = Cu.import("resource://gre/modules/LoginRecipes.jsm", {});
-      let parent = new LoginRecipesParent();
+      let parent = new LoginRecipesParent({
+        defaults: Services.prefs.getComplexValue("signon.recipes.path", Ci.nsISupportsString).data,
+      });
       return parent.initializationPromise;
     });
   },
@@ -246,28 +248,41 @@ var LoginManagerParent = {
                                              requestId, target) {
     let recipes = [];
     if (formOrigin) {
-      let formHost = (new URL(formOrigin)).host;
-      let recipeManager = yield this.recipeParentPromise;
-      recipes = recipeManager.getRecipesForHost(formHost);
+      let formHost;
+      try {
+        formHost = (new URL(formOrigin)).host;
+        let recipeManager = yield this.recipeParentPromise;
+        recipes = recipeManager.getRecipesForHost(formHost);
+      } catch (ex) {
+        // Some schemes e.g. chrome aren't supported by URL
+      }
     }
 
     if (!showMasterPassword && !Services.logins.isLoggedIn) {
-      target.sendAsyncMessage("RemoteLogins:loginsFound", {
-        requestId: requestId,
-        logins: [],
-        recipes,
-      });
+      try {
+        target.sendAsyncMessage("RemoteLogins:loginsFound", {
+          requestId: requestId,
+          logins: [],
+          recipes,
+        });
+      } catch (e) {
+        log("error sending message to target", e);
+      }
       return;
     }
 
     let allLoginsCount = Services.logins.countLogins(formOrigin, "", null);
     // If there are no logins for this site, bail out now.
     if (!allLoginsCount) {
-      target.sendAsyncMessage("RemoteLogins:loginsFound", {
-        requestId: requestId,
-        logins: [],
-        recipes,
-      });
+      try {
+        target.sendAsyncMessage("RemoteLogins:loginsFound", {
+          requestId: requestId,
+          logins: [],
+          recipes,
+        });
+      } catch (e) {
+        log("error sending message to target", e);
+      }
       return;
     }
 

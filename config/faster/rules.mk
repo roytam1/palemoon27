@@ -58,10 +58,6 @@ endif
 # toolkit/content/buildconfig.html and browser/locales/jar.mn.
 ACDEFINES += -DBUILD_FASTER
 
-# Generic rule to fall back to the recursive make backend
-$(TOPOBJDIR)/%: FORCE
-	$(MAKE) -C $(dir $@) $(notdir $@)
-
 # Files under the faster/ sub-directory, however, are not meant to use the
 # fallback
 $(TOPOBJDIR)/faster/%: ;
@@ -75,6 +71,13 @@ $(TOPOBJDIR)/_virtualenv/%: ;
 $(TOPOBJDIR)/dist/%:
 	rm -f $@
 	cp $< $@
+
+# Generic rule to fall back to the recursive make backend.
+# This needs to stay after other $(TOPOBJDIR)/* rules because GNU Make
+# <3.82 apply pattern rules in definition order, not stem length like
+# modern GNU Make.
+$(TOPOBJDIR)/%: FORCE
+	$(MAKE) -C $(dir $@) $(notdir $@)
 
 # Refresh backend
 $(BACKEND):
@@ -93,11 +96,13 @@ $(addprefix install-,$(INSTALL_MANIFESTS)): install-%: $(TOPOBJDIR)/config/build
 	@# The overhead is not that big, and this avoids waiting for proper
 	@# support for defines tracking in process_install_manifest.
 	@touch install_$(subst /,_,$*)
+	@# BOOKMARKS_INCLUDE_DIR is for bookmarks.html only.
 	$(PYTHON) -m mozbuild.action.process_install_manifest \
 		--no-remove \
 		--no-remove-empty-directories \
 		$(TOPOBJDIR)/$* \
 		-DAB_CD=en-US \
+		-DBOOKMARKS_INCLUDE_DIR=$(TOPSRCDIR)/browser/locales/en-US/profile \
 		-DMOZ_APP_BUILDID=$(shell cat $(TOPOBJDIR)/config/buildid) \
 		$(ACDEFINES) \
 		$(MOZ_DEBUG_DEFINES) \

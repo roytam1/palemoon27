@@ -18,6 +18,7 @@ ALL_HARNESSES = [
     'jittest',
     'mozbase',
     'web-platform',
+    'gtest',
 ]
 
 PACKAGE_SPECIFIED_HARNESSES = [
@@ -26,6 +27,11 @@ PACKAGE_SPECIFIED_HARNESSES = [
     'reftest',
     'xpcshell',
     'web-platform',
+]
+
+# These packages are not present for every build configuration.
+OPTIONAL_PACKAGES = [
+    'gtest',
 ]
 
 
@@ -39,6 +45,10 @@ def parse_args():
                         help="Name of the jsshell zip.")
     for harness in PACKAGE_SPECIFIED_HARNESSES:
         parser.add_argument("--%s" % harness, required=True,
+                            action="store", dest=harness,
+                            help="Name of the %s zip." % harness)
+    for harness in OPTIONAL_PACKAGES:
+        parser.add_argument("--%s" % harness, required=False,
                             action="store", dest=harness,
                             help="Name of the %s zip." % harness)
     parser.add_argument("--dest-file", required=True,
@@ -58,8 +68,11 @@ def generate_package_data(args):
 
     harness_requirements = dict([(k, [tests_common]) for k in ALL_HARNESSES])
     harness_requirements['jittest'].append(jsshell)
-    for harness in PACKAGE_SPECIFIED_HARNESSES:
-        harness_requirements[harness].append(getattr(args, harness))
+    for harness in PACKAGE_SPECIFIED_HARNESSES + OPTIONAL_PACKAGES:
+        pkg_name = getattr(args, harness, None)
+        if pkg_name is None:
+            continue
+        harness_requirements[harness].append(pkg_name)
     return harness_requirements
 
 if __name__ == '__main__':

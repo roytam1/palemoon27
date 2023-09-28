@@ -83,23 +83,6 @@ class FunctionDecoder
     }
 };
 
-static const char*
-ToCString(ExprType type)
-{
-    switch (type) {
-      case ExprType::Void:  return "void";
-      case ExprType::I32:   return "i32";
-      case ExprType::I64:   return "i64";
-      case ExprType::F32:   return "f32";
-      case ExprType::F64:   return "f64";
-      case ExprType::I32x4: return "i32x4";
-      case ExprType::F32x4: return "f32x4";
-      case ExprType::B32x4: return "b32x4";
-      case ExprType::Limit:;
-    }
-    MOZ_CRASH("bad expression type");
-}
-
 static bool
 CheckType(FunctionDecoder& f, ExprType actual, ExprType expected)
 {
@@ -129,6 +112,10 @@ DecodeValType(JSContext* cx, Decoder& d, ValType *type)
       case ValType::F64:
         break;
       case ValType::I64:
+#ifndef JS_CPU_X64
+        return Fail(cx, d, "i64 NYI on this platform");
+#endif
+        break;
       case ValType::I32x4:
       case ValType::F32x4:
       case ValType::B32x4:
@@ -153,6 +140,10 @@ DecodeExprType(JSContext* cx, Decoder& d, ExprType *type)
       case ExprType::Void:
         break;
       case ExprType::I64:
+#ifndef JS_CPU_X64
+        return Fail(cx, d, "i64 NYI on this platform");
+#endif
+        break;
       case ExprType::I32x4:
       case ExprType::F32x4:
       case ExprType::B32x4:
@@ -376,10 +367,7 @@ DecodeLoadStoreAddress(FunctionDecoder &f)
     if (!mozilla::IsPowerOfTwo(align))
         return f.fail("memory access alignment must be a power of two");
 
-    if (!DecodeExpr(f, ExprType::I32))
-        return false;
-
-    return f.fail("NYI: wasm loads and stores");
+    return DecodeExpr(f, ExprType::I32);
 }
 
 static bool
@@ -423,8 +411,7 @@ DecodeExpr(FunctionDecoder& f, ExprType expected)
       case Expr::I32Const:
         return DecodeConstI32(f, expected);
       case Expr::I64Const:
-        return f.fail("NYI: i64") &&
-               DecodeConstI64(f, expected);
+        return DecodeConstI64(f, expected);
       case Expr::F32Const:
         return DecodeConstF32(f, expected);
       case Expr::F64Const:

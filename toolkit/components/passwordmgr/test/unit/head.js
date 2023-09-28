@@ -201,7 +201,7 @@ const LoginTest = {
 
 const RecipeHelpers = {
   initNewParent() {
-    return (new LoginRecipesParent({ defaults: false })).initializationPromise;
+    return (new LoginRecipesParent({ defaults: null })).initializationPromise;
   },
 
   /**

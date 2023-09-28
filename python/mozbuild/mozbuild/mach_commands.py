@@ -1035,8 +1035,11 @@ class Package(MachCommandBase):
 
     @Command('package', category='post-build',
         description='Package the built product for distribution as an APK, DMG, etc.')
-    def package(self):
-        ret = self._run_make(directory=".", target='package', ensure_exit_code=False)
+    @CommandArgument('-v', '--verbose', action='store_true',
+        help='Verbose output for what commands the packaging process is running.')
+    def package(self, verbose=False):
+        ret = self._run_make(directory=".", target='package',
+                             silent=not verbose, ensure_exit_code=False)
         if ret == 0:
             self.notify('Packaging complete')
         return ret
@@ -1115,53 +1118,54 @@ class RunProgram(MachCommandBase):
          help='Profiling mode. The default is \'dark-matter\'.')
     @CommandArgument('--sample-below', default=None, type=str, group='DMD',
         help='Sample blocks smaller than this. Use 1 for no sampling. The default is 4093.')
-    @CommandArgument('--max-frames', default=None, type=str, group='DMD',
-        help='The maximum depth of stack traces. The default and maximum is 24.')
     @CommandArgument('--show-dump-stats', action='store_true', group='DMD',
         help='Show stats when doing dumps.')
     def run(self, params, remote, background, noprofile, debug, debugger,
-        debugparams, slowscript, dmd, mode, sample_below, max_frames,
-        show_dump_stats):
+        debugparams, slowscript, dmd, mode, sample_below, show_dump_stats):
 
         if conditions.is_android(self):
             # Running Firefox for Android is completely different
-            if debug or debugger or debugparams:
-                print("Debugging Firefox for Android is not yet supported")
-                return 1
             if dmd:
                 print("DMD is not supported for Firefox for Android")
                 return 1
-            return self._run_android(params)
+            from mozrunner.devices.android_device import verify_android_device, run_firefox_for_android
+            if not (debug or debugger or debugparams):
+                verify_android_device(self, install=True)
+                return run_firefox_for_android(self, params)
+            verify_android_device(self, install=True, debugger=True)
+            args = ['']
 
-        try:
-            binpath = self.get_binary_path('app')
-        except Exception as e:
-            print("It looks like your program isn't built.",
-                "You can run |mach build| to build it.")
-            print(e)
-            return 1
+        else:
 
-        args = [binpath]
+            try:
+                binpath = self.get_binary_path('app')
+            except Exception as e:
+                print("It looks like your program isn't built.",
+                    "You can run |mach build| to build it.")
+                print(e)
+                return 1
 
-        if params:
-            args.extend(params)
+            args = [binpath]
 
-        if not remote:
-            args.append('-no-remote')
+            if params:
+                args.extend(params)
 
-        if not background and sys.platform == 'darwin':
-            args.append('-foreground')
+            if not remote:
+                args.append('-no-remote')
 
-        no_profile_option_given = \
-            all(p not in params for p in ['-profile', '--profile', '-P'])
-        if no_profile_option_given and not noprofile:
-            path = os.path.join(self.topobjdir, 'tmp', 'scratch_user')
-            if not os.path.isdir(path):
-                os.makedirs(path)
-            args.append('-profile')
-            args.append(path)
+            if not background and sys.platform == 'darwin':
+                args.append('-foreground')
 
-        extra_env = {}
+            no_profile_option_given = \
+                all(p not in params for p in ['-profile', '--profile', '-P'])
+            if no_profile_option_given and not noprofile:
+                path = os.path.join(self.topobjdir, 'tmp', 'scratch_user')
+                if not os.path.isdir(path):
+                    os.makedirs(path)
+                args.append('-profile')
+                args.append(path)
+
+        extra_env = {'MOZ_CRASHREPORTER_DISABLE': '1'}
 
         if debug or debugger or debugparams:
             import mozdebug
@@ -1190,8 +1194,6 @@ class RunProgram(MachCommandBase):
             if not slowscript:
                 extra_env['JS_DISABLE_SLOW_SCRIPT_SIGNALS'] = '1'
 
-            extra_env['MOZ_CRASHREPORTER_DISABLE'] = '1'
-
             # Prepend the debugger args.
             args = [self.debuggerInfo.path] + self.debuggerInfo.args + args
 
@@ -1202,8 +1204,6 @@ class RunProgram(MachCommandBase):
                 dmd_params.append('--mode=' + mode)
             if sample_below:
                 dmd_params.append('--sample-below=' + sample_below)
-            if max_frames:
-                dmd_params.append('--max-frames=' + max_frames)
             if show_dump_stats:
                 dmd_params.append('--show-dump-stats=yes')
 
@@ -1237,11 +1237,6 @@ class RunProgram(MachCommandBase):
 
         return self.run_process(args=args, ensure_exit_code=False,
             pass_thru=True, append_env=extra_env)
-
-    def _run_android(self, params):
-        from mozrunner.devices.android_device import verify_android_device, run_firefox_for_android
-        verify_android_device(self, install=True)
-        return run_firefox_for_android(self, params)
 
 @CommandProvider
 class Buildsymbols(MachCommandBase):
@@ -1444,7 +1439,7 @@ class ArtifactSubCommand(SubCommand):
     def __call__(self, func):
         after = SubCommand.__call__(self, func)
         jobchoices = {
-            'android-api-11',
+            'android-api-15',
             'android-x86',
             'linux',
             'linux64',
@@ -1494,7 +1489,7 @@ class PackageFrontend(MachCommandBase):
     def _make_artifacts(self, tree=None, job=None):
         self._activate_virtualenv()
         self.virtualenv_manager.install_pip_package('pylru==1.0.9')
-        self.virtualenv_manager.install_pip_package('taskcluster==0.0.16')
+        self.virtualenv_manager.install_pip_package('taskcluster==0.0.32')
         self.virtualenv_manager.install_pip_package('mozregression==1.0.2')
 
         state_dir = self._mach_context.state_dir
@@ -1517,23 +1512,6 @@ class PackageFrontend(MachCommandBase):
         artifacts = Artifacts(tree, job, log=self.log, cache_dir=cache_dir, hg=hg)
         return artifacts
 
-    def _compute_platform(self, job=None):
-        if job:
-            return job
-        if self.substs.get('MOZ_BUILD_APP', '') == 'mobile/android':
-            if self.substs['ANDROID_CPU_ARCH'] == 'x86':
-                return 'android-x86'
-            return 'android-api-11'
-        # TODO: check for 32/64 bit builds.  We'd like to use HAVE_64BIT_BUILD
-        # but that relies on the compile environment.
-        if self.defines.get('XP_LINUX', False):
-            return 'linux64'
-        if self.defines.get('XP_MACOSX', False):
-            return 'macosx64'
-        if self.defines.get('XP_WIN', False):
-            return 'win32'
-        raise Exception('Cannot determine default tree and job for |mach artifact|!')
-
     @ArtifactSubCommand('artifact', 'install',
         'Install a good pre-built artifact.')
     @CommandArgument('source', metavar='SRC', nargs='?', type=str,
@@ -1543,7 +1521,6 @@ class PackageFrontend(MachCommandBase):
         default=None)
     def artifact_install(self, source=None, tree=None, job=None, verbose=False):
         self._set_log_level(verbose)
-        job = self._compute_platform(job)
         artifacts = self._make_artifacts(tree=tree, job=job)
 
         return artifacts.install_from(source, self.distdir)
@@ -1552,7 +1529,6 @@ class PackageFrontend(MachCommandBase):
         'Print the last pre-built artifact installed.')
     def artifact_print_last(self, tree=None, job=None, verbose=False):
         self._set_log_level(verbose)
-        job = self._compute_platform(job)
         artifacts = self._make_artifacts(tree=tree, job=job)
         artifacts.print_last()
         return 0
@@ -1561,7 +1537,6 @@ class PackageFrontend(MachCommandBase):
         'Print local artifact cache for debugging.')
     def artifact_print_cache(self, tree=None, job=None, verbose=False):
         self._set_log_level(verbose)
-        job = self._compute_platform(job)
         artifacts = self._make_artifacts(tree=tree, job=job)
         artifacts.print_cache()
         return 0
@@ -1570,7 +1545,6 @@ class PackageFrontend(MachCommandBase):
         'Delete local artifacts and reset local artifact cache.')
     def artifact_clear_cache(self, tree=None, job=None, verbose=False):
         self._set_log_level(verbose)
-        job = self._compute_platform(job)
         artifacts = self._make_artifacts(tree=tree, job=job)
         artifacts.clear_cache()
         return 0

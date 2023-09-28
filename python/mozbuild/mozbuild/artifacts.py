@@ -42,6 +42,7 @@ from __future__ import absolute_import, print_function, unicode_literals
 
 import collections
 import functools
+import glob
 import hashlib
 import logging
 import operator
@@ -59,6 +60,7 @@ import zipfile
 import pylru
 import taskcluster
 
+import buildconfig
 from mozbuild.util import (
     ensureParentDir,
     FileAvoidWrite,
@@ -260,10 +262,10 @@ class MacArtifactJob(ArtifactJob):
             #   File "/Users/nalexander/Mozilla/gecko/objdir-dce/_virtualenv/lib/python2.7/site-packages/mozinstall/mozinstall.py", line 261, in _install_dmg
             #     subprocess.call('hdiutil detach %s -quiet' % appDir,
 
-            # TODO: Extract the bundle name from the archive (it may differ
-            # from MOZ_MACBUNDLE_NAME).
-            bundle_name = 'Nightly.app'
-            source = mozpath.join(tempdir, bundle_name)
+            bundle_dirs = glob.glob(mozpath.join(tempdir, '*.app'))
+            if len(bundle_dirs) != 1:
+                raise ValueError('Expected one source bundle, found: {}'.format(bundle_dirs))
+            [source] = bundle_dirs
 
             # These get copied into dist/bin without the path, so "root/a/b/c" -> "dist/bin/c".
             paths_no_keep_path = ('Contents/MacOS', [
@@ -377,7 +379,7 @@ class WinArtifactJob(ArtifactJob):
 # The values correpsond to a pair of (<package regex>, <test archive regex>).
 JOB_DETAILS = {
     # 'android-api-9': (AndroidArtifactJob, 'public/build/fennec-(.*)\.android-arm\.apk'),
-    'android-api-11': (AndroidArtifactJob, ('public/build/fennec-(.*)\.android-arm\.apk',
+    'android-api-15': (AndroidArtifactJob, ('public/build/fennec-(.*)\.android-arm\.apk',
                                             None)),
     'android-x86': (AndroidArtifactJob, ('public/build/fennec-(.*)\.android-i386\.apk',
                                          None)),
@@ -636,9 +638,9 @@ class ArtifactCache(CacheManager):
 class Artifacts(object):
     '''Maintain state to efficiently fetch build artifacts from a Firefox tree.'''
 
-    def __init__(self, tree, job, log=None, cache_dir='.', hg='hg'):
+    def __init__(self, tree, job=None, log=None, cache_dir='.', hg='hg'):
         self._tree = tree
-        self._job = job
+        self._job = job or self._guess_artifact_job()
         self._log = log
         self._hg = hg
         self._cache_dir = cache_dir
@@ -667,7 +669,27 @@ class Artifacts(object):
         if self._log:
             self._log(*args, **kwargs)
 
-    def _find_pushheads(self, parent):
+    def _guess_artifact_job(self):
+        if buildconfig.substs.get('MOZ_BUILD_APP', '') == 'mobile/android':
+            if buildconfig.substs['ANDROID_CPU_ARCH'] == 'x86':
+                return 'android-x86'
+            return 'android-api-15'
+
+        target_64bit = False
+        if buildconfig.substs['target_cpu'] == 'x86_64':
+            target_64bit = True
+
+        if buildconfig.defines.get('XP_LINUX', False):
+            return 'linux64' if target_64bit else 'linux'
+        if buildconfig.defines.get('XP_WIN', False):
+            return 'win64' if target_64bit else 'win32'
+        if buildconfig.defines.get('XP_MACOSX', False):
+            # We only produce unified builds in automation, so the target_cpu
+            # check is not relevant.
+            return 'macosx64'
+        raise Exception('Cannot determine default job for |mach artifact|!')
+
+    def _find_pushheads(self):
         # Return an ordered dict associating revisions that are pushheads with
         # trees they are known to be in (starting with the first tree they're
         # known to be in).
@@ -676,8 +698,8 @@ class Artifacts(object):
             output = subprocess.check_output([
                 self._hg, 'log',
                 '--template', '{node},{join(trees, ",")}\n',
-                '-r', 'last(pushhead({tree}) and ::{parent}, {num})'.format(
-                    tree=self._tree or '', parent=parent, num=NUM_PUSHHEADS_TO_QUERY_PER_PARENT)
+                '-r', 'last(pushhead({tree}) and ::., {num})'.format(
+                    tree=self._tree or '', num=NUM_PUSHHEADS_TO_QUERY_PER_PARENT)
             ])
         except subprocess.CalledProcessError:
             # We probably don't have the mozext extension installed.
@@ -711,6 +733,11 @@ class Artifacts(object):
         known_trees = set(tree_cache.artifact_trees(pushhead, trees))
         if not known_trees:
             return None
+        if not trees:
+            # Accept artifacts from any tree where they are available.
+            trees = list(known_trees)
+            trees.sort()
+
         # If we ever find a rev that's a pushhead on multiple trees, we want
         # the most recent one.
         for tree in reversed(trees):
@@ -779,18 +806,14 @@ class Artifacts(object):
             filename = artifact_cache.fetch(url)
         return self.install_from_file(filename, distdir)
 
-    def install_from_hg(self, revset, distdir):
-        if not revset:
-            revset = '.'
-        rev_pushheads = self._find_pushheads(revset)
+    def _install_from_pushheads(self, rev_pushheads, distdir):
         urls = None
         # with blocks handle handle persistence.
         with self._task_cache as task_cache, self._tree_cache as tree_cache:
-            while rev_pushheads:
-                rev, trees = rev_pushheads.popitem(last=False)
+            for rev, trees in rev_pushheads.items():
                 self.log(logging.DEBUG, 'artifact',
-                    {'rev': rev},
-                    'Trying to find artifacts for pushhead {rev}.')
+                         {'rev': rev},
+                         'Trying to find artifacts for pushhead {rev}.')
                 urls = self.find_pushhead_artifacts(task_cache, tree_cache,
                                                     self._job, rev, trees)
                 if urls:
@@ -799,9 +822,26 @@ class Artifacts(object):
                             return 1
                     return 0
         self.log(logging.ERROR, 'artifact',
-                 {'revset': revset},
-                 'No built artifacts for {revset} found.')
+                 {'count': len(rev_pushheads)},
+                 'Tried {count} pushheads, no built artifacts found.')
         return 1
+
+    def install_from_recent(self, distdir):
+        rev_pushheads = self._find_pushheads()
+        return self._install_from_pushheads(rev_pushheads, distdir)
+
+    def install_from_revset(self, revset, distdir):
+        revision = subprocess.check_output([self._hg, 'log', '--template', '{node}\n',
+                                            '-r', revset]).strip()
+        if len(revision.split('\n')) != 1:
+            raise ValueError('hg revision specification must resolve to exactly one commit')
+        rev_pushheads = {revision: None}
+        self.log(logging.INFO, 'artifact',
+                 {'revset': revset,
+                  'revision': revision},
+                 'Will only accept artifacts from a pushhead at {revision} '
+                 '(matched revset "{revset}").')
+        return self._install_from_pushheads(rev_pushheads, distdir)
 
     def install_from(self, source, distdir):
         """Install artifacts from a ``source`` into the given ``distdir``.
@@ -811,13 +851,20 @@ class Artifacts(object):
         elif source and urlparse.urlparse(source).scheme:
             return self.install_from_url(source, distdir)
         else:
-            return self.install_from_hg(source, distdir)
+            if source is None and 'MOZ_ARTIFACT_REVISION' in os.environ:
+                source = os.environ['MOZ_ARTIFACT_REVISION']
+
+            if source:
+                return self.install_from_revset(source, distdir)
+
+            return self.install_from_recent(distdir)
+
 
     def print_last(self):
         self.log(logging.INFO, 'artifact',
             {},
             'Printing last used artifact details.')
-        self._pushhead_cache.print_last()
+        self._tree_cache.print_last()
         self._task_cache.print_last()
         self._artifact_cache.print_last()
 
@@ -825,7 +872,7 @@ class Artifacts(object):
         self.log(logging.INFO, 'artifact',
             {},
             'Deleting cached artifacts and caches.')
-        self._pushhead_cache.clear_cache()
+        self._tree_cache.clear_cache()
         self._task_cache.clear_cache()
         self._artifact_cache.clear_cache()
 

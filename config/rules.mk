@@ -57,19 +57,6 @@ _VPATH_SRCS = $(abspath $<)
 testxpcobjdir = $(DEPTH)/_tests/xpcshell
 
 ifdef ENABLE_TESTS
-
-# Add test directories to the regular directories list. TEST_DIRS should
-# arguably have the same status as other *_DIRS variables. It is coded this way
-# until Makefiles stop using the "ifdef ENABLE_TESTS; DIRS +=" convention.
-#
-# The current developer workflow expects tests to be updated when processing
-# the default target. If we ever change this implementation, the behavior
-# should be preserved or the change should be widely communicated. A
-# consequence of not processing test dir targets during the default target is
-# that changes to tests may not be updated and code could assume to pass
-# locally against non-current test code.
-DIRS += $(TEST_DIRS)
-
 ifdef CPP_UNIT_TESTS
 ifdef COMPILE_ENVIRONMENT
 
@@ -77,7 +64,7 @@ ifdef COMPILE_ENVIRONMENT
 # through TestHarness.h, by modifying the list of includes and the libs against
 # which stuff links.
 SIMPLE_PROGRAMS += $(CPP_UNIT_TESTS)
-INCLUDES += -I$(DIST)/include/testing
+INCLUDES += -I$(ABS_DIST)/include/testing
 
 ifndef MOZ_PROFILE_GENERATE
 CPP_UNIT_TESTS_FILES = $(CPP_UNIT_TESTS)
@@ -479,14 +466,19 @@ endif
 endif
 
 ifdef SYMBOLS_FILE
+ifeq ($(OS_TARGET),WINNT)
+ifndef GNU_CC
+EXTRA_DSO_LDOPTS += -DEF:$(call normalizepath,$(SYMBOLS_FILE))
+else
+EXTRA_DSO_LDOPTS += $(call normalizepath,$(SYMBOLS_FILE))
+endif
+else
 ifdef GCC_USE_GNU_LD
 EXTRA_DSO_LDOPTS += -Wl,--version-script,$(SYMBOLS_FILE)
 else
 ifeq ($(OS_TARGET),Darwin)
 EXTRA_DSO_LDOPTS += -Wl,-exported_symbols_list,$(SYMBOLS_FILE)
 endif
-ifeq ($(OS_TARGET),WINNT)
-EXTRA_DSO_LDOPTS += -DEF:$(call normalizepath,$(SYMBOLS_FILE))
 endif
 endif
 EXTRA_DEPS += $(SYMBOLS_FILE)
@@ -874,9 +866,6 @@ endif	# WINNT && !GCC
 ifdef ENABLE_STRIP
 	$(STRIP) $(STRIP_FLAGS) $@
 endif
-ifdef MOZ_POST_DSO_LIB_COMMAND
-	$(MOZ_POST_DSO_LIB_COMMAND) $@
-endif
 
 ifeq ($(SOLARIS_SUNPRO_CC),1)
 _MDDEPFILE = $(MDDEPDIR)/$(@F).pp
@@ -1231,12 +1220,6 @@ libs realchrome:: $(FINAL_TARGET)/chrome
 
 endif
 
-# This is a temporary check to ensure patches relying on the old behavior
-# of silently picking up jar.mn files continue to work.
-else # No JAR_MANIFEST
-ifneq (,$(wildcard $(srcdir)/jar.mn))
-$(error $(srcdir) contains a jar.mn file but this file is not declared in a JAR_MANIFESTS variable in a moz.build file)
-endif
 endif
 
 # When you move this out of the tools tier, please remove the corresponding
@@ -1588,10 +1571,6 @@ include $(MOZILLA_DIR)/config/makefiles/autotargets.mk
 ifneq ($(NULL),$(AUTO_DEPS))
   default all libs tools export:: $(AUTO_DEPS)
 endif
-
-export:: $(GENERATED_FILES)
-
-GARBAGE += $(GENERATED_FILES)
 
 # We may have modified "frozen" variables in rules.mk (we do that), but we don't
 # want Makefile.in doing that, so collect the possibly modified variables here,

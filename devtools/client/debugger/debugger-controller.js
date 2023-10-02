@@ -478,10 +478,10 @@ Workers.prototype = {
     this._updateWorkerList();
   },
 
-  _onWorkerSelect: function (type, workerActor) {
+  _onWorkerSelect: function (workerActor) {
     DebuggerController.client.attachWorker(workerActor, (response, workerClient) => {
-      gDevTools.showToolbox(devtools.TargetFactory.forWorker(workerClient),
-                            "jsdebugger", devtools.Toolbox.HostType.WINDOW);
+      gDevTools.showToolbox(TargetFactory.forWorker(workerClient),
+                            "jsdebugger", Toolbox.HostType.WINDOW);
     });
   }
 };
@@ -871,7 +871,7 @@ StackFrames.prototype = {
       // Customize the scope for holding watch expressions evaluations.
       scope.descriptorTooltip = false;
       scope.contextMenuId = "debuggerWatchExpressionsContextMenu";
-      scope.separatorStr = L10N.getStr("watchExpressionsSeparatorLabel");
+      scope.separatorStr = L10N.getStr("watchExpressionsSeparatorLabel2");
       scope.switch = DebuggerView.WatchExpressions.switchExpression;
       scope.delete = DebuggerView.WatchExpressions.deleteExpression;
 
@@ -968,12 +968,15 @@ StackFrames.prototype = {
   _insertScopeFrameReferences: function(aScope, aFrame) {
     // Add any thrown exception.
     if (this._currentException) {
-      let excRef = aScope.addItem("<exception>", { value: this._currentException });
+      let excRef = aScope.addItem("<exception>", { value: this._currentException },
+                                  { internalItem: true });
       DebuggerView.Variables.controller.addExpander(excRef, this._currentException);
     }
     // Add any returned value.
     if (this._currentReturnedValue) {
-      let retRef = aScope.addItem("<return>", { value: this._currentReturnedValue });
+      let retRef = aScope.addItem("<return>",
+                                  { value: this._currentReturnedValue },
+                                  { internalItem: true });
       DebuggerView.Variables.controller.addExpander(retRef, this._currentReturnedValue);
     }
     // Add "this".

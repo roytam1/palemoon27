@@ -1050,8 +1050,9 @@ EngineURL.prototype = {
     return queryParam ? queryParam.name : "";
   },
 
-  _hasRelation: function SRC_EURL__hasRelation(aRel)
-    this.rels.some(function(e) e == aRel.toLowerCase()),
+  _hasRelation: function SRC_EURL__hasRelation(aRel) {
+    return this.rels.some(e => e == aRel.toLowerCase());
+  },
 
   _initWithJSON: function SRC_EURL__initWithJSON(aJson, aEngine) {
     if (!aJson.params)
@@ -1094,8 +1095,9 @@ EngineURL.prototype = {
     if (this.method != "GET")
       json.method = this.method;
 
-    function collapseMozParams(aParam)
-      this.mozparams[aParam.name] || aParam;
+    function collapseMozParams(aParam) {
+      return this.mozparams[aParam.name] || aParam;
+    }
     json.params = this.params.map(collapseMozParams, this);
 
     return json;
@@ -2798,11 +2800,12 @@ SearchService.prototype = {
               cache.directories[aDir.path].lastModifiedTime != aDir.lastModifiedTime);
     }
 
-    function notInCachePath(aPathToLoad)
-      cachePaths.indexOf(aPathToLoad.path) == -1;
+    function notInCachePath(aPathToLoad) {
+      return cachePaths.indexOf(aPathToLoad.path) == -1;
+    }
 
     let buildID = Services.appinfo.platformBuildID;
-    let cachePaths = Object.keys(cache.directories);
+    let cachePaths = cache.directories ? Object.keys(cache.directories) : [];
 
     let rebuildCache = !cache.directories ||
                        cache.version != CACHE_VERSION ||
@@ -2907,11 +2910,12 @@ SearchService.prototype = {
         });
       }
 
-      function notInCachePath(aPathToLoad)
-        cachePaths.indexOf(aPathToLoad.path) == -1;
+      function notInCachePath(aPathToLoad) {
+        return cachePaths.indexOf(aPathToLoad.path) == -1;
+      }
 
       let buildID = Services.appinfo.platformBuildID;
-      let cachePaths = Object.keys(cache.directories);
+      let cachePaths = cache.directories ? Object.keys(cache.directories) : [];
 
       let rebuildCache = !cache.directories ||
                          cache.version != CACHE_VERSION ||

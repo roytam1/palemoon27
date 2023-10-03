@@ -601,6 +601,8 @@ const DownloadsPanel = {
   }
 };
 
+XPCOMUtils.defineConstant(this, "DownloadsPanel", DownloadsPanel);
+
 ////////////////////////////////////////////////////////////////////////////////
 //// DownloadsOverlayLoader
 
@@ -687,6 +689,8 @@ const DownloadsOverlayLoader = {
     }
   }
 };
+
+XPCOMUtils.defineConstant(this, "DownloadsOverlayLoader", DownloadsOverlayLoader);
 
 ////////////////////////////////////////////////////////////////////////////////
 //// DownloadsView
@@ -1064,6 +1068,8 @@ const DownloadsView = {
   }
 }
 
+XPCOMUtils.defineConstant(this, "DownloadsView", DownloadsView);
+
 ////////////////////////////////////////////////////////////////////////////////
 //// DownloadsViewItem
 
@@ -1425,6 +1431,8 @@ const DownloadsViewController = {
   }
 };
 
+XPCOMUtils.defineConstant(this, "DownloadsViewController", DownloadsViewController);
+
 ////////////////////////////////////////////////////////////////////////////////
 //// DownloadsViewItemController
 
@@ -1767,7 +1775,9 @@ const DownloadsSummary = {
     delete this._detailsNode;
     return this._detailsNode = node;
   }
-}
+};
+
+XPCOMUtils.defineConstant(this, "DownloadsSummary", DownloadsSummary);
 
 ////////////////////////////////////////////////////////////////////////////////
 //// DownloadsFooter
@@ -1824,3 +1834,5 @@ const DownloadsFooter = {
     return this._footerNode = node;
   }
 };
+
+XPCOMUtils.defineConstant(this, "DownloadsFooter", DownloadsFooter);

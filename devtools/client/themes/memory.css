@@ -83,6 +83,7 @@ html, body, #app, #memory-tool {
 }
 
 /**
+ * TODO bug 1213100
  * Once we figure out how to store invertable buttons (pseudo element like in
  * this case?) we should add a .invertable class to handle this generally,
  * rather than the definitions in toolbars.css.
@@ -96,6 +97,21 @@ html, body, #app, #memory-tool {
 /**
  * Container (sidebar + main panel)
  */
+
+.devtools-toolbar .toolbar-group {
+  position: absolute;
+  left: var(--sidebar-width);
+  top: -2px;
+  white-space: nowrap;
+}
+
+.toolbar-group > label {
+  margin-right: 5px;
+}
+
+.toolbar-group .breakdown-by span {
+  margin-right: 5px;
+}
 
 #memory-tool-container {
   /**
@@ -297,12 +313,12 @@ html, body, #app, #memory-tool {
 
 .heap-tree-item-count,
 .heap-tree-item-total-count {
-  width: 5vw;
+  width: 8vw;
 }
 
 .heap-tree-item-bytes,
 .heap-tree-item-total-bytes {
-  width: 7vw;
+  width: 8vw;
 }
 
 .heap-tree-item-name {
@@ -312,6 +328,7 @@ html, body, #app, #memory-tool {
    */
   display: flex;
   align-items: center;
+  flex: 1;
   /**
    * Flexing to fill out remaining vertical space.
    * @see .header and .heap-tree-item */
@@ -348,6 +365,10 @@ html, body, #app, #memory-tool {
 .heap-tree-item.focused .heap-tree-number,
 .heap-tree-item.focused .heap-tree-percent {
   color: inherit;
+}
+
+.spacer {
+  flex: 1;
 }
 
 /**
@@ -408,13 +429,17 @@ html, body, #app, #memory-tool {
 }
 
 .frame-link-function-display-name {
-  margin-inline-end: 5px;
+  margin-right: 5px;
 }
 
 .no-allocation-stacks {
-    border-color: var(--theme-splitter-color);
-    border-style: solid;
-    border-width: 0px 0px 1px 0px;
-    text-align: center;
-    padding: 5px;
+  border-color: var(--theme-splitter-color);
+  border-style: solid;
+  border-width: 0px 0px 1px 0px;
+  text-align: center;
+  padding: 5px;
+}
+
+label select {
+  margin: 5px;
 }

@@ -34,6 +34,7 @@ function TabSources(threadActor, allowSourceFn=() => true) {
 
   this.blackBoxedSources = new Set();
   this.prettyPrintedSources = new Map();
+  this.neverAutoBlackBoxSources = new Set();
 
   // generated Debugger.Source -> promise of SourceMapConsumer
   this._sourceMaps = new Map();
@@ -57,11 +58,11 @@ TabSources.prototype = {
    * Update preferences and clear out existing sources
    */
   reconfigure: function(options) {
-    if('useSourceMaps' in options) {
+    if ('useSourceMaps' in options) {
       this._useSourceMaps = options.useSourceMaps;
     }
 
-    if('autoBlackBox' in options) {
+    if ('autoBlackBox' in options) {
       this._autoBlackBox = options.autoBlackBox;
     }
 
@@ -80,7 +81,7 @@ TabSources.prototype = {
     this._sourceMaps = new Map();
     this._sourceMappedSourceActors = Object.create(null);
 
-    if(opts.sourceMaps) {
+    if (opts.sourceMaps) {
       this._sourceMapCache = Object.create(null);
     }
   },
@@ -169,8 +170,12 @@ TabSources.prototype = {
     this._thread.threadLifetimePool.addActor(actor);
     sourceActorStore.setReusableActorId(source, originalUrl, actor.actorID);
 
-    if (this._autoBlackBox && this._isMinifiedURL(actor.url)) {
+    if (this._autoBlackBox &&
+        !this.neverAutoBlackBoxSources.has(actor.url) &&
+        this._isMinifiedURL(actor.url)) {
+
       this.blackBox(actor.url);
+      this.neverAutoBlackBoxSources.add(actor.url);
     }
 
     if (source) {
@@ -185,7 +190,7 @@ TabSources.prototype = {
   },
 
   _emitNewSource: function(actor) {
-    if(!actor.source) {
+    if (!actor.source) {
       // Always notify if we don't have a source because that means
       // it's something that has been sourcemapped, or it represents
       // the HTML file that contains inline sources.
@@ -201,7 +206,7 @@ TabSources.prototype = {
       // `Debugger.Source` instance and a valid source map (meaning
       // it's a generated source), don't send the notification.
       this.fetchSourceMap(actor.source).then(map => {
-        if(!map) {
+        if (!map) {
           this.emit('newSource', actor);
         }
       });

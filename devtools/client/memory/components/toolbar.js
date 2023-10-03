@@ -19,6 +19,8 @@ const Toolbar = module.exports = createClass({
     allocations: models.allocations,
     onToggleInverted: PropTypes.func.isRequired,
     inverted: PropTypes.bool.isRequired,
+    filterString: PropTypes.string,
+    setFilterString: PropTypes.func.isRequired,
   },
 
   render() {
@@ -29,44 +31,59 @@ const Toolbar = module.exports = createClass({
       onToggleRecordAllocationStacks,
       allocations,
       onToggleInverted,
-      inverted
+      inverted,
+      filterString,
+      setFilterString
     } = this.props;
 
     return (
       dom.div({ className: "devtools-toolbar" },
         dom.button({
+          id: "take-snapshot",
           className: `take-snapshot devtools-button`,
           onClick: onTakeSnapshotClick,
           title: L10N.getStr("take-snapshot")
         }),
 
-        dom.label({},
-          L10N.getStr("toolbar.breakdownBy"),
-          dom.select({
-            id: "select-breakdown",
-            className: `select-breakdown`,
-            onChange: e => onBreakdownChange(e.target.value),
-          }, ...breakdowns.map(({ name, displayName }) => dom.option({ key: name, value: name }, displayName)))
-        ),
+        dom.div({ className: "toolbar-group" },
+          dom.label({ className: "breakdown-by" },
+            L10N.getStr("toolbar.breakdownBy"),
+            dom.select({
+              id: "select-breakdown",
+              className: `select-breakdown`,
+              onChange: e => onBreakdownChange(e.target.value),
+            }, ...breakdowns.map(({ name, displayName }) => dom.option({ key: name, value: name }, displayName)))
+          ),
 
-        dom.label({},
-          dom.input({
-            id: "invert-tree-checkbox",
-            type: "checkbox",
-            checked: inverted,
-            onChange: onToggleInverted,
-          }),
-          L10N.getStr("checkbox.invertTree")
-        ),
+          dom.label({},
+            dom.input({
+              id: "invert-tree-checkbox",
+              type: "checkbox",
+              checked: inverted,
+              onChange: onToggleInverted,
+            }),
+            L10N.getStr("checkbox.invertTree")
+          ),
 
-        dom.label({},
+          dom.label({},
+            dom.input({
+              type: "checkbox",
+              checked: allocations.recording,
+              disabled: allocations.togglingInProgress,
+              onChange: onToggleRecordAllocationStacks,
+            }),
+            L10N.getStr("checkbox.recordAllocationStacks")
+          ),
+
+          dom.div({ id: "toolbar-spacer", className: "spacer" }),
+
           dom.input({
-            type: "checkbox",
-            checked: allocations.recording,
-            disabled: allocations.togglingInProgress,
-            onChange: onToggleRecordAllocationStacks,
-          }),
-          L10N.getStr("checkbox.recordAllocationStacks")
+            id: "filter",
+            type: "search",
+            placeholder: L10N.getStr("filter.placeholder"),
+            onChange: event => setFilterString(event.target.value),
+            value: !!filterString ? filterString : undefined,
+          })
         )
       )
     );

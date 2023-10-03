@@ -18,7 +18,7 @@ loader.lazyRequireGetter(this, "CSS", "CSS");
 loader.lazyGetter(this, "MarkupView", () => require("devtools/client/markupview/markup-view").MarkupView);
 loader.lazyGetter(this, "HTMLBreadcrumbs", () => require("devtools/client/inspector/breadcrumbs").HTMLBreadcrumbs);
 loader.lazyGetter(this, "ToolSidebar", () => require("devtools/client/framework/sidebar").ToolSidebar);
-loader.lazyGetter(this, "SelectorSearch", () => require("devtools/client/inspector/selector-search").SelectorSearch);
+loader.lazyGetter(this, "InspectorSearch", () => require("devtools/client/inspector/inspector-search").InspectorSearch);
 
 loader.lazyGetter(this, "strings", () => {
   return Services.strings.createBundle("chrome://devtools/locale/inspector.properties");
@@ -79,7 +79,21 @@ function InspectorPanel(iframeWindow, toolbox) {
   this.panelWin = iframeWindow;
   this.panelWin.inspector = this;
 
+  this.nodeMenuTriggerInfo = null;
+
   this._onBeforeNavigate = this._onBeforeNavigate.bind(this);
+  this.onNewRoot = this.onNewRoot.bind(this);
+  this._setupNodeMenu = this._setupNodeMenu.bind(this);
+  this._resetNodeMenu = this._resetNodeMenu.bind(this);
+  this._updateSearchResultsLabel = this._updateSearchResultsLabel.bind(this);
+  this.onNewSelection = this.onNewSelection.bind(this);
+  this.onBeforeNewSelection = this.onBeforeNewSelection.bind(this);
+  this.onDetached = this.onDetached.bind(this);
+  this.onToolboxHostChanged = this.onToolboxHostChanged.bind(this);
+  this.scheduleLayoutChange = this.scheduleLayoutChange.bind(this);
+  this.onPaneToggleButtonClicked = this.onPaneToggleButtonClicked.bind(this);
+  this._onMarkupFrameLoad = this._onMarkupFrameLoad.bind(this);
+
   this._target.on("will-navigate", this._onBeforeNavigate);
 
   EventEmitter.decorate(this);
@@ -140,31 +154,23 @@ InspectorPanel.prototype = {
   _deferredOpen: function(defaultSelection) {
     let deferred = promise.defer();
 
-    this.onNewRoot = this.onNewRoot.bind(this);
     this.walker.on("new-root", this.onNewRoot);
 
     this.nodemenu = this.panelDoc.getElementById("inspector-node-popup");
     this.lastNodemenuItem = this.nodemenu.lastChild;
-    this._setupNodeMenu = this._setupNodeMenu.bind(this);
-    this._resetNodeMenu = this._resetNodeMenu.bind(this);
     this.nodemenu.addEventListener("popupshowing", this._setupNodeMenu, true);
     this.nodemenu.addEventListener("popuphiding", this._resetNodeMenu, true);
 
-    this.onNewSelection = this.onNewSelection.bind(this);
     this.selection.on("new-node-front", this.onNewSelection);
-    this.onBeforeNewSelection = this.onBeforeNewSelection.bind(this);
     this.selection.on("before-new-node-front", this.onBeforeNewSelection);
-    this.onDetached = this.onDetached.bind(this);
     this.selection.on("detached-front", this.onDetached);
 
     this.breadcrumbs = new HTMLBreadcrumbs(this);
 
-    this.onToolboxHostChanged = this.onToolboxHostChanged.bind(this);
     this._toolbox.on("host-changed", this.onToolboxHostChanged);
 
     if (this.target.isLocalTab) {
       this.browser = this.target.tab.linkedBrowser;
-      this.scheduleLayoutChange = this.scheduleLayoutChange.bind(this);
       this.browser.addEventListener("resize", this.scheduleLayoutChange, true);
 
       // Show a warning when the debugger is paused.
@@ -310,13 +316,31 @@ InspectorPanel.prototype = {
    * Hooks the searchbar to show result and auto completion suggestions.
    */
   setupSearchBox: function() {
-    // Initiate the selectors search object.
-    if (this.searchSuggestions) {
-      this.searchSuggestions.destroy();
-      this.searchSuggestions = null;
-    }
     this.searchBox = this.panelDoc.getElementById("inspector-searchbox");
-    this.searchSuggestions = new SelectorSearch(this, this.searchBox);
+    this.searchResultsLabel = this.panelDoc.getElementById("inspector-searchlabel");
+
+    this.search = new InspectorSearch(this, this.searchBox);
+    this.search.on("search-cleared", this._updateSearchResultsLabel);
+    this.search.on("search-result", this._updateSearchResultsLabel);
+  },
+
+  get searchSuggestions() {
+    return this.search.autocompleter;
+  },
+
+  _updateSearchResultsLabel: function(event, result) {
+    let str = "";
+    if (event !== "search-cleared") {
+      if (result) {
+        str = strings.formatStringFromName(
+          "inspector.searchResultsCount2",
+          [result.resultsIndex + 1, result.resultsLength], 2);
+      } else {
+        str = strings.GetStringFromName("inspector.searchResultsNone");
+      }
+    }
+
+    this.searchResultsLabel.textContent = str;
   },
 
   /**
@@ -370,7 +394,6 @@ InspectorPanel.prototype = {
    */
   setupSidebarToggle: function() {
     this._paneToggleButton = this.panelDoc.getElementById("inspector-pane-toggle");
-    this.onPaneToggleButtonClicked = this.onPaneToggleButtonClicked.bind(this);
     this._paneToggleButton.addEventListener("mousedown",
       this.onPaneToggleButtonClicked);
     this.updatePaneToggleButton();
@@ -400,7 +423,6 @@ InspectorPanel.prototype = {
           return;
         }
         this.markup.expandNode(this.selection.nodeFront);
-        this.setupSearchBox();
         this.emit("new-root");
       });
     };
@@ -591,8 +613,6 @@ InspectorPanel.prototype = {
     this._paneToggleButton.removeEventListener("mousedown",
       this.onPaneToggleButtonClicked);
     this._paneToggleButton = null;
-    this.searchSuggestions.destroy();
-    this.searchBox = null;
     this.selection.off("new-node-front", this.onNewSelection);
     this.selection.off("before-new-node", this.onBeforeNewSelection);
     this.selection.off("before-new-node-front", this.onBeforeNewSelection);
@@ -603,10 +623,12 @@ InspectorPanel.prototype = {
     this.panelDoc = null;
     this.panelWin = null;
     this.breadcrumbs = null;
-    this.searchSuggestions = null;
     this.lastNodemenuItem = null;
     this.nodemenu = null;
     this._toolbox = null;
+    this.search.destroy();
+    this.search = null;
+    this.searchBox = null;
 
     this._panelDestroyer = promise.all([
       sidebarDestroyer,
@@ -649,9 +671,14 @@ InspectorPanel.prototype = {
   },
 
   /**
-   * Disable the delete item if needed. Update the pseudo classes.
+   * Update, enable, disable, hide, show any menu item depending on the current
+   * element.
    */
-  _setupNodeMenu: function() {
+  _setupNodeMenu: function(event) {
+    let markupContainer = this.markup.getContainer(this.selection.nodeFront);
+    this.nodeMenuTriggerInfo =
+      markupContainer.editor.getInfoAtNode(event.target.triggerNode);
+
     let isSelectionElement = this.selection.isElementNode() &&
                              !this.selection.isPseudoElementNode();
     let isEditableElement = isSelectionElement &&
@@ -694,9 +721,8 @@ InspectorPanel.prototype = {
     expandAll.setAttribute("disabled", "true");
     collapse.setAttribute("disabled", "true");
 
-    let markUpContainer = this.markup.importNode(this.selection.nodeFront, false);
-    if (this.selection.isNode() && markUpContainer.hasChildren) {
-      if (markUpContainer.expanded) {
+    if (this.selection.isNode() && markupContainer.hasChildren) {
+      if (markupContainer.expanded) {
         collapse.removeAttribute("disabled");
       }
       expandAll.removeAttribute("disabled");
@@ -772,11 +798,51 @@ InspectorPanel.prototype = {
     // Enable the "copy image data-uri" item if the selection is previewable
     // which essentially checks if it's an image or canvas tag
     let copyImageData = this.panelDoc.getElementById("node-menu-copyimagedatauri");
-    let markupContainer = this.markup.getContainer(this.selection.nodeFront);
     if (isSelectionElement && markupContainer && markupContainer.isPreviewable()) {
       copyImageData.removeAttribute("disabled");
     } else {
       copyImageData.setAttribute("disabled", "true");
+    }
+
+    // Enable / disable "Add Attribute", "Edit Attribute"
+    // and "Remove Attribute" items
+    this._setupAttributeMenu(isEditableElement);
+  },
+
+  _setupAttributeMenu: function(isEditableElement) {
+    let addAttribute = this.panelDoc.getElementById("node-menu-add-attribute");
+    let editAttribute = this.panelDoc.getElementById("node-menu-edit-attribute");
+    let removeAttribute = this.panelDoc.getElementById("node-menu-remove-attribute");
+    let nodeInfo = this.nodeMenuTriggerInfo;
+
+    // Enable "Add Attribute" for all editable elements
+    if (isEditableElement) {
+      addAttribute.removeAttribute("disabled");
+    } else {
+      addAttribute.setAttribute("disabled", "true");
+    }
+
+    // Enable "Edit Attribute" and "Remove Attribute" only on attribute click
+    if (isEditableElement && nodeInfo && nodeInfo.type === "attribute") {
+      editAttribute.removeAttribute("disabled");
+      editAttribute.setAttribute("label",
+        strings.formatStringFromName(
+          "inspector.menu.editAttribute.label", [`"${nodeInfo.name}"`], 1));
+
+      removeAttribute.removeAttribute("disabled");
+      removeAttribute.setAttribute("label",
+        strings.formatStringFromName(
+          "inspector.menu.removeAttribute.label", [`"${nodeInfo.name}"`], 1));
+    } else {
+      editAttribute.setAttribute("disabled", "true");
+      editAttribute.setAttribute("label",
+        strings.formatStringFromName(
+          "inspector.menu.editAttribute.label", [''], 1));
+
+      removeAttribute.setAttribute("disabled", "true");
+      removeAttribute.setAttribute("label",
+        strings.formatStringFromName(
+          "inspector.menu.removeAttribute.label", [''], 1));
     }
   },
 
@@ -857,8 +923,7 @@ InspectorPanel.prototype = {
     this._markupFrame.setAttribute("context", "inspector-node-popup");
 
     // This is needed to enable tooltips inside the iframe document.
-    this._boundMarkupFrameLoad = this._onMarkupFrameLoad.bind(this);
-    this._markupFrame.addEventListener("load", this._boundMarkupFrameLoad, true);
+    this._markupFrame.addEventListener("load", this._onMarkupFrameLoad, true);
 
     this._markupBox.setAttribute("collapsed", true);
     this._markupBox.appendChild(this._markupFrame);
@@ -867,8 +932,7 @@ InspectorPanel.prototype = {
   },
 
   _onMarkupFrameLoad: function() {
-    this._markupFrame.removeEventListener("load", this._boundMarkupFrameLoad, true);
-    delete this._boundMarkupFrameLoad;
+    this._markupFrame.removeEventListener("load", this._onMarkupFrameLoad, true);
 
     this._markupFrame.contentWindow.focus();
 
@@ -883,9 +947,8 @@ InspectorPanel.prototype = {
   _destroyMarkup: function() {
     let destroyPromise;
 
-    if (this._boundMarkupFrameLoad) {
-      this._markupFrame.removeEventListener("load", this._boundMarkupFrameLoad, true);
-      this._boundMarkupFrameLoad = null;
+    if (this._markupFrame) {
+      this._markupFrame.removeEventListener("load", this._onMarkupFrameLoad, true);
     }
 
     if (this.markup) {
@@ -1196,6 +1259,33 @@ InspectorPanel.prototype = {
       // remove the node from content
       this.walker.removeNode(this.selection.nodeFront);
     }
+  },
+
+  /**
+   * Add attribute to node.
+   * Used for node context menu and shouldn't be called directly.
+   */
+  onAddAttribute: function() {
+    let container = this.markup.getContainer(this.selection.nodeFront);
+    container.addAttribute();
+  },
+
+  /**
+   * Edit attribute for node.
+   * Used for node context menu and shouldn't be called directly.
+   */
+  onEditAttribute: function() {
+    let container = this.markup.getContainer(this.selection.nodeFront);
+    container.editAttribute(this.nodeMenuTriggerInfo.name);
+  },
+
+  /**
+   * Remove attribute from node.
+   * Used for node context menu and shouldn't be called directly.
+   */
+  onRemoveAttribute: function() {
+    let container = this.markup.getContainer(this.selection.nodeFront);
+    container.removeAttribute(this.nodeMenuTriggerInfo.name);
   },
 
   expandNode: function() {

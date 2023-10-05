@@ -3079,6 +3079,8 @@ const BrowserSearch = {
   },
 };
 
+XPCOMUtils.defineConstant(this, "BrowserSearch", BrowserSearch);
+
 function FillHistoryMenu(aParent) {
   // Lazily add the hover listeners on first showing and never remove them
   if (!aParent.hasStatusListener) {

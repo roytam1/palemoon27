@@ -100,7 +100,9 @@ function DownloadElementShell(aDataItem, aPlacesNode, aAnnotations) {
 
 DownloadElementShell.prototype = {
   // The richlistitem for the download
-  get element() this._element,
+  get element() {
+    return this._element;
+  },
 
   /**
    * Manages the "active" state of the shell.  By default all the shells
@@ -115,11 +117,15 @@ DownloadElementShell.prototype = {
       this._updateUI();
     }
   },
-  get active() !!this._active,
+  get active() {
+    return !!this._active;
+  },
 
   // The data item for the download
   _dataItem: null,
-  get dataItem() this._dataItem,
+  get dataItem() {
+    return this._dataItem;
+  },
 
   set dataItem(aValue) {
     if (this._dataItem != aValue) {
@@ -136,7 +142,9 @@ DownloadElementShell.prototype = {
   },
 
   _placesNode: null,
-  get placesNode() this._placesNode,
+  get placesNode() {
+    return this._placesNode;
+  },
   set placesNode(aValue) {
     if (this._placesNode != aValue) {
       if (!aValue && !this._dataItem)
@@ -277,8 +285,9 @@ DownloadElementShell.prototype = {
     );
   },
 
-  _getAnnotatedMetaData: function DES__getAnnotatedMetaData()
-    JSON.parse(this._getAnnotation(DOWNLOAD_META_DATA_ANNO)),
+  _getAnnotatedMetaData: function DES__getAnnotatedMetaData() {
+    return JSON.parse(this._getAnnotation(DOWNLOAD_META_DATA_ANNO));
+  },
 
   _extractFilePathAndNameFromFileURI:
   function DES__extractFilePathAndNameFromFileURI(aFileURI) {
@@ -818,9 +827,13 @@ function DownloadsPlacesView(aRichListBox, aActive = true) {
 }
 
 DownloadsPlacesView.prototype = {
-  get associatedElement() this._richlistbox,
+  get associatedElement() {
+    return this._richlistbox;
+  },
 
-  get active() this._active,
+  get active() {
+    return this._active;
+  },
   set active(val) {
     this._active = val;
     if (this._active)
@@ -1119,7 +1132,9 @@ DownloadsPlacesView.prototype = {
   },
 
   _place: "",
-  get place() this._place,
+  get place() {
+    return this._place;
+  },
   set place(val) {
     // Don't reload everything if we don't have to.
     if (this._place == val) {
@@ -1143,7 +1158,9 @@ DownloadsPlacesView.prototype = {
   },
 
   _result: null,
-  get result() this._result,
+  get result() {
+    return this._result;
+  },
   set result(val) {
     if (this._result == val)
       return val;
@@ -1168,9 +1185,12 @@ DownloadsPlacesView.prototype = {
   },
 
   get selectedNodes() {
-    return [for (element of this._richlistbox.selectedItems)
-            if (element._shell.placesNode)
-            element._shell.placesNode];
+    let _selectedNodes = [];
+    for (element of this._richlistbox.selectedItems) {
+        if (element._shell.placesNode)
+            _selectedNodes.push(element._shell.placesNode);
+    }
+    return _selectedNodes;
   },
 
   get selectedNode() {
@@ -1356,8 +1376,9 @@ DownloadsPlacesView.prototype = {
     this._removeSessionDownloadFromView(aDataItem);
   },
 
-  getViewItem: function(aDataItem)
-    this._viewItemsForDataItems.get(aDataItem, null),
+  getViewItem: function(aDataItem) {
+    return this._viewItemsForDataItems.get(aDataItem, null);
+  },
 
   supportsCommand: function DPV_supportsCommand(aCommand) {
     if (DOWNLOAD_VIEW_SUPPORTED_COMMANDS.indexOf(aCommand) != -1) {
@@ -1407,8 +1428,10 @@ DownloadsPlacesView.prototype = {
 
   _copySelectedDownloadsToClipboard:
   function DPV__copySelectedDownloadsToClipboard() {
-    let urls = [for (element of this._richlistbox.selectedItems)
-                element._shell.downloadURI];
+    let urls = [];
+    for (element of this._richlistbox.selectedItems) {
+        urls.push(element._shell.downloadURI);
+    }
 
     Cc["@mozilla.org/widget/clipboardhelper;1"]
       .getService(Ci.nsIClipboardHelper)

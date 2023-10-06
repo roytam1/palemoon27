@@ -22,7 +22,7 @@ var promise = require("promise");
 var EventEmitter = require("devtools/shared/event-emitter");
 var Telemetry = require("devtools/client/shared/telemetry");
 var HUDService = require("devtools/client/webconsole/hudservice");
-var sourceUtils = require("devtools/client/shared/source-utils");
+var viewSource = require("devtools/client/shared/view-source");
 
 Cu.import("resource://gre/modules/Services.jsm");
 Cu.import("resource://devtools/client/framework/gDevTools.jsm");
@@ -334,6 +334,17 @@ Toolbox.prototype = {
   get splitConsole() {
     return this._splitConsole;
   },
+  /**
+   * Get the focused state of the split console
+   */
+  isSplitConsoleFocused: function() {
+    if (!this._splitConsole) {
+      return false;
+    }
+    let focusedWin = Services.focus.focusedWindow;
+    return focusedWin && focusedWin ===
+      this.doc.querySelector("#toolbox-panel-iframe-webconsole").contentWindow;
+  },
 
   /**
    * Open the toolbox
@@ -488,6 +499,28 @@ Toolbox.prototype = {
         e.preventDefault();
       }
     }
+  },
+  /**
+   * Add a shortcut key that should work when a split console
+   * has focus to the toolbox.
+   *
+   * @param {element} keyElement
+   *        They <key> XUL element describing the shortcut key
+   * @param {string} whichTool
+   *        The tool the key belongs to. The corresponding command
+   *        will only trigger if this tool is active.
+   */
+  useKeyWithSplitConsole: function(keyElement, whichTool) {
+    let cloned = keyElement.cloneNode();
+    cloned.setAttribute("oncommand", "void(0)");
+    cloned.removeAttribute("command");
+    cloned.addEventListener("command", (e) => {
+      // Only forward the command if the tool is active
+      if (this.currentToolId === whichTool && this.isSplitConsoleFocused()) {
+        keyElement.doCommand();
+      }
+    }, true);
+    this.doc.getElementById("toolbox-keyset").appendChild(cloned);
   },
 
   _addReloadKeys: function() {
@@ -2109,7 +2142,7 @@ Toolbox.prototype = {
    * @see devtools/client/shared/source-utils.js
    */
   viewSourceInStyleEditor: function(sourceURL, sourceLine) {
-    return sourceUtils.viewSourceInStyleEditor(this, sourceURL, sourceLine);
+    return viewSource.viewSourceInStyleEditor(this, sourceURL, sourceLine);
   },
 
   /**
@@ -2117,7 +2150,7 @@ Toolbox.prototype = {
    * @see devtools/client/shared/source-utils.js
    */
   viewSourceInDebugger: function(sourceURL, sourceLine) {
-    return sourceUtils.viewSourceInDebugger(this, sourceURL, sourceLine);
+    return viewSource.viewSourceInDebugger(this, sourceURL, sourceLine);
   },
 
   /**
@@ -2130,7 +2163,7 @@ Toolbox.prototype = {
    * @see devtools/client/shared/source-utils.js
    */
   viewSourceInScratchpad: function(sourceURL, sourceLine) {
-    return sourceUtils.viewSourceInScratchpad(sourceURL, sourceLine);
+    return viewSource.viewSourceInScratchpad(sourceURL, sourceLine);
   },
 
   /**
@@ -2138,6 +2171,6 @@ Toolbox.prototype = {
    * @see devtools/client/shared/source-utils.js
    */
   viewSource: function(sourceURL, sourceLine) {
-    return sourceUtils.viewSource(this, sourceURL, sourceLine);
+    return viewSource.viewSource(this, sourceURL, sourceLine);
   },
 };

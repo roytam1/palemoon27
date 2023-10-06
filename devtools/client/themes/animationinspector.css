@@ -106,21 +106,6 @@ body {
   border-width: 0 1px 0 0;
 }
 
-.devtools-button {
-  position: relative;
-}
-
-.devtools-button::before {
-  content: "";
-  display: block;
-  width: 16px;
-  height: 16px;
-  position: absolute;
-  left: 50%;
-  top: 50%;
-  margin: -8px 0 0 -8px;
-}
-
 #element-picker::before {
   background-image: url("chrome://devtools/skin/images/command-pick.png");
 }
@@ -133,11 +118,6 @@ body {
   background-image: url("images/rewind.png");
 }
 
-#element-picker[checked]::before {
-  background-position: -48px 0;
-  filter: none; /* Icon is blue when checked, don't invert for light theme */
-}
-
 .pause-button.paused::before {
   background-image: url("images/debugger-play.png");
 }
@@ -145,7 +125,6 @@ body {
 @media (min-resolution: 1.1dppx) {
   #element-picker::before {
     background-image: url("chrome://devtools/skin/images/command-pick@2x.png");
-    background-size: 64px;
   }
 
   .pause-button::before {
@@ -418,12 +397,12 @@ body {
 }
 
 .animation-target .node-highlighter:hover {
-  background-position: -32px 0;
+  filter: url(images/filters.svg#checked-icon-state);
 }
 
 .animation-target .node-highlighter:active,
 .animation-target .node-highlighter.selected {
-  background-position: -16px 0;
+  filter: url(images/filters.svg#checked-icon-state) brightness(0.9);
 }
 
 /* Animation title gutter, contains the name, duration, iteration */

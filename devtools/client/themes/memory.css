@@ -53,17 +53,33 @@ html, body, #app, #memory-tool {
   align-items: center;
 }
 
+.devtools-toolbar > .toolbar-group:nth-of-type(1) {
+  /**
+   * We want this to be exactly at a `--sidebar-width` distance from the
+   * toolbar's start boundary. A `.devtools-toolbar` has a 3px start padding.
+   */
+  flex: 0 0 calc(var(--sidebar-width) - 3px);
+  border-inline-end: 1px solid var(--theme-splitter-color);
+  margin-inline-end: 5px;
+}
+
 .devtools-toolbar > .toolbar-group {
   /**
-   * We want this to be exactly at a --sidebar-width distance from the
-   * toolbar's start boundary. A .devtools-toolbar has a 3px start padding
-   * and the preceeding .take-snapshot button is exactly 32px.
+   * Flex: contains several children, which need to be laid out horizontally,
+   * and aligned vertically in the middle of the container.
    */
-  margin-inline-start: calc(var(--sidebar-width) - 3px - 32px);
-  border-inline-start: 1px solid var(--theme-splitter-color);
-  padding-inline-start: 5px;
+  display: flex;
+  align-items: center;
+  flex: 1;
+}
 
 .devtools-toolbar > .toolbar-group > label {
+  /**
+   * Flex: contains form controls and text, which need to be laid out
+   * horizontally, vertically aligned in the middle of the container.
+   */
+  display: flex;
+  align-items: center;
   margin-inline-end: 5px;
 }
 
@@ -71,27 +87,42 @@ html, body, #app, #memory-tool {
   margin-inline-end: 5px;
 }
 
-.devtools-toolbar > .devtools-button.take-snapshot::before {
+.devtools-toolbar > label {
+  margin-inline-end: 5px;
+}
+
+#select-view {
+  margin-inline-start: 5px;
+}
+
+#take-snapshot::before {
   background-image: url(images/command-screenshot.png);
-  background-size: 64px 16px;
-  background-position: 0 center;
 }
 @media (min-resolution: 1.1dppx) {
-  .devtools-toolbar > .devtools-button.take-snapshot::before {
+  #take-snapshot::before {
     background-image: url(images/command-screenshot@2x.png);
   }
 }
 
 /**
- * TODO bug 1213100
- * Once we figure out how to store invertable buttons (pseudo element like in
- * this case?) we should add a .invertable class to handle this generally,
- * rather than the definitions in toolbars.css.
- *
- * @see bug 1173397 for another inverted related bug
+ * Due to toolbar styles of `.devtools-toolbarbutton:not([label])` which overrides
+ * .devtools-toolbarbutton's min-width of 78px, reset the min-width.
  */
-.theme-light .devtools-toolbar > .devtools-toolbarbutton.take-snapshot::before {
-  filter: url(images/filters.svg#invert);
+#import-snapshot {
+  min-width: 78px;
+}
+
+#diff-snapshots[disabled] {
+  opacity: .5;
+}
+
+.spacer {
+  flex: 1;
+}
+
+#filter {
+  align-self: stretch;
+  margin: 2px;
 }
 
 /**
@@ -133,6 +164,7 @@ html, body, #app, #memory-tool {
  */
 
 .list {
+  min-width: var(--sidebar-width);
   width: var(--sidebar-width);
   overflow-y: auto;
   margin: 0;
@@ -150,7 +182,6 @@ html, body, #app, #memory-tool {
   color: var(--theme-body-color);
   border-bottom: 1px solid rgba(128,128,128,0.15);
   padding: 8px;
-  cursor: pointer;
 }
 
 .snapshot-list-item.selected {
@@ -158,8 +189,24 @@ html, body, #app, #memory-tool {
   color: var(--theme-selection-color);
 }
 
+.snapshot-list-item .snapshot-info {
+  display: flex;
+  justify-content: space-between;
+  font-size: 90%;
+}
+
+.snapshot-list-item .save {
+  text-decoration: underline;
+  cursor: pointer;
+}
+
 .snapshot-list-item > .snapshot-title {
   margin-bottom: 14px;
+}
+
+.snapshot-list-item > .snapshot-title > input[type=checkbox] {
+  margin: 0;
+  margin-inline-end: 5px;
 }
 
 .snapshot-list-item > .snapshot-state,
@@ -190,6 +237,7 @@ html, body, #app, #memory-tool {
    */
   flex: 1;
   background-color: var(--theme-toolbar-background);
+  min-width: 400px;
 }
 
 #heap-view > .heap-view-panel {
@@ -247,7 +295,6 @@ html, body, #app, #memory-tool {
   text-overflow: ellipsis;
   line-height: var(--heap-tree-header-height);
   justify-content: center;
-  font-size: 90%;
   white-space: nowrap;
 }
 
@@ -313,12 +360,12 @@ html, body, #app, #memory-tool {
 
 .heap-tree-item-count,
 .heap-tree-item-total-count {
-  width: 8vw;
+  width: 10%;
 }
 
 .heap-tree-item-bytes,
 .heap-tree-item-total-bytes {
-  width: 8vw;
+  width: 10%;
 }
 
 .heap-tree-item-name {
@@ -328,7 +375,6 @@ html, body, #app, #memory-tool {
    */
   display: flex;
   align-items: center;
-  flex: 1;
   /**
    * Flexing to fill out remaining vertical space.
    * @see .header and .heap-tree-item */
@@ -356,10 +402,11 @@ html, body, #app, #memory-tool {
 .heap-tree-number {
   flex: 1;
   color: var(--theme-content-color3);
+  padding-right: 5px;
 }
 
 .heap-tree-percent {
-  width: 2.5em;
+  flex: 0 0 3.5em;
 }
 
 .heap-tree-item.focused .heap-tree-number,
@@ -397,6 +444,14 @@ html, body, #app, #memory-tool {
 /**
  * Frame View components
  */
+
+.separator,
+.not-available,
+.heap-tree-item-address {
+  opacity: .5;
+  margin-left: .5em;
+  margin-right: .5em;
+}
 
 .focused .frame-link-filename,
 .focused .frame-link-column,

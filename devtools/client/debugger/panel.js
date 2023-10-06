@@ -57,6 +57,15 @@ DebuggerPanel.prototype = {
         this._toolbox.on("host-changed", this.handleHostChanged);
         this.target.on("thread-paused", this.highlightWhenPaused);
         this.target.on("thread-resumed", this.unhighlightWhenResumed);
+        // Add keys from this document's keyset to the toolbox, so they
+        // can work when the split console is focused.
+        let keysToClone = ["resumeKey", "resumeKey2", "stepOverKey",
+                          "stepOverKey2", "stepInKey", "stepInKey2",
+                          "stepOutKey", "stepOutKey2"];
+        for (let key of keysToClone) {
+          let elm = this.panelWin.document.getElementById(key);
+          this._toolbox.useKeyWithSplitConsole(elm, "jsdebugger");
+        }
         this.isReady = true;
         this.emit("ready");
         return this;
@@ -92,12 +101,24 @@ DebuggerPanel.prototype = {
 
   // DebuggerPanel API
 
-  addBreakpoint: function(aLocation, aOptions) {
-    return this._controller.Breakpoints.addBreakpoint(aLocation, aOptions);
+  addBreakpoint: function(location) {
+    const { actions } = this.panelWin;
+    const { dispatch } =  this._controller;
+
+    return dispatch(actions.addBreakpoint(location));
   },
 
-  removeBreakpoint: function(aLocation) {
-    return this._controller.Breakpoints.removeBreakpoint(aLocation);
+  removeBreakpoint: function(location) {
+    const { actions } = this.panelWin;
+    const { dispatch } =  this._controller;
+
+    return dispatch(actions.removeBreakpoint(location));
+  },
+
+  blackbox: function(source, flag) {
+    const { actions } = this.panelWin;
+    const { dispatch } =  this._controller;
+    return dispatch(actions.blackbox(source, flag))
   },
 
   handleHostChanged: function() {

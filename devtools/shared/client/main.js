@@ -81,11 +81,17 @@ function eventSource(aProto) {
    *        times, all instances will be removed.
    */
   aProto.removeListener = function (aName, aListener) {
-    if (!this._listeners || !this._listeners[aName]) {
+    if (!this._listeners || (aListener && !this._listeners[aName])) {
       return;
     }
-    this._listeners[aName] =
-      this._listeners[aName].filter(function (l) { return l != aListener });
+
+    if (!aListener) {
+      this._listeners[aName] = [];
+    }
+    else {
+      this._listeners[aName] =
+        this._listeners[aName].filter(function (l) { return l != aListener });
+    }
   };
 
   /**
@@ -1346,20 +1352,36 @@ WorkerClient.prototype = {
       DevToolsUtils.executeSoon(() => aOnResponse({
         type: "connected",
         threadActor: this.thread._actor,
+        consoleActor: this.consoleActor,
       }, this.thread));
       return;
     }
 
+    // The connect call on server doesn't attach the thread as of version 44.
     this.request({
       to: this._actor,
       type: "connect",
       options: aOptions,
-    }, (aResponse) => {
-      if (!aResponse.error) {
-        this.thread = new ThreadClient(this, aResponse.threadActor);
-        this.client.registerClient(this.thread);
+    }, (connectReponse) => {
+      if (connectReponse.error) {
+        aOnResponse(connectReponse, null);
+        return;
       }
-      aOnResponse(aResponse, this.thread);
+
+      this.request({
+        to: connectReponse.threadActor,
+        type: "attach"
+      }, (attachResponse) => {
+        if (attachResponse.error) {
+          aOnResponse(attachResponse, null);
+        }
+
+        this.thread = new ThreadClient(this, connectReponse.threadActor);
+        this.consoleActor = connectReponse.consoleActor;
+        this.client.registerClient(this.thread);
+
+        aOnResponse(connectReponse, this.thread);
+      });
     });
   },
 

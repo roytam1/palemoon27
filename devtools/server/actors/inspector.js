@@ -138,7 +138,7 @@ loader.lazyGetter(this, "eventListenerService", function() {
            .getService(Ci.nsIEventListenerService);
 });
 
-loader.lazyGetter(this, "CssLogic", () => require("devtools/shared/styleinspector/css-logic").CssLogic);
+loader.lazyGetter(this, "CssLogic", () => require("devtools/shared/inspector/css-logic").CssLogic);
 
 // XXX: A poor man's makeInfallible until we move it out of transport.js
 // Which should be very soon.
@@ -422,7 +422,11 @@ var NodeActor = exports.NodeActor = protocol.ActorClass({
     if (!this.rawNode.attributes) {
       return undefined;
     }
-    return [...this.rawNode.attributes].map(attr => {
+
+    // The NamedNodeMap implementation in Firefox (returned by
+    // node.attributes) gives attributes in the reverse order compared
+    // to the source file when iterated. So reverse the list here.
+    return [...this.rawNode.attributes].reverse().map(attr => {
       return {namespace: attr.namespace, name: attr.name, value: attr.value };
     });
   },
@@ -1268,29 +1272,36 @@ var WalkerActor = protocol.ActorClass({
   typeName: "domwalker",
 
   events: {
-    "new-mutations" : {
+    "new-mutations": {
       type: "newMutations"
     },
-    "picker-node-picked" : {
+    "picker-node-picked": {
       type: "pickerNodePicked",
       node: Arg(0, "disconnectedNode")
     },
-    "picker-node-hovered" : {
+    "picker-node-hovered": {
       type: "pickerNodeHovered",
       node: Arg(0, "disconnectedNode")
     },
-    "picker-node-canceled" : {
+    "picker-node-canceled": {
       type: "pickerNodeCanceled"
     },
-    "highlighter-ready" : {
+    "highlighter-ready": {
       type: "highlighter-ready"
     },
-    "highlighter-hide" : {
+    "highlighter-hide": {
       type: "highlighter-hide"
     },
-    "display-change" : {
+    "display-change": {
       type: "display-change",
       nodes: Arg(0, "array:domnode")
+    },
+    // The walker actor emits a useful "resize" event to its front to let
+    // clients know when the browser window gets resized. This may be useful
+    // for refreshing a DOM node's styles for example, since those may depend on
+    // media-queries.
+    "resize": {
+      type: "resize"
     }
   },
 
@@ -1332,9 +1343,11 @@ var WalkerActor = protocol.ActorClass({
     // managed.
     this.rootNode = this.document();
 
-    this.reflowObserver = getLayoutChangesObserver(this.tabActor);
+    this.layoutChangeObserver = getLayoutChangesObserver(this.tabActor);
     this._onReflows = this._onReflows.bind(this);
-    this.reflowObserver.on("reflows", this._onReflows);
+    this.layoutChangeObserver.on("reflows", this._onReflows);
+    this._onResize = this._onResize.bind(this);
+    this.layoutChangeObserver.on("resize", this._onResize);
   },
 
   // Returns the JSON representation of this object over the wire.
@@ -1395,9 +1408,10 @@ var WalkerActor = protocol.ActorClass({
       this.onFrameUnload = null;
 
       this.walkerSearch.destroy();
-      this.reflowObserver.off("reflows", this._onReflows);
-      this.reflowObserver = null;
-      this._onReflows = null;
+
+      this.layoutChangeObserver.off("reflows", this._onReflows);
+      this.layoutChangeObserver.off("resize", this._onResize);
+      this.layoutChangeObserver = null;
       releaseLayoutChangesObserver(this.tabActor);
 
       this.onMutations = null;
@@ -1465,6 +1479,13 @@ var WalkerActor = protocol.ActorClass({
     if (changes.length) {
       events.emit(this, "display-change", changes);
     }
+  },
+
+  /**
+   * When the browser window gets resized, relay the event to the front.
+   */
+  _onResize: function() {
+    events.emit(this, "resize");
   },
 
   /**
@@ -2197,7 +2218,7 @@ var WalkerActor = protocol.ActorClass({
           sugs.ids.set(node.id, (sugs.ids.get(node.id)|0) + 1);
           let tag = node.tagName.toLowerCase();
           sugs.tags.set(tag, (sugs.tags.get(tag)|0) + 1);
-          for (let className of node.className.split(" ")) {
+          for (let className of node.classList) {
             sugs.classes.set(className, (sugs.classes.get(className)|0) + 1);
           }
         }
@@ -2708,7 +2729,23 @@ var WalkerActor = protocol.ActorClass({
       return null;
     }
 
-    parent.rawNode.insertBefore(node.rawNode, sibling ? sibling.rawNode : null);
+    let rawNode = node.rawNode;
+    let rawParent = parent.rawNode;
+    let rawSibling = sibling ? sibling.rawNode : null;
+
+    // Don't bother inserting a node if the document position isn't going
+    // to change. This prevents needless iframes reloading and mutations.
+    if (rawNode.parentNode === rawParent) {
+      let currentNextSibling = this.nextSibling(node);
+      currentNextSibling = currentNextSibling ? currentNextSibling.rawNode :
+                                                null;
+
+      if (rawNode === rawSibling || currentNextSibling === rawSibling) {
+        return;
+      }
+    }
+
+    rawParent.insertBefore(rawNode, rawSibling);
   }, {
     request: {
       node: Arg(0, "domnode"),
@@ -3656,6 +3693,7 @@ var AttributeModificationList = Class({
  */
 var InspectorActor = exports.InspectorActor = protocol.ActorClass({
   typeName: "inspector",
+
   initialize: function(conn, tabActor) {
     protocol.Actor.prototype.initialize.call(this, conn);
     this.tabActor = tabActor;
@@ -3663,6 +3701,7 @@ var InspectorActor = exports.InspectorActor = protocol.ActorClass({
 
   destroy: function () {
     protocol.Actor.prototype.destroy.call(this);
+
     this._highlighterPromise = null;
     this._pageStylePromise = null;
     this._walkerPromise = null;

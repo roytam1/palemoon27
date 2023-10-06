@@ -67,9 +67,15 @@ handlers[actions.TAKE_CENSUS_START] = function (snapshots, { id, breakdown, inve
   });
 };
 
-handlers[actions.TAKE_CENSUS_END] = function (snapshots, { id, report, breakdown, inverted, filter }) {
+handlers[actions.TAKE_CENSUS_END] = function (snapshots, { id,
+                                                           report,
+                                                           parentMap,
+                                                           breakdown,
+                                                           inverted,
+                                                           filter }) {
   const census = {
     report,
+    parentMap,
     expanded: new Set(),
     breakdown,
     inverted,
@@ -136,6 +142,14 @@ handlers[actions.FOCUS_CENSUS_NODE] = function (snapshots, { id, node }) {
 
 handlers[actions.SELECT_SNAPSHOT] = function (snapshots, { id }) {
   return snapshots.map(s => immutableUpdate(s, { selected: s.id === id }));
+};
+
+handlers[actions.DELETE_SNAPSHOTS_START] = function (snapshots, { ids }) {
+  return snapshots.filter(s => ids.indexOf(s.id) === -1);
+};
+
+handlers[actions.DELETE_SNAPSHOTS_END] = function (snapshots) {
+  return snapshots;
 };
 
 handlers[actions.CHANGE_VIEW] = function (snapshots, { view }) {

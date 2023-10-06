@@ -203,6 +203,7 @@ const Tree = module.exports = createClass({
 
   componentWillReceiveProps(nextProps) {
     this._autoExpand();
+    this._updateHeight();
   },
 
   _autoExpand() {
@@ -223,7 +224,7 @@ const Tree = module.exports = createClass({
       this.state.seen.add(item);
 
       for (let child of this.props.getChildren(item)) {
-        autoExpand(item, currentDepth + 1);
+        autoExpand(child, currentDepth + 1);
       }
     };
 
@@ -424,6 +425,11 @@ const Tree = module.exports = createClass({
    */
   _onKeyDown(e) {
     if (this.props.focused == null) {
+      return;
+    }
+
+    // Allow parent nodes to use navigation arrows with modifiers.
+    if (e.altKey || e.ctrlKey || e.shiftKey || e.metaKey) {
       return;
     }
 

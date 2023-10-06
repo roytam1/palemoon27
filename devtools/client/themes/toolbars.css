@@ -337,7 +337,8 @@
   background-image: url(images/magnifying-glass-light.png);
 }
 
-.devtools-searchinput:-moz-locale-dir(rtl) {
+.devtools-searchinput:-moz-locale-dir(rtl),
+.devtools-searchinput:-moz-dir(rtl) {
   background-position: calc(100% - 8px) center;
 }
 
@@ -362,6 +363,7 @@
 .devtools-rule-searchbox[filled] {
   background-color: var(--searchbox-background-color);
   border-color: var(--searchbox-border-color);
+  -moz-padding-end: 23px;
 }
 
 .devtools-style-searchbox-no-match {
@@ -384,6 +386,11 @@
   background-position: 0 0;
   background-repeat: no-repeat;
   background-color: transparent;
+}
+
+.devtools-searchinput-clear:-moz-dir(rtl) {
+  right: unset;
+  left: 7px;
 }
 
 .theme-dark .devtools-searchinput-clear {
@@ -703,6 +710,11 @@
   background-image: url("chrome://devtools/skin/images/command-pick.png");
 }
 
+:root.theme-emoji #command-button-pick > image {
+  background-image: url("chrome://devtools/skin/images/emojis/emoji-command-pick.svg");
+  filter: none;
+}
+
 #command-button-frames > image {
   background-image: url("chrome://devtools/skin/images/command-frames.png");
 }
@@ -854,6 +866,10 @@
   width: 16px; /* Prevents collapse during theme switching */
 }
 
+:root.theme-emoji .devtools-tab > image {
+  opacity: 0.8;
+}
+
 .devtools-tab > label {
   white-space: nowrap;
 }
@@ -953,7 +969,8 @@
 /* Since selected backgrounds are blue, we want to use the normal
  * (light) icons. */
 .theme-light .devtools-tab[icon-invertable][selected] > image,
-.theme-light .devtools-tab[icon-invertable][highlighted] > image {
+.theme-light .devtools-tab[icon-invertable][highlighted] > image,
+:root.theme-emoji .devtools-tab[icon-invertable] > image {
   filter: none !important;
 }
 

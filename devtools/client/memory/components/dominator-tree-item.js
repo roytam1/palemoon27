@@ -4,7 +4,7 @@
 
 const { assert, isSavedFrame } = require("devtools/shared/DevToolsUtils");
 const { DOM: dom, createClass, createFactory, PropTypes } = require("devtools/client/shared/vendor/react");
-const { L10N } = require("../utils");
+const { L10N, formatNumber, formatPercent } = require("../utils");
 const Frame = createFactory(require("devtools/client/shared/components/frame"));
 const { TREE_ROW_HEIGHT } = require("../constants");
 
@@ -28,23 +28,10 @@ const DominatorTreeItem = module.exports = createClass({
     onViewSourceInDebugger: PropTypes.func.isRequired,
   },
 
-  formatPercent(percent) {
-    return L10N.getFormatStr("tree-item.percent",
-                             this.formatNumber(percent));
-  },
-
-  formatNumber(number) {
-    const rounded = Math.round(number);
-    if (rounded === 0 || rounded === -0) {
-      return "0";
-    }
-
-    return String(Math.abs(rounded));
-  },
-
   shouldComponentUpdate(nextProps, nextState) {
     return this.props.item != nextProps.item
       || this.props.depth != nextProps.depth
+      || this.props.expanded != nextProps.expanded
       || this.props.focused != nextProps.focused;
   },
 
@@ -58,11 +45,11 @@ const DominatorTreeItem = module.exports = createClass({
       onViewSourceInDebugger,
     } = this.props;
 
-    const retainedSize = this.formatNumber(item.retainedSize);
-    const percentRetainedSize = this.formatPercent(getPercentSize(item.retainedSize));
+    const retainedSize = formatNumber(item.retainedSize);
+    const percentRetainedSize = formatPercent(getPercentSize(item.retainedSize));
 
-    const shallowSize = this.formatNumber(item.shallowSize);
-    const percentShallowSize = this.formatPercent(getPercentSize(item.shallowSize));
+    const shallowSize = formatNumber(item.shallowSize);
+    const percentShallowSize = formatPercent(getPercentSize(item.shallowSize));
 
     // Build up our label UI as an array of each label piece, which is either a
     // string or a frame, and separators in between them.
@@ -84,7 +71,8 @@ const DominatorTreeItem = module.exports = createClass({
         label[i * 2] = Frame({
           key,
           onClick: () => onViewSourceInDebugger(piece),
-          frame: piece
+          frame: piece,
+          showFunctionName: true
         });
       } else if (piece === "noStack") {
         label[i * 2] = dom.span({ key, className: "not-available" },
@@ -92,6 +80,12 @@ const DominatorTreeItem = module.exports = createClass({
       } else if (piece === "noFilename") {
         label[i * 2] = dom.span({ key, className: "not-available" },
                                 L10N.getStr("tree-item.nofilename"));
+      } else if (piece === "JS::ubi::RootList") {
+        // Don't use the usual labeling machinery for root lists: replace it
+        // with the "GC Roots" string.
+        label.splice(0, label.length);
+        label.push(L10N.getStr("tree-item.rootlist"));
+        break;
       } else {
         label[i * 2] = piece;
       }

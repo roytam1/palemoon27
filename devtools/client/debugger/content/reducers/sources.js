@@ -21,15 +21,19 @@ function update(state = initialState, action, emitChange) {
     return mergeIn(state, ['sources', action.source.actor], action.source);
 
   case constants.LOAD_SOURCES:
-    if (action.status === 'done') {
-      // We don't need to actually load the sources into the state.
-      // Loading sources actually forces the server to emit several
-      // individual newSources packets which will eventually fire
-      // ADD_SOURCE actions.
-      //
-      // We still emit this event so that the UI can show an "empty
-      // text" label if no sources were loaded.
-      emitChange('sources', state.sources);
+    if (action.status === "done") {
+      const sources = action.value;
+      if (!sources) {
+        return state;
+      }
+      const sourcesByActor = {};
+      sources.forEach(source => {
+        if (!state.sources[source.actor]) {
+          emitChange('source', source);
+        }
+        sourcesByActor[source.actor] = source;
+      });
+      return mergeIn(state, ['sources'], state.sources.merge(sourcesByActor))
     }
     break;
 

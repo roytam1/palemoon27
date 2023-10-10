@@ -624,7 +624,7 @@ FormHistory.prototype = {
     },
 
     dbCreateTable: function(name, table) {
-        let tSQL = [[col, table[col]].join(" ") for (col in table)].join(", ");
+        let tSQL = Object.keys(table).map(col => [col, table[col]].join(" ")).join(", ");
         this.log("Creating table " + name + " with " + tSQL);
         this.dbConnection.createTable(name, tSQL);
     },
@@ -802,7 +802,7 @@ FormHistory.prototype = {
         for (let name in this.dbSchema.tables) {
             let table = this.dbSchema.tables[name];
             let query = "SELECT " +
-                        [col for (col in table)].join(", ") +
+                        Object.keys(table).join(", ") +
                         " FROM " + name;
             try {
                 let stmt = this.dbConnection.createStatement(query);

@@ -516,7 +516,7 @@ FormAutoCompleteChild.prototype = {
 
         let result = new FormAutoCompleteResult(
           null,
-          [for (res of message.data.results) {text: res}],
+          Array.from(message.data.results, res => ({ text: res })),
           null,
           null
         );

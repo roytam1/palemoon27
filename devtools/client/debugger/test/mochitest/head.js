@@ -16,7 +16,6 @@ var { DebuggerServer } = require("devtools/server/main");
 var { DebuggerClient, ObjectClient } = require("devtools/shared/client/main");
 var { AddonManager } = Cu.import("resource://gre/modules/AddonManager.jsm", {});
 var EventEmitter = require("devtools/shared/event-emitter");
-const { promiseInvoke } = require("devtools/shared/async-utils");
 var { Toolbox } = require("devtools/client/framework/toolbox")
 
 // Override promise with deprecated-sync-thenables
@@ -565,9 +564,7 @@ AddonDebugger.prototype = {
     let transport = DebuggerServer.connectPipe();
     this.client = new DebuggerClient(transport);
 
-    let connected = promise.defer();
-    this.client.connect(connected.resolve);
-    yield connected.promise;
+    yield this.client.connect();
 
     let addonActor = yield getAddonActorForUrl(this.client, aUrl);
 
@@ -887,26 +884,14 @@ function attachAddonActorForUrl(aClient, aUrl) {
   return deferred.promise;
 }
 
-function rdpInvoke(aClient, aMethod, ...args) {
-  return promiseInvoke(aClient, aMethod, ...args)
-    .then((packet) => {
-      let { error, message } = packet;
-      if (error) {
-        throw new Error(error + ": " + message);
-      }
-
-      return packet;
-    });
-}
-
 function doResume(aPanel) {
   const threadClient = aPanel.panelWin.gThreadClient;
-  return rdpInvoke(threadClient, threadClient.resume);
+  return threadClient.resume();
 }
 
 function doInterrupt(aPanel) {
   const threadClient = aPanel.panelWin.gThreadClient;
-  return rdpInvoke(threadClient, threadClient.interrupt);
+  return threadClient.interrupt();
 }
 
 function pushPrefs(...aPrefs) {
@@ -1018,11 +1003,7 @@ function generateMouseClickInTab(tab, path) {
 
 function connect(client) {
   info("Connecting client.");
-  return new Promise(function (resolve) {
-    client.connect(function () {
-      resolve();
-    });
-  });
+  return client.connect();
 }
 
 function close(client) {
@@ -1036,11 +1017,7 @@ function close(client) {
 
 function listTabs(client) {
   info("Listing tabs.");
-  return new Promise(function (resolve) {
-    client.listTabs(function (response) {
-      resolve(response);
-    });
-  });
+  return client.listTabs();
 }
 
 function findTab(tabs, url) {
@@ -1121,7 +1098,7 @@ function waitForWorkerClose(workerClient) {
 
 function resume(threadClient) {
   info("Resuming thread.");
-  return rdpInvoke(threadClient, threadClient.resume);
+  return threadClient.resume();
 }
 
 function findSource(sources, url) {
@@ -1161,12 +1138,12 @@ function waitForPause(threadClient) {
 
 function setBreakpoint(sourceClient, location) {
   info("Setting breakpoint.\n");
-  return rdpInvoke(sourceClient, sourceClient.setBreakpoint, location);
+  return sourceClient.setBreakpoint(location);
 }
 
 function source(sourceClient) {
   info("Getting source.\n");
-  return rdpInvoke(sourceClient, sourceClient.source);
+  return sourceClient.source();
 }
 
 // Return a promise with a reference to jsterm, opening the split

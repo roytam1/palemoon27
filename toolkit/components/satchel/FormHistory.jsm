@@ -91,6 +91,7 @@ const Cr = Components.results;
 
 Components.utils.import("resource://gre/modules/XPCOMUtils.jsm");
 Components.utils.import("resource://gre/modules/Services.jsm");
+Components.utils.import("resource://gre/modules/AppConstants.jsm");
 
 XPCOMUtils.defineLazyServiceGetter(this, "uuidService",
                                    "@mozilla.org/uuid-generator;1",
@@ -101,12 +102,7 @@ const DAY_IN_MS  = 86400000; // 1 day in milliseconds
 const MAX_SEARCH_TOKENS = 10;
 const NOOP = function noop() {};
 
-var supportsDeletedTable =
-#ifdef ANDROID
-  true;
-#else
-  false;
-#endif
+var supportsDeletedTable = AppConstants.platform == "android";
 
 var Prefs = {
   initialized: false,
@@ -382,7 +378,9 @@ XPCOMUtils.defineLazyGetter(this, "dbConnection", function() {
 
     _dbConnection = Services.storage.openUnsharedDatabase(dbFile);
     dbInit();
-  } catch (e if e.result == Cr.NS_ERROR_FILE_CORRUPTED) {
+  } catch (e) {
+    if (e.result != Cr.NS_ERROR_FILE_CORRUPTED)
+      throw e;
     dbCleanup(dbFile);
     _dbConnection = Services.storage.openUnsharedDatabase(dbFile);
     dbInit();

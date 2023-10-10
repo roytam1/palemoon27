@@ -863,6 +863,8 @@ var NodeFront = protocol.FrontClass(NodeActor, {
       this._form.incompleteValue = change.incompleteValue;
     } else if (change.type === "pseudoClassLock") {
       this._form.pseudoClassLocks = change.pseudoClassLocks;
+    } else if (change.type === "events") {
+      this._form.hasEventListeners = change.hasEventListeners;
     }
   },
 
@@ -1348,6 +1350,32 @@ var WalkerActor = protocol.ActorClass({
     this.layoutChangeObserver.on("reflows", this._onReflows);
     this._onResize = this._onResize.bind(this);
     this.layoutChangeObserver.on("resize", this._onResize);
+
+    this._onEventListenerChange = this._onEventListenerChange.bind(this);
+    eventListenerService.addListenerChangeListener(this._onEventListenerChange);
+  },
+
+  /**
+   * Callback for eventListenerService.addListenerChangeListener
+   * @param nsISimpleEnumerator changesEnum
+   *    enumerator of nsIEventListenerChange
+   */
+  _onEventListenerChange: function(changesEnum) {
+    let changes = changesEnum.enumerate();
+    while (changes.hasMoreElements()) {
+      let current = changes.getNext().QueryInterface(Ci.nsIEventListenerChange);
+      let target = current.target;
+
+      if (this._refMap.has(target)) {
+        let actor = this.getNode(target);
+        let mutation = {
+          type: "events",
+          target: actor.actorID,
+          hasEventListeners: actor._hasEventListeners
+        };
+        this.queueMutation(mutation);
+      }
+    }
   },
 
   // Returns the JSON representation of this object over the wire.
@@ -1414,6 +1442,9 @@ var WalkerActor = protocol.ActorClass({
       this.layoutChangeObserver = null;
       releaseLayoutChangesObserver(this.tabActor);
 
+      eventListenerService.removeListenerChangeListener(
+        this._onEventListenerChange);
+
       this.onMutations = null;
 
       this.tabActor = null;
@@ -1438,13 +1469,30 @@ var WalkerActor = protocol.ActorClass({
     protocol.Actor.prototype.unmanage.call(this, actor);
   },
 
-  hasNode: function(node) {
-    return this._refMap.has(node);
+  /**
+   * Determine if the walker has come across this DOM node before.
+   * @param {DOMNode} rawNode
+   * @return {Boolean}
+   */
+  hasNode: function(rawNode) {
+    return this._refMap.has(rawNode);
+  },
+
+  /**
+   * If the walker has come across this DOM node before, then get the
+   * corresponding node actor.
+   * @param {DOMNode} rawNode
+   * @return {NodeActor}
+   */
+  getNode: function(rawNode) {
+    return this._refMap.get(rawNode);
   },
 
   _ref: function(node) {
-    let actor = this._refMap.get(node);
-    if (actor) return actor;
+    let actor = this.getNode(node);
+    if (actor) {
+      return actor;
+    }
 
     actor = new NodeActor(this, node);
 
@@ -1732,7 +1780,7 @@ var WalkerActor = protocol.ActorClass({
 
     let child = walker.firstChild();
     while (child) {
-      let childActor = this._refMap.get(child);
+      let childActor = this.getNode(child);
       if (childActor) {
         this.releaseNode(childActor, options);
       }
@@ -1758,7 +1806,7 @@ var WalkerActor = protocol.ActorClass({
     let walker = this.getDocumentWalker(node.rawNode);
     let cur;
     while ((cur = walker.parentNode())) {
-      let parent = this._refMap.get(cur);
+      let parent = this.getNode(cur);
       if (!parent) {
         // This parent didn't exist, so hasn't been seen by the client yet.
         newParents.add(this._ref(cur));
@@ -2896,7 +2944,7 @@ var WalkerActor = protocol.ActorClass({
     events.emit(this, "any-mutation");
 
     for (let change of mutations) {
-      let targetActor = this._refMap.get(change.target);
+      let targetActor = this.getNode(change.target);
       if (!targetActor) {
         continue;
       }
@@ -2926,7 +2974,7 @@ var WalkerActor = protocol.ActorClass({
         let removedActors = [];
         let addedActors = [];
         for (let removed of change.removedNodes) {
-          let removedActor = this._refMap.get(removed);
+          let removedActor = this.getNode(removed);
           if (!removedActor) {
             // If the client never encountered this actor we don't need to
             // mention that it was removed.
@@ -2937,7 +2985,7 @@ var WalkerActor = protocol.ActorClass({
           removedActors.push(removedActor.actorID);
         }
         for (let added of change.addedNodes) {
-          let addedActor = this._refMap.get(added);
+          let addedActor = this.getNode(added);
           if (!addedActor) {
             // If the client never encounted this actor we don't need to tell
             // it about its addition for ownership tree purposes - if the
@@ -2975,7 +3023,7 @@ var WalkerActor = protocol.ActorClass({
       return;
     }
     let frame = getFrameElement(window);
-    let frameActor = this._refMap.get(frame);
+    let frameActor = this.getNode(frame);
     if (!frameActor) {
       return;
     }
@@ -3030,7 +3078,7 @@ var WalkerActor = protocol.ActorClass({
     }
 
     let doc = window.document;
-    let documentActor = this._refMap.get(doc);
+    let documentActor = this.getNode(doc);
     if (!documentActor) {
       return;
     }
@@ -3052,7 +3100,7 @@ var WalkerActor = protocol.ActorClass({
       // they should reread the children list.
       this.queueMutation({
         type: "childList",
-        target: this._refMap.get(parentNode).actorID,
+        target: this.getNode(parentNode).actorID,
         added: [],
         removed: []
       });

@@ -51,11 +51,6 @@ const PROFILE_RESET_DATE_MS = Date.now();
 // The profile creation date, in milliseconds (Yesterday).
 const PROFILE_CREATION_DATE_MS = PROFILE_RESET_DATE_MS - MILLISECONDS_PER_DAY;
 
-const gIsWindows = ("@mozilla.org/windows-registry-key;1" in Cc);
-const gIsMac = ("@mozilla.org/xpcom/mac-utils;1" in Cc);
-const gIsAndroid =  ("@mozilla.org/android/bridge;1" in Cc);
-const gIsGonk = ("@mozilla.org/cellbroadcast/gonkservice;1" in Cc);
-
 const FLASH_PLUGIN_NAME = "Shockwave Flash";
 const FLASH_PLUGIN_DESC = "A mock flash plugin";
 const FLASH_PLUGIN_VERSION = "\u201c1.1.1.1\u201d";
@@ -1096,9 +1091,7 @@ add_task(function* test_defaultSearchEngine() {
   resProt.setSubstitution("search-plugins",
                           Services.io.newURI(url, null, null));
 
-  // Initialize the search service and disable geoip lookup, so we don't get unwanted
-  // network connections.
-  Preferences.set("browser.search.geoip.url", "");
+  // Initialize the search service.
   yield new Promise(resolve => Services.search.init(resolve));
 
   // Our default engine from the JAR file has an identifier. Check if it is correctly
@@ -1176,6 +1169,15 @@ add_task(function* test_defaultSearchEngine() {
   data = TelemetryEnvironment.currentEnvironment;
   checkEnvironmentData(data);
   Assert.equal(data.settings.defaultSearchEngine, EXPECTED_SEARCH_ENGINE);
+
+  // Check that by default we are not sending a cohort identifier...
+  Assert.equal(data.settings.searchCohort, undefined);
+
+  // ... but that if a cohort identifier is set, we send it.
+  Services.prefs.setCharPref("browser.search.cohort", "testcohort");
+  Services.obs.notifyObservers(null, "browser-search-service", "init-complete");
+  data = TelemetryEnvironment.currentEnvironment;
+  Assert.equal(data.settings.searchCohort, "testcohort");
 });
 
 add_task(function*() {

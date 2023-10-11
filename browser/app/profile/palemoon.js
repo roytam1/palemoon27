@@ -395,6 +395,12 @@ pref("browser.search.suggest.enabled", true);
 pref("browser.search.official", true);
 #endif
 
+#ifdef XP_WIN
+pref("browser.search.redirectWindowsSearch", true);
+#else
+pref("browser.search.redirectWindowsSearch", false);
+#endif
+
 pref("browser.sessionhistory.max_entries", 50);
 
 // Built-in default permissions.

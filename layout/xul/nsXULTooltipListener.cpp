@@ -385,51 +385,55 @@ nsXULTooltipListener::ShowTooltip()
     return NS_ERROR_FAILURE; // the target node doesn't need a tooltip
 
   // set the node in the document that triggered the tooltip and show it
-  nsCOMPtr<nsIDOMXULDocument> xulDoc =
-    do_QueryInterface(tooltipNode->GetComposedDoc());
-  if (xulDoc) {
-    // Make sure the target node is still attached to some document. 
-    // It might have been deleted.
-    if (sourceNode->IsInComposedDoc()) {
+  // Make sure the document still has focus.
+  nsIDocument* doc = tooltipNode->GetComposedDoc();
+  if (!doc || !nsContentUtils::IsChromeDoc(doc) ||
+      doc->GetDocumentState().HasState(NS_DOCUMENT_STATE_WINDOW_INACTIVE)) {
+    return NS_OK;
+  }
+
+  // Make sure the target node is still attached to some document.
+  // It might have been deleted.
+  if (sourceNode->IsInComposedDoc()) {
 #ifdef MOZ_XUL
-      if (!mIsSourceTree) {
-        mLastTreeRow = -1;
-        mLastTreeCol = nullptr;
-      }
+    if (!mIsSourceTree) {
+      mLastTreeRow = -1;
+      mLastTreeCol = nullptr;
+    }
 #endif
 
-      mCurrentTooltip = do_GetWeakReference(tooltipNode);
-      LaunchTooltip();
-      mTargetNode = nullptr;
+    mCurrentTooltip = do_GetWeakReference(tooltipNode);
+    LaunchTooltip();
+    mTargetNode = nullptr;
 
-      nsCOMPtr<nsIContent> currentTooltip = do_QueryReferent(mCurrentTooltip);
-      if (!currentTooltip)
-        return NS_OK;
+    nsCOMPtr<nsIContent> currentTooltip = do_QueryReferent(mCurrentTooltip);
+    if (!currentTooltip)
+      return NS_OK;
 
-      // listen for popuphidden on the tooltip node, so that we can
-      // be sure DestroyPopup is called even if someone else closes the tooltip
-      currentTooltip->AddSystemEventListener(NS_LITERAL_STRING("popuphiding"), 
-                                             this, false, false);
+    // listen for popuphidden on the tooltip node, so that we can
+    // be sure DestroyPopup is called even if someone else closes the tooltip
+    currentTooltip->AddSystemEventListener(NS_LITERAL_STRING("popuphiding"),
+                                           this, false, false);
 
-      // listen for mousedown, mouseup, keydown, and DOMMouseScroll events at document level
-      nsIDocument* doc = sourceNode->GetComposedDoc();
-      if (doc) {
-        // Probably, we should listen to untrusted events for hiding tooltips
-        // on content since tooltips might disturb something of web
-        // applications.  If we don't specify the aWantsUntrusted of
-        // AddSystemEventListener(), the event target sets it to TRUE if the
-        // target is in content.
-        doc->AddSystemEventListener(NS_LITERAL_STRING("DOMMouseScroll"),
-                                    this, true);
-        doc->AddSystemEventListener(NS_LITERAL_STRING("mousedown"),
-                                    this, true);
-        doc->AddSystemEventListener(NS_LITERAL_STRING("mouseup"),
-                                    this, true);
-        doc->AddSystemEventListener(NS_LITERAL_STRING("keydown"),
-                                    this, true);
-      }
-      mSourceNode = nullptr;
+    // listen for mousedown, mouseup, keydown, and DOMMouseScroll events at document level
+    doc = sourceNode->GetComposedDoc();
+    if (doc) {
+      // Probably, we should listen to untrusted events for hiding tooltips
+      // on content since tooltips might disturb something of web
+      // applications.  If we don't specify the aWantsUntrusted of
+      // AddSystemEventListener(), the event target sets it to TRUE if the
+      // target is in content.
+      doc->AddSystemEventListener(NS_LITERAL_STRING("DOMMouseScroll"),
+                                  this, true);
+      doc->AddSystemEventListener(NS_LITERAL_STRING("mousedown"),
+                                  this, true);
+      doc->AddSystemEventListener(NS_LITERAL_STRING("mouseup"),
+                                  this, true);
+      doc->AddSystemEventListener(NS_LITERAL_STRING("keydown"),
+                                  this, true);
     }
+    mSourceNode = nullptr;
+
   }
 
   return NS_OK;

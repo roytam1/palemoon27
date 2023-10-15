@@ -8,6 +8,7 @@
 #include "angle/ShaderLang.h"
 #include "gfxPrefs.h"
 #include "GLContext.h"
+#include "mozilla/gfx/Logging.h"
 #include "mozilla/Preferences.h"
 #include "MurmurHash3.h"
 #include "nsPrintfCString.h"
@@ -112,13 +113,17 @@ ShaderOutput(gl::GLContext* gl)
         case 420: return SH_GLSL_420_CORE_OUTPUT;
         case 430: return SH_GLSL_430_CORE_OUTPUT;
         case 440: return SH_GLSL_440_CORE_OUTPUT;
-        case 450: return SH_GLSL_450_CORE_OUTPUT;
         default:
-            MOZ_CRASH("Unexpected GLSL version.");
+            if (version >= 450) {
+                // "OpenGL 4.6 is also guaranteed to support all previous versions of the
+                //  OpenGL Shading Language back to version 1.10."
+                return SH_GLSL_450_CORE_OUTPUT;
+            }
+            gfxCriticalNote << "Unexpected GLSL version: " << version;
         }
     }
 
-    return SH_GLSL_OUTPUT;
+    return SH_GLSL_COMPATIBILITY_OUTPUT;
 }
 
 webgl::ShaderValidator*

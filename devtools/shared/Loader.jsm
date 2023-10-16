@@ -254,6 +254,7 @@ this.DevToolsLoader = function DevToolsLoader() {
   this.lazyImporter = XPCOMUtils.defineLazyModuleGetter.bind(XPCOMUtils);
   this.lazyServiceGetter = XPCOMUtils.defineLazyServiceGetter.bind(XPCOMUtils);
   this.lazyRequireGetter = this.lazyRequireGetter.bind(this);
+  this.main = this.main.bind(this);
 };
 
 DevToolsLoader.prototype = {
@@ -390,7 +391,24 @@ DevToolsLoader.prototype = {
         lazyImporter: this.lazyImporter,
         lazyServiceGetter: this.lazyServiceGetter,
         lazyRequireGetter: this.lazyRequireGetter,
-        id: this.id
+        id: this.id,
+        main: this.main
+      },
+      // Make sure `define` function exists.  This allows defining some modules
+      // in AMD format while retaining CommonJS compatibility through this hook.
+      // JSON Viewer needs modules in AMD format, as it currently uses RequireJS
+      // from a content document and can't access our usual loaders.  So, any
+      // modules shared with the JSON Viewer should include a define wrapper:
+      //
+      //   // Make this available to both AMD and CJS environments
+      //   define(function(require, exports, module) {
+      //     ... code ...
+      //   });
+      //
+      // Bug 1248830 will work out a better plan here for our content module
+      // loading needs, especially as we head towards devtools.html.
+      define(factory) {
+        factory(this.require, this.exports, this.module);
       },
     };
     // Lazy define console in order to load Console.jsm only when it is used

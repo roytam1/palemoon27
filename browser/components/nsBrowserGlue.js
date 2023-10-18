@@ -133,6 +133,9 @@ XPCOMUtils.defineLazyModuleGetter(this, "LightweightThemeManager",
 XPCOMUtils.defineLazyModuleGetter(this, "ExtensionManagement",
                                   "resource://gre/modules/ExtensionManagement.jsm");
 
+XPCOMUtils.defineLazyServiceGetter(this, "AlertsService",
+                                   "@mozilla.org/alerts-service;1", "nsIAlertsService");
+
 const ABOUT_NEWTAB = "about:newtab";
 
 const PREF_PLUGINS_NOTIFYUSER = "plugins.update.notifyUser";
@@ -530,7 +533,11 @@ BrowserGlue.prototype = {
     ExtensionManagement.registerScript("chrome://browser/content/ext-windows.js");
     ExtensionManagement.registerScript("chrome://browser/content/ext-bookmarks.js");
 
+    ExtensionManagement.registerSchema("chrome://browser/content/schemas/tabs.json");
+    ExtensionManagement.registerSchema("chrome://browser/content/schemas/windows.json");
+
     this._flashHangCount = 0;
+    this._firstWindowReady = new Promise(resolve => this._firstWindowLoaded = resolve);
   },
 
   // cleanup (called on application shutdown)
@@ -921,6 +928,7 @@ BrowserGlue.prototype = {
     }
 
     this._firstWindowTelemetry(aWindow);
+    this._firstWindowLoaded();
   },
 
   /**
@@ -1261,16 +1269,6 @@ BrowserGlue.prototype = {
     if (actions.indexOf("showAlert") == -1)
       return;
 
-    let notifier;
-    try {
-      notifier = Cc["@mozilla.org/alerts-service;1"].
-                 getService(Ci.nsIAlertsService);
-    }
-    catch (e) {
-      // nsIAlertsService is not available for this platform
-      return;
-    }
-
     let title = getNotifyString({propName: "alertTitle",
                                  stringName: "puAlertTitle",
                                  stringParams: [appName]});
@@ -1292,10 +1290,11 @@ BrowserGlue.prototype = {
     try {
       // This will throw NS_ERROR_NOT_AVAILABLE if the notification cannot
       // be displayed per the idl.
-      notifier.showAlertNotification(null, title, text,
-                                     true, url, clickCallback);
+      AlertsService.showAlertNotification(null, title, text,
+                                          true, url, clickCallback);
     }
     catch (e) {
+      Cu.reportError(e);
     }
   },
 
@@ -1600,7 +1599,7 @@ BrowserGlue.prototype = {
   },
 
   _migrateUI: function BG__migrateUI() {
-    const UI_VERSION = 28;
+    const UI_VERSION = 32;
     const BROWSER_DOCURL = "chrome://browser/content/browser.xul";
     let currentUIVersion = 0;
     try {
@@ -1618,23 +1617,6 @@ BrowserGlue.prototype = {
       if (currentset &&
           currentset.indexOf("bookmarks-menu-button-container") == -1) {
         currentset += ",bookmarks-menu-button-container";
-        xulStore.setValue(BROWSER_DOCURL, "nav-bar", "currentset", currentset);
-      }
-    }
-
-    if (currentUIVersion < 3) {
-      // This code merges the reload/stop/go button into the url bar.
-      let currentset = xulStore.getValue(BROWSER_DOCURL, "nav-bar", "currentset");
-      // Need to migrate only if toolbar is customized and all 3 elements are found.
-      if (currentset &&
-          currentset.indexOf("reload-button") != -1 &&
-          currentset.indexOf("stop-button") != -1 &&
-          currentset.indexOf("urlbar-container") != -1 &&
-          currentset.indexOf("urlbar-container,reload-button,stop-button") == -1) {
-        currentset = currentset.replace(/(^|,)reload-button($|,)/, "$1$2")
-                               .replace(/(^|,)stop-button($|,)/, "$1$2")
-                               .replace(/(^|,)urlbar-container($|,)/,
-                                        "$1urlbar-container,reload-button,stop-button$2");
         xulStore.setValue(BROWSER_DOCURL, "nav-bar", "currentset", currentset);
       }
     }
@@ -1969,9 +1951,44 @@ BrowserGlue.prototype = {
       xulStore.removeValue(BROWSER_DOCURL, "home-button", "class");
     }
 
+    if (currentUIVersion < 32) {
+      this._notifyNotificationsUpgrade().catch(Cu.reportError);
+    }
+
     // Update the migration version.
     Services.prefs.setIntPref("browser.migration.version", UI_VERSION);
   },
+
+  _hasExistingNotificationPermission: function BG__hasExistingNotificationPermission() {
+    let enumerator = Services.perms.enumerator;
+    while (enumerator.hasMoreElements()) {
+      let permission = enumerator.getNext().QueryInterface(Ci.nsIPermission);
+      if (permission.type == "desktop-notification") {
+        return true;
+      }
+    }
+    return false;
+  },
+
+  _notifyNotificationsUpgrade: Task.async(function* () {
+    if (!this._hasExistingNotificationPermission()) {
+      return;
+    }
+    yield this._firstWindowReady;
+    function clickCallback(subject, topic, data) {
+      if (topic != "alertclickcallback")
+        return;
+      let win = RecentWindow.getMostRecentBrowserWindow();
+      win.openUILinkIn(data, "tab");
+    }
+    let imageURL = "chrome://browser/skin/web-notifications-icon.svg";
+    let title = gBrowserBundle.GetStringFromName("webNotifications.upgradeTitle");
+    let text = gBrowserBundle.GetStringFromName("webNotifications.upgradeInfo");
+    let url = Services.urlFormatter.formatURLPref("browser.push.warning.infoURL");
+
+    AlertsService.showAlertNotification(imageURL, title, text,
+                                        true, url, clickCallback);
+  }),
 
   // ------------------------------
   // public nsIBrowserGlue members

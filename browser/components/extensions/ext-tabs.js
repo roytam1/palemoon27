@@ -107,7 +107,7 @@ global.currentWindow = function(context) {
 
 // TODO: activeTab permission
 
-extensions.registerAPI((extension, context) => {
+extensions.registerSchemaAPI("tabs", null, (extension, context) => {
   let self = {
     tabs: {
       onActivated: new WindowEventManager(context, "tabs.onActivated", "TabSelect", (fire, event) => {
@@ -261,27 +261,21 @@ extensions.registerAPI((extension, context) => {
       }).api(),
 
       create: function(createProperties, callback) {
-        if (!createProperties) {
-          createProperties = {};
-        }
-
         let url = createProperties.url || aboutNewTabService.newTabURL;
-        url = extension.baseURI.resolve(url);
+        url = context.uri.resolve(url);
 
         function createInWindow(window) {
           let tab = window.gBrowser.addTab(url);
 
           let active = true;
-          if ("active" in createProperties) {
+          if (createProperties.active !== null) {
             active = createProperties.active;
-          } else if ("selected" in createProperties) {
-            active = createProperties.selected;
           }
           if (active) {
             window.gBrowser.selectedTab = tab;
           }
 
-          if ("index" in createProperties) {
+          if (createProperties.index !== null) {
             window.gBrowser.moveTabTo(tab, createProperties.index);
           }
 
@@ -294,7 +288,7 @@ extensions.registerAPI((extension, context) => {
           }
         }
 
-        let window = "windowId" in createProperties ?
+        let window = createProperties.windowId !== null ?
           WindowManager.getWindow(createProperties.windowId) :
           WindowManager.topWindow;
         if (!window.gBrowser) {
@@ -326,34 +320,27 @@ extensions.registerAPI((extension, context) => {
         }
       },
 
-      update: function(...args) {
-        let tabId, updateProperties, callback;
-        if (args.length == 1) {
-          updateProperties = args[0];
-        } else {
-          [tabId, updateProperties, callback] = args;
-        }
-
-        let tab = tabId ? TabManager.getTab(tabId) : TabManager.activeTab;
+      update: function(tabId, updateProperties, callback) {
+        let tab = tabId !== null ? TabManager.getTab(tabId) : TabManager.activeTab;
         let tabbrowser = tab.ownerDocument.defaultView.gBrowser;
-        if ("url" in updateProperties) {
+        if (updateProperties.url !== null) {
           tab.linkedBrowser.loadURI(updateProperties.url);
         }
-        if ("active" in updateProperties) {
+        if (updateProperties.active !== null) {
           if (updateProperties.active) {
             tabbrowser.selectedTab = tab;
           } else {
             // Not sure what to do here? Which tab should we select?
           }
         }
-        if ("pinned" in updateProperties) {
+        if (updateProperties.pinned !== null) {
           if (updateProperties.pinned) {
             tabbrowser.pinTab(tab);
           } else {
             tabbrowser.unpinTab(tab);
           }
         }
-        // FIXME: highlighted/selected, openerTabId
+        // FIXME: highlighted/selected, muted, openerTabId
 
         if (callback) {
           runSafe(context, callback, TabManager.convert(extension, tab));
@@ -361,7 +348,7 @@ extensions.registerAPI((extension, context) => {
       },
 
       reload: function(tabId, reloadProperties, callback) {
-        let tab = tabId ? TabManager.getTab(tabId) : TabManager.activeTab;
+        let tab = tabId !== null ? TabManager.getTab(tabId) : TabManager.activeTab;
         let flags = Ci.nsIWebNavigation.LOAD_FLAGS_NONE;
         if (reloadProperties && reloadProperties.bypassCache) {
           flags |= Ci.nsIWebNavigation.LOAD_FLAGS_BYPASS_CACHE;
@@ -386,51 +373,39 @@ extensions.registerAPI((extension, context) => {
         runSafe(context, callback, tab);
       },
 
-      getAllInWindow: function(...args) {
-        let window, callback;
-        if (args.length == 1) {
-          callback = args[0];
-        } else {
-          window = WindowManager.getWindow(args[0]);
-          callback = args[1];
+      getAllInWindow: function(windowId, callback) {
+        if (windowId === null) {
+          windowId = WindowManager.topWindow.windowId;
         }
 
-        if (!window) {
-          window = WindowManager.topWindow;
-        }
-
-        return self.tabs.query({windowId: WindowManager.getId(window)}, callback);
+        return self.tabs.query({windowId}, callback);
       },
 
       query: function(queryInfo, callback) {
-        if (!queryInfo) {
-          queryInfo = {};
-        }
-
         let pattern = null;
-        if (queryInfo.url) {
+        if (queryInfo.url !== null) {
           pattern = new MatchPattern(queryInfo.url);
         }
 
         function matches(window, tab) {
           let props = ["active", "pinned", "highlighted", "status", "title", "index"];
           for (let prop of props) {
-            if (prop in queryInfo && queryInfo[prop] != tab[prop]) {
+            if (queryInfo[prop] !== null && queryInfo[prop] != tab[prop]) {
               return false;
             }
           }
 
           let lastFocused = window == WindowManager.topWindow;
-          if ("lastFocusedWindow" in queryInfo && queryInfo.lastFocusedWindow != lastFocused) {
+          if (queryInfo.lastFocusedWindow !== null && queryInfo.lastFocusedWindow != lastFocused) {
             return false;
           }
 
           let windowType = WindowManager.windowType(window);
-          if ("windowType" in queryInfo && queryInfo.windowType != windowType) {
+          if (queryInfo.windowType !== null && queryInfo.windowType != windowType) {
             return false;
           }
 
-          if ("windowId" in queryInfo) {
+          if (queryInfo.windowId !== null) {
             if (queryInfo.windowId == WindowManager.WINDOW_ID_CURRENT) {
               if (currentWindow(context) != window) {
                 return false;
@@ -440,7 +415,7 @@ extensions.registerAPI((extension, context) => {
             }
           }
 
-          if ("currentWindow" in queryInfo) {
+          if (queryInfo.currentWindow !== null) {
             let eq = window == currentWindow(context);
             if (queryInfo.currentWindow != eq) {
               return false;
@@ -467,7 +442,7 @@ extensions.registerAPI((extension, context) => {
       },
 
       _execute: function(tabId, details, kind, callback) {
-        let tab = tabId ? TabManager.getTab(tabId) : TabManager.activeTab;
+        let tab = tabId !== null ? TabManager.getTab(tabId) : TabManager.activeTab;
         let mm = tab.linkedBrowser.messageManager;
 
         let options = {
@@ -492,10 +467,10 @@ extensions.registerAPI((extension, context) => {
           options.matchesHost = extension.whiteListedHosts.serialize();
         }
 
-        if (details.code) {
+        if (details.code !== null) {
           options[kind + "Code"] = details.code;
         }
-        if (details.file) {
+        if (details.file !== null) {
           let url = context.uri.resolve(details.file);
           if (extension.isExtensionURL(url)) {
             // We should really set |lastError| here, and go straight to
@@ -509,7 +484,7 @@ extensions.registerAPI((extension, context) => {
         if (details.matchAboutBlank) {
           options.match_about_blank = details.matchAboutBlank;
         }
-        if (details.runAt) {
+        if (details.runAt !== null) {
           options.run_at = details.runAt;
         }
         mm.sendAsyncMessage("Extension:Execute",
@@ -518,29 +493,24 @@ extensions.registerAPI((extension, context) => {
         // TODO: Call the callback with the result (which is what???).
       },
 
-      executeScript: function(...args) {
-        if (args.length == 1) {
-          self.tabs._execute(undefined, args[0], "js", undefined);
-        } else {
-          self.tabs._execute(args[0], args[1], "js", args[2]);
-        }
+      executeScript: function(tabId, details, callback) {
+        self.tabs._execute(tabId, details, "js", callback);
       },
 
-      insertCss: function(...args) {
-        if (args.length == 1) {
-          self.tabs._execute(undefined, args[0], "css", undefined);
-        } else {
-          self.tabs._execute(args[0], args[1], "css", args[2]);
-        }
+      insertCss: function(tabId, details, callback) {
+        self.tabs._execute(tabId, details, "css", callback);
       },
 
       connect: function(tabId, connectInfo) {
         let tab = TabManager.getTab(tabId);
         let mm = tab.linkedBrowser.messageManager;
 
-        let name = connectInfo.name || "";
+        let name = "";
+        if (connectInfo && connectInfo.name !== null) {
+          name = connectInfo.name;
+        }
         let recipient = {extensionId: extension.id};
-        if ("frameId" in connectInfo) {
+        if (connectInfo && connectInfo.frameId !== null) {
           recipient.frameId = connectInfo.frameId;
         }
         return context.messenger.connect(mm, name, recipient);
@@ -555,10 +525,87 @@ extensions.registerAPI((extension, context) => {
         let mm = tab.linkedBrowser.messageManager;
 
         let recipient = {extensionId: extension.id};
-        if (options && "frameId" in options) {
+        if (options && options.frameId !== null) {
           recipient.frameId = options.frameId;
         }
         return context.messenger.sendMessage(mm, message, recipient, responseCallback);
+      },
+
+      move: function(tabIds, moveProperties, callback) {
+        let index = moveProperties.index;
+        let tabsMoved = [];
+        if (!Array.isArray(tabIds)) {
+          tabIds = [tabIds];
+        }
+
+        let destinationWindow = null;
+        if (moveProperties.windowId !== null) {
+          destinationWindow = WindowManager.getWindow(moveProperties.windowId);
+          // Ignore invalid window.
+          if (!destinationWindow) {
+            return;
+          }
+        }
+
+        /*
+          Indexes are maintained on a per window basis so that a call to
+            move([tabA, tabB], {index: 0})
+              -> tabA to 0, tabB to 1 if tabA and tabB are in the same window
+            move([tabA, tabB], {index: 0})
+              -> tabA to 0, tabB to 0 if tabA and tabB are in different windows
+        */
+        let indexMap = new Map();
+
+        for (let tabId of tabIds) {
+          let tab = TabManager.getTab(tabId);
+          // Ignore invalid tab ids.
+          if (!tab) {
+            continue;
+          }
+
+          // If the window is not specified, use the window from the tab.
+          let window = destinationWindow || tab.ownerDocument.defaultView;
+          let windowId = WindowManager.getId(window);
+          let gBrowser = window.gBrowser;
+
+          let getInsertionPoint = () => {
+            let point = indexMap.get(window) || index;
+            // If the index is -1 it should go to the end of the tabs.
+            if (point == -1) {
+              point = gBrowser.tabs.length;
+            }
+            indexMap.set(window, point + 1);
+            return point;
+          };
+
+          if (WindowManager.getId(tab.ownerDocument.defaultView) !== windowId) {
+            // If the window we are moving the tab in is different, then move the tab
+            // to the new window.
+            let newTab = gBrowser.addTab("about:blank");
+            let newBrowser = gBrowser.getBrowserForTab(newTab);
+            gBrowser.updateBrowserRemotenessByURL(newBrowser, tab.linkedBrowser.currentURI.spec);
+            newBrowser.stop();
+            // This is necessary for getter side-effects.
+            void newBrowser.docShell;
+
+            if (tab.pinned) {
+              gBrowser.pinTab(newTab);
+            }
+
+            gBrowser.moveTabTo(newTab, getInsertionPoint());
+
+            tab.parentNode._finishAnimateTabMove();
+            gBrowser.swapBrowsersAndCloseOther(newTab, tab);
+          } else {
+            // If the window we are moving is the same, just move the tab.
+            gBrowser.moveTabTo(tab, getInsertionPoint());
+          }
+          tabsMoved.push(tab);
+        }
+
+        if (callback) {
+          runSafe(context, callback, tabsMoved.map(tab => TabManager.convert(extension, tab)));
+        }
       },
     },
   };

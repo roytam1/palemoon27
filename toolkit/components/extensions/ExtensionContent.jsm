@@ -231,13 +231,23 @@ function ExtensionContext(extensionId, contentWindow) {
   let mm = getWindowMessageManager(contentWindow);
   this.messageManager = mm;
 
-  let prin = [contentWindow];
-  if (Services.scriptSecurityManager.isSystemPrincipal(contentWindow.document.nodePrincipal)) {
+  let prin;
+  let contentPrincipal = contentWindow.document.nodePrincipal;
+  let ssm = Services.scriptSecurityManager;
+  if (ssm.isSystemPrincipal(contentPrincipal)) {
     // Make sure we don't hand out the system principal by accident.
     prin = Cc["@mozilla.org/nullprincipal;1"].createInstance(Ci.nsIPrincipal);
+  } else {
+    let extensionPrincipal = ssm.createCodebasePrincipal(this.extension.baseURI, {addonId: extensionId});
+    prin = [contentPrincipal, extensionPrincipal];
   }
 
-  this.sandbox = Cu.Sandbox(prin, {sandboxPrototype: contentWindow, wantXrays: true, isWebExtensionContentScript: true});
+  this.sandbox = Cu.Sandbox(prin, {
+    sandboxPrototype: contentWindow,
+    wantXrays: true,
+    isWebExtensionContentScript: true,
+    wantGlobalProperties: ["XMLHttpRequest"],
+  });
 
   let delegate = {
     getSender(context, target, sender) {
@@ -247,8 +257,12 @@ function ExtensionContext(extensionId, contentWindow) {
 
   let url = contentWindow.location.href;
   let broker = ExtensionContent.getBroker(mm);
-  this.messenger = new Messenger(this, broker, {id: extensionId, frameId, url},
-                                 {id: extensionId, frameId}, delegate);
+  // The |sender| parameter is passed directly to the extension.
+  let sender = {id: this.extension.uuid, frameId, url};
+  // Properties in |filter| must match those in the |recipient|
+  // parameter of sendMessage.
+  let filter = {extensionId, frameId};
+  this.messenger = new Messenger(this, broker, sender, filter, delegate);
 
   let chromeObj = Cu.createObjectIn(this.sandbox, {defineAs: "browser"});
 
@@ -468,7 +482,7 @@ function BrowserExtensionContent(data) {
   this.data = data;
   this.scripts = data.content_scripts.map(scriptData => new Script(scriptData));
   this.webAccessibleResources = data.webAccessibleResources;
-  this.whiteListedHosts = data.whiteListedHosts;
+  this.whiteListedHosts = new MatchPattern(data.whiteListedHosts);
 
   this.localeData = new LocaleData(data.localeData);
 

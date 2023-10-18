@@ -42,6 +42,8 @@ XPCOMUtils.defineLazyModuleGetter(this, "PrivateBrowsingUtils",
                                   "resource://gre/modules/PrivateBrowsingUtils.jsm");
 XPCOMUtils.defineLazyModuleGetter(this, "Preferences",
                                   "resource://gre/modules/Preferences.jsm");
+XPCOMUtils.defineLazyModuleGetter(this, "Schemas",
+                                  "resource://gre/modules/Schemas.jsm");
 XPCOMUtils.defineLazyModuleGetter(this, "Task",
                                   "resource://gre/modules/Task.jsm");
 
@@ -62,6 +64,14 @@ ExtensionManagement.registerScript("chrome://extensions/content/ext-webRequest.j
 ExtensionManagement.registerScript("chrome://extensions/content/ext-storage.js");
 ExtensionManagement.registerScript("chrome://extensions/content/ext-test.js");
 
+ExtensionManagement.registerSchema("chrome://extensions/content/schemas/cookies.json");
+ExtensionManagement.registerSchema("chrome://extensions/content/schemas/extension_types.json");
+ExtensionManagement.registerSchema("chrome://extensions/content/schemas/i18n.json");
+ExtensionManagement.registerSchema("chrome://extensions/content/schemas/idle.json");
+ExtensionManagement.registerSchema("chrome://extensions/content/schemas/runtime.json");
+ExtensionManagement.registerSchema("chrome://extensions/content/schemas/web_navigation.json");
+ExtensionManagement.registerSchema("chrome://extensions/content/schemas/web_request.json");
+
 Cu.import("resource://gre/modules/ExtensionUtils.jsm");
 var {
   LocaleData,
@@ -80,17 +90,22 @@ var ExtensionPage, GlobalManager;
 
 // This object loads the ext-*.js scripts that define the extension API.
 var Management = {
-  initialized: false,
+  initialized: null,
   scopes: [],
   apis: [],
+  schemaApis: [],
   emitter: new EventEmitter(),
 
   // Loads all the ext-*.js scripts currently registered.
   lazyInit() {
     if (this.initialized) {
-      return;
+      return this.initialized;
     }
-    this.initialized = true;
+
+    let promises = [];
+    for (let schema of ExtensionManagement.getSchemas()) {
+      promises.push(Schemas.load(schema));
+    }
 
     for (let script of ExtensionManagement.getScripts()) {
       let scope = {extensions: this,
@@ -102,6 +117,9 @@ var Management = {
       // Save the scope to avoid it being garbage collected.
       this.scopes.push(scope);
     }
+
+    this.initialized = Promise.all(promises);
+    return this.initialized;
   },
 
   // Called by an ext-*.js script to register an API. The |api|
@@ -123,9 +141,13 @@ var Management = {
     this.apis.push({api, permission});
   },
 
+  registerSchemaAPI(namespace, permission, api) {
+    this.schemaApis.push({namespace, permission, api});
+  },
+
   // Mash together into a single object all the APIs registered by the
   // functions above. Return the merged object.
-  generateAPIs(extension, context) {
+  generateAPIs(extension, context, apis) {
     let obj = {};
 
     // Recursively copy properties from source to dest.
@@ -142,7 +164,7 @@ var Management = {
       }
     }
 
-    for (let api of this.apis) {
+    for (let api of apis) {
       if (api.permission) {
         if (!extension.hasPermission(api.permission)) {
           continue;
@@ -163,7 +185,6 @@ var Management = {
 
   // Ask to run all the callbacks that are registered for a given hook.
   emit(hook, ...args) {
-    this.lazyInit();
     this.emitter.emit(hook, ...args);
   },
 
@@ -196,16 +217,20 @@ ExtensionPage = function(extension, params) {
   this.incognito = params.incognito || false;
   this.onClose = new Set();
 
-  // This is the sender property passed to the Messenger for this
-  // page. It can be augmented by the "page-open" hook.
-  let sender = {id: extension.id};
+  // This is the MessageSender property passed to extension.
+  // It can be augmented by the "page-open" hook.
+  let sender = {id: extension.uuid};
   if (uri) {
     sender.url = uri.spec;
   }
-  let delegate = {};
+  let delegate = {
+    getSender() {},
+  };
   Management.emit("page-load", this, params, sender, delegate);
 
-  let filter = {id: extension.id};
+  // Properties in |filter| must match those in the |recipient|
+  // parameter of sendMessage.
+  let filter = {extensionId: extension.id};
   this.messenger = new Messenger(this, globalBroker, sender, filter, delegate);
 
   this.extension.views.add(this);
@@ -307,11 +332,39 @@ GlobalManager = {
   },
 
   observe(contentWindow, topic, data) {
-    function inject(extension, context) {
+    let inject = (extension, context) => {
       let chromeObj = Cu.createObjectIn(contentWindow, {defineAs: "browser"});
       contentWindow.wrappedJSObject.chrome = contentWindow.wrappedJSObject.browser;
-      let api = Management.generateAPIs(extension, context);
+      let api = Management.generateAPIs(extension, context, Management.apis);
       injectAPI(api, chromeObj);
+
+      let schemaApi = Management.generateAPIs(extension, context, Management.schemaApis);
+      let schemaWrapper = {
+        callFunction(ns, name, args) {
+          return schemaApi[ns][name].apply(null, args);
+        },
+
+        addListener(ns, name, listener, args) {
+          return schemaApi[ns][name].addListener.call(null, listener, ...args);
+        },
+        removeListener(ns, name, listener) {
+          return schemaApi[ns][name].removeListener.call(null, listener);
+        },
+        hasListener(ns, name, listener) {
+          return schemaApi[ns][name].hasListener.call(null, listener);
+        },
+      };
+      Schemas.inject(chromeObj, schemaWrapper);
+    };
+
+    // Find the add-on associated with this document via the
+    // principal's originAttributes. This value is computed by
+    // extensionURIToAddonID, which ensures that we don't inject our
+    // API into webAccessibleResources or remote web pages.
+    let principal = contentWindow.document.nodePrincipal;
+    let id = principal.originAttributes.addonId;
+    if (!this.extensionMap.has(id)) {
+      return;
     }
 
     let docShell = contentWindow.QueryInterface(Ci.nsIInterfaceRequestor)
@@ -322,7 +375,7 @@ GlobalManager = {
 
     if (this.docShells.has(docShell)) {
       let {extension, context} = this.docShells.get(docShell);
-      if (context) {
+      if (context && extension.id == id) {
         inject(extension, context);
       }
       return;
@@ -330,16 +383,6 @@ GlobalManager = {
 
     // We don't inject into sub-frames of a UI page.
     if (contentWindow != contentWindow.top) {
-      return;
-    }
-
-    // Find the add-on associated with this document via the
-    // principal's originAttributes. This value is computed by
-    // extensionURIToAddonID, which ensures that we don't inject our
-    // API into webAccessibleResources.
-    let principal = contentWindow.document.nodePrincipal;
-    let id = principal.originAttributes.addonId;
-    if (!this.extensionMap.has(id)) {
       return;
     }
     let extension = this.extensionMap.get(id);
@@ -945,7 +988,11 @@ Extension.prototype = extend(Object.create(ExtensionData.prototype), {
       return Promise.reject(e);
     }
 
-    return this.readManifest().then(() => {
+    let lazyInit = Management.lazyInit();
+
+    return lazyInit.then(() => {
+      return this.readManifest();
+    }).then(() => {
       return this.initLocale();
     }).then(() => {
       if (this.hasShutdown) {

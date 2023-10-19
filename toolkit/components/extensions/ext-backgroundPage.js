@@ -127,7 +127,7 @@ extensions.on("shutdown", (type, extension) => {
 });
 /* eslint-enable mozilla/balanced-listeners */
 
-extensions.registerAPI((extension, context) => {
+extensions.registerSchemaAPI("extension", null, (extension, context) => {
   return {
     extension: {
       getBackgroundPage: function() {
@@ -136,8 +136,8 @@ extensions.registerAPI((extension, context) => {
     },
 
     runtime: {
-      getBackgroundPage: function(callback) {
-        runSafe(context, callback, backgroundPagesMap.get(extension).contentWindow);
+      getBackgroundPage() {
+        return context.cloneScope.Promise.resolve(backgroundPagesMap.get(extension).contentWindow);
       },
     },
   };

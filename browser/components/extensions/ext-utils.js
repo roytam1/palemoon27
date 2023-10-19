@@ -12,6 +12,7 @@ const INTEGER = /^[1-9]\d*$/;
 
 var {
   EventManager,
+  instanceOf,
 } = ExtensionUtils;
 
 // This file provides some useful code for the |tabs| and |windows|
@@ -38,7 +39,13 @@ global.IconDetails = {
       if (details.imageData) {
         let imageData = details.imageData;
 
-        if (imageData instanceof Cu.getGlobalForObject(imageData).ImageData) {
+        // The global might actually be from Schema.jsm, which
+        // normalizes most of our arguments. In that case it won't have
+        // an ImageData property. But Schema.jsm doesn't normalize
+        // actual ImageData objects, so they will come from a global
+        // with the right property.
+        let global = Cu.getGlobalForObject(imageData);
+        if (instanceOf(imageData, "ImageData")) {
           imageData = {"19": imageData};
         }
 
@@ -46,7 +53,6 @@ global.IconDetails = {
           if (!INTEGER.test(size)) {
             throw new Error(`Invalid icon size ${size}, must be an integer`);
           }
-
           result[size] = this.convertImageDataToPNG(imageData[size], context);
         }
       }
@@ -314,6 +320,14 @@ ExtensionTabManager.prototype = {
   convert(tab) {
     let window = tab.ownerDocument.defaultView;
 
+    let mutedInfo = { muted: tab.muted };
+    if (tab.muteReason === null) {
+      mutedInfo.reason = "user";
+    } else if (tab.muteReason) {
+      mutedInfo.reason = "extension";
+      mutedInfo.extensionId = tab.muteReason;
+    }
+
     let result = {
       id: TabManager.getId(tab),
       index: tab._tPos,
@@ -326,6 +340,8 @@ ExtensionTabManager.prototype = {
       incognito: PrivateBrowsingUtils.isBrowserPrivate(tab.linkedBrowser),
       width: tab.linkedBrowser.clientWidth,
       height: tab.linkedBrowser.clientHeight,
+      audible: tab.soundPlaying,
+      mutedInfo,
     };
 
     if (this.hasTabPermission(tab)) {

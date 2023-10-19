@@ -21,6 +21,8 @@ const Cc = Components.classes;
 const Cu = Components.utils;
 const Cr = Components.results;
 
+Cu.importGlobalProperties(["TextEncoder"]);
+
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 Cu.import("resource://gre/modules/Services.jsm");
 
@@ -46,6 +48,10 @@ XPCOMUtils.defineLazyModuleGetter(this, "Schemas",
                                   "resource://gre/modules/Schemas.jsm");
 XPCOMUtils.defineLazyModuleGetter(this, "Task",
                                   "resource://gre/modules/Task.jsm");
+XPCOMUtils.defineLazyModuleGetter(this, "AppConstants",
+                                  "resource://gre/modules/AppConstants.jsm");
+XPCOMUtils.defineLazyModuleGetter(this, "MessageChannel",
+                                  "resource://gre/modules/MessageChannel.jsm");
 
 Cu.import("resource://gre/modules/ExtensionManagement.jsm");
 
@@ -64,7 +70,10 @@ ExtensionManagement.registerScript("chrome://extensions/content/ext-webRequest.j
 ExtensionManagement.registerScript("chrome://extensions/content/ext-storage.js");
 ExtensionManagement.registerScript("chrome://extensions/content/ext-test.js");
 
+const BASE_SCHEMA = "chrome://extensions/content/schemas/manifest.json";
+
 ExtensionManagement.registerSchema("chrome://extensions/content/schemas/cookies.json");
+ExtensionManagement.registerSchema("chrome://extensions/content/schemas/extension.json");
 ExtensionManagement.registerSchema("chrome://extensions/content/schemas/extension_types.json");
 ExtensionManagement.registerSchema("chrome://extensions/content/schemas/i18n.json");
 ExtensionManagement.registerSchema("chrome://extensions/content/schemas/idle.json");
@@ -74,10 +83,12 @@ ExtensionManagement.registerSchema("chrome://extensions/content/schemas/web_requ
 
 Cu.import("resource://gre/modules/ExtensionUtils.jsm");
 var {
+  BaseContext,
   LocaleData,
   MessageBroker,
   Messenger,
   injectAPI,
+  instanceOf,
   extend,
   flushJarCache,
 } = ExtensionUtils;
@@ -102,10 +113,15 @@ var Management = {
       return this.initialized;
     }
 
-    let promises = [];
-    for (let schema of ExtensionManagement.getSchemas()) {
-      promises.push(Schemas.load(schema));
-    }
+    // Load order matters here. The base manifest defines types which are
+    // extended by other schemas, so needs to be loaded first.
+    let promise = Schemas.load(BASE_SCHEMA).then(() => {
+      let promises = [];
+      for (let schema of ExtensionManagement.getSchemas()) {
+        promises.push(Schemas.load(schema));
+      }
+      return Promise.all(promises);
+    });
 
     for (let script of ExtensionManagement.getScripts()) {
       let scope = {extensions: this,
@@ -118,7 +134,7 @@ var Management = {
       this.scopes.push(scope);
     }
 
-    this.initialized = Promise.all(promises);
+    this.initialized = promise;
     return this.initialized;
   },
 
@@ -153,13 +169,14 @@ var Management = {
     // Recursively copy properties from source to dest.
     function copy(dest, source) {
       for (let prop in source) {
-        if (typeof(source[prop]) == "object") {
+        let desc = Object.getOwnPropertyDescriptor(source, prop);
+        if (typeof(desc.value) == "object") {
           if (!(prop in dest)) {
             dest[prop] = {};
           }
           copy(dest[prop], source[prop]);
         } else {
-          dest[prop] = source[prop];
+          Object.defineProperty(dest, prop, desc);
         }
       }
     }
@@ -197,6 +214,8 @@ var Management = {
 // extension pages (which run in the chrome process).
 var globalBroker = new MessageBroker([Services.mm, Services.ppmm]);
 
+var gContextId = 0;
+
 // An extension page is an execution context for any extension content
 // that runs in the chrome process. It's used for background pages
 // (type="background"), popups (type="popup"), and any extension
@@ -208,87 +227,86 @@ var globalBroker = new MessageBroker([Services.mm, Services.ppmm]);
 // |uri| is the URI of the content (optional).
 // |docShell| is the docshell the content runs in (optional).
 // |incognito| is the content running in a private context (default: false).
-ExtensionPage = function(extension, params) {
-  let {type, contentWindow, uri} = params;
-  this.extension = extension;
-  this.type = type;
-  this.contentWindow = contentWindow || null;
-  this.uri = uri || extension.baseURI;
-  this.incognito = params.incognito || false;
-  this.onClose = new Set();
+ExtensionPage = class extends BaseContext {
+  constructor(extension, params) {
+    super();
 
-  // This is the MessageSender property passed to extension.
-  // It can be augmented by the "page-open" hook.
-  let sender = {id: extension.uuid};
-  if (uri) {
-    sender.url = uri.spec;
+    let {type, contentWindow, uri} = params;
+    this.extension = extension;
+    this.type = type;
+    this.contentWindow = contentWindow || null;
+    this.uri = uri || extension.baseURI;
+    this.incognito = params.incognito || false;
+    this.contextId = gContextId++;
+    this.unloaded = false;
+
+    // This is the MessageSender property passed to extension.
+    // It can be augmented by the "page-open" hook.
+    let sender = {id: extension.uuid};
+    if (uri) {
+      sender.url = uri.spec;
+    }
+    let delegate = {
+      getSender() {},
+    };
+    Management.emit("page-load", this, params, sender, delegate);
+
+    // Properties in |filter| must match those in the |recipient|
+    // parameter of sendMessage.
+    let filter = {extensionId: extension.id};
+    this.messenger = new Messenger(this, globalBroker, sender, filter, delegate);
+
+    this.extension.views.add(this);
   }
-  let delegate = {
-    getSender() {},
-  };
-  Management.emit("page-load", this, params, sender, delegate);
 
-  // Properties in |filter| must match those in the |recipient|
-  // parameter of sendMessage.
-  let filter = {extensionId: extension.id};
-  this.messenger = new Messenger(this, globalBroker, sender, filter, delegate);
-
-  this.extension.views.add(this);
-};
-
-ExtensionPage.prototype = {
   get cloneScope() {
     return this.contentWindow;
-  },
+  }
 
   get principal() {
     return this.contentWindow.document.nodePrincipal;
-  },
+  }
 
-  checkLoadURL(url, options = {}) {
-    let ssm = Services.scriptSecurityManager;
+  // A wrapper around MessageChannel.sendMessage which adds the extension ID
+  // to the recipient object, and ensures replies are not processed after the
+  // context has been unloaded.
+  sendMessage(target, messageName, data, recipient = {}, sender = {}) {
+    recipient.extensionId = this.extension.id;
+    sender.extensionId = this.extension.id;
+    sender.contextId = this.contextId;
 
-    let flags = ssm.STANDARD;
-    if (!options.allowScript) {
-      flags |= ssm.DISALLOW_SCRIPT;
-    }
-    if (!options.allowInheritsPrincipal) {
-      flags |= ssm.DISALLOW_INHERIT_PRINCIPAL;
-    }
-
-    try {
-      ssm.checkLoadURIStrWithPrincipal(this.principal, url, flags);
-    } catch (e) {
-      return false;
-    }
-    return true;
-  },
-
-  callOnClose(obj) {
-    this.onClose.add(obj);
-  },
-
-  forgetOnClose(obj) {
-    this.onClose.delete(obj);
-  },
+    return MessageChannel.sendMessage(target, messageName, data, recipient, sender);
+  }
 
   // Called when the extension shuts down.
   shutdown() {
     Management.emit("page-shutdown", this);
     this.unload();
-  },
+  }
 
   // This method is called when an extension page navigates away or
   // its tab is closed.
   unload() {
+    // Note that without this guard, we end up running unload code
+    // multiple times for tab pages closed by the "page-unload" handlers
+    // triggered below.
+    if (this.unloaded) {
+      return;
+    }
+
+    this.unloaded = true;
+
+    MessageChannel.abortResponses({
+      extensionId: this.extension.id,
+      contextId: this.contextId,
+    });
+
     Management.emit("page-unload", this);
 
     this.extension.views.delete(this);
 
-    for (let obj of this.onClose) {
-      obj.close();
-    }
-  },
+    super.unload();
+  }
 };
 
 // Responsible for loading extension APIs into the right globals.
@@ -333,36 +351,85 @@ GlobalManager = {
 
   observe(contentWindow, topic, data) {
     let inject = (extension, context) => {
-      let chromeObj = Cu.createObjectIn(contentWindow, {defineAs: "browser"});
-      contentWindow.wrappedJSObject.chrome = contentWindow.wrappedJSObject.browser;
-      let api = Management.generateAPIs(extension, context, Management.apis);
-      injectAPI(api, chromeObj);
+      // We create two separate sets of bindings, one for the `chrome`
+      // global, and one for the `browser` global. The latter returns
+      // Promise objects if a callback is not passed, while the former
+      // does not.
+      let injectObject = (name, defaultCallback) => {
+        let browserObj = Cu.createObjectIn(contentWindow, {defineAs: name});
 
-      let schemaApi = Management.generateAPIs(extension, context, Management.schemaApis);
-      let schemaWrapper = {
-        callFunction(ns, name, args) {
-          return schemaApi[ns][name].apply(null, args);
-        },
+        let api = Management.generateAPIs(extension, context, Management.apis);
+        injectAPI(api, browserObj);
 
-        addListener(ns, name, listener, args) {
-          return schemaApi[ns][name].addListener.call(null, listener, ...args);
-        },
-        removeListener(ns, name, listener) {
-          return schemaApi[ns][name].removeListener.call(null, listener);
-        },
-        hasListener(ns, name, listener) {
-          return schemaApi[ns][name].hasListener.call(null, listener);
-        },
+        let schemaApi = Management.generateAPIs(extension, context, Management.schemaApis);
+        let schemaWrapper = {
+          callFunction(ns, name, args) {
+            return schemaApi[ns][name](...args);
+          },
+
+          callAsyncFunction(ns, name, args, callback) {
+            // We pass an empty stub function as a default callback for
+            // the `chrome` API, so promise objects are not returned,
+            // and lastError values are reported immediately.
+            if (callback === null) {
+              callback = defaultCallback;
+            }
+
+            let promise;
+            try {
+              // TODO: Stop passing the callback once all APIs return
+              // promises.
+              promise = schemaApi[ns][name](...args, callback);
+            } catch (e) {
+              promise = Promise.reject(e);
+              // TODO: Certain tests are still expecting API methods to
+              // throw errors.
+              throw e;
+            }
+
+            // TODO: This check should no longer be necessary
+            // once all async methods return promises.
+            if (promise) {
+              return context.wrapPromise(promise, callback);
+            }
+            return undefined;
+          },
+
+          getProperty(ns, name) {
+            return schemaApi[ns][name];
+          },
+
+          setProperty(ns, name, value) {
+            schemaApi[ns][name] = value;
+          },
+
+          addListener(ns, name, listener, args) {
+            return schemaApi[ns][name].addListener.call(null, listener, ...args);
+          },
+          removeListener(ns, name, listener) {
+            return schemaApi[ns][name].removeListener.call(null, listener);
+          },
+          hasListener(ns, name, listener) {
+            return schemaApi[ns][name].hasListener.call(null, listener);
+          },
+        };
+        Schemas.inject(browserObj, schemaWrapper);
       };
-      Schemas.inject(chromeObj, schemaWrapper);
+
+      injectObject("browser", null);
+      injectObject("chrome", () => {});
     };
 
-    // Find the add-on associated with this document via the
-    // principal's originAttributes. This value is computed by
-    // extensionURIToAddonID, which ensures that we don't inject our
-    // API into webAccessibleResources or remote web pages.
-    let principal = contentWindow.document.nodePrincipal;
-    let id = principal.originAttributes.addonId;
+    let id = ExtensionManagement.getAddonIdForWindow(contentWindow);
+
+    // We don't inject privileged APIs into sub-frames of a UI page.
+    const { FULL_PRIVILEGES } = ExtensionManagement.API_LEVELS;
+    if (ExtensionManagement.getAPILevelForWindow(contentWindow, id) !== FULL_PRIVILEGES) {
+      return;
+    }
+
+    // We don't inject privileged APIs if the addonId is null
+    // or doesn't exist.
     if (!this.extensionMap.has(id)) {
       return;
     }
@@ -381,10 +448,6 @@ GlobalManager = {
       return;
     }
 
-    // We don't inject into sub-frames of a UI page.
-    if (contentWindow != contentWindow.top) {
-      return;
-    }
     let extension = this.extensionMap.get(id);
     let uri = contentWindow.document.documentURIObject;
     let incognito = PrivateBrowsingUtils.isContentWindowPrivate(contentWindow);
@@ -517,7 +580,8 @@ ExtensionData.prototype = {
           return;
         }
         try {
-          let text = NetUtil.readInputStreamToString(inputStream, inputStream.available());
+          let text = NetUtil.readInputStreamToString(inputStream, inputStream.available(),
+                                                     { charset: "utf-8" });
           resolve(JSON.parse(text));
         } catch (e) {
           reject(e);
@@ -529,20 +593,31 @@ ExtensionData.prototype = {
   // Reads the extension's |manifest.json| file, and stores its
   // parsed contents in |this.manifest|.
   readManifest() {
-    return this.readJSON("manifest.json").then(manifest => {
-      this.manifest = manifest;
+    return Promise.all([
+      this.readJSON("manifest.json"),
+      Management.lazyInit(),
+    ]).then(([manifest]) => {
+      let context = {
+        url: (this.baseURI || this.rootURI).spec,
+
+        principal: this.principal,
+      };
+
+      let normalized = Schemas.normalize(manifest, "manifest.WebExtensionManifest", context);
+      if (normalized.error) {
+        this.manifestError(normalized.error);
+        this.manifest = manifest;
+      } else {
+        this.manifest = normalized.value;
+      }
 
       try {
         this.id = this.manifest.applications.gecko.id;
       } catch (e) {
-        // Errors are handled by the type check below.
+        // Errors are handled by the type checks above.
       }
 
-      if (typeof this.id != "string") {
-        this.manifestError("Missing required `applications.gecko.id` property");
-      }
-
-      return manifest;
+      return this.manifest;
     });
   },
 
@@ -557,7 +632,7 @@ ExtensionData.prototype = {
   // If a "default_locale" is specified in that manifest, returns it
   // as a Gecko-compatible locale string. Otherwise, returns null.
   get defaultLocale() {
-    if ("default_locale" in this.manifest) {
+    if (this.manifest.default_locale != null) {
       return this.normalizeLocaleCode(this.manifest.default_locale);
     }
 
@@ -824,12 +899,16 @@ this.Extension.generateXPI = function(id, data) {
     let script = files[filename];
     if (typeof(script) == "function") {
       script = "(" + script.toString() + ")()";
-    } else if (typeof(script) == "object") {
+    } else if (instanceOf(script, "Object")) {
       script = JSON.stringify(script);
     }
 
-    let stream = Cc["@mozilla.org/io/string-input-stream;1"].createInstance(Ci.nsIStringInputStream);
-    stream.data = script;
+    if (!instanceOf(script, "ArrayBuffer")) {
+      script = new TextEncoder("utf-8").encode(script).buffer;
+    }
+
+    let stream = Cc["@mozilla.org/io/arraybuffer-input-stream;1"].createInstance(Ci.nsIArrayBufferInputStream);
+    stream.setData(script, 0, script.byteLength);
 
     generateFile(filename);
     zipW.addEntryStream(filename, time, 0, stream, false);
@@ -910,6 +989,10 @@ Extension.prototype = extend(Object.create(ExtensionData.prototype), {
   broadcast(msg, data) {
     return new Promise(resolve => {
       let count = Services.ppmm.childCount;
+      if (AppConstants.MOZ_NUWA_PROCESS) {
+        // The nuwa process is frozen, so don't expect it to answer.
+        count--;
+      }
       Services.ppmm.addMessageListener(msg + "Complete", function listener() {
         count--;
         if (count == 0) {
@@ -927,9 +1010,8 @@ Extension.prototype = extend(Object.create(ExtensionData.prototype), {
 
     let whitelist = [];
     for (let perm of permissions) {
-      if (/^\w+(\.\w+)*$/.test(perm)) {
-        this.permissions.add(perm);
-      } else {
+      this.permissions.add(perm);
+      if (!/^\w+(\.\w+)*$/.test(perm)) {
         whitelist.push(perm);
       }
     }
@@ -942,7 +1024,9 @@ Extension.prototype = extend(Object.create(ExtensionData.prototype), {
     this.webAccessibleResources = resources;
 
     for (let directive in manifest) {
-      Management.emit("manifest_" + directive, directive, this, manifest);
+      if (manifest[directive] !== null) {
+        Management.emit("manifest_" + directive, directive, this, manifest);
+      }
     }
 
     let data = Services.ppmm.initialProcessData;
@@ -988,13 +1072,19 @@ Extension.prototype = extend(Object.create(ExtensionData.prototype), {
       return Promise.reject(e);
     }
 
-    let lazyInit = Management.lazyInit();
+    return this.readManifest().then(() => {
+      if (!this.hasShutdown) {
+        return this.initLocale();
+      }
+    }).then(() => {
+      if (this.errors.length) {
+        // b2g add-ons generate manifest errors that we've silently
+        // ignoring prior to adding this check.
+        if (!this.rootURI.schemeIs("app")) {
+          return Promise.reject({errors: this.errors});
+        }
+      }
 
-    return lazyInit.then(() => {
-      return this.readManifest();
-    }).then(() => {
-      return this.initLocale();
-    }).then(() => {
       if (this.hasShutdown) {
         return;
       }
@@ -1007,6 +1097,11 @@ Extension.prototype = extend(Object.create(ExtensionData.prototype), {
     }).catch(e => {
       dump(`Extension error: ${e} ${e.filename || e.fileName}:${e.lineNumber}\n`);
       Cu.reportError(e);
+
+      ExtensionManagement.shutdownExtension(this.uuid);
+
+      this.cleanupGeneratedFile();
+
       throw e;
     });
   },
@@ -1033,6 +1128,9 @@ Extension.prototype = extend(Object.create(ExtensionData.prototype), {
   shutdown() {
     this.hasShutdown = true;
     if (!this.manifest) {
+      ExtensionManagement.shutdownExtension(this.uuid);
+
+      this.cleanupGeneratedFile();
       return;
     }
 
@@ -1050,9 +1148,10 @@ Extension.prototype = extend(Object.create(ExtensionData.prototype), {
 
     Services.ppmm.broadcastAsyncMessage("Extension:Shutdown", {id: this.id});
 
+    MessageChannel.abortResponses({ extensionId: this.id });
+
     ExtensionManagement.shutdownExtension(this.uuid);
 
-    // Clean up a generated file.
     this.cleanupGeneratedFile();
   },
 

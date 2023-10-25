@@ -1,19 +1,16 @@
-BRANCH = "ash"
+BRANCH = "mozilla-central"
 MOZ_UPDATE_CHANNEL = "nightly"
 MOZILLA_DIR = BRANCH
 OBJDIR = "obj-l10n"
-EN_US_BINARY_URL = "http://archive.mozilla.org/pub/mobile/nightly/latest-%s-android-api-11/en-US" % BRANCH
-STAGE_SERVER = "upload.ffxbld.productdelivery.prod.mozaws.net"
-STAGE_USER = "ffxbld"
-STAGE_SSH_KEY = "~/.ssh/ffxbld_rsa"
+EN_US_BINARY_URL = "http://archive.mozilla.org/pub/mobile/nightly/latest-%s-android-api-15/en-US" % BRANCH
 HG_SHARE_BASE_DIR = "/builds/hg-shared"
 
 config = {
+    "branch": BRANCH,
     "log_name": "single_locale",
     "objdir": OBJDIR,
     "is_automation": True,
     "buildbot_json_path": "buildprops.json",
-    "purge_minsize": 10,
     "force_clobber": True,
     "clobberer_url": "https://api.pub.build.mozilla.org/clobberer/lastclobber",
     "locales_file": "%s/mobile/android/locales/all-locales" % MOZILLA_DIR,
@@ -25,13 +22,12 @@ config = {
     "tooltool_config": {
         "manifest": "mobile/android/config/tooltool-manifests/android/releng.manifest",
         "output_dir": "%(abs_work_dir)s/" + MOZILLA_DIR,
-        "bootstrap_cmd": ["bash", "-xe", "setup.sh"],
     },
     "exes": {
         'tooltool.py': '/tools/tooltool.py',
     },
     "repos": [{
-        "repo": "https://hg.mozilla.org/projects/ash",
+        "repo": "https://hg.mozilla.org/mozilla-central",
         "revision": "default",
         "dest": MOZILLA_DIR,
     }, {
@@ -59,20 +55,16 @@ config = {
         "LOCALE_MERGEDIR": "%(abs_merge_dir)s/",
         "MOZ_UPDATE_CHANNEL": MOZ_UPDATE_CHANNEL,
     },
-    # TODO ideally we could get this info from a central location.
-    # However, the agility of these individual config files might trump that.
-    "upload_env": {
-        "UPLOAD_USER": STAGE_USER,
-        "UPLOAD_SSH_KEY": STAGE_SSH_KEY,
-        "UPLOAD_HOST": STAGE_SERVER,
-        "POST_UPLOAD_CMD": "post_upload.py -b ash-android-api-11-l10n -p mobile -i %(buildid)s --release-to-latest --release-to-dated",
-        "UPLOAD_TO_TEMP": "1",
-    },
+    "upload_branch": "%s-android-api-15" % BRANCH,
+    "ssh_key_dir": "~/.ssh",
     "merge_locales": True,
     "make_dirs": ['config'],
     "mozilla_dir": MOZILLA_DIR,
-    "mozconfig": "%s/mobile/android/config/mozconfigs/android-api-11/l10n-nightly" % MOZILLA_DIR,
+    "mozconfig": "%s/mobile/android/config/mozconfigs/android-api-15/l10n-nightly" % MOZILLA_DIR,
     "signature_verification_script": "tools/release/signing/verify-android-signature.sh",
+    "stage_product": "mobile",
+    "platform": "android",
+    "build_type": "api-15-opt",
 
     # Balrog
     "build_target": "Android_arm-eabi-gcc3",
@@ -92,6 +84,7 @@ config = {
                       'gcc45_0moz3', 'gcc454_0moz1', 'gcc472_0moz1', 'gcc473_0moz1', 'yasm', 'ccache',  # <-- from releng repo
                       'valgrind', 'dbus-x11',
                       'pulseaudio-libs-devel',
+                      'gstreamer-devel', 'gstreamer-plugins-base-devel',
                       'freetype-2.3.11-6.el6_1.8.x86_64',
                       'freetype-devel-2.3.11-6.el6_1.8.x86_64',
                       'java-1.7.0-openjdk-devel',

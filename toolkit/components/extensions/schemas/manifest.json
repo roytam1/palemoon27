@@ -56,6 +56,12 @@
             "optional": false
           },
 
+          "homepage_url": {
+            "type": "string",
+            "format": "url",
+            "optional": true
+          },
+
           "icons": {
             "type": "object",
             "optional": true,
@@ -93,7 +99,15 @@
 
           "permissions": {
             "type": "array",
-            "items": { "$ref": "Permission" },
+            "items": {
+              "choices": [
+                { "$ref": "Permission" },
+                {
+                  "type": "string",
+                  "deprecated": "Unknown permission ${value}"
+                }
+              ]
+            },
             "optional": true
           },
 
@@ -102,6 +116,11 @@
             "items": { "type": "string" },
             "optional": true
           }
+        },
+
+        "additionalProperties": {
+          "type": "any",
+          "deprecated": "An unexpected property was found in the WebExtension manifest"
         }
       },
       {

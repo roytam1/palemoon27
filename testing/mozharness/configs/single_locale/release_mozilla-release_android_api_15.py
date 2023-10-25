@@ -1,11 +1,8 @@
-BRANCH = "mozilla-beta"
-MOZ_UPDATE_CHANNEL = "beta"
+BRANCH = "mozilla-release"
+MOZ_UPDATE_CHANNEL = "release"
 MOZILLA_DIR = BRANCH
 OBJDIR = "obj-l10n"
-STAGE_SERVER = "ftp.stage.mozaws.net"
-EN_US_BINARY_URL = "http://" + STAGE_SERVER + "/pub/mobile/candidates/%(version)s-candidates/build%(buildnum)d/android-api-11/en-US"
-STAGE_USER = "ffxbld"
-STAGE_SSH_KEY = "~/.ssh/ffxbld_rsa"
+EN_US_BINARY_URL = "http://archive.mozilla.org/pub/mobile/candidates/%(version)s-candidates/build%(buildnum)d/android-api-15/en-US"
 HG_SHARE_BASE_DIR = "/builds/hg-shared"
 
 config = {
@@ -13,10 +10,9 @@ config = {
     "objdir": OBJDIR,
     "is_automation": True,
     "buildbot_json_path": "buildprops.json",
-    "purge_minsize": 10,
     "force_clobber": True,
-    "clobberer_url": "https://api-pub-build.allizom.org/clobberer/lastclobber",
-    "locales_file": "buildbot-configs/mozilla/l10n-changesets_mobile-beta.json",
+    "clobberer_url": "https://api.pub.build.mozilla.org/clobberer/lastclobber",
+    "locales_file": "buildbot-configs/mozilla/l10n-changesets_mobile-release.json",
     "locales_dir": "mobile/android/locales",
     "locales_platform": "android",
     "ignore_locales": ["en-US"],
@@ -32,27 +28,27 @@ config = {
         'tooltool.py': '/tools/tooltool.py',
     },
     "repos": [{
-        "repo": "https://hg.mozilla.org/%(user_repo_override)s/mozilla-beta",
+        "repo": "https://hg.mozilla.org/releases/mozilla-release",
         "revision": "default",
         "dest": MOZILLA_DIR,
     }, {
-        "repo": "https://hg.mozilla.org/%(user_repo_override)s/buildbot-configs",
+        "repo": "https://hg.mozilla.org/build/buildbot-configs",
         "revision": "default",
         "dest": "buildbot-configs"
     }, {
-        "repo": "https://hg.mozilla.org/%(user_repo_override)s/tools",
+        "repo": "https://hg.mozilla.org/build/tools",
         "revision": "default",
         "dest": "tools"
     }, {
-        "repo": "https://hg.mozilla.org/%(user_repo_override)s/compare-locales",
+        "repo": "https://hg.mozilla.org/build/compare-locales",
         "revision": "RELEASE_AUTOMATION"
     }],
-    "hg_l10n_base": "https://hg.mozilla.org/%(user_repo_override)s/",
+    "hg_l10n_base": "https://hg.mozilla.org/releases/l10n/%s" % BRANCH,
     "hg_l10n_tag": "default",
     'vcs_share_base': HG_SHARE_BASE_DIR,
     "l10n_dir": MOZILLA_DIR,
 
-    "release_config_file": "buildbot-configs/mozilla/staging_release-fennec-mozilla-beta.py",
+    "release_config_file": "buildbot-configs/mozilla/release-fennec-mozilla-release.py",
     "repack_env": {
         # so ugly, bug 951238
         "LD_LIBRARY_PATH": "/lib:/tools/gcc-4.7.2-0moz1/lib:/tools/gcc-4.7.2-0moz1/lib64",
@@ -62,21 +58,15 @@ config = {
         "MOZ_UPDATE_CHANNEL": MOZ_UPDATE_CHANNEL,
     },
     "base_en_us_binary_url": EN_US_BINARY_URL,
-    # TODO ideally we could get this info from a central location.
-    # However, the agility of these individual config files might trump that.
-    "upload_env": {
-        "UPLOAD_USER": STAGE_USER,
-        "UPLOAD_SSH_KEY": STAGE_SSH_KEY,
-        "UPLOAD_HOST": STAGE_SERVER,
-        "UPLOAD_TO_TEMP": "1",
-        "MOZ_PKG_VERSION": "%(version)s",
-    },
-    "base_post_upload_cmd": "post_upload.py -p mobile -n %(buildnum)s -v %(version)s --builddir android-api-11/%(locale)s --release-to-mobile-candidates-dir --nightly-dir=candidates",
+    "upload_branch": "%s-android-api-15" % BRANCH,
+    "ssh_key_dir": "~/.ssh",
+    "base_post_upload_cmd": "post_upload.py -p mobile -n %(buildnum)s -v %(version)s --builddir android-api-15/%(locale)s --release-to-mobile-candidates-dir --nightly-dir=candidates",
     "merge_locales": True,
     "make_dirs": ['config'],
     "mozilla_dir": MOZILLA_DIR,
-    "mozconfig": "%s/mobile/android/config/mozconfigs/android-api-11/l10n-release" % MOZILLA_DIR,
+    "mozconfig": "%s/mobile/android/config/mozconfigs/android-api-15/l10n-release" % MOZILLA_DIR,
     "signature_verification_script": "tools/release/signing/verify-android-signature.sh",
+    "key_alias": "release",
     "default_actions": [
         "clobber",
         "pull",
@@ -87,7 +77,6 @@ config = {
         "submit-to-balrog",
         "summary",
     ],
-
     # Mock
     "mock_target": "mozilla-centos6-x86_64-android",
     "mock_packages": ['autoconf213', 'python', 'zip', 'mozilla-python27-mercurial', 'git', 'ccache',

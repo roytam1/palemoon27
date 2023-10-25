@@ -1620,10 +1620,19 @@
 
               // Register the new outerWindowID.
               this._outerWindowIDBrowserMap.set(aBrowser.outerWindowID, aBrowser);
-	    }
+            }
 
             if (wasActive)
               aBrowser.focus();
+
+            // If the findbar has been initialised, reset its browser reference.
+            if (this.isFindBarInitialized(tab)) {
+              this.getFindBar(tab).browser = aBrowser;
+            }
+
+            let evt = document.createEvent("Events");
+            evt.initEvent("TabRemotenessChange", true, false);
+            tab.dispatchEvent(evt);
 
             return true;
           ]]>
@@ -2994,6 +3003,62 @@
         </body>
       </method>
 
+      <!-- Adopts a tab from another browser window, and inserts it at aIndex -->
+      <method name="adoptTab">
+        <parameter name="aTab"/>
+        <parameter name="aIndex"/>
+        <parameter name="aSelectTab"/>
+        <body>
+        <![CDATA[
+          // Swap the dropped tab with a new one we create and then close
+          // it in the other window (making it seem to have moved between
+          // windows).
+          let newTab = this.addTab("about:blank");
+          let newBrowser = this.getBrowserForTab(newTab);
+          let newURL = aTab.linkedBrowser.currentURI.spec;
+
+          // If we're an e10s browser window, an exception will be thrown
+          // if we attempt to drag a non-remote browser in, so we need to
+          // ensure that the remoteness of the newly created browser is
+          // appropriate for the URL of the tab being dragged in.
+          this.updateBrowserRemotenessByURL(newBrowser, newURL);
+
+          // Stop the about:blank load.
+          newBrowser.stop();
+          // Make sure it has a docshell.
+          newBrowser.docShell;
+
+          let numPinned = this._numPinnedTabs;
+          if (aIndex < numPinned || (aTab.pinned && aIndex == numPinned)) {
+            this.pinTab(newTab);
+          }
+
+          this.moveTabTo(newTab, aIndex);
+
+          // We need to select the tab before calling swapBrowsersAndCloseOther
+          // so that window.content in chrome windows points to the right tab
+          // when pagehide/show events are fired. This is no longer necessary
+          // for any exiting browser code, but it may be necessary for add-on
+          // compatibility.
+          if (aSelectTab) {
+            this.selectedTab = newTab;
+          }
+
+          aTab.parentNode._finishAnimateTabMove();
+          this.swapBrowsersAndCloseOther(newTab, aTab);
+
+          if (aSelectTab) {
+            // Call updateCurrentBrowser to make sure the URL bar is up to date
+            // for our new tab after we've done swapBrowsersAndCloseOther.
+            this.updateCurrentBrowser(true);
+          }
+
+          return newTab;
+        ]]>
+        </body>
+      </method>
+
+
       <method name="moveTabBackward">
         <body>
           <![CDATA[
@@ -3218,6 +3283,7 @@
             destroy: function() {
               clearTimeout(this.unloadTimer);
               clearTimeout(this.loadTimer);
+
               window.removeEventListener("MozAfterPaint", this);
               window.removeEventListener("MozLayerTreeReady", this);
               window.removeEventListener("MozLayerTreeCleared", this);
@@ -4197,13 +4263,29 @@
               browser.messageManager.sendAsyncMessage("Browser:AppTab", { isAppTab: tab.pinned })
               break;
             }
-            case "Findbar:Keypress":
-              if (!gFindBarInitialized) {
-                // If the find bar for this tab is not yet alive, change that,
-                // and make sure we return the result:
-                return gFindBar.receiveMessage(aMessage);
+            case "Findbar:Keypress": {
+              let tab = this.getTabForBrowser(browser);
+              // If the find bar for this tab is not yet alive, only initialize
+              // it if there's a possibility FindAsYouType will be used.
+              // There's no point in doing it for most random keypresses.
+              if (!this.isFindBarInitialized(tab) &&
+                aMessage.data.shouldFastFind) {
+                let shouldFastFind = this._findAsYouType;
+                if (!shouldFastFind) {
+                  // Please keep in sync with toolkit/content/widgets/findbar.xml
+                  const FAYT_LINKS_KEY = "'";
+                  const FAYT_TEXT_KEY = "/";
+                  let charCode = aMessage.data.fakeEvent.charCode;
+                  let key = charCode ? String.fromCharCode(charCode) : null;
+                  shouldFastFind = key == FAYT_LINKS_KEY || key == FAYT_TEXT_KEY;
+                }
+                if (shouldFastFind) {
+                  // Make sure we return the result.
+                  return this.getFindBar(tab).receiveMessage(aMessage);
+                }
               }
               break;
+            }
 
           }
         ]]></body>
@@ -4214,22 +4296,30 @@
         <parameter name="aTopic"/>
         <parameter name="aData"/>
         <body><![CDATA[
-          if (aTopic == "live-resize-start") {
-            let browser = this.mCurrentTab.linkedBrowser;
-            let fl = browser.QueryInterface(Ci.nsIFrameLoaderOwner).frameLoader;
-            if (fl && fl.tabParent && !this.mActiveResizeDisplayportSuppression) {
-              fl.tabParent.suppressDisplayport(true);
-              this.mActiveResizeDisplayportSuppression = browser;
-            }
-          } else if (aTopic == "live-resize-end") {
-            let browser = this.mActiveResizeDisplayportSuppression;
-            if (browser) {
+          let browser;
+          switch(aTopic) {
+            case "live-resize-start":
+              browser = this.mCurrentTab.linkedBrowser;
               let fl = browser.QueryInterface(Ci.nsIFrameLoaderOwner).frameLoader;
-              if (fl && fl.tabParent) {
-                fl.tabParent.suppressDisplayport(false);
-                this.mActiveResizeDisplayportSuppression = null;
+              if (fl && fl.tabParent && !this.mActiveResizeDisplayportSuppression) {
+                fl.tabParent.suppressDisplayport(true);
+                this.mActiveResizeDisplayportSuppression = browser;
               }
-            }
+              break;
+            case "live-resize-end":
+              browser = this.mActiveResizeDisplayportSuppression;
+              if (browser) {
+                let fl = browser.QueryInterface(Ci.nsIFrameLoaderOwner).frameLoader;
+                if (fl && fl.tabParent) {
+                  fl.tabParent.suppressDisplayport(false);
+                  this.mActiveResizeDisplayportSuppression = null;
+                }
+              }
+              break;
+            case "nsPref:changed":
+              // This is the only pref observed.
+              this._findAsYouType = Services.prefs.getBoolPref("accessibility.typeaheadfind");
+              break;
           }
         ]]></body>
       </method>
@@ -4314,6 +4404,11 @@
           }
           messageManager.addMessageListener("DOMWebNotificationClicked", this);
           messageManager.addMessageListener("DOMServiceWorkerFocusClient", this);
+
+          // To correctly handle keypresses for potential FindAsYouType, while
+          // the tab's find bar is not yet initialized.
+          this._findAsYouType = Services.prefs.getBoolPref("accessibility.typeaheadfind");
+          Services.prefs.addObserver("accessibility.typeaheadfind", this, false);
           messageManager.addMessageListener("Findbar:Keypress", this);
         ]]>
       </constructor>
@@ -4393,6 +4488,8 @@
               this._switcher.destroy();
             }
           }
+
+          Services.prefs.removeObserver("accessibility.typeaheadfind", this);
         ]]>
       </destructor>
 
@@ -5728,42 +5825,8 @@
             this.tabbrowser.moveTabTo(draggedTab, newIndex);
           }
         } else if (draggedTab) {
-          // swap the dropped tab with a new one we create and then close
-          // it in the other window (making it seem to have moved between
-          // windows)
           let newIndex = this._getDropIndex(event, false);
-          let newTab = this.tabbrowser.addTab("about:blank");
-          let newBrowser = this.tabbrowser.getBrowserForTab(newTab);
-          let draggedBrowserURL = draggedTab.linkedBrowser.currentURI.spec;
-
-          // If we're an e10s browser window, an exception will be thrown
-          // if we attempt to drag a non-remote browser in, so we need to
-          // ensure that the remoteness of the newly created browser is
-          // appropriate for the URL of the tab being dragged in.
-          this.tabbrowser.updateBrowserRemotenessByURL(newBrowser,
-                                                       draggedBrowserURL);
-
-          // Stop the about:blank load
-          newBrowser.stop();
-          // make sure it has a docshell
-          newBrowser.docShell;
-
-          let numPinned = this.tabbrowser._numPinnedTabs;
-          if (newIndex < numPinned || draggedTab.pinned && newIndex == numPinned)
-            this.tabbrowser.pinTab(newTab);
-          this.tabbrowser.moveTabTo(newTab, newIndex);
-
-          // We need to select the tab before calling swapBrowsersAndCloseOther
-          // so that window.content in chrome windows points to the right tab
-          // when pagehide/show events are fired.
-          this.tabbrowser.selectedTab = newTab;
-
-          draggedTab.parentNode._finishAnimateTabMove();
-          this.tabbrowser.swapBrowsersAndCloseOther(newTab, draggedTab);
-
-          // Call updateCurrentBrowser to make sure the URL bar is up to date
-          // for our new tab after we've done swapBrowsersAndCloseOther.
-          this.tabbrowser.updateCurrentBrowser(true);
+          this.tabbrowser.adoptTab(draggedTab, newIndex, true);
         } else {
           // Pass true to disallow dropping javascript: or data: urls
           let url;

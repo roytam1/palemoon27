@@ -10,8 +10,9 @@ Cu.import("resource://devtools/shared/event-emitter.js");
 Cu.import("resource://gre/modules/ExtensionUtils.jsm");
 var {
   EventManager,
-  runSafe,
 } = ExtensionUtils;
+
+const XUL_NS = "http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul";
 
 // WeakMap[Extension -> BrowserAction]
 var browserActionMap = new WeakMap();
@@ -24,7 +25,10 @@ function browserActionOf(extension) {
 // as the associated popup.
 function BrowserAction(options, extension) {
   this.extension = extension;
-  this.id = makeWidgetId(extension.id) + "-browser-action";
+
+  let widgetId = makeWidgetId(extension.id);
+  this.id = `${widgetId}-browser-action`;
+  this.viewId = `PanelUI-webext-${widgetId}-browser-action-view`;
   this.widget = null;
 
   this.tabManager = TabManager.for(extension);
@@ -40,7 +44,7 @@ function BrowserAction(options, extension) {
     title: title || extension.name,
     badgeText: "",
     badgeBackgroundColor: null,
-    icon: IconDetails.normalize({ path: options.default_icon }, extension,
+    icon: IconDetails.normalize({path: options.default_icon}, extension,
                                 null, true),
     popup: popup,
   };
@@ -55,31 +59,60 @@ BrowserAction.prototype = {
   build() {
     let widget = CustomizableUI.createWidget({
       id: this.id,
-      type: "custom",
+      viewId: this.viewId,
+      type: "view",
       removable: true,
+      label: this.defaults.title || this.extension.name,
+      tooltiptext: this.defaults.title || "",
       defaultArea: CustomizableUI.AREA_NAVBAR,
-      onBuild: document => {
-        let node = document.createElement("toolbarbutton");
-        node.id = this.id;
-        node.setAttribute("class", "toolbarbutton-1 chromeclass-toolbar-additional badged-button");
+
+      onBeforeCreated: document => {
+        let view = document.createElementNS(XUL_NS, "panelview");
+        view.id = this.viewId;
+        view.setAttribute("flex", "1");
+
+        document.getElementById("PanelUI-multiView").appendChild(view);
+      },
+
+      onDestroyed: document => {
+        let view = document.getElementById(this.viewId);
+        if (view) {
+          view.remove();
+        }
+      },
+
+      onCreated: node => {
+        node.classList.add("badged-button");
         node.setAttribute("constrain-size", "true");
 
         this.updateButton(node, this.defaults);
+      },
 
+      onViewShowing: event => {
+        let document = event.target.ownerDocument;
         let tabbrowser = document.defaultView.gBrowser;
 
-        node.addEventListener("command", event => { // eslint-disable-line mozilla/balanced-listeners
-          let tab = tabbrowser.selectedTab;
-          let popup = this.getProperty(tab, "popup");
-          this.tabManager.addActiveTabPermission(tab);
-          if (popup) {
-            this.togglePopup(node, popup);
-          } else {
-            this.emit("click");
-          }
-        });
+        let tab = tabbrowser.selectedTab;
+        let popupURL = this.getProperty(tab, "popup");
+        this.tabManager.addActiveTabPermission(tab);
 
-        return node;
+        // If the widget has a popup URL defined, we open a popup, but do not
+        // dispatch a click event to the extension.
+        // If it has no popup URL defined, we dispatch a click event, but do not
+        // open a popup.
+        if (popupURL) {
+          try {
+            new ViewPopup(this.extension, event.target, popupURL);
+          } catch (e) {
+            Cu.reportError(e);
+            event.preventDefault();
+          }
+        } else {
+          // This isn't not a hack, but it seems to provide the correct behavior
+          // with the fewest complications.
+          event.preventDefault();
+          this.emit("click");
+        }
       },
     });
 
@@ -87,10 +120,6 @@ BrowserAction.prototype = {
                        (evt, tab) => { this.updateWindow(tab.ownerDocument.defaultView); });
 
     this.widget = widget;
-  },
-
-  togglePopup(node, popupResource) {
-    openPanel(node, popupResource, this.extension);
   },
 
   // Update the toolbar button |node| with the tab context data
@@ -231,16 +260,17 @@ extensions.registerSchemaAPI("browserAction", null, (extension, context) => {
         browserActionOf(extension).setProperty(tab, "title", title);
       },
 
-      getTitle: function(details, callback) {
+      getTitle: function(details) {
         let tab = details.tabId !== null ? TabManager.getTab(details.tabId) : null;
         let title = browserActionOf(extension).getProperty(tab, "title");
-        runSafe(context, callback, title);
+        return Promise.resolve(title);
       },
 
-      setIcon: function(details, callback) {
+      setIcon: function(details) {
         let tab = details.tabId !== null ? TabManager.getTab(details.tabId) : null;
         let icon = IconDetails.normalize(details, extension, context);
         browserActionOf(extension).setProperty(tab, "icon", icon);
+        return Promise.resolve();
       },
 
       setBadgeText: function(details) {
@@ -248,10 +278,10 @@ extensions.registerSchemaAPI("browserAction", null, (extension, context) => {
         browserActionOf(extension).setProperty(tab, "badgeText", details.text);
       },
 
-      getBadgeText: function(details, callback) {
+      getBadgeText: function(details) {
         let tab = details.tabId !== null ? TabManager.getTab(details.tabId) : null;
         let text = browserActionOf(extension).getProperty(tab, "badgeText");
-        runSafe(context, callback, text);
+        return Promise.resolve(text);
       },
 
       setPopup: function(details) {
@@ -265,10 +295,10 @@ extensions.registerSchemaAPI("browserAction", null, (extension, context) => {
         browserActionOf(extension).setProperty(tab, "popup", url);
       },
 
-      getPopup: function(details, callback) {
+      getPopup: function(details) {
         let tab = details.tabId !== null ? TabManager.getTab(details.tabId) : null;
         let popup = browserActionOf(extension).getProperty(tab, "popup");
-        runSafe(context, callback, popup);
+        return Promise.resolve(popup);
       },
 
       setBadgeBackgroundColor: function(details) {
@@ -279,7 +309,7 @@ extensions.registerSchemaAPI("browserAction", null, (extension, context) => {
       getBadgeBackgroundColor: function(details, callback) {
         let tab = details.tabId !== null ? TabManager.getTab(details.tabId) : null;
         let color = browserActionOf(extension).getProperty(tab, "badgeBackgroundColor");
-        runSafe(context, callback, color);
+        return Promise.resolve(color);
       },
     },
   };

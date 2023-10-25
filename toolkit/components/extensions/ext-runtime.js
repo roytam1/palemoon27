@@ -1,6 +1,6 @@
 "use strict";
 
-var { classes: Cc, interfaces: Ci, utils: Cu } = Components;
+var {classes: Cc, interfaces: Ci, utils: Cu} = Components;
 
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 XPCOMUtils.defineLazyModuleGetter(this, "AppConstants",
@@ -10,7 +10,6 @@ Cu.import("resource://gre/modules/ExtensionUtils.jsm");
 var {
   EventManager,
   ignoreEvent,
-  runSafe,
 } = ExtensionUtils;
 
 extensions.registerSchemaAPI("runtime", null, (extension, context) => {
@@ -49,7 +48,7 @@ extensions.registerSchemaAPI("runtime", null, (extension, context) => {
         let recipient = {extensionId: extensionId ? extensionId : extension.id};
 
         if (!GlobalManager.extensionMap.has(recipient.extensionId)) {
-          return context.wrapPromise(Promise.reject({ message: "Invalid extension ID" }),
+          return context.wrapPromise(Promise.reject({message: "Invalid extension ID"}),
                                      responseCallback);
         }
         return context.messenger.sendMessage(Services.cpmm, message, recipient, responseCallback);
@@ -69,7 +68,7 @@ extensions.registerSchemaAPI("runtime", null, (extension, context) => {
         return extension.baseURI.resolve(url);
       },
 
-      getPlatformInfo: function(callback) {
+      getPlatformInfo: function() {
         let os = AppConstants.platform;
         if (os == "macosx") {
           os = "mac";
@@ -84,7 +83,27 @@ extensions.registerSchemaAPI("runtime", null, (extension, context) => {
         }
 
         let info = {os, arch};
-        runSafe(context, callback, info);
+        return Promise.resolve(info);
+      },
+
+      setUninstallURL: function(url) {
+        if (url.length == 0) {
+          return Promise.resolve();
+        }
+
+        let uri;
+        try {
+          uri = NetUtil.newURI(url);
+        } catch (e) {
+          return Promise.reject({message: `Invalid URL: ${JSON.stringify(url)}`});
+        }
+
+        if (uri.scheme != "http" && uri.scheme != "https") {
+          return Promise.reject({message: "url must have the scheme http or https"});
+        }
+
+        extension.uninstallURL = url;
+        return Promise.resolve();
       },
     },
   };

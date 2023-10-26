@@ -64,6 +64,7 @@
 #include "mozilla/unused.h"
 #include "mozilla/TimelineConsumers.h"
 #include "nsAnimationManager.h"
+#include "nsIDOMEvent.h"
 
 #ifdef MOZ_NUWA_PROCESS
 #include "ipc/Nuwa.h"

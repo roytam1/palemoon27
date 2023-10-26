@@ -12,6 +12,7 @@
 #include "nsCOMPtr.h"
 #include "nsError.h"
 #include "MediaDecoder.h"
+#include "MediaFormatReader.h"
 
 class nsIStreamListener;
 
@@ -73,7 +74,7 @@ public:
 
   // Returns a string describing the state of the MediaSource internal
   // buffered data. Used for debugging purposes.
-  void GetMozDebugReaderData(nsAString& aString);
+  void GetMozDebugReaderData(nsAString& aString) override;
 
   void AddSizeOfResources(ResourceSizes* aSizes) override;
 
@@ -88,6 +89,8 @@ private:
   // mMediaSource.
   dom::MediaSource* mMediaSource;
   RefPtr<MediaSourceDemuxer> mDemuxer;
+  RefPtr<MediaFormatReader> mReader;
+
   Atomic<bool> mEnded;
 };
 

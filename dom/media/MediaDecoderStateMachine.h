@@ -105,6 +105,7 @@ class MediaSink;
 
 class AudioSegment;
 class DecodedStream;
+class OutputStreamManager;
 class TaskQueue;
 
 extern LazyLogModule gMediaDecoderLog;
@@ -511,9 +512,6 @@ protected:
 
   // Notification method invoked when mLogicallySeeking changes.
   void LogicallySeekingChanged();
-
-  // Notification method invoked when mSameOriginMedia changes.
-  void SameOriginMediaChanged();
 
   // Sets internal state which causes playback of media to pause.
   // The decoder monitor must be held.
@@ -1101,6 +1099,9 @@ private:
   // been written to the MediaStream.
   Watchable<bool> mAudioCompleted;
 
+  // True if all video frames are already rendered.
+  Watchable<bool> mVideoCompleted;
+
   // Set if MDSM receives dormant request during reading metadata.
   Maybe<bool> mPendingDormant;
 
@@ -1188,6 +1189,9 @@ private:
   Watchable<bool> mSentFirstFrameLoadedEvent;
 
   bool mSentPlaybackEndedEvent;
+
+  // Data about MediaStreams that are being fed by the decoder.
+  const RefPtr<OutputStreamManager> mOutputStreamManager;
 
   // The SourceMediaStream we are using to feed the mOutputStreams. This stream
   // is never exposed outside the decoder.

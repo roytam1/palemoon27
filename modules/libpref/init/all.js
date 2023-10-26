@@ -385,10 +385,6 @@ pref("media.webm.enabled", true);
 pref("media.webm.intel_decoder.enabled", true);
 #endif
 
-#ifdef MOZ_GSTREAMER
-pref("media.gstreamer.enabled", true);
-pref("media.gstreamer.enable-blacklist", true);
-#endif
 #ifdef MOZ_APPLEMEDIA
 #ifdef MOZ_WIDGET_UIKIT
 pref("media.mp3.enabled", true);
@@ -537,8 +533,6 @@ pref("media.mediasource.enabled", true);
 pref("media.mediasource.mp4.enabled", true);
 pref("media.mediasource.webm.enabled", false);
 
-// Enable new MediaFormatReader architecture for plain webm.
-pref("media.format-reader.webm", true);
 
 #ifdef MOZ_WEBSPEECH
 pref("media.webspeech.recognition.enable", false);

@@ -120,6 +120,8 @@ moz_speex_resampler_skip_zeros
 moz_speex_resampler_set_skip_frac_num
 moz_speex_resampler_reset_mem
 cubeb_destroy
+cubeb_device_collection_destroy
+cubeb_enumerate_devices
 cubeb_init
 cubeb_get_backend_id
 cubeb_get_max_channel_count

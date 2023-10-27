@@ -129,7 +129,8 @@ MediaEngineTabVideoSource::GetUUID(nsACString_internal& aUuid)
 nsresult
 MediaEngineTabVideoSource::Allocate(const dom::MediaTrackConstraints& aConstraints,
                                     const MediaEnginePrefs& aPrefs,
-                                    const nsString& aDeviceId)
+                                    const nsString& aDeviceId,
+                                    const nsACString& aOrigin)
 {
   // windowId is not a proper constraint, so just read it.
   // It has no well-defined behavior in advanced, so ignore it there.
@@ -311,12 +312,6 @@ MediaEngineTabVideoSource::Stop(mozilla::SourceMediaStream*, mozilla::TrackID)
     return NS_OK;
 
   NS_DispatchToMainThread(new StopRunnable(this));
-  return NS_OK;
-}
-
-nsresult
-MediaEngineTabVideoSource::Config(bool, uint32_t, bool, uint32_t, bool, uint32_t, int32_t)
-{
   return NS_OK;
 }
 

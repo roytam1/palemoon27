@@ -967,7 +967,7 @@ nsSVGOuterSVGAnonChildFrame::IsSVGTransformed(Matrix* aOwnTransform,
 
   // Outer-<svg> doesn't use x/y, so we can pass eChildToUserSpace here.
   gfxMatrix ownMatrix =
-    content->PrependLocalTransformsTo(gfxMatrix(), nsSVGElement::eChildToUserSpace);
+    content->PrependLocalTransformsTo(gfxMatrix(), eChildToUserSpace);
 
   if (ownMatrix.IsIdentity()) {
     return false;

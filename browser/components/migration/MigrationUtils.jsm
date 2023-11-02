@@ -231,8 +231,8 @@ this.MigratorPrototype = {
 
       notify("Migration:Started");
       for (let [key, value] of resourcesGroupedByItems) {
-      	// TODO: (bug 449811).
-      	let migrationType = key, itemResources = value;
+        // TODO: (bug 449811).
+        let migrationType = key, itemResources = value;
 
         notify("Migration:ItemBeforeMigrate", migrationType);
 

@@ -113,11 +113,11 @@
       <field name="mTabsProgressListeners">
         []
       </field>
-      <field name="mTabListeners">
-        []
+      <field name="_tabListeners">
+        new Map()
       </field>
-      <field name="mTabFilters">
-        []
+      <field name="_tabFilters">
+        new Map()
       </field>
       <field name="mIsBusy">
         false
@@ -1142,11 +1142,14 @@
                                         false);
 
             if (securityUI) {
+              // Include the true final argument to indicate that this event is
+              // simulated (instead of being observed by the webProgressListener).
               this._callProgressListeners(null, "onSecurityChange",
-                                          [webProgress, null, securityUI.state], true, false);
+                                          [webProgress, null, securityUI.state, true],
+                                          true, false);
             }
 
-            var listener = this.mTabListeners[this.tabContainer.selectedIndex] || null;
+            var listener = this._tabListeners.get(this.mCurrentTab);
             if (listener && listener.mStateFlags) {
               this._callProgressListeners(null, "onUpdateCurrentBrowser",
                                           [listener.mStateFlags, listener.mStatus,
@@ -1549,8 +1552,7 @@
 
             // Unhook our progress listener.
             let tab = this.getTabForBrowser(aBrowser);
-            let index = tab._tPos;
-            let filter = this.mTabFilters[index];
+            let filter = this._tabFilters.get(tab);
 	    let listener = this._tabListeners.get(tab);
             aBrowser.webProgress.removeProgressListener(filter);
             filter.removeProgressListener(listener);
@@ -1822,7 +1824,7 @@
             var aRelatedToCurrent;
             var aSkipAnimation;
             var aAllowMixedContent;
-	    var aForceNotRemote;
+            var aForceNotRemote;
             var aNoReferrer;
             var aUserContextId;
             if (arguments.length == 2 &&
@@ -1839,7 +1841,7 @@
               aRelatedToCurrent     = params.relatedToCurrent;
               aSkipAnimation        = params.skipAnimation;
               aAllowMixedContent    = params.allowMixedContent;
-	      aForceNotRemote       = params.forceNotRemote;
+              aForceNotRemote       = params.forceNotRemote;
               aNoReferrer           = params.noReferrer;
               aUserContextId        = params.userContextId;
             }
@@ -1936,8 +1938,8 @@
                                      .createInstance(Components.interfaces.nsIWebProgress);
             filter.addProgressListener(tabListener, Components.interfaces.nsIWebProgress.NOTIFY_ALL);
             b.webProgress.addProgressListener(filter, Components.interfaces.nsIWebProgress.NOTIFY_ALL);
-            this.mTabListeners[position] = tabListener;
-            this.mTabFilters[position] = filter;
+            this._tabListeners.set(t, tabListener);
+            this._tabFilters.set(t, filter);
 
             b.droppedLinkHandler = handleDroppedLink;
 
@@ -2308,7 +2310,7 @@
             evt.initUIEvent("TabClose", true, false, window, aTabWillBeMoved ? 1 : 0);
             aTab.dispatchEvent(evt);
 
-            if (!gMultiProcessBrowser) {
+            if (!aTabWillBeMoved && !gMultiProcessBrowser) {
               // Prevent this tab from showing further dialogs, since we're closing it
               var windowUtils = browser.contentWindow.QueryInterface(Ci.nsIInterfaceRequestor).
                                 getInterface(Ci.nsIDOMWindowUtils);
@@ -2316,12 +2318,13 @@
             }
 
             // Remove the tab's filter and progress listener.
-            const filter = this.mTabFilters[aTab._tPos];
+            const filter = this._tabFilters.get(aTab);
 
             browser.webProgress.removeProgressListener(filter);
 
-            filter.removeProgressListener(this.mTabListeners[aTab._tPos]);
-            this.mTabListeners[aTab._tPos].destroy();
+            const listener = this._tabListeners.get(aTab);
+            filter.removeProgressListener(listener);
+            listener.destroy();
 
             if (browser.registeredOpenURI && !aTabWillBeMoved) {
               this._placesAutocomplete.unregisterOpenPage(browser.registeredOpenURI);
@@ -2382,11 +2385,8 @@
             }
 
             // We're going to remove the tab and the browser now.
-            // Clean up mTabFilters and mTabListeners now rather than in
-            // _beginRemoveTab, so that their size is always in sync with the
-            // number of tabs and browsers (the xbl destructor depends on this).
-            this.mTabFilters.splice(aTab._tPos, 1);
-            this.mTabListeners.splice(aTab._tPos, 1);
+            this._tabFilters.delete(aTab);
+            this._tabListeners.delete(aTab);
 
             var browser = this.getBrowserForTab(aTab);
             this._outerWindowIDBrowserMap.delete(browser.outerWindowID);
@@ -2637,9 +2637,8 @@
         <body>
           <![CDATA[
             // Unhook our progress listener
-            let index = aOurTab._tPos;
-            const filter = this.mTabFilters[index];
-            let tabListener = this.mTabListeners[index];
+            const filter = this._tabFilters.get(aOurTab);
+            let tabListener = this._tabListeners.get(aOurTab);
             let ourBrowser = this.getBrowserForTab(aOurTab);
             ourBrowser.webProgress.removeProgressListener(filter);
             filter.removeProgressListener(tabListener);
@@ -2676,8 +2675,8 @@
             aOtherBrowser.permanentKey = ourPermanentKey;
 
             // Restore the progress listener
-            this.mTabListeners[index] = tabListener =
-              this.mTabProgressListener(aOurTab, ourBrowser, false, false);
+            tabListener = this.mTabProgressListener(aOurTab, ourBrowser, false, false);
+            this._tabListeners.set(aOurTab, tabListener);
 
             const notifyAll = Ci.nsIWebProgress.NOTIFY_ALL;
             filter.addProgressListener(tabListener, notifyAll);
@@ -2945,9 +2944,6 @@
             return;
 
           this._lastRelatedTab = null;
-
-          this.mTabFilters.splice(aIndex, 0, this.mTabFilters.splice(aTab._tPos, 1)[0]);
-          this.mTabListeners.splice(aIndex, 0, this.mTabListeners.splice(aTab._tPos, 1)[0]);
 
           let wasFocused = (document.activeElement == this.mCurrentTab);
 
@@ -4366,19 +4362,9 @@
           const filter = Components.classes["@mozilla.org/appshell/component/browser-status-filter;1"]
                                    .createInstance(nsIWebProgress);
           filter.addProgressListener(tabListener, nsIWebProgress.NOTIFY_ALL);
-          this.mTabListeners[0] = tabListener;
-          this.mTabFilters[0] = filter;
-
-          try {
-            // We assume this can only fail because mCurrentBrowser's docShell
-            // hasn't been created, yet. This may be caused by code accessing
-            // gBrowser before the window has finished loading.
-            this._addProgressListenerForInitialTab();
-          } catch (e) {
-            // The binding was constructed too early, wait until the initial
-            // tab's document is ready, then add the progress listener.
-            this._waitForInitialContentDocument();
-          }
+          this._tabListeners.set(this.mCurrentTab, tabListener);
+          this._tabFilters.set(this.mCurrentTab, filter);
+          this.webProgress.addProgressListener(filter, nsIWebProgress.NOTIFY_ALL);
 
           this.style.backgroundColor =
             Services.prefs.getBoolPref("browser.display.use_system_colors") ?
@@ -4393,7 +4379,7 @@
             messageManager.addMessageListener("DOMTitleChanged", this);
             messageManager.addMessageListener("DOMWindowClose", this);
             messageManager.addMessageListener("contextmenu", this);
-	    messageManager.addMessageListener("Browser:Init", this);
+            messageManager.addMessageListener("Browser:Init", this);
 
             // If this window has remote tabs, switch to our tabpanels fork
             // which does asynchronous tab switching.
@@ -4430,50 +4416,32 @@
         ]]></body>
       </method>
 
-      <method name="_addProgressListenerForInitialTab">
-        <body><![CDATA[
-          this.webProgress.addProgressListener(this.mTabFilters[0], Ci.nsIWebProgress.NOTIFY_ALL);
-        ]]></body>
-      </method>
-
-      <method name="_waitForInitialContentDocument">
-        <body><![CDATA[
-          let obs = (subject, topic) => {
-            if (this.browsers[0].contentWindow == subject) {
-              Services.obs.removeObserver(obs, topic);
-              this._addProgressListenerForInitialTab();
-            }
-          };
-
-          // We use content-document-global-created as an approximation for
-          // "docShell is initialized". We can do this because in the
-          // mTabProgressListener we care most about the STATE_STOP notification
-          // that will reset mBlank. That means it's important to at least add
-          // the progress listener before the initial about:blank load stops
-          // if we can't do it before the load starts.
-          Services.obs.addObserver(obs, "content-document-global-created", false);
-        ]]></body>
-      </method>
-
       <destructor>
         <![CDATA[
           Services.obs.removeObserver(this, "live-resize-start", false);
           Services.obs.removeObserver(this, "live-resize-end", false);
 
-          for (var i = 0; i < this.mTabListeners.length; ++i) {
-            let browser = this.getBrowserAtIndex(i);
+          for (let tab of this.tabs) {
+            let browser = tab.linkedBrowser;
             if (browser.registeredOpenURI) {
               this._placesAutocomplete.unregisterOpenPage(browser.registeredOpenURI);
               this._unifiedComplete.unregisterOpenPage(browser.registeredOpenURI);
               delete browser.registeredOpenURI;
             }
-            browser.webProgress.removeProgressListener(this.mTabFilters[i]);
-            this.mTabFilters[i].removeProgressListener(this.mTabListeners[i]);
-            this.mTabFilters[i] = null;
-            this.mTabListeners[i].destroy();
-            this.mTabListeners[i] = null;
+            let filter = this._tabFilters.get(tab);
+            let listener = this._tabListeners.get(tab);
+
+            browser.webProgress.removeProgressListener(filter);
+            filter.removeProgressListener(listener);
+            listener.destroy();
+
+            this._tabFilters.delete(tab);
+            this._tabListeners.delete(tab);
           }
-          let els = Cc["@mozilla.org/eventlistenerservice;1"].getService(Ci.nsIEventListenerService);
+          const nsIEventListenerService =
+            Components.interfaces.nsIEventListenerService;
+          let els = Components.classes["@mozilla.org/eventlistenerservice;1"]
+                              .getService(nsIEventListenerService);
           els.removeSystemEventListener(document, "keydown", this, false);
           if (this.AppConstants.platform == "macosx") {
             els.removeSystemEventListener(document, "keypress", this, false);

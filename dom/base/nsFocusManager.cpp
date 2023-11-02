@@ -1132,12 +1132,14 @@ nsFocusManager::ActivateOrDeactivate(nsPIDOMWindow* aWindow, bool aActive)
   aWindow->ActivateOrDeactivate(aActive);
 
   // Send the activate event.
-  nsContentUtils::DispatchEventOnlyToChrome(aWindow->GetExtantDoc(),
-                                            aWindow,
-                                            aActive ?
-                                              NS_LITERAL_STRING("activate") :
-                                              NS_LITERAL_STRING("deactivate"),
-                                            true, true, nullptr);
+  if (aWindow->GetExtantDoc()) {
+    nsContentUtils::DispatchEventOnlyToChrome(aWindow->GetExtantDoc(),
+                                              aWindow,
+                                              aActive ?
+                                                NS_LITERAL_STRING("activate") :
+                                                NS_LITERAL_STRING("deactivate"),
+                                              true, true, nullptr);
+  }
 
   // Look for any remote child frames, iterate over them and send the activation notification.
   nsContentUtils::CallOnAllRemoteChildren(aWindow, ActivateOrDeactivateChild,
@@ -2457,7 +2459,11 @@ nsFocusManager::DetermineElementToMoveFocus(nsPIDOMWindow* aWindow,
       nsCOMPtr<nsPIDOMWindow> focusedWindow;
       startContent = GetFocusedDescendant(aWindow, true, getter_AddRefs(focusedWindow));
     }
-    else {
+    else if (aType != MOVEFOCUS_LASTDOC) {
+      // Otherwise, start at the focused node. If MOVEFOCUS_LASTDOC is used,
+      // then we are document-navigating backwards from chrome to the content
+      // process, and we don't want to use this so that we start from the end
+      // of the document.
       startContent = aWindow->GetFocusedNode();
     }
   }

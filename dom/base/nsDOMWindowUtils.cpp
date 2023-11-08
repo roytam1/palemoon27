@@ -2285,7 +2285,7 @@ nsDOMWindowUtils::GetSupportsHardwareH264Decoding(JS::MutableHandle<JS::Value> a
   RefPtr<Promise> promise =
     MP4Decoder::IsVideoAccelerated(mgr->GetCompositorBackendType(), parentObject);
   NS_ENSURE_STATE(promise);
-  aPromise.setObject(*promise->GetWrapper());
+  aPromise.setObject(*promise->PromiseObj());
 #else
   ErrorResult rv;
   RefPtr<Promise> promise = Promise::Create(parentObject, rv);
@@ -2293,7 +2293,7 @@ nsDOMWindowUtils::GetSupportsHardwareH264Decoding(JS::MutableHandle<JS::Value> a
     return rv.StealNSResult();
   }
   promise.MaybeResolve(NS_LITERAL_STRING("No; Compiled without MP4 support."));
-  aPromise.setObject(*promise->GetWrapper());
+  aPromise.setObject(*promise->PromiseObj());
 #endif
   return NS_OK;
 }
@@ -2416,12 +2416,15 @@ nsDOMWindowUtils::AdvanceTimeAndRefresh(int64_t aMilliseconds)
     }
   }
 
-  nsRefreshDriver* driver = GetPresContext()->RefreshDriver();
-  driver->AdvanceTimeAndRefresh(aMilliseconds);
+  nsPresContext* presContext = GetPresContext();
+  if (presContext) {
+    nsRefreshDriver* driver = presContext->RefreshDriver();
+    driver->AdvanceTimeAndRefresh(aMilliseconds);
 
-  RefPtr<LayerTransactionChild> transaction = GetLayerTransaction();
-  if (transaction && transaction->IPCOpen()) {
-    transaction->SendSetTestSampleTime(driver->MostRecentRefresh());
+    RefPtr<LayerTransactionChild> transaction = GetLayerTransaction();
+    if (transaction && transaction->IPCOpen()) {
+      transaction->SendSetTestSampleTime(driver->MostRecentRefresh());
+    }
   }
 
   return NS_OK;

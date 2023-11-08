@@ -310,6 +310,8 @@ partial interface Document {
 partial interface Document {
   [Func="nsDocument::IsWebAnimationsEnabled"]
   readonly attribute DocumentTimeline timeline;
+  [Func="nsDocument::IsWebAnimationsEnabled"]
+  sequence<Animation> getAnimations();
 };
 
 //  Mozilla extensions of various sorts
@@ -400,12 +402,6 @@ partial interface Document {
    */
   [ChromeOnly, Throws]
   void removeAnonymousContent(AnonymousContent aContent);
-};
-
-// http://w3c.github.io/selection-api/#extensions-to-document-interface
-partial interface Document {
-  [Throws]
-  Selection? getSelection();
 };
 
 // Extension to give chrome JS the ability to determine whether

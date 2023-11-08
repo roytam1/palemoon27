@@ -1117,7 +1117,7 @@ static nsIDocShell* GetOpenerDocShellHelper(Element* aFrameElement)
   // docshell to the remote docshell, via the chrome flags.
   nsCOMPtr<Element> frameElement = do_QueryInterface(aFrameElement);
   MOZ_ASSERT(frameElement);
-  nsPIDOMWindow* win = frameElement->OwnerDoc()->GetWindow();
+  nsPIDOMWindowOuter* win = frameElement->OwnerDoc()->GetWindow();
   if (!win) {
     NS_WARNING("Remote frame has no window");
     return nullptr;
@@ -5284,7 +5284,7 @@ bool
 ContentParent::RecvSetOfflinePermission(const Principal& aPrincipal)
 {
   nsIPrincipal* principal = aPrincipal;
-  nsContentUtils::MaybeAllowOfflineAppByDefault(principal, nullptr);
+  nsContentUtils::MaybeAllowOfflineAppByDefault(principal);
   return true;
 }
 
@@ -5396,6 +5396,7 @@ ContentParent::RecvCreateWindow(PBrowserParent* aThisTab,
                                 const nsString& aName,
                                 const nsCString& aFeatures,
                                 const nsCString& aBaseURI,
+                                const DocShellOriginAttributes& aOpenerOriginAttributes,
                                 nsresult* aResult,
                                 bool* aWindowIsNew,
                                 InfallibleTArray<FrameScriptInfo>* aFrameScripts,
@@ -5439,7 +5440,7 @@ ContentParent::RecvCreateWindow(PBrowserParent* aThisTab,
     frame = do_QueryInterface(thisTabParent->GetOwnerElement());
   }
 
-  nsCOMPtr<nsPIDOMWindow> parent;
+  nsCOMPtr<nsPIDOMWindowOuter> parent;
   if (frame) {
     parent = frame->OwnerDoc()->GetWindow();
 
@@ -5490,7 +5491,8 @@ ContentParent::RecvCreateWindow(PBrowserParent* aThisTab,
       loadContext->GetUsePrivateBrowsing(&isPrivate);
     }
 
-    nsCOMPtr<nsIOpenURIInFrameParams> params = new nsOpenURIInFrameParams();
+    nsCOMPtr<nsIOpenURIInFrameParams> params =
+      new nsOpenURIInFrameParams(aOpenerOriginAttributes);
     params->SetReferrer(NS_ConvertUTF8toUTF16(aBaseURI));
     params->SetIsPrivate(isPrivate);
 
@@ -5534,7 +5536,7 @@ ContentParent::RecvCreateWindow(PBrowserParent* aThisTab,
     finalURI->GetSpec(finalURIString);
   }
 
-  nsCOMPtr<nsIDOMWindow> window;
+  nsCOMPtr<mozIDOMWindowProxy> window;
 
   TabParent::AutoUseNewTab aunt(newTab, aWindowIsNew, aURLToLoad);
 
@@ -5549,17 +5551,12 @@ ContentParent::RecvCreateWindow(PBrowserParent* aThisTab,
   *aResult = pwwatch->OpenWindow2(parent, uri, name, features, aCalledFromJS,
       false, false, thisTabParent, nullptr, nullptr, getter_AddRefs(window));
 
-  if (NS_WARN_IF(NS_FAILED(*aResult))) {
+  if (NS_WARN_IF(!window)) {
     return true;
   }
 
   *aResult = NS_ERROR_FAILURE;
-
-  nsCOMPtr<nsPIDOMWindow> pwindow = do_QueryInterface(window);
-  if (NS_WARN_IF(!pwindow)) {
-    return true;
-  }
-
+  auto* pwindow = nsPIDOMWindowOuter::From(window);
   nsCOMPtr<nsIDocShell> windowDocShell = pwindow->GetDocShell();
   if (NS_WARN_IF(!windowDocShell)) {
     return true;

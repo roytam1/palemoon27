@@ -123,6 +123,7 @@ public:
   // need to send some notification itself with the real origin.
   bool mShouldNotifyNewOrigin = true;
 };
+
 } // namespace dom
 } // namespace mozilla
 
@@ -786,6 +787,8 @@ public:
 
   static bool IsWebAnimationsEnabled(JSContext* aCx, JSObject* aObject);
   virtual mozilla::dom::DocumentTimeline* Timeline() override;
+  virtual void GetAnimations(
+      nsTArray<RefPtr<mozilla::dom::Animation>>& aAnimations) override;
 
   virtual nsresult SetSubDocumentFor(Element* aContent,
                                      nsIDocument* aSubDoc) override;
@@ -1460,13 +1463,15 @@ protected:
   nsIContent* GetFirstBaseNodeWithHref();
   nsresult SetFirstBaseNodeWithHref(nsIContent *node);
 
-  // Get the first <title> element with the given IsNodeOfType type, or
-  // return null if there isn't one
-  nsIContent* GetTitleContent(uint32_t aNodeType);
-  // Find the first "title" element in the given IsNodeOfType type and
-  // append the concatenation of its text node children to aTitle. Do
-  // nothing if there is no such element.
-  void GetTitleFromElement(uint32_t aNodeType, nsAString& aTitle);
+  /**
+   * Returns the title element of the document as defined by the HTML
+   * specification, or null if there isn't one.  For documents whose root
+   * element is an <svg:svg>, this is the first <svg:title> element that's a
+   * child of the root.  For other documents, it's the first HTML title element
+   * in the document.
+   */
+  Element* GetTitleElement();
+
 public:
   // Get our title
   virtual void GetTitle(nsString& aTitle) override;
@@ -1507,7 +1512,7 @@ protected:
                               const nsAString& aType,
                               bool aPersisted);
 
-  virtual nsPIDOMWindow *GetWindowInternal() const override;
+  virtual nsPIDOMWindowOuter* GetWindowInternal() const override;
   virtual nsIScriptGlobalObject* GetScriptHandlingObjectInternal() const override;
   virtual bool InternalAllowXULXBL() override;
 

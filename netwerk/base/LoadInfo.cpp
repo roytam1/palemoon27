@@ -63,7 +63,7 @@ LoadInfo::LoadInfo(nsIPrincipal* aLoadingPrincipal,
   }
 
   if (aLoadingContext) {
-    nsCOMPtr<nsPIDOMWindow> outerWindow;
+    nsCOMPtr<nsPIDOMWindowOuter> outerWindow;
 
     // When the element being loaded is a frame, we choose the frame's window
     // for the window ID and the frame element's window as the parent
@@ -80,11 +80,11 @@ LoadInfo::LoadInfo(nsIPrincipal* aLoadingPrincipal,
     }
 
     if (outerWindow) {
-      nsCOMPtr<nsPIDOMWindow> inner = outerWindow->GetCurrentInnerWindow();
+      nsCOMPtr<nsPIDOMWindowInner> inner = outerWindow->GetCurrentInnerWindow();
       mInnerWindowID = inner ? inner->WindowID() : 0;
       mOuterWindowID = outerWindow->WindowID();
 
-      nsCOMPtr<nsPIDOMWindow> parent = outerWindow->GetScriptableParent();
+      nsCOMPtr<nsPIDOMWindowOuter> parent = outerWindow->GetScriptableParent();
       mParentOuterWindowID = parent->WindowID();
 
       ComputeIsThirdPartyContext(outerWindow);
@@ -184,7 +184,7 @@ LoadInfo::CloneWithNewSecFlags(nsSecurityFlags aSecurityFlags) const
 }
 
 void
-LoadInfo::ComputeIsThirdPartyContext(nsPIDOMWindow* aOuterWindow)
+LoadInfo::ComputeIsThirdPartyContext(nsPIDOMWindowOuter* aOuterWindow)
 {
   nsContentPolicyType type =
     nsContentUtils::InternalContentPolicyTypeToExternal(mInternalContentPolicyType);
@@ -194,7 +194,7 @@ LoadInfo::ComputeIsThirdPartyContext(nsPIDOMWindow* aOuterWindow)
     return;
   }
 
-  nsPIDOMWindow* win = aOuterWindow;
+  nsPIDOMWindowOuter* win = aOuterWindow;
   if (type == nsIContentPolicy::TYPE_SUBDOCUMENT) {
     // If we're loading a subdocument, aOuterWindow points to the new window.
     // Check if its parent is third-party (and then we can do the same check for

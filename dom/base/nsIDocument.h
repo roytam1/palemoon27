@@ -105,6 +105,7 @@ class Rule;
 } // namespace css
 
 namespace dom {
+class Animation;
 class AnonymousContent;
 class Attr;
 class BoxObject;
@@ -134,7 +135,6 @@ class NodeIterator;
 enum class OrientationType : uint32_t;
 class ProcessingInstruction;
 class Promise;
-class Selection;
 class StyleSheetList;
 class SVGDocument;
 class Touch;
@@ -755,8 +755,6 @@ public:
    */
   Element* GetRootElement() const;
 
-  mozilla::dom::Selection* GetSelection(mozilla::ErrorResult& aRv);
-
   /**
    * Retrieve information about the viewport as a data structure.
    * This will return information in the viewport META data section
@@ -1077,14 +1075,14 @@ public:
   /**
    * Return the window containing the document (the outer window).
    */
-  nsPIDOMWindow *GetWindow() const
+  nsPIDOMWindowOuter *GetWindow() const
   {
     return mWindow ? mWindow->GetOuterWindow() : GetWindowInternal();
   }
 
   bool IsInBackgroundWindow() const
   {
-    nsPIDOMWindow* outer = mWindow ? mWindow->GetOuterWindow() : nullptr;
+    auto* outer = mWindow ? mWindow->GetOuterWindow() : nullptr;
     return outer && outer->IsBackground();
   }
 
@@ -1093,7 +1091,7 @@ public:
    * this document. If you're not absolutely sure you need this, use
    * GetWindow().
    */
-  nsPIDOMWindow* GetInnerWindow() const
+  nsPIDOMWindowInner* GetInnerWindow() const
   {
     return mRemovedFromDocShell ? nullptr : mWindow;
   }
@@ -1103,7 +1101,7 @@ public:
    */
   uint64_t OuterWindowID() const
   {
-    nsPIDOMWindow *window = GetWindow();
+    nsPIDOMWindowOuter* window = GetWindow();
     return window ? window->WindowID() : 0;
   }
 
@@ -1112,7 +1110,7 @@ public:
    */
   uint64_t InnerWindowID() const
   {
-    nsPIDOMWindow *window = GetInnerWindow();
+    nsPIDOMWindowInner* window = GetInnerWindow();
     return window ? window->WindowID() : 0;
   }
 
@@ -1922,7 +1920,7 @@ public:
    */
   bool IsCurrentActiveDocument() const
   {
-    nsPIDOMWindow *inner = GetInnerWindow();
+    nsPIDOMWindowInner* inner = GetInnerWindow();
     return inner && inner->IsCurrentInnerWindow() && inner->GetDoc() == this;
   }
 
@@ -2204,6 +2202,9 @@ public:
   virtual already_AddRefed<mozilla::dom::UndoManager> GetUndoManager() = 0;
 
   virtual mozilla::dom::DocumentTimeline* Timeline() = 0;
+
+  virtual void GetAnimations(
+      nsTArray<RefPtr<mozilla::dom::Animation>>& aAnimations) = 0;
 
   nsresult ScheduleFrameRequestCallback(mozilla::dom::FrameRequestCallback& aCallback,
                                         int32_t *aHandle);
@@ -2511,7 +2512,7 @@ public:
   virtual void SetTitle(const nsAString& aTitle, mozilla::ErrorResult& rv) = 0;
   void GetDir(nsAString& aDirection) const;
   void SetDir(const nsAString& aDirection);
-  nsIDOMWindow* GetDefaultView() const
+  nsPIDOMWindowOuter* GetDefaultView() const
   {
     return GetWindow();
   }
@@ -2736,7 +2737,7 @@ protected:
   nsPropertyTable* GetExtraPropertyTable(uint16_t aCategory);
 
   // Never ever call this. Only call GetWindow!
-  virtual nsPIDOMWindow *GetWindowInternal() const = 0;
+  virtual nsPIDOMWindowOuter* GetWindowInternal() const = 0;
 
   // Never ever call this. Only call GetScriptHandlingObject!
   virtual nsIScriptGlobalObject* GetScriptHandlingObjectInternal() const = 0;
@@ -3077,7 +3078,7 @@ protected:
 
   // Weak reference to mScriptGlobalObject QI:d to nsPIDOMWindow,
   // updated on every set of mScriptGlobalObject.
-  nsPIDOMWindow *mWindow;
+  nsPIDOMWindowInner* mWindow;
 
   nsCOMPtr<nsIDocumentEncoder> mCachedEncoder;
 

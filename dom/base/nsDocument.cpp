@@ -10,10 +10,12 @@
 
 #include "nsDocument.h"
 #include "nsIDocumentInlines.h"
+#include "mozilla/AnimationComparator.h"
 #include "mozilla/ArrayUtils.h"
 #include "mozilla/AutoRestore.h"
 #include "mozilla/BinarySearch.h"
 #include "mozilla/DebugOnly.h"
+#include "mozilla/EffectSet.h"
 #include "mozilla/IntegerRange.h"
 #include "mozilla/MemoryReporting.h"
 #include "mozilla/Likely.h"
@@ -2261,8 +2263,7 @@ nsDocument::ResetToURI(nsIURI *aURI, nsILoadGroup *aLoadGroup,
   }
 
   // Refresh the principal on the compartment.
-  nsPIDOMWindow* win = GetInnerWindow();
-  if (win) {
+  if (nsPIDOMWindowInner* win = GetInnerWindow()) {
     win->RefreshCompartmentPrincipal();
   }
 }
@@ -3126,6 +3127,32 @@ nsDocument::Timeline()
   return mDocumentTimeline;
 }
 
+void
+nsDocument::GetAnimations(nsTArray<RefPtr<Animation>>& aAnimations)
+{
+  FlushPendingNotifications(Flush_Style);
+
+  // Bug 1174575: Until we implement a suitable PseudoElement interface we
+  // don't have anything to return for the |target| attribute of
+  // KeyframeEffect(ReadOnly) objects that refer to pseudo-elements.
+  // Rather than return some half-baked version of these objects (e.g.
+  // we a null effect attribute) we simply don't provide access to animations
+  // whose effect refers to a pseudo-element until we can support them
+  // properly.
+  for (nsIContent* node = nsINode::GetFirstChild();
+       node;
+       node = node->GetNextNode(this)) {
+    if (!node->IsElement()) {
+      continue;
+    }
+
+    node->AsElement()->GetAnimationsUnsorted(aAnimations);
+  }
+
+  // Sort animations by priority
+  aAnimations.Sort(AnimationPtrComparator<RefPtr<Animation>>());
+}
+
 /* Return true if the document is in the focused top-level window, and is an
  * ancestor of the focused DOMWindow. */
 NS_IMETHODIMP
@@ -3146,14 +3173,13 @@ nsIDocument::HasFocus(ErrorResult& rv) const
   }
 
   // Is there a focused DOMWindow?
-  nsCOMPtr<nsIDOMWindow> focusedWindow;
+  nsCOMPtr<mozIDOMWindowProxy> focusedWindow;
   fm->GetFocusedWindow(getter_AddRefs(focusedWindow));
   if (!focusedWindow) {
     return false;
   }
 
-  nsCOMPtr<nsPIDOMWindow> piWindow = do_QueryInterface(focusedWindow);
-  MOZ_ASSERT(piWindow);
+  nsPIDOMWindowOuter* piWindow = nsPIDOMWindowOuter::From(focusedWindow);
 
   // Are we an ancestor of the focused DOMWindow?
   for (nsIDocument* currentDoc = piWindow->GetDoc(); currentDoc;
@@ -3208,9 +3234,8 @@ Element*
 nsIDocument::GetActiveElement()
 {
   // Get the focused element.
-  nsCOMPtr<nsPIDOMWindow> window = GetWindow();
-  if (window) {
-    nsCOMPtr<nsPIDOMWindow> focusedWindow;
+  if (nsCOMPtr<nsPIDOMWindowOuter> window = GetWindow()) {
+    nsCOMPtr<nsPIDOMWindowOuter> focusedWindow;
     nsIContent* focusedContent =
       nsFocusManager::GetFocusedDescendant(window, false,
                                            getter_AddRefs(focusedWindow));
@@ -4521,7 +4546,7 @@ nsDocument::SetScriptGlobalObject(nsIScriptGlobalObject *aScriptGlobalObject)
 {
 #ifdef DEBUG
   {
-    nsCOMPtr<nsPIDOMWindow> win(do_QueryInterface(aScriptGlobalObject));
+    nsCOMPtr<nsPIDOMWindowInner> win(do_QueryInterface(aScriptGlobalObject));
 
     NS_ASSERTION(!win || win->IsInnerWindow(),
                  "Script global object must be an inner window!");
@@ -4601,7 +4626,7 @@ nsDocument::SetScriptGlobalObject(nsIScriptGlobalObject *aScriptGlobalObject)
 
   // Remember the pointer to our window (or lack there of), to avoid
   // having to QI every time it's asked for.
-  nsCOMPtr<nsPIDOMWindow> window = do_QueryInterface(mScriptGlobalObject);
+  nsCOMPtr<nsPIDOMWindowInner> window = do_QueryInterface(mScriptGlobalObject);
   mWindow = window;
 
   // Now that we know what our window is, we can flush the CSP errors to the
@@ -4682,10 +4707,9 @@ nsDocument::GetScriptHandlingObjectInternal() const
 
   nsCOMPtr<nsIScriptGlobalObject> scriptHandlingObject =
     do_QueryReferent(mScopeObject);
-  nsCOMPtr<nsPIDOMWindow> win = do_QueryInterface(scriptHandlingObject);
+  nsCOMPtr<nsPIDOMWindowInner> win = do_QueryInterface(scriptHandlingObject);
   if (win) {
-    NS_ASSERTION(win->IsInnerWindow(), "Should have inner window here!");
-    nsPIDOMWindow* outer = win->GetOuterWindow();
+    nsPIDOMWindowOuter* outer = win->GetOuterWindow();
     if (!outer || outer->GetCurrentInnerWindow() != win) {
       NS_WARNING("Wrong inner/outer window combination!");
       return nullptr;
@@ -4699,8 +4723,8 @@ nsDocument::SetScriptHandlingObject(nsIScriptGlobalObject* aScriptObject)
   NS_ASSERTION(!mScriptGlobalObject ||
                mScriptGlobalObject == aScriptObject,
                "Wrong script object!");
-  nsCOMPtr<nsPIDOMWindow> win = do_QueryInterface(aScriptObject);
-  NS_ASSERTION(!win || win->IsInnerWindow(), "Should have inner window here!");
+  // XXXkhuey why bother?
+  nsCOMPtr<nsPIDOMWindowInner> win = do_QueryInterface(aScriptObject);
   if (aScriptObject) {
     mScopeObject = do_GetWeakReference(aScriptObject);
     mHasHadScriptHandlingObject = true;
@@ -4732,13 +4756,13 @@ nsDocument::SetIsContentDocument(bool aIsContentDocument)
   mIsContentDocument = aIsContentDocument;
 }
 
-nsPIDOMWindow *
+nsPIDOMWindowOuter*
 nsDocument::GetWindowInternal() const
 {
   MOZ_ASSERT(!mWindow, "This should not be called when mWindow is not null!");
   // Let's use mScriptGlobalObject. Even if the document is already removed from
   // the docshell, the outer window might be still obtainable from the it.
-  nsCOMPtr<nsPIDOMWindow> win;
+  nsCOMPtr<nsPIDOMWindowOuter> win;
   if (mRemovedFromDocShell) {
     // The docshell returns the outer window we are done.
     nsCOMPtr<nsIDocShell> kungfuDeathGrip(mDocumentContainer);
@@ -4746,10 +4770,9 @@ nsDocument::GetWindowInternal() const
       win = mDocumentContainer->GetWindow();
     }
   } else {
-    win = do_QueryInterface(mScriptGlobalObject);
-    if (win) {
+    if (nsCOMPtr<nsPIDOMWindowInner> inner = do_QueryInterface(mScriptGlobalObject)) {
       // mScriptGlobalObject is always the inner window, let's get the outer.
-      win = win->GetOuterWindow();
+      win = inner->GetOuterWindow();
     }
   }
 
@@ -5724,7 +5747,7 @@ nsDocument::CustomElementConstructor(JSContext* aCx, unsigned aArgc, JS::Value* 
 
   JS::Rooted<JSObject*> global(aCx,
     JS_GetGlobalForObject(aCx, &args.callee()));
-  nsCOMPtr<nsPIDOMWindow> window = do_QueryWrapper(aCx, global);
+  nsCOMPtr<nsPIDOMWindowInner> window = do_QueryWrapper(aCx, global);
   MOZ_ASSERT(window, "Should have a non-null window");
 
   nsDocument* document = static_cast<nsDocument*>(window->GetDoc());
@@ -5776,7 +5799,7 @@ nsDocument::IsWebComponentsEnabled(JSContext* aCx, JSObject* aObject)
   // Check for the webcomponents permission. See Bug 1181555.
   JSAutoCompartment ac(aCx, obj);
   JS::Rooted<JSObject*> global(aCx, JS_GetGlobalForObject(aCx, obj));
-  nsCOMPtr<nsPIDOMWindow> window =
+  nsCOMPtr<nsPIDOMWindowInner> window =
     do_QueryInterface(nsJSUtils::GetStaticScriptGlobal(global));
 
   if (window) {
@@ -6889,10 +6912,10 @@ nsIDocument::CreateTreeWalker(nsINode& aRoot, uint32_t aWhatToShow,
 
 
 NS_IMETHODIMP
-nsDocument::GetDefaultView(nsIDOMWindow** aDefaultView)
+nsDocument::GetDefaultView(mozIDOMWindowProxy** aDefaultView)
 {
   *aDefaultView = nullptr;
-  nsCOMPtr<nsPIDOMWindow> win = GetWindow();
+  nsCOMPtr<nsPIDOMWindowOuter> win = GetWindow();
   win.forget(aDefaultView);
   return NS_OK;
 }
@@ -6907,13 +6930,13 @@ nsDocument::GetLocation(nsIDOMLocation **_retval)
 already_AddRefed<nsLocation>
 nsIDocument::GetLocation() const
 {
-  nsCOMPtr<nsIDOMWindow> w = do_QueryInterface(mScriptGlobalObject);
+  nsCOMPtr<nsPIDOMWindowInner> w = do_QueryInterface(mScriptGlobalObject);
 
   if (!w) {
     return nullptr;
   }
 
-  nsGlobalWindow* window = static_cast<nsGlobalWindow*>(w.get());
+  nsGlobalWindow* window = nsGlobalWindow::Cast(w);
   ErrorResult dummy;
   RefPtr<nsLocation> loc = window->GetLocation(dummy);
   dummy.SuppressException();
@@ -6947,8 +6970,8 @@ nsIDocument::GetHtmlChildElement(nsIAtom* aTag)
   return nullptr;
 }
 
-nsIContent*
-nsDocument::GetTitleContent(uint32_t aNamespace)
+Element*
+nsDocument::GetTitleElement()
 {
   // mMayHaveTitleElement will have been set to true if any HTML or SVG
   // <title> element has been bound to this document. So if it's false,
@@ -6958,19 +6981,26 @@ nsDocument::GetTitleContent(uint32_t aNamespace)
   if (!mMayHaveTitleElement)
     return nullptr;
 
+  Element* root = GetRootElement();
+  if (root && root->IsSVGElement(nsGkAtoms::svg)) {
+    // In SVG, the document's title must be a child
+    for (nsIContent* child = root->GetFirstChild();
+         child; child = child->GetNextSibling()) {
+      if (child->IsSVGElement(nsGkAtoms::title)) {
+        return child->AsElement();
+      }
+    }
+    return nullptr;
+  }
+
+  // We check the HTML namespace even for non-HTML documents, except SVG.  This
+  // matches the spec and the behavior of all tested browsers.
   RefPtr<nsContentList> list =
-    NS_GetContentList(this, aNamespace, NS_LITERAL_STRING("title"));
+    NS_GetContentList(this, kNameSpaceID_XHTML, NS_LITERAL_STRING("title"));
 
-  return list->Item(0, false);
-}
+  nsIContent* first = list->Item(0, false);
 
-void
-nsDocument::GetTitleFromElement(uint32_t aNamespace, nsAString& aTitle)
-{
-  nsIContent* title = GetTitleContent(aNamespace);
-  if (!title)
-    return;
-  nsContentUtils::GetNodeTextContent(title, false, aTitle);
+  return first ? first->AsElement() : nullptr;
 }
 
 NS_IMETHODIMP
@@ -6987,26 +7017,24 @@ nsDocument::GetTitle(nsString& aTitle)
 {
   aTitle.Truncate();
 
-  nsIContent *rootElement = GetRootElement();
-  if (!rootElement)
+  Element* rootElement = GetRootElement();
+  if (!rootElement) {
     return;
+  }
 
   nsAutoString tmp;
 
-  switch (rootElement->GetNameSpaceID()) {
 #ifdef MOZ_XUL
-    case kNameSpaceID_XUL:
-      rootElement->GetAttr(kNameSpaceID_None, nsGkAtoms::title, tmp);
-      break;
+  if (rootElement->IsXULElement()) {
+    rootElement->GetAttr(kNameSpaceID_None, nsGkAtoms::title, tmp);
+  } else
 #endif
-    case kNameSpaceID_SVG:
-      if (rootElement->IsSVGElement(nsGkAtoms::svg)) {
-        GetTitleFromElement(kNameSpaceID_SVG, tmp);
-        break;
-      } // else fall through
-    default:
-      GetTitleFromElement(kNameSpaceID_XHTML, tmp);
-      break;
+  {
+    Element* title = GetTitleElement();
+    if (!title) {
+      return;
+    }
+    nsContentUtils::GetNodeTextContent(title, false, tmp);
   }
 
   tmp.CompressWhitespace();
@@ -7016,41 +7044,56 @@ nsDocument::GetTitle(nsString& aTitle)
 NS_IMETHODIMP
 nsDocument::SetTitle(const nsAString& aTitle)
 {
-  Element *rootElement = GetRootElement();
-  if (!rootElement)
+  Element* rootElement = GetRootElement();
+  if (!rootElement) {
     return NS_OK;
-
-  switch (rootElement->GetNameSpaceID()) {
-    case kNameSpaceID_SVG:
-      return NS_OK; // SVG doesn't support setting a title
-#ifdef MOZ_XUL
-    case kNameSpaceID_XUL:
-      return rootElement->SetAttr(kNameSpaceID_None, nsGkAtoms::title,
-                                  aTitle, true);
-#endif
   }
+
+#ifdef MOZ_XUL
+  if (rootElement->IsXULElement()) {
+    return rootElement->SetAttr(kNameSpaceID_None, nsGkAtoms::title,
+                                aTitle, true);
+  }
+#endif
 
   // Batch updates so that mutation events don't change "the title
   // element" under us
   mozAutoDocUpdate updateBatch(this, UPDATE_CONTENT_MODEL, true);
 
-  nsIContent* title = GetTitleContent(kNameSpaceID_XHTML);
-  if (!title) {
-    Element *head = GetHeadElement();
-    if (!head)
-      return NS_OK;
+  nsCOMPtr<Element> title = GetTitleElement();
+  if (rootElement->IsSVGElement(nsGkAtoms::svg)) {
+    if (!title) {
+      RefPtr<mozilla::dom::NodeInfo> titleInfo =
+        mNodeInfoManager->GetNodeInfo(nsGkAtoms::title, nullptr,
+                                      kNameSpaceID_SVG,
+                                      nsIDOMNode::ELEMENT_NODE);
+      NS_NewSVGElement(getter_AddRefs(title), titleInfo.forget(),
+                       NOT_FROM_PARSER);
+      if (!title) {
+        return NS_OK;
+      }
+      rootElement->InsertChildAt(title, 0, true);
+    }
+  } else if (rootElement->IsHTMLElement()) {
+    if (!title) {
+      Element* head = GetHeadElement();
+      if (!head) {
+        return NS_OK;
+      }
 
-    {
       RefPtr<mozilla::dom::NodeInfo> titleInfo;
       titleInfo = mNodeInfoManager->GetNodeInfo(nsGkAtoms::title, nullptr,
-                                                kNameSpaceID_XHTML,
-                                                nsIDOMNode::ELEMENT_NODE);
+          kNameSpaceID_XHTML,
+          nsIDOMNode::ELEMENT_NODE);
       title = NS_NewHTMLTitleElement(titleInfo.forget());
-      if (!title)
+      if (!title) {
         return NS_OK;
-    }
+      }
 
-    head->AppendChildTo(title, true);
+      head->AppendChildTo(title, true);
+    }
+  } else {
+    return NS_OK;
   }
 
   return nsContentUtils::SetNodeTextContent(title, aTitle, false);
@@ -7642,8 +7685,7 @@ nsIDocument::AdoptNode(nsINode& aAdoptedNode, ErrorResult& rv)
       // descendants.
       nsIDocument *doc = this;
       do {
-        nsPIDOMWindow *win = doc->GetWindow();
-        if (win) {
+        if (nsPIDOMWindowOuter *win = doc->GetWindow()) {
           nsCOMPtr<nsINode> node = win->GetFrameElementInternal();
           if (node &&
               nsContentUtils::ContentIsDescendantOf(node, adoptedNode)) {
@@ -7772,7 +7814,7 @@ nsDocument::GetViewportInfo(const ScreenIntSize& aDisplaySize)
                                 * LayoutDeviceToScreenScale(1.0);
 
   // Special behaviour for desktop mode, provided we are not on an about: page
-  nsPIDOMWindow* win = GetWindow();
+  nsPIDOMWindowOuter* win = GetWindow();
   if (win && win->IsDesktopModeViewport() && !IsAboutPage())
   {
     CSSCoord viewportWidth = gfxPrefs::DesktopViewportWidth() / fullZoom;
@@ -8021,7 +8063,7 @@ nsDocument::PreHandleEvent(EventChainPreVisitor& aVisitor)
 
   // Load events must not propagate to |window| object, see bug 335251.
   if (aVisitor.mEvent->mMessage != eLoad) {
-    nsGlobalWindow* window = static_cast<nsGlobalWindow*>(GetWindow());
+    nsGlobalWindow* window = nsGlobalWindow::Cast(GetWindow());
     aVisitor.mParentTarget =
       window ? window->GetTargetForEventTargetChain() : nullptr;
   }
@@ -8651,7 +8693,7 @@ nsDocument::CanSavePresentation(nsIRequest *aNewRequest)
     return false;
   }
 
-  nsPIDOMWindow* win = GetInnerWindow();
+  nsPIDOMWindowInner* win = GetInnerWindow();
   if (win && win->TimeoutSuspendCount()) {
     return false;
   }
@@ -8743,12 +8785,12 @@ nsDocument::CanSavePresentation(nsIRequest *aNewRequest)
     }
   }
 
-  #ifdef MOZ_WEBSPEECH
-  nsGlobalWindow* globalWindow = static_cast<nsGlobalWindow*>(win);
+#ifdef MOZ_WEBSPEECH
+  auto* globalWindow = nsGlobalWindow::Cast(win);
   if (globalWindow->HasActiveSpeechSynthesis()) {
     return false;
   }
-  #endif
+#endif
 
   return true;
 }
@@ -9273,7 +9315,7 @@ nsDocument::MutationEventDispatched(nsINode* aTarget)
       return;
     }
 
-    nsPIDOMWindow* window = GetInnerWindow();
+    nsPIDOMWindowInner* window = GetInnerWindow();
     if (window &&
         !window->HasMutationListeners(NS_EVENT_BITS_MUTATION_SUBTREEMODIFIED)) {
       mSubtreeModifiedTargets.Clear();
@@ -10977,8 +11019,8 @@ AskWindowToExitFullscreen(nsIDocument* aDoc)
       /* Bubbles */ true, /* Cancelable */ false,
       /* DefaultAction */ nullptr);
   } else {
-    if (nsPIDOMWindow* win = aDoc->GetWindow()) {
-      win->SetFullscreenInternal(nsPIDOMWindow::eForFullscreenAPI, false);
+    if (nsPIDOMWindowOuter* win = aDoc->GetWindow()) {
+      win->SetFullscreenInternal(FullscreenReason::ForFullscreenAPI, false);
     }
   }
 }
@@ -11073,8 +11115,8 @@ public:
       NS_LITERAL_STRING("MozDOMFullscreen:Exited"),
       /* Bubbles */ true, /* Cancelable */ false, /* DefaultAction */ nullptr);
     // Ensure the window exits fullscreen.
-    if (nsPIDOMWindow* win = mDocuments[0]->GetWindow()) {
-      win->SetFullscreenInternal(nsPIDOMWindow::eForForceExitFullscreen, false);
+    if (nsPIDOMWindowOuter* win = mDocuments[0]->GetWindow()) {
+      win->SetFullscreenInternal(FullscreenReason::ForForceExitFullscreen, false);
     }
     return NS_OK;
   }
@@ -11442,7 +11484,7 @@ IsInActiveTab(nsIDocument* aDoc)
   if (!rootItem) {
     return false;
   }
-  nsCOMPtr<nsIDOMWindow> rootWin = rootItem->GetWindow();
+  nsCOMPtr<nsPIDOMWindowOuter> rootWin = rootItem->GetWindow();
   if (!rootWin) {
     return false;
   }
@@ -11452,7 +11494,7 @@ IsInActiveTab(nsIDocument* aDoc)
     return false;
   }
 
-  nsCOMPtr<nsIDOMWindow> activeWindow;
+  nsCOMPtr<mozIDOMWindowProxy> activeWindow;
   fm->GetActiveWindow(getter_AddRefs(activeWindow));
   if (!activeWindow) {
     return false;
@@ -11668,7 +11710,7 @@ private:
 
 /* static */ LinkedList<FullscreenRequest> PendingFullscreenRequestList::sList;
 
-static nsCOMPtr<nsPIDOMWindow>
+static nsCOMPtr<nsPIDOMWindowOuter>
 GetRootWindow(nsIDocument* aDoc)
 {
   nsIDocShell* docShell = aDoc->GetDocShell();
@@ -11682,7 +11724,7 @@ GetRootWindow(nsIDocument* aDoc)
 
 static bool
 ShouldApplyFullscreenDirectly(nsIDocument* aDoc,
-                              nsPIDOMWindow* aRootWin)
+                              nsPIDOMWindowOuter* aRootWin)
 {
   if (XRE_GetProcessType() == GeckoProcessType_Content) {
     // If we are in the content process, we can apply the fullscreen
@@ -11716,7 +11758,7 @@ ShouldApplyFullscreenDirectly(nsIDocument* aDoc,
 void
 nsDocument::RequestFullScreen(UniquePtr<FullscreenRequest>&& aRequest)
 {
-  nsCOMPtr<nsPIDOMWindow> rootWin = GetRootWindow(this);
+  nsCOMPtr<nsPIDOMWindowOuter> rootWin = GetRootWindow(this);
   if (!rootWin) {
     return;
   }
@@ -11744,7 +11786,7 @@ nsDocument::RequestFullScreen(UniquePtr<FullscreenRequest>&& aRequest)
     // Make the window fullscreen.
     const FullscreenRequest*
       lastRequest = PendingFullscreenRequestList::GetLast();
-    rootWin->SetFullscreenInternal(nsPIDOMWindow::eForFullscreenAPI, true,
+    rootWin->SetFullscreenInternal(FullscreenReason::ForFullscreenAPI, true,
                                    lastRequest->mVRHMDDevice);
   }
 }
@@ -12102,7 +12144,7 @@ public:
 
     // Handling a request from user input in non-fullscreen mode.
     // Do a normal permission check.
-    nsCOMPtr<nsPIDOMWindow> window = doc->GetInnerWindow();
+    nsCOMPtr<nsPIDOMWindowInner> window = doc->GetInnerWindow();
     nsContentPermissionUtils::AskPermission(this, window);
     return NS_OK;
   }
@@ -12150,7 +12192,7 @@ nsPointerLockPermissionRequest::GetPrincipal(nsIPrincipal** aPrincipal)
 }
 
 NS_IMETHODIMP
-nsPointerLockPermissionRequest::GetWindow(nsIDOMWindow** aWindow)
+nsPointerLockPermissionRequest::GetWindow(mozIDOMWindow** aWindow)
 {
   nsCOMPtr<nsIDocument> d = do_QueryReferent(mDocument);
   if (d) {
@@ -12392,11 +12434,11 @@ nsDocument::ShouldLockPointer(Element* aElement, Element* aCurrentLock,
   if (!ownerDoc->GetContainer()) {
     return false;
   }
-  nsCOMPtr<nsPIDOMWindow> ownerWindow = ownerDoc->GetWindow();
+  nsCOMPtr<nsPIDOMWindowOuter> ownerWindow = ownerDoc->GetWindow();
   if (!ownerWindow) {
     return false;
   }
-  nsCOMPtr<nsPIDOMWindow> ownerInnerWindow = ownerDoc->GetInnerWindow();
+  nsCOMPtr<nsPIDOMWindowInner> ownerInnerWindow = ownerDoc->GetInnerWindow();
   if (!ownerInnerWindow) {
     return false;
   }
@@ -12404,7 +12446,7 @@ nsDocument::ShouldLockPointer(Element* aElement, Element* aCurrentLock,
     return false;
   }
 
-  nsCOMPtr<nsPIDOMWindow> top = ownerWindow->GetScriptableTop();
+  nsCOMPtr<nsPIDOMWindowOuter> top = ownerWindow->GetScriptableTop();
   if (!top || !top->GetExtantDoc() || top->GetExtantDoc()->Hidden()) {
     NS_WARNING("ShouldLockPointer(): Top document isn't visible.");
     return false;
@@ -12425,7 +12467,7 @@ bool
 nsDocument::SetPointerLock(Element* aElement, int aCursorStyle)
 {
   // NOTE: aElement will be nullptr when unlocking.
-  nsCOMPtr<nsPIDOMWindow> window = GetWindow();
+  nsCOMPtr<nsPIDOMWindowOuter> window = GetWindow();
   if (!window) {
     NS_WARNING("SetPointerLock(): No Window");
     return false;
@@ -12879,7 +12921,7 @@ nsIDocument::GetTopLevelContentDocument()
   if (!mLoadedAsData) {
     parent = static_cast<nsDocument*>(this);
   } else {
-    nsCOMPtr<nsPIDOMWindow> window = do_QueryInterface(GetScopeObject());
+    nsCOMPtr<nsPIDOMWindowInner> window = do_QueryInterface(GetScopeObject());
     if (!window) {
       return nullptr;
     }
@@ -13206,9 +13248,8 @@ nsAutoSyncOperation::nsAutoSyncOperation(nsIDocument* aDoc)
   mMicroTaskLevel = nsContentUtils::MicroTaskLevel();
   nsContentUtils::SetMicroTaskLevel(0);
   if (aDoc) {
-    nsPIDOMWindow* win = aDoc->GetWindow();
-    if (win) {
-      if (nsCOMPtr<nsPIDOMWindow> top = win->GetTop()) {
+    if (nsPIDOMWindowOuter* win = aDoc->GetWindow()) {
+      if (nsCOMPtr<nsPIDOMWindowOuter> top = win->GetTop()) {
         nsCOMPtr<nsIDocument> doc = top->GetExtantDoc();
         MarkDocumentTreeToBeInSyncOperation(doc, &mDocuments);
       }
@@ -13281,7 +13322,7 @@ nsIDocument::FlushUserFontSet()
       bool changed = false;
 
       if (!mFontFaceSet && !rules.IsEmpty()) {
-        nsCOMPtr<nsPIDOMWindow> window = do_QueryInterface(GetScopeObject());
+        nsCOMPtr<nsPIDOMWindowInner> window = do_QueryInterface(GetScopeObject());
         mFontFaceSet = new FontFaceSet(window, this);
       }
       if (mFontFaceSet) {
@@ -13337,7 +13378,7 @@ FontFaceSet*
 nsIDocument::Fonts()
 {
   if (!mFontFaceSet) {
-    nsCOMPtr<nsPIDOMWindow> window = do_QueryInterface(GetScopeObject());
+    nsCOMPtr<nsPIDOMWindowInner> window = do_QueryInterface(GetScopeObject());
     mFontFaceSet = new FontFaceSet(window, this);
     GetUserFontSet();  // this will cause the user font set to be created/updated
   }
@@ -13356,20 +13397,4 @@ nsIDocument::ReportHasScrollLinkedEffect()
                                   NS_LITERAL_CSTRING("Async Pan/Zoom"),
                                   this, nsContentUtils::eLAYOUT_PROPERTIES,
                                   "ScrollLinkedEffectFound");
-}
-
-Selection*
-nsIDocument::GetSelection(ErrorResult& aRv)
-{
-  nsCOMPtr<nsPIDOMWindow> window = GetInnerWindow();
-  if (!window) {
-    return nullptr;
-  }
-
-  NS_ASSERTION(window->IsInnerWindow(), "Should have inner window here!");
-  if (!window->IsCurrentInnerWindow()) {
-    return nullptr;
-  }
-
-  return static_cast<nsGlobalWindow*>(window.get())->GetSelection(aRv);
 }

@@ -27,6 +27,7 @@ namespace mozilla {
 namespace dom {
 class Element;
 } // namespace dom
+struct ComputedGridTrackInfo;
 } // namespace mozilla
 
 struct nsComputedStyleMap;
@@ -190,7 +191,7 @@ private:
                                               const nsStyleCoord& aMaxSize);
   already_AddRefed<CSSValue> GetGridTemplateColumnsRows(
     const nsStyleGridTemplate& aTrackList,
-    const nsTArray<nscoord>* aTrackSizes);
+    const mozilla::ComputedGridTrackInfo* aTrackInfo);
   already_AddRefed<CSSValue> GetGridLine(const nsStyleGridLine& aGridLine);
 
   bool GetLineHeightCoord(nscoord& aCoord);

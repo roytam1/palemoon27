@@ -15,13 +15,16 @@
 #include "mozilla/Attributes.h"
 #include "mozilla/ComputedTimingFunction.h" // ComputedTimingFunction
 #include "mozilla/LayerAnimationInfo.h"     // LayerAnimations::kRecords
+#include "mozilla/OwningNonNull.h"          // OwningNonNull<...>
 #include "mozilla/StickyTimeDuration.h"
 #include "mozilla/StyleAnimationValue.h"
 #include "mozilla/TimeStamp.h"
 #include "mozilla/dom/AnimationEffectReadOnly.h"
+#include "mozilla/dom/AnimationEffectTimingReadOnly.h" // TimingParams
 #include "mozilla/dom/Element.h"
 #include "mozilla/dom/KeyframeBinding.h"
 #include "mozilla/dom/Nullable.h"
+
 
 struct JSContext;
 class nsCSSPropertySet;
@@ -36,40 +39,10 @@ struct AnimationCollection;
 class AnimValuesStyleRule;
 
 namespace dom {
-struct ComputedTimingProperties;
 class UnrestrictedDoubleOrKeyframeEffectOptions;
 enum class IterationCompositeOperation : uint32_t;
 enum class CompositeOperation : uint32_t;
 }
-
-/**
- * Input timing parameters.
- *
- * Eventually this will represent all the input timing parameters specified
- * by content but for now it encapsulates just the subset of those
- * parameters passed to GetPositionInIteration.
- */
-struct AnimationTiming
-{
-  TimeDuration mIterationDuration;
-  TimeDuration mDelay;
-  float mIterationCount; // mozilla::PositiveInfinity<float>() means infinite
-  dom::PlaybackDirection mDirection;
-  dom::FillMode mFillMode;
-
-  bool FillsForwards() const;
-  bool FillsBackwards() const;
-  bool operator==(const AnimationTiming& aOther) const {
-    return mIterationDuration == aOther.mIterationDuration &&
-           mDelay == aOther.mDelay &&
-           mIterationCount == aOther.mIterationCount &&
-           mDirection == aOther.mDirection &&
-           mFillMode == aOther.mFillMode;
-  }
-  bool operator!=(const AnimationTiming& aOther) const {
-    return !(*this == aOther);
-  }
-};
 
 /**
  * Stores the results of calculating the timing properties of an animation
@@ -88,6 +61,25 @@ struct ComputedTiming
   Nullable<double>    mProgress;
   // Zero-based iteration index (meaningless if mProgress is null).
   uint64_t            mCurrentIteration = 0;
+  // Unlike TimingParams::mIterations, this value is
+  // guaranteed to be in the range [0, Infinity].
+  double              mIterations = 1.0;
+  StickyTimeDuration  mDuration;
+
+  // This is the computed fill mode so it is never auto
+  dom::FillMode       mFill = dom::FillMode::None;
+  bool FillsForwards() const {
+    MOZ_ASSERT(mFill != dom::FillMode::Auto,
+               "mFill should not be Auto in ComputedTiming.");
+    return mFill == dom::FillMode::Both ||
+           mFill == dom::FillMode::Forwards;
+  }
+  bool FillsBackwards() const {
+    MOZ_ASSERT(mFill != dom::FillMode::Auto,
+               "mFill should not be Auto in ComputedTiming.");
+    return mFill == dom::FillMode::Both ||
+           mFill == dom::FillMode::Backwards;
+  }
 
   enum class AnimationPhase {
     Null,   // Not sampled (null sample time)
@@ -178,7 +170,7 @@ public:
   KeyframeEffectReadOnly(nsIDocument* aDocument,
                          Element* aTarget,
                          nsCSSPseudoElements::Type aPseudoType,
-                         const AnimationTiming& aTiming);
+                         const TimingParams& aTiming);
 
   NS_DECL_ISUPPORTS_INHERITED
   NS_DECL_CYCLE_COLLECTION_SCRIPT_HOLDER_CLASS_INHERITED(KeyframeEffectReadOnly,
@@ -197,9 +189,23 @@ public:
   static already_AddRefed<KeyframeEffectReadOnly>
   Constructor(const GlobalObject& aGlobal,
               Element* aTarget,
-              const Optional<JS::Handle<JSObject*>>& aFrames,
+              JS::Handle<JSObject*> aFrames,
               const UnrestrictedDoubleOrKeyframeEffectOptions& aOptions,
+              ErrorResult& aRv)
+  {
+    return Constructor(aGlobal, aTarget, aFrames,
+                       TimingParams::FromOptionsUnion(aOptions), aRv);
+  }
+
+  // More generalized version for Animatable.animate.
+  // Not exposed to content.
+  static already_AddRefed<KeyframeEffectReadOnly>
+  Constructor(const GlobalObject& aGlobal,
+              Element* aTarget,
+              JS::Handle<JSObject*> aFrames,
+              const TimingParams& aTiming,
               ErrorResult& aRv);
+
   Element* GetTarget() const {
     // Currently we never return animations from the API whose effect
     // targets a pseudo-element so this should never be called when
@@ -227,9 +233,13 @@ public:
     aRetVal.AssignLiteral("distribute");
   }
 
-  const AnimationTiming& Timing() const { return mTiming; }
-  AnimationTiming& Timing() { return mTiming; }
-  void SetTiming(const AnimationTiming& aTiming);
+  already_AddRefed<AnimationEffectTimingReadOnly> Timing() const override;
+
+  const TimingParams& SpecifiedTiming() const
+  {
+    return mTiming->AsTimingParams();
+  }
+  void SetSpecifiedTiming(const TimingParams& aTiming);
   void NotifyAnimationTimingUpdated();
 
   Nullable<TimeDuration> GetLocalTime() const;
@@ -246,22 +256,25 @@ public:
   // (because it is not currently active and is not filling at this time).
   static ComputedTiming
   GetComputedTimingAt(const Nullable<TimeDuration>& aLocalTime,
-                      const AnimationTiming& aTiming);
+                      const TimingParams& aTiming);
 
   // Shortcut for that gets the computed timing using the current local time as
   // calculated from the timeline time.
   ComputedTiming
-  GetComputedTiming(const AnimationTiming* aTiming = nullptr) const
+  GetComputedTiming(const TimingParams* aTiming = nullptr) const
   {
-    return GetComputedTimingAt(GetLocalTime(), aTiming ? *aTiming : mTiming);
+    return GetComputedTimingAt(GetLocalTime(),
+                               aTiming ? *aTiming : SpecifiedTiming());
   }
 
   void
   GetComputedTimingAsDict(ComputedTimingProperties& aRetVal) const override;
 
-  // Return the duration of the active interval for the given timing parameters.
+  // Return the duration of the active interval for the given duration and
+  // iteration count.
   static StickyTimeDuration
-  ActiveDuration(const AnimationTiming& aTiming);
+  ActiveDuration(const StickyTimeDuration& aIterationDuration,
+                 double aIterationCount);
 
   bool IsInPlay() const;
   bool IsCurrent() const;
@@ -334,20 +347,17 @@ protected:
   // owning Animation's timing.
   void UpdateTargetRegistration();
 
-  static AnimationTiming ConvertKeyframeEffectOptions(
-    const UnrestrictedDoubleOrKeyframeEffectOptions& aOptions);
-
   static void BuildAnimationPropertyList(
     JSContext* aCx,
     Element* aTarget,
-    const Optional<JS::Handle<JSObject*>>& aFrames,
+    JS::Handle<JSObject*> aFrames,
     InfallibleTArray<AnimationProperty>& aResult,
     ErrorResult& aRv);
 
   nsCOMPtr<Element> mTarget;
   RefPtr<Animation> mAnimation;
 
-  AnimationTiming mTiming;
+  OwningNonNull<AnimationEffectTimingReadOnly> mTiming;
   nsCSSPseudoElements::Type mPseudoType;
 
   InfallibleTArray<AnimationProperty> mProperties;

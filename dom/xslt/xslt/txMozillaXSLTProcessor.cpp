@@ -660,7 +660,7 @@ txMozillaXSLTProcessor::TransformToDoc(nsIDOMDocument **aResult,
         sourceDOMDocument = do_QueryInterface(mSource);
     }
 
-    txExecutionState es(mStylesheet, IsLoadDisabled());
+    txExecutionState es(mStylesheet, IsLoadDisabled(), getLoaderDoc());
 
     // XXX Need to add error observers
 
@@ -728,7 +728,7 @@ txMozillaXSLTProcessor::TransformToFragment(nsIDOMNode *aSource,
         return NS_ERROR_OUT_OF_MEMORY;
     }
 
-    txExecutionState es(mStylesheet, IsLoadDisabled());
+    txExecutionState es(mStylesheet, IsLoadDisabled(), getLoaderDoc());
 
     // XXX Need to add error observers
 

@@ -7712,7 +7712,7 @@ nsContentUtils::ToWidgetPoint(const CSSPoint& aPoint,
 {
   return LayoutDeviceIntPoint::FromAppUnitsRounded(
     (CSSPoint::ToAppUnits(aPoint) +
-    aOffset).ApplyResolution(aPresContext->PresShell()->GetCumulativeNonRootScaleResolution()),
+    aOffset).ApplyResolution(nsLayoutUtils::GetCurrentAPZResolutionScale(aPresContext->PresShell())),
     aPresContext->AppUnitsPerDevPixel());
 }
 

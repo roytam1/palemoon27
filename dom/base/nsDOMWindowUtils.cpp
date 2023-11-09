@@ -464,7 +464,7 @@ nsDOMWindowUtils::SetDisplayPortBaseForElement(int32_t aX,
 NS_IMETHODIMP
 nsDOMWindowUtils::SetResolution(float aResolution)
 {
-  if (!nsContentUtils::IsCallerChrome()) {
+  if (!nsContentUtils::LegacyIsCallerChromeOrNativeCode()) {
     return NS_ERROR_DOM_SECURITY_ERR;
   }
 
@@ -519,7 +519,7 @@ nsDOMWindowUtils::GetIsResolutionSet(bool* aIsResolutionSet) {
 NS_IMETHODIMP
 nsDOMWindowUtils::SetIsFirstPaint(bool aIsFirstPaint)
 {
-  if (!nsContentUtils::IsCallerChrome()) {
+  if (!nsContentUtils::LegacyIsCallerChromeOrNativeCode()) {
     return NS_ERROR_DOM_SECURITY_ERR;
   }
 
@@ -534,7 +534,7 @@ nsDOMWindowUtils::SetIsFirstPaint(bool aIsFirstPaint)
 NS_IMETHODIMP
 nsDOMWindowUtils::GetIsFirstPaint(bool *aIsFirstPaint)
 {
-  if (!nsContentUtils::IsCallerChrome()) {
+  if (!nsContentUtils::LegacyIsCallerChromeOrNativeCode()) {
     return NS_ERROR_DOM_SECURITY_ERR;
   }
 
@@ -2314,8 +2314,10 @@ nsDOMWindowUtils::RestoreNormalRefresh()
     transaction->SendLeaveTestMode();
   }
 
-  nsRefreshDriver* driver = GetPresContext()->RefreshDriver();
-  driver->RestoreNormalRefresh();
+  if (nsPresContext* pc = GetPresContext()) {
+    nsRefreshDriver* driver = pc->RefreshDriver();
+    driver->RestoreNormalRefresh();
+  }
 
   return NS_OK;
 }
@@ -2791,7 +2793,7 @@ nsDOMWindowUtils::EnableDialogs()
 NS_IMETHODIMP
 nsDOMWindowUtils::DisableDialogs()
 {
-  if (!nsContentUtils::LegacyIsCallerChromeOrNativeCode()) {
+  if (!nsContentUtils::IsCallerChrome()) {
     return NS_ERROR_DOM_SECURITY_ERR;
   }
 
@@ -2805,7 +2807,7 @@ nsDOMWindowUtils::DisableDialogs()
 NS_IMETHODIMP
 nsDOMWindowUtils::AreDialogsEnabled(bool* aResult)
 {
-  if (!nsContentUtils::LegacyIsCallerChromeOrNativeCode()) {
+  if (!nsContentUtils::IsCallerChrome()) {
     return NS_ERROR_DOM_SECURITY_ERR;
   }
 
@@ -3606,7 +3608,7 @@ NS_IMETHODIMP
 nsDOMWindowUtils::SetHandlingUserInput(bool aHandlingUserInput,
                                        nsIJSRAIIHelper** aHelper)
 {
-  if (!nsContentUtils::LegacyIsCallerChromeOrNativeCode()) {
+  if (!nsContentUtils::IsCallerChrome()) {
     return NS_ERROR_DOM_SECURITY_ERR;
   }
 

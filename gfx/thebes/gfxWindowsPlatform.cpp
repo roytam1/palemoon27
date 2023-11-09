@@ -1777,7 +1777,7 @@ CheckForAdapterMismatch(ID3D11Device *device)
   nsresult ec;
   int32_t vendor = vendorID.ToInteger(&ec, 16);
   if (vendor != desc.VendorId) {
-      gfxCriticalNote << "VendorIDMismatch " << hexa(vendor) << " " << hexa(desc.VendorId);
+      gfxCriticalNote << "VendorIDMismatch V " << hexa(vendor) << " " << hexa(desc.VendorId);
   }
 }
 
@@ -2265,7 +2265,7 @@ gfxWindowsPlatform::ContentAdapterIsParentAdapter(ID3D11Device* device)
       desc.AdapterLuid.HighPart != parent.AdapterLuid.HighPart ||
       desc.AdapterLuid.LowPart != parent.AdapterLuid.LowPart)
   {
-    gfxCriticalNote << "VendorIDMismatch " << hexa(parent.VendorId) << " " << hexa(desc.VendorId);
+    gfxCriticalNote << "VendorIDMismatch P " << hexa(parent.VendorId) << " " << hexa(desc.VendorId);
     return false;
   }
 

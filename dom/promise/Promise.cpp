@@ -906,6 +906,12 @@ Promise::MaybeReject(const RefPtr<MediaStreamError>& aArg) {
   MaybeSomething(aArg, &Promise::MaybeReject);
 }
 
+void
+Promise::MaybeRejectWithNull()
+{
+  MaybeSomething(JS::NullHandleValue, &Promise::MaybeReject);
+}
+
 bool
 Promise::PerformMicroTaskCheckpoint()
 {
@@ -2364,7 +2370,7 @@ void
 Promise::AppendCallbacks(PromiseCallback* aResolveCallback,
                          PromiseCallback* aRejectCallback)
 {
-  if (mGlobal->IsDying()) {
+  if (!mGlobal || mGlobal->IsDying()) {
     return;
   }
 

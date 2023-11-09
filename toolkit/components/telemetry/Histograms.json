@@ -4010,6 +4010,43 @@
     "kind": "boolean",
     "description": "THUMBNAILS: Thumbnail found"
   },
+  "FX_MIGRATION_ENTRY_POINT": {
+    "expires_in_version": "49",
+    "kind": "enumerated",
+    "n_values": 10,
+    "releaseChannelCollection": "opt-out",
+    "description": "Where the migration wizard was entered from. 0=Other/catch-all, 1=first-run, 2=refresh-firefox, 3=Places window, 4=Password manager"
+  },
+  "FX_MIGRATION_SOURCE_BROWSER": {
+    "expires_in_version": "49",
+    "kind": "enumerated",
+    "n_values": 15,
+    "releaseChannelCollection": "opt-out",
+    "description": "The browser that data is pulled from. The values correspond to the internal browser ID (see MigrationUtils.jsm)"
+  },
+  "FX_MIGRATION_ERRORS": {
+    "expires_in_version": "49",
+    "kind": "enumerated",
+    "keyed": "true",
+    "n_values": 12,
+    "releaseChannelCollection": "opt-out",
+    "description": "Errors encountered during migration in buckets defined by the datatype, keyed by the string description of the browser."
+  },
+  "FX_MIGRATION_USAGE": {
+    "expires_in_version": "49",
+    "kind": "enumerated",
+    "keyed": "true",
+    "n_values": 12,
+    "releaseChannelCollection": "opt-out",
+    "description": "Usage of migration for each datatype when migration is run through the post-firstrun flow which allows individual datatypes, keyed by the string description of the browser."
+  },
+  "FX_MIGRATION_HOMEPAGE_IMPORTED": {
+    "expires_in_version": "49",
+    "kind": "boolean",
+    "keyed": "true",
+    "releaseChannelCollection": "opt-out",
+    "description": "Whether the homepage was imported during browser migration. Only available on release builds during firstrun."
+  },
   "EVENTLOOP_UI_LAG_EXP_MS": {
     "alert_emails": ["perf-telemetry-alerts@mozilla.com"],
     "expires_in_version": "never",
@@ -8374,6 +8411,11 @@
     "kind": "count",
     "description": "Reports the column that logins are sorted by"
   },
+  "PWMGR_MANAGE_VISIBILITY_TOGGLED": {
+    "expires_in_version": "never",
+    "kind": "boolean",
+    "description": "Whether the visibility of passwords was toggled (0=Hide, 1=Show)"
+  },
   "PWMGR_NUM_PASSWORDS_PER_HOSTNAME": {
     "expires_in_version": "never",
     "kind": "linear",
@@ -8524,6 +8566,11 @@
     "high": "60000",
     "n_buckets": 30,
     "description": "Time PR_Close of a UDP socket taken (ms)"
+  },
+  "PERMISSIONS_SQL_CORRUPTED": {
+    "expires_in_version": "never",
+    "kind": "count",
+    "description": "Record the permissions.sqlite init failure"
   },
   "GRAPHICS_DRIVER_STARTUP_TEST": {
     "alert_emails": ["danderson@mozilla.com"],
@@ -8764,11 +8811,6 @@
     "n_values": 20,
     "releaseChannelCollection": "opt-out",
     "description": "Reports why a graphics sanity test was run. 0=First Run, 1=App Updated, 2=Device Change, 3=Driver Change."
-  },
-  "PERMISSIONS_SQL_CORRUPTED": {
-    "expires_in_version": "never",
-    "kind": "count",
-    "description": "Record the permissions.sqlite init failure"
   },
   "DEFECTIVE_PERMISSIONS_SQL_REMOVED": {
     "expires_in_version": "never",

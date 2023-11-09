@@ -3781,7 +3781,7 @@ public:
     NS_ASSERTION(aItem.HasIntrinsicRatio(),
                  "This should only be needed for items with an aspect ratio");
 
-    mItemProps.Set(nsIFrame::FlexItemMainSizeOverride(), reinterpret_cast<void *>(aItem.GetMainSize()));
+    mItemProps.Set(nsIFrame::FlexItemMainSizeOverride(), aItem.GetMainSize());
   }
 
   ~AutoFlexItemMainSizeOverride() {

@@ -6,7 +6,6 @@
 
 #include "mozilla/TaskQueue.h"
 
-#include "FFmpegRuntimeLinker.h"
 #include "FFmpegAudioDecoder.h"
 #include "TimeUnits.h"
 
@@ -15,14 +14,10 @@
 namespace mozilla
 {
 
-static int (*avcodec_decode_audio4)(AVCodecContext*,AVFrame*,
-                         int*,const AVPacket*) = nullptr;
-static void (*av_init_packet1)(AVPacket*) = nullptr;
-
-FFmpegAudioDecoder<LIBAV_VER>::FFmpegAudioDecoder(
+FFmpegAudioDecoder<LIBAV_VER>::FFmpegAudioDecoder(FFmpegLibWrapper* aLib,
   FlushableTaskQueue* aTaskQueue, MediaDataDecoderCallback* aCallback,
   const AudioInfo& aConfig)
-  : FFmpegDataDecoder(aTaskQueue, aCallback, GetCodecId(aConfig.mMimeType))
+  : FFmpegDataDecoder(aLib, aTaskQueue, aCallback, GetCodecId(aConfig.mMimeType))
 {
   MOZ_COUNT_CTOR(FFmpegAudioDecoder);
   // Use a new MediaByteBuffer as the object will be modified during initialization.
@@ -34,11 +29,6 @@ RefPtr<MediaDataDecoder::InitPromise>
 FFmpegAudioDecoder<LIBAV_VER>::Init()
 {
   nsresult rv = InitDecoder();
-
-  if(rv == NS_OK) {
-    avcodec_decode_audio4 = (decltype(avcodec_decode_audio4))FFmpegRuntimeLinker::avc_ptr[_decode_audio4];
-    av_init_packet1 = (decltype(av_init_packet1))FFmpegRuntimeLinker::avc_ptr[_init_packet];
-  }
 
   return rv == NS_OK ? InitPromise::CreateAndResolve(TrackInfo::kAudioTrack, __func__)
                      : InitPromise::CreateAndReject(DecoderFailureReason::INIT_ERROR, __func__);
@@ -53,11 +43,9 @@ FFmpegAudioDecoder<LIBAV_VER>::InitCodecContext()
   // isn't implemented.
   mCodecContext->thread_count = 1;
   // FFmpeg takes this as a suggestion for what format to use for audio samples.
-  uint32_t major, minor, micro;
-  FFmpegRuntimeLinker::GetVersion(major, minor, micro);
   // LibAV 0.8 produces rubbish float interleaved samples, request 16 bits audio.
   mCodecContext->request_sample_fmt =
-    (major == 53) ? AV_SAMPLE_FMT_S16 : AV_SAMPLE_FMT_FLT;
+    (mLib->mVersion == 53) ? AV_SAMPLE_FMT_S16 : AV_SAMPLE_FMT_FLT;
 }
 
 static UniquePtr<AudioDataValue[]>
@@ -110,7 +98,7 @@ FFmpegAudioDecoder<LIBAV_VER>::DecodePacket(MediaRawData* aSample)
 {
   MOZ_ASSERT(mTaskQueue->IsCurrentThreadIn());
   AVPacket packet;
-  av_init_packet1(&packet);
+  mLib->av_init_packet(&packet);
 
   packet.data = const_cast<uint8_t*>(aSample->Data());
   packet.size = aSample->Size();
@@ -127,7 +115,7 @@ FFmpegAudioDecoder<LIBAV_VER>::DecodePacket(MediaRawData* aSample)
   while (packet.size > 0) {
     int decoded;
     int bytesConsumed =
-      avcodec_decode_audio4(mCodecContext, mFrame, &decoded, &packet);
+      mLib->avcodec_decode_audio4(mCodecContext, mFrame, &decoded, &packet);
 
     if (bytesConsumed < 0) {
       NS_WARNING("FFmpeg audio decoder error.");

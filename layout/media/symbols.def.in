@@ -60,6 +60,9 @@ vpx_codec_enc_config_default
 vpx_img_alloc
 vpx_codec_encode
 vpx_codec_err_to_string
+#ifdef MOZ_WEBRTC
+vpx_codec_set_frame_buffer_functions
+#endif
 #endif
 #if defined(MOZ_VORBIS) || defined(MOZ_TREMOR)
 ogg_page_bos

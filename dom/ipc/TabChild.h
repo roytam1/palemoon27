@@ -665,7 +665,7 @@ private:
   // Whether we have already received a FileDescriptor for the app package.
   bool mAppPackageFileDescriptorRecved;
   // At present only 1 of these is really expected.
-  nsAutoTArray<nsAutoPtr<CachedFileDescriptorInfo>, 1>
+  AutoTArray<nsAutoPtr<CachedFileDescriptorInfo>, 1>
       mCachedFileDescriptorInfos;
   nscolor mLastBackgroundColor;
   bool mDidFakeShow;
@@ -693,7 +693,7 @@ private:
   CSSSize mUnscaledInnerSize;
   bool mDidSetRealShowInfo;
 
-  nsAutoTArray<bool, NUMBER_OF_AUDIO_CHANNELS> mAudioChannelsActive;
+  AutoTArray<bool, NUMBER_OF_AUDIO_CHANNELS> mAudioChannelsActive;
 
   DISALLOW_EVIL_CONSTRUCTORS(TabChild);
 };

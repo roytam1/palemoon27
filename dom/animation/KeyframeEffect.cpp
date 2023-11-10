@@ -339,6 +339,11 @@ KeyframeEffectReadOnly::GetComputedTimingAt(
     result.mProgress.SetValue(1.0 - result.mProgress.Value());
   }
 
+  if (aTiming.mFunction) {
+    result.mProgress.SetValue(
+      aTiming.mFunction->GetValue(result.mProgress.Value()));
+  }
+
   return result;
 }
 
@@ -464,11 +469,6 @@ KeyframeEffectReadOnly::ComposeStyle(RefPtr<AnimValuesStyleRule>& aStyleRule,
     return;
   }
 
-  MOZ_ASSERT(!computedTiming.mProgress.IsNull() &&
-             0.0 <= computedTiming.mProgress.Value() &&
-             computedTiming.mProgress.Value() <= 1.0,
-             "iteration progress should be in [0-1]");
-
   for (size_t propIdx = 0, propEnd = mProperties.Length();
        propIdx != propEnd; ++propIdx)
   {
@@ -506,15 +506,11 @@ KeyframeEffectReadOnly::ComposeStyle(RefPtr<AnimValuesStyleRule>& aStyleRule,
                                 *segmentEnd = segment + prop.mSegments.Length();
     while (segment->mToKey < computedTiming.mProgress.Value()) {
       MOZ_ASSERT(segment->mFromKey < segment->mToKey, "incorrect keys");
-      ++segment;
-      if (segment == segmentEnd) {
-        MOZ_ASSERT_UNREACHABLE("incorrect iteration progress");
-        break; // in order to continue in outer loop (just below)
+      if ((segment+1) == segmentEnd) {
+        break;
       }
+      ++segment;
       MOZ_ASSERT(segment->mFromKey == (segment-1)->mToKey, "incorrect keys");
-    }
-    if (segment == segmentEnd) {
-      continue;
     }
     MOZ_ASSERT(segment->mFromKey < segment->mToKey, "incorrect keys");
     MOZ_ASSERT(segment >= prop.mSegments.Elements() &&
@@ -531,7 +527,8 @@ KeyframeEffectReadOnly::ComposeStyle(RefPtr<AnimValuesStyleRule>& aStyleRule,
       (computedTiming.mProgress.Value() - segment->mFromKey) /
       (segment->mToKey - segment->mFromKey);
     double valuePosition =
-      segment->mTimingFunction.GetValue(positionInSegment);
+      ComputedTimingFunction::GetPortion(segment->mTimingFunction,
+                                         positionInSegment);
 
     StyleAnimationValue *val = aStyleRule->AddEmptyValue(prop.mProperty);
 
@@ -666,7 +663,7 @@ enum class ValuePosition
 struct OrderedKeyframeValueEntry : KeyframeValue
 {
   float mOffset;
-  const ComputedTimingFunction* mTimingFunction;
+  const Maybe<ComputedTimingFunction>* mTimingFunction;
   ValuePosition mPosition;
 
   bool SameKeyframe(const OrderedKeyframeValueEntry& aOther) const
@@ -701,7 +698,9 @@ struct OrderedKeyframeValueEntry : KeyframeValue
       // Third, by easing.
       if (aLhs.mTimingFunction) {
         if (aRhs.mTimingFunction) {
-          int32_t order = aLhs.mTimingFunction->Compare(*aRhs.mTimingFunction);
+          int32_t order =
+            ComputedTimingFunction::Compare(*aLhs.mTimingFunction,
+                                            *aRhs.mTimingFunction);
           if (order != 0) {
             return order < 0;
           }
@@ -732,7 +731,7 @@ struct OrderedKeyframeValueEntry : KeyframeValue
 struct KeyframeValueEntry : KeyframeValue
 {
   float mOffset;
-  ComputedTimingFunction mTimingFunction;
+  Maybe<ComputedTimingFunction> mTimingFunction;
 
   struct PropertyOffsetComparator
   {
@@ -851,64 +850,6 @@ struct OffsetIndexedKeyframe
   binding_detail::FastKeyframe mKeyframeDict;
   nsTArray<PropertyValuesPair> mPropertyValuePairs;
 };
-
-/**
- * Parses a CSS <single-transition-timing-function> value from
- * aEasing into a ComputedTimingFunction.  If parsing fails, aResult will
- * be set to 'linear'.
- */
-static void
-ParseEasing(Element* aTarget,
-            const nsAString& aEasing,
-            ComputedTimingFunction& aResult)
-{
-  nsIDocument* doc = aTarget->OwnerDoc();
-
-  nsCSSValue value;
-  nsCSSParser parser;
-  parser.ParseLonghandProperty(eCSSProperty_animation_timing_function,
-                               aEasing,
-                               doc->GetDocumentURI(),
-                               doc->GetDocumentURI(),
-                               doc->NodePrincipal(),
-                               value);
-
-  switch (value.GetUnit()) {
-    case eCSSUnit_List: {
-      const nsCSSValueList* list = value.GetListValue();
-      if (list->mNext) {
-        // don't support a list of timing functions
-        break;
-      }
-      switch (list->mValue.GetUnit()) {
-        case eCSSUnit_Enumerated:
-        case eCSSUnit_Cubic_Bezier:
-        case eCSSUnit_Steps: {
-          nsTimingFunction timingFunction;
-          nsRuleNode::ComputeTimingFunction(list->mValue, timingFunction);
-          aResult.Init(timingFunction);
-          return;
-        }
-        default:
-          MOZ_ASSERT_UNREACHABLE("unexpected animation-timing-function list "
-                                 "item unit");
-        break;
-      }
-      break;
-    }
-    case eCSSUnit_Null:
-    case eCSSUnit_Inherit:
-    case eCSSUnit_Initial:
-    case eCSSUnit_Unset:
-    case eCSSUnit_TokenStream:
-      break;
-    default:
-      MOZ_ASSERT_UNREACHABLE("unexpected animation-timing-function unit");
-      break;
-  }
-
-  aResult.Init(nsTimingFunction(NS_STYLE_TRANSITION_TIMING_FUNCTION_LINEAR));
-}
 
 /**
  * An additional property (for a property-values pair) found on a Keyframe
@@ -1036,7 +977,11 @@ GetPropertyValuesPairs(JSContext* aCx,
       nsCSSProps::LookupPropertyByIDLName(propName,
                                           nsCSSProps::eEnabledForAllContent);
     if (property != eCSSProperty_UNKNOWN &&
-        nsCSSProps::kAnimTypeTable[property] != eStyleAnimType_None) {
+        (nsCSSProps::IsShorthand(property) ||
+         nsCSSProps::kAnimTypeTable[property] != eStyleAnimType_None)) {
+      // Only need to check for longhands being animatable, as the
+      // StyleAnimationValue::ComputeValues calls later on will check for
+      // a shorthand's components being animatable.
       AdditionalProperty* p = properties.AppendElement();
       p->mProperty = property;
       p->mJsidIndex = i;
@@ -1182,12 +1127,14 @@ ApplyDistributeSpacing(nsTArray<OffsetIndexedKeyframe>& aKeyframes)
  * objects.
  *
  * @param aTarget The target of the animation.
+ * @param aPseudoType The pseudo type of the target if it is a pseudo element.
  * @param aKeyframes The keyframes to read.
  * @param aResult The array to append the resulting KeyframeValueEntry
  *   objects to.
  */
 static void
 GenerateValueEntries(Element* aTarget,
+                     nsCSSPseudoElements::Type aPseudoType,
                      nsTArray<OffsetIndexedKeyframe>& aKeyframes,
                      nsTArray<KeyframeValueEntry>& aResult,
                      ErrorResult& aRv)
@@ -1198,8 +1145,10 @@ GenerateValueEntries(Element* aTarget,
 
   for (OffsetIndexedKeyframe& keyframe : aKeyframes) {
     float offset = float(keyframe.mKeyframeDict.mOffset.Value());
-    ComputedTimingFunction easing;
-    ParseEasing(aTarget, keyframe.mKeyframeDict.mEasing, easing);
+    // ParseEasing uses element's owner doc, so if it is a pseudo element,
+    // we use its parent element's owner doc.
+    Maybe<ComputedTimingFunction> easing =
+      AnimationUtils::ParseEasing(aTarget, keyframe.mKeyframeDict.mEasing);
     // We ignore keyframe.mKeyframeDict.mComposite since we don't support
     // composite modes on keyframes yet.
 
@@ -1235,6 +1184,7 @@ GenerateValueEntries(Element* aTarget,
       if (StyleAnimationValue::ComputeValues(pair.mProperty,
                                              nsCSSProps::eEnabledForAllContent,
                                              aTarget,
+                                             aPseudoType,
                                              pair.mValues[0],
                                              /* aUseSVGMode */ false,
                                              values)) {
@@ -1388,6 +1338,7 @@ static void
 BuildAnimationPropertyListFromKeyframeSequence(
     JSContext* aCx,
     Element* aTarget,
+    nsCSSPseudoElements::Type aPseudoType,
     JS::ForOfIterator& aIterator,
     nsTArray<AnimationProperty>& aResult,
     ErrorResult& aRv)
@@ -1421,7 +1372,7 @@ BuildAnimationPropertyListFromKeyframeSequence(
   // Convert the OffsetIndexedKeyframes into a list of KeyframeValueEntry
   // objects.
   nsTArray<KeyframeValueEntry> entries;
-  GenerateValueEntries(aTarget, keyframes, entries, aRv);
+  GenerateValueEntries(aTarget, aPseudoType, keyframes, entries, aRv);
   if (aRv.Failed()) {
     return;
   }
@@ -1445,6 +1396,7 @@ static void
 BuildAnimationPropertyListFromPropertyIndexedKeyframes(
     JSContext* aCx,
     Element* aTarget,
+    nsCSSPseudoElements::Type aPseudoType,
     JS::Handle<JS::Value> aValue,
     InfallibleTArray<AnimationProperty>& aResult,
     ErrorResult& aRv)
@@ -1460,8 +1412,10 @@ BuildAnimationPropertyListFromPropertyIndexedKeyframes(
     return;
   }
 
-  ComputedTimingFunction easing;
-  ParseEasing(aTarget, keyframes.mEasing, easing);
+  // ParseEasing uses element's owner doc, so if it is a pseudo element,
+  // we use its parent element's owner doc.
+  Maybe<ComputedTimingFunction> easing =
+    AnimationUtils::ParseEasing(aTarget, keyframes.mEasing);
 
   // We ignore easing.mComposite since we don't support composite modes on
   // keyframes yet.
@@ -1515,6 +1469,7 @@ BuildAnimationPropertyListFromPropertyIndexedKeyframes(
     if (!StyleAnimationValue::ComputeValues(pair.mProperty,
                                             nsCSSProps::eEnabledForAllContent,
                                             aTarget,
+                                            aPseudoType,
                                             pair.mValues[0],
                                             /* aUseSVGMode */ false,
                                             fromValues)) {
@@ -1567,6 +1522,7 @@ BuildAnimationPropertyListFromPropertyIndexedKeyframes(
       if (!StyleAnimationValue::ComputeValues(pair.mProperty,
                                               nsCSSProps::eEnabledForAllContent,
                                               aTarget,
+                                              aPseudoType,
                                               pair.mValues[i + 1],
                                               /* aUseSVGMode */ false,
                                               toValues)) {
@@ -1615,6 +1571,7 @@ BuildAnimationPropertyListFromPropertyIndexedKeyframes(
 KeyframeEffectReadOnly::BuildAnimationPropertyList(
     JSContext* aCx,
     Element* aTarget,
+    nsCSSPseudoElements::Type aPseudoType,
     JS::Handle<JSObject*> aFrames,
     InfallibleTArray<AnimationProperty>& aResult,
     ErrorResult& aRv)
@@ -1648,10 +1605,11 @@ KeyframeEffectReadOnly::BuildAnimationPropertyList(
   }
 
   if (iter.valueIsIterable()) {
-    BuildAnimationPropertyListFromKeyframeSequence(aCx, aTarget, iter,
-                                                   aResult, aRv);
+    BuildAnimationPropertyListFromKeyframeSequence(aCx, aTarget, aPseudoType,
+                                                   iter, aResult, aRv);
   } else {
     BuildAnimationPropertyListFromPropertyIndexedKeyframes(aCx, aTarget,
+                                                           aPseudoType,
                                                            objectValue, aResult,
                                                            aRv);
   }
@@ -1660,31 +1618,76 @@ KeyframeEffectReadOnly::BuildAnimationPropertyList(
 /* static */ already_AddRefed<KeyframeEffectReadOnly>
 KeyframeEffectReadOnly::Constructor(
     const GlobalObject& aGlobal,
-    Element* aTarget,
+    const Nullable<ElementOrCSSPseudoElement>& aTarget,
     JS::Handle<JSObject*> aFrames,
     const TimingParams& aTiming,
     ErrorResult& aRv)
 {
-  if (!aTarget) {
+  if (aTarget.IsNull()) {
     // We don't support null targets yet.
     aRv.Throw(NS_ERROR_DOM_ANIM_NO_TARGET_ERR);
     return nullptr;
   }
 
+  const ElementOrCSSPseudoElement& target = aTarget.Value();
+  MOZ_ASSERT(target.IsElement() || target.IsCSSPseudoElement(),
+             "Uninitialized target");
+
+  RefPtr<Element> targetElement;
+  nsCSSPseudoElements::Type pseudoType =
+    nsCSSPseudoElements::ePseudo_NotPseudoElement;
+  if (target.IsElement()) {
+    targetElement = &target.GetAsElement();
+  } else {
+    targetElement = target.GetAsCSSPseudoElement().ParentElement();
+    pseudoType = target.GetAsCSSPseudoElement().GetType();
+  }
+
+  if (!targetElement->GetCurrentDoc()) {
+    // Bug 1245748: We don't support targets that are not in a document yet.
+    aRv.Throw(NS_ERROR_DOM_ANIM_TARGET_NOT_IN_DOC_ERR);
+    return nullptr;
+  }
+
   InfallibleTArray<AnimationProperty> animationProperties;
-  BuildAnimationPropertyList(aGlobal.Context(), aTarget, aFrames,
-                             animationProperties, aRv);
+  BuildAnimationPropertyList(aGlobal.Context(), targetElement, pseudoType,
+                             aFrames, animationProperties, aRv);
 
   if (aRv.Failed()) {
     return nullptr;
   }
 
   RefPtr<KeyframeEffectReadOnly> effect =
-    new KeyframeEffectReadOnly(aTarget->OwnerDoc(), aTarget,
-                               nsCSSPseudoElements::ePseudo_NotPseudoElement,
-                               aTiming);
+    new KeyframeEffectReadOnly(targetElement->OwnerDoc(), targetElement,
+                               pseudoType, aTiming);
   effect->mProperties = Move(animationProperties);
   return effect.forget();
+}
+
+void
+KeyframeEffectReadOnly::GetTarget(
+    Nullable<OwningElementOrCSSPseudoElement>& aRv) const
+{
+  if (!mTarget) {
+    aRv.SetNull();
+    return;
+  }
+
+  switch (mPseudoType) {
+    case nsCSSPseudoElements::ePseudo_before:
+    case nsCSSPseudoElements::ePseudo_after:
+      aRv.SetValue().SetAsCSSPseudoElement() =
+        CSSPseudoElement::GetCSSPseudoElement(mTarget, mPseudoType);
+      break;
+
+    case nsCSSPseudoElements::ePseudo_NotPseudoElement:
+      aRv.SetValue().SetAsElement() = mTarget;
+      break;
+
+    default:
+      NS_NOTREACHED("Animation of unsupported pseudo-type");
+      aRv.SetNull();
+  }
 }
 
 void
@@ -1728,8 +1731,8 @@ KeyframeEffectReadOnly::GetFrames(JSContext*& aCx,
         entry->mProperty = property.mProperty;
         entry->mValue = segment.mToValue;
         entry->mOffset = segment.mToKey;
-        entry->mTimingFunction =
-          segment.mToKey == 1.0f ? nullptr : &segment.mTimingFunction;
+        entry->mTimingFunction = segment.mToKey == 1.0f ?
+          nullptr : &segment.mTimingFunction;
         entry->mPosition =
           segment.mFromKey == segment.mToKey && segment.mToKey == 1.0f ?
             ValuePosition::Last :
@@ -1748,10 +1751,10 @@ KeyframeEffectReadOnly::GetFrames(JSContext*& aCx,
     ComputedKeyframe keyframeDict;
     keyframeDict.mOffset.SetValue(entry->mOffset);
     keyframeDict.mComputedOffset.Construct(entry->mOffset);
-    if (entry->mTimingFunction) {
+    if (entry->mTimingFunction && entry->mTimingFunction->isSome()) {
       // If null, leave easing as its default "linear".
       keyframeDict.mEasing.Truncate();
-      entry->mTimingFunction->AppendToString(keyframeDict.mEasing);
+      entry->mTimingFunction->value().AppendToString(keyframeDict.mEasing);
     }
     keyframeDict.mComposite.SetValue(CompositeOperation::Replace);
 

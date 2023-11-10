@@ -116,6 +116,11 @@ bool xpc::ExtraWarningsForSystemJS() { return sExtraWarningsForSystemJS; }
 bool xpc::ExtraWarningsForSystemJS() { return false; }
 #endif
 
+static mozilla::Atomic<bool> sSharedMemoryEnabled(false);
+
+bool
+xpc::SharedMemoryEnabled() { return sSharedMemoryEnabled; }
+
 // *Some* NativeSets are referenced from mClassInfo2NativeSetMap.
 // *All* NativeSets are referenced from mNativeSetMap.
 // So, in mClassInfo2NativeSetMap we just clear references to the unmarked.
@@ -573,6 +578,13 @@ CompartmentDestroyedCallback(JSFreeOp* fop, JSCompartment* compartment)
     // cleanup for us), and null out the private (which may already be null).
     nsAutoPtr<CompartmentPrivate> priv(CompartmentPrivate::Get(compartment));
     JS_SetCompartmentPrivate(compartment, nullptr);
+}
+
+static size_t
+CompartmentSizeOfIncludingThisCallback(MallocSizeOf mallocSizeOf, JSCompartment* compartment)
+{
+    CompartmentPrivate* priv = CompartmentPrivate::Get(compartment);
+    return priv ? priv->SizeOfIncludingThis(mallocSizeOf) : 0;
 }
 
 void XPCJSRuntime::TraceNativeBlackRoots(JSTracer* trc)
@@ -1509,7 +1521,10 @@ XPCJSRuntime::SizeOfIncludingThis(MallocSizeOf mallocSizeOf)
 size_t
 CompartmentPrivate::SizeOfIncludingThis(MallocSizeOf mallocSizeOf)
 {
-    return mallocSizeOf(this) + mWrappedJSMap->SizeOfWrappedJS(mallocSizeOf);
+    size_t n = mallocSizeOf(this);
+    n += mWrappedJSMap->SizeOfIncludingThis(mallocSizeOf);
+    n += mWrappedJSMap->SizeOfWrappedJS(mallocSizeOf);
+    return n;
 }
 
 /***************************************************************************/
@@ -1570,6 +1585,9 @@ ReloadPrefsCallback(const char* pref, void* data)
     bool werror = Preferences::GetBool(JS_OPTIONS_DOT_STR "werror");
 
     bool extraWarnings = Preferences::GetBool(JS_OPTIONS_DOT_STR "strict");
+
+    sSharedMemoryEnabled = Preferences::GetBool(JS_OPTIONS_DOT_STR "shared_memory");
+
 #ifdef DEBUG
     sExtraWarningsForSystemJS = Preferences::GetBool(JS_OPTIONS_DOT_STR "strict.debug");
 #endif
@@ -2294,11 +2312,6 @@ ReportCompartmentStats(const JS::CompartmentStats& cStats,
         "Orphan DOM nodes, i.e. those that are only reachable from JavaScript "
         "objects.");
 
-    ZCREPORT_BYTES(cDOMPathPrefix + NS_LITERAL_CSTRING("private-data"),
-        extras.sizeOfXPCPrivate,
-        "Extra data attached to the compartment by XPConnect, including "\
-        "wrapped-js that is local to a single compartment.");
-
     ZCREPORT_GC_BYTES(cJSPathPrefix + NS_LITERAL_CSTRING("scripts/gc-heap"),
         cStats.scriptsGCHeap,
         "JSScript instances. There is one per user-defined function in a "
@@ -2367,6 +2380,19 @@ ReportCompartmentStats(const JS::CompartmentStats& cStats,
     ZCREPORT_BYTES(cJSPathPrefix + NS_LITERAL_CSTRING("saved-stacks-set"),
         cStats.savedStacksSet,
         "The saved stacks set.");
+
+    ZCREPORT_BYTES(cJSPathPrefix + NS_LITERAL_CSTRING("non-syntactic-lexical-scopes-table"),
+        cStats.nonSyntacticLexicalScopesTable,
+        "The non-syntactic lexical scopes table.");
+
+    ZCREPORT_BYTES(cJSPathPrefix + NS_LITERAL_CSTRING("jit-compartment"),
+        cStats.jitCompartment,
+        "The JIT compartment.");
+
+    ZCREPORT_BYTES(cJSPathPrefix + NS_LITERAL_CSTRING("private-data"),
+        cStats.privateData,
+        "Extra data attached to the compartment by XPConnect, including "
+        "its wrapped-js.");
 
     if (sundriesGCHeap > 0) {
         // We deliberately don't use ZCREPORT_GC_BYTES here.
@@ -2809,7 +2835,6 @@ class XPCJSRuntimeStats : public JS::RuntimeStats
             // Note: cannot use amIAddonManager implementation at this point,
             // as it is a JS service and the JS heap is currently not idle.
             // Otherwise, we could have computed the add-on id at this point.
-            extras->sizeOfXPCPrivate = cp->SizeOfIncludingThis(mallocSizeOf_);
         }
 
         // Get the compartment's global.
@@ -3357,6 +3382,7 @@ XPCJSRuntime::XPCJSRuntime(nsXPConnect* aXPConnect)
 
     JS_SetErrorReporter(runtime, xpc::SystemErrorReporter);
     JS_SetDestroyCompartmentCallback(runtime, CompartmentDestroyedCallback);
+    JS_SetSizeOfIncludingThisCompartmentCallback(runtime, CompartmentSizeOfIncludingThisCallback);
     JS_SetCompartmentNameCallback(runtime, CompartmentNameCallback);
     mPrevGCSliceCallback = JS::SetGCSliceCallback(runtime, GCSliceCallback);
     JS_AddFinalizeCallback(runtime, FinalizeCallback, nullptr);

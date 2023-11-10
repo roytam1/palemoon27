@@ -373,8 +373,7 @@ void SetLocationForGlobal(JSObject* global, nsIURI* locationURI);
 // of JS::ZoneStats.
 class ZoneStatsExtras {
 public:
-    ZoneStatsExtras()
-    {}
+    ZoneStatsExtras() {}
 
     nsCString pathPrefix;
 
@@ -387,14 +386,11 @@ private:
 // of JS::CompartmentStats.
 class CompartmentStatsExtras {
 public:
-    CompartmentStatsExtras()
-      : sizeOfXPCPrivate(0)
-    {}
+    CompartmentStatsExtras() {}
 
     nsCString jsPathPrefix;
     nsCString domPathPrefix;
     nsCOMPtr<nsIURI> location;
-    size_t sizeOfXPCPrivate;
 
 private:
     CompartmentStatsExtras(const CompartmentStatsExtras& other) = delete;
@@ -496,6 +492,9 @@ SimulateActivityCallback(bool aActive);
 // racey.
 bool
 ShouldDiscardSystemSource();
+
+bool
+SharedMemoryEnabled();
 
 bool
 SetAddonInterposition(const nsACString& addonId, nsIAddonInterposition* interposition);

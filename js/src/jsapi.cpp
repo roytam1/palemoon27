@@ -712,6 +712,13 @@ JS_SetDestroyCompartmentCallback(JSRuntime* rt, JSDestroyCompartmentCallback cal
 }
 
 JS_PUBLIC_API(void)
+JS_SetSizeOfIncludingThisCompartmentCallback(JSRuntime* rt,
+                                             JSSizeOfIncludingThisCompartmentCallback callback)
+{
+    rt->sizeOfIncludingThisCompartmentCallback = callback;
+}
+
+JS_PUBLIC_API(void)
 JS_SetDestroyZoneCallback(JSRuntime* rt, JSZoneCallback callback)
 {
     rt->destroyZoneCallback = callback;
@@ -5200,10 +5207,33 @@ JS_Stringify(JSContext* cx, MutableHandleValue vp, HandleObject replacer,
     StringBuffer sb(cx);
     if (!sb.ensureTwoByteChars())
         return false;
-    if (!Stringify(cx, vp, replacer, space, sb))
+    if (!Stringify(cx, vp, replacer, space, sb, StringifyBehavior::Normal))
         return false;
     if (sb.empty() && !sb.append(cx->names().null))
         return false;
+    return callback(sb.rawTwoByteBegin(), sb.length(), data);
+}
+
+JS_PUBLIC_API(bool)
+JS::ToJSONMaybeSafely(JSContext* cx, JS::HandleObject input,
+                      JSONWriteCallback callback, void* data)
+{
+    AssertHeapIsIdle(cx);
+    CHECK_REQUEST(cx);
+    assertSameCompartment(cx, input);
+
+    StringBuffer sb(cx);
+    if (!sb.ensureTwoByteChars())
+        return false;
+
+    RootedValue inputValue(cx, ObjectValue(*input));
+    if (!Stringify(cx, &inputValue, nullptr, NullHandleValue, sb,
+                   StringifyBehavior::RestrictedSafe))
+        return false;
+
+    if (sb.empty() && !sb.append(cx->names().null))
+        return false;
+
     return callback(sb.rawTwoByteBegin(), sb.length(), data);
 }
 

@@ -47,6 +47,7 @@
 #include "nsPIDOMWindow.h"
 #include "nsSandboxFlags.h"
 #include "xpcpublic.h"
+#include "nsIFrame.h"
 
 namespace mozilla {
 
@@ -233,7 +234,7 @@ EventListenerManager::AddEventListenerInternal(
   MOZ_ASSERT(// Main thread
              (NS_IsMainThread() && aEventMessage && aTypeAtom) ||
              // non-main-thread
-             (!NS_IsMainThread() && aEventMessage && !aTypeString.IsEmpty()) ||
+             (!NS_IsMainThread() && aEventMessage) ||
              aAllEvents, "Missing type"); // all-events listener
 
   if (!aListenerHolder || mClearingListeners) {
@@ -412,10 +413,7 @@ EventListenerManager::AddEventListenerInternal(
   }
 
   if (IsApzAwareEvent(aTypeAtom)) {
-    nsCOMPtr<nsINode> node = do_QueryInterface(mTarget);
-    if (node) {
-      node->SetMayHaveApzAwareListeners();
-    }
+    ProcessApzAwareEventListenerAdd();
   }
 
   if (aTypeAtom && mTarget) {
@@ -425,6 +423,44 @@ EventListenerManager::AddEventListenerInternal(
   if (mIsMainThreadELM && mTarget) {
     EventListenerService::NotifyAboutMainThreadListenerChange(mTarget,
                                                               aTypeAtom);
+  }
+}
+
+void
+EventListenerManager::ProcessApzAwareEventListenerAdd()
+{
+  // Mark the node as having apz aware listeners
+  nsCOMPtr<nsINode> node = do_QueryInterface(mTarget);
+  if (node) {
+    node->SetMayHaveApzAwareListeners();
+  }
+
+  // Schedule a paint so event regions on the layer tree gets updated
+  nsIDocument* doc = nullptr;
+  if (node) {
+    doc = node->OwnerDoc();
+  }
+  if (!doc) {
+    if (nsCOMPtr<nsPIDOMWindow> window = GetTargetAsInnerWindow()) {
+      doc = window->GetExtantDoc();
+    }
+  }
+  if (!doc) {
+    if (nsCOMPtr<DOMEventTargetHelper> helper = do_QueryInterface(mTarget)) {
+      if (nsPIDOMWindow* window = helper->GetOwner()) {
+        doc = window->GetExtantDoc();
+      }
+    }
+  }
+
+  if (doc) {
+    nsIPresShell* ps = doc->GetShell();
+    if (ps) {
+      nsIFrame* f = ps->GetRootFrame();
+      if (f) {
+        f->SchedulePaint();
+      }
+    }
   }
 }
 

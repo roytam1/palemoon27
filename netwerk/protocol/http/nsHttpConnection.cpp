@@ -32,11 +32,6 @@
 #include "sslt.h"
 #include "TunnelUtils.h"
 
-#ifdef DEBUG
-// defined by the socket transport service while active
-extern PRThread *gSocketThread;
-#endif
-
 namespace mozilla {
 namespace net {
 
@@ -171,7 +166,7 @@ nsHttpConnection::StartSpdy(uint8_t spdyVersion)
     // several requests. If so, we need to unpack that and
     // pack them all into a new spdy session.
 
-    nsTArray<nsRefPtr<nsAHttpTransaction> > list;
+    nsTArray<RefPtr<nsAHttpTransaction> > list;
     nsresult rv = mTransaction->TakeSubTransactions(list);
 
     if (rv == NS_ERROR_ALREADY_OPENED) {
@@ -208,7 +203,7 @@ nsHttpConnection::StartSpdy(uint8_t spdyVersion)
     mSpdySession = ASpdySession::NewSpdySession(spdyVersion, mSocketTransport);
     bool spdyProxy = mConnInfo->UsingHttpsProxy() && !mTLSFilter;
     if (spdyProxy) {
-        nsRefPtr<nsHttpConnectionInfo> wildCardProxyCi;
+        RefPtr<nsHttpConnectionInfo> wildCardProxyCi;
         mConnInfo->CreateWildCard(getter_AddRefs(wildCardProxyCi));
         gHttpHandler->ConnMgr()->MoveToWildCardConnEntry(mConnInfo,
                                                          wildCardProxyCi, this);
@@ -260,6 +255,9 @@ nsHttpConnection::StartSpdy(uint8_t spdyVersion)
         mTransaction = mSpdySession;
     } else {
         mTLSFilter->SetProxiedTransaction(mSpdySession);
+    }
+    if (mDontReuse) {
+        mSpdySession->DontReuse();
     }
 }
 
@@ -400,9 +398,6 @@ nsHttpConnection::EnsureNPNComplete(nsresult &aOut0RTTWriteHandshakeValue,
             uint8_t   Version[4];
             Version[0] = SPDY_VERSION_31;
             Version[1] = HTTP_VERSION_2;
-            Version[2] = HTTP_VERSION_2_DRAFT_15; // 14 and 15 are aliased
-            Version[3] = HTTP_VERSION_2_DRAFT_15; // 14 and 15 are aliased
-            Version[4] = HTTP_VERSION_2_DRAFT_LATEST;
             const SpdyInformation *info = gHttpHandler->SpdyInfo();
             if (NS_SUCCEEDED(info->GetNPNIndex(negotiatedNPN, &infoIndex))) {
                 StartSpdy(Version[infoIndex]);
@@ -659,7 +654,7 @@ nsHttpConnection::AddTransaction(nsAHttpTransaction *httpTransaction,
 }
 
 void
-nsHttpConnection::Close(nsresult reason)
+nsHttpConnection::Close(nsresult reason, bool aIsShutdown)
 {
     LOG(("nsHttpConnection::Close [this=%p reason=%x]\n", this, reason));
 
@@ -693,7 +688,8 @@ nsHttpConnection::Close(nsresult reason)
             // socket with data pending. TLS is a classic case of this where
             // a Alert record might be superfulous to a clean HTTP/SPDY shutdown.
             // Never block to do this and limit it to a small amount of data.
-            if (mSocketIn) {
+            // During shutdown just be fast!
+            if (mSocketIn && !aIsShutdown) {
                 char buffer[4000];
                 uint32_t count, total = 0;
                 nsresult rv;
@@ -753,6 +749,7 @@ nsHttpConnection::InitSSLParams(bool connectingToProxy, bool proxyStartSSL)
 void
 nsHttpConnection::DontReuse()
 {
+    LOG(("nsHttpConnection::DontReuse %p spdysession=%p\n", this, mSpdySession.get()));
     mKeepAliveMask = false;
     mKeepAlive = false;
     mDontReuse = true;
@@ -1463,7 +1460,7 @@ public:
         return mConn->OnOutputStreamReady(mConn->mSocketOut);
     }
 private:
-    nsRefPtr<nsHttpConnection> mConn;
+    RefPtr<nsHttpConnection> mConn;
     bool mDoRecv;
 };
 
@@ -1566,8 +1563,9 @@ nsHttpConnection::CloseTransaction(nsAHttpTransaction *trans, nsresult reason)
         mCallbacks = nullptr;
     }
 
-    if (NS_FAILED(reason))
+    if (NS_FAILED(reason) && (reason != NS_BINDING_RETARGETED)) {
         Close(reason);
+    }
 
     // flag the connection as reused here for convenience sake.  certainly
     // it might be going away instead ;-)

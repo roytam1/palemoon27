@@ -25,7 +25,8 @@
 #include "nsIContent.h"
 #include "nsPluginInstanceOwner.h"
 #include "nsWrapperCacheInlines.h"
-#include "js/HashTable.h"
+#include "js/GCHashTable.h"
+#include "js/TracingAPI.h"
 #include "mozilla/HashFunctions.h"
 #include "mozilla/dom/ScriptSettings.h"
 #include "mozilla/plugins/PluginAsyncSurrogate.h"
@@ -42,20 +43,32 @@ using namespace mozilla;
 using mozilla::plugins::PluginScriptableObjectParent;
 using mozilla::plugins::ParentNPObject;
 
-struct JSObjWrapperHasher : public js::DefaultHasher<nsJSObjWrapperKey>
+struct JSObjWrapperHasher
 {
   typedef nsJSObjWrapperKey Key;
   typedef Key Lookup;
 
   static uint32_t hash(const Lookup &l) {
-    return HashGeneric(l.mJSObj, l.mNpp);
+    return js::MovableCellHasher<JS::Heap<JSObject*>>::hash(l.mJSObj) ^
+           HashGeneric(l.mNpp);
   }
 
-  static void rekey(Key &k, const Key& newKey) {
-    MOZ_ASSERT(k.mNpp == newKey.mNpp);
-    k.mJSObj = newKey.mJSObj;
+  static bool match(const Key& k, const Lookup &l) {
+      return js::MovableCellHasher<JS::Heap<JSObject*>>::match(k.mJSObj, l.mJSObj) &&
+             k.mNpp == l.mNpp;
   }
 };
+
+namespace js {
+template <>
+struct GCPolicy<nsJSObjWrapper*> {
+    static void trace(JSTracer* trc, nsJSObjWrapper** wrapper, const char* name) {
+        MOZ_ASSERT(wrapper);
+        MOZ_ASSERT(*wrapper);
+        (*wrapper)->trace(trc);
+    }
+};
+} // namespace js
 
 class NPObjWrapperHashEntry : public PLDHashEntryHdr
 {
@@ -72,10 +85,10 @@ public:
 // when a plugin is torn down in case there's a leak in the plugin (we
 // don't want to leak the world just because a plugin leaks an
 // NPObject).
-typedef js::HashMap<nsJSObjWrapperKey,
-                    nsJSObjWrapper*,
-                    JSObjWrapperHasher,
-                    js::SystemAllocPolicy> JSObjWrapperTable;
+typedef js::GCHashMap<nsJSObjWrapperKey,
+                      nsJSObjWrapper*,
+                      JSObjWrapperHasher,
+                      js::SystemAllocPolicy> JSObjWrapperTable;
 static JSObjWrapperTable sJSObjWrappers;
 
 // Whether it's safe to iterate sJSObjWrappers.  Set to true when sJSObjWrappers
@@ -183,9 +196,6 @@ static bool
 NPObjWrapper_Resolve(JSContext *cx, JS::Handle<JSObject*> obj, JS::Handle<jsid> id,
                      bool *resolvedp);
 
-static bool
-NPObjWrapper_Convert(JSContext *cx, JS::Handle<JSObject*> obj, JSType type, JS::MutableHandle<JS::Value> vp);
-
 static void
 NPObjWrapper_Finalize(js::FreeOp *fop, JSObject *obj);
 
@@ -199,6 +209,9 @@ static bool
 NPObjWrapper_Construct(JSContext *cx, unsigned argc, JS::Value *vp);
 
 static bool
+NPObjWrapper_toPrimitive(JSContext *cx, unsigned argc, JS::Value *vp);
+
+static bool
 CreateNPObjectMember(NPP npp, JSContext *cx,
                      JS::Handle<JSObject*> obj, NPObject* npobj,
                      JS::Handle<jsid> id,  NPVariant* getPropertyResult,
@@ -207,7 +220,7 @@ CreateNPObjectMember(NPP npp, JSContext *cx,
 const static js::Class sNPObjectJSWrapperClass =
   {
     NPRUNTIME_JSCLASS_NAME,
-    JSCLASS_HAS_PRIVATE | JSCLASS_IMPLEMENTS_BARRIERS,
+    JSCLASS_HAS_PRIVATE,
     NPObjWrapper_AddProperty,
     NPObjWrapper_DelProperty,
     NPObjWrapper_GetProperty,
@@ -215,7 +228,6 @@ const static js::Class sNPObjectJSWrapperClass =
     nullptr,
     NPObjWrapper_Resolve,
     nullptr,                                                /* mayResolve */
-    NPObjWrapper_Convert,
     NPObjWrapper_Finalize,
     NPObjWrapper_Call,
     nullptr,                                                /* hasInstance */
@@ -223,8 +235,6 @@ const static js::Class sNPObjectJSWrapperClass =
     nullptr,                                                /* trace */
     JS_NULL_CLASS_SPEC,
     {
-      nullptr,                                              /* outerObject */
-      nullptr,                                              /* innerObject */
       false,                                                /* isWrappedNative */
       nullptr,                                              /* weakmapKeyDelegateOp */
       NPObjWrapper_ObjectMoved
@@ -252,7 +262,8 @@ typedef struct NPObjectMemberPrivate {
 } NPObjectMemberPrivate;
 
 static bool
-NPObjectMember_Convert(JSContext *cx, JS::Handle<JSObject*> obj, JSType type, JS::MutableHandle<JS::Value> vp);
+NPObjectMember_GetProperty(JSContext *cx, JS::HandleObject obj, JS::HandleId id,
+                           JS::MutableHandleValue vp);
 
 static void
 NPObjectMember_Finalize(JSFreeOp *fop, JSObject *obj);
@@ -263,11 +274,14 @@ NPObjectMember_Call(JSContext *cx, unsigned argc, JS::Value *vp);
 static void
 NPObjectMember_Trace(JSTracer *trc, JSObject *obj);
 
+static bool
+NPObjectMember_toPrimitive(JSContext *cx, unsigned argc, JS::Value *vp);
+
 static const JSClass sNPObjectMemberClass =
   {
-    "NPObject Ambiguous Member class", JSCLASS_HAS_PRIVATE | JSCLASS_IMPLEMENTS_BARRIERS,
-    nullptr, nullptr, nullptr, nullptr,
-    nullptr, nullptr, nullptr, NPObjectMember_Convert,
+    "NPObject Ambiguous Member class", JSCLASS_HAS_PRIVATE,
+    nullptr, nullptr, NPObjectMember_GetProperty, nullptr,
+    nullptr, nullptr, nullptr,
     NPObjectMember_Finalize, NPObjectMember_Call,
     nullptr, nullptr, NPObjectMember_Trace
   };
@@ -278,22 +292,8 @@ OnWrapperDestroyed();
 static void
 TraceJSObjWrappers(JSTracer *trc, void *data)
 {
-  if (!sJSObjWrappers.initialized()) {
-    return;
-  }
-
-  // Trace all JSObjects in the sJSObjWrappers table and rekey the entries if
-  // any of them moved.
-  for (JSObjWrapperTable::Enum e(sJSObjWrappers); !e.empty(); e.popFront()) {
-    nsJSObjWrapperKey key = e.front().key();
-    JS_CallUnbarrieredObjectTracer(trc, &key.mJSObj, "sJSObjWrappers key object");
-    nsJSObjWrapper *wrapper = e.front().value();
-    if (wrapper->mJSObj) {
-      JS_CallObjectTracer(trc, &wrapper->mJSObj, "sJSObjWrappers wrapper object");
-    }
-    if (key != e.front().key()) {
-      e.rekeyFront(key);
-    }
+  if (sJSObjWrappers.initialized()) {
+    sJSObjWrappers.trace(trc);
   }
 }
 
@@ -401,7 +401,7 @@ CreateNPObjWrapperTable()
   }
 
   sNPObjWrappers =
-    new PLDHashTable(PL_DHashGetStubOps(), sizeof(NPObjWrapperHashEntry));
+    new PLDHashTable(PLDHashTable::StubOps(), sizeof(NPObjWrapperHashEntry));
   return true;
 }
 
@@ -452,7 +452,7 @@ GetGlobalObject(NPP npp)
   nsNPAPIPluginInstance* inst = (nsNPAPIPluginInstance*)npp->ndata;
   NS_ENSURE_TRUE(inst, nullptr);
 
-  nsRefPtr<nsPluginInstanceOwner> owner = inst->GetOwner();
+  RefPtr<nsPluginInstanceOwner> owner = inst->GetOwner();
   NS_ENSURE_TRUE(owner, nullptr);
 
   nsCOMPtr<nsIDocument> doc;
@@ -1081,33 +1081,6 @@ nsJSObjWrapper::NP_Construct(NPObject* npobj, const NPVariant* args,
   return doInvoke(npobj, NPIdentifier_VOID, args, argCount, true, result);
 }
 
-
-
-/*
- * This function is called during minor GCs for each key in the sJSObjWrappers
- * table that has been moved.
- *
- * Note that the wrapper may be dead at this point, and even the table may have
- * been finalized if all wrappers have died.
- */
-static void
-JSObjWrapperKeyMarkCallback(JSTracer* trc, JSObject* obj, void* data) {
-  NPP npp = static_cast<NPP>(data);
-  MOZ_ASSERT(sJSObjWrappersAccessible);
-  if (!sJSObjWrappers.initialized())
-    return;
-
-  JSObject* prior = obj;
-  nsJSObjWrapperKey oldKey(prior, npp);
-  JSObjWrapperTable::Ptr p = sJSObjWrappers.lookup(oldKey);
-  if (!p)
-    return;
-
-  JS_CallUnbarrieredObjectTracer(trc, &obj, "sJSObjWrappers key object");
-  nsJSObjWrapperKey newKey(obj, npp);
-  sJSObjWrappers.rekeyIfMoved(oldKey, newKey);
-}
-
 // Look up or create an NPObject that wraps the JSObject obj.
 
 // static
@@ -1193,15 +1166,11 @@ nsJSObjWrapper::GetNewOrUsed(NPP npp, JSContext* cx, JS::Handle<JSObject*> obj)
 
   // Insert the new wrapper into the hashtable, rooting the JSObject. Its
   // lifetime is now tied to that of the NPObject.
-  nsJSObjWrapperKey key(obj, npp);
-  if (!sJSObjWrappers.putNew(key, wrapper)) {
+  if (!sJSObjWrappers.putNew(nsJSObjWrapperKey(obj, npp), wrapper)) {
     // Out of memory, free the wrapper we created.
     _releaseobject(wrapper);
     return nullptr;
   }
-
-  // Add postbarrier for the hashtable key
-  JS_StoreObjectPostBarrierCallback(cx, JSObjWrapperKeyMarkCallback, obj, wrapper->mNpp);
 
   return wrapper;
 }
@@ -1394,6 +1363,20 @@ NPObjWrapper_GetProperty(JSContext* cx, JS::Handle<JSObject*> obj, JS::Handle<js
     ThrowJSException(cx, "Bad NPObject as private data!");
 
     return false;
+  }
+
+  if (JSID_IS_SYMBOL(id)) {
+    JS::RootedSymbol sym(cx, JSID_TO_SYMBOL(id));
+    if (JS::GetSymbolCode(sym) == JS::SymbolCode::toPrimitive) {
+      JS::RootedObject obj(cx, JS_GetFunctionObject(
+                                 JS_NewFunction(
+                                   cx, NPObjWrapper_toPrimitive, 1, 0,
+                                   "Symbol.toPrimitive")));
+      if (!obj)
+        return false;
+      vp.setObject(*obj);
+      return true;
+    }
   }
 
   // Find out what plugin (NPP) is the owner of the object we're
@@ -1667,6 +1650,8 @@ NPObjWrapper_Resolve(JSContext* cx, JS::Handle<JSObject*> obj, JS::Handle<jsid> 
   if (JSID_IS_SYMBOL(id))
     return true;
 
+  PROFILER_LABEL_FUNC(js::ProfileEntry::Category::JS);
+
   NPObject* npobj = GetNPObject(cx, obj);
 
   if (!npobj || !npobj->_class || !npobj->_class->hasProperty ||
@@ -1715,42 +1700,6 @@ NPObjWrapper_Resolve(JSContext* cx, JS::Handle<JSObject*> obj, JS::Handle<jsid> 
 
   // no property or method
   return true;
-}
-
-static bool
-NPObjWrapper_Convert(JSContext* cx, JS::Handle<JSObject*> obj, JSType hint, JS::MutableHandle<JS::Value> vp)
-{
-  MOZ_ASSERT(hint == JSTYPE_NUMBER || hint == JSTYPE_STRING || hint == JSTYPE_VOID);
-
-  // Plugins do not simply use the default [[DefaultValue]] behavior, because
-  // that behavior involves calling toString or valueOf on objects which
-  // weren't designed to accommodate this.  Usually this wouldn't be a problem,
-  // because the absence of either property, or the presence of either property
-  // with a value that isn't callable, will cause that property to simply be
-  // ignored.  But there is a problem in one specific case: Java, specifically
-  // java.lang.Integer.  The Integer class has static valueOf methods, none of
-  // which are nullary, so the JS-reflected method will behave poorly when
-  // called with no arguments.  We work around this problem by giving plugins a
-  // [[DefaultValue]] which uses only toString and not valueOf.
-
-  JS::Rooted<JS::Value> v(cx, JS::UndefinedValue());
-  if (!JS_GetProperty(cx, obj, "toString", &v))
-    return false;
-  if (!v.isPrimitive() && JS::IsCallable(v.toObjectOrNull())) {
-    if (!JS_CallFunctionValue(cx, obj, v, JS::HandleValueArray::empty(), vp))
-      return false;
-    if (vp.isPrimitive())
-      return true;
-  }
-
-  JS_ReportErrorNumber(cx, js::GetErrorMessage, nullptr, JSMSG_CANT_CONVERT_TO,
-                       JS_GetClass(obj)->name,
-                       hint == JSTYPE_VOID
-                       ? "primitive type"
-                       : hint == JSTYPE_NUMBER
-                       ? "number"
-                       : "string");
-  return false;
 }
 
 static void
@@ -1807,6 +1756,43 @@ NPObjWrapper_Construct(JSContext* cx, unsigned argc, JS::Value* vp)
   JS::CallArgs args = JS::CallArgsFromVp(argc, vp);
   JS::Rooted<JSObject*> obj(cx, &args.callee());
   return CallNPMethodInternal(cx, obj, args.length(), args.array(), vp, true);
+}
+
+static bool
+NPObjWrapper_toPrimitive(JSContext *cx, unsigned argc, JS::Value *vp)
+{
+  // Plugins do not simply use the default OrdinaryToPrimitive behavior,
+  // because that behavior involves calling toString or valueOf on objects
+  // which weren't designed to accommodate this.  Usually this wouldn't be a
+  // problem, because the absence of either property, or the presence of either
+  // property with a value that isn't callable, will cause that property to
+  // simply be ignored.  But there is a problem in one specific case: Java,
+  // specifically java.lang.Integer.  The Integer class has static valueOf
+  // methods, none of which are nullary, so the JS-reflected method will behave
+  // poorly when called with no arguments.  We work around this problem by
+  // giving plugins a [Symbol.toPrimitive]() method which uses only toString
+  // and not valueOf.
+
+  JS::CallArgs args = JS::CallArgsFromVp(argc, vp);
+  JS::RootedValue thisv(cx, args.thisv());
+  if (thisv.isPrimitive())
+    return true;
+
+  JS::RootedObject obj(cx, &thisv.toObject());
+  JS::RootedValue v(cx);
+  if (!JS_GetProperty(cx, obj, "toString", &v))
+    return false;
+  if (v.isObject() && JS::IsCallable(&v.toObject())) {
+    if (!JS_CallFunctionValue(cx, obj, v, JS::HandleValueArray::empty(), args.rval()))
+      return false;
+    if (args.rval().isPrimitive())
+      return true;
+  }
+
+  JS_ReportErrorNumber(cx, js::GetErrorMessage, nullptr, JSMSG_CANT_CONVERT_TO,
+                       JS_GetClass(obj)->name,
+                       "primitive type");
+  return false;
 }
 
 bool
@@ -2130,38 +2116,26 @@ CreateNPObjectMember(NPP npp, JSContext* cx,
 }
 
 static bool
-NPObjectMember_Convert(JSContext* cx, JS::Handle<JSObject*> obj, JSType type, JS::MutableHandle<JS::Value> vp)
+NPObjectMember_GetProperty(JSContext *cx, JS::HandleObject obj, JS::HandleId id,
+                           JS::MutableHandleValue vp)
 {
-  NPObjectMemberPrivate* memberPrivate =
-    (NPObjectMemberPrivate*)::JS_GetInstancePrivate(cx, obj,
-                                                     &sNPObjectMemberClass,
-                                                     nullptr);
-  if (!memberPrivate) {
-    NS_ERROR("no Ambiguous Member Private data!");
-    return false;
+  PROFILER_LABEL_FUNC(js::ProfileEntry::Category::OTHER);
+
+  if (JSID_IS_SYMBOL(id)) {
+    JS::RootedSymbol sym(cx, JSID_TO_SYMBOL(id));
+    if (JS::GetSymbolCode(sym) == JS::SymbolCode::toPrimitive) {
+      JS::RootedObject obj(cx, JS_GetFunctionObject(
+                                 JS_NewFunction(
+                                   cx, NPObjectMember_toPrimitive, 1, 0,
+                                   "Symbol.toPrimitive")));
+      if (!obj)
+        return false;
+      vp.setObject(*obj);
+      return true;
+    }
   }
 
-  switch (type) {
-  case JSTYPE_VOID:
-  case JSTYPE_STRING:
-  case JSTYPE_NUMBER:
-    vp.set(memberPrivate->fieldValue);
-    if (vp.isObject()) {
-      JS::Rooted<JSObject*> objVal(cx, &vp.toObject());
-      return JS_DefaultValue(cx, objVal, type, vp);
-    }
-    return true;
-  case JSTYPE_BOOLEAN:
-  case JSTYPE_OBJECT:
-    vp.set(memberPrivate->fieldValue);
-    return true;
-  case JSTYPE_FUNCTION:
-    // Leave this to NPObjectMember_Call.
-    return true;
-  default:
-    NS_ERROR("illegal operation on JSObject prototype object");
-    return false;
-  }
+  return true;
 }
 
 static void
@@ -2266,21 +2240,46 @@ NPObjectMember_Trace(JSTracer* trc, JSObject* obj)
   if (!memberPrivate)
     return;
 
-  // Our NPIdentifier is not always interned, so we must root it explicitly.
-  JS_CallIdTracer(trc, &memberPrivate->methodName, "NPObjectMemberPrivate.methodName");
+  // Our NPIdentifier is not always interned, so we must trace it.
+  JS::TraceEdge(trc, &memberPrivate->methodName, "NPObjectMemberPrivate.methodName");
 
-  if (!memberPrivate->fieldValue.isPrimitive()) {
-    JS_CallValueTracer(trc, &memberPrivate->fieldValue,
-                       "NPObject Member => fieldValue");
-  }
+  JS::TraceEdge(trc, &memberPrivate->fieldValue, "NPObject Member => fieldValue");
 
   // There's no strong reference from our private data to the
   // NPObject, so make sure to mark the NPObject wrapper to keep the
   // NPObject alive as long as this NPObjectMember is alive.
-  if (memberPrivate->npobjWrapper) {
-    JS_CallObjectTracer(trc, &memberPrivate->npobjWrapper,
-                        "NPObject Member => npobjWrapper");
+  JS::TraceEdge(trc, &memberPrivate->npobjWrapper,
+                "NPObject Member => npobjWrapper");
+}
+
+static bool
+NPObjectMember_toPrimitive(JSContext *cx, unsigned argc, JS::Value *vp)
+{
+  JS::CallArgs args = JS::CallArgsFromVp(argc, vp);
+  JS::RootedValue thisv(cx, args.thisv());
+  if (thisv.isPrimitive()) {
+    args.rval().set(thisv);
+    return true;
   }
+
+  JS::RootedObject obj(cx, &thisv.toObject());
+  NPObjectMemberPrivate *memberPrivate =
+    (NPObjectMemberPrivate *)::JS_GetInstancePrivate(cx, obj,
+                                                     &sNPObjectMemberClass,
+                                                     &args);
+  if (!memberPrivate)
+    return false;
+
+  JSType hint;
+  if (!JS::GetFirstArgumentAsTypeHint(cx, args, &hint))
+    return false;
+
+  args.rval().set(memberPrivate->fieldValue);
+  if (args.rval().isObject()) {
+    JS::Rooted<JSObject*> objVal(cx, &args.rval().toObject());
+    return JS::ToPrimitive(cx, objVal, hint, args.rval());
+  }
+  return true;
 }
 
 // static

@@ -124,7 +124,11 @@ public:
 
   bool MozHasAudio() const;
 
-  void NotifyOwnerDocumentActivityChanged() override;
+  bool MozUseScreenWakeLock() const;
+
+  void SetMozUseScreenWakeLock(bool aValue);
+
+  bool NotifyOwnerDocumentActivityChangedInternal() override;
 
   already_AddRefed<VideoPlaybackQuality> GetVideoPlaybackQuality();
 
@@ -137,7 +141,8 @@ protected:
   virtual void WakeLockRelease() override;
   void UpdateScreenWakeLock();
 
-  nsRefPtr<WakeLock> mScreenWakeLock;
+  bool mUseScreenWakeLock;
+  RefPtr<WakeLock> mScreenWakeLock;
 
 private:
   static void MapAttributesIntoRule(const nsMappedAttributes* aAttributes,

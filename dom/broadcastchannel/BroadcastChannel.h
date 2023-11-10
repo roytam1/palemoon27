@@ -12,7 +12,7 @@
 #include "nsIIPCBackgroundChildCreateCallback.h"
 #include "nsIObserver.h"
 #include "nsTArray.h"
-#include "mozilla/nsRefPtr.h"
+#include "mozilla/RefPtr.h"
 
 class nsPIDOMWindow;
 
@@ -36,6 +36,8 @@ class BroadcastChannel final
   , public nsIIPCBackgroundChildCreateCallback
   , public nsIObserver
 {
+  friend class BroadcastChannelChild;
+
   NS_DECL_NSIIPCBACKGROUNDCHILDCREATECALLBACK
   NS_DECL_NSIOBSERVER
 
@@ -46,8 +48,6 @@ public:
 
   NS_DECL_CYCLE_COLLECTION_CLASS_INHERITED(BroadcastChannel,
                                            DOMEventTargetHelper)
-
-  static bool IsEnabled(JSContext* aCx, JSObject* aGlobal);
 
   virtual JSObject*
   WrapObject(JSContext* aCx, JS::Handle<JSObject*> aGivenProto) override;
@@ -84,11 +84,6 @@ public:
 
   void Shutdown();
 
-  bool IsClosed() const
-  {
-    return mState != StateActive;
-  }
-
 private:
   BroadcastChannel(nsPIDOMWindow* aWindow,
                    const PrincipalInfo& aPrincipalInfo,
@@ -105,8 +100,20 @@ private:
 
   void UpdateMustKeepAlive();
 
-  nsRefPtr<BroadcastChannelChild> mActor;
-  nsTArray<nsRefPtr<BroadcastChannelMessage>> mPendingMessages;
+  bool IsCertainlyAliveForCC() const override
+  {
+    return mIsKeptAlive;
+  }
+
+  bool IsClosed() const
+  {
+    return mState != StateActive;
+  }
+
+  void RemoveDocFromBFCache();
+
+  RefPtr<BroadcastChannelChild> mActor;
+  nsTArray<RefPtr<BroadcastChannelMessage>> mPendingMessages;
 
   nsAutoPtr<workers::WorkerFeature> mWorkerFeature;
 

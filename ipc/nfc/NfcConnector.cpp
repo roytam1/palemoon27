@@ -8,6 +8,7 @@
 #include "NfcConnector.h"
 #include <fcntl.h>
 #include <sys/un.h>
+#include "nsISupportsImpl.h" // for MOZ_COUNT_CTOR, MOZ_COUNT_DTOR
 #include "nsThreadUtils.h" // For NS_IsMainThread.
 
 namespace mozilla {
@@ -15,15 +16,19 @@ namespace ipc {
 
 NfcConnector::NfcConnector(const nsACString& aAddressString)
   : mAddressString(aAddressString)
-{ }
+{
+  MOZ_COUNT_CTOR_INHERITED(NfcConnector, UnixSocketConnector);
+}
 
 NfcConnector::~NfcConnector()
-{ }
+{
+  MOZ_COUNT_DTOR_INHERITED(NfcConnector, UnixSocketConnector);
+}
 
 nsresult
 NfcConnector::CreateSocket(int& aFd) const
 {
-  aFd = socket(AF_LOCAL, SOCK_STREAM, 0);
+  aFd = socket(AF_LOCAL, SOCK_SEQPACKET, 0);
   if (aFd < 0) {
     NS_WARNING("Could not open NFC socket!");
     return NS_ERROR_FAILURE;

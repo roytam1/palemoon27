@@ -142,7 +142,8 @@ nsRubyFrame::Reflow(nsPresContext* aPresContext,
 
   ContinuationTraversingState pullState(this);
   while (aStatus == NS_FRAME_COMPLETE) {
-    nsRubyBaseContainerFrame* baseContainer = PullOneSegment(pullState);
+    nsRubyBaseContainerFrame* baseContainer =
+      PullOneSegment(aReflowState.mLineLayout, pullState);
     if (!baseContainer) {
       // No more continuations after, finish now.
       break;
@@ -340,28 +341,42 @@ nsRubyFrame::ReflowSegment(nsPresContext* aPresContext,
   // Set block leadings of the base container
   nscoord startLeading = baseRect.BStart(lineWM) - offsetRect.BStart(lineWM);
   nscoord endLeading = offsetRect.BEnd(lineWM) - baseRect.BEnd(lineWM);
-  NS_ASSERTION(startLeading >= 0 && endLeading >= 0,
-               "Leadings should be non-negative (because adding "
-               "ruby annotation can only increase the size)");
+  // XXX When bug 765861 gets fixed, this warning should be upgraded.
+  NS_WARN_IF_FALSE(startLeading >= 0 && endLeading >= 0,
+                   "Leadings should be non-negative (because adding "
+                   "ruby annotation can only increase the size)");
   mBStartLeading = std::max(mBStartLeading, startLeading);
   mBEndLeading = std::max(mBEndLeading, endLeading);
 }
 
 nsRubyBaseContainerFrame*
-nsRubyFrame::PullOneSegment(ContinuationTraversingState& aState)
+nsRubyFrame::PullOneSegment(const nsLineLayout* aLineLayout,
+                            ContinuationTraversingState& aState)
 {
   // Pull a ruby base container
-  nsIFrame* baseFrame = PullNextInFlowChild(aState);
+  nsIFrame* baseFrame = GetNextInFlowChild(aState);
   if (!baseFrame) {
     return nullptr;
   }
   MOZ_ASSERT(baseFrame->GetType() == nsGkAtoms::rubyBaseContainerFrame);
+
+  // Get the float containing block of the base frame before we pull it.
+  nsBlockFrame* oldFloatCB =
+    nsLayoutUtils::GetFloatContainingBlock(baseFrame);
+  PullNextInFlowChild(aState);
 
   // Pull all ruby text containers following the base container
   nsIFrame* nextFrame;
   while ((nextFrame = GetNextInFlowChild(aState)) != nullptr &&
          nextFrame->GetType() == nsGkAtoms::rubyTextContainerFrame) {
     PullNextInFlowChild(aState);
+  }
+
+  if (nsBlockFrame* newFloatCB =
+      nsLayoutUtils::GetAsBlock(aLineLayout->LineContainerFrame())) {
+    if (oldFloatCB && oldFloatCB != newFloatCB) {
+      newFloatCB->ReparentFloats(baseFrame, oldFloatCB, true);
+    }
   }
 
   return static_cast<nsRubyBaseContainerFrame*>(baseFrame);

@@ -10,7 +10,6 @@
 #include "HTMLLinkElement.h"
 #include "nsContentPolicyUtils.h"
 #include "nsContentUtils.h"
-#include "nsCORSListenerProxy.h"
 #include "nsIChannel.h"
 #include "nsIContentPolicy.h"
 #include "nsIContentSecurityPolicy.h"
@@ -65,7 +64,7 @@ ImportLoader::Updater::GetReferrerChain(nsINode* aNode,
 
   aResult.AppendElement(aNode);
   nsINode* node = aNode;
-  nsRefPtr<ImportManager> manager = mLoader->Manager();
+  RefPtr<ImportManager> manager = mLoader->Manager();
   for (ImportLoader* referrersLoader = manager->Find(node->OwnerDoc());
        referrersLoader;
        referrersLoader = manager->Find(node->OwnerDoc()))
@@ -155,7 +154,7 @@ ImportLoader::Updater::UpdateMainReferrer(uint32_t aNewIdx)
   if (mLoader->mDocument) {
     // Our nearest predecessor has changed. So let's add the ScriptLoader to the
     // new one if there is any. And remove it from the old one.
-    nsRefPtr<ImportManager> manager = mLoader->Manager();
+    RefPtr<ImportManager> manager = mLoader->Manager();
     nsScriptLoader* loader = mLoader->mDocument->ScriptLoader();
     ImportLoader*& pred = mLoader->mBlockingPredecessor;
     ImportLoader* newPred = manager->GetNearestPredecessor(newMainReferrer);
@@ -659,7 +658,7 @@ ImportManager::Get(nsIURI* aURI, nsINode* aNode, nsIDocument* aOrigDocument)
 {
   // Check if we have a loader for that URI, if not create one,
   // and start it up.
-  nsRefPtr<ImportLoader> loader;
+  RefPtr<ImportLoader> loader;
   mImports.Get(aURI, getter_AddRefs(loader));
   bool needToStart = false;
   if (!loader) {
@@ -706,7 +705,7 @@ ImportManager::AddLoaderWithNewURI(ImportLoader* aLoader, nsIURI* aNewURI)
   mImports.Put(aNewURI, aLoader);
 }
 
-nsRefPtr<ImportLoader> ImportManager::GetNearestPredecessor(nsINode* aNode)
+ImportLoader* ImportManager::GetNearestPredecessor(nsINode* aNode)
 {
   // Return the previous link if there is any in the same document.
   nsIDocument* doc = aNode->OwnerDoc();
@@ -717,7 +716,7 @@ nsRefPtr<ImportLoader> ImportManager::GetNearestPredecessor(nsINode* aNode)
     HTMLLinkElement* link =
       static_cast<HTMLLinkElement*>(doc->GetSubImportLink(idx - 1));
     nsCOMPtr<nsIURI> uri = link->GetHrefURI();
-    nsRefPtr<ImportLoader> ret;
+    RefPtr<ImportLoader> ret;
     mImports.Get(uri, getter_AddRefs(ret));
     // Only main referrer links are interesting.
     if (ret->GetMainReferrer() == link) {

@@ -308,14 +308,14 @@ ADTSDemuxer::InitInternal()
   return mTrackDemuxer->Init();
 }
 
-nsRefPtr<ADTSDemuxer::InitPromise> 
+RefPtr<ADTSDemuxer::InitPromise> 
 ADTSDemuxer::Init()
 {
   if (!InitInternal()) {
     ADTSLOG("Init() failure: waiting for data");
 
     return InitPromise::CreateAndReject(
-      DemuxerFailureReason::WAITING_FOR_DATA, __func__);
+      DemuxerFailureReason::DEMUXER_ERROR, __func__);
   }
 
   ADTSLOG("Init() successful");
@@ -341,7 +341,7 @@ ADTSDemuxer::GetTrackDemuxer(TrackInfo::TrackType aType, uint32_t aTrackNumber)
     return nullptr;
   }
 
-  return nsRefPtr<ADTSTrackDemuxer>(mTrackDemuxer).forget();
+  return RefPtr<ADTSTrackDemuxer>(mTrackDemuxer).forget();
 }
 
 bool
@@ -381,7 +381,7 @@ ADTSTrackDemuxer::Init()
 
   FastSeek(media::TimeUnit());
   // Read the first frame to fetch sample rate and other meta data.
-  nsRefPtr<MediaRawData> frame(GetNextFrame(FindNextFrame(true)));
+  RefPtr<MediaRawData> frame(GetNextFrame(FindNextFrame(true)));
 
   ADTSLOG("Init StreamLength()=%" PRId64 " first-frame-found=%d",
           StreamLength(), !!frame);
@@ -429,17 +429,7 @@ ADTSTrackDemuxer::GetInfo() const
   return mInfo->Clone();
 }
 
-already_AddRefed<MediaDataDemuxer>
-ADTSDemuxer::Clone() const {
-  nsRefPtr<ADTSDemuxer> demuxer = new ADTSDemuxer(mSource);
-  if (!demuxer->InitInternal()) {
-    NS_WARNING("Couldn't recreate ADTSTrackDemuxer");
-    return nullptr;
-  }
-  return demuxer.forget();
-}
-
-nsRefPtr<ADTSTrackDemuxer::SeekPromise>
+RefPtr<ADTSTrackDemuxer::SeekPromise>
 ADTSTrackDemuxer::Seek(media::TimeUnit aTime)
 {
   // Efficiently seek to the position.
@@ -448,13 +438,6 @@ ADTSTrackDemuxer::Seek(media::TimeUnit aTime)
   const media::TimeUnit seekTime = ScanUntil(aTime);
 
   return SeekPromise::CreateAndResolve(seekTime, __func__);
-}
-
-int64_t
-ADTSTrackDemuxer::GetEvictionOffset(media::TimeUnit aTime)
-{
-  // Unused.
-  return 0;
 }
 
 media::TimeUnit
@@ -520,7 +503,7 @@ ADTSTrackDemuxer::ScanUntil(const media::TimeUnit& aTime)
   return Duration(mFrameIndex);
 }
 
-nsRefPtr<ADTSTrackDemuxer::SamplesPromise>
+RefPtr<ADTSTrackDemuxer::SamplesPromise>
 ADTSTrackDemuxer::GetSamples(int32_t aNumSamples)
 {
   ADTSLOG("GetSamples(%d) Begin mOffset=%" PRIu64 " mNumParsedFrames=%" PRIu64
@@ -531,10 +514,10 @@ ADTSTrackDemuxer::GetSamples(int32_t aNumSamples)
 
   MOZ_ASSERT(aNumSamples);
 
-  nsRefPtr<SamplesHolder> frames = new SamplesHolder();
+  RefPtr<SamplesHolder> frames = new SamplesHolder();
 
   while (aNumSamples--) {
-    nsRefPtr<MediaRawData> frame(GetNextFrame(FindNextFrame()));
+    RefPtr<MediaRawData> frame(GetNextFrame(FindNextFrame()));
     if (!frame)
       break;
 
@@ -568,7 +551,7 @@ ADTSTrackDemuxer::Reset()
   FastSeek(media::TimeUnit());
 }
 
-nsRefPtr<ADTSTrackDemuxer::SkipAccessPointPromise>
+RefPtr<ADTSTrackDemuxer::SkipAccessPointPromise>
 ADTSTrackDemuxer::SkipToNextRandomAccessPoint(media::TimeUnit aTimeThreshold)
 {
   // Will not be called for audio-only resources.
@@ -714,7 +697,7 @@ bool
 ADTSTrackDemuxer::SkipNextFrame(const adts::Frame& aFrame)
 {
   if (!mNumParsedFrames || !aFrame.Length()) {
-    nsRefPtr<MediaRawData> frame(GetNextFrame(aFrame));
+    RefPtr<MediaRawData> frame(GetNextFrame(aFrame));
     return frame;
   }
 
@@ -740,7 +723,7 @@ ADTSTrackDemuxer::GetNextFrame(const adts::Frame& aFrame)
   const int64_t offset = aFrame.PayloadOffset();
   const uint32_t length = aFrame.PayloadLength();
 
-  nsRefPtr<MediaRawData> frame = new MediaRawData();
+  RefPtr<MediaRawData> frame = new MediaRawData();
   frame->mOffset = offset;
 
   nsAutoPtr<MediaRawDataWriter> frameWriter(frame->CreateWriter());

@@ -18,6 +18,12 @@ static const bool SupportsSimd = false;
 static const uint32_t SimdMemoryAlignment = 4; // Make it 4 to avoid a bunch of div-by-zero warnings
 static const uint32_t AsmJSStackAlignment = 8;
 
+// Does this architecture support SIMD conversions between Uint32x4 and Float32x4?
+static MOZ_CONSTEXPR_VAR bool SupportsUint32x4FloatConversions = false;
+
+// Does this architecture support comparisons of unsigned 32x4 integer vectors?
+static MOZ_CONSTEXPR_VAR bool SupportsUint32x4Compares = false;
+
 class Registers
 {
   public:
@@ -104,12 +110,10 @@ struct FloatRegister
     static FloatRegister FromCode(uint32_t) { MOZ_CRASH(); }
     bool isSingle() const { MOZ_CRASH(); }
     bool isDouble() const { MOZ_CRASH(); }
-    bool isInt32x4() const { MOZ_CRASH(); }
-    bool isFloat32x4() const { MOZ_CRASH(); }
+    bool isSimd128() const { MOZ_CRASH(); }
     FloatRegister asSingle() const { MOZ_CRASH(); }
     FloatRegister asDouble() const { MOZ_CRASH(); }
-    FloatRegister asInt32x4() const { MOZ_CRASH(); }
-    FloatRegister asFloat32x4() const { MOZ_CRASH(); }
+    FloatRegister asSimd128() const { MOZ_CRASH(); }
     Code code() const { MOZ_CRASH(); }
     Encoding encoding() const { MOZ_CRASH(); }
     const char* name() const { MOZ_CRASH(); }
@@ -122,12 +126,12 @@ struct FloatRegister
     bool equiv(FloatRegister) const { MOZ_CRASH(); }
     uint32_t size() const { MOZ_CRASH(); }
     uint32_t numAlignedAliased() const { MOZ_CRASH(); }
-    void alignedAliased(uint32_t, FloatRegister *) { MOZ_CRASH(); }
+    void alignedAliased(uint32_t, FloatRegister*) { MOZ_CRASH(); }
     SetType alignedOrDominatedAliasedSet() const { MOZ_CRASH(); }
     template <typename T> static T ReduceSetForPush(T) { MOZ_CRASH(); }
     uint32_t getRegisterDumpOffsetInBytes() { MOZ_CRASH(); }
     static uint32_t SetSize(SetType x) { MOZ_CRASH(); }
-    static Code FromName(const char *name) { MOZ_CRASH(); }
+    static Code FromName(const char* name) { MOZ_CRASH(); }
 
     // This is used in static initializers, so produce a bogus value instead of crashing.
     static uint32_t GetPushSizeInBytes(const TypedRegisterSet<FloatRegister>&) { return 0; }
@@ -137,14 +141,15 @@ inline bool hasUnaliasedDouble() { MOZ_CRASH(); }
 inline bool hasMultiAlias() { MOZ_CRASH(); }
 
 static const uint32_t ShadowStackSpace = 0;
+static const uint32_t JumpImmediateRange = INT32_MAX;
 
 #ifdef JS_NUNBOX32
 static const int32_t NUNBOX32_TYPE_OFFSET = 4;
 static const int32_t NUNBOX32_PAYLOAD_OFFSET = 0;
 #endif
 
-static const size_t AsmJSCheckedImmediateRange = 0;
-static const size_t AsmJSImmediateRange = 0;
+static const size_t WasmCheckedImmediateRange = 0;
+static const size_t WasmImmediateRange = 0;
 
 } // namespace jit
 } // namespace js

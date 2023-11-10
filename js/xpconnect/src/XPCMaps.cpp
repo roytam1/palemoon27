@@ -90,8 +90,7 @@ JSObject2WrappedJSMap::UpdateWeakPointersAfterGC(XPCJSRuntime* runtime)
     // Check all wrappers and update their JSObject pointer if it has been
     // moved. Release any wrappers whose weakly held JSObject has died.
 
-    nsTArray<nsRefPtr<nsXPCWrappedJS>> dying;
-
+    nsTArray<RefPtr<nsXPCWrappedJS>> dying;
     for (Map::Enum e(mTable); !e.empty(); e.popFront()) {
         nsXPCWrappedJS* wrapper = e.front().value();
         MOZ_ASSERT(wrapper, "found a null JS wrapper!");
@@ -120,12 +119,11 @@ JSObject2WrappedJSMap::UpdateWeakPointersAfterGC(XPCJSRuntime* runtime)
 
         // Remove or update the JSObject key in the table if necessary.
         JSObject* obj = e.front().key();
-        JSObject* prior = obj;
         JS_UpdateWeakPointerAfterGCUnbarriered(&obj);
         if (!obj)
             e.removeFront();
-        else if (obj != prior)
-            e.rekeyFront(obj);
+        else
+            e.front().mutableKey() = obj;
     }
 }
 
@@ -164,19 +162,11 @@ JSObject2WrappedJSMap::SizeOfWrappedJS(mozilla::MallocSizeOf mallocSizeOf) const
 Native2WrappedNativeMap*
 Native2WrappedNativeMap::newMap(int length)
 {
-    Native2WrappedNativeMap* map = new Native2WrappedNativeMap(length);
-    if (map && map->mTable)
-        return map;
-    // Allocation of the map or the creation of its hash table has
-    // failed. This will cause a nullptr deref later when we attempt
-    // to use the map, so we abort immediately to provide a more
-    // useful crash stack.
-    NS_RUNTIMEABORT("Ran out of memory.");
-    return nullptr;
+    return new Native2WrappedNativeMap(length);
 }
 
 Native2WrappedNativeMap::Native2WrappedNativeMap(int length)
-  : mTable(new PLDHashTable(PL_DHashGetStubOps(), sizeof(Entry), length))
+  : mTable(new PLDHashTable(PLDHashTable::StubOps(), sizeof(Entry), length))
 {
 }
 
@@ -204,8 +194,8 @@ const struct PLDHashTableOps IID2WrappedJSClassMap::Entry::sOps =
 {
     HashIIDPtrKey,
     MatchIIDPtrKey,
-    PL_DHashMoveEntryStub,
-    PL_DHashClearEntryStub
+    PLDHashTable::MoveEntryStub,
+    PLDHashTable::ClearEntryStub
 };
 
 // static
@@ -232,8 +222,8 @@ const struct PLDHashTableOps IID2NativeInterfaceMap::Entry::sOps =
 {
     HashIIDPtrKey,
     MatchIIDPtrKey,
-    PL_DHashMoveEntryStub,
-    PL_DHashClearEntryStub
+    PLDHashTable::MoveEntryStub,
+    PLDHashTable::ClearEntryStub
 };
 
 // static
@@ -276,7 +266,7 @@ ClassInfo2NativeSetMap::newMap(int length)
 }
 
 ClassInfo2NativeSetMap::ClassInfo2NativeSetMap(int length)
-  : mTable(new PLDHashTable(PL_DHashGetStubOps(), sizeof(Entry), length))
+  : mTable(new PLDHashTable(PLDHashTable::StubOps(), sizeof(Entry), length))
 {
 }
 
@@ -300,19 +290,11 @@ ClassInfo2NativeSetMap::ShallowSizeOfIncludingThis(mozilla::MallocSizeOf mallocS
 ClassInfo2WrappedNativeProtoMap*
 ClassInfo2WrappedNativeProtoMap::newMap(int length)
 {
-    ClassInfo2WrappedNativeProtoMap* map = new ClassInfo2WrappedNativeProtoMap(length);
-    if (map && map->mTable)
-        return map;
-    // Allocation of the map or the creation of its hash table has
-    // failed. This will cause a nullptr deref later when we attempt
-    // to use the map, so we abort immediately to provide a more
-    // useful crash stack.
-    NS_RUNTIMEABORT("Ran out of memory.");
-    return nullptr;
+    return new ClassInfo2WrappedNativeProtoMap(length);
 }
 
 ClassInfo2WrappedNativeProtoMap::ClassInfo2WrappedNativeProtoMap(int length)
-  : mTable(new PLDHashTable(PL_DHashGetStubOps(), sizeof(Entry), length))
+  : mTable(new PLDHashTable(PLDHashTable::StubOps(), sizeof(Entry), length))
 {
 }
 
@@ -412,8 +394,8 @@ const struct PLDHashTableOps NativeSetMap::Entry::sOps =
 {
     HashNativeKey,
     Match,
-    PL_DHashMoveEntryStub,
-    PL_DHashClearEntryStub
+    PLDHashTable::MoveEntryStub,
+    PLDHashTable::ClearEntryStub
 };
 
 // static
@@ -467,7 +449,7 @@ const struct PLDHashTableOps IID2ThisTranslatorMap::Entry::sOps =
 {
     HashIIDPtrKey,
     Match,
-    PL_DHashMoveEntryStub,
+    PLDHashTable::MoveEntryStub,
     Clear
 };
 
@@ -538,8 +520,8 @@ const struct PLDHashTableOps XPCNativeScriptableSharedMap::Entry::sOps =
 {
     Hash,
     Match,
-    PL_DHashMoveEntryStub,
-    PL_DHashClearEntryStub
+    PLDHashTable::MoveEntryStub,
+    PLDHashTable::ClearEntryStub
 };
 
 // static
@@ -596,7 +578,7 @@ XPCWrappedNativeProtoMap::newMap(int length)
 }
 
 XPCWrappedNativeProtoMap::XPCWrappedNativeProtoMap(int length)
-  : mTable(new PLDHashTable(PL_DHashGetStubOps(), sizeof(PLDHashEntryStub),
+  : mTable(new PLDHashTable(PLDHashTable::StubOps(), sizeof(PLDHashEntryStub),
                             length))
 {
 }

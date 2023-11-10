@@ -102,6 +102,10 @@ public:
   {
     return MaybeInput(subjectAltName);
   }
+  const Input* GetRequiredTLSFeatures() const
+  {
+    return MaybeInput(requiredTLSFeatures);
+  }
 
 private:
   const Input der;
@@ -144,6 +148,7 @@ private:
   Input nameConstraints;
   Input subjectAltName;
   Input criticalNetscapeCertificateType;
+  Input requiredTLSFeatures;
 
   Result RememberExtension(Reader& extnID, Input extnValue, bool critical,
                            /*out*/ bool& understood);
@@ -261,6 +266,20 @@ Result VerifySignedData(TrustDomain& trustDomain,
 #else
 #error Unsupported compiler for MOZILLA_PKIX_UNREACHABLE_DEFAULT.
 #endif
+
+inline size_t DigestAlgorithmToSizeInBytes(DigestAlgorithm digestAlgorithm) {
+  switch (digestAlgorithm) {
+    case DigestAlgorithm::sha1:
+      return 160 / 8;
+    case DigestAlgorithm::sha256:
+      return 256 / 8;
+    case DigestAlgorithm::sha384:
+      return 384 / 8;
+    case DigestAlgorithm::sha512:
+      return 512 / 8;
+      MOZILLA_PKIX_UNREACHABLE_DEFAULT_ENUM
+  }
+}
 
 } } // namespace mozilla::pkix
 

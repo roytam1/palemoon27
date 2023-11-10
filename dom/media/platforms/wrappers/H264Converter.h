@@ -25,16 +25,16 @@ public:
                 const VideoInfo& aConfig,
                 layers::LayersBackend aLayersBackend,
                 layers::ImageContainer* aImageContainer,
-                FlushableMediaTaskQueue* aVideoTaskQueue,
+                FlushableTaskQueue* aVideoTaskQueue,
                 MediaDataDecoderCallback* aCallback);
   virtual ~H264Converter();
 
-  virtual nsresult Init() override;
-  virtual nsresult Input(MediaRawData* aSample) override;
-  virtual nsresult Flush() override;
-  virtual nsresult Drain() override;
-  virtual nsresult Shutdown() override;
-  virtual bool IsHardwareAccelerated() const override;
+  RefPtr<InitPromise> Init() override;
+  nsresult Input(MediaRawData* aSample) override;
+  nsresult Flush() override;
+  nsresult Drain() override;
+  nsresult Shutdown() override;
+  bool IsHardwareAccelerated(nsACString& aFailureReason) const override;
 
   // Return true if mimetype is H.264.
   static bool IsH264(const TrackInfo& aConfig);
@@ -49,13 +49,19 @@ private:
   nsresult CheckForSPSChange(MediaRawData* aSample);
   void UpdateConfigFromExtraData(MediaByteBuffer* aExtraData);
 
-  nsRefPtr<PlatformDecoderModule> mPDM;
+  void OnDecoderInitDone(const TrackType aTrackType);
+  void OnDecoderInitFailed(MediaDataDecoder::DecoderFailureReason aReason);
+
+  RefPtr<PlatformDecoderModule> mPDM;
+  const VideoInfo& mOriginalConfig;
   VideoInfo mCurrentConfig;
   layers::LayersBackend mLayersBackend;
-  nsRefPtr<layers::ImageContainer> mImageContainer;
-  nsRefPtr<FlushableMediaTaskQueue> mVideoTaskQueue;
+  RefPtr<layers::ImageContainer> mImageContainer;
+  RefPtr<FlushableTaskQueue> mVideoTaskQueue;
+  nsTArray<RefPtr<MediaRawData>> mMediaRawSamples;
   MediaDataDecoderCallback* mCallback;
-  nsRefPtr<MediaDataDecoder> mDecoder;
+  RefPtr<MediaDataDecoder> mDecoder;
+  MozPromiseRequestHolder<InitPromise> mInitPromiseRequest;
   bool mNeedAVCC;
   nsresult mLastError;
 };

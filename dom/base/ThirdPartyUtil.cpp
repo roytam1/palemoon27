@@ -11,7 +11,6 @@
 #include "nsIServiceManager.h"
 #include "nsIHttpChannelInternal.h"
 #include "nsIDOMWindow.h"
-#include "nsPIDOMWindow.h" // rmottola - HACK - get build again, not needed in FF tree
 #include "nsILoadContext.h"
 #include "nsIPrincipal.h"
 #include "nsIScriptObjectPrincipal.h"
@@ -24,7 +23,7 @@ NS_IMPL_ISUPPORTS(ThirdPartyUtil, mozIThirdPartyUtil)
 //
 // NSPR_LOG_MODULES=thirdPartyUtil:5
 //
-static PRLogModuleInfo *gThirdPartyLog;
+static mozilla::LazyLogModule gThirdPartyLog("thirdPartyUtil");
 #undef LOG
 #define LOG(args)     MOZ_LOG(gThirdPartyLog, mozilla::LogLevel::Debug, args)
 
@@ -35,9 +34,6 @@ ThirdPartyUtil::Init()
 
   nsresult rv;
   mTLDService = do_GetService(NS_EFFECTIVETLDSERVICE_CONTRACTID, &rv);
-
-    if (!gThirdPartyLog)
-        gThirdPartyLog = PR_NewLogModule("thirdPartyUtil");
 
   return rv;
 }
@@ -55,6 +51,7 @@ ThirdPartyUtil::IsThirdPartyInternal(const nsCString& aFirstDomain,
   // Get the base domain for aSecondURI.
   nsCString secondDomain;
   nsresult rv = GetBaseDomain(aSecondURI, secondDomain);
+  LOG(("ThirdPartyUtil::IsThirdPartyInternal %s =? %s", aFirstDomain.get(), secondDomain.get()));
   if (NS_FAILED(rv))
     return rv;
 
@@ -147,7 +144,6 @@ ThirdPartyUtil::IsThirdPartyWindow(nsIDOMWindow* aWindow,
     // We use GetScriptableParent rather than GetParent because we consider
     // <iframe mozbrowser/mozapp> to be a top-level frame.
     parent = current->GetScriptableParent();
-
     if (SameCOMIdentity(parent, current)) {
       // We're at the topmost content window. We already know the answer.
       *aResult = false;
@@ -182,13 +178,12 @@ ThirdPartyUtil::IsThirdPartyChannel(nsIChannel* aChannel,
                                     nsIURI* aURI,
                                     bool* aResult)
 {
+  LOG(("ThirdPartyUtil::IsThirdPartyChannel [channel=%p]", aChannel));
   NS_ENSURE_ARG(aChannel);
   NS_ASSERTION(aResult, "null outparam pointer");
 
   nsresult rv;
   bool doForce = false;
-  bool checkWindowChain = true;
-  bool parentIsThird = false;
   nsCOMPtr<nsIHttpChannelInternal> httpChannelInternal =
     do_QueryInterface(aChannel);
   if (httpChannelInternal) {
@@ -206,107 +201,50 @@ ThirdPartyUtil::IsThirdPartyChannel(nsIChannel* aChannel,
       *aResult = false;
       return NS_OK;
     }
-
-    if (flags & nsIHttpChannelInternal::THIRD_PARTY_PARENT_IS_THIRD_PARTY) {
-      // Check that the two PARENT_IS_{THIRD,SAME}_PARTY are mutually exclusive.
-      MOZ_ASSERT(!(flags & nsIHttpChannelInternal::THIRD_PARTY_PARENT_IS_SAME_PARTY));
-
-      // If we're not forcing and we know that the window chain of the channel
-      // is third party, then we know now that we're third party.
-      if (!doForce) {
-        *aResult = true;
-        return NS_OK;
-      }
-
-      checkWindowChain = false;
-      parentIsThird = true;
-    } else {
-      // In e10s, we can't check the parent chain in the parent, so we do so
-      // in the child and send the result to the parent.
-      // Note that we only check the window chain if neither
-      // THIRD_PARTY_PARENT_IS_* flag is set.
-      checkWindowChain = !(flags & nsIHttpChannelInternal::THIRD_PARTY_PARENT_IS_SAME_PARTY);
-      parentIsThird = false;
-    }
   }
+
+  bool parentIsThird = false;
 
   // Obtain the URI from the channel, and its base domain.
   nsCOMPtr<nsIURI> channelURI;
-  aChannel->GetURI(getter_AddRefs(channelURI));
-  NS_ENSURE_TRUE(channelURI, NS_ERROR_INVALID_ARG);
+  rv = NS_GetFinalChannelURI(aChannel, getter_AddRefs(channelURI));
+  if (NS_FAILED(rv))
+    return rv;
 
   nsCString channelDomain;
   rv = GetBaseDomain(channelURI, channelDomain);
   if (NS_FAILED(rv))
     return rv;
 
-  if (aURI) {
-    // Determine whether aURI is foreign with respect to channelURI.
-    bool result;
-    rv = IsThirdPartyInternal(channelDomain, aURI, &result);
-    if (NS_FAILED(rv))
-     return rv;
-
-    // If it's foreign, or we're forcing, we're done.
-    if (result || doForce) {
-      *aResult = result;
-      return NS_OK;
+  if (!doForce) {
+    if (nsCOMPtr<nsILoadInfo> loadInfo = aChannel->GetLoadInfo()) {
+      parentIsThird = loadInfo->GetIsInThirdPartyContext();
+      if (!parentIsThird &&
+          loadInfo->GetExternalContentPolicyType() != nsIContentPolicy::TYPE_DOCUMENT) {
+        // Check if the channel itself is third-party to its own requestor.
+        // Unforunately, we have to go through the loading principal.
+        nsCOMPtr<nsIURI> parentURI;
+        loadInfo->LoadingPrincipal()->GetURI(getter_AddRefs(parentURI));
+        rv = IsThirdPartyInternal(channelDomain, parentURI, &parentIsThird);
+        if (NS_FAILED(rv))
+          return rv;
+      }
+    } else {
+      NS_WARNING("Found channel with no loadinfo, assuming third-party request");
+      parentIsThird = true;
     }
   }
 
-  // If we've already computed this in the child process, we're done.
-  if (!checkWindowChain) {
+  // If we're not comparing to a URI, we have our answer. Otherwise, if
+  // parentIsThird, we're not forcing and we know that we're a third-party
+  // request.
+  if (!aURI || parentIsThird) {
     *aResult = parentIsThird;
     return NS_OK;
   }
 
-  // Find the associated window and its parent window.
-  nsCOMPtr<nsILoadContext> ctx;
-  NS_QueryNotificationCallbacks(aChannel, ctx);
-  if (!ctx) return NS_ERROR_INVALID_ARG;
-
-  // If there is no window, the consumer kicking off the load didn't provide one
-  // to the channel. This is limited to loads of certain types of resources. If
-  // those loads require cookies, the forceAllowThirdPartyCookie property should
-  // be set on the channel.
-  nsCOMPtr<nsIDOMWindow> ourWin;
-  ctx->GetAssociatedWindow(getter_AddRefs(ourWin));
-  if (!ourWin) return NS_ERROR_INVALID_ARG;
-
-  // We use GetScriptableParent rather than GetParent because we consider
-  // <iframe mozbrowser/mozapp> to be a top-level frame.
-  nsCOMPtr<nsPIDOMWindow> ourPWin = do_QueryInterface(ourWin);
-  nsCOMPtr<nsPIDOMWindow> parentWin = ourPWin->GetScriptableParent();
-  NS_ENSURE_TRUE(parentWin, NS_ERROR_INVALID_ARG);
-
-  // Check whether this is the document channel for this window (representing a
-  // load of a new page). In that situation we want to avoid comparing
-  // channelURI to ourWin, since what's in ourWin right now will be replaced as
-  // the channel loads.  This covers the case of a freshly kicked-off load
-  // (e.g. the user typing something in the location bar, or clicking on a
-  // bookmark), where the window's URI hasn't yet been set, and will be bogus.
-  // It also covers situations where a subframe is navigated to someting that
-  // is same-origin with all its ancestors.  This is a bit of a nasty hack, but
-  // we will hopefully flag these channels better later.
-  nsLoadFlags flags;
-  rv = aChannel->GetLoadFlags(&flags);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  if (flags & nsIChannel::LOAD_DOCUMENT_URI) {
-    if (SameCOMIdentity(ourWin, parentWin)) {
-      // We only need to compare aURI to the channel URI -- the window's will be
-      // bogus. We already know the answer.
-      *aResult = false;
-      return NS_OK;
-    }
-
-    // Make sure to still compare to ourWin's ancestors
-    ourWin = parentWin;
-  }
-
-  // Check the window hierarchy. This covers most cases for an ordinary page
-  // load from the location bar.
-  return IsThirdPartyWindow(ourWin, channelURI, aResult);
+  // Determine whether aURI is foreign with respect to channelURI.
+  return IsThirdPartyInternal(channelDomain, aURI, aResult);
 }
 
 NS_IMETHODIMP
@@ -324,10 +262,10 @@ ThirdPartyUtil::GetTopWindowForChannel(nsIChannel* aChannel, nsIDOMWindow** aWin
   nsCOMPtr<nsIDOMWindow> window;
   ctx->GetAssociatedWindow(getter_AddRefs(window));
   nsCOMPtr<nsPIDOMWindow> top = do_QueryInterface(window);
-  if (!window) {
+  if (!top) {
     return NS_ERROR_INVALID_ARG;
   }
-
+  
   top = top->GetTop();
   top.forget(aWin);
   return NS_OK;
@@ -367,7 +305,9 @@ ThirdPartyUtil::GetBaseDomain(nsIURI* aHostURI,
   if (aBaseDomain.IsEmpty()) {
     bool isFileURI = false;
     aHostURI->SchemeIs("file", &isFileURI);
-    NS_ENSURE_TRUE(isFileURI, NS_ERROR_INVALID_ARG);
+    if (!isFileURI) {
+     return NS_ERROR_INVALID_ARG;
+    }
   }
 
   return NS_OK;

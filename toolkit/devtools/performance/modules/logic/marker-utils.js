@@ -397,6 +397,15 @@ const Formatters = {
     }
   },
 
+  MinorGCFields: function (marker) {
+    const cause = marker.causeName;
+    const label = L10N.getStr(`marker.gcreason.label.${cause}`) || cause;
+    return {
+      [L10N.getStr("marker.field.type")]: L10N.getStr("marker.nurseryCollection"),
+      [L10N.getStr("marker.field.causeName")]: label,
+    };
+  },
+
   DOMEventFields: function (marker) {
     let fields = Object.create(null);
     if ("type" in marker) {
@@ -428,6 +437,13 @@ const Formatters = {
         : marker.name.replace(/nsCycleCollector::/g, "");
     return { Type };
   },
+
+  WorkerFields: function(marker) {
+    return {
+      [L10N.getStr("marker.field.type")]:
+        L10N.getStr(`marker.worker.${marker.workerOperation}`)
+    };
+  }
 };
 
 exports.getMarkerLabel = getMarkerLabel;

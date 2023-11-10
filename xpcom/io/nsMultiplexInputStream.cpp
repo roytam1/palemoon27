@@ -99,8 +99,8 @@ AvailableMaybeSeek(nsIInputStream* aStream, uint64_t* aResult)
     // Seek() could reopen the file if REOPEN_ON_REWIND flag is set.
     nsCOMPtr<nsISeekableStream> seekable = do_QueryInterface(aStream);
     if (seekable) {
-      nsresult rv = seekable->Seek(nsISeekableStream::NS_SEEK_CUR, 0);
-      if (NS_SUCCEEDED(rv)) {
+      nsresult rvSeek = seekable->Seek(nsISeekableStream::NS_SEEK_CUR, 0);
+      if (NS_SUCCEEDED(rvSeek)) {
         rv = aStream->Available(aResult);
       }
     }
@@ -117,8 +117,8 @@ TellMaybeSeek(nsISeekableStream* aSeekable, int64_t* aResult)
     // NS_BASE_STREAM_CLOSED.
     // If nsIFileInputStream is closed in Read() due to CLOSE_ON_EOF flag,
     // Seek() could reopen the file if REOPEN_ON_REWIND flag is set.
-    nsresult rv = aSeekable->Seek(nsISeekableStream::NS_SEEK_CUR, 0);
-    if (NS_SUCCEEDED(rv)) {
+    nsresult rvSeek = aSeekable->Seek(nsISeekableStream::NS_SEEK_CUR, 0);
+    if (NS_SUCCEEDED(rvSeek)) {
       rv = aSeekable->Tell(aResult);
     }
   }
@@ -141,25 +141,10 @@ nsMultiplexInputStream::GetCount(uint32_t* aCount)
   return NS_OK;
 }
 
-#ifdef DEBUG
-static bool
-SeekableStreamAtBeginning(nsIInputStream* aStream)
-{
-  int64_t streamPos;
-  nsCOMPtr<nsISeekableStream> stream = do_QueryInterface(aStream);
-  if (stream && NS_SUCCEEDED(stream->Tell(&streamPos)) && streamPos != 0) {
-    return false;
-  }
-  return true;
-}
-#endif
-
 NS_IMETHODIMP
 nsMultiplexInputStream::AppendStream(nsIInputStream* aStream)
 {
   MutexAutoLock lock(mLock);
-  NS_ASSERTION(SeekableStreamAtBeginning(aStream),
-               "Appended stream not at beginning.");
   return mStreams.AppendElement(aStream) ? NS_OK : NS_ERROR_OUT_OF_MEMORY;
 }
 
@@ -167,8 +152,6 @@ NS_IMETHODIMP
 nsMultiplexInputStream::InsertStream(nsIInputStream* aStream, uint32_t aIndex)
 {
   MutexAutoLock lock(mLock);
-  NS_ASSERTION(SeekableStreamAtBeginning(aStream),
-               "Inserted stream not at beginning.");
   mStreams.InsertElementAt(aIndex, aStream);
   if (mCurrentStream > aIndex ||
       (mCurrentStream == aIndex && mStartedReadingCurrent)) {
@@ -231,15 +214,14 @@ nsMultiplexInputStream::Available(uint64_t* aResult)
     return mStatus;
   }
 
-  nsresult rv;
   uint64_t avail = 0;
 
   uint32_t len = mStreams.Length();
   for (uint32_t i = mCurrentStream; i < len; i++) {
     uint64_t streamAvail;
-    rv = AvailableMaybeSeek(mStreams[i], &streamAvail);
-    if (NS_WARN_IF(NS_FAILED(rv))) {
-      return rv;
+    mStatus = AvailableMaybeSeek(mStreams[i], &streamAvail);
+    if (NS_WARN_IF(NS_FAILED(mStatus))) {
+      return mStatus;
     }
     avail += streamAvail;
   }
@@ -295,9 +277,6 @@ nsMultiplexInputStream::Read(char* aBuf, uint32_t aCount, uint32_t* aResult)
   return *aResult ? NS_OK : rv;
 }
 
-/* [noscript] unsigned long readSegments (in nsWriteSegmentFun writer,
- *                                        in voidPtr closure,
- *                                        in unsigned long count); */
 NS_IMETHODIMP
 nsMultiplexInputStream::ReadSegments(nsWriteSegmentFun aWriter, void* aClosure,
                                      uint32_t aCount, uint32_t* aResult)
@@ -696,13 +675,9 @@ nsMultiplexInputStreamConstructor(nsISupports* aOuter,
     return NS_ERROR_NO_AGGREGATION;
   }
 
-  nsMultiplexInputStream* inst = new nsMultiplexInputStream();
+  RefPtr<nsMultiplexInputStream> inst = new nsMultiplexInputStream();
 
-  NS_ADDREF(inst);
-  nsresult rv = inst->QueryInterface(aIID, aResult);
-  NS_RELEASE(inst);
-
-  return rv;
+  return inst->QueryInterface(aIID, aResult);
 }
 
 void
@@ -807,7 +782,7 @@ nsMultiplexInputStream::Clone(nsIInputStream** aClone)
     return NS_ERROR_FAILURE;
   }
 
-  nsRefPtr<nsMultiplexInputStream> clone = new nsMultiplexInputStream();
+  RefPtr<nsMultiplexInputStream> clone = new nsMultiplexInputStream();
 
   nsresult rv;
   uint32_t len = mStreams.Length();
@@ -832,4 +807,3 @@ nsMultiplexInputStream::Clone(nsIInputStream** aClone)
   clone.forget(aClone);
   return NS_OK;
 }
-

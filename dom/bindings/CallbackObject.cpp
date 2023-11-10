@@ -67,7 +67,7 @@ CallbackObject::CallSetup::CallSetup(CallbackObject* aCallback,
   // do anything that might perturb the relevant state.
   nsIPrincipal* webIDLCallerPrincipal = nullptr;
   if (aIsJSImplementedWebIDL) {
-    webIDLCallerPrincipal = nsContentUtils::SubjectPrincipal();
+    webIDLCallerPrincipal = nsContentUtils::SubjectPrincipalOrSystemIfNativeCaller();
   }
 
   // We need to produce a useful JSContext here.  Ideally one that the callback
@@ -92,14 +92,13 @@ CallbackObject::CallSetup::CallSetup(CallbackObject* aCallback,
       nsGlobalWindow* win =
         aIsJSImplementedWebIDL ? nullptr : xpc::WindowGlobalOrNull(realCallback);
       if (win) {
-        // Make sure that if this is a window it's the current inner, since the
-        // nsIScriptContext and hence JSContext are associated with the outer
-        // window.  Which means that if someone holds on to a function from a
-        // now-unloaded document we'd have the new document as the script entry
-        // point...
+        // Make sure that if this is a window it has an active document, since
+        // the nsIScriptContext and hence JSContext are associated with the
+        // outer window.  Which means that if someone holds on to a function
+        // from a now-unloaded document we'd have the new document as the
+        // script entry point...
         MOZ_ASSERT(win->IsInnerWindow());
-        nsPIDOMWindow* outer = win->GetOuterWindow();
-        if (!outer || win != outer->GetCurrentInnerWindow()) {
+        if (!win->HasActiveDocument()) {
           // Just bail out from here
           return;
         }
@@ -234,7 +233,7 @@ CallbackObject::CallSetup::ShouldRethrowException(JS::Handle<JS::Value> aExcepti
   }
 
   JS::Rooted<JSObject*> obj(mCx, &aException.toObject());
-  obj = js::UncheckedUnwrap(obj, /* stopAtOuter = */ false);
+  obj = js::UncheckedUnwrap(obj, /* stopAtWindowProxy = */ false);
   return js::GetObjectCompartment(obj) == mCompartment;
 }
 
@@ -328,7 +327,7 @@ CallbackObjectHolderBase::ToXPCOMCallback(CallbackObject* aCallback,
   JS::Rooted<JSObject*> callback(cx, aCallback->Callback());
 
   JSAutoCompartment ac(cx, callback);
-  nsRefPtr<nsXPCWrappedJS> wrappedJS;
+  RefPtr<nsXPCWrappedJS> wrappedJS;
   nsresult rv =
     nsXPCWrappedJS::GetNewOrUsed(callback, aIID, getter_AddRefs(wrappedJS));
   if (NS_FAILED(rv) || !wrappedJS) {

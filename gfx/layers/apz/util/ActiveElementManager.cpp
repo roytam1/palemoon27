@@ -98,20 +98,17 @@ ActiveElementManager::TriggerElementActivation()
 }
 
 void
-ActiveElementManager::HandlePanStart()
+ActiveElementManager::ClearActivation()
 {
-  AEM_LOG("Handle pan start\n");
-
-  // The user started to pan, so we don't want mTarget to be :active.
-  // Make it not :active, and clear any pending task to make it :active.
+  AEM_LOG("Clearing element activation\n");
   CancelTask();
   ResetActive();
 }
 
 void
-ActiveElementManager::HandleTouchEnd(bool aWasClick)
+ActiveElementManager::HandleTouchEndEvent(bool aWasClick)
 {
-  AEM_LOG("Touch end, aWasClick: %d\n", aWasClick);
+  AEM_LOG("Touch end event, aWasClick: %d\n", aWasClick);
 
   // If the touch was a click, make mTarget :active right away.
   // nsEventStateManager will reset the active element when processing
@@ -127,6 +124,13 @@ ActiveElementManager::HandleTouchEnd(bool aWasClick)
   }
 
   ResetTouchBlockState();
+}
+
+void
+ActiveElementManager::HandleTouchEnd()
+{
+  AEM_LOG("Touch end, clearing pan state\n");
+  mCanBePanSet = false;
 }
 
 bool

@@ -1,3 +1,5 @@
+/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
+/* vim: set ts=8 sts=2 et sw=2 tw=80: */
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -75,15 +77,6 @@ nsFormFillController::nsFormFillController() :
   MOZ_ASSERT(mController);
 }
 
-struct PwmgrInputsEnumData
-{
-  PwmgrInputsEnumData(nsFormFillController* aFFC, nsIDocument* aDoc)
-  : mFFC(aFFC), mDoc(aDoc) {}
-
-  nsFormFillController* mFFC;
-  nsCOMPtr<nsIDocument> mDoc;
-};
-
 nsFormFillController::~nsFormFillController()
 {
   if (mListNode) {
@@ -95,8 +88,7 @@ nsFormFillController::~nsFormFillController()
     mFocusedInputNode = nullptr;
     mFocusedInput = nullptr;
   }
-  PwmgrInputsEnumData ed(this, nullptr);
-  mPwmgrInputs.Enumerate(RemoveForDocumentEnumerator, &ed);
+  RemoveForDocument(nullptr);
 
   // Remove ourselves as a focus listener from all cached docShells
   uint32_t count = mDocShells.Length();
@@ -191,6 +183,13 @@ nsFormFillController::AttributeWillChange(nsIDocument* aDocument,
                                           int32_t aNameSpaceID,
                                           nsIAtom* aAttribute, int32_t aModType,
                                           const nsAttrValue* aNewValue)
+{
+}
+
+void
+nsFormFillController::NativeAnonymousChildListChange(nsIDocument* aDocument,
+                                                     nsIContent* aContent,
+                                                     bool aIsRemove)
 {
 }
 
@@ -727,11 +726,12 @@ public:
     : mObserver(aObserver)
     , mSearch(aSearch)
     , mResult(aResult)
-  {}
+  {
+    MOZ_ASSERT(mResult, "Should have a valid result");
+    MOZ_ASSERT(mObserver, "You shouldn't call this runnable with a null observer!");
+  }
 
   NS_IMETHOD Run() {
-    NS_ASSERTION(mObserver, "You shouldn't call this runnable with a null observer!");
-
     mObserver->OnUpdateSearchResult(mSearch, mResult);
     return NS_OK;
   }
@@ -859,28 +859,26 @@ nsFormFillController::HandleEvent(nsIDOMEvent* aEvent)
         StopControllingInput();
     }
 
-    PwmgrInputsEnumData ed(this, doc);
-    mPwmgrInputs.Enumerate(RemoveForDocumentEnumerator, &ed);
+    RemoveForDocument(doc);
   }
 
   return NS_OK;
 }
 
-
-/* static */ PLDHashOperator
-nsFormFillController::RemoveForDocumentEnumerator(const nsINode* aKey,
-                                                  bool& aEntry,
-                                                  void* aUserData)
+void
+nsFormFillController::RemoveForDocument(nsIDocument* aDoc)
 {
-  PwmgrInputsEnumData* ed = static_cast<PwmgrInputsEnumData*>(aUserData);
-  if (aKey && (!ed->mDoc || aKey->OwnerDoc() == ed->mDoc)) {
-    // mFocusedInputNode's observer is tracked separately, don't remove it here.
-    if (aKey != ed->mFFC->mFocusedInputNode) {
-      const_cast<nsINode*>(aKey)->RemoveMutationObserver(ed->mFFC);
+  for (auto iter = mPwmgrInputs.Iter(); !iter.Done(); iter.Next()) {
+    const nsINode* key = iter.Key();
+    if (key && (!aDoc || key->OwnerDoc() == aDoc)) {
+      // mFocusedInputNode's observer is tracked separately, so don't remove it
+      // here.
+      if (key != mFocusedInputNode) {
+        const_cast<nsINode*>(key)->RemoveMutationObserver(this);
+      }
+      iter.Remove();
     }
-    return PL_DHASH_REMOVE;
   }
-  return PL_DHASH_NEXT;
 }
 
 void
@@ -1021,6 +1019,13 @@ nsFormFillController::KeyPress(nsIDOMEvent* aEvent)
 
   if (cancel) {
     aEvent->PreventDefault();
+    // Don't let the page see the RETURN event when the popup is open
+    // (indicated by cancel=true) so sites don't manually submit forms
+    // (e.g. via submit.click()) without the autocompleted value being filled.
+    // Bug 286933 will fix this for other key events.
+    if (k == nsIDOMKeyEvent::DOM_VK_RETURN) {
+      aEvent->StopPropagation();
+    }
   }
 
   return NS_OK;
@@ -1096,6 +1101,7 @@ nsFormFillController::AddWindowListeners(nsIDOMWindow *aWindow)
                            true, false);
   target->AddEventListener(NS_LITERAL_STRING("input"), this,
                            true, false);
+  target->AddEventListener(NS_LITERAL_STRING("keypress"), this, true, false);
   target->AddEventListener(NS_LITERAL_STRING("compositionstart"), this,
                            true, false);
   target->AddEventListener(NS_LITERAL_STRING("compositionend"), this,
@@ -1118,8 +1124,7 @@ nsFormFillController::RemoveWindowListeners(nsIDOMWindow *aWindow)
   nsCOMPtr<nsIDOMDocument> domDoc;
   aWindow->GetDocument(getter_AddRefs(domDoc));
   nsCOMPtr<nsIDocument> doc = do_QueryInterface(domDoc);
-  PwmgrInputsEnumData ed(this, doc);
-  mPwmgrInputs.Enumerate(RemoveForDocumentEnumerator, &ed);
+  RemoveForDocument(doc);
 
   nsCOMPtr<nsPIDOMWindow> privateDOMWindow(do_QueryInterface(aWindow));
   EventTarget* target = nullptr;
@@ -1134,27 +1139,12 @@ nsFormFillController::RemoveWindowListeners(nsIDOMWindow *aWindow)
   target->RemoveEventListener(NS_LITERAL_STRING("pagehide"), this, true);
   target->RemoveEventListener(NS_LITERAL_STRING("mousedown"), this, true);
   target->RemoveEventListener(NS_LITERAL_STRING("input"), this, true);
+  target->RemoveEventListener(NS_LITERAL_STRING("keypress"), this, true);
   target->RemoveEventListener(NS_LITERAL_STRING("compositionstart"), this,
                               true);
   target->RemoveEventListener(NS_LITERAL_STRING("compositionend"), this,
                               true);
   target->RemoveEventListener(NS_LITERAL_STRING("contextmenu"), this, true);
-}
-
-void
-nsFormFillController::AddKeyListener(nsINode* aInput)
-{
-  aInput->AddEventListener(NS_LITERAL_STRING("keypress"), this,
-                           true, false);
-}
-
-void
-nsFormFillController::RemoveKeyListener()
-{
-  if (!mFocusedInputNode)
-    return;
-
-  mFocusedInputNode->RemoveEventListener(NS_LITERAL_STRING("keypress"), this, true);
 }
 
 void
@@ -1181,8 +1171,6 @@ nsFormFillController::StartControllingInput(nsIDOMHTMLInputElement *aInput)
     return;
   }
 
-  AddKeyListener(node);
-
   node->AddMutationObserverUnlessExists(this);
   mFocusedInputNode = node;
   mFocusedInput = aInput;
@@ -1195,15 +1183,12 @@ nsFormFillController::StartControllingInput(nsIDOMHTMLInputElement *aInput)
     mListNode = listNode;
   }
 
-  // Now we are the autocomplete controller's bitch
   mController->SetInput(this);
 }
 
 void
 nsFormFillController::StopControllingInput()
 {
-  RemoveKeyListener();
-
   if (mListNode) {
     mListNode->RemoveMutationObserver(this);
     mListNode = nullptr;

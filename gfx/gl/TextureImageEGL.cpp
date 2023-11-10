@@ -8,7 +8,6 @@
 #include "GLContext.h"
 #include "GLUploadHelpers.h"
 #include "gfxPlatform.h"
-#include "gfx2DGlue.h"
 #include "mozilla/gfx/Types.h"
 
 namespace mozilla {
@@ -21,7 +20,7 @@ GLFormatForImage(gfx::SurfaceFormat aFormat)
     case gfx::SurfaceFormat::B8G8R8A8:
     case gfx::SurfaceFormat::B8G8R8X8:
         return LOCAL_GL_RGBA;
-    case gfx::SurfaceFormat::R5G6B5:
+    case gfx::SurfaceFormat::R5G6B5_UINT16:
         return LOCAL_GL_RGB;
     case gfx::SurfaceFormat::A8:
         return LOCAL_GL_LUMINANCE;
@@ -39,7 +38,7 @@ GLTypeForImage(gfx::SurfaceFormat aFormat)
     case gfx::SurfaceFormat::B8G8R8X8:
     case gfx::SurfaceFormat::A8:
         return LOCAL_GL_UNSIGNED_BYTE;
-    case gfx::SurfaceFormat::R5G6B5:
+    case gfx::SurfaceFormat::R5G6B5_UINT16:
         return LOCAL_GL_UNSIGNED_SHORT_5_6_5;
     default:
         NS_WARNING("Unknown GL format for Surface format");
@@ -66,11 +65,11 @@ TextureImageEGL::TextureImageEGL(GLuint aTexture,
     , mBound(false)
 {
     if (mUpdateFormat == gfx::SurfaceFormat::UNKNOWN) {
-        mUpdateFormat = gfx::ImageFormatToSurfaceFormat(
-                gfxPlatform::GetPlatform()->OptimalFormatForContent(GetContentType()));
+        mUpdateFormat =
+                gfxPlatform::GetPlatform()->Optimal2DFormatForContent(GetContentType());
     }
 
-    if (mUpdateFormat == gfx::SurfaceFormat::R5G6B5) {
+    if (mUpdateFormat == gfx::SurfaceFormat::R5G6B5_UINT16) {
         mTextureFormat = gfx::SurfaceFormat::R8G8B8X8;
     } else if (mUpdateFormat == gfx::SurfaceFormat::B8G8R8X8) {
         mTextureFormat = gfx::SurfaceFormat::B8G8R8X8;
@@ -208,14 +207,19 @@ TextureImageEGL::DirectUpdate(gfx::DataSourceSurface* aSurf, const nsIntRegion& 
         region = aRegion;
     }
 
+    size_t uploadSize = 0;
     mTextureFormat =
       UploadSurfaceToTexture(mGLContext,
                              aSurf,
                              region,
                              mTexture,
+                             &uploadSize,
                              mTextureState == Created,
                              bounds.TopLeft() + gfx::IntPoint(aFrom.x, aFrom.y),
                              false);
+    if (uploadSize > 0) {
+        UpdateUploadSize(uploadSize);
+    }
 
     mTextureState = Valid;
     return true;
@@ -312,7 +316,7 @@ CreateTextureImageEGL(GLContext *gl,
                       TextureImage::Flags aFlags,
                       TextureImage::ImageFormat aImageFormat)
 {
-    nsRefPtr<TextureImage> t = new gl::TiledTextureImage(gl, aSize, aContentType, aFlags, aImageFormat);
+    RefPtr<TextureImage> t = new gl::TiledTextureImage(gl, aSize, aContentType, aFlags, aImageFormat);
     return t.forget();
 }
 
@@ -328,7 +332,7 @@ TileGenFuncEGL(GLContext *gl,
   GLuint texture;
   gl->fGenTextures(1, &texture);
 
-  nsRefPtr<TextureImageEGL> teximage =
+  RefPtr<TextureImageEGL> teximage =
       new TextureImageEGL(texture, aSize, LOCAL_GL_CLAMP_TO_EDGE, aContentType,
                           gl, aFlags, TextureImage::Created, aImageFormat);
 

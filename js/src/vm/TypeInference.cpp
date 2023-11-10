@@ -335,7 +335,7 @@ TemporaryTypeSet::TemporaryTypeSet(LifoAlloc* alloc, Type type)
 }
 
 bool
-TypeSet::mightBeMIRType(jit::MIRType type)
+TypeSet::mightBeMIRType(jit::MIRType type) const
 {
     if (unknown())
         return true;
@@ -919,7 +919,6 @@ TypeSet::removeSet(TemporaryTypeSet* input, TemporaryTypeSet* removal, LifoAlloc
     return res;
 }
 
-
 /* static */ TemporaryTypeSet*
 TypeSet::intersectSets(TemporaryTypeSet* a, TemporaryTypeSet* b, LifoAlloc* alloc)
 {
@@ -1278,9 +1277,12 @@ js::EnsureTrackPropertyTypes(JSContext* cx, JSObject* obj, jsid id)
 
     if (obj->isSingleton()) {
         AutoEnterAnalysis enter(cx);
-        if (obj->hasLazyGroup() && !obj->getGroup(cx)) {
-            CrashAtUnhandlableOOM("Could not allocate ObjectGroup in EnsureTrackPropertyTypes");
-            return;
+        if (obj->hasLazyGroup()) {
+            AutoEnterOOMUnsafeRegion oomUnsafe;
+            if (!obj->getGroup(cx)) {
+                oomUnsafe.crash("Could not allocate ObjectGroup in EnsureTrackPropertyTypes");
+                return;
+            }
         }
         if (!obj->group()->unknownProperties() && !obj->group()->getProperty(cx, obj, id)) {
             MOZ_ASSERT(obj->group()->unknownProperties());
@@ -1366,7 +1368,7 @@ class TypeConstraintFreezeStack : public TypeConstraint
 
 bool
 js::FinishCompilation(JSContext* cx, HandleScript script, CompilerConstraintList* constraints,
-                         RecompileInfo* precompileInfo)
+                      RecompileInfo* precompileInfo, bool* isValidOut)
 {
     if (constraints->failed())
         return false;
@@ -1452,10 +1454,24 @@ js::FinishCompilation(JSContext* cx, HandleScript script, CompilerConstraintList
     if (!succeeded || types.compilerOutputs->back().pendingInvalidation()) {
         types.compilerOutputs->back().invalidate();
         script->resetWarmUpCounter();
-        return false;
+        *isValidOut = false;
+        return true;
     }
 
+    *isValidOut = true;
     return true;
+}
+
+void
+js::InvalidateCompilerOutputsForScript(JSContext* cx, HandleScript script)
+{
+    TypeZone& types = cx->zone()->types;
+    if (types.compilerOutputs) {
+        for (auto& co : *types.compilerOutputs) {
+            if (co.script() == script)
+                co.invalidate();
+        }
+    }
 }
 
 static void
@@ -1848,13 +1864,13 @@ class ConstraintDataFreezeObjectForTypedArrayData
 {
     NativeObject* obj;
 
-    void* viewData;
+    uintptr_t viewData;
     uint32_t length;
 
   public:
-    explicit ConstraintDataFreezeObjectForTypedArrayData(TypedArrayObject &tarray)
+    explicit ConstraintDataFreezeObjectForTypedArrayData(TypedArrayObject& tarray)
       : obj(&tarray),
-        viewData(tarray.viewData()),
+        viewData(tarray.viewDataEither().unwrapValue()),
         length(tarray.length())
     {
         MOZ_ASSERT(tarray.isSingleton());
@@ -1866,8 +1882,8 @@ class ConstraintDataFreezeObjectForTypedArrayData
     bool invalidateOnNewPropertyState(TypeSet* property) { return false; }
     bool invalidateOnNewObjectState(ObjectGroup* group) {
         MOZ_ASSERT(obj->group() == group);
-        TypedArrayObject &tarr = obj->as<TypedArrayObject>();
-        return tarr.viewData() != viewData || tarr.length() != length;
+        TypedArrayObject& tarr = obj->as<TypedArrayObject>();
+        return tarr.viewDataEither().unwrapValue() != viewData || tarr.length() != length;
     }
 
     bool constraintHolds(JSContext* cx,
@@ -2191,7 +2207,8 @@ TemporaryTypeSet::convertDoubleElements(CompilerConstraintList* constraints)
         // We can't convert to double elements for objects which do not have
         // double in their element types (as the conversion may render the type
         // information incorrect), nor for non-array objects (as their elements
-        // may point to emptyObjectElements, which cannot be converted).
+        // may point to emptyObjectElements or emptyObjectElementsShared, which
+        // cannot be converted).
         if (!property.maybeTypes() ||
             !property.maybeTypes()->hasType(DoubleType()) ||
             key->clasp() != &ArrayObject::class_)
@@ -2257,6 +2274,14 @@ TemporaryTypeSet::getKnownClass(CompilerConstraintList* constraints)
     return clasp;
 }
 
+void
+TemporaryTypeSet::getTypedArraySharedness(CompilerConstraintList* constraints,
+                                          TypedArraySharedness* sharedness)
+{
+    // In the future this will inspect the object set.
+    *sharedness = UnknownSharedness;
+}
+
 TemporaryTypeSet::ForAllResult
 TemporaryTypeSet::forAllClasses(CompilerConstraintList* constraints,
                                 bool (*func)(const Class* clasp))
@@ -2294,22 +2319,16 @@ TemporaryTypeSet::forAllClasses(CompilerConstraintList* constraints,
 }
 
 Scalar::Type
-TemporaryTypeSet::getTypedArrayType(CompilerConstraintList* constraints)
+TemporaryTypeSet::getTypedArrayType(CompilerConstraintList* constraints,
+                                    TypedArraySharedness* sharedness)
 {
     const Class* clasp = getKnownClass(constraints);
 
-    if (clasp && IsTypedArrayClass(clasp))
+    if (clasp && IsTypedArrayClass(clasp)) {
+        if (sharedness)
+            getTypedArraySharedness(constraints, sharedness);
         return (Scalar::Type) (clasp - &TypedArrayObject::classes[0]);
-    return Scalar::MaxTypedArrayViewType;
-}
-
-Scalar::Type
-TemporaryTypeSet::getSharedTypedArrayType(CompilerConstraintList* constraints)
-{
-    const Class* clasp = getKnownClass(constraints);
-
-    if (clasp && IsSharedTypedArrayClass(clasp))
-        return (Scalar::Type) (clasp - &SharedTypedArrayObject::classes[0]);
+    }
     return Scalar::MaxTypedArrayViewType;
 }
 
@@ -2449,7 +2468,7 @@ js::ClassCanHaveExtraProperties(const Class* clasp)
     return clasp->resolve
         || clasp->ops.lookupProperty
         || clasp->ops.getProperty
-        || IsAnyTypedArrayClass(clasp);
+        || IsTypedArrayClass(clasp);
 }
 
 static bool
@@ -2479,7 +2498,7 @@ js::TypeCanHaveExtraIndexedProperties(CompilerConstraintList* constraints,
     // Note: typed arrays have indexed properties not accounted for by type
     // information, though these are all in bounds and will be accounted for
     // by JIT paths.
-    if (!clasp || (ClassCanHaveExtraProperties(clasp) && !IsAnyTypedArrayClass(clasp)))
+    if (!clasp || (ClassCanHaveExtraProperties(clasp) && !IsTypedArrayClass(clasp)))
         return true;
 
     if (types->hasObjectFlags(constraints, OBJECT_FLAG_SPARSE_INDEXES))
@@ -2506,8 +2525,9 @@ TypeZone::processPendingRecompiles(FreeOp* fop, RecompileInfoVector& recompiles)
      */
     RecompileInfoVector pending;
     for (size_t i = 0; i < recompiles.length(); i++) {
+        AutoEnterOOMUnsafeRegion oomUnsafe;
         if (!pending.append(recompiles[i]))
-            CrashAtUnhandlableOOM("processPendingRecompiles");
+            oomUnsafe.crash("processPendingRecompiles");
     }
     recompiles.clear();
 
@@ -2528,8 +2548,9 @@ TypeZone::addPendingRecompile(JSContext* cx, const RecompileInfo& info)
 
     co->setPendingInvalidation();
 
+    AutoEnterOOMUnsafeRegion oomUnsafe;
     if (!cx->zone()->types.activeAnalysis->pendingRecompiles.append(info))
-        CrashAtUnhandlableOOM("Could not update pendingRecompiles");
+        oomUnsafe.crash("Could not update pendingRecompiles");
 }
 
 void
@@ -2606,10 +2627,12 @@ UpdatePropertyType(ExclusiveContext* cx, HeapTypeSet* types, NativeObject* obj, 
          * that are not collated into the JSID_VOID property (see propertySet
          * comment).
          *
-         * Also don't add untracked values (initial uninitialized lexical
-         * magic values and optimized out values) as appearing in CallObjects.
+         * Also don't add untracked values (initial uninitialized lexical magic
+         * values and optimized out values) as appearing in CallObjects, module
+         * environments or the global lexical scope.
          */
-        MOZ_ASSERT_IF(TypeSet::IsUntrackedValue(value), obj->is<CallObject>());
+        MOZ_ASSERT_IF(TypeSet::IsUntrackedValue(value),
+                      obj->is<LexicalScopeBase>() || IsExtensibleLexicalScope(obj));
         if ((indexed || !value.isUndefined() || !CanHaveEmptyPropertyTypesForOwnProperty(obj)) &&
             !TypeSet::IsUntrackedValue(value))
         {
@@ -2926,7 +2949,7 @@ ObjectGroup::detachNewScript(bool writeBarrier, ObjectGroup* replacement)
     MOZ_ASSERT(newScript);
 
     if (newScript->analyzed()) {
-        ObjectGroupCompartment &objectGroups = newScript->function()->compartment()->objectGroups;
+        ObjectGroupCompartment& objectGroups = newScript->function()->compartment()->objectGroups;
         if (replacement) {
             MOZ_ASSERT(replacement->newScript()->function() == newScript->function());
             objectGroups.replaceDefaultNewGroup(nullptr, proto(), newScript->function(),
@@ -3237,7 +3260,7 @@ js::FillBytecodeTypeMap(JSScript* script, uint32_t* bytecodeMap)
     uint32_t added = 0;
     for (jsbytecode* pc = script->code(); pc < script->codeEnd(); pc += GetBytecodeLength(pc)) {
         JSOp op = JSOp(*pc);
-        if (js_CodeSpec[op].format & JOF_TYPESET) {
+        if (CodeSpec[op].format & JOF_TYPESET) {
             bytecodeMap[added++] = script->pcToOffset(pc);
             if (added == script->nTypeSets())
                 break;
@@ -3247,18 +3270,10 @@ js::FillBytecodeTypeMap(JSScript* script, uint32_t* bytecodeMap)
 }
 
 void
-js::TypeMonitorResult(JSContext* cx, JSScript* script, jsbytecode* pc, const js::Value& rval)
+js::TypeMonitorResult(JSContext* cx, JSScript* script, jsbytecode* pc, TypeSet::Type type)
 {
-    /* Allow the non-TYPESET scenario to simplify stubs used in compound opcodes. */
-    if (!(js_CodeSpec[*pc].format & JOF_TYPESET))
-        return;
-
-    if (!script->hasBaselineScript())
-        return;
-
     AutoEnterAnalysis enter(cx);
 
-    TypeSet::Type type = TypeSet::GetValueType(rval);
     StackTypeSet* types = TypeScript::BytecodeTypes(script, pc);
     if (types->hasType(type))
         return;
@@ -3266,6 +3281,19 @@ js::TypeMonitorResult(JSContext* cx, JSScript* script, jsbytecode* pc, const js:
     InferSpew(ISpewOps, "bytecodeType: %p %05u: %s",
               script, script->pcToOffset(pc), TypeSet::TypeString(type));
     types->addType(cx, type);
+}
+
+void
+js::TypeMonitorResult(JSContext* cx, JSScript* script, jsbytecode* pc, const js::Value& rval)
+{
+    /* Allow the non-TYPESET scenario to simplify stubs used in compound opcodes. */
+    if (!(CodeSpec[*pc].format & JOF_TYPESET))
+        return;
+
+    if (!script->hasBaselineScript())
+        return;
+
+    TypeMonitorResult(cx, script, pc, TypeSet::GetValueType(rval));
 }
 
 /////////////////////////////////////////////////////////////////////
@@ -3406,7 +3434,7 @@ PreliminaryObjectArray::sweep()
             // the compartment's global is dead, we don't do anything as the
             // group's Class is not going to change in that case.
             JSObject* obj = *ptr;
-            GlobalObject* global = obj->compartment()->maybeGlobal();
+            GlobalObject* global = obj->compartment()->unsafeUnbarrieredMaybeGlobal();
             if (global && !obj->isSingleton()) {
                 JSObject* objectProto = GetBuiltinPrototypePure(global, JSProto_Object);
                 obj->setGroup(objectProto->groupRaw());
@@ -3534,7 +3562,7 @@ PreliminaryObjectArrayWithTemplate::maybeAnalyze(ExclusiveContext* cx, ObjectGro
 
 // Make a TypeNewScript for |group|, and set it up to hold the preliminary
 // objects created with the group.
-/* static */ void
+/* static */ bool
 TypeNewScript::make(JSContext* cx, ObjectGroup* group, JSFunction* fun)
 {
     MOZ_ASSERT(cx->zone()->types.activeAnalysis);
@@ -3546,21 +3574,22 @@ TypeNewScript::make(JSContext* cx, ObjectGroup* group, JSFunction* fun)
     MOZ_ASSERT(fun->maybeCanonicalFunction() == fun);
 
     if (group->unknownProperties())
-        return;
+        return true;
 
     ScopedJSDeletePtr<TypeNewScript> newScript(cx->new_<TypeNewScript>());
     if (!newScript)
-        return;
+        return false;
 
     newScript->function_ = fun;
 
     newScript->preliminaryObjects = group->zone()->new_<PreliminaryObjectArray>();
     if (!newScript->preliminaryObjects)
-        return;
+        return true;
 
     group->setNewScript(newScript.forget());
 
     gc::TraceTypeNewScript(group);
+    return true;
 }
 
 // Make a TypeNewScript with the same initializer list as |newScript| but with
@@ -3817,10 +3846,11 @@ TypeNewScript::maybeAnalyze(JSContext* cx, ObjectGroup* group, bool* regenerate,
         // with an unboxed layout. Currently it is a mutant object with a
         // non-native group and native shape, so make it safe for GC by changing
         // its group to the default for its prototype.
+        AutoEnterOOMUnsafeRegion oomUnsafe;
         ObjectGroup* plainGroup = ObjectGroup::defaultNewGroup(cx, &PlainObject::class_,
                                                                group->proto());
         if (!plainGroup)
-            CrashAtUnhandlableOOM("TypeNewScript::maybeAnalyze");
+            oomUnsafe.crash("TypeNewScript::maybeAnalyze");
         templateObject_->setGroup(plainGroup);
         templateObject_ = nullptr;
 
@@ -3908,7 +3938,11 @@ TypeNewScript::rollbackPartiallyInitializedObjects(JSContext* cx, ObjectGroup* g
             continue;
         }
 
-        Value thisv = iter.thisv(cx);
+        // Derived class constructors initialize their this-binding later and
+        // we shouldn't run the definite properties analysis on them.
+        MOZ_ASSERT(!iter.script()->isDerivedClassConstructor());
+
+        Value thisv = iter.thisArgument(cx);
         if (!thisv.isObject() ||
             thisv.toObject().hasLazyGroup() ||
             thisv.toObject().group() != group)
@@ -3916,10 +3950,10 @@ TypeNewScript::rollbackPartiallyInitializedObjects(JSContext* cx, ObjectGroup* g
             continue;
         }
 
-        if (thisv.toObject().is<UnboxedPlainObject>() &&
-            !UnboxedPlainObject::convertToNative(cx, &thisv.toObject()))
-        {
-            CrashAtUnhandlableOOM("rollbackPartiallyInitializedObjects");
+        if (thisv.toObject().is<UnboxedPlainObject>()) {
+            AutoEnterOOMUnsafeRegion oomUnsafe;
+            if (!UnboxedPlainObject::convertToNative(cx, &thisv.toObject()))
+                oomUnsafe.crash("rollbackPartiallyInitializedObjects");
         }
 
         // Found a matching frame.
@@ -4053,13 +4087,15 @@ ConstraintTypeSet::trace(Zone* zone, JSTracer* trc)
             if (!key)
                 continue;
             TraceObjectKey(trc, &key);
+
+            AutoEnterOOMUnsafeRegion oomUnsafe;
             ObjectKey** pentry =
                 TypeHashSet::Insert<ObjectKey*, ObjectKey, ObjectKey>
                     (zone->types.typeLifoAlloc, objectSet, objectCount, key);
-            if (pentry)
-                *pentry = key;
-            else
-                CrashAtUnhandlableOOM("ConstraintTypeSet::trace");
+            if (!pentry)
+                oomUnsafe.crash("ConstraintTypeSet::trace");
+
+            *pentry = key;
         }
         setBaseObjectCount(objectCount);
     } else if (objectCount == 1) {
@@ -4108,7 +4144,8 @@ ConstraintTypeSet::sweep(Zone* zone, AutoClearTypeInferenceStateOnOOM& oom)
                     objectCount = 0;
                     break;
                 }
-            } else if (key->isGroup() && key->group()->unknownPropertiesDontCheckGeneration()) {
+            } else if (key->isGroup() &&
+                       key->groupNoBarrier()->unknownPropertiesDontCheckGeneration()) {
                 // Object sets containing objects with unknown properties might
                 // not be complete. Mark the type set as unknown, which it will
                 // be treated as during Ion compilation.
@@ -4132,7 +4169,7 @@ ConstraintTypeSet::sweep(Zone* zone, AutoClearTypeInferenceStateOnOOM& oom)
         } else {
             // As above, mark type sets containing objects with unknown
             // properties as unknown.
-            if (key->isGroup() && key->group()->unknownPropertiesDontCheckGeneration())
+            if (key->isGroup() && key->groupNoBarrier()->unknownPropertiesDontCheckGeneration())
                 flags |= TYPE_FLAG_ANYOBJECT;
             objectSet = nullptr;
             setBaseObjectCount(0);
@@ -4341,13 +4378,15 @@ TypeScript::destroy()
 void
 Zone::addSizeOfIncludingThis(mozilla::MallocSizeOf mallocSizeOf,
                              size_t* typePool,
-                             size_t* baselineStubsOptimized)
+                             size_t* baselineStubsOptimized,
+                             size_t* uniqueIdMap)
 {
     *typePool += types.typeLifoAlloc.sizeOfExcludingThis(mallocSizeOf);
     if (jitZone()) {
         *baselineStubsOptimized +=
             jitZone()->optimizedStubSpace()->sizeOfExcludingThis(mallocSizeOf);
     }
+    *uniqueIdMap += uniqueIds_.sizeOfExcludingThis(mallocSizeOf);
 }
 
 TypeZone::TypeZone(Zone* zone)
@@ -4390,7 +4429,8 @@ TypeZone::beginSweep(FreeOp* fop, bool releaseTypes, AutoClearTypeInferenceState
             if (output.isValid()) {
                 JSScript* script = output.script();
                 if (IsAboutToBeFinalizedUnbarriered(&script)) {
-                    script->ionScript()->recompileInfoRef() = RecompileInfo();
+                    if (script->hasIonScript())
+                        script->ionScript()->recompileInfoRef() = RecompileInfo();
                     output.invalidate();
                 } else {
                     CompilerOutput newOutput(script);
@@ -4495,7 +4535,7 @@ TypeScript::printTypes(JSContext* cx, HandleScript script) const
             fprintf(stderr, "%s", sprinter.string());
         }
 
-        if (js_CodeSpec[*pc].format & JOF_TYPESET) {
+        if (CodeSpec[*pc].format & JOF_TYPESET) {
             StackTypeSet* types = TypeScript::BytecodeTypes(script, pc);
             fprintf(stderr, "  typeset %u:", unsigned(types - typeArray()));
             types->print();
@@ -4506,3 +4546,11 @@ TypeScript::printTypes(JSContext* cx, HandleScript script) const
     fprintf(stderr, "\n");
 }
 #endif /* DEBUG */
+
+JS::ubi::Node::Size
+JS::ubi::Concrete<js::ObjectGroup>::size(mozilla::MallocSizeOf mallocSizeOf) const
+{
+    Size size = js::gc::Arena::thingSize(get().asTenured().getAllocKind());
+    size += get().sizeOfExcludingThis(mallocSizeOf);
+    return size;
+}

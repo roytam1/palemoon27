@@ -44,18 +44,29 @@ public:
   ~TreeWalker();
 
   /**
-   * Return the next child accessible.
+   * Return the next accessible.
    *
    * @note Returned accessible is bound to the document, if the accessible is
    *       rejected during tree creation then the caller should be unbind it
    *       from the document.
    */
-  Accessible* NextChild();
+  Accessible* Next();
 
 private:
   TreeWalker();
   TreeWalker(const TreeWalker&);
   TreeWalker& operator =(const TreeWalker&);
+
+  struct ChildrenIterator {
+    ChildrenIterator(nsIContent* aNode, uint32_t aFilter) :
+      mDOMIter(aNode, aFilter), mARIAOwnsIdx(0) { }
+
+    dom::AllChildrenIterator mDOMIter;
+    uint32_t mARIAOwnsIdx;
+  };
+
+  nsIContent* Next(ChildrenIterator* aIter, Accessible** aAccessible = nullptr,
+                   bool* aSkipSubtree = nullptr);
 
   /**
    * Create new state for the given node and push it on top of stack.
@@ -63,21 +74,20 @@ private:
    * @note State stack is used to navigate up/down the DOM subtree during
    *        accessible children search.
    */
-  dom::AllChildrenIterator* PushState(nsIContent* aContent)
+  ChildrenIterator* PushState(nsIContent* aContent)
   {
-    return mStateStack.AppendElement(dom::AllChildrenIterator(aContent,
-                                                              mChildFilter));
+    return mStateStack.AppendElement(ChildrenIterator(aContent, mChildFilter));
   }
 
   /**
    * Pop state from stack.
    */
-  dom::AllChildrenIterator* PopState();
+  ChildrenIterator* PopState();
 
   DocAccessible* mDoc;
   Accessible* mContext;
   nsIContent* mAnchorNode;
-  nsAutoTArray<dom::AllChildrenIterator, 20> mStateStack;
+  AutoTArray<ChildrenIterator, 20> mStateStack;
   int32_t mChildFilter;
   uint32_t mFlags;
 };

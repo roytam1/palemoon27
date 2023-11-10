@@ -37,16 +37,13 @@
 
 using namespace mozilla;
 
-static PRLogModuleInfo* gCommandLog;
+static LazyLogModule gCommandLog("nsXULCommandDispatcher");
 
 ////////////////////////////////////////////////////////////////////////
 
 nsXULCommandDispatcher::nsXULCommandDispatcher(nsIDocument* aDocument)
     : mDocument(aDocument), mUpdaters(nullptr)
 {
-
-  if (! gCommandLog)
-    gCommandLog = PR_NewLogModule("nsXULCommandDispatcher");
 }
 
 nsXULCommandDispatcher::~nsXULCommandDispatcher()
@@ -135,7 +132,8 @@ nsXULCommandDispatcher::GetFocusedElement(nsIDOMElement** aElement)
     CallQueryInterface(focusedContent, aElement);
 
     // Make sure the caller can access the focused element.
-    if (!nsContentUtils::CanCallerAccess(*aElement)) {
+    nsCOMPtr<nsINode> node = do_QueryInterface(*aElement);
+    if (!node || !nsContentUtils::SubjectPrincipalOrSystemIfNativeCaller()->Subsumes(node->NodePrincipal())) {
       // XXX This might want to return null, but we use that return value
       // to mean "there is no focused element," so to be clear, throw an
       // exception.
@@ -310,11 +308,7 @@ nsXULCommandDispatcher::AddCommandUpdater(nsIDOMElement* aElement,
 #endif
 
   // If we get here, this is a new updater. Append it to the list.
-  updater = new Updater(aElement, aEvents, aTargets);
-  if (! updater)
-      return NS_ERROR_OUT_OF_MEMORY;
-
-  *link = updater;
+  *link = new Updater(aElement, aEvents, aTargets);
   return NS_OK;
 }
 
@@ -401,7 +395,7 @@ nsXULCommandDispatcher::UpdateCommands(const nsAString& aEventName)
     }
 #endif
 
-    WidgetEvent event(true, NS_XUL_COMMAND_UPDATE);
+    WidgetEvent event(true, eXULCommandUpdate);
     EventDispatcher::Dispatch(content, nullptr, &event);
   }
   return NS_OK;

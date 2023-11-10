@@ -45,7 +45,7 @@ add_task(function test_extractFiles() {
   ensureExtracted(target);
 });
 
-add_task(function test_extractFilesAsync() {
+add_task(function* test_extractFilesAsync() {
   let target = dir.clone();
   target.append("test_extractFilesAsync");
   target.create(Components.interfaces.nsIFile.DIRECTORY_TYPE,

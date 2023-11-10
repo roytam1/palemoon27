@@ -4,8 +4,8 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef mozilla_dom_bluetooth_BluetoothUnixSocketConnector_h
-#define mozilla_dom_bluetooth_BluetoothUnixSocketConnector_h
+#ifndef mozilla_dom_bluetooth_bluez_BluetoothUnixSocketConnector_h
+#define mozilla_dom_bluetooth_bluez_BluetoothUnixSocketConnector_h
 
 #include <bluetooth/bluetooth.h>
 #include "BluetoothCommon.h"
@@ -17,10 +17,14 @@ class BluetoothUnixSocketConnector final
   : public mozilla::ipc::UnixSocketConnector
 {
 public:
-  BluetoothUnixSocketConnector(const nsACString& aAddressString,
+  BluetoothUnixSocketConnector(const BluetoothAddress& aAddress,
                                BluetoothSocketType aType,
                                int aChannel, bool aAuth, bool aEncrypt);
   ~BluetoothUnixSocketConnector();
+
+  nsresult ConvertAddress(const struct sockaddr& aAddress,
+                          socklen_t aAddressLength,
+                          BluetoothAddress& aAddressOut);
 
   // Methods for |UnixSocketConnector|
   //
@@ -45,14 +49,18 @@ public:
   nsresult Duplicate(UnixSocketConnector*& aConnector) override;
 
 private:
+  static nsresult ConvertAddress(const BluetoothAddress& aAddress,
+                                 bdaddr_t& aBdAddr);
+
+  static nsresult ConvertAddress(const bdaddr_t& aBdAddr,
+                                 BluetoothAddress& aAddress);
+
   nsresult CreateSocket(int& aFd) const;
   nsresult SetSocketFlags(int aFd) const;
   nsresult CreateAddress(struct sockaddr& aAddress,
                          socklen_t& aAddressLength) const;
-  static nsresult ConvertAddressString(const char* aAddressString,
-                                       bdaddr_t& aAddress);
 
-  nsCString mAddressString;
+  BluetoothAddress mAddress;
   BluetoothSocketType mType;
   int mChannel;
   bool mAuth;
@@ -61,4 +69,4 @@ private:
 
 END_BLUETOOTH_NAMESPACE
 
-#endif
+#endif // mozilla_dom_bluetooth_bluez_BluetoothUnixSocketConnector_h

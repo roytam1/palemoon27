@@ -18,6 +18,8 @@
 # include "jit/arm64/Architecture-arm64.h"
 #elif defined(JS_CODEGEN_MIPS32)
 # include "jit/mips32/Architecture-mips32.h"
+#elif defined(JS_CODEGEN_MIPS64)
+# include "jit/mips64/Architecture-mips64.h"
 #elif defined(JS_CODEGEN_NONE)
 # include "jit/none/Architecture-none.h"
 #else
@@ -93,6 +95,26 @@ struct Register {
     }
 };
 
+struct Register64
+{
+#ifdef JS_PUNBOX64
+    Register reg;
+#else
+    Register high;
+    Register low;
+#endif
+
+#ifdef JS_PUNBOX64
+    explicit MOZ_CONSTEXPR Register64(Register r)
+      : reg(r)
+    {}
+#else
+    MOZ_CONSTEXPR Register64(Register h, Register l)
+      : high(h), low(l)
+    {}
+#endif
+};
+
 class RegisterDump
 {
   public:
@@ -112,7 +134,10 @@ class RegisterDump
     }
 };
 
-// Information needed to recover machine register state.
+// Information needed to recover machine register state. This records the
+// location of spilled register and not the content of the spilled
+// registers. Thus we can safely assume that this structure is unchanged, even
+// if the GC pointers mapped by this structure are relocated.
 class MachineState
 {
     mozilla::Array<Registers::RegisterContent*, Registers::Total> regs_;
@@ -120,16 +145,18 @@ class MachineState
 
   public:
     MachineState() {
+#ifndef JS_CODEGEN_NONE
         for (unsigned i = 0; i < Registers::Total; i++)
             regs_[i] = reinterpret_cast<Registers::RegisterContent*>(i + 0x100);
         for (unsigned i = 0; i < FloatRegisters::Total; i++)
             fpregs_[i] = reinterpret_cast<FloatRegisters::RegisterContent*>(i + 0x200);
+#endif
     }
 
     static MachineState FromBailout(RegisterDump::GPRArray& regs, RegisterDump::FPUArray& fpregs);
 
     void setRegisterLocation(Register reg, uintptr_t* up) {
-        regs_[reg.code()] = (Registers::RegisterContent* ) up;
+        regs_[reg.code()] = (Registers::RegisterContent*) up;
     }
     void setRegisterLocation(FloatRegister reg, float* fp) {
         MOZ_ASSERT(reg.isSingle());

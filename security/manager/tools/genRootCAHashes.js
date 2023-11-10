@@ -166,14 +166,14 @@ function getLabelForCert(cert) {
   }
 
   // replace non-ascii characters
-  label = label.replace( /[^[:ascii:]]/g, "_");
+  label = label.replace(/[^[:ascii:]]/g, "_");
   // replace non-word characters
-  label = label.replace(/[^A-Za-z0-9]/g ,"_");
+  label = label.replace(/[^A-Za-z0-9]/g, "_");
   return label;
 }
 
 // Fill in the gTrustAnchors list with trust anchors from the database.
-function insertTrustAnchorsFromDatabase(){
+function insertTrustAnchorsFromDatabase() {
   // We only want CA certs for SSL
   const CERT_TYPE = Ci.nsIX509Cert.CA_CERT;
   const TRUST_TYPE = Ci.nsIX509CertDB.TRUSTED_SSL;
@@ -219,13 +219,13 @@ if (arguments.length < 1) {
   throw "Usage: genRootCAHashes.js <absolute path to current RootHashes.inc>";
 }
 
-let trustAnchorsFile = FileUtils.getFile("CurWorkD", [FILENAME_TRUST_ANCHORS]);
+var trustAnchorsFile = FileUtils.getFile("CurWorkD", [FILENAME_TRUST_ANCHORS]);
 // let rootHashesFile = FileUtils.getFile("CurWorkD", arguments[0]);
-let rootHashesFile = Cc["@mozilla.org/file/local;1"].createInstance(Ci.nsILocalFile);
+var rootHashesFile = Cc["@mozilla.org/file/local;1"].createInstance(Ci.nsILocalFile);
 rootHashesFile.initWithPath(arguments[0]);
 
 // Open the known hashes file; this is to ensure stable bin numbers.
-let gTrustAnchors = loadTrustAnchors(trustAnchorsFile);
+var gTrustAnchors = loadTrustAnchors(trustAnchorsFile);
 
 // Collect all certificate entries
 insertTrustAnchorsFromDatabase();
@@ -249,6 +249,6 @@ gTrustAnchors.roots.sort(function(a, b) {
 });
 
 // Write the output file.
-let rootHashesFileOutputStream = FileUtils.openSafeFileOutputStream(rootHashesFile);
+var rootHashesFileOutputStream = FileUtils.openSafeFileOutputStream(rootHashesFile);
 writeRootHashes(rootHashesFileOutputStream);
 FileUtils.closeSafeFileOutputStream(rootHashesFileOutputStream);

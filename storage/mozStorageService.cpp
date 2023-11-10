@@ -129,11 +129,11 @@ Service::CollectReports(nsIHandleReportCallback *aHandleReport,
   nsresult rv;
   size_t totalConnSize = 0;
   {
-    nsTArray<nsRefPtr<Connection> > connections;
+    nsTArray<RefPtr<Connection> > connections;
     getConnections(connections);
 
     for (uint32_t i = 0; i < connections.Length(); i++) {
-      nsRefPtr<Connection> &conn = connections[i];
+      RefPtr<Connection> &conn = connections[i];
 
       // Someone may have closed the Connection, in which case we skip it.
       bool isReady;
@@ -320,18 +320,32 @@ Service::unregisterConnection(Connection *aConnection)
   // If this is the last Connection it might be the only thing keeping Service
   // alive.  So ensure that Service is destroyed only after the Connection is
   // cleanly unregistered and destroyed.
-  nsRefPtr<Service> kungFuDeathGrip(this);
+  RefPtr<Service> kungFuDeathGrip(this);
   {
     mRegistrationMutex.AssertNotCurrentThreadOwns();
     MutexAutoLock mutex(mRegistrationMutex);
-    DebugOnly<bool> removed = mConnections.RemoveElement(aConnection);
-    // Assert if we try to unregister a non-existent connection.
-    MOZ_ASSERT(removed);
+
+    for (uint32_t i = 0 ; i < mConnections.Length(); ++i) {
+      if (mConnections[i] == aConnection) {
+        nsCOMPtr<nsIThread> thread = mConnections[i]->threadOpenedOn;
+
+        // Ensure the connection is released on its opening thread.  Note, we
+        // must use .forget().take() so that we can manually cast to an
+        // unambiguous nsISupports type.
+        NS_ProxyRelease(thread,
+          static_cast<mozIStorageConnection*>(mConnections[i].forget().take()));
+
+        mConnections.RemoveElementAt(i);
+        return;
+      }
+    }
+
+    MOZ_ASSERT_UNREACHABLE("Attempt to unregister unknown storage connection!");
   }
 }
 
 void
-Service::getConnections(/* inout */ nsTArray<nsRefPtr<Connection> >& aConnections)
+Service::getConnections(/* inout */ nsTArray<RefPtr<Connection> >& aConnections)
 {
   mRegistrationMutex.AssertNotCurrentThreadOwns();
   MutexAutoLock mutex(mRegistrationMutex);
@@ -342,11 +356,11 @@ Service::getConnections(/* inout */ nsTArray<nsRefPtr<Connection> >& aConnection
 void
 Service::minimizeMemory()
 {
-  nsTArray<nsRefPtr<Connection> > connections;
+  nsTArray<RefPtr<Connection> > connections;
   getConnections(connections);
 
   for (uint32_t i = 0; i < connections.Length(); i++) {
-    nsRefPtr<Connection> conn = connections[i];
+    RefPtr<Connection> conn = connections[i];
     if (!conn->connectionReady())
       continue;
 
@@ -496,7 +510,7 @@ const sqlite3_mem_methods memMethods = {
   nullptr
 };
 
-} // anonymous namespace
+} // namespace
 
 #endif  // MOZ_STORAGE_MEMORY
 
@@ -518,6 +532,10 @@ Service::initialize()
   if (rc != SQLITE_OK)
     return convertResultCode(rc);
 #endif
+
+  // TODO (bug 1191405): do not preallocate the connections caches until we
+  // have figured the impact on our consumers and memory.
+  sqlite3_config(SQLITE_CONFIG_PAGECACHE, NULL, 0, 0);
 
   // Explicitly initialize sqlite3.  Although this is implicitly called by
   // various sqlite3 functions (and the sqlite3_open calls in our case),
@@ -651,7 +669,7 @@ Service::OpenSpecialDatabase(const char *aStorageKey,
     return NS_ERROR_INVALID_ARG;
   }
 
-  nsRefPtr<Connection> msc = new Connection(this, SQLITE_OPEN_READWRITE, false);
+  RefPtr<Connection> msc = new Connection(this, SQLITE_OPEN_READWRITE, false);
 
   rv = storageFile ? msc->initialize(storageFile) : msc->initialize();
   NS_ENSURE_SUCCESS(rv, rv);
@@ -706,7 +724,7 @@ public:
 
 private:
   nsresult DispatchResult(nsresult aStatus, nsISupports* aValue) {
-    nsRefPtr<CallbackComplete> event =
+    RefPtr<CallbackComplete> event =
       new CallbackComplete(aStatus,
                            aValue,
                            mCallback.forget());
@@ -734,13 +752,13 @@ private:
     (void)NS_ProxyRelease(thread, rawCallback);
   }
 
-  nsRefPtr<Connection> mConnection;
+  RefPtr<Connection> mConnection;
   nsCOMPtr<nsIFile> mStorageFile;
   int32_t mGrowthIncrement;
-  nsRefPtr<mozIStorageCompletionCallback> mCallback;
+  RefPtr<mozIStorageCompletionCallback> mCallback;
 };
 
-} // anonymous namespace
+} // namespace
 
 NS_IMETHODIMP
 Service::OpenAsyncDatabase(nsIVariant *aDatabaseStore,
@@ -802,11 +820,11 @@ Service::OpenAsyncDatabase(nsIVariant *aDatabaseStore,
   }
 
   // Create connection on this thread, but initialize it on its helper thread.
-  nsRefPtr<Connection> msc = new Connection(this, flags, true);
+  RefPtr<Connection> msc = new Connection(this, flags, true);
   nsCOMPtr<nsIEventTarget> target = msc->getAsyncExecutionTarget();
   MOZ_ASSERT(target, "Cannot initialize a connection that has been closed already");
 
-  nsRefPtr<AsyncInitDatabase> asyncInit =
+  RefPtr<AsyncInitDatabase> asyncInit =
     new AsyncInitDatabase(msc,
                           storageFile,
                           growthIncrement,
@@ -824,7 +842,7 @@ Service::OpenDatabase(nsIFile *aDatabaseFile,
   // reasons.
   int flags = SQLITE_OPEN_READWRITE | SQLITE_OPEN_SHAREDCACHE |
               SQLITE_OPEN_CREATE;
-  nsRefPtr<Connection> msc = new Connection(this, flags, false);
+  RefPtr<Connection> msc = new Connection(this, flags, false);
 
   nsresult rv = msc->initialize(aDatabaseFile);
   NS_ENSURE_SUCCESS(rv, rv);
@@ -843,7 +861,7 @@ Service::OpenUnsharedDatabase(nsIFile *aDatabaseFile,
   // reasons.
   int flags = SQLITE_OPEN_READWRITE | SQLITE_OPEN_PRIVATECACHE |
               SQLITE_OPEN_CREATE;
-  nsRefPtr<Connection> msc = new Connection(this, flags, false);
+  RefPtr<Connection> msc = new Connection(this, flags, false);
 
   nsresult rv = msc->initialize(aDatabaseFile);
   NS_ENSURE_SUCCESS(rv, rv);
@@ -862,7 +880,7 @@ Service::OpenDatabaseWithFileURL(nsIFileURL *aFileURL,
   // reasons.
   int flags = SQLITE_OPEN_READWRITE | SQLITE_OPEN_SHAREDCACHE |
               SQLITE_OPEN_CREATE | SQLITE_OPEN_URI;
-  nsRefPtr<Connection> msc = new Connection(this, flags, false);
+  RefPtr<Connection> msc = new Connection(this, flags, false);
 
   nsresult rv = msc->initialize(aFileURL);
   NS_ENSURE_SUCCESS(rv, rv);
@@ -928,11 +946,11 @@ Service::Observe(nsISupports *, const char *aTopic, const char16_t *)
 
     bool anyOpen = false;
     do {
-      nsTArray<nsRefPtr<Connection> > connections;
+      nsTArray<RefPtr<Connection> > connections;
       getConnections(connections);
       anyOpen = false;
       for (uint32_t i = 0; i < connections.Length(); i++) {
-        nsRefPtr<Connection> &conn = connections[i];
+        RefPtr<Connection> &conn = connections[i];
         if (conn->isClosing()) {
           anyOpen = true;
           break;
@@ -945,7 +963,7 @@ Service::Observe(nsISupports *, const char *aTopic, const char16_t *)
     } while (anyOpen);
 
     if (gShutdownChecks == SCM_CRASH) {
-      nsTArray<nsRefPtr<Connection> > connections;
+      nsTArray<RefPtr<Connection> > connections;
       getConnections(connections);
       for (uint32_t i = 0, n = connections.Length(); i < n; i++) {
         if (!connections[i]->isClosed()) {

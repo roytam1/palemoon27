@@ -21,7 +21,7 @@ const PREF_LOG_LEVEL_DUMP = "identity.fxaccounts.log.appender.dump";
 // identifiable info, credentials, etc) will be logged.
 const PREF_LOG_SENSITIVE_DETAILS = "identity.fxaccounts.log.sensitive";
 
-let exports = Object.create(null);
+var exports = Object.create(null);
 
 XPCOMUtils.defineLazyGetter(exports, 'log', function() {
   let log = Log.repository.getLogger("FirefoxAccounts");
@@ -90,12 +90,17 @@ exports.ONLOGOUT_NOTIFICATION = "fxaccounts:onlogout";
 // Internal to services/fxaccounts only
 exports.ON_FXA_UPDATE_NOTIFICATION = "fxaccounts:update";
 
+exports.ON_PROFILE_CHANGE_NOTIFICATION = "fxaccounts:profilechange";
+
 // UI Requests.
 exports.UI_REQUEST_SIGN_IN_FLOW = "signInFlow";
 exports.UI_REQUEST_REFRESH_AUTH = "refreshAuthentication";
 
 // The OAuth client ID for Firefox Desktop
 exports.FX_OAUTH_CLIENT_ID = "5882386c6d801776";
+
+// Profile WebChannel ID
+exports.PROFILE_WEBCHANNEL_ID = "account_updates";
 
 // Server errno.
 // From https://github.com/mozilla/fxa-auth-server/blob/master/docs/api.md#response-format

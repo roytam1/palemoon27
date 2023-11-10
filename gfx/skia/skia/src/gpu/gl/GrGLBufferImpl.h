@@ -9,9 +9,9 @@
 #define GrGLBufferImpl_DEFINED
 
 #include "SkTypes.h"
-#include "gl/GrGLFunctions.h"
+#include "gl/GrGLTypes.h"
 
-class GrGpuGL;
+class GrGLGpu;
 
 /**
  * This class serves as the implementation of GrGL*Buffer classes. It was written to avoid code
@@ -19,37 +19,45 @@ class GrGpuGL;
  */
 class GrGLBufferImpl : SkNoncopyable {
 public:
+    enum Usage {
+        kStaticDraw_Usage = 0,
+        kDynamicDraw_Usage,
+        kStreamDraw_Usage,
+        kStreamRead_Usage,
+
+        kLast_Usage = kStreamRead_Usage
+    };
+    static const int kUsageCount = kLast_Usage + 1;
+
     struct Desc {
-        bool        fIsWrapped;
         GrGLuint    fID;            // set to 0 to indicate buffer is CPU-backed and not a VBO.
         size_t      fSizeInBytes;
-        bool        fDynamic;
+        Usage       fUsage;
     };
 
-    GrGLBufferImpl(GrGpuGL*, const Desc&, GrGLenum bufferType);
+    GrGLBufferImpl(GrGLGpu*, const Desc&, GrGLenum bufferType);
     ~GrGLBufferImpl() {
         // either release or abandon should have been called by the owner of this object.
         SkASSERT(0 == fDesc.fID);
     }
 
     void abandon();
-    void release(GrGpuGL* gpu);
+    void release(GrGLGpu* gpu);
 
     GrGLuint bufferID() const { return fDesc.fID; }
     size_t baseOffset() const { return reinterpret_cast<size_t>(fCPUData); }
+    GrGLenum bufferType() const { return fBufferType; }
 
-    void bind(GrGpuGL* gpu) const;
-
-    void* map(GrGpuGL* gpu);
-    void unmap(GrGpuGL* gpu);
+    void* map(GrGLGpu* gpu);
+    void unmap(GrGLGpu* gpu);
     bool isMapped() const;
-    bool updateData(GrGpuGL* gpu, const void* src, size_t srcSizeInBytes);
+    bool updateData(GrGLGpu* gpu, const void* src, size_t srcSizeInBytes);
 
 private:
     void validate() const;
 
     Desc         fDesc;
-    GrGLenum     fBufferType; // GL_ARRAY_BUFFER or GL_ELEMENT_ARRAY_BUFFER
+    GrGLenum     fBufferType; // GL_ARRAY_BUFFER or GL_ELEMENT_ARRAY_BUFFER, e.g.
     void*        fCPUData;
     void*        fMapPtr;
     size_t       fGLSizeInBytes;     // In certain cases we make the size of the GL buffer object

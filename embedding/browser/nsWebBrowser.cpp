@@ -360,7 +360,10 @@ nsWebBrowser::SetParentURIContentListener(
 NS_IMETHODIMP
 nsWebBrowser::GetContentDOMWindow(nsIDOMWindow** aResult)
 {
-  NS_ENSURE_STATE(mDocShell);
+  if (!mDocShell) {
+    return NS_ERROR_UNEXPECTED;
+  }
+
   nsCOMPtr<nsIDOMWindow> retval = mDocShell->GetWindow();
   retval.forget(aResult);
   return *aResult ? NS_OK : NS_ERROR_FAILURE;
@@ -1171,7 +1174,8 @@ nsWebBrowser::Create()
     widgetInit.clipChildren = true;
 
     widgetInit.mWindowType = eWindowType_child;
-    nsIntRect bounds(mInitInfo->x, mInitInfo->y, mInitInfo->cx, mInitInfo->cy);
+    LayoutDeviceIntRect bounds(mInitInfo->x, mInitInfo->y,
+                               mInitInfo->cx, mInitInfo->cy);
 
     mInternalWidget->SetWidgetListener(this);
     mInternalWidget->Create(nullptr, mParentNativeWindow, bounds, &widgetInit);
@@ -1289,6 +1293,14 @@ nsWebBrowser::GetUnscaledDevicePixelsPerCSSPixel(double* aScale)
 }
 
 NS_IMETHODIMP
+nsWebBrowser::GetDevicePixelsPerDesktopPixel(double* aScale)
+{
+  *aScale = mParentWidget ? mParentWidget->GetDesktopToDeviceScale().scale
+                          : 1.0;
+  return NS_OK;
+}
+
+NS_IMETHODIMP
 nsWebBrowser::SetPosition(int32_t aX, int32_t aY)
 {
   int32_t cx = 0;
@@ -1370,7 +1382,7 @@ nsWebBrowser::GetPositionAndSize(int32_t* aX, int32_t* aY,
       *aCY = mInitInfo->cy;
     }
   } else if (mInternalWidget) {
-    nsIntRect bounds;
+    LayoutDeviceIntRect bounds;
     NS_ENSURE_SUCCESS(mInternalWidget->GetBounds(bounds), NS_ERROR_FAILURE);
 
     if (aX) {
@@ -1683,6 +1695,7 @@ static void
 DrawPaintedLayer(PaintedLayer* aLayer,
                  gfxContext* aContext,
                  const nsIntRegion& aRegionToDraw,
+                 const nsIntRegion& aDirtyRegion,
                  DrawRegionClip aClip,
                  const nsIntRegion& aRegionToInvalidate,
                  void* aCallbackData)
@@ -1722,16 +1735,16 @@ nsWebBrowser::WindowLowered(nsIWidget* aWidget)
 }
 
 bool
-nsWebBrowser::PaintWindow(nsIWidget* aWidget, nsIntRegion aRegion)
+nsWebBrowser::PaintWindow(nsIWidget* aWidget, LayoutDeviceIntRegion aRegion)
 {
   LayerManager* layerManager = aWidget->GetLayerManager();
   NS_ASSERTION(layerManager, "Must be in paint event");
 
   layerManager->BeginTransaction();
-  nsRefPtr<PaintedLayer> root = layerManager->CreatePaintedLayer();
+  RefPtr<PaintedLayer> root = layerManager->CreatePaintedLayer();
   if (root) {
-    nsIntRect dirtyRect = aRegion.GetBounds();
-    root->SetVisibleRegion(dirtyRect);
+    nsIntRect dirtyRect = aRegion.GetBounds().ToUnknownRect();
+    root->SetVisibleRegion(LayerIntRegion::FromUnknownRegion(dirtyRect));
     layerManager->SetRoot(root);
   }
 

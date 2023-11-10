@@ -13,7 +13,7 @@
 #include "nsSMILAnimationFunction.h"
 #include "nsSMILTargetIdentifier.h"
 #include "nsSMILCompositorTable.h"
-#include "pldhash.h"
+#include "PLDHashTable.h"
 
 //----------------------------------------------------------------------
 // nsSMILCompositor
@@ -83,10 +83,6 @@ public:
   // If the passed-in base value differs from our cached base value, this
   // method updates the cached value (and toggles the 'mForceCompositing' flag)
   void UpdateCachedBaseValue(const nsSMILValue& aBaseValue);
-
-  // Static callback methods
-  static PLDHashOperator DoComposeAttribute(
-      nsSMILCompositor* aCompositor, void *aData);
 
   // The hash key (tuple of element/attributeName/attributeType)
   KeyType mKey;

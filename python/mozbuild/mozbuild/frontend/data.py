@@ -28,26 +28,13 @@ from ..util import (
     group_unified_files,
 )
 
+from ..testing import (
+    all_test_flavors,
+)
+
 
 class TreeMetadata(object):
     """Base class for all data being captured."""
-
-    def __init__(self):
-        self._ack = False
-
-    def ack(self):
-        self._ack = True
-
-
-class ReaderSummary(TreeMetadata):
-    """A summary of what the reader did."""
-
-    def __init__(self, total_file_count, total_sandbox_execution_time,
-        total_emitter_execution_time):
-        TreeMetadata.__init__(self)
-        self.total_file_count = total_file_count
-        self.total_sandbox_execution_time = total_sandbox_execution_time
-        self.total_emitter_execution_time = total_emitter_execution_time
 
 
 class ContextDerived(TreeMetadata):
@@ -83,6 +70,12 @@ class ContextDerived(TreeMetadata):
         self.objdir = context.objdir
 
         self.config = context.config
+
+        self._context = context
+
+    @property
+    def install_target(self):
+        return self._context['FINAL_TARGET']
 
     @property
     def relobjdir(self):
@@ -134,10 +127,6 @@ class ConfigFileSubstitution(BaseConfigSubstitution):
     """Describes a config file that will be generated using substitutions."""
 
 
-class HeaderFileSubstitution(BaseConfigSubstitution):
-    """Describes a header file that will be generated using substitutions."""
-
-
 class VariablePassthru(ContextDerived):
     """A dict of variables to pass through to backend.mk unaltered.
 
@@ -159,7 +148,6 @@ class XPIDLFile(ContextDerived):
     __slots__ = (
         'add_to_manifest',
         'basename',
-        'install_target',
         'source_path',
     )
 
@@ -171,10 +159,9 @@ class XPIDLFile(ContextDerived):
         self.module = module
         self.add_to_manifest = add_to_manifest
 
-        self.install_target = context['FINAL_TARGET']
-
-class Defines(ContextDerived):
-    """Context derived container object for DEFINES, which is an OrderedDict.
+class BaseDefines(ContextDerived):
+    """Context derived container object for DEFINES/HOST_DEFINES,
+    which are OrderedDicts.
     """
     __slots__ = ('defines')
 
@@ -196,6 +183,12 @@ class Defines(ContextDerived):
             self.defines.update(more_defines.defines)
         else:
             self.defines.update(more_defines)
+
+class Defines(BaseDefines):
+    pass
+
+class HostDefines(BaseDefines):
+    pass
 
 class Exports(ContextDerived):
     """Context derived container object for EXPORTS, which is a
@@ -623,6 +616,8 @@ class TestManifest(ContextDerived):
             install_prefix=None, relpath=None, dupe_manifest=False):
         ContextDerived.__init__(self, context)
 
+        assert flavor in all_test_flavors()
+
         self.path = path
         self.directory = mozpath.dirname(path)
         self.manifest = manifest
@@ -639,18 +634,6 @@ class TestManifest(ContextDerived):
 
 class LocalInclude(ContextDerived):
     """Describes an individual local include path."""
-
-    __slots__ = (
-        'path',
-    )
-
-    def __init__(self, context, path):
-        ContextDerived.__init__(self, context)
-
-        self.path = path
-
-class GeneratedInclude(ContextDerived):
-    """Describes an individual generated include path."""
 
     __slots__ = (
         'path',
@@ -963,3 +946,53 @@ class AndroidEclipseProjectData(object):
         cpe.ignore_warnings = ignore_warnings
         self._classpathentries.append(cpe)
         return cpe
+
+
+class AndroidResDirs(ContextDerived):
+    """Represents Android resource directories."""
+
+    __slots__ = (
+        'paths',
+    )
+
+    def __init__(self, context, paths):
+        ContextDerived.__init__(self, context)
+        self.paths = paths
+
+class AndroidAssetsDirs(ContextDerived):
+    """Represents Android assets directories."""
+
+    __slots__ = (
+        'paths',
+    )
+
+    def __init__(self, context, paths):
+        ContextDerived.__init__(self, context)
+        self.paths = paths
+
+class AndroidExtraResDirs(ContextDerived):
+    """Represents Android extra resource directories.
+
+    Extra resources are resources provided by libraries and including in a
+    packaged APK, but not otherwise redistributed.  In practice, this means
+    resources included in Fennec but not in GeckoView.
+    """
+
+    __slots__ = (
+        'paths',
+    )
+
+    def __init__(self, context, paths):
+        ContextDerived.__init__(self, context)
+        self.paths = paths
+
+class AndroidExtraPackages(ContextDerived):
+    """Represents Android extra packages."""
+
+    __slots__ = (
+        'packages',
+    )
+
+    def __init__(self, context, packages):
+        ContextDerived.__init__(self, context)
+        self.packages = packages

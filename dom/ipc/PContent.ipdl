@@ -4,7 +4,6 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-include protocol PAsmJSCacheEntry;
 include protocol PBackground;
 include protocol PBlob;
 include protocol PBluetooth;
@@ -14,16 +13,20 @@ include protocol PCompositor;
 include protocol PContentBridge;
 include protocol PContentPermissionRequest;
 include protocol PCycleCollectWithLogs;
+include protocol PCrashReporter;
 include protocol PPSMContentDownloader;
 include protocol PExternalHelperApp;
+include protocol PHandlerService;
 include protocol PDeviceStorageRequest;
 include protocol PFileDescriptorSet;
 include protocol PFMRadio;
 include protocol PFileSystemRequest;
 include protocol PHal;
+include protocol PHeapSnapshotTempFileHelper;
 include protocol PIcc;
 include protocol PProcessHangMonitor;
 include protocol PImageBridge;
+include protocol PMedia;
 include protocol PMemoryReportRequest;
 include protocol PMobileConnection;
 include protocol PNecko;
@@ -50,6 +53,7 @@ include protocol PJavaScript;
 include protocol PRemoteSpellcheckEngine;
 include protocol PWebrtcGlobal;
 include protocol PPresentation;
+include protocol PVRManager;
 include DOMTypes;
 include JavaScriptTypes;
 include InputStreamParams;
@@ -57,19 +61,21 @@ include PTabContext;
 include URIParams;
 include PluginTypes;
 include ProtocolTypes;
+include PBackgroundSharedTypes;
 include PContentPermission;
 include BrowserConfiguration;
 include GraphicsMessages;
+include ProfilerTypes;
 
 // Workaround to prevent error if PContentChild.cpp & PContentBridgeParent.cpp
 // are put into different UnifiedProtocolsXX.cpp files.
 // XXX Remove this once bug 1069073 is fixed
 include "mozilla/dom/PContentBridgeParent.h";
 
-include "mozilla/dom/indexedDB/SerializationHelpers.h";
-include "mozilla/dom/TabMessageUtils.h";
+include "mozilla/dom/quota/SerializationHelpers.h";
 
 using GeoPosition from "nsGeoPositionIPCSerialiser.h";
+using AlertNotificationType from "mozilla/AlertNotificationIPCSerializer.h";
 
 using struct ChromePackage from "mozilla/chrome/RegistryMessageUtils.h";
 using struct SubstitutionMapping from "mozilla/chrome/RegistryMessageUtils.h";
@@ -80,15 +86,15 @@ using struct IPC::Permission from "mozilla/net/NeckoMessageUtils.h";
 using class IPC::Principal from "mozilla/dom/PermissionMessageUtils.h";
 using struct mozilla::null_t from "ipc/IPCMessageUtils.h";
 using struct mozilla::void_t from "ipc/IPCMessageUtils.h";
-using mozilla::dom::asmjscache::OpenMode from "mozilla/dom/asmjscache/AsmJSCache.h";
-using mozilla::dom::asmjscache::WriteParams from "mozilla/dom/asmjscache/AsmJSCache.h";
+using mozilla::dom::NativeThreadId from "mozilla/dom/TabMessageUtils.h";
 using mozilla::dom::quota::PersistenceType from "mozilla/dom/quota/PersistenceType.h";
 using mozilla::hal::ProcessPriority from "mozilla/HalTypes.h";
-using gfxIntSize from "nsSize.h";
+using mozilla::gfx::IntSize from "mozilla/gfx/2D.h";
 using mozilla::dom::TabId from "mozilla/dom/ipc/IdType.h";
 using mozilla::dom::ContentParentId from "mozilla/dom/ipc/IdType.h";
 using struct LookAndFeelInt from "mozilla/widget/WidgetMessageUtils.h";
-using struct mozilla::OwningSerializedStructuredCloneBuffer from "ipc/IPCMessageUtils.h";
+using class mozilla::dom::ipc::StructuredCloneData from "ipc/IPCMessageUtils.h";
+using mozilla::DataStorageType from "ipc/DataStorageIPCUtils.h";
 
 union ChromeRegistryItem
 {
@@ -216,6 +222,15 @@ union DeviceStorageParams
   DeviceStorageUnmountParams;
 };
 
+struct DeviceStorageLocationInfo {
+  nsString music;
+  nsString pictures;
+  nsString videos;
+  nsString sdcard;
+  nsString apps;
+  nsString crashes;
+};
+
 struct FMRadioRequestEnableParams
 {
   double frequency;
@@ -274,6 +289,16 @@ struct FileSystemGetDirectoryListingParams
 {
   nsString filesystem;
   nsString realPath;
+  // 'filters' could be an array rather than a semicolon separated string
+  // (we'd then use InfallibleTArray<nsString> internally), but that is
+  // wasteful.  E10s requires us to pass the filters over as a string anyway,
+  // so avoiding using an array avoids serialization on the side passing the
+  // filters.  Since an nsString can share its buffer when copied,
+  // using that instead of InfallibleTArray<nsString> makes copying the filters
+  // around in any given process a bit more efficient too, since copying a
+  // single nsString is cheaper than copying InfallibleTArray member data and
+  // each nsString that it contains.
+  nsString filters;
 };
 
 struct FileSystemGetFileOrDirectoryParams
@@ -320,6 +345,12 @@ struct PrefSetting {
   nsCString name;
   MaybePrefValue defaultValue;
   MaybePrefValue userValue;
+};
+
+struct DataStorageItem {
+  nsCString key;
+  nsCString value;
+  DataStorageType type;
 };
 
 struct DataStoreSetting {
@@ -408,6 +439,22 @@ union GamepadChangeEvent {
     GamepadButtonInformation;
 };
 
+struct FrameScriptInfo
+{
+    nsString url;
+    bool runInGlobalScope;
+};
+
+struct AndroidSystemInfo
+{
+    nsString device;
+    nsString manufacturer;
+    nsString release_version;
+    nsString hardware;
+    uint32_t sdk_version;
+    bool     isTablet;
+};
+
 prio(normal upto urgent) sync protocol PContent
 {
     parent spawns PPluginModule;
@@ -417,14 +464,15 @@ prio(normal upto urgent) sync protocol PContent
     parent opens PSharedBufferManager;
     parent opens PImageBridge;
     parent opens PGMPService;
+    parent opens PVRManager;
     child opens PBackground;
 
-    manages PAsmJSCacheEntry;
     manages PBlob;
     manages PBluetooth;
     manages PBrowser;
     manages PCellBroadcast;
     manages PContentPermissionRequest;
+    manages PCrashReporter;
     manages PCycleCollectWithLogs;
     manages PDeviceStorageRequest;
     manages PFileSystemRequest;
@@ -433,7 +481,10 @@ prio(normal upto urgent) sync protocol PContent
     manages PFileDescriptorSet;
     manages PFMRadio;
     manages PHal;
+    manages PHandlerService;
+    manages PHeapSnapshotTempFileHelper;
     manages PIcc;
+    manages PMedia;
     manages PMemoryReportRequest;
     manages PMobileConnection;
     manages PNecko;
@@ -460,9 +511,9 @@ both:
     // content calls window.open()), and the parent creates the PBrowser as part
     // of ContentParent::CreateBrowserOrApp.
     //
-    // When the parent constructs a PBrowser, the child trusts the app token it
-    // receives from the parent.  In that case, context can be any of the
-    // IPCTabContext subtypes.
+    // When the parent constructs a PBrowser, the child trusts the app token and
+    // other attributes it receives from the parent.  In that case, the
+    // context should be FrameIPCTabContext.
     //
     // When the child constructs a PBrowser, the parent doesn't trust the app
     // token it receives from the child.  In this case, context must have type
@@ -482,7 +533,7 @@ both:
 
     async PBlob(BlobConstructorParams params);
 
-    PFileDescriptorSet(FileDescriptor fd);
+    async PFileDescriptorSet(FileDescriptor fd);
 
 child:
     /**
@@ -490,10 +541,10 @@ child:
      * usually only be performed zero or one times.  The child may
      * abnormally exit if this fails; the details are OS-specific.
      */
-    async SetProcessSandbox();
+    async SetProcessSandbox(MaybeFileDesc aBroker);
 
-    PMemoryReportRequest(uint32_t generation, bool anonymize,
-                         bool minimizeMemoryUsage, MaybeFileDesc DMDFile);
+    async PMemoryReportRequest(uint32_t generation, bool anonymize,
+                               bool minimizeMemoryUsage, MaybeFileDesc DMDFile);
 
     async SpeakerManagerNotify();
 
@@ -502,8 +553,6 @@ child:
      * BidiKeyboard hosted by the parent
      */
     async BidiKeyboardNotify(bool isLangRTL);
-
-    async UpdateServiceWorkerRegistrations();
 
     async DataStoreNotify(uint32_t aAppId, nsString aName,
                           nsString aManifestURL);
@@ -514,15 +563,15 @@ child:
      * For documentation on the other args, see dumpGCAndCCLogsToFile in
      * nsIMemoryInfoDumper.idl
      */
-    PCycleCollectWithLogs(bool dumpAllTraces,
-                          FileDescriptor gcLog,
-                          FileDescriptor ccLog);
+    async PCycleCollectWithLogs(bool dumpAllTraces,
+                                FileDescriptor gcLog,
+                                FileDescriptor ccLog);
 
-    PTestShell();
+    async PTestShell();
 
-    RegisterChrome(ChromePackage[] packages, SubstitutionMapping[] substitutions,
-                   OverrideMapping[] overrides, nsCString locale, bool reset);
-    RegisterChromeItem(ChromeRegistryItem item);
+    async RegisterChrome(ChromePackage[] packages, SubstitutionMapping[] substitutions,
+                         OverrideMapping[] overrides, nsCString locale, bool reset);
+    async RegisterChromeItem(ChromeRegistryItem item);
 
     async SetOffline(bool offline);
     async SetConnectivity(bool connectivity);
@@ -531,55 +580,59 @@ child:
 
     async SystemMemoryAvailable(uint64_t getterId, uint32_t memoryAvailable);
 
-    PreferenceUpdate(PrefSetting pref);
+    async PreferenceUpdate(PrefSetting pref);
 
-    NotifyAlertsObserver(nsCString topic, nsString data);
+    async DataStoragePut(nsString aFilename, DataStorageItem aItem);
+    async DataStorageRemove(nsString aFilename, nsCString aKey, DataStorageType aType);
+    async DataStorageClear(nsString aFilename);
 
-    GeolocationUpdate(GeoPosition somewhere);
+    async NotifyAlertsObserver(nsCString topic, nsString data);
 
-    GeolocationError(uint16_t errorCode);
+    async GeolocationUpdate(GeoPosition somewhere);
 
-    UpdateDictionaryList(nsString[] dictionaries);
+    async GeolocationError(uint16_t errorCode);
+
+    async UpdateDictionaryList(nsString[] dictionaries);
 
     // nsIPermissionManager messages
-    AddPermission(Permission permission);
+    async AddPermission(Permission permission);
 
-    ScreenSizeChanged(gfxIntSize size);
+    async ScreenSizeChanged(IntSize size);
 
-    Volumes(VolumeInfo[] volumes);
+    async Volumes(VolumeInfo[] volumes);
 
-    FlushMemory(nsString reason);
+    async FlushMemory(nsString reason);
 
-    GarbageCollect();
-    CycleCollect();
+    async GarbageCollect();
+    async CycleCollect();
 
     /**
      * Start accessibility engine in content process.
      */
-    ActivateA11y();
+    async ActivateA11y();
 
-    AppInfo(nsCString version, nsCString buildID, nsCString name, nsCString UAName,
-            nsCString ID, nsCString vendor);
-    AppInit();
+    async AppInfo(nsCString version, nsCString buildID, nsCString name, nsCString UAName,
+                  nsCString ID, nsCString vendor);
+    async AppInit();
 
     // Notify child that last-pb-context-exited notification was observed
-    LastPrivateDocShellDestroyed();
+    async LastPrivateDocShellDestroyed();
 
-    FilePathUpdate(nsString storageType, nsString storageName, nsString filepath,
-                   nsCString reasons);
+    async FilePathUpdate(nsString storageType, nsString storageName, nsString filepath,
+                         nsCString reasons);
 
     // Note: Any changes to this structure should also be changed in
     // VolumeInfo above.
-    FileSystemUpdate(nsString fsName, nsString mountPoint, int32_t fsState,
-                     int32_t mountGeneration, bool isMediaPresent,
-                     bool isSharing, bool isFormatting, bool isFake,
-                     bool isUnmounting, bool isRemovable, bool isHotSwappable);
+    async FileSystemUpdate(nsString fsName, nsString mountPoint, int32_t fsState,
+                           int32_t mountGeneration, bool isMediaPresent,
+                           bool isSharing, bool isFormatting, bool isFake,
+                           bool isUnmounting, bool isRemovable, bool isHotSwappable);
 
     // Notify volume is removed.
-    VolumeRemoved(nsString fsName);
+    async VolumeRemoved(nsString fsName);
 
-    NotifyProcessPriorityChanged(ProcessPriority priority);
-    MinimizeMemoryUsage();
+    async NotifyProcessPriorityChanged(ProcessPriority priority);
+    async MinimizeMemoryUsage();
 
     /**
      * Used to manage nsIStyleSheetService across processes.
@@ -587,17 +640,17 @@ child:
     async LoadAndRegisterSheet(URIParams uri, uint32_t type);
     async UnregisterSheet(URIParams uri, uint32_t type);
 
-    NotifyPhoneStateChange(nsString newState);
+    async NotifyPhoneStateChange(nsString newState);
 
     /**
      * Notify idle observers in the child
      */
-    NotifyIdleObserver(uint64_t observerId, nsCString topic, nsString str);
+    async NotifyIdleObserver(uint64_t observerId, nsCString topic, nsString str);
 
     /**
      * Notify windows in the child to apply a new app style.
      */
-    OnAppThemeChanged();
+    async OnAppThemeChanged();
 
     /**
      * Called during plugin initialization to map a plugin id to a child process
@@ -615,16 +668,15 @@ child:
     /**
      * Control the Gecko Profiler in the child process.
      */
-    async StartProfiler(uint32_t aEntries, double aInterval, nsCString[] aFeatures,
-                        nsCString[] aThreadNameFilters);
+    async StartProfiler(ProfilerInitParams params);
     async StopProfiler();
     async PauseProfiler(bool aPause);
 
     async GatherProfile();
 
-    InvokeDragSession(IPCDataTransfer[] transfers, uint32_t action);
+    async InvokeDragSession(IPCDataTransfer[] transfers, uint32_t action);
 
-    EndDragSession(bool aDoneDrag, bool aUserCancelled);
+    async EndDragSession(bool aDoneDrag, bool aUserCancelled);
 
     async DomainSetChanged(uint32_t aSetType, uint32_t aChangeType, OptionalURIParams aDomain);
 
@@ -645,8 +697,7 @@ child:
     /**
      * Send gamepad status update to child.
      */
-    GamepadUpdate(GamepadChangeEvent aGamepadEvent);
-
+    async GamepadUpdate(GamepadChangeEvent aGamepadEvent);
 
     /**
      * Tell the child that for testing purposes, a graphics device reset has
@@ -659,6 +710,32 @@ child:
      * correspondent iframe.
      */
     async NotifyPresentationReceiverLaunched(PBrowser aIframe, nsString aSessionId);
+
+    /**
+     * Notify the child that the info about a presentation receiver needs to be
+     * cleaned up.
+     */
+    async NotifyPresentationReceiverCleanUp(nsString aSessionId);
+
+    /**
+     * Notify the child that the Gecko Media Plugins installed changed.
+     */
+    async NotifyGMPsChanged();
+
+    /**
+     * Send a `push` event without data to a service worker in the child.
+     */
+    async Push(nsCString scope, Principal principal);
+
+    /**
+     * Send a `push` event with data to a service worker in the child.
+     */
+    async PushWithData(nsCString scope, Principal principal, uint8_t[] data);
+
+    /**
+     * Send a `pushsubscriptionchange` event to a service worker in the child.
+     */
+    async PushSubscriptionChange(nsCString scope, Principal principal);
 
 parent:
     /**
@@ -680,7 +757,7 @@ parent:
         returns (bool isOffline, bool isConnected, bool isLangRTL, nsString[] dictionaries,
                  ClipboardCapabilities clipboardCaps,
                  DomainPolicyClone domainPolicy,
-                 OwningSerializedStructuredCloneBuffer initialData);
+                 StructuredCloneData initialData);
 
     sync CreateChildProcess(IPCTabContext context,
                             ProcessPriority priority,
@@ -691,6 +768,8 @@ parent:
     async CreateGMPService();
     sync GetGMPPluginVersionForAPI(nsCString api, nsCString[] tags)
         returns (bool hasPlugin, nsCString version);
+    sync IsGMPPresentOnDisk(nsString keySystem, nsCString version)
+        returns (bool isPresent, nsCString message);
 
     /**
      * This call connects the content process to a plugin process. While this
@@ -725,14 +804,16 @@ parent:
      * process. |newPluginEpoch| is the current epoch in the chrome process. If
      * |pluginEpoch == newPluginEpoch|, then |plugins| will be left empty.
      */
-    sync FindPlugins(uint32_t pluginEpoch) returns (PluginTag[] plugins, uint32_t newPluginEpoch);
+    sync FindPlugins(uint32_t pluginEpoch) returns (nsresult aResult, PluginTag[] plugins, uint32_t newPluginEpoch);
 
     async PJavaScript();
 
-    PRemoteSpellcheckEngine();
-    PDeviceStorageRequest(DeviceStorageParams params);
+    async PRemoteSpellcheckEngine();
+    async PDeviceStorageRequest(DeviceStorageParams params);
 
-    PFileSystemRequest(FileSystemParams params);
+    async PFileSystemRequest(FileSystemParams params);
+
+    sync PCrashReporter(NativeThreadId tid, uint32_t processType);
 
     prio(urgent) sync GetRandomValues(uint32_t length)
         returns (uint8_t[] randomValues);
@@ -742,45 +823,49 @@ parent:
     sync IsSecureURI(uint32_t type, URIParams uri, uint32_t flags)
         returns (bool isSecureURI);
 
+    async AccumulateMixedContentHSTS(URIParams uri, bool active);
+
     sync GetLookAndFeelCache()
         returns (LookAndFeelInt[] lookAndFeelIntCache);
 
     prio(urgent) async PHal();
 
-    PIcc(uint32_t serviceId);
+    async PHeapSnapshotTempFileHelper();
 
-    PMobileConnection(uint32_t clientId);
+    async PIcc(uint32_t serviceId);
 
-    PNecko();
+    async PMobileConnection(uint32_t clientId);
 
-    PPrinting();
+    async PNecko();
+
+    async PPrinting();
 
     prio(high) sync PScreenManager()
         returns (uint32_t numberOfScreens,
                  float systemDefaultScale,
                  bool success);
 
-    PCellBroadcast();
+    async PCellBroadcast();
 
-    PSms();
+    async PSms();
 
-    PSpeechSynthesis();
+    async PSpeechSynthesis();
 
     prio(urgent) async PStorage();
 
-    PTelephony();
+    async PTelephony();
 
-    PVoicemail();
+    async PVoicemail();
 
-    PBluetooth();
+    async PMedia();
 
-    PFMRadio();
+    async PBluetooth();
 
-    PAsmJSCacheEntry(OpenMode openMode, WriteParams write, Principal principal);
+    async PFMRadio();
 
-    PWebrtcGlobal();
-    
-    PPresentation();
+    async PWebrtcGlobal();
+
+    async PPresentation();
 
     // Services remoting
 
@@ -788,63 +873,62 @@ parent:
     async VisitURI(URIParams uri, OptionalURIParams referrer, uint32_t flags);
     async SetURITitle(URIParams uri, nsString title);
 
-    async LoadURIExternal(URIParams uri);
+    async LoadURIExternal(URIParams uri, PBrowser windowContext);
 
     // PrefService message
     sync ReadPrefsArray() returns (PrefSetting[] prefs);
 
     sync ReadFontList() returns (FontListEntry[] retValue);
 
+    sync ReadDataStorageArray(nsString aFilename)
+      returns (DataStorageItem[] retValue);
+
     sync SyncMessage(nsString aMessage, ClonedMessageData aData,
                      CpowEntry[] aCpows, Principal aPrincipal)
-      returns (OwningSerializedStructuredCloneBuffer[] retval);
+      returns (StructuredCloneData[] retval);
 
     prio(high) sync RpcMessage(nsString aMessage, ClonedMessageData aData,
                                CpowEntry[] aCpows, Principal aPrincipal)
-      returns (OwningSerializedStructuredCloneBuffer[] retval);
+      returns (StructuredCloneData[] retval);
 
-    ShowAlertNotification(nsString imageUrl,
-                          nsString title,
-                          nsString text,
-                          bool textClickable,
-                          nsString cookie,
-                          nsString name,
-                          nsString bidi,
-                          nsString lang,
-                          nsString data,
-                          Principal principal,
-                          bool inPrivateBrowsing);
+    async ShowAlert(AlertNotificationType alert);
 
-    CloseAlert(nsString name, Principal principal);
+    async CloseAlert(nsString name, Principal principal);
 
-    PPSMContentDownloader(uint32_t aCertType);
+    async DisableNotifications(Principal principal);
 
-    PExternalHelperApp(OptionalURIParams uri,
-                       nsCString aMimeContentType,
-                       nsCString aContentDisposition,
-                       uint32_t aContentDispositionHint,
-                       nsString aContentDispositionFilename,
-                       bool aForceSave,
-                       int64_t aContentLength,
-                       OptionalURIParams aReferrer,
-                       nullable PBrowser aBrowser);
+    async OpenNotificationSettings(Principal principal);
 
-    AddGeolocationListener(Principal principal, bool highAccuracy);
-    RemoveGeolocationListener();
-    SetGeolocationHigherAccuracy(bool enable);
+    async PPSMContentDownloader(uint32_t aCertType);
 
-    ConsoleMessage(nsString message);
-    ScriptError(nsString message, nsString sourceName, nsString sourceLine,
-                uint32_t lineNumber, uint32_t colNumber, uint32_t flags,
-                nsCString category);
+    async PExternalHelperApp(OptionalURIParams uri,
+                             nsCString aMimeContentType,
+                             nsCString aContentDisposition,
+                             uint32_t aContentDispositionHint,
+                             nsString aContentDispositionFilename,
+                             bool aForceSave,
+                             int64_t aContentLength,
+                             OptionalURIParams aReferrer,
+                             nullable PBrowser aBrowser);
+
+    async PHandlerService();
+
+    async AddGeolocationListener(Principal principal, bool highAccuracy);
+    async RemoveGeolocationListener();
+    async SetGeolocationHigherAccuracy(bool enable);
+
+    async ConsoleMessage(nsString message);
+    async ScriptError(nsString message, nsString sourceName, nsString sourceLine,
+                      uint32_t lineNumber, uint32_t colNumber, uint32_t flags,
+                      nsCString category);
 
     // nsIPermissionManager messages
     sync ReadPermissions() returns (Permission[] permissions);
 
     // Places the items within dataTransfer on the clipboard.
-    SetClipboard(IPCDataTransfer aDataTransfer,
-                 bool aIsPrivateData,
-                 int32_t aWhichClipboard);
+    async SetClipboard(IPCDataTransfer aDataTransfer,
+                       bool aIsPrivateData,
+                       int32_t aWhichClipboard);
 
     // Given a list of supported types, returns the clipboard data for the
     // first type that matches.
@@ -852,7 +936,7 @@ parent:
         returns (IPCDataTransfer dataTransfer);
 
     // Clears the clipboard.
-    EmptyClipboard(int32_t aWhichClipboard);
+    async EmptyClipboard(int32_t aWhichClipboard);
 
     // Returns true if data of one of the specified types is on the clipboard.
     sync ClipboardHasType(nsCString[] aTypes, int32_t aWhichClipboard)
@@ -868,7 +952,7 @@ parent:
         returns (bool showPassword);
 
     // Notify the parent of the presence or absence of private docshells
-    PrivateDocShellsExist(bool aExist);
+    async PrivateDocShellsExist(bool aExist);
 
     // Tell the parent that the child has gone idle for the first time
     async FirstIdle();
@@ -930,8 +1014,8 @@ parent:
     sync BeginDriverCrashGuard(uint32_t aGuardType) returns (bool crashDetected);
     sync EndDriverCrashGuard(uint32_t aGuardType);
 
-    AddIdleObserver(uint64_t observerId, uint32_t idleTimeInS);
-    RemoveIdleObserver(uint64_t observerId, uint32_t idleTimeInS);
+    async AddIdleObserver(uint64_t observerId, uint32_t idleTimeInS);
+    async RemoveIdleObserver(uint64_t observerId, uint32_t idleTimeInS);
 
     /**
      * This message is only used on X11 platforms.
@@ -944,7 +1028,7 @@ parent:
      * crashes *just before* a repaint and the parent process tries to
      * use the newly-invalid surface.
      */
-    BackUpXResources(FileDescriptor aXSocketFd);
+    async BackUpXResources(FileDescriptor aXSocketFd);
 
     sync OpenAnonymousTemporaryFile() returns (FileDescOrError aFD);
 
@@ -974,7 +1058,7 @@ parent:
                bool result);
 
     // Use only for testing!
-    FlushPendingFileDeletions();
+    async FlushPendingFileDeletions();
 
     /**
      * Tell the chrome process there is an creation of PBrowser.
@@ -982,14 +1066,23 @@ parent:
      */
     sync AllocateTabId(TabId openerTabId, IPCTabContext context, ContentParentId cpId)
         returns (TabId tabId);
-    async DeallocateTabId(TabId tabId);
+    async DeallocateTabId(TabId tabId,
+                          ContentParentId cpId,
+                          bool aMarkedDestroying);
 
+    /**
+     * Tell the chrome process there is a destruction of PBrowser(Tab)
+     */
+    async NotifyTabDestroying(TabId tabId,
+                              ContentParentId cpId);
     /**
      * Starts an offline application cache update.
      * @param manifestURI
      *   URI of the manifest to fetch, the application cache group ID
      * @param documentURI
      *   URI of the document that referred the manifest
+     * @param loadingPrincipal
+     *   Principal of the document that referred the manifest
      * @param stickDocument
      *   True if the update was initiated by a document load that referred
      *   a manifest.
@@ -1008,15 +1101,15 @@ parent:
      * @param tabId
      *   To identify which tab owns the app.
      */
-    POfflineCacheUpdate(URIParams manifestURI, URIParams documentURI,
-                        bool stickDocument, TabId tabId);
+    async POfflineCacheUpdate(URIParams manifestURI, URIParams documentURI,
+                              PrincipalInfo loadingPrincipal, bool stickDocument);
 
     /**
      * Sets "offline-app" permission for the principal.  Called when we hit
      * a web app with the manifest attribute in <html> and
      * offline-apps.allow_by_default is set to true.
      */
-    SetOfflinePermission(Principal principal);
+    async SetOfflinePermission(Principal principal);
 
     /**
      * Notifies the parent to continue shutting down after the child performs
@@ -1024,7 +1117,7 @@ parent:
      */
     async FinishShutdown();
 
-    UpdateDropEffect(uint32_t aDragAction, uint32_t aDropEffect);
+    async UpdateDropEffect(uint32_t aDragAction, uint32_t aDropEffect);
 
     /**
      * Initiates an asynchronous request for permission for the
@@ -1041,8 +1134,8 @@ parent:
      *       principals that can live in the content process should
      *       provided.
      */
-    PContentPermissionRequest(PermissionRequest[] aRequests, Principal aPrincipal,
-                              TabId tabId);
+    async PContentPermissionRequest(PermissionRequest[] aRequests, Principal aPrincipal,
+                                    TabId tabId);
 
     /**
      * Send ServiceWorkerRegistrationData to child process.
@@ -1053,12 +1146,12 @@ parent:
     /*
      * Tells the parent to start the gamepad listening service if it hasn't already.
      */
-    GamepadListenerAdded();
+    async GamepadListenerAdded();
 
     /**
      * Tells the parent to stop the gamepad listening service if it hasn't already.
      */
-    GamepadListenerRemoved();
+    async GamepadListenerRemoved();
 
     async Profile(nsCString aProfile);
 
@@ -1068,9 +1161,40 @@ parent:
     sync GetGraphicsDeviceInitData()
         returns (DeviceInitData aData);
 
+    sync CreateWindow(nullable PBrowser aThisTab,
+                      PBrowser aNewTab,
+                      uint32_t aChromeFlags,
+                      bool aCalledFromJS,
+                      bool aPositionSpecified,
+                      bool aSizeSpecified,
+                      nsCString aURI,
+                      nsString aName,
+                      nsCString aFeatures,
+                      nsCString aBaseURI)
+      returns (nsresult rv,
+               bool windowOpened,
+               FrameScriptInfo[] frameScripts,
+               nsCString urlToLoad);
+
+    sync GetDeviceStorageLocation(nsString type)
+        returns (nsString path);
+
+    sync GetDeviceStorageLocations()
+	returns (DeviceStorageLocationInfo info);
+
+    sync GetAndroidSystemInfo()
+        returns (AndroidSystemInfo info);
+
+    /**
+     * Tells the parent to ungrab the pointer on the default display.
+     *
+     * This is for GTK platforms where we have to ensure the pointer ungrab happens in the
+     * chrome process as that's the process that receives the pointer event.
+     */
+    sync UngrabPointer(uint32_t time);
 both:
-     AsyncMessage(nsString aMessage, ClonedMessageData aData,
-                  CpowEntry[] aCpows, Principal aPrincipal);
+     async AsyncMessage(nsString aMessage, ClonedMessageData aData,
+                        CpowEntry[] aCpows, Principal aPrincipal);
 };
 
 }

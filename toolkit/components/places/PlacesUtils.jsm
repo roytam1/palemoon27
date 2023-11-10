@@ -591,16 +591,16 @@ this.PlacesUtils = {
       case this.TYPE_X_MOZ_PLACE_CONTAINER:
         nodes = JSON.parse("[" + blob + "]");
         break;
-      case this.TYPE_X_MOZ_URL:
-        var parts = blob.split("\n");
+      case this.TYPE_X_MOZ_URL: {
+        let parts = blob.split("\n");
         // data in this type has 2 parts per entry, so if there are fewer
         // than 2 parts left, the blob is malformed and we should stop
         // but drag and drop of files from the shell has parts.length = 1
         if (parts.length != 1 && parts.length % 2)
           break;
-        for (var i = 0; i < parts.length; i=i+2) {
-          var uriString = parts[i];
-          var titleString = "";
+        for (let i = 0; i < parts.length; i=i+2) {
+          let uriString = parts[i];
+          let titleString = "";
           if (parts.length > i+1)
             titleString = parts[i+1];
           else {
@@ -619,10 +619,11 @@ this.PlacesUtils = {
           }
         }
         break;
-      case this.TYPE_UNICODE:
-        var parts = blob.split("\n");
-        for (var i = 0; i < parts.length; i++) {
-          var uriString = parts[i];
+      }
+      case this.TYPE_UNICODE: {
+        let parts = blob.split("\n");
+        for (let i = 0; i < parts.length; i++) {
+          let uriString = parts[i];
           // text/uri-list is converted to TYPE_UNICODE but it could contain
           // comments line prepended by #, we should skip them
           if (uriString.substr(0, 1) == '\x23')
@@ -634,6 +635,7 @@ this.PlacesUtils = {
                          type: this.TYPE_X_MOZ_URL });
         }
         break;
+      }
       default:
         throw Cr.NS_ERROR_INVALID_ARG;
     }
@@ -1512,7 +1514,9 @@ this.PlacesUtils = {
    * @resolves to the GUID.
    * @rejects if aItemId is invalid.
    */
-  promiseItemGuid: function (aItemId) GuidHelper.getItemGuid(aItemId),
+  promiseItemGuid(aItemId) {
+    return GuidHelper.getItemGuid(aItemId)
+  },
 
   /**
    * Get the item id for an item (a bookmark, a folder or a separator) given
@@ -1520,11 +1524,23 @@ this.PlacesUtils = {
    *
    * @param aGuid
    *        an item GUID
-   * @retrun {Promise}
+   * @return {Promise}
    * @resolves to the GUID.
    * @rejects if there's no item for the given GUID.
    */
-  promiseItemId: function (aGuid) GuidHelper.getItemId(aGuid),
+  promiseItemId(aGuid) {
+    return GuidHelper.getItemId(aGuid)
+  },
+
+  /**
+   * Invalidate the GUID cache for the given itemId.
+   *
+   * @param aItemId
+   *        an item id
+   */
+  invalidateCachedGuidFor(aItemId) {
+    GuidHelper.invalidateCacheForItemId(aItemId)
+  },
 
   /**
    * Asynchronously retrieve a JS-object representation of a places bookmarks
@@ -1612,7 +1628,7 @@ this.PlacesUtils = {
         item.id = itemId;
 
       // Cache it for promiseItemId consumers regardless.
-      GuidHelper.idsForGuids.set(item.guid, itemId);
+      GuidHelper.updateCache(itemId, item.guid);
 
       let type = aRow.getResultByName("type");
       if (type == Ci.nsINavBookmarksService.TYPE_BOOKMARK)
@@ -1897,7 +1913,7 @@ XPCOMUtils.defineLazyGetter(this, "gAsyncDBConnPromised", () => {
 // working with GUIDs.  So, until it does, this helper object accesses the
 // Places database directly in order to switch between GUIDs and itemIds, and
 // "restore" GUIDs on items re-created items.
-let GuidHelper = {
+var GuidHelper = {
   // Cache for GUID<->itemId paris.
   guidsForIds: new Map(),
   idsForGuids: new Map(),
@@ -1916,7 +1932,7 @@ let GuidHelper = {
 
     this.ensureObservingRemovedItems();
     let itemId = rows[0].getResultByName("id");
-    this.idsForGuids.set(aGuid, itemId);
+    this.updateCache(itemId, aGuid);
     return itemId;
   }),
 
@@ -1934,9 +1950,30 @@ let GuidHelper = {
 
     this.ensureObservingRemovedItems();
     let guid = rows[0].getResultByName("guid");
-    this.guidsForIds.set(aItemId, guid);
+    this.updateCache(aItemId, guid);
     return guid;
   }),
+
+  /**
+   * Updates the cache.
+   *
+   * @note This is the only place where the cache should be populated,
+   *       invalidation relies on both Maps being populated at the same time.
+   */
+  updateCache(aItemId, aGuid) {
+    if (typeof(aItemId) != "number" || aItemId <= 0)
+      throw new Error("Trying to update the GUIDs cache with an invalid itemId");
+    if (typeof(aGuid) != "string" || !/^[a-zA-Z0-9\-_]{12}$/.test(aGuid))
+      throw new Error("Trying to update the GUIDs cache with an invalid GUID");
+    this.guidsForIds.set(aItemId, aGuid);
+    this.idsForGuids.set(aGuid, aItemId);
+  },
+
+  invalidateCacheForItemId(aItemId) {
+    let guid = this.guidsForIds.get(aItemId);
+    this.guidsForIds.delete(aItemId);
+    this.idsForGuids.delete(guid);
+  },
 
   ensureObservingRemovedItems: function () {
     if (!("observer" in this)) {
@@ -1950,14 +1987,14 @@ let GuidHelper = {
       this.observer = {
         onItemAdded: (aItemId, aParentId, aIndex, aItemType, aURI, aTitle,
                       aDateAdded, aGuid, aParentGuid) => {
-          this.guidsForIds.set(aItemId, aGuid);
-          this.guidsForIds.set(aParentId, aParentGuid);
+          this.updateCache(aItemId, aGuid);
+          this.updateCache(aParentId, aParentGuid);
         },
         onItemRemoved:
         (aItemId, aParentId, aIndex, aItemTyep, aURI, aGuid, aParentGuid) => {
           this.guidsForIds.delete(aItemId);
           this.idsForGuids.delete(aGuid);
-          this.guidsForIds.set(aParentId, aParentGuid);
+          this.updateCache(aParentId, aParentGuid);
         },
 
         QueryInterface: XPCOMUtils.generateQI(Ci.nsINavBookmarkObserver),
@@ -2035,7 +2072,7 @@ TransactionItemCache.prototype = {
   get annotations()
     this._annotations || null,
   set tags(v)
-    this._tags = (v && Array.isArray(v) ? Array.slice(v) : null),
+    this._tags = (v && Array.isArray(v) ? Array.prototype.slice.call(v) : null),
   get tags()
     this._tags || null,
 };
@@ -2053,7 +2090,7 @@ function BaseTransaction()
 BaseTransaction.prototype = {
   name: null,
   set childTransactions(v)
-    this._childTransactions = (Array.isArray(v) ? Array.slice(v) : null),
+    this._childTransactions = (Array.isArray(v) ? Array.prototype.slice.call(v) : null),
   get childTransactions()
     this._childTransactions || null,
   doTransaction: function BTXN_doTransaction() {},

@@ -8,7 +8,7 @@ EXPORTS += [
     'jemalloc_types.h',
 ]
 
-if not CONFIG['MOZ_JEMALLOC3']:
+if not CONFIG['MOZ_JEMALLOC4']:
     SOURCES += [
         'jemalloc.c',
     ]
@@ -41,6 +41,12 @@ if CONFIG['MOZ_NUWA_PROCESS']:
 LOCAL_INCLUDES += [
     '/memory/build',
 ]
+
+if CONFIG['GNU_CC']:
+    CFLAGS += [
+        '-Wshadow',
+        '-Wno-unused',  # too many annoying fatal warnings from mfbt/ headers
+    ]
 
 if CONFIG['_MSC_VER']:
     CFLAGS += ['-wd4273'] # inconsistent dll linkage (bug 558163)

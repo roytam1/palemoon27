@@ -188,7 +188,7 @@ private:
   ~nsXBLStreamListener();
 
   nsCOMPtr<nsIStreamListener> mInner;
-  nsAutoTArray<nsXBLBindingRequest*, 8> mBindingRequests;
+  AutoTArray<nsXBLBindingRequest*, 8> mBindingRequests;
 
   nsCOMPtr<nsIWeakReference> mBoundDocument;
   nsCOMPtr<nsIXMLContentSink> mSink; // Only set until OnStartRequest
@@ -336,7 +336,7 @@ nsXBLStreamListener::HandleEvent(nsIDOMEvent* aEvent)
 
     // Put our doc info in the doc table.
     nsBindingManager *xblDocBindingManager = bindingDocument->BindingManager();
-    nsRefPtr<nsXBLDocumentInfo> info =
+    RefPtr<nsXBLDocumentInfo> info =
       xblDocBindingManager->GetXBLDocumentInfo(documentURI);
     xblDocBindingManager->RemoveXBLDocumentInfo(info); // Break the self-imposed cycle.
     if (!info) {
@@ -377,9 +377,6 @@ nsXBLStreamListener::HandleEvent(nsIDOMEvent* aEvent)
 
 // Implementation /////////////////////////////////////////////////////////////////
 
-// Static member variable initialization
-bool nsXBLService::gAllowDataURIs = false;
-
 // Implement our nsISupports methods
 NS_IMPL_ISUPPORTS(nsXBLService, nsISupportsWeakReference)
 
@@ -393,7 +390,6 @@ nsXBLService::Init()
 // Constructors/Destructors
 nsXBLService::nsXBLService(void)
 {
-  Preferences::AddBoolVarCache(&gAllowDataURIs, "layout.debug.enable_data_xbl");
 }
 
 nsXBLService::~nsXBLService(void)
@@ -453,7 +449,7 @@ nsXBLService::LoadBindings(nsIContent* aContent, nsIURI* aURL,
   }
 
   bool ready;
-  nsRefPtr<nsXBLBinding> newBinding;
+  RefPtr<nsXBLBinding> newBinding;
   if (NS_FAILED(rv = GetBinding(aContent, aURL, false, aOriginPrincipal,
                                 &ready, getter_AddRefs(newBinding)))) {
     return rv;
@@ -557,7 +553,7 @@ nsXBLService::AttachGlobalKeyHandler(EventTarget* aTarget)
   nsCOMPtr<nsIDOMElement> elt(do_QueryInterface(contentNode));
 
   // Create the key handler
-  nsRefPtr<nsXBLWindowKeyHandler> handler =
+  RefPtr<nsXBLWindowKeyHandler> handler =
     NS_NewXBLWindowKeyHandler(elt, piTarget);
 
   // listen to these events
@@ -651,7 +647,7 @@ nsXBLService::GetBinding(nsIContent* aBoundElement, nsIURI* aURI,
                          bool* aIsReady, nsXBLBinding** aResult)
 {
   // More than 6 binding URIs are rare, see bug 55070 comment 18.
-  nsAutoTArray<nsCOMPtr<nsIURI>, 6> uris;
+  AutoTArray<nsCOMPtr<nsIURI>, 6> uris;
   return GetBinding(aBoundElement, aURI, aPeekOnly, aOriginPrincipal, aIsReady,
                     aResult, uris);
 }
@@ -725,7 +721,7 @@ nsXBLService::GetBinding(nsIContent* aBoundElement, nsIURI* aURI,
 
   nsCOMPtr<nsIDocument> boundDocument = aBoundElement->OwnerDoc();
 
-  nsRefPtr<nsXBLDocumentInfo> docInfo;
+  RefPtr<nsXBLDocumentInfo> docInfo;
   nsresult rv = LoadBindingDocumentInfo(aBoundElement, boundDocument, aURI,
                                         aOriginPrincipal,
                                         false, getter_AddRefs(docInfo));
@@ -817,7 +813,7 @@ nsXBLService::GetBinding(nsIContent* aBoundElement, nsIURI* aURI,
     }
   }
 
-  nsRefPtr<nsXBLBinding> baseBinding;
+  RefPtr<nsXBLBinding> baseBinding;
   if (baseBindingURI) {
     nsCOMPtr<nsIContent> child = protoBinding->GetBindingElement();
     rv = GetBinding(aBoundElement, baseBindingURI, aPeekOnly,
@@ -847,15 +843,6 @@ nsXBLService::GetBinding(nsIContent* aBoundElement, nsIURI* aURI,
   return NS_OK;
 }
 
-static bool SchemeIs(nsIURI* aURI, const char* aScheme)
-{
-  nsCOMPtr<nsIURI> baseURI = NS_GetInnermostURI(aURI);
-  NS_ENSURE_TRUE(baseURI, false);
-
-  bool isScheme = false;
-  return NS_SUCCEEDED(baseURI->SchemeIs(aScheme, &isScheme)) && isScheme;
-}
-
 nsresult
 nsXBLService::LoadBindingDocumentInfo(nsIContent* aBoundElement,
                                       nsIDocument* aBoundDocument,
@@ -874,7 +861,7 @@ nsXBLService::LoadBindingDocumentInfo(nsIContent* aBoundElement,
                    NS_ERROR_XBL_BLOCKED);
   }
 
-  nsRefPtr<nsXBLDocumentInfo> info;
+  RefPtr<nsXBLDocumentInfo> info;
 
   nsCOMPtr<nsIURI> documentURI;
   nsresult rv = aBindingURI->CloneIgnoringRef(getter_AddRefs(documentURI));
@@ -1039,10 +1026,6 @@ nsXBLService::FetchBindingDocument(nsIContent* aBoundElement, nsIDocument* aBoun
   if (aOriginPrincipal) {
     // if there is an originPrincipal we should also have aBoundDocument
     MOZ_ASSERT(aBoundDocument, "can not create a channel without aBoundDocument");
-
-    if (!gAllowDataURIs && SchemeIs(aDocumentURI, "data")) {
-      return NS_ERROR_XBL_BLOCKED;
-    }
 
     rv = NS_NewChannelWithTriggeringPrincipal(getter_AddRefs(channel),
                                               aDocumentURI,

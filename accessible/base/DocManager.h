@@ -87,6 +87,24 @@ public:
    */
   static void RemoteDocAdded(DocAccessibleParent* aDoc);
 
+  static const nsTArray<DocAccessibleParent*>* TopLevelRemoteDocs()
+    { return sRemoteDocuments; }
+
+  /**
+   * Remove the xpc document for a remote document if there is one.
+   */
+  static void NotifyOfRemoteDocShutdown(DocAccessibleParent* adoc);
+
+  /**
+   * Get a XPC document for a remote document.
+   */
+  static xpcAccessibleDocument* GetXPCDocument(DocAccessibleParent* aDoc);
+  static xpcAccessibleDocument* GetCachedXPCDocument(const DocAccessibleParent* aDoc)
+  {
+    return sRemoteXPCDocumentCache ? sRemoteXPCDocumentCache->GetWeak(aDoc)
+      : nullptr;
+  }
+
 #ifdef DEBUG
   bool IsProcessingRefreshDriverNotification() const;
 #endif
@@ -133,34 +151,9 @@ private:
   DocAccessible* CreateDocOrRootAccessible(nsIDocument* aDocument);
 
   /**
-   * Get first entry of the document accessible from cache.
-   */
-  static PLDHashOperator
-    GetFirstEntryInDocCache(const nsIDocument* aKey,
-                            DocAccessible* aDocAccessible,
-                            void* aUserArg);
-
-  /**
    * Clear the cache and shutdown the document accessibles.
    */
   void ClearDocCache();
-
-  struct nsSearchAccessibleInCacheArg
-  {
-    Accessible* mAccessible;
-    nsINode* mNode;
-  };
-
-  static PLDHashOperator
-    SearchAccessibleInDocCache(const nsIDocument* aKey,
-                               DocAccessible* aDocAccessible,
-                               void* aUserArg);
-
-#ifdef DEBUG
-  static PLDHashOperator
-    SearchIfDocIsRefreshing(const nsIDocument* aKey,
-                            DocAccessible* aDocAccessible, void* aUserArg);
-#endif
 
   typedef nsRefPtrHashtable<nsPtrHashKey<const nsIDocument>, DocAccessible>
     DocAccessibleHashtable;
@@ -169,6 +162,8 @@ private:
   typedef nsRefPtrHashtable<nsPtrHashKey<const DocAccessible>, xpcAccessibleDocument>
     XPCDocumentHashtable;
   XPCDocumentHashtable mXPCDocumentCache;
+  static nsRefPtrHashtable<nsPtrHashKey<const DocAccessibleParent>, xpcAccessibleDocument>*
+    sRemoteXPCDocumentCache;
 
   /*
    * The list of remote top level documents.

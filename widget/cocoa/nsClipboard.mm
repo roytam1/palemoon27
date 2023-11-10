@@ -5,6 +5,8 @@
 
 #include "mozilla/Logging.h"
 
+#include "mozilla/unused.h"
+
 #include "gfxPlatform.h"
 #include "nsCOMPtr.h"
 #include "nsClipboard.h"
@@ -25,7 +27,6 @@
 using mozilla::gfx::DataSourceSurface;
 using mozilla::gfx::SourceSurface;
 using mozilla::LogLevel;
-using mozilla::RefPtr;
 
 // Screenshots use the (undocumented) png pasteboard type.
 #define IMAGE_PASTEBOARD_TYPES NSTIFFPboardType, @"Apple PNG pasteboard type", nil
@@ -47,17 +48,18 @@ nsClipboard::~nsClipboard()
 }
 
 // We separate this into its own function because after an @try, all local
-// variables within that function get marked as volatile, and our C++ type 
+// variables within that function get marked as volatile, and our C++ type
 // system doesn't like volatile things.
-static NSData* 
+static NSData*
 GetDataFromPasteboard(NSPasteboard* aPasteboard, NSString* aType)
 {
   NSData *data = nil;
   @try {
     data = [aPasteboard dataForType:aType];
   } @catch (NSException* e) {
-    NS_WARNING(nsPrintfCString("Exception raised while getting data from the pasteboard: \"%s - %s\"", 
+    NS_WARNING(nsPrintfCString("Exception raised while getting data from the pasteboard: \"%s - %s\"",
                                [[e name] UTF8String], [[e reason] UTF8String]).get());
+    mozilla::Unused << e;
   }
   return data;
 }
@@ -151,7 +153,12 @@ nsClipboard::TransferableFromPasteboard(nsITransferable *aTransferable, NSPasteb
       if (!pString)
         continue;
 
-      NSData* stringData = [pString dataUsingEncoding:NSUnicodeStringEncoding];
+      NSData* stringData;
+      if ([pboardType isEqualToString:NSRTFPboardType]) {
+        stringData = [pString dataUsingEncoding:NSASCIIStringEncoding];
+      } else {
+        stringData = [pString dataUsingEncoding:NSUnicodeStringEncoding];
+      }
       unsigned int dataLength = [stringData length];
       void* clipboardDataPtr = malloc(dataLength);
       if (!clipboardDataPtr)
@@ -466,11 +473,11 @@ nsClipboard::PasteboardDictFromTransferable(nsITransferable* aTransferable)
         continue;
       }
       CGImageRef imageRef = NULL;
-      nsresult rv = nsCocoaUtils::CreateCGImageFromSurface(surface, &imageRef);
+      rv = nsCocoaUtils::CreateCGImageFromSurface(surface, &imageRef);
       if (NS_FAILED(rv) || !imageRef) {
         continue;
       }
-      
+
       // Convert the CGImageRef to TIFF data.
       CFMutableDataRef tiffData = CFDataCreateMutable(kCFAllocatorDefault, 0);
       CGImageDestinationRef destRef = CGImageDestinationCreateWithData(tiffData,
@@ -579,12 +586,14 @@ nsClipboard::PasteboardDictFromTransferable(nsITransferable* aTransferable)
 
 bool nsClipboard::IsStringType(const nsCString& aMIMEType, NSString** aPasteboardType)
 {
-  if (aMIMEType.EqualsLiteral(kUnicodeMime) ||
-      aMIMEType.EqualsLiteral(kHTMLMime)) {
-    if (aMIMEType.EqualsLiteral(kUnicodeMime))
-      *aPasteboardType = NSStringPboardType;
-    else
-      *aPasteboardType = NSHTMLPboardType;
+  if (aMIMEType.EqualsLiteral(kUnicodeMime)) {
+    *aPasteboardType = NSStringPboardType;
+    return true;
+  } else if (aMIMEType.EqualsLiteral(kRTFMime)) {
+    *aPasteboardType = NSRTFPboardType;
+    return true;
+  } else if (aMIMEType.EqualsLiteral(kHTMLMime)) {
+    *aPasteboardType = NSHTMLPboardType;
     return true;
   } else {
     return false;

@@ -12,6 +12,8 @@
 
 using namespace js;
 
+using JS::IsArrayAnswer;
+
 bool
 BaseProxyHandler::enter(JSContext* cx, HandleObject wrapper, HandleId id, Action act,
                         bool* bp) const
@@ -24,12 +26,56 @@ bool
 BaseProxyHandler::has(JSContext* cx, HandleObject proxy, HandleId id, bool* bp) const
 {
     assertEnteredPolicy(cx, proxy, id, GET);
-    Rooted<PropertyDescriptor> desc(cx);
-    if (!getPropertyDescriptor(cx, proxy, id, &desc))
+
+    // This method is not covered by any spec, but we follow ES 2016
+    // (February 11, 2016) 9.1.7.1 fairly closely.
+
+    // Step 2. (Step 1 is a superfluous assertion.)
+    // Non-standard: Use our faster hasOwn trap.
+    if (!hasOwn(cx, proxy, id, bp))
         return false;
-    *bp = !!desc.object();
+
+    // Step 3.
+    if (*bp)
+        return true;
+
+    // The spec calls this variable "parent", but that word has weird
+    // connotations in SpiderMonkey, so let's go with "proto".
+    // Step 4.
+    RootedObject proto(cx);
+    if (!GetPrototype(cx, proxy, &proto))
+        return false;
+
+    // Step 5.,5.a.
+    if (proto)
+        return HasProperty(cx, proto, id, bp);
+
+    // Step 6.
+    *bp = false;
     return true;
 }
+
+bool
+BaseProxyHandler::getPropertyDescriptor(JSContext* cx, HandleObject proxy, HandleId id,
+                                        MutableHandle<PropertyDescriptor> desc) const
+{
+    assertEnteredPolicy(cx, proxy, id, GET | SET | GET_PROPERTY_DESCRIPTOR);
+
+    if (!getOwnPropertyDescriptor(cx, proxy, id, desc))
+        return false;
+    if (desc.object())
+        return true;
+
+    RootedObject proto(cx);
+    if (!GetPrototype(cx, proxy, &proto))
+        return false;
+    if (!proto) {
+        MOZ_ASSERT(!desc.object());
+        return true;
+    }
+    return GetPropertyDescriptor(cx, proto, id, desc);
+}
+
 
 bool
 BaseProxyHandler::hasOwn(JSContext* cx, HandleObject proxy, HandleId id, bool* bp) const
@@ -43,7 +89,7 @@ BaseProxyHandler::hasOwn(JSContext* cx, HandleObject proxy, HandleId id, bool* b
 }
 
 bool
-BaseProxyHandler::get(JSContext* cx, HandleObject proxy, HandleObject receiver,
+BaseProxyHandler::get(JSContext* cx, HandleObject proxy, HandleValue receiver,
                       HandleId id, MutableHandleValue vp) const
 {
     assertEnteredPolicy(cx, proxy, id, GET);
@@ -74,8 +120,8 @@ BaseProxyHandler::get(JSContext* cx, HandleObject proxy, HandleObject receiver,
 }
 
 bool
-BaseProxyHandler::set(JSContext *cx, HandleObject proxy, HandleId id, HandleValue v,
-                      HandleValue receiver, ObjectOpResult &result) const
+BaseProxyHandler::set(JSContext* cx, HandleObject proxy, HandleId id, HandleValue v,
+                      HandleValue receiver, ObjectOpResult& result) const
 {
     assertEnteredPolicy(cx, proxy, id, SET);
 
@@ -95,9 +141,9 @@ BaseProxyHandler::set(JSContext *cx, HandleObject proxy, HandleId id, HandleValu
 }
 
 bool
-js::SetPropertyIgnoringNamedGetter(JSContext *cx, HandleObject obj, HandleId id, HandleValue v,
+js::SetPropertyIgnoringNamedGetter(JSContext* cx, HandleObject obj, HandleId id, HandleValue v,
                                    HandleValue receiver, Handle<PropertyDescriptor> ownDesc_,
-                                   ObjectOpResult &result)
+                                   ObjectOpResult& result)
 {
     Rooted<PropertyDescriptor> ownDesc(cx, ownDesc_);
 
@@ -157,7 +203,7 @@ js::SetPropertyIgnoringNamedGetter(JSContext *cx, HandleObject obj, HandleId id,
 
         // A very old nonstandard SpiderMonkey extension: default to the Class
         // getter and setter ops.
-        const Class *clasp = receiverObj->getClass();
+        const Class* clasp = receiverObj->getClass();
         MOZ_ASSERT(clasp->getProperty != JS_PropertyStub);
         MOZ_ASSERT(clasp->setProperty != JS_StrictPropertyStub);
         return DefineProperty(cx, receiverObj, id, v, clasp->getProperty, clasp->setProperty,
@@ -269,13 +315,6 @@ BaseProxyHandler::boxedValue_unbox(JSContext* cx, HandleObject proxy, MutableHan
 }
 
 bool
-BaseProxyHandler::defaultValue(JSContext* cx, HandleObject proxy, JSType hint,
-                               MutableHandleValue vp) const
-{
-    return OrdinaryToPrimitive(cx, proxy, hint, vp);
-}
-
-bool
 BaseProxyHandler::nativeCall(JSContext* cx, IsAcceptableThis test, NativeImpl impl,
                              const CallArgs& args) const
 {
@@ -295,9 +334,18 @@ BaseProxyHandler::hasInstance(JSContext* cx, HandleObject proxy, MutableHandleVa
 }
 
 bool
-BaseProxyHandler::objectClassIs(HandleObject proxy, ESClassValue classValue, JSContext* cx) const
+BaseProxyHandler::getBuiltinClass(JSContext* cx, HandleObject proxy,
+                                  ESClassValue* classValue) const
 {
-    return false;
+    *classValue = ESClass_Other;
+    return true;
+}
+
+bool
+BaseProxyHandler::isArray(JSContext* cx, HandleObject proxy, IsArrayAnswer* answer) const
+{
+    *answer = IsArrayAnswer::NotArray;
+    return true;
 }
 
 void
@@ -322,14 +370,14 @@ BaseProxyHandler::weakmapKeyDelegate(JSObject* proxy) const
 }
 
 bool
-BaseProxyHandler::getPrototype(JSContext *cx, HandleObject proxy, MutableHandleObject protop) const
+BaseProxyHandler::getPrototype(JSContext* cx, HandleObject proxy, MutableHandleObject protop) const
 {
     MOZ_CRASH("Must override getPrototype with lazy prototype.");
 }
 
 bool
-BaseProxyHandler::setPrototype(JSContext *cx, HandleObject proxy, HandleObject proto,
-                               ObjectOpResult &result) const
+BaseProxyHandler::setPrototype(JSContext* cx, HandleObject proxy, HandleObject proto,
+                               ObjectOpResult& result) const
 {
     // Disallow sets of protos on proxies with lazy protos, but no hook.
     // This keeps us away from the footgun of having the first proto set opt
@@ -340,7 +388,7 @@ BaseProxyHandler::setPrototype(JSContext *cx, HandleObject proxy, HandleObject p
 }
 
 bool
-BaseProxyHandler::setImmutablePrototype(JSContext *cx, HandleObject proxy, bool *succeeded) const
+BaseProxyHandler::setImmutablePrototype(JSContext* cx, HandleObject proxy, bool* succeeded) const
 {
     *succeeded = false;
     return true;

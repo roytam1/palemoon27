@@ -27,14 +27,11 @@ using namespace mozilla;
 /* Keeps track of whether or not CSP is enabled */
 bool CSPService::sCSPEnabled = true;
 
-static PRLogModuleInfo* gCspPRLog;
+static LazyLogModule gCspPRLog("CSP");
 
 CSPService::CSPService()
 {
   Preferences::AddBoolVarCache(&sCSPEnabled, "security.csp.enable");
-
-  if (!gCspPRLog)
-    gCspPRLog = PR_NewLogModule("CSP");
 }
 
 CSPService::~CSPService()
@@ -105,8 +102,9 @@ CSPService::ShouldLoad(uint32_t aContentType,
                        nsIPrincipal *aRequestPrincipal,
                        int16_t *aDecision)
 {
-  MOZ_ASSERT(aContentType == nsContentUtils::InternalContentPolicyTypeToExternal(aContentType),
-             "We should only see external content policy types here.");
+  MOZ_ASSERT(aContentType ==
+             nsContentUtils::InternalContentPolicyTypeToExternalOrCSPInternal(aContentType),
+             "We should only see external content policy types or CSP special types (preloads or workers) here.");
 
   if (!aContentLocation) {
     return NS_ERROR_FAILURE;
@@ -146,11 +144,13 @@ CSPService::ShouldLoad(uint32_t aContentType,
 
   // Cache the app status for this origin.
   uint16_t status = nsIPrincipal::APP_STATUS_NOT_INSTALLED;
-  nsAutoCString contentOrigin;
-  aContentLocation->GetPrePath(contentOrigin);
-  if (aRequestPrincipal && !mAppStatusCache.Get(contentOrigin, &status)) {
-    aRequestPrincipal->GetAppStatus(&status);
-    mAppStatusCache.Put(contentOrigin, status);
+  nsAutoCString sourceOrigin;
+  if (aRequestPrincipal && aRequestOrigin) {
+    aRequestOrigin->GetPrePath(sourceOrigin);
+    if (!mAppStatusCache.Get(sourceOrigin, &status)) {
+      aRequestPrincipal->GetAppStatus(&status);
+      mAppStatusCache.Put(sourceOrigin, status);
+    }
   }
 
   if (status == nsIPrincipal::APP_STATUS_CERTIFIED) {
@@ -168,8 +168,8 @@ CSPService::ShouldLoad(uint32_t aContentType,
         {
           // Whitelist the theme resources.
           auto themeOrigin = Preferences::GetCString("b2g.theme.origin");
-          nsAutoCString sourceOrigin;
-          aRequestOrigin->GetPrePath(sourceOrigin);
+          nsAutoCString contentOrigin;
+          aContentLocation->GetPrePath(contentOrigin);
 
           if (!(sourceOrigin.Equals(contentOrigin) ||
                 (themeOrigin && themeOrigin.Equals(contentOrigin)))) {
@@ -195,13 +195,14 @@ CSPService::ShouldLoad(uint32_t aContentType,
 
   // ----- END OF TEMPORARY FAST PATH FOR CERTIFIED APPS. -----
 
-  // find the principal of the document that initiated this request and see
-  // if it has a CSP policy object
+  // query the principal of the document; if no document is passed, then
+  // fall back to using the requestPrincipal (e.g. service workers do not
+  // pass a document).
   nsCOMPtr<nsINode> node(do_QueryInterface(aRequestContext));
-  nsCOMPtr<nsIPrincipal> principal;
-  nsCOMPtr<nsIContentSecurityPolicy> csp;
-  if (node) {
-    principal = node->NodePrincipal();
+  nsCOMPtr<nsIPrincipal> principal = node ? node->NodePrincipal()
+                                          : aRequestPrincipal;
+  if (principal) {
+    nsCOMPtr<nsIContentSecurityPolicy> csp;
     principal->GetCsp(getter_AddRefs(csp));
 
     if (csp) {
@@ -233,7 +234,7 @@ CSPService::ShouldLoad(uint32_t aContentType,
     nsAutoCString uriSpec;
     aContentLocation->GetSpec(uriSpec);
     MOZ_LOG(gCspPRLog, LogLevel::Debug,
-           ("COULD NOT get nsINode for location: %s", uriSpec.get()));
+           ("COULD NOT get nsIPrincipal for location: %s", uriSpec.get()));
   }
 
   return NS_OK;
@@ -249,6 +250,10 @@ CSPService::ShouldProcess(uint32_t         aContentType,
                           nsIPrincipal     *aRequestPrincipal,
                           int16_t          *aDecision)
 {
+  MOZ_ASSERT(aContentType ==
+             nsContentUtils::InternalContentPolicyTypeToExternalOrCSPInternal(aContentType),
+             "We should only see external content policy types or preloads here.");
+
   if (!aContentLocation)
     return NS_ERROR_FAILURE;
 
@@ -307,6 +312,15 @@ CSPService::AsyncOnChannelRedirect(nsIChannel *oldChannel,
   rv = oldChannel->GetOriginalURI(getter_AddRefs(originalUri));
   NS_ENSURE_SUCCESS(rv, rv);
   nsContentPolicyType policyType = loadInfo->InternalContentPolicyType();
+
+  bool isPreload = nsContentUtils::IsPreloadType(policyType);
+
+  /* On redirect, if the content policy is a preload type, rejecting the preload
+   * results in the load silently failing, so we convert preloads to the actual
+   * type. See Bug 1219453.
+   */
+  policyType =
+    nsContentUtils::InternalContentPolicyTypeToExternalOrWorker(policyType);
 
   int16_t aDecision = nsIContentPolicy::ACCEPT;
   csp->ShouldLoad(policyType,     // load type per nsIContentPolicy (uint32_t)

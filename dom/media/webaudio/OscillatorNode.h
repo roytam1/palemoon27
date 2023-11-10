@@ -27,11 +27,11 @@ public:
   NS_DECL_ISUPPORTS_INHERITED
   NS_DECL_CYCLE_COLLECTION_CLASS_INHERITED(OscillatorNode, AudioNode)
 
-  virtual JSObject* WrapObject(JSContext* aCx, JS::Handle<JSObject*> aGivenProto) override;
+  JSObject* WrapObject(JSContext* aCx, JS::Handle<JSObject*> aGivenProto) override;
 
-  virtual void DestroyMediaStream() override;
+  void DestroyMediaStream() override;
 
-  virtual uint16_t NumberOfInputs() const final override
+  uint16_t NumberOfInputs() const final override
   {
     return 0;
   }
@@ -73,30 +73,28 @@ public:
 
   IMPL_EVENT_HANDLER(ended)
 
-  virtual void NotifyMainThreadStreamFinished() override;
+  void NotifyMainThreadStreamFinished() override;
 
-  virtual const char* NodeType() const override
+  const char* NodeType() const override
   {
     return "OscillatorNode";
   }
 
-  virtual size_t SizeOfExcludingThis(MallocSizeOf aMallocSizeOf) const override;
-  virtual size_t SizeOfIncludingThis(MallocSizeOf aMallocSizeOf) const override;
+  size_t SizeOfExcludingThis(MallocSizeOf aMallocSizeOf) const override;
+  size_t SizeOfIncludingThis(MallocSizeOf aMallocSizeOf) const override;
 
 protected:
   virtual ~OscillatorNode();
 
 private:
-  static void SendFrequencyToStream(AudioNode* aNode);
-  static void SendDetuneToStream(AudioNode* aNode);
   void SendTypeToStream();
   void SendPeriodicWaveToStream();
 
 private:
   OscillatorType mType;
-  nsRefPtr<PeriodicWave> mPeriodicWave;
-  nsRefPtr<AudioParam> mFrequency;
-  nsRefPtr<AudioParam> mDetune;
+  RefPtr<PeriodicWave> mPeriodicWave;
+  RefPtr<AudioParam> mFrequency;
+  RefPtr<AudioParam> mDetune;
   bool mStartCalled;
 };
 

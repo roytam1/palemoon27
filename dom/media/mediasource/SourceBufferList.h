@@ -88,10 +88,6 @@ public:
   //  No event is fired and no action is performed on the sourcebuffers.
   void ClearSimple();
 
-#if defined(DEBUG)
-  void Dump(const char* aPath);
-#endif
-
 private:
   ~SourceBufferList();
 
@@ -99,8 +95,8 @@ private:
   void DispatchSimpleEvent(const char* aName);
   void QueueAsyncSimpleEvent(const char* aName);
 
-  nsRefPtr<MediaSource> mMediaSource;
-  nsTArray<nsRefPtr<SourceBuffer> > mSourceBuffers;
+  RefPtr<MediaSource> mMediaSource;
+  nsTArray<RefPtr<SourceBuffer> > mSourceBuffers;
 };
 
 } // namespace dom

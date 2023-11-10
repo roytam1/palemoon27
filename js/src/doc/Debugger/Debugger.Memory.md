@@ -174,7 +174,7 @@ compartment.
         and end events.
 
     `reason`
-    :   A very short string describing th reason why the collection was
+    :   A very short string describing the reason why the collection was
         triggered. Known values include the following:
 
         * "API"
@@ -199,7 +199,6 @@ compartment.
         * "CC_WAITING"
         * "CC_FORCED"
         * "LOAD_END"
-        * "POST_COMPARTMENT"
         * "PAGE_HIDE"
         * "NSJSCONTEXT_DESTROY"
         * "SET_NEW_DOCUMENT"
@@ -218,7 +217,17 @@ compartment.
     :   If SpiderMonkey's collector determined it could not incrementally
         collect garbage, and had to do a full GC all at once, this is a short
         string describing the reason it determined the full GC was necessary.
-        Otherwise, `null` is returned.
+        Otherwise, `null` is returned. Known values include the following:
+
+        * "GC mode"
+        * "malloc bytes trigger"
+        * "allocation trigger"
+        * "requested"
+
+    `gcCycleNumber`
+    :   The GC cycle's "number". Does not correspond to the number
+        of GC cycles that have run, but is guaranteed to be monotonically
+        increasing.
 
 Function Properties of the `Debugger.Memory.prototype` Object
 -------------------------------------------------------------
@@ -239,6 +248,7 @@ Function Properties of the `Debugger.Memory.prototype` Object
       "class": <i>className</i>,
       "constructor": <i>constructorName</i>,
       "size": <i>byteSize</i>,
+      "inNursery": <i>inNursery</i>,
     }
     </code></pre>
 
@@ -260,6 +270,9 @@ Function Properties of the `Debugger.Memory.prototype` Object
 
     * *byteSize* is the size of the object in bytes.
 
+    * *inNursery* is true if the allocation happened inside the nursery. False
+      if the allocation skipped the nursery and started in the tenured heap.
+
     When `trackingAllocationSites` is `false`, `drainAllocationsLog()` throws an
     `Error`.
 
@@ -278,6 +291,7 @@ Function Properties of the `Debugger.Memory.prototype` Object
       "timestamp": <i>timestamp</i>,
       "frame": <i>allocationSite</i>,
       "class": <i>className</i>,
+      "size": <i>byteSize</i>,
     }
     </pre>
 
@@ -295,6 +309,9 @@ Function Properties of the `Debugger.Memory.prototype` Object
     * *className* is the string name of the allocated object's internal
       `[[Class]]` property, for example "Array", "Date", "RegExp", or (most
       commonly) "Object".
+
+    * *byteSize* is the size of the newly tenured object (within the tenured
+      heap, not the nursery) in bytes.
 
     When `trackingTenurePromotions` is `false`, `drainTenurePromotionsLog()`
     throws an `Error`.

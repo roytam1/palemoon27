@@ -46,6 +46,11 @@ enum StructuredCloneTags {
 
   SCTAG_DOM_RTC_CERTIFICATE,
 
+  SCTAG_DOM_FORMDATA,
+
+  // This tag is for OffscreenCanvas.
+  SCTAG_DOM_CANVAS,
+
   SCTAG_DOM_MAX
 };
 

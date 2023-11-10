@@ -49,7 +49,7 @@ interface nsIJSRAIIHelper;
 interface nsIContentPermissionRequest;
 interface nsIObserver;
 
-[scriptable, uuid(e6d3ced6-fbce-4ea5-902a-c2055680d250)]
+[scriptable, uuid(46b44e33-13c2-4eb3-bf80-76a4e0857ccc)]
 interface nsIDOMWindowUtils : nsISupports {
 
   /**
@@ -105,15 +105,6 @@ interface nsIDOMWindowUtils : nsISupports {
    * Force a synchronous layer transaction for this window if necessary.
    */
   void updateLayerTree();
-
-  /**
-   * Set the CSS viewport to be |widthPx| x |heightPx| in units of CSS
-   * pixels, regardless of the size of the enclosing widget/view.
-   * This will trigger reflow.
-   *
-   * The caller of this method must have chrome privileges.
-   */
-  void setCSSViewport(in float aWidthPx, in float aHeightPx);
 
   /**
    * Information retrieved from the <meta name="viewport"> tag.
@@ -599,6 +590,13 @@ interface nsIDOMWindowUtils : nsISupports {
                             in long aModifierFlags,
                             in nsIDOMElement aElement,
                             [optional] in nsIObserver aObserver);
+  /**
+   * See nsIWidget::SynthesizeNativeMouseMove and sendNativeMouseEvent
+   */
+  void sendNativeMouseMove(in long aScreenX,
+                           in long aScreenY,
+                           in nsIDOMElement aElement,
+                           [optional] in nsIObserver aObserver);
 
   /**
    * The values for sendNativeMouseScrollEvent's aAdditionalFlags.
@@ -1091,8 +1089,6 @@ interface nsIDOMWindowUtils : nsISupports {
                                in long aY,
                                [optional] in unsigned long aAdditionalFlags);
 
-  // NOTE: following values are same as NS_QUERY_* in BasicEvents.h
-
   /**
    * QUERY_SELECTED_TEXT queries the first selection range's information.
    *
@@ -1331,11 +1327,12 @@ interface nsIDOMWindowUtils : nsISupports {
   readonly attribute boolean layerManagerRemote;
 
   /**
-   * True if we can initialize a hardware-backed h264 decoder for a simple
-   * test video, does not mean that all h264 video decoding will be done
+   * Returns a Promise that will be resolved with a string once the capabilities
+   * of the h264 decoder have been determined.
+   * Success does not mean that all h264 video decoding will be done
    * in hardware.
    */
-  readonly attribute boolean supportsHardwareH264Decoding;
+  readonly attribute jsval supportsHardwareH264Decoding;
 
   /**
    * Record (and return) frame-intervals for frames which were presented
@@ -1435,7 +1432,7 @@ interface nsIDOMWindowUtils : nsISupports {
    * with that offset if async scrolling is enabled, and then the offset
    * will be removed. Only call this while test-controlled refreshes is enabled.
    */
-  void setAsyncScrollOffset(in nsIDOMNode aNode, in int32_t aX, in int32_t aY);
+  void setAsyncScrollOffset(in nsIDOMNode aNode, in float aX, in float aY);
 
   /**
    * Set async zoom value. aRootElement should be the document element of our
@@ -1454,6 +1451,11 @@ interface nsIDOMWindowUtils : nsISupports {
    * will not fire. This is intended to be used by test code only!
    */
   bool flushApzRepaints();
+
+  /**
+   * Ask APZ to pan and zoom to the focused input element.
+   */
+  void zoomToFocusedInput();
 
   /**
    * Method for testing StyleAnimationValue::ComputeDistance.
@@ -1617,19 +1619,6 @@ interface nsIDOMWindowUtils : nsISupports {
    * The caller of this method must have chrome privileges.
    */
   void setScrollPositionClampingScrollPortSize(in float aWidth, in float aHeight);
-
-  /**
-   * Set margins for the layout of fixed position elements in the content
-   * document. These are used on mobile, where the viewable area can be
-   * temporarily obscured by the browser chrome. In this situation, we're ok
-   * with scrollable page content being obscured, but fixed position content
-   * cannot be revealed without removing the obscuring chrome, so we use these
-   * margins so that it can remain visible.
-   *
-   * The caller of this method must have chrome privileges.
-   */
-  void setContentDocumentFixedPositionMargins(in float aTop, in float aRight,
-                                              in float aBottom, in float aLeft);
 
   /**
    * These are used to control whether dialogs (alert, prompt, confirm) are
@@ -1851,6 +1840,8 @@ interface nsIDOMWindowUtils : nsISupports {
    * running tests.
    */
   void forceUseCounterFlush(in nsIDOMNode aNode);
+
+  void setNextPaintSyncId(in long aSyncId);
 };
 
 [scriptable, uuid(c694e359-7227-4392-a138-33c0cc1f15a6)]

@@ -1670,7 +1670,7 @@ FeedProcessor.prototype = {
         else
           return; // don't know about this interface
 
-        var propName = localName;
+        let propName = localName;
         var prefix = gNamespaces[uri];
 
         // synonyms

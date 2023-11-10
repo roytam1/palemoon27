@@ -128,16 +128,20 @@ NS_strdup(const char16_t* aString)
   return NS_strndup(aString, len);
 }
 
-char16_t*
-NS_strndup(const char16_t* aString, uint32_t aLen)
+template<typename CharT>
+CharT*
+NS_strndup(const CharT* aString, uint32_t aLen)
 {
-  char16_t* newBuf = (char16_t*)NS_Alloc((aLen + 1) * sizeof(char16_t));
+  auto newBuf = (CharT*)NS_Alloc((aLen + 1) * sizeof(CharT));
   if (newBuf) {
-    memcpy(newBuf, aString, aLen * sizeof(char16_t));
+    memcpy(newBuf, aString, aLen * sizeof(CharT));
     newBuf[aLen] = '\0';
   }
   return newBuf;
 }
+
+template char16_t* NS_strndup<char16_t>(const char16_t* aString, uint32_t aLen);
+template char* NS_strndup<char>(const char* aString, uint32_t aLen);
 
 char*
 NS_strdup(const char* aString)
@@ -278,19 +282,19 @@ NS_IsAsciiDigit(char16_t aChar)
   return aChar >= '0' && aChar <= '9';
 }
 
-
 #ifndef XPCOM_GLUE_AVOID_NSPR
-#define TABLE_SIZE 36
-static const char table[] = {
-  'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j',
-  'k', 'l', 'm', 'n', 'o', 'p', 'q', 'r', 's', 't',
-  'u', 'v', 'w', 'x', 'y', 'z', '0', '1', '2', '3',
-  '4', '5', '6', '7', '8', '9'
-};
 
 void
 NS_MakeRandomString(char* aBuf, int32_t aBufLen)
 {
+#define TABLE_SIZE 36
+  static const char table[] = {
+    'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j',
+    'k', 'l', 'm', 'n', 'o', 'p', 'q', 'r', 's', 't',
+    'u', 'v', 'w', 'x', 'y', 'z', '0', '1', '2', '3',
+    '4', '5', '6', '7', '8', '9'
+  };
+
   // turn PR_Now() into milliseconds since epoch
   // and salt rand with that.
   static unsigned int seed = 0;
@@ -435,5 +439,3 @@ fprintf_stderr(FILE* aFile, const char* aFmt, ...)
   }
   va_end(args);
 }
-
-

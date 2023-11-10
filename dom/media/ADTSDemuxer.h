@@ -26,9 +26,8 @@ class ADTSDemuxer : public MediaDataDemuxer {
 public:
   // MediaDataDemuxer interface.
   explicit ADTSDemuxer(MediaResource* aSource);
-  nsRefPtr<InitPromise>  Init() override;
+  RefPtr<InitPromise>  Init() override;
   bool HasTrackType(TrackInfo::TrackType aType) const override;
-  already_AddRefed<MediaDataDemuxer> Clone() const override;
   uint32_t GetNumberTracks(TrackInfo::TrackType aType) const override;
   already_AddRefed<MediaTrackDemuxer> GetTrackDemuxer(
     TrackInfo::TrackType aType, uint32_t aTrackNumber) override;
@@ -37,8 +36,8 @@ public:
 private:
   bool InitInternal();
 
-  nsRefPtr<MediaResource> mSource;
-  nsRefPtr<ADTSTrackDemuxer> mTrackDemuxer;
+  RefPtr<MediaResource> mSource;
+  RefPtr<ADTSTrackDemuxer> mTrackDemuxer;
 };
 
 class ADTSTrackDemuxer : public MediaTrackDemuxer {
@@ -61,15 +60,13 @@ public:
 
   // MediaTrackDemuxer interface.
   UniquePtr<TrackInfo> GetInfo() const override;
-  nsRefPtr<SeekPromise> Seek(media::TimeUnit aTime) override;
-  nsRefPtr<SamplesPromise> GetSamples(int32_t aNumSamples = 1) override;
+  RefPtr<SeekPromise> Seek(media::TimeUnit aTime) override;
+  RefPtr<SamplesPromise> GetSamples(int32_t aNumSamples = 1) override;
   void Reset() override;
-  nsRefPtr<SkipAccessPointPromise> SkipToNextRandomAccessPoint(
+  RefPtr<SkipAccessPointPromise> SkipToNextRandomAccessPoint(
     media::TimeUnit aTimeThreshold) override;
   int64_t GetResourceOffset() const override;
   media::TimeIntervals GetBuffered() override;
-
-  int64_t GetEvictionOffset(media::TimeUnit aTime) override;
 
 private:
   // Destructor.

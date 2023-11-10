@@ -517,6 +517,10 @@ ElfLoader::~ElfLoader()
 {
   LibHandleList list;
 
+  if (!Singleton.IsShutdownExpected()) {
+    MOZ_CRASH("Unexpected shutdown");
+  }
+
   /* Release self_elf and libc */
   self_elf = nullptr;
 #if defined(ANDROID)
@@ -1205,7 +1209,7 @@ void SEGVHandler::handler(int signum, siginfo_t *info, void *context)
   /* Check whether we segfaulted in the address space of a CustomElf. We're
    * only expecting that to happen as an access error. */
   if (info->si_code == SEGV_ACCERR) {
-    mozilla::RefPtr<LibHandle> handle =
+    RefPtr<LibHandle> handle =
       ElfLoader::Singleton.GetHandleByPtr(info->si_addr);
     BaseElf *elf;
     if (handle && (elf = handle->AsBaseElf())) {

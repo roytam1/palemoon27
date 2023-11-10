@@ -17,7 +17,6 @@
 
 #include <stdlib.h>
 #include <string.h>
-#include <math.h>
 #include <ogg/ogg.h>
 #include "ivorbiscodec.h"
 #include "codebook.h"
@@ -168,7 +167,7 @@ STIN long decode_packed_entry_number(codebook *book,
   int  read=book->dec_maxlength;
   long lo,hi;
   long lok = oggpack_look(b,book->dec_firsttablen);
- 
+
   if (lok >= 0) {
     long entry = book->dec_firsttable[lok];
     if(entry&0x80000000UL){
@@ -245,9 +244,9 @@ long vorbis_book_decode(codebook *book, oggpack_buffer *b){
 long vorbis_book_decodevs_add(codebook *book,ogg_int32_t *a,
 			      oggpack_buffer *b,int n,int point){
   if(book->used_entries>0){  
-    int step=n/book->dim;
-    long *entry = (long *)alloca(sizeof(*entry)*step);
-    ogg_int32_t **t = (ogg_int32_t **)alloca(sizeof(*t)*step);
+    const int step=n/book->dim;
+    VAR_STACK(long, entry, step);
+    VAR_STACK(ogg_int32_t *, t, step);
     int i,j,o;
     int shift=point-book->binarypoint;
     
@@ -336,7 +335,7 @@ long vorbis_book_decodev_set(codebook *book,ogg_int32_t *a,
     }
   }else{
 
-    int i,j;
+    int i;
     for(i=0;i<n;){
       a[i++]=0;
     }

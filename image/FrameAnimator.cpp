@@ -79,6 +79,7 @@ FrameAnimator::AdvanceFrame(TimeStamp aTime)
 {
   NS_ASSERTION(aTime <= TimeStamp::Now(),
                "Given time appears to be in the future");
+  PROFILER_LABEL_FUNC(js::ProfileEntry::Category::GRAPHICS);
 
   uint32_t currentFrameIndex = mCurrentAnimationFrameIndex;
   uint32_t nextFrameIndex = currentFrameIndex + 1;
@@ -281,7 +282,7 @@ FrameAnimator::GetCompositedFrame(uint32_t aFrameNum)
   LookupResult result =
     SurfaceCache::Lookup(ImageKey(mImage),
                          RasterSurfaceKey(mSize,
-                                          0,  // Default decode flags.
+                                          DefaultSurfaceFlags(),
                                           aFrameNum));
   MOZ_ASSERT(!result || !result.DrawableRef()->GetIsPaletted(),
              "About to return a paletted frame");
@@ -291,13 +292,18 @@ FrameAnimator::GetCompositedFrame(uint32_t aFrameNum)
 int32_t
 FrameAnimator::GetTimeoutForFrame(uint32_t aFrameNum) const
 {
+  int32_t rawTimeout = 0;
+
   RawAccessFrameRef frame = GetRawFrame(aFrameNum);
-  if (!frame) {
+  if (frame) {
+    AnimationData data = frame->GetAnimationData();
+    rawTimeout = data.mRawTimeout;
+  } else if (aFrameNum == 0) {
+    rawTimeout = mFirstFrameTimeout;
+  } else {
     NS_WARNING("No frame; called GetTimeoutForFrame too early?");
     return 100;
   }
-
-  AnimationData data = frame->GetAnimationData();
 
   // Ensure a minimal time between updates so we don't throttle the UI thread.
   // consider 0 == unspecified and make it fast but not too fast.  Unless we
@@ -312,11 +318,11 @@ FrameAnimator::GetTimeoutForFrame(uint32_t aFrameNum) const
   // It seems that there are broken tools out there that set a 0ms or 10ms
   // timeout when they really want a "default" one.  So munge values in that
   // range.
-  if (data.mRawTimeout >= 0 && data.mRawTimeout <= 10 && mLoopCount != 0) {
+  if (rawTimeout >= 0 && rawTimeout <= 10) {
     return 100;
   }
 
-  return data.mRawTimeout;
+  return rawTimeout;
 }
 
 static void
@@ -327,19 +333,16 @@ DoCollectSizeOfCompositingSurfaces(const RawAccessFrameRef& aSurface,
 {
   // Concoct a SurfaceKey for this surface.
   SurfaceKey key = RasterSurfaceKey(aSurface->GetImageSize(),
-                                    imgIContainer::DECODE_FLAGS_DEFAULT,
+                                    DefaultSurfaceFlags(),
                                     /* aFrameNum = */ 0);
 
   // Create a counter for this surface.
   SurfaceMemoryCounter counter(key, /* aIsLocked = */ true, aType);
 
   // Extract the surface's memory usage information.
-  size_t heap = aSurface
-    ->SizeOfExcludingThis(gfxMemoryLocation::IN_PROCESS_HEAP, aMallocSizeOf);
+  size_t heap = 0, nonHeap = 0;
+  aSurface->AddSizeOfExcludingThis(aMallocSizeOf, heap, nonHeap);
   counter.Values().SetDecodedHeap(heap);
-
-  size_t nonHeap = aSurface
-    ->SizeOfExcludingThis(gfxMemoryLocation::IN_PROCESS_NONHEAP, nullptr);
   counter.Values().SetDecodedNonHeap(nonHeap);
 
   // Record it.
@@ -372,7 +375,7 @@ FrameAnimator::GetRawFrame(uint32_t aFrameNum) const
   LookupResult result =
     SurfaceCache::Lookup(ImageKey(mImage),
                          RasterSurfaceKey(mSize,
-                                          0,  // Default decode flags.
+                                          DefaultSurfaceFlags(),
                                           aFrameNum));
   return result ? result.DrawableRef()->RawAccessRef()
                 : RawAccessFrameRef();
@@ -436,6 +439,7 @@ FrameAnimator::DoBlend(nsIntRect* aDirtyRect,
   // Calculate area that needs updating
   switch (prevFrameData.mDisposalMethod) {
     default:
+      MOZ_ASSERT_UNREACHABLE("Unexpected DisposalMethod");
     case DisposalMethod::NOT_SPECIFIED:
     case DisposalMethod::KEEP:
       *aDirtyRect = nextFrameData.mRect;
@@ -476,7 +480,7 @@ FrameAnimator::DoBlend(nsIntRect* aDirtyRect,
 
   // Create the Compositing Frame
   if (!mCompositingFrame) {
-    nsRefPtr<imgFrame> newFrame = new imgFrame;
+    RefPtr<imgFrame> newFrame = new imgFrame;
     nsresult rv = newFrame->InitForDecoder(mSize,
                                            SurfaceFormat::B8G8R8A8);
     if (NS_FAILED(rv)) {
@@ -569,6 +573,9 @@ FrameAnimator::DoBlend(nsIntRect* aDirtyRect,
         break;
 
       default:
+        MOZ_ASSERT_UNREACHABLE("Unexpected DisposalMethod");
+      case DisposalMethod::NOT_SPECIFIED:
+      case DisposalMethod::KEEP:
         // Copy previous frame into compositingFrame before we put the new
         // frame on top
         // Assumes that the previous frame represents a full frame (it could be
@@ -616,7 +623,7 @@ FrameAnimator::DoBlend(nsIntRect* aDirtyRect,
     // It would be better if we just stored the area that nextFrame is going to
     // overwrite.
     if (!mCompositingPrevFrame) {
-      nsRefPtr<imgFrame> newFrame = new imgFrame;
+      RefPtr<imgFrame> newFrame = new imgFrame;
       nsresult rv = newFrame->InitForDecoder(mSize,
                                              SurfaceFormat::B8G8R8A8);
       if (NS_FAILED(rv)) {

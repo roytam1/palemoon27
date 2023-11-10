@@ -2,6 +2,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
+include protocol PAsmJSCacheEntry;
 include protocol PBackgroundIDBFactory;
 include protocol PBackgroundTest;
 include protocol PBlob;
@@ -11,7 +12,7 @@ include protocol PCacheStorage;
 include protocol PCacheStreamControl;
 include protocol PFileDescriptorSet;
 include protocol PMessagePort;
-include protocol PMedia;
+include protocol PCameras;
 include protocol PNuwa;
 include protocol PServiceWorkerManager;
 include protocol PUDPSocket;
@@ -21,14 +22,23 @@ include DOMTypes;
 include PBackgroundSharedTypes;
 include PBackgroundIDBSharedTypes;
 
-using mozilla::dom::cache::Namespace from "mozilla/dom/cache/Types.h";
 include "mozilla/dom/cache/IPCUtils.h";
+
+using mozilla::dom::cache::Namespace
+  from "mozilla/dom/cache/Types.h";
+
+using mozilla::dom::asmjscache::OpenMode
+  from "mozilla/dom/asmjscache/AsmJSCache.h";
+
+using mozilla::dom::asmjscache::WriteParams
+  from "mozilla/dom/asmjscache/AsmJSCache.h";
 
 namespace mozilla {
 namespace ipc {
 
 sync protocol PBackground
 {
+  manages PAsmJSCacheEntry;
   manages PBackgroundIDBFactory;
   manages PBackgroundTest;
   manages PBlob;
@@ -38,7 +48,7 @@ sync protocol PBackground
   manages PCacheStreamControl;
   manages PFileDescriptorSet;
   manages PMessagePort;
-  manages PMedia;
+  manages PCameras;
   manages PNuwa;
   manages PServiceWorkerManager;
   manages PUDPSocket;
@@ -46,37 +56,42 @@ sync protocol PBackground
 
 parent:
   // Only called at startup during mochitests to check the basic infrastructure.
-  PBackgroundTest(nsCString testArg);
+  async PBackgroundTest(nsCString testArg);
 
-  PBackgroundIDBFactory(LoggingInfo loggingInfo);
+  async PBackgroundIDBFactory(LoggingInfo loggingInfo);
 
-  PVsync();
-  PMedia();
+  async PVsync();
 
-  PUDPSocket(OptionalPrincipalInfo pInfo, nsCString filter);
-  PBroadcastChannel(PrincipalInfo pInfo, nsCString origin, nsString channel,
-                    bool privateBrowsing);
+  async PCameras();
 
-  PServiceWorkerManager();
+  async PUDPSocket(OptionalPrincipalInfo pInfo, nsCString filter);
+  async PBroadcastChannel(PrincipalInfo pInfo, nsCString origin, nsString channel,
+                          bool privateBrowsing);
 
-  ShutdownServiceWorkerRegistrar();
+  async PServiceWorkerManager();
 
-  PCacheStorage(Namespace aNamespace, PrincipalInfo aPrincipalInfo);
+  async ShutdownServiceWorkerRegistrar();
 
-  PMessagePort(nsID uuid, nsID destinationUuid, uint32_t sequenceId);
+  async PCacheStorage(Namespace aNamespace, PrincipalInfo aPrincipalInfo);
 
-  PNuwa();
+  async PMessagePort(nsID uuid, nsID destinationUuid, uint32_t sequenceId);
 
-  MessagePortForceClose(nsID uuid, nsID destinationUuid, uint32_t sequenceId);
+  async PNuwa();
+
+  async MessagePortForceClose(nsID uuid, nsID destinationUuid, uint32_t sequenceId);
+
+  async PAsmJSCacheEntry(OpenMode openMode,
+                         WriteParams write,
+                         PrincipalInfo principalInfo);
 
 child:
-  PCache();
-  PCacheStreamControl();
+  async PCache();
+  async PCacheStreamControl();
 
 both:
-  PBlob(BlobConstructorParams params);
+  async PBlob(BlobConstructorParams params);
 
-  PFileDescriptorSet(FileDescriptor fd);
+  async PFileDescriptorSet(FileDescriptor fd);
 };
 
 } // namespace ipc

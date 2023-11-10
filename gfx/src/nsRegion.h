@@ -1,3 +1,5 @@
+/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
+/* vim: set ts=8 sts=2 et sw=2 tw=80: */
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -9,23 +11,17 @@
 #include <stddef.h>                     // for size_t
 #include <stdint.h>                     // for uint32_t, uint64_t
 #include <sys/types.h>                  // for int32_t
-#include "gfxCore.h"                    // for NS_GFX
-#include "mozilla/ToString.h"           // for mozilla::ToString
+#include <ostream>                      // for std::ostream
 #include "nsCoord.h"                    // for nscoord
 #include "nsError.h"                    // for nsresult
 #include "nsPoint.h"                    // for nsIntPoint, nsPoint
 #include "nsRect.h"                     // for mozilla::gfx::IntRect, nsRect
 #include "nsMargin.h"                   // for nsIntMargin
+#include "nsRegionFwd.h"                // for nsIntRegion
 #include "nsStringGlue.h"               // for nsCString
 #include "xpcom-config.h"               // for CPP_THROW_NEW
 #include "mozilla/Move.h"               // for mozilla::Move
-
-class nsIntRegion;
-namespace mozilla {
-namespace gfx {
-class Matrix4x4;
-} // namespace gfx
-} // namespace mozilla
+#include "mozilla/gfx/MatrixFwd.h"      // for mozilla::gfx::Matrix4x4
 
 #include "pixman.h"
 
@@ -50,13 +46,8 @@ enum class VisitSide {
 	RIGHT
 };
 
-class nsRegionRectIterator;
-
 class nsRegion
 {
-
-  friend class nsRegionRectIterator;
-
 public:
   nsRegion () { pixman_region32_init(&mImpl); }
   MOZ_IMPLICIT nsRegion (const nsRect& aRect) { pixman_region32_init_rect(&mImpl,
@@ -355,6 +346,45 @@ public:
   void VisitEdges(visitFn, void *closure);
 
   nsCString ToString() const;
+
+  class RectIterator
+  {
+    int mCurrent;               // Index of the current entry
+    int mLimit;                 // Index one past the final entry.
+    mutable nsRect mTmp;        // The most recently gotten rectangle.
+    pixman_box32_t *mBoxes;
+
+  public:
+    explicit RectIterator(const nsRegion& aRegion)
+    {
+      mCurrent = 0;
+      mBoxes = pixman_region32_rectangles(aRegion.Impl(), &mLimit);
+      // Work around pixman bug. Sometimes pixman creates regions with 1 rect
+      // that's empty.
+      if (mLimit == 1 && nsRegion::BoxToRect(mBoxes[0]).IsEmpty()) {
+        mLimit = 0;
+      }
+    }
+
+    bool Done() const { return mCurrent == mLimit; }
+
+    const nsRect& Get() const
+    {
+      MOZ_ASSERT(!Done());
+      mTmp = nsRegion::BoxToRect(mBoxes[mCurrent]);
+      NS_ASSERTION(!mTmp.IsEmpty(), "Shouldn't return empty rect");
+      return mTmp;
+    }
+
+    void Next()
+    {
+      MOZ_ASSERT(!Done());
+      mCurrent++;
+    }
+  };
+
+  RectIterator RectIter() const { return RectIterator(*this); }
+
 private:
   pixman_region32_t mImpl;
 
@@ -416,55 +446,6 @@ private:
   {
     return const_cast<pixman_region32_t*>(&mImpl);
   }
-
-};
-
-
-class NS_GFX nsRegionRectIterator
-{
-  const nsRegion*  mRegion;
-  int i;
-  int n;
-  nsRect rect;
-  pixman_box32_t *boxes;
-
-public:
-  explicit nsRegionRectIterator (const nsRegion& aRegion)
-  {
-    mRegion = &aRegion;
-    i = 0;
-    boxes = pixman_region32_rectangles(aRegion.Impl(), &n);
-    // Work around pixman bug. Sometimes pixman creates regions with 1 rect
-    // that's empty.
-    if (n == 1 && nsRegion::BoxToRect(boxes[0]).IsEmpty()) {
-      n = 0;
-    }
-  }
-
-  const nsRect* Next ()
-  {
-    if (i == n)
-      return nullptr;
-    rect = nsRegion::BoxToRect(boxes[i]);
-    NS_ASSERTION(!rect.IsEmpty(), "Shouldn't return empty rect");
-    i++;
-    return &rect;
-  }
-
-  const nsRect* Prev ()
-  {
-    if (i == -1)
-      return nullptr;
-    rect = nsRegion::BoxToRect(boxes[i]);
-    NS_ASSERTION(!rect.IsEmpty(), "Shouldn't return empty rect");
-    i--;
-    return &rect;
-  }
-
-  void Reset ()
-  {
-    i = 0;
-  }
 };
 
 namespace mozilla {
@@ -474,9 +455,14 @@ namespace gfx {
  * BaseIntRegions use int32_t coordinates.
  */
 template <typename Derived, typename Rect, typename Point, typename Margin>
-class NS_GFX BaseIntRegion
+class BaseIntRegion
 {
   friend class ::nsRegion;
+
+  // Give access to all specializations of IntRegionTyped, not just ones that
+  // derive from this specialization of BaseIntRegion.
+  template <typename units>
+  friend class IntRegionTyped;
 
 public:
   typedef Rect RectType;
@@ -700,10 +686,8 @@ public:
   nsRegion ToAppUnits (nscoord aAppUnitsPerPixel) const
   {
     nsRegion result;
-    RectIterator rgnIter(*this);
-    const Rect* currentRect;
-    while ((currentRect = rgnIter.Next())) {
-      nsRect appRect = ::ToAppUnits(*currentRect, aAppUnitsPerPixel);
+    for (auto iter = RectIter(); !iter.Done(); iter.Next()) {
+      nsRect appRect = ::ToAppUnits(iter.Get(), aAppUnitsPerPixel);
       result.Or(result, appRect);
     }
     return result;
@@ -725,6 +709,10 @@ public:
     return This();
   }
 
+  // Prefer using TransformBy(matrix, region) from UnitTransforms.h,
+  // as applying the transform should typically change the unit system.
+  // TODO(botond): Move this to IntRegionTyped and disable it for
+  //               unit != UnknownUnits.
   Derived& Transform (const mozilla::gfx::Matrix4x4 &aTransform)
   {
     mImpl.Transform(aTransform);
@@ -763,37 +751,28 @@ public:
 
   nsCString ToString() const { return mImpl.ToString(); }
 
-  class NS_GFX RectIterator
+  class RectIterator
   {
-    nsRegionRectIterator mImpl;
-    Rect mTmp;
+    nsRegion::RectIterator mImpl; // The underlying iterator.
+    mutable Rect mTmp;            // The most recently gotten rectangle.
 
   public:
-    explicit RectIterator (const BaseIntRegion& aRegion) : mImpl (aRegion.mImpl) {}
+    explicit RectIterator(const BaseIntRegion& aRegion)
+      : mImpl(aRegion.mImpl)
+    {}
 
-    const Rect* Next ()
+    bool Done() const { return mImpl.Done(); }
+
+    const Rect& Get() const
     {
-      const nsRect* r = mImpl.Next();
-      if (!r)
-        return nullptr;
-      mTmp = FromRect (*r);
-      return &mTmp;
+      mTmp = FromRect(mImpl.Get());
+      return mTmp;
     }
 
-    const Rect* Prev ()
-    {
-      const nsRect* r = mImpl.Prev();
-      if (!r)
-        return nullptr;
-      mTmp = FromRect (*r);
-      return &mTmp;
-    }
-
-    void Reset ()
-    {
-      mImpl.Reset ();
-    }
+    void Next() { mImpl.Next(); }
   };
+
+  RectIterator RectIter() const { return RectIterator(*this); }
 
 protected:
   // Expose enough to derived classes from them to define conversions
@@ -822,30 +801,53 @@ private:
   }
 };
 
-}  // namespace mozilla::gfx
-}  // namespace mozilla
-
-class NS_GFX nsIntRegion : public mozilla::gfx::BaseIntRegion<nsIntRegion, mozilla::gfx::IntRect, nsIntPoint, nsIntMargin>
+template <class units>
+class IntRegionTyped :
+    public BaseIntRegion<IntRegionTyped<units>, IntRectTyped<units>, IntPointTyped<units>, IntMarginTyped<units>>
 {
+  typedef BaseIntRegion<IntRegionTyped<units>, IntRectTyped<units>, IntPointTyped<units>, IntMarginTyped<units>> Super;
+
+  // Make other specializations of IntRegionTyped friends.
+  template <typename OtherUnits>
+  friend class IntRegionTyped;
+
+  static_assert(IsPixel<units>::value, "'units' must be a coordinate system tag");
+
 public:
   // Forward constructors.
-  nsIntRegion() {}
-  MOZ_IMPLICIT nsIntRegion(const mozilla::gfx::IntRect& aRect) : BaseIntRegion(aRect) {}
-  nsIntRegion(const nsIntRegion& aRegion) : BaseIntRegion(aRegion) {}
-  nsIntRegion(nsIntRegion&& aRegion) : BaseIntRegion(mozilla::Move(aRegion)) {}
+  IntRegionTyped() {}
+  MOZ_IMPLICIT IntRegionTyped(const IntRectTyped<units>& aRect) : Super(aRect) {}
+  IntRegionTyped(const IntRegionTyped& aRegion) : Super(aRegion) {}
+  IntRegionTyped(IntRegionTyped&& aRegion) : Super(mozilla::Move(aRegion)) {}
 
   // Assignment operators need to be forwarded as well, otherwise the compiler
   // will declare deleted ones.
-  nsIntRegion& operator=(const nsIntRegion& aRegion)
+  IntRegionTyped& operator=(const IntRegionTyped& aRegion)
   {
-    return BaseIntRegion::operator=(aRegion);
+    return Super::operator=(aRegion);
   }
-  nsIntRegion& operator=(nsIntRegion&& aRegion)
+  IntRegionTyped& operator=(IntRegionTyped&& aRegion)
   {
-    return BaseIntRegion::operator=(mozilla::Move(aRegion));
+    return Super::operator=(mozilla::Move(aRegion));
   }
+
+  static IntRegionTyped FromUnknownRegion(const IntRegion& aRegion)
+  {
+    return IntRegionTyped(aRegion.Impl());
+  }
+  IntRegion ToUnknownRegion() const
+  {
+    // Need |this->| because Impl() is defined in a dependent base class.
+    return IntRegion(this->Impl());
+  }
+private:
+  // This is deliberately private, so calling code uses FromUnknownRegion().
+  explicit IntRegionTyped(const nsRegion& aRegion) : Super(aRegion) {}
 };
 
-typedef nsIntRegion::RectIterator nsIntRegionRectIterator;
+} // namespace gfx
+} // namespace mozilla
+
+typedef mozilla::gfx::IntRegion nsIntRegion;
 
 #endif

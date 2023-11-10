@@ -19,6 +19,8 @@
 # include "jit/arm64/MacroAssembler-arm64-inl.h"
 #elif defined(JS_CODEGEN_MIPS32)
 # include "jit/mips32/MacroAssembler-mips32-inl.h"
+#elif defined(JS_CODEGEN_MIPS64)
+# include "jit/mips64/MacroAssembler-mips64-inl.h"
 #elif !defined(JS_CODEGEN_NONE)
 # error "Unknown architecture!"
 #endif
@@ -43,8 +45,9 @@ MacroAssembler::setFramePushed(uint32_t framePushed)
 }
 
 void
-MacroAssembler::adjustFrame(int value)
+MacroAssembler::adjustFrame(int32_t value)
 {
+    MOZ_ASSERT_IF(value < 0, framePushed_ >= uint32_t(-value));
     setFramePushed(framePushed_ + value);
 }
 
@@ -52,20 +55,21 @@ void
 MacroAssembler::implicitPop(uint32_t bytes)
 {
     MOZ_ASSERT(bytes % sizeof(intptr_t) == 0);
-    adjustFrame(-bytes);
+    MOZ_ASSERT(bytes <= INT32_MAX);
+    adjustFrame(-int32_t(bytes));
 }
 
 // ===============================================================
 // Stack manipulation functions.
 
-CodeOffsetLabel
+CodeOffset
 MacroAssembler::PushWithPatch(ImmWord word)
 {
     framePushed_ += sizeof(word.value);
     return pushWithPatch(word);
 }
 
-CodeOffsetLabel
+CodeOffset
 MacroAssembler::PushWithPatch(ImmPtr imm)
 {
     return PushWithPatch(ImmWord(uintptr_t(imm.value)));
@@ -75,17 +79,17 @@ MacroAssembler::PushWithPatch(ImmPtr imm)
 // Simple call functions.
 
 void
-MacroAssembler::call(const CallSiteDesc& desc, const Register reg)
+MacroAssembler::call(const wasm::CallSiteDesc& desc, const Register reg)
 {
-    call(reg);
-    append(desc, currentOffset(), framePushed());
+    CodeOffset l = call(reg);
+    append(desc, l, framePushed());
 }
 
 void
-MacroAssembler::call(const CallSiteDesc& desc, Label* label)
+MacroAssembler::call(const wasm::CallSiteDesc& desc, AsmJSInternalCallee callee)
 {
-    call(label);
-    append(desc, currentOffset(), framePushed());
+    CodeOffset l = callWithPatch();
+    append(desc, l, framePushed(), callee.index);
 }
 
 // ===============================================================
@@ -148,6 +152,8 @@ MacroAssembler::signature() const
       case Args_Double_DoubleDouble:
       case Args_Double_IntDouble:
       case Args_Int_IntDouble:
+      case Args_Int_DoubleIntInt:
+      case Args_Int_IntDoubleIntInt:
       case Args_Double_DoubleDoubleDouble:
       case Args_Double_DoubleDoubleDoubleDouble:
         break;
@@ -195,19 +201,21 @@ MacroAssembler::callJit(JitCode* callee)
 }
 
 void
-MacroAssembler::makeFrameDescriptor(Register frameSizeReg, FrameType type)
+MacroAssembler::makeFrameDescriptor(Register frameSizeReg, FrameType type, uint32_t headerSize)
 {
     // See JitFrames.h for a description of the frame descriptor format.
+    // The saved-frame bit is zero for new frames. See js::SavedStacks.
 
     lshiftPtr(Imm32(FRAMESIZE_SHIFT), frameSizeReg);
-    // The saved-frame bit is zero for new frames. See js::SavedStacks.
-    orPtr(Imm32(type), frameSizeReg);
+
+    headerSize = EncodeFrameHeaderSize(headerSize);
+    orPtr(Imm32((headerSize << FRAME_HEADER_SIZE_SHIFT) | type), frameSizeReg);
 }
 
 void
-MacroAssembler::pushStaticFrameDescriptor(FrameType type)
+MacroAssembler::pushStaticFrameDescriptor(FrameType type, uint32_t headerSize)
 {
-    uint32_t descriptor = MakeFrameDescriptor(framePushed(), type);
+    uint32_t descriptor = MakeFrameDescriptor(framePushed(), type, headerSize);
     Push(Imm32(descriptor));
 }
 
@@ -245,7 +253,7 @@ MacroAssembler::buildFakeExitFrame(Register scratch)
 {
     mozilla::DebugOnly<uint32_t> initialDepth = framePushed();
 
-    pushStaticFrameDescriptor(JitFrame_IonJS);
+    pushStaticFrameDescriptor(JitFrame_IonJS, ExitFrameLayout::Size());
     uint32_t retAddr = pushFakeReturnAddress(scratch);
 
     MOZ_ASSERT(framePushed() == initialDepth + ExitFrameLayout::Size());
@@ -282,6 +290,13 @@ MacroAssembler::enterFakeExitFrame(enum ExitFrameTokenValues token)
 }
 
 void
+MacroAssembler::enterFakeExitFrameForNative(bool isConstructing)
+{
+    enterFakeExitFrame(isConstructing ? ConstructNativeExitFrameLayoutToken
+                                      : CallNativeExitFrameLayoutToken);
+}
+
+void
 MacroAssembler::leaveExitFrame(size_t extraFrame)
 {
     freeStack(ExitFooterFrame::Size() + extraFrame);
@@ -290,11 +305,81 @@ MacroAssembler::leaveExitFrame(size_t extraFrame)
 bool
 MacroAssembler::hasSelfReference() const
 {
-    return selfReferencePatch_.offset() != 0;
+    return selfReferencePatch_.bound();
 }
 
-//}}} check_macroassembler_style
 // ===============================================================
+// Arithmetic functions
+
+void
+MacroAssembler::addPtr(ImmPtr imm, Register dest)
+{
+    addPtr(ImmWord(uintptr_t(imm.value)), dest);
+}
+
+// ===============================================================
+// Branch functions
+
+template <class L>
+void
+MacroAssembler::branchIfFalseBool(Register reg, L label)
+{
+    // Note that C++ bool is only 1 byte, so ignore the higher-order bits.
+    branchTest32(Assembler::Zero, reg, Imm32(0xFF), label);
+}
+
+void
+MacroAssembler::branchIfTrueBool(Register reg, Label* label)
+{
+    // Note that C++ bool is only 1 byte, so ignore the higher-order bits.
+    branchTest32(Assembler::NonZero, reg, Imm32(0xFF), label);
+}
+
+void
+MacroAssembler::branchIfRope(Register str, Label* label)
+{
+    Address flags(str, JSString::offsetOfFlags());
+    static_assert(JSString::ROPE_FLAGS == 0, "Rope type flags must be 0");
+    branchTest32(Assembler::Zero, flags, Imm32(JSString::TYPE_FLAGS_MASK), label);
+}
+
+void
+MacroAssembler::branchLatin1String(Register string, Label* label)
+{
+    branchTest32(Assembler::NonZero, Address(string, JSString::offsetOfFlags()),
+                 Imm32(JSString::LATIN1_CHARS_BIT), label);
+}
+
+void
+MacroAssembler::branchTwoByteString(Register string, Label* label)
+{
+    branchTest32(Assembler::Zero, Address(string, JSString::offsetOfFlags()),
+                 Imm32(JSString::LATIN1_CHARS_BIT), label);
+}
+
+void
+MacroAssembler::branchIfFunctionHasNoScript(Register fun, Label* label)
+{
+    // 16-bit loads are slow and unaligned 32-bit loads may be too so
+    // perform an aligned 32-bit load and adjust the bitmask accordingly.
+    MOZ_ASSERT(JSFunction::offsetOfNargs() % sizeof(uint32_t) == 0);
+    MOZ_ASSERT(JSFunction::offsetOfFlags() == JSFunction::offsetOfNargs() + 2);
+    Address address(fun, JSFunction::offsetOfNargs());
+    int32_t bit = IMM32_16ADJ(JSFunction::INTERPRETED);
+    branchTest32(Assembler::Zero, address, Imm32(bit), label);
+}
+
+void
+MacroAssembler::branchIfInterpreted(Register fun, Label* label)
+{
+    // 16-bit loads are slow and unaligned 32-bit loads may be too so
+    // perform an aligned 32-bit load and adjust the bitmask accordingly.
+    MOZ_ASSERT(JSFunction::offsetOfNargs() % sizeof(uint32_t) == 0);
+    MOZ_ASSERT(JSFunction::offsetOfFlags() == JSFunction::offsetOfNargs() + 2);
+    Address address(fun, JSFunction::offsetOfNargs());
+    int32_t bit = IMM32_16ADJ(JSFunction::INTERPRETED);
+    branchTest32(Assembler::NonZero, address, Imm32(bit), label);
+}
 
 void
 MacroAssembler::branchFunctionKind(Condition cond, JSFunction::FunctionKind kind, Register fun,
@@ -310,6 +395,228 @@ MacroAssembler::branchFunctionKind(Condition cond, JSFunction::FunctionKind kind
     load32(address, scratch);
     and32(Imm32(mask), scratch);
     branch32(cond, scratch, Imm32(bit), label);
+}
+
+void
+MacroAssembler::branchTestObjClass(Condition cond, Register obj, Register scratch, const js::Class* clasp,
+                                   Label* label)
+{
+    loadObjGroup(obj, scratch);
+    branchPtr(cond, Address(scratch, ObjectGroup::offsetOfClasp()), ImmPtr(clasp), label);
+}
+
+void
+MacroAssembler::branchTestObjShape(Condition cond, Register obj, const Shape* shape, Label* label)
+{
+    branchPtr(cond, Address(obj, JSObject::offsetOfShape()), ImmGCPtr(shape), label);
+}
+
+void
+MacroAssembler::branchTestObjShape(Condition cond, Register obj, Register shape, Label* label)
+{
+    branchPtr(cond, Address(obj, JSObject::offsetOfShape()), shape, label);
+}
+
+void
+MacroAssembler::branchTestObjGroup(Condition cond, Register obj, ObjectGroup* group, Label* label)
+{
+    branchPtr(cond, Address(obj, JSObject::offsetOfGroup()), ImmGCPtr(group), label);
+}
+
+void
+MacroAssembler::branchTestObjGroup(Condition cond, Register obj, Register group, Label* label)
+{
+    branchPtr(cond, Address(obj, JSObject::offsetOfGroup()), group, label);
+}
+
+void
+MacroAssembler::branchTestObjectTruthy(bool truthy, Register objReg, Register scratch,
+                                       Label* slowCheck, Label* checked)
+{
+    // The branches to out-of-line code here implement a conservative version
+    // of the JSObject::isWrapper test performed in EmulatesUndefined.  If none
+    // of the branches are taken, we can check class flags directly.
+    loadObjClass(objReg, scratch);
+    Address flags(scratch, Class::offsetOfFlags());
+
+    branchTestClassIsProxy(true, scratch, slowCheck);
+
+    Condition cond = truthy ? Assembler::Zero : Assembler::NonZero;
+    branchTest32(cond, flags, Imm32(JSCLASS_EMULATES_UNDEFINED), checked);
+}
+
+void
+MacroAssembler::branchTestClassIsProxy(bool proxy, Register clasp, Label* label)
+{
+    branchTest32(proxy ? Assembler::NonZero : Assembler::Zero,
+                 Address(clasp, Class::offsetOfFlags()),
+                 Imm32(JSCLASS_IS_PROXY), label);
+}
+
+void
+MacroAssembler::branchTestObjectIsProxy(bool proxy, Register object, Register scratch, Label* label)
+{
+    loadObjClass(object, scratch);
+    branchTestClassIsProxy(proxy, scratch, label);
+}
+
+void
+MacroAssembler::branchTestProxyHandlerFamily(Condition cond, Register proxy, Register scratch,
+                                             const void* handlerp, Label* label)
+{
+    Address handlerAddr(proxy, ProxyObject::offsetOfHandler());
+    loadPtr(handlerAddr, scratch);
+    Address familyAddr(scratch, BaseProxyHandler::offsetOfFamily());
+    branchPtr(cond, familyAddr, ImmPtr(handlerp), label);
+}
+
+template <typename Value>
+void
+MacroAssembler::branchTestMIRType(Condition cond, const Value& val, MIRType type, Label* label)
+{
+    switch (type) {
+      case MIRType_Null:      return branchTestNull(cond, val, label);
+      case MIRType_Undefined: return branchTestUndefined(cond, val, label);
+      case MIRType_Boolean:   return branchTestBoolean(cond, val, label);
+      case MIRType_Int32:     return branchTestInt32(cond, val, label);
+      case MIRType_String:    return branchTestString(cond, val, label);
+      case MIRType_Symbol:    return branchTestSymbol(cond, val, label);
+      case MIRType_Object:    return branchTestObject(cond, val, label);
+      case MIRType_Double:    return branchTestDouble(cond, val, label);
+      case MIRType_MagicOptimizedArguments: // Fall through.
+      case MIRType_MagicIsConstructing:
+      case MIRType_MagicHole: return branchTestMagic(cond, val, label);
+      default:
+        MOZ_CRASH("Bad MIRType");
+    }
+}
+
+template <typename T>
+void
+MacroAssembler::branchKey(Condition cond, const T& length, const Int32Key& key, Label* label)
+{
+    if (key.isRegister())
+        branch32(cond, length, key.reg(), label);
+    else
+        branch32(cond, length, Imm32(key.constant()), label);
+}
+
+void
+MacroAssembler::branchTestNeedsIncrementalBarrier(Condition cond, Label* label)
+{
+    MOZ_ASSERT(cond == Zero || cond == NonZero);
+    CompileZone* zone = GetJitContext()->compartment->zone();
+    AbsoluteAddress needsBarrierAddr(zone->addressOfNeedsIncrementalBarrier());
+    branchTest32(cond, needsBarrierAddr, Imm32(0x1), label);
+}
+
+//}}} check_macroassembler_style
+// ===============================================================
+
+#ifndef JS_CODEGEN_ARM64
+
+template <typename T>
+void
+MacroAssembler::branchTestStackPtr(Condition cond, T t, Label* label)
+{
+    branchTestPtr(cond, getStackPointer(), t, label);
+}
+
+template <typename T>
+void
+MacroAssembler::branchStackPtr(Condition cond, T rhs, Label* label)
+{
+    branchPtr(cond, getStackPointer(), rhs, label);
+}
+
+template <typename T>
+void
+MacroAssembler::branchStackPtrRhs(Condition cond, T lhs, Label* label)
+{
+    branchPtr(cond, lhs, getStackPointer(), label);
+}
+
+template <typename T> void
+MacroAssembler::addToStackPtr(T t)
+{
+    addPtr(t, getStackPointer());
+}
+
+template <typename T> void
+MacroAssembler::addStackPtrTo(T t)
+{
+    addPtr(getStackPointer(), t);
+}
+
+#endif // !JS_CODEGEN_ARM64
+
+void
+MacroAssembler::canonicalizeFloat(FloatRegister reg)
+{
+    Label notNaN;
+    branchFloat(DoubleOrdered, reg, reg, &notNaN);
+    loadConstantFloat32(float(JS::GenericNaN()), reg);
+    bind(&notNaN);
+}
+
+void
+MacroAssembler::canonicalizeDouble(FloatRegister reg)
+{
+    Label notNaN;
+    branchDouble(DoubleOrdered, reg, reg, &notNaN);
+    loadConstantDouble(JS::GenericNaN(), reg);
+    bind(&notNaN);
+}
+
+template <typename T>
+void
+MacroAssembler::storeObjectOrNull(Register src, const T& dest)
+{
+    Label notNull, done;
+    branchTestPtr(Assembler::NonZero, src, src, &notNull);
+    storeValue(NullValue(), dest);
+    jump(&done);
+    bind(&notNull);
+    storeValue(JSVAL_TYPE_OBJECT, src, dest);
+    bind(&done);
+}
+
+void
+MacroAssembler::bumpKey(Int32Key* key, int diff)
+{
+    if (key->isRegister())
+        add32(Imm32(diff), key->reg());
+    else
+        key->bumpConstant(diff);
+}
+
+void
+MacroAssembler::assertStackAlignment(uint32_t alignment, int32_t offset /* = 0 */)
+{
+#ifdef DEBUG
+    Label ok, bad;
+    MOZ_ASSERT(IsPowerOfTwo(alignment));
+
+    // Wrap around the offset to be a non-negative number.
+    offset %= alignment;
+    if (offset < 0)
+        offset += alignment;
+
+    // Test if each bit from offset is set.
+    uint32_t off = offset;
+    while (off) {
+        uint32_t lowestBit = 1 << mozilla::CountTrailingZeroes32(off);
+        branchTestStackPtr(Assembler::Zero, Imm32(lowestBit), &bad);
+        off ^= lowestBit;
+    }
+
+    // Check that all remaining bits are zero.
+    branchTestStackPtr(Assembler::Zero, Imm32((alignment - 1) ^ offset), &ok);
+
+    bind(&bad);
+    breakpoint();
+    bind(&ok);
+#endif
 }
 
 } // namespace jit

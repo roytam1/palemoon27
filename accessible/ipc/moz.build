@@ -24,6 +24,7 @@ if CONFIG['ACCESSIBILITY']:
     LOCAL_INCLUDES += [
         '../base',
         '../generic',
+        '../xpcom',
     ]
 
     if CONFIG['MOZ_ENABLE_GTK']:
@@ -47,5 +48,3 @@ if CONFIG['ACCESSIBILITY']:
     FINAL_LIBRARY = 'xul'
 
 include('/ipc/chromium/chromium-config.mozbuild')
-
-FAIL_ON_WARNINGS = True

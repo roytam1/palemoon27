@@ -7,7 +7,6 @@
 #define MOZILLA_GFX_PATHHELPERS_H_
 
 #include "2D.h"
-#include "mozilla/Constants.h"
 #include "UserData.h"
 
 #include <cmath>
@@ -216,6 +215,13 @@ struct RectCornerRadii {
     return radii[aCorner];
   }
 
+  bool operator==(const RectCornerRadii& aOther) const {
+    for (size_t i = 0; i < RectCorner::Count; i++) {
+      if (radii[i] != aOther.radii[i]) return false;
+    }
+    return true;
+  }
+
   void Scale(Float aXScale, Float aYScale) {
     for (int i = 0; i < RectCorner::Count; i++) {
       radii[i].Scale(aXScale, aYScale);
@@ -293,7 +299,8 @@ inline already_AddRefed<Path> MakePathForEllipse(const DrawTarget& aDrawTarget,
  *   false.
  */
 GFX2D_API bool SnapLineToDevicePixelsForStroking(Point& aP1, Point& aP2,
-                                                 const DrawTarget& aDrawTarget);
+                                                 const DrawTarget& aDrawTarget,
+                                                 Float aLineWidth);
 
 /**
  * This function paints each edge of aRect separately, snapping the edges using
@@ -393,7 +400,7 @@ inline bool UserToDevicePixelSnapped(Rect& aRect, const DrawTarget& aDrawTarget,
  * This function has the same behavior as UserToDevicePixelSnapped except that
  * aRect is not transformed to device space.
  */
-inline void MaybeSnapToDevicePixels(Rect& aRect, const DrawTarget& aDrawTarget,
+inline bool MaybeSnapToDevicePixels(Rect& aRect, const DrawTarget& aDrawTarget,
                                     bool aAllowScaleOr90DegreeRotate = false,
                                     bool aAllowEmptySnaps = true)
 {
@@ -404,7 +411,9 @@ inline void MaybeSnapToDevicePixels(Rect& aRect, const DrawTarget& aDrawTarget,
     Matrix mat = aDrawTarget.GetTransform();
     mat.Invert();
     aRect = mat.TransformBounds(aRect);
+    return true;
   }
+  return false;
 }
 
 } // namespace gfx

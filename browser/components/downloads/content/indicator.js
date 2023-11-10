@@ -40,15 +40,15 @@ const DownloadsButton = {
   /**
    * Location of the indicator overlay.
    */
-  get kIndicatorOverlay()
-      "chrome://browser/content/downloads/indicatorOverlay.xul",
+  get kIndicatorOverlay() {
+    return "chrome://browser/content/downloads/indicatorOverlay.xul";
+  },
 
   /**
    * Returns a reference to the downloads button position placeholder, or null
    * if not available because it has been removed from the toolbars.
    */
-  get _placeholder()
-  {
+  get _placeholder() {
     return document.getElementById("downloads-button");
   },
 
@@ -241,18 +241,22 @@ const DownloadsButton = {
     this._updatePositionInternal();
   },
 
-  get _tabsToolbar()
-  {
+  get _tabsToolbar() {
     delete this._tabsToolbar;
     return this._tabsToolbar = document.getElementById("TabsToolbar");
   },
 
-  get _navBar()
-  {
+  get _navBar() {
     delete this._navBar;
     return this._navBar = document.getElementById("nav-bar");
   }
 };
+
+Object.defineProperty(this, "DownloadsButton", {
+  value: DownloadsButton,
+  enumerable: true,
+  writable: false
+});
 
 ////////////////////////////////////////////////////////////////////////////////
 //// DownloadsIndicatorView
@@ -380,7 +384,7 @@ const DownloadsIndicatorView = {
       let indicator = this.indicator;
       indicator.setAttribute("notification", aType);
       this._notificationTimeout = setTimeout(
-        function () indicator.removeAttribute("notification"), 1000);
+        () => indicator.removeAttribute("notification"), 1000);
     }
 
     this._ensureOperational(DIV_SEN_callback.bind(this));
@@ -393,23 +397,21 @@ const DownloadsIndicatorView = {
    * Indicates whether the indicator should be shown because there are some
    * downloads to be displayed.
    */
-  set hasDownloads(aValue)
-  {
+  set hasDownloads(aValue) {
     if (this._hasDownloads != aValue) {
       this._hasDownloads = aValue;
 
       // If there is at least one download, ensure that the view elements are
       // loaded before determining the position of the downloads button.
       if (aValue) {
-        this._ensureOperational(function() DownloadsButton.updatePosition());
+        this._ensureOperational(() => DownloadsButton.updatePosition());
       } else {
         DownloadsButton.updatePosition();
       }
     }
     return aValue;
   },
-  get hasDownloads()
-  {
+  get hasDownloads() {
     return this._hasDownloads;
   },
   _hasDownloads: false,
@@ -418,8 +420,7 @@ const DownloadsIndicatorView = {
    * Status text displayed in the indicator.  If this is set to an empty value,
    * then the small downloads icon is displayed instead of the text.
    */
-  set counter(aValue)
-  {
+  set counter(aValue) {
     if (!this._operational) {
       return this._counter;
     }
@@ -443,8 +444,7 @@ const DownloadsIndicatorView = {
    * progress bar is hidden if the current progress is unknown and no status
    * text is set in the "counter" property.
    */
-  set percentComplete(aValue)
-  {
+  set percentComplete(aValue) {
     if (!this._operational) {
       return this._percentComplete;
     }
@@ -468,8 +468,7 @@ const DownloadsIndicatorView = {
    * Setting this property forces a paused progress bar to be displayed, even if
    * the current progress information is unavailable.
    */
-  set paused(aValue)
-  {
+  set paused(aValue) {
     if (!this._operational) {
       return this._paused;
     }
@@ -489,8 +488,7 @@ const DownloadsIndicatorView = {
   /**
    * Set when the indicator should draw user attention to itself.
    */
-  set attention(aValue)
-  {
+  set attention(aValue) {
     if (!this._operational) {
       return this._attention;
     }
@@ -559,8 +557,7 @@ const DownloadsIndicatorView = {
    * Returns a reference to the main indicator element, or null if the element
    * is not present in the browser window yet.
    */
-  get indicator()
-  {
+  get indicator() {
     let indicator = document.getElementById("downloads-indicator");
     if (!indicator) {
       return null;
@@ -571,24 +568,27 @@ const DownloadsIndicatorView = {
     return this.indicator = indicator;
   },
 
-  get indicatorAnchor()
-  {
+  get indicatorAnchor() {
     delete this.indicatorAnchor;
     return this.indicatorAnchor =
       document.getElementById("downloads-indicator-anchor");
   },
 
-  get _indicatorCounter()
-  {
+  get _indicatorCounter() {
     delete this._indicatorCounter;
     return this._indicatorCounter =
       document.getElementById("downloads-indicator-counter");
   },
 
-  get _indicatorProgress()
-  {
+  get _indicatorProgress() {
     delete this._indicatorProgress;
     return this._indicatorProgress =
       document.getElementById("downloads-indicator-progress");
   }
 };
+
+Object.defineProperty(this, "DownloadsIndicatorView", {
+  value: DownloadsIndicatorView,
+  enumerable: true,
+  writable: false
+});

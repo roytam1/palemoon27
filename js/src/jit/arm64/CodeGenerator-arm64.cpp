@@ -494,15 +494,15 @@ CodeGeneratorARM64::visitCompareBAndBranch(LCompareBAndBranch* lir)
 }
 
 void
-CodeGeneratorARM64::visitCompareV(LCompareV* lir)
+CodeGeneratorARM64::visitCompareBitwise(LCompareBitwise* lir)
 {
-    MOZ_CRASH("visitCompareV");
+    MOZ_CRASH("visitCompareBitwise");
 }
 
 void
-CodeGeneratorARM64::visitCompareVAndBranch(LCompareVAndBranch* lir)
+CodeGeneratorARM64::visitCompareBitwiseAndBranch(LCompareBitwiseAndBranch* lir)
 {
-    MOZ_CRASH("visitCompareVAndBranch");
+    MOZ_CRASH("visitCompareBitwiseAndBranch");
 }
 
 void
@@ -606,12 +606,6 @@ void
 CodeGeneratorARM64::generateInvalidateEpilogue()
 {
     MOZ_CRASH("generateInvalidateEpilogue");
-}
-
-void
-CodeGeneratorARM64::visitRandom(LRandom* ins)
-{
-    MOZ_CRASH("visitRandom");
 }
 
 template <class U>
@@ -732,3 +726,58 @@ CodeGeneratorARM64::visitNegF(LNegF* ins)
 {
     MOZ_CRASH("visitNegF");
 }
+
+void
+CodeGeneratorARM64::setReturnDoubleRegs(LiveRegisterSet* regs)
+{
+    MOZ_ASSERT(ReturnFloat32Reg.code_ == FloatRegisters::s0);
+    MOZ_ASSERT(ReturnDoubleReg.code_ == FloatRegisters::d0);
+    FloatRegister s1 = {FloatRegisters::s1, FloatRegisters::Single};
+    regs->add(ReturnFloat32Reg);
+    regs->add(s1);
+    regs->add(ReturnDoubleReg);
+}
+
+void
+CodeGeneratorARM64::visitCompareExchangeTypedArrayElement(LCompareExchangeTypedArrayElement* lir)
+{
+    Register elements = ToRegister(lir->elements());
+    AnyRegister output = ToAnyRegister(lir->output());
+    Register temp = lir->temp()->isBogusTemp() ? InvalidReg : ToRegister(lir->temp());
+
+    Register oldval = ToRegister(lir->oldval());
+    Register newval = ToRegister(lir->newval());
+
+    Scalar::Type arrayType = lir->mir()->arrayType();
+    int width = Scalar::byteSize(arrayType);
+
+    if (lir->index()->isConstant()) {
+        Address dest(elements, ToInt32(lir->index()) * width);
+        masm.compareExchangeToTypedIntArray(arrayType, dest, oldval, newval, temp, output);
+    } else {
+        BaseIndex dest(elements, ToRegister(lir->index()), ScaleFromElemWidth(width));
+        masm.compareExchangeToTypedIntArray(arrayType, dest, oldval, newval, temp, output);
+    }
+}
+
+void
+CodeGeneratorARM64::visitAtomicExchangeTypedArrayElement(LAtomicExchangeTypedArrayElement* lir)
+{
+    Register elements = ToRegister(lir->elements());
+    AnyRegister output = ToAnyRegister(lir->output());
+    Register temp = lir->temp()->isBogusTemp() ? InvalidReg : ToRegister(lir->temp());
+
+    Register value = ToRegister(lir->value());
+
+    Scalar::Type arrayType = lir->mir()->arrayType();
+    int width = Scalar::byteSize(arrayType);
+
+    if (lir->index()->isConstant()) {
+        Address dest(elements, ToInt32(lir->index()) * width);
+        masm.atomicExchangeToTypedIntArray(arrayType, dest, value, temp, output);
+    } else {
+        BaseIndex dest(elements, ToRegister(lir->index()), ScaleFromElemWidth(width));
+        masm.atomicExchangeToTypedIntArray(arrayType, dest, value, temp, output);
+    }
+}
+

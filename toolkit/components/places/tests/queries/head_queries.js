@@ -43,7 +43,7 @@ function task_populateDB(aArray)
 {
   // Iterate over aArray and execute all the instructions that can be done with
   // asynchronous APIs, excluding those that will be done in batch mode later.
-  for ([, data] in Iterator(aArray)) {
+  for (let data of aArray) {
     try {
       // make the data object into a query data object in order to create proper
       // default values for anything left unspecified

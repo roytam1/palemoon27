@@ -9,6 +9,7 @@
 #ifndef nsGridContainerFrame_h___
 #define nsGridContainerFrame_h___
 
+#include "mozilla/TypeTraits.h"
 #include "nsContainerFrame.h"
 #include "nsHashKeys.h"
 #include "nsTHashtable.h"
@@ -19,6 +20,25 @@
  */
 nsContainerFrame* NS_NewGridContainerFrame(nsIPresShell* aPresShell,
                                            nsStyleContext* aContext);
+
+namespace mozilla {
+/**
+ * The number of implicit / explicit tracks and their sizes.
+ */
+struct ComputedGridTrackInfo
+{
+  ComputedGridTrackInfo(uint32_t aNumLeadingImplicitTracks,
+                        uint32_t aNumExplicitTracks,
+                        nsTArray<nscoord>&& aSizes)
+    : mNumLeadingImplicitTracks(aNumLeadingImplicitTracks)
+    , mNumExplicitTracks(aNumExplicitTracks)
+    , mSizes(aSizes)
+  {}
+  uint32_t mNumLeadingImplicitTracks;
+  uint32_t mNumExplicitTracks;
+  nsTArray<nscoord> mSizes;
+};
+} // namespace mozilla
 
 class nsGridContainerFrame final : public nsContainerFrame
 {
@@ -32,6 +52,9 @@ public:
               nsHTMLReflowMetrics&     aDesiredSize,
               const nsHTMLReflowState& aReflowState,
               nsReflowStatus&          aStatus) override;
+  nscoord GetMinISize(nsRenderingContext* aRenderingContext) override;
+  nscoord GetPrefISize(nsRenderingContext* aRenderingContext) override;
+  void MarkIntrinsicISizesDirty() override;
   virtual nsIAtom* GetType() const override;
 
   void BuildDisplayList(nsDisplayListBuilder*   aBuilder,
@@ -50,61 +73,180 @@ public:
   static const nsRect& GridItemCB(nsIFrame* aChild);
 
   struct TrackSize {
+    void Initialize(nscoord aPercentageBasis,
+                    const nsStyleCoord& aMinCoord,
+                    const nsStyleCoord& aMaxCoord);
+    bool IsFrozen() const { return mState & eFrozen; }
+#ifdef DEBUG
+    void Dump() const;
+#endif
+    enum StateBits : uint16_t {
+      eAutoMinSizing =           0x1,
+      eMinContentMinSizing =     0x2,
+      eMaxContentMinSizing =     0x4,
+      eMinOrMaxContentMinSizing = eMinContentMinSizing | eMaxContentMinSizing,
+      eIntrinsicMinSizing = eMinOrMaxContentMinSizing | eAutoMinSizing,
+      eFlexMinSizing =           0x8,
+      eAutoMaxSizing =          0x10,
+      eMinContentMaxSizing =    0x20,
+      eMaxContentMaxSizing =    0x40,
+      eAutoOrMaxContentMaxSizing = eAutoMaxSizing | eMaxContentMaxSizing,
+      eIntrinsicMaxSizing = eAutoOrMaxContentMaxSizing | eMinContentMaxSizing,
+      eFlexMaxSizing =          0x80,
+      eFrozen =                0x100,
+      eSkipGrowUnlimited1 =    0x200,
+      eSkipGrowUnlimited2 =    0x400,
+      eSkipGrowUnlimited = eSkipGrowUnlimited1 | eSkipGrowUnlimited2,
+    };
+
     nscoord mBase;
     nscoord mLimit;
+    nscoord mPosition;  // zero until we apply 'align/justify-content'
+    StateBits mState;
   };
 
-  // @see nsAbsoluteContainingBlock::Reflow about this magic number
-  static const nscoord VERY_LIKELY_A_GRID_CONTAINER = -123456789;
+  NS_DECLARE_FRAME_PROPERTY_DELETABLE(GridItemContainingBlockRect, nsRect)
 
-  NS_DECLARE_FRAME_PROPERTY(GridItemContainingBlockRect, DeleteValue<nsRect>)
+  NS_DECLARE_FRAME_PROPERTY_DELETABLE(GridColTrackInfo, ComputedGridTrackInfo)
+  const ComputedGridTrackInfo* GetComputedTemplateColumns()
+  {
+    return Properties().Get(GridColTrackInfo());
+  }
+
+  NS_DECLARE_FRAME_PROPERTY_DELETABLE(GridRowTrackInfo, ComputedGridTrackInfo)
+  const ComputedGridTrackInfo* GetComputedTemplateRows()
+  {
+    return Properties().Get(GridRowTrackInfo());
+  }
 
 protected:
+  static const uint32_t kAutoLine;
+  // The maximum line number, in the zero-based translated grid.
+  static const uint32_t kTranslatedMaxLine;
   typedef mozilla::LogicalPoint LogicalPoint;
   typedef mozilla::LogicalRect LogicalRect;
+  typedef mozilla::LogicalSize LogicalSize;
   typedef mozilla::WritingMode WritingMode;
   typedef mozilla::css::GridNamedArea GridNamedArea;
+  typedef nsLayoutUtils::IntrinsicISizeType IntrinsicISizeType;
   class GridItemCSSOrderIterator;
+  struct TrackSizingFunctions;
+  struct Tracks;
+  struct GridReflowState;
+  class LineNameMap;
   friend nsContainerFrame* NS_NewGridContainerFrame(nsIPresShell* aPresShell,
                                                     nsStyleContext* aContext);
-  explicit nsGridContainerFrame(nsStyleContext* aContext) : nsContainerFrame(aContext) {}
+  explicit nsGridContainerFrame(nsStyleContext* aContext)
+    : nsContainerFrame(aContext)
+    , mCachedMinISize(NS_INTRINSIC_WIDTH_UNKNOWN)
+    , mCachedPrefISize(NS_INTRINSIC_WIDTH_UNKNOWN)
+  {}
 
   /**
    * A LineRange can be definite or auto - when it's definite it represents
-   * a consecutive set of tracks between a starting line and an ending line
-   * (both 1-based) where mStart < mEnd.  Before it's definite it can also
-   * represent an auto position with a span, where mStart == 0 and mEnd is
-   * the (non-zero positive) span.
-   * In both states the invariant mEnd > mStart holds (for normal flow items).
+   * a consecutive set of tracks between a starting line and an ending line.
+   * Before it's definite it can also represent an auto position with a span,
+   * where mStart == kAutoLine and mEnd is the (non-zero positive) span.
+   * For normal-flow items, the invariant mStart < mEnd holds when both
+   * lines are definite.
    *
-   * For abs.pos. grid items, mStart and mEnd may both be zero, meaning
+   * For abs.pos. grid items, mStart and mEnd may both be kAutoLine, meaning
    * "attach this side to the grid container containing block edge".
-   * Additionally, mEnd >= mStart holds when both are definite (non-zero),
+   * Additionally, mStart <= mEnd holds when both are definite (non-kAutoLine),
    * i.e. the invariant is slightly relaxed compared to normal flow items.
    */
   struct LineRange {
    LineRange(int32_t aStart, int32_t aEnd)
-      : mStart(aStart), mEnd(aEnd) {}
-    bool IsAuto() const { return mStart == 0; }
-    bool IsDefinite() const { return mStart != 0; }
-    uint32_t Extent() const { return mEnd - mStart; }
+     : mUntranslatedStart(aStart), mUntranslatedEnd(aEnd)
+    {
+#ifdef DEBUG
+      if (!IsAutoAuto()) {
+        if (IsAuto()) {
+          MOZ_ASSERT(aEnd >= nsStyleGridLine::kMinLine &&
+                     aEnd <= nsStyleGridLine::kMaxLine, "invalid span");
+        } else {
+          MOZ_ASSERT(aStart >= nsStyleGridLine::kMinLine &&
+                     aStart <= nsStyleGridLine::kMaxLine, "invalid start line");
+          MOZ_ASSERT(aEnd == int32_t(kAutoLine) ||
+                     (aEnd >= nsStyleGridLine::kMinLine &&
+                      aEnd <= nsStyleGridLine::kMaxLine), "invalid end line");
+        }
+      }
+#endif
+    }
+    bool IsAutoAuto() const { return mStart == kAutoLine && mEnd == kAutoLine; }
+    bool IsAuto() const { return mStart == kAutoLine; }
+    bool IsDefinite() const { return mStart != kAutoLine; }
+    uint32_t Extent() const
+    {
+      MOZ_ASSERT(mEnd != kAutoLine, "Extent is undefined for abs.pos. 'auto'");
+      if (IsAuto()) {
+        MOZ_ASSERT(mEnd >= 1 && mEnd < uint32_t(nsStyleGridLine::kMaxLine),
+                   "invalid span");
+        return mEnd;
+      }
+      return mEnd - mStart;
+    }
     /**
      * Resolve this auto range to start at aStart, making it definite.
      * Precondition: this range IsAuto()
      */
-    void ResolveAutoPosition(int32_t aStart)
+    void ResolveAutoPosition(uint32_t aStart, uint32_t aExplicitGridOffset)
     {
       MOZ_ASSERT(IsAuto(), "Why call me?");
-      MOZ_ASSERT(aStart > 0, "expected a 1-based line number");
-      MOZ_ASSERT(int32_t(Extent()) == mEnd, "'auto' representation changed?");
       mStart = aStart;
       mEnd += aStart;
+      // Clamping to where kMaxLine is in the explicit grid, per
+      // http://dev.w3.org/csswg/css-grid/#overlarge-grids :
+      uint32_t translatedMax = aExplicitGridOffset + nsStyleGridLine::kMaxLine;
+      if (MOZ_UNLIKELY(mStart >= translatedMax)) {
+        mEnd = translatedMax;
+        mStart = mEnd - 1;
+      } else if (MOZ_UNLIKELY(mEnd > translatedMax)) {
+        mEnd = translatedMax;
+      }
+    }
+    /**
+     * Translate the lines to account for (empty) removed tracks.  This method
+     * is only for grid items and should only be called after placement.
+     * aNumRemovedTracks contains a count for each line in the grid how many
+     * tracks were removed between the start of the grid and that line.
+     */
+    void AdjustForRemovedTracks(const nsTArray<uint32_t>& aNumRemovedTracks)
+    {
+      MOZ_ASSERT(mStart != kAutoLine, "invalid resolved line for a grid item");
+      MOZ_ASSERT(mEnd != kAutoLine, "invalid resolved line for a grid item");
+      uint32_t numRemovedTracks = aNumRemovedTracks[mStart];
+      MOZ_ASSERT(numRemovedTracks == aNumRemovedTracks[mEnd],
+                 "tracks that a grid item spans can't be removed");
+      mStart -= numRemovedTracks;
+      mEnd -= numRemovedTracks;
+    }
+    /**
+     * Translate the lines to account for (empty) removed tracks.  This method
+     * is only for abs.pos. children and should only be called after placement.
+     * Same as for in-flow items, but we don't touch 'auto' lines here and we
+     * also need to adjust areas that span into the removed tracks.
+     */
+    void AdjustAbsPosForRemovedTracks(const nsTArray<uint32_t>& aNumRemovedTracks)
+    {
+      if (mStart != nsGridContainerFrame::kAutoLine) {
+        mStart -= aNumRemovedTracks[mStart];
+      }
+      if (mEnd != nsGridContainerFrame::kAutoLine) {
+        MOZ_ASSERT(mStart == nsGridContainerFrame::kAutoLine ||
+                   mEnd > mStart, "invalid line range");
+        mEnd -= aNumRemovedTracks[mEnd];
+      }
+      if (mStart == mEnd) {
+        mEnd = nsGridContainerFrame::kAutoLine;
+      }
     }
     /**
      * Return the contribution of this line range for step 2 in
      * http://dev.w3.org/csswg/css-grid/#auto-placement-algo
      */
-    uint32_t HypotheticalEnd() const { return IsAuto() ? mEnd + 1 : mEnd; }
+    uint32_t HypotheticalEnd() const { return mEnd; }
     /**
      * Given an array of track sizes, return the starting position and length
      * of the tracks in this line range.
@@ -112,18 +254,65 @@ protected:
     void ToPositionAndLength(const nsTArray<TrackSize>& aTrackSizes,
                              nscoord* aPos, nscoord* aLength) const;
     /**
-     * Given an array of track sizes and a grid origin coordinate, adjust the
+     * Given an array of track sizes, return the length of the tracks in this
+     * line range.
+     */
+    nscoord ToLength(const nsTArray<TrackSize>& aTrackSizes) const;
+    /**
+     * Given a set of tracks and a grid origin coordinate, adjust the
      * abs.pos. containing block along an axis given by aPos and aLength.
      * aPos and aLength should already be initialized to the grid container
      * containing block for this axis before calling this method.
      */
-    void ToPositionAndLengthForAbsPos(const nsTArray<TrackSize>& aTrackSizes,
+    void ToPositionAndLengthForAbsPos(const Tracks& aTracks,
                                       nscoord aGridOrigin,
                                       nscoord* aPos, nscoord* aLength) const;
 
-    int32_t mStart;  // the start line, or zero for 'auto'
-    int32_t mEnd;    // the end line, or the span length for 'auto'
+    /**
+     * @note We'll use the signed member while resolving definite positions
+     * to line numbers (1-based), which may become negative for implicit lines
+     * to the top/left of the explicit grid.  PlaceGridItems() then translates
+     * the whole grid to a 0,0 origin and we'll use the unsigned member from
+     * there on.
+     */
+    union {
+      uint32_t mStart;
+      int32_t mUntranslatedStart;
+    };
+    union {
+      uint32_t mEnd;
+      int32_t mUntranslatedEnd;
+    };
+  protected:
+    LineRange() {}
   };
+
+  /**
+   * Helper class to construct a LineRange from translated lines.
+   * The ctor only accepts translated definite line numbers.
+   */
+  struct TranslatedLineRange : public LineRange {
+    TranslatedLineRange(uint32_t aStart, uint32_t aEnd)
+    {
+      MOZ_ASSERT(aStart < aEnd && aEnd <= kTranslatedMaxLine);
+      mStart = aStart;
+      mEnd = aEnd;
+    }
+  };
+
+  /**
+   * Return aLine if it's inside the aMin..aMax range (inclusive),
+   * otherwise return kAutoLine.
+   */
+  static int32_t
+  AutoIfOutside(int32_t aLine, int32_t aMin, int32_t aMax)
+  {
+    MOZ_ASSERT(aMin <= aMax);
+    if (aLine < aMin || aLine > aMax) {
+      return kAutoLine;
+    }
+    return aLine;
+  }
 
   /**
    * A GridArea is the area in the grid for a grid item.
@@ -154,10 +343,48 @@ protected:
     };
     void Fill(const GridArea& aGridArea);
     void ClearOccupied();
+    uint32_t IsEmptyCol(uint32_t aCol) const
+    {
+      for (auto& row : mCells) {
+        if (aCol < row.Length() && row[aCol].mIsOccupied) {
+          return false;
+        }
+      }
+      return true;
+    }
+    uint32_t IsEmptyRow(uint32_t aRow) const
+    {
+      if (aRow >= mCells.Length()) {
+        return true;
+      }
+      for (const Cell& cell : mCells[aRow]) {
+        if (cell.mIsOccupied) {
+          return false;
+        }
+      }
+      return true;
+    }
 #if DEBUG
     void Dump() const;
 #endif
     nsTArray<nsTArray<Cell>> mCells;
+  };
+
+  struct GridItemInfo {
+    explicit GridItemInfo(const GridArea& aArea)
+      : mArea(aArea)
+    {
+      mIsFlexing[0] = false;
+      mIsFlexing[1] = false;
+    }
+
+    GridArea mArea;
+    bool mIsFlexing[2]; // does the item span a flex track? (LogicalAxis index)
+    static_assert(mozilla::eLogicalAxisBlock == 0, "unexpected index value");
+    static_assert(mozilla::eLogicalAxisInline == 1, "unexpected index value");
+#ifdef DEBUG
+    nsIFrame* mFrame;
+#endif
   };
 
   enum LineRangeSide {
@@ -172,19 +399,18 @@ protected:
    *             a specified line name, it's permitted to pass in zero which
    *             will be treated as one.
    * @param aFromIndex the zero-based index to start counting from
-   * @param aLineNameList the explicit named lines
+   * @param aNameMap for looking up explicit named lines
    * @param aAreaStart a pointer to GridNamedArea::mColumnStart/mRowStart
    * @param aAreaEnd a pointer to GridNamedArea::mColumnEnd/mRowEnd
    * @param aExplicitGridEnd the last line in the explicit grid
    * @param aEdge indicates whether we are resolving a start or end line
    * @param aStyle the StylePosition() for the grid container
-   * @return a definite line number, or zero in case aLine is a <custom-ident>
-   * that can't be found.
+   * @return a definite line (1-based), clamped to the kMinLine..kMaxLine range
    */
   int32_t ResolveLine(const nsStyleGridLine& aLine,
                       int32_t aNth,
                       uint32_t aFromIndex,
-                      const nsTArray<nsTArray<nsString>>& aLineNameList,
+                      const LineNameMap& aNameMap,
                       uint32_t GridNamedArea::* aAreaStart,
                       uint32_t GridNamedArea::* aAreaEnd,
                       uint32_t aExplicitGridEnd,
@@ -192,14 +418,14 @@ protected:
                       const nsStylePosition* aStyle);
   /**
    * Return a LineRange based on the given style data. Non-auto lines
-   * are resolved to a definite line number per:
+   * are resolved to a definite line number (1-based) per:
    * http://dev.w3.org/csswg/css-grid/#line-placement
    * with placement errors corrected per:
    * http://dev.w3.org/csswg/css-grid/#grid-placement-errors
    * @param aStyle the StylePosition() for the grid container
    * @param aStart style data for the start line
    * @param aEnd style data for the end line
-   * @param aLineNameList the explicit named lines
+   * @param aNameMap for looking up explicit named lines
    * @param aAreaStart a pointer to GridNamedArea::mColumnStart/mRowStart
    * @param aAreaEnd a pointer to GridNamedArea::mColumnEnd/mRowEnd
    * @param aExplicitGridEnd the last line in the explicit grid
@@ -207,7 +433,7 @@ protected:
    */
   LineRange ResolveLineRange(const nsStyleGridLine& aStart,
                              const nsStyleGridLine& aEnd,
-                             const nsTArray<nsTArray<nsString>>& aLineNameList,
+                             const LineNameMap& aNameMap,
                              uint32_t GridNamedArea::* aAreaStart,
                              uint32_t GridNamedArea::* aAreaEnd,
                              uint32_t aExplicitGridEnd,
@@ -215,27 +441,34 @@ protected:
 
   /**
    * As above but for an abs.pos. child.  Any 'auto' lines will be represented
-   * by zero in the LineRange result.
-   * @param aGridEnd the last line in the (final) implicit grid
+   * by kAutoLine in the LineRange result.
+   * @param aGridStart the first line in the final, but untranslated grid
+   * @param aGridEnd the last line in the final, but untranslated grid
    */
   LineRange
   ResolveAbsPosLineRange(const nsStyleGridLine& aStart,
                          const nsStyleGridLine& aEnd,
-                         const nsTArray<nsTArray<nsString>>& aLineNameList,
+                         const LineNameMap& aNameMap,
                          uint32_t GridNamedArea::* aAreaStart,
                          uint32_t GridNamedArea::* aAreaEnd,
                          uint32_t aExplicitGridEnd,
-                         uint32_t aGridEnd,
+                         int32_t aGridStart,
+                         int32_t aGridEnd,
                          const nsStylePosition* aStyle);
 
   /**
-   * Return a GridArea with non-auto lines placed at a definite line number
-   * and with placement errors resolved.  One or both positions may still be
-   * 'auto'.
+   * Return a GridArea with non-auto lines placed at a definite line (1-based)
+   * with placement errors resolved.  One or both positions may still
+   * be 'auto'.
    * @param aChild the grid item
+   * @param aColLineNameMap for looking up explicit named column lines
+   * @param aRowLineNameMap for looking up explicit named row lines
    * @param aStyle the StylePosition() for the grid container
    */
-  GridArea PlaceDefinite(nsIFrame* aChild, const nsStylePosition* aStyle);
+  GridArea PlaceDefinite(nsIFrame* aChild,
+                         const LineNameMap& aColLineNameMap,
+                         const LineNameMap& aRowLineNameMap,
+                         const nsStylePosition* aStyle);
 
   /**
    * Place aArea in the first column (in row aArea->mRows.mStart) starting at
@@ -292,32 +525,38 @@ protected:
                                GridArea* aArea) const;
 
   /**
-   * Place an abs.pos. child and return its grid area.
-   * @note the resulting area may still have 'auto' lines in one or both
-   * dimensions (represented as zero).
+   * Return a GridArea for abs.pos. item with non-auto lines placed at
+   * a definite line (1-based) with placement errors resolved.  One or both
+   * positions may still be 'auto'.
    * @param aChild the abs.pos. grid item to place
+   * @param aColLineNameMap for looking up explicit named column lines
+   * @param aRowLineNameMap for looking up explicit named row lines
    * @param aStyle the StylePosition() for the grid container
    */
-  GridArea PlaceAbsPos(nsIFrame* aChild, const nsStylePosition* aStyle);
+  GridArea PlaceAbsPos(nsIFrame* aChild,
+                       const LineNameMap& aColLineNameMap,
+                       const LineNameMap& aRowLineNameMap,
+                       const nsStylePosition* aStyle);
 
   /**
    * Place all child frames into the grid and expand the (implicit) grid as
    * needed.  The allocated GridAreas are stored in the GridAreaProperty
    * frame property on the child frame.
-   * @param aIter a grid item iterator
-   * @param aStyle the StylePosition() for the grid container
+   * @param aComputedMinSize the container's min-size - used to determine
+   *   the number of repeat(auto-fill/fit) tracks.
+   * @param aComputedSize the container's size - used to determine
+   *   the number of repeat(auto-fill/fit) tracks.
+   * @param aComputedMaxSize the container's max-size - used to determine
+   *   the number of repeat(auto-fill/fit) tracks.
    */
-  void PlaceGridItems(GridItemCSSOrderIterator& aIter,
-                      const nsStylePosition* aStyle);
-
-  /**
-   * Initialize the end lines of the Explicit Grid (mExplicitGridCol[Row]End).
-   * This is determined by the larger of the number of rows/columns defined
-   * by 'grid-template-areas' and the 'grid-template-rows'/'-columns', plus one.
-   * Also initialize the Implicit Grid (mGridCol[Row]End) to the same values.
-   * @param aStyle the StylePosition() for the grid container
-   */
-  void InitializeGridBounds(const nsStylePosition* aStyle);
+  void PlaceGridItems(GridReflowState&   aState,
+                      const LogicalSize& aComputedMinSize,
+                      const LogicalSize& aComputedSize,
+                      const LogicalSize& aComputedMaxSize);
+  // Helper for the above.
+  void PlaceGridItems(GridReflowState&   aState,
+                      const LineNameMap& aColLineNameMap,
+                      const LineNameMap& aRowLineNameMap);
 
   /**
    * Inflate the implicit grid to include aArea.
@@ -327,15 +566,16 @@ protected:
   {
     mGridColEnd = std::max(mGridColEnd, aArea.mCols.HypotheticalEnd());
     mGridRowEnd = std::max(mGridRowEnd, aArea.mRows.HypotheticalEnd());
+    MOZ_ASSERT(mGridColEnd <= kTranslatedMaxLine &&
+               mGridRowEnd <= kTranslatedMaxLine);
   }
 
   /**
    * Calculate track sizes.
    */
-  void CalculateTrackSizes(const mozilla::LogicalSize& aPercentageBasis,
-                           const nsStylePosition*      aStyle,
-                           nsTArray<TrackSize>&        aColSizes,
-                           nsTArray<TrackSize>&        aRowSizes);
+  void CalculateTrackSizes(GridReflowState&            aState,
+                           const mozilla::LogicalSize& aContentBox,
+                           IntrinsicISizeType          aConstraint);
 
   /**
    * Helper method for ResolveLineRange.
@@ -345,7 +585,7 @@ protected:
   typedef std::pair<int32_t, int32_t> LinePair;
   LinePair ResolveLineRangeHelper(const nsStyleGridLine& aStart,
                                   const nsStyleGridLine& aEnd,
-                                  const nsTArray<nsTArray<nsString>>& aLineNameList,
+                                  const LineNameMap& aNameMap,
                                   uint32_t GridNamedArea::* aAreaStart,
                                   uint32_t GridNamedArea::* aAreaEnd,
                                   uint32_t aExplicitGridEnd,
@@ -357,70 +597,66 @@ protected:
    * grid-template-columns / grid-template-rows are stored in this frame
    * property when needed, as a ImplicitNamedAreas* value.
    */
-  NS_DECLARE_FRAME_PROPERTY(ImplicitNamedAreasProperty,
-                            DeleteValue<ImplicitNamedAreas>)
+  typedef nsTHashtable<nsStringHashKey> ImplicitNamedAreas;
+  NS_DECLARE_FRAME_PROPERTY_DELETABLE(ImplicitNamedAreasProperty,
+                                      ImplicitNamedAreas)
   void InitImplicitNamedAreas(const nsStylePosition* aStyle);
   void AddImplicitNamedAreas(const nsTArray<nsTArray<nsString>>& aLineNameLists);
-  typedef nsTHashtable<nsStringHashKey> ImplicitNamedAreas;
   ImplicitNamedAreas* GetImplicitNamedAreas() const {
-    return static_cast<ImplicitNamedAreas*>(Properties().Get(ImplicitNamedAreasProperty()));
+    return Properties().Get(ImplicitNamedAreasProperty());
   }
   bool HasImplicitNamedArea(const nsString& aName) const {
     ImplicitNamedAreas* areas = GetImplicitNamedAreas();
     return areas && areas->Contains(aName);
   }
 
-  NS_DECLARE_FRAME_PROPERTY(GridAreaProperty, DeleteValue<GridArea>)
-
-  /**
-   * A convenience method to get the stored GridArea* for a frame.
-   */
-  static GridArea* GetGridAreaForChild(nsIFrame* aChild) {
-    return static_cast<GridArea*>(aChild->Properties().Get(GridAreaProperty()));
-  }
-
   /**
    * Return the containing block for a grid item occupying aArea.
-   * @param aColSizes column track sizes
-   * @param aRowSizes row track sizes
    */
-  LogicalRect ContainingBlockFor(const WritingMode& aWM,
-                                 const GridArea& aArea,
-                                 const nsTArray<TrackSize>& aColSizes,
-                                 const nsTArray<TrackSize>& aRowSizes) const;
+  LogicalRect ContainingBlockFor(const GridReflowState& aState,
+                                 const GridArea&        aArea) const;
 
   /**
    * Return the containing block for an abs.pos. grid item occupying aArea.
    * Any 'auto' lines in the grid area will be aligned with grid container
    * containing block on that side.
-   * @param aColSizes column track sizes
-   * @param aRowSizes row track sizes
    * @param aGridOrigin the origin of the grid
    * @param aGridCB the grid container containing block (its padding area)
    */
-  LogicalRect ContainingBlockForAbsPos(const WritingMode& aWM,
-                                       const GridArea& aArea,
-                                       const nsTArray<TrackSize>& aColSizes,
-                                       const nsTArray<TrackSize>& aRowSizes,
-                                       const LogicalPoint& aGridOrigin,
-                                       const LogicalRect& aGridCB) const;
+  LogicalRect ContainingBlockForAbsPos(const GridReflowState& aState,
+                                       const GridArea&        aArea,
+                                       const LogicalPoint&    aGridOrigin,
+                                       const LogicalRect&     aGridCB) const;
 
   /**
    * Reflow and place our children.
    */
-  void ReflowChildren(GridItemCSSOrderIterator&   aIter,
-                      const LogicalRect&          aContentArea,
-                      const nsTArray<TrackSize>&  aColSizes,
-                      const nsTArray<TrackSize>&  aRowSizes,
-                      nsHTMLReflowMetrics&        aDesiredSize,
-                      const nsHTMLReflowState&    aReflowState,
-                      nsReflowStatus&             aStatus);
+  void ReflowChildren(GridReflowState&     aState,
+                      const LogicalRect&   aContentArea,
+                      nsHTMLReflowMetrics& aDesiredSize,
+                      nsReflowStatus&      aStatus);
+
+  /**
+   * Helper for GetMinISize / GetPrefISize.
+   */
+  nscoord IntrinsicISize(nsRenderingContext* aRenderingContext,
+                         IntrinsicISizeType  aConstraint);
 
 #ifdef DEBUG
   void SanityCheckAnonymousGridItems() const;
 #endif // DEBUG
 
 private:
+  /**
+   * Info about each (normal flow) grid item.
+   */
+  nsTArray<GridItemInfo> mGridItems;
+
+  /**
+   * Info about each grid-aligned abs.pos. child.
+   */
+  nsTArray<GridItemInfo> mAbsPosItems;
+
   /**
    * State for each cell in the grid.
    */
@@ -436,14 +672,37 @@ private:
    * (i.e. the number of explicit rows + 1)
    */
   uint32_t mExplicitGridRowEnd;
-  // Same for the implicit grid
-  uint32_t mGridColEnd; // always >= mExplicitGridColEnd
-  uint32_t mGridRowEnd; // always >= mExplicitGridRowEnd
+  // Same for the implicit grid, except these become zero-based after
+  // resolving definite lines.
+  uint32_t mGridColEnd;
+  uint32_t mGridRowEnd;
+
+  /**
+   * Offsets from the start of the implicit grid to the start of the translated
+   * explicit grid.  They are zero if there are no implicit lines before 1,1.
+   * e.g. "grid-column: span 3 / 1" makes mExplicitGridOffsetCol = 3 and the
+   * corresponding GridArea::mCols will be 0 / 3 in the zero-based translated
+   * grid.
+   */
+  uint32_t mExplicitGridOffsetCol;
+  uint32_t mExplicitGridOffsetRow;
+
+  /**
+   * Cached values to optimize GetMinISize/GetPrefISize.
+   */
+  nscoord mCachedMinISize;
+  nscoord mCachedPrefISize;
+
   /**
    * True iff the normal flow children are already in CSS 'order' in the
    * order they occur in the child frame list.
    */
   bool mIsNormalFlowInCSSOrder : 1;
 };
+
+namespace mozilla {
+template <>
+struct IsPod<nsGridContainerFrame::TrackSize> : TrueType {};
+}
 
 #endif /* nsGridContainerFrame_h___ */

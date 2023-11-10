@@ -57,7 +57,7 @@ private:
   nsresult KeydownInternal(const WidgetKeyboardEvent& aKeyboardEvent,
                            uint32_t aKeyFlags,
                            bool aAllowToDispatchKeypress,
-                           bool& aDoDefault);
+                           uint32_t& aConsumedFlags);
   nsresult KeyupInternal(const WidgetKeyboardEvent& aKeyboardEvent,
                          uint32_t aKeyFlags,
                          bool& aDoDefault);
@@ -105,7 +105,7 @@ private:
     ~AutoPendingCompositionResetter();
 
   private:
-    nsRefPtr<TextInputProcessor> mTIP;
+    RefPtr<TextInputProcessor> mTIP;
   };
 
   /**
@@ -177,7 +177,7 @@ private:
 
   TextEventDispatcher* mDispatcher; // [Weak]
   nsCOMPtr<nsITextInputProcessorCallback> mCallback;
-  nsRefPtr<ModifierKeyDataArray> mModifierKeyDataArray;
+  RefPtr<ModifierKeyDataArray> mModifierKeyDataArray;
 
   bool mForTests;
 };

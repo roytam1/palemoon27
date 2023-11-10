@@ -1,11 +1,9 @@
-
 /*
  * Copyright 2006 The Android Open Source Project
  *
  * Use of this source code is governed by a BSD-style license that can be
  * found in the LICENSE file.
  */
-
 
 #include "SkOperandInterpolator.h"
 #include "SkScript.h"
@@ -38,7 +36,7 @@ void SkOperandInterpolator::reset(int elemCount, int frameCount, SkDisplayTypes 
 
 bool SkOperandInterpolator::setKeyFrame(int index, SkMSec time, const SkOperand values[], SkScalar blend)
 {
-    SkASSERT(values != NULL);
+    SkASSERT(values != nullptr);
     blend = SkScalarPin(blend, 0, SK_Scalar1);
 
     bool success = ~index == SkTSearch<SkMSec>(&fTimes->fTime, index, time, sizeof(SkTimeCode));
@@ -60,7 +58,7 @@ SkInterpolatorBase::Result SkOperandInterpolator::timeToValues(SkMSec time, SkOp
 {
     SkScalar T;
     int index;
-    SkBool exact;
+    bool exact;
     Result result = timeToT(time, &T, &index, &exact);
     if (values)
     {

@@ -84,17 +84,21 @@ js::ErrorObject::init(JSContext* cx, Handle<ErrorObject*> obj, JSExnType type,
 /* static */ ErrorObject*
 js::ErrorObject::create(JSContext* cx, JSExnType errorType, HandleObject stack,
                         HandleString fileName, uint32_t lineNumber, uint32_t columnNumber,
-                        ScopedJSFreePtr<JSErrorReport>* report, HandleString message)
+                        ScopedJSFreePtr<JSErrorReport>* report, HandleString message,
+                        HandleObject protoArg /* = nullptr */)
 {
     AssertObjectIsSavedFrameOrWrapper(cx, stack);
 
-    Rooted<JSObject*> proto(cx, GlobalObject::getOrCreateCustomErrorPrototype(cx, cx->global(), errorType));
-    if (!proto)
-        return nullptr;
+    RootedObject proto(cx, protoArg);
+    if (!proto) {
+        proto = GlobalObject::getOrCreateCustomErrorPrototype(cx, cx->global(), errorType);
+        if (!proto)
+            return nullptr;
+    }
 
     Rooted<ErrorObject*> errObject(cx);
     {
-        const Class *clasp = ErrorObject::classForType(errorType);
+        const Class* clasp = ErrorObject::classForType(errorType);
         JSObject* obj = NewObjectWithGivenProto(cx, clasp, proto);
         if (!obj)
             return nullptr;
@@ -155,10 +159,10 @@ js::ErrorObject::getOrCreateErrorReport(JSContext* cx)
 }
 
 /* static */ bool
-js::ErrorObject::checkAndUnwrapThis(JSContext *cx, CallArgs &args, const char *fnName,
+js::ErrorObject::checkAndUnwrapThis(JSContext* cx, CallArgs& args, const char* fnName,
                                     MutableHandle<ErrorObject*> error)
 {
-    const Value &thisValue = args.thisv();
+    const Value& thisValue = args.thisv();
 
     if (!thisValue.isObject()) {
         JS_ReportErrorNumber(cx, GetErrorMessage, nullptr, JSMSG_NOT_NONNULL_OBJECT,
@@ -170,38 +174,35 @@ js::ErrorObject::checkAndUnwrapThis(JSContext *cx, CallArgs &args, const char *f
     // the slots we need. This allows us to support the poor-man's subclassing
     // of error: Object.create(Error.prototype).
 
-    RootedObject target(cx, CheckedUnwrap(&thisValue.toObject()));
-    if (!target) {
+    RootedObject obj(cx, &args.thisv().toObject());
+    RootedObject curr(cx, obj);
+    RootedObject target(cx);
+    do {
+      target = CheckedUnwrap(curr);
+      if (!target) {
         JS_ReportError(cx, "Permission denied to access object");
         return false;
-    }
+      }
+      if (target->is<ErrorObject>()) {
+        error.set(&target->as<ErrorObject>());
+        return true;
+      }
 
-    RootedObject proto(cx);
-    while (!target->is<ErrorObject>()) {
-        if (!GetPrototype(cx, target, &proto))
-            return false;
+      if (!GetPrototype(cx, curr, &curr)) {
+        return false;
+      }
+    } while (curr);
 
-        if (!proto) {
-            // We walked the whole prototype chain and did not find an Error
-            // object.
-            JS_ReportErrorNumber(cx, GetErrorMessage, nullptr, JSMSG_INCOMPATIBLE_PROTO,
-                                 js_Error_str, fnName, thisValue.toObject().getClass()->name);
-            return false;
-        }
-
-        target = CheckedUnwrap(proto);
-        if (!target) {
-            JS_ReportError(cx, "Permission denied to access object");
-            return false;
-        }
-    }
-
-    error.set(&target->as<ErrorObject>());
-    return true;
+    // We walked the whole prototype chain and did not find an Error
+    // object.
+    JS_ReportErrorNumber(cx, GetErrorMessage, nullptr,
+                         JSMSG_INCOMPATIBLE_PROTO, js_Error_str,
+                         "(get stack)", obj->getClass()->name);
+    return false;
 }
 
 /* static */ bool
-js::ErrorObject::getStack(JSContext *cx, unsigned argc, Value *vp)
+js::ErrorObject::getStack(JSContext* cx, unsigned argc, Value* vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
     Rooted<ErrorObject*> error(cx);
@@ -223,7 +224,7 @@ IsObject(HandleValue v)
 }
 
 /* static */ bool
-js::ErrorObject::setStack(JSContext *cx, unsigned argc, Value *vp)
+js::ErrorObject::setStack(JSContext* cx, unsigned argc, Value* vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
     // We accept any object here, because of poor-man's subclassing of Error.
@@ -231,9 +232,9 @@ js::ErrorObject::setStack(JSContext *cx, unsigned argc, Value *vp)
 }
 
 /* static */ bool
-js::ErrorObject::setStack_impl(JSContext *cx, const CallArgs& args)
+js::ErrorObject::setStack_impl(JSContext* cx, const CallArgs& args)
 {
-    const Value &thisValue = args.thisv();
+    const Value& thisValue = args.thisv();
     MOZ_ASSERT(thisValue.isObject());
     RootedObject thisObj(cx, &thisValue.toObject());
 

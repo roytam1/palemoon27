@@ -16,10 +16,10 @@
 #include "mozilla/Mutex.h"
 #include "mozilla/Move.h"
 #include "mozilla/MemoryReporting.h"
-#include "mozilla/RefCounted.h"
 #include "mozilla/RefPtr.h"
+#include "mozilla/RefCounted.h"
 #include "mozilla/UniquePtr.h"
-#include "mozilla/nsRefPtr.h"
+#include "mozilla/RefPtr.h"
 #include "nsTArray.h"
 
 class nsIInputStream;
@@ -120,7 +120,8 @@ public:
   /// If at the end, returns the status passed to SourceBuffer::Complete().
   nsresult CompletionStatus() const
   {
-    MOZ_ASSERT(mState == COMPLETE, "Calling CompletionStatus() in the wrong state");
+    MOZ_ASSERT(mState == COMPLETE,
+               "Calling CompletionStatus() in the wrong state");
     return mState == COMPLETE ? mData.mAtEnd.mStatus : NS_OK;
   }
 
@@ -171,7 +172,7 @@ private:
     return mState = COMPLETE;
   }
 
-  nsRefPtr<SourceBuffer> mOwner;
+  RefPtr<SourceBuffer> mOwner;
 
   State mState;
 
@@ -209,12 +210,6 @@ private:
  * keep a list of consumers which are waiting for new data, and to resume them
  * when the producer appends more. All consumers must implement the IResumable
  * interface to make this possible.
- *
- * XXX(seth): We should add support for compacting a SourceBuffer. To do this,
- * we need to have SourceBuffer keep track of how many live
- * SourceBufferIterator's point to it. When the SourceBuffer is complete and no
- * live SourceBufferIterator's for it remain, we can compact its contents into a
- * single chunk.
  */
 class SourceBuffer final
 {
@@ -278,15 +273,13 @@ private:
       , mLength(0)
     {
       MOZ_ASSERT(aCapacity > 0, "Creating zero-capacity chunk");
-      mData = new (fallible) char[mCapacity];
+      mData.reset(new (fallible) char[mCapacity]);
     }
-
-    ~Chunk() { delete[] mData; }
 
     Chunk(Chunk&& aOther)
       : mCapacity(aOther.mCapacity)
       , mLength(aOther.mLength)
-      , mData(aOther.mData)
+      , mData(Move(aOther.mData))
     {
       aOther.mCapacity = aOther.mLength = 0;
       aOther.mData = nullptr;
@@ -296,7 +289,7 @@ private:
     {
       mCapacity = aOther.mCapacity;
       mLength = aOther.mLength;
-      mData = aOther.mData;
+      mData = Move(aOther.mData);
       aOther.mCapacity = aOther.mLength = 0;
       aOther.mData = nullptr;
       return *this;
@@ -309,7 +302,7 @@ private:
     char* Data() const
     {
       MOZ_ASSERT(mData, "Allocation failed but nobody checked for it");
-      return mData;
+      return mData.get();
     }
 
     void AddLength(size_t aAdditionalLength)
@@ -324,7 +317,7 @@ private:
 
     size_t mCapacity;
     size_t mLength;
-    char* mData;
+    UniquePtr<char[]> mData;
   };
 
   nsresult AppendChunk(Maybe<Chunk>&& aChunk);
@@ -372,7 +365,7 @@ private:
   FallibleTArray<Chunk> mChunks;
 
   /// Consumers which are waiting to be notified when new data is available.
-  nsTArray<nsRefPtr<IResumable>> mWaitingConsumers;
+  nsTArray<RefPtr<IResumable>> mWaitingConsumers;
 
   /// If present, marks this SourceBuffer complete with the given final status.
   Maybe<nsresult> mStatus;

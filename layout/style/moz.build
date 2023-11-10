@@ -85,8 +85,10 @@ EXPORTS.mozilla += [
     'CSSVariableResolver.h',
     'CSSVariableValues.h',
     'IncrementalClearCOMRuleArray.h',
+    'LayerAnimationInfo.h',
     'RuleNodeCacheConditions.h',
     'RuleProcessorCache.h',
+    'SheetType.h',
     'StyleAnimationValue.h',
 ]
 
@@ -130,6 +132,7 @@ UNIFIED_SOURCES += [
     'FontFaceSetIterator.cpp',
     'ImageLoader.cpp',
     'IncrementalClearCOMRuleArray.cpp',
+    'LayerAnimationInfo.cpp',
     'Loader.cpp',
     'MediaQueryList.cpp',
     'nsAnimationManager.cpp',
@@ -183,8 +186,6 @@ EXTRA_COMPONENTS += [
     'CSSUnprefixingService.manifest',
 ]
 
-FAIL_ON_WARNINGS = True
-
 include('/ipc/chromium/chromium-config.mozbuild')
 
 FINAL_LIBRARY = 'xul'
@@ -211,7 +212,14 @@ RESOURCE_FILES += [
     'TopLevelVideoDocument.css',
 ]
 
-GENERATED_FILES += ['nsStyleStructList.h']
+# nsCSSPropsGenerated.inc is generated from nsCSSPropsGenerated.inc.in by
+# GenerateCSSPropsGenerated.py; see the corresponding rules in Makefile.in.
+
+GENERATED_FILES += [
+    'nsCSSPropsGenerated.inc',
+    'nsStyleStructList.h',
+]
+
 style_struct_list = GENERATED_FILES['nsStyleStructList.h']
 style_struct_list.script = 'generate-stylestructlist.py'
 

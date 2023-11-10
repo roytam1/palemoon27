@@ -11,8 +11,7 @@ const { Cu, CC, components } = require("chrome");
 const { Promise: promise } = Cu.import("resource://gre/modules/Promise.jsm", {});
 const Services = require("Services");
 const { DebuggerServer } = require("devtools/server/main");
-const ActorRegistryUtils = require("devtools/server/actors/utils/actor-registry-utils");
-const { registerActor, unregisterActor } = ActorRegistryUtils;
+const { registerActor, unregisterActor } = require("devtools/server/actors/utils/actor-registry-utils");
 
 loader.lazyImporter(this, "NetUtil", "resource://gre/modules/NetUtil.jsm");
 
@@ -94,7 +93,10 @@ function request(uri) {
         "Can only register actors whose URI scheme is 'resource'."));
     }
 
-    NetUtil.asyncFetch(uri, (stream, status, req) => {
+    NetUtil.asyncFetch({
+      uri,
+      loadUsingSystemPrincipal: true,
+     }, (stream, status, req) => {
       if (!components.isSuccessCode(status)) {
         reject(new Error("Request failed with status code = "
                          + status

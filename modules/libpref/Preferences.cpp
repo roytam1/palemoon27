@@ -37,7 +37,7 @@
 #include "nsPrintfCString.h"
 
 #include "nsQuickSort.h"
-#include "pldhash.h"
+#include "PLDHashTable.h"
 
 #include "prefapi.h"
 #include "prefread.h"
@@ -261,59 +261,9 @@ public:
 
 protected:
   static const uint32_t kSuspectReferentCount = 1000;
-  static PLDHashOperator CountReferents(PrefCallback* aKey,
-                                        nsAutoPtr<PrefCallback>& aCallback,
-                                        void* aClosure);
 };
 
 NS_IMPL_ISUPPORTS(PreferenceServiceReporter, nsIMemoryReporter)
-
-struct PreferencesReferentCount {
-  PreferencesReferentCount() : numStrong(0), numWeakAlive(0), numWeakDead(0) {}
-  size_t numStrong;
-  size_t numWeakAlive;
-  size_t numWeakDead;
-  nsTArray<nsCString> suspectPreferences;
-  // Count of the number of referents for each preference.
-  nsDataHashtable<nsCStringHashKey, uint32_t> prefCounter;
-};
-
-PLDHashOperator
-PreferenceServiceReporter::CountReferents(PrefCallback* aKey,
-                                          nsAutoPtr<PrefCallback>& aCallback,
-                                          void* aClosure)
-{
-  PreferencesReferentCount* referentCount =
-    static_cast<PreferencesReferentCount*>(aClosure);
-
-  nsPrefBranch* prefBranch = aCallback->GetPrefBranch();
-  const char* pref = prefBranch->getPrefName(aCallback->GetDomain().get());
-
-  if (aCallback->IsWeak()) {
-    nsCOMPtr<nsIObserver> callbackRef = do_QueryReferent(aCallback->mWeakRef);
-    if (callbackRef) {
-      referentCount->numWeakAlive++;
-    } else {
-      referentCount->numWeakDead++;
-    }
-  } else {
-    referentCount->numStrong++;
-  }
-
-  nsDependentCString prefString(pref);
-  uint32_t oldCount = 0;
-  referentCount->prefCounter.Get(prefString, &oldCount);
-  uint32_t currentCount = oldCount + 1;
-  referentCount->prefCounter.Put(prefString, currentCount);
-
-  // Keep track of preferences that have a suspiciously large
-  // number of referents (symptom of leak).
-  if (currentCount == kSuspectReferentCount) {
-    referentCount->suspectPreferences.AppendElement(prefString);
-  }
-
-  return PL_DHASH_NEXT;
-}
 
 MOZ_DEFINE_MALLOC_SIZE_OF(PreferenceServiceMallocSizeOf)
 
@@ -342,13 +292,46 @@ PreferenceServiceReporter::CollectReports(nsIMemoryReporterCallback* aCb,
     return NS_OK;
   }
 
-  PreferencesReferentCount referentCount;
-  rootBranch->mObservers.Enumerate(&CountReferents, &referentCount);
+  size_t numStrong = 0;
+  size_t numWeakAlive = 0;
+  size_t numWeakDead = 0;
+  nsTArray<nsCString> suspectPreferences;
+  // Count of the number of referents for each preference.
+  nsDataHashtable<nsCStringHashKey, uint32_t> prefCounter;
 
-  for (uint32_t i = 0; i < referentCount.suspectPreferences.Length(); i++) {
-    nsCString& suspect = referentCount.suspectPreferences[i];
+  for (auto iter = rootBranch->mObservers.Iter(); !iter.Done(); iter.Next()) {
+    nsAutoPtr<PrefCallback>& callback = iter.Data();
+    nsPrefBranch* prefBranch = callback->GetPrefBranch();
+    const char* pref = prefBranch->getPrefName(callback->GetDomain().get());
+
+    if (callback->IsWeak()) {
+      nsCOMPtr<nsIObserver> callbackRef = do_QueryReferent(callback->mWeakRef);
+      if (callbackRef) {
+        numWeakAlive++;
+      } else {
+        numWeakDead++;
+      }
+    } else {
+      numStrong++;
+    }
+
+    nsDependentCString prefString(pref);
+    uint32_t oldCount = 0;
+    prefCounter.Get(prefString, &oldCount);
+    uint32_t currentCount = oldCount + 1;
+    prefCounter.Put(prefString, currentCount);
+
+    // Keep track of preferences that have a suspiciously large number of
+    // referents (a symptom of a leak).
+    if (currentCount == kSuspectReferentCount) {
+      suspectPreferences.AppendElement(prefString);
+    }
+  }
+
+  for (uint32_t i = 0; i < suspectPreferences.Length(); i++) {
+    nsCString& suspect = suspectPreferences[i];
     uint32_t totalReferentCount = 0;
-    referentCount.prefCounter.Get(suspect, &totalReferentCount);
+    prefCounter.Get(suspect, &totalReferentCount);
 
     nsPrintfCString suspectPath("preference-service-suspect/"
                                 "referent(pref=%s)", suspect.get());
@@ -360,16 +343,16 @@ PreferenceServiceReporter::CollectReports(nsIMemoryReporterCallback* aCb,
   }
 
   REPORT(NS_LITERAL_CSTRING("preference-service/referent/strong"),
-         KIND_OTHER, UNITS_COUNT, referentCount.numStrong,
+         KIND_OTHER, UNITS_COUNT, numStrong,
          "The number of strong referents held by the preference service.");
 
   REPORT(NS_LITERAL_CSTRING("preference-service/referent/weak/alive"),
-         KIND_OTHER, UNITS_COUNT, referentCount.numWeakAlive,
+         KIND_OTHER, UNITS_COUNT, numWeakAlive,
          "The number of weak referents held by the preference service "
          "that are still alive.");
 
   REPORT(NS_LITERAL_CSTRING("preference-service/referent/weak/dead"),
-         KIND_OTHER, UNITS_COUNT, referentCount.numWeakDead,
+         KIND_OTHER, UNITS_COUNT, numWeakDead,
          "The number of weak referents held by the preference service "
          "that are dead.");
 
@@ -421,7 +404,7 @@ Preferences::GetInstanceForService()
   // RegisterStrongMemoryReporter calls GetService(nsIMemoryReporter).  To
   // avoid a potential recursive GetService() call, we can't register the
   // memory reporter here; instead, do it off a runnable.
-  nsRefPtr<AddPreferencesMemoryReporterRunnable> runnable =
+  RefPtr<AddPreferencesMemoryReporterRunnable> runnable =
     new AddPreferencesMemoryReporterRunnable();
   NS_DispatchToMainThread(runnable);
 
@@ -517,8 +500,7 @@ Preferences::Init()
 {
   nsresult rv;
 
-  rv = PREF_Init();
-  NS_ENSURE_SUCCESS(rv, rv);
+  PREF_Init();
 
   rv = pref_InitInitialObjects();
   NS_ENSURE_SUCCESS(rv, rv);
@@ -638,8 +620,7 @@ Preferences::ResetPrefs()
   NotifyServiceObservers(NS_PREFSERVICE_RESET_TOPIC_ID);
   PREF_CleanupPrefs();
 
-  nsresult rv = PREF_Init();
-  NS_ENSURE_SUCCESS(rv, rv);
+  PREF_Init();
 
   return pref_InitInitialObjects();
 }
@@ -747,7 +728,7 @@ Preferences::GetBranch(const char *aPrefRoot, nsIPrefBranch **_retval)
 
   if ((nullptr != aPrefRoot) && (*aPrefRoot != '\0')) {
     // TODO: - cache this stuff and allow consumers to share branches (hold weak references I think)
-    nsRefPtr<nsPrefBranch> prefBranch = new nsPrefBranch(aPrefRoot, false);
+    RefPtr<nsPrefBranch> prefBranch = new nsPrefBranch(aPrefRoot, false);
     prefBranch.forget(_retval);
     rv = NS_OK;
   } else {
@@ -769,7 +750,7 @@ Preferences::GetDefaultBranch(const char *aPrefRoot, nsIPrefBranch **_retval)
   }
 
   // TODO: - cache this stuff and allow consumers to share branches (hold weak references I think)
-  nsRefPtr<nsPrefBranch> prefBranch = new nsPrefBranch(aPrefRoot, true);
+  RefPtr<nsPrefBranch> prefBranch = new nsPrefBranch(aPrefRoot, true);
   if (!prefBranch)
     return NS_ERROR_OUT_OF_MEMORY;
 
@@ -1003,8 +984,8 @@ static nsresult openPrefFile(nsIFile* aFile)
   if (NS_FAILED(rv)) 
     return rv;        
 
-  uint64_t fileSize64;
-  rv = inStr->Available(&fileSize64);
+  int64_t fileSize64;
+  rv = aFile->GetFileSize(&fileSize64);
   if (NS_FAILED(rv))
     return rv;
   NS_ENSURE_TRUE(fileSize64 <= UINT32_MAX, NS_ERROR_FILE_TOO_BIG);
@@ -1020,6 +1001,7 @@ static nsresult openPrefFile(nsIFile* aFile)
   // Read is not guaranteed to return a buf the size of fileSize,
   // but usually will.
   nsresult rv2 = NS_OK;
+  uint32_t offset = 0;
   for (;;) {
     uint32_t amtRead = 0;
     rv = inStr->Read((char*)fileBuffer, fileSize, &amtRead);
@@ -1027,6 +1009,10 @@ static nsresult openPrefFile(nsIFile* aFile)
       break;
     if (!PREF_ParseBuf(&ps, fileBuffer, amtRead))
       rv2 = NS_ERROR_FILE_CORRUPTED;
+    offset += amtRead;
+    if (offset == fileSize) {
+      break;
+    }
   }
 
   PREF_FinalizeParseState(&ps);
@@ -1236,7 +1222,7 @@ static nsresult pref_InitInitialObjects()
   const char *entryName;
   uint16_t entryNameLen;
 
-  nsRefPtr<nsZipArchive> jarReader = mozilla::Omnijar::GetReader(mozilla::Omnijar::GRE);
+  RefPtr<nsZipArchive> jarReader = mozilla::Omnijar::GetReader(mozilla::Omnijar::GRE);
   if (jarReader) {
     // Load jar:$gre/omni.jar!/gecko.js
     rv = pref_ReadPrefFromJar(jarReader, "gecko.js");
@@ -1285,9 +1271,7 @@ static nsresult pref_InitInitialObjects()
     "winpref.js"
 #elif defined(XP_UNIX)
     "unix.js"
-#if defined(VMS)
-    , "openvms.js"
-#elif defined(_AIX)
+#if defined(_AIX)
     , "aix.js"
 #endif
 #elif defined(XP_BEOS)
@@ -1301,7 +1285,7 @@ static nsresult pref_InitInitialObjects()
 
   // Load jar:$app/omni.jar!/defaults/preferences/*.js
   // or jar:$gre/omni.jar!/defaults/preferences/*.js.
-  nsRefPtr<nsZipArchive> appJarReader = mozilla::Omnijar::GetReader(mozilla::Omnijar::APP);
+  RefPtr<nsZipArchive> appJarReader = mozilla::Omnijar::GetReader(mozilla::Omnijar::APP);
   // GetReader(mozilla::Omnijar::APP) returns null when $app == $gre, in which
   // case we look for app-specific default preferences in $gre.
   if (!appJarReader)
@@ -1517,7 +1501,7 @@ Preferences::SetCString(const char* aPref, const nsACString &aValue)
 
 // static
 nsresult
-Preferences::SetString(const char* aPref, const char16_t* aValue)
+Preferences::SetString(const char* aPref, const char16ptr_t aValue)
 {
   ENSURE_MAIN_PROCESS("Cannot SetString from content process:", aPref);
   NS_ENSURE_TRUE(InitStaticMembers(), NS_ERROR_NOT_AVAILABLE);
@@ -1674,7 +1658,7 @@ Preferences::RegisterCallback(PrefChangedFunc aCallback,
   NS_ENSURE_TRUE(InitStaticMembers(), NS_ERROR_NOT_AVAILABLE);
 
   ValueObserverHashKey hashKey(aPref, aCallback);
-  nsRefPtr<ValueObserver> observer;
+  RefPtr<ValueObserver> observer;
   gObserverTable->Get(&hashKey, getter_AddRefs(observer));
   if (observer) {
     observer->AppendClosure(aClosure);
@@ -1714,7 +1698,7 @@ Preferences::UnregisterCallback(PrefChangedFunc aCallback,
   NS_ENSURE_TRUE(sPreferences, NS_ERROR_NOT_AVAILABLE);
 
   ValueObserverHashKey hashKey(aPref, aCallback);
-  nsRefPtr<ValueObserver> observer;
+  RefPtr<ValueObserver> observer;
   gObserverTable->Get(&hashKey, getter_AddRefs(observer));
   if (!observer) {
     return NS_OK;

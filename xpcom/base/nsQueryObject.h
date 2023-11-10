@@ -15,7 +15,7 @@
 /*****************************************************************************/
 
 template<class T>
-class nsQueryObject : public nsCOMPtr_helper
+class MOZ_STACK_CLASS nsQueryObject final : public nsCOMPtr_helper
 {
 public:
   explicit nsQueryObject(T* aRawPtr)
@@ -35,7 +35,7 @@ private:
 };
 
 template<class T>
-class MOZ_STACK_CLASS nsQueryObjectWithError : public nsCOMPtr_helper
+class MOZ_STACK_CLASS nsQueryObjectWithError final : public nsCOMPtr_helper
 {
 public:
   nsQueryObjectWithError(T* aRawPtr, nsresult* aErrorPtr)
@@ -78,7 +78,7 @@ do_QueryObject(nsCOMPtr<T>& aRawPtr)
 
 template<class T>
 inline nsQueryObject<T>
-do_QueryObject(nsRefPtr<T>& aRawPtr)
+do_QueryObject(RefPtr<T>& aRawPtr)
 {
   return nsQueryObject<T>(aRawPtr);
 }
@@ -99,7 +99,7 @@ do_QueryObject(nsCOMPtr<T>& aRawPtr, nsresult* aErrorPtr)
 
 template<class T>
 inline nsQueryObjectWithError<T>
-do_QueryObject(nsRefPtr<T>& aRawPtr, nsresult* aErrorPtr)
+do_QueryObject(RefPtr<T>& aRawPtr, nsresult* aErrorPtr)
 {
   return nsQueryObjectWithError<T>(aRawPtr, aErrorPtr);
 }

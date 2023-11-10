@@ -56,7 +56,7 @@ ValueNumberer::VisibleValues::ValueHasher::match(Key k, Lookup l)
         return false;
 
     bool congruent = k->congruentTo(l); // Ask the values themselves what they think.
-#ifdef DEBUG
+#ifdef JS_JITSPEW
     if (congruent != l->congruentTo(k)) {
        JitSpew(JitSpew_GVN, "      congruentTo relation is not symmetric between %s%u and %s%u!!",
                k->opName(), k->id(),
@@ -332,11 +332,12 @@ ValueNumberer::releaseOperands(MDefinition* def)
 bool
 ValueNumberer::discardDef(MDefinition* def)
 {
-#ifdef DEBUG
+#ifdef JS_JITSPEW
     JitSpew(JitSpew_GVN, "      Discarding %s %s%u",
             def->block()->isMarked() ? "unreachable" : "dead",
             def->opName(), def->id());
-
+#endif
+#ifdef DEBUG
     MOZ_ASSERT(def != nextDef_, "Invalidating the MDefinition iterator");
     if (def->block()->isMarked()) {
         MOZ_ASSERT(!def->hasUses(), "Discarding def that still has uses");
@@ -461,6 +462,7 @@ ValueNumberer::fixupOSROnlyLoop(MBasicBlock* block, MBasicBlock* backedge)
     block->setLoopHeader(backedge);
 
     JitSpew(JitSpew_GVN, "        Created fake block%u", fake->id());
+    hasOSRFixups_ = true;
     return true;
 }
 
@@ -533,7 +535,7 @@ ValueNumberer::removePredecessorAndCleanUp(MBasicBlock* block, MBasicBlock* pred
                         "Loop with header block%u is no longer reachable",
                         block->id());
             }
-#ifdef DEBUG
+#ifdef JS_JITSPEW
         } else if (block->hasUniqueBackedge() && block->backedge() == pred) {
             JitSpew(JitSpew_GVN, "      Loop with header block%u is no longer a loop",
                     block->id());
@@ -649,7 +651,7 @@ ValueNumberer::leader(MDefinition* def)
                 return nullptr;
         }
 
-#ifdef DEBUG
+#ifdef JS_JITSPEW
         JitSpew(JitSpew_GVN, "      Recording %s%u", def->opName(), def->id());
 #endif
     }
@@ -683,7 +685,7 @@ ValueNumberer::loopHasOptimizablePhi(MBasicBlock* header) const
     // values from backedges.
     for (MPhiIterator iter(header->phisBegin()), end(header->phisEnd()); iter != end; ++iter) {
         MPhi* phi = *iter;
-        MOZ_ASSERT(phi->hasUses(), "Missed an unused phi");
+        MOZ_ASSERT_IF(!phi->hasUses(), !DeadIfUnused(phi));
 
         if (phi->operandIfRedundant() || hasLeader(phi, header))
             return true; // Phi can be simplified.
@@ -733,12 +735,6 @@ ValueNumberer::visitDefinition(MDefinition* def)
     if (def->isRecoveredOnBailout())
         return true;
 
-    // Skip optimizations on instructions which are recovered on bailout, to
-    // avoid mixing instructions which are recovered on bailouts with
-    // instructions which are not.
-    if (def->isRecoveredOnBailout())
-        return true;
-
     // If this instruction has a dependency() into an unreachable block, we'll
     // need to update AliasAnalysis.
     MInstruction* dep = def->dependency();
@@ -769,7 +765,7 @@ ValueNumberer::visitDefinition(MDefinition* def)
         if (isNewInstruction)
             def->block()->insertAfter(def->toInstruction(), sim->toInstruction());
 
-#ifdef DEBUG
+#ifdef JS_JITSPEW
         JitSpew(JitSpew_GVN, "      Folded %s%u to %s%u",
                 def->opName(), def->id(), sim->opName(), sim->id());
 #endif
@@ -811,7 +807,7 @@ ValueNumberer::visitDefinition(MDefinition* def)
         if (rep == nullptr)
             return false;
         if (rep->updateForReplacement(def)) {
-#ifdef DEBUG
+#ifdef JS_JITSPEW
             JitSpew(JitSpew_GVN,
                     "      Replacing %s%u with %s%u",
                     def->opName(), def->id(), rep->opName(), rep->id());
@@ -855,7 +851,7 @@ ValueNumberer::visitControlInstruction(MBasicBlock* block, const MBasicBlock* do
     MControlInstruction* newControl = rep->toControlInstruction();
     MOZ_ASSERT(!newControl->block(),
                "Control instruction replacement shouldn't already be in a block");
-#ifdef DEBUG
+#ifdef JS_JITSPEW
     JitSpew(JitSpew_GVN, "      Folded control instruction %s%u to %s%u",
             control->opName(), control->id(), newControl->opName(), graph_.getNumInstructionIds());
 #endif
@@ -1081,6 +1077,52 @@ ValueNumberer::visitGraph()
     return true;
 }
 
+// OSR fixups serve the purpose of representing the non-OSR entry into a loop
+// when the only real entry is an OSR entry into the middle. However, if the
+// entry into the middle is subsequently folded away, the loop may actually
+// have become unreachable. Mark-and-sweep all blocks to remove all such code.
+bool ValueNumberer::cleanupOSRFixups()
+{
+    // Mark.
+    Vector<MBasicBlock*, 0, JitAllocPolicy> worklist(graph_.alloc());
+    unsigned numMarked = 2;
+    graph_.entryBlock()->mark();
+    graph_.osrBlock()->mark();
+    if (!worklist.append(graph_.entryBlock()) || !worklist.append(graph_.osrBlock()))
+        return false;
+    while (!worklist.empty()) {
+        MBasicBlock* block = worklist.popCopy();
+        for (size_t i = 0, e = block->numSuccessors(); i != e; ++i) {
+            MBasicBlock* succ = block->getSuccessor(i);
+            if (!succ->isMarked()) {
+                ++numMarked;
+                succ->mark();
+                if (!worklist.append(succ))
+                    return false;
+            }
+        }
+        // The one special thing we do during this mark pass is to mark
+        // loop predecessors of reachable blocks as reachable. These blocks are
+        // the OSR fixups blocks which need to remain if the loop remains,
+        // though they can be removed if the loop is removed.
+        if (block->isLoopHeader()) {
+            MBasicBlock* pred = block->loopPredecessor();
+            if (!pred->isMarked() && pred->numPredecessors() == 0) {
+                MOZ_ASSERT(pred->numSuccessors() == 1,
+                           "OSR fixup block should have exactly one successor");
+                MOZ_ASSERT(pred != graph_.entryBlock(),
+                           "OSR fixup block shouldn't be the entry block");
+                MOZ_ASSERT(pred != graph_.osrBlock(),
+                           "OSR fixup block shouldn't be the OSR entry block");
+                pred->mark();
+            }
+        }
+    }
+
+    // And sweep.
+    return RemoveUnmarkedBlocks(mir_, graph_, numMarked);
+}
+
 ValueNumberer::ValueNumberer(MIRGenerator* mir, MIRGraph& graph)
   : mir_(mir), graph_(graph),
     values_(graph.alloc()),
@@ -1091,7 +1133,8 @@ ValueNumberer::ValueNumberer(MIRGenerator* mir, MIRGraph& graph)
     rerun_(false),
     blocksRemoved_(false),
     updateAliasAnalysis_(false),
-    dependenciesBroken_(false)
+    dependenciesBroken_(false),
+    hasOSRFixups_(false)
 {}
 
 bool
@@ -1166,6 +1209,11 @@ ValueNumberer::run(UpdateAliasAnalysisFlag updateAliasAnalysis)
 
         JitSpew(JitSpew_GVN, "Re-running GVN on graph (run %d, now with %llu blocks)",
                 runs, uint64_t(graph_.numBlocks()));
+    }
+
+    if (MOZ_UNLIKELY(hasOSRFixups_)) {
+        cleanupOSRFixups();
+        hasOSRFixups_ = false;
     }
 
     return true;

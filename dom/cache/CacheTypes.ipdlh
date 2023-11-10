@@ -13,6 +13,7 @@ using HeadersGuardEnum from "mozilla/dom/cache/IPCUtils.h";
 using RequestCredentials from "mozilla/dom/cache/IPCUtils.h";
 using RequestMode from "mozilla/dom/cache/IPCUtils.h";
 using RequestCache from "mozilla/dom/cache/IPCUtils.h";
+using RequestRedirect from "mozilla/dom/cache/IPCUtils.h";
 using ResponseType from "mozilla/dom/cache/IPCUtils.h";
 using mozilla::void_t from "ipc/IPCMessageUtils.h";
 using struct nsID from "nsID.h";
@@ -54,8 +55,8 @@ struct HeadersEntry
 struct CacheRequest
 {
   nsCString method;
-  nsString url;
-  nsString urlWithoutQuery;
+  nsCString urlWithoutQuery;
+  nsCString urlQuery;
   HeadersEntry[] headers;
   HeadersGuardEnum headersGuard;
   nsString referrer;
@@ -64,6 +65,7 @@ struct CacheRequest
   CacheReadStreamOrVoid body;
   uint32_t contentPolicyType;
   RequestCache requestCache;
+  RequestRedirect requestRedirect;
 };
 
 union CacheRequestOrVoid
@@ -75,7 +77,7 @@ union CacheRequestOrVoid
 struct CacheResponse
 {
   ResponseType type;
-  nsString url;
+  nsCString url;
   uint32_t status;
   nsCString statusText;
   HeadersEntry[] headers;

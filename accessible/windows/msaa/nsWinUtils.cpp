@@ -43,8 +43,8 @@ nsWinUtils::GetComputedStyleDeclaration(nsIContent* aContent)
     return nullptr;
 
   // Returns number of items in style declaration
-  nsCOMPtr<nsIDOMWindow> window =
-    do_QueryInterface(elm->OwnerDoc()->GetWindow());
+  nsCOMPtr<nsPIDOMWindow> window =
+    do_QueryInterface(elm->OwnerDoc()->GetInnerWindow());
   if (!window)
     return nullptr;
 
@@ -149,7 +149,10 @@ WindowProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
   switch (msg) {
     case WM_GETOBJECT:
     {
-      if (lParam == OBJID_CLIENT) {
+      // Do explicit casting to make it working on 64bit systems (see bug 649236
+      // for details).
+      int32_t objId = static_cast<DWORD>(lParam);
+      if (objId == OBJID_CLIENT) {
         DocAccessible* document =
           nsWinUtils::sHWNDCache->GetWeak(static_cast<void*>(hWnd));
         if (document) {

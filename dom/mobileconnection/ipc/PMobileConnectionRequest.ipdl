@@ -19,7 +19,7 @@ child:
   /**
    * Send when asynchronous request has completed.
    */
-  __delete__(MobileConnectionReply aResponse);
+  async __delete__(MobileConnectionReply aResponse);
 };
 
 /**
@@ -49,6 +49,11 @@ struct MobileConnectionReplySuccessCallBarring
 {
   uint16_t program;
   bool enabled;
+  uint16_t serviceClass;
+};
+
+struct MobileConnectionReplySuccessCallWaiting
+{
   uint16_t serviceClass;
 };
 
@@ -82,6 +87,7 @@ union MobileConnectionReply
   MobileConnectionReplySuccessNetworks;
   MobileConnectionReplySuccessCallForwarding;
   MobileConnectionReplySuccessCallBarring;
+  MobileConnectionReplySuccessCallWaiting;
   MobileConnectionReplySuccessClirStatus;
   MobileConnectionReplySuccessPreferredNetworkType;
   MobileConnectionReplySuccessRoamingPreference;

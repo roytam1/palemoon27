@@ -1,4 +1,3 @@
-
 /*
  * Copyright 2006 The Android Open Source Project
  *
@@ -6,38 +5,52 @@
  * found in the LICENSE file.
  */
 
-
 #ifndef SkOSWindow_SDL_DEFINED
 #define SkOSWindow_SDL_DEFINED
 
 #include "SDL.h"
+#include "SDL_opengl.h"
 #include "SkWindow.h"
-
-class SkGLCanvas;
 
 class SkOSWindow : public SkWindow {
 public:
-    SkOSWindow(void* screen);
+    SkOSWindow(void*);
     virtual ~SkOSWindow();
 
-    static bool PostEvent(SkEvent* evt, SkEventSinkID, SkMSec delay);
+    enum SkBackEndTypes {
+        kNone_BackEndType, // TODO: remove this, it's not a real option.
+        kNativeGL_BackEndType,
+#if SK_ANGLE
+        kANGLE_BackEndType,
+#endif // SK_ANGLE
+#if SK_COMMAND_BUFFER
+        kCommandBuffer_BackEndType,
+#endif // SK_COMMAND_BUFFER
+    };
 
-    void handleSDLEvent(const SDL_Event& event);
+    void detach();
+    bool attach(SkBackEndTypes attachType, int msaaSampleCount, AttachmentInfo*);
+    void present();
+    bool makeFullscreen();
+    void setVsync(bool);
+    void closeWindow();
+    static void RunEventLoop();
 
 protected:
-    // overrides from SkWindow
-    virtual void onHandleInval(const SkIRect&);
-    // overrides from SkView
-    virtual void onAddMenu(const SkOSMenu*);
-    virtual void onSetTitle(const char[]);
+    void onSetTitle(const char title[]) override;
 
 private:
-    SDL_Surface* fScreen;
-    SDL_Surface* fSurface;
-    SkGLCanvas* fGLCanvas;
+    void createWindow(int msaaSampleCount);
+    void destroyWindow();
+    void updateWindowTitle();
+    static SkOSWindow* GetInstanceForWindowID(Uint32 windowID);
+    static bool HasDirtyWindows();
+    static void UpdateDirtyWindows();
+    static void HandleEvent(const SDL_Event&);
 
-    void doDraw();
-
+    SDL_Window* fWindow;
+    SDL_GLContext fGLContext;
+    int fWindowMSAASampleCount;
     typedef SkWindow INHERITED;
 };
 

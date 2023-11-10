@@ -29,7 +29,7 @@ interface nsIStreamListener;
  *
  * This interface must be used only from the XPCOM main thread.
  */
-[scriptable, uuid(cc3bff29-324e-4704-9eeb-1b8a62c4a9dc)]
+[scriptable, uuid(2c389865-23db-4aa7-9fe5-60cc7b00697e)]
 interface nsIChannel : nsIRequest
 {
     /**
@@ -83,7 +83,16 @@ interface nsIChannel : nsIRequest
     attribute nsIInterfaceRequestor notificationCallbacks;
 
     /**
-     * Transport-level security information (if any) corresponding to the channel.
+     * Transport-level security information (if any) corresponding to the
+     * channel.
+     *
+     * NOTE: In some circumstances TLS information is propagated onto
+     * non-nsIHttpChannel objects to indicate that their contents were likely
+     * delivered over TLS all the same.  For example, document.open() may
+     * create an nsWyciwygChannel to store the data that will be written to the
+     * document.  In that case, if the caller has TLS information, we propagate
+     * that info onto the nsWyciwygChannel given that it is likely that the
+     * caller will be writing data that was delivered over TLS to the document.
      */
     readonly attribute nsISupports securityInfo;
 
@@ -192,7 +201,7 @@ interface nsIChannel : nsIRequest
     /**************************************************************************
      * Channel specific load flags:
      *
-     * Bits 23-31 are reserved for future use by this interface or one of its
+     * Bits 26-31 are reserved for future use by this interface or one of its
      * derivatives (e.g., see nsICachingChannel).
      */
 
@@ -271,6 +280,13 @@ interface nsIChannel : nsIRequest
      * to override them for the same user name.
      */
     const unsigned long LOAD_EXPLICIT_CREDENTIALS = 1 << 24;
+
+    /**
+     * Set to force bypass of any service worker interception of the channel.
+     */
+    const unsigned long LOAD_BYPASS_SERVICE_WORKER = 1 << 25;
+
+    // nsICachingChannel load flags begin at bit 26.
 
     /**
      * Access to the type implied or stated by the Content-Disposition header

@@ -21,7 +21,7 @@
 using namespace mozilla;
 
 #define NS_ENSURE_NATIVE_COLUMN(_col)                                \
-  nsRefPtr<nsTreeColumn> col = nsTreeBodyFrame::GetColumnImpl(_col); \
+  RefPtr<nsTreeColumn> col = nsTreeBodyFrame::GetColumnImpl(_col); \
   if (!col) {                                                        \
     return NS_ERROR_INVALID_ARG;                                     \
   }
@@ -148,7 +148,7 @@ bool
 nsTreeContentView::CanTrustTreeSelection(nsISupports* aValue)
 {
   // Untrusted content is only allowed to specify known-good views
-  if (nsContentUtils::IsCallerChrome())
+  if (nsContentUtils::LegacyIsCallerChromeOrNativeCode())
     return true;
   nsCOMPtr<nsINativeTreeSelection> nativeTreeSel = do_QueryInterface(aValue);
   return nativeTreeSel && NS_SUCCEEDED(nativeTreeSel->EnsureNative());
@@ -1151,7 +1151,7 @@ nsTreeContentView::EnsureSubtree(int32_t aIndex)
     return 0;
   }
 
-  nsAutoTArray<nsAutoPtr<Row>, 8> rows;
+  AutoTArray<nsAutoPtr<Row>, 8> rows;
   int32_t index = 0;
   Serialize(child, aIndex, &index, rows);
   // We can't use InsertElementsAt since the destination can't steal
@@ -1226,7 +1226,7 @@ nsTreeContentView::InsertRowFor(nsIContent* aParent, nsIContent* aChild)
 int32_t
 nsTreeContentView::InsertRow(int32_t aParentIndex, int32_t aIndex, nsIContent* aContent)
 {
-  nsAutoTArray<nsAutoPtr<Row>, 8> rows;
+  AutoTArray<nsAutoPtr<Row>, 8> rows;
   if (aContent->IsXULElement(nsGkAtoms::treeitem)) {
     SerializeItem(aContent, aParentIndex, &aIndex, rows);
   } else if (aContent->IsXULElement(nsGkAtoms::treeseparator)) {

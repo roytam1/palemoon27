@@ -8,6 +8,7 @@
 
 #include "nsTArrayForwardDeclare.h"
 #include "gfxPlatform.h"
+#include "mozilla/LookAndFeel.h"
 
 namespace mozilla {
 namespace gfx {
@@ -37,19 +38,21 @@ public:
     gfxFontGroup*
     CreateFontGroup(const mozilla::FontFamilyList& aFontFamilyList,
                     const gfxFontStyle *aStyle,
-                    gfxUserFontSet *aUserFontSet) override;
+                    gfxTextPerfMetrics* aTextPerf,
+                    gfxUserFontSet *aUserFontSet,
+                    gfxFloat aDevToCssSize) override;
 
     virtual gfxFontEntry* LookupLocalFont(const nsAString& aFontName,
                                           uint16_t aWeight,
                                           int16_t aStretch,
-                                          bool aItalic) override;
+                                          uint8_t aStyle) override;
 
     virtual gfxPlatformFontList* CreatePlatformFontList() override;
 
     virtual gfxFontEntry* MakePlatformFont(const nsAString& aFontName,
                                            uint16_t aWeight,
                                            int16_t aStretch,
-                                           bool aItalic,
+                                           uint8_t aStyle,
                                            const uint8_t* aFontData,
                                            uint32_t aLength) override;
 
@@ -64,6 +67,14 @@ public:
                                         int32_t aRunScript,
                                         nsTArray<const char*>& aFontList) override;
 
+    // lookup the system font for a particular system font type and set
+    // the name and style characteristics
+    static void
+    LookupSystemFont(mozilla::LookAndFeel::FontID aSystemFontID,
+                     nsAString& aSystemFontName,
+                     gfxFontStyle &aFontStyle,
+                     float aDevPixPerCSSPixel);
+
     virtual bool CanRenderContentToDataSurface() const override {
       return true;
     }
@@ -72,12 +83,14 @@ public:
       return true;
     }
 
-    bool SupportsBasicCompositor() const override {
-      // At the moment, BasicCompositor is broken on mac.
-      return false;
+    bool RequiresAcceleratedGLContextForCompositorOGL() const override {
+      // On OS X in a VM, unaccelerated CompositorOGL shows black flashes, so we
+      // require accelerated GL for CompositorOGL but allow unaccelerated GL for
+      // BasicCompositor.
+      return true;
     }
 
-    bool UseAcceleratedCanvas();
+    virtual bool UseAcceleratedSkiaCanvas() override;
 
     virtual bool UseProgressivePaint() override;
     virtual already_AddRefed<mozilla::gfx::VsyncSource> CreateHardwareVsyncSource() override;

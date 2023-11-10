@@ -5,13 +5,13 @@
 
 const {PushDB, PushService, PushServiceWebSocket} = serviceExports;
 
+const userAgentID = '1500e7d9-8cbe-4ee6-98da-7fa5d6a39852';
+
 function run_test() {
   do_get_profile();
-  setPrefs();
-  disableServiceWorkerEvents(
-    'https://example.com/1',
-    'https://example.com/2'
-  );
+  setPrefs({
+    userAgentID: userAgentID,
+  });
   run_next_test();
 }
 
@@ -24,23 +24,27 @@ add_task(function* test_notification_duplicate() {
     pushEndpoint: 'https://example.org/update/1',
     scope: 'https://example.com/1',
     originAttributes: "",
-    version: 2
+    version: 2,
+    quota: Infinity,
+    systemRecord: true,
   }, {
     channelID: '27d1e393-03ef-4c72-a5e6-9e890dfccad0',
     pushEndpoint: 'https://example.org/update/2',
     scope: 'https://example.com/2',
     originAttributes: "",
-    version: 2
+    version: 2,
+    quota: Infinity,
+    systemRecord: true,
   }];
   for (let record of records) {
     yield db.put(record);
   }
 
-  let notifyPromise = promiseObserverNotification('push-notification');
+  let notifyPromise = promiseObserverNotification('push-message');
 
   let acks = 0;
-  let ackDefer = Promise.defer();
-  let ackDone = after(2, ackDefer.resolve);
+  let ackDone;
+  let ackPromise = new Promise(resolve => ackDone = after(2, resolve));
   PushService.init({
     serverURI: "wss://push.example.org/",
     networkInfo: new MockDesktopNetworkInfo(),
@@ -51,7 +55,7 @@ add_task(function* test_notification_duplicate() {
           this.serverSendMsg(JSON.stringify({
             messageType: 'hello',
             status: 200,
-            uaid: '1500e7d9-8cbe-4ee6-98da-7fa5d6a39852'
+            uaid: userAgentID,
           }));
           this.serverSendMsg(JSON.stringify({
             messageType: 'notification',
@@ -71,7 +75,7 @@ add_task(function* test_notification_duplicate() {
 
   yield waitForPromise(notifyPromise, DEFAULT_TIMEOUT,
     'Timed out waiting for notifications');
-  yield waitForPromise(ackDefer.promise, DEFAULT_TIMEOUT,
+  yield waitForPromise(ackPromise, DEFAULT_TIMEOUT,
     'Timed out waiting for stale acknowledgement');
 
   let staleRecord = yield db.getByKeyID(

@@ -18,7 +18,10 @@
 #include "mozilla/unused.h"
 #include "mozilla/dom/Exceptions.h"
 #include "nsContentUtils.h"
-#include "nsStackWalk.h"
+#ifdef MOZ_CRASHREPORTER
+#include "nsExceptionHandler.h"
+#endif
+#include "mozilla/StackWalk.h"
 #include "nsString.h"
 #include "nsThreadUtils.h"
 
@@ -48,11 +51,11 @@ SandboxLogJSStack(void)
 
     // Don't stop unwinding if an attribute can't be read.
     fileName.SetIsVoid(true);
-    unused << frame->GetFilename(fileName);
+    Unused << frame->GetFilename(fileName);
     lineNumber = 0;
-    unused << frame->GetLineNumber(&lineNumber);
+    Unused << frame->GetLineNumber(&lineNumber);
     funName.SetIsVoid(true);
-    unused << frame->GetName(funName);
+    Unused << frame->GetName(funName);
 
     if (!funName.IsVoid() || !fileName.IsVoid()) {
       SANDBOX_LOG_ERROR("JS frame %d: %s %s line %d", i,
@@ -74,10 +77,10 @@ static void SandboxPrintStackFrame(uint32_t aFrameNumber, void *aPC, void *aSP,
                                    void *aClosure)
 {
   char buf[1024];
-  nsCodeAddressDetails details;
+  MozCodeAddressDetails details;
 
-  NS_DescribeCodeAddress(aPC, &details);
-  NS_FormatCodeAddressDetails(buf, sizeof(buf), aFrameNumber, aPC, &details);
+  MozDescribeCodeAddress(aPC, &details);
+  MozFormatCodeAddressDetails(buf, sizeof(buf), aFrameNumber, aPC, &details);
   SANDBOX_LOG_ERROR("frame %s", buf);
 }
 
@@ -87,11 +90,11 @@ SandboxLogCStack()
   // Skip 3 frames: one for this module, one for the signal handler in
   // libmozsandbox, and one for the signal trampoline.
   //
-  // Warning: this might not print any stack frames.  NS_StackWalk
+  // Warning: this might not print any stack frames.  MozStackWalk
   // can't walk past the signal trampoline on ARM (bug 968531), and
   // x86 frame pointer walking may or may not work (bug 1082276).
 
-  NS_StackWalk(SandboxPrintStackFrame, /* skip */ 3, /* max */ 0,
+  MozStackWalk(SandboxPrintStackFrame, /* skip */ 3, /* max */ 0,
                nullptr, 0, nullptr);
   SANDBOX_LOG_ERROR("end of stack.");
 }
@@ -102,6 +105,9 @@ SandboxCrash(int nr, siginfo_t *info, void *void_context)
   pid_t pid = getpid(), tid = syscall(__NR_gettid);
   bool dumped = false;
 
+#ifdef MOZ_CRASHREPORTER
+  dumped = CrashReporter::WriteMinidumpForSigInfo(nr, info, void_context);
+#endif
   if (!dumped) {
     SANDBOX_LOG_ERROR("crash reporter is disabled (or failed);"
                       " trying stack trace:");

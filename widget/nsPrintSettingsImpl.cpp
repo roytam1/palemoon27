@@ -7,6 +7,7 @@
 #include "nsReadableUtils.h"
 #include "nsIPrintSession.h"
 #include "mozilla/RefPtr.h"
+#include "mozilla/gfx/Logging.h"
 
 #define DEFAULT_MARGIN_WIDTH 0.5
 
@@ -34,14 +35,12 @@ nsPrintSettings::nsPrintSettings() :
   mShowPrintProgress(true),
   mPrintPageDelay(50),
   mPaperData(0),
-  mPaperSizeType(kPaperSizeDefined),
   mPaperWidth(8.5),
   mPaperHeight(11.0),
   mPaperSizeUnit(kPaperSizeInches),
   mPrintReversed(false),
   mPrintInColor(true),
   mOrientation(kPortraitOrientation),
-  mDownloadFonts(false),
   mNumCopies(1),
   mPrintToFile(false),
   mOutputFormat(kOutputFormatNative),
@@ -171,48 +170,6 @@ NS_IMETHODIMP nsPrintSettings::SetOrientation(int32_t aOrientation)
   return NS_OK;
 }
 
-/* attribute wstring colorspace; */
-NS_IMETHODIMP nsPrintSettings::GetColorspace(char16_t * *aColorspace)
-{
-  NS_ENSURE_ARG_POINTER(aColorspace);
-  if (!mColorspace.IsEmpty()) {
-    *aColorspace = ToNewUnicode(mColorspace);
-  } else {
-    *aColorspace = nullptr;
-  }
-  return NS_OK;
-}
-NS_IMETHODIMP nsPrintSettings::SetColorspace(const char16_t * aColorspace)
-{
-  if (aColorspace) {
-    mColorspace = aColorspace;
-  } else {
-    mColorspace.SetLength(0);
-  }
-  return NS_OK;
-}
-
-/* attribute wstring resolutionname; */
-NS_IMETHODIMP nsPrintSettings::GetResolutionName(char16_t * *aResolutionName)
-{
-  NS_ENSURE_ARG_POINTER(aResolutionName);
-  if (!mResolutionName.IsEmpty()) {
-    *aResolutionName = ToNewUnicode(mResolutionName);
-  } else {
-    *aResolutionName = nullptr;
-  }
-  return NS_OK;
-}
-NS_IMETHODIMP nsPrintSettings::SetResolutionName(const char16_t * aResolutionName)
-{
-  if (aResolutionName) {
-    mResolutionName = aResolutionName;
-  } else {
-    mResolutionName.SetLength(0);
-  }
-  return NS_OK;
-}
-
 NS_IMETHODIMP nsPrintSettings::GetResolution(int32_t *aResolution)
 {
   NS_ENSURE_ARG_POINTER(aResolution);
@@ -234,19 +191,6 @@ NS_IMETHODIMP nsPrintSettings::GetDuplex(int32_t *aDuplex)
 NS_IMETHODIMP nsPrintSettings::SetDuplex(const int32_t aDuplex)
 {
   mDuplex = aDuplex;
-  return NS_OK;
-}
-
-/* attribute boolean downloadFonts; */
-NS_IMETHODIMP nsPrintSettings::GetDownloadFonts(bool *aDownloadFonts)
-{
-  //NS_ENSURE_ARG_POINTER(aDownloadFonts);
-  *aDownloadFonts = mDownloadFonts;
-  return NS_OK;
-}
-NS_IMETHODIMP nsPrintSettings::SetDownloadFonts(bool aDownloadFonts)
-{
-  mDownloadFonts = aDownloadFonts;
   return NS_OK;
 }
 
@@ -280,23 +224,6 @@ NS_IMETHODIMP nsPrintSettings::GetNumCopies(int32_t *aNumCopies)
 NS_IMETHODIMP nsPrintSettings::SetNumCopies(int32_t aNumCopies)
 {
   mNumCopies = aNumCopies;
-  return NS_OK;
-}
-
-/* attribute wstring printCommand; */
-NS_IMETHODIMP nsPrintSettings::GetPrintCommand(char16_t * *aPrintCommand)
-{
-  //NS_ENSURE_ARG_POINTER(aPrintCommand);
-  *aPrintCommand = ToNewUnicode(mPrintCommand);
-  return NS_OK;
-}
-NS_IMETHODIMP nsPrintSettings::SetPrintCommand(const char16_t * aPrintCommand)
-{
-  if (aPrintCommand) {
-    mPrintCommand = aPrintCommand;
-  } else {
-    mPrintCommand.SetLength(0);
-  }
   return NS_OK;
 }
 
@@ -658,11 +585,18 @@ nsPrintSettings::SetPrintOptions(int32_t aType, bool aTurnOnOff)
  *  See documentation in nsPrintSettingsImpl.h
  *	@update 1/12/01 rods
  */
-NS_IMETHODIMP 
+NS_IMETHODIMP
 nsPrintSettings::GetPrintOptionsBits(int32_t *aBits)
 {
   NS_ENSURE_ARG_POINTER(aBits);
   *aBits = mPrintOptions;
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+nsPrintSettings::SetPrintOptionsBits(int32_t aBits)
+{
+  mPrintOptions = aBits;
   return NS_OK;
 }
 
@@ -845,27 +779,6 @@ NS_IMETHODIMP nsPrintSettings::SetPaperName(const char16_t * aPaperName)
   return NS_OK;
 }
 
-/* attribute wstring plexName; */
-NS_IMETHODIMP nsPrintSettings::GetPlexName(char16_t * *aPlexName)
-{
-  NS_ENSURE_ARG_POINTER(aPlexName);
-  if (!mPlexName.IsEmpty()) {
-    *aPlexName = ToNewUnicode(mPlexName);
-  } else {
-    *aPlexName = nullptr;
-  }
-  return NS_OK;
-}
-NS_IMETHODIMP nsPrintSettings::SetPlexName(const char16_t * aPlexName)
-{
-  if (aPlexName) {
-    mPlexName = aPlexName;
-  } else {
-    mPlexName.SetLength(0);
-  }
-  return NS_OK;
-}
-
 NS_IMETHODIMP nsPrintSettings::GetHowToEnableFrameUI(int16_t *aHowToEnableFrameUI)
 {
   NS_ENSURE_ARG_POINTER(aHowToEnableFrameUI);
@@ -899,6 +812,9 @@ NS_IMETHODIMP nsPrintSettings::GetPaperWidth(double *aPaperWidth)
 NS_IMETHODIMP nsPrintSettings::SetPaperWidth(double aPaperWidth)
 {
   mPaperWidth = aPaperWidth;
+  if (mPaperWidth <= 0) {
+    gfxCriticalError(gfxCriticalError::DefaultOptions(false)) << "Setting paper width to bad value " << mPaperWidth;
+  }
   return NS_OK;
 }
 
@@ -911,6 +827,9 @@ NS_IMETHODIMP nsPrintSettings::GetPaperHeight(double *aPaperHeight)
 NS_IMETHODIMP nsPrintSettings::SetPaperHeight(double aPaperHeight)
 {
   mPaperHeight = aPaperHeight;
+  if (mPaperHeight <= 0) {
+    gfxCriticalError(gfxCriticalError::DefaultOptions(false)) << "Setting paper height to bad value " << mPaperHeight;
+  }
   return NS_OK;
 }
 
@@ -923,18 +842,6 @@ NS_IMETHODIMP nsPrintSettings::GetPaperSizeUnit(int16_t *aPaperSizeUnit)
 NS_IMETHODIMP nsPrintSettings::SetPaperSizeUnit(int16_t aPaperSizeUnit)
 {
   mPaperSizeUnit = aPaperSizeUnit;
-  return NS_OK;
-}
-
-NS_IMETHODIMP nsPrintSettings::GetPaperSizeType(int16_t *aPaperSizeType)
-{
-  NS_ENSURE_ARG_POINTER(aPaperSizeType);
-  *aPaperSizeType = mPaperSizeType;
-  return NS_OK;
-}
-NS_IMETHODIMP nsPrintSettings::SetPaperSizeType(int16_t aPaperSizeType)
-{
-  mPaperSizeType = aPaperSizeType;
   return NS_OK;
 }
 
@@ -1055,7 +962,7 @@ nsPrintSettings::GetPageRanges(nsTArray<int32_t> &aPages)
 nsresult 
 nsPrintSettings::_Clone(nsIPrintSettings **_retval)
 {
-  nsRefPtr<nsPrintSettings> printSettings = new nsPrintSettings(*this);
+  RefPtr<nsPrintSettings> printSettings = new nsPrintSettings(*this);
   printSettings.forget(_retval);
   return NS_OK;
 }
@@ -1108,8 +1015,6 @@ nsPrintSettings& nsPrintSettings::operator=(const nsPrintSettings& rhs)
   mShrinkToFit         = rhs.mShrinkToFit;
   mShowPrintProgress   = rhs.mShowPrintProgress;
   mPaperName           = rhs.mPaperName;
-  mPlexName            = rhs.mPlexName;
-  mPaperSizeType       = rhs.mPaperSizeType;
   mPaperData           = rhs.mPaperData;
   mPaperWidth          = rhs.mPaperWidth;
   mPaperHeight         = rhs.mPaperHeight;
@@ -1117,7 +1022,6 @@ nsPrintSettings& nsPrintSettings::operator=(const nsPrintSettings& rhs)
   mPrintReversed       = rhs.mPrintReversed;
   mPrintInColor        = rhs.mPrintInColor;
   mOrientation         = rhs.mOrientation;
-  mPrintCommand        = rhs.mPrintCommand;
   mNumCopies           = rhs.mNumCopies;
   mPrinter             = rhs.mPrinter;
   mPrintToFile         = rhs.mPrintToFile;

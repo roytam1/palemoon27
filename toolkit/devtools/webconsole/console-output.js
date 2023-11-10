@@ -93,6 +93,7 @@ const CONSOLE_API_LEVELS_TO_SEVERITIES = {
   table: "log",
   debug: "log",
   dir: "log",
+  dirxml: "log",
   group: "log",
   groupCollapsed: "log",
   groupEnd: "log",
@@ -1796,7 +1797,8 @@ Messages.ConsoleTable.prototype = Heritage.extend(Messages.Extended.prototype,
 
     let data = this._arguments[0];
     if (data.class != "Array" && data.class != "Object" &&
-        data.class != "Map" && data.class != "Set") {
+        data.class != "Map" && data.class != "Set" &&
+        data.class != "WeakMap" && data.class != "WeakSet") {
       return;
     }
 
@@ -1876,7 +1878,7 @@ Messages.ConsoleTable.prototype = Heritage.extend(Messages.Extended.prototype,
 
         deferred.resolve();
       });
-    } else if (data.class == "Map") {
+    } else if (data.class == "Map" || data.class == "WeakMap") {
       let entries = data.preview.entries;
 
       if (!hasColumnsArg) {
@@ -1901,7 +1903,7 @@ Messages.ConsoleTable.prototype = Heritage.extend(Messages.Extended.prototype,
       }
 
       deferred.resolve();
-    } else if (data.class == "Set") {
+    } else if (data.class == "Set" || data.class == "WeakSet") {
       let entries = data.preview.items;
 
       if (!hasColumnsArg) {
@@ -3025,7 +3027,8 @@ Widgets.ObjectRenderers.add({
 
   _renderDocumentNode: function()
   {
-    let fn = Widgets.ObjectRenderers.byKind.ObjectWithURL.prototype._renderElement;
+    let fn =
+      Widgets.ObjectRenderers.byKind.ObjectWithURL.prototype._renderElement;
     this.element = fn.call(this, this.objectActor,
                            this.objectActor.preview.location);
     this.element.classList.add("documentNode");
@@ -3499,8 +3502,10 @@ Widgets.Stacktrace.prototype = Heritage.extend(Widgets.BaseWidget.prototype,
     let result = this.element = this.document.createElementNS(XHTML_NS, "ul");
     result.className = "stacktrace devtools-monospace";
 
-    for (let frame of this.stacktrace) {
-      result.appendChild(this._renderFrame(frame));
+    if (this.stacktrace) {
+      for (let frame of this.stacktrace) {
+        result.appendChild(this._renderFrame(frame));
+      }
     }
 
     return this;
@@ -3519,15 +3524,22 @@ Widgets.Stacktrace.prototype = Heritage.extend(Widgets.BaseWidget.prototype,
   {
     let fn = this.document.createElementNS(XHTML_NS, "span");
     fn.className = "function";
+
+    let asyncCause = "";
+    if (frame.asyncCause) {
+      asyncCause =
+        l10n.getFormatStr("stacktrace.asyncStack", [frame.asyncCause]) + " ";
+    }
+
     if (frame.functionName) {
       let span = this.document.createElementNS(XHTML_NS, "span");
       span.className = "cm-variable";
-      span.textContent = frame.functionName;
+      span.textContent = asyncCause + frame.functionName;
       fn.appendChild(span);
       fn.appendChild(this.document.createTextNode("()"));
     } else {
       fn.classList.add("cm-comment");
-      fn.textContent = l10n.getStr("stacktrace.anonymousFunction");
+      fn.textContent = asyncCause + l10n.getStr("stacktrace.anonymousFunction");
     }
 
     let location = this.output.owner.createLocationNode({url: frame.filename,

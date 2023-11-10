@@ -27,7 +27,7 @@ class RefSet;
 
 template<typename T>
 class RefQueue;
-}
+} // namespace gl
 
 template<typename T>
 class AtomicRefCountedWithFinalize
@@ -62,17 +62,11 @@ protected:
 
 public:
     // Mark user classes that are considered flawless.
-    template<typename U>
-    friend class RefPtr;
-
     template<class U>
     friend class ::mozilla::StaticRefPtr;
 
-    template<typename U>
-    friend class already_AddRefed;
-
     template<class U>
-    friend class ::nsRefPtr;
+    friend struct mozilla::RefPtrTraits;
 
     template<class U>
     friend struct ::RunnableMethodTraits;

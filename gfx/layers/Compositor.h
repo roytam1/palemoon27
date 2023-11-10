@@ -9,6 +9,7 @@
 #include "Units.h"                      // for ScreenPoint
 #include "mozilla/Assertions.h"         // for MOZ_ASSERT, etc
 #include "mozilla/RefPtr.h"             // for already_AddRefed, RefCounted
+#include "mozilla/gfx/MatrixFwd.h"      // for Matrix4x4
 #include "mozilla/gfx/Point.h"          // for IntSize, Point
 #include "mozilla/gfx/Rect.h"           // for Rect, IntRect
 #include "mozilla/gfx/Types.h"          // for Float
@@ -106,12 +107,10 @@
  */
 
 class nsIWidget;
-class nsIntRegion;
 
 namespace mozilla {
 namespace gfx {
 class Matrix;
-class Matrix4x4;
 class DrawTarget;
 } // namespace gfx
 
@@ -120,6 +119,7 @@ namespace layers {
 struct Effect;
 struct EffectChain;
 class Image;
+class ImageHostOverlay;
 class Layer;
 class TextureSource;
 class DataTextureSource;
@@ -229,6 +229,10 @@ public:
     mTarget = aTarget;
     mTargetBounds = aRect;
   }
+  gfx::DrawTarget* GetTargetContext() const
+  {
+    return mTarget;
+  }
   void ClearTargetContext()
   {
     mTarget = nullptr;
@@ -316,6 +320,21 @@ public:
       DrawQuad(aRect, aClipRect, aEffectChain, aOpacity, aTransform, aRect);
   }
 
+  /**
+   * Draw an unfilled solid color rect. Typically used for debugging overlays.
+   */
+  void SlowDrawRect(const gfx::Rect& aRect, const gfx::Color& color,
+                const gfx::Rect& aClipRect = gfx::Rect(),
+                const gfx::Matrix4x4& aTransform = gfx::Matrix4x4(),
+                int aStrokeWidth = 1);
+
+  /**
+   * Draw a solid color filled rect. This is a simple DrawQuad helper.
+   */
+  void FillRect(const gfx::Rect& aRect, const gfx::Color& color,
+                    const gfx::Rect& aClipRect = gfx::Rect(),
+                    const gfx::Matrix4x4& aTransform = gfx::Matrix4x4());
+
   /*
    * Clear aRect on current render target.
    */
@@ -351,12 +370,9 @@ public:
    */
   virtual void EndFrame() = 0;
 
-  virtual void SetDispAcquireFence(Layer* aLayer) {}
+  virtual void SetDispAcquireFence(Layer* aLayer, nsIWidget* aWidget);
 
-  virtual FenceHandle GetReleaseFence()
-  {
-    return FenceHandle();
-  }
+  virtual FenceHandle GetReleaseFence();
 
   /**
    * Post-rendering stuff if the rendering is done outside of this Compositor
@@ -364,16 +380,6 @@ public:
    * aTransform is the transform from user space to window space.
    */
   virtual void EndFrameForExternalComposition(const gfx::Matrix& aTransform) = 0;
-
-  /**
-   * Setup the viewport and projection matrix for rendering to a target of the
-   * given dimensions. The size and transform here will override those set in
-   * BeginFrame. BeginFrame sets a size and transform for the default render
-   * target, usually the screen. Calling this method prepares the compositor to
-   * render using a different viewport (that is, size and transform), usually
-   * associated with a new render target.
-   */
-  virtual void PrepareViewport(const gfx::IntSize& aSize) = 0;
 
   /**
    * Whether textures created by this compositor can receive partial updates.
@@ -448,21 +454,17 @@ public:
   // these methods properly.
   virtual nsIWidget* GetWidget() const { return nullptr; }
 
+  virtual bool HasImageHostOverlays() { return false; }
+
+  virtual void AddImageHostOverlay(ImageHostOverlay* aOverlay) {}
+
+  virtual void RemoveImageHostOverlay(ImageHostOverlay* aOverlay) {}
+
   /**
    * Debug-build assertion that can be called to ensure code is running on the
    * compositor thread.
    */
   static void AssertOnCompositorThread();
-
-  /**
-   * We enforce that there can only be one Compositor backend type off the main
-   * thread at the same time. The backend type in use can be checked with this
-   * static method. We need this for creating texture clients/hosts etc. when we
-   * don't have a reference to a Compositor.
-   *
-   * This can only be used from the compositor thread!
-   */
-  static LayersBackend GetBackend();
 
   size_t GetFillRatio() {
     float fillRatio = 0;
@@ -487,6 +489,20 @@ public:
   }
   void SetCompositionTime(TimeStamp aTimeStamp) {
     mCompositionTime = aTimeStamp;
+    if (!mCompositionTime.IsNull() && !mCompositeUntilTime.IsNull() &&
+        mCompositionTime >= mCompositeUntilTime) {
+      mCompositeUntilTime = TimeStamp();
+    }
+  }
+
+  void CompositeUntil(TimeStamp aTimeStamp) {
+    if (mCompositeUntilTime.IsNull() ||
+        mCompositeUntilTime < aTimeStamp) {
+      mCompositeUntilTime = aTimeStamp;
+    }
+  }
+  TimeStamp GetCompositeUntilTime() const {
+    return mCompositeUntilTime;
   }
 
 protected:
@@ -499,14 +515,30 @@ protected:
   bool ShouldDrawDiagnostics(DiagnosticFlags);
 
   /**
-   * Set the global Compositor backend, checking that one isn't already set.
+   * Given a layer rect, clip, and transform, compute the area of the backdrop that
+   * needs to be copied for mix-blending. The output transform translates from 0..1
+   * space into the backdrop rect space.
+   *
+   * The transformed layer quad is also optionally returned - this is the same as
+   * the result rect, before rounding.
    */
-  static void SetBackend(LayersBackend backend);
+  gfx::IntRect ComputeBackdropCopyRect(
+    const gfx::Rect& aRect,
+    const gfx::Rect& aClipRect,
+    const gfx::Matrix4x4& aTransform,
+    gfx::Matrix4x4* aOutTransform,
+    gfx::Rect* aOutLayerQuad = nullptr);
 
   /**
    * Render time for the current composition.
    */
   TimeStamp mCompositionTime;
+  /**
+   * When nonnull, during rendering, some compositable indicated that it will
+   * change its rendering at this time. In order not to miss it, we composite
+   * on every vsync until this time occurs (this is the latest such time).
+   */
+  TimeStamp mCompositeUntilTime;
 
   uint32_t mCompositorID;
   DiagnosticTypes mDiagnosticTypes;
@@ -522,10 +554,12 @@ protected:
 
   ScreenRotation mScreenRotation;
 
-  virtual gfx::IntSize GetWidgetSize() const = 0;
-
   RefPtr<gfx::DrawTarget> mTarget;
   gfx::IntRect mTargetBounds;
+
+#if defined(MOZ_WIDGET_GONK) && ANDROID_VERSION >= 17
+  FenceHandle mReleaseFenceHandle;
+#endif
 
 private:
   static LayersBackend sBackend;
@@ -538,6 +572,31 @@ size_t DecomposeIntoNoRepeatRects(const gfx::Rect& aRect,
                                   const gfx::Rect& aTexCoordRect,
                                   decomposedRectArrayT* aLayerRects,
                                   decomposedRectArrayT* aTextureRects);
+
+static inline bool
+BlendOpIsMixBlendMode(gfx::CompositionOp aOp)
+{
+  switch (aOp) {
+  case gfx::CompositionOp::OP_MULTIPLY:
+  case gfx::CompositionOp::OP_SCREEN:
+  case gfx::CompositionOp::OP_OVERLAY:
+  case gfx::CompositionOp::OP_DARKEN:
+  case gfx::CompositionOp::OP_LIGHTEN:
+  case gfx::CompositionOp::OP_COLOR_DODGE:
+  case gfx::CompositionOp::OP_COLOR_BURN:
+  case gfx::CompositionOp::OP_HARD_LIGHT:
+  case gfx::CompositionOp::OP_SOFT_LIGHT:
+  case gfx::CompositionOp::OP_DIFFERENCE:
+  case gfx::CompositionOp::OP_EXCLUSION:
+  case gfx::CompositionOp::OP_HUE:
+  case gfx::CompositionOp::OP_SATURATION:
+  case gfx::CompositionOp::OP_COLOR:
+  case gfx::CompositionOp::OP_LUMINOSITY:
+    return true;
+  default:
+    return false;
+  }
+}
 
 } // namespace layers
 } // namespace mozilla

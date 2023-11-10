@@ -35,13 +35,13 @@ WebGLSampler::Delete()
 WebGLContext*
 WebGLSampler::GetParentObject() const
 {
-    return Context();
+    return mContext;
 }
 
 JSObject*
-WebGLSampler::WrapObject(JSContext* cx, JS::Handle<JSObject*> aGivenProto)
+WebGLSampler::WrapObject(JSContext* cx, JS::Handle<JSObject*> givenProto)
 {
-    return dom::WebGLSamplerBinding::Wrap(cx, this, aGivenProto);
+    return dom::WebGLSamplerBinding::Wrap(cx, this, givenProto);
 }
 
 

@@ -45,7 +45,7 @@
 #include "nsIApplicationCache.h"
 #include "nsIApplicationCacheContainer.h"
 #include "nsStyleSet.h"
-#include "pldhash.h"
+#include "PLDHashTable.h"
 #include "nsAttrAndChildArray.h"
 #include "nsDOMAttributeMap.h"
 #include "nsIContentViewer.h"
@@ -228,9 +228,9 @@ private:
   // empty if there are no elements with this ID.
   // The elements are stored as weak pointers.
   nsTArray<Element*> mIdContentList;
-  nsRefPtr<nsBaseContentList> mNameContentList;
+  RefPtr<nsBaseContentList> mNameContentList;
   nsAutoPtr<nsTHashtable<ChangeCallbackEntry> > mChangeCallbacks;
-  nsRefPtr<Element> mImageElement;
+  RefPtr<Element> mImageElement;
 };
 
 namespace mozilla {
@@ -304,8 +304,8 @@ public:
 
 private:
   // The this value to use for invocation of the callback.
-  nsRefPtr<mozilla::dom::Element> mThisObject;
-  nsRefPtr<mozilla::dom::CallbackFunction> mCallback;
+  RefPtr<mozilla::dom::Element> mThisObject;
+  RefPtr<mozilla::dom::CallbackFunction> mCallback;
   // The type of callback (eCreated, eAttached, etc.)
   nsIDocument::ElementCallbackType mType;
   // Arguments to be passed to the callback,
@@ -563,7 +563,7 @@ protected:
                          nsILoadGroup** aLoadGroup);
 
   private:
-    nsRefPtr<nsDocument> mDisplayDocument;
+    RefPtr<nsDocument> mDisplayDocument;
     nsCOMPtr<nsIStreamListener> mTargetListener;
     nsCOMPtr<nsIURI> mURI;
   };
@@ -633,29 +633,6 @@ protected:
   bool mHaveShutDown;
 };
 
-class CSPErrorQueue
-{
-  public:
-    /**
-     * Note this was designed to be passed string literals. If you give it
-     * a dynamically allocated string, it is your responsibility to make sure
-     * it never dies and is properly freed!
-     */
-    void Add(const char* aMessageName);
-    void Flush(nsIDocument* aDocument);
-
-    CSPErrorQueue()
-    {
-    }
-
-    ~CSPErrorQueue()
-    {
-    }
-
-  private:
-    nsAutoTArray<const char*,5> mErrors;
-};
-
 // Base class for our document implementations.
 //
 // Note that this class *implements* nsIDOMXMLDocument, but it's not
@@ -711,6 +688,8 @@ public:
   virtual void SetChromeXHRDocURI(nsIURI* aURI) override;
 
   virtual void SetChromeXHRDocBaseURI(nsIURI* aURI) override;
+
+  virtual void ApplySettingsFromCSP(bool aSpeculative) override;
 
   /**
    * Set the principal responsible for this document.
@@ -780,6 +759,8 @@ public:
 
   static bool IsWebAnimationsEnabled(JSContext* aCx, JSObject* aObject);
   virtual mozilla::dom::DocumentTimeline* Timeline() override;
+  virtual void GetAnimations(
+      nsTArray<RefPtr<mozilla::dom::Animation>>& aAnimations) override;
 
   virtual nsresult SetSubDocumentFor(Element* aContent,
                                      nsIDocument* aSubDoc) override;
@@ -872,12 +853,11 @@ public:
                  mozilla::EventStates aStateMask) override;
 
   virtual void StyleRuleChanged(nsIStyleSheet* aStyleSheet,
-                                nsIStyleRule* aOldStyleRule,
-                                nsIStyleRule* aNewStyleRule) override;
+                                mozilla::css::Rule* aStyleRule) override;
   virtual void StyleRuleAdded(nsIStyleSheet* aStyleSheet,
-                              nsIStyleRule* aStyleRule) override;
+                              mozilla::css::Rule* aStyleRule) override;
   virtual void StyleRuleRemoved(nsIStyleSheet* aStyleSheet,
-                                nsIStyleRule* aStyleRule) override;
+                                mozilla::css::Rule* aStyleRule) override;
 
   virtual void FlushPendingNotifications(mozFlushType aType) override;
   virtual void FlushExternalResources(mozFlushType aType) override;
@@ -986,9 +966,9 @@ public:
 
   virtual nsresult Init();
 
-  virtual nsresult CreateElem(const nsAString& aName, nsIAtom *aPrefix,
-                              int32_t aNamespaceID,
-                              nsIContent **aResult) override;
+  virtual already_AddRefed<Element> CreateElem(const nsAString& aName,
+                                               nsIAtom* aPrefix,
+                                               int32_t aNamespaceID) override;
 
   virtual void Sanitize() override;
 
@@ -1023,7 +1003,7 @@ public:
 
   virtual void ElementsFromPointHelper(float aX, float aY,
                                        uint32_t aFlags,
-                                       nsTArray<nsRefPtr<mozilla::dom::Element>>& aElements) override;
+                                       nsTArray<RefPtr<mozilla::dom::Element>>& aElements) override;
 
   virtual nsresult NodesFromRectHelper(float aX, float aY,
                                                    float aTopSize, float aRightSize,
@@ -1183,6 +1163,7 @@ public:
   virtual Element* FindImageMap(const nsAString& aNormalizedMapName) override;
 
   virtual Element* GetFullScreenElement() override;
+  virtual nsTArray<Element*> GetFullscreenStack() const override;
   virtual void AsyncRequestFullScreen(Element* aElement,
                                       mozilla::dom::FullScreenOptions& aOptions) override;
   virtual void RestorePreviousFullScreenState() override;
@@ -1273,6 +1254,13 @@ public:
   bool SetPointerLock(Element* aElement, int aCursorStyle);
   static void UnlockPointer(nsIDocument* aDoc = nullptr);
 
+  void SetCurrentOrientation(mozilla::dom::OrientationType aType,
+                             uint16_t aAngle) override;
+  uint16_t CurrentOrientationAngle() const override;
+  mozilla::dom::OrientationType CurrentOrientationType() const override;
+  void SetOrientationPendingPromise(mozilla::dom::Promise* aPromise) override;
+  mozilla::dom::Promise* GetOrientationPendingPromise() const override;
+
   // This method may fire a DOM event; if it does so it will happen
   // synchronously.
   void UpdateVisibilityState();
@@ -1289,7 +1277,7 @@ public:
                                         mozilla::dom::LifecycleCallbackArgs* aArgs = nullptr,
                                         mozilla::dom::CustomElementDefinition* aDefinition = nullptr) override;
 
-  static void ProcessTopElementQueue(bool aIsBaseQueue = false);
+  static void ProcessTopElementQueue();
 
   void GetCustomPrototype(int32_t aNamespaceID,
                           nsIAtom* aAtom,
@@ -1459,13 +1447,15 @@ protected:
   nsIContent* GetFirstBaseNodeWithHref();
   nsresult SetFirstBaseNodeWithHref(nsIContent *node);
 
-  // Get the first <title> element with the given IsNodeOfType type, or
-  // return null if there isn't one
-  nsIContent* GetTitleContent(uint32_t aNodeType);
-  // Find the first "title" element in the given IsNodeOfType type and
-  // append the concatenation of its text node children to aTitle. Do
-  // nothing if there is no such element.
-  void GetTitleFromElement(uint32_t aNodeType, nsAString& aTitle);
+  /**
+   * Returns the title element of the document as defined by the HTML
+   * specification, or null if there isn't one.  For documents whose root
+   * element is an <svg:svg>, this is the first <svg:title> element that's a
+   * child of the root.  For other documents, it's the first HTML title element
+   * in the document.
+   */
+  Element* GetTitleElement();
+
 public:
   // Get our title
   virtual void GetTitle(nsString& aTitle) override;
@@ -1490,12 +1480,11 @@ public:
 protected:
   already_AddRefed<nsIPresShell> doCreateShell(nsPresContext* aContext,
                                                nsViewManager* aViewManager,
-                                               nsStyleSet* aStyleSet,
-                                               nsCompatibility aCompatMode);
+                                               nsStyleSet* aStyleSet);
 
   void RemoveDocStyleSheetsFromStyleSets();
   void RemoveStyleSheetsFromStyleSets(nsCOMArray<nsIStyleSheet>& aSheets, 
-                                      nsStyleSet::sheetType aType);
+                                      mozilla::SheetType aType);
   void ResetStylesheetsToURI(nsIURI* aURI);
   void FillStyleSet(nsStyleSet* aStyleSet);
 
@@ -1509,6 +1498,8 @@ protected:
   virtual nsPIDOMWindow *GetWindowInternal() const override;
   virtual nsIScriptGlobalObject* GetScriptHandlingObjectInternal() const override;
   virtual bool InternalAllowXULXBL() override;
+
+  void UpdateScreenOrientation();
 
 #define NS_DOCUMENT_NOTIFY_OBSERVERS(func_, params_)                        \
   NS_OBSERVER_ARRAY_NOTIFY_XPCOM_OBSERVERS(mObservers, nsIDocumentObserver, \
@@ -1543,14 +1534,14 @@ protected:
 
   nsCOMArray<nsIStyleSheet> mStyleSheets;
   nsCOMArray<nsIStyleSheet> mOnDemandBuiltInUASheets;
-  nsCOMArray<nsIStyleSheet> mAdditionalSheets[SheetTypeCount];
+  nsCOMArray<nsIStyleSheet> mAdditionalSheets[AdditionalSheetTypeCount];
 
   // Array of observers
   nsTObserverArray<nsIDocumentObserver*> mObservers;
 
   // Tracker for animations that are waiting to start.
   // nullptr until GetOrCreatePendingAnimationTracker is called.
-  nsRefPtr<mozilla::PendingAnimationTracker> mPendingAnimationTracker;
+  RefPtr<mozilla::PendingAnimationTracker> mPendingAnimationTracker;
 
   // Weak reference to the scope object (aka the script global object)
   // that, unlike mScriptGlobalObject, is never unset once set. This
@@ -1573,17 +1564,11 @@ private:
   // CustomElementData in this array, separated by nullptr that
   // represent the boundaries of the items in the stack. The first
   // queue in the stack is the base element queue.
-  static mozilla::Maybe<nsTArray<nsRefPtr<mozilla::dom::CustomElementData>>> sProcessingStack;
-
-  // Flag to prevent re-entrance into base element queue as described in the
-  // custom elements speicification.
-  static bool sProcessingBaseElementQueue;
+  static mozilla::Maybe<nsTArray<RefPtr<mozilla::dom::CustomElementData>>> sProcessingStack;
 
   static bool CustomElementConstructor(JSContext* aCx, unsigned aArgc, JS::Value* aVp);
 
 public:
-  static void ProcessBaseElementQueue();
-
   // Enqueue created callback or register upgrade candidate for
   // newly created custom elements, possibly extending an existing type.
   // ex. <x-button>, <button is="x-button> (type extension)
@@ -1594,12 +1579,12 @@ public:
   static bool IsWebComponentsEnabled(JSContext* aCx, JSObject* aObject);
 
   // The "registry" from the web components spec.
-  nsRefPtr<mozilla::dom::Registry> mRegistry;
+  RefPtr<mozilla::dom::Registry> mRegistry;
 
-  nsRefPtr<mozilla::EventListenerManager> mListenerManager;
-  nsRefPtr<mozilla::dom::StyleSheetList> mDOMStyleSheets;
-  nsRefPtr<nsDOMStyleSheetSetList> mStyleSheetSetList;
-  nsRefPtr<nsScriptLoader> mScriptLoader;
+  RefPtr<mozilla::EventListenerManager> mListenerManager;
+  RefPtr<mozilla::dom::StyleSheetList> mDOMStyleSheets;
+  RefPtr<nsDOMStyleSheetSetList> mStyleSheetSetList;
+  RefPtr<nsScriptLoader> mScriptLoader;
   nsDocHeaderData* mHeaderData;
   /* mIdentifierMap works as follows for IDs:
    * 1) Attribute changes affect the table immediately (removing and adding
@@ -1674,6 +1659,13 @@ public:
 
   bool mAsyncFullscreenPending:1;
 
+  // ScreenOrientation "pending promise" as described by
+  // http://www.w3.org/TR/screen-orientation/
+  RefPtr<mozilla::dom::Promise> mOrientationPendingPromise;
+
+  uint16_t mCurrentOrientationAngle;
+  mozilla::dom::OrientationType mCurrentOrientationType;
+
   // Whether we're observing the "app-theme-changed" observer service
   // notification.  We need to keep track of this because we might get multiple
   // OnPageShow notifications in a row without an OnPageHide in between, if
@@ -1716,7 +1708,7 @@ public:
   mozilla::EventStates mDocumentState;
   mozilla::EventStates mGotDocumentState;
 
-  nsRefPtr<nsDOMNavigationTiming> mTiming;
+  RefPtr<nsDOMNavigationTiming> mTiming;
 private:
   friend class nsUnblockOnloadEvent;
   // Recomputes the visibility state but doesn't set the new value.
@@ -1730,11 +1722,6 @@ private:
   nsresult CheckFrameOptions();
   bool IsLoopDocument(nsIChannel* aChannel);
   nsresult InitCSP(nsIChannel* aChannel);
-
-  void FlushCSPWebConsoleErrorQueue()
-  {
-    mCSPWebConsoleErrorQueue.Flush(this);
-  }
 
   /**
    * Find the (non-anonymous) content in this document for aFrame. It will
@@ -1757,6 +1744,11 @@ private:
   // Reschedule any notifications we need to handle
   // requestAnimationFrame, if it's OK to do so.
   void MaybeRescheduleAnimationFrameNotifications();
+
+  void ClearAllBoxObjects();
+
+  // Returns true if the scheme for the url for this document is "about"
+  bool IsAboutPage();
 
   // These are not implemented and not supported.
   nsDocument(const nsDocument& aOther);
@@ -1789,9 +1781,9 @@ private:
   // Member to store out last-selected stylesheet set.
   nsString mLastStyleSheetSet;
 
-  nsTArray<nsRefPtr<nsFrameLoader> > mInitializableFrameLoaders;
+  nsTArray<RefPtr<nsFrameLoader> > mInitializableFrameLoaders;
   nsTArray<nsCOMPtr<nsIRunnable> > mFrameLoaderFinalizers;
-  nsRefPtr<nsRunnableMethod<nsDocument> > mFrameLoaderRunner;
+  RefPtr<nsRunnableMethod<nsDocument> > mFrameLoaderRunner;
 
   nsRevocableEventPtr<nsRunnableMethod<nsDocument, void, false> >
     mPendingTitleChangeEvent;
@@ -1815,9 +1807,9 @@ private:
   // Set if we've found a URL for the current picture
   nsString mPreloadPictureFoundSource;
 
-  nsRefPtr<mozilla::dom::DOMImplementation> mDOMImplementation;
+  RefPtr<mozilla::dom::DOMImplementation> mDOMImplementation;
 
-  nsRefPtr<nsContentList> mImageMaps;
+  RefPtr<nsContentList> mImageMaps;
 
   nsCString mScrollToRef;
   uint8_t mScrolledToRefAlready : 1;
@@ -1829,13 +1821,12 @@ private:
   // Tracking for plugins in the document.
   nsTHashtable< nsPtrHashKey<nsIObjectLoadingContent> > mPlugins;
 
-  nsRefPtr<mozilla::dom::UndoManager> mUndoManager;
+  RefPtr<mozilla::dom::UndoManager> mUndoManager;
 
-  nsRefPtr<mozilla::dom::DocumentTimeline> mDocumentTimeline;
+  RefPtr<mozilla::dom::DocumentTimeline> mDocumentTimeline;
 
   enum ViewportType {
     DisplayWidthHeight,
-    DisplayWidthHeightNoZoom,
     Specified,
     Unknown
   };
@@ -1855,10 +1846,8 @@ private:
   nsrefcnt mStackRefCnt;
   bool mNeedsReleaseAfterStackRefCntRelease;
 
-  CSPErrorQueue mCSPWebConsoleErrorQueue;
-
   nsCOMPtr<nsIDocument> mMasterDocument;
-  nsRefPtr<mozilla::dom::ImportManager> mImportManager;
+  RefPtr<mozilla::dom::ImportManager> mImportManager;
   nsTArray<nsCOMPtr<nsINode> > mSubImportLinks;
 
   // Set to true when the document is possibly controlled by the ServiceWorker.

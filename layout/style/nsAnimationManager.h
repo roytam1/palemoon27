@@ -7,6 +7,7 @@
 
 #include "mozilla/Attributes.h"
 #include "mozilla/ContentEvents.h"
+#include "mozilla/EventForwards.h"
 #include "AnimationCommon.h"
 #include "nsCSSPseudoElements.h"
 #include "mozilla/dom/Animation.h"
@@ -21,36 +22,45 @@ namespace css {
 class Declaration;
 } /* namespace css */
 namespace dom {
+class KeyframeEffectReadOnly;
 class Promise;
 } /* namespace dom */
 
 struct AnimationEventInfo {
-  nsRefPtr<mozilla::dom::Element> mElement;
-  mozilla::InternalAnimationEvent mEvent;
+  RefPtr<dom::Element> mElement;
+  RefPtr<dom::Animation> mAnimation;
+  InternalAnimationEvent mEvent;
+  TimeStamp mTimeStamp;
 
-  AnimationEventInfo(mozilla::dom::Element *aElement,
+  AnimationEventInfo(dom::Element* aElement,
+                     nsCSSPseudoElements::Type aPseudoType,
+                     EventMessage aMessage,
                      const nsSubstring& aAnimationName,
-                     uint32_t aMessage,
-                     const mozilla::StickyTimeDuration& aElapsedTime,
-                     const nsAString& aPseudoElement)
-    : mElement(aElement), mEvent(true, aMessage)
+                     const StickyTimeDuration& aElapsedTime,
+                     const TimeStamp& aTimeStamp,
+                     dom::Animation* aAnimation)
+    : mElement(aElement)
+    , mAnimation(aAnimation)
+    , mEvent(true, aMessage)
+    , mTimeStamp(aTimeStamp)
   {
     // XXX Looks like nobody initialize WidgetEvent::time
     mEvent.animationName = aAnimationName;
     mEvent.elapsedTime = aElapsedTime.ToSeconds();
-    mEvent.pseudoElement = aPseudoElement;
+    mEvent.pseudoElement = AnimationCollection::PseudoTypeAsString(aPseudoType);
   }
 
   // InternalAnimationEvent doesn't support copy-construction, so we need
   // to ourselves in order to work with nsTArray
-  AnimationEventInfo(const AnimationEventInfo &aOther)
-    : mElement(aOther.mElement), mEvent(true, aOther.mEvent.message)
+  AnimationEventInfo(const AnimationEventInfo& aOther)
+    : mElement(aOther.mElement)
+    , mAnimation(aOther.mAnimation)
+    , mEvent(true, aOther.mEvent.mMessage)
+    , mTimeStamp(aOther.mTimeStamp)
   {
     mEvent.AssignAnimationEventData(aOther.mEvent, false);
   }
 };
-
-typedef InfallibleTArray<AnimationEventInfo> EventArray;
 
 namespace dom {
 
@@ -63,6 +73,7 @@ public:
     , mAnimationName(aAnimationName)
     , mIsStylePaused(false)
     , mPauseShouldStick(false)
+    , mNeedsNewAnimationIndexWhenRun(false)
     , mPreviousPhaseOrIteration(PREVIOUS_PHASE_BEFORE)
   {
     // We might need to drop this assertion once we add a script-accessible
@@ -97,35 +108,86 @@ public:
   void CancelFromStyle() override
   {
     mOwningElement = OwningElementRef();
+
+    // When an animation is disassociated with style it enters an odd state
+    // where its composite order is undefined until it first transitions
+    // out of the idle state.
+    //
+    // Even if the composite order isn't defined we don't want it to be random
+    // in case we need to determine the order to dispatch events associated
+    // with an animation in this state. To solve this we treat the animation as
+    // if it had been added to the end of the global animation list so that
+    // its sort order is defined. We'll update this index again once the
+    // animation leaves the idle state.
+    mAnimationIndex = sNextAnimationIndex++;
+    mNeedsNewAnimationIndexWhenRun = true;
+
     Animation::CancelFromStyle();
-    MOZ_ASSERT(mSequenceNum == kUnsequenced);
   }
+
+  void Tick() override;
+  void QueueEvents();
 
   bool IsStylePaused() const { return mIsStylePaused; }
 
   bool HasLowerCompositeOrderThan(const Animation& aOther) const override;
-  bool IsUsingCustomCompositeOrder() const override
-  {
-    return mOwningElement.IsSet();
-  }
 
   void SetAnimationIndex(uint64_t aIndex)
   {
-    MOZ_ASSERT(IsUsingCustomCompositeOrder());
-    mSequenceNum = aIndex;
+    MOZ_ASSERT(IsTiedToMarkup());
+    mAnimationIndex = aIndex;
   }
   void CopyAnimationIndex(const CSSAnimation& aOther)
   {
-    MOZ_ASSERT(IsUsingCustomCompositeOrder() &&
-               aOther.IsUsingCustomCompositeOrder());
-    mSequenceNum = aOther.mSequenceNum;
+    MOZ_ASSERT(IsTiedToMarkup() && aOther.IsTiedToMarkup());
+    mAnimationIndex = aOther.mAnimationIndex;
   }
 
-  void QueueEvents(EventArray& aEventsToDispatch);
+  // Sets the owning element which is used for determining the composite
+  // order of CSSAnimation objects generated from CSS markup.
+  //
+  // @see mOwningElement
+  void SetOwningElement(const OwningElementRef& aElement)
+  {
+    mOwningElement = aElement;
+  }
+  // True for animations that are generated from CSS markup and continue to
+  // reflect changes to that markup.
+  bool IsTiedToMarkup() const { return mOwningElement.IsSet(); }
 
-  // Returns the element or pseudo-element whose animation-name property
-  // this CSSAnimation corresponds to (if any). This is used for determining
-  // the relative composite order of animations generated from CSS markup.
+protected:
+  virtual ~CSSAnimation()
+  {
+    MOZ_ASSERT(!mOwningElement.IsSet(), "Owning element should be cleared "
+                                        "before a CSS animation is destroyed");
+  }
+
+  // Animation overrides
+  void UpdateTiming(SeekFlag aSeekFlag,
+                    SyncNotifyFlag aSyncNotifyFlag) override;
+
+  // Returns the duration from the start of the animation's source effect's
+  // active interval to the point where the animation actually begins playback.
+  // This is zero unless the animation's source effect has a negative delay in
+  // which case it is the absolute value of that delay.
+  // This is used for setting the elapsedTime member of CSS AnimationEvents.
+  TimeDuration InitialAdvance() const {
+    return mEffect ?
+           std::max(TimeDuration(), mEffect->SpecifiedTiming().mDelay * -1) :
+           TimeDuration();
+  }
+  // Converts an AnimationEvent's elapsedTime value to an equivalent TimeStamp
+  // that can be used to sort events by when they occurred.
+  TimeStamp ElapsedTimeToTimeStamp(const StickyTimeDuration& aElapsedTime)
+    const;
+
+  nsString mAnimationName;
+
+  // The (pseudo-)element whose computed animation-name refers to this
+  // animation (if any).
+  //
+  // This is used for determining the relative composite order of animations
+  // generated from CSS markup.
   //
   // Typically this will be the same as the target element of the keyframe
   // effect associated with this animation. However, it can differ in the
@@ -138,39 +200,7 @@ public:
   // c) If this object is generated from script using the CSSAnimation
   //    constructor.
   //
-  // For (b) and (c) the returned owning element will return !IsSet().
-  const OwningElementRef& OwningElement() const { return mOwningElement; }
-
-  // Sets the owning element which is used for determining the composite
-  // order of CSSAnimation objects generated from CSS markup.
-  //
-  // @see OwningElement()
-  void SetOwningElement(const OwningElementRef& aElement)
-  {
-    mOwningElement = aElement;
-  }
-
-  // Is this animation currently in effect for the purposes of computing
-  // mWinsInCascade.  (In general, this can be computed from the timing
-  // function.  This boolean remembers the state as of the last time we
-  // called UpdateCascadeResults so we know if it changes and we need to
-  // call UpdateCascadeResults again.)
-  bool mInEffectForCascadeResults;
-
-protected:
-  virtual ~CSSAnimation()
-  {
-    MOZ_ASSERT(!mOwningElement.IsSet(), "Owning element should be cleared "
-                                        "before a CSS animation is destroyed");
-  }
-  virtual css::CommonAnimationManager* GetAnimationManager() const override;
-
-  static nsString PseudoTypeAsString(nsCSSPseudoElements::Type aPseudoType);
-
-  nsString mAnimationName;
-
-  // The (pseudo-)element whose computed animation-name refers to this
-  // animation (if any).
+  // For (b) and (c) the owning element will return !IsSet().
   OwningElementRef mOwningElement;
 
   // When combining animation-play-state with play() / pause() the following
@@ -225,6 +255,10 @@ protected:
   bool mIsStylePaused;
   bool mPauseShouldStick;
 
+  // When true, indicates that when this animation next leaves the idle state,
+  // its animation index should be updated.
+  bool mNeedsNewAnimationIndexWhenRun;
+
   enum {
     PREVIOUS_PHASE_BEFORE = uint64_t(-1),
     PREVIOUS_PHASE_AFTER = uint64_t(-2)
@@ -238,32 +272,22 @@ protected:
 } /* namespace mozilla */
 
 class nsAnimationManager final
-  : public mozilla::css::CommonAnimationManager
+  : public mozilla::CommonAnimationManager
 {
 public:
   explicit nsAnimationManager(nsPresContext *aPresContext)
-    : mozilla::css::CommonAnimationManager(aPresContext)
+    : mozilla::CommonAnimationManager(aPresContext)
   {
   }
 
-  void UpdateStyleAndEvents(mozilla::AnimationCollection* aEA,
-                            mozilla::TimeStamp aRefreshTime,
-                            mozilla::EnsureStyleRuleFlags aFlags);
-  void QueueEvents(mozilla::AnimationCollection* aEA,
-                   mozilla::EventArray &aEventsToDispatch);
-
-  void MaybeUpdateCascadeResults(mozilla::AnimationCollection* aCollection);
+  NS_DECL_CYCLE_COLLECTION_CLASS(nsAnimationManager)
+  NS_DECL_CYCLE_COLLECTING_ISUPPORTS
 
   // nsIStyleRuleProcessor (parts)
   virtual size_t SizeOfExcludingThis(mozilla::MallocSizeOf aMallocSizeOf)
     const MOZ_MUST_OVERRIDE override;
   virtual size_t SizeOfIncludingThis(mozilla::MallocSizeOf aMallocSizeOf)
     const MOZ_MUST_OVERRIDE override;
-
-  // nsARefreshObserver
-  virtual void WillRefresh(mozilla::TimeStamp aTime) override;
-
-  void FlushAnimations(FlushFlags aFlags);
 
   /**
    * Return the style rule that RulesMatching should add for
@@ -280,20 +304,38 @@ public:
                                    mozilla::dom::Element* aElement);
 
   /**
+   * Add a pending event.
+   */
+  void QueueEvent(mozilla::AnimationEventInfo&& aEventInfo)
+  {
+    mEventDispatcher.QueueEvent(
+      mozilla::Forward<mozilla::AnimationEventInfo>(aEventInfo));
+  }
+
+  /**
    * Dispatch any pending events.  We accumulate animationend and
    * animationiteration events only during refresh driver notifications
    * (and dispatch them at the end of such notifications), but we
    * accumulate animationstart events at other points when style
    * contexts are created.
    */
-  void DispatchEvents() {
-    // Fast-path the common case: no events
-    if (!mPendingEvents.IsEmpty()) {
-      DoDispatchEvents();
-    }
+  void DispatchEvents()  { mEventDispatcher.DispatchEvents(mPresContext); }
+  void SortEvents()      { mEventDispatcher.SortEvents(); }
+  void ClearEventQueue() { mEventDispatcher.ClearEventQueue(); }
+
+  // Stop animations on the element. This method takes the real element
+  // rather than the element for the generated content for animations on
+  // ::before and ::after.
+  void StopAnimationsForElement(mozilla::dom::Element* aElement,
+                                nsCSSPseudoElements::Type aPseudoType);
+
+  bool IsAnimationManager() override {
+    return true;
   }
 
 protected:
+  virtual ~nsAnimationManager() {}
+
   virtual nsIAtom* GetAnimationsAtom() override {
     return nsGkAtoms::animationsProperty;
   }
@@ -303,9 +345,8 @@ protected:
   virtual nsIAtom* GetAnimationsAfterAtom() override {
     return nsGkAtoms::animationsOfAfterProperty;
   }
-  virtual bool IsAnimationManager() override {
-    return true;
-  }
+
+  mozilla::DelayedEventDispatcher<mozilla::AnimationEventInfo> mEventDispatcher;
 
 private:
   void BuildAnimations(nsStyleContext* aStyleContext,
@@ -319,15 +360,6 @@ private:
                     float aFromKey, nsStyleContext* aFromContext,
                     mozilla::css::Declaration* aFromDeclaration,
                     float aToKey, nsStyleContext* aToContext);
-
-  static void UpdateCascadeResults(nsStyleContext* aStyleContext,
-                                   mozilla::AnimationCollection*
-                                     aElementAnimations);
-
-  // The guts of DispatchEvents
-  void DoDispatchEvents();
-
-  mozilla::EventArray mPendingEvents;
 };
 
 #endif /* !defined(nsAnimationManager_h_) */

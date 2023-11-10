@@ -448,7 +448,9 @@ this.NetUtil = {
         }
 
         if (securityFlags === undefined) {
-            securityFlags = Ci.nsILoadInfo.SEC_NORMAL;
+            securityFlags = loadUsingSystemPrincipal
+                            ? Ci.nsILoadInfo.SEC_ALLOW_CROSS_ORIGIN_DATA_IS_NULL
+                            : Ci.nsILoadInfo.SEC_NORMAL;
         }
 
         if (contentPolicyType === undefined) {
@@ -469,41 +471,6 @@ this.NetUtil = {
                                                  triggeringPrincipal || null,
                                                  securityFlags,
                                                  contentPolicyType);
-    },
-
-    /**
-     * @deprecated Use newChannel({ ...options... }) instead.
-     */
-    newChannel2: function NetUtil_newChannel2(aWhatToLoad,
-                                              aOriginCharset,
-                                              aBaseURI,
-                                              aLoadingNode,
-                                              aLoadingPrincipal,
-                                              aTriggeringPrincipal,
-                                              aSecurityFlags,
-                                              aContentPolicyType)
-    {
-        if (!aWhatToLoad) {
-            let exception = new Components.Exception(
-                "Must have a non-null string spec, nsIURI, or nsIFile object",
-                Cr.NS_ERROR_INVALID_ARG,
-                Components.stack.caller
-            );
-            throw exception;
-        }
-
-        let uri = aWhatToLoad;
-        if (!(aWhatToLoad instanceof Ci.nsIURI)) {
-            // We either have a string or an nsIFile that we'll need a URI for.
-            uri = this.newURI(aWhatToLoad, aOriginCharset, aBaseURI);
-        }
-
-        return this.ioService.newChannelFromURI2(uri,
-                                                 aLoadingNode,
-                                                 aLoadingPrincipal,
-                                                 aTriggeringPrincipal,
-                                                 aSecurityFlags,
-                                                 aContentPolicyType);
     },
 
     /**

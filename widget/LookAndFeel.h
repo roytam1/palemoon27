@@ -178,6 +178,9 @@ public:
     eColorID__moz_comboboxtext,
     eColorID__moz_combobox,
 
+    // GtkInfoBar
+    eColorID__moz_gtk_info_bar_text,
+
     // keep this one last, please
     eColorID_LAST_COLOR
   };
@@ -426,7 +429,14 @@ public:
       * Overlay scrollbar animation constants.
       */
      eIntID_ScrollbarFadeBeginDelay,
-     eIntID_ScrollbarFadeDuration
+     eIntID_ScrollbarFadeDuration,
+      
+     /**
+      * Distance in pixels to offset the context menu from the cursor
+      * on open.
+      */
+     eIntID_ContextMenuOffsetVertical,
+     eIntID_ContextMenuOffsetHorizontal
   };
 
   /**
@@ -436,6 +446,11 @@ public:
     eWindowsTheme_Generic = 0, // unrecognized theme
     eWindowsTheme_Classic,
     eWindowsTheme_Aero,
+    eWindowsTheme_LunaBlue,
+    eWindowsTheme_LunaOlive,
+    eWindowsTheme_LunaSilver,
+    eWindowsTheme_Royale,
+    eWindowsTheme_Zune,
     eWindowsTheme_AeroLite
   };
 
@@ -532,6 +547,15 @@ public:
    *   color value.
    */
   static nsresult GetColor(ColorID aID, nscolor* aResult);
+
+   /**
+   * This variant of GetColor() takes an extra Boolean parameter that allows
+   * the caller to ask that hard-coded color values be substituted for
+   * native colors (used when it is desireable to hide system colors to
+   * avoid system fingerprinting).
+   */
+  static nsresult GetColor(ColorID aID, bool aUseStandinsForNativeColors,
+                           nscolor* aResult);
 
   /**
    * GetInt() and GetFloat() return a int or float value for aID.  The result

@@ -107,7 +107,7 @@ class LIRGeneratorShared : public MDefinitionVisitor
     inline LAllocation useKeepaliveOrConstant(MDefinition* mir);
     inline LAllocation useRegisterOrConstant(MDefinition* mir);
     inline LAllocation useRegisterOrConstantAtStart(MDefinition* mir);
-    inline LAllocation useRegisterOrZeroAtStart(MDefinition *mir);
+    inline LAllocation useRegisterOrZeroAtStart(MDefinition* mir);
     inline LAllocation useRegisterOrNonDoubleConstant(MDefinition* mir);
 
     inline LUse useRegisterForTypedLoad(MDefinition* mir, MIRType type);
@@ -142,6 +142,14 @@ class LIRGeneratorShared : public MDefinitionVisitor
     inline void defineBox(LInstructionHelper<BOX_PIECES, Ops, Temps>* lir, MDefinition* mir,
                           LDefinition::Policy policy = LDefinition::REGISTER);
 
+    template <size_t Ops, size_t Temps>
+    inline void defineInt64(LInstructionHelper<INT64_PIECES, Ops, Temps>* lir, MDefinition* mir,
+                            LDefinition::Policy policy = LDefinition::REGISTER);
+
+    template <size_t Ops, size_t Temps>
+    inline void defineSinCos(LInstructionHelper<2, Ops, Temps> *lir, MDefinition *mir,
+                             LDefinition::Policy policy = LDefinition::REGISTER);
+
     inline void defineSharedStubReturn(LInstruction* lir, MDefinition* mir);
     inline void defineReturn(LInstruction* lir, MDefinition* mir);
 
@@ -150,18 +158,25 @@ class LIRGeneratorShared : public MDefinitionVisitor
                        LDefinition::Policy policy = LDefinition::REGISTER);
     template <size_t X>
     inline void define(details::LInstructionFixedDefsTempsHelper<1, X>* lir, MDefinition* mir,
-                       const LDefinition &def);
+                       const LDefinition& def);
 
     template <size_t Ops, size_t Temps>
     inline void defineReuseInput(LInstructionHelper<1, Ops, Temps>* lir, MDefinition* mir, uint32_t operand);
 
-    // Adds a use at operand |n| of a value-typed insturction.
-    inline void useBox(LInstruction* lir, size_t n, MDefinition* mir,
-                       LUse::Policy policy = LUse::REGISTER, bool useAtStart = false);
+    // Returns a box allocation for a Value-typed instruction.
+    inline LBoxAllocation useBox(MDefinition* mir, LUse::Policy policy = LUse::REGISTER,
+                                 bool useAtStart = false);
+
+    // Returns a box allocation. The use is either typed, a Value, or
+    // a constant (if useConstant is true).
+    inline LBoxAllocation useBoxOrTypedOrConstant(MDefinition* mir, bool useConstant);
 
     // Rather than defining a new virtual register, sets |ins| to have the same
     // virtual register as |as|.
     inline void redefine(MDefinition* ins, MDefinition* as);
+
+    // Redefine a sin/cos call to sincos.
+    inline void redefine(MDefinition* def, MDefinition* as, MMathFunction::Function func);
 
     TempAllocator& alloc() const {
         return graph.alloc();

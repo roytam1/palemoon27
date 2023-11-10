@@ -4,10 +4,10 @@
 
 this.EXPORTED_SYMBOLS = ["Service"];
 
-const Cc = Components.classes;
-const Ci = Components.interfaces;
-const Cr = Components.results;
-const Cu = Components.utils;
+var Cc = Components.classes;
+var Ci = Components.interfaces;
+var Cr = Components.results;
+var Cu = Components.utils;
 
 // How long before refreshing the cluster
 const CLUSTER_BACKOFF = 5 * 60 * 1000; // 5 minutes
@@ -74,7 +74,9 @@ Sync11Service.prototype = {
   metaURL: null,
   cryptoKeyURL: null,
 
-  get serverURL() Svc.Prefs.get("serverURL"),
+  get serverURL() {
+    return Svc.Prefs.get("serverURL");
+  },
   set serverURL(value) {
     if (!value.endsWith("/")) {
       value += "/";
@@ -89,7 +91,9 @@ Sync11Service.prototype = {
     Svc.Prefs.reset("clusterURL");
   },
 
-  get clusterURL() Svc.Prefs.get("clusterURL", ""),
+  get clusterURL() {
+    return Svc.Prefs.get("clusterURL", "");
+  },
   set clusterURL(value) {
     Svc.Prefs.set("clusterURL", value);
     this._updateCachedURLs();
@@ -432,7 +436,7 @@ Sync11Service.prototype = {
 
     // Map each old pref to the current pref branch
     let oldPref = new Preferences(oldPrefBranch);
-    for each (let pref in oldPrefNames)
+    for (let pref of oldPrefNames)
       Svc.Prefs.set(pref, oldPref.get(pref));
 
     // Remove all the old prefs and remember that we've migrated
@@ -762,8 +766,12 @@ Sync11Service.prototype = {
             return this.verifyLogin(false);
           }
 
-          // We must have the right cluster, but the server doesn't expect us
-          this.status.login = LOGIN_FAILED_LOGIN_REJECTED;
+          // We must have the right cluster, but the server doesn't expect us.
+          // The implications of this depend on the identity being used - for
+          // the legacy identity, it's an authoritatively "incorrect password",
+          // (ie, LOGIN_FAILED_LOGIN_REJECTED) but for FxA it probably means
+          // "transient error fetching auth token".
+          this.status.login = this.identity.loginStatusFromVerification404();
           return false;
 
         default:
@@ -890,7 +898,7 @@ Sync11Service.prototype = {
     // Deletion doesn't make sense if we aren't set up yet!
     if (this.clusterURL != "") {
       // Clear client-specific data from the server, including disabled engines.
-      for each (let engine in [this.clientsEngine].concat(this.engineManager.getAll())) {
+      for (let engine of [this.clientsEngine].concat(this.engineManager.getAll())) {
         try {
           engine.removeClientData();
         } catch(ex) {
@@ -990,6 +998,7 @@ Sync11Service.prototype = {
       }
 
       // Ask the identity manager to explicitly login now.
+      this._log.info("Logging in the user.");
       let cb = Async.makeSpinningCallback();
       this.identity.ensureLoggedIn().then(cb, cb);
 
@@ -1002,9 +1011,9 @@ Sync11Service.prototype = {
           && (username || password || passphrase)) {
         Svc.Obs.notify("weave:service:setup-complete");
       }
-      this._log.info("Logging in the user.");
       this._updateCachedURLs();
 
+      this._log.info("User logged in successfully - verifying login.");
       if (!this.verifyLogin()) {
         // verifyLogin sets the failure states here.
         throw "Login failed: " + this.status.login;
@@ -1497,7 +1506,7 @@ Sync11Service.prototype = {
 
     // Wipe everything we know about except meta because we just uploaded it
     let engines = [this.clientsEngine].concat(this.engineManager.getAll());
-    let collections = [engine.name for each (engine in engines)];
+    let collections = engines.map(engine => engine.name);
     // TODO: there's a bug here. We should be calling resetClient, no?
 
     // Generate, upload, and download new keys. Do this last so we don't wipe
@@ -1579,7 +1588,7 @@ Sync11Service.prototype = {
     }
 
     // Fully wipe each engine if it's able to decrypt data
-    for each (let engine in engines) {
+    for (let engine of engines) {
       if (engine.canDecrypt()) {
         engine.wipeClient();
       }
@@ -1657,7 +1666,7 @@ Sync11Service.prototype = {
       }
 
       // Have each engine drop any temporary meta data
-      for each (let engine in engines) {
+      for (let engine of engines) {
         engine.resetClient();
       }
     })();

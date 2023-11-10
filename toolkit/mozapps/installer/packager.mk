@@ -29,13 +29,18 @@ endif
 	$(call MAKE_SIGN_EME_VOUCHER,$(DEPTH)/installer-stage/core)
 	@(cd $(DEPTH)/installer-stage/core && $(CREATE_PRECOMPLETE_CMD))
 
+ifeq (gonk,$(MOZ_WIDGET_TOOLKIT))
+ELF_HACK_FLAGS = --fill
+endif
+export USE_ELF_HACK ELF_HACK_FLAGS
+
 # Override the value of OMNIJAR_NAME from config.status with the value
 # set earlier in this file.
 
 stage-package: $(MOZ_PKG_MANIFEST)
-	@rm -rf $(DIST)/$(PKG_PATH)$(PKG_BASENAME).tar $(DIST)/$(PKG_PATH)$(PKG_BASENAME).dmg $@ $(EXCLUDE_LIST)
 	OMNIJAR_NAME=$(OMNIJAR_NAME) \
-	$(PYTHON) $(MOZILLA_DIR)/toolkit/mozapps/installer/packager.py $(DEFINES) \
+	NO_PKG_FILES="$(NO_PKG_FILES)" \
+	$(PYTHON) $(MOZILLA_DIR)/toolkit/mozapps/installer/packager.py $(DEFINES) $(ACDEFINES) \
 		--format $(MOZ_PACKAGER_FORMAT) \
 		$(addprefix --removals ,$(MOZ_PKG_REMOVALS)) \
 		$(if $(filter-out 0,$(MOZ_PKG_FATAL_WARNINGS)),,--ignore-errors) \
@@ -45,18 +50,23 @@ stage-package: $(MOZ_PKG_MANIFEST)
 		) \
 		$(if $(JARLOG_DIR),$(addprefix --jarlog ,$(wildcard $(JARLOG_FILE_AB_CD)))) \
 		$(if $(OPTIMIZEJARS),--optimizejars) \
+		$(if $(DISABLE_JAR_COMPRESSION),--disable-compression) \
 		$(addprefix --unify ,$(UNIFY_DIST)) \
 		$(MOZ_PKG_MANIFEST) $(DIST) $(DIST)/$(STAGEPATH)$(MOZ_PKG_DIR)$(if $(MOZ_PKG_MANIFEST),,$(_BINPATH)) \
 		$(if $(filter omni,$(MOZ_PACKAGER_FORMAT)),$(if $(NON_OMNIJAR_FILES),--non-resource $(NON_OMNIJAR_FILES)))
 	$(PYTHON) $(MOZILLA_DIR)/toolkit/mozapps/installer/find-dupes.py $(DIST)/$(STAGEPATH)$(MOZ_PKG_DIR)
-ifndef LIBXUL_SDK
+ifndef MOZ_THUNDERBIRD
+	# Package mozharness
+	$(call py_action,test_archive, \
+		mozharness \
+		$(ABS_DIST)/$(PKG_PATH)$(MOZHARNESS_PACKAGE))
+endif # MOZ_THUNDERBIRD
 ifdef MOZ_PACKAGE_JSSHELL
-# Package JavaScript Shell
+	# Package JavaScript Shell
 	@echo 'Packaging JavaScript Shell...'
 	$(RM) $(PKG_JSSHELL)
 	$(MAKE_JSSHELL)
 endif # MOZ_PACKAGE_JSSHELL
-endif # LIBXUL_SDK
 ifdef MOZ_CODE_COVERAGE
 	# Package code coverage gcno tree
 	@echo 'Packaging code coverage data...'
@@ -191,6 +201,8 @@ checksum:
 
 upload: checksum
 	$(PYTHON) $(MOZILLA_DIR)/build/upload.py --base-path $(DIST) \
+		--package $(PACKAGE) \
+		--properties-file $(DIST)/mach_build_properties.json \
 		$(UPLOAD_FILES) \
 		$(CHECKSUM_FILES)
 

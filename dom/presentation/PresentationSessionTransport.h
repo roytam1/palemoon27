@@ -7,7 +7,7 @@
 #ifndef mozilla_dom_PresentationSessionTransport_h
 #define mozilla_dom_PresentationSessionTransport_h
 
-#include "mozilla/nsRefPtr.h"
+#include "mozilla/RefPtr.h"
 #include "nsCOMPtr.h"
 #include "nsIAsyncInputStream.h"
 #include "nsIPresentationSessionTransport.h"
@@ -30,7 +30,7 @@ namespace dom {
  * initialized with an |InitWithSocketTransport| call if at the presenting sender
  * side; whereas it's initialized with an |InitWithChannelDescription| if at the
  * presenting receiver side. The lifetime is managed in either
- * |PresentationRequesterInfo| (sender side) or |PresentationResponderInfo|
+ * |PresentationControllingInfo| (sender side) or |PresentationPresentingInfo|
  * (receiver side) in PresentationSessionInfo.cpp.
  *
  * TODO bug 1148307 Implement PresentationSessionTransport with DataChannel.
@@ -44,7 +44,10 @@ class PresentationSessionTransport final : public nsIPresentationSessionTranspor
                                          , public nsIStreamListener
 {
 public:
-  NS_DECL_ISUPPORTS
+  NS_DECL_CYCLE_COLLECTING_ISUPPORTS
+  NS_DECL_CYCLE_COLLECTION_CLASS_AMBIGUOUS(PresentationSessionTransport,
+                                           nsIPresentationSessionTransport)
+
   NS_DECL_NSIPRESENTATIONSESSIONTRANSPORT
   NS_DECL_NSITRANSPORTEVENTSINK
   NS_DECL_NSIINPUTSTREAMCALLBACK
@@ -73,9 +76,15 @@ private:
 
   void SetReadyState(ReadyState aReadyState);
 
+  bool IsReadyToNotifyData()
+  {
+    return mDataNotificationEnabled && mReadyState == OPEN;
+  }
+
   ReadyState mReadyState;
   bool mAsyncCopierActive;
   nsresult mCloseStatus;
+  bool mDataNotificationEnabled;
 
   // Raw socket streams
   nsCOMPtr<nsISocketTransport> mTransport;

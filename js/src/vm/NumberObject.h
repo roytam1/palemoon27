@@ -22,10 +22,11 @@ class NumberObject : public NativeObject
     static const Class class_;
 
     /*
-     * Creates a new Number object boxing the given number.  The object's
-     * [[Prototype]] is determined from context.
+     * Creates a new Number object boxing the given number.
+     * If proto is nullptr, then Number.prototype will be used instead.
      */
-    static inline NumberObject* create(JSContext* cx, double d);
+    static inline NumberObject* create(JSContext* cx, double d,
+                                       HandleObject proto = nullptr);
 
     double unbox() const {
         return getFixedSlot(PRIMITIVE_VALUE_SLOT).toNumber();
@@ -38,7 +39,7 @@ class NumberObject : public NativeObject
 
     /* For access to init, as Number.prototype is special. */
     friend JSObject*
-    js::InitNumberClass(JSContext *cx, HandleObject global);
+    js::InitNumberClass(JSContext* cx, HandleObject global);
 };
 
 } // namespace js

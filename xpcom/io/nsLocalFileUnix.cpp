@@ -23,9 +23,6 @@
 #include <dirent.h>
 #include <ctype.h>
 #include <locale.h>
-#if defined(VMS)
-#include <fabdef.h>
-#endif
 
 #if defined(HAVE_SYS_QUOTA_H) && defined(HAVE_LINUX_QUOTA_H)
 #define USE_LINUX_QUOTACTL
@@ -287,7 +284,7 @@ NS_IMETHODIMP
 nsLocalFile::Clone(nsIFile** aFile)
 {
   // Just copy-construct ourselves
-  nsRefPtr<nsLocalFile> copy = new nsLocalFile(*this);
+  RefPtr<nsLocalFile> copy = new nsLocalFile(*this);
   copy.forget(aFile);
   return NS_OK;
 }
@@ -1010,11 +1007,7 @@ nsLocalFile::MoveToNative(nsIFile* aNewParent, const nsACString& aNewName)
 
   // try for atomic rename, falling back to copy/delete
   if (rename(mPath.get(), newPathName.get()) < 0) {
-#ifdef VMS
-    if (errno == EXDEV || errno == ENXIO) {
-#else
     if (errno == EXDEV) {
-#endif
       rv = CopyToNative(aNewParent, aNewName);
       if (NS_SUCCEEDED(rv)) {
         rv = Remove(true);
@@ -1233,14 +1226,6 @@ nsLocalFile::GetFileSize(int64_t* aFileSize)
   }
   *aFileSize = 0;
   ENSURE_STAT_CACHE();
-
-#if defined(VMS)
-  /* Only two record formats can report correct file content size */
-  if ((mCachedStat.st_fab_rfm != FAB$C_STMLF) &&
-      (mCachedStat.st_fab_rfm != FAB$C_STMCR)) {
-    return NS_ERROR_FAILURE;
-  }
-#endif
 
   if (!S_ISDIR(mCachedStat.st_mode)) {
     *aFileSize = (int64_t)mCachedStat.st_size;
@@ -1572,11 +1557,22 @@ nsLocalFile::IsExecutable(bool* aResult)
 
     // Search for any of the set of executable extensions.
     static const char* const executableExts[] = {
+#ifdef MOZ_WIDGET_COCOA
+      "afploc", // Can point to other files.
+#endif
       "air",  // Adobe AIR installer
 #ifdef MOZ_WIDGET_COCOA
+      "atloc",    // Can point to other files.
       "fileloc",  // File location files can be used to point to other files.
+      "ftploc",   // Can point to other files.
+      "inetloc",  // https://ssd-disclosure.com/ssd-advisory-macos-finder-rce/
+                  // Shouldn't be able to do the same, but can, due to
+                  // macOS vulnerabilities.
 #endif
       "jar"   // java application bundle
+#ifdef MOZ_WIDGET_COCOA
+      ,"webloc"   // same URL
+#endif
     };
     nsDependentSubstring ext = Substring(path, dotIdx + 1);
     for (size_t i = 0; i < ArrayLength(executableExts); i++) {
@@ -1779,11 +1775,14 @@ nsLocalFile::GetNativeTarget(nsACString& aResult)
     return NS_ERROR_OUT_OF_MEMORY;
   }
 
-  if (readlink(mPath.get(), target, (size_t)size) < 0) {
+  ssize_t written = readlink(mPath.get(), target, (size_t)size);
+  if (written < 0) {
     free(target);
     return NSRESULT_FOR_ERRNO();
   }
-  target[size] = '\0';
+  // Target might have changed since the lstat call, or lstat might lie, see bug
+  // 1791029.
+  target[written] = '\0';
 
   nsresult rv = NS_OK;
   nsCOMPtr<nsIFile> self(this);
@@ -1866,7 +1865,7 @@ nsLocalFile::SetFollowLinks(bool aFollowLinks)
 NS_IMETHODIMP
 nsLocalFile::GetDirectoryEntries(nsISimpleEnumerator** aEntries)
 {
-  nsRefPtr<nsDirEnumeratorUnix> dir = new nsDirEnumeratorUnix();
+  RefPtr<nsDirEnumeratorUnix> dir = new nsDirEnumeratorUnix();
 
   nsresult rv = dir->Init(this, false);
   if (NS_FAILED(rv)) {
@@ -2068,7 +2067,7 @@ nsresult
 NS_NewNativeLocalFile(const nsACString& aPath, bool aFollowSymlinks,
                       nsIFile** aResult)
 {
-  nsRefPtr<nsLocalFile> file = new nsLocalFile();
+  RefPtr<nsLocalFile> file = new nsLocalFile();
 
   file->SetFollowLinks(aFollowSymlinks);
 
@@ -2183,11 +2182,7 @@ nsLocalFile::RenameToNative(nsIFile* aNewParentDir, const nsACString& aNewName)
 
   // try for atomic rename
   if (rename(mPath.get(), newPathName.get()) < 0) {
-#ifdef VMS
-    if (errno == EXDEV || errno == ENXIO) {
-#else
     if (errno == EXDEV) {
-#endif
       rv = NS_ERROR_FILE_ACCESS_DENIED;
     } else {
       rv = NSRESULT_FOR_ERRNO();
@@ -2709,7 +2704,7 @@ nsresult
 NS_NewLocalFileWithFSRef(const FSRef* aFSRef, bool aFollowLinks,
                          nsILocalFileMac** aResult)
 {
-  nsRefPtr<nsLocalFile> file = new nsLocalFile();
+  RefPtr<nsLocalFile> file = new nsLocalFile();
 
   file->SetFollowLinks(aFollowLinks);
 
@@ -2725,7 +2720,7 @@ nsresult
 NS_NewLocalFileWithCFURL(const CFURLRef aURL, bool aFollowLinks,
                          nsILocalFileMac** aResult)
 {
-  nsRefPtr<nsLocalFile> file = new nsLocalFile();
+  RefPtr<nsLocalFile> file = new nsLocalFile();
 
   file->SetFollowLinks(aFollowLinks);
 

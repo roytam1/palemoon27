@@ -63,16 +63,18 @@ public:
 
   bool IsValidObject();
 
-  // get/set the MaiHyperlink object for this AccessibleWrap
-  MaiHyperlink* GetMaiHyperlink(bool aCreate = true);
-  void SetMaiHyperlink(MaiHyperlink* aMaiHyperlink);
-
   static const char * ReturnString(nsAString &aString) {
     static nsCString returnedString;
     returnedString = NS_ConvertUTF16toUTF8(aString);
     return returnedString.get();
   }
 
+  static void GetKeyBinding(Accessible* aAccessible, nsAString& aResult);
+
+  static Accessible* GetColumnHeader(TableAccessible* aAccessible,
+                                     int32_t aColIdx);
+  static Accessible* GetRowHeader(TableAccessible* aAccessible,
+                                  int32_t aRowIdx);
 protected:
 
   nsresult FireAtkStateChangeEvent(AccEvent* aEvent, AtkObject *aObject);
@@ -83,20 +85,6 @@ protected:
   AtkObject *mAtkObject;
 
 private:
-
-  /*
-   * do we have text-remove and text-insert signals if not we need to use
-   * text-changed see AccessibleWrap::FireAtkTextChangedEvent() and
-   * bug 619002
-   */
-  enum EAvailableAtkSignals {
-    eUnknown,
-    eHaveNewAtkTextSignals,
-    eNoNewAtkSignals
-  };
-
-  static EAvailableAtkSignals gAvailableAtkSignals;
-
   uint16_t CreateMaiInterfaces();
 };
 

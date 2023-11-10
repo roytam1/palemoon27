@@ -10,6 +10,17 @@ const Cc = Components.classes;
 const Ci = Components.interfaces;
 const Cu = Components.utils;
 
+Cu.import("resource://testing-common/PromiseTestUtils.jsm");
+
+///////////////////
+//
+// Whitelisting these tests.
+// As part of bug 1077403, the shutdown crash should be fixed.
+//
+// These tests may crash intermittently on shutdown if the DOM Promise uncaught
+// rejection observers are still registered when the watchdog operates.
+PromiseTestUtils.thisTestLeaksUncaughtRejectionsAndShouldBeFixed();
+
 var gPrefs = Cc["@mozilla.org/preferences-service;1"].getService(Ci.nsIPrefBranch);
 
 function setWatchdogEnabled(enabled) {
@@ -23,6 +34,7 @@ function isWatchdogEnabled() {
 function setScriptTimeout(seconds) {
   var oldTimeout = gPrefs.getIntPref("dom.max_script_run_time");
   gPrefs.setIntPref("dom.max_script_run_time", seconds);
+  return oldTimeout;
 }
 
 //

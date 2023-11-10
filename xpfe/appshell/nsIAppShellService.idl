@@ -6,7 +6,7 @@
 #include "nsISupports.idl"
 
 interface nsIXULWindow;
-interface nsIWebNavigation;
+interface nsIWindowlessBrowser;
 interface nsIURI;
 interface nsIDOMWindow;
 interface nsIAppShell;
@@ -18,7 +18,7 @@ interface nsITabParent;
 #include "js/TypeDecls.h"
 %}
 
-[scriptable, uuid(41a2f0c6-3ca1-44f9-8efa-744a43aa399d)]
+[scriptable, uuid(0cc1c790-6873-4b31-944f-71d3725e373d)]
 interface nsIAppShellService : nsISupports
 {
   /**
@@ -53,12 +53,22 @@ interface nsIAppShellService : nsISupports
    * representation.
    * @param aIsChrome Set true if you want to use it for chrome content.
    */
-  nsIWebNavigation createWindowlessBrowser([optional] in bool aIsChrome);
+  nsIWindowlessBrowser createWindowlessBrowser([optional] in bool aIsChrome);
 
   [noscript]
   void createHiddenWindow();
 
   void destroyHiddenWindow();
+
+  /**
+   * B2G multi-screen support. When open another top-level window on b2g,
+   * a screen ID is needed for identifying which screen this window is
+   * opened to.
+   * @param aScreenId Differentiate screens of windows. It is platform-
+   *                  specific due to the hardware limitation for now.
+   */
+  [noscript]
+  void setScreenId(in uint32_t aScreenId);
 
   /**
    * Return the (singleton) application hidden window, automatically created

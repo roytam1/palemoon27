@@ -18,7 +18,7 @@
 
 using namespace mozilla;
 
-static mozilla::ThreadLocal<bool> sTLSIsMainThread;
+static MOZ_THREAD_LOCAL(bool) sTLSIsMainThread;
 
 bool
 NS_IsMainThread()
@@ -29,16 +29,14 @@ NS_IsMainThread()
 void
 NS_SetMainThread()
 {
-  if (!sTLSIsMainThread.initialized()) {
-    if (!sTLSIsMainThread.init()) {
-      MOZ_CRASH();
-    }
-    sTLSIsMainThread.set(true);
+  if (!sTLSIsMainThread.init()) {
+    MOZ_CRASH();
   }
+  sTLSIsMainThread.set(true);
   MOZ_ASSERT(NS_IsMainThread());
 }
 
-typedef nsTArray<nsRefPtr<nsThread>> nsThreadArray;
+typedef nsTArray<RefPtr<nsThread>> nsThreadArray;
 
 //-----------------------------------------------------------------------------
 
@@ -132,7 +130,7 @@ nsThreadManager::Shutdown()
   {
     OffTheBooksMutexAutoLock lock(mLock);
     for (auto iter = mThreadsByPRThread.Iter(); !iter.Done(); iter.Next()) {
-      nsRefPtr<nsThread>& thread = iter.Data();
+      RefPtr<nsThread>& thread = iter.Data();
       threads.AppendElement(thread);
       iter.Remove();
     }
@@ -225,7 +223,7 @@ nsThreadManager::GetCurrentThread()
   }
 
   // OK, that's fine.  We'll dynamically create one :-)
-  nsRefPtr<nsThread> thread = new nsThread(nsThread::NOT_MAIN_THREAD, 0);
+  RefPtr<nsThread> thread = new nsThread(nsThread::NOT_MAIN_THREAD, 0);
   if (!thread || NS_FAILED(thread->InitCurrentThread())) {
     return nullptr;
   }
@@ -245,7 +243,7 @@ nsThreadManager::NewThread(uint32_t aCreationFlags,
     return NS_ERROR_NOT_INITIALIZED;
   }
 
-  nsRefPtr<nsThread> thr = new nsThread(nsThread::NOT_MAIN_THREAD, aStackSize);
+  RefPtr<nsThread> thr = new nsThread(nsThread::NOT_MAIN_THREAD, aStackSize);
   nsresult rv = thr->Init();  // Note: blocks until the new thread has been set up
   if (NS_FAILED(rv)) {
     return rv;
@@ -278,7 +276,7 @@ nsThreadManager::GetThreadFromPRThread(PRThread* aThread, nsIThread** aResult)
     return NS_ERROR_INVALID_ARG;
   }
 
-  nsRefPtr<nsThread> temp;
+  RefPtr<nsThread> temp;
   {
     OffTheBooksMutexAutoLock lock(mLock);
     mThreadsByPRThread.Get(aThread, getter_AddRefs(temp));

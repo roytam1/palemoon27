@@ -71,8 +71,7 @@ private:
 };
 
 inline XPCShellEnvironment*
-Environment(Handle<JSObject*> global)
-{
+Environment(JS::Handle<JSObject*> global) {
     AutoSafeJSContext cx;
     JSAutoCompartment ac(cx, global);
     Rooted<Value> v(cx);
@@ -506,7 +505,7 @@ XPCShellEnvironment::Init()
         fprintf(stderr, "+++ Failed to get ScriptSecurityManager service, running without principals");
     }
 
-    nsRefPtr<BackstagePass> backstagePass;
+    RefPtr<BackstagePass> backstagePass;
     rv = NS_NewBackstagePass(getter_AddRefs(backstagePass));
     if (NS_FAILED(rv)) {
         NS_ERROR("Failed to create backstage pass!");
@@ -514,8 +513,9 @@ XPCShellEnvironment::Init()
     }
 
     JS::CompartmentOptions options;
-    options.setZone(JS::SystemZone)
-           .setVersion(JSVERSION_LATEST);
+    options.creationOptions().setZone(JS::SystemZone);
+    options.behaviors().setVersion(JSVERSION_LATEST);
+
     nsCOMPtr<nsIXPConnectJSObjectHolder> holder;
     rv = xpc->InitClassesWithNewWrappedGlobal(cx,
                                               static_cast<nsIGlobalObject *>(backstagePass),

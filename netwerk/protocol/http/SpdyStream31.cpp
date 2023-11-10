@@ -27,11 +27,6 @@
 
 #include <algorithm>
 
-#ifdef DEBUG
-// defined by the socket transport service while active
-extern PRThread *gSocketThread;
-#endif
-
 namespace mozilla {
 namespace net {
 
@@ -81,8 +76,8 @@ SpdyStream31::SpdyStream31(nsAHttpTransaction *httpTransaction,
   mRemoteWindow = spdySession->GetServerInitialStreamWindow();
   mLocalWindow = spdySession->PushAllowance();
 
-  mTxInlineFrame = new uint8_t[mTxInlineFrameSize];
-  mDecompressBuffer = new char[mDecompressBufferSize];
+  mTxInlineFrame = MakeUnique<uint8_t[]>(mTxInlineFrameSize);
+  mDecompressBuffer = MakeUnique<char[]>(mDecompressBufferSize);
 }
 
 SpdyStream31::~SpdyStream31()
@@ -233,18 +228,6 @@ SpdyStream31::WriteSegments(nsAHttpSegmentWriter *writer,
   return rv;
 }
 
-PLDHashOperator
-SpdyStream31::hdrHashEnumerate(const nsACString &key,
-                               nsAutoPtr<nsCString> &value,
-                               void *closure)
-{
-  SpdyStream31 *self = static_cast<SpdyStream31 *>(closure);
-
-  self->CompressToFrame(key);
-  self->CompressToFrame(value.get());
-  return PL_DHASH_NEXT;
-}
-
 void
 SpdyStream31::CreatePushHashKey(const nsCString &scheme,
                                 const nsCString &hostHeader,
@@ -385,11 +368,11 @@ SpdyStream31::GenerateSynFrame()
   // 4 to 7 are length and flags, we'll fill that in later
 
   uint32_t networkOrderID = PR_htonl(mStreamID);
-  memcpy(mTxInlineFrame + 8, &networkOrderID, 4);
+  memcpy(&mTxInlineFrame[8], &networkOrderID, 4);
 
   // this is the associated-to field, which is not used sending
   // from the client in the http binding
-  memset (mTxInlineFrame + 12, 0, 4);
+  memset (&mTxInlineFrame[12], 0, 4);
 
   // Priority flags are the E0 mask of byte 16.
   // 0 is highest priority, 7 is lowest.
@@ -540,7 +523,10 @@ SpdyStream31::GenerateSynFrame()
     CompressToFrame(nsDependentCString(mTransaction->RequestHead()->IsHTTPS() ? "https" : "http"));
   }
 
-  hdrHash.Enumerate(hdrHashEnumerate, this);
+  for (auto iter = hdrHash.Iter(); !iter.Done(); iter.Next()) {
+    CompressToFrame(iter.Key());
+    CompressToFrame(iter.Data().get());
+  }
   CompressFlushFrame();
 
   // 4 to 7 are length and flags, which we can now fill in
@@ -737,7 +723,7 @@ SpdyStream31::TransmitFrame(const char *buf,
       mTxStreamFrameSize < SpdySession31::kDefaultBufferSize &&
       mTxInlineFrameUsed + mTxStreamFrameSize < mTxInlineFrameSize) {
     LOG3(("Coalesce Transmit"));
-    memcpy (mTxInlineFrame + mTxInlineFrameUsed,
+    memcpy (&mTxInlineFrame[mTxInlineFrameUsed],
             buf, mTxStreamFrameSize);
     if (countUsed)
       *countUsed += mTxStreamFrameSize;
@@ -1345,7 +1331,7 @@ SpdyStream31::ExecuteCompress(uint32_t flushMode)
       avail = mTxInlineFrameSize - mTxInlineFrameUsed;
     }
 
-    mZlib->next_out = mTxInlineFrame + mTxInlineFrameUsed;
+    mZlib->next_out = &mTxInlineFrame[mTxInlineFrameUsed];
     mZlib->avail_out = avail;
     deflate(mZlib, flushMode);
     mTxInlineFrameUsed += avail - mZlib->avail_out;
@@ -1621,7 +1607,7 @@ SpdyStream31::ClearTransactionsBlockedOnTunnel()
 void
 SpdyStream31::MapStreamToPlainText()
 {
-  nsRefPtr<SpdyConnectTransaction> qiTrans(mTransaction->QuerySpdyConnectTransaction());
+  RefPtr<SpdyConnectTransaction> qiTrans(mTransaction->QuerySpdyConnectTransaction());
   MOZ_ASSERT(qiTrans);
   mPlainTextTunnel = true;
   qiTrans->ForcePlainText();
@@ -1630,7 +1616,7 @@ SpdyStream31::MapStreamToPlainText()
 void
 SpdyStream31::MapStreamToHttpConnection()
 {
-  nsRefPtr<SpdyConnectTransaction> qiTrans(mTransaction->QuerySpdyConnectTransaction());
+  RefPtr<SpdyConnectTransaction> qiTrans(mTransaction->QuerySpdyConnectTransaction());
   MOZ_ASSERT(qiTrans);
   qiTrans->MapStreamToHttpConnection(mSocketTransport,
                                      mTransaction->ConnectionInfo());

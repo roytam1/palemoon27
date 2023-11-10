@@ -260,16 +260,15 @@ private:
     }
 
   private:
-    nsRefPtr<nsBaseChannel> mChannel;
+    RefPtr<nsBaseChannel> mChannel;
     nsCOMPtr<nsIChannel> mNewChannel;
   };
   friend class RedirectRunnable;
 
-  nsRefPtr<nsInputStreamPump>         mPump;
+  RefPtr<nsInputStreamPump>         mPump;
   nsCOMPtr<nsIProgressEventSink>      mProgressSink;
   nsCOMPtr<nsIURI>                    mOriginalURI;
   nsCOMPtr<nsISupports>               mOwner;
-  nsCOMPtr<nsILoadInfo>               mLoadInfo;
   nsCOMPtr<nsISupports>               mSecurityInfo;
   nsCOMPtr<nsIChannel>                mRedirectChannel;
   nsCString                           mContentType;
@@ -278,7 +277,6 @@ private:
   bool                                mQueriedProgressSink;
   bool                                mSynthProgressEvents;
   bool                                mAllowThreadRetargeting;
-  bool                                mWasOpened;
   bool                                mWaitingOnAsyncRedirect;
   bool                                mOpenRedirectChannel;
   uint32_t                            mRedirectFlags;
@@ -286,6 +284,7 @@ private:
 protected:
   nsCOMPtr<nsIURI>                    mURI;
   nsCOMPtr<nsILoadGroup>              mLoadGroup;
+  nsCOMPtr<nsILoadInfo>               mLoadInfo;
   nsCOMPtr<nsIInterfaceRequestor>     mCallbacks;
   nsCOMPtr<nsIStreamListener>         mListener;
   nsCOMPtr<nsISupports>               mListenerContext;
@@ -293,6 +292,7 @@ protected:
   uint32_t                            mContentDispositionHint;
   nsAutoPtr<nsString>                 mContentDispositionFilename;
   int64_t                             mContentLength;
+  bool                                mWasOpened;
 
   friend class mozilla::net::PrivateBrowsingChannel<nsBaseChannel>;
 };

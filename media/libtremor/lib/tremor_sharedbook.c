@@ -16,7 +16,6 @@
  ********************************************************************/
 
 #include <stdlib.h>
-#include <math.h>
 #include <string.h>
 #include <ogg/ogg.h>
 #include "misc.h"
@@ -330,7 +329,7 @@ static int sort32a(const void *a,const void *b){
 /* decode codebook arrangement is more heavily optimized than encode */
 int vorbis_book_init_decode(codebook *c,const static_codebook *s){
   int i,j,n=0,tabn;
-  int *sortindex;
+
   memset(c,0,sizeof(*c));
   
   /* count actually used entries */
@@ -355,7 +354,7 @@ int vorbis_book_init_decode(codebook *c,const static_codebook *s){
     
     /* perform sort */
     ogg_uint32_t *codes=_make_words(s->lengthlist,s->entries,c->used_entries);
-    ogg_uint32_t **codep=(ogg_uint32_t **)alloca(sizeof(*codep)*n);
+    VAR_STACK(ogg_uint32_t *, codep, n);
     
     if(codes==NULL)goto err_out;
 
@@ -366,7 +365,7 @@ int vorbis_book_init_decode(codebook *c,const static_codebook *s){
 
     qsort(codep,n,sizeof(*codep),sort32a);
 
-    sortindex=(int *)alloca(n*sizeof(*sortindex));
+  { VAR_STACK(int, sortindex, n);
     c->codelist=(ogg_uint32_t *)_ogg_malloc(n*sizeof(*c->codelist));
     /* the index is a reverse index */
     for(i=0;i<n;i++){
@@ -391,7 +390,7 @@ int vorbis_book_init_decode(codebook *c,const static_codebook *s){
     for(n=0,i=0;i<s->entries;i++)
       if(s->lengthlist[i]>0)
 	c->dec_codelengths[sortindex[n++]]=s->lengthlist[i];
-    
+  }
     c->dec_firsttablen=_ilog(c->used_entries)-4; /* this is magic */
     if(c->dec_firsttablen<5)c->dec_firsttablen=5;
     if(c->dec_firsttablen>8)c->dec_firsttablen=8;
@@ -444,4 +443,3 @@ int vorbis_book_init_decode(codebook *c,const static_codebook *s){
   vorbis_book_clear(c);
   return(-1);
 }
-

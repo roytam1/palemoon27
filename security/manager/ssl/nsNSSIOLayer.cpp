@@ -681,7 +681,7 @@ getSocketInfoIfRunning(PRFileDesc* fd, Operation op,
   return socketInfo;
 }
 
-} // unnnamed namespace
+} // namespace
 
 static PRStatus
 nsSSLIOLayerConnect(PRFileDesc* fd, const PRNetAddr* addr,
@@ -736,7 +736,7 @@ nsSSLIOLayerHelpers::rememberTolerantAtVersion(const nsACString& hostName,
   mTLSIntoleranceInfo.Put(key, entry);
 }
 
-void
+uint16_t
 nsSSLIOLayerHelpers::forgetIntolerance(const nsACString& hostName,
                                        int16_t port)
 {
@@ -745,10 +745,12 @@ nsSSLIOLayerHelpers::forgetIntolerance(const nsACString& hostName,
 
   MutexAutoLock lock(mutex);
 
+  uint16_t tolerant = 0;
   IntoleranceEntry entry;
   if (mTLSIntoleranceInfo.Get(key, &entry)) {
     entry.AssertInvariant();
 
+    tolerant = entry.tolerant;
     entry.intolerant = 0;
     entry.intoleranceReason = 0;
     if (entry.strongCipherStatus != StrongCiphersWorked) {
@@ -758,6 +760,8 @@ nsSSLIOLayerHelpers::forgetIntolerance(const nsACString& hostName,
     entry.AssertInvariant();
     mTLSIntoleranceInfo.Put(key, entry);
   }
+
+  return tolerant;
 }
 
 bool
@@ -780,7 +784,47 @@ nsSSLIOLayerHelpers::rememberIntolerantAtVersion(const nsACString& hostName,
 {
   if (intolerant <= minVersion || fallbackLimitReached(hostName, intolerant)) {
     // We can't fall back any further. Assume that intolerance isn't the issue.
-    forgetIntolerance(hostName, port);
+    uint32_t tolerant = forgetIntolerance(hostName, port);
+    // If we know the server is tolerant at the version, we don't have to
+    // gather the telemetry.
+    if (intolerant <= tolerant) {
+      return false;
+    }
+
+    /*uint32_t fallbackLimitBucket = 0;
+    // added if the version has reached the min version.
+    if (intolerant <= minVersion) {
+      switch (minVersion) {
+        case SSL_LIBRARY_VERSION_TLS_1_0:
+          fallbackLimitBucket += 1;
+          break;
+        case SSL_LIBRARY_VERSION_TLS_1_1:
+          fallbackLimitBucket += 2;
+          break;
+        case SSL_LIBRARY_VERSION_TLS_1_2:
+          fallbackLimitBucket += 3;
+          break;
+      }
+    }
+    // added if the version has reached the fallback limit.
+    if (intolerant <= mVersionFallbackLimit) {
+      switch (mVersionFallbackLimit) {
+        case SSL_LIBRARY_VERSION_TLS_1_0:
+          fallbackLimitBucket += 4;
+          break;
+        case SSL_LIBRARY_VERSION_TLS_1_1:
+          fallbackLimitBucket += 8;
+          break;
+        case SSL_LIBRARY_VERSION_TLS_1_2:
+          fallbackLimitBucket += 12;
+          break;
+      }
+    }
+    if (fallbackLimitBucket) {
+      Telemetry::Accumulate(Telemetry::SSL_FALLBACK_LIMIT_REACHED,
+                            fallbackLimitBucket);
+    }*/
+
     return false;
   }
 
@@ -920,8 +964,6 @@ PRStatus
 nsNSSSocketInfo::CloseSocketAndDestroy(
     const nsNSSShutDownPreventionLock& /*proofOfLock*/)
 {
-  nsNSSShutDownList::trackSSLSocketClose();
-
   PRFileDesc* popped = PR_PopIOLayer(mFd, PR_TOP_IO_LAYER);
   NS_ASSERTION(popped &&
                popped->identity == nsSSLIOLayerHelpers::nsSSLIOLayerIdentity,
@@ -1080,20 +1122,9 @@ retryDueToTLSIntolerance(PRErrorCode err, nsNSSSocketInfo* socketInfo)
 
   // When not using a proxy we'll see a connection reset error.
   // When using a proxy, we'll see an end of file error.
-  // In addition check for some error codes where it is reasonable
-  // to retry without TLS.
 
   // Don't allow STARTTLS connections to fall back on connection resets or
-  // EOF. Also, don't fall back from TLS 1.0 to SSL 3.0 for connection
-  // resets, because connection resets have too many false positives,
-  // and we want to maximize how often we send TLS 1.0+ with extensions
-  // if at all reasonable. Unfortunately, it appears we have to allow
-  // fallback from TLS 1.2 and TLS 1.1 for connection resets due to bad
-  // servers and possibly bad intermediaries.
-  if (err == PR_CONNECT_RESET_ERROR &&
-      range.max <= SSL_LIBRARY_VERSION_TLS_1_0) {
-    return false;
-  }
+  // EOF.
   if ((err == PR_CONNECT_RESET_ERROR || err == PR_END_OF_FILE_ERROR)
       && socketInfo->GetForSTARTTLS()) {
     return false;
@@ -1203,7 +1234,7 @@ checkHandshake(int32_t bytesTransfered, bool wasReading,
   return bytesTransfered;
 }
 
-}
+} // namespace
 
 static int16_t
 nsSSLIOLayerPoll(PRFileDesc* fd, int16_t in_flags, int16_t* out_flags)
@@ -1255,7 +1286,6 @@ nsSSLIOLayerPoll(PRFileDesc* fd, int16_t in_flags, int16_t* out_flags)
 
 nsSSLIOLayerHelpers::nsSSLIOLayerHelpers()
   : mTreatUnsafeNegotiationAsBroken(false)
-  , mWarnLevelMissingRFC5746(1)
   , mTLSIntoleranceInfo()
   , mFalseStartRequireNPN(false)
   , mUseStaticFallbackList(true)
@@ -1469,10 +1499,6 @@ PrefObserver::Observe(nsISupports* aSubject, const char* aTopic,
       bool enabled;
       Preferences::GetBool("security.ssl.treat_unsafe_negotiation_as_broken", &enabled);
       mOwner->setTreatUnsafeNegotiationAsBroken(enabled);
-    } else if (prefName.EqualsLiteral("security.ssl.warn_missing_rfc5746")) {
-      int32_t warnLevel = 1;
-      Preferences::GetInt("security.ssl.warn_missing_rfc5746", &warnLevel);
-      mOwner->setWarnLevelMissingRFC5746(warnLevel);
     } else if (prefName.EqualsLiteral("security.ssl.false_start.require-npn")) {
       mOwner->mFalseStartRequireNPN =
         Preferences::GetBool("security.ssl.false_start.require-npn",
@@ -1480,9 +1506,11 @@ PrefObserver::Observe(nsISupports* aSubject, const char* aTopic,
     } else if (prefName.EqualsLiteral("security.tls.version.fallback-limit")) {
       mOwner->loadVersionFallbackLimit();
     } else if (prefName.EqualsLiteral("security.tls.insecure_fallback_hosts")) {
-      nsCString insecureFallbackHosts;
-      Preferences::GetCString("security.tls.insecure_fallback_hosts", &insecureFallbackHosts);
-      mOwner->setInsecureFallbackSites(insecureFallbackHosts);
+      // Changes to the whitelist on the public side will update the pref.
+      // Don't propagate the changes to the private side.
+      if (mOwner->isPublic()) {
+        mOwner->initInsecureFallbackSites();
+      }
     } else if (prefName.EqualsLiteral("security.tls.insecure_fallback_hosts.use_static_list")) {
       mOwner->mUseStaticFallbackList =
         Preferences::GetBool("security.tls.insecure_fallback_hosts.use_static_list", true);
@@ -1519,8 +1547,6 @@ nsSSLIOLayerHelpers::~nsSSLIOLayerHelpers()
   if (mPrefObserver) {
     Preferences::RemoveObserver(mPrefObserver,
         "security.ssl.treat_unsafe_negotiation_as_broken");
-    Preferences::RemoveObserver(mPrefObserver,
-        "security.ssl.warn_missing_rfc5746");
     Preferences::RemoveObserver(mPrefObserver,
         "security.ssl.false_start.require-npn");
     Preferences::RemoveObserver(mPrefObserver,
@@ -1581,17 +1607,11 @@ nsSSLIOLayerHelpers::Init()
   Preferences::GetBool("security.ssl.treat_unsafe_negotiation_as_broken", &enabled);
   setTreatUnsafeNegotiationAsBroken(enabled);
 
-  int32_t warnLevel = 1;
-  Preferences::GetInt("security.ssl.warn_missing_rfc5746", &warnLevel);
-  setWarnLevelMissingRFC5746(warnLevel);
-
   mFalseStartRequireNPN =
     Preferences::GetBool("security.ssl.false_start.require-npn",
                          FALSE_START_REQUIRE_NPN_DEFAULT);
   loadVersionFallbackLimit();
-  nsCString insecureFallbackHosts;
-  Preferences::GetCString("security.tls.insecure_fallback_hosts", &insecureFallbackHosts);
-  setInsecureFallbackSites(insecureFallbackHosts);
+  initInsecureFallbackSites();
   mUseStaticFallbackList =
     Preferences::GetBool("security.tls.insecure_fallback_hosts.use_static_list", true);
   mUnrestrictedRC4Fallback =
@@ -1600,8 +1620,6 @@ nsSSLIOLayerHelpers::Init()
   mPrefObserver = new PrefObserver(this);
   Preferences::AddStrongObserver(mPrefObserver,
                                  "security.ssl.treat_unsafe_negotiation_as_broken");
-  Preferences::AddStrongObserver(mPrefObserver,
-                                 "security.ssl.warn_missing_rfc5746");
   Preferences::AddStrongObserver(mPrefObserver,
                                  "security.ssl.false_start.require-npn");
   Preferences::AddStrongObserver(mPrefObserver,
@@ -1653,6 +1671,102 @@ nsSSLIOLayerHelpers::setInsecureFallbackSites(const nsCString& str)
     if (!host.IsEmpty()) {
       mInsecureFallbackSites.PutEntry(host);
     }
+  }
+}
+
+void
+nsSSLIOLayerHelpers::initInsecureFallbackSites()
+{
+  MOZ_ASSERT(NS_IsMainThread());
+  nsCString insecureFallbackHosts;
+  Preferences::GetCString("security.tls.insecure_fallback_hosts",
+                          &insecureFallbackHosts);
+  setInsecureFallbackSites(insecureFallbackHosts);
+}
+
+bool
+nsSSLIOLayerHelpers::isPublic() const
+{
+  return this == &PublicSSLState()->IOLayerHelpers();
+}
+
+void
+nsSSLIOLayerHelpers::addInsecureFallbackSite(const nsCString& hostname,
+                                             bool temporary)
+{
+  MOZ_ASSERT(NS_IsMainThread());
+  {
+    MutexAutoLock lock(mutex);
+    if (mInsecureFallbackSites.Contains(hostname)) {
+      return;
+    }
+    mInsecureFallbackSites.PutEntry(hostname);
+  }
+  if (!isPublic() || temporary) {
+    return;
+  }
+  nsCString value;
+  Preferences::GetCString("security.tls.insecure_fallback_hosts", &value);
+  if (!value.IsEmpty()) {
+    value.Append(',');
+  }
+  value.Append(hostname);
+  Preferences::SetCString("security.tls.insecure_fallback_hosts", value);
+}
+
+class FallbackPrefRemover final : public nsRunnable
+{
+public:
+  explicit FallbackPrefRemover(const nsACString& aHost)
+    : mHost(aHost)
+  {}
+  NS_IMETHOD Run() override;
+private:
+  nsCString mHost;
+};
+
+NS_IMETHODIMP
+FallbackPrefRemover::Run()
+{
+  MOZ_ASSERT(NS_IsMainThread());
+  nsCString oldValue;
+  Preferences::GetCString("security.tls.insecure_fallback_hosts", &oldValue);
+  nsCCharSeparatedTokenizer toker(oldValue, ',');
+  nsCString newValue;
+  while (toker.hasMoreTokens()) {
+    const nsCSubstring& host = toker.nextToken();
+    if (host.Equals(mHost)) {
+      continue;
+    }
+    if (!newValue.IsEmpty()) {
+      newValue.Append(',');
+    }
+    newValue.Append(host);
+  }
+  Preferences::SetCString("security.tls.insecure_fallback_hosts", newValue);
+  return NS_OK;
+}
+
+void
+nsSSLIOLayerHelpers::removeInsecureFallbackSite(const nsACString& hostname,
+                                                uint16_t port)
+{
+  forgetIntolerance(hostname, port);
+  {
+    MutexAutoLock lock(mutex);
+    if (!mInsecureFallbackSites.Contains(hostname)) {
+      return;
+    }
+    mInsecureFallbackSites.RemoveEntry(hostname);
+  }
+  if (!isPublic()) {
+    return;
+  }
+  RefPtr<nsRunnable> runnable = new FallbackPrefRemover(hostname);
+  if (NS_IsMainThread()) {
+    runnable->Run();
+  } else {
+    NS_DispatchToMainThread(runnable);
   }
 }
 
@@ -1714,20 +1828,6 @@ nsSSLIOLayerHelpers::treatUnsafeNegotiationAsBroken()
 {
   MutexAutoLock lock(mutex);
   return mTreatUnsafeNegotiationAsBroken;
-}
-
-void
-nsSSLIOLayerHelpers::setWarnLevelMissingRFC5746(int32_t level)
-{
-  MutexAutoLock lock(mutex);
-  mWarnLevelMissingRFC5746 = level;
-}
-
-int32_t
-nsSSLIOLayerHelpers::getWarnLevelMissingRFC5746()
-{
-  MutexAutoLock lock(mutex);
-  return mWarnLevelMissingRFC5746;
 }
 
 nsresult
@@ -2300,18 +2400,11 @@ ClientAuthDataRunnable::RunOnTargetThread()
         goto loser;
       }
 
-      {
-        nsPSMUITracker tracker;
-        if (tracker.isUIForbidden()) {
-          rv = NS_ERROR_NOT_AVAILABLE;
-        } else {
-          rv = dialogs->ChooseCertificate(mSocketInfo, cn_host_port.get(),
-            org.get(), issuer.get(),
-            (const char16_t**)certNicknameList,
-            (const char16_t**)certDetailsList,
-            CertsToUse, &selectedIndex, &canceled);
-        }
-      }
+      rv = dialogs->ChooseCertificate(mSocketInfo, cn_host_port.get(),
+                                      org.get(), issuer.get(),
+                                      (const char16_t**)certNicknameList,
+                                      (const char16_t**)certDetailsList,
+                                      CertsToUse, &selectedIndex, &canceled);
 
       NS_RELEASE(dialogs);
       NS_FREE_XPCOM_ALLOCATED_POINTER_ARRAY(CertsToUse, certNicknameList);
@@ -2599,8 +2692,6 @@ nsSSLIOLayerAddToSocket(int32_t family,
   if (stat == PR_FAILURE) {
     goto loser;
   }
-
-  nsNSSShutDownList::trackSSLSocketCreate();
 
   MOZ_LOG(gPIPNSSLog, LogLevel::Debug, ("[%p] Socket set up\n", (void*) sslSock));
   infoObject->QueryInterface(NS_GET_IID(nsISupports), (void**) (info));

@@ -44,7 +44,7 @@ protected:
   }
 
 public:
-  virtual void SetVisibleRegion(const nsIntRegion& aRegion) override
+  virtual void SetVisibleRegion(const LayerIntRegion& aRegion) override
   {
     NS_ASSERTION(BasicManager()->InConstruction(),
                  "Can only set properties in construction phase");
@@ -112,14 +112,14 @@ protected:
       BasicManager()->SetTransactionIncomplete();
       return;
     }
-    aCallback(this, aContext, aExtendedRegionToDraw, aClip,
-              aRegionToInvalidate, aCallbackData);
+    aCallback(this, aContext, aExtendedRegionToDraw, aExtendedRegionToDraw,
+              aClip, aRegionToInvalidate, aCallbackData);
     // Everything that's visible has been validated. Do this instead of just
     // OR-ing with aRegionToDraw, since that can lead to a very complex region
     // here (OR doesn't automatically simplify to the simplest possible
     // representation of a region.)
     nsIntRegion tmp;
-    tmp.Or(mVisibleRegion, aExtendedRegionToDraw);
+    tmp.Or(mVisibleRegion.ToUnknownRegion(), aExtendedRegionToDraw);
     mValidRegion.Or(mValidRegion, tmp);
   }
 

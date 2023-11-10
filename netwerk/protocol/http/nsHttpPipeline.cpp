@@ -12,12 +12,11 @@
 #include "nsISocketTransport.h"
 #include "nsIPipe.h"
 #include "nsCOMPtr.h"
+#include "nsSocketTransportService2.h"
 #include <algorithm>
 
 #ifdef DEBUG
 #include "prthread.h"
-// defined by the socket transport service while active
-extern PRThread *gSocketThread;
 #endif
 
 namespace mozilla {
@@ -83,7 +82,7 @@ nsHttpPipeline::~nsHttpPipeline()
     Close(NS_ERROR_ABORT);
 
     if (mPushBackBuf)
-        free(mPushBackBuf);
+        moz_free(mPushBackBuf);
 }
 
 nsresult
@@ -181,7 +180,7 @@ nsHttpPipeline::OnHeadersAvailable(nsAHttpTransaction *trans,
     MOZ_ASSERT(PR_GetCurrentThread() == gSocketThread);
     MOZ_ASSERT(mConnection, "no connection");
 
-    nsRefPtr<nsHttpConnectionInfo> ci;
+    RefPtr<nsHttpConnectionInfo> ci;
     GetConnectionInfo(getter_AddRefs(ci));
     MOZ_ASSERT(ci);
 
@@ -308,7 +307,7 @@ nsHttpPipeline::PushBack(const char *data, uint32_t length)
 
     if (!mPushBackBuf) {
         mPushBackMax = length;
-        mPushBackBuf = (char *) malloc(mPushBackMax);
+        mPushBackBuf = (char *) moz_xmalloc(mPushBackMax);
         if (!mPushBackBuf)
             return NS_ERROR_OUT_OF_MEMORY;
     }
@@ -316,7 +315,7 @@ nsHttpPipeline::PushBack(const char *data, uint32_t length)
         // grow push back buffer as necessary.
         MOZ_ASSERT(length <= nsIOService::gDefaultSegmentSize, "too big");
         mPushBackMax = length;
-        mPushBackBuf = (char *) realloc(mPushBackBuf, mPushBackMax);
+        mPushBackBuf = (char *) moz_xrealloc(mPushBackBuf, mPushBackMax);
         if (!mPushBackBuf)
             return NS_ERROR_OUT_OF_MEMORY;
     }
@@ -373,7 +372,7 @@ nsHttpPipeline::Http1xTransactionCount()
 
 nsresult
 nsHttpPipeline::TakeSubTransactions(
-    nsTArray<nsRefPtr<nsAHttpTransaction> > &outTransactions)
+    nsTArray<RefPtr<nsAHttpTransaction> > &outTransactions)
 {
     LOG(("nsHttpPipeline::TakeSubTransactions [this=%p]\n", this));
 
@@ -703,7 +702,7 @@ nsHttpPipeline::WriteSegments(nsAHttpSegmentWriter *writer,
 
             // ask the connection manager to add additional transactions
             // to our pipeline.
-            nsRefPtr<nsHttpConnectionInfo> ci;
+            RefPtr<nsHttpConnectionInfo> ci;
             GetConnectionInfo(getter_AddRefs(ci));
             if (ci)
                 gHttpHandler->ConnMgr()->ProcessPendingQForEntry(ci);
@@ -796,7 +795,7 @@ nsHttpPipeline::Close(nsresult reason)
     mStatus = reason;
     mClosed = true;
 
-    nsRefPtr<nsHttpConnectionInfo> ci;
+    RefPtr<nsHttpConnectionInfo> ci;
     GetConnectionInfo(getter_AddRefs(ci));
     uint32_t numRescheduled = CancelPipeline(reason);
 

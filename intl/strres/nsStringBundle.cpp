@@ -73,11 +73,20 @@ nsStringBundle::LoadProperties()
   rv = NS_NewURI(getter_AddRefs(uri), mPropertiesURL);
   if (NS_FAILED(rv)) return rv;
 
+  // whitelist check for local schemes
+  nsCString scheme;
+  uri->GetScheme(scheme);
+  if (!scheme.EqualsLiteral("chrome") && !scheme.EqualsLiteral("jar") &&
+      !scheme.EqualsLiteral("resource") && !scheme.EqualsLiteral("file") &&
+      !scheme.EqualsLiteral("data")) {
+    return NS_ERROR_ABORT;
+  }
+
   nsCOMPtr<nsIChannel> channel;
   rv = NS_NewChannel(getter_AddRefs(channel),
                      uri,
                      nsContentUtils::GetSystemPrincipal(),
-                     nsILoadInfo::SEC_NORMAL,
+                     nsILoadInfo::SEC_ALLOW_CROSS_ORIGIN_DATA_IS_NULL,
                      nsIContentPolicy::TYPE_OTHER);
 
   if (NS_FAILED(rv)) return rv;
@@ -86,7 +95,7 @@ nsStringBundle::LoadProperties()
   channel->SetContentType(NS_LITERAL_CSTRING("text/plain"));
 
   nsCOMPtr<nsIInputStream> in;
-  rv = channel->Open(getter_AddRefs(in));
+  rv = channel->Open2(getter_AddRefs(in));
   if (NS_FAILED(rv)) return rv;
 
   NS_ASSERTION(NS_SUCCEEDED(rv) && in, "Error in OpenBlockingStream");
@@ -584,7 +593,7 @@ nsStringBundleService::getStringBundle(const char *aURLSpec,
   } else {
 
     // hasn't been cached, so insert it into the hash table
-    nsRefPtr<nsStringBundle> bundle = new nsStringBundle(aURLSpec, mOverrideStrings);
+    RefPtr<nsStringBundle> bundle = new nsStringBundle(aURLSpec, mOverrideStrings);
     cacheEntry = insertIntoCache(bundle.forget(), key);
   }
 
@@ -646,7 +655,7 @@ nsStringBundleService::CreateExtensibleBundle(const char* aCategory,
   NS_ENSURE_ARG_POINTER(aResult);
   *aResult = nullptr;
 
-  nsRefPtr<nsExtensibleStringBundle> bundle = new nsExtensibleStringBundle();
+  RefPtr<nsExtensibleStringBundle> bundle = new nsExtensibleStringBundle();
 
   nsresult res = bundle->Init(aCategory, this);
   if (NS_FAILED(res)) {

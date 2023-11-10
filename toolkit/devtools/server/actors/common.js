@@ -7,6 +7,7 @@
 "use strict";
 
 const promise = require("promise");
+const { method } = require("devtools/server/protocol");
 
 /**
  * Creates "registered" actors factory meant for creating another kind of
@@ -462,31 +463,6 @@ GeneratedLocation.prototype = {
 
 exports.GeneratedLocation = GeneratedLocation;
 
-// TODO bug 863089: use Debugger.Script.prototype.getOffsetColumn when it is
-// implemented.
-exports.getOffsetColumn = function getOffsetColumn(aOffset, aScript) {
-  let bestOffsetMapping = null;
-  for (let offsetMapping of aScript.getAllColumnOffsets()) {
-    if (!bestOffsetMapping ||
-        (offsetMapping.offset <= aOffset &&
-         offsetMapping.offset > bestOffsetMapping.offset)) {
-      bestOffsetMapping = offsetMapping;
-    }
-  }
-
-  if (!bestOffsetMapping) {
-    // XXX: Try not to completely break the experience of using the debugger for
-    // the user by assuming column 0. Simultaneously, report the error so that
-    // there is a paper trail if the assumption is bad and the debugging
-    // experience becomes wonky.
-    reportError(new Error("Could not find a column for offset " + aOffset
-                          + " in the script " + aScript));
-    return 0;
-  }
-
-  return bestOffsetMapping.columnNumber;
-}
-
 /**
  * A method decorator that ensures the actor is in the expected state before
  * proceeding. If the actor is not in the expected state, the decorated method
@@ -519,3 +495,19 @@ function expectState(expectedState, method, activity) {
 }
 
 exports.expectState = expectState;
+
+/**
+ * Proxies a call from an actor to an underlying module, stored
+ * as `bridge` on the actor. This allows a module to be defined in one
+ * place, usable by other modules/actors on the server, but a separate
+ * module defining the actor/RDP definition.
+ *
+ * @see Framerate implementation: toolkit/devtools/shared/framerate.js
+ * @see Framerate actor definition: toolkit/devtools/server/actors/framerate.js
+ */
+function actorBridge (methodName, definition={}) {
+  return method(function () {
+    return this.bridge[methodName].apply(this.bridge, arguments);
+  }, definition);
+}
+exports.actorBridge = actorBridge;

@@ -152,10 +152,11 @@ JitRuntime::generateEnterJIT(JSContext* cx, EnterJitType type)
     *****************************************************************/
     // Create a frame descriptor.
     masm.subl(esp, esi);
-    masm.makeFrameDescriptor(esi, JitFrame_Entry);
+    masm.makeFrameDescriptor(esi, JitFrame_Entry, JitFrameLayout::Size());
     masm.push(esi);
 
     CodeLabel returnLabel;
+    CodeLabel oomReturnLabel;
     if (type == EnterJitBaseline) {
         // Handle OSR.
         AllocatableGeneralRegisterSet regs(GeneralRegisterSet::All());
@@ -176,7 +177,7 @@ JitRuntime::generateEnterJIT(JSContext* cx, EnterJitType type)
         masm.loadPtr(Address(ebp, ARG_JITCODE), jitcode);
 
         // Push return address.
-        masm.mov(returnLabel.dest(), scratch);
+        masm.mov(returnLabel.patchAt(), scratch);
         masm.push(scratch);
 
         // Push previous frame pointer.
@@ -215,7 +216,7 @@ JitRuntime::generateEnterJIT(JSContext* cx, EnterJitType type)
 
         // Enter exit frame.
         masm.addPtr(Imm32(BaselineFrame::Size() + BaselineFrame::FramePointerOffset), scratch);
-        masm.makeFrameDescriptor(scratch, JitFrame_BaselineJS);
+        masm.makeFrameDescriptor(scratch, JitFrame_BaselineJS, ExitFrameLayout::Size());
         masm.push(scratch); // Fake return address.
         masm.push(Imm32(0));
         // No GC things to mark on the stack, push a bare token.
@@ -261,7 +262,7 @@ JitRuntime::generateEnterJIT(JSContext* cx, EnterJitType type)
         masm.mov(framePtr, esp);
         masm.addPtr(Imm32(2 * sizeof(uintptr_t)), esp);
         masm.moveValue(MagicValue(JS_ION_ERROR), JSReturnOperand);
-        masm.mov(returnLabel.dest(), scratch);
+        masm.mov(oomReturnLabel.patchAt(), scratch);
         masm.jump(scratch);
 
         masm.bind(&notOsr);
@@ -280,8 +281,10 @@ JitRuntime::generateEnterJIT(JSContext* cx, EnterJitType type)
 
     if (type == EnterJitBaseline) {
         // Baseline OSR will return here.
-        masm.bind(returnLabel.src());
+        masm.use(returnLabel.target());
         masm.addCodeLabel(returnLabel);
+        masm.use(oomReturnLabel.target());
+        masm.addCodeLabel(oomReturnLabel);
     }
 
     // Pop arguments off the stack.
@@ -505,7 +508,7 @@ JitRuntime::generateArgumentsRectifier(JSContext* cx, void** returnAddrOut)
     // Construct descriptor, accounting for pushed frame pointer above
     masm.lea(Operand(FramePointer, sizeof(void*)), ebx);
     masm.subl(esp, ebx);
-    masm.makeFrameDescriptor(ebx, JitFrame_Rectifier);
+    masm.makeFrameDescriptor(ebx, JitFrame_Rectifier, JitFrameLayout::Size());
 
     // Construct JitFrameLayout.
     masm.push(edx); // number of actual arguments
@@ -539,10 +542,8 @@ JitRuntime::generateArgumentsRectifier(JSContext* cx, void** returnAddrOut)
     writePerfSpewerJitCodeProfile(code, "ArgumentsRectifier");
 #endif
 
-    CodeOffsetLabel returnLabel(returnOffset);
-    returnLabel.fixup(&masm);
     if (returnAddrOut)
-        *returnAddrOut = (void*) (code->raw() + returnLabel.offset());
+        *returnAddrOut = (void*) (code->raw() + returnOffset);
     return code;
 }
 
@@ -595,7 +596,7 @@ GenerateBailoutThunk(JSContext* cx, MacroAssembler& masm, uint32_t frameClass)
 
     // Common size of stuff we've pushed.
     static const uint32_t BailoutDataSize = 0
-        + sizeof(void *) // frameClass
+        + sizeof(void*) // frameClass
         + sizeof(RegisterDump);
 
     // Remove both the bailout frame and the topmost Ion frame's stack.
@@ -883,6 +884,11 @@ JitCode*
 JitRuntime::generateDebugTrapHandler(JSContext* cx)
 {
     MacroAssembler masm;
+#ifndef JS_USE_LINK_REGISTER
+    // The first value contains the return addres,
+    // which we pull into ICTailCallReg for tail calls.
+    masm.setFramePushed(sizeof(intptr_t));
+#endif
 
     Register scratch1 = eax;
     Register scratch2 = ecx;

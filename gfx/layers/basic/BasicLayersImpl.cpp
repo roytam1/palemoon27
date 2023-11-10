@@ -39,18 +39,32 @@ GetMaskData(Layer* aMaskLayer,
   return false;
 }
 
+already_AddRefed<SourceSurface>
+GetMaskForLayer(Layer* aLayer, Matrix* aMaskTransform)
+{
+  if (!aLayer->GetMaskLayer()) {
+    return nullptr;
+  }
+
+  MOZ_ASSERT(aMaskTransform);
+
+  AutoMoz2DMaskData mask;
+  if (GetMaskData(aLayer->GetMaskLayer(), Point(), &mask)) {
+    *aMaskTransform = mask.GetTransform();
+    RefPtr<SourceSurface> surf = mask.GetSurface();
+    return surf.forget();
+  }
+
+  return nullptr;
+}
+
 void
 PaintWithMask(gfxContext* aContext, float aOpacity, Layer* aMaskLayer)
 {
   AutoMoz2DMaskData mask;
   if (GetMaskData(aMaskLayer, Point(), &mask)) {
-    if (aOpacity < 1.0) {
-      aContext->PushGroup(gfxContentType::COLOR_ALPHA);
-      aContext->Paint(aOpacity);
-      aContext->PopGroupToSource();
-    }
     aContext->SetMatrix(ThebesMatrix(mask.GetTransform()));
-    aContext->Mask(mask.GetSurface());
+    aContext->Mask(mask.GetSurface(), aOpacity);
     return;
   }
 

@@ -184,7 +184,7 @@
             case event.DOM_VK_RIGHT:
               if (event.metaKey && event.altKey && !event.shiftKey && !event.ctrlKey)
                 if (this.tabs && this._handleMetaAltArrows) {
-                  var offset = window.getComputedStyle(this, "")
+                  offset = window.getComputedStyle(this, "")
                                      .direction == "ltr" ? 1 : -1;
                   this.tabs.advanceSelectedTab(offset, true);
                   event.preventDefault();
@@ -805,7 +805,7 @@
           // '-moz-user-focus' so that tabs can be focused by keyboard again.
           if (!isTabFocused) {
             this.setAttribute("ignorefocus", "true");
-            setTimeout(function (tab) tab.removeAttribute("ignorefocus"), 0, this);
+            setTimeout(tab => tab.removeAttribute("ignorefocus"), 0, this);
           }
 
           if (stopwatchid) {

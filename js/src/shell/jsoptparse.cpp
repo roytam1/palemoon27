@@ -27,22 +27,22 @@ const char OptionParser::prognameMeta[] = "{progname}";
     Option::as##__cls##Option() \
     { \
         MOZ_ASSERT(is##__cls##Option()); \
-        return static_cast<__cls##Option *>(this); \
+        return static_cast<__cls##Option*>(this); \
     } \
     const __cls##Option * \
     Option::as##__cls##Option() const \
     { \
-        return const_cast<Option *>(this)->as##__cls##Option(); \
+        return const_cast<Option*>(this)->as##__cls##Option(); \
     }
 
-ValuedOption *
+ValuedOption*
 Option::asValued()
 {
     MOZ_ASSERT(isValued());
-    return static_cast<ValuedOption *>(this);
+    return static_cast<ValuedOption*>(this);
 }
 
-const ValuedOption *
+const ValuedOption*
 Option::asValued() const
 {
     return const_cast<Option*>(this)->asValued();
@@ -185,8 +185,8 @@ OptionParser::printHelp(const char* progname)
         putchar('\n');
     }
 
-    if (ver)
-        printf("\nVersion: %s\n\n", ver);
+    if (version)
+        printf("\nVersion: %s\n\n", version);
 
     if (!arguments.empty()) {
         printf("Arguments:\n");
@@ -247,7 +247,15 @@ OptionParser::printHelp(const char* progname)
         }
     }
 
-    return ParseHelp;
+    return EarlyExit;
+}
+
+OptionParser::Result
+OptionParser::printVersion()
+{
+    MOZ_ASSERT(version);
+    printf("%s\n", version);
+    return EarlyExit;
 }
 
 OptionParser::Result
@@ -281,6 +289,8 @@ OptionParser::handleOption(Option* opt, size_t argc, char** argv, size_t* i, boo
       {
         if (opt == &helpOption)
             return printHelp(argv[0]);
+        if (opt == &versionOption)
+            return printVersion();
         opt->asBoolOption()->value = true;
         return Okay;
       }
@@ -470,6 +480,9 @@ OptionParser::findOption(char shortflag)
             return opt;
     }
 
+    if (versionOption.shortflag == shortflag)
+        return &versionOption;
+
     return helpOption.shortflag == shortflag ? &helpOption : nullptr;
 }
 
@@ -499,6 +512,9 @@ OptionParser::findOption(const char* longflag)
         }
   no_match:;
     }
+
+    if (strcmp(versionOption.longflag, longflag) == 0)
+        return &versionOption;
 
     return strcmp(helpOption.longflag, longflag) ? nullptr : &helpOption;
 }

@@ -100,9 +100,41 @@ const mockedControlChannel = {
     return this._listener;
   },
   sendOffer: function(offer) {
-    sendAsyncMessage('offer-sent');
+    var isValid = false;
+    try {
+      var addresses = offer.tcpAddress;
+      if (addresses.length > 0) {
+        for (var i = 0; i < addresses.length; i++) {
+          // Ensure CString addresses are used. Otherwise, an error will be thrown.
+          addresses.queryElementAt(i, Ci.nsISupportsCString);
+        }
+
+        isValid = true;
+      }
+    } catch (e) {
+      isValid = false;
+    }
+
+    sendAsyncMessage('offer-sent', isValid);
   },
   sendAnswer: function(answer) {
+    var isValid = false;
+    try {
+      var addresses = answer.tcpAddress;
+      if (addresses.length > 0) {
+        for (var i = 0; i < addresses.length; i++) {
+          // Ensure CString addresses are used. Otherwise, an error will be thrown.
+          addresses.queryElementAt(i, Ci.nsISupportsCString);
+        }
+
+        isValid = true;
+      }
+    } catch (e) {
+      isValid = false;
+    }
+
+    sendAsyncMessage('answer-sent', isValid);
+
     this._listener.QueryInterface(Ci.nsIPresentationSessionTransportCallback).notifyTransportReady();
   },
   close: function(reason) {
@@ -120,6 +152,10 @@ const mockedControlChannel = {
     sendAsyncMessage('answer-received');
     this._listener.QueryInterface(Ci.nsIPresentationControlChannelListener).onAnswer(mockedChannelDescription);
   },
+  simulateNotifyOpened: function() {
+    sendAsyncMessage('control-channel-opened');
+    this._listener.QueryInterface(Ci.nsIPresentationControlChannelListener).notifyOpened();
+  },
 };
 
 const mockedDevice = {
@@ -130,15 +166,6 @@ const mockedDevice = {
   establishControlChannel: function(url, presentationId) {
     sendAsyncMessage('control-channel-established');
     return mockedControlChannel;
-  },
-  set listener(listener) {
-    this._listener = listener;
-  },
-  get listener() {
-    return this._listener;
-  },
-  simulateSessionRequest: function(url, presentationId, controlChannel) {
-    this._listener.onSessionRequest(this, url, presentationId, controlChannel);
   },
 };
 
@@ -202,6 +229,9 @@ const mockedSessionTransport = {
                 addresses.queryElementAt(0, Ci.nsISupportsCString).data : "",
       port: description.QueryInterface(Ci.nsIPresentationChannelDescription).tcpPort,
     };
+  },
+  enableDataNotification: function() {
+    sendAsyncMessage('data-transport-notification-enabled');
   },
   send: function(data) {
     var binaryStream = Cc["@mozilla.org/binaryinputstream;1"].
@@ -319,7 +349,10 @@ addMessageListener('trigger-device-prompt-cancel', function() {
 });
 
 addMessageListener('trigger-incoming-session-request', function(url) {
-  mockedDevice.simulateSessionRequest(url, sessionId, mockedControlChannel);
+  var deviceManager = Cc['@mozilla.org/presentation-device/manager;1']
+                      .getService(Ci.nsIPresentationDeviceManager);
+  deviceManager.QueryInterface(Ci.nsIPresentationDeviceListener)
+	       .onSessionRequest(mockedDevice, url, sessionId, mockedControlChannel);
 });
 
 addMessageListener('trigger-incoming-offer', function() {
@@ -332,6 +365,10 @@ addMessageListener('trigger-incoming-answer', function() {
 
 addMessageListener('trigger-incoming-transport', function() {
   mockedServerSocket.simulateOnSocketAccepted(mockedServerSocket, mockedSocketTransport);
+});
+
+addMessageListener('trigger-control-channel-open', function(reason) {
+  mockedControlChannel.simulateNotifyOpened();
 });
 
 addMessageListener('trigger-control-channel-close', function(reason) {

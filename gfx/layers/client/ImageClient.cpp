@@ -21,8 +21,6 @@
 #include "mozilla/layers/ISurfaceAllocator.h"
 #include "mozilla/layers/LayersSurfaces.h"  // for SurfaceDescriptor, etc
 #include "mozilla/layers/ShadowLayers.h"  // for ShadowLayerForwarder
-#include "mozilla/layers/SharedPlanarYCbCrImage.h"
-#include "mozilla/layers/SharedRGBImage.h"
 #include "mozilla/layers/TextureClient.h"  // for TextureClient, etc
 #include "mozilla/layers/TextureClientOGL.h"  // for SurfaceTextureClient
 #include "mozilla/mozalloc.h"           // for operator delete, etc
@@ -57,13 +55,8 @@ ImageClient::CreateImageClient(CompositableType aCompositableHostType,
   case CompositableType::UNKNOWN:
     result = nullptr;
     break;
-#ifdef MOZ_WIDGET_GONK
-  case CompositableType::IMAGE_OVERLAY:
-    result = new ImageClientOverlay(aForwarder, aFlags);
-    break;
-#endif
   default:
-    MOZ_CRASH("unhandled program type");
+    MOZ_CRASH("GFX: unhandled program type image");
   }
 
   NS_ASSERTION(result, "Failed to create ImageClient");
@@ -81,9 +74,15 @@ void
 ImageClient::RemoveTextureWithWaiter(TextureClient* aTexture,
                                      AsyncTransactionWaiter* aAsyncTransactionWaiter)
 {
-#ifdef MOZ_WIDGET_GONK
-  if (aAsyncTransactionWaiter ||
-      GetForwarder()->IsImageBridgeChild()) {
+  if ((aAsyncTransactionWaiter ||
+      GetForwarder()->IsImageBridgeChild())
+#ifndef MOZ_WIDGET_GONK
+      // If the texture client is taking part in recycling then we should make sure
+      // the host has finished with it before dropping the ref and triggering
+      // the recycle callback.
+      && aTexture->GetRecycleAllocator()
+#endif
+     ) {
     RefPtr<AsyncTransactionTracker> request =
       new RemoveTextureFromCompositableTracker(aAsyncTransactionWaiter);
     // Hold TextureClient until the transaction complete to postpone
@@ -92,7 +91,6 @@ ImageClient::RemoveTextureWithWaiter(TextureClient* aTexture,
     GetForwarder()->RemoveTextureFromCompositableAsync(request, this, aTexture);
     return;
   }
-#endif
 
   GetForwarder()->RemoveTextureFromCompositable(this, aTexture);
 }
@@ -110,21 +108,18 @@ TextureInfo ImageClientSingle::GetTextureInfo() const
 }
 
 void
-ImageClientSingle::FlushAllImages(bool aExceptFront,
-                                  AsyncTransactionWaiter* aAsyncTransactionWaiter)
+ImageClientSingle::FlushAllImages(AsyncTransactionWaiter* aAsyncTransactionWaiter)
 {
-  if (!aExceptFront) {
-    for (auto& b : mBuffers) {
-      RemoveTextureWithWaiter(b.mTextureClient, aAsyncTransactionWaiter);
-    }
-    mBuffers.Clear();
+  for (auto& b : mBuffers) {
+    RemoveTextureWithWaiter(b.mTextureClient, aAsyncTransactionWaiter);
   }
+  mBuffers.Clear();
 }
 
 bool
 ImageClientSingle::UpdateImage(ImageContainer* aContainer, uint32_t aContentFlags)
 {
-  nsAutoTArray<ImageContainer::OwningImage,4> images;
+  AutoTArray<ImageContainer::OwningImage,4> images;
   uint32_t generationCounter;
   aContainer->GetCurrentImages(&images, &generationCounter);
 
@@ -140,16 +135,36 @@ ImageClientSingle::UpdateImage(ImageContainer* aContainer, uint32_t aContentFlag
     }
   }
   if (images.IsEmpty()) {
+    // This can happen if a ClearAllImages raced with SetCurrentImages from
+    // another thread and ClearImagesFromImageBridge ran after the
+    // SetCurrentImages call but before UpdateImageClientNow.
+    // This can also happen if all images in the list are invalid.
     // We return true because the caller would attempt to recreate the
     // ImageClient otherwise, and that isn't going to help.
     return true;
   }
 
   nsTArray<Buffer> newBuffers;
-  nsAutoTArray<CompositableForwarder::TimedTextureClient,4> textures;
+  AutoTArray<CompositableForwarder::TimedTextureClient,4> textures;
 
   for (auto& img : images) {
     Image* image = img.mImage;
+
+#ifdef MOZ_WIDGET_GONK
+    if (image->GetFormat() == ImageFormat::OVERLAY_IMAGE) {
+      OverlayImage* overlayImage = static_cast<OverlayImage*>(image);
+      OverlaySource source;
+      if (overlayImage->GetSidebandStream().IsValid()) {
+        source.handle() = OverlayHandle(overlayImage->GetSidebandStream());
+      } else {
+        source.handle() = OverlayHandle(overlayImage->GetOverlayId());
+      }
+      source.size() = overlayImage->GetSize();
+      GetForwarder()->UseOverlaySource(this, source, image->GetPictureRect());
+      continue;
+    }
+#endif
+
     RefPtr<TextureClient> texture = image->GetTextureClient(this);
 
     for (int32_t i = mBuffers.Length() - 1; i >= 0; --i) {
@@ -179,34 +194,35 @@ ImageClientSingle::UpdateImage(ImageContainer* aContainer, uint32_t aContentFlag
           data->mYSize, data->mCbCrSize, data->mStereoMode,
           TextureFlags::DEFAULT | mTextureFlags
         );
-        if (!texture || !texture->Lock(OpenMode::OPEN_WRITE_ONLY)) {
+        if (!texture) {
           return false;
         }
-        bool status = texture->AsTextureClientYCbCr()->UpdateYCbCr(*data);
-        MOZ_ASSERT(status);
 
-        texture->Unlock();
+        TextureClientAutoLock autoLock(texture, OpenMode::OPEN_WRITE_ONLY);
+        if (!autoLock.Succeeded()) {
+          return false;
+        }
+
+        bool status = UpdateYCbCrTextureClient(texture, *data);
+        MOZ_ASSERT(status);
         if (!status) {
           return false;
         }
-
       } else if (image->GetFormat() == ImageFormat::SURFACE_TEXTURE ||
                  image->GetFormat() == ImageFormat::EGLIMAGE) {
         gfx::IntSize size = image->GetSize();
 
         if (image->GetFormat() == ImageFormat::EGLIMAGE) {
-          EGLImageImage* typedImage = static_cast<EGLImageImage*>(image);
-          texture = new EGLImageTextureClient(GetForwarder(),
-                                              mTextureFlags,
-                                              typedImage,
-                                              size);
+          EGLImageImage* typedImage = image->AsEGLImageImage();
+          texture = EGLImageTextureData::CreateTextureClient(
+            typedImage, size, GetForwarder(), mTextureFlags);
 #ifdef MOZ_WIDGET_ANDROID
         } else if (image->GetFormat() == ImageFormat::SURFACE_TEXTURE) {
-          SurfaceTextureImage* typedImage = static_cast<SurfaceTextureImage*>(image);
-          const SurfaceTextureImage::Data* data = typedImage->GetData();
-          texture = new SurfaceTextureClient(GetForwarder(), mTextureFlags,
-                                             data->mSurfTex, size,
-                                             data->mOriginPos);
+          SurfaceTextureImage* typedImage = image->AsSurfaceTextureImage();
+          texture = AndroidSurfaceTextureData::CreateTextureClient(
+            typedImage->GetSurfaceTexture(), size, typedImage->GetOriginPos(),
+            GetForwarder(), mTextureFlags
+          );
 #endif
         } else {
           MOZ_ASSERT(false, "Bad ImageFormat.");
@@ -215,7 +231,7 @@ ImageClientSingle::UpdateImage(ImageContainer* aContainer, uint32_t aContentFlag
         RefPtr<gfx::SourceSurface> surface = image->GetAsSourceSurface();
         MOZ_ASSERT(surface);
         texture = CreateTextureClientForDrawing(surface->GetFormat(), image->GetSize(),
-                                                gfx::BackendType::NONE, mTextureFlags);
+                                                BackendSelector::Content, mTextureFlags);
         if (!texture) {
           return false;
         }
@@ -256,7 +272,6 @@ ImageClientSingle::UpdateImage(ImageContainer* aContainer, uint32_t aContentFlag
     newBuf->mImageSerial = image->GetSerial();
     newBuf->mTextureClient = texture;
 
-    aContainer->NotifyPaintedImage(image);
     texture->SyncWithObject(GetForwarder()->GetSyncObject());
   }
 
@@ -309,81 +324,8 @@ ImageClientBridge::UpdateImage(ImageContainer* aContainer, uint32_t aContentFlag
   }
   mAsyncContainerID = aContainer->GetAsyncContainerID();
   static_cast<ShadowLayerForwarder*>(GetForwarder())->AttachAsyncCompositable(mAsyncContainerID, mLayer);
-  AutoLockImage autoLock(aContainer);
-  aContainer->NotifyPaintedImage(autoLock.GetImage());
   return true;
 }
 
-already_AddRefed<Image>
-ImageClientSingle::CreateImage(ImageFormat aFormat)
-{
-  nsRefPtr<Image> img;
-  switch (aFormat) {
-    case ImageFormat::PLANAR_YCBCR:
-      img = new SharedPlanarYCbCrImage(this);
-      return img.forget();
-    case ImageFormat::SHARED_RGB:
-      img = new SharedRGBImage(this);
-      return img.forget();
-#ifdef MOZ_WIDGET_GONK
-    case ImageFormat::GRALLOC_PLANAR_YCBCR:
-      img = new GrallocImage();
-      return img.forget();
-#endif
-    default:
-      return nullptr;
-  }
-}
-
-#ifdef MOZ_WIDGET_GONK
-ImageClientOverlay::ImageClientOverlay(CompositableForwarder* aFwd,
-                                       TextureFlags aFlags)
-  : ImageClient(aFwd, aFlags, CompositableType::IMAGE_OVERLAY)
-{
-}
-
-bool
-ImageClientOverlay::UpdateImage(ImageContainer* aContainer, uint32_t aContentFlags)
-{
-  AutoLockImage autoLock(aContainer);
-
-  Image *image = autoLock.GetImage();
-  if (!image) {
-    return false;
-  }
-
-  if (mLastUpdateGenerationCounter == (uint32_t)image->GetSerial()) {
-    return true;
-  }
-  mLastUpdateGenerationCounter = (uint32_t)image->GetSerial();
-
-  AutoRemoveTexture autoRemoveTexture(this);
-  if (image->GetFormat() == ImageFormat::OVERLAY_IMAGE) {
-    OverlayImage* overlayImage = static_cast<OverlayImage*>(image);
-    uint32_t overlayId = overlayImage->GetOverlayId();
-    gfx::IntSize size = overlayImage->GetSize();
-
-    OverlaySource source;
-    source.handle() = OverlayHandle(overlayId);
-    source.size() = size;
-    GetForwarder()->UseOverlaySource(this, source, image->GetPictureRect());
-  }
-  return true;
-}
-
-already_AddRefed<Image>
-ImageClientOverlay::CreateImage(ImageFormat aFormat)
-{
-  nsRefPtr<Image> img;
-  switch (aFormat) {
-    case ImageFormat::OVERLAY_IMAGE:
-      img = new OverlayImage();
-      return img.forget();
-    default:
-      return nullptr;
-  }
-}
-
-#endif
 } // namespace layers
 } // namespace mozilla

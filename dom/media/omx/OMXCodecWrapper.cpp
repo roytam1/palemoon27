@@ -45,12 +45,18 @@ enum BufferState
 bool
 OMXCodecReservation::ReserveOMXCodec()
 {
-  if (mClient) {
-    // Already tried reservation.
-    return false;
+  if (!mClient) {
+    mClient = new mozilla::MediaSystemResourceClient(mType);
+  } else {
+    if (mOwned) {
+      //CODEC_ERROR("OMX Reservation: (%d) already owned", (int) mType);
+      return true;
+    }
+    //CODEC_ERROR("OMX Reservation: (%d) already NOT owned", (int) mType);
   }
-  mClient = new mozilla::MediaSystemResourceClient(mType);
-  return mClient->AcquireSyncNoWait(); // don't wait if resrouce is not available
+  mOwned = mClient->AcquireSyncNoWait(); // don't wait if resource is not available
+  //CODEC_ERROR("OMX Reservation: (%d) Acquire was %s", (int) mType, mOwned ? "Successful" : "Failed");
+  return mOwned;
 }
 
 void
@@ -59,7 +65,12 @@ OMXCodecReservation::ReleaseOMXCodec()
   if (!mClient) {
     return;
   }
-  mClient->ReleaseResource();
+  //CODEC_ERROR("OMX Reservation: Releasing resource: (%d) %s", (int) mType, mOwned ? "Owned" : "Not owned");
+  if (mOwned) {
+    mClient->ReleaseResource();
+    mClient = nullptr;
+    mOwned = false;
+  }
 }
 
 OMXAudioEncoder*
@@ -382,7 +393,7 @@ ConvertGrallocImageToNV12(GrallocImage* aSource, uint8_t* aDestination)
 
 nsresult
 OMXVideoEncoder::Encode(const Image* aImage, int aWidth, int aHeight,
-                        int64_t aTimestamp, int aInputFlags)
+                        int64_t aTimestamp, int aInputFlags, bool* aSendEOS)
 {
   MOZ_ASSERT(mStarted, "Configure() should be called before Encode().");
 
@@ -456,6 +467,9 @@ OMXVideoEncoder::Encode(const Image* aImage, int aWidth, int aHeight,
   // Queue this input buffer.
   result = mCodec->queueInputBuffer(index, 0, dstSize, aTimestamp, aInputFlags);
 
+  if (aSendEOS && (aInputFlags & BUFFER_EOS) && result == OK) {
+    *aSendEOS = true;
+  }
   return result == OK ? NS_OK : NS_ERROR_FAILURE;
 }
 
@@ -645,7 +659,7 @@ public:
       UpdateAfterSendChunk(chunkSamples, bytesCopied, aSamplesRead);
     } else {
       // Interleave data to a temporary buffer.
-      nsAutoTArray<AudioDataValue, 9600> pcm;
+      AutoTArray<AudioDataValue, 9600> pcm;
       pcm.SetLength(bytesToCopy);
       AudioDataValue* interleavedSource = pcm.Elements();
       AudioTrackEncoder::InterleaveTrackData(aChunk, chunkSamples,
@@ -699,7 +713,7 @@ public:
 private:
   uint8_t* GetPointer() { return mData + mOffset; }
 
-  const size_t AvailableSize() { return mCapicity - mOffset; }
+  size_t AvailableSize() const { return mCapicity - mOffset; }
 
   void IncreaseOffset(size_t aValue)
   {
@@ -708,12 +722,12 @@ private:
     mOffset += aValue;
   }
 
-  bool IsEmpty()
+  bool IsEmpty() const
   {
     return (mOffset == 0);
   }
 
-  const size_t GetCapacity()
+  size_t GetCapacity() const
   {
     return mCapicity;
   }
@@ -747,7 +761,7 @@ private:
                          * mOMXAEncoder.mChannels * sizeof(AudioDataValue);
     uint32_t dstSamplesCopied = aSamplesNum;
     if (mOMXAEncoder.mResampler) {
-      nsAutoTArray<AudioDataValue, 9600> pcm;
+      AutoTArray<AudioDataValue, 9600> pcm;
       pcm.SetLength(bytesToCopy);
       AudioTrackEncoder::InterleaveTrackData(aSource, aSamplesNum,
                                              mOMXAEncoder.mChannels,
@@ -822,7 +836,8 @@ OMXAudioEncoder::~OMXAudioEncoder()
 }
 
 nsresult
-OMXAudioEncoder::Encode(AudioSegment& aSegment, int aInputFlags)
+OMXAudioEncoder::Encode(AudioSegment& aSegment, int aInputFlags,
+                        bool* aSendEOS)
 {
 #ifndef MOZ_SAMPLE_TYPE_S16
 #error MediaCodec accepts only 16-bit PCM data.
@@ -877,7 +892,9 @@ OMXAudioEncoder::Encode(AudioSegment& aSegment, int aInputFlags)
   }
   result = buffer.Enqueue(mTimestamp, flags);
   NS_ENSURE_TRUE(result == OK, NS_ERROR_FAILURE);
-
+  if (aSendEOS && (aInputFlags & BUFFER_EOS)) {
+    *aSendEOS = true;
+  }
   return NS_OK;
 }
 
@@ -980,7 +997,7 @@ OMXCodecWrapper::GetNextEncodedFrame(nsTArray<uint8_t>* aOutputBuf,
       }
     } else if ((mCodecType == AMR_NB_ENC) && !mAMRCSDProvided){
       // OMX AMR codec won't provide csd data, need to generate a fake one.
-      nsRefPtr<EncodedFrame> audiodata = new EncodedFrame();
+      RefPtr<EncodedFrame> audiodata = new EncodedFrame();
       // Decoder config descriptor
       const uint8_t decConfig[] = {
         0x0, 0x0, 0x0, 0x0, // vendor: 4 bytes

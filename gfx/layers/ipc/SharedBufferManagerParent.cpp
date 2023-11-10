@@ -52,6 +52,10 @@ public:
     for (it = SharedBufferManagerParent::sManagers.begin(); it != SharedBufferManagerParent::sManagers.end(); it++) {
       base::ProcessId pid = it->first;
       SharedBufferManagerParent *mgr = it->second;
+      if (!mgr) {
+        printf_stderr("GrallocReporter::CollectReports() mgr is nullptr");
+        continue;
+      }
 
       nsAutoCString pidName;
       LinuxUtils::GetThreadName(pid, pidName);
@@ -94,6 +98,8 @@ public:
     return NS_OK;
   }
 
+protected:
+  ~GrallocReporter() {}
 };
 
 NS_IMPL_ISUPPORTS(GrallocReporter, nsIMemoryReporter)
@@ -203,7 +209,12 @@ bool SharedBufferManagerParent::RecvAllocateGrallocBuffer(const IntSize& aSize, 
 
   if (aFormat == 0 || aUsage == 0) {
     printf_stderr("SharedBufferManagerParent::RecvAllocateGrallocBuffer -- format and usage must be non-zero");
-    return true;
+    return false;
+  }
+
+  if (aSize.width <= 0 || aSize.height <= 0) {
+    printf_stderr("SharedBufferManagerParent::RecvAllocateGrallocBuffer -- requested gralloc buffer size is invalid");
+    return false;
   }
 
   // If the requested size is too big (i.e. exceeds the commonly used max GL texture size)
@@ -284,7 +295,7 @@ void SharedBufferManagerParent::DropGrallocBuffer(ProcessId id, mozilla::layers:
   }
 
   if (PlatformThread::CurrentId() == mgr->mThread->thread_id()) {
-    MOZ_CRASH("SharedBufferManagerParent::DropGrallocBuffer should not be called on SharedBufferManagerParent thread");
+    MOZ_CRASH("GFX: SharedBufferManagerParent::DropGrallocBuffer should not be called on SharedBufferManagerParent thread");
   } else {
     mgr->mThread->message_loop()->PostTask(FROM_HERE,
                                       NewRunnableFunction(&DropGrallocBufferSync, mgr, aDesc));
@@ -316,7 +327,7 @@ void SharedBufferManagerParent::DropGrallocBufferImpl(mozilla::layers::SurfaceDe
   NS_ASSERTION(key != -1, "Invalid buffer key");
   NS_ASSERTION(mBuffers.count(key) == 1, "No such buffer");
   mBuffers.erase(key);
-  mozilla::unused << SendDropGrallocBuffer(handle);
+  mozilla::Unused << SendDropGrallocBuffer(handle);
 #endif
 }
 
@@ -328,7 +339,11 @@ MessageLoop* SharedBufferManagerParent::GetMessageLoop()
 SharedBufferManagerParent* SharedBufferManagerParent::GetInstance(ProcessId id)
 {
   NS_ASSERTION(sManagers.count(id) == 1, "No BufferManager for the process");
-  return sManagers[id];
+  if (sManagers.count(id) == 1) {
+    return sManagers[id];
+  } else {
+    return nullptr;
+  }
 }
 
 #ifdef MOZ_HAVE_SURFACEDESCRIPTORGRALLOC

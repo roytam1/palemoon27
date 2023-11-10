@@ -8,16 +8,28 @@ dump("######################## BrowserElementChildPreload.js loaded\n");
 
 var BrowserElementIsReady = false;
 
-let { classes: Cc, interfaces: Ci, results: Cr, utils: Cu }  = Components;
+var { classes: Cc, interfaces: Ci, results: Cr, utils: Cu }  = Components;
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 Cu.import("resource://gre/modules/Services.jsm");
 Cu.import("resource://gre/modules/BrowserElementPromptService.jsm");
+Cu.import("resource://gre/modules/Task.jsm");
+Cu.import("resource://gre/modules/Microformats.js");
+Cu.import("resource://gre/modules/ExtensionContent.jsm");
 
 XPCOMUtils.defineLazyServiceGetter(this, "acs",
                                    "@mozilla.org/audiochannel/service;1",
                                    "nsIAudioChannelService");
+XPCOMUtils.defineLazyModuleGetter(this, "ManifestFinder",
+                                  "resource://gre/modules/ManifestFinder.jsm");
+XPCOMUtils.defineLazyModuleGetter(this, "ManifestObtainer",
+                                  "resource://gre/modules/ManifestObtainer.jsm");
 
-let kLongestReturnedString = 128;
+
+var kLongestReturnedString = 128;
+
+const Timer = Components.Constructor("@mozilla.org/timer;1",
+                                     "nsITimer",
+                                     "initWithCallback");
 
 function debug(msg) {
   //dump("BrowserElementChildPreload - " + msg + "\n");
@@ -51,19 +63,23 @@ function sendSyncMsg(msg, data) {
   return sendSyncMessage('browser-element-api:call', data);
 }
 
-let CERTIFICATE_ERROR_PAGE_PREF = 'security.alternate_certificate_error_page';
+var CERTIFICATE_ERROR_PAGE_PREF = 'security.alternate_certificate_error_page';
 
 const OBSERVED_EVENTS = [
   'fullscreen-origin-change',
   'ask-parent-to-exit-fullscreen',
   'ask-parent-to-rollback-fullscreen',
   'xpcom-shutdown',
-  'activity-done'
+  'activity-done',
+  'invalid-widget',
+  'will-launch-app'
 ];
 
 const COMMAND_MAP = {
   'cut': 'cmd_cut',
   'copy': 'cmd_copyAndCollapseToEnd',
+  'copyImage': 'cmd_copyImage',
+  'copyLink': 'cmd_copyLink',
   'paste': 'cmd_paste',
   'selectall': 'cmd_selectAll'
 };
@@ -80,6 +96,38 @@ const COMMAND_MAP = {
  */
 
 var global = this;
+
+function BrowserElementProxyForwarder() {
+}
+
+BrowserElementProxyForwarder.prototype = {
+  init: function() {
+    Services.obs.addObserver(this, "browser-element-api:proxy-call", false);
+    addMessageListener("browser-element-api:proxy", this);
+  },
+
+  uninit: function() {
+    Services.obs.removeObserver(this, "browser-element-api:proxy-call", false);
+    removeMessageListener("browser-element-api:proxy", this);
+  },
+
+  // Observer callback receives messages from BrowserElementProxy.js
+  observe: function(subject, topic, stringifedData) {
+    if (subject !== content) {
+      return;
+    }
+
+    // Forward it to BrowserElementParent.js
+    sendAsyncMessage(topic, JSON.parse(stringifedData));
+  },
+
+  // Message manager callback receives messages from BrowserElementParent.js
+  receiveMessage: function(mmMsg) {
+    // Forward it to BrowserElementProxy.js
+    Services.obs.notifyObservers(
+      content, mmMsg.name, JSON.stringify(mmMsg.json));
+  }
+};
 
 function BrowserElementChild() {
   // Maps outer window id --> weak ref to window.  Used by modal dialog code.
@@ -98,7 +146,8 @@ function BrowserElementChild() {
 
   this._isContentWindowCreated = false;
   this._pendingSetInputMethodActive = [];
-  this._selectionStateChangedTarget = null;
+
+  this.forwarder = new BrowserElementProxyForwarder();
 
   this._init();
 };
@@ -117,8 +166,7 @@ BrowserElementChild.prototype = {
             .addProgressListener(this._progressListener,
                                  Ci.nsIWebProgress.NOTIFY_LOCATION |
                                  Ci.nsIWebProgress.NOTIFY_SECURITY |
-                                 Ci.nsIWebProgress.NOTIFY_STATE_WINDOW |
-                                 Ci.nsIWebProgress.NOTIFY_PROGRESS);
+                                 Ci.nsIWebProgress.NOTIFY_STATE_WINDOW);
 
     docShell.QueryInterface(Ci.nsIWebNavigation)
             .sessionHistory = Cc["@mozilla.org/browser/shistory;1"]
@@ -167,11 +215,6 @@ BrowserElementChild.prototype = {
                      /* useCapture = */ true,
                      /* wantsUntrusted = */ false);
 
-    addEventListener('mozselectionstatechanged',
-                     this._selectionStateChangedHandler.bind(this),
-                     /* useCapture = */ true,
-                     /* wantsUntrusted = */ false);
-
     addEventListener('scrollviewchange',
                      this._ScrollViewChangeHandler.bind(this),
                      /* useCapture = */ true,
@@ -209,6 +252,11 @@ BrowserElementChild.prototype = {
       "send-touch-event": this._recvSendTouchEvent,
       "get-can-go-back": this._recvCanGoBack,
       "get-can-go-forward": this._recvCanGoForward,
+      "mute": this._recvMute.bind(this),
+      "unmute": this._recvUnmute.bind(this),
+      "get-muted": this._recvGetMuted.bind(this),
+      "set-volume": this._recvSetVolume.bind(this),
+      "get-volume": this._recvGetVolume.bind(this),
       "go-back": this._recvGoBack,
       "go-forward": this._recvGoForward,
       "reload": this._recvReload,
@@ -230,7 +278,9 @@ BrowserElementChild.prototype = {
       "set-audio-channel-volume": this._recvSetAudioChannelVolume,
       "get-audio-channel-muted": this._recvGetAudioChannelMuted,
       "set-audio-channel-muted": this._recvSetAudioChannelMuted,
-      "get-is-audio-channel-active": this._recvIsAudioChannelActive
+      "get-is-audio-channel-active": this._recvIsAudioChannelActive,
+      "get-structured-data": this._recvGetStructuredData,
+      "get-web-manifest": this._recvGetWebManifest,
     }
 
     addMessageListener("browser-element-api:call", function(aMessage) {
@@ -263,12 +313,18 @@ BrowserElementChild.prototype = {
     OBSERVED_EVENTS.forEach((aTopic) => {
       Services.obs.addObserver(this, aTopic, false);
     });
+
+    this.forwarder.init();
   },
 
+  _paintFrozenTimer: null,
   observe: function(subject, topic, data) {
     // Ignore notifications not about our document.  (Note that |content| /can/
     // be null; see bug 874900.)
-    if (topic !== 'activity-done' && (!content || subject != content.document))
+    if (topic !== 'activity-done' &&
+        topic !== 'audio-playback' &&
+        topic !== 'will-launch-app' &&
+        (!content || subject !== content.document)) {
       return;
     if (topic == 'activity-done' && docShell !== subject)
       return;
@@ -288,7 +344,32 @@ BrowserElementChild.prototype = {
       case 'xpcom-shutdown':
         this._shuttingDown = true;
         break;
+      case 'invalid-widget':
+        sendAsyncMsg('error', { type: 'invalid-widget' });
+        break;
+      case 'will-launch-app':
+        // If the launcher is not visible, let's ignore the message.
+        if (!docShell.isActive) {
+          return;
+        }
+
+        // If this is not a content process, let's not freeze painting.
+        if (Services.appinfo.processType != Services.appinfo.PROCESS_TYPE_CONTENT) {
+          return;
+        }
+
+        docShell.contentViewer.pausePainting();
+
+        this._paintFrozenTimer && this._paintFrozenTimer.cancel();
+        this._paintFrozenTimer = new Timer(this, 3000, Ci.nsITimer.TYPE_ONE_SHOT);
+        break;
     }
+  },
+
+  notify: function(timer) {
+    docShell.contentViewer.resumePainting();
+    this._paintFrozenTimer.cancel();
+    this._paintFrozenTimer = null;
   },
 
   /**
@@ -300,6 +381,9 @@ BrowserElementChild.prototype = {
     OBSERVED_EVENTS.forEach((aTopic) => {
       Services.obs.removeObserver(this, aTopic);
     });
+
+    this.forwarder.uninit();
+    this.forwarder = null;
   },
 
   _tryGetInnerWindowID: function(win) {
@@ -512,6 +596,7 @@ BrowserElementChild.prototype = {
     let handlers = {
       'icon': this._iconChangedHandler.bind(this),
       'apple-touch-icon': this._iconChangedHandler.bind(this),
+      'apple-touch-icon-precomposed': this._iconChangedHandler.bind(this),
       'search': this._openSearchHandler,
       'manifest': this._manifestChangedHandler
     };
@@ -534,32 +619,42 @@ BrowserElementChild.prototype = {
       return;
     }
 
-    if (!e.target.name) {
+    var name = e.target.name;
+    var property = e.target.getAttributeNS(null, "property");
+
+    if (!name && !property) {
       return;
     }
 
-    debug('Got metaChanged: (' + e.target.name + ') ' + e.target.content);
+    debug('Got metaChanged: (' + (name || property) + ') ' +
+          e.target.content);
 
     let handlers = {
-      'viewmode': this._viewmodeChangedHandler,
-      'theme-color': this._themeColorChangedHandler,
+      'viewmode': this._genericMetaHandler,
+      'theme-color': this._genericMetaHandler,
+      'theme-group': this._genericMetaHandler,
       'application-name': this._applicationNameChangedHandler
     };
+    let handler = handlers[name];
 
-    let handler = handlers[e.target.name];
+    if ((property || name).match(/^og:/)) {
+      name = property || name;
+      handler = this._genericMetaHandler;
+    }
+
     if (handler) {
-      handler(e.type, e.target);
+      handler(name, e.type, e.target);
     }
   },
 
-  _applicationNameChangedHandler: function(eventType, target) {
+  _applicationNameChangedHandler: function(name, eventType, target) {
     if (eventType !== 'DOMMetaAdded') {
       // Bug 1037448 - Decide what to do when <meta name="application-name">
       // changes
       return;
     }
 
-    let meta = { name: 'application-name',
+    let meta = { name: name,
                  content: target.content };
 
     let lang;
@@ -600,121 +695,32 @@ BrowserElementChild.prototype = {
   },
 
   _ClickHandler: function(e) {
-    let elem = e.target;
-    if (elem instanceof Ci.nsIDOMHTMLAnchorElement && elem.href) {
-      // Open in a new tab if middle click or ctrl/cmd-click.
-      if ((Services.appinfo.OS == 'Darwin' && e.metaKey) ||
-          (Services.appinfo.OS != 'Darwin' && e.ctrlKey) ||
-           e.button == 1) {
-        sendAsyncMsg('opentab', {url: elem.href});
+
+    let isHTMLLink = node =>
+      ((node instanceof Ci.nsIDOMHTMLAnchorElement && node.href) ||
+       (node instanceof Ci.nsIDOMHTMLAreaElement && node.href) ||
+        node instanceof Ci.nsIDOMHTMLLinkElement);
+
+    // Open in a new tab if middle click or ctrl/cmd-click,
+    // and e.target is a link or inside a link.
+    if ((Services.appinfo.OS == 'Darwin' && e.metaKey) ||
+        (Services.appinfo.OS != 'Darwin' && e.ctrlKey) ||
+         e.button == 1) {
+
+      let node = e.target;
+      while (node && !isHTMLLink(node)) {
+        node = node.parentNode;
+      }
+
+      if (node) {
+        sendAsyncMsg('opentab', {url: node.href});
       }
     }
   },
 
-  _selectionStateChangedHandler: function(e) {
-    e.stopPropagation();
-
-    if (!this._isContentWindowCreated) {
-      return;
-    }
-
-    let boundingClientRect = e.boundingClientRect;
-
-    let isCollapsed = (e.selectedText.length == 0);
-    let isMouseUp = (e.states.indexOf('mouseup') == 0);
-    let canPaste = this._isCommandEnabled("paste");
-
-    if (this._selectionStateChangedTarget != e.target) {
-      // SelectionStateChanged events with the following states are not
-      // necessary to trigger the text dialog, bypass these events
-      // by default.
-      //
-      if(e.states.length == 0 ||
-         e.states.indexOf('drag') == 0 ||
-         e.states.indexOf('keypress') == 0 ||
-         e.states.indexOf('mousedown') == 0) {
-        return;
-      }
-
-      // The collapsed SelectionStateChanged event is unnecessary to dispatch,
-      // bypass this event by default, but here comes some exceptional cases
-      if (isCollapsed) {
-        if (isMouseUp && canPaste) {
-          // Always dispatch to support shortcut mode which can paste previous
-          // copied content easily
-        } else if (e.states.indexOf('blur') == 0) {
-          // Always dispatch to notify the blur for the focus content
-        } else if (e.states.indexOf('taponcaret') == 0) {
-          // Always dispatch to notify the caret be touched
-        } else {
-          return;
-        }
-      }
-    }
-
-    // If we select something and selection range is visible, we cache current
-    // event's target to selectionStateChangedTarget.
-    // And dispatch the next SelectionStateChagne event if target is matched, so
-    // that the parent side can hide the text dialog.
-    // We clear selectionStateChangedTarget if selection carets are invisible.
-    if (e.visible && !isCollapsed) {
-      this._selectionStateChangedTarget = e.target;
-    } else if (canPaste && isCollapsed) {
-      this._selectionStateChangedTarget = e.target;
-    } else {
-      this._selectionStateChangedTarget = null;
-    }
-
-    let zoomFactor = content.screen.width / content.innerWidth;
-
-    let detail = {
-      rect: {
-        width: boundingClientRect ? boundingClientRect.width : 0,
-        height: boundingClientRect ? boundingClientRect.height : 0,
-        top: boundingClientRect ? boundingClientRect.top : 0,
-        bottom: boundingClientRect ? boundingClientRect.bottom : 0,
-        left: boundingClientRect ? boundingClientRect.left : 0,
-        right: boundingClientRect ? boundingClientRect.right : 0,
-      },
-      commands: {
-        canSelectAll: this._isCommandEnabled("selectall"),
-        canCut: this._isCommandEnabled("cut"),
-        canCopy: this._isCommandEnabled("copy"),
-        canPaste: this._isCommandEnabled("paste"),
-      },
-      zoomFactor: zoomFactor,
-      states: e.states,
-      isCollapsed: (e.selectedText.length == 0),
-      visible: e.visible,
-    };
-
-    // Get correct geometry information if we have nested iframe.
-    let currentWindow = e.target.defaultView;
-    while (currentWindow.realFrameElement) {
-      let currentRect = currentWindow.realFrameElement.getBoundingClientRect();
-      detail.rect.top += currentRect.top;
-      detail.rect.bottom += currentRect.top;
-      detail.rect.left += currentRect.left;
-      detail.rect.right += currentRect.left;
-      currentWindow = currentWindow.realFrameElement.ownerDocument.defaultView;
-    }
-
-    sendAsyncMsg('selectionstatechanged', detail);
-  },
-
-
-  _viewmodeChangedHandler: function(eventType, target) {
+  _genericMetaHandler: function(name, eventType, target) {
     let meta = {
-      name: 'viewmode',
-      content: target.content,
-      type: eventType.replace('DOMMeta', '').toLowerCase()
-    };
-    sendAsyncMsg('metachange', meta);
-  },
-
-  _themeColorChangedHandler: function(eventType, target) {
-    let meta = {
-      name: 'theme-color',
+      name: name,
       content: target.content,
       type: eventType.replace('DOMMeta', '').toLowerCase()
     };
@@ -818,6 +824,18 @@ BrowserElementChild.prototype = {
     var elem = e.target;
     var menuData = {systemTargets: [], contextmenu: null};
     var ctxMenuId = null;
+    var clipboardPlainTextOnly = Services.prefs.getBoolPref('clipboard.plainTextOnly');
+    var copyableElements = {
+      image: false,
+      link: false,
+      hasElements: function() {
+        return this.image || this.link;
+      }
+    };
+
+    // Set the event target as the copy image command needs it to
+    // determine what was context-clicked on.
+    docShell.contentViewer.QueryInterface(Ci.nsIContentViewerEdit).setCommandNode(elem);
 
     while (elem && elem.parentNode) {
       var ctxData = this._getSystemCtxMenuData(elem);
@@ -831,15 +849,30 @@ BrowserElementChild.prototype = {
       if (!ctxMenuId && 'hasAttribute' in elem && elem.hasAttribute('contextmenu')) {
         ctxMenuId = elem.getAttribute('contextmenu');
       }
+
+      // Enable copy image/link option
+      if (elem.nodeName == 'IMG') {
+        copyableElements.image = !clipboardPlainTextOnly;
+      } else if (elem.nodeName == 'A') {
+        copyableElements.link = true;
+      }
+
       elem = elem.parentNode;
     }
 
-    if (ctxMenuId) {
-      var menu = e.target.ownerDocument.getElementById(ctxMenuId);
-      if (menu) {
-        menuData.contextmenu = this._buildMenuObj(menu, '');
+    if (ctxMenuId || copyableElements.hasElements()) {
+      var menu = null;
+      if (ctxMenuId) {
+        menu = e.target.ownerDocument.getElementById(ctxMenuId);
       }
+      menuData.contextmenu = this._buildMenuObj(menu, '', copyableElements);
     }
+
+    // Pass along the position where the context menu should be located
+    menuData.clientX = e.clientX;
+    menuData.clientY = e.clientY;
+    menuData.screenX = e.screenX;
+    menuData.screenY = e.screenY;
 
     // The value returned by the contextmenu sync call is true if the embedder
     // called preventDefault() on its contextmenu event.
@@ -855,7 +888,7 @@ BrowserElementChild.prototype = {
   },
 
   _getSystemCtxMenuData: function(elem) {
-    let documentURI = 
+    let documentURI =
       docShell.QueryInterface(Ci.nsIWebNavigation).currentURI.spec;
     if ((elem instanceof Ci.nsIDOMHTMLAnchorElement && elem.href) ||
         (elem instanceof Ci.nsIDOMHTMLAreaElement && elem.href)) {
@@ -1046,10 +1079,9 @@ BrowserElementChild.prototype = {
   },
 
   _mozScrollAreaChanged: function(e) {
-    let dimensions = this._getContentDimensions();
     sendAsyncMsg('scrollareachanged', {
-      width: dimensions.width,
-      height: dimensions.height
+      width: e.width,
+      height: e.height
     });
   },
 
@@ -1154,31 +1186,58 @@ BrowserElementChild.prototype = {
 
   _recvFireCtxCallback: function(data) {
     debug("Received fireCtxCallback message: (" + data.json.menuitem + ")");
-    // We silently ignore if the embedder uses an incorrect id in the callback
-    if (data.json.menuitem in this._ctxHandlers) {
+
+    if (data.json.menuitem == 'copy-image') {
+      // Set command
+      data.json.command = 'copyImage';
+      this._recvDoCommand(data);
+    } else if (data.json.menuitem == 'copy-link') {
+      // Set command
+      data.json.command = 'copyLink';
+      this._recvDoCommand(data);
+    } else if (data.json.menuitem in this._ctxHandlers) {
       this._ctxHandlers[data.json.menuitem].click();
       this._ctxHandlers = {};
     } else {
+      // We silently ignore if the embedder uses an incorrect id in the callback
       debug("Ignored invalid contextmenu invocation");
     }
   },
 
-  _buildMenuObj: function(menu, idPrefix) {
-    var menuObj = {type: 'menu', items: []};
-    this._maybeCopyAttribute(menu, menuObj, 'label');
+  _buildMenuObj: function(menu, idPrefix, copyableElements) {
+    var menuObj = {type: 'menu', customized: false, items: []};
+    // Customized context menu
+    if (menu) {
+      this._maybeCopyAttribute(menu, menuObj, 'label');
 
-    for (var i = 0, child; child = menu.children[i++];) {
-      if (child.nodeName === 'MENU') {
-        menuObj.items.push(this._buildMenuObj(child, idPrefix + i + '_'));
-      } else if (child.nodeName === 'MENUITEM') {
-        var id = this._ctxCounter + '_' + idPrefix + i;
-        var menuitem = {id: id, type: 'menuitem'};
-        this._maybeCopyAttribute(child, menuitem, 'label');
-        this._maybeCopyAttribute(child, menuitem, 'icon');
-        this._ctxHandlers[id] = child;
-        menuObj.items.push(menuitem);
+      for (var i = 0, child; child = menu.children[i++];) {
+        if (child.nodeName === 'MENU') {
+          menuObj.items.push(this._buildMenuObj(child, idPrefix + i + '_', false));
+        } else if (child.nodeName === 'MENUITEM') {
+          var id = this._ctxCounter + '_' + idPrefix + i;
+          var menuitem = {id: id, type: 'menuitem'};
+          this._maybeCopyAttribute(child, menuitem, 'label');
+          this._maybeCopyAttribute(child, menuitem, 'icon');
+          this._ctxHandlers[id] = child;
+          menuObj.items.push(menuitem);
+        }
+      }
+
+      if (menuObj.items.length > 0) {
+        menuObj.customized = true;
       }
     }
+    // Note: Display "Copy Link" first in order to make sure "Copy Image" is
+    //       put together with other image options if elem is an image link.
+    // "Copy Link" menu item
+    if (copyableElements.link) {
+      menuObj.items.push({id: 'copy-link'});
+    }
+    // "Copy Image" menu item
+    if (copyableElements.image) {
+      menuObj.items.push({id: 'copy-image'});
+    }
+
     return menuObj;
   },
 
@@ -1214,6 +1273,11 @@ BrowserElementChild.prototype = {
     if (docShell && docShell.isActive !== visible) {
       docShell.isActive = visible;
       sendAsyncMsg('visibilitychange', {visible: visible});
+
+      // Ensure painting is not frozen if the app goes visible.
+      if (visible && this._paintFrozenTimer) {
+        this.notify();
+      }
     }
   },
 
@@ -1248,6 +1312,32 @@ BrowserElementChild.prototype = {
     sendAsyncMsg('got-can-go-forward', {
       id: data.json.id,
       successRv: webNav.canGoForward
+    });
+  },
+
+  _recvMute: function(data) {
+    this._windowUtils.audioMuted = true;
+  },
+
+  _recvUnmute: function(data) {
+    this._windowUtils.audioMuted = false;
+  },
+
+  _recvGetMuted: function(data) {
+    sendAsyncMsg('got-muted', {
+      id: data.json.id,
+      successRv: this._windowUtils.audioMuted
+    });
+  },
+
+  _recvSetVolume: function(data) {
+    this._windowUtils.audioVolume = data.json.volume;
+  },
+
+  _recvGetVolume: function(data) {
+    sendAsyncMsg('got-volume', {
+      id: data.json.id,
+      successRv: this._windowUtils.audioVolume
     });
   },
 
@@ -1290,7 +1380,6 @@ BrowserElementChild.prototype = {
 
   _recvDoCommand: function(data) {
     if (this._isCommandEnabled(data.json.command)) {
-      this._selectionStateChangedTarget = null;
       docShell.doCommand(COMMAND_MAP[data.json.command]);
     }
   },
@@ -1343,7 +1432,26 @@ BrowserElementChild.prototype = {
       id: data.json.id, successRv: active
     });
   },
-
+  _recvGetWebManifest: Task.async(function* (data) {
+    debug(`Received GetWebManifest message: (${data.json.id})`);
+    let manifest = null;
+    let hasManifest = ManifestFinder.contentHasManifestLink(content);
+    if (hasManifest) {
+      try {
+        manifest = yield ManifestObtainer.contentObtainManifest(content);
+      } catch (e) {
+        sendAsyncMsg('got-web-manifest', {
+          id: data.json.id,
+          errorMsg: `Error fetching web manifest: ${e}.`,
+        });
+        return;
+      }
+    }
+    sendAsyncMsg('got-web-manifest', {
+      id: data.json.id,
+      successRv: manifest
+    });
+  }),
   _initFinder: function() {
     if (!this._finder) {
       try {
@@ -1418,6 +1526,300 @@ BrowserElementChild.prototype = {
       msgData.errorMsg = 'Cannot access mozInputMethod.';
     }
     sendAsyncMsg('got-set-input-method-active', msgData);
+  },
+
+  _processMicroformatValue(field, value) {
+    if (['node', 'resolvedNode', 'semanticType'].includes(field)) {
+      return null;
+    } else if (Array.isArray(value)) {
+      var result = value.map(i => this._processMicroformatValue(field, i))
+                        .filter(i => i !== null);
+      return result.length ? result : null;
+    } else if (typeof value == 'string') {
+      return value;
+    } else if (typeof value == 'object' && value !== null) {
+      return this._processMicroformatItem(value);
+    }
+    return null;
+  },
+
+  // This function takes legacy Microformat data (hCard and hCalendar)
+  // and produces the same result that the equivalent Microdata data
+  // would produce.
+  _processMicroformatItem(microformatData) {
+    var result = {};
+
+    if (microformatData.semanticType == 'geo') {
+      return microformatData.latitude + ';' + microformatData.longitude;
+    }
+
+    if (microformatData.semanticType == 'hCard') {
+      result.type = ["http://microformats.org/profile/hcard"];
+    } else if (microformatData.semanticType == 'hCalendar') {
+      result.type = ["http://microformats.org/profile/hcalendar#vevent"];
+    }
+
+    for (let field of Object.getOwnPropertyNames(microformatData)) {
+      var processed = this._processMicroformatValue(field, microformatData[field]);
+      if (processed === null) {
+        continue;
+      }
+      if (!result.properties) {
+        result.properties = {};
+      }
+      if (Array.isArray(processed)) {
+        result.properties[field] = processed;
+      } else {
+        result.properties[field] = [processed];
+      }
+    }
+
+    return result;
+  },
+
+  _findItemProperties: function(node, properties, alreadyProcessed) {
+    if (node.itemProp) {
+      var value;
+
+      if (node.itemScope) {
+        value = this._processItem(node, alreadyProcessed);
+      } else {
+        value = node.itemValue;
+      }
+
+      for (let i = 0; i < node.itemProp.length; ++i) {
+        var property = node.itemProp[i];
+        if (!properties[property]) {
+          properties[property] = [];
+        }
+
+        properties[property].push(value);
+      }
+    }
+
+    if (!node.itemScope) {
+      var childNodes = node.childNodes;
+      for (var childNode of childNodes) {
+        this._findItemProperties(childNode, properties, alreadyProcessed);
+      }
+    }
+  },
+
+  _processItem: function(node, alreadyProcessed = []) {
+    if (alreadyProcessed.includes(node)) {
+      return "ERROR";
+    }
+
+    alreadyProcessed.push(node);
+
+    var result = {};
+
+    if (node.itemId) {
+      result.id = node.itemId;
+    }
+    if (node.itemType) {
+      result.type = [];
+      for (let i = 0; i < node.itemType.length; ++i) {
+        result.type.push(node.itemType[i]);
+      }
+    }
+
+    var properties = {};
+
+    var childNodes = node.childNodes;
+    for (var childNode of childNodes) {
+      this._findItemProperties(childNode, properties, alreadyProcessed);
+    }
+
+    if (node.itemRef) {
+      for (let i = 0; i < node.itemRef.length; ++i) {
+        var refNode = content.document.getElementById(node.itemRef[i]);
+        this._findItemProperties(refNode, properties, alreadyProcessed);
+      }
+    }
+
+    result.properties = properties;
+    return result;
+  },
+
+  _recvGetStructuredData: function(data) {
+    var result = {
+      items: []
+    };
+
+    var microdataItems = content.document.getItems();
+
+    for (let microdataItem of microdataItems) {
+      result.items.push(this._processItem(microdataItem));
+    }
+
+    var hCardItems = Microformats.get("hCard", content.document);
+    for (let hCardItem of hCardItems) {
+      if (!hCardItem.node.itemScope) {  // If it's also marked with Microdata, ignore the Microformat
+        result.items.push(this._processMicroformatItem(hCardItem));
+      }
+    }
+
+    var hCalendarItems = Microformats.get("hCalendar", content.document);
+    for (let hCalendarItem of hCalendarItems) {
+      if (!hCalendarItem.node.itemScope) {  // If it's also marked with Microdata, ignore the Microformat
+        result.items.push(this._processMicroformatItem(hCalendarItem));
+      }
+    }
+
+    var resultString = JSON.stringify(result);
+
+    sendAsyncMsg('got-structured-data', {
+      id: data.json.id,
+      successRv: resultString
+    });
+  },
+
+  _processMicroformatValue(field, value) {
+    if (['node', 'resolvedNode', 'semanticType'].includes(field)) {
+      return null;
+    } else if (Array.isArray(value)) {
+      var result = value.map(i => this._processMicroformatValue(field, i))
+                        .filter(i => i !== null);
+      return result.length ? result : null;
+    } else if (typeof value == 'string') {
+      return value;
+    } else if (typeof value == 'object' && value !== null) {
+      return this._processMicroformatItem(value);
+    }
+    return null;
+  },
+
+  // This function takes legacy Microformat data (hCard and hCalendar)
+  // and produces the same result that the equivalent Microdata data
+  // would produce.
+  _processMicroformatItem(microformatData) {
+    var result = {};
+
+    if (microformatData.semanticType == 'geo') {
+      return microformatData.latitude + ';' + microformatData.longitude;
+    }
+
+    if (microformatData.semanticType == 'hCard') {
+      result.type = ["http://microformats.org/profile/hcard"];
+    } else if (microformatData.semanticType == 'hCalendar') {
+      result.type = ["http://microformats.org/profile/hcalendar#vevent"];
+    }
+
+    for (let field of Object.getOwnPropertyNames(microformatData)) {
+      var processed = this._processMicroformatValue(field, microformatData[field]);
+      if (processed === null) {
+        continue;
+      }
+      if (!result.properties) {
+        result.properties = {};
+      }
+      if (Array.isArray(processed)) {
+        result.properties[field] = processed;
+      } else {
+        result.properties[field] = [processed];
+      }
+    }
+
+    return result;
+  },
+
+  _findItemProperties: function(node, properties, alreadyProcessed) {
+    if (node.itemProp) {
+      var value;
+
+      if (node.itemScope) {
+        value = this._processItem(node, alreadyProcessed);
+      } else {
+        value = node.itemValue;
+      }
+
+      for (let i = 0; i < node.itemProp.length; ++i) {
+        var property = node.itemProp[i];
+        if (!properties[property]) {
+          properties[property] = [];
+        }
+
+        properties[property].push(value);
+      }
+    }
+
+    if (!node.itemScope) {
+      var childNodes = node.childNodes;
+      for (var childNode of childNodes) {
+        this._findItemProperties(childNode, properties, alreadyProcessed);
+      }
+    }
+  },
+
+  _processItem: function(node, alreadyProcessed = []) {
+    if (alreadyProcessed.includes(node)) {
+      return "ERROR";
+    }
+
+    alreadyProcessed.push(node);
+
+    var result = {};
+
+    if (node.itemId) {
+      result.id = node.itemId;
+    }
+    if (node.itemType) {
+      result.type = [];
+      for (let i = 0; i < node.itemType.length; ++i) {
+        result.type.push(node.itemType[i]);
+      }
+    }
+
+    var properties = {};
+
+    var childNodes = node.childNodes;
+    for (var childNode of childNodes) {
+      this._findItemProperties(childNode, properties, alreadyProcessed);
+    }
+
+    if (node.itemRef) {
+      for (let i = 0; i < node.itemRef.length; ++i) {
+        var refNode = content.document.getElementById(node.itemRef[i]);
+        this._findItemProperties(refNode, properties, alreadyProcessed);
+      }
+    }
+
+    result.properties = properties;
+    return result;
+  },
+
+  _recvGetStructuredData: function(data) {
+    var result = {
+      items: []
+    };
+
+    var microdataItems = content.document.getItems();
+
+    for (let microdataItem of microdataItems) {
+      result.items.push(this._processItem(microdataItem));
+    }
+
+    var hCardItems = Microformats.get("hCard", content.document);
+    for (let hCardItem of hCardItems) {
+      if (!hCardItem.node.itemScope) {  // If it's also marked with Microdata, ignore the Microformat
+        result.items.push(this._processMicroformatItem(hCardItem));
+      }
+    }
+
+    var hCalendarItems = Microformats.get("hCalendar", content.document);
+    for (let hCalendarItem of hCalendarItems) {
+      if (!hCalendarItem.node.itemScope) {  // If it's also marked with Microdata, ignore the Microformat
+        result.items.push(this._processMicroformatItem(hCalendarItem));
+      }
+    }
+
+    var resultString = JSON.stringify(result);
+
+    sendAsyncMsg('got-structured-data', {
+      id: data.json.id,
+      successRv: resultString
+    });
   },
 
   // The docShell keeps a weak reference to the progress listener, so we need
@@ -1501,6 +1903,12 @@ BrowserElementChild.prototype = {
           case Cr.NS_ERROR_MALWARE_URI :
             sendAsyncMsg('error', { type: 'malwareBlocked' });
             return;
+          case Cr.NS_ERROR_UNWANTED_URI :
+            sendAsyncMsg('error', { type: 'unwantedBlocked' });
+            return;
+          case Cr.NS_ERROR_FORBIDDEN_URI :
+            sendAsyncMsg('error', { type: 'forbiddenBlocked' });
+            return;
 
           case Cr.NS_ERROR_OFFLINE :
             sendAsyncMsg('error', { type: 'offline' });
@@ -1580,33 +1988,59 @@ BrowserElementChild.prototype = {
         return;
       }
 
-      var stateDesc;
+      var securityStateDesc;
       if (state & Ci.nsIWebProgressListener.STATE_IS_SECURE) {
-        stateDesc = 'secure';
+        securityStateDesc = 'secure';
       }
       else if (state & Ci.nsIWebProgressListener.STATE_IS_BROKEN) {
-        stateDesc = 'broken';
+        securityStateDesc = 'broken';
       }
       else if (state & Ci.nsIWebProgressListener.STATE_IS_INSECURE) {
-        stateDesc = 'insecure';
+        securityStateDesc = 'insecure';
       }
       else {
         debug("Unexpected securitychange state!");
-        stateDesc = '???';
+        securityStateDesc = '???';
+      }
+
+      var trackingStateDesc;
+      if (state & Ci.nsIWebProgressListener.STATE_LOADED_TRACKING_CONTENT) {
+        trackingStateDesc = 'loaded_tracking_content';
+      }
+      else if (state & Ci.nsIWebProgressListener.STATE_BLOCKED_TRACKING_CONTENT) {
+        trackingStateDesc = 'blocked_tracking_content';
+      }
+
+      var mixedStateDesc;
+      if (state & Ci.nsIWebProgressListener.STATE_BLOCKED_MIXED_ACTIVE_CONTENT) {
+        mixedStateDesc = 'blocked_mixed_active_content';
+      }
+      else if (state & Ci.nsIWebProgressListener.STATE_LOADED_MIXED_ACTIVE_CONTENT) {
+        // Note that STATE_LOADED_MIXED_ACTIVE_CONTENT implies STATE_IS_BROKEN
+        mixedStateDesc = 'loaded_mixed_active_content';
       }
 
       var isEV = !!(state & Ci.nsIWebProgressListener.STATE_IDENTITY_EV_TOPLEVEL);
+      var isTrackingContent = !!(state &
+        (Ci.nsIWebProgressListener.STATE_BLOCKED_TRACKING_CONTENT |
+        Ci.nsIWebProgressListener.STATE_LOADED_TRACKING_CONTENT));
+      var isMixedContent = !!(state &
+        (Ci.nsIWebProgressListener.STATE_BLOCKED_MIXED_ACTIVE_CONTENT |
+        Ci.nsIWebProgressListener.STATE_LOADED_MIXED_ACTIVE_CONTENT));
 
-      sendAsyncMsg('securitychange', { state: stateDesc, extendedValidation: isEV });
+      sendAsyncMsg('securitychange', {
+        state: securityStateDesc,
+        trackingState: trackingStateDesc,
+        mixedState: mixedStateDesc,
+        extendedValidation: isEV,
+        trackingContent: isTrackingContent,
+        mixedContent: isMixedContent,
+      });
     },
 
     onStatusChange: function(webProgress, request, status, message) {},
-
     onProgressChange: function(webProgress, request, curSelfProgress,
-                               maxSelfProgress, curTotalProgress, maxTotalProgress) {
-      sendAsyncMsg('loadprogresschanged', { curTotalProgress: curTotalProgress,
-                                            maxTotalProgress: maxTotalProgress });
-    },
+                               maxSelfProgress, curTotalProgress, maxTotalProgress) {},
   },
 
   // Expose the message manager for WebApps and others.
@@ -1622,5 +2056,13 @@ BrowserElementChild.prototype = {
   }
 };
 
-var api = new BrowserElementChild();
-
+var api = null;
+if ('DoPreloadPostfork' in this && typeof this.DoPreloadPostfork === 'function') {
+  // If we are preloaded, instantiate BrowserElementChild after a content
+  // process is forked.
+  this.DoPreloadPostfork(function() {
+    api = new BrowserElementChild();
+  });
+} else {
+  api = new BrowserElementChild();
+}

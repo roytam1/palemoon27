@@ -4,7 +4,6 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "ColorLayerComposite.h"
-#include "gfxColor.h"                   // for gfxRGBA
 #include "mozilla/RefPtr.h"             // for RefPtr
 #include "mozilla/gfx/Matrix.h"         // for Matrix4x4
 #include "mozilla/gfx/Point.h"          // for Point
@@ -18,20 +17,22 @@
 namespace mozilla {
 namespace layers {
 
+using namespace mozilla::gfx;
+
 void
-ColorLayerComposite::RenderLayer(const gfx::IntRect& aClipRect)
+ColorLayerComposite::RenderLayer(const IntRect& aClipRect)
 {
-  gfx::Rect rect(GetBounds());
-  const gfx::Matrix4x4& transform = GetEffectiveTransform();
+  Rect rect(GetBounds());
+  const Matrix4x4& transform = GetEffectiveTransform();
 
   RenderWithAllMasks(this, mCompositor, aClipRect,
                      [&](EffectChain& effectChain, const Rect& clipRect) {
     GenEffectChain(effectChain);
-    mCompositor->DrawQuad(rect, clipRect, effectChain, GetEffectiveOpacity(), transform);
+    mCompositor->DrawQuad(rect, clipRect, effectChain, GetEffectiveOpacity(),
+                          transform);
   });
 
-  mCompositor->DrawDiagnostics(DiagnosticFlags::COLOR,
-                               rect, Rect(aClipRect),
+  mCompositor->DrawDiagnostics(DiagnosticFlags::COLOR, rect, Rect(aClipRect),
                                transform);
 }
 
@@ -39,11 +40,7 @@ void
 ColorLayerComposite::GenEffectChain(EffectChain& aEffect)
 {
   aEffect.mLayerRef = this;
-  gfxRGBA color(GetColor());
-  aEffect.mPrimaryEffect = new EffectSolidColor(gfx::Color(color.r,
-                                                           color.g,
-                                                           color.b,
-                                                           color.a));
+  aEffect.mPrimaryEffect = new EffectSolidColor(GetColor());
 }
 
 } // namespace layers

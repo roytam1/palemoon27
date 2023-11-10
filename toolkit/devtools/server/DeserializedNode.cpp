@@ -10,11 +10,6 @@
 namespace mozilla {
 namespace devtools {
 
-DeserializedEdge::DeserializedEdge()
-  : referent(0)
-  , name(nullptr)
-{ }
-
 DeserializedEdge::DeserializedEdge(DeserializedEdge&& rhs)
 {
   referent = rhs.referent;
@@ -29,90 +24,30 @@ DeserializedEdge& DeserializedEdge::operator=(DeserializedEdge&& rhs)
   return *this;
 }
 
-bool
-DeserializedEdge::init(const protobuf::Edge& edge, HeapSnapshot& owner)
-{
-  // Although the referent property is optional in the protobuf format for
-  // future compatibility, we can't semantically have an edge to nowhere and
-  // require a referent here.
-  if (!edge.has_referent())
-    return false;
-  referent = edge.referent();
-
-  if (edge.has_name()) {
-    const char16_t* duplicateEdgeName = reinterpret_cast<const char16_t*>(edge.name().c_str());
-    name = owner.borrowUniqueString(duplicateEdgeName, edge.name().length() / sizeof(char16_t));
-    if (!name)
-      return false;
-  }
-
-  return true;
-}
-
-/* static */ UniquePtr<DeserializedNode>
-DeserializedNode::Create(const protobuf::Node& node, HeapSnapshot& owner)
-{
-  if (!node.has_id())
-    return nullptr;
-  NodeId id = node.id();
-
-  if (!node.has_typename_())
-    return nullptr;
-
-  const char16_t* duplicatedTypeName = reinterpret_cast<const char16_t*>(node.typename_().c_str());
-  const char16_t* uniqueTypeName = owner.borrowUniqueString(duplicatedTypeName,
-                                                            node.typename_().length() / sizeof(char16_t));
-  if (!uniqueTypeName)
-    return nullptr;
-
-  auto edgesLength = node.edges_size();
-  EdgeVector edges;
-  if (!edges.reserve(edgesLength))
-    return nullptr;
-  for (decltype(edgesLength) i = 0; i < edgesLength; i++) {
-    DeserializedEdge edge;
-    if (!edge.init(node.edges(i), owner))
-      return nullptr;
-    edges.infallibleAppend(Move(edge));
-  }
-
-  if (!node.has_size())
-    return nullptr;
-  uint64_t size = node.size();
-
-  return MakeUnique<DeserializedNode>(id,
-                                      uniqueTypeName,
-                                      size,
-                                      Move(edges),
-                                      owner);
-}
-
-DeserializedNode::DeserializedNode(NodeId id,
-                                   const char16_t* typeName,
-                                   uint64_t size,
-                                   EdgeVector&& edges,
-                                   HeapSnapshot& owner)
-  : id(id)
-  , typeName(typeName)
-  , size(size)
-  , edges(Move(edges))
-  , owner(&owner)
-{ }
-
-DeserializedNode::DeserializedNode(NodeId id, const char16_t* typeName, uint64_t size)
-  : id(id)
-  , typeName(typeName)
-  , size(size)
-  , edges()
-  , owner(nullptr)
-{ }
-
-DeserializedNode&
+JS::ubi::Node
 DeserializedNode::getEdgeReferent(const DeserializedEdge& edge)
 {
   auto ptr = owner->nodes.lookup(edge.referent);
   MOZ_ASSERT(ptr);
-  return *ptr->value();
+
+  // `HashSets` only provide const access to their values, because mutating a
+  // value might change its hash, rendering it unfindable in the set.
+  // Unfortunately, the `ubi::Node` constructor requires a non-const pointer to
+  // its referent.  However, the only aspect of a `DeserializedNode` we hash on
+  // is its id, which can't be changed via `ubi::Node`, so this cast can't cause
+  // the trouble `HashSet` is concerned a non-const reference would cause.
+  return JS::ubi::Node(const_cast<DeserializedNode*>(&*ptr));
+}
+
+JS::ubi::StackFrame
+DeserializedStackFrame::getParentStackFrame() const
+{
+  MOZ_ASSERT(parent.isSome());
+  auto ptr = owner->frames.lookup(parent.ref());
+  MOZ_ASSERT(ptr);
+  // See above comment in DeserializedNode::getEdgeReferent about why this
+  // const_cast is needed and safe.
+  return JS::ubi::StackFrame(const_cast<DeserializedStackFrame*>(&*ptr));
 }
 
 } // namespace devtools
@@ -132,7 +67,7 @@ Concrete<DeserializedNode>::typeName() const
   return get().typeName;
 }
 
-size_t
+Node::Size
 Concrete<DeserializedNode>::size(mozilla::MallocSizeOf mallocSizeof) const
 {
   return get().size;
@@ -140,43 +75,29 @@ Concrete<DeserializedNode>::size(mozilla::MallocSizeOf mallocSizeof) const
 
 class DeserializedEdgeRange : public EdgeRange
 {
-  SimpleEdgeVector edges;
-  size_t           i;
+  DeserializedNode* node;
+  Edge              currentEdge;
+  size_t            i;
 
   void settle() {
-    front_ = i < edges.length() ? &edges[i] : nullptr;
+    if (i >= node->edges.length()) {
+      front_ = nullptr;
+      return;
+    }
+
+    auto& edge = node->edges[i];
+    auto referent = node->getEdgeReferent(edge);
+    currentEdge = mozilla::Move(Edge(edge.name ? NS_strdup(edge.name) : nullptr,
+                                     referent));
+    front_ = &currentEdge;
   }
 
 public:
-  explicit DeserializedEdgeRange(JSContext* cx)
-    : edges(cx)
+  explicit DeserializedEdgeRange(DeserializedNode& node)
+    : node(&node)
     , i(0)
   {
     settle();
-  }
-
-  bool init(DeserializedNode& node)
-  {
-    if (!edges.reserve(node.edges.length()))
-      return false;
-
-    for (DeserializedEdge* edgep = node.edges.begin();
-         edgep != node.edges.end();
-         edgep++)
-    {
-      char16_t* name = nullptr;
-      if (edgep->name) {
-        name = NS_strdup(edgep->name);
-        if (!name)
-          return false;
-      }
-
-      DeserializedNode& referent = node.getEdgeReferent(*edgep);
-      edges.infallibleAppend(mozilla::Move(SimpleEdge(name, Node(&referent))));
-    }
-
-    settle();
-    return true;
   }
 
   void popFront() override
@@ -186,17 +107,44 @@ public:
   }
 };
 
-UniquePtr<EdgeRange>
-Concrete<DeserializedNode>::edges(JSContext* cx, bool) const
+StackFrame
+Concrete<DeserializedNode>::allocationStack() const
 {
-  UniquePtr<DeserializedEdgeRange, JS::DeletePolicy<DeserializedEdgeRange>> range(
-    js_new<DeserializedEdgeRange>(cx));
-
-  if (!range || !range->init(get()))
-    return nullptr;
-
-  return UniquePtr<EdgeRange>(range.release());
+  MOZ_ASSERT(hasAllocationStack());
+  auto id = get().allocationStack.ref();
+  auto ptr = get().owner->frames.lookup(id);
+  MOZ_ASSERT(ptr);
+  // See above comment in DeserializedNode::getEdgeReferent about why this
+  // const_cast is needed and safe.
+  return JS::ubi::StackFrame(const_cast<DeserializedStackFrame*>(&*ptr));
 }
 
-} // namespace JS
+
+js::UniquePtr<EdgeRange>
+Concrete<DeserializedNode>::edges(JSRuntime* rt, bool) const
+{
+  js::UniquePtr<DeserializedEdgeRange> range(js_new<DeserializedEdgeRange>(get()));
+
+  if (!range)
+    return nullptr;
+
+  return js::UniquePtr<EdgeRange>(range.release());
+}
+
+StackFrame
+ConcreteStackFrame<DeserializedStackFrame>::parent() const
+{
+  return get().parent.isNothing() ? StackFrame() : get().getParentStackFrame();
+}
+
+bool
+ConcreteStackFrame<DeserializedStackFrame>::constructSavedFrameStack(
+  JSContext* cx,
+  MutableHandleObject outSavedFrameStack) const
+{
+  StackFrame f(&get());
+  return ConstructSavedFrameStackSlow(cx, f, outSavedFrameStack);
+}
+
 } // namespace ubi
+} // namespace JS

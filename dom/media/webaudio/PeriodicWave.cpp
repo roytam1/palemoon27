@@ -27,12 +27,11 @@ PeriodicWave::PeriodicWave(AudioContext* aContext,
 
   // Caller should have checked this and thrown.
   MOZ_ASSERT(aLength > 0);
-  MOZ_ASSERT(aLength <= 4096);
   mLength = aLength;
 
   // Copy coefficient data. The two arrays share an allocation.
   mCoefficients = new ThreadSharedFloatArrayBufferList(2);
-  float* buffer = static_cast<float*>(malloc(aLength*sizeof(float)*2));
+  float* buffer = static_cast<float*>(moz_xmalloc(aLength*sizeof(float)*2));
   if (buffer == nullptr) {
     aRv.Throw(NS_ERROR_OUT_OF_MEMORY);
     return;

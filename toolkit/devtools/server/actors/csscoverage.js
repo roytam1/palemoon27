@@ -564,8 +564,9 @@ function getImportedSheets(stylesheet) {
  * @see deconstructRuleId(ruleId)
  */
 function ruleToId(rule) {
-  let loc = stylesheets.getRuleLocation(rule);
-  return sheetToUrl(rule.parentStyleSheet) + "|" + loc.line + "|" + loc.column;
+  let line = DOMUtils.getRelativeRuleLine(rule);
+  let column = DOMUtils.getRuleColumn(rule);
+  return sheetToUrl(rule.parentStyleSheet) + "|" + line + "|" + column;
 }
 
 /**
@@ -594,7 +595,7 @@ const deconstructRuleId = exports.deconstructRuleId = function(ruleId) {
  */
 const getURL = exports.getURL = function(document) {
   let url = new document.defaultView.URL(document.documentURI);
-  return '' + url.origin + url.pathname;
+  return url == 'about:blank' ? '' : '' + url.origin + url.pathname;
 };
 
 /**

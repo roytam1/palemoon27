@@ -15,6 +15,7 @@ struct RemoteVoice {
   nsString name;
   nsString lang;
   bool localService;
+  bool queued;
 };
 
 sync protocol PSpeechSynthesis
@@ -24,18 +25,22 @@ sync protocol PSpeechSynthesis
 
 child:
 
-    VoiceAdded(RemoteVoice aVoice);
+    async VoiceAdded(RemoteVoice aVoice);
 
-    VoiceRemoved(nsString aUri);
+    async VoiceRemoved(nsString aUri);
 
-    SetDefaultVoice(nsString aUri, bool aIsDefault);
+    async SetDefaultVoice(nsString aUri, bool aIsDefault);
+
+    async IsSpeakingChanged(bool aIsSpeaking);
 
 parent:
-    __delete__();
+    async __delete__();
 
-    PSpeechSynthesisRequest(nsString aText, nsString aUri, nsString aLang,
-                            float aVolume, float aRate, float aPitch);
-    sync ReadVoiceList() returns (RemoteVoice[] aVoices, nsString[] aDefaults);
+    async PSpeechSynthesisRequest(nsString aText, nsString aUri, nsString aLang,
+                                  float aVolume, float aRate, float aPitch);
+
+    sync ReadVoicesAndState() returns (RemoteVoice[] aVoices,
+                                       nsString[] aDefaults, bool aIsSpeaking);
 };
 
 } // namespace dom

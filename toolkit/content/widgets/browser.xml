@@ -290,6 +290,15 @@
         </setter>
       </property>
 
+      <method name="setDocShellIsActiveAndForeground">
+        <parameter name="isActive"/>
+        <body>
+          <![CDATA[
+            this.docShell && this.docShell.setIsActiveAndForeground(isActive);
+          ]]>
+        </body>
+      </method>
+
       <property name="imageDocument"
                 readonly="true">
         <getter>
@@ -1058,8 +1067,12 @@
               case "mouseup":
               case "mousedown":
               case "contextmenu": {
-                if (!this._ignoreMouseEvents)
-                  this._autoScrollPopup.hidePopup();
+                if (!this._ignoreMouseEvents) {
+                  // Use a timeout to prevent the mousedown from opening the popup again.
+                  // Ideally, we could use preventDefault here, but contenteditable
+                  // and middlemouse paste don't interact well. See bug 1188536.
+                  setTimeout(() => this._autoScrollPopup.hidePopup(), 0);
+                }
                 this._ignoreMouseEvents = false;
                 break;
               }
@@ -1094,6 +1107,15 @@
         <parameter name="aOtherBrowser"/>
         <body>
         <![CDATA[
+          if (this.isRemoteBrowser != aOtherBrowser.isRemoteBrowser)
+            throw new Error("Can only swap docshells between browsers in the same process.");
+
+          // Give others a chance to swap state.
+          let event = new CustomEvent("SwapDocShells", {"detail": aOtherBrowser});
+          this.dispatchEvent(event);
+          event = new CustomEvent("SwapDocShells", {"detail": this});
+          aOtherBrowser.dispatchEvent(event);
+
           // We need to swap fields that are tied to our docshell or related to
           // the loaded page
           // Fields which are built as a result of notifactions (pageshow/hide,
@@ -1111,7 +1133,7 @@
 
           var ourFieldValues = {};
           var otherFieldValues = {};
-          for each (var field in fieldsToSwap) {
+          for (let field of fieldsToSwap) {
             ourFieldValues[field] = this[field];
             otherFieldValues[field] = aOtherBrowser[field];
           }
@@ -1124,7 +1146,7 @@
           this.detachFormFill();
           aOtherBrowser.detachFormFill();
 
-          for each (var field in fieldsToSwap) {
+          for (let field of fieldsToSwap) {
             this[field] = otherFieldValues[field];
             aOtherBrowser[field] = ourFieldValues[field];
           }

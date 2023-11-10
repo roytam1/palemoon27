@@ -40,6 +40,9 @@ with Files('nsChangeHint.h'):
 with Files('nsBidi*'):
     BUG_COMPONENT = ('Core', 'Layout: Text')
 
+with Files('AccessibleCaret*'):
+    BUG_COMPONENT = ('Core', 'Selection')
+
 XPIDL_SOURCES += [
     'nsIStyleSheetService.idl',
 ]
@@ -55,10 +58,12 @@ EXPORTS += [
     'ActiveLayerTracker.h',
     'CaretAssociationHint.h',
     'DisplayItemClip.h',
+    'DisplayItemScrollClip.h',
     'DisplayListClipState.h',
     'FrameLayerBuilder.h',
     'FramePropertyTable.h',
     'LayerState.h',
+    'LayoutLogging.h',
     'nsArenaMemoryStats.h',
     'nsBidi.h',
     'nsBidiPresUtils.h',
@@ -81,6 +86,7 @@ EXPORTS += [
     'nsIReflowCallback.h',
     'nsLayoutUtils.h',
     'nsPresArena.h',
+    'nsPresArenaObjectList.h',
     'nsPresContext.h',
     'nsPresState.h',
     'nsRefreshDriver.h',
@@ -93,6 +99,9 @@ EXPORTS += [
 ]
 
 EXPORTS.mozilla += [
+    'ArenaObjectID.h',
+    'ArenaRefPtr.h',
+    'ArenaRefPtrInlines.h',
     'GeometryUtils.h',
     'PaintTracker.h',
     'RestyleLogging.h',
@@ -101,15 +110,17 @@ EXPORTS.mozilla += [
 UNIFIED_SOURCES += [
     'AccessibleCaret.cpp',
     'AccessibleCaretEventHub.cpp',
-    'AccessibleCaretLogger.cpp',
     'AccessibleCaretManager.cpp',
     'ActiveLayerTracker.cpp',
     'DisplayItemClip.cpp',
+    'DisplayItemScrollClip.cpp',
     'DisplayListClipState.cpp',
     'FrameLayerBuilder.cpp',
     'FramePropertyTable.cpp',
     'GeometryUtils.cpp',
+    'LayoutLogging.cpp',
     'MaskLayerImageCache.cpp',
+    'MobileViewportManager.cpp',
     'nsBidi.cpp',
     'nsBidiPresUtils.cpp',
     'nsCaret.cpp',
@@ -137,9 +148,7 @@ UNIFIED_SOURCES += [
     'RestyleManager.cpp',
     'RestyleTracker.cpp',
     'ScrollbarStyles.cpp',
-    'SelectionCarets.cpp',
     'StackArena.cpp',
-    'TouchCaret.cpp',
     'TouchManager.cpp',
     'ZoomConstraintsClient.cpp',
 ]
@@ -153,8 +162,6 @@ SOURCES += [
 
 if CONFIG['ENABLE_TESTS']:
     DIRS += ['gtest']
-
-FAIL_ON_WARNINGS = True
 
 include('/ipc/chromium/chromium-config.mozbuild')
 

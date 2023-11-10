@@ -192,13 +192,13 @@ private:
                                           section.
                                           mHeaderCounter[1] for <h1> etc. */
 
-  nsRefPtr<mozilla::dom::Element> mElement;
+  RefPtr<mozilla::dom::Element> mElement;
 
   // For handling table rows
-  nsAutoTArray<bool, 8> mHasWrittenCellsForRow;
+  AutoTArray<bool, 8> mHasWrittenCellsForRow;
   
   // Values gotten in OpenContainer that is (also) needed in CloseContainer
-  nsAutoTArray<bool, 8> mIsInCiteBlockquote;
+  AutoTArray<bool, 8> mIsInCiteBlockquote;
 
   // The output data
   nsAString*            mOutputString;

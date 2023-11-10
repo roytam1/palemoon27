@@ -12,10 +12,11 @@
 #include "nsUXThemeData.h"
 #include "nsIDOMSimpleGestureEvent.h"
 #include "nsIDOMWheelEvent.h"
-#include "mozilla/Constants.h"
 #include "mozilla/MouseEvents.h"
 #include "mozilla/Preferences.h"
 #include "mozilla/TouchEvents.h"
+
+#include <cmath>
 
 using namespace mozilla;
 using namespace mozilla::widget;
@@ -334,13 +335,13 @@ nsWinGesture::ProcessGestureMessage(HWND hWnd, WPARAM wParam, LPARAM lParam,
         // The low 32 bits are the distance in pixels.
         mZoomIntermediate = (float)gi.ullArguments;
 
-        evt.message = NS_SIMPLE_GESTURE_MAGNIFY_START;
+        evt.mMessage = eMagnifyGestureStart;
         evt.delta = 0.0;
       }
       else if (gi.dwFlags & GF_END) {
         // Send a zoom end event, the delta is the change
         // in touch points.
-        evt.message = NS_SIMPLE_GESTURE_MAGNIFY;
+        evt.mMessage = eMagnifyGesture;
         // (positive for a "zoom in")
         evt.delta = -1.0 * (mZoomIntermediate - (float)gi.ullArguments);
         mZoomIntermediate = (float)gi.ullArguments;
@@ -348,7 +349,7 @@ nsWinGesture::ProcessGestureMessage(HWND hWnd, WPARAM wParam, LPARAM lParam,
       else {
         // Send a zoom intermediate event, the delta is the change
         // in touch points.
-        evt.message = NS_SIMPLE_GESTURE_MAGNIFY_UPDATE;
+        evt.mMessage = eMagnifyGestureUpdate;
         // (positive for a "zoom in")
         evt.delta = -1.0 * (mZoomIntermediate - (float)gi.ullArguments);
         mZoomIntermediate = (float)gi.ullArguments;
@@ -384,31 +385,28 @@ nsWinGesture::ProcessGestureMessage(HWND hWnd, WPARAM wParam, LPARAM lParam,
       else if (evt.delta < 0)
         evt.direction = nsIDOMSimpleGestureEvent::ROTATION_CLOCKWISE;
 
-      if (gi.dwFlags & GF_BEGIN)
-        evt.message = NS_SIMPLE_GESTURE_ROTATE_START;
-      else if (gi.dwFlags & GF_END)
-        evt.message = NS_SIMPLE_GESTURE_ROTATE;
-      else
-        evt.message = NS_SIMPLE_GESTURE_ROTATE_UPDATE;
+      if (gi.dwFlags & GF_BEGIN) {
+        evt.mMessage = eRotateGestureStart;
+      } else if (gi.dwFlags & GF_END) {
+        evt.mMessage = eRotateGesture;
+      } else {
+        evt.mMessage = eRotateGestureUpdate;
+      }
     }
     break;
 
     case GID_TWOFINGERTAP:
-    {
-      // Normally maps to "restore" from whatever you may have recently changed. A simple
-      // double click.
-      evt.message = NS_SIMPLE_GESTURE_TAP;
+      // Normally maps to "restore" from whatever you may have recently changed.
+      // A simple double click.
+      evt.mMessage = eTapGesture;
       evt.clickCount = 1;
-    }
-    break;
+      break;
 
     case GID_PRESSANDTAP:
-    {
       // Two finger right click. Defaults to right click if it falls through.
-      evt.message = NS_SIMPLE_GESTURE_PRESSTAP;
+      evt.mMessage = ePressTapGesture;
       evt.clickCount = 1;
-    }
-    break;
+      break;
   }
 
   return true;

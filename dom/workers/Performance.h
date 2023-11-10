@@ -26,6 +26,8 @@ public:
 private:
   ~Performance();
 
+  void InsertUserEntry(PerformanceEntry* aEntry) override;
+
   WorkerPrivate* mWorkerPrivate;
 
 public:
@@ -53,8 +55,9 @@ private:
   DOMHighResTimeStamp
   GetPerformanceTimingFromString(const nsAString& aTimingName) override;
 
-  DOMHighResTimeStamp
-  DeltaFromNavigationStart(DOMHighResTimeStamp aTime) override;
+  TimeStamp CreationTimeStamp() const override;
+
+  DOMHighResTimeStamp CreationTime() const override;
 };
 
 END_WORKERS_NAMESPACE

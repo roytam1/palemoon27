@@ -90,9 +90,9 @@ JSONParser<CharT>::error(const char* msg)
 
         const size_t MaxWidth = sizeof("4294967295");
         char columnNumber[MaxWidth];
-        JS_snprintf(columnNumber, sizeof columnNumber, "%lu", column);
+        JS_snprintf(columnNumber, sizeof columnNumber, "%" PRIu32, column);
         char lineNumber[MaxWidth];
-        JS_snprintf(lineNumber, sizeof lineNumber, "%lu", line);
+        JS_snprintf(lineNumber, sizeof lineNumber, "%" PRIu32, line);
 
         JS_ReportErrorNumber(cx, GetErrorMessage, nullptr, JSMSG_JSON_BAD_PARSE,
                              msg, lineNumber, columnNumber);
@@ -578,11 +578,11 @@ JSONParser<CharT>::advanceAfterProperty()
 }
 
 inline bool
-JSONParserBase::finishObject(MutableHandleValue vp, PropertyVector &properties)
+JSONParserBase::finishObject(MutableHandleValue vp, PropertyVector& properties)
 {
     MOZ_ASSERT(&properties == &stack.back().properties());
 
-    JSObject *obj = ObjectGroup::newPlainObject(cx, properties.begin(), properties.length(), GenericObject);
+    JSObject* obj = ObjectGroup::newPlainObject(cx, properties.begin(), properties.length(), GenericObject);
     if (!obj)
         return false;
 

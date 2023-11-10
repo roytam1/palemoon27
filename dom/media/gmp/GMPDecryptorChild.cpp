@@ -14,15 +14,7 @@
 #define ON_GMP_THREAD() (mPlugin->GMPMessageLoop() == MessageLoop::current())
 
 #define CALL_ON_GMP_THREAD(_func, ...) \
-  do { \
-    if (ON_GMP_THREAD()) { \
-      _func(__VA_ARGS__); \
-    } else { \
-      mPlugin->GMPMessageLoop()->PostTask( \
-        FROM_HERE, NewRunnableMethod(this, &GMPDecryptorChild::_func, __VA_ARGS__) \
-      ); \
-    } \
-  } while(false)
+  CallOnGMPThread(&GMPDecryptorChild::_func, __VA_ARGS__)
 
 namespace mozilla {
 namespace gmp {
@@ -42,6 +34,38 @@ GMPDecryptorChild::~GMPDecryptorChild()
 {
 }
 
+template <typename MethodType, typename... ParamType>
+void
+GMPDecryptorChild::CallMethod(MethodType aMethod, ParamType&&... aParams)
+{
+  MOZ_ASSERT(ON_GMP_THREAD());
+  // Don't send IPC messages after tear-down.
+  if (mSession) {
+    (this->*aMethod)(Forward<ParamType>(aParams)...);
+  }
+}
+
+template<typename T>
+struct AddConstReference {
+  typedef const typename RemoveReference<T>::Type& Type;
+};
+
+template<typename MethodType, typename... ParamType>
+void
+GMPDecryptorChild::CallOnGMPThread(MethodType aMethod, ParamType&&... aParams)
+{
+  if (ON_GMP_THREAD()) {
+    // Use forwarding reference when we can.
+    CallMethod(aMethod, Forward<ParamType>(aParams)...);
+  } else {
+    // Use const reference when we have to.
+    auto m = &GMPDecryptorChild::CallMethod<
+        decltype(aMethod), typename AddConstReference<ParamType>::Type...>;
+    auto t = NewRunnableMethod(this, m, aMethod, Forward<ParamType>(aParams)...);
+    mPlugin->GMPMessageLoop()->PostTask(FROM_HERE, t);
+  }
+}
+
 void
 GMPDecryptorChild::Init(GMPDecryptor* aSession)
 {
@@ -55,7 +79,7 @@ GMPDecryptorChild::SetSessionId(uint32_t aCreateSessionToken,
                                 uint32_t aSessionIdLength)
 {
   CALL_ON_GMP_THREAD(SendSetSessionId,
-                     aCreateSessionToken, nsAutoCString(aSessionId, aSessionIdLength));
+                     aCreateSessionToken, nsCString(aSessionId, aSessionIdLength));
 }
 
 void
@@ -78,7 +102,7 @@ GMPDecryptorChild::RejectPromise(uint32_t aPromiseId,
                                  uint32_t aMessageLength)
 {
   CALL_ON_GMP_THREAD(SendRejectPromise,
-                     aPromiseId, aException, nsAutoCString(aMessage, aMessageLength));
+                     aPromiseId, aException, nsCString(aMessage, aMessageLength));
 }
 
 void
@@ -91,8 +115,8 @@ GMPDecryptorChild::SessionMessage(const char* aSessionId,
   nsTArray<uint8_t> msg;
   msg.AppendElements(aMessage, aMessageLength);
   CALL_ON_GMP_THREAD(SendSessionMessage,
-                     nsAutoCString(aSessionId, aSessionIdLength),
-                     aMessageType, msg);
+                     nsCString(aSessionId, aSessionIdLength),
+                     aMessageType, Move(msg));
 }
 
 void
@@ -101,7 +125,7 @@ GMPDecryptorChild::ExpirationChange(const char* aSessionId,
                                     GMPTimestamp aExpiryTime)
 {
   CALL_ON_GMP_THREAD(SendExpirationChange,
-                     nsAutoCString(aSessionId, aSessionIdLength), aExpiryTime);
+                     nsCString(aSessionId, aSessionIdLength), aExpiryTime);
 }
 
 void
@@ -109,7 +133,7 @@ GMPDecryptorChild::SessionClosed(const char* aSessionId,
                                  uint32_t aSessionIdLength)
 {
   CALL_ON_GMP_THREAD(SendSessionClosed,
-                     nsAutoCString(aSessionId, aSessionIdLength));
+                     nsCString(aSessionId, aSessionIdLength));
 }
 
 void
@@ -121,9 +145,9 @@ GMPDecryptorChild::SessionError(const char* aSessionId,
                                 uint32_t aMessageLength)
 {
   CALL_ON_GMP_THREAD(SendSessionError,
-                     nsAutoCString(aSessionId, aSessionIdLength),
+                     nsCString(aSessionId, aSessionIdLength),
                      aException, aSystemCode,
-                     nsAutoCString(aMessage, aMessageLength));
+                     nsCString(aMessage, aMessageLength));
 }
 
 void
@@ -133,10 +157,10 @@ GMPDecryptorChild::KeyStatusChanged(const char* aSessionId,
                                     uint32_t aKeyIdLength,
                                     GMPMediaKeyStatus aStatus)
 {
-  nsAutoTArray<uint8_t, 16> kid;
+  AutoTArray<uint8_t, 16> kid;
   kid.AppendElements(aKeyId, aKeyIdLength);
   CALL_ON_GMP_THREAD(SendKeyStatusChanged,
-                     nsAutoCString(aSessionId, aSessionIdLength), kid,
+                     nsCString(aSessionId, aSessionIdLength), kid,
                      aStatus);
 }
 
@@ -146,7 +170,8 @@ GMPDecryptorChild::Decrypted(GMPBuffer* aBuffer, GMPErr aResult)
   if (!ON_GMP_THREAD()) {
     // We should run this whole method on the GMP thread since the buffer needs
     // to be deleted after the SendDecrypted call.
-    CALL_ON_GMP_THREAD(Decrypted, aBuffer, aResult);
+    auto t = NewRunnableMethod(this, &GMPDecryptorChild::Decrypted, aBuffer, aResult);
+    mPlugin->GMPMessageLoop()->PostTask(FROM_HERE, t);
     return;
   }
 
@@ -156,7 +181,9 @@ GMPDecryptorChild::Decrypted(GMPBuffer* aBuffer, GMPErr aResult)
   }
 
   auto buffer = static_cast<GMPBufferImpl*>(aBuffer);
-  SendDecrypted(buffer->mId, aResult, buffer->mData);
+  if (mSession) {
+    SendDecrypted(buffer->mId, aResult, buffer->mData);
+  }
   delete buffer;
 }
 
@@ -322,14 +349,18 @@ GMPDecryptorChild::RecvDecrypt(const uint32_t& aId,
 bool
 GMPDecryptorChild::RecvDecryptingComplete()
 {
-  if (!mSession) {
+  // Reset |mSession| before calling DecryptingComplete(). We should not send
+  // any IPC messages during tear-down.
+  auto session = mSession;
+  mSession = nullptr;
+
+  if (!session) {
     return false;
   }
 
-  mSession->DecryptingComplete();
-  mSession = nullptr;
+  session->DecryptingComplete();
 
-  unused << Send__delete__(this);
+  Unused << Send__delete__(this);
 
   return true;
 }

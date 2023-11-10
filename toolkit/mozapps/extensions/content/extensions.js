@@ -79,7 +79,9 @@ document.addEventListener("load", initialize, true);
 window.addEventListener("unload", shutdown, false);
 
 var gPendingInitializations = 1;
-this.__defineGetter__("gIsInitializing", function gIsInitializingGetter() gPendingInitializations > 0);
+this.__defineGetter__("gIsInitializing", function gIsInitializingGetter() {
+  return gPendingInitializations > 0;
+});
 
 function initialize(event) {
   // XXXbz this listener gets _all_ load events for all nodes in the
@@ -628,8 +630,10 @@ var gViewController = {
     this.viewObjects["detail"] = gDetailView;
     this.viewObjects["updates"] = gUpdatesView;
 
-    for each (let view in this.viewObjects)
+    for (let type in this.viewObjects) {
+      let view = this.viewObjects[type];
       view.initialize();
+    }
 
     window.controllers.appendController(this);
 
@@ -645,7 +649,8 @@ var gViewController = {
       this.currentViewObj.hide();
     this.currentViewRequest = 0;
 
-    for each(let view in this.viewObjects) {
+    for (let type in this.viewObjects) {
+      let view = this.viewObjects[type];
       if ("shutdown" in view) {
         try {
           view.shutdown();
@@ -822,7 +827,9 @@ var gViewController = {
     },
 
     cmd_restartApp: {
-      isEnabled: function cmd_restartApp_isEnabled() true,
+      isEnabled: function cmd_restartApp_isEnabled() {
+        return true;
+      },
       doCommand: function cmd_restartApp_doCommand() {
         let cancelQuit = Cc["@mozilla.org/supports-PRBool;1"].
                          createInstance(Ci.nsISupportsPRBool);
@@ -838,14 +845,18 @@ var gViewController = {
     },
 
     cmd_enableCheckCompatibility: {
-      isEnabled: function cmd_enableCheckCompatibility_isEnabled() true,
+      isEnabled: function cmd_enableCheckCompatibility_isEnabled() {
+        return true;
+      },
       doCommand: function cmd_enableCheckCompatibility_doCommand() {
         AddonManager.checkCompatibility = true;
       }
     },
 
     cmd_enableUpdateSecurity: {
-      isEnabled: function cmd_enableUpdateSecurity_isEnabled() true,
+      isEnabled: function cmd_enableUpdateSecurity_isEnabled() {
+        return true;
+      },
       doCommand: function cmd_enableUpdateSecurity_doCommand() {
         AddonManager.checkUpdateSecurity = true;
       }
@@ -853,7 +864,9 @@ var gViewController = {
 
 /* Plugincheck service is currently N/A for Pale Moon
     cmd_pluginCheck: {
-      isEnabled: function cmd_pluginCheck_isEnabled() true,
+      isEnabled: function cmd_pluginCheck_isEnabled() {
+        return true;
+      },
       doCommand: function cmd_pluginCheck_doCommand() {
         openURL(Services.urlFormatter.formatURLPref("plugins.update.url"));
       }
@@ -861,7 +874,9 @@ var gViewController = {
 */
 
     cmd_toggleAutoUpdateDefault: {
-      isEnabled: function cmd_toggleAutoUpdateDefault_isEnabled() true,
+      isEnabled: function cmd_toggleAutoUpdateDefault_isEnabled() {
+        return true;
+      },
       doCommand: function cmd_toggleAutoUpdateDefault_doCommand() {
         if (!AddonManager.updateEnabled || !AddonManager.autoUpdateDefault) {
           // One or both of the prefs is false, i.e. the checkbox is not checked.
@@ -878,7 +893,9 @@ var gViewController = {
     },
 
     cmd_resetAddonAutoUpdate: {
-      isEnabled: function cmd_resetAddonAutoUpdate_isEnabled() true,
+      isEnabled: function cmd_resetAddonAutoUpdate_isEnabled() {
+        return true;
+      },
       doCommand: function cmd_resetAddonAutoUpdate_doCommand() {
         AddonManager.getAllAddons(function cmd_resetAddonAutoUpdate_getAllAddons(aAddonList) {
           for (let addon of aAddonList) {
@@ -899,14 +916,18 @@ var gViewController = {
     },
 
     cmd_goToRecentUpdates: {
-      isEnabled: function cmd_goToRecentUpdates_isEnabled() true,
+      isEnabled: function cmd_goToRecentUpdates_isEnabled() {
+        return true;
+      },
       doCommand: function cmd_goToRecentUpdates_doCommand() {
         gViewController.loadView("addons://updates/recent");
       }
     },
 
     cmd_goToAvailableUpdates: {
-      isEnabled: function cmd_goToAvailableUpdates_isEnabled() true,
+      isEnabled: function cmd_goToAvailableUpdates_isEnabled() {
+        return true;
+      },
       doCommand: function cmd_goToAvailableUpdates_doCommand() {
         gViewController.loadView("addons://updates/available");
       }
@@ -925,7 +946,9 @@ var gViewController = {
 
     cmd_findAllUpdates: {
       inProgress: false,
-      isEnabled: function cmd_findAllUpdates_isEnabled() !this.inProgress,
+      isEnabled: function cmd_findAllUpdates_isEnabled() {
+        return !this.inProgress;
+      },
       doCommand: function cmd_findAllUpdates_doCommand() {
         this.inProgress = true;
         gViewController.updateCommand("cmd_findAllUpdates");
@@ -1228,7 +1251,9 @@ var gViewController = {
     },
 
     cmd_installFromFile: {
-      isEnabled: function cmd_installFromFile_isEnabled() true,
+      isEnabled: function cmd_installFromFile_isEnabled() {
+        return true;
+      },
       doCommand: function cmd_installFromFile_doCommand() {
         const nsIFilePicker = Ci.nsIFilePicker;
         var fp = Cc["@mozilla.org/filepicker;1"]
@@ -1878,10 +1903,11 @@ var gCategories = {
       return;
     }
 
+    var item;
     if (view.type == "search")
-      var item = this._search;
+      item = this._search;
     else
-      var item = this.get(aId);
+      item = this.get(aId);
 
     if (item) {
       item.hidden = false;
@@ -2267,7 +2293,9 @@ var gDiscoverView = {
   QueryInterface: XPCOMUtils.generateQI([Ci.nsIWebProgressListener,
                                          Ci.nsISupportsWeakReference]),
 
-  getSelectedAddon: function gDiscoverView_getSelectedAddon() null
+  getSelectedAddon: function gDiscoverView_getSelectedAddon() {
+    return null;
+  }
 };
 
 
@@ -2298,16 +2326,15 @@ var gSearchView = {
     if (!AddonManager.isInstallEnabled("application/x-xpinstall"))
       this._filter.hidden = true;
 
-    var self = this;
-    this._listBox.addEventListener("keydown", function listbox_onKeydown(aEvent) {
+    this._listBox.addEventListener("keydown", aEvent => {
       if (aEvent.keyCode == aEvent.DOM_VK_RETURN) {
-        var item = self._listBox.selectedItem;
+        var item = this._listBox.selectedItem;
         if (item)
           item.showInDetailView();
       }
     }, false);
 
-    this._filter.addEventListener("command", function filter_onCommand() self.updateView(), false);
+    this._filter.addEventListener("command", () => this.updateView(), false);
   },
 
   shutdown: function gSearchView_shutdown() {
@@ -3082,7 +3109,7 @@ var gDetailView = {
     if (pending != AddonManager.PENDING_NONE) {
       this.node.removeAttribute("notification");
 
-      var pending = null;
+      pending = null;
       const PENDING_OPERATIONS = ["enable", "disable", "install", "uninstall",
                                   "upgrade"];
       for (let op of PENDING_OPERATIONS) {
@@ -3122,7 +3149,7 @@ var gDetailView = {
           "details.notification.softblocked",
           [this._addon.name], 1
         );
-        var warningLink = document.getElementById("detail-warning-link");
+        let warningLink = document.getElementById("detail-warning-link");
         warningLink.value = gStrings.ext.GetStringFromName("details.notification.softblocked.link");
         warningLink.href = this._addon.blocklistURL;
         warningLink.hidden = false;
@@ -3132,7 +3159,7 @@ var gDetailView = {
           "details.notification.outdated",
           [this._addon.name], 1
         );
-        var warningLink = document.getElementById("detail-warning-link");
+        let warningLink = document.getElementById("detail-warning-link");
         warningLink.value = gStrings.ext.GetStringFromName("details.notification.outdated.link");
         warningLink.href = Services.urlFormatter.formatURLPref("plugins.update.url");
         warningLink.hidden = false;
@@ -3142,7 +3169,7 @@ var gDetailView = {
           "details.notification.vulnerableUpdatable",
           [this._addon.name], 1
         );
-        var errorLink = document.getElementById("detail-error-link");
+        let errorLink = document.getElementById("detail-error-link");
         errorLink.value = gStrings.ext.GetStringFromName("details.notification.vulnerableUpdatable.link");
         errorLink.href = this._addon.blocklistURL;
         errorLink.hidden = false;
@@ -3152,7 +3179,7 @@ var gDetailView = {
           "details.notification.vulnerableNoUpdate",
           [this._addon.name], 1
         );
-        var errorLink = document.getElementById("detail-error-link");
+        let errorLink = document.getElementById("detail-error-link");
         errorLink.value = gStrings.ext.GetStringFromName("details.notification.vulnerableNoUpdate.link");
         errorLink.href = this._addon.blocklistURL;
         errorLink.hidden = false;

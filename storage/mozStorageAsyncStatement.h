@@ -82,7 +82,7 @@ private:
    * Holds the array of parameters to bind to this statement when we execute
    * it asynchronously.
    */
-  nsRefPtr<BindingParamsArray> mParamsArray;
+  RefPtr<BindingParamsArray> mParamsArray;
 
   /**
    * Caches the JS 'params' helper for this statement.
@@ -101,7 +101,7 @@ private:
   friend class AsyncStatementJSHelper;
 };
 
-} // storage
-} // mozilla
+} // namespace storage
+} // namespace mozilla
 
 #endif // mozilla_storage_mozStorageAsyncStatement_h_

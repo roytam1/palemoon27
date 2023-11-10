@@ -14,21 +14,20 @@
 
 #include "mozilla/dom/TypedArray.h"
 
-#include "js/StructuredClone.h"
 #include "nsXMLHttpRequest.h"
 
 namespace mozilla {
 namespace dom {
 class Blob;
-}
-}
+} // namespace dom
+} // namespace mozilla
 
 BEGIN_WORKERS_NAMESPACE
 
 class Proxy;
+class SendRunnable;
 class XMLHttpRequestUpload;
 class WorkerPrivate;
-class WorkerStructuredCloneClosure;
 
 class XMLHttpRequest final: public nsXHREventTarget,
                             public WorkerFeature
@@ -54,9 +53,9 @@ public:
   };
 
 private:
-  nsRefPtr<XMLHttpRequestUpload> mUpload;
+  RefPtr<XMLHttpRequestUpload> mUpload;
   WorkerPrivate* mWorkerPrivate;
-  nsRefPtr<Proxy> mProxy;
+  RefPtr<Proxy> mProxy;
   XMLHttpRequestResponseType mResponseType;
   StateData mStateData;
 
@@ -175,7 +174,7 @@ public:
   Send(Blob& aBody, ErrorResult& aRv);
 
   void
-  Send(nsFormData& aBody, ErrorResult& aRv);
+  Send(FormData& aBody, ErrorResult& aRv);
 
   void
   Send(const ArrayBuffer& aBody, ErrorResult& aRv);
@@ -291,9 +290,7 @@ private:
                               ErrorResult& aRv);
 
   void
-  SendInternal(const nsAString& aStringBody,
-               JSAutoStructuredCloneBuffer&& aBody,
-               WorkerStructuredCloneClosure& aClosure,
+  SendInternal(SendRunnable* aRunnable,
                ErrorResult& aRv);
 };
 

@@ -32,6 +32,7 @@ using mozilla::plugins::PluginInstanceParent;
 #include "mozilla/gfx/DataSurfaceHelpers.h"
 #include "mozilla/gfx/Tools.h"
 #include "mozilla/RefPtr.h"
+#include "mozilla/UniquePtrExtensions.h"
 #include "nsGfxCIID.h"
 #include "gfxContext.h"
 #include "prmem.h"
@@ -46,11 +47,6 @@ using mozilla::plugins::PluginInstanceParent;
 
 #include "nsUXThemeData.h"
 #include "nsUXThemeConstants.h"
-
-extern "C" {
-#define PIXMAN_DONT_DEFINE_STDINT
-#include "pixman.h"
-}
 
 using namespace mozilla;
 using namespace mozilla::gfx;
@@ -74,8 +70,8 @@ using namespace mozilla::plugins;
  *
  **************************************************************/
 
-static nsAutoPtr<uint8_t>  sSharedSurfaceData;
-static gfxIntSize          sSharedSurfaceSize;
+static UniquePtr<uint8_t[]> sSharedSurfaceData;
+static IntSize             sSharedSurfaceSize;
 
 struct IconMetrics {
   int32_t xMetric;
@@ -142,9 +138,9 @@ nsIntRegion nsWindow::GetRegionToPaint(bool aForceFullRepaint,
 
 #define WORDSSIZE(x) ((x).width * (x).height)
 static bool
-EnsureSharedSurfaceSize(gfxIntSize size)
+EnsureSharedSurfaceSize(IntSize size)
 {
-  gfxIntSize screenSize;
+  IntSize screenSize;
   screenSize.height = GetSystemMetrics(SM_CYSCREEN);
   screenSize.width = GetSystemMetrics(SM_CXSCREEN);
 
@@ -156,11 +152,11 @@ EnsureSharedSurfaceSize(gfxIntSize size)
 
   if (!sSharedSurfaceData || (WORDSSIZE(size) > WORDSSIZE(sSharedSurfaceSize))) {
     sSharedSurfaceSize = size;
-    sSharedSurfaceData = nullptr;
-    sSharedSurfaceData = (uint8_t *)malloc(WORDSSIZE(sSharedSurfaceSize) * 4);
+    sSharedSurfaceData =
+      MakeUniqueFallible<uint8_t[]>(WORDSSIZE(sSharedSurfaceSize) * 4);
   }
 
-  return (sSharedSurfaceData != nullptr);
+  return !sSharedSurfaceData;
 }
 
 nsIWidgetListener* nsWindow::GetPaintListener()
@@ -210,7 +206,7 @@ bool nsWindow::OnPaint(HDC aDC, uint32_t aNestingLevel)
     PluginInstanceParent* instance = reinterpret_cast<PluginInstanceParent*>(
       ::GetPropW(mWnd, L"PluginInstanceParentProperty"));
     if (instance) {
-      unused << instance->CallUpdateWindow();
+      Unused << instance->CallUpdateWindow();
     } else {
       // We should never get here since in-process plugins should have
       // subclassed our HWND and handled WM_PAINT, but in some cases that
@@ -317,7 +313,7 @@ bool nsWindow::OnPaint(HDC aDC, uint32_t aNestingLevel)
     switch (GetLayerManager()->GetBackendType()) {
       case LayersBackend::LAYERS_BASIC:
         {
-          nsRefPtr<gfxASurface> targetSurface;
+          RefPtr<gfxASurface> targetSurface;
 
 #if defined(MOZ_XUL)
           // don't support transparency for non-GDI rendering, for now
@@ -330,7 +326,7 @@ bool nsWindow::OnPaint(HDC aDC, uint32_t aNestingLevel)
           }
 #endif
 
-          nsRefPtr<gfxWindowsSurface> targetSurfaceWin;
+          RefPtr<gfxWindowsSurface> targetSurfaceWin;
           if (!targetSurface &&
               (IsRenderMode(gfxWindowsPlatform::RENDER_GDI) ||
                IsRenderMode(gfxWindowsPlatform::RENDER_DIRECT2D)))
@@ -341,13 +337,13 @@ bool nsWindow::OnPaint(HDC aDC, uint32_t aNestingLevel)
             targetSurface = targetSurfaceWin;
           }
 
-          nsRefPtr<gfxImageSurface> targetSurfaceImage;
+          RefPtr<gfxImageSurface> targetSurfaceImage;
           if (!targetSurface &&
               (IsRenderMode(gfxWindowsPlatform::RENDER_IMAGE_STRETCH32) ||
                IsRenderMode(gfxWindowsPlatform::RENDER_IMAGE_STRETCH24)))
           {
-            gfxIntSize surfaceSize(ps.rcPaint.right - ps.rcPaint.left,
-                                   ps.rcPaint.bottom - ps.rcPaint.top);
+            IntSize surfaceSize(ps.rcPaint.right - ps.rcPaint.left,
+                                ps.rcPaint.bottom - ps.rcPaint.top);
 
             if (!EnsureSharedSurfaceSize(surfaceSize)) {
               NS_ERROR("Couldn't allocate a shared image surface!");
@@ -359,7 +355,7 @@ bool nsWindow::OnPaint(HDC aDC, uint32_t aNestingLevel)
             targetSurfaceImage = new gfxImageSurface(sSharedSurfaceData.get(),
                                                      surfaceSize,
                                                      surfaceSize.width * 4,
-                                                     gfxImageFormat::RGB24);
+                                                     SurfaceFormat::X8R8G8B8_UINT32);
 
             if (targetSurfaceImage && !targetSurfaceImage->CairoStatus()) {
               targetSurfaceImage->SetDeviceOffset(gfxPoint(-ps.rcPaint.left, -ps.rcPaint.top));
@@ -407,12 +403,13 @@ bool nsWindow::OnPaint(HDC aDC, uint32_t aNestingLevel)
 #endif
           }
 
-          nsRefPtr<gfxContext> thebesContext = new gfxContext(dt);
+          RefPtr<gfxContext> thebesContext = new gfxContext(dt);
 
           {
             AutoLayerManagerSetup
-                setupLayerManager(this, thebesContext, doubleBuffering);
-            result = listener->PaintWindow(this, region);
+              setupLayerManager(this, thebesContext, doubleBuffering);
+            result = listener->PaintWindow(
+              this, LayoutDeviceIntRegion::FromUnknownRegion(region));
           }
 
 #ifdef MOZ_XUL
@@ -430,7 +427,7 @@ bool nsWindow::OnPaint(HDC aDC, uint32_t aNestingLevel)
             if (IsRenderMode(gfxWindowsPlatform::RENDER_IMAGE_STRETCH24) ||
                 IsRenderMode(gfxWindowsPlatform::RENDER_IMAGE_STRETCH32))
             {
-              gfxIntSize surfaceSize = targetSurfaceImage->GetSize();
+              IntSize surfaceSize = targetSurfaceImage->GetSize();
 
               // Just blit this directly
               BITMAPINFOHEADER bi;
@@ -519,7 +516,8 @@ bool nsWindow::OnPaint(HDC aDC, uint32_t aNestingLevel)
         }
         break;
       case LayersBackend::LAYERS_CLIENT:
-        result = listener->PaintWindow(this, region);
+        result = listener->PaintWindow(
+          this, LayoutDeviceIntRegion::FromUnknownRegion(region));
         break;
       default:
         NS_ERROR("Unknown layers backend used!");
@@ -565,7 +563,7 @@ bool nsWindow::OnPaint(HDC aDC, uint32_t aNestingLevel)
   return result;
 }
 
-gfxIntSize nsWindowGfx::GetIconMetrics(IconSizeType aSizeType) {
+IntSize nsWindowGfx::GetIconMetrics(IconSizeType aSizeType) {
   int32_t width = ::GetSystemMetrics(sIconMetrics[aSizeType].xMetric);
   int32_t height = ::GetSystemMetrics(sIconMetrics[aSizeType].yMetric);
 
@@ -573,14 +571,14 @@ gfxIntSize nsWindowGfx::GetIconMetrics(IconSizeType aSizeType) {
     width = height = sIconMetrics[aSizeType].defaultSize;
   }
 
-  return gfxIntSize(width, height);
+  return IntSize(width, height);
 }
 
 nsresult nsWindowGfx::CreateIcon(imgIContainer *aContainer,
                                   bool aIsCursor,
                                   uint32_t aHotspotX,
                                   uint32_t aHotspotY,
-                                  gfxIntSize aScaledSize,
+                                  IntSize aScaledSize,
                                   HICON *aIcon) {
 
   MOZ_ASSERT((aScaledSize.width > 0 && aScaledSize.height > 0) ||
@@ -645,7 +643,7 @@ nsresult nsWindowGfx::CreateIcon(imgIContainer *aContainer,
   MOZ_ASSERT(dataSurface->GetFormat() == SurfaceFormat::B8G8R8A8);
 
   uint8_t* data = nullptr;
-  nsAutoArrayPtr<uint8_t> autoDeleteArray;
+  UniquePtr<uint8_t[]> autoDeleteArray;
   if (map.mStride == BytesPerPixel(dataSurface->GetFormat()) * iconSize.width) {
     // Mapped data is already packed
     data = map.mData;
@@ -658,7 +656,8 @@ nsresult nsWindowGfx::CreateIcon(imgIContainer *aContainer,
     dataSurface->Unmap();
     map.mData = nullptr;
 
-    data = autoDeleteArray = SurfaceToPackedBGRA(dataSurface);
+    autoDeleteArray = SurfaceToPackedBGRA(dataSurface);
+    data = autoDeleteArray.get();
     NS_ENSURE_TRUE(data, NS_ERROR_FAILURE);
   }
 

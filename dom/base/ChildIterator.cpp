@@ -190,6 +190,30 @@ FlattenedChildIterator::Init(bool aIgnoreXBL)
   }
 }
 
+bool
+ExplicitChildIterator::Seek(nsIContent* aChildToFind)
+{
+  if (aChildToFind->GetParent() == mParent &&
+      !aChildToFind->IsRootOfAnonymousSubtree()) {
+    // Fast path: just point ourselves to aChildToFind, which is a
+    // normal DOM child of ours.
+    MOZ_ASSERT(!ShadowRoot::IsShadowInsertionPoint(aChildToFind));
+    MOZ_ASSERT(!nsContentUtils::IsContentInsertionPoint(aChildToFind));
+    mChild = aChildToFind;
+    mIndexInInserted = 0;
+    mShadowIterator = nullptr;
+    mDefaultChild = nullptr;
+    mIsFirst = false;
+    return true;
+  }
+
+  // Can we add more fast paths here based on whether the parent of aChildToFind
+  // is a shadow insertion point or content insertion point?
+
+  // Slow path: just walk all our kids.
+  return Seek(aChildToFind, nullptr);
+}
+
 nsIContent*
 ExplicitChildIterator::Get()
 {
@@ -285,6 +309,37 @@ ExplicitChildIterator::GetPreviousChild()
   }
 
   return mChild;
+}
+
+bool
+AllChildrenIterator::Seek(nsIContent* aChildToFind)
+{
+  if (mPhase == eNeedBeforeKid) {
+    mPhase = eNeedExplicitKids;
+    nsIFrame* frame = mOriginalContent->GetPrimaryFrame();
+    if (frame) {
+      nsIFrame* beforeFrame = nsLayoutUtils::GetBeforeFrame(frame);
+      if (beforeFrame) {
+        if (beforeFrame->GetContent() == aChildToFind) {
+          return true;
+        }
+      }
+    }
+  }
+
+  if (mPhase == eNeedExplicitKids) {
+    if (ExplicitChildIterator::Seek(aChildToFind)) {
+      return true;
+    }
+    mPhase = eNeedAnonKids;
+  }
+
+  nsIContent* child = nullptr;
+  do {
+    child = GetNextChild();
+  } while (child && child != aChildToFind);
+
+  return child == aChildToFind;
 }
 
 nsIContent*

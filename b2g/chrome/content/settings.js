@@ -6,6 +6,8 @@
 
 "use strict";
 
+window.performance.mark('gecko-settings-loadstart');
+
 const Cc = Components.classes;
 const Ci = Components.interfaces;
 const Cu = Components.utils;
@@ -74,6 +76,12 @@ var SettingsListener = {
 };
 
 SettingsListener.init();
+
+// =================== Mono Audio ======================
+
+SettingsListener.observe('accessibility.monoaudio.enable', false, function(value) {
+  Services.prefs.setBoolPref('accessibility.monoaudio.enable', value);
+});
 
 // =================== Console ======================
 
@@ -146,12 +154,16 @@ Components.utils.import('resource://gre/modules/ctypes.jsm');
   // Get the hardware info and firmware revision from device properties.
   let hardware_info = null;
   let firmware_revision = null;
+  let product_manufacturer = null;
   let product_model = null;
+  let product_device = null;
   let build_number = null;
 #ifdef MOZ_WIDGET_GONK
     hardware_info = libcutils.property_get('ro.hardware');
     firmware_revision = libcutils.property_get('ro.firmware_revision');
+    product_manufacturer = libcutils.property_get('ro.product.manufacturer');
     product_model = libcutils.property_get('ro.product.model');
+    product_device = libcutils.property_get('ro.product.device');
     build_number = libcutils.property_get('ro.build.version.incremental');
 #endif
 
@@ -171,7 +183,9 @@ Components.utils.import('resource://gre/modules/ctypes.jsm');
       'deviceinfo.platform_build_id': appInfo.platformBuildID,
       'deviceinfo.hardware': hardware_info,
       'deviceinfo.firmware_revision': firmware_revision,
-      'deviceinfo.product_model': product_model
+      'deviceinfo.product_manufacturer': product_manufacturer,
+      'deviceinfo.product_model': product_model,
+      'deviceinfo.product_device': product_device
     }
     lock.set(setting);
   }
@@ -179,7 +193,7 @@ Components.utils.import('resource://gre/modules/ctypes.jsm');
 
 // =================== DevTools ====================
 
-let developerHUD;
+var developerHUD;
 SettingsListener.observe('devtools.overlay', false, (value) => {
   if (value) {
     if (!developerHUD) {
@@ -196,19 +210,28 @@ SettingsListener.observe('devtools.overlay', false, (value) => {
 });
 
 #ifdef MOZ_WIDGET_GONK
-let LogShake;
-SettingsListener.observe('devtools.logshake', false, (value) => {
+
+var LogShake;
+(function() {
+  let scope = {};
+  Cu.import('resource://gre/modules/LogShake.jsm', scope);
+  LogShake = scope.LogShake;
+  LogShake.init();
+})();
+
+SettingsListener.observe('devtools.logshake.enabled', false, value => {
   if (value) {
-    if (!LogShake) {
-      let scope = {};
-      Cu.import('resource://gre/modules/LogShake.jsm', scope);
-      LogShake = scope.LogShake;
-    }
-    LogShake.init();
+    LogShake.enableDeviceMotionListener();
   } else {
-    if (LogShake) {
-      LogShake.uninit();
-    }
+    LogShake.disableDeviceMotionListener();
+  }
+});
+
+SettingsListener.observe('devtools.logshake.qa_enabled', false, value => {
+  if (value) {
+    LogShake.enableQAMode();
+  } else {
+    LogShake.disableQAMode();
   }
 });
 #endif
@@ -289,29 +312,48 @@ setUpdateTrackingId();
   // modify them, that's where we need to make our changes.
   let defaultBranch = Services.prefs.getDefaultBranch(null);
 
-  function syncCharPref(prefName) {
-    SettingsListener.observe(prefName, null, function(value) {
-      // If set, propagate setting value to pref.
-      if (value) {
-        defaultBranch.setCharPref(prefName, value);
+  function syncPrefDefault(prefName) {
+    // The pref value at boot-time will serve as default for the setting.
+    let defaultValue = defaultBranch.getCharPref(prefName);
+    let defaultSetting = {};
+    defaultSetting[prefName] = defaultValue;
+
+    // We back up that value in order to detect pref changes across reboots.
+    // Such a change can happen e.g. when the user installs an OTA update that
+    // changes the update URL format.
+    let backupName = prefName + '.old';
+    try {
+      // Everything relies on the comparison below: When pushing a new Gecko
+      // that changes app.update.url or app.update.channel, we overwrite any
+      // existing setting with the new pref value.
+      let backupValue = Services.prefs.getCharPref(backupName);
+      if (defaultValue !== backupValue) {
+        // If the pref has changed since our last backup, overwrite the setting.
+        navigator.mozSettings.createLock().set(defaultSetting);
+      }
+    } catch(e) {
+      // There was no backup: Overwrite the setting and create a backup below.
+      navigator.mozSettings.createLock().set(defaultSetting);
+    }
+
+    // Initialize or update the backup value.
+    Services.prefs.setCharPref(backupName, defaultValue);
+
+    // Propagate setting changes to the pref.
+    SettingsListener.observe(prefName, defaultValue, value => {
+      if (!value) {
+        // If the setting value is invalid, reset it to its default.
+        navigator.mozSettings.createLock().set(defaultSetting);
         return;
       }
-      // If unset, initialize setting to pref value.
-      try {
-        let value = defaultBranch.getCharPref(prefName);
-        if (value) {
-          let setting = {};
-          setting[prefName] = value;
-          window.navigator.mozSettings.createLock().set(setting);
-        }
-      } catch(e) {
-        console.log('Unable to read pref ' + prefName + ': ' + e);
-      }
+      // Here we will overwrite the pref with the setting value.
+      defaultBranch.setCharPref(prefName, value);
     });
   }
 
-  syncCharPref('app.update.url');
-  syncCharPref('app.update.channel');
+  syncPrefDefault(AppConstants.MOZ_B2GDROID ? 'app.update.url.android'
+                                            : 'app.update.url');
+  syncPrefDefault('app.update.channel');
 })();
 
 // ================ Debug ================
@@ -521,7 +563,7 @@ SettingsListener.observe("theme.selected",
 })();
 
 // =================== Various simple mapping  ======================
-let settingsToObserve = {
+var settingsToObserve = {
   'accessibility.screenreader_quicknav_modes': {
     prefName: 'accessibility.accessfu.quicknav_modes',
     resetToPref: true,
@@ -546,21 +588,41 @@ let settingsToObserve = {
     prefName: 'nglayout.debug.paint_flashing',
     defaultValue: false
   },
+  // FIXME: Bug 1185806 - Provide a common device name setting.
+  // Borrow device name from developer's menu to avoid multiple name settings.
+  'devtools.discovery.device': {
+    prefName: 'dom.presentation.device.name',
+    defaultValue: 'Firefox OS'
+  },
   'devtools.eventlooplag.threshold': 100,
   'devtools.remote.wifi.visible': {
     resetToPref: true
   },
+  'devtools.telemetry.supported_performance_marks': {
+    resetToPref: true
+  },
+
   'dom.mozApps.use_reviewer_certs': false,
   'dom.mozApps.signed_apps_installable_from': 'https://marketplace.firefox.com',
+  'dom.presentation.discovery.enabled': false,
+  'dom.presentation.discoverable': false,
+  'dom.serviceWorkers.interception.enabled': true,
+  'dom.serviceWorkers.testing.enabled': false,
   'gfx.layerscope.enabled': false,
   'layers.draw-borders': false,
   'layers.draw-tile-borders': false,
   'layers.dump': false,
+#ifdef XP_WIN
+  'layers.enable-tiles': false,
+#else
   'layers.enable-tiles': true,
+#endif
   'layers.effect.invert': false,
   'layers.effect.grayscale': false,
-  'layers.effect.contrast': "0.0",
+  'layers.effect.contrast': '0.0',
+  'mms.debugging.enabled': false,
   'privacy.donottrackheader.enabled': false,
+  'ril.debugging.enabled': false,
   'ril.radio.disabled': false,
   'ril.mms.requestReadReport.enabled': {
     prefName: 'dom.mms.requestReadReport',

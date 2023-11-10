@@ -12,6 +12,7 @@
 #include "prlink.h"
 #include "prclist.h"
 #include "nsIPluginTag.h"
+#include "nsPluginPlayPreviewInfo.h"
 #include "nsPluginsDir.h"
 #include "nsPluginDirServiceProvider.h"
 #include "nsAutoPtr.h"
@@ -23,7 +24,6 @@
 #include "nsTObserverArray.h"
 #include "nsITimer.h"
 #include "nsPluginTags.h"
-#include "nsPluginPlayPreviewInfo.h"
 #include "nsIEffectiveTLDService.h"
 #include "nsIIDNService.h"
 #include "nsCRT.h"
@@ -69,8 +69,8 @@ public:
   int64_t     mLastModifiedTime;
   bool        mSeen;
 
-  nsRefPtr<nsInvalidPluginTag> mPrev;
-  nsRefPtr<nsInvalidPluginTag> mNext;
+  RefPtr<nsInvalidPluginTag> mPrev;
+  RefPtr<nsInvalidPluginTag> mNext;
 };
 
 class nsPluginHost final : public nsIPluginHost,
@@ -79,6 +79,7 @@ class nsPluginHost final : public nsIPluginHost,
                            public nsSupportsWeakReference
 {
   friend class nsPluginTag;
+  friend class nsFakePluginTag;
   virtual ~nsPluginHost();
 
 public:
@@ -103,7 +104,8 @@ public:
   // Acts like a bitfield
   enum PluginFilter {
     eExcludeNone     = nsIPluginHost::EXCLUDE_NONE,
-    eExcludeDisabled = nsIPluginHost::EXCLUDE_DISABLED
+    eExcludeDisabled = nsIPluginHost::EXCLUDE_DISABLED,
+    eExcludeFake     = nsIPluginHost::EXCLUDE_FAKE
   };
   // FIXME-jsplugins comment about fake
   bool HavePluginForType(const nsACString & aMimeType,
@@ -114,10 +116,12 @@ public:
                               /* out */ nsACString & aMimeType,
                               PluginFilter aFilter = eExcludeDisabled);
 
-  void GetPlugins(nsTArray<nsRefPtr<nsPluginTag> >& aPluginArray);
-  void FindPluginsForContent(uint32_t aPluginEpoch,
-                             nsTArray<mozilla::plugins::PluginTag>* aPlugins,
-                             uint32_t* aNewPluginEpoch);
+  void GetPlugins(nsTArray<nsCOMPtr<nsIInternalPluginTag>>& aPluginArray,
+                  bool aIncludeDisabled = false);
+
+  nsresult FindPluginsForContent(uint32_t aPluginEpoch,
+                                 nsTArray<mozilla::plugins::PluginTag>* aPlugins,
+                                 uint32_t* aNewPluginEpoch);
 
   nsresult GetURL(nsISupports* pluginInst,
                   const char* url,
@@ -177,10 +181,6 @@ public:
                     const char* getHeaders = nullptr);
 
   nsresult
-  DoURLLoadSecurityCheck(nsNPAPIPluginInstance *aInstance,
-                         const char* aURL);
-
-  nsresult
   AddHeadersToChannel(const char *aHeadersData, uint32_t aHeadersDataLen,
                       nsIChannel *aGenericChannel);
 
@@ -190,8 +190,15 @@ public:
   // Always returns true if plugin.allowed_types is not set
   static bool IsTypeWhitelisted(const char *aType);
 
+  // Helper that checks if a plugin of a given MIME type can be loaded by the
+  // parent process. It checks the plugin.load_in_parent_process.<mime> pref.
+  // Always returns false if plugin.load_in_parent_process.<mime> is not set.
+  static bool ShouldLoadTypeInParent(const nsACString& aMimeType);
+
   // checks whether aType is a type we recognize for potential special handling
   enum SpecialType { eSpecialType_None,
+                     // Needed to whitelist for async init support
+                     eSpecialType_Test,
                      // Informs some decisions about OOP and quirks
                      eSpecialType_Flash,
                      // Binds to the <applet> tag, has various special
@@ -217,7 +224,7 @@ public:
   nsNPAPIPluginInstance *FindOldestStoppedInstance();
   uint32_t StoppedInstanceCount();
 
-  nsTArray< nsRefPtr<nsNPAPIPluginInstance> > *InstanceArray();
+  nsTArray< RefPtr<nsNPAPIPluginInstance> > *InstanceArray();
 
   // Return the tag for |aLibrary| if found, nullptr if not.
   nsPluginTag* FindTagForLibrary(PRLibrary* aLibrary);
@@ -259,11 +266,32 @@ private:
   nsPluginTag*
   FindPreferredPlugin(const InfallibleTArray<nsPluginTag*>& matches);
 
-  // Return an nsPluginTag for this type, if any.  If aCheckEnabled is
-  // true, only enabled plugins will be returned.
+  // Find a plugin for the given type.  If aIncludeFake is true a fake plugin
+  // will be preferred if one exists; otherwise a fake plugin will never be
+  // returned.  If aCheckEnabled is false, disabled plugins can be returned.
+  nsIInternalPluginTag* FindPluginForType(const nsACString& aMimeType,
+                                          bool aIncludeFake, bool aCheckEnabled);
+
+  // Find specifically a fake plugin for the given type.  If aCheckEnabled is
+  // false, disabled plugins can be returned.
+  nsFakePluginTag* FindFakePluginForType(const nsACString & aMimeType,
+                                         bool aCheckEnabled);
+
+  // Find specifically a fake plugin for the given extension.  If aCheckEnabled
+  // is false, disabled plugins can be returned.  aMimeType will be filled in
+  // with the MIME type the plugin is registered for.
+  nsFakePluginTag* FindFakePluginForExtension(const nsACString & aExtension,
+                                              /* out */ nsACString & aMimeType,
+                                              bool aCheckEnabled);
+
+  // Find specifically a native (NPAPI) plugin for the given type.  If
+  // aCheckEnabled is false, disabled plugins can be returned.
   nsPluginTag* FindNativePluginForType(const nsACString & aMimeType,
                                        bool aCheckEnabled);
 
+  // Find specifically a native (NPAPI) plugin for the given extension.  If
+  // aCheckEnabled is false, disabled plugins can be returned.  aMimeType will
+  // be filled in with the MIME type the plugin is registered for.
   nsPluginTag* FindNativePluginForExtension(const nsACString & aExtension,
                                             /* out */ nsACString & aMimeType,
                                             bool aCheckEnabled);
@@ -278,9 +306,12 @@ private:
 
   // FIXME revisit, no ns prefix
   // Registers or unregisters the given mime type with the category manager
-  // (performs no checks - see UpdateCategoryManager)
-  enum nsRegisterType { ePluginRegister, ePluginUnregister };
-  void RegisterWithCategoryManager(nsCString &aMimeType, nsRegisterType aType);
+  enum nsRegisterType { ePluginRegister,
+                        ePluginUnregister,
+                        // Checks if this type should still be registered first
+                        ePluginMaybeUnregister };
+  void RegisterWithCategoryManager(const nsCString& aMimeType,
+                                   nsRegisterType aType);
 
   void AddPluginTag(nsPluginTag* aPluginTag);
 
@@ -333,10 +364,19 @@ private:
   uint32_t ChromeEpochForContent();
   void SetChromeEpochForContent(uint32_t aEpoch);
 
-  nsRefPtr<nsPluginTag> mPlugins;
-  nsRefPtr<nsPluginTag> mCachedPlugins;
-  nsRefPtr<nsInvalidPluginTag> mInvalidPlugins;
-  nsTArray< nsRefPtr<nsPluginPlayPreviewInfo> > mPlayPreviewMimeTypes;
+  void UpdateInMemoryPluginInfo(nsPluginTag* aPluginTag);
+
+  // On certain platforms, we only want to load certain plugins. This function
+  // centralizes loading rules.
+  bool ShouldAddPlugin(nsPluginTag* aPluginTag);
+
+  RefPtr<nsPluginTag> mPlugins;
+  RefPtr<nsPluginTag> mCachedPlugins;
+  RefPtr<nsInvalidPluginTag> mInvalidPlugins;
+  nsTArray< RefPtr<nsPluginPlayPreviewInfo> > mPlayPreviewMimeTypes;
+
+  nsTArray< RefPtr<nsFakePluginTag> > mFakePlugins;
+
   bool mPluginsLoaded;
 
   // set by pref plugin.override_internal_types
@@ -349,11 +389,11 @@ private:
 
   // Any instances in this array will have valid plugin objects via GetPlugin().
   // When removing an instance it might not die - be sure to null out it's plugin.
-  nsTArray< nsRefPtr<nsNPAPIPluginInstance> > mInstances;
+  nsTArray< RefPtr<nsNPAPIPluginInstance> > mInstances;
 
   nsCOMPtr<nsIFile> mPluginRegFile;
 #ifdef XP_WIN
-  nsRefPtr<nsPluginDirServiceProvider> mPrivateDirServiceProvider;
+  RefPtr<nsPluginDirServiceProvider> mPrivateDirServiceProvider;
 
   // In order to reload plugins when they change, we watch the registry via
   // this object.
@@ -420,7 +460,7 @@ protected:
     PR_INSERT_AFTER(this, &sListHead);
   }
 
-  nsRefPtr<nsNPAPIPluginInstance> mInstance;
+  RefPtr<nsNPAPIPluginInstance> mInstance;
   bool mDelayedDestroy;
 
   static PRCList sListHead;

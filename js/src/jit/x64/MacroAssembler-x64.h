@@ -39,44 +39,9 @@ class MacroAssemblerX64 : public MacroAssemblerX86Shared
     MacroAssembler& asMasm();
     const MacroAssembler& asMasm() const;
 
-  private:
-    // These use SystemAllocPolicy since asm.js releases memory after each
-    // function is compiled, and these need to live until after all functions
-    // are compiled.
-    struct Double {
-        double value;
-        NonAssertingLabel uses;
-        explicit Double(double value) : value(value) {}
-    };
-    Vector<Double, 0, SystemAllocPolicy> doubles_;
-
-    typedef HashMap<double, size_t, DefaultHasher<double>, SystemAllocPolicy> DoubleMap;
-    DoubleMap doubleMap_;
-
-    struct Float {
-        float value;
-        NonAssertingLabel uses;
-        explicit Float(float value) : value(value) {}
-    };
-    Vector<Float, 0, SystemAllocPolicy> floats_;
-
-    typedef HashMap<float, size_t, DefaultHasher<float>, SystemAllocPolicy> FloatMap;
-    FloatMap floatMap_;
-
-    struct SimdData {
-        SimdConstant value;
-        NonAssertingLabel uses;
-
-        explicit SimdData(const SimdConstant& v) : value(v) {}
-        SimdConstant::Type type() { return value.type(); }
-    };
-    Vector<SimdData, 0, SystemAllocPolicy> simds_;
-    typedef HashMap<SimdConstant, size_t, SimdConstant, SystemAllocPolicy> SimdMap;
-    SimdMap simdMap_;
+    void bindOffsets(const MacroAssemblerX86Shared::UsesVector&);
 
   public:
-    using MacroAssemblerX86Shared::branch32;
-    using MacroAssemblerX86Shared::branchTest32;
     using MacroAssemblerX86Shared::load32;
     using MacroAssemblerX86Shared::store32;
 
@@ -233,22 +198,7 @@ class MacroAssemblerX64 : public MacroAssemblerX86Shared
         if (src.valueReg() != dest.valueReg())
             movq(src.valueReg(), dest.valueReg());
     }
-    void boxValue(JSValueType type, Register src, Register dest) {
-        MOZ_ASSERT(src != dest);
-
-        JSValueShiftedTag tag = (JSValueShiftedTag)JSVAL_TYPE_TO_SHIFTED_TAG(type);
-#ifdef DEBUG
-        if (type == JSVAL_TYPE_INT32 || type == JSVAL_TYPE_BOOLEAN) {
-            Label upper32BitsZeroed;
-            movePtr(ImmWord(UINT32_MAX), dest);
-            branchPtr(Assembler::BelowOrEqual, src, dest, &upper32BitsZeroed);
-            breakpoint();
-            bind(&upper32BitsZeroed);
-        }
-#endif
-        mov(ImmShiftedTag(tag), dest);
-        orq(src, dest);
-    }
+    void boxValue(JSValueType type, Register src, Register dest);
 
     Condition testUndefined(Condition cond, Register tag) {
         MOZ_ASSERT(cond == Equal || cond == NotEqual);
@@ -576,128 +526,8 @@ class MacroAssemblerX64 : public MacroAssemblerX86Shared
     // Common interface.
     /////////////////////////////////////////////////////////////////
 
-    void addPtr(Register src, Register dest) {
-        addq(src, dest);
-    }
-    void addPtr(Imm32 imm, Register dest) {
-        addq(imm, dest);
-    }
-    void addPtr(Imm32 imm, const Address& dest) {
-        addq(imm, Operand(dest));
-    }
-    void addPtr(Imm32 imm, const Operand& dest) {
-        addq(imm, dest);
-    }
-    void addPtr(ImmWord imm, Register dest) {
-        ScratchRegisterScope scratch(asMasm());
-        MOZ_ASSERT(dest != scratch);
-        if ((intptr_t)imm.value <= INT32_MAX && (intptr_t)imm.value >= INT32_MIN) {
-            addq(Imm32((int32_t)imm.value), dest);
-        } else {
-            mov(imm, scratch);
-            addq(scratch, dest);
-        }
-    }
-    void addPtr(ImmPtr imm, Register dest) {
-        addPtr(ImmWord(uintptr_t(imm.value)), dest);
-    }
-    void addPtr(const Address& src, Register dest) {
-        addq(Operand(src), dest);
-    }
-    void subPtr(Imm32 imm, Register dest) {
-        subq(imm, dest);
-    }
-    void subPtr(Register src, Register dest) {
-        subq(src, dest);
-    }
-    void subPtr(const Address& addr, Register dest) {
-        subq(Operand(addr), dest);
-    }
-    void subPtr(Register src, const Address& dest) {
-        subq(src, Operand(dest));
-    }
-    void mulBy3(const Register& src, const Register& dest) {
-        lea(Operand(src, src, TimesTwo), dest);
-    }
-
-    void branch32(Condition cond, AbsoluteAddress lhs, Imm32 rhs, Label* label) {
-        if (X86Encoding::IsAddressImmediate(lhs.addr)) {
-            branch32(cond, Operand(lhs), rhs, label);
-        } else {
-            ScratchRegisterScope scratch(asMasm());
-            mov(ImmPtr(lhs.addr), scratch);
-            branch32(cond, Address(scratch, 0), rhs, label);
-        }
-    }
-    void branch32(Condition cond, AsmJSAbsoluteAddress lhs, Imm32 rhs, Label* label) {
-        ScratchRegisterScope scratch(asMasm());
-        mov(AsmJSImmPtr(lhs.kind()), scratch);
-        branch32(cond, Address(scratch, 0), rhs, label);
-    }
-    void branch32(Condition cond, AbsoluteAddress lhs, Register rhs, Label* label) {
-        if (X86Encoding::IsAddressImmediate(lhs.addr)) {
-            branch32(cond, Operand(lhs), rhs, label);
-        } else {
-            ScratchRegisterScope scratch(asMasm());
-            mov(ImmPtr(lhs.addr), scratch);
-            branch32(cond, Address(scratch, 0), rhs, label);
-        }
-    }
-    void branchTest32(Condition cond, AbsoluteAddress address, Imm32 imm, Label* label) {
-        if (X86Encoding::IsAddressImmediate(address.addr)) {
-            test32(Operand(address), imm);
-        } else {
-            ScratchRegisterScope scratch(asMasm());
-            mov(ImmPtr(address.addr), scratch);
-            test32(Operand(scratch, 0), imm);
-        }
-        j(cond, label);
-    }
-
-    // Specialization for AbsoluteAddress.
-    void branchPtr(Condition cond, AbsoluteAddress addr, Register ptr, Label* label) {
-        ScratchRegisterScope scratch(asMasm());
-        MOZ_ASSERT(ptr != scratch);
-        if (X86Encoding::IsAddressImmediate(addr.addr)) {
-            branchPtr(cond, Operand(addr), ptr, label);
-        } else {
-            mov(ImmPtr(addr.addr), scratch);
-            branchPtr(cond, Operand(scratch, 0x0), ptr, label);
-        }
-    }
-    void branchPtr(Condition cond, AbsoluteAddress addr, ImmWord ptr, Label* label) {
-        if (X86Encoding::IsAddressImmediate(addr.addr)) {
-            branchPtr(cond, Operand(addr), ptr, label);
-        } else {
-            ScratchRegisterScope scratch(asMasm());
-            mov(ImmPtr(addr.addr), scratch);
-            branchPtr(cond, Operand(scratch, 0x0), ptr, label);
-        }
-    }
-    void branchPtr(Condition cond, AsmJSAbsoluteAddress addr, Register ptr, Label* label) {
-        ScratchRegisterScope scratch(asMasm());
-        MOZ_ASSERT(ptr != scratch);
-        mov(AsmJSImmPtr(addr.kind()), scratch);
-        branchPtr(cond, Operand(scratch, 0x0), ptr, label);
-    }
-
-    void branchPrivatePtr(Condition cond, Address lhs, ImmPtr ptr, Label* label) {
-        branchPtr(cond, lhs, ImmWord(uintptr_t(ptr.value) >> 1), label);
-    }
-
-    void branchPrivatePtr(Condition cond, Address lhs, Register ptr, Label* label) {
-        ScratchRegisterScope scratch(asMasm());
-        if (ptr != scratch)
-            movePtr(ptr, scratch);
-        rshiftPtr(Imm32(1), scratch);
-        branchPtr(cond, lhs, scratch, label);
-    }
-
     template <typename T, typename S>
-    void branchPtr(Condition cond, const T& lhs, const S& ptr, Label* label) {
-        cmpPtr(Operand(lhs), ptr);
-        j(cond, label);
-    }
+    inline void branchPtrImpl(Condition cond, const T& lhs, const S& rhs, Label* label);
 
     CodeOffsetJump jumpWithPatch(RepatchLabel* label, Label* documentation = nullptr) {
         JmpSrc src = jmpSrc(label);
@@ -720,24 +550,8 @@ class MacroAssemblerX64 : public MacroAssemblerX86Shared
         cmpPtr(lhs, ptr);
         return jumpWithPatch(label, cond);
     }
-    void branchPtr(Condition cond, Register lhs, Register rhs, Label* label) {
-        cmpPtr(lhs, rhs);
-        j(cond, label);
-    }
-    void branchTestPtr(Condition cond, Register lhs, Register rhs, Label* label) {
-        testPtr(lhs, rhs);
-        j(cond, label);
-    }
-    void branchTestPtr(Condition cond, Register lhs, Imm32 imm, Label* label) {
-        testPtr(lhs, imm);
-        j(cond, label);
-    }
-    void branchTestPtr(Condition cond, const Address& lhs, Imm32 imm, Label* label) {
-        testPtr(Operand(lhs), imm);
-        j(cond, label);
-    }
     void decBranchPtr(Condition cond, Register lhs, Imm32 imm, Label* label) {
-        subPtr(imm, lhs);
+        subq(imm, lhs);
         j(cond, label);
     }
 
@@ -753,7 +567,7 @@ class MacroAssemblerX64 : public MacroAssemblerX86Shared
     void movePtr(ImmPtr imm, Register dest) {
         mov(imm, dest);
     }
-    void movePtr(AsmJSImmPtr imm, Register dest) {
+    void movePtr(wasm::SymbolicAddress imm, Register dest) {
         mov(imm, dest);
     }
     void movePtr(ImmGCPtr imm, Register dest) {
@@ -789,6 +603,9 @@ class MacroAssemblerX64 : public MacroAssemblerX86Shared
             mov(ImmPtr(address.addr), scratch);
             load32(Address(scratch, 0x0), dest);
         }
+    }
+    void load64(const Address& address, Register64 dest) {
+        movq(Operand(address), dest.reg);
     }
     template <typename T>
     void storePtr(ImmWord imm, T address) {
@@ -837,14 +654,8 @@ class MacroAssemblerX64 : public MacroAssemblerX86Shared
             store32(src, Address(scratch, 0x0));
         }
     }
-    void rshiftPtr(Imm32 imm, Register dest) {
-        shrq(imm, dest);
-    }
-    void rshiftPtrArithmetic(Imm32 imm, Register dest) {
-        sarq(imm, dest);
-    }
-    void lshiftPtr(Imm32 imm, Register dest) {
-        shlq(imm, dest);
+    void store64(Register64 src, Address address) {
+        movq(src.reg, Operand(address));
     }
 
     void splitTag(Register src, Register dest) {
@@ -948,6 +759,10 @@ class MacroAssemblerX64 : public MacroAssemblerX86Shared
         MOZ_ASSERT(cond == Equal || cond == NotEqual);
         cmp32(ToUpper32(operand), Imm32(Upper32Of(GetShiftedTag(JSVAL_TYPE_BOOLEAN))));
         j(cond, label);
+    }
+    void branchTestBoolean(Condition cond, const Address& address, Label* label) {
+        MOZ_ASSERT(cond == Equal || cond == NotEqual);
+        branchTestBoolean(cond, Operand(address), label);
     }
     void branchTestNull(Condition cond, const Operand& operand, Label* label) {
         MOZ_ASSERT(cond == Equal || cond == NotEqual);
@@ -1053,8 +868,8 @@ class MacroAssemblerX64 : public MacroAssemblerX86Shared
         cond = testPrimitive(cond, t);
         j(cond, label);
     }
-    template <typename T>
-    void branchTestMagic(Condition cond, const T& t, Label* label) {
+    template <typename T, class L>
+    void branchTestMagic(Condition cond, const T& t, L label) {
         cond = testMagic(cond, t);
         j(cond, label);
     }
@@ -1079,12 +894,8 @@ class MacroAssemblerX64 : public MacroAssemblerX86Shared
         cmpPtr(value.valueReg(), scratch);
         j(cond, label);
     }
-    void branchTestValue(Condition cond, const Address& valaddr, const ValueOperand& value,
-                         Label* label)
-    {
-        MOZ_ASSERT(cond == Equal || cond == NotEqual);
-        branchPtr(cond, valaddr, value.valueReg(), label);
-    }
+    inline void branchTestValue(Condition cond, const Address& valaddr, const ValueOperand& value,
+                                Label* label);
 
     void testNullSet(Condition cond, const ValueOperand& value, Register dest) {
         cond = testNull(cond, value);
@@ -1266,32 +1077,8 @@ class MacroAssemblerX64 : public MacroAssemblerX86Shared
 
     void loadConstantDouble(double d, FloatRegister dest);
     void loadConstantFloat32(float f, FloatRegister dest);
-  private:
-    SimdData* getSimdData(const SimdConstant& v);
-  public:
     void loadConstantInt32x4(const SimdConstant& v, FloatRegister dest);
     void loadConstantFloat32x4(const SimdConstant& v, FloatRegister dest);
-
-    void branchTruncateDouble(FloatRegister src, Register dest, Label* fail) {
-        vcvttsd2sq(src, dest);
-
-        // vcvttsd2sq returns 0x8000000000000000 on failure. Test for it by
-        // subtracting 1 and testing overflow (this avoids the need to
-        // materialize that value in a register).
-        cmpPtr(dest, Imm32(1));
-        j(Assembler::Overflow, fail);
-
-        movl(dest, dest); // Zero upper 32-bits.
-    }
-    void branchTruncateFloat32(FloatRegister src, Register dest, Label* fail) {
-        vcvttss2sq(src, dest);
-
-        // Same trick as for Doubles
-        cmpPtr(dest, Imm32(1));
-        j(Assembler::Overflow, fail);
-
-        movl(dest, dest); // Zero upper 32-bits.
-    }
 
     Condition testInt32Truthy(bool truthy, const ValueOperand& operand) {
         test32(operand.valueReg(), operand.valueReg());
@@ -1370,19 +1157,11 @@ class MacroAssemblerX64 : public MacroAssemblerX86Shared
         vcvtsq2ss(src, dest, dest);
     }
 
-    void inc64(AbsoluteAddress dest) {
-        if (X86Encoding::IsAddressImmediate(dest.addr)) {
-            addPtr(Imm32(1), Operand(dest));
-        } else {
-            ScratchRegisterScope scratch(asMasm());
-            mov(ImmPtr(dest.addr), scratch);
-            addPtr(Imm32(1), Address(scratch, 0));
-        }
+    void convertUInt64ToDouble(Register64 src, Register temp, FloatRegister dest) {
+        vcvtsi2sdq(src.reg, dest);
     }
 
-    void incrementInt32Value(const Address& addr) {
-        addPtr(Imm32(1), addr);
-    }
+    inline void incrementInt32Value(const Address& addr);
 
     // If source is a double, load it into dest. If source is int32,
     // convert it to double. Else, branch to failure.
@@ -1407,7 +1186,7 @@ class MacroAssemblerX64 : public MacroAssemblerX86Shared
     void handleFailureWithHandlerTail(void* handler);
 
     // See CodeGeneratorX64 calls to noteAsmJSGlobalAccess.
-    void patchAsmJSGlobalAccess(CodeOffsetLabel patchAt, uint8_t* code, uint8_t* globalData,
+    void patchAsmJSGlobalAccess(CodeOffset patchAt, uint8_t* code, uint8_t* globalData,
                                 unsigned globalDataOffset)
     {
         uint8_t* nextInsn = code + patchAt.offset();

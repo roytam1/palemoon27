@@ -262,9 +262,6 @@ NS_NewXULTreeBuilder(nsISupports* aOuter, REFNSIID aIID, void** aResult)
 
     nsresult rv;
     nsXULTreeBuilder* result = new nsXULTreeBuilder();
-    if (! result)
-        return NS_ERROR_OUT_OF_MEMORY;
-
     NS_ADDREF(result); // stabilize
 
     rv = result->InitGlobals();
@@ -1466,7 +1463,7 @@ nsXULTreeBuilder::OpenSubtreeOf(nsTreeRows::Subtree* aSubtree,
                                 nsIXULTemplateResult *aResult,
                                 int32_t* aDelta)
 {
-    nsAutoTArray<int32_t, 8> open;
+    AutoTArray<int32_t, 8> open;
     int32_t count = 0;
 
     int32_t rulecount = mQuerySets.Length();

@@ -14,7 +14,11 @@
 #include "nsIURI.h"
 #include "nsTArray.h"
 
+#include "mozilla/BasePrincipal.h"
+
 class nsINode;
+class nsPIDOMWindow;
+class nsXMLHttpRequest;
 
 namespace mozilla {
 
@@ -31,6 +35,11 @@ LoadInfoArgsToLoadInfo(const mozilla::net::OptionalLoadInfoArgs& aLoadInfoArgs,
 
 /**
  * Class that provides an nsILoadInfo implementation.
+ *
+ * Note that there is no reason why this class should be MOZ_EXPORT, but
+ * Thunderbird relies on some insane hacks which require this, so we'll leave it
+ * as is for now, but hopefully we'll be able to remove the MOZ_EXPORT keyword
+ * from this class at some point.  See bug 1149127 for the discussion.
  */
 class MOZ_EXPORT LoadInfo final : public nsILoadInfo
 {
@@ -51,6 +60,14 @@ public:
   already_AddRefed<nsILoadInfo>
   CloneWithNewSecFlags(nsSecurityFlags aSecurityFlags) const;
 
+  // create an exact copy of the loadinfo
+  already_AddRefed<nsILoadInfo> Clone() const;
+  // creates a copy of the loadinfo which is appropriate to use for a
+  // separate request. I.e. not for a redirect or an inner channel, but
+  // when a separate request is made with the same security properties.
+  already_AddRefed<nsILoadInfo> CloneForNewRequest() const;
+
+  void SetIsPreflight();
   void SetIsFromProcessingFrameAttributes();
 
 private:
@@ -62,13 +79,22 @@ private:
            nsIPrincipal* aTriggeringPrincipal,
            nsSecurityFlags aSecurityFlags,
            nsContentPolicyType aContentPolicyType,
+           LoadTainting aTainting,
            bool aUpgradeInsecureRequests,
+           bool aUpgradeInsecurePreloads,
            uint64_t aInnerWindowID,
            uint64_t aOuterWindowID,
            uint64_t aParentOuterWindowID,
            bool aEnforceSecurity,
            bool aInitialSecurityCheckDone,
-           nsTArray<nsCOMPtr<nsIPrincipal>>& aRedirectChain);
+           bool aIsThirdPartyRequest,
+           const OriginAttributes& aOriginAttributes,
+           nsTArray<nsCOMPtr<nsIPrincipal>>& aRedirectChainIncludingInternalRedirects,
+           nsTArray<nsCOMPtr<nsIPrincipal>>& aRedirectChain,
+           const nsTArray<nsCString>& aUnsafeHeaders,
+           bool aForcePreflight,
+           bool aIsPreflight);
+  LoadInfo(const LoadInfo& rhs);
 
   friend nsresult
   mozilla::ipc::LoadInfoArgsToLoadInfo(
@@ -77,18 +103,35 @@ private:
 
   ~LoadInfo();
 
+  void ComputeIsThirdPartyContext(nsPIDOMWindow* aOuterWindow);
+
+  // This function is the *only* function which can change the securityflags
+  // of a loadinfo. It only exists because of the XHR code. Don't call it
+  // from anywhere else!
+  void SetIncludeCookiesSecFlag();
+  friend class ::nsXMLHttpRequest;
+
+  // if you add a member, please also update the copy constructor
   nsCOMPtr<nsIPrincipal>           mLoadingPrincipal;
   nsCOMPtr<nsIPrincipal>           mTriggeringPrincipal;
   nsWeakPtr                        mLoadingContext;
   nsSecurityFlags                  mSecurityFlags;
   nsContentPolicyType              mInternalContentPolicyType;
+  LoadTainting                     mTainting;
   bool                             mUpgradeInsecureRequests;
+  bool                             mUpgradeInsecurePreloads;
   uint64_t                         mInnerWindowID;
   uint64_t                         mOuterWindowID;
   uint64_t                         mParentOuterWindowID;
   bool                             mEnforceSecurity;
   bool                             mInitialSecurityCheckDone;
+  bool                             mIsThirdPartyContext;
+  OriginAttributes                 mOriginAttributes;
+  nsTArray<nsCOMPtr<nsIPrincipal>> mRedirectChainIncludingInternalRedirects;
   nsTArray<nsCOMPtr<nsIPrincipal>> mRedirectChain;
+  nsTArray<nsCString>              mCorsUnsafeHeaders;
+  bool                             mForcePreflight;
+  bool                             mIsPreflight;
 
   // Is true if this load was triggered by processing the attributes of the
   // browsing context container.

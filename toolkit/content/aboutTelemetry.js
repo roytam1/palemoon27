@@ -4,9 +4,9 @@
 
 'use strict';
 
-const Ci = Components.interfaces;
-const Cc = Components.classes;
-const Cu = Components.utils;
+var Ci = Components.interfaces;
+var Cc = Components.classes;
+var Cu = Components.utils;
 
 Cu.import("resource://gre/modules/Services.jsm");
 Cu.import("resource://gre/modules/TelemetryTimestamps.jsm");
@@ -38,7 +38,7 @@ const EOL = "\n";
 #endif
 
 // Cached value of document's RTL mode
-let documentRTLMode = "";
+var documentRTLMode = "";
 
 /**
  * Helper function for fetching a config pref
@@ -109,7 +109,7 @@ let observer = {
   }
 };
 
-let GeneralData = {
+var GeneralData = {
   /**
    * Renders the general data
    */
@@ -152,7 +152,7 @@ let GeneralData = {
   },
 };
 
-let SlowSQL = {
+var SlowSQL = {
 
   slowSqlHits: bundle.GetStringFromName("slowSqlHits"),
 
@@ -273,7 +273,7 @@ function clearDivData(aDiv) {
   }
 };
 
-let StackRenderer = {
+var StackRenderer = {
 
   stackTitle: bundle.GetStringFromName("stackTitle"),
 
@@ -428,7 +428,7 @@ function SymbolicationRequest_fetchSymbols() {
   this.symbolRequest.send(requestJSON);
 }
 
-let ChromeHangs = {
+var ChromeHangs = {
 
   symbolRequest: null,
 
@@ -450,7 +450,7 @@ let ChromeHangs = {
   }
 };
 
-let ThreadHangStats = {
+var ThreadHangStats = {
 
   /**
    * Renders raw thread hang stats data
@@ -501,7 +501,7 @@ let ThreadHangStats = {
   },
 };
 
-let Histogram = {
+var Histogram = {
 
   hgramSamplesCaption: bundle.GetStringFromName("histogramSamples"),
 
@@ -769,7 +769,7 @@ function RenderObject(aObject) {
   return output + "}";
 };
 
-let KeyValueTable = {
+var KeyValueTable = {
   /**
    * Returns a 2-column table with keys and values
    * @param aMeasurements Each key in this JS object is rendered as a row in
@@ -833,7 +833,7 @@ let KeyValueTable = {
   }
 };
 
-let KeyedHistogram = {
+var KeyedHistogram = {
   render: function(parent, id, keyedHistogram) {
     let outerDiv = document.createElement("div");
     outerDiv.className = "keyed-histogram";
@@ -853,7 +853,7 @@ let KeyedHistogram = {
   },
 };
 
-let AddonDetails = {
+var AddonDetails = {
   tableIDTitle: bundle.GetStringFromName("addonTableID"),
   tableDetailsTitle: bundle.GetStringFromName("addonTableDetails"),
 
@@ -1056,7 +1056,7 @@ function onLoad() {
   }
 }
 
-let LateWritesSingleton = {
+var LateWritesSingleton = {
   renderHeader: function LateWritesSingleton_renderHeader(aIndex) {
     StackRenderer.renderHeader("late-writes", [aIndex + 1]);
   },

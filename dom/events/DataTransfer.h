@@ -18,8 +18,8 @@
 
 #include "nsAutoPtr.h"
 #include "mozilla/Attributes.h"
+#include "mozilla/EventForwards.h"
 #include "mozilla/dom/File.h"
-#include "mozilla/dom/Promise.h"
 
 class nsINode;
 class nsITransferable;
@@ -35,6 +35,7 @@ namespace dom {
 class DOMStringList;
 class Element;
 class FileList;
+class Promise;
 template<typename T> class Optional;
 
 /**
@@ -67,6 +68,8 @@ public:
 
   friend class mozilla::EventStateManager;
 
+  static DataTransfer* Cast(nsIDOMDataTransfer* aArg) { return static_cast<DataTransfer*>(aArg); }
+
 protected:
 
   // hide the default constructor
@@ -75,7 +78,7 @@ protected:
   // this constructor is used only by the Clone method to copy the fields as
   // needed to a new data transfer.
   DataTransfer(nsISupports* aParent,
-               uint32_t aEventType,
+               EventMessage aEventMessage,
                const uint32_t aEffectAllowed,
                bool aCursorState,
                bool aIsExternal,
@@ -95,8 +98,6 @@ public:
 
   // Constructor for DataTransfer.
   //
-  // aEventType is an event constant (such as NS_DRAGDROP_START)
-  //
   // aIsExternal must only be true when used to create a dataTransfer for a
   // paste or a drag that was started without using a data transfer. The
   // latter will occur when an external drag occurs, that is, a drag where the
@@ -104,8 +105,8 @@ public:
   // service directly. For clipboard operations, aClipboardType indicates
   // which clipboard to use, from nsIClipboard, or -1 for non-clipboard operations,
   // or if access to the system clipboard should not be allowed.
-  DataTransfer(nsISupports* aParent, uint32_t aEventType, bool aIsExternal,
-               int32_t aClipboardType);
+  DataTransfer(nsISupports* aParent, EventMessage aEventMessage,
+               bool aIsExternal, int32_t aClipboardType);
 
   virtual JSObject* WrapObject(JSContext* aCx, JS::Handle<JSObject*> aGivenProto) override;
   nsISupports* GetParentObject()
@@ -184,6 +185,9 @@ public:
     return mDragTarget;
   }
 
+  nsresult GetDataAtNoSecurityCheck(const nsAString& aFormat, uint32_t aIndex,
+                                    nsIVariant** aData);
+
   // a readonly dataTransfer cannot have new data added or existing data removed.
   // Only the dropEffect and effectAllowed may be modified.
   void SetReadOnly() { mReadOnly = true; }
@@ -222,8 +226,9 @@ public:
     return mDragImage;
   }
 
-  nsresult Clone(nsISupports* aParent, uint32_t aEventType, bool aUserCancelled,
-                 bool aIsCrossDomainSubFrameDrop, DataTransfer** aResult);
+  nsresult Clone(nsISupports* aParent, EventMessage aEventMessage,
+                 bool aUserCancelled, bool aIsCrossDomainSubFrameDrop,
+                 DataTransfer** aResult);
 
 protected:
 
@@ -246,6 +251,13 @@ protected:
   // clipboard for a given index.
   void FillInExternalData(TransferItem& aItem, uint32_t aIndex);
 
+
+  FileList* GetFilesInternal(ErrorResult& aRv, nsIPrincipal* aSubjectPrincipal);
+  nsresult GetDataAtInternal(const nsAString& aFormat, uint32_t aIndex,
+                             nsIPrincipal* aSubjectPrincipal, nsIVariant** aData);
+  nsresult SetDataAtInternal(const nsAString& aFormat, nsIVariant* aData, uint32_t aIndex,
+                             nsIPrincipal* aSubjectPrincipal);
+
   friend class ContentParent;
   void FillAllExternalData();
 
@@ -254,13 +266,14 @@ protected:
 
   nsCOMPtr<nsISupports> mParent;
 
-  // the event type this data transfer is for. This will correspond to an
-  // event->message value.
-  uint32_t mEventType;
 
   // the drop effect and effect allowed
   uint32_t mDropEffect;
   uint32_t mEffectAllowed;
+
+  // the event message this data transfer is for. This will correspond to an
+  // event->mMessage value.
+  EventMessage mEventMessage;
 
   // Indicates the behavior of the cursor during drag operations
   bool mCursorState;
@@ -288,7 +301,7 @@ protected:
   nsTArray<nsTArray<TransferItem> > mItems;
 
   // array of files, containing only the files present in the dataTransfer
-  nsRefPtr<FileList> mFiles;
+  RefPtr<FileList> mFiles;
 
   // the target of the drag. The drag and dragend events will fire at this.
   nsCOMPtr<mozilla::dom::Element> mDragTarget;

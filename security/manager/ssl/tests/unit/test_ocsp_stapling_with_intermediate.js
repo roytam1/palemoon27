@@ -8,7 +8,7 @@
 // certificate signed by an intermediate that has an OCSP AIA to ensure
 // that an OCSP request is not made for the intermediate.
 
-let gOCSPRequestCount = 0;
+var gOCSPRequestCount = 0;
 
 function add_ocsp_test(aHost, aExpectedResult) {
   add_connection_test(aHost, aExpectedResult,
@@ -31,9 +31,10 @@ function run_test() {
   });
   ocspResponder.start(8888);
 
-  add_tls_server_setup("OCSPStaplingServer");
+  add_tls_server_setup("OCSPStaplingServer", "ocsp_certs");
 
-  add_ocsp_test("ocsp-stapling-with-intermediate.example.com", Cr.NS_OK);
+  add_ocsp_test("ocsp-stapling-with-intermediate.example.com",
+                PRErrorCodeSuccess);
 
   add_test(function () { ocspResponder.stop(run_next_test); });
   add_test(function() {

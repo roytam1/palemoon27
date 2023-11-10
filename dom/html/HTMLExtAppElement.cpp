@@ -21,13 +21,13 @@ NS_NewHTMLExtAppElement(already_AddRefed<mozilla::dom::NodeInfo>&& aNodeInfo,
   // Return HTMLUnknownElement if the document doesn't have the 'external-app' permission.
   nsCOMPtr<nsIPermissionManager> permissionManager =
     mozilla::services::GetPermissionManager();
-  nsRefPtr<mozilla::dom::NodeInfo> ni = aNodeInfo;
+  RefPtr<mozilla::dom::NodeInfo> ni = aNodeInfo;
   nsIPrincipal* principal = ni->GetDocument()->NodePrincipal();
 
   already_AddRefed<mozilla::dom::NodeInfo> aarni = ni.forget();
 
   if (!permissionManager) {
-    return new HTMLUnknownElement(aarni);
+    return new mozilla::dom::HTMLUnknownElement(aarni);
   }
 
   uint32_t perm = nsIPermissionManager::UNKNOWN_ACTION;
@@ -35,10 +35,10 @@ NS_NewHTMLExtAppElement(already_AddRefed<mozilla::dom::NodeInfo>&& aNodeInfo,
                                                       "external-app",
                                                       &perm);
   if (perm != nsIPermissionManager::ALLOW_ACTION) {
-    return new HTMLUnknownElement(aarni);
+    return new mozilla::dom::HTMLUnknownElement(aarni);
   }
 
-  return new HTMLExtAppElement(aarni);
+  return new mozilla::dom::HTMLExtAppElement(aarni);
 }
 
 namespace mozilla {
@@ -175,7 +175,7 @@ nsCustomEventDispatch::DispatchExternalEvent(const nsAString& value)
   mozilla::dom::ExternalAppEventInit init;
   init.mData = value;
 
-  nsRefPtr<mozilla::dom::ExternalAppEvent> event =
+  RefPtr<mozilla::dom::ExternalAppEvent> event =
     mozilla::dom::ExternalAppEvent::Constructor(mEventTarget,
                                                 NS_LITERAL_STRING("externalappevent"),
                                                 init);

@@ -20,6 +20,7 @@ EXPORTS.mozilla += [
 
 SOURCES += [
     'Telemetry.cpp',
+    'WebrtcTelemetry.cpp',
 ]
 
 EXTRA_COMPONENTS += [
@@ -32,6 +33,7 @@ EXTRA_JS_MODULES += [
     'TelemetryFile.jsm',
     'TelemetryLog.jsm',
     'TelemetryStopwatch.jsm',
+    'TelemetryTimestamps.jsm',
     'ThirdPartyCookieProbe.jsm',
     'UITelemetry.jsm',
 ]
@@ -41,8 +43,6 @@ EXTRA_PP_JS_MODULES += [
     'TelemetrySession.jsm',
 ]
 
-FAIL_ON_WARNINGS = True
-
 include('/ipc/chromium/chromium-config.mozbuild')
 
 FINAL_LIBRARY = 'xul'
@@ -51,8 +51,7 @@ GENERATED_FILES = [
     'TelemetryHistogramData.inc',
 ]
 
-if CONFIG['MOZILLA_OFFICIAL']:
-    DEFINES['MOZILLA_OFFICIAL'] = True
+DEFINES['MOZ_APP_VERSION'] = '"%s"' % CONFIG['MOZ_APP_VERSION']
 
 LOCAL_INCLUDES += [
     '/xpcom/build',
@@ -60,3 +59,4 @@ LOCAL_INCLUDES += [
 ]
 
 SPHINX_TREES['telemetry'] = 'docs'
+SPHINX_TREES['healthreport'] = 'docs/fhr'

@@ -11,19 +11,18 @@
 
 #include "mozilla/Logging.h"
 
-PRLogModuleInfo* GetDemuxerLog();
-#define LOG(...) MOZ_LOG(GetDemuxerLog(), mozilla::LogLevel::Debug, (__VA_ARGS__))
+extern mozilla::LogModule* GetPDMLog();
+#define LOG(...) MOZ_LOG(GetPDMLog(), mozilla::LogLevel::Debug, (__VA_ARGS__))
 
 namespace mozilla {
 
 WMFMediaDataDecoder::WMFMediaDataDecoder(MFTManager* aMFTManager,
-                                         FlushableMediaTaskQueue* aTaskQueue,
+                                         FlushableTaskQueue* aTaskQueue,
                                          MediaDataDecoderCallback* aCallback)
   : mTaskQueue(aTaskQueue)
   , mCallback(aCallback)
   , mMFTManager(aMFTManager)
   , mMonitor("WMFMediaDataDecoder")
-  , mIsDecodeTaskDispatched(false)
   , mIsFlushing(false)
   , mIsShutDown(false)
 {
@@ -33,16 +32,11 @@ WMFMediaDataDecoder::~WMFMediaDataDecoder()
 {
 }
 
-nsresult
+RefPtr<MediaDataDecoder::InitPromise>
 WMFMediaDataDecoder::Init()
 {
-  MOZ_ASSERT(!mDecoder);
   MOZ_ASSERT(!mIsShutDown);
-
-  mDecoder = mMFTManager->Init();
-  NS_ENSURE_TRUE(mDecoder, NS_ERROR_FAILURE);
-
-  return NS_OK;
+  return InitPromise::CreateAndResolve(mMFTManager->GetType(), __func__);
 }
 
 nsresult
@@ -67,19 +61,9 @@ WMFMediaDataDecoder::ProcessShutdown()
   if (mMFTManager) {
     mMFTManager->Shutdown();
     mMFTManager = nullptr;
-  }
-  mDecoder = nullptr;
-}
-
-void
-WMFMediaDataDecoder::EnsureDecodeTaskDispatched()
-{
-  mMonitor.AssertCurrentThreadOwns();
-  if (!mIsDecodeTaskDispatched) {
-    nsCOMPtr<nsIRunnable> runnable =
-      NS_NewRunnableMethod(this, &WMFMediaDataDecoder::Decode);
-    mTaskQueue->Dispatch(runnable.forget());
-    mIsDecodeTaskDispatched = true;
+    if (!mRecordedError && mHasSuccessfulOutput) {
+      //SendTelemetry(S_OK);
+    }
   }
 }
 
@@ -90,59 +74,50 @@ WMFMediaDataDecoder::Input(MediaRawData* aSample)
   MOZ_ASSERT(mCallback->OnReaderTaskQueue());
   MOZ_DIAGNOSTIC_ASSERT(!mIsShutDown);
 
-  MonitorAutoLock mon(mMonitor);
-  mInput.push(aSample);
-  EnsureDecodeTaskDispatched();
+  nsCOMPtr<nsIRunnable> runnable =
+    NS_NewRunnableMethodWithArg<RefPtr<MediaRawData>>(
+      this,
+      &WMFMediaDataDecoder::ProcessDecode,
+      RefPtr<MediaRawData>(aSample));
+  mTaskQueue->Dispatch(runnable.forget());
   return NS_OK;
 }
 
 void
-WMFMediaDataDecoder::Decode()
+WMFMediaDataDecoder::ProcessDecode(MediaRawData* aSample)
 {
-  while (true) {
-    nsRefPtr<MediaRawData> input;
-    {
-      MonitorAutoLock mon(mMonitor);
-      MOZ_ASSERT(mIsDecodeTaskDispatched);
-      if (mInput.empty()) {
-        if (mIsFlushing) {
-          if (mDecoder) {
-            mDecoder->Flush();
-          }
-          mIsFlushing = false;
-        }
-        mIsDecodeTaskDispatched = false;
-        mon.NotifyAll();
-        return;
-      }
-      input = mInput.front();
-      mInput.pop();
+  {
+    MonitorAutoLock mon(mMonitor);
+    if (mIsFlushing) {
+      // Skip sample, to be released by runnable.
+      return;
     }
-
-    HRESULT hr = mMFTManager->Input(input);
-    if (FAILED(hr)) {
-      NS_WARNING("MFTManager rejected sample");
-      {
-        MonitorAutoLock mon(mMonitor);
-        PurgeInputQueue();
-      }
-      mCallback->Error();
-      continue; // complete flush if flushing
-    }
-
-    mLastStreamOffset = input->mOffset;
-
-    ProcessOutput();
   }
+
+  HRESULT hr = mMFTManager->Input(aSample);
+  if (FAILED(hr)) {
+    NS_WARNING("MFTManager rejected sample");
+    mCallback->Error();
+    if (!mRecordedError) {
+      //SendTelemetry(hr);
+      mRecordedError = true;
+    }
+    return;
+  }
+
+  mLastStreamOffset = aSample->mOffset;
+
+  ProcessOutput();
 }
 
 void
 WMFMediaDataDecoder::ProcessOutput()
 {
-  nsRefPtr<MediaData> output;
+  RefPtr<MediaData> output;
   HRESULT hr = S_OK;
   while (SUCCEEDED(hr = mMFTManager->Output(mLastStreamOffset, output)) &&
          output) {
+    mHasSuccessfulOutput = true;
     mCallback->Output(output);
   }
   if (hr == MF_E_TRANSFORM_NEED_MORE_INPUT) {
@@ -151,21 +126,23 @@ WMFMediaDataDecoder::ProcessOutput()
     }
   } else if (FAILED(hr)) {
     NS_WARNING("WMFMediaDataDecoder failed to output data");
-    {
-      MonitorAutoLock mon(mMonitor);
-      PurgeInputQueue();
-    }
     mCallback->Error();
+    if (!mRecordedError) {
+      //SendTelemetry(hr);
+      mRecordedError = true;
+    }
   }
 }
 
 void
-WMFMediaDataDecoder::PurgeInputQueue()
+WMFMediaDataDecoder::ProcessFlush()
 {
-  mMonitor.AssertCurrentThreadOwns();
-  while (!mInput.empty()) {
-    mInput.pop();
+  if (mMFTManager) {
+    mMFTManager->Flush();
   }
+  MonitorAutoLock mon(mMonitor);
+  mIsFlushing = false;
+  mon.NotifyAll();
 }
 
 nsresult
@@ -174,11 +151,12 @@ WMFMediaDataDecoder::Flush()
   MOZ_ASSERT(mCallback->OnReaderTaskQueue());
   MOZ_DIAGNOSTIC_ASSERT(!mIsShutDown);
 
+  nsCOMPtr<nsIRunnable> runnable =
+    NS_NewRunnableMethod(this, &WMFMediaDataDecoder::ProcessFlush);
   MonitorAutoLock mon(mMonitor);
-  PurgeInputQueue();
   mIsFlushing = true;
-  EnsureDecodeTaskDispatched();
-  while (mIsDecodeTaskDispatched || mIsFlushing) {
+  mTaskQueue->Dispatch(runnable.forget());
+  while (mIsFlushing) {
     mon.Wait();
   }
   return NS_OK;
@@ -187,11 +165,14 @@ WMFMediaDataDecoder::Flush()
 void
 WMFMediaDataDecoder::ProcessDrain()
 {
-  if (mDecoder) {
+  bool isFlushing;
+  {
+    MonitorAutoLock mon(mMonitor);
+    isFlushing = mIsFlushing;
+  }
+  if (!isFlushing && mMFTManager) {
     // Order the decoder to drain...
-    if (FAILED(mDecoder->SendMFTMessage(MFT_MESSAGE_COMMAND_DRAIN, 0))) {
-      NS_WARNING("Failed to send DRAIN command to MFT");
-    }
+    mMFTManager->Drain();
     // Then extract all available output.
     ProcessOutput();
   }
@@ -211,10 +192,10 @@ WMFMediaDataDecoder::Drain()
 }
 
 bool
-WMFMediaDataDecoder::IsHardwareAccelerated() const {
+WMFMediaDataDecoder::IsHardwareAccelerated(nsACString& aFailureReason) const {
   MOZ_ASSERT(!mIsShutDown);
 
-  return mMFTManager && mMFTManager->IsHardwareAccelerated();
+  return mMFTManager && mMFTManager->IsHardwareAccelerated(aFailureReason);
 }
 
 } // namespace mozilla

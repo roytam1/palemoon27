@@ -172,7 +172,7 @@ SVGContentUtils::GetStrokeOptions(AutoStrokeOptions* aStrokeOptions,
                                   gfxTextContextPaint *aContextPaint,
                                   StrokeOptionFlags aFlags)
 {
-  nsRefPtr<nsStyleContext> styleContext;
+  RefPtr<nsStyleContext> styleContext;
   if (aStyleContext) {
     styleContext = aStyleContext;
   } else {
@@ -219,16 +219,21 @@ SVGContentUtils::GetStrokeOptions(AutoStrokeOptions* aStrokeOptions,
     break;
   }
 
-  switch (styleSVG->mStrokeLinecap) {
-  case NS_STYLE_STROKE_LINECAP_BUTT:
+  if (ShapeTypeHasNoCorners(aElement)) {
     aStrokeOptions->mLineCap = CapStyle::BUTT;
-    break;
-  case NS_STYLE_STROKE_LINECAP_ROUND:
-    aStrokeOptions->mLineCap = CapStyle::ROUND;
-    break;
-  case NS_STYLE_STROKE_LINECAP_SQUARE:
-    aStrokeOptions->mLineCap = CapStyle::SQUARE;
-    break;
+  }
+  else {
+    switch (styleSVG->mStrokeLinecap) {
+      case NS_STYLE_STROKE_LINECAP_BUTT:
+        aStrokeOptions->mLineCap = CapStyle::BUTT;
+        break;
+      case NS_STYLE_STROKE_LINECAP_ROUND:
+        aStrokeOptions->mLineCap = CapStyle::ROUND;
+        break;
+      case NS_STYLE_STROKE_LINECAP_SQUARE:
+        aStrokeOptions->mLineCap = CapStyle::SQUARE;
+        break;
+    }
   }
 }
 
@@ -237,7 +242,7 @@ SVGContentUtils::GetStrokeWidth(nsSVGElement* aElement,
                                 nsStyleContext* aStyleContext,
                                 gfxTextContextPaint *aContextPaint)
 {
-  nsRefPtr<nsStyleContext> styleContext;
+  RefPtr<nsStyleContext> styleContext;
   if (aStyleContext) {
     styleContext = aStyleContext;
   } else {
@@ -265,7 +270,7 @@ SVGContentUtils::GetFontSize(Element *aElement)
   if (!aElement)
     return 1.0f;
 
-  nsRefPtr<nsStyleContext> styleContext = 
+  RefPtr<nsStyleContext> styleContext = 
     nsComputedDOMStyle::GetStyleContextForElementNoFlush(aElement,
                                                          nullptr, nullptr);
   if (!styleContext) {
@@ -303,7 +308,7 @@ SVGContentUtils::GetFontXHeight(Element *aElement)
   if (!aElement)
     return 1.0f;
 
-  nsRefPtr<nsStyleContext> styleContext = 
+  RefPtr<nsStyleContext> styleContext = 
     nsComputedDOMStyle::GetStyleContextForElementNoFlush(aElement,
                                                          nullptr, nullptr);
   if (!styleContext) {
@@ -330,7 +335,7 @@ SVGContentUtils::GetFontXHeight(nsStyleContext *aStyleContext)
   nsPresContext *presContext = aStyleContext->PresContext();
   MOZ_ASSERT(presContext, "NULL pres context in GetFontXHeight");
 
-  nsRefPtr<nsFontMetrics> fontMetrics;
+  RefPtr<nsFontMetrics> fontMetrics;
   nsLayoutUtils::GetFontMetricsForStyleContext(aStyleContext,
                                                getter_AddRefs(fontMetrics));
 
@@ -389,7 +394,7 @@ static gfx::Matrix
 GetCTMInternal(nsSVGElement *aElement, bool aScreenCTM, bool aHaveRecursed)
 {
   gfxMatrix matrix = aElement->PrependLocalTransformsTo(gfxMatrix(),
-    aHaveRecursed ? nsSVGElement::eAllTransforms : nsSVGElement::eUserSpaceToParent);
+    aHaveRecursed ? eAllTransforms : eUserSpaceToParent);
   nsSVGElement *element = aElement;
   nsIContent *ancestor = aElement->GetFlattenedTreeParent();
 
@@ -456,6 +461,45 @@ gfx::Matrix
 SVGContentUtils::GetCTM(nsSVGElement *aElement, bool aScreenCTM)
 {
   return GetCTMInternal(aElement, aScreenCTM, false);
+}
+
+void
+SVGContentUtils::RectilinearGetStrokeBounds(const Rect& aRect,
+                                            const Matrix& aToBoundsSpace,
+                                            const Matrix& aToNonScalingStrokeSpace,
+                                            float aStrokeWidth,
+                                            Rect* aBounds)
+{
+  MOZ_ASSERT(aToBoundsSpace.IsRectilinear(),
+             "aToBoundsSpace must be rectilinear");
+  MOZ_ASSERT(aToNonScalingStrokeSpace.IsRectilinear(),
+             "aToNonScalingStrokeSpace must be rectilinear");
+
+  Matrix nonScalingToSource = aToNonScalingStrokeSpace.Inverse();
+  Matrix nonScalingToBounds = nonScalingToSource * aToBoundsSpace;
+
+  *aBounds = aToBoundsSpace.TransformBounds(aRect);
+
+  // Compute the amounts dx and dy that nonScalingToBounds scales a half-width
+  // stroke in the x and y directions, and then inflate aBounds by those amounts
+  // so that when aBounds is transformed back to non-scaling-stroke space
+  // it will map onto the correct stroked bounds.
+
+  Float dx = 0.0f;
+  Float dy = 0.0f;
+  // nonScalingToBounds is rectilinear, so either _12 and _21 are zero or _11
+  // and _22 are zero, and in each case the non-zero entries (from among _11,
+  // _12, _21, _22) simply scale the stroke width in the x and y directions.
+  if (FuzzyEqual(nonScalingToBounds._12, 0) &&
+      FuzzyEqual(nonScalingToBounds._21, 0)) {
+    dx = (aStrokeWidth / 2.0f) * std::abs(nonScalingToBounds._11);
+    dy = (aStrokeWidth / 2.0f) * std::abs(nonScalingToBounds._22);
+  } else {
+    dx = (aStrokeWidth / 2.0f) * std::abs(nonScalingToBounds._21);
+    dy = (aStrokeWidth / 2.0f) * std::abs(nonScalingToBounds._12);
+  }
+
+  aBounds->Inflate(dx, dy);
 }
 
 double
@@ -806,4 +850,45 @@ SVGContentUtils::GetPath(const nsAString& aPathString)
     drawTarget->CreatePathBuilder(FillRule::FILL_WINDING);
 
   return pathData.BuildPath(builder, NS_STYLE_STROKE_LINECAP_BUTT, 1);
+}
+
+bool
+SVGContentUtils::ShapeTypeHasNoCorners(const nsIContent* aContent) {
+  return aContent && aContent->IsAnyOfSVGElements(nsGkAtoms::circle,
+                                                  nsGkAtoms::ellipse);
+}
+
+gfxMatrix
+SVGContentUtils::PrependLocalTransformsTo(
+  const gfxMatrix &aMatrix,
+  SVGTransformTypes aWhich,
+  const gfx::Matrix* aAnimateMotionTransform,
+  const nsSVGAnimatedTransformList* aTransforms)
+{
+  gfxMatrix result(aMatrix);
+
+  if (aWhich == eChildToUserSpace) {
+    // We don't have anything to prepend.
+    // eChildToUserSpace is not the common case, which is why we return
+    // 'result' to benefit from NRVO rather than returning aMatrix before
+    // creating 'result'.
+    return result;
+  }
+
+  MOZ_ASSERT(aWhich == eAllTransforms || aWhich == eUserSpaceToParent,
+             "Unknown TransformTypes");
+
+  // animateMotion's resulting transform is supposed to apply *on top of*
+  // any transformations from the |transform| attribute. So since we're
+  // PRE-multiplying, we need to apply the animateMotion transform *first*.
+  if (aAnimateMotionTransform) {
+    result.PreMultiply(ThebesMatrix(*aAnimateMotionTransform));
+  }
+
+  if (aTransforms) {
+    result.PreMultiply(
+      aTransforms->GetAnimValue().GetConsolidationMatrix());
+  }
+
+  return result;
 }

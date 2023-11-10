@@ -21,6 +21,7 @@
 #include "nsThreadUtils.h"
 
 #include "BackgroundFileSaver.h"
+#include "mozilla/Telemetry.h"
 
 #ifdef XP_WIN
 #include <windows.h>
@@ -32,9 +33,9 @@ namespace mozilla {
 namespace net {
 
 // NSPR_LOG_MODULES=BackgroundFileSaver:5
-PRLogModuleInfo *BackgroundFileSaver::prlog = nullptr;
-#define LOG(args) MOZ_LOG(BackgroundFileSaver::prlog, mozilla::LogLevel::Debug, args)
-#define LOG_ENABLED() MOZ_LOG_TEST(BackgroundFileSaver::prlog, mozilla::LogLevel::Debug)
+static LazyLogModule prlog("BackgroundFileSaver");
+#define LOG(args) MOZ_LOG(prlog, mozilla::LogLevel::Debug, args)
+#define LOG_ENABLED() MOZ_LOG_TEST(prlog, mozilla::LogLevel::Debug)
 
 ////////////////////////////////////////////////////////////////////////////////
 //// Globals
@@ -76,7 +77,7 @@ public:
   }
 
 private:
-  nsRefPtr<BackgroundFileSaver> mSaver;
+  RefPtr<BackgroundFileSaver> mSaver;
   nsCOMPtr<nsIFile> mTarget;
 };
 
@@ -108,8 +109,6 @@ BackgroundFileSaver::BackgroundFileSaver()
 , mActualTargetKeepPartial(false)
 , mDigestContext(nullptr)
 {
-  if (!prlog)
-    prlog = PR_NewLogModule("BackgroundFileSaver");
   LOG(("Created BackgroundFileSaver [this = %p]", this));
 }
 
@@ -157,6 +156,8 @@ BackgroundFileSaver::Init()
 
   rv = NS_NewThread(getter_AddRefs(mWorkerThread));
   NS_ENSURE_SUCCESS(rv, rv);
+
+  sThreadCount++;
 
   return NS_OK;
 }
@@ -504,16 +505,10 @@ BackgroundFileSaver::ProcessStateChange()
         NS_ENSURE_SUCCESS(rv, rv);
       }
 
-      // We should not only update the mActualTarget with renameTarget when
-      // they point to the different files.
-      // In this way, if mActualTarget and renamedTarget point to the same file
-      // with different addresses, "CheckCompletion()" will return false forever.
+      // Now we can update the actual target file name.
+      mActualTarget = renamedTarget;
+      mActualTargetKeepPartial = renamedTargetKeepPartial;
     }
-
-    // Update mActualTarget with renameTarget,
-    // even if they point to the same file.
-    mActualTarget = renamedTarget;
-    mActualTargetKeepPartial = renamedTargetKeepPartial;
   }
 
   // Notify if the target file name actually changed.
@@ -524,7 +519,7 @@ BackgroundFileSaver::ProcessStateChange()
     rv = mActualTarget->Clone(getter_AddRefs(actualTargetToNotify));
     NS_ENSURE_SUCCESS(rv, rv);
 
-    nsRefPtr<NotifyTargetChangeRunnable> event =
+    RefPtr<NotifyTargetChangeRunnable> event =
       new NotifyTargetChangeRunnable(this, actualTargetToNotify);
     NS_ENSURE_TRUE(event, NS_ERROR_FAILURE);
 

@@ -166,6 +166,15 @@ PluginScriptableObjectParent::ScriptableDeallocate(NPObject* aObject)
   }
 
   ParentNPObject* object = reinterpret_cast<ParentNPObject*>(aObject);
+
+  if (object->asyncWrapperCount > 0) {
+    // In this case we should just drop the refcount to the asyncWrapperCount
+    // instead of deallocating because there are still some async wrappers
+    // out there that are referencing this object.
+    object->referenceCount = object->asyncWrapperCount;
+    return;
+  }
+
   PluginScriptableObjectParent* actor = object->parent;
   if (actor) {
     NS_ASSERTION(actor->Type() == Proxy, "Bad type!");
@@ -476,7 +485,7 @@ PluginScriptableObjectParent::ScriptableEnumerate(NPObject* aObject,
     return false;
   }
 
-  AutoInfallibleTArray<PluginIdentifier, 10> identifiers;
+  AutoTArray<PluginIdentifier, 10> identifiers;
   bool success;
   if (!actor->CallEnumerate(&identifiers, &success)) {
     NS_WARNING("Failed to send message!");
@@ -715,7 +724,7 @@ PluginScriptableObjectParent::Unprotect()
 
   if (mType == LocalObject) {
     if (--mProtectCount == 0) {
-      unused << PluginScriptableObjectParent::Send__delete__(this);
+      Unused << PluginScriptableObjectParent::Send__delete__(this);
     }
   }
 }
@@ -735,7 +744,7 @@ PluginScriptableObjectParent::DropNPObject()
   instance->UnregisterNPObject(mObject);
   mObject = nullptr;
 
-  unused << SendUnprotect();
+  Unused << SendUnprotect();
 }
 
 void
@@ -821,7 +830,7 @@ PluginScriptableObjectParent::AnswerInvoke(const PluginIdentifier& aId,
     return true;
   }
 
-  AutoFallibleTArray<NPVariant, 10> convertedArgs;
+  AutoTArray<NPVariant, 10> convertedArgs;
   uint32_t argCount = aArgs.Length();
 
   if (!convertedArgs.SetLength(argCount, fallible)) {
@@ -904,7 +913,7 @@ PluginScriptableObjectParent::AnswerInvokeDefault(InfallibleTArray<Variant>&& aA
     return true;
   }
 
-  AutoFallibleTArray<NPVariant, 10> convertedArgs;
+  AutoTArray<NPVariant, 10> convertedArgs;
   uint32_t argCount = aArgs.Length();
 
   if (!convertedArgs.SetLength(argCount, fallible)) {
@@ -1224,7 +1233,7 @@ PluginScriptableObjectParent::AnswerConstruct(InfallibleTArray<Variant>&& aArgs,
     return true;
   }
 
-  AutoFallibleTArray<NPVariant, 10> convertedArgs;
+  AutoTArray<NPVariant, 10> convertedArgs;
   uint32_t argCount = aArgs.Length();
 
   if (!convertedArgs.SetLength(argCount, fallible)) {

@@ -259,6 +259,9 @@ def main():
                         help='Enable jar optimizations')
     parser.add_argument('--unify', default='',
                         help='Base directory of another build to unify with')
+    parser.add_argument('--disable-compression', action='store_false',
+                        dest='compress', default=True,
+                        help='Disable jar compression')
     parser.add_argument('manifest', default=None, nargs='?',
                         help='Manifest file name')
     parser.add_argument('source', help='Source directory')
@@ -280,10 +283,11 @@ def main():
     if args.format == 'flat':
         formatter = FlatFormatter(copier)
     elif args.format == 'jar':
-        formatter = JarFormatter(copier, optimize=args.optimizejars)
+        formatter = JarFormatter(copier, compress=args.compress, optimize=args.optimizejars)
     elif args.format == 'omni':
         formatter = OmniJarFormatter(copier,
                                      buildconfig.substs['OMNIJAR_NAME'],
+                                     compress=args.compress,
                                      optimize=args.optimizejars,
                                      non_resources=args.non_resource)
     else:
@@ -313,7 +317,7 @@ def main():
         if is_native(args.source):
             launcher.tooldir = args.source
     elif not buildconfig.substs['CROSS_COMPILE']:
-        launcher.tooldir = buildconfig.substs['LIBXUL_DIST']
+        launcher.tooldir = mozpath.join(buildconfig.topobjdir, 'dist')
 
     with errors.accumulate():
         finder_args = dict(
@@ -379,11 +383,7 @@ def main():
     if isinstance(formatter, OmniJarFormatter) and launcher.can_launch() \
       and buildconfig.substs['MOZ_DISABLE_STARTUPCACHE'] != '1' \
       and buildconfig.substs['MOZ_DISABLE_PRECOMPILED_STARTUPCACHE'] != '1':
-        if buildconfig.substs.get('LIBXUL_SDK'):
-            gre_path = mozpath.join(buildconfig.substs['LIBXUL_DIST'],
-                                         'bin')
-        else:
-            gre_path = None
+        gre_path = None
         def get_bases():
             for b in sink.packager.get_bases(addons=False):
                 for p in (mozpath.join('bin', b), b):

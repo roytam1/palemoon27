@@ -9,6 +9,7 @@
 #include "nsAboutProtocolUtils.h"
 #include "mozilla/ArrayUtils.h"
 #include "nsDOMString.h"
+#include "nsIProtocolHandler.h"
 
 NS_IMPL_ISUPPORTS(nsAboutRedirector, nsIAboutModule)
 
@@ -96,7 +97,7 @@ static RedirEntry kRedirMap[] = {
     nsIAboutModule::ALLOW_SCRIPT
   },
   {
-    "webrtc", "chrome://global/content/aboutwebrtc/aboutWebrtc.xhtml",
+    "webrtc", "chrome://global/content/aboutwebrtc/aboutWebrtc.html",
     nsIAboutModule::ALLOW_SCRIPT
   },
   {
@@ -137,12 +138,27 @@ nsAboutRedirector::NewChannel(nsIURI* aURI,
       nsCOMPtr<nsIURI> tempURI;
       rv = NS_NewURI(getter_AddRefs(tempURI), kRedirMap[i].url);
       NS_ENSURE_SUCCESS(rv, rv);
+
+      // If tempURI links to an external URI (i.e. something other than
+      // chrome:// or resource://) then set the LOAD_REPLACE flag on the
+      // channel which forces the channel owner to reflect the displayed
+      // URL rather then being the systemPrincipal.
+      bool isUIResource = false;
+      rv = NS_URIChainHasFlags(tempURI, nsIProtocolHandler::URI_IS_UI_RESOURCE,
+                               &isUIResource);
+      NS_ENSURE_SUCCESS(rv, rv);
+
+      nsLoadFlags loadFlags =
+        isUIResource ? static_cast<nsLoadFlags>(nsIChannel::LOAD_NORMAL)
+                     : static_cast<nsLoadFlags>(nsIChannel::LOAD_REPLACE);
+
       rv = NS_NewChannelInternal(getter_AddRefs(tempChannel),
                                  tempURI,
-                                 aLoadInfo);
-      if (NS_FAILED(rv)) {
-        return rv;
-      }
+                                 aLoadInfo,
+                                 nullptr, // aLoadGroup
+                                 nullptr, // aCallbacks
+                                 loadFlags);
+      NS_ENSURE_SUCCESS(rv, rv);
 
       tempChannel->SetOriginalURI(aURI);
 
@@ -185,6 +201,6 @@ nsAboutRedirector::GetIndexedDBOriginPostfix(nsIURI* aURI, nsAString& aResult)
 nsresult
 nsAboutRedirector::Create(nsISupports* aOuter, REFNSIID aIID, void** aResult)
 {
-  nsRefPtr<nsAboutRedirector> about = new nsAboutRedirector();
+  RefPtr<nsAboutRedirector> about = new nsAboutRedirector();
   return about->QueryInterface(aIID, aResult);
 }

@@ -73,6 +73,7 @@
 #define APPLICATION_XSLT_XML                "application/xslt+xml"
 #define APPLICATION_MATHML_XML              "application/mathml+xml"
 #define APPLICATION_RDF_XML                 "application/rdf+xml"
+#define APPLICATION_PACKAGE                 "application/package"
 
 #define AUDIO_BASIC                         "audio/basic"
 #define AUDIO_OGG                           "audio/ogg"
@@ -81,6 +82,7 @@
 #define AUDIO_MP3                           "audio/mpeg"
 #define AUDIO_MP4                           "audio/mp4"
 #define AUDIO_AMR                           "audio/amr"
+#define AUDIO_FLAC                          "audio/flac"
 #define AUDIO_3GPP                          "audio/3gpp"
 #define AUDIO_MIDI                          "audio/x-midi"
 #define AUDIO_MATROSKA                      "audio/x-matroska"

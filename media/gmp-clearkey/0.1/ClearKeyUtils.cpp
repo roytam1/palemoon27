@@ -1,6 +1,18 @@
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/*
+ * Copyright 2015, Mozilla Foundation and contributors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
 
 #include <algorithm>
 #include <ctype.h>
@@ -10,9 +22,10 @@
 
 #include "ClearKeyUtils.h"
 #include "ClearKeyBase64.h"
-#include "mozilla/ArrayUtils.h"
-#include "mozilla/Assertions.h"
-#include "mozilla/Endian.h"
+#include "ArrayUtils.h"
+#include <assert.h>
+#include <memory.h>
+#include "Endian.h"
 #include "openaes/oaes_lib.h"
 
 using namespace std;
@@ -43,7 +56,7 @@ static void
 IncrementIV(vector<uint8_t>& aIV) {
   using mozilla::BigEndian;
 
-  MOZ_ASSERT(aIV.size() == 16);
+  assert(aIV.size() == 16);
   BigEndian::writeUint64(&aIV[8], BigEndian::readUint64(&aIV[8]) + 1);
 }
 
@@ -51,8 +64,8 @@ IncrementIV(vector<uint8_t>& aIV) {
 ClearKeyUtils::DecryptAES(const vector<uint8_t>& aKey,
                           vector<uint8_t>& aData, vector<uint8_t>& aIV)
 {
-  MOZ_ASSERT(aIV.size() == CLEARKEY_KEY_LEN);
-  MOZ_ASSERT(aKey.size() == CLEARKEY_KEY_LEN);
+  assert(aIV.size() == CLEARKEY_KEY_LEN);
+  assert(aKey.size() == CLEARKEY_KEY_LEN);
 
   OAES_CTX* aes = oaes_alloc();
   oaes_key_import_data(aes, &aKey[0], aKey.size());
@@ -65,7 +78,7 @@ ClearKeyUtils::DecryptAES(const vector<uint8_t>& aKey,
     vector<uint8_t> enc(encLen);
     oaes_encrypt(aes, &aIV[0], CLEARKEY_KEY_LEN, &enc[0], &encLen);
 
-    MOZ_ASSERT(encLen >= 2 * OAES_BLOCK_SIZE + CLEARKEY_KEY_LEN);
+    assert(encLen >= 2 * OAES_BLOCK_SIZE + CLEARKEY_KEY_LEN);
     size_t blockLen = min(aData.size() - i, CLEARKEY_KEY_LEN);
     for (size_t j = 0; j < blockLen; j++) {
       aData[i + j] ^= enc[2 * OAES_BLOCK_SIZE + j];
@@ -111,8 +124,7 @@ EncodeBase64Web(vector<uint8_t> aBinary, string& aEncoded)
     // Cast idx to size_t before using it as an array-index,
     // to pacify clang 'Wchar-subscripts' warning:
     size_t idx = static_cast<size_t>(out[i]);
-    MOZ_ASSERT(idx < MOZ_ARRAY_LENGTH(sAlphabet),
-               "out of bounds index for 'sAlphabet'");
+    assert(idx < MOZ_ARRAY_LENGTH(sAlphabet)); // out of bounds index for 'sAlphabet'
     out[i] = sAlphabet[idx];
   }
 
@@ -120,8 +132,9 @@ EncodeBase64Web(vector<uint8_t> aBinary, string& aEncoded)
 }
 
 /* static */ void
-ClearKeyUtils::ParseInitData(const uint8_t* aInitData, uint32_t aInitDataSize,
-                             vector<KeyId>& aOutKeys)
+ClearKeyUtils::ParseCENCInitData(const uint8_t* aInitData,
+                                 uint32_t aInitDataSize,
+                                 vector<KeyId>& aOutKeyIds)
 {
   using mozilla::BigEndian;
 
@@ -170,7 +183,7 @@ ClearKeyUtils::ParseInitData(const uint8_t* aInitData, uint32_t aInitDataSize,
     }
 
     for (uint32_t i = 0; i < kidCount; i++) {
-      aOutKeys.push_back(KeyId(data, data + CLEARKEY_KEY_LEN));
+      aOutKeyIds.push_back(KeyId(data, data + CLEARKEY_KEY_LEN));
       data += CLEARKEY_KEY_LEN;
     }
   }
@@ -181,9 +194,9 @@ ClearKeyUtils::MakeKeyRequest(const vector<KeyId>& aKeyIDs,
                               string& aOutRequest,
                               GMPSessionType aSessionType)
 {
-  MOZ_ASSERT(aKeyIDs.size() && aOutRequest.empty());
+  assert(aKeyIDs.size() && aOutRequest.empty());
 
-  aOutRequest.append("{ \"kids\":[");
+  aOutRequest.append("{\"kids\":[");
   for (size_t i = 0; i < aKeyIDs.size(); i++) {
     if (i) {
       aOutRequest.append(",");
@@ -196,7 +209,7 @@ ClearKeyUtils::MakeKeyRequest(const vector<KeyId>& aKeyIDs,
 
     aOutRequest.append("\"");
   }
-  aOutRequest.append("], \"type\":");
+  aOutRequest.append("],\"type\":");
 
   aOutRequest.append("\"");
   aOutRequest.append(SessionTypeToString(aSessionType));
@@ -399,10 +412,6 @@ ParseKeyObject(ParserContext& aCtx, KeyIdPair& aOutKey)
       if (!GetNextLabel(aCtx, value)) return false;
       // By spec, type must be "oct".
       if (value != "oct") return false;
-    } else if (label == "alg") {
-      if (!GetNextLabel(aCtx, value)) return false;
-      // By spec, alg must be "A128KW".
-      if (value != "A128KW") return false;
     } else if (label == "k" && PeekSymbol(aCtx) == '"') {
       // if this isn't a string we will fall through to the SkipToken() path.
       if (!GetNextLabel(aCtx, key)) return false;
@@ -439,7 +448,7 @@ ParseKeys(ParserContext& aCtx, vector<KeyIdPair>& aOutKeys)
       return false;
     }
 
-    MOZ_ASSERT(!key.mKey.empty() && !key.mKeyId.empty());
+    assert(!key.mKey.empty() && !key.mKeyId.empty());
     aOutKeys.push_back(key);
 
     uint8_t sym = PeekSymbol(aCtx);
@@ -500,6 +509,80 @@ ClearKeyUtils::ParseJWK(const uint8_t* aKeyData, uint32_t aKeyDataSize,
   return true;
 }
 
+static bool
+ParseKeyIds(ParserContext& aCtx, vector<KeyId>& aOutKeyIds)
+{
+  // Consume start of array.
+  EXPECT_SYMBOL(aCtx, '[');
+
+  while (true) {
+    string label;
+    vector<uint8_t> keyId;
+    if (!GetNextLabel(aCtx, label) ||
+        !DecodeBase64KeyOrId(label, keyId)) {
+      return false;
+    }
+    assert(!keyId.empty());
+    aOutKeyIds.push_back(keyId);
+
+    uint8_t sym = PeekSymbol(aCtx);
+    if (!sym || sym == ']') {
+      break;
+    }
+
+    EXPECT_SYMBOL(aCtx, ',');
+  }
+
+  return GetNextSymbol(aCtx) == ']';
+}
+
+
+/* static */ bool
+ClearKeyUtils::ParseKeyIdsInitData(const uint8_t* aInitData,
+                                   uint32_t aInitDataSize,
+                                   vector<KeyId>& aOutKeyIds,
+                                   string& aOutSessionType)
+{
+  aOutSessionType = "temporary";
+
+  ParserContext ctx;
+  ctx.mIter = aInitData;
+  ctx.mEnd = aInitData + aInitDataSize;
+
+  // Consume '{' from start of object.
+  EXPECT_SYMBOL(ctx, '{');
+
+  while (true) {
+    string label;
+    // Consume member kids.
+    if (!GetNextLabel(ctx, label)) return false;
+    EXPECT_SYMBOL(ctx, ':');
+
+    if (label == "kids") {
+      // Parse "kids" array.
+      if (!ParseKeyIds(ctx, aOutKeyIds)) return false;
+    } else if (label == "type") {
+      // Consume type string.
+      if (!GetNextLabel(ctx, aOutSessionType)) return false;
+    } else {
+      SkipToken(ctx);
+    }
+
+    // Check for end of object.
+    if (PeekSymbol(ctx) == '}') {
+      break;
+    }
+
+    // Consume ',' between object members.
+    EXPECT_SYMBOL(ctx, ',');
+  }
+
+  // Consume '}' from end of object.
+  EXPECT_SYMBOL(ctx, '}');
+
+  return true;
+}
+
 /* static */ const char*
 ClearKeyUtils::SessionTypeToString(GMPSessionType aSessionType)
 {
@@ -507,7 +590,7 @@ ClearKeyUtils::SessionTypeToString(GMPSessionType aSessionType)
     case kGMPTemporySession: return "temporary";
     case kGMPPersistentSession: return "persistent";
     default: {
-      MOZ_ASSERT(false, "Should not reach here.");
+      assert(false); // Should not reach here.
       return "invalid";
     }
   }
@@ -527,4 +610,11 @@ ClearKeyUtils::IsValidSessionId(const char* aBuff, uint32_t aLength)
     }
   }
   return true;
+}
+
+GMPMutex* GMPCreateMutex() {
+  GMPMutex* mutex;
+  auto err = GetPlatform()->createmutex(&mutex);
+  assert(mutex);
+  return GMP_FAILED(err) ? nullptr : mutex;
 }

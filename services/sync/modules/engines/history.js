@@ -4,10 +4,10 @@
 
 this.EXPORTED_SYMBOLS = ['HistoryEngine', 'HistoryRec'];
 
-const Cc = Components.classes;
-const Ci = Components.interfaces;
-const Cu = Components.utils;
-const Cr = Components.results;
+var Cc = Components.classes;
+var Ci = Components.interfaces;
+var Cu = Components.utils;
+var Cr = Components.results;
 
 const HISTORY_TTL = 5184000; // 60 days
 
@@ -51,7 +51,8 @@ function HistoryStore(name, engine) {
 
   // Explicitly nullify our references to our cached services so we don't leak
   Svc.Obs.add("places-shutdown", function() {
-    for each ([query, stmt] in Iterator(this._stmts)) {
+    for (let query in this._stmts) {
+      let stmt = this._stmts;
       stmt.finalize();
     }
     this._stmts = {};
@@ -203,7 +204,7 @@ HistoryStore.prototype = {
         } else {
           shouldApply = this._recordToPlaceInfo(record);
         }
-      } catch(ex) {
+      } catch (ex if !Async.isShutdownException(ex)) {
         failed.push(record.id);
         shouldApply = false;
       }

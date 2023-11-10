@@ -26,7 +26,7 @@
 static inline SkFixed SkFDot6ToFixedDiv2(SkFDot6 value) {
     // we want to return SkFDot6ToFixed(value >> 1), but we don't want to throw
     // away data in value, so just perform a modify up-shift
-    return value << (16 - 6 - 1);
+    return SkLeftShift(value, 16 - 6 - 1);
 }
 
 /////////////////////////////////////////////////////////////////////////
@@ -66,12 +66,12 @@ int SkEdge::setLine(const SkPoint& p0, const SkPoint& p1, const SkIRect* clip,
         return 0;
     }
     // are we completely above or below the clip?
-    if (NULL != clip && (top >= clip->fBottom || bot <= clip->fTop)) {
+    if (clip && (top >= clip->fBottom || bot <= clip->fTop)) {
         return 0;
     }
 
     SkFixed slope = SkFDot6Div(x1 - x0, y1 - y0);
-    const int dy  = SkEdge_Compute_DY(top, y0);
+    const SkFDot6 dy  = SkEdge_Compute_DY(top, y0);
 
     fX          = SkFDot6ToFixed(x0 + SkFixedMul(slope, dy));   // + SK_Fixed1/2
     fDX         = slope;
@@ -112,7 +112,7 @@ int SkEdge::updateLine(SkFixed x0, SkFixed y0, SkFixed x1, SkFixed y1)
     x1 >>= 10;
 
     SkFixed slope = SkFDot6Div(x1 - x0, y1 - y0);
-    const int dy  = SkEdge_Compute_DY(top, y0);
+    const SkFDot6 dy  = SkEdge_Compute_DY(top, y0);
 
     fX          = SkFDot6ToFixed(x0 + SkFixedMul(slope, dy));   // + SK_Fixed1/2
     fDX         = slope;
@@ -214,8 +214,8 @@ int SkQuadraticEdge::setQuadratic(const SkPoint pts[3], int shift)
 
     // compute number of steps needed (1 << shift)
     {
-        SkFDot6 dx = ((x1 << 1) - x0 - x2) >> 2;
-        SkFDot6 dy = ((y1 << 1) - y0 - y2) >> 2;
+        SkFDot6 dx = (SkLeftShift(x1, 1) - x0 - x2) >> 2;
+        SkFDot6 dy = (SkLeftShift(y1, 1) - y0 - y2) >> 2;
         shift = diff_to_shift(dx, dy);
         SkASSERT(shift >= 0);
     }
@@ -312,8 +312,8 @@ int SkQuadraticEdge::updateQuadratic()
 /////////////////////////////////////////////////////////////////////////
 
 static inline int SkFDot6UpShift(SkFDot6 x, int upShift) {
-    SkASSERT((x << upShift >> upShift) == x);
-    return x << upShift;
+    SkASSERT((SkLeftShift(x, upShift) >> upShift) == x);
+    return SkLeftShift(x, upShift);
 }
 
 /*  f(1/3) = (8a + 12b + 6c + d) / 27
@@ -332,8 +332,7 @@ static SkFDot6 cubic_delta_from_line(SkFDot6 a, SkFDot6 b, SkFDot6 c, SkFDot6 d)
     return SkMax32(SkAbs32(oneThird), SkAbs32(twoThird));
 }
 
-int SkCubicEdge::setCubic(const SkPoint pts[4], const SkIRect* clip, int shift)
-{
+int SkCubicEdge::setCubic(const SkPoint pts[4], int shift) {
     SkFDot6 x0, y0, x1, y1, x2, y2, x3, y3;
 
     {
@@ -376,10 +375,6 @@ int SkCubicEdge::setCubic(const SkPoint pts[4], const SkIRect* clip, int shift)
     if (top == bot)
         return 0;
 
-    // are we completely above or below the clip?
-    if (clip && (top >= clip->fBottom || bot <= clip->fTop))
-        return 0;
-
     // compute number of steps needed (1 << shift)
     {
         // Can't use (center of curve - center of baseline), since center-of-curve
@@ -408,7 +403,7 @@ int SkCubicEdge::setCubic(const SkPoint pts[4], const SkIRect* clip, int shift)
     }
 
     fWinding    = SkToS8(winding);
-    fCurveCount = SkToS8(-1 << shift);
+    fCurveCount = SkToS8(SkLeftShift(-1, shift));
     fCurveShift = SkToU8(shift);
     fCubicDShift = SkToU8(downShift);
 
@@ -433,16 +428,6 @@ int SkCubicEdge::setCubic(const SkPoint pts[4], const SkIRect* clip, int shift)
     fCLastX = SkFDot6ToFixed(x3);
     fCLastY = SkFDot6ToFixed(y3);
 
-    if (clip)
-    {
-        do {
-            if (!this->updateCubic()) {
-                return 0;
-            }
-        } while (!this->intersectsClip(*clip));
-        this->chopLineWithClip(*clip);
-        return 1;
-    }
     return this->updateCubic();
 }
 

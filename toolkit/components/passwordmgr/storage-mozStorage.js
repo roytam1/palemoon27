@@ -66,7 +66,7 @@ LoginManagerStorage_mozStorage.prototype = {
       return this._dbConnection;
     }
 
-    throw Cr.NS_ERROR_NO_INTERFACE;
+    throw new Components.Exception("Interface not available", Cr.NS_ERROR_NO_INTERFACE);
   },
 
   __crypto : null,  // nsILoginManagerCrypto service
@@ -220,7 +220,7 @@ LoginManagerStorage_mozStorage.prototype = {
       // If the import fails on first run, we want to delete the db
       if (isFirstRun && e == "Import failed")
         this._dbCleanup(false);
-      throw "Initialization failed";
+      throw new Error("Initialization failed");
     }
   },
 
@@ -253,7 +253,7 @@ LoginManagerStorage_mozStorage.prototype = {
     loginClone.QueryInterface(Ci.nsILoginMetaInfo);
     if (loginClone.guid) {
       if (!this._isGuidUnique(loginClone.guid))
-        throw "specified GUID already exists";
+        throw new Error("specified GUID already exists");
     } else {
       loginClone.guid = this._uuidService.generateUUID().toString();
     }
@@ -302,7 +302,7 @@ LoginManagerStorage_mozStorage.prototype = {
       stmt.execute();
     } catch (e) {
       this.log("addLogin failed: " + e.name + " : " + e.message);
-      throw "Couldn't write to database, login not added.";
+      throw new Error("Couldn't write to database, login not added.");
     } finally {
       if (stmt) {
         stmt.reset();
@@ -321,7 +321,7 @@ LoginManagerStorage_mozStorage.prototype = {
   removeLogin : function (login) {
     let [idToDelete, storedLogin] = this._getIdForLogin(login);
     if (!idToDelete)
-      throw "No matching logins";
+      throw new Error("No matching logins");
 
     // Execute the statement & remove from DB
     let query  = "DELETE FROM moz_logins WHERE id = :id";
@@ -335,7 +335,7 @@ LoginManagerStorage_mozStorage.prototype = {
       transaction.commit();
     } catch (e) {
       this.log("_removeLogin failed: " + e.name + " : " + e.message);
-      throw "Couldn't write to database, login not removed.";
+      throw new Error("Couldn't write to database, login not removed.");
       transaction.rollback();
     } finally {
       if (stmt) {
@@ -353,7 +353,7 @@ LoginManagerStorage_mozStorage.prototype = {
   modifyLogin : function (oldLogin, newLoginData) {
     let [idToModify, oldStoredLogin] = this._getIdForLogin(oldLogin);
     if (!idToModify)
-      throw "No matching logins";
+      throw new Error("No matching logins");
 
     let newLogin = LoginHelper.buildModifiedLogin(oldStoredLogin, newLoginData);
 
@@ -361,7 +361,7 @@ LoginManagerStorage_mozStorage.prototype = {
     if (newLogin.guid != oldStoredLogin.guid &&
         !this._isGuidUnique(newLogin.guid))
     {
-      throw "specified GUID already exists";
+      throw new Error("specified GUID already exists");
     }
 
     // Look for an existing entry in case key properties changed.
@@ -371,7 +371,7 @@ LoginManagerStorage_mozStorage.prototype = {
                                    newLogin.httpRealm);
 
       if (logins.some(login => newLogin.matches(login, true)))
-        throw "This login already exists.";
+        throw new Error("This login already exists.");
     }
 
     // Get the encrypted value of the username and password.
@@ -417,7 +417,7 @@ LoginManagerStorage_mozStorage.prototype = {
       stmt.execute();
     } catch (e) {
       this.log("modifyLogin failed: " + e.name + " : " + e.message);
-      throw "Couldn't write to database, login not modified.";
+      throw new Error("Couldn't write to database, login not modified.");
     } finally {
       if (stmt) {
         stmt.reset();
@@ -519,7 +519,7 @@ LoginManagerStorage_mozStorage.prototype = {
           break;
         // Fail if caller requests an unknown property.
         default:
-          throw "Unexpected field: " + field;
+          throw new Error("Unexpected field: " + field);
       }
     }
 
@@ -610,7 +610,7 @@ LoginManagerStorage_mozStorage.prototype = {
     } catch (e) {
       this.log("_removeAllLogins failed: " + e.name + " : " + e.message);
       transaction.rollback();
-      throw "Couldn't write to database";
+      throw new Error("Couldn't write to database");
     } finally {
       if (stmt) {
         stmt.reset();
@@ -669,7 +669,7 @@ LoginManagerStorage_mozStorage.prototype = {
       stmt.execute();
     } catch (e) {
       this.log("setLoginSavingEnabled failed: " + e.name + " : " + e.message);
-      throw "Couldn't write to database"
+      throw new Error("Couldn't write to database");
     } finally {
       if (stmt) {
         stmt.reset();
@@ -691,7 +691,7 @@ LoginManagerStorage_mozStorage.prototype = {
       httpRealm: httpRealm
     };
     let matchData = { };
-    for each (let field in ["hostname", "formSubmitURL", "httpRealm"])
+    for (let field of ["hostname", "formSubmitURL", "httpRealm"])
       if (loginData[field] != '')
         matchData[field] = loginData[field];
     let [logins, ids] = this._searchLogins(matchData);
@@ -785,7 +785,7 @@ LoginManagerStorage_mozStorage.prototype = {
    */
   _getIdForLogin : function (login) {
     let matchData = { };
-    for each (let field in ["hostname", "formSubmitURL", "httpRealm"])
+    for (let field of ["hostname", "formSubmitURL", "httpRealm"])
       if (login[field] != '')
         matchData[field] = login[field];
     let [logins, ids] = this._searchLogins(matchData);
@@ -939,7 +939,7 @@ LoginManagerStorage_mozStorage.prototype = {
   _decryptLogins : function (logins) {
     let result = [];
 
-    for each (let login in logins) {
+    for (let login of logins) {
       try {
         login.username = this._crypto.decrypt(login.username);
         login.password = this._crypto.decrypt(login.password);
@@ -1133,7 +1133,7 @@ LoginManagerStorage_mozStorage.prototype = {
 
     // Generate a GUID for each login and update the DB.
     query = "UPDATE moz_logins SET guid = :guid WHERE id = :id";
-    for each (let id in ids) {
+    for (let id of ids) {
       let params = {
         id:   id,
         guid: this._uuidService.generateUUID().toString()
@@ -1199,7 +1199,7 @@ LoginManagerStorage_mozStorage.prototype = {
 
     // Determine encryption type for each login and update the DB.
     query = "UPDATE moz_logins SET encType = :encType WHERE id = :id";
-    for each (let params in logins) {
+    for (let params of logins) {
       try {
         stmt = this._dbCreateStatement(query, params);
         stmt.execute();
@@ -1224,7 +1224,7 @@ LoginManagerStorage_mozStorage.prototype = {
   _dbMigrateToVersion4 : function () {
     let query;
     // Add the new columns, if needed.
-    for each (let column in ["timeCreated", "timeLastUsed", "timePasswordChanged", "timesUsed"]) {
+    for (let column of ["timeCreated", "timeLastUsed", "timePasswordChanged", "timesUsed"]) {
       if (!this._dbColumnExists(column)) {
         query = "ALTER TABLE moz_logins ADD COLUMN " + column + " INTEGER";
         this._dbConnection.executeSimpleSQL(query);
@@ -1256,7 +1256,7 @@ LoginManagerStorage_mozStorage.prototype = {
       id:       null,
       initTime: Date.now()
     };
-    for each (let id in ids) {
+    for (let id of ids) {
       params.id = id;
       try {
         stmt = this._dbCreateStatement(query, params);
@@ -1352,7 +1352,8 @@ LoginManagerStorage_mozStorage.prototype = {
   _dbClose : function () {
     this.log("Closing the DB connection.");
     // Finalize all statements to free memory, avoid errors later
-    for each (let stmt in this._dbStmts) {
+    for (let query in this._dbStmts) {
+      let stmt = this._dbStmts[query];
       stmt.finalize();
     }
     this._dbStmts = {};

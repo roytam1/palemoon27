@@ -28,14 +28,14 @@ class CodeGeneratorX86 : public CodeGeneratorX86Shared
     ValueOperand ToOutValue(LInstruction* ins);
     ValueOperand ToTempValue(LInstruction* ins, size_t pos);
 
-    void load(Scalar::Type vt, const Operand &srcAddr, const LDefinition *out);
-    void store(Scalar::Type vt, const LAllocation *value, const Operand &dstAddr);
+    void load(Scalar::Type vt, const Operand& srcAddr, const LDefinition* out);
+    void store(Scalar::Type vt, const LAllocation* value, const Operand& dstAddr);
 
-    void loadSimd(Scalar::Type type, unsigned numElems, const Operand &srcAddr, FloatRegister out);
-    void emitSimdLoad(LAsmJSLoadHeap *ins);
+    void loadSimd(Scalar::Type type, unsigned numElems, const Operand& srcAddr, FloatRegister out);
+    void emitSimdLoad(LAsmJSLoadHeap* ins);
 
-    void storeSimd(Scalar::Type type, unsigned numElems, FloatRegister in, const Operand &dstAddr);
-    void emitSimdStore(LAsmJSStoreHeap *ins);
+    void storeSimd(Scalar::Type type, unsigned numElems, FloatRegister in, const Operand& dstAddr);
+    void emitSimdStore(LAsmJSStoreHeap* ins);
 
     void memoryBarrier(MemoryBarrierBits barrier);
 
@@ -49,8 +49,8 @@ class CodeGeneratorX86 : public CodeGeneratorX86Shared
     void visitValue(LValue* value);
     void visitCompareB(LCompareB* lir);
     void visitCompareBAndBranch(LCompareBAndBranch* lir);
-    void visitCompareV(LCompareV* lir);
-    void visitCompareVAndBranch(LCompareVAndBranch* lir);
+    void visitCompareBitwise(LCompareBitwise* lir);
+    void visitCompareBitwiseAndBranch(LCompareBitwiseAndBranch* lir);
     void visitAsmJSUInt32ToDouble(LAsmJSUInt32ToDouble* lir);
     void visitAsmJSUInt32ToFloat32(LAsmJSUInt32ToFloat32* lir);
     void visitTruncateDToInt32(LTruncateDToInt32* ins);
@@ -71,8 +71,6 @@ class CodeGeneratorX86 : public CodeGeneratorX86Shared
 
     void visitOutOfLineTruncate(OutOfLineTruncate* ool);
     void visitOutOfLineTruncateFloat32(OutOfLineTruncateFloat32* ool);
-
-    void visitRandom(LRandom* ins);
 
   private:
     void asmJSAtomicComputeAddress(Register addrTemp, Register ptrReg, bool boundsCheck,

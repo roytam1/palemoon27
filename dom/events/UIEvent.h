@@ -40,62 +40,6 @@ public:
   NS_IMETHOD_(void) Serialize(IPC::Message* aMsg, bool aSerializeInterfaceType) override;
   NS_IMETHOD_(bool) Deserialize(const IPC::Message* aMsg, void** aIter) override;
 
-  static LayoutDeviceIntPoint CalculateScreenPoint(nsPresContext* aPresContext,
-                                                   WidgetEvent* aEvent)
-  {
-    if (!aEvent ||
-        (aEvent->mClass != eMouseEventClass &&
-         aEvent->mClass != eMouseScrollEventClass &&
-         aEvent->mClass != eWheelEventClass &&
-         aEvent->mClass != eDragEventClass &&
-         aEvent->mClass != ePointerEventClass &&
-         aEvent->mClass != eSimpleGestureEventClass)) {
-      return LayoutDeviceIntPoint(0, 0);
-    }
-
-    WidgetGUIEvent* event = aEvent->AsGUIEvent();
-    if (!event->widget) {
-      return aEvent->refPoint;
-    }
-
-    LayoutDeviceIntPoint offset = aEvent->refPoint + event->widget->WidgetToScreenOffset();
-    nscoord factor =
-      aPresContext->DeviceContext()->AppUnitsPerDevPixelAtUnitFullZoom();
-    return LayoutDeviceIntPoint(nsPresContext::AppUnitsToIntCSSPixels(offset.x * factor),
-                                nsPresContext::AppUnitsToIntCSSPixels(offset.y * factor));
-  }
-
-  static CSSIntPoint CalculateClientPoint(nsPresContext* aPresContext,
-                                          WidgetEvent* aEvent,
-                                          CSSIntPoint* aDefaultClientPoint)
-  {
-    if (!aEvent ||
-        (aEvent->mClass != eMouseEventClass &&
-         aEvent->mClass != eMouseScrollEventClass &&
-         aEvent->mClass != eWheelEventClass &&
-         aEvent->mClass != eDragEventClass &&
-         aEvent->mClass != ePointerEventClass &&
-         aEvent->mClass != eSimpleGestureEventClass) ||
-        !aPresContext ||
-        !aEvent->AsGUIEvent()->widget) {
-      return aDefaultClientPoint
-             ? *aDefaultClientPoint
-             : CSSIntPoint(0, 0);
-    }
-
-    nsIPresShell* shell = aPresContext->GetPresShell();
-    if (!shell) {
-      return CSSIntPoint(0, 0);
-    }
-    nsIFrame* rootFrame = shell->GetRootFrame();
-    if (!rootFrame) {
-      return CSSIntPoint(0, 0);
-    }
-    nsPoint pt =
-      nsLayoutUtils::GetEventCoordinatesRelativeTo(aEvent, rootFrame);
-
-    return CSSIntPoint::FromAppUnitsRounded(pt);
-  }
 
   static already_AddRefed<UIEvent> Constructor(const GlobalObject& aGlobal,
                                                const nsAString& aType,
@@ -143,6 +87,11 @@ public:
 
   int32_t RangeOffset() const;
 
+  bool CancelBubble() const
+  {
+    return mEvent->mFlags.mPropagationStopped;
+  }
+
   bool IsChar() const;
 
 protected:
@@ -164,6 +113,7 @@ protected:
 
   static Modifiers ComputeModifierState(const nsAString& aModifiersList);
   bool GetModifierStateInternal(const nsAString& aKey);
+  void InitModifiers(const EventModifierInit& aParam);
 };
 
 } // namespace dom
@@ -187,5 +137,10 @@ protected:
   {                                                         \
     return UIEvent::Deserialize(aMsg, aIter);               \
   }
+
+already_AddRefed<mozilla::dom::UIEvent>
+NS_NewDOMUIEvent(mozilla::dom::EventTarget* aOwner,
+                 nsPresContext* aPresContext,
+                 mozilla::WidgetGUIEvent* aEvent);
 
 #endif // mozilla_dom_UIEvent_h_

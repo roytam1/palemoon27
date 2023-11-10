@@ -4,16 +4,19 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
+#include "GLContext.h"
+
 #include <algorithm>
 #include <stdio.h>
 #include <string.h>
 #include <ctype.h>
 #include <vector>
 
-#include "GLContext.h"
 #include "GLBlitHelper.h"
 #include "GLReadTexImageHelper.h"
+#include "GLScreenBuffer.h"
 
+#include "gfxEnv.h"
 #include "gfxUtils.h"
 #include "GLContextProvider.h"
 #include "GLTextureImage.h"
@@ -36,7 +39,6 @@
 
 #ifdef XP_MACOSX
 #include <CoreServices/CoreServices.h>
-#include "gfxColor.h"
 #endif
 
 #if defined(MOZ_WIDGET_COCOA)
@@ -55,9 +57,11 @@ unsigned GLContext::sCurrentGLContextTLS = -1;
 
 uint32_t GLContext::sDebugMode = 0;
 
-
-#define MAX_SYMBOL_LENGTH 128
-#define MAX_SYMBOL_NAMES 5
+// If adding defines, don't forget to undefine symbols. See #undef block below.
+#define CORE_SYMBOL(x) { (PRFuncPtr*) &mSymbols.f##x, { #x, nullptr } }
+#define CORE_EXT_SYMBOL2(x,y,z) { (PRFuncPtr*) &mSymbols.f##x, { #x, #x #y, #x #z, nullptr } }
+#define EXT_SYMBOL2(x,y,z) { (PRFuncPtr*) &mSymbols.f##x, { #x #y, #x #z, nullptr } }
+#define EXT_SYMBOL3(x,y,z,w) { (PRFuncPtr*) &mSymbols.f##x, { #x #y, #x #z, #x #w, nullptr } }
 #define END_SYMBOLS { nullptr, { nullptr } }
 
 // should match the order of GLExtensions, and be null-terminated.
@@ -72,6 +76,8 @@ static const char *sExtensionNames[] = {
     "GL_ANGLE_texture_compression_dxt5",
     "GL_ANGLE_timer_query",
     "GL_APPLE_client_storage",
+    "GL_APPLE_framebuffer_multisample",
+    "GL_APPLE_sync",
     "GL_APPLE_texture_range",
     "GL_APPLE_vertex_array_object",
     "GL_ARB_ES2_compatibility",
@@ -83,8 +89,10 @@ static const char *sExtensionNames[] = {
     "GL_ARB_draw_instanced",
     "GL_ARB_framebuffer_object",
     "GL_ARB_framebuffer_sRGB",
+    "GL_ARB_geometry_shader4",
     "GL_ARB_half_float_pixel",
     "GL_ARB_instanced_arrays",
+    "GL_ARB_internalformat_query",
     "GL_ARB_invalidate_subdata",
     "GL_ARB_map_buffer_range",
     "GL_ARB_occlusion_query2",
@@ -118,6 +126,7 @@ static const char *sExtensionNames[] = {
     "GL_EXT_framebuffer_object",
     "GL_EXT_framebuffer_sRGB",
     "GL_EXT_gpu_shader4",
+    "GL_EXT_multisampled_render_to_texture",
     "GL_EXT_occlusion_query_boolean",
     "GL_EXT_packed_depth_stencil",
     "GL_EXT_read_format_bgra",
@@ -141,6 +150,8 @@ static const char *sExtensionNames[] = {
     "GL_KHR_debug",
     "GL_NV_draw_instanced",
     "GL_NV_fence",
+    "GL_NV_framebuffer_blit",
+    "GL_NV_geometry_program4",
     "GL_NV_half_float",
     "GL_NV_instanced_arrays",
     "GL_NV_transform_feedback",
@@ -153,6 +164,7 @@ static const char *sExtensionNames[] = {
     "GL_OES_depth32",
     "GL_OES_depth_texture",
     "GL_OES_element_index_uint",
+    "GL_OES_framebuffer_object",
     "GL_OES_packed_depth_stencil",
     "GL_OES_rgb8_rgba8",
     "GL_OES_standard_derivatives",
@@ -165,6 +177,97 @@ static const char *sExtensionNames[] = {
     "GL_OES_texture_npot",
     "GL_OES_vertex_array_object"
 };
+
+static bool
+ParseGLSLVersion(GLContext* gl, uint32_t* out_version)
+{
+    if (gl->fGetError() != LOCAL_GL_NO_ERROR) {
+        MOZ_ASSERT(false, "An OpenGL error has been triggered before.");
+        return false;
+    }
+
+    /**
+     * OpenGL 2.x, 3.x, 4.x specifications:
+     *  The VERSION and SHADING_LANGUAGE_VERSION strings are laid out as follows:
+     *
+     *    <version number><space><vendor-specific information>
+     *
+     *  The version number is either of the form major_number.minor_number or
+     *  major_number.minor_number.release_number, where the numbers all have
+     *  one or more digits.
+     *
+     * SHADING_LANGUAGE_VERSION is *almost* identical to VERSION. The
+     * difference is that the minor version always has two digits and the
+     * prefix has an additional 'GLSL ES'
+     *
+     *
+     * OpenGL ES 2.0, 3.0 specifications:
+     *  The VERSION string is laid out as follows:
+     *
+     *     "OpenGL ES N.M vendor-specific information"
+     *
+     *  The version number is either of the form major_number.minor_number or
+     *  major_number.minor_number.release_number, where the numbers all have
+     *  one or more digits.
+     *
+     *
+     * Note:
+     *  We don't care about release_number.
+     */
+    const char* versionString = (const char*) gl->fGetString(LOCAL_GL_SHADING_LANGUAGE_VERSION);
+
+    if (gl->fGetError() != LOCAL_GL_NO_ERROR) {
+        MOZ_ASSERT(false, "glGetString(GL_SHADING_LANGUAGE_VERSION) has generated an error");
+        return false;
+    }
+
+    if (!versionString) {
+        // This happens on the Android emulators. We'll just return 100
+        *out_version = 100;
+        return true;
+    }
+
+    const char kGLESVersionPrefix[] = "OpenGL ES GLSL ES";
+    if (strncmp(versionString, kGLESVersionPrefix, strlen(kGLESVersionPrefix)) == 0)
+        versionString += strlen(kGLESVersionPrefix);
+
+    const char* itr = versionString;
+    char* end = nullptr;
+    auto majorVersion = strtol(itr, &end, 10);
+
+    if (!end) {
+        MOZ_ASSERT(false, "Failed to parse the GL major version number.");
+        return false;
+    }
+
+    if (*end != '.') {
+        MOZ_ASSERT(false, "Failed to parse GL's major-minor version number separator.");
+        return false;
+    }
+
+    // we skip the '.' between the major and the minor version
+    itr = end + 1;
+    end = nullptr;
+
+    auto minorVersion = strtol(itr, &end, 10);
+    if (!end) {
+        MOZ_ASSERT(false, "Failed to parse GL's minor version number.");
+        return false;
+    }
+
+    if (majorVersion <= 0 || majorVersion >= 100) {
+        MOZ_ASSERT(false, "Invalid major version.");
+        return false;
+    }
+
+    if (minorVersion < 0 || minorVersion >= 100) {
+        MOZ_ASSERT(false, "Invalid minor version.");
+        return false;
+    }
+
+    *out_version = (uint32_t) majorVersion * 100 + (uint32_t) minorVersion;
+    return true;
+}
 
 static bool
 ParseGLVersion(GLContext* gl, uint32_t* out_version)
@@ -290,11 +393,11 @@ GLContext::GLContext(const SurfaceCaps& caps,
     mContextLost(false),
     mVersion(0),
     mProfile(ContextProfile::Unknown),
+    mShadingLanguageVersion(0),
     mVendor(GLVendor::Other),
     mRenderer(GLRenderer::Other),
     mHasRobustness(false),
     mTopError(LOCAL_GL_NO_ERROR),
-    mLocalErrorScope(nullptr),
     mSharedContext(sharedContext),
     mCaps(caps),
     mScreen(nullptr),
@@ -303,10 +406,14 @@ GLContext::GLContext(const SurfaceCaps& caps,
     mMaxCubeMapTextureSize(0),
     mMaxTextureImageSize(0),
     mMaxRenderbufferSize(0),
+    mMaxSamples(0),
     mNeedsTextureSizeChecks(false),
+    mNeedsFlushBeforeDeleteFB(false),
     mWorkAroundDriverBugs(true),
     mHeavyGLCallsSinceLastFlush(false)
 {
+    mMaxViewportDims[0] = 0;
+    mMaxViewportDims[1] = 0;
     mOwningThreadId = PlatformThread::CurrentId();
 }
 
@@ -476,31 +583,16 @@ GLContext::InitWithPrefix(const char *prefix, bool trygl)
         { (PRFuncPtr*) &mSymbols.fGetShaderSource, { "GetShaderSource", nullptr } },
         { (PRFuncPtr*) &mSymbols.fShaderSource, { "ShaderSource", nullptr } },
         { (PRFuncPtr*) &mSymbols.fVertexAttribPointer, { "VertexAttribPointer", nullptr } },
-        { (PRFuncPtr*) &mSymbols.fBindFramebuffer, { "BindFramebuffer", "BindFramebufferEXT", nullptr } },
-        { (PRFuncPtr*) &mSymbols.fBindRenderbuffer, { "BindRenderbuffer", "BindRenderbufferEXT", nullptr } },
-        { (PRFuncPtr*) &mSymbols.fCheckFramebufferStatus, { "CheckFramebufferStatus", "CheckFramebufferStatusEXT", nullptr } },
-        { (PRFuncPtr*) &mSymbols.fFramebufferRenderbuffer, { "FramebufferRenderbuffer", "FramebufferRenderbufferEXT", nullptr } },
-        { (PRFuncPtr*) &mSymbols.fFramebufferTexture2D, { "FramebufferTexture2D", "FramebufferTexture2DEXT", nullptr } },
-        { (PRFuncPtr*) &mSymbols.fGenerateMipmap, { "GenerateMipmap", "GenerateMipmapEXT", nullptr } },
-        { (PRFuncPtr*) &mSymbols.fGetFramebufferAttachmentParameteriv, { "GetFramebufferAttachmentParameteriv", "GetFramebufferAttachmentParameterivEXT", nullptr } },
-        { (PRFuncPtr*) &mSymbols.fGetRenderbufferParameteriv, { "GetRenderbufferParameteriv", "GetRenderbufferParameterivEXT", nullptr } },
-        { (PRFuncPtr*) &mSymbols.fIsFramebuffer, { "IsFramebuffer", "IsFramebufferEXT", nullptr } },
-        { (PRFuncPtr*) &mSymbols.fIsRenderbuffer, { "IsRenderbuffer", "IsRenderbufferEXT", nullptr } },
-        { (PRFuncPtr*) &mSymbols.fRenderbufferStorage, { "RenderbufferStorage", "RenderbufferStorageEXT", nullptr } },
 
         { (PRFuncPtr*) &mSymbols.fGenBuffers, { "GenBuffers", "GenBuffersARB", nullptr } },
         { (PRFuncPtr*) &mSymbols.fGenTextures, { "GenTextures", nullptr } },
         { (PRFuncPtr*) &mSymbols.fCreateProgram, { "CreateProgram", "CreateProgramARB", nullptr } },
         { (PRFuncPtr*) &mSymbols.fCreateShader, { "CreateShader", "CreateShaderARB", nullptr } },
-        { (PRFuncPtr*) &mSymbols.fGenFramebuffers, { "GenFramebuffers", "GenFramebuffersEXT", nullptr } },
-        { (PRFuncPtr*) &mSymbols.fGenRenderbuffers, { "GenRenderbuffers", "GenRenderbuffersEXT", nullptr } },
 
         { (PRFuncPtr*) &mSymbols.fDeleteBuffers, { "DeleteBuffers", "DeleteBuffersARB", nullptr } },
         { (PRFuncPtr*) &mSymbols.fDeleteTextures, { "DeleteTextures", "DeleteTexturesARB", nullptr } },
         { (PRFuncPtr*) &mSymbols.fDeleteProgram, { "DeleteProgram", "DeleteProgramARB", nullptr } },
         { (PRFuncPtr*) &mSymbols.fDeleteShader, { "DeleteShader", "DeleteShaderARB", nullptr } },
-        { (PRFuncPtr*) &mSymbols.fDeleteFramebuffers, { "DeleteFramebuffers", "DeleteFramebuffersEXT", nullptr } },
-        { (PRFuncPtr*) &mSymbols.fDeleteRenderbuffers, { "DeleteRenderbuffers", "DeleteRenderbuffersEXT", nullptr } },
 
         END_SYMBOLS
 
@@ -514,8 +606,12 @@ GLContext::InitWithPrefix(const char *prefix, bool trygl)
         uint32_t version = 0;
         ParseGLVersion(this, &version);
 
+        mShadingLanguageVersion = 100;
+        ParseGLSLVersion(this, &mShadingLanguageVersion);
+
         if (ShouldSpew()) {
             printf_stderr("OpenGL version detected: %u\n", version);
+            printf_stderr("OpenGL shading language version detected: %u\n", mShadingLanguageVersion);
             printf_stderr("OpenGL vendor: %s\n", fGetString(LOCAL_GL_VENDOR));
             printf_stderr("OpenGL renderer: %s\n", fGetString(LOCAL_GL_RENDERER));
         }
@@ -616,6 +712,7 @@ GLContext::InitWithPrefix(const char *prefix, bool trygl)
                 "Adreno (TM) 200",
                 "Adreno (TM) 205",
                 "Adreno (TM) 320",
+                "Adreno (TM) 420",
                 "PowerVR SGX 530",
                 "PowerVR SGX 540",
                 "NVIDIA Tegra",
@@ -636,16 +733,16 @@ GLContext::InitWithPrefix(const char *prefix, bool trygl)
 
 
 #ifdef MOZ_GL_DEBUG
-    if (PR_GetEnv("MOZ_GL_DEBUG"))
+    if (gfxEnv::GlDebug())
         sDebugMode |= DebugEnabled;
 
     // enables extra verbose output, informing of the start and finish of every GL call.
     // useful e.g. to record information to investigate graphics system crashes/lockups
-    if (PR_GetEnv("MOZ_GL_DEBUG_VERBOSE"))
+    if (gfxEnv::GlDebugVerbose())
         sDebugMode |= DebugTrace;
 
     // aborts on GL error. Can be useful to debug quicker code that is known not to generate any GL error in principle.
-    if (PR_GetEnv("MOZ_GL_DEBUG_ABORT_ON_ERROR"))
+    if (gfxEnv::GlDebugAbortOnError())
         sDebugMode |= DebugAbortOnError;
 #endif
 
@@ -751,48 +848,98 @@ GLContext::InitWithPrefix(const char *prefix, bool trygl)
             }
         }
 
-        // Check for aux symbols based on extensions
-        if (IsSupported(GLFeature::framebuffer_blit))
-        {
+        // Check for ARB_framebuffer_objects
+        if (IsSupported(GLFeature::framebuffer_object)) {
+            // https://www.opengl.org/registry/specs/ARB/framebuffer_object.txt
             SymLoadStruct coreSymbols[] = {
-                { (PRFuncPtr*) &mSymbols.fBlitFramebuffer, { "BlitFramebuffer", nullptr } },
+                CORE_SYMBOL(IsRenderbuffer),
+                CORE_SYMBOL(BindRenderbuffer),
+                CORE_SYMBOL(DeleteRenderbuffers),
+                CORE_SYMBOL(GenRenderbuffers),
+                CORE_SYMBOL(RenderbufferStorage),
+                CORE_SYMBOL(RenderbufferStorageMultisample),
+                CORE_SYMBOL(GetRenderbufferParameteriv),
+                CORE_SYMBOL(IsFramebuffer),
+                CORE_SYMBOL(BindFramebuffer),
+                CORE_SYMBOL(DeleteFramebuffers),
+                CORE_SYMBOL(GenFramebuffers),
+                CORE_SYMBOL(CheckFramebufferStatus),
+                CORE_SYMBOL(FramebufferTexture2D),
+                CORE_SYMBOL(FramebufferTextureLayer),
+                CORE_SYMBOL(FramebufferRenderbuffer),
+                CORE_SYMBOL(GetFramebufferAttachmentParameteriv),
+                CORE_SYMBOL(BlitFramebuffer),
+                CORE_SYMBOL(GenerateMipmap),
                 END_SYMBOLS
             };
 
-            SymLoadStruct extSymbols[] = {
-                { (PRFuncPtr*) &mSymbols.fBlitFramebuffer, { "BlitFramebufferEXT", "BlitFramebufferANGLE", nullptr } },
-                END_SYMBOLS
-            };
-
-            bool useCore = IsFeatureProvidedByCoreSymbols(GLFeature::framebuffer_blit);
-
-            if (!LoadSymbols(useCore ? coreSymbols : extSymbols, trygl, prefix)) {
-                NS_ERROR("GL supports framebuffer_blit without supplying glBlitFramebuffer");
-
-                MarkUnsupported(GLFeature::framebuffer_blit);
-                ClearSymbols(coreSymbols);
+            if (!LoadSymbols(coreSymbols, trygl, prefix)) {
+                NS_ERROR("GL supports framebuffer_object without supplying its functions.");
+                MarkUnsupported(GLFeature::framebuffer_object);
             }
         }
 
-        if (IsSupported(GLFeature::framebuffer_multisample))
-        {
-            SymLoadStruct coreSymbols[] = {
-                { (PRFuncPtr*) &mSymbols.fRenderbufferStorageMultisample, { "RenderbufferStorageMultisample", nullptr } },
-                END_SYMBOLS
-            };
+        if (!IsSupported(GLFeature::framebuffer_object)) {
+            // Check for aux symbols based on extensions
+            if (IsSupported(GLFeature::framebuffer_object_EXT_OES))
+            {
+                SymLoadStruct extSymbols[] = {
+                    CORE_EXT_SYMBOL2(IsRenderbuffer, EXT, OES),
+                    CORE_EXT_SYMBOL2(BindRenderbuffer, EXT, OES),
+                    CORE_EXT_SYMBOL2(DeleteRenderbuffers, EXT, OES),
+                    CORE_EXT_SYMBOL2(GenRenderbuffers, EXT, OES),
+                    CORE_EXT_SYMBOL2(RenderbufferStorage, EXT, OES),
+                    CORE_EXT_SYMBOL2(GetRenderbufferParameteriv, EXT, OES),
+                    CORE_EXT_SYMBOL2(IsFramebuffer, EXT, OES),
+                    CORE_EXT_SYMBOL2(BindFramebuffer, EXT, OES),
+                    CORE_EXT_SYMBOL2(DeleteFramebuffers, EXT, OES),
+                    CORE_EXT_SYMBOL2(GenFramebuffers, EXT, OES),
+                    CORE_EXT_SYMBOL2(CheckFramebufferStatus, EXT, OES),
+                    CORE_EXT_SYMBOL2(FramebufferTexture2D, EXT, OES),
+                    CORE_EXT_SYMBOL2(FramebufferRenderbuffer, EXT, OES),
+                    CORE_EXT_SYMBOL2(GetFramebufferAttachmentParameteriv, EXT, OES),
+                    CORE_EXT_SYMBOL2(GenerateMipmap, EXT, OES),
+                    END_SYMBOLS
+                };
 
-            SymLoadStruct extSymbols[] = {
-                { (PRFuncPtr*) &mSymbols.fRenderbufferStorageMultisample, { "RenderbufferStorageMultisampleEXT", "RenderbufferStorageMultisampleANGLE", nullptr } },
-                END_SYMBOLS
-            };
+                if (!LoadSymbols(extSymbols, trygl, prefix)) {
+                    NS_ERROR("GL supports framebuffer_object without supplying its functions.");
+                }
+            }
 
-            bool useCore = IsFeatureProvidedByCoreSymbols(GLFeature::framebuffer_multisample);
+            if (IsSupported(GLFeature::framebuffer_blit)) {
+                SymLoadStruct extSymbols[] = {
+                    EXT_SYMBOL3(BlitFramebuffer, ANGLE, EXT, NV),
+                    END_SYMBOLS
+                };
 
-            if (!LoadSymbols(useCore ? coreSymbols : extSymbols, trygl, prefix)) {
-                NS_ERROR("GL supports framebuffer_multisample without supplying glRenderbufferStorageMultisample");
+                if (!LoadSymbols(extSymbols, trygl, prefix)) {
+                    NS_ERROR("GL supports framebuffer_blit without supplying its functions.");
+                }
+            }
 
-                MarkUnsupported(GLFeature::framebuffer_multisample);
-                ClearSymbols(coreSymbols);
+            if (IsSupported(GLFeature::framebuffer_multisample)) {
+                SymLoadStruct extSymbols[] = {
+                    EXT_SYMBOL3(RenderbufferStorageMultisample, ANGLE, APPLE, EXT),
+                    END_SYMBOLS
+                };
+
+                if (!LoadSymbols(extSymbols, trygl, prefix)) {
+                    NS_ERROR("GL supports framebuffer_multisample without supplying its functions.");
+                }
+            }
+
+            if (IsExtensionSupported(GLContext::ARB_geometry_shader4) ||
+                IsExtensionSupported(GLContext::NV_geometry_program4))
+            {
+                SymLoadStruct extSymbols[] = {
+                    EXT_SYMBOL2(FramebufferTextureLayer, ARB, EXT),
+                    END_SYMBOLS
+                };
+
+                if (!LoadSymbols(extSymbols, trygl, prefix)) {
+                    NS_ERROR("GL supports geometry_shader4 withot supplying its functions.");
+                }
             }
         }
 
@@ -1261,6 +1408,8 @@ GLContext::InitWithPrefix(const char *prefix, bool trygl)
 
         if (IsSupported(GLFeature::gpu_shader4)) {
             SymLoadStruct gpuShader4Symbols[] = {
+                { (PRFuncPtr*) &mSymbols.fGetVertexAttribIiv, { "GetVertexAttribIiv", "GetVertexAttribIivEXT", nullptr } },
+                { (PRFuncPtr*) &mSymbols.fGetVertexAttribIuiv, { "GetVertexAttribIuiv", "GetVertexAttribIuivEXT", nullptr } },
                 { (PRFuncPtr*) &mSymbols.fVertexAttribI4i, { "VertexAttribI4i", "VertexAttribI4iEXT", nullptr } },
                 { (PRFuncPtr*) &mSymbols.fVertexAttribI4iv, { "VertexAttribI4iv","VertexAttribI4ivEXT", nullptr } },
                 { (PRFuncPtr*) &mSymbols.fVertexAttribI4ui, { "VertexAttribI4ui", "VertexAttribI4uiEXT", nullptr } },
@@ -1291,6 +1440,7 @@ GLContext::InitWithPrefix(const char *prefix, bool trygl)
             SymLoadStruct mapBufferRangeSymbols[] = {
                 { (PRFuncPtr*) &mSymbols.fMapBufferRange, { "MapBufferRange", nullptr } },
                 { (PRFuncPtr*) &mSymbols.fFlushMappedBufferRange, { "FlushMappedBufferRange", nullptr } },
+                { (PRFuncPtr*) &mSymbols.fUnmapBuffer, { "UnmapBuffer", nullptr } },
                 END_SYMBOLS
             };
 
@@ -1369,10 +1519,11 @@ GLContext::InitWithPrefix(const char *prefix, bool trygl)
         }
 
         if (IsSupported(GLFeature::uniform_buffer_object)) {
+            // Note: Don't query for glGetActiveUniformName because it is not
+            // supported by GL ES 3.
             SymLoadStruct uboSymbols[] = {
                 { (PRFuncPtr*) &mSymbols.fGetUniformIndices, { "GetUniformIndices", nullptr } },
                 { (PRFuncPtr*) &mSymbols.fGetActiveUniformsiv, { "GetActiveUniformsiv", nullptr } },
-                { (PRFuncPtr*) &mSymbols.fGetActiveUniformName, { "GetActiveUniformName", nullptr } },
                 { (PRFuncPtr*) &mSymbols.fGetUniformBlockIndex, { "GetUniformBlockIndex", nullptr } },
                 { (PRFuncPtr*) &mSymbols.fGetActiveUniformBlockiv, { "GetActiveUniformBlockiv", nullptr } },
                 { (PRFuncPtr*) &mSymbols.fGetActiveUniformBlockName, { "GetActiveUniformBlockName", nullptr } },
@@ -1405,6 +1556,20 @@ GLContext::InitWithPrefix(const char *prefix, bool trygl)
 
                 MarkUnsupported(GLFeature::uniform_matrix_nonsquare);
                 ClearSymbols(umnSymbols);
+            }
+        }
+
+        if (IsSupported(GLFeature::internalformat_query)) {
+            SymLoadStruct coreSymbols[] = {
+                CORE_SYMBOL(GetInternalformativ),
+                END_SYMBOLS
+            };
+
+            if (!LoadSymbols(&coreSymbols[0], trygl, prefix)) {
+                NS_ERROR("GL supports internalformat query without supplying its functions.");
+
+                MarkUnsupported(GLFeature::internalformat_query);
+                ClearSymbols(coreSymbols);
             }
         }
 
@@ -1469,7 +1634,7 @@ GLContext::InitWithPrefix(const char *prefix, bool trygl)
 
         if (IsSupported(GLFeature::read_buffer)) {
             SymLoadStruct extSymbols[] = {
-                { (PRFuncPtr*) &mSymbols.fReadBuffer, { "ReadBuffer",    nullptr } },
+                { (PRFuncPtr*) &mSymbols.fReadBuffer, { "ReadBuffer", nullptr } },
                 END_SYMBOLS
             };
 
@@ -1477,6 +1642,20 @@ GLContext::InitWithPrefix(const char *prefix, bool trygl)
                 NS_ERROR("GL supports read_buffer without supplying its functions.");
 
                 MarkUnsupported(GLFeature::read_buffer);
+                ClearSymbols(extSymbols);
+            }
+        }
+
+        if (IsExtensionSupported(APPLE_framebuffer_multisample)) {
+            SymLoadStruct extSymbols[] = {
+                { (PRFuncPtr*) &mSymbols.fResolveMultisampleFramebufferAPPLE, { "ResolveMultisampleFramebufferAPPLE", nullptr } },
+                END_SYMBOLS
+            };
+
+            if (!LoadSymbols(&extSymbols[0], trygl, prefix)) {
+                NS_ERROR("GL supports APPLE_framebuffer_multisample without supplying its functions.");
+
+                MarkExtensionUnsupported(APPLE_framebuffer_multisample);
                 ClearSymbols(extSymbols);
             }
         }
@@ -1532,10 +1711,15 @@ GLContext::InitWithPrefix(const char *prefix, bool trygl)
             mNeedsTextureSizeChecks = true;
         }
 #endif
+        if (mWorkAroundDriverBugs &&
+            Renderer() == GLRenderer::AdrenoTM420) {
+            // see bug 1194923. Calling glFlush before glDeleteFramebuffers
+            // prevents occasional driver crash.
+            mNeedsFlushBeforeDeleteFB = true;
+        }
 
         mMaxTextureImageSize = mMaxTextureSize;
 
-        mMaxSamples = 0;
         if (IsSupported(GLFeature::framebuffer_multisample)) {
             fGetIntegerv(LOCAL_GL_MAX_SAMPLES, (GLint*)&mMaxSamples);
         }
@@ -1577,6 +1761,12 @@ GLContext::InitWithPrefix(const char *prefix, bool trygl)
 
     return mInitialized;
 }
+
+#undef CORE_SYMBOL
+#undef CORE_EXT_SYMBOL2
+#undef EXT_SYMBOL2
+#undef EXT_SYMBOL3
+#undef END_SYMBOLS
 
 void
 GLContext::DebugCallback(GLenum source,
@@ -1724,6 +1914,9 @@ GLContext::InitExtensions()
             // doesn't expose the OES_rgb8_rgba8 extension, but it seems to
             // support it (tautologically, as it only runs on desktop GL).
             MarkExtensionSupported(OES_rgb8_rgba8);
+            // there seems to be a similar issue for EXT_texture_format_BGRA8888
+            // on the Android 4.3 emulator
+            MarkExtensionSupported(EXT_texture_format_BGRA8888);
         }
 
         if (Vendor() == GLVendor::VMware &&
@@ -1923,7 +2116,8 @@ GLContext::AttachBuffersToFB(GLuint colorTex, GLuint colorRB,
                               colorTex,
                               0);
     } else if (colorRB) {
-        MOZ_ASSERT(fIsRenderbuffer(colorRB));
+        // On the Android 4.3 emulator, IsRenderbuffer may return false incorrectly.
+        MOZ_ASSERT_IF(Renderer() != GLRenderer::AndroidEmulator, fIsRenderbuffer(colorRB));
         fFramebufferRenderbuffer(LOCAL_GL_FRAMEBUFFER,
                                  LOCAL_GL_COLOR_ATTACHMENT0,
                                  LOCAL_GL_RENDERBUFFER,
@@ -1931,7 +2125,7 @@ GLContext::AttachBuffersToFB(GLuint colorTex, GLuint colorRB,
     }
 
     if (depthRB) {
-        MOZ_ASSERT(fIsRenderbuffer(depthRB));
+        MOZ_ASSERT_IF(Renderer() != GLRenderer::AndroidEmulator, fIsRenderbuffer(depthRB));
         fFramebufferRenderbuffer(LOCAL_GL_FRAMEBUFFER,
                                  LOCAL_GL_DEPTH_ATTACHMENT,
                                  LOCAL_GL_RENDERBUFFER,
@@ -1939,7 +2133,7 @@ GLContext::AttachBuffersToFB(GLuint colorTex, GLuint colorRB,
     }
 
     if (stencilRB) {
-        MOZ_ASSERT(fIsRenderbuffer(stencilRB));
+        MOZ_ASSERT_IF(Renderer() != GLRenderer::AndroidEmulator, fIsRenderbuffer(stencilRB));
         fFramebufferRenderbuffer(LOCAL_GL_FRAMEBUFFER,
                                  LOCAL_GL_STENCIL_ATTACHMENT,
                                  LOCAL_GL_RENDERBUFFER,
@@ -2482,8 +2676,7 @@ GLContext::FlushIfHeavyGLCallsSinceLastFlush()
 /*static*/ bool
 GLContext::ShouldDumpExts()
 {
-    static bool ret = PR_GetEnv("MOZ_GL_DUMP_EXTS");
-    return ret;
+    return gfxEnv::GlDumpExtensions();
 }
 
 bool
@@ -2513,8 +2706,7 @@ DoesStringMatch(const char* aString, const char *aWantedString)
 /*static*/ bool
 GLContext::ShouldSpew()
 {
-    static bool ret = PR_GetEnv("MOZ_GL_SPEW");
-    return ret;
+    return gfxEnv::GlSpew();
 }
 
 void
@@ -2558,6 +2750,7 @@ GLContext::Readback(SharedSurface* src, gfx::DataSourceSurface* dest)
     }
 
     GLuint tempFB = 0;
+    GLuint tempTex = 0;
 
     {
         ScopedBindFramebuffer autoFB(this);
@@ -2582,11 +2775,29 @@ GLContext::Readback(SharedSurface* src, gfx::DataSourceSurface* dest)
                                          LOCAL_GL_RENDERBUFFER, src->ProdRenderbuffer());
                 break;
             default:
-                MOZ_CRASH("bad `src->mAttachType`.");
+                MOZ_CRASH("GFX: bad `src->mAttachType`.");
             }
 
             DebugOnly<GLenum> status = fCheckFramebufferStatus(LOCAL_GL_FRAMEBUFFER);
             MOZ_ASSERT(status == LOCAL_GL_FRAMEBUFFER_COMPLETE);
+        }
+
+        if (src->NeedsIndirectReads()) {
+            fGenTextures(1, &tempTex);
+            {
+                ScopedBindTexture autoTex(this, tempTex);
+
+                GLenum format = src->mHasAlpha ? LOCAL_GL_RGBA
+                                               : LOCAL_GL_RGB;
+                auto width = src->mSize.width;
+                auto height = src->mSize.height;
+                fCopyTexImage2D(LOCAL_GL_TEXTURE_2D, 0, format, 0, 0, width,
+                                height, 0);
+            }
+
+            fFramebufferTexture2D(LOCAL_GL_FRAMEBUFFER,
+                                  LOCAL_GL_COLOR_ATTACHMENT0,
+                                  LOCAL_GL_TEXTURE_2D, tempTex, 0);
         }
 
         ReadPixelsIntoDataSurface(this, dest);
@@ -2597,12 +2808,311 @@ GLContext::Readback(SharedSurface* src, gfx::DataSourceSurface* dest)
     if (tempFB)
         fDeleteFramebuffers(1, &tempFB);
 
+    if (tempTex) {
+        fDeleteTextures(1, &tempTex);
+    }
+
     if (needsSwap) {
         src->UnlockProd();
         if (prev)
             prev->LockProd();
     }
 }
+
+// Do whatever tear-down is necessary after drawing to our offscreen FBO,
+// if it's bound.
+void
+GLContext::AfterGLDrawCall()
+{
+    if (mScreen) {
+        mScreen->AfterDrawCall();
+    }
+    mHeavyGLCallsSinceLastFlush = true;
+}
+
+// Do whatever setup is necessary to read from our offscreen FBO, if it's
+// bound.
+void
+GLContext::BeforeGLReadCall()
+{
+    if (mScreen)
+        mScreen->BeforeReadCall();
+}
+
+void
+GLContext::fBindFramebuffer(GLenum target, GLuint framebuffer)
+{
+    if (!mScreen) {
+        raw_fBindFramebuffer(target, framebuffer);
+        return;
+    }
+
+    switch (target) {
+        case LOCAL_GL_DRAW_FRAMEBUFFER_EXT:
+            mScreen->BindDrawFB(framebuffer);
+            return;
+
+        case LOCAL_GL_READ_FRAMEBUFFER_EXT:
+            mScreen->BindReadFB(framebuffer);
+            return;
+
+        case LOCAL_GL_FRAMEBUFFER:
+            mScreen->BindFB(framebuffer);
+            return;
+
+        default:
+            // Nothing we care about, likely an error.
+            break;
+    }
+
+    raw_fBindFramebuffer(target, framebuffer);
+}
+
+void
+GLContext::fCopyTexImage2D(GLenum target, GLint level, GLenum internalformat, GLint x,
+                           GLint y, GLsizei width, GLsizei height, GLint border)
+{
+    if (!IsTextureSizeSafeToPassToDriver(target, width, height)) {
+        // pass wrong values to cause the GL to generate GL_INVALID_VALUE.
+        // See bug 737182 and the comment in IsTextureSizeSafeToPassToDriver.
+        level = -1;
+        width = -1;
+        height = -1;
+        border = -1;
+    }
+
+    BeforeGLReadCall();
+    bool didCopyTexImage2D = false;
+    if (mScreen) {
+        didCopyTexImage2D = mScreen->CopyTexImage2D(target, level, internalformat, x,
+                                                    y, width, height, border);
+    }
+
+    if (!didCopyTexImage2D) {
+        raw_fCopyTexImage2D(target, level, internalformat, x, y, width, height,
+                            border);
+    }
+    AfterGLReadCall();
+}
+
+void
+GLContext::fGetIntegerv(GLenum pname, GLint* params)
+{
+    switch (pname) {
+        // LOCAL_GL_FRAMEBUFFER_BINDING is equal to
+        // LOCAL_GL_DRAW_FRAMEBUFFER_BINDING_EXT,
+        // so we don't need two cases.
+        case LOCAL_GL_DRAW_FRAMEBUFFER_BINDING_EXT:
+            if (mScreen) {
+                *params = mScreen->GetDrawFB();
+            } else {
+                raw_fGetIntegerv(pname, params);
+            }
+            break;
+
+        case LOCAL_GL_READ_FRAMEBUFFER_BINDING_EXT:
+            if (mScreen) {
+                *params = mScreen->GetReadFB();
+            } else {
+                raw_fGetIntegerv(pname, params);
+            }
+            break;
+
+        case LOCAL_GL_MAX_TEXTURE_SIZE:
+            MOZ_ASSERT(mMaxTextureSize>0);
+            *params = mMaxTextureSize;
+            break;
+
+        case LOCAL_GL_MAX_CUBE_MAP_TEXTURE_SIZE:
+            MOZ_ASSERT(mMaxCubeMapTextureSize>0);
+            *params = mMaxCubeMapTextureSize;
+            break;
+
+        case LOCAL_GL_MAX_RENDERBUFFER_SIZE:
+            MOZ_ASSERT(mMaxRenderbufferSize>0);
+            *params = mMaxRenderbufferSize;
+            break;
+
+        case LOCAL_GL_VIEWPORT:
+            for (size_t i = 0; i < 4; i++) {
+                params[i] = mViewportRect[i];
+            }
+            break;
+
+        case LOCAL_GL_SCISSOR_BOX:
+            for (size_t i = 0; i < 4; i++) {
+                params[i] = mScissorRect[i];
+            }
+            break;
+
+        default:
+            raw_fGetIntegerv(pname, params);
+            break;
+    }
+}
+
+void
+GLContext::fReadPixels(GLint x, GLint y, GLsizei width, GLsizei height, GLenum format,
+                       GLenum type, GLvoid* pixels)
+{
+    BeforeGLReadCall();
+
+    bool didReadPixels = false;
+    if (mScreen) {
+        didReadPixels = mScreen->ReadPixels(x, y, width, height, format, type, pixels);
+    }
+
+    if (!didReadPixels) {
+        raw_fReadPixels(x, y, width, height, format, type, pixels);
+    }
+
+    AfterGLReadCall();
+}
+
+void
+GLContext::fDeleteFramebuffers(GLsizei n, const GLuint* names)
+{
+    if (mScreen) {
+        // Notify mScreen which framebuffers we're deleting.
+        // Otherwise, we will get framebuffer binding mispredictions.
+        for (int i = 0; i < n; i++) {
+            mScreen->DeletingFB(names[i]);
+        }
+    }
+
+    // Avoid crash by flushing before glDeleteFramebuffers. See bug 1194923.
+    if (mNeedsFlushBeforeDeleteFB) {
+        fFlush();
+    }
+
+    if (n == 1 && *names == 0) {
+        // Deleting framebuffer 0 causes hangs on the DROID. See bug 623228.
+    } else {
+        raw_fDeleteFramebuffers(n, names);
+    }
+    TRACKING_CONTEXT(DeletedFramebuffers(this, n, names));
+}
+
+
+GLuint
+GLContext::GetDrawFB()
+{
+    if (mScreen)
+        return mScreen->GetDrawFB();
+
+    GLuint ret = 0;
+    GetUIntegerv(LOCAL_GL_DRAW_FRAMEBUFFER_BINDING_EXT, &ret);
+    return ret;
+}
+
+GLuint
+GLContext::GetReadFB()
+{
+    if (mScreen)
+        return mScreen->GetReadFB();
+
+    GLenum bindEnum = IsSupported(GLFeature::split_framebuffer)
+                        ? LOCAL_GL_READ_FRAMEBUFFER_BINDING_EXT
+                        : LOCAL_GL_FRAMEBUFFER_BINDING;
+
+    GLuint ret = 0;
+    GetUIntegerv(bindEnum, &ret);
+    return ret;
+}
+
+GLuint
+GLContext::GetFB()
+{
+    if (mScreen) {
+        // This has a very important extra assert that checks that we're
+        // not accidentally ignoring a situation where the draw and read
+        // FBs differ.
+        return mScreen->GetFB();
+    }
+
+    GLuint ret = 0;
+    GetUIntegerv(LOCAL_GL_FRAMEBUFFER_BINDING, &ret);
+    return ret;
+}
+
+bool
+GLContext::InitOffscreen(const gfx::IntSize& size, const SurfaceCaps& caps)
+{
+    if (!CreateScreenBuffer(size, caps))
+        return false;
+
+    MakeCurrent();
+    fBindFramebuffer(LOCAL_GL_FRAMEBUFFER, 0);
+    fScissor(0, 0, size.width, size.height);
+    fViewport(0, 0, size.width, size.height);
+
+    mCaps = mScreen->mCaps;
+    MOZ_ASSERT(!mCaps.any);
+
+    UpdateGLFormats(mCaps);
+
+    return true;
+}
+
+bool
+GLContext::IsDrawingToDefaultFramebuffer()
+{
+    return Screen()->IsDrawFramebufferDefault();
+}
+
+GLuint
+CreateTexture(GLContext* aGL, GLenum aInternalFormat, GLenum aFormat,
+              GLenum aType, const gfx::IntSize& aSize, bool linear)
+{
+    GLuint tex = 0;
+    aGL->fGenTextures(1, &tex);
+    ScopedBindTexture autoTex(aGL, tex);
+
+    aGL->fTexParameteri(LOCAL_GL_TEXTURE_2D,
+                        LOCAL_GL_TEXTURE_MIN_FILTER, linear ? LOCAL_GL_LINEAR
+                                                            : LOCAL_GL_NEAREST);
+    aGL->fTexParameteri(LOCAL_GL_TEXTURE_2D,
+                        LOCAL_GL_TEXTURE_MAG_FILTER, linear ? LOCAL_GL_LINEAR
+                                                            : LOCAL_GL_NEAREST);
+    aGL->fTexParameteri(LOCAL_GL_TEXTURE_2D, LOCAL_GL_TEXTURE_WRAP_S,
+                        LOCAL_GL_CLAMP_TO_EDGE);
+    aGL->fTexParameteri(LOCAL_GL_TEXTURE_2D, LOCAL_GL_TEXTURE_WRAP_T,
+                        LOCAL_GL_CLAMP_TO_EDGE);
+
+    aGL->fTexImage2D(LOCAL_GL_TEXTURE_2D,
+                     0,
+                     aInternalFormat,
+                     aSize.width, aSize.height,
+                     0,
+                     aFormat,
+                     aType,
+                     nullptr);
+
+    return tex;
+}
+
+GLuint
+CreateTextureForOffscreen(GLContext* aGL, const GLFormats& aFormats,
+                          const gfx::IntSize& aSize)
+{
+    MOZ_ASSERT(aFormats.color_texInternalFormat);
+    MOZ_ASSERT(aFormats.color_texFormat);
+    MOZ_ASSERT(aFormats.color_texType);
+
+    GLenum internalFormat = aFormats.color_texInternalFormat;
+    GLenum unpackFormat = aFormats.color_texFormat;
+    GLenum unpackType = aFormats.color_texType;
+    if (aGL->IsANGLE()) {
+        MOZ_ASSERT(internalFormat == LOCAL_GL_RGBA);
+        MOZ_ASSERT(unpackFormat == LOCAL_GL_RGBA);
+        MOZ_ASSERT(unpackType == LOCAL_GL_UNSIGNED_BYTE);
+        internalFormat = LOCAL_GL_BGRA_EXT;
+        unpackFormat = LOCAL_GL_BGRA_EXT;
+    }
+
+    return CreateTexture(aGL, internalFormat, unpackFormat, unpackType, aSize);
+}
+
 
 } /* namespace gl */
 } /* namespace mozilla */

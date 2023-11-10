@@ -4,11 +4,16 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
+with Files('*'):
+    BUG_COMPONENT = ('Core', 'Video/Audio')
+
 EXPORTS.theora += [
     'include/theora/codec.h',
     'include/theora/theoradec.h',
     'include/theora/theoraenc.h',
 ]
+
+ALLOW_COMPILER_WARNINGS = True
 
 FINAL_LIBRARY = 'gkmedias'
 
@@ -19,10 +24,15 @@ if CONFIG['GKMEDIAS_SHARED_LIBRARY']:
 DEFINES['THEORA_DISABLE_ENCODE'] = True
 
 # Suppress warnings in third-party code.
-if CONFIG['GNU_CC']:
+if CONFIG['GNU_CC'] or CONFIG['CLANG_CL']:
     CFLAGS += ['-Wno-type-limits']
-if CONFIG['CLANG_CXX']:
+if CONFIG['CLANG_CXX'] or CONFIG['CLANG_CL']:
     CFLAGS += ['-Wno-tautological-compare']
+if CONFIG['CLANG_CL']:
+    CFLAGS += [
+        '-Wno-pointer-sign',
+        '-Wno-shift-op-parentheses',
+    ]
 
 UNIFIED_SOURCES += [
     'lib/apiwrapper.c',

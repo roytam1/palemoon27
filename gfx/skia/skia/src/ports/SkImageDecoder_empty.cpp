@@ -11,10 +11,11 @@
 #include "SkImageDecoder.h"
 #include "SkImageEncoder.h"
 #include "SkMovie.h"
+#include "SkPixelSerializer.h"
+#include "SkStream.h"
 
 class SkColorTable;
-class SkStream;
-class SkStreamRewindable;
+class SkPngChunkReader;
 
 // Empty implementations for SkImageDecoder.
 
@@ -23,7 +24,7 @@ SkImageDecoder::SkImageDecoder() {}
 SkImageDecoder::~SkImageDecoder() {}
 
 SkImageDecoder* SkImageDecoder::Factory(SkStreamRewindable*) {
-    return NULL;
+    return nullptr;
 }
 
 void SkImageDecoder::copyFieldsToOther(SkImageDecoder* ) {}
@@ -32,8 +33,8 @@ bool SkImageDecoder::DecodeFile(const char[], SkBitmap*, SkColorType, Mode, Form
     return false;
 }
 
-bool SkImageDecoder::decode(SkStream*, SkBitmap*, SkColorType, Mode) {
-    return false;
+SkImageDecoder::Result SkImageDecoder::decode(SkStream*, SkBitmap*, SkColorType, Mode) {
+    return kFailure;
 }
 
 bool SkImageDecoder::DecodeStream(SkStreamRewindable*, SkBitmap*, SkColorType, Mode, Format*) {
@@ -44,11 +45,8 @@ bool SkImageDecoder::DecodeMemory(const void*, size_t, SkBitmap*, SkColorType, M
     return false;
 }
 
-bool SkImageDecoder::buildTileIndex(SkStreamRewindable*, int *width, int *height) {
-    return false;
-}
-
-bool SkImageDecoder::decodeSubset(SkBitmap*, const SkIRect&, SkColorType) {
+bool SkImageDecoder::decodeYUV8Planes(SkStream*, SkISize[3], void*[3],
+                                      size_t[3], SkYUVColorSpace*) {
     return false;
 }
 
@@ -61,35 +59,18 @@ SkImageDecoder::Format SkImageDecoder::GetStreamFormat(SkStreamRewindable*) {
 }
 
 const char* SkImageDecoder::GetFormatName(Format) {
-    return NULL;
+    return nullptr;
 }
 
-SkImageDecoder::Peeker* SkImageDecoder::setPeeker(Peeker*) {
-    return NULL;
+SkPngChunkReader* SkImageDecoder::setPeeker(SkPngChunkReader*) {
+    return nullptr;
 }
-
-#ifdef SK_SUPPORT_LEGACY_IMAGEDECODER_CHOOSER
-SkImageDecoder::Chooser* SkImageDecoder::setChooser(Chooser*) {
-    return NULL;
-}
-#endif
 
 SkBitmap::Allocator* SkImageDecoder::setAllocator(SkBitmap::Allocator*) {
-    return NULL;
+    return nullptr;
 }
 
 void SkImageDecoder::setSampleSize(int) {}
-
-bool SkImageDecoder::cropBitmap(SkBitmap*, SkBitmap*, int, int, int, int, int,
-                    int, int) {
-    return false;
-}
-
-#ifdef SK_SUPPORT_LEGACY_IMAGEDECODER_CHOOSER
-bool SkImageDecoder::chooseFromOneChoice(SkColorType, int, int) const {
-    return false;
-}
-#endif
 
 bool SkImageDecoder::allocPixelRef(SkBitmap*, SkColorTable*) const {
     return false;
@@ -100,7 +81,7 @@ bool SkImageDecoder::allocPixelRef(SkBitmap*, SkColorTable*) const {
 // Empty implementation for SkMovie.
 
 SkMovie* SkMovie::DecodeStream(SkStreamRewindable* stream) {
-    return NULL;
+    return nullptr;
 }
 
 /////////////////////////////////////////////////////////////////////////
@@ -108,7 +89,7 @@ SkMovie* SkMovie::DecodeStream(SkStreamRewindable* stream) {
 // Empty implementations for SkImageEncoder.
 
 SkImageEncoder* SkImageEncoder::Create(Type t) {
-    return NULL;
+    return nullptr;
 }
 
 bool SkImageEncoder::EncodeFile(const char file[], const SkBitmap&, Type, int quality) {
@@ -120,7 +101,16 @@ bool SkImageEncoder::EncodeStream(SkWStream*, const SkBitmap&, SkImageEncoder::T
 }
 
 SkData* SkImageEncoder::EncodeData(const SkBitmap&, Type, int quality) {
-    return NULL;
+    return nullptr;
+}
+
+SkData* SkImageEncoder::EncodeData(const SkImageInfo&, const void* pixels, size_t rowBytes,
+                                   Type, int quality) {
+    return nullptr;
+}
+
+SkData* SkImageEncoder::EncodeData(const SkPixmap&, Type, int) {
+    return nullptr;
 }
 
 bool SkImageEncoder::encodeStream(SkWStream*, const SkBitmap&, int) {
@@ -128,10 +118,23 @@ bool SkImageEncoder::encodeStream(SkWStream*, const SkBitmap&, int) {
 }
 
 SkData* SkImageEncoder::encodeData(const SkBitmap&, int) {
-    return NULL;
+    return nullptr;
 }
 
 bool SkImageEncoder::encodeFile(const char file[], const SkBitmap& bm, int quality) {
     return false;
 }
+
+namespace {
+class ImageEncoderPixelSerializer final : public SkPixelSerializer {
+protected:
+    bool onUseEncodedData(const void*, size_t) override { return true; }
+    SkData* onEncode(const SkPixmap&) override { return nullptr; }
+};
+}  // namespace
+
+SkPixelSerializer* SkImageEncoder::CreatePixelSerializer() {
+    return new ImageEncoderPixelSerializer;
+}
+
 /////////////////////////////////////////////////////////////////////////

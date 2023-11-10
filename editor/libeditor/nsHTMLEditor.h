@@ -53,9 +53,9 @@ class nsRange;
 struct PropItem;
 
 namespace mozilla {
+template<class T> class OwningNonNull;
 namespace dom {
 class DocumentFragment;
-template<class T> class OwningNonNull;
 } // namespace dom
 namespace widget {
 struct IMEState;
@@ -231,8 +231,9 @@ public:
   nsresult SetHTMLBackgroundColor(const nsAString& aColor);
 
   /* ------------ Block methods moved from nsEditor -------------- */
-  static already_AddRefed<mozilla::dom::Element> GetBlockNodeParent(nsINode* aNode);
-  static already_AddRefed<nsIDOMNode> GetBlockNodeParent(nsIDOMNode *aNode);
+  static mozilla::dom::Element* GetBlockNodeParent(nsINode* aNode);
+  static nsIDOMNode* GetBlockNodeParent(nsIDOMNode* aNode);
+  static mozilla::dom::Element* GetBlock(nsINode& aNode);
 
   void IsNextCharInNodeWhitespace(nsIContent* aContent,
                                   int32_t aOffset,
@@ -495,9 +496,8 @@ protected:
 
 // End of Table Editing utilities
 
-  static already_AddRefed<mozilla::dom::Element>
-    GetEnclosingTable(nsINode* aNode);
-  static nsCOMPtr<nsIDOMNode> GetEnclosingTable(nsIDOMNode *aNode);
+  static mozilla::dom::Element* GetEnclosingTable(nsINode* aNode);
+  static nsIDOMNode* GetEnclosingTable(nsIDOMNode *aNode);
 
   /** content-based query returns true if <aProperty aAttribute=aValue> effects aNode
     * If <aProperty aAttribute=aValue> contains aNode,
@@ -552,11 +552,12 @@ protected:
 
   // factored methods for handling insertion of data from transferables (drag&drop or clipboard)
   NS_IMETHOD PrepareTransferable(nsITransferable **transferable) override;
-  nsresult PrepareHTMLTransferable(nsITransferable **transferable, bool havePrivFlavor);
+  nsresult PrepareHTMLTransferable(nsITransferable **transferable);
   nsresult InsertFromTransferable(nsITransferable *transferable,
                                     nsIDOMDocument *aSourceDoc,
                                     const nsAString & aContextStr,
                                     const nsAString & aInfoStr,
+                                    bool havePrivateHTMLFlavor,
                                     nsIDOMNode *aDestinationNode,
                                     int32_t aDestinationOffset,
                                     bool aDoDeleteSelection);
@@ -596,7 +597,7 @@ protected:
                            mozilla::dom::DocumentFragment** aFragment,
                            bool aTrustedInput);
   void       CreateListOfNodesToPaste(mozilla::dom::DocumentFragment& aFragment,
-                                      nsTArray<mozilla::dom::OwningNonNull<nsINode>>& outNodeList,
+                                      nsTArray<mozilla::OwningNonNull<nsINode>>& outNodeList,
                                       nsINode* aStartNode,
                                       int32_t aStartOffset,
                                       nsINode* aEndNode,
@@ -605,16 +606,16 @@ protected:
                           nsIDOMNode *aNode);
   enum class StartOrEnd { start, end };
   void GetListAndTableParents(StartOrEnd aStartOrEnd,
-                              nsTArray<mozilla::dom::OwningNonNull<nsINode>>& aNodeList,
-                              nsTArray<mozilla::dom::OwningNonNull<mozilla::dom::Element>>& outArray);
-  int32_t DiscoverPartialListsAndTables(nsTArray<mozilla::dom::OwningNonNull<nsINode>>& aPasteNodes,
-                                        nsTArray<mozilla::dom::OwningNonNull<mozilla::dom::Element>>& aListsAndTables);
+                              nsTArray<mozilla::OwningNonNull<nsINode>>& aNodeList,
+                              nsTArray<mozilla::OwningNonNull<mozilla::dom::Element>>& outArray);
+  int32_t DiscoverPartialListsAndTables(nsTArray<mozilla::OwningNonNull<nsINode>>& aPasteNodes,
+                                        nsTArray<mozilla::OwningNonNull<mozilla::dom::Element>>& aListsAndTables);
   nsINode* ScanForListAndTableStructure(StartOrEnd aStartOrEnd,
-                                        nsTArray<mozilla::dom::OwningNonNull<nsINode>>& aNodes,
+                                        nsTArray<mozilla::OwningNonNull<nsINode>>& aNodes,
                                         mozilla::dom::Element& aListOrTable);
   void ReplaceOrphanedStructure(StartOrEnd aStartOrEnd,
-                                nsTArray<mozilla::dom::OwningNonNull<nsINode>>& aNodeArray,
-                                nsTArray<mozilla::dom::OwningNonNull<mozilla::dom::Element>>& aListAndTableArray,
+                                nsTArray<mozilla::OwningNonNull<nsINode>>& aNodeArray,
+                                nsTArray<mozilla::OwningNonNull<mozilla::dom::Element>>& aListAndTableArray,
                                 int32_t aHighWaterMark);
 
   /* small utility routine to test if a break node is visible to user */
@@ -757,9 +758,9 @@ protected:
 // Data members
 protected:
 
-  nsTArray<mozilla::dom::OwningNonNull<nsIContentFilter>> mContentFilters;
+  nsTArray<mozilla::OwningNonNull<nsIContentFilter>> mContentFilters;
 
-  nsRefPtr<TypeInState>        mTypeInState;
+  RefPtr<TypeInState>        mTypeInState;
 
   bool mCRInParagraphCreatesParagraph;
 
@@ -774,7 +775,7 @@ protected:
 
   // Maintain a list of associated style sheets and their urls.
   nsTArray<nsString> mStyleSheetURLs;
-  nsTArray<nsRefPtr<mozilla::CSSStyleSheet>> mStyleSheets;
+  nsTArray<RefPtr<mozilla::CSSStyleSheet>> mStyleSheets;
 
   // an array for holding default style settings
   nsTArray<PropItem*> mDefaultStyles;
@@ -851,7 +852,7 @@ protected:
   nsCOMPtr<nsISelectionListener> mSelectionListenerP;
   nsCOMPtr<nsIDOMEventListener>  mResizeEventListenerP;
 
-  nsTArray<mozilla::dom::OwningNonNull<nsIHTMLObjectResizeListener>> mObjectResizeEventListeners;
+  nsTArray<mozilla::OwningNonNull<nsIHTMLObjectResizeListener>> mObjectResizeEventListeners;
 
   int32_t mOriginalX;
   int32_t mOriginalY;

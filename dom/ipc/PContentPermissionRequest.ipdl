@@ -13,12 +13,14 @@ protocol PContentPermissionRequest
   manager PContent;
 
 parent:
-  prompt();
-  NotifyVisibility(bool visibility);
+  async prompt();
+  async NotifyVisibility(bool visibility);
+  async Destroy();
 
 child:
-  GetVisibility();
-  __delete__(bool allow, PermissionChoice[] choices);
+  async GetVisibility();
+  async NotifyResult(bool allow, PermissionChoice[] choices);
+  async __delete__();
 };
 
 

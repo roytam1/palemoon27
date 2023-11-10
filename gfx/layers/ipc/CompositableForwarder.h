@@ -10,6 +10,7 @@
 #include <stdint.h>                     // for int32_t, uint64_t
 #include "gfxTypes.h"
 #include "mozilla/Attributes.h"         // for override
+#include "mozilla/layers/CompositableClient.h"  // for CompositableClient
 #include "mozilla/layers/CompositorTypes.h"
 #include "mozilla/layers/ISurfaceAllocator.h"  // for ISurfaceAllocator
 #include "mozilla/layers/LayersTypes.h"  // for LayersBackend
@@ -64,7 +65,10 @@ public:
   /**
    * Create a TextureChild/Parent pair as as well as the TextureHost on the parent side.
    */
-  virtual PTextureChild* CreateTexture(const SurfaceDescriptor& aSharedData, TextureFlags aFlags) = 0;
+  virtual PTextureChild* CreateTexture(
+    const SurfaceDescriptor& aSharedData,
+    LayersBackend aLayersBackend,
+    TextureFlags aFlags) = 0;
 
   /**
    * Communicate to the compositor that aRegion in the texture identified by
@@ -79,6 +83,9 @@ public:
                                 const OverlaySource& aOverlay,
                                 const gfx::IntRect& aPictureRect) = 0;
 #endif
+
+  virtual bool DestroyInTransaction(PTextureChild* aTexture, bool synchronously) = 0;
+  virtual bool DestroyInTransaction(PCompositableChild* aCompositable, bool synchronously) = 0;
 
   /**
    * Tell the CompositableHost on the compositor side to remove the texture
@@ -104,41 +111,16 @@ public:
                                                   CompositableClient* aCompositable,
                                                   TextureClient* aTexture) {}
 
-  /**
-   * Tell the compositor side to delete the TextureHost corresponding to the
-   * TextureClient passed in parameter.
-   */
-  virtual void RemoveTexture(TextureClient* aTexture) = 0;
-
-  /**
-   * Holds a reference to a TextureClient until after the next
-   * compositor transaction, and then drops it.
-   */
-  virtual void HoldUntilTransaction(TextureClient* aClient)
-  {
-    if (aClient) {
-      mTexturesToRemove.AppendElement(aClient);
-    }
-  }
-
-  /**
-   * Forcibly remove texture data from TextureClient
-   * This function needs to be called after a tansaction with Compositor.
-   */
-  virtual void RemoveTexturesIfNecessary()
-  {
-    mTexturesToRemove.Clear();
-  }
-
   struct TimedTextureClient {
     TimedTextureClient()
-        : mTextureClient(nullptr), mFrameID(0), mProducerID(0) {}
+        : mTextureClient(nullptr), mFrameID(0), mProducerID(0), mInputFrameID(0) {}
 
     TextureClient* mTextureClient;
     TimeStamp mTimeStamp;
     nsIntRect mPictureRect;
     int32_t mFrameID;
     int32_t mProducerID;
+    int32_t mInputFrameID;
   };
   /**
    * Tell the CompositableHost on the compositor side what textures to use for
@@ -166,7 +148,7 @@ public:
    * We only don't allow changing the backend type at runtime so this value can
    * be queried once and will not change until Gecko is restarted.
    */
-  virtual LayersBackend GetCompositorBackendType() const override
+  LayersBackend GetCompositorBackendType() const
   {
     return mTextureFactoryIdentifier.mParentBackend;
   }
@@ -193,6 +175,7 @@ public:
 protected:
   TextureFactoryIdentifier mTextureFactoryIdentifier;
   nsTArray<RefPtr<TextureClient> > mTexturesToRemove;
+  nsTArray<RefPtr<CompositableClient>> mCompositableClientsToRemove;
   RefPtr<SyncObject> mSyncObject;
   const int32_t mSerial;
   static mozilla::Atomic<int32_t> sSerialCounter;

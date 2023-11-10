@@ -13,7 +13,7 @@ Cu.import("resource://gre/modules/FileUtils.jsm");
 Cu.import("resource://gre/modules/Promise.jsm");
 
 const NETWORKSERVICE_CONTRACTID = "@mozilla.org/network/service;1";
-const NETWORKSERVICE_CID = Components.ID("{baec696c-c78d-42db-8b44-603f8fbfafb4}");
+const NETWORKSERVICE_CID = Components.ID("{48c13741-aec9-4a86-8962-432011708261}");
 
 const TOPIC_PREF_CHANGED             = "nsPref:changed";
 const TOPIC_XPCOM_SHUTDOWN           = "xpcom-shutdown";
@@ -37,7 +37,7 @@ const NETD_COMMAND_UNSOLICITED  = 600;
 
 const WIFI_CTRL_INTERFACE = "wl0.1";
 
-let debug;
+var debug;
 function updateDebug() {
   let debugPref = false; // set default value here.
   try {
@@ -269,6 +269,58 @@ NetworkService.prototype = {
     });
   },
 
+  setNetworkTetheringAlarm(aEnable, aInterface) {
+    // Method called when enabling disabling tethering, it checks if there is
+    // some alarm active and move from interfaceAlarm to globalAlarm because
+    // interfaceAlarm doens't work in tethering scenario due to forwarding.
+    debug("setNetworkTetheringAlarm for tethering" + aEnable);
+
+    let filename = aEnable ? "/proc/net/xt_quota/" + aInterface + "Alert" :
+                             "/proc/net/xt_quota/globalAlert";
+
+    let file = new FileUtils.File(filename);
+    if (!file) {
+      return;
+    }
+
+    NetUtil.asyncFetch({
+      uri: NetUtil.newURI(file),
+      loadUsingSystemPrincipal: true
+    }, (inputStream, status) => {
+      if (Components.isSuccessCode(status)) {
+        let data = NetUtil.readInputStreamToString(inputStream, inputStream.available())
+                          .split("\n");
+        if (data) {
+          let threshold = parseInt(data[0], 10);
+
+          this._setNetworkTetheringAlarm(aEnable, aInterface, threshold);
+        }
+      }
+    });
+  },
+
+  _setNetworkTetheringAlarm(aEnable, aInterface, aThreshold, aCallback) {
+    debug("_setNetworkTetheringAlarm for tethering" + aEnable);
+
+    let cmd = aEnable ? "setTetheringAlarm" : "removeTetheringAlarm";
+
+    let params = {
+      cmd: cmd,
+      ifname: aInterface,
+      threshold: aThreshold,
+    };
+
+    this.controlMessage(params, function(aData) {
+      let code = aData.resultCode;
+      let reason = aData.resultReason;
+      let enableString = aEnable ? "Enable" : "Disable";
+        debug(enableString + " tethering Alarm result: Code " + code + " reason " + reason);
+        if (aCallback) {
+          aCallback.networkUsageAlarmResult(null);
+        }
+    });
+  },
+
   setNetworkInterfaceAlarm: function(aInterfaceName, aThreshold, aCallback) {
     if (!aInterfaceName) {
       aCallback.networkUsageAlarmResult(-1);
@@ -286,7 +338,26 @@ NetworkService.prototype = {
         return
       }
 
-      self._setNetworkInterfaceAlarm(aInterfaceName, aThreshold, aCallback);
+      // Check if tethering is enabled
+      let params = {
+        cmd: "getTetheringStatus"
+      };
+
+      self.controlMessage(params, function(aResult) {
+        if (isError(aResult.resultCode)) {
+          aCallback.networkUsageAlarmResult(aResult.reason);
+          return;
+        }
+
+        if (aResult.resultReason.indexOf('started') == -1) {
+          // Tethering disabled, set interfaceAlarm
+          self._setNetworkInterfaceAlarm(aInterfaceName, aThreshold, aCallback);
+          return;
+        }
+
+        // Tethering enabled, set globalAlarm
+        self._setNetworkTetheringAlarm(true, aInterfaceName, aThreshold, aCallback);
+      });
     });
   },
 
@@ -392,14 +463,11 @@ NetworkService.prototype = {
     });
   },
 
-  setDefaultRoute: function(aInterfaceName, aCount, aGateways,
-                            aOldInterfaceName, aCallback) {
+  setDefaultRoute: function(aInterfaceName, aCount, aGateways, aCallback) {
     debug("Going to change default route to " + aInterfaceName);
     let options = {
       cmd: "setDefaultRoute",
       ifname: aInterfaceName,
-      oldIfname: (aOldInterfaceName && aOldInterfaceName !== aInterfaceName) ?
-                 aOldInterfaceName : null,
       gateways: aGateways
     };
     this.controlMessage(options, function(aResult) {
@@ -545,13 +613,15 @@ NetworkService.prototype = {
     aConfig.cmd = "setWifiTethering";
 
     // The callback function in controlMessage may not be fired immediately.
-    this.controlMessage(aConfig, function(aData) {
+    this.controlMessage(aConfig, (aData) => {
       let code = aData.resultCode;
       let reason = aData.resultReason;
       let enable = aData.enable;
       let enableString = aEnable ? "Enable" : "Disable";
 
       debug(enableString + " Wifi tethering result: Code " + code + " reason " + reason);
+
+      this.setNetworkTetheringAlarm(aEnable, aConfig.externalIfname);
 
       if (isError(code)) {
         aCallback.wifiTetheringEnabledChange("netd command error");
@@ -565,13 +635,15 @@ NetworkService.prototype = {
   setUSBTethering: function(aEnable, aConfig, aCallback) {
     aConfig.cmd = "setUSBTethering";
     // The callback function in controlMessage may not be fired immediately.
-    this.controlMessage(aConfig, function(aData) {
+    this.controlMessage(aConfig, (aData) => {
       let code = aData.resultCode;
       let reason = aData.resultReason;
       let enable = aData.enable;
       let enableString = aEnable ? "Enable" : "Disable";
 
       debug(enableString + " USB tethering result: Code " + code + " reason " + reason);
+
+      this.setNetworkTetheringAlarm(aEnable, aConfig.externalIfname);
 
       if (isError(code)) {
         aCallback.usbTetheringEnabledChange("netd command error");
@@ -617,6 +689,48 @@ NetworkService.prototype = {
       let reason = aData.resultReason;
       debug("updateUpStream result: Code " + code + " reason " + reason);
       aCallback.updateUpStreamResult(!isError(code), aData.curExternalIfname);
+    });
+  },
+
+  getInterfaces: function(callback) {
+    let params = {
+      cmd: "getInterfaces",
+      isAsync: true
+    };
+
+    this.controlMessage(params, function(data) {
+      debug("getInterfaces result: " + JSON.stringify(data));
+      let success = !isError(data.resultCode);
+      callback.getInterfacesResult(success, data.interfaceList);
+    });
+  },
+
+  getInterfaceConfig: function(ifname, callback) {
+    let params = {
+      cmd: "getInterfaceConfig",
+      ifname: ifname,
+      isAsync: true
+    };
+
+    this.controlMessage(params, function(data) {
+      debug("getInterfaceConfig result: " + JSON.stringify(data));
+      let success = !isError(data.resultCode);
+      let result = { ip: data.ipAddr,
+                     prefix: data.prefixLength,
+                     link: data.flag,
+                     mac: data.macAddr };
+      callback.getInterfaceConfigResult(success, result);
+    });
+  },
+
+  setInterfaceConfig: function(config, callback) {
+    config.cmd = "setInterfaceConfig";
+    config.isAsync = true;
+
+    this.controlMessage(config, function(data) {
+      debug("setInterfaceConfig result: " + JSON.stringify(data));
+      let success = !isError(data.resultCode);
+      callback.setInterfaceConfigResult(success);
     });
   },
 
@@ -729,6 +843,20 @@ NetworkService.prototype = {
       });
     });
   },
+
+  setMtu: function (aInterfaceName, aMtu, aCallback) {
+    debug("Set MTU on " + aInterfaceName + ": " + aMtu);
+
+    let params = {
+      cmd: "setMtu",
+      ifname: aInterfaceName,
+      mtu: aMtu
+    };
+
+    this.controlMessage(params, function(aResult) {
+      aCallback.nativeCommandResult(!aResult.error);
+    });
+  }
 };
 
 this.NSGetFactory = XPCOMUtils.generateNSGetFactory([NetworkService]);

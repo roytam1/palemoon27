@@ -6,9 +6,9 @@ this.EXPORTED_SYMBOLS = ['BookmarksEngine', "PlacesItem", "Bookmark",
                          "BookmarkFolder", "BookmarkQuery",
                          "Livemark", "BookmarkSeparator"];
 
-const Cc = Components.classes;
-const Ci = Components.interfaces;
-const Cu = Components.utils;
+var Cc = Components.classes;
+var Ci = Components.interfaces;
+var Cu = Components.utils;
 
 Cu.import("resource://gre/modules/PlacesUtils.jsm");
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
@@ -135,7 +135,7 @@ BookmarkSeparator.prototype = {
 Utils.deferGetSet(BookmarkSeparator, "cleartext", "pos");
 
 
-let kSpecialIds = {
+var kSpecialIds = {
 
   // Special IDs. Note that mobile can attempt to create a record on
   // dereference; special accessors are provided to prevent recursion within
@@ -179,7 +179,7 @@ let kSpecialIds = {
 
   // Don't bother creating mobile: if it doesn't exist, this ID can't be it!
   specialGUIDForId: function specialGUIDForId(id) {
-    for each (let guid in this.guids)
+    for (let guid of this.guids)
       if (this.specialIdForGUID(guid, false) == id)
         return guid;
     return null;
@@ -240,6 +240,32 @@ BookmarksEngine.prototype = {
     }
   },
 
+  // A diagnostic helper to get the string value for a bookmark's URL given
+  // its ID. Always returns a string - on error will return a string in the
+  // form of "<description of error>" as this is purely for, eg, logging.
+  // (This means hitting the DB directly and we don't bother using a cached
+  // statement - we should rarely hit this.)
+  _getStringUrlForId(id) {
+    let url;
+    try {
+      let stmt = this._store._getStmt(`
+            SELECT h.url
+            FROM moz_places h
+            JOIN moz_bookmarks b ON h.id = b.fk
+            WHERE b.id = :id`);
+      stmt.params.id = id;
+      let rows = Async.querySpinningly(stmt, ["url"]);
+      url = rows.length == 0 ? "<not found>" : rows[0].url;
+    } catch (ex if !Async.isShutdownException(ex)) {
+      if (ex instanceof Ci.mozIStorageError) {
+        url = `<failed: Storage error: ${ex.message} (${ex.result})>`;
+      } else {
+        url = `<failed: ${ex.toString()}>`;
+      }
+    }
+    return url;
+  },
+
   _guidMapFailed: false,
   _buildGUIDMap: function _buildGUIDMap() {
     let guidMap = {};
@@ -247,7 +273,19 @@ BookmarksEngine.prototype = {
       // Figure out with which key to store the mapping.
       let key;
       let id = this._store.idForGUID(guid);
-      switch (PlacesUtils.bookmarks.getItemType(id)) {
+      let itemType;
+      try {
+        itemType = PlacesUtils.bookmarks.getItemType(id);
+      } catch (ex) {
+        this._log.warn("Deleting invalid bookmark record with id", id);
+        try {
+          PlacesUtils.bookmarks.removeItem(id);
+        } catch (ex) {
+          this._log.warn("Failed to delete invalid bookmark", ex);
+        }
+        continue;
+      }
+      switch (itemType) {
         case PlacesUtils.bookmarks.TYPE_BOOKMARK:
 
           // Smart bookmarks map to their annotation value.
@@ -256,12 +294,27 @@ BookmarksEngine.prototype = {
             queryId = PlacesUtils.annotations.getItemAnnotation(
               id, SMART_BOOKMARKS_ANNO);
           } catch(ex) {}
-          
-          if (queryId)
+
+          if (queryId) {
             key = "q" + queryId;
-          else
-            key = "b" + PlacesUtils.bookmarks.getBookmarkURI(id).spec + ":" +
-                  PlacesUtils.bookmarks.getItemTitle(id);
+          } else {
+            let uri;
+            try {
+              uri = PlacesUtils.bookmarks.getBookmarkURI(id);
+            } catch (ex) {
+              // Bug 1182366 - NS_ERROR_MALFORMED_URI here stops bookmarks sync.
+              // Try and get the string value of the URL for diagnostic purposes.
+              let url = this._getStringUrlForId(id);
+              this._log.warn(`Deleting bookmark with invalid URI. url="${url}", id=${id}`);
+              try {
+                PlacesUtils.bookmarks.removeItem(id);
+              } catch (ex) {
+                this._log.warn("Failed to delete invalid bookmark", ex);
+              }
+              continue;
+            }
+            key = "b" + uri.spec + ":" + PlacesUtils.bookmarks.getItemTitle(id);
+          }
           break;
         case PlacesUtils.bookmarks.TYPE_FOLDER:
           key = "f" + PlacesUtils.bookmarks.getItemTitle(id);
@@ -388,7 +441,7 @@ BookmarksEngine.prototype = {
       let guidMap;
       try {
         guidMap = this._buildGUIDMap();
-      } catch (ex) {
+      } catch (ex if !Async.isShutdownException(ex)) {
         this._log.warn("Got exception \"" + Utils.exceptionStr(ex) +
                        "\" building GUID map." +
                        " Skipping all other incoming items.");
@@ -454,7 +507,8 @@ function BookmarksStore(name, engine) {
 
   // Explicitly nullify our references to our cached services so we don't leak
   Svc.Obs.add("places-shutdown", function() {
-    for each (let [query, stmt] in Iterator(this._stmts)) {
+    for (let query in this._stmts) {
+      let stmt = this._stmts[query];
       stmt.finalize();
     }
     this._stmts = {};
@@ -511,7 +565,7 @@ BookmarksStore.prototype = {
           this._log.debug("Tag query folder: " + tag + " = " + child.itemId);
           
           this._log.trace("Replacing folders in: " + uri);
-          for each (let q in queriesRef.value)
+          for (let q of queriesRef.value)
             q.setFolders([child.itemId], 1);
           
           record.bmkUri = PlacesUtils.history.queriesToQueryString(
@@ -759,7 +813,10 @@ BookmarksStore.prototype = {
                          guid: record.id};
       PlacesUtils.livemarks.addLivemark(livemarkObj).then(
         aLivemark => { spinningCb(null, [Components.results.NS_OK, aLivemark]) },
-        () => { spinningCb(null, [Components.results.NS_ERROR_UNEXPECTED, aLivemark]) }
+        ex => {
+          this._log.error("creating livemark failed: " + ex);
+          spinningCb(null, [Components.results.NS_ERROR_UNEXPECTED, null])
+        }
       );
 
       let [status, livemark] = spinningCb.wait();
@@ -1139,6 +1196,7 @@ BookmarksStore.prototype = {
     stmt.params.guid = guid;
     stmt.params.item_id = id;
     Async.querySpinningly(stmt);
+    PlacesUtils.invalidateCachedGuidFor(id);
     return guid;
   },
 
@@ -1295,8 +1353,16 @@ BookmarksStore.prototype = {
 
   getAllIDs: function BStore_getAllIDs() {
     let items = {"menu": true,
-                 "toolbar": true};
-    for each (let guid in kSpecialIds.guids) {
+                 "toolbar": true,
+                 "unfiled": true,
+                };
+    // We also want "mobile" but only if a local mobile folder already exists
+    // (otherwise we'll later end up creating it, which we want to avoid until
+    // we actually need it.)
+    if (kSpecialIds.findMobileRoot(false)) {
+      items["mobile"] = true;
+    }
+    for (let guid of kSpecialIds.guids) {
       if (guid != "places" && guid != "tags")
         this._getChildren(guid, items);
     }
@@ -1308,7 +1374,7 @@ BookmarksStore.prototype = {
     Task.spawn(function() {
       // Save a backup before clearing out all bookmarks.
       yield PlacesBackups.create(null, true);
-      for each (let guid in kSpecialIds.guids)
+      for (let guid of kSpecialIds.guids)
         if (guid != "places") {
           let id = kSpecialIds.specialIdForGUID(guid);
           if (id)

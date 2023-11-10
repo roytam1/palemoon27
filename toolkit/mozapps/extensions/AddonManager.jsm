@@ -33,9 +33,16 @@ const PREF_EM_CHECK_UPDATE_SECURITY   = "extensions.checkUpdateSecurity";
 const PREF_EM_UPDATE_BACKGROUND_URL   = "extensions.update.background.url";
 const PREF_APP_UPDATE_ENABLED         = "app.update.enabled";
 const PREF_APP_UPDATE_AUTO            = "app.update.auto";
+const PREF_EM_HOTFIX_ID               = "extensions.hotfix.id";
+const PREF_EM_HOTFIX_LASTVERSION      = "extensions.hotfix.lastVersion";
+const PREF_EM_HOTFIX_URL              = "extensions.hotfix.url";
+const PREF_EM_CERT_CHECKATTRIBUTES    = "extensions.hotfix.cert.checkAttributes";
+const PREF_EM_HOTFIX_CERTS            = "extensions.hotfix.certs.";
 const PREF_MATCH_OS_LOCALE            = "intl.locale.matchOS";
 const PREF_SELECTED_LOCALE            = "general.useragent.locale";
 const UNKNOWN_XPCOM_ABI               = "unknownABI";
+
+const PREF_MIN_WEBEXT_PLATFORM_VERSION = "extensions.webExtensionsMinPlatformVersion";
 
 const UPDATE_REQUEST_VERSION          = 2;
 const CATEGORY_UPDATE_PARAMS          = "extension-update-params";
@@ -222,7 +229,7 @@ function callProviderAsync(aProvider, aMethod, ...aArgs) {
   let callback = aArgs[aArgs.length - 1];
   if (!(aMethod in aProvider)) {
     callback(undefined);
-    return;
+    return undefined;
   }
   try {
     return aProvider[aMethod].apply(aProvider, aArgs);
@@ -230,7 +237,7 @@ function callProviderAsync(aProvider, aMethod, ...aArgs) {
   catch (e) {
     reportProviderError(aProvider, aMethod, e);
     callback(undefined);
-    return;
+    return undefined;
   }
 }
 
@@ -620,6 +627,8 @@ var gCheckUpdateSecurityDefault = true;
 var gCheckUpdateSecurity = gCheckUpdateSecurityDefault;
 var gUpdateEnabled = true;
 var gAutoUpdateDefault = true;
+var gHotfixID = null;
+var gWebExtensionsMinPlatformVersion = null;
 var gShutdownBarrier = null;
 var gRepoShutdownState = "";
 var gShutdownInProgress = false;
@@ -889,6 +898,16 @@ var AddonManagerInternal = {
       } catch (e) {}
       Services.prefs.addObserver(PREF_EM_AUTOUPDATE_DEFAULT, this, false);
 
+      try {
+        gHotfixID = Services.prefs.getCharPref(PREF_EM_HOTFIX_ID);
+      } catch (e) {}
+      Services.prefs.addObserver(PREF_EM_HOTFIX_ID, this, false);
+
+      try {
+        gWebExtensionsMinPlatformVersion = Services.prefs.getCharPref(PREF_MIN_WEBEXT_PLATFORM_VERSION);
+      } catch (e) {}
+      Services.prefs.addObserver(PREF_MIN_WEBEXT_PLATFORM_VERSION, this, false);
+
       let defaultProvidersEnabled = true;
       try {
         defaultProvidersEnabled = Services.prefs.getBoolPref(PREF_DEFAULT_PROVIDERS_ENABLED);
@@ -1040,7 +1059,7 @@ var AddonManagerInternal = {
     this.pendingProviders.delete(aProvider);
 
     for (let type in this.types) {
-      this.types[type].providers = this.types[type].providers.filter(function filterProvider(p) p != aProvider);
+      this.types[type].providers = this.types[type].providers.filter(p => p != aProvider);
       if (this.types[type].providers.length == 0) {
         let oldType = this.types[type].type;
         delete this.types[type];
@@ -1166,6 +1185,7 @@ var AddonManagerInternal = {
     Services.prefs.removeObserver(PREF_EM_CHECK_UPDATE_SECURITY, this);
     Services.prefs.removeObserver(PREF_EM_UPDATE_ENABLED, this);
     Services.prefs.removeObserver(PREF_EM_AUTOUPDATE_DEFAULT, this);
+    Services.prefs.removeObserver(PREF_EM_HOTFIX_ID, this);
 
     let savedError = null;
     // Only shut down providers if they've been started.
@@ -1283,6 +1303,18 @@ var AddonManagerInternal = {
         this.callManagerListeners("onUpdateModeChanged");
         break;
       }
+      case PREF_EM_HOTFIX_ID: {
+        try {
+          gHotfixID = Services.prefs.getCharPref(PREF_EM_HOTFIX_ID);
+        } catch(e) {
+          gHotfixID = null;
+        }
+        break;
+      }
+      case PREF_MIN_WEBEXT_PLATFORM_VERSION: {
+        gWebExtensionsMinPlatformVersion = Services.prefs.getCharPref(PREF_MIN_WEBEXT_PLATFORM_VERSION);
+        break;
+      }
     }
   },
 
@@ -1394,6 +1426,10 @@ var AddonManagerInternal = {
         let updates = [];
 
         for (let addon of allAddons) {
+          if (addon.id == hotfixID) {
+            continue;
+          }
+
           // Check all add-ons for updates so that any compatibility updates will
           // be applied
           updates.push(new Promise((resolve, reject) => {
@@ -1484,8 +1520,7 @@ var AddonManagerInternal = {
     if (!(aType in this.startupChanges))
       return;
 
-    this.startupChanges[aType] = this.startupChanges[aType].filter(
-                                 function filterItem(aItem) aItem != aID);
+    this.startupChanges[aType] = this.startupChanges[aType].filter(aItem => aItem != aID);
   },
 
   /**
@@ -2492,6 +2527,10 @@ var AddonManagerInternal = {
       Services.prefs.setBoolPref(PREF_EM_UPDATE_ENABLED, aValue);
     return aValue;
   },
+
+  get hotfixID() {
+    return gHotfixID;
+  },
 };
 
 /**
@@ -2523,7 +2562,11 @@ this.AddonManagerPrivate = {
 
   backgroundUpdateTimerHandler() {
     // Don't call through to the real update check if no checks are enabled.
-    if (!AddonManagerInternal.updateEnabled) {
+    let checkHotfix = AddonManagerInternal.hotfixID &&
+                      Services.prefs.getBoolPref(PREF_APP_UPDATE_ENABLED) &&
+                      Services.prefs.getBoolPref(PREF_APP_UPDATE_AUTO);
+
+    if (!AddonManagerInternal.updateEnabled && !checkHotfix) {
       logger.info("Skipping background update check");
       return;
     }
@@ -2634,6 +2677,10 @@ this.AddonManagerPrivate = {
     if ("onUpdateFinished" in listener) {
       safeCall(listener.onUpdateFinished.bind(listener), addon);
     }
+  },
+
+  get webExtensionsMinPlatformVersion() {
+    return gWebExtensionsMinPlatformVersion;
   },
 };
 
@@ -3009,6 +3056,10 @@ this.AddonManager = {
 
   set autoUpdateDefault(aValue) {
     AddonManagerInternal.autoUpdateDefault = aValue;
+  },
+
+  get hotfixID() {
+    return AddonManagerInternal.hotfixID;
   },
 
   escapeAddonURI: function AM_escapeAddonURI(aAddon, aUri, aAppVersion) {

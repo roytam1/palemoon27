@@ -2,10 +2,10 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-const Cc = Components.classes;
-const Ci = Components.interfaces;
-const Cu = Components.utils;
-const Cr = Components.results;
+var Cc = Components.classes;
+var Ci = Components.interfaces;
+var Cu = Components.utils;
+var Cr = Components.results;
 
 Cu.import('resource://gre/modules/NetUtil.jsm');
 Cu.import("resource://gre/modules/Services.jsm");
@@ -14,6 +14,8 @@ Cu.import("resource://testing-common/httpd.js");
 var httpServer = new HttpServer();
 httpServer.start(-1);
 var testsToFinish = 0;
+
+var principal;
 
 const REPORT_SERVER_PORT = httpServer.identity.primaryPort;
 const REPORT_SERVER_URI = "http://localhost";
@@ -72,23 +74,17 @@ function makeTest(id, expectedJSON, useReportOnlyPolicy, callback) {
   var selfuri = NetUtil.newURI(REPORT_SERVER_URI +
                                ":" + REPORT_SERVER_PORT +
                                "/foo/self");
-  var selfchan = NetUtil.newChannel2(selfuri,
-                                     null,
-                                     null,
-                                     null,      // aLoadingNode
-                                     Services.scriptSecurityManager.getSystemPrincipal(),
-                                     null,      // aTriggeringPrincipal
-                                     Ci.nsILoadInfo.SEC_NORMAL,
-                                     Ci.nsIContentPolicy.TYPE_OTHER);
 
   dump("Created test " + id + " : " + policy + "\n\n");
 
-  // make the reports seem authentic by "binding" them to a channel.
-  csp.setRequestContext(selfuri, null, selfchan);
+  let ssm = Cc["@mozilla.org/scriptsecuritymanager;1"]
+              .getService(Ci.nsIScriptSecurityManager);
+  principal = ssm.getSimpleCodebasePrincipal(selfuri);
+  csp.setRequestContext(null, principal);
 
   // Load up the policy
   // set as report-only if that's the case
-  csp.appendPolicy(policy, useReportOnlyPolicy);
+  csp.appendPolicy(policy, useReportOnlyPolicy, false);
 
   // prime the report server
   var handler = makeReportHandler("/test" + id, "Test " + id, expectedJSON);
@@ -106,21 +102,14 @@ function run_test() {
   // test that inline script violations cause a report.
   makeTest(0, {"blocked-uri": "self"}, false,
       function(csp) {
-        let inlineOK = true, oReportViolation = {'value': false};
-        inlineOK = csp.getAllowsInlineScript(oReportViolation);
+        let inlineOK = true;
+        inlineOK = csp.getAllowsInline(Ci.nsIContentPolicy.TYPE_SCRIPT,
+                                       "", // aNonce
+                                       "", // aContent
+                                       0); // aLineNumber
 
         // this is not a report only policy, so it better block inline scripts
         do_check_false(inlineOK);
-        // ... and cause reports to go out
-        do_check_true(oReportViolation.value);
-
-        if (oReportViolation.value) {
-          // force the logging, since the getter doesn't.
-          csp.logViolationDetails(Ci.nsIContentSecurityPolicy.VIOLATION_TYPE_INLINE_SCRIPT,
-                                  selfuri.asciiSpec,
-                                  "script sample",
-                                  0);
-        }
       });
 
   // test that eval violations cause a report.
@@ -154,22 +143,14 @@ function run_test() {
   // test that inline script violations cause a report in report-only policy
   makeTest(3, {"blocked-uri": "self"}, true,
       function(csp) {
-        let inlineOK = true, oReportViolation = {'value': false};
-        inlineOK = csp.getAllowsInlineScript(oReportViolation);
+        let inlineOK = true;
+        inlineOK = csp.getAllowsInline(Ci.nsIContentPolicy.TYPE_SCRIPT,
+                                       "", // aNonce
+                                       "", // aContent
+                                       0); // aLineNumber
 
         // this is a report only policy, so it better allow inline scripts
         do_check_true(inlineOK);
-
-        // ... and cause reports to go out
-        do_check_true(oReportViolation.value);
-
-        if (oReportViolation.value) {
-          // force the logging, since the getter doesn't.
-          csp.logViolationDetails(Ci.nsIContentSecurityPolicy.VIOLATION_TYPE_INLINE_SCRIPT,
-                                  selfuri.asciiSpec,
-                                  "script sample",
-                                  3);
-        }
       });
 
   // test that eval violations cause a report in report-only policy

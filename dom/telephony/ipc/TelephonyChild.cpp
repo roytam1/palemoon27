@@ -7,6 +7,7 @@
 #include "TelephonyChild.h"
 
 #include "mozilla/dom/telephony/TelephonyDialCallback.h"
+#include "mozilla/UniquePtr.h"
 #include "TelephonyIPCService.h"
 
 USING_TELEPHONY_NAMESPACE
@@ -48,26 +49,20 @@ TelephonyChild::DeallocPTelephonyRequestChild(PTelephonyRequestChild* aActor)
 }
 
 bool
-TelephonyChild::RecvNotifyCallError(const uint32_t& aClientId,
-                                    const int32_t& aCallIndex,
-                                    const nsString& aError)
+TelephonyChild::RecvNotifyCallStateChanged(nsTArray<nsITelephonyCallInfo*>&& aAllInfo)
 {
-  MOZ_ASSERT(mService);
-
-  mService->NotifyError(aClientId, aCallIndex, aError);
-  return true;
-}
-
-bool
-TelephonyChild::RecvNotifyCallStateChanged(nsITelephonyCallInfo* const& aInfo)
-{
-  // Use dont_AddRef here because this instances has already been AddRef-ed in
-  // TelephonyIPCSerializer.h
-  nsCOMPtr<nsITelephonyCallInfo> info = dont_AddRef(aInfo);
+  uint32_t length = aAllInfo.Length();
+  nsTArray<nsCOMPtr<nsITelephonyCallInfo>> results;
+  for (uint32_t i = 0; i < length; ++i) {
+    // Use dont_AddRef here because this instance has already been AddRef-ed in
+    // TelephonyIPCSerializer.h
+    nsCOMPtr<nsITelephonyCallInfo> info = dont_AddRef(aAllInfo[i]);
+    results.AppendElement(info);
+  }
 
   MOZ_ASSERT(mService);
 
-  mService->CallStateChanged(aInfo);
+  mService->CallStateChanged(length, const_cast<nsITelephonyCallInfo**>(aAllInfo.Elements()));
 
   return true;
 }
@@ -83,15 +78,6 @@ TelephonyChild::RecvNotifyCdmaCallWaiting(const uint32_t& aClientId,
                                   aData.numberPresentation(),
                                   aData.name(),
                                   aData.namePresentation());
-  return true;
-}
-
-bool
-TelephonyChild::RecvNotifyConferenceCallStateChanged(const uint16_t& aCallState)
-{
-  MOZ_ASSERT(mService);
-
-  mService->ConferenceCallStateChanged(aCallState);
   return true;
 }
 
@@ -227,12 +213,13 @@ TelephonyRequestChild::DoResponse(const DialResponseMMISuccess& aResponse)
       uint32_t count = info.get_ArrayOfnsString().Length();
       const nsTArray<nsString>& additionalInformation = info.get_ArrayOfnsString();
 
-      nsAutoArrayPtr<const char16_t*> additionalInfoPtrs(new const char16_t*[count]);
+      auto additionalInfoPtrs = MakeUnique<const char16_t*[]>(count);
       for (size_t i = 0; i < count; ++i) {
         additionalInfoPtrs[i] = additionalInformation[i].get();
       }
 
-      callback->NotifyDialMMISuccessWithStrings(statusMessage, count, additionalInfoPtrs);
+      callback->NotifyDialMMISuccessWithStrings(statusMessage, count,
+                                                additionalInfoPtrs.get());
       break;
     }
     case AdditionalInformation::TArrayOfnsMobileCallForwardingOptions: {

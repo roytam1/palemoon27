@@ -19,6 +19,9 @@ public:
 private:
     WebGL1Context();
 
+    virtual UniquePtr<webgl::FormatUsageAuthority>
+    CreateFormatUsage(gl::GLContext* gl) const override;
+
 public:
     virtual ~WebGL1Context();
 
@@ -27,7 +30,7 @@ public:
     }
 
     // nsWrapperCache
-    virtual JSObject* WrapObject(JSContext* cx, JS::Handle<JSObject*> aGivenProto) override;
+    virtual JSObject* WrapObject(JSContext* cx, JS::Handle<JSObject*> givenProto) override;
 
 private:
     virtual bool ValidateAttribPointerType(bool integerMode, GLenum type, GLsizei* alignment, const char* info) override;

@@ -4,6 +4,10 @@
 
 /*** =================== INITIALISATION CODE =================== ***/
 
+var { classes: Cc, interfaces: Ci, results: Cr, utils: Cu } = Components;
+
+Components.utils.import("resource://gre/modules/Services.jsm");
+
 var kObserverService;
 
 // interface variables

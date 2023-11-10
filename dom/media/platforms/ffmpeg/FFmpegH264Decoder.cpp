@@ -4,7 +4,8 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "MediaTaskQueue.h"
+#include "mozilla/TaskQueue.h"
+
 #include "nsThreadUtils.h"
 #include "nsAutoPtr.h"
 #include "ImageContainer.h"
@@ -109,11 +110,10 @@ FFmpegH264Decoder<LIBAV_VER>::PtsCorrectionContext::Reset()
 }
 
 FFmpegH264Decoder<LIBAV_VER>::FFmpegH264Decoder(
-  FlushableMediaTaskQueue* aTaskQueue, MediaDataDecoderCallback* aCallback,
+  FlushableTaskQueue* aTaskQueue, MediaDataDecoderCallback* aCallback,
   const VideoInfo& aConfig,
   ImageContainer* aImageContainer)
-  : FFmpegDataDecoder(aTaskQueue, GetCodecId(aConfig.mMimeType))
-  , mCallback(aCallback)
+  : FFmpegDataDecoder(aTaskQueue, aCallback, GetCodecId(aConfig.mMimeType))
   , mImageContainer(aImageContainer)
   , mPictureWidth(aConfig.mImage.width)
   , mPictureHeight(aConfig.mImage.height)
@@ -127,14 +127,17 @@ FFmpegH264Decoder<LIBAV_VER>::FFmpegH264Decoder(
   mExtraData->AppendElements(*aConfig.mExtraData);
 }
 
-nsresult
+RefPtr<MediaDataDecoder::InitPromise>
 FFmpegH264Decoder<LIBAV_VER>::Init()
 {
-  nsresult rv = FFmpegDataDecoder::Init();
-  NS_ENSURE_SUCCESS(rv, rv);
+  if (NS_FAILED(InitDecoder())) {
+    return InitPromise::CreateAndReject(DecoderFailureReason::INIT_ERROR, __func__);
+  }
+
   avcodec_decode_video2 = (decltype(avcodec_decode_video2))FFmpegRuntimeLinker::avc_ptr[_decode_video2];
   av_init_packet = (decltype(av_init_packet))FFmpegRuntimeLinker::avc_ptr[_init_packet];
-  return NS_OK;
+
+  return InitPromise::CreateAndResolve(TrackInfo::kVideoTrack, __func__);
 }
 
 void
@@ -185,6 +188,8 @@ FFmpegH264Decoder<LIBAV_VER>::InitCodecContext()
 FFmpegH264Decoder<LIBAV_VER>::DecodeResult
 FFmpegH264Decoder<LIBAV_VER>::DoDecodeFrame(MediaRawData* aSample)
 {
+  MOZ_ASSERT(mTaskQueue->IsCurrentThreadIn());
+
   uint8_t* inputData = const_cast<uint8_t*>(aSample->Data());
   size_t inputSize = aSample->Size();
 
@@ -242,6 +247,8 @@ FFmpegH264Decoder<LIBAV_VER>::DecodeResult
 FFmpegH264Decoder<LIBAV_VER>::DoDecodeFrame(MediaRawData* aSample,
                                             uint8_t* aData, int aSize)
 {
+  MOZ_ASSERT(mTaskQueue->IsCurrentThreadIn());
+
   AVPacket packet;
   av_init_packet(&packet);
 
@@ -329,7 +336,7 @@ FFmpegH264Decoder<LIBAV_VER>::DoDecodeFrame(MediaRawData* aSample,
       b.mPlanes[1].mHeight = b.mPlanes[2].mHeight = (mFrame->height + 1) >> 1;
     }
 
-    nsRefPtr<VideoData> v = VideoData::Create(info,
+    RefPtr<VideoData> v = VideoData::Create(info,
                                               mImageContainer,
                                               aSample->mOffset,
                                               pts,
@@ -352,6 +359,8 @@ FFmpegH264Decoder<LIBAV_VER>::DoDecodeFrame(MediaRawData* aSample,
 void
 FFmpegH264Decoder<LIBAV_VER>::DecodeFrame(MediaRawData* aSample)
 {
+  MOZ_ASSERT(mTaskQueue->IsCurrentThreadIn());
+
   if (DoDecodeFrame(aSample) != DecodeResult::DECODE_ERROR &&
       mTaskQueue->IsEmpty()) {
     mCallback->InputExhausted();
@@ -362,41 +371,22 @@ nsresult
 FFmpegH264Decoder<LIBAV_VER>::Input(MediaRawData* aSample)
 {
   nsCOMPtr<nsIRunnable> runnable(
-    NS_NewRunnableMethodWithArg<nsRefPtr<MediaRawData>>(
+    NS_NewRunnableMethodWithArg<RefPtr<MediaRawData>>(
       this, &FFmpegH264Decoder<LIBAV_VER>::DecodeFrame,
-      nsRefPtr<MediaRawData>(aSample)));
+      RefPtr<MediaRawData>(aSample)));
   mTaskQueue->Dispatch(runnable.forget());
 
   return NS_OK;
 }
 
 void
-FFmpegH264Decoder<LIBAV_VER>::DoDrain()
+FFmpegH264Decoder<LIBAV_VER>::ProcessDrain()
 {
-  nsRefPtr<MediaRawData> empty(new MediaRawData());
+  MOZ_ASSERT(mTaskQueue->IsCurrentThreadIn());
+  RefPtr<MediaRawData> empty(new MediaRawData());
   while (DoDecodeFrame(empty) == DecodeResult::DECODE_FRAME) {
   }
   mCallback->DrainComplete();
-}
-
-nsresult
-FFmpegH264Decoder<LIBAV_VER>::Drain()
-{
-  nsCOMPtr<nsIRunnable> runnable(
-    NS_NewRunnableMethod(this, &FFmpegH264Decoder<LIBAV_VER>::DoDrain));
-  mTaskQueue->Dispatch(runnable.forget());
-
-  return NS_OK;
-}
-
-nsresult
-FFmpegH264Decoder<LIBAV_VER>::Flush()
-{
-  mPtsContext.Reset();
-  mDurationMap.Clear();
-  nsresult rv = FFmpegDataDecoder::Flush();
-  // Even if the above fails we may as well clear our frame queue.
-  return rv;
 }
 
 FFmpegH264Decoder<LIBAV_VER>::~FFmpegH264Decoder()

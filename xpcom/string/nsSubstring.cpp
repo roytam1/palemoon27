@@ -112,7 +112,7 @@ ReleaseData(void* aData, uint32_t aFlags)
   if (aFlags & nsSubstring::F_SHARED) {
     nsStringBuffer::FromData(aData)->Release();
   } else if (aFlags & nsSubstring::F_OWNED) {
-    free(aData);
+    moz_free(aData);
     STRING_STAT_INCREMENT(AdoptFree);
     // Treat this as destruction of a "StringAdopt" object for leak
     // tracking purposes.
@@ -198,7 +198,7 @@ nsStringBuffer::Release()
   NS_LOG_RELEASE(this, count, "nsStringBuffer");
   if (count == 0) {
     STRING_STAT_INCREMENT(Free);
-    free(this); // we were allocated with |malloc|
+    moz_free(this); // we were allocated with |malloc|
   }
 }
 
@@ -214,7 +214,7 @@ nsStringBuffer::Alloc(size_t aSize)
                "mStorageSize will truncate");
 
   nsStringBuffer* hdr =
-    (nsStringBuffer*)malloc(sizeof(nsStringBuffer) + aSize);
+    (nsStringBuffer*)moz_xmalloc(sizeof(nsStringBuffer) + aSize);
   if (hdr) {
     STRING_STAT_INCREMENT(Alloc);
 
@@ -243,7 +243,7 @@ nsStringBuffer::Realloc(nsStringBuffer* aHdr, size_t aSize)
   // logging will claim we've leaked all sorts of stuff.
   NS_LOG_RELEASE(aHdr, 0, "nsStringBuffer");
 
-  aHdr = (nsStringBuffer*)realloc(aHdr, sizeof(nsStringBuffer) + aSize);
+  aHdr = (nsStringBuffer*)moz_xrealloc(aHdr, sizeof(nsStringBuffer) + aSize);
   if (aHdr) {
     NS_LOG_ADDREF(aHdr, 1, "nsStringBuffer", sizeof(*aHdr));
     aHdr->mStorageSize = aSize;
@@ -317,20 +317,9 @@ nsStringBuffer::ToString(uint32_t aLen, nsACString& aStr,
 }
 
 size_t
-nsStringBuffer::SizeOfIncludingThisMustBeUnshared(mozilla::MallocSizeOf aMallocSizeOf) const
-{
-  NS_ASSERTION(!IsReadonly(),
-               "shared StringBuffer in SizeOfIncludingThisMustBeUnshared");
-  return aMallocSizeOf(this);
-}
-
-size_t
 nsStringBuffer::SizeOfIncludingThisIfUnshared(mozilla::MallocSizeOf aMallocSizeOf) const
 {
-  if (!IsReadonly()) {
-    return SizeOfIncludingThisMustBeUnshared(aMallocSizeOf);
-  }
-  return 0;
+  return IsReadonly() ? 0 : aMallocSizeOf(this);
 }
 
 size_t

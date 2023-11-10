@@ -6,6 +6,10 @@
 #ifndef mozilla_dom_CanvasCaptureMediaStream_h_
 #define mozilla_dom_CanvasCaptureMediaStream_h_
 
+#include "DOMMediaStream.h"
+#include "mozilla/dom/HTMLCanvasElement.h"
+#include "StreamBuffer.h"
+
 namespace mozilla {
 class DOMMediaStream;
 class MediaStreamListener;
@@ -13,65 +17,83 @@ class SourceMediaStream;
 
 namespace layers {
 class Image;
-}
+} // namespace layers
 
 namespace dom {
 class CanvasCaptureMediaStream;
 class HTMLCanvasElement;
+class OutputStreamFrameListener;
 
-class OutputStreamDriver
+/*
+ * The CanvasCaptureMediaStream is a MediaStream subclass that provides a video
+ * track containing frames from a canvas. See an architectural overview below.
+ *
+ * ----------------------------------------------------------------------------
+ *     === Main Thread ===              __________________________
+ *                                     |                          |
+ *                                     | CanvasCaptureMediaStream |
+ *                                     |__________________________|
+ *                                                  |
+ *                                                  | RequestFrame()
+ *                                                  v
+ *                                       ________________________
+ *  ________   FrameCaptureRequested?   |                        |
+ * |        | ------------------------> |   OutputStreamDriver   |
+ * | Canvas |  SetFrameCapture()        | (FrameCaptureListener) |
+ * |________| ------------------------> |________________________|
+ *                                                  |
+ *                                                  | SetImage()
+ *                                                  v
+ *                                         ___________________
+ *                                        |   StreamListener  |
+ * ---------------------------------------| (All image access |----------------
+ *     === MediaStreamGraph Thread ===    |   Mutex Guarded)  |
+ *                                        |___________________|
+ *                                              ^       |
+ *                                 NotifyPull() |       | AppendToTrack()
+ *                                              |       v
+ *                                      ___________________________
+ *                                     |                           |
+ *                                     |  MSG / SourceMediaStream  |
+ *                                     |___________________________|
+ * ----------------------------------------------------------------------------
+ */
+
+/*
+ * Base class for drivers of the output stream.
+ * It is up to each sub class to implement the NewFrame() callback of
+ * FrameCaptureListener.
+ */
+class OutputStreamDriver : public FrameCaptureListener
 {
 public:
-  OutputStreamDriver(CanvasCaptureMediaStream* aDOMStream,
+  OutputStreamDriver(SourceMediaStream* aSourceStream,
                      const TrackID& aTrackId);
 
   NS_INLINE_DECL_THREADSAFE_REFCOUNTING(OutputStreamDriver);
-
-  nsresult Start();
-
-  virtual void ForgetDOMStream();
-
-  virtual void RequestFrame() { }
-
-  CanvasCaptureMediaStream* DOMStream() const { return mDOMStream; }
-
-protected:
-  virtual ~OutputStreamDriver();
-  class StreamListener;
-
-  /*
-   * Appends mImage to video track for the desired duration.
-   */
-  void AppendToTrack(StreamTime aDuration);
-  void NotifyPull(StreamTime aDesiredTime);
 
   /*
    * Sub classes can SetImage() to update the image being appended to the
    * output stream. It will be appended on the next NotifyPull from MSG.
    */
-  void SetImage(layers::Image* aImage);
+  void SetImage(const RefPtr<layers::Image>& aImage);
 
   /*
-   * Called in main thread stable state to initialize sub classes.
+   * Makes sure any internal resources this driver is holding that may create
+   * reference cycles are released.
    */
-  virtual void StartInternal() = 0;
+  virtual void Forget() {}
+
+protected:
+  virtual ~OutputStreamDriver();
+  class StreamListener;
 
 private:
-  // This is a raw pointer to avoid a reference cycle between OutputStreamDriver
-  // and CanvasCaptureMediaStream. ForgetDOMStream() will be called by
-  // ~CanvasCaptureMediaStream() to make sure we don't do anything illegal.
-  CanvasCaptureMediaStream* mDOMStream;
-  nsRefPtr<SourceMediaStream> mSourceStream;
-  bool mStarted;
-  nsRefPtr<StreamListener> mStreamListener;
-  const TrackID mTrackId;
-
-  // The below members are protected by mMutex.
-  Mutex mMutex;
-  nsRefPtr<layers::Image> mImage;
+  RefPtr<SourceMediaStream> mSourceStream;
+  RefPtr<StreamListener> mStreamListener;
 };
 
-class CanvasCaptureMediaStream: public DOMMediaStream
+class CanvasCaptureMediaStream : public DOMMediaStream
 {
 public:
   explicit CanvasCaptureMediaStream(HTMLCanvasElement* aCanvas);
@@ -81,11 +103,12 @@ public:
 
   nsresult Init(const dom::Optional<double>& aFPS, const TrackID& aTrackId);
 
-  virtual JSObject* WrapObject(JSContext* aCx, JS::Handle<JSObject*> aGivenProto) override;
+  JSObject* WrapObject(JSContext* aCx, JS::Handle<JSObject*> aGivenProto) override;
 
   // WebIDL
   HTMLCanvasElement* Canvas() const { return mCanvas; }
   void RequestFrame();
+  dom::FrameCaptureListener* FrameCaptureListener();
 
   /**
    * Create a CanvasCaptureMediaStream whose underlying stream is a SourceMediaStream.
@@ -98,8 +121,8 @@ protected:
   ~CanvasCaptureMediaStream();
 
 private:
-  nsRefPtr<HTMLCanvasElement> mCanvas;
-  nsRefPtr<OutputStreamDriver> mOutputStreamDriver;
+  RefPtr<HTMLCanvasElement> mCanvas;
+  RefPtr<OutputStreamDriver> mOutputStreamDriver;
 };
 
 } // namespace dom

@@ -441,6 +441,24 @@ async_test(function(t) {
   animation.currentTime = currentTimeForAfterPhase(animation.timeline);
 }, 'Redundant change, after -> active, then back');
 
+async_test(function(t) {
+  var div = addDiv(t, {'class': 'animated-div'});
+  var eventWatcher = new EventWatcher(t, div, CSS_ANIM_EVENTS);
+  div.style.animation = ANIM_PROPERTY_VAL;
+  var animation = div.getAnimations()[0];
+
+  animation.pause();
+  animation.currentTime = currentTimeForAfterPhase(animation.timeline);
+
+  eventWatcher.wait_for(['animationstart',
+                         'animationend']).then(t.step_func(function() {
+    animation.currentTime = currentTimeForActivePhase(animation.timeline);
+    return eventWatcher.wait_for('animationstart');
+  })).then(t.step_func(function() {
+    t.done();
+  }));
+
+}, 'Seeking finished -> paused dispatches animationstart');
 
 async_test(function(t) {
   var div = addDiv(t, {'class': 'animated-div'});
@@ -541,6 +559,29 @@ test(function(t) {
   assert_equals(animation.currentTime, null,
                 'The currentTime of a cancelled animation should be null');
 }, 'Animation.currentTime after cancelling');
+
+async_test(function(t) {
+  var div = addDiv(t, {'class': 'animated-div'});
+  div.style.animation = 'anim 100s';
+
+  var animation = div.getAnimations()[0];
+  animation.ready.then(t.step_func(function() {
+    animation.finish();
+
+    // Initiate a pause then abort it
+    animation.pause();
+    animation.play();
+
+    // Wait to return to running state
+    return animation.ready;
+  })).then(t.step_func(function() {
+    assert_true(animation.currentTime < 100 * 1000,
+                'After aborting a pause when finished, the currentTime should'
+                + ' jump back towards the start of the animation');
+    t.done();
+  }));
+}, 'After aborting a pause when finished, the call to play() should rewind'
+   + ' the current time');
 
 done();
     </script>

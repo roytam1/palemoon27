@@ -1377,7 +1377,7 @@ MarkupView.prototype = {
     if (!this._queuedChildUpdates) {
       return promise.resolve(undefined);
     }
-    return promise.all([updatePromise for (updatePromise of this._queuedChildUpdates.values())]);
+    return promise.all([...this._queuedChildUpdates.values()]);
   },
 
   /**

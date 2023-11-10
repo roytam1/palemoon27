@@ -34,7 +34,7 @@ StyleContextContainsFont(nsStyleContext* aStyleContext,
 
   // family name is in the fontlist, check to see if the font group
   // associated with the frame includes the specific userfont
-  nsRefPtr<nsFontMetrics> fm;
+  RefPtr<nsFontMetrics> fm;
   nsLayoutUtils::GetFontMetricsForStyleContext(aStyleContext,
                                                getter_AddRefs(fm),
                                                1.0f);
@@ -107,7 +107,7 @@ ScheduleReflow(nsIPresShell* aShell, nsIFrame* aFrame)
 nsFontFaceUtils::MarkDirtyForFontChange(nsIFrame* aSubtreeRoot,
                                         const gfxUserFontEntry* aFont)
 {
-  nsAutoTArray<nsIFrame*, 4> subtrees;
+  AutoTArray<nsIFrame*, 4> subtrees;
   subtrees.AppendElement(aSubtreeRoot);
 
   nsIPresShell* ps = aSubtreeRoot->PresContext()->PresShell();
@@ -119,7 +119,7 @@ nsFontFaceUtils::MarkDirtyForFontChange(nsIFrame* aSubtreeRoot,
     subtrees.RemoveElementAt(subtrees.Length() - 1);
 
     // Check all descendants to see if they use the font
-    nsAutoTArray<nsIFrame*, 32> stack;
+    AutoTArray<nsIFrame*, 32> stack;
     stack.AppendElement(subtreeRoot);
 
     do {

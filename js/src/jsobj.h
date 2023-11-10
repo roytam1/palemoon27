@@ -22,8 +22,8 @@
 #include "gc/Marking.h"
 #include "js/Conversions.h"
 #include "js/GCAPI.h"
+#include "js/GCVector.h"
 #include "js/HeapAPI.h"
-#include "js/TraceableVector.h"
 #include "vm/Shape.h"
 #include "vm/String.h"
 #include "vm/Xdr.h"
@@ -34,7 +34,7 @@ struct ClassInfo;
 
 namespace js {
 
-using PropertyDescriptorVector = TraceableVector<PropertyDescriptor>;
+using PropertyDescriptorVector = GCVector<PropertyDescriptor>;
 class GCMarker;
 class Nursery;
 
@@ -173,7 +173,7 @@ class JSObject : public js::gc::Cell
                                    js::HandleObjectGroup group);
 
     // Set the shape of an object. This pointer is valid for native objects and
-    // some non-native objects. After creating an object, tobjects for which
+    // some non-native objects. After creating an object, the objects for which
     // the shape pointer is invalid need to overwrite this pointer before a GC
     // can occur.
     inline void setInitialShapeMaybeNonNative(js::Shape* shape);
@@ -247,12 +247,11 @@ class JSObject : public js::gc::Cell
     // exist on the scope chain) are kept.
     inline bool isUnqualifiedVarObj() const;
 
-    /*
-     * Objects with an uncacheable proto can have their prototype mutated
-     * without inducing a shape change on the object. Property cache entries
-     * and JIT inline caches should not be filled for lookups across prototype
-     * lookups on the object.
-     */
+    // Objects with an uncacheable proto can have their prototype mutated
+    // without inducing a shape change on the object. JIT inline caches should
+    // do an explicit group guard to guard against this. Singletons always
+    // generate a new shape when their prototype changes, regardless of this
+    // hasUncacheableProto flag.
     inline bool hasUncacheableProto() const;
     bool setUncacheableProto(js::ExclusiveContext* cx) {
         return setFlags(cx, js::BaseShape::UNCACHEABLE_PROTO, GENERATE_SHAPE);
@@ -293,7 +292,7 @@ class JSObject : public js::gc::Cell
 
     void fixupAfterMovingGC();
 
-    static js::ThingRootKind rootKind() { return js::THING_ROOT_OBJECT; }
+    static const JS::TraceKind TraceKind = JS::TraceKind::Object;
     static const size_t MaxTagBits = 3;
     static bool isNullLike(const JSObject* obj) { return uintptr_t(obj) < (1 << MaxTagBits); }
 
@@ -349,7 +348,8 @@ class JSObject : public js::gc::Cell
      * is a proxy. In the lazy case, we store (JSObject*)0x1 in the proto field
      * of the object's group. We offer three ways of getting the prototype:
      *
-     * 1. obj->getProto() returns the prototype, but asserts if obj is a proxy.
+     * 1. obj->getProto() returns the prototype, but asserts if obj is a proxy
+     *    with a relevant getPrototype() handler.
      * 2. obj->getTaggedProto() returns a TaggedProto, which can be tested to
      *    check if the proto is an object, nullptr, or lazily computed.
      * 3. js::GetPrototype(cx, obj, &proto) computes the proto of an object.
@@ -366,7 +366,7 @@ class JSObject : public js::gc::Cell
     bool uninlinedIsProxy() const;
 
     JSObject* getProto() const {
-        MOZ_ASSERT(!uninlinedIsProxy());
+        MOZ_ASSERT(!hasLazyPrototype());
         return getTaggedProto().toObjectOrNull();
     }
 
@@ -527,15 +527,15 @@ class JSObject : public js::gc::Cell
      *
      * These XObject classes form a hierarchy. For example, for a cloned block
      * object, the following predicates are true: is<ClonedBlockObject>,
-     * is<BlockObject>, is<NestedScopeObject> and is<ScopeObject>. Each of
-     * these has a respective class that derives and adds operations.
+     * is<NestedScopeObject> and is<ScopeObject>. Each of these has a
+     * respective class that derives and adds operations.
      *
      * A class XObject is defined in a vm/XObject{.h, .cpp, -inl.h} file
      * triplet (along with any class YObject that derives XObject).
      *
      * Note that X represents a low-level representation and does not query the
      * [[Class]] property of object defined by the spec (for this, see
-     * js::ObjectClassIs).
+     * js::GetBuiltinClass).
      */
 
     template <class T>
@@ -617,14 +617,16 @@ struct JSObject_Slots16 : JSObject { void* data[3]; js::Value fslots[16]; };
 /* static */ MOZ_ALWAYS_INLINE void
 JSObject::readBarrier(JSObject* obj)
 {
-    if (!isNullLike(obj) && obj->isTenured())
+    MOZ_ASSERT_IF(obj, !isNullLike(obj));
+    if (obj && obj->isTenured())
         obj->asTenured().readBarrier(&obj->asTenured());
 }
 
 /* static */ MOZ_ALWAYS_INLINE void
 JSObject::writeBarrierPre(JSObject* obj)
 {
-    if (!isNullLike(obj) && obj->isTenured())
+    MOZ_ASSERT_IF(obj, !isNullLike(obj));
+    if (obj && obj->isTenured())
         obj->asTenured().writeBarrierPre(&obj->asTenured());
 }
 
@@ -632,23 +634,25 @@ JSObject::writeBarrierPre(JSObject* obj)
 JSObject::writeBarrierPost(void* cellp, JSObject* prev, JSObject* next)
 {
     MOZ_ASSERT(cellp);
+    MOZ_ASSERT_IF(next, !IsNullTaggedPointer(next));
+    MOZ_ASSERT_IF(prev, !IsNullTaggedPointer(prev));
 
     // If the target needs an entry, add it.
     js::gc::StoreBuffer* buffer;
-    if (!IsNullTaggedPointer(next) && (buffer = next->storeBuffer())) {
+    if (next && (buffer = next->storeBuffer())) {
         // If we know that the prev has already inserted an entry, we can skip
-        // doing the lookup to add the new entry.
-        if (!IsNullTaggedPointer(prev) && prev->storeBuffer()) {
-            buffer->assertHasCellEdge(static_cast<js::gc::Cell**>(cellp));
+        // doing the lookup to add the new entry. Note that we cannot safely
+        // assert the presence of the entry because it may have been added
+        // via a different store buffer.
+        if (prev && prev->storeBuffer())
             return;
-        }
-        buffer->putCellFromAnyThread(static_cast<js::gc::Cell**>(cellp));
+        buffer->putCell(static_cast<js::gc::Cell**>(cellp));
         return;
     }
 
     // Remove the prev entry if the new value does not need it.
-    if (!IsNullTaggedPointer(prev) && (buffer = prev->storeBuffer()))
-        buffer->unputCellFromAnyThread(static_cast<js::gc::Cell**>(cellp));
+    if (prev && (buffer = prev->storeBuffer()))
+        buffer->unputCell(static_cast<js::gc::Cell**>(cellp));
 }
 
 namespace js {
@@ -688,18 +692,8 @@ namespace js {
 
 /*** Standard internal methods ********************************************************************
  *
- * The functions below are the fundamental operations on objects.
- *
- * ES6 specifies 14 internal methods that define how objects behave.  The spec
- * is actually quite good on this topic, though you may have to read it a few
- * times. See ES6 draft rev 29 (6 Dec 2014) 6.1.7.2 and 6.1.7.3.
- *
- * When 'obj' is an ordinary object, these functions have boring standard
- * behavior as specified by ES6 draft rev 29 section 9.1; see the section about
- * internal methods in vm/NativeObject.h.
- *
- * Proxies override the behavior of internal methods. So when 'obj' is a proxy,
- * any one of the functions below could do just about anything. See js/Proxy.h.
+ * The functions below are the fundamental operations on objects. See the
+ * comment about "Standard internal methods" in jsapi.h.
  */
 
 /*
@@ -747,8 +741,7 @@ extern bool
 PreventExtensions(JSContext* cx, HandleObject obj);
 
 /*
- * ES6 [[GetOwnPropertyDescriptor]]. Get a description of one of obj's own
- * properties.
+ * ES6 [[GetOwnProperty]]. Get a description of one of obj's own properties.
  *
  * If no such property exists on obj, return true with desc.object() set to
  * null.
@@ -764,15 +757,15 @@ DefineProperty(JSContext* cx, HandleObject obj, HandleId id,
 
 extern bool
 DefineProperty(ExclusiveContext* cx, HandleObject obj, HandleId id, HandleValue value,
-               JSGetterOp getter, JSSetterOp, unsigned attrs, ObjectOpResult& result);
+               JSGetterOp getter, JSSetterOp setter, unsigned attrs, ObjectOpResult& result);
 
 extern bool
 DefineProperty(ExclusiveContext* cx, HandleObject obj, PropertyName* name, HandleValue value,
-               JSGetterOp getter, JSSetterOp, unsigned attrs, ObjectOpResult& result);
+               JSGetterOp getter, JSSetterOp setter, unsigned attrs, ObjectOpResult& result);
 
 extern bool
 DefineElement(ExclusiveContext* cx, HandleObject obj, uint32_t index, HandleValue value,
-              JSGetterOp getter, JSSetterOp, unsigned attrs, ObjectOpResult& result);
+              JSGetterOp getter, JSSetterOp setter, unsigned attrs, ObjectOpResult& result);
 
 /*
  * When the 'result' out-param is omitted, the behavior is the same as above, except
@@ -800,8 +793,8 @@ DefineElement(ExclusiveContext* cx, HandleObject obj, uint32_t index, HandleValu
               unsigned attrs = JSPROP_ENUMERATE);
 
 /*
- * ES6 [[HasProperty]]. Set *foundp to true if `id in obj` (that is, if obj has
- * an own or inherited property obj[id]), false otherwise.
+ * ES6 [[Has]]. Set *foundp to true if `id in obj` (that is, if obj has an own
+ * or inherited property obj[id]), false otherwise.
  */
 inline bool
 HasProperty(JSContext* cx, HandleObject obj, HandleId id, bool* foundp);
@@ -818,11 +811,11 @@ HasProperty(JSContext* cx, HandleObject obj, PropertyName* name, bool* foundp);
  * `receiver[id]`, and we've already searched the prototype chain up to `obj`.
  */
 inline bool
-GetProperty(JSContext* cx, HandleObject obj, HandleObject receiver, HandleId id,
+GetProperty(JSContext* cx, HandleObject obj, HandleValue receiver, HandleId id,
             MutableHandleValue vp);
 
 inline bool
-GetProperty(JSContext* cx, HandleObject obj, HandleObject receiver, PropertyName* name,
+GetProperty(JSContext* cx, HandleObject obj, HandleValue receiver, PropertyName* name,
             MutableHandleValue vp)
 {
     RootedId id(cx, NameToId(name));
@@ -830,17 +823,52 @@ GetProperty(JSContext* cx, HandleObject obj, HandleObject receiver, PropertyName
 }
 
 inline bool
+GetProperty(JSContext* cx, HandleObject obj, HandleObject receiver, HandleId id,
+            MutableHandleValue vp)
+{
+    RootedValue receiverValue(cx, ObjectValue(*receiver));
+    return GetProperty(cx, obj, receiverValue, id, vp);
+}
+
+inline bool
+GetProperty(JSContext* cx, HandleObject obj, HandleObject receiver, PropertyName* name,
+            MutableHandleValue vp)
+{
+    RootedValue receiverValue(cx, ObjectValue(*receiver));
+    return GetProperty(cx, obj, receiverValue, name, vp);
+}
+
+inline bool
+GetElement(JSContext* cx, HandleObject obj, HandleValue receiver, uint32_t index,
+           MutableHandleValue vp);
+
+inline bool
 GetElement(JSContext* cx, HandleObject obj, HandleObject receiver, uint32_t index,
            MutableHandleValue vp);
 
 inline bool
-GetPropertyNoGC(JSContext* cx, JSObject* obj, JSObject* receiver, jsid id, Value* vp);
+GetPropertyNoGC(JSContext* cx, JSObject* obj, const Value& receiver, jsid id, Value* vp);
+
+inline bool
+GetPropertyNoGC(JSContext* cx, JSObject* obj, JSObject* receiver, jsid id, Value* vp)
+{
+    return GetPropertyNoGC(cx, obj, ObjectValue(*receiver), id, vp);
+}
+
+inline bool
+GetPropertyNoGC(JSContext* cx, JSObject* obj, const Value& receiver, PropertyName* name, Value* vp)
+{
+    return GetPropertyNoGC(cx, obj, receiver, NameToId(name), vp);
+}
 
 inline bool
 GetPropertyNoGC(JSContext* cx, JSObject* obj, JSObject* receiver, PropertyName* name, Value* vp)
 {
-    return GetPropertyNoGC(cx, obj, receiver, NameToId(name), vp);
+    return GetPropertyNoGC(cx, obj, ObjectValue(*receiver), name, vp);
 }
+
+inline bool
+GetElementNoGC(JSContext* cx, JSObject* obj, const Value& receiver, uint32_t index, Value* vp);
 
 inline bool
 GetElementNoGC(JSContext* cx, JSObject* obj, JSObject* receiver, uint32_t index, Value* vp);
@@ -953,6 +981,20 @@ LookupProperty(JSContext* cx, HandleObject obj, PropertyName* name,
 extern bool
 HasOwnProperty(JSContext* cx, HandleObject obj, HandleId id, bool* result);
 
+/**
+ * This enum is used to select whether the defined functions should be marked as
+ * builtin native instrinsics for self-hosted code.
+ */
+enum DefineAsIntrinsic {
+    NotIntrinsic,
+    AsIntrinsic
+};
+
+extern bool
+DefineFunctions(JSContext* cx, HandleObject obj, const JSFunctionSpec* fs,
+                DefineAsIntrinsic intrinsic,
+                PropertyDefinitionBehavior behavior = DefineAllProperties);
+
 /*
  * Set a watchpoint: a synchronous callback when the given property of the
  * given object is set.
@@ -968,18 +1010,25 @@ WatchProperty(JSContext* cx, HandleObject obj, HandleId id, HandleObject callabl
 extern bool
 UnwatchProperty(JSContext* cx, HandleObject obj, HandleId id);
 
-/*
- * ToPrimitive support, currently implemented like an internal method (JSClass::convert).
- * In ES6 this is just a method, @@toPrimitive. See bug 1054756.
- */
+/* ES6 draft rev 36 (2015 March 17) 7.1.1 ToPrimitive(vp[, preferredType]) */
 extern bool
-ToPrimitive(JSContext* cx, HandleObject obj, JSType hint, MutableHandleValue vp);
+ToPrimitiveSlow(JSContext* cx, JSType hint, MutableHandleValue vp);
 
-MOZ_ALWAYS_INLINE bool
-ToPrimitive(JSContext* cx, MutableHandleValue vp);
+inline bool
+ToPrimitive(JSContext* cx, MutableHandleValue vp)
+{
+    if (vp.isPrimitive())
+        return true;
+    return ToPrimitiveSlow(cx, JSTYPE_VOID, vp);
+}
 
-MOZ_ALWAYS_INLINE bool
-ToPrimitive(JSContext* cx, JSType preferredType, MutableHandleValue vp);
+inline bool
+ToPrimitive(JSContext* cx, JSType preferredType, MutableHandleValue vp)
+{
+    if (vp.isPrimitive())
+        return true;
+    return ToPrimitiveSlow(cx, preferredType, vp);
+}
 
 /*
  * toString support. (This isn't called GetClassName because there's a macro in
@@ -989,75 +1038,18 @@ extern const char*
 GetObjectClassName(JSContext* cx, HandleObject obj);
 
 /*
- * Inner and outer objects
- *
- * GetInnerObject and GetOuterObject (and also GetThisObject, somewhat) have to
- * do with Windows and WindowProxies. There's a screwy invariant that actual
- * Window objects (the global objects of web pages) are never directly exposed
- * to script. Instead we often substitute a WindowProxy.
- *
- * As a result, we have calls to these three "substitute-this-object-for-that-
- * object" functions sprinkled at apparently arbitrary (but actually *very*
- * carefully and nervously selected) places throughout the engine and indeed
- * the universe.
- */
-
-/*
- * If obj a WindowProxy, return its current inner Window. Otherwise return obj.
- *
- * GetInnerObject is called when we need a scope chain; you never want a
- * WindowProxy on a scope chain.
- *
- * It's also called in a few places where an object comes in from script, and
- * the user probably intends to operate on the Window, not the
- * WindowProxy. Object.prototype.watch and various Debugger features do
- * this. (Users can't simply pass the Window, because the Window isn't exposed
- * to scripts.)
- */
-inline JSObject*
-GetInnerObject(JSObject* obj)
-{
-    if (InnerObjectOp op = obj->getClass()->ext.innerObject) {
-        JS::AutoSuppressGCAnalysis nogc;
-        return op(obj);
-    }
-    return obj;
-}
-
-/*
- * If obj is a Window object, return the WindowProxy. Otherwise return obj.
- *
- * This must be called before passing an object to script, if the object might
- * be a Window. (But usually those cases involve scope objects, and for those,
- * it is better to call GetThisObject instead.)
- */
-inline JSObject*
-GetOuterObject(JSContext* cx, HandleObject obj)
-{
-    if (ObjectOp op = obj->getClass()->ext.outerObject)
-        return op(cx, obj);
-    return obj;
-}
-
-/*
  * Return an object that may be used as `this` in place of obj. For most
  * objects this just returns obj.
  *
  * Some JSObjects shouldn't be exposed directly to script. This includes (at
  * least) DynamicWithObjects and Window objects. However, since both of those
  * can be on scope chains, we sometimes would expose those as `this` if we
- * were not so vigilant about calling GetThisObject where appropriate.
+ * were not so vigilant about calling GetThisValue where appropriate.
  *
  * See comments at ComputeImplicitThis.
  */
-inline JSObject*
-GetThisObject(JSContext* cx, HandleObject obj)
-{
-    if (ObjectOp op = obj->getOps()->thisObject)
-        return op(cx, obj);
-    return obj;
-}
-
+Value
+GetThisValue(JSObject* obj);
 
 /* * */
 
@@ -1110,15 +1102,27 @@ GetInitialHeap(NewObjectKind newKind, const Class* clasp)
     return gc::DefaultHeap;
 }
 
+bool
+NewObjectWithTaggedProtoIsCachable(ExclusiveContext* cxArg, Handle<TaggedProto> proto,
+                                   NewObjectKind newKind, const Class* clasp);
+
+// ES6 9.1.15 GetPrototypeFromConstructor.
+extern bool
+GetPrototypeFromConstructor(JSContext* cx, js::HandleObject newTarget, js::MutableHandleObject proto);
+
+extern bool
+GetPrototypeFromCallableConstructor(JSContext* cx, const CallArgs& args, js::MutableHandleObject proto);
+
 // Specialized call for constructing |this| with a known function callee,
 // and a known prototype.
 extern JSObject*
-CreateThisForFunctionWithProto(JSContext* cx, js::HandleObject callee, HandleObject proto,
-                               NewObjectKind newKind = GenericObject);
+CreateThisForFunctionWithProto(JSContext* cx, js::HandleObject callee, HandleObject newTarget,
+                               HandleObject proto, NewObjectKind newKind = GenericObject);
 
 // Specialized call for constructing |this| with a known function callee.
 extern JSObject*
-CreateThisForFunction(JSContext* cx, js::HandleObject callee, NewObjectKind newKind);
+CreateThisForFunction(JSContext* cx, js::HandleObject callee, js::HandleObject newTarget,
+                      NewObjectKind newKind);
 
 // Generic call for constructing |this|.
 extern JSObject*
@@ -1203,7 +1207,6 @@ LookupNameUnqualified(JSContext* cx, HandlePropertyName name, HandleObject scope
 
 } // namespace js
 
-
 namespace js {
 
 extern JSObject*
@@ -1275,8 +1278,21 @@ XDRObjectLiteral(XDRState<mode>* xdr, MutableHandleObject obj);
 extern bool
 ReportGetterOnlyAssignment(JSContext* cx, bool strict);
 
-extern JSObject*
-NonNullObject(JSContext* cx, const Value& v);
+/*
+ * Report a TypeError: "so-and-so is not an object".
+ * Using NotNullObject is usually less code.
+ */
+extern void
+ReportNotObject(JSContext* cx, const Value& v);
+
+inline JSObject*
+NonNullObject(JSContext* cx, const Value& v)
+{
+    if (v.isObject())
+        return &v.toObject();
+    ReportNotObject(cx, v);
+    return nullptr;
+}
 
 extern const char*
 InformalValueTypeName(const Value& v);

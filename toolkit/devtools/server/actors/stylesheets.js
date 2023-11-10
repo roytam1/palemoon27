@@ -573,7 +573,7 @@ let StyleSheetActor = protocol.ActorClass({
    *         Promise that resolves with a string text of the stylesheet.
    */
   _getText: function() {
-    if (this.text) {
+    if (typeof this.text === "string") {
       return promise.resolve(this.text);
     }
 
@@ -586,7 +586,7 @@ let StyleSheetActor = protocol.ActorClass({
 
     let options = {
       loadFromCache: true,
-      policy: Ci.nsIContentPolicy.TYPE_STYLESHEET,
+      policy: Ci.nsIContentPolicy.TYPE_INTERNAL_STYLESHEET,
       window: this.window,
       charset: this._getCSSCharset()
     };
@@ -672,7 +672,7 @@ let StyleSheetActor = protocol.ActorClass({
       url = normalize(url, this.href);
       let options = {
         loadFromCache: false,
-        policy: Ci.nsIContentPolicy.TYPE_STYLESHEET,
+        policy: Ci.nsIContentPolicy.TYPE_INTERNAL_STYLESHEET,
         window: this.window
       };
       let map = fetch(url, options)
@@ -913,53 +913,6 @@ let StyleSheetActor = protocol.ActorClass({
 })
 
 /**
- * Find the line/column for a rule.
- * This is like DOMUtils.getRule[Line|Column] except for inline <style> sheets,
- * the line number returned here is relative to the <style> tag rather than the
- * containing HTML document (which is what DOMUtils does).
- * This is hacky, but we don't know of a better implementation right now.
- */
-const getRuleLocation = exports.getRuleLocation = function(rule) {
-  let reply = {
-    line: DOMUtils.getRuleLine(rule),
-    column: DOMUtils.getRuleColumn(rule)
-  };
-
-  let sheet = rule.parentStyleSheet;
-  if (sheet.ownerNode && sheet.ownerNode.localName === "style") {
-     // For inline sheets, the line is relative to HTML not the stylesheet, so
-     // Get the location of the first { to know the line num of the first rule,
-     // relative to this sheet, to get the offset
-     let text = sheet.ownerNode.textContent;
-     // Hacky for now, because this will fail if { appears in a comment before
-     // but better than nothing, and faster than parsing the whole text
-     let start = text.substring(0, text.indexOf("{"));
-     let relativeStartLine = start.split("\n").length;
-
-     let absoluteStartLine;
-     let i = 0;
-     while (absoluteStartLine == null) {
-       let irule = sheet.cssRules[i];
-       if (irule instanceof Ci.nsIDOMCSSStyleRule) {
-         absoluteStartLine = DOMUtils.getRuleLine(irule);
-       }
-       else if (irule == null) {
-         break;
-       }
-
-       i++;
-     }
-
-     if (absoluteStartLine != null) {
-       let offset = absoluteStartLine - relativeStartLine;
-       reply.line -= offset;
-     }
-  }
-
-  return reply;
-};
-
-/**
  * StyleSheetFront is the client-side counterpart to a StyleSheetActor.
  */
 var StyleSheetFront = protocol.FrontClass(StyleSheetActor, {
@@ -1047,7 +1000,7 @@ let OriginalSourceActor = protocol.ActorClass({
       return promise.resolve(content);
     }
     let options = {
-      policy: Ci.nsIContentPolicy.TYPE_STYLESHEET,
+      policy: Ci.nsIContentPolicy.TYPE_INTERNAL_STYLESHEET,
       window: this.window
     };
     return fetch(this.url, options).then(({content}) => {

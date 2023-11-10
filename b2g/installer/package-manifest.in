@@ -87,11 +87,22 @@
 #if MOZ_PACKAGE_MSVC_DLLS
 @BINPATH@/@MSVC_C_RUNTIME_DLL@
 @BINPATH@/@MSVC_CXX_RUNTIME_DLL@
-#ifdef MSVC_APPCRT_DLL
-@BINPATH@/@MSVC_APPCRT_DLL@
 #endif
-#ifdef MSVC_DESKTOPCRT_DLL
-@BINPATH@/@MSVC_DESKTOPCRT_DLL@
+#endif
+#ifndef MOZ_NATIVE_ICU
+#ifdef MOZ_SHARED_ICU
+#ifdef XP_WIN
+@BINPATH@/icudt@MOZ_ICU_DBG_SUFFIX@@MOZ_ICU_VERSION@.dll
+@BINPATH@/icuin@MOZ_ICU_DBG_SUFFIX@@MOZ_ICU_VERSION@.dll
+@BINPATH@/icuuc@MOZ_ICU_DBG_SUFFIX@@MOZ_ICU_VERSION@.dll
+#elif defined(XP_MACOSX)
+@BINPATH@/libicudata.@MOZ_ICU_VERSION@.dylib
+@BINPATH@/libicui18n.@MOZ_ICU_VERSION@.dylib
+@BINPATH@/libicuuc.@MOZ_ICU_VERSION@.dylib
+#elif defined(XP_UNIX)
+@BINPATH@/libicudata.so.@MOZ_ICU_VERSION@
+@BINPATH@/libicui18n.so.@MOZ_ICU_VERSION@
+@BINPATH@/libicuuc.so.@MOZ_ICU_VERSION@
 #endif
 #endif
 #endif
@@ -99,7 +110,7 @@
 @BINPATH@/@DLL_PREFIX@mozglue@DLL_SUFFIX@
 #endif
 #ifdef MOZ_REPLACE_MALLOC
-#ifndef MOZ_JEMALLOC3
+#ifndef MOZ_JEMALLOC4
 @BINPATH@/@DLL_PREFIX@replace_jemalloc@DLL_SUFFIX@
 #endif
 #endif
@@ -113,7 +124,7 @@
 #endif
 #ifdef MOZ_GTK3
 @BINPATH@/@DLL_PREFIX@mozgtk@DLL_SUFFIX@
-@BINPATH@/@DLL_PREFIX@mozgtk2@DLL_SUFFIX@
+@BINPATH@/gtk2/@DLL_PREFIX@mozgtk@DLL_SUFFIX@
 #endif
 
 [browser]
@@ -129,12 +140,16 @@
 #ifndef MOZ_FOLD_LIBS
 @BINPATH@/@DLL_PREFIX@mozsqlite3@DLL_SUFFIX@
 #endif
+@BINPATH@/@DLL_PREFIX@lgpllibs@DLL_SUFFIX@
 @RESPATH@/blocklist.xml
 @RESPATH@/ua-update.json
 #ifdef XP_UNIX
 #ifndef XP_MACOSX
 @RESPATH@/run-mozilla.sh
 #endif
+#endif
+#ifdef MOZ_WEBSPEECH_MODELS
+@BINPATH@/models/
 #endif
 
 ; [Components]
@@ -271,6 +286,9 @@
 @RESPATH@/components/layout_xul.xpt
 @RESPATH@/components/locale.xpt
 @RESPATH@/components/lwbrk.xpt
+#ifdef MOZ_ENABLE_PROFILER_SPS
+@RESPATH@/components/memory_profiler.xpt
+#endif
 @RESPATH@/components/migration.xpt
 @RESPATH@/components/mimetype.xpt
 @RESPATH@/components/mozfind.xpt
@@ -375,6 +393,8 @@
 @RESPATH@/components/ConsoleAPIStorage.js
 @RESPATH@/components/BrowserElementParent.manifest
 @RESPATH@/components/BrowserElementParent.js
+@RESPATH@/components/BrowserElementProxy.manifest
+@RESPATH@/components/BrowserElementProxy.js
 @RESPATH@/components/ContactManager.js
 @RESPATH@/components/ContactManager.manifest
 @RESPATH@/components/PhoneNumberService.js
@@ -389,6 +409,8 @@
 @RESPATH@/components/AlarmsManager.manifest
 @RESPATH@/components/FeedProcessor.manifest
 @RESPATH@/components/FeedProcessor.js
+@RESPATH@/components/PackagedAppUtils.manifest
+@RESPATH@/components/PackagedAppUtils.js
 @RESPATH@/components/BrowserFeeds.manifest
 @RESPATH@/components/FeedConverter.js
 @RESPATH@/components/FeedWriter.js
@@ -433,6 +455,10 @@
 @RESPATH@/components/TCPPresentationServer.js
 
 #ifdef MOZ_SECUREELEMENT
+@RESPATH@/components/ACEService.js
+@RESPATH@/components/ACEService.manifest
+@RESPATH@/components/GPAccessRulesManager.js
+@RESPATH@/components/GPAccessRulesManager.manifest
 @RESPATH@/components/SecureElement.js
 @RESPATH@/components/SecureElement.manifest
 @RESPATH@/components/UiccConnector.js
@@ -445,6 +471,8 @@
 @RESPATH@/components/DOMWifiManager.manifest
 @RESPATH@/components/DOMWifiP2pManager.js
 @RESPATH@/components/DOMWifiP2pManager.manifest
+@RESPATH@/components/EthernetManager.js
+@RESPATH@/components/EthernetManager.manifest
 @RESPATH@/components/NetworkInterfaceListService.js
 @RESPATH@/components/NetworkInterfaceListService.manifest
 @RESPATH@/components/NetworkManager.js
@@ -510,6 +538,8 @@
 @RESPATH@/components/RILSystemMessengerHelper.manifest
 @RESPATH@/components/TelephonyAudioService.js
 @RESPATH@/components/TelephonyAudioService.manifest
+@RESPATH@/components/USSDReceivedWrapper.js
+@RESPATH@/components/USSDReceivedWrapper.manifest
 #ifndef DISABLE_MOZ_RIL_GEOLOC
 @RESPATH@/components/TelephonyService.js
 @RESPATH@/components/TelephonyService.manifest
@@ -519,15 +549,16 @@
 #endif // MOZ_WIDGET_GONK && MOZ_B2G_RIL
 
 #ifndef MOZ_WIDGET_GONK
-@RESPATH@/components/extensions.manifest
 @RESPATH@/components/addonManager.js
 @RESPATH@/components/amContentHandler.js
 @RESPATH@/components/amInstallTrigger.js
 @RESPATH@/components/amWebInstallListener.js
-@RESPATH@/components/nsBlocklistService.js
+
 @RESPATH@/components/OopCommandLine.js
 @RESPATH@/components/CommandLine.js
 #endif
+@RESPATH@/components/extensions.manifest
+@RESPATH@/components/nsBlocklistService.js
 @RESPATH@/components/BootstrapCommandLine.js
 
 #ifdef MOZ_UPDATER
@@ -614,10 +645,6 @@
 #endif
 @RESPATH@/components/servicesComponents.manifest
 @RESPATH@/components/cryptoComponents.manifest
-#ifdef MOZ_SERVICES_HEALTHREPORT
-@RESPATH@/components/HealthReportComponents.manifest
-@RESPATH@/components/HealthReportService.js
-#endif
 @RESPATH@/components/CaptivePortalDetectComponents.manifest
 @RESPATH@/components/captivedetect.js
 @RESPATH@/components/TelemetryStartup.js
@@ -629,13 +656,17 @@
 @RESPATH@/components/AppsService.js
 @RESPATH@/components/AppsService.manifest
 @RESPATH@/components/Push.js
-@BINPATH@/components/Push.manifest
-@BINPATH@/components/PushNotificationService.js
+@RESPATH@/components/Push.manifest
+#ifdef MOZ_SIMPLEPUSH
+@RESPATH@/components/PushComponents.js
+#else
+@RESPATH@/components/PushServiceLauncher.js
+#endif
 
-@BINPATH@/components/InterAppComm.manifest
-@BINPATH@/components/InterAppCommService.js
-@BINPATH@/components/InterAppConnection.js
-@BINPATH@/components/InterAppMessagePort.js
+@RESPATH@/components/InterAppComm.manifest
+@RESPATH@/components/InterAppCommService.js
+@RESPATH@/components/InterAppConnection.js
+@RESPATH@/components/InterAppMessagePort.js
 
 @BINPATH@/components/nsDOMIdentity.js
 @BINPATH@/components/nsIDService.js
@@ -653,11 +684,6 @@
 @RESPATH@/components/ActivityRequestHandler.js
 @RESPATH@/components/ActivityWrapper.js
 @RESPATH@/components/ActivityMessageConfigurator.js
-
-@RESPATH@/components/TCPSocket.js
-@RESPATH@/components/TCPServerSocket.js
-@RESPATH@/components/TCPSocketParentIntermediary.js
-@RESPATH@/components/TCPSocket.manifest
 
 @RESPATH@/components/Payment.js
 @RESPATH@/components/PaymentFlowInfo.js
@@ -695,12 +721,8 @@
 @RESPATH@/components/nsUrlClassifierHashCompleter.js
 @RESPATH@/components/nsUrlClassifierListManager.js
 @RESPATH@/components/nsUrlClassifierLib.js
+@RESPATH@/components/PrivateBrowsingTrackingProtectionWhitelist.js
 @RESPATH@/components/url-classifier.xpt
-
-; GNOME hooks
-#ifdef MOZ_ENABLE_GNOME_COMPONENT
-@RESPATH@/components/@DLL_PREFIX@mozgnome@DLL_SUFFIX@
-#endif
 
 ; ANGLE on Win32
 #ifdef XP_WIN32
@@ -744,7 +766,6 @@
 #endif
 @RESPATH@/@PREF_DIR@/channel-prefs.js
 @RESPATH@/gecko.js
-@RESPATH@/defaults/autoconfig/platform.js
 @RESPATH@/defaults/autoconfig/prefcalls.js
 @RESPATH@/defaults/profile/prefs.js
 
@@ -779,18 +800,18 @@
 @RESPATH@/res/table-remove-row-active.gif
 @RESPATH@/res/table-remove-row-hover.gif
 @RESPATH@/res/table-remove-row.gif
-@RESPATH@/res/text_caret.png
-@RESPATH@/res/text_caret@1.5x.png
-@RESPATH@/res/text_caret@2.25x.png
-@RESPATH@/res/text_caret@2x.png
-@RESPATH@/res/text_caret_tilt_left.png
-@RESPATH@/res/text_caret_tilt_left@1.5x.png
-@RESPATH@/res/text_caret_tilt_left@2.25x.png
-@RESPATH@/res/text_caret_tilt_left@2x.png
-@RESPATH@/res/text_caret_tilt_right.png
-@RESPATH@/res/text_caret_tilt_right@1.5x.png
-@RESPATH@/res/text_caret_tilt_right@2.25x.png
-@RESPATH@/res/text_caret_tilt_right@2x.png
+@RESPATH@/res/accessiblecaret.png
+@RESPATH@/res/accessiblecaret@1.5x.png
+@RESPATH@/res/accessiblecaret@2.25x.png
+@RESPATH@/res/accessiblecaret@2x.png
+@RESPATH@/res/accessiblecaret_tilt_left.png
+@RESPATH@/res/accessiblecaret_tilt_left@1.5x.png
+@RESPATH@/res/accessiblecaret_tilt_left@2.25x.png
+@RESPATH@/res/accessiblecaret_tilt_left@2x.png
+@RESPATH@/res/accessiblecaret_tilt_right.png
+@RESPATH@/res/accessiblecaret_tilt_right@1.5x.png
+@RESPATH@/res/accessiblecaret_tilt_right@2.25x.png
+@RESPATH@/res/accessiblecaret_tilt_right@2x.png
 @RESPATH@/res/grabber.gif
 #ifdef XP_MACOSX
 @RESPATH@/res/cursors/*
@@ -914,6 +935,7 @@ bin/libfreebl_32int64_3.so
 @RESPATH@/components/B2GAppMigrator.js
 @RESPATH@/components/B2GPresentationDevicePrompt.js
 @RESPATH@/components/PresentationRequestUIGlue.js
+@RESPATH@/components/KillSwitch.js
 
 #ifndef MOZ_WIDGET_GONK
 @RESPATH@/components/SimulatorScreen.js

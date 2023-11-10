@@ -224,7 +224,7 @@ IsObjectEscaped(MInstruction* ins, JSObject* objDefault)
           case MDefinition::Op_GuardShape: {
             MGuardShape* guard = def->toGuardShape();
             MOZ_ASSERT(!ins->isGuardShape());
-            if (obj->as<NativeObject>().lastProperty() != guard->shape()) {
+            if (obj->maybeShape() != guard->shape()) {
                 JitSpewDef(JitSpew_Escape, "has a non-matching guard shape\n", guard);
                 return true;
             }
@@ -349,11 +349,15 @@ ObjectMemoryView::initStartingState(BlockState** pState)
     startBlock_->insertBefore(obj_, undefinedVal_);
 
     // Create a new block state and insert at it at the location of the new object.
-    BlockState* state = BlockState::New(alloc_, obj_, undefinedVal_);
+    BlockState* state = BlockState::New(alloc_, obj_);
     if (!state)
         return false;
 
     startBlock_->insertAfter(obj_, state);
+
+    // Initialize the properties of the object state.
+    if (!state->initFromTemplateObject(alloc_, undefinedVal_))
+        return false;
 
     // Hold out of resume point until it is visited.
     state->setInWorklist();
@@ -511,6 +515,8 @@ ObjectMemoryView::visitStoreFixedSlot(MStoreFixedSlot* ins)
         state_->setFixedSlot(ins->slot(), ins->value());
         ins->block()->insertBefore(ins->toInstruction(), state_);
     } else {
+        // UnsafeSetReserveSlot can access baked-in slots which are guarded by
+        // conditions, which are not seen by the escape analysis.
         MBail* bailout = MBail::New(alloc_, Bailout_Inevitable);
         ins->block()->insertBefore(ins, bailout);
     }
@@ -530,6 +536,8 @@ ObjectMemoryView::visitLoadFixedSlot(MLoadFixedSlot* ins)
     if (state_->hasFixedSlot(ins->slot())) {
         ins->replaceAllUsesWith(state_->getFixedSlot(ins->slot()));
     } else {
+        // UnsafeGetReserveSlot can access baked-in slots which are guarded by
+        // conditions, which are not seen by the escape analysis.
         MBail* bailout = MBail::New(alloc_, Bailout_Inevitable);
         ins->block()->insertBefore(ins, bailout);
         ins->replaceAllUsesWith(undefinedVal_);
@@ -572,6 +580,8 @@ ObjectMemoryView::visitStoreSlot(MStoreSlot* ins)
         state_->setDynamicSlot(ins->slot(), ins->value());
         ins->block()->insertBefore(ins->toInstruction(), state_);
     } else {
+        // UnsafeSetReserveSlot can access baked-in slots which are guarded by
+        // conditions, which are not seen by the escape analysis.
         MBail* bailout = MBail::New(alloc_, Bailout_Inevitable);
         ins->block()->insertBefore(ins, bailout);
     }
@@ -595,6 +605,8 @@ ObjectMemoryView::visitLoadSlot(MLoadSlot* ins)
     if (state_->hasDynamicSlot(ins->slot())) {
         ins->replaceAllUsesWith(state_->getDynamicSlot(ins->slot()));
     } else {
+        // UnsafeGetReserveSlot can access baked-in slots which are guarded by
+        // conditions, which are not seen by the escape analysis.
         MBail* bailout = MBail::New(alloc_, Bailout_Inevitable);
         ins->block()->insertBefore(ins, bailout);
         ins->replaceAllUsesWith(undefinedVal_);
@@ -647,7 +659,7 @@ ObjectMemoryView::visitLambda(MLambda* ins)
 static size_t
 GetOffsetOf(MDefinition* index, size_t width, int32_t baseOffset)
 {
-    int32_t idx = index->toConstant()->value().toInt32();
+    int32_t idx = index->toConstant()->toInt32();
     MOZ_ASSERT(idx >= 0);
     MOZ_ASSERT(baseOffset >= 0 && size_t(baseOffset) >= UnboxedPlainObject::offsetOfData());
     return idx * width + baseOffset - UnboxedPlainObject::offsetOfData();
@@ -768,13 +780,10 @@ IndexOf(MDefinition* ins, int32_t* res)
         indexDef = indexDef->toBoundsCheck()->index();
     if (indexDef->isToInt32())
         indexDef = indexDef->toToInt32()->getOperand(0);
-    if (!indexDef->isConstantValue())
+    MConstant* indexDefConst = indexDef->maybeConstantValue();
+    if (!indexDefConst || indexDefConst->type() != MIRType_Int32)
         return false;
-
-    Value index = indexDef->constantValue();
-    if (!index.isInt32())
-        return false;
-    *res = index.toInt32();
+    *res = indexDefConst->toInt32();
     return true;
 }
 
@@ -887,7 +896,7 @@ IsArrayEscaped(MInstruction* ins)
 {
     MOZ_ASSERT(ins->type() == MIRType_Object);
     MOZ_ASSERT(ins->isNewArray());
-    uint32_t count = ins->toNewArray()->count();
+    uint32_t length = ins->toNewArray()->length();
 
     JitSpewDef(JitSpew_Escape, "Check array\n", ins);
     JitSpewIndent spewIndent(JitSpew_Escape);
@@ -903,7 +912,7 @@ IsArrayEscaped(MInstruction* ins)
         return true;
     }
 
-    if (count >= 16) {
+    if (length >= 16) {
         JitSpew(JitSpew_Escape, "Array has too many elements");
         return true;
     }
@@ -927,7 +936,7 @@ IsArrayEscaped(MInstruction* ins)
           case MDefinition::Op_Elements: {
             MElements *elem = def->toElements();
             MOZ_ASSERT(elem->object() == ins);
-            if (IsElementEscaped(elem, count)) {
+            if (IsElementEscaped(elem, length)) {
                 JitSpewDef(JitSpew_Escape, "is indirectly escaped by\n", elem);
                 return true;
             }
@@ -1246,7 +1255,7 @@ ArrayMemoryView::visitSetInitializedLength(MSetInitializedLength* ins)
         return;
     }
 
-    int32_t initLengthValue = ins->index()->constantValue().toInt32() + 1;
+    int32_t initLengthValue = ins->index()->maybeConstantValue()->toInt32() + 1;
     MConstant* initLength = MConstant::New(alloc_, Int32Value(initLengthValue));
     ins->block()->insertBefore(ins, initLength);
     ins->block()->insertBefore(ins, state_);

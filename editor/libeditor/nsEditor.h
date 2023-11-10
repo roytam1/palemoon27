@@ -7,7 +7,7 @@
 #define __editor_h__
 
 #include "mozilla/Assertions.h"         // for MOZ_ASSERT, etc.
-#include "mozilla/dom/OwningNonNull.h"  // for OwningNonNull
+#include "mozilla/OwningNonNull.h"      // for OwningNonNull
 #include "mozilla/dom/Text.h"
 #include "nsAutoPtr.h"                  // for nsRefPtr
 #include "nsCOMPtr.h"                   // for already_AddRefed, nsCOMPtr
@@ -140,7 +140,6 @@ inline bool operator!(const EditAction& aOp)
 class nsEditor : public nsIEditor,
                  public nsIEditorIMESupport,
                  public nsSupportsWeakReference,
-                 public nsIObserver,
                  public nsIPhonetic
 {
 public:
@@ -187,9 +186,6 @@ public:
 
   /* ------------ nsIEditorIMESupport methods -------------- */
   NS_DECL_NSIEDITORIMESUPPORT
-
-  /* ------------ nsIObserver methods -------------- */
-  NS_DECL_NSIOBSERVER
 
   // nsIPhonetic
   NS_DECL_NSIPHONETIC
@@ -417,7 +413,7 @@ protected:
    * EnsureComposition() should be called by composition event handlers.  This
    * tries to get the composition for the event and set it to mComposition.
    */
-  void EnsureComposition(mozilla::WidgetGUIEvent* aEvent);
+  void EnsureComposition(mozilla::WidgetCompositionEvent* aCompositionEvent);
 
   nsresult GetSelection(int16_t aSelectionType, nsISelection** aSelection);
 
@@ -638,13 +634,13 @@ public:
 
   nsresult IsPreformatted(nsIDOMNode *aNode, bool *aResult);
 
-  nsresult SplitNodeDeep(nsIDOMNode *aNode,
-                         nsIDOMNode *aSplitPointParent,
-                         int32_t aSplitPointOffset,
-                         int32_t *outOffset,
-                         bool    aNoEmptyContainers = false,
-                         nsCOMPtr<nsIDOMNode> *outLeftNode = 0,
-                         nsCOMPtr<nsIDOMNode> *outRightNode = 0);
+  enum class EmptyContainers { no, yes };
+  int32_t SplitNodeDeep(nsIContent& aNode, nsIContent& aSplitPointParent,
+                        int32_t aSplitPointOffset,
+                        EmptyContainers aEmptyContainers =
+                          EmptyContainers::yes,
+                        nsIContent** outLeftNode = nullptr,
+                        nsIContent** outRightNode = nullptr);
   ::DOMPoint JoinNodeDeep(nsIContent& aLeftNode, nsIContent& aRightNode);
 
   nsresult GetString(const nsAString& name, nsAString& value);
@@ -820,6 +816,13 @@ public:
   void FindBetterInsertionPoint(nsCOMPtr<nsINode>& aNode,
                                 int32_t& aOffset);
 
+  /**
+   * HideCaret() hides caret with nsCaret::AddForceHide() or may show carent
+   * with nsCaret::RemoveForceHide().  This does NOT set visibility of
+   * nsCaret.  Therefore, this is stateless.
+   */
+  void HideCaret(bool aHide);
+
 protected:
   enum Tristate {
     eTriUnset,
@@ -831,9 +834,9 @@ protected:
 
   nsCOMPtr<nsIInlineSpellChecker> mInlineSpellChecker;
 
-  nsRefPtr<nsTransactionManager> mTxnMgr;
+  RefPtr<nsTransactionManager> mTxnMgr;
   nsCOMPtr<mozilla::dom::Element> mRootElement; // cached root node
-  nsRefPtr<mozilla::dom::Text>    mIMETextNode; // current IME text node
+  RefPtr<mozilla::dom::Text>    mIMETextNode; // current IME text node
   nsCOMPtr<mozilla::dom::EventTarget> mEventTarget; // The form field as an event receiver
   nsCOMPtr<nsIDOMEventListener> mEventListener;
   nsWeakPtr        mSelConWeak;          // weak reference to the nsISelectionController
@@ -844,15 +847,15 @@ protected:
   nsString         *mPhonetic;
   // IME composition this is not null between compositionstart and
   // compositionend.
-  nsRefPtr<mozilla::TextComposition> mComposition;
+  RefPtr<mozilla::TextComposition> mComposition;
 
   // various listeners
   // Listens to all low level actions on the doc
-  nsTArray<mozilla::dom::OwningNonNull<nsIEditActionListener>> mActionListeners;
+  nsTArray<mozilla::OwningNonNull<nsIEditActionListener>> mActionListeners;
   // Just notify once per high level change
-  nsTArray<mozilla::dom::OwningNonNull<nsIEditorObserver>> mEditorObservers;
+  nsTArray<mozilla::OwningNonNull<nsIEditorObserver>> mEditorObservers;
   // Listen to overall doc state (dirty or not, just created, etc)
-  nsTArray<mozilla::dom::OwningNonNull<nsIDocumentStateListener>> mDocStateListeners;
+  nsTArray<mozilla::OwningNonNull<nsIDocumentStateListener>> mDocStateListeners;
 
   nsSelectionState  mSavedSel;           // cached selection for nsAutoSelectionReset
   nsRangeUpdater    mRangeUpdater;       // utility class object for maintaining preserved ranges
@@ -879,6 +882,7 @@ protected:
   bool mDidPostCreate;    // whether PostCreate has been called
   bool mDispatchInputEvent;
   bool mIsInEditAction;   // true while the instance is handling an edit action
+  bool mHidingCaret;      // whether caret is hidden forcibly.
 
   friend bool NSCanUnload(nsISupports* serviceMgr);
   friend class nsAutoTxnsConserveSelection;

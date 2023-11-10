@@ -9,6 +9,9 @@
 
 class nsHtml5OwningUTF16Buffer : public nsHtml5UTF16Buffer
 {
+  public:
+    NS_INLINE_DECL_THREADSAFE_REFCOUNTING(nsHtml5OwningUTF16Buffer)
+
   private:
 
     /**
@@ -34,7 +37,7 @@ public:
     /**
      * The next buffer in a queue.
      */
-    nsRefPtr<nsHtml5OwningUTF16Buffer> next;
+    RefPtr<nsHtml5OwningUTF16Buffer> next;
 
     /**
      * A parser key.
@@ -48,11 +51,6 @@ public:
      * Swap start, end and buffer fields with another object.
      */
     void Swap(nsHtml5OwningUTF16Buffer* aOther);
-
-    nsrefcnt AddRef();
-    nsrefcnt Release();
-  private:
-    mozilla::ThreadSafeAutoRefCnt mRefCnt;
 };
 
 #endif // nsHtml5OwningUTF16Buffer_h

@@ -1,5 +1,6 @@
 // |jit-test| test-also-noasmjs
-if (!this.SharedArrayBuffer || !this.SharedInt32Array || !this.Atomics)
+
+if (!this.SharedArrayBuffer || !this.Atomics)
     quit();
 
 // The code duplication below is very far from elegant but provides
@@ -21,7 +22,7 @@ var loadModule_int32_code =
     var atomic_or = stdlib.Atomics.or;
     var atomic_xor = stdlib.Atomics.xor;
 
-    var i32a = new stdlib.SharedInt32Array(heap);
+    var i32a = new stdlib.Int32Array(heap);
 
     function do_fence() {
         atomic_fence();
@@ -30,7 +31,7 @@ var loadModule_int32_code =
     // Load element 0
     function do_load() {
         var v = 0;
-        v = atomic_load(i32a, 0)|0;
+        v = atomic_load(i32a, 0);
         return v|0;
     }
 
@@ -38,14 +39,14 @@ var loadModule_int32_code =
     function do_load_i(i) {
         i = i|0;
         var v = 0;
-        v = atomic_load(i32a, i>>2)|0;
+        v = atomic_load(i32a, i>>2);
         return v|0;
     }
 
     // Store 37 in element 0
     function do_store() {
         var v = 0;
-        v = atomic_store(i32a, 0, 37)|0;
+        v = atomic_store(i32a, 0, 37);
         return v|0;
     }
 
@@ -53,14 +54,14 @@ var loadModule_int32_code =
     function do_store_i(i) {
         i = i|0;
         var v = 0;
-        v = atomic_store(i32a, i>>2, 37)|0;
+        v = atomic_store(i32a, i>>2, 37);
         return v|0;
     }
 
     // Exchange 37 into element 200
     function do_xchg() {
         var v = 0;
-        v = atomic_exchange(i32a, 200, 37)|0;
+        v = atomic_exchange(i32a, 200, 37);
         return v|0;
     }
 
@@ -68,7 +69,7 @@ var loadModule_int32_code =
     function do_xchg_i(i) {
         i = i|0;
         var v = 0;
-        v = atomic_exchange(i32a, i>>2, 42)|0;
+        v = atomic_exchange(i32a, i>>2, 42);
         return v|0;
     }
 
@@ -78,14 +79,14 @@ var loadModule_int32_code =
     // allowed.
     function do_xchg_intish() {
         var v = 0;
-        v = atomic_exchange(i32a, 200, 1+2)|0;
+        v = atomic_exchange(i32a, 200, 1+2);
         return v|0;
     }
 
     // Add 37 to element 10
     function do_add() {
         var v = 0;
-        v = atomic_add(i32a, 10, 37)|0;
+        v = atomic_add(i32a, 10, 37);
         return v|0;
     }
 
@@ -93,7 +94,7 @@ var loadModule_int32_code =
     function do_add_i(i) {
         i = i|0;
         var v = 0;
-        v = atomic_add(i32a, i>>2, 37)|0;
+        v = atomic_add(i32a, i>>2, 37);
         return v|0;
     }
 
@@ -101,14 +102,14 @@ var loadModule_int32_code =
     // compiler, this covers all the binops.
     function do_add_intish() {
         var v = 0;
-        v = atomic_add(i32a, 10, 1+2)|0;
+        v = atomic_add(i32a, 10, 1+2);
         return v|0;
     }
 
     // Subtract 148 from element 20
     function do_sub() {
         var v = 0;
-        v = atomic_sub(i32a, 20, 148)|0;
+        v = atomic_sub(i32a, 20, 148);
         return v|0;
     }
 
@@ -116,14 +117,14 @@ var loadModule_int32_code =
     function do_sub_i(i) {
         i = i|0;
         var v = 0;
-        v = atomic_sub(i32a, i>>2, 148)|0;
+        v = atomic_sub(i32a, i>>2, 148);
         return v|0;
     }
 
     // AND 0x33333333 into element 30
     function do_and() {
         var v = 0;
-        v = atomic_and(i32a, 30, 0x33333333)|0;
+        v = atomic_and(i32a, 30, 0x33333333);
         return v|0;
     }
 
@@ -131,14 +132,14 @@ var loadModule_int32_code =
     function do_and_i(i) {
         i = i|0;
         var v = 0;
-        v = atomic_and(i32a, i>>2, 0x33333333)|0;
+        v = atomic_and(i32a, i>>2, 0x33333333);
         return v|0;
     }
 
     // OR 0x33333333 into element 40
     function do_or() {
         var v = 0;
-        v = atomic_or(i32a, 40, 0x33333333)|0;
+        v = atomic_or(i32a, 40, 0x33333333);
         return v|0;
     }
 
@@ -146,14 +147,14 @@ var loadModule_int32_code =
     function do_or_i(i) {
         i = i|0;
         var v = 0;
-        v = atomic_or(i32a, i>>2, 0x33333333)|0;
+        v = atomic_or(i32a, i>>2, 0x33333333);
         return v|0;
     }
 
     // XOR 0x33333333 into element 50
     function do_xor() {
         var v = 0;
-        v = atomic_xor(i32a, 50, 0x33333333)|0;
+        v = atomic_xor(i32a, 50, 0x33333333);
         return v|0;
     }
 
@@ -161,14 +162,14 @@ var loadModule_int32_code =
     function do_xor_i(i) {
         i = i|0;
         var v = 0;
-        v = atomic_xor(i32a, i>>2, 0x33333333)|0;
+        v = atomic_xor(i32a, i>>2, 0x33333333);
         return v|0;
     }
 
     // CAS element 100: 0 -> -1
     function do_cas1() {
         var v = 0;
-        v = atomic_cmpxchg(i32a, 100, 0, -1)|0;
+        v = atomic_cmpxchg(i32a, 100, 0, -1);
         return v|0;
     }
 
@@ -176,14 +177,14 @@ var loadModule_int32_code =
     // to test that the compiler allows intish arguments.
     function do_cas_intish() {
         var v = 0;
-        v = atomic_cmpxchg(i32a, 100, 1+2, 2+3)|0;
+        v = atomic_cmpxchg(i32a, 100, 1+2, 2+3);
         return v|0;
     }
 
     // CAS element 100: -1 -> 0x5A5A5A5A
     function do_cas2() {
         var v = 0;
-        v = atomic_cmpxchg(i32a, 100, -1, 0x5A5A5A5A)|0;
+        v = atomic_cmpxchg(i32a, 100, -1, 0x5A5A5A5A);
         return v|0;
     }
 
@@ -191,7 +192,7 @@ var loadModule_int32_code =
     function do_cas1_i(i) {
         i = i|0;
         var v = 0;
-        v = atomic_cmpxchg(i32a, i>>2, 0, -1)|0;
+        v = atomic_cmpxchg(i32a, i>>2, 0, -1);
         return v|0;
     }
 
@@ -199,7 +200,7 @@ var loadModule_int32_code =
     function do_cas2_i(i) {
         i = i|0;
         var v = 0;
-        v = atomic_cmpxchg(i32a, i>>2, -1, 0x5A5A5A5A)|0;
+        v = atomic_cmpxchg(i32a, i>>2, -1, 0x5A5A5A5A);
         return v|0;
     }
 
@@ -231,30 +232,11 @@ var loadModule_int32_code =
 
 var loadModule_int32 = asmCompile('stdlib', 'foreign', 'heap', loadModule_int32_code);
 
-// Test that compilation fails without a coercion on the return value.
-// The module is never created, we use it only for its effect.
-
-var loadModule_int32_return_xchg_code =
-    USE_ASM + `
-    var atomic_exchange = stdlib.Atomics.exchange;
-    var i32a = new stdlib.SharedInt32Array(heap);
-
-    function do_xchg() {
-        var v = 0;
-        v = atomic_exchange(i32a, 200, 37); // Should not be allowed without |0 at the end
-        return v|0;
-    }
-
-    return { xchg: do_xchg }
-`;
-
-assertAsmTypeFail('stdlib', 'foreign', 'heap', loadModule_int32_return_xchg_code);
-
 function test_int32(heap) {
-    var i32a = new SharedInt32Array(heap);
+    var i32a = new Int32Array(heap);
     var i32m = asmLink(loadModule_int32, this, {}, heap);
 
-    var size = SharedInt32Array.BYTES_PER_ELEMENT;
+    var size = Int32Array.BYTES_PER_ELEMENT;
 
     i32m.fence();
 
@@ -357,12 +339,12 @@ var loadModule_uint32_code =
     var atomic_or = stdlib.Atomics.or;
     var atomic_xor = stdlib.Atomics.xor;
 
-    var i32a = new stdlib.SharedUint32Array(heap);
+    var i32a = new stdlib.Uint32Array(heap);
 
     // Load element 0
     function do_load() {
         var v = 0;
-        v = atomic_load(i32a, 0)|0;
+        v = atomic_load(i32a, 0);
         return +(v>>>0);
     }
 
@@ -370,14 +352,14 @@ var loadModule_uint32_code =
     function do_load_i(i) {
         i = i|0;
         var v = 0;
-        v = atomic_load(i32a, i>>2)|0;
+        v = atomic_load(i32a, i>>2);
         return +(v>>>0);
     }
 
     // Store 37 in element 0
     function do_store() {
         var v = 0;
-        v = atomic_store(i32a, 0, 37)|0;
+        v = atomic_store(i32a, 0, 37);
         return +(v>>>0);
     }
 
@@ -385,14 +367,14 @@ var loadModule_uint32_code =
     function do_store_i(i) {
         i = i|0;
         var v = 0;
-        v = atomic_store(i32a, i>>2, 37)|0;
+        v = atomic_store(i32a, i>>2, 37);
         return +(v>>>0);
     }
 
     // Exchange 37 into element 200
     function do_xchg() {
         var v = 0;
-        v = atomic_exchange(i32a, 200, 37)|0;
+        v = atomic_exchange(i32a, 200, 37);
         return v|0;
     }
 
@@ -400,14 +382,14 @@ var loadModule_uint32_code =
     function do_xchg_i(i) {
         i = i|0;
         var v = 0;
-        v = atomic_exchange(i32a, i>>2, 42)|0;
+        v = atomic_exchange(i32a, i>>2, 42);
         return v|0;
     }
 
     // Add 37 to element 10
     function do_add() {
         var v = 0;
-        v = atomic_add(i32a, 10, 37)|0;
+        v = atomic_add(i32a, 10, 37);
         return +(v>>>0);
     }
 
@@ -415,14 +397,14 @@ var loadModule_uint32_code =
     function do_add_i(i) {
         i = i|0;
         var v = 0;
-        v = atomic_add(i32a, i>>2, 37)|0;
+        v = atomic_add(i32a, i>>2, 37);
         return +(v>>>0);
     }
 
     // Subtract 148 from element 20
     function do_sub() {
         var v = 0;
-        v = atomic_sub(i32a, 20, 148)|0;
+        v = atomic_sub(i32a, 20, 148);
         return +(v>>>0);
     }
 
@@ -430,14 +412,14 @@ var loadModule_uint32_code =
     function do_sub_i(i) {
         i = i|0;
         var v = 0;
-        v = atomic_sub(i32a, i>>2, 148)|0;
+        v = atomic_sub(i32a, i>>2, 148);
         return +(v>>>0);
     }
 
     // AND 0x33333333 into element 30
     function do_and() {
         var v = 0;
-        v = atomic_and(i32a, 30, 0x33333333)|0;
+        v = atomic_and(i32a, 30, 0x33333333);
         return +(v>>>0);
     }
 
@@ -445,14 +427,14 @@ var loadModule_uint32_code =
     function do_and_i(i) {
         i = i|0;
         var v = 0;
-        v = atomic_and(i32a, i>>2, 0x33333333)|0;
+        v = atomic_and(i32a, i>>2, 0x33333333);
         return +(v>>>0);
     }
 
     // OR 0x33333333 into element 40
     function do_or() {
         var v = 0;
-        v = atomic_or(i32a, 40, 0x33333333)|0;
+        v = atomic_or(i32a, 40, 0x33333333);
         return +(v>>>0);
     }
 
@@ -460,14 +442,14 @@ var loadModule_uint32_code =
     function do_or_i(i) {
         i = i|0;
         var v = 0;
-        v = atomic_or(i32a, i>>2, 0x33333333)|0;
+        v = atomic_or(i32a, i>>2, 0x33333333);
         return +(v>>>0);
     }
 
     // XOR 0x33333333 into element 50
     function do_xor() {
         var v = 0;
-        v = atomic_xor(i32a, 50, 0x33333333)|0;
+        v = atomic_xor(i32a, 50, 0x33333333);
         return +(v>>>0);
     }
 
@@ -475,21 +457,21 @@ var loadModule_uint32_code =
     function do_xor_i(i) {
         i = i|0;
         var v = 0;
-        v = atomic_xor(i32a, i>>2, 0x33333333)|0;
+        v = atomic_xor(i32a, i>>2, 0x33333333);
         return +(v>>>0);
     }
 
     // CAS element 100: 0 -> -1
     function do_cas1() {
         var v = 0;
-        v = atomic_cmpxchg(i32a, 100, 0, -1)|0;
+        v = atomic_cmpxchg(i32a, 100, 0, -1);
         return +(v>>>0);
     }
 
     // CAS element 100: -1 -> 0x5A5A5A5A
     function do_cas2() {
         var v = 0;
-        v = atomic_cmpxchg(i32a, 100, -1, 0x5A5A5A5A)|0;
+        v = atomic_cmpxchg(i32a, 100, -1, 0x5A5A5A5A);
         return +(v>>>0);
     }
 
@@ -497,7 +479,7 @@ var loadModule_uint32_code =
     function do_cas1_i(i) {
         i = i|0;
         var v = 0;
-        v = atomic_cmpxchg(i32a, i>>2, 0, -1)|0;
+        v = atomic_cmpxchg(i32a, i>>2, 0, -1);
         return +(v>>>0);
     }
 
@@ -505,7 +487,7 @@ var loadModule_uint32_code =
     function do_cas2_i(i) {
         i = i|0;
         var v = 0;
-        v = atomic_cmpxchg(i32a, i>>2, -1, 0x5A5A5A5A)|0;
+        v = atomic_cmpxchg(i32a, i>>2, -1, 0x5A5A5A5A);
         return +(v>>>0);
     }
 
@@ -534,10 +516,10 @@ var loadModule_uint32_code =
 var loadModule_uint32 = asmCompile('stdlib', 'foreign', 'heap', loadModule_uint32_code);
 
 function test_uint32(heap) {
-    var i32a = new SharedUint32Array(heap);
+    var i32a = new Uint32Array(heap);
     var i32m = loadModule_uint32(this, {}, heap);
 
-    var size = SharedUint32Array.BYTES_PER_ELEMENT;
+    var size = Uint32Array.BYTES_PER_ELEMENT;
 
     i32a[0] = 12345;
     assertEq(i32m.load(), 12345);
@@ -638,7 +620,7 @@ var loadModule_int16_code =
     var atomic_or = stdlib.Atomics.or;
     var atomic_xor = stdlib.Atomics.xor;
 
-    var i16a = new stdlib.SharedInt16Array(heap);
+    var i16a = new stdlib.Int16Array(heap);
 
     function do_fence() {
         atomic_fence();
@@ -647,7 +629,7 @@ var loadModule_int16_code =
     // Load element 0
     function do_load() {
         var v = 0;
-        v = atomic_load(i16a, 0)|0;
+        v = atomic_load(i16a, 0);
         return v|0;
     }
 
@@ -655,14 +637,14 @@ var loadModule_int16_code =
     function do_load_i(i) {
         i = i|0;
         var v = 0;
-        v = atomic_load(i16a, i>>1)|0;
+        v = atomic_load(i16a, i>>1);
         return v|0;
     }
 
     // Store 37 in element 0
     function do_store() {
         var v = 0;
-        v = atomic_store(i16a, 0, 37)|0;
+        v = atomic_store(i16a, 0, 37);
         return v|0;
     }
 
@@ -670,14 +652,14 @@ var loadModule_int16_code =
     function do_store_i(i) {
         i = i|0;
         var v = 0;
-        v = atomic_store(i16a, i>>1, 37)|0;
+        v = atomic_store(i16a, i>>1, 37);
         return v|0;
     }
 
     // Exchange 37 into element 200
     function do_xchg() {
         var v = 0;
-        v = atomic_exchange(i16a, 200, 37)|0;
+        v = atomic_exchange(i16a, 200, 37);
         return v|0;
     }
 
@@ -685,14 +667,14 @@ var loadModule_int16_code =
     function do_xchg_i(i) {
         i = i|0;
         var v = 0;
-        v = atomic_exchange(i16a, i>>1, 42)|0;
+        v = atomic_exchange(i16a, i>>1, 42);
         return v|0;
     }
 
     // Add 37 to element 10
     function do_add() {
         var v = 0;
-        v = atomic_add(i16a, 10, 37)|0;
+        v = atomic_add(i16a, 10, 37);
         return v|0;
     }
 
@@ -700,14 +682,14 @@ var loadModule_int16_code =
     function do_add_i(i) {
         i = i|0;
         var v = 0;
-        v = atomic_add(i16a, i>>1, 37)|0;
+        v = atomic_add(i16a, i>>1, 37);
         return v|0;
     }
 
     // Subtract 148 from element 20
     function do_sub() {
         var v = 0;
-        v = atomic_sub(i16a, 20, 148)|0;
+        v = atomic_sub(i16a, 20, 148);
         return v|0;
     }
 
@@ -715,14 +697,14 @@ var loadModule_int16_code =
     function do_sub_i(i) {
         i = i|0;
         var v = 0;
-        v = atomic_sub(i16a, i>>1, 148)|0;
+        v = atomic_sub(i16a, i>>1, 148);
         return v|0;
     }
 
     // AND 0x3333 into element 30
     function do_and() {
         var v = 0;
-        v = atomic_and(i16a, 30, 0x3333)|0;
+        v = atomic_and(i16a, 30, 0x3333);
         return v|0;
     }
 
@@ -730,14 +712,14 @@ var loadModule_int16_code =
     function do_and_i(i) {
         i = i|0;
         var v = 0;
-        v = atomic_and(i16a, i>>1, 0x3333)|0;
+        v = atomic_and(i16a, i>>1, 0x3333);
         return v|0;
     }
 
     // OR 0x3333 into element 40
     function do_or() {
         var v = 0;
-        v = atomic_or(i16a, 40, 0x3333)|0;
+        v = atomic_or(i16a, 40, 0x3333);
         return v|0;
     }
 
@@ -745,14 +727,14 @@ var loadModule_int16_code =
     function do_or_i(i) {
         i = i|0;
         var v = 0;
-        v = atomic_or(i16a, i>>1, 0x3333)|0;
+        v = atomic_or(i16a, i>>1, 0x3333);
         return v|0;
     }
 
     // XOR 0x3333 into element 50
     function do_xor() {
         var v = 0;
-        v = atomic_xor(i16a, 50, 0x3333)|0;
+        v = atomic_xor(i16a, 50, 0x3333);
         return v|0;
     }
 
@@ -760,21 +742,21 @@ var loadModule_int16_code =
     function do_xor_i(i) {
         i = i|0;
         var v = 0;
-        v = atomic_xor(i16a, i>>1, 0x3333)|0;
+        v = atomic_xor(i16a, i>>1, 0x3333);
         return v|0;
     }
 
     // CAS element 100: 0 -> -1
     function do_cas1() {
         var v = 0;
-        v = atomic_cmpxchg(i16a, 100, 0, -1)|0;
+        v = atomic_cmpxchg(i16a, 100, 0, -1);
         return v|0;
     }
 
     // CAS element 100: -1 -> 0x5A5A
     function do_cas2() {
         var v = 0;
-        v = atomic_cmpxchg(i16a, 100, -1, 0x5A5A)|0;
+        v = atomic_cmpxchg(i16a, 100, -1, 0x5A5A);
         return v|0;
     }
 
@@ -782,7 +764,7 @@ var loadModule_int16_code =
     function do_cas1_i(i) {
         i = i|0;
         var v = 0;
-        v = atomic_cmpxchg(i16a, i>>1, 0, -1)|0;
+        v = atomic_cmpxchg(i16a, i>>1, 0, -1);
         return v|0;
     }
 
@@ -790,7 +772,7 @@ var loadModule_int16_code =
     function do_cas2_i(i) {
         i = i|0;
         var v = 0;
-        v = atomic_cmpxchg(i16a, i>>1, -1, 0x5A5A)|0;
+        v = atomic_cmpxchg(i16a, i>>1, -1, 0x5A5A);
         return v|0;
     }
 
@@ -820,10 +802,10 @@ var loadModule_int16_code =
 var loadModule_int16 = asmCompile('stdlib', 'foreign', 'heap', loadModule_int16_code);
 
 function test_int16(heap) {
-    var i16a = new SharedInt16Array(heap);
+    var i16a = new Int16Array(heap);
     var i16m = loadModule_int16(this, {}, heap);
 
-    var size = SharedInt16Array.BYTES_PER_ELEMENT;
+    var size = Int16Array.BYTES_PER_ELEMENT;
 
     i16m.fence();
 
@@ -933,12 +915,12 @@ var loadModule_uint16_code =
     var atomic_or = stdlib.Atomics.or;
     var atomic_xor = stdlib.Atomics.xor;
 
-    var i16a = new stdlib.SharedUint16Array(heap);
+    var i16a = new stdlib.Uint16Array(heap);
 
     // Load element 0
     function do_load() {
         var v = 0;
-        v = atomic_load(i16a, 0)|0;
+        v = atomic_load(i16a, 0);
         return v|0;
     }
 
@@ -946,14 +928,14 @@ var loadModule_uint16_code =
     function do_load_i(i) {
         i = i|0;
         var v = 0;
-        v = atomic_load(i16a, i>>1)|0;
+        v = atomic_load(i16a, i>>1);
         return v|0;
     }
 
     // Store 37 in element 0
     function do_store() {
         var v = 0;
-        v = atomic_store(i16a, 0, 37)|0;
+        v = atomic_store(i16a, 0, 37);
         return v|0;
     }
 
@@ -961,14 +943,14 @@ var loadModule_uint16_code =
     function do_store_i(i) {
         i = i|0;
         var v = 0;
-        v = atomic_store(i16a, i>>1, 37)|0;
+        v = atomic_store(i16a, i>>1, 37);
         return v|0;
     }
 
     // Exchange 37 into element 200
     function do_xchg() {
         var v = 0;
-        v = atomic_exchange(i16a, 200, 37)|0;
+        v = atomic_exchange(i16a, 200, 37);
         return v|0;
     }
 
@@ -976,14 +958,14 @@ var loadModule_uint16_code =
     function do_xchg_i(i) {
         i = i|0;
         var v = 0;
-        v = atomic_exchange(i16a, i>>1, 42)|0;
+        v = atomic_exchange(i16a, i>>1, 42);
         return v|0;
     }
 
     // Add 37 to element 10
     function do_add() {
         var v = 0;
-        v = atomic_add(i16a, 10, 37)|0;
+        v = atomic_add(i16a, 10, 37);
         return v|0;
     }
 
@@ -991,14 +973,14 @@ var loadModule_uint16_code =
     function do_add_i(i) {
         i = i|0;
         var v = 0;
-        v = atomic_add(i16a, i>>1, 37)|0;
+        v = atomic_add(i16a, i>>1, 37);
         return v|0;
     }
 
     // Subtract 148 from element 20
     function do_sub() {
         var v = 0;
-        v = atomic_sub(i16a, 20, 148)|0;
+        v = atomic_sub(i16a, 20, 148);
         return v|0;
     }
 
@@ -1006,14 +988,14 @@ var loadModule_uint16_code =
     function do_sub_i(i) {
         i = i|0;
         var v = 0;
-        v = atomic_sub(i16a, i>>1, 148)|0;
+        v = atomic_sub(i16a, i>>1, 148);
         return v|0;
     }
 
     // AND 0x3333 into element 30
     function do_and() {
         var v = 0;
-        v = atomic_and(i16a, 30, 0x3333)|0;
+        v = atomic_and(i16a, 30, 0x3333);
         return v|0;
     }
 
@@ -1021,14 +1003,14 @@ var loadModule_uint16_code =
     function do_and_i(i) {
         i = i|0;
         var v = 0;
-        v = atomic_and(i16a, i>>1, 0x3333)|0;
+        v = atomic_and(i16a, i>>1, 0x3333);
         return v|0;
     }
 
     // OR 0x3333 into element 40
     function do_or() {
         var v = 0;
-        v = atomic_or(i16a, 40, 0x3333)|0;
+        v = atomic_or(i16a, 40, 0x3333);
         return v|0;
     }
 
@@ -1036,14 +1018,14 @@ var loadModule_uint16_code =
     function do_or_i(i) {
         i = i|0;
         var v = 0;
-        v = atomic_or(i16a, i>>1, 0x3333)|0;
+        v = atomic_or(i16a, i>>1, 0x3333);
         return v|0;
     }
 
     // XOR 0x3333 into element 50
     function do_xor() {
         var v = 0;
-        v = atomic_xor(i16a, 50, 0x3333)|0;
+        v = atomic_xor(i16a, 50, 0x3333);
         return v|0;
     }
 
@@ -1051,21 +1033,21 @@ var loadModule_uint16_code =
     function do_xor_i(i) {
         i = i|0;
         var v = 0;
-        v = atomic_xor(i16a, i>>1, 0x3333)|0;
+        v = atomic_xor(i16a, i>>1, 0x3333);
         return v|0;
     }
 
     // CAS element 100: 0 -> -1
     function do_cas1() {
         var v = 0;
-        v = atomic_cmpxchg(i16a, 100, 0, -1)|0;
+        v = atomic_cmpxchg(i16a, 100, 0, -1);
         return v|0;
     }
 
     // CAS element 100: -1 -> 0x5A5A
     function do_cas2() {
         var v = 0;
-        v = atomic_cmpxchg(i16a, 100, -1, 0x5A5A)|0;
+        v = atomic_cmpxchg(i16a, 100, -1, 0x5A5A);
         return v|0;
     }
 
@@ -1073,7 +1055,7 @@ var loadModule_uint16_code =
     function do_cas1_i(i) {
         i = i|0;
         var v = 0;
-        v = atomic_cmpxchg(i16a, i>>1, 0, -1)|0;
+        v = atomic_cmpxchg(i16a, i>>1, 0, -1);
         return v|0;
     }
 
@@ -1081,7 +1063,7 @@ var loadModule_uint16_code =
     function do_cas2_i(i) {
         i = i|0;
         var v = 0;
-        v = atomic_cmpxchg(i16a, i>>1, -1, 0x5A5A)|0;
+        v = atomic_cmpxchg(i16a, i>>1, -1, 0x5A5A);
         return v|0;
     }
 
@@ -1110,10 +1092,10 @@ var loadModule_uint16_code =
 var loadModule_uint16 = asmCompile('stdlib', 'foreign', 'heap', loadModule_uint16_code);
 
 function test_uint16(heap) {
-    var i16a = new SharedUint16Array(heap);
+    var i16a = new Uint16Array(heap);
     var i16m = loadModule_uint16(this, {}, heap);
 
-    var size = SharedUint16Array.BYTES_PER_ELEMENT;
+    var size = Uint16Array.BYTES_PER_ELEMENT;
 
     i16a[0] = 12345;
     assertEq(i16m.load(), 12345);
@@ -1221,12 +1203,12 @@ var loadModule_int8_code =
     var atomic_or = stdlib.Atomics.or;
     var atomic_xor = stdlib.Atomics.xor;
 
-    var i8a = new stdlib.SharedInt8Array(heap);
+    var i8a = new stdlib.Int8Array(heap);
 
     // Load element 0
     function do_load() {
         var v = 0;
-        v = atomic_load(i8a, 0)|0;
+        v = atomic_load(i8a, 0);
         return v|0;
     }
 
@@ -1234,14 +1216,14 @@ var loadModule_int8_code =
     function do_load_i(i) {
         i = i|0;
         var v = 0;
-        v = atomic_load(i8a, i)|0;
+        v = atomic_load(i8a, i);
         return v|0;
     }
 
     // Store 37 in element 0
     function do_store() {
         var v = 0;
-        v = atomic_store(i8a, 0, 37)|0;
+        v = atomic_store(i8a, 0, 37);
         return v|0;
     }
 
@@ -1249,14 +1231,14 @@ var loadModule_int8_code =
     function do_store_i(i) {
         i = i|0;
         var v = 0;
-        v = atomic_store(i8a, i, 37)|0;
+        v = atomic_store(i8a, i, 37);
         return v|0;
     }
 
     // Exchange 37 into element 200
     function do_xchg() {
         var v = 0;
-        v = atomic_exchange(i8a, 200, 37)|0;
+        v = atomic_exchange(i8a, 200, 37);
         return v|0;
     }
 
@@ -1264,14 +1246,14 @@ var loadModule_int8_code =
     function do_xchg_i(i) {
         i = i|0;
         var v = 0;
-        v = atomic_exchange(i8a, i, 42)|0;
+        v = atomic_exchange(i8a, i, 42);
         return v|0;
     }
 
     // Add 37 to element 10
     function do_add() {
         var v = 0;
-        v = atomic_add(i8a, 10, 37)|0;
+        v = atomic_add(i8a, 10, 37);
         return v|0;
     }
 
@@ -1279,14 +1261,14 @@ var loadModule_int8_code =
     function do_add_i(i) {
         i = i|0;
         var v = 0;
-        v = atomic_add(i8a, i, 37)|0;
+        v = atomic_add(i8a, i, 37);
         return v|0;
     }
 
     // Subtract 108 from element 20
     function do_sub() {
         var v = 0;
-        v = atomic_sub(i8a, 20, 108)|0;
+        v = atomic_sub(i8a, 20, 108);
         return v|0;
     }
 
@@ -1294,14 +1276,14 @@ var loadModule_int8_code =
     function do_sub_i(i) {
         i = i|0;
         var v = 0;
-        v = atomic_sub(i8a, i, 108)|0;
+        v = atomic_sub(i8a, i, 108);
         return v|0;
     }
 
     // AND 0x33 into element 30
     function do_and() {
         var v = 0;
-        v = atomic_and(i8a, 30, 0x33)|0;
+        v = atomic_and(i8a, 30, 0x33);
         return v|0;
     }
 
@@ -1309,14 +1291,14 @@ var loadModule_int8_code =
     function do_and_i(i) {
         i = i|0;
         var v = 0;
-        v = atomic_and(i8a, i, 0x33)|0;
+        v = atomic_and(i8a, i, 0x33);
         return v|0;
     }
 
     // OR 0x33 into element 40
     function do_or() {
         var v = 0;
-        v = atomic_or(i8a, 40, 0x33)|0;
+        v = atomic_or(i8a, 40, 0x33);
         return v|0;
     }
 
@@ -1324,14 +1306,14 @@ var loadModule_int8_code =
     function do_or_i(i) {
         i = i|0;
         var v = 0;
-        v = atomic_or(i8a, i, 0x33)|0;
+        v = atomic_or(i8a, i, 0x33);
         return v|0;
     }
 
     // XOR 0x33 into element 50
     function do_xor() {
         var v = 0;
-        v = atomic_xor(i8a, 50, 0x33)|0;
+        v = atomic_xor(i8a, 50, 0x33);
         return v|0;
     }
 
@@ -1339,21 +1321,21 @@ var loadModule_int8_code =
     function do_xor_i(i) {
         i = i|0;
         var v = 0;
-        v = atomic_xor(i8a, i, 0x33)|0;
+        v = atomic_xor(i8a, i, 0x33);
         return v|0;
     }
 
     // CAS element 100: 0 -> -1
     function do_cas1() {
         var v = 0;
-        v = atomic_cmpxchg(i8a, 100, 0, -1)|0;
+        v = atomic_cmpxchg(i8a, 100, 0, -1);
         return v|0;
     }
 
     // CAS element 100: -1 -> 0x5A
     function do_cas2() {
         var v = 0;
-        v = atomic_cmpxchg(i8a, 100, -1, 0x5A)|0;
+        v = atomic_cmpxchg(i8a, 100, -1, 0x5A);
         return v|0;
     }
 
@@ -1361,7 +1343,7 @@ var loadModule_int8_code =
     function do_cas1_i(i) {
         i = i|0;
         var v = 0;
-        v = atomic_cmpxchg(i8a, i, 0, -1)|0;
+        v = atomic_cmpxchg(i8a, i, 0, -1);
         return v|0;
     }
 
@@ -1369,7 +1351,7 @@ var loadModule_int8_code =
     function do_cas2_i(i) {
         i = i|0;
         var v = 0;
-        v = atomic_cmpxchg(i8a, i, -1, 0x5A)|0;
+        v = atomic_cmpxchg(i8a, i, -1, 0x5A);
         return v|0;
     }
 
@@ -1398,13 +1380,13 @@ var loadModule_int8_code =
 var loadModule_int8 = asmCompile('stdlib', 'foreign', 'heap', loadModule_int8_code);
 
 function test_int8(heap) {
-    var i8a = new SharedInt8Array(heap);
+    var i8a = new Int8Array(heap);
     var i8m = loadModule_int8(this, {}, heap);
 
     for ( var i=0 ; i < i8a.length ; i++ )
 	i8a[i] = 0;
 
-    var size = SharedInt8Array.BYTES_PER_ELEMENT;
+    var size = Int8Array.BYTES_PER_ELEMENT;
 
     i8a[0] = 123;
     assertEq(i8m.load(), 123);
@@ -1502,12 +1484,12 @@ var loadModule_uint8_code =
     var atomic_or = stdlib.Atomics.or;
     var atomic_xor = stdlib.Atomics.xor;
 
-    var i8a = new stdlib.SharedUint8Array(heap);
+    var i8a = new stdlib.Uint8Array(heap);
 
     // Load element 0
     function do_load() {
         var v = 0;
-        v = atomic_load(i8a, 0)|0;
+        v = atomic_load(i8a, 0);
         return v|0;
     }
 
@@ -1515,14 +1497,14 @@ var loadModule_uint8_code =
     function do_load_i(i) {
         i = i|0;
         var v = 0;
-        v = atomic_load(i8a, i)|0;
+        v = atomic_load(i8a, i);
         return v|0;
     }
 
     // Store 37 in element 0
     function do_store() {
         var v = 0;
-        v = atomic_store(i8a, 0, 37)|0;
+        v = atomic_store(i8a, 0, 37);
         return v|0;
     }
 
@@ -1530,14 +1512,14 @@ var loadModule_uint8_code =
     function do_store_i(i) {
         i = i|0;
         var v = 0;
-        v = atomic_store(i8a, i, 37)|0;
+        v = atomic_store(i8a, i, 37);
         return v|0;
     }
 
     // Exchange 37 into element 200
     function do_xchg() {
         var v = 0;
-        v = atomic_exchange(i8a, 200, 37)|0;
+        v = atomic_exchange(i8a, 200, 37);
         return v|0;
     }
 
@@ -1545,14 +1527,14 @@ var loadModule_uint8_code =
     function do_xchg_i(i) {
         i = i|0;
         var v = 0;
-        v = atomic_exchange(i8a, i, 42)|0;
+        v = atomic_exchange(i8a, i, 42);
         return v|0;
     }
 
     // Add 37 to element 10
     function do_add() {
         var v = 0;
-        v = atomic_add(i8a, 10, 37)|0;
+        v = atomic_add(i8a, 10, 37);
         return v|0;
     }
 
@@ -1560,14 +1542,14 @@ var loadModule_uint8_code =
     function do_add_i(i) {
         i = i|0;
         var v = 0;
-        v = atomic_add(i8a, i, 37)|0;
+        v = atomic_add(i8a, i, 37);
         return v|0;
     }
 
     // Subtract 108 from element 20
     function do_sub() {
         var v = 0;
-        v = atomic_sub(i8a, 20, 108)|0;
+        v = atomic_sub(i8a, 20, 108);
         return v|0;
     }
 
@@ -1575,14 +1557,14 @@ var loadModule_uint8_code =
     function do_sub_i(i) {
         i = i|0;
         var v = 0;
-        v = atomic_sub(i8a, i, 108)|0;
+        v = atomic_sub(i8a, i, 108);
         return v|0;
     }
 
     // AND 0x33 into element 30
     function do_and() {
         var v = 0;
-        v = atomic_and(i8a, 30, 0x33)|0;
+        v = atomic_and(i8a, 30, 0x33);
         return v|0;
     }
 
@@ -1590,14 +1572,14 @@ var loadModule_uint8_code =
     function do_and_i(i) {
         i = i|0;
         var v = 0;
-        v = atomic_and(i8a, i, 0x33)|0;
+        v = atomic_and(i8a, i, 0x33);
         return v|0;
     }
 
     // OR 0x33 into element 40
     function do_or() {
         var v = 0;
-        v = atomic_or(i8a, 40, 0x33)|0;
+        v = atomic_or(i8a, 40, 0x33);
         return v|0;
     }
 
@@ -1605,14 +1587,14 @@ var loadModule_uint8_code =
     function do_or_i(i) {
         i = i|0;
         var v = 0;
-        v = atomic_or(i8a, i, 0x33)|0;
+        v = atomic_or(i8a, i, 0x33);
         return v|0;
     }
 
     // XOR 0x33 into element 50
     function do_xor() {
         var v = 0;
-        v = atomic_xor(i8a, 50, 0x33)|0;
+        v = atomic_xor(i8a, 50, 0x33);
         return v|0;
     }
 
@@ -1620,21 +1602,21 @@ var loadModule_uint8_code =
     function do_xor_i(i) {
         i = i|0;
         var v = 0;
-        v = atomic_xor(i8a, i, 0x33)|0;
+        v = atomic_xor(i8a, i, 0x33);
         return v|0;
     }
 
     // CAS element 100: 0 -> -1
     function do_cas1() {
         var v = 0;
-        v = atomic_cmpxchg(i8a, 100, 0, -1)|0;
+        v = atomic_cmpxchg(i8a, 100, 0, -1);
         return v|0;
     }
 
     // CAS element 100: -1 -> 0x5A
     function do_cas2() {
         var v = 0;
-        v = atomic_cmpxchg(i8a, 100, -1, 0x5A)|0;
+        v = atomic_cmpxchg(i8a, 100, -1, 0x5A);
         return v|0;
     }
 
@@ -1642,7 +1624,7 @@ var loadModule_uint8_code =
     function do_cas1_i(i) {
         i = i|0;
         var v = 0;
-        v = atomic_cmpxchg(i8a, i, 0, -1)|0;
+        v = atomic_cmpxchg(i8a, i, 0, -1);
         return v|0;
     }
 
@@ -1650,7 +1632,7 @@ var loadModule_uint8_code =
     function do_cas2_i(i) {
         i = i|0;
         var v = 0;
-        v = atomic_cmpxchg(i8a, i, -1, 0x5A)|0;
+        v = atomic_cmpxchg(i8a, i, -1, 0x5A);
         return v|0;
     }
 
@@ -1679,13 +1661,13 @@ var loadModule_uint8_code =
 var loadModule_uint8 = asmCompile('stdlib', 'foreign', 'heap', loadModule_uint8_code);
 
 function test_uint8(heap) {
-    var i8a = new SharedUint8Array(heap);
+    var i8a = new Uint8Array(heap);
     var i8m = loadModule_uint8(this, {}, heap);
 
     for ( var i=0 ; i < i8a.length ; i++ )
 	i8a[i] = 0;
 
-    var size = SharedUint8Array.BYTES_PER_ELEMENT;
+    var size = Uint8Array.BYTES_PER_ELEMENT;
 
     i8a[0] = 123;
     assertEq(i8m.load(), 123);
@@ -1849,7 +1831,7 @@ function test_misc(heap) {
     assertEq(misc.ilf9(), 0);
 }
 
-// SharedUint8ClampedArray is not supported for asm.js.
+// Shared-memory Uint8ClampedArray is not supported for asm.js.
 
 var heap = new SharedArrayBuffer(65536);
 
@@ -1867,11 +1849,11 @@ setARMHwCapFlags('vfp');
 asmCompile('stdlib', 'ffi', 'heap',
     USE_ASM + `
     var atomic_exchange = stdlib.Atomics.exchange;
-    var i8a = new stdlib.SharedInt8Array(heap);
+    var i8a = new stdlib.Int8Array(heap);
 
     function do_xchg() {
         var v = 0;
-        v = atomic_exchange(i8a, 200, 37) | 0;
+        v = atomic_exchange(i8a, 200, 37);
         return v|0;
     }
 

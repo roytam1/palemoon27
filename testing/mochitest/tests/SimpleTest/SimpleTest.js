@@ -212,27 +212,9 @@ if (typeof(computedStyle) == 'undefined') {
 **/
 SimpleTest.testPluginIsOOP = function () {
     var testPluginIsOOP = false;
-    if (navigator.platform.indexOf("Mac") == 0) {
-        if (SpecialPowers.XPCOMABI.match(/x86-/)) {
-            try {
-                testPluginIsOOP = SpecialPowers.getBoolPref("dom.ipc.plugins.enabled.i386.test.plugin");
-            } catch (e) {
-                testPluginIsOOP = SpecialPowers.getBoolPref("dom.ipc.plugins.enabled.i386");
-            }
-        }
-        else if (SpecialPowers.XPCOMABI.match(/x86_64-/)) {
-            try {
-                testPluginIsOOP = SpecialPowers.getBoolPref("dom.ipc.plugins.enabled.x86_64.test.plugin");
-            } catch (e) {
-                testPluginIsOOP = SpecialPowers.getBoolPref("dom.ipc.plugins.enabled.x86_64");
-            }
-        }
-    }
-    else {
-        testPluginIsOOP = SpecialPowers.getBoolPref("dom.ipc.plugins.enabled");
-    }
-
-    return testPluginIsOOP;
+    var ph = SpecialPowers.Cc["@mozilla.org/plugin/host;1"]
+                          .getService(SpecialPowers.Ci.nsIPluginHost);
+    return ph.isPluginOOP("application/x-test");
 };
 
 SimpleTest._tests = [];
@@ -1025,6 +1007,8 @@ SimpleTest.finish = function() {
     }
 
     var afterCleanup = function() {
+        SpecialPowers.removeFiles();
+
         if (SpecialPowers.DOMWindowUtils.isTestControllingRefreshes) {
             SimpleTest.ok(false, "test left refresh driver under test control");
             SpecialPowers.DOMWindowUtils.restoreNormalRefresh();
@@ -1125,7 +1109,7 @@ SimpleTest.monitorConsole = function (continuation, msgs, forbidUnexpectedMsgs) 
   }
 
   function msgMatches(msg, pat) {
-    for (k in pat) {
+    for (var k in pat) {
       if (!(k in msg)) {
         return false;
       }

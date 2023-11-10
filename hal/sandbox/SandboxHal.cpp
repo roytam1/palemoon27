@@ -50,7 +50,7 @@ Vibrate(const nsTArray<uint32_t>& pattern, const WindowIdentifier &id)
 {
   HAL_LOG("Vibrate: Sending to parent process.");
 
-  AutoInfallibleTArray<uint32_t, 8> p(pattern);
+  AutoTArray<uint32_t, 8> p(pattern);
 
   WindowIdentifier newID(id);
   newID.AppendProcessID();
@@ -122,7 +122,7 @@ GetCurrentScreenConfiguration(ScreenConfiguration* aScreenConfiguration)
 }
 
 bool
-LockScreenOrientation(const dom::ScreenOrientation& aOrientation)
+LockScreenOrientation(const dom::ScreenOrientationInternal& aOrientation)
 {
   bool allowed;
   Hal()->SendLockScreenOrientation(aOrientation, &allowed);
@@ -322,8 +322,8 @@ GetCurrentSwitchState(SwitchDevice aDevice)
 void
 NotifySwitchStateFromInputDevice(SwitchDevice aDevice, SwitchState aState)
 {
-  unused << aDevice;
-  unused << aState;
+  Unused << aDevice;
+  Unused << aState;
   NS_RUNTIMEABORT("Only the main process may notify switch state change.");
 }
 
@@ -545,7 +545,7 @@ public:
   }
 
   void Notify(const BatteryInformation& aBatteryInfo) override {
-    unused << SendNotifyBatteryChange(aBatteryInfo);
+    Unused << SendNotifyBatteryChange(aBatteryInfo);
   }
 
   virtual bool
@@ -568,7 +568,7 @@ public:
   }
 
   void Notify(const NetworkInformation& aNetworkInfo) override {
-    unused << SendNotifyNetworkChange(aNetworkInfo);
+    Unused << SendNotifyNetworkChange(aNetworkInfo);
   }
 
   virtual bool
@@ -592,7 +592,7 @@ public:
   }
 
   virtual bool
-  RecvLockScreenOrientation(const dom::ScreenOrientation& aOrientation, bool* aAllowed) override
+  RecvLockScreenOrientation(const dom::ScreenOrientationInternal& aOrientation, bool* aAllowed) override
   {
     // FIXME/bug 777980: unprivileged content may only lock
     // orientation while fullscreen.  We should check whether the
@@ -610,7 +610,7 @@ public:
   }
 
   void Notify(const ScreenConfiguration& aScreenConfiguration) override {
-    unused << SendNotifyScreenConfigurationChange(aScreenConfiguration);
+    Unused << SendNotifyScreenConfigurationChange(aScreenConfiguration);
   }
 
   virtual bool
@@ -776,7 +776,7 @@ public:
   }
   
   void Notify(const SensorData& aSensorData) override {
-    unused << SendNotifySensorChange(aSensorData);
+    Unused << SendNotifySensorChange(aSensorData);
   }
 
   virtual bool
@@ -816,7 +816,7 @@ public:
   
   void Notify(const WakeLockInformation& aWakeLockInfo) override
   {
-    unused << SendNotifyWakeLockChange(aWakeLockInfo);
+    Unused << SendNotifyWakeLockChange(aWakeLockInfo);
   }
 
   virtual bool
@@ -836,7 +836,7 @@ public:
 
   void Notify(const SwitchEvent& aSwitchEvent) override
   {
-    unused << SendNotifySwitchChange(aSwitchEvent);
+    Unused << SendNotifySwitchChange(aSwitchEvent);
   }
 
   virtual bool
@@ -849,12 +849,12 @@ public:
 
   void Notify(const int64_t& aClockDeltaMS) override
   {
-    unused << SendNotifySystemClockChange(aClockDeltaMS);
+    Unused << SendNotifySystemClockChange(aClockDeltaMS);
   }
 
   void Notify(const SystemTimezoneChangeInformation& aSystemTimezoneChangeInfo) override
   {
-    unused << SendNotifySystemTimezoneChange(aSystemTimezoneChangeInfo);
+    Unused << SendNotifySystemTimezoneChange(aSystemTimezoneChangeInfo);
   }
 
   virtual bool

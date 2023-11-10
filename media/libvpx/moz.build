@@ -4,6 +4,9 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
+with Files('*'):
+    BUG_COMPONENT = ('Core', 'Video/Audio')
+
 include('sources.mozbuild')
 
 EXPORTS.vpx += files['EXPORTS']
@@ -54,6 +57,8 @@ if 'vp8/encoder/arm/armv5te/boolhuff_armv5te.asm' not in arm_asm_files:
 if CONFIG['GKMEDIAS_SHARED_LIBRARY']:
     NO_VISIBILITY_FLAGS = True
 
+ALLOW_COMPILER_WARNINGS = True
+
 FINAL_LIBRARY = 'gkmedias'
 
 DEFINES['HAVE_CONFIG_H'] = 'vpx_config.h'
@@ -82,7 +87,10 @@ if CONFIG['CLANG_CL'] or not CONFIG['_MSC_VER']:
 
 # Suppress warnings in third-party code.
 if CONFIG['GNU_CC']:
-    CFLAGS += ['-Wno-sign-compare']
+    CFLAGS += [
+        '-Wno-sign-compare',
+        '-Wno-unused-function', # so many of these warnings; just ignore them
+    ]
 
 ASFLAGS += CONFIG['VPX_ASFLAGS']
 ASFLAGS += [

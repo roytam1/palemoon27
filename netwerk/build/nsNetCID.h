@@ -226,6 +226,18 @@
     { 0xa1, 0xa5, 0x0, 0x50, 0x4, 0x1c, 0xaf, 0x44 } \
 }
 
+// component implementing nsIStreamLoader.
+#define NS_INCREMENTALSTREAMLOADER_CONTRACTID \
+    "@mozilla.org/network/incremental-stream-loader;1"
+#define NS_INCREMENTALSTREAMLOADER_CID \
+{ /* 5d6352a3-b9c3-4fa3-87aa-b2a3c6e5a501 */         \
+    0x5d6352a3,                                      \
+    0xb9c3,                                          \
+    0x4fa3,                                          \
+    {0x87, 0xaa, 0xb2, 0xa3, 0xc6, 0xe5, 0xa5, 0x01} \
+}
+
+
 // component implementing nsIUnicharStreamLoader.
 #define NS_UNICHARSTREAMLOADER_CONTRACTID \
     "@mozilla.org/network/unichar-stream-loader;1"
@@ -281,17 +293,6 @@
     0x6f23,                                          \
     0x43db,                                          \
     {0x8b, 0x06, 0x8a, 0xaf, 0xe1, 0x86, 0x9b, 0xd8} \
-}
-
-// component implementing nsIURIChecker.
-#define NS_URICHECKER_CONTRACT_ID \
-    "@mozilla.org/network/urichecker;1"
-#define NS_URICHECKER_CID \
-{ /* cf3a0e06-1dd1-11b2-a904-ac1d6da77a02 */         \
-    0xcf3a0e06,                                      \
-    0x1dd1,                                          \
-    0x11b2,                                          \
-    {0xa9, 0x04, 0xac, 0x1d, 0x6d, 0xa7, 0x7a, 0x02} \
 }
 
 // component implementing nsIIncrementalDownload.
@@ -906,6 +907,15 @@
   { 0xa0, 0x6a, 0xdc, 0x29, 0xcf, 0x8d, 0xe3, 0x81 }   \
 }
 
+#define NS_PACKAGEDAPPVERIFIER_CONTRACTID \
+    "@mozilla.org/network/packaged-app-verifier;1"
+#define NS_PACKAGEDAPPVERIFIER_CID                      \
+{   /* 07242d20-4cae-11e5-b970-0800200c9a66 */         \
+    0x07242d20,                                        \
+    0x4cae,                                            \
+    0x11e5,                                            \
+  { 0xb9, 0x70, 0x08, 0x00, 0x20, 0x0c, 0x96, 0x66 }   \
+}
 
 /******************************************************************************
  * netwerk/cookie classes
@@ -995,15 +1005,6 @@
  */
 
 /**
- * This contract ID will be gotten as a service and gets the opportunity to look
- * at and veto all redirects that are processed by necko.
- *
- * Must implement nsIChannelEventSink
- */
-#define NS_GLOBAL_CHANNELEVENTSINK_CONTRACTID \
-  "@mozilla.org/netwerk/global-channel-event-sink;1"
-
-/**
  * This contract ID will be gotten as a service implementing nsINetworkLinkService
  * and monitored by IOService for automatic online/offline management.
  *
@@ -1071,5 +1072,18 @@
  * Must implement nsINSSErrorsService.
  */
 #define NS_NSS_ERRORS_SERVICE_CONTRACTID "@mozilla.org/nss_errors_service;1"
+
+/**
+ * LoadContextInfo factory
+ */
+#define NS_NSILOADCONTEXTINFOFACTORY_CONTRACTID \
+    "@mozilla.org/load-context-info-factory;1"
+#define NS_NSILOADCONTEXTINFOFACTORY_CID             \
+{ /* 62d4b190-3642-4450-b019-d1c1fba56025 */         \
+    0x62d4b190,                                      \
+    0x3642,                                          \
+    0x4450,                                          \
+    {0xb0, 0x19, 0xd1, 0xc1, 0xfb, 0xa5, 0x60, 0x25} \
+}
 
 #endif // nsNetCID_h__

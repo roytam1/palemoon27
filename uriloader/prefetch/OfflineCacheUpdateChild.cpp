@@ -3,6 +3,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
+#include "BackgroundUtils.h"
 #include "OfflineCacheUpdateChild.h"
 #include "nsOfflineCacheUpdate.h"
 #include "mozilla/dom/ContentChild.h"
@@ -75,8 +76,7 @@ NS_IMPL_RELEASE(OfflineCacheUpdateChild)
 OfflineCacheUpdateChild::OfflineCacheUpdateChild(nsIDOMWindow* aWindow)
     : mState(STATE_UNINITIALIZED)
     , mIsUpgrade(false)
-    , mAppID(NECKO_NO_APP_ID)
-    , mInBrowser(false)
+    , mSucceeded(false)
     , mWindow(aWindow)
     , mByteProgress(0)
 {
@@ -174,10 +174,9 @@ OfflineCacheUpdateChild::AssociateDocument(nsIDOMDocument *aDocument,
 NS_IMETHODIMP
 OfflineCacheUpdateChild::Init(nsIURI *aManifestURI,
                               nsIURI *aDocumentURI,
+                              nsIPrincipal *aLoadingPrincipal,
                               nsIDOMDocument *aDocument,
-                              nsIFile *aCustomProfileDir,
-                              uint32_t aAppID,
-                              bool aInBrowser)
+                              nsIFile *aCustomProfileDir)
 {
     nsresult rv;
 
@@ -212,14 +211,12 @@ OfflineCacheUpdateChild::Init(nsIURI *aManifestURI,
     NS_ENSURE_SUCCESS(rv, rv);
 
     mDocumentURI = aDocumentURI;
+    mLoadingPrincipal = aLoadingPrincipal;
 
     mState = STATE_INITIALIZED;
 
     if (aDocument)
         SetDocument(aDocument);
-
-    mAppID = aAppID;
-    mInBrowser = aInBrowser;
 
     return NS_OK;
 }
@@ -227,7 +224,8 @@ OfflineCacheUpdateChild::Init(nsIURI *aManifestURI,
 NS_IMETHODIMP
 OfflineCacheUpdateChild::InitPartial(nsIURI *aManifestURI,
                                   const nsACString& clientID,
-                                  nsIURI *aDocumentURI)
+                                  nsIURI *aDocumentURI,
+                                  nsIPrincipal *aLoadingPrincipal)
 {
     NS_NOTREACHED("Not expected to do partial offline cache updates"
                   " on the child process");
@@ -237,8 +235,7 @@ OfflineCacheUpdateChild::InitPartial(nsIURI *aManifestURI,
 
 NS_IMETHODIMP
 OfflineCacheUpdateChild::InitForUpdateCheck(nsIURI *aManifestURI,
-                                            uint32_t aAppID,
-                                            bool aInBrowser,
+                                            nsIPrincipal* aLoadingPrincipal,
                                             nsIObserver *aObserver)
 {
     NS_NOTREACHED("Not expected to do only update checks"
@@ -409,6 +406,12 @@ OfflineCacheUpdateChild::Schedule()
     SerializeURI(mManifestURI, manifestURI);
     SerializeURI(mDocumentURI, documentURI);
 
+    nsresult rv = NS_OK;
+    PrincipalInfo loadingPrincipalInfo;
+    rv = PrincipalToPrincipalInfo(mLoadingPrincipal,
+                                  &loadingPrincipalInfo);
+    NS_ENSURE_SUCCESS(rv, rv);
+
     nsCOMPtr<nsIObserverService> observerService =
       mozilla::services::GetObserverService();
     if (observerService) {
@@ -431,8 +434,8 @@ OfflineCacheUpdateChild::Schedule()
     // a reference to us. Will be released in RecvFinish() that identifies 
     // the work has been done.
     ContentChild::GetSingleton()->SendPOfflineCacheUpdateConstructor(
-        this, manifestURI, documentURI,
-        stickDocument, child->GetTabId());
+        this, manifestURI, documentURI, loadingPrincipalInfo,
+        stickDocument);
 
     // ContentChild::DeallocPOfflineCacheUpdate will release this.
     NS_ADDREF_THIS();
@@ -505,7 +508,7 @@ OfflineCacheUpdateChild::RecvFinish(const bool &succeeded,
 {
     LOG(("OfflineCacheUpdateChild::RecvFinish [%p]", this));
 
-    nsRefPtr<OfflineCacheUpdateChild> kungFuDeathGrip(this);
+    RefPtr<OfflineCacheUpdateChild> kungFuDeathGrip(this);
 
     mState = STATE_FINISHED;
     mSucceeded = succeeded;

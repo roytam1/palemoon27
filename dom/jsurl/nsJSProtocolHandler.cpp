@@ -178,27 +178,15 @@ nsresult nsJSThunk::EvaluateScript(nsIChannel *aChannel,
     rv = principal->GetCsp(getter_AddRefs(csp));
     NS_ENSURE_SUCCESS(rv, rv);
     if (csp) {
-        bool allowsInline = true;
-        bool reportViolations = false;
-        rv = csp->GetAllowsInlineScript(&reportViolations, &allowsInline);
-        NS_ENSURE_SUCCESS(rv, rv);
-
-        if (reportViolations) {
-            // gather information to log with violation report
-            nsCOMPtr<nsIURI> uri;
-            principal->GetURI(getter_AddRefs(uri));
-            nsAutoCString asciiSpec;
-            uri->GetAsciiSpec(asciiSpec);
-            csp->LogViolationDetails(nsIContentSecurityPolicy::VIOLATION_TYPE_INLINE_SCRIPT,
-                                     NS_ConvertUTF8toUTF16(asciiSpec),
-                                     NS_ConvertUTF8toUTF16(mURL),
-                                     0,
-                                     EmptyString(),
-                                     EmptyString());
-        }
+        bool allowsInlineScript = true;
+        rv = csp->GetAllowsInline(nsIContentPolicy::TYPE_SCRIPT,
+                                  EmptyString(), // aNonce
+                                  EmptyString(), // aContent
+                                  0,             // aLineNumber
+                                  &allowsInlineScript);
 
         //return early if inline scripts are not allowed
-        if (!allowsInline) {
+        if (!allowsInlineScript) {
           return NS_ERROR_DOM_RETVAL_UNDEFINED;
         }
     }
@@ -212,7 +200,7 @@ nsresult nsJSThunk::EvaluateScript(nsIChannel *aChannel,
     // Sandboxed document check: javascript: URI's are disabled
     // in a sandboxed document unless 'allow-scripts' was specified.
     nsIDocument* doc = aOriginalInnerWindow->GetExtantDoc();
-    if (doc && doc->HasScriptsBlockedBySandbox()) {
+    if (doc && !doc->IsScriptEnabled()) {
         return NS_ERROR_DOM_RETVAL_UNDEFINED;
     }
 
@@ -375,7 +363,7 @@ protected:
     nsLoadFlags             mLoadFlags;
     nsLoadFlags             mActualLoadFlags; // See AsyncOpen
 
-    nsRefPtr<nsJSThunk>     mIOThunk;
+    RefPtr<nsJSThunk>     mIOThunk;
     PopupControlState       mPopupState;
     uint32_t                mExecutionPolicy;
     bool                    mIsAsync;
@@ -415,15 +403,13 @@ nsresult nsJSChannel::StopAll()
 
 nsresult nsJSChannel::Init(nsIURI *aURI)
 {
-    nsRefPtr<nsJSURI> jsURI;
+    RefPtr<nsJSURI> jsURI;
     nsresult rv = aURI->QueryInterface(kJSURICID,
                                        getter_AddRefs(jsURI));
     NS_ENSURE_SUCCESS(rv, rv);
 
     // Create the nsIStreamIO layer used by the nsIStreamIOChannel.
     mIOThunk = new nsJSThunk();
-    if (!mIOThunk)
-        return NS_ERROR_OUT_OF_MEMORY;
 
     // Create a stock input stream channel...
     // Remember, until AsyncOpen is called, the script will not be evaluated
@@ -565,6 +551,15 @@ nsJSChannel::Open2(nsIInputStream** aStream)
 NS_IMETHODIMP
 nsJSChannel::AsyncOpen(nsIStreamListener *aListener, nsISupports *aContext)
 {
+#ifdef DEBUG
+    {
+    nsCOMPtr<nsILoadInfo> loadInfo = nsIChannel::GetLoadInfo();
+    MOZ_ASSERT(!loadInfo || loadInfo->GetSecurityMode() == 0 ||
+               loadInfo->GetInitialSecurityCheckDone(),
+               "security flags in loadInfo but asyncOpen2() not called");
+    }
+#endif
+
     NS_ENSURE_ARG(aListener);
 
     // First make sure that we have a usable inner window; we'll want to make
@@ -1132,8 +1127,6 @@ nsJSProtocolHandler::Create(nsISupports *aOuter, REFNSIID aIID, void **aResult)
         return NS_ERROR_NO_AGGREGATION;
 
     nsJSProtocolHandler* ph = new nsJSProtocolHandler();
-    if (!ph)
-        return NS_ERROR_OUT_OF_MEMORY;
     NS_ADDREF(ph);
     nsresult rv = ph->Init();
     if (NS_SUCCEEDED(rv)) {
@@ -1233,7 +1226,7 @@ nsJSProtocolHandler::NewChannel2(nsIURI* uri,
     nsresult rv;
     NS_ENSURE_ARG_POINTER(uri);
 
-    nsRefPtr<nsJSChannel> channel = new nsJSChannel();
+    RefPtr<nsJSChannel> channel = new nsJSChannel();
     if (!channel) {
         return NS_ERROR_OUT_OF_MEMORY;
     }
@@ -1393,7 +1386,7 @@ nsJSURI::EqualsInternal(nsIURI* aOther,
     NS_ENSURE_ARG_POINTER(aOther);
     NS_PRECONDITION(aResult, "null pointer for outparam");
 
-    nsRefPtr<nsJSURI> otherJSURI;
+    RefPtr<nsJSURI> otherJSURI;
     nsresult rv = aOther->QueryInterface(kJSURICID,
                                          getter_AddRefs(otherJSURI));
     if (NS_FAILED(rv)) {

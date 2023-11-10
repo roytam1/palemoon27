@@ -77,6 +77,16 @@ const TIMELINE_BLUEPRINT = {
     collapseFunc: CollapseFunctions.identical,
     label: L10N.getStr("timeline.label.paint"),
   },
+  "Composite": {
+    group: 0,
+    colorName: "graphs-green",
+    label: L10N.getStr("marker.label.composite"),
+  },
+  "CompositeForwardTransaction": {
+    group: 0,
+    colorName: "graphs-bluegrey",
+    label: L10N.getStr("marker.label.compositeForwardTransaction"),
+  },
 
   /* Group 1 - JS */
   "DOMEvent": {
@@ -85,6 +95,16 @@ const TIMELINE_BLUEPRINT = {
     collapseFunc: CollapseFunctions.DOMtoDOMJS,
     label: L10N.getStr("timeline.label.domevent"),
     fields: Formatters.DOMEventFields,
+  },
+  "document::DOMContentLoaded": {
+    group: 1,
+    colorName: "graphs-full-red",
+    label: "DOMContentLoaded"
+  },
+  "document::Load": {
+    group: 1,
+    colorName: "graphs-full-blue",
+    label: "Load"
   },
   "Javascript": {
     group: 1,
@@ -120,6 +140,12 @@ const TIMELINE_BLUEPRINT = {
       { property: "nonincrementalReason", label: "Non-incremental Reason:" }
     ],
   },
+  "MinorGC": {
+    group: 1,
+    colorName: "graphs-red",
+    label: L10N.getStr("marker.label.minorGC"),
+    fields: Formatters.MinorGCFields,
+  },
   "nsCycleCollector::Collect": {
     group: 1,
     colorName: "graphs-red",
@@ -133,6 +159,12 @@ const TIMELINE_BLUEPRINT = {
     collapseFunc: either(collapse.parent, collapse.child),
     label: "Cycle Collection",
     fields: Formatters.CycleCollectionFields,
+  },
+  "Worker": {
+    group: 1,
+    colorName: "graphs-orange",
+    label: L10N.getStr("marker.label.worker"),
+    fields: Formatters.WorkerFields
   },
 
   /* Group 2 - User Controlled */

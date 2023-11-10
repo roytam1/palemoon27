@@ -55,17 +55,18 @@ let TestRunner = {
    *               iterator.
    */
   next: function (aValue) {
-    try {
-      let value = TestRunner._iter.send(aValue);
-      if (value && typeof value.then == "function") {
-        value.then(result => {
-          next(result);
-        }, error => {
-          ok(false, error + "\n" + error.stack);
-        });
-      }
-    } catch (e if e instanceof StopIteration) {
+    let { done, value } = TestRunner._iter.next(aValue);
+    if (done) {
       finish();
+      return;
+    }
+
+    if (value && typeof value.then == "function") {
+      value.then(result => {
+        next(result);
+      }, error => {
+        ok(false, error + "\n" + error.stack);
+      });
     }
   }
 };
@@ -222,7 +223,7 @@ function addVisitsAndRepopulateNewTabLinks(aPlaceInfo, aCallback) {
 function whenFileExists(aURL, aCallback = next) {
   let callback = aCallback;
   if (!thumbnailExists(aURL)) {
-    callback = function () whenFileExists(aURL, aCallback);
+    callback = () => whenFileExists(aURL, aCallback);
   }
 
   executeSoon(callback);
@@ -239,7 +240,7 @@ function whenFileExists(aURL, aCallback = next) {
 function whenFileRemoved(aFile, aCallback) {
   let callback = aCallback;
   if (aFile.exists()) {
-    callback = function () whenFileRemoved(aFile, aCallback);
+    callback = () => whenFileRemoved(aFile, aCallback);
   }
 
   executeSoon(callback || next);
@@ -313,7 +314,9 @@ function bgAddCrashObserver() {
     }
   }, 'ipc:content-shutdown', false);
   return {
-    get crashed() crashed
+    get crashed() {
+      return crashed;
+    }
   };
 }
 

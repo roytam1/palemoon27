@@ -253,8 +253,9 @@ namespace {
 void SerializeString(const nsCString& aInput, nsAString& aValue)
 {
   const unsigned char* p = (const unsigned char*) aInput.get();
+  const unsigned char* end = p + aInput.Length();
 
-  while (p && *p) {
+  while (p != end) {
     // ' ' to '+'
     if (*p == 0x20) {
       aValue.Append(0x2B);
@@ -293,7 +294,7 @@ URLParams::Serialize(nsAString& aValue) const
   }
 }
 
-NS_IMPL_CYCLE_COLLECTION_WRAPPERCACHE(URLSearchParams, mObserver)
+NS_IMPL_CYCLE_COLLECTION_WRAPPERCACHE(URLSearchParams, mParent, mObserver)
 NS_IMPL_CYCLE_COLLECTING_ADDREF(URLSearchParams)
 NS_IMPL_CYCLE_COLLECTING_RELEASE(URLSearchParams)
 
@@ -302,13 +303,19 @@ NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(URLSearchParams)
   NS_INTERFACE_MAP_ENTRY(nsISupports)
 NS_INTERFACE_MAP_END
 
-URLSearchParams::URLSearchParams(URLSearchParamsObserver* aObserver)
+URLSearchParams::URLSearchParams(nsISupports* aParent,
+                                 URLSearchParamsObserver* aObserver)
   : mParams(new URLParams())
+  , mParent(aParent)
+  , mObserver(aObserver)
 {
 }
 
-URLSearchParams::URLSearchParams(const URLSearchParams& aOther)
+URLSearchParams::URLSearchParams(nsISupports* aParent,
+                                 const URLSearchParams& aOther)
   : mParams(new URLParams(*aOther.mParams.get()))
+  , mParent(aParent)
+  , mObserver(nullptr)
 {
 }
 
@@ -328,8 +335,10 @@ URLSearchParams::Constructor(const GlobalObject& aGlobal,
                              const nsAString& aInit,
                              ErrorResult& aRv)
 {
-  nsRefPtr<URLSearchParams> sp = new URLSearchParams(nullptr);
+  RefPtr<URLSearchParams> sp =
+    new URLSearchParams(aGlobal.GetAsSupports(), nullptr);
   sp->ParseInput(NS_ConvertUTF16toUTF8(aInit));
+
   return sp.forget();
 }
 
@@ -338,7 +347,9 @@ URLSearchParams::Constructor(const GlobalObject& aGlobal,
                              URLSearchParams& aInit,
                              ErrorResult& aRv)
 {
-  nsRefPtr<URLSearchParams> sp = new URLSearchParams(aInit);
+  RefPtr<URLSearchParams> sp =
+    new URLSearchParams(aGlobal.GetAsSupports(), aInit);
+
   return sp.forget();
 }
 
@@ -406,6 +417,24 @@ URLSearchParams::NotifyObserver()
   if (mObserver) {
     mObserver->URLSearchParamsUpdated(this);
   }
+}
+
+uint32_t
+URLSearchParams::GetIterableLength() const
+{
+  return mParams->Length();
+}
+
+const nsAString&
+URLSearchParams::GetKeyAtIndex(uint32_t aIndex) const
+{
+  return mParams->GetKeyAtIndex(aIndex);
+}
+
+const nsAString&
+URLSearchParams::GetValueAtIndex(uint32_t aIndex) const
+{
+  return mParams->GetValueAtIndex(aIndex);
 }
 
 } // namespace dom

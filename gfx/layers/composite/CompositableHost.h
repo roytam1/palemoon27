@@ -12,6 +12,7 @@
 #include "mozilla/Assertions.h"         // for MOZ_ASSERT, etc
 #include "mozilla/Attributes.h"         // for override
 #include "mozilla/RefPtr.h"             // for RefPtr, RefCounted, etc
+#include "mozilla/gfx/MatrixFwd.h"      // for Matrix4x4
 #include "mozilla/gfx/Point.h"          // for Point
 #include "mozilla/gfx/Rect.h"           // for Rect
 #include "mozilla/gfx/Types.h"          // for Filter
@@ -30,7 +31,6 @@
 
 namespace mozilla {
 namespace gfx {
-class Matrix4x4;
 class DataSourceSurface;
 } // namespace gfx
 
@@ -176,6 +176,9 @@ public:
   }
   bool IsAttached() { return mAttached; }
 
+  static void
+  ReceivedDestroy(PCompositableParent* aActor);
+
   virtual void Dump(std::stringstream& aStream,
                     const char* aPrefix="",
                     bool aDumpHtml=false) { }
@@ -191,6 +194,7 @@ public:
     gfx::IntRect mPictureRect;
     int32_t mFrameID;
     int32_t mProducerID;
+    int32_t mInputFrameID;
   };
   virtual void UseTextureHost(const nsTArray<TimedTexture>& aTextures);
   virtual void UseComponentAlphaTextures(TextureHost* aTextureOnBlack,
@@ -231,6 +235,8 @@ public:
   virtual already_AddRefed<TexturedEffect> GenEffect(const gfx::Filter& aFilter) {
     return nullptr;
   }
+
+  virtual int32_t GetLastInputFrameID() const { return -1; }
 
 protected:
   TextureInfo mTextureInfo;

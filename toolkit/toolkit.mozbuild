@@ -3,9 +3,6 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
-if CONFIG['LIBXUL_SDK']:
-    error('toolkit.mozbuild is not compatible with --enable-libxul-sdk=')
-
 if CONFIG['MOZ_SANDBOX']:
     DIRS += ['/security/sandbox']
 
@@ -125,7 +122,9 @@ if CONFIG['MOZ_JPROF']:
     DIRS += ['/tools/jprof']
 
 DIRS += [
+    '/tools/power',
     '/tools/profiler',
+    '/tools/memory-profiler',
     '/xpfe/components',
 ]
 
@@ -158,7 +157,7 @@ DIRS += [
     '/toolkit/library',
 ]
 
-if CONFIG['MOZ_ENABLE_GNOME_COMPONENT']:
+if CONFIG['MOZ_ENABLE_GTK']:
     DIRS += ['/toolkit/system/gnome']
 
 # if QtNetwork is present, it will do its own network monitoring
@@ -185,9 +184,12 @@ if CONFIG['ENABLE_TESTS']:
         '/testing/web-platform',
     ]
 
-    if CONFIG['MOZ_WEBRTC'] and CONFIG['MOZ_WIDGET_TOOLKIT'] != 'gonk':
+    # The file id utility requires breakpad libraries.
+    if CONFIG['MOZ_CRASHREPORTER']:
+        DIRS += ['/testing/tools/fileid']
+
+    if CONFIG['MOZ_WEBRTC'] and CONFIG['MOZ_WIDGET_TOOLKIT'] != 'gonk' and not CONFIG['MOZ_TASK_TRACER']:
             DIRS += [
                 '/media/webrtc/signaling/test',
-                '/media/webrtc/signaling/test/standalone',
                 '/media/mtransport/test',
             ]

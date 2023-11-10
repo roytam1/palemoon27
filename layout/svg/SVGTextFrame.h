@@ -292,7 +292,7 @@ public:
 
   virtual nsContainerFrame* GetContentInsertionFrame() override
   {
-    return GetFirstPrincipalChild()->GetContentInsertionFrame();
+    return PrincipalChildList().FirstChild()->GetContentInsertionFrame();
   }
 
   virtual void BuildDisplayList(nsDisplayListBuilder*   aBuilder,
@@ -618,7 +618,7 @@ private:
   /**
    * The MutationObserver we have registered for the <text> element subtree.
    */
-  nsRefPtr<MutationObserver> mMutationObserver;
+  RefPtr<MutationObserver> mMutationObserver;
 
   /**
    * Cached canvasTM value.

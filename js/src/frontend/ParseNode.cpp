@@ -13,6 +13,7 @@
 using namespace js;
 using namespace js::frontend;
 
+using mozilla::ArrayLength;
 using mozilla::IsFinite;
 
 #ifdef DEBUG
@@ -204,7 +205,6 @@ PushNodeChildren(ParseNode* pn, NodeStack* stack)
       case PNK_TRUE:
       case PNK_FALSE:
       case PNK_NULL:
-      case PNK_THIS:
       case PNK_ELISION:
       case PNK_GENERATOR:
       case PNK_NUMBER:
@@ -213,9 +213,7 @@ PushNodeChildren(ParseNode* pn, NodeStack* stack)
       case PNK_DEBUGGER:
       case PNK_EXPORT_BATCH_SPEC:
       case PNK_OBJECT_PROPERTY_NAME:
-      case PNK_FRESHENBLOCK:
-      case PNK_SUPERPROP:
-      case PNK_NEWTARGET:
+      case PNK_POSHOLDER:
         MOZ_ASSERT(pn->isArity(PN_NULLARY));
         MOZ_ASSERT(!pn->isUsed(), "handle non-trivial cases separately");
         MOZ_ASSERT(!pn->isDefn(), "handle non-trivial cases separately");
@@ -230,9 +228,7 @@ PushNodeChildren(ParseNode* pn, NodeStack* stack)
       case PNK_THROW:
       case PNK_DELETENAME:
       case PNK_DELETEPROP:
-      case PNK_DELETESUPERPROP:
       case PNK_DELETEELEM:
-      case PNK_DELETESUPERELEM:
       case PNK_DELETEEXPR:
       case PNK_POS:
       case PNK_NEG:
@@ -245,11 +241,11 @@ PushNodeChildren(ParseNode* pn, NodeStack* stack)
       case PNK_SPREAD:
       case PNK_MUTATEPROTO:
       case PNK_EXPORT:
-      case PNK_EXPORT_DEFAULT:
-      case PNK_SUPERELEM:
+      case PNK_SUPERBASE:
         return PushUnaryNodeChild(pn, stack);
 
       // Nodes with a single nullable child.
+      case PNK_THIS:
       case PNK_SEMI: {
         MOZ_ASSERT(pn->isArity(PN_UNARY));
         if (pn->pn_kid)
@@ -278,21 +274,27 @@ PushNodeChildren(ParseNode* pn, NodeStack* stack)
       case PNK_IMPORT_SPEC:
       case PNK_EXPORT_SPEC:
       case PNK_COLON:
-      case PNK_CASE:
       case PNK_SHORTHAND:
       case PNK_DOWHILE:
       case PNK_WHILE:
       case PNK_SWITCH:
       case PNK_LETBLOCK:
       case PNK_CLASSMETHOD:
-      case PNK_FOR: {
+      case PNK_NEWTARGET:
+      case PNK_SETTHIS:
+      case PNK_FOR:
+      case PNK_COMPREHENSIONFOR:
+      case PNK_ANNEXB_FUNCTION: {
         MOZ_ASSERT(pn->isArity(PN_BINARY));
         stack->push(pn->pn_left);
         stack->push(pn->pn_right);
         return PushResult::Recyclable;
       }
 
-      // Named class expressions do not have outer binding nodes
+      // Default clauses are PNK_CASE but do not have case expressions.
+      // Named class expressions do not have outer binding nodes.
+      // So both are binary nodes with a possibly-null pn_left.
+      case PNK_CASE:
       case PNK_CLASSNAMES: {
         MOZ_ASSERT(pn->isArity(PN_BINARY));
         if (pn->pn_left)
@@ -302,22 +304,12 @@ PushNodeChildren(ParseNode* pn, NodeStack* stack)
       }
 
       // PNK_WITH is PN_BINARY_OBJ -- that is, PN_BINARY with (irrelevant for
-      // this method's purposes) the addition of the StaticWithObject as
+      // this method's purposes) the addition of the StaticWithScope as
       // pn_binary_obj.  Both left (expression) and right (statement) are
       // non-null.
       case PNK_WITH: {
         MOZ_ASSERT(pn->isArity(PN_BINARY_OBJ));
         stack->push(pn->pn_left);
-        stack->push(pn->pn_right);
-        return PushResult::Recyclable;
-      }
-
-      // Default nodes, for dumb reasons that we're not changing now (mostly
-      // structural semi-consistency with PNK_CASE nodes), have a null left
-      // node and a non-null right node.
-      case PNK_DEFAULT: {
-        MOZ_ASSERT(pn->isArity(PN_BINARY));
-        MOZ_ASSERT(pn->pn_left == nullptr);
         stack->push(pn->pn_right);
         return PushResult::Recyclable;
       }
@@ -340,19 +332,12 @@ PushNodeChildren(ParseNode* pn, NodeStack* stack)
         return PushResult::Recyclable;
       }
 
-      // A return node's left half is what you'd expect: the return expression,
-      // if any.  The right half is non-null only for returns inside generator
-      // functions, with the structure described in the assertions.
+      // A return node's child is what you'd expect: the return expression,
+      // if any.
       case PNK_RETURN: {
-        MOZ_ASSERT(pn->isArity(PN_BINARY));
-        if (pn->pn_left)
-            stack->push(pn->pn_left);
-        if (pn->pn_right) {
-            MOZ_ASSERT(pn->pn_right->isKind(PNK_NAME));
-            MOZ_ASSERT(pn->pn_right->pn_atom->equals(".genrval"));
-            MOZ_ASSERT(pn->pn_right->isAssigned());
-            stack->push(pn->pn_right);
-        }
+        MOZ_ASSERT(pn->isArity(PN_UNARY));
+        if (pn->pn_kid)
+            stack->push(pn->pn_kid);
         return PushResult::Recyclable;
       }
 
@@ -367,6 +352,15 @@ PushNodeChildren(ParseNode* pn, NodeStack* stack)
         MOZ_ASSERT(pn->pn_right->isKind(PNK_STRING));
         stack->pushList(pn->pn_left);
         stack->push(pn->pn_right);
+        return PushResult::Recyclable;
+      }
+
+      case PNK_EXPORT_DEFAULT: {
+        MOZ_ASSERT(pn->isArity(PN_BINARY));
+        MOZ_ASSERT_IF(pn->pn_right, pn->pn_right->isKind(PNK_NAME));
+        stack->push(pn->pn_left);
+        if (pn->pn_right)
+            stack->push(pn->pn_right);
         return PushResult::Recyclable;
       }
 
@@ -483,6 +477,7 @@ PushNodeChildren(ParseNode* pn, NodeStack* stack)
       case PNK_COMMA:
       case PNK_NEW:
       case PNK_CALL:
+      case PNK_SUPERCALL:
       case PNK_GENEXP:
       case PNK_ARRAY:
       case PNK_OBJECT:
@@ -491,7 +486,6 @@ PushNodeChildren(ParseNode* pn, NodeStack* stack)
       case PNK_CALLSITEOBJ:
       case PNK_VAR:
       case PNK_CONST:
-      case PNK_GLOBALCONST:
       case PNK_LET:
       case PNK_CATCHLIST:
       case PNK_STATEMENTLIST:
@@ -501,15 +495,16 @@ PushNodeChildren(ParseNode* pn, NodeStack* stack)
       case PNK_CLASSMETHODLIST:
         return PushListNodeChildren(pn, stack);
 
-      // Array comprehension nodes are lists with a single child -- PNK_FOR for
-      // comprehensions, PNK_LEXICALSCOPE for legacy comprehensions.  Probably
-      // this should be a non-list eventually.
+      // Array comprehension nodes are lists with a single child:
+      // PNK_COMPREHENSIONFOR for comprehensions, PNK_LEXICALSCOPE for legacy
+      // comprehensions.  Probably this should be a non-list eventually.
       case PNK_ARRAYCOMP: {
 #ifdef DEBUG
         MOZ_ASSERT(pn->isKind(PNK_ARRAYCOMP));
         MOZ_ASSERT(pn->isArity(PN_LIST));
         MOZ_ASSERT(pn->pn_count == 1);
-        MOZ_ASSERT(pn->pn_head->isKind(PNK_LEXICALSCOPE) || pn->pn_head->isKind(PNK_FOR));
+        MOZ_ASSERT(pn->pn_head->isKind(PNK_LEXICALSCOPE) ||
+                   pn->pn_head->isKind(PNK_COMPREHENSIONFOR));
 #endif
         return PushListNodeChildren(pn, stack);
       }
@@ -521,6 +516,7 @@ PushNodeChildren(ParseNode* pn, NodeStack* stack)
         return PushNameNodeChildren(pn, stack);
 
       case PNK_FUNCTION:
+      case PNK_MODULE:
         return PushCodeNodeChildren(pn, stack);
 
       case PNK_LIMIT: // invalid sentinel value
@@ -622,7 +618,7 @@ ParseNode::appendOrCreateList(ParseNodeKind kind, JSOp op, ParseNode* left, Pars
         //
         if (left->isKind(kind) &&
             left->isOp(op) &&
-            (js_CodeSpec[op].format & JOF_LEFTASSOC ||
+            (CodeSpec[op].format & JOF_LEFTASSOC ||
              (kind == PNK_POW && !left->pn_parens)))
         {
             ListNode* list = &left->as<ListNode>();
@@ -645,11 +641,18 @@ ParseNode::appendOrCreateList(ParseNodeKind kind, JSOp op, ParseNode* left, Pars
 const char*
 Definition::kindString(Kind kind)
 {
-    static const char * const table[] = {
-        "", js_var_str, js_const_str, js_const_str, js_let_str, "argument", js_function_str, "unknown"
+    static const char* const table[] = {
+        "",
+        js_var_str,
+        js_const_str,
+        js_let_str,
+        "argument",
+        js_function_str,
+        "unknown",
+        js_import_str
     };
 
-    MOZ_ASSERT(unsigned(kind) <= unsigned(ARG));
+    MOZ_ASSERT(size_t(kind) < ArrayLength(table));
     return table[kind];
 }
 
@@ -772,10 +775,6 @@ Parser<FullParseHandler>::cloneParseTree(ParseNode* opn)
     return pn;
 }
 
-template <>
-ParseNode*
-Parser<FullParseHandler>::cloneLeftHandSide(ParseNode* opn);
-
 /*
  * Used by Parser::cloneLeftHandSide to clone a default expression
  * in the form of
@@ -886,6 +885,16 @@ Parser<FullParseHandler>::cloneLeftHandSide(ParseNode* opn)
         }
     }
     return pn;
+}
+
+template <>
+SyntaxParseHandler::Node
+Parser<SyntaxParseHandler>::cloneLeftHandSide(Node node)
+{
+    // See the comment in SyntaxParseHandler::singleBindingFromDeclaration for
+    // why this is okay.
+    MOZ_ASSERT(node == SyntaxParseHandler::NodeUnparenthesizedName);
+    return SyntaxParseHandler::NodeGeneric;
 }
 
 } /* namespace frontend */
@@ -1105,7 +1114,10 @@ NameNode::dump(int indent)
 
         if (isKind(PNK_DOT)) {
             fputc(' ', stderr);
-            DumpParseTree(expr(), indent + 2);
+            if (as<PropertyAccess>().isSuper())
+                fprintf(stderr, "super");
+            else
+                DumpParseTree(expr(), indent + 2);
             fputc(')', stderr);
         }
         return;
@@ -1124,7 +1136,7 @@ NameNode::dump(int indent)
 }
 #endif
 
-ObjectBox::ObjectBox(JSObject *object, ObjectBox* traceLink)
+ObjectBox::ObjectBox(JSObject* object, ObjectBox* traceLink)
   : object(object),
     traceLink(traceLink),
     emitLink(nullptr)
@@ -1133,7 +1145,7 @@ ObjectBox::ObjectBox(JSObject *object, ObjectBox* traceLink)
     MOZ_ASSERT(object->isTenured());
 }
 
-ObjectBox::ObjectBox(JSFunction *function, ObjectBox* traceLink)
+ObjectBox::ObjectBox(JSFunction* function, ObjectBox* traceLink)
   : object(function),
     traceLink(traceLink),
     emitLink(nullptr)
@@ -1150,18 +1162,38 @@ ObjectBox::asFunctionBox()
     return static_cast<FunctionBox*>(this);
 }
 
+ModuleBox*
+ObjectBox::asModuleBox()
+{
+    MOZ_ASSERT(isModuleBox());
+    return static_cast<ModuleBox*>(this);
+}
+
+/* static */ void
+ObjectBox::TraceList(JSTracer* trc, ObjectBox* listHead)
+{
+    for (ObjectBox* box = listHead; box; box = box->traceLink)
+        box->trace(trc);
+}
+
 void
 ObjectBox::trace(JSTracer* trc)
 {
-    ObjectBox* box = this;
-    while (box) {
-        TraceRoot(trc, &box->object, "parser.object");
-        if (box->isFunctionBox()) {
-            FunctionBox* funbox = box->asFunctionBox();
-            funbox->bindings.trace(trc);
-            if (funbox->staticScope_)
-                TraceRoot(trc, &funbox->staticScope_, "funbox-staticScope");
-        }
-        box = box->traceLink;
-    }
+    TraceRoot(trc, &object, "parser.object");
+}
+
+void
+FunctionBox::trace(JSTracer* trc)
+{
+    ObjectBox::trace(trc);
+    bindings.trace(trc);
+    if (enclosingStaticScope_)
+        TraceRoot(trc, &enclosingStaticScope_, "funbox-enclosingStaticScope");
+}
+
+void
+ModuleBox::trace(JSTracer* trc)
+{
+    ObjectBox::trace(trc);
+    bindings.trace(trc);
 }

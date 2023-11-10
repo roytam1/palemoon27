@@ -133,7 +133,7 @@ nsBoxFrame::nsBoxFrame(nsStyleContext* aContext,
   nsCOMPtr<nsBoxLayout> layout = aLayoutManager;
 
   if (layout == nullptr) {
-    NS_NewSprocketLayout(PresContext()->PresShell(), layout);
+    NS_NewSprocketLayout(layout);
   }
 
   SetLayoutManager(layout);
@@ -148,11 +148,13 @@ nsBoxFrame::SetInitialChildList(ChildListID     aListID,
                                 nsFrameList&    aChildList)
 {
   nsContainerFrame::SetInitialChildList(aListID, aChildList);
-  // initialize our list of infos.
-  nsBoxLayoutState state(PresContext());
-  CheckBoxOrder();
-  if (mLayoutManager)
-    mLayoutManager->ChildrenSet(this, state, mFrames.FirstChild());
+  if (aListID == kPrincipalList) {
+    // initialize our list of infos.
+    nsBoxLayoutState state(PresContext());
+    CheckBoxOrder();
+    if (mLayoutManager)
+      mLayoutManager->ChildrenSet(this, state, mFrames.FirstChild());
+  }
 }
 
 /* virtual */ void
@@ -185,8 +187,9 @@ nsBoxFrame::Init(nsIContent*       aContent,
 
 #ifdef DEBUG_LAYOUT
     // if we are root and this
-  if (mState & NS_STATE_IS_ROOT) 
-      GetDebugPref(GetPresContext());
+  if (mState & NS_STATE_IS_ROOT) {
+    GetDebugPref();
+  }
 #endif
 
   UpdateMouseThrough();
@@ -884,12 +887,12 @@ nsBoxFrame::GetMaxSize(nsBoxLayoutState& aBoxLayoutState)
 }
 
 nscoord
-nsBoxFrame::GetFlex(nsBoxLayoutState& aBoxLayoutState)
+nsBoxFrame::GetFlex()
 {
   if (!DoesNeedRecalc(mFlex))
      return mFlex;
 
-  mFlex = nsBox::GetFlex(aBoxLayoutState);
+  mFlex = nsBox::GetFlex();
 
   return mFlex;
 }
@@ -1104,7 +1107,7 @@ nsBoxFrame::AppendFrames(ChildListID     aListID,
 nsBoxFrame::GetContentInsertionFrame()
 {
   if (GetStateBits() & NS_STATE_BOX_WRAPS_KIDS_IN_BLOCK)
-    return GetFirstPrincipalChild()->GetContentInsertionFrame();
+    return PrincipalChildList().FirstChild()->GetContentInsertionFrame();
   return nsContainerFrame::GetContentInsertionFrame();
 }
 
@@ -1225,7 +1228,6 @@ nsBoxFrame::AttributeChanged(int32_t aNameSpaceID,
       FrameNeedsReflow(this, nsIPresShell::eStyleChange, NS_FRAME_IS_DIRTY);
   }
   else if (aAttribute == nsGkAtoms::ordinal) {
-    nsBoxLayoutState state(PresContext());
     nsIFrame* parent = GetParentBox(this);
     // If our parent is not a box, there's not much we can do... but in that
     // case our ordinal doesn't matter anyway, so that's ok.
@@ -1234,7 +1236,7 @@ nsBoxFrame::AttributeChanged(int32_t aNameSpaceID,
     // principal children.
     if (parent && !(GetStateBits() & NS_FRAME_OUT_OF_FLOW) &&
         StyleDisplay()->mDisplay != NS_STYLE_DISPLAY_POPUP) {
-      parent->RelayoutChildAtOrdinal(state, this);
+      parent->RelayoutChildAtOrdinal(this);
       // XXXldb Should this instead be a tree change on the child or parent?
       PresContext()->PresShell()->
         FrameNeedsReflow(parent, nsIPresShell::eStyleChange,
@@ -1259,9 +1261,9 @@ nsBoxFrame::AttributeChanged(int32_t aNameSpaceID,
 
 #ifdef DEBUG_LAYOUT
 void
-nsBoxFrame::GetDebugPref(nsPresContext* aPresContext)
+nsBoxFrame::GetDebugPref()
 {
-    gDebug = Preferences::GetBool("xul.debug.box");
+  gDebug = Preferences::GetBool("xul.debug.box");
 }
 
 class nsDisplayXULDebug : public nsDisplayItem {
@@ -1297,10 +1299,10 @@ nsDisplayXULDebug::Paint(nsDisplayListBuilder* aBuilder,
 }
 
 static void
-PaintXULDebugBackground(nsIFrame* aFrame, nsRenderingContext* aCtx,
+PaintXULDebugBackground(nsIFrame* aFrame, DrawTarget* aDrawTarget,
                         const nsRect& aDirtyRect, nsPoint aPt)
 {
-  static_cast<nsBoxFrame*>(aFrame)->PaintXULDebugBackground(*aCtx, aPt);
+  static_cast<nsBoxFrame*>(aFrame)->PaintXULDebugBackground(aDrawTarget, aPt);
 }
 #endif
 
@@ -1310,25 +1312,11 @@ nsBoxFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
                              const nsDisplayListSet& aLists)
 {
   bool forceLayer = false;
-  uint32_t flags = 0;
-  mozilla::layers::FrameMetrics::ViewID scrollTargetId =
-    mozilla::layers::FrameMetrics::NULL_SCROLL_ID;
-  float scrollbarThumbRatio = 0.0f;
 
   if (GetContent()->IsXULElement()) {
     // forcelayer is only supported on XUL elements with box layout
     if (GetContent()->HasAttr(kNameSpaceID_None, nsGkAtoms::layer)) {
       forceLayer = true;
-    } else {
-      nsIFrame* parent = GetParentBox(this);
-      if (parent && parent->GetType() == nsGkAtoms::sliderFrame) {
-        aBuilder->GetScrollbarInfo(&scrollTargetId, &flags);
-        forceLayer = (scrollTargetId != layers::FrameMetrics::NULL_SCROLL_ID);
-        nsLayoutUtils::SetScrollbarThumbLayerization(this, forceLayer);
-
-        nsSliderFrame* slider = do_QueryFrame(parent);
-        scrollbarThumbRatio = slider->GetThumbRatio();
-      }
     }
     // Check for frames that are marked as a part of the region used
     // in calculating glass margins on Windows.
@@ -1374,8 +1362,7 @@ nsBoxFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
 
     // Wrap the list to make it its own layer
     aLists.Content()->AppendNewToTop(new (aBuilder)
-      nsDisplayOwnLayer(aBuilder, this, &masterList, flags, scrollTargetId,
-                        scrollbarThumbRatio));
+      nsDisplayOwnLayer(aBuilder, this, &masterList));
   }
 }
 
@@ -1410,8 +1397,7 @@ nsBoxFrame::BuildDisplayListForChildren(nsDisplayListBuilder*   aBuilder,
 // whereas it did used to respect OVERFLOW_CLIP, but too bad.
 #ifdef DEBUG_LAYOUT
 void
-nsBoxFrame::PaintXULDebugBackground(nsRenderingContext& aRenderingContext,
-                                    nsPoint aPt)
+nsBoxFrame::PaintXULDebugBackground(DrawTarget* aDrawTarget, nsPoint aPt)
 {
   nsMargin border;
   GetBorder(border);
@@ -1423,13 +1409,13 @@ nsBoxFrame::PaintXULDebugBackground(nsRenderingContext& aRenderingContext,
   bool isHorizontal = IsHorizontal();
 
   GetDebugBorder(debugBorder);
-  PixelMarginToTwips(GetPresContext(), debugBorder);
+  PixelMarginToTwips(debugBorder);
 
   GetDebugMargin(debugMargin);
-  PixelMarginToTwips(GetPresContext(), debugMargin);
+  PixelMarginToTwips(debugMargin);
 
   GetDebugPadding(debugPadding);
-  PixelMarginToTwips(GetPresContext(), debugPadding);
+  PixelMarginToTwips(debugPadding);
 
   nsRect inner(mRect);
   inner.MoveTo(aPt);
@@ -1442,36 +1428,33 @@ nsBoxFrame::PaintXULDebugBackground(nsRenderingContext& aRenderingContext,
   ColorPattern color(ToDeviceColor(isHorizontal ? Color(0.f, 0.f, 1.f, 1.f) :
                                                   Color(1.f, 0.f, 0.f, 1.f)));
 
-  DrawTarget* drawTarget = aRenderingContext.GetDrawTarget();
-
   //left
   nsRect r(inner);
   r.width = debugBorder.left;
-  drawTarget->FillRect(NSRectToRect(r, appUnitsPerDevPixel), color);
+  aDrawTarget->FillRect(NSRectToRect(r, appUnitsPerDevPixel), color);
 
   // top
   r = inner;
   r.height = debugBorder.top;
-  drawTarget->FillRect(NSRectToRect(r, appUnitsPerDevPixel), color);
+  aDrawTarget->FillRect(NSRectToRect(r, appUnitsPerDevPixel), color);
 
   //right
   r = inner;
   r.x = r.x + r.width - debugBorder.right;
   r.width = debugBorder.right;
-  drawTarget->FillRect(NSRectToRect(r, appUnitsPerDevPixel), color);
+  aDrawTarget->FillRect(NSRectToRect(r, appUnitsPerDevPixel), color);
 
   //bottom
   r = inner;
   r.y = r.y + r.height - debugBorder.bottom;
   r.height = debugBorder.bottom;
-  drawTarget->FillRect(NSRectToRect(r, appUnitsPerDevPixel), color);
-  
-  // if we have dirty children or we are dirty 
-  // place a green border around us.
+  aDrawTarget->FillRect(NSRectToRect(r, appUnitsPerDevPixel), color);
+
+  // If we have dirty children or we are dirty place a green border around us.
   if (NS_SUBTREE_DIRTY(this)) {
     nsRect dirty(inner);
     ColorPattern green(ToDeviceColor(Color(0.f, 1.f, 0.f, 1.f)));
-    drawTarget->StrokeRect(NSRectToRect(dirty, appUnitsPerDevPixel), green);
+    aDrawTarget->StrokeRect(NSRectToRect(dirty, appUnitsPerDevPixel), green);
   }
 }
 
@@ -1483,7 +1466,7 @@ nsBoxFrame::PaintXULDebugOverlay(DrawTarget& aDrawTarget, nsPoint aPt)
 
   nsMargin debugMargin;
   GetDebugMargin(debugMargin);
-  PixelMarginToTwips(GetPresContext(), debugMargin);
+  PixelMarginToTwips(debugMargin);
 
   nsRect inner(mRect);
   inner.MoveTo(aPt);
@@ -1516,8 +1499,7 @@ nsBoxFrame::PaintXULDebugOverlay(DrawTarget& aDrawTarget, nsPoint aPt)
         spacerSize = debugBorder.left - onePixel*4;
     }
 
-    nsBoxLayoutState state(GetPresContext());
-    nscoord flex = kid->GetFlex(state);
+    nscoord flex = kid->GetFlex();
 
     if (!kid->IsCollapsed()) {
       if (isHorizontal) 
@@ -1686,7 +1668,7 @@ nsBoxFrame::GetDebugPadding(nsMargin& aPadding)
 }
 
 void 
-nsBoxFrame::PixelMarginToTwips(nsPresContext* aPresContext, nsMargin& aMarginPixels)
+nsBoxFrame::PixelMarginToTwips(nsMargin& aMarginPixels)
 {
   nscoord onePixel = nsPresContext::CSSPixelsToAppUnits(1);
   aMarginPixels.left   *= onePixel;
@@ -1757,10 +1739,10 @@ nsBoxFrame::DisplayDebugInfoFor(nsIFrame*  aBox,
     nsMargin m;
     nsMargin m2;
     GetDebugBorder(m);
-    PixelMarginToTwips(aPresContext, m);
+    PixelMarginToTwips(m);
 
     GetDebugMargin(m2);
-    PixelMarginToTwips(aPresContext, m2);
+    PixelMarginToTwips(m2);
 
     m += m2;
 
@@ -1802,12 +1784,12 @@ nsBoxFrame::DisplayDebugInfoFor(nsIFrame*  aBox,
                     nsIFrame::AddCSSPrefSize(child, prefSizeCSS, widthSet, heightSet);
                     nsIFrame::AddCSSMinSize (state, child, minSizeCSS, widthSet, heightSet);
                     nsIFrame::AddCSSMaxSize (child, maxSizeCSS, widthSet, heightSet);
-                    nsIFrame::AddCSSFlex    (state, child, flexCSS);
+                    nsIFrame::AddCSSFlex    (child, flexCSS);
 
                     nsSize prefSize = child->GetPrefSize(state);
                     nsSize minSize = child->GetMinSize(state);
                     nsSize maxSize = child->GetMaxSize(state);
-                    nscoord flexSize = child->GetFlex(state);
+                    nscoord flexSize = child->GetFlex();
                     nscoord ascentSize = child->GetBoxAscent(state);
 
                     char min[100];
@@ -1954,7 +1936,7 @@ nsBoxFrame::LayoutChildAt(nsBoxLayoutState& aState, nsIFrame* aBox, const nsRect
 }
 
 nsresult
-nsBoxFrame::RelayoutChildAtOrdinal(nsBoxLayoutState& aState, nsIFrame* aChild)
+nsBoxFrame::RelayoutChildAtOrdinal(nsIFrame* aChild)
 {
   if (!SupportsOrdinalsInChildren())
     return NS_OK;

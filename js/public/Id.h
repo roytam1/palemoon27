@@ -58,7 +58,7 @@ JSID_TO_STRING(jsid id)
     return (JSString*)JSID_BITS(id);
 }
 
-/*
+/**
  * Only JSStrings that have been interned via the JSAPI can be turned into
  * jsids by API clients.
  *
@@ -168,9 +168,18 @@ extern JS_PUBLIC_DATA(const JS::HandleId) JSID_EMPTYHANDLE;
 
 namespace js {
 
-template <> struct GCMethods<jsid>
+template <>
+struct GCPolicy<jsid>
 {
     static jsid initial() { return JSID_VOID; }
+    static void trace(JSTracer* trc, jsid* idp, const char* name) {
+        js::UnsafeTraceManuallyBarrieredEdge(trc, idp, name);
+    }
+};
+
+template <>
+struct BarrierMethods<jsid>
+{
     static void postBarrier(jsid* idp, jsid prev, jsid next) {}
 };
 
@@ -178,7 +187,7 @@ template <> struct GCMethods<jsid>
 // the pointer. If the jsid is not a GC type, calls F::defaultValue.
 template <typename F, typename... Args>
 auto
-DispatchIdTyped(F f, jsid& id, Args&&... args)
+DispatchTyped(F f, jsid& id, Args&&... args)
   -> decltype(f(static_cast<JSString*>(nullptr), mozilla::Forward<Args>(args)...))
 {
     if (JSID_IS_STRING(id))

@@ -128,8 +128,7 @@ nsDisplayFieldSetBorderBackground::Paint(nsDisplayListBuilder* aBuilder,
                                          nsRenderingContext* aCtx)
 {
   DrawResult result = static_cast<nsFieldSetFrame*>(mFrame)->
-    PaintBorderBackground(*aCtx, ToReferenceFrame(),
-                          mVisibleRect, aBuilder->GetBackgroundPaintFlags());
+    PaintBorderBackground(aBuilder, *aCtx, ToReferenceFrame(), mVisibleRect);
 
   nsDisplayItemGenericImageGeometry::UpdateDrawResult(this, result);
 }
@@ -210,8 +209,11 @@ nsFieldSetFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
 }
 
 DrawResult
-nsFieldSetFrame::PaintBorderBackground(nsRenderingContext& aRenderingContext,
-    nsPoint aPt, const nsRect& aDirtyRect, uint32_t aBGFlags)
+nsFieldSetFrame::PaintBorderBackground(
+  nsDisplayListBuilder* aBuilder,
+  nsRenderingContext& aRenderingContext,
+  nsPoint aPt,
+  const nsRect& aDirtyRect)
 {
   // if the border is smaller than the legend. Move the border down
   // to be centered on the legend.
@@ -223,12 +225,17 @@ nsFieldSetFrame::PaintBorderBackground(nsRenderingContext& aRenderingContext,
   rect += aPt;
   nsPresContext* presContext = PresContext();
 
+  uint32_t bgFlags = aBuilder->GetBackgroundPaintFlags();
+  PaintBorderFlags borderFlags = aBuilder->ShouldSyncDecodeImages()
+                               ? PaintBorderFlags::SYNC_DECODE_IMAGES
+                               : PaintBorderFlags();
+
   DrawResult result =
     nsCSSRendering::PaintBackground(presContext, aRenderingContext, this,
-                                    aDirtyRect, rect, aBGFlags);
+                                    aDirtyRect, rect, bgFlags);
 
   nsCSSRendering::PaintBoxShadowInner(presContext, aRenderingContext,
-                                      this, rect, aDirtyRect);
+                                      this, rect);
 
   if (nsIFrame* legend = GetLegend()) {
     css::Side legendSide = wm.PhysicalSide(eLogicalSideBStart);
@@ -253,8 +260,9 @@ nsFieldSetFrame::PaintBorderBackground(nsRenderingContext& aRenderingContext,
     gfx->Save();
     gfx->Clip(NSRectToSnappedRect(clipRect.GetPhysicalRect(wm, rect.Size()),
                                   appUnitsPerDevPixel, *drawTarget));
-    nsCSSRendering::PaintBorder(presContext, aRenderingContext, this,
-                                aDirtyRect, rect, mStyleContext);
+    result &=
+      nsCSSRendering::PaintBorder(presContext, aRenderingContext, this,
+                                  aDirtyRect, rect, mStyleContext, borderFlags);
     gfx->Restore();
 
     // draw inline-end portion of the block-start side of the border
@@ -266,8 +274,9 @@ nsFieldSetFrame::PaintBorderBackground(nsRenderingContext& aRenderingContext,
     gfx->Save();
     gfx->Clip(NSRectToSnappedRect(clipRect.GetPhysicalRect(wm, rect.Size()),
                                   appUnitsPerDevPixel, *drawTarget));
-    nsCSSRendering::PaintBorder(presContext, aRenderingContext, this,
-                                aDirtyRect, rect, mStyleContext);
+    result &=
+      nsCSSRendering::PaintBorder(presContext, aRenderingContext, this,
+                                  aDirtyRect, rect, mStyleContext, borderFlags);
     gfx->Restore();
 
     // draw remainder of the border (omitting the block-start side)
@@ -278,14 +287,15 @@ nsFieldSetFrame::PaintBorderBackground(nsRenderingContext& aRenderingContext,
     gfx->Save();
     gfx->Clip(NSRectToSnappedRect(clipRect.GetPhysicalRect(wm, rect.Size()),
                                   appUnitsPerDevPixel, *drawTarget));
-    nsCSSRendering::PaintBorder(presContext, aRenderingContext, this,
-                                aDirtyRect, rect, mStyleContext);
+    result &=
+      nsCSSRendering::PaintBorder(presContext, aRenderingContext, this,
+                                  aDirtyRect, rect, mStyleContext, borderFlags);
     gfx->Restore();
   } else {
-    nsCSSRendering::PaintBorder(presContext, aRenderingContext, this,
-                                aDirtyRect,
-                                nsRect(aPt, mRect.Size()),
-                                mStyleContext);
+    result &=
+      nsCSSRendering::PaintBorder(presContext, aRenderingContext, this,
+                                  aDirtyRect, nsRect(aPt, mRect.Size()),
+                                  mStyleContext, borderFlags);
   }
 
   return result;
@@ -653,8 +663,9 @@ void
 nsFieldSetFrame::SetInitialChildList(ChildListID    aListID,
                                      nsFrameList&   aChildList)
 {
-  nsContainerFrame::SetInitialChildList(kPrincipalList, aChildList);
-  MOZ_ASSERT(GetInner());
+  nsContainerFrame::SetInitialChildList(aListID, aChildList);
+  MOZ_ASSERT(aListID != kPrincipalList || GetInner(),
+             "Setting principal child list should populate our inner frame");
 }
 void
 nsFieldSetFrame::AppendFrames(ChildListID    aListID,

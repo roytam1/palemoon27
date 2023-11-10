@@ -45,7 +45,7 @@ public:
     : mParams(aOther.mParams)
   {}
 
-  explicit URLParams(const URLParams&& aOther)
+  URLParams(const URLParams&& aOther)
     : mParams(Move(aOther.mParams))
   {}
 
@@ -91,6 +91,23 @@ public:
     mParams.Clear();
   }
 
+  uint32_t Length() const
+  {
+    return mParams.Length();
+  }
+
+  const nsAString& GetKeyAtIndex(uint32_t aIndex) const
+  {
+    MOZ_ASSERT(aIndex < mParams.Length());
+    return mParams[aIndex].mKey;
+  }
+
+  const nsAString& GetValueAtIndex(uint32_t aIndex) const
+  {
+    MOZ_ASSERT(aIndex < mParams.Length());
+    return mParams[aIndex].mValue;
+  }
+
 private:
   void DecodeString(const nsACString& aInput, nsAString& aOutput);
   void ConvertString(const nsACString& aInput, nsAString& aOutput);
@@ -114,14 +131,16 @@ public:
   NS_DECL_CYCLE_COLLECTING_ISUPPORTS
   NS_DECL_CYCLE_COLLECTION_SCRIPT_HOLDER_CLASS(URLSearchParams)
 
-  explicit URLSearchParams(URLSearchParamsObserver* aObserver);
+  URLSearchParams(nsISupports* aParent,
+                  URLSearchParamsObserver* aObserver);
 
-  explicit URLSearchParams(const URLSearchParams& aOther);
+  URLSearchParams(nsISupports* aParent,
+                  const URLSearchParams& aOther);
 
   // WebIDL methods
   nsISupports* GetParentObject() const
   {
-    return nullptr;
+    return mParent;
   }
 
   virtual JSObject*
@@ -151,6 +170,10 @@ public:
 
   void Delete(const nsAString& aName);
 
+  uint32_t GetIterableLength() const;
+  const nsAString& GetKeyAtIndex(uint32_t aIndex) const;
+  const nsAString& GetValueAtIndex(uint32_t aIndex) const;
+
   void Stringify(nsString& aRetval) const
   {
     Serialize(aRetval);
@@ -174,7 +197,8 @@ private:
   void NotifyObserver();
 
   UniquePtr<URLParams> mParams;
-  nsRefPtr<URLSearchParamsObserver> mObserver;
+  nsCOMPtr<nsISupports> mParent;
+  RefPtr<URLSearchParamsObserver> mObserver;
 };
 
 } // namespace dom

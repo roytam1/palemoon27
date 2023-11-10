@@ -8,9 +8,7 @@
  * ON IT AS AN API.
  */
 
-let Cu = Components.utils;
-let Ci = Components.interfaces;
-let Cc = Components.classes;
+var { classes: Cc, interfaces: Ci, utils: Cu, results: Cr } = Components;
 
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 Cu.import("resource://gre/modules/Services.jsm");
@@ -102,7 +100,9 @@ function DownloadElementShell(aDataItem, aPlacesNode, aAnnotations) {
 
 DownloadElementShell.prototype = {
   // The richlistitem for the download
-  get element() this._element,
+  get element() {
+    return this._element;
+  },
 
   /**
    * Manages the "active" state of the shell.  By default all the shells
@@ -117,11 +117,15 @@ DownloadElementShell.prototype = {
       this._updateUI();
     }
   },
-  get active() !!this._active,
+  get active() {
+    return !!this._active;
+  },
 
   // The data item for the download
   _dataItem: null,
-  get dataItem() this._dataItem,
+  get dataItem() {
+    return this._dataItem;
+  },
 
   set dataItem(aValue) {
     if (this._dataItem != aValue) {
@@ -138,7 +142,9 @@ DownloadElementShell.prototype = {
   },
 
   _placesNode: null,
-  get placesNode() this._placesNode,
+  get placesNode() {
+    return this._placesNode;
+  },
   set placesNode(aValue) {
     if (this._placesNode != aValue) {
       if (!aValue && !this._dataItem)
@@ -279,8 +285,9 @@ DownloadElementShell.prototype = {
     );
   },
 
-  _getAnnotatedMetaData: function DES__getAnnotatedMetaData()
-    JSON.parse(this._getAnnotation(DOWNLOAD_META_DATA_ANNO)),
+  _getAnnotatedMetaData: function DES__getAnnotatedMetaData() {
+    return JSON.parse(this._getAnnotation(DOWNLOAD_META_DATA_ANNO));
+  },
 
   _extractFilePathAndNameFromFileURI:
   function DES__extractFilePathAndNameFromFileURI(aFileURI) {
@@ -820,9 +827,13 @@ function DownloadsPlacesView(aRichListBox, aActive = true) {
 }
 
 DownloadsPlacesView.prototype = {
-  get associatedElement() this._richlistbox,
+  get associatedElement() {
+    return this._richlistbox;
+  },
 
-  get active() this._active,
+  get active() {
+    return this._active;
+  },
   set active(val) {
     this._active = val;
     if (this._active)
@@ -1121,7 +1132,9 @@ DownloadsPlacesView.prototype = {
   },
 
   _place: "",
-  get place() this._place,
+  get place() {
+    return this._place;
+  },
   set place(val) {
     // Don't reload everything if we don't have to.
     if (this._place == val) {
@@ -1145,7 +1158,9 @@ DownloadsPlacesView.prototype = {
   },
 
   _result: null,
-  get result() this._result,
+  get result() {
+    return this._result;
+  },
   set result(val) {
     if (this._result == val)
       return val;
@@ -1170,13 +1185,12 @@ DownloadsPlacesView.prototype = {
   },
 
   get selectedNodes() {
-    let placesNodes = [];
-    let selectedElements = this._richlistbox.selectedItems;
-    for (let elt of selectedElements) {
-      if (elt._shell.placesNode)
-        placesNodes.push(elt._shell.placesNode);
+    let _selectedNodes = [];
+    for (element of this._richlistbox.selectedItems) {
+        if (element._shell.placesNode)
+            _selectedNodes.push(element._shell.placesNode);
     }
-    return placesNodes;
+    return _selectedNodes;
   },
 
   get selectedNode() {
@@ -1184,7 +1198,9 @@ DownloadsPlacesView.prototype = {
     return selectedNodes.length == 1 ? selectedNodes[0] : null;
   },
 
-  get hasSelection() this.selectedNodes.length > 0,
+  get hasSelection() {
+    return this.selectedNodes.length > 0;
+  },
 
   containerStateChanged:
   function DPV_containerStateChanged(aNode, aOldState, aNewState) {
@@ -1295,9 +1311,14 @@ DownloadsPlacesView.prototype = {
   nodeURIChanged: function() {},
   batching: function() {},
 
-  get controller() this._richlistbox.controller,
+  get controller() {
+    return this._richlistbox.controller;
+  },
 
-  get searchTerm() this._searchTerm,
+  get searchTerm() {
+    return this._searchTerm;
+  },
+
   set searchTerm(aValue) {
     if (this._searchTerm != aValue) {
       for (let element of this._richlistbox.childNodes) {
@@ -1333,11 +1354,11 @@ DownloadsPlacesView.prototype = {
         // first item is activated, and pass the item to the richlistbox
         // setters only at a point we know for sure the binding is attached.
         firstDownloadElement._shell.ensureActive();
-        Services.tm.mainThread.dispatch(function() {
+        Services.tm.mainThread.dispatch(() => {
           this._richlistbox.selectedItem = firstDownloadElement;
           this._richlistbox.currentItem = firstDownloadElement;
           this._initiallySelectedElement = firstDownloadElement;
-        }.bind(this), Ci.nsIThread.DISPATCH_NORMAL);
+        }, Ci.nsIThread.DISPATCH_NORMAL);
       }
     }
   },
@@ -1355,8 +1376,9 @@ DownloadsPlacesView.prototype = {
     this._removeSessionDownloadFromView(aDataItem);
   },
 
-  getViewItem: function(aDataItem)
-    this._viewItemsForDataItems.get(aDataItem, null),
+  getViewItem: function(aDataItem) {
+    return this._viewItemsForDataItems.get(aDataItem, null);
+  },
 
   supportsCommand: function DPV_supportsCommand(aCommand) {
     if (DOWNLOAD_VIEW_SUPPORTED_COMMANDS.indexOf(aCommand) != -1) {
@@ -1387,9 +1409,8 @@ DownloadsPlacesView.prototype = {
       case "downloadsCmd_clearDownloads":
         return this._canClearDownloads();
       default:
-        return Array.every(this._richlistbox.selectedItems, function(element) {
-          return element._shell.isCommandEnabled(aCommand);
-        });
+        return Array.every(this._richlistbox.selectedItems,
+                           element => element._shell.isCommandEnabled(aCommand));
     }
   },
 
@@ -1407,11 +1428,14 @@ DownloadsPlacesView.prototype = {
 
   _copySelectedDownloadsToClipboard:
   function DPV__copySelectedDownloadsToClipboard() {
-    let selectedElements = this._richlistbox.selectedItems;
-    let urls = [e._shell.downloadURI for each (e in selectedElements)];
+    let urls = [];
+    for (element of this._richlistbox.selectedItems) {
+        urls.push(element._shell.downloadURI);
+    }
 
-    Cc["@mozilla.org/widget/clipboardhelper;1"].
-    getService(Ci.nsIClipboardHelper).copyString(urls.join("\n"), document);
+    Cc["@mozilla.org/widget/clipboardhelper;1"]
+      .getService(Ci.nsIClipboardHelper)
+      .copyString(urls.join("\n"));
   },
 
   _getURLFromClipboardData: function DPV__getURLFromClipboardData() {
@@ -1471,11 +1495,11 @@ DownloadsPlacesView.prototype = {
         goUpdateCommand("downloadsCmd_clearDownloads");
         break;
       default: {
-        // Slicing the array to get a freezed list of selected items. Otherwise,
-        // the selectedItems array is live and doCommand may alter the selection
-        // while we are trying to do one particular action, like removing items
-        // from history.
-        let selectedElements = this._richlistbox.selectedItems.slice();
+        // Cloning the nodelist into an array to get a frozen list of selected items.
+        // Otherwise, the selectedItems nodelist is live and doCommand may alter the
+        // selection while we are trying to do one particular action, like removing
+        // items from history.
+        let selectedElements = [... this._richlistbox.selectedItems];
         for (let element of selectedElements) {
           element._shell.doCommand(aCommand);
         }

@@ -13,11 +13,9 @@ using namespace mozilla::net;
 NS_IMPL_ISUPPORTS(InterceptedJARChannel, nsIInterceptedChannel)
 
 InterceptedJARChannel::InterceptedJARChannel(nsJARChannel* aChannel,
-                                             nsINetworkInterceptController* aController,
-                                             bool aIsNavigation)
+                                             nsINetworkInterceptController* aController)
 : mController(aController)
 , mChannel(aChannel)
-, mIsNavigation(aIsNavigation)
 {
 }
 
@@ -29,9 +27,14 @@ InterceptedJARChannel::GetResponseBody(nsIOutputStream** aStream)
 }
 
 NS_IMETHODIMP
-InterceptedJARChannel::GetIsNavigation(bool* aIsNavigation)
+InterceptedJARChannel::GetInternalContentPolicyType(nsContentPolicyType* aPolicyType)
 {
-  *aIsNavigation = mIsNavigation;
+  NS_ENSURE_ARG(aPolicyType);
+  nsCOMPtr<nsILoadInfo> loadInfo;
+  nsresult rv = mChannel->GetLoadInfo(getter_AddRefs(loadInfo));
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  *aPolicyType = loadInfo->InternalContentPolicyType();
   return NS_OK;
 }
 
@@ -40,6 +43,12 @@ InterceptedJARChannel::GetChannel(nsIChannel** aChannel)
 {
   NS_IF_ADDREF(*aChannel = mChannel);
   return NS_OK;
+}
+
+NS_IMETHODIMP
+InterceptedJARChannel::GetSecureUpgradedChannelURI(nsIURI** aURI)
+{
+  return mChannel->GetURI(aURI);
 }
 
 NS_IMETHODIMP
@@ -53,6 +62,7 @@ InterceptedJARChannel::ResetInterception()
   mSynthesizedInput = nullptr;
 
   mChannel->ResetInterception();
+  mReleaseHandle = nullptr;
   mChannel = nullptr;
   return NS_OK;
 }
@@ -68,19 +78,29 @@ NS_IMETHODIMP
 InterceptedJARChannel::SynthesizeHeader(const nsACString& aName,
                                         const nsACString& aValue)
 {
+  if (aName.LowerCaseEqualsLiteral("content-type")) {
+    mContentType = aValue;
+  }
   return NS_OK;
 }
 
 NS_IMETHODIMP
-InterceptedJARChannel::FinishSynthesizedResponse()
+InterceptedJARChannel::FinishSynthesizedResponse(const nsACString& aFinalURLSpec)
 {
   if (NS_WARN_IF(!mChannel)) {
     return NS_ERROR_NOT_AVAILABLE;
   }
 
-  mChannel->OverrideWithSynthesizedResponse(mSynthesizedInput);
+  if (!aFinalURLSpec.IsEmpty()) {
+    // We don't support rewriting responses for JAR channels where the principal
+    // needs to be modified.
+    return NS_ERROR_NOT_IMPLEMENTED;
+  }
+
+  mChannel->OverrideWithSynthesizedResponse(mSynthesizedInput, mContentType);
 
   mResponseBody = nullptr;
+  mReleaseHandle = nullptr;
   mChannel = nullptr;
   return NS_OK;
 }
@@ -97,6 +117,7 @@ InterceptedJARChannel::Cancel(nsresult aStatus)
   nsresult rv = mChannel->Cancel(aStatus);
   NS_ENSURE_SUCCESS(rv, rv);
   mResponseBody = nullptr;
+  mReleaseHandle = nullptr;
   mChannel = nullptr;
   return NS_OK;
 }
@@ -111,6 +132,22 @@ InterceptedJARChannel::SetChannelInfo(mozilla::dom::ChannelInfo* aChannelInfo)
   return aChannelInfo->ResurrectInfoOnChannel(mChannel);
 }
 
+NS_IMETHODIMP
+InterceptedJARChannel::GetConsoleReportCollector(nsIConsoleReportCollector**)
+{
+  return NS_ERROR_NOT_AVAILABLE;
+}
+
+NS_IMETHODIMP
+InterceptedJARChannel::SetReleaseHandle(nsISupports* aHandle)
+{
+  MOZ_ASSERT(NS_IsMainThread());
+  MOZ_ASSERT(!mReleaseHandle);
+  MOZ_ASSERT(aHandle);
+  mReleaseHandle = aHandle;
+  return NS_OK;
+}
+
 void
 InterceptedJARChannel::NotifyController()
 {
@@ -119,7 +156,14 @@ InterceptedJARChannel::NotifyController()
                            0, UINT32_MAX, true, true);
   NS_ENSURE_SUCCESS_VOID(rv);
 
-  rv = mController->ChannelIntercepted(this);
+  nsCOMPtr<nsIFetchEventDispatcher> dispatcher;
+  rv = mController->ChannelIntercepted(this, getter_AddRefs(dispatcher));
+  if (NS_WARN_IF(NS_FAILED(rv))) {
+    rv = ResetInterception();
+    NS_WARN_IF_FALSE(NS_SUCCEEDED(rv),
+        "Failed to resume intercepted network request");
+  }
+  rv = dispatcher->Dispatch();
   if (NS_WARN_IF(NS_FAILED(rv))) {
     rv = ResetInterception();
     NS_WARN_IF_FALSE(NS_SUCCEEDED(rv),

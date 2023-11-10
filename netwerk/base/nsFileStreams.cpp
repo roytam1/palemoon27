@@ -21,6 +21,8 @@
 #include "nsReadLine.h"
 #include "nsIClassInfoImpl.h"
 #include "mozilla/ipc/InputStreamUtils.h"
+#include "mozilla/unused.h"
+#include "mozilla/FileUtils.h"
 #include "nsNetCID.h"
 #include "nsXULAppAPI.h"
 
@@ -202,6 +204,11 @@ nsresult
 nsFileStreamBase::Read(char* aBuf, uint32_t aCount, uint32_t* aResult)
 {
     nsresult rv = DoPendingOpen();
+    if (rv == NS_ERROR_FILE_NOT_FOUND) {
+      // Don't warn if this is just a deferred file not found.
+      return rv;
+    }
+
     NS_ENSURE_SUCCESS(rv, rv);
 
     if (!mFD) {
@@ -272,7 +279,7 @@ nsFileStreamBase::Write(const char *buf, uint32_t count, uint32_t *result)
     *result = cnt;
     return NS_OK;
 }
-    
+
 nsresult
 nsFileStreamBase::WriteFrom(nsIInputStream *inStr, uint32_t count, uint32_t *_retval)
 {
@@ -408,7 +415,7 @@ nsFileInputStream::Create(nsISupports *aOuter, REFNSIID aIID, void **aResult)
 
 nsresult
 nsFileInputStream::Open(nsIFile* aFile, int32_t aIOFlags, int32_t aPerm)
-{   
+{
     nsresult rv = NS_OK;
 
     // If the previous file is open, close it
@@ -489,6 +496,11 @@ NS_IMETHODIMP
 nsFileInputStream::Read(char* aBuf, uint32_t aCount, uint32_t* _retval)
 {
     nsresult rv = nsFileStreamBase::Read(aBuf, aCount, _retval);
+    if (rv == NS_ERROR_FILE_NOT_FOUND) {
+      // Don't warn if this is a deffered file not found.
+      return rv;
+    }
+
     NS_ENSURE_SUCCESS(rv, rv);
 
     // Check if we're at the end of file and need to close
@@ -688,7 +700,7 @@ nsPartialFileInputStream::Init(nsIFile* aFile, uint64_t aStart,
     nsresult rv = nsFileInputStream::Init(aFile, aIOFlags, aPerm,
                                           aBehaviorFlags);
     NS_ENSURE_SUCCESS(rv, rv);
-    
+
     return nsFileInputStream::Seek(NS_SEEK_SET, mStart);
 }
 
@@ -823,7 +835,7 @@ NS_IMPL_ISUPPORTS_INHERITED(nsFileOutputStream,
                             nsFileStreamBase,
                             nsIOutputStream,
                             nsIFileOutputStream)
- 
+
 nsresult
 nsFileOutputStream::Create(nsISupports *aOuter, REFNSIID aIID, void **aResult)
 {
@@ -854,6 +866,20 @@ nsFileOutputStream::Init(nsIFile* file, int32_t ioFlags, int32_t perm,
 
     return MaybeOpen(file, ioFlags, perm,
                      mBehaviorFlags & nsIFileOutputStream::DEFER_OPEN);
+}
+
+NS_IMETHODIMP
+nsFileOutputStream::Preallocate(int64_t aLength)
+{
+    if (!mFD) {
+        return NS_ERROR_NOT_INITIALIZED;
+    }
+
+    if (!mozilla::fallocate(mFD, aLength)) {
+        return NS_ERROR_FAILURE;
+    }
+
+    return NS_OK;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -906,7 +932,9 @@ nsAtomicFileOutputStream::DoOpen()
         tempResult->SetFollowLinks(true);
 
         // XP_UNIX ignores SetFollowLinks(), so we have to normalize.
-        tempResult->Normalize();
+        if (mTargetFileExists) {
+            tempResult->Normalize();
+        }
     }
 
     if (NS_SUCCEEDED(rv) && mTargetFileExists) {

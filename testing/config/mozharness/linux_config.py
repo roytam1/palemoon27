@@ -2,6 +2,10 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
+# XXX Bug 1181261 - Please update config in testing/mozharness/config
+# instead. This file is still needed for mulet mochitests, but should
+# be removed once bug 1188330 is finished.
+
 config = {
     "suite_definitions": {
         "cppunittest": {
@@ -22,6 +26,25 @@ config = {
             ],
             "run_filename": "jit_test.py",
             "testsdir": "jit-test/jit-test"
+        },
+        "luciddream-emulator": {
+            "options": [
+                "--startup-timeout=300",
+                "--log-raw=%(raw_log_file)s",
+                "--browser-path=%(browser_path)s",
+                "--b2gpath=%(emulator_path)s",
+                "%(test_manifest)s"
+            ],
+        },
+        "luciddream-b2gdt": {
+            "options": [
+                "--startup-timeout=300",
+                "--log-raw=%(raw_log_file)s",
+                "--browser-path=%(browser_path)s",
+                "--b2g-desktop-path=%(fxos_desktop_path)s",
+                "--gaia-profile=%(gaia_profile)s",
+                "%(test_manifest)s"
+            ],
         },
         "mochitest": {
             "options": [
@@ -84,7 +107,8 @@ config = {
             "options": [
                 "--symbols-path=%(symbols_path)s",
                 "--test-plugin-path=%(test_plugin_path)s",
-                "--log-raw=%(raw_log_file)s"
+                "--log-raw=%(raw_log_file)s",
+                "--utility-path=tests/bin",
             ],
             "run_filename": "runxpcshelltests.py",
             "testsdir": "xpcshell"

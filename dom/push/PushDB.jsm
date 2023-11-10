@@ -5,42 +5,78 @@
 
 "use strict";
 
-// Don't modify this, instead set dom.push.debug.
-let gDebuggingEnabled = false;
-
-function debug(s) {
-  if (gDebuggingEnabled) {
-    dump("-*- PushDB.jsm: " + s + "\n");
-  }
-}
-
 const Cu = Components.utils;
 Cu.import("resource://gre/modules/IndexedDBHelper.jsm");
 Cu.import("resource://gre/modules/Preferences.jsm");
+Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 Cu.importGlobalProperties(["indexedDB"]);
-
-const prefs = new Preferences("dom.push.");
 
 this.EXPORTED_SYMBOLS = ["PushDB"];
 
-this.PushDB = function PushDB(dbName, dbVersion, dbStoreName, schemaFunction) {
-  debug("PushDB()");
+XPCOMUtils.defineLazyGetter(this, "console", () => {
+  let {ConsoleAPI} = Cu.import("resource://gre/modules/Console.jsm", {});
+  return new ConsoleAPI({
+    maxLogLevelPref: "dom.push.loglevel",
+    prefix: "PushDB",
+  });
+});
+
+this.PushDB = function PushDB(dbName, dbVersion, dbStoreName, keyPath, model) {
+  console.debug("PushDB()");
   this._dbStoreName = dbStoreName;
-  this._schemaFunction = schemaFunction;
+  this._keyPath = keyPath;
+  this._model = model;
 
   // set the indexeddb database
   this.initDBHelper(dbName, dbVersion,
                     [dbStoreName]);
-  gDebuggingEnabled = prefs.get("debug");
-  prefs.observe("debug", this);
 };
 
 this.PushDB.prototype = {
   __proto__: IndexedDBHelper.prototype,
 
+  toPushRecord: function(record) {
+    if (!record) {
+      return;
+    }
+    return new this._model(record);
+  },
+
+  isValidRecord: function(record) {
+    return record && typeof record.scope == "string" &&
+           typeof record.originAttributes == "string" &&
+           record.quota >= 0 &&
+           typeof record[this._keyPath] == "string";
+  },
+
   upgradeSchema: function(aTransaction, aDb, aOldVersion, aNewVersion) {
-    if (this._schemaFunction) {
-      this._schemaFunction(aTransaction, aDb, aOldVersion, aNewVersion, this);
+    if (aOldVersion <= 3) {
+      //XXXnsm We haven't shipped Push during this upgrade, so I'm just going to throw old
+      //registrations away without even informing the app.
+      if (aDb.objectStoreNames.contains(this._dbStoreName)) {
+        aDb.deleteObjectStore(this._dbStoreName);
+      }
+
+      let objectStore = aDb.createObjectStore(this._dbStoreName,
+                                              { keyPath: this._keyPath });
+
+      // index to fetch records based on endpoints. used by unregister
+      objectStore.createIndex("pushEndpoint", "pushEndpoint", { unique: true });
+
+      // index to fetch records by identifiers.
+      // In the current security model, the originAttributes distinguish between
+      // different 'apps' on the same origin. Since ServiceWorkers are
+      // same-origin to the scope they are registered for, the attributes and
+      // scope are enough to reconstruct a valid principal.
+      objectStore.createIndex("identifiers", ["scope", "originAttributes"], { unique: true });
+      objectStore.createIndex("originAttributes", "originAttributes", { unique: false });
+    }
+
+    if (aOldVersion < 4) {
+      let objectStore = aTransaction.objectStore(this._dbStoreName);
+
+      // index to fetch active and expired registrations.
+      objectStore.createIndex("quota", "quota", { unique: false });
     }
   },
 
@@ -50,16 +86,26 @@ this.PushDB.prototype = {
    */
 
   put: function(aRecord) {
-    debug("put()" + JSON.stringify(aRecord));
+    console.debug("put()", aRecord);
+    if (!this.isValidRecord(aRecord)) {
+      return Promise.reject(new TypeError(
+        "Scope, originAttributes, and quota are required! " +
+          JSON.stringify(aRecord)
+        )
+      );
+    }
 
     return new Promise((resolve, reject) =>
       this.newTxn(
         "readwrite",
         this._dbStoreName,
-        function txnCb(aTxn, aStore) {
-          aStore.put(aRecord).onsuccess = function setTxnResult(aEvent) {
-            debug("Request successful. Updated record ID: " +
-                  aEvent.target.result);
+        (aTxn, aStore) => {
+          aTxn.result = undefined;
+
+          aStore.put(aRecord).onsuccess = aEvent => {
+            console.debug("put: Request successful. Updated record",
+              aEvent.target.result);
+            aTxn.result = this.toPushRecord(aRecord);
           };
         },
         resolve,
@@ -73,15 +119,18 @@ this.PushDB.prototype = {
    *        The ID of record to be deleted.
    */
   delete: function(aKeyID) {
-    debug("delete()");
+    console.debug("delete()");
 
     return new Promise((resolve, reject) =>
       this.newTxn(
         "readwrite",
         this._dbStoreName,
         function txnCb(aTxn, aStore) {
-          debug("Going to delete " + aKeyID);
-          aStore.delete(aKeyID);
+          console.debug("delete: Removing record", aKeyID);
+          aStore.get(aKeyID).onsuccess = event => {
+            aTxn.result = event.target.result;
+            aStore.delete(aKeyID);
+          };
         },
         resolve,
         reject
@@ -89,14 +138,31 @@ this.PushDB.prototype = {
     );
   },
 
-  clearAll: function clear() {
+  // testFn(record) is called with a database record and should return true if
+  // that record should be deleted.
+  clearIf: function(testFn) {
+    console.debug("clearIf()");
     return new Promise((resolve, reject) =>
       this.newTxn(
         "readwrite",
         this._dbStoreName,
-        function (aTxn, aStore) {
-          debug("Going to clear all!");
-          aStore.clear();
+        (aTxn, aStore) => {
+          aTxn.result = undefined;
+
+          aStore.openCursor().onsuccess = event => {
+            let cursor = event.target.result;
+            if (cursor) {
+              let record = this.toPushRecord(cursor.value);
+              if (testFn(record)) {
+                let deleteRequest = cursor.delete();
+                deleteRequest.onerror = e => {
+                  console.error("clearIf: Error removing record",
+                    record.keyID, e);
+                }
+              }
+              cursor.continue();
+            }
+          }
         },
         resolve,
         reject
@@ -105,19 +171,20 @@ this.PushDB.prototype = {
   },
 
   getByPushEndpoint: function(aPushEndpoint) {
-    debug("getByPushEndpoint()");
+    console.debug("getByPushEndpoint()");
 
     return new Promise((resolve, reject) =>
       this.newTxn(
         "readonly",
         this._dbStoreName,
-        function txnCb(aTxn, aStore) {
+        (aTxn, aStore) => {
           aTxn.result = undefined;
 
           let index = aStore.index("pushEndpoint");
-          index.get(aPushEndpoint).onsuccess = function setTxnResult(aEvent) {
-            aTxn.result = aEvent.target.result;
-            debug("Fetch successful " + aEvent.target.result);
+          index.get(aPushEndpoint).onsuccess = aEvent => {
+            let record = this.toPushRecord(aEvent.target.result);
+            console.debug("getByPushEndpoint: Got record", record);
+            aTxn.result = record;
           };
         },
         resolve,
@@ -127,18 +194,62 @@ this.PushDB.prototype = {
   },
 
   getByKeyID: function(aKeyID) {
-    debug("getByKeyID()");
+    console.debug("getByKeyID()");
 
     return new Promise((resolve, reject) =>
       this.newTxn(
         "readonly",
         this._dbStoreName,
-        function txnCb(aTxn, aStore) {
+        (aTxn, aStore) => {
           aTxn.result = undefined;
 
-          aStore.get(aKeyID).onsuccess = function setTxnResult(aEvent) {
-            aTxn.result = aEvent.target.result;
-            debug("Fetch successful " + aEvent.target.result);
+          aStore.get(aKeyID).onsuccess = aEvent => {
+            let record = this.toPushRecord(aEvent.target.result);
+            console.debug("getByKeyID: Got record", record);
+            aTxn.result = record;
+          };
+        },
+        resolve,
+        reject
+      )
+    );
+  },
+
+  /**
+   * Reduces all records associated with an origin to a single value.
+   *
+   * @param {String} origin The origin, matched as a prefix against the scope.
+   * @param {String} originAttributes Additional origin attributes. Requires
+   *  an exact match.
+   * @param {Function} callback A function with the signature `(result,
+   *  record, cursor)`, where `result` is the value returned by the previous
+   *  invocation, `record` is the registration, and `cursor` is an `IDBCursor`.
+   * @param {Object} [initialValue] The value to use for the first invocation.
+   * @returns {Promise} Resolves with the value of the last invocation.
+   */
+  reduceByOrigin: function(origin, originAttributes, callback, initialValue) {
+    console.debug("forEachOrigin()");
+
+    return new Promise((resolve, reject) =>
+      this.newTxn(
+        "readwrite",
+        this._dbStoreName,
+        (aTxn, aStore) => {
+          aTxn.result = initialValue;
+
+          let index = aStore.index("identifiers");
+          let range = IDBKeyRange.bound(
+            [origin, originAttributes],
+            [origin + "\x7f", originAttributes]
+          );
+          index.openCursor(range).onsuccess = event => {
+            let cursor = event.target.result;
+            if (!cursor) {
+              return;
+            }
+            let record = this.toPushRecord(cursor.value);
+            aTxn.result = callback(aTxn.result, record, cursor);
+            cursor.continue();
           };
         },
         resolve,
@@ -149,26 +260,25 @@ this.PushDB.prototype = {
 
   // Perform a unique match against { scope, originAttributes }
   getByIdentifiers: function(aPageRecord) {
-    debug("getByIdentifiers() { " + aPageRecord.scope + ", " +
-          JSON.stringify(aPageRecord.originAttributes) + " }");
+    console.debug("getByIdentifiers()", aPageRecord);
     if (!aPageRecord.scope || aPageRecord.originAttributes == undefined) {
-      return Promise.reject(
-               new TypeError("Scope and originAttributes are required! " +
-                             JSON.stringify(aPageRecord)));
+      console.error("getByIdentifiers: Scope and originAttributes are required",
+        aPageRecord);
+      return Promise.reject(new TypeError("Invalid page record"));
     }
 
     return new Promise((resolve, reject) =>
       this.newTxn(
         "readonly",
         this._dbStoreName,
-        function txnCb(aTxn, aStore) {
+        (aTxn, aStore) => {
           aTxn.result = undefined;
 
           let index = aStore.index("identifiers");
           let request = index.get(IDBKeyRange.only([aPageRecord.scope, aPageRecord.originAttributes]));
-          request.onsuccess = function setTxnResult(aEvent) {
-            aTxn.result = aEvent.target.result;
-          }
+          request.onsuccess = aEvent => {
+            aTxn.result = this.toPushRecord(aEvent.target.result);
+          };
         },
         resolve,
         reject
@@ -181,7 +291,7 @@ this.PushDB.prototype = {
       this.newTxn(
         "readonly",
         this._dbStoreName,
-        function txnCb(aTxn, aStore) {
+        (aTxn, aStore) => {
           aTxn.result = undefined;
 
           let index = aStore.index(aKeyName);
@@ -189,9 +299,10 @@ this.PushDB.prototype = {
           // high storage APIs, we don't expect more than a handful of
           // registrations per domain, and usually only one.
           let getAllReq = index.mozGetAll(aKeyValue);
-          getAllReq.onsuccess = function setTxnResult(aEvent) {
-            aTxn.result = aEvent.target.result;
-          }
+          getAllReq.onsuccess = aEvent => {
+            aTxn.result = aEvent.target.result.map(
+              record => this.toPushRecord(record));
+          };
         },
         resolve,
         reject
@@ -208,16 +319,95 @@ this.PushDB.prototype = {
   },
 
   getAllKeyIDs: function() {
-    debug("getAllKeyIDs()");
+    console.debug("getAllKeyIDs()");
 
     return new Promise((resolve, reject) =>
       this.newTxn(
         "readonly",
         this._dbStoreName,
-        function txnCb(aTxn, aStore) {
+        (aTxn, aStore) => {
           aTxn.result = undefined;
-          aStore.mozGetAll().onsuccess = function(event) {
-            aTxn.result = event.target.result;
+          aStore.mozGetAll().onsuccess = event => {
+            aTxn.result = event.target.result.map(
+              record => this.toPushRecord(record));
+          };
+        },
+        resolve,
+        reject
+      )
+    );
+  },
+
+  _getAllByPushQuota: function(range) {
+    console.debug("getAllByPushQuota()");
+
+    return new Promise((resolve, reject) =>
+      this.newTxn(
+        "readonly",
+        this._dbStoreName,
+        (aTxn, aStore) => {
+          aTxn.result = [];
+
+          let index = aStore.index("quota");
+          index.openCursor(range).onsuccess = event => {
+            let cursor = event.target.result;
+            if (cursor) {
+              aTxn.result.push(this.toPushRecord(cursor.value));
+              cursor.continue();
+            }
+          };
+        },
+        resolve,
+        reject
+      )
+    );
+  },
+
+  getAllUnexpired: function() {
+    console.debug("getAllUnexpired()");
+    return this._getAllByPushQuota(IDBKeyRange.lowerBound(1));
+  },
+
+  getAllExpired: function() {
+    console.debug("getAllExpired()");
+    return this._getAllByPushQuota(IDBKeyRange.only(0));
+  },
+
+  /**
+   * Updates an existing push registration.
+   *
+   * @param {String} aKeyID The registration ID.
+   * @param {Function} aUpdateFunc A function that receives the existing
+   *  registration record as its argument, and returns a new record. If the
+   *  function returns `null` or `undefined`, the record will not be updated.
+   *  If the record does not exist, the function will not be called.
+   * @returns {Promise} A promise resolved with either the updated record, or
+   *  `undefined` if the record was not updated.
+   */
+  update: function(aKeyID, aUpdateFunc) {
+    return new Promise((resolve, reject) =>
+      this.newTxn(
+        "readwrite",
+        this._dbStoreName,
+        (aTxn, aStore) => {
+          aStore.get(aKeyID).onsuccess = aEvent => {
+            aTxn.result = undefined;
+
+            let record = aEvent.target.result;
+            if (!record) {
+              console.error("update: Record does not exist", aKeyID);
+              return;
+            }
+            let newRecord = aUpdateFunc(this.toPushRecord(record));
+            if (!this.isValidRecord(newRecord)) {
+              console.error("update: Ignoring invalid update",
+                aKeyID, newRecord);
+              return;
+            }
+            aStore.put(newRecord).onsuccess = aEvent => {
+              console.debug("update: Update successful", aKeyID, newRecord);
+              aTxn.result = newRecord;
+            };
           };
         },
         resolve,
@@ -227,7 +417,7 @@ this.PushDB.prototype = {
   },
 
   drop: function() {
-    debug("drop()");
+    console.debug("drop()");
 
     return new Promise((resolve, reject) =>
       this.newTxn(
@@ -241,9 +431,4 @@ this.PushDB.prototype = {
       )
     );
   },
-
-  observe: function observe(aSubject, aTopic, aData) {
-    if ((aTopic == "nsPref:changed") && (aData == "dom.push.debug"))
-      gDebuggingEnabled = prefs.get("debug");
-  }
 };

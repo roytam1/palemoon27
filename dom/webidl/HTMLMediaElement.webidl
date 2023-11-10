@@ -104,7 +104,13 @@ interface HTMLMediaElement : HTMLElement {
 partial interface HTMLMediaElement {
   [ChromeOnly]
   readonly attribute MediaSource? mozMediaSourceObject;
+  [ChromeOnly]
+  readonly attribute DOMString mozDebugReaderData;
+
+  attribute MediaStream? srcObject;
+  // TODO: remove prefixed version soon (1183495).
   attribute MediaStream? mozSrcObject;
+
   attribute boolean mozPreservesPitch;
   readonly attribute boolean mozAutoplayEnabled;
 
@@ -133,11 +139,39 @@ partial interface HTMLMediaElement {
 
   // Mozilla extension: an audio channel type for media elements.
   // Read AudioChannel.webidl for more information about this attribute.
-  [SetterThrows]
+  [SetterThrows, Pref="media.useAudioChannelAPI"]
   attribute AudioChannel mozAudioChannelType;
 
   // In addition the media element has this new events:
   // * onmozinterruptbegin - called when the media element is interrupted
   //   because of the audiochannel manager.
   // * onmozinterruptend - called when the interruption is concluded
+  [Pref="media.useAudioChannelAPI"]
+  attribute EventHandler onmozinterruptbegin;
+
+  [Pref="media.useAudioChannelAPI"]
+  attribute EventHandler onmozinterruptend;
+};
+
+#ifdef MOZ_EME
+// Encrypted Media Extensions
+partial interface HTMLMediaElement {
+  [Pref="media.eme.apiVisible"]
+  readonly attribute MediaKeys? mediaKeys;
+
+  // void, not any: https://www.w3.org/Bugs/Public/show_bug.cgi?id=26457
+  [Pref="media.eme.apiVisible", NewObject]
+  Promise<void> setMediaKeys(MediaKeys? mediaKeys);
+
+  [Pref="media.eme.apiVisible"]
+  attribute EventHandler onencrypted;
+};
+#endif
+
+// This is just for testing
+partial interface HTMLMediaElement {
+  [Pref="media.useAudioChannelService.testing"]
+  readonly attribute double computedVolume;
+  [Pref="media.useAudioChannelService.testing"]
+  readonly attribute boolean computedMuted;
 };

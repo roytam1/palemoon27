@@ -10,6 +10,7 @@
 #include "jit/InlineList.h"
 #include "jit/JitAllocPolicy.h"
 #include "jit/Registers.h"
+#include "jit/RegisterSets.h"
 
 namespace js {
 namespace jit {
@@ -320,9 +321,6 @@ class MoveResolver
     }
     uint32_t numCycles() const {
         return numCycles_;
-    }
-    void clearTempObjectPool() {
-        movePool_.clear();
     }
     void setAllocator(TempAllocator& alloc) {
         movePool_.setAllocator(alloc);

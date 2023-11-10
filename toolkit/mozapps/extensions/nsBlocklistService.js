@@ -12,6 +12,7 @@ const Cr = Components.results;
 
 Components.utils.import("resource://gre/modules/XPCOMUtils.jsm");
 Components.utils.import("resource://gre/modules/Services.jsm");
+Components.utils.import("resource://gre/modules/AppConstants.jsm");
 
 try {
   // AddonManager.jsm doesn't allow itself to be imported in the child
@@ -29,8 +30,10 @@ XPCOMUtils.defineLazyModuleGetter(this, "OS",
                                   "resource://gre/modules/osfile.jsm");
 XPCOMUtils.defineLazyModuleGetter(this, "Task",
                                   "resource://gre/modules/Task.jsm");
+XPCOMUtils.defineLazyModuleGetter(this, "DOMApplicationRegistry",
+                                  "resource://gre/modules/Webapps.jsm");
 
-const TOOLKIT_ID                      = "toolkit@mozilla.org"
+const TOOLKIT_ID                      = "toolkit@mozilla.org";
 const KEY_PROFILEDIR                  = "ProfD";
 const KEY_APPDIR                      = "XCurProcD";
 const FILE_BLOCKLIST                  = "blocklist.xml";
@@ -92,9 +95,11 @@ XPCOMUtils.defineLazyGetter(this, "gApp", function bls_gApp() {
                   .getService(Ci.nsIXULRuntime);
   try {
     appinfo.QueryInterface(Ci.nsIXULAppInfo);
-  } catch (ex if ex instanceof Components.Exception &&
-                 ex.result == Cr.NS_NOINTERFACE) {
+  } catch (ex) {
     // Not all applications implement nsIXULAppInfo (e.g. xpcshell doesn't).
+    if (!(ex instanceof Components.Exception) ||
+        ex.result != Cr.NS_NOINTERFACE)
+      throw ex;
   }
   return appinfo;
 });
@@ -107,15 +112,16 @@ XPCOMUtils.defineLazyGetter(this, "gABI", function bls_gABI() {
   catch (e) {
     LOG("BlockList Global gABI: XPCOM ABI unknown.");
   }
-#ifdef XP_MACOSX
-  // Mac universal build should report a different ABI than either macppc
-  // or mactel.
-  let macutils = Cc["@mozilla.org/xpcom/mac-utils;1"].
-                 getService(Ci.nsIMacUtils);
 
-  if (macutils.isUniversalBinary)
-    abi += "-u-" + macutils.architecturesInBinary;
-#endif
+  if (AppConstants.platform == "macosx") {
+    // Mac universal build should report a different ABI than either macppc
+    // or mactel.
+    let macutils = Cc["@mozilla.org/xpcom/mac-utils;1"].
+                   getService(Ci.nsIMacUtils);
+
+    if (macutils.isUniversalBinary)
+      abi += "-u-" + macutils.architecturesInBinary;
+  }
   return abi;
 });
 
@@ -888,10 +894,21 @@ Blocklist.prototype = {
           continue;
         switch (element.localName) {
         case "emItems":
+          // Special case for b2g, since we don't use the addon manager.
+          if (AppConstants.MOZ_B2G) {
+            let extensions = this._processItemNodes(element.childNodes, "em",
+                                                    this._handleEmItemNode);
+            DOMApplicationRegistry.blockExtensions(extensions);
+            return;
+          }
           this._addonEntries = this._processItemNodes(element.childNodes, "em",
                                                       this._handleEmItemNode);
           break;
         case "pluginItems":
+          // We don't support plugins on b2g.
+          if (AppConstants.MOZ_B2G) {
+            return;
+          }
           this._pluginEntries = this._processItemNodes(element.childNodes, "plugin",
                                                        this._handlePluginItemNode);
           break;
@@ -1056,10 +1073,15 @@ Blocklist.prototype = {
   /* See nsIBlocklistService */
   getPluginBlocklistState: function Blocklist_getPluginBlocklistState(plugin,
                            appVersion, toolkitVersion) {
-    if (!this._isBlocklistLoaded())
-      this._loadBlocklist();
-    return this._getPluginBlocklistState(plugin, this._pluginEntries,
-                                         appVersion, toolkitVersion);
+    if (AppConstants.platform == "android" ||
+        AppConstants.MOZ_B2G) {
+      return Ci.nsIBlocklistService.STATE_NOT_BLOCKED;
+    } else {
+      if (!this._isBlocklistLoaded())
+        this._loadBlocklist();
+      return this._getPluginBlocklistState(plugin, this._pluginEntries,
+                                           appVersion, toolkitVersion);
+    }
   },
 
   /**
@@ -1093,7 +1115,7 @@ Blocklist.prototype = {
     if (!toolkitVersion)
       toolkitVersion = gApp.platformVersion;
 
-    for each (var blockEntry in pluginEntries) {
+    for (var blockEntry of pluginEntries) {
       var matchFailed = false;
       for (var name in blockEntry.matches) {
         if (!(name in plugin) ||
@@ -1172,6 +1194,10 @@ Blocklist.prototype = {
   },
 
   _blocklistUpdated: function Blocklist_blocklistUpdated(oldAddonEntries, oldPluginEntries) {
+    if (AppConstants.MOZ_B2G) {
+      return;
+    }
+
     var addonList = [];
 
     // A helper function that reverts the prefs passed to default values.

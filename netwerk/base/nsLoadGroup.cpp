@@ -37,8 +37,7 @@ using namespace mozilla::net;
 // this enables LogLevel::Debug level information and places all output in
 // the file nspr.log
 //
-static PRLogModuleInfo* gLoadGroupLog = nullptr;
-
+static LazyLogModule gLoadGroupLog("LoadGroup");
 #undef LOG
 #define LOG(args) MOZ_LOG(gLoadGroupLog, mozilla::LogLevel::Debug, args)
 
@@ -87,9 +86,9 @@ RequestHashInitEntry(PLDHashEntryHdr *entry, const void *key)
 
 static const PLDHashTableOps sRequestHashOps =
 {
-    PL_DHashVoidPtrKeyStub,
+    PLDHashTable::HashVoidPtrKeyStub,
     RequestHashMatchEntry,
-    PL_DHashMoveEntryStub,
+    PLDHashTable::MoveEntryStub,
     RequestHashClearEntry,
     RequestHashInitEntry
 };
@@ -114,11 +113,6 @@ nsLoadGroup::nsLoadGroup(nsISupports* outer)
     , mTimedNonCachedRequestsUntilOnEndPageLoad(0)
 {
     NS_INIT_AGGREGATED(outer);
-
-    // Initialize the global PRLogModule for nsILoadGroup logging
-    if (nullptr == gLoadGroupLog)
-        gLoadGroupLog = PR_NewLogModule("LoadGroup");
-
     LOG(("LOADGROUP [%x]: Created.\n", this));
 }
 
@@ -202,7 +196,7 @@ AppendRequestsToArray(PLDHashTable* aTable, nsTArray<nsIRequest*> *aArray)
     for (auto iter = aTable->Iter(); !iter.Done(); iter.Next()) {
         auto e = static_cast<RequestMapEntry*>(iter.Get());
         nsIRequest *request = e->mKey;
-        NS_ASSERTION(request, "What? Null key in pldhash entry?");
+        NS_ASSERTION(request, "What? Null key in PLDHashTable entry?");
 
         bool ok = !!aArray->AppendElement(request);
         if (!ok) {
@@ -229,7 +223,7 @@ nsLoadGroup::Cancel(nsresult status)
     nsresult rv;
     uint32_t count = mRequests.EntryCount();
 
-    nsAutoTArray<nsIRequest*, 8> requests;
+    AutoTArray<nsIRequest*, 8> requests;
 
     if (!AppendRequestsToArray(&mRequests, &requests)) {
         return NS_ERROR_OUT_OF_MEMORY;
@@ -301,7 +295,7 @@ nsLoadGroup::Suspend()
     nsresult rv, firstError;
     uint32_t count = mRequests.EntryCount();
 
-    nsAutoTArray<nsIRequest*, 8> requests;
+    AutoTArray<nsIRequest*, 8> requests;
 
     if (!AppendRequestsToArray(&mRequests, &requests)) {
         return NS_ERROR_OUT_OF_MEMORY;
@@ -346,7 +340,7 @@ nsLoadGroup::Resume()
     nsresult rv, firstError;
     uint32_t count = mRequests.EntryCount();
 
-    nsAutoTArray<nsIRequest*, 8> requests;
+    AutoTArray<nsIRequest*, 8> requests;
 
     if (!AppendRequestsToArray(&mRequests, &requests)) {
         return NS_ERROR_OUT_OF_MEMORY;

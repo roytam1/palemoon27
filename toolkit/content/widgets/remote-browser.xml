@@ -223,17 +223,28 @@
       <property name="docShellIsActive">
         <getter>
           <![CDATA[
-            throw new Error("not supported");
+            let {frameLoader} = this.QueryInterface(Ci.nsIFrameLoaderOwner);
+            return frameLoader.tabParent.docShellIsActive;
           ]]>
         </getter>
         <setter>
           <![CDATA[
             let {frameLoader} = this.QueryInterface(Ci.nsIFrameLoaderOwner);
-            frameLoader.tabParent.setIsDocShellActive(val);
+            frameLoader.tabParent.docShellIsActive = val;
             return val;
           ]]>
         </setter>
       </property>
+
+      <method name="setDocShellIsActiveAndForeground">
+        <parameter name="isActive"/>
+        <body><![CDATA[
+          // See the explanation for what this does in nsITabParent.ipdl
+
+          let {frameLoader} = this.QueryInterface(Ci.nsIFrameLoaderOwner);
+          frameLoader.tabParent.setDocShellIsActiveAndForeground(isActive);
+        ]]></body>
+      </method>
 
       <field name="mDestroyed">false</field>
 

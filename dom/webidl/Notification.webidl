@@ -20,7 +20,7 @@ interface Notification : EventTarget {
   static readonly attribute NotificationPermission permission;
 
   [Throws, Func="mozilla::dom::Notification::RequestPermissionEnabledForScope"]
-  static void requestPermission(optional NotificationPermissionCallback permissionCallback);
+  static Promise<NotificationPermission> requestPermission(optional NotificationPermissionCallback permissionCallback);
 
   [Throws, Func="mozilla::dom::Notification::IsGetEnabled"]
   static Promise<sequence<Notification>> get(optional GetNotificationOptions filter);
@@ -94,8 +94,8 @@ enum NotificationDirection {
 };
 
 partial interface ServiceWorkerRegistration {
-  [Throws]
+  [Throws, Func="mozilla::dom::ServiceWorkerNotificationAPIVisible"]
   Promise<void> showNotification(DOMString title, optional NotificationOptions options);
-  [Throws]
+  [Throws, Func="mozilla::dom::ServiceWorkerNotificationAPIVisible"]
   Promise<sequence<Notification>> getNotifications(optional GetNotificationOptions filter);
 };

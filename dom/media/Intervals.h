@@ -188,6 +188,9 @@ public:
 
   SelfType Span(const SelfType& aOther) const
   {
+    if (IsEmpty()) {
+      return aOther;
+    }
     SelfType result(*this);
     if (aOther.mStart < mStart) {
       result.mStart = aOther.mStart;
@@ -252,7 +255,7 @@ class IntervalSet
 public:
   typedef IntervalSet<T> SelfType;
   typedef Interval<T> ElemType;
-  typedef nsAutoTArray<ElemType,4> ContainerType;
+  typedef AutoTArray<ElemType,4> ContainerType;
   typedef typename ContainerType::index_type IndexType;
 
   IntervalSet()
@@ -269,7 +272,7 @@ public:
 
   IntervalSet(SelfType&& aOther)
   {
-    mIntervals.MoveElementsFrom(Move(aOther.mIntervals));
+    mIntervals.AppendElements(Move(aOther.mIntervals));
   }
 
   explicit IntervalSet(const ElemType& aOther)
@@ -284,6 +287,16 @@ public:
     if (!aOther.IsEmpty()) {
       mIntervals.AppendElement(Move(aOther));
     }
+  }
+
+  bool operator== (const SelfType& aOther) const
+  {
+    return mIntervals == aOther.mIntervals;
+  }
+
+  bool operator!= (const SelfType& aOther) const
+  {
+    return mIntervals != aOther.mIntervals;
   }
 
   SelfType& operator= (const SelfType& aOther)
@@ -369,7 +382,7 @@ public:
       normalized.AppendElement(Move(mIntervals[i]));
     }
     mIntervals.Clear();
-    mIntervals.MoveElementsFrom(Move(normalized));
+    mIntervals.AppendElements(Move(normalized));
 
     return *this;
   }
@@ -393,7 +406,7 @@ public:
     return intervals;
   }
 
-  SelfType operator+ (const ElemType& aInterval)
+  SelfType operator+ (const ElemType& aInterval) const
   {
     SelfType intervals(*this);
     intervals.Add(aInterval);
@@ -434,7 +447,14 @@ public:
     return *this;
   }
 
-  SelfType operator- (const ElemType& aInterval)
+  SelfType operator- (const SelfType& aInterval) const
+  {
+    SelfType intervals(*this);
+    intervals -= aInterval;
+    return intervals;
+  }
+
+  SelfType operator- (const ElemType& aInterval) const
   {
     SelfType intervals(*this);
     intervals -= aInterval;
@@ -471,9 +491,8 @@ public:
         j++;
       }
     }
-
     mIntervals.Clear();
-    mIntervals.MoveElementsFrom(Move(intersection));
+    mIntervals.AppendElements(Move(intersection));
     return *this;
   }
 
@@ -648,6 +667,23 @@ public:
     return mIntervals.end();
   }
 
+  ElemType& LastInterval()
+  {
+    MOZ_ASSERT(!mIntervals.IsEmpty());
+    return mIntervals.LastElement();
+  }
+
+  const ElemType& LastInterval() const
+  {
+    MOZ_ASSERT(!mIntervals.IsEmpty());
+    return mIntervals.LastElement();
+  }
+
+  void Clear()
+  {
+    mIntervals.Clear();
+  }
+
 protected:
   ContainerType mIntervals;
 
@@ -673,7 +709,7 @@ private:
       normalized.AppendElement(Move(current));
 
       mIntervals.Clear();
-      mIntervals.MoveElementsFrom(Move(normalized));
+      mIntervals.AppendElements(Move(normalized));
     }
   }
 

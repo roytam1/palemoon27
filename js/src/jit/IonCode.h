@@ -108,6 +108,9 @@ class JitCode : public gc::TenuredCell
     size_t bufferSize() const {
         return bufferSize_;
     }
+    size_t headerSize() const {
+        return headerSize_;
+    }
 
     void traceChildren(JSTracer* trc);
     void finalize(FreeOp* fop);
@@ -120,7 +123,7 @@ class JitCode : public gc::TenuredCell
         hasBytecodeMap_ = true;
     }
 
-    void togglePreBarriers(bool enabled);
+    void togglePreBarriers(bool enabled, ReprotectCode reprotect);
 
     // If this JitCode object has been, effectively, corrupted due to
     // invalidation patching, then we have to remember this so we don't try and
@@ -157,7 +160,7 @@ class JitCode : public gc::TenuredCell
                         ExecutablePool* pool, CodeKind kind);
 
   public:
-    static inline ThingRootKind rootKind() { return THING_ROOT_JIT_CODE; }
+    static const JS::TraceKind TraceKind = JS::TraceKind::JitCode;
 };
 
 class SnapshotWriter;
@@ -509,7 +512,7 @@ struct IonScript
         MOZ_ASSERT(locIndex < runtimeSize_);
         return (CacheLocation*) &runtimeData()[locIndex];
     }
-    void toggleBarriers(bool enabled);
+    void toggleBarriers(bool enabled, ReprotectCode reprotect = Reprotect);
     void purgeCaches();
     void unlinkFromRuntime(FreeOp* fop);
     void copySnapshots(const SnapshotWriter* writer);
@@ -530,7 +533,7 @@ struct IonScript
     }
 
     // Invalidate the current compilation.
-    bool invalidate(JSContext* cx, bool resetUses, const char* reason);
+    void invalidate(JSContext* cx, bool resetUses, const char* reason);
 
     size_t invalidationCount() const {
         return invalidationCount_;
@@ -666,7 +669,7 @@ struct IonBlockCounts
     }
 
     void setCode(const char* code) {
-        char* ncode = (char*) js_malloc(strlen(code) + 1);
+        char* ncode = js_pod_malloc<char>(strlen(code) + 1);
         if (ncode) {
             strcpy(ncode, code);
             code_ = ncode;
@@ -702,9 +705,9 @@ struct IonScriptCounts
         js_free(blocks_);
         // The list can be long in some corner cases (bug 1140084), so
         // unroll the recursion.
-        IonScriptCounts *victims = previous_;
+        IonScriptCounts* victims = previous_;
         while (victims) {
-            IonScriptCounts *victim = victims;
+            IonScriptCounts* victim = victims;
             victims = victim->previous_;
             victim->previous_ = nullptr;
             js_delete(victim);
@@ -712,9 +715,12 @@ struct IonScriptCounts
     }
 
     bool init(size_t numBlocks) {
-        numBlocks_ = numBlocks;
         blocks_ = js_pod_calloc<IonBlockCounts>(numBlocks);
-        return blocks_ != nullptr;
+        if (!blocks_)
+            return false;
+
+        numBlocks_ = numBlocks;
+        return true;
     }
 
     size_t numBlocks() const {
@@ -740,7 +746,7 @@ struct VMFunction;
 struct AutoFlushICache
 {
   private:
-#if defined(JS_CODEGEN_ARM) || defined(JS_CODEGEN_MIPS32)
+#if defined(JS_CODEGEN_ARM) || defined(JS_CODEGEN_MIPS32) || defined(JS_CODEGEN_MIPS64)
     uintptr_t start_;
     uintptr_t stop_;
     const char* name_;
@@ -776,7 +782,24 @@ IsMarked(const jit::VMFunction*)
 // instances with no associated compartment.
 namespace JS {
 namespace ubi {
-template<> struct Concrete<js::jit::JitCode> : TracerConcrete<js::jit::JitCode> { };
+template<>
+struct Concrete<js::jit::JitCode> : TracerConcrete<js::jit::JitCode> {
+    CoarseType coarseType() const final { return CoarseType::Script; }
+
+    Size size(mozilla::MallocSizeOf mallocSizeOf) const override {
+        Size size = js::gc::Arena::thingSize(get().asTenured().getAllocKind());
+        size += get().bufferSize();
+        size += get().headerSize();
+        return size;
+    }
+
+  protected:
+    explicit Concrete(js::jit::JitCode *ptr) : TracerConcrete<js::jit::JitCode>(ptr) { }
+
+  public:
+    static void construct(void *storage, js::jit::JitCode *ptr) { new (storage) Concrete(ptr); }
+};
+
 } // namespace ubi
 } // namespace JS
 

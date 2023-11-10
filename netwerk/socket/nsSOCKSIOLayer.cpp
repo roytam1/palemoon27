@@ -30,7 +30,8 @@ static PRIOMethods nsSOCKSIOLayerMethods;
 static bool firstTime = true;
 static bool ipv6Supported = true;
 
-static PRLogModuleInfo *gSOCKSLog;
+
+static mozilla::LazyLogModule gSOCKSLog("SOCKS");
 #define LOGDEBUG(args) MOZ_LOG(gSOCKSLog, mozilla::LogLevel::Debug, args)
 #define LOGERROR(args) MOZ_LOG(gSOCKSLog, mozilla::LogLevel::Error , args)
 
@@ -199,7 +200,7 @@ public:
   : mBuf(aBuf), mLength(aLength) {}
 
   template <size_t Size2>
-  Buffer(const Buffer<Size2>& aBuf) : mBuf(aBuf.mBuf), mLength(aBuf.mLength) {
+  MOZ_IMPLICIT Buffer(const Buffer<Size2>& aBuf) : mBuf(aBuf.mBuf), mLength(aBuf.mLength) {
       static_assert(Size2 > Size, "Cannot cast buffer");
   }
 
@@ -1411,8 +1412,6 @@ nsSOCKSIOLayerAddToSocket(int32_t family,
         nsSOCKSIOLayerMethods.close = nsSOCKSIOLayerClose;
 
         firstTime = false;
-
-        gSOCKSLog = PR_NewLogModule("SOCKS");
     }
 
     LOGDEBUG(("Entering nsSOCKSIOLayerAddToSocket()."));

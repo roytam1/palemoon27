@@ -492,16 +492,16 @@ class RegisterSet {
     MOZ_CONSTEXPR GeneralRegisterSet gprs() const {
         return gpr_;
     }
-    GeneralRegisterSet &gprs() {
+    GeneralRegisterSet& gprs() {
         return gpr_;
     }
     MOZ_CONSTEXPR FloatRegisterSet fpus() const {
         return fpu_;
     }
-    FloatRegisterSet &fpus() {
+    FloatRegisterSet& fpus() {
         return fpu_;
     }
-    bool operator ==(const RegisterSet &other) const {
+    bool operator ==(const RegisterSet& other) const {
         return other.gpr_ == gpr_ && other.fpu_ == fpu_;
     }
 
@@ -642,12 +642,12 @@ class AllocatableSetAccessors<RegisterSet>
 // The LiveSet accessors are used to collect a list of allocated
 // registers. Taking or adding a register should *not* consider the aliases, as
 // we care about interpreting the registers with the correct type.  For example,
-// on x64, where one float registers can be interpreted as an Int32x4, a Double,
-// or a Float, adding xmm0 as an Int32x4, does not make the register available
+// on x64, where one float registers can be interpreted as an Simd128, a Double,
+// or a Float, adding xmm0 as an Simd128, does not make the register available
 // as a Double.
 //
 //     LiveFloatRegisterSet regs;
-//     regs.add(xmm0.asInt32x4());
+//     regs.add(xmm0.asSimd128());
 //     regs.take(xmm0); // Assert!
 //
 // These accessors are useful for recording the result of a register allocator,
@@ -824,13 +824,13 @@ class SpecializedRegSet<Accessors, RegisterSet> : public Accessors
     GeneralRegisterSet gprs() const {
         return this->Parent::set_.gprs();
     }
-    GeneralRegisterSet &gprs() {
+    GeneralRegisterSet& gprs() {
         return this->Parent::set_.gprs();
     }
     FloatRegisterSet fpus() const {
         return this->Parent::set_.fpus();
     }
-    FloatRegisterSet &fpus() {
+    FloatRegisterSet& fpus() {
         return this->Parent::set_.fpus();
     }
 
@@ -937,7 +937,7 @@ class CommonRegSet : public SpecializedRegSet<Accessors, Set>
     RegSet set() const {
         return this->Parent::set_;
     }
-    RegSet &set() {
+    RegSet& set() {
         return this->Parent::set_;
     }
 
@@ -1098,7 +1098,7 @@ class TypedRegisterIterator
     { }
     explicit TypedRegisterIterator(LiveSet<TypedRegisterSet<T>> regset) : regset_(regset)
     { }
-    TypedRegisterIterator(const TypedRegisterIterator &other) : regset_(other.regset_)
+    TypedRegisterIterator(const TypedRegisterIterator& other) : regset_(other.regset_)
     { }
 
     bool more() const {
@@ -1129,7 +1129,7 @@ class TypedRegisterBackwardIterator
     { }
     explicit TypedRegisterBackwardIterator(LiveSet<TypedRegisterSet<T>> regset) : regset_(regset)
     { }
-    TypedRegisterBackwardIterator(const TypedRegisterBackwardIterator &other)
+    TypedRegisterBackwardIterator(const TypedRegisterBackwardIterator& other)
       : regset_(other.regset_)
     { }
 
@@ -1161,7 +1161,7 @@ class TypedRegisterForwardIterator
     { }
     explicit TypedRegisterForwardIterator(LiveSet<TypedRegisterSet<T>> regset) : regset_(regset)
     { }
-    TypedRegisterForwardIterator(const TypedRegisterForwardIterator &other) : regset_(other.regset_)
+    TypedRegisterForwardIterator(const TypedRegisterForwardIterator& other) : regset_(other.regset_)
     { }
 
     bool more() const {
@@ -1200,13 +1200,13 @@ class AnyRegisterIterator
     AnyRegisterIterator(GeneralRegisterSet genset, FloatRegisterSet floatset)
       : geniter_(genset), floatiter_(floatset)
     { }
-    explicit AnyRegisterIterator(const RegisterSet &set)
+    explicit AnyRegisterIterator(const RegisterSet& set)
       : geniter_(set.gpr_), floatiter_(set.fpu_)
     { }
-    explicit AnyRegisterIterator(const LiveSet<RegisterSet> &set)
+    explicit AnyRegisterIterator(const LiveSet<RegisterSet>& set)
       : geniter_(set.gprs()), floatiter_(set.fpus())
     { }
-    AnyRegisterIterator(const AnyRegisterIterator &other)
+    AnyRegisterIterator(const AnyRegisterIterator& other)
       : geniter_(other.geniter_), floatiter_(other.floatiter_)
     { }
     bool more() const {
@@ -1309,7 +1309,7 @@ SavedNonVolatileRegisters(AllocatableGeneralRegisterSet unused)
     result.add(Register::FromCode(Registers::lr));
 #elif defined(JS_CODEGEN_ARM64)
     result.add(Register::FromCode(Registers::lr));
-#elif defined(JS_CODEGEN_MIPS32)
+#elif defined(JS_CODEGEN_MIPS32) || defined(JS_CODEGEN_MIPS64)
     result.add(Register::FromCode(Registers::ra));
 #endif
 

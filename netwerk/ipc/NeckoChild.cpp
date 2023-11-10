@@ -15,6 +15,7 @@
 #include "mozilla/net/WyciwygChannelChild.h"
 #include "mozilla/net/FTPChannelChild.h"
 #include "mozilla/net/WebSocketChannelChild.h"
+#include "mozilla/net/WebSocketEventListenerChild.h"
 #include "mozilla/net/DNSRequestChild.h"
 #include "mozilla/net/RemoteOpenFileChild.h"
 #include "mozilla/net/ChannelDiverterChild.h"
@@ -144,7 +145,8 @@ NeckoChild::DeallocPWyciwygChannelChild(PWyciwygChannelChild* channel)
 
 PWebSocketChild*
 NeckoChild::AllocPWebSocketChild(const PBrowserOrId& browser,
-                                 const SerializedLoadContext& aSerialized)
+                                 const SerializedLoadContext& aSerialized,
+                                 const uint32_t& aSerial)
 {
   NS_NOTREACHED("AllocPWebSocketChild should not be called");
   return nullptr;
@@ -155,6 +157,23 @@ NeckoChild::DeallocPWebSocketChild(PWebSocketChild* child)
 {
   WebSocketChannelChild* p = static_cast<WebSocketChannelChild*>(child);
   p->ReleaseIPDLReference();
+  return true;
+}
+
+PWebSocketEventListenerChild*
+NeckoChild::AllocPWebSocketEventListenerChild(const uint64_t& aInnerWindowID)
+{
+  RefPtr<WebSocketEventListenerChild> c =
+    new WebSocketEventListenerChild(aInnerWindowID);
+  return c.forget().take();
+}
+
+bool
+NeckoChild::DeallocPWebSocketEventListenerChild(PWebSocketEventListenerChild* aActor)
+{
+  RefPtr<WebSocketEventListenerChild> c =
+    dont_AddRef(static_cast<WebSocketEventListenerChild*>(aActor));
+  MOZ_ASSERT(c);
   return true;
 }
 
@@ -210,8 +229,7 @@ PTCPSocketChild*
 NeckoChild::AllocPTCPSocketChild(const nsString& host,
                                  const uint16_t& port)
 {
-  TCPSocketChild* p = new TCPSocketChild();
-  p->Init(host, port);
+  TCPSocketChild* p = new TCPSocketChild(host, port);
   p->AddIPDLReference();
   return p;
 }
@@ -227,7 +245,7 @@ NeckoChild::DeallocPTCPSocketChild(PTCPSocketChild* child)
 PTCPServerSocketChild*
 NeckoChild::AllocPTCPServerSocketChild(const uint16_t& aLocalPort,
                                   const uint16_t& aBacklog,
-                                  const nsString& aBinaryType)
+                                  const bool& aUseArrayBuffers)
 {
   NS_NOTREACHED("AllocPTCPServerSocket should not be called");
   return nullptr;
@@ -315,7 +333,7 @@ NeckoChild::RecvAsyncAuthPromptForNestedFrame(const TabId& aNestedFrameId,
                                               const nsString& aRealm,
                                               const uint64_t& aCallbackId)
 {
-  nsRefPtr<dom::TabChild> tabChild = dom::TabChild::FindTabChild(aNestedFrameId);
+  RefPtr<dom::TabChild> tabChild = dom::TabChild::FindTabChild(aNestedFrameId);
   if (!tabChild) {
     MOZ_CRASH();
     return false;

@@ -123,7 +123,7 @@ interface ScheduledGCCallback : nsISupports
 /**
 * interface of Components.utils
 */
-[scriptable, uuid(e04a4a58-2b5e-4a74-941a-0d344b057c5a)]
+[scriptable, uuid(86003fe3-ee9a-4620-91dc-eef8b1e58815)]
 interface nsIXPCComponents_Utils : nsISupports
 {
 
@@ -344,21 +344,6 @@ interface nsIXPCComponents_Utils : nsISupports
      */
     void unlinkGhostWindows();
 
-    /**
-     * Return the keys in a weak map.  This operation is
-     * non-deterministic because it is affected by the scheduling of the
-     * garbage collector and the cycle collector.
-     *
-     * This should only be used to write tests of the interaction of
-     * the GC and CC with weak maps.
-     *
-     * @param aMap weak map or other JavaScript value
-     * @returns If aMap is a weak map object, return the keys of the weak
-                map as an array.  Otherwise, return undefined.
-     */
-    [implicit_jscontext]
-    jsval nondeterministicGetWeakMapKeys(in jsval aMap);
-
     [implicit_jscontext]
     jsval getJSTestingFunctions();
 
@@ -459,6 +444,15 @@ interface nsIXPCComponents_Utils : nsISupports
      */
     ACString getCrossProcessWrapperTag(in jsval obj);
 
+    /**
+     * If CPOWs are disabled for browser code via the
+     * dom.ipc.cpows.forbid-unsafe-from-browser preferences, then only
+     * add-ons can use CPOWs. This function allows a non-addon scope
+     * to opt into CPOWs. It's necessary for the implementation of
+     * RemoteAddonsParent.jsm.
+     */
+    void permitCPOWsInScope(in jsval obj);
+
     /*
      * To be called from JS only. This is for Gecko internal use only, and may
      * disappear at any moment.
@@ -487,16 +481,6 @@ interface nsIXPCComponents_Utils : nsISupports
      */
     [implicit_jscontext]
     void forcePermissiveCOWs();
-
-    /*
-     * Disables the XPConnect security checks that deny access to callables and
-     * accessor descriptors on COWs. Do not use this unless you are bholley.
-     *
-     * For the benefit of his magesty TCPSocket while he takes his sweet time
-     * converting to WebIDL. See bug 885982.
-     */
-    [implicit_jscontext]
-    void skipCOWCallableChecks();
 
     /*
      * Forces the usage of a privileged |Components| object for a potentially-

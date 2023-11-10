@@ -1,6 +1,18 @@
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/*
+ * Copyright 2015, Mozilla Foundation and contributors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
 
 #include <stdint.h>
 #include <stdio.h>
@@ -17,9 +29,8 @@
 #include <versionhelpers.h>
 #endif
 
-#include "mozilla/Assertions.h"
+#include <assert.h>
 
-using namespace mozilla;
 using namespace std;
 
 ClearKeySessionManager::ClearKeySessionManager()
@@ -37,7 +48,6 @@ ClearKeySessionManager::ClearKeySessionManager()
 ClearKeySessionManager::~ClearKeySessionManager()
 {
   CK_LOGD("ClearKeySessionManager dtor %p", this);
-   MOZ_ASSERT(!mRefCount);
 }
 
 static bool
@@ -91,16 +101,21 @@ ClearKeySessionManager::CreateSession(uint32_t aCreateSessionToken,
 {
   CK_LOGD("ClearKeySessionManager::CreateSession type:%s", aInitDataType);
 
-  // initDataType must be "cenc".
-  if (strcmp("cenc", aInitDataType)) {
+  string initDataType(aInitDataType, aInitDataType + aInitDataTypeSize);
+  // initDataType must be "cenc", "keyids", or "webm".
+  if (initDataType != "cenc" &&
+      initDataType != "keyids" &&
+      initDataType != "webm") {
+    string message = "'" + initDataType + "' is an initDataType unsupported by ClearKey";
     mCallback->RejectPromise(aPromiseId, kGMPNotSupportedError,
-                             nullptr /* message */, 0 /* messageLen */);
+                             message.c_str(), message.size());
     return;
   }
 
   if (ClearKeyPersistence::DeferCreateSessionIfNotReady(this,
                                                         aCreateSessionToken,
                                                         aPromiseId,
+                                                        initDataType,
                                                         aInitData,
                                                         aInitDataSize,
                                                         aSessionType)) {
@@ -108,10 +123,10 @@ ClearKeySessionManager::CreateSession(uint32_t aCreateSessionToken,
   }
 
   string sessionId = ClearKeyPersistence::GetNewSessionId(aSessionType);
-  MOZ_ASSERT(mSessions.find(sessionId) == mSessions.end());
+  assert(mSessions.find(sessionId) == mSessions.end());
 
   ClearKeySession* session = new ClearKeySession(sessionId, mCallback, aSessionType);
-  session->Init(aCreateSessionToken, aPromiseId, aInitData, aInitDataSize);
+  session->Init(aCreateSessionToken, aPromiseId, initDataType, aInitData, aInitDataSize);
   mSessions[sessionId] = session;
 
   const vector<KeyId>& sessionKeys = session->GetKeyIds();
@@ -192,10 +207,10 @@ ClearKeySessionManager::PersistentSessionDataLoaded(GMPErr aStatus,
     const uint8_t* base = aKeyData + 2 * CLEARKEY_KEY_LEN * i;
 
     KeyId keyId(base, base + CLEARKEY_KEY_LEN);
-    MOZ_ASSERT(keyId.size() == CLEARKEY_KEY_LEN);
+    assert(keyId.size() == CLEARKEY_KEY_LEN);
 
     Key key(base + CLEARKEY_KEY_LEN, base + 2 * CLEARKEY_KEY_LEN);
-    MOZ_ASSERT(key.size() == CLEARKEY_KEY_LEN);
+    assert(key.size() == CLEARKEY_KEY_LEN);
 
     session->AddKeyId(keyId);
 
@@ -274,10 +289,10 @@ ClearKeySessionManager::Serialize(const ClearKeySession* aSession,
     if (!mDecryptionManager->HasKeyForKeyId(keyId)) {
       continue;
     }
-    MOZ_ASSERT(keyId.size() == CLEARKEY_KEY_LEN);
+    assert(keyId.size() == CLEARKEY_KEY_LEN);
     aOutKeyData.insert(aOutKeyData.end(), keyId.begin(), keyId.end());
     const Key& key = mDecryptionManager->GetDecryptionKey(keyId);
-    MOZ_ASSERT(key.size() == CLEARKEY_KEY_LEN);
+    assert(key.size() == CLEARKEY_KEY_LEN);
     aOutKeyData.insert(aOutKeyData.end(), key.begin(), key.end());
   }
 }
@@ -298,7 +313,7 @@ ClearKeySessionManager::CloseSession(uint32_t aPromiseId,
   }
 
   ClearKeySession* session = itr->second;
-  MOZ_ASSERT(session);
+  assert(session);
 
   ClearInMemorySessionData(session);
   mCallback->ResolvePromise(aPromiseId);
@@ -327,7 +342,7 @@ ClearKeySessionManager::RemoveSession(uint32_t aPromiseId,
   }
 
   ClearKeySession* session = itr->second;
-  MOZ_ASSERT(session);
+  assert(session);
   string sid = session->Id();
   bool isPersistent = session->Type() == kGMPPersistentSession;
   ClearInMemorySessionData(session);
@@ -376,9 +391,9 @@ ClearKeySessionManager::Decrypt(GMPBuffer* aBuffer,
     return;
   }
 
-  mThread->Post(WrapTask(this,
-                         &ClearKeySessionManager::DoDecrypt,
-                         aBuffer, aMetadata));
+  mThread->Post(WrapTaskRefCounted(this,
+                                   &ClearKeySessionManager::DoDecrypt,
+                                   aBuffer, aMetadata));
 }
 
 void
@@ -388,7 +403,7 @@ ClearKeySessionManager::DoDecrypt(GMPBuffer* aBuffer,
   CK_LOGD("ClearKeySessionManager::DoDecrypt");
 
   GMPErr rv = mDecryptionManager->Decrypt(aBuffer->Data(), aBuffer->Size(),
-                                              aMetadata);
+                                          CryptoMetaData(aMetadata));
   CK_LOGD("DeDecrypt finished with code %x\n", rv);
   mCallback->Decrypted(aBuffer, rv);
 }

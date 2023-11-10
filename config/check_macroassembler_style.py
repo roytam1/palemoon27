@@ -30,8 +30,8 @@ import sys
 from check_utils import get_all_toplevel_filenames
 
 architecture_independent = set([ 'generic' ])
-all_architecture_names = set([ 'x86', 'x64', 'arm', 'arm64', 'mips32' ])
-all_shared_architecture_names = set([ 'x86_shared', 'arm', 'arm64', 'mips32' ])
+all_architecture_names = set([ 'x86', 'x64', 'arm', 'arm64', 'mips32', 'mips64' ])
+all_shared_architecture_names = set([ 'x86_shared', 'mips_shared', 'arm', 'arm64' ])
 
 reBeforeArg = "(?<=[(,\s])"
 reArgType = "(?P<type>[\w\s:*&]+)"
@@ -41,6 +41,8 @@ reAfterArg = "(?=[,)])"
 reMatchArg = re.compile(reBeforeArg + reArgType + reArgName + reArgDefault + reAfterArg)
 
 def get_normalized_signatures(signature, fileAnnot = None):
+    # Remove static
+    signature = signature.replace('static', '')
     # Remove semicolon.
     signature = signature.replace(';', ' ')
     # Normalize spaces.
@@ -206,7 +208,7 @@ def append_signatures(d, sigs):
 def generate_file_content(signatures):
     output = []
     for s in sorted(signatures.keys()):
-        archs = set(signatures[s])
+        archs = set(sorted(signatures[s]))
         if len(archs.symmetric_difference(architecture_independent)) == 0:
             output.append(s + ';\n')
             if s.startswith('inline'):

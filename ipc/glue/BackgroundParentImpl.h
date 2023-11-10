@@ -56,6 +56,10 @@ protected:
   virtual bool
   DeallocPBlobParent(PBlobParent* aActor) override;
 
+  virtual bool
+  RecvPBlobConstructor(PBlobParent* aActor,
+                       const BlobConstructorParams& params) override;
+
   virtual PFileDescriptorSetParent*
   AllocPFileDescriptorSetParent(const FileDescriptor& aFileDescriptor)
                                 override;
@@ -101,11 +105,11 @@ protected:
   virtual bool
   DeallocPServiceWorkerManagerParent(PServiceWorkerManagerParent* aActor) override;
 
-  virtual PMediaParent*
-  AllocPMediaParent() override;
+  virtual PCamerasParent*
+  AllocPCamerasParent() override;
 
   virtual bool
-  DeallocPMediaParent(PMediaParent* aActor) override;
+  DeallocPCamerasParent(PCamerasParent* aActor) override;
 
   virtual bool
   RecvShutdownServiceWorkerRegistrar() override;
@@ -157,6 +161,14 @@ protected:
   RecvMessagePortForceClose(const nsID& aUUID,
                             const nsID& aDestinationUUID,
                             const uint32_t& aSequenceID) override;
+
+  virtual PAsmJSCacheEntryParent*
+  AllocPAsmJSCacheEntryParent(const dom::asmjscache::OpenMode& aOpenMode,
+                              const dom::asmjscache::WriteParams& aWriteParams,
+                              const PrincipalInfo& aPrincipalInfo) override;
+
+  virtual bool
+  DeallocPAsmJSCacheEntryParent(PAsmJSCacheEntryParent* aActor) override;
 };
 
 } // namespace ipc

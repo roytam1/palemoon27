@@ -81,7 +81,7 @@ OrientedImage::GetFrame(uint32_t aWhichFrame,
   }
 
   // Get the underlying dimensions.
-  gfxIntSize size;
+  IntSize size;
   rv = InnerImage()->GetWidth(&size.width);
   NS_ENSURE_SUCCESS(rv, nullptr);
   rv = InnerImage()->GetHeight(&size.height);
@@ -109,17 +109,26 @@ OrientedImage::GetFrame(uint32_t aWhichFrame,
   RefPtr<SourceSurface> innerSurface =
     InnerImage()->GetFrame(aWhichFrame, aFlags);
   NS_ENSURE_TRUE(innerSurface, nullptr);
-  nsRefPtr<gfxDrawable> drawable =
+  RefPtr<gfxDrawable> drawable =
     new gfxSurfaceDrawable(innerSurface, size);
 
   // Draw.
-  nsRefPtr<gfxContext> ctx = new gfxContext(target);
+  RefPtr<gfxContext> ctx = new gfxContext(target);
   ctx->Multiply(OrientationMatrix(size));
-  gfxUtils::DrawPixelSnapped(ctx, drawable, size,
-                             ImageRegion::Create(size),
-                             surfaceFormat, GraphicsFilter::FILTER_FAST);
+  gfxUtils::DrawPixelSnapped(ctx, drawable, size, ImageRegion::Create(size),
+                             surfaceFormat, Filter::LINEAR);
 
   return target->Snapshot();
+}
+
+NS_IMETHODIMP_(already_AddRefed<SourceSurface>)
+OrientedImage::GetFrameAtSize(const IntSize& aSize,
+                              uint32_t aWhichFrame,
+                              uint32_t aFlags)
+{
+  // XXX(seth): It'd be nice to support downscale-during-decode for this case,
+  // but right now we just fall back to the intrinsic size.
+  return GetFrame(aWhichFrame, aFlags);
 }
 
 NS_IMETHODIMP_(bool)
@@ -263,7 +272,7 @@ OrientedImage::Draw(gfxContext* aContext,
                     const nsIntSize& aSize,
                     const ImageRegion& aRegion,
                     uint32_t aWhichFrame,
-                    GraphicsFilter aFilter,
+                    Filter aFilter,
                     const Maybe<SVGImageContext>& aSVGContext,
                     uint32_t aFlags)
 {
@@ -300,7 +309,7 @@ OrientedImage::Draw(gfxContext* aContext,
 nsIntSize
 OrientedImage::OptimalImageSizeForDest(const gfxSize& aDest,
                                        uint32_t aWhichFrame,
-                                       GraphicsFilter aFilter, uint32_t aFlags)
+                                       Filter aFilter, uint32_t aFlags)
 {
   if (!mOrientation.SwapsWidthAndHeight()) {
     return InnerImage()->OptimalImageSizeForDest(aDest, aWhichFrame, aFilter,
@@ -334,7 +343,7 @@ OrientedImage::GetImageSpaceInvalidationRect(const nsIntRect& aRect)
   }
 
   // Transform the invalidation rect into the correct orientation.
-  gfxMatrix matrix(OrientationMatrix(innerSize, /* aInvert = */ true));
+  gfxMatrix matrix(OrientationMatrix(innerSize));
   gfxRect invalidRect(matrix.TransformBounds(gfxRect(rect.x, rect.y,
                                                      rect.width, rect.height)));
   invalidRect.RoundOut();

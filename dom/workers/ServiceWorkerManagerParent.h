@@ -15,7 +15,7 @@ class OriginAttributes;
 
 namespace ipc {
 class BackgroundParentImpl;
-}
+} // namespace ipc
 
 namespace dom {
 namespace workers {
@@ -56,15 +56,15 @@ private:
 
   virtual void ActorDestroy(ActorDestroyReason aWhy) override;
 
-  nsRefPtr<ServiceWorkerManagerService> mService;
+  RefPtr<ServiceWorkerManagerService> mService;
 
   // We use this ID in the Service in order to avoid the sending of messages to
   // ourself.
   uint64_t mID;
 };
 
-} // workers namespace
-} // dom namespace
-} // mozilla namespace
+} // namespace workers
+} // namespace dom
+} // namespace mozilla
 
 #endif // mozilla_dom_ServiceWorkerManagerParent_h

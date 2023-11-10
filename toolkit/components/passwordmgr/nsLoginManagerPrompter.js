@@ -3,15 +3,12 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
+const { classes: Cc, interfaces: Ci, results: Cr, utils: Cu } = Components;
 
-const Cc = Components.classes;
-const Ci = Components.interfaces;
-const Cr = Components.results;
-
-Components.utils.import("resource://gre/modules/XPCOMUtils.jsm");
-Components.utils.import("resource://gre/modules/Services.jsm");
-Components.utils.import("resource://gre/modules/PrivateBrowsingUtils.jsm");
-Components.utils.import("resource://gre/modules/SharedPromptUtils.jsm");
+Cu.import("resource://gre/modules/XPCOMUtils.jsm");
+Cu.import("resource://gre/modules/Services.jsm");
+Cu.import("resource://gre/modules/PrivateBrowsingUtils.jsm");
+Cu.import("resource://gre/modules/SharedPromptUtils.jsm");
 
 /* Constants for password prompt telemetry.
  * Mirrored in mobile/android/components/LoginManagerPrompter.js */
@@ -120,7 +117,7 @@ LoginManagerPromptFactory.prototype = {
         prompt.inProgress = false;
         self._asyncPromptInProgress = false;
 
-        for each (var consumer in prompt.consumers) {
+        for (var consumer of prompt.consumers) {
           if (!consumer.callback)
             // Not having a callback means that consumer didn't provide it
             // or canceled the notification
@@ -136,7 +133,7 @@ LoginManagerPromptFactory.prototype = {
         }
         self._doAsyncPrompt();
       }
-    }
+    };
 
     Services.tm.mainThread.dispatch(runnable, Ci.nsIThread.DISPATCH_NORMAL);
     this.log("_doAsyncPrompt:run dispatched");
@@ -148,7 +145,8 @@ LoginManagerPromptFactory.prototype = {
     var asyncPrompts = this._asyncPrompts;
     this.__proto__._asyncPrompts = {};
 
-    for each (var prompt in asyncPrompts) {
+    for (var hashKey in asyncPrompts) {
+      let prompt = asyncPrompts[hashKey];
       // Watch out! If this prompt is currently prompting, let it handle
       // notifying the callbacks of success/failure, since it's already
       // asking the user for input. Reusing a callback can be crashy.
@@ -157,7 +155,7 @@ LoginManagerPromptFactory.prototype = {
         continue;
       }
 
-      for each (var consumer in prompt.consumers) {
+      for (var consumer of prompt.consumers) {
         if (!consumer.callback)
           continue;
 
@@ -241,7 +239,7 @@ LoginManagerPrompter.prototype = {
       this.__strBundle = bunService.createBundle(
                   "chrome://passwordmgr/locale/passwordmgr.properties");
       if (!this.__strBundle)
-        throw "String bundle for Login Manager not present!";
+        throw new Error("String bundle for Login Manager not present!");
     }
 
     return this.__strBundle;
@@ -304,7 +302,8 @@ LoginManagerPrompter.prototype = {
   prompt : function (aDialogTitle, aText, aPasswordRealm,
                      aSavePassword, aDefaultText, aResult) {
     if (aSavePassword != Ci.nsIAuthPrompt.SAVE_PASSWORD_NEVER)
-      throw Components.results.NS_ERROR_NOT_IMPLEMENTED;
+      throw new Components.Exception("prompt only supports SAVE_PASSWORD_NEVER",
+                                     Cr.NS_ERROR_NOT_IMPLEMENTED);
 
     this.log("===== prompt() called =====");
 
@@ -328,7 +327,8 @@ LoginManagerPrompter.prototype = {
     this.log("===== promptUsernameAndPassword() called =====");
 
     if (aSavePassword == Ci.nsIAuthPrompt.SAVE_PASSWORD_FOR_SESSION)
-        throw Components.results.NS_ERROR_NOT_IMPLEMENTED;
+      throw new Components.Exception("promptUsernameAndPassword doesn't support SAVE_PASSWORD_FOR_SESSION",
+                                     Cr.NS_ERROR_NOT_IMPLEMENTED);
 
     var selectedLogin = null;
     var checkBox = { value : false };
@@ -430,7 +430,8 @@ LoginManagerPrompter.prototype = {
     this.log("===== promptPassword called() =====");
 
     if (aSavePassword == Ci.nsIAuthPrompt.SAVE_PASSWORD_FOR_SESSION)
-        throw Components.results.NS_ERROR_NOT_IMPLEMENTED;
+      throw new Components.Exception("promptPassword doesn't support SAVE_PASSWORD_FOR_SESSION",
+                                     Cr.NS_ERROR_NOT_IMPLEMENTED);
 
     var checkBox = { value : false };
     var checkBoxLabel = null;
@@ -689,7 +690,7 @@ LoginManagerPrompter.prototype = {
         level: aLevel,
         inProgress : false,
         prompter: this
-      }
+      };
 
       this._factory._asyncPrompts[hashKey] = asyncPrompt;
       this._factory._doAsyncPrompt();
@@ -1376,35 +1377,21 @@ LoginManagerPrompter.prototype = {
   },
 
 
-  /*
-   * _getFormattedHostname
-   *
+  /**
    * The aURI parameter may either be a string uri, or an nsIURI instance.
    *
    * Returns the hostname to use in a nsILoginInfo object (for example,
    * "http://example.com").
    */
   _getFormattedHostname : function (aURI) {
-    var uri;
+    let uri;
     if (aURI instanceof Ci.nsIURI) {
       uri = aURI;
     } else {
       uri = Services.io.newURI(aURI, null, null);
     }
-    var scheme = uri.scheme;
 
-    var hostname = scheme + "://" + uri.host;
-
-    // If the URI explicitly specified a port, only include it when
-    // it's not the default. (We never want "http://foo.com:80")
-    var port = uri.port;
-    if (port != -1) {
-      var handler = Services.io.getProtocolHandler(scheme);
-      if (port != handler.defaultPort)
-        hostname += ":" + port;
-    }
-
-    return hostname;
+    return uri.scheme + "://" + uri.hostPort;
   },
 
 
@@ -1451,11 +1438,11 @@ LoginManagerPrompter.prototype = {
     if (aAuthInfo.flags & Ci.nsIAuthInformation.AUTH_PROXY) {
       this.log("getAuthTarget is for proxy auth");
       if (!(aChannel instanceof Ci.nsIProxiedChannel))
-        throw "proxy auth needs nsIProxiedChannel";
+        throw new Error("proxy auth needs nsIProxiedChannel");
 
       var info = aChannel.proxyInfo;
       if (!info)
-        throw "proxy auth needs nsIProxyInfo";
+        throw new Error("proxy auth needs nsIProxyInfo");
 
       // Proxies don't have a scheme, but we'll use "moz-proxy://"
       // so that it's more obvious what the login is for.
@@ -1538,7 +1525,7 @@ LoginManagerPrompter.prototype = {
         this.callback = null;
         this.context = null;
       }
-    }
+    };
   }
 
 }; // end of LoginManagerPrompter implementation

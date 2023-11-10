@@ -145,8 +145,8 @@ nsresult nsWebShellWindow::Initialize(nsIXULWindow* aParent,
 
   // XXX: need to get the default window size from prefs...
   // Doesn't come from prefs... will come from CSS/XUL/RDF
-  nsIntRect r(initialX, initialY, aInitialWidth, aInitialHeight);
-  
+  DesktopIntRect deskRect(initialX, initialY, aInitialWidth, aInitialHeight);
+
   // Create top level window
   mWindow = do_CreateInstance(kWindowCID, &rv);
   if (NS_OK != rv) {
@@ -173,8 +173,10 @@ nsresult nsWebShellWindow::Initialize(nsIXULWindow* aParent,
   mWindow->SetWidgetListener(this);
   mWindow->Create((nsIWidget *)parentWidget,          // Parent nsIWidget
                   nullptr,                            // Native parent widget
-                  r,                                  // Widget dimensions
+                  deskRect,                           // Widget dimensions
                   &widgetInitData);                   // Widget initialization data
+
+  LayoutDeviceIntRect r;
   mWindow->GetClientBounds(r);
   // Match the default background color of content. Important on windows
   // since we no longer use content child widgets.
@@ -213,7 +215,7 @@ nsresult nsWebShellWindow::Initialize(nsIXULWindow* aParent,
   // and then blowing it away with a second one, which can cause problems for the
   // top-level chrome window case. See bug 789773.
   if (nsContentUtils::IsInitialized()) { // Sometimes this happens really early  See bug 793370.
-    rv = mDocShell->CreateAboutBlankContentViewer(nsContentUtils::SubjectPrincipal());
+    rv = mDocShell->CreateAboutBlankContentViewer(nsContentUtils::SubjectPrincipalOrSystemIfNativeCaller());
     NS_ENSURE_SUCCESS(rv, rv);
     nsCOMPtr<nsIDocument> doc = mDocShell ? mDocShell->GetDocument() : nullptr;
     NS_ENSURE_TRUE(!!doc, NS_ERROR_FAILURE);
@@ -303,10 +305,10 @@ nsWebShellWindow::RequestWindowClose(nsIWidget* aWidget)
     MOZ_ASSERT(NS_SUCCEEDED(mDocShell->IsBeingDestroyed(&dying)) && dying,
                "No presShell, but window is not being destroyed");
   } else if (eventTarget) {
-    nsRefPtr<nsPresContext> presContext = presShell->GetPresContext();
+    RefPtr<nsPresContext> presContext = presShell->GetPresContext();
 
     nsEventStatus status = nsEventStatus_eIgnore;
-    WidgetMouseEvent event(true, NS_XUL_CLOSE, nullptr,
+    WidgetMouseEvent event(true, eWindowClose, nullptr,
                            WidgetMouseEvent::eReal);
     if (NS_SUCCEEDED(eventTarget->DispatchDOMEvent(&event, nullptr, presContext, &status)) &&
         status == nsEventStatus_eConsumeNoDefault)
@@ -478,7 +480,7 @@ public:
 private:
   ~WebShellWindowTimerCallback() {}
 
-  nsRefPtr<nsWebShellWindow> mWindow;
+  RefPtr<nsWebShellWindow> mWindow;
 };
 
 NS_IMPL_ISUPPORTS(WebShellWindowTimerCallback, nsITimerCallback)
@@ -497,7 +499,7 @@ nsWebShellWindow::SetPersistenceTimer(uint32_t aDirtyFlags)
     }
   }
 
-  nsRefPtr<WebShellWindowTimerCallback> callback =
+  RefPtr<WebShellWindowTimerCallback> callback =
     new WebShellWindowTimerCallback(this);
   mSPTimer->InitWithCallback(callback, SIZE_PERSISTENCE_TIMEOUT,
                              nsITimer::TYPE_ONE_SHOT);
@@ -703,11 +705,11 @@ bool nsWebShellWindow::ExecuteCloseHandler()
     nsCOMPtr<nsIContentViewer> contentViewer;
     mDocShell->GetContentViewer(getter_AddRefs(contentViewer));
     if (contentViewer) {
-      nsRefPtr<nsPresContext> presContext;
+      RefPtr<nsPresContext> presContext;
       contentViewer->GetPresContext(getter_AddRefs(presContext));
 
       nsEventStatus status = nsEventStatus_eIgnore;
-      WidgetMouseEvent event(true, NS_XUL_CLOSE, nullptr,
+      WidgetMouseEvent event(true, eWindowClose, nullptr,
                              WidgetMouseEvent::eReal);
 
       nsresult rv =

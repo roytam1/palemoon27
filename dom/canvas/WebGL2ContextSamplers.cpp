@@ -7,21 +7,29 @@
 #include "WebGLSampler.h"
 #include "GLContext.h"
 
-using namespace mozilla;
-using namespace mozilla::dom;
+namespace mozilla {
 
 already_AddRefed<WebGLSampler>
 WebGL2Context::CreateSampler()
 {
+    const char funcName[] = "createSampler";
+
     if (IsContextLost())
         return nullptr;
 
+    /*
     GLuint sampler;
     MakeContextCurrent();
     gl->fGenSamplers(1, &sampler);
 
-    nsRefPtr<WebGLSampler> globj = new WebGLSampler(this, sampler);
+    RefPtr<WebGLSampler> globj = new WebGLSampler(this, sampler);
     return globj.forget();
+    */
+
+    ErrorInvalidOperation("%s: Sampler objects are still under development, and are"
+                          " currently disabled.",
+                          funcName);
+    return nullptr;
 }
 
 void
@@ -225,3 +233,5 @@ WebGL2Context::GetSamplerParameter(JSContext*, WebGLSampler* sampler, GLenum pna
         return;
     }
 }
+
+} // namespace mozilla

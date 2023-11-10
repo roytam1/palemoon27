@@ -456,7 +456,7 @@ function sqlList(list) {
  *      The `moz_places` identifiers for the places to invalidate.
  * @return (Promise)
  */
-let invalidateFrecencies = Task.async(function*(db, idList) {
+var invalidateFrecencies = Task.async(function*(db, idList) {
   if (idList.length == 0) {
     return;
   }
@@ -476,7 +476,7 @@ let invalidateFrecencies = Task.async(function*(db, idList) {
 });
 
 // Inner implementation of History.clear().
-let clear = Task.async(function* () {
+var clear = Task.async(function* () {
   let db = yield DBConnPromised;
 
   // Remove all history.
@@ -505,7 +505,7 @@ let clear = Task.async(function* () {
 });
 
 // Inner implementation of History.remove.
-let remove = Task.async(function*({guids, urls}, onResult = null) {
+var remove = Task.async(function*({guids, urls}, onResult = null) {
   let db = yield DBConnPromised;
 
   // 1. Find out what needs to be removed
@@ -559,17 +559,17 @@ let remove = Task.async(function*({guids, urls}, onResult = null) {
   yield db.executeTransaction(function*() {
     // 2. Remove all visits to these pages.
     yield db.execute(`DELETE FROM moz_historyvisits
-                      WHERE place_id IN (${ sqlList([p.id for (p of pages)]) })
+                      WHERE place_id IN (${ sqlList(pages.map(p => p.id)) })
                      `);
 
      // 3. For pages that should not be removed, invalidate frecencies.
     if (hasPagesToKeep) {
-      yield invalidateFrecencies(db, [p.id for (p of pages) if (!p.toRemove)]);
+      yield invalidateFrecencies(db, pages.filter(p => !p.toRemove).map(p => p.id));
     }
 
     // 4. For pages that should be removed, remove page.
     if (hasPagesToRemove) {
-      let ids = [p.id for (p of pages) if (p.toRemove)];
+      let ids = pages.filter(p => p.toRemove).map(p => p.id);
       yield db.execute(`DELETE FROM moz_places
                         WHERE id IN (${ sqlList(ids) })
                        `);

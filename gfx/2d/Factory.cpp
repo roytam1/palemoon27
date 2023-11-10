@@ -8,6 +8,7 @@
 #ifdef USE_CAIRO
 #include "DrawTargetCairo.h"
 #include "ScaledFontCairo.h"
+#include "SourceSurfaceCairo.h"
 #endif
 
 #ifdef USE_SKIA
@@ -21,14 +22,15 @@
 
 #if defined(WIN32)
 #include "ScaledFontWin.h"
+#include "NativeFontResourceGDI.h"
 #endif
 
-#ifdef XP_MACOSX
+#ifdef XP_DARWIN
 #include "ScaledFontMac.h"
 #endif
 
 
-#ifdef XP_MACOSX
+#ifdef XP_DARWIN
 #include "DrawTargetCG.h"
 #endif
 
@@ -36,6 +38,7 @@
 #include "DrawTargetD2D.h"
 #include "DrawTargetD2D1.h"
 #include "ScaledFontDWrite.h"
+#include "NativeFontResourceDWrite.h"
 #include <d3d10_1.h>
 #include "HelpersD2D.h"
 #endif
@@ -48,18 +51,19 @@
 
 #include "DrawEventRecorder.h"
 
+#include "Preferences.h"
 #include "Logging.h"
 
 #include "mozilla/CheckedInt.h"
 
-GFX2D_API PRLogModuleInfo *
+#if defined(MOZ_LOGGING)
+GFX2D_API mozilla::LogModule*
 GetGFX2DLog()
 {
-  static PRLogModuleInfo *sLog;
-  if (!sLog)
-    sLog = PR_NewLogModule("gfx2d");
+  static mozilla::LazyLogModule sLog("gfx2d");
   return sLog;
 }
+#endif
 
 // The following code was largely taken from xpcom/glue/SSE.cpp and
 // made a little simpler.
@@ -152,31 +156,9 @@ HasCPUIDBit(unsigned int level, CPUIDRegister reg, unsigned int bit)
 namespace mozilla {
 namespace gfx {
 
-// These values we initialize with should match those in
-// PreferenceAccess::RegisterAll method.
-int32_t PreferenceAccess::sGfxLogLevel = LOG_DEFAULT;
-
-PreferenceAccess* PreferenceAccess::sAccess = nullptr;
-PreferenceAccess::~PreferenceAccess()
-{
-}
-
-// Just a placeholder, the derived class will set the variable to default
-// if the preference doesn't exist.
-void PreferenceAccess::LivePref(const char* aName, int32_t* aVar, int32_t aDef)
-{
-  *aVar = aDef;
-}
-
-// This will be called with the derived class, so we will want to register
-// the callbacks with it.
-void PreferenceAccess::SetAccess(PreferenceAccess* aAccess) {
-  sAccess = aAccess;
-  if (sAccess) {
-    RegisterAll();
-  }
-}
-
+int32_t LoggingPrefs::sGfxLogLevel =
+  PreferenceAccess::RegisterLivePref("gfx.logging.level", &sGfxLogLevel,
+                                     LOG_DEFAULT);
 
 #ifdef WIN32
 ID3D10Device1 *Factory::mD3D10Device;
@@ -239,6 +221,17 @@ Factory::HasSSE2()
 #endif
 }
 
+bool
+Factory::HasVMX()
+{
+#if (defined(__powerpc__) || defined(__POWERPC__)) \
+    && (defined(__ALTIVEC__) || defined(__APPLE_ALTIVEC__))
+  return true;
+#else
+  return false;
+#endif
+}
+
 // If the size is "reasonable", we want gfxCriticalError to assert, so
 // this is the option set up for it.
 inline int LoggerOptionsBasedOnSize(const IntSize& aSize)
@@ -262,6 +255,12 @@ Factory::AllowedSurfaceSize(const IntSize &aSize)
   }
 
   return CheckSurfaceSize(aSize);
+}
+
+bool
+Factory::CheckBufferSize(int32_t bufSize)
+{
+  return !sConfig || bufSize < sConfig->mMaxAllocSize;
 }
 
 bool
@@ -320,7 +319,7 @@ already_AddRefed<DrawTarget>
 Factory::CreateDrawTarget(BackendType aBackend, const IntSize &aSize, SurfaceFormat aFormat)
 {
   if (!AllowedSurfaceSize(aSize)) {
-    gfxCriticalError(LoggerOptionsBasedOnSize(aSize)) << "Failed to allocate a surface due to invalid size " << aSize;
+    gfxCriticalError(LoggerOptionsBasedOnSize(aSize)) << "Failed to allocate a surface due to invalid size (CDT) " << aSize;
     return nullptr;
   }
 
@@ -345,7 +344,7 @@ Factory::CreateDrawTarget(BackendType aBackend, const IntSize &aSize, SurfaceFor
       }
       break;
     }
-#elif defined XP_MACOSX
+#elif defined XP_DARWIN
   case BackendType::COREGRAPHICS:
   case BackendType::COREGRAPHICS_ACCELERATED:
     {
@@ -411,7 +410,7 @@ Factory::CreateDrawTargetForData(BackendType aBackend,
 {
   MOZ_ASSERT(aData);
   if (!AllowedSurfaceSize(aSize)) {
-    gfxCriticalError(LoggerOptionsBasedOnSize(aSize)) << "Failed to allocate a surface due to invalid size " << aSize;
+    gfxCriticalError(LoggerOptionsBasedOnSize(aSize)) << "Failed to allocate a surface due to invalid size (DTD) " << aSize;
     return nullptr;
   }
 
@@ -428,7 +427,7 @@ Factory::CreateDrawTargetForData(BackendType aBackend,
       break;
     }
 #endif
-#ifdef XP_MACOSX
+#ifdef XP_DARWIN
   case BackendType::COREGRAPHICS:
     {
       RefPtr<DrawTargetCG> newTarget = new DrawTargetCG();
@@ -449,7 +448,7 @@ Factory::CreateDrawTargetForData(BackendType aBackend,
     }
 #endif
   default:
-    gfxDebug() << "Invalid draw target type specified.";
+    gfxCriticalNote << "Invalid draw target type specified: " << (int)aBackend;
     return nullptr;
   }
 
@@ -458,7 +457,7 @@ Factory::CreateDrawTargetForData(BackendType aBackend,
   }
 
   if (!retVal) {
-    gfxDebug() << "Failed to create DrawTarget, Type: " << int(aBackend) << " Size: " << aSize;
+    gfxCriticalNote << "Failed to create DrawTarget, Type: " << int(aBackend) << " Size: " << aSize << ", Data: " << hexa(aData) << ", Stride: " << aStride;
   }
 
   return retVal.forget();
@@ -488,7 +487,9 @@ Factory::DoesBackendSupportDataDrawtarget(BackendType aType)
     return false;
   case BackendType::CAIRO:
   case BackendType::COREGRAPHICS:
+#if defined(USE_SKIA)
   case BackendType::SKIA:
+#endif
     return true;
   }
 
@@ -506,8 +507,10 @@ Factory::GetMaxSurfaceSize(BackendType aType)
   case BackendType::COREGRAPHICS_ACCELERATED:
     return DrawTargetCG::GetMaxSurfaceSize();
 #endif
+#ifdef USE_SKIA
   case BackendType::SKIA:
-    return INT_MAX;
+    return DrawTargetSkia::GetMaxSurfaceSize();
+#endif
 #ifdef WIN32
   case BackendType::DIRECT2D:
     return DrawTargetD2D::GetMaxSurfaceSize();
@@ -531,11 +534,11 @@ Factory::CreateScaledFontForNativeFont(const NativeFont &aNativeFont, Float aSiz
 #if defined(USE_CAIRO) || defined(USE_SKIA)
   case NativeFontType::GDI_FONT_FACE:
     {
-      return MakeAndAddRef<ScaledFontWin>(static_cast<LOGFONT*>(aNativeFont.mFont), aSize);
+      return MakeAndAddRef<ScaledFontWin>(static_cast<LOGFONTW*>(aNativeFont.mFont), aSize);
     }
 #endif
 #endif
-#ifdef XP_MACOSX
+#ifdef XP_DARWIN
   case NativeFontType::MAC_FONT_FACE:
     {
       return MakeAndAddRef<ScaledFontMac>(static_cast<CGFontRef>(aNativeFont.mFont), aSize);
@@ -553,20 +556,35 @@ Factory::CreateScaledFontForNativeFont(const NativeFont &aNativeFont, Float aSiz
   }
 }
 
-already_AddRefed<ScaledFont>
-Factory::CreateScaledFontForTrueTypeData(uint8_t *aData, uint32_t aSize,
-                                         uint32_t aFaceIndex, Float aGlyphSize,
-                                         FontType aType)
+already_AddRefed<NativeFontResource>
+Factory::CreateNativeFontResource(uint8_t *aData, uint32_t aSize,
+                                  FontType aType)
 {
   switch (aType) {
 #ifdef WIN32
   case FontType::DWRITE:
     {
-      return MakeAndAddRef<ScaledFontDWrite>(aData, aSize, aFaceIndex, aGlyphSize);
+      return NativeFontResourceDWrite::Create(aData, aSize,
+                                              /* aNeedsCairo = */ false);
     }
 #endif
+  case FontType::CAIRO:
+    {
+#ifdef WIN32
+      if (GetDirect3D11Device()) {
+        return NativeFontResourceDWrite::Create(aData, aSize,
+                                                /* aNeedsCairo = */ true);
+      } else {
+        return NativeFontResourceGDI::Create(aData, aSize,
+                                             /* aNeedsCairo = */ true);
+      }
+#else
+      gfxWarning() << "Unable to create cairo scaled font from truetype data";
+      return nullptr;
+#endif
+    }
   default:
-    gfxWarning() << "Unable to create requested font type from truetype data";
+    gfxWarning() << "Unable to create requested font resource from truetype data";
     return nullptr;
   }
 }
@@ -728,8 +746,11 @@ Factory::SetDirect3D11Device(ID3D11Device *aDevice)
   RefPtr<ID2D1Factory1> factory = D2DFactory1();
 
   RefPtr<IDXGIDevice> device;
-  aDevice->QueryInterface((IDXGIDevice**)byRef(device));
-  factory->CreateDevice(device, &mD2D1Device);
+  aDevice->QueryInterface((IDXGIDevice**)getter_AddRefs(device));
+  HRESULT hr = factory->CreateDevice(device, &mD2D1Device);
+  if (FAILED(hr)) {
+    gfxCriticalError() << "[D2D1] Failed to create gfx factory's D2D1 device, code: " << hexa(hr);
+  }
 }
 
 ID3D11Device*
@@ -779,6 +800,15 @@ Factory::D2DCleanup()
   DrawTargetD2D::CleanupD2D();
 }
 
+already_AddRefed<ScaledFont>
+Factory::CreateScaledFontForDWriteFont(IDWriteFont* aFont,
+                                       IDWriteFontFamily* aFontFamily,
+                                       IDWriteFontFace* aFontFace,
+                                       float aSize)
+{
+  return MakeAndAddRef<ScaledFontDWrite>(aFont, aFontFamily, aFontFace, aSize);
+}
+
 #endif // XP_WIN
 
 #ifdef USE_SKIA_GPU
@@ -803,13 +833,14 @@ Factory::PurgeAllCaches()
 
 #ifdef USE_SKIA_FREETYPE
 already_AddRefed<GlyphRenderingOptions>
-Factory::CreateCairoGlyphRenderingOptions(FontHinting aHinting, bool aAutoHinting)
+Factory::CreateCairoGlyphRenderingOptions(FontHinting aHinting, bool aAutoHinting, AntialiasMode aAntialiasMode)
 {
   RefPtr<GlyphRenderingOptionsCairo> options =
     new GlyphRenderingOptionsCairo();
 
   options->SetHinting(aHinting);
   options->SetAutoHinting(aAutoHinting);
+  options->SetAntialiasMode(aAntialiasMode);
   return options.forget();
 }
 #endif
@@ -833,7 +864,22 @@ Factory::CreateDrawTargetForCairoSurface(cairo_surface_t* aSurface, const IntSiz
   return retVal.forget();
 }
 
-#ifdef XP_MACOSX
+already_AddRefed<SourceSurface>
+Factory::CreateSourceSurfaceForCairoSurface(cairo_surface_t* aSurface, const IntSize& aSize, SurfaceFormat aFormat)
+{
+  if (aSize.width <= 0 || aSize.height <= 0) {
+    gfxWarning() << "Can't create a SourceSurface without a valid size";
+    return nullptr;
+  }
+
+#ifdef USE_CAIRO
+  return MakeAndAddRef<SourceSurfaceCairo>(aSurface, aSize, aFormat);
+#else
+  return nullptr;
+#endif
+}
+
+#ifdef XP_DARWIN
 already_AddRefed<DrawTarget>
 Factory::CreateDrawTargetForCairoCGContext(CGContextRef cg, const IntSize& aSize)
 {
@@ -863,18 +909,15 @@ Factory::CreateWrappingDataSourceSurface(uint8_t *aData, int32_t aStride,
                                          const IntSize &aSize,
                                          SurfaceFormat aFormat)
 {
-  MOZ_ASSERT(aData);
   if (aSize.width <= 0 || aSize.height <= 0) {
     return nullptr;
   }
+  MOZ_ASSERT(aData);
 
   RefPtr<SourceSurfaceRawData> newSurf = new SourceSurfaceRawData();
 
-  if (newSurf->InitWrappingData(aData, aSize, aStride, aFormat, false)) {
-    return newSurf.forget();
-  }
-
-  return nullptr;
+  newSurf->InitWrappingData(aData, aSize, aStride, aFormat, false);
+  return newSurf.forget();
 }
 
 already_AddRefed<DataSourceSurface>
@@ -883,7 +926,7 @@ Factory::CreateDataSourceSurface(const IntSize &aSize,
                                  bool aZero)
 {
   if (!AllowedSurfaceSize(aSize)) {
-    gfxCriticalError(LoggerOptionsBasedOnSize(aSize)) << "Failed to allocate a surface due to invalid size " << aSize;
+    gfxCriticalError(LoggerOptionsBasedOnSize(aSize)) << "Failed to allocate a surface due to invalid size (DSS) " << aSize;
     return nullptr;
   }
 
@@ -916,6 +959,97 @@ Factory::CreateDataSourceSurfaceWithStride(const IntSize &aSize,
   return nullptr;
 }
 
+static uint16_t
+PackRGB565(uint8_t r, uint8_t g, uint8_t b)
+{
+  uint16_t pixel = ((r << 11) & 0xf800) |
+                   ((g <<  5) & 0x07e0) |
+                   ((b      ) & 0x001f);
+
+  return pixel;
+}
+
+void
+Factory::CopyDataSourceSurface(DataSourceSurface* aSource,
+                               DataSourceSurface* aDest)
+{
+  // Don't worry too much about speed.
+  MOZ_ASSERT(aSource->GetSize() == aDest->GetSize());
+  MOZ_ASSERT(aSource->GetFormat() == SurfaceFormat::R8G8B8A8 ||
+             aSource->GetFormat() == SurfaceFormat::R8G8B8X8 ||
+             aSource->GetFormat() == SurfaceFormat::B8G8R8A8 ||
+             aSource->GetFormat() == SurfaceFormat::B8G8R8X8);
+  MOZ_ASSERT(aDest->GetFormat() == SurfaceFormat::R8G8B8A8 ||
+             aDest->GetFormat() == SurfaceFormat::R8G8B8X8 ||
+             aDest->GetFormat() == SurfaceFormat::B8G8R8A8 ||
+             aDest->GetFormat() == SurfaceFormat::B8G8R8X8 ||
+             aDest->GetFormat() == SurfaceFormat::R5G6B5_UINT16);
+
+  const bool isSrcBGR = aSource->GetFormat() == SurfaceFormat::B8G8R8A8 ||
+                        aSource->GetFormat() == SurfaceFormat::B8G8R8X8;
+  const bool isDestBGR = aDest->GetFormat() == SurfaceFormat::B8G8R8A8 ||
+                         aDest->GetFormat() == SurfaceFormat::B8G8R8X8;
+  const bool needsSwap02 = isSrcBGR != isDestBGR;
+
+  const bool srcHasAlpha = aSource->GetFormat() == SurfaceFormat::R8G8B8A8 ||
+                           aSource->GetFormat() == SurfaceFormat::B8G8R8A8;
+  const bool destHasAlpha = aDest->GetFormat() == SurfaceFormat::R8G8B8A8 ||
+                            aDest->GetFormat() == SurfaceFormat::B8G8R8A8;
+  const bool needsAlphaMask = !srcHasAlpha && destHasAlpha;
+
+  const bool needsConvertTo16Bits = aDest->GetFormat() == SurfaceFormat::R5G6B5_UINT16;
+
+  DataSourceSurface::MappedSurface srcMap;
+  DataSourceSurface::MappedSurface destMap;
+  if (!aSource->Map(DataSourceSurface::MapType::READ, &srcMap) ||
+    !aDest->Map(DataSourceSurface::MapType::WRITE, &destMap)) {
+    MOZ_ASSERT(false, "CopyDataSourceSurface: Failed to map surface.");
+    return;
+  }
+
+  MOZ_ASSERT(srcMap.mStride >= 0);
+  MOZ_ASSERT(destMap.mStride >= 0);
+
+  const size_t srcBPP = BytesPerPixel(aSource->GetFormat());
+  const size_t srcRowBytes = aSource->GetSize().width * srcBPP;
+  const size_t srcRowHole = srcMap.mStride - srcRowBytes;
+
+  const size_t destBPP = BytesPerPixel(aDest->GetFormat());
+  const size_t destRowBytes = aDest->GetSize().width * destBPP;
+  const size_t destRowHole = destMap.mStride - destRowBytes;
+
+  uint8_t* srcRow = srcMap.mData;
+  uint8_t* destRow = destMap.mData;
+  const size_t rows = aSource->GetSize().height;
+  for (size_t i = 0; i < rows; i++) {
+    const uint8_t* srcRowEnd = srcRow + srcRowBytes;
+
+    while (srcRow != srcRowEnd) {
+      uint8_t d0 = needsSwap02 ? srcRow[2] : srcRow[0];
+      uint8_t d1 = srcRow[1];
+      uint8_t d2 = needsSwap02 ? srcRow[0] : srcRow[2];
+      uint8_t d3 = needsAlphaMask ? 0xff : srcRow[3];
+
+      if (needsConvertTo16Bits) {
+        *(uint16_t*)destRow = PackRGB565(d0, d1, d2);
+      } else {
+        destRow[0] = d0;
+        destRow[1] = d1;
+        destRow[2] = d2;
+        destRow[3] = d3;
+      }
+      srcRow += srcBPP;
+      destRow += destBPP;
+    }
+
+    srcRow += srcRowHole;
+    destRow += destRowHole;
+  }
+
+  aSource->Unmap();
+  aDest->Unmap();
+}
+
 already_AddRefed<DrawEventRecorder>
 Factory::CreateEventRecorderForFile(const char *aFilename)
 {
@@ -945,6 +1079,14 @@ CriticalLogger::OutputMessage(const std::string &aString,
   }
 
   BasicLogger::OutputMessage(aString, aLevel, aNoNewline);
+}
+
+void
+CriticalLogger::CrashAction(LogReason aReason)
+{
+  if (Factory::GetLogForwarder()) {
+    Factory::GetLogForwarder()->CrashAction(aReason);
+  }
 }
 
 } // namespace gfx

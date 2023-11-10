@@ -30,7 +30,6 @@ EXPORTS.mozilla = [
     'CheckedInt.h',
     'Compiler.h',
     'Compression.h',
-    'Constants.h',
     'DebugOnly.h',
     'decimal/Decimal.h',
     'double-conversion/double-conversion.h',
@@ -39,6 +38,7 @@ EXPORTS.mozilla = [
     'EnumeratedArray.h',
     'EnumeratedRange.h',
     'EnumSet.h',
+    'FastBernoulliTrial.h',
     'FloatingPoint.h',
     'Function.h',
     'GuardObjects.h',
@@ -59,7 +59,6 @@ EXPORTS.mozilla = [
     'MemoryChecking.h',
     'MemoryReporting.h',
     'Move.h',
-    'nsRefPtr.h',
     'NullPtr.h',
     'NumericLimits.h',
     'Opaque.h',
@@ -75,7 +74,9 @@ EXPORTS.mozilla = [
     'RefPtr.h',
     'ReverseIterator.h',
     'RollingMean.h',
+    'Saturate.h',
     'Scoped.h',
+    'ScopeExit.h',
     'SegmentedVector.h',
     'SHA1.h',
     'SizePrintfMacros.h',
@@ -91,9 +92,11 @@ EXPORTS.mozilla = [
     'Types.h',
     'TypeTraits.h',
     'UniquePtr.h',
+    'UniquePtrExtensions.h',
     'Variant.h',
     'Vector.h',
     'WeakPtr.h',
+    'XorShift128PlusRNG.h',
     'unused.h',
 ]
 
@@ -116,7 +119,16 @@ SOURCES += mfbt_nonunified_src_cppsrcs
 
 DISABLE_STL_WRAPPING = True
 
-# Suppress warnings in third-party code.
+# Suppress warnings in third-party LZ4 code.
+# TODO: Remove these suppressions after bug 993267 is fixed.
+
 if CONFIG['GNU_CXX']:
-    # TODO: Remove this LZ4 warning suppression after bug 993267 is fixed.
     SOURCES['/mfbt/Compression.cpp'].flags += ['-Wno-unused-function']
+
+if CONFIG['CLANG_CXX']:
+    # Suppress warnings from third-party V8 Decimal code.
+    SOURCES['/mfbt/decimal/Decimal.cpp'].flags += ['-Wno-implicit-fallthrough']
+
+if CONFIG['_MSC_VER']:
+    # Error 4804 is "'>' : unsafe use of type 'bool' in operation"
+    SOURCES['/mfbt/Compression.cpp'].flags += ['-wd4804']

@@ -67,7 +67,7 @@ APZThreadUtils::RunOnControllerThread(Task* aTask)
 #else
   if (!sControllerThread) {
     // Could happen on startup
-    NS_WARNING("Dropping task posted to controller thread\n");
+    NS_WARNING("Dropping task posted to controller thread");
     delete aTask;
     return;
   }
@@ -80,6 +80,35 @@ APZThreadUtils::RunOnControllerThread(Task* aTask)
   }
 #endif
 }
+
+/*static*/ void
+APZThreadUtils::RunDelayedTaskOnCurrentThread(Task* aTask,
+                                              const TimeDuration& aDelay)
+{
+  if (MessageLoop* messageLoop = MessageLoop::current()) {
+    messageLoop->PostDelayedTask(FROM_HERE, aTask, aDelay.ToMilliseconds());
+  } else {
+#ifdef MOZ_ANDROID_APZ
+    // Fennec does not have a MessageLoop::current() on the controller thread.
+    AndroidBridge::Bridge()->PostTaskToUiThread(aTask, aDelay.ToMilliseconds());
+#else
+    // Other platforms should.
+    MOZ_RELEASE_ASSERT(false, "This non-Fennec platform should have a MessageLoop::current()");
+#endif
+  }
+}
+
+/*static*/ bool
+APZThreadUtils::IsControllerThread()
+{
+#ifdef MOZ_ANDROID_APZ
+  return AndroidBridge::IsJavaUiThread();
+#else
+  return sControllerThread == MessageLoop::current();
+#endif
+}
+
+NS_IMPL_ISUPPORTS(GenericTimerCallbackBase, nsITimerCallback)
 
 } // namespace layers
 } // namespace mozilla

@@ -28,33 +28,38 @@ EXPORTS.mozilla.ipc += [
 
 EXPORTS.mozilla.dom += [
     'CanvasGradient.h',
+    'CanvasPath.h',
     'CanvasPattern.h',
     'CanvasRenderingContext2D.h',
+    'CanvasRenderingContextHelper.h',
     'CanvasUtils.h',
     'ImageBitmap.h',
+    'ImageBitmapRenderingContext.h',
     'ImageBitmapSource.h',
     'ImageData.h',
+    'OffscreenCanvas.h',
     'TextMetrics.h',
     'WebGLVertexArrayObject.h',
 ]
-
-# http://support.microsoft.com/kb/143208
-DEFINES['NOMINMAX'] = True
 
 # Canvas 2D and common sources
 UNIFIED_SOURCES += [
     'CanvasImageCache.cpp',
     'CanvasRenderingContext2D.cpp',
+    'CanvasRenderingContextHelper.cpp',
     'CanvasUtils.cpp',
     'DocumentRendererChild.cpp',
     'DocumentRendererParent.cpp',
     'ImageBitmap.cpp',
+    'ImageBitmapRenderingContext.cpp',
     'ImageData.cpp',
+    'OffscreenCanvas.cpp',
 ]
 
 # WebGL Sources
 UNIFIED_SOURCES += [
     'MurmurHash3.cpp',
+    'TexUnpackBlob.cpp',
     'WebGL1Context.cpp',
     'WebGL1ContextBuffers.cpp',
     'WebGL1ContextUniforms.cpp',
@@ -65,6 +70,7 @@ UNIFIED_SOURCES += [
     'WebGL2ContextMRTs.cpp',
     'WebGL2ContextPrograms.cpp',
     'WebGL2ContextQueries.cpp',
+    'WebGL2ContextRenderbuffers.cpp',
     'WebGL2ContextSamplers.cpp',
     'WebGL2ContextState.cpp',
     'WebGL2ContextSync.cpp',
@@ -72,6 +78,7 @@ UNIFIED_SOURCES += [
     'WebGL2ContextTransformFeedback.cpp',
     'WebGL2ContextUniforms.cpp',
     'WebGL2ContextVAOs.cpp',
+    'WebGL2ContextVertices.cpp',
     'WebGLActiveInfo.cpp',
     'WebGLBuffer.cpp',
     'WebGLContext.cpp',
@@ -81,8 +88,8 @@ UNIFIED_SOURCES += [
     'WebGLContextFramebufferOperations.cpp',
     'WebGLContextGL.cpp',
     'WebGLContextLossHandler.cpp',
-    'WebGLContextReporter.cpp',
     'WebGLContextState.cpp',
+    'WebGLContextTextures.cpp',
     'WebGLContextUnchecked.cpp',
     'WebGLContextUtils.cpp',
     'WebGLContextValidate.cpp',
@@ -94,6 +101,7 @@ UNIFIED_SOURCES += [
     'WebGLExtensionColorBufferFloat.cpp',
     'WebGLExtensionColorBufferHalfFloat.cpp',
     'WebGLExtensionCompressedTextureATC.cpp',
+    'WebGLExtensionCompressedTextureES3.cpp',
     'WebGLExtensionCompressedTextureETC1.cpp',
     'WebGLExtensionCompressedTexturePVRTC.cpp',
     'WebGLExtensionCompressedTextureS3TC.cpp',
@@ -115,8 +123,10 @@ UNIFIED_SOURCES += [
     'WebGLExtensionTextureHalfFloat.cpp',
     'WebGLExtensionTextureHalfFloatLinear.cpp',
     'WebGLExtensionVertexArray.cpp',
+    'WebGLFormats.cpp',
     'WebGLFramebuffer.cpp',
     'WebGLFramebufferAttachable.cpp',
+    'WebGLMemoryTracker.cpp',
     'WebGLObjectModel.cpp',
     'WebGLProgram.cpp',
     'WebGLQuery.cpp',
@@ -128,6 +138,7 @@ UNIFIED_SOURCES += [
     'WebGLSync.cpp',
     'WebGLTexelConversions.cpp',
     'WebGLTexture.cpp',
+    'WebGLTextureUpload.cpp',
     'WebGLTimerQuery.cpp',
     'WebGLTransformFeedback.cpp',
     'WebGLUniformLocation.cpp',
@@ -137,11 +148,10 @@ UNIFIED_SOURCES += [
     'WebGLVertexArrayGL.cpp',
     'WebGLVertexArrayObject.cpp',
 ]
+
 LOCAL_INCLUDES += [
     '/js/xpconnect/wrappers',
 ]
-
-FAIL_ON_WARNINGS = True
 
 include('/ipc/chromium/chromium-config.mozbuild')
 
@@ -151,6 +161,7 @@ LOCAL_INCLUDES += [
     '/dom/base',
     '/dom/html',
     '/dom/svg',
+    '/dom/workers',
     '/dom/xul',
     '/gfx/gl',
     '/image',

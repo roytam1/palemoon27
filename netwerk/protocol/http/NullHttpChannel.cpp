@@ -6,6 +6,7 @@
 #include "nsContentUtils.h"
 #include "nsContentSecurityManager.h"
 #include "nsIScriptSecurityManager.h"
+#include "nsIStreamListener.h"
 
 namespace mozilla {
 namespace net {
@@ -57,6 +58,18 @@ NullHttpChannel::Init(nsIURI *aURI,
 //-----------------------------------------------------------------------------
 
 NS_IMETHODIMP
+NullHttpChannel::GetTransferSize(uint64_t *aTransferSize)
+{
+    return NS_ERROR_NOT_IMPLEMENTED;
+}
+
+NS_IMETHODIMP
+NullHttpChannel::GetDecodedBodySize(uint64_t *aDecodedBodySize)
+{
+    return NS_ERROR_NOT_IMPLEMENTED;
+}
+
+NS_IMETHODIMP
 NullHttpChannel::GetRequestMethod(nsACString & aRequestMethod)
 {
   return NS_ERROR_NOT_IMPLEMENTED;
@@ -95,6 +108,7 @@ NullHttpChannel::SetReferrerWithPolicy(nsIURI *referrer, uint32_t referrerPolicy
 NS_IMETHODIMP
 NullHttpChannel::GetRequestHeader(const nsACString & aHeader, nsACString & _retval)
 {
+  _retval.Truncate();
   return NS_ERROR_NOT_IMPLEMENTED;
 }
 
@@ -105,7 +119,19 @@ NullHttpChannel::SetRequestHeader(const nsACString & aHeader, const nsACString &
 }
 
 NS_IMETHODIMP
+NullHttpChannel::SetEmptyRequestHeader(const nsACString & aHeader)
+{
+  return NS_ERROR_NOT_IMPLEMENTED;
+}
+
+NS_IMETHODIMP
 NullHttpChannel::VisitRequestHeaders(nsIHttpHeaderVisitor *aVisitor)
+{
+  return NS_ERROR_NOT_IMPLEMENTED;
+}
+
+NS_IMETHODIMP
+NullHttpChannel::VisitNonDefaultRequestHeaders(nsIHttpHeaderVisitor *aVisitor)
 {
   return NS_ERROR_NOT_IMPLEMENTED;
 }
@@ -167,6 +193,7 @@ NullHttpChannel::GetRequestSucceeded(bool *aRequestSucceeded)
 NS_IMETHODIMP
 NullHttpChannel::GetResponseHeader(const nsACString & header, nsACString & _retval)
 {
+  _retval.Truncate();
   return NS_ERROR_NOT_IMPLEMENTED;
 }
 
@@ -214,6 +241,18 @@ NullHttpChannel::GetSchedulingContextID(nsID *_retval)
 
 NS_IMETHODIMP
 NullHttpChannel::SetSchedulingContextID(const nsID scID)
+{
+  return NS_ERROR_NOT_IMPLEMENTED;
+}
+
+NS_IMETHODIMP
+NullHttpChannel::GetProtocolVersion(nsACString& aProtocolVersion)
+{
+  return NS_ERROR_NOT_IMPLEMENTED;
+}
+
+NS_IMETHODIMP
+NullHttpChannel::GetEncodedBodySize(uint64_t *aEncodedBodySize)
 {
   return NS_ERROR_NOT_IMPLEMENTED;
 }
@@ -647,6 +686,19 @@ NullHttpChannel::GetCacheReadEnd(mozilla::TimeStamp *aCacheReadEnd)
 {
   *aCacheReadEnd = mAsyncOpenTime;
   return NS_OK;
+}
+
+NS_IMETHODIMP
+NullHttpChannel::GetIsMainDocumentChannel(bool* aValue)
+{
+  *aValue = false;
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+NullHttpChannel::SetIsMainDocumentChannel(bool aValue)
+{
+  return NS_ERROR_NOT_IMPLEMENTED;
 }
 
 #define IMPL_TIMING_ATTR(name)                                 \

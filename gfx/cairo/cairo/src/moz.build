@@ -56,7 +56,7 @@ if CONFIG['MOZ_WIDGET_TOOLKIT'] == 'windows':
         ]
     else:
         DEFINES['CAIRO_OMIT_WIN32_PRINTING'] = True
-elif CONFIG['MOZ_WIDGET_TOOLKIT'] == 'cocoa':
+elif CONFIG['MOZ_WIDGET_TOOLKIT'] in {'cocoa', 'uikit'}:
     EXPORTS.cairo += [
         'cairo-quartz-image.h',
         'cairo-quartz.h',
@@ -185,6 +185,9 @@ UNIFIED_SOURCES += [
     'cairo.c',
 ]
 
+# We allow warnings for third-party code that can be updated from upstream.
+ALLOW_COMPILER_WARNINGS = True
+
 FINAL_LIBRARY = 'gkmedias'
 
 DEFINES['PACKAGE_VERSION'] = '"moz"'
@@ -205,7 +208,7 @@ if CONFIG['MOZ_TREE_FREETYPE']:
     DEFINES['FT_LCD_FILTER_H'] = '%s/modules/freetype2/include/freetype/ftlcdfil.h' % TOPSRCDIR
 
 # Suppress warnings in third-party code.
-if CONFIG['GNU_CC']:
+if CONFIG['GNU_CC'] or CONFIG['CLANG_CL']:
     CFLAGS += [
         '-Wno-enum-compare',
         '-Wno-int-to-pointer-cast',
@@ -214,12 +217,18 @@ if CONFIG['GNU_CC']:
         '-Wno-missing-field-initializers',
         '-Wno-conversion',
     ]
-if CONFIG['CLANG_CXX']:
+if CONFIG['CLANG_CXX'] or CONFIG['CLANG_CL']:
     CFLAGS += [
         '-Wno-incompatible-pointer-types',
         '-Wno-tautological-compare',
         '-Wno-tautological-constant-out-of-range-compare',
         '-Wno-error=uninitialized',
+    ]
+if CONFIG['CLANG_CL']:
+    CFLAGS += [
+        '-Wno-deprecated-register',
+        '-Wno-macro-redefined',
+        '-Wno-unused-variable',
     ]
 
 # See bug 386897.

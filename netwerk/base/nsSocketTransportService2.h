@@ -17,6 +17,8 @@
 #include "nsIObserver.h"
 #include "mozilla/Mutex.h"
 #include "mozilla/net/DashboardTypes.h"
+#include "mozilla/Atomics.h"
+#include "mozilla/TimeStamp.h"
 
 class nsASocketHandler;
 struct PRPollDesc;
@@ -26,14 +28,14 @@ struct PRPollDesc;
 //
 // set NSPR_LOG_MODULES=nsSocketTransport:5
 //
-extern PRLogModuleInfo *gSocketTransportLog;
+extern mozilla::LazyLogModule gSocketTransportLog;
 #define SOCKET_LOG(args)     MOZ_LOG(gSocketTransportLog, mozilla::LogLevel::Debug, args)
 #define SOCKET_LOG_ENABLED() MOZ_LOG_TEST(gSocketTransportLog, mozilla::LogLevel::Debug)
 
 //
 // set NSPR_LOG_MODULES=UDPSocket:5
 //
-extern PRLogModuleInfo *gUDPSocketLog;
+extern mozilla::LazyLogModule gUDPSocketLog;
 #define UDPSOCKET_LOG(args)     MOZ_LOG(gUDPSocketLog, mozilla::LogLevel::Debug, args)
 #define UDPSOCKET_LOG_ENABLED() MOZ_LOG_TEST(gUDPSocketLog, mozilla::LogLevel::Debug)
 
@@ -111,6 +113,8 @@ public:
 
     // Returns true if keepalives are enabled in prefs.
     bool IsKeepaliveEnabled() { return mKeepaliveEnabledPref; }
+
+    PRIntervalTime MaxTimeForPrClosePref() {return mMaxTimeForPrClosePref; }
 protected:
 
     virtual ~nsSocketTransportService();
@@ -202,17 +206,23 @@ private:
     PRPollDesc *mPollList;                        /* mListSize + 1 entries */
 
     PRIntervalTime PollTimeout();            // computes ideal poll timeout
-    nsresult       DoPollIteration(bool wait);
+    nsresult       DoPollIteration(bool wait,
+                                   mozilla::TimeDuration *pollDuration);
                                              // perfoms a single poll iteration
-    int32_t        Poll(bool wait, uint32_t *interval);
+    int32_t        Poll(bool wait,
+                        uint32_t *interval,
+                        mozilla::TimeDuration *pollDuration);
                                              // calls PR_Poll.  the out param
                                              // interval indicates the poll
                                              // duration in seconds.
+                                             // pollDuration is used only for
+                                             // telemetry
 
     //-------------------------------------------------------------------------
     // pending socket queue - see NotifyWhenCanAttachSocket
     //-------------------------------------------------------------------------
 
+    mozilla::Mutex mEventQueueLock;
     nsEventQueue mPendingSocketQ; // queue of nsIRunnable objects
 
     // Preference Monitor for SendBufferSize and Keepalive prefs.
@@ -226,6 +236,11 @@ private:
     int32_t     mKeepaliveProbeCount;
     // True if TCP keepalive is enabled globally.
     bool        mKeepaliveEnabledPref;
+
+    mozilla::Atomic<bool>  mServingPendingQueue;
+    mozilla::Atomic<int32_t, mozilla::Relaxed> mMaxTimePerPollIter;
+    mozilla::Atomic<bool, mozilla::Relaxed>  mTelemetryEnabledPref;
+    mozilla::Atomic<PRIntervalTime, mozilla::Relaxed> mMaxTimeForPrClosePref;
 
     void OnKeepaliveEnabledPrefChange();
     void NotifyKeepaliveEnabledPrefChange(SocketContext *sock);
@@ -243,9 +258,11 @@ private:
     void DetachSocketWithGuard(bool aGuardLocals,
                                SocketContext *socketList,
                                int32_t index);
+
+    void MarkTheLastElementOfPendingQueue();
 };
 
 extern nsSocketTransportService *gSocketTransportService;
-extern PRThread                 *gSocketThread;
+extern mozilla::Atomic<PRThread*, mozilla::Relaxed> gSocketThread;
 
 #endif // !nsSocketTransportService_h__

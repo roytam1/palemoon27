@@ -4,7 +4,6 @@
 
 LIBRARY gkmedias.dll
 EXPORTS
-#ifdef MOZ_WEBM
 nestegg_destroy
 nestegg_duration
 nestegg_free_packet
@@ -28,7 +27,6 @@ nestegg_track_video_params
 nestegg_tstamp_scale
 nestegg_has_cues
 nestegg_sniff
-#endif
 #ifdef MOZ_WEBM_ENCODER
 writeSimpleBlock
 writeHeader
@@ -40,7 +38,6 @@ Ebml_SerializeUnsigned
 Ebml_StartSubElement
 Ebml_EndSubElement
 #endif
-#ifdef MOZ_VPX
 #ifndef MOZ_NATIVE_LIBVPX
 vpx_codec_control_
 vpx_codec_dec_init_ver
@@ -53,6 +50,7 @@ vpx_codec_vp9_dx
 vpx_img_free
 vpx_codec_enc_config_set
 vpx_codec_enc_init_ver
+vpx_codec_enc_init_multi_ver
 vpx_codec_vp8_cx
 vpx_codec_vp9_cx
 vpx_img_set_rect
@@ -61,9 +59,12 @@ vpx_codec_get_cx_data
 vpx_codec_enc_config_default
 vpx_img_alloc
 vpx_codec_encode
+vpx_codec_err_to_string
+#ifdef MOZ_WEBRTC
+vpx_codec_set_frame_buffer_functions
 #endif
 #endif
-#ifdef MOZ_VORBIS
+#if defined(MOZ_VORBIS) || defined(MOZ_TREMOR)
 ogg_page_bos
 ogg_page_granulepos
 ogg_page_serialno
@@ -84,19 +85,25 @@ ogg_sync_init
 ogg_sync_pageseek
 ogg_sync_reset
 ogg_sync_wrote
+#ifdef MOZ_VORBIS
 vorbis_analysis
 vorbis_analysis_blockout
 vorbis_analysis_buffer
 vorbis_analysis_init
 vorbis_analysis_headerout
 vorbis_analysis_wrote
+#endif
 vorbis_block_clear
 vorbis_block_init
+#ifdef MOZ_VORBIS
 vorbis_comment_add_tag
+#endif
 vorbis_comment_clear
 vorbis_comment_init
 vorbis_dsp_clear
+#ifdef MOZ_VORBIS
 vorbis_encode_init_vbr
+#endif
 vorbis_info_clear
 vorbis_info_init
 vorbis_packet_blocksize
@@ -110,6 +117,7 @@ vorbis_synthesis_restart
 #endif
 moz_speex_resampler_init
 moz_speex_resampler_destroy
+moz_speex_resampler_process_int
 moz_speex_resampler_process_float
 moz_speex_resampler_process_interleaved_float
 moz_speex_resampler_process_interleaved_int
@@ -122,6 +130,8 @@ moz_speex_resampler_skip_zeros
 moz_speex_resampler_set_skip_frac_num
 moz_speex_resampler_reset_mem
 cubeb_destroy
+cubeb_device_collection_destroy
+cubeb_enumerate_devices
 cubeb_init
 cubeb_get_backend_id
 cubeb_get_max_channel_count
@@ -157,11 +167,15 @@ opus_decoder_destroy
 opus_decoder_ctl
 opus_decoder_get_nb_samples
 opus_decode
+#ifdef MOZ_SAMPLE_TYPE_FLOAT32
 opus_decode_float
+#endif
 opus_multistream_decoder_create
 opus_multistream_decoder_ctl
 opus_multistream_decoder_destroy
+#ifdef MOZ_SAMPLE_TYPE_FLOAT32
 opus_multistream_decode_float
+#endif
 opus_multistream_decode
 opus_packet_get_nb_frames
 opus_packet_get_samples_per_frame
@@ -169,7 +183,9 @@ opus_encoder_create
 opus_encoder_destroy
 opus_encoder_ctl
 opus_encode
+#ifdef MOZ_SAMPLE_TYPE_FLOAT32
 opus_encode_float
+#endif
 #ifndef MOZ_NATIVE_PNG
 MOZ_APNG_get_first_frame_is_hidden
 MOZ_APNG_get_next_frame_blend_op
@@ -347,10 +363,32 @@ _moz_cairo_copy_path
 _moz_cairo_copy_path_flat
 _moz_cairo_create
 _moz_cairo_curve_to
+_moz_cairo_d2d_create_device
+_moz_cairo_d2d_create_device_from_d3d10device
+_moz_cairo_d2d_device_get_device
+_moz_cairo_d2d_get_dc
+_moz_cairo_d2d_get_image_surface_cache_usage
+_moz_cairo_d2d_get_surface_vram_usage
+_moz_cairo_d2d_present_backbuffer
+_moz_cairo_d2d_release_dc
+_moz_cairo_d2d_scroll
+_moz_cairo_d2d_surface_create
+_moz_cairo_d2d_surface_create_for_handle
+_moz_cairo_d2d_surface_create_for_hwnd
+_moz_cairo_d2d_surface_create_for_texture
+_moz_cairo_d2d_surface_get_height
+_moz_cairo_d2d_surface_get_texture
+_moz_cairo_d2d_surface_get_width
 _moz_cairo_debug_reset_static_data
 _moz_cairo_destroy
 _moz_cairo_device_to_user
 _moz_cairo_device_to_user_distance
+_moz_cairo_dwrite_font_face_create_for_dwrite_fontface
+_moz_cairo_dwrite_get_cleartype_rendering_mode
+_moz_cairo_dwrite_scaled_font_allow_manual_show_glyphs
+_moz_cairo_dwrite_scaled_font_get_force_GDI_classic
+_moz_cairo_dwrite_scaled_font_set_force_GDI_classic
+_moz_cairo_dwrite_set_cleartype_params
 _moz_cairo_fill
 _moz_cairo_fill_extents
 _moz_cairo_fill_preserve
@@ -405,6 +443,7 @@ _moz_cairo_matrix_translate
 _moz_cairo_move_to
 _moz_cairo_new_path
 _moz_cairo_new_sub_path
+_moz_cairo_null_surface_create
 _moz_cairo_paint
 _moz_cairo_paint_with_alpha
 _moz_cairo_path_destroy
@@ -438,6 +477,7 @@ _moz_cairo_push_group_with_content
 _moz_cairo_rectangle
 _moz_cairo_rectangle_list_destroy
 _moz_cairo_reference
+_moz_cairo_release_device
 _moz_cairo_reset_clip
 _moz_cairo_restore
 _moz_cairo_rotate
@@ -447,6 +487,7 @@ _moz_cairo_scaled_font_create
 _moz_cairo_scaled_font_destroy
 _moz_cairo_scaled_font_get_font_matrix
 _moz_cairo_scaled_font_get_font_options
+_moz_cairo_scaled_font_get_hint_metrics
 _moz_cairo_scaled_font_get_type
 _moz_cairo_scaled_font_reference
 _moz_cairo_scaled_font_status
@@ -471,6 +512,7 @@ _moz_cairo_status_to_string
 _moz_cairo_stroke
 _moz_cairo_stroke_extents
 _moz_cairo_stroke_preserve
+_moz_cairo_surface_attach_snapshot
 _moz_cairo_surface_create_similar
 _moz_cairo_surface_destroy
 _moz_cairo_surface_finish
@@ -497,17 +539,24 @@ _moz_cairo_transform
 _moz_cairo_translate
 _moz_cairo_user_to_device
 _moz_cairo_user_to_device_distance
+_moz_cairo_win32_font_face_create_for_logfontw
 _moz_cairo_win32_font_face_create_for_logfontw_hfont
+_moz_cairo_win32_get_dc_with_clip
+_moz_cairo_win32_get_system_text_quality
 #ifdef NS_PRINTING
 _moz_cairo_win32_printing_surface_create
 #endif
 _moz_cairo_win32_scaled_font_select_font
 _moz_cairo_win32_surface_create
+_moz_cairo_win32_surface_create_with_alpha
 _moz_cairo_win32_surface_create_with_d3dsurface9
 _moz_cairo_win32_surface_create_with_ddb
 _moz_cairo_win32_surface_create_with_dib
 _moz_cairo_win32_surface_get_dc
+_moz_cairo_win32_surface_get_height
 _moz_cairo_win32_surface_get_image
+_moz_cairo_win32_surface_get_width
+_moz_cairo_win32_surface_set_can_convert_to_dib
 #ifdef MOZ_TREE_PIXMAN
 _moz_pixman_image_composite32
 _moz_pixman_image_create_bits
@@ -540,37 +589,6 @@ _moz_pixman_region32_selfcheck
 _moz_pixman_region32_reset
 _moz_pixman_region32_clear
 #endif
-cairo_d2d_create_device
-cairo_d2d_create_device_from_d3d10device
-cairo_d2d_device_get_device
-cairo_d2d_get_dc
-cairo_d2d_get_image_surface_cache_usage
-cairo_d2d_get_surface_vram_usage
-cairo_d2d_present_backbuffer
-cairo_d2d_release_dc
-cairo_d2d_scroll
-cairo_d2d_surface_create
-cairo_d2d_surface_create_for_handle
-cairo_d2d_surface_create_for_hwnd
-cairo_d2d_surface_create_for_texture
-cairo_d2d_surface_get_height
-cairo_d2d_surface_get_texture
-cairo_d2d_surface_get_width
-cairo_dwrite_font_face_create_for_dwrite_fontface
-cairo_dwrite_get_cleartype_rendering_mode
-cairo_dwrite_scaled_font_allow_manual_show_glyphs
-cairo_dwrite_scaled_font_get_force_GDI_classic
-cairo_dwrite_scaled_font_set_force_GDI_classic
-cairo_dwrite_set_cleartype_params
-cairo_null_surface_create
-cairo_release_device
-cairo_surface_attach_snapshot
-cairo_win32_get_dc_with_clip
-cairo_win32_get_system_text_quality
-cairo_win32_surface_create_with_alpha
-cairo_win32_surface_get_height
-cairo_win32_surface_get_width
-cairo_win32_surface_set_can_convert_to_dib
 #endif
 hb_blob_create
 hb_blob_destroy
@@ -584,6 +602,7 @@ hb_buffer_destroy
 hb_buffer_get_glyph_infos
 hb_buffer_get_glyph_positions
 hb_buffer_reverse
+hb_buffer_set_cluster_level
 hb_buffer_set_direction
 hb_buffer_set_language
 hb_buffer_set_script
@@ -647,7 +666,9 @@ BrotliDecoderStateCleanup
 BrotliDecoderDecompressStream
 #ifdef MOZ_WEBRTC
 downmix_int
+#ifdef MOZ_SAMPLE_TYPE_FLOAT32
 run_analysis
+#endif
 #endif
 
 

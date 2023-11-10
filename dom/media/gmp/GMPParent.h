@@ -24,6 +24,17 @@
 
 class nsIThread;
 
+#ifdef MOZ_CRASHREPORTER
+#include "nsExceptionHandler.h"
+
+namespace mozilla {
+namespace dom {
+class PCrashReporterParent;
+class CrashReporterParent;
+}
+}
+#endif
+
 namespace mozilla {
 namespace gmp {
 
@@ -111,7 +122,8 @@ public:
 
   const nsCString& GetDisplayName() const;
   const nsCString& GetVersion() const;
-  const uint32_t GetPluginId() const;
+  uint32_t GetPluginId() const;
+  nsString GetPluginBaseName() const;
 
   // Returns true if a plugin can be or is being used across multiple NodeIds.
   bool CanBeSharedCrossNodeIds() const;
@@ -139,32 +151,40 @@ public:
 
 private:
   ~GMPParent();
-  nsRefPtr<GeckoMediaPluginServiceParent> mService;
+  RefPtr<GeckoMediaPluginServiceParent> mService;
   bool EnsureProcessLoaded();
   nsresult ReadGMPMetaData();
-  virtual void ActorDestroy(ActorDestroyReason aWhy) override;
+#ifdef MOZ_CRASHREPORTER
+  void WriteExtraDataForMinidump(CrashReporter::AnnotationTable& notes);
+  void GetCrashID(nsString& aResult);
+#endif
+  void ActorDestroy(ActorDestroyReason aWhy) override;
 
-  virtual bool RecvPGMPStorageConstructor(PGMPStorageParent* actor) override;
-  virtual PGMPStorageParent* AllocPGMPStorageParent() override;
-  virtual bool DeallocPGMPStorageParent(PGMPStorageParent* aActor) override;
+  PCrashReporterParent* AllocPCrashReporterParent(const NativeThreadId& aThread) override;
+  bool DeallocPCrashReporterParent(PCrashReporterParent* aCrashReporter) override;
 
-  virtual PGMPContentParent* AllocPGMPContentParent(Transport* aTransport,
-                                                    ProcessId aOtherPid) override;
+  bool RecvPGMPStorageConstructor(PGMPStorageParent* actor) override;
+  PGMPStorageParent* AllocPGMPStorageParent() override;
+  bool DeallocPGMPStorageParent(PGMPStorageParent* aActor) override;
 
-  virtual bool RecvPGMPTimerConstructor(PGMPTimerParent* actor) override;
-  virtual PGMPTimerParent* AllocPGMPTimerParent() override;
-  virtual bool DeallocPGMPTimerParent(PGMPTimerParent* aActor) override;
+  PGMPContentParent* AllocPGMPContentParent(Transport* aTransport,
+                                            ProcessId aOtherPid) override;
 
-  virtual bool RecvAsyncShutdownComplete() override;
-  virtual bool RecvAsyncShutdownRequired() override;
+  bool RecvPGMPTimerConstructor(PGMPTimerParent* actor) override;
+  PGMPTimerParent* AllocPGMPTimerParent() override;
+  bool DeallocPGMPTimerParent(PGMPTimerParent* aActor) override;
 
-  virtual bool RecvPGMPContentChildDestroyed() override;
+  bool RecvAsyncShutdownComplete() override;
+  bool RecvAsyncShutdownRequired() override;
+
+  bool RecvPGMPContentChildDestroyed() override;
   bool IsUsed()
   {
     return mGMPContentChildCount > 0;
   }
 
 
+  static void AbortWaitingForGMPAsyncShutdown(nsITimer* aTimer, void* aClosure);
   nsresult EnsureAsyncShutdownTimeoutSet();
 
   GMPState mState;
@@ -182,16 +202,16 @@ private:
 
   bool mCanDecrypt;
 
-  nsTArray<nsRefPtr<GMPTimerParent>> mTimers;
-  nsTArray<nsRefPtr<GMPStorageParent>> mStorage;
+  nsTArray<RefPtr<GMPTimerParent>> mTimers;
+  nsTArray<RefPtr<GMPStorageParent>> mStorage;
   nsCOMPtr<nsIThread> mGMPThread;
   nsCOMPtr<nsITimer> mAsyncShutdownTimeout; // GMP Thread only.
   // NodeId the plugin is assigned to, or empty if the the plugin is not
   // assigned to a NodeId.
-  nsAutoCString mNodeId;
+  nsCString mNodeId;
   // This is used for GMP content in the parent, there may be more of these in
   // the content processes.
-  nsRefPtr<GMPContentParent> mGMPContentParent;
+  RefPtr<GMPContentParent> mGMPContentParent;
   nsTArray<UniquePtr<GetGMPContentParentCallback>> mCallbacks;
   uint32_t mGMPContentChildCount;
 
@@ -199,6 +219,12 @@ private:
   bool mAsyncShutdownInProgress;
 
   int mChildPid;
+
+  // We hold a self reference to ourself while the child process is alive.
+  // This ensures that if the GMPService tries to shut us down and drops
+  // its reference to us, we stay alive long enough for the child process
+  // to terminate gracefully.
+  bool mHoldingSelfRef;
 };
 
 } // namespace gmp

@@ -8,8 +8,7 @@
 #include "GLContext.h"
 #include "WebGLSync.h"
 
-using namespace mozilla;
-using namespace mozilla::dom;
+namespace mozilla {
 
 // -------------------------------------------------------------------------
 // Sync objects
@@ -31,7 +30,7 @@ WebGL2Context::FenceSync(GLenum condition, GLbitfield flags)
    }
 
    MakeContextCurrent();
-   nsRefPtr<WebGLSync> globj = new WebGLSync(this, condition, flags);
+   RefPtr<WebGLSync> globj = new WebGLSync(this, condition, flags);
    return globj.forget();
 }
 
@@ -131,3 +130,5 @@ WebGL2Context::GetSyncParameter(JSContext*, WebGLSync* sync, GLenum pname, JS::M
 
     ErrorInvalidEnum("getSyncParameter: Invalid pname 0x%04x", pname);
 }
+
+} // namespace mozilla

@@ -21,7 +21,7 @@ initTestLogging("Trace");
 // XXX until bug 937114 is fixed
 Cu.importGlobalProperties(['atob']);
 
-let log = Log.repository.getLogger("Services.FxAccounts.test");
+var log = Log.repository.getLogger("Services.FxAccounts.test");
 log.level = Log.Level.Debug;
 
 // See verbose logging from FxAccounts.jsm
@@ -31,6 +31,13 @@ Log.repository.getLogger("FirefoxAccounts").level = Log.Level.Trace;
 // The oauth server is mocked, but set these prefs to pass param checks
 Services.prefs.setCharPref("identity.fxaccounts.remote.oauth.uri", "https://example.com/v1");
 Services.prefs.setCharPref("identity.fxaccounts.oauth.client_id", "abc123");
+
+
+const PROFILE_SERVER_URL = "http://example.com/v1";
+const CONTENT_URL = "http://accounts.example.com/";
+
+Services.prefs.setCharPref("identity.fxaccounts.remote.profile.uri", PROFILE_SERVER_URL);
+Services.prefs.setCharPref("identity.fxaccounts.settings.uri", CONTENT_URL);
 
 
 function run_test() {
@@ -858,6 +865,123 @@ add_test(function test_getOAuthToken_unknown_error() {
          run_next_test();
       });
   });
+});
+
+add_test(function test_accountState_initProfile() {
+  let fxa = new MockFxAccounts();
+  let alice = getTestUser("alice");
+  alice.verified = true;
+
+  fxa.internal.getOAuthToken = function (opts) {
+    return Promise.resolve("token");
+  };
+
+  fxa.setSignedInUser(alice).then(() => {
+    let accountState = fxa.internal.currentAccountState;
+
+    accountState.initProfile(options)
+      .then(result => {
+         do_check_true(!!accountState.profile);
+         run_next_test();
+      });
+  });
+
+});
+
+add_test(function test_accountState_getProfile() {
+  let fxa = new MockFxAccounts();
+  let alice = getTestUser("alice");
+  alice.verified = true;
+
+  let mockProfile = {
+    getProfile: function () {
+      return Promise.resolve({ avatar: "image" });
+    }
+  };
+
+  fxa.setSignedInUser(alice).then(() => {
+    let accountState = fxa.internal.currentAccountState;
+    accountState.profile = mockProfile;
+    accountState.initProfilePromise = new Promise((resolve, reject) => resolve(mockProfile));
+
+    accountState.getProfile()
+      .then(result => {
+         do_check_true(!!result);
+         do_check_eq(result.avatar, "image");
+         run_next_test();
+      });
+  });
+
+});
+
+add_test(function test_getSignedInUserProfile_ok() {
+  let fxa = new MockFxAccounts();
+  let alice = getTestUser("alice");
+  alice.verified = true;
+
+  fxa.setSignedInUser(alice).then(() => {
+    let accountState = fxa.internal.currentAccountState;
+    accountState.getProfile = function () {
+      return Promise.resolve({ avatar: "image" });
+    };
+
+    fxa.getSignedInUserProfile()
+      .then(result => {
+         do_check_eq(result.avatar, "image");
+         do_check_true(result.verified);
+         run_next_test();
+      });
+  });
+
+});
+
+add_test(function test_getSignedInUserProfile_error_uses_account_data() {
+  let fxa = new MockFxAccounts();
+  let alice = getTestUser("alice");
+  alice.verified = true;
+
+  fxa.internal.getSignedInUser = function () {
+    return Promise.resolve({ email: "foo@bar.com" });
+  };
+
+  fxa.setSignedInUser(alice).then(() => {
+    let accountState = fxa.internal.currentAccountState;
+    accountState.getProfile = function () {
+      return Promise.reject("boom");
+    };
+
+    fxa.getSignedInUserProfile()
+      .then(result => {
+         do_check_eq(typeof result.avatar, "undefined");
+         do_check_eq(result.email, "foo@bar.com");
+         run_next_test();
+      });
+  });
+
+});
+
+add_test(function test_getSignedInUserProfile_no_account_data() {
+  let fxa = new MockFxAccounts();
+
+  fxa.internal.getSignedInUser = function () {
+    return Promise.resolve({ email: "foo@bar.com" });
+  };
+
+  let accountState = fxa.internal.currentAccountState;
+  accountState.getProfile = function () {
+    return Promise.reject("boom");
+  };
+
+  fxa.internal.getSignedInUser = function () {
+    return Promise.resolve(null);
+  };
+
+  fxa.getSignedInUserProfile()
+    .then(result => {
+       do_check_eq(result, null);
+       run_next_test();
+    });
+
 });
 
 /*

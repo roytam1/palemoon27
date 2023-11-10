@@ -284,7 +284,7 @@ FormAutoComplete.prototype = {
                     result.entries = aEntries;
                 }
 
-                if (aDatalistResult) {
+                if (aDatalistResult && aDatalistResult.matchCount > 0) {
                     result = this.mergeResults(result, aDatalistResult);
                 }
 
@@ -400,7 +400,7 @@ FormAutoComplete.prototype = {
     _calculateScore : function (entry, aSearchString, searchTokens) {
         let boundaryCalc = 0;
         // for each word, calculate word boundary weights
-        for each (let token in searchTokens) {
+        for (let token of searchTokens) {
             boundaryCalc += (entry.textLowerCase.indexOf(token) == 0);
             boundaryCalc += (entry.textLowerCase.indexOf(" " + token) >= 0);
         }
@@ -516,7 +516,7 @@ FormAutoCompleteChild.prototype = {
 
         let result = new FormAutoCompleteResult(
           null,
-          [for (res of message.data.results) {text: res}],
+          Array.from(message.data.results, res => ({ text: res })),
           null,
           null
         );

@@ -13,7 +13,7 @@ const { Trait } = require('../deprecated/traits');
 const { when } = require('../system/unload');
 const events = require('../system/events');
 const { getInnerId, getOuterId, windows, isDocumentLoaded, isBrowser,
-        getMostRecentBrowserWindow, getMostRecentWindow } = require('../window/utils');
+        getMostRecentBrowserWindow, getToplevelWindow, getMostRecentWindow } = require('../window/utils');
 const errors = require('../deprecated/errors');
 const { deprecateFunction } = require('../util/deprecate');
 const { ignoreWindow } = require('sdk/private-browsing/utils');
@@ -25,7 +25,9 @@ const appShellService = Cc['@mozilla.org/appshell/appShellService;1'].
                         getService(Ci.nsIAppShellService);
 
 // Bug 834961: ignore private windows when they are not supported
-function getWindows() windows(null, { includePrivate: isPrivateBrowsingSupported });
+function getWindows() {
+  return windows(null, { includePrivate: isPrivateBrowsingSupported });
+}
 
 /**
  * An iterator for XUL windows currently in the application.
@@ -128,12 +130,12 @@ WindowTracker.prototype = {
     if (event.type == 'load' && event.target) {
       var window = event.target.defaultView;
       if (window)
-        this._regWindow(window);
+          this._regWindow(getToplevelWindow(window));
     }
   }),
 
   _onToplevelWindowReady: function _onToplevelWindowReady({subject}) {
-    let window = subject;
+    let window = getToplevelWindow(subject);
     // ignore private windows if they are not supported
     if (ignoreWindow(window))
       return;

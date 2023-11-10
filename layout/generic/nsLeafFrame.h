@@ -20,7 +20,7 @@
  */
 class nsLeafFrame : public nsFrame {
 public:
-  NS_DECL_FRAMEARENA_HELPERS
+  NS_DECL_ABSTRACT_FRAME(nsLeafFrame)
 
   // nsIFrame replacements
   virtual void BuildDisplayList(nsDisplayListBuilder*   aBuilder,
@@ -81,26 +81,20 @@ protected:
   virtual ~nsLeafFrame();
 
   /**
-   * Return the intrinsic width of the frame's content area. Note that this
+   * Return the intrinsic isize of the frame's content area. Note that this
    * should not include borders or padding and should not depend on the applied
    * styles.
    */
   virtual nscoord GetIntrinsicISize() = 0;
 
   /**
-   * Return the intrinsic height of the frame's content area.  This should not
-   * include border or padding.  This will only matter if the specified height
+   * Return the intrinsic bsize of the frame's content area.  This should not
+   * include border or padding.  This will only matter if the specified bsize
    * is auto.  Note that subclasses must either implement this or override
    * Reflow and ComputeAutoSize; the default Reflow and ComputeAutoSize impls
    * call this method.
    */
   virtual nscoord GetIntrinsicBSize();
-
-  /**
-   * Subroutine to add in borders and padding
-   */
-  void AddBordersAndPadding(const nsHTMLReflowState& aReflowState,
-                            mozilla::LogicalSize& aDesiredSize);
 
   /**
    * Set aDesiredSize to be the available size

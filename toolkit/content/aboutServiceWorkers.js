@@ -4,16 +4,16 @@
 
 'use strict';
 
-const {classes: Cc, interfaces: Ci, utils: Cu, results: Cr} = Components;
+var {classes: Cc, interfaces: Ci, utils: Cu, results: Cr} = Components;
 
 Cu.import("resource://gre/modules/Services.jsm");
 Cu.import('resource://gre/modules/XPCOMUtils.jsm');
 
 XPCOMUtils.defineLazyServiceGetter(
   this,
-  "PushNotificationService",
-  "@mozilla.org/push/NotificationService;1",
-  "nsIPushNotificationService"
+  "PushService",
+  "@mozilla.org/push/Service;1",
+  "nsIPushService"
 );
 
 const bundle = Services.strings.createBundle(
@@ -22,8 +22,8 @@ const bundle = Services.strings.createBundle(
 const brandBundle = Services.strings.createBundle(
   "chrome://branding/locale/brand.properties");
 
-let gSWM;
-let gSWCount = 0;
+var gSWM;
+var gSWCount = 0;
 
 function init() {
   let enabled = Services.prefs.getBoolPref("dom.serviceWorkers.enabled");
@@ -54,9 +54,9 @@ function init() {
   }
 
   for (let i = 0; i < length; ++i) {
-    let info = data.queryElementAt(i, Ci.nsIServiceWorkerInfo);
+    let info = data.queryElementAt(i, Ci.nsIServiceWorkerRegistrationInfo);
     if (!info) {
-      dump("AboutServiceWorkers: Invalid nsIServiceWorkerInfo interface.\n");
+      dump("AboutServiceWorkers: Invalid nsIServiceWorkerRegistrationInfo interface.\n");
       continue;
     }
 
@@ -115,19 +115,21 @@ function display(info) {
 
   createItem(bundle.GetStringFromName('scope'), info.scope);
   createItem(bundle.GetStringFromName('scriptSpec'), info.scriptSpec, true);
-  createItem(bundle.GetStringFromName('currentWorkerURL'), info.currentWorkerURL, true);
+  let currentWorkerURL = info.activeWorker ? info.activeWorker.scriptSpec : "";
+  createItem(bundle.GetStringFromName('currentWorkerURL'), currentWorkerURL, true);
+  let activeCacheName = info.activeWorker ? info.activeWorker.cacheName : "";
   createItem(bundle.GetStringFromName('activeCacheName'), info.activeCacheName);
+  let waitingCacheName = info.waitingWorker ? info.waitingWorker.cacheName : "";
   createItem(bundle.GetStringFromName('waitingCacheName'), info.waitingCacheName);
 
   let pushItem = createItem(bundle.GetStringFromName('pushEndpoint'), bundle.GetStringFromName('waiting'));
-  PushNotificationService.registration(info.scope, info.principal.originAttributes).then(
-    pushRecord => {
-      pushItem.data = JSON.stringify(pushRecord);
-    },
-    error => {
-      dump("about:serviceworkers - push registration failed\n");
-    }
-  );
+  PushService.getRegistration(info.scope, info.principal.originAttributes), (status, pushRecord) => {
+      if (Components.isSuccessCode(status)) {
+        pushItem.data = JSON.stringify(pushRecord);
+      } else {
+        dump("about:serviceworkers - retrieving push registration failed\n");
+      }
+    });
 
   let updateButton = document.createElement("button");
   updateButton.appendChild(document.createTextNode(bundle.GetStringFromName('update')));

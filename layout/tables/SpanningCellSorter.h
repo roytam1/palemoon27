@@ -11,7 +11,7 @@
  * Code to sort cells by their colspan, used by BasicTableLayoutStrategy.
  */
 
-#include "pldhash.h"
+#include "PLDHashTable.h"
 #include "nsDebug.h"
 #include "StackArena.h"
 
@@ -75,10 +75,6 @@ private:
     static bool
         HashTableMatchEntry(PLDHashTable *table, const PLDHashEntryHdr *hdr,
                             const void *key);
-
-    static PLDHashOperator
-        FillSortedArray(PLDHashTable *table, PLDHashEntryHdr *hdr,
-                        uint32_t number, void *arg);
 
     static int SortArray(const void *a, const void *b, void *closure);
 

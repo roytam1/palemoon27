@@ -15,7 +15,9 @@
 #include "nsTArray.h"
 #include "mozilla/dom/EventTarget.h"
 #include "js/TypeDecls.h"
+#include "nsRefPtrHashtable.h"
 
+// Only fired for inner windows.
 #define DOM_WINDOW_DESTROYED_TOPIC "dom-window-destroyed"
 #define DOM_WINDOW_FROZEN_TOPIC "dom-window-frozen"
 #define DOM_WINDOW_THAWED_TOPIC "dom-window-thawed"
@@ -37,9 +39,10 @@ namespace mozilla {
 namespace dom {
 class AudioContext;
 class Element;
+class ServiceWorkerRegistrationMainThread;
 } // namespace dom
 namespace gfx {
-class VRHMDInfo;
+class VRDeviceProxy;
 } // namespace gfx
 } // namespace mozilla
 
@@ -63,8 +66,8 @@ enum UIStateChangeType
 };
 
 #define NS_PIDOMWINDOW_IID \
-{ 0x2485d4d7, 0xf7cb, 0x481e, \
-  { 0x9c, 0x89, 0xb2, 0xa8, 0x12, 0x67, 0x7f, 0x97 } }
+{ 0x052e675a, 0xacd3, 0x48d1, \
+  { 0x8a, 0xcd, 0xbf, 0xff, 0xbd, 0x24, 0x4c, 0xed } }
 
 class nsPIDOMWindow : public nsIDOMWindowInternal
 {
@@ -203,6 +206,9 @@ public:
   float GetAudioVolume() const;
   nsresult SetAudioVolume(float aVolume);
 
+  bool GetAudioCaptured() const;
+  nsresult SetAudioCapture(bool aCapture);
+
   virtual void SetServiceWorkersTestingEnabled(bool aEnabled)
   {
     MOZ_ASSERT(IsOuterWindow());
@@ -214,6 +220,10 @@ public:
     MOZ_ASSERT(IsOuterWindow());
     return mServiceWorkersTestingEnabled;
   }
+
+  already_AddRefed<mozilla::dom::ServiceWorkerRegistrationMainThread>
+    GetServiceWorkerRegistration(const nsAString& aScope);
+  void InvalidateServiceWorkerRegistration(const nsAString& aScope);
 
 protected:
   // Lazily instantiate an about:blank document if necessary, and if
@@ -306,10 +316,12 @@ public:
 
   // Suspend timeouts in this window and in child windows.
   virtual void SuspendTimeouts(uint32_t aIncrease = 1,
-                               bool aFreezeChildren = true) = 0;
+                               bool aFreezeChildren = true,
+                               bool aFreezeWorkers = true) = 0;
 
   // Resume suspended timeouts in this window and in child windows.
-  virtual nsresult ResumeTimeouts(bool aThawChildren = true) = 0;
+  virtual nsresult ResumeTimeouts(bool aThawChildren = true,
+                                  bool aThawWorkers = true) = 0;
 
   virtual uint32_t TimeoutSuspendCount() = 0;
 
@@ -383,7 +395,7 @@ public:
   /**
    * Get the docshell in this window.
    */
-  nsIDocShell *GetDocShell()
+  nsIDocShell *GetDocShell() const
   {
     if (mOuterWindow) {
       return mOuterWindow->mDocShell;
@@ -489,7 +501,7 @@ public:
    * Outer windows only.
    */
   virtual nsresult SetFullScreenInternal(bool aIsFullscreen, bool aFullscreenMode,
-                                         mozilla::gfx::VRHMDInfo *aHMD = nullptr) = 0;
+                                         mozilla::gfx::VRDeviceProxy *aHMD = nullptr) = 0;
 
   /**
    * Call this to check whether some node (this window, its document,
@@ -625,6 +637,11 @@ public:
    */
   virtual void DisableDeviceSensor(uint32_t aType) = 0;
 
+#if defined(MOZ_WIDGET_ANDROID) || defined(MOZ_WIDGET_GONK)
+  virtual void EnableOrientationChangeListener() = 0;
+  virtual void DisableOrientationChangeListener() = 0;
+#endif
+
   virtual void EnableTimeChangeNotifications() = 0;
   virtual void DisableTimeChangeNotifications() = 0;
 
@@ -635,7 +652,7 @@ public:
    *
    * Inner windows only.
    */
-  virtual void EnableNetworkEvent(uint32_t aType) = 0;
+  virtual void EnableNetworkEvent(mozilla::EventMessage aEventMessage) = 0;
 
   /**
    * Tell the window that it should stop to listen to the network event of the
@@ -643,7 +660,7 @@ public:
    *
    * Inner windows only.
    */
-  virtual void DisableNetworkEvent(uint32_t aType) = 0;
+  virtual void DisableNetworkEvent(mozilla::EventMessage aEventMessage) = 0;
 #endif // MOZ_B2G
 
   /**
@@ -798,7 +815,12 @@ protected:
   nsIDocShell           *mDocShell;  // Weak Reference
 
   // mPerformance is only used on inner windows.
-  nsRefPtr<nsPerformance>       mPerformance;
+  RefPtr<nsPerformance>       mPerformance;
+
+  typedef nsRefPtrHashtable<nsStringHashKey,
+                            mozilla::dom::ServiceWorkerRegistrationMainThread>
+          ServiceWorkerRegistrationTable;
+  ServiceWorkerRegistrationTable mServiceWorkerRegistrationTable;
 
   uint32_t               mModalStateDepth;
 
@@ -830,6 +852,8 @@ protected:
 
   bool                   mAudioMuted;
   float                  mAudioVolume;
+
+  bool                   mAudioCaptured;
 
   // current desktop mode flag.
   bool                   mDesktopModeViewport;

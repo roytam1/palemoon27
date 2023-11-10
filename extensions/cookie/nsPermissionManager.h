@@ -132,7 +132,7 @@ public:
     }
 
     // Force the hashtable to use the copy constructor when shuffling entries
-    // around, otherwise the Auto part of our nsAutoTArray won't be happy!
+    // around, otherwise the Auto part of our AutoTArray won't be happy!
     enum { ALLOW_MEMMOVE = false };
 
     inline nsTArray<PermissionEntry> & GetPermissions()
@@ -161,7 +161,7 @@ public:
     }
 
   private:
-    nsAutoTArray<PermissionEntry, 1> mPermissions;
+    AutoTArray<PermissionEntry, 1> mPermissions;
   };
 
   // nsISupports

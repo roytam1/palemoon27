@@ -128,13 +128,7 @@ public:
 
   typedef nsRefPtrHashtable<nsAttrHashKey, Attr> AttrCache;
 
-  /**
-   * Enumerates over the attribute nodess in the map and calls aFunc for each
-   * one. If aFunc returns PL_DHASH_STOP we'll stop enumerating at that point.
-   *
-   * @return The number of attribute nodes that aFunc was called for.
-   */
-  uint32_t Enumerate(AttrCache::EnumReadFunction aFunc, void *aUserArg) const;
+  static void BlastSubtreeToPieces(nsINode *aNode);
 
   Element* GetParentObject() const
   {
@@ -146,11 +140,6 @@ public:
   Attr* GetNamedItem(const nsAString& aAttrName);
   Attr* NamedGetter(const nsAString& aAttrName, bool& aFound);
   bool NameIsEnumerable(const nsAString& aName);
-  already_AddRefed<Attr>
-  SetNamedItem(Attr& aAttr, ErrorResult& aError)
-  {
-    return SetNamedItemInternal(aAttr, false, aError);
-  }
   already_AddRefed<Attr>
   RemoveNamedItem(mozilla::dom::NodeInfo* aNodeInfo, ErrorResult& aError);
   already_AddRefed<Attr>
@@ -164,10 +153,7 @@ public:
   GetNamedItemNS(const nsAString& aNamespaceURI,
                  const nsAString& aLocalName);
   already_AddRefed<Attr>
-  SetNamedItemNS(Attr& aNode, ErrorResult& aError)
-  {
-    return SetNamedItemInternal(aNode, true, aError);
-  }
+  SetNamedItemNS(Attr& aNode, ErrorResult& aError);
   already_AddRefed<Attr>
   RemoveNamedItemNS(const nsAString& aNamespaceURI, const nsAString& aLocalName,
                     ErrorResult& aError);
@@ -189,13 +175,6 @@ private:
    * Cache of Attrs.
    */
   AttrCache mAttributeCache;
-
-  /**
-   * SetNamedItem() (aWithNS = false) and SetNamedItemNS() (aWithNS =
-   * true) implementation.
-   */
-  already_AddRefed<Attr>
-  SetNamedItemInternal(Attr& aNode, bool aWithNS, ErrorResult& aError);
 
   already_AddRefed<mozilla::dom::NodeInfo>
   GetAttrNodeInfo(const nsAString& aNamespaceURI,

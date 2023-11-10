@@ -27,8 +27,7 @@ let logger = Log.repository.getLogger(LOGGER_ID);
 
 function getIDHashForString(aStr) {
   // return the two-digit hexadecimal code for a byte
-  function toHexString(charCode)
-    ("0" + charCode.toString(16)).slice(-2);
+  let toHexString = charCode => ("0" + charCode.toString(16)).slice(-2);
 
   let hasher = Cc["@mozilla.org/security/hash;1"].
                createInstance(Ci.nsICryptoHash);
@@ -40,7 +39,8 @@ function getIDHashForString(aStr) {
 
   // convert the binary hash data to a hex string.
   let binary = hasher.finish(false);
-  let hash = [toHexString(binary.charCodeAt(i)) for (i in binary)].join("").toLowerCase();
+  let hash = Array.from(binary, c => toHexString(c.charCodeAt(0)));
+  hash = hash.join("").toLowerCase();
   return "{" + hash.substr(0, 8) + "-" +
                hash.substr(8, 4) + "-" +
                hash.substr(12, 4) + "-" +
@@ -49,7 +49,9 @@ function getIDHashForString(aStr) {
 }
 
 var PluginProvider = {
-  get name() "PluginProvider",
+  get name() {
+    return "PluginProvider";
+  },
 
   // A dictionary mapping IDs to names and descriptions
   plugins: null,
@@ -82,7 +84,7 @@ var PluginProvider = {
         let typeLabel = aSubject.getElementById("pluginMimeTypes"), types = [];
         for (let type of plugin.pluginMimeTypes) {
           let extras = [type.description.trim(), type.suffixes].
-                       filter(function(x) x).join(": ");
+                       filter(x => x).join(": ");
           types.push(type.type + (extras ? " (" + extras + ")" : ""));
         }
         typeLabel.textContent = types.join(",\n");
@@ -228,11 +230,11 @@ var PluginProvider = {
   updatePluginList: function PL_updatePluginList() {
     let newList = this.getPluginList();
 
-    let lostPlugins = [this.buildWrapper(this.plugins[id])
-                       for each (id in Object.keys(this.plugins)) if (!(id in newList))];
-    let newPlugins = [this.buildWrapper(newList[id])
-                      for each (id in Object.keys(newList)) if (!(id in this.plugins))];
-    let matchedIDs = [id for each (id in Object.keys(newList)) if (id in this.plugins)];
+    let lostPlugins = Object.keys(this.plugins).filter(id => !(id in newList)).
+                      map(id => this.buildWrapper(this.plugins[id]));
+    let newPlugins = Object.keys(newList).filter(id => !(id in this.plugins)).
+                     map(id => this.buildWrapper(newList[id]));
+    let matchedIDs = Object.keys(newList).filter(id => id in this.plugins);
 
     // The plugin host generates new tags for every plugin after a scan and
     // if the plugin's filename has changed then the disabled state won't have
@@ -304,16 +306,16 @@ function PluginWrapper(aId, aName, aDescription, aTags) {
   if (/<A\s+HREF=[^>]*>/i.test(aDescription))
     homepageURL = /<A\s+HREF=["']?([^>"'\s]*)/i.exec(aDescription)[1];
 
-  this.__defineGetter__("id", function() aId);
-  this.__defineGetter__("type", function() "plugin");
-  this.__defineGetter__("name", function() aName);
-  this.__defineGetter__("creator", function() null);
-  this.__defineGetter__("description", function() safedesc);
-  this.__defineGetter__("version", function() aTags[0].version);
-  this.__defineGetter__("homepageURL", function() homepageURL);
+  this.__defineGetter__("id", () => aId);
+  this.__defineGetter__("type", () => "plugin");
+  this.__defineGetter__("name", () => aName);
+  this.__defineGetter__("creator", () => null);
+  this.__defineGetter__("description", () => safedesc);
+  this.__defineGetter__("version", () => aTags[0].version);
+  this.__defineGetter__("homepageURL", () => homepageURL);
 
-  this.__defineGetter__("isActive", function() !aTags[0].blocklisted && !aTags[0].disabled);
-  this.__defineGetter__("appDisabled", function() aTags[0].blocklisted);
+  this.__defineGetter__("isActive", () => !aTags[0].blocklisted && !aTags[0].disabled);
+  this.__defineGetter__("appDisabled", () => aTags[0].blocklisted);
 
   this.__defineGetter__("userDisabled", function() {
     if (aTags[0].disabled)
@@ -463,7 +465,9 @@ function PluginWrapper(aId, aName, aDescription, aTags) {
       dir = Services.dirsvc.get("Home", Ci.nsIFile);
       if (path.startsWith(dir.path))
         return AddonManager.SCOPE_USER;
-    } catch (e if (e.result && e.result == Components.results.NS_ERROR_FAILURE)) {
+    } catch (e) {
+      if (!e.result || e.result != Components.results.NS_ERROR_FAILURE)
+        throw e;
       // Do nothing: missing "Home".
     }
 

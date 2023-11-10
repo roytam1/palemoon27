@@ -83,9 +83,9 @@ private:
   {
     // We could proxy release our data here, but instead just assert.  The
     // Context code should guarantee that we are destroyed on the target
-    // thread.  If we're not, then QuotaManager might race and try to clear the
-    // origin out from under us.
-    MOZ_ASSERT(mTarget == NS_GetCurrentThread());
+    // thread once the connection is initialized.  If we're not, then
+    // QuotaManager might race and try to clear the origin out from under us.
+    MOZ_ASSERT_IF(mConnection, mTarget == NS_GetCurrentThread());
   }
 
   nsCOMPtr<nsIThread> mTarget;
@@ -225,12 +225,12 @@ private:
     mInitAction = nullptr;
   }
 
-  nsRefPtr<Context> mContext;
-  nsRefPtr<ThreadsafeHandle> mThreadsafeHandle;
-  nsRefPtr<Manager> mManager;
-  nsRefPtr<Data> mData;
+  RefPtr<Context> mContext;
+  RefPtr<ThreadsafeHandle> mThreadsafeHandle;
+  RefPtr<Manager> mManager;
+  RefPtr<Data> mData;
   nsCOMPtr<nsIThread> mTarget;
-  nsRefPtr<Action> mInitAction;
+  RefPtr<Action> mInitAction;
   nsCOMPtr<nsIThread> mInitiatingThread;
   nsresult mResult;
   QuotaInfo mQuotaInfo;
@@ -326,7 +326,7 @@ Context::QuotaInitRunnable::Run()
   // May run on different threads depending on the state.  See individual
   // state cases for thread assertions.
 
-  nsRefPtr<SyncResolver> resolver = new SyncResolver();
+  RefPtr<SyncResolver> resolver = new SyncResolver();
 
   switch(mState) {
     // -----------------------------------
@@ -345,7 +345,7 @@ Context::QuotaInitRunnable::Run()
         break;
       }
 
-      nsRefPtr<ManagerId> managerId = mManager->GetManagerId();
+      RefPtr<ManagerId> managerId = mManager->GetManagerId();
       nsCOMPtr<nsIPrincipal> principal = managerId->Principal();
       nsresult rv = qm->GetInfoFromPrincipal(principal,
                                              &mQuotaInfo.mGroup,
@@ -558,10 +558,10 @@ private:
     STATE_COMPLETE
   };
 
-  nsRefPtr<Context> mContext;
-  nsRefPtr<Data> mData;
+  RefPtr<Context> mContext;
+  RefPtr<Data> mData;
   nsCOMPtr<nsIEventTarget> mTarget;
-  nsRefPtr<Action> mAction;
+  RefPtr<Action> mAction;
   const QuotaInfo mQuotaInfo;
   nsCOMPtr<nsIThread> mInitiatingThread;
   State mState;
@@ -786,19 +786,21 @@ already_AddRefed<Context>
 Context::Create(Manager* aManager, nsIThread* aTarget,
                 Action* aInitAction, Context* aOldContext)
 {
-  nsRefPtr<Context> context = new Context(aManager, aTarget);
-  context->Init(aInitAction, aOldContext);
+  RefPtr<Context> context = new Context(aManager, aTarget, aInitAction);
+  context->Init(aOldContext);
   return context.forget();
 }
 
-Context::Context(Manager* aManager, nsIThread* aTarget)
+Context::Context(Manager* aManager, nsIThread* aTarget, Action* aInitAction)
   : mManager(aManager)
   , mTarget(aTarget)
   , mData(new Data(aTarget))
   , mState(STATE_CONTEXT_PREINIT)
   , mOrphanedData(false)
+  , mInitAction(aInitAction)
 {
   MOZ_ASSERT(mManager);
+  MOZ_ASSERT(mTarget);
 }
 
 void
@@ -826,10 +828,11 @@ Context::CancelAll()
 {
   NS_ASSERT_OWNINGTHREAD(Context);
 
-  // In PREINIT state we have not dispatch the init runnable yet.  Just
+  // In PREINIT state we have not dispatch the init action yet.  Just
   // forget it.
   if (mState == STATE_CONTEXT_PREINIT) {
-    mInitRunnable = nullptr;
+    MOZ_ASSERT(!mInitRunnable);
+    mInitAction = nullptr;
 
   // In INIT state we have dispatched the runnable, but not received the
   // async completion yet.  Cancel the runnable, but don't forget about it
@@ -918,14 +921,9 @@ Context::~Context()
 }
 
 void
-Context::Init(Action* aInitAction, Context* aOldContext)
+Context::Init(Context* aOldContext)
 {
   NS_ASSERT_OWNINGTHREAD(Context);
-  MOZ_ASSERT(!mInitRunnable);
-
-  // Do this here to avoid doing an AddRef() in the constructor
-  mInitRunnable = new QuotaInitRunnable(this, mManager, mData, mTarget,
-                                        aInitAction);
 
   if (aOldContext) {
     aOldContext->SetNextContext(this);
@@ -944,10 +942,17 @@ Context::Start()
   // In this case, just do nothing here.
   if (mState == STATE_CONTEXT_CANCELED) {
     MOZ_ASSERT(!mInitRunnable);
+    MOZ_ASSERT(!mInitAction);
     return;
   }
 
   MOZ_ASSERT(mState == STATE_CONTEXT_PREINIT);
+  MOZ_ASSERT(!mInitRunnable);
+
+  mInitRunnable = new QuotaInitRunnable(this, mManager, mData, mTarget,
+                                        mInitAction);
+  mInitAction = nullptr;
+
   mState = STATE_CONTEXT_INIT;
 
   nsresult rv = mInitRunnable->Dispatch();
@@ -964,7 +969,7 @@ Context::DispatchAction(Action* aAction, bool aDoomData)
 {
   NS_ASSERT_OWNINGTHREAD(Context);
 
-  nsRefPtr<ActionRunnable> runnable =
+  RefPtr<ActionRunnable> runnable =
     new ActionRunnable(this, mData, mTarget, aAction, mQuotaInfo);
 
   if (aDoomData) {
@@ -996,7 +1001,15 @@ Context::OnQuotaInit(nsresult aRv, const QuotaInfo& aQuotaInfo,
   MOZ_ASSERT(!mDirectoryLock);
   mDirectoryLock = aDirectoryLock;
 
-  if (mState == STATE_CONTEXT_CANCELED || NS_FAILED(aRv)) {
+  // If we opening the context failed, but we were not explicitly canceled,
+  // still treat the entire context as canceled.  We don't want to allow
+  // new actions to be dispatched.  We also cannot leave the context in
+  // the INIT state after failing to open.
+  if (NS_FAILED(aRv)) {
+    mState = STATE_CONTEXT_CANCELED;
+  }
+
+  if (mState == STATE_CONTEXT_CANCELED) {
     for (uint32_t i = 0; i < mPendingActions.Length(); ++i) {
       mPendingActions[i].mAction->CompleteOnInitiatingThread(aRv);
     }
@@ -1048,7 +1061,7 @@ Context::CreateThreadsafeHandle()
   if (!mThreadsafeHandle) {
     mThreadsafeHandle = new ThreadsafeHandle(this);
   }
-  nsRefPtr<ThreadsafeHandle> ref = mThreadsafeHandle;
+  RefPtr<ThreadsafeHandle> ref = mThreadsafeHandle;
   return ref.forget();
 }
 
@@ -1075,7 +1088,7 @@ Context::DoomTargetData()
   // roundtrip to the target thread and back to the owning thread.  The
   // ref to the Data object is cleared on the owning thread after creating
   // the ActionRunnable, but before dispatching it.
-  nsRefPtr<Action> action = new NullAction();
+  RefPtr<Action> action = new NullAction();
   DispatchAction(action, true /* doomed data */);
 
   MOZ_ASSERT(!mData);

@@ -31,17 +31,23 @@ public:
     MOZ_ASSERT(aImage);
     mImage = aImage;
 
-    nsRefPtr<ProgressTracker> tracker = mImage->GetProgressTracker();
+    RefPtr<ProgressTracker> tracker = mImage->GetProgressTracker();
     tracker->AddObserver(this);
   }
 
   void BlockUntilDecodedAndFinishObserving()
   {
     // Use GetFrame() to block until our image finishes decoding.
-    mImage->GetFrame(imgIContainer::FRAME_CURRENT,
-                     imgIContainer::FLAG_SYNC_DECODE);
+    RefPtr<SourceSurface> surface =
+      mImage->GetFrame(imgIContainer::FRAME_CURRENT,
+                       imgIContainer::FLAG_SYNC_DECODE);
 
-    FinishObserving();
+    // GetFrame() should've sent synchronous notifications that would have
+    // caused us to call FinishObserving() (and null out mImage) already. If for
+    // some reason it didn't, we should do so here.
+    if (mImage) {
+      FinishObserving();
+    }
   }
 
   virtual void Notify(int32_t aType,
@@ -64,9 +70,19 @@ public:
       return;
     }
 
+    // Retrieve the image's intrinsic size.
+    int32_t width = 0;
+    int32_t height = 0;
+    mImage->GetWidth(&width);
+    mImage->GetHeight(&height);
+
+    // Request decoding at the intrinsic size.
+    mImage->RequestDecodeForSize(IntSize(width, height),
+                                 imgIContainer::DECODE_FLAGS_DEFAULT);
+
     // If there's already an error, we may never get a FRAME_COMPLETE
     // notification, so go ahead and notify our owner right away.
-    nsRefPtr<ProgressTracker> tracker = mImage->GetProgressTracker();
+    RefPtr<ProgressTracker> tracker = mImage->GetProgressTracker();
     if (tracker->GetProgress() & FLAG_HAS_ERROR) {
       FinishObserving();
     }
@@ -86,7 +102,7 @@ private:
   {
     MOZ_ASSERT(mImage);
 
-    nsRefPtr<ProgressTracker> tracker = mImage->GetProgressTracker();
+    RefPtr<ProgressTracker> tracker = mImage->GetProgressTracker();
     tracker->RemoveObserver(this);
     mImage = nullptr;
 
@@ -94,7 +110,7 @@ private:
   }
 
   MultipartImage* mOwner;
-  nsRefPtr<Image> mImage;
+  RefPtr<Image> mImage;
 };
 
 
@@ -116,10 +132,9 @@ MultipartImage::Init()
   MOZ_ASSERT(mTracker, "Should've called SetProgressTracker() by now");
 
   // Start observing the first part.
-  nsRefPtr<ProgressTracker> firstPartTracker =
+  RefPtr<ProgressTracker> firstPartTracker =
     InnerImage()->GetProgressTracker();
   firstPartTracker->AddObserver(this);
-  InnerImage()->RequestDecode();
   InnerImage()->IncrementAnimationConsumers();
 }
 
@@ -129,9 +144,7 @@ MultipartImage::~MultipartImage()
   mTracker->ResetImage();
 }
 
-NS_IMPL_QUERY_INTERFACE_INHERITED0(MultipartImage, ImageWrapper)
-NS_IMPL_ADDREF(MultipartImage)
-NS_IMPL_RELEASE(MultipartImage)
+NS_IMPL_ISUPPORTS_INHERITED0(MultipartImage, ImageWrapper)
 
 void
 MultipartImage::BeginTransitionToPart(Image* aNextPart)
@@ -150,16 +163,24 @@ MultipartImage::BeginTransitionToPart(Image* aNextPart)
   // Start observing the next part; we'll complete the transition when
   // NextPartObserver calls FinishTransition.
   mNextPartObserver->BeginObserving(mNextPart);
-  mNextPart->RequestDecode();
   mNextPart->IncrementAnimationConsumers();
 }
 
-void MultipartImage::FinishTransition()
+static Progress
+FilterProgress(Progress aProgress)
+{
+  // Filter out onload blocking notifications, since we don't want to block
+  // onload for multipart images.
+  return aProgress & ~(FLAG_ONLOAD_BLOCKED | FLAG_ONLOAD_UNBLOCKED);
+}
+
+void
+MultipartImage::FinishTransition()
 {
   MOZ_ASSERT(NS_IsMainThread());
   MOZ_ASSERT(mNextPart, "Should have a next part here");
 
-  nsRefPtr<ProgressTracker> newCurrentPartTracker =
+  RefPtr<ProgressTracker> newCurrentPartTracker =
     mNextPart->GetProgressTracker();
   if (newCurrentPartTracker->GetProgress() & FLAG_HAS_ERROR) {
     // This frame has an error; drop it.
@@ -167,16 +188,17 @@ void MultipartImage::FinishTransition()
 
     // We still need to notify, though.
     mTracker->ResetForNewRequest();
-    nsRefPtr<ProgressTracker> currentPartTracker =
+    RefPtr<ProgressTracker> currentPartTracker =
       InnerImage()->GetProgressTracker();
-    mTracker->SyncNotifyProgress(currentPartTracker->GetProgress());
+    mTracker
+      ->SyncNotifyProgress(FilterProgress(currentPartTracker->GetProgress()));
 
     return;
   }
 
   // Stop observing the current part.
   {
-    nsRefPtr<ProgressTracker> currentPartTracker =
+    RefPtr<ProgressTracker> currentPartTracker =
       InnerImage()->GetProgressTracker();
     currentPartTracker->RemoveObserver(this);
   }
@@ -189,8 +211,9 @@ void MultipartImage::FinishTransition()
 
   // Finally, send all the notifications for the new current part and send a
   // FRAME_UPDATE notification so that observers know to redraw.
-  mTracker->SyncNotifyProgress(newCurrentPartTracker->GetProgress(),
-                               GetMaxSizedIntRect());
+  mTracker
+    ->SyncNotifyProgress(FilterProgress(newCurrentPartTracker->GetProgress()),
+                         GetMaxSizedIntRect());
 }
 
 already_AddRefed<imgIContainer>
@@ -206,7 +229,7 @@ already_AddRefed<ProgressTracker>
 MultipartImage::GetProgressTracker()
 {
   MOZ_ASSERT(mTracker);
-  nsRefPtr<ProgressTracker> tracker = mTracker;
+  RefPtr<ProgressTracker> tracker = mTracker;
   return tracker.forget();
 }
 
@@ -229,7 +252,7 @@ MultipartImage::OnImageDataAvailable(nsIRequest* aRequest,
   // one exists, and *not* the current part.
 
   // We may trigger notifications that will free mNextPart, so keep it alive.
-  nsRefPtr<Image> nextPart = mNextPart;
+  RefPtr<Image> nextPart = mNextPart;
   if (nextPart) {
     nextPart->OnImageDataAvailable(aRequest, aContext, aInStr,
                                    aSourceOffset, aCount);
@@ -251,7 +274,7 @@ MultipartImage::OnImageDataComplete(nsIRequest* aRequest,
   // one exists, and *not* the current part.
 
   // We may trigger notifications that will free mNextPart, so keep it alive.
-  nsRefPtr<Image> nextPart = mNextPart;
+  RefPtr<Image> nextPart = mNextPart;
   if (nextPart) {
     nextPart->OnImageDataComplete(aRequest, aContext, aStatus, aLastPart);
   } else {

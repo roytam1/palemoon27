@@ -46,14 +46,14 @@ BaselineFrame::popWith(JSContext* cx)
 }
 
 inline void
-BaselineFrame::replaceInnermostScope(ScopeObject &scope)
+BaselineFrame::replaceInnermostScope(ScopeObject& scope)
 {
     MOZ_ASSERT(scope.enclosingScope() == scopeChain_->as<ScopeObject>().enclosingScope());
     scopeChain_ = &scope;
 }
 
 inline bool
-BaselineFrame::pushBlock(JSContext* cx, Handle<StaticBlockObject*> block)
+BaselineFrame::pushBlock(JSContext* cx, Handle<StaticBlockScope*> block)
 {
     MOZ_ASSERT(block->needsClone());
 
@@ -74,10 +74,10 @@ BaselineFrame::popBlock(JSContext* cx)
 }
 
 inline bool
-BaselineFrame::freshenBlock(JSContext *cx)
+BaselineFrame::freshenBlock(JSContext* cx)
 {
     Rooted<ClonedBlockObject*> current(cx, &scopeChain_->as<ClonedBlockObject>());
-    ClonedBlockObject *clone = ClonedBlockObject::clone(cx, current);
+    ClonedBlockObject* clone = ClonedBlockObject::clone(cx, current);
     if (!clone)
         return false;
 
@@ -89,7 +89,7 @@ inline CallObject&
 BaselineFrame::callObj() const
 {
     MOZ_ASSERT(hasCallObj());
-    MOZ_ASSERT(fun()->isHeavyweight());
+    MOZ_ASSERT(callee()->needsCallObject());
 
     JSObject* obj = scopeChain();
     while (!obj->is<CallObject>())

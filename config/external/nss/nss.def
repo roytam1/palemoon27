@@ -112,6 +112,7 @@ CERT_GetCountryName
 CERT_GetDefaultCertDB
 CERT_GetFirstEmailAddress
 CERT_GetGeneralNameTypeFromString
+CERT_GetImposedNameConstraints
 CERT_GetLocalityName
 CERT_GetNextEmailAddress
 CERT_GetNextGeneralName
@@ -406,9 +407,6 @@ PK11_NeedLogin
 PK11_NeedUserInit
 PK11_ParamFromIV
 PK11_PBEKeyGen
-PK11_PQG_DestroyParams
-PK11_PQG_DestroyVerify
-PK11_PQG_ParamGen
 PK11_PrivDecrypt
 PK11_PrivDecryptPKCS1
 PK11_ProtectedAuthenticationPath
@@ -533,7 +531,6 @@ SECKEY_ExtractPublicKey
 SECKEY_GetPublicKeyType
 SECKEY_ImportDERPublicKey
 SECKEY_PublicKeyStrength
-SECKEY_PublicKeyStrengthInBits
 SECKEY_RSAPSSParamsTemplate DATA
 SECKEY_SignatureLen
 SECMIME_DecryptionAllowed
@@ -679,6 +676,7 @@ SSL_SetStapledOCSPResponses
 SSL_SetURL
 SSL_SNISocketConfigHook
 SSL_VersionRangeGet
+SSL_VersionRangeGetDefault
 SSL_VersionRangeGetSupported
 SSL_VersionRangeSet
 SSL_VersionRangeSetDefault
@@ -692,4 +690,3 @@ VFY_VerifyData
 VFY_VerifyDataWithAlgorithmID
 VFY_VerifyDigestDirect
 _SGN_VerifyPKCS1DigestInfo
-PK11_PQG_ParamGenV2

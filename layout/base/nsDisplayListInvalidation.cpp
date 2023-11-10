@@ -47,6 +47,7 @@ nsDisplayItemBoundsGeometry::nsDisplayItemBoundsGeometry(nsDisplayItem* aItem, n
 
 nsDisplayBorderGeometry::nsDisplayBorderGeometry(nsDisplayItem* aItem, nsDisplayListBuilder* aBuilder)
   : nsDisplayItemGeometry(aItem, aBuilder)
+  , nsImageGeometryMixin(aItem, aBuilder)
   , mContentRect(aItem->GetContentRect())
 {}
 
@@ -62,6 +63,7 @@ nsDisplayBackgroundGeometry::nsDisplayBackgroundGeometry(nsDisplayBackgroundImag
   : nsDisplayItemGeometry(aItem, aBuilder)
   , nsImageGeometryMixin(aItem, aBuilder)
   , mPositioningArea(aItem->GetPositioningArea())
+  , mDestArea(aItem->GetDestArea())
 {}
 
 void
@@ -69,6 +71,7 @@ nsDisplayBackgroundGeometry::MoveBy(const nsPoint& aOffset)
 {
   nsDisplayItemGeometry::MoveBy(aOffset);
   mPositioningArea.MoveBy(aOffset);
+  mDestArea.MoveBy(aOffset);
 }
 
 nsDisplayThemedBackgroundGeometry::nsDisplayThemedBackgroundGeometry(nsDisplayThemedBackground* aItem,
@@ -119,8 +122,8 @@ nsDisplaySVGEffectsGeometry::MoveBy(const nsPoint& aOffset)
 
 nsCharClipGeometry::nsCharClipGeometry(nsCharClipDisplayItem* aItem, nsDisplayListBuilder* aBuilder)
   : nsDisplayItemGenericGeometry(aItem, aBuilder)
-  , mLeftEdge(aItem->mLeftEdge)
-  , mRightEdge(aItem->mRightEdge)
+  , mVisIStartEdge(aItem->mVisIStartEdge)
+  , mVisIEndEdge(aItem->mVisIEndEdge)
 {}
 
 nsDisplayTableItemGeometry::nsDisplayTableItemGeometry(nsDisplayTableItem* aItem,

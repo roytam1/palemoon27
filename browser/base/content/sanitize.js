@@ -297,8 +297,8 @@ Sanitizer.prototype = {
 
         let count = 0;
         let countDone = {
-          handleResult : function(aResult) count = aResult,
-          handleError : function(aError) Components.utils.reportError(aError),
+          handleResult : aResult => count = aResult,
+          handleError : aError => Components.utils.reportError(aError),
           handleCompletion :
             function(aReason) { aCallback("formdata", aReason == 0 && count > 0, aArg); }
         };
@@ -409,9 +409,13 @@ Sanitizer.prototype = {
         sss.clearAll();
 
         // Clear all push notification subscriptions
-        var push = Cc["@mozilla.org/push/NotificationService;1"]
-                    .getService(Ci.nsIPushNotificationService);
-        push.clearAll();
+          var push = Cc["@mozilla.org/push/Service;1"]
+                       .getService(Ci.nsIPushService);
+          push.clearForDomain("*", status => {
+            if (!Components.isSuccessCode(status)) {
+              dump("Error clearing Web Push data: " + status + "\n");
+            }
+          });
       },
 
       get canClear()

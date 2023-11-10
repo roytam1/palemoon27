@@ -298,6 +298,11 @@ static const uint32_t ION_FRAME_SLACK_SIZE = 24;
 
 static const uint32_t ShadowStackSpace = 0;
 
+// TODO:
+// This constant needs to be updated to account for whatever near/far branching
+// strategy is used by ARM64.
+static const uint32_t JumpImmediateRange = UINT32_MAX;
+
 static const uint32_t ABIStackAlignment = 16;
 static const uint32_t CodeAlignment = 16;
 static const bool StackKeptAligned = false;
@@ -324,7 +329,7 @@ struct FloatRegister
         k_(k)
     { }
 
-    constexpr FloatRegister(uint32_t code)
+    explicit constexpr FloatRegister(uint32_t code)
       : code_(FloatRegisters::Code(code & 31)),
         k_(FloatRegisters::Kind(code >> 5))
     { }
@@ -411,10 +416,7 @@ struct FloatRegister
     bool isDouble() const {
         return k_ == FloatRegisters::Double;
     }
-    bool isInt32x4() const {
-        return false;
-    }
-    bool isFloat32x4() const {
+    bool isSimd128() const {
         return false;
     }
 
@@ -453,8 +455,8 @@ hasMultiAlias()
     return false;
 }
 
-static const size_t AsmJSCheckedImmediateRange = 0;
-static const size_t AsmJSImmediateRange = 0;
+static const size_t WasmCheckedImmediateRange = 0;
+static const size_t WasmImmediateRange = 0;
 
 } // namespace jit
 } // namespace js

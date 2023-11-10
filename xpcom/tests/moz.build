@@ -15,8 +15,6 @@ TEST_DIRS += [
 if CONFIG['OS_ARCH'] == 'WINNT':
     TEST_DIRS += ['windows']
 
-FAIL_ON_WARNINGS = True
-
 EXPORTS.testing += [
     'TestHarness.h',
 ]
@@ -55,7 +53,6 @@ GeckoCppUnitTests([
     'TestCOMArray',
     'TestCOMPtr',
     'TestCOMPtrEq',
-    'TestDeque',
     'TestFile',
     'TestHashtables',
     'TestID',
@@ -107,3 +104,6 @@ LOCAL_INCLUDES += [
 RESOURCE_FILES += [
     'test.properties',
 ]
+
+if CONFIG['GNU_CXX']:
+    CXXFLAGS += ['-Wshadow']

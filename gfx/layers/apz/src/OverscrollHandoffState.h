@@ -9,9 +9,10 @@
 
 #include <vector>
 #include "nsAutoPtr.h"
-#include "nsISupportsImpl.h"  // for NS_INLINE_DECL_REFCOUNTING
-#include "Units.h"            // for ScreenPoint
+#include "nsISupportsImpl.h"  // for NS_INLINE_DECL_THREADSAFE_REFCOUNTING
 #include "APZUtils.h"         // for CancelAnimationFlags
+#include "Layers.h"           // for Layer::ScrollDirection
+#include "Units.h"            // for ScreenPoint
 
 namespace mozilla {
 namespace layers {
@@ -21,7 +22,7 @@ class AsyncPanZoomController;
 /**
  * A variant of NS_INLINE_DECL_THREADSAFE_REFCOUNTING which makes the refcount
  * variable |mutable|, and the AddRef and Release methods |const|, to allow
- * using an |nsRefPtr<const T>|, and thereby enforcing better const-correctness.
+ * using an |RefPtr<const T>|, and thereby enforcing better const-correctness.
  * This is currently here because OverscrollHandoffChain is the only thing
  * currently using it. As a follow-up, we can move this to xpcom/glue, write
  * a corresponding version for non-threadsafe refcounting, and perhaps
@@ -67,7 +68,7 @@ public:
   // Threadsafe so that the controller and compositor threads can both maintain
   // nsRefPtrs to the same handoff chain.
   // Mutable so that we can pass around the class by
-  // nsRefPtr<const OverscrollHandoffChain> and thus enforce that, once built,
+  // RefPtr<const OverscrollHandoffChain> and thus enforce that, once built,
   // the chain is not modified.
   NS_INLINE_DECL_THREADSAFE_MUTABLE_REFCOUNTING(OverscrollHandoffChain)
 
@@ -82,7 +83,7 @@ public:
    * Methods for accessing the handoff chain.
    */
   uint32_t Length() const { return mChain.size(); }
-  const nsRefPtr<AsyncPanZoomController>& GetApzcAtIndex(uint32_t aIndex) const;
+  const RefPtr<AsyncPanZoomController>& GetApzcAtIndex(uint32_t aIndex) const;
   // Returns Length() if |aApzc| is not on this chain.
   uint32_t IndexOf(const AsyncPanZoomController* aApzc) const;
 
@@ -107,16 +108,21 @@ public:
   // has room to be panned.
   bool CanBePanned(const AsyncPanZoomController* aApzc) const;
 
+  // Determine whether the given APZC, or any APZC further in the chain,
+  // can scroll in the given direction.
+  bool CanScrollInDirection(const AsyncPanZoomController* aApzc,
+                            Layer::ScrollDirection aDirection) const;
+
   // Determine whether any APZC along this handoff chain is overscrolled.
   bool HasOverscrolledApzc() const;
 
-  // Determine whether any APZC along this handoff chain is moving fast.
-  bool HasFastMovingApzc() const;
+  // Determine whether any APZC along this handoff chain has been flung fast.
+  bool HasFastFlungApzc() const;
 
-  nsRefPtr<AsyncPanZoomController> FindFirstScrollable(const ScrollWheelInput& aInput) const;
+  RefPtr<AsyncPanZoomController> FindFirstScrollable(const InputData& aInput) const;
 
 private:
-  std::vector<nsRefPtr<AsyncPanZoomController>> mChain;
+  std::vector<RefPtr<AsyncPanZoomController>> mChain;
 
   typedef void (AsyncPanZoomController::*APZCMethod)();
   typedef bool (AsyncPanZoomController::*APZCPredicate)() const;
@@ -154,8 +160,28 @@ struct OverscrollHandoffState {
 
   ScrollSource mScrollSource;
 };
-// Don't pollute other files with this macro for now.
-#undef NS_INLINE_DECL_THREADSAFE_MUTABLE_REFCOUNTING
+
+/*
+ * This class groups the state maintained during fling handoff.
+ */
+struct FlingHandoffState {
+  // The velocity of the fling being handed off.
+  ParentLayerPoint mVelocity;
+
+  // The chain of APZCs along which we hand off the fling.
+  // Unlike in OverscrollHandoffState, this is stored by RefPtr because
+  // otherwise it may not stay alive for the entire handoff.
+  RefPtr<const OverscrollHandoffChain> mChain;
+
+  // Whether handoff has happened by this point, or we're still process
+  // the original fling.
+  bool mIsHandoff;
+
+  // The single APZC that was scrolled by the pan that started this fling.
+  // The fling is only allowed to scroll this APZC, too.
+  // Used only if immediate scroll handoff is disallowed.
+  RefPtr<const AsyncPanZoomController> mScrolledApzc;
+};
 
 } // namespace layers
 } // namespace mozilla

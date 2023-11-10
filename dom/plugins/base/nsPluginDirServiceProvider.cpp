@@ -56,7 +56,7 @@ GetFileVersion(LPCWSTR szFile, verBlock *vbVersion)
     bRv    = TRUE;
     LPCWSTR lpFilepath = szFile;
     dwLen  = GetFileVersionInfoSizeW(lpFilepath, &dwHandle);
-    lpData = (LPVOID)malloc(dwLen);
+    lpData = (LPVOID)moz_xmalloc(dwLen);
     uLen   = 0;
 
     if (lpData && GetFileVersionInfoW(lpFilepath, dwHandle, dwLen, lpData) != 0) {
@@ -70,7 +70,7 @@ GetFileVersion(LPCWSTR szFile, verBlock *vbVersion)
       }
     }
 
-    free(lpData);
+    moz_free(lpData);
   } else {
     /* File does not exist */
     bRv = FALSE;

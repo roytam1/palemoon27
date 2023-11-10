@@ -18,9 +18,6 @@
 #include "mozilla/layers/TextureHostOGL.h"  // for TextureHostOGL
 
 namespace mozilla {
-namespace gfx {
-class Matrix4x4;
-} // namespace gfx
 using namespace gfx;
 
 namespace layers {
@@ -108,10 +105,9 @@ ContentHostTexture::Composite(LayerComposite* aLayer,
   nsIntRegion regionRects;
 
   // Collect texture/screen coordinates for drawing
-  nsIntRegionRectIterator iter(subregion);
-  while (const IntRect* iterRect = iter.Next()) {
-    IntRect regionRect = *iterRect;
-    IntRect screenRect = regionRect;
+  for (auto iter = subregion.RectIter(); !iter.Done(); iter.Next()) {
+    IntRect regionRect = iter.Get();
+    IntRect screenRect = iter.Get();
     screenRect.MoveBy(origin);
 
     screenRects.Or(screenRects, screenRect);
@@ -154,15 +150,14 @@ ContentHostTexture::Composite(LayerComposite* aLayer,
         IntRect currentTileRect(texRect);
         currentTileRect.MoveBy(x * texSize.width, y * texSize.height);
 
-        nsIntRegionRectIterator screenIter(screenRects);
-        nsIntRegionRectIterator regionIter(regionRects);
-
-        const IntRect* screenRect;
-        const IntRect* regionRect;
-        while ((screenRect = screenIter.Next()) &&
-               (regionRect = regionIter.Next())) {
-          IntRect tileScreenRect(*screenRect);
-          IntRect tileRegionRect(*regionRect);
+        for (auto screenIter = screenRects.RectIter(),
+                  regionIter = regionRects.RectIter();
+             !screenIter.Done() && !regionIter.Done();
+             screenIter.Next(), regionIter.Next()) {
+          const IntRect& screenRect = screenIter.Get();
+          const IntRect& regionRect = regionIter.Get();
+          IntRect tileScreenRect(screenRect);
+          IntRect tileRegionRect(regionRect);
 
           // When we're using tiles, find the intersection between the tile
           // rect and this region rect. Tiling is then handled by the
@@ -175,7 +170,7 @@ ContentHostTexture::Composite(LayerComposite* aLayer,
             if (tileScreenRect.IsEmpty())
               continue;
 
-            tileRegionRect = regionRect->Intersect(currentTileRect);
+            tileRegionRect = regionRect.Intersect(currentTileRect);
             tileRegionRect.MoveBy(-currentTileRect.TopLeft());
           }
           gfx::Rect rect(tileScreenRect.x, tileScreenRect.y,
@@ -227,6 +222,11 @@ ContentHostTexture::UseTextureHost(const nsTArray<TimedTexture>& aTextures)
   MOZ_ASSERT(t.mPictureRect.IsEqualInterior(
       nsIntRect(nsIntPoint(0, 0), nsIntSize(t.mTexture->GetSize()))),
       "Only default picture rect supported");
+
+  if (t.mTexture != mTextureHost) {
+    mReceivedNewHost = true;
+  }
+
   mTextureHost = t.mTexture;
   mTextureHostOnWhite = nullptr;
   mTextureSourceOnWhite = nullptr;
@@ -330,6 +330,11 @@ ContentHostSingleBuffered::UpdateThebes(const ThebesBufferData& aData,
 
   // updated is in screen coordinates. Convert it to buffer coordinates.
   nsIntRegion destRegion(aUpdated);
+
+  if (mReceivedNewHost) {
+    destRegion.Or(destRegion, aOldValidRegionBack);
+    mReceivedNewHost = false;
+  }
   destRegion.MoveBy(-aData.rect().TopLeft());
 
   if (!aData.rect().Contains(aUpdated.GetBounds()) ||

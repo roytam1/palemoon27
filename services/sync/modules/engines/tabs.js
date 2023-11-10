@@ -4,7 +4,7 @@
 
 this.EXPORTED_SYMBOLS = ["TabEngine", "TabSetRecord"];
 
-const {classes: Cc, interfaces: Ci, utils: Cu} = Components;
+var {classes: Cc, interfaces: Ci, utils: Cu} = Components;
 
 const TABS_TTL = 604800;           // 7 days.
 const TAB_ENTRIES_LIMIT = 25;      // How many URLs to include in tab history.
@@ -302,7 +302,7 @@ TabTracker.prototype = {
 
   _registerListenersForWindow: function (window) {
     this._log.trace("Registering tab listeners in window");
-    for each (let topic in this._topics) {
+    for (let topic of this._topics) {
       window.addEventListener(topic, this.onTab, false);
     }
     window.addEventListener("unload", this._unregisterListeners, false);
@@ -315,7 +315,7 @@ TabTracker.prototype = {
   _unregisterListenersForWindow: function (window) {
     this._log.trace("Removing tab listeners in window");
     window.removeEventListener("unload", this._unregisterListeners, false);
-    for each (let topic in this._topics) {
+    for (let topic of this._topics) {
       window.removeEventListener(topic, this.onTab, false);
     }
   },

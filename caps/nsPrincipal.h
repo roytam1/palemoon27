@@ -26,7 +26,6 @@ public:
   NS_IMETHOD GetURI(nsIURI** aURI) override;
   NS_IMETHOD GetDomain(nsIURI** aDomain) override;
   NS_IMETHOD SetDomain(nsIURI* aDomain) override;
-  NS_IMETHOD CheckMayLoad(nsIURI* uri, bool report, bool allowIfInheritsPrincipal) override;
   NS_IMETHOD GetBaseDomain(nsACString& aBaseDomain) override;
   virtual bool IsOnCSSUnprefixingWhitelist() override;
   bool IsCodebasePrincipal() const override { return true; }
@@ -40,23 +39,6 @@ public:
   virtual void GetScriptLocation(nsACString& aStr) override;
   void SetURI(nsIURI* aURI);
 
-  static bool IsPrincipalInherited(nsIURI* aURI) {
-    // return true if the loadee URI has
-    // the URI_INHERITS_SECURITY_CONTEXT flag set.
-    bool doesInheritSecurityContext;
-    nsresult rv =
-    NS_URIChainHasFlags(aURI,
-                        nsIProtocolHandler::URI_INHERITS_SECURITY_CONTEXT,
-                        &doesInheritSecurityContext);
-
-    if (NS_SUCCEEDED(rv) && doesInheritSecurityContext) {
-      return true;
-    }
-
-    return false;
-  }
-
-
   /**
    * Computes the puny-encoded origin of aURI.
    */
@@ -66,6 +48,8 @@ public:
    * Called at startup to setup static data, e.g. about:config pref-observers.
    */
   static void InitializeStatics();
+
+  PrincipalKind Kind() override { return eCodebasePrincipal; }
 
   nsCOMPtr<nsIURI> mDomain;
   nsCOMPtr<nsIURI> mCodebase;
@@ -79,6 +63,7 @@ protected:
   virtual ~nsPrincipal();
 
   bool SubsumesInternal(nsIPrincipal* aOther, DocumentDomainConsideration aConsideration) override;
+  bool MayLoadInternal(nsIURI* aURI) override;
 };
 
 class nsExpandedPrincipal : public nsIExpandedPrincipal, public mozilla::BasePrincipal
@@ -95,16 +80,18 @@ public:
   NS_IMETHOD GetURI(nsIURI** aURI) override;
   NS_IMETHOD GetDomain(nsIURI** aDomain) override;
   NS_IMETHOD SetDomain(nsIURI* aDomain) override;
-  NS_IMETHOD CheckMayLoad(nsIURI* uri, bool report, bool allowIfInheritsPrincipal) override;
   NS_IMETHOD GetBaseDomain(nsACString& aBaseDomain) override;
   virtual bool IsOnCSSUnprefixingWhitelist() override;
   virtual void GetScriptLocation(nsACString &aStr) override;
   nsresult GetOriginInternal(nsACString& aOrigin) override;
 
+  PrincipalKind Kind() override { return eExpandedPrincipal; }
+
 protected:
   virtual ~nsExpandedPrincipal();
 
   bool SubsumesInternal(nsIPrincipal* aOther, DocumentDomainConsideration aConsideration) override;
+  bool MayLoadInternal(nsIURI* aURI) override;
 
 private:
   nsTArray< nsCOMPtr<nsIPrincipal> > mPrincipals;
@@ -112,8 +99,8 @@ private:
 
 #define NS_PRINCIPAL_CONTRACTID "@mozilla.org/principal;1"
 #define NS_PRINCIPAL_CID \
-{ 0xb02c3023, 0x5b37, 0x472a, \
-  { 0xa2, 0xcd, 0x35, 0xaa, 0x5e, 0xe2, 0xa8, 0x19 } }
+{ 0x653e0e4d, 0x3ee4, 0x45fa, \
+  { 0xb2, 0x72, 0x97, 0xc2, 0x0b, 0xc0, 0x1e, 0xb8 } }
 
 #define NS_EXPANDEDPRINCIPAL_CONTRACTID "@mozilla.org/expandedprincipal;1"
 #define NS_EXPANDEDPRINCIPAL_CID \

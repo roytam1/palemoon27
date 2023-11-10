@@ -1,0 +1,7 @@
+The source from this directory was copied from the libtremor
+git repository using the update.sh script. The only changes
+made were those applied by update.sh and the addition/update of
+Makefile.in files for the UXP build system.
+
+The upstream release used was https://github.com/sezero/tremor
+The git revision used was 91decb5f1b11a84a2157a6326d9135b22627024b.

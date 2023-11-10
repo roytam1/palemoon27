@@ -46,9 +46,11 @@ BytecodeAnalysis::init(TempAllocator& alloc, GSNCache& gsn)
     if (!infos_.growByUninitialized(script_->length()))
         return false;
 
-    // We need a scope chain if the function is heavyweight.
-    usesScopeChain_ = (script_->functionDelazifying() &&
-                       script_->functionDelazifying()->isHeavyweight());
+    // Initialize the scope chain slot if either the function needs a CallObject
+    // or the script uses the scope chain. The latter case is handled below.
+    usesScopeChain_ = script_->module() ||
+                      (script_->functionDelazifying() &&
+                       script_->functionDelazifying()->needsCallObject());
     MOZ_ASSERT_IF(script_->hasAnyAliasedBindings(), usesScopeChain_);
 
     jsbytecode* end = script_->codeEnd();
@@ -66,7 +68,7 @@ BytecodeAnalysis::init(TempAllocator& alloc, GSNCache& gsn)
         unsigned offset = script_->pcToOffset(pc);
 
         JitSpew(JitSpew_BaselineOp, "Analyzing op @ %d (end=%d): %s",
-                int(script_->pcToOffset(pc)), int(script_->length()), js_CodeName[op]);
+                int(script_->pcToOffset(pc)), int(script_->length()), CodeName[op]);
 
         // If this bytecode info has not yet been initialized, it's not reachable.
         if (!infos_[offset].initialized)
@@ -156,6 +158,7 @@ BytecodeAnalysis::init(TempAllocator& alloc, GSNCache& gsn)
 
           case JSOP_GETNAME:
           case JSOP_BINDNAME:
+          case JSOP_BINDVAR:
           case JSOP_SETNAME:
           case JSOP_STRICTSETNAME:
           case JSOP_DELNAME:
@@ -165,8 +168,6 @@ BytecodeAnalysis::init(TempAllocator& alloc, GSNCache& gsn)
           case JSOP_LAMBDA_ARROW:
           case JSOP_DEFFUN:
           case JSOP_DEFVAR:
-          case JSOP_DEFCONST:
-          case JSOP_SETCONST:
             usesScopeChain_ = true;
             break;
 

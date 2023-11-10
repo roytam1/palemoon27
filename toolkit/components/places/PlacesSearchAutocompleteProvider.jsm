@@ -114,7 +114,7 @@ const SearchAutocompleteProviderInternal = {
                                          Ci.nsISupportsWeakReference]),
 }
 
-let gInitializationPromise = null;
+var gInitializationPromise = null;
 
 this.PlacesSearchAutocompleteProvider = Object.freeze({
   /**

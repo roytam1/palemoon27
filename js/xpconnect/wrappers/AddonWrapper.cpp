@@ -14,6 +14,8 @@
 #include "mozilla/dom/BindingUtils.h"
 #include "nsGlobalWindow.h"
 
+#include "GeckoProfiler.h"
+
 #include "nsID.h"
 
 using namespace js;
@@ -23,7 +25,7 @@ namespace xpc {
 
 bool
 InterposeProperty(JSContext* cx, HandleObject target, const nsIID* iid, HandleId id,
-                  MutableHandle<JSPropertyDescriptor> descriptor)
+                  MutableHandle<PropertyDescriptor> descriptor)
 {
     // We only want to do interpostion on DOM instances and
     // wrapped natives.
@@ -142,7 +144,7 @@ bool AddonWrapper<Base>::call(JSContext* cx, JS::Handle<JSObject*> wrapper,
 template<typename Base>
 bool
 AddonWrapper<Base>::getPropertyDescriptor(JSContext* cx, HandleObject wrapper,
-                                          HandleId id, MutableHandle<JSPropertyDescriptor> desc) const
+                                          HandleId id, MutableHandle<PropertyDescriptor> desc) const
 {
     if (!InterposeProperty(cx, wrapper, nullptr, id, desc))
         return false;
@@ -156,7 +158,7 @@ AddonWrapper<Base>::getPropertyDescriptor(JSContext* cx, HandleObject wrapper,
 template<typename Base>
 bool
 AddonWrapper<Base>::getOwnPropertyDescriptor(JSContext* cx, HandleObject wrapper,
-                                             HandleId id, MutableHandle<JSPropertyDescriptor> desc) const
+                                             HandleId id, MutableHandle<PropertyDescriptor> desc) const
 {
     if (!InterposeProperty(cx, wrapper, nullptr, id, desc))
         return false;
@@ -169,10 +171,12 @@ AddonWrapper<Base>::getOwnPropertyDescriptor(JSContext* cx, HandleObject wrapper
 
 template<typename Base>
 bool
-AddonWrapper<Base>::get(JSContext* cx, JS::Handle<JSObject*> wrapper, JS::Handle<JSObject*> receiver,
+AddonWrapper<Base>::get(JSContext* cx, JS::Handle<JSObject*> wrapper, JS::Handle<Value> receiver,
                         JS::Handle<jsid> id, JS::MutableHandle<JS::Value> vp) const
 {
-    Rooted<JSPropertyDescriptor> desc(cx);
+    PROFILER_LABEL_FUNC(js::ProfileEntry::Category::OTHER);
+
+    Rooted<PropertyDescriptor> desc(cx);
     if (!InterposeProperty(cx, wrapper, nullptr, id, &desc))
         return false;
 
@@ -180,10 +184,7 @@ AddonWrapper<Base>::get(JSContext* cx, JS::Handle<JSObject*> wrapper, JS::Handle
         return Base::get(cx, wrapper, receiver, id, vp);
 
     if (desc.getter()) {
-        MOZ_ASSERT(desc.hasGetterObject());
-        AutoValueVector args(cx);
-        RootedValue fval(cx, ObjectValue(*desc.getterObject()));
-        return JS_CallFunctionValue(cx, receiver, fval, args, vp);
+        return Call(cx, receiver, desc.getterObject(), HandleValueArray::empty(), vp);
     } else {
         vp.set(desc.value());
         return true;
@@ -195,7 +196,7 @@ bool
 AddonWrapper<Base>::set(JSContext* cx, JS::HandleObject wrapper, JS::HandleId id, JS::HandleValue v,
                         JS::HandleValue receiver, JS::ObjectOpResult& result) const
 {
-    Rooted<JSPropertyDescriptor> desc(cx);
+    Rooted<PropertyDescriptor> desc(cx);
     if (!InterposeProperty(cx, wrapper, nullptr, id, &desc))
         return false;
 
@@ -220,10 +221,10 @@ AddonWrapper<Base>::set(JSContext* cx, JS::HandleObject wrapper, JS::HandleId id
 template<typename Base>
 bool
 AddonWrapper<Base>::defineProperty(JSContext* cx, HandleObject wrapper, HandleId id,
-                                   Handle<JSPropertyDescriptor> desc,
+                                   Handle<PropertyDescriptor> desc,
                                    ObjectOpResult& result) const
 {
-    Rooted<JSPropertyDescriptor> interpDesc(cx);
+    Rooted<PropertyDescriptor> interpDesc(cx);
     if (!InterposeProperty(cx, wrapper, nullptr, id, &interpDesc))
         return false;
 
@@ -239,7 +240,7 @@ bool
 AddonWrapper<Base>::delete_(JSContext* cx, HandleObject wrapper, HandleId id,
                             ObjectOpResult& result) const
 {
-    Rooted<JSPropertyDescriptor> desc(cx);
+    Rooted<PropertyDescriptor> desc(cx);
     if (!InterposeProperty(cx, wrapper, nullptr, id, &desc))
         return false;
 

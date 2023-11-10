@@ -44,8 +44,11 @@ class MediaOmxReader : public MediaOmxCommonReader
   // If mIsShutdown is false, and mShutdownMutex is held, then
   // AbstractMediaDecoder::mDecoder will be non-null.
   bool mIsShutdown;
-  MediaPromiseHolder<MediaDecoderReader::MetadataPromise> mMetadataPromise;
-  MediaPromiseConsumerHolder<MediaResourcePromise> mMediaResourceRequest;
+  MozPromiseHolder<MediaDecoderReader::MetadataPromise> mMetadataPromise;
+  MozPromiseRequestHolder<MediaResourcePromise> mMediaResourceRequest;
+
+  MozPromiseHolder<MediaDecoderReader::SeekPromise> mSeekPromise;
+  MozPromiseRequestHolder<MediaDecoderReader::VideoDataPromise> mSeekRequest;
 protected:
   android::sp<android::OmxDecoder> mOmxDecoder;
   android::sp<android::MediaExtractor> mExtractor;
@@ -67,51 +70,54 @@ public:
   MediaOmxReader(AbstractMediaDecoder* aDecoder);
   ~MediaOmxReader();
 
-  virtual nsresult Init(MediaDecoderReader* aCloneDonor);
+protected:
+  void NotifyDataArrivedInternal() override;
+public:
 
-  virtual void NotifyDataArrived(const char* aBuffer, uint32_t aLength, int64_t aOffset);
-
-  virtual bool DecodeAudioData();
-  virtual bool DecodeVideoFrame(bool &aKeyframeSkip,
-                                int64_t aTimeThreshold);
-
-  virtual bool HasAudio()
+  nsresult ResetDecode() override
   {
-    return mHasAudio;
+    mSeekRequest.DisconnectIfExists();
+    mSeekPromise.RejectIfExists(NS_OK, __func__);
+    return MediaDecoderReader::ResetDecode();
   }
 
-  virtual bool HasVideo()
-  {
-    return mHasVideo;
-  }
+  bool DecodeAudioData() override;
+  bool DecodeVideoFrame(bool &aKeyframeSkip, int64_t aTimeThreshold) override;
 
-  virtual bool IsDormantNeeded() { return true;}
-  virtual void ReleaseMediaResources();
+  void ReleaseMediaResources() override;
 
-  virtual nsRefPtr<MediaDecoderReader::MetadataPromise> AsyncReadMetadata() override;
+  RefPtr<MediaDecoderReader::MetadataPromise> AsyncReadMetadata() override;
 
-  virtual nsRefPtr<SeekPromise>
-  Seek(int64_t aTime, int64_t aEndTime) override;
+  RefPtr<SeekPromise>
+  Seek(SeekTarget aTarget, int64_t aEndTime) override;
 
-  virtual bool IsMediaSeekable() override;
+  void SetIdle() override;
 
-  virtual void SetIdle() override;
+  RefPtr<ShutdownPromise> Shutdown() override;
 
-  virtual nsRefPtr<ShutdownPromise> Shutdown() override;
+  android::sp<android::MediaSource> GetAudioOffloadTrack();
+
+  // This method is intended only for private use but public only for
+  // MozPromise::InvokeCallbackMethod().
+  void ReleaseDecoder();
+
+private:
+  class ProcessCachedDataTask;
+  class NotifyDataArrivedRunnable;
+
+  bool HasAudio() override { return mHasAudio; }
+  bool HasVideo() override { return mHasVideo; }
 
   bool IsShutdown() {
     MutexAutoLock lock(mShutdownMutex);
     return mIsShutdown;
   }
 
-  void ReleaseDecoder();
+  int64_t ProcessCachedData(int64_t aOffset);
 
-  int64_t ProcessCachedData(int64_t aOffset, bool aWaitForCompletion);
-
-  android::sp<android::MediaSource> GetAudioOffloadTrack();
-
-private:
   already_AddRefed<AbstractMediaDecoder> SafeGetDecoder();
+
+  MediaByteRangeSet mLastCachedRanges;
 };
 
 } // namespace mozilla

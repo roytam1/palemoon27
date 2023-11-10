@@ -37,10 +37,16 @@ class MIRGenerator
   public:
     MIRGenerator(CompileCompartment* compartment, const JitCompileOptions& options,
                  TempAllocator* alloc, MIRGraph* graph,
-                 CompileInfo* info, const OptimizationInfo* optimizationInfo,
-                 Label* outOfBoundsLabel = nullptr,
-                 Label* conversionErrorLabel = nullptr,
-                 bool usesSignalHandlersForAsmJSOOB = false);
+                 const CompileInfo* info, const OptimizationInfo* optimizationInfo);
+
+    void initUsesSignalHandlersForAsmJSOOB(bool init) {
+#if defined(ASMJS_MAY_USE_SIGNAL_HANDLERS_FOR_OOB)
+        usesSignalHandlersForAsmJSOOB_ = init;
+#endif
+    }
+    void initMinAsmJSHeapLength(uint32_t init) {
+        minAsmJSHeapLength_ = init;
+    }
 
     TempAllocator& alloc() {
         return *alloc_;
@@ -54,7 +60,7 @@ class MIRGenerator
     const JitRuntime* jitRuntime() const {
         return GetJitContext()->runtime->jitRuntime();
     }
-    CompileInfo& info() {
+    const CompileInfo& info() const {
         return *info_;
     }
     const OptimizationInfo& optimizationInfo() const {
@@ -143,6 +149,9 @@ class MIRGenerator
         MOZ_ASSERT(compilingAsmJS());
         maxAsmJSStackArgBytes_ = n;
     }
+    uint32_t minAsmJSHeapLength() const {
+        return minAsmJSHeapLength_;
+    }
     void setPerformsCall() {
         performsCall_ = true;
     }
@@ -152,13 +161,6 @@ class MIRGenerator
     // Traverses the graph to find if there's any SIMD instruction. Costful but
     // the value is cached, so don't worry about calling it several times.
     bool usesSimd();
-    void initMinAsmJSHeapLength(uint32_t len) {
-        MOZ_ASSERT(minAsmJSHeapLength_ == 0);
-        minAsmJSHeapLength_ = len;
-    }
-    uint32_t minAsmJSHeapLength() const {
-        return minAsmJSHeapLength_;
-    }
 
     bool modifiesFrameArguments() const {
         return modifiesFrameArguments_;
@@ -168,7 +170,7 @@ class MIRGenerator
 
     // When abortReason() == AbortReason_PreliminaryObjects, all groups with
     // preliminary objects which haven't been analyzed yet.
-    const ObjectGroupVector &abortedPreliminaryGroups() const {
+    const ObjectGroupVector& abortedPreliminaryGroups() const {
         return abortedPreliminaryGroups_;
     }
 
@@ -176,7 +178,7 @@ class MIRGenerator
     CompileCompartment* compartment;
 
   protected:
-    CompileInfo* info_;
+    const CompileInfo* info_;
     const OptimizationInfo* optimizationInfo_;
     TempAllocator* alloc_;
     JSFunction* fun_;
@@ -193,7 +195,6 @@ class MIRGenerator
     bool performsCall_;
     bool usesSimd_;
     bool usesSimdCached_;
-    uint32_t minAsmJSHeapLength_;
 
     // Keep track of whether frame arguments are modified during execution.
     // RegAlloc needs to know this as spilling values back to their register
@@ -206,14 +207,10 @@ class MIRGenerator
 
     void addAbortedPreliminaryGroup(ObjectGroup* group);
 
-    Label* outOfBoundsLabel_;
-    // Label where we should jump in asm.js mode, in the case where we have an
-    // invalid conversion or a loss of precision (when converting from a
-    // floating point SIMD type into an integer SIMD type).
-    Label* conversionErrorLabel_;
 #if defined(ASMJS_MAY_USE_SIGNAL_HANDLERS_FOR_OOB)
     bool usesSignalHandlersForAsmJSOOB_;
 #endif
+    uint32_t minAsmJSHeapLength_;
 
     void setForceAbort() {
         shouldForceAbort_ = true;
@@ -232,14 +229,6 @@ class MIRGenerator
   public:
     const JitCompileOptions options;
 
-    Label* conversionErrorLabel() const {
-        MOZ_ASSERT((conversionErrorLabel_ != nullptr) == compilingAsmJS());
-        return conversionErrorLabel_;
-    }
-    Label* outOfBoundsLabel() const {
-        MOZ_ASSERT(compilingAsmJS());
-        return outOfBoundsLabel_;
-    }
     bool needsAsmJSBoundsCheckBranch(const MAsmJSHeapAccess* access) const;
     size_t foldableOffsetRange(const MAsmJSHeapAccess* access) const;
 

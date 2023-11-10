@@ -8,6 +8,7 @@ include protocol PContent;
 include protocol PBrowser;
 include protocol PPrintProgressDialog;
 include protocol PPrintSettingsDialog;
+include protocol PRemotePrintJob;
 
 namespace mozilla {
 namespace embedding {
@@ -17,27 +18,29 @@ sync protocol PPrinting
   manager PContent;
   manages PPrintProgressDialog;
   manages PPrintSettingsDialog;
+  manages PRemotePrintJob;
 
 parent:
   sync ShowProgress(PBrowser browser,
                     PPrintProgressDialog printProgressDialog,
                     bool isForPrinting)
     returns(bool notifyOnOpen,
-            bool success);
+            nsresult rv);
 
   async ShowPrintDialog(PPrintSettingsDialog dialog,
                         PBrowser browser,
                         PrintData settings);
 
-  PPrintProgressDialog();
-  PPrintSettingsDialog();
+  async PPrintProgressDialog();
+  async PPrintSettingsDialog();
 
   sync SavePrintSettings(PrintData settings, bool usePrinterNamePrefix,
                          uint32_t flags)
     returns(nsresult rv);
 
 child:
-  __delete__();
+  async PRemotePrintJob();
+  async __delete__();
 };
 
 } // namespace embedding

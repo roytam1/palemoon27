@@ -7,7 +7,7 @@ Cu.import("resource://gre/modules/Services.jsm");
 // Turn off the authentication dialog blocking for this test.
 var prefs = Cc["@mozilla.org/preferences-service;1"].
               getService(Ci.nsIPrefBranch);
-prefs.setIntPref("network.auth.allow-subresource-auth", 2);
+prefs.setIntPref("network.auth.subresource-http-auth-allow", 2);
 
 XPCOMUtils.defineLazyGetter(this, "URL", function() {
   return "http://localhost:" + httpserv.identity.primaryPort;
@@ -506,7 +506,7 @@ function H(str) {
  ch.init(Components.interfaces.nsICryptoHash.MD5);
  ch.update(data, data.length);
  var hash = ch.finish(false);
- return [toHexString(hash.charCodeAt(i)) for (i in hash)].join("");
+ return Array.from(hash, (c, i) => toHexString(hash.charCodeAt(i))).join("");
 }
 
 //

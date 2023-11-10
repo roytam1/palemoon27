@@ -13,6 +13,7 @@
 #include "nsThreadUtils.h"
 
 #include "mozilla/DebugOnly.h"
+#include "mozilla/ErrorResult.h"
 #include "mozilla/dom/ScriptSettings.h"
 
 #include "js/RootingAPI.h"
@@ -136,7 +137,7 @@ WorkerRunnable::Dispatch(JSContext* aCx)
 bool
 WorkerRunnable::DispatchInternal()
 {
-  nsRefPtr<WorkerRunnable> runnable(this);
+  RefPtr<WorkerRunnable> runnable(this);
 
   if (mBehavior == WorkerThreadModifyBusyCount ||
       mBehavior == WorkerThreadUnchangedBusyCount) {
@@ -222,9 +223,7 @@ WorkerRunnable::PostRun(JSContext* aCx, WorkerPrivate* aWorkerPrivate,
 #endif
 
   if (mBehavior == WorkerThreadModifyBusyCount) {
-    if (!aWorkerPrivate->ModifyBusyCountFromWorker(aCx, false)) {
-      aRunResult = false;
-    }
+    aWorkerPrivate->ModifyBusyCountFromWorker(aCx, false);
   }
 
   if (!aRunResult) {
@@ -306,9 +305,14 @@ WorkerRunnable::Run()
   nsCOMPtr<nsIGlobalObject> globalObject;
   bool isMainThread = !targetIsWorkerThread && !mWorkerPrivate->GetParent();
   MOZ_ASSERT(isMainThread == NS_IsMainThread());
-  nsRefPtr<WorkerPrivate> kungFuDeathGrip;
+  RefPtr<WorkerPrivate> kungFuDeathGrip;
   if (targetIsWorkerThread) {
-    JSObject* global = JS::CurrentGlobalOrNull(GetCurrentThreadJSContext());
+    JSContext* cx = GetCurrentThreadJSContext();
+    if (NS_WARN_IF(!cx)) {
+      return NS_ERROR_FAILURE;
+    }
+
+    JSObject* global = JS::CurrentGlobalOrNull(cx);
     if (global) {
       globalObject = GetGlobalObjectForGlobal(global);
     } else {
@@ -419,7 +423,7 @@ bool
 WorkerSyncRunnable::DispatchInternal()
 {
   if (mSyncLoopTarget) {
-    nsRefPtr<WorkerSyncRunnable> runnable(this);
+    RefPtr<WorkerSyncRunnable> runnable(this);
     return NS_SUCCEEDED(mSyncLoopTarget->Dispatch(runnable.forget(), NS_DISPATCH_NORMAL));
   }
 
@@ -480,7 +484,7 @@ StopSyncLoopRunnable::DispatchInternal()
 {
   MOZ_ASSERT(mSyncLoopTarget);
 
-  nsRefPtr<StopSyncLoopRunnable> runnable(this);
+  RefPtr<StopSyncLoopRunnable> runnable(this);
   return NS_SUCCEEDED(mSyncLoopTarget->Dispatch(runnable.forget(), NS_DISPATCH_NORMAL));
 }
 
@@ -504,10 +508,20 @@ WorkerControlRunnable::WorkerControlRunnable(WorkerPrivate* aWorkerPrivate,
 }
 #endif
 
+NS_IMETHODIMP
+WorkerControlRunnable::Cancel()
+{
+  if (NS_FAILED(Run())) {
+    NS_WARNING("WorkerControlRunnable::Run() failed.");
+  }
+
+  return WorkerRunnable::Cancel();
+}
+
 bool
 WorkerControlRunnable::DispatchInternal()
 {
-  nsRefPtr<WorkerControlRunnable> runnable(this);
+  RefPtr<WorkerControlRunnable> runnable(this);
 
   if (mBehavior == WorkerThreadUnchangedBusyCount) {
     return NS_SUCCEEDED(mWorkerPrivate->DispatchControlRunnable(runnable.forget()));
@@ -543,22 +557,24 @@ WorkerMainThreadRunnable::WorkerMainThreadRunnable(WorkerPrivate* aWorkerPrivate
   mWorkerPrivate->AssertIsOnWorkerThread();
 }
 
-bool
-WorkerMainThreadRunnable::Dispatch(JSContext* aCx)
+void
+WorkerMainThreadRunnable::Dispatch(ErrorResult& aRv)
 {
   mWorkerPrivate->AssertIsOnWorkerThread();
 
   AutoSyncLoopHolder syncLoop(mWorkerPrivate);
 
   mSyncLoopTarget = syncLoop.EventTarget();
-  nsRefPtr<WorkerMainThreadRunnable> runnable(this);
+  RefPtr<WorkerMainThreadRunnable> runnable(this);
 
-  if (NS_FAILED(NS_DispatchToMainThread(runnable.forget(), NS_DISPATCH_NORMAL))) {
-    JS_ReportError(aCx, "Failed to dispatch to main thread!");
-    return false;
+  DebugOnly<nsresult> rv =
+    NS_DispatchToMainThread(runnable.forget(), NS_DISPATCH_NORMAL);
+  MOZ_ASSERT(NS_SUCCEEDED(rv),
+             "Should only fail after xpcom-shutdown-threads and we're gone by then");
+
+  if (!syncLoop.Run()) {
+    aRv.ThrowUncatchableException();
   }
-
-  return syncLoop.Run();
 }
 
 NS_IMETHODIMP
@@ -568,7 +584,7 @@ WorkerMainThreadRunnable::Run()
 
   bool runResult = MainThreadRun();
 
-  nsRefPtr<MainThreadStopSyncLoopRunnable> response =
+  RefPtr<MainThreadStopSyncLoopRunnable> response =
     new MainThreadStopSyncLoopRunnable(mWorkerPrivate,
                                        mSyncLoopTarget.forget(),
                                        runResult);
@@ -579,9 +595,22 @@ WorkerMainThreadRunnable::Run()
 }
 
 bool
+WorkerCheckAPIExposureOnMainThreadRunnable::Dispatch()
+{
+  ErrorResult rv;
+  WorkerMainThreadRunnable::Dispatch(rv);
+  bool ok = !rv.Failed();
+  rv.SuppressException();
+  return ok;
+}
+
+bool
 WorkerSameThreadRunnable::PreDispatch(JSContext* aCx,
                                       WorkerPrivate* aWorkerPrivate)
 {
+  // We don't call WorkerRunnable::PreDispatch, because we're using
+  // WorkerThreadModifyBusyCount for mBehavior, and WorkerRunnable will assert
+  // that PreDispatch is on the parent thread in that case.
   aWorkerPrivate->AssertIsOnWorkerThread();
   return true;
 }
@@ -591,6 +620,9 @@ WorkerSameThreadRunnable::PostDispatch(JSContext* aCx,
                                        WorkerPrivate* aWorkerPrivate,
                                        bool aDispatchResult)
 {
+  // We don't call WorkerRunnable::PostDispatch, because we're using
+  // WorkerThreadModifyBusyCount for mBehavior, and WorkerRunnable will assert
+  // that PostDispatch is on the parent thread in that case.
   aWorkerPrivate->AssertIsOnWorkerThread();
   if (aDispatchResult) {
     DebugOnly<bool> willIncrement = aWorkerPrivate->ModifyBusyCountFromWorker(aCx, true);
@@ -599,21 +631,3 @@ WorkerSameThreadRunnable::PostDispatch(JSContext* aCx,
     MOZ_ASSERT(willIncrement);
   }
 }
-
-void
-WorkerSameThreadRunnable::PostRun(JSContext* aCx, WorkerPrivate* aWorkerPrivate,
-                                  bool aRunResult)
-{
-  MOZ_ASSERT(aCx);
-  MOZ_ASSERT(aWorkerPrivate);
-
-  aWorkerPrivate->AssertIsOnWorkerThread();
-
-  DebugOnly<bool> willDecrement = aWorkerPrivate->ModifyBusyCountFromWorker(aCx, false);
-  MOZ_ASSERT(willDecrement);
-
-  if (!aRunResult) {
-    JS_ReportPendingException(aCx);
-  }
-}
-

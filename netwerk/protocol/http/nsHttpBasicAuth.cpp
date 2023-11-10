@@ -8,6 +8,7 @@
 
 #include "nsHttpBasicAuth.h"
 #include "plbase64.h"
+#include "plstr.h"
 #include "nsString.h"
 
 namespace mozilla {
@@ -81,7 +82,7 @@ nsHttpBasicAuth::GenerateCredentials(nsIHttpAuthenticableChannel *authChannel,
 
     // plbase64.h provides this worst-case output buffer size calculation.
     // use calloc, since PL_Base64Encode does not null terminate.
-    *creds = (char *) calloc(6 + ((userpass.Length() + 2)/3)*4 + 1, 1);
+    *creds = (char *) moz_xcalloc(6 + ((userpass.Length() + 2)/3)*4 + 1, 1);
     if (!*creds)
         return NS_ERROR_OUT_OF_MEMORY;
 

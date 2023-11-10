@@ -175,6 +175,11 @@ FRAME_STATE_BIT(Generic, 32, NS_FRAME_IS_PUSHED_FLOAT)
 // This bit acts as a loop flag for recursive paint server drawing.
 FRAME_STATE_BIT(Generic, 33, NS_FRAME_DRAWING_AS_PAINTSERVER)
 
+// Intrinsic ISize depending on the frame's BSize is rare but possible.
+// This flag indicates that the frame has (or once had) a descendant in that
+// situation (possibly the frame itself).
+FRAME_STATE_BIT(Generic, 34, NS_FRAME_DESCENDANT_INTRINSIC_ISIZE_DEPENDS_ON_BSIZE)
+
 // Frame is a display root and the retained layer tree needs to be updated
 // at the next paint via display list construction.
 // Only meaningful for display roots, so we don't really need a global state
@@ -544,6 +549,7 @@ FRAME_STATE_BIT(Placeholder, 20, PLACEHOLDER_FOR_FLOAT)
 FRAME_STATE_BIT(Placeholder, 21, PLACEHOLDER_FOR_ABSPOS)
 FRAME_STATE_BIT(Placeholder, 22, PLACEHOLDER_FOR_FIXEDPOS)
 FRAME_STATE_BIT(Placeholder, 23, PLACEHOLDER_FOR_POPUP)
+FRAME_STATE_BIT(Placeholder, 24, PLACEHOLDER_FOR_TOPLAYER)
 
 
 // == Frame state bits that apply to table cell frames ========================

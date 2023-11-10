@@ -10,7 +10,6 @@ DOMCI_CLASS(DOMConstructor)
 
 // CSS classes
 DOMCI_CLASS(CSSStyleRule)
-DOMCI_CLASS(CSSCharsetRule)
 DOMCI_CLASS(CSSImportRule)
 DOMCI_CLASS(CSSMediaRule)
 DOMCI_CLASS(CSSNameSpaceRule)
@@ -32,10 +31,6 @@ DOMCI_CLASS(XULTreeBuilder)
 
 DOMCI_CLASS(CSSMozDocumentRule)
 DOMCI_CLASS(CSSSupportsRule)
-
-DOMCI_CLASS(MozSmsMessage)
-DOMCI_CLASS(MozMmsMessage)
-DOMCI_CLASS(MozMobileMessageThread)
 
 // @font-face in CSS
 DOMCI_CLASS(CSSFontFaceRule)

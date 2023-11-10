@@ -10,14 +10,16 @@
 # include "jit/BytecodeAnalysis.h"
 #endif
 
+#include "jit/BaselineFrameInfo-inl.h"
+#include "jit/MacroAssembler-inl.h"
+
 using namespace js;
 using namespace js::jit;
 
 bool
 FrameInfo::init(TempAllocator& alloc)
 {
-    // One slot is always needed for this/arguments type checks.
-    size_t nstack = Max(script->nslots() - script->nfixed(), size_t(1));
+    size_t nstack = Max(script->nslots() - script->nfixed(), size_t(MinJITStackSize));
     if (!stack.init(alloc, nstack))
         return false;
 

@@ -3,8 +3,8 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef __nsFtpState__h_
-#define __nsFtpState__h_
+#ifndef __nsFtpConnectionThread__h_
+#define __nsFtpConnectionThread__h_
 
 #include "nsBaseContentStream.h"
 
@@ -163,7 +163,7 @@ private:
     nsCString           mResponseMsg;       // the last command response text
 
         // ****** channel/transport/stream vars 
-    nsRefPtr<nsFtpControlConnection> mControlConnection;       // cacheable control connection (owns mCPipe)
+    RefPtr<nsFtpControlConnection> mControlConnection;       // cacheable control connection (owns mCPipe)
     bool                            mReceivedControlData;  
     bool                            mTryingCachedControl;     // retrying the password
     bool                            mRETRFailed;              // Did we already try a RETR and it failed?
@@ -171,7 +171,7 @@ private:
     nsCString                       mModTime;
 
         // ****** consumer vars
-    nsRefPtr<nsFtpChannel>          mChannel;         // our owning FTP channel we pass through our events
+    RefPtr<nsFtpChannel>          mChannel;         // our owning FTP channel we pass through our events
     nsCOMPtr<nsIProxyInfo>          mProxyInfo;
 
         // ****** connection cache vars
@@ -205,8 +205,6 @@ private:
     bool                    mServerIsIPv6;
     bool                    mUseUTF8;
 
-    static uint32_t         mSessionStartTime;
-
     mozilla::net::NetAddr   mServerAddress;
 
     // ***** control read gvars
@@ -232,4 +230,4 @@ private:
     }
 };
 
-#endif //__nsFtpState__h_
+#endif //__nsFtpConnectionThread__h_

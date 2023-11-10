@@ -46,10 +46,62 @@ class MacroAssemblerX86Shared : public Assembler
     const MacroAssembler& asMasm() const;
 
   public:
+    typedef Vector<CodeOffset, 0, SystemAllocPolicy> UsesVector;
+
+  protected:
+
+    // For Double, Float and SimdData, make the move ctors explicit so that MSVC
+    // knows what to use instead of copying these data structures.
+    template<class T>
+    struct Constant {
+        typedef T Pod;
+
+        T value;
+        UsesVector uses;
+
+        explicit Constant(const T& value) : value(value) {}
+        Constant(Constant<T>&& other) : value(other.value), uses(mozilla::Move(other.uses)) {}
+        explicit Constant(const Constant<T>&) = delete;
+    };
+
+    // Containers use SystemAllocPolicy since asm.js releases memory after each
+    // function is compiled, and these need to live until after all functions
+    // are compiled.
+    using Double = Constant<double>;
+    Vector<Double, 0, SystemAllocPolicy> doubles_;
+    typedef HashMap<double, size_t, DefaultHasher<double>, SystemAllocPolicy> DoubleMap;
+    DoubleMap doubleMap_;
+
+    using Float = Constant<float>;
+    Vector<Float, 0, SystemAllocPolicy> floats_;
+    typedef HashMap<float, size_t, DefaultHasher<float>, SystemAllocPolicy> FloatMap;
+    FloatMap floatMap_;
+
+    struct SimdData : public Constant<SimdConstant> {
+        explicit SimdData(SimdConstant d) : Constant<SimdConstant>(d) {}
+        SimdData(SimdData&& d) : Constant<SimdConstant>(mozilla::Move(d)) {}
+        explicit SimdData(const SimdData&) = delete;
+        SimdConstant::Type type() const { return value.type(); }
+    };
+
+    Vector<SimdData, 0, SystemAllocPolicy> simds_;
+    typedef HashMap<SimdConstant, size_t, SimdConstant, SystemAllocPolicy> SimdMap;
+    SimdMap simdMap_;
+
+    template<class T, class Map>
+    T* getConstant(const typename T::Pod& value, Map& map, Vector<T, 0, SystemAllocPolicy>& vec);
+
+    Float* getFloat(float f);
+    Double* getDouble(double d);
+    SimdData* getSimdData(const SimdConstant& v);
+
+  public:
     using Assembler::call;
 
     MacroAssemblerX86Shared()
     { }
+
+    bool asmMergeWith(const MacroAssemblerX86Shared& other);
 
     void compareDouble(DoubleCondition cond, FloatRegister lhs, FloatRegister rhs) {
         if (cond & DoubleConditionBitInvert)
@@ -57,52 +109,12 @@ class MacroAssemblerX86Shared : public Assembler
         else
             vucomisd(rhs, lhs);
     }
-    void branchDouble(DoubleCondition cond, FloatRegister lhs, FloatRegister rhs, Label* label)
-    {
-        compareDouble(cond, lhs, rhs);
-
-        if (cond == DoubleEqual) {
-            Label unordered;
-            j(Parity, &unordered);
-            j(Equal, label);
-            bind(&unordered);
-            return;
-        }
-        if (cond == DoubleNotEqualOrUnordered) {
-            j(NotEqual, label);
-            j(Parity, label);
-            return;
-        }
-
-        MOZ_ASSERT(!(cond & DoubleConditionBitSpecial));
-        j(ConditionFromDoubleCondition(cond), label);
-    }
 
     void compareFloat(DoubleCondition cond, FloatRegister lhs, FloatRegister rhs) {
         if (cond & DoubleConditionBitInvert)
             vucomiss(lhs, rhs);
         else
             vucomiss(rhs, lhs);
-    }
-    void branchFloat(DoubleCondition cond, FloatRegister lhs, FloatRegister rhs, Label* label)
-    {
-        compareFloat(cond, lhs, rhs);
-
-        if (cond == DoubleEqual) {
-            Label unordered;
-            j(Parity, &unordered);
-            j(Equal, label);
-            bind(&unordered);
-            return;
-        }
-        if (cond == DoubleNotEqualOrUnordered) {
-            j(NotEqual, label);
-            j(Parity, label);
-            return;
-        }
-
-        MOZ_ASSERT(!(cond & DoubleConditionBitSpecial));
-        j(ConditionFromDoubleCondition(cond), label);
     }
 
     void branchNegativeZero(FloatRegister reg, Register scratch, Label* label, bool  maybeNonZero = true);
@@ -122,9 +134,6 @@ class MacroAssemblerX86Shared : public Assembler
     }
     void move32(Register src, const Operand& dest) {
         movl(src, dest);
-    }
-    void neg32(Register reg) {
-        negl(reg);
     }
     void test32(Register lhs, Register rhs) {
         testl(rhs, lhs);
@@ -153,41 +162,17 @@ class MacroAssemblerX86Shared : public Assembler
     void cmp32(Register lhs, const Operand& rhs) {
         cmpl(rhs, lhs);
     }
-    CodeOffsetLabel cmp32WithPatch(Register lhs, Imm32 rhs) {
+    CodeOffset cmp32WithPatch(Register lhs, Imm32 rhs) {
         return cmplWithPatch(rhs, lhs);
-    }
-    void add32(Register src, Register dest) {
-        addl(src, dest);
-    }
-    void add32(Imm32 imm, Register dest) {
-        addl(imm, dest);
-    }
-    void add32(Imm32 imm, const Operand& dest) {
-        addl(imm, dest);
-    }
-    void add32(Imm32 imm, const Address& dest) {
-        addl(imm, Operand(dest));
-    }
-    void sub32(Imm32 imm, Register dest) {
-        subl(imm, dest);
-    }
-    void sub32(const Operand& src, Register dest) {
-        subl(src, dest);
-    }
-    void sub32(Register src, Register dest) {
-        subl(src, dest);
-    }
-    void sub32(Register src, const Operand& dest) {
-        subl(src, dest);
     }
     template <typename T>
     void branchAdd32(Condition cond, T src, Register dest, Label* label) {
-        add32(src, dest);
+        addl(src, dest);
         j(cond, label);
     }
     template <typename T>
     void branchSub32(Condition cond, T src, Register dest, Label* label) {
-        sub32(src, dest);
+        subl(src, dest);
         j(cond, label);
     }
     void atomic_inc32(const Operand& addr) {
@@ -543,60 +528,8 @@ class MacroAssemblerX86Shared : public Assembler
         cmpw(rhs, lhs);
         j(cond, label);
     }
-    void branch32(Condition cond, const Operand& lhs, Register rhs, Label* label) {
-        cmp32(lhs, rhs);
-        j(cond, label);
-    }
-    void branch32(Condition cond, const Operand& lhs, Imm32 rhs, Label* label) {
-        cmp32(lhs, rhs);
-        j(cond, label);
-    }
-    void branch32(Condition cond, const Address& lhs, Register rhs, Label* label) {
-        cmp32(Operand(lhs), rhs);
-        j(cond, label);
-    }
-    void branch32(Condition cond, const Address& lhs, Imm32 imm, Label* label) {
-        cmp32(Operand(lhs), imm);
-        j(cond, label);
-    }
-    void branch32(Condition cond, const BaseIndex& lhs, Register rhs, Label* label) {
-        cmp32(Operand(lhs), rhs);
-        j(cond, label);
-    }
-    void branch32(Condition cond, const BaseIndex& lhs, Imm32 imm, Label* label) {
-        cmp32(Operand(lhs), imm);
-        j(cond, label);
-    }
-    void branch32(Condition cond, Register lhs, Imm32 imm, Label* label) {
-        cmp32(lhs, imm);
-        j(cond, label);
-    }
-    void branch32(Condition cond, Register lhs, Register rhs, Label* label) {
-        cmp32(lhs, rhs);
-        j(cond, label);
-    }
     void branchTest16(Condition cond, Register lhs, Register rhs, Label* label) {
         testw(rhs, lhs);
-        j(cond, label);
-    }
-    void branchTest32(Condition cond, Register lhs, Register rhs, Label* label) {
-        MOZ_ASSERT(cond == Zero || cond == NonZero || cond == Signed || cond == NotSigned);
-        test32(lhs, rhs);
-        j(cond, label);
-    }
-    void branchTest32(Condition cond, Register lhs, Imm32 imm, Label* label) {
-        MOZ_ASSERT(cond == Zero || cond == NonZero || cond == Signed || cond == NotSigned);
-        test32(lhs, imm);
-        j(cond, label);
-    }
-    void branchTest32(Condition cond, const Address& address, Imm32 imm, Label* label) {
-        MOZ_ASSERT(cond == Zero || cond == NonZero || cond == Signed || cond == NotSigned);
-        test32(Operand(address), imm);
-        j(cond, label);
-    }
-    void branchTest32(Condition cond, const Operand& lhs, Imm32 imm, Label* label) {
-        MOZ_ASSERT(cond == Zero || cond == NonZero || cond == Signed || cond == NotSigned);
-        test32(lhs, imm);
         j(cond, label);
     }
 
@@ -614,6 +547,9 @@ class MacroAssemblerX86Shared : public Assembler
     }
     void jump(const Address& addr) {
         jmp(Operand(addr));
+    }
+    void jump(wasm::JumpTarget target) {
+        jmp(target);
     }
 
     void convertInt32ToDouble(Register src, FloatRegister dest) {
@@ -877,38 +813,6 @@ class MacroAssemblerX86Shared : public Assembler
     void zeroFloat32(FloatRegister reg) {
         vxorps(reg, reg, reg);
     }
-    void negateDouble(FloatRegister reg) {
-        // From MacroAssemblerX86Shared::maybeInlineDouble
-        ScratchDoubleScope scratch(asMasm());
-        vpcmpeqw(scratch, scratch, scratch);
-        vpsllq(Imm32(63), scratch, scratch);
-
-        // XOR the float in a float register with -0.0.
-        vxorpd(scratch, reg, reg); // s ^ 0x80000000000000
-    }
-    void negateFloat(FloatRegister reg) {
-        ScratchFloat32Scope scratch(asMasm());
-        vpcmpeqw(scratch, scratch, scratch);
-        vpsllq(Imm32(31), scratch, scratch);
-
-        // XOR the float in a float register with -0.0.
-        vxorps(scratch, reg, reg); // s ^ 0x80000000
-    }
-    void addDouble(FloatRegister src, FloatRegister dest) {
-        vaddsd(src, dest, dest);
-    }
-    void subDouble(FloatRegister src, FloatRegister dest) {
-        vsubsd(src, dest, dest);
-    }
-    void mulDouble(FloatRegister src, FloatRegister dest) {
-        vmulsd(src, dest, dest);
-    }
-    void divDouble(FloatRegister src, FloatRegister dest) {
-        vdivsd(src, dest, dest);
-    }
-    void addFloat32(FloatRegister src, FloatRegister dest) {
-        vaddss(src, dest, dest);
-    }
     void convertFloat32ToDouble(FloatRegister src, FloatRegister dest) {
         vcvtss2sd(src, dest, dest);
     }
@@ -969,7 +873,7 @@ class MacroAssemblerX86Shared : public Assembler
         BaseIndex srcZ(src);
         srcZ.offset += 2 * sizeof(int32_t);
 
-        ScratchSimdScope scratch(asMasm());
+        ScratchSimd128Scope scratch(asMasm());
         vmovq(Operand(src), dest);
         vmovd(Operand(srcZ), scratch);
         vmovlhps(scratch, dest, dest);
@@ -978,7 +882,7 @@ class MacroAssemblerX86Shared : public Assembler
         Address srcZ(src);
         srcZ.offset += 2 * sizeof(int32_t);
 
-        ScratchSimdScope scratch(asMasm());
+        ScratchSimd128Scope scratch(asMasm());
         vmovq(Operand(src), dest);
         vmovd(Operand(srcZ), scratch);
         vmovlhps(scratch, dest, dest);
@@ -1034,7 +938,7 @@ class MacroAssemblerX86Shared : public Assembler
         Address destZ(dest);
         destZ.offset += 2 * sizeof(int32_t);
         vmovq(src, Operand(dest));
-        ScratchSimdScope scratch(asMasm());
+        ScratchSimd128Scope scratch(asMasm());
         vmovhlps(src, scratch, scratch);
         vmovd(scratch, Operand(destZ));
     }
@@ -1042,7 +946,7 @@ class MacroAssemblerX86Shared : public Assembler
         BaseIndex destZ(dest);
         destZ.offset += 2 * sizeof(int32_t);
         vmovq(src, Operand(dest));
-        ScratchSimdScope scratch(asMasm());
+        ScratchSimd128Scope scratch(asMasm());
         vmovhlps(src, scratch, scratch);
         vmovd(scratch, Operand(destZ));
     }
@@ -1105,7 +1009,7 @@ class MacroAssemblerX86Shared : public Assembler
         Address srcZ(src);
         srcZ.offset += 2 * sizeof(float);
         vmovsd(src, dest);
-        ScratchSimdScope scratch(asMasm());
+        ScratchSimd128Scope scratch(asMasm());
         vmovss(srcZ, scratch);
         vmovlhps(scratch, dest, dest);
     }
@@ -1113,7 +1017,7 @@ class MacroAssemblerX86Shared : public Assembler
         BaseIndex srcZ(src);
         srcZ.offset += 2 * sizeof(float);
         vmovsd(src, dest);
-        ScratchSimdScope scratch(asMasm());
+        ScratchSimd128Scope scratch(asMasm());
         vmovss(srcZ, scratch);
         vmovlhps(scratch, dest, dest);
     }
@@ -1129,7 +1033,7 @@ class MacroAssemblerX86Shared : public Assembler
         Address destZ(dest);
         destZ.offset += 2 * sizeof(int32_t);
         storeDouble(src, dest);
-        ScratchSimdScope scratch(asMasm());
+        ScratchSimd128Scope scratch(asMasm());
         vmovhlps(src, scratch, scratch);
         storeFloat32(scratch, destZ);
     }
@@ -1137,7 +1041,7 @@ class MacroAssemblerX86Shared : public Assembler
         BaseIndex destZ(dest);
         destZ.offset += 2 * sizeof(int32_t);
         storeDouble(src, dest);
-        ScratchSimdScope scratch(asMasm());
+        ScratchSimd128Scope scratch(asMasm());
         vmovhlps(src, scratch, scratch);
         storeFloat32(scratch, destZ);
     }
@@ -1317,16 +1221,7 @@ class MacroAssemblerX86Shared : public Assembler
         j(Assembler::NotEqual, fail);
     }
 
-    void clampIntToUint8(Register reg) {
-        Label inRange;
-        branchTest32(Assembler::Zero, reg, Imm32(0xffffff00), &inRange);
-        {
-            sarl(Imm32(31), reg);
-            notl(reg);
-            andl(Imm32(255), reg);
-        }
-        bind(&inRange);
-    }
+    inline void clampIntToUint8(Register reg);
 
     bool maybeInlineDouble(double d, FloatRegister dest) {
         uint64_t u = mozilla::BitwiseCast<uint64_t>(d);
@@ -1432,8 +1327,8 @@ class MacroAssemblerX86Shared : public Assembler
     }
 
     // Emit a JMP that can be toggled to a CMP. See ToggleToJmp(), ToggleToCmp().
-    CodeOffsetLabel toggledJump(Label* label) {
-        CodeOffsetLabel offset(size());
+    CodeOffset toggledJump(Label* label) {
+        CodeOffset offset(size());
         jump(label);
         return offset;
     }
@@ -1447,13 +1342,21 @@ class MacroAssemblerX86Shared : public Assembler
         // Exists for ARM compatibility.
     }
 
-    CodeOffsetLabel labelForPatch() {
-        return CodeOffsetLabel(size());
+    CodeOffset labelForPatch() {
+        return CodeOffset(size());
     }
 
     void abiret() {
         ret();
     }
+
+    template<typename T>
+    void compareExchangeToTypedIntArray(Scalar::Type arrayType, const T& mem, Register oldval, Register newval,
+                                        Register temp, AnyRegister output);
+
+    template<typename T>
+    void atomicExchangeToTypedIntArray(Scalar::Type arrayType, const T& mem, Register value,
+                                       Register temp, AnyRegister output);
 
   protected:
     bool buildOOLFakeExitFrame(void* fakeReturnAddr);

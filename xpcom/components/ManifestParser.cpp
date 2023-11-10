@@ -132,7 +132,8 @@ static const ManifestDirective kParsingTable[] = {
     "style",            2, false, true, false, false,
     nullptr, &nsChromeRegistry::ManifestStyle, nullptr
   },
-  { // NB: note that while skin manifests can use this, they are only allowed
+  {
+    // NB: note that while skin manifests can use this, they are only allowed
     // to use it for chrome://../skin/ URLs
     "override",         2, false, true, true, false,
     nullptr, &nsChromeRegistry::ManifestOverride, nullptr
@@ -569,7 +570,7 @@ ParseManifest(NSLocationType aType, FileLocation& aFile, char* aBuf,
 #elif defined(MOZ_WIDGET_COCOA)
   SInt32 majorVersion = nsCocoaFeatures::OSXVersionMajor();
   SInt32 minorVersion = nsCocoaFeatures::OSXVersionMinor();
-  nsTextFormatter::ssprintf(osVersion, NS_LITERAL_STRING("%ld.%ld").get(),
+  nsTextFormatter::ssprintf(osVersion, MOZ_UTF16("%ld.%ld"),
                             majorVersion,
                             minorVersion);
 #elif defined(MOZ_WIDGET_GTK)

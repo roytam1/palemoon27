@@ -28,11 +28,13 @@ class RtspOmxReader : public MediaOmxReader
 protected:
   // Provide a Rtsp extractor.
   nsresult InitOmxDecoder() final override;
-  virtual void EnsureActive() override;
+  void EnsureActive() override;
 
 public:
   RtspOmxReader(AbstractMediaDecoder* aDecoder)
-    : MediaOmxReader(aDecoder) {
+    : MediaOmxReader(aDecoder)
+    , mEnsureActiveFromSeek(false)
+  {
     MOZ_COUNT_CTOR(RtspOmxReader);
     NS_ASSERTION(mDecoder, "RtspOmxReader mDecoder is null.");
     NS_ASSERTION(mDecoder->GetResource(),
@@ -41,13 +43,12 @@ public:
     MOZ_ASSERT(mRtspResource);
   }
 
-  virtual ~RtspOmxReader() override {
+  virtual ~RtspOmxReader() {
     MOZ_COUNT_DTOR(RtspOmxReader);
   }
 
   // Implement a time-based seek instead of byte-based..
-  virtual nsRefPtr<SeekPromise>
-  Seek(int64_t aTime, int64_t aEndTime) final override;
+  RefPtr<SeekPromise> Seek(SeekTarget aTarget, int64_t aEndTime) final override;
 
   // Override GetBuffered() to do nothing for below reasons:
   // 1. Because the Rtsp stream is a/v separated. The buffered data in a/v
@@ -58,16 +59,15 @@ public:
   // we returned are not useful for the MediaDecodeStateMachine. Unlike the
   // ChannelMediaResource, it has a "cache" that can store the whole streaming
   // data so the |GetBuffered| function can retrieve useful time ranges.
-  virtual media::TimeIntervals GetBuffered() final override {
+  media::TimeIntervals GetBuffered() final override {
     return media::TimeIntervals::Invalid();
   }
 
-  virtual void SetIdle() override;
+  void SetIdle() override;
 
-  virtual nsRefPtr<MediaDecoderReader::MetadataPromise> AsyncReadMetadata()
-    override;
+  RefPtr<MediaDecoderReader::MetadataPromise> AsyncReadMetadata() override;
 
-  virtual void HandleResourceAllocated() override;
+  void HandleResourceAllocated() override;
 
 private:
   // A pointer to RtspMediaResource for calling the Rtsp specific function.
@@ -75,6 +75,8 @@ private:
   // holds the MediaDecoderStateMachine and RtspMediaResource.
   // And MediaDecoderStateMachine holds this RtspOmxReader.
   RtspMediaResource* mRtspResource;
+
+  bool mEnsureActiveFromSeek;
 };
 
 } // namespace mozilla

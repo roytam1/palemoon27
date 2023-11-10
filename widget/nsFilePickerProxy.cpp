@@ -16,6 +16,7 @@ using namespace mozilla::dom;
 NS_IMPL_ISUPPORTS(nsFilePickerProxy, nsIFilePicker)
 
 nsFilePickerProxy::nsFilePickerProxy()
+  : mSelectedType(0)
 {
 }
 
@@ -102,21 +103,21 @@ nsFilePickerProxy::SetFilterIndex(int32_t aFilterIndex)
 NS_IMETHODIMP
 nsFilePickerProxy::GetFile(nsIFile** aFile)
 {
-  MOZ_ASSERT(false, "GetFile is unimplemented; use GetDomfile");
+  MOZ_ASSERT(false, "GetFile is unimplemented; use GetDomFileOrDirectory");
   return NS_ERROR_FAILURE;
 }
 
 NS_IMETHODIMP
 nsFilePickerProxy::GetFileURL(nsIURI** aFileURL)
 {
-  MOZ_ASSERT(false, "GetFileURL is unimplemented; use GetDomfile");
+  MOZ_ASSERT(false, "GetFileURL is unimplemented; use GetDomFileOrDirectory");
   return NS_ERROR_FAILURE;
 }
 
 NS_IMETHODIMP
 nsFilePickerProxy::GetFiles(nsISimpleEnumerator** aFiles)
 {
-  MOZ_ASSERT(false, "GetFiles is unimplemented; use GetDomfiles");
+  MOZ_ASSERT(false, "GetFiles is unimplemented; use GetDomFileOrDirectoryEnumerator");
   return NS_ERROR_FAILURE;
 }
 
@@ -151,17 +152,17 @@ nsFilePickerProxy::Recv__delete__(const MaybeInputFiles& aFiles,
     const InfallibleTArray<PBlobChild*>& blobs = aFiles.get_InputFiles().blobsChild();
     for (uint32_t i = 0; i < blobs.Length(); ++i) {
       BlobChild* actor = static_cast<BlobChild*>(blobs[i]);
-      nsRefPtr<BlobImpl> blobImpl = actor->GetBlobImpl();
+      RefPtr<BlobImpl> blobImpl = actor->GetBlobImpl();
       NS_ENSURE_TRUE(blobImpl, true);
 
       if (!blobImpl->IsFile()) {
         return true;
       }
 
-      nsRefPtr<File> file = File::Create(mParent, blobImpl);
+      RefPtr<File> file = File::Create(mParent, blobImpl);
       MOZ_ASSERT(file);
 
-      mDomfiles.AppendElement(file);
+      mFilesOrDirectories.AppendElement(file);
     }
   }
 
@@ -174,16 +175,16 @@ nsFilePickerProxy::Recv__delete__(const MaybeInputFiles& aFiles,
 }
 
 NS_IMETHODIMP
-nsFilePickerProxy::GetDomfile(nsISupports** aDomfile)
+nsFilePickerProxy::GetDomFileOrDirectory(nsISupports** aValue)
 {
-  *aDomfile = nullptr;
-  if (mDomfiles.IsEmpty()) {
+  *aValue = nullptr;
+  if (mFilesOrDirectories.IsEmpty()) {
     return NS_OK;
   }
 
-  MOZ_ASSERT(mDomfiles.Length() == 1);
-  nsCOMPtr<nsIDOMBlob> blob = mDomfiles[0].get();
-  blob.forget(aDomfile);
+  MOZ_ASSERT(mFilesOrDirectories.Length() == 1);
+  nsCOMPtr<nsIDOMBlob> blob = mFilesOrDirectories[0].get();
+  blob.forget(aValue);
   return NS_OK;
 }
 
@@ -194,7 +195,7 @@ class SimpleEnumerator final : public nsISimpleEnumerator
 public:
   NS_DECL_ISUPPORTS
 
-  explicit SimpleEnumerator(const nsTArray<nsRefPtr<File>>& aFiles)
+  explicit SimpleEnumerator(const nsTArray<RefPtr<File>>& aFiles)
     : mFiles(aFiles)
     , mIndex(0)
   {}
@@ -221,18 +222,18 @@ private:
   ~SimpleEnumerator()
   {}
 
-  nsTArray<nsRefPtr<File>> mFiles;
+  nsTArray<RefPtr<File>> mFiles;
   uint32_t mIndex;
 };
 
 NS_IMPL_ISUPPORTS(SimpleEnumerator, nsISimpleEnumerator)
 
-} // anonymous namespace
+} // namespace
 
 NS_IMETHODIMP
-nsFilePickerProxy::GetDomfiles(nsISimpleEnumerator** aDomfiles)
+nsFilePickerProxy::GetDomFileOrDirectoryEnumerator(nsISimpleEnumerator** aDomfiles)
 {
-  nsRefPtr<SimpleEnumerator> enumerator = new SimpleEnumerator(mDomfiles);
+  RefPtr<SimpleEnumerator> enumerator = new SimpleEnumerator(mFilesOrDirectories);
   enumerator.forget(aDomfiles);
   return NS_OK;
 }

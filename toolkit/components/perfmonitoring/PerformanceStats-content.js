@@ -12,7 +12,7 @@
 
 "use strict";
 
-const { utils: Cu, classes: Cc, interfaces: Ci } = Components;
+var { utils: Cu, classes: Cc, interfaces: Ci } = Components;
 const { Services } = Cu.import("resource://gre/modules/Services.jsm", {});
 const { XPCOMUtils } = Cu.import("resource://gre/modules/XPCOMUtils.jsm", {});
 
@@ -27,17 +27,16 @@ XPCOMUtils.defineLazyModuleGetter(this, "Task",
  * For the sake of simplicity, rather than attempting to map each PerformanceMonitor
  * of the parent to a PerformanceMonitor in each child process, we maintain a single
  * PerformanceMonitor in each child process. Probes activation/deactivation for this
- * monitor is controlled by the activation/deactivation of probes marked as "-content"
- * in the parent.
+ * monitor is controlled by the activation/deactivation of probes in the parent.
  *
  * In the parent, this is always an empty monitor.
  */
-let gMonitor = PerformanceStats.getMonitor([]);
+var gMonitor = PerformanceStats.getMonitor([]);
 
 /**
  * `true` if this is a content process, `false` otherwise.
  */
-let isContent = Services.appinfo.processType == Services.appinfo.PROCESS_TYPE_CONTENT;
+var isContent = Services.appinfo.processType == Services.appinfo.PROCESS_TYPE_CONTENT;
 
 /**
  * Handle message `performance-stats-service-acquire`: ensure that the global

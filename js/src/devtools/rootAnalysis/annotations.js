@@ -38,10 +38,6 @@ function indirectCallCannotGC(fullCaller, fullVariable)
     if (name == "op" && /GetWeakmapKeyDelegate/.test(caller))
         return true;
 
-    var CheckCallArgs = "AsmJSValidate.cpp:uint8 CheckCallArgs(FunctionBuilder*, js::frontend::ParseNode*, (uint8)(FunctionBuilder*,js::frontend::ParseNode*,Type)*, Signature*)";
-    if (name == "checkArg" && caller == CheckCallArgs)
-        return true;
-
     // hook called during script finalization which cannot GC.
     if (/CallDestroyScriptHook/.test(caller))
         return true;
@@ -66,6 +62,7 @@ var ignoreClasses = {
     "XPCOMFunctions" : true, // I'm a little unsure of this one
     "_MD_IOVector" : true,
     "malloc_table_t": true, // replace_malloc
+    "malloc_hook_table_t": true, // replace_malloc
 };
 
 // Ignore calls through TYPE.FIELD, where TYPE is the class or struct name containing
@@ -81,7 +78,8 @@ var ignoreCallees = {
     "z_stream_s.zfree" : true,
     "GrGLInterface.fCallback" : true,
     "std::strstreambuf._M_alloc_fun" : true,
-    "std::strstreambuf._M_free_fun" : true
+    "std::strstreambuf._M_free_fun" : true,
+    "struct js::gc::Callback<void (*)(JSRuntime*, void*)>.op" : true,
 };
 
 function fieldCallCannotGC(csu, fullfield)
@@ -138,12 +136,12 @@ var ignoreFunctions = {
     "JSObject* js::GetWeakmapKeyDelegate(JSObject*)" : true, // FIXME: mark with AutoSuppressGCAnalysis instead
     "uint8 NS_IsMainThread()" : true,
 
-    // Bug 1056410 - devirtualization prevents the standard nsISupports::Release heuristic from working
-    "uint32 nsXPConnect::Release()" : true,
-
     // Has an indirect call under it by the name "__f", which seemed too
     // generic to ignore by itself.
     "void* std::_Locale_impl::~_Locale_impl(int32)" : true,
+
+    // Bug 1056410 - devirtualization prevents the standard nsISupports::Release heuristic from working
+    "uint32 nsXPConnect::Release()" : true,
 
     // FIXME!
     "NS_LogInit": true,
@@ -175,7 +173,7 @@ var ignoreFunctions = {
     "void js::AutoCompartment::AutoCompartment(js::ExclusiveContext*, JSCompartment*)": true,
 
     // The nsScriptNameSpaceManager functions can't actually GC.  They
-    // just use a pldhash which has function pointers, which makes the
+    // just use a PLDHashTable which has function pointers, which makes the
     // analysis think maybe they can.
     "nsGlobalNameStruct* nsScriptNameSpaceManager::LookupNavigatorName(nsAString_internal*)": true,
     "nsGlobalNameStruct* nsScriptNameSpaceManager::LookupName(nsAString_internal*, uint16**)": true,
@@ -190,6 +188,9 @@ var ignoreFunctions = {
     "void test::RingbufferDumper::OnTestPartResult(testing::TestPartResult*)" : true,
 
     "float64 JS_GetCurrentEmbedderTime()" : true,
+
+    "uint64 js::TenuringTracer::moveObjectToTenured(JSObject*, JSObject*, int32)" : true,
+    "uint32 js::TenuringTracer::moveObjectToTenured(JSObject*, JSObject*, int32)" : true,
 };
 
 function isProtobuf(name)
@@ -238,57 +239,51 @@ function ignoreGCFunction(mangled)
     if (fun.indexOf("void nsCOMPtr<T>::Assert_NoQueryNeeded()") >= 0)
         return true;
 
+    // These call through an 'op' function pointer.
+    if (fun.indexOf("js::WeakMap<Key, Value, HashPolicy>::getDelegate(") >= 0)
+        return true;
+
     // XXX modify refillFreeList<NoGC> to not need data flow analysis to understand it cannot GC.
     if (/refillFreeList/.test(fun) && /\(js::AllowGC\)0u/.test(fun))
         return true;
     return false;
 }
 
-function isRootedTypeName(name)
-{
-    if (name == "mozilla::ErrorResult" ||
-        name == "JSErrorResult" ||
-        name == "WrappableJSErrorResult" ||
-        name == "js::frontend::TokenStream" ||
-        name == "js::frontend::TokenStream::Position" ||
-        name == "ModuleCompiler" ||
-        name == "JSAddonId")
-    {
-        return true;
-    }
-    return false;
-}
-
 function stripUCSAndNamespace(name)
 {
-    if (name.startsWith('struct '))
-        name = name.substr(7);
-    if (name.startsWith('class '))
-        name = name.substr(6);
-    if (name.startsWith('const '))
-        name = name.substr(6);
-    if (name.startsWith('js::ctypes::'))
-        name = name.substr(12);
-    if (name.startsWith('js::'))
-        name = name.substr(4);
-    if (name.startsWith('JS::'))
-        name = name.substr(4);
-    if (name.startsWith('mozilla::dom::'))
-        name = name.substr(14);
-    if (name.startsWith('mozilla::'))
-        name = name.substr(9);
-
+    name = name.replace(/(struct|class|union|const) /g, "");
+    name = name.replace(/(js::ctypes::|js::|JS::|mozilla::dom::|mozilla::)/g, "");
     return name;
 }
 
-function isRootedPointerTypeName(name)
+function isRootedGCTypeName(name)
+{
+    return (name == "JSAddonId");
+}
+
+function isRootedGCPointerTypeName(name)
 {
     name = stripUCSAndNamespace(name);
 
     if (name.startsWith('MaybeRooted<'))
         return /\(js::AllowGC\)1u>::RootType/.test(name);
 
+    if (name == "ErrorResult" ||
+        name == "JSErrorResult" ||
+        name == "WrappableJSErrorResult" ||
+        name == "frontend::TokenStream" ||
+        name == "frontend::TokenStream::Position" ||
+        name == "ModuleValidator")
+    {
+        return true;
+    }
+
     return name.startsWith('Rooted') || name.startsWith('PersistentRooted');
+}
+
+function isRootedTypeName(name)
+{
+    return isRootedGCTypeName(name) || isRootedGCPointerTypeName(name);
 }
 
 function isUnsafeStorage(typeName)
@@ -331,15 +326,12 @@ function isOverridableField(initialCSU, csu, field)
         if (field == 'GetWindowProxy' || field == 'GetWindowProxyPreserveColor')
             return false;
     }
-    if (initialCSU == 'nsICycleCollectorListener' && field == 'NoteWeakMapEntry')
-        return false;
-    if (initialCSU == 'nsICycleCollectorListener' && field == 'NoteEdge')
-        return false;
     return true;
 }
 
 function listGCTypes() {
     return [
+        'js::gc::Cell',
         'JSObject',
         'JSString',
         'JSFatInlineString',
@@ -360,6 +352,10 @@ function listGCPointers() {
         'JS::Value',
         'jsid',
 
+        'js::TypeSet',
+        'js::TypeSet::ObjectKey',
+        'js::TypeSet::Type',
+
         // AutoCheckCannotGC should also not be held live across a GC function.
         'JS::AutoCheckCannotGC',
     ];
@@ -372,6 +368,11 @@ function listNonGCTypes() {
 
 function listNonGCPointers() {
     return [
+        // Both of these are safe only because jsids are currently only made
+        // from "interned" (pinned) strings. Once that changes, both should be
+        // removed from the list.
+        'NPIdentifier',
+        'XPCNativeMember',
     ];
 }
 

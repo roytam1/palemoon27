@@ -10,7 +10,6 @@
 #include "PlatformDecoderModule.h"
 #include "FFmpegLibs.h"
 #include "mozilla/StaticMutex.h"
-#include "mp4_demuxer/mp4_demuxer.h"
 
 namespace mozilla
 {
@@ -24,28 +23,45 @@ template <>
 class FFmpegDataDecoder<LIBAV_VER> : public MediaDataDecoder
 {
 public:
-  FFmpegDataDecoder(FlushableMediaTaskQueue* aTaskQueue, AVCodecID aCodecID);
+  FFmpegDataDecoder(FlushableTaskQueue* aTaskQueue,
+                    MediaDataDecoderCallback* aCallback,
+                    AVCodecID aCodecID);
   virtual ~FFmpegDataDecoder();
 
   static bool Link();
 
-  virtual nsresult Init() override;
-  virtual nsresult Input(MediaRawData* aSample) override = 0;
-  virtual nsresult Flush() override;
-  virtual nsresult Drain() override = 0;
-  virtual nsresult Shutdown() override;
+  RefPtr<InitPromise> Init() override = 0;
+  nsresult Input(MediaRawData* aSample) override = 0;
+  nsresult Flush() override;
+  nsresult Drain() override;
+  nsresult Shutdown() override;
 
   static AVCodec* FindAVCodec(AVCodecID aCodec);
 
 protected:
+  // Flush and Drain operation, always run
+  virtual void ProcessFlush();
+  virtual void ProcessDrain() = 0;
+  virtual void ProcessShutdown();
   virtual void InitCodecContext() {}
   AVFrame*        PrepareFrame();
+  nsresult        InitDecoder();
 
-  FlushableMediaTaskQueue* mTaskQueue;
+  RefPtr<FlushableTaskQueue> mTaskQueue;
+  MediaDataDecoderCallback* mCallback;
+
   AVCodecContext* mCodecContext;
   AVFrame*        mFrame;
-  nsRefPtr<MediaByteBuffer> mExtraData;
+  RefPtr<MediaByteBuffer> mExtraData;
   AVCodecID mCodecID;
+
+  // For wait on mIsFlushing during Shutdown() process.
+  // Protects mReorderQueue.
+  Monitor mMonitor;
+  // Set on reader/decode thread calling Flush() to indicate that output is
+  // not required and so input samples on mTaskQueue need not be processed.
+  // Cleared on mTaskQueue in ProcessDrain().
+  Atomic<bool> mIsFlushing;
 
 private:
   static bool sFFmpegInitDone;

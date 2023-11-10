@@ -57,7 +57,7 @@
 #include "jsapi.h"
 #include "mozilla/Logging.h"
 #include "rdf.h"
-#include "pldhash.h"
+#include "PLDHashTable.h"
 #include "plhash.h"
 #include "nsDOMClassInfoID.h"
 #include "nsPIDOMWindow.h"
@@ -86,7 +86,7 @@ nsIScriptSecurityManager* nsXULTemplateBuilder::gScriptSecurityManager;
 nsIPrincipal*             nsXULTemplateBuilder::gSystemPrincipal;
 nsIObserverService*       nsXULTemplateBuilder::gObserverService;
 
-PRLogModuleInfo* gXULTemplateLog;
+LazyLogModule gXULTemplateLog("nsXULTemplateBuilder");
 
 #define NS_QUERY_PROCESSOR_CONTRACTID_PREFIX "@mozilla.org/xul/xul-query-processor;1?name="
 
@@ -104,17 +104,20 @@ nsXULTemplateBuilder::nsXULTemplateBuilder(void)
     MOZ_COUNT_CTOR(nsXULTemplateBuilder);
 }
 
-static PLDHashOperator
-DestroyMatchList(nsISupports* aKey, nsTemplateMatch*& aMatch, void* aContext)
+void
+nsXULTemplateBuilder::DestroyMatchMap()
 {
-    // delete all the matches in the list
-    while (aMatch) {
-        nsTemplateMatch* next = aMatch->mNext;
-        nsTemplateMatch::Destroy(aMatch, true);
-        aMatch = next;
-    }
+    for (auto iter = mMatchMap.Iter(); !iter.Done(); iter.Next()) {
+        nsTemplateMatch*& match = iter.Data();
+        // delete all the matches in the list
+        while (match) {
+            nsTemplateMatch* next = match->mNext;
+            nsTemplateMatch::Destroy(match, true);
+            match = next;
+        }
 
-    return PL_DHASH_REMOVE;
+        iter.Remove();
+    }
 }
 
 nsXULTemplateBuilder::~nsXULTemplateBuilder(void)
@@ -165,9 +168,6 @@ nsXULTemplateBuilder::InitGlobals()
             return rv;
     }
 
-    if (! gXULTemplateLog)
-        gXULTemplateLog = PR_NewLogModule("nsXULTemplateBuilder");
-
     return NS_OK;
 }
 
@@ -198,7 +198,7 @@ nsXULTemplateBuilder::CleanUp(bool aIsFinal)
 
     mQuerySets.Clear();
 
-    mMatchMap.Enumerate(DestroyMatchList, nullptr);
+    DestroyMatchMap();
 
     // Setting mQueryProcessor to null will close connections. This would be
     // handled by the cycle collector, but we want to close them earlier.
@@ -225,23 +225,6 @@ nsXULTemplateBuilder::Uninit(bool aIsFinal)
     mQueriesCompiled = false;
 }
 
-static PLDHashOperator
-TraverseMatchList(nsISupports* aKey, nsTemplateMatch* aMatch, void* aContext)
-{
-    nsCycleCollectionTraversalCallback *cb =
-        static_cast<nsCycleCollectionTraversalCallback*>(aContext);
-
-    cb->NoteXPCOMChild(aKey);
-    nsTemplateMatch* match = aMatch;
-    while (match) {
-        cb->NoteXPCOMChild(match->GetContainer());
-        cb->NoteXPCOMChild(match->mResult);
-        match = match->mNext;
-    }
-
-    return PL_DHASH_NEXT;
-}
-
 NS_IMPL_CYCLE_COLLECTION_CLASS(nsXULTemplateBuilder)
 
 NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(nsXULTemplateBuilder)
@@ -252,7 +235,7 @@ NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(nsXULTemplateBuilder)
     NS_IMPL_CYCLE_COLLECTION_UNLINK(mRootResult)
     NS_IMPL_CYCLE_COLLECTION_UNLINK(mListeners)
     NS_IMPL_CYCLE_COLLECTION_UNLINK(mQueryProcessor)
-    tmp->mMatchMap.Enumerate(DestroyMatchList, nullptr);
+    tmp->DestroyMatchMap();
     for (uint32_t i = 0; i < tmp->mQuerySets.Length(); ++i) {
         nsTemplateQuerySet* qs = tmp->mQuerySets[i];
         delete qs;
@@ -272,7 +255,17 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN(nsXULTemplateBuilder)
     NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mRootResult)
     NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mListeners)
     NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mQueryProcessor)
-    tmp->mMatchMap.EnumerateRead(TraverseMatchList, &cb);
+
+    for (auto iter = tmp->mMatchMap.Iter(); !iter.Done(); iter.Next()) {
+        cb.NoteXPCOMChild(iter.Key());
+        nsTemplateMatch* match = iter.UserData();
+        while (match) {
+            cb.NoteXPCOMChild(match->GetContainer());
+            cb.NoteXPCOMChild(match->mResult);
+            match = match->mNext;
+        }
+    }
+
     {
       uint32_t i, count = tmp->mQuerySets.Length();
       for (i = 0; i < count; ++i) {
@@ -1121,7 +1114,7 @@ nsXULTemplateBuilder::ContentRemoved(nsIDocument* aDocument,
                                      nsIContent* aPreviousSibling)
 {
     if (mRoot && nsContentUtils::ContentIsDescendantOf(mRoot, aChild)) {
-        nsRefPtr<nsXULTemplateBuilder> kungFuDeathGrip(this);
+        RefPtr<nsXULTemplateBuilder> kungFuDeathGrip(this);
 
         if (mQueryProcessor)
             mQueryProcessor->Done();
@@ -1156,7 +1149,7 @@ nsXULTemplateBuilder::NodeWillBeDestroyed(const nsINode* aNode)
 {
     // The call to RemoveObserver could release the last reference to
     // |this|, so hold another reference.
-    nsRefPtr<nsXULTemplateBuilder> kungFuDeathGrip(this);
+    RefPtr<nsXULTemplateBuilder> kungFuDeathGrip(this);
 
     // Break circular references
     if (mQueryProcessor)
@@ -1210,15 +1203,12 @@ nsXULTemplateBuilder::LoadDataSources(nsIDocument* aDocument,
     if (querytype.EqualsLiteral("rdf")) {
         isRDFQuery = true;
         mQueryProcessor = new nsXULTemplateQueryProcessorRDF();
-        NS_ENSURE_TRUE(mQueryProcessor, NS_ERROR_OUT_OF_MEMORY);
     }
     else if (querytype.EqualsLiteral("xml")) {
         mQueryProcessor = new nsXULTemplateQueryProcessorXML();
-        NS_ENSURE_TRUE(mQueryProcessor, NS_ERROR_OUT_OF_MEMORY);
     }
     else if (querytype.EqualsLiteral("storage")) {
         mQueryProcessor = new nsXULTemplateQueryProcessorStorage();
-        NS_ENSURE_TRUE(mQueryProcessor, NS_ERROR_OUT_OF_MEMORY);
     }
     else {
         nsAutoCString cid(NS_QUERY_PROCESSOR_CONTRACTID_PREFIX);
@@ -1749,9 +1739,6 @@ nsXULTemplateBuilder::CompileQueries()
         mMemberVariable = do_GetAtom(membervar);
 
     nsTemplateQuerySet* queryset = new nsTemplateQuerySet(0);
-    if (!queryset)
-        return NS_ERROR_OUT_OF_MEMORY;
-
     if (!mQuerySets.AppendElement(queryset)) {
         delete queryset;
         return NS_ERROR_OUT_OF_MEMORY;
@@ -1812,8 +1799,6 @@ nsXULTemplateBuilder::CompileTemplate(nsIContent* aTemplate,
             // first one is always created by CompileQueries
             if (hasQuerySet) {
                 aQuerySet = new nsTemplateQuerySet(++*aPriority);
-                if (!aQuerySet)
-                    return NS_ERROR_OUT_OF_MEMORY;
 
                 // once the queryset is appended to the mQuerySets list, it
                 // will be removed by CompileQueries if an error occurs
@@ -1892,9 +1877,6 @@ nsXULTemplateBuilder::CompileTemplate(nsIContent* aTemplate,
                         // create a new queryset if one hasn't been created already
                         if (hasQuerySet) {
                             aQuerySet = new nsTemplateQuerySet(++*aPriority);
-                            if (! aQuerySet)
-                                return NS_ERROR_OUT_OF_MEMORY;
-
                             if (!mQuerySets.AppendElement(aQuerySet)) {
                                 delete aQuerySet;
                                 return NS_ERROR_OUT_OF_MEMORY;
@@ -1936,9 +1918,6 @@ nsXULTemplateBuilder::CompileTemplate(nsIContent* aTemplate,
                 // a new queryset must always be created in this case
                 if (hasQuerySet) {
                     aQuerySet = new nsTemplateQuerySet(++*aPriority);
-                    if (! aQuerySet)
-                        return NS_ERROR_OUT_OF_MEMORY;
-
                     if (!mQuerySets.AppendElement(aQuerySet)) {
                         delete aQuerySet;
                         return NS_ERROR_OUT_OF_MEMORY;
@@ -2276,9 +2255,6 @@ nsXULTemplateBuilder::CompileWhereCondition(nsTemplateRule* aRule,
         return NS_OK;
     }
 
-    if (! condition)
-        return NS_ERROR_OUT_OF_MEMORY;
-
     if (*aCurrentCondition) {
         (*aCurrentCondition)->SetNext(condition);
     }
@@ -2381,7 +2357,7 @@ nsXULTemplateBuilder::AddSimpleRuleBindings(nsTemplateRule* aRule,
     // Crawl the content tree of a "simple" rule, adding a variable
     // assignment for any attribute whose value is "rdf:".
 
-    nsAutoTArray<nsIContent*, 8> elements;
+    AutoTArray<nsIContent*, 8> elements;
 
     if (elements.AppendElement(aElement) == nullptr)
         return NS_ERROR_OUT_OF_MEMORY;

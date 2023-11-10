@@ -57,7 +57,7 @@ let gGestureSupport = {
     }
 
     // Create a preference object with some defaults
-    let def = function(aThreshold, aLatched)
+    let def = (aThreshold, aLatched) =>
       ({ threshold: aThreshold, latched: !!aLatched });
 
     switch (aEvent.type) {
@@ -217,7 +217,7 @@ let gGestureSupport = {
    *        Source array containing any number of elements
    * @yield Array that is a subset of the input array from full set to empty
    */
-  _power: function GS__power(aArray) {
+  _power: function* GS__power(aArray) {
     // Create a bitmask based on the length of the array
     let num = 1 << aArray.length;
     while (--num >= 0) {

@@ -120,11 +120,10 @@ static MOZ_CONSTEXPR_VAR Register FramePointer = InvalidReg;
 static MOZ_CONSTEXPR_VAR Register ReturnReg = r0;
 static MOZ_CONSTEXPR_VAR FloatRegister ReturnFloat32Reg = { FloatRegisters::d0, VFPRegister::Single };
 static MOZ_CONSTEXPR_VAR FloatRegister ReturnDoubleReg = { FloatRegisters::d0, VFPRegister::Double};
-static MOZ_CONSTEXPR_VAR FloatRegister ReturnInt32x4Reg = InvalidFloatReg;
-static MOZ_CONSTEXPR_VAR FloatRegister ReturnFloat32x4Reg = InvalidFloatReg;
+static MOZ_CONSTEXPR_VAR FloatRegister ReturnSimd128Reg = InvalidFloatReg;
 static MOZ_CONSTEXPR_VAR FloatRegister ScratchFloat32Reg = { FloatRegisters::d30, VFPRegister::Single };
 static MOZ_CONSTEXPR_VAR FloatRegister ScratchDoubleReg = { FloatRegisters::d15, VFPRegister::Double };
-static MOZ_CONSTEXPR_VAR FloatRegister ScratchSimdReg = InvalidFloatReg;
+static MOZ_CONSTEXPR_VAR FloatRegister ScratchSimd128Reg = InvalidFloatReg;
 static MOZ_CONSTEXPR_VAR FloatRegister ScratchUIntReg = { FloatRegisters::d15, VFPRegister::UInt };
 static MOZ_CONSTEXPR_VAR FloatRegister ScratchIntReg = { FloatRegisters::d15, VFPRegister::Int };
 
@@ -161,6 +160,17 @@ static MOZ_CONSTEXPR_VAR Register AsmJSIonExitRegD0 = r0;
 static MOZ_CONSTEXPR_VAR Register AsmJSIonExitRegD1 = r1;
 static MOZ_CONSTEXPR_VAR Register AsmJSIonExitRegD2 = r4;
 
+// Registerd used in RegExpMatcher instruction (do not use JSReturnOperand).
+static MOZ_CONSTEXPR_VAR Register RegExpMatcherRegExpReg = CallTempReg0;
+static MOZ_CONSTEXPR_VAR Register RegExpMatcherStringReg = CallTempReg1;
+static MOZ_CONSTEXPR_VAR Register RegExpMatcherLastIndexReg = CallTempReg2;
+static MOZ_CONSTEXPR_VAR Register RegExpMatcherStickyReg = CallTempReg3;
+
+// Registerd used in RegExpTester instruction (do not use ReturnReg).
+static MOZ_CONSTEXPR_VAR Register RegExpTesterRegExpReg = CallTempReg0;
+static MOZ_CONSTEXPR_VAR Register RegExpTesterStringReg = CallTempReg1;
+static MOZ_CONSTEXPR_VAR Register RegExpTesterLastIndexReg = CallTempReg2;
+static MOZ_CONSTEXPR_VAR Register RegExpTesterStickyReg = CallTempReg3;
 
 static MOZ_CONSTEXPR_VAR FloatRegister d0  = {FloatRegisters::d0, VFPRegister::Double};
 static MOZ_CONSTEXPR_VAR FloatRegister d1  = {FloatRegisters::d1, VFPRegister::Double};
@@ -210,6 +220,12 @@ static_assert(JitStackAlignment % SimdMemoryAlignment == 0,
 
 static const uint32_t AsmJSStackAlignment = SimdMemoryAlignment;
 
+// Does this architecture support SIMD conversions between Uint32x4 and Float32x4?
+static MOZ_CONSTEXPR_VAR bool SupportsUint32x4FloatConversions = false;
+
+// Does this architecture support comparisons of unsigned 32x4 integer vectors?
+static MOZ_CONSTEXPR_VAR bool SupportsUint32x4Compares = false;
+
 static const Scale ScalePointer = TimesFour;
 
 class Instruction;
@@ -224,10 +240,10 @@ uint32_t maybeRD(Register r);
 uint32_t maybeRT(Register r);
 uint32_t maybeRN(Register r);
 
-Register toRN (Instruction& i);
-Register toRM (Instruction& i);
-Register toRD (Instruction& i);
-Register toR (Instruction& i);
+Register toRN(Instruction i);
+Register toRM(Instruction i);
+Register toRD(Instruction i);
+Register toR(Instruction i);
 
 class VFPRegister;
 uint32_t VD(VFPRegister vr);
@@ -647,33 +663,17 @@ class Imm8 : public Operand2
 
   public:
     static datastore::Imm8mData EncodeImm(uint32_t imm) {
-        // mozilla::CountLeadingZeroes32(imm) requires imm != 0.
-        if (imm == 0)
-            return datastore::Imm8mData(0, 0);
-        int left = mozilla::CountLeadingZeroes32(imm) & 30;
-        // See if imm is a simple value that can be encoded with a rotate of 0.
-        // This is effectively imm <= 0xff, but I assume this can be optimized
-        // more.
-        if (left >= 24)
+        // RotateLeft below may not be called with a shift of zero.
+        if (imm <= 0xFF)
             return datastore::Imm8mData(imm, 0);
 
-        // Mask out the 8 bits following the first bit that we found, see if we
-        // have 0 yet.
-        int no_imm = imm & ~(0xff << (24 - left));
-        if (no_imm == 0) {
-            return  datastore::Imm8mData(imm >> (24 - left), ((8 + left) >> 1));
+        // An encodable integer has a maximum of 8 contiguous set bits,
+        // with an optional wrapped left rotation to even bit positions.
+        for (int rot = 1; rot < 16; rot++) {
+            uint32_t rotimm = mozilla::RotateLeft(imm, rot*2);
+            if (rotimm <= 0xFF)
+                return datastore::Imm8mData(rotimm, rot);
         }
-        // Look for the most signifigant bit set, once again.
-        int right = 32 - (mozilla::CountLeadingZeroes32(no_imm) & 30);
-        // If it is in the bottom 8 bits, there is a chance that this is a
-        // wraparound case.
-        if (right >= 8)
-            return datastore::Imm8mData();
-        // Rather than masking out bits and checking for 0, just rotate the
-        // immediate that we were passed in, and see if it fits into 8 bits.
-        unsigned int mask = imm << (8 - right) | imm >> (24 + right);
-        if (mask <= 0xff)
-            return datastore::Imm8mData(mask, (8 - right) >> 1);
         return datastore::Imm8mData();
     }
 
@@ -993,7 +993,7 @@ class BOffImm
     {
         MOZ_ASSERT((offset & 0x3) == 0);
         if (!IsInRange(offset))
-            CrashAtUnhandlableOOM("BOffImm");
+            MOZ_CRASH("BOffImm offset out of range");
     }
 
     explicit BOffImm()
@@ -1255,11 +1255,12 @@ class Assembler : public AssemblerShared
                             uint8_t* inst, uint8_t* data, ARMBuffer::PoolEntry* pe = nullptr,
                             bool markAsBranch = false, bool loadToPC = false);
 
-    Instruction* editSrc (BufferOffset bo) {
+    Instruction* editSrc(BufferOffset bo) {
         return m_buffer.getInst(bo);
     }
 
 #ifdef JS_DISASM_ARM
+    static void spewInst(Instruction* i);
     void spew(Instruction* i);
     void spewBranch(Instruction* i, Label* target);
     void spewData(BufferOffset addr, size_t numInstr, bool loadToPC);
@@ -1270,10 +1271,8 @@ class Assembler : public AssemblerShared
 
   public:
     void resetCounter();
-    uint32_t actualOffset(uint32_t) const;
     uint32_t actualIndex(uint32_t) const;
     static uint8_t* PatchableJumpAddress(JitCode* code, uint32_t index);
-    BufferOffset actualOffset(BufferOffset) const;
     static uint32_t NopFill;
     static uint32_t GetNopFill();
     static uint32_t AsmPoolMaxOffset;
@@ -1293,11 +1292,7 @@ class Assembler : public AssemblerShared
 
     // TODO: this should actually be a pool-like object. It is currently a big
     // hack, and probably shouldn't exist.
-    js::Vector<CodeLabel, 0, SystemAllocPolicy> codeLabels_;
     js::Vector<RelativePatch, 8, SystemAllocPolicy> jumps_;
-    js::Vector<BufferOffset, 0, SystemAllocPolicy> tmpJumpRelocations_;
-    js::Vector<BufferOffset, 0, SystemAllocPolicy> tmpDataRelocations_;
-    js::Vector<BufferOffset, 0, SystemAllocPolicy> tmpPreBarriers_;
 
     CompactBufferWriter jumpRelocations_;
     CompactBufferWriter dataRelocations_;
@@ -1327,6 +1322,7 @@ class Assembler : public AssemblerShared
 
     SpewNodes spewNodes_;
     uint32_t spewNext_;
+    Sprinter* printer_;
 
     bool spewDisabled();
     uint32_t spewResolve(Label* l);
@@ -1343,6 +1339,7 @@ class Assembler : public AssemblerShared
       : m_buffer(1, 1, 8, GetPoolMaxOffset(), 8, 0xe320f000, 0xeaffffff, GetNopFill()),
 #ifdef JS_DISASM_ARM
         spewNext_(1000),
+        printer_(nullptr),
 #endif
         isFinished(false),
         dtmActive(false),
@@ -1360,7 +1357,7 @@ class Assembler : public AssemblerShared
     // MacroAssemblers hold onto gcthings, so they are traced by the GC.
     void trace(JSTracer* trc);
     void writeRelocation(BufferOffset src) {
-        tmpJumpRelocations_.append(src);
+        jumpRelocations_.writeUnsigned(src.getOffset());
     }
 
     // As opposed to x86/x64 version, the data relocation has to be executed
@@ -1370,11 +1367,11 @@ class Assembler : public AssemblerShared
             if (gc::IsInsideNursery(ptr.value))
                 embedsNurseryPointers_ = true;
             if (ptr.value)
-                tmpDataRelocations_.append(nextOffset());
+                dataRelocations_.writeUnsigned(nextOffset().getOffset());
         }
     }
-    void writePrebarrierOffset(CodeOffsetLabel label) {
-        tmpPreBarriers_.append(BufferOffset(label.offset()));
+    void writePrebarrierOffset(CodeOffset label) {
+        preBarriers_.writeUnsigned(label.offset());
     }
 
     enum RelocBranchStyle {
@@ -1403,6 +1400,9 @@ class Assembler : public AssemblerShared
     bool oom() const;
 
     void setPrinter(Sprinter* sp) {
+#ifdef JS_DISASM_ARM
+        printer_ = sp;
+#endif
     }
 
     static const Register getStackPointer() {
@@ -1413,18 +1413,11 @@ class Assembler : public AssemblerShared
     bool isFinished;
   public:
     void finish();
+    bool asmMergeWith(Assembler& other);
     void executableCopy(void* buffer);
     void copyJumpRelocationTable(uint8_t* dest);
     void copyDataRelocationTable(uint8_t* dest);
     void copyPreBarrierTable(uint8_t* dest);
-
-    void addCodeLabel(CodeLabel label);
-    size_t numCodeLabels() const {
-        return codeLabels_.length();
-    }
-    CodeLabel codeLabel(size_t i) {
-        return codeLabels_[i];
-    }
 
     // Size of the instruction stream, in bytes, after pools are flushed.
     size_t size() const;
@@ -1453,7 +1446,7 @@ class Assembler : public AssemblerShared
     static void WriteInstStatic(uint32_t x, uint32_t* dest);
 
   public:
-    void writeCodePointer(AbsoluteLabel* label);
+    void writeCodePointer(CodeOffset* label);
 
     void haltingAlign(int alignment);
     void nopAlign(int alignment);
@@ -1604,6 +1597,7 @@ class Assembler : public AssemblerShared
     BufferOffset as_b(BOffImm off, Condition c, Label* documentation = nullptr);
 
     BufferOffset as_b(Label* l, Condition c = Always);
+    BufferOffset as_b(wasm::JumpTarget target, Condition c = Always);
     BufferOffset as_b(BOffImm off, Condition c, BufferOffset inst);
 
     // blx can go to either an immediate or a register. When blx'ing to a
@@ -1711,6 +1705,7 @@ class Assembler : public AssemblerShared
     bool nextLink(BufferOffset b, BufferOffset* next);
     void bind(Label* label, BufferOffset boff = BufferOffset());
     void bind(RepatchLabel* label);
+    void bindLater(Label* label, wasm::JumpTarget target);
     uint32_t currentOffset() {
         return nextOffset().getOffset();
     }
@@ -1718,11 +1713,11 @@ class Assembler : public AssemblerShared
     // I'm going to pretend this doesn't exist for now.
     void retarget(Label* label, void* target, Relocation::Kind reloc);
 
-    void Bind(uint8_t* rawCode, AbsoluteLabel* label, const void* address);
+    void Bind(uint8_t* rawCode, CodeOffset* label, const void* address);
 
     // See Bind
-    size_t labelOffsetToPatchOffset(size_t offset) {
-        return actualOffset(offset);
+    size_t labelToPatchOffset(CodeOffset label) {
+        return label.offset();
     }
 
     void as_bkpt();
@@ -1879,6 +1874,13 @@ class Assembler : public AssemblerShared
     // load using the index we'd computed previously as well as the address of
     // the pool start.
     static void PatchConstantPoolLoad(void* loadAddr, void* constPoolAddr);
+
+    // We're not tracking short-range branches for ARM for now.
+    static void PatchShortRangeBranchToVeneer(ARMBuffer*, unsigned rangeIdx, BufferOffset deadline,
+                                              BufferOffset veneer)
+    {
+        MOZ_CRASH();
+    }
     // END API
 
     // Move our entire pool into the instruction stream. This is to force an
@@ -1927,9 +1929,6 @@ class Assembler : public AssemblerShared
 
     static void UpdateBoundsCheck(uint32_t logHeapSize, Instruction* inst);
     void processCodeLabels(uint8_t* rawCode);
-    static int32_t ExtractCodeLabelOffset(uint8_t* code) {
-        return *(uintptr_t*)code;
-    }
 
     bool bailed() {
         return m_buffer.bail();
@@ -1952,11 +1951,15 @@ class Instruction
     // This is not for defaulting to always, this is for instructions that
     // cannot be made conditional, and have the usually invalid 4b1111 cond
     // field.
-    Instruction (uint32_t data_, bool fake = false) : data(data_ | 0xf0000000) {
+    explicit Instruction(uint32_t data_, bool fake = false)
+      : data(data_ | 0xf0000000)
+    {
         MOZ_ASSERT(fake || ((data_ & 0xf0000000) == 0));
     }
     // Standard constructor.
-    Instruction (uint32_t data_, Assembler::Condition c) : data(data_ | (uint32_t) c) {
+    Instruction(uint32_t data_, Assembler::Condition c)
+      : data(data_ | (uint32_t) c)
+    {
         MOZ_ASSERT((data_ & 0xf0000000) == 0);
     }
     // You should never create an instruction directly. You should create a more
@@ -1974,15 +1977,15 @@ class Instruction
     template <class C>
     C* as() const { return C::AsTHIS(*this); }
 
-    const Instruction & operator=(const Instruction& src) {
+    const Instruction& operator=(Instruction src) {
         data = src.data;
         return *this;
     }
     // Since almost all instructions have condition codes, the condition code
     // extractor resides in the base class.
-    void extractCond(Assembler::Condition* c) {
-        if (data >> 28 != 0xf )
-            *c = (Assembler::Condition)(data & 0xf0000000);
+    Assembler::Condition extractCond() {
+        MOZ_ASSERT(data >> 28 != 0xf, "The instruction does not have condition code");
+        return (Assembler::Condition)(data & 0xf0000000);
     }
     // Get the next instruction in the instruction stream.
     // This does neat things like ignoreconstant pools and their guards.
@@ -2026,12 +2029,29 @@ class InstLDR : public InstDTR
 {
   public:
     InstLDR(Index mode, Register rt, DTRAddr addr, Assembler::Condition c)
-        : InstDTR(IsLoad, IsWord, mode, rt, addr, c)
+      : InstDTR(IsLoad, IsWord, mode, rt, addr, c)
     { }
 
     static bool IsTHIS(const Instruction& i);
     static InstLDR* AsTHIS(const Instruction& i);
 
+    int32_t signedOffset() const {
+        int32_t offset = encode() & 0xfff;
+        if (IsUp_(encode() & IsUp) != IsUp)
+            return -offset;
+        return offset;
+    }
+    uint32_t* dest() const {
+        int32_t offset = signedOffset();
+        // When patching the load in PatchConstantPoolLoad, we ensure that the
+        // offset is a multiple of 4, offset by 8 bytes from the actual
+        // location.  Indeed, when the base register is PC, ARM's 3 stages
+        // pipeline design makes it that PC is off by 8 bytes (= 2 *
+        // sizeof(uint32*)) when we actually executed it.
+        MOZ_ASSERT(offset % 4 == 0);
+        offset >>= 2;
+        return (uint32_t*)raw() + offset + 2;
+    }
 };
 JS_STATIC_ASSERT(sizeof(InstDTR) == sizeof(InstLDR));
 

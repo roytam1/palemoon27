@@ -25,7 +25,7 @@ class MultipartImage
 {
 public:
   MOZ_DECLARE_REFCOUNTED_TYPENAME(MultipartImage)
-  NS_DECL_ISUPPORTS
+  NS_DECL_ISUPPORTS_INHERITED
 
   void BeginTransitionToPart(Image* aNextPart);
 
@@ -78,9 +78,9 @@ private:
 
   void FinishTransition();
 
-  nsRefPtr<ProgressTracker> mTracker;
-  nsRefPtr<NextPartObserver> mNextPartObserver;
-  nsRefPtr<Image> mNextPart;
+  RefPtr<ProgressTracker> mTracker;
+  RefPtr<NextPartObserver> mNextPartObserver;
+  RefPtr<Image> mNextPart;
   bool mDeferNotifications : 1;
 };
 

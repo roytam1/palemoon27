@@ -15,10 +15,11 @@ fuzzy-if(gtkWidget,255,2) fuzzy-if(winWidget||Android||B2G,4,8704) HTTP(..) == 1
 == 1089388-1.html 1089388-1-ref.html
 == 1089388-2.html 1089388-2-ref.html
 == 1090159-1.html 1090159-1-ref.html
-== 1090168-1.html 1090168-1-ref.html
+# bug 1230357 fuzz on b2g for subpixel text positioning on skia.
+fuzzy-if(B2G&&azureSkia,130,200) == 1090168-1.html 1090168-1-ref.html
 != 1090168-1.html 1090168-1-notref.html
-== 1090168-2.html 1090168-2-ref.html
-fuzzy-if(B2G,244,173) fuzzy-if(Mulet,255,165) == 1090168-3.html 1090168-3-ref.html # bug 1142928: mark fuzzy on Mulet as on B2G
+fuzzy-if(B2G&&azureSkia,130,200) == 1090168-2.html 1090168-2-ref.html
+fuzzy-if(B2G,244,173) fuzzy-if(Mulet,255,165) fuzzy-if(azureSkia,255,2700) == 1090168-3.html 1090168-3-ref.html # bug 1142928: mark fuzzy on Mulet as on B2G, bug 1230357 for skia.
 == 1091058-1.html 1091058-1-ref.html
 random-if(gtkWidget) == 1094434-1.html 1094434-1-ref.html # bug 1094845
 random-if(gtkWidget) == 1094434-2.html 1094434-2-ref.html # bug 1094845
@@ -60,7 +61,6 @@ fuzzy(116,64) HTTP(..) == 1115916-1-vertical-metrics.html 1115916-1-vertical-met
 == ua-style-sheet-border-3.html ua-style-sheet-border-3-ref.html
 == ua-style-sheet-border-4.html ua-style-sheet-border-4-ref.html
 == ua-style-sheet-border-5.html ua-style-sheet-border-5-ref.html
-== ua-style-sheet-border-6.html ua-style-sheet-border-6-ref.html
 == ua-style-sheet-size-1.html ua-style-sheet-size-1-ref.html
 == ua-style-sheet-size-2.html ua-style-sheet-size-2-ref.html
 
@@ -149,6 +149,22 @@ test-pref(dom.meta-viewport.enabled,true) test-pref(font.size.inflation.emPerLin
 == 1172774-percent-padding-3.html 1172774-percent-vertical-ref.html
 == 1172774-percent-padding-4.html 1172774-percent-vertical-ref.html
 == 1174450-intrinsic-sizing.html 1174450-intrinsic-sizing-ref.html
+== 1175789-underline-overline-1.html 1175789-underline-overline-1-ref.html
+== 1188061-1-nsChangeHint_ClearAncestorIntrinsics.html 1188061-1-nsChangeHint_ClearAncestorIntrinsics-ref.html
+== 1188061-2-nsChangeHint_UpdateComputedBSize.html 1188061-2-nsChangeHint_UpdateComputedBSize-ref.html
+
+# tests involving sideways-lr mode
+== 1193519-sideways-lr-1.html 1193519-sideways-lr-1-ref.html
+== 1193519-sideways-lr-2.html 1193519-sideways-lr-2-ref.html
+== 1193519-sideways-lr-3.html 1193519-sideways-lr-3-ref.html
+== 1193519-sideways-lr-4.html 1193519-sideways-lr-4-ref.html
+fuzzy-if(gtkWidget||B2G,255,6) fuzzy-if(cocoaWidget,65,69) == 1193519-sideways-lr-decoration-1.html 1193519-sideways-lr-decoration-1-ref.html
+
+== 1196887-1-computed-display-inline-block.html 1196887-1-computed-display-inline-block-ref.html
+== 1205787-legacy-svg-values-1.html 1205787-legacy-svg-values-1-ref.html
+
+== 1216747-1.html 1216747-1-ref.html
+!= 1216747-1.html 1216747-1-notref.html
 
 # Suite of tests from Gérard Talbot in bug 1079151
 include abspos/reftest.list

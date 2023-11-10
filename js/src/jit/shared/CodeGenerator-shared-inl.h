@@ -28,7 +28,7 @@ ToInt32(const LAllocation* a)
 static inline double
 ToDouble(const LAllocation* a)
 {
-    return a->toConstant()->toNumber();
+    return a->toConstant()->numberToDouble();
 }
 
 static inline Register
@@ -48,6 +48,18 @@ static inline Register
 ToRegister(const LDefinition* def)
 {
     return ToRegister(*def->output());
+}
+
+static inline Register64
+ToOutRegister64(LInstruction* ins)
+{
+#if JS_BITS_PER_WORD == 32
+    Register loReg = ToRegister(ins->getDef(0));
+    Register hiReg = ToRegister(ins->getDef(1));
+    return Register64(hiReg, loReg);
+#else
+    return Register64(ToRegister(ins->getDef(0)));
+#endif
 }
 
 static inline Register
@@ -87,6 +99,14 @@ static inline FloatRegister
 ToFloatRegister(const LDefinition* def)
 {
     return ToFloatRegister(*def->output());
+}
+
+static inline FloatRegister
+ToTempFloatRegisterOrInvalid(const LDefinition* def)
+{
+    if (def->isBogusTemp())
+        return InvalidFloatReg;
+    return ToFloatRegister(def);
 }
 
 static inline AnyRegister
@@ -248,33 +268,33 @@ void
 CodeGeneratorShared::restoreLive(LInstruction* ins)
 {
     MOZ_ASSERT(!ins->isCall());
-    LSafepoint *safepoint = ins->safepoint();
+    LSafepoint* safepoint = ins->safepoint();
     masm.PopRegsInMask(safepoint->liveRegs());
 }
 
 void
-CodeGeneratorShared::restoreLiveIgnore(LInstruction *ins, LiveRegisterSet ignore)
+CodeGeneratorShared::restoreLiveIgnore(LInstruction* ins, LiveRegisterSet ignore)
 {
     MOZ_ASSERT(!ins->isCall());
-    LSafepoint *safepoint = ins->safepoint();
+    LSafepoint* safepoint = ins->safepoint();
     masm.PopRegsInMaskIgnore(safepoint->liveRegs(), ignore);
 }
 
 void
-CodeGeneratorShared::saveLiveVolatile(LInstruction *ins)
+CodeGeneratorShared::saveLiveVolatile(LInstruction* ins)
 {
     MOZ_ASSERT(!ins->isCall());
-    LSafepoint *safepoint = ins->safepoint();
+    LSafepoint* safepoint = ins->safepoint();
     LiveRegisterSet regs;
     regs.set() = RegisterSet::Intersect(safepoint->liveRegs().set(), RegisterSet::Volatile());
     masm.PushRegsInMask(regs);
 }
 
 void
-CodeGeneratorShared::restoreLiveVolatile(LInstruction *ins)
+CodeGeneratorShared::restoreLiveVolatile(LInstruction* ins)
 {
     MOZ_ASSERT(!ins->isCall());
-    LSafepoint *safepoint = ins->safepoint();
+    LSafepoint* safepoint = ins->safepoint();
     LiveRegisterSet regs;
     regs.set() = RegisterSet::Intersect(safepoint->liveRegs().set(), RegisterSet::Volatile());
     masm.PopRegsInMask(regs);
@@ -283,7 +303,7 @@ CodeGeneratorShared::restoreLiveVolatile(LInstruction *ins)
 void
 CodeGeneratorShared::verifyHeapAccessDisassembly(uint32_t begin, uint32_t end, bool isLoad,
                                                  Scalar::Type type, unsigned numElems,
-                                                 const Operand &mem, LAllocation alloc)
+                                                 const Operand& mem, LAllocation alloc)
 {
 #ifdef DEBUG
     using namespace Disassembler;
@@ -295,7 +315,7 @@ CodeGeneratorShared::verifyHeapAccessDisassembly(uint32_t begin, uint32_t end, b
       case Scalar::Int16:
         if (kind == HeapAccess::Load)
             kind = HeapAccess::LoadSext32;
-        // FALL THROUGH
+        MOZ_FALLTHROUGH;
       case Scalar::Uint8:
       case Scalar::Uint16:
       case Scalar::Int32:

@@ -19,7 +19,7 @@ class MessagePortChild final : public PMessagePortChild
 public:
   NS_INLINE_DECL_REFCOUNTING(MessagePortChild)
 
-  MessagePortChild() {}
+  MessagePortChild() : mPort(nullptr) {}
 
   void SetPort(MessagePort* aPort)
   {
@@ -46,7 +46,7 @@ private:
   MessagePort* mPort;
 };
 
-} // dom namespace
-} // mozilla namespace
+} // namespace dom
+} // namespace mozilla
 
 #endif // mozilla_dom_MessagePortChild_h

@@ -2572,6 +2572,11 @@ public:
         twoByteOpImmSimd("vshufps", VEX_PS, OP2_SHUFPS_VpsWpsIb, mask, address, src0, dst);
     }
 
+    void vmovddup_rr(XMMRegisterID src, XMMRegisterID dst)
+    {
+        twoByteOpSimd("vmovddup", VEX_SD, OP2_MOVDDUP_VqWq, src, invalid_xmm, dst);
+    }
+
     void vmovhlps_rr(XMMRegisterID src1, XMMRegisterID src0, XMMRegisterID dst)
     {
         twoByteOpSimd("vmovhlps", VEX_PS, OP2_MOVHLPS_VqUq, src1, src0, dst);
@@ -3406,6 +3411,15 @@ threeByteOpImmSimd("vblendps", VEX_PD, OP3_BLENDPS_VpsWpsIb, ESCAPE_3A, imm, off
     void executableCopy(void* buffer)
     {
         memcpy(buffer, m_formatter.buffer(), size());
+    }
+    bool appendBuffer(const BaseAssembler& other)
+    {
+        size_t otherSize = other.size();
+        size_t formerSize = size();
+        if (!m_formatter.growByUninitialized(otherSize))
+            return false;
+        memcpy((char*)m_formatter.buffer() + formerSize, other.m_formatter.buffer(), otherSize);
+        return true;
     }
 
   protected:
@@ -4657,6 +4671,7 @@ threeByteOpImmSimd("vblendps", VEX_PD, OP3_BLENDPS_VpsWpsIb, ESCAPE_3A, imm, off
         // Administrative methods:
 
         size_t size() const { return m_buffer.size(); }
+        bool growByUninitialized(size_t size) { return m_buffer.growByUninitialized(size); }
         const unsigned char* buffer() const { return m_buffer.buffer(); }
         bool oom() const { return m_buffer.oom(); }
         bool isAligned(int alignment) const { return m_buffer.isAligned(alignment); }

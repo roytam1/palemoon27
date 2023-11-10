@@ -101,14 +101,14 @@ const DAY_IN_MS  = 86400000; // 1 day in milliseconds
 const MAX_SEARCH_TOKENS = 10;
 const NOOP = function noop() {};
 
-let supportsDeletedTable =
+var supportsDeletedTable =
 #ifdef ANDROID
   true;
 #else
   false;
 #endif
 
-let Prefs = {
+var Prefs = {
   initialized: false,
 
   get debug() { this.ensureInitialized(); return this._debug; },
@@ -338,7 +338,7 @@ function makeMoveToDeletedStatement(aGuid, aNow, aData, aBindingArrays) {
       // TODO: Add these items to the deleted items table once we've sorted
       //       out the issues from bug 756701
       if (!queryTerms)
-        return;
+        return undefined;
 
       query += " SELECT guid, :timeDeleted FROM moz_formhistory WHERE " + queryTerms;
     }
@@ -371,7 +371,7 @@ function generateGUID() {
  * Database creation and access
  */
 
-let _dbConnection = null;
+var _dbConnection = null;
 XPCOMUtils.defineLazyGetter(this, "dbConnection", function() {
   let dbFile;
 
@@ -392,7 +392,7 @@ XPCOMUtils.defineLazyGetter(this, "dbConnection", function() {
 });
 
 
-let dbStmts = new Map();
+var dbStmts = new Map();
 
 /*
  * dbCreateAsyncStatement
@@ -465,7 +465,7 @@ function dbCreate() {
   log("Creating DB -- tables");
   for (let name in dbSchema.tables) {
     let table = dbSchema.tables[name];
-    let tSQL = [[col, table[col]].join(" ") for (col in table)].join(", ");
+    let tSQL = Object.keys(table).map(col => [col, table[col]].join(" ")).join(", ");
     log("Creating table " + name + " with " + tSQL);
     _dbConnection.createTable(name, tSQL);
   }
@@ -532,7 +532,7 @@ var Migrators = {
   dbMigrateToVersion4: function dbMigrateToVersion4() {
     if (!_dbConnection.tableExists("moz_deleted_formhistory")) {
       let table = dbSchema.tables["moz_deleted_formhistory"];
-      let tSQL = [[col, table[col]].join(" ") for (col in table)].join(", ");
+      let tSQL = Object.keys(table).map(col => [col, table[col]].join(" ")).join(", ");
       _dbConnection.createTable("moz_deleted_formhistory", tSQL);
     }
   }
@@ -548,7 +548,7 @@ function dbAreExpectedColumnsPresent() {
   for (let name in dbSchema.tables) {
     let table = dbSchema.tables[name];
     let query = "SELECT " +
-                [col for (col in table)].join(", ") +
+                Object.keys(table).join(", ") +
                 " FROM " + name;
     try {
       let stmt = _dbConnection.createStatement(query);

@@ -19,6 +19,7 @@
 #include "nsIContent.h"
 #include "nsIDocument.h"
 #include "nsIDocumentEncoder.h"
+#include "nsIParserService.h"
 #include "nsNameSpaceManager.h"
 #include "nsTextFragment.h"
 #include "nsString.h"
@@ -47,7 +48,7 @@ using namespace mozilla::dom;
 nsresult
 NS_NewXMLContentSerializer(nsIContentSerializer** aSerializer)
 {
-  nsRefPtr<nsXMLContentSerializer> it = new nsXMLContentSerializer();
+  RefPtr<nsXMLContentSerializer> it = new nsXMLContentSerializer();
   it.forget(aSerializer);
   return NS_OK;
 }
@@ -1387,7 +1388,7 @@ nsXMLContentSerializer::AppendFormatedWrapped_WhitespaceSequence(
       case ' ':
       case '\t':
         sawBlankOrTab = true;
-        // no break
+        MOZ_FALLTHROUGH;
       case '\n':
         ++aPos;
         // do not increase mColPos,

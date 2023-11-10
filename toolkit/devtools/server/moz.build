@@ -21,15 +21,28 @@ EXPORTS.mozilla.devtools += [
     'AutoMemMap.h',
     'CoreDump.pb.h',
     'DeserializedNode.h',
+    'DominatorTree.h',
+    'FileDescriptorOutputStream.h',
     'HeapSnapshot.h',
+    'HeapSnapshotTempFileHelperChild.h',
+    'HeapSnapshotTempFileHelperParent.h',
     'ZeroCopyNSIOutputStream.h',
 ]
+
+IPDL_SOURCES += [
+    'PHeapSnapshotTempFileHelper.ipdl',
+]
+
+include('/ipc/chromium/chromium-config.mozbuild')
 
 SOURCES += [
     'AutoMemMap.cpp',
     'CoreDump.pb.cc',
     'DeserializedNode.cpp',
+    'DominatorTree.cpp',
+    'FileDescriptorOutputStream.cpp',
     'HeapSnapshot.cpp',
+    'HeapSnapshotTempFileHelperParent.cpp',
     'nsJSInspector.cpp',
     'ZeroCopyNSIOutputStream.cpp',
 ]
@@ -49,6 +62,7 @@ EXTRA_JS_MODULES.devtools.server += [
     'content-globals.js',
     'main.js',
     'protocol.js',
+    'worker.js'
 ]
 
 EXTRA_JS_MODULES.devtools.server.actors += [
@@ -72,8 +86,10 @@ EXTRA_JS_MODULES.devtools.server.actors += [
     'actors/inspector.js',
     'actors/layout.js',
     'actors/memory.js',
+    'actors/memprof.js',
     'actors/monitor.js',
     'actors/object.js',
+    'actors/performance-entries.js',
     'actors/preference.js',
     'actors/pretty-print-worker.js',
     'actors/profiler.js',
@@ -93,17 +109,16 @@ EXTRA_JS_MODULES.devtools.server.actors += [
     'actors/webbrowser.js',
     'actors/webconsole.js',
     'actors/webgl.js',
+    'actors/worker.js',
 ]
 
 EXTRA_JS_MODULES.devtools.server.actors.utils += [
     'actors/utils/actor-registry-utils.js',
+    'actors/utils/audionodes.json',
     'actors/utils/automation-timeline.js',
     'actors/utils/make-debugger.js',
     'actors/utils/map-uri-to-addon-id.js',
-    'actors/utils/memory-bridge.js',
     'actors/utils/ScriptStore.js',
     'actors/utils/stack.js',
     'actors/utils/TabSources.js'
 ]
-
-FAIL_ON_WARNINGS = True

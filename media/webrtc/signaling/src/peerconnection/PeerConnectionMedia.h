@@ -108,10 +108,10 @@ public:
   void DetachMedia_m();
   bool AnyCodecHasPluginID(uint64_t aPluginID);
 #if !defined(MOZILLA_EXTERNAL_LINKAGE)
-  nsRefPtr<mozilla::dom::VideoStreamTrack> GetVideoTrackByTrackId(const std::string& trackId);
+  RefPtr<mozilla::dom::VideoStreamTrack> GetVideoTrackByTrackId(const std::string& trackId);
 #endif
 protected:
-  nsRefPtr<DOMMediaStream> mMediaStream;
+  RefPtr<DOMMediaStream> mMediaStream;
   PeerConnectionMedia *mParent;
   const std::string mId;
   // These get set up before we generate our local description, the pipelines
@@ -228,12 +228,10 @@ class PeerConnectionMedia : public sigslot::has_slots<> {
 
   PeerConnectionImpl* GetPC() { return mParent; }
   nsresult Init(const std::vector<NrIceStunServer>& stun_servers,
-                const std::vector<NrIceTurnServer>& turn_servers);
+                const std::vector<NrIceTurnServer>& turn_servers,
+                NrIceCtx::Policy policy);
   // WARNING: This destroys the object!
   void SelfDestruct();
-
-  // Configure the ability to use localhost.
-  void SetAllowIceLoopback(bool val) { mAllowIceLoopback = val; }
 
   RefPtr<NrIceCtx> ice_ctx() const { return mIceCtx; }
 
@@ -245,8 +243,12 @@ class PeerConnectionMedia : public sigslot::has_slots<> {
     return mIceCtx->GetStreamCount();
   }
 
-  // Create and modify transports in response to negotiation events.
-  void UpdateTransports(const JsepSession& session, bool restartGathering);
+  // Ensure ICE transports exist that we might need when offer/answer concludes
+  void EnsureTransports(const JsepSession& aSession);
+
+  // Activate or remove ICE transports at the conclusion of offer/answer,
+  // or when rollback occurs.
+  void ActivateOrRemoveTransports(const JsepSession& aSession);
 
   // Start ICE checks.
   void StartIceChecks(const JsepSession& session);
@@ -290,7 +292,7 @@ class PeerConnectionMedia : public sigslot::has_slots<> {
   RemoteSourceStreamInfo* GetRemoteStreamById(const std::string& id);
 
   // Add a remote stream.
-  nsresult AddRemoteStream(nsRefPtr<RemoteSourceStreamInfo> aInfo);
+  nsresult AddRemoteStream(RefPtr<RemoteSourceStreamInfo> aInfo);
 
   nsresult ReplaceTrack(const std::string& oldStreamId,
                         const std::string& oldTrackId,
@@ -389,7 +391,8 @@ class PeerConnectionMedia : public sigslot::has_slots<> {
   // This passes a candidate:... attribute  and level
   sigslot::signal2<const std::string&, uint16_t> SignalCandidate;
   // This passes address, port, level of the default candidate.
-  sigslot::signal3<const std::string&, uint16_t, uint16_t>
+  sigslot::signal5<const std::string&, uint16_t,
+                   const std::string&, uint16_t, uint16_t>
       SignalEndOfLocalCandidates;
 
  private:
@@ -419,19 +422,22 @@ class PeerConnectionMedia : public sigslot::has_slots<> {
   void SelfDestruct_m();
 
   // Manage ICE transports.
-  void UpdateIceMediaStream_s(size_t aMLine, size_t aComponentCount,
-                              bool aHasAttrs,
-                              const std::string& aUfrag,
-                              const std::string& aPassword,
-                              const std::vector<std::string>& aCandidateList);
+  void EnsureTransport_s(size_t aLevel, size_t aComponentCount);
+  void ActivateOrRemoveTransport_s(
+      size_t aMLine,
+      size_t aComponentCount,
+      const std::string& aUfrag,
+      const std::string& aPassword,
+      const std::vector<std::string>& aCandidateList);
+  void RemoveTransportsAtOrAfter_s(size_t aMLine);
+
   void GatherIfReady();
   void FlushIceCtxOperationQueueIfReady();
   void PerformOrEnqueueIceCtxOperation(nsIRunnable* runnable);
   void EnsureIceGathering_s();
   void StartIceChecks_s(bool aIsControlling,
                         bool aIsIceLite,
-                        const std::vector<std::string>& aIceOptionsList,
-                        const std::vector<size_t>& aComponentCountByLevel);
+                        const std::vector<std::string>& aIceOptionsList);
 
   // Process a trickle ICE candidate.
   void AddIceCandidate_s(const std::string& aCandidate, const std::string& aMid,
@@ -448,6 +454,8 @@ class PeerConnectionMedia : public sigslot::has_slots<> {
                         const std::string &candidate);
   void EndOfLocalCandidates(const std::string& aDefaultAddr,
                             uint16_t aDefaultPort,
+                            const std::string& aDefaultRtcpAddr,
+                            uint16_t aDefaultRtcpPort,
                             uint16_t aMLine);
 
   void IceGatheringStateChange_m(NrIceCtx* ctx,
@@ -457,6 +465,8 @@ class PeerConnectionMedia : public sigslot::has_slots<> {
   void OnCandidateFound_m(const std::string &candidate, uint16_t aMLine);
   void EndOfLocalCandidates_m(const std::string& aDefaultAddr,
                               uint16_t aDefaultPort,
+                              const std::string& aDefaultRtcpAddr,
+                              uint16_t aDefaultRtcpPort,
                               uint16_t aMLine);
   bool IsIceCtxReady() const {
     return mProxyResolveCompleted;
@@ -470,22 +480,19 @@ class PeerConnectionMedia : public sigslot::has_slots<> {
 
   // A list of streams returned from GetUserMedia
   // This is only accessed on the main thread (with one special exception)
-  nsTArray<nsRefPtr<LocalSourceStreamInfo> > mLocalSourceStreams;
+  nsTArray<RefPtr<LocalSourceStreamInfo> > mLocalSourceStreams;
 
   // A list of streams provided by the other side
   // This is only accessed on the main thread (with one special exception)
-  nsTArray<nsRefPtr<RemoteSourceStreamInfo> > mRemoteSourceStreams;
+  nsTArray<RefPtr<RemoteSourceStreamInfo> > mRemoteSourceStreams;
 
   std::map<size_t, std::pair<bool, RefPtr<MediaSessionConduit>>> mConduits;
-
-  // Allow loopback for ICE.
-  bool mAllowIceLoopback;
 
   // ICE objects
   RefPtr<NrIceCtx> mIceCtx;
 
   // DNS
-  nsRefPtr<NrIceResolver> mDNSResolver;
+  RefPtr<NrIceResolver> mDNSResolver;
 
   // Transport flows: even is RTP, odd is RTCP
   std::map<int, RefPtr<TransportFlow> > mTransportFlows;

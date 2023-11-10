@@ -35,7 +35,7 @@ typedef Rooted<JSFlatString*>    RootedFlatString;
 static const JSClass sLibraryClass = {
   "Library",
   JSCLASS_HAS_RESERVED_SLOTS(LIBRARY_SLOTS),
-  nullptr, nullptr, nullptr, nullptr, nullptr,
+  nullptr, nullptr, nullptr, nullptr,
   nullptr, nullptr, nullptr, Library::Finalize
 };
 
@@ -147,7 +147,7 @@ Library::Create(JSContext* cx, Value path_, const JSCTypesCallbacks* callbacks)
   PRLibrary* library = PR_LoadLibraryWithFlags(libSpec, 0);
 
   if (!library) {
-    char *error = (char*) JS_malloc(cx, PR_GetErrorTextLength() + 1);
+    char* error = (char*) JS_malloc(cx, PR_GetErrorTextLength() + 1);
     if (error)
       PR_GetErrorText(error);
 

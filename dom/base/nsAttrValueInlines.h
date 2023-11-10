@@ -1,3 +1,5 @@
+/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
+/* vim: set ts=8 sts=2 et sw=2 tw=80: */
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -8,24 +10,17 @@
 #include <stdint.h>
 
 #include "nsAttrValue.h"
+#include "mozilla/Attributes.h"
 
 struct MiscContainer;
 
-namespace mozilla {
-template<>
-struct HasDangerousPublicDestructor<MiscContainer>
-{
-  static const bool value = true;
-};
-}
-
-struct MiscContainer
+struct MiscContainer final
 {
   typedef nsAttrValue::ValueType ValueType;
 
   ValueType mType;
   // mStringBits points to either nsIAtom* or nsStringBuffer* and is used when
-  // mType isn't mCSSStyleRule.
+  // mType isn't eCSSDeclaration.
   // Note eStringBase and eAtomBase is used also to handle the type of
   // mStringBits.
   uintptr_t mStringBits;
@@ -36,7 +31,7 @@ struct MiscContainer
         nscolor mColor;
         uint32_t mEnumValue;
         int32_t mPercent;
-        mozilla::css::StyleRule* mCSSStyleRule;
+        mozilla::css::Declaration* mCSSDeclaration;
         mozilla::css::URLValue* mURL;
         mozilla::css::ImageValue* mImage;
         nsAttrValue::AtomArray* mAtomArray;
@@ -70,6 +65,10 @@ struct MiscContainer
     mValue.mCached = 0;
   }
 
+protected:
+  // Only nsAttrValue should be able to delete us.
+  friend class nsAttrValue;
+
   ~MiscContainer()
   {
     if (IsRefCounted()) {
@@ -79,6 +78,7 @@ struct MiscContainer
     MOZ_COUNT_DTOR(MiscContainer);
   }
 
+public:
   bool GetString(nsAString& aString) const;
 
   inline bool IsRefCounted() const
@@ -86,7 +86,7 @@ struct MiscContainer
     // Nothing stops us from refcounting (and sharing) other types of
     // MiscContainer (except eDoubleValue types) but there's no compelling
     // reason to 
-    return mType == nsAttrValue::eCSSStyleRule;
+    return mType == nsAttrValue::eCSSDeclaration;
   }
 
   inline int32_t AddRef() {
@@ -146,11 +146,11 @@ nsAttrValue::GetAtomArrayValue() const
   return GetMiscContainer()->mValue.mAtomArray;
 }
 
-inline mozilla::css::StyleRule*
-nsAttrValue::GetCSSStyleRuleValue() const
+inline mozilla::css::Declaration*
+nsAttrValue::GetCSSDeclarationValue() const
 {
-  NS_PRECONDITION(Type() == eCSSStyleRule, "wrong type");
-  return GetMiscContainer()->mValue.mCSSStyleRule;
+  NS_PRECONDITION(Type() == eCSSDeclaration, "wrong type");
+  return GetMiscContainer()->mValue.mCSSDeclaration;
 }
 
 inline mozilla::css::URLValue*
@@ -198,7 +198,7 @@ nsAttrValue::StoresOwnData() const
     return true;
   }
   ValueType t = Type();
-  return t != eCSSStyleRule && !IsSVGType(t);
+  return t != eCSSDeclaration && !IsSVGType(t);
 }
 
 inline void

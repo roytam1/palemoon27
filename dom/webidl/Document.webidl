@@ -10,6 +10,7 @@ interface WindowProxy;
 interface nsISupports;
 interface URI;
 interface nsIDocShell;
+interface nsILoadGroup;
 
 enum VisibilityState { "hidden", "visible" };
 
@@ -26,6 +27,10 @@ interface Document : Node {
   readonly attribute DOMString compatMode;
   [Pure]
   readonly attribute DOMString characterSet;
+  [Pure,BinaryName="characterSet"]
+  readonly attribute DOMString charset; // legacy alias of .characterSet
+  [Pure,BinaryName="characterSet"]
+  readonly attribute DOMString inputEncoding; // legacy alias of .characterSet
   [Pure]
   readonly attribute DOMString contentType;
 
@@ -85,8 +90,6 @@ interface Document : Node {
   Attr createAttribute(DOMString name);
   [NewObject, Throws]
   Attr createAttributeNS(DOMString? namespace, DOMString name);
-  [Pure]
-  readonly attribute DOMString? inputEncoding;
 };
 
 // http://www.whatwg.org/specs/web-apps/current-work/#the-document-object
@@ -307,6 +310,8 @@ partial interface Document {
 partial interface Document {
   [Func="nsDocument::IsWebAnimationsEnabled"]
   readonly attribute DocumentTimeline timeline;
+  [Func="nsDocument::IsWebAnimationsEnabled"]
+  sequence<Animation> getAnimations();
 };
 
 //  Mozilla extensions of various sorts
@@ -365,6 +370,8 @@ partial interface Document {
   [ChromeOnly] readonly attribute nsIDocShell? docShell;
 
   [ChromeOnly] readonly attribute DOMString contentLanguage;
+
+  [ChromeOnly] readonly attribute nsILoadGroup? documentLoadGroup;
 };
 
 // Extension to give chrome JS the ability to determine when a document was
@@ -407,18 +414,6 @@ partial interface Document {
 // the user has interacted with the document or not.
 partial interface Document {
   [ChromeOnly] readonly attribute boolean userHasInteracted;
-};
-
-// Extension to give chrome and XBL JS the ability to determine whether
-// the document is sandboxed without permission to run scripts.
-partial interface Document {
-  [Func="IsChromeOrXBL"] readonly attribute boolean hasScriptsBlockedBySandbox;
-};
-
-// Extension to give chrome and XBL JS the ability to determine whether
-// inline scripts are blocked by the document's CSP.
-partial interface Document {
-  [Func="IsChromeOrXBL"] readonly attribute boolean inlineScriptAllowedByCSP;
 };
 
 Document implements XPathEvaluator;

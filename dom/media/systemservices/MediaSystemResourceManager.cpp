@@ -4,9 +4,10 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
 
+#include "mozilla/TaskQueue.h"
+
 #include "gfxPrefs.h"
 #include "MediaSystemResourceManagerChild.h"
-#include "MediaTaskQueue.h"
 #include "mozilla/layers/ImageBridgeChild.h"
 
 #include "MediaSystemResourceManager.h"
@@ -38,23 +39,6 @@ MediaSystemResourceManager::Shutdown()
   }
 }
 
-/* static */ bool
-MediaSystemResourceManager::IsMediaSystemResourceManagerEnabled()
-{
-#ifdef MOZ_WIDGET_GONK
-  return true;
-#else
-  // XXX MediaSystemResourceManager is enabled only when ImageBridge is enabled.
-  // MediaSystemResourceManager uses ImageBridge's thread.
-  if (gfxPrefs::AsyncVideoOOPEnabled() &&
-      gfxPrefs::AsyncVideoEnabled()) {
-    return true;
-  } else  {
-    return false;
-  }
-#endif
-}
-
 class RunnableCallTask : public Task
 {
 public:
@@ -72,7 +56,6 @@ protected:
 /* static */ void
 MediaSystemResourceManager::Init()
 {
-  MOZ_ASSERT(IsMediaSystemResourceManagerEnabled());
   if (!ImageBridgeChild::IsCreated()) {
     NS_WARNING("ImageBridge does not exist");
     return;

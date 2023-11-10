@@ -80,6 +80,8 @@ private:
                                     mozilla::net::MemoryDownloader::Data aData)
         override;
 
+    bool BypassServiceWorker() const;
+
     // Returns true if this channel should intercept the network request and
     // prepare for a possible synthesized response instead.
     bool ShouldIntercept();
@@ -92,7 +94,8 @@ private:
     void ResetInterception();
     // Override this channel's pending response with a synthesized one. The
     // content will be asynchronously read from the pump.
-    void OverrideWithSynthesizedResponse(nsIInputStream* aSynthesizedInput);
+    void OverrideWithSynthesizedResponse(nsIInputStream* aSynthesizedInput,
+                                         const nsACString& aContentType);
 
     nsCString                       mSpec;
 
@@ -121,7 +124,6 @@ private:
     bool                            mIsPending;
     bool                            mIsUnsafe;
     bool                            mOpeningRemote;
-    bool                            mEnsureChildFd;
 
     mozilla::net::MemoryDownloader::Data mTempMem;
     nsCOMPtr<nsIInputStreamPump>    mPump;
@@ -133,9 +135,11 @@ private:
     nsCString                       mJarEntry;
     nsCString                       mInnerJarEntry;
 
-    nsRefPtr<nsInputStreamPump> mSynthesizedResponsePump;
-    int64_t mSynthesizedStreamLength;
+    RefPtr<nsInputStreamPump>     mSynthesizedResponsePump;
+    int64_t                         mSynthesizedStreamLength;
 
+    // True if this channel should not download any remote files.
+    bool                            mBlockRemoteFiles;
     friend class mozilla::net::InterceptedJARChannel;
 };
 

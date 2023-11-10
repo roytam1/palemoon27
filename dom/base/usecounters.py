@@ -8,18 +8,9 @@ import re
 import StringIO
 import sys
 
-from mozbuild.preprocessor import preprocess
-
 def read_conf(conf_filename):
-    # Invoking the preprocessor ourselves is easier than writing build rules
-    # to do it for us.
-    processed = StringIO.StringIO()
-    preprocess(includes=[conf_filename],
-               defines=buildconfig.defines,
-               output=processed)
-
     # Can't read/write from a single StringIO, so make a new one for reading.
-    stream = StringIO.StringIO(processed.getvalue())
+    stream = open(conf_filename, 'rU')
 
     def parse_counters(stream):
         for line_num, line in enumerate(stream):
@@ -62,8 +53,8 @@ def generate_histograms(filename):
                             'description': desc }
 
         def append_counters(name, desc):
-            append_counter('USE_COUNTER_%s_DOCUMENT' % name, 'Whether a document %s' % desc)
-            append_counter('USE_COUNTER_%s_PAGE' % name, 'Whether a page %s' % desc)
+            append_counter('USE_COUNTER2_%s_DOCUMENT' % name, 'Whether a document %s' % desc)
+            append_counter('USE_COUNTER2_%s_PAGE' % name, 'Whether a page %s' % desc)
 
         if counter['type'] == 'method':
             method = '%s.%s' % (counter['interface_name'], counter['method_name'])

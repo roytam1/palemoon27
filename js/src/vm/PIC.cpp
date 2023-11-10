@@ -162,14 +162,14 @@ js::ForOfPIC::Chain::tryOptimizeArray(JSContext* cx, HandleArrayObject array, bo
 }
 
 js::ForOfPIC::Stub*
-js::ForOfPIC::Chain::getMatchingStub(JSObject *obj)
+js::ForOfPIC::Chain::getMatchingStub(JSObject* obj)
 {
     // Ensure PIC is initialized and not disabled.
     if (!initialized_ || disabled_)
         return nullptr;
 
     // Check if there is a matching stub.
-    for (Stub *stub = stubs(); stub != nullptr; stub = stub->next()) {
+    for (Stub* stub = stubs(); stub != nullptr; stub = stub->next()) {
         if (stub->shape() == obj->maybeShape())
             return stub;
     }
@@ -295,8 +295,8 @@ ForOfPIC_traceObject(JSTracer* trc, JSObject* obj)
 }
 
 const Class ForOfPIC::jsclass = {
-    "ForOfPIC", JSCLASS_HAS_PRIVATE | JSCLASS_IMPLEMENTS_BARRIERS,
-    nullptr, nullptr, nullptr, nullptr, nullptr,
+    "ForOfPIC", JSCLASS_HAS_PRIVATE,
+    nullptr, nullptr, nullptr, nullptr,
     nullptr, nullptr, nullptr, ForOfPIC_finalize,
     nullptr,              /* call        */
     nullptr,              /* hasInstance */

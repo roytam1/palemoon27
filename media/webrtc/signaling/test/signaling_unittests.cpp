@@ -40,7 +40,12 @@
 #include "logging.h"
 #include "stunserver.h"
 #include "stunserver.cpp"
+#ifdef SIGNALING_UNITTEST_STANDALONE
 #include "PeerConnectionImplEnumsBinding.cpp"
+#endif
+
+#include "FakeIPC.h"
+#include "FakeIPC.cpp"
 
 #include "ice_ctx.h"
 #include "ice_peer_ctx.h"
@@ -145,7 +150,7 @@ static const std::string strSampleSdpAudioVideoNoIce =
 static const std::string strSampleCandidate =
   "a=candidate:1 1 UDP 2130706431 192.168.2.1 50005 typ host\r\n";
 
-static const std::string strSampleMid = "";
+static const std::string strSampleMid = "sdparta";
 
 static const unsigned short nSamplelevel = 2;
 
@@ -340,6 +345,44 @@ TestObserver::NotifyDataChannel(nsIDOMDataChannel *channel, ER&)
   return NS_OK;
 }
 
+static const char* PCImplSignalingStateStrings[] = {
+  "SignalingInvalid",
+  "SignalingStable",
+  "SignalingHaveLocalOffer",
+  "SignalingHaveRemoteOffer",
+  "SignalingHaveLocalPranswer",
+  "SignalingHaveRemotePranswer",
+  "SignalingClosed"
+};
+
+static const char* PCImplIceConnectionStateStrings[] = {
+  "new",
+  "checking",
+  "connected",
+  "completed",
+  "failed",
+  "disconnected",
+  "closed"
+};
+
+static const char* PCImplIceGatheringStateStrings[] = {
+  "new",
+  "gathering",
+  "complete"
+};
+
+#ifdef SIGNALING_UNITTEST_STANDALONE
+static_assert(ArrayLength(PCImplSignalingStateStrings) ==
+	      size_t(PCImplSignalingState::EndGuard_),
+	      "Table sizes must match");
+static_assert(ArrayLength(PCImplIceConnectionStateStrings) ==
+	      size_t(PCImplIceConnectionState::EndGuard_),
+	      "Table sizes must match");
+static_assert(ArrayLength(PCImplIceGatheringStateStrings) ==
+	      size_t(PCImplIceGatheringState::EndGuard_),
+	      "Table sizes must match");
+#endif // SIGNALING_UNITTEST_STANDALONE
+
 NS_IMETHODIMP
 TestObserver::OnStateChange(PCObserverStateType state_type, ER&, void*)
 {
@@ -357,7 +400,7 @@ TestObserver::OnStateChange(PCObserverStateType state_type, ER&, void*)
     rv = pc->IceConnectionState(&gotice);
     NS_ENSURE_SUCCESS(rv, rv);
     std::cout << "ICE Connection State: "
-              << PCImplIceConnectionStateValues::strings[int(gotice)].value
+              << PCImplIceConnectionStateStrings[int(gotice)]
               << std::endl;
     break;
   case PCObserverStateType::IceGatheringState:
@@ -366,7 +409,7 @@ TestObserver::OnStateChange(PCObserverStateType state_type, ER&, void*)
     NS_ENSURE_SUCCESS(rv, rv);
     std::cout
         << "ICE Gathering State: "
-        << PCImplIceGatheringStateValues::strings[int(goticegathering)].value
+        << PCImplIceGatheringStateStrings[int(goticegathering)]
         << std::endl;
     break;
   case PCObserverStateType::SdpState:
@@ -378,7 +421,7 @@ TestObserver::OnStateChange(PCObserverStateType state_type, ER&, void*)
     rv = pc->SignalingState(&gotsignaling);
     NS_ENSURE_SUCCESS(rv, rv);
     std::cout << "Signaling State: "
-              << PCImplSignalingStateValues::strings[int(gotsignaling)].value
+              << PCImplSignalingStateStrings[int(gotsignaling)]
               << std::endl;
     break;
   default:
@@ -404,7 +447,7 @@ TestObserver::OnAddStream(DOMMediaStream &stream, ER&)
 
   // We know that the media stream is secretly a Fake_SourceMediaStream,
   // so now we can start it pulling from us
-  nsRefPtr<Fake_SourceMediaStream> fs =
+  RefPtr<Fake_SourceMediaStream> fs =
     static_cast<Fake_SourceMediaStream *>(stream.GetStream());
 
   test_utils->sts_target()->Dispatch(
@@ -631,7 +674,7 @@ class PCDispatchWrapper : public nsSupportsWeakReference
   virtual ~PCDispatchWrapper() {}
 
  public:
-  explicit PCDispatchWrapper(const nsRefPtr<PeerConnectionImpl>& peerConnection)
+  explicit PCDispatchWrapper(const RefPtr<PeerConnectionImpl>& peerConnection)
     : pc_(peerConnection) {}
 
   NS_DECL_THREADSAFE_ISUPPORTS
@@ -640,14 +683,14 @@ class PCDispatchWrapper : public nsSupportsWeakReference
     return pc_;
   }
 
-  const nsRefPtr<PeerConnectionMedia>& media() const {
+  const RefPtr<PeerConnectionMedia>& media() const {
     return pc_->media();
   }
 
   NS_IMETHODIMP Initialize(TestObserver* aObserver,
-                      nsGlobalWindow* aWindow,
-                      const IceConfiguration& aConfiguration,
-                      nsIThread* aThread) {
+                           nsGlobalWindow* aWindow,
+                           const PeerConnectionConfiguration& aConfiguration,
+                           nsIThread* aThread) {
     nsresult rv;
 
     observer_ = aObserver;
@@ -869,8 +912,8 @@ class PCDispatchWrapper : public nsSupportsWeakReference
   }
 
  private:
-  nsRefPtr<PeerConnectionImpl> pc_;
-  nsRefPtr<TestObserver> observer_;
+  RefPtr<PeerConnectionImpl> pc_;
+  RefPtr<TestObserver> observer_;
 };
 
 NS_IMPL_ISUPPORTS(PCDispatchWrapper, nsISupportsWeakReference)
@@ -903,16 +946,17 @@ class SignalingAgent {
     mBundleEnabled(true),
     mExpectedFrameRequestType(VideoSessionConduit::FrameRequestPli),
     mExpectNack(true),
-    mExpectTmmbr(true),
     mExpectRtcpMuxAudio(true),
     mExpectRtcpMuxVideo(true),
     mRemoteDescriptionSet(false) {
-    cfg_.addStunServer(stun_addr, stun_port);
+    cfg_.addStunServer(stun_addr, stun_port, kNrIceTransportUdp);
+    cfg_.addStunServer(stun_addr, stun_port, kNrIceTransportTcp);
 
     PeerConnectionImpl *pcImpl =
       PeerConnectionImpl::CreatePeerConnection();
     EXPECT_TRUE(pcImpl);
     pcImpl->SetAllowIceLoopback(true);
+    pcImpl->SetAllowIceLinkLocal(true);
     pc = new PCDispatchWrapper(pcImpl);
   }
 
@@ -939,6 +983,11 @@ class SignalingAgent {
   void SetBundleEnabled(bool enabled)
   {
     mBundleEnabled = enabled;
+  }
+
+  void SetBundlePolicy(JsepBundlePolicy policy)
+  {
+    cfg_.setBundlePolicy(policy);
   }
 
   void SetExpectedFrameRequestType(VideoSessionConduit::FrameRequestType type)
@@ -1070,10 +1119,10 @@ class SignalingAgent {
       stream = audio_stream;
     }
 
-    nsRefPtr<DOMMediaStream> domMediaStream = new DOMMediaStream(stream);
+    RefPtr<DOMMediaStream> domMediaStream = new DOMMediaStream(stream);
     domMediaStream->SetHintContents(hint);
 
-    nsTArray<nsRefPtr<MediaStreamTrack>> tracks;
+    nsTArray<RefPtr<MediaStreamTrack>> tracks;
     domMediaStream->GetTracks(tracks);
     for (uint32_t i = 0; i < tracks.Length(); i++) {
       Msid msid = {domMediaStream->GetId(), tracks[i]->GetId()};
@@ -1196,7 +1245,6 @@ class SignalingAgent {
       mozilla::VideoSessionConduit *video_conduit =
         static_cast<mozilla::VideoSessionConduit*>(conduit);
       ASSERT_EQ(mExpectNack, video_conduit->UsingNackBasic());
-      ASSERT_EQ(mExpectTmmbr, video_conduit->UsingTmmbr());
       ASSERT_EQ(mExpectedFrameRequestType,
                 video_conduit->FrameRequestMethod());
       ASSERT_EQ(mExpectRtcpMuxVideo, pipeline->IsDoingRtcpMux())
@@ -1223,7 +1271,7 @@ class SignalingAgent {
   void RemoveTrack(size_t streamIndex, bool videoTrack = false)
   {
     ASSERT_LT(streamIndex, domMediaStreams_.size());
-    nsTArray<nsRefPtr<MediaStreamTrack>> tracks;
+    nsTArray<RefPtr<MediaStreamTrack>> tracks;
     domMediaStreams_[streamIndex]->GetTracks(tracks);
     for (size_t i = 0; i < tracks.Length(); ++i) {
       if (!!tracks[i]->AsVideoStreamTrack() == videoTrack) {
@@ -1237,7 +1285,7 @@ class SignalingAgent {
   }
 
   void RemoveStream(size_t index) {
-    nsTArray<nsRefPtr<MediaStreamTrack>> tracks;
+    nsTArray<RefPtr<MediaStreamTrack>> tracks;
     domMediaStreams_[index]->GetTracks(tracks);
     for (uint32_t i = 0; i < tracks.Length(); i++) {
       ASSERT_EQ(pc->RemoveTrack(tracks[i]), NS_OK);
@@ -1427,6 +1475,7 @@ class SignalingAgent {
 
     // Verify that adding ICE candidates does not change the signaling state
     ASSERT_EQ(signaling_state(), endState);
+    ASSERT_NE("", mid);
   }
 
   int GetPacketsReceived(const std::string& streamId) const
@@ -1500,7 +1549,7 @@ class SignalingAgent {
   // the SDP. For now, we just specify audio/video, since a given DOMMediaStream
   // can have only one of each anyway. Once this is fixed, we will need to
   // pass a real track id if we want to test that case.
-  mozilla::RefPtr<mozilla::MediaPipeline> GetMediaPipeline(
+  RefPtr<mozilla::MediaPipeline> GetMediaPipeline(
     bool local, size_t stream, bool video) {
     SourceStreamInfo* streamInfo;
     if (local) {
@@ -1535,17 +1584,16 @@ class SignalingAgent {
   }
 
 public:
-  nsRefPtr<PCDispatchWrapper> pc;
-  nsRefPtr<TestObserver> pObserver;
+  RefPtr<PCDispatchWrapper> pc;
+  RefPtr<TestObserver> pObserver;
   std::string offer_;
   std::string answer_;
-  std::vector<nsRefPtr<DOMMediaStream>> domMediaStreams_;
-  IceConfiguration cfg_;
+  std::vector<RefPtr<DOMMediaStream>> domMediaStreams_;
+  PeerConnectionConfiguration cfg_;
   const std::string name;
   bool mBundleEnabled;
   VideoSessionConduit::FrameRequestType mExpectedFrameRequestType;
   bool mExpectNack;
-  bool mExpectTmmbr;
   bool mExpectRtcpMuxAudio;
   bool mExpectRtcpMuxVideo;
   bool mRemoteDescriptionSet;
@@ -1571,8 +1619,8 @@ static void AddIceCandidateToPeer(nsWeakPtr weak_observer,
     return;
   }
 
-  nsRefPtr<nsSupportsWeakReference> tmp2 = do_QueryObject(tmp);
-  nsRefPtr<TestObserver> observer = static_cast<TestObserver*>(&*tmp2);
+  RefPtr<nsSupportsWeakReference> tmp2 = do_QueryObject(tmp);
+  RefPtr<TestObserver> observer = static_cast<TestObserver*>(&*tmp2);
 
   if (!observer) {
     return;
@@ -1702,18 +1750,33 @@ public:
 
     a1_ = new SignalingAgent(callerName, stun_addr_, stun_port_);
     a2_ = new SignalingAgent(calleeName, stun_addr_, stun_port_);
-    a1_->Init();
-    a2_->Init();
+
     if (GetParam() == "no_bundle") {
       a1_->SetBundleEnabled(false);
     } else if(GetParam() == "reject_bundle") {
       a2_->SetBundleEnabled(false);
+    } else if (GetParam() == "max-bundle") {
+      a1_->SetBundlePolicy(JsepBundlePolicy::kBundleMaxBundle);
+      a2_->SetBundlePolicy(JsepBundlePolicy::kBundleMaxBundle);
+    } else if (GetParam() == "balanced") {
+      a1_->SetBundlePolicy(JsepBundlePolicy::kBundleBalanced);
+      a2_->SetBundlePolicy(JsepBundlePolicy::kBundleBalanced);
+    } else if (GetParam() == "max-compat") {
+      a1_->SetBundlePolicy(JsepBundlePolicy::kBundleMaxCompat);
+      a2_->SetBundlePolicy(JsepBundlePolicy::kBundleMaxCompat);
     }
 
+    a1_->Init();
+    a2_->Init();
     a1_->SetPeer(a2_.get());
     a2_->SetPeer(a1_.get());
 
     init_ = true;
+  }
+
+  bool UseBundle()
+  {
+    return (GetParam() != "no_bundle") && (GetParam() != "reject_bundle");
   }
 
   void WaitForGather() {
@@ -1987,7 +2050,6 @@ public:
 
   void TestRtcpFbAnswer(const std::set<std::string>& feedback,
       bool expectNack,
-      bool expectTmmbr,
       VideoSessionConduit::FrameRequestType frameRequestType) {
     EnsureInit();
     OfferOptions options;
@@ -2006,7 +2068,8 @@ public:
 
     a1_->SetExpectedFrameRequestType(frameRequestType);
     a1_->mExpectNack = expectNack;
-    a1_->mExpectTmmbr = expectTmmbr;
+    // Since we don't support rewriting rtcp-fb in answers, a2 still thinks it
+    // will be doing all of the normal rtcp-fb
 
     WaitForCompleted();
     CheckPipelines();
@@ -2017,7 +2080,6 @@ public:
   void TestRtcpFbOffer(
       const std::set<std::string>& feedback,
       bool expectNack,
-      bool expectTmmbr,
       VideoSessionConduit::FrameRequestType frameRequestType) {
     EnsureInit();
     OfferOptions options;
@@ -2028,9 +2090,10 @@ public:
     std::string modifiedOffer = HardcodeRtcpFb(a1_->offer(), feedback);
 
     a2_->SetRemote(TestObserver::OFFER, modifiedOffer);
+    a1_->SetExpectedFrameRequestType(frameRequestType);
+    a1_->mExpectNack = expectNack;
     a2_->SetExpectedFrameRequestType(frameRequestType);
     a2_->mExpectNack = expectNack;
-    a2_->mExpectTmmbr = expectTmmbr;
 
     a2_->CreateAnswer(OFFER_AV | ANSWER_AV);
 
@@ -2296,8 +2359,10 @@ TEST_P(SignalingTest, OfferAnswerNothingDisabledFullCycle)
   OfferOptions options;
   OfferAnswer(options, OFFER_AV | ANSWER_AV);
   // verify the default codec priorities
-  ASSERT_NE(a1_->getLocalDescription().find("RTP/SAVPF 109 9 0 8\r"), std::string::npos);
-  ASSERT_NE(a2_->getLocalDescription().find("RTP/SAVPF 109\r"), std::string::npos);
+  ASSERT_NE(a1_->getLocalDescription().find("UDP/TLS/RTP/SAVPF 109 9 0 8\r"),
+            std::string::npos);
+  ASSERT_NE(a2_->getLocalDescription().find("UDP/TLS/RTP/SAVPF 109\r"),
+            std::string::npos);
 }
 
 TEST_P(SignalingTest, OfferAnswerAudioInactive)
@@ -2471,7 +2536,7 @@ TEST_P(SignalingTest, RenegotiationAnswererReplacesTrack)
 
 TEST_P(SignalingTest, BundleRenegotiation)
 {
-  if (GetParam() == "bundle") {
+  if (UseBundle()) {
     // We don't support ICE restart, which is a prereq for renegotiating bundle
     // off.
     return;
@@ -2516,7 +2581,8 @@ TEST_P(SignalingTest, OfferAndAnswerWithExtraCodec)
   a2_->CreateAnswer(OFFER_AUDIO | ANSWER_AUDIO);
   a2_->SetLocal(TestObserver::ANSWER, a2_->answer());
   ParsedSDP sdpWrapper(a2_->answer());
-  sdpWrapper.ReplaceLine("m=audio", "m=audio 65375 RTP/SAVPF 109 8\r\n");
+  sdpWrapper.ReplaceLine("m=audio",
+                         "m=audio 65375 UDP/TLS/RTP/SAVPF 109 8\r\n");
   sdpWrapper.AddLine("a=rtpmap:8 PCMA/8000\r\n");
   std::cout << "Modified SDP " << std::endl
             << indent(sdpWrapper.getSdp()) << std::endl;
@@ -2619,7 +2685,7 @@ TEST_P(SignalingTest, IncomingOfferIceLite)
     "a=ice-lite\r\n"
     "a=fingerprint:sha-1 "
       "E7:FA:17:DA:3F:3C:1E:D8:E4:9C:8C:4C:13:B9:2E:D5:C6:78:AB:B3\r\n"
-    "m=audio 40014 RTP/SAVPF 8 0 101\r\n"
+    "m=audio 40014 UDP/TLS/RTP/SAVPF 8 0 101\r\n"
     "a=rtpmap:8 PCMA/8000\r\n"
     "a=rtpmap:0 PCMU/8000\r\n"
     "a=rtpmap:101 telephone-event/8000\r\n"
@@ -2656,7 +2722,7 @@ TEST_P(SignalingTest, ChromeOfferAnswer)
     "t=0 0\r\n"
     "a=group:BUNDLE audio video\r\n"
 
-    "m=audio 1 RTP/SAVPF 103 104 111 0 8 107 106 105 13 126\r\n"
+    "m=audio 1 UDP/TLS/RTP/SAVPF 103 104 111 0 8 107 106 105 13 126\r\n"
     "a=fingerprint:sha-1 4A:AD:B9:B1:3F:82:18:3B:54:02:12:DF:3E:"
       "5D:49:6B:19:E5:7C:AB\r\n"
     "a=setup:active\r\n"
@@ -2690,7 +2756,7 @@ TEST_P(SignalingTest, ChromeOfferAnswer)
     "a=ssrc:661333377 mslabel:A5UL339RyGxT7zwgyF12BFqesxkmbUsaycp5\r\n"
     "a=ssrc:661333377 label:A5UL339RyGxT7zwgyF12BFqesxkmbUsaycp5a0\r\n"
 
-    "m=video 1 RTP/SAVPF 100 101 102\r\n"
+    "m=video 1 UDP/TLS/RTP/SAVPF 100 101 102\r\n"
     "a=fingerprint:sha-1 4A:AD:B9:B1:3F:82:18:3B:54:02:12:DF:3E:5D:49:"
       "6B:19:E5:7C:AB\r\n"
     "a=setup:active\r\n"
@@ -2735,7 +2801,7 @@ TEST_P(SignalingTest, FullChromeHandshake)
       "t=0 0\r\n"
       "a=group:BUNDLE audio video\r\n"
       "a=msid-semantic: WMS ahheYQXHFU52slYMrWNtKUyHCtWZsOJgjlOH\r\n"
-      "m=audio 1 RTP/SAVPF 103 104 111 0 8 107 106 105 13 126\r\n"
+      "m=audio 1 UDP/TLS/RTP/SAVPF 103 104 111 0 8 107 106 105 13 126\r\n"
       "c=IN IP4 1.1.1.1\r\n"
       "a=rtcp:1 IN IP4 1.1.1.1\r\n"
       "a=ice-ufrag:jz9UBk9RT8eCQXiL\r\n"
@@ -2763,7 +2829,7 @@ TEST_P(SignalingTest, FullChromeHandshake)
       "a=ssrc:3389377748 msid:ahheYQXHFU52slYMrWNtKUyHCtWZsOJgjlOH a0\r\n"
       "a=ssrc:3389377748 mslabel:ahheYQXHFU52slYMrWNtKUyHCtWZsOJgjlOH\r\n"
       "a=ssrc:3389377748 label:ahheYQXHFU52slYMrWNtKUyHCtWZsOJgjlOHa0\r\n"
-      "m=video 1 RTP/SAVPF 100 116 117\r\n"
+      "m=video 1 UDP/TLS/RTP/SAVPF 100 116 117\r\n"
       "c=IN IP4 1.1.1.1\r\n"
       "a=rtcp:1 IN IP4 1.1.1.1\r\n"
       "a=ice-ufrag:jz9UBk9RT8eCQXiL\r\n"
@@ -3082,6 +3148,38 @@ TEST_F(SignalingAgentTest, CreateOffer) {
   agent(0)->CreateOffer(options, OFFER_AUDIO);
 }
 
+TEST_F(SignalingAgentTest, SetLocalWithoutCreateOffer) {
+  CreateAgent(TestStunServer::GetInstance()->addr(),
+              TestStunServer::GetInstance()->port());
+  CreateAgent(TestStunServer::GetInstance()->addr(),
+              TestStunServer::GetInstance()->port());
+  OfferOptions options;
+  agent(0)->CreateOffer(options, OFFER_AUDIO);
+  agent(1)->SetLocal(TestObserver::OFFER,
+                     agent(0)->offer(),
+                     true,
+                     PCImplSignalingState::SignalingStable);
+}
+
+TEST_F(SignalingAgentTest, SetLocalWithoutCreateAnswer) {
+  CreateAgent(TestStunServer::GetInstance()->addr(),
+              TestStunServer::GetInstance()->port());
+  CreateAgent(TestStunServer::GetInstance()->addr(),
+              TestStunServer::GetInstance()->port());
+  CreateAgent(TestStunServer::GetInstance()->addr(),
+              TestStunServer::GetInstance()->port());
+  OfferOptions options;
+  agent(0)->CreateOffer(options, OFFER_AUDIO);
+  agent(1)->SetRemote(TestObserver::OFFER, agent(0)->offer());
+  agent(1)->CreateAnswer(ANSWER_AUDIO);
+  agent(2)->SetRemote(TestObserver::OFFER, agent(0)->offer());
+  // Use agent 1's answer on agent 2, should fail
+  agent(2)->SetLocal(TestObserver::ANSWER,
+                     agent(1)->answer(),
+                     true,
+                     PCImplSignalingState::SignalingHaveRemoteOffer);
+}
+
 TEST_F(SignalingAgentTest, CreateOfferSetLocalTrickleTestServer) {
   TestStunServer::GetInstance()->SetActive(false);
   TestStunServer::GetInstance()->SetResponseAddr(
@@ -3183,7 +3281,7 @@ TEST_P(SignalingTest, missingUfrag)
     "a=ice-pwd:4450d5a4a5f097855c16fa079893be18\r\n"
     "a=fingerprint:sha-256 23:9A:2E:43:94:42:CF:46:68:FC:62:F9:F4:48:61:DB:"
       "2F:8C:C9:FF:6B:25:54:9D:41:09:EF:83:A8:19:FC:B6\r\n"
-    "m=audio 56187 RTP/SAVPF 109 0 8 101\r\n"
+    "m=audio 56187 UDP/TLS/RTP/SAVPF 109 0 8 101\r\n"
     "c=IN IP4 77.9.79.167\r\n"
     "a=rtpmap:109 opus/48000/2\r\n"
     "a=ptime:20\r\n"
@@ -3198,7 +3296,7 @@ TEST_P(SignalingTest, missingUfrag)
     "a=candidate:0 2 UDP 2113601790 192.168.178.20 52955 typ host\r\n"
     "a=candidate:1 2 UDP 1694236670 77.9.79.167 52955 typ srflx raddr "
       "192.168.178.20 rport 52955\r\n"
-    "m=video 49929 RTP/SAVPF 120\r\n"
+    "m=video 49929 UDP/TLS/RTP/SAVPF 120\r\n"
     "c=IN IP4 77.9.79.167\r\n"
     "a=rtpmap:120 VP8/90000\r\n"
     "a=recvonly\r\n"
@@ -3268,14 +3366,15 @@ TEST_P(SignalingTest, AudioOnlyG722Only)
   a1_->SetLocal(TestObserver::OFFER, a1_->offer(), false);
   ParsedSDP sdpWrapper(a1_->offer());
   sdpWrapper.ReplaceLine("m=audio",
-                         "m=audio 65375 RTP/SAVPF 9\r\n");
+                         "m=audio 65375 UDP/TLS/RTP/SAVPF 9\r\n");
   std::cout << "Modified SDP " << std::endl
             << indent(sdpWrapper.getSdp()) << std::endl;
   a2_->SetRemote(TestObserver::OFFER, sdpWrapper.getSdp(), false);
   a2_->CreateAnswer(OFFER_AUDIO | ANSWER_AUDIO);
   a2_->SetLocal(TestObserver::ANSWER, a2_->answer(), false);
   a1_->SetRemote(TestObserver::ANSWER, a2_->answer(), false);
-  ASSERT_NE(a2_->getLocalDescription().find("RTP/SAVPF 9\r"), std::string::npos);
+  ASSERT_NE(a2_->getLocalDescription().find("UDP/TLS/RTP/SAVPF 9\r"),
+            std::string::npos);
   ASSERT_NE(a2_->getLocalDescription().find("a=rtpmap:9 G722/8000"), std::string::npos);
 
   WaitForCompleted();
@@ -3296,14 +3395,15 @@ TEST_P(SignalingTest, AudioOnlyG722MostPreferred)
   a1_->SetLocal(TestObserver::OFFER, a1_->offer(), false);
   ParsedSDP sdpWrapper(a1_->offer());
   sdpWrapper.ReplaceLine("m=audio",
-                         "m=audio 65375 RTP/SAVPF 9 0 8 109\r\n");
+                         "m=audio 65375 UDP/TLS/RTP/SAVPF 9 0 8 109\r\n");
   std::cout << "Modified SDP " << std::endl
             << indent(sdpWrapper.getSdp()) << std::endl;
   a2_->SetRemote(TestObserver::OFFER, sdpWrapper.getSdp(), false);
   a2_->CreateAnswer(OFFER_AUDIO | ANSWER_AUDIO);
   a2_->SetLocal(TestObserver::ANSWER, a2_->answer(), false);
   a1_->SetRemote(TestObserver::ANSWER, a2_->answer(), false);
-  ASSERT_NE(a2_->getLocalDescription().find("RTP/SAVPF 9"), std::string::npos);
+  ASSERT_NE(a2_->getLocalDescription().find("UDP/TLS/RTP/SAVPF 9"),
+            std::string::npos);
   ASSERT_NE(a2_->getLocalDescription().find("a=rtpmap:9 G722/8000"), std::string::npos);
 
   CheckPipelines();
@@ -3324,16 +3424,17 @@ TEST_P(SignalingTest, AudioOnlyG722Rejected)
   a1_->SetLocal(TestObserver::OFFER, a1_->offer(), false);
   ParsedSDP sdpWrapper(a1_->offer());
   sdpWrapper.ReplaceLine("m=audio",
-                         "m=audio 65375 RTP/SAVPF 0 8\r\n");
+                         "m=audio 65375 UDP/TLS/RTP/SAVPF 0 8\r\n");
   std::cout << "Modified SDP offer " << std::endl
             << indent(sdpWrapper.getSdp()) << std::endl;
   a2_->SetRemote(TestObserver::OFFER, sdpWrapper.getSdp(), false);
   a2_->CreateAnswer(OFFER_AUDIO | ANSWER_AUDIO);
   a2_->SetLocal(TestObserver::ANSWER, a2_->answer(), false);
   a1_->SetRemote(TestObserver::ANSWER, a2_->answer(), false);
-  // TODO(bug 1099351): Use commented out code instead.
-  ASSERT_NE(a2_->getLocalDescription().find("RTP/SAVPF 0\r"), std::string::npos);
-  // ASSERT_NE(a2_->getLocalDescription().find("RTP/SAVPF 0 8\r"), std::string::npos);
+  // TODO(bug 814227): Use commented out code instead.
+  ASSERT_NE(a2_->getLocalDescription().find("UDP/TLS/RTP/SAVPF 0\r"),
+            std::string::npos);
+  // ASSERT_NE(a2_->getLocalDescription().find("UDP/TLS/RTP/SAVPF 0 8\r"), std::string::npos);
   ASSERT_NE(a2_->getLocalDescription().find("a=rtpmap:0 PCMU/8000"), std::string::npos);
   ASSERT_EQ(a2_->getLocalDescription().find("a=rtpmap:109 opus/48000/2"), std::string::npos);
   ASSERT_EQ(a2_->getLocalDescription().find("a=rtpmap:9 G722/8000"), std::string::npos);
@@ -3346,7 +3447,7 @@ TEST_P(SignalingTest, AudioOnlyG722Rejected)
 
 TEST_P(SignalingTest, FullCallAudioNoMuxVideoMux)
 {
-  if (GetParam() == "bundle") {
+  if (UseBundle()) {
     // This test doesn't make sense for bundle
     return;
   }
@@ -3388,25 +3489,23 @@ TEST_P(SignalingTest, RtcpFbInOffer)
   EnsureInit();
   OfferOptions options;
   a1_->CreateOffer(options, OFFER_AV);
-  const char *expected[] = { "nack", "nack pli", "ccm fir", "ccm tmmbr" };
+  const char *expected[] = { "nack", "nack pli", "ccm fir" };
   CheckRtcpFbSdp(a1_->offer(), ARRAY_TO_SET(std::string, expected));
 }
 
 TEST_P(SignalingTest, RtcpFbOfferAll)
 {
-  const char *feedbackTypes[] = { "nack", "nack pli", "ccm fir", "ccm tmmbr" };
+  const char *feedbackTypes[] = { "nack", "nack pli", "ccm fir" };
   TestRtcpFbOffer(ARRAY_TO_SET(std::string, feedbackTypes),
-                  true,
                   true,
                   VideoSessionConduit::FrameRequestPli);
 }
 
 TEST_P(SignalingTest, RtcpFbOfferNoNackBasic)
 {
-  const char *feedbackTypes[] = { "nack pli", "ccm fir", "ccm tmmbr" };
+  const char *feedbackTypes[] = { "nack pli", "ccm fir" };
   TestRtcpFbOffer(ARRAY_TO_SET(std::string, feedbackTypes),
                   false,
-                  true,
                   VideoSessionConduit::FrameRequestPli);
 }
 
@@ -3415,7 +3514,6 @@ TEST_P(SignalingTest, RtcpFbOfferNoNackPli)
   const char *feedbackTypes[] = { "nack", "ccm fir" };
   TestRtcpFbOffer(ARRAY_TO_SET(std::string, feedbackTypes),
                   true,
-                  false,
                   VideoSessionConduit::FrameRequestFir);
 }
 
@@ -3424,7 +3522,6 @@ TEST_P(SignalingTest, RtcpFbOfferNoCcmFir)
   const char *feedbackTypes[] = { "nack", "nack pli" };
   TestRtcpFbOffer(ARRAY_TO_SET(std::string, feedbackTypes),
                   true,
-                  false,
                   VideoSessionConduit::FrameRequestPli);
 }
 
@@ -3432,7 +3529,6 @@ TEST_P(SignalingTest, RtcpFbOfferNoNack)
 {
   const char *feedbackTypes[] = { "ccm fir" };
   TestRtcpFbOffer(ARRAY_TO_SET(std::string, feedbackTypes),
-                  false,
                   false,
                   VideoSessionConduit::FrameRequestFir);
 }
@@ -3442,7 +3538,6 @@ TEST_P(SignalingTest, RtcpFbOfferNoFrameRequest)
   const char *feedbackTypes[] = { "nack" };
   TestRtcpFbOffer(ARRAY_TO_SET(std::string, feedbackTypes),
                   true,
-                  false,
                   VideoSessionConduit::FrameRequestNone);
 }
 
@@ -3450,7 +3545,6 @@ TEST_P(SignalingTest, RtcpFbOfferPliOnly)
 {
   const char *feedbackTypes[] = { "nack pli" };
   TestRtcpFbOffer(ARRAY_TO_SET(std::string, feedbackTypes),
-                  false,
                   false,
                   VideoSessionConduit::FrameRequestPli);
 }
@@ -3460,7 +3554,6 @@ TEST_P(SignalingTest, RtcpFbOfferNoFeedback)
   const char *feedbackTypes[] = { };
   TestRtcpFbOffer(ARRAY_TO_SET(std::string, feedbackTypes),
                   false,
-                  false,
                   VideoSessionConduit::FrameRequestNone);
 }
 
@@ -3469,7 +3562,6 @@ TEST_P(SignalingTest, RtcpFbAnswerAll)
   const char *feedbackTypes[] = { "nack", "nack pli", "ccm fir" };
   TestRtcpFbAnswer(ARRAY_TO_SET(std::string, feedbackTypes),
                   true,
-                  false,
                   VideoSessionConduit::FrameRequestPli);
 }
 
@@ -3477,7 +3569,6 @@ TEST_P(SignalingTest, RtcpFbAnswerNoNackBasic)
 {
   const char *feedbackTypes[] = { "nack pli", "ccm fir" };
   TestRtcpFbAnswer(ARRAY_TO_SET(std::string, feedbackTypes),
-                  false,
                   false,
                   VideoSessionConduit::FrameRequestPli);
 }
@@ -3487,7 +3578,6 @@ TEST_P(SignalingTest, RtcpFbAnswerNoNackPli)
   const char *feedbackTypes[] = { "nack", "ccm fir" };
   TestRtcpFbAnswer(ARRAY_TO_SET(std::string, feedbackTypes),
                   true,
-                  false,
                   VideoSessionConduit::FrameRequestFir);
 }
 
@@ -3496,7 +3586,6 @@ TEST_P(SignalingTest, RtcpFbAnswerNoCcmFir)
   const char *feedbackTypes[] = { "nack", "nack pli" };
   TestRtcpFbAnswer(ARRAY_TO_SET(std::string, feedbackTypes),
                   true,
-                  false,
                   VideoSessionConduit::FrameRequestPli);
 }
 
@@ -3504,7 +3593,6 @@ TEST_P(SignalingTest, RtcpFbAnswerNoNack)
 {
   const char *feedbackTypes[] = { "ccm fir" };
   TestRtcpFbAnswer(ARRAY_TO_SET(std::string, feedbackTypes),
-                  false,
                   false,
                   VideoSessionConduit::FrameRequestFir);
 }
@@ -3514,7 +3602,6 @@ TEST_P(SignalingTest, RtcpFbAnswerNoFrameRequest)
   const char *feedbackTypes[] = { "nack" };
   TestRtcpFbAnswer(ARRAY_TO_SET(std::string, feedbackTypes),
                   true,
-                  false,
                   VideoSessionConduit::FrameRequestNone);
 }
 
@@ -3522,8 +3609,7 @@ TEST_P(SignalingTest, RtcpFbAnswerPliOnly)
 {
   const char *feedbackTypes[] = { "nack pli" };
   TestRtcpFbAnswer(ARRAY_TO_SET(std::string, feedbackTypes),
-                  false,
-                  false,
+                  0,
                   VideoSessionConduit::FrameRequestPli);
 }
 
@@ -3531,8 +3617,7 @@ TEST_P(SignalingTest, RtcpFbAnswerNoFeedback)
 {
   const char *feedbackTypes[] = { };
   TestRtcpFbAnswer(ARRAY_TO_SET(std::string, feedbackTypes),
-                  false,
-                  false,
+                  0,
                   VideoSessionConduit::FrameRequestNone);
 }
 
@@ -3834,7 +3919,7 @@ TEST_P(SignalingTest, hugeSdp)
     "t=0 0\r\n"
     "a=group:BUNDLE audio video\r\n"
     "a=msid-semantic: WMS 1PBxet5BYh0oYodwsvNM4k6KiO2eWCX40VIP\r\n"
-    "m=audio 32952 RTP/SAVPF 111 103 104 0 8 107 106 105 13 126\r\n"
+    "m=audio 32952 UDP/TLS/RTP/SAVPF 111 103 104 0 8 107 106 105 13 126\r\n"
     "c=IN IP4 128.64.32.16\r\n"
     "a=rtcp:32952 IN IP4 128.64.32.16\r\n"
     "a=candidate:77142221 1 udp 2113937151 192.168.137.1 54081 typ host generation 0\r\n"
@@ -3879,7 +3964,7 @@ TEST_P(SignalingTest, hugeSdp)
     "a=ssrc:2271517329 msid:1PBxet5BYh0oYodwsvNM4k6KiO2eWCX40VIP 1PBxet5BYh0oYodwsvNM4k6KiO2eWCX40VIPa0\r\n"
     "a=ssrc:2271517329 mslabel:1PBxet5BYh0oYodwsvNM4k6KiO2eWCX40VIP\r\n"
     "a=ssrc:2271517329 label:1PBxet5BYh0oYodwsvNM4k6KiO2eWCX40VIPa0\r\n"
-    "m=video 32952 RTP/SAVPF 100 116 117\r\n"
+    "m=video 32952 UDP/TLS/RTP/SAVPF 100 116 117\r\n"
     "c=IN IP4 128.64.32.16\r\n"
     "a=rtcp:32952 IN IP4 128.64.32.16\r\n"
     "a=candidate:77142221 1 udp 2113937151 192.168.137.1 54081 typ host generation 0\r\n"
@@ -4009,7 +4094,7 @@ TEST_P(SignalingTest, MaxFsFrCalleeCodec)
 
   // Checking callee's video sending configuration does respect max-fs and
   // max-fr in SDP offer.
-  mozilla::RefPtr<mozilla::MediaPipeline> pipeline =
+  RefPtr<mozilla::MediaPipeline> pipeline =
     a2_->GetMediaPipeline(1, 0, 1);
   ASSERT_TRUE(pipeline);
   mozilla::MediaSessionConduit *conduit = pipeline->Conduit();
@@ -4054,7 +4139,7 @@ TEST_P(SignalingTest, MaxFsFrCallerCodec)
 
   // Checking caller's video sending configuration does respect max-fs and
   // max-fr in SDP answer.
-  mozilla::RefPtr<mozilla::MediaPipeline> pipeline =
+  RefPtr<mozilla::MediaPipeline> pipeline =
     a1_->GetMediaPipeline(1, 0, 1);
   ASSERT_TRUE(pipeline);
   mozilla::MediaSessionConduit *conduit = pipeline->Conduit();
@@ -4078,9 +4163,9 @@ TEST_P(SignalingTest, ValidateMultipleVideoCodecsInOffer)
   std::string offer = a1_->offer();
 
 #ifdef H264_P0_SUPPORTED
-  ASSERT_NE(offer.find("RTP/SAVPF 120 126 97"), std::string::npos);
+  ASSERT_NE(offer.find("UDP/TLS/RTP/SAVPF 120 126 97"), std::string::npos);
 #else
-  ASSERT_NE(offer.find("RTP/SAVPF 120 126"), std::string::npos);
+  ASSERT_NE(offer.find("UDP/TLS/RTP/SAVPF 120 126"), std::string::npos);
 #endif
   ASSERT_NE(offer.find("a=rtpmap:120 VP8/90000"), std::string::npos);
   ASSERT_NE(offer.find("a=rtpmap:126 H264/90000"), std::string::npos);
@@ -4112,9 +4197,9 @@ TEST_P(SignalingTest, RemoveVP8FromOfferWithP1First)
 
   // Remove VP8 from offer
   std::string offer = a1_->offer();
-  match = offer.find("RTP/SAVPF 120");
+  match = offer.find("UDP/TLS/RTP/SAVPF 120");
   ASSERT_NE(std::string::npos, match);
-  offer.replace(match, strlen("RTP/SAVPF 120"), "RTP/SAVPF");
+  offer.replace(match, strlen("UDP/TLS/RTP/SAVPF 120"), "UDP/TLS/RTP/SAVPF");
 
   match = offer.find("profile-level-id");
   ASSERT_NE(std::string::npos, match);
@@ -4130,7 +4215,7 @@ TEST_P(SignalingTest, RemoveVP8FromOfferWithP1First)
             << indent(sdpWrapper.getSdp()) << std::endl;
 
   // P1 should be offered first
-  ASSERT_NE(offer.find("RTP/SAVPF 126"), std::string::npos);
+  ASSERT_NE(offer.find("UDP/TLS/RTP/SAVPF 126"), std::string::npos);
 
   a1_->SetLocal(TestObserver::OFFER, sdpWrapper.getSdp());
   a2_->SetRemote(TestObserver::OFFER, sdpWrapper.getSdp(), false);
@@ -4139,7 +4224,7 @@ TEST_P(SignalingTest, RemoveVP8FromOfferWithP1First)
   std::string answer(a2_->answer());
 
   // Validate answer SDP
-  ASSERT_NE(answer.find("RTP/SAVPF 126"), std::string::npos);
+  ASSERT_NE(answer.find("UDP/TLS/RTP/SAVPF 126"), std::string::npos);
   ASSERT_NE(answer.find("a=rtpmap:126 H264/90000"), std::string::npos);
   ASSERT_NE(answer.find("a=rtcp-fb:126 nack"), std::string::npos);
   ASSERT_NE(answer.find("a=rtcp-fb:126 nack pli"), std::string::npos);
@@ -4162,17 +4247,17 @@ TEST_P(SignalingTest, OfferWithH264BeforeVP8)
   // Swap VP8 and P1 in offer
   std::string offer = a1_->offer();
 #ifdef H264_P0_SUPPORTED
-  match = offer.find("RTP/SAVPF 120 126 97");
+  match = offer.find("UDP/TLS/RTP/SAVPF 120 126 97");
   ASSERT_NE(std::string::npos, match);
   offer.replace(match,
-                strlen("RTP/SAVPF 126 120 97"),
-                "RTP/SAVPF 126 120 97");
+                strlen("UDP/TLS/RTP/SAVPF 126 120 97"),
+                "UDP/TLS/RTP/SAVPF 126 120 97");
 #else
-  match = offer.find("RTP/SAVPF 120 126");
+  match = offer.find("UDP/TLS/RTP/SAVPF 120 126");
   ASSERT_NE(std::string::npos, match);
   offer.replace(match,
-                strlen("RTP/SAVPF 126 120"),
-                "RTP/SAVPF 126 120");
+                strlen("UDP/TLS/RTP/SAVPF 126 120"),
+                "UDP/TLS/RTP/SAVPF 126 120");
 #endif
 
   match = offer.find("a=rtpmap:126 H264/90000");
@@ -4192,9 +4277,9 @@ TEST_P(SignalingTest, OfferWithH264BeforeVP8)
 
   // P1 should be offered first
 #ifdef H264_P0_SUPPORTED
-  ASSERT_NE(offer.find("RTP/SAVPF 126 120 97"), std::string::npos);
+  ASSERT_NE(offer.find("UDP/TLS/RTP/SAVPF 126 120 97"), std::string::npos);
 #else
-  ASSERT_NE(offer.find("RTP/SAVPF 126 120"), std::string::npos);
+  ASSERT_NE(offer.find("UDP/TLS/RTP/SAVPF 126 120"), std::string::npos);
 #endif
 
   a1_->SetLocal(TestObserver::OFFER, offer);
@@ -4204,7 +4289,7 @@ TEST_P(SignalingTest, OfferWithH264BeforeVP8)
   std::string answer(a2_->answer());
 
   // Validate answer SDP
-  ASSERT_NE(answer.find("RTP/SAVPF 126"), std::string::npos);
+  ASSERT_NE(answer.find("UDP/TLS/RTP/SAVPF 126"), std::string::npos);
   ASSERT_NE(answer.find("a=rtpmap:126 H264/90000"), std::string::npos);
   ASSERT_NE(answer.find("a=rtcp-fb:126 nack"), std::string::npos);
   ASSERT_NE(answer.find("a=rtcp-fb:126 nack pli"), std::string::npos);
@@ -4224,11 +4309,11 @@ TEST_P(SignalingTest, OfferWithOnlyH264P0)
 
   // Remove VP8 from offer
   std::string offer = a1_->offer();
-  match = offer.find("RTP/SAVPF 120 126");
+  match = offer.find("UDP/TLS/RTP/SAVPF 120 126");
   ASSERT_NE(std::string::npos, match);
   offer.replace(match,
-                strlen("RTP/SAVPF 120 126"),
-                "RTP/SAVPF");
+                strlen("UDP/TLS/RTP/SAVPF 120 126"),
+                "UDP/TLS/RTP/SAVPF");
 
   ParsedSDP sdpWrapper(offer);
   sdpWrapper.DeleteLines("a=rtcp-fb:120");
@@ -4246,7 +4331,7 @@ TEST_P(SignalingTest, OfferWithOnlyH264P0)
   ASSERT_EQ(offer.find("a=rtpmap:120 VP8/90000"), std::string::npos);
 
   // P0 should be offered first
-  ASSERT_NE(offer.find("RTP/SAVPF 97"), std::string::npos);
+  ASSERT_NE(offer.find("UDP/TLS/RTP/SAVPF 97"), std::string::npos);
 
   a1_->SetLocal(TestObserver::OFFER, offer);
   a2_->SetRemote(TestObserver::OFFER, offer, false);
@@ -4255,7 +4340,7 @@ TEST_P(SignalingTest, OfferWithOnlyH264P0)
   std::string answer(a2_->answer());
 
   // validate answer SDP
-  ASSERT_NE(answer.find("RTP/SAVPF 97"), std::string::npos);
+  ASSERT_NE(answer.find("UDP/TLS/RTP/SAVPF 97"), std::string::npos);
   ASSERT_NE(answer.find("a=rtpmap:97 H264/90000"), std::string::npos);
   ASSERT_NE(answer.find("a=rtcp-fb:97 nack"), std::string::npos);
   ASSERT_NE(answer.find("a=rtcp-fb:97 nack pli"), std::string::npos);
@@ -4292,9 +4377,11 @@ TEST_P(SignalingTest, AnswerWithoutVP8)
   size_t match;
   answer = sdpWrapper.getSdp();
 
-  match = answer.find("RTP/SAVPF 120");
+  match = answer.find("UDP/TLS/RTP/SAVPF 120");
   ASSERT_NE(std::string::npos, match);
-  answer.replace(match, strlen("RTP/SAVPF 120"), "RTP/SAVPF 126");
+  answer.replace(match,
+                 strlen("UDP/TLS/RTP/SAVPF 120"),
+                 "UDP/TLS/RTP/SAVPF 126");
 
   match = answer.find("\r\na=rtpmap:120 VP8/90000");
   ASSERT_NE(std::string::npos, match);
@@ -4357,9 +4444,11 @@ TEST_P(SignalingTest, UseNonPrefferedPayloadTypeOnAnswer)
 
   // Replace VP8 Payload Type with a non preferred value
   size_t match;
-  match = answer.find("RTP/SAVPF 120");
+  match = answer.find("UDP/TLS/RTP/SAVPF 120");
   ASSERT_NE(std::string::npos, match);
-  answer.replace(match, strlen("RTP/SAVPF 121"), "RTP/SAVPF 121");
+  answer.replace(match,
+                 strlen("UDP/TLS/RTP/SAVPF 121"),
+                 "UDP/TLS/RTP/SAVPF 121");
 
   match = answer.find("\r\na=rtpmap:120 VP8/90000");
   ASSERT_NE(std::string::npos, match);
@@ -4384,12 +4473,6 @@ TEST_P(SignalingTest, UseNonPrefferedPayloadTypeOnAnswer)
   answer.replace(match,
                  strlen("\r\na=rtcp-fb:121 ccm fir"),
                  "\r\na=rtcp-fb:121 ccm fir");
-
-  match = answer.find("\r\na=rtcp-fb:120 ccm tmmbr");
-  ASSERT_NE(std::string::npos, match);
-  answer.replace(match,
-                 strlen("\r\na=rtcp-fb:121 ccm tmmbr"),
-                 "\r\na=rtcp-fb:121 ccm tmmbr");
 
   std::cout << "Modified SDP " << std::endl
             << indent(answer) << std::endl;
@@ -4501,7 +4584,7 @@ TEST_P(SignalingTest, AudioNegotiationFails)
 
 TEST_P(SignalingTest, BundleStreamCorrelationBySsrc)
 {
-  if (GetParam() != "bundle") {
+  if (!UseBundle()) {
     return;
   }
 
@@ -4549,7 +4632,7 @@ TEST_P(SignalingTest, BundleStreamCorrelationBySsrc)
 
 TEST_P(SignalingTest, BundleStreamCorrelationByUniquePt)
 {
-  if (GetParam() != "bundle") {
+  if (!UseBundle()) {
     return;
   }
 
@@ -4600,7 +4683,9 @@ TEST_P(SignalingTest, BundleStreamCorrelationByUniquePt)
 }
 
 INSTANTIATE_TEST_CASE_P(Variants, SignalingTest,
-                        ::testing::Values("bundle",
+                        ::testing::Values("max-bundle",
+                                          "balanced",
+                                          "max-compat",
                                           "no_bundle",
                                           "reject_bundle"));
 
@@ -4670,6 +4755,19 @@ static int gtest_main(int argc, char **argv) {
   return result;
 }
 
+#ifdef SIGNALING_UNITTEST_STANDALONE
+static void verifyStringTable(const EnumEntry* bindingTable,
+			      const char** ourTable)
+{
+  while (bindingTable->value) {
+    if (strcmp(bindingTable->value, *ourTable)) {
+      MOZ_CRASH("Our tables are out of sync with the bindings");
+    }
+    ++bindingTable;
+    ++ourTable;
+  }
+}
+#endif // SIGNALING_UNITTEST_STANDALONE
 
 int main(int argc, char **argv) {
 
@@ -4683,6 +4781,16 @@ int main(int argc, char **argv) {
     callerName = ansiCyan + callerName + ansiColorOff;
     calleeName = ansiMagenta + calleeName + ansiColorOff;
   }
+
+#ifdef SIGNALING_UNITTEST_STANDALONE
+  // Verify our string tables are correct.
+  verifyStringTable(PCImplSignalingStateValues::strings,
+		    test::PCImplSignalingStateStrings);
+  verifyStringTable(PCImplIceConnectionStateValues::strings,
+		    test::PCImplIceConnectionStateStrings);
+  verifyStringTable(PCImplIceGatheringStateValues::strings,
+		    test::PCImplIceGatheringStateStrings);
+#endif // SIGNALING_UNITTEST_STANDALONE
 
   std::string tmp = get_environment("STUN_SERVER_ADDRESS");
   if (tmp != "")
@@ -4701,7 +4809,7 @@ int main(int argc, char **argv) {
   // Adds a listener to the end.  Google Test takes the ownership.
   listeners.Append(new test::RingbufferDumper(test_utils));
   test_utils->sts_target()->Dispatch(
-    WrapRunnableNM(&TestStunServer::GetInstance), NS_DISPATCH_SYNC);
+    WrapRunnableNM(&TestStunServer::GetInstance, AF_INET), NS_DISPATCH_SYNC);
 
   // Set the main thread global which is this thread.
   nsIThread *thread;

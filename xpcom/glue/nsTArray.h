@@ -14,6 +14,7 @@
 #include "mozilla/BinarySearch.h"
 #include "mozilla/fallible.h"
 #include "mozilla/CheckedInt.h"
+#include "mozilla/InitializerList.h"
 #include "mozilla/MathAlgorithms.h"
 #include "mozilla/MemoryReporting.h"
 #include "mozilla/Move.h"
@@ -28,6 +29,7 @@
 #include "nsQuickSort.h"
 #include "nsDebug.h"
 #include "nsISupportsImpl.h"
+#include "nsRegionFwd.h"
 #include <new>
 
 namespace JS {
@@ -36,7 +38,6 @@ class Heap;
 } /* namespace JS */
 
 class nsRegion;
-class nsIntRegion;
 namespace mozilla {
 namespace layers {
 struct TileClient;
@@ -52,17 +53,10 @@ struct TileClient;
 //
 //   nsTArray<T>,
 //   FallibleTArray<T>,
-//   nsAutoTArray<T, N>, and
-//   AutoFallibleTArray<T, N>.
+//   AutoTArray<T, N>, and
 //
-// nsTArray and nsAutoTArray are infallible; if one tries to make an allocation
-// which fails, it crashes the program.  In contrast, FallibleTArray and
-// AutoFallibleTArray are fallible; if you use one of these classes, you must
-// check the return values of methods such as Append() which may allocate.  If
-// in doubt, choose an infallible type.
-//
-// InfallibleTArray and AutoInfallibleTArray are aliases for nsTArray and
-// nsAutoTArray.
+// nsTArray and AutoTArray are infallible by default. To opt-in to fallible
+// behaviour, use the `mozilla::fallible` parameter and check the return value.
 //
 // If you just want to declare the nsTArray types (e.g., if you're in a header
 // file and don't need the full nsTArray definitions) consider including
@@ -261,6 +255,7 @@ template<class E, class Derived>
 struct nsTArray_SafeElementAtHelper<E*, Derived>
 {
   typedef E*       elem_type;
+  //typedef const E* const_elem_type;   XXX: see below
   typedef size_t   index_type;
 
   elem_type SafeElementAt(index_type aIndex)
@@ -268,7 +263,11 @@ struct nsTArray_SafeElementAtHelper<E*, Derived>
     return static_cast<Derived*>(this)->SafeElementAt(aIndex, nullptr);
   }
 
-  const elem_type SafeElementAt(index_type aIndex) const
+  // XXX: Probably should return const_elem_type, but callsites must be fixed.
+  // Also, the use of const_elem_type for nsTArray<xpcGCCallback> in
+  // xpcprivate.h causes build failures on Windows because xpcGCCallback is a
+  // function pointer and MSVC doesn't like qualifying it with |const|.
+  elem_type SafeElementAt(index_type aIndex) const
   {
     return static_cast<const Derived*>(this)->SafeElementAt(aIndex, nullptr);
   }
@@ -280,6 +279,7 @@ template<class E, class Derived>
 struct nsTArray_SafeElementAtSmartPtrHelper
 {
   typedef E*       elem_type;
+  typedef const E* const_elem_type;
   typedef size_t   index_type;
 
   elem_type SafeElementAt(index_type aIndex)
@@ -287,7 +287,8 @@ struct nsTArray_SafeElementAtSmartPtrHelper
     return static_cast<Derived*>(this)->SafeElementAt(aIndex, nullptr);
   }
 
-  const elem_type SafeElementAt(index_type aIndex) const
+  // XXX: Probably should return const_elem_type, but callsites must be fixed.
+  elem_type SafeElementAt(index_type aIndex) const
   {
     return static_cast<const Derived*>(this)->SafeElementAt(aIndex, nullptr);
   }
@@ -301,25 +302,22 @@ struct nsTArray_SafeElementAtHelper<nsCOMPtr<E>, Derived>
 {
 };
 
-template<class T> class nsRefPtr;
-
 template<class E, class Derived>
-struct nsTArray_SafeElementAtHelper<nsRefPtr<E>, Derived>
+struct nsTArray_SafeElementAtHelper<RefPtr<E>, Derived>
   : public nsTArray_SafeElementAtSmartPtrHelper<E, Derived>
 {
 };
 
 namespace mozilla {
-namespace dom {
 template<class T> class OwningNonNull;
-} // namespace dom
 } // namespace mozilla
 
 template<class E, class Derived>
-struct nsTArray_SafeElementAtHelper<mozilla::dom::OwningNonNull<E>, Derived>
+struct nsTArray_SafeElementAtHelper<mozilla::OwningNonNull<E>, Derived>
 {
-  typedef E*     elem_type;
-  typedef size_t index_type;
+  typedef E*       elem_type;
+  typedef const E* const_elem_type;
+  typedef size_t   index_type;
 
   elem_type SafeElementAt(index_type aIndex)
   {
@@ -329,7 +327,8 @@ struct nsTArray_SafeElementAtHelper<mozilla::dom::OwningNonNull<E>, Derived>
     return nullptr;
   }
 
-  const elem_type SafeElementAt(index_type aIndex) const
+  // XXX: Probably should return const_elem_type, but callsites must be fixed.
+  elem_type SafeElementAt(index_type aIndex) const
   {
     if (aIndex < static_cast<const Derived*>(this)->Length()) {
       return static_cast<const Derived*>(this)->ElementAt(aIndex);
@@ -463,14 +462,14 @@ protected:
   };
 
   // Helper function for SwapArrayElements. Ensures that if the array
-  // is an nsAutoTArray that it doesn't use the built-in buffer.
+  // is an AutoTArray that it doesn't use the built-in buffer.
   template<typename ActualAlloc>
   bool EnsureNotUsingAutoArrayBuffer(size_type aElemSize);
 
-  // Returns true if this nsTArray is an nsAutoTArray with a built-in buffer.
+  // Returns true if this nsTArray is an AutoTArray with a built-in buffer.
   bool IsAutoArray() const { return mHdr->mIsAutoArray; }
 
-  // Returns a Header for the built-in buffer of this nsAutoTArray.
+  // Returns a Header for the built-in buffer of this AutoTArray.
   Header* GetAutoArrayBuffer(size_t aElemAlign)
   {
     MOZ_ASSERT(IsAutoArray(), "Should be an auto array to call this");
@@ -482,8 +481,8 @@ protected:
     return GetAutoArrayBufferUnsafe(aElemAlign);
   }
 
-  // Returns a Header for the built-in buffer of this nsAutoTArray, but doesn't
-  // assert that we are an nsAutoTArray.
+  // Returns a Header for the built-in buffer of this AutoTArray, but doesn't
+  // assert that we are an AutoTArray.
   Header* GetAutoArrayBufferUnsafe(size_t aElemAlign)
   {
     return const_cast<Header*>(static_cast<const nsTArray_base<Alloc, Copy>*>(
@@ -491,7 +490,7 @@ protected:
   }
   const Header* GetAutoArrayBufferUnsafe(size_t aElemAlign) const;
 
-  // Returns true if this is an nsAutoTArray and it currently uses the
+  // Returns true if this is an AutoTArray and it currently uses the
   // built-in buffer to store its elements.
   bool UsesAutoArrayBuffer() const;
 
@@ -793,7 +792,7 @@ struct ItemComparatorFirstElementGT
 
 //
 // nsTArray_Impl contains most of the guts supporting nsTArray, FallibleTArray,
-// nsAutoTArray, and AutoFallibleTArray.
+// AutoTArray.
 //
 // The only situation in which you might need to use nsTArray_Impl in your code
 // is if you're writing code which mutates a TArray which may or may not be
@@ -875,6 +874,7 @@ public:
   // |const nsTArray_Impl<E, OtherAlloc>&|.
   explicit nsTArray_Impl(const self_type& aOther) { AppendElements(aOther); }
 
+  explicit nsTArray_Impl(std::initializer_list<E> aIL) { AppendElements(aIL.begin(), aIL.size()); }
   // Allow converting to a const array with a different kind of allocator,
   // Since the allocator doesn't matter for const arrays
   template<typename Allocator>
@@ -1209,7 +1209,7 @@ public:
   }
 
   template<class Allocator>
-  /* MOZ_WARN_UNUSED_RESULT */
+  MOZ_WARN_UNUSED_RESULT
   bool Assign(const nsTArray_Impl<E, Allocator>& aOther,
               const mozilla::fallible_t&)
   {
@@ -1275,6 +1275,8 @@ protected:
   elem_type* ReplaceElementsAt(index_type aStart, size_type aCount,
                                const Item* aArray, size_type aArrayLen)
   {
+    MOZ_RELEASE_ASSERT(!(aStart > Length()));
+    MOZ_RELEASE_ASSERT(!(aCount > (Length() - aStart)));
     // Adjust memory allocation up-front to catch errors.
     if (!ActualAlloc::Successful(this->template EnsureCapacity<ActualAlloc>(
           Length() + aArrayLen - aCount, sizeof(elem_type)))) {
@@ -1290,7 +1292,7 @@ protected:
 public:
 
   template<class Item>
-  /* MOZ_WARN_UNUSED_RESULT */
+  MOZ_WARN_UNUSED_RESULT
   elem_type* ReplaceElementsAt(index_type aStart, size_type aCount,
                                const Item* aArray, size_type aArrayLen,
                                const mozilla::fallible_t&)
@@ -1311,7 +1313,7 @@ protected:
 public:
 
   template<class Item>
-  /* MOZ_WARN_UNUSED_RESULT */
+  MOZ_WARN_UNUSED_RESULT
   elem_type* ReplaceElementsAt(index_type aStart, size_type aCount,
                                const nsTArray<Item>& aArray,
                                const mozilla::fallible_t&)
@@ -1330,7 +1332,7 @@ protected:
 public:
 
   template<class Item>
-  /* MOZ_WARN_UNUSED_RESULT */
+  MOZ_WARN_UNUSED_RESULT
   elem_type* ReplaceElementsAt(index_type aStart, size_type aCount,
                                const Item& aItem, const mozilla::fallible_t&)
   {
@@ -1355,7 +1357,7 @@ protected:
 public:
 
   template<class Item>
-  /* MOZ_WARN_UNUSED_RESULT */
+  MOZ_WARN_UNUSED_RESULT
   elem_type* InsertElementsAt(index_type aIndex, const Item* aArray,
                               size_type aArrayLen, const mozilla::fallible_t&)
   {
@@ -1374,7 +1376,7 @@ protected:
 public:
 
   template<class Item, class Allocator>
-  /* MOZ_WARN_UNUSED_RESULT */
+  MOZ_WARN_UNUSED_RESULT
   elem_type* InsertElementsAt(index_type aIndex,
                               const nsTArray_Impl<Item, Allocator>& aArray,
                               const mozilla::fallible_t&)
@@ -1402,7 +1404,7 @@ protected:
   }
 public:
 
-  /* MOZ_WARN_UNUSED_RESULT */
+  MOZ_WARN_UNUSED_RESULT
   elem_type* InsertElementAt(index_type aIndex, const mozilla::fallible_t&)
   {
     return InsertElementAt<FallibleAlloc>(aIndex);
@@ -1427,7 +1429,7 @@ protected:
 public:
 
   template<class Item>
-  /* MOZ_WARN_UNUSED_RESULT */
+  MOZ_WARN_UNUSED_RESULT
   elem_type* InsertElementAt(index_type aIndex, Item&& aItem,
                              const mozilla::fallible_t&)
   {
@@ -1484,7 +1486,7 @@ protected:
 public:
 
   template<class Item, class Comparator>
-  /* MOZ_WARN_UNUSED_RESULT */
+  MOZ_WARN_UNUSED_RESULT
   elem_type* InsertElementSorted(Item&& aItem, const Comparator& aComp,
                                  const mozilla::fallible_t&)
   {
@@ -1504,7 +1506,7 @@ protected:
 public:
 
   template<class Item>
-  /* MOZ_WARN_UNUSED_RESULT */
+  MOZ_WARN_UNUSED_RESULT
   elem_type* InsertElementSorted(Item&& aItem, const mozilla::fallible_t&)
   {
     return InsertElementSorted<Item, FallibleAlloc>(
@@ -1554,6 +1556,41 @@ public:
                             const mozilla::fallible_t&)
   {
     return AppendElements<Item, Allocator, FallibleAlloc>(aArray);
+  }
+
+  // Move all elements from another array to the end of this array.
+  // @return A pointer to the newly appended elements, or null on OOM.
+protected:
+  template<class Item, class Allocator, typename ActualAlloc = Alloc>
+  elem_type* AppendElements(nsTArray_Impl<Item, Allocator>&& aArray)
+  {
+    MOZ_ASSERT(&aArray != this, "argument must be different aArray");
+    if (Length() == 0) {
+      SwapElements<ActualAlloc>(aArray);
+      return Elements();
+    }
+
+    index_type len = Length();
+    index_type otherLen = aArray.Length();
+    if (!Alloc::Successful(this->template EnsureCapacity<Alloc>(
+          len + otherLen, sizeof(elem_type)))) {
+      return nullptr;
+    }
+    copy_type::CopyElements(Elements() + len, aArray.Elements(), otherLen,
+                            sizeof(elem_type));
+    this->IncrementLength(otherLen);
+    aArray.template ShiftData<Alloc>(0, otherLen, 0, sizeof(elem_type),
+                                     MOZ_ALIGNOF(elem_type));
+    return Elements() + len;
+  }
+public:
+
+  template<class Item, class Allocator, typename ActualAlloc = Alloc>
+  /* MOZ_WARN_UNUSED_RESULT */
+  elem_type* AppendElements(nsTArray_Impl<Item, Allocator>&& aArray,
+                            const mozilla::fallible_t&)
+  {
+    return AppendElements<Item, Allocator>(mozilla::Move(aArray));
   }
 
   // Append a new element, move constructing if possible.
@@ -1623,32 +1660,6 @@ public:
   elem_type* AppendElement(const mozilla::fallible_t&)
   {
     return AppendElement<FallibleAlloc>();
-  }
-
-  // Move all elements from another array to the end of this array without
-  // calling copy constructors or destructors.
-  // @return A pointer to the newly appended elements, or null on OOM.
-  template<class Item, class Allocator>
-  elem_type* MoveElementsFrom(nsTArray_Impl<Item, Allocator>& aArray)
-  {
-    MOZ_ASSERT(&aArray != this, "argument must be different aArray");
-    index_type len = Length();
-    index_type otherLen = aArray.Length();
-    if (!Alloc::Successful(this->template EnsureCapacity<Alloc>(
-          len + otherLen, sizeof(elem_type)))) {
-      return nullptr;
-    }
-    copy_type::CopyElements(Elements() + len, aArray.Elements(), otherLen,
-                            sizeof(elem_type));
-    this->IncrementLength(otherLen);
-    aArray.template ShiftData<Alloc>(0, otherLen, 0, sizeof(elem_type),
-                                     MOZ_ALIGNOF(elem_type));
-    return Elements() + len;
-  }
-  template<class Item, class Allocator>
-  elem_type* MoveElementsFrom(nsTArray_Impl<Item, Allocator>&& aArray)
-  {
-    return MoveElementsFrom<Item, Allocator>(aArray);
   }
 
   // This method removes a range of elements from this array.
@@ -1749,7 +1760,7 @@ protected:
   }
 public:
 
-  /* MOZ_WARN_UNUSED_RESULT */
+  MOZ_WARN_UNUSED_RESULT
   bool SetCapacity(size_type aCapacity, const mozilla::fallible_t&)
   {
     return SetCapacity<FallibleAlloc>(aCapacity);
@@ -1778,7 +1789,7 @@ protected:
   }
 public:
 
-  /* MOZ_WARN_UNUSED_RESULT */
+  MOZ_WARN_UNUSED_RESULT
   bool SetLength(size_type aNewLen, const mozilla::fallible_t&)
   {
     return SetLength<FallibleAlloc>(aNewLen);
@@ -1817,7 +1828,7 @@ protected:
   }
 public:
 
-  /* MOZ_WARN_UNUSED_RESULT */
+  MOZ_WARN_UNUSED_RESULT
   bool EnsureLengthAtLeast(size_type aMinLen, const mozilla::fallible_t&)
   {
     return EnsureLengthAtLeast<FallibleAlloc>(aMinLen);
@@ -1848,7 +1859,7 @@ protected:
   }
 public:
 
-  /* MOZ_WARN_UNUSED_RESULT */
+  MOZ_WARN_UNUSED_RESULT
   elem_type* InsertElementsAt(index_type aIndex, size_type aCount,
                               const mozilla::fallible_t&)
   {
@@ -1884,7 +1895,7 @@ protected:
 public:
 
   template<class Item>
-  /* MOZ_WARN_UNUSED_RESULT */
+  MOZ_WARN_UNUSED_RESULT
   elem_type* InsertElementsAt(index_type aIndex, size_type aCount,
                               const Item& aItem, const mozilla::fallible_t&)
   {
@@ -2101,6 +2112,7 @@ public:
   explicit nsTArray(size_type aCapacity) : base_type(aCapacity) {}
   explicit nsTArray(const nsTArray& aOther) : base_type(aOther) {}
   MOZ_IMPLICIT nsTArray(nsTArray&& aOther) : base_type(mozilla::Move(aOther)) {}
+  MOZ_IMPLICIT nsTArray(std::initializer_list<E> aIL) : base_type(aIL) {}
 
   template<class Allocator>
   explicit nsTArray(const nsTArray_Impl<E, Allocator>& aOther)
@@ -2142,7 +2154,6 @@ public:
   using base_type::InsertElementAt;
   using base_type::InsertElementsAt;
   using base_type::InsertElementSorted;
-  using base_type::MoveElementsFrom;
   using base_type::ReplaceElementsAt;
   using base_type::SetCapacity;
   using base_type::SetLength;
@@ -2162,7 +2173,7 @@ public:
   FallibleTArray() {}
   explicit FallibleTArray(size_type aCapacity) : base_type(aCapacity) {}
   explicit FallibleTArray(const FallibleTArray<E>& aOther) : base_type(aOther) {}
-  explicit FallibleTArray(FallibleTArray<E>&& aOther)
+  FallibleTArray(FallibleTArray<E>&& aOther)
     : base_type(mozilla::Move(aOther))
   {
   }
@@ -2203,50 +2214,60 @@ public:
 };
 
 //
-// nsAutoArrayBase is a base class for AutoFallibleTArray and nsAutoTArray.
-// You shouldn't use this class directly.
+// AutoTArray<E, N> is like nsTArray<E>, but with N elements of inline storage.
+// Storing more than N elements is fine, but it will cause a heap allocation.
 //
-template<class TArrayBase, size_t N>
-class MOZ_NON_MEMMOVABLE nsAutoArrayBase : public TArrayBase
+template<class E, size_t N>
+class MOZ_NON_MEMMOVABLE AutoTArray : public nsTArray<E>
 {
-  static_assert(N != 0, "nsAutoArrayBase<TArrayBase, 0> should be specialized");
+  static_assert(N != 0, "AutoTArray<E, 0> should be specialized");
 public:
-  typedef nsAutoArrayBase<TArrayBase, N> self_type;
-  typedef TArrayBase base_type;
+  typedef AutoTArray<E, N> self_type;
+  typedef nsTArray<E> base_type;
   typedef typename base_type::Header Header;
   typedef typename base_type::elem_type elem_type;
+
+  AutoTArray()
+  {
+    Init();
+  }
+
+  AutoTArray(const self_type& aOther)
+  {
+    Init();
+    this->AppendElements(aOther);
+  }
+
+  explicit AutoTArray(const base_type& aOther)
+  {
+    Init();
+    this->AppendElements(aOther);
+  }
+
+  explicit AutoTArray(base_type&& aOther)
+  {
+    Init();
+    this->SwapElements(aOther);
+  }
+
+  template<typename Allocator>
+  explicit AutoTArray(nsTArray_Impl<elem_type, Allocator>&& aOther)
+  {
+    Init();
+    this->SwapElements(aOther);
+  }
+
+  self_type& operator=(const self_type& aOther)
+  {
+    base_type::operator=(aOther);
+    return *this;
+  }
 
   template<typename Allocator>
   self_type& operator=(const nsTArray_Impl<elem_type, Allocator>& aOther)
   {
     base_type::operator=(aOther);
     return *this;
-  }
-
-protected:
-  nsAutoArrayBase() { Init(); }
-
-  // We need this constructor because nsAutoTArray and friends all have
-  // implicit copy-constructors.  If we don't have this method, those
-  // copy-constructors will call nsAutoArrayBase's implicit copy-constructor,
-  // which won't call Init() and set up the auto buffer!
-  nsAutoArrayBase(const self_type& aOther)
-  {
-    Init();
-    this->AppendElements(aOther);
-  }
-
-  explicit nsAutoArrayBase(const TArrayBase &aOther)
-  {
-    Init();
-    this->AppendElements(aOther);
-  }
-
-  template<typename Allocator>
-  explicit nsAutoArrayBase(nsTArray_Impl<elem_type, Allocator>&& aOther)
-  {
-    Init();
-    this->SwapElements(aOther);
   }
 
 private:
@@ -2286,124 +2307,46 @@ private:
 };
 
 //
-// Specialization of nsAutoArrayBase<TArrayBase, N> for the case where N == 0.
-// nsAutoArrayBase<TArrayBase, 0> behaves exactly like TArrayBase, but without
-// this specialization, it stores a useless inline header.
+// Specialization of AutoTArray<E, N> for the case where N == 0.
+// AutoTArray<E, 0> behaves exactly like nsTArray<E>, but without this
+// specialization, it stores a useless inline header.
 //
-// We do have many nsAutoArrayBase<TArrayBase, 0> objects in memory: about
-// 2,000 per tab as of May 2014. These are typically not explicitly
-// nsAutoArrayBase<TArrayBase, 0> but rather nsAutoArrayBase<TArrayBase, N>
-// for some value N depending on template parameters, in generic code.
+// We do have many AutoTArray<E, 0> objects in memory: about 2,000 per tab as
+// of May 2014. These are typically not explicitly AutoTArray<E, 0> but rather
+// AutoTArray<E, N> for some value N depending on template parameters, in
+// generic code.
 //
 // For that reason, we optimize this case with the below partial specialization,
-// which ensures that nsAutoArrayBase<TArrayBase, 0> is just like TArrayBase,
-// without any inline header overhead.
+// which ensures that AutoTArray<E, 0> is just like nsTArray<E>, without any
+// inline header overhead.
 //
-template<class TArrayBase>
-class nsAutoArrayBase<TArrayBase, 0> : public TArrayBase
+template<class E>
+class AutoTArray<E, 0> : public nsTArray<E>
 {
-};
-
-//
-// nsAutoTArray<E, N> is an infallible vector class with N elements of inline
-// storage.  If you try to store more than N elements inside an
-// nsAutoTArray<E, N>, we'll call malloc() and store them all on the heap.
-//
-// Note that you can cast an nsAutoTArray<E, N> to
-// |const AutoFallibleTArray<E, N>&|.
-//
-template<class E, size_t N>
-class nsAutoTArray : public nsAutoArrayBase<nsTArray<E>, N>
-{
-  typedef nsAutoTArray<E, N> self_type;
-  typedef nsAutoArrayBase<nsTArray<E>, N> Base;
-
-public:
-  nsAutoTArray() {}
-
-  template<typename Allocator>
-  explicit nsAutoTArray(const nsTArray_Impl<E, Allocator>& aOther)
-  {
-    Base::AppendElements(aOther);
-  }
-  template<typename Allocator>
-  explicit nsAutoTArray(nsTArray_Impl<E, Allocator>&& aOther)
-    : Base(mozilla::Move(aOther))
-  {
-  }
-
-  template<typename Allocator>
-  self_type& operator=(const nsTArray_Impl<E, Allocator>& other)
-  {
-    Base::operator=(other);
-    return *this;
-  }
-
-  operator const AutoFallibleTArray<E, N>&() const
-  {
-    return *reinterpret_cast<const AutoFallibleTArray<E, N>*>(this);
-  }
-};
-
-//
-// AutoFallibleTArray<E, N> is a fallible vector class with N elements of
-// inline storage.
-//
-template<class E, size_t N>
-class AutoFallibleTArray : public nsAutoArrayBase<FallibleTArray<E>, N>
-{
-  typedef AutoFallibleTArray<E, N> self_type;
-  typedef nsAutoArrayBase<FallibleTArray<E>, N> Base;
-
-public:
-  AutoFallibleTArray() {}
-
-  template<typename Allocator>
-  explicit AutoFallibleTArray(const nsTArray_Impl<E, Allocator>& aOther)
-  {
-    Base::AppendElements(aOther);
-  }
-  template<typename Allocator>
-  explicit AutoFallibleTArray(nsTArray_Impl<E, Allocator>&& aOther)
-    : Base(mozilla::Move(aOther))
-  {
-  }
-
-  template<typename Allocator>
-  self_type& operator=(const nsTArray_Impl<E, Allocator>& other)
-  {
-    Base::operator=(other);
-    return *this;
-  }
-
-  operator const nsAutoTArray<E, N>&() const
-  {
-    return *reinterpret_cast<const nsAutoTArray<E, N>*>(this);
-  }
 };
 
 template<class E, size_t N>
-struct nsTArray_CopyChooser<nsAutoTArray<E, N>>
+struct nsTArray_CopyChooser<AutoTArray<E, N>>
 {
-  typedef nsTArray_CopyWithConstructors<nsAutoTArray<E, N>> Type;
+  typedef nsTArray_CopyWithConstructors<AutoTArray<E, N>> Type;
 };
 
-// Assert that nsAutoTArray doesn't have any extra padding inside.
+// Assert that AutoTArray doesn't have any extra padding inside.
 //
 // It's important that the data stored in this auto array takes up a multiple of
-// 8 bytes; e.g. nsAutoTArray<uint32_t, 1> wouldn't work.  Since nsAutoTArray
+// 8 bytes; e.g. AutoTArray<uint32_t, 1> wouldn't work.  Since AutoTArray
 // contains a pointer, its size must be a multiple of alignof(void*).  (This is
 // because any type may be placed into an array, and there's no padding between
 // elements of an array.)  The compiler pads the end of the structure to
 // enforce this rule.
 //
-// If we used nsAutoTArray<uint32_t, 1> below, this assertion would fail on a
+// If we used AutoTArray<uint32_t, 1> below, this assertion would fail on a
 // 64-bit system, where the compiler inserts 4 bytes of padding at the end of
 // the auto array to make its size a multiple of alignof(void*) == 8 bytes.
 
-static_assert(sizeof(nsAutoTArray<uint32_t, 2>) ==
+static_assert(sizeof(AutoTArray<uint32_t, 2>) ==
               sizeof(void*) + sizeof(nsTArrayHeader) + sizeof(uint32_t) * 2,
-              "nsAutoTArray shouldn't contain any extra padding, "
+              "AutoTArray shouldn't contain any extra padding, "
               "see the comment");
 
 // Definitions of nsTArray_Impl methods

@@ -59,7 +59,7 @@ JS_FOR_EACH_TRACEKIND(INSTANTIATE_ALL_VALID_TRACE_FUNCTIONS);
 template <typename S>
 struct DoCallbackFunctor : public IdentityDefaultAdaptor<S> {
     template <typename T> S operator()(T* t, JS::CallbackTracer* trc, const char* name) {
-        return js::gc::RewrapValueOrId<S, T*>::wrap(DoCallback(trc, &t, name));
+        return js::gc::RewrapTaggedPointer<S, T*>::wrap(DoCallback(trc, &t, name));
     }
 };
 
@@ -67,7 +67,7 @@ template <>
 Value
 DoCallback<Value>(JS::CallbackTracer* trc, Value* vp, const char* name)
 {
-    *vp = DispatchValueTyped(DoCallbackFunctor<Value>(), *vp, trc, name);
+    *vp = DispatchTyped(DoCallbackFunctor<Value>(), *vp, trc, name);
     return *vp;
 }
 
@@ -75,8 +75,16 @@ template <>
 jsid
 DoCallback<jsid>(JS::CallbackTracer* trc, jsid* idp, const char* name)
 {
-    *idp = DispatchIdTyped(DoCallbackFunctor<jsid>(), *idp, trc, name);
+    *idp = DispatchTyped(DoCallbackFunctor<jsid>(), *idp, trc, name);
     return *idp;
+}
+
+template <>
+TaggedProto
+DoCallback<TaggedProto>(JS::CallbackTracer* trc, TaggedProto* protop, const char* name)
+{
+    *protop = DispatchTyped(DoCallbackFunctor<TaggedProto>(), *protop, trc, name);
+    return *protop;
 }
 
 void
@@ -98,87 +106,9 @@ JS::CallbackTracer::getTracingEdgeName(char* buffer, size_t bufferSize)
 /*** Public Tracing API **************************************************************************/
 
 JS_PUBLIC_API(void)
-JS_CallUnbarrieredValueTracer(JSTracer* trc, Value* valuep, const char* name)
+JS::TraceChildren(JSTracer* trc, GCCellPtr thing)
 {
-    TraceManuallyBarrieredEdge(trc, valuep, name);
-}
-
-JS_PUBLIC_API(void)
-JS_CallUnbarrieredIdTracer(JSTracer* trc, jsid* idp, const char* name)
-{
-    TraceManuallyBarrieredEdge(trc, idp, name);
-}
-
-JS_PUBLIC_API(void)
-JS_CallUnbarrieredObjectTracer(JSTracer* trc, JSObject** objp, const char* name)
-{
-    TraceManuallyBarrieredEdge(trc, objp, name);
-}
-
-JS_PUBLIC_API(void)
-JS_CallUnbarrieredStringTracer(JSTracer* trc, JSString** strp, const char* name)
-{
-    TraceManuallyBarrieredEdge(trc, strp, name);
-}
-
-JS_PUBLIC_API(void)
-JS_CallUnbarrieredScriptTracer(JSTracer* trc, JSScript** scriptp, const char* name)
-{
-    TraceManuallyBarrieredEdge(trc, scriptp, name);
-}
-
-JS_PUBLIC_API(void)
-JS_CallValueTracer(JSTracer* trc, JS::Heap<JS::Value>* valuep, const char* name)
-{
-    TraceManuallyBarrieredEdge(trc, valuep->unsafeGet(), name);
-}
-
-JS_PUBLIC_API(void)
-JS_CallIdTracer(JSTracer* trc, JS::Heap<jsid>* idp, const char* name)
-{
-    TraceManuallyBarrieredEdge(trc, idp->unsafeGet(), name);
-}
-
-JS_PUBLIC_API(void)
-JS_CallObjectTracer(JSTracer* trc, JS::Heap<JSObject*>* objp, const char* name)
-{
-    TraceManuallyBarrieredEdge(trc, objp->unsafeGet(), name);
-}
-
-JS_PUBLIC_API(void)
-JS_CallStringTracer(JSTracer* trc, JS::Heap<JSString*>* strp, const char* name)
-{
-    TraceManuallyBarrieredEdge(trc, strp->unsafeGet(), name);
-}
-
-JS_PUBLIC_API(void)
-JS_CallScriptTracer(JSTracer* trc, JS::Heap<JSScript*>* scriptp, const char* name)
-{
-    TraceManuallyBarrieredEdge(trc, scriptp->unsafeGet(), name);
-}
-
-JS_PUBLIC_API(void)
-JS_CallFunctionTracer(JSTracer* trc, JS::Heap<JSFunction*>* funp, const char* name)
-{
-    TraceManuallyBarrieredEdge(trc, funp->unsafeGet(), name);
-}
-
-JS_PUBLIC_API(void)
-JS_CallTenuredObjectTracer(JSTracer* trc, JS::TenuredHeap<JSObject*>* objp, const char* name)
-{
-    JSObject* obj = objp->getPtr();
-    if (!obj)
-        return;
-
-    TraceManuallyBarrieredEdge(trc, &obj, name);
-
-    objp->setPtr(obj);
-}
-
-JS_PUBLIC_API(void)
-JS_TraceChildren(JSTracer* trc, void* thing, JS::TraceKind kind)
-{
-    js::TraceChildren(trc, thing, kind);
+    js::TraceChildren(trc, thing.asCell(), thing.kind());
 }
 
 struct TraceChildrenFunctor {
@@ -486,15 +416,15 @@ JS_GetTraceThingInfo(char* buf, size_t bufsize, JSTracer* trc, void* thing,
                 bool willFit = str->length() + strlen("<length > ") +
                                CountDecimalDigits(str->length()) < bufsize;
 
-                n = JS_snprintf(buf, bufsize, "<length %d%s> ",
-                                (int)str->length(),
+                n = JS_snprintf(buf, bufsize, "<length %" PRIuSIZE "%s> ",
+                                str->length(),
                                 willFit ? "" : " (truncated)");
                 buf += n;
                 bufsize -= n;
 
                 PutEscapedString(buf, bufsize, &str->asLinear(), 0);
             } else {
-                JS_snprintf(buf, bufsize, "<rope: length %d>", (int)str->length());
+                JS_snprintf(buf, bufsize, "<rope: length %" PRIuSIZE ">", str->length());
             }
             break;
           }

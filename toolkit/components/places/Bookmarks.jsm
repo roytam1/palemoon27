@@ -82,7 +82,7 @@ XPCOMUtils.defineLazyModuleGetter(this, "PlacesUtils",
 const DB_URL_LENGTH_MAX = 65536;
 const DB_TITLE_LENGTH_MAX = 4096;
 
-let Bookmarks = Object.freeze({
+var Bookmarks = Object.freeze({
   /**
    * Item's type constants.
    * These should stay consistent with nsINavBookmarksService.idl
@@ -276,7 +276,7 @@ let Bookmarks = Object.freeze({
              SELECT guid FROM moz_bookmarks
              WHERE id IN descendants
             `, { id: item._id, type: this.TYPE_FOLDER });
-          if ([r.getResultByName("guid") for (r of rows)].indexOf(updateInfo.parentGuid) != -1)
+          if (rows.map(r => r.getResultByName("guid")).indexOf(updateInfo.parentGuid) != -1)
             throw new Error("Cannot insert a folder into itself or one of its descendants");
         }
 
@@ -751,7 +751,7 @@ function* updateBookmark(info, item, newParent) {
 
     yield db.executeCached(
       `UPDATE moz_bookmarks
-       SET ${[tuples.get(v).fragment || `${v} = :${v}` for (v of tuples.keys())].join(", ")}
+         SET ${Array.from(tuples.keys()).map(v => tuples.get(v).fragment || `${v} = :${v}`).join(", ")}
        WHERE guid = :guid
       `, Object.assign({ guid: info.guid },
                        [...tuples.entries()].reduce((p, c) => { p[c[0]] = c[1].value; return p; }, {})));
@@ -966,7 +966,7 @@ function* reorderChildren(parent, orderedChildrenGuids) {
     // Select all of the direct children for the given parent.
     let children = yield fetchBookmarksByParent({ parentGuid: parent.guid });
     if (!children.length)
-      return;
+        return undefined;
 
     // Reorder the children array according to the specified order, provided
     // GUIDs come first, others are appended in somehow random order.
@@ -1267,7 +1267,7 @@ function validateBookmarkObject(input, behavior={}) {
  * @param urls
  *        the array of URLs to update.
  */
-let updateFrecency = Task.async(function* (db, urls) {
+var updateFrecency = Task.async(function* (db, urls) {
   yield db.execute(
     `UPDATE moz_places
      SET frecency = NOTIFY_FRECENCY(
@@ -1289,7 +1289,7 @@ let updateFrecency = Task.async(function* (db, urls) {
  * @param db
  *        the Sqlite.jsm connection handle.
  */
-let removeOrphanAnnotations = Task.async(function* (db) {
+var removeOrphanAnnotations = Task.async(function* (db) {
   yield db.executeCached(
     `DELETE FROM moz_items_annos
      WHERE id IN (SELECT a.id from moz_items_annos a
@@ -1313,7 +1313,7 @@ let removeOrphanAnnotations = Task.async(function* (db) {
  * @param itemId
  *        internal id of the item for which to remove annotations.
  */
-let removeAnnotationsForItem = Task.async(function* (db, itemId) {
+var removeAnnotationsForItem = Task.async(function* (db, itemId) {
   yield db.executeCached(
     `DELETE FROM moz_items_annos
      WHERE item_id = :id
@@ -1339,7 +1339,7 @@ let removeAnnotationsForItem = Task.async(function* (db, itemId) {
  *
  * @note the folder itself is also updated.
  */
-let setAncestorsLastModified = Task.async(function* (db, folderGuid, time) {
+var setAncestorsLastModified = Task.async(function* (db, folderGuid, time) {
   yield db.executeCached(
     `WITH RECURSIVE
      ancestors(aid) AS (
@@ -1363,7 +1363,7 @@ let setAncestorsLastModified = Task.async(function* (db, folderGuid, time) {
  * @param folderGuids
  *        array of folder guids.
  */
-let removeFoldersContents =
+var removeFoldersContents =
 Task.async(function* (db, folderGuids) {
   let itemsRemoved = [];
   for (let folderGuid of folderGuids) {
@@ -1406,7 +1406,7 @@ Task.async(function* (db, folderGuids) {
 
   // TODO (Bug 1087576): this may leave orphan tags behind.
 
-  let urls = [for (item of itemsRemoved) if (item.url) item.url];
+  let urls = itemsRemoved.filter(item => "url" in item).map(item => item.url);
   updateFrecency(db, urls).then(null, Cu.reportError);
 
   // Send onItemRemoved notifications to listeners.

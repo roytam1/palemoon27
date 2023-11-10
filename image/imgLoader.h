@@ -9,6 +9,7 @@
 
 #include "mozilla/Attributes.h"
 #include "mozilla/Mutex.h"
+#include "mozilla/UniquePtr.h"
 
 #include "imgILoader.h"
 #include "imgICache.h"
@@ -16,7 +17,6 @@
 #include "nsIContentSniffer.h"
 #include "nsRefPtrHashtable.h"
 #include "nsExpirationTracker.h"
-#include "nsAutoPtr.h"
 #include "ImageCacheKey.h"
 #include "imgRequest.h"
 #include "nsIProgressEventSink.h"
@@ -41,34 +41,10 @@ class ImageURL;
 class imgCacheEntry
 {
 public:
+  NS_INLINE_DECL_REFCOUNTING(imgCacheEntry)
+
   imgCacheEntry(imgLoader* loader, imgRequest* request,
                 bool aForcePrincipalCheck);
-  ~imgCacheEntry();
-
-  nsrefcnt AddRef()
-  {
-    NS_PRECONDITION(int32_t(mRefCnt) >= 0, "illegal refcnt");
-    MOZ_ASSERT(_mOwningThread.GetThread() == PR_GetCurrentThread(),
-      "imgCacheEntry addref isn't thread-safe!");
-    ++mRefCnt;
-    NS_LOG_ADDREF(this, mRefCnt, "imgCacheEntry", sizeof(*this));
-    return mRefCnt;
-  }
-
-  nsrefcnt Release()
-  {
-    NS_PRECONDITION(0 != mRefCnt, "dup release");
-    MOZ_ASSERT(_mOwningThread.GetThread() == PR_GetCurrentThread(),
-      "imgCacheEntry release isn't thread-safe!");
-    --mRefCnt;
-    NS_LOG_RELEASE(this, mRefCnt, "imgCacheEntry");
-    if (mRefCnt == 0) {
-      mRefCnt = 1; /* stabilize */
-      delete this;
-      return 0;
-    }
-    return mRefCnt;
-  }
 
   uint32_t GetDataSize() const
   {
@@ -90,6 +66,13 @@ public:
     mTouchedTime = time;
     Touch(/* updateTime = */ false);
   }
+
+  uint32_t GetLoadTime() const
+  {
+    return mLoadTime;
+  }
+
+  void UpdateLoadTime();
 
   int32_t GetExpiryTime() const
   {
@@ -113,7 +96,7 @@ public:
 
   already_AddRefed<imgRequest> GetRequest() const
   {
-    nsRefPtr<imgRequest> req = mRequest;
+    RefPtr<imgRequest> req = mRequest;
     return req.forget();
   }
 
@@ -155,15 +138,14 @@ private: // methods
 
   // Private, unimplemented copy constructor.
   imgCacheEntry(const imgCacheEntry&);
+  ~imgCacheEntry();
 
 private: // data
-  nsAutoRefCnt mRefCnt;
-  NS_DECL_OWNINGTHREAD
-
   imgLoader* mLoader;
-  nsRefPtr<imgRequest> mRequest;
+  RefPtr<imgRequest> mRequest;
   uint32_t mDataSize;
   int32_t mTouchedTime;
+  uint32_t mLoadTime;
   int32_t mExpiryTime;
   nsExpirationState mExpirationState;
   bool mMustValidate : 1;
@@ -196,7 +178,7 @@ public:
   void UpdateSize(int32_t diff);
   uint32_t GetNumElements() const;
   bool Contains(imgCacheEntry* aEntry) const;
-  typedef std::vector<nsRefPtr<imgCacheEntry> > queueContainer;
+  typedef std::vector<RefPtr<imgCacheEntry> > queueContainer;
   typedef queueContainer::iterator iterator;
   typedef queueContainer::const_iterator const_iterator;
 
@@ -217,10 +199,10 @@ enum class AcceptedMimeTypes : uint8_t {
 };
 
 class imgLoader final : public imgILoader,
-                            public nsIContentSniffer,
-                            public imgICache,
-                            public nsSupportsWeakReference,
-                            public nsIObserver
+                        public nsIContentSniffer,
+                        public imgICache,
+                        public nsSupportsWeakReference,
+                        public nsIObserver
 {
   virtual ~imgLoader();
 
@@ -333,8 +315,8 @@ public:
   // Returns true if we should prefer evicting cache entry |two| over cache
   // entry |one|.
   // This mixes units in the worst way, but provides reasonable results.
-  inline static bool CompareCacheEntries(const nsRefPtr<imgCacheEntry>& one,
-                                         const nsRefPtr<imgCacheEntry>& two)
+  inline static bool CompareCacheEntries(const RefPtr<imgCacheEntry>& one,
+                                         const RefPtr<imgCacheEntry>& two)
   {
     if (!one) {
       return false;
@@ -448,7 +430,7 @@ private: // data
 
   nsCString mAcceptHeader;
 
-  nsAutoPtr<imgCacheExpirationTracker> mCacheTracker;
+  mozilla::UniquePtr<imgCacheExpirationTracker> mCacheTracker;
   bool mRespectPrivacy;
 
 #ifdef MOZ_JXR
@@ -545,15 +527,15 @@ private:
   virtual ~imgCacheValidator();
 
   nsCOMPtr<nsIStreamListener> mDestListener;
-  nsRefPtr<nsProgressNotificationProxy> mProgressProxy;
+  RefPtr<nsProgressNotificationProxy> mProgressProxy;
   nsCOMPtr<nsIAsyncVerifyRedirectCallback> mRedirectCallback;
   nsCOMPtr<nsIChannel> mRedirectChannel;
 
-  nsRefPtr<imgRequest> mRequest;
+  RefPtr<imgRequest> mRequest;
   nsCOMArray<imgIRequest> mProxies;
 
-  nsRefPtr<imgRequest> mNewRequest;
-  nsRefPtr<imgCacheEntry> mNewEntry;
+  RefPtr<imgRequest> mNewRequest;
+  RefPtr<imgCacheEntry> mNewEntry;
 
   nsCOMPtr<nsISupports> mContext;
 
@@ -562,4 +544,4 @@ private:
   bool mHadInsecureRedirect;
 };
 
-#endif  // mozilla_image_imgLoader_h
+#endif // mozilla_image_imgLoader_h

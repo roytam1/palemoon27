@@ -11,6 +11,8 @@ Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 Cu.import("resource://gre/modules/osfile.jsm");
 Cu.import("resource://gre/modules/FileUtils.jsm");
 
+Cu.importGlobalProperties(["FileReader"]);
+
 let {Promise: promise} = Cu.import("resource://gre/modules/Promise.jsm", {});
 
 let DevToolsUtils = require("devtools/toolkit/DevToolsUtils");
@@ -212,10 +214,14 @@ function WebappsActor(aConnection) {
   Cu.import("resource://gre/modules/Webapps.jsm");
   Cu.import("resource://gre/modules/AppsUtils.jsm");
   Cu.import("resource://gre/modules/FileUtils.jsm");
+  Cu.import("resource://gre/modules/MessageBroadcaster.jsm");
 
-  // Keep reference of already created app actors.
-  // key: app frame message manager, value: ContentActor's grip() value
-  this._appActorsMap = new Map();
+  this.appsChild = {};
+  Cu.import("resource://gre/modules/AppsServiceChild.jsm", this.appsChild);
+
+  // Keep reference of already connected app processes.
+  // values: app frame message manager
+  this._connectedApps = new Set();
 
   this.conn = aConnection;
   this._uploads = [];
@@ -289,17 +295,17 @@ WebappsActor.prototype = {
         // Needed to evict manifest cache on content side
         // (has to be dispatched first, otherwise other messages like
         // Install:Return:OK are going to use old manifest version)
-        reg.broadcastMessage("Webapps:UpdateState", {
+        MessageBroadcaster.broadcastMessage("Webapps:UpdateState", {
           app: aApp,
           manifest: manifest,
           id: aApp.id
         });
-        reg.broadcastMessage("Webapps:FireEvent", {
+        MessageBroadcaster.broadcastMessage("Webapps:FireEvent", {
           eventType: ["downloadsuccess", "downloadapplied"],
           manifestURL: aApp.manifestURL
         });
-        reg.broadcastMessage("Webapps:AddApp", { id: aId, app: aApp });
-        reg.broadcastMessage("Webapps:Install:Return:OK", {
+        MessageBroadcaster.broadcastMessage("Webapps:AddApp", { id: aId, app: aApp });
+        MessageBroadcaster.broadcastMessage("Webapps:Install:Return:OK", {
           app: aApp,
           oid: "foo",
           requestID: "bar"
@@ -687,8 +693,7 @@ WebappsActor.prototype = {
     debug("getAll");
 
     let deferred = promise.defer();
-    let reg = DOMApplicationRegistry;
-    reg.getAll(apps => {
+    this.appsChild.DOMApplicationRegistry.getAll(apps => {
       deferred.resolve({ apps: this._filterAllowedApps(apps) });
     });
 
@@ -819,8 +824,7 @@ WebappsActor.prototype = {
       }
 
       // Convert the blog to a base64 encoded data URI
-      let reader = Cc["@mozilla.org/files/filereader;1"]
-                     .createInstance(Ci.nsIDOMFileReader);
+      let reader = new FileReader();
       reader.onload = function () {
         deferred.resolve({
           url: reader.result
@@ -960,24 +964,33 @@ WebappsActor.prototype = {
 
     // Only create a new actor, if we haven't already
     // instanciated one for this connection.
-    let map = this._appActorsMap;
+    let set = this._connectedApps;
     let mm = appFrame.QueryInterface(Ci.nsIFrameLoaderOwner)
                      .frameLoader
                      .messageManager;
-    let actor = map.get(mm);
-    if (!actor) {
+    if (!set.has(mm)) {
       let onConnect = actor => {
-        map.set(mm, actor);
+        set.add(mm);
         return { actor: actor };
       };
       let onDisconnect = mm => {
-        map.delete(mm);
+        set.delete(mm);
       };
       return DebuggerServer.connectToChild(this.conn, appFrame, onDisconnect)
                            .then(onConnect);
     }
 
-    return { actor: actor };
+    // We have to update the form as it may have changed
+    // if we detached the TabActor
+    let deferred = promise.defer();
+    let onFormUpdate = msg => {
+      mm.removeMessageListener("debug:form", onFormUpdate);
+      deferred.resolve({ actor: msg.json });
+    };
+    mm.addMessageListener("debug:form", onFormUpdate);
+    mm.sendAsyncMessage("debug:form");
+
+    return deferred.promise;
   },
 
   watchApps: function () {

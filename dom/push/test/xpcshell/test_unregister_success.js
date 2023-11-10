@@ -21,10 +21,12 @@ add_task(function* test_unregister_success() {
     pushEndpoint: 'https://example.org/update/unregister-success',
     scope: 'https://example.com/page/unregister-success',
     originAttributes: '',
-    version: 1
+    version: 1,
+    quota: Infinity,
   });
 
-  let unregisterDefer = Promise.defer();
+  let unregisterDone;
+  let unregisterPromise = new Promise(resolve => unregisterDone = resolve);
   PushService.init({
     serverURI: "wss://push.example.org/",
     networkInfo: new MockDesktopNetworkInfo(),
@@ -45,17 +47,19 @@ add_task(function* test_unregister_success() {
             status: 200,
             channelID
           }));
-          unregisterDefer.resolve();
+          unregisterDone();
         }
       });
     }
   });
 
-  yield PushNotificationService.unregister(
-    'https://example.com/page/unregister-success', '');
+  yield PushService.unregister({
+    scope: 'https://example.com/page/unregister-success',
+    originAttributes: '',
+  });
   let record = yield db.getByKeyID(channelID);
   ok(!record, 'Unregister did not remove record');
 
-  yield waitForPromise(unregisterDefer.promise, DEFAULT_TIMEOUT,
+  yield waitForPromise(unregisterPromise, DEFAULT_TIMEOUT,
     'Timed out waiting for unregister');
 });

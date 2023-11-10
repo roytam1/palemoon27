@@ -11,9 +11,12 @@
 
 Components.utils.import("resource://gre/modules/XPCOMUtils.jsm");
 Components.utils.import("resource://gre/modules/Services.jsm");
+Components.utils.importGlobalProperties(['File']);
 
-const Cc = Components.classes;
-const Ci = Components.interfaces;
+if (typeof(Cc) == "undefined") {
+  const Cc = Components.classes;
+  const Ci = Components.interfaces;
+}
 
 const CHILD_SCRIPT = "chrome://specialpowers/content/specialpowers.js"
 const CHILD_SCRIPT_API = "chrome://specialpowers/content/specialpowersAPI.js"
@@ -79,6 +82,8 @@ SpecialPowersObserver.prototype = new SpecialPowersObserverAPI();
       this._messageManager.addMessageListener("SPPingService", this);
       this._messageManager.addMessageListener("SpecialPowers.Quit", this);
       this._messageManager.addMessageListener("SpecialPowers.Focus", this);
+      this._messageManager.addMessageListener("SpecialPowers.CreateFiles", this);
+      this._messageManager.addMessageListener("SpecialPowers.RemoveFiles", this);
       this._messageManager.addMessageListener("SPPermissionManager", this);
       this._messageManager.addMessageListener("SPWebAppService", this);
       this._messageManager.addMessageListener("SPObserverService", this);
@@ -86,12 +91,13 @@ SpecialPowersObserver.prototype = new SpecialPowersObserverAPI();
       this._messageManager.addMessageListener("SPChromeScriptMessage", this);
       this._messageManager.addMessageListener("SPQuotaManager", this);
       this._messageManager.addMessageListener("SPSetTestPluginEnabledState", this);
-      this._messageManager.addMessageListener("SPPeriodicServiceWorkerUpdates", this);
+      this._messageManager.addMessageListener("SPCleanUpSTSData", this);
 
       this._messageManager.loadFrameScript(CHILD_LOGGER_SCRIPT, true);
       this._messageManager.loadFrameScript(CHILD_SCRIPT_API, true);
       this._messageManager.loadFrameScript(CHILD_SCRIPT, true);
       this._isFrameScriptLoaded = true;
+      this._createdFiles = null;
     }
   };
 
@@ -138,6 +144,8 @@ SpecialPowersObserver.prototype = new SpecialPowersObserverAPI();
       this._messageManager.removeMessageListener("SPPingService", this);
       this._messageManager.removeMessageListener("SpecialPowers.Quit", this);
       this._messageManager.removeMessageListener("SpecialPowers.Focus", this);
+      this._messageManager.removeMessageListener("SpecialPowers.CreateFiles", this);
+      this._messageManager.removeMessageListener("SpecialPowers.RemoveFiles", this);
       this._messageManager.removeMessageListener("SPPermissionManager", this);
       this._messageManager.removeMessageListener("SPWebAppService", this);
       this._messageManager.removeMessageListener("SPObserverService", this);
@@ -145,7 +153,7 @@ SpecialPowersObserver.prototype = new SpecialPowersObserverAPI();
       this._messageManager.removeMessageListener("SPChromeScriptMessage", this);
       this._messageManager.removeMessageListener("SPQuotaManager", this);
       this._messageManager.removeMessageListener("SPSetTestPluginEnabledState", this);
-      this._messageManager.removeMessageListener("SPPeriodicServiceWorkerUpdates", this);
+      this._messageManager.removeMessageListener("SPCleanUpSTSData", this);
 
       this._messageManager.removeDelayedFrameScript(CHILD_LOGGER_SCRIPT);
       this._messageManager.removeDelayedFrameScript(CHILD_SCRIPT_API);
@@ -205,6 +213,50 @@ getService(Ci.nsIMessageBroadcaster);
         break;
       case "SpecialPowers.Focus":
         aMessage.target.focus();
+        break;
+      case "SpecialPowers.CreateFiles":
+        let filePaths = new Array;
+        if (!this.createdFiles) {
+          this._createdFiles = new Array;
+        }
+        let createdFiles = this._createdFiles;
+        try {
+          aMessage.data.forEach(function(request) {
+            let testFile = Services.dirsvc.get("ProfD", Ci.nsIFile);
+            testFile.append(request.name);
+            let outStream = Cc["@mozilla.org/network/file-output-stream;1"].createInstance(Ci.nsIFileOutputStream);
+            outStream.init(testFile, 0x02 | 0x08 | 0x20, // PR_WRONLY | PR_CREATE_FILE | PR_TRUNCATE
+                           0666, 0);
+            if (request.data) {
+              outStream.write(request.data, request.data.length);
+              outStream.close();
+            }
+            filePaths.push(new File(testFile.path));
+            createdFiles.push(testFile);
+          });
+          aMessage.target
+                  .QueryInterface(Ci.nsIFrameLoaderOwner)
+                  .frameLoader
+                  .messageManager
+                  .sendAsyncMessage("SpecialPowers.FilesCreated", filePaths);
+        } catch (e) {
+          aMessage.target
+                  .QueryInterface(Ci.nsIFrameLoaderOwner)
+                  .frameLoader
+                  .messageManager
+                  .sendAsyncMessage("SpecialPowers.FilesError", e.toString());
+        }
+
+        break;
+      case "SpecialPowers.RemoveFiles":
+        if (this._createdFiles) {
+          this._createdFiles.forEach(function (testFile) {
+            try {
+              testFile.remove(false);
+            } catch (e) {}
+          });
+          this._createdFiles = null;
+        }
         break;
       default:
         return this._receiveMessage(aMessage);

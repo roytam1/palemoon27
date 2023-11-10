@@ -41,7 +41,6 @@ if CONFIG['GNU_CXX']:
 if CONFIG['MOZ_DIRECTX_SDK_PATH'] and not CONFIG['MOZ_HAS_WINSDK_WITH_D3D']:
     LOCAL_INCLUDES += ['%' + '%s/include/' % CONFIG['MOZ_DIRECTX_SDK_PATH']]
 
-DEFINES['NOMINMAX'] = True
 DEFINES['_CRT_SECURE_NO_DEPRECATE'] = True
 DEFINES['_HAS_EXCEPTIONS'] = 0
 
@@ -63,6 +62,7 @@ DEFINES['EGLAPI'] = ""
 # ANGLE uses the STL, so we can't use Mozilla's derpy STL wrappers.
 DISABLE_STL_WRAPPING = True
 
+ALLOW_COMPILER_WARNINGS = True
 
 LOCAL_INCLUDES += [ '../../include', '../../src', '../../src/third_party/khronos' ]
 

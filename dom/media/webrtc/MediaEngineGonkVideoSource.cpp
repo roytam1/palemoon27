@@ -25,7 +25,7 @@ using namespace mozilla::gfx;
 using namespace android;
 
 #undef LOG
-extern PRLogModuleInfo* GetMediaManagerLog();
+extern LogModule* GetMediaManagerLog();
 #define LOG(msg) MOZ_LOG(GetMediaManagerLog(), mozilla::LogLevel::Debug, msg)
 #define LOGFRAME(msg) MOZ_LOG(GetMediaManagerLog(), mozilla::LogLevel::Verbose, msg)
 
@@ -49,7 +49,7 @@ public:
   {
   }
 
-  nsRefPtr<MediaEngineGonkVideoSource> mMediaEngine;
+  RefPtr<MediaEngineGonkVideoSource> mMediaEngine;
 };
 
 #define WEBRTC_GONK_VIDEO_SOURCE_POOL_BUFFERS 10
@@ -77,7 +77,7 @@ MediaEngineGonkVideoSource::NotifyPull(MediaStreamGraph* aGraph,
   // though.
 
   // Note: we're not giving up mImage here
-  nsRefPtr<layers::Image> image = mImage;
+  RefPtr<layers::Image> image = mImage;
   StreamTime delta = aDesiredTime - aSource->GetEndOfAppendedData(aID);
   LOGFRAME(("NotifyPull, desired = %ld, delta = %ld %s", (int64_t) aDesiredTime,
             (int64_t) delta, image ? "" : "<null>"));
@@ -147,14 +147,15 @@ MediaEngineGonkVideoSource::NumCapabilities()
 
 nsresult
 MediaEngineGonkVideoSource::Allocate(const dom::MediaTrackConstraints& aConstraints,
-                                     const MediaEnginePrefs& aPrefs)
+                                     const MediaEnginePrefs& aPrefs,
+                                     const nsString& aDeviceId)
 {
   LOG((__FUNCTION__));
 
   ReentrantMonitorAutoEnter sync(mCallbackMonitor);
   if (mState == kReleased && mInitDone) {
-    ChooseCapability(aConstraints, aPrefs);
-    NS_DispatchToMainThread(WrapRunnable(nsRefPtr<MediaEngineGonkVideoSource>(this),
+    ChooseCapability(aConstraints, aPrefs, aDeviceId);
+    NS_DispatchToMainThread(WrapRunnable(RefPtr<MediaEngineGonkVideoSource>(this),
                                          &MediaEngineGonkVideoSource::AllocImpl));
     mCallbackMonitor.Wait();
     if (mState != kAllocated) {
@@ -184,7 +185,7 @@ MediaEngineGonkVideoSource::Deallocate()
 
     // We do not register success callback here
 
-    NS_DispatchToMainThread(WrapRunnable(nsRefPtr<MediaEngineGonkVideoSource>(this),
+    NS_DispatchToMainThread(WrapRunnable(RefPtr<MediaEngineGonkVideoSource>(this),
                                          &MediaEngineGonkVideoSource::DeallocImpl));
     mCallbackMonitor.Wait();
     if (mState != kReleased) {
@@ -222,7 +223,7 @@ MediaEngineGonkVideoSource::Start(SourceMediaStream* aStream, TrackID aID)
   mTrackID = aID;
   mImageContainer = layers::LayerManager::CreateImageContainer();
 
-  NS_DispatchToMainThread(WrapRunnable(nsRefPtr<MediaEngineGonkVideoSource>(this),
+  NS_DispatchToMainThread(WrapRunnable(RefPtr<MediaEngineGonkVideoSource>(this),
                                        &MediaEngineGonkVideoSource::StartImpl,
                                        mCapability));
   mCallbackMonitor.Wait();
@@ -318,9 +319,17 @@ MediaEngineGonkVideoSource::Stop(SourceMediaStream* aSource, TrackID aID)
     mImage = nullptr;
   }
 
-  NS_DispatchToMainThread(WrapRunnable(nsRefPtr<MediaEngineGonkVideoSource>(this),
+  NS_DispatchToMainThread(WrapRunnable(RefPtr<MediaEngineGonkVideoSource>(this),
                                        &MediaEngineGonkVideoSource::StopImpl));
 
+  return NS_OK;
+}
+
+nsresult
+MediaEngineGonkVideoSource::Restart(const dom::MediaTrackConstraints& aConstraints,
+                                    const MediaEnginePrefs& aPrefs,
+                                    const nsString& aDeviceId)
+{
   return NS_OK;
 }
 
@@ -334,8 +343,8 @@ MediaEngineGonkVideoSource::Init()
 {
   nsAutoCString deviceName;
   ICameraControl::GetCameraName(mCaptureIndex, deviceName);
-  CopyUTF8toUTF16(deviceName, mDeviceName);
-  CopyUTF8toUTF16(deviceName, mUniqueId);
+  SetName(NS_ConvertUTF8toUTF16(deviceName));
+  SetUUID(deviceName.get());
 
   mInitDone = true;
 }
@@ -406,7 +415,7 @@ MediaEngineGonkVideoSource::DeallocImpl() {
 
 // The same algorithm from bug 840244
 static int
-GetRotateAmount(ScreenOrientation aScreen, int aCameraMountAngle, bool aBackCamera) {
+GetRotateAmount(ScreenOrientationInternal aScreen, int aCameraMountAngle, bool aBackCamera) {
   int screenAngle = 0;
   switch (aScreen) {
     case eScreenOrientation_PortraitPrimary:
@@ -497,7 +506,7 @@ MediaEngineGonkVideoSource::OnHardwareStateChange(HardwareState aState,
       break;
     case CameraControlListener::kHardwareOpen:
       // Can't read this except on MainThread (ugh)
-      NS_DispatchToMainThread(WrapRunnable(nsRefPtr<MediaEngineGonkVideoSource>(this),
+      NS_DispatchToMainThread(WrapRunnable(RefPtr<MediaEngineGonkVideoSource>(this),
                                            &MediaEngineGonkVideoSource::GetRotation));
       mState = kStarted;
       mCallbackMonitor.Notify();
@@ -549,7 +558,7 @@ MediaEngineGonkVideoSource::OnUserError(UserContext aContext, nsresult aError)
   // A main thread runnable to send error code to all queued PhotoCallbacks.
   class TakePhotoError : public nsRunnable {
   public:
-    TakePhotoError(nsTArray<nsRefPtr<PhotoCallback>>& aCallbacks,
+    TakePhotoError(nsTArray<RefPtr<PhotoCallback>>& aCallbacks,
                    nsresult aRv)
       : mRv(aRv)
     {
@@ -568,7 +577,7 @@ MediaEngineGonkVideoSource::OnUserError(UserContext aContext, nsresult aError)
     }
 
   protected:
-    nsTArray<nsRefPtr<PhotoCallback>> mCallbacks;
+    nsTArray<RefPtr<PhotoCallback>> mCallbacks;
     nsresult mRv;
   };
 
@@ -581,7 +590,7 @@ MediaEngineGonkVideoSource::OnUserError(UserContext aContext, nsresult aError)
 }
 
 void
-MediaEngineGonkVideoSource::OnTakePictureComplete(uint8_t* aData, uint32_t aLength, const nsAString& aMimeType)
+MediaEngineGonkVideoSource::OnTakePictureComplete(const uint8_t* aData, uint32_t aLength, const nsAString& aMimeType)
 {
   // It needs to start preview because Gonk camera will stop preview while
   // taking picture.
@@ -591,8 +600,8 @@ MediaEngineGonkVideoSource::OnTakePictureComplete(uint8_t* aData, uint32_t aLeng
   // PhotoCallbacks.
   class GenerateBlobRunnable : public nsRunnable {
   public:
-    GenerateBlobRunnable(nsTArray<nsRefPtr<PhotoCallback>>& aCallbacks,
-                         uint8_t* aData,
+    GenerateBlobRunnable(nsTArray<RefPtr<PhotoCallback>>& aCallbacks,
+                         const uint8_t* aData,
                          uint32_t aLength,
                          const nsAString& aMimeType)
       : mPhotoDataLength(aLength)
@@ -605,11 +614,11 @@ MediaEngineGonkVideoSource::OnTakePictureComplete(uint8_t* aData, uint32_t aLeng
 
     NS_IMETHOD Run()
     {
-      nsRefPtr<dom::Blob> blob =
+      RefPtr<dom::Blob> blob =
         dom::Blob::CreateMemoryBlob(nullptr, mPhotoData, mPhotoDataLength, mMimeType);
       uint32_t callbackCounts = mCallbacks.Length();
       for (uint8_t i = 0; i < callbackCounts; i++) {
-        nsRefPtr<dom::Blob> tempBlob = blob;
+        RefPtr<dom::Blob> tempBlob = blob;
         mCallbacks[i]->PhotoComplete(tempBlob.forget());
       }
       // PhotoCallback needs to dereference on main thread.
@@ -617,7 +626,7 @@ MediaEngineGonkVideoSource::OnTakePictureComplete(uint8_t* aData, uint32_t aLeng
       return NS_OK;
     }
 
-    nsTArray<nsRefPtr<PhotoCallback>> mCallbacks;
+    nsTArray<RefPtr<PhotoCallback>> mCallbacks;
     uint8_t* mPhotoData;
     nsString mMimeType;
     uint32_t mPhotoDataLength;
@@ -725,9 +734,9 @@ MediaEngineGonkVideoSource::RotateImage(layers::Image* aImage, uint32_t aWidth, 
   graphicBuffer->lock(GraphicBuffer::USAGE_SW_READ_MASK, &pMem);
 
   uint8_t* srcPtr = static_cast<uint8_t*>(pMem);
+
   // Create a video frame and append it to the track.
-  ImageFormat format = ImageFormat::GONK_CAMERA_IMAGE;
-  nsRefPtr<layers::Image> image = mImageContainer->CreateImage(format);
+  RefPtr<layers::PlanarYCbCrImage> image = new GonkCameraImage();
 
   uint32_t dstWidth;
   uint32_t dstHeight;
@@ -742,19 +751,16 @@ MediaEngineGonkVideoSource::RotateImage(layers::Image* aImage, uint32_t aWidth, 
 
   uint32_t half_width = dstWidth / 2;
 
-  layers::GrallocImage* videoImage = static_cast<layers::GrallocImage*>(image.get());
   MOZ_ASSERT(mTextureClientAllocator);
   RefPtr<layers::TextureClient> textureClient
-    = mTextureClientAllocator->CreateOrRecycleForDrawing(gfx::SurfaceFormat::YUV,
-                                                         gfx::IntSize(dstWidth, dstHeight),
-                                                         gfx::BackendType::NONE,
-                                                         layers::TextureFlags::DEFAULT,
-                                                         layers::ALLOC_DISALLOW_BUFFERTEXTURECLIENT);
+    = mTextureClientAllocator->CreateOrRecycle(gfx::SurfaceFormat::YUV,
+                                               gfx::IntSize(dstWidth, dstHeight),
+                                               layers::BackendSelector::Content,
+                                               layers::TextureFlags::DEFAULT,
+                                               layers::ALLOC_DISALLOW_BUFFERTEXTURECLIENT);
   if (textureClient) {
-    RefPtr<layers::GrallocTextureClientOGL> grallocTextureClient =
-      static_cast<layers::GrallocTextureClientOGL*>(textureClient.get());
-
-    android::sp<android::GraphicBuffer> destBuffer = grallocTextureClient->GetGraphicBuffer();
+    android::sp<android::GraphicBuffer> destBuffer =
+      static_cast<layers::GrallocTextureData*>(textureClient->GetInternalData())->GetGraphicBuffer();
 
     void* destMem = nullptr;
     destBuffer->lock(android::GraphicBuffer::USAGE_SW_WRITE_OFTEN, &destMem);
@@ -775,16 +781,11 @@ MediaEngineGonkVideoSource::RotateImage(layers::Image* aImage, uint32_t aWidth, 
                           libyuv::FOURCC_NV21);
     destBuffer->unlock();
 
-    layers::GrallocImage::GrallocData data;
-
-    data.mPicSize = gfx::IntSize(dstWidth, dstHeight);
-    data.mGraphicBuffer = textureClient;
-    videoImage->SetData(data);
+    image->AsGrallocImage()->SetData(textureClient, gfx::IntSize(dstWidth, dstHeight));
   } else {
     // Handle out of gralloc case.
-    image = mImageContainer->CreateImage(ImageFormat::PLANAR_YCBCR);
-    layers::PlanarYCbCrImage* videoImage = static_cast<layers::PlanarYCbCrImage*>(image.get());
-    uint8_t* dstPtr = videoImage->AllocateAndGetNewBuffer(size);
+    image = mImageContainer->CreatePlanarYCbCrImage();
+    uint8_t* dstPtr = image->AsPlanarYCbCrImage()->AllocateAndGetNewBuffer(size);
 
     libyuv::ConvertToI420(srcPtr, size,
                           dstPtr, dstWidth,
@@ -812,7 +813,7 @@ MediaEngineGonkVideoSource::RotateImage(layers::Image* aImage, uint32_t aWidth, 
     data.mPicSize = IntSize(dstWidth, dstHeight);
     data.mStereoMode = StereoMode::MONO;
 
-    videoImage->SetDataNoCopy(data);
+    image->AsPlanarYCbCrImage()->SetDataNoCopy(data);
   }
   graphicBuffer->unlock();
 

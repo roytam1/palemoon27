@@ -13,8 +13,10 @@
       'type': 'static_library',
       'dependencies': [
         'webrtc_utility',
+        '<(webrtc_root)/base/base.gyp:rtc_base_approved',
+        '<(webrtc_root)/common.gyp:webrtc_common',
         '<(webrtc_root)/common_audio/common_audio.gyp:common_audio',
-        '<(webrtc_root)/system_wrappers/source/system_wrappers.gyp:system_wrappers',
+        '<(webrtc_root)/system_wrappers/system_wrappers.gyp:system_wrappers',
       ],
       'include_dirs': [
         '.',
@@ -59,6 +61,11 @@
             'WEBRTC_HARDWARE_AEC_NS',
           ],
         }],
+        ['include_sndio_audio==1', {
+          'include_dirs': [
+            'sndio',
+          ],
+        }], # include_sndio_audio==1
         ['OS=="linux" or include_alsa_audio==1 or include_pulse_audio==1', {
           'include_dirs': [
             'linux',
@@ -145,6 +152,8 @@
             'opensl/single_rw_fifo.cc',
             'opensl/single_rw_fifo.h',
             'android/audio_device_template.h',
+            'android/audio_manager.cc',
+            'android/audio_manager.h',
             'android/audio_manager_jni.cc',
             'android/audio_manager_jni.h',
             'android/audio_record_jni.cc',
@@ -153,6 +162,13 @@
             'android/audio_track_jni.h',
           ],
           'conditions': [
+	    ['moz_widget_toolkit_gonk==1', {
+              'sources': [
+                # references to android/audio_manager to avoid platform-specific limits
+	        'gonk/audio_manager.cc',
+                'gonk/audio_manager.h',
+	      ],
+	    }],
             ['OS=="android" or moz_widget_toolkit_gonk==1', {
               'link_settings': {
                 'libraries': [
@@ -197,6 +213,19 @@
                   '-ldl','-lX11',
                 ],
               },
+            }],
+            ['include_sndio_audio==1', {
+              'link_settings': {
+                'libraries': [
+                  '-lsndio',
+                ],
+              },
+              'sources': [
+                'sndio/audio_device_sndio.cc',
+                'sndio/audio_device_sndio.h',
+                'sndio/audio_device_utility_sndio.cc',
+                'sndio/audio_device_utility_sndio.h',
+              ],
             }],
             ['include_alsa_audio==1', {
               'cflags_mozilla': [
@@ -247,6 +276,7 @@
                   'OTHER_LDFLAGS': [
                     '-framework AudioToolbox',
                     '-framework AVFoundation',
+                    '-framework Foundation',
                   ],
                 },
               },
@@ -278,7 +308,7 @@
             'webrtc_utility',
             '<(webrtc_root)/test/test.gyp:test_support_main',
             '<(DEPTH)/testing/gtest.gyp:gtest',
-            '<(webrtc_root)/system_wrappers/source/system_wrappers.gyp:system_wrappers',
+            '<(webrtc_root)/system_wrappers/system_wrappers.gyp:system_wrappers',
           ],
           'sources': [
             'test/audio_device_test_api.cc',
@@ -292,7 +322,7 @@
             'audio_device',
             'webrtc_utility',
             '<(webrtc_root)/common_audio/common_audio.gyp:common_audio',
-            '<(webrtc_root)/system_wrappers/source/system_wrappers.gyp:system_wrappers',
+            '<(webrtc_root)/system_wrappers/system_wrappers.gyp:system_wrappers',
             '<(webrtc_root)/test/test.gyp:test_support',
             '<(DEPTH)/testing/gtest.gyp:gtest',
           ],
@@ -322,7 +352,7 @@
             },
           ],
         }],
-        ['OS=="android" and enable_android_opensl==1', {
+        ['OS=="android"', {
           'targets': [
             {
               'target_name': 'audio_device_unittest',
@@ -332,10 +362,12 @@
                 'webrtc_utility',
                 '<(DEPTH)/testing/gmock.gyp:gmock',
                 '<(DEPTH)/testing/gtest.gyp:gtest',
-                '<(webrtc_root)/system_wrappers/source/system_wrappers.gyp:system_wrappers',
+                '<(webrtc_root)/system_wrappers/system_wrappers.gyp:system_wrappers',
                 '<(webrtc_root)/test/test.gyp:test_support_main',
               ],
               'sources': [
+                'android/audio_manager.cc',
+                'android/audio_manager.h',
                 'android/fine_audio_buffer_unittest.cc',
                 'android/low_latency_event_unittest.cc',
                 'android/single_rw_fifo_unittest.cc',

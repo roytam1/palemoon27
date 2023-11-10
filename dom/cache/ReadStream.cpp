@@ -20,10 +20,11 @@ namespace mozilla {
 namespace dom {
 namespace cache {
 
-using mozilla::unused;
+using mozilla::Unused;
 using mozilla::ipc::FileDescriptor;
 
 // ----------------------------------------------------------------------------
+
 // The inner stream class.  This is where all of the real work is done.  As
 // an invariant Inner::Close() must be called before ~Inner().  This is
 // guaranteed by our outer ReadStream class.
@@ -107,7 +108,7 @@ private:
   Atomic<State> mState;
   Atomic<bool> mHasEverBeenRead;
 
-  NS_INLINE_DECL_THREADSAFE_REFCOUNTING(cache::ReadStream::Inner)
+  NS_INLINE_DECL_THREADSAFE_REFCOUNTING(cache::ReadStream::Inner, override)
 };
 
 // ----------------------------------------------------------------------------
@@ -141,7 +142,7 @@ public:
 private:
   ~NoteClosedRunnable() { }
 
-  nsRefPtr<ReadStream::Inner> mStream;
+  RefPtr<ReadStream::Inner> mStream;
 };
 
 // ----------------------------------------------------------------------------
@@ -176,7 +177,7 @@ public:
 private:
   ~ForgetRunnable() { }
 
-  nsRefPtr<ReadStream::Inner> mStream;
+  RefPtr<ReadStream::Inner> mStream;
 };
 
 // ----------------------------------------------------------------------------
@@ -221,7 +222,7 @@ ReadStream::Inner::Serialize(CacheReadStream* aReadStreamOut)
   aReadStreamOut->id() = mId;
   mControl->SerializeControl(aReadStreamOut);
 
-  nsAutoTArray<FileDescriptor, 4> fds;
+  AutoTArray<FileDescriptor, 4> fds;
   SerializeInputStream(mStream, aReadStreamOut->params(), fds);
 
   mControl->SerializeFds(aReadStreamOut, fds);
@@ -450,7 +451,7 @@ ReadStream::Create(const CacheReadStream& aReadStream)
   }
   MOZ_ASSERT(control);
 
-  nsAutoTArray<FileDescriptor, 4> fds;
+  AutoTArray<FileDescriptor, 4> fds;
   control->DeserializeFds(aReadStream, fds);
 
   nsCOMPtr<nsIInputStream> stream =
@@ -463,8 +464,8 @@ ReadStream::Create(const CacheReadStream& aReadStream)
   MOZ_ASSERT(!asyncStream);
 #endif
 
-  nsRefPtr<Inner> inner = new Inner(control, aReadStream.id(), stream);
-  nsRefPtr<ReadStream> ref = new ReadStream(inner);
+  RefPtr<Inner> inner = new Inner(control, aReadStream.id(), stream);
+  RefPtr<ReadStream> ref = new ReadStream(inner);
   return ref.forget();
 }
 
@@ -475,8 +476,8 @@ ReadStream::Create(PCacheStreamControlParent* aControl, const nsID& aId,
 {
   MOZ_ASSERT(aControl);
   auto actor = static_cast<CacheStreamControlParent*>(aControl);
-  nsRefPtr<Inner> inner = new Inner(actor, aId, aStream);
-  nsRefPtr<ReadStream> ref = new ReadStream(inner);
+  RefPtr<Inner> inner = new Inner(actor, aId, aStream);
+  RefPtr<ReadStream> ref = new ReadStream(inner);
   return ref.forget();
 }
 

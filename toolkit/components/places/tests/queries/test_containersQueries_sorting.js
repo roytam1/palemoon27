@@ -95,7 +95,7 @@ function cartProd(aSequences, aCallback)
 
   // For each sequence in aSequences, we maintain a pointer (an array index,
   // really) to the element we're currently enumerating in that sequence
-  var seqEltPtrs = aSequences.map(function (i) 0);
+  var seqEltPtrs = aSequences.map(i => 0);
 
   var numProds = 0;
   var done = false;
@@ -312,7 +312,7 @@ function test_result_sortingMode_change(aResult, aResultType, aOriginalSortingMo
 function check_children_sorting(aRootNode, aExpectedSortingMode) {
   var results = [];
   print("Found children:");
-  for (var i = 0; i < aRootNode.childCount; i++) {
+  for (let i = 0; i < aRootNode.childCount; i++) {
     results[i] = aRootNode.getChild(i);
     print(i + " " + results[i].title);
   }
@@ -373,7 +373,7 @@ function check_children_sorting(aRootNode, aExpectedSortingMode) {
   var sortedResults = results.slice();
   sortedResults.sort(comparator);
   // Actually compare returned children with our sorted array.
-  for (var i = 0; i < sortedResults.length; i++) {
+  for (let i = 0; i < sortedResults.length; i++) {
     if (sortedResults[i].title != results[i].title)
       print(i + " index wrong, expected " + sortedResults[i].title +
             " found " + results[i].title);
@@ -396,7 +396,7 @@ add_task(function test_containersQueries_sorting()
   var visitCount = 0;
   var dayOffset = 0;
   var visits = [];
-  pages.forEach(function (aPageUrl) visits.push(
+  pages.forEach(aPageUrl => visits.push(
     { isVisit: true,
       isBookmark: true,
       transType: Ci.nsINavHistoryService.TRANSITION_TYPED,

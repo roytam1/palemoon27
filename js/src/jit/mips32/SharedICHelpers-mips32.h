@@ -32,10 +32,10 @@ EmitRepushTailCallReg(MacroAssembler& masm)
 }
 
 inline void
-EmitCallIC(CodeOffsetLabel* patchOffset, MacroAssembler& masm)
+EmitCallIC(CodeOffset* patchOffset, MacroAssembler& masm)
 {
     // Move ICEntry offset into ICStubReg.
-    CodeOffsetLabel offset = masm.movWithPatch(ImmWord(-1), ICStubReg);
+    CodeOffset offset = masm.movWithPatch(ImmWord(-1), ICStubReg);
     *patchOffset = offset;
 
     // Load stub pointer into ICStubReg.
@@ -98,7 +98,7 @@ EmitBaselineTailCallVM(JitCode* target, MacroAssembler& masm, uint32_t argSize)
     // keep it there through the stub calls), but the VMWrapper code being
     // called expects the return address to also be pushed on the stack.
     MOZ_ASSERT(ICTailCallReg == ra);
-    masm.makeFrameDescriptor(t6, JitFrame_BaselineJS);
+    masm.makeFrameDescriptor(t6, JitFrame_BaselineJS, ExitFrameLayout::Size());
     masm.subPtr(Imm32(sizeof(CommonFrameLayout)), StackPointer);
     masm.storePtr(t6, Address(StackPointer, CommonFrameLayout::offsetOfDescriptor()));
     masm.storePtr(ra, Address(StackPointer, CommonFrameLayout::offsetOfReturnAddress()));
@@ -113,7 +113,7 @@ EmitIonTailCallVM(JitCode* target, MacroAssembler& masm, uint32_t stackSize)
 }
 
 inline void
-EmitBaselineCreateStubFrameDescriptor(MacroAssembler& masm, Register reg)
+EmitBaselineCreateStubFrameDescriptor(MacroAssembler& masm, Register reg, uint32_t headerSize)
 {
     // Compute stub frame size. We have to add two pointers: the stub reg and
     // previous frame pointer pushed by EmitEnterStubFrame.
@@ -121,13 +121,13 @@ EmitBaselineCreateStubFrameDescriptor(MacroAssembler& masm, Register reg)
     masm.addPtr(Imm32(sizeof(intptr_t) * 2), reg);
     masm.subPtr(BaselineStackReg, reg);
 
-    masm.makeFrameDescriptor(reg, JitFrame_BaselineStub);
+    masm.makeFrameDescriptor(reg, JitFrame_BaselineStub, headerSize);
 }
 
 inline void
 EmitBaselineCallVM(JitCode* target, MacroAssembler& masm)
 {
-    EmitBaselineCreateStubFrameDescriptor(masm, t6);
+    EmitBaselineCreateStubFrameDescriptor(masm, t6, ExitFrameLayout::Size());
     masm.push(t6);
     masm.call(target);
 }
@@ -164,7 +164,7 @@ EmitBaselineEnterStubFrame(MacroAssembler& masm, Register scratch)
     // BaselineStubFrame if needed.
 
     // Push frame descriptor and return address.
-    masm.makeFrameDescriptor(scratch, JitFrame_BaselineJS);
+    masm.makeFrameDescriptor(scratch, JitFrame_BaselineJS, BaselineStubFrameLayout::Size());
     masm.subPtr(Imm32(STUB_FRAME_SIZE), StackPointer);
     masm.storePtr(scratch, Address(StackPointer, offsetof(BaselineStubFrame, descriptor)));
     masm.storePtr(ICTailCallReg, Address(StackPointer,
@@ -229,13 +229,12 @@ EmitStowICValues(MacroAssembler& masm, int values)
     switch(values) {
       case 1:
         // Stow R0
-        masm.pushValue(R0);
+        masm.Push(R0);
         break;
       case 2:
         // Stow R0 and R1
-        masm.pushValue(R0);
-        masm.pushValue(R1);
-        break;
+        masm.Push(R0);
+        masm.Push(R1);
     }
 }
 
@@ -261,6 +260,7 @@ EmitUnstowICValues(MacroAssembler& masm, int values, bool discard = false)
         }
         break;
     }
+    masm.adjustFrame(-values * sizeof(Value));
 }
 
 inline void
@@ -302,9 +302,9 @@ EmitCallTypeUpdateIC(MacroAssembler& masm, JitCode* code, uint32_t objectOffset)
 
     masm.loadValue(Address(BaselineStackReg, STUB_FRAME_SIZE + objectOffset), R1);
 
-    masm.pushValue(R0);
-    masm.pushValue(R1);
-    masm.push(ICStubReg);
+    masm.Push(R0);
+    masm.Push(R1);
+    masm.Push(ICStubReg);
 
     // Load previous frame pointer, push BaselineFrame*.
     masm.loadPtr(Address(BaselineFrameReg, 0), R0.scratchReg());

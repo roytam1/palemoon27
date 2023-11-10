@@ -11,10 +11,10 @@ for var in ('MOZILLA_EXTERNAL_LINKAGE', 'USE_FAKE_MEDIA_STREAMS', 'USE_FAKE_PCOB
             'NR_SOCKET_IS_VOID_PTR', 'HAVE_STRDUP'):
     DEFINES[var] = True
 
-GENERATED_INCLUDES += [
-  '/dom/bindings',
-]
 LOCAL_INCLUDES += [
+    '!/dist/include/mozilla/dom', # Binding headers (because binding
+                                  # implementations include them).
+    '!/dom/bindings', # Binding implementations (urk).
     '/dom/media/',
     '/ipc/chromium/src',
     '/media/mtransport',
@@ -123,6 +123,7 @@ if CONFIG['MOZ_WIDGET_TOOLKIT'] == 'gtk2':
     ]
 
 if CONFIG['MOZ_WIDGET_TOOLKIT'] == 'gtk3':
+    OS_LIBS += CONFIG['XLIBS']
     OS_LIBS += CONFIG['MOZ_GTK3_LIBS']
     USE_LIBS += [
         'freetype',
@@ -139,5 +140,3 @@ if CONFIG['OS_TARGET'] in ('Linux', 'DragonFly', 'FreeBSD', 'NetBSD',
 
 if CONFIG['OS_TARGET'] == 'Darwin':
     OS_LIBS += CONFIG['TK_LIBS']
-
-FAIL_ON_WARNINGS = True

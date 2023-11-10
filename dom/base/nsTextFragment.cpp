@@ -39,8 +39,6 @@ nsTextFragment::Init()
   for (i = 0; i <= TEXTFRAG_MAX_NEWLINES; ++i) {
     sSpaceSharedString[i] = new char[1 + i + TEXTFRAG_WHITE_AFTER_NEWLINE];
     sTabSharedString[i] = new char[1 + i + TEXTFRAG_WHITE_AFTER_NEWLINE];
-    NS_ENSURE_TRUE(sSpaceSharedString[i] && sTabSharedString[i],
-                   NS_ERROR_OUT_OF_MEMORY);
     sSpaceSharedString[i][0] = ' ';
     sTabSharedString[i][0] = ' ';
     uint32_t j;
@@ -194,6 +192,11 @@ FirstNon8Bit(const char16_t *str, const char16_t *end)
 bool
 nsTextFragment::SetTo(const char16_t* aBuffer, int32_t aLength, bool aUpdateBidi)
 {
+  if (MOZ_UNLIKELY(aLength < 0 || static_cast<uint32_t>(aLength) >
+                                      NS_MAX_TEXT_FRAGMENT_LENGTH)) {
+    return false;
+  }
+
   ReleaseText();
 
   if (aLength == 0) {
@@ -317,13 +320,27 @@ nsTextFragment::CopyTo(char16_t *aDest, int32_t aOffset, int32_t aCount)
 bool
 nsTextFragment::Append(const char16_t* aBuffer, uint32_t aLength, bool aUpdateBidi)
 {
+  if (!aLength) {
+    return true;
+  }
+
   // This is a common case because some callsites create a textnode
   // with a value by creating the node and then calling AppendData.
   if (mState.mLength == 0) {
+    if (MOZ_UNLIKELY(aLength > INT32_MAX)) {
+      return false;
+    }
     return SetTo(aBuffer, aLength, aUpdateBidi);
   }
 
   // Should we optimize for aData.Length() == 0?
+
+  // Note: Using CheckedInt here is wrong as nsTextFragment is 29 bits and needs an
+  // explicit check for that length and not INT_MAX. Also, this method can be a very
+  // hot path and cause performance loss since CheckedInt isn't inlined.
+  if (MOZ_UNLIKELY(NS_MAX_TEXT_FRAGMENT_LENGTH - mState.mLength < aLength)) {
+    return false;  // Would be overflowing if we'd continue.
+  }
 
   if (mState.mIs2b) {
     // Already a 2-byte string so the result will be too

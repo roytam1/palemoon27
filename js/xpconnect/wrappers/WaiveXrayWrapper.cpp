@@ -13,7 +13,7 @@ using namespace JS;
 namespace xpc {
 
 static bool
-WaiveAccessors(JSContext* cx, JS::MutableHandle<JSPropertyDescriptor> desc)
+WaiveAccessors(JSContext* cx, MutableHandle<PropertyDescriptor> desc)
 {
     if (desc.hasGetterObject() && desc.getterObject()) {
         RootedValue v(cx, JS::ObjectValue(*desc.getterObject()));
@@ -32,26 +32,23 @@ WaiveAccessors(JSContext* cx, JS::MutableHandle<JSPropertyDescriptor> desc)
 }
 
 bool
-WaiveXrayWrapper::getPropertyDescriptor(JSContext* cx, HandleObject wrapper,
-                                        HandleId id, JS::MutableHandle<JSPropertyDescriptor> desc)
-                                        const
+WaiveXrayWrapper::getPropertyDescriptor(JSContext* cx, HandleObject wrapper, HandleId id,
+                                        MutableHandle<PropertyDescriptor> desc) const
 {
     return CrossCompartmentWrapper::getPropertyDescriptor(cx, wrapper, id, desc) &&
            WrapperFactory::WaiveXrayAndWrap(cx, desc.value()) && WaiveAccessors(cx, desc);
 }
 
 bool
-WaiveXrayWrapper::getOwnPropertyDescriptor(JSContext* cx, HandleObject wrapper,
-                                           HandleId id, JS::MutableHandle<JSPropertyDescriptor> desc)
-                                           const
+WaiveXrayWrapper::getOwnPropertyDescriptor(JSContext* cx, HandleObject wrapper, HandleId id,
+                                           MutableHandle<PropertyDescriptor> desc) const
 {
     return CrossCompartmentWrapper::getOwnPropertyDescriptor(cx, wrapper, id, desc) &&
            WrapperFactory::WaiveXrayAndWrap(cx, desc.value()) && WaiveAccessors(cx, desc);
 }
 
 bool
-WaiveXrayWrapper::get(JSContext* cx, HandleObject wrapper,
-                      HandleObject receiver, HandleId id,
+WaiveXrayWrapper::get(JSContext* cx, HandleObject wrapper, HandleValue receiver, HandleId id,
                       MutableHandleValue vp) const
 {
     return CrossCompartmentWrapper::get(cx, wrapper, receiver, id, vp) &&
@@ -91,7 +88,7 @@ WaiveXrayWrapper::nativeCall(JSContext* cx, JS::IsAcceptableThis test,
 }
 
 bool
-WaiveXrayWrapper::getPrototype(JSContext *cx, HandleObject wrapper, MutableHandleObject protop) const
+WaiveXrayWrapper::getPrototype(JSContext* cx, HandleObject wrapper, MutableHandleObject protop) const
 {
     return CrossCompartmentWrapper::getPrototype(cx, wrapper, protop) &&
            (!protop || WrapperFactory::WaiveXrayAndWrap(cx, protop));

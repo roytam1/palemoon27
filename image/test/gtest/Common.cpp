@@ -14,7 +14,8 @@
 #include "nsIInputStream.h"
 #include "nsIProperties.h"
 #include "nsNetUtil.h"
-#include "mozilla/nsRefPtr.h"
+#include "mozilla/RefPtr.h"
+#include "nsStreamUtils.h"
 #include "nsString.h"
 
 namespace mozilla {
@@ -71,13 +72,22 @@ LoadFile(const char* aRelativePath)
   rv = NS_NewLocalFileInputStream(getter_AddRefs(inputStream), file);
   ASSERT_TRUE_OR_RETURN(NS_SUCCEEDED(rv), nullptr);
 
+  // Ensure the resulting input stream is buffered.
+  if (!NS_InputStreamIsBuffered(inputStream)) {
+    nsCOMPtr<nsIInputStream> bufStream;
+    rv = NS_NewBufferedInputStream(getter_AddRefs(bufStream),
+                                   inputStream, 1024);
+    ASSERT_TRUE_OR_RETURN(NS_SUCCEEDED(rv), nullptr);
+    inputStream = bufStream;
+  }
+
   return inputStream.forget();
 }
 
 bool
 IsSolidColor(SourceSurface* aSurface, BGRAColor aColor, bool aFuzzy)
 {
-  nsRefPtr<DataSourceSurface> dataSurface = aSurface->GetDataSurface();
+  RefPtr<DataSourceSurface> dataSurface = aSurface->GetDataSurface();
   ASSERT_TRUE_OR_RETURN(dataSurface != nullptr, false);
 
   ASSERT_EQ_OR_RETURN(dataSurface->Stride(), aSurface->GetSize().width * 4,
@@ -126,7 +136,7 @@ ImageTestCase GreenGIFTestCase()
 ImageTestCase GreenJPGTestCase()
 {
   return ImageTestCase("green.jpg", "image/jpeg", IntSize(100, 100),
-                       /* aFuzzy = */ true);
+                       TEST_CASE_IS_FUZZY);
 }
 
 ImageTestCase GreenBMPTestCase()
@@ -136,22 +146,82 @@ ImageTestCase GreenBMPTestCase()
 
 ImageTestCase GreenICOTestCase()
 {
-  return ImageTestCase("green.ico", "image/x-icon", IntSize(100, 100));
+  // This ICO contains a 32-bit BMP, and we use a BMP's alpha data by default
+  // when the BMP is embedded in an ICO, so it's transparent.
+  return ImageTestCase("green.ico", "image/x-icon", IntSize(100, 100),
+                       TEST_CASE_IS_TRANSPARENT);
+}
+
+ImageTestCase GreenIconTestCase()
+{
+  return ImageTestCase("green.icon", "image/icon", IntSize(100, 100),
+                       TEST_CASE_IS_TRANSPARENT);
 }
 
 ImageTestCase GreenFirstFrameAnimatedGIFTestCase()
 {
-  return ImageTestCase("first-frame-green.gif", "image/gif", IntSize(100, 100));
+  return ImageTestCase("first-frame-green.gif", "image/gif", IntSize(100, 100),
+                       TEST_CASE_IS_ANIMATED);
 }
 
 ImageTestCase GreenFirstFrameAnimatedPNGTestCase()
 {
-  return ImageTestCase("first-frame-green.png", "image/png", IntSize(100, 100));
+  return ImageTestCase("first-frame-green.png", "image/png", IntSize(100, 100),
+                       TEST_CASE_IS_TRANSPARENT | TEST_CASE_IS_ANIMATED);
 }
 
 ImageTestCase CorruptTestCase()
 {
-  return ImageTestCase("corrupt.jpg", "image/jpeg", IntSize(100, 100));
+  return ImageTestCase("corrupt.jpg", "image/jpeg", IntSize(100, 100),
+                       TEST_CASE_HAS_ERROR);
+}
+
+ImageTestCase TransparentPNGTestCase()
+{
+  return ImageTestCase("transparent.png", "image/png", IntSize(32, 32),
+                       TEST_CASE_IS_TRANSPARENT);
+}
+
+ImageTestCase TransparentGIFTestCase()
+{
+  return ImageTestCase("transparent.gif", "image/gif", IntSize(16, 16),
+                       TEST_CASE_IS_TRANSPARENT);
+}
+
+ImageTestCase FirstFramePaddingGIFTestCase()
+{
+  return ImageTestCase("transparent.gif", "image/gif", IntSize(16, 16),
+                       TEST_CASE_IS_TRANSPARENT);
+}
+
+ImageTestCase TransparentIfWithinICOBMPTestCase(TestCaseFlags aFlags)
+{
+  // This is a BMP that is only transparent when decoded as if it is within an
+  // ICO file. (Note: aFlags needs to be set to TEST_CASE_DEFAULT_FLAGS or
+  // TEST_CASE_IS_TRANSPARENT accordingly.)
+  return ImageTestCase("transparent-if-within-ico.bmp", "image/bmp",
+                       IntSize(32, 32), aFlags);
+}
+
+ImageTestCase RLE4BMPTestCase()
+{
+  return ImageTestCase("rle4.bmp", "image/bmp", IntSize(320, 240),
+                       TEST_CASE_IS_TRANSPARENT);
+}
+
+ImageTestCase RLE8BMPTestCase()
+{
+  return ImageTestCase("rle8.bmp", "image/bmp", IntSize(32, 32),
+                       TEST_CASE_IS_TRANSPARENT);
+}
+
+ImageTestCase NoFrameDelayGIFTestCase()
+{
+  // This is an invalid (or at least, questionably valid) GIF that's animated
+  // even though it specifies a frame delay of zero. It's animated, but it's not
+  // marked TEST_CASE_IS_ANIMATED because the metadata decoder can't detect that
+  // it's animated.
+  return ImageTestCase("no-frame-delay.gif", "image/gif", IntSize(100, 100));
 }
 
 } // namespace mozilla

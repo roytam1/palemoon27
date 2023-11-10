@@ -77,6 +77,8 @@ public:
   uint32_t
   RecursionDepth() const;
 
+  void ShutdownComplete(struct nsThreadShutdownContext* aContext);
+
 protected:
   class nsChainedEventQueue;
 
@@ -103,47 +105,48 @@ protected:
   }
 
   // Wrappers for event queue methods:
-  bool GetEvent(bool aMayWait, nsIRunnable** aEvent)
-  {
-    return mEvents->GetEvent(aMayWait, aEvent);
-  }
   nsresult PutEvent(nsIRunnable* aEvent, nsNestedEventTarget* aTarget);
   nsresult PutEvent(already_AddRefed<nsIRunnable>&& aEvent, nsNestedEventTarget* aTarget);
 
   nsresult DispatchInternal(already_AddRefed<nsIRunnable>&& aEvent, uint32_t aFlags,
                             nsNestedEventTarget* aTarget);
 
+  struct nsThreadShutdownContext* ShutdownInternal(bool aSync);
+
   // Wrapper for nsEventQueue that supports chaining.
   class nsChainedEventQueue
   {
   public:
-    nsChainedEventQueue()
+    explicit nsChainedEventQueue(mozilla::Mutex& aLock)
       : mNext(nullptr)
+      , mQueue(aLock)
     {
     }
 
-    bool GetEvent(bool aMayWait, nsIRunnable** aEvent)
+    bool GetEvent(bool aMayWait, nsIRunnable** aEvent,
+                  mozilla::MutexAutoLock& aProofOfLock)
     {
-      return mQueue.GetEvent(aMayWait, aEvent);
+      return mQueue.GetEvent(aMayWait, aEvent, aProofOfLock);
     }
 
-    void PutEvent(nsIRunnable* aEvent)
+    void PutEvent(nsIRunnable* aEvent, mozilla::MutexAutoLock& aProofOfLock)
     {
-      mQueue.PutEvent(aEvent);
+      mQueue.PutEvent(aEvent, aProofOfLock);
     }
 
-    void PutEvent(already_AddRefed<nsIRunnable>&& aEvent)
+    void PutEvent(already_AddRefed<nsIRunnable>&& aEvent,
+                  mozilla::MutexAutoLock& aProofOfLock)
     {
-      mQueue.PutEvent(mozilla::Move(aEvent));
+      mQueue.PutEvent(mozilla::Move(aEvent), aProofOfLock);
     }
 
-    bool HasPendingEvent()
+    bool HasPendingEvent(mozilla::MutexAutoLock& aProofOfLock)
     {
-      return mQueue.HasPendingEvent();
+      return mQueue.HasPendingEvent(aProofOfLock);
     }
 
     nsChainedEventQueue* mNext;
-    nsRefPtr<nsNestedEventTarget> mEventTarget;
+    RefPtr<nsNestedEventTarget> mEventTarget;
 
   private:
     nsEventQueue mQueue;
@@ -161,7 +164,7 @@ protected:
     {
     }
 
-    nsRefPtr<nsThread> mThread;
+    RefPtr<nsThread> mThread;
 
     // This is protected by mThread->mLock.
     nsChainedEventQueue* mQueue;
@@ -193,42 +196,15 @@ protected:
   uint32_t  mNestedEventLoopDepth;
   uint32_t  mStackSize;
 
+  // The shutdown context for ourselves.
   struct nsThreadShutdownContext* mShutdownContext;
+  // The shutdown contexts for any other threads we've asked to shut down.
+  nsTArray<nsAutoPtr<struct nsThreadShutdownContext>> mRequestedShutdownContexts;
 
   bool mShutdownRequired;
   // Set to true when events posted to this thread will never run.
   bool mEventsAreDoomed;
   MainThreadFlag mIsMainThread;
-};
-
-//-----------------------------------------------------------------------------
-
-class nsThreadSyncDispatch : public nsRunnable
-{
-public:
-  nsThreadSyncDispatch(nsIThread* aOrigin, already_AddRefed<nsIRunnable>&& aTask)
-    : mOrigin(aOrigin)
-    , mSyncTask(aTask)
-    , mResult(NS_ERROR_NOT_INITIALIZED)
-  {
-  }
-
-  bool IsPending()
-  {
-    return mSyncTask != nullptr;
-  }
-
-  nsresult Result()
-  {
-    return mResult;
-  }
-
-private:
-  NS_DECL_NSIRUNNABLE
-
-  nsCOMPtr<nsIThread> mOrigin;
-  nsCOMPtr<nsIRunnable> mSyncTask;
-  nsresult mResult;
 };
 
 #if defined(XP_UNIX) && !defined(ANDROID) && !defined(DEBUG) && HAVE_UALARM \

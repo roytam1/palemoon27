@@ -75,7 +75,7 @@ txMozillaTextOutput::endDocument(nsresult aResult)
 {
     NS_ENSURE_TRUE(mDocument && mTextParent, NS_ERROR_FAILURE);
 
-    nsRefPtr<nsTextNode> text = new nsTextNode(mDocument->NodeInfoManager());
+    RefPtr<nsTextNode> text = new nsTextNode(mDocument->NodeInfoManager());
     
     text->SetText(mText, false);
     nsresult rv = mTextParent->AppendChildTo(text, true);
@@ -175,10 +175,9 @@ txMozillaTextOutput::createResultDocument(nsIDOMDocument* aSourceDocument,
             RegisterNameSpace(NS_LITERAL_STRING(kTXNameSpaceURI), namespaceID);
         NS_ENSURE_SUCCESS(rv, rv);
 
-        rv = mDocument->CreateElem(nsDependentAtomString(nsGkAtoms::result),
-                                   nsGkAtoms::transformiix, namespaceID,
-                                   getter_AddRefs(mTextParent));
-        NS_ENSURE_SUCCESS(rv, rv);
+        mTextParent =
+          mDocument->CreateElem(nsDependentAtomString(nsGkAtoms::result),
+                                nsGkAtoms::transformiix, namespaceID);
 
 
         rv = mDocument->AppendChildTo(mTextParent, true);

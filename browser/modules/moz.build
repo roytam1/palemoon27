@@ -25,6 +25,10 @@ EXTRA_JS_MODULES += [
     'webrtcUI.jsm'
 ]
 
+EXTRA_PP_JS_MODULES += [
+    'ProcessHangMonitor.jsm'
+]
+
 if CONFIG['MOZ_WIDGET_TOOLKIT'] == 'windows':
     EXTRA_JS_MODULES += [
         'Windows8WindowFrameColor.jsm',
@@ -36,6 +40,3 @@ EXTRA_PP_JS_MODULES += [
     'AboutHome.jsm',
     'RecentWindow.jsm',
 ]
-
-if CONFIG['MOZILLA_OFFICIAL']:
-    DEFINES['MOZILLA_OFFICIAL'] = 1

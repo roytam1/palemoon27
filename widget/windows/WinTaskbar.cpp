@@ -164,15 +164,27 @@ DefaultController::GetThumbnailAspectRatio(float *aThumbnailAspectRatio) {
   return NS_OK;
 }
 
+// deprecated
 NS_IMETHODIMP
 DefaultController::DrawPreview(nsISupports *ctx, bool *rDrawFrame) {
   *rDrawFrame = true;
+  return NS_ERROR_UNEXPECTED;
+}
+
+// deprecated
+NS_IMETHODIMP
+DefaultController::DrawThumbnail(nsISupports *ctx, uint32_t width, uint32_t height, bool *rDrawFrame) {
+  *rDrawFrame = false;
+  return NS_ERROR_UNEXPECTED;
+}
+
+NS_IMETHODIMP
+DefaultController::RequestThumbnail(nsITaskbarPreviewCallback *aCallback, uint32_t width, uint32_t height) {
   return NS_OK;
 }
 
 NS_IMETHODIMP
-DefaultController::DrawThumbnail(nsISupports *ctx, uint32_t width, uint32_t height, bool *rDrawFrame) {
-  *rDrawFrame = false;
+DefaultController::RequestPreview(nsITaskbarPreviewCallback *aCallback) {
   return NS_OK;
 }
 
@@ -378,7 +390,7 @@ WinTaskbar::CreateTaskbarTabPreview(nsIDocShell *shell, nsITaskbarPreviewControl
   if (!toplevelHWND)
     return NS_ERROR_INVALID_ARG;
 
-  nsRefPtr<TaskbarTabPreview> preview(new TaskbarTabPreview(mTaskbar, controller, toplevelHWND, shell));
+  RefPtr<TaskbarTabPreview> preview(new TaskbarTabPreview(mTaskbar, controller, toplevelHWND, shell));
   if (!preview)
     return NS_ERROR_OUT_OF_MEMORY;
 
@@ -406,7 +418,7 @@ WinTaskbar::GetTaskbarWindowPreview(nsIDocShell *shell, nsITaskbarWindowPreview 
 
   nsCOMPtr<nsITaskbarWindowPreview> preview = window->GetTaskbarPreview();
   if (!preview) {
-    nsRefPtr<DefaultController> defaultController = new DefaultController(toplevelHWND);
+    RefPtr<DefaultController> defaultController = new DefaultController(toplevelHWND);
     preview = new TaskbarWindowPreview(mTaskbar, defaultController, toplevelHWND, shell);
     if (!preview)
       return NS_ERROR_OUT_OF_MEMORY;

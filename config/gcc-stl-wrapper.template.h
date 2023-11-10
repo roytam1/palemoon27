@@ -17,11 +17,6 @@
 // Silence "warning: #include_next is a GCC extension"
 #pragma GCC system_header
 
-#ifdef _WIN32
-// Suppress windef.h min and max macros - they make std::min/max not compile.
-#define NOMINMAX 1
-#endif
-
 // Don't include mozalloc for cstdlib. See bug 1245076.
 #ifndef moz_dont_include_mozalloc_for_cstdlib
 #  define moz_dont_include_mozalloc_for_cstdlib

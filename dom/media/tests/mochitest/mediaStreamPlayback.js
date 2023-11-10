@@ -125,7 +125,7 @@ MediaStreamPlayback.prototype = {
                                          false);
 
       // Hooks up the media stream to the media element and starts playing it
-      this.mediaElement.mozSrcObject = this.mediaStream;
+      this.mediaElement.srcObject = this.mediaStream;
       this.mediaElement.play();
 
       // If canplaythrough doesn't fire in enough time, we fail the test
@@ -145,7 +145,7 @@ MediaStreamPlayback.prototype = {
    */
   stopMediaElement : function() {
     this.mediaElement.pause();
-    this.mediaElement.mozSrcObject = null;
+    this.mediaElement.srcObject = null;
   }
 }
 
@@ -173,10 +173,10 @@ LocalMediaStreamPlayback.prototype = Object.create(MediaStreamPlayback.prototype
    * @param {Boolean} isResume specifies if this media element is being resumed
    *                           from a previous run
    */
-  playMediaWithStreamStop : {
+  playMediaWithDeprecatedStreamStop : {
     value: function(isResume) {
       return this.startMedia(isResume)
-        .then(() => this.stopStreamInMediaPlayback())
+        .then(() => this.deprecatedStopStreamInMediaPlayback())
         .then(() => this.stopMediaElement());
     }
   },
@@ -189,7 +189,7 @@ LocalMediaStreamPlayback.prototype = Object.create(MediaStreamPlayback.prototype
    *               being played.
    *
    */
-  stopStreamInMediaPlayback : {
+  deprecatedStopStreamInMediaPlayback : {
     value: function () {
       return new Promise((resolve, reject) => {
         /**
@@ -231,6 +231,6 @@ function createHTML(options) {
   return scriptsReady.then(() => realCreateHTML(options));
 }
 
-function runTest(f) {
-  return scriptsReady.then(() => runTestWhenReady(f));
-}
+var runTest = testFunction => scriptsReady
+  .then(() => runTestWhenReady(testFunction))
+  .then(() => finish());

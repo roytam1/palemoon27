@@ -15,6 +15,12 @@
 #include "GeckoProfiler.h"
 #include "mozilla/gfx/MacIOSurface.h"
 
+#include <OpenGL/OpenGL.h>
+
+// When running inside a VM, creating an accelerated OpenGL context usually
+// fails. Uncomment this line to emulate that behavior.
+// #define EMULATE_VM
+
 namespace mozilla {
 namespace gl {
 
@@ -112,6 +118,7 @@ GLContextCGL::MakeCurrentImpl(bool aForce)
 
     if (mContext) {
         [mContext makeCurrentContext];
+        MOZ_ASSERT(IsCurrent());
         // Use non-blocking swap in "ASAP mode".
         // ASAP mode means that rendering is iterated as fast as possible.
         // ASAP mode is entered when layout.frame_rate=0 (requires restart).
@@ -171,12 +178,23 @@ GLContextProviderCGL::CreateWrappingExisting(void*, void*)
 }
 
 static const NSOpenGLPixelFormatAttribute kAttribs_singleBuffered[] = {
+    NSOpenGLPFAAllowOfflineRenderers,
+    0
+};
+
+static const NSOpenGLPixelFormatAttribute kAttribs_singleBuffered_accel[] = {
     NSOpenGLPFAAccelerated,
     NSOpenGLPFAAllowOfflineRenderers,
     0
 };
 
 static const NSOpenGLPixelFormatAttribute kAttribs_doubleBuffered[] = {
+    NSOpenGLPFAAllowOfflineRenderers,
+    NSOpenGLPFADoubleBuffer,
+    0
+};
+
+static const NSOpenGLPixelFormatAttribute kAttribs_doubleBuffered_accel[] = {
     NSOpenGLPFAAccelerated,
     NSOpenGLPFAAllowOfflineRenderers,
     NSOpenGLPFADoubleBuffer,
@@ -184,6 +202,11 @@ static const NSOpenGLPixelFormatAttribute kAttribs_doubleBuffered[] = {
 };
 
 static const NSOpenGLPixelFormatAttribute kAttribs_offscreen[] = {
+    0
+};
+
+static const NSOpenGLPixelFormatAttribute kAttribs_offscreen_allow_offline[] = {
+    NSOpenGLPFAAllowOfflineRenderers,
     0
 };
 
@@ -219,17 +242,23 @@ CreateWithFormat(const NSOpenGLPixelFormatAttribute* attribs)
 }
 
 already_AddRefed<GLContext>
-GLContextProviderCGL::CreateForWindow(nsIWidget *aWidget)
+GLContextProviderCGL::CreateForWindow(nsIWidget *aWidget, bool aForceAccelerated)
 {
     if (!sCGLLibrary.EnsureInitialized()) {
         return nullptr;
     }
 
+#ifdef EMULATE_VM
+    if (aForceAccelerated) {
+        return nullptr;
+    }
+#endif
+
     const NSOpenGLPixelFormatAttribute* attribs;
     if (sCGLLibrary.UseDoubleBufferedWindows()) {
-        attribs = kAttribs_doubleBuffered;
+        attribs = aForceAccelerated ? kAttribs_doubleBuffered_accel : kAttribs_doubleBuffered;
     } else {
-        attribs = kAttribs_singleBuffered;
+        attribs = aForceAccelerated ? kAttribs_singleBuffered_accel : kAttribs_singleBuffered;
     }
     NSOpenGLContext* context = CreateWithFormat(attribs);
     if (!context) {
@@ -242,7 +271,7 @@ GLContextProviderCGL::CreateForWindow(nsIWidget *aWidget)
 
     SurfaceCaps caps = SurfaceCaps::ForRGBA();
     ContextProfile profile = ContextProfile::OpenGLCompatibility;
-    nsRefPtr<GLContextCGL> glContext = new GLContextCGL(caps, context, false,
+    RefPtr<GLContextCGL> glContext = new GLContextCGL(caps, context, false,
                                                         profile);
 
     if (!glContext->Init()) {
@@ -271,10 +300,18 @@ CreateOffscreenFBOContext(CreateContextFlags flags)
     if (!context) {
         profile = ContextProfile::OpenGLCompatibility;
 
-        if (gfxPrefs::RequireHardwareGL())
-            context = CreateWithFormat(kAttribs_offscreen_accel);
-        else
-            context = CreateWithFormat(kAttribs_offscreen);
+        if (flags & CreateContextFlags::ALLOW_OFFLINE_RENDERER) {
+          if (gfxPrefs::RequireHardwareGL())
+              context = CreateWithFormat(kAttribs_singleBuffered);
+          else
+              context = CreateWithFormat(kAttribs_offscreen_allow_offline);
+
+        } else {
+          if (gfxPrefs::RequireHardwareGL())
+              context = CreateWithFormat(kAttribs_offscreen_accel);
+          else
+              context = CreateWithFormat(kAttribs_offscreen);
+        }
     }
     if (!context) {
         NS_WARNING("Failed to create NSOpenGLContext.");
@@ -282,16 +319,19 @@ CreateOffscreenFBOContext(CreateContextFlags flags)
     }
 
     SurfaceCaps dummyCaps = SurfaceCaps::Any();
-    nsRefPtr<GLContextCGL> glContext = new GLContextCGL(dummyCaps, context,
+    RefPtr<GLContextCGL> glContext = new GLContextCGL(dummyCaps, context,
                                                         true, profile);
 
+    if (gfxPrefs::GLMultithreaded()) {
+        CGLEnable(glContext->GetCGLContext(), kCGLCEMPEngine);
+    }
     return glContext.forget();
 }
 
 already_AddRefed<GLContext>
 GLContextProviderCGL::CreateHeadless(CreateContextFlags flags)
 {
-    nsRefPtr<GLContextCGL> gl;
+    RefPtr<GLContextCGL> gl;
     gl = CreateOffscreenFBOContext(flags);
     if (!gl)
         return nullptr;
@@ -306,19 +346,20 @@ GLContextProviderCGL::CreateHeadless(CreateContextFlags flags)
 
 already_AddRefed<GLContext>
 GLContextProviderCGL::CreateOffscreen(const IntSize& size,
-                                      const SurfaceCaps& caps,
+                                      const SurfaceCaps& minCaps,
                                       CreateContextFlags flags)
 {
-    nsRefPtr<GLContext> glContext = CreateHeadless(flags);
-    if (!glContext->InitOffscreen(size, caps)) {
-        NS_WARNING("Failed during InitOffscreen.");
+    RefPtr<GLContext> gl = CreateHeadless(flags);
+    if (!gl)
         return nullptr;
-    }
 
-    return glContext.forget();
+    if (!gl->InitOffscreen(size, minCaps))
+        return nullptr;
+
+    return gl.forget();
 }
 
-static nsRefPtr<GLContext> gGlobalContext;
+static RefPtr<GLContext> gGlobalContext;
 
 GLContext*
 GLContextProviderCGL::GetGlobalContext()

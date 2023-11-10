@@ -200,7 +200,7 @@ FileSystemDataSource::Create(nsISupports* aOuter, const nsIID& aIID, void **aRes
 {
     NS_ENSURE_NO_AGGREGATION(aOuter);
 
-    nsRefPtr<FileSystemDataSource> self = new FileSystemDataSource();
+    RefPtr<FileSystemDataSource> self = new FileSystemDataSource();
     if (!self)
         return NS_ERROR_OUT_OF_MEMORY;
      
@@ -333,7 +333,7 @@ FileSystemDataSource::GetTarget(nsIRDFResource *source,
             url->GetValueConst(&uni);
             if (!uni)   return(NS_RDF_NO_VALUE);
             nsAutoString    urlStr;
-            urlStr.Assign(NS_LITERAL_STRING(NS_MOZICON_SCHEME).get());
+            urlStr.AssignLiteral(NS_MOZICON_SCHEME);
             urlStr.Append(uni);
 
             rv = mRDFService->GetLiteral(urlStr.get(), getter_AddRefs(url));

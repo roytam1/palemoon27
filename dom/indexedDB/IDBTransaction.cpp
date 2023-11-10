@@ -82,6 +82,7 @@ IDBTransaction::IDBTransaction(IDBDatabase* aDatabase,
   , mAbortCode(NS_OK)
   , mPendingRequestCount(0)
   , mLineNo(0)
+  , mColumn(0)
   , mReadyState(IDBTransaction::INITIAL)
   , mMode(aMode)
   , mCreating(false)
@@ -181,12 +182,12 @@ IDBTransaction::CreateVersionChange(
 
   nsTArray<nsString> emptyObjectStoreNames;
 
-  nsRefPtr<IDBTransaction> transaction =
+  RefPtr<IDBTransaction> transaction =
     new IDBTransaction(aDatabase,
                        emptyObjectStoreNames,
                        VERSION_CHANGE);
   aOpenRequest->GetCallerLocation(transaction->mFilename,
-                                  &transaction->mLineNo);
+                                  &transaction->mLineNo, &transaction->mColumn);
 
   transaction->SetScriptOwner(aDatabase->GetScriptOwner());
 
@@ -217,9 +218,10 @@ IDBTransaction::Create(IDBDatabase* aDatabase,
              aMode == READ_WRITE ||
              aMode == READ_WRITE_FLUSH);
 
-  nsRefPtr<IDBTransaction> transaction =
+  RefPtr<IDBTransaction> transaction =
     new IDBTransaction(aDatabase, aObjectStoreNames, aMode);
-  IDBRequest::CaptureCaller(transaction->mFilename, &transaction->mLineNo);
+  IDBRequest::CaptureCaller(transaction->mFilename, &transaction->mLineNo,
+                            &transaction->mColumn);
 
   transaction->SetScriptOwner(aDatabase->GetScriptOwner());
 
@@ -492,13 +494,16 @@ IDBTransaction::IsOpen() const
 }
 
 void
-IDBTransaction::GetCallerLocation(nsAString& aFilename, uint32_t* aLineNo) const
+IDBTransaction::GetCallerLocation(nsAString& aFilename, uint32_t* aLineNo,
+                                  uint32_t* aColumn) const
 {
   AssertIsOnOwningThread();
   MOZ_ASSERT(aLineNo);
+  MOZ_ASSERT(aColumn);
 
   aFilename = mFilename;
   *aLineNo = mLineNo;
+  *aColumn = mColumn;
 }
 
 already_AddRefed<IDBObjectStore>
@@ -525,7 +530,7 @@ IDBTransaction::CreateObjectStore(const ObjectStoreSpec& aSpec)
   MOZ_ALWAYS_TRUE(mBackgroundActor.mVersionChangeBackgroundActor->
                     SendCreateObjectStore(aSpec.metadata()));
 
-  nsRefPtr<IDBObjectStore> objectStore = IDBObjectStore::Create(this, aSpec);
+  RefPtr<IDBObjectStore> objectStore = IDBObjectStore::Create(this, aSpec);
   MOZ_ASSERT(objectStore);
 
   mObjectStores.AppendElement(objectStore);
@@ -548,12 +553,12 @@ IDBTransaction::DeleteObjectStore(int64_t aObjectStoreId)
   for (uint32_t count = mObjectStores.Length(), index = 0;
        index < count;
        index++) {
-    nsRefPtr<IDBObjectStore>& objectStore = mObjectStores[index];
+    RefPtr<IDBObjectStore>& objectStore = mObjectStores[index];
 
     if (objectStore->Id() == aObjectStoreId) {
       objectStore->NoteDeletion();
 
-      nsRefPtr<IDBObjectStore>* deletedObjectStore =
+      RefPtr<IDBObjectStore>* deletedObjectStore =
         mDeletedObjectStores.AppendElement();
       deletedObjectStore->swap(mObjectStores[index]);
 
@@ -601,7 +606,7 @@ IDBTransaction::AbortInternal(nsresult aAbortCode,
   MOZ_ASSERT(NS_FAILED(aAbortCode));
   MOZ_ASSERT(!IsCommittingOrDone());
 
-  nsRefPtr<DOMError> error = aError;
+  RefPtr<DOMError> error = aError;
 
   const bool isVersionChange = mMode == VERSION_CHANGE;
   const bool isInvalidated = mDatabase->IsInvalidated();
@@ -668,7 +673,7 @@ IDBTransaction::AbortInternal(nsresult aAbortCode,
           MOZ_ASSERT(objectStoreId);
 
           if (validIds.Contains(uint64_t(objectStoreId))) {
-            nsRefPtr<IDBObjectStore>* objectStore =
+            RefPtr<IDBObjectStore>* objectStore =
               mObjectStores.AppendElement();
             objectStore->swap(mDeletedObjectStores[objIndex]);
           }
@@ -702,7 +707,7 @@ IDBTransaction::Abort(IDBRequest* aRequest)
   }
 
   ErrorResult rv;
-  nsRefPtr<DOMError> error = aRequest->GetError(rv);
+  RefPtr<DOMError> error = aRequest->GetError(rv);
 
   AbortInternal(aRequest->GetErrorCode(), error.forget());
 }
@@ -718,7 +723,7 @@ IDBTransaction::Abort(nsresult aErrorCode)
     return;
   }
 
-  nsRefPtr<DOMError> error = new DOMError(GetOwner(), aErrorCode);
+  RefPtr<DOMError> error = new DOMError(GetOwner(), aErrorCode);
   AbortInternal(aErrorCode, error.forget());
 }
 
@@ -862,7 +867,7 @@ IDBTransaction::ObjectStoreNames()
     return mDatabase->ObjectStoreNames();
   }
 
-  nsRefPtr<DOMStringList> list = new DOMStringList();
+  RefPtr<DOMStringList> list = new DOMStringList();
   list->StringArray() = mObjectStoreNames;
   return list.forget();
 }
@@ -902,12 +907,12 @@ IDBTransaction::ObjectStore(const nsAString& aName, ErrorResult& aRv)
 
   const int64_t desiredId = spec->metadata().id();
 
-  nsRefPtr<IDBObjectStore> objectStore;
+  RefPtr<IDBObjectStore> objectStore;
 
   for (uint32_t count = mObjectStores.Length(), index = 0;
        index < count;
        index++) {
-    nsRefPtr<IDBObjectStore>& existingObjectStore = mObjectStores[index];
+    RefPtr<IDBObjectStore>& existingObjectStore = mObjectStores[index];
 
     if (existingObjectStore->Id() == desiredId) {
       objectStore = existingObjectStore;
@@ -996,7 +1001,7 @@ WorkerFeature::Notify(JSContext* aCx, Status aStatus)
   if (mTransaction && aStatus > Terminating) {
     mTransaction->AssertIsOnOwningThread();
 
-    nsRefPtr<IDBTransaction> transaction = Move(mTransaction);
+    RefPtr<IDBTransaction> transaction = Move(mTransaction);
 
     if (!transaction->IsCommittingOrDone()) {
       IDB_REPORT_INTERNAL_ERR();

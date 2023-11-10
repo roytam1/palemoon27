@@ -13,6 +13,7 @@
 namespace mozilla {
 
 using gfx::DataSourceSurface;
+using gfx::Filter;
 using gfx::SourceSurface;
 using layers::LayerManager;
 using layers::ImageContainer;
@@ -174,6 +175,14 @@ ImageWrapper::GetFrame(uint32_t aWhichFrame,
   return mInnerImage->GetFrame(aWhichFrame, aFlags);
 }
 
+NS_IMETHODIMP_(already_AddRefed<SourceSurface>)
+ImageWrapper::GetFrameAtSize(const IntSize& aSize,
+                             uint32_t aWhichFrame,
+                             uint32_t aFlags)
+{
+  return mInnerImage->GetFrameAtSize(aSize, aWhichFrame, aFlags);
+}
+
 NS_IMETHODIMP_(bool)
 ImageWrapper::IsOpaque()
 {
@@ -197,18 +206,12 @@ ImageWrapper::Draw(gfxContext* aContext,
                    const nsIntSize& aSize,
                    const ImageRegion& aRegion,
                    uint32_t aWhichFrame,
-                   GraphicsFilter aFilter,
+                   Filter aFilter,
                    const Maybe<SVGImageContext>& aSVGContext,
                    uint32_t aFlags)
 {
   return mInnerImage->Draw(aContext, aSize, aRegion, aWhichFrame,
                            aFilter, aSVGContext, aFlags);
-}
-
-NS_IMETHODIMP
-ImageWrapper::RequestDecode()
-{
-  return mInnerImage->RequestDecode();
 }
 
 NS_IMETHODIMP
@@ -296,7 +299,7 @@ ImageWrapper::PropagateUseCounters(nsIDocument* aParentDocument)
 nsIntSize
 ImageWrapper::OptimalImageSizeForDest(const gfxSize& aDest,
                                       uint32_t aWhichFrame,
-                                      GraphicsFilter aFilter, uint32_t aFlags)
+                                      Filter aFilter, uint32_t aFlags)
 {
   return mInnerImage->OptimalImageSizeForDest(aDest, aWhichFrame, aFilter,
                                               aFlags);

@@ -180,7 +180,7 @@ void nsNSSCertificate::destructorSafeDestroyNSSReference()
     if (mCertType == nsNSSCertificate::USER_CERT) {
       nsCOMPtr<nsIInterfaceRequestor> cxt = new PipUIContext();
       PK11_DeleteTokenCertAndKey(mCert.get(), cxt);
-    } else if (!PK11_IsReadOnly(mCert->slot)) {
+    } else if (mCert->slot && !PK11_IsReadOnly(mCert->slot)) {
       // If the list of built-ins does contain a non-removable
       // copy of this certificate, our call will not remove
       // the certificate permanently, but rather remove all trust.
@@ -225,12 +225,9 @@ nsNSSCertificate::MarkForPermDeletion()
   // make sure user is logged in to the token
   nsCOMPtr<nsIInterfaceRequestor> ctx = new PipUIContext();
 
-  if (PK11_NeedLogin(mCert->slot)
-      && !PK11_NeedUserInit(mCert->slot)
-      && !PK11_IsInternal(mCert->slot))
-  {
-    if (SECSuccess != PK11_Authenticate(mCert->slot, true, ctx))
-    {
+  if (mCert->slot && PK11_NeedLogin(mCert->slot) &&
+      !PK11_NeedUserInit(mCert->slot) && !PK11_IsInternal(mCert->slot)) {
+    if (SECSuccess != PK11_Authenticate(mCert->slot, true, ctx)) {
       return NS_ERROR_FAILURE;
     }
   }
@@ -788,8 +785,7 @@ nsNSSCertificate::GetIssuer(nsIX509Cert** aIssuer)
   if (!cert) {
     return NS_ERROR_UNEXPECTED;
   }
-  *aIssuer = cert;
-  NS_ADDREF(*aIssuer);
+  cert.forget(aIssuer);
   return NS_OK;
 }
 
@@ -1142,7 +1138,7 @@ nsNSSCertificate::ExportAsCMS(uint32_t chainMode,
       break;
     default:
       return NS_ERROR_INVALID_ARG;
-  };
+  }
 
   ScopedNSSCMSMessage cmsg(NSS_CMSMessage_Create(nullptr));
   if (!cmsg) {
@@ -1263,10 +1259,9 @@ nsNSSCertificate::GetValidity(nsIX509CertValidity** aValidity)
     return NS_ERROR_NOT_AVAILABLE;
 
   NS_ENSURE_ARG(aValidity);
-  nsX509CertValidity* validity = new nsX509CertValidity(mCert.get());
+  RefPtr<nsX509CertValidity> validity = new nsX509CertValidity(mCert.get());
 
-  NS_ADDREF(validity);
-  *aValidity = static_cast<nsIX509CertValidity*>(validity);
+  validity.forget(aValidity);
   return NS_OK;
 }
 
@@ -1732,8 +1727,7 @@ nsNSSCertList::GetEnumerator(nsISimpleEnumerator** _retval)
   nsCOMPtr<nsISimpleEnumerator> enumerator =
     new nsNSSCertListEnumerator(mCertList.get(), locker);
 
-  *_retval = enumerator;
-  NS_ADDREF(*_retval);
+  enumerator.forget(_retval);
   return NS_OK;
 }
 
@@ -1862,8 +1856,7 @@ nsNSSCertListEnumerator::GetNext(nsISupports** _retval)
     return NS_ERROR_OUT_OF_MEMORY;
   }
 
-  *_retval = nssCert;
-  NS_ADDREF(*_retval);
+  nssCert.forget(_retval);
 
   CERT_RemoveCertListNode(node);
   return NS_OK;

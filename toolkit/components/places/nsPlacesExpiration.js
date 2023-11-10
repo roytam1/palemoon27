@@ -886,7 +886,8 @@ nsPlacesExpiration.prototype = {
    */
   _finalizeInternalStatements: function PEX__finalizeInternalStatements()
   {
-    for each (let stmt in this._cachedStatements) {
+    for (let queryType in this._cachedStatements) {
+      let stmt = this._cachedStatements[queryType];
       stmt.finalize();
     }
   },
@@ -994,7 +995,7 @@ nsPlacesExpiration.prototype = {
     if (this._timer)
       this._timer.cancel();
     if (this._shuttingDown)
-      return;
+      return undefined;
     let interval = this.status != STATUS.DIRTY ?
       this._interval * EXPIRE_AGGRESSIVITY_MULTIPLIER : this._interval;
 

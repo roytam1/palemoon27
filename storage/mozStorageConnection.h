@@ -167,6 +167,11 @@ public:
   nsresult internalClose(sqlite3 *aDBConn);
 
   /**
+   * Shuts down the passed-in async thread.
+   */
+  void shutdownAsyncThread(nsIThread *aAsyncThread);
+
+  /**
    * Obtains the filename of the connection.  Useful for logging.
    */
   nsCString getFilename();
@@ -312,6 +317,12 @@ private:
   bool mAsyncExecutionThreadShuttingDown;
 
   /**
+   * Tracks whether the async thread has been initialized and Shutdown() has
+   * not yet been invoked on it.
+   */
+  DebugOnly<bool> mAsyncExecutionThreadIsAlive;
+
+  /**
    * Set to true just prior to calling sqlite3_close on the
    * connection.
    *
@@ -346,7 +357,7 @@ private:
   // This is here for two reasons: 1) It's used to make sure that the
   // connections do not outlive the service.  2) Our custom collating functions
   // call its localeCompareStrings() method.
-  nsRefPtr<Service> mStorageService;
+  RefPtr<Service> mStorageService;
 
   /**
    * If |false|, this instance supports synchronous operations
@@ -391,10 +402,10 @@ public:
 private:
   nsresult mStatus;
   nsCOMPtr<nsISupports> mValue;
-  // This is a nsRefPtr<T> and not a nsCOMPtr<T> because
+  // This is a RefPtr<T> and not a nsCOMPtr<T> because
   // nsCOMP<T> would cause an off-main thread QI, which
   // is not a good idea (and crashes XPConnect).
-  nsRefPtr<mozIStorageCompletionCallback> mCallback;
+  RefPtr<mozIStorageCompletionCallback> mCallback;
 };
 
 } // namespace storage

@@ -10,9 +10,13 @@
 
 #include "jsopcodeinlines.h"
 
+#define __STDC_FORMAT_MACROS
+
 #include "mozilla/SizePrintfMacros.h"
 
+#include <algorithm>
 #include <ctype.h>
+#include <inttypes.h>
 #include <stdio.h>
 #include <string.h>
 
@@ -29,10 +33,11 @@
 #include "jstypes.h"
 #include "jsutil.h"
 
-#include "asmjs/AsmJSModule.h"
 #include "frontend/BytecodeCompiler.h"
 #include "frontend/SourceNotes.h"
+#include "gc/GCInternals.h"
 #include "js/CharacterEncoding.h"
+#include "vm/CodeCoverage.h"
 #include "vm/Opcodes.h"
 #include "vm/ScopeObject.h"
 #include "vm/Shape.h"
@@ -55,13 +60,13 @@ using js::frontend::IsIdentifier;
  */
 JS_STATIC_ASSERT(sizeof(uint32_t) * JS_BITS_PER_BYTE >= INDEX_LIMIT_LOG2 + 1);
 
-const JSCodeSpec js_CodeSpec[] = {
+const JSCodeSpec js::CodeSpec[] = {
 #define MAKE_CODESPEC(op,val,name,token,length,nuses,ndefs,format)  {length,nuses,ndefs,format},
     FOR_EACH_OPCODE(MAKE_CODESPEC)
 #undef MAKE_CODESPEC
 };
 
-const unsigned js_NumCodeSpecs = JS_ARRAY_LENGTH(js_CodeSpec);
+const unsigned js::NumCodeSpecs = JS_ARRAY_LENGTH(CodeSpec);
 
 /*
  * Each element of the array is either a source literal associated with JS
@@ -77,7 +82,7 @@ static const char * const CodeToken[] = {
  * Array of JS bytecode names used by PC count JSON, DEBUG-only Disassemble
  * and JIT debug spew.
  */
-const char * const js_CodeName[] = {
+const char * const js::CodeName[] = {
 #define OPNAME(op, val, name, ...)  name,
     FOR_EACH_OPCODE(OPNAME)
 #undef OPNAME
@@ -91,7 +96,7 @@ size_t
 js::GetVariableBytecodeLength(jsbytecode* pc)
 {
     JSOp op = JSOp(*pc);
-    MOZ_ASSERT(js_CodeSpec[op].length == -1);
+    MOZ_ASSERT(CodeSpec[op].length == -1);
     switch (op) {
       case JSOP_TABLESWITCH: {
         /* Structure: default-jump case-low case-high case1-jump ... */
@@ -111,19 +116,20 @@ unsigned
 js::StackUses(JSScript* script, jsbytecode* pc)
 {
     JSOp op = (JSOp) *pc;
-    const JSCodeSpec& cs = js_CodeSpec[op];
+    const JSCodeSpec& cs = CodeSpec[op];
     if (cs.nuses >= 0)
         return cs.nuses;
 
-    MOZ_ASSERT(js_CodeSpec[op].nuses == -1);
+    MOZ_ASSERT(CodeSpec[op].nuses == -1);
     switch (op) {
       case JSOP_POPN:
         return GET_UINT16(pc);
       case JSOP_NEW:
+      case JSOP_SUPERCALL:
         return 2 + GET_ARGC(pc) + 1;
       default:
         /* stack: fun, this, [argc arguments] */
-        MOZ_ASSERT(op == JSOP_CALL || op == JSOP_EVAL ||
+        MOZ_ASSERT(op == JSOP_CALL || op == JSOP_EVAL || op == JSOP_CALLITER ||
                    op == JSOP_STRICTEVAL || op == JSOP_FUNCALL || op == JSOP_FUNAPPLY);
         return 2 + GET_ARGC(pc);
     }
@@ -133,7 +139,7 @@ unsigned
 js::StackDefs(JSScript* script, jsbytecode* pc)
 {
     JSOp op = (JSOp) *pc;
-    const JSCodeSpec& cs = js_CodeSpec[op];
+    const JSCodeSpec& cs = CodeSpec[op];
     MOZ_ASSERT(cs.ndefs >= 0);
     return cs.ndefs;
 }
@@ -170,7 +176,8 @@ js::DumpPCCounts(JSContext* cx, HandleScript script, Sprinter* sp)
             return;
 
         Sprint(sp, "                  {");
-        double val = script->getPCCounts(pc).numExec();
+        PCCounts* counts = script->maybeGetPCCounts(pc);
+        double val = counts ? counts->numExec() : 0.0;
         if (val)
             Sprint(sp, "\"%s\": %.0f", PCCounts::numExecName, val);
         Sprint(sp, "}\n");
@@ -188,7 +195,7 @@ js::DumpPCCounts(JSContext* cx, HandleScript script, Sprinter* sp)
 }
 
 void
-js::DumpCompartmentPCCounts(JSContext *cx)
+js::DumpCompartmentPCCounts(JSContext* cx)
 {
     for (ZoneCellIter i(cx->zone(), gc::AllocKind::SCRIPT); !i.done(); i.next()) {
         RootedScript script(cx, i.get<JSScript>());
@@ -204,32 +211,6 @@ js::DumpCompartmentPCCounts(JSContext *cx)
             DumpPCCounts(cx, script, &sprinter);
             fputs(sprinter.string(), stdout);
             fprintf(stdout, "--- END SCRIPT %s:%" PRIuSIZE " ---\n", script->filename(), script->lineno());
-        }
-    }
-
-    for (auto thingKind : ObjectAllocKinds()) {
-        for (ZoneCellIter i(cx->zone(), thingKind); !i.done(); i.next()) {
-            JSObject *obj = i.get<JSObject>();
-            if (obj->compartment() != cx->compartment())
-                continue;
-
-            if (obj->is<AsmJSModuleObject>()) {
-                AsmJSModule &module = obj->as<AsmJSModuleObject>().module();
-
-                Sprinter sprinter(cx);
-                if (!sprinter.init())
-                    return;
-
-                fprintf(stdout, "--- Asm.js Module ---\n");
-
-                for (size_t i = 0; i < module.numFunctionCounts(); i++) {
-                    jit::IonScriptCounts* counts = module.functionCounts(i);
-                    DumpIonScriptCounts(&sprinter, counts);
-                }
-
-                fputs(sprinter.string(), stdout);
-                fprintf(stdout, "--- END Asm.js Module ---\n");
-            }
         }
     }
 }
@@ -263,9 +244,9 @@ class BytecodeParser
         bool captureOffsetStack(LifoAlloc& alloc, const uint32_t* stack, uint32_t depth) {
             stackDepth = depth;
             offsetStack = alloc.newArray<uint32_t>(stackDepth);
+            if (!offsetStack)
+                return false;
             if (stackDepth) {
-                if (!offsetStack)
-                    return false;
                 for (uint32_t n = 0; n < stackDepth; n++)
                     offsetStack[n] = stack[n];
             }
@@ -704,7 +685,7 @@ js::Disassemble(JSContext* cx, HandleScript script, bool lines, Sprinter* sp)
 }
 
 JS_FRIEND_API(bool)
-js::DumpPC(JSContext *cx)
+js::DumpPC(JSContext* cx)
 {
     gc::AutoSuppressGC suppressGC(cx);
     Sprinter sprinter(cx);
@@ -722,7 +703,7 @@ js::DumpPC(JSContext *cx)
 }
 
 JS_FRIEND_API(bool)
-js::DumpScript(JSContext *cx, JSScript *scriptArg)
+js::DumpScript(JSContext* cx, JSScript* scriptArg)
 {
     gc::AutoSuppressGC suppressGC(cx);
     Sprinter sprinter(cx);
@@ -745,8 +726,10 @@ ToDisassemblySource(JSContext* cx, HandleValue v, JSAutoByteString* bytes)
         if (!nbytes)
             return false;
         nbytes = JS_sprintf_append(nullptr, "%s", nbytes);
-        if (!nbytes)
+        if (!nbytes) {
+            ReportOutOfMemory(cx);
             return false;
+        }
         bytes->initBytes(nbytes);
         return true;
     }
@@ -754,19 +737,23 @@ ToDisassemblySource(JSContext* cx, HandleValue v, JSAutoByteString* bytes)
     JSRuntime* rt = cx->runtime();
     if (rt->isHeapBusy() || !rt->gc.isAllocAllowed()) {
         char* source = JS_sprintf_append(nullptr, "<value>");
-        if (!source)
+        if (!source) {
+            ReportOutOfMemory(cx);
             return false;
+        }
         bytes->initBytes(source);
         return true;
     }
 
     if (v.isObject()) {
         JSObject& obj = v.toObject();
-        if (obj.is<StaticBlockObject>()) {
-            Rooted<StaticBlockObject*> block(cx, &obj.as<StaticBlockObject>());
+        if (obj.is<StaticBlockScope>()) {
+            Rooted<StaticBlockScope*> block(cx, &obj.as<StaticBlockScope>());
             char* source = JS_sprintf_append(nullptr, "depth %d {", block->localOffset());
-            if (!source)
+            if (!source) {
+                ReportOutOfMemory(cx);
                 return false;
+            }
 
             Shape::Range<CanGC> r(cx, block->lastProperty());
 
@@ -785,13 +772,17 @@ ToDisassemblySource(JSContext* cx, HandleValue v, JSAutoByteString* bytes)
                                            bytes.ptr(),
                                            block->shapeToIndex(*shape),
                                            !r.empty() ? ", " : "");
-                if (!source)
+                if (!source) {
+                    ReportOutOfMemory(cx);
                     return false;
+                }
             }
 
             source = JS_sprintf_append(source, "}");
-            if (!source)
+            if (!source) {
+                ReportOutOfMemory(cx);
                 return false;
+            }
             bytes->initBytes(source);
             return true;
         }
@@ -828,12 +819,12 @@ js::Disassemble1(JSContext* cx, HandleScript script, jsbytecode* pc,
                              JSMSG_BYTECODE_TOO_BIG, numBuf1, numBuf2);
         return 0;
     }
-    const JSCodeSpec* cs = &js_CodeSpec[op];
+    const JSCodeSpec* cs = &CodeSpec[op];
     ptrdiff_t len = (ptrdiff_t) cs->length;
     Sprint(sp, "%05u:", loc);
     if (lines)
         Sprint(sp, "%4u", PCToLineNumber(script, pc));
-    Sprint(sp, "  %s", js_CodeName[op]);
+    Sprint(sp, "  %s", CodeName[op]);
 
     switch (JOF_TYPE(cs->format)) {
       case JOF_BYTE:
@@ -910,7 +901,7 @@ js::Disassemble1(JSContext* cx, HandleScript script, jsbytecode* pc,
       }
 
       case JOF_REGEXP: {
-        JSObject* obj = script->getRegExp(GET_UINT32_INDEX(pc));
+        js::RegExpObject* obj = script->getRegExp(pc);
         JSAutoByteString bytes;
         RootedValue v(cx, ObjectValue(*obj));
         if (!ToDisassemblySource(cx, v, &bytes))
@@ -1029,14 +1020,12 @@ struct ExpressionDecompiler
 {
     JSContext* cx;
     RootedScript script;
-    RootedFunction fun;
     BytecodeParser parser;
     Sprinter sprinter;
 
-    ExpressionDecompiler(JSContext* cx, JSScript* script, JSFunction* fun)
+    ExpressionDecompiler(JSContext* cx, JSScript* script)
         : cx(cx),
           script(cx, script),
-          fun(cx, fun),
           parser(cx, script),
           sprinter(cx)
     {}
@@ -1070,7 +1059,7 @@ ExpressionDecompiler::decompilePC(jsbytecode* pc)
 
     if (const char* token = CodeToken[op]) {
         // Handle simple cases of binary and unary operators.
-        switch (js_CodeSpec[op].nuses) {
+        switch (CodeSpec[op].nuses) {
           case 2: {
             jssrcnote* sn = GetSrcNote(cx, script, pc);
             if (!sn || SN_TYPE(sn) != SRC_ASSIGNOP)
@@ -1168,13 +1157,14 @@ ExpressionDecompiler::decompilePC(jsbytecode* pc)
       }
       case JSOP_UNDEFINED:
         return write(js_undefined_str);
-      case JSOP_THIS:
+      case JSOP_GLOBALTHIS:
         // |this| could convert to a very long object initialiser, so cite it by
         // its keyword name.
         return write(js_this_str);
       case JSOP_NEWTARGET:
         return write("new.target");
       case JSOP_CALL:
+      case JSOP_CALLITER:
       case JSOP_FUNCALL:
         return decompilePCForStackOperand(pc, -int32_t(GET_ARGC(pc) + 2)) &&
                write("(...)");
@@ -1247,6 +1237,8 @@ ExpressionDecompiler::write(const char* s)
 bool
 ExpressionDecompiler::write(JSString* str)
 {
+    if (str == cx->names().dotThis)
+        return write("this");
     return sprinter.putString(str) >= 0;
 }
 
@@ -1265,7 +1257,7 @@ ExpressionDecompiler::loadAtom(jsbytecode* pc)
 JSAtom*
 ExpressionDecompiler::getArg(unsigned slot)
 {
-    MOZ_ASSERT(fun);
+    MOZ_ASSERT(script->functionNonDelazifying());
     MOZ_ASSERT(slot < script->bindings.numArgs());
 
     for (BindingIter bi(script); bi; bi++) {
@@ -1289,13 +1281,13 @@ ExpressionDecompiler::getLocal(uint32_t local, jsbytecode* pc)
 
         MOZ_CRASH("No binding");
     }
-    for (NestedScopeObject* chain = script->getStaticBlockScope(pc);
+    for (NestedStaticScope* chain = script->getStaticBlockScope(pc);
          chain;
          chain = chain->enclosingNestedScope())
     {
-        if (!chain->is<StaticBlockObject>())
+        if (!chain->is<StaticBlockScope>())
             continue;
-        StaticBlockObject& block = chain->as<StaticBlockObject>();
+        StaticBlockScope& block = chain->as<StaticBlockScope>();
         if (local < block.localOffset())
             continue;
         local -= block.localOffset();
@@ -1352,7 +1344,13 @@ FindStartPC(JSContext* cx, const FrameIter& iter, int spindex, int skipStackHits
 
     if (spindex == JSDVG_SEARCH_STACK) {
         size_t index = iter.numFrameSlots();
-        MOZ_ASSERT(index >= size_t(parser.stackDepthAtPC(current)));
+
+        // The decompiler may be called from inside functions that are not
+        // called from script, but via the C++ API directly, such as
+        // Invoke. In that case, the youngest script frame may have a
+        // completely unrelated pc and stack depth, so we give up.
+        if (index < size_t(parser.stackDepthAtPC(current)))
+            return true;
 
         // We search from fp->sp to base to find the most recently calculated
         // value matching v under assumption that it is the value that caused
@@ -1405,9 +1403,6 @@ DecompileExpressionFromStack(JSContext* cx, int spindex, int skipStackHits, Hand
     RootedScript script(cx, frameIter.script());
     AutoCompartment ac(cx, &script->global());
     jsbytecode* valuepc = frameIter.pc();
-    RootedFunction fun(cx, frameIter.isFunctionFrame()
-                           ? frameIter.calleeTemplate()
-                           : nullptr);
 
     MOZ_ASSERT(script->containsPC(valuepc));
 
@@ -1420,7 +1415,7 @@ DecompileExpressionFromStack(JSContext* cx, int spindex, int skipStackHits, Hand
     if (!valuepc)
         return true;
 
-    ExpressionDecompiler ed(cx, script, fun);
+    ExpressionDecompiler ed(cx, script);
     if (!ed.init())
         return false;
     if (!ed.decompilePC(valuepc))
@@ -1429,9 +1424,7 @@ DecompileExpressionFromStack(JSContext* cx, int spindex, int skipStackHits, Hand
     return ed.getOutput(res);
 }
 
-typedef mozilla::UniquePtr<char[], JS::FreePolicy> UniquePtrChars;
-
-UniquePtrChars
+UniqueChars
 js::DecompileValueGenerator(JSContext* cx, int spindex, HandleValue v,
                             HandleString fallbackArg, int skipStackHits)
 {
@@ -1442,19 +1435,19 @@ js::DecompileValueGenerator(JSContext* cx, int spindex, HandleValue v,
             return nullptr;
         if (result) {
             if (strcmp(result, "(intermediate value)"))
-                return UniquePtrChars(result);
+                return UniqueChars(result);
             js_free(result);
         }
     }
     if (!fallback) {
         if (v.isUndefined())
-            return UniquePtrChars(JS_strdup(cx, js_undefined_str)); // Prevent users from seeing "(void 0)"
+            return UniqueChars(JS_strdup(cx, js_undefined_str)); // Prevent users from seeing "(void 0)"
         fallback = ValueToSource(cx, v);
         if (!fallback)
-            return UniquePtrChars(nullptr);
+            return UniqueChars(nullptr);
     }
 
-    return UniquePtrChars(JS_EncodeString(cx, fallback));
+    return UniqueChars(JS_EncodeString(cx, fallback));
 }
 
 static bool
@@ -1487,9 +1480,6 @@ DecompileArgumentFromStack(JSContext* cx, int formalIndex, char** res)
     RootedScript script(cx, frameIter.script());
     AutoCompartment ac(cx, &script->global());
     jsbytecode* current = frameIter.pc();
-    RootedFunction fun(cx, frameIter.isFunctionFrame()
-                           ? frameIter.calleeTemplate()
-                           : nullptr);
 
     MOZ_ASSERT(script->containsPC(current));
 
@@ -1509,7 +1499,7 @@ DecompileArgumentFromStack(JSContext* cx, int formalIndex, char** res)
     if (uint32_t(formalStackIndex) >= parser.stackDepthAtPC(current))
         return true;
 
-    ExpressionDecompiler ed(cx, script, fun);
+    ExpressionDecompiler ed(cx, script);
     if (!ed.init())
         return false;
     if (!ed.decompilePCForStackOperand(current, formalStackIndex))
@@ -1611,11 +1601,6 @@ ReleaseScriptCounts(FreeOp* fop)
     JSRuntime* rt = fop->runtime();
     MOZ_ASSERT(rt->scriptAndCountsVector);
 
-    ScriptAndCountsVector& vec = *rt->scriptAndCountsVector;
-
-    for (size_t i = 0; i < vec.length(); i++)
-        vec[i].scriptCounts.destroy(fop);
-
     fop->delete_(rt->scriptAndCountsVector);
     rt->scriptAndCountsVector = nullptr;
 }
@@ -1647,19 +1632,17 @@ js::StopPCCountProfiling(JSContext* cx)
 
     ReleaseAllJITCode(rt->defaultFreeOp());
 
-    ScriptAndCountsVector* vec = cx->new_<ScriptAndCountsVector>(SystemAllocPolicy());
+    auto* vec = cx->new_<PersistentRooted<ScriptAndCountsVector>>(cx,
+        ScriptAndCountsVector(SystemAllocPolicy()));
     if (!vec)
         return;
 
     for (ZonesIter zone(rt, SkipAtoms); !zone.done(); zone.next()) {
         for (ZoneCellIter i(zone, AllocKind::SCRIPT); !i.done(); i.next()) {
-            JSScript *script = i.get<JSScript>();
+            JSScript* script = i.get<JSScript>();
             if (script->hasScriptCounts() && script->types()) {
-                ScriptAndCounts sac;
-                sac.script = script;
-                sac.scriptCounts.set(script->releaseScriptCounts());
-                if (!vec->append(sac))
-                    sac.scriptCounts.destroy(rt->defaultFreeOp());
+                if (!vec->append(script))
+                    return;
             }
         }
     }
@@ -1704,20 +1687,6 @@ AppendJSONProperty(StringBuffer& buf, const char* name, MaybeComma comma = COMMA
     buf.append("\":", 2);
 }
 
-static void
-AppendArrayJSONProperties(JSContext* cx, StringBuffer& buf,
-                          double* values, const char * const* names, unsigned count,
-                          MaybeComma& comma)
-{
-    for (unsigned i = 0; i < count; i++) {
-        if (values[i]) {
-            AppendJSONProperty(buf, names[i], comma);
-            comma = COMMA;
-            NumberValueToStringBuffer(cx, DoubleValue(values[i]), buf);
-        }
-    }
-}
-
 JS_FRIEND_API(JSString*)
 js::GetPCCountScriptSummary(JSContext* cx, size_t index)
 {
@@ -1759,21 +1728,21 @@ js::GetPCCountScriptSummary(JSContext* cx, size_t index)
         }
     }
 
-    double total = 0.0;
+    uint64_t total = 0;
 
     jsbytecode* codeEnd = script->codeEnd();
     for (jsbytecode* pc = script->code(); pc < codeEnd; pc = GetNextPc(pc)) {
-        PCCounts& counts = sac.getPCCounts(pc);
-        double value = counts.numExec();
-        total += value;
+        const PCCounts* counts = sac.maybeGetPCCounts(pc);
+        if (!counts)
+            continue;
+        total += counts->numExec();
     }
 
     AppendJSONProperty(buf, "totals");
     buf.append('{');
 
-    MaybeComma comma = NO_COMMA;
-
-    AppendArrayJSONProperties(cx, buf, &total, &PCCounts::numExecName, 1, comma);
+    AppendJSONProperty(buf, PCCounts::numExecName, NO_COMMA);
+    NumberValueToStringBuffer(cx, DoubleValue(total), buf);
 
     uint64_t ionActivity = 0;
     jit::IonScriptCounts* ionCounts = sac.getIonCounts();
@@ -1783,7 +1752,7 @@ js::GetPCCountScriptSummary(JSContext* cx, size_t index)
         ionCounts = ionCounts->previous();
     }
     if (ionActivity) {
-        AppendJSONProperty(buf, "ion", comma);
+        AppendJSONProperty(buf, "ion", COMMA);
         NumberValueToStringBuffer(cx, DoubleValue(ionActivity), buf);
     }
 
@@ -1818,11 +1787,18 @@ GetPCCountJSON(JSContext* cx, const ScriptAndCounts& sac, StringBuffer& buf)
     bool comma = false;
 
     SrcNoteLineScanner scanner(script->notes(), script->lineno());
+    uint64_t hits = 0;
 
-    for (jsbytecode* pc = script->code(); pc < script->codeEnd(); pc += GetBytecodeLength(pc)) {
+    jsbytecode* end = script->codeEnd();
+    for (jsbytecode* pc = script->code(); pc < end; pc = GetNextPc(pc)) {
         size_t offset = script->pcToOffset(pc);
+        JSOp op = JSOp(*pc);
 
-        JSOp op = (JSOp) *pc;
+        // If the current instruction is a jump target,
+        // then update the number of hits.
+        const PCCounts* counts = sac.maybeGetPCCounts(pc);
+        if (counts)
+            hits = counts->numExec();
 
         if (comma)
             buf.append(',');
@@ -1839,7 +1815,7 @@ GetPCCountJSON(JSContext* cx, const ScriptAndCounts& sac, StringBuffer& buf)
         NumberValueToStringBuffer(cx, Int32Value(scanner.getLine()), buf);
 
         {
-            const char* name = js_CodeName[op];
+            const char* name = CodeName[op];
             AppendJSONProperty(buf, "name");
             buf.append('\"');
             buf.append(name, strlen(name));
@@ -1847,7 +1823,7 @@ GetPCCountJSON(JSContext* cx, const ScriptAndCounts& sac, StringBuffer& buf)
         }
 
         {
-            ExpressionDecompiler ed(cx, script, script->functionDelazifying());
+            ExpressionDecompiler ed(cx, script);
             if (!ed.init())
                 return false;
             if (!ed.decompilePC(pc))
@@ -1863,19 +1839,22 @@ GetPCCountJSON(JSContext* cx, const ScriptAndCounts& sac, StringBuffer& buf)
             buf.append(str);
         }
 
-        PCCounts& counts = sac.getPCCounts(pc);
-
         AppendJSONProperty(buf, "counts");
         buf.append('{');
 
-        double value = counts.numExec();
-        if (value > 0) {
+        if (hits > 0) {
             AppendJSONProperty(buf, PCCounts::numExecName, NO_COMMA);
-            NumberValueToStringBuffer(cx, DoubleValue(value), buf);
+            NumberValueToStringBuffer(cx, DoubleValue(hits), buf);
         }
 
         buf.append('}');
         buf.append('}');
+
+        // If the current instruction has thrown,
+        // then decrement the hit counts with the number of throws.
+        counts = sac.maybeGetThrowCounts(pc);
+        if (counts)
+            hits -= counts->numExec();
     }
 
     buf.append(']');
@@ -1953,4 +1932,116 @@ js::GetPCCountScriptContents(JSContext* cx, size_t index)
     }
 
     return buf.finishString();
+}
+
+static bool
+GenerateLcovInfo(JSContext* cx, JSCompartment* comp, GenericPrinter& out)
+{
+    JSRuntime* rt = cx->runtime();
+
+    // Collect the list of scripts which are part of the current compartment.
+    {
+        js::gc::AutoPrepareForTracing apft(rt, SkipAtoms);
+    }
+    Rooted<ScriptVector> topScripts(cx, ScriptVector(cx));
+    for (ZonesIter zone(rt, SkipAtoms); !zone.done(); zone.next()) {
+        for (ZoneCellIter i(zone, AllocKind::SCRIPT); !i.done(); i.next()) {
+            JSScript* script = i.get<JSScript>();
+            if (script->compartment() != comp ||
+                !script->isTopLevel() ||
+                !script->filename())
+            {
+                continue;
+            }
+
+            if (!topScripts.append(script))
+                return false;
+        }
+    }
+
+    if (topScripts.length() == 0)
+        return true;
+
+    // Collect code coverage info for one compartment.
+    coverage::LCovCompartment compCover;
+    for (JSScript* topLevel: topScripts) {
+        RootedScript topScript(cx, topLevel);
+        compCover.collectSourceFile(comp, &topScript->scriptSourceUnwrap());
+
+        // We found the top-level script, visit all the functions reachable
+        // from the top-level function, and delazify them.
+        Rooted<ScriptVector> queue(cx, ScriptVector(cx));
+        if (!queue.append(topLevel))
+            return false;
+
+        RootedScript script(cx);
+        do {
+            script = queue.popCopy();
+            compCover.collectCodeCoverageInfo(comp, script->sourceObject(), script);
+
+            // Iterate from the last to the first object in order to have
+            // the functions them visited in the opposite order when popping
+            // elements from the stack of remaining scripts, such that the
+            // functions are more-less listed with increasing line numbers.
+            if (!script->hasObjects())
+                continue;
+            size_t idx = script->objects()->length;
+            while (idx--) {
+                JSObject* obj = script->getObject(idx);
+
+                // Only continue on JSFunction objects.
+                if (!obj->is<JSFunction>())
+                    continue;
+                JSFunction& fun = obj->as<JSFunction>();
+
+                // Let's skip asm.js for now.
+                if (!fun.isInterpreted())
+                    continue;
+
+                // Queue the script in the list of script associated to the
+                // current source.
+                JSScript* childScript = fun.getOrCreateScript(cx);
+                if (!childScript || !queue.append(childScript))
+                    return false;
+            }
+        } while (!queue.empty());
+    }
+
+    bool isEmpty = true;
+    compCover.exportInto(out, &isEmpty);
+    if (out.hadOutOfMemory())
+        return false;
+    return true;
+}
+
+JS_FRIEND_API(char*)
+js::GetCodeCoverageSummary(JSContext* cx, size_t* length)
+{
+    Sprinter out(cx);
+
+    if (!out.init())
+        return nullptr;
+
+    if (!GenerateLcovInfo(cx, cx->compartment(), out)) {
+        JS_ReportOutOfMemory(cx);
+        return nullptr;
+    }
+
+    if (out.hadOutOfMemory()) {
+        JS_ReportOutOfMemory(cx);
+        return nullptr;
+    }
+
+    ptrdiff_t len = out.stringEnd() - out.string();
+    char* res = cx->pod_malloc<char>(len + 1);
+    if (!res) {
+        JS_ReportOutOfMemory(cx);
+        return nullptr;
+    }
+
+    js_memcpy(res, out.string(), len);
+    res[len] = 0;
+    if (length)
+        *length = len;
+    return res;
 }

@@ -15,6 +15,7 @@ const DevToolsUtils = require("devtools/toolkit/DevToolsUtils");
 const { dbg_assert, dumpn, update, fetch } = DevToolsUtils;
 const { dirname, joinURI } = require("devtools/toolkit/path");
 const promise = require("promise");
+const PromiseDebugging = require("PromiseDebugging");
 const xpcInspector = require("xpcInspector");
 const ScriptStore = require("./utils/ScriptStore");
 const {DevToolsWorker} = require("devtools/toolkit/shared/worker.js");
@@ -817,6 +818,17 @@ ThreadActor.prototype = {
     return function () {
       // onStep is called with 'this' set to the current frame.
 
+      // Only allow stepping stops at entry points for the line, when
+      // the stepping occurs in a single frame.  The "same frame"
+      // check makes it so a sequence of steps can step out of a frame
+      // and into subsequent calls in the outer frame.  E.g., if there
+      // is a call "a(b())" and the user steps into b, then this
+      // condition makes it possible to step out of b and into a.
+      if (this === startFrame &&
+          !this.script.getOffsetLocation(this.offset).isEntryPoint) {
+        return undefined;
+      }
+
       const generatedLocation = thread.sources.getFrameLocation(this);
       const newLocation = thread.synchronize(thread.sources.getOriginalLocation(
         generatedLocation));
@@ -1497,7 +1509,7 @@ ThreadActor.prototype = {
     // Clear DOM event breakpoints.
     // XPCShell tests don't use actual DOM windows for globals and cause
     // removeListenerForAllEvents to throw.
-    if (this.global && !this.global.toString().includes("Sandbox")) {
+    if (!isWorker && this.global && !this.global.toString().includes("Sandbox")) {
       let els = Cc["@mozilla.org/eventlistenerservice;1"]
                 .getService(Ci.nsIEventListenerService);
       els.removeListenerForAllEvents(this.global, this._allEventsListener, true);
@@ -1937,7 +1949,7 @@ ThreadActor.prototype = {
     }
 
     if (promises.length > 0) {
-      this.synchronize(Promise.all(promises));
+      this.synchronize(promise.all(promises));
     }
 
     return true;
@@ -2874,10 +2886,10 @@ SourceActor.prototype = {
         actor,
         GeneratedLocation.fromOriginalLocation(originalLocation)
       )) {
-        return Promise.resolve(null);
+        return promise.resolve(null);
       }
 
-      return Promise.resolve(originalLocation);
+      return promise.resolve(originalLocation);
     } else {
       return this.sources.getAllGeneratedLocations(originalLocation)
                          .then((generatedLocations) => {
@@ -3578,7 +3590,7 @@ function hackDebugger(Debugger) {
     configurable: true,
     get: function() {
       if (this.script) {
-        return this.script.getOffsetLine(this.offset);
+        return this.script.getOffsetLocation(this.offset).lineNumber;
       } else {
         return null;
       }

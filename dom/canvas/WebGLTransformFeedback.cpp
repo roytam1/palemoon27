@@ -41,13 +41,13 @@ WebGLTransformFeedback::Delete()
 WebGLContext*
 WebGLTransformFeedback::GetParentObject() const
 {
-    return Context();
+    return mContext;
 }
 
 JSObject*
-WebGLTransformFeedback::WrapObject(JSContext* cx, JS::Handle<JSObject*> aGivenProto)
+WebGLTransformFeedback::WrapObject(JSContext* cx, JS::Handle<JSObject*> givenProto)
 {
-    return dom::WebGLTransformFeedbackBinding::Wrap(cx, this, aGivenProto);
+    return dom::WebGLTransformFeedbackBinding::Wrap(cx, this, givenProto);
 }
 
 

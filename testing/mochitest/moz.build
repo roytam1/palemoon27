@@ -33,7 +33,6 @@ MOCHITEST_CHROME_MANIFESTS += ['chrome/chrome.ini']
 
 TEST_HARNESS_FILES.testing.mochitest += [
     '!automation.py',
-    '/build/automationutils.py',
     '/build/mobile/remoteautomation.py',
     '/build/pgo/server-locations.txt',
     '/build/sanitizers/lsan_suppressions.txt',
@@ -62,23 +61,20 @@ TEST_HARNESS_FILES.testing.mochitest += [
     'jetpack-addon-overlay.xul',
     'jetpack-package-harness.js',
     'jetpack-package-overlay.xul',
+    'leaks.py',
+    'mach_test_package_commands.py',
     'manifest.webapp',
     'manifestLibrary.js',
     'mochitest_options.py',
     'nested_setup.js',
     'pywebsocket_wrapper.py',
     'redirect.html',
+    'runrobocop.py',
     'runtests.py',
     'runtestsb2g.py',
     'runtestsremote.py',
     'server.js',
 ]
-
-if CONFIG['MOZ_BUILD_APP'] == 'mobile/android':
-    TEST_HARNESS_FILES.testing.mochitest += [
-        '/mobile/android/base/tests/robocop.ini',
-        '/mobile/android/base/tests/robocop_autophone.ini',
-    ]
 
 TEST_HARNESS_FILES.testing.mochitest.pywebsocket += [
     'pywebsocket/standalone.py',

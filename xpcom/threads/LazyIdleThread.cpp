@@ -254,7 +254,7 @@ LazyIdleThread::ShutdownThread()
   // Before calling Shutdown() on the real thread we need to put a queue in
   // place in case a runnable is posted to the thread while it's in the
   // process of shutting down. This will be our queue.
-  nsAutoTArray<nsCOMPtr<nsIRunnable>, 10> queuedRunnables;
+  AutoTArray<nsCOMPtr<nsIRunnable>, 10> queuedRunnables;
 
   nsresult rv;
 
@@ -454,6 +454,13 @@ LazyIdleThread::GetPRThread(PRThread** aPRThread)
 
   *aPRThread = nullptr;
   return NS_ERROR_NOT_AVAILABLE;
+}
+
+NS_IMETHODIMP
+LazyIdleThread::AsyncShutdown()
+{
+  ASSERT_OWNING_THREAD();
+  return NS_ERROR_NOT_IMPLEMENTED;
 }
 
 NS_IMETHODIMP

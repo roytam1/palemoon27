@@ -29,6 +29,8 @@ class nsISiteSecurityService;
 class nsIStreamConverterService;
 class nsITimer;
 
+extern mozilla::Atomic<PRThread*, mozilla::Relaxed> gSocketThread;
+
 namespace mozilla {
 namespace net {
 class ATokenBucketEvent;
@@ -79,6 +81,7 @@ public:
     uint8_t        ReferrerTrimmingPolicy()  { return mReferrerTrimmingPolicy; }
     uint8_t        ReferrerXOriginPolicy()   { return mReferrerXOriginPolicy; }
     bool           SendSecureXSiteReferrer() { return mSendSecureXSiteReferrer; }
+    bool           PackagedAppsEnabled()     { return mPackagedAppsEnabled; }
     uint8_t        RedirectionLimit()        { return mRedirectionLimit; }
     PRIntervalTime IdleTimeout()             { return mIdleTimeout; }
     PRIntervalTime SpdyTimeout()             { return mSpdyTimeout; }
@@ -101,14 +104,14 @@ public:
 
     bool           IsSpdyEnabled() { return mEnableSpdy; }
     bool           IsSpdyV31Enabled() { return mSpdyV31; }
-    bool           IsHttp2DraftEnabled() { return mHttp2DraftEnabled; }
-    bool           IsHttp2Enabled() { return mHttp2DraftEnabled && mHttp2Enabled; }
+    bool           IsHttp2Enabled() { return mHttp2Enabled; }
     bool           EnforceHttp2TlsProfile() { return mEnforceHttp2TlsProfile; }
     bool           CoalesceSpdy() { return mCoalesceSpdy; }
     bool           UseSpdyPersistentSettings() { return mSpdyPersistentSettings; }
     uint32_t       SpdySendingChunkSize() { return mSpdySendingChunkSize; }
     uint32_t       SpdySendBufferSize()      { return mSpdySendBufferSize; }
     uint32_t       SpdyPushAllowance()       { return mSpdyPushAllowance; }
+    uint32_t       SpdyPullAllowance()       { return mSpdyPullAllowance; }
     uint32_t       DefaultSpdyConcurrent()   { return mDefaultSpdyConcurrent; }
     PRIntervalTime SpdyPingThreshold() { return mSpdyPingThreshold; }
     PRIntervalTime SpdyPingTimeout() { return mSpdyPingTimeout; }
@@ -165,7 +168,6 @@ public:
     nsHttpConnectionMgr *ConnMgr()   { return mConnMgr; }
 
     // cache support
-    bool UseCache() const { return mUseCache; }
     uint32_t GenerateUniqueID() { return ++mLastUniqueID; }
     uint32_t SessionStartTime() { return mSessionStartTime; }
 
@@ -340,6 +342,8 @@ public:
         return mSchedulingContextService.get();
     }
 
+    void ShutdownConnectionManager();
+
 private:
     virtual ~nsHttpHandler();
 
@@ -411,6 +415,9 @@ private:
     PRIntervalTime mPipelineReadTimeout;
     nsCOMPtr<nsITimer> mPipelineTestTimer;
 
+    // Whether a URL containing !// should be interpreted as a packaged app channel
+    bool mPackagedAppsEnabled = false;
+
     uint8_t  mRedirectionLimit;
 
     // we'll warn the user if we load an URL containing a userpass field
@@ -456,7 +463,6 @@ private:
     nsXPIDLCString mUserAgentOverride;
     bool           mUserAgentIsDirty; // true if mUserAgent should be rebuilt
 
-    bool           mUseCache;
 
     bool           mPromptTempRedirect;
     // mSendSecureXSiteReferrer: default is false,
@@ -481,7 +487,6 @@ private:
 
     uint32_t           mEnableSpdy : 1;
     uint32_t           mSpdyV31 : 1;
-    uint32_t           mHttp2DraftEnabled : 1;
     uint32_t           mHttp2Enabled : 1;
     uint32_t           mUseH2Deps : 1;
     uint32_t           mEnforceHttp2TlsProfile : 1;
@@ -497,6 +502,7 @@ private:
     uint32_t       mSpdySendingChunkSize;
     uint32_t       mSpdySendBufferSize;
     uint32_t       mSpdyPushAllowance;
+    uint32_t       mSpdyPullAllowance;
     uint32_t       mDefaultSpdyConcurrent;
     PRIntervalTime mSpdyPingThreshold;
     PRIntervalTime mSpdyPingTimeout;
@@ -548,13 +554,14 @@ private:
     // For Rate Pacing Certain Network Events. Only assign this pointer on
     // socket thread.
     void MakeNewRequestTokenBucket();
-    nsRefPtr<EventTokenBucket> mRequestTokenBucket;
+    RefPtr<EventTokenBucket> mRequestTokenBucket;
 
 public:
     // Socket thread only
     nsresult SubmitPacedRequest(ATokenBucketEvent *event,
                                 nsICancelable **cancel)
     {
+        MOZ_ASSERT(PR_GetCurrentThread() == gSocketThread);
         if (!mRequestTokenBucket)
             return NS_ERROR_UNEXPECTED;
         return mRequestTokenBucket->SubmitEvent(event, cancel);
@@ -563,11 +570,21 @@ public:
     // Socket thread only
     void SetRequestTokenBucket(EventTokenBucket *aTokenBucket)
     {
+        MOZ_ASSERT(PR_GetCurrentThread() == gSocketThread);
         mRequestTokenBucket = aTokenBucket;
     }
 
+    void StopRequestTokenBucket()
+    {
+        MOZ_ASSERT(PR_GetCurrentThread() == gSocketThread);
+        if (mRequestTokenBucket) {
+            mRequestTokenBucket->Stop();
+            mRequestTokenBucket = nullptr;
+        }
+    }
+
 private:
-    nsRefPtr<Tickler> mWifiTickler;
+    RefPtr<Tickler> mWifiTickler;
     void TickleWifi(nsIInterfaceRequestor *cb);
 
 private:

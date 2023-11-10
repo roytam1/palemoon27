@@ -22,9 +22,9 @@ XPCOMUtils.defineLazyModuleGetter(this, "Task",
 
 const gAppRep = Cc["@mozilla.org/downloads/application-reputation-service;1"].
                   getService(Ci.nsIApplicationReputationService);
-let gStillRunning = true;
-let gTables = {};
-let gHttpServer = null;
+var gStillRunning = true;
+var gTables = {};
+var gHttpServer = null;
 
 function readFileToString(aFilename) {
   let f = do_get_file(aFilename);
@@ -210,13 +210,13 @@ function promiseQueryReputation(query, expectedShouldBlock) {
   return deferred.promise;
 }
 
-add_task(function()
+add_task(function* ()
 {
   // Wait for Safebrowsing local list updates to complete.
   yield waitForUpdates();
 });
 
-add_task(function test_blocked_binary()
+add_task(function* test_blocked_binary()
 {
   // We should reach the remote server for a verdict.
   Services.prefs.setBoolPref("browser.safebrowsing.downloads.remote.enabled",
@@ -229,7 +229,7 @@ add_task(function test_blocked_binary()
                                 fileSize: 12}, true);
 });
 
-add_task(function test_non_binary()
+add_task(function* test_non_binary()
 {
   // We should not reach the remote server for a verdict for non-binary files.
   Services.prefs.setBoolPref("browser.safebrowsing.downloads.remote.enabled",
@@ -241,7 +241,7 @@ add_task(function test_non_binary()
                                 fileSize: 12}, false);
 });
 
-add_task(function test_good_binary()
+add_task(function* test_good_binary()
 {
   // We should reach the remote server for a verdict.
   Services.prefs.setBoolPref("browser.safebrowsing.downloads.remote.enabled",
@@ -254,7 +254,7 @@ add_task(function test_good_binary()
                                 fileSize: 12}, false);
 });
 
-add_task(function test_disabled()
+add_task(function* test_disabled()
 {
   // Explicitly disable remote checks
   Services.prefs.setBoolPref("browser.safebrowsing.downloads.remote.enabled",
@@ -276,7 +276,7 @@ add_task(function test_disabled()
   yield deferred.promise;
 });
 
-add_task(function test_disabled_through_lists()
+add_task(function* test_disabled_through_lists()
 {
   Services.prefs.setBoolPref("browser.safebrowsing.downloads.remote.enabled",
                              false);
@@ -297,7 +297,7 @@ add_task(function test_disabled_through_lists()
   );
   yield deferred.promise;
 });
-add_task(function test_teardown()
+add_task(function* test_teardown()
 {
   gStillRunning = false;
 });

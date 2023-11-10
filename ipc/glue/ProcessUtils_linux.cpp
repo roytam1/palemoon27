@@ -31,6 +31,7 @@
 #include "mozilla/unused.h"
 #include "base/process_util.h"
 #include "base/eintr_wrapper.h"
+#include "mozilla/Preferences.h"
 
 #include "prenv.h"
 
@@ -169,7 +170,7 @@ static void
 CloseFileDescriptors(FdArray& aFds)
 {
   for (size_t i = 0; i < aFds.length(); i++) {
-    unused << HANDLE_EINTR(close(aFds[i]));
+    Unused << HANDLE_EINTR(close(aFds[i]));
   }
 }
 
@@ -204,6 +205,14 @@ ProcLoaderClientGeckoInit()
   MOZ_ASSERT(!sProcLoaderClientGeckoInitialized,
              "call ProcLoaderClientGeckoInit() more than once");
 
+  if (!Preferences::GetBool("dom.ipc.processPrelaunch.enabled", false)) {
+    kill(sProcLoaderPid, SIGKILL);
+    sProcLoaderPid = 0;
+    close(sProcLoaderChannelFd);
+    sProcLoaderChannelFd = -1;
+    return;
+  }
+
   sProcLoaderClientGeckoInitialized = true;
 
   TransportDescriptor fd;
@@ -216,6 +225,11 @@ ProcLoaderClientGeckoInit()
                           XRE_GetIOMessageLoop(),
                           ParentSide);
   sProcLoaderLoop = MessageLoop::current();
+}
+
+bool ProcLoaderIsInitialized()
+{
+  return sProcLoaderPid != 0;
 }
 
 /**

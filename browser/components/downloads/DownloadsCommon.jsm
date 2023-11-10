@@ -866,13 +866,9 @@ DownloadsDataCtor.prototype = {
 
     // Sort backwards by start time, ensuring that the most recent
     // downloads are added first regardless of their state.
-    let loadedItemsArray = [dataItem
-                            for each (dataItem in this.dataItems)
-                            if (dataItem)];
-    loadedItemsArray.sort(function(a, b) b.startTime - a.startTime);
-    loadedItemsArray.forEach(
-      function (dataItem) aView.onDataItemAdded(dataItem, false)
-    );
+    let loadedItemsArray = Array.from(this.dataItems).filter((dataItem) => dataItem);
+    loadedItemsArray.sort((a, b) => b.startTime - a.startTime);
+    loadedItemsArray.forEach(dataItem => aView.onDataItemAdded(dataItem, false));
 
     // Notify the view that all data is available unless loading is in progress.
     if (!this._pendingStatement) {
@@ -939,7 +935,7 @@ DownloadsDataCtor.prototype = {
     // Create the view items before returning.
     let addToStartOfList = aSource instanceof Ci.nsIDownload;
     this._views.forEach(
-      function (view) view.onDataItemAdded(dataItem, addToStartOfList)
+      (view) => view.onDataItemAdded(dataItem, addToStartOfList)
     );
     return dataItem;
   },
@@ -955,7 +951,7 @@ DownloadsDataCtor.prototype = {
       let dataItem = this.dataItems[aDownloadId];
       this.dataItems[aDownloadId] = null;
       this._views.forEach(
-        function (view) view.onDataItemRemoved(dataItem)
+        (view) => view.onDataItemRemoved(dataItem)
       );
     }
   },
@@ -976,11 +972,17 @@ DownloadsDataCtor.prototype = {
   _loadState: 0,
 
   /** No downloads have been fully loaded yet. */
-  get kLoadNone() 0,
+  get kLoadNone() {
+    return 0;
+  },
   /** All the active downloads in the database are loaded in memory. */
-  get kLoadActive() 1,
+  get kLoadActive() {
+    return 1;
+  },
   /** All the downloads in the database are loaded in memory. */
-  get kLoadAll() 2,
+  get kLoadAll()  {
+    return 2;
+  },
 
   /**
    * Reloads the specified kind of downloads from the persistent database.  This
@@ -1007,7 +1009,7 @@ DownloadsDataCtor.prototype = {
         DownloadsCommon.log("Loading only active downloads from the persistence database");
         // Indicate to the views that a batch loading operation is in progress.
         this._views.forEach(
-          function (view) view.onDataLoadStarting()
+          (view) => view.onDataLoadStarting()
         );
 
         // Reload the list using the Download Manager service.  The list is
@@ -1021,7 +1023,7 @@ DownloadsDataCtor.prototype = {
 
         // Indicate to the views that the batch loading operation is complete.
         this._views.forEach(
-          function (view) view.onDataLoadCompleted()
+          (view) => view.onDataLoadCompleted()
         );
         DownloadsCommon.log("Active downloads done loading.");
       }
@@ -1061,7 +1063,7 @@ DownloadsDataCtor.prototype = {
     // Close all the views on the current data.  Create a copy of the array
     // because some views might unregister while processing this event.
     Array.slice(this._views, 0).forEach(
-      function (view) view.onDataInvalidated()
+      (view) => view.onDataInvalidated()
     );
   },
 
@@ -1105,7 +1107,7 @@ DownloadsDataCtor.prototype = {
     // would open and immediately close.  This case is rare enough not to need a
     // special treatment.
     this._views.forEach(
-      function (view) view.onDataLoadCompleted()
+      (view) => view.onDataLoadCompleted()
     );
   },
 
@@ -1254,7 +1256,7 @@ DownloadsDataCtor.prototype = {
     dataItem.percentComplete = aDownload.percentComplete;
 
     this._views.forEach(
-      function (view) view.getViewItem(dataItem).onProgressChange()
+      (view) => view.getViewItem(dataItem).onProgressChange()
     );
   },
 
@@ -1347,7 +1349,9 @@ DownloadsDataItem.prototype = {
    * The JavaScript API does not need identifiers for Download objects, so they
    * are generated sequentially for the corresponding DownloadDataItem.
    */
-  get _autoIncrementId() ++DownloadsDataItem.prototype.__lastId,
+  get _autoIncrementId() {
+    return ++DownloadsDataItem.prototype.__lastId;
+  },
   __lastId: 0,
 
   /**
@@ -1511,7 +1515,7 @@ DownloadsDataItem.prototype = {
     if (this._download) {
       // Return the download object asynchronously to the caller
       let download = this._download;
-      Services.tm.mainThread.dispatch(function () aCallback(download),
+      Services.tm.mainThread.dispatch(() => aCallback(download),
                                       Ci.nsIThread.DISPATCH_NORMAL);
     } else {
       Services.downloads.getDownloadByGUID(this.downloadGuid,

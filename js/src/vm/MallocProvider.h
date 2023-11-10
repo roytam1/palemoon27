@@ -21,11 +21,11 @@
  *       - SystemAllocPolicy: No extra functionality over bare allocators.
  *
  *       - TempAllocPolicy: Adds automatic error reporting to the provided
- *         Context when allocations fail.
+ *         JSContext when allocations fail.
  *
- *       - ContextAllocPolicy: forwards to the JSContext MallocProvider.
+ *       - RuntimeAllocPolicy: Forwards to the JSRuntime MallocProvider.
  *
- *       - RuntimeAllocPolicy: forwards to the JSRuntime MallocProvider.
+ *       - ZoneAllocPolicy: Forwards to the Zone MallocProvider.
  *
  *   - MallocProvider. A mixin base class that handles automatically updating
  *     the GC's state in response to allocations that are tied to a GC lifetime
@@ -43,8 +43,8 @@
 
 #include "mozilla/Attributes.h"
 #include "mozilla/Likely.h"
-#include "mozilla/UniquePtr.h"
 
+#include "js/UniquePtr.h"
 #include "js/Utility.h"
 
 namespace js {
@@ -53,23 +53,52 @@ template<class Client>
 struct MallocProvider
 {
     template <class T>
+    T* maybe_pod_malloc(size_t numElems) {
+        T* p = js_pod_malloc<T>(numElems);
+        if (MOZ_LIKELY(p))
+            client()->updateMallocCounter(numElems * sizeof(T));
+        return p;
+    }
+
+    template <class T>
+    T* maybe_pod_calloc(size_t numElems) {
+        T* p = js_pod_calloc<T>(numElems);
+        if (MOZ_LIKELY(p))
+            client()->updateMallocCounter(numElems * sizeof(T));
+        return p;
+    }
+
+    template <class T>
+    T* maybe_pod_realloc(T* prior, size_t oldSize, size_t newSize) {
+        T* p = js_pod_realloc(prior, oldSize, newSize);
+        if (MOZ_LIKELY(p)) {
+            // For compatibility we do not account for realloc that decreases
+            // previously allocated memory.
+            if (newSize > oldSize)
+                client()->updateMallocCounter((newSize - oldSize) * sizeof(T));
+        }
+        return p;
+    }
+
+    template <class T>
     T* pod_malloc() {
         return pod_malloc<T>(1);
     }
 
     template <class T>
     T* pod_malloc(size_t numElems) {
-        T* p = js_pod_malloc<T>(numElems);
-        if (MOZ_LIKELY(p)) {
-            client()->updateMallocCounter(numElems * sizeof(T));
+        T* p = maybe_pod_malloc<T>(numElems);
+        if (MOZ_LIKELY(p))
             return p;
-        }
         size_t bytes;
         if (MOZ_UNLIKELY(!CalculateAllocSize<T>(numElems, &bytes))) {
             client()->reportAllocationOverflow();
             return nullptr;
         }
-        return static_cast<T*>(client()->onOutOfMemory(AllocFunction::Malloc, bytes));
+        p = (T*)client()->onOutOfMemory(AllocFunction::Malloc, bytes);
+        if (p)
+            client()->updateMallocCounter(bytes);
+        return p;
     }
 
     template <class T, class U>
@@ -84,13 +113,16 @@ struct MallocProvider
             client()->updateMallocCounter(bytes);
             return p;
         }
-        return static_cast<T*>(client()->onOutOfMemory(AllocFunction::Malloc, bytes));
+        p = (T*)client()->onOutOfMemory(AllocFunction::Malloc, bytes);
+        if (p)
+            client()->updateMallocCounter(bytes);
+        return p;
     }
 
     template <class T>
-    mozilla::UniquePtr<T[], JS::FreePolicy>
+    UniquePtr<T[], JS::FreePolicy>
     make_pod_array(size_t numElems) {
-        return mozilla::UniquePtr<T[], JS::FreePolicy>(pod_malloc<T>(numElems));
+        return UniquePtr<T[], JS::FreePolicy>(pod_malloc<T>(numElems));
     }
 
     template <class T>
@@ -100,17 +132,18 @@ struct MallocProvider
 
     template <class T>
     T* pod_calloc(size_t numElems) {
-        T* p = js_pod_calloc<T>(numElems);
-        if (MOZ_LIKELY(p)) {
-            client()->updateMallocCounter(numElems * sizeof(T));
+        T* p = maybe_pod_calloc<T>(numElems);
+        if (MOZ_LIKELY(p))
             return p;
-        }
         size_t bytes;
         if (MOZ_UNLIKELY(!CalculateAllocSize<T>(numElems, &bytes))) {
             client()->reportAllocationOverflow();
             return nullptr;
         }
-        return static_cast<T*>(client()->onOutOfMemory(AllocFunction::Calloc, bytes));
+        p = (T*)client()->onOutOfMemory(AllocFunction::Calloc, bytes);
+        if (p)
+            client()->updateMallocCounter(bytes);
+        return p;
     }
 
     template <class T, class U>
@@ -121,36 +154,37 @@ struct MallocProvider
             return nullptr;
         }
         T* p = static_cast<T*>(js_calloc(bytes));
-        if (MOZ_LIKELY(p)) {
+        if (p) {
             client()->updateMallocCounter(bytes);
             return p;
         }
-        return static_cast<T*>(client()->onOutOfMemory(AllocFunction::Calloc, bytes));
+        p = (T*)client()->onOutOfMemory(AllocFunction::Calloc, bytes);
+        if (p)
+            client()->updateMallocCounter(bytes);
+        return p;
     }
 
     template <class T>
-    mozilla::UniquePtr<T[], JS::FreePolicy>
+    UniquePtr<T[], JS::FreePolicy>
     make_zeroed_pod_array(size_t numElems)
     {
-        return mozilla::UniquePtr<T[], JS::FreePolicy>(pod_calloc<T>(numElems));
+        return UniquePtr<T[], JS::FreePolicy>(pod_calloc<T>(numElems));
     }
 
     template <class T>
     T* pod_realloc(T* prior, size_t oldSize, size_t newSize) {
-        T* p = js_pod_realloc(prior, oldSize, newSize);
-        if (MOZ_LIKELY(p)) {
-            // For compatibility we do not account for realloc that decreases
-            // previously allocated memory.
-            if (newSize > oldSize)
-                client()->updateMallocCounter((newSize - oldSize) * sizeof(T));
+        T* p = maybe_pod_realloc(prior, oldSize, newSize);
+        if (MOZ_LIKELY(p))
             return p;
-        }
         size_t bytes;
         if (MOZ_UNLIKELY(!CalculateAllocSize<T>(newSize, &bytes))) {
             client()->reportAllocationOverflow();
             return nullptr;
         }
-        return static_cast<T*>(client()->onOutOfMemory(AllocFunction::Realloc, bytes));
+        p = (T*)client()->onOutOfMemory(AllocFunction::Realloc, bytes, prior);
+        if (p && newSize > oldSize)
+            client()->updateMallocCounter((newSize - oldSize) * sizeof(T));
+        return p;
     }
 
     JS_DECLARE_NEW_METHODS(new_, pod_malloc<uint8_t>, MOZ_ALWAYS_INLINE)

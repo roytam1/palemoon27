@@ -990,8 +990,7 @@ function loadManifestFromRDF(aUri, aStream) {
   let rng = Cc["@mozilla.org/security/random-generator;1"].
             createInstance(Ci.nsIRandomGenerator);
   let bytes = rng.generateRandomBytes(9);
-  let byte_string = [String.fromCharCode(byte) for each (byte in bytes)]
-                    .join("");
+  let byte_string = bytes.map(byte => String.fromCharCode(byte)).join("");
   // Base64 encode
   addon.syncGUID = btoa(byte_string).replace(/\+/g, '-')
                                     .replace(/\//g, '_');
@@ -1324,7 +1323,7 @@ function escapeAddonURI(aAddon, aUri, aUpdateType, aAppVersion)
 }
 
 function removeAsync(aFile) {
-  return Task.spawn(function () {
+  return Task.spawn(function*() {
     let info = null;
     try {
       info = yield OS.File.stat(aFile.path);
@@ -1333,7 +1332,9 @@ function removeAsync(aFile) {
       else
         yield OS.File.remove(aFile.path);
     }
-    catch (e if e instanceof OS.File.Error && e.becauseNoSuchFile) {
+    catch (e) {
+      if (!(e instanceof OS.File.Error) || ! e.becauseNoSuchFile)
+        throw e;
       // The file has already gone away
       return;
     }
@@ -1823,7 +1824,9 @@ this.XPIStates = {
 };
 
 this.XPIProvider = {
-  get name() "XPIProvider",
+  get name() {
+    return "XPIProvider";
+  },
 
   // An array of known install locations
   installLocations: null,
@@ -2558,7 +2561,9 @@ this.XPIProvider = {
         try {
           isDir = stageDirEntry.isDirectory();
         }
-        catch (e if e.result == Cr.NS_ERROR_FILE_TARGET_DOES_NOT_EXIST) {
+        catch (e) {
+          if (e.result != Cr.NS_ERROR_FILE_TARGET_DOES_NOT_EXIST)
+            throw e;
           // If the file has already gone away then don't worry about it, this
           // can happen on OSX where the resource fork is automatically moved
           // with the data fork for the file. See bug 733436.
@@ -3607,8 +3612,8 @@ this.XPIProvider = {
 
     // XXX This will go away when we fold bootstrappedAddons into XPIStates.
     if (updateReasons.length == 0) {
-      let bootstrapDescriptors = new Set([for (b of Object.keys(this.bootstrappedAddons))
-                                          this.bootstrappedAddons[b].descriptor]);
+      let bootstrapDescriptors = new Set(Object.keys(this.bootstrappedAddons)
+        .map(b => this.bootstrappedAddons[b].descriptor));
 
       for (let location of XPIStates.db.values()) {
         for (let state of location.values()) {
@@ -3618,7 +3623,7 @@ this.XPIProvider = {
 
       if (bootstrapDescriptors.size > 0) {
         logger.warn("Bootstrap state is invalid (missing add-ons: "
-            + [for (b of bootstrapDescriptors) b] + ")");
+            + Array.from(bootstrapDescriptors).join(", ") + ")");
         updateReasons.push("missingBootstrapAddon");
       }
     }
@@ -3859,7 +3864,7 @@ this.XPIProvider = {
    */
   getAddonsByTypes: function XPI_getAddonsByTypes(aTypes, aCallback) {
     XPIDatabase.getVisibleAddons(aTypes, function getAddonsByTypes_getVisibleAddons(aAddons) {
-      aCallback([createWrapper(a) for each (a in aAddons)]);
+      aCallback(aAddons.map(a => createWrapper(a)));
     });
   },
 
@@ -3889,7 +3894,7 @@ this.XPIProvider = {
   function XPI_getAddonsWithOperationsByTypes(aTypes, aCallback) {
     XPIDatabase.getVisibleAddonsWithPendingOperations(aTypes,
       function getAddonsWithOpsByTypes_getVisibleAddonsWithPendingOps(aAddons) {
-      let results = [createWrapper(a) for each (a in aAddons)];
+      let results = aAddons.map(a => createWrapper(a));
       XPIProvider.installs.forEach(function(aInstall) {
         if (aInstall.state == AddonManager.STATE_INSTALLED &&
             !(aInstall.addon.inDatabase))
@@ -4813,12 +4818,12 @@ this.XPIProvider = {
 
 function getHashStringForCrypto(aCrypto) {
   // return the two-digit hexadecimal code for a byte
-  function toHexString(charCode)
-    ("0" + charCode.toString(16)).slice(-2);
+  let toHexString = charCode => ("0" + charCode.toString(16)).slice(-2);
 
   // convert the binary hash data to a hex string.
   let binary = aCrypto.finish(false);
-  return [toHexString(binary.charCodeAt(i)) for (i in binary)].join("").toLowerCase()
+  let hash = Array.from(binary, c => toHexString(c.charCodeAt(0)))
+  return hash.join("").toLowerCase();
 }
 
 /**
@@ -5469,14 +5474,9 @@ AddonInstall.prototype = {
       let requireBuiltIn = Preferences.get(PREF_INSTALL_REQUIREBUILTINCERTS, true);
       this.badCertHandler = new BadCertHandler(!requireBuiltIn);
 
-      this.channel = NetUtil.newChannel2(this.sourceURI,
-                                         null,
-                                         null,
-                                         null,      // aLoadingNode
-                                         Services.scriptSecurityManager.getSystemPrincipal(),
-                                         null,      // aTriggeringPrincipal
-                                         Ci.nsILoadInfo.SEC_NORMAL,
-                                         Ci.nsIContentPolicy.TYPE_OTHER);
+      this.channel = NetUtil.newChannel({
+        uri: this.sourceURI,
+        loadUsingSystemPrincipal: true});
       this.channel.notificationCallbacks = this;
       if (this.channel instanceof Ci.nsIHttpChannel) {
         this.channel.setRequestHeader("Moz-XPI-Update", "1", true);
@@ -5784,7 +5784,7 @@ AddonInstall.prototype = {
     let stagingDir = this.installLocation.getStagingDir();
     let stagedAddon = stagingDir.clone();
 
-    Task.spawn((function() {
+    Task.spawn((function*() {
       let installedUnpacked = 0;
       yield this.installLocation.requestStagingDir();
 
@@ -6101,21 +6101,29 @@ function AddonInstallWrapper(aInstall) {
 
   ["name", "type", "version", "icons", "releaseNotesURI", "file", "state", "error",
    "progress", "maxProgress", "certificate", "certName"].forEach(function(aProp) {
-    this.__defineGetter__(aProp, function AIW_propertyGetter() aInstall[aProp]);
+    this.__defineGetter__(aProp, function AIW_propertyGetter() {
+      return aInstall[aProp];
+    });
   }, this);
 
-  this.__defineGetter__("iconURL", function AIW_iconURL() aInstall.icons[32]);
+  this.__defineGetter__("iconURL", function AIW_iconURL() {
+    return aInstall.icons[32];
+  });
 
   this.__defineGetter__("existingAddon", function AIW_existingAddonGetter() {
     return createWrapper(aInstall.existingAddon);
   });
-  this.__defineGetter__("addon", function AIW_addonGetter() createWrapper(aInstall.addon));
-  this.__defineGetter__("sourceURI", function AIW_sourceURIGetter() aInstall.sourceURI);
+  this.__defineGetter__("addon", function AIW_addonGetter() {
+    return createWrapper(aInstall.addon);
+  });
+  this.__defineGetter__("sourceURI", function AIW_sourceURIGetter() {
+    return aInstall.sourceURI;
+  });
 
   this.__defineGetter__("linkedInstalls", function AIW_linkedInstallsGetter() {
     if (!aInstall.linkedInstalls)
       return null;
-    return [i.wrapper for each (i in aInstall.linkedInstalls)];
+    return aInstall.linkedInstalls.map(i => i.wrapper);
   });
 
   this.install = function AIW_install() {
@@ -6720,7 +6728,9 @@ function AddonWrapper(aAddon) {
    "softDisabled", "skinnable", "size", "foreignInstall", "hasBinaryComponents",
    "strictCompatibility", "compatibilityOverrides", "updateURL",
    "getDataDirectory", "multiprocessCompatible", "jetsdk", "native"].forEach(function(aProp) {
-     this.__defineGetter__(aProp, function AddonWrapper_propertyGetter() aAddon[aProp]);
+     this.__defineGetter__(aProp, function AddonWrapper_propertyGetter() {
+       return aAddon[aProp];
+     });
   }, this);
 
   ["fullDescription", "developerComments", "eula", "supportURL",
@@ -6740,7 +6750,9 @@ function AddonWrapper(aAddon) {
   });
 
   ["installDate", "updateDate"].forEach(function(aProp) {
-    this.__defineGetter__(aProp, function AddonWrapper_datePropertyGetter() new Date(aAddon[aProp]));
+    this.__defineGetter__(aProp, function AddonWrapper_datePropertyGetter() {
+      return new Date(aAddon[aProp]);
+    });
   }, this);
 
   ["sourceURI", "releaseNotesURI"].forEach(function(aProp) {
@@ -6915,7 +6927,7 @@ function AddonWrapper(aAddon) {
   this.__defineSetter__("applyBackgroundUpdates", function AddonWrapper_applyBackgroundUpdatesSetter(val) {
     if (this.type == "experiment") {
       logger.warn("Setting applyBackgroundUpdates on an experiment is not supported.");
-      return;
+      return addon.applyBackgroundUpdates;
     }
 
     if (val != AddonManager.AUTOUPDATE_DEFAULT &&

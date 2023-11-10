@@ -58,7 +58,7 @@ ImageBridgeParent::ImageBridgeParent(MessageLoop* aLoop,
   : mMessageLoop(aLoop)
   , mTransport(aTransport)
   , mSetChildThreadPriority(false)
-  , mCompositorThreadHolder(GetCompositorThreadHolder())
+  , mStopped(false)
 {
   MOZ_ASSERT(NS_IsMainThread());
   sMainLoop = MessageLoop::current();
@@ -90,12 +90,6 @@ ImageBridgeParent::~ImageBridgeParent()
   }
 
   sImageBridges.erase(OtherPid());
-}
-
-LayersBackend
-ImageBridgeParent::GetCompositorBackendType() const
-{
-  return Compositor::GetBackend();
 }
 
 void
@@ -135,21 +129,20 @@ private:
 };
 
 bool
-ImageBridgeParent::RecvUpdate(EditArray&& aEdits, EditReplyArray* aReply)
+ImageBridgeParent::RecvUpdate(EditArray&& aEdits, OpDestroyArray&& aToDestroy,
+                              EditReplyArray* aReply)
 {
   AutoImageBridgeParentAsyncMessageSender autoAsyncMessageSender(this);
-
-  // If we don't actually have a compositor, then don't bother
-  // creating any textures.
-  if (Compositor::GetBackend() == LayersBackend::LAYERS_NONE) {
-    return true;
-  }
 
   EditReplyVector replyv;
   for (EditArray::index_type i = 0; i < aEdits.Length(); ++i) {
     if (!ReceiveCompositableUpdate(aEdits[i], replyv)) {
       return false;
     }
+  }
+
+  for (const auto& op : aToDestroy) {
+    DestroyActor(op);
   }
 
   aReply->SetCapacity(replyv.size());
@@ -168,10 +161,10 @@ ImageBridgeParent::RecvUpdate(EditArray&& aEdits, EditReplyArray* aReply)
 }
 
 bool
-ImageBridgeParent::RecvUpdateNoSwap(EditArray&& aEdits)
+ImageBridgeParent::RecvUpdateNoSwap(EditArray&& aEdits, OpDestroyArray&& aToDestroy)
 {
   InfallibleTArray<EditReply> noReplies;
-  bool success = RecvUpdate(Move(aEdits), &noReplies);
+  bool success = RecvUpdate(Move(aEdits), Move(aToDestroy), &noReplies);
   MOZ_ASSERT(noReplies.Length() == 0, "RecvUpdateNoSwap requires a sync Update to carry Edits");
   return success;
 }
@@ -188,7 +181,7 @@ ConnectImageBridgeInParentProcess(ImageBridgeParent* aBridge,
 ImageBridgeParent::Create(Transport* aTransport, ProcessId aChildProcessId)
 {
   MessageLoop* loop = CompositorParent::CompositorLoop();
-  nsRefPtr<ImageBridgeParent> bridge = new ImageBridgeParent(loop, aTransport, aChildProcessId);
+  RefPtr<ImageBridgeParent> bridge = new ImageBridgeParent(loop, aTransport, aChildProcessId);
   bridge->mSelfRef = bridge;
   loop->PostTask(FROM_HERE,
                  NewRunnableFunction(ConnectImageBridgeInParentProcess,
@@ -219,8 +212,11 @@ ReleaseImageBridgeParent(ImageBridgeParent* aImageBridgeParent)
 
 bool ImageBridgeParent::RecvStop()
 {
-  // This message just serves as synchronization between the
+  // This message mostly serves as synchronization between the
   // child and parent threads during shutdown.
+
+  // Can't alloc/dealloc shmems from now on.
+  mStopped = true;
 
   // There is one thing that we need to do here: temporarily addref, so that
   // the handling of this sync message can't race with the destruction of
@@ -257,9 +253,10 @@ bool ImageBridgeParent::DeallocPCompositableParent(PCompositableParent* aActor)
 
 PTextureParent*
 ImageBridgeParent::AllocPTextureParent(const SurfaceDescriptor& aSharedData,
+                                       const LayersBackend& aLayersBackend,
                                        const TextureFlags& aFlags)
 {
-  return TextureHost::CreateIPDLActor(this, aSharedData, aFlags);
+  return TextureHost::CreateIPDLActor(this, aSharedData, aLayersBackend, aFlags);
 }
 
 bool
@@ -298,7 +295,7 @@ ImageBridgeParent::DeallocPImageContainerParent(PImageContainerParent* actor)
 void
 ImageBridgeParent::SendAsyncMessage(const InfallibleTArray<AsyncParentMessageData>& aMessage)
 {
-  mozilla::unused << SendParentAsyncMessages(aMessage);
+  mozilla::Unused << SendParentAsyncMessages(aMessage);
 }
 
 bool
@@ -331,9 +328,10 @@ ImageBridgeParent::NotifyImageComposites(nsTArray<ImageCompositeNotification>& a
   uint32_t i = 0;
   bool ok = true;
   while (i < aNotifications.Length()) {
-    nsAutoTArray<ImageCompositeNotification,1> notifications;
+    AutoTArray<ImageCompositeNotification,1> notifications;
     notifications.AppendElement(aNotifications[i]);
     uint32_t end = i + 1;
+    MOZ_ASSERT(aNotifications[i].imageContainerParent());
     ProcessId pid = aNotifications[i].imageContainerParent()->OtherPid();
     while (end < aNotifications.Length() &&
            aNotifications[end].imageContainerParent()->OtherPid() == pid) {
@@ -355,6 +353,7 @@ MessageLoop * ImageBridgeParent::GetMessageLoop() const {
 void
 ImageBridgeParent::DeferredDestroy()
 {
+  MOZ_ASSERT(mCompositorThreadHolder);
   mCompositorThreadHolder = nullptr;
   mSelfRef = nullptr;
 }
@@ -378,10 +377,51 @@ ImageBridgeParent::CloneToplevel(const InfallibleTArray<ProtocolFdMapping>& aFds
       PImageBridgeParent* bridge = Create(transport, base::GetProcId(aPeerProcess));
       bridge->CloneManagees(this, aCtx);
       bridge->IToplevelProtocol::SetTransport(transport);
+      // The reference to the compositor thread is held in OnChannelConnected().
+      // We need to do this for cloned actors, too.
+      bridge->OnChannelConnected(base::GetProcId(aPeerProcess));
       return bridge;
     }
   }
   return nullptr;
+}
+
+void
+ImageBridgeParent::OnChannelConnected(int32_t aPid)
+{
+  mCompositorThreadHolder = GetCompositorThreadHolder();
+}
+
+
+bool
+ImageBridgeParent::AllocShmem(size_t aSize,
+                ipc::SharedMemory::SharedMemoryType aType,
+                ipc::Shmem* aShmem)
+{
+  if (mStopped) {
+    return false;
+  }
+  return PImageBridgeParent::AllocShmem(aSize, aType, aShmem);
+}
+
+bool
+ImageBridgeParent::AllocUnsafeShmem(size_t aSize,
+                      ipc::SharedMemory::SharedMemoryType aType,
+                      ipc::Shmem* aShmem)
+{
+  if (mStopped) {
+    return false;
+  }
+  return PImageBridgeParent::AllocUnsafeShmem(aSize, aType, aShmem);
+}
+
+void
+ImageBridgeParent::DeallocShmem(ipc::Shmem& aShmem)
+{
+  if (mStopped) {
+    return;
+  }
+  PImageBridgeParent::DeallocShmem(aShmem);
 }
 
 bool ImageBridgeParent::IsSameProcess() const

@@ -98,7 +98,7 @@ private:
    */
   uint64_t GetWindowID() const;
 
-  AutoInfallibleTArray<uint64_t, 3> mID;
+  AutoTArray<uint64_t, 3> mID;
   nsCOMPtr<nsIDOMWindow> mWindow;
   bool mIsEmpty;
 };

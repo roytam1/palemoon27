@@ -5,7 +5,6 @@
 #ifndef gfx_src_DriverCrashGuard_h__
 #define gfx_src_DriverCrashGuard_h__
 
-#include "gfxCore.h"
 #include "nsCOMPtr.h"
 #include "nsIGfxInfo.h"
 #include "nsIFile.h"
@@ -147,6 +146,7 @@ class GLContextCrashGuard final : public DriverCrashGuard
 {
  public:
   explicit GLContextCrashGuard(dom::ContentParent* aContentParent = nullptr);
+  void Initialize() override;
 
  protected:
   bool UpdateEnvironment() override;

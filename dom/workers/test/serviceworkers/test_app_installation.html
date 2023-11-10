@@ -47,7 +47,8 @@ function setup() {
       ['dom.mozBrowserFramesEnabled', true],
       ['dom.serviceWorkers.exemptFromPerDomainMax', true],
       ['dom.serviceWorkers.enabled', true],
-      ['dom.serviceWorkers.testing.enabled', true]
+      ['dom.serviceWorkers.testing.enabled', true],
+      ['dom.serviceWorkers.interception.enabled', true],
     ]}, () => {
       SpecialPowers.pushPermissions([
         { 'type': 'webapps-manage', 'allow': 1, 'context': document },
@@ -90,7 +91,7 @@ function checkSwRegistration(aExpectedRegistrations) {
        "There should be " + aExpectedRegistrations.length + " registrations");
 
     for (let i = 0; i < registrations.length; i++) {
-      let registration = registrations.queryElementAt(i, Ci.nsIServiceWorkerInfo);
+      let registration = registrations.queryElementAt(i, Ci.nsIServiceWorkerRegistrationInfo);
       if (!registration) {
         reject();
         return;

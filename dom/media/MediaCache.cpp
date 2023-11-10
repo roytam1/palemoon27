@@ -24,7 +24,7 @@
 
 namespace mozilla {
 
-PRLogModuleInfo* gMediaCacheLog;
+LazyLogModule gMediaCacheLog("MediaCache");
 #define CACHE_LOG(type, msg) MOZ_LOG(gMediaCacheLog, type, msg)
 
 // Readahead blocks for non-seekable streams will be limited to this
@@ -104,9 +104,7 @@ class MediaCache {
 public:
   friend class MediaCacheStream::BlockList;
   typedef MediaCacheStream::BlockList BlockList;
-  enum {
-    BLOCK_SIZE = MediaCacheStream::BLOCK_SIZE
-  };
+  static const int64_t BLOCK_SIZE = MediaCacheStream::BLOCK_SIZE;
 
   MediaCache() : mNextResourceID(1),
     mReentrantMonitor("MediaCache.mReentrantMonitor"),
@@ -340,7 +338,7 @@ protected:
   // The Blocks describing the cache entries.
   nsTArray<Block> mIndex;
   // Writer which performs IO, asynchronously writing cache blocks.
-  nsRefPtr<FileBlockCache> mFileCache;
+  RefPtr<FileBlockCache> mFileCache;
   // The list of free blocks; they are not ordered.
   BlockList       mFreeBlocks;
   // True if an event to run Update() has been queued but not processed
@@ -381,7 +379,7 @@ MediaCacheStream::MediaCacheStream(ChannelMediaResource* aClient)
     mPinCount(0),
     mCurrentMode(MODE_PLAYBACK),
     mMetadataInPartialBlockBuffer(false),
-    mPartialBlockBuffer(new int64_t[BLOCK_SIZE/sizeof(int64_t)])
+    mPartialBlockBuffer(MakeUnique<int64_t[]>(BLOCK_SIZE/sizeof(int64_t)))
 {
 }
 
@@ -395,7 +393,7 @@ size_t MediaCacheStream::SizeOfExcludingThis(
   size += mReadaheadBlocks.SizeOfExcludingThis(aMallocSizeOf);
   size += mMetadataBlocks.SizeOfExcludingThis(aMallocSizeOf);
   size += mPlayedBlocks.SizeOfExcludingThis(aMallocSizeOf);
-  size += mPartialBlockBuffer.SizeOfExcludingThis(aMallocSizeOf);
+  size += aMallocSizeOf(mPartialBlockBuffer.get());
 
   return size;
 }
@@ -454,7 +452,7 @@ void MediaCacheStream::BlockList::RemoveBlock(int32_t aBlock)
     mEntries.GetEntry(entry->mNextBlock)->mPrevBlock = entry->mPrevBlock;
     mEntries.GetEntry(entry->mPrevBlock)->mNextBlock = entry->mNextBlock;
   }
-  mEntries.RemoveEntry(aBlock);
+  mEntries.RemoveEntry(entry);
   --mCount;
 }
 
@@ -582,10 +580,6 @@ MediaCache::Init()
   rv = mFileCache->Open(fileDesc);
   NS_ENSURE_SUCCESS(rv,rv);
 
-  if (!gMediaCacheLog) {
-    gMediaCacheLog = PR_NewLogModule("MediaCache");
-  }
-
   MediaCacheFlusher::Init();
 
   return NS_OK;
@@ -646,9 +640,6 @@ InitMediaCache()
     return;
 
   gMediaCache = new MediaCache();
-  if (!gMediaCache)
-    return;
-
   nsresult rv = gMediaCache->Init();
   if (NS_FAILED(rv)) {
     delete gMediaCache;
@@ -803,7 +794,7 @@ MediaCache::FindReusableBlock(TimeStamp aNow,
   // predicted time of next use". We can exploit the fact that the block
   // linked lists are ordered by increasing time of next use. This is
   // actually the whole point of having the linked lists.
-  nsAutoTArray<uint32_t,8> candidates;
+  AutoTArray<uint32_t,8> candidates;
   for (uint32_t i = 0; i < mStreams.Length(); ++i) {
     MediaCacheStream* stream = mStreams[i];
     if (stream->mPinCount > 0) {
@@ -1049,7 +1040,7 @@ MediaCache::Update()
   // decisions while holding the cache lock but implement those decisions
   // without holding the cache lock, since we need to call out to
   // stream, decoder and element code.
-  nsAutoTArray<StreamAction,10> actions;
+  AutoTArray<StreamAction,10> actions;
 
   {
     ReentrantMonitorAutoEnter mon(mReentrantMonitor);
@@ -1834,11 +1825,10 @@ MediaCacheStream::NotifyDataReceived(int64_t aSize, const char* aData,
 }
 
 void
-MediaCacheStream::FlushPartialBlockInternal(bool aNotifyAll)
+MediaCacheStream::FlushPartialBlockInternal(bool aNotifyAll,
+                                            ReentrantMonitorAutoEnter& aReentrantMonitor)
 {
   NS_ASSERTION(NS_IsMainThread(), "Only call on main thread");
-
-  ReentrantMonitorAutoEnter mon(gMediaCache->GetReentrantMonitor());
 
   int32_t blockOffset = int32_t(mChannelOffset%BLOCK_SIZE);
   if (blockOffset > 0) {
@@ -1852,7 +1842,7 @@ MediaCacheStream::FlushPartialBlockInternal(bool aNotifyAll)
     // Write back the partial block
     memset(reinterpret_cast<char*>(mPartialBlockBuffer.get()) + blockOffset, 0,
            BLOCK_SIZE - blockOffset);
-    gMediaCache->AllocateAndWriteBlock(this, mPartialBlockBuffer,
+    gMediaCache->AllocateAndWriteBlock(this, mPartialBlockBuffer.get(),
         mMetadataInPartialBlockBuffer ? MODE_METADATA : MODE_PLAYBACK);
   }
 
@@ -1861,7 +1851,7 @@ MediaCacheStream::FlushPartialBlockInternal(bool aNotifyAll)
   // that will never come.
   if ((blockOffset > 0 || mChannelOffset == 0) && aNotifyAll) {
     // Wake up readers who may be waiting for this data
-    mon.NotifyAll();
+    aReentrantMonitor.NotifyAll();
   }
 }
 
@@ -1876,7 +1866,7 @@ MediaCacheStream::FlushPartialBlock()
   // Note: This writes a full block, so if data is not at the end of the
   // stream, the decoder must subsequently choose correct start and end offsets
   // for reading/seeking.
-  FlushPartialBlockInternal(false);
+  FlushPartialBlockInternal(false, mon);
 
   gMediaCache->QueueUpdate();
 }
@@ -1897,7 +1887,7 @@ MediaCacheStream::NotifyDataEnded(nsresult aStatus)
 
   // It is prudent to update channel/cache status before calling
   // CacheClientNotifyDataEnded() which will read |mChannelEnded|.
-  FlushPartialBlockInternal(true);
+  FlushPartialBlockInternal(true, mon);
   mChannelEnded = true;
   gMediaCache->QueueUpdate();
 
@@ -2224,7 +2214,7 @@ MediaCacheStream::Read(char* aBuffer, uint32_t aCount, uint32_t* aBytes)
     uint32_t streamBlock = uint32_t(mStreamOffset/BLOCK_SIZE);
     uint32_t offsetInStreamBlock =
       uint32_t(mStreamOffset - streamBlock*BLOCK_SIZE);
-    int64_t size = std::min(aCount - count, BLOCK_SIZE - offsetInStreamBlock);
+    int64_t size = std::min<int64_t>(aCount - count, BLOCK_SIZE - offsetInStreamBlock);
 
     if (mStreamLength >= 0) {
       // Don't try to read beyond the end of the stream
@@ -2451,7 +2441,7 @@ MediaCacheStream::InitAsClone(MediaCacheStream* aOriginal)
   return NS_OK;
 }
 
-nsresult MediaCacheStream::GetCachedRanges(nsTArray<MediaByteRange>& aRanges)
+nsresult MediaCacheStream::GetCachedRanges(MediaByteRangeSet& aRanges)
 {
   // Take the monitor, so that the cached data ranges can't grow while we're
   // trying to loop over them.
@@ -2461,13 +2451,13 @@ nsresult MediaCacheStream::GetCachedRanges(nsTArray<MediaByteRange>& aRanges)
   // shrink while we're trying to loop over them.
   NS_ASSERTION(mPinCount > 0, "Must be pinned");
 
-  int64_t startOffset = GetNextCachedData(0);
+  int64_t startOffset = GetNextCachedDataInternal(0);
   while (startOffset >= 0) {
-    int64_t endOffset = GetCachedDataEnd(startOffset);
+    int64_t endOffset = GetCachedDataEndInternal(startOffset);
     NS_ASSERTION(startOffset < endOffset, "Buffered range must end after its start");
     // Bytes [startOffset..endOffset] are cached.
-    aRanges.AppendElement(MediaByteRange(startOffset, endOffset));
-    startOffset = GetNextCachedData(endOffset);
+    aRanges += MediaByteRange(startOffset, endOffset);
+    startOffset = GetNextCachedDataInternal(endOffset);
     NS_ASSERTION(startOffset == -1 || startOffset > endOffset,
       "Must have advanced to start of next range, or hit end of stream");
   }

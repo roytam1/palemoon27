@@ -1,10 +1,10 @@
-
 /*
  * Copyright 2012 Google Inc.
  *
  * Use of this source code is governed by a BSD-style license that can be
  * found in the LICENSE file.
  */
+
 #include "SkBitmapProcState.h"
 #include "SkBitmapProcState_filter.h"
 #include "SkColorPriv.h"
@@ -15,7 +15,6 @@
 
 // Required to ensure the table is part of the final binary.
 extern const SkBitmapProcState::SampleProc32 gSkBitmapProcStateSample32_neon[];
-extern const SkBitmapProcState::SampleProc16 gSkBitmapProcStateSample16_neon[];
 
 #define   NAME_WRAP(x)  x ## _neon
 #include "SkBitmapProcState_filter_neon.h"
@@ -66,29 +65,17 @@ const SkBitmapProcState::SampleProc32 gSkBitmapProcStateSample32_neon[] = {
     SA8_alpha_D32_filter_DXDY_neon,
     SA8_alpha_D32_filter_DXDY_neon,
     SA8_alpha_D32_filter_DX_neon,
-    SA8_alpha_D32_filter_DX_neon
-};
+    SA8_alpha_D32_filter_DX_neon,
 
-const SkBitmapProcState::SampleProc16 gSkBitmapProcStateSample16_neon[] = {
-    S32_D16_nofilter_DXDY_neon,
-    S32_D16_nofilter_DX_neon,
-    S32_D16_filter_DXDY_neon,
-    S32_D16_filter_DX_neon,
-
-    S16_D16_nofilter_DXDY_neon,
-    S16_D16_nofilter_DX_neon,
-    S16_D16_filter_DXDY_neon,
-    S16_D16_filter_DX_neon,
-
-    SI8_D16_nofilter_DXDY_neon,
-    SI8_D16_nofilter_DX_neon,
-    SI8_D16_filter_DXDY_neon,
-    SI8_D16_filter_DX_neon,
-
-    // Don't support 4444 -> 565
-    NULL, NULL, NULL, NULL,
-    // Don't support A8 -> 565
-    NULL, NULL, NULL, NULL
+    // todo: possibly specialize on opaqueness
+    SG8_alpha_D32_nofilter_DXDY_neon,
+    SG8_alpha_D32_nofilter_DXDY_neon,
+    SG8_alpha_D32_nofilter_DX_neon,
+    SG8_alpha_D32_nofilter_DX_neon,
+    SG8_alpha_D32_filter_DXDY_neon,
+    SG8_alpha_D32_filter_DXDY_neon,
+    SG8_alpha_D32_filter_DX_neon,
+    SG8_alpha_D32_filter_DX_neon,
 };
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -377,7 +364,8 @@ void convolveVertically_neon(const SkConvolutionFilter1D::ConvolutionFixed* filt
 // refer to that function for detailed comments.
 void convolve4RowsHorizontally_neon(const unsigned char* srcData[4],
                                     const SkConvolutionFilter1D& filter,
-                                    unsigned char* outRow[4]) {
+                                    unsigned char* outRow[4],
+                                    size_t outRowBytes) {
 
     uint8x8_t coeff_mask0 = vcreate_u8(0x0100010001000100);
     uint8x8_t coeff_mask1 = vcreate_u8(0x0302030203020302);

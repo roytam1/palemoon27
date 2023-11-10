@@ -171,7 +171,7 @@ class nsObjectLoadingContent : public nsImageLoadingContent
     // Helper for WebIDL NeedResolve
     bool DoResolve(JSContext* aCx, JS::Handle<JSObject*> aObject,
                    JS::Handle<jsid> aId,
-                   JS::MutableHandle<JSPropertyDescriptor> aDesc);
+                   JS::MutableHandle<JS::PropertyDescriptor> aDesc);
     // The return value is whether DoResolve might end up resolving the given
     // id.  If in doubt, return true.
     static bool MayResolve(jsid aId);
@@ -540,7 +540,7 @@ class nsObjectLoadingContent : public nsImageLoadingContent
     private:
       // We store an nsIObjectLoadingContent because we can
       // unambiguously refcount that.
-      nsRefPtr<nsIObjectLoadingContent> mContent;
+      RefPtr<nsIObjectLoadingContent> mContent;
     };
 
     // Utility getter for getting our nsNPAPIPluginInstance in a safe way.
@@ -558,7 +558,7 @@ class nsObjectLoadingContent : public nsImageLoadingContent
     nsCOMPtr<nsIStreamListener> mFinalListener;
 
     // Frame loader, for content documents we load.
-    nsRefPtr<nsFrameLoader>     mFrameLoader;
+    RefPtr<nsFrameLoader>     mFrameLoader;
 
     // Track if we have a pending AsyncInstantiateEvent
     nsCOMPtr<nsIRunnable>       mPendingInstantiateEvent;
@@ -637,7 +637,7 @@ class nsObjectLoadingContent : public nsImageLoadingContent
 
     nsWeakFrame                 mPrintFrame;
 
-    nsRefPtr<nsPluginInstanceOwner> mInstanceOwner;
+    RefPtr<nsPluginInstanceOwner> mInstanceOwner;
     nsTArray<mozilla::dom::MozPluginParameter> mCachedAttributes;
     nsTArray<mozilla::dom::MozPluginParameter> mCachedParameters;
 };

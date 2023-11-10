@@ -5,12 +5,15 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
+#include "ds/TraceableFifo.h"
+#include "gc/Policy.h"
+#include "js/GCHashTable.h"
+#include "js/GCVector.h"
 #include "js/RootingAPI.h"
-#include "js/TraceableFifo.h"
-#include "js/TraceableHashTable.h"
-#include "js/TraceableVector.h"
 
 #include "jsapi-tests/tests.h"
+
+using namespace js;
 
 BEGIN_TEST(testGCExactRooting)
 {
@@ -41,17 +44,17 @@ BEGIN_TEST(testGCSuppressions)
 }
 END_TEST(testGCSuppressions)
 
-struct MyContainer : public JS::StaticTraceable
+struct MyContainer
 {
     RelocatablePtrObject obj;
     RelocatablePtrString str;
 
     MyContainer() : obj(nullptr), str(nullptr) {}
-    static void trace(MyContainer* self, JSTracer* trc) {
-        if (self->obj)
-            js::TraceEdge(trc, &self->obj, "test container");
-        if (self->str)
-            js::TraceEdge(trc, &self->str, "test container");
+    void trace(JSTracer* trc) {
+        if (obj)
+            js::TraceEdge(trc, &obj, "test container");
+        if (str)
+            js::TraceEdge(trc, &str, "test container");
     }
 };
 
@@ -61,23 +64,16 @@ struct RootedBase<MyContainer> {
     RelocatablePtrObject& obj() { return static_cast<Rooted<MyContainer>*>(this)->get().obj; }
     RelocatablePtrString& str() { return static_cast<Rooted<MyContainer>*>(this)->get().str; }
 };
+template <>
+struct PersistentRootedBase<MyContainer> {
+    RelocatablePtrObject& obj() {
+        return static_cast<PersistentRooted<MyContainer>*>(this)->get().obj;
+    }
+    RelocatablePtrString& str() {
+        return static_cast<PersistentRooted<MyContainer>*>(this)->get().str;
+    }
+};
 } // namespace js
-
-BEGIN_TEST(testGCRootedStaticStructInternalStackStorage)
-{
-    JS::Rooted<MyContainer> container(cx);
-    container.get().obj = JS_NewObject(cx, nullptr);
-    container.get().str = JS_NewStringCopyZ(cx, "Hello");
-
-    JS_GC(cx->runtime());
-    JS_GC(cx->runtime());
-
-    JS::RootedObject obj(cx, container.get().obj);
-    JS::RootedValue val(cx, StringValue(container.get().str));
-    CHECK(JS_SetProperty(cx, obj, "foo", val));
-    return true;
-}
-END_TEST(testGCRootedStaticStructInternalStackStorage)
 
 BEGIN_TEST(testGCRootedStaticStructInternalStackStorageAugmented)
 {
@@ -91,74 +87,81 @@ BEGIN_TEST(testGCRootedStaticStructInternalStackStorageAugmented)
     JS::RootedObject obj(cx, container.obj());
     JS::RootedValue val(cx, StringValue(container.str()));
     CHECK(JS_SetProperty(cx, obj, "foo", val));
+    obj = nullptr;
+    val = UndefinedValue();
+
+    {
+        JS::RootedString actual(cx);
+        bool same;
+
+        // Automatic move from stack to heap.
+        JS::PersistentRooted<MyContainer> heap(rt, container);
+
+        // clear prior rooting.
+        container.obj() = nullptr;
+        container.str() = nullptr;
+
+        obj = heap.obj();
+        CHECK(JS_GetProperty(cx, obj, "foo", &val));
+        actual = val.toString();
+        CHECK(JS_StringEqualsAscii(cx, actual, "Hello", &same));
+        CHECK(same);
+        obj = nullptr;
+        actual = nullptr;
+
+        JS_GC(cx->runtime());
+        JS_GC(cx->runtime());
+
+        obj = heap.obj();
+        CHECK(JS_GetProperty(cx, obj, "foo", &val));
+        actual = val.toString();
+        CHECK(JS_StringEqualsAscii(cx, actual, "Hello", &same));
+        CHECK(same);
+        obj = nullptr;
+        actual = nullptr;
+    }
+
     return true;
 }
 END_TEST(testGCRootedStaticStructInternalStackStorageAugmented)
 
-struct DynamicBase : public JS::DynamicTraceable
+static JS::PersistentRooted<JSObject*> sLongLived;
+BEGIN_TEST(testGCPersistentRootedOutlivesRuntime)
 {
-    RelocatablePtrObject obj;
-    DynamicBase() : obj(nullptr) {}
+    JSContext* cx2 = JS_NewContext(rt, 8192);
+    CHECK(cx2);
 
-    void trace(JSTracer* trc) override {
-        if (obj)
-            js::TraceEdge(trc, &obj, "test container");
-    }
-};
+    sLongLived.init(cx2, JS_NewObject(cx, nullptr));
+    CHECK(sLongLived);
 
-struct DynamicContainer : public DynamicBase
-{
-    RelocatablePtrString str;
-    DynamicContainer() : str(nullptr) {}
+    JS_DestroyContext(cx2);
+    CHECK(!sLongLived);
 
-    void trace(JSTracer* trc) override {
-        this->DynamicBase::trace(trc);
-        if (str)
-            js::TraceEdge(trc, &str, "test container");
-    }
-};
-
-namespace js {
-template <>
-struct RootedBase<DynamicContainer> {
-    RelocatablePtrObject& obj() { return static_cast<Rooted<DynamicContainer>*>(this)->get().obj; }
-    RelocatablePtrString& str() { return static_cast<Rooted<DynamicContainer>*>(this)->get().str; }
-};
-} // namespace js
-
-BEGIN_TEST(testGCRootedDynamicStructInternalStackStorage)
-{
-    JS::Rooted<DynamicContainer> container(cx);
-    container.get().obj = JS_NewObject(cx, nullptr);
-    container.get().str = JS_NewStringCopyZ(cx, "Hello");
-
-    JS_GC(cx->runtime());
-    JS_GC(cx->runtime());
-
-    JS::RootedObject obj(cx, container.get().obj);
-    JS::RootedValue val(cx, StringValue(container.get().str));
-    CHECK(JS_SetProperty(cx, obj, "foo", val));
     return true;
 }
-END_TEST(testGCRootedDynamicStructInternalStackStorage)
+END_TEST(testGCPersistentRootedOutlivesRuntime)
 
-BEGIN_TEST(testGCRootedDynamicStructInternalStackStorageAugmented)
+// Unlike the above, the following test is an example of an invalid usage: for
+// performance and simplicity reasons, PersistentRooted<Traceable> is not
+// allowed to outlive the container it belongs to. The following commented out
+// test can be used to verify that the relevant assertion fires as expected.
+static JS::PersistentRooted<MyContainer> sContainer;
+BEGIN_TEST(testGCPersistentRootedTraceableCannotOutliveRuntime)
 {
-    JS::Rooted<DynamicContainer> container(cx);
+    JS::Rooted<MyContainer> container(cx);
     container.obj() = JS_NewObject(cx, nullptr);
     container.str() = JS_NewStringCopyZ(cx, "Hello");
+    sContainer.init(rt, container);
 
-    JS_GC(cx->runtime());
-    JS_GC(cx->runtime());
+    // Commenting the following line will trigger an assertion that the
+    // PersistentRooted outlives the runtime it is attached to.
+    sContainer.reset();
 
-    JS::RootedObject obj(cx, container.obj());
-    JS::RootedValue val(cx, StringValue(container.str()));
-    CHECK(JS_SetProperty(cx, obj, "foo", val));
     return true;
 }
-END_TEST(testGCRootedDynamicStructInternalStackStorageAugmented)
+END_TEST(testGCPersistentRootedTraceableCannotOutliveRuntime)
 
-using MyHashMap = js::TraceableHashMap<js::Shape*, JSObject*>;
+using MyHashMap = js::GCHashMap<js::Shape*, JSObject*>;
 
 BEGIN_TEST(testGCRootedHashMap)
 {
@@ -237,9 +240,10 @@ BEGIN_TEST(testGCHandleHashMap)
 }
 END_TEST(testGCHandleHashMap)
 
+using ShapeVec = GCVector<Shape*>;
+
 BEGIN_TEST(testGCRootedVector)
 {
-    using ShapeVec = TraceableVector<Shape*>;
     JS::Rooted<ShapeVec> shapes(cx, ShapeVec(cx));
 
     for (size_t i = 0; i < 10; ++i) {
@@ -282,7 +286,7 @@ BEGIN_TEST(testGCRootedVector)
 }
 
 bool
-receiveConstRefToShapeVector(const JS::Rooted<TraceableVector<Shape*>>& rooted)
+receiveConstRefToShapeVector(const JS::Rooted<GCVector<Shape*>>& rooted)
 {
     // Ensure range enumeration works through the reference.
     for (auto shape : rooted) {
@@ -292,7 +296,7 @@ receiveConstRefToShapeVector(const JS::Rooted<TraceableVector<Shape*>>& rooted)
 }
 
 bool
-receiveHandleToShapeVector(JS::Handle<TraceableVector<Shape*>> handle)
+receiveHandleToShapeVector(JS::Handle<GCVector<Shape*>> handle)
 {
     // Ensure range enumeration works through the handle.
     for (auto shape : handle) {
@@ -302,7 +306,7 @@ receiveHandleToShapeVector(JS::Handle<TraceableVector<Shape*>> handle)
 }
 
 bool
-receiveMutableHandleToShapeVector(JS::MutableHandle<TraceableVector<Shape*>> handle)
+receiveMutableHandleToShapeVector(JS::MutableHandle<GCVector<Shape*>> handle)
 {
     // Ensure range enumeration works through the handle.
     for (auto shape : handle) {
@@ -351,7 +355,7 @@ BEGIN_TEST(testTraceableFifo)
 }
 END_TEST(testTraceableFifo)
 
-using ShapeVec = TraceableVector<Shape*>;
+using ShapeVec = GCVector<Shape*>;
 
 static bool
 FillVector(JSContext* cx, MutableHandle<ShapeVec> shapes)

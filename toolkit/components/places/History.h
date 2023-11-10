@@ -145,9 +145,9 @@ private:
    * GetDBConn(), so never use it directly, or, if you really need, always
    * invoke GetDBConn() before.
    */
-  nsRefPtr<mozilla::places::Database> mDB;
+  RefPtr<mozilla::places::Database> mDB;
 
-  nsRefPtr<ConcurrentStatementsHolder> mConcurrentStatementsHolder;
+  RefPtr<ConcurrentStatementsHolder> mConcurrentStatementsHolder;
 
   /**
    * Remove any memory references to tasks and do not take on any more.
@@ -192,7 +192,7 @@ private:
    * mRecentlyVisitedURIs remembers URIs which are recently added to the DB,
    * to avoid saving these locations repeatedly in a short period.
    */
-  typedef nsAutoTArray<nsCOMPtr<nsIURI>, RECENTLY_VISITED_URI_SIZE>
+  typedef AutoTArray<nsCOMPtr<nsIURI>, RECENTLY_VISITED_URI_SIZE>
           RecentlyVisitedArray;
   RecentlyVisitedArray mRecentlyVisitedURIs;
   RecentlyVisitedArray::index_type mRecentlyVisitedURIsNextIndex;

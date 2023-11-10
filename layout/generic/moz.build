@@ -117,6 +117,7 @@ UNIFIED_SOURCES += [
     'FrameChildList.cpp',
     'MathMLTextRunFactory.cpp',
     'nsAbsoluteContainingBlock.cpp',
+    'nsBackdropFrame.cpp',
     'nsBlockFrame.cpp',
     'nsBlockReflowContext.cpp',
     'nsBlockReflowState.cpp',
@@ -176,8 +177,6 @@ SOURCES += [
     'nsLineLayout.cpp',
     'nsPluginFrame.cpp',
 ]
-
-FAIL_ON_WARNINGS = not CONFIG['_MSC_VER']
 
 include('/ipc/chromium/chromium-config.mozbuild')
 

@@ -227,7 +227,7 @@ OpusTrackEncoder::GetMetadata()
     return nullptr;
   }
 
-  nsRefPtr<OpusMetadata> meta = new OpusMetadata();
+  RefPtr<OpusMetadata> meta = new OpusMetadata();
 
   mLookahead = 0;
   int error = opus_encoder_ctl(mEncoder, OPUS_GET_LOOKAHEAD(&mLookahead));
@@ -312,7 +312,7 @@ OpusTrackEncoder::GetEncodedTrack(EncodedFrameContainer& aData)
   }
 
   // Start encoding data.
-  nsAutoTArray<AudioDataValue, 9600> pcm;
+  AutoTArray<AudioDataValue, 9600> pcm;
   pcm.SetLength(GetPacketDuration() * mChannels);
   AudioSegment::ChunkIterator iter(mSourceSegment);
   int frameCopied = 0;
@@ -339,11 +339,11 @@ OpusTrackEncoder::GetEncodedTrack(EncodedFrameContainer& aData)
     iter.Next();
   }
 
-  nsRefPtr<EncodedFrame> audiodata = new EncodedFrame();
+  RefPtr<EncodedFrame> audiodata = new EncodedFrame();
   audiodata->SetFrameType(EncodedFrame::OPUS_AUDIO_FRAME);
   int framesInPCM = frameCopied;
   if (mResampler) {
-    nsAutoTArray<AudioDataValue, 9600> resamplingDest;
+    AutoTArray<AudioDataValue, 9600> resamplingDest;
     // We want to consume all the input data, so we slightly oversize the
     // resampled data buffer so we can fit the output data in. We cannot really
     // predict the output frame count at each call.

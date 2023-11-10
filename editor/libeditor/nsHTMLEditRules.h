@@ -192,13 +192,13 @@ protected:
   nsresult DidAbsolutePosition();
   nsresult AlignInnerBlocks(nsINode& aNode, const nsAString* alignType);
   nsresult AlignBlockContents(nsIDOMNode *aNode, const nsAString *alignType);
-  nsresult AppendInnerFormatNodes(nsTArray<mozilla::dom::OwningNonNull<nsINode>>& aArray,
+  nsresult AppendInnerFormatNodes(nsTArray<mozilla::OwningNonNull<nsINode>>& aArray,
                                   nsINode* aNode);
   nsresult GetFormatString(nsIDOMNode *aNode, nsAString &outFormat);
   enum class Lists { no, yes };
   enum class Tables { no, yes };
   void GetInnerContent(nsINode& aNode,
-                       nsTArray<mozilla::dom::OwningNonNull<nsINode>>& aOutArrayOfNodes,
+                       nsTArray<mozilla::OwningNonNull<nsINode>>& aOutArrayOfNodes,
                        int32_t* aIndex, Lists aLists = Lists::yes,
                        Tables aTables = Tables::yes);
   already_AddRefed<nsIDOMNode> IsInListItem(nsIDOMNode* aNode);
@@ -265,43 +265,43 @@ protected:
                         int32_t aOffset, EditAction actionID,
                         nsCOMPtr<nsIDOMNode>* outNode, int32_t* outOffset);
   void GetPromotedRanges(mozilla::dom::Selection& aSelection,
-                         nsTArray<nsRefPtr<nsRange>>& outArrayOfRanges,
+                         nsTArray<RefPtr<nsRange>>& outArrayOfRanges,
                          EditAction inOperationType);
   void PromoteRange(nsRange& aRange, EditAction inOperationType);
   enum class TouchContent { no, yes };
-  nsresult GetNodesForOperation(nsTArray<nsRefPtr<nsRange>>& aArrayOfRanges,
-                                nsTArray<mozilla::dom::OwningNonNull<nsINode>>& aOutArrayOfNodes,
+  nsresult GetNodesForOperation(nsTArray<RefPtr<nsRange>>& aArrayOfRanges,
+                                nsTArray<mozilla::OwningNonNull<nsINode>>& aOutArrayOfNodes,
                                 EditAction aOperationType,
                                 TouchContent aTouchContent = TouchContent::yes);
   void GetChildNodesForOperation(nsINode& aNode,
-      nsTArray<mozilla::dom::OwningNonNull<nsINode>>& outArrayOfNodes);
+      nsTArray<mozilla::OwningNonNull<nsINode>>& outArrayOfNodes);
   nsresult GetNodesFromPoint(::DOMPoint aPoint,
                              EditAction aOperation,
-                             nsTArray<mozilla::dom::OwningNonNull<nsINode>>& outArrayOfNodes,
+                             nsTArray<mozilla::OwningNonNull<nsINode>>& outArrayOfNodes,
                              TouchContent aTouchContent);
   nsresult GetNodesFromSelection(mozilla::dom::Selection& aSelection,
                                  EditAction aOperation,
-                                 nsTArray<mozilla::dom::OwningNonNull<nsINode>>& outArrayOfNodes,
+                                 nsTArray<mozilla::OwningNonNull<nsINode>>& outArrayOfNodes,
                                  TouchContent aTouchContent = TouchContent::yes);
   enum class EntireList { no, yes };
-  nsresult GetListActionNodes(nsTArray<mozilla::dom::OwningNonNull<nsINode>>& aOutArrayOfNodes,
+  nsresult GetListActionNodes(nsTArray<mozilla::OwningNonNull<nsINode>>& aOutArrayOfNodes,
                               EntireList aEntireList,
                               TouchContent aTouchContent = TouchContent::yes);
   void GetDefinitionListItemTypes(mozilla::dom::Element* aElement, bool* aDT, bool* aDD);
   nsresult GetParagraphFormatNodes(
-      nsTArray<mozilla::dom::OwningNonNull<nsINode>>& outArrayOfNodes,
+      nsTArray<mozilla::OwningNonNull<nsINode>>& outArrayOfNodes,
       TouchContent aTouchContent = TouchContent::yes);
-  void LookInsideDivBQandList(nsTArray<mozilla::dom::OwningNonNull<nsINode>>& aNodeArray);
+  void LookInsideDivBQandList(nsTArray<mozilla::OwningNonNull<nsINode>>& aNodeArray);
   nsresult BustUpInlinesAtRangeEndpoints(nsRangeStore &inRange);
-  nsresult BustUpInlinesAtBRs(nsINode& aNode,
-                              nsTArray<mozilla::dom::OwningNonNull<nsINode>>& aOutArrayOfNodes);
+  nsresult BustUpInlinesAtBRs(nsIContent& aNode,
+                              nsTArray<mozilla::OwningNonNull<nsINode>>& aOutArrayOfNodes);
   nsCOMPtr<nsIDOMNode> GetHighestInlineParent(nsIDOMNode* aNode);
-  void MakeTransitionList(nsTArray<mozilla::dom::OwningNonNull<nsINode>>& aNodeArray,
+  void MakeTransitionList(nsTArray<mozilla::OwningNonNull<nsINode>>& aNodeArray,
                           nsTArray<bool>& aTransitionArray);
-  nsresult RemoveBlockStyle(nsTArray<mozilla::dom::OwningNonNull<nsINode>>& aNodeArray);
-  nsresult ApplyBlockStyle(nsTArray<mozilla::dom::OwningNonNull<nsINode>>& aNodeArray,
+  nsresult RemoveBlockStyle(nsTArray<mozilla::OwningNonNull<nsINode>>& aNodeArray);
+  nsresult ApplyBlockStyle(nsTArray<mozilla::OwningNonNull<nsINode>>& aNodeArray,
                            nsIAtom& aBlockTag);
-  nsresult MakeBlockquote(nsTArray<mozilla::dom::OwningNonNull<nsINode>>& aNodeArray);
+  nsresult MakeBlockquote(nsTArray<mozilla::OwningNonNull<nsINode>>& aNodeArray);
   nsresult SplitAsNeeded(nsIAtom& aTag, nsCOMPtr<nsINode>& inOutParent,
                          int32_t& inOutOffset);
   nsresult AddTerminatingBR(nsIDOMNode *aBlock);
@@ -337,7 +337,7 @@ protected:
   nsresult ConfirmSelectionInBody();
   nsresult InsertMozBRIfNeeded(nsIDOMNode *aNode);
   bool     IsEmptyInline(nsIDOMNode *aNode);
-  bool     ListIsEmptyLine(nsTArray<mozilla::dom::OwningNonNull<nsINode>>& arrayOfNodes);
+  bool     ListIsEmptyLine(nsTArray<mozilla::OwningNonNull<nsINode>>& arrayOfNodes);
   nsresult RemoveAlignment(nsIDOMNode * aNode, const nsAString & aAlignType, bool aChildrenOnly);
   nsresult MakeSureElemStartsOrEndsOnCR(nsIDOMNode *aNode, bool aStarts);
   nsresult AlignBlock(nsIDOMElement * aElement, const nsAString * aAlignType, bool aContentsOnly);
@@ -347,16 +347,16 @@ protected:
 // data members
 protected:
   nsHTMLEditor           *mHTMLEditor;
-  nsRefPtr<nsRange>       mDocChangeRange;
+  RefPtr<nsRange>       mDocChangeRange;
   bool                    mListenerEnabled;
   bool                    mReturnInEmptyLIKillsList;
   bool                    mDidDeleteSelection;
   bool                    mDidRangedDelete;
   bool                    mRestoreContentEditableCount;
-  nsRefPtr<nsRange>       mUtilRange;
+  RefPtr<nsRange>       mUtilRange;
   uint32_t                mJoinOffset;  // need to remember an int across willJoin/didJoin...
   nsCOMPtr<nsIDOMNode>    mNewBlock;
-  nsRefPtr<nsRangeStore>  mRangeItem;
+  RefPtr<nsRangeStore>  mRangeItem;
   StyleCache              mCachedStyles[SIZE_STYLE_TABLE];
 };
 

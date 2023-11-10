@@ -9,15 +9,17 @@
 #include "gfxFontConstants.h"
 #include "mozilla/css/Declaration.h"
 #include "mozilla/css/Loader.h"
-#include "mozilla/dom/CSSFontFaceLoadEvent.h"
-#include "mozilla/dom/CSSFontFaceLoadEventBinding.h"
 #include "mozilla/dom/FontFaceSetBinding.h"
 #include "mozilla/dom/FontFaceSetIterator.h"
+#include "mozilla/dom/FontFaceSetLoadEvent.h"
+#include "mozilla/dom/FontFaceSetLoadEventBinding.h"
 #include "mozilla/dom/Promise.h"
 #include "mozilla/AsyncEventDispatcher.h"
 #include "mozilla/Logging.h"
 #include "mozilla/Preferences.h"
+#include "mozilla/SizePrintfMacros.h"
 #include "mozilla/Snprintf.h"
+#include "mozilla/Telemetry.h"
 #include "nsCORSListenerProxy.h"
 #include "nsCSSParser.h"
 #include "nsDeviceContext.h"
@@ -39,6 +41,7 @@
 #include "nsPrintfCString.h"
 #include "nsStyleSet.h"
 #include "nsUTF8Utils.h"
+#include "nsDOMNavigationTiming.h"
 
 using namespace mozilla;
 using namespace mozilla::css;
@@ -166,15 +169,15 @@ FontFaceSet::RemoveDOMContentLoadedListener()
 void
 FontFaceSet::ParseFontShorthandForMatching(
                             const nsAString& aFont,
-                            nsRefPtr<FontFamilyListRefCnt>& aFamilyList,
+                            RefPtr<FontFamilyListRefCnt>& aFamilyList,
                             uint32_t& aWeight,
                             int32_t& aStretch,
-                            uint32_t& aItalicStyle,
+                            uint8_t& aStyle,
                             ErrorResult& aRv)
 {
   // Parse aFont as a 'font' property value.
-  Declaration declaration;
-  declaration.InitializeEmpty();
+  RefPtr<Declaration> declaration = new Declaration;
+  declaration->InitializeEmpty();
 
   bool changed = false;
   nsCSSParser parser;
@@ -183,23 +186,23 @@ FontFaceSet::ParseFontShorthandForMatching(
                        mDocument->GetDocumentURI(),
                        mDocument->GetDocumentURI(),
                        mDocument->NodePrincipal(),
-                       &declaration,
+                       declaration,
                        &changed,
                        /* aIsImportant */ false);
 
   // All of the properties we are interested in should have been set at once.
-  MOZ_ASSERT(changed == (declaration.HasProperty(eCSSProperty_font_family) &&
-                         declaration.HasProperty(eCSSProperty_font_style) &&
-                         declaration.HasProperty(eCSSProperty_font_weight) &&
-                         declaration.HasProperty(eCSSProperty_font_stretch)));
+  MOZ_ASSERT(changed == (declaration->HasProperty(eCSSProperty_font_family) &&
+                         declaration->HasProperty(eCSSProperty_font_style) &&
+                         declaration->HasProperty(eCSSProperty_font_weight) &&
+                         declaration->HasProperty(eCSSProperty_font_stretch)));
 
   if (!changed) {
     aRv.Throw(NS_ERROR_DOM_SYNTAX_ERR);
     return;
   }
 
-  nsCSSCompressedDataBlock* data = declaration.GetNormalBlock();
-  MOZ_ASSERT(!declaration.GetImportantBlock());
+  nsCSSCompressedDataBlock* data = declaration->GetNormalBlock();
+  MOZ_ASSERT(!declaration->GetImportantBlock());
 
   const nsCSSValue* family = data->ValueFor(eCSSProperty_font_family);
   if (family->GetUnit() != eCSSUnit_FontFamilyList) {
@@ -224,7 +227,7 @@ FontFaceSet::ParseFontShorthandForMatching(
   aWeight = weight;
 
   aStretch = data->ValueFor(eCSSProperty_font_stretch)->GetIntValue();
-  aItalicStyle = data->ValueFor(eCSSProperty_font_style)->GetIntValue();
+  aStyle = data->ValueFor(eCSSProperty_font_style)->GetIntValue();
 }
 
 static bool
@@ -249,10 +252,10 @@ FontFaceSet::FindMatchingFontFaces(const nsAString& aFont,
                                    nsTArray<FontFace*>& aFontFaces,
                                    ErrorResult& aRv)
 {
-  nsRefPtr<FontFamilyListRefCnt> familyList;
+  RefPtr<FontFamilyListRefCnt> familyList;
   uint32_t weight;
   int32_t stretch;
-  uint32_t italicStyle;
+  uint8_t italicStyle;
   ParseFontShorthandForMatching(aFont, familyList, weight, stretch, italicStyle,
                                 aRv);
   if (aRv.Failed()) {
@@ -272,14 +275,14 @@ FontFaceSet::FindMatchingFontFaces(const nsAString& aFont,
   nsTHashtable<nsPtrHashKey<FontFace>> matchingFaces;
 
   for (const FontFamilyName& fontFamilyName : familyList->GetFontlist()) {
-    nsRefPtr<gfxFontFamily> family =
+    RefPtr<gfxFontFamily> family =
       mUserFontSet->LookupFamily(fontFamilyName.mName);
 
     if (!family) {
       continue;
     }
 
-    nsAutoTArray<gfxFontEntry*,4> entries;
+    AutoTArray<gfxFontEntry*,4> entries;
     bool needsBold;
     family->FindAllFontsForStyle(style, entries, needsBold);
 
@@ -305,6 +308,17 @@ FontFaceSet::FindMatchingFontFaces(const nsAString& aFont,
   }
 }
 
+TimeStamp
+FontFaceSet::GetNavigationStartTimeStamp()
+{
+  TimeStamp navStart;
+  RefPtr<nsDOMNavigationTiming> timing(mDocument->GetNavigationTiming());
+  if (timing) {
+    navStart = timing->GetNavigationStartTimeStamp();
+  }
+  return navStart;
+}
+
 already_AddRefed<Promise>
 FontFaceSet::Load(JSContext* aCx,
                   const nsAString& aFont,
@@ -313,7 +327,7 @@ FontFaceSet::Load(JSContext* aCx,
 {
   FlushUserFontSet();
 
-  nsTArray<nsRefPtr<Promise>> promises;
+  nsTArray<RefPtr<Promise>> promises;
 
   nsTArray<FontFace*> faces;
   FindMatchingFontFaces(aFont, aText, faces, aRv);
@@ -322,7 +336,7 @@ FontFaceSet::Load(JSContext* aCx,
   }
 
   for (FontFace* f : faces) {
-    nsRefPtr<Promise> promise = f->Load(aRv);
+    RefPtr<Promise> promise = f->Load(aRv);
     if (aRv.Failed()) {
       return nullptr;
     }
@@ -333,10 +347,15 @@ FontFaceSet::Load(JSContext* aCx,
   }
 
   nsIGlobalObject* globalObject = GetParentObject();
+  if (!globalObject) {
+    aRv.Throw(NS_ERROR_FAILURE);
+    return nullptr;
+  }
+
   JS::Rooted<JSObject*> jsGlobal(aCx, globalObject->GetGlobalJSObject());
   GlobalObject global(aCx, jsGlobal);
 
-  nsRefPtr<Promise> result = Promise::All(global, promises, aRv);
+  RefPtr<Promise> result = Promise::All(global, promises, aRv);
   return result.forget();
 }
 
@@ -399,23 +418,16 @@ FontFaceSet::Add(FontFace& aFontFace, ErrorResult& aRv)
 {
   FlushUserFontSet();
 
-  // We currently only support FontFace objects being in a single FontFaceSet,
-  // and we also restrict the FontFaceSet to contain only FontFaces created
-  // in the same window.
-
-  if (aFontFace.GetFontFaceSet() != this) {
-    aRv.Throw(NS_ERROR_DOM_NOT_SUPPORTED_ERR);
-    return nullptr;
-  }
-
-  if (aFontFace.IsInFontFaceSet()) {
+  if (aFontFace.IsInFontFaceSet(this)) {
     return this;
   }
 
-  MOZ_ASSERT(!aFontFace.HasRule(),
-             "rule-backed FontFaces should always be in the FontFaceSet");
+  if (aFontFace.HasRule()) {
+    aRv.Throw(NS_ERROR_DOM_INVALID_MODIFICATION_ERR);
+    return nullptr;
+  }
 
-  aFontFace.SetIsInFontFaceSet(true);
+  aFontFace.AddFontFaceSet(this);
 
 #ifdef DEBUG
   for (const FontFaceRecord& rec : mNonRuleFaces) {
@@ -426,7 +438,7 @@ FontFaceSet::Add(FontFace& aFontFace, ErrorResult& aRv)
 
   FontFaceRecord* rec = mNonRuleFaces.AppendElement();
   rec->mFontFace = &aFontFace;
-  rec->mSheetType = 0;  // unused for mNonRuleFaces
+  rec->mSheetType = SheetType::Unknown;  // unused for mNonRuleFaces
   rec->mLoadEventShouldFire =
     aFontFace.Status() == FontFaceLoadStatus::Unloaded ||
     aFontFace.Status() == FontFaceLoadStatus::Loading;
@@ -449,7 +461,7 @@ FontFaceSet::Clear()
 
   for (size_t i = 0; i < mNonRuleFaces.Length(); i++) {
     FontFace* f = mNonRuleFaces[i].mFontFace;
-    f->SetIsInFontFaceSet(false);
+    f->RemoveFontFaceSet(this);
   }
 
   mNonRuleFaces.Clear();
@@ -480,7 +492,7 @@ FontFaceSet::Delete(FontFace& aFontFace)
     return false;
   }
 
-  aFontFace.SetIsInFontFaceSet(false);
+  aFontFace.RemoveFontFaceSet(this);
 
   mNonRuleFacesDirty = true;
   RebuildUserFontSet();
@@ -492,8 +504,7 @@ FontFaceSet::Delete(FontFace& aFontFace)
 bool
 FontFaceSet::HasAvailableFontFace(FontFace* aFontFace)
 {
-  return aFontFace->GetFontFaceSet() == this &&
-         aFontFace->IsInFontFaceSet();
+  return aFontFace->IsInFontFaceSet(this);
 }
 
 bool
@@ -532,16 +543,18 @@ FontFaceSet::Size()
   return std::min<size_t>(total, INT32_MAX);
 }
 
-FontFaceSetIterator*
+already_AddRefed<FontFaceSetIterator>
 FontFaceSet::Entries()
 {
-  return new FontFaceSetIterator(this, true);
+  RefPtr<FontFaceSetIterator> it = new FontFaceSetIterator(this, true);
+  return it.forget();
 }
 
-FontFaceSetIterator*
+already_AddRefed<FontFaceSetIterator>
 FontFaceSet::Values()
 {
-  return new FontFaceSetIterator(this, false);
+  RefPtr<FontFaceSetIterator> it = new FontFaceSetIterator(this, false);
+  return it.forget();
 }
 
 void
@@ -590,7 +603,7 @@ FontFaceSet::StartLoad(gfxUserFontEntry* aUserFontEntry,
 
   NS_ENSURE_SUCCESS(rv, rv);
 
-  nsRefPtr<nsFontFaceLoader> fontLoader =
+  RefPtr<nsFontFaceLoader> fontLoader =
     new nsFontFaceLoader(aUserFontEntry, aFontFaceSrc->mURI, this, channel);
 
   if (LOG_ENABLED()) {
@@ -641,7 +654,7 @@ FontFaceSet::StartLoad(gfxUserFontEntry* aUserFontEntry,
     // allow data, javascript, etc URI's
     rv = channel->AsyncOpen(streamLoader, nullptr);
   } else {
-    nsRefPtr<nsCORSListenerProxy> listener =
+    RefPtr<nsCORSListenerProxy> listener =
       new nsCORSListenerProxy(streamLoader, aUserFontEntry->GetPrincipal(), false);
     // Doesn't matter what data: URI handling we use here, since we
     // don't even use a CORS listener proxy for the data: case.
@@ -662,21 +675,6 @@ FontFaceSet::StartLoad(gfxUserFontEntry* aUserFontEntry,
   }
 
   return rv;
-}
-
-static PLDHashOperator DetachFontEntries(const nsAString& aKey,
-                                         nsRefPtr<gfxUserFontFamily>& aFamily,
-                                         void* aUserArg)
-{
-  aFamily->DetachFontEntries();
-  return PL_DHASH_NEXT;
-}
-
-static PLDHashOperator RemoveIfEmpty(const nsAString& aKey,
-                                     nsRefPtr<gfxUserFontFamily>& aFamily,
-                                     void* aUserArg)
-{
-  return aFamily->GetFontList().Length() ? PL_DHASH_NEXT : PL_DHASH_REMOVE;
 }
 
 bool
@@ -713,7 +711,9 @@ FontFaceSet::UpdateRules(const nsTArray<nsFontFaceRuleContainer>& aRules)
   // the same font entries as before. (The order can affect font selection
   // where multiple faces match the requested style, perhaps with overlapping
   // unicode-range coverage.)
-  mUserFontSet->mFontFamilies.Enumerate(DetachFontEntries, nullptr);
+  for (auto it = mUserFontSet->mFontFamilies.Iter(); !it.Done(); it.Next()) {
+    it.Data()->DetachFontEntries();
+  }
 
   // Sometimes aRules has duplicate @font-face rules in it; we should make
   // that not happen, but in the meantime, don't try to insert the same
@@ -730,7 +730,7 @@ FontFaceSet::UpdateRules(const nsTArray<nsFontFaceRuleContainer>& aRules)
       continue;
     }
     nsCSSFontFaceRule* rule = aRules[i].mRule;
-    nsRefPtr<FontFace> f = ruleFaceMap.Get(rule);
+    RefPtr<FontFace> f = ruleFaceMap.Get(rule);
     if (!f.get()) {
       f = FontFace::CreateForRule(GetParentObject(), this, rule);
     }
@@ -745,7 +745,11 @@ FontFaceSet::UpdateRules(const nsTArray<nsFontFaceRuleContainer>& aRules)
 
   // Remove any residual families that have no font entries (i.e., they were
   // not defined at all by the updated set of @font-face rules).
-  mUserFontSet->mFontFamilies.Enumerate(RemoveIfEmpty, nullptr);
+  for (auto it = mUserFontSet->mFontFamilies.Iter(); !it.Done(); it.Next()) {
+    if (it.Data()->GetFontList().IsEmpty()) {
+      it.Remove();
+    }
+  }
 
   // If any FontFace objects for rules are left in the old list, note that the
   // set has changed (even if the new set was built entirely by migrating old
@@ -763,7 +767,7 @@ FontFaceSet::UpdateRules(const nsTArray<nsFontFaceRuleContainer>& aRules)
     // it when the FontFace is GCed, if we can detect that.
     size_t count = oldRecords.Length();
     for (size_t i = 0; i < count; ++i) {
-      nsRefPtr<FontFace> f = oldRecords[i].mFontFace;
+      RefPtr<FontFace> f = oldRecords[i].mFontFace;
       gfxUserFontEntry* userFontEntry = f->GetUserFontEntry();
       if (userFontEntry) {
         nsFontFaceLoader* loader = userFontEntry->GetLoader();
@@ -789,7 +793,7 @@ FontFaceSet::UpdateRules(const nsTArray<nsFontFaceRuleContainer>& aRules)
   mUserFontSet->mLocalRulesUsed = false;
 
   if (LOG_ENABLED() && !mRuleFaces.IsEmpty()) {
-    LOG(("userfonts (%p) userfont rules update (%s) rule count: %d",
+    LOG(("userfonts (%p) userfont rules update (%s) rule count: %" PRIuSIZE,
          mUserFontSet.get(),
          (modified ? "modified" : "not modified"),
          mRuleFaces.Length()));
@@ -832,9 +836,9 @@ FontFaceSet::InsertNonRuleFontFace(FontFace* aFontFace,
   if (!aFontFace->GetUserFontEntry()) {
     // XXX Should we be checking mUserFontSet->mLocalRulesUsed like
     // InsertRuleFontFace does?
-    nsRefPtr<gfxUserFontEntry> entry =
+    RefPtr<gfxUserFontEntry> entry =
       FindOrCreateUserFontEntryFromFontFace(fontfamily, aFontFace,
-                                            nsStyleSet::eDocSheet);
+                                            SheetType::Doc);
     if (!entry) {
       return;
     }
@@ -846,7 +850,7 @@ FontFaceSet::InsertNonRuleFontFace(FontFace* aFontFace,
 }
 
 void
-FontFaceSet::InsertRuleFontFace(FontFace* aFontFace, uint8_t aSheetType,
+FontFaceSet::InsertRuleFontFace(FontFace* aFontFace, SheetType aSheetType,
                                 nsTArray<FontFaceRecord>& aOldRecords,
                                 bool& aFontSetModified)
 {
@@ -904,7 +908,7 @@ FontFaceSet::InsertRuleFontFace(FontFace* aFontFace, uint8_t aSheetType,
   }
 
   // this is a new rule:
-  nsRefPtr<gfxUserFontEntry> entry =
+  RefPtr<gfxUserFontEntry> entry =
     FindOrCreateUserFontEntryFromFontFace(fontfamily, aFontFace, aSheetType);
 
   if (!entry) {
@@ -957,13 +961,13 @@ FontFaceSet::FindOrCreateUserFontEntryFromFontFace(FontFace* aFontFace)
   }
 
   return FindOrCreateUserFontEntryFromFontFace(fontfamily, aFontFace,
-                                               nsStyleSet::eDocSheet);
+                                               SheetType::Doc);
 }
 
 /* static */ already_AddRefed<gfxUserFontEntry>
 FontFaceSet::FindOrCreateUserFontEntryFromFontFace(const nsAString& aFamilyName,
                                                    FontFace* aFontFace,
-                                                   uint8_t aSheetType)
+                                                   SheetType aSheetType)
 {
   FontFaceSet* set = aFontFace->GetPrimaryFontFaceSet();
 
@@ -972,7 +976,7 @@ FontFaceSet::FindOrCreateUserFontEntryFromFontFace(const nsAString& aFamilyName,
 
   uint32_t weight = NS_STYLE_FONT_WEIGHT_NORMAL;
   int32_t stretch = NS_STYLE_FONT_STRETCH_NORMAL;
-  uint32_t italicStyle = NS_STYLE_FONT_STYLE_NORMAL;
+  uint8_t italicStyle = NS_STYLE_FONT_STYLE_NORMAL;
   uint32_t languageOverride = NO_FONT_LANGUAGE_OVERRIDE;
 
   // set up weight
@@ -1102,8 +1106,8 @@ FontFaceSet::FindOrCreateUserFontEntryFromFontFace(const nsAString& aFamilyName,
           // the same-site origin check and access control headers are
           // enforced against the sheet principal rather than the document
           // principal to allow user stylesheets to include @font-face rules
-          face->mUseOriginPrincipal = (aSheetType == nsStyleSet::eUserSheet ||
-                                       aSheetType == nsStyleSet::eAgentSheet);
+          face->mUseOriginPrincipal = (aSheetType == SheetType::User ||
+                                       aSheetType == SheetType::Agent);
 
           face->mLocalName.Truncate();
           face->mFormatFlags = 0;
@@ -1154,7 +1158,7 @@ FontFaceSet::FindOrCreateUserFontEntryFromFontFace(const nsAString& aFamilyName,
     return nullptr;
   }
 
-  nsRefPtr<gfxUserFontEntry> entry =
+  RefPtr<gfxUserFontEntry> entry =
     set->mUserFontSet->FindOrCreateUserFontEntry(aFamilyName, srcArray, weight,
                                                  stretch, italicStyle,
                                                  featureSettings,
@@ -1338,6 +1342,12 @@ FontFaceSet::CheckFontLoad(const gfxFontFaceSrc* aFontFaceSrc,
         *aBypassCache = true;
       }
     }
+    uint32_t flags;
+    if (NS_SUCCEEDED(docShell->GetDefaultLoadFlags(&flags))) {
+      if (flags & nsIRequest::LOAD_BYPASS_CACHE) {
+        *aBypassCache = true;
+      }
+    }
   }
 
   return rv;
@@ -1484,7 +1494,7 @@ FontFaceSet::CheckLoadingStarted()
                             false))->PostDOMEvent();
 
   if (PrefEnabled()) {
-    nsRefPtr<Promise> ready;
+    RefPtr<Promise> ready;
     if (GetParentObject()) {
       ErrorResult rv;
       ready = Promise::Create(GetParentObject(), rv);
@@ -1624,7 +1634,7 @@ FontFaceSet::DispatchLoadingFinishedEvent(
                                  const nsAString& aType,
                                  const nsTArray<FontFace*>& aFontFaces)
 {
-  CSSFontFaceLoadEventInit init;
+  FontFaceSetLoadEventInit init;
   init.mBubbles = false;
   init.mCancelable = false;
   OwningNonNull<FontFace>* elements =
@@ -1633,8 +1643,8 @@ FontFaceSet::DispatchLoadingFinishedEvent(
   for (size_t i = 0; i < aFontFaces.Length(); i++) {
     elements[i] = aFontFaces[i];
   }
-  nsRefPtr<CSSFontFaceLoadEvent> event =
-    CSSFontFaceLoadEvent::Constructor(this, aType, init);
+  RefPtr<FontFaceSetLoadEvent> event =
+    FontFaceSetLoadEvent::Constructor(this, aType, init);
   (new AsyncEventDispatcher(this, event))->PostDOMEvent();
 }
 
@@ -1729,6 +1739,26 @@ FontFaceSet::UserFontSet::StartLoad(gfxUserFontEntry* aUserFontEntry,
   return mFontFaceSet->StartLoad(aUserFontEntry, aFontFaceSrc);
 }
 
+void
+FontFaceSet::UserFontSet::RecordFontLoadDone(uint32_t aFontSize,
+                                             TimeStamp aDoneTime)
+{
+  mDownloadCount++;
+  mDownloadSize += aFontSize;
+  Telemetry::Accumulate(Telemetry::WEBFONT_SIZE, aFontSize / 1024);
+
+  if (!mFontFaceSet) {
+    return;
+  }
+
+  TimeStamp navStart = mFontFaceSet->GetNavigationStartTimeStamp();
+  TimeStamp zero;
+  if (navStart != zero) {
+    Telemetry::AccumulateTimeDelta(Telemetry::WEBFONT_DOWNLOAD_TIME_AFTER_START,
+                                   navStart, aDoneTime);
+  }
+}
+
 /* virtual */ nsresult
 FontFaceSet::UserFontSet::LogMessage(gfxUserFontEntry* aUserFontEntry,
                                      const char* aMessage,
@@ -1774,13 +1804,13 @@ FontFaceSet::UserFontSet::CreateUserFontEntry(
                                const nsTArray<gfxFontFaceSrc>& aFontFaceSrcList,
                                uint32_t aWeight,
                                int32_t aStretch,
-                               uint32_t aItalicStyle,
+                               uint8_t aStyle,
                                const nsTArray<gfxFontFeature>& aFeatureSettings,
                                uint32_t aLanguageOverride,
                                gfxSparseBitSet* aUnicodeRanges)
 {
-  nsRefPtr<gfxUserFontEntry> entry =
-    new FontFace::Entry(this, aFontFaceSrcList, aWeight, aStretch, aItalicStyle,
+  RefPtr<gfxUserFontEntry> entry =
+    new FontFace::Entry(this, aFontFaceSrcList, aWeight, aStretch, aStyle,
                         aFeatureSettings, aLanguageOverride, aUnicodeRanges);
   return entry.forget();
 }

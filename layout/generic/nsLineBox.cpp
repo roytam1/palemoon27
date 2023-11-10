@@ -8,6 +8,7 @@
 
 #include "nsLineBox.h"
 
+#include "mozilla/ArenaObjectID.h"
 #include "mozilla/Assertions.h"
 #include "mozilla/Likely.h"
 #include "mozilla/WritingModes.h"
@@ -16,7 +17,7 @@
 #include "nsIFrameInlines.h"
 #include "nsPresArena.h"
 #include "nsPrintfCString.h"
-#include "prprf.h"
+#include "mozilla/Snprintf.h"
 
 #ifdef DEBUG
 static int32_t ctorCount;
@@ -148,14 +149,14 @@ nsLineBox::NoteFramesMovedFrom(nsLineBox* aFromLine)
 void*
 nsLineBox::operator new(size_t sz, nsIPresShell* aPresShell) CPP_THROW_NEW
 {
-  return aPresShell->AllocateByObjectID(nsPresArena::nsLineBox_id, sz);
+  return aPresShell->AllocateByObjectID(eArenaObjectID_nsLineBox, sz);
 }
 
 void
 nsLineBox::Destroy(nsIPresShell* aPresShell)
 {
   this->nsLineBox::~nsLineBox();
-  aPresShell->FreeByObjectID(nsPresArena::nsLineBox_id, this);
+  aPresShell->FreeByObjectID(eArenaObjectID_nsLineBox, this);
 }
 
 void
@@ -212,15 +213,15 @@ BreakTypeToString(uint8_t aBreakType)
 char*
 nsLineBox::StateToString(char* aBuf, int32_t aBufSize) const
 {
-  PR_snprintf(aBuf, aBufSize, "%s,%s,%s,%s,%s,before:%s,after:%s[0x%x]",
-              IsBlock() ? "block" : "inline",
-              IsDirty() ? "dirty" : "clean",
-              IsPreviousMarginDirty() ? "prevmargindirty" : "prevmarginclean",
-              IsImpactedByFloat() ? "impacted" : "not impacted",
-              IsLineWrapped() ? "wrapped" : "not wrapped",
-              BreakTypeToString(GetBreakTypeBefore()),
-              BreakTypeToString(GetBreakTypeAfter()),
-              mAllFlags);
+  snprintf(aBuf, aBufSize, "%s,%s,%s,%s,%s,before:%s,after:%s[0x%x]",
+           IsBlock() ? "block" : "inline",
+           IsDirty() ? "dirty" : "clean",
+           IsPreviousMarginDirty() ? "prevmargindirty" : "prevmarginclean",
+           IsImpactedByFloat() ? "impacted" : "not impacted",
+           IsLineWrapped() ? "wrapped" : "not wrapped",
+           BreakTypeToString(GetBreakTypeBefore()),
+           BreakTypeToString(GetBreakTypeAfter()),
+           mAllFlags);
   return aBuf;
 }
 
@@ -249,11 +250,8 @@ nsLineBox::List(FILE* out, const char* aPrefix, uint32_t aFlags) const
   str += nsPrintfCString("{%d,%d,%d,%d} ",
           bounds.x, bounds.y, bounds.width, bounds.height);
   if (mWritingMode.IsVertical() || !mWritingMode.IsBidiLTR()) {
-    str += nsPrintfCString("{%s-%s: %d,%d,%d,%d; cs=%d,%d} ",
-                           mWritingMode.IsVertical()
-                             ? mWritingMode.IsVerticalLR() ? "vlr" : "vrl"
-                             : "htb",
-                           mWritingMode.IsBidiLTR() ? "ltr" : "rtl",
+    str += nsPrintfCString("{%s: %d,%d,%d,%d; cs=%d,%d} ",
+                           mWritingMode.DebugString(),
                            IStart(), BStart(), ISize(), BSize(),
                            mContainerSize.width, mContainerSize.height);
   }

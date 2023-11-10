@@ -50,16 +50,6 @@ enum FrameType
     // Ion IC calling a scripted getter/setter.
     JitFrame_IonAccessorIC,
 
-    // An unwound JS frame is a JS frame signalling that its callee frame has been
-    // turned into an exit frame (see EnsureExitFrame). Used by Ion bailouts and
-    // Baseline exception unwinding.
-    JitFrame_Unwound_BaselineJS,
-    JitFrame_Unwound_IonJS,
-    JitFrame_Unwound_BaselineStub,
-    JitFrame_Unwound_IonStub,
-    JitFrame_Unwound_Rectifier,
-    JitFrame_Unwound_IonAccessorIC,
-
     // An exit frame is necessary for transitioning from a JS frame into C++.
     // From within C++, an exit frame is always the last frame in any
     // JitActivation.
@@ -70,13 +60,6 @@ enum FrameType
     // frame is always the last frame in a JitActivation iff the bailout frame
     // information is recorded on the JitActivation.
     JitFrame_Bailout,
-
-    // A lazy link frame is a special exit frame where a IonJS frame is reused
-    // for linking the newly compiled code.  A special frame is needed to
-    // work-around the fact that we can make stack patterns which are similar to
-    // unwound frames. As opposed to unwound frames, we still have to mark all
-    // the arguments of the original IonJS frame.
-    JitFrame_LazyLink
 };
 
 enum ReadFrameArgsBehavior {
@@ -143,9 +126,6 @@ class JitFrameIterator
     // on a scripted frame.
     JitFrameLayout* jsFrame() const;
 
-    // Returns true iff this exit frame was created using EnsureExitFrame.
-    inline bool isFakeExitFrame() const;
-
     inline ExitFrameLayout* exitFrame() const;
 
     // Returns whether the JS frame has been invalidated and, if so,
@@ -154,7 +134,7 @@ class JitFrameIterator
     bool checkInvalidation() const;
 
     bool isExitFrame() const {
-        return type_ == JitFrame_Exit || type_ == JitFrame_LazyLink;
+        return type_ == JitFrame_Exit;
     }
     bool isScripted() const {
         return type_ == JitFrame_BaselineJS || type_ == JitFrame_IonJS || type_ == JitFrame_Bailout;
@@ -171,17 +151,17 @@ class JitFrameIterator
     bool isIonStub() const {
         return type_ == JitFrame_IonStub;
     }
+    bool isIonAccessorIC() const {
+        return type_ == JitFrame_IonAccessorIC;
+    }
     bool isBailoutJS() const {
         return type_ == JitFrame_Bailout;
     }
     bool isBaselineStub() const {
         return type_ == JitFrame_BaselineStub;
     }
-    bool isBaselineStubMaybeUnwound() const {
-        return type_ == JitFrame_BaselineStub || type_ == JitFrame_Unwound_BaselineStub;
-    }
-    bool isRectifierMaybeUnwound() const {
-        return type_ == JitFrame_Rectifier || type_ == JitFrame_Unwound_Rectifier;
+    bool isRectifier() const {
+        return type_ == JitFrame_Rectifier;
     }
     bool isBareExit() const;
     template <typename T> bool isExitFrameLayout() const;
@@ -299,6 +279,8 @@ class JitProfilingFrameIterator
                           bool forLastCallSite);
     void fixBaselineDebugModeOSRReturnAddress();
 
+    void moveToNextFrame(CommonFrameLayout* frame);
+
   public:
     JitProfilingFrameIterator(JSRuntime* rt,
                               const JS::ProfilingFrameIterator::RegisterState& state);
@@ -317,7 +299,7 @@ class RInstructionResults
 {
     // Vector of results of recover instructions.
     typedef mozilla::Vector<RelocatableValue, 1, SystemAllocPolicy> Values;
-    mozilla::UniquePtr<Values, JS::DeletePolicy<Values> > results_;
+    UniquePtr<Values> results_;
 
     // The frame pointer is used as a key to check if the current frame already
     // bailed out.
@@ -338,6 +320,9 @@ class RInstructionResults
 
     bool init(JSContext* cx, uint32_t numResults);
     bool isInitialized() const;
+#ifdef DEBUG
+    size_t length() const;
+#endif
 
     JitFrameLayout* frame() const;
 
@@ -410,7 +395,7 @@ class SnapshotIterator
     SnapshotReader snapshot_;
     RecoverReader recover_;
     JitFrameLayout* fp_;
-    MachineState machine_;
+    const MachineState* machine_;
     IonScript* ionScript_;
     RInstructionResults* instructionResults_;
 
@@ -429,17 +414,17 @@ class SnapshotIterator
   private:
     // Read a spilled register from the machine state.
     bool hasRegister(Register reg) const {
-        return machine_.has(reg);
+        return machine_->has(reg);
     }
     uintptr_t fromRegister(Register reg) const {
-        return machine_.read(reg);
+        return machine_->read(reg);
     }
 
     bool hasRegister(FloatRegister reg) const {
-        return machine_.has(reg);
+        return machine_->has(reg);
     }
     double fromRegister(FloatRegister reg) const {
-        return machine_.read(reg);
+        return machine_->read(reg);
     }
 
     // Read an uintptr_t from the stack.
@@ -463,7 +448,7 @@ class SnapshotIterator
 
   private:
     friend class RSimdBox;
-    const FloatRegisters::RegisterContent* floatAllocationPointer(const RValueAllocation &a) const;
+    const FloatRegisters::RegisterContent* floatAllocationPointer(const RValueAllocation& a) const;
 
   public:
     // Handle iterating over RValueAllocations of the snapshots.
@@ -550,9 +535,7 @@ class SnapshotIterator
     // Connect all informations about the current script in order to recover the
     // content of baseline frames.
 
-    SnapshotIterator(IonScript* ionScript, SnapshotOffset snapshotOffset,
-                     JitFrameLayout* fp, const MachineState& machine);
-    explicit SnapshotIterator(const JitFrameIterator& iter);
+    SnapshotIterator(const JitFrameIterator& iter, const MachineState* machineState);
     SnapshotIterator();
 
     Value read() {
@@ -656,6 +639,9 @@ class InlineFrameIterator
     RootedScript script_;
     jsbytecode* pc_;
     uint32_t numActualArgs_;
+
+    // Register state, used by all snapshot iterators.
+    MachineState machine_;
 
     struct Nop {
         void operator()(const Value& v) { }
@@ -815,8 +801,7 @@ class InlineFrameIterator
         return computeScopeChain(v, fallback);
     }
 
-    Value thisValue(MaybeReadFallback& fallback) const {
-        // MOZ_ASSERT(isConstructing(...));
+    Value thisArgument(MaybeReadFallback& fallback) const {
         SnapshotIterator s(si_);
 
         // scopeChain

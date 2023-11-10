@@ -101,7 +101,7 @@ NewFullyAllocatedArrayForCallingAllocationSite(JSContext* cx, size_t length,
                                                bool forceAnalyze = false);
 
 extern JSObject*
-NewPartlyAllocatedArrayForCallingAllocationSite(JSContext* cx, size_t length);
+NewPartlyAllocatedArrayForCallingAllocationSite(JSContext* cx, size_t length, HandleObject proto);
 
 enum class ShouldUpdateTypes
 {
@@ -116,7 +116,8 @@ NewCopiedArrayTryUseGroup(ExclusiveContext* cx, HandleObjectGroup group,
                           ShouldUpdateTypes updateTypes = ShouldUpdateTypes::Update);
 
 extern JSObject*
-NewCopiedArrayForCallingAllocationSite(JSContext* cx, const Value* vp, size_t length);
+NewCopiedArrayForCallingAllocationSite(JSContext* cx, const Value* vp, size_t length,
+                                       HandleObject proto = nullptr);
 
 /*
  * Determines whether a write to the given element on |obj| should fail because
@@ -163,27 +164,17 @@ extern bool
 array_pop(JSContext* cx, unsigned argc, js::Value* vp);
 
 extern bool
-array_splice(JSContext* cx, unsigned argc, js::Value* vp);
-
-extern bool
 array_splice_impl(JSContext* cx, unsigned argc, js::Value* vp, bool pop);
 
 extern bool
 array_concat(JSContext* cx, unsigned argc, js::Value* vp);
 
-template <bool Locale>
-JSString*
-ArrayJoin(JSContext* cx, HandleObject obj, HandleLinearString sepstr, uint32_t length);
-
 extern bool
 array_concat_dense(JSContext* cx, HandleObject arr1, HandleObject arr2,
                    HandleObject result);
 
-bool
+extern bool
 array_join(JSContext* cx, unsigned argc, js::Value* vp);
-
-extern JSString*
-array_join_impl(JSContext* cx, HandleValue array, HandleString sep);
 
 extern void
 ArrayShiftMoveElements(JSObject* obj);
@@ -219,7 +210,7 @@ ArrayInfo(JSContext* cx, unsigned argc, Value* vp);
 #endif
 
 /* Array constructor native. Exposed only so the JIT can know its address. */
-bool
+extern bool
 ArrayConstructor(JSContext* cx, unsigned argc, Value* vp);
 
 } /* namespace js */

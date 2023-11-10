@@ -347,7 +347,7 @@ xpcAccessibleHyperText::GetEnclosingRange(nsIAccessibleTextRange** aRange)
   if (!Intl())
     return NS_ERROR_FAILURE;
 
-  nsRefPtr<xpcAccessibleTextRange> range = new xpcAccessibleTextRange;
+  RefPtr<xpcAccessibleTextRange> range = new xpcAccessibleTextRange;
   Intl()->EnclosingRange(range->mRange);
   NS_ASSERTION(range->mRange.IsValid(),
                "Should always have an enclosing range!");
@@ -371,7 +371,7 @@ xpcAccessibleHyperText::GetSelectionRanges(nsIArray** aRanges)
     do_CreateInstance(NS_ARRAY_CONTRACTID, &rv);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  nsAutoTArray<TextRange, 1> ranges;
+  AutoTArray<TextRange, 1> ranges;
   Intl()->SelectionRanges(&ranges);
   uint32_t len = ranges.Length();
   for (uint32_t idx = 0; idx < len; idx++)
@@ -419,7 +419,7 @@ xpcAccessibleHyperText::GetRangeByChild(nsIAccessible* aChild,
 
   Accessible* child = aChild->ToInternalAccessible();
   if (child) {
-    nsRefPtr<xpcAccessibleTextRange> range = new xpcAccessibleTextRange;
+    RefPtr<xpcAccessibleTextRange> range = new xpcAccessibleTextRange;
     Intl()->RangeByChild(child, range->mRange);
     if (range->mRange.IsValid())
       range.forget(aRange);
@@ -438,7 +438,7 @@ xpcAccessibleHyperText::GetRangeAtPoint(int32_t aX, int32_t aY,
   if (!Intl())
     return NS_ERROR_FAILURE;
 
-  nsRefPtr<xpcAccessibleTextRange> range = new xpcAccessibleTextRange;
+  RefPtr<xpcAccessibleTextRange> range = new xpcAccessibleTextRange;
   Intl()->RangeAtPoint(aX, aY, range->mRange);
   if (range->mRange.IsValid())
     range.forget(aRange);

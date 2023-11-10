@@ -40,8 +40,8 @@ BEGIN_TEST(testMappedArrayBuffer_bug945152)
     // Release the mapped content.
     CHECK(TestReleaseContents());
 
-    // Neuter mapped array buffer.
-    CHECK(TestNeuterObject());
+    // Detach mapped array buffer.
+    CHECK(TestDetachObject());
 
     // Clone mapped array buffer.
     CHECK(TestCloneObject());
@@ -83,7 +83,9 @@ bool VerifyObject(JS::HandleObject obj, uint32_t offset, uint32_t length, const 
         CHECK(JS_IsMappedArrayBufferObject(obj));
     else
         CHECK(!JS_IsMappedArrayBufferObject(obj));
-    const char* data = reinterpret_cast<const char*>(JS_GetArrayBufferData(obj, nogc));
+    bool sharedDummy;
+    const char* data =
+        reinterpret_cast<const char*>(JS_GetArrayBufferData(obj, &sharedDummy, nogc));
     CHECK(data);
     CHECK(memcmp(data, test_data + offset, length) == 0);
 
@@ -110,12 +112,12 @@ bool TestReleaseContents()
     return true;
 }
 
-bool TestNeuterObject()
+bool TestDetachObject()
 {
     JS::RootedObject obj(cx, CreateNewObject(8, 12));
     CHECK(obj);
-    JS_NeuterArrayBuffer(cx, obj, ChangeData);
-    CHECK(isNeutered(obj));
+    JS_DetachArrayBuffer(cx, obj, ChangeData);
+    CHECK(JS_IsDetachedArrayBufferObject(obj));
 
     return true;
 }
@@ -126,10 +128,9 @@ bool TestCloneObject()
     CHECK(obj1);
     JSAutoStructuredCloneBuffer cloned_buffer;
     JS::RootedValue v1(cx, JS::ObjectValue(*obj1));
-    const JSStructuredCloneCallbacks* callbacks = js::GetContextStructuredCloneCallbacks(cx);
-    CHECK(cloned_buffer.write(cx, v1, callbacks, nullptr));
+    CHECK(cloned_buffer.write(cx, v1, nullptr, nullptr));
     JS::RootedValue v2(cx);
-    CHECK(cloned_buffer.read(cx, &v2, callbacks, nullptr));
+    CHECK(cloned_buffer.read(cx, &v2, nullptr, nullptr));
     JS::RootedObject obj2(cx, v2.toObjectOrNull());
     CHECK(VerifyObject(obj2, 8, 12, false));
 
@@ -143,7 +144,7 @@ bool TestStealContents()
     void* contents = JS_StealArrayBufferContents(cx, obj);
     CHECK(contents);
     CHECK(memcmp(contents, test_data + 8, 12) == 0);
-    CHECK(isNeutered(obj));
+    CHECK(JS_IsDetachedArrayBufferObject(obj));
 
     return true;
 }
@@ -162,21 +163,14 @@ bool TestTransferObject()
     JS::RootedValue transferable(cx, JS::ObjectValue(*obj));
 
     JSAutoStructuredCloneBuffer cloned_buffer;
-    const JSStructuredCloneCallbacks* callbacks = js::GetContextStructuredCloneCallbacks(cx);
-    CHECK(cloned_buffer.write(cx, v1, transferable, callbacks, nullptr));
+    CHECK(cloned_buffer.write(cx, v1, transferable, nullptr, nullptr));
     JS::RootedValue v2(cx);
-    CHECK(cloned_buffer.read(cx, &v2, callbacks, nullptr));
+    CHECK(cloned_buffer.read(cx, &v2, nullptr, nullptr));
     JS::RootedObject obj2(cx, v2.toObjectOrNull());
     CHECK(VerifyObject(obj2, 8, 12, true));
-    CHECK(isNeutered(obj1));
+    CHECK(JS_IsDetachedArrayBufferObject(obj1));
 
     return true;
-}
-
-bool isNeutered(JS::HandleObject obj)
-{
-    JS::RootedValue v(cx);
-    return JS_GetProperty(cx, obj, "byteLength", &v) && v.toInt32() == 0;
 }
 
 static void GC(JSContext* cx)

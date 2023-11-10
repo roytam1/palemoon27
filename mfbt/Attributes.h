@@ -93,7 +93,7 @@
 #    if MOZ_GCC_VERSION_AT_LEAST(4, 8, 0)
 #      define MOZ_HAVE_CXX11_CONSTEXPR_IN_TEMPLATES
 #    endif
-# define MOZ_HAVE_EXPLICIT_CONVERSION
+#    define MOZ_HAVE_EXPLICIT_CONVERSION
 #  endif
 #  define MOZ_HAVE_NEVER_INLINE          __attribute__((noinline))
 #  define MOZ_HAVE_NORETURN              __attribute__((noreturn))
@@ -317,7 +317,6 @@
 #  define MOZ_ALLOCATOR
 #endif
 
-
 /**
  * MOZ_WARN_UNUSED_RESULT tells the compiler to emit a warning if a function's
  * return value is not used by the caller.
@@ -335,6 +334,46 @@
 #  define MOZ_WARN_UNUSED_RESULT __attribute__ ((warn_unused_result))
 #else
 #  define MOZ_WARN_UNUSED_RESULT
+#endif
+
+/**
+ * MOZ_FALLTHROUGH is an annotation to suppress compiler warnings about switch
+ * cases that fall through without a break or return statement. MOZ_FALLTHROUGH
+ * is only needed on cases that have code.
+ *
+ * MOZ_FALLTHROUGH_ASSERT is an annotation to suppress compiler warnings about
+ * switch cases that MOZ_ASSERT(false) (or its alias MOZ_ASSERT_UNREACHABLE) in
+ * debug builds, but intentionally fall through in release builds. See comment
+ * in Assertions.h for more details.
+ *
+ * switch (foo) {
+ *   case 1: // These cases have no code. No fallthrough annotations are needed.
+ *   case 2:
+ *   case 3: // This case has code, so a fallthrough annotation is needed!
+ *     foo++;
+ *     MOZ_FALLTHROUGH;
+ *   case 4:
+ *     return foo;
+ *
+ *   default:
+ *     // This case asserts in debug builds, falls through in release.
+ *     MOZ_FALLTHROUGH_ASSERT("Unexpected foo value?!");
+ *   case 5:
+ *     return 5;
+ * }
+ */
+#if defined(__clang__) && __cplusplus >= 201103L
+   /* clang's fallthrough annotations are only available starting in C++11. */
+#  define MOZ_FALLTHROUGH [[clang::fallthrough]]
+#elif defined(_MSC_VER)
+   /*
+    * MSVC's __fallthrough annotations are checked by /analyze (Code Analysis):
+    * https://msdn.microsoft.com/en-us/library/ms235402%28VS.80%29.aspx
+    */
+#  include <sal.h>
+#  define MOZ_FALLTHROUGH __fallthrough
+#else
+#  define MOZ_FALLTHROUGH /* FALLTHROUGH */
 #endif
 
 #ifdef __cplusplus

@@ -38,9 +38,7 @@ config = {
     'tools_dir': "/tools",
     'compiler_manifest': "build/gcc.manifest",
     'b2g_compiler_manifest': "build/gcc-b2g.manifest",
-    'compiler_setup': "setup.sh.gcc",
     'sixgill_manifest': "build/sixgill.manifest",
-    'sixgill_setup': "setup.sh.sixgill",
 
     # Mock.
     "mock_packages": [
@@ -71,6 +69,7 @@ config = {
         'pulseaudio-libs-devel',
         'freetype-2.3.11-6.el6_1.8.x86_64',
         'freetype-devel-2.3.11-6.el6_1.8.x86_64',
+        'gstreamer-devel', 'gstreamer-plugins-base-devel',
     ],
     "mock_files": [
         ("/home/cltbld/.ssh", "/home/mock_mozilla/.ssh"),

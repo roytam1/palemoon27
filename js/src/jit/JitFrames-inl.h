@@ -48,26 +48,10 @@ JitFrameIterator::prevType() const
     return current->prevType();
 }
 
-inline bool
-JitFrameIterator::isFakeExitFrame() const
-{
-    if (type() == JitFrame_LazyLink)
-        return false;
-    bool res = (prevType() == JitFrame_Unwound_Rectifier ||
-                prevType() == JitFrame_Unwound_IonJS ||
-                prevType() == JitFrame_Unwound_BaselineJS ||
-                prevType() == JitFrame_Unwound_BaselineStub ||
-                prevType() == JitFrame_Unwound_IonAccessorIC ||
-                (prevType() == JitFrame_Entry && type() == JitFrame_Exit));
-    MOZ_ASSERT_IF(res, type() == JitFrame_Exit || type() == JitFrame_BaselineJS);
-    return res;
-}
-
 inline ExitFrameLayout*
 JitFrameIterator::exitFrame() const
 {
     MOZ_ASSERT(isExitFrame());
-    MOZ_ASSERT(!isFakeExitFrame());
     return (ExitFrameLayout*) fp();
 }
 

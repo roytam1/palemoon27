@@ -9,7 +9,6 @@
 
 #include "mozilla/HashFunctions.h"
 #include "mozilla/PodOperations.h"
-#include "mozilla/UniquePtr.h"
 #include "mozilla/TextUtils.h"
 
 #include "jsutil.h"
@@ -17,6 +16,7 @@
 
 #include "gc/Rooting.h"
 #include "js/RootingAPI.h"
+#include "js/UniquePtr.h"
 #include "vm/Printer.h"
 #include "vm/Unicode.h"
 
@@ -115,20 +115,30 @@ js_strncpy(char16_t* dst, const char16_t* src, size_t nelem)
 namespace js {
 
 /* Initialize the String class, returning its prototype object. */
-extern JSObject *
-InitStringClass(JSContext *cx, HandleObject obj);
+extern JSObject*
+InitStringClass(JSContext* cx, HandleObject obj);
 
 /*
  * Convert a value to a printable C string.
  */
-extern const char *
-ValueToPrintable(JSContext *cx, const Value &, JSAutoByteString *bytes, bool asSource = false);
+extern const char*
+ValueToPrintable(JSContext* cx, const Value&, JSAutoByteString* bytes, bool asSource = false);
 
-extern mozilla::UniquePtr<char[], JS::FreePolicy>
+extern UniqueChars
 DuplicateString(ExclusiveContext* cx, const char* s);
 
-extern mozilla::UniquePtr<char16_t[], JS::FreePolicy>
+extern UniqueTwoByteChars
 DuplicateString(ExclusiveContext* cx, const char16_t* s);
+
+/*
+ * These variants do not report OOMs, you must arrange for OOMs to be reported
+ * yourself.
+ */
+extern UniqueChars
+DuplicateString(const char* s);
+
+extern UniqueTwoByteChars
+DuplicateString(const char16_t* s);
 
 /*
  * Convert a non-string value to a string, returning null after reporting an
@@ -219,6 +229,10 @@ StringHasPattern(JSLinearString* text, const char16_t* pat, uint32_t patlen);
 
 extern int
 StringFindPattern(JSLinearString* text, JSLinearString* pat, size_t start);
+
+/* Return true if the string contains a pattern at |start|. */
+extern bool
+HasSubstringAt(JSLinearString* text, JSLinearString* pat, size_t start);
 
 template <typename CharT>
 extern bool
@@ -338,9 +352,9 @@ extern bool
 str_charCodeAt(JSContext* cx, unsigned argc, Value* vp);
 /*
  * Convert one UCS-4 char and write it into a UTF-8 buffer, which must be at
- * least 6 bytes long.  Return the number of UTF-8 bytes of data written.
+ * least 4 bytes long.  Return the number of UTF-8 bytes of data written.
  */
-extern int
+extern uint32_t
 OneUcs4ToUtf8Char(uint8_t* utf8Buffer, uint32_t ucs4Char);
 
 extern size_t
@@ -429,13 +443,13 @@ str_split(JSContext* cx, unsigned argc, Value* vp);
 JSObject*
 str_split_string(JSContext* cx, HandleObjectGroup group, HandleString str, HandleString sep);
 
-bool
-str_replace_regexp_raw(JSContext* cx, HandleString string, HandleObject regexp,
-                       HandleString replacement, MutableHandleValue rval);
+JSString *
+str_flat_replace_string(JSContext *cx, HandleString string, HandleString pattern,
+                        HandleString replacement);
 
-bool
+JSString*
 str_replace_string_raw(JSContext* cx, HandleString string, HandleString pattern,
-                       HandleString replacement, MutableHandleValue rval);
+                       HandleString replacement);
 
 extern bool
 StringConstructor(JSContext* cx, unsigned argc, Value* vp);

@@ -54,11 +54,6 @@ private:
                                uint32_t aThisIndex);
 
   /**
-   * Notify the parent process of events being fired by this event queue.
-   */
-  void SendIPCEvent(AccEvent* aEvent) const;
-
-  /**
    * Coalesce text change events caused by sibling hide events.
    */
   void CoalesceTextChangeEventsFor(AccHideEvent* aTailEvent,
@@ -81,10 +76,10 @@ protected:
   DocAccessible* mDocument;
 
   /**
-   * Pending events array. Don't make this an nsAutoTArray; we use
+   * Pending events array. Don't make this an AutoTArray; we use
    * SwapElements() on it.
    */
-  nsTArray<nsRefPtr<AccEvent> > mEvents;
+  nsTArray<RefPtr<AccEvent> > mEvents;
 };
 
 } // namespace a11y

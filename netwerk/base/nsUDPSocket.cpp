@@ -15,11 +15,13 @@
 #include "nsError.h"
 #include "nsNetCID.h"
 #include "nsNetUtil.h"
+#include "nsIOService.h"
 #include "prnetdb.h"
 #include "prio.h"
 #include "nsNetAddr.h"
 #include "nsNetSegmentUtils.h"
 #include "NetworkActivityMonitor.h"
+#include "nsServiceManagerUtils.h"
 #include "nsStreamUtils.h"
 #include "nsIPipe.h"
 #include "prerror.h"
@@ -35,8 +37,8 @@
 using namespace mozilla::net;
 using namespace mozilla;
 
-static NS_DEFINE_CID(kSocketTransportServiceCID, NS_SOCKETTRANSPORTSERVICE_CID);
 static const uint32_t UDP_PACKET_CHUNK_SIZE = 1400;
+static NS_DEFINE_CID(kSocketTransportServiceCID2, NS_SOCKETTRANSPORTSERVICE_CID);
 
 //-----------------------------------------------------------------------------
 
@@ -86,174 +88,9 @@ public:
   }
 
 private:
-  nsRefPtr<nsUDPSocket> mSocket;
+  RefPtr<nsUDPSocket> mSocket;
   PRSocketOptionData    mOpt;
 };
-
-//-----------------------------------------------------------------------------
-// nsUDPSocketCloseThread
-//-----------------------------------------------------------------------------
-
-// A helper class carrying call to PR_Close on nsUDPSocket's FD to a separate
-// thread.  This may be a workaround for shutdown blocks that are caused by
-// serial calls to close on UDP sockets.
-// It starts an NSPR thread for each socket and also adds itself as an observer
-// to "xpcom-shutdown-threads" notification where we join the thread (if not
-// already done). During worktime of the thread the class is also
-// self-referenced, since observer service might throw the reference away
-// sooner than the thread is actually done.
-class nsUDPSocketCloseThread : public nsIObserver
-{
-public:
-  NS_DECL_THREADSAFE_ISUPPORTS
-  NS_DECL_NSIOBSERVER
-
-  static bool Close(PRFileDesc *aFd);
-
-private:
-  explicit nsUDPSocketCloseThread(PRFileDesc *aFd);
-  virtual ~nsUDPSocketCloseThread() { }
-
-  bool Begin();
-  void ThreadFunc();
-  void AddObserver();
-  void JoinAndRemove();
-
-  static void ThreadFunc(void *aClosure)
-    { static_cast<nsUDPSocketCloseThread*>(aClosure)->ThreadFunc(); }
-
-  // Socket to close.
-  PRFileDesc *mFd;
-  PRThread *mThread;
-
-  // Self reference, added before we create the thread, dropped
-  // after the thread is done (from the thread).  No races, since
-  // mSelf is assigned bofore the thread func is executed and
-  // released only on the thread func.
-  nsRefPtr<nsUDPSocketCloseThread> mSelf;
-
-  // Switches to true on "xpcom-shutdown-threads" notification and since
-  // then it makes the code fallback to a direct call to PR_Close().
-  static bool sPastShutdown;
-};
-
-bool nsUDPSocketCloseThread::sPastShutdown = false;
-
-NS_IMPL_ISUPPORTS(nsUDPSocketCloseThread, nsIObserver);
-
-bool
-nsUDPSocketCloseThread::Close(PRFileDesc *aFd)
-{
-  if (sPastShutdown) {
-    return false;
-  }
-
-  nsRefPtr<nsUDPSocketCloseThread> t = new nsUDPSocketCloseThread(aFd);
-  return t->Begin();
-}
-
-nsUDPSocketCloseThread::nsUDPSocketCloseThread(PRFileDesc *aFd)
-  : mFd(aFd)
-  , mThread(nullptr)
-{
-}
-
-bool
-nsUDPSocketCloseThread::Begin()
-{
-  // Observer service must be worked with on the main thread only.
-  // This method is called usually on the socket thread.
-  // Register us before the thread starts.  It may happen the thread is
-  // done and posts removal event sooner then we would post this event
-  // after the thread creation.
-  nsCOMPtr<nsIRunnable> event = NS_NewRunnableMethod(
-    this, &nsUDPSocketCloseThread::AddObserver);
-  if (event) {
-    NS_DispatchToMainThread(event);
-  }
-
-  // Keep us self-referenced during lifetime of the thread.
-  // Released after the thread is done.
-  mSelf = this;
-  mThread = PR_CreateThread(PR_USER_THREAD, ThreadFunc, this,
-                            PR_PRIORITY_NORMAL, PR_GLOBAL_THREAD,
-                            PR_JOINABLE_THREAD, 4 * 4096);
-  if (!mThread) {
-    // This doesn't join since there is no thread, just removes
-    // this class as an observer.
-    JoinAndRemove();
-    mSelf = nullptr;
-    return false;
-  }
-
-  return true;
-}
-
-void
-nsUDPSocketCloseThread::AddObserver()
-{
-  MOZ_ASSERT(NS_IsMainThread());
-
-  nsCOMPtr<nsIObserverService> obs = services::GetObserverService();
-  if (obs) {
-    obs->AddObserver(this, "xpcom-shutdown-threads", false);
-  }
-}
-
-void
-nsUDPSocketCloseThread::JoinAndRemove()
-{
-  // Posted from the particular (this) UDP close socket when it's done
-  // or from "xpcom-shutdown-threads" notification.
-  MOZ_ASSERT(NS_IsMainThread());
-
-  if (mThread) {
-    PR_JoinThread(mThread);
-    mThread = nullptr;
-
-  }
-
-  nsCOMPtr<nsIObserverService> obs = services::GetObserverService();
-  if (obs) {
-    obs->RemoveObserver(this, "xpcom-shutdown-threads");
-  }
-}
-
-NS_IMETHODIMP
-nsUDPSocketCloseThread::Observe(nsISupports *aSubject,
-                                const char *aTopic,
-                                const char16_t *aData)
-{
-  MOZ_ASSERT(NS_IsMainThread());
-
-  if (!strcmp(aTopic, "xpcom-shutdown-threads")) {
-    sPastShutdown = true;
-    JoinAndRemove();
-    return NS_OK;
-  }
-
-  MOZ_CRASH("Unexpected observer topic");
-  return NS_OK;
-}
-
-void
-nsUDPSocketCloseThread::ThreadFunc()
-{
-  PR_SetCurrentThreadName("UDP socket close");
-
-  PR_Close(mFd);
-  mFd = nullptr;
-
-  // Join and remove the observer on the main thread.
-  nsCOMPtr<nsIRunnable> event = NS_NewRunnableMethod(
-    this, &nsUDPSocketCloseThread::JoinAndRemove);
-  if (event) {
-    NS_DispatchToMainThread(event);
-  }
-
-  // Thread's done, release the self-reference.
-  mSelf = nullptr;
-}
 
 //-----------------------------------------------------------------------------
 // nsUDPOutputStream impl
@@ -426,7 +263,7 @@ nsUDPSocket::nsUDPSocket()
   {
     // This call can fail if we're offline, for example.
     nsCOMPtr<nsISocketTransportService> sts =
-        do_GetService(kSocketTransportServiceCID);
+        do_GetService(kSocketTransportServiceCID2);
   }
 
   mSts = gSocketTransportService;
@@ -436,9 +273,7 @@ nsUDPSocket::nsUDPSocket()
 nsUDPSocket::~nsUDPSocket()
 {
   if (mFD) {
-    if (!nsUDPSocketCloseThread::Close(mFD)) {
-      PR_Close(mFD);
-    }
+    PR_Close(mFD);
     mFD = nullptr;
   }
 
@@ -495,6 +330,10 @@ nsUDPSocket::TryAttach()
 
   if (!gSocketTransportService)
     return NS_ERROR_FAILURE;
+
+  if (gIOService->IsNetTearingDown()) {
+    return NS_ERROR_FAILURE;
+  }
 
   //
   // find out if it is going to be ok to attach another socket to the STS.
@@ -624,7 +463,9 @@ nsUDPSocket::OnSocketReady(PRFileDesc *fd, int16_t outFlags)
 
   PRNetAddr prClientAddr;
   uint32_t count;
-  char buff[1500];
+  // Bug 1165423 - using 8k here because the packet could be larger
+  // than the MTU with fragmentation
+  char buff[8 * 1024];
   count = PR_RecvFrom(mFD, buff, sizeof(buff), 0, &prClientAddr, PR_INTERVAL_NO_WAIT);
 
   if (count < 1) {
@@ -654,7 +495,7 @@ nsUDPSocket::OnSocketReady(PRFileDesc *fd, int16_t outFlags)
     return;
   }
 
-  nsRefPtr<nsUDPOutputStream> os = new nsUDPOutputStream(this, mFD, prClientAddr);
+  RefPtr<nsUDPOutputStream> os = new nsUDPOutputStream(this, mFD, prClientAddr);
   rv = NS_AsyncCopy(pipeIn, os, mSts,
                     NS_ASYNCCOPY_VIA_READSEGMENTS, UDP_PACKET_CHUNK_SIZE);
 
@@ -678,9 +519,7 @@ nsUDPSocket::OnSocketDetached(PRFileDesc *fd)
   if (mFD)
   {
     NS_ASSERTION(mFD == fd, "wrong file descriptor");
-    if (!nsUDPSocketCloseThread::Close(mFD)) {
-      PR_Close(mFD);
-    }
+    PR_Close(mFD);
     mFD = nullptr;
   }
   SaveNetworkStats(true);
@@ -744,6 +583,10 @@ nsUDPSocket::InitWithAddress(const NetAddr *aAddr, nsIPrincipal *aPrincipal,
                              bool aAddressReuse, uint8_t aOptionalArgc)
 {
   NS_ENSURE_TRUE(mFD == nullptr, NS_ERROR_ALREADY_INITIALIZED);
+
+  if (gIOService->IsNetTearingDown()) {
+    return NS_ERROR_FAILURE;
+  }
 
   bool addressReuse = (aOptionalArgc == 1) ? aAddressReuse : true;
 
@@ -832,6 +675,41 @@ fail:
 }
 
 NS_IMETHODIMP
+nsUDPSocket::Connect(const NetAddr *aAddr)
+{
+  UDPSOCKET_LOG(("nsUDPSocket::Connect [this=%p]\n", this));
+
+  NS_ENSURE_ARG(aAddr);
+
+  bool onSTSThread = false;
+  mSts->IsOnCurrentThread(&onSTSThread);
+  NS_ASSERTION(onSTSThread, "NOT ON STS THREAD");
+  if (!onSTSThread) {
+    return NS_ERROR_FAILURE;
+  }
+
+  PRNetAddr prAddr;
+  NetAddrToPRNetAddr(aAddr, &prAddr);
+
+  if (PR_Connect(mFD, &prAddr, PR_INTERVAL_NO_WAIT) != PR_SUCCESS) {
+    NS_WARNING("Cannot PR_Connect");
+    return NS_ERROR_FAILURE;
+  }
+
+  // get the resulting socket address, which may have been updated.
+  PRNetAddr addr;
+  if (PR_GetSockName(mFD, &addr) != PR_SUCCESS)
+  {
+    NS_WARNING("cannot get socket name");
+    return NS_ERROR_FAILURE;
+  }
+
+  PRNetAddrToNetAddr(&addr, &mAddr);
+
+  return NS_OK;
+}
+
+NS_IMETHODIMP
 nsUDPSocket::Close()
 {
   {
@@ -875,14 +753,6 @@ nsUDPSocket::GetLocalAddr(nsINetAddr * *aResult)
   return NS_OK;
 }
 
-NS_IMETHODIMP
-nsUDPSocket::GetAddress(NetAddr *aResult)
-{
-  // no need to enter the lock here
-  memcpy(aResult, &mAddr, sizeof(mAddr));
-  return NS_OK;
-}
-
 void
 nsUDPSocket::SaveNetworkStats(bool aEnforce)
 {
@@ -899,7 +769,7 @@ nsUDPSocket::SaveNetworkStats(bool aEnforce)
   if (aEnforce || total > NETWORK_STATS_THRESHOLD) {
     // Create the event to save the network statistics.
     // the event is then dispathed to the main thread.
-    nsRefPtr<nsRunnable> event =
+    RefPtr<nsRunnable> event =
       new SaveNetworkStatsEvent(mAppId, mIsInBrowserElement, mActiveNetworkInfo,
                                 mByteReadCount, mByteWriteCount, false);
     NS_DispatchToMainThread(event);
@@ -909,6 +779,14 @@ nsUDPSocket::SaveNetworkStats(bool aEnforce)
     mByteWriteCount = 0;
   }
 #endif
+}
+
+NS_IMETHODIMP
+nsUDPSocket::GetAddress(NetAddr *aResult)
+{
+  // no need to enter the lock here
+  memcpy(aResult, &mAddr, sizeof(mAddr));
+  return NS_OK;
 }
 
 namespace {
@@ -978,7 +856,7 @@ NS_IMETHODIMP
 SocketListenerProxy::OnPacketReceived(nsIUDPSocket* aSocket,
                                       nsIUDPMessage* aMessage)
 {
-  nsRefPtr<OnPacketReceivedRunnable> r =
+  RefPtr<OnPacketReceivedRunnable> r =
     new OnPacketReceivedRunnable(mListener, aSocket, aMessage);
   return mTargetThread->Dispatch(r, NS_DISPATCH_NORMAL);
 }
@@ -987,7 +865,7 @@ NS_IMETHODIMP
 SocketListenerProxy::OnStopListening(nsIUDPSocket* aSocket,
                                      nsresult aStatus)
 {
-  nsRefPtr<OnStopListeningRunnable> r =
+  RefPtr<OnStopListeningRunnable> r =
     new OnStopListeningRunnable(mListener, aSocket, aStatus);
   return mTargetThread->Dispatch(r, NS_DISPATCH_NORMAL);
 }
@@ -1083,7 +961,7 @@ NS_IMETHODIMP
 SocketListenerProxyBackground::OnPacketReceived(nsIUDPSocket* aSocket,
                                                 nsIUDPMessage* aMessage)
 {
-  nsRefPtr<OnPacketReceivedRunnable> r =
+  RefPtr<OnPacketReceivedRunnable> r =
     new OnPacketReceivedRunnable(mListener, aSocket, aMessage);
   return mTargetThread->Dispatch(r, NS_DISPATCH_NORMAL);
 }
@@ -1092,7 +970,7 @@ NS_IMETHODIMP
 SocketListenerProxyBackground::OnStopListening(nsIUDPSocket* aSocket,
                                                nsresult aStatus)
 {
-  nsRefPtr<OnStopListeningRunnable> r =
+  RefPtr<OnStopListeningRunnable> r =
     new OnStopListeningRunnable(mListener, aSocket, aStatus);
   return mTargetThread->Dispatch(r, NS_DISPATCH_NORMAL);
 }
@@ -1143,7 +1021,7 @@ public:
 private:
   virtual ~PendingSend() {}
 
-  nsRefPtr<nsUDPSocket> mSocket;
+  RefPtr<nsUDPSocket> mSocket;
   uint16_t mPort;
   FallibleTArray<uint8_t> mData;
 };
@@ -1186,7 +1064,7 @@ public:
 private:
   virtual ~PendingSendStream() {}
 
-  nsRefPtr<nsUDPSocket> mSocket;
+  RefPtr<nsUDPSocket> mSocket;
   uint16_t mPort;
   nsCOMPtr<nsIInputStream> mStream;
 };
@@ -1225,7 +1103,7 @@ public:
   NS_DECL_NSIRUNNABLE
 
 private:
-  nsRefPtr<nsUDPSocket> mSocket;
+  RefPtr<nsUDPSocket> mSocket;
   const NetAddr mAddr;
   FallibleTArray<uint8_t> mData;
 };
@@ -1364,7 +1242,7 @@ nsUDPSocket::SendBinaryStreamWithAddress(const NetAddr *aAddr, nsIInputStream *a
   PR_InitializeNetAddr(PR_IpAddrAny, 0, &prAddr);
   NetAddrToPRNetAddr(aAddr, &prAddr);
 
-  nsRefPtr<nsUDPOutputStream> os = new nsUDPOutputStream(this, mFD, prAddr);
+  RefPtr<nsUDPOutputStream> os = new nsUDPOutputStream(this, mFD, prAddr);
   return NS_AsyncCopy(aStream, os, mSts, NS_ASYNCCOPY_VIA_READSEGMENTS,
                       UDP_PACKET_CHUNK_SIZE);
 }

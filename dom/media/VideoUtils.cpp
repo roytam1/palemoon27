@@ -3,21 +3,27 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "VideoUtils.h"
+
+#include "mozilla/Preferences.h"
+#include "mozilla/Base64.h"
+#include "mozilla/TaskQueue.h"
+#include "mozilla/Telemetry.h"
+#include "mozilla/Function.h"
+
 #include "MediaResource.h"
 #include "TimeUnits.h"
 #include "nsMathUtils.h"
 #include "nsSize.h"
 #include "VorbisUtils.h"
 #include "ImageContainer.h"
-#include "SharedThreadPool.h"
-#include "mozilla/Preferences.h"
-#include "mozilla/Base64.h"
-#include "mozilla/Function.h"
+#include "mozilla/SharedThreadPool.h"
 #include "nsIRandomGenerator.h"
 #include "nsIServiceManager.h"
+#include "nsServiceManagerUtils.h"
+#include "nsIConsoleService.h"
+#include "nsThreadUtils.h"
 #include "nsCharSeparatedTokenizer.h"
 #include "nsContentTypeParser.h"
-#include "MediaTaskQueue.h"
 
 #include <stdint.h>
 
@@ -188,6 +194,23 @@ int DownmixAudioToStereo(mozilla::AudioDataValue* buffer,
   return outChannels;
 }
 
+void DownmixStereoToMono(mozilla::AudioDataValue* aBuffer,
+                         uint32_t aFrames)
+{
+  MOZ_ASSERT(aBuffer);
+  const int channels = 2;
+  for (uint32_t fIdx = 0; fIdx < aFrames; ++fIdx) {
+#ifdef MOZ_SAMPLE_TYPE_FLOAT32
+    float sample = 0.0;
+#else
+    int sample = 0;
+#endif
+    // The sample of the buffer would be interleaved.
+    sample = (aBuffer[fIdx*channels] + aBuffer[fIdx*channels + 1]) * 0.5;
+    aBuffer[fIdx*channels] = aBuffer[fIdx*channels + 1] = sample;
+  }
+}
+
 bool
 IsVideoContentType(const nsCString& aContentType)
 {
@@ -229,7 +252,7 @@ already_AddRefed<SharedThreadPool> GetMediaThreadPool(MediaThreadType aType)
       name = "MediaPDecoder";
       break;
     default:
-      MOZ_ASSERT(false);
+      MOZ_FALLTHROUGH_ASSERT("Unexpected MediaThreadType");
     case MediaThreadType::PLAYBACK:
       name = "MediaPlayback";
       break;
@@ -318,46 +341,114 @@ GenerateRandomPathName(nsCString& aOutSalt, uint32_t aLength)
   return NS_OK;
 }
 
-class CreateTaskQueueTask : public nsRunnable {
-public:
-  NS_IMETHOD Run() {
-    MOZ_ASSERT(NS_IsMainThread());
-    mTaskQueue =
-      new MediaTaskQueue(GetMediaThreadPool(MediaThreadType::PLATFORM_DECODER));
-    return NS_OK;
-  }
-  nsRefPtr<MediaTaskQueue> mTaskQueue;
-};
-
-class CreateFlushableTaskQueueTask : public nsRunnable {
-public:
-  NS_IMETHOD Run() {
-    MOZ_ASSERT(NS_IsMainThread());
-    mTaskQueue =
-      new FlushableMediaTaskQueue(GetMediaThreadPool(MediaThreadType::PLATFORM_DECODER));
-    return NS_OK;
-  }
-  nsRefPtr<FlushableMediaTaskQueue> mTaskQueue;
-};
-
-already_AddRefed<MediaTaskQueue>
+already_AddRefed<TaskQueue>
 CreateMediaDecodeTaskQueue()
 {
-  // We must create the MediaTaskQueue/SharedThreadPool on the main thread.
-  nsRefPtr<CreateTaskQueueTask> t(new CreateTaskQueueTask());
-  nsresult rv = NS_DispatchToMainThread(t, NS_DISPATCH_SYNC);
-  NS_ENSURE_SUCCESS(rv, nullptr);
-  return t->mTaskQueue.forget();
+  RefPtr<TaskQueue> queue = new TaskQueue(
+    GetMediaThreadPool(MediaThreadType::PLATFORM_DECODER));
+  return queue.forget();
 }
 
-already_AddRefed<FlushableMediaTaskQueue>
+already_AddRefed<FlushableTaskQueue>
 CreateFlushableMediaDecodeTaskQueue()
 {
-  // We must create the MediaTaskQueue/SharedThreadPool on the main thread.
-  nsRefPtr<CreateFlushableTaskQueueTask> t(new CreateFlushableTaskQueueTask());
-  nsresult rv = NS_DispatchToMainThread(t, NS_DISPATCH_SYNC);
-  NS_ENSURE_SUCCESS(rv, nullptr);
-  return t->mTaskQueue.forget();
+  RefPtr<FlushableTaskQueue> queue = new FlushableTaskQueue(
+    GetMediaThreadPool(MediaThreadType::PLATFORM_DECODER));
+  return queue.forget();
+}
+
+void
+SimpleTimer::Cancel() {
+  if (mTimer) {
+#ifdef DEBUG
+    nsCOMPtr<nsIEventTarget> target;
+    mTimer->GetTarget(getter_AddRefs(target));
+    nsCOMPtr<nsIThread> thread(do_QueryInterface(target));
+    MOZ_ASSERT(NS_GetCurrentThread() == thread);
+#endif
+    mTimer->Cancel();
+    mTimer = nullptr;
+  }
+  mTask = nullptr;
+}
+
+NS_IMETHODIMP
+SimpleTimer::Notify(nsITimer *timer) {
+  RefPtr<SimpleTimer> deathGrip(this);
+  if (mTask) {
+    mTask->Run();
+    mTask = nullptr;
+  }
+  return NS_OK;
+}
+
+nsresult
+SimpleTimer::Init(nsIRunnable* aTask, uint32_t aTimeoutMs, nsIThread* aTarget)
+{
+  nsresult rv;
+
+  // Get target thread first, so we don't have to cancel the timer if it fails.
+  nsCOMPtr<nsIThread> target;
+  if (aTarget) {
+    target = aTarget;
+  } else {
+    rv = NS_GetMainThread(getter_AddRefs(target));
+    if (NS_FAILED(rv)) {
+      return rv;
+    }
+  }
+
+  nsCOMPtr<nsITimer> timer = do_CreateInstance(NS_TIMER_CONTRACTID, &rv);
+  if (NS_FAILED(rv)) {
+    return rv;
+  }
+  // Note: set target before InitWithCallback in case the timer fires before
+  // we change the event target.
+  rv = timer->SetTarget(aTarget);
+  if (NS_FAILED(rv)) {
+    timer->Cancel();
+    return rv;
+  }
+  rv = timer->InitWithCallback(this, aTimeoutMs, nsITimer::TYPE_ONE_SHOT);
+  if (NS_FAILED(rv)) {
+    return rv;
+  }
+
+  mTimer = timer.forget();
+  mTask = aTask;
+  return NS_OK;
+}
+
+NS_IMPL_ISUPPORTS(SimpleTimer, nsITimerCallback)
+
+already_AddRefed<SimpleTimer>
+SimpleTimer::Create(nsIRunnable* aTask, uint32_t aTimeoutMs, nsIThread* aTarget)
+{
+  RefPtr<SimpleTimer> t(new SimpleTimer());
+  if (NS_FAILED(t->Init(aTask, aTimeoutMs, aTarget))) {
+    return nullptr;
+  }
+  return t.forget();
+}
+
+void
+LogToBrowserConsole(const nsAString& aMsg)
+{
+  if (!NS_IsMainThread()) {
+    nsString msg(aMsg);
+    nsCOMPtr<nsIRunnable> task =
+      NS_NewRunnableFunction([msg]() { LogToBrowserConsole(msg); });
+    NS_DispatchToMainThread(task.forget(), NS_DISPATCH_NORMAL);
+    return;
+  }
+  nsCOMPtr<nsIConsoleService> console(
+    do_GetService("@mozilla.org/consoleservice;1"));
+  if (!console) {
+    NS_WARNING("Failed to log message to console.");
+    return;
+  }
+  nsAutoString msg(aMsg);
+  console->LogStringMessage(msg.get());
 }
 
 bool

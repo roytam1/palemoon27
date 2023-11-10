@@ -35,18 +35,11 @@ protected:
   DeallocPTelephonyRequestChild(PTelephonyRequestChild* aActor) override;
 
   virtual bool
-  RecvNotifyCallError(const uint32_t& aClientId, const int32_t& aCallIndex,
-                      const nsString& aError) override;
-
-  virtual bool
-  RecvNotifyCallStateChanged(nsITelephonyCallInfo* const& aInfo) override;
+  RecvNotifyCallStateChanged(nsTArray<nsITelephonyCallInfo*>&& aAllInfo) override;
 
   virtual bool
   RecvNotifyCdmaCallWaiting(const uint32_t& aClientId,
                             const IPCCdmaWaitingCallData& aData) override;
-
-  virtual bool
-  RecvNotifyConferenceCallStateChanged(const uint16_t& aCallState) override;
 
   virtual bool
   RecvNotifyConferenceError(const nsString& aName,
@@ -58,7 +51,7 @@ protected:
                                  const uint16_t& aNotification) override;
 
 private:
-  nsRefPtr<TelephonyIPCService> mService;
+  RefPtr<TelephonyIPCService> mService;
 };
 
 class TelephonyRequestChild : public PTelephonyRequestChild

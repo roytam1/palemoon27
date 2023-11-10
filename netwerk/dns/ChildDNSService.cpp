@@ -43,6 +43,7 @@ NS_IMPL_ISUPPORTS(ChildDNSService,
 ChildDNSService::ChildDNSService()
   : mFirstTime(true)
   , mOffline(false)
+  , mDisablePrefetch(false)
   , mPendingRequestsLock("DNSPendingRequestsLock")
 {
   MOZ_ASSERT(IsNeckoChild());
@@ -123,7 +124,7 @@ ChildDNSService::AsyncResolveExtended(const nsACString  &hostname,
     listener = new DNSListenerProxy(listener, target);
   }
 
-  nsRefPtr<DNSRequestChild> childReq =
+  RefPtr<DNSRequestChild> childReq =
     new DNSRequestChild(nsCString(hostname), flags,
                         nsCString(aNetworkInterface),
                         listener, target);
@@ -133,11 +134,11 @@ ChildDNSService::AsyncResolveExtended(const nsACString  &hostname,
     nsCString key;
     GetDNSRecordHashKey(hostname, originalFlags, aNetworkInterface,
                         originalListener, key);
-    nsTArray<nsRefPtr<DNSRequestChild>> *hashEntry;
+    nsTArray<RefPtr<DNSRequestChild>> *hashEntry;
     if (mPendingRequests.Get(key, &hashEntry)) {
       hashEntry->AppendElement(childReq);
     } else {
-      hashEntry = new nsTArray<nsRefPtr<DNSRequestChild>>();
+      hashEntry = new nsTArray<RefPtr<DNSRequestChild>>();
       hashEntry->AppendElement(childReq);
       mPendingRequests.Put(key, hashEntry);
     }
@@ -171,7 +172,7 @@ ChildDNSService::CancelAsyncResolveExtended(const nsACString &aHostname,
   }
 
   MutexAutoLock lock(mPendingRequestsLock);
-  nsTArray<nsRefPtr<DNSRequestChild>> *hashEntry;
+  nsTArray<RefPtr<DNSRequestChild>> *hashEntry;
   nsCString key;
   GetDNSRecordHashKey(aHostname, aFlags, aNetworkInterface, aListener, key);
   if (mPendingRequests.Get(key, &hashEntry)) {
@@ -228,7 +229,7 @@ ChildDNSService::NotifyRequestDone(DNSRequestChild *aDnsRequest)
   GetDNSRecordHashKey(aDnsRequest->mHost, originalFlags,
                       aDnsRequest->mNetworkInterface, originalListener, key);
 
-  nsTArray<nsRefPtr<DNSRequestChild>> *hashEntry;
+  nsTArray<RefPtr<DNSRequestChild>> *hashEntry;
 
   if (mPendingRequests.Get(key, &hashEntry)) {
     int idx;

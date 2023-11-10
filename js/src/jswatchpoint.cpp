@@ -18,9 +18,9 @@ using namespace js;
 using namespace js::gc;
 
 inline HashNumber
-DefaultHasher<WatchKey>::hash(const Lookup& key)
+WatchKeyHasher::hash(const Lookup& key)
 {
-    return DefaultHasher<JSObject*>::hash(key.object.get()) ^ HashId(key.id.get());
+    return MovableCellHasher<PreBarrieredObject>::hash(key.object) ^ HashId(key.id);
 }
 
 namespace {
@@ -142,14 +142,6 @@ WatchpointMap::triggerWatchpoint(JSContext* cx, HandleObject obj, HandleId id, M
 
     /* Call the handler. */
     return handler(cx, obj, id, old, vp.address(), closure);
-}
-
-bool
-WatchpointMap::markCompartmentIteratively(JSCompartment* c, JSTracer* trc)
-{
-    if (!c->watchpointMap)
-        return false;
-    return c->watchpointMap->markIteratively(trc);
 }
 
 bool

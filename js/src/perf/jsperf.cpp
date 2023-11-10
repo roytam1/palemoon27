@@ -11,8 +11,6 @@
 using namespace js;
 using JS::PerfMeasurement;
 
-using mozilla::UniquePtr;
-
 // You cannot forward-declare a static object in C++, so instead
 // we have to forward-declare the helper function that refers to it.
 static PerfMeasurement* GetPM(JSContext* cx, JS::HandleValue value, const char* fname);
@@ -163,7 +161,7 @@ static void pm_finalize(JSFreeOp* fop, JSObject* obj);
 
 static const JSClass pm_class = {
     "PerfMeasurement", JSCLASS_HAS_PRIVATE,
-    nullptr, nullptr, nullptr, nullptr, nullptr,
+    nullptr, nullptr, nullptr, nullptr,
     nullptr, nullptr, nullptr, pm_finalize
 };
 
@@ -212,8 +210,7 @@ static PerfMeasurement*
 GetPM(JSContext* cx, JS::HandleValue value, const char* fname)
 {
     if (!value.isObject()) {
-        UniquePtr<char[], JS::FreePolicy> bytes =
-            DecompileValueGenerator(cx, JSDVG_SEARCH_STACK, value, nullptr);
+        UniqueChars bytes = DecompileValueGenerator(cx, JSDVG_SEARCH_STACK, value, nullptr);
         if (!bytes)
             return nullptr;
         JS_ReportErrorNumber(cx, GetErrorMessage, 0, JSMSG_NOT_NONNULL_OBJECT, bytes.get());

@@ -115,8 +115,7 @@ public:
                       bool aMetaKey,
                       TouchList* aTouches,
                       TouchList* aTargetTouches,
-                      TouchList* aChangedTouches,
-                      ErrorResult& aRv);
+                      TouchList* aChangedTouches);
 
   static bool PrefEnabled(JSContext* aCx = nullptr,
                           JSObject* aGlobal = nullptr);
@@ -124,12 +123,17 @@ public:
 protected:
   ~TouchEvent() {}
 
-  nsRefPtr<TouchList> mTouches;
-  nsRefPtr<TouchList> mTargetTouches;
-  nsRefPtr<TouchList> mChangedTouches;
+  RefPtr<TouchList> mTouches;
+  RefPtr<TouchList> mTargetTouches;
+  RefPtr<TouchList> mChangedTouches;
 };
 
 } // namespace dom
 } // namespace mozilla
+
+already_AddRefed<mozilla::dom::TouchEvent>
+NS_NewDOMTouchEvent(mozilla::dom::EventTarget* aOwner,
+                    nsPresContext* aPresContext,
+                    mozilla::WidgetTouchEvent* aEvent);
 
 #endif // mozilla_dom_TouchEvent_h_

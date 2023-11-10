@@ -31,6 +31,7 @@
 #include "mozilla/plugins/PPluginModuleChild.h"
 #include "mozilla/plugins/PluginInstanceChild.h"
 #include "mozilla/plugins/PluginMessageUtils.h"
+#include "mozilla/plugins/PluginQuirks.h"
 
 // NOTE: stolen from nsNPAPIPlugin.h
 
@@ -46,6 +47,10 @@ typedef NS_NPAPIPLUGIN_CALLBACK(NPError, NP_PLUGINUNIXINIT) (const NPNetscapeFun
 typedef NS_NPAPIPLUGIN_CALLBACK(NPError, NP_PLUGINSHUTDOWN) (void);
 
 namespace mozilla {
+namespace dom {
+class PCrashReporterChild;
+} // namespace dom
+
 namespace plugins {
 
 #ifdef MOZ_WIDGET_QT
@@ -57,6 +62,8 @@ class PluginInstanceChild;
 
 class PluginModuleChild : public PPluginModuleChild
 {
+    typedef mozilla::dom::PCrashReporterChild PCrashReporterChild;
+protected:
     virtual mozilla::ipc::RacyInterruptPolicy
     MediateInterruptRace(const Message& parent, const Message& child) override
     {
@@ -122,6 +129,16 @@ class PluginModuleChild : public PPluginModuleChild
     virtual bool
     RecvSetParentHangTimeout(const uint32_t& aSeconds) override;
 
+    virtual PCrashReporterChild*
+    AllocPCrashReporterChild(mozilla::dom::NativeThreadId* id,
+                             uint32_t* processType) override;
+    virtual bool
+    DeallocPCrashReporterChild(PCrashReporterChild* actor) override;
+    virtual bool
+    AnswerPCrashReporterConstructor(PCrashReporterChild* actor,
+                                    mozilla::dom::NativeThreadId* id,
+                                    uint32_t* processType) override;
+
     virtual void
     ActorDestroy(ActorDestroyReason why) override;
 
@@ -130,10 +147,7 @@ class PluginModuleChild : public PPluginModuleChild
     virtual bool
     RecvProcessNativeEventsInInterruptCall() override;
 
-    virtual bool RecvStartProfiler(const uint32_t& aEntries,
-                                   const double& aInterval,
-                                   nsTArray<nsCString>&& aFeatures,
-                                   nsTArray<nsCString>&& aThreadNameFilters) override;
+    virtual bool RecvStartProfiler(const ProfilerInitParams& params) override;
     virtual bool RecvStopProfiler() override;
     virtual bool RecvGatherProfile() override;
 
@@ -160,6 +174,8 @@ public:
                             base::ProcessId aOtherProcess);
 
     void CleanUp();
+
+    NPError NP_Shutdown();
 
     const char* GetUserAgent();
 
@@ -224,52 +240,6 @@ public:
     }
 #endif
 
-    // Quirks mode support for various plugin mime types
-    enum PluginQuirks {
-        QUIRKS_NOT_INITIALIZED                          = 0,
-        // Silverlight assumes it is transparent in windowless mode. This quirk
-        // matches the logic in nsNPAPIPluginInstance::SetWindowless.
-        QUIRK_SILVERLIGHT_DEFAULT_TRANSPARENT           = 1 << 0,
-        // Win32: Hook TrackPopupMenu api so that we can swap out parent
-        // hwnds. The api will fail with parents not associated with our
-        // child ui thread. See WinlessHandleEvent for details.
-        QUIRK_WINLESS_TRACKPOPUP_HOOK                   = 1 << 1,
-        // Win32: Throttle flash WM_USER+1 heart beat messages to prevent
-        // flooding chromium's dispatch loop, which can cause ipc traffic
-        // processing lag.
-        QUIRK_FLASH_THROTTLE_WMUSER_EVENTS              = 1 << 2,
-        // Win32: Catch resets on our subclass by hooking SetWindowLong.
-        QUIRK_FLASH_HOOK_SETLONGPTR                     = 1 << 3,
-        // X11: Work around a bug in Flash up to 10.1 d51 at least, where
-        // expose event top left coordinates within the plugin-rect and
-        // not at the drawable origin are misinterpreted.
-        QUIRK_FLASH_EXPOSE_COORD_TRANSLATION            = 1 << 4,
-        // Win32: Catch get window info calls on the browser and tweak the
-        // results so mouse input works when flash is displaying it's settings
-        // window.
-        QUIRK_FLASH_HOOK_GETWINDOWINFO                  = 1 << 5,
-        // Win: Addresses a flash bug with mouse capture and full screen
-        // windows.
-        QUIRK_FLASH_FIXUP_MOUSE_CAPTURE                 = 1 << 6,
-        // Win: QuickTime steals focus on SetWindow calls even if it's hidden.
-        // Avoid calling SetWindow in that case.
-        QUIRK_QUICKTIME_AVOID_SETWINDOW                 = 1 << 7,
-        // Win: Check to make sure the parent window has focus before calling
-        // set focus on the child. Addresses a full screen dialog prompt
-        // problem in Silverlight.
-        QUIRK_SILVERLIGHT_FOCUS_CHECK_PARENT            = 1 << 8,
-        // Mac: Allow the plugin to use offline renderer mode.
-        // Use this only if the plugin is certified the support the offline renderer.
-        QUIRK_ALLOW_OFFLINE_RENDERER                    = 1 << 9,
-        // Mac: Work around a Flash bug that can cause plugin process crashes
-        // in CoreGraphics mode:  The Flash plugin sometimes accesses the
-        // CGContextRef we pass to it in NPP_HandleEvent(NPCocoaEventDrawRect)
-        // outside of that call.  See bug 804606.
-        QUIRK_FLASH_AVOID_CGMODE_CRASHES                = 1 << 10,
-        // Win: Addresses a Unity bug with mouse capture.
-        QUIRK_UNITY_FIXUP_MOUSE_CAPTURE                 = 1 << 11,
-    };
-
     int GetQuirks() { return mQuirks; }
 
     const PluginSettings& Settings() const { return mCachedSettings; }
@@ -303,10 +273,10 @@ private:
 
     PRLibrary* mLibrary;
     nsCString mPluginFilename; // UTF8
-    nsCString mUserAgent;
     int mQuirks;
 
     bool mIsChrome;
+    bool mHasShutdown; // true if NP_Shutdown has run
     Transport* mTransport;
 
     // we get this from the plugin
@@ -393,7 +363,7 @@ private:
         bool _savedNestableTasksAllowed;
     };
 
-    nsAutoTArray<IncallFrame, 8> mIncallPumpingStack;
+    AutoTArray<IncallFrame, 8> mIncallPumpingStack;
 
     static LRESULT CALLBACK NestedInputEventHook(int code,
                                                  WPARAM wParam,

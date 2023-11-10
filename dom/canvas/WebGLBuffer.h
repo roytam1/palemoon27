@@ -8,10 +8,10 @@
 
 #include "GLDefs.h"
 #include "mozilla/LinkedList.h"
-#include "mozilla/MemoryReporting.h"
+#include "nsAutoPtr.h"
 #include "nsWrapperCache.h"
+
 #include "WebGLObjectModel.h"
-#include "WebGLStrongTypes.h"
 #include "WebGLTypes.h"
 
 namespace mozilla {
@@ -55,10 +55,10 @@ public:
     bool IsElementArrayUsedWithMultipleTypes() const;
 
     WebGLContext* GetParentObject() const {
-        return Context();
+        return mContext;
     }
 
-    virtual JSObject* WrapObject(JSContext* cx, JS::Handle<JSObject*> aGivenProto) override;
+    virtual JSObject* WrapObject(JSContext* cx, JS::Handle<JSObject*> givenProto) override;
 
     const GLenum mGLName;
 

@@ -43,7 +43,7 @@ using namespace mozilla::dom;
 nsresult
 NS_NewHTMLContentSerializer(nsIContentSerializer** aSerializer)
 {
-  nsRefPtr<nsHTMLContentSerializer> it = new nsHTMLContentSerializer();
+  RefPtr<nsHTMLContentSerializer> it = new nsHTMLContentSerializer();
   it.forget(aSerializer);
   return NS_OK;
 }
@@ -281,7 +281,7 @@ nsHTMLContentSerializer::AppendElementStart(Element* aElement,
   if (ns == kNameSpaceID_XHTML &&
       (name == nsGkAtoms::script ||
        name == nsGkAtoms::style ||
-       name == nsGkAtoms::noscript ||
+       (name == nsGkAtoms::noscript && aElement->OwnerDoc()->IsScriptEnabled()) ||
        name == nsGkAtoms::noframes)) {
     ++mDisableEntityEncoding;
   }
@@ -310,7 +310,7 @@ nsHTMLContentSerializer::AppendElementEnd(Element* aElement,
   if (ns == kNameSpaceID_XHTML &&
       (name == nsGkAtoms::script ||
        name == nsGkAtoms::style ||
-       name == nsGkAtoms::noscript ||
+       (name == nsGkAtoms::noscript && aElement->OwnerDoc()->IsScriptEnabled()) ||
        name == nsGkAtoms::noframes)) {
     --mDisableEntityEncoding;
   }

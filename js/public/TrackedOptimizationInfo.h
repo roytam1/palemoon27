@@ -25,6 +25,8 @@ namespace JS {
     _(GetProp_InlineAccess)                             \
     _(GetProp_Innerize)                                 \
     _(GetProp_InlineCache)                              \
+    _(GetProp_SharedCache)                              \
+    _(GetProp_ModuleNamespace)                          \
                                                         \
     _(SetProp_CommonSetter)                             \
     _(SetProp_TypedObject)                              \
@@ -86,7 +88,7 @@ namespace JS {
     _(ArrayDoubleConversion)                                            \
     _(ArrayRange)                                                       \
     _(ArraySeenNegativeIndex)                                           \
-    _(TypedObjectNeutered)                                              \
+    _(TypedObjectHasDetachedBuffer)                                     \
     _(TypedObjectArrayRange)                                            \
     _(AccessNotDense)                                                   \
     _(AccessNotSimdObject)                                              \
@@ -103,6 +105,8 @@ namespace JS {
     _(NoSimdJitSupport)                                                 \
     _(SimdTypeNotOptimized)                                             \
     _(UnknownSimdProperty)                                              \
+    _(NotModuleNamespace)                                               \
+    _(UnknownProperty)                                                  \
                                                                         \
     _(ICOptStub_GenericSuccess)                                         \
                                                                         \
@@ -132,8 +136,8 @@ namespace JS {
     _(ICGetElemStub_Dense)                                              \
     _(ICGetElemStub_DenseHole)                                          \
     _(ICGetElemStub_TypedArray)                                         \
-    _(ICGetElemStub_ArgsElement)                                        \
-    _(ICGetElemStub_ArgsElementStrict)                                  \
+    _(ICGetElemStub_ArgsElementMapped)                                  \
+    _(ICGetElemStub_ArgsElementUnmapped)                                \
                                                                         \
     _(ICSetElemStub_Dense)                                              \
     _(ICSetElemStub_TypedArray)                                         \

@@ -4,7 +4,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifdef DEBUG
+#ifdef JS_JITSPEW
 
 #include "jit/JitSpewer.h"
 
@@ -75,7 +75,7 @@ class IonSpewer
     }
 };
 
-class AutoLockIonSpewerOutput
+class MOZ_RAII AutoLockIonSpewerOutput
 {
   private:
     MOZ_DECL_USE_GUARD_OBJECT_NOTIFIER
@@ -88,7 +88,8 @@ class AutoLockIonSpewerOutput
 static IonSpewer ionspewer;
 
 static bool LoggingChecked = false;
-static uint32_t LoggingBits = 0;
+static_assert(JitSpew_Terminator <= 64, "Increase the size of the LoggingBits global.");
+static uint64_t LoggingBits = 0;
 static mozilla::Atomic<uint32_t, mozilla::Relaxed> filteredOutCompilations(0);
 
 static const char * const ChannelNames[] =
@@ -334,14 +335,17 @@ GraphSpewer::endFunction()
 void
 GraphSpewer::dump(Fprinter& c1Out, Fprinter& jsonOut)
 {
-    if (!c1Printer_.hadOutOfMemory())
+    if (!c1Printer_.hadOutOfMemory()) {
         c1Printer_.exportInto(c1Out);
+        c1Out.flush();
+    }
     c1Printer_.clear();
 
     if (!jsonPrinter_.hadOutOfMemory())
         jsonPrinter_.exportInto(jsonOut);
     else
         jsonOut.put("{}");
+    jsonOut.flush();
     jsonPrinter_.clear();
 }
 
@@ -397,10 +401,12 @@ jit::CheckLogging()
             "  aborts     Compilation abort messages\n"
             "  scripts    Compiled scripts\n"
             "  mir        MIR information\n"
+            "  prune      Prune unused branches\n"
             "  escape     Escape analysis\n"
             "  alias      Alias analysis\n"
             "  gvn        Global Value Numbering\n"
             "  licm       Loop invariant code motion\n"
+            "  sincos     Replace sin/cos by sincos\n"
             "  sink       Sink transformation\n"
             "  regalloc   Register allocation\n"
             "  inline     Inlining\n"
@@ -436,6 +442,8 @@ jit::CheckLogging()
     }
     if (ContainsFlag(env, "aborts"))
         EnableChannel(JitSpew_IonAbort);
+    if (ContainsFlag(env, "prune"))
+        EnableChannel(JitSpew_Prune);
     if (ContainsFlag(env, "escape"))
         EnableChannel(JitSpew_Escape);
     if (ContainsFlag(env, "alias"))
@@ -452,6 +460,8 @@ jit::CheckLogging()
         EnableChannel(JitSpew_Unrolling);
     if (ContainsFlag(env, "licm"))
         EnableChannel(JitSpew_LICM);
+    if (ContainsFlag(env, "sincos"))
+        EnableChannel(JitSpew_Sincos);
     if (ContainsFlag(env, "sink"))
         EnableChannel(JitSpew_Sink);
     if (ContainsFlag(env, "regalloc"))
@@ -483,7 +493,7 @@ jit::CheckLogging()
     if (ContainsFlag(env, "trackopts"))
         EnableChannel(JitSpew_OptimizationTracking);
     if (ContainsFlag(env, "all"))
-        LoggingBits = uint32_t(-1);
+        LoggingBits = uint64_t(-1);
 
     if (ContainsFlag(env, "bl-aborts"))
         EnableChannel(JitSpew_BaselineAbort);
@@ -619,22 +629,22 @@ bool
 jit::JitSpewEnabled(JitSpewChannel channel)
 {
     MOZ_ASSERT(LoggingChecked);
-    return (LoggingBits & (1 << uint32_t(channel))) && !filteredOutCompilations;
+    return (LoggingBits & (uint64_t(1) << uint32_t(channel))) && !filteredOutCompilations;
 }
 
 void
 jit::EnableChannel(JitSpewChannel channel)
 {
     MOZ_ASSERT(LoggingChecked);
-    LoggingBits |= (1 << uint32_t(channel));
+    LoggingBits |= uint64_t(1) << uint32_t(channel);
 }
 
 void
 jit::DisableChannel(JitSpewChannel channel)
 {
     MOZ_ASSERT(LoggingChecked);
-    LoggingBits &= ~(1 << uint32_t(channel));
+    LoggingBits &= ~(uint64_t(1) << uint32_t(channel));
 }
 
-#endif /* DEBUG */
+#endif /* JS_JITSPEW */
 

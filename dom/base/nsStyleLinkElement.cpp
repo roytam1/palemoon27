@@ -34,6 +34,13 @@
 using namespace mozilla;
 using namespace mozilla::dom;
 
+static LogModule*
+GetSriLog()
+{
+  static LazyLogModule gSriPRLog("SRI");
+  return gSriPRLog;
+}
+
 nsStyleLinkElement::nsStyleLinkElement()
   : mDontLoadStyle(false)
   , mUpdatesEnabled(true)
@@ -117,6 +124,12 @@ nsStyleLinkElement::OverrideBaseURI(nsIURI* aNewBaseURI)
 nsStyleLinkElement::SetLineNumber(uint32_t aLineNumber)
 {
   mLineNumber = aLineNumber;
+}
+
+/* virtual */ uint32_t
+nsStyleLinkElement::GetLineNumber()
+{
+  return mLineNumber;
 }
 
 /* static */ bool
@@ -275,7 +288,7 @@ UpdateIsElementInStyleScopeFlagOnSubtree(Element* aElement)
 static Element*
 GetScopeElement(nsIStyleSheet* aSheet)
 {
-  nsRefPtr<CSSStyleSheet> cssStyleSheet = do_QueryObject(aSheet);
+  RefPtr<CSSStyleSheet> cssStyleSheet = do_QueryObject(aSheet);
   if (!cssStyleSheet) {
     return nullptr;
   }

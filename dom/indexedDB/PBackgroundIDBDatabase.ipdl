@@ -3,9 +3,11 @@
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 include protocol PBackgroundIDBDatabaseFile;
+include protocol PBackgroundIDBDatabaseRequest;
 include protocol PBackgroundIDBFactory;
 include protocol PBackgroundIDBTransaction;
 include protocol PBackgroundIDBVersionChangeTransaction;
+include protocol PBackgroundMutableFile;
 include protocol PBlob;
 
 include InputStreamParams;
@@ -23,46 +25,59 @@ namespace mozilla {
 namespace dom {
 namespace indexedDB {
 
+struct CreateFileParams
+{
+  nsString name;
+  nsString type;
+};
+
+union DatabaseRequestParams
+{
+  CreateFileParams;
+};
+
 union NullableVersion
 {
   null_t;
   uint64_t;
 };
 
-protocol PBackgroundIDBDatabase
+sync protocol PBackgroundIDBDatabase
 {
   manager PBackgroundIDBFactory;
 
   manages PBackgroundIDBDatabaseFile;
+  manages PBackgroundIDBDatabaseRequest;
   manages PBackgroundIDBTransaction;
   manages PBackgroundIDBVersionChangeTransaction;
+  manages PBackgroundMutableFile;
 
 parent:
-  DeleteMe();
+  async DeleteMe();
 
-  Blocked();
+  async Blocked();
 
-  Close();
+  async Close();
 
-  NewFileHandle();
+  async PBackgroundIDBDatabaseFile(PBlob blob);
 
-  FileHandleFinished();
+  async PBackgroundIDBDatabaseRequest(DatabaseRequestParams params);
 
-  PBackgroundIDBDatabaseFile(PBlob blob);
-
-  PBackgroundIDBTransaction(nsString[] objectStoreNames, Mode mode);
+  async PBackgroundIDBTransaction(nsString[] objectStoreNames, Mode mode);
 
 child:
-  __delete__();
+  async __delete__();
 
-  VersionChange(uint64_t oldVersion, NullableVersion newVersion);
+  async VersionChange(uint64_t oldVersion, NullableVersion newVersion);
 
-  Invalidate();
+  async Invalidate();
 
-  PBackgroundIDBVersionChangeTransaction(uint64_t currentVersion,
-                                         uint64_t requestedVersion,
-                                         int64_t nextObjectStoreId,
-                                         int64_t nextIndexId);
+  async PBackgroundIDBVersionChangeTransaction(uint64_t currentVersion,
+                                               uint64_t requestedVersion,
+                                               int64_t nextObjectStoreId,
+                                               int64_t nextIndexId);
+
+  async PBackgroundMutableFile(nsString name, nsString type);
 };
 
 } // namespace indexedDB

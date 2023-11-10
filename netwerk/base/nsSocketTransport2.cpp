@@ -79,7 +79,7 @@ public:
     }
 
 private:
-    nsRefPtr<nsSocketTransport> mTransport;
+    RefPtr<nsSocketTransport> mTransport;
 
     uint32_t              mType;
     nsresult              mStatus;
@@ -836,7 +836,7 @@ nsSocketTransport::Init(const char **types, uint32_t typeCount,
         do_GetService(kSocketProviderServiceCID, &rv);
     if (NS_FAILED(rv)) return rv;
 
-    mTypes = (char **) malloc(mTypeCount * sizeof(char *));
+    mTypes = (char **) moz_xmalloc(mTypeCount * sizeof(char *));
     if (!mTypes)
         return NS_ERROR_OUT_OF_MEMORY;
 
@@ -1213,6 +1213,9 @@ nsSocketTransport::InitiateSocket()
     bool isLocal;
     IsLocal(&isLocal);
 
+    if (gIOService->IsNetTearingDown()) {
+        return NS_ERROR_ABORT;
+    }
     if (gIOService->IsOffline()) {
         if (!isLocal)
             return NS_ERROR_OFFLINE;
@@ -1230,7 +1233,7 @@ nsSocketTransport::InitiateSocket()
             crashOnNonLocalConnections &&
             !(IsIPAddrAny(&mNetAddr) || IsIPAddrLocal(&mNetAddr))) {
             nsAutoCString ipaddr;
-            nsRefPtr<nsNetAddr> netaddr = new nsNetAddr(&mNetAddr);
+            RefPtr<nsNetAddr> netaddr = new nsNetAddr(&mNetAddr);
             netaddr->GetAddress(ipaddr);
             fprintf_stderr(stderr,
                            "FATAL ERROR: Non-local network connections are disabled and a connection "
@@ -1689,7 +1692,12 @@ nsSocketTransport::ReleaseFD_Locked(PRFileDesc *fd)
     SOCKET_LOG(("JIMB: ReleaseFD_Locked: mFDref = %d\n", mFDref));
 
     if (--mFDref == 0) {
-        if (PR_GetCurrentThread() == gSocketThread) {
+        if (gIOService->IsNetTearingDown() &&
+            ((PR_IntervalNow() - gIOService->NetTearingDownStarted()) >
+             gSocketTransportService->MaxTimeForPrClosePref())) {
+          // If shutdown last to long, let the socket leak and do not close it.
+          SOCKET_LOG(("Intentional leak"));
+        } else if (PR_GetCurrentThread() == gSocketThread) {
             SOCKET_LOG(("nsSocketTransport: calling PR_Close [this=%p]\n", this));
             PR_Close(mFD);
         } else {
@@ -1915,7 +1923,8 @@ nsSocketTransport::OnSocketDetached(PRFileDesc *fd)
         }
     }
 
-    if (RecoverFromError())
+    // If we are not shutting down try again.
+    if (!gIOService->IsNetTearingDown() && RecoverFromError())
         mCondition = NS_OK;
     else {
         mState = STATE_CLOSED;
@@ -2009,7 +2018,7 @@ NS_IMETHODIMP
 nsSocketTransport::OpenInputStream(uint32_t flags,
                                    uint32_t segsize,
                                    uint32_t segcount,
-                                   nsIInputStream **result)
+                                   nsIInputStream **aResult)
 {
     SOCKET_LOG(("nsSocketTransport::OpenInputStream [this=%p flags=%x]\n",
         this, flags));
@@ -2018,6 +2027,7 @@ nsSocketTransport::OpenInputStream(uint32_t flags,
 
     nsresult rv;
     nsCOMPtr<nsIAsyncInputStream> pipeIn;
+    nsCOMPtr<nsIInputStream> result;
 
     if (!(flags & OPEN_UNBUFFERED) || (flags & OPEN_BLOCKING)) {
         // XXX if the caller wants blocking, then the caller also gets buffered!
@@ -2037,10 +2047,10 @@ nsSocketTransport::OpenInputStream(uint32_t flags,
                           NS_ASYNCCOPY_VIA_WRITESEGMENTS, segsize);
         if (NS_FAILED(rv)) return rv;
 
-        *result = pipeIn;
+        result = pipeIn;
     }
     else
-        *result = &mInput;
+        result = &mInput;
 
     // flag input stream as open
     mInputClosed = false;
@@ -2048,7 +2058,7 @@ nsSocketTransport::OpenInputStream(uint32_t flags,
     rv = PostEvent(MSG_ENSURE_CONNECT);
     if (NS_FAILED(rv)) return rv;
 
-    NS_ADDREF(*result);
+    result.forget(aResult);
     return NS_OK;
 }
 
@@ -2056,7 +2066,7 @@ NS_IMETHODIMP
 nsSocketTransport::OpenOutputStream(uint32_t flags,
                                     uint32_t segsize,
                                     uint32_t segcount,
-                                    nsIOutputStream **result)
+                                    nsIOutputStream **aResult)
 {
     SOCKET_LOG(("nsSocketTransport::OpenOutputStream [this=%p flags=%x]\n",
         this, flags));
@@ -2065,6 +2075,7 @@ nsSocketTransport::OpenOutputStream(uint32_t flags,
 
     nsresult rv;
     nsCOMPtr<nsIAsyncOutputStream> pipeOut;
+    nsCOMPtr<nsIOutputStream> result;
     if (!(flags & OPEN_UNBUFFERED) || (flags & OPEN_BLOCKING)) {
         // XXX if the caller wants blocking, then the caller also gets buffered!
         //bool openBuffered = !(flags & OPEN_UNBUFFERED);
@@ -2083,10 +2094,10 @@ nsSocketTransport::OpenOutputStream(uint32_t flags,
                           NS_ASYNCCOPY_VIA_READSEGMENTS, segsize);
         if (NS_FAILED(rv)) return rv;
 
-        *result = pipeOut;
+        result = pipeOut;
     }
     else
-        *result = &mOutput;
+        result = &mOutput;
 
     // flag output stream as open
     mOutputClosed = false;
@@ -2094,7 +2105,7 @@ nsSocketTransport::OpenOutputStream(uint32_t flags,
     rv = PostEvent(MSG_ENSURE_CONNECT);
     if (NS_FAILED(rv)) return rv;
 
-    NS_ADDREF(*result);
+    result.forget(aResult);
     return NS_OK;
 }
 

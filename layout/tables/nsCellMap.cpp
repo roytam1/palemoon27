@@ -257,7 +257,7 @@ void
 nsTableCellMap::Synchronize(nsTableFrame* aTableFrame)
 {
   nsTableFrame::RowGroupArray orderedRowGroups;
-  nsAutoTArray<nsCellMap*, 8> maps;
+  AutoTArray<nsCellMap*, 8> maps;
 
   aTableFrame->OrderRowGroups(orderedRowGroups);
   if (!orderedRowGroups.Length()) {
@@ -926,7 +926,7 @@ nsTableCellMap::ResetBStartStart(LogicalSide aSide,
   switch(aSide) {
   case eLogicalSideBEnd:
     aRowIndex++;
-    // FALLTHROUGH
+    MOZ_FALLTHROUGH;
   case eLogicalSideBStart:
     cellData = (BCCellData*)aCellMap.GetDataAt(aRowIndex, aColIndex);
     if (cellData) {
@@ -949,7 +949,7 @@ nsTableCellMap::ResetBStartStart(LogicalSide aSide,
     break;
   case eLogicalSideIEnd:
     aColIndex++;
-    // FALLTHROUGH
+    MOZ_FALLTHROUGH;
   case eLogicalSideIStart:
     cellData = (BCCellData*)aCellMap.GetDataAt(aRowIndex, aColIndex);
     if (cellData) {
@@ -994,6 +994,7 @@ nsTableCellMap::SetBCBorderEdge(LogicalSide aSide,
   case eLogicalSideBEnd:
     rgYPos++;
     yPos++;
+    MOZ_FALLTHROUGH;
   case eLogicalSideBStart:
     lastIndex = xPos + aLength - 1;
     for (xIndex = xPos; xIndex <= lastIndex; xIndex++) {
@@ -1040,6 +1041,7 @@ nsTableCellMap::SetBCBorderEdge(LogicalSide aSide,
     break;
   case eLogicalSideIEnd:
     xPos++;
+    MOZ_FALLTHROUGH;
   case eLogicalSideIStart:
     // since bStart, bEnd borders were set, there should already be a cellData entry
     lastIndex = rgYPos + aLength - 1;
@@ -1479,7 +1481,7 @@ nsCellMap::AppendCell(nsTableCellMap&   aMap,
   // if the new cell could potentially span into other rows and collide with
   // originating cells there, we will play it safe and just rebuild the map
   if (aRebuildIfNecessary && (aRowIndex < mContentRowCount - 1) && (rowSpan > 1)) {
-    nsAutoTArray<nsTableCellFrame*, 1> newCellArray;
+    AutoTArray<nsTableCellFrame*, 1> newCellArray;
     newCellArray.AppendElement(aCellFrame);
     aMap.RebuildConsideringCells(this, &newCellArray, aRowIndex, startColIndex, true, aDamageArea);
     return origData;
@@ -1646,8 +1648,7 @@ bool nsCellMap::CellsSpanOut(nsTArray<nsTableRowFrame*>& aRows) const
   int32_t numNewRows = aRows.Length();
   for (int32_t rowX = 0; rowX < numNewRows; rowX++) {
     nsIFrame* rowFrame = (nsIFrame *) aRows.ElementAt(rowX);
-    nsIFrame* childFrame = rowFrame->GetFirstPrincipalChild();
-    while (childFrame) {
+    for (nsIFrame* childFrame : rowFrame->PrincipalChildList()) {
       nsTableCellFrame *cellFrame = do_QueryFrame(childFrame);
       if (cellFrame) {
         bool zeroSpan;
@@ -1656,7 +1657,6 @@ bool nsCellMap::CellsSpanOut(nsTArray<nsTableRowFrame*>& aRows) const
           return true;
         }
       }
-      childFrame = childFrame->GetNextSibling();
     }
   }
   return false;
@@ -1823,15 +1823,13 @@ nsCellMap::ExpandWithRows(nsTableCellMap&             aMap,
   for (int32_t rowX = startRowIndex; rowX <= endRowIndex; rowX++) {
     nsTableRowFrame* rFrame = aRowFrames.ElementAt(newRowIndex);
     // append cells
-    nsIFrame* cFrame = rFrame->GetFirstPrincipalChild();
     int32_t colIndex = 0;
-    while (cFrame) {
+    for (nsIFrame* cFrame : rFrame->PrincipalChildList()) {
       nsTableCellFrame *cellFrame = do_QueryFrame(cFrame);
       if (cellFrame) {
         AppendCell(aMap, cellFrame, rowX, false, aRgFirstRowIndex, aDamageArea,
                    &colIndex);
       }
-      cFrame = cFrame->GetNextSibling();
     }
     newRowIndex++;
   }
@@ -2298,13 +2296,11 @@ nsCellMap::RebuildConsideringRows(nsTableCellMap&             aMap,
     int32_t numNewRows = aRowsToInsert->Length();
     for (int32_t newRowX = 0; newRowX < numNewRows; newRowX++) {
       nsTableRowFrame* rFrame = aRowsToInsert->ElementAt(newRowX);
-      nsIFrame* cFrame = rFrame->GetFirstPrincipalChild();
-      while (cFrame) {
+      for (nsIFrame* cFrame : rFrame->PrincipalChildList()) {
         nsTableCellFrame *cellFrame = do_QueryFrame(cFrame);
         if (cellFrame) {
           AppendCell(aMap, cellFrame, rowX, false, 0, damageArea);
         }
-        cFrame = cFrame->GetNextSibling();
       }
       rowX++;
     }

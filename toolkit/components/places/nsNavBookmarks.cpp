@@ -46,19 +46,6 @@ struct keywordSearchData
   nsString keyword;
 };
 
-PLDHashOperator
-SearchBookmarkForKeyword(nsTrimInt64HashKey::KeyType aKey,
-                         const nsString aValue,
-                         void* aUserArg)
-{
-  keywordSearchData* data = reinterpret_cast<keywordSearchData*>(aUserArg);
-  if (data->keyword.Equals(aValue)) {
-    data->itemId = aKey;
-    return PL_DHASH_STOP;
-  }
-  return PL_DHASH_NEXT;
-}
-
 template<typename Method, typename DataType>
 class AsyncGetBookmarksForURI : public AsyncStatementCallback
 {
@@ -74,7 +61,7 @@ public:
 
   void Init()
   {
-    nsRefPtr<Database> DB = Database::GetDatabase();
+    RefPtr<Database> DB = Database::GetDatabase();
     if (DB) {
       nsCOMPtr<mozIStorageAsyncStatement> stmt = DB->GetAsyncStatement(
         "SELECT b.id, b.guid, b.parent, b.lastModified, t.guid, t.parent "
@@ -125,7 +112,7 @@ public:
   }
 
 private:
-  nsRefPtr<nsNavBookmarks> mBookmarksSvc;
+  RefPtr<nsNavBookmarks> mBookmarksSvc;
   Method mCallback;
   DataType mData;
 };
@@ -1710,7 +1697,7 @@ nsNavBookmarks::ProcessFolderNodeRow(
   rv = aRow->GetInt64(nsNavHistory::kGetInfoIndex_ItemId, &id);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  nsRefPtr<nsNavHistoryResultNode> node;
+  RefPtr<nsNavHistoryResultNode> node;
 
   if (itemType == TYPE_BOOKMARK) {
     nsNavHistory* history = nsNavHistory::GetHistoryService();
@@ -2277,7 +2264,12 @@ nsNavBookmarks::UpdateKeywordsHashForRemovedBookmark(int64_t aItemId)
     keywordSearchData searchData;
     searchData.keyword.Assign(keyword);
     searchData.itemId = -1;
-    mBookmarkToKeywordHash.EnumerateRead(SearchBookmarkForKeyword, &searchData);
+    for (auto iter = mBookmarkToKeywordHash.Iter(); !iter.Done(); iter.Next()) {
+      if (searchData.keyword.Equals(iter.Data())) {
+        searchData.itemId = iter.Key();
+        break;
+      }
+    }
     if (searchData.itemId == -1) {
       nsCOMPtr<mozIStorageAsyncStatement> stmt = mDB->GetAsyncStatement(
         "DELETE FROM moz_keywords "
@@ -2469,7 +2461,12 @@ nsNavBookmarks::GetURIForKeyword(const nsAString& aUserCasedKeyword,
   keywordSearchData searchData;
   searchData.keyword.Assign(keyword);
   searchData.itemId = -1;
-  mBookmarkToKeywordHash.EnumerateRead(SearchBookmarkForKeyword, &searchData);
+  for (auto iter = mBookmarkToKeywordHash.Iter(); !iter.Done(); iter.Next()) {
+    if (searchData.keyword.Equals(iter.Data())) {
+      searchData.itemId = iter.Key();
+      break;
+    }
+  }
 
   if (searchData.itemId == -1) {
     // Not found.
@@ -2691,7 +2688,7 @@ nsNavBookmarks::OnVisit(nsIURI* aURI, int64_t aVisitId, PRTime aTime,
   visitData.time = aTime;
   visitData.transitionType = aTransitionType;
 
-  nsRefPtr< AsyncGetBookmarksForURI<ItemVisitMethod, ItemVisitData> > notifier =
+  RefPtr< AsyncGetBookmarksForURI<ItemVisitMethod, ItemVisitData> > notifier =
     new AsyncGetBookmarksForURI<ItemVisitMethod, ItemVisitData>(this, &nsNavBookmarks::NotifyItemVisited, visitData);
   notifier->Init();
   return NS_OK;
@@ -2792,7 +2789,7 @@ nsNavBookmarks::OnPageChanged(nsIURI* aURI,
       }
     }
     else {
-      nsRefPtr< AsyncGetBookmarksForURI<ItemChangeMethod, ItemChangeData> > notifier =
+      RefPtr< AsyncGetBookmarksForURI<ItemChangeMethod, ItemChangeData> > notifier =
         new AsyncGetBookmarksForURI<ItemChangeMethod, ItemChangeData>(this, &nsNavBookmarks::NotifyItemChanged, changeData);
       notifier->Init();
     }
@@ -2817,7 +2814,7 @@ nsNavBookmarks::OnDeleteVisits(nsIURI* aURI, PRTime aVisitTime,
     changeData.bookmark.lastModified = 0;
     changeData.bookmark.type = TYPE_BOOKMARK;
 
-    nsRefPtr< AsyncGetBookmarksForURI<ItemChangeMethod, ItemChangeData> > notifier =
+    RefPtr< AsyncGetBookmarksForURI<ItemChangeMethod, ItemChangeData> > notifier =
       new AsyncGetBookmarksForURI<ItemChangeMethod, ItemChangeData>(this, &nsNavBookmarks::NotifyItemChanged, changeData);
     notifier->Init();
   }

@@ -3,14 +3,13 @@
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
 
-# Shortcut for mochitest* and xpcshell-tests targets,
-# replaces 'EXTRA_TEST_ARGS=--test-path=...'.
+# Shortcut for mochitest* and xpcshell-tests targets
 ifdef TEST_PATH
-TEST_PATH_ARG := --test-path='$(TEST_PATH)'
-IPCPLUGINS_PATH_ARG := --test-path='$(TEST_PATH)'
+TEST_PATH_ARG := '$(TEST_PATH)'
+IPCPLUGINS_PATH_ARG := '$(TEST_PATH)'
 else
 TEST_PATH_ARG :=
-IPCPLUGINS_PATH_ARG := --test-path=dom/plugins/test
+IPCPLUGINS_PATH_ARG := dom/plugins/test
 endif
 
 # include automation-build.mk to get the path to the binary
@@ -27,13 +26,27 @@ ifndef TEST_PACKAGE_NAME
 TEST_PACKAGE_NAME := $(ANDROID_PACKAGE_NAME)
 endif
 
+# Linking xul-gtest.dll takes too long, so we disable GTest on
+# Windows PGO builds (bug 1028035).
+ifneq (1_WINNT,$(MOZ_PGO)_$(OS_ARCH))
+BUILD_GTEST=1
+endif
+
+ifdef MOZ_B2G
+BUILD_GTEST=
+endif
+
+ifeq ($(MOZ_BUILD_APP),mobile/android)
+BUILD_GTEST=
+endif
+
 RUN_MOCHITEST_B2G_DESKTOP = \
   rm -f ./$@.log && \
   $(PYTHON) _tests/testing/mochitest/runtestsb2g.py \
     --log-tbpl=./$@.log \
     --desktop --profile ${GAIA_PROFILE_DIR} \
     --failure-file=$(abspath _tests/testing/mochitest/makefailures.json) \
-    $(TEST_PATH_ARG) $(EXTRA_TEST_ARGS)
+    $(EXTRA_TEST_ARGS) $(TEST_PATH_ARG)
 
 RUN_MOCHITEST = \
   rm -f ./$@.log && \
@@ -41,8 +54,7 @@ RUN_MOCHITEST = \
     --log-tbpl=./$@.log \
     --failure-file=$(abspath _tests/testing/mochitest/makefailures.json) \
     --testing-modules-dir=$(abspath _tests/modules) \
-    --extra-profile-file=$(DIST)/plugins \
-    $(SYMBOLS_PATH) $(TEST_PATH_ARG) $(EXTRA_TEST_ARGS)
+    $(SYMBOLS_PATH) $(EXTRA_TEST_ARGS) $(TEST_PATH_ARG)
 
 RERUN_MOCHITEST = \
   rm -f ./$@.log && \
@@ -50,8 +62,7 @@ RERUN_MOCHITEST = \
     --log-tbpl=./$@.log \
     --run-only-tests=makefailures.json \
     --testing-modules-dir=$(abspath _tests/modules) \
-    --extra-profile-file=$(DIST)/plugins \
-    $(SYMBOLS_PATH) $(TEST_PATH_ARG) $(EXTRA_TEST_ARGS)
+    $(SYMBOLS_PATH) $(EXTRA_TEST_ARGS) $(TEST_PATH_ARG)
 
 RUN_MOCHITEST_REMOTE = \
   rm -f ./$@.log && \
@@ -59,17 +70,16 @@ RUN_MOCHITEST_REMOTE = \
     --log-tbpl=./$@.log $(DM_FLAGS) --dm_trans=$(DM_TRANS) \
     --app=$(TEST_PACKAGE_NAME) --deviceIP=${TEST_DEVICE} --xre-path=${MOZ_HOST_BIN} \
     --testing-modules-dir=$(abspath _tests/modules) \
-    $(SYMBOLS_PATH) $(TEST_PATH_ARG) $(EXTRA_TEST_ARGS)
+    $(SYMBOLS_PATH) $(EXTRA_TEST_ARGS) $(TEST_PATH_ARG)
 
 RUN_MOCHITEST_ROBOCOP = \
   rm -f ./$@.log && \
-  $(PYTHON) _tests/testing/mochitest/runtestsremote.py \
-    --robocop-apk=$(DEPTH)/build/mobile/robocop/robocop-debug.apk \
-    --robocop-ids=$(DEPTH)/mobile/android/base/fennec_ids.txt \
-    --robocop-ini=$(DEPTH)/build/mobile/robocop/robocop.ini \
+  $(PYTHON) _tests/testing/mochitest/runrobocop.py \
+    --robocop-apk=$(DEPTH)/mobile/android/tests/browser/robocop/robocop-debug.apk \
+    --robocop-ini=_tests/testing/mochitest/robocop.ini \
     --log-tbpl=./$@.log $(DM_FLAGS) --dm_trans=$(DM_TRANS) \
     --app=$(TEST_PACKAGE_NAME) --deviceIP=${TEST_DEVICE} --xre-path=${MOZ_HOST_BIN} \
-    $(SYMBOLS_PATH) $(TEST_PATH_ARG) $(EXTRA_TEST_ARGS)
+    $(SYMBOLS_PATH) $(EXTRA_TEST_ARGS) $(TEST_PATH_ARG)
 
 ifndef NO_FAIL_ON_TEST_ERRORS
 define check_test_error_internal
@@ -164,7 +174,7 @@ ifeq (powerpc,$(TARGET_CPU))
 	$(RUN_MOCHITEST) --setpref=dom.ipc.plugins.enabled.ppc.test.plugin=false $(IPCPLUGINS_PATH_ARG)
 endif
 else
-	$(RUN_MOCHITEST) --setpref=dom.ipc.plugins.enabled=false --test-path=dom/plugins/test
+	$(RUN_MOCHITEST) --setpref=dom.ipc.plugins.enabled=false dom/plugins/test
 endif
 	$(CHECK_TEST_ERROR)
 
@@ -195,8 +205,8 @@ RUN_REFTEST = rm -f ./$@.log && $(PYTHON) _tests/reftest/runreftest.py \
 REMOTE_REFTEST = rm -f ./$@.log && $(PYTHON) _tests/reftest/remotereftest.py \
   --dm_trans=$(DM_TRANS) --ignore-window-size \
   --app=$(TEST_PACKAGE_NAME) --deviceIP=${TEST_DEVICE} --xre-path=${MOZ_HOST_BIN} \
-  --httpd-path=_tests/modules \
-  $(SYMBOLS_PATH) $(EXTRA_TEST_ARGS) '$(1)' | tee ./$@.log
+  --httpd-path=_tests/modules --suite reftest \
+  $(SYMBOLS_PATH) $(EXTRA_TEST_ARGS) $(1) | tee ./$@.log
 
 RUN_REFTEST_B2G = rm -f ./$@.log && $(PYTHON) _tests/reftest/runreftestb2g.py \
   --remote-webserver=10.0.2.2 --b2gpath=${B2G_PATH} --adbpath=${ADB_PATH} \
@@ -231,7 +241,7 @@ reftest-remote:
         echo 'please prepare your host with the environment variable TEST_DEVICE'; \
     else \
         ln -s $(abspath $(topsrcdir)) _tests/reftest/tests; \
-        $(call REMOTE_REFTEST,tests/$(TEST_PATH)); \
+        $(call REMOTE_REFTEST,'tests/$(TEST_PATH)'); \
         $(CHECK_TEST_ERROR); \
     fi
 
@@ -292,7 +302,7 @@ GARBAGE += $(addsuffix .log,$(MOCHITESTS) reftest crashtest jstestbrowser)
 ifeq ($(OS_ARCH),Darwin)
 xpcshell_path = $(TARGET_DIST)/$(MOZ_MACBUNDLE_NAME)/Contents/MacOS/xpcshell
 else
-xpcshell_path = $(LIBXUL_DIST)/bin/xpcshell
+xpcshell_path = $(DIST)/bin/xpcshell
 endif
 
 # Execute all xpcshell tests in the directories listed in the manifest.
@@ -309,11 +319,10 @@ xpcshell-tests:
 	  --build-info-json=$(DEPTH)/mozinfo.json \
 	  --no-logfiles \
 	  --test-plugin-path='$(DIST)/plugins' \
-	  --tests-root-dir=$(abspath _tests/xpcshell) \
+	  --xpcshell=$(xpcshell_path) \
 	  --testing-modules-dir=$(abspath _tests/modules) \
           $(SYMBOLS_PATH) \
-	  $(TEST_PATH_ARG) $(EXTRA_TEST_ARGS) \
-	  $(xpcshell_path)
+	  $(TEST_PATH_ARG) $(EXTRA_TEST_ARGS)
 
 B2G_XPCSHELL = \
 	rm -f ./@.log && \
@@ -401,39 +410,35 @@ package-tests: \
   stage-xpcshell \
   stage-jstests \
   stage-jetpack \
-  stage-mozbase \
-  stage-tps \
-  stage-modules \
   stage-marionette \
   stage-cppunittests \
-  stage-jittest \
-  stage-web-platform-tests \
   stage-luciddream \
   test-packages-manifest \
   $(NULL)
 ifdef MOZ_WEBRTC
 package-tests: stage-steeplechase
 endif
-else
-# This staging area has been built for us by universal/flight.mk
-PKG_STAGE = $(DIST)/universal/test-stage
-endif
 
 TEST_PKGS := \
+  common \
   cppunittest \
   mochitest \
   reftest \
   xpcshell \
   web-platform \
+  xpcshell \
   $(NULL)
+
+ifdef BUILD_GTEST
+stage-all: stage-gtest
+TEST_PKGS += gtest
+endif
 
 PKG_ARG = --$(1) '$(PKG_BASENAME).$(1).tests.zip'
 
 test-packages-manifest:
 	@rm -f $(MOZ_TEST_PACKAGES_FILE)
-ifndef UNIVERSAL_BINARY
 	$(NSINSTALL) -D $(dir $(MOZ_TEST_PACKAGES_FILE))
-endif
 	$(PYTHON) $(topsrcdir)/build/gen_test_packages_manifest.py \
       --jsshell $(JSSHELL_NAME) \
       --dest-file $(MOZ_TEST_PACKAGES_FILE) \
@@ -471,7 +476,6 @@ make-stage-dir:
 	$(NSINSTALL) -D $(PKG_STAGE)/certs
 	$(NSINSTALL) -D $(PKG_STAGE)/config
 	$(NSINSTALL) -D $(PKG_STAGE)/jetpack
-	$(NSINSTALL) -D $(PKG_STAGE)/mozbase
 	$(NSINSTALL) -D $(PKG_STAGE)/modules
 	$(NSINSTALL) -D $(PKG_STAGE)/tools/mach
 
@@ -502,6 +506,15 @@ stage-xpcshell: make-stage-dir
 stage-jstests: make-stage-dir
 	$(MAKE) -C $(DEPTH)/js/src/tests stage-package
 
+stage-gtest: make-stage-dir
+# FIXME: (bug 1200311) We should be generating the gtest xul as part of the build.
+	$(MAKE) -C $(DEPTH)/testing/gtest gtest
+	$(NSINSTALL) -D $(PKG_STAGE)/gtest/gtest_bin
+	cp -RL $(DIST)/bin/gtest $(PKG_STAGE)/gtest/gtest_bin
+	cp -RL $(DEPTH)/_tests/gtest $(PKG_STAGE)
+	cp $(topsrcdir)/testing/gtest/rungtests.py $(PKG_STAGE)/gtest
+	cp $(DIST)/bin/dependentlibs.list.gtest $(PKG_STAGE)/gtest
+
 stage-android: make-stage-dir
 ifdef MOZ_ENABLE_SZIP
 # Tinderbox scripts are not unzipping everything, so the file needs to be in a directory it unzips
@@ -514,16 +527,6 @@ endif
 
 stage-jetpack: make-stage-dir
 	$(MAKE) -C $(DEPTH)/addon-sdk stage-tests-package
-
-stage-tps: make-stage-dir
-	$(NSINSTALL) -D $(PKG_STAGE)/tps/tests
-	@(cd $(topsrcdir)/testing/tps && tar $(TAR_CREATE_FLAGS) - *) | (cd $(PKG_STAGE)/tps && tar -xf -)
-	@(cd $(topsrcdir)/services/sync/tps && tar $(TAR_CREATE_FLAGS) - *) | (cd $(PKG_STAGE)/tps && tar -xf -)
-	(cd $(topsrcdir)/services/sync/tests/tps && tar $(TAR_CREATE_FLAGS) - *) | (cd $(PKG_STAGE)/tps/tests && tar -xf -)
-
-stage-modules: make-stage-dir
-	$(NSINSTALL) -D $(PKG_STAGE)/modules
-	cp -RL $(DEPTH)/_tests/modules $(PKG_STAGE)
 
 CPP_UNIT_TEST_BINS=$(wildcard $(DIST)/cppunittests/*)
 
@@ -540,27 +543,11 @@ ifdef STRIP_CPP_TESTS
 else
 	cp -RL $(CPP_UNIT_TEST_BINS) $(PKG_STAGE)/cppunittest
 endif
-	cp $(topsrcdir)/testing/runcppunittests.py $(PKG_STAGE)/cppunittest
-	cp $(topsrcdir)/testing/remotecppunittests.py $(PKG_STAGE)/cppunittest
-	cp $(topsrcdir)/testing/cppunittest.ini $(PKG_STAGE)/cppunittest
-	cp $(DEPTH)/mozinfo.json $(PKG_STAGE)/cppunittest
-ifeq ($(MOZ_DISABLE_STARTUPCACHE),)
-	cp $(topsrcdir)/startupcache/test/TestStartupCacheTelemetry.js $(PKG_STAGE)/cppunittest
-	cp $(topsrcdir)/startupcache/test/TestStartupCacheTelemetry.manifest $(PKG_STAGE)/cppunittest
-endif
 ifdef STRIP_CPP_TESTS
 	$(OBJCOPY) $(or $(STRIP_FLAGS),--strip-unneeded) $(DIST)/bin/jsapi-tests$(BIN_SUFFIX) $(PKG_STAGE)/cppunittest/jsapi-tests$(BIN_SUFFIX)
 else
 	cp -RL $(DIST)/bin/jsapi-tests$(BIN_SUFFIX) $(PKG_STAGE)/cppunittest
 endif
-
-stage-jittest: make-stage-dir
-	$(NSINSTALL) -D $(PKG_STAGE)/jit-test/tests
-	cp -RL $(topsrcdir)/js/src/jsapi.h $(PKG_STAGE)/jit-test/
-	cp -RL $(topsrcdir)/js/src/jit-test $(PKG_STAGE)/jit-test/
-	cp -RL $(topsrcdir)/js/src/tests/ecma_6 $(PKG_STAGE)/jit-test/tests/
-	cp -RL $(topsrcdir)/js/src/tests/js1_8_5 $(PKG_STAGE)/jit-test/tests/
-	cp -RL $(topsrcdir)/js/src/tests/lib $(PKG_STAGE)/jit-test/tests/
 
 stage-steeplechase: make-stage-dir
 	$(NSINSTALL) -D $(PKG_STAGE)/steeplechase/
@@ -592,12 +579,6 @@ stage-marionette: make-stage-dir
           | (cd $(topsrcdir) && xargs tar $(TAR_CREATE_FLAGS) -) \
           | (cd $(MARIONETTE_DIR)/tests && tar -xf -)
 
-stage-mozbase: make-stage-dir
-	$(MAKE) -C $(DEPTH)/testing/mozbase stage-package
-
-stage-web-platform-tests: make-stage-dir
-	$(MAKE) -C $(DEPTH)/testing/web-platform stage-package
-
 stage-instrumentation-tests: make-stage-dir
 	$(MAKE) -C $(DEPTH)/testing/instrumentation stage-package
 
@@ -622,12 +603,8 @@ stage-instrumentation-tests: make-stage-dir
   stage-jstests \
   stage-android \
   stage-jetpack \
-  stage-mozbase \
-  stage-tps \
-  stage-modules \
   stage-marionette \
   stage-steeplechase \
-  stage-web-platform-tests \
   stage-instrumentation-tests \
   stage-luciddream \
   test-packages-manifest \

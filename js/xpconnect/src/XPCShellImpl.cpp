@@ -8,6 +8,7 @@
 #include "jsapi.h"
 #include "jsfriendapi.h"
 #include "jsprf.h"
+#include "mozilla/ChaosMode.h"
 #include "mozilla/dom/ScriptSettings.h"
 #include "nsServiceManagerUtils.h"
 #include "nsComponentManagerUtils.h"
@@ -26,11 +27,13 @@
 #include "nsAutoPtr.h"
 #include "nsJSPrincipals.h"
 #include "xpcpublic.h"
+#include "xpcprivate.h"
 #include "BackstagePass.h"
 #include "nsIScriptSecurityManager.h"
 #include "nsIPrincipal.h"
 #include "nsJSUtils.h"
 #include "gfxPrefs.h"
+#include "nsIXULRuntime.h"
 
 #include "base/histogram.h"
 
@@ -50,6 +53,11 @@
 #endif
 #ifdef HAVE_UNISTD_H
 #include <unistd.h>     /* for isatty() */
+#endif
+
+#ifdef MOZ_CRASHREPORTER
+#include "nsExceptionHandler.h"
+#include "nsICrashReporter.h"
 #endif
 
 using namespace mozilla;
@@ -118,7 +126,7 @@ GetLocationProperty(JSContext* cx, unsigned argc, Value* vp)
     //XXX: your platform should really implement this
     return false;
 #else
-    JS::AutoFilename filename;
+    JS::UniqueChars filename;
     if (JS::DescribeScriptedCaller(cx, &filename) && filename.get()) {
         nsresult rv;
         nsCOMPtr<nsIXPConnect> xpc =
@@ -186,16 +194,21 @@ GetLocationProperty(JSContext* cx, unsigned argc, Value* vp)
 }
 
 static bool
-GetLine(JSContext* cx, char* bufp, FILE* file, const char* prompt) {
-    {
-        char line[4096] = { '\0' };
-        fputs(prompt, gOutFile);
-        fflush(gOutFile);
-        if ((!fgets(line, sizeof line, file) && errno != EINTR) || feof(file))
+GetLine(JSContext* cx, char* bufp, FILE* file, const char* prompt)
+{
+    fputs(prompt, gOutFile);
+    fflush(gOutFile);
+
+    char line[4096] = { '\0' };
+    while (true) {
+        if (fgets(line, sizeof line, file)) {
+            strcpy(bufp, line);
+            return true;
+        }
+        if (errno != EINTR) {
             return false;
-        strcpy(bufp, line);
+        }
     }
-    return true;
 }
 
 static bool
@@ -622,8 +635,8 @@ static const JSFunctionSpec glob_functions[] = {
 };
 
 static bool
-env_setProperty(JSContext *cx, HandleObject obj, HandleId id, MutableHandleValue vp,
-                ObjectOpResult &result)
+env_setProperty(JSContext* cx, HandleObject obj, HandleId id, MutableHandleValue vp,
+                ObjectOpResult& result)
 {
 /* XXX porting may be easy, but these don't seem to supply setenv by default */
 #if !defined SOLARIS
@@ -920,6 +933,7 @@ ProcessArgsForCompartment(JSContext* cx, char** argv, int argc)
             break;
         case 'S':
             RuntimeOptionsRef(cx).toggleWerror();
+            MOZ_FALLTHROUGH; // because -S implies -s
         case 's':
             RuntimeOptionsRef(cx).toggleExtraWarnings();
             break;
@@ -1211,6 +1225,22 @@ XRE_XPCShellMain(int argc, char** argv, char** envp)
 
     NS_LogInit();
 
+    mozilla::LogModule::Init();
+
+    if (PR_GetEnv("MOZ_CHAOSMODE")) {
+        ChaosFeature feature = ChaosFeature::Any;
+        long featureInt = strtol(PR_GetEnv("MOZ_CHAOSMODE"), nullptr, 16);
+        if (featureInt) {
+            // NOTE: MOZ_CHAOSMODE=0 or a non-hex value maps to Any feature.
+            feature = static_cast<ChaosFeature>(featureInt);
+        }
+        ChaosMode::SetChaosFeature(feature);
+    }
+
+    if (ChaosMode::isActive(ChaosFeature::Any)) {
+        printf_stderr("*** You are running in chaos test mode. See ChaosMode.h. ***\n");
+    }
+
     nsCOMPtr<nsIFile> appFile;
     rv = XRE_GetBinaryPath(argv[0], getter_AddRefs(appFile));
     if (NS_FAILED(rv)) {
@@ -1307,6 +1337,18 @@ XRE_XPCShellMain(int argc, char** argv, char** envp)
         argv += 2;
     }
 
+#ifdef MOZ_CRASHREPORTER
+    const char* val = getenv("MOZ_CRASHREPORTER");
+    if (val && *val) {
+        rv = CrashReporter::SetExceptionHandler(greDir, true);
+        if (NS_FAILED(rv)) {
+            printf("CrashReporter::SetExceptionHandler failed!\n");
+            return 1;
+        }
+        MOZ_ASSERT(CrashReporter::GetEnabled());
+    }
+#endif
+
     {
         if (argc > 1 && !strcmp(argv[1], "--greomni")) {
             nsCOMPtr<nsIFile> greOmni;
@@ -1391,7 +1433,7 @@ XRE_XPCShellMain(int argc, char** argv, char** envp)
         xpc->SetFunctionThisTranslator(NS_GET_IID(nsITestXPCFunctionCallback), translator);
 #endif
 
-        nsRefPtr<BackstagePass> backstagePass;
+        RefPtr<BackstagePass> backstagePass;
         rv = NS_NewBackstagePass(getter_AddRefs(backstagePass));
         if (NS_FAILED(rv)) {
             fprintf(gErrFile, "+++ Failed to create BackstagePass: %8x\n",
@@ -1402,8 +1444,8 @@ XRE_XPCShellMain(int argc, char** argv, char** envp)
         // Make the default XPCShell global use a fresh zone (rather than the
         // System Zone) to improve cross-zone test coverage.
         JS::CompartmentOptions options;
-        options.setZone(JS::FreshZone)
-               .setVersion(JSVERSION_LATEST);
+        options.creationOptions().setZone(JS::FreshZone);
+        options.behaviors().setVersion(JSVERSION_LATEST);
         nsCOMPtr<nsIXPConnectJSObjectHolder> holder;
         rv = xpc->InitClassesWithNewWrappedGlobal(cx,
                                                   static_cast<nsIGlobalObject*>(backstagePass),
@@ -1416,6 +1458,8 @@ XRE_XPCShellMain(int argc, char** argv, char** envp)
 
         // Initialize graphics prefs on the main thread, if not already done
         gfxPrefs::GetSingleton();
+        // Initialize e10s check on the main thread, if not already done
+        BrowserTabsRemoteAutostart();
 
         {
             JS::Rooted<JSObject*> glob(cx, holder->GetJSObject());
@@ -1426,7 +1470,7 @@ XRE_XPCShellMain(int argc, char** argv, char** envp)
             // Even if we're building in a configuration where source is
             // discarded, there's no reason to do that on XPCShell, and doing so
             // might break various automation scripts.
-            JS::CompartmentOptionsRef(glob).setDiscardSource(false);
+            JS::CompartmentBehaviorsRef(glob).setDiscardSource(false);
 
             backstagePass->SetGlobalObject(glob);
 
@@ -1480,6 +1524,7 @@ XRE_XPCShellMain(int argc, char** argv, char** envp)
 
             JS_DropPrincipals(rt, gJSPrincipals);
             JS_SetAllNonReservedSlotsToUndefined(cx, glob);
+            JS_SetAllNonReservedSlotsToUndefined(cx, JS_GlobalLexicalScope(glob));
             JS_GC(rt);
         }
         JS_GC(rt);
@@ -1505,6 +1550,12 @@ XRE_XPCShellMain(int argc, char** argv, char** envp)
     dirprovider.ClearAppDir();
     dirprovider.ClearPluginDir();
     dirprovider.ClearAppFile();
+
+#ifdef MOZ_CRASHREPORTER
+    // Shut down the crashreporter service to prevent leaking some strings it holds.
+    if (CrashReporter::GetEnabled())
+        CrashReporter::UnsetExceptionHandler();
+#endif
 
     NS_LogTerm();
 

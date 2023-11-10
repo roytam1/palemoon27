@@ -12,16 +12,27 @@
 namespace mozilla {
 namespace dom {
 
-NS_IMPL_ISUPPORTS(TimeRanges, nsIDOMTimeRanges)
+NS_IMPL_CYCLE_COLLECTION_WRAPPERCACHE(TimeRanges, mParent)
+NS_IMPL_CYCLE_COLLECTING_ADDREF(TimeRanges)
+NS_IMPL_CYCLE_COLLECTING_RELEASE(TimeRanges)
+NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(TimeRanges)
+  NS_WRAPPERCACHE_INTERFACE_MAP_ENTRY
+  NS_INTERFACE_MAP_ENTRY(nsIDOMTimeRanges)
+  NS_INTERFACE_MAP_ENTRY(nsISupports)
+NS_INTERFACE_MAP_END
 
 TimeRanges::TimeRanges()
+  : mParent(nullptr)
 {
-  MOZ_COUNT_CTOR(TimeRanges);
+}
+
+TimeRanges::TimeRanges(nsISupports* aParent)
+  : mParent(aParent)
+{
 }
 
 TimeRanges::~TimeRanges()
 {
-  MOZ_COUNT_DTOR(TimeRanges);
 }
 
 NS_IMETHODIMP
@@ -101,7 +112,7 @@ void
 TimeRanges::Normalize(double aTolerance)
 {
   if (mRanges.Length() >= 2) {
-    nsAutoTArray<TimeRange,4> normalized;
+    AutoTArray<TimeRange,4> normalized;
 
     mRanges.Sort(CompareTimeRanges());
 
@@ -136,7 +147,7 @@ TimeRanges::Union(const TimeRanges* aOtherRanges, double aTolerance)
 void
 TimeRanges::Intersection(const TimeRanges* aOtherRanges)
 {
-  nsAutoTArray<TimeRange,4> intersection;
+  AutoTArray<TimeRange,4> intersection;
 
   const nsTArray<TimeRange>& otherRanges = aOtherRanges->mRanges;
   for (index_type i = 0, j = 0; i < mRanges.Length() && j < otherRanges.Length();) {
@@ -166,10 +177,16 @@ TimeRanges::Find(double aTime, double aTolerance /* = 0 */)
   return NoIndex;
 }
 
-bool
-TimeRanges::WrapObject(JSContext* aCx, JS::Handle<JSObject*> aGivenProto, JS::MutableHandle<JSObject*> aReflector)
+JSObject*
+TimeRanges::WrapObject(JSContext* aCx, JS::Handle<JSObject*> aGivenProto)
 {
-  return TimeRangesBinding::Wrap(aCx, this, aGivenProto, aReflector);
+  return TimeRangesBinding::Wrap(aCx, this, aGivenProto);
+}
+
+nsISupports*
+TimeRanges::GetParentObject() const
+{
+  return mParent;
 }
 
 void

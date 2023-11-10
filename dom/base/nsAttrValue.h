@@ -25,6 +25,9 @@
 #include "mozilla/MemoryReporting.h"
 #include "mozilla/dom/BindingDeclarations.h"
 
+// Undefine LoadImage to prevent naming conflict with Windows.
+#undef LoadImage
+
 class nsAString;
 class nsIDocument;
 class nsStyledElementNotElementCSSInlineStyle;
@@ -32,7 +35,7 @@ struct MiscContainer;
 
 namespace mozilla {
 namespace css {
-class StyleRule;
+class Declaration;
 struct URLValue;
 struct ImageValue;
 } // namespace css
@@ -91,7 +94,7 @@ public:
     ePercent =      0x0F, // 1111
     // Values below here won't matter, they'll be always stored in the 'misc'
     // struct.
-    eCSSStyleRule =            0x10
+    eCSSDeclaration =          0x10
     ,eURL =                    0x11
     ,eImage =                  0x12
     ,eAtomArray =              0x13
@@ -117,7 +120,7 @@ public:
   nsAttrValue(const nsAttrValue& aOther);
   explicit nsAttrValue(const nsAString& aValue);
   explicit nsAttrValue(nsIAtom* aValue);
-  nsAttrValue(mozilla::css::StyleRule* aValue, const nsAString* aSerialized);
+  nsAttrValue(mozilla::css::Declaration* aValue, const nsAString* aSerialized);
   explicit nsAttrValue(const nsIntMargin& aValue);
   ~nsAttrValue();
 
@@ -142,7 +145,7 @@ public:
   void SetTo(int16_t aInt);
   void SetTo(int32_t aInt, const nsAString* aSerialized);
   void SetTo(double aValue, const nsAString* aSerialized);
-  void SetTo(mozilla::css::StyleRule* aValue, const nsAString* aSerialized);
+  void SetTo(mozilla::css::Declaration* aValue, const nsAString* aSerialized);
   void SetTo(mozilla::css::URLValue* aValue, const nsAString* aSerialized);
   void SetTo(const nsIntMargin& aValue);
   void SetTo(const nsSVGAngle& aValue, const nsAString* aSerialized);
@@ -193,7 +196,7 @@ public:
   inline int16_t GetEnumValue() const;
   inline float GetPercentValue() const;
   inline AtomArray* GetAtomArrayValue() const;
-  inline mozilla::css::StyleRule* GetCSSStyleRuleValue() const;
+  inline mozilla::css::Declaration* GetCSSDeclarationValue() const;
   inline mozilla::css::URLValue* GetURLValue() const;
   inline mozilla::css::ImageValue* GetImageValue() const;
   inline double GetDoubleValue() const;

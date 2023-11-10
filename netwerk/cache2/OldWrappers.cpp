@@ -267,7 +267,7 @@ NS_IMETHODIMP _OldVisitCallbackWrapper::VisitEntry(const char * deviceID,
 
   // Send them to the consumer.
   rv = mCB->OnCacheEntryInfo(
-    uri, enhanceId, (int64_t)dataSize, fetchCount, lastModified, expirationTime);
+    uri, enhanceId, (int64_t)dataSize, fetchCount, lastModified, expirationTime, false);
 
   *_retval = NS_SUCCEEDED(rv);
   return NS_OK;
@@ -284,7 +284,7 @@ nsresult _OldGetDiskConsumption::Get(nsICacheStorageConsumptionObserver* aCallba
       do_GetService(NS_CACHESERVICE_CONTRACTID, &rv);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  nsRefPtr<_OldGetDiskConsumption> cb = new _OldGetDiskConsumption(aCallback);
+  RefPtr<_OldGetDiskConsumption> cb = new _OldGetDiskConsumption(aCallback);
 
   // _OldGetDiskConsumption stores the found size value, but until dispatched
   // to the main thread it doesn't call on the consupmtion observer. See bellow.
@@ -381,7 +381,7 @@ NS_IMPL_ISUPPORTS(_OldCacheEntryWrapper, nsICacheEntry)
 
 NS_IMETHODIMP _OldCacheEntryWrapper::AsyncDoom(nsICacheEntryDoomCallback* listener)
 {
-  nsRefPtr<DoomCallbackWrapper> cb = listener
+  RefPtr<DoomCallbackWrapper> cb = listener
     ? new DoomCallbackWrapper(listener)
     : nullptr;
   return AsyncDoom(cb);
@@ -516,7 +516,7 @@ MetaDataVisitorWrapper::VisitMetaDataElement(char const * key,
 
 NS_IMETHODIMP _OldCacheEntryWrapper::VisitMetaData(nsICacheEntryMetaDataVisitor* cb)
 {
-  nsRefPtr<MetaDataVisitorWrapper> w = new MetaDataVisitorWrapper(cb);
+  RefPtr<MetaDataVisitorWrapper> w = new MetaDataVisitorWrapper(cb);
   return mOldDesc->VisitMetaData(w);
 }
 
@@ -527,8 +527,7 @@ GetCacheSessionNameForStoragePolicy(
         nsCSubstring const &scheme,
         nsCacheStoragePolicy storagePolicy,
         bool isPrivate,
-        uint32_t appId,
-        bool inBrowser,
+        OriginAttributes const *originAttribs,
         nsACString& sessionName)
 {
   MOZ_ASSERT(!isPrivate || storagePolicy == nsICache::STORE_IN_MEMORY);
@@ -581,12 +580,9 @@ GetCacheSessionNameForStoragePolicy(
       sessionName.AppendLiteral("-private");
   }
 
-  if (appId != nsILoadContextInfo::NO_APP_ID || inBrowser) {
-    sessionName.Append('~');
-    sessionName.AppendInt(appId);
-    sessionName.Append('~');
-    sessionName.AppendInt(inBrowser);
-  }
+  nsAutoCString suffix;
+  originAttribs->CreateSuffix(suffix);
+  sessionName.Append(suffix);
 
   return NS_OK;
 }
@@ -617,8 +613,7 @@ GetCacheSession(nsCSubstring const &aScheme,
       aScheme,
       storagePolicy,
       aLoadInfo->IsPrivate(),
-      aLoadInfo->AppId(),
-      aLoadInfo->IsInBrowserElement(),
+      aLoadInfo->OriginAttributesPtr(),
       clientId);
     NS_ENSURE_SUCCESS(rv, rv);
   }
@@ -927,7 +922,7 @@ NS_IMETHODIMP _OldStorage::AsyncOpenURI(nsIURI *aURI,
     }
   }
 
-  nsRefPtr<_OldCacheLoad> cacheLoad =
+  RefPtr<_OldCacheLoad> cacheLoad =
     new _OldCacheLoad(scheme, cacheKey, aCallback, mAppCache,
                       mLoadInfo, mWriteToDisk, aFlags);
 
@@ -965,7 +960,7 @@ NS_IMETHODIMP _OldStorage::AsyncDoomURI(nsIURI *aURI, const nsACString & aIdExte
                        getter_AddRefs(session));
   NS_ENSURE_SUCCESS(rv, rv);
 
-  nsRefPtr<DoomCallbackWrapper> cb = aCallback
+  RefPtr<DoomCallbackWrapper> cb = aCallback
     ? new DoomCallbackWrapper(aCallback)
     : nullptr;
   rv = session->DoomEntry(cacheKey, cb);
@@ -981,72 +976,52 @@ NS_IMETHODIMP _OldStorage::AsyncEvictStorage(nsICacheEntryDoomCallback* aCallbac
   nsresult rv;
 
   if (!mAppCache && mOfflineStorage) {
-    // Special casing for pure offline storage
-    if (mLoadInfo->AppId() == nsILoadContextInfo::NO_APP_ID &&
-        !mLoadInfo->IsInBrowserElement()) {
+    nsCOMPtr<nsIApplicationCacheService> appCacheService =
+      do_GetService(NS_APPLICATIONCACHESERVICE_CONTRACTID, &rv);
+    NS_ENSURE_SUCCESS(rv, rv);
 
-      // Clear everything.
-      nsCOMPtr<nsICacheService> serv =
-          do_GetService(NS_CACHESERVICE_CONTRACTID, &rv);
-      NS_ENSURE_SUCCESS(rv, rv);
+    rv = appCacheService->Evict(mLoadInfo);
+    NS_ENSURE_SUCCESS(rv, rv);
+  } else if (mAppCache) {
+    nsCOMPtr<nsICacheSession> session;
+    rv = GetCacheSession(EmptyCString(),
+                          mWriteToDisk, mLoadInfo, mAppCache,
+                          getter_AddRefs(session));
+    NS_ENSURE_SUCCESS(rv, rv);
 
-      rv = nsCacheService::GlobalInstance()->EvictEntriesInternal(nsICache::STORE_OFFLINE);
-      NS_ENSURE_SUCCESS(rv, rv);
-    }
-    else {
-      // Clear app or inbrowser staff.
-      nsCOMPtr<nsIApplicationCacheService> appCacheService =
-        do_GetService(NS_APPLICATIONCACHESERVICE_CONTRACTID, &rv);
-      NS_ENSURE_SUCCESS(rv, rv);
+    rv = session->EvictEntries();
+    NS_ENSURE_SUCCESS(rv, rv);
+  } else {
+    // Oh, I'll be so happy when session names are gone...
+    nsCOMPtr<nsICacheSession> session;
+    rv = GetCacheSession(NS_LITERAL_CSTRING("http"),
+                          mWriteToDisk, mLoadInfo, mAppCache,
+                          getter_AddRefs(session));
+    NS_ENSURE_SUCCESS(rv, rv);
 
-      rv = appCacheService->DiscardByAppId(mLoadInfo->AppId(),
-                                           mLoadInfo->IsInBrowserElement());
-      NS_ENSURE_SUCCESS(rv, rv);
-    }
-  }
-  else {
-    if (mAppCache) {
-      nsCOMPtr<nsICacheSession> session;
-      rv = GetCacheSession(EmptyCString(),
-                           mWriteToDisk, mLoadInfo, mAppCache,
-                           getter_AddRefs(session));
-      NS_ENSURE_SUCCESS(rv, rv);
+    rv = session->EvictEntries();
+    NS_ENSURE_SUCCESS(rv, rv);
 
-      rv = session->EvictEntries();
-      NS_ENSURE_SUCCESS(rv, rv);
-    }
-    else {
-      // Oh, I'll be so happy when session names are gone...
-      nsCOMPtr<nsICacheSession> session;
-      rv = GetCacheSession(NS_LITERAL_CSTRING("http"),
-                           mWriteToDisk, mLoadInfo, mAppCache,
-                           getter_AddRefs(session));
-      NS_ENSURE_SUCCESS(rv, rv);
+    rv = GetCacheSession(NS_LITERAL_CSTRING("wyciwyg"),
+                          mWriteToDisk, mLoadInfo, mAppCache,
+                          getter_AddRefs(session));
+    NS_ENSURE_SUCCESS(rv, rv);
 
-      rv = session->EvictEntries();
-      NS_ENSURE_SUCCESS(rv, rv);
+    rv = session->EvictEntries();
+    NS_ENSURE_SUCCESS(rv, rv);
 
-      rv = GetCacheSession(NS_LITERAL_CSTRING("wyciwyg"),
-                           mWriteToDisk, mLoadInfo, mAppCache,
-                           getter_AddRefs(session));
-      NS_ENSURE_SUCCESS(rv, rv);
+    // This clears any data from scheme other then http, wyciwyg or ftp
+    rv = GetCacheSession(EmptyCString(),
+                          mWriteToDisk, mLoadInfo, mAppCache,
+                          getter_AddRefs(session));
+    NS_ENSURE_SUCCESS(rv, rv);
 
-      rv = session->EvictEntries();
-      NS_ENSURE_SUCCESS(rv, rv);
-
-      // This clears any data from scheme other then http, wyciwyg or ftp
-      rv = GetCacheSession(EmptyCString(),
-                           mWriteToDisk, mLoadInfo, mAppCache,
-                           getter_AddRefs(session));
-      NS_ENSURE_SUCCESS(rv, rv);
-
-      rv = session->EvictEntries();
-      NS_ENSURE_SUCCESS(rv, rv);
-    }
+    rv = session->EvictEntries();
+    NS_ENSURE_SUCCESS(rv, rv);
   }
 
   if (aCallback) {
-    nsRefPtr<DoomCallbackSynchronizer> sync =
+    RefPtr<DoomCallbackSynchronizer> sync =
       new DoomCallbackSynchronizer(aCallback);
     rv = sync->Dispatch();
     NS_ENSURE_SUCCESS(rv, rv);
@@ -1077,7 +1052,7 @@ NS_IMETHODIMP _OldStorage::AsyncVisitStorage(nsICacheStorageVisitor* aVisitor,
     deviceID = const_cast<char*>("disk");
   }
 
-  nsRefPtr<_OldVisitCallbackWrapper> cb = new _OldVisitCallbackWrapper(
+  RefPtr<_OldVisitCallbackWrapper> cb = new _OldVisitCallbackWrapper(
     deviceID, aVisitor, aVisitEntries, mLoadInfo);
   rv = nsCacheService::GlobalInstance()->VisitEntriesInternal(cb);
   NS_ENSURE_SUCCESS(rv, rv);

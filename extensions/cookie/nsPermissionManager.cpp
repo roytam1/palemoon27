@@ -36,13 +36,16 @@
 #include "nsIDocument.h"
 #include "mozilla/net/NeckoMessageUtils.h"
 #include "mozilla/Preferences.h"
+#include "mozilla/BasePrincipal.h"
 #include "nsReadLine.h"
+#include "mozilla/Telemetry.h"
+#include "nsIConsoleService.h"
 
 static nsPermissionManager *gPermissionManager = nullptr;
 
 using mozilla::dom::ContentParent;
 using mozilla::dom::ContentChild;
-using mozilla::unused; // ha!
+using mozilla::Unused; // ha!
 
 static bool
 IsChildProcess()
@@ -67,6 +70,18 @@ ChildProcess()
   return nullptr;
 }
 
+static void
+LogToConsole(const nsAString& aMsg)
+{
+  nsCOMPtr<nsIConsoleService> console(do_GetService("@mozilla.org/consoleservice;1"));
+  if (!console) {
+    NS_WARNING("Failed to log message to console.");
+    return;
+  }
+
+  nsAutoString msg(aMsg);
+  console->LogStringMessage(msg.get());
+}
 
 #define ENSURE_NOT_CHILD_PROCESS_(onError) \
   PR_BEGIN_MACRO \
@@ -90,9 +105,6 @@ nsresult
 GetPrincipal(const nsACString& aHost, uint32_t aAppId, bool aIsInBrowserElement,
              nsIPrincipal** aPrincipal)
 {
-  nsIScriptSecurityManager* secMan = nsContentUtils::GetSecurityManager();
-  NS_ENSURE_TRUE(secMan, NS_ERROR_FAILURE);
-
   nsCOMPtr<nsIURI> uri;
   nsresult rv = NS_NewURI(getter_AddRefs(uri), aHost);
   if (NS_FAILED(rv)) {
@@ -109,7 +121,13 @@ GetPrincipal(const nsACString& aHost, uint32_t aAppId, bool aIsInBrowserElement,
     NS_ENSURE_SUCCESS(rv, rv);
   }
 
-  return secMan->GetAppCodebasePrincipal(uri, aAppId, aIsInBrowserElement, aPrincipal);
+  // TODO: Bug 1165267 - Use OriginAttributes for nsCookieService
+  mozilla::OriginAttributes attrs(aAppId, aIsInBrowserElement);
+  nsCOMPtr<nsIPrincipal> principal = mozilla::BasePrincipal::CreateCodebasePrincipal(uri, attrs);
+  NS_ENSURE_TRUE(principal, NS_ERROR_FAILURE);
+
+  principal.forget(aPrincipal);
+  return NS_OK;
 }
 
 nsresult
@@ -264,7 +282,7 @@ public:
                         bool aRebuildOnSuccess);
 
 protected:
-  nsRefPtr<nsPermissionManager> mManager;
+  RefPtr<nsPermissionManager> mManager;
   bool mRebuildOnSuccess;
 };
 
@@ -281,7 +299,7 @@ NS_IMETHODIMP
 CloseDatabaseListener::Complete(nsresult, nsISupports*)
 {
   // Help breaking cycles
-  nsRefPtr<nsPermissionManager> manager = mManager.forget();
+  RefPtr<nsPermissionManager> manager = mManager.forget();
   if (mRebuildOnSuccess && !manager->mIsShuttingDown) {
     return manager->InitDB(true);
   }
@@ -313,7 +331,7 @@ public:
   explicit DeleteFromMozHostListener(nsPermissionManager* aManager);
 
 protected:
-  nsRefPtr<nsPermissionManager> mManager;
+  RefPtr<nsPermissionManager> mManager;
 };
 
 NS_IMPL_ISUPPORTS(DeleteFromMozHostListener, mozIStorageStatementCallback)
@@ -338,7 +356,7 @@ NS_IMETHODIMP DeleteFromMozHostListener::HandleError(mozIStorageError *)
 NS_IMETHODIMP DeleteFromMozHostListener::HandleCompletion(uint16_t aReason)
 {
   // Help breaking cycles
-  nsRefPtr<nsPermissionManager> manager = mManager.forget();
+  RefPtr<nsPermissionManager> manager = mManager.forget();
 
   if (aReason == REASON_ERROR) {
     manager->CloseDB(true);
@@ -473,29 +491,52 @@ nsPermissionManager::InitDB(bool aRemoveFile)
 
   // cache a connection to the hosts database
   rv = storage->OpenDatabase(permissionsFile, getter_AddRefs(mDBConn));
-  NS_ENSURE_SUCCESS(rv, rv);
+  if (rv == NS_ERROR_FILE_CORRUPTED) {
+    LogToConsole(NS_LITERAL_STRING("permissions.sqlite is corrupted! Try again!"));
+
+    // Add telemetry probe
+    mozilla::Telemetry::Accumulate(mozilla::Telemetry::PERMISSIONS_SQL_CORRUPTED, 1);
+
+    // delete corrupted permissions.sqlite and try again
+    rv = permissionsFile->Remove(false);
+    NS_ENSURE_SUCCESS(rv, rv);
+    LogToConsole(NS_LITERAL_STRING("Corrupted permissions.sqlite has been removed."));
+
+    rv = storage->OpenDatabase(permissionsFile, getter_AddRefs(mDBConn));
+    NS_ENSURE_SUCCESS(rv, rv);
+    LogToConsole(NS_LITERAL_STRING("OpenDatabase to permissions.sqlite is successful!"));
+  }
 
   bool ready;
   mDBConn->GetConnectionReady(&ready);
   if (!ready) {
+    LogToConsole(NS_LITERAL_STRING("Fail to get connection to permissions.sqlite! Try again!"));
+
     // delete and try again
     rv = permissionsFile->Remove(false);
     NS_ENSURE_SUCCESS(rv, rv);
+    LogToConsole(NS_LITERAL_STRING("Defective permissions.sqlite has been removed."));
+
+    // Add telemetry probe
+    mozilla::Telemetry::Accumulate(mozilla::Telemetry::DEFECTIVE_PERMISSIONS_SQL_REMOVED, 1);
 
     rv = storage->OpenDatabase(permissionsFile, getter_AddRefs(mDBConn));
     NS_ENSURE_SUCCESS(rv, rv);
+    LogToConsole(NS_LITERAL_STRING("OpenDatabase to permissions.sqlite is successful!"));
 
     mDBConn->GetConnectionReady(&ready);
     if (!ready)
       return NS_ERROR_UNEXPECTED;
   }
 
+  LogToConsole(NS_LITERAL_STRING("Get a connection to permissions.sqlite."));
+
   bool tableExists = false;
   mDBConn->TableExists(NS_LITERAL_CSTRING("moz_hosts"), &tableExists);
   if (!tableExists) {
     rv = CreateTable();
     NS_ENSURE_SUCCESS(rv, rv);
-
+    LogToConsole(NS_LITERAL_STRING("DB table(moz_hosts) is created!"));
   } else {
     // table already exists; check the schema version before reading
     int32_t dbSchemaVersion;
@@ -739,7 +780,7 @@ nsPermissionManager::AddInternal(nsIPrincipal* aPrincipal,
           aExpireType == nsIPermissionManager::EXPIRE_SESSION)
         continue;
       if (cp->NeedsPermissionsUpdate())
-        unused << cp->SendAddPermission(permission);
+        Unused << cp->SendAddPermission(permission);
     }
   }
 
@@ -749,7 +790,7 @@ nsPermissionManager::AddInternal(nsIPrincipal* aPrincipal,
 
   // When an entry already exists, PutEntry will return that, instead
   // of adding a new one
-  nsRefPtr<PermissionKey> key = new PermissionKey(aPrincipal);
+  RefPtr<PermissionKey> key = new PermissionKey(aPrincipal);
   PermissionHashKey* entry = mPermissionTable.PutEntry(key);
   if (!entry) return NS_ERROR_FAILURE;
   if (!entry->GetKey()) {
@@ -1000,11 +1041,13 @@ nsPermissionManager::AddInternal(nsIPrincipal* aPrincipal,
 }
 
 NS_IMETHODIMP
-nsPermissionManager::Remove(const nsACString &aHost,
-                            const char       *aType)
+nsPermissionManager::Remove(nsIURI*     aURI,
+                            const char* aType)
 {
+  NS_ENSURE_ARG_POINTER(aURI);
+
   nsCOMPtr<nsIPrincipal> principal;
-  nsresult rv = GetPrincipal(aHost, getter_AddRefs(principal));
+  nsresult rv = GetPrincipal(aURI, getter_AddRefs(principal));
   NS_ENSURE_SUCCESS(rv, rv);
 
   return RemoveFromPrincipal(principal, aType);
@@ -1038,6 +1081,26 @@ nsPermissionManager::RemoveFromPrincipal(nsIPrincipal* aPrincipal,
                      0,
                      eNotify,
                      eWriteToDB);
+}
+
+NS_IMETHODIMP
+nsPermissionManager::RemovePermission(nsIPermission* aPerm)
+{
+  nsAutoCString host;
+  nsresult rv = aPerm->GetHost(host);
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  nsCOMPtr<nsIPrincipal> principal;
+  rv = GetPrincipal(host, getter_AddRefs(principal));
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  nsAutoCString type;
+  rv = aPerm->GetType(type);
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  // Permissions are uniquely identified by their principal and type.
+  // We remove the permission using these two pieces of data.
+  return RemoveFromPrincipal(principal, type.get());
 }
 
 NS_IMETHODIMP
@@ -1328,7 +1391,7 @@ nsPermissionManager::GetPermissionHashKey(const nsACString& aHost,
 {
   PermissionHashKey* entry = nullptr;
 
-  nsRefPtr<PermissionKey> key = new PermissionKey(aHost, aAppId, aIsInBrowserElement);
+  RefPtr<PermissionKey> key = new PermissionKey(aHost, aAppId, aIsInBrowserElement);
   entry = mPermissionTable.GetEntry(key);
 
   if (entry) {

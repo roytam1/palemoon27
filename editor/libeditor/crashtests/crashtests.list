@@ -20,7 +20,7 @@ load 448329-3.html
 load 456727-1.html
 load 456727-2.html
 load 459613.html
-needs-focus asserts(0-1) load 467647-1.html # bug 414178
+needs-focus load 467647-1.html
 load 475132-1.xhtml
 load 499844-1.html
 load 503709-1.xhtml
@@ -39,24 +39,25 @@ load 643786-1.html
 load 682650-1.html
 load 713427-1.html
 load 713427-2.xhtml
-asserts(0-1) load 716456-1.html
+load 716456-1.html
 load 759748.html
 load 761861.html
 load 762183.html
-load 769008-1.html
 load 766305.html
 load 766360.html
 load 766387.html
 load 766413.html
-load 766845.xhtml
 load 766795.html
+load 766845.xhtml
 load 767169.html
-load 769967.xhtml
 load 768748.html
 load 768765.html
+load 769008-1.html
+load 769967.xhtml
 needs-focus load 771749.html
 load 772282.html
 load 776323.html
 needs-focus load 793866.html
 load 1057677.html
+needs-focus load 1128787.html
 load 1134545.html

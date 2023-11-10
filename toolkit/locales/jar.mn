@@ -48,6 +48,8 @@
   locale/@AB_CD@/global/devtools/device.properties         (%chrome/global/devtools/device.properties)
   locale/@AB_CD@/global/devtools/filterwidget.properties          (%chrome/global/devtools/filterwidget.properties)
   locale/@AB_CD@/global/devtools/filterwidget.dtd                 (%chrome/global/devtools/filterwidget.dtd)
+  locale/@AB_CD@/global/devtools/markers.properties        (%chrome/global/devtools/markers.properties)
+  locale/@AB_CD@/global/devtools/memory.properties         (%chrome/global/devtools/memory.properties)
   locale/@AB_CD@/global/devtools/netmonitor.dtd            (%chrome/global/devtools/netmonitor.dtd)
   locale/@AB_CD@/global/devtools/netmonitor.properties     (%chrome/global/devtools/netmonitor.properties)
   locale/@AB_CD@/global/devtools/shadereditor.dtd          (%chrome/global/devtools/shadereditor.dtd)
@@ -169,7 +171,7 @@
   locale/@AB_CD@/mozapps/xpinstall/xpinstallConfirm.properties    (%chrome/mozapps/extensions/xpinstallConfirm.properties)
 % locale alerts @AB_CD@ %locale/@AB_CD@/alerts/
   locale/@AB_CD@/alerts/alert.dtd                                (%chrome/alerts/alert.dtd)
-  locale/@AB_CD@/alerts/notificationNames.properties             (%chrome/alerts/notificationNames.properties)
+  locale/@AB_CD@/alerts/alert.properties                         (%chrome/alerts/alert.properties)
 % locale cookie @AB_CD@ %locale/@AB_CD@/cookie/
   locale/@AB_CD@/cookie/cookieAcceptDialog.dtd           (%chrome/cookie/cookieAcceptDialog.dtd)
   locale/@AB_CD@/cookie/cookieAcceptDialog.properties    (%chrome/cookie/cookieAcceptDialog.properties)

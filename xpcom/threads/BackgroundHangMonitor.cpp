@@ -11,6 +11,7 @@
 #include "mozilla/Move.h"
 #include "mozilla/Preferences.h"
 #include "mozilla/StaticPtr.h"
+#include "mozilla/Telemetry.h"
 #include "mozilla/ThreadHangStats.h"
 #include "mozilla/ThreadLocal.h"
 #ifdef MOZ_NUWA_PROCESS
@@ -29,6 +30,18 @@
 
 // Activate BHR only for one every BHR_BETA_MOD users.
 #define BHR_BETA_MOD 100;
+
+// Maximum depth of the call stack in the reported thread hangs. This value represents
+// the 99.9th percentile of the thread hangs stack depths reported by Telemetry.
+static const size_t kMaxThreadHangStackDepth = 30;
+
+// An utility comparator function used by std::unique to collapse "(* script)" entries in
+// a vector representing a call stack.
+bool StackScriptEntriesCollapser(const char* aStackEntry, const char *aAnotherStackEntry)
+{
+  return !strcmp(aStackEntry, aAnotherStackEntry) &&
+         (!strcmp(aStackEntry, "(chrome script)") || !strcmp(aStackEntry, "(content script)"));
+}
 
 namespace mozilla {
 
@@ -123,7 +136,8 @@ BackgroundHangManager::Observe(nsISupports* aSubject, const char* aTopic, const 
 class BackgroundHangThread : public LinkedListElement<BackgroundHangThread>
 {
 private:
-  static ThreadLocal<BackgroundHangThread*> sTlsKey;
+  static MOZ_THREAD_LOCAL(BackgroundHangThread*) sTlsKey;
+  static bool sTlsKeyInitialized;
 
   BackgroundHangThread(const BackgroundHangThread&);
   BackgroundHangThread& operator=(const BackgroundHangThread&);
@@ -173,7 +187,7 @@ public:
                        uint32_t aMaxTimeoutMs);
 
   // Report a hang; aManager->mLock IS locked
-  void ReportHang(PRIntervalTime aHangTime);
+  Telemetry::HangHistogram& ReportHang(PRIntervalTime aHangTime);
   // Report a permanent hang; aManager->mLock IS locked
   void ReportPermaHang();
   // Called by BackgroundHangMonitor::NotifyActivity
@@ -191,8 +205,8 @@ StaticRefPtr<BackgroundHangManager> BackgroundHangManager::sInstance;
 bool BackgroundHangManager::sProhibited = false;
 bool BackgroundHangManager::sDisabled = false;
 
-ThreadLocal<BackgroundHangThread*> BackgroundHangThread::sTlsKey;
-
+MOZ_THREAD_LOCAL(BackgroundHangThread*) BackgroundHangThread::sTlsKey;
+bool BackgroundHangThread::sTlsKeyInitialized;
 
 BackgroundHangManager::BackgroundHangManager()
   : mShutdown(false)
@@ -337,6 +351,7 @@ BackgroundHangManager::RunMonitorThread()
   }
 }
 
+
 BackgroundHangThread::BackgroundHangThread(const char* aName,
                                            uint32_t aTimeoutMs,
                                            uint32_t aMaxTimeoutMs)
@@ -354,7 +369,7 @@ BackgroundHangThread::BackgroundHangThread(const char* aName,
   , mWaiting(true)
   , mStats(aName)
 {
-  if (sTlsKey.initialized()) {
+  if (sTlsKeyInitialized) {
     sTlsKey.set(this);
   }
   // Lock here because LinkedList is not thread-safe
@@ -375,12 +390,15 @@ BackgroundHangThread::~BackgroundHangThread()
   autoLock.Notify();
 
   // We no longer have a thread
-  if (sTlsKey.initialized()) {
+  if (sTlsKeyInitialized) {
     sTlsKey.set(nullptr);
   }
+
+  // Move our copy of ThreadHangStats to Telemetry storage
+  Telemetry::RecordThreadHangStats(mStats);
 }
 
-void
+Telemetry::HangHistogram&
 BackgroundHangThread::ReportHang(PRIntervalTime aHangTime)
 {
   // Recovered from a hang; called on the monitor thread
@@ -393,18 +411,35 @@ BackgroundHangThread::ReportHang(PRIntervalTime aHangTime)
     }
   }
 
+  // Collapse duplicated "(chrome script)" and "(content script)" entries in the stack.
+  auto it = std::unique(mHangStack.begin(), mHangStack.end(), StackScriptEntriesCollapser);
+  mHangStack.erase(it, mHangStack.end());
+
+  // Limit the depth of the reported stack if greater than our limit. Only keep its
+  // last entries, since the most recent frames are at the end of the vector.
+  if (mHangStack.length() > kMaxThreadHangStackDepth) {
+    const int elementsToRemove = mHangStack.length() - kMaxThreadHangStackDepth;
+    // Replace the oldest frame with a known label so that we can tell this stack
+    // was limited.
+    mHangStack[0] = "(reduced stack)";
+    mHangStack.erase(mHangStack.begin() + 1, mHangStack.begin() + elementsToRemove);
+  }
+
   Telemetry::HangHistogram newHistogram(Move(mHangStack));
   for (Telemetry::HangHistogram* oldHistogram = mStats.mHangs.begin();
        oldHistogram != mStats.mHangs.end(); oldHistogram++) {
     if (newHistogram == *oldHistogram) {
       // New histogram matches old one
       oldHistogram->Add(aHangTime, Move(mAnnotations));
-      return;
+      return *oldHistogram;
     }
   }
   // Add new histogram
   newHistogram.Add(aHangTime, Move(mAnnotations));
-  mStats.mHangs.append(Move(newHistogram));
+  if (!mStats.mHangs.append(Move(newHistogram))) {
+    MOZ_CRASH();
+  }
+  return mStats.mHangs.back();
 }
 
 void
@@ -413,8 +448,11 @@ BackgroundHangThread::ReportPermaHang()
   // Permanently hanged; called on the monitor thread
   // mManager->mLock IS locked
 
-  // TODO: Add more detailed analysis for perma-hangs
-  ReportHang(mMaxTimeout);
+  Telemetry::HangHistogram& hang = ReportHang(mMaxTimeout);
+  Telemetry::HangStack& stack = hang.GetNativeStack();
+  if (stack.empty()) {
+    mStackHelper.GetNativeStack(stack);
+  }
 }
 
 MOZ_ALWAYS_INLINE void
@@ -448,7 +486,7 @@ BackgroundHangThread::FindThread()
     return nullptr;
   }
 
-  if (sTlsKey.initialized()) {
+  if (sTlsKeyInitialized) {
     // Use TLS if available
     MOZ_ASSERT(!BackgroundHangManager::sProhibited,
                "BackgroundHandleManager is not initialized");
@@ -528,6 +566,7 @@ BackgroundHangMonitor::Startup()
     }
   }
 
+  ThreadStackHelper::Startup();
   BackgroundHangThread::Startup();
   BackgroundHangManager::sInstance = new BackgroundHangManager();
 #endif
@@ -549,8 +588,8 @@ BackgroundHangMonitor::Shutdown()
      we don't want to hold the lock when it's being destroyed. */
   BackgroundHangManager::sInstance->Shutdown();
   BackgroundHangManager::sInstance = nullptr;
-  BackgroundHangManager::sDisabled = true;
   ThreadStackHelper::Shutdown();
+  BackgroundHangManager::sDisabled = true;
 #endif
 }
 
@@ -595,7 +634,9 @@ BackgroundHangMonitor::NotifyActivity()
     return;
   }
 
-  mThread->NotifyActivity();
+  if (Telemetry::CanRecordExtended()) {
+    mThread->NotifyActivity();
+  }
 #endif
 }
 
@@ -610,7 +651,9 @@ BackgroundHangMonitor::NotifyWait()
     return;
   }
 
-  mThread->NotifyWait();
+  if (Telemetry::CanRecordExtended()) {
+    mThread->NotifyWait();
+  }
 #endif
 }
 
@@ -667,8 +710,16 @@ BackgroundHangMonitor::UnregisterAnnotator(HangMonitor::Annotator& aAnnotator)
    sure all of that is taken care of for us. */
 BackgroundHangMonitor::ThreadHangStatsIterator::ThreadHangStatsIterator()
   : MonitorAutoLock(BackgroundHangManager::sInstance->mLock)
-  , mThread(BackgroundHangManager::sInstance->mHangThreads.getFirst())
+  , mThread(BackgroundHangManager::sInstance ?
+            BackgroundHangManager::sInstance->mHangThreads.getFirst() :
+            nullptr)
 {
+#ifdef MOZ_ENABLE_BACKGROUND_HANG_MONITOR
+  MOZ_ASSERT(BackgroundHangManager::sInstance ||
+             BackgroundHangManager::sProhibited ||
+             BackgroundHangManager::sDisabled,
+             "Inconsistent state");
+#endif
 }
 
 Telemetry::ThreadHangStats*

@@ -9,8 +9,8 @@
 // and bad things don't, specifically with respect to various expired OCSP
 // responses (stapled and otherwise).
 
-let gCurrentOCSPResponse = null;
-let gOCSPRequestCount = 0;
+var gCurrentOCSPResponse = null;
+var gOCSPRequestCount = 0;
 
 function add_ocsp_test(aHost, aExpectedResult, aOCSPResponseToServe) {
   add_connection_test(aHost, aExpectedResult,
@@ -27,23 +27,24 @@ function add_ocsp_test(aHost, aExpectedResult, aOCSPResponseToServe) {
 
 do_get_profile();
 Services.prefs.setBoolPref("security.ssl.enable_ocsp_stapling", true);
-let args = [["good", "localhostAndExampleCom", "unused"],
-             ["expiredresponse", "localhostAndExampleCom", "unused"],
-             ["oldvalidperiod", "localhostAndExampleCom", "unused"],
-             ["revoked", "localhostAndExampleCom", "unused"],
-             ["unknown", "localhostAndExampleCom", "unused"],
+Services.prefs.setIntPref("security.OCSP.enabled", 1);
+var args = [["good", "default-ee", "unused"],
+             ["expiredresponse", "default-ee", "unused"],
+             ["oldvalidperiod", "default-ee", "unused"],
+             ["revoked", "default-ee", "unused"],
+             ["unknown", "default-ee", "unused"],
             ];
-let ocspResponses = generateOCSPResponses(args, "tlsserver");
+var ocspResponses = generateOCSPResponses(args, "ocsp_certs");
 // Fresh response, certificate is good.
-let ocspResponseGood = ocspResponses[0];
+var ocspResponseGood = ocspResponses[0];
 // Expired response, certificate is good.
-let expiredOCSPResponseGood = ocspResponses[1];
+var expiredOCSPResponseGood = ocspResponses[1];
 // Fresh signature, old validity period, certificate is good.
-let oldValidityPeriodOCSPResponseGood = ocspResponses[2];
+var oldValidityPeriodOCSPResponseGood = ocspResponses[2];
 // Fresh signature, certificate is revoked.
-let ocspResponseRevoked = ocspResponses[3];
+var ocspResponseRevoked = ocspResponses[3];
 // Fresh signature, certificate is unknown.
-let ocspResponseUnknown = ocspResponses[4];
+var ocspResponseUnknown = ocspResponses[4];
 
 function run_test() {
   let ocspResponder = new HttpServer();
@@ -59,7 +60,7 @@ function run_test() {
     gOCSPRequestCount++;
   });
   ocspResponder.start(8888);
-  add_tls_server_setup("OCSPStaplingServer");
+  add_tls_server_setup("OCSPStaplingServer", "ocsp_certs");
 
   // In these tests, the OCSP stapling server gives us a stapled
   // response based on the host name ("ocsp-stapling-expired" or
@@ -70,81 +71,81 @@ function run_test() {
   // For ocsp-stapling-expired-fresh-ca.example.com, the OCSP stapling
   // server staples an OCSP response with a recent signature but with an
   // out-of-date validity period. The certificate has not expired.
-  add_ocsp_test("ocsp-stapling-expired.example.com", Cr.NS_OK,
+  add_ocsp_test("ocsp-stapling-expired.example.com", PRErrorCodeSuccess,
                 ocspResponseGood);
-  add_ocsp_test("ocsp-stapling-expired-fresh-ca.example.com", Cr.NS_OK,
+  add_ocsp_test("ocsp-stapling-expired-fresh-ca.example.com", PRErrorCodeSuccess,
                 ocspResponseGood);
   // if we can't fetch a more recent response when
   // given an expired stapled response, we terminate the connection.
   add_ocsp_test("ocsp-stapling-expired.example.com",
-                getXPCOMStatusFromNSS(SEC_ERROR_OCSP_OLD_RESPONSE),
+                SEC_ERROR_OCSP_OLD_RESPONSE,
                 expiredOCSPResponseGood);
   add_ocsp_test("ocsp-stapling-expired-fresh-ca.example.com",
-                getXPCOMStatusFromNSS(SEC_ERROR_OCSP_OLD_RESPONSE),
+                SEC_ERROR_OCSP_OLD_RESPONSE,
                 expiredOCSPResponseGood);
   add_ocsp_test("ocsp-stapling-expired.example.com",
-                getXPCOMStatusFromNSS(SEC_ERROR_OCSP_OLD_RESPONSE),
+                SEC_ERROR_OCSP_OLD_RESPONSE,
                 oldValidityPeriodOCSPResponseGood);
   add_ocsp_test("ocsp-stapling-expired-fresh-ca.example.com",
-                getXPCOMStatusFromNSS(SEC_ERROR_OCSP_OLD_RESPONSE),
+                SEC_ERROR_OCSP_OLD_RESPONSE,
                 oldValidityPeriodOCSPResponseGood);
   add_ocsp_test("ocsp-stapling-expired.example.com",
-                getXPCOMStatusFromNSS(SEC_ERROR_OCSP_OLD_RESPONSE),
+                SEC_ERROR_OCSP_OLD_RESPONSE,
                 null);
   add_ocsp_test("ocsp-stapling-expired.example.com",
-                getXPCOMStatusFromNSS(SEC_ERROR_OCSP_OLD_RESPONSE),
+                SEC_ERROR_OCSP_OLD_RESPONSE,
                 null);
   // Of course, if the newer response indicates Revoked or Unknown,
   // that status must be returned.
   add_ocsp_test("ocsp-stapling-expired.example.com",
-                getXPCOMStatusFromNSS(SEC_ERROR_REVOKED_CERTIFICATE),
+                SEC_ERROR_REVOKED_CERTIFICATE,
                 ocspResponseRevoked);
   add_ocsp_test("ocsp-stapling-expired-fresh-ca.example.com",
-                getXPCOMStatusFromNSS(SEC_ERROR_REVOKED_CERTIFICATE),
+                SEC_ERROR_REVOKED_CERTIFICATE,
                 ocspResponseRevoked);
   add_ocsp_test("ocsp-stapling-expired.example.com",
-                getXPCOMStatusFromNSS(SEC_ERROR_OCSP_UNKNOWN_CERT),
+                SEC_ERROR_OCSP_UNKNOWN_CERT,
                 ocspResponseUnknown);
   add_ocsp_test("ocsp-stapling-expired-fresh-ca.example.com",
-                getXPCOMStatusFromNSS(SEC_ERROR_OCSP_UNKNOWN_CERT),
+                SEC_ERROR_OCSP_UNKNOWN_CERT,
                 ocspResponseUnknown);
 
   // If the response is expired but indicates Revoked or Unknown and a
   // newer status can't be fetched, the Revoked or Unknown status will
   // be returned.
   add_ocsp_test("ocsp-stapling-revoked-old.example.com",
-                getXPCOMStatusFromNSS(SEC_ERROR_REVOKED_CERTIFICATE),
+                SEC_ERROR_REVOKED_CERTIFICATE,
                 null);
   add_ocsp_test("ocsp-stapling-unknown-old.example.com",
-                getXPCOMStatusFromNSS(SEC_ERROR_OCSP_UNKNOWN_CERT),
+                SEC_ERROR_OCSP_UNKNOWN_CERT,
                 null);
   // If the response is expired but indicates Revoked or Unknown and
   // a newer status can be fetched and successfully verified, this
   // should result in a successful certificate verification.
-  add_ocsp_test("ocsp-stapling-revoked-old.example.com", Cr.NS_OK,
+  add_ocsp_test("ocsp-stapling-revoked-old.example.com", PRErrorCodeSuccess,
                 ocspResponseGood);
-  add_ocsp_test("ocsp-stapling-unknown-old.example.com", Cr.NS_OK,
+  add_ocsp_test("ocsp-stapling-unknown-old.example.com", PRErrorCodeSuccess,
                 ocspResponseGood);
   // If a newer status can be fetched but it fails to verify, the
   // Revoked or Unknown status of the expired stapled response
   // should be returned.
   add_ocsp_test("ocsp-stapling-revoked-old.example.com",
-                getXPCOMStatusFromNSS(SEC_ERROR_REVOKED_CERTIFICATE),
+                SEC_ERROR_REVOKED_CERTIFICATE,
                 expiredOCSPResponseGood);
   add_ocsp_test("ocsp-stapling-unknown-old.example.com",
-                getXPCOMStatusFromNSS(SEC_ERROR_OCSP_UNKNOWN_CERT),
+                SEC_ERROR_OCSP_UNKNOWN_CERT,
                 expiredOCSPResponseGood);
 
   // These tests are verifying that an valid but very old response
   // is rejected as a valid stapled response, requiring a fetch
   // from the ocsp responder.
-  add_ocsp_test("ocsp-stapling-ancient-valid.example.com", Cr.NS_OK,
+  add_ocsp_test("ocsp-stapling-ancient-valid.example.com", PRErrorCodeSuccess,
                 ocspResponseGood);
   add_ocsp_test("ocsp-stapling-ancient-valid.example.com",
-                getXPCOMStatusFromNSS(SEC_ERROR_REVOKED_CERTIFICATE),
+                SEC_ERROR_REVOKED_CERTIFICATE,
                 ocspResponseRevoked);
   add_ocsp_test("ocsp-stapling-ancient-valid.example.com",
-                getXPCOMStatusFromNSS(SEC_ERROR_OCSP_UNKNOWN_CERT),
+                SEC_ERROR_OCSP_UNKNOWN_CERT,
                 ocspResponseUnknown);
 
   add_test(function () { ocspResponder.stop(run_next_test); });

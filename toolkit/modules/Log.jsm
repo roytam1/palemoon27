@@ -194,8 +194,8 @@ this.Log = {
     }
     // Standard JS exception
     if (e.stack) {
-      return "JS Stack trace: " + e.stack.trim().replace(/\n/g, " < ").
-        replace(/@[^@]*?([^\/\.]+\.\w+:)/g, "@$1");
+      return "JS Stack trace: " + Task.Debugging.generateReadableStack(e.stack).trim()
+        .replace(/\n/g, " < ").replace(/@[^@]*?([^\/\.]+\.\w+:)/g, "@$1");
     }
 
     return "No traceback available";
@@ -280,7 +280,9 @@ Logger.prototype = {
   },
 
   _parent: null,
-  get parent() this._parent,
+  get parent() {
+    return this._parent;
+  },
   set parent(parent) {
     if (this._parent == parent) {
       return;
@@ -865,7 +867,7 @@ FileAppender.prototype = {
   __proto__: Appender.prototype,
 
   _openFile: function () {
-    return Task.spawn(function _openFile() {
+    return Task.spawn(function* _openFile() {
       try {
         this._file = yield OS.File.open(this._path,
                                         {truncate: true});

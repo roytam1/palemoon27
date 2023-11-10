@@ -219,6 +219,13 @@ RunProcesses(int argc, const char *argv[], FdArray& aReservedFds)
                                     aReservedFds);
   }
 
+  // Reap zombie child process.
+  struct sigaction sa;
+  sa.sa_handler = SIG_IGN;
+  sigemptyset(&sa.sa_mask);
+  sa.sa_flags = 0;
+  sigaction(SIGCHLD, &sa, nullptr);
+
   // The b2g process
   int childPid = pid;
   XRE_ProcLoaderClientInit(childPid, parentSock, aReservedFds);
@@ -244,7 +251,9 @@ ReserveFileDescriptors(FdArray& aReservedFds)
       MOZ_CRASH("ProcLoader error: failed to reserve a magic file descriptor.");
     }
 
-    aReservedFds.append(target);
+    if (!aReservedFds.append(target)) {
+      MOZ_CRASH("Failed to append to aReservedFds");
+    }
 
     if (fd == target) {
       // No need to call dup2(). We already occupy the desired file descriptor.

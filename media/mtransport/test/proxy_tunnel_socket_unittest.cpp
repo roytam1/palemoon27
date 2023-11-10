@@ -84,7 +84,7 @@ class DummyResolver {
                      void **handle) {
     nr_transport_addr addr;
 
-    nr_ip4_str_port_to_transport_addr(
+    nr_str_port_to_transport_addr(
         (char *)kProxyAddr.c_str(), kProxyPort, IPPROTO_TCP, &addr);
 
     cb(cb_arg, &addr);
@@ -116,15 +116,15 @@ class ProxyTunnelSocketTest : public ::testing::Test {
   }
 
   void SetUp() {
-    nsRefPtr<DummySocket> dummy(new DummySocket());
+    RefPtr<DummySocket> dummy(new DummySocket());
 
     nr_resolver_ = resolver_impl_.get_nr_resolver();
 
-    int r = nr_ip4_str_port_to_transport_addr(
+    int r = nr_str_port_to_transport_addr(
         (char *)kRemoteAddr.c_str(), kRemotePort, IPPROTO_TCP, &remote_addr_);
     ASSERT_EQ(0, r);
 
-    r = nr_ip4_str_port_to_transport_addr(
+    r = nr_str_port_to_transport_addr(
         (char *)kProxyAddr.c_str(), kProxyPort, IPPROTO_TCP, &proxy_addr_);
     ASSERT_EQ(0, r);
 
@@ -144,7 +144,7 @@ class ProxyTunnelSocketTest : public ::testing::Test {
   nr_socket *socket() { return nr_socket_; }
 
  protected:
-  nsRefPtr<DummySocket> socket_impl_;
+  RefPtr<DummySocket> socket_impl_;
   DummyResolver resolver_impl_;
   nr_socket *nr_socket_;
   nr_resolver *nr_resolver_;
@@ -181,7 +181,7 @@ TEST_F(ProxyTunnelSocketTest, TestConnectProxyHostRequest) {
   int r = nr_socket_destroy(&nr_socket_);
   ASSERT_EQ(0, r);
 
-  nsRefPtr<DummySocket> dummy(new DummySocket());
+  RefPtr<DummySocket> dummy(new DummySocket());
 
   nr_proxy_tunnel_config_set_proxy(config_, kProxyHost.c_str(), kProxyPort);
 

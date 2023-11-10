@@ -15,6 +15,7 @@
 #include "nsHtml5OwningUTF16Buffer.h"
 #include "nsIInputStream.h"
 #include "mozilla/Mutex.h"
+#include "mozilla/UniquePtr.h"
 #include "nsHtml5AtomTable.h"
 #include "nsHtml5Speculation.h"
 #include "nsITimer.h"
@@ -363,6 +364,25 @@ class nsHtml5StreamParser : public nsICharsetDetectionObserver {
      */
     void TimerFlush();
 
+    /**
+     * Called when speculation fails.
+     */
+    void MaybeDisableFutureSpeculation()
+    {
+        mSpeculationFailureCount++;
+    }
+
+    /**
+     * Used to check whether we're getting too many speculation failures and
+     * should just stop trying.  The 100 is picked pretty randomly to be not too
+     * small (so most pages are not affected) but small enough that we don't end
+     * up with failed speculations over and over in pathological cases.
+     */
+    bool IsSpeculationEnabled()
+    {
+        return mSpeculationFailureCount < 100;
+    }
+
     nsCOMPtr<nsIRequest>          mRequest;
     nsCOMPtr<nsIRequestObserver>  mObserver;
 
@@ -379,7 +399,7 @@ class nsHtml5StreamParser : public nsICharsetDetectionObserver {
     /**
      * The buffer for sniffing the character encoding
      */
-    nsAutoArrayPtr<uint8_t>       mSniffingBuffer;
+    mozilla::UniquePtr<uint8_t[]> mSniffingBuffer;
 
     /**
      * The number of meaningful bytes in mSniffingBuffer
@@ -416,7 +436,7 @@ class nsHtml5StreamParser : public nsICharsetDetectionObserver {
     /**
      * The first buffer in the pending UTF-16 buffer queue
      */
-    nsRefPtr<nsHtml5OwningUTF16Buffer> mFirstBuffer;
+    RefPtr<nsHtml5OwningUTF16Buffer> mFirstBuffer;
 
     /**
      * The last buffer in the pending UTF-16 buffer queue
@@ -453,7 +473,7 @@ class nsHtml5StreamParser : public nsICharsetDetectionObserver {
     /**
      * The owner parser.
      */
-    nsRefPtr<nsHtml5Parser>       mOwner;
+    RefPtr<nsHtml5Parser>       mOwner;
 
     /**
      * Whether the last character tokenized was a carriage return (for CRLF)
@@ -483,6 +503,11 @@ class nsHtml5StreamParser : public nsICharsetDetectionObserver {
      */
     nsTArray<nsAutoPtr<nsHtml5Speculation> >  mSpeculations;
     mozilla::Mutex                            mSpeculationMutex;
+
+    /**
+     * Number of times speculation has failed for this parser.
+     */
+    uint32_t                      mSpeculationFailureCount;
 
     /**
      * True to terminate early; protected by mTerminatedMutex

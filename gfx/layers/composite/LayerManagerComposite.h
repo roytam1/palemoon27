@@ -25,7 +25,7 @@
 #include "mozilla/RefPtr.h"
 #include "mozilla/UniquePtr.h"
 #include "nsAString.h"
-#include "mozilla/nsRefPtr.h"           // for nsRefPtr
+#include "mozilla/RefPtr.h"                   // for nsRefPtr
 #include "nsCOMPtr.h"                   // for already_AddRefed
 #include "nsDebug.h"                    // for NS_ASSERTION
 #include "nsISupportsImpl.h"            // for Layer::AddRef, etc
@@ -44,7 +44,6 @@ namespace mozilla {
 namespace gfx {
 class DrawTarget;
 } // namespace gfx
-
 
 namespace layers {
 
@@ -170,11 +169,21 @@ public:
   virtual const char* Name() const override { return ""; }
 
   /**
-   * Restricts the shadow visible region of layers that are covered with
-   * opaque content. aOpaqueRegion is the region already known to be covered
-   * with opaque content, in the post-transform coordinate space of aLayer.
+   * Post-processes layers before composition. This performs the following:
+   *
+   *   - Applies occlusion culling. This restricts the shadow visible region
+   *     of layers that are covered with opaque content.
+   *     |aOpaqueRegion| is the region already known to be covered with opaque
+   *     content, in the post-transform coordinate space of aLayer.
+   *
+   *   - Recomputes visible regions to account for async transforms.
+   *     Each layer accumulates into |aVisibleRegion| its post-transform
+   *     (including async transforms) visible region.
    */
-  void ApplyOcclusionCulling(Layer* aLayer, nsIntRegion& aOpaqueRegion);
+  void PostProcessLayers(Layer* aLayer,
+                         nsIntRegion& aOpaqueRegion,
+                         LayerIntRegion& aVisibleRegion,
+                         const Maybe<ParentLayerIntRect>& aClipFromAncestors);
 
   /**
    * RAII helper class to add a mask effect with the compositable from aMaskLayer
@@ -193,14 +202,6 @@ public:
     CompositableHost* mCompositable;
     bool mFailed;
   };
-
-  /**
-   * Creates a DrawTarget which is optimized for inter-operating with this
-   * layermanager.
-   */
-  virtual already_AddRefed<mozilla::gfx::DrawTarget>
-    CreateDrawTarget(const mozilla::gfx::IntSize& aSize,
-                     mozilla::gfx::SurfaceFormat aFormat) override;
 
   /**
    * Calculates the 'completeness' of the rendering that intersected with the
@@ -265,12 +266,24 @@ public:
 
   void AppendImageCompositeNotification(const ImageCompositeNotification& aNotification)
   {
-    mImageCompositeNotifications.AppendElement(aNotification);
+    // Only send composite notifications when we're drawing to the screen,
+    // because that's what they mean.
+    // Also when we're not drawing to the screen, DidComposite will not be
+    // called to extract and send these notifications, so they might linger
+    // and contain stale ImageContainerParent pointers.
+    if (!mCompositor->GetTargetContext()) {
+      mImageCompositeNotifications.AppendElement(aNotification);
+    }
   }
   void ExtractImageCompositeNotifications(nsTArray<ImageCompositeNotification>* aNotifications)
   {
-    aNotifications->MoveElementsFrom(mImageCompositeNotifications);
+    aNotifications->AppendElements(Move(mImageCompositeNotifications));
   }
+
+  // Indicate that we need to composite even if nothing in our layers has
+  // changed, so that the widget can draw something different in its window
+  // overlay.
+  void SetWindowOverlayChanged() { mWindowOverlayChanged = true; }
 
 private:
   /** Region we're clipping our current drawing to. */
@@ -292,12 +305,22 @@ private:
                                              const gfx::Matrix4x4& aTransform);
 
   /**
+   * Update the invalid region and render it.
+   */
+  void UpdateAndRender();
+
+  /**
    * Render the current layer tree to the active target.
    */
-  void Render();
-#ifdef MOZ_WIDGET_ANDROID
+  void Render(const nsIntRegion& aInvalidRegion);
+#if defined(MOZ_WIDGET_ANDROID) || defined(MOZ_WIDGET_GONK)
   void RenderToPresentationSurface();
 #endif
+
+  /**
+   * We need to know our invalid region before we're ready to render.
+   */
+  void InvalidateDebugOverlay(nsIntRegion& aInvalidRegion, const gfx::IntRect& aBounds);
 
   /**
    * Render debug overlays such as the FPS/FrameCounter above the frame.
@@ -340,6 +363,8 @@ private:
   // Testing property. If hardware composer is supported, this will return
   // true if the last frame was deemed 'too complicated' to be rendered.
   bool mLastFrameMissedHWC;
+
+  bool mWindowOverlayChanged;
 };
 
 /**
@@ -417,7 +442,7 @@ public:
    *
    * They are analogous to the Layer interface.
    */
-  void SetShadowVisibleRegion(const nsIntRegion& aRegion)
+  void SetShadowVisibleRegion(const LayerIntRegion& aRegion)
   {
     mShadowVisibleRegion = aRegion;
   }
@@ -454,7 +479,7 @@ public:
   // These getters can be used anytime.
   float GetShadowOpacity() { return mShadowOpacity; }
   const Maybe<ParentLayerIntRect>& GetShadowClipRect() { return mShadowClipRect; }
-  const nsIntRegion& GetShadowVisibleRegion() { return mShadowVisibleRegion; }
+  const LayerIntRegion& GetShadowVisibleRegion() { return mShadowVisibleRegion; }
   const gfx::Matrix4x4& GetShadowTransform() { return mShadowTransform; }
   bool GetShadowTransformSetByAnimation() { return mShadowTransformSetByAnimation; }
   bool HasLayerBeenComposited() { return mLayerComposited; }
@@ -469,7 +494,7 @@ public:
 
 protected:
   gfx::Matrix4x4 mShadowTransform;
-  nsIntRegion mShadowVisibleRegion;
+  LayerIntRegion mShadowVisibleRegion;
   Maybe<ParentLayerIntRect> mShadowClipRect;
   LayerManagerComposite* mCompositeManager;
   RefPtr<Compositor> mCompositor;
@@ -544,11 +569,11 @@ RenderWithAllMasks(Layer* aLayer, Compositor* aCompositor,
   // into. The final mask gets rendered into the original render target.
 
   // Calculate the size of the intermediate surfaces.
-  gfx::Rect visibleRect(aLayer->GetEffectiveVisibleRegion().GetBounds());
+  gfx::Rect visibleRect(aLayer->GetEffectiveVisibleRegion().ToUnknownRegion().GetBounds());
   gfx::Matrix4x4 transform = aLayer->GetEffectiveTransform();
-  // TODO: Use RenderTargetIntRect and TransformTo<...> here
+  // TODO: Use RenderTargetIntRect and TransformBy here
   gfx::IntRect surfaceRect =
-    RoundedOut(transform.TransformBounds(visibleRect)).Intersect(aClipRect);
+    RoundedOut(transform.TransformAndClipBounds(visibleRect, gfx::Rect(aClipRect)));
   if (surfaceRect.IsEmpty()) {
     return;
   }

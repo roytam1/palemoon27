@@ -7,7 +7,7 @@
 #ifndef mozilla_dom_PresentationCallbacks_h
 #define mozilla_dom_PresentationCallbacks_h
 
-#include "mozilla/nsRefPtr.h"
+#include "mozilla/RefPtr.h"
 #include "nsCOMPtr.h"
 #include "nsIPresentationService.h"
 #include "nsIWebProgressListener.h"
@@ -16,11 +16,11 @@
 
 class nsIDocShell;
 class nsIWebProgress;
-class nsPIDOMWindow;
 
 namespace mozilla {
 namespace dom {
 
+class PresentationRequest;
 class Promise;
 
 class PresentationRequesterCallback final : public nsIPresentationServiceCallback
@@ -29,7 +29,7 @@ public:
   NS_DECL_ISUPPORTS
   NS_DECL_NSIPRESENTATIONSERVICECALLBACK
 
-  PresentationRequesterCallback(nsPIDOMWindow* aWindow,
+  PresentationRequesterCallback(PresentationRequest* aRequest,
                                 const nsAString& aUrl,
                                 const nsAString& aSessionId,
                                 Promise* aPromise);
@@ -37,9 +37,9 @@ public:
 private:
   ~PresentationRequesterCallback();
 
-  nsCOMPtr<nsPIDOMWindow> mWindow;
+  RefPtr<PresentationRequest> mRequest;
   nsString mSessionId;
-  nsRefPtr<Promise> mPromise;
+  RefPtr<Promise> mPromise;
 };
 
 class PresentationResponderLoadingCallback final : public nsIWebProgressListener

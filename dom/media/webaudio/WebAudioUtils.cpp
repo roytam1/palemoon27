@@ -6,37 +6,19 @@
 
 #include "WebAudioUtils.h"
 #include "AudioNodeStream.h"
-#include "AudioParamTimeline.h"
 #include "blink/HRTFDatabaseLoader.h"
 
 namespace mozilla {
 
 namespace dom {
 
-struct ConvertTimeToTickHelper
+void WebAudioUtils::ConvertAudioTimelineEventToTicks(AudioTimelineEvent& aEvent,
+                                                     AudioNodeStream* aDest)
 {
-  AudioNodeStream* mSourceStream;
-  AudioNodeStream* mDestinationStream;
-
-  static int64_t Convert(double aTime, void* aClosure)
-  {
-    ConvertTimeToTickHelper* This = static_cast<ConvertTimeToTickHelper*> (aClosure);
-    MOZ_ASSERT(This->mSourceStream->SampleRate() == This->mDestinationStream->SampleRate());
-    return This->mSourceStream->
-      TicksFromDestinationTime(This->mDestinationStream, aTime);
-  }
-};
-
-void
-WebAudioUtils::ConvertAudioParamToTicks(AudioParamTimeline& aParam,
-                                        AudioNodeStream* aSource,
-                                        AudioNodeStream* aDest)
-{
-  MOZ_ASSERT(!aSource || aSource->SampleRate() == aDest->SampleRate());
-  ConvertTimeToTickHelper ctth;
-  ctth.mSourceStream = aSource;
-  ctth.mDestinationStream = aDest;
-  aParam.ConvertEventTimesToTicks(ConvertTimeToTickHelper::Convert, &ctth, aDest->SampleRate());
+  aEvent.SetTimeInTicks(
+      aDest->SecondsToNearestStreamTime(aEvent.Time<double>()));
+  aEvent.mTimeConstant *= aDest->SampleRate();
+  aEvent.mDuration *= aDest->SampleRate();
 }
 
 void
@@ -52,8 +34,8 @@ WebAudioUtils::SpeexResamplerProcess(SpeexResamplerState* aResampler,
                                      float* aOut, uint32_t* aOutLen)
 {
 #ifdef MOZ_SAMPLE_TYPE_S16
-  nsAutoTArray<AudioDataValue, WEBAUDIO_BLOCK_SIZE*4> tmp1;
-  nsAutoTArray<AudioDataValue, WEBAUDIO_BLOCK_SIZE*4> tmp2;
+  AutoTArray<AudioDataValue, WEBAUDIO_BLOCK_SIZE*4> tmp1;
+  AutoTArray<AudioDataValue, WEBAUDIO_BLOCK_SIZE*4> tmp2;
   tmp1.SetLength(*aInLen);
   tmp2.SetLength(*aOutLen);
   ConvertAudioSamples(aIn, tmp1.Elements(), *aInLen);
@@ -71,7 +53,7 @@ WebAudioUtils::SpeexResamplerProcess(SpeexResamplerState* aResampler,
                                      const int16_t* aIn, uint32_t* aInLen,
                                      float* aOut, uint32_t* aOutLen)
 {
-  nsAutoTArray<AudioDataValue, WEBAUDIO_BLOCK_SIZE*4> tmp;
+  AutoTArray<AudioDataValue, WEBAUDIO_BLOCK_SIZE*4> tmp;
 #ifdef MOZ_SAMPLE_TYPE_S16
   tmp.SetLength(*aOutLen);
   int result = speex_resampler_process_int(aResampler, aChannel, aIn, aInLen, tmp.Elements(), aOutLen);
@@ -94,8 +76,8 @@ WebAudioUtils::SpeexResamplerProcess(SpeexResamplerState* aResampler,
 #ifdef MOZ_SAMPLE_TYPE_S16
   return speex_resampler_process_int(aResampler, aChannel, aIn, aInLen, aOut, aOutLen);
 #else
-  nsAutoTArray<AudioDataValue, WEBAUDIO_BLOCK_SIZE*4> tmp1;
-  nsAutoTArray<AudioDataValue, WEBAUDIO_BLOCK_SIZE*4> tmp2;
+  AutoTArray<AudioDataValue, WEBAUDIO_BLOCK_SIZE*4> tmp1;
+  AutoTArray<AudioDataValue, WEBAUDIO_BLOCK_SIZE*4> tmp2;
   tmp1.SetLength(*aInLen);
   tmp2.SetLength(*aOutLen);
   ConvertAudioSamples(aIn, tmp1.Elements(), *aInLen);

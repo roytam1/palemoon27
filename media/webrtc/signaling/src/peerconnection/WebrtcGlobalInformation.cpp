@@ -256,7 +256,7 @@ OnStatsReport_m(WebrtcGlobalChild* aThisChild,
       }
     }
 
-    unused << aThisChild->SendGetStatsResult(aRequestId, stats);
+    Unused << aThisChild->SendGetStatsResult(aRequestId, stats);
     return;
   }
 
@@ -292,7 +292,7 @@ GetAllStats_s(WebrtcGlobalChild* aThisChild,
               nsAutoPtr<RTCStatsQueries> aQueryList)
 {
   MOZ_ASSERT(aQueryList);
-  // The call to PeerConnetionImpl must happen on the from a runnable
+  // The call to PeerConnetionImpl must happen from a runnable
   // dispatched on the STS thread.
 
   // Get stats from active connections.
@@ -327,7 +327,7 @@ static void OnGetLogging_m(WebrtcGlobalChild* aThisChild,
       nsLogs.AppendElement(NS_LITERAL_STRING("+++++++ END ++++++++"), fallible);
     }
 
-    unused << aThisChild->SendGetLogResult(aRequestId, nsLogs);
+    Unused << aThisChild->SendGetLogResult(aRequestId, nsLogs);
     return;
   }
 
@@ -386,7 +386,9 @@ BuildStatsQueryList(
     if (aPcIdFilter.IsEmpty() ||
         aPcIdFilter.EqualsASCII(pc.second->GetIdAsAscii().c_str())) {
       if (pc.second->HasMedia()) {
-        queries->append(nsAutoPtr<RTCStatsQuery>(new RTCStatsQuery(true)));
+        if (!queries->append(nsAutoPtr<RTCStatsQuery>(new RTCStatsQuery(true)))) {
+	  return NS_ERROR_OUT_OF_MEMORY;
+	}
         rv = pc.second->BuildStatsQuery_m(nullptr, queries->back()); // all tracks
         if (NS_WARN_IF(NS_FAILED(rv))) {
           return rv;
@@ -431,6 +433,37 @@ RunStatsQuery(
   return rv;
 }
 
+void ClearClosedStats()
+{
+  PeerConnectionCtx* ctx = GetPeerConnectionCtx();
+
+  if (ctx) {
+    ctx->mStatsForClosedPeerConnections.Clear();
+  }
+}
+
+void
+WebrtcGlobalInformation::ClearAllStats(
+  const GlobalObject& aGlobal)
+{
+  if (!NS_IsMainThread()) {
+    return;
+  }
+
+  // Chrome-only API
+  MOZ_ASSERT(XRE_IsParentProcess());
+
+  if (!WebrtcContentParents::Empty()) {
+    // Pass on the request to any content process based PeerConnections.
+    for (auto& cp : WebrtcContentParents::GetAll()) {
+      Unused << cp->SendClearStatsRequest();
+    }
+  }
+
+  // Flush the history for the chrome process
+  ClearClosedStats();
+}
+
 void
 WebrtcGlobalInformation::GetAllStats(
   const GlobalObject& aGlobal,
@@ -446,7 +479,7 @@ WebrtcGlobalInformation::GetAllStats(
   MOZ_ASSERT(XRE_IsParentProcess());
 
   // CallbackObject does not support threadsafe refcounting, and must be
-  // destroyed on main.
+  // used and destroyed on main.
   StatsRequestCallback callbackHandle(
     new nsMainThreadPtrHolder<WebrtcGlobalStatisticsCallback>(&aStatsCallback));
 
@@ -455,7 +488,7 @@ WebrtcGlobalInformation::GetAllStats(
     filter = pcIdFilter.Value();
   }
 
-  StatsRequest* request = StatsRequest::Create(callbackHandle, filter);
+  auto* request = StatsRequest::Create(callbackHandle, filter);
 
   if (!request) {
     aRv.Throw(NS_ERROR_FAILURE);
@@ -522,6 +555,56 @@ RunLogQuery(const nsCString& aPattern,
   return rv;
 }
 
+static void ClearLogs_s()
+{
+  // Make call off main thread.
+  RLogRingBuffer* logs = RLogRingBuffer::GetInstance();
+  if (logs) {
+    logs->Clear();
+  }
+}
+
+static nsresult
+RunLogClear()
+{
+  nsresult rv;
+  nsCOMPtr<nsIEventTarget> stsThread =
+    do_GetService(NS_SOCKETTRANSPORTSERVICE_CONTRACTID, &rv);
+
+  if (NS_FAILED(rv)) {
+    return rv;
+  }
+  if (!stsThread) {
+    return NS_ERROR_FAILURE;
+  }
+
+  return RUN_ON_THREAD(stsThread,
+                       WrapRunnableNM(&ClearLogs_s),
+                       NS_DISPATCH_NORMAL);
+}
+
+void
+WebrtcGlobalInformation::ClearLogging(
+  const GlobalObject& aGlobal)
+{
+  if (!NS_IsMainThread()) {
+    return;
+  }
+
+  // Chrome-only API
+  MOZ_ASSERT(XRE_IsParentProcess());
+
+  if (!WebrtcContentParents::Empty()) {
+  // Clear content process signaling logs
+    for (auto& cp : WebrtcContentParents::GetAll()) {
+      Unused << cp->SendClearLogRequest();
+    }
+  }
+
+  // Clear chrome process signaling logs
+  Unused << RunLogClear();
+}
+
 void
 WebrtcGlobalInformation::GetLogging(
   const GlobalObject& aGlobal,
@@ -585,7 +668,7 @@ WebrtcGlobalInformation::SetDebugLevel(const GlobalObject& aGlobal, int32_t aLev
   sLastSetLevel = aLevel;
 
   for (auto& cp : WebrtcContentParents::GetAll()){
-    unused << cp->SendSetDebugMode(aLevel);
+    Unused << cp->SendSetDebugMode(aLevel);
   }
 }
 
@@ -603,7 +686,7 @@ WebrtcGlobalInformation::SetAecDebug(const GlobalObject& aGlobal, bool aEnable)
   sLastAECDebug = aEnable;
 
   for (auto& cp : WebrtcContentParents::GetAll()){
-    unused << cp->SendSetAecLogging(aEnable);
+    Unused << cp->SendSetAecLogging(aEnable);
   }
 }
 
@@ -745,6 +828,17 @@ WebrtcGlobalChild::RecvGetStatsRequest(const int& aRequestId,
 }
 
 bool
+WebrtcGlobalChild::RecvClearStatsRequest()
+{
+  if (mShutdown) {
+    return true;
+  }
+
+  ClearClosedStats();
+  return true;
+}
+
+bool
 WebrtcGlobalChild::RecvGetLogRequest(const int& aRequestId,
                                      const nsCString& aPattern)
 {
@@ -769,6 +863,17 @@ WebrtcGlobalChild::RecvGetLogRequest(const int& aRequestId,
   Sequence<nsString> empty_log;
   SendGetLogResult(aRequestId, empty_log);
 
+  return true;
+}
+
+bool
+WebrtcGlobalChild::RecvClearLogRequest()
+{
+  if (mShutdown) {
+    return true;
+  }
+
+  RunLogClear();
   return true;
 }
 
@@ -819,13 +924,44 @@ MOZ_IMPLICIT WebrtcGlobalChild::~WebrtcGlobalChild()
 
 struct StreamResult {
   StreamResult() : candidateTypeBitpattern(0), streamSucceeded(false) {}
-  uint8_t candidateTypeBitpattern;
+  uint32_t candidateTypeBitpattern;
   bool streamSucceeded;
+};
+
+static uint32_t GetCandidateIpAndTransportMask(const RTCIceCandidateStats *cand) {
+
+  enum {
+    CANDIDATE_BITMASK_UDP = 1,
+    CANDIDATE_BITMASK_TCP = 1 << 1,
+    CANDIDATE_BITMASK_IPV6 = 1 << 2,
+  };
+
+  uint32_t res = 0;
+
+  nsAutoCString transport;
+  // prefer local transport for local relay candidates
+  if (cand->mMozLocalTransport.WasPassed()) {
+    transport.Assign(NS_ConvertUTF16toUTF8(cand->mMozLocalTransport.Value()));
+  } else {
+    transport.Assign(NS_ConvertUTF16toUTF8(cand->mTransport.Value()));
+  }
+  if (transport == kNrIceTransportUdp) {
+    res |= CANDIDATE_BITMASK_UDP;
+  } else if (transport == kNrIceTransportTcp) {
+    res |= CANDIDATE_BITMASK_TCP;
+  }
+
+  if (cand->mIpAddress.Value().FindChar(':') != -1) {
+    res |= CANDIDATE_BITMASK_IPV6;
+  }
+
+  return res;
 };
 
 static void StoreLongTermICEStatisticsImpl_m(
     nsresult result,
-    nsAutoPtr<RTCStatsQuery> query) {
+    nsAutoPtr<RTCStatsQuery> query,
+    bool aIsLoop) {
 
   using namespace Telemetry;
 
@@ -836,17 +972,6 @@ static void StoreLongTermICEStatisticsImpl_m(
   }
 
   query->report->mClosed.Construct(true);
-
-  // First, store stuff in telemetry
-  enum {
-    REMOTE_GATHERED_SERVER_REFLEXIVE = 1,
-    REMOTE_GATHERED_TURN = 1 << 1,
-    LOCAL_GATHERED_SERVER_REFLEXIVE = 1 << 2,
-    LOCAL_GATHERED_TURN_UDP = 1 << 3,
-    LOCAL_GATHERED_TURN_TCP = 1 << 4,
-    LOCAL_GATHERED_TURN_TLS = 1 << 5,
-    LOCAL_GATHERED_TURN_HTTPS = 1 << 6,
-  };
 
   // TODO(bcampen@mozilla.com): Do we need to watch out for cases where the
   // components within a stream didn't have the same types of relayed
@@ -886,51 +1011,74 @@ static void StoreLongTermICEStatisticsImpl_m(
 
     if (!cand.mType.WasPassed() ||
         !cand.mCandidateType.WasPassed() ||
+        !cand.mTransport.WasPassed() ||
+        !cand.mIpAddress.WasPassed() ||
         !cand.mComponentId.WasPassed()) {
       // Crash on debug, ignore this candidate otherwise.
       MOZ_CRASH();
       continue;
     }
 
+    /* The bitmask after examaning a candidate should look like this:
+     * REMOTE_GATHERED_HOST_UDP = 1,
+     * REMOTE_GATHERED_HOST_TCP = 1 << 1,
+     * REMOTE_GATHERED_HOST_IPV6 = 1 << 2,
+     * REMOTE_GATHERED_SERVER_REFLEXIVE_UDP = 1 << 3,
+     * REMOTE_GATHERED_SERVER_REFLEXIVE_TCP = 1 << 4,
+     * REMOTE_GATHERED_SERVER_REFLEXIVE_IPV6 = 1 << 5,
+     * REMOTE_GATHERED_TURN_UDP = 1 << 6,
+     * REMOTE_GATHERED_TURN_TCP = 1 << 7, // dummy place holder
+     * REMOTE_GATHERED_TURN_IPV6 = 1 << 8,
+     * REMOTE_GATHERED_PEER_REFLEXIVE_UDP = 1 << 9,
+     * REMOTE_GATHERED_PEER_REFLEXIVE_TCP = 1 << 10,
+     * REMOTE_GATHERED_PEER_REFLEXIVE_IPV6 = 1 << 11,
+     * LOCAL_GATHERED_HOST_UDP = 1 << 16,
+     * LOCAL_GATHERED_HOST_TCP = 1 << 17,
+     * LOCAL_GATHERED_HOST_IPV6 = 1 << 18,
+     * LOCAL_GATHERED_SERVER_REFLEXIVE_UDP = 1 << 19,
+     * LOCAL_GATHERED_SERVER_REFLEXIVE_TCP = 1 << 20,
+     * LOCAL_GATHERED_SERVER_REFLEXIVE_IPV6 = 1 << 21,
+     * LOCAL_GATHERED_TURN_UDP = 1 << 22,
+     * LOCAL_GATHERED_TURN_TCP = 1 << 23,
+     * LOCAL_GATHERED_TURN_IPV6 = 1 << 24,
+     * LOCAL_GATHERED_PEERREFLEXIVE_UDP = 1 << 25,
+     * LOCAL_GATHERED_PEERREFLEXIVE_TCP = 1 << 26,
+     * LOCAL_GATHERED_PEERREFLEXIVE_IPV6 = 1 << 27,
+     *
+     * This results in following shift values
+     */
+    static const uint32_t kLocalShift = 16;
+    static const uint32_t kSrflxShift = 3;
+    static const uint32_t kRelayShift = 6;
+    static const uint32_t kPrflxShift = 9;
+
+    uint32_t candBitmask = GetCandidateIpAndTransportMask(&cand);
+
+    // Note: shift values need to result in the above enum table
+    if (cand.mType.Value() == RTCStatsType::Localcandidate) {
+      candBitmask <<= kLocalShift;
+    }
+
+    if (cand.mCandidateType.Value() == RTCStatsIceCandidateType::Serverreflexive) {
+      candBitmask <<= kSrflxShift;
+    } else if (cand.mCandidateType.Value() == RTCStatsIceCandidateType::Relayed) {
+      candBitmask <<= kRelayShift;
+    } else if (cand.mCandidateType.Value() == RTCStatsIceCandidateType::Peerreflexive) {
+      candBitmask <<= kPrflxShift;
+    }
+
     // Note: this is not a "component" in the ICE definition, this is really a
-    // stream ID. This is just the way the stats API is standardized right now
+    // stream ID. This is just the way the stats API is standardized right now.
     // Very confusing.
     std::string streamId(
       NS_ConvertUTF16toUTF8(cand.mComponentId.Value()).get());
 
-    if (cand.mCandidateType.Value() == RTCStatsIceCandidateType::Relayed) {
-      if (cand.mType.Value() == RTCStatsType::Localcandidate) {
-        NS_ConvertUTF16toUTF8 transport(cand.mMozLocalTransport.Value());
-        if (transport == kNrIceTransportUdp) {
-          streamResults[streamId].candidateTypeBitpattern |=
-            LOCAL_GATHERED_TURN_UDP;
-        } else if (transport == kNrIceTransportTcp) {
-          streamResults[streamId].candidateTypeBitpattern |=
-            LOCAL_GATHERED_TURN_TCP;
-        }
-      } else {
-        streamResults[streamId].candidateTypeBitpattern |= REMOTE_GATHERED_TURN;
-      }
-    } else if (cand.mCandidateType.Value() ==
-               RTCStatsIceCandidateType::Serverreflexive) {
-      if (cand.mType.Value() == RTCStatsType::Localcandidate) {
-        streamResults[streamId].candidateTypeBitpattern |=
-          LOCAL_GATHERED_SERVER_REFLEXIVE;
-      } else {
-        streamResults[streamId].candidateTypeBitpattern |=
-          REMOTE_GATHERED_SERVER_REFLEXIVE;
-      }
-    }
+    streamResults[streamId].candidateTypeBitpattern |= candBitmask;
   }
 
   for (auto i = streamResults.begin(); i != streamResults.end(); ++i) {
-    if (i->second.streamSucceeded) {
-      Telemetry::Accumulate(Telemetry::WEBRTC_CANDIDATE_TYPES_GIVEN_SUCCESS,
-                            i->second.candidateTypeBitpattern);
-    } else {
-      Telemetry::Accumulate(Telemetry::WEBRTC_CANDIDATE_TYPES_GIVEN_FAILURE,
-                            i->second.candidateTypeBitpattern);
-    }
+    Telemetry::RecordWebrtcIceCandidates(i->second.candidateTypeBitpattern,
+                                         i->second.streamSucceeded, aIsLoop);
   }
 
   // Beyond ICE, accumulate telemetry for various PER_CALL settings here.
@@ -944,25 +1092,30 @@ static void StoreLongTermICEStatisticsImpl_m(
         continue;
       }
       if (s.mBitrateMean.WasPassed()) {
-        Accumulate(WEBRTC_VIDEO_ENCODER_BITRATE_AVG_PER_CALL_KBPS,
+        Accumulate(aIsLoop ? LOOP_VIDEO_ENCODER_BITRATE_AVG_PER_CALL_KBPS :
+                             WEBRTC_VIDEO_ENCODER_BITRATE_AVG_PER_CALL_KBPS,
                    uint32_t(s.mBitrateMean.Value() / 1000));
       }
       if (s.mBitrateStdDev.WasPassed()) {
-        Accumulate(WEBRTC_VIDEO_ENCODER_BITRATE_STD_DEV_PER_CALL_KBPS,
+        Accumulate(aIsLoop? LOOP_VIDEO_ENCODER_BITRATE_STD_DEV_PER_CALL_KBPS :
+                            WEBRTC_VIDEO_ENCODER_BITRATE_STD_DEV_PER_CALL_KBPS,
                    uint32_t(s.mBitrateStdDev.Value() / 1000));
       }
       if (s.mFramerateMean.WasPassed()) {
-        Accumulate(WEBRTC_VIDEO_ENCODER_FRAMERATE_AVG_PER_CALL,
+        Accumulate(aIsLoop ? LOOP_VIDEO_ENCODER_FRAMERATE_AVG_PER_CALL :
+                             WEBRTC_VIDEO_ENCODER_FRAMERATE_AVG_PER_CALL,
                    uint32_t(s.mFramerateMean.Value()));
       }
       if (s.mFramerateStdDev.WasPassed()) {
-        Accumulate(WEBRTC_VIDEO_ENCODER_FRAMERATE_10X_STD_DEV_PER_CALL,
+        Accumulate(aIsLoop ? LOOP_VIDEO_ENCODER_FRAMERATE_10X_STD_DEV_PER_CALL :
+                             WEBRTC_VIDEO_ENCODER_FRAMERATE_10X_STD_DEV_PER_CALL,
                    uint32_t(s.mFramerateStdDev.Value() * 10));
       }
       if (s.mDroppedFrames.WasPassed() && !query->iceStartTime.IsNull()) {
         double mins = (TimeStamp::Now() - query->iceStartTime).ToSeconds() / 60;
         if (mins > 0) {
-          Accumulate(WEBRTC_VIDEO_ENCODER_DROPPED_FRAMES_PER_CALL_FPM,
+          Accumulate(aIsLoop ? LOOP_VIDEO_ENCODER_DROPPED_FRAMES_PER_CALL_FPM :
+                               WEBRTC_VIDEO_ENCODER_DROPPED_FRAMES_PER_CALL_FPM,
                      uint32_t(double(s.mDroppedFrames.Value()) / mins));
         }
       }
@@ -978,25 +1131,30 @@ static void StoreLongTermICEStatisticsImpl_m(
         continue;
       }
       if (s.mBitrateMean.WasPassed()) {
-        Accumulate(WEBRTC_VIDEO_DECODER_BITRATE_AVG_PER_CALL_KBPS,
+        Accumulate(aIsLoop ? LOOP_VIDEO_DECODER_BITRATE_AVG_PER_CALL_KBPS :
+                             WEBRTC_VIDEO_DECODER_BITRATE_AVG_PER_CALL_KBPS,
                    uint32_t(s.mBitrateMean.Value() / 1000));
       }
       if (s.mBitrateStdDev.WasPassed()) {
-        Accumulate(WEBRTC_VIDEO_DECODER_BITRATE_STD_DEV_PER_CALL_KBPS,
+        Accumulate(aIsLoop ? LOOP_VIDEO_DECODER_BITRATE_STD_DEV_PER_CALL_KBPS :
+                             WEBRTC_VIDEO_DECODER_BITRATE_STD_DEV_PER_CALL_KBPS,
                    uint32_t(s.mBitrateStdDev.Value() / 1000));
       }
       if (s.mFramerateMean.WasPassed()) {
-        Accumulate(WEBRTC_VIDEO_DECODER_FRAMERATE_AVG_PER_CALL,
+        Accumulate(aIsLoop ? LOOP_VIDEO_DECODER_FRAMERATE_AVG_PER_CALL :
+                             WEBRTC_VIDEO_DECODER_FRAMERATE_AVG_PER_CALL,
                    uint32_t(s.mFramerateMean.Value()));
       }
       if (s.mFramerateStdDev.WasPassed()) {
-        Accumulate(WEBRTC_VIDEO_DECODER_FRAMERATE_10X_STD_DEV_PER_CALL,
+        Accumulate(aIsLoop ? LOOP_VIDEO_DECODER_FRAMERATE_10X_STD_DEV_PER_CALL :
+                             WEBRTC_VIDEO_DECODER_FRAMERATE_10X_STD_DEV_PER_CALL,
                    uint32_t(s.mFramerateStdDev.Value() * 10));
       }
       if (s.mDiscardedPackets.WasPassed() && !query->iceStartTime.IsNull()) {
         double mins = (TimeStamp::Now() - query->iceStartTime).ToSeconds() / 60;
         if (mins > 0) {
-          Accumulate(WEBRTC_VIDEO_DECODER_DISCARDED_PACKETS_PER_CALL_PPM,
+          Accumulate(aIsLoop ? LOOP_VIDEO_DECODER_DISCARDED_PACKETS_PER_CALL_PPM :
+                               WEBRTC_VIDEO_DECODER_DISCARDED_PACKETS_PER_CALL_PPM,
                      uint32_t(double(s.mDiscardedPackets.Value()) / mins));
         }
       }
@@ -1012,7 +1170,8 @@ static void StoreLongTermICEStatisticsImpl_m(
 }
 
 static void GetStatsForLongTermStorage_s(
-    nsAutoPtr<RTCStatsQuery> query) {
+    nsAutoPtr<RTCStatsQuery> query,
+    bool aIsLoop) {
 
   MOZ_ASSERT(query);
 
@@ -1048,13 +1207,15 @@ static void GetStatsForLongTermStorage_s(
       WrapRunnableNM(
           &StoreLongTermICEStatisticsImpl_m,
           rv,
-          query),
+          query,
+          aIsLoop),
       NS_DISPATCH_NORMAL);
 }
 
 void WebrtcGlobalInformation::StoreLongTermICEStatistics(
     PeerConnectionImpl& aPc) {
-  Telemetry::Accumulate(Telemetry::WEBRTC_ICE_FINAL_CONNECTION_STATE,
+  Telemetry::Accumulate(aPc.IsLoop() ? Telemetry::LOOP_ICE_FINAL_CONNECTION_STATE :
+                                       Telemetry::WEBRTC_ICE_FINAL_CONNECTION_STATE,
                         static_cast<uint32_t>(aPc.IceConnectionState()));
 
   if (aPc.IceConnectionState() == PCImplIceConnectionState::New) {
@@ -1071,7 +1232,7 @@ void WebrtcGlobalInformation::StoreLongTermICEStatistics(
 
   RUN_ON_THREAD(aPc.GetSTSThread(),
                 WrapRunnableNM(&GetStatsForLongTermStorage_s,
-                               query),
+                               query, aPc.IsLoop()),
                 NS_DISPATCH_NORMAL);
 }
 

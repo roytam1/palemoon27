@@ -14,7 +14,7 @@
 #include "nsIInputStream.h"
 #include "nsIRunnable.h"
 #include "nsIThread.h"
-#include "mozilla/nsRefPtr.h"
+#include "mozilla/RefPtr.h"
 #include "nsString.h"
 #include "nsThreadUtils.h"
 
@@ -50,7 +50,7 @@ public:
 
   void Go()
   {
-    nsRefPtr<SourceSurface> surface =
+    RefPtr<SourceSurface> surface =
       ImageOps::DecodeToSurface(mInputStream,
                                 nsAutoCString(mTestCase.mMimeType),
                                 imgIContainer::DECODE_FLAGS_DEFAULT);
@@ -61,7 +61,8 @@ public:
                 surface->GetFormat() == SurfaceFormat::B8G8R8A8);
     EXPECT_EQ(mTestCase.mSize, surface->GetSize());
 
-    EXPECT_TRUE(IsSolidColor(surface, BGRAColor::Green(), mTestCase.mFuzzy));
+    EXPECT_TRUE(IsSolidColor(surface, BGRAColor::Green(),
+                             mTestCase.mFlags & TEST_CASE_IS_FUZZY));
   }
 
 private:
@@ -93,6 +94,7 @@ TEST(ImageDecodeToSurface, GIF) { RunDecodeToSurface(GreenGIFTestCase()); }
 TEST(ImageDecodeToSurface, JPG) { RunDecodeToSurface(GreenJPGTestCase()); }
 TEST(ImageDecodeToSurface, BMP) { RunDecodeToSurface(GreenBMPTestCase()); }
 TEST(ImageDecodeToSurface, ICO) { RunDecodeToSurface(GreenICOTestCase()); }
+TEST(ImageDecodeToSurface, Icon) { RunDecodeToSurface(GreenIconTestCase()); }
 
 TEST(ImageDecodeToSurface, AnimatedGIF)
 {
@@ -111,7 +113,7 @@ TEST(ImageDecodeToSurface, Corrupt)
   nsCOMPtr<nsIInputStream> inputStream = LoadFile(testCase.mPath);
   ASSERT_TRUE(inputStream != nullptr);
 
-  nsRefPtr<SourceSurface> surface =
+  RefPtr<SourceSurface> surface =
     ImageOps::DecodeToSurface(inputStream,
                               nsAutoCString(testCase.mMimeType),
                               imgIContainer::DECODE_FLAGS_DEFAULT);

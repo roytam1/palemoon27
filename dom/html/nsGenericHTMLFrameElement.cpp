@@ -184,8 +184,37 @@ nsGenericHTMLFrameElement::GetFrameLoader(nsIFrameLoader **aFrameLoader)
 NS_IMETHODIMP_(already_AddRefed<nsFrameLoader>)
 nsGenericHTMLFrameElement::GetFrameLoader()
 {
-  nsRefPtr<nsFrameLoader> loader = mFrameLoader;
+  RefPtr<nsFrameLoader> loader = mFrameLoader;
   return loader.forget();
+}
+
+NS_IMETHODIMP
+nsGenericHTMLFrameElement::GetParentApplication(mozIApplication** aApplication)
+{
+  if (!aApplication) {
+    return NS_ERROR_FAILURE;
+  }
+
+  *aApplication = nullptr;
+
+  uint32_t appId;
+  nsIPrincipal *principal = NodePrincipal();
+  nsresult rv = principal->GetAppId(&appId);
+  if (NS_WARN_IF(NS_FAILED(rv))) {
+    return rv;
+  }
+
+  nsCOMPtr<nsIAppsService> appsService = do_GetService(APPS_SERVICE_CONTRACTID);
+  if (NS_WARN_IF(!appsService)) {
+    return NS_ERROR_FAILURE;
+  }
+
+  rv = appsService->GetAppByLocalId(appId, aApplication);
+  if (NS_WARN_IF(NS_FAILED(rv))) {
+    return rv;
+  }
+
+  return NS_OK;
 }
 
 NS_IMETHODIMP
@@ -348,7 +377,7 @@ nsGenericHTMLFrameElement::AfterSetAttr(int32_t aNameSpaceID, nsIAtom* aName,
         if (cur != val) {
           scrollable->SetDefaultScrollbarPreferences(nsIScrollable::ScrollOrientation_X, val);
           scrollable->SetDefaultScrollbarPreferences(nsIScrollable::ScrollOrientation_Y, val);
-          nsRefPtr<nsPresContext> presContext;
+          RefPtr<nsPresContext> presContext;
           docshell->GetPresContext(getter_AddRefs(presContext));
           nsIPresShell* shell = presContext ? presContext->GetPresShell() : nullptr;
           nsIFrame* rootScroll = shell ? shell->GetRootScrollFrame() : nullptr;

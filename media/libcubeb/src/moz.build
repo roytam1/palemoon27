@@ -34,23 +34,30 @@ if CONFIG['OS_ARCH'] == 'OpenBSD':
 if CONFIG['OS_TARGET'] == 'Darwin':
     SOURCES += [
         'cubeb_audiounit.c',
-        'cubeb_osx_run_loop.c'
     ]
+    if CONFIG['MOZ_WIDGET_TOOLKIT'] == 'cocoa':
+        SOURCES += [
+            'cubeb_osx_run_loop.c',
+        ]
     DEFINES['USE_AUDIOUNIT'] = True
 
 if CONFIG['OS_TARGET'] == 'WINNT':
     SOURCES += [
         'cubeb_resampler.cpp',
-        'cubeb_wasapi.cpp',
         'cubeb_winmm.c',
     ]
     DEFINES['USE_WINMM'] = True
-    DEFINES['USE_WASAPI'] = True
+    if CONFIG['MOZ_SAMPLE_TYPE_FLOAT32']:
+        DEFINES['USE_WASAPI'] = True
+        SOURCES += [
+            'cubeb_wasapi.cpp',
+        ]
+    if CONFIG['_MSC_VER']:
+        CXXFLAGS += ['-wd4005'] # C4005: '_USE_MATH_DEFINES' : macro redefinition
 
 if CONFIG['OS_TARGET'] == 'Android':
     SOURCES += ['cubeb_opensl.c']
     SOURCES += ['cubeb_resampler.cpp']
-    SOURCES['cubeb_opensl.c'].flags += ['-Wno-declaration-after-statement']
     DEFINES['USE_OPENSL'] = True
     if CONFIG['MOZ_WIDGET_TOOLKIT'] != 'gonk':
         SOURCES += [
@@ -64,14 +71,17 @@ if CONFIG['GKMEDIAS_SHARED_LIBRARY']:
 FINAL_LIBRARY = 'gkmedias'
 
 if CONFIG['MOZ_WIDGET_TOOLKIT'] == 'gonk':
-    CFLAGS += [
-        '-I%s/%s' % (CONFIG['ANDROID_SOURCE'], d) for d in [
-            'frameworks/wilhelm/include',
-            'system/media/wilhelm/include',
+    if CONFIG['ANDROID_VERSION'] >= '17':
+        LOCAL_INCLUDES += [
+            '%' + '%s/frameworks/wilhelm/include' % CONFIG['ANDROID_SOURCE'],
         ]
-    ]
-
-FAIL_ON_WARNINGS = True
+    else:
+        LOCAL_INCLUDES += [
+            '%' + '%s/system/media/wilhelm/include' % CONFIG['ANDROID_SOURCE'],
+        ]
 
 CFLAGS += CONFIG['MOZ_ALSA_CFLAGS']
 CFLAGS += CONFIG['MOZ_PULSEAUDIO_CFLAGS']
+
+# We allow warnings for third-party code that can be updated from upstream.
+ALLOW_COMPILER_WARNINGS = True

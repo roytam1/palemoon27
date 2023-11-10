@@ -37,6 +37,10 @@ public:
   NS_IMETHOD GetAnimated(bool* aAnimated) override;
   NS_IMETHOD_(already_AddRefed<SourceSurface>)
     GetFrame(uint32_t aWhichFrame, uint32_t aFlags) override;
+  NS_IMETHOD_(already_AddRefed<SourceSurface>)
+    GetFrameAtSize(const gfx::IntSize& aSize,
+                   uint32_t aWhichFrame,
+                   uint32_t aFlags) override;
   NS_IMETHOD_(bool) IsImageContainerAvailable(layers::LayerManager* aManager,
                                               uint32_t aFlags) override;
   NS_IMETHOD_(already_AddRefed<layers::ImageContainer>)
@@ -46,7 +50,7 @@ public:
                                const nsIntSize& aSize,
                                const ImageRegion& aRegion,
                                uint32_t aWhichFrame,
-                               GraphicsFilter aFilter,
+                               gfx::Filter aFilter,
                                const Maybe<SVGImageContext>& aSVGContext,
                                uint32_t aFlags) override;
   NS_IMETHOD_(void) RequestRefresh(const TimeStamp& aTime) override;

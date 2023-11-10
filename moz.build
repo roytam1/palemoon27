@@ -23,8 +23,10 @@ DIRS += [
 
 if not CONFIG['JS_STANDALONE']:
     CONFIGURE_SUBST_FILES += [
-        'mozilla-config.h',
         'tools/update-packaging/Makefile',
+    ]
+    CONFIGURE_DEFINE_FILES += [
+        'mozilla-config.h',
     ]
 
     DIRS += [
@@ -32,23 +34,25 @@ if not CONFIG['JS_STANDALONE']:
         'probes',
     ]
 
-if not CONFIG['LIBXUL_SDK']:
+DIRS += [
+    'mfbt',
+    'config/external/zlib',
+]
+
+if not CONFIG['JS_STANDALONE']:
+
+    if CONFIG['MOZ_MEMORY']:
+        DIRS += ['memory']
+
     DIRS += [
-        'mfbt',
-        'config/external/zlib',
+        'mozglue',
+        'memory/fallible',
+        'memory/mozalloc',
+        'memory/volatile',
     ]
 
-    if not CONFIG['JS_STANDALONE']:
-
-        if CONFIG['MOZ_MEMORY']:
-            DIRS += ['memory']
-
-        DIRS += [
-            'mozglue',
-            'memory/fallible',
-            'memory/mozalloc',
-            'memory/volatile',
-        ]
+if CONFIG['MOZ_WIDGET_TOOLKIT'] == 'android' and int(CONFIG['MOZ_ANDROID_MIN_SDK_VERSION']) < 11:
+    DIRS += ['other-licenses/android']
 
 if not CONFIG['JS_STANDALONE']:
     DIRS += ['xpcom/xpidl']

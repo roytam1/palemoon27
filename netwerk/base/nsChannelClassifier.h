@@ -11,6 +11,7 @@
 
 class nsIChannel;
 class nsIHttpChannelInternal;
+class nsIDocument;
 
 class nsChannelClassifier final : public nsIURIClassifierCallback
 {
@@ -41,6 +42,10 @@ private:
     // Start is called. Returns NS_OK if and only if we will get a callback
     // from the classifier service.
     nsresult StartInternal();
+    // Helper function to check a tracking URI against the whitelist
+    nsresult IsTrackerWhitelisted();
+    // Checks that the channel was loaded by the URI currently loaded in aDoc
+    static bool SameLoadingURI(nsIDocument *aDoc, nsIChannel *aChannel);
 
 public:
     // If we are blocking tracking content, update the corresponding flag in

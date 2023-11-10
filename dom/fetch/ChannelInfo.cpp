@@ -6,7 +6,9 @@
 
 #include "mozilla/dom/ChannelInfo.h"
 #include "nsCOMPtr.h"
+#include "nsContentUtils.h"
 #include "nsIChannel.h"
+#include "nsIDocument.h"
 #include "nsIHttpChannel.h"
 #include "nsSerializationHelper.h"
 #include "mozilla/net/HttpBaseChannel.h"
@@ -17,6 +19,20 @@
 
 using namespace mozilla;
 using namespace mozilla::dom;
+
+void
+ChannelInfo::InitFromDocument(nsIDocument* aDoc)
+{
+  MOZ_ASSERT(NS_IsMainThread());
+  MOZ_ASSERT(!mInited, "Cannot initialize the object twice");
+
+  nsCOMPtr<nsISupports> securityInfo = aDoc->GetSecurityInfo();
+  if (securityInfo) {
+    SetSecurityInfo(securityInfo);
+  }
+
+  mInited = true;
+}
 
 void
 ChannelInfo::InitFromChannel(nsIChannel* aChannel)
@@ -30,31 +46,28 @@ ChannelInfo::InitFromChannel(nsIChannel* aChannel)
     SetSecurityInfo(securityInfo);
   }
 
-  nsLoadFlags loadFlags = 0;
-  aChannel->GetLoadFlags(&loadFlags);
-  mRedirected = (loadFlags & nsIChannel::LOAD_REPLACE);
-  if (mRedirected) {
-    // Save the spec and not the nsIURI object itself, since those objects are
-    // not thread-safe, and releasing them somewhere other than the main thread
-    // is not possible.
-    nsCOMPtr<nsIURI> redirectedURI;
-    aChannel->GetURI(getter_AddRefs(redirectedURI));
-    if (redirectedURI) {
-      redirectedURI->GetSpec(mRedirectedURISpec);
-    }
-  }
-
   mInited = true;
 }
 
 void
-ChannelInfo::InitFromIPCChannelInfo(const ipc::IPCChannelInfo& aChannelInfo)
+ChannelInfo::InitFromChromeGlobal(nsIGlobalObject* aGlobal)
+{
+  MOZ_ASSERT(!mInited, "Cannot initialize the object twice");
+  MOZ_ASSERT(aGlobal);
+
+  MOZ_RELEASE_ASSERT(
+    nsContentUtils::IsSystemPrincipal(aGlobal->PrincipalOrNull()));
+
+  mSecurityInfo.Truncate();
+  mInited = true;
+}
+
+void
+ChannelInfo::InitFromIPCChannelInfo(const mozilla::ipc::IPCChannelInfo& aChannelInfo)
 {
   MOZ_ASSERT(!mInited, "Cannot initialize the object twice");
 
   mSecurityInfo = aChannelInfo.securityInfo();
-  mRedirectedURISpec = aChannelInfo.redirectedURI();
-  mRedirected = aChannelInfo.redirected();
 
   mInited = true;
 }
@@ -106,34 +119,10 @@ ChannelInfo::ResurrectInfoOnChannel(nsIChannel* aChannel)
     }
   }
 
-  if (mRedirected) {
-    nsLoadFlags flags = 0;
-    aChannel->GetLoadFlags(&flags);
-    flags |= nsIChannel::LOAD_REPLACE;
-    aChannel->SetLoadFlags(flags);
-
-    nsCOMPtr<nsIURI> redirectedURI;
-    nsresult rv = NS_NewURI(getter_AddRefs(redirectedURI),
-                            mRedirectedURISpec);
-    if (NS_WARN_IF(NS_FAILED(rv))) {
-      return rv;
-    }
-    if (httpChannel) {
-      net::HttpBaseChannel* httpBaseChannel =
-        static_cast<net::HttpBaseChannel*>(httpChannel.get());
-      httpBaseChannel->OverrideURI(redirectedURI);
-    } else {
-      if (NS_WARN_IF(!jarChannel)) {
-        return NS_ERROR_FAILURE;
-      }
-      static_cast<nsJARChannel*>(jarChannel.get())->OverrideURI(redirectedURI);
-    }
-  }
-
   return NS_OK;
 }
 
-ipc::IPCChannelInfo
+mozilla::ipc::IPCChannelInfo
 ChannelInfo::AsIPCChannelInfo() const
 {
   // This may be called when mInited is false, for example if we try to store
@@ -144,8 +133,6 @@ ChannelInfo::AsIPCChannelInfo() const
   IPCChannelInfo ipcInfo;
 
   ipcInfo.securityInfo() = mSecurityInfo;
-  ipcInfo.redirectedURI() = mRedirectedURISpec;
-  ipcInfo.redirected() = mRedirected;
 
   return ipcInfo;
 }

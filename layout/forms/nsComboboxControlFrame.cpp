@@ -41,12 +41,19 @@
 #include "mozilla/Likely.h"
 #include <algorithm>
 #include "nsTextNode.h"
+#include "nsIContentInlines.h"
 #include "mozilla/AsyncEventDispatcher.h"
 #include "mozilla/EventStates.h"
 #include "mozilla/LookAndFeel.h"
 #include "mozilla/MouseEvents.h"
 #include "mozilla/unused.h"
-#include "nsIContentInlines.h"
+#include "gfx2DGlue.h"
+
+#ifdef XP_WIN
+#define COMBOBOX_ROLLUP_CONSUME_EVENT 0
+#else
+#define COMBOBOX_ROLLUP_CONSUME_EVENT 1
+#endif
 
 using namespace mozilla;
 using namespace mozilla::gfx;
@@ -311,9 +318,8 @@ nsComboboxControlFrame::ShowPopup(bool aShowPopup)
 
   // fire a popup dom event
   nsEventStatus status = nsEventStatus_eIgnore;
-  WidgetMouseEvent event(true, aShowPopup ?
-                         NS_XUL_POPUP_SHOWING : NS_XUL_POPUP_HIDING, nullptr,
-                         WidgetMouseEvent::eReal);
+  WidgetMouseEvent event(true, aShowPopup ? eXULPopupShowing : eXULPopupHiding,
+                         nullptr, WidgetMouseEvent::eReal);
 
   nsCOMPtr<nsIPresShell> shell = PresContext()->GetPresShell();
   if (shell)
@@ -558,6 +564,7 @@ nsComboboxControlFrame::GetAvailableDropdownSpace(WritingMode aWM,
                                                   nscoord* aAfter,
                                                   LogicalPoint* aTranslation)
 {
+  MOZ_ASSERT(!XRE_IsContentProcess());
   // Note: At first glance, it appears that you could simply get the
   // absolute bounding box for the dropdown list by first getting its
   // view, then getting the view's nsIWidget, then asking the nsIWidget
@@ -625,6 +632,10 @@ nsComboboxControlFrame::GetAvailableDropdownSpace(WritingMode aWM,
 nsComboboxControlFrame::DropDownPositionState
 nsComboboxControlFrame::AbsolutelyPositionDropDown()
 {
+  if (XRE_IsContentProcess()) {
+    return eDropDownPositionSuppressed;
+  }
+
   WritingMode wm = GetWritingMode();
   LogicalPoint translation(wm);
   nscoord before, after;
@@ -682,6 +693,10 @@ nsComboboxControlFrame::AbsolutelyPositionDropDown()
 void
 nsComboboxControlFrame::NotifyGeometryChange()
 {
+  if (XRE_IsContentProcess()) {
+    return;
+  }
+
   // We don't need to resize if we're not dropped down since ShowDropDown
   // does that, or if we're dirty then the reflow callback does it,
   // or if we have a delayed ShowDropDown pending.
@@ -690,7 +705,7 @@ nsComboboxControlFrame::NotifyGeometryChange()
       !mDelayedShowDropDown) {
     // Async because we're likely in a middle of a scroll here so
     // frame/view positions are in flux.
-    nsRefPtr<nsResizeDropdownAtFinalPosition> resize =
+    RefPtr<nsResizeDropdownAtFinalPosition> resize =
       new nsResizeDropdownAtFinalPosition(this);
     NS_DispatchToCurrentThread(resize);
   }
@@ -728,7 +743,7 @@ nsComboboxControlFrame::GetIntrinsicISize(nsRenderingContext* aRenderingContext,
     nsIScrollableFrame* scrollable = do_QueryFrame(mListControlFrame);
     NS_ASSERTION(scrollable, "List must be a scrollable frame");
     scrollbarWidth = scrollable->GetNondisappearingScrollbarWidth(
-      presContext, aRenderingContext);
+      presContext, aRenderingContext, GetWritingMode());
   }
 
   nscoord displayISize = 0;
@@ -833,16 +848,17 @@ nsComboboxControlFrame::Reflow(nsPresContext*          aPresContext,
 
   // First reflow our dropdown so that we know how tall we should be.
   ReflowDropdown(aPresContext, aReflowState);
-  nsRefPtr<nsResizeDropdownAtFinalPosition> resize =
+  RefPtr<nsResizeDropdownAtFinalPosition> resize =
     new nsResizeDropdownAtFinalPosition(this);
   if (NS_SUCCEEDED(aPresContext->PresShell()->PostReflowCallback(resize))) {
     // The reflow callback queue doesn't AddRef so we keep it alive until
     // it's released in its ReflowFinished / ReflowCallbackCanceled.
-    unused << resize.forget();
+    Unused << resize.forget();
   }
 
   // Get the width of the vertical scrollbar.  That will be the inline
   // size of the dropdown button.
+  WritingMode wm = aReflowState.GetWritingMode();
   nscoord buttonISize;
   const nsStyleDisplay *disp = StyleDisplay();
   if ((IsThemed(disp) && !aPresContext->GetTheme()->ThemeNeedsComboboxDropmarker()) ||
@@ -853,7 +869,7 @@ nsComboboxControlFrame::Reflow(nsPresContext*          aPresContext,
     nsIScrollableFrame* scrollable = do_QueryFrame(mListControlFrame);
     NS_ASSERTION(scrollable, "List must be a scrollable frame");
     buttonISize = scrollable->GetNondisappearingScrollbarWidth(
-      PresContext(), aReflowState.rendContext);
+      PresContext(), aReflowState.rendContext, wm);
     if (buttonISize > aReflowState.ComputedISize()) {
       buttonISize = 0;
     }
@@ -864,8 +880,7 @@ nsComboboxControlFrame::Reflow(nsPresContext*          aPresContext,
   nsBlockFrame::Reflow(aPresContext, aDesiredSize, aReflowState, aStatus);
 
   // The button should occupy the same space as a scrollbar
-  WritingMode wm = aReflowState.GetWritingMode();
-  nsSize containerSize = aReflowState.ComputedSizeAsContainerIfConstrained();
+  nsSize containerSize = aDesiredSize.PhysicalSize();
   LogicalRect buttonRect = mButtonFrame->GetLogicalRect(containerSize);
 
   buttonRect.IStart(wm) =
@@ -912,6 +927,7 @@ nsComboboxControlFrame::GetFrameName(nsAString& aResult) const
 void
 nsComboboxControlFrame::ShowDropDown(bool aDoDropDown)
 {
+  MOZ_ASSERT(!XRE_IsContentProcess());
   mDelayedShowDropDown = false;
   EventStates eventStates = mContent->AsElement()->State();
   if (aDoDropDown && eventStates.HasState(NS_EVENT_STATE_DISABLED)) {
@@ -988,7 +1004,7 @@ nsComboboxControlFrame::RedisplayText(int32_t aIndex)
                  "If we happen to run our redisplay event now, we might kill "
                  "ourselves!");
 
-    nsRefPtr<RedisplayTextEvent> event = new RedisplayTextEvent(this);
+    RefPtr<RedisplayTextEvent> event = new RedisplayTextEvent(this);
     mRedisplayTextEvent = event;
     if (!nsContentUtils::AddScriptRunner(event))
       mRedisplayTextEvent.Forget();
@@ -1131,6 +1147,18 @@ nsComboboxControlFrame::HandleEvent(nsPresContext* aPresContext,
     return NS_OK;
   }
 
+#if COMBOBOX_ROLLUP_CONSUME_EVENT == 0
+  if (aEvent->mMessage == eMouseDown) {
+    nsIWidget* widget = GetNearestWidget();
+    if (widget && GetContent() == widget->GetLastRollup()) {
+      // This event did a Rollup on this control - prevent it from opening
+      // the dropdown again!
+      *aEventStatus = nsEventStatus_eConsumeNoDefault;
+      return NS_OK;
+    }
+  }
+#endif
+
   // If we have style that affects how we are selected, feed event down to
   // nsFrame::HandleEvent so that selection takes place when appropriate.
   const nsStyleUserInterface* uiStyle = StyleUserInterface();
@@ -1207,6 +1235,14 @@ nsComboboxControlFrame::CreateAnonymousContent(nsTArray<ContentInfo>& aElements)
   // Set tabindex="-1" so that the button is not tabbable
   mButtonContent->SetAttr(kNameSpaceID_None, nsGkAtoms::tabindex,
                           NS_LITERAL_STRING("-1"), false);
+
+  WritingMode wm = GetWritingMode();
+  if (wm.IsVertical()) {
+    mButtonContent->SetAttr(kNameSpaceID_None, nsGkAtoms::orientation,
+                            wm.IsVerticalRL() ? NS_LITERAL_STRING("left")
+                                              : NS_LITERAL_STRING("right"),
+                            false);
+  }
 
   if (!aElements.AppendElement(mButtonContent))
     return NS_ERROR_OUT_OF_MEMORY;
@@ -1327,13 +1363,13 @@ nsComboboxControlFrame::CreateFrameFor(nsIContent*      aContent)
   nsStyleSet *styleSet = shell->StyleSet();
 
   // create the style contexts for the anonymous block frame and text frame
-  nsRefPtr<nsStyleContext> styleContext;
+  RefPtr<nsStyleContext> styleContext;
   styleContext = styleSet->
     ResolveAnonymousBoxStyle(nsCSSAnonBoxes::mozDisplayComboboxControlFrame,
                              mStyleContext,
                              nsStyleSet::eSkipParentDisplayBasedStyleFixup);
 
-  nsRefPtr<nsStyleContext> textStyleContext;
+  RefPtr<nsStyleContext> textStyleContext;
   textStyleContext = styleSet->ResolveStyleForNonElement(mStyleContext);
 
   // Start by creating our anonymous block frame
@@ -1424,10 +1460,7 @@ nsComboboxControlFrame::Rollup(uint32_t aCount, bool aFlush,
     return false;
   }
 
-  bool consume = true;
-#ifdef XP_WIN
-  consume = false;
-#endif
+  bool consume = !!COMBOBOX_ROLLUP_CONSUME_EVENT;
   nsWeakFrame weakFrame(this);
   mListControlFrame->AboutToRollup(); // might destroy us
   if (!weakFrame.IsAlive()) {
@@ -1445,6 +1478,9 @@ nsComboboxControlFrame::Rollup(uint32_t aCount, bool aFlush,
     viewManager->UpdateWidgetGeometry();
   }
 
+  if (aLastRolledUp) {
+    *aLastRolledUp = GetContent();
+  }
   return consume;
 }
 
@@ -1536,8 +1572,7 @@ nsComboboxControlFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
   DisplaySelectionOverlay(aBuilder, aLists.Content());
 }
 
-void nsComboboxControlFrame::PaintFocus(DrawTarget& aDrawTarget,
-                                        nsPoint aPt)
+void nsComboboxControlFrame::PaintFocus(DrawTarget& aDrawTarget, nsPoint aPt)
 {
   /* Do we need to do anything? */
   EventStates eventStates = mContent->AsElement()->State();

@@ -10,6 +10,7 @@
 #include "MediaDataDemuxer.h"
 #include "MediaResource.h"
 #include "mp4_demuxer/ByteReader.h"
+#include <vector>
 
 namespace mozilla {
 namespace mp3 {
@@ -20,22 +21,26 @@ class MP3Demuxer : public MediaDataDemuxer {
 public:
   // MediaDataDemuxer interface.
   explicit MP3Demuxer(MediaResource* aSource);
-  nsRefPtr<InitPromise> Init() override;
-  already_AddRefed<MediaDataDemuxer> Clone() const override;
+  RefPtr<InitPromise> Init() override;
   bool HasTrackType(TrackInfo::TrackType aType) const override;
   uint32_t GetNumberTracks(TrackInfo::TrackType aType) const override;
   already_AddRefed<MediaTrackDemuxer> GetTrackDemuxer(
       TrackInfo::TrackType aType, uint32_t aTrackNumber) override;
   bool IsSeekable() const override;
-  void NotifyDataArrived(uint32_t aLength, int64_t aOffset) override;
+  void NotifyDataArrived() override;
   void NotifyDataRemoved() override;
+  // Do not shift the calculated buffered range by the start time of the first
+  // decoded frame. The mac MP3 decoder will buffer some samples and the first
+  // frame returned has typically a start time that is non-zero, causing our
+  // buffered range to have a negative start time.
+  bool ShouldComputeStartTime() const override { return false; }
 
 private:
   // Synchronous initialization.
   bool InitInternal();
 
-  nsRefPtr<MediaResource> mSource;
-  nsRefPtr<MP3TrackDemuxer> mTrackDemuxer;
+  RefPtr<MediaResource> mSource;
+  RefPtr<MP3TrackDemuxer> mTrackDemuxer;
 };
 
 // ID3 header parser state machine used by FrameParser.
@@ -373,7 +378,7 @@ public:
   media::TimeUnit Duration(int64_t aNumFrames) const;
 
   const FrameParser::Frame& LastFrame() const;
-  nsRefPtr<MediaRawData> DemuxSample();
+  RefPtr<MediaRawData> DemuxSample();
   media::TimeUnit SeekPosition() const;
 
   const ID3Parser::ID3Header& ID3Header() const;
@@ -381,14 +386,13 @@ public:
 
   // MediaTrackDemuxer interface.
   UniquePtr<TrackInfo> GetInfo() const override;
-  nsRefPtr<SeekPromise> Seek(media::TimeUnit aTime) override;
-  nsRefPtr<SamplesPromise> GetSamples(int32_t aNumSamples = 1) override;
+  RefPtr<SeekPromise> Seek(media::TimeUnit aTime) override;
+  RefPtr<SamplesPromise> GetSamples(int32_t aNumSamples = 1) override;
   void Reset() override;
-  nsRefPtr<SkipAccessPointPromise> SkipToNextRandomAccessPoint(
+  RefPtr<SkipAccessPointPromise> SkipToNextRandomAccessPoint(
     media::TimeUnit aTimeThreshold) override;
   int64_t GetResourceOffset() const override;
   media::TimeIntervals GetBuffered() override;
-  int64_t GetEvictionOffset(media::TimeUnit aTime) override;
 
 private:
   // Destructor.
@@ -442,7 +446,7 @@ private:
   double AverageFrameLength() const;
 
   // The (hopefully) MPEG resource.
-  nsRefPtr<MediaResource> mSource;
+  MediaResourceIndex mSource;
 
   // MPEG frame parser used to detect frames and extract side info.
   FrameParser mParser;

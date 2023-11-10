@@ -35,7 +35,7 @@ SurfaceFormatForAndroidPixelFormat(android::PixelFormat aFormat,
   case android::PIXEL_FORMAT_RGBX_8888:
     return swapRB ? gfx::SurfaceFormat::B8G8R8X8 : gfx::SurfaceFormat::R8G8B8X8;
   case android::PIXEL_FORMAT_RGB_565:
-    return gfx::SurfaceFormat::R5G6B5;
+    return gfx::SurfaceFormat::R5G6B5_UINT16;
   case HAL_PIXEL_FORMAT_YCbCr_422_SP:
   case HAL_PIXEL_FORMAT_YCrCb_420_SP:
   case HAL_PIXEL_FORMAT_YCbCr_422_I:
@@ -118,7 +118,7 @@ GrallocTextureHostOGL::GrallocTextureHostOGL(TextureFlags aFlags,
     mSize = gfx::IntSize(graphicBuffer->getWidth(), graphicBuffer->getHeight());
     mCropSize = mSize;
   } else {
-    printf_stderr("gralloc buffer is nullptr");
+    printf_stderr("gralloc buffer is nullptr\n");
   }
 }
 
@@ -238,11 +238,18 @@ GrallocTextureHostOGL::GetAsSurface() {
     return nullptr;
   }
   uint8_t* grallocData;
-  graphicBuffer->lock(GRALLOC_USAGE_SW_READ_OFTEN, reinterpret_cast<void**>(&grallocData));
+  int32_t rv = graphicBuffer->lock(GRALLOC_USAGE_SW_READ_OFTEN, reinterpret_cast<void**>(&grallocData));
+  if (rv) {
+    return nullptr;
+  }
   RefPtr<gfx::DataSourceSurface> grallocTempSurf =
     gfx::Factory::CreateWrappingDataSourceSurface(grallocData,
                                                   graphicBuffer->getStride() * android::bytesPerPixel(graphicBuffer->getPixelFormat()),
                                                   GetSize(), GetFormat());
+  if (!grallocTempSurf) {
+    graphicBuffer->unlock();
+    return nullptr;
+  }
   RefPtr<gfx::DataSourceSurface> surf = CreateDataSourceSurfaceByCloning(grallocTempSurf);
 
   graphicBuffer->unlock();
@@ -390,7 +397,7 @@ GrallocTextureHostOGL::WaitAcquireFenceHandleSyncComplete()
     return;
   }
 
-  nsRefPtr<FenceHandle::FdObj> fence = mAcquireFenceHandle.GetAndResetFdObj();
+  RefPtr<FenceHandle::FdObj> fence = mAcquireFenceHandle.GetAndResetFdObj();
   int fenceFd = fence->GetAndResetFd();
 
   EGLint attribs[] = {
@@ -412,7 +419,7 @@ GrallocTextureHostOGL::WaitAcquireFenceHandleSyncComplete()
   EGLint status = sEGLLibrary.fClientWaitSync(EGL_DISPLAY(),
                                               sync,
                                               0,
-                                              400000000 /*400 usec*/);
+                                              400000000 /*400 msec*/);
   if (status != LOCAL_EGL_CONDITION_SATISFIED) {
     NS_ERROR("failed to wait native fence sync");
   }

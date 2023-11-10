@@ -4,7 +4,7 @@
 importScripts('worker_test_osfile_shared.js');
 importScripts("resource://gre/modules/workers/require.js");
 
-let SharedAll = require("resource://gre/modules/osfile/osfile_shared_allthreads.jsm");
+var SharedAll = require("resource://gre/modules/osfile/osfile_shared_allthreads.jsm");
 SharedAll.Config.DEBUG = true;
 
 function should_throw(f) {
@@ -267,7 +267,10 @@ function test_iter_dir()
 
   // Testing nextBatch()
   iterator = new OS.File.DirectoryIterator(parent);
-  let allentries = [x for(x in iterator)];
+  let allentries = [];
+  for (let x in iterator) {
+    allentries.push(x);
+  }
   iterator.close();
 
   ok(allentries.length >= 14, "test_iter_dir: Meta-check: the test directory should contain at least 14 items");

@@ -1,15 +1,28 @@
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/*
+ * Copyright 2015, Mozilla Foundation and contributors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
 
 #include "ClearKeyDecryptionManager.h"
 #include "ClearKeySession.h"
 #include "ClearKeyUtils.h"
 #include "ClearKeyStorage.h"
 #include "gmp-task-utils.h"
-
 #include "gmp-api/gmp-decryption.h"
-#include "mozilla/Endian.h"
+#include "Endian.h"
+#include <assert.h>
+#include <string.h>
 
 using namespace mozilla;
 
@@ -29,7 +42,7 @@ ClearKeySession::~ClearKeySession()
 
   auto& keyIds = GetKeyIds();
   for (auto it = keyIds.begin(); it != keyIds.end(); it++) {
-    MOZ_ASSERT(ClearKeyDecryptionManager::Get()->HasKeyForKeyId(*it));
+    assert(ClearKeyDecryptionManager::Get()->HasSeenKeyId(*it));
 
     ClearKeyDecryptionManager::Get()->ReleaseKeyId(*it);
     mCallback->KeyStatusChanged(&mSessionId[0], mSessionId.size(),
@@ -41,13 +54,30 @@ ClearKeySession::~ClearKeySession()
 void
 ClearKeySession::Init(uint32_t aCreateSessionToken,
                       uint32_t aPromiseId,
+                      const std::string& aInitDataType,
                       const uint8_t* aInitData, uint32_t aInitDataSize)
 {
   CK_LOGD("ClearKeySession::Init");
 
-  ClearKeyUtils::ParseInitData(aInitData, aInitDataSize, mKeyIds);
+  if (aInitDataType == "cenc") {
+    ClearKeyUtils::ParseCENCInitData(aInitData, aInitDataSize, mKeyIds);
+  } else if (aInitDataType == "keyids") {
+    std::string sessionType;
+    ClearKeyUtils::ParseKeyIdsInitData(aInitData, aInitDataSize, mKeyIds, sessionType);
+    if (sessionType != ClearKeyUtils::SessionTypeToString(mSessionType)) {
+      const char message[] = "Session type specified in keyids init data doesn't match session type.";
+      mCallback->RejectPromise(aPromiseId, kGMPAbortError, message, strlen(message));
+      return;
+    }
+  } else if (aInitDataType == "webm" && aInitDataSize == 16) {
+    // "webm" initData format is simply the raw bytes of the keyId.
+    vector<uint8_t> keyId;
+    keyId.assign(aInitData, aInitData+aInitDataSize);
+    mKeyIds.push_back(keyId);
+  }
+
   if (!mKeyIds.size()) {
-    const char message[] = "Couldn't parse cenc key init data";
+    const char message[] = "Couldn't parse init data";
     mCallback->RejectPromise(aPromiseId, kGMPAbortError, message, strlen(message));
     return;
   }

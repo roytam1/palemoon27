@@ -31,7 +31,7 @@ extern PRLogModuleInfo* gPIPNSSLog;
 
 namespace {
 
-}
+} // namespace
 
 class nsHTTPDownloadEvent : public nsRunnable {
 public:
@@ -42,7 +42,7 @@ public:
 
   nsNSSHttpRequestSession *mRequestSession;
   
-  nsRefPtr<nsHTTPListener> mListener;
+  RefPtr<nsHTTPListener> mListener;
   bool mResponsibleForDoneSignal;
   TimeStamp mStartTime;
 };
@@ -78,7 +78,7 @@ nsHTTPDownloadEvent::Run()
                    nullptr, // aLoadingNode
                    nsContentUtils::GetSystemPrincipal(),
                    nullptr, // aTriggeringPrincipal
-                   nsILoadInfo::SEC_NORMAL,
+                   nsILoadInfo::SEC_ALLOW_CROSS_ORIGIN_DATA_IS_NULL,
                    nsIContentPolicy::TYPE_OTHER,
                    getter_AddRefs(chan));
   NS_ENSURE_STATE(chan);
@@ -90,7 +90,8 @@ nsHTTPDownloadEvent::Run()
   if (priorityChannel)
     priorityChannel->AdjustPriority(nsISupportsPriority::PRIORITY_HIGHEST);
 
-  chan->SetLoadFlags(nsIRequest::LOAD_ANONYMOUS);
+  chan->SetLoadFlags(nsIRequest::LOAD_ANONYMOUS |
+                     nsIChannel::LOAD_BYPASS_SERVICE_WORKER);
 
   // Create a loadgroup for this new channel.  This way if the channel
   // is redirected, we'll have a way to cancel the resulting channel.
@@ -145,7 +146,7 @@ nsHTTPDownloadEvent::Run()
 
   if (NS_SUCCEEDED(rv)) {
     mStartTime = TimeStamp::Now();
-    rv = hchan->AsyncOpen(mListener->mLoader, nullptr);
+    rv = hchan->AsyncOpen2(mListener->mLoader);
   }
 
   if (NS_FAILED(rv)) {
@@ -161,7 +162,7 @@ nsHTTPDownloadEvent::Run()
 }
 
 struct nsCancelHTTPDownloadEvent : nsRunnable {
-  nsRefPtr<nsHTTPListener> mListener;
+  RefPtr<nsHTTPListener> mListener;
 
   NS_IMETHOD Run() {
     mListener->FreeLoadGroup(true);
@@ -730,6 +731,7 @@ ShowProtectedAuthPrompt(PK11SlotInfo* slot, nsIInterfaceRequestor *ir)
 }
 
 class PK11PasswordPromptRunnable : public SyncRunnableBase
+                                 , public nsNSSShutDownObject
 {
 public:
   PK11PasswordPromptRunnable(PK11SlotInfo* slot, 
@@ -739,28 +741,41 @@ public:
       mIR(ir)
   {
   }
+  virtual ~PK11PasswordPromptRunnable();
+
+  // This doesn't own the PK11SlotInfo or any other NSS objects, so there's
+  // nothing to release.
+  virtual void virtualDestroyNSSReference() override {}
   char * mResult; // out
-  virtual void RunOnTargetThread();
+  virtual void RunOnTargetThread() override;
 private:
   PK11SlotInfo* const mSlot; // in
   nsIInterfaceRequestor* const mIR; // in
 };
+
+PK11PasswordPromptRunnable::~PK11PasswordPromptRunnable()
+{
+  nsNSSShutDownPreventionLock locker;
+  if (isAlreadyShutDown()) {
+    return;
+  }
+
+  shutdown(calledFromObject);
+}
 
 void PK11PasswordPromptRunnable::RunOnTargetThread()
 {
   static NS_DEFINE_CID(kNSSComponentCID, NS_NSSCOMPONENT_CID);
 
   nsNSSShutDownPreventionLock locker;
+  if (isAlreadyShutDown()) {
+    return;
+  }
+
   nsresult rv = NS_OK;
   char16_t *password = nullptr;
   bool value = false;
   nsCOMPtr<nsIPrompt> prompt;
-
-  /* TODO: Retry should generate a different dialog message */
-/*
-  if (retry)
-    return nullptr;
-*/
 
   if (!mIR)
   {
@@ -797,19 +812,11 @@ void PK11PasswordPromptRunnable::RunOnTargetThread()
   if (NS_FAILED(rv))
     return;
 
-  {
-    nsPSMUITracker tracker;
-    if (tracker.isUIForbidden()) {
-      rv = NS_ERROR_NOT_AVAILABLE;
-    }
-    else {
-      // Although the exact value is ignored, we must not pass invalid
-      // bool values through XPConnect.
-      bool checkState = false;
-      rv = prompt->PromptPassword(nullptr, promptString.get(),
-                                  &password, nullptr, &checkState, &value);
-    }
-  }
+  // Although the exact value is ignored, we must not pass invalid bool values
+  // through XPConnect.
+  bool checkState = false;
+  rv = prompt->PromptPassword(nullptr, promptString.get(), &password, nullptr,
+                              &checkState, &value);
   
   if (NS_SUCCEEDED(rv) && value) {
     mResult = ToNewUTF8String(nsDependentString(password));
@@ -1006,7 +1013,6 @@ void HandshakeCallback(PRFileDesc* fd, void* client_data) {
                                            infoObject->GetPort(),
                                            versions.max);
 
-  bool usesWeakProtocol = false;
   bool usesWeakCipher = false;
   SSLChannelInfo channelInfo;
   rv = SSL_GetChannelInfo(fd, &channelInfo, sizeof(channelInfo));
@@ -1018,8 +1024,6 @@ void HandshakeCallback(PRFileDesc* fd, void* client_data) {
                                 sizeof cipherInfo);
     MOZ_ASSERT(rv == SECSuccess);
     if (rv == SECSuccess) {
-      usesWeakProtocol =
-        channelInfo.protocolVersion <= SSL_LIBRARY_VERSION_3_0;
       usesWeakCipher = cipherInfo.symCipher == ssl_calg_rc4;
 
       DebugOnly<int16_t> KEAUsed;
@@ -1044,17 +1048,21 @@ void HandshakeCallback(PRFileDesc* fd, void* client_data) {
                              ioLayerHelpers.treatUnsafeNegotiationAsBroken();
 
   uint32_t state;
-  if (usesWeakProtocol || usesWeakCipher || renegotiationUnsafe) {
+  if (usesWeakCipher || renegotiationUnsafe) {
     state = nsIWebProgressListener::STATE_IS_BROKEN;
-    if (usesWeakProtocol) {
-      state |= nsIWebProgressListener::STATE_USES_SSL_3;
-    }
     if (usesWeakCipher) {
       state |= nsIWebProgressListener::STATE_USES_WEAK_CRYPTO;
     }
   } else {
     state = nsIWebProgressListener::STATE_IS_SECURE |
             nsIWebProgressListener::STATE_SECURE_HIGH;
+    SSLVersionRange defVersion;
+    rv = SSL_VersionRangeGetDefault(ssl_variant_stream, &defVersion);
+    if (rv == SECSuccess && versions.max >= defVersion.max) {
+      // we know this site no longer requires a weak cipher
+      ioLayerHelpers.removeInsecureFallbackSite(infoObject->GetHostName(),
+                                                infoObject->GetPort());
+    }
   }
   infoObject->SetSecurityState(state);
 
@@ -1063,8 +1071,7 @@ void HandshakeCallback(PRFileDesc* fd, void* client_data) {
   // to log the warning. In particular, these warnings should go to the web
   // console instead of to the error console. Also, the warning is not
   // localized.
-  if (!siteSupportsSafeRenego &&
-      ioLayerHelpers.getWarnLevelMissingRFC5746() > 0) {
+  if (!siteSupportsSafeRenego) {
     nsXPIDLCString hostName;
     infoObject->GetHostName(getter_Copies(hostName));
 

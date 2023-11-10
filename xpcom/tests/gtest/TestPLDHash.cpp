@@ -4,7 +4,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "pldhash.h"
+#include "PLDHashTable.h"
 #include "gtest/gtest.h"
 
 // This test mostly focuses on edge cases. But more coverage of normal
@@ -17,6 +17,10 @@
 
 // This global variable is defined in toolkit/xre/nsSigHandlers.cpp.
 extern unsigned int _gdb_sleep_duration;
+#endif
+
+#ifdef MOZ_CRASHREPORTER
+#include "nsICrashReporter.h"
 #endif
 
 // We can test that certain operations cause expected aborts by forking
@@ -40,6 +44,15 @@ TestCrashyOperation(void (*aCrashyOperation)())
   ASSERT_NE(pid, -1);
 
   if (pid == 0) {
+    // Disable the crashreporter -- writing a crash dump in the child will
+    // prevent the parent from writing a subsequent dump. Crashes here are
+    // expected, so we don't want their stacks to show up in the log anyway.
+#ifdef MOZ_CRASHREPORTER
+    nsCOMPtr<nsICrashReporter> crashreporter =
+      do_GetService("@mozilla.org/toolkit/crash-reporter;1");
+    crashreporter->SetEnabled(false);
+#endif
+
     // Child: perform the crashy operation.
     aCrashyOperation();
     fprintf(stderr, "TestCrashyOperation: didn't crash?!\n");
@@ -77,7 +90,7 @@ TestCrashyOperation(void (*aCrashyOperation)())
 void
 InitCapacityOk_InitialLengthTooBig()
 {
-  PLDHashTable t(PL_DHashGetStubOps(), sizeof(PLDHashEntryStub),
+  PLDHashTable t(PLDHashTable::StubOps(), sizeof(PLDHashEntryStub),
                  PLDHashTable::kMaxInitialLength + 1);
 }
 
@@ -87,7 +100,7 @@ InitCapacityOk_InitialEntryStoreTooBig()
   // Try the smallest disallowed power-of-two entry store size, which is 2^32
   // bytes (which overflows to 0). (Note that the 2^23 *length* gets converted
   // to a 2^24 *capacity*.)
-  PLDHashTable t(PL_DHashGetStubOps(), (uint32_t)1 << 23, (uint32_t)1 << 8);
+  PLDHashTable t(PLDHashTable::StubOps(), (uint32_t)1 << 23, (uint32_t)1 << 8);
 }
 
 TEST(PLDHashTableTest, InitCapacityOk)
@@ -95,12 +108,12 @@ TEST(PLDHashTableTest, InitCapacityOk)
   // Try the largest allowed capacity.  With kMaxCapacity==1<<26, this
   // would allocate (if we added an element) 0.5GB of entry store on 32-bit
   // platforms and 1GB on 64-bit platforms.
-  PLDHashTable t1(PL_DHashGetStubOps(), sizeof(PLDHashEntryStub),
+  PLDHashTable t1(PLDHashTable::StubOps(), sizeof(PLDHashEntryStub),
                   PLDHashTable::kMaxInitialLength);
 
   // Try the largest allowed power-of-two entry store size, which is 2^31 bytes
   // (Note that the 2^23 *length* gets converted to a 2^24 *capacity*.)
-  PLDHashTable t2(PL_DHashGetStubOps(), (uint32_t)1 << 23, (uint32_t)1 << 7);
+  PLDHashTable t2(PLDHashTable::StubOps(), (uint32_t)1 << 23, (uint32_t)1 << 7);
 
   // Try a too-large capacity (which aborts).
   TestCrashyOperation(InitCapacityOk_InitialLengthTooBig);
@@ -117,7 +130,7 @@ TEST(PLDHashTableTest, InitCapacityOk)
 
 TEST(PLDHashTableTest, LazyStorage)
 {
-  PLDHashTable t(PL_DHashGetStubOps(), sizeof(PLDHashEntryStub));
+  PLDHashTable t(PLDHashTable::StubOps(), sizeof(PLDHashEntryStub));
 
   // PLDHashTable allocates entry storage lazily. Check that all the non-add
   // operations work appropriately when the table is empty and the storage
@@ -140,9 +153,9 @@ TEST(PLDHashTableTest, LazyStorage)
   ASSERT_EQ(t.ShallowSizeOfExcludingThis(moz_malloc_size_of), 0u);
 }
 
-// A trivial hash function is good enough here. It's also super-fast for
-// test_pldhash_grow_to_max_capacity() because we insert the integers 0..,
-// which means it's collision-free.
+// A trivial hash function is good enough here. It's also super-fast for the
+// GrowToMaxCapacity test because we insert the integers 0.., which means it's
+// collision-free.
 static PLDHashNumber
 TrivialHash(PLDHashTable *table, const void *key)
 {
@@ -158,9 +171,9 @@ TrivialInitEntry(PLDHashEntryHdr* aEntry, const void* aKey)
 
 static const PLDHashTableOps trivialOps = {
   TrivialHash,
-  PL_DHashMatchEntryStub,
-  PL_DHashMoveEntryStub,
-  PL_DHashClearEntryStub,
+  PLDHashTable::MatchEntryStub,
+  PLDHashTable::MoveEntryStub,
+  PLDHashTable::ClearEntryStub,
   TrivialInitEntry
 };
 
@@ -332,8 +345,8 @@ TEST(PLDHashTableTest, GrowToMaxCapacity)
     numInserted++;
   }
 
-  // We stop when the element count is 96.875% of PL_DHASH_MAX_SIZE (see
-  // MaxLoadOnGrowthFailure()).
+  // We stop when the element count is 96.875% of PLDHashTable::kMaxCapacity
+  // (see MaxLoadOnGrowthFailure()).
   if (numInserted !=
       PLDHashTable::kMaxCapacity - (PLDHashTable::kMaxCapacity >> 5)) {
     delete t;

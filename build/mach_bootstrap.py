@@ -51,6 +51,7 @@ SEARCH_PATHS = [
     'testing/web-platform',
     'testing/web-platform/harness',
     'testing/marionette/client',
+    'testing/marionette/client/marionette/runner/mixins/browsermob-proxy-py',
     'testing/marionette/transport',
     'testing/marionette/driver',
     'testing/luciddream',
@@ -59,13 +60,16 @@ SEARCH_PATHS = [
     'testing/mozbase/mozdevice',
     'testing/mozbase/mozfile',
     'testing/mozbase/mozhttpd',
+    'testing/mozbase/mozinfo',
+    'testing/mozbase/mozinstall',
+    'testing/mozbase/mozleak',
     'testing/mozbase/mozlog',
     'testing/mozbase/moznetwork',
     'testing/mozbase/mozprocess',
     'testing/mozbase/mozprofile',
     'testing/mozbase/mozrunner',
     'testing/mozbase/mozsystemmonitor',
-    'testing/mozbase/mozinfo',
+    'testing/mozbase/mozscreenshot',
     'testing/mozbase/moztest',
     'testing/mozbase/mozversion',
     'testing/mozbase/manifestparser',
@@ -97,6 +101,7 @@ MACH_MODULES = [
     'tools/docs/mach_commands.py',
     'tools/mercurial/mach_commands.py',
     'tools/mach_commands.py',
+    'tools/power/mach_commands.py',
 ]
 
 

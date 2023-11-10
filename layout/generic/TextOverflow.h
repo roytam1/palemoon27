@@ -9,9 +9,9 @@
 
 #include "nsDisplayList.h"
 #include "nsTHashtable.h"
-#include "nsAutoPtr.h" 
+#include "nsAutoPtr.h"
 #include "mozilla/Likely.h"
-#include "WritingModes.h" 
+#include "mozilla/WritingModes.h"
 #include <algorithm>
 
 class nsIScrollableFrame;
@@ -184,8 +184,8 @@ class TextOverflow {
 
   /**
    * Clip or remove items given the final marker edges. ("clip" here just means
-   * assigning mLeftEdge/mRightEdge for any nsCharClipDisplayItem that needs it,
-   * see nsDisplayList.h for a description of that item).
+   * assigning mVisIStartEdge/mVisIEndEdge for any nsCharClipDisplayItem that
+   * needs it; see nsDisplayList.h for a description of that item).
    * @param aFramesToHide remove display items for these frames
    * @param aInsideMarkersArea is the area inside the markers
    */

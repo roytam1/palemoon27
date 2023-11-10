@@ -22,7 +22,8 @@ namespace js {
  *
  * All values except ropes are hashable as-is.
  */
-class HashableValue {
+class HashableValue
+{
     PreBarrieredValue value;
 
   public:
@@ -41,34 +42,21 @@ class HashableValue {
     bool operator==(const HashableValue& other) const;
     HashableValue mark(JSTracer* trc) const;
     Value get() const { return value.get(); }
+
+    void trace(JSTracer* trc) {
+        TraceEdge(trc, &value, "HashableValue");
+    }
 };
 
-class AutoHashableValueRooter : private JS::AutoGCRooter
-{
+template <>
+class RootedBase<HashableValue> {
   public:
-    explicit AutoHashableValueRooter(JSContext* cx
-                                     MOZ_GUARD_OBJECT_NOTIFIER_PARAM)
-        : JS::AutoGCRooter(cx, HASHABLEVALUE)
-        {
-            MOZ_GUARD_OBJECT_NOTIFIER_INIT;
-        }
-
     bool setValue(JSContext* cx, HandleValue v) {
-        return value.setValue(cx, v);
+        return static_cast<JS::Rooted<HashableValue>*>(this)->get().setValue(cx, v);
     }
-
-    operator const HashableValue & () {
-        return value;
+    Value value() const {
+        return static_cast<const JS::Rooted<HashableValue>*>(this)->get().get();
     }
-
-    Value get() const { return value.get(); }
-
-    friend void JS::AutoGCRooter::trace(JSTracer* trc);
-    void trace(JSTracer* trc);
-
-  private:
-    HashableValue value;
-    MOZ_DECL_USE_GUARD_OBJECT_NOTIFIER
 };
 
 template <class Key, class Value, class OrderedHashPolicy, class AllocPolicy>
@@ -104,7 +92,7 @@ class MapObject : public NativeObject {
                                             JS::AutoValueVector* entries);
     static bool entries(JSContext* cx, unsigned argc, Value* vp);
     static bool has(JSContext* cx, unsigned argc, Value* vp);
-    static MapObject* create(JSContext* cx);
+    static MapObject* create(JSContext* cx, HandleObject proto = nullptr);
 
     // Publicly exposed Map calls for JSAPI access (webidl maplike/setlike
     // interfaces, etc.)
@@ -193,7 +181,7 @@ class SetObject : public NativeObject {
 
     // Publicly exposed Set calls for JSAPI access (webidl maplike/setlike
     // interfaces, etc.)
-    static SetObject* create(JSContext *cx);
+    static SetObject* create(JSContext *cx, HandleObject proto = nullptr);
     static uint32_t size(JSContext *cx, HandleObject obj);
     static bool has(JSContext *cx, HandleObject obj, HandleValue key, bool* rval);
     static bool clear(JSContext *cx, HandleObject obj);

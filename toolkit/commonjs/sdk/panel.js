@@ -26,6 +26,7 @@ const { contract } = require("./util/contract");
 const { on, off, emit, setListeners } = require("./event/core");
 const { EventTarget } = require("./event/target");
 const domPanel = require("./panel/utils");
+const { getDocShell } = require('./frame/utils');
 const { events } = require("./panel/events");
 const systemEvents = require("./system/events");
 const { filter, pipe, stripListeners } = require("./event/utils");
@@ -73,11 +74,30 @@ let panelContract = contract(merge({
   contentStyleFile: merge(Object.create(loaderContract.rules.contentScriptFile), {
     msg: 'The `contentStyleFile` option must be a local URL or an array of URLs'
   }),
-  contextMenu: boolean
+  contextMenu: boolean,
+  allow: {
+    is: ['object', 'undefined', 'null'],
+    map: function (allow) { return { script: !allow || allow.script !== false }}
+  },
 }, displayContract.rules, loaderContract.rules));
 
+function Allow(panel) {
+  return {
+    get script() { return getDocShell(viewFor(panel).backgroundFrame).allowJavascript; },
+    set script(value) { return setScriptState(panel, value); },
+  };
+}
 
-function isDisposed(panel) !views.has(panel);
+function setScriptState(panel, value) {
+  let view = viewFor(panel);
+  getDocShell(view.backgroundFrame).allowJavascript = value;
+  getDocShell(view.viewFrame).allowJavascript = value;
+  view.setAttribute("sdkscriptenabled", "" + value);
+}
+
+function isDisposed(panel) {
+  return !views.has(panel);
+}
 
 let panels = new WeakMap();
 let models = new WeakMap();
@@ -147,7 +167,8 @@ const Panel = Class({
     }
 
     // Setup view
-    let view = domPanel.make();
+    let viewOptions = {allowJavascript: !model.allow || (model.allow.script !== false)};
+    let view = domPanel.make(null, viewOptions);
     panels.set(view, this);
     views.set(this, view);
 
@@ -182,27 +203,43 @@ const Panel = Class({
     views.delete(this);
   },
   /* Public API: Panel.width */
-  get width() modelFor(this).width,
-  set width(value) this.resize(value, this.height),
+  get width() {
+    return modelFor(this).width;
+  },
+  set width(value) {
+    this.resize(value, this.height);
+  },
   /* Public API: Panel.height */
-  get height() modelFor(this).height,
-  set height(value) this.resize(this.width, value),
+  get height() {
+    return modelFor(this).height;
+  },
+  set height(value) {
+    this.resize(this.width, value);
+  },
 
   /* Public API: Panel.focus */
-  get focus() modelFor(this).focus,
+  get focus() {
+    return modelFor(this).focus;
+  },
 
   /* Public API: Panel.position */
-  get position() modelFor(this).position,
+  get position() {
+    return modelFor(this).position;
+  },
 
   /* Public API: Panel.contextMenu */
-  get contextMenu() modelFor(this).contextMenu,
+  get contextMenu() {
+    return modelFor(this).contextMenu;
+  },
   set contextMenu(allow) {
     let model = modelFor(this);
     model.contextMenu = panelContract({ contextMenu: allow }).contextMenu;
     domPanel.allowContextMenu(viewFor(this), model.contextMenu);
   },
 
-  get contentURL() modelFor(this).contentURL,
+  get contentURL() {
+    return modelFor(this).contentURL;
+  },
   set contentURL(value) {
     let model = modelFor(this);
     model.contentURL = panelContract({ contentURL: value }).contentURL;
@@ -212,8 +249,16 @@ const Panel = Class({
     workerFor(this).detach();
   },
 
+  get allow() { return Allow(this); },
+  set allow(value) {
+    let allowJavascript = panelContract({ allow: value }).allow.script;
+    return setScriptState(this, value);
+  },
+
   /* Public API: Panel.isShowing */
-  get isShowing() !isDisposed(this) && domPanel.isOpen(viewFor(this)),
+  get isShowing() {
+    return !isDisposed(this) && domPanel.isOpen(viewFor(this));
+  },
 
   /* Public API: Panel.show */
   show: function show(options={}, anchor) {

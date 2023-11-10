@@ -19,6 +19,8 @@
 namespace mozilla {
 namespace dom {
 
+class Promise;
+
 // If ToJSValue returns false, it must set an exception on the
 // JSContext.
 
@@ -60,14 +62,6 @@ ToJSValue(JSContext* aCx,
   return true;
 }
 
-// The uint32_t version is disabled for now because on the super-old b2g
-// compiler nsresult and uint32_t are the same type.  If someone needs this at
-// some point we'll need to figure out how to make it work (e.g. by switching to
-// traits structs and using the trick IPC's ParamTraits uses, where a traits
-// struct templated on the type inherits from a base traits struct of some sort,
-// templated on the same type, or something).  Maybe b2g will update to a modern
-// compiler before that happens....
-#if 0
 inline bool
 ToJSValue(JSContext* aCx,
           uint32_t aArgument,
@@ -79,7 +73,6 @@ ToJSValue(JSContext* aCx,
   aValue.setNumber(aArgument);
   return true;
 }
-#endif
 
 inline bool
 ToJSValue(JSContext* aCx,
@@ -126,7 +119,7 @@ ToJSValue(JSContext* aCx,
   // Make sure we're called in a compartment
   MOZ_ASSERT(JS::CurrentGlobalOrNull(aCx));
 
-  aValue.setNumber(aArgument);
+  aValue.set(JS_NumberValue(aArgument));
   return true;
 }
 
@@ -212,7 +205,7 @@ ToJSValue(JSContext* aCx,
 template <typename T>
 MOZ_WARN_UNUSED_RESULT bool
 ToJSValue(JSContext* aCx,
-          const nsRefPtr<T>& aArgument,
+          const RefPtr<T>& aArgument,
           JS::MutableHandle<JS::Value> aValue)
 {
   return ToJSValue(aCx, *aArgument.get(), aValue);
@@ -312,6 +305,14 @@ ToJSValue(JSContext* aCx,
 {
   return ToJSValue(aCx, *aArgument, aValue);
 }
+
+#ifdef SPIDERMONKEY_PROMISE
+// Accept Promise objects, which need special handling.
+MOZ_WARN_UNUSED_RESULT bool
+ToJSValue(JSContext* aCx,
+          Promise& aArgument,
+          JS::MutableHandle<JS::Value> aValue);
+#endif // SPIDERMONKEY_PROMISE
 
 // Accept arrays of other things we accept
 template <typename T>

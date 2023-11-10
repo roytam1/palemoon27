@@ -34,7 +34,6 @@ DEFAULT_HOSTNAME = 'localhost'
 SRCDIR = mozpath.abspath(mozpath.dirname(__file__))
 
 STORAGE_SERVER_SCRIPT = mozpath.join(SRCDIR, 'run_storage_server.js')
-BAGHEERA_SERVER_SCRIPT = mozpath.join(SRCDIR, 'run_bagheera_server.js')
 
 def SyncStorageCommand(func):
     """Decorator that adds shared command arguments to services commands."""
@@ -81,13 +80,13 @@ class SyncTestCommands(MachCommandBase):
             '-r', '%s/components/httpd.manifest' % self.bindir,
             '-m',
             '-s',
+            '-e', 'const _TESTING_MODULES_DIR = "%s/_tests/modules";' % topobjdir,
             '-f', '%s/testing/xpcshell/head.js' % topsrcdir,
             '-e', 'const _SERVER_ADDR = "%s";' % hostname,
-            '-e', 'const _TESTING_MODULES_DIR = "%s/_tests/modules";' % topobjdir,
             '-e', 'const SERVER_PORT = "%s";' % port,
             '-e', 'const INCLUDE_FILES = [%s];' % ', '.join(head_paths),
             '-e', '_register_protocol_handlers();',
-            '-e', 'for each (let name in INCLUDE_FILES) load(name);',
+            '-e', 'for (let name of INCLUDE_FILES) load(name);',
             '-e', '_fakeIdleService.activate();',
             '-f', js_file
             ]
@@ -110,8 +109,3 @@ class SyncTestCommands(MachCommandBase):
     @SyncStorageCommand
     def run_storage_server(self, port=DEFAULT_PORT, address=DEFAULT_HOSTNAME):
         exit(self.run_server(STORAGE_SERVER_SCRIPT, address, port))
-
-    @Command('bagheera-server', category='services',
-             description='Run a bagheera server.')
-    def run_bagheera_server(self, port=DEFAULT_PORT, address=DEFAULT_HOSTNAME):
-        exit(self.run_server(BAGHEERA_SERVER_SCRIPT, address, port))

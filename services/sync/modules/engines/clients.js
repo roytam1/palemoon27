@@ -7,7 +7,7 @@ this.EXPORTED_SYMBOLS = [
   "ClientsRec"
 ];
 
-const {classes: Cc, interfaces: Ci, utils: Cu} = Components;
+var {classes: Cc, interfaces: Ci, utils: Cu} = Components;
 
 Cu.import("resource://services-common/stringbundle.js");
 Cu.import("resource://services-sync/constants.js");
@@ -49,7 +49,9 @@ ClientEngine.prototype = {
   _trackerObj: ClientsTracker,
 
   // Always sync client data as it controls other sync behavior
-  get enabled() true,
+  get enabled() {
+    return true;
+  },
 
   get lastRecordUpload() {
     return Svc.Prefs.get(this.name + ".lastRecordUpload", 0);
@@ -66,7 +68,8 @@ ClientEngine.prototype = {
       numClients: 1,
     };
 
-    for each (let {name, type} in this._store._remoteClients) {
+    for (let id in this._store._remoteClients) {
+      let {name, type} = this._store._remoteClients[id];
       stats.hasMobile = stats.hasMobile || type == "mobile";
       stats.names.push(name);
       stats.numClients++;
@@ -85,7 +88,8 @@ ClientEngine.prototype = {
 
     counts.set(this.localType, 1);
 
-    for each (let record in this._store._remoteClients) {
+    for (let id in this._store._remoteClients) {
+      let record = this._store._remoteClients[id];
       let type = record.type;
       if (!counts.has(type)) {
         counts.set(type, 0);
@@ -102,7 +106,9 @@ ClientEngine.prototype = {
     let localID = Svc.Prefs.get("client.GUID", "");
     return localID == "" ? this.localID = Utils.makeGUID() : localID;
   },
-  set localID(value) Svc.Prefs.set("client.GUID", value),
+  set localID(value) {
+    Svc.Prefs.set("client.GUID", value);
+  },
 
   get brandName() {
     let brand = new StringBundle("chrome://branding/locale/brand.properties");
@@ -116,10 +122,16 @@ ClientEngine.prototype = {
 
     return this.localName = Utils.getDefaultDeviceName();
   },
-  set localName(value) Svc.Prefs.set("client.name", value),
+  set localName(value) {
+    Svc.Prefs.set("client.name", value);
+  },
 
-  get localType() Svc.Prefs.get("client.type", "desktop"),
-  set localType(value) Svc.Prefs.set("client.type", value),
+  get localType() {
+    return Svc.Prefs.get("client.type", "desktop");
+  },
+  set localType(value) {
+    Svc.Prefs.set("client.type", value);
+  },
 
   isMobile: function isMobile(id) {
     if (this._store._remoteClients[id])
@@ -248,7 +260,11 @@ ClientEngine.prototype = {
       this.clearCommands();
 
       // Process each command in order.
-      for each (let {command, args} in commands) {
+      if (!commands) {
+        return true;
+      }
+      for (let key in commands) {
+        let {command, args} = commands[key];
         this._log.debug("Processing command: " + command + "(" + args + ")");
 
         let engines = [args[0]];

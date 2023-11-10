@@ -9,9 +9,9 @@
 
 
 #include "WMF.h"
-#include "MP4Reader.h"
 #include "MFTDecoder.h"
 #include "mozilla/RefPtr.h"
+#include "PlatformDecoderModule.h"
 
 namespace mozilla {
 
@@ -21,10 +21,6 @@ namespace mozilla {
 class MFTManager {
 public:
   virtual ~MFTManager() {}
-
-  // Creates an initializs the MFTDecoder.
-  // Returns nullptr on failure.
-  virtual already_AddRefed<MFTDecoder> Init() = 0;
 
   // Submit a compressed sample for decoding.
   // This should forward to the MFTDecoder after performing
@@ -38,13 +34,27 @@ public:
   // than MF_E_TRANSFORM_NEED_MORE_INPUT, an error will be reported to the
   // MP4Reader.
   virtual HRESULT Output(int64_t aStreamOffset,
-                         nsRefPtr<MediaData>& aOutput) = 0;
+                         RefPtr<MediaData>& aOutput) = 0;
+
+  void Flush() { mDecoder->Flush(); }
+
+  void Drain()
+  {
+    if (FAILED(mDecoder->SendMFTMessage(MFT_MESSAGE_COMMAND_DRAIN, 0))) {
+      NS_WARNING("Failed to send DRAIN command to MFT");
+    }
+  }
 
   // Destroys all resources.
   virtual void Shutdown() = 0;
 
-  virtual bool IsHardwareAccelerated() const { return false; }
+  virtual bool IsHardwareAccelerated(nsACString& aFailureReason) const { return false; }
 
+  virtual TrackInfo::TrackType GetType() = 0;
+
+protected:
+  // IMFTransform wrapper that performs the decoding.
+  RefPtr<MFTDecoder> mDecoder;
 };
 
 // Decodes audio and video using Windows Media Foundation. Samples are decoded
@@ -55,33 +65,35 @@ public:
 class WMFMediaDataDecoder : public MediaDataDecoder {
 public:
   WMFMediaDataDecoder(MFTManager* aOutputSource,
-                      FlushableMediaTaskQueue* aAudioTaskQueue,
+                      FlushableTaskQueue* aAudioTaskQueue,
                       MediaDataDecoderCallback* aCallback);
   ~WMFMediaDataDecoder();
 
-  virtual nsresult Init() override;
+  RefPtr<MediaDataDecoder::InitPromise> Init() override;
 
-  virtual nsresult Input(MediaRawData* aSample);
+  nsresult Input(MediaRawData* aSample);
 
-  virtual nsresult Flush() override;
+  nsresult Flush() override;
 
-  virtual nsresult Drain() override;
+  nsresult Drain() override;
 
-  virtual nsresult Shutdown() override;
+  nsresult Shutdown() override;
 
-  virtual bool IsHardwareAccelerated() const override;
+  bool IsHardwareAccelerated(nsACString& aFailureReason) const override;
 
 private:
 
   // Called on the task queue. Inserts the sample into the decoder, and
   // extracts output if available.
-  void Decode();
-  void EnsureDecodeTaskDispatched();
-  void PurgeInputQueue();
+  void ProcessDecode(MediaRawData* aSample);
 
   // Called on the task queue. Extracts output if available, and delivers
   // it to the reader. Called after ProcessDecode() and ProcessDrain().
   void ProcessOutput();
+
+  // Called on the task queue. Orders the MFT to flush.  There is no output to
+  // extract.
+  void ProcessFlush();
 
   // Called on the task queue. Orders the MFT to drain, and then extracts
   // all available output.
@@ -89,21 +101,27 @@ private:
 
   void ProcessShutdown();
 
-  RefPtr<FlushableMediaTaskQueue> mTaskQueue;
+  RefPtr<FlushableTaskQueue> mTaskQueue;
   MediaDataDecoderCallback* mCallback;
 
-  RefPtr<MFTDecoder> mDecoder;
   nsAutoPtr<MFTManager> mMFTManager;
 
   // The last offset into the media resource that was passed into Input().
   // This is used to approximate the decoder's position in the media resource.
   int64_t mLastStreamOffset;
 
+  // For access to and waiting on mIsFlushing
   Monitor mMonitor;
-  std::queue<nsRefPtr<MediaRawData>> mInput;
-  bool mIsDecodeTaskDispatched;
+  // Set on reader/decode thread calling Flush() to indicate that output is
+  // not required and so input samples on mTaskQueue need not be processed.
+  // Cleared on mTaskQueue.
   bool mIsFlushing;
+
   bool mIsShutDown;
+
+  // For telemetry
+  bool mHasSuccessfulOutput = false;
+  bool mRecordedError = false;
 };
 
 } // namespace mozilla

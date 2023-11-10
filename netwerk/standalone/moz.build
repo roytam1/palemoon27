@@ -30,7 +30,6 @@ netwerk_dns_src = [
     'nsDNSService2.cpp',
     'nsIDNService.cpp',
     'punycode.c',
-    'race.c',
 ]
 src_list += [
     '/netwerk/dns/%s' % s for s in netwerk_dns_src
@@ -38,14 +37,13 @@ src_list += [
 
 SOURCES += sorted(src_list)
 
-FAIL_ON_WARNINGS = True
-
 LOCAL_INCLUDES = [
     '../base',
     '../build',
     '../dns',
 ]
 
+DEFINES['IDNA2008'] = False
 DEFINES['MOZILLA_INTERNAL_API'] = True
 DEFINES['MOZILLA_XPCOMRT_API'] = True
 DEFINES['MOZILLA_EXTERNAL_LINKAGE'] = True

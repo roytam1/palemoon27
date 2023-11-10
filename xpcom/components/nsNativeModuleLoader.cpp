@@ -38,28 +38,14 @@
 #include <signal.h>
 #endif
 
-#ifdef VMS
-#include <lib$routines.h>
-#include <ssdef.h>
-#endif
-
 #ifdef DEBUG
 #define IMPLEMENT_BREAK_AFTER_LOAD
 #endif
 
 using namespace mozilla;
 
-static PRLogModuleInfo*
-GetNativeModuleLoaderLog()
-{
-  static PRLogModuleInfo* sLog;
-  if (!sLog) {
-    sLog = PR_NewLogModule("nsNativeModuleLoader");
-  }
-  return sLog;
-}
-
-#define LOG(level, args) MOZ_LOG(GetNativeModuleLoaderLog(), level, args)
+static LazyLogModule sNativeModuleLoaderLog("nsNativeModuleLoader");
+#define LOG(level, args) MOZ_LOG(sNativeModuleLoaderLog, level, args)
 
 nsresult
 nsNativeModuleLoader::Init()
@@ -87,7 +73,7 @@ public:
     return NS_OK;
   }
 
-  nsRefPtr<nsComponentManagerImpl> mManager;
+  RefPtr<nsComponentManagerImpl> mManager;
   nsNativeModuleLoader* mLoader;
   FileLocation mFile;
   const mozilla::Module* mResult;
@@ -106,7 +92,7 @@ nsNativeModuleLoader::LoadModule(FileLocation& aFile)
   if (!NS_IsMainThread()) {
     // If this call is off the main thread, synchronously proxy it
     // to the main thread.
-    nsRefPtr<LoadModuleMainThreadRunnable> r =
+    RefPtr<LoadModuleMainThreadRunnable> r =
       new LoadModuleMainThreadRunnable(this, aFile);
     NS_DispatchToMainThread(r, NS_DISPATCH_SYNC);
     return r->mResult;
@@ -202,7 +188,7 @@ nsNativeModuleLoader::UnloadLibraries()
   }
 
   for (auto iter = mLibraries.Iter(); !iter.Done(); iter.Next()) {
-    if (MOZ_LOG_TEST(GetNativeModuleLoaderLog(), LogLevel::Debug)) {
+    if (MOZ_LOG_TEST(sNativeModuleLoaderLog, LogLevel::Debug)) {
       nsIHashable* hashedFile = iter.Key();
       nsCOMPtr<nsIFile> file(do_QueryInterface(hashedFile));
 

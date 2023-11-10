@@ -56,6 +56,7 @@ private:
   nsresult mStatus;
 protected:
   uint32_t mCaps;
+  nsHttpRequestHead *mRequestHead;
 private:
   // mCapsToClear holds flags that should be cleared in mCaps, e.g. unset
   // NS_HTTP_REFRESH_DNS when DNS refresh request has completed to avoid
@@ -65,14 +66,13 @@ private:
   // bitfields should be allowed: 'lost races' will thus err on the
   // conservative side, e.g. by going ahead with a 2nd DNS refresh.
   Atomic<uint32_t> mCapsToClear;
-  nsHttpRequestHead *mRequestHead;
   bool mIsDone;
   bool mClaimed;
 
 protected:
-  nsRefPtr<nsAHttpConnection> mConnection;
+  RefPtr<nsAHttpConnection> mConnection;
   nsCOMPtr<nsIInterfaceRequestor> mCallbacks;
-  nsRefPtr<nsHttpConnectionInfo> mConnectionInfo;
+  RefPtr<nsHttpConnectionInfo> mConnectionInfo;
   nsCOMPtr<nsIHttpActivityObserver> mActivityDistributor;
 };
 

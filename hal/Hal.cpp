@@ -22,6 +22,7 @@
 #include "mozilla/StaticPtr.h"
 #include "mozilla/ClearOnShutdown.h"
 #include "WindowIdentifier.h"
+#include "nsJSUtils.h"
 #include "mozilla/dom/ScreenOrientation.h"
 #include "mozilla/dom/ContentChild.h"
 #include "mozilla/dom/ContentParent.h"
@@ -90,6 +91,8 @@ AssertMainProcess()
   MOZ_ASSERT(GeckoProcessType_Default == XRE_GetProcessType());
 }
 
+#if !defined(MOZ_WIDGET_GONK)
+
 bool
 WindowIsActive(nsIDOMWindow* aWindow)
 {
@@ -101,6 +104,8 @@ WindowIsActive(nsIDOMWindow* aWindow)
 
   return !document->Hidden();
 }
+
+#endif // !defined(MOZ_WIDGET_GONK)
 
 StaticAutoPtr<WindowIdentifier::IDArrayType> gLastIDToVibrate;
 
@@ -123,6 +128,7 @@ Vibrate(const nsTArray<uint32_t>& pattern, const WindowIdentifier &id)
 {
   AssertMainThread();
 
+#if !defined(MOZ_WIDGET_GONK)
   // Only active windows may start vibrations.  If |id| hasn't gone
   // through the IPC layer -- that is, if our caller is the outside
   // world, not hal_proxy -- check whether the window is active.  If
@@ -133,6 +139,7 @@ Vibrate(const nsTArray<uint32_t>& pattern, const WindowIdentifier &id)
     HAL_LOG("Vibrate: Window is inactive, dropping vibrate.");
     return;
   }
+#endif // !defined(MOZ_WIDGET_GONK)
 
   if (!InSandbox()) {
     if (!gLastIDToVibrate) {
@@ -486,6 +493,7 @@ UnregisterSystemTimezoneChangeObserver(SystemTimezoneChangeObserver* aObserver)
 void
 NotifySystemTimezoneChange(const SystemTimezoneChangeInformation& aSystemTimezoneChangeInfo)
 {
+  nsJSUtils::ResetTimeZone();
   sSystemTimezoneChangeObservers.BroadcastInformation(aSystemTimezoneChangeInfo);
 }
 
@@ -710,7 +718,7 @@ NotifyScreenConfigurationChange(const ScreenConfiguration& aScreenConfiguration)
 }
 
 bool
-LockScreenOrientation(const dom::ScreenOrientation& aOrientation)
+LockScreenOrientation(const dom::ScreenOrientationInternal& aOrientation)
 {
   AssertMainThread();
   RETURN_PROXY_IF_SANDBOXED(LockScreenOrientation(aOrientation), false);
@@ -1143,7 +1151,7 @@ GetFMBandSettings(FMRadioCountry aCountry) {
     default:
       MOZ_ASSERT(0);
       break;
-    };
+    }
     return settings;
 }
 

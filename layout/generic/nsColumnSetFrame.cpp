@@ -5,6 +5,7 @@
 
 /* rendering object for css3 multi-column layout */
 
+#include "mozilla/unused.h"
 #include "nsColumnSetFrame.h"
 #include "nsCSSRendering.h"
 #include "nsDisplayList.h"
@@ -136,9 +137,17 @@ nsColumnSetFrame::PaintColumnRule(nsRenderingContext* aCtx,
     }
 
     nsRect lineRect(linePt, ruleSize);
-    nsCSSRendering::PaintBorderWithStyleBorder(presContext, *aCtx, this,
-        aDirtyRect, lineRect, border, StyleContext(),
-        skipSides);
+
+    // Assert that we're not drawing a border-image here; if we were, we
+    // couldn't ignore the DrawResult that PaintBorderWithStyleBorder returns.
+    MOZ_ASSERT(border.mBorderImageSource.GetType() == eStyleImageType_Null);
+
+    Unused <<
+      nsCSSRendering::PaintBorderWithStyleBorder(presContext, *aCtx, this,
+                                                 aDirtyRect, lineRect, border,
+                                                 StyleContext(),
+                                                 PaintBorderFlags::SYNC_DECODE_IMAGES,
+                                                 skipSides);
 
     child = nextSibling;
     nextSibling = nextSibling->GetNextSibling();
@@ -1052,8 +1061,14 @@ nsColumnSetFrame::Reflow(nsPresContext*           aPresContext,
 
   //------------ Handle Incremental Reflow -----------------
 
-  ReflowConfig config = ChooseColumnStrategy(aReflowState);
-  
+  // If inline size is unconstrained, set aForceAuto to true to allow
+  // the columns to expand in the inline direction. (This typically
+  // happens in orthogonal flows where the inline direction is the
+  // container's block direction).
+  ReflowConfig config =
+    ChooseColumnStrategy(aReflowState,
+                         aReflowState.ComputedISize() == NS_UNCONSTRAINEDSIZE);
+
   // If balancing, then we allow the last column to grow to unbounded
   // height during the first reflow. This gives us a way to estimate
   // what the average column height should be, because we can measure
@@ -1125,9 +1140,8 @@ void
 nsColumnSetFrame::SetInitialChildList(ChildListID     aListID,
                                       nsFrameList&    aChildList)
 {
-  MOZ_ASSERT(aListID == kPrincipalList, "unexpected child list");
-  MOZ_ASSERT(aChildList.OnlyChild(),
-             "initial child list must have exactly one child");
+  MOZ_ASSERT(aListID != kPrincipalList || aChildList.OnlyChild(),
+             "initial principal child list must have exactly one child");
   nsContainerFrame::SetInitialChildList(kPrincipalList, aChildList);
 }
 

@@ -18,11 +18,14 @@ struct JSContext;
 struct JSStructuredCloneReader;
 struct JSStructuredCloneWriter;
 
+class nsIGlobalObject;
+
 namespace mozilla {
 
 class ErrorResult;
 
 namespace gfx {
+class DataSourceSurface;
 class SourceSurface;
 }
 
@@ -31,6 +34,7 @@ class Image;
 }
 
 namespace dom {
+class OffscreenCanvas;
 
 namespace workers {
 class WorkerStructuredCloneClosure;
@@ -47,6 +51,12 @@ class PostMessageEvent; // For StructuredClone between windows.
 class CreateImageBitmapFromBlob;
 class CreateImageBitmapFromBlobTask;
 class CreateImageBitmapFromBlobWorkerTask;
+
+struct ImageBitmapCloneData final
+{
+  RefPtr<gfx::DataSourceSurface> mSurface;
+  gfx::IntRect mPictureRect;
+};
 
 /*
  * ImageBitmap is an opaque handler to several kinds of image-like objects from
@@ -81,12 +91,32 @@ public:
     return mPictureRect.Height();
   }
 
+  void Close();
+
   /*
    * The PrepareForDrawTarget() might return null if the mPictureRect does not
    * intersect with the size of mData.
    */
   already_AddRefed<gfx::SourceSurface>
   PrepareForDrawTarget(gfx::DrawTarget* aTarget);
+
+  /*
+   * Transfer ownership of buffer to caller. So this function call
+   * Close() implicitly.
+   */
+  already_AddRefed<layers::Image>
+  TransferAsImage();
+
+  ImageBitmapCloneData*
+  ToCloneData();
+
+  static already_AddRefed<ImageBitmap>
+  CreateFromCloneData(nsIGlobalObject* aGlobal, ImageBitmapCloneData* aData);
+
+  static already_AddRefed<ImageBitmap>
+  CreateFromOffscreenCanvas(nsIGlobalObject* aGlobal,
+                            OffscreenCanvas& aOffscreenCanvas,
+                            ErrorResult& aRv);
 
   static already_AddRefed<Promise>
   Create(nsIGlobalObject* aGlobal, const ImageBitmapSource& aSrc,
@@ -96,12 +126,12 @@ public:
   ReadStructuredClone(JSContext* aCx,
                       JSStructuredCloneReader* aReader,
                       nsIGlobalObject* aParent,
-                      const nsTArray<nsRefPtr<layers::Image>>& aClonedImages,
+                      const nsTArray<RefPtr<gfx::DataSourceSurface>>& aClonedSurfaces,
                       uint32_t aIndex);
 
   static bool
   WriteStructuredClone(JSStructuredCloneWriter* aWriter,
-                       nsTArray<nsRefPtr<layers::Image>>& aClonedImages,
+                       nsTArray<RefPtr<gfx::DataSourceSurface>>& aClonedSurfaces,
                        ImageBitmap* aImageBitmap);
 
   friend CreateImageBitmapFromBlob;
@@ -156,7 +186,7 @@ protected:
    * a independent data buffer which is copied and cropped form the mData's data
    * buffer.
    */
-  nsRefPtr<layers::Image> mData;
+  RefPtr<layers::Image> mData;
   RefPtr<gfx::SourceSurface> mSurface;
 
   /*

@@ -35,7 +35,6 @@
 
 #include <float.h>
 
-#include "asmjs/AsmJSValidate.h"
 #include "jit/mips32/Assembler-mips32.h"
 #include "vm/Runtime.h"
 
@@ -282,7 +281,7 @@ SimInstruction::isForbiddenInBranchDelay() const
         break;
       default:
         return false;
-    };
+    }
 }
 
 bool
@@ -447,7 +446,7 @@ SimInstruction::instructionType() const
         return kJumpType;
       default:
         return kUnsupported;
-    };
+    }
     return kUnsupported;
 }
 
@@ -727,7 +726,7 @@ MipsDebugger::printAllRegsIncludingFPU()
 
     printf("\n\n");
     // f0, f1, f2, ... f31.
-    for (uint32_t i = 0; i < FloatRegisters::TotalSingle; i++) {
+    for (uint32_t i = 0; i < FloatRegisters::RegisterIdLimit; i++) {
         if (i & 0x1) {
             printf("%3s: 0x%08x\tflt: %-8.4g\n",
                    FloatRegisters::GetName(i),
@@ -1826,6 +1825,9 @@ typedef double (*Prototype_Double_None)();
 typedef double (*Prototype_Double_Double)(double arg0);
 typedef double (*Prototype_Double_Int)(int32_t arg0);
 typedef int32_t (*Prototype_Int_Double)(double arg0);
+typedef int32_t (*Prototype_Int_DoubleIntInt)(double arg0, int32_t arg1, int32_t arg2);
+typedef int32_t (*Prototype_Int_IntDoubleIntInt)(int32_t arg0, double arg1, int32_t arg2,
+                                                 int32_t arg3);
 typedef float (*Prototype_Float32_Float32)(float arg0);
 
 typedef double (*Prototype_DoubleInt)(double arg0, int32_t arg1);
@@ -1942,6 +1944,20 @@ Simulator::softwareInterrupt(SimInstruction* instr)
             getFpArgs(&dval0, &dval1, &ival);
             Prototype_Int_Double target = reinterpret_cast<Prototype_Int_Double>(external);
             int32_t res = target(dval0);
+            setRegister(v0, res);
+            break;
+          }
+          case Args_Int_DoubleIntInt: {
+            double dval = getFpuRegisterDouble(12);
+            Prototype_Int_DoubleIntInt target = reinterpret_cast<Prototype_Int_DoubleIntInt>(external);
+            int32_t res = target(dval, arg2, arg3);
+            setRegister(v0, res);
+            break;
+          }
+          case Args_Int_IntDoubleIntInt: {
+            double dval = getDoubleFromRegisterPair(a2);
+            Prototype_Int_IntDoubleIntInt target = reinterpret_cast<Prototype_Int_IntDoubleIntInt>(external);
+            int32_t res = target(arg0, dval, arg4, arg5);
             setRegister(v0, res);
             break;
           }
@@ -2215,7 +2231,7 @@ Simulator::configureTypeRegister(SimInstruction* instr,
             break;
           default:
             MOZ_CRASH();
-        };
+        }
         break;
       case op_cop1x:
         break;
@@ -2351,7 +2367,7 @@ Simulator::configureTypeRegister(SimInstruction* instr,
             break;
           default:
             MOZ_CRASH();
-        };
+        }
         break;
       case op_special2:
         switch (instr->functionFieldRaw()) {
@@ -2363,7 +2379,7 @@ Simulator::configureTypeRegister(SimInstruction* instr,
             break;
           default:
             MOZ_CRASH();
-        };
+        }
         break;
       case op_special3:
         switch (instr->functionFieldRaw()) {
@@ -2389,11 +2405,11 @@ Simulator::configureTypeRegister(SimInstruction* instr,
           }
           default:
             MOZ_CRASH();
-        };
+        }
         break;
       default:
         MOZ_CRASH();
-    };
+    }
 }
 
 void
@@ -2759,7 +2775,7 @@ Simulator::decodeTypeRegister(SimInstruction* instr)
                 break;
               default:
                 MOZ_CRASH();
-            };
+            }
             break;
           case rs_l:
             switch (instr->functionFieldRaw()) {
@@ -2781,7 +2797,7 @@ Simulator::decodeTypeRegister(SimInstruction* instr)
             break;
           default:
             MOZ_CRASH();
-        };
+        }
         break;
       case op_cop1x:
         switch (instr->functionFieldRaw()) {
@@ -2801,7 +2817,7 @@ Simulator::decodeTypeRegister(SimInstruction* instr)
             break;
           default:
             MOZ_CRASH();
-        };
+        }
         break;
       case op_special:
         switch (instr->functionFieldRaw()) {
@@ -2881,7 +2897,7 @@ Simulator::decodeTypeRegister(SimInstruction* instr)
             break;
           default:  // For other special opcodes we do the default operation.
             setRegister(rd_reg, alu_out);
-          };
+          }
           break;
       case op_special2:
         switch (instr->functionFieldRaw()) {
@@ -2907,14 +2923,14 @@ Simulator::decodeTypeRegister(SimInstruction* instr)
             break;
           default:
             MOZ_CRASH();
-        };
+        }
         break;
         // Unimplemented opcodes raised an error in the configuration step before,
         // so we can use the default here to set the destination register in common
         // cases.
       default:
         setRegister(rd_reg, alu_out);
-      };
+      }
 }
 
 // Type 2: instructions using a 16 bytes immediate. (e.g. addi, beq).
@@ -2976,7 +2992,7 @@ Simulator::decodeTypeImmediate(SimInstruction* instr)
             break;
           default:
             MOZ_CRASH();
-        };
+        }
         break;
         // ------------- op_regimm class.
       case op_regimm:
@@ -2995,7 +3011,7 @@ Simulator::decodeTypeImmediate(SimInstruction* instr)
             break;
           default:
             MOZ_CRASH();
-        };
+        }
         switch (instr->rtFieldRaw()) {
           case rt_bltz:
           case rt_bltzal:
@@ -3014,7 +3030,7 @@ Simulator::decodeTypeImmediate(SimInstruction* instr)
             }
           default:
             break;
-        };
+        }
         break;  // case op_regimm.
         // ------------- Branch instructions.
         // When comparing to zero, the encoding of rt field is always 0, so we don't
@@ -3147,7 +3163,7 @@ Simulator::decodeTypeImmediate(SimInstruction* instr)
         break;
       default:
         MOZ_CRASH();
-    };
+    }
 
     // ---------- Raise exceptions triggered.
     signalExceptions();
@@ -3223,7 +3239,7 @@ Simulator::decodeTypeImmediate(SimInstruction* instr)
         break;
       default:
         break;
-    };
+    }
 
 
     if (execute_branch_delay_instruction) {
@@ -3315,7 +3331,7 @@ Simulator::execute()
     // Get the PC to simulate. Cannot use the accessor here as we need the
     // raw PC value and not the one used as input to arithmetic instructions.
     int program_counter = get_pc();
-    AsmJSActivation* activation = TlsPerThreadData.get()->runtimeFromMainThread()->asmJSActivationStack();
+    WasmActivation* activation = TlsPerThreadData.get()->runtimeFromMainThread()->wasmActivationStack();
 
     while (program_counter != end_sim_pc) {
         if (enableStopSimAt && (icount_ == Simulator::StopSimAt)) {
@@ -3409,7 +3425,7 @@ Simulator::callInternal(uint8_t* entry)
     setRegister(fp, fp_val);
 }
 
-int64_t
+int32_t
 Simulator::call(uint8_t* entry, int argument_count, ...)
 {
     va_list parameters;
@@ -3445,7 +3461,7 @@ Simulator::call(uint8_t* entry, int argument_count, ...)
     MOZ_ASSERT(entry_stack == getRegister(sp));
     setRegister(sp, original_stack);
 
-    int64_t result = (int64_t(getRegister(v1)) << 32) | getRegister(v0);
+    int32_t result = getRegister(v0);
     return result;
 }
 

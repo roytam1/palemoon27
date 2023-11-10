@@ -14,9 +14,9 @@ Cu.import("resource://gre/modules/Promise.jsm");
 
 const NETWORKMANAGER_CONTRACTID = "@mozilla.org/network/manager;1";
 const NETWORKMANAGER_CID =
-  Components.ID("{33901e46-33b8-11e1-9869-f46d04d25bcc}");
+  Components.ID("{1ba9346b-53b5-4660-9dc6-58f0b258d0a6}");
 
-const DEFAULT_PREFERRED_NETWORK_TYPE = Ci.nsINetworkInfo.NETWORK_TYPE_WIFI;
+const DEFAULT_PREFERRED_NETWORK_TYPE = Ci.nsINetworkInterface.NETWORK_TYPE_ETHERNET;
 
 XPCOMUtils.defineLazyGetter(this, "ppmm", function() {
   return Cc["@mozilla.org/parentprocessmessagemanager;1"]
@@ -34,6 +34,10 @@ XPCOMUtils.defineLazyServiceGetter(this, "gNetworkService",
 XPCOMUtils.defineLazyServiceGetter(this, "gPACGenerator",
                                    "@mozilla.org/pac-generator;1",
                                    "nsIPACGenerator");
+
+XPCOMUtils.defineLazyServiceGetter(this, "gTetheringService",
+                                   "@mozilla.org/tethering/service;1",
+                                   "nsITetheringService");
 
 const TOPIC_INTERFACE_REGISTERED     = "network-interface-registered";
 const TOPIC_INTERFACE_UNREGISTERED   = "network-interface-unregistered";
@@ -61,7 +65,7 @@ const CONNECTION_TYPE_NONE      = 5;
 const PROXY_TYPE_MANUAL = Ci.nsIProtocolProxyService.PROXYCONFIG_MANUAL;
 const PROXY_TYPE_PAC    = Ci.nsIProtocolProxyService.PROXYCONFIG_PAC;
 
-let debug;
+var debug;
 function updateDebug() {
   let debugPref = false; // set default value here.
   try {
@@ -99,6 +103,7 @@ function ExtraNetworkInfo(aNetwork) {
   this.dnses = aNetwork.info.getDnses();
   this.httpProxyHost = aNetwork.httpProxyHost;
   this.httpProxyPort = aNetwork.httpProxyPort;
+  this.mtu = aNetwork.mtu;
 }
 ExtraNetworkInfo.prototype = {
   getAddresses: function(aIps, aPrefixLengths) {
@@ -231,7 +236,9 @@ NetworkManager.prototype = {
         let excludeFota = aMsg.json.excludeFota;
         let interfaces = [];
 
-        for each (let i in this.networkInterfaces) {
+        for (let key in this.networkInterfaces) {
+          let network = this.networkInterfaces[key];
+          let i = network.info;
           if ((i.type == Ci.nsINetworkInfo.NETWORK_TYPE_MOBILE_MMS && excludeMms) ||
               (i.type == Ci.nsINetworkInfo.NETWORK_TYPE_MOBILE_SUPL && excludeSupl) ||
               (i.type == Ci.nsINetworkInfo.NETWORK_TYPE_MOBILE_IMS && excludeIms) ||
@@ -251,9 +258,7 @@ NetworkManager.prototype = {
             ips: ips.value,
             prefixLengths: prefixLengths.value,
             gateways: i.getGateways(),
-            dnses: i.getDnses(),
-            httpProxyHost: i.httpProxyHost,
-            httpProxyPort: i.httpProxyPort
+            dnses: i.getDnses()
           });
         }
         return interfaces;
@@ -370,6 +375,13 @@ NetworkManager.prototype = {
             return this.setSecondaryDefaultRoute(extNetworkInfo);
           })
           .then(() => this._addSubnetRoutes(extNetworkInfo))
+          .then(() => {
+            if (extNetworkInfo.mtu <= 0) {
+              return;
+            }
+
+            return this._setMtu(extNetworkInfo);
+          })
           .then(() => this.setAndConfigureActive())
           .then(() => {
             // Update data connection when Wifi connected/disconnected
@@ -414,7 +426,8 @@ NetworkManager.prototype = {
             return this.removeSecondaryDefaultRoute(extNetworkInfo);
           })
           .then(() => {
-            if (extNetworkInfo.type == Ci.nsINetworkInfo.NETWORK_TYPE_WIFI) {
+            if (extNetworkInfo.type == Ci.nsINetworkInfo.NETWORK_TYPE_WIFI ||
+                extNetworkInfo.type == Ci.nsINetworkInfo.NETWORK_TYPE_ETHERNET) {
               // Remove routing table in /proc/net/route
               return this._resetRoutingTable(extNetworkInfo.name);
             }
@@ -487,13 +500,63 @@ NetworkManager.prototype = {
 
   networkInterfaceLinks: null,
 
+  _networkTypePriorityList: [Ci.nsINetworkInterface.NETWORK_TYPE_ETHERNET,
+                             Ci.nsINetworkInterface.NETWORK_TYPE_WIFI,
+                             Ci.nsINetworkInterface.NETWORK_TYPE_MOBILE],
+  get networkTypePriorityList() {
+    return this._networkTypePriorityList;
+  },
+  set networkTypePriorityList(val) {
+    if (val.length != this._networkTypePriorityList.length) {
+      throw "Priority list length should equal to " +
+            this._networkTypePriorityList.length;
+    }
+
+    // Check if types in new priority list are valid and also make sure there
+    // are no duplicate types.
+    let list = [Ci.nsINetworkInterface.NETWORK_TYPE_ETHERNET,
+                Ci.nsINetworkInterface.NETWORK_TYPE_WIFI,
+                Ci.nsINetworkInterface.NETWORK_TYPE_MOBILE];
+    while (list.length) {
+      let type = list.shift();
+      if (val.indexOf(type) == -1) {
+        throw "There is missing network type";
+      }
+    }
+
+    this._networkTypePriorityList = val;
+  },
+
+  getPriority: function(type) {
+    if (this._networkTypePriorityList.indexOf(type) == -1) {
+      // 0 indicates the lowest priority.
+      return 0;
+    }
+
+    return this._networkTypePriorityList.length -
+           this._networkTypePriorityList.indexOf(type);
+  },
+
+  get allNetworkInfo() {
+    let allNetworkInfo = {};
+
+    for (let networkId in this.networkInterfaces) {
+      if (this.networkInterfaces.hasOwnProperty(networkId)) {
+        allNetworkInfo[networkId] = this.networkInterfaces[networkId].info;
+      }
+    }
+
+    return allNetworkInfo;
+  },
+
   _preferredNetworkType: DEFAULT_PREFERRED_NETWORK_TYPE,
   get preferredNetworkType() {
     return this._preferredNetworkType;
   },
   set preferredNetworkType(val) {
-    if ([Ci.nsINetworkInfo.NETWORK_TYPE_WIFI,
-         Ci.nsINetworkInfo.NETWORK_TYPE_MOBILE].indexOf(val) == -1) {
+    if ([Ci.nsINetworkInterface.NETWORK_TYPE_WIFI,
+         Ci.nsINetworkInterface.NETWORK_TYPE_MOBILE,
+         Ci.nsINetworkInterface.NETWORK_TYPE_ETHERNET].indexOf(val) == -1) {
       throw "Invalid network type";
     }
     this._preferredNetworkType = val;
@@ -508,9 +571,9 @@ NetworkManager.prototype = {
   _overriddenActive: null,
 
   overrideActive: function(network) {
-    let type = network.info.type;
-    if ([Ci.nsINetworkInfo.NETWORK_TYPE_WIFI,
-         Ci.nsINetworkInfo.NETWORK_TYPE_MOBILE].indexOf(type) == -1) {
+    if ([Ci.nsINetworkInterface.NETWORK_TYPE_WIFI,
+         Ci.nsINetworkInterface.NETWORK_TYPE_MOBILE,
+         Ci.nsINetworkInterface.NETWORK_TYPE_ETHERNET].indexOf(val) == -1) {
       throw "Invalid network type";
     }
 
@@ -802,7 +865,8 @@ NetworkManager.prototype = {
     this._activeNetwork = null;
     let anyConnected = false;
 
-    for each (let network in this.networkInterfaces) {
+    for (let key in this.networkInterfaces) {
+      let network = this.networkInterfaces[key];
       if (network.info.state != Ci.nsINetworkInfo.NETWORK_STATE_CONNECTED) {
         continue;
       }
@@ -810,14 +874,27 @@ NetworkManager.prototype = {
 
       // Set active only for default connections.
       if (network.info.type != Ci.nsINetworkInfo.NETWORK_TYPE_WIFI &&
-          network.info.type != Ci.nsINetworkInfo.NETWORK_TYPE_MOBILE) {
+          network.info.type != Ci.nsINetworkInfo.NETWORK_TYPE_MOBILE &&
+          network.info.type != Ci.nsINetworkInfo.NETWORK_TYPE_ETHERNET) {
         continue;
       }
 
-      this._activeNetwork = network;
       if (network.info.type == this.preferredNetworkType) {
+        this._activeNetwork = network;
         debug("Found our preferred type of network: " + network.info.name);
         break;
+      }
+
+      // Initialize the active network with the first connected network.
+      if (!this._activeNetwork) {
+        this._activeNetwork = network;
+        continue;
+      }
+
+      // Compare the prioriy between two network types. If found incoming
+      // network with higher priority, replace the active network.
+      if (this.getPriority(this._activeNetwork.type) < this.getPriority(network.type)) {
+        this._activeNetwork = network;
       }
     }
 
@@ -836,7 +913,9 @@ NetworkManager.prototype = {
         }
 
         if (this._manageOfflineStatus) {
-          Services.io.offline = !anyConnected;
+          Services.io.offline = !anyConnected &&
+                                (gTetheringService.state ===
+                                 Ci.nsITetheringService.TETHERING_STATE_INACTIVE);
         }
       });
   },
@@ -900,8 +979,9 @@ NetworkManager.prototype = {
     // If there is internal interface change (e.g., MOBILE_MMS, MOBILE_SUPL),
     // the function will return null so that it won't trigger type change event
     // in NetworkInformation API.
-    if (aNetworkInfo.type != Ci.nsINetworkInfo.NETWORK_TYPE_WIFI &&
-        aNetworkInfo.type != Ci.nsINetworkInfo.NETWORK_TYPE_MOBILE) {
+    if (aNetworkInfo.type != Ci.nsINetworkInterface.NETWORK_TYPE_WIFI &&
+        aNetworkInfo.type != Ci.nsINetworkInterface.NETWORK_TYPE_MOBILE &&
+        aNetworkInfo.type != Ci.nsINetworkInterface.NETWORK_TYPE_ETHERNET) {
       return null;
     }
 
@@ -914,6 +994,8 @@ NetworkManager.prototype = {
         return CONNECTION_TYPE_WIFI;
       case Ci.nsINetworkInfo.NETWORK_TYPE_MOBILE:
         return CONNECTION_TYPE_CELLULAR;
+      case Ci.nsINetworkInterface.NETWORK_TYPE_ETHERNET:
+        return CONNECTION_TYPE_ETHERNET;
     }
   },
 
@@ -927,6 +1009,18 @@ NetworkManager.prototype = {
           aReject("setDNS failed");
           return;
         }
+        aResolve();
+      });
+    });
+  },
+
+  _setMtu: function(aNetworkInfo) {
+    return new Promise((aResolve, aReject) => {
+      gNetworkService.setMtu(aNetworkInfo.name, aNetworkInfo.mtu, (aSuccess) => {
+        if (!aSuccess) {
+          debug("setMtu failed");
+        }
+        // Always resolve.
         aResolve();
       });
     });
@@ -982,13 +1076,18 @@ NetworkManager.prototype = {
     });
   },
 
-  _setDefaultRouteAndProxy: function(aNetwork, aOldInterface) {
+  _setDefaultRouteAndProxy: function(aNetwork, aOldNetwork) {
+    if (aOldNetwork) {
+      return this._removeDefaultRoute(aOldNetwork.info)
+        .then(() => this._setDefaultRouteAndProxy(aNetwork, null));
+    }
+
     return new Promise((aResolve, aReject) => {
       let networkInfo = aNetwork.info;
       let gateways = networkInfo.getGateways();
-      let oldInterfaceName = (aOldInterface ? aOldInterface.info.name : "");
+
       gNetworkService.setDefaultRoute(networkInfo.name, gateways.length, gateways,
-                                      oldInterfaceName, (aSuccess) => {
+                                      (aSuccess) => {
         if (!aSuccess) {
           gNetworkService.destroyNetwork(networkInfo.name, function() {
             aReject("setDefaultRoute failed");
@@ -1063,7 +1162,7 @@ NetworkManager.prototype = {
   },
 };
 
-let CaptivePortalDetectionHelper = (function() {
+var CaptivePortalDetectionHelper = (function() {
 
   const EVENT_CONNECT = "Connect";
   const EVENT_DISCONNECT = "Disconnect";

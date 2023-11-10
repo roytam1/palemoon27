@@ -8,6 +8,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
+#include "mozilla/ArrayUtils.h"
 
 struct PropertyInfo {
     const char *propName;
@@ -97,9 +98,6 @@ const char* gShorthandPropertiesWithDOMProp[] = {
 
 };
 
-
-#define ARRAY_LENGTH(a_) (sizeof(a_)/sizeof((a_)[0]))
-
 const char *gInaccessibleProperties[] = {
     // Don't print the properties that aren't accepted by the parser, per
     // CSSParserImpl::ParseProperty
@@ -113,13 +111,16 @@ const char *gInaccessibleProperties[] = {
     "-moz-script-size-multiplier",
     "-moz-script-min-size",
     "-moz-math-variant",
-    "-moz-math-display" // parsed by UA sheets only
+    "-moz-math-display", // parsed by UA sheets only
+    "-moz-top-layer", // parsed by UA sheets only
+    "-moz-min-font-size-ratio", // parsed by UA sheets only
+    "-moz-window-shadow" // chrome-only internal properties
 };
 
 inline int
 is_inaccessible(const char* aPropName)
 {
-    for (unsigned j = 0; j < ARRAY_LENGTH(gInaccessibleProperties); ++j) {
+    for (unsigned j = 0; j < MOZ_ARRAY_LENGTH(gInaccessibleProperties); ++j) {
         if (strcmp(aPropName, gInaccessibleProperties[j]) == 0)
             return 1;
     }
@@ -180,13 +181,13 @@ main()
 {
     print_array("gLonghandProperties",
                 gLonghandProperties,
-                ARRAY_LENGTH(gLonghandProperties),
+                MOZ_ARRAY_LENGTH(gLonghandProperties),
                 gLonghandPropertiesWithDOMProp,
-                ARRAY_LENGTH(gLonghandPropertiesWithDOMProp));
+                MOZ_ARRAY_LENGTH(gLonghandPropertiesWithDOMProp));
     print_array("gShorthandProperties",
                 gShorthandProperties,
-                ARRAY_LENGTH(gShorthandProperties),
+                MOZ_ARRAY_LENGTH(gShorthandProperties),
                 gShorthandPropertiesWithDOMProp,
-                ARRAY_LENGTH(gShorthandPropertiesWithDOMProp));
+                MOZ_ARRAY_LENGTH(gShorthandPropertiesWithDOMProp));
     return 0;
 }

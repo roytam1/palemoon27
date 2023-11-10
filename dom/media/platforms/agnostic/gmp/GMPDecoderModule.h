@@ -8,6 +8,7 @@
 #define GMPDecoderModule_h_
 
 #include "PlatformDecoderModule.h"
+#include "mozilla/Maybe.h"
 
 namespace mozilla {
 
@@ -18,21 +19,35 @@ public:
   virtual ~GMPDecoderModule();
 
   // Decode thread.
-  virtual already_AddRefed<MediaDataDecoder>
+  already_AddRefed<MediaDataDecoder>
   CreateVideoDecoder(const VideoInfo& aConfig,
                      layers::LayersBackend aLayersBackend,
                      layers::ImageContainer* aImageContainer,
-                     FlushableMediaTaskQueue* aVideoTaskQueue,
+                     FlushableTaskQueue* aVideoTaskQueue,
                      MediaDataDecoderCallback* aCallback) override;
 
   // Decode thread.
-  virtual already_AddRefed<MediaDataDecoder>
+  already_AddRefed<MediaDataDecoder>
   CreateAudioDecoder(const AudioInfo& aConfig,
-                     FlushableMediaTaskQueue* aAudioTaskQueue,
+                     FlushableTaskQueue* aAudioTaskQueue,
                      MediaDataDecoderCallback* aCallback) override;
 
-  virtual ConversionRequired
+  ConversionRequired
   DecoderNeedsConversion(const TrackInfo& aConfig) const override;
+
+  bool
+  SupportsMimeType(const nsACString& aMimeType) const override;
+
+  // Main thread only.
+  static void Init();
+
+  static const Maybe<nsCString> PreferredGMP(const nsACString& aMimeType);
+
+  static bool SupportsMimeType(const nsACString& aMimeType,
+                               const Maybe<nsCString>& aGMP);
+
+  // Main thread only.
+  static void UpdateUsableCodecs();
 };
 
 } // namespace mozilla

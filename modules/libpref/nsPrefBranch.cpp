@@ -1,4 +1,5 @@
-/* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
+/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
+/* vim: set ts=8 sts=2 et sw=2 tw=80: */
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -18,12 +19,16 @@
 #include "nsPrintfCString.h"
 #include "nsIStringBundle.h"
 #include "prefapi.h"
-#include "pldhash.h"
+#include "PLDHashTable.h"
 
 #include "nsCRT.h"
 #include "mozilla/Services.h"
 
 #include "prefapi_private_data.h"
+
+#ifdef MOZ_CRASHREPORTER
+#include "nsICrashReporter.h"
+#endif
 
 #include "nsIConsoleService.h"
 
@@ -316,6 +321,16 @@ NS_IMETHODIMP nsPrefBranch::GetComplexValue(const char *aPrefName, const nsIID &
       // some addons, see bug 836263.
       nsAutoString wdata;
       if (!AppendUTF8toUTF16(utf8String, wdata, mozilla::fallible)) {
+#ifdef MOZ_CRASHREPORTER
+        nsCOMPtr<nsICrashReporter> cr =
+          do_GetService("@mozilla.org/toolkit/crash-reporter;1");
+        if (cr) {
+          cr->AnnotateCrashReport(NS_LITERAL_CSTRING("bug836263-size"),
+                                  nsPrintfCString("%x", utf8String.Length()));
+          cr->RegisterAppMemory(uint64_t(utf8String.BeginReading()),
+                                std::min(0x1000U, utf8String.Length()));
+        }
+#endif
         NS_RUNTIMEABORT("bug836263");
       }
       theString->SetData(wdata);
@@ -353,7 +368,7 @@ nsresult nsPrefBranch::CheckSanityOfStringLength(const char* aPrefName, const ui
   }
   nsAutoCString message(nsPrintfCString("Warning: attempting to write %d bytes to preference %s. This is bad for general performance and memory usage. Such an amount of data should rather be written to an external file.",
                                         aLength,
-                                        aPrefName));
+                                        getPrefName(aPrefName)));
   rv = console->LogStringMessage(NS_ConvertUTF8toUTF16(message).get());
   if (NS_FAILED(rv)) {
     return rv;
@@ -519,7 +534,7 @@ NS_IMETHODIMP nsPrefBranch::GetChildList(const char *aStartingAt, uint32_t *aCou
   char            **outArray;
   int32_t         numPrefs;
   int32_t         dwIndex;
-  nsAutoTArray<nsCString, 32> prefArray;
+  AutoTArray<nsCString, 32> prefArray;
 
   NS_ENSURE_ARG(aStartingAt);
   NS_ENSURE_ARG_POINTER(aCount);
@@ -621,8 +636,8 @@ NS_IMETHODIMP nsPrefBranch::RemoveObserver(const char *aDomain, nsIObserver *aOb
   // it hasn't been already.
   //
   // It's important that we don't touch mObservers in any way -- even a Get()
-  // which retuns null might cause the hashtable to resize itself, which will
-  // break the Enumerator in freeObserverList.
+  // which returns null might cause the hashtable to resize itself, which will
+  // break the iteration in freeObserverList.
   if (mFreeingObserverList)
     return NS_OK;
 
@@ -672,32 +687,20 @@ void nsPrefBranch::NotifyObserver(const char *newpref, void *data)
                     NS_ConvertASCIItoUTF16(suffix).get());
 }
 
-PLDHashOperator
-FreeObserverFunc(PrefCallback *aKey,
-                 nsAutoPtr<PrefCallback> &aCallback,
-                 void *aArgs)
-{
-  // Calling NS_RELEASE below might trigger a call to
-  // nsPrefBranch::RemoveObserver, since some classes remove themselves from
-  // the pref branch on destruction.  We don't need to worry about this causing
-  // double-frees, however, because freeObserverList sets mFreeingObserverList
-  // to true, which prevents RemoveObserver calls from doing anything.
-
-  nsPrefBranch *prefBranch = aCallback->GetPrefBranch();
-  const char *pref = prefBranch->getPrefName(aCallback->GetDomain().get());
-  PREF_UnregisterCallback(pref, nsPrefBranch::NotifyObserver, aCallback);
-
-  return PL_DHASH_REMOVE;
-}
-
 void nsPrefBranch::freeObserverList(void)
 {
-  // We need to prevent anyone from modifying mObservers while we're
-  // enumerating over it.  In particular, some clients will call
-  // RemoveObserver() when they're destructed; we need to keep those calls from
-  // touching mObservers.
+  // We need to prevent anyone from modifying mObservers while we're iterating
+  // over it. In particular, some clients will call RemoveObserver() when
+  // they're removed and destructed via the iterator; we set
+  // mFreeingObserverList to keep those calls from touching mObservers.
   mFreeingObserverList = true;
-  mObservers.Enumerate(&FreeObserverFunc, nullptr);
+  for (auto iter = mObservers.Iter(); !iter.Done(); iter.Next()) {
+    nsAutoPtr<PrefCallback>& callback = iter.Data();
+    nsPrefBranch *prefBranch = callback->GetPrefBranch();
+    const char *pref = prefBranch->getPrefName(callback->GetDomain().get());
+    PREF_UnregisterCallback(pref, nsPrefBranch::NotifyObserver, callback);
+    iter.Remove();
+  }
   mFreeingObserverList = false;
 }
 

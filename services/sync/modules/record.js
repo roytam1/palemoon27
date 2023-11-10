@@ -10,10 +10,10 @@ this.EXPORTED_SYMBOLS = [
   "Collection",
 ];
 
-const Cc = Components.classes;
-const Ci = Components.interfaces;
-const Cr = Components.results;
-const Cu = Components.utils;
+var Cc = Components.classes;
+var Ci = Components.interfaces;
+var Cr = Components.results;
+var Cu = Components.utils;
 
 const CRYPTO_COLLECTION = "crypto";
 const KEYS_WBO = "keys";
@@ -23,6 +23,7 @@ Cu.import("resource://services-sync/constants.js");
 Cu.import("resource://services-sync/keys.js");
 Cu.import("resource://services-sync/resource.js");
 Cu.import("resource://services-sync/util.js");
+Cu.import("resource://services-common/async.js");
 
 this.WBORecord = function WBORecord(collection, id) {
   this.data = {};
@@ -195,7 +196,9 @@ CryptoWrapper.prototype = {
   },
 
   // The custom setter below masks the parent's getter, so explicitly call it :(
-  get id() WBORecord.prototype.__lookupGetter__("id").call(this),
+  get id() {
+    return WBORecord.prototype.__lookupGetter__("id").call(this);
+  },
 
   // Keep both plaintext and encrypted versions of the id to verify integrity
   set id(val) {
@@ -235,7 +238,7 @@ RecordManager.prototype = {
       record.deserialize(this.response);
 
       return this.set(url, record);
-    } catch(ex) {
+    } catch (ex if !Async.isShutdownException(ex)) {
       this._log.debug("Failed to import record: " + Utils.exceptionStr(ex));
       return null;
     }
@@ -309,7 +312,7 @@ CollectionKeyManager.prototype = {
     // Return a sorted, unique array.
     changed.sort();
     let last;
-    changed = [x for each (x in changed) if ((x != last) && (last = x))];
+    changed = changed.filter(x => (x != last) && (last = x));
     return {same: changed.length == 0,
             changed: changed};
   },
@@ -355,8 +358,9 @@ CollectionKeyManager.prototype = {
   /**
    * Create a WBO for the current keys.
    */
-  asWBO: function(collection, id)
-    this._makeWBO(this._collections, this._default),
+  asWBO: function(collection, id) {
+    return this._makeWBO(this._collections, this._default);
+  },
 
   /**
    * Compute a new default key, and new keys for any specified collections.
@@ -559,14 +563,14 @@ Collection.prototype = {
   },
 
   // Apply the action to a certain set of ids
-  get ids() this._ids,
+  get ids() { return this._ids; },
   set ids(value) {
     this._ids = value;
     this._rebuildURL();
   },
 
   // Limit how many records to get
-  get limit() this._limit,
+  get limit() { return this._limit; },
   set limit(value) {
     this._limit = value;
     this._rebuildURL();

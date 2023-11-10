@@ -31,11 +31,13 @@ using namespace mozilla::pkix;
 
 #define PREF_BACKGROUND_UPDATE_TIMER "app.update.lastUpdateTime.blocklist-background-update-timer"
 #define PREF_MAX_STALENESS_IN_SECONDS "security.onecrl.maximum_staleness_in_seconds"
+#define PREF_ONECRL_VIA_AMO "security.onecrl.via.amo"
 
 static PRLogModuleInfo* gCertBlockPRLog;
 
 uint32_t CertBlocklist::sLastBlocklistUpdate = 0U;
 uint32_t CertBlocklist::sMaxStaleness = 0U;
+bool CertBlocklist::sUseAMO = true;
 
 CertBlocklistItem::CertBlocklistItem(const uint8_t* DNData,
                                      size_t DNLength,
@@ -139,6 +141,9 @@ CertBlocklist::~CertBlocklist()
   Preferences::UnregisterCallback(CertBlocklist::PreferenceChanged,
                                   PREF_MAX_STALENESS_IN_SECONDS,
                                   this);
+  Preferences::UnregisterCallback(CertBlocklist::PreferenceChanged,
+                                  PREF_ONECRL_VIA_AMO,
+                                  this);
 }
 
 nsresult
@@ -163,6 +168,12 @@ CertBlocklist::Init()
   }
   rv = Preferences::RegisterCallbackAndCall(CertBlocklist::PreferenceChanged,
                                             PREF_MAX_STALENESS_IN_SECONDS,
+                                            this);
+  if (NS_FAILED(rv)) {
+    return rv;
+  }
+  rv = Preferences::RegisterCallbackAndCall(CertBlocklist::PreferenceChanged,
+                                            PREF_ONECRL_VIA_AMO,
                                             this);
   if (NS_FAILED(rv)) {
     return rv;
@@ -288,7 +299,6 @@ CertBlocklist::EnsureBackingFileInitialized(MutexAutoLock& lock)
   return NS_OK;
 }
 
-// void revokeCertBySubjectAndPubKey(in string subject, in string pubKeyHash);
 NS_IMETHODIMP
 CertBlocklist::RevokeCertBySubjectAndPubKey(const char* aSubject,
                                             const char* aPubKeyHash)
@@ -304,7 +314,6 @@ CertBlocklist::RevokeCertBySubjectAndPubKey(const char* aSubject,
                                 CertNewFromBlocklist, lock);
 }
 
-// void revokeCertByIssuerAndSerial(in string issuer, in string serialNumber);
 NS_IMETHODIMP
 CertBlocklist::RevokeCertByIssuerAndSerial(const char* aIssuer,
                                            const char* aSerialNumber)
@@ -348,14 +357,15 @@ CertBlocklist::AddRevokedCertInternal(const nsACString& aEncodedDN,
 
 
   if (aItemState == CertNewFromBlocklist) {
-    // we want SaveEntries to be a no-op if no new entries are added
-    if (!mBlocklist.Contains(item)) {
+    // We want SaveEntries to be a no-op if no new entries are added.
+    nsGenericHashKey<CertBlocklistItem>* entry = mBlocklist.GetEntry(item);
+    if (!entry) {
       mModified = true;
+    } else {
+      // Ensure that any existing item is replaced by a fresh one so we can
+      // use mIsCurrent to decide which entries to write out.
+      mBlocklist.RemoveEntry(entry);
     }
-
-    // Ensure that any existing item is replaced by a fresh one so we can
-    // use mIsCurrent to decide which entries to write out
-    mBlocklist.RemoveEntry(item);
     item.mIsCurrent = true;
   }
   mBlocklist.PutEntry(item);
@@ -506,14 +516,6 @@ CertBlocklist::SaveEntries()
   return NS_OK;
 }
 
-// boolean isCertRevoked([const, array, size_is(issuerLength)] in octet issuer,
-//                       in unsigned long issuerLength,
-//                       [const, array, size_is(serialLength)] in octet serial,
-//                       in unsigned long serialLength),
-//                       [const, array, size_is(subject_length)] in octet subject,
-//                       in unsigned long subject_length,
-//                       [const, array, size_is(pubkey_length)] in octet pubkey,
-//                       in unsigned long pubkey_length);
 NS_IMETHODIMP
 CertBlocklist::IsCertRevoked(const uint8_t* aIssuer,
                              uint32_t aIssuerLength,
@@ -527,6 +529,8 @@ CertBlocklist::IsCertRevoked(const uint8_t* aIssuer,
 {
   MutexAutoLock lock(mMutex);
 
+  MOZ_LOG(gCertBlockPRLog, LogLevel::Warning,
+          ("CertBlocklist::IsCertRevoked?"));
   nsresult rv = EnsureBackingFileInitialized(lock);
   if (NS_FAILED(rv)) {
     return rv;
@@ -543,9 +547,24 @@ CertBlocklist::IsCertRevoked(const uint8_t* aIssuer,
 
   CertBlocklistItem issuerSerial(aIssuer, aIssuerLength, aSerial, aSerialLength,
                                  BlockByIssuerAndSerial);
+
+  nsAutoCString encDN;
+  nsAutoCString encOther;
+
+  issuerSerial.ToBase64(encDN, encOther);
+  if (NS_FAILED(rv)) {
+    return rv;
+  }
+
+  MOZ_LOG(gCertBlockPRLog, LogLevel::Warning,
+          ("CertBlocklist::IsCertRevoked issuer %s - serial %s",
+           encDN.get(), encOther.get()));
+
   *_retval = mBlocklist.Contains(issuerSerial);
 
   if (*_retval) {
+    MOZ_LOG(gCertBlockPRLog, LogLevel::Warning,
+            ("certblocklist::IsCertRevoked found by issuer / serial"));
     return NS_OK;
   }
 
@@ -574,7 +593,20 @@ CertBlocklist::IsCertRevoked(const uint8_t* aIssuer,
                                   reinterpret_cast<const uint8_t*>(hashString.get()),
                                   hashString.Length(),
                                   BlockBySubjectAndPubKey);
+
+  rv = subjectPubKey.ToBase64(encDN, encOther);
+  if (NS_FAILED(rv)) {
+    return rv;
+  }
+
+  MOZ_LOG(gCertBlockPRLog, LogLevel::Warning,
+          ("CertBlocklist::IsCertRevoked subject %s - pubKey hash %s",
+           encDN.get(), encOther.get()));
   *_retval = mBlocklist.Contains(subjectPubKey);
+
+  MOZ_LOG(gCertBlockPRLog, LogLevel::Warning,
+          ("CertBlocklist::IsCertRevoked by subject / pubkey? %s",
+           *_retval ? "true" : "false"));
 
   return NS_OK;
 }
@@ -584,6 +616,11 @@ CertBlocklist::IsBlocklistFresh(bool* _retval)
 {
   MutexAutoLock lock(mMutex);
   *_retval = false;
+  if (!sUseAMO) {
+    // for the time being, if we're not using AMO data, assume the blocklist is
+    // not fresh (in particular, prevent OneCRL OCSP bypass).
+    return NS_OK;
+  }
 
   uint32_t now = uint32_t(PR_Now() / PR_USEC_PER_SEC);
 
@@ -616,5 +653,7 @@ CertBlocklist::PreferenceChanged(const char* aPref, void* aClosure)
   } else if (strcmp(aPref, PREF_MAX_STALENESS_IN_SECONDS) == 0) {
     sMaxStaleness = Preferences::GetUint(PREF_MAX_STALENESS_IN_SECONDS,
                                          uint32_t(0));
+  } else if (strcmp(aPref, PREF_ONECRL_VIA_AMO) == 0) {
+    sUseAMO = Preferences::GetBool(PREF_ONECRL_VIA_AMO, true);
   }
 }

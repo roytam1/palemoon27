@@ -226,7 +226,7 @@ function add_preference(aURI)
   let cp = Cc["@mozilla.org/content-pref/service;1"].
              getService(Ci.nsIContentPrefService2);
   cp.set(aURI.spec, PREFERENCE_NAME, "foo", null, {
-    handleCompletion: function() deferred.resolve()
+    handleCompletion: () => deferred.resolve()
   });
   return deferred.promise;
 }
@@ -244,8 +244,8 @@ function preference_exists(aURI)
              getService(Ci.nsIContentPrefService2);
   let exists = false;
   cp.getByDomainAndName(aURI.spec, PREFERENCE_NAME, null, {
-    handleResult: function() exists = true,
-    handleCompletion: function() deferred.resolve(exists)
+    handleResult: () => exists = true,
+    handleCompletion: () => deferred.resolve(exists)
   });
   return deferred.promise;
 }
@@ -288,7 +288,7 @@ function* test_history_not_cleared_with_uri_contains_domain()
 }
 
 // Cookie Service
-function* test_cookie_cleared_with_direct_match()
+function test_cookie_cleared_with_direct_match()
 {
   const TEST_DOMAIN = "mozilla.org";
   add_cookie(TEST_DOMAIN);
@@ -296,7 +296,7 @@ function* test_cookie_cleared_with_direct_match()
   check_cookie_exists(TEST_DOMAIN, false);
 }
 
-function* test_cookie_cleared_with_subdomain()
+function test_cookie_cleared_with_subdomain()
 {
   const TEST_DOMAIN = "www.mozilla.org";
   add_cookie(TEST_DOMAIN);
@@ -304,7 +304,7 @@ function* test_cookie_cleared_with_subdomain()
   check_cookie_exists(TEST_DOMAIN, false);
 }
 
-function* test_cookie_not_cleared_with_uri_contains_domain()
+function test_cookie_not_cleared_with_uri_contains_domain()
 {
   const TEST_DOMAIN = "ilovemozilla.org";
   add_cookie(TEST_DOMAIN);
@@ -313,7 +313,7 @@ function* test_cookie_not_cleared_with_uri_contains_domain()
 }
 
 // Login Manager
-function* test_login_manager_disabled_hosts_cleared_with_direct_match()
+function test_login_manager_disabled_hosts_cleared_with_direct_match()
 {
   const TEST_HOST = "http://mozilla.org";
   add_disabled_host(TEST_HOST);
@@ -321,7 +321,7 @@ function* test_login_manager_disabled_hosts_cleared_with_direct_match()
   check_disabled_host(TEST_HOST, false);
 }
 
-function* test_login_manager_disabled_hosts_cleared_with_subdomain()
+function test_login_manager_disabled_hosts_cleared_with_subdomain()
 {
   const TEST_HOST = "http://www.mozilla.org";
   add_disabled_host(TEST_HOST);
@@ -329,7 +329,7 @@ function* test_login_manager_disabled_hosts_cleared_with_subdomain()
   check_disabled_host(TEST_HOST, false);
 }
 
-function* test_login_manager_disabled_hosts_not_cleared_with_uri_contains_domain()
+function test_login_manager_disabled_hosts_not_cleared_with_uri_contains_domain()
 {
   const TEST_HOST = "http://ilovemozilla.org";
   add_disabled_host(TEST_HOST);
@@ -343,7 +343,7 @@ function* test_login_manager_disabled_hosts_not_cleared_with_uri_contains_domain
   check_disabled_host(TEST_HOST, false);
 }
 
-function* test_login_manager_logins_cleared_with_direct_match()
+function test_login_manager_logins_cleared_with_direct_match()
 {
   const TEST_HOST = "http://mozilla.org";
   add_login(TEST_HOST);
@@ -351,7 +351,7 @@ function* test_login_manager_logins_cleared_with_direct_match()
   check_login_exists(TEST_HOST, false);
 }
 
-function* test_login_manager_logins_cleared_with_subdomain()
+function test_login_manager_logins_cleared_with_subdomain()
 {
   const TEST_HOST = "http://www.mozilla.org";
   add_login(TEST_HOST);
@@ -373,7 +373,7 @@ function tets_login_manager_logins_not_cleared_with_uri_contains_domain()
 }
 
 // Permission Manager
-function* test_permission_manager_cleared_with_direct_match()
+function test_permission_manager_cleared_with_direct_match()
 {
   const TEST_URI = uri("http://mozilla.org");
   add_permission(TEST_URI);
@@ -381,7 +381,7 @@ function* test_permission_manager_cleared_with_direct_match()
   check_permission_exists(TEST_URI, false);
 }
 
-function* test_permission_manager_cleared_with_subdomain()
+function test_permission_manager_cleared_with_subdomain()
 {
   const TEST_URI = uri("http://www.mozilla.org");
   add_permission(TEST_URI);
@@ -389,7 +389,7 @@ function* test_permission_manager_cleared_with_subdomain()
   check_permission_exists(TEST_URI, false);
 }
 
-function* test_permission_manager_not_cleared_with_uri_contains_domain()
+function test_permission_manager_not_cleared_with_uri_contains_domain()
 {
   const TEST_URI = uri("http://ilovemozilla.org");
   add_permission(TEST_URI);
@@ -462,8 +462,78 @@ function* test_content_preferences_not_cleared_with_uri_contains_domain()
   do_check_false(yield preference_exists(TEST_URI));
 }
 
+// Push
+function* test_push_cleared()
+{
+  let ps;
+  try {
+    ps = Cc["@mozilla.org/push/Service;1"].
+           getService(Ci.nsIPushService);
+  } catch(e) {
+    // No push service, skip test.
+    return;
+  }
+
+  do_get_profile();
+  setPrefs();
+  const {PushDB, PushService, PushServiceWebSocket} = serviceExports;
+  const userAgentID = 'bd744428-f125-436a-b6d0-dd0c9845837f';
+  const channelID = '0ef2ad4a-6c49-41ad-af6e-95d2425276bf';
+
+  let db = PushServiceWebSocket.newPushDB();
+  do_register_cleanup(() => {return db.drop().then(_ => db.close());});
+
+  PushService.init({
+    serverURI: "wss://push.example.org/",
+    networkInfo: new MockDesktopNetworkInfo(),
+    db,
+    makeWebSocket(uri) {
+      return new MockWebSocket(uri, {
+        onHello(request) {
+          this.serverSendMsg(JSON.stringify({
+            messageType: 'hello',
+            status: 200,
+            uaid: userAgentID,
+          }));
+        },
+      });
+    }
+  });
+
+  function push_registration_exists(aURL, ps)
+  {
+    return new Promise(resolve => {
+      let ssm = Cc["@mozilla.org/scriptsecuritymanager;1"]
+                  .getService(Ci.nsIScriptSecurityManager);
+      let principal = ssm.createCodebasePrincipalFromOrigin(aURL);
+      return ps.getSubscription(aURL, principal, (status, record) => {
+        if (!Components.isSuccessCode(status)) {
+          resolve(false);
+        } else {
+          resolve(!!record);
+        }
+      });
+    });
+  }
+
+  const TEST_URL = "https://www.mozilla.org/scope/";
+  do_check_false(yield push_registration_exists(TEST_URL, ps));
+  yield db.put({
+    channelID,
+    pushEndpoint: 'https://example.org/update/clear-success',
+    scope: TEST_URL,
+    version: 1,
+    originAttributes: '',
+    quota: Infinity,
+  });
+  do_check_true(yield push_registration_exists(TEST_URL, ps));
+  ForgetAboutSite.removeDataFromDomain("mozilla.org");
+  yield waitForPurgeNotification();
+  do_check_false(yield push_registration_exists(TEST_URL, ps));
+}
+
 // Cache
-function* test_cache_cleared()
+function test_cache_cleared()
 {
   // Because this test is asynchronous, it should be the last test
   do_check_true(tests[tests.length - 1] == arguments.callee);
@@ -526,7 +596,7 @@ function* test_storage_cleared()
   do_check_eq(s[2].length, 1);
 }
 
-let tests = [
+var tests = [
   // History
   test_history_cleared_with_direct_match,
   test_history_cleared_with_subdomain,
@@ -554,6 +624,9 @@ let tests = [
   test_content_preferences_cleared_with_direct_match,
   test_content_preferences_cleared_with_subdomain,
   test_content_preferences_not_cleared_with_uri_contains_domain,
+
+  // Push
+  test_push_cleared,
 
   // Storage
   test_storage_cleared,

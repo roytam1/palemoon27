@@ -44,6 +44,7 @@ public:
     NS_PRECONDITION(mStatementOwner, "Must have a statement owner!");
   }
   StatementData()
+  : mStatement(nullptr)
   {
   }
   ~StatementData()
@@ -135,7 +136,7 @@ public:
 
 private:
   sqlite3_stmt *mStatement;
-  nsRefPtr<BindingParamsArray> mParamsArray;
+  RefPtr<BindingParamsArray> mParamsArray;
 
   /**
    * We hold onto a reference of the statement's owner so it doesn't get

@@ -10,7 +10,9 @@ MOCHITEST_CHROME_MANIFESTS += ['test/chrome.ini']
 EXPORTS.mozilla.dom += [
     'Animation.h',
     'AnimationEffectReadOnly.h',
+    'AnimationEffectTimingReadOnly.h',
     'AnimationTimeline.h',
+    'CSSPseudoElement.h',
     'DocumentTimeline.h',
     'KeyframeEffect.h',
 ]
@@ -18,18 +20,37 @@ EXPORTS.mozilla.dom += [
 EXPORTS.mozilla += [
     'AnimationComparator.h',
     'AnimationUtils.h',
+    'AnimValuesStyleRule.h',
+    'ComputedTimingFunction.h',
+    'EffectCompositor.h',
+    'EffectSet.h',
     'PendingAnimationTracker.h',
+    'PseudoElementHashEntry.h',
 ]
 
 UNIFIED_SOURCES += [
     'Animation.cpp',
     'AnimationEffectReadOnly.cpp',
+    'AnimationEffectTimingReadOnly.cpp',
     'AnimationTimeline.cpp',
+    'AnimationUtils.cpp',
+    'AnimValuesStyleRule.cpp',
+    'ComputedTimingFunction.cpp',
+    'CSSPseudoElement.cpp',
     'DocumentTimeline.cpp',
+    'EffectCompositor.cpp',
+    'EffectSet.cpp',
     'KeyframeEffect.cpp',
     'PendingAnimationTracker.cpp',
 ]
 
-FAIL_ON_WARNINGS = True
+LOCAL_INCLUDES += [
+    '/dom/base',
+    '/layout/base',
+    '/layout/style',
+]
 
 FINAL_LIBRARY = 'xul'
+
+if CONFIG['GNU_CXX']:
+    CXXFLAGS += ['-Wshadow']

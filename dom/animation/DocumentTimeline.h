@@ -12,22 +12,41 @@
 #include "nsIDocument.h"
 #include "nsRefreshDriver.h"
 
+// GetCurrentTime is defined in winbase.h as zero argument macro forwarding to
+// GetTickCount().
+#ifdef GetCurrentTime
+#undef GetCurrentTime
+#endif
+
 struct JSContext;
+
+// GetCurrentTime is defined in winbase.h as zero argument macro forwarding to
+// GetTickCount().
+#ifdef GetCurrentTime
+#undef GetCurrentTime
+#endif
 
 namespace mozilla {
 namespace dom {
 
-class DocumentTimeline final : public AnimationTimeline
+class DocumentTimeline final
+  : public AnimationTimeline
+  , public nsARefreshObserver
 {
 public:
   explicit DocumentTimeline(nsIDocument* aDocument)
     : AnimationTimeline(aDocument->GetParentObject())
     , mDocument(aDocument)
+    , mIsObservingRefreshDriver(false)
   {
   }
 
 protected:
-  virtual ~DocumentTimeline() { }
+  virtual ~DocumentTimeline()
+  {
+    MOZ_ASSERT(!mIsObservingRefreshDriver, "Timeline should have disassociated"
+               " from the refresh driver before being destroyed");
+  }
 
 public:
   NS_DECL_ISUPPORTS_INHERITED
@@ -50,6 +69,14 @@ public:
                                                                      override;
   TimeStamp ToTimeStamp(const TimeDuration& aTimelineTime) const override;
 
+  void NotifyAnimationUpdated(Animation& aAnimation) override;
+
+  // nsARefreshObserver methods
+  void WillRefresh(TimeStamp aTime) override;
+
+  void NotifyRefreshDriverCreated(nsRefreshDriver* aDriver);
+  void NotifyRefreshDriverDestroying(nsRefreshDriver* aDriver);
+
 protected:
   TimeStamp GetCurrentTimeStamp() const;
   nsRefreshDriver* GetRefreshDriver() const;
@@ -60,6 +87,7 @@ protected:
   // we don't have a refresh driver (e.g. because we are in a display:none
   // iframe).
   mutable TimeStamp mLastRefreshDriverTime;
+  bool mIsObservingRefreshDriver;
 };
 
 } // namespace dom

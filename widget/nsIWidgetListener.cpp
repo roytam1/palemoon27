@@ -96,7 +96,7 @@ nsIWidgetListener::WillPaintWindow(nsIWidget* aWidget)
 
 bool
 nsIWidgetListener::PaintWindow(nsIWidget* aWidget,
-                               nsIntRegion aRegion)
+                               LayoutDeviceIntRegion aRegion)
 {
   return false;
 }
@@ -107,7 +107,8 @@ nsIWidgetListener::DidPaintWindow()
 }
 
 void
-nsIWidgetListener::DidCompositeWindow()
+nsIWidgetListener::DidCompositeWindow(const TimeStamp& aCompositeStart,
+                                      const TimeStamp& aCompositeEnd)
 {
 }
 

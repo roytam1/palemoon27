@@ -448,13 +448,12 @@ bool TestDataStructuresParent::RecvTest17(InfallibleTArray<Op>&& sa)
 bool TestDataStructuresParent::RecvTest18(RegionArray&& ra)
 {
     for (RegionArray::index_type i = 0; i < ra.Length(); ++i) {
-        nsIntRegionRectIterator it(ra[i]);
         // if |ra| has been realloc()d and given a different allocator
-        // chunk, this next line will nondeterministically crash or
-        // iloop
-        while (const nsIntRect* sr = it.Next()) unused << sr;
+        // chunk, this loop will nondeterministically crash or iloop.
+        for (auto iter = ra[i].RectIter(); !iter.Done(); iter.Next()) {
+            Unused << iter.Get();
+        }
     }
-
     return true;
 }
 
@@ -971,7 +970,7 @@ TestDataStructuresChild::Test18()
     ra.SetCapacity(nelements);
     for (int i = 0; i < nelements; ++i) {
         nsIntRegion r;
-        r = r.Or(nsIntRect(0, 0, 10, 10), nsIntRect(10, 10, 10, 10));
+        r.Or(nsIntRect(0, 0, 10, 10), nsIntRect(10, 10, 10, 10));
         ra.AppendElement(r);
     }
 

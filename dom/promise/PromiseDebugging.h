@@ -9,7 +9,7 @@
 
 #include "js/TypeDecls.h"
 #include "nsTArray.h"
-#include "mozilla/nsRefPtr.h"
+#include "mozilla/RefPtr.h"
 
 namespace mozilla {
 
@@ -18,7 +18,7 @@ class ErrorResult;
 namespace dom {
 namespace workers {
 class WorkerPrivate;
-}
+} // namespace workers
 
 class Promise;
 struct PromiseDebuggingStateHolder;
@@ -32,36 +32,52 @@ public:
   static void Init();
   static void Shutdown();
 
-  static void GetState(GlobalObject&, Promise& aPromise,
-                       PromiseDebuggingStateHolder& aState);
+#ifndef SPIDERMONKEY_PROMISE
+  static void GetState(GlobalObject&, JS::Handle<JSObject*> aPromise,
+                       PromiseDebuggingStateHolder& aState,
+                       ErrorResult& aRv);
 
-  static void GetAllocationStack(GlobalObject&, Promise& aPromise,
-                                 JS::MutableHandle<JSObject*> aStack);
-  static void GetRejectionStack(GlobalObject&, Promise& aPromise,
-                                JS::MutableHandle<JSObject*> aStack);
-  static void GetFullfillmentStack(GlobalObject&, Promise& aPromise,
-                                   JS::MutableHandle<JSObject*> aStack);
-  static void GetDependentPromises(GlobalObject&, Promise& aPromise,
-                                   nsTArray<nsRefPtr<Promise>>& aPromises);
-  static double GetPromiseLifetime(GlobalObject&, Promise& aPromise);
-  static double GetTimeToSettle(GlobalObject&, Promise& aPromise,
+  static void GetAllocationStack(GlobalObject&, JS::Handle<JSObject*> aPromise,
+                                 JS::MutableHandle<JSObject*> aStack,
+                                 ErrorResult& aRv);
+  static void GetRejectionStack(GlobalObject&, JS::Handle<JSObject*> aPromise,
+                                JS::MutableHandle<JSObject*> aStack,
+                                ErrorResult& aRv);
+  static void GetFullfillmentStack(GlobalObject&,
+                                   JS::Handle<JSObject*> aPromise,
+                                   JS::MutableHandle<JSObject*> aStack,
+                                   ErrorResult& aRv);
+  static void GetDependentPromises(GlobalObject&,
+                                   JS::Handle<JSObject*> aPromise,
+                                   nsTArray<RefPtr<Promise>>& aPromises,
+                                   ErrorResult& aRv);
+  static double GetPromiseLifetime(GlobalObject&,
+                                   JS::Handle<JSObject*> aPromise,
+                                   ErrorResult& aRv);
+  static double GetTimeToSettle(GlobalObject&, JS::Handle<JSObject*> aPromise,
                                 ErrorResult& aRv);
 
-  static void GetPromiseID(GlobalObject&, Promise&, nsString&);
+  static void GetPromiseID(GlobalObject&, JS::Handle<JSObject*>, nsString&,
+                           ErrorResult&);
+#endif // SPIDERMONKEY_PROMISE
 
   // Mechanism for watching uncaught instances of Promise.
+  // XXXbz figure out the plan
   static void AddUncaughtRejectionObserver(GlobalObject&,
                                            UncaughtRejectionObserver& aObserver);
   static bool RemoveUncaughtRejectionObserver(GlobalObject&,
                                               UncaughtRejectionObserver& aObserver);
 
+#ifndef SPIDERMONKEY_PROMISE
   // Mark a Promise as having been left uncaught at script completion.
   static void AddUncaughtRejection(Promise&);
   // Mark a Promise previously added with `AddUncaughtRejection` as
   // eventually consumed.
   static void AddConsumedRejection(Promise&);
+#endif // SPIDERMONKEY_PROMISE
   // Propagate the informations from AddUncaughtRejection
   // and AddConsumedRejection to observers.
+  // XXXbz figure out the plan.
   static void FlushUncaughtRejections();
 
 protected:

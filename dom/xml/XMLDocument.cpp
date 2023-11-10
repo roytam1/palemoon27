@@ -179,7 +179,7 @@ nsresult
 NS_NewXMLDocument(nsIDocument** aInstancePtrResult, bool aLoadedAsData,
                   bool aIsPlainDocument)
 {
-  nsRefPtr<XMLDocument> doc = new XMLDocument();
+  RefPtr<XMLDocument> doc = new XMLDocument();
 
   nsresult rv = doc->Init();
 
@@ -384,7 +384,7 @@ XMLDocument::Load(const nsAString& aUrl, ErrorResult& aRv)
   // be loaded.  Note that we need to hold a strong ref to |principal|
   // here, because ResetToURI will null out our node principal before
   // setting the new one.
-  nsRefPtr<EventListenerManager> elm(mListenerManager);
+  RefPtr<EventListenerManager> elm(mListenerManager);
   mListenerManager = nullptr;
 
   // When we are called from JS we can find the load group for the page,
@@ -583,7 +583,7 @@ XMLDocument::EndLoad()
     // Generate a document load event for the case when an XML
     // document was loaded as pure data without any presentation
     // attached to it.
-    WidgetEvent event(true, NS_LOAD);
+    WidgetEvent event(true, eLoad);
     EventDispatcher::Dispatch(static_cast<nsIDocument*>(this), nullptr, &event);
   }
 }
@@ -602,7 +602,7 @@ XMLDocument::Clone(mozilla::dom::NodeInfo *aNodeInfo, nsINode **aResult) const
   NS_ASSERTION(aNodeInfo->NodeInfoManager() == mNodeInfoManager,
                "Can't import this document into another document!");
 
-  nsRefPtr<XMLDocument> clone = new XMLDocument();
+  RefPtr<XMLDocument> clone = new XMLDocument();
   nsresult rv = CloneDocHelper(clone);
   NS_ENSURE_SUCCESS(rv, rv);
 

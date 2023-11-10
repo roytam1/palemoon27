@@ -4,6 +4,7 @@
 
 Components.utils.import("resource://gre/modules/XPCOMUtils.jsm");
 Components.utils.import("resource://gre/modules/Services.jsm");
+Components.utils.import("resource://gre/modules/AppConstants.jsm");
 
 XPCOMUtils.defineLazyModuleGetter(this, "PrivateBrowsingUtils",
                                   "resource://gre/modules/PrivateBrowsingUtils.jsm");
@@ -250,7 +251,7 @@ function doSearch(searchTerm, cmdLine) {
   var ss = Components.classes["@mozilla.org/browser/search-service;1"]
                      .getService(nsIBrowserSearchService);
 
-  var submission = ss.defaultEngine.getSubmission(searchTerm);
+  var submission = ss.defaultEngine.getSubmission(searchTerm, null, "system");
 
   // fill our nsISupportsArray with uri-as-wstring, null, null, postData
   var sa = Components.classes["@mozilla.org/supports-array;1"]
@@ -321,86 +322,6 @@ nsBrowserContentHandler.prototype = {
                  "chrome,dialog=no,all" + this.getFeatures(cmdLine),
                  this.defaultArgs, NO_EXTERNAL_URIS);
       cmdLine.preventDefault = true;
-    }
-
-    try {
-      var remoteCommand = cmdLine.handleFlagWithParam("remote", true);
-    }
-    catch (e) {
-      throw NS_ERROR_ABORT;
-    }
-
-    if (remoteCommand != null) {
-      try {
-        var a = /^\s*(\w+)\(([^\)]*)\)\s*$/.exec(remoteCommand);
-        var remoteVerb;
-        if (a) {
-          remoteVerb = a[1].toLowerCase();
-          var remoteParams = [];
-          var sepIndex = a[2].lastIndexOf(",");
-          if (sepIndex == -1)
-            remoteParams[0] = a[2];
-          else {
-            remoteParams[0] = a[2].substring(0, sepIndex);
-            remoteParams[1] = a[2].substring(sepIndex + 1);
-          }
-        }
-
-        switch (remoteVerb) {
-        case "openurl":
-        case "openfile":
-          // openURL(<url>)
-          // openURL(<url>,new-window)
-          // openURL(<url>,new-tab)
-
-          // First param is the URL, second param (if present) is the "target"
-          // (tab, window)
-          var url = remoteParams[0];
-          var target = nsIBrowserDOMWindow.OPEN_DEFAULTWINDOW;
-          if (remoteParams[1]) {
-            var targetParam = remoteParams[1].toLowerCase()
-                                             .replace(/^\s*|\s*$/g, "");
-            if (targetParam == "new-tab")
-              target = nsIBrowserDOMWindow.OPEN_NEWTAB;
-            else if (targetParam == "new-window")
-              target = nsIBrowserDOMWindow.OPEN_NEWWINDOW;
-            else {
-              // The "target" param isn't one of our supported values, so
-              // assume it's part of a URL that contains commas.
-              url += "," + remoteParams[1];
-            }
-          }
-
-          var uri = resolveURIInternal(cmdLine, url);
-          handURIToExistingBrowser(uri, target, cmdLine);
-          break;
-
-        case "xfedocommand":
-          // xfeDoCommand(openBrowser)
-          if (remoteParams[0].toLowerCase() != "openbrowser")
-            throw NS_ERROR_ABORT;
-
-          // Passing defaultArgs, so use NO_EXTERNAL_URIS
-          openWindow(null, this.chromeURL, "_blank",
-                     "chrome,dialog=no,all" + this.getFeatures(cmdLine),
-                     this.defaultArgs, NO_EXTERNAL_URIS);
-          break;
-
-        default:
-          // Somebody sent us a remote command we don't know how to process:
-          // just abort.
-          throw "Unknown remote command.";
-        }
-
-        cmdLine.preventDefault = true;
-      }
-      catch (e) {
-        Components.utils.reportError(e);
-        // If we had a -remote flag but failed to process it, throw
-        // NS_ERROR_ABORT so that the xremote code knows to return a failure
-        // back to the handling code.
-        throw NS_ERROR_ABORT;
-      }
     }
 
     var uriparam;
@@ -746,10 +667,42 @@ nsDefaultCommandLineHandler.prototype = {
     }
 #endif
 
+    let redirectWinSearch = false;
+    if (AppConstants.isPlatformAndVersionAtLeast("win", "10")) {
+      redirectWinSearch = Services.prefs.getBoolPref("browser.search.redirectWindowsSearch");
+    }
+
     try {
       var ar;
       while ((ar = cmdLine.handleFlagWithParam("url", false))) {
         var uri = resolveURIInternal(cmdLine, ar);
+
+        // Searches in the Windows 10 task bar searchbox simply open the default browser
+        // with a URL for a search on Bing. Here we extract the search term and use the
+        // user's default search engine instead.
+        if (redirectWinSearch && uri.spec.startsWith("https://www.bing.com/search")) {
+          try {
+            var url = uri.QueryInterface(Components.interfaces.nsIURL);
+            var params = new URLSearchParams(url.query);
+            // We don't want to rewrite all Bing URLs coming from external apps. Look
+            // for the magic URL parm that's present in searches from the task bar.
+            // (Typed searches use "form=WNSGPH", Cortana voice searches use "FORM=WNSBOX")
+            var formParam = params.get("form");
+            if (!formParam) {
+              formParam = params.get("FORM");
+            }
+            if (formParam == "WNSGPH" || formParam == "WNSBOX") {
+              var term = params.get("q");
+              var ss = Components.classes["@mozilla.org/browser/search-service;1"]
+                                 .getService(nsIBrowserSearchService);
+              var submission = ss.defaultEngine.getSubmission(term, null, "system");
+              uri = submission.uri;
+            }
+          } catch (e) {
+            Components.utils.reportError("Couldn't redirect Windows search: " + e);
+          }
+        }
+
         urilist.push(uri);
       }
     }
@@ -757,9 +710,7 @@ nsDefaultCommandLineHandler.prototype = {
       Components.utils.reportError(e);
     }
 
-    let count = cmdLine.length;
-
-    for (let i = 0; i < count; ++i) {
+    for (let i = 0; i < cmdLine.length; ++i) {
       var curarg = cmdLine.getArgument(i);
       if (curarg.match(/^-/)) {
         Components.utils.reportError("Warning: unrecognized command line flag " + curarg + "\n");
@@ -789,7 +740,7 @@ nsDefaultCommandLineHandler.prototype = {
         }
       }
 
-      var URLlist = urilist.filter(shouldLoadURI).map(function (u) u.spec);
+      var URLlist = urilist.filter(shouldLoadURI).map(u => u.spec);
       if (URLlist.length) {
         openWindow(null, gBrowserContentHandler.chromeURL, "_blank",
                    "chrome,dialog=no,all" + gBrowserContentHandler.getFeatures(cmdLine),

@@ -7,9 +7,18 @@
 #include "mozilla/Assertions.h"
 #include "mozilla/TypeTraits.h"
 
+#define TEST_CV_QUALIFIERS(test, type, ...) \
+  test(type, __VA_ARGS__) \
+  test(const type, __VA_ARGS__) \
+  test(volatile type, __VA_ARGS__) \
+  test(const volatile type, __VA_ARGS__)
+
 using mozilla::AddLvalueReference;
+using mozilla::AddPointer;
 using mozilla::AddRvalueReference;
+using mozilla::Decay;
 using mozilla::DeclVal;
+using mozilla::IsFunction;
 using mozilla::IsArray;
 using mozilla::IsBaseOf;
 using mozilla::IsClass;
@@ -26,6 +35,13 @@ using mozilla::MakeSigned;
 using mozilla::MakeUnsigned;
 using mozilla::RemoveExtent;
 using mozilla::RemovePointer;
+
+static_assert(!IsFunction<int>::value,
+              "int is not a function type");
+static_assert(IsFunction<void(int)>::value,
+              "void(int) is a function type");
+static_assert(!IsFunction<void(*)(int)>::value,
+              "void(*)(int) is not a function type");
 
 static_assert(!IsArray<bool>::value,
               "bool not an array");
@@ -126,6 +142,77 @@ static_assert(IsReference<int&>::value,
               "int& is a reference");
 static_assert(IsReference<int&&>::value,
               "int&& is a reference");
+
+namespace CPlusPlus11IsMemberPointer {
+
+using mozilla::IsMemberPointer;
+
+struct S {};
+union U {};
+
+#define ASSERT_IS_MEMBER_POINTER(type, msg) \
+  static_assert(IsMemberPointer<type>::value, #type msg);
+#define TEST_IS_MEMBER_POINTER(type) \
+  TEST_CV_QUALIFIERS(ASSERT_IS_MEMBER_POINTER, type, \
+                     " is a member pointer type")
+
+TEST_IS_MEMBER_POINTER(int S::*)
+TEST_IS_MEMBER_POINTER(int U::*)
+
+#undef TEST_IS_MEMBER_POINTER
+#undef ASSERT_IS_MEMBER_POINTER
+
+#define ASSERT_IS_NOT_MEMBER_POINTER(type, msg) \
+  static_assert(!IsMemberPointer<type>::value, #type msg);
+#define TEST_IS_NOT_MEMBER_POINTER(type) \
+  TEST_CV_QUALIFIERS(ASSERT_IS_NOT_MEMBER_POINTER, type, \
+                     " is not a member pointer type")
+
+TEST_IS_NOT_MEMBER_POINTER(int*)
+
+#undef TEST_IS_NOT_MEMBER_POINTER
+#undef ASSERT_IS_NOT_MEMBER_POINTER
+
+} // CPlusPlus11IsMemberPointer
+
+namespace CPlusPlus11IsScalar {
+
+using mozilla::IsScalar;
+
+enum E {};
+enum class EC {};
+class C {};
+struct S {};
+union U {};
+
+#define ASSERT_IS_SCALAR(type, msg) \
+  static_assert(IsScalar<type>::value, #type msg);
+#define TEST_IS_SCALAR(type) \
+  TEST_CV_QUALIFIERS(ASSERT_IS_SCALAR, type, " is a scalar type")
+
+TEST_IS_SCALAR(int)
+TEST_IS_SCALAR(float)
+TEST_IS_SCALAR(E)
+TEST_IS_SCALAR(EC)
+TEST_IS_SCALAR(S*)
+TEST_IS_SCALAR(int S::*)
+
+#undef TEST_IS_SCALAR
+#undef ASSERT_IS_SCALAR
+
+#define ASSERT_IS_NOT_SCALAR(type, msg) \
+  static_assert(!IsScalar<type>::value, #type msg);
+#define TEST_IS_NOT_SCALAR(type) \
+  TEST_CV_QUALIFIERS(ASSERT_IS_NOT_SCALAR, type, " is not a scalar type")
+
+TEST_IS_NOT_SCALAR(C)
+TEST_IS_NOT_SCALAR(S)
+TEST_IS_NOT_SCALAR(U)
+
+#undef TEST_IS_NOT_SCALAR
+#undef ASSERT_IS_NOT_SCALAR
+
+} // CPlusPlus11IsScalar
 
 struct S1 {};
 union U1 { int mX; };
@@ -327,6 +414,10 @@ TestIsBaseOf()
                 "B is the same as B (and therefore, a base of B)");
 }
 
+class ExplicitCopyConstructor {
+  explicit ExplicitCopyConstructor(const ExplicitCopyConstructor&) = default;
+};
+
 static void
 TestIsConvertible()
 {
@@ -357,6 +448,10 @@ TestIsConvertible()
   static_assert(IsConvertible<void, void>::value, "void is void");
   static_assert(!IsConvertible<A, void>::value, "A shouldn't convert to void");
   static_assert(!IsConvertible<void, B>::value, "void shouldn't convert to B");
+
+  static_assert(!IsConvertible<const ExplicitCopyConstructor&,
+                               ExplicitCopyConstructor>::value,
+                "IsConvertible should test for implicit convertibility");
 
   // These cases seem to require C++11 support to properly implement them, so
   // for now just disable them.
@@ -488,6 +583,36 @@ static_assert(IsSame<RemovePointer<void (*)()>::Type, void()>::value,
 static_assert(IsSame<RemovePointer<bool TestRemovePointer::*>::Type,
                                    bool TestRemovePointer::*>::value,
               "removing pointer from bool S::* must return bool S::*");
+
+static_assert(IsSame<AddPointer<int>::Type, int*>::value,
+              "adding pointer to int must return int*");
+static_assert(IsSame<AddPointer<int*>::Type, int**>::value,
+              "adding pointer to int* must return int**");
+static_assert(IsSame<AddPointer<int&>::Type, int*>::value,
+              "adding pointer to int& must return int*");
+static_assert(IsSame<AddPointer<int* const>::Type, int* const*>::value,
+              "adding pointer to int* const must return int* const*");
+static_assert(IsSame<AddPointer<int* volatile>::Type, int* volatile*>::value,
+              "adding pointer to int* volatile must return int* volatile*");
+
+static_assert(IsSame<Decay<int>::Type, int>::value,
+              "decaying int must return int");
+static_assert(IsSame<Decay<int*>::Type, int*>::value,
+              "decaying int* must return int*");
+static_assert(IsSame<Decay<int* const>::Type, int*>::value,
+              "decaying int* const must return int*");
+static_assert(IsSame<Decay<int* volatile>::Type, int*>::value,
+              "decaying int* volatile must return int*");
+static_assert(IsSame<Decay<int&>::Type, int>::value,
+              "decaying int& must return int");
+static_assert(IsSame<Decay<const int&>::Type, int>::value,
+              "decaying const int& must return int");
+static_assert(IsSame<Decay<int&&>::Type, int>::value,
+              "decaying int&& must return int");
+static_assert(IsSame<Decay<int[1]>::Type, int*>::value,
+              "decaying int[1] must return int*");
+static_assert(IsSame<Decay<void(int)>::Type, void(*)(int)>::value,
+              "decaying void(int) must return void(*)(int)");
 
 /*
  * Android's broken [u]intptr_t inttype macros are broken because its PRI*PTR

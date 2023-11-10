@@ -40,8 +40,11 @@
   --theme-graphs-blue: #83b7f6;
   --theme-graphs-purple: #b693eb;
   --theme-graphs-yellow: #efc052;
+  --theme-graphs-orange: #d97e00;
   --theme-graphs-red: #e57180;
   --theme-graphs-grey: #cccccc;
+  --theme-graphs-full-red: #f00;
+  --theme-graphs-full-blue: #00f;
 }
 
 .theme-body {

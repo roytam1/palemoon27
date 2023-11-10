@@ -126,7 +126,7 @@ DBAction::OpenConnection(const QuotaInfo& aQuotaInfo, nsIFile* aDBDir,
   // URL.  This avoids any problems if a plugin registers a custom file://
   // handler.  If such a custom handler used javascript, then we would have a
   // bad time running off the main thread here.
-  nsRefPtr<nsFileProtocolHandler> handler = new nsFileProtocolHandler();
+  RefPtr<nsFileProtocolHandler> handler = new nsFileProtocolHandler();
   rv = handler->Init();
   if (NS_WARN_IF(NS_FAILED(rv))) { return rv; }
 
@@ -143,7 +143,8 @@ DBAction::OpenConnection(const QuotaInfo& aQuotaInfo, nsIFile* aDBDir,
   rv = dbFileUrl->SetQuery(
     NS_LITERAL_CSTRING("persistenceType=") + type +
     NS_LITERAL_CSTRING("&group=") + aQuotaInfo.mGroup +
-    NS_LITERAL_CSTRING("&origin=") + aQuotaInfo.mOrigin);
+    NS_LITERAL_CSTRING("&origin=") + aQuotaInfo.mOrigin +
+    NS_LITERAL_CSTRING("&cache=private"));
   if (NS_WARN_IF(NS_FAILED(rv))) { return rv; }
 
   nsCOMPtr<mozIStorageService> ss =
@@ -169,7 +170,7 @@ DBAction::OpenConnection(const QuotaInfo& aQuotaInfo, nsIFile* aDBDir,
   int32_t schemaVersion = 0;
   rv = conn->GetSchemaVersion(&schemaVersion);
   if (NS_WARN_IF(NS_FAILED(rv))) { return rv; }
-  if (schemaVersion > 0 && schemaVersion < db::kMaxWipeSchemaVersion) {
+  if (schemaVersion > 0 && schemaVersion < db::kFirstShippedSchemaVersion) {
     conn = nullptr;
     rv = WipeDatabase(dbFile, aDBDir);
     if (NS_WARN_IF(NS_FAILED(rv))) { return rv; }

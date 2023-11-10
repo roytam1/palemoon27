@@ -172,6 +172,16 @@ function verifyBlobArray(blobs1, blobs2, expectedFileIds)
              expectedFileIds[verifiedCount], blobReadHandler);
 }
 
+function verifyMutableFile(mutableFile1, file2)
+{
+  ok(mutableFile1 instanceof IDBMutableFile, "Instance of IDBMutableFile");
+  is(mutableFile1.name, file2.name, "Correct name");
+  is(mutableFile1.type, file2.type, "Correct type");
+  executeSoon(function() {
+    testGenerator.next();
+  });
+}
+
 function grabFileUsageAndContinueHandler(usage, fileUsage)
 {
   testGenerator.send(fileUsage);
@@ -179,17 +189,7 @@ function grabFileUsageAndContinueHandler(usage, fileUsage)
 
 function getUsage(usageHandler)
 {
-  let principal = SpecialPowers.wrap(document).nodePrincipal;
-  let appId, inBrowser;
-  if (principal.appId != Components.interfaces.nsIPrincipal.UNKNOWN_APP_ID &&
-      principal.appId != Components.interfaces.nsIPrincipal.NO_APP_ID) {
-    appId = principal.appId;
-    inBrowser = principal.isInBrowserElement;
-  }
-  SpecialPowers.getStorageUsageForURI(window.document.documentURI,
-                                      usageHandler,
-                                      appId,
-                                      inBrowser);
+  SpecialPowers.getStorageUsageForDoc(SpecialPowers.wrap(document), usageHandler);
 }
 
 function getFileId(file)

@@ -128,6 +128,7 @@ public:
                        ImageContainer* aImageContainer) override;
 
   virtual PTextureChild* CreateTexture(const SurfaceDescriptor& aSharedData,
+                                       LayersBackend aLayersBackend,
                                        TextureFlags aFlags) override;
 
   /**
@@ -155,7 +156,7 @@ public:
    */
   void BeginTransaction(const gfx::IntRect& aTargetBounds,
                         ScreenRotation aRotation,
-                        mozilla::dom::ScreenOrientation aOrientation);
+                        mozilla::dom::ScreenOrientationInternal aOrientation);
 
   /**
    * The following methods may only be called after BeginTransaction()
@@ -213,14 +214,15 @@ public:
   virtual void UseTiledLayerBuffer(CompositableClient* aCompositable,
                                    const SurfaceDescriptorTiles& aTileLayerDescriptor) override;
 
+  virtual bool DestroyInTransaction(PTextureChild* aTexture, bool synchronously) override;
+  virtual bool DestroyInTransaction(PCompositableChild* aCompositable, bool synchronously) override;
+
   virtual void RemoveTextureFromCompositable(CompositableClient* aCompositable,
                                              TextureClient* aTexture) override;
 
   virtual void RemoveTextureFromCompositableAsync(AsyncTransactionTracker* aAsyncTransactionTracker,
                                                   CompositableClient* aCompositable,
                                                   TextureClient* aTexture) override;
-
-  virtual void RemoveTexture(TextureClient* aTexture) override;
 
   /**
    * Communicate to the compositor that aRegion in the texture identified by aLayer
@@ -344,6 +346,8 @@ public:
    */
   void SetIsFirstPaint() { mIsFirstPaint = true; }
 
+  void SetPaintSyncId(int32_t aSyncId) { mPaintSyncId = aSyncId; }
+
   static void PlatformSyncBeforeUpdate();
 
 protected:
@@ -366,6 +370,7 @@ private:
   DiagnosticTypes mDiagnosticTypes;
   bool mIsFirstPaint;
   bool mWindowOverlayChanged;
+  int32_t mPaintSyncId;
   InfallibleTArray<PluginWindowData> mPluginWindowData;
 };
 

@@ -44,23 +44,24 @@ public:
           const nsTArray<gfxFontFaceSrc>& aFontFaceSrcList,
           uint32_t aWeight,
           int32_t aStretch,
-          uint32_t aItalicStyle,
+          uint8_t aStyle,
           const nsTArray<gfxFontFeature>& aFeatureSettings,
           uint32_t aLanguageOverride,
           gfxSparseBitSet* aUnicodeRanges)
       : gfxUserFontEntry(aFontSet, aFontFaceSrcList, aWeight, aStretch,
-                         aItalicStyle, aFeatureSettings, aLanguageOverride,
+                         aStyle, aFeatureSettings, aLanguageOverride,
                          aUnicodeRanges) {}
 
     virtual void SetLoadState(UserFontLoadState aLoadState) override;
-    const nsAutoTArray<FontFace*,1>& GetFontFaces() { return mFontFaces; }
+    virtual void GetUserFontSets(nsTArray<gfxUserFontSet*>& aResult) override;
+    const AutoTArray<FontFace*,1>& GetFontFaces() { return mFontFaces; }
 
   protected:
     // The FontFace objects that use this user font entry.  We need to store
     // an array of these, not just a single pointer, since the user font
     // cache can return the same entry for different FontFaces that have
     // the same descriptor values and come from the same origin.
-    nsAutoTArray<FontFace*,1> mFontFaces;
+    AutoTArray<FontFace*,1> mFontFaces;
   };
 
   NS_DECL_CYCLE_COLLECTING_ISUPPORTS
@@ -82,23 +83,14 @@ public:
   void SetUserFontEntry(gfxUserFontEntry* aEntry);
 
   /**
-   * Returns whether this object is in a FontFaceSet.
+   * Returns whether this object is in the specified FontFaceSet.
    */
-  bool IsInFontFaceSet() { return mInFontFaceSet; }
+  bool IsInFontFaceSet(FontFaceSet* aFontFaceSet) const;
 
   FontFaceSet* GetPrimaryFontFaceSet() const { return mFontFaceSet; }
 
-  /**
-   * Sets whether this object is in a FontFaceSet.  This is called by the
-   * FontFaceSet when Add, Remove, etc. are called.
-   */
-  void SetIsInFontFaceSet(bool aInFontFaceSet) {
-    MOZ_ASSERT(!(!aInFontFaceSet && HasRule()),
-               "use DisconnectFromRule instead");
-    mInFontFaceSet = aInFontFaceSet;
-  }
-
-  FontFaceSet* GetFontFaceSet() const { return mFontFaceSet; }
+  void AddFontFaceSet(FontFaceSet* aFontFaceSet);
+  void RemoveFontFaceSet(FontFaceSet* aFontFaceSet);
 
   /**
    * Gets the family name of the FontFace as a raw string (such as 'Times', as
@@ -209,15 +201,15 @@ private:
 
   // A Promise that is fulfilled once the font represented by this FontFace
   // is loaded, and is rejected if the load fails.
-  nsRefPtr<mozilla::dom::Promise> mLoaded;
+  RefPtr<mozilla::dom::Promise> mLoaded;
 
   // The @font-face rule this FontFace object is reflecting, if it is a
   // rule backed FontFace.
-  nsRefPtr<nsCSSFontFaceRule> mRule;
+  RefPtr<nsCSSFontFaceRule> mRule;
 
   // The FontFace object's user font entry.  This is initially null, but is set
   // during FontFaceSet::UpdateRules and when a FontFace is explicitly loaded.
-  nsRefPtr<Entry> mUserFontEntry;
+  RefPtr<Entry> mUserFontEntry;
 
   // The current load status of the font represented by this FontFace.
   // Note that we can't just reflect the value of the gfxUserFontEntry's
@@ -245,11 +237,15 @@ private:
   // the descriptors stored in mRule.
   nsAutoPtr<mozilla::CSSFontFaceDescriptors> mDescriptors;
 
-  // The FontFaceSet this FontFace is associated with, regardless of whether
-  // it is currently "in" the set.
-  nsRefPtr<FontFaceSet> mFontFaceSet;
+  // The primary FontFaceSet this FontFace is associated with,
+  // regardless of whether it is currently "in" the set.
+  RefPtr<FontFaceSet> mFontFaceSet;
 
-  // Whether this FontFace appears in the FontFaceSet.
+  // Other FontFaceSets (apart from mFontFaceSet) that this FontFace
+  // appears in.
+  nsTArray<RefPtr<FontFaceSet>> mOtherFontFaceSets;
+
+  // Whether this FontFace appears in mFontFaceSet.
   bool mInFontFaceSet;
 };
 

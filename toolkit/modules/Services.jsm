@@ -23,9 +23,11 @@ XPCOMUtils.defineLazyGetter(Services, "appinfo", function () {
                   .getService(Ci.nsIXULRuntime);
   try {
     appinfo.QueryInterface(Ci.nsIXULAppInfo);
-  } catch (ex if ex instanceof Components.Exception &&
-                 ex.result == Cr.NS_NOINTERFACE) {
+  } catch (ex) {
     // Not all applications implement nsIXULAppInfo (e.g. xpcshell doesn't).
+    if (!(ex instanceof Components.Exception) || ex.result != Cr.NS_NOINTERFACE) {
+      throw ex;
+    }
   }
   return appinfo;
 });
@@ -34,6 +36,18 @@ XPCOMUtils.defineLazyGetter(Services, "dirsvc", function () {
   return Cc["@mozilla.org/file/directory_service;1"]
            .getService(Ci.nsIDirectoryService)
            .QueryInterface(Ci.nsIProperties);
+});
+
+XPCOMUtils.defineLazyGetter(Services, "mm", () => {
+  return Cc["@mozilla.org/globalmessagemanager;1"]
+           .getService(Ci.nsIMessageBroadcaster)
+           .QueryInterface(Ci.nsIFrameScriptLoader);
+});
+
+XPCOMUtils.defineLazyGetter(Services, "ppmm", () => {
+  return Cc["@mozilla.org/parentprocessmessagemanager;1"]
+           .getService(Ci.nsIMessageBroadcaster)
+           .QueryInterface(Ci.nsIProcessScriptLoader);
 });
 
 XPCOMUtils.defineLazyGetter(Services, "mm", () => {
@@ -91,6 +105,7 @@ let initTable = [
   ["uriFixup", "@mozilla.org/docshell/urifixup;1", "nsIURIFixup"],
   ["blocklist", "@mozilla.org/extensions/blocklist;1", "nsIBlocklistService"],
   ["netUtils", "@mozilla.org/network/util;1", "nsINetUtil"],
+  ["loadContextInfo", "@mozilla.org/load-context-info-factory;1", "nsILoadContextInfoFactory"],
 #ifdef XP_WIN
 #ifdef MOZ_METRO
   ["metro", "@mozilla.org/windows-metroutils;1", "nsIWinMetroUtils"],

@@ -1,4 +1,5 @@
-/* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
+/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
+/* vim: set ts=8 sts=2 et sw=2 tw=80: */
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -26,14 +27,12 @@ public:
 protected:
   virtual ~nsGroupsEnumerator();
 
-  static PLDHashOperator HashEnum(const nsACString& aKey,
-                                  nsTArray<nsCString>* aData, void* aClosure);
   nsresult Initialize();
 
 protected:
   nsControllerCommandGroup::GroupsHashtable& mHashTable;
   int32_t mIndex;
-  char** mGroupNames;  // array of pointers to char16_t* in the hash table
+  const char** mGroupNames;  // array of pointers to char16_t* in the hash table
   bool mInitted;
 };
 
@@ -91,7 +90,7 @@ nsGroupsEnumerator::GetNext(nsISupports** aResult)
     return NS_ERROR_FAILURE;
   }
 
-  char* thisGroupName = mGroupNames[mIndex];
+  const char* thisGroupName = mGroupNames[mIndex];
 
   nsCOMPtr<nsISupportsCString> supportsString =
     do_CreateInstance(NS_SUPPORTS_CSTRING_CONTRACTID, &rv);
@@ -103,18 +102,6 @@ nsGroupsEnumerator::GetNext(nsISupports** aResult)
   return CallQueryInterface(supportsString, aResult);
 }
 
-/* static */
-/* return false to stop */
-PLDHashOperator
-nsGroupsEnumerator::HashEnum(const nsACString& aKey, nsTArray<nsCString>* aData,
-                             void* aClosure)
-{
-  nsGroupsEnumerator* groupsEnum = static_cast<nsGroupsEnumerator*>(aClosure);
-  groupsEnum->mGroupNames[groupsEnum->mIndex] = (char*)aKey.Data();
-  groupsEnum->mIndex++;
-  return PL_DHASH_NEXT;
-}
-
 nsresult
 nsGroupsEnumerator::Initialize()
 {
@@ -122,13 +109,16 @@ nsGroupsEnumerator::Initialize()
     return NS_OK;
   }
 
-  mGroupNames = new char*[mHashTable.Count()];
+  mGroupNames = new const char*[mHashTable.Count()];
   if (!mGroupNames) {
     return NS_ERROR_OUT_OF_MEMORY;
   }
 
   mIndex = 0;
-  mHashTable.EnumerateRead(HashEnum, this);
+  for (auto iter = mHashTable.Iter(); !iter.Done(); iter.Next()) {
+    mGroupNames[mIndex] = iter.Key().Data();
+    mIndex++;
+  }
 
   mIndex = -1;
   mInitted = true;
@@ -224,7 +214,7 @@ nsControllerCommandGroup::AddCommandToGroup(const char* aCommand,
   nsTArray<nsCString>* commandList = mGroupsHash.Get(groupKey);
   if (!commandList) {
     // make this list
-    commandList = new nsAutoTArray<nsCString, 8>;
+    commandList = new AutoTArray<nsCString, 8>;
     mGroupsHash.Put(groupKey, commandList);
   }
 
@@ -285,7 +275,7 @@ nsControllerCommandGroup::IsCommandInGroup(const char* aCommand,
 NS_IMETHODIMP
 nsControllerCommandGroup::GetGroupsEnumerator(nsISimpleEnumerator** aResult)
 {
-  nsRefPtr<nsGroupsEnumerator> groupsEnum = new nsGroupsEnumerator(mGroupsHash);
+  RefPtr<nsGroupsEnumerator> groupsEnum = new nsGroupsEnumerator(mGroupsHash);
 
   groupsEnum.forget(aResult);
   return NS_OK;
@@ -298,7 +288,7 @@ nsControllerCommandGroup::GetEnumeratorForGroup(const char* aGroup,
   nsDependentCString groupKey(aGroup);
   nsTArray<nsCString>* commandList = mGroupsHash.Get(groupKey); // may be null
 
-  nsRefPtr<nsNamedGroupEnumerator> theGroupEnum =
+  RefPtr<nsNamedGroupEnumerator> theGroupEnum =
     new nsNamedGroupEnumerator(commandList);
 
   theGroupEnum.forget(aResult);

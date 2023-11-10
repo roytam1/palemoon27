@@ -75,7 +75,7 @@
  *   which can be either an array buffer or an inline typed object. Outline
  *   typed objects may be attached or unattached. An unattached typed object
  *   has no data associated with it. When first created, objects are always
- *   attached, but they can become unattached if their buffer is neutered.
+ *   attached, but they can become unattached if their buffer becomes detached.
  *
  * Note that whether a typed object is opaque is not directly
  * connected to its type. That is, opaque types are *always*
@@ -327,42 +327,24 @@ class ComplexTypeDescr : public TypeDescr
     }
 };
 
+enum class SimdType : uint8_t;
+
 /*
- * Type descriptors `int8x16`, `int16x8`, `int32x4`, `float32x4` and `float64x2`
+ * SIMD Type descriptors.
  */
 class SimdTypeDescr : public ComplexTypeDescr
 {
   public:
-    enum Type {
-        Int8x16 = JS_SIMDTYPEREPR_INT8,
-        Int16x8 = JS_SIMDTYPEREPR_INT16,
-        Int32x4 = JS_SIMDTYPEREPR_INT32,
-        Float32x4 = JS_SIMDTYPEREPR_FLOAT32,
-        Float64x2 = JS_SIMDTYPEREPR_FLOAT64,
-        LAST_TYPE = Float64x2
-    };
-
     static const type::Kind Kind = type::Simd;
     static const bool Opaque = false;
     static const Class class_;
-    static int32_t size(Type t);
-    static int32_t alignment(Type t);
-    static int32_t lanes(Type t);
-
-    SimdTypeDescr::Type type() const {
-        return (SimdTypeDescr::Type) getReservedSlot(JS_DESCR_SLOT_TYPE).toInt32();
-    }
-
+    static int32_t size(SimdType t);
+    static int32_t alignment(SimdType t);
     static bool call(JSContext* cx, unsigned argc, Value* vp);
     static bool is(const Value& v);
-};
 
-#define JS_FOR_EACH_SIMD_TYPE_REPR(macro_)               \
-    macro_(SimdTypeDescr::Int8x16, int8_t, int8, 16)     \
-    macro_(SimdTypeDescr::Int16x8, int16_t, int16, 8)    \
-    macro_(SimdTypeDescr::Int32x4, int32_t, int32, 4)    \
-    macro_(SimdTypeDescr::Float32x4, float, float32, 4)  \
-    macro_(SimdTypeDescr::Float64x2, double, float64, 2)
+    SimdType type() const;
+};
 
 bool IsTypedObjectClass(const Class* clasp); // Defined below
 bool IsTypedObjectArray(JSObject& obj);
@@ -524,22 +506,22 @@ class TypedObject : public JSObject
                                    MutableHandleShape propp);
 
     static bool obj_defineProperty(JSContext* cx, HandleObject obj, HandleId id,
-                                   Handle<JSPropertyDescriptor> desc,
+                                   Handle<PropertyDescriptor> desc,
                                    ObjectOpResult& result);
 
     static bool obj_hasProperty(JSContext* cx, HandleObject obj, HandleId id, bool* foundp);
 
-    static bool obj_getProperty(JSContext* cx, HandleObject obj, HandleObject receiver,
+    static bool obj_getProperty(JSContext* cx, HandleObject obj, HandleValue receiver,
                                 HandleId id, MutableHandleValue vp);
 
-    static bool obj_getElement(JSContext* cx, HandleObject obj, HandleObject receiver,
+    static bool obj_getElement(JSContext* cx, HandleObject obj, HandleValue receiver,
                                uint32_t index, MutableHandleValue vp);
 
     static bool obj_setProperty(JSContext* cx, HandleObject obj, HandleId id, HandleValue v,
                                 HandleValue receiver, ObjectOpResult& result);
 
     static bool obj_getOwnPropertyDescriptor(JSContext* cx, HandleObject obj, HandleId id,
-                                             MutableHandle<JSPropertyDescriptor> desc);
+                                             MutableHandle<PropertyDescriptor> desc);
 
     static bool obj_deleteProperty(JSContext* cx, HandleObject obj, HandleId id,
                                    ObjectOpResult& result);
@@ -593,7 +575,7 @@ class TypedObject : public JSObject
     static bool GetBuffer(JSContext* cx, unsigned argc, Value* vp);
     static bool GetByteOffset(JSContext* cx, unsigned argc, Value* vp);
 
-    Shape** addressOfShapeFromGC() { return shape_.unsafeGet(); }
+    Shape** addressOfShapeFromGC() { return shape_.unsafeUnbarrieredForTracing(); }
 };
 
 typedef Handle<TypedObject*> HandleTypedObject;
@@ -665,7 +647,7 @@ class OutlineTypedObject : public TypedObject
     void attach(JSContext* cx, TypedObject& typedObj, int32_t offset);
 
     // Invoked when array buffer is transferred elsewhere
-    void neuter(void* newData);
+    void notifyBufferDetached(void* newData);
 
     static void obj_trace(JSTracer* trace, JSObject* object);
 };
@@ -835,44 +817,14 @@ bool ClampToUint8(JSContext* cx, unsigned argc, Value* vp);
 bool GetTypedObjectModule(JSContext* cx, unsigned argc, Value* vp);
 
 /*
- * Usage: GetFloat32x4TypeDescr()
+ * Usage: GetSimdTypeDescr(simdTypeRepr)
  *
- * Returns the float32x4 type object. SIMD pseudo-module must have
- * been initialized for this to be safe.
- */
-bool GetFloat32x4TypeDescr(JSContext* cx, unsigned argc, Value* vp);
-
-/*
- * Usage: GetFloat64x2TypeDescr()
+ * Returns one of the SIMD type objects, identified by `simdTypeRepr` which must
+ * be one of the JS_SIMDTYPEREPR_* constants.
  *
- * Returns the float64x2 type object. SIMD pseudo-module must have
- * been initialized for this to be safe.
+ * The SIMD pseudo-module must have been initialized for this to be safe.
  */
-bool GetFloat64x2TypeDescr(JSContext* cx, unsigned argc, Value* vp);
-
-/*
- * Usage: GetInt8x16TypeDescr()
- *
- * Returns the int8x16 type object. SIMD pseudo-module must have
- * been initialized for this to be safe.
- */
-bool GetInt8x16TypeDescr(JSContext* cx, unsigned argc, Value* vp);
-
-/*
- * Usage: GetInt16x8TypeDescr()
- *
- * Returns the int16x8 type object. SIMD pseudo-module must have
- * been initialized for this to be safe.
- */
-bool GetInt16x8TypeDescr(JSContext* cx, unsigned argc, Value* vp);
-
-/*
- * Usage: GetInt32x4TypeDescr()
- *
- * Returns the int32x4 type object. SIMD pseudo-module must have
- * been initialized for this to be safe.
- */
-bool GetInt32x4TypeDescr(JSContext* cx, unsigned argc, Value* vp);
+bool GetSimdTypeDescr(JSContext* cx, unsigned argc, Value* vp);
 
 /*
  * Usage: Store_int8(targetDatum, targetOffset, value)

@@ -168,6 +168,18 @@ class ConvertToStringPolicy final : public TypePolicy
     }
 };
 
+// Expect an Boolean for operand Op. If the input is a Value, it is unboxed.
+template <unsigned Op>
+class BooleanPolicy final : private TypePolicy
+{
+  public:
+    EMPTY_DATA_;
+    static bool staticAdjustInputs(TempAllocator& alloc, MInstruction* def);
+    virtual bool adjustInputs(TempAllocator& alloc, MInstruction* def) override {
+        return staticAdjustInputs(alloc, def);
+    }
+};
+
 // Expect an Int for operand Op. If the input is a Value, it is unboxed.
 template <unsigned Op>
 class IntPolicy final : private TypePolicy
@@ -324,7 +336,7 @@ class SimdAllPolicy final : public TypePolicy
 {
   public:
     SPECIALIZATION_DATA_;
-    virtual bool adjustInputs(TempAllocator &alloc, MInstruction *ins) override;
+    virtual bool adjustInputs(TempAllocator& alloc, MInstruction* ins) override;
 };
 
 template <unsigned Op>
@@ -332,21 +344,21 @@ class SimdPolicy final : public TypePolicy
 {
   public:
     SPECIALIZATION_DATA_;
-    virtual bool adjustInputs(TempAllocator &alloc, MInstruction *ins) override;
+    virtual bool adjustInputs(TempAllocator& alloc, MInstruction* ins) override;
 };
 
 class SimdSelectPolicy final : public TypePolicy
 {
   public:
     SPECIALIZATION_DATA_;
-    virtual bool adjustInputs(TempAllocator &alloc, MInstruction *ins) override;
+    virtual bool adjustInputs(TempAllocator& alloc, MInstruction* ins) override;
 };
 
 class SimdShufflePolicy final : public TypePolicy
 {
   public:
     SPECIALIZATION_DATA_;
-    virtual bool adjustInputs(TempAllocator &alloc, MInstruction *ins) override;
+    virtual bool adjustInputs(TempAllocator& alloc, MInstruction* ins) override;
 };
 
 // SIMD value-type policy, use the returned type of the instruction to determine
@@ -376,6 +388,18 @@ class BoxPolicy final : public TypePolicy
 // Boxes everything except inputs of type Type.
 template <unsigned Op, MIRType Type>
 class BoxExceptPolicy final : public TypePolicy
+{
+  public:
+    EMPTY_DATA_;
+    static bool staticAdjustInputs(TempAllocator& alloc, MInstruction* ins);
+    bool adjustInputs(TempAllocator& alloc, MInstruction* ins) {
+        return staticAdjustInputs(alloc, ins);
+    }
+};
+
+// Box if not a typical property id (string, symbol, int32).
+template <unsigned Op>
+class CacheIdPolicy final : public TypePolicy
 {
   public:
     EMPTY_DATA_;
@@ -454,36 +478,36 @@ class StoreTypedArrayElementStaticPolicy;
 class StoreUnboxedScalarPolicy : public TypePolicy
 {
   private:
-    static bool adjustValueInput(TempAllocator &alloc, MInstruction *ins, Scalar::Type arrayType,
-                                 MDefinition *value, int valueOperand);
+    static bool adjustValueInput(TempAllocator& alloc, MInstruction* ins, Scalar::Type arrayType,
+                                 MDefinition* value, int valueOperand);
 
     friend class StoreTypedArrayHolePolicy;
     friend class StoreTypedArrayElementStaticPolicy;
 
   public:
     EMPTY_DATA_;
-    virtual bool adjustInputs(TempAllocator &alloc, MInstruction *ins) override;
+    virtual bool adjustInputs(TempAllocator& alloc, MInstruction* ins) override;
 };
 
 class StoreTypedArrayHolePolicy final : public StoreUnboxedScalarPolicy
 {
   public:
     EMPTY_DATA_;
-    virtual bool adjustInputs(TempAllocator &alloc, MInstruction *ins) override;
+    virtual bool adjustInputs(TempAllocator& alloc, MInstruction* ins) override;
 };
 
 class StoreTypedArrayElementStaticPolicy final : public StoreUnboxedScalarPolicy
 {
   public:
     EMPTY_DATA_;
-    virtual bool adjustInputs(TempAllocator &alloc, MInstruction *ins) override;
+    virtual bool adjustInputs(TempAllocator& alloc, MInstruction* ins) override;
 };
 
 class StoreUnboxedObjectOrNullPolicy final : public TypePolicy
 {
   public:
     EMPTY_DATA_;
-    virtual bool adjustInputs(TempAllocator &alloc, MInstruction *def) override;
+    virtual bool adjustInputs(TempAllocator& alloc, MInstruction* def) override;
 };
 
 // Accepts integers and doubles. Everything else is boxed.
@@ -500,14 +524,6 @@ class FilterTypeSetPolicy final : public TypePolicy
     EMPTY_DATA_;
     virtual bool adjustInputs(TempAllocator& alloc, MInstruction* ins) override;
 };
-
-static inline bool
-CoercesToDouble(MIRType type)
-{
-    if (type == MIRType_Undefined || IsFloatingPointType(type))
-        return true;
-    return false;
-}
 
 #undef SPECIALIZATION_DATA_
 #undef INHERIT_DATA_

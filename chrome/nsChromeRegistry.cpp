@@ -29,6 +29,7 @@
 #include "nsIPresShell.h"
 #include "nsIScriptError.h"
 #include "nsIWindowMediator.h"
+#include "nsIPrefService.h"
 
 nsChromeRegistry* nsChromeRegistry::gChromeRegistry;
 
@@ -267,7 +268,9 @@ NS_IMETHODIMP
 nsChromeRegistry::ConvertChromeURL(nsIURI* aChromeURI, nsIURI* *aResult)
 {
   nsresult rv;
-  NS_ASSERTION(aChromeURI, "null url!");
+  if (NS_WARN_IF(!aChromeURI)) {
+    return NS_ERROR_INVALID_ARG;
+  }
 
   if (mOverrideTable.Get(aChromeURI, aResult))
     return NS_OK;
@@ -423,7 +426,7 @@ nsresult nsChromeRegistry::RefreshWindow(nsIDOMWindow* aWindow)
 
       if (IsChromeURI(uri)) {
         // Reload the sheet.
-        nsRefPtr<CSSStyleSheet> newSheet;
+        RefPtr<CSSStyleSheet> newSheet;
         rv = document->LoadChromeSheetSync(uri, true,
                                            getter_AddRefs(newSheet));
         if (NS_FAILED(rv)) return rv;
@@ -462,12 +465,12 @@ nsresult nsChromeRegistry::RefreshWindow(nsIDOMWindow* aWindow)
   // Iterate over our old sheets and kick off a sync load of the new
   // sheet if and only if it's a chrome URL.
   for (i = 0; i < count; i++) {
-    nsRefPtr<CSSStyleSheet> sheet = do_QueryObject(oldSheets[i]);
+    RefPtr<CSSStyleSheet> sheet = do_QueryObject(oldSheets[i]);
     nsIURI* uri = sheet ? sheet->GetOriginalURI() : nullptr;
 
     if (uri && IsChromeURI(uri)) {
       // Reload the sheet.
-      nsRefPtr<CSSStyleSheet> newSheet;
+      RefPtr<CSSStyleSheet> newSheet;
       // XXX what about chrome sheets that have a title or are disabled?  This
       // only works by sheer dumb luck.
       document->LoadChromeSheetSync(uri, false, getter_AddRefs(newSheet));
@@ -660,6 +663,31 @@ nsChromeRegistry::MustLoadURLRemotely(nsIURI *aURI, bool *aResult)
   return NS_OK;
 }
 
+bool
+nsChromeRegistry::GetDirectionForLocale(const nsACString& aLocale)
+{
+  // first check the intl.uidirection.<locale> preference, and if that is not
+  // set, check the same preference but with just the first two characters of
+  // the locale. If that isn't set, default to left-to-right.
+  nsAutoCString prefString = NS_LITERAL_CSTRING("intl.uidirection.") + aLocale;
+  nsCOMPtr<nsIPrefBranch> prefBranch (do_GetService(NS_PREFSERVICE_CONTRACTID));
+  if (!prefBranch) {
+    return false;
+  }
+
+  nsXPIDLCString dir;
+  prefBranch->GetCharPref(prefString.get(), getter_Copies(dir));
+  if (dir.IsEmpty()) {
+    int32_t hyphen = prefString.FindChar('-');
+    if (hyphen >= 1) {
+      nsAutoCString shortPref(Substring(prefString, 0, hyphen));
+      prefBranch->GetCharPref(shortPref.get(), getter_Copies(dir));
+    }
+  }
+
+  return dir.EqualsLiteral("rtl");
+}
+
 NS_IMETHODIMP_(bool)
 nsChromeRegistry::WrappersEnabled(nsIURI *aURI)
 {
@@ -686,11 +714,11 @@ already_AddRefed<nsChromeRegistry>
 nsChromeRegistry::GetSingleton()
 {
   if (gChromeRegistry) {
-    nsRefPtr<nsChromeRegistry> registry = gChromeRegistry;
+    RefPtr<nsChromeRegistry> registry = gChromeRegistry;
     return registry.forget();
   }
 
-  nsRefPtr<nsChromeRegistry> cr;
+  RefPtr<nsChromeRegistry> cr;
   if (GeckoProcessType_Content == XRE_GetProcessType())
     cr = new nsChromeRegistryContent();
   else

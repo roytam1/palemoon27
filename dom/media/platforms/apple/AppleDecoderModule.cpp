@@ -11,25 +11,20 @@
 #include "AppleVDALinker.h"
 #include "AppleVTDecoder.h"
 #include "AppleVTLinker.h"
+#include "MacIOSurfaceImage.h"
 #include "mozilla/Preferences.h"
 #include "mozilla/DebugOnly.h"
 #include "mozilla/Logging.h"
 
-PRLogModuleInfo* GetAppleMediaLog() {
-  static PRLogModuleInfo* log = nullptr;
-  if (!log) {
-    log = PR_NewLogModule("AppleMedia");
-  }
-  return log;
-}
-
 namespace mozilla {
 
 bool AppleDecoderModule::sInitialized = false;
+bool AppleDecoderModule::sIsCoreMediaAvailable = false;
 bool AppleDecoderModule::sIsVTAvailable = false;
 bool AppleDecoderModule::sIsVTHWAvailable = false;
 bool AppleDecoderModule::sIsVDAAvailable = false;
 bool AppleDecoderModule::sForceVDA = false;
+bool AppleDecoderModule::sCanUseHardwareVideoDecoder = true;
 
 AppleDecoderModule::AppleDecoderModule()
 {
@@ -45,24 +40,31 @@ AppleDecoderModule::Init()
 {
   MOZ_ASSERT(NS_IsMainThread(), "Must be on main thread.");
 
-  sForceVDA = Preferences::GetBool("media.apple.forcevda", false);
-
   if (sInitialized) {
     return;
   }
 
+  Preferences::AddBoolVarCache(&sForceVDA, "media.apple.forcevda", false);
+
+  // Ensure IOSurface framework is loaded.
+  MacIOSurfaceLib::LoadLibrary();
+  const bool loaded = MacIOSurfaceLib::isInit();
+
   // dlopen VideoDecodeAcceleration.framework if it's available.
-  sIsVDAAvailable = AppleVDALinker::Link();
+  sIsVDAAvailable = loaded && AppleVDALinker::Link();
 
   // dlopen CoreMedia.framework if it's available.
-  bool haveCoreMedia = AppleCMLinker::Link();
+  sIsCoreMediaAvailable = AppleCMLinker::Link();
   // dlopen VideoToolbox.framework if it's available.
   // We must link both CM and VideoToolbox framework to allow for proper
   // paired Link/Unlink calls
-  bool haveVideoToolbox = AppleVTLinker::Link();
-  sIsVTAvailable = haveCoreMedia && haveVideoToolbox;
+  bool haveVideoToolbox = loaded && AppleVTLinker::Link();
+  sIsVTAvailable = sIsCoreMediaAvailable && haveVideoToolbox;
 
   sIsVTHWAvailable = AppleVTLinker::skPropEnableHWAccel != nullptr;
+
+  sCanUseHardwareVideoDecoder = loaded &&
+    gfxPlatform::GetPlatform()->CanUseHardwareVideoDecoding();
 
   sInitialized = true;
 }
@@ -73,7 +75,6 @@ AppleDecoderModule::Startup()
   if (!sInitialized || (!sIsVDAAvailable && !sIsVTAvailable)) {
     return NS_ERROR_FAILURE;
   }
-
   return NS_OK;
 }
 
@@ -81,10 +82,10 @@ already_AddRefed<MediaDataDecoder>
 AppleDecoderModule::CreateVideoDecoder(const VideoInfo& aConfig,
                                        layers::LayersBackend aLayersBackend,
                                        layers::ImageContainer* aImageContainer,
-                                       FlushableMediaTaskQueue* aVideoTaskQueue,
+                                       FlushableTaskQueue* aVideoTaskQueue,
                                        MediaDataDecoderCallback* aCallback)
 {
-  nsRefPtr<MediaDataDecoder> decoder;
+  RefPtr<MediaDataDecoder> decoder;
 
   if (sIsVDAAvailable && (!sIsVTHWAvailable || sForceVDA)) {
     decoder =
@@ -107,19 +108,23 @@ AppleDecoderModule::CreateVideoDecoder(const VideoInfo& aConfig,
 
 already_AddRefed<MediaDataDecoder>
 AppleDecoderModule::CreateAudioDecoder(const AudioInfo& aConfig,
-                                       FlushableMediaTaskQueue* aAudioTaskQueue,
+                                       FlushableTaskQueue* aAudioTaskQueue,
                                        MediaDataDecoderCallback* aCallback)
 {
-  nsRefPtr<MediaDataDecoder> decoder =
+  RefPtr<MediaDataDecoder> decoder =
     new AppleATDecoder(aConfig, aAudioTaskQueue, aCallback);
   return decoder.forget();
 }
 
 bool
-AppleDecoderModule::SupportsMimeType(const nsACString& aMimeType)
+AppleDecoderModule::SupportsMimeType(const nsACString& aMimeType) const
 {
-  return aMimeType.EqualsLiteral("audio/mpeg") ||
-    PlatformDecoderModule::SupportsMimeType(aMimeType);
+  return (sIsCoreMediaAvailable &&
+          (aMimeType.EqualsLiteral("audio/mpeg") ||
+           aMimeType.EqualsLiteral("audio/mp4a-latm"))) ||
+    ((sIsVTAvailable || sIsVDAAvailable) &&
+     (aMimeType.EqualsLiteral("video/mp4") ||
+      aMimeType.EqualsLiteral("video/avc")));
 }
 
 PlatformDecoderModule::ConversionRequired

@@ -20,7 +20,7 @@
 #include "mozIStorageValueArray.h"
 #include "mozIStorageFunction.h"
 #include "nsIObserverService.h"
-#include "nsIVariant.h"
+#include "nsVariant.h"
 #include "mozilla/IOInterposer.h"
 #include "mozilla/Services.h"
 
@@ -116,6 +116,7 @@ DOMStorageDBThread::Shutdown()
 void
 DOMStorageDBThread::SyncPreload(DOMStorageCacheBridge* aCache, bool aForceSync)
 {
+  PROFILER_LABEL_FUNC(js::ProfileEntry::Category::STORAGE);
   if (!aForceSync && aCache->LoadedCount()) {
     // Preload already started for this cache, just wait for it to finish.
     // LoadWait will exit after LoadDone on the cache has been called.
@@ -187,16 +188,16 @@ DOMStorageDBThread::InsertDBOp(DOMStorageDBThread::DBOperation* aOperation)
   // Sentinel to don't forget to delete the operation when we exit early.
   nsAutoPtr<DOMStorageDBThread::DBOperation> opScope(aOperation);
 
-  if (mStopIOThread) {
-    // Thread use after shutdown demanded.
-    MOZ_ASSERT(false);
-    return NS_ERROR_NOT_INITIALIZED;
-  }
-
   if (NS_FAILED(mStatus)) {
     MonitorAutoUnlock unlock(mThreadObserver->GetMonitor());
     aOperation->Finalize(mStatus);
     return mStatus;
+  }
+
+  if (mStopIOThread) {
+    // Thread use after shutdown demanded.
+    MOZ_ASSERT(false);
+    return NS_ERROR_NOT_INITIALIZED;
   }
 
   switch (aOperation->Type()) {
@@ -219,7 +220,7 @@ DOMStorageDBThread::InsertDBOp(DOMStorageDBThread::DBOperation* aOperation)
       aOperation->Finalize(NS_OK);
       return NS_OK;
     }
-    // NO BREAK
+    MOZ_FALLTHROUGH;
 
   case DBOperation::opGetUsage:
     if (aOperation->Type() == DBOperation::opPreloadUrgent) {
@@ -403,10 +404,7 @@ nsReverseStringSQLFunction::OnFunctionCall(
   nsAutoCString result;
   ReverseString(stringToReverse, result);
 
-  nsCOMPtr<nsIWritableVariant> outVar(do_CreateInstance(
-      NS_VARIANT_CONTRACTID, &rv));
-  NS_ENSURE_SUCCESS(rv, rv);
-
+  RefPtr<nsVariant> outVar(new nsVariant());
   rv = outVar->SetAsAUTF8String(result);
   NS_ENSURE_SUCCESS(rv, rv);
 
@@ -728,7 +726,7 @@ DOMStorageDBThread::NotifyFlushCompletion()
 {
 #ifdef DOM_STORAGE_TESTS
   if (!NS_IsMainThread()) {
-    nsRefPtr<nsRunnableMethod<DOMStorageDBThread, void, false> > event =
+    RefPtr<nsRunnableMethod<DOMStorageDBThread, void, false> > event =
       NS_NewNonOwningRunnableMethod(this, &DOMStorageDBThread::NotifyFlushCompletion);
     NS_DispatchToMainThread(event);
     return;
@@ -1067,26 +1065,6 @@ DOMStorageDBThread::PendingOperations::HasTasks()
 
 namespace {
 
-PLDHashOperator
-ForgetUpdatesForScope(const nsACString& aMapping,
-                      nsAutoPtr<DOMStorageDBThread::DBOperation>& aPendingTask,
-                      void* aArg)
-{
-  DOMStorageDBThread::DBOperation* newOp = static_cast<DOMStorageDBThread::DBOperation*>(aArg);
-
-  if (newOp->Type() == DOMStorageDBThread::DBOperation::opClear &&
-      aPendingTask->Scope() != newOp->Scope()) {
-    return PL_DHASH_NEXT;
-  }
-
-  if (newOp->Type() == DOMStorageDBThread::DBOperation::opClearMatchingScope &&
-      !StringBeginsWith(aPendingTask->Scope(), newOp->Scope())) {
-    return PL_DHASH_NEXT;
-  }
-
-  return PL_DHASH_REMOVE;
-}
-
 } // namespace
 
 bool
@@ -1157,7 +1135,22 @@ DOMStorageDBThread::PendingOperations::Add(DOMStorageDBThread::DBOperation* aOpe
     // We do this as an optimization as well as a must based on the logic,
     // if we would not delete the update tasks, changes would have been stored
     // to the database after clear operations have been executed.
-    mUpdates.Enumerate(ForgetUpdatesForScope, aOperation);
+    for (auto iter = mUpdates.Iter(); !iter.Done(); iter.Next()) {
+      nsAutoPtr<DBOperation>& pendingTask = iter.Data();
+
+      if (aOperation->Type() == DBOperation::opClear &&
+          pendingTask->Scope() != aOperation->Scope()) {
+        continue;
+      }
+
+      if (aOperation->Type() == DBOperation::opClearMatchingScope &&
+          !StringBeginsWith(pendingTask->Scope(), aOperation->Scope())) {
+        continue;
+      }
+
+      iter.Remove();
+    }
+
     mClears.Put(aOperation->Target(), aOperation);
     break;
 
@@ -1174,20 +1167,6 @@ DOMStorageDBThread::PendingOperations::Add(DOMStorageDBThread::DBOperation* aOpe
   }
 }
 
-namespace {
-
-PLDHashOperator
-CollectTasks(const nsACString& aMapping, nsAutoPtr<DOMStorageDBThread::DBOperation>& aOperation, void* aArg)
-{
-  nsTArray<nsAutoPtr<DOMStorageDBThread::DBOperation> >* tasks =
-    static_cast<nsTArray<nsAutoPtr<DOMStorageDBThread::DBOperation> >*>(aArg);
-
-  tasks->AppendElement(aOperation.forget());
-  return PL_DHASH_NEXT;
-}
-
-} // namespace
-
 bool
 DOMStorageDBThread::PendingOperations::Prepare()
 {
@@ -1198,10 +1177,14 @@ DOMStorageDBThread::PendingOperations::Prepare()
   // scheduled, we drop all updates matching that scope. So,
   // all scope-related update operations we have here now were
   // scheduled after the clear operations.
-  mClears.Enumerate(CollectTasks, &mExecList);
+  for (auto iter = mClears.Iter(); !iter.Done(); iter.Next()) {
+    mExecList.AppendElement(iter.Data().forget());
+  }
   mClears.Clear();
 
-  mUpdates.Enumerate(CollectTasks, &mExecList);
+  for (auto iter = mUpdates.Iter(); !iter.Done(); iter.Next()) {
+    mExecList.AppendElement(iter.Data().forget());
+  }
   mUpdates.Clear();
 
   return !!mExecList.Length();
@@ -1259,40 +1242,25 @@ DOMStorageDBThread::PendingOperations::Finalize(nsresult aRv)
 
 namespace {
 
-class FindPendingOperationForScopeData
+bool
+FindPendingClearForScope(const nsACString& aScope,
+                         DOMStorageDBThread::DBOperation* aPendingOperation)
 {
-public:
-  explicit FindPendingOperationForScopeData(const nsACString& aScope) : mScope(aScope), mFound(false) {}
-  nsCString mScope;
-  bool mFound;
-};
-
-PLDHashOperator
-FindPendingClearForScope(const nsACString& aMapping,
-                         DOMStorageDBThread::DBOperation* aPendingOperation,
-                         void* aArg)
-{
-  FindPendingOperationForScopeData* data =
-    static_cast<FindPendingOperationForScopeData*>(aArg);
-
   if (aPendingOperation->Type() == DOMStorageDBThread::DBOperation::opClearAll) {
-    data->mFound = true;
-    return PL_DHASH_STOP;
+    return true;
   }
 
   if (aPendingOperation->Type() == DOMStorageDBThread::DBOperation::opClear &&
-      data->mScope == aPendingOperation->Scope()) {
-    data->mFound = true;
-    return PL_DHASH_STOP;
+      aScope == aPendingOperation->Scope()) {
+    return true;
   }
 
   if (aPendingOperation->Type() == DOMStorageDBThread::DBOperation::opClearMatchingScope &&
-      StringBeginsWith(data->mScope, aPendingOperation->Scope())) {
-    data->mFound = true;
-    return PL_DHASH_STOP;
+      StringBeginsWith(aScope, aPendingOperation->Scope())) {
+    return true;
   }
 
-  return PL_DHASH_NEXT;
+  return false;
 }
 
 } // namespace
@@ -1302,17 +1270,14 @@ DOMStorageDBThread::PendingOperations::IsScopeClearPending(const nsACString& aSc
 {
   // Called under the lock
 
-  FindPendingOperationForScopeData data(aScope);
-  mClears.EnumerateRead(FindPendingClearForScope, &data);
-  if (data.mFound) {
-    return true;
+  for (auto iter = mClears.Iter(); !iter.Done(); iter.Next()) {
+    if (FindPendingClearForScope(aScope, iter.UserData())) {
+      return true;
+    }
   }
 
   for (uint32_t i = 0; i < mExecList.Length(); ++i) {
-    DOMStorageDBThread::DBOperation* task = mExecList[i];
-    FindPendingClearForScope(EmptyCString(), task, &data);
-
-    if (data.mFound) {
+    if (FindPendingClearForScope(aScope, mExecList[i])) {
       return true;
     }
   }
@@ -1322,23 +1287,18 @@ DOMStorageDBThread::PendingOperations::IsScopeClearPending(const nsACString& aSc
 
 namespace {
 
-PLDHashOperator
-FindPendingUpdateForScope(const nsACString& aMapping,
-                          DOMStorageDBThread::DBOperation* aPendingOperation,
-                          void* aArg)
+bool
+FindPendingUpdateForScope(const nsACString& aScope,
+                          DOMStorageDBThread::DBOperation* aPendingOperation)
 {
-  FindPendingOperationForScopeData* data =
-    static_cast<FindPendingOperationForScopeData*>(aArg);
-
   if ((aPendingOperation->Type() == DOMStorageDBThread::DBOperation::opAddItem ||
        aPendingOperation->Type() == DOMStorageDBThread::DBOperation::opUpdateItem ||
        aPendingOperation->Type() == DOMStorageDBThread::DBOperation::opRemoveItem) &&
-       data->mScope == aPendingOperation->Scope()) {
-    data->mFound = true;
-    return PL_DHASH_STOP;
+       aScope == aPendingOperation->Scope()) {
+    return true;
   }
 
-  return PL_DHASH_NEXT;
+  return false;
 }
 
 } // namespace
@@ -1348,17 +1308,14 @@ DOMStorageDBThread::PendingOperations::IsScopeUpdatePending(const nsACString& aS
 {
   // Called under the lock
 
-  FindPendingOperationForScopeData data(aScope);
-  mUpdates.EnumerateRead(FindPendingUpdateForScope, &data);
-  if (data.mFound) {
-    return true;
+  for (auto iter = mUpdates.Iter(); !iter.Done(); iter.Next()) {
+    if (FindPendingUpdateForScope(aScope, iter.UserData())) {
+      return true;
+    }
   }
 
   for (uint32_t i = 0; i < mExecList.Length(); ++i) {
-    DOMStorageDBThread::DBOperation* task = mExecList[i];
-    FindPendingUpdateForScope(EmptyCString(), task, &data);
-
-    if (data.mFound) {
+    if (FindPendingUpdateForScope(aScope, mExecList[i])) {
       return true;
     }
   }

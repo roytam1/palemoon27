@@ -90,7 +90,7 @@ const MICROSEC_PER_SEC = 1000000;
 const EXPORT_INDENT = "    "; // four spaces
 
 // Counter used to build fake favicon urls.
-let serialNumber = 0;
+var serialNumber = 0;
 
 function base64EncodeString(aString) {
   let stream = Cc["@mozilla.org/io/string-input-stream;1"]
@@ -1059,7 +1059,7 @@ BookmarkExporter.prototype = {
     this._writeLine("<TITLE>Bookmarks</TITLE>");
   },
 
-  _writeContainer: function (aItem, aIndent = "") {
+  *_writeContainer(aItem, aIndent = "") {
     if (aItem == this._root) {
       this._writeLine("<H1>" + escapeHtmlEntities(this._root.title) + "</H1>");
       this._writeLine("");
@@ -1086,18 +1086,19 @@ BookmarkExporter.prototype = {
       this._writeLine(aIndent + "</DL><p>");
   },
 
-  _writeContainerContents: function (aItem, aIndent) {
+  *_writeContainerContents(aItem, aIndent) {
     let localIndent = aIndent + EXPORT_INDENT;
 
     for (let child of aItem.children) {
-      if (child.annos && child.annos.some(anno => anno.name == PlacesUtils.LMANNO_FEEDURI))
-          this._writeLivemark(child, localIndent);
-      else if (child.type == PlacesUtils.TYPE_X_MOZ_PLACE_CONTAINER)
-          yield this._writeContainer(child, localIndent);
-      else if (child.type == PlacesUtils.TYPE_X_MOZ_PLACE_SEPARATOR)
+      if (child.annos && child.annos.some(anno => anno.name == PlacesUtils.LMANNO_FEEDURI)) {
+        this._writeLivemark(child, localIndent);
+      } else if (child.type == PlacesUtils.TYPE_X_MOZ_PLACE_CONTAINER) {
+        yield this._writeContainer(child, localIndent);
+      } else if (child.type == PlacesUtils.TYPE_X_MOZ_PLACE_SEPARATOR) {
         this._writeSeparator(child, localIndent);
-      else
+      } else {
         yield this._writeItem(child, localIndent);
+      }
     }
   },
 
@@ -1120,7 +1121,7 @@ BookmarkExporter.prototype = {
     this._writeDescription(aItem, aIndent);
   },
 
-  _writeItem: function (aItem, aIndent) {
+  *_writeItem(aItem, aIndent) {
     // This is a workaround for "too much recursion" error, due to the fact
     // Task.jsm still uses old on-same-tick promises.  It may be removed as
     // soon as bug 887923 is fixed.
@@ -1166,7 +1167,7 @@ BookmarkExporter.prototype = {
                            Math.floor(aItem.lastModified / MICROSEC_PER_SEC));
   },
 
-  _writeFaviconAttribute: function (aItem) {
+  *_writeFaviconAttribute(aItem) {
     if (!aItem.iconuri)
       return;
     let favicon;

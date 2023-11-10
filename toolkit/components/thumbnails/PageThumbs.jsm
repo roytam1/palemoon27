@@ -33,6 +33,8 @@ Cu.import("resource://gre/modules/PromiseWorker.jsm", this);
 Cu.import("resource://gre/modules/Promise.jsm", this);
 Cu.import("resource://gre/modules/osfile.jsm", this);
 
+Cu.importGlobalProperties(['FileReader']);
+
 XPCOMUtils.defineLazyModuleGetter(this, "NetUtil",
   "resource://gre/modules/NetUtil.jsm");
 
@@ -83,9 +85,9 @@ const TaskUtils = {
    */
   readBlob: function readBlob(blob) {
     let deferred = Promise.defer();
-    let reader = Cc["@mozilla.org/files/filereader;1"].createInstance(Ci.nsIDOMFileReader);
+    let reader = new FileReader();
     reader.onloadend = function onloadend() {
-      if (reader.readyState != Ci.nsIDOMFileReader.DONE) {
+      if (reader.readyState != FileReader.DONE) {
         deferred.reject(reader.error);
       } else {
         deferred.resolve(reader.result);
@@ -152,7 +154,7 @@ this.PageThumbs = {
    */
   getThumbnailURL: function PageThumbs_getThumbnailURL(aUrl) {
     return this.scheme + "://" + this.staticHost +
-           "?url=" + encodeURIComponent(aUrl);
+           "/?url=" + encodeURIComponent(aUrl);
   },
 
    /**
@@ -250,7 +252,7 @@ this.PageThumbs = {
   // participate in this service's telemetry, which is why this method exists.
   _captureToCanvas: function (aBrowser, aCanvas, aCallback) {
     if (aBrowser.isRemoteBrowser) {
-      Task.spawn(function () {
+      Task.spawn(function* () {
         let data =
           yield this._captureRemoteThumbnail(aBrowser, aCanvas);
         let canvas = data.thumbnail;
@@ -315,8 +317,7 @@ this.PageThumbs = {
       mm.removeMessageListener("Browser:Thumbnail:Response", thumbFunc);
       let imageBlob = aMsg.data.thumbnail;
       let doc = aBrowser.parentElement.ownerDocument;
-      let reader = Cc["@mozilla.org/files/filereader;1"].
-                   createInstance(Ci.nsIDOMFileReader);
+      let reader = new FileReader();
       reader.addEventListener("loadend", function() {
         let image = doc.createElementNS(PageThumbUtils.HTML_NAMESPACE, "img");
         image.onload = function () {
@@ -371,7 +372,7 @@ this.PageThumbs = {
       originalURL = url;
     }
 
-    Task.spawn((function task() {
+    Task.spawn((function* task() {
       let isSuccess = true;
       try {
         let blob = yield this.captureToBlob(aBrowser);
@@ -427,7 +428,7 @@ this.PageThumbs = {
    * @return {Promise}
    */
   _store: function PageThumbs__store(aOriginalURL, aFinalURL, aData, aNoOverwrite) {
-    return Task.spawn(function () {
+    return Task.spawn(function* () {
       let telemetryStoreTime = new Date();
       yield PageThumbsStorage.writeData(aFinalURL, aData, aNoOverwrite);
       Services.telemetry.getHistogramById("FX_THUMBNAILS_STORE_TIME_MS")
@@ -818,7 +819,7 @@ let PageThumbsExpiration = {
 
   expireThumbnails: function Expiration_expireThumbnails(aURLsToKeep) {
     let path = this.path;
-    let keep = [PageThumbsStorage.getLeafNameForURL(url) for (url of aURLsToKeep)];
+    let keep = aURLsToKeep.map(url => PageThumbsStorage.getLeafNameForURL(url));
     let msg = [
       PageThumbsStorage.path,
       keep,

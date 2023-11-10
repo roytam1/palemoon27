@@ -35,10 +35,10 @@ using namespace mozilla::dom;
 
 bool
 nsJSUtils::GetCallingLocation(JSContext* aContext, nsACString& aFilename,
-                              uint32_t* aLineno)
+                              uint32_t* aLineno, uint32_t* aColumn)
 {
-  JS::AutoFilename filename;
-  if (!JS::DescribeScriptedCaller(aContext, &filename, aLineno)) {
+  JS::UniqueChars filename;
+  if (!JS::DescribeScriptedCaller(aContext, &filename, aLineno, aColumn)) {
     return false;
   }
 
@@ -48,10 +48,10 @@ nsJSUtils::GetCallingLocation(JSContext* aContext, nsACString& aFilename,
 
 bool
 nsJSUtils::GetCallingLocation(JSContext* aContext, nsAString& aFilename,
-                              uint32_t* aLineno)
+                              uint32_t* aLineno, uint32_t* aColumn)
 {
-  JS::AutoFilename filename;
-  if (!JS::DescribeScriptedCaller(aContext, &filename, aLineno)) {
+  JS::UniqueChars filename;
+  if (!JS::DescribeScriptedCaller(aContext, &filename, aLineno, aColumn)) {
     return false;
   }
 
@@ -235,7 +235,7 @@ nsJSUtils::EvaluateString(JSContext* aCx,
   if (!ok) {
     rv = NS_SUCCESS_DOM_SCRIPT_EVALUATION_THREW;
     if (!aCompileOptions.noScriptRval) {
-      aRetValue.setUndefined();    
+      aRetValue.setUndefined();
     }
   }
 
@@ -307,6 +307,12 @@ nsJSUtils::GetScopeChainForElement(JSContext* aCx,
   return true;
 }
 
+/* static */
+void
+nsJSUtils::ResetTimeZone()
+{
+  JS::ResetTimeZone();
+}
 
 //
 // nsDOMJSUtils.h
@@ -323,6 +329,12 @@ JSObject* GetDefaultScopeFromJSContext(JSContext *cx)
 
 bool nsAutoJSString::init(const JS::Value &v)
 {
-  return init(nsContentUtils::RootingCxForThread(), v);
+  JSContext* cx = nsContentUtils::RootingCxForThread();
+  if (!init(nsContentUtils::RootingCxForThread(), v)) {
+    JS_ClearPendingException(cx);
+    return false;
+  }
+
+  return true;
 }
 

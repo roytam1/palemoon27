@@ -27,7 +27,9 @@ public:
   virtual bool IsVsyncEnabled() override;
   bool IsInSoftwareVsyncThread();
   virtual void NotifyVsync(mozilla::TimeStamp aVsyncTimestamp) override;
+  virtual mozilla::TimeDuration GetVsyncRate() override;
   void ScheduleNextVsync(mozilla::TimeStamp aVsyncTimestamp);
+  void Shutdown();
 
 protected:
   ~SoftwareDisplay();
@@ -36,10 +38,8 @@ private:
   mozilla::TimeDuration mVsyncRate;
   // Use a chromium thread because nsITimers* fire on the main thread
   base::Thread* mVsyncThread;
-  bool mVsyncEnabled;
-  CancelableTask* mCurrentVsyncTask;
-  // Locks against both mCurrentVsyncTask and mVsyncEnabled
-  mozilla::Monitor mCurrentTaskMonitor;
+  CancelableTask* mCurrentVsyncTask; // only access on vsync thread
+  bool mVsyncEnabled; // Only access on main thread
 }; // SoftwareDisplay
 
 // Fallback option to use a software timer to mimic vsync. Useful for gtests
@@ -58,7 +58,7 @@ public:
   }
 
 private:
-  nsRefPtr<SoftwareDisplay> mGlobalDisplay;
+  RefPtr<SoftwareDisplay> mGlobalDisplay;
 };
 
 #endif /* GFX_SOFTWARE_VSYNC_SOURCE_H */

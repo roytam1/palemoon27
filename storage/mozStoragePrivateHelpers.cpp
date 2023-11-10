@@ -94,6 +94,11 @@ checkAndLogStatementPerformance(sqlite3_stmt *aStatement)
   if (::strstr(sql, "/* do not warn (bug "))
     return;
 
+  // CREATE INDEX always sorts (sorting is a necessary step in creating
+  // an index).  So ignore the warning there.
+  if (::strstr(sql, "CREATE INDEX") || ::strstr(sql, "CREATE UNIQUE INDEX"))
+    return;
+
   nsAutoCString message("Suboptimal indexes for the SQL statement ");
 #ifdef MOZ_STORAGE_SORTWARNING_SQL_DUMP
   message.Append('`');
@@ -136,10 +141,14 @@ convertJSValToVariant(
   if (aValue.isObject()) {
     JS::Rooted<JSObject*> obj(aCtx, &aValue.toObject());
     // We only support Date instances, all others fail.
-    if (!js::DateIsValid(aCtx, obj))
+    bool valid;
+    if (!js::DateIsValid(aCtx, obj, &valid) || !valid)
       return nullptr;
 
-    double msecd = js::DateGetMsecSinceEpoch(aCtx, obj);
+    double msecd;
+    if (!js::DateGetMsecSinceEpoch(aCtx, obj, &msecd))
+      return nullptr;
+
     msecd *= 1000.0;
     int64_t msec = msecd;
 
@@ -152,7 +161,7 @@ convertJSValToVariant(
 Variant_base *
 convertVariantToStorageVariant(nsIVariant* aVariant)
 {
-  nsRefPtr<Variant_base> variant = do_QueryObject(aVariant);
+  RefPtr<Variant_base> variant = do_QueryObject(aVariant);
   if (variant) {
     // JS helpers already convert the JS representation to a Storage Variant,
     // in such a case there's nothing left to do here, so just pass-through.
@@ -221,6 +230,7 @@ convertVariantToStorageVariant(nsIVariant* aVariant)
         // Take ownership of the data avoiding a further copy.
         return new AdoptedBlobVariant(v);
       }
+      MOZ_FALLTHROUGH;
     }
     case nsIDataType::VTYPE_EMPTY:
     case nsIDataType::VTYPE_EMPTY_ARRAY:
@@ -235,7 +245,6 @@ convertVariantToStorageVariant(nsIVariant* aVariant)
   }
 
   return nullptr;
-
 }
 
 namespace {
@@ -255,7 +264,7 @@ public:
 private:
   nsCOMPtr<mozIStorageCompletionCallback> mCallback;
 };
-} // anonymous namespace
+} // namespace
 already_AddRefed<nsIRunnable>
 newCompletionEvent(mozIStorageCompletionCallback *aCallback)
 {
@@ -263,8 +272,6 @@ newCompletionEvent(mozIStorageCompletionCallback *aCallback)
   nsCOMPtr<nsIRunnable> event = new CallbackEvent(aCallback);
   return event.forget();
 }
-
-
 
 } // namespace storage
 } // namespace mozilla

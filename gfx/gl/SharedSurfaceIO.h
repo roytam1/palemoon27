@@ -40,6 +40,9 @@ public:
     virtual bool WaitSync() override { return true; }
     virtual bool PollSync() override { return true; }
 
+    virtual bool CopyTexImage2D(GLenum target, GLint level, GLenum internalformat,
+                                GLint x, GLint y, GLsizei width, GLsizei height,
+                                GLint border) override;
     virtual bool ReadPixels(GLint x, GLint y, GLsizei width, GLsizei height,
                             GLenum format, GLenum type, GLvoid *pixels) override;
 
@@ -65,6 +68,8 @@ public:
     }
 
     virtual bool ToSurfaceDescriptor(layers::SurfaceDescriptor* const out_descriptor) override;
+
+    virtual bool ReadbackBySharedHandle(gfx::DataSourceSurface* out_surface) override;
 };
 
 class SurfaceFactory_IOSurface : public SurfaceFactory

@@ -4,14 +4,15 @@
 
 from abc import ABCMeta, abstractmethod, abstractproperty
 from argparse import ArgumentParser, SUPPRESS
+from distutils.util import strtobool
 from urlparse import urlparse
 import os
 import tempfile
 
 from droid import DroidADB, DroidSUT
-from mozlog import structured
 from mozprofile import DEFAULT_PORTS
 import mozinfo
+import mozlog
 import moznetwork
 
 
@@ -28,7 +29,24 @@ except ImportError:
     conditions = None
 
 
-VMWARE_RECORDING_HELPER_BASENAME = "vmwarerecordinghelper"
+def get_default_valgrind_suppression_files():
+    # We are trying to locate files in the source tree.  So if we
+    # don't know where the source tree is, we must give up.
+    if build_obj is None or build_obj.topsrcdir is None:
+        return []
+
+    supps_path = os.path.join(build_obj.topsrcdir, "build", "valgrind")
+
+    rv = []
+    if mozinfo.os == "linux":
+        if mozinfo.processor == "x86_64":
+            rv.append(os.path.join(supps_path, "x86_64-redhat-linux-gnu.sup"))
+            rv.append(os.path.join(supps_path, "cross-architecture.sup"))
+        elif mozinfo.processor == "x86":
+            rv.append(os.path.join(supps_path, "i386-redhat-linux-gnu.sup"))
+            rv.append(os.path.join(supps_path, "cross-architecture.sup"))
+
+    return rv
 
 
 class ArgumentContainer():
@@ -58,11 +76,20 @@ class MochitestArguments(ArgumentContainer):
     LEVEL_STRING = ", ".join(LOG_LEVELS)
 
     args = [
+        [["test_paths"],
+         {"nargs": "*",
+          "metavar": "TEST",
+          "default": [],
+          "help": "Test to run. Can be a single test file or a directory of tests "
+                  "(to run recursively). If omitted, the entire suite is run.",
+          }],
         [["--keep-open"],
-         {"action": "store_false",
-          "dest": "closeWhenDone",
-          "default": True,
-          "help": "Always keep the browser open after tests complete.",
+         {"nargs": "?",
+          "type": strtobool,
+          "const": "true",
+          "default": None,
+          "help": "Always keep the browser open after tests complete. Or always close the "
+                  "browser with --keep-open=false",
           }],
         [["--appname"],
          {"dest": "app",
@@ -70,7 +97,7 @@ class MochitestArguments(ArgumentContainer):
           "help": "Override the default binary used to run tests with the path provided, e.g "
                   "/usr/bin/firefox. If you have run ./mach package beforehand, you can "
                   "specify 'dist' to run tests against the distribution bundle's binary.",
-          "suppress": True,
+          "suppress": build_obj is not None,
           }],
         [["--utility-path"],
          {"dest": "utilityPath",
@@ -157,13 +184,6 @@ class MochitestArguments(ArgumentContainer):
           "help": "Run ipcplugins mochitests.",
           "default": False,
           "suppress": True,
-          }],
-        [["--test-path"],
-         {"dest": "testPath",
-          "default": "",
-          "help": "Run the given test or recursively run the given directory of tests.",
-          # if running from mach, a test_paths arg is exposed instead
-          "suppress": build_obj is not None,
           }],
         [["--bisect-chunk"],
          {"dest": "bisectChunk",
@@ -293,14 +313,6 @@ class MochitestArguments(ArgumentContainer):
           "help": "Directory where testing-only JS modules are located.",
           "suppress": True,
           }],
-        [["--use-vmware-recording"],
-         {"action": "store_true",
-          "dest": "vmwareRecording",
-          "default": False,
-          "help": "Enables recording while the application is running inside a VMware "
-                  "Workstation 7.0 or later VM.",
-          "suppress": True,
-          }],
         [["--repeat"],
          {"type": int,
           "default": 0,
@@ -376,6 +388,13 @@ class MochitestArguments(ArgumentContainer):
          {"action": "store_true",
           "default": False,
           "help": "Run tests with electrolysis preferences and test filtering enabled.",
+          }],
+        [["--store-chrome-manifest"],
+         {"action": "store",
+          "help": "Destination path to write a copy of any chrome manifest "
+                  "written by the harness.",
+          "default": None,
+          "suppress": True,
           }],
         [["--strict-content-sandbox"],
          {"action": "store_true",
@@ -478,6 +497,20 @@ class MochitestArguments(ArgumentContainer):
           "default": None,
           "help": "Arguments to pass to the debugger.",
           }],
+        [["--valgrind"],
+         {"default": None,
+          "help": "Valgrind binary to run tests with. Program name or path.",
+          }],
+        [["--valgrind-args"],
+         {"dest": "valgrindArgs",
+          "default": None,
+          "help": "Extra arguments to pass to Valgrind.",
+          }],
+        [["--valgrind-supp-files"],
+         {"dest": "valgrindSuppFiles",
+          "default": None,
+          "help": "Comma-separated list of suppression files to pass to Valgrind.",
+          }],
         [["--debugger-interactive"],
          {"action": "store_true",
           "dest": "debuggerInteractive",
@@ -552,6 +585,9 @@ class MochitestArguments(ArgumentContainer):
             options.gmp_path = os.pathsep.join(
                 os.path.join(build_obj.bindir, *p) for p in gmp_modules)
 
+        if options.ipcplugins:
+            options.test_paths.append('dom/plugins/test/mochitest')
+
         if options.totalChunks is not None and options.thisChunk is None:
             parser.error(
                 "thisChunk must be specified when totalChunks is specified")
@@ -582,7 +618,9 @@ class MochitestArguments(ArgumentContainer):
                     "could not find xre directory, --xre-path must be specified")
 
         # allow relative paths
-        options.xrePath = self.get_full_path(options.xrePath, parser.oldcwd)
+        if options.xrePath:
+            options.xrePath = self.get_full_path(options.xrePath, parser.oldcwd)
+
         if options.profilePath:
             options.profilePath = self.get_full_path(options.profilePath, parser.oldcwd)
 
@@ -609,16 +647,6 @@ class MochitestArguments(ArgumentContainer):
         elif not options.symbolsPath and build_obj:
             options.symbolsPath = os.path.join(build_obj.distdir, 'crashreporter-symbols')
 
-        if options.vmwareRecording:
-            if not mozinfo.isWin:
-                parser.error(
-                    "use-vmware-recording is only supported on Windows.")
-            options.vmwareHelperPath = os.path.join(
-                options.utilityPath, VMWARE_RECORDING_HELPER_BASENAME + ".dll")
-            if not os.path.exists(options.vmwareHelperPath):
-                parser.error("%s not found, cannot automate VMware recording." %
-                             options.vmwareHelperPath)
-
         if options.webapprtContent and options.webapprtChrome:
             parser.error(
                 "Only one of --webapprt-content and --webapprt-chrome may be given.")
@@ -639,6 +667,13 @@ class MochitestArguments(ArgumentContainer):
             parser.error(
                 "--debugger-args requires --debugger.")
 
+        if options.store_chrome_manifest:
+            options.store_chrome_manifest = os.path.abspath(options.store_chrome_manifest)
+            if not os.path.isdir(os.path.dirname(options.store_chrome_manifest)):
+                parser.error(
+                    "directory for %s does not exist as a destination to copy a "
+                    "chrome manifest." % options.store_chrome_manifest)
+
         if options.testingModulesDir is None:
             if build_obj:
                 options.testingModulesDir = os.path.join(
@@ -656,7 +691,9 @@ class MochitestArguments(ArgumentContainer):
                     options.testingModulesDir = possible
 
         if build_obj:
-            options.extraProfileFiles.append(os.path.join(build_obj.distdir, 'plugins'))
+            plugins_dir = os.path.join(build_obj.distdir, 'plugins')
+            if plugins_dir not in options.extraProfileFiles:
+                options.extraProfileFiles.append(plugins_dir)
 
         # Even if buildbot is updated, we still want this, as the path we pass in
         # to the app must be absolute and have proper slashes.
@@ -716,7 +753,7 @@ class MochitestArguments(ArgumentContainer):
 
         options.leakThresholds = {
             "default": options.defaultLeakThreshold,
-            "tab": 25000,  # See dependencies of bug 1051230.
+            "tab": 10000,  # See dependencies of bug 1051230.
             # GMP rarely gets a log, but when it does, it leaks a little.
             "geckomediaplugin": 20000,
         }
@@ -726,9 +763,14 @@ class MochitestArguments(ArgumentContainer):
         if mozinfo.isWin:
             options.ignoreMissingLeaks.append("tab")
 
-        # Bug 1121539 - OSX-only intermittent tab process leak in test_ipc.html
-        if mozinfo.isMac:
-            options.leakThresholds["tab"] = 100000
+        # XXX We can't normalize test_paths in the non build_obj case here,
+        # because testRoot depends on the flavor, which is determined by the
+        # mach command and therefore not finalized yet. Conversely, test paths
+        # need to be normalized here for the mach case.
+        if options.test_paths and build_obj:
+            # Normalize test paths so they are relative to test root
+            options.test_paths = [build_obj._wrap_path_argument(p).relpath()
+                for p in options.test_paths]
 
         return options
 
@@ -775,7 +817,7 @@ class B2GArguments(ArgumentContainer):
           }],
         [["--adbpath"],
          {"dest": "adbPath",
-          "default": "adb",
+          "default": None,
           "help": "Path to adb binary.",
           "suppress": True,
           }],
@@ -1004,12 +1046,6 @@ class AndroidArguments(ArgumentContainer):
           "default": "",
           "help": "name of the Robocop APK to use for ADB test running",
           }],
-        [["--robocop-ids"],
-         {"dest": "robocopIds",
-          "default": "",
-          "help": "name of the file containing the view ID map \
-                   (fennec_ids.txt)",
-          }],
         [["--remoteTestRoot"],
          {"dest": "remoteTestRoot",
           "default": None,
@@ -1108,7 +1144,8 @@ class AndroidArguments(ArgumentContainer):
             options.robocopIni = os.path.abspath(options.robocopIni)
 
             if not options.robocopApk and build_obj:
-                options.robocopApk = os.path.join(build_obj.topobjdir, 'build', 'mobile',
+                options.robocopApk = os.path.join(build_obj.topobjdir, 'mobile', 'android',
+                                                  'tests', 'browser',
                                                   'robocop', 'robocop-debug.apk')
 
         if options.robocopApk != "":
@@ -1117,13 +1154,6 @@ class AndroidArguments(ArgumentContainer):
                     "Unable to find robocop APK '%s'" %
                     options.robocopApk)
             options.robocopApk = os.path.abspath(options.robocopApk)
-
-        if options.robocopIds != "":
-            if not os.path.exists(options.robocopIds):
-                parser.error(
-                    "Unable to find specified robocop IDs file '%s'" %
-                    options.robocopIds)
-            options.robocopIds = os.path.abspath(options.robocopIds)
 
         # allow us to keep original application around for cleanup while
         # running robocop via 'am'
@@ -1140,7 +1170,8 @@ container_map = {
 
 class MochitestArgumentParser(ArgumentParser):
     """
-    Usage instructions for runtests.py.
+    Usage instructions for Mochitest.
+
     All arguments are optional.
     If --chrome is specified, chrome tests will be run instead of web content tests.
     If --browser-chrome is specified, browser-chrome tests will be run instead of web content tests.
@@ -1188,7 +1219,7 @@ class MochitestArgumentParser(ArgumentParser):
                 group.add_argument(*cli, **kwargs)
 
         self.set_defaults(**defaults)
-        structured.commandline.add_logging_group(self)
+        mozlog.commandline.add_logging_group(self)
 
     @property
     def containers(self):

@@ -17,25 +17,25 @@
 #include "nsContentPolicy.h"
 #include "nsIURI.h"
 #include "nsIDocShell.h"
+#include "nsIDOMElement.h"
 #include "nsIDOMNode.h"
 #include "nsIDOMWindow.h"
 #include "nsIContent.h"
 #include "nsILoadContext.h"
 #include "nsCOMArray.h"
+#include "nsContentUtils.h"
 #include "mozilla/dom/nsMixedContentBlocker.h"
 
 using mozilla::LogLevel;
 
 NS_IMPL_ISUPPORTS(nsContentPolicy, nsIContentPolicy)
 
-static PRLogModuleInfo* gConPolLog;
+static mozilla::LazyLogModule gConPolLog("nsContentPolicy");
 
 nsresult
 NS_NewContentPolicy(nsIContentPolicy **aResult)
 {
   *aResult = new nsContentPolicy;
-  if (!*aResult)
-      return NS_ERROR_OUT_OF_MEMORY;
   NS_ADDREF(*aResult);
   return NS_OK;
 }
@@ -44,9 +44,6 @@ nsContentPolicy::nsContentPolicy()
     : mPolicies(NS_CONTENTPOLICY_CATEGORY)
     , mSimplePolicies(NS_SIMPLECONTENTPOLICY_CATEGORY)
 {
-    if (! gConPolLog) {
-        gConPolLog = PR_NewLogModule("nsContentPolicy");
-    }
 }
 
 nsContentPolicy::~nsContentPolicy()
@@ -141,7 +138,29 @@ nsContentPolicy::CheckPolicy(CPMethod          policyMethod,
     int32_t count = entries.Count();
     for (int32_t i = 0; i < count; i++) {
         /* check the appropriate policy */
-        rv = (entries[i]->*policyMethod)(externalType, contentLocation,
+        // Send the internal content policy type to the mixed content blocker
+        // which needs to know about TYPE_INTERNAL_WORKER,
+        // TYPE_INTERNAL_SHARED_WORKER and TYPE_INTERNAL_SERVICE_WORKER
+        // and also preloads: TYPE_INTERNAL_SCRIPT_PRELOAD,
+        // TYPE_INTERNAL_IMAGE_PRELOAD, TYPE_INTERNAL_STYLESHEET_PRELOAD
+        bool isMixedContentBlocker = mixedContentBlocker == entries[i];
+        nsContentPolicyType type = externalType;
+        if (isMixedContentBlocker) {
+            type = externalTypeOrMCBInternal;
+        }
+        // Send the internal content policy type for CSP which needs to
+        // know about preloads and workers, in particular:
+        // * TYPE_INTERNAL_SCRIPT_PRELOAD
+        // * TYPE_INTERNAL_IMAGE_PRELOAD
+        // * TYPE_INTERNAL_STYLESHEET_PRELOAD
+        // * TYPE_INTERNAL_WORKER
+        // * TYPE_INTERNAL_SHARED_WORKER
+        // * TYPE_INTERNAL_SERVICE_WORKER
+        bool isCSP = cspService == entries[i];
+        if (isCSP) {
+          type = externalTypeOrCSPInternal;
+        }
+        rv = (entries[i]->*policyMethod)(type, contentLocation,
                                          requestingLocation, requestingContext,
                                          mimeType, extra, requestPrincipal,
                                          decision);
@@ -169,8 +188,8 @@ nsContentPolicy::CheckPolicy(CPMethod          policyMethod,
         MOZ_ASSERT(window->IsOuterWindow());
 
         if (topFrameElement) {
-	    nsCOMPtr<nsPIDOMWindow> topWindow = window->GetScriptableTop();
-            isTopLevel = topWindow == static_cast<nsIDOMWindow*>(window);
+            nsCOMPtr<nsPIDOMWindow> topWindow = window->GetScriptableTop();
+            isTopLevel = topWindow == window;
         } else {
             // If we don't have a top frame element, then requestingContext is
             // part of the top-level XUL document. Presumably it's the <browser>

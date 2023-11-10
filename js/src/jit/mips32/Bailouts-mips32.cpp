@@ -46,17 +46,3 @@ BailoutFrameInfo::BailoutFrameInfo(const JitActivationIterator& activations,
 
     snapshotOffset_ = topIonScript_->bailoutToSnapshot(bailoutId);
 }
-
-BailoutFrameInfo::BailoutFrameInfo(const JitActivationIterator& activations,
-                                   InvalidationBailoutStack* bailout)
-  : machine_(bailout->machine())
-{
-    framePointer_ = (uint8_t*) bailout->fp();
-    topFrameSize_ = framePointer_ - bailout->sp();
-    topIonScript_ = bailout->ionScript();
-    attachOnJitActivation(activations);
-
-    uint8_t* returnAddressToFp_ = bailout->osiPointReturnAddress();
-    const OsiIndex* osiIndex = topIonScript_->getOsiIndex(returnAddressToFp_);
-    snapshotOffset_ = osiIndex->snapshotOffset();
-}

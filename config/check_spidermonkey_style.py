@@ -76,8 +76,10 @@ included_inclnames_to_ignore = set([
     'prthread.h',               # NSPR
     'prtypes.h',                # NSPR
     'selfhosted.out.h',         # generated in $OBJDIR
+    'shellmoduleloader.out.h',  # generated in $OBJDIR
     'unicode/locid.h',          # ICU
     'unicode/numsys.h',         # ICU
+    'unicode/timezone.h',       # ICU
     'unicode/ucal.h',           # ICU
     'unicode/uclean.h',         # ICU
     'unicode/ucol.h',           # ICU

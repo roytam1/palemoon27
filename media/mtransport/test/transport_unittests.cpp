@@ -611,7 +611,7 @@ class TransportTestPeer : public sigslot::has_slots<> {
              (int)streams_.size());
 
     // Create the media stream
-    mozilla::RefPtr<NrIceMediaStream> stream =
+    RefPtr<NrIceMediaStream> stream =
         ice_ctx_->CreateStream(static_cast<char *>(name), 1);
 
     ASSERT_TRUE(stream != nullptr);
@@ -799,15 +799,15 @@ class TransportTestPeer : public sigslot::has_slots<> {
   std::string name_;
   nsCOMPtr<nsIEventTarget> target_;
   size_t received_;
-    mozilla::RefPtr<TransportFlow> flow_;
+    RefPtr<TransportFlow> flow_;
   TransportLayerLoopback *loopback_;
   TransportLayerLogging *logging_;
   TransportLayerLossy *lossy_;
   TransportLayerDtls *dtls_;
   TransportLayerIce *ice_;
-  mozilla::RefPtr<DtlsIdentity> identity_;
-  mozilla::RefPtr<NrIceCtx> ice_ctx_;
-  std::vector<mozilla::RefPtr<NrIceMediaStream> > streams_;
+  RefPtr<DtlsIdentity> identity_;
+  RefPtr<NrIceCtx> ice_ctx_;
+  std::vector<RefPtr<NrIceMediaStream> > streams_;
   std::map<std::string, std::vector<std::string> > candidates_;
   TransportTestPeer *peer_;
   bool gathering_complete_;
@@ -958,8 +958,7 @@ TEST_F(TransportTest, TestConnect) {
   ConnectSocket();
 
   // check that we got the right suite
-  // bug 1052610
-  //ASSERT_EQ(TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256, p1_->cipherSuite());
+  ASSERT_EQ(TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256, p1_->cipherSuite());
 
   // no SRTP on this one
   ASSERT_EQ(0, p1_->srtpCipher());
@@ -970,8 +969,7 @@ TEST_F(TransportTest, TestConnectSrtp) {
   SetDtlsPeer();
   ConnectSocket();
 
-  // bug 1052610
-  //ASSERT_EQ(TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256, p1_->cipherSuite());
+  ASSERT_EQ(TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256, p1_->cipherSuite());
 
   // SRTP is on
   ASSERT_EQ(SRTP_AES128_CM_HMAC_SHA1_80, p1_->srtpCipher());
@@ -1177,24 +1175,23 @@ static void ConfigureOneCipher(TransportTestPeer* peer, uint16_t suite) {
 
 TEST_F(TransportTest, TestCipherMismatch) {
   SetDtlsPeer();
-  ConfigureOneCipher(p1_, TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256);
-  ConfigureOneCipher(p2_, TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA);
+  ConfigureOneCipher(p1_, TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256);
+  ConfigureOneCipher(p2_, TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA);
   ConnectSocketExpectFail();
 }
 
-// TODO(mt@mozilla.com) restore; bug 1052610
-TEST_F(TransportTest, DISABLED_TestCipherMandatoryOnlyGcm) {
+TEST_F(TransportTest, TestCipherMandatoryOnlyGcm) {
   SetDtlsPeer();
-  ConfigureOneCipher(p1_, TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256);
+  ConfigureOneCipher(p1_, TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256);
   ConnectSocket();
-  ASSERT_EQ(TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256, p1_->cipherSuite());
+  ASSERT_EQ(TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256, p1_->cipherSuite());
 }
 
 TEST_F(TransportTest, TestCipherMandatoryOnlyCbc) {
   SetDtlsPeer();
-  ConfigureOneCipher(p1_, TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA);
+  ConfigureOneCipher(p1_, TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA);
   ConnectSocket();
-  ASSERT_EQ(TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA, p1_->cipherSuite());
+  ASSERT_EQ(TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA, p1_->cipherSuite());
 }
 
 TEST_F(TransportTest, TestSrtpMismatch) {
@@ -1224,7 +1221,7 @@ TEST_F(TransportTest, TestDheOnlyFails) {
 }
 
 TEST(PushTests, LayerFail) {
-  mozilla::RefPtr<TransportFlow> flow = new TransportFlow();
+  RefPtr<TransportFlow> flow = new TransportFlow();
   nsresult rv;
   bool destroyed1, destroyed2;
 
@@ -1244,7 +1241,7 @@ TEST(PushTests, LayerFail) {
 }
 
 TEST(PushTests, LayersFail) {
-  mozilla::RefPtr<TransportFlow> flow = new TransportFlow();
+  RefPtr<TransportFlow> flow = new TransportFlow();
   nsresult rv;
   bool destroyed1, destroyed2, destroyed3;
 

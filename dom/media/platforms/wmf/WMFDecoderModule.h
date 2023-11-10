@@ -17,39 +17,32 @@ public:
   virtual ~WMFDecoderModule();
 
   // Initializes the module, loads required dynamic libraries, etc.
-  virtual nsresult Startup() override;
+  nsresult Startup() override;
 
-  virtual already_AddRefed<MediaDataDecoder>
+  already_AddRefed<MediaDataDecoder>
   CreateVideoDecoder(const VideoInfo& aConfig,
                      layers::LayersBackend aLayersBackend,
                      layers::ImageContainer* aImageContainer,
-                     FlushableMediaTaskQueue* aVideoTaskQueue,
+                     FlushableTaskQueue* aVideoTaskQueue,
                      MediaDataDecoderCallback* aCallback) override;
 
-  virtual already_AddRefed<MediaDataDecoder>
+  already_AddRefed<MediaDataDecoder>
   CreateAudioDecoder(const AudioInfo& aConfig,
-                     FlushableMediaTaskQueue* aAudioTaskQueue,
+                     FlushableTaskQueue* aAudioTaskQueue,
                      MediaDataDecoderCallback* aCallback) override;
 
-  bool SupportsMimeType(const nsACString& aMimeType) override;
+  bool SupportsMimeType(const nsACString& aMimeType) const override;
 
-  virtual void DisableHardwareAcceleration() override;
-  virtual bool SupportsSharedDecoders(const VideoInfo& aConfig) const override;
-
-  virtual ConversionRequired
+  ConversionRequired
   DecoderNeedsConversion(const TrackInfo& aConfig) const override;
-
-  // Accessors that report whether we have the required MFTs available
-  // on the system to play various codecs. Windows Vista doesn't have the
-  // H.264/AAC decoders if the "Platform Update Supplement for Windows Vista"
-  // is not installed.
-  static bool HasAAC();
-  static bool HasH264();
 
   // Called on main thread.
   static void Init();
+
+  // Called from any thread, must call init first
+  static int GetNumDecoderThreads();
+  static bool LowLatencyMFTEnabled();
 private:
-  bool ShouldUseDXVA(const VideoInfo& aConfig) const;
   bool mWMFInitialized;
 };
 

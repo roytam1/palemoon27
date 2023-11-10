@@ -23,7 +23,7 @@ bool
 obj_construct(JSContext* cx, unsigned argc, JS::Value* vp);
 
 bool
-obj_propertyIsEnumerable(JSContext* cx, unsigned argc, JS::Value* vp);
+obj_propertyIsEnumerable(JSContext* cx, unsigned argc, Value* vp);
 
 bool
 obj_valueOf(JSContext* cx, unsigned argc, JS::Value* vp);
@@ -56,6 +56,9 @@ obj_hasOwnProperty(JSContext* cx, unsigned argc, JS::Value* vp);
 
 bool
 obj_isExtensible(JSContext* cx, unsigned argc, JS::Value* vp);
+
+bool
+obj_toString(JSContext* cx, unsigned argc, JS::Value* vp);
 
 // Exposed so SelfHosting.cpp can use it in the OwnPropertyKeys intrinsic
 bool

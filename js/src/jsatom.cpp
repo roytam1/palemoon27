@@ -76,7 +76,6 @@ const char js_import_str[]          = "import";
 const char js_in_str[]              = "in";
 const char js_instanceof_str[]      = "instanceof";
 const char js_interface_str[]       = "interface";
-const char js_new_str[]             = "new";
 const char js_package_str[]         = "package";
 const char js_private_str[]         = "private";
 const char js_protected_str[]       = "protected";
@@ -95,7 +94,7 @@ const char js_with_str[]            = "with";
 // which create a small number of atoms.
 static const uint32_t JS_STRING_HASH_COUNT = 64;
 
-AtomSet::Ptr js::FrozenAtomSet::readonlyThreadsafeLookup(const AtomSet::Lookup &l) const {
+AtomSet::Ptr js::FrozenAtomSet::readonlyThreadsafeLookup(const AtomSet::Lookup& l) const {
     return mSet->readonlyThreadsafeLookup(l);
 }
 
@@ -200,11 +199,9 @@ js::MarkAtoms(JSTracer* trc)
         if (!entry.isPinned())
             continue;
 
-        JSAtom* atom = entry.asPtr();
-        bool tagged = entry.isPinned();
+        JSAtom* atom = entry.asPtrUnbarriered();
         TraceRoot(trc, &atom, "interned_atom");
-        if (entry.asPtr() != atom)
-            e.rekeyFront(AtomHasher::Lookup(atom), AtomStateEntry(atom, tagged));
+        MOZ_ASSERT(entry.asPtrUnbarriered() == atom);
     }
 }
 
@@ -248,24 +245,12 @@ js::MarkWellKnownSymbols(JSTracer* trc)
 void
 JSRuntime::sweepAtoms()
 {
-    if (!atoms_)
-        return;
-
-    for (AtomSet::Enum e(*atoms_); !e.empty(); e.popFront()) {
-        AtomStateEntry entry = e.front();
-        JSAtom* atom = entry.asPtr();
-        bool isDying = IsAboutToBeFinalizedUnbarriered(&atom);
-
-        /* Pinned or interned key cannot be finalized. */
-        MOZ_ASSERT_IF(hasContexts() && entry.isPinned(), !isDying);
-
-        if (isDying)
-            e.removeFront();
-    }
+    if (atoms_)
+        atoms_->sweep();
 }
 
 bool
-JSRuntime::transformToPermanentAtoms(JSContext *cx)
+JSRuntime::transformToPermanentAtoms(JSContext* cx)
 {
     MOZ_ASSERT(!parentRuntime);
 
@@ -442,6 +427,23 @@ js::AtomizeChars(ExclusiveContext* cx, const Latin1Char* chars, size_t length, P
 template JSAtom*
 js::AtomizeChars(ExclusiveContext* cx, const char16_t* chars, size_t length, PinningBehavior pin);
 
+JSAtom*
+js::AtomizeUTF8Chars(JSContext* cx, const char* utf8Chars, size_t utf8ByteLength)
+{
+    // This could be optimized to hand the char16_t's directly to the JSAtom
+    // instead of making a copy. UTF8CharsToNewTwoByteCharsZ should be
+    // refactored to take an ExclusiveContext so that this function could also.
+
+    UTF8Chars utf8(utf8Chars, utf8ByteLength);
+
+    size_t length;
+    UniquePtr<char16_t> chars(JS::UTF8CharsToNewTwoByteCharsZ(cx, utf8, &length).get());
+    if (!chars)
+        return nullptr;
+
+    return AtomizeChars(cx, chars.get(), length);
+}
+
 bool
 js::IndexToIdSlow(ExclusiveContext* cx, uint32_t index, MutableHandleId idp)
 {
@@ -499,7 +501,12 @@ js::ToAtom(ExclusiveContext* cx, typename MaybeRooted<Value, allowGC>::HandleTyp
     if (str->isAtom())
         return &str->asAtom();
 
-    return AtomizeString(cx, str);
+    JSAtom* atom = AtomizeString(cx, str);
+    if (!atom && !allowGC) {
+        MOZ_ASSERT_IF(cx->isJSContext(), cx->asJSContext()->isThrowingOutOfMemory());
+        cx->recoverFromOutOfMemory();
+    }
+    return atom;
 }
 
 template JSAtom*

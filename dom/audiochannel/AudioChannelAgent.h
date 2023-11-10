@@ -34,6 +34,7 @@ public:
   AudioChannelAgent();
 
   void WindowVolumeChanged();
+  void WindowAudioCaptureChanged(uint64_t aInnerWindowID, bool aCapture);
 
   nsPIDOMWindow* Window() const
   {
@@ -41,6 +42,7 @@ public:
   }
 
   uint64_t WindowID() const;
+  uint64_t InnerWindowID() const;
 
 private:
   virtual ~AudioChannelAgent();
@@ -53,16 +55,22 @@ private:
                         nsIAudioChannelAgentCallback* aCallback,
                         bool aUseWeakRef);
 
+  void Shutdown();
+
+  nsresult FindCorrectWindow(nsIDOMWindow* aWindow);
+
   nsCOMPtr<nsPIDOMWindow> mWindow;
   nsCOMPtr<nsIAudioChannelAgentCallback> mCallback;
 
   nsWeakPtr mWeakCallback;
 
   int32_t mAudioChannelType;
+  uint64_t mInnerWindowID;
   bool mIsRegToService;
 };
 
 } // namespace dom
 } // namespace mozilla
+
 
 #endif

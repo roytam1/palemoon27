@@ -28,7 +28,6 @@ user_pref("javascript.options.showInConsole", true);
 user_pref("devtools.browsertoolbox.panel", "jsdebugger");
 user_pref("devtools.errorconsole.enabled", true);
 user_pref("devtools.debugger.remote-port", 6023);
-user_pref("layout.debug.enable_data_xbl", true);
 user_pref("browser.EULA.override", true);
 user_pref("gfx.color_management.force_srgb", true);
 user_pref("network.manage-offline-status", false);
@@ -152,11 +151,11 @@ user_pref("layout.css.contain.enabled", true);
 // Enable CSS object-fit & object-position for testing
 user_pref("layout.css.object-fit-and-position.enabled", true);
 
-// Enable CSS Ruby for testing
-user_pref("layout.css.ruby.enabled", true);
+// Enable webkit prefixed CSS features for testing
+user_pref("layout.css.prefixes.webkit", true);
 
-// Enable unicode-range for testing
-user_pref("layout.css.unicode-range.enabled", true);
+// Enable -webkit-{min|max}-device-pixel-ratio media queries for testing
+user_pref("layout.css.prefixes.device-pixel-ratio-webkit", true);
 
 // Disable spammy layout warnings because they pollute test logs
 user_pref("layout.spammy_warnings.enabled", false);
@@ -164,7 +163,7 @@ user_pref("layout.spammy_warnings.enabled", false);
 // Enable Media Source Extensions for testing
 user_pref("media.mediasource.enabled", true);
 user_pref("media.mediasource.mp4.enabled", true);
-user_pref("media.mediasource.webm.enabled", true);
+user_pref("media.mediasource.webm.enabled", false);
 
 // Enable mozContacts
 user_pref("dom.mozContacts.enabled", true);
@@ -212,6 +211,9 @@ user_pref("general.useragent.updates.enabled", false);
 // Disable webapp updates.  Yes, it is supposed to be an integer.
 user_pref("browser.webapps.checkForUpdates", 0);
 
+// Enable debug logging in the tcp presentation server.
+user_pref("dom.presentation.tcp_server.debug", true);
+
 // Don't connect to Yahoo! for RSS feed tests.
 // en-US only uses .types.0.uri, but set all of them just to be sure.
 user_pref('browser.contentHandlers.types.0.uri', 'http://test1.example.org/rss?url=%%s')
@@ -238,9 +240,6 @@ user_pref("identity.fxaccounts.remote.force_auth.uri", "https://%(server)s/fxa-f
 user_pref("identity.fxaccounts.remote.signin.uri", "https://%(server)s/fxa-signin");
 user_pref("identity.fxaccounts.settings.uri", "https://%(server)s/fxa-settings");
 
-// Enable logging of APZ test data (see bug 961289).
-user_pref('apz.test.logging_enabled', true);
-
 // Make sure SSL Error reports don't hit the network
 user_pref("security.ssl.errorReporting.url", "https://example.com/browser/browser/base/content/test/general/pinning_reports.sjs?succeed");
 
@@ -251,8 +250,6 @@ user_pref("browser.translation.bing.translateArrayURL", "http://%(server)s/brows
 // Make sure we don't try to load snippets from the network.
 user_pref("browser.aboutHomeSnippets.updateUrl", "nonexistent://test");
 
-// Enable debug logging in the mozApps implementation.
-user_pref("dom.mozApps.debug", true);
 // Enable apps customizations
 user_pref("dom.apps.customization.enabled", true);
 
@@ -310,10 +307,8 @@ user_pref("network.proxy.pac_generator", false);
 // Make tests run consistently on DevEdition (which has a lightweight theme
 // selected by default).
 user_pref("lightweightThemes.selectedThemeID", "");
-user_pref("browser.devedition.theme.enabled", false);
-
-// Disable periodic updates of service workers.
-user_pref("dom.serviceWorkers.periodic-updates.enabled", false);
 
 // Enable speech synth test service, and disable built in platform services.
 user_pref("media.webspeech.synth.test", true);
+
+user_pref("dom.audiochannel.mutedByDefault", false);

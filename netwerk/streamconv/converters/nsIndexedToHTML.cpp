@@ -24,6 +24,7 @@
 #include "nsITextToSubURI.h"
 #include "nsXPIDLString.h"
 #include <algorithm>
+#include "nsIChannel.h"
 
 NS_IMPL_ISUPPORTS(nsIndexedToHTML,
                   nsIDirIndexListener,
@@ -533,30 +534,6 @@ nsIndexedToHTML::DoOnStartRequest(nsIRequest* request, nsISupports *aContext,
 
     buffer.AppendLiteral("</title>\n");    
 
-    // If there is a quote character in the baseUri, then
-    // lets not add a base URL.  The reason for this is that
-    // if we stick baseUri containing a quote into a quoted
-    // string, the quote character will prematurely close
-    // the base href string.  This is a fall-back check;
-    // that's why it is OK to not use a base rather than
-    // trying to play nice and escaping the quotes.  See bug
-    // 358128.
-
-    if (baseUri.FindChar('"') == kNotFound)
-    {
-        // Great, the baseUri does not contain a char that
-        // will prematurely close the string.  Go ahead an
-        // add a base href.
-        buffer.AppendLiteral("<base href=\"");
-        nsAdoptingCString htmlEscapedUri(nsEscapeHTML(baseUri.get()));
-        buffer.Append(htmlEscapedUri);
-        buffer.AppendLiteral("\" />\n");
-    }
-    else
-    {
-        NS_ERROR("broken protocol handler didn't escape double-quote.");
-    }
-
     nsCString direction(NS_LITERAL_CSTRING("ltr"));
     nsCOMPtr<nsIXULChromeRegistry> reg =
       mozilla::services::GetXULChromeRegistryService();
@@ -703,7 +680,7 @@ nsIndexedToHTML::OnIndexAvailable(nsIRequest *aRequest,
     if (loc.IsEmpty()) {
         return NS_ERROR_ILLEGAL_VALUE;
     }
-    if (loc.First() == PRUnichar('.'))
+    if (loc.First() == char16_t('.'))
         pushBuffer.AppendLiteral(" class=\"hidden-object\"");
 
     pushBuffer.AppendLiteral(">\n <td sortable-data=\"");

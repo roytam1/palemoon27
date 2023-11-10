@@ -22,6 +22,7 @@
 #include "mozilla/ipc/BackgroundUtils.h"
 #include "mozilla/ipc/PBackgroundChild.h"
 #include "mozilla/ipc/PBackgroundSharedTypes.h"
+#include "nsContentUtils.h"
 #include "nsIDocument.h"
 #include "nsIGlobalObject.h"
 #include "nsIScriptSecurityManager.h"
@@ -32,7 +33,7 @@ namespace mozilla {
 namespace dom {
 namespace cache {
 
-using mozilla::unused;
+using mozilla::Unused;
 using mozilla::ErrorResult;
 using mozilla::dom::workers::WorkerPrivate;
 using mozilla::ipc::BackgroundChild;
@@ -56,11 +57,11 @@ NS_INTERFACE_MAP_END
 // define this in the .cpp and use heap storage in the mPendingRequests list.
 struct CacheStorage::Entry final
 {
-  nsRefPtr<Promise> mPromise;
+  RefPtr<Promise> mPromise;
   CacheOpArgs mArgs;
   // We cannot add the requests until after the actor is present.  So store
   // the request data separately for now.
-  nsRefPtr<InternalRequest> mRequest;
+  RefPtr<InternalRequest> mRequest;
 };
 
 namespace {
@@ -81,7 +82,7 @@ IsTrusted(const PrincipalInfo& aPrincipalInfo, bool aTestingPrefEnabled)
   // worker.  We require exact knowledge of this information before allowing
   // the caller to touch the disk using the Cache API.
   if (NS_WARN_IF(aPrincipalInfo.type() != PrincipalInfo::TContentPrincipalInfo ||
-                 aPrincipalInfo.get_ContentPrincipalInfo().appId() ==
+                 aPrincipalInfo.get_ContentPrincipalInfo().attrs().mAppId ==
                  nsIScriptSecurityManager::UNKNOWN_APP_ID)) {
     return false;
   }
@@ -140,21 +141,21 @@ IsTrusted(const PrincipalInfo& aPrincipalInfo, bool aTestingPrefEnabled)
          hostname.EqualsLiteral("::1");
 }
 
-} // anonymous namespace
+} // namespace
 
 // static
 already_AddRefed<CacheStorage>
 CacheStorage::CreateOnMainThread(Namespace aNamespace, nsIGlobalObject* aGlobal,
-                                 nsIPrincipal* aPrincipal, bool aPrivateBrowsing,
+                                 nsIPrincipal* aPrincipal, bool aStorageDisabled,
                                  bool aForceTrustedOrigin, ErrorResult& aRv)
 {
   MOZ_ASSERT(aGlobal);
   MOZ_ASSERT(aPrincipal);
   MOZ_ASSERT(NS_IsMainThread());
 
-  if (aPrivateBrowsing) {
-    NS_WARNING("CacheStorage not supported during private browsing.");
-    nsRefPtr<CacheStorage> ref = new CacheStorage(NS_ERROR_DOM_SECURITY_ERR);
+  if (aStorageDisabled) {
+    NS_WARNING("CacheStorage has been disabled.");
+    RefPtr<CacheStorage> ref = new CacheStorage(NS_ERROR_DOM_SECURITY_ERR);
     return ref.forget();
   }
 
@@ -171,11 +172,11 @@ CacheStorage::CreateOnMainThread(Namespace aNamespace, nsIGlobalObject* aGlobal,
 
   if (!IsTrusted(principalInfo, testingEnabled)) {
     NS_WARNING("CacheStorage not supported on untrusted origins.");
-    nsRefPtr<CacheStorage> ref = new CacheStorage(NS_ERROR_DOM_SECURITY_ERR);
+    RefPtr<CacheStorage> ref = new CacheStorage(NS_ERROR_DOM_SECURITY_ERR);
     return ref.forget();
   }
 
-  nsRefPtr<CacheStorage> ref = new CacheStorage(aNamespace, aGlobal,
+  RefPtr<CacheStorage> ref = new CacheStorage(aNamespace, aGlobal,
                                                 principalInfo, nullptr);
   return ref.forget();
 }
@@ -189,13 +190,19 @@ CacheStorage::CreateOnWorker(Namespace aNamespace, nsIGlobalObject* aGlobal,
   MOZ_ASSERT(aWorkerPrivate);
   aWorkerPrivate->AssertIsOnWorkerThread();
 
-  if (aWorkerPrivate->IsInPrivateBrowsing()) {
-    NS_WARNING("CacheStorage not supported during private browsing.");
-    nsRefPtr<CacheStorage> ref = new CacheStorage(NS_ERROR_DOM_SECURITY_ERR);
+  if (!aWorkerPrivate->IsStorageAllowed()) {
+    NS_WARNING("CacheStorage is not allowed.");
+    RefPtr<CacheStorage> ref = new CacheStorage(NS_ERROR_DOM_SECURITY_ERR);
     return ref.forget();
   }
 
-  nsRefPtr<Feature> feature = Feature::Create(aWorkerPrivate);
+  if (aWorkerPrivate->IsInPrivateBrowsing()) {
+    NS_WARNING("CacheStorage not supported during private browsing.");
+    RefPtr<CacheStorage> ref = new CacheStorage(NS_ERROR_DOM_SECURITY_ERR);
+    return ref.forget();
+  }
+
+  RefPtr<Feature> feature = Feature::Create(aWorkerPrivate);
   if (!feature) {
     NS_WARNING("Worker thread is shutting down.");
     aRv.Throw(NS_ERROR_FAILURE);
@@ -204,19 +211,68 @@ CacheStorage::CreateOnWorker(Namespace aNamespace, nsIGlobalObject* aGlobal,
 
   const PrincipalInfo& principalInfo = aWorkerPrivate->GetPrincipalInfo();
 
+  // We have a number of cases where we want to skip the https scheme
+  // validation:
+  //
+  // 1) Any worker when dom.caches.testing.enabled pref is true.
+  // 2) Any worker when dom.serviceWorkers.testing.enabled pref is true.  This
+  //    is mainly because most sites using SWs will expect Cache to work if
+  //    SWs are enabled.
+  // 3) If the window that created this worker has the devtools SW testing
+  //    option enabled.  Same reasoning as (2).
+  // 4) If the worker itself is a ServiceWorker, then we always skip the
+  //    origin checks.  The ServiceWorker has its own trusted origin checks
+  //    that are better than ours.  In addition, we don't have information
+  //    about the window any more, so we can't do our own checks.
   bool testingEnabled = aWorkerPrivate->DOMCachesTestingEnabled() ||
                         aWorkerPrivate->ServiceWorkersTestingEnabled() ||
-                        aWorkerPrivate->ServiceWorkersTestingInWindow();
+                        aWorkerPrivate->ServiceWorkersTestingInWindow() ||
+                        aWorkerPrivate->IsServiceWorker();
 
   if (!IsTrusted(principalInfo, testingEnabled)) {
     NS_WARNING("CacheStorage not supported on untrusted origins.");
-    nsRefPtr<CacheStorage> ref = new CacheStorage(NS_ERROR_DOM_SECURITY_ERR);
+    RefPtr<CacheStorage> ref = new CacheStorage(NS_ERROR_DOM_SECURITY_ERR);
     return ref.forget();
   }
 
-  nsRefPtr<CacheStorage> ref = new CacheStorage(aNamespace, aGlobal,
+  RefPtr<CacheStorage> ref = new CacheStorage(aNamespace, aGlobal,
                                                 principalInfo, feature);
   return ref.forget();
+}
+
+// static
+bool
+CacheStorage::DefineCaches(JSContext* aCx, JS::Handle<JSObject*> aGlobal)
+{
+  MOZ_ASSERT(NS_IsMainThread());
+  MOZ_ASSERT(js::GetObjectClass(aGlobal)->flags & JSCLASS_DOM_GLOBAL,
+             "Passed object is not a global object!");
+
+  if (NS_WARN_IF(!CacheStorageBinding::GetConstructorObject(aCx, aGlobal) ||
+                 !CacheBinding::GetConstructorObject(aCx, aGlobal))) {
+    return false;
+  }
+
+  nsIPrincipal* principal = nsContentUtils::ObjectPrincipal(aGlobal);
+  MOZ_ASSERT(principal);
+
+  ErrorResult rv;
+  RefPtr<CacheStorage> storage =
+    CreateOnMainThread(DEFAULT_NAMESPACE, xpc::NativeGlobal(aGlobal), principal,
+                       false, /* private browsing */
+                       true,  /* force trusted */
+                       rv);
+  if (NS_WARN_IF(rv.MaybeSetPendingException(aCx))) {
+    return false;
+  }
+
+  JS::Rooted<JS::Value> caches(aCx);
+  js::AssertSameCompartment(aCx, aGlobal);
+  if (NS_WARN_IF(!ToJSValue(aCx, storage, &caches))) {
+    return false;
+  }
+
+  return JS_DefineProperty(aCx, aGlobal, "caches", caches, JSPROP_ENUMERATE);
 }
 
 CacheStorage::CacheStorage(Namespace aNamespace, nsIGlobalObject* aGlobal,
@@ -266,13 +322,13 @@ CacheStorage::Match(const RequestOrUSVString& aRequest,
     return nullptr;
   }
 
-  nsRefPtr<InternalRequest> request = ToInternalRequest(aRequest, IgnoreBody,
+  RefPtr<InternalRequest> request = ToInternalRequest(aRequest, IgnoreBody,
                                                         aRv);
   if (NS_WARN_IF(aRv.Failed())) {
     return nullptr;
   }
 
-  nsRefPtr<Promise> promise = Promise::Create(mGlobal, aRv);
+  RefPtr<Promise> promise = Promise::Create(mGlobal, aRv);
   if (NS_WARN_IF(!promise)) {
     return nullptr;
   }
@@ -301,7 +357,7 @@ CacheStorage::Has(const nsAString& aKey, ErrorResult& aRv)
     return nullptr;
   }
 
-  nsRefPtr<Promise> promise = Promise::Create(mGlobal, aRv);
+  RefPtr<Promise> promise = Promise::Create(mGlobal, aRv);
   if (NS_WARN_IF(!promise)) {
     return nullptr;
   }
@@ -326,7 +382,7 @@ CacheStorage::Open(const nsAString& aKey, ErrorResult& aRv)
     return nullptr;
   }
 
-  nsRefPtr<Promise> promise = Promise::Create(mGlobal, aRv);
+  RefPtr<Promise> promise = Promise::Create(mGlobal, aRv);
   if (NS_WARN_IF(!promise)) {
     return nullptr;
   }
@@ -351,7 +407,7 @@ CacheStorage::Delete(const nsAString& aKey, ErrorResult& aRv)
     return nullptr;
   }
 
-  nsRefPtr<Promise> promise = Promise::Create(mGlobal, aRv);
+  RefPtr<Promise> promise = Promise::Create(mGlobal, aRv);
   if (NS_WARN_IF(!promise)) {
     return nullptr;
   }
@@ -376,7 +432,7 @@ CacheStorage::Keys(ErrorResult& aRv)
     return nullptr;
   }
 
-  nsRefPtr<Promise> promise = Promise::Create(mGlobal, aRv);
+  RefPtr<Promise> promise = Promise::Create(mGlobal, aRv);
   if (NS_WARN_IF(!promise)) {
     return nullptr;
   }

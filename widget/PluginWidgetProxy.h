@@ -34,8 +34,9 @@ public:
   NS_DECL_ISUPPORTS_INHERITED
 
   // nsIWidget
+  using PuppetWidget::Create; // for Create signature not overridden here
   NS_IMETHOD Create(nsIWidget* aParent, nsNativeWidget aNativeParent,
-                    const nsIntRect& aRect,
+                    const LayoutDeviceIntRect& aRect,
                     nsWidgetInitData* aInitData = nullptr) override;
   NS_IMETHOD Destroy() override;
   NS_IMETHOD SetFocus(bool aRaise = false) override;
@@ -48,7 +49,7 @@ public:
 #endif
   virtual nsTransparencyMode GetTransparencyMode() override
   { return eTransparencyOpaque; }
-  virtual void GetWindowClipRegion(nsTArray<nsIntRect>* aRects) override;
+  virtual void GetWindowClipRegion(nsTArray<LayoutDeviceIntRect>* aRects) override;
 
 public:
   /**

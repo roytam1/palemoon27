@@ -42,7 +42,7 @@ class TestBridgeMainSubParent :
     public PTestBridgeMainSubParent
 {
 public:
-    TestBridgeMainSubParent(Transport* aTransport)
+    explicit TestBridgeMainSubParent(Transport* aTransport)
         : mTransport(aTransport)
     {}
     virtual ~TestBridgeMainSubParent() {}
@@ -74,7 +74,7 @@ protected:
 
     virtual PTestBridgeMainSubChild*
     AllocPTestBridgeMainSubChild(Transport* transport,
-                                 ProcessId otherProcess) MOZ_OVERRIDE
+                                 ProcessId otherProcess) override
     {
         // This shouldn't be called. It's just a byproduct of testing that
         // the right code is generated for a bridged protocol that's also
@@ -126,7 +126,7 @@ class TestBridgeMainSubChild :
     public PTestBridgeMainSubChild
 {
 public:
-    TestBridgeMainSubChild(Transport* aTransport)
+    explicit TestBridgeMainSubChild(Transport* aTransport)
         : mGotHi(false)
         , mTransport(aTransport)
     {}

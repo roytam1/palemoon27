@@ -52,20 +52,17 @@ public:
                               passed to filterImage() is used instead.
         @param cropRect       The rectangle to which the output processing will be limited.
     */
-    static SkMatrixConvolutionImageFilter* Create(const SkISize& kernelSize,
-                                                  const SkScalar* kernel,
-                                                  SkScalar gain,
-                                                  SkScalar bias,
-                                                  const SkIPoint& kernelOffset,
-                                                  TileMode tileMode,
-                                                  bool convolveAlpha,
-                                                  SkImageFilter* input = NULL,
-                                                  const CropRect* cropRect = NULL) {
-        return SkNEW_ARGS(SkMatrixConvolutionImageFilter, (kernelSize, kernel, gain, bias,
-                                                           kernelOffset, tileMode, convolveAlpha,
-                                                           input, cropRect));
-    }
+    static SkImageFilter* Create(const SkISize& kernelSize,
+                                 const SkScalar* kernel,
+                                 SkScalar gain,
+                                 SkScalar bias,
+                                 const SkIPoint& kernelOffset,
+                                 TileMode tileMode,
+                                 bool convolveAlpha,
+                                 SkImageFilter* input = NULL,
+                                 const CropRect* cropRect = NULL);
 
+    SK_TO_STRING_OVERRIDE()
     SK_DECLARE_PUBLIC_FLATTENABLE_DESERIALIZATION_PROCS(SkMatrixConvolutionImageFilter)
 
 protected:
@@ -78,19 +75,16 @@ protected:
                                    bool convolveAlpha,
                                    SkImageFilter* input,
                                    const CropRect* cropRect);
-    explicit SkMatrixConvolutionImageFilter(SkReadBuffer& buffer);
-    virtual void flatten(SkWriteBuffer&) const SK_OVERRIDE;
+    void flatten(SkWriteBuffer&) const override;
 
-    virtual bool onFilterImage(Proxy*, const SkBitmap& src, const Context&,
-                               SkBitmap* result, SkIPoint* loc) const SK_OVERRIDE;
-    virtual bool onFilterBounds(const SkIRect&, const SkMatrix&, SkIRect*) const SK_OVERRIDE;
-
+    bool onFilterImage(Proxy*, const SkBitmap& src, const Context&,
+                       SkBitmap* result, SkIPoint* loc) const override;
+    void onFilterNodeBounds(const SkIRect&, const SkMatrix&, SkIRect*, MapDirection) const override;
+    bool canComputeFastBounds() const override;
 
 #if SK_SUPPORT_GPU
-    virtual bool asNewEffect(GrEffect** effect,
-                             GrTexture*,
-                             const SkMatrix& ctm,
-                             const SkIRect& bounds) const SK_OVERRIDE;
+    bool asFragmentProcessor(GrFragmentProcessor**, GrTexture*, const SkMatrix&,
+                             const SkIRect& bounds) const override;
 #endif
 
 private:

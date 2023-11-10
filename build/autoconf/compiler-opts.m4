@@ -46,7 +46,7 @@ case "$target" in
     fi
     ;;
 *-darwin*)
-    # GCC on darwin is based on gcc 4.2 and we don't support it anymore. (LIES! Works fine.)
+    # GCC on darwin is based on gcc 4.2 and we don't support it anymore.
     if test -z "$CC"; then
         MOZ_PATH_PROGS(CC, clang)
     fi
@@ -56,7 +56,10 @@ case "$target" in
     IS_GCC=$($CC -v 2>&1 | grep gcc)
     if test -n "$IS_GCC"
     then
-      echo Mac gcc is known to be broken on OS X, please use clang or macports gcc if you have problems.
+      echo gcc is known to be broken on OS X, please use clang.
+      echo see http://developer.mozilla.org/en-US/docs/Developer_Guide/Build_Instructions/Mac_OS_X_Prerequisites
+      echo for more information.
+      exit 1
     fi
     ;;
 esac
@@ -134,8 +137,6 @@ MOZ_ARG_WITH_STRING(debug-label,
     MOZ_DEBUG_ENABLE_DEFS="$MOZ_DEBUG_ENABLE_DEFS -DDEBUG_${option}"
 done])
 
-MOZ_DEBUG_DISABLE_DEFS="-DNDEBUG -DTRIMMED"
-
 if test -n "$MOZ_DEBUG"; then
     AC_MSG_CHECKING([for valid debug flags])
     _SAVE_CFLAGS=$CFLAGS
@@ -149,7 +150,13 @@ if test -n "$MOZ_DEBUG"; then
         AC_MSG_ERROR([These compiler flags are invalid: $MOZ_DEBUG_FLAGS])
     fi
     CFLAGS=$_SAVE_CFLAGS
+
+    MOZ_DEBUG_DEFINES="$MOZ_DEBUG_ENABLE_DEFS"
+else
+    MOZ_DEBUG_DEFINES="-DNDEBUG -DTRIMMED"
 fi
+
+AC_SUBST(MOZ_DEBUG_DEFINES)
 
 dnl ========================================================
 dnl = Enable generation of debug symbols
@@ -354,6 +361,20 @@ if test "$GNU_CC" -a -n "$MOZ_PIE"; then
 fi
 
 AC_SUBST(MOZ_PROGRAM_LDFLAGS)
+
+dnl ASan assumes no symbols are being interposed, and when that happens,
+dnl it's not happy with it. Unconveniently, since Firefox is exporting
+dnl libffi symbols and Gtk+3 pulls system libffi via libwayland-client,
+dnl system libffi interposes libffi symbols that ASan assumes are in
+dnl libxul, so it barfs about buffer overflows.
+dnl Using -Wl,-Bsymbolic ensures no exported symbol can be interposed.
+if test -n "$GCC_USE_GNU_LD"; then
+  case "$LDFLAGS" in
+  *-fsanitize=address*)
+    LDFLAGS="$LDFLAGS -Wl,-Bsymbolic"
+    ;;
+  esac
+fi
 
 ])
 

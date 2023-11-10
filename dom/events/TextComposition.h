@@ -61,6 +61,10 @@ public:
   // Note that mString and mLastData are different between dispatcing
   // compositionupdate and compositionchange event handled by focused editor.
   const nsString& String() const { return mString; }
+  // The latest clauses range of the composition string.
+  // During compositionupdate event, GetRanges() returns old ranges.
+  // So if getting on compositionupdate, Use GetLastRange instead of GetRange().
+  TextRangeArray* GetLastRanges() const { return mLastRanges; }
   // Returns the clauses and/or caret range of the composition string.
   // This is modified at a call of EditorWillHandleCompositionChangeEvent().
   // This may return null if there is no clauses and caret.
@@ -76,7 +80,10 @@ public:
   // came from nsDOMWindowUtils.
   bool IsSynthesizedForTests() const { return mIsSynthesizedForTests; }
 
-  bool MatchesNativeContext(nsIWidget* aWidget) const;
+  const widget::NativeIMEContext& GetNativeIMEContext() const
+  {
+    return mNativeContext;
+  }
 
   /**
    * This is called when IMEStateManager stops managing the instance.
@@ -160,7 +167,7 @@ public:
     }
 
   private:
-    nsRefPtr<TextComposition> mComposition;
+    RefPtr<TextComposition> mComposition;
     CompositionChangeEventHandlingMarker();
     CompositionChangeEventHandlingMarker(
       const CompositionChangeEventHandlingMarker& aOther);
@@ -183,15 +190,18 @@ private:
   // this instance.
   nsPresContext* mPresContext;
   nsCOMPtr<nsINode> mNode;
-  nsRefPtr<TabParent> mTabParent;
+  RefPtr<TabParent> mTabParent;
 
   // This is the clause and caret range information which is managed by
   // the focused editor.  This may be null if there is no clauses or caret.
-  nsRefPtr<TextRangeArray> mRanges;
+  RefPtr<TextRangeArray> mRanges;
+  // Same as mRange, but mRange will have old data during compositionupdate.
+  // So this will be valied during compositionupdate.
+  RefPtr<TextRangeArray> mLastRanges;
 
   // mNativeContext stores a opaque pointer.  This works as the "ID" for this
   // composition.  Don't access the instance, it may not be available.
-  void* mNativeContext;
+  widget::NativeIMEContext mNativeContext;
 
   // mEditorWeak is a weak reference to the focused editor handling composition.
   nsWeakPtr mEditorWeak;
@@ -246,7 +256,20 @@ private:
   bool mAllowControlCharacters;
 
   // Hide the default constructor and copy constructor.
-  TextComposition() {}
+  TextComposition()
+    : mPresContext(nullptr)
+    , mNativeContext(nullptr)
+    , mCompositionStartOffset(0)
+    , mCompositionTargetOffset(0)
+    , mIsSynthesizedForTests(false)
+    , mIsComposing(false)
+    , mIsEditorHandlingEvent(false)
+    , mIsRequestingCommit(false)
+    , mIsRequestingCancel(false)
+    , mRequestedToCommitOrCancel(false)
+    , mWasNativeCompositionEndEventDiscarded(false)
+    , mAllowControlCharacters(false)
+  {}
   TextComposition(const TextComposition& aOther);
 
   /**
@@ -291,6 +314,15 @@ private:
                                 bool aIsSynthesized);
 
   /**
+   * Simply calling EventDispatcher::Dispatch() with plugin event.
+   * If dispatching event has no orginal clone, aOriginalEvent can be null.
+   */
+  void DispatchEvent(WidgetCompositionEvent* aDispatchEvent,
+                     nsEventStatus* aStatus,
+                     EventDispatchingCallback* aCallback,
+                     const WidgetCompositionEvent *aOriginalEvent = nullptr);
+
+  /**
    * HandleSelectionEvent() sends the selection event to ContentEventHandler
    * or dispatches it to the focused child process.
    */
@@ -319,7 +351,7 @@ private:
    */
   BaseEventFlags CloneAndDispatchAs(
                    const WidgetCompositionEvent* aCompositionEvent,
-                   uint32_t aMessage,
+                   EventMessage aMessage,
                    nsEventStatus* aStatus = nullptr,
                    EventDispatchingCallback* aCallBack = nullptr);
 
@@ -353,19 +385,19 @@ private:
   public:
     CompositionEventDispatcher(TextComposition* aTextComposition,
                                nsINode* aEventTarget,
-                               uint32_t aEventMessage,
+                               EventMessage aEventMessage,
                                const nsAString& aData,
                                bool aIsSynthesizedEvent = false);
     NS_IMETHOD Run() override;
 
   private:
-    nsRefPtr<TextComposition> mTextComposition;
+    RefPtr<TextComposition> mTextComposition;
     nsCOMPtr<nsINode> mEventTarget;
-    uint32_t mEventMessage;
     nsString mData;
+    EventMessage mEventMessage;
     bool mIsSynthesizedEvent;
 
-    CompositionEventDispatcher() {};
+    CompositionEventDispatcher() : mIsSynthesizedEvent(false) {};
   };
 
   /**
@@ -381,7 +413,7 @@ private:
    *                                commit or cancel composition.  Otherwise,
    *                                false.
    */
-  void DispatchCompositionEventRunnable(uint32_t aEventMessage,
+  void DispatchCompositionEventRunnable(EventMessage aEventMessage,
                                         const nsAString& aData,
                                         bool aIsSynthesizingCommit = false);
 };
@@ -397,14 +429,22 @@ private:
  */
 
 class TextCompositionArray final :
-  public nsAutoTArray<nsRefPtr<TextComposition>, 2>
+  public AutoTArray<RefPtr<TextComposition>, 2>
 {
 public:
+  // Looking for per native IME context.
+  index_type IndexOf(const widget::NativeIMEContext& aNativeIMEContext);
   index_type IndexOf(nsIWidget* aWidget);
+
+  TextComposition* GetCompositionFor(nsIWidget* aWidget);
+  TextComposition* GetCompositionFor(
+                     const WidgetCompositionEvent* aCompositionEvent);
+
+  // Looking for per nsPresContext
   index_type IndexOf(nsPresContext* aPresContext);
   index_type IndexOf(nsPresContext* aPresContext, nsINode* aNode);
 
-  TextComposition* GetCompositionFor(nsIWidget* aWidget);
+  TextComposition* GetCompositionFor(nsPresContext* aPresContext);
   TextComposition* GetCompositionFor(nsPresContext* aPresContext,
                                      nsINode* aNode);
   TextComposition* GetCompositionInContent(nsPresContext* aPresContext,

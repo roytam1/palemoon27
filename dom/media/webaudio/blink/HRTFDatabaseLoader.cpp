@@ -123,7 +123,7 @@ void HRTFDatabaseLoader::ProxyRelease()
 {
     nsCOMPtr<nsIThread> mainThread = do_GetMainThread();
     if (MOZ_LIKELY(mainThread)) {
-        nsRefPtr<ProxyReleaseEvent> event = new ProxyReleaseEvent(this);
+        RefPtr<ProxyReleaseEvent> event = new ProxyReleaseEvent(this);
         DebugOnly<nsresult> rv =
             mainThread->Dispatch(event, NS_DISPATCH_NORMAL);
         MOZ_ASSERT(NS_SUCCEEDED(rv), "Failed to dispatch release event");
@@ -214,8 +214,7 @@ void HRTFDatabaseLoader::shutdown()
         nsTHashtable<LoaderByRateEntry>* loaderMap = s_loaderMap;
         s_loaderMap = nullptr;
         for (auto iter = loaderMap->Iter(); !iter.Done(); iter.Next()) {
-            // Ensure the loader thread's reference is removed for leak analysis.
-            iter.Get()->mLoader->waitForLoaderThreadCompletion();
+          iter.Get()->mLoader->waitForLoaderThreadCompletion();
         }
         delete loaderMap;
     }

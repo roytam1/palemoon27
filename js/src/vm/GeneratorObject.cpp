@@ -24,7 +24,7 @@ GeneratorObject::create(JSContext* cx, AbstractFramePtr frame)
     RootedNativeObject obj(cx);
     if (frame.script()->isStarGenerator()) {
         RootedValue pval(cx);
-        RootedObject fun(cx, frame.fun());
+        RootedObject fun(cx, frame.callee());
         // FIXME: This would be faster if we could avoid doing a lookup to get
         // the prototype for the instance.  Bug 906600.
         if (!GetProperty(cx, fun, fun, cx->names().prototype, &pval))
@@ -48,7 +48,6 @@ GeneratorObject::create(JSContext* cx, AbstractFramePtr frame)
 
     GeneratorObject* genObj = &obj->as<GeneratorObject>();
     genObj->setCallee(*frame.callee());
-    genObj->setThisValue(frame.thisValue());
     genObj->setNewTarget(frame.newTarget());
     genObj->setScopeChain(*frame.scopeChain());
     if (frame.script()->needsArgsObj())
@@ -112,18 +111,13 @@ js::SetReturnValueForClosingGenerator(JSContext* cx, AbstractFramePtr frame)
     GeneratorObject& genObj = callObj.getSlot(shape->slot()).toObject().as<GeneratorObject>();
     genObj.setClosed();
 
-    Value v;
-    if (genObj.is<StarGeneratorObject>()) {
-        // The return value is stored in the .genrval slot.
-        shape = callObj.lookup(cx, cx->names().dotGenRVal);
-        v = callObj.getSlot(shape->slot());
-    } else {
-        // Legacy generator .close() always returns |undefined|.
-        MOZ_ASSERT(genObj.is<LegacyGeneratorObject>());
-        v = UndefinedValue();
-    }
+    // Return value is already set in GeneratorThrowOrClose.
+    if (genObj.is<StarGeneratorObject>())
+        return;
 
-    frame.setReturnValue(v);
+    // Legacy generator .close() always returns |undefined|.
+    MOZ_ASSERT(genObj.is<LegacyGeneratorObject>());
+    frame.setReturnValue(UndefinedValue());
 }
 
 bool
@@ -137,13 +131,8 @@ js::GeneratorThrowOrClose(JSContext* cx, AbstractFramePtr frame, Handle<Generato
         MOZ_ASSERT(resumeKind == GeneratorObject::CLOSE);
 
         if (genObj->is<StarGeneratorObject>()) {
-            // Store the return value in the frame's CallObject so that we can
-            // return it after executing finally blocks (and potentially
-            // yielding again).
             MOZ_ASSERT(arg.isObject());
-            CallObject& callObj = frame.callObj();
-            Shape* shape = callObj.lookup(cx, cx->names().dotGenRVal);
-            callObj.setSlot(shape->slot(), arg);
+            frame.setReturnValue(arg);
         } else {
             MOZ_ASSERT(arg.isUndefined());
         }
@@ -162,10 +151,9 @@ GeneratorObject::resume(JSContext* cx, InterpreterActivation& activation,
     MOZ_ASSERT(genObj->isSuspended());
 
     RootedFunction callee(cx, &genObj->callee());
-    RootedValue thisv(cx, genObj->thisValue());
     RootedValue newTarget(cx, genObj->newTarget());
     RootedObject scopeChain(cx, &genObj->scopeChain());
-    if (!activation.resumeGeneratorFrame(callee, thisv, newTarget, scopeChain))
+    if (!activation.resumeGeneratorFrame(callee, newTarget, scopeChain))
         return false;
     activation.regs().fp()->setResumedGenerator();
 
@@ -290,7 +278,7 @@ GlobalObject::initLegacyGeneratorProto(JSContext* cx, Handle<GlobalObject*> glob
 {
     if (global->getReservedSlot(LEGACY_GENERATOR_OBJECT_PROTO).isObject())
         return true;
- 
+
     RootedObject proto(cx, NewSingletonObjectWithObjectPrototype(cx, global));
     if (!proto || !proto->setDelegate(cx))
         return false;

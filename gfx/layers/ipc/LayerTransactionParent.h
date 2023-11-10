@@ -40,6 +40,7 @@ class LayerTransactionParent final : public PLayerTransactionParent,
 {
   typedef mozilla::layout::RenderFrameParent RenderFrameParent;
   typedef InfallibleTArray<Edit> EditArray;
+  typedef InfallibleTArray<OpDestroy> OpDestroyArray;
   typedef InfallibleTArray<EditReply> EditReplyArray;
   typedef InfallibleTArray<AsyncChildMessageData> AsyncChildMessageArray;
   typedef InfallibleTArray<PluginWindowData> PluginsArray;
@@ -63,22 +64,13 @@ public:
   // ISurfaceAllocator
   virtual bool AllocShmem(size_t aSize,
                           ipc::SharedMemory::SharedMemoryType aType,
-                          ipc::Shmem* aShmem) override {
-    return PLayerTransactionParent::AllocShmem(aSize, aType, aShmem);
-  }
+                          ipc::Shmem* aShmem) override;
 
   virtual bool AllocUnsafeShmem(size_t aSize,
                                 ipc::SharedMemory::SharedMemoryType aType,
-                                ipc::Shmem* aShmem) override {
-    return PLayerTransactionParent::AllocUnsafeShmem(aSize, aType, aShmem);
-  }
+                                ipc::Shmem* aShmem) override;
 
-  virtual void DeallocShmem(ipc::Shmem& aShmem) override
-  {
-    PLayerTransactionParent::DeallocShmem(aShmem);
-  }
-
-  virtual LayersBackend GetCompositorBackendType() const override;
+  virtual void DeallocShmem(ipc::Shmem& aShmem) override;
 
   virtual bool IsSameProcess() const override;
 
@@ -99,9 +91,12 @@ public:
   virtual void ReplyRemoveTexture(const OpReplyRemoveTexture& aReply) override;
 
 protected:
+  virtual bool RecvSyncWithCompositor() override { return true; }
+
   virtual bool RecvShutdown() override;
 
   virtual bool RecvUpdate(EditArray&& cset,
+                          OpDestroyArray&& aToDestroy,
                           const uint64_t& aTransactionId,
                           const TargetConfig& targetConfig,
                           PluginsArray&& aPlugins,
@@ -110,9 +105,11 @@ protected:
                           const uint32_t& paintSequenceNumber,
                           const bool& isRepeatTransaction,
                           const mozilla::TimeStamp& aTransactionStart,
+                          const int32_t& aPaintSyncId,
                           EditReplyArray* reply) override;
 
   virtual bool RecvUpdateNoSwap(EditArray&& cset,
+                                OpDestroyArray&& aToDestroy,
                                 const uint64_t& aTransactionId,
                                 const TargetConfig& targetConfig,
                                 PluginsArray&& aPlugins,
@@ -120,7 +117,8 @@ protected:
                                 const bool& scheduleComposite,
                                 const uint32_t& paintSequenceNumber,
                                 const bool& isRepeatTransaction,
-                                const mozilla::TimeStamp& aTransactionStart) override;
+                                const mozilla::TimeStamp& aTransactionStart,
+                                const int32_t& aPaintSyncId) override;
 
   virtual bool RecvClearCachedResources() override;
   virtual bool RecvForceComposite() override;
@@ -132,7 +130,7 @@ protected:
                                          MaybeTransform* aTransform)
                                          override;
   virtual bool RecvSetAsyncScrollOffset(const FrameMetrics::ViewID& aId,
-                                        const int32_t& aX, const int32_t& aY) override;
+                                        const float& aX, const float& aY) override;
   virtual bool RecvSetAsyncZoom(const FrameMetrics::ViewID& aId,
                                 const float& aValue) override;
   virtual bool RecvFlushApzRepaints() override;
@@ -148,6 +146,7 @@ protected:
   virtual bool DeallocPCompositableParent(PCompositableParent* actor) override;
 
   virtual PTextureParent* AllocPTextureParent(const SurfaceDescriptor& aSharedData,
+                                              const LayersBackend& aLayersBackend,
                                               const TextureFlags& aFlags) override;
   virtual bool DeallocPTextureParent(PTextureParent* actor) override;
 
@@ -175,11 +174,11 @@ protected:
   friend class layout::RenderFrameParent;
 
 private:
-  nsRefPtr<LayerManagerComposite> mLayerManager;
+  RefPtr<LayerManagerComposite> mLayerManager;
   ShadowLayersManager* mShadowLayersManager;
   // Hold the root because it might be grafted under various
   // containers in the "real" layer tree
-  nsRefPtr<Layer> mRoot;
+  RefPtr<Layer> mRoot;
   // When this is nonzero, it refers to a layer tree owned by the
   // compositor thread.  It is always true that
   //   mId != 0 => mRoot == null

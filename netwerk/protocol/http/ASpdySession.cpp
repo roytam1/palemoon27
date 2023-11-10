@@ -8,7 +8,7 @@
 #include "HttpLog.h"
 
 /*
-  Currently supported are HTTP-draft-[see nshttp.h]/2.0 spdy/3.1
+  Currently supported are h2 and spdy/3.1
 */
 
 #include "nsHttp.h"
@@ -39,9 +39,7 @@ ASpdySession::NewSpdySession(uint32_t version,
   // This is a necko only interface, so we can enforce version
   // requests as a precondition
   MOZ_ASSERT(version == SPDY_VERSION_31 ||
-             version == HTTP_VERSION_2 ||
-             version == HTTP_VERSION_2_DRAFT_LATEST ||
-             version == HTTP_VERSION_2_DRAFT_15,
+             version == HTTP_VERSION_2,
              "Unsupported spdy version");
 
   // Don't do a runtime check of IsSpdyV?Enabled() here because pref value
@@ -51,8 +49,7 @@ ASpdySession::NewSpdySession(uint32_t version,
 
   if (version == SPDY_VERSION_31) {
     return new SpdySession31(aTransport);
-  } else if (version == HTTP_VERSION_2_DRAFT_LATEST || version == HTTP_VERSION_2 ||
-             version == HTTP_VERSION_2_DRAFT_15) {
+  } else if (version == HTTP_VERSION_2) {
     return new Http2Session(aTransport, version);
   }
 
@@ -72,15 +69,6 @@ SpdyInformation::SpdyInformation()
 
   VersionString[1] = NS_LITERAL_CSTRING("h2");
   ALPNCallbacks[1] = Http2Session::ALPNCallback;
-
-  VersionString[2] = NS_LITERAL_CSTRING("h2-14");
-  ALPNCallbacks[2] = Http2Session::ALPNCallback;
-
-  VersionString[3] = NS_LITERAL_CSTRING("h2-15");
-  ALPNCallbacks[3] = Http2Session::ALPNCallback;
-
-  VersionString[4] = NS_LITERAL_CSTRING(HTTP2_DRAFT_LATEST_TOKEN);
-  ALPNCallbacks[4] = Http2Session::ALPNCallback;
 }
 
 bool
@@ -93,10 +81,6 @@ SpdyInformation::ProtocolEnabled(uint32_t index) const
     return gHttpHandler->IsSpdyV31Enabled();
   case 1:
     return gHttpHandler->IsHttp2Enabled();
-  case 2:
-  case 3:
-  case 4:
-    return gHttpHandler->IsHttp2DraftEnabled();
   }
   return false;
 }

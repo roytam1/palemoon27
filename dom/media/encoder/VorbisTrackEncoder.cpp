@@ -17,7 +17,7 @@ static const float BASE_QUALITY = 0.4f;
 namespace mozilla {
 
 #undef LOG
-PRLogModuleInfo* gVorbisTrackEncoderLog;
+LazyLogModule gVorbisTrackEncoderLog("VorbisTrackEncoder");
 #define VORBISLOG(msg, ...) MOZ_LOG(gVorbisTrackEncoderLog, mozilla::LogLevel::Debug, \
                              (msg, ##__VA_ARGS__))
 
@@ -25,9 +25,6 @@ VorbisTrackEncoder::VorbisTrackEncoder()
   : AudioTrackEncoder()
 {
   MOZ_COUNT_CTOR(VorbisTrackEncoder);
-  if (!gVorbisTrackEncoderLog) {
-    gVorbisTrackEncoderLog = PR_NewLogModule("VorbisTrackEncoder");
-  }
 }
 
 VorbisTrackEncoder::~VorbisTrackEncoder()
@@ -104,7 +101,7 @@ VorbisTrackEncoder::GetMetadata()
 
   // Vorbis codec specific data
   // http://matroska.org/technical/specs/codecid/index.html
-  nsRefPtr<VorbisMetadata> meta = new VorbisMetadata();
+  RefPtr<VorbisMetadata> meta = new VorbisMetadata();
   meta->mBitDepth = 32; // float for desktop
   meta->mChannels = mChannels;
   meta->mSamplingFrequency = mSamplingRate;
@@ -203,8 +200,8 @@ VorbisTrackEncoder::GetEncodedTrack(EncodedFrameContainer& aData)
     vorbis_analysis_buffer(&mVorbisDsp, (int)sourceSegment->GetDuration());
 
   int framesCopied = 0;
-  nsAutoTArray<AudioDataValue, 9600> interleavedPcm;
-  nsAutoTArray<AudioDataValue, 9600> nonInterleavedPcm;
+  AutoTArray<AudioDataValue, 9600> interleavedPcm;
+  AutoTArray<AudioDataValue, 9600> nonInterleavedPcm;
   interleavedPcm.SetLength(sourceSegment->GetDuration() * mChannels);
   nonInterleavedPcm.SetLength(sourceSegment->GetDuration() * mChannels);
   while (!iter.IsEnded()) {

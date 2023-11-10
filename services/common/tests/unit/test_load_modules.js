@@ -19,12 +19,12 @@ const test_modules = [
 ];
 
 function run_test() {
-  for each (let m in modules) {
+  for (let m in modules) {
     let resource = "resource://services-common/" + m;
     Components.utils.import(resource, {});
   }
 
-  for each (let m in test_modules) {
+  for (let m in test_modules) {
     let resource = "resource://testing-common/services/common/" + m;
     Components.utils.import(resource, {});
   }

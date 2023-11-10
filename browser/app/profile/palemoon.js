@@ -262,6 +262,9 @@ pref("browser.urlbar.clickSelectsAll", true);
 pref("browser.urlbar.doubleClickSelectsAll", false);
 pref("browser.urlbar.autoFill", true);
 pref("browser.urlbar.autoFill.typed", true);
+
+pref("browser.urlbar.unifiedcomplete", false);
+
 // 0: Match anywhere (e.g., middle of words)
 // 1: Match on word boundaries and then try matching anywhere
 // 2: Match only on word boundaries (e.g., after / or .)
@@ -345,6 +348,10 @@ pref("browser.download.panel.firstSessionCompleted", false);
 // search engines URL
 pref("browser.search.searchEnginesURL",      "https://addons.mozilla.org/%LOCALE%/firefox/search-engines/");
 
+// Tell the search service to load search plugins from the locale JAR
+pref("browser.search.loadFromJars", true);
+pref("browser.search.jarURIs", "chrome://browser/locale/searchplugins/");
+
 // pointer to the default engine name
 pref("browser.search.defaultenginename",      "chrome://browser-region/locale/region.properties");
 
@@ -383,7 +390,16 @@ pref("browser.search.suggest.enabled", true);
 pref("browser.search.official", true);
 #endif
 
+#ifdef XP_WIN
+pref("browser.search.redirectWindowsSearch", true);
+#else
+pref("browser.search.redirectWindowsSearch", false);
+#endif
+
 pref("browser.sessionhistory.max_entries", 50);
+
+// Built-in default permissions.
+pref("permissions.manager.defaultsUrl", "resource://app/defaults/permissions");
 
 // handle links targeting new windows
 // 1=current window/tab, 2=new window, 3=new tab in most recent window
@@ -481,10 +497,6 @@ pref("dom.disable_window_status_change",          true);
 pref("dom.disable_window_move_resize",            false);
 // prevent JS from monkeying with window focus, etc
 pref("dom.disable_window_flip",                   true);
-
-// Disable touch events on Desktop Firefox by default until they are properly
-// supported (bug 736048)
-pref("dom.w3c_touch_events.enabled",        0);
 
 // popups.policy 1=allow,2=reject
 pref("privacy.popups.policy",               1);
@@ -909,6 +921,16 @@ pref("dom.ipc.plugins.enabled.x86_64", true);
 pref("dom.ipc.plugins.enabled", true);
 #endif
 
+// Decode using Gecko Media Plugins in <video>, if a system decoder is not
+// availble and the preferred GMP is available.
+pref("media.gmp.decoder.enabled", true);
+
+// If decoding-via-GMP is turned on for <video>, use Adobe's GMP for decoding,
+// if it's available. Note: We won't fallback to another GMP if Adobe's is not
+// installed.
+pref("media.gmp.decoder.aac", 2);
+pref("media.gmp.decoder.h264", 2);
+
 pref("browser.tabs.remote", false);
 
 #if defined(XP_WIN) && defined(MOZ_SANDBOX)
@@ -918,7 +940,12 @@ pref("browser.tabs.remote", false);
 // This will require a restart.
 pref("security.sandbox.windows.log", false);
 
+#if defined(_AMD64_)
+// The lines in PluginModuleParent.cpp should be changed in line with this.
+pref("dom.ipc.plugins.sandbox-level.flash", 2);
+#else
 pref("dom.ipc.plugins.sandbox-level.flash", 0);
+#endif
 
 #if defined(MOZ_CONTENT_SANDBOX)
 // This controls the strength of the Windows content process sandbox for testing
@@ -1087,13 +1114,37 @@ pref("devtools.command-button-eyedropper.enabled", false);
 pref("devtools.command-button-screenshot.enabled", false);
 pref("devtools.command-button-rulers.enabled", false);
 
+// Enable the Debugger
+pref("devtools.debugger.enabled", true);
+pref("devtools.debugger.chrome-debugging-host", "localhost");
+pref("devtools.debugger.chrome-debugging-port", 6080);
+pref("devtools.debugger.remote-host", "localhost");
+pref("devtools.debugger.remote-timeout", 20000);
+pref("devtools.debugger.pause-on-exceptions", false);
+pref("devtools.debugger.ignore-caught-exceptions", true);
+pref("devtools.debugger.source-maps-enabled", true);
+pref("devtools.debugger.pretty-print-enabled", true);
+pref("devtools.debugger.auto-pretty-print", false);
+pref("devtools.debugger.auto-black-box", true);
+pref("devtools.debugger.tracer", false);
+pref("devtools.debugger.workers", false);
+
+// The default Debugger UI settings
+pref("devtools.debugger.ui.panes-workers-and-sources-width", 200);
+pref("devtools.debugger.ui.panes-instruments-width", 300);
+pref("devtools.debugger.ui.panes-visible-on-startup", false);
+pref("devtools.debugger.ui.variables-sorting-enabled", true);
+pref("devtools.debugger.ui.variables-only-enum-visible", false);
+pref("devtools.debugger.ui.variables-searchbox-visible", false);
+
 // Enable the Performance tools
 pref("devtools.performance.enabled", true);
 
 // The default Performance UI settings
 pref("devtools.performance.memory.sample-probability", "0.05");
 pref("devtools.performance.memory.max-log-length", 2147483647); // Math.pow(2,31) - 1
-pref("devtools.performance.timeline.hidden-markers", "[]");
+pref("devtools.performance.timeline.hidden-markers",
+  "[\"Composite\",\"CompositeForwardTransaction\"]");
 pref("devtools.performance.profiler.buffer-size", 10000000);
 pref("devtools.performance.profiler.sample-frequency-khz", 1);
 pref("devtools.performance.ui.show-jit-optimizations", false);
@@ -1176,6 +1227,12 @@ pref("security.csp.speccompliant", true);
 // Block insecure active content on https pages
 pref("security.mixed_content.block_active_content", true);
 
+// ID (a UUID when set by gecko) that is used as a per profile suffix to a low
+// integrity temp directory.
+pref("security.sandbox.content.tempDirSuffix", "");
+
+// 2 = allow SHA-1 only before 2016-01-01
+pref("security.pki.sha1_enforcement_level", 2);
 
 // Required blocklist freshness for OneCRL OCSP bypass
 // (default should be at least as large as extensions.blocklist.interval)
@@ -1211,11 +1268,14 @@ pref("browser.display.standalone_images.background_color", "#2E3B41");
 
 pref("view_source.tab", false);
 
-// Enable Service Workers for desktop on non-release builds
-#ifndef RELEASE_BUILD
+// Enable ServiceWorkers for Push API consumers.
+// Interception is still disabled.
 pref("dom.serviceWorkers.enabled", true);
-pref("dom.serviceWorkers.interception.enabled", true);
-#endif
+
+pref("dom.serviceWorkers.openWindow.enabled", true);
+
+// Enable Push API.
+pref("dom.push.enabled", true);
 
 // ****************** domain-specific UAs ******************
 

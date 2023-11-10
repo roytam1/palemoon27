@@ -42,7 +42,7 @@ let _add_params = function (params) {
 };
 
 let _dumpLog = function (raw_msg) {
-  dump("\n" + raw_msg + "\n");
+  dump("\n" + JSON.stringify(raw_msg) + "\n");
 }
 
 let _LoggerClass = Components.utils.import("resource://testing-common/StructuredLog.jsm", null).StructuredLogger;
@@ -216,7 +216,9 @@ var _fakeIdleService = {
       Components.manager.QueryInterface(Components.interfaces.nsIComponentRegistrar);
   },
   contractID: "@mozilla.org/widget/idleservice;1",
-  get CID() this.registrar.contractIDToCID(this.contractID),
+  get CID() {
+    return this.registrar.contractIDToCID(this.contractID);
+  },
 
   activate: function FIS_activate()
   {
@@ -268,7 +270,9 @@ var _fakeIdleService = {
   },
 
   // nsIIdleService
-  get idleTime() 0,
+  get idleTime() {
+    return 0;
+  },
   addIdleObserver: function () {},
   removeIdleObserver: function () {},
 
@@ -311,7 +315,7 @@ function _register_protocol_handlers() {
 }
 
 function _register_modules_protocol_handler() {
-  if (!this._TESTING_MODULES_DIR) {
+  if (!_TESTING_MODULES_DIR) {
     throw new Error("Please define a path where the testing modules can be " +
                     "found in a variable called '_TESTING_MODULES_DIR' before " +
                     "head.js is included.");
@@ -383,7 +387,8 @@ function _setupDebuggerServer(breakpointFiles, callback) {
           // Add a breakpoint for the first line in our test files.
           let threadActor = subject.wrappedJSObject;
           for (let file of breakpointFiles) {
-            let sourceActor = threadActor.sources.source({originalUrl: file});
+            // Pass an empty `source` object to workaround `source` function assertion
+            let sourceActor = threadActor.sources.source({originalUrl: file, source: {}});
             sourceActor._getOrCreateBreakpointActor(new OriginalLocation(sourceActor, 1));
           }
         } catch (ex) {
@@ -1193,7 +1198,7 @@ function do_load_child_test_harness()
       + "const _JSDEBUGGER_PORT=0; "
       + "const _XPCSHELL_PROCESS='child';";
 
-  if (this._TESTING_MODULES_DIR) {
+  if (_TESTING_MODULES_DIR) {
     command += " const _TESTING_MODULES_DIR=" + uneval(_TESTING_MODULES_DIR) + ";";
   }
 

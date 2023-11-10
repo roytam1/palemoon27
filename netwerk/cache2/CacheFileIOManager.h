@@ -10,6 +10,7 @@
 #include "nsIEventTarget.h"
 #include "nsITimer.h"
 #include "nsCOMPtr.h"
+#include "mozilla/Atomics.h"
 #include "mozilla/SHA1.h"
 #include "mozilla/TimeStamp.h"
 #include "nsTArray.h"
@@ -28,6 +29,8 @@ namespace mozilla {
 namespace net {
 
 class CacheFile;
+class CacheFileIOListener;
+
 #ifdef DEBUG_HANDLES
 class CacheFileHandlesEntry;
 #endif
@@ -40,12 +43,17 @@ class CacheFileHandlesEntry;
 class CacheFileHandle : public nsISupports
 {
 public:
+  enum class PinningStatus : uint32_t {
+    UNKNOWN,
+    NON_PINNED,
+    PINNED
+  };
+
   NS_DECL_THREADSAFE_ISUPPORTS
   bool DispatchRelease();
 
-  CacheFileHandle(const SHA1Sum::Hash *aHash, bool aPriority);
-  CacheFileHandle(const nsACString &aKey, bool aPriority);
-  CacheFileHandle(const CacheFileHandle &aOther);
+  CacheFileHandle(const SHA1Sum::Hash *aHash, bool aPriority, PinningStatus aPinning);
+  CacheFileHandle(const nsACString &aKey, bool aPriority, PinningStatus aPinning);
   void Log();
   bool IsDoomed() const { return mIsDoomed; }
   const SHA1Sum::Hash *Hash() const { return mHash; }
@@ -56,6 +64,9 @@ public:
   bool IsClosed() const { return mClosed; }
   bool IsSpecialFile() const { return mSpecialFile; }
   nsCString & Key() { return mKey; }
+
+  // Returns false when this handle has been doomed based on the pinning state update.
+  bool SetPinned(bool aPinned);
 
   // Memory reporting
   size_t SizeOfExcludingThis(mozilla::MallocSizeOf mallocSizeOf) const;
@@ -69,7 +80,7 @@ private:
   virtual ~CacheFileHandle();
 
   const SHA1Sum::Hash *mHash;
-  bool                 mIsDoomed;
+  mozilla::Atomic<bool,ReleaseAcquire> mIsDoomed;
   bool                 mPriority;
   bool                 mClosed;
   bool                 mSpecialFile;
@@ -78,6 +89,22 @@ private:
                                     // but it can be still deleted by OS/user
                                     // and then a subsequent OpenNSPRFileDesc()
                                     // will fail.
+
+  // For existing files this is always pre-set to UNKNOWN.  The status is udpated accordingly
+  // after the matadata has been parsed.
+  // For new files the flag is set according to which storage kind is opening
+  // the cache entry and remains so for the handle's lifetime.
+  // The status can only change from UNKNOWN (if set so initially) to one of PINNED or NON_PINNED
+  // and it stays unchanged afterwards.
+  // This status is only accessed on the IO thread.
+  PinningStatus        mPinning;
+  // Both initially false.  Can be raised to true only when this handle is to be doomed
+  // during the period when the pinning status is unknown.  After the pinning status
+  // determination we check these flags and possibly doom.
+  // These flags are only accessed on the IO thread.
+  bool                 mDoomWhenFoundPinned : 1;
+  bool                 mDoomWhenFoundNonPinned : 1;
+
   nsCOMPtr<nsIFile>    mFile;
   int64_t              mFileSize;
   PRFileDesc          *mFD;  // if null then the file doesn't exists on the disk
@@ -90,10 +117,11 @@ public:
   ~CacheFileHandles();
 
   nsresult GetHandle(const SHA1Sum::Hash *aHash, CacheFileHandle **_retval);
-  nsresult NewHandle(const SHA1Sum::Hash *aHash, bool aPriority, CacheFileHandle **_retval);
+  nsresult NewHandle(const SHA1Sum::Hash *aHash, bool aPriority,
+                     CacheFileHandle::PinningStatus aPinning, CacheFileHandle **_retval);
   void     RemoveHandle(CacheFileHandle *aHandlle);
-  void     GetAllHandles(nsTArray<nsRefPtr<CacheFileHandle> > *_retval);
-  void     GetActiveHandles(nsTArray<nsRefPtr<CacheFileHandle> > *_retval);
+  void     GetAllHandles(nsTArray<RefPtr<CacheFileHandle> > *_retval);
+  void     GetActiveHandles(nsTArray<RefPtr<CacheFileHandle> > *_retval);
   void     ClearAll();
   uint32_t HandleCount();
 
@@ -114,8 +142,8 @@ public:
     explicit HandleHashKey(KeyTypePointer aKey)
     {
       MOZ_COUNT_CTOR(HandleHashKey);
-      mHash = (SHA1Sum::Hash*)new uint8_t[SHA1Sum::kHashSize];
-      memcpy(mHash, aKey, sizeof(SHA1Sum::Hash));
+      mHash = MakeUnique<uint8_t[]>(SHA1Sum::kHashSize);
+      memcpy(mHash.get(), aKey, sizeof(SHA1Sum::Hash));
     }
     HandleHashKey(const HandleHashKey& aOther)
     {
@@ -128,7 +156,7 @@ public:
 
     bool KeyEquals(KeyTypePointer aKey) const
     {
-      return memcmp(mHash, aKey, sizeof(SHA1Sum::Hash)) == 0;
+      return memcmp(mHash.get(), aKey, sizeof(SHA1Sum::Hash)) == 0;
     }
     static KeyTypePointer KeyToPointer(KeyType aKey)
     {
@@ -142,9 +170,12 @@ public:
     void AddHandle(CacheFileHandle* aHandle);
     void RemoveHandle(CacheFileHandle* aHandle);
     already_AddRefed<CacheFileHandle> GetNewestHandle();
-    void GetHandles(nsTArray<nsRefPtr<CacheFileHandle> > &aResult);
+    void GetHandles(nsTArray<RefPtr<CacheFileHandle> > &aResult);
 
-    SHA1Sum::Hash *Hash() const { return mHash; }
+    SHA1Sum::Hash *Hash() const
+    {
+      return reinterpret_cast<SHA1Sum::Hash*>(mHash.get());
+    }
     bool IsEmpty() const { return mHandles.Length() == 0; }
 
     enum { ALLOW_MEMMOVE = true };
@@ -158,7 +189,11 @@ public:
     size_t SizeOfIncludingThis(mozilla::MallocSizeOf mallocSizeOf) const;
 
   private:
-    nsAutoArrayPtr<SHA1Sum::Hash> mHash;
+    // We can't make this UniquePtr<SHA1Sum::Hash>, because you can't have
+    // UniquePtrs with known bounds.  So we settle for this representation
+    // and using appropriate casts when we need to access it as a
+    // SHA1Sum::Hash.
+    UniquePtr<uint8_t[]> mHash;
     // Use weak pointers since the hash table access is on a single thread
     // only and CacheFileHandle removes itself from this table in its dtor
     // that may only be called on the same thread as we work with the hashtable
@@ -211,11 +246,12 @@ public:
   NS_DECL_NSITIMERCALLBACK
 
   enum {
-    OPEN         = 0U,
-    CREATE       = 1U,
-    CREATE_NEW   = 2U,
-    PRIORITY     = 4U,
-    SPECIAL_FILE = 8U
+    OPEN         =  0U,
+    CREATE       =  1U,
+    CREATE_NEW   =  2U,
+    PRIORITY     =  4U,
+    SPECIAL_FILE =  8U,
+    PINNED       = 16U
   };
 
   CacheFileIOManager();
@@ -246,6 +282,19 @@ public:
   static nsresult Write(CacheFileHandle *aHandle, int64_t aOffset,
                         const char *aBuf, int32_t aCount, bool aValidate,
                         bool aTruncate, CacheFileIOListener *aCallback);
+  // PinningDoomRestriction:
+  // NO_RESTRICTION
+  //    no restriction is checked, the file is simply always doomed
+  // DOOM_WHEN_(NON)_PINNED, we branch based on the pinning status of the handle:
+  //   UNKNOWN: the handle is marked to be doomed when later found (non)pinned
+  //   PINNED/NON_PINNED: doom only when the restriction matches the pin status
+  //      and the handle has not yet been required to doom during the UNKNOWN
+  //      period
+  enum PinningDoomRestriction {
+    NO_RESTRICTION,
+    DOOM_WHEN_NON_PINNED,
+    DOOM_WHEN_PINNED
+  };
   static nsresult DoomFile(CacheFileHandle *aHandle,
                            CacheFileIOListener *aCallback);
   static nsresult DoomFileByKey(const nsACString &aKey,
@@ -259,12 +308,14 @@ public:
                              CacheFileIOListener *aCallback);
   static nsresult EvictIfOverLimit();
   static nsresult EvictAll();
-  static nsresult EvictByContext(nsILoadContextInfo *aLoadContextInfo);
+  static nsresult EvictByContext(nsILoadContextInfo *aLoadContextInfo,
+                                 bool aPinning);
 
   static nsresult InitIndexEntry(CacheFileHandle *aHandle,
                                  uint32_t         aAppId,
                                  bool             aAnonymous,
-                                 bool             aInBrowser);
+                                 bool             aInBrowser,
+                                 bool             aPinning);
   static nsresult UpdateIndexEntry(CacheFileHandle *aHandle,
                                    const uint32_t  *aFrecency,
                                    const uint32_t  *aExpirationTime);
@@ -328,7 +379,8 @@ private:
   nsresult WriteInternal(CacheFileHandle *aHandle, int64_t aOffset,
                          const char *aBuf, int32_t aCount, bool aValidate,
                          bool aTruncate);
-  nsresult DoomFileInternal(CacheFileHandle *aHandle);
+  nsresult DoomFileInternal(CacheFileHandle *aHandle,
+                            PinningDoomRestriction aPinningStatusRestriction = NO_RESTRICTION);
   nsresult DoomFileByKeyInternal(const SHA1Sum::Hash *aHash);
   nsresult ReleaseNSPRHandleInternal(CacheFileHandle *aHandle);
   nsresult TruncateSeekSetEOFInternal(CacheFileHandle *aHandle,
@@ -338,7 +390,8 @@ private:
   nsresult EvictIfOverLimitInternal();
   nsresult OverLimitEvictionInternal();
   nsresult EvictAllInternal();
-  nsresult EvictByContextInternal(nsILoadContextInfo *aLoadContextInfo);
+  nsresult EvictByContextInternal(nsILoadContextInfo *aLoadContextInfo,
+                                  bool aPinning);
 
   nsresult TrashDirectory(nsIFile *aFile);
   static void OnTrashTimer(nsITimer *aTimer, void *aClosure);
@@ -382,7 +435,7 @@ private:
   static CacheFileIOManager           *gInstance;
   TimeStamp                            mStartTime;
   bool                                 mShuttingDown;
-  nsRefPtr<CacheIOThread>              mIOThread;
+  RefPtr<CacheIOThread>                mIOThread;
   nsCOMPtr<nsIFile>                    mCacheDirectory;
 #if defined(MOZ_WIDGET_ANDROID)
   // On Android we add the active profile directory name between the path
@@ -395,7 +448,7 @@ private:
   CacheFileHandles                     mHandles;
   nsTArray<CacheFileHandle *>          mHandlesByLastUsed;
   nsTArray<CacheFileHandle *>          mSpecialHandles;
-  nsTArray<nsRefPtr<CacheFile> >       mScheduledMetadataWrites;
+  nsTArray<RefPtr<CacheFile> >         mScheduledMetadataWrites;
   nsCOMPtr<nsITimer>                   mMetadataWritesTimer;
   bool                                 mOverLimitEvicting;
   bool                                 mRemovingTrashDirs;
@@ -403,7 +456,7 @@ private:
   nsCOMPtr<nsIFile>                    mTrashDir;
   nsCOMPtr<nsIDirectoryEnumerator>     mTrashDirEnumerator;
   nsTArray<nsCString>                  mFailedTrashDirs;
-  nsRefPtr<CacheFileContextEvictor>    mContextEvictor;
+  RefPtr<CacheFileContextEvictor>      mContextEvictor;
   TimeStamp                            mLastSmartSizeTime;
 };
 

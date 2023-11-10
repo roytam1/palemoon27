@@ -316,9 +316,13 @@ void
 nsTableFrame::SetInitialChildList(ChildListID     aListID,
                                   nsFrameList&    aChildList)
 {
+  if (aListID != kPrincipalList) {
+    nsContainerFrame::SetInitialChildList(aListID, aChildList);
+    return;
+  }
+
   MOZ_ASSERT(mFrames.IsEmpty() && mColGroups.IsEmpty(),
              "unexpected second call to SetInitialChildList");
-  MOZ_ASSERT(aListID == kPrincipalList, "unexpected child list");
 
   // XXXbz the below code is an icky cesspit that's only needed in its current
   // form for two reasons:
@@ -368,7 +372,7 @@ nsTableFrame::AttributeChangedFor(nsIFrame*       aFrame,
         cellFrame->GetRowIndex(rowIndex);
         cellFrame->GetColIndex(colIndex);
         RemoveCell(cellFrame, rowIndex);
-        nsAutoTArray<nsTableCellFrame*, 1> cells;
+        AutoTArray<nsTableCellFrame*, 1> cells;
         cells.AppendElement(cellFrame);
         InsertCells(cells, rowIndex, colIndex - 1);
 
@@ -622,7 +626,24 @@ nsTableFrame::RemoveCol(nsTableColGroupFrame* aColGroupFrame,
   if (aRemoveFromCellMap) {
     nsTableCellMap* cellMap = GetCellMap();
     if (cellMap) {
-      AppendAnonymousColFrames(1);
+      // If we have some anonymous cols at the end already, we just
+      // add a new anonymous col.
+      if (!mColFrames.IsEmpty() &&
+          mColFrames.LastElement() && // XXXbz is this ever null?
+          mColFrames.LastElement()->GetColType() == eColAnonymousCell) {
+        AppendAnonymousColFrames(1);
+      } else {
+        // All of our colframes correspond to actual <col> tags.  It's possible
+        // that we still have at least as many <col> tags as we have logical
+        // columns from cells, but we might have one less.  Handle the latter
+        // case as follows: First ask the cellmap to drop its last col if it
+        // doesn't have any actual cells in it.  Then call
+        // MatchCellMapToColCache to append an anonymous column if it's needed;
+        // this needs to be after RemoveColsAtEnd, since it will determine the
+        // need for a new column frame based on the width of the cell map.
+        cellMap->RemoveColsAtEnd();
+        MatchCellMapToColCache(cellMap);
+      }
     }
   }
   // for now, just bail and recalc all of the collapsing borders
@@ -649,7 +670,7 @@ nsTableFrame::CreateAnonymousColGroupFrame(nsTableColGroupType aColGroupType)
   nsPresContext* presContext = PresContext();
   nsIPresShell *shell = presContext->PresShell();
 
-  nsRefPtr<nsStyleContext> colGroupStyle;
+  RefPtr<nsStyleContext> colGroupStyle;
   colGroupStyle = shell->StyleSet()->
     ResolveAnonymousBoxStyle(nsCSSAnonBoxes::tableColGroup, mStyleContext);
   // Create a col group frame
@@ -705,7 +726,7 @@ nsTableFrame::AppendAnonymousColFrames(nsTableColGroupFrame* aColGroupFrame,
 
   for (int32_t childX = startIndex; childX <= lastIndex; childX++) {
     nsIContent* iContent;
-    nsRefPtr<nsStyleContext> styleContext;
+    RefPtr<nsStyleContext> styleContext;
     nsStyleContext* parentStyleContext;
 
     // all anonymous cols that we create here use a pseudo style context of the
@@ -983,11 +1004,9 @@ nsTableFrame::CollectRows(nsIFrame*                   aFrame,
 {
   NS_PRECONDITION(aFrame, "null frame");
   int32_t numRows = 0;
-  nsIFrame* childFrame = aFrame->GetFirstPrincipalChild();
-  while (childFrame) {
+  for (nsIFrame* childFrame : aFrame->PrincipalChildList()) {
     aCollection.AppendElement(static_cast<nsTableRowFrame*>(childFrame));
     numRows++;
-    childFrame = childFrame->GetNextSibling();
   }
   return numRows;
 }
@@ -1004,7 +1023,7 @@ nsTableFrame::InsertRowGroups(const nsFrameList::Slice& aRowGroups)
     RowGroupArray orderedRowGroups;
     OrderRowGroups(orderedRowGroups);
 
-    nsAutoTArray<nsTableRowFrame*, 8> rows;
+    AutoTArray<nsTableRowFrame*, 8> rows;
     // Loop over the rowgroups and check if some of them are new, if they are
     // insert cellmaps in the order that is predefined by OrderRowGroups,
     // XXXbz this code is O(N*M) where N is number of new rowgroups
@@ -1164,9 +1183,8 @@ nsDisplayTableBorderBackground::Paint(nsDisplayListBuilder* aBuilder,
                                       nsRenderingContext* aCtx)
 {
   DrawResult result = static_cast<nsTableFrame*>(mFrame)->
-    PaintTableBorderBackground(*aCtx, mVisibleRect,
-                               ToReferenceFrame(),
-                               aBuilder->GetBackgroundPaintFlags());
+    PaintTableBorderBackground(aBuilder, *aCtx, mVisibleRect,
+                               ToReferenceFrame());
 
   nsDisplayTableItemGeometry::UpdateDrawResult(this, result);
 }
@@ -1202,10 +1220,8 @@ nsTableFrame::GenericTraversal(nsDisplayListBuilder* aBuilder, nsFrame* aFrame,
   // stacking context, in which case the child won't use its passed-in
   // BorderBackground list anyway. It does affect cell borders though; this
   // lets us get cell borders into the nsTableFrame's BorderBackground list.
-  nsIFrame* kid = aFrame->GetFirstPrincipalChild();
-  while (kid) {
+  for (nsIFrame* kid : aFrame->PrincipalChildList()) {
     aFrame->BuildDisplayListForChild(aBuilder, kid, aDirtyRect, aLists);
-    kid = kid->GetNextSibling();
   }
 }
 
@@ -1265,7 +1281,7 @@ nsTableFrame::DisplayGenericTablePart(nsDisplayListBuilder* aBuilder,
     // Ensure that the table frame event background goes before the
     // table rowgroups event backgrounds, before the table row event backgrounds,
     // before everything else (cells and their blocks)
-    separatedCollection.BorderBackground()->Sort(aBuilder, CompareByTablePartRank, nullptr);
+    separatedCollection.BorderBackground()->Sort(CompareByTablePartRank, nullptr);
     separatedCollection.MoveTo(aLists);
   }
 
@@ -1358,15 +1374,21 @@ nsTableFrame::GetDeflationForBackground(nsPresContext* aPresContext) const
 // XXX We don't put the borders and backgrounds in tree order like we should.
 // That requires some major surgery which we aren't going to do right now.
 DrawResult
-nsTableFrame::PaintTableBorderBackground(nsRenderingContext& aRenderingContext,
+nsTableFrame::PaintTableBorderBackground(nsDisplayListBuilder* aBuilder,
+                                         nsRenderingContext& aRenderingContext,
                                          const nsRect& aDirtyRect,
-                                         nsPoint aPt, uint32_t aBGPaintFlags)
+                                         nsPoint aPt)
 {
   nsPresContext* presContext = PresContext();
 
+  uint32_t bgFlags = aBuilder->GetBackgroundPaintFlags();
+  PaintBorderFlags borderFlags = aBuilder->ShouldSyncDecodeImages()
+                               ? PaintBorderFlags::SYNC_DECODE_IMAGES
+                               : PaintBorderFlags();
+
   TableBackgroundPainter painter(this, TableBackgroundPainter::eOrigin_Table,
                                  presContext, aRenderingContext,
-                                 aDirtyRect, aPt, aBGPaintFlags);
+                                 aDirtyRect, aPt, bgFlags);
   nsMargin deflate = GetDeflationForBackground(presContext);
   // If 'deflate' is (0,0,0,0) then we'll paint the table background
   // in a separate display item, so don't do it here.
@@ -1377,8 +1399,11 @@ nsTableFrame::PaintTableBorderBackground(nsRenderingContext& aRenderingContext,
     if (!IsBorderCollapse()) {
       Sides skipSides = GetSkipSides();
       nsRect rect(aPt, mRect.Size());
-      nsCSSRendering::PaintBorder(presContext, aRenderingContext, this,
-                                  aDirtyRect, rect, mStyleContext, skipSides);
+
+      result &=
+        nsCSSRendering::PaintBorder(presContext, aRenderingContext, this,
+                                    aDirtyRect, rect, mStyleContext,
+                                    borderFlags, skipSides);
     }
     else {
       gfxContext* ctx = aRenderingContext.ThebesContext();
@@ -1491,9 +1516,8 @@ nsTableFrame::ProcessRowInserted(nscoord aNewBSize)
   for (uint32_t rgIdx = 0; rgIdx < rowGroups.Length(); rgIdx++) {
     nsTableRowGroupFrame* rgFrame = rowGroups[rgIdx];
     NS_ASSERTION(rgFrame, "Must have rgFrame here");
-    nsIFrame* childFrame = rgFrame->GetFirstPrincipalChild();
     // find the row that was inserted first
-    while (childFrame) {
+    for (nsIFrame* childFrame : rgFrame->PrincipalChildList()) {
       nsTableRowFrame *rowFrame = do_QueryFrame(childFrame);
       if (rowFrame) {
         if (rowFrame->IsFirstInserted()) {
@@ -1505,7 +1529,6 @@ nsTableFrame::ProcessRowInserted(nscoord aNewBSize)
           return; // found it, so leave
         }
       }
-      childFrame = childFrame->GetNextSibling();
     }
   }
 }
@@ -1916,12 +1939,6 @@ nsTableFrame::Reflow(nsPresContext*           aPresContext,
       mutable_rs.mFlags.mSpecialBSizeReflow = false;
     }
   }
-  else {
-    // Calculate the overflow area contribution from our children.
-    for (nsIFrame* kid : mFrames) {
-      ConsiderChildOverflow(aDesiredSize.mOverflowAreas, kid);
-    }
-  }
 
   aDesiredSize.ISize(wm) = aReflowState.ComputedISize() +
     aReflowState.ComputedLogicalBorderPadding().IStartEnd(wm);
@@ -1939,6 +1956,14 @@ nsTableFrame::Reflow(nsPresContext*           aPresContext,
       kid->MovePositionBy(nsPoint(aDesiredSize.Width(), 0));
       RePositionViews(kid);
     }
+  }
+
+  // Calculate the overflow area contribution from our children. We couldn't
+  // do this on the fly during ReflowChildren(), because in vertical-rl mode
+  // with unconstrained width, we weren't placing them in their final positions
+  // until the fixupKidPositions loop just above.
+  for (nsIFrame* kid : mFrames) {
+    ConsiderChildOverflow(aDesiredSize.mOverflowAreas, kid);
   }
 
   LogicalMargin borderPadding = GetChildAreaOffset(wm, &aReflowState);
@@ -2424,7 +2449,7 @@ nsTableFrame::HomogenousInsertFrames(ChildListID     aListID,
       aPrevFrame = nullptr;
       while (pseudoFrame  && (parentContent ==
                               (content = pseudoFrame->GetContent()))) {
-        pseudoFrame = pseudoFrame->GetFirstPrincipalChild();
+        pseudoFrame = pseudoFrame->PrincipalChildList().FirstChild();
       }
       nsCOMPtr<nsIContent> container = content->GetParent();
       if (MOZ_LIKELY(container)) { // XXX need this null-check, see bug 411823.
@@ -2450,7 +2475,7 @@ nsTableFrame::HomogenousInsertFrames(ChildListID     aListID,
           pseudoFrame = kidFrame;
           while (pseudoFrame  && (parentContent ==
                                   (content = pseudoFrame->GetContent()))) {
-            pseudoFrame = pseudoFrame->GetFirstPrincipalChild();
+            pseudoFrame = pseudoFrame->PrincipalChildList().FirstChild();
           }
           int32_t index = container->IndexOf(content);
           if (index > lastIndex && index < newIndex) {
@@ -2524,10 +2549,30 @@ nsTableFrame::DoRemoveFrame(ChildListID     aListID,
       }
     }
 
-    int32_t numAnonymousColsToAdd = GetColCount() - mColFrames.Length();
-    if (numAnonymousColsToAdd > 0) {
-      // this sets the child list, updates the col cache and cell map
-      AppendAnonymousColFrames(numAnonymousColsToAdd);
+    // If we have some anonymous cols at the end already, we just
+    // add more of them.
+    if (!mColFrames.IsEmpty() &&
+        mColFrames.LastElement() && // XXXbz is this ever null?
+        mColFrames.LastElement()->GetColType() == eColAnonymousCell) {
+      int32_t numAnonymousColsToAdd = GetColCount() - mColFrames.Length();
+      if (numAnonymousColsToAdd > 0) {
+        // this sets the child list, updates the col cache and cell map
+        AppendAnonymousColFrames(numAnonymousColsToAdd);
+      }
+    } else {
+      // All of our colframes correspond to actual <col> tags.  It's possible
+      // that we still have at least as many <col> tags as we have logical
+      // columns from cells, but we might have one less.  Handle the latter case
+      // as follows: First ask the cellmap to drop its last col if it doesn't
+      // have any actual cells in it.  Then call MatchCellMapToColCache to
+      // append an anonymous column if it's needed; this needs to be after
+      // RemoveColsAtEnd, since it will determine the need for a new column
+      // frame based on the width of the cell map.
+      nsTableCellMap* cellMap = GetCellMap();
+      if (cellMap) { // XXXbz is this ever null?
+        cellMap->RemoveColsAtEnd();
+        MatchCellMapToColCache(cellMap);
+      }
     }
 
   } else {
@@ -2619,14 +2664,13 @@ nsTableFrame::GetUsedMargin() const
   return nsMargin(0, 0, 0, 0);
 }
 
-NS_DECLARE_FRAME_PROPERTY(TableBCProperty, DeleteValue<BCPropertyData>)
+NS_DECLARE_FRAME_PROPERTY_DELETABLE(TableBCProperty, BCPropertyData)
 
 BCPropertyData*
 nsTableFrame::GetBCProperty(bool aCreateIfNecessary) const
 {
   FrameProperties props = Properties();
-  BCPropertyData* value = static_cast<BCPropertyData*>
-                          (props.Get(TableBCProperty()));
+  BCPropertyData* value = props.Get(TableBCProperty());
   if (!value && aCreateIfNecessary) {
     value = new BCPropertyData();
     props.Set(TableBCProperty(), value);
@@ -3252,7 +3296,6 @@ nsTableFrame::ReflowChildren(nsTableReflowState& aReflowState,
         aReflowState.availSize.BSize(wm) -= cellSpacingB + kidRect.BSize(wm);
       }
     }
-    ConsiderChildOverflow(aOverflowAreas, kidFrame);
   }
 
   // We've now propagated the column resizes and geometry changes to all
@@ -3890,7 +3933,7 @@ nsTableFrame::GetFrameAtOrBefore(nsIFrame*       aParentFrame,
   // aPriorChildFrame is not of type aChildType, so we need start from
   // the beginnng and find the closest one
   nsIFrame* lastMatchingFrame = nullptr;
-  nsIFrame* childFrame = aParentFrame->GetFirstPrincipalChild();
+  nsIFrame* childFrame = aParentFrame->PrincipalChildList().FirstChild();
   while (childFrame && (childFrame != aPriorChildFrame)) {
     if (aChildType == childFrame->GetType()) {
       lastMatchingFrame = childFrame;
@@ -3907,28 +3950,24 @@ nsTableFrame::DumpRowGroup(nsIFrame* aKidFrame)
   if (!aKidFrame)
     return;
 
-  nsIFrame* cFrame = aKidFrame->GetFirstPrincipalChild();
-  while (cFrame) {
+  for (nsIFrame* cFrame : aKidFrame->PrincipalChildList()) {
     nsTableRowFrame *rowFrame = do_QueryFrame(cFrame);
     if (rowFrame) {
       printf("row(%d)=%p ", rowFrame->GetRowIndex(),
              static_cast<void*>(rowFrame));
-      nsIFrame* childFrame = cFrame->GetFirstPrincipalChild();
-      while (childFrame) {
+      for (nsIFrame* childFrame : cFrame->PrincipalChildList()) {
         nsTableCellFrame *cellFrame = do_QueryFrame(childFrame);
         if (cellFrame) {
           int32_t colIndex;
           cellFrame->GetColIndex(colIndex);
           printf("cell(%d)=%p ", colIndex, static_cast<void*>(childFrame));
         }
-        childFrame = childFrame->GetNextSibling();
       }
       printf("\n");
     }
     else {
       DumpRowGroup(rowFrame);
     }
-    cFrame = cFrame->GetNextSibling();
   }
 }
 
@@ -4262,8 +4301,7 @@ BCMapCellInfo::BCMapCellInfo(nsTableFrame* aTableFrame)
   : mTableFrame(aTableFrame)
   , mNumTableRows(aTableFrame->GetRowCount())
   , mNumTableCols(aTableFrame->GetColCount())
-  , mTableBCData(static_cast<BCPropertyData*>(
-      mTableFrame->Properties().Get(TableBCProperty())))
+  , mTableBCData(mTableFrame->Properties().Get(TableBCProperty()))
   , mTableWM(aTableFrame->StyleContext())
 {
   ResetCellInfo();
@@ -6942,7 +6980,8 @@ BCBlockDirSeg::Paint(BCPaintBorderIterator& aIter,
       side = eLogicalSideIEnd;
       if (!aIter.IsTableIEndMost() && (relColIndex > 0)) {
         col = aIter.mBlockDirInfo[relColIndex - 1].mCol;
-      } // and fall through
+      }
+      MOZ_FALLTHROUGH;
     case eColGroupOwner:
       if (col) {
         owner = col->GetParent();
@@ -6952,20 +6991,22 @@ BCBlockDirSeg::Paint(BCPaintBorderIterator& aIter,
       side = eLogicalSideIEnd;
       if (!aIter.IsTableIEndMost() && (relColIndex > 0)) {
         col = aIter.mBlockDirInfo[relColIndex - 1].mCol;
-      } // and fall through
+      }
+      MOZ_FALLTHROUGH;
     case eColOwner:
       owner = col;
       break;
     case eAjaRowGroupOwner:
       NS_ERROR("a neighboring rowgroup can never own a vertical border");
-      // and fall through
+      MOZ_FALLTHROUGH;
     case eRowGroupOwner:
       NS_ASSERTION(aIter.IsTableIStartMost() || aIter.IsTableIEndMost(),
                   "row group can own border only at table edge");
       owner = mFirstRowGroup;
       break;
     case eAjaRowOwner:
-      NS_ERROR("program error"); // and fall through
+      NS_ERROR("program error");
+      MOZ_FALLTHROUGH;
     case eRowOwner:
       NS_ASSERTION(aIter.IsTableIStartMost() || aIter.IsTableIEndMost(),
                    "row can own border only at table edge");
@@ -6973,7 +7014,8 @@ BCBlockDirSeg::Paint(BCPaintBorderIterator& aIter,
       break;
     case eAjaCellOwner:
       side = eLogicalSideIEnd;
-      cell = mAjaCell; // and fall through
+      cell = mAjaCell;
+      MOZ_FALLTHROUGH;
     case eCellOwner:
       owner = cell;
       break;
@@ -7150,7 +7192,7 @@ BCInlineDirSeg::Paint(BCPaintBorderIterator& aIter,
       break;
     case eAjaColGroupOwner:
       NS_ERROR("neighboring colgroups can never own an inline-dir border");
-      // and fall through
+      MOZ_FALLTHROUGH;
     case eColGroupOwner:
       NS_ASSERTION(aIter.IsTableBStartMost() || aIter.IsTableBEndMost(),
                    "col group can own border only at the table edge");
@@ -7160,7 +7202,7 @@ BCInlineDirSeg::Paint(BCPaintBorderIterator& aIter,
       break;
     case eAjaColOwner:
       NS_ERROR("neighboring column can never own an inline-dir border");
-      // and fall through
+      MOZ_FALLTHROUGH;
     case eColOwner:
       NS_ASSERTION(aIter.IsTableBStartMost() || aIter.IsTableBEndMost(),
                    "col can own border only at the table edge");
@@ -7169,14 +7211,14 @@ BCInlineDirSeg::Paint(BCPaintBorderIterator& aIter,
     case eAjaRowGroupOwner:
       side = eLogicalSideBEnd;
       rg = (aIter.IsTableBEndMost()) ? aIter.mRg : aIter.mPrevRg;
-      // and fall through
+      MOZ_FALLTHROUGH;
     case eRowGroupOwner:
       owner = rg;
       break;
     case eAjaRowOwner:
       side = eLogicalSideBEnd;
       row = (aIter.IsTableBEndMost()) ? aIter.mRow : aIter.mPrevRow;
-      // and fall through
+      MOZ_FALLTHROUGH;
     case eRowOwner:
       owner = row;
       break;
@@ -7185,7 +7227,7 @@ BCInlineDirSeg::Paint(BCPaintBorderIterator& aIter,
       // if this is null due to the damage area origin-y > 0, then the border
       // won't show up anyway
       cell = mAjaCell;
-      // and fall through
+      MOZ_FALLTHROUGH;
     case eCellOwner:
       owner = cell;
       break;
@@ -7487,7 +7529,7 @@ nsTableFrame::InvalidateTableFrame(nsIFrame* aFrame,
              aOrigVisualOverflow.Size() != visualOverflow.Size()){
     aFrame->InvalidateFrameWithRect(aOrigVisualOverflow);
     aFrame->InvalidateFrame();
-    parent->InvalidateFrameWithRect(aOrigRect);;
+    parent->InvalidateFrameWithRect(aOrigRect);
     parent->InvalidateFrame();
   }
 }

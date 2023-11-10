@@ -11,7 +11,8 @@ if CONFIG['OS_TARGET'] in ('WINNT', 'Darwin', 'Android'):
 else:
     Library('mozglue')
 
-SDK_LIBRARY = True
+if not CONFIG['MOZ_CRT']:
+    SDK_LIBRARY = True
 
 if CONFIG['MOZ_MEMORY'] and (CONFIG['MOZ_NATIVE_JEMALLOC'] or FORCE_SHARED_LIB):
     pass
@@ -33,6 +34,10 @@ if CONFIG['OS_TARGET'] == 'WINNT':
         'WindowsDllBlocklist.cpp',
     ]
     DEFFILE = 'mozglue.def'
+    # We'll break the DLL blocklist if we immediately load user32.dll
+    DELAYLOAD_DLLS += [
+        'user32.dll',
+    ]
     DISABLE_STL_WRAPPING = True
     OS_LIBS += [
         'version',
@@ -86,7 +91,17 @@ DEFINES['IMPL_MFBT'] = True
 
 LDFLAGS += CONFIG['MOZ_GLUE_WRAP_LDFLAGS']
 
-if not CONFIG['_MSC_VER']:
-    FAIL_ON_WARNINGS = True
+if CONFIG['OS_TARGET'] == 'Darwin':
+    # On OSX 10.10.3, a dead lock happens in some cases involving dynamic
+    # symbol resolution for symbols that jemalloc itself uses. While it
+    # might be possible to find a way to avoid all such symbol resolutions,
+    # it's currently not possible because at the very least there's a call
+    # to pthread_self from tsd_init_check_recursion, which is necessary
+    # because somehow clang doesn't want to accept the __thread keyword
+    # for TLS.
+    LDFLAGS += ['-Wl,-bind_at_load']
 
 DIST_INSTALL = True
+
+if CONFIG['GNU_CXX']:
+    CXXFLAGS += ['-Wshadow']

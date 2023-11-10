@@ -13,6 +13,7 @@
 #include "mozilla/IncrementalClearCOMRuleArray.h"
 #include "mozilla/MemoryReporting.h"
 #include "mozilla/dom/Element.h"
+#include "mozilla/dom/CSSStyleSheetBinding.h"
 
 #include "nscore.h"
 #include "nsCOMPtr.h"
@@ -50,7 +51,36 @@ namespace dom {
 class CSSRuleList;
 } // namespace dom
 
-// -------------------------------
+namespace css {
+/**
+ * Enum defining the mode in which a sheet is to be parsed.  This is
+ * usually, but not always, the same as the cascade level at which the
+ * sheet will apply (see nsStyleSet.h).  Most of the Loader APIs only
+ * support loading of author sheets.
+ *
+ * Author sheets are the normal case: styles embedded in or linked
+ * from HTML pages.  They are also the most restricted.
+ *
+ * User sheets can do anything author sheets can do, and also get
+ * access to a few CSS extensions that are not yet suitable for
+ * exposure on the public Web, but are very useful for expressing
+ * user style overrides, such as @-moz-document rules.
+ *
+ * Agent sheets have access to all author- and user-sheet features
+ * plus more extensions that are necessary for internal use but,
+ * again, not yet suitable for exposure on the public Web.  Some of
+ * these are outright unsafe to expose; in particular, incorrect
+ * styling of anonymous box pseudo-elements can violate layout
+ * invariants.
+ */
+enum SheetParsingMode {
+  eAuthorSheetFeatures = 0,
+  eUserSheetFeatures,
+  eAgentSheetFeatures
+};
+}
+
+  // -------------------------------
 // CSS Style Sheet Inner Data Container
 //
 
@@ -81,7 +111,7 @@ private:
 
   size_t SizeOfIncludingThis(MallocSizeOf aMallocSizeOf) const;
 
-  nsAutoTArray<CSSStyleSheet*, 8> mSheets;
+  AutoTArray<CSSStyleSheet*, 8> mSheets;
   nsCOMPtr<nsIURI>       mSheetURI; // for error reports, etc.
   nsCOMPtr<nsIURI>       mOriginalSheetURI;  // for GetHref.  Can be null.
   nsCOMPtr<nsIURI>       mBaseURI; // for resolving relative URIs
@@ -93,7 +123,7 @@ private:
   // currently this is the case) that any time page JS can get ts hands on a
   // child sheet that means we've already ensured unique inners throughout its
   // parent chain and things are good.
-  nsRefPtr<CSSStyleSheet> mFirstChild;
+  RefPtr<CSSStyleSheet> mFirstChild;
   CORSMode               mCORSMode;
   // The Referrer Policy of a stylesheet is used for its child sheets, so it is
   // stored here.
@@ -228,7 +258,7 @@ public:
 
   /* Get the URI this sheet was originally loaded from, if any.  Can
      return null */
-  virtual nsIURI* GetOriginalURI() const;
+  nsIURI* GetOriginalURI() const { return mInner->mOriginalSheetURI; }
 
   // nsICSSLoaderObserver interface
   NS_IMETHOD StyleSheetLoaded(CSSStyleSheet* aSheet, bool aWasAlternate,
@@ -242,7 +272,7 @@ public:
   bool UseForPresentation(nsPresContext* aPresContext,
                             nsMediaQueryResultCacheKey& aKey) const;
 
-  nsresult ParseSheet(const nsAString& aInput);
+  nsresult ReparseSheet(const nsAString& aInput);
 
   void SetInRuleProcessorCache() { mInRuleProcessorCache = true; }
 
@@ -317,6 +347,18 @@ public:
   }
   virtual JSObject* WrapObject(JSContext* aCx, JS::Handle<JSObject*> aGivenProto) override;
 
+  // Changes to sheets should be inside of a WillDirty-DidDirty pair.
+  // However, the calls do not need to be matched; it's ok to call
+  // WillDirty and then make no change and skip the DidDirty call.
+  void WillDirty();
+  void DidDirty();
+
+  mozilla::dom::CSSStyleSheetParsingMode ParsingMode();
+
+  void SetParsingMode(css::SheetParsingMode aParsingMode) {
+    mParsingMode = aParsingMode;
+  }
+
 private:
   CSSStyleSheet(const CSSStyleSheet& aCopy,
                 CSSStyleSheet* aParentToUse,
@@ -331,9 +373,6 @@ protected:
   virtual ~CSSStyleSheet();
 
   void ClearRuleCascades();
-
-  void     WillDirty();
-  void     DidDirty();
 
   // Return success if the subject principal subsumes the principal of our
   // inner, error otherwise.  This will also succeed if the subject has
@@ -357,22 +396,23 @@ protected:
 
 protected:
   nsString              mTitle;
-  nsRefPtr<nsMediaList> mMedia;
-  nsRefPtr<CSSStyleSheet> mNext;
+  RefPtr<nsMediaList> mMedia;
+  RefPtr<CSSStyleSheet> mNext;
   CSSStyleSheet*        mParent;    // weak ref
   css::ImportRule*      mOwnerRule; // weak ref
 
-  nsRefPtr<CSSRuleListImpl> mRuleCollection;
+  RefPtr<CSSRuleListImpl> mRuleCollection;
   nsIDocument*          mDocument; // weak ref; parents maintain this for their children
   nsINode*              mOwningNode; // weak ref
   bool                  mDisabled;
   bool                  mDirty; // has been modified 
   bool                  mInRuleProcessorCache;
-  nsRefPtr<dom::Element> mScopeElement;
+  css::SheetParsingMode mParsingMode;
+  RefPtr<dom::Element> mScopeElement;
 
   CSSStyleSheetInner*   mInner;
 
-  nsAutoTArray<nsCSSRuleProcessor*, 8>* mRuleProcessors;
+  AutoTArray<nsCSSRuleProcessor*, 8>* mRuleProcessors;
   nsTArray<nsStyleSet*> mStyleSets;
 
   friend class ::nsMediaList;

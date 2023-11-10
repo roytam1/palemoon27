@@ -2,7 +2,7 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
-from __future__ import unicode_literals
+from __future__ import absolute_import, unicode_literals
 
 import argparse
 import difflib
@@ -111,7 +111,7 @@ class CommandAction(argparse.Action):
         if command not in self._mach_registrar.command_handlers:
             # Make sure we don't suggest any deprecated commands.
             names = [h.name for h in self._mach_registrar.command_handlers.values()
-                        if h.cls.__name__ == 'DeprecatedCommands']
+                        if h.cls.__name__ != 'DeprecatedCommands']
             # We first try to look for a valid command that is very similar to the given command.
             suggested_commands = difflib.get_close_matches(command, names, cutoff=0.8)
             # If we find more than one matching command, or no command at all, we give command suggestions instead

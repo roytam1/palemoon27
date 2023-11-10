@@ -526,16 +526,16 @@ nsClipboardCommand::DoCommand(const char *aCommandName, nsISupports *aContext)
   nsCOMPtr<nsIPresShell> presShell = docShell->GetPresShell();
   NS_ENSURE_TRUE(presShell, NS_ERROR_FAILURE);
 
-  int32_t eventType = NS_COPY;
+  EventMessage eventMessage = eCopy;
   if (strcmp(aCommandName, "cmd_cut") == 0) {
-    eventType = NS_CUT;
+    eventMessage = eCut;
   } else if (strcmp(aCommandName, "cmd_paste") == 0) {
-    eventType = NS_PASTE;
+    eventMessage = ePaste;
   }
 
   bool actionTaken = false;
   bool notCancelled =
-    nsCopySupport::FireClipboardEvent(eventType,
+    nsCopySupport::FireClipboardEvent(eventMessage,
                                       nsIClipboard::kGlobalClipboard,
                                       presShell, nullptr, &actionTaken);
 
@@ -997,7 +997,6 @@ nsClipboardDragDropHookCommand::GetCommandStateParams(const char *aCommandName,
 #define NS_REGISTER_ONE_COMMAND(_cmdClass, _cmdName)                \
   {                                                                 \
     _cmdClass* theCmd = new _cmdClass();                            \
-    if (!theCmd) return NS_ERROR_OUT_OF_MEMORY;                     \
     rv = inCommandTable->RegisterCommand(_cmdName,                  \
                    static_cast<nsIControllerCommand *>(theCmd));    \
   }
@@ -1005,7 +1004,6 @@ nsClipboardDragDropHookCommand::GetCommandStateParams(const char *aCommandName,
 #define NS_REGISTER_FIRST_COMMAND(_cmdClass, _cmdName)              \
   {                                                                 \
     _cmdClass* theCmd = new _cmdClass();                            \
-    if (!theCmd) return NS_ERROR_OUT_OF_MEMORY;                     \
     rv = inCommandTable->RegisterCommand(_cmdName,                  \
                    static_cast<nsIControllerCommand *>(theCmd));
 

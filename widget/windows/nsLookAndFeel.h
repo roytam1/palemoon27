@@ -5,9 +5,7 @@
 
 #ifndef __nsLookAndFeel
 #define __nsLookAndFeel
-
 #include "nsXPLookAndFeel.h"
-#include "nsIWindowsRegKey.h"
 
 /*
  * Gesture System Metrics
@@ -23,6 +21,26 @@
 #define NID_READY            0x00000080
 #endif
 
+/*
+ * Tablet mode detection
+ */
+#ifndef SM_SYSTEMDOCKED
+#define SM_CONVERTIBLESLATEMODE 0x00002003
+#define SM_SYSTEMDOCKED         0x00002004
+typedef enum _AR_STATE
+{
+  AR_ENABLED        = 0x0,
+  AR_DISABLED       = 0x1,
+  AR_SUPPRESSED     = 0x2,
+  AR_REMOTESESSION  = 0x4,
+  AR_MULTIMON       = 0x8,
+  AR_NOSENSOR       = 0x10,
+  AR_NOT_SUPPORTED  = 0x20,
+  AR_DOCKED         = 0x40,
+  AR_LAPTOP         = 0x80
+} AR_STATE, *PAR_STATE;
+#endif
+
 class nsLookAndFeel: public nsXPLookAndFeel {
   static OperatingSystemVersion GetOperatingSystemVersion();
 public:
@@ -36,29 +54,12 @@ public:
                            gfxFontStyle& aFontStyle,
                            float aDevPixPerCSSPixel);
   virtual char16_t GetPasswordCharacterImpl();
-private:
-  /**
-   * Fetches the Windows accent color from the Windows settings if
-   * the accent color is set to apply to the title bar, otherwise
-   * returns an error code.
-   */
-  nsresult GetAccentColor(nscolor& aColor);
 
-  /**
-   * check if the accent color is dark enough to need white text
-   **/
-  bool AccentColorIsDark(nscolor aColor);
-  
-  /**
-   * If the Windows accent color from the Windows settings is set
-   * to apply to the title bar, this computes the color that should
-   * be used for text that is to be written over a background that has
-   * the accent color.  Otherwise, (if the accent color should not
-   * apply to the title bar) this returns an error code.
-   */
-  nsresult GetAccentColorText(nscolor& aColor);
- 
-  nsCOMPtr<nsIWindowsRegKey> mDwmKey;
+  virtual nsTArray<LookAndFeelInt> GetIntCacheImpl();
+  virtual void SetIntCacheImpl(const nsTArray<LookAndFeelInt>& aLookAndFeelIntCache);
+
+private:
+  int32_t mUseAccessibilityTheme;
 };
 
 #endif

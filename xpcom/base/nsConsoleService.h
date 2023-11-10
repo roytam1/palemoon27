@@ -60,21 +60,48 @@ public:
   void CollectCurrentListeners(nsCOMArray<nsIConsoleListener>& aListeners);
 
 private:
+  class MessageElement : public mozilla::LinkedListElement<MessageElement>
+  {
+  public:
+    explicit MessageElement(nsIConsoleMessage* aMessage) : mMessage(aMessage)
+    {}
+
+    nsIConsoleMessage* Get()
+    {
+      return mMessage.get();
+    }
+
+    // Swap directly into an nsCOMPtr to avoid spurious refcount
+    // traffic off the main thread in debug builds from
+    // NSCAP_ASSERT_NO_QUERY_NEEDED().
+    void swapMessage(nsCOMPtr<nsIConsoleMessage>& aRetVal)
+    {
+      mMessage.swap(aRetVal);
+    }
+
+    ~MessageElement();
+
+  private:
+    nsCOMPtr<nsIConsoleMessage> mMessage;
+
+    MessageElement(const MessageElement&) = delete;
+    MessageElement& operator=(const MessageElement&) = delete;
+    MessageElement(MessageElement&&) = delete;
+    MessageElement& operator=(MessageElement&&) = delete;
+  };
+
   ~nsConsoleService();
 
   void ClearMessagesForWindowID(const uint64_t innerID);
+  void ClearMessages();
 
-  // Circular buffer of saved messages
-  nsIConsoleMessage** mMessages;
+  mozilla::LinkedList<MessageElement> mMessages;
 
-  // How big?
-  uint32_t mBufferSize;
+  // The current size of mMessages.
+  uint32_t mCurrentSize;
 
-  // Index of slot in mMessages that'll be filled by *next* log message
-  uint32_t mCurrent;
-
-  // Is the buffer full? (Has mCurrent wrapped around at least once?)
-  bool mFull;
+  // The maximum size of mMessages.
+  uint32_t mMaximumSize;
 
   // Are we currently delivering a console message on the main thread? If
   // so, we suppress incoming messages on the main thread only, to avoid

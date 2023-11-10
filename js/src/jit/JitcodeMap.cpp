@@ -10,7 +10,6 @@
 #include "mozilla/MathAlgorithms.h"
 #include "mozilla/Maybe.h"
 #include "mozilla/SizePrintfMacros.h"
-#include "mozilla/UniquePtr.h"
 
 #include "jsprf.h"
 
@@ -41,7 +40,6 @@ RegionAtAddr(const JitcodeGlobalEntry::IonEntry& entry, void* ptr,
 
     return entry.regionTable()->regionEntry(regionIdx);
 }
-
 
 void*
 JitcodeGlobalEntry::IonEntry::canonicalNativeAddrFor(JSRuntime* rt, void* ptr) const
@@ -87,7 +85,7 @@ JitcodeGlobalEntry::IonEntry::callStackAtAddr(JSRuntime* rt, void* ptr,
                                               uint32_t maxResults) const
 {
     MOZ_ASSERT(maxResults >= 1);
-    MOZ_ASSERT(regionIdx < regionTable()->numRegions());
+
     uint32_t ptrOffset;
     JitcodeRegionEntry region = RegionAtAddr(*this, ptr, &ptrOffset);
 
@@ -242,7 +240,6 @@ JitcodeGlobalEntry::IonCacheEntry::callStackAtAddr(JSRuntime* rt, void* ptr,
                                                    uint32_t* depth) const
 {
     JitcodeGlobalEntry entry;
-
     RejoinEntry(rt, *this, ptr, &entry);
     return entry.callStackAtAddr(rt, rejoinAddr(), results, depth);
 }
@@ -253,7 +250,6 @@ JitcodeGlobalEntry::IonCacheEntry::callStackAtAddr(JSRuntime* rt, void* ptr,
                                                    uint32_t maxResults) const
 {
     JitcodeGlobalEntry entry;
-
     RejoinEntry(rt, *this, ptr, &entry);
     return entry.callStackAtAddr(rt, rejoinAddr(), results, maxResults);
 }
@@ -267,6 +263,7 @@ JitcodeGlobalEntry::IonCacheEntry::youngestFrameLocationAtAddr(JSRuntime* rt, vo
     RejoinEntry(rt, *this, ptr, &entry);
     return entry.youngestFrameLocationAtAddr(rt, rejoinAddr(), script, pc);
 }
+
 
 static int ComparePointers(const void* a, const void* b) {
     const uint8_t* a_ptr = reinterpret_cast<const uint8_t*>(a);
@@ -313,16 +310,10 @@ JitcodeGlobalEntry::createScriptString(JSContext* cx, JSScript* script, size_t* 
     // If the script has a function, try calculating its name.
     bool hasName = false;
     size_t nameLength = 0;
-    mozilla::UniquePtr<char, JS::FreePolicy> nameStr = nullptr;
+    UniqueChars nameStr;
     JSFunction* func = script->functionDelazifying();
     if (func && func->displayAtom()) {
-        JSAtom* atom = func->displayAtom();
-
-        JS::AutoCheckCannotGC nogc;
-        nameStr = mozilla::UniquePtr<char, JS::FreePolicy>(
-            atom->hasLatin1Chars() ?
-                JS::CharsToNewUTF8CharsZ(cx, atom->latin1Range(nogc)).c_str()
-              : JS::CharsToNewUTF8CharsZ(cx, atom->twoByteRange(nogc)).c_str());
+        nameStr = StringToNewUTF8CharsZ(cx, *func->displayAtom());
         if (!nameStr)
             return nullptr;
 
@@ -810,11 +801,14 @@ JitcodeGlobalTable::markIteratively(JSTracer* trc)
     // above is checked in JitcodeGlobalTable::lookupForSampler.
 
     MOZ_ASSERT(!trc->runtime()->isHeapMinorCollecting());
-    MOZ_ASSERT(trc->runtime()->spsProfiler.enabled());
 
     AutoSuppressProfilerSampling suppressSampling(trc->runtime());
     uint32_t gen = trc->runtime()->profilerSampleBufferGen();
     uint32_t lapCount = trc->runtime()->profilerSampleBufferLapCount();
+
+    // If the profiler is off, all entries are considered to be expired.
+    if (!trc->runtime()->spsProfiler.enabled())
+        gen = UINT32_MAX;
 
     bool markedAny = false;
     for (Range r(*this); !r.empty(); r.popFront()) {
@@ -857,7 +851,7 @@ JitcodeGlobalTable::sweep(JSRuntime* rt)
         if (entry->baseEntry().isJitcodeAboutToBeFinalized())
             e.removeFront();
         else
-            entry->sweep(rt);
+            entry->sweepChildren(rt);
     }
 }
 
@@ -897,7 +891,7 @@ JitcodeGlobalEntry::BaselineEntry::mark(JSTracer* trc)
 }
 
 void
-JitcodeGlobalEntry::BaselineEntry::sweep()
+JitcodeGlobalEntry::BaselineEntry::sweepChildren()
 {
     MOZ_ALWAYS_FALSE(IsAboutToBeFinalizedUnbarriered(&script_));
 }
@@ -948,7 +942,7 @@ JitcodeGlobalEntry::IonEntry::mark(JSTracer* trc)
 }
 
 void
-JitcodeGlobalEntry::IonEntry::sweep()
+JitcodeGlobalEntry::IonEntry::sweepChildren()
 {
     for (unsigned i = 0; i < numScripts(); i++)
         MOZ_ALWAYS_FALSE(IsAboutToBeFinalizedUnbarriered(&sizedScriptList()->pairs[i].script));
@@ -1006,11 +1000,11 @@ JitcodeGlobalEntry::IonCacheEntry::mark(JSTracer* trc)
 }
 
 void
-JitcodeGlobalEntry::IonCacheEntry::sweep(JSRuntime* rt)
+JitcodeGlobalEntry::IonCacheEntry::sweepChildren(JSRuntime* rt)
 {
     JitcodeGlobalEntry entry;
     RejoinEntry(rt, *this, nativeStartAddr(), &entry);
-    entry.sweep(rt);
+    entry.sweepChildren(rt);
 }
 
 bool
@@ -1271,7 +1265,7 @@ JitcodeRegionEntry::ExpectedRunLength(const CodeGeneratorShared::NativeToBytecod
 
 struct JitcodeMapBufferWriteSpewer
 {
-#ifdef DEBUG
+#ifdef JS_JITSPEW
     CompactBufferWriter* writer;
     uint32_t startPos;
 
@@ -1304,10 +1298,10 @@ struct JitcodeMapBufferWriteSpewer
         // Move to the end of the current buffer.
         startPos = writer->length();
     }
-#else // !DEBUG
+#else // !JS_JITSPEW
     explicit JitcodeMapBufferWriteSpewer(CompactBufferWriter& w) {}
     void spewAndAdvance(const char* name) {}
-#endif // DEBUG
+#endif // JS_JITSPEW
 };
 
 // Write a run, starting at the given NativeToBytecode entry, into the given buffer writer.
@@ -1389,8 +1383,10 @@ JitcodeRegionEntry::WriteRun(CompactBufferWriter& writer,
             uint32_t curBc = curBytecodeOffset;
             while (curBc < nextBytecodeOffset) {
                 jsbytecode* pc = entry[i].tree->script()->offsetToPC(curBc);
-                mozilla::DebugOnly<JSOp> op = JSOp(*pc);
-                JitSpewCont(JitSpew_Profiling, "%s ", js_CodeName[op]);
+#ifdef JS_JITSPEW
+                JSOp op = JSOp(*pc);
+                JitSpewCont(JitSpew_Profiling, "%s ", CodeName[op]);
+#endif
                 curBc += GetBytecodeLength(pc);
             }
             JitSpewFin(JitSpew_Profiling);

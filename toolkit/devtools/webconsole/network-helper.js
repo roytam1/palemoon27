@@ -262,6 +262,24 @@ let NetworkHelper = {
   },
 
   /**
+   * Determines whether the request has been made for the top level document.
+   *
+   * @param nsIHttpChannel aRequest
+   * @returns Boolean True if the request represents the top level document.
+   */
+  isTopLevelLoad: function(aRequest)
+  {
+    if (aRequest instanceof Ci.nsIChannel) {
+      let loadInfo = aRequest.loadInfo;
+      if (loadInfo && loadInfo.parentOuterWindowID == loadInfo.outerWindowID) {
+        return (aRequest.loadFlags & Ci.nsIChannel.LOAD_DOCUMENT_URI);
+      }
+    }
+
+    return false;
+  },
+
+  /**
    * Loads the content of aUrl from the cache.
    *
    * @param string aUrl
@@ -275,14 +293,7 @@ let NetworkHelper = {
    */
   loadFromCache: function NH_loadFromCache(aUrl, aCharset, aCallback)
   {
-    let channel = NetUtil.newChannel2(aUrl,
-                                      null,
-                                      null,
-                                      null,      // aLoadingNode
-                                      Services.scriptSecurityManager.getSystemPrincipal(),
-                                      null,      // aTriggeringPrincipal
-                                      Ci.nsILoadInfo.SEC_NORMAL,
-                                      Ci.nsIContentPolicy.TYPE_OTHER);
+    let channel = NetUtil.newChannel({uri: aUrl, loadUsingSystemPrincipal: true});
 
     // Ensure that we only read from the cache and not the server.
     channel.loadFlags = Ci.nsIRequest.LOAD_FROM_CACHE |

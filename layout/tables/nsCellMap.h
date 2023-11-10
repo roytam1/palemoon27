@@ -249,7 +249,7 @@ protected:
   void DeleteIEndBEndBorders();
 
   nsTableFrame&               mTableFrame;
-  nsAutoTArray<nsColInfo, 8>  mCols;
+  AutoTArray<nsColInfo, 8>  mCols;
   nsCellMap*                  mFirstMap;
   // border collapsing info
   BCInfo*                     mBCInfo;
@@ -583,7 +583,7 @@ protected:
   bool mIsBC;
 
   // Prescontext to deallocate and allocate celldata
-  nsRefPtr<nsPresContext> mPresContext;
+  RefPtr<nsPresContext> mPresContext;
 };
 
 /**

@@ -6,13 +6,16 @@
 
 #include "mozilla/DebugOnly.h"
 #include "mozilla/Likely.h"
+#include "mozilla/dom/nsCSPService.h"
 
 #include "nsError.h"
 #include "nsHtml5TreeOpExecutor.h"
 #include "nsScriptLoader.h"
 #include "nsIContentViewer.h"
+#include "nsIContentSecurityPolicy.h"
 #include "nsIDocShellTreeItem.h"
 #include "nsIDocShell.h"
+#include "nsIDOMDocument.h"
 #include "nsIScriptGlobalObject.h"
 #include "nsIScriptSecurityManager.h"
 #include "nsIWebShellServices.h"
@@ -45,7 +48,7 @@ NS_IMPL_RELEASE_INHERITED(nsHtml5TreeOpExecutor, nsContentSink)
 class nsHtml5ExecutorReflusher : public nsRunnable
 {
   private:
-    nsRefPtr<nsHtml5TreeOpExecutor> mExecutor;
+    RefPtr<nsHtml5TreeOpExecutor> mExecutor;
   public:
     explicit nsHtml5ExecutorReflusher(nsHtml5TreeOpExecutor* aExecutor)
       : mExecutor(aExecutor)
@@ -242,7 +245,7 @@ nsHtml5TreeOpExecutor::MarkAsBroken(nsresult aReason)
 void
 FlushTimerCallback(nsITimer* aTimer, void* aClosure)
 {
-  nsRefPtr<nsHtml5TreeOpExecutor> ex = gBackgroundFlushList->popFirst();
+  RefPtr<nsHtml5TreeOpExecutor> ex = gBackgroundFlushList->popFirst();
   if (ex) {
     ex->RunFlushLoop();
   }
@@ -275,8 +278,9 @@ nsHtml5TreeOpExecutor::ContinueInterruptedParsingAsync()
       // The timer value 50 should not hopefully slow down background pages too
       // much, yet lets event loop to process enough between ticks.
       // See bug 734015.
-      gFlushTimer->InitWithFuncCallback(FlushTimerCallback, nullptr,
-                                        50, nsITimer::TYPE_REPEATING_SLACK);
+      gFlushTimer->InitWithNamedFuncCallback(FlushTimerCallback, nullptr,
+                                             50, nsITimer::TYPE_REPEATING_SLACK,
+                                             "FlushTimerCallback");
     }
   }
 }
@@ -302,7 +306,7 @@ nsHtml5TreeOpExecutor::FlushSpeculativeLoads()
 class nsHtml5FlushLoopGuard
 {
   private:
-    nsRefPtr<nsHtml5TreeOpExecutor> mExecutor;
+    RefPtr<nsHtml5TreeOpExecutor> mExecutor;
     #ifdef DEBUG_NS_HTML5_TREE_OP_EXECUTOR_FLUSH
     uint32_t mStartTime;
     #endif
@@ -350,10 +354,6 @@ nsHtml5TreeOpExecutor::RunFlushLoop()
   nsHtml5FlushLoopGuard guard(this); // this is also the self-kungfu!
   
   nsCOMPtr<nsISupports> parserKungFuDeathGrip(mParser);
-  nsRefPtr<nsHtml5StreamParser> streamKungFuDeathGrip;
-  if (mParser) { 
-    streamKungFuDeathGrip = GetParser()->GetStreamParser();
-  }
 
   // Remember the entry time
   (void) nsContentSink::WillParseImpl();
@@ -412,6 +412,10 @@ nsHtml5TreeOpExecutor::RunFlushLoop()
         mOpQueue.Clear(); // clear in order to be able to assert in destructor
         return;
       }
+      // Not sure if this grip is still needed, but previously, the code
+      // gripped before calling ParseUntilBlocked();
+      RefPtr<nsHtml5StreamParser> streamKungFuDeathGrip = 
+        GetParser()->GetStreamParser();
       // Now parse content left in the document.write() buffer queue if any.
       // This may generate tree ops on its own or dequeue a speculation.
       nsresult rv = GetParser()->ParseUntilBlocked();
@@ -524,12 +528,8 @@ nsHtml5TreeOpExecutor::FlushDocumentWrite()
   mFlushState = eInFlush;
 
   // avoid crashing near EOF
-  nsRefPtr<nsHtml5TreeOpExecutor> kungFuDeathGrip(this);
-  nsRefPtr<nsParserBase> parserKungFuDeathGrip(mParser);
-  nsRefPtr<nsHtml5StreamParser> streamKungFuDeathGrip;
-  if (mParser) { 
-    streamKungFuDeathGrip = GetParser()->GetStreamParser();
-  }
+  RefPtr<nsHtml5TreeOpExecutor> kungFuDeathGrip(this);
+  RefPtr<nsParserBase> parserKungFuDeathGrip(mParser);
 
   NS_ASSERTION(!mReadingFromStage,
     "Got doc write flush when reading from stage");
@@ -790,11 +790,7 @@ void
 nsHtml5TreeOpExecutor::MoveOpsFrom(nsTArray<nsHtml5TreeOperation>& aOpQueue)
 {
   NS_PRECONDITION(mFlushState == eNotFlushing, "mOpQueue modified during tree op execution.");
-  if (mOpQueue.IsEmpty()) {
-    mOpQueue.SwapElements(aOpQueue);
-    return;
-  }
-  mOpQueue.MoveElementsFrom(aOpQueue);
+  mOpQueue.AppendElements(Move(aOpQueue));
 }
 
 void
@@ -1019,6 +1015,52 @@ nsHtml5TreeOpExecutor::SetSpeculationReferrerPolicy(const nsAString& aReferrerPo
 {
   ReferrerPolicy policy = mozilla::net::ReferrerPolicyFromString(aReferrerPolicy);
   return SetSpeculationReferrerPolicy(policy);
+}
+
+void
+nsHtml5TreeOpExecutor::AddSpeculationCSP(const nsAString& aCSP)
+{
+  if (!CSPService::sCSPEnabled) {
+    return;
+  }
+
+  NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
+
+  nsIPrincipal* principal = mDocument->NodePrincipal();
+  nsCOMPtr<nsIContentSecurityPolicy> preloadCsp;
+  nsresult rv = principal->GetPreloadCsp(getter_AddRefs(preloadCsp));
+  NS_ENSURE_SUCCESS_VOID(rv);
+  if (!preloadCsp) {
+    preloadCsp = do_CreateInstance("@mozilla.org/cspcontext;1", &rv);
+    NS_ENSURE_SUCCESS_VOID(rv);
+
+    // Store the request context for violation reports
+    nsCOMPtr<nsIDOMDocument> domDoc = do_QueryInterface(mDocument);
+    rv = preloadCsp->SetRequestContext(domDoc, nullptr);
+    NS_ENSURE_SUCCESS_VOID(rv);
+
+    // set the new csp
+    rv = principal->SetPreloadCsp(preloadCsp);
+    NS_ENSURE_SUCCESS_VOID(rv);
+  }
+
+  // please note that meta CSPs and CSPs delivered through a header need
+  // to be joined together.
+  rv = preloadCsp->AppendPolicy(aCSP,
+                                false, // csp via meta tag can not be report only
+                                true); // delivered through the meta tag
+  NS_ENSURE_SUCCESS_VOID(rv);
+
+  // Record "speculated" referrer policy for preloads
+  bool hasReferrerPolicy = false;
+  uint32_t referrerPolicy = mozilla::net::RP_Default;
+  rv = preloadCsp->GetReferrerPolicy(&referrerPolicy, &hasReferrerPolicy);
+  NS_ENSURE_SUCCESS_VOID(rv);
+  if (hasReferrerPolicy) {
+    SetSpeculationReferrerPolicy(static_cast<ReferrerPolicy>(referrerPolicy));
+  }
+
+  mDocument->ApplySettingsFromCSP(true);
 }
 
 void

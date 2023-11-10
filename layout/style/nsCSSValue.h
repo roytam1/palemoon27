@@ -10,6 +10,7 @@
 
 #include "mozilla/Attributes.h"
 #include "mozilla/MemoryReporting.h"
+#include "mozilla/SheetType.h"
 
 #include "nsIPrincipal.h"
 #include "nsIURI.h"
@@ -46,6 +47,18 @@ class CSSStyleSheet;
       type_ *dlm_next = cur->member_;                                          \
       cur->member_ = nullptr;                                                  \
       delete cur;                                                              \
+      cur = dlm_next;                                                          \
+    }                                                                          \
+  }
+// Ditto, but use NS_RELEASE instead of 'delete' (bug 1221902).
+#define NS_CSS_NS_RELEASE_LIST_MEMBER(type_, ptr_, member_)                    \
+  {                                                                            \
+    type_ *cur = (ptr_)->member_;                                              \
+    (ptr_)->member_ = nullptr;                                                 \
+    while (cur) {                                                              \
+      type_ *dlm_next = cur->member_;                                          \
+      cur->member_ = nullptr;                                                  \
+      NS_RELEASE(cur);                                                         \
       cur = dlm_next;                                                          \
     }                                                                          \
   }
@@ -87,7 +100,7 @@ struct URLValue {
            nsIPrincipal* aOriginPrincipal);
 
 protected:
-  ~URLValue();
+  ~URLValue() {};
 
 public:
   bool operator==(const URLValue& aOther) const;
@@ -108,8 +121,7 @@ private:
   // null if the URI is invalid.
   mutable nsCOMPtr<nsIURI> mURI;
 public:
-  nsStringBuffer* mString; // Could use nsRefPtr, but it'd add useless
-                           // null-checks; this is never null.
+  RefPtr<nsStringBuffer> mString;
   nsCOMPtr<nsIURI> mReferrer;
   nsCOMPtr<nsIPrincipal> mOriginPrincipal;
 
@@ -135,11 +147,13 @@ private:
 public:
   // Inherit operator== from URLValue
 
-  nsRefPtrHashtable<nsPtrHashKey<nsISupports>, imgRequestProxy> mRequests; 
+  nsRefPtrHashtable<nsPtrHashKey<nsIDocument>, imgRequestProxy> mRequests;
 
   // Override AddRef and Release to not only log ourselves correctly, but
-  // also so that we delete correctly without a virtual destructor
-  NS_INLINE_DECL_REFCOUNTING(ImageValue)
+  // also so that we delete correctly without a virtual destructor (assuming
+  // callers always call *our* Release method and not our base class's).
+  NS_METHOD_(MozExternalRefCountType) AddRef();
+  NS_METHOD_(MozExternalRefCountType) Release();
 };
 
 struct GridNamedArea {
@@ -454,8 +468,10 @@ public:
   /**
    * A "pixel" length unit is a some multiple of CSS pixels.
    */
+  static bool IsPixelLengthUnit(nsCSSUnit aUnit)
+    { return eCSSUnit_Point <= aUnit && aUnit <= eCSSUnit_Pixel; }
   bool      IsPixelLengthUnit() const
-    { return eCSSUnit_Point <= mUnit && mUnit <= eCSSUnit_Pixel; }
+    { return IsPixelLengthUnit(mUnit); }
   bool      IsAngularUnit() const  
     { return eCSSUnit_Degree <= mUnit && mUnit <= eCSSUnit_Turn; }
   bool      IsFrequencyUnit() const  
@@ -752,24 +768,24 @@ protected:
     float      mFloat;
     // Note: the capacity of the buffer may exceed the length of the string.
     // If we're of a string type, mString is not null.
-    nsStringBuffer* mString;
+    nsStringBuffer* MOZ_OWNING_REF mString;
     nscolor    mColor;
-    Array*     mArray;
-    mozilla::css::URLValue* mURL;
-    mozilla::css::ImageValue* mImage;
-    mozilla::css::GridTemplateAreasValue* mGridTemplateAreas;
-    nsCSSValueGradient* mGradient;
-    nsCSSValueTokenStream* mTokenStream;
-    nsCSSValuePair_heap* mPair;
-    nsCSSRect_heap* mRect;
-    nsCSSValueTriplet_heap* mTriplet;
-    nsCSSValueList_heap* mList;
+    Array* MOZ_OWNING_REF mArray;
+    mozilla::css::URLValue* MOZ_OWNING_REF mURL;
+    mozilla::css::ImageValue* MOZ_OWNING_REF mImage;
+    mozilla::css::GridTemplateAreasValue* MOZ_OWNING_REF mGridTemplateAreas;
+    nsCSSValueGradient* MOZ_OWNING_REF mGradient;
+    nsCSSValueTokenStream* MOZ_OWNING_REF mTokenStream;
+    nsCSSValuePair_heap* MOZ_OWNING_REF mPair;
+    nsCSSRect_heap* MOZ_OWNING_REF mRect;
+    nsCSSValueTriplet_heap* MOZ_OWNING_REF mTriplet;
+    nsCSSValueList_heap* MOZ_OWNING_REF mList;
     nsCSSValueList* mListDependent;
-    nsCSSValueSharedList* mSharedList;
-    nsCSSValuePairList_heap* mPairList;
+    nsCSSValueSharedList* MOZ_OWNING_REF mSharedList;
+    nsCSSValuePairList_heap* MOZ_OWNING_REF mPairList;
     nsCSSValuePairList* mPairListDependent;
-    nsCSSValueFloatColor* mFloatColor;
-    mozilla::css::FontFamilyListRefCnt* mFontFamilyList;
+    nsCSSValueFloatColor* MOZ_OWNING_REF mFloatColor;
+    mozilla::css::FontFamilyListRefCnt* MOZ_OWNING_REF mFontFamilyList;
   } mValue;
 };
 
@@ -1496,6 +1512,7 @@ public:
     return mPropertyID == aOther.mPropertyID &&
            mShorthandPropertyID == aOther.mShorthandPropertyID &&
            mTokenStream.Equals(aOther.mTokenStream) &&
+           mLevel == aOther.mLevel &&
            (mBaseURI == aOther.mBaseURI ||
             (mBaseURI && aOther.mBaseURI &&
              NS_SUCCEEDED(mBaseURI->Equals(aOther.mBaseURI, &eq)) &&
@@ -1540,21 +1557,11 @@ public:
   nsCOMPtr<nsIURI> mBaseURI;
   nsCOMPtr<nsIURI> mSheetURI;
   nsCOMPtr<nsIPrincipal> mSheetPrincipal;
-  mozilla::CSSStyleSheet* mSheet;
+  // XXX Should store sheet here (see Bug 952338)
+  // mozilla::CSSStyleSheet* mSheet;
   uint32_t mLineNumber;
   uint32_t mLineOffset;
-
-  // This table is used to hold a reference on to any ImageValue that results
-  // from re-parsing this token stream at computed value time.  When properties
-  // like background-image contain a normal url(), the Declaration's data block
-  // will hold a reference to the ImageValue.  When a token stream is used,
-  // the Declaration only holds on to this nsCSSValueTokenStream object, and
-  // the ImageValue would only exist for the duration of
-  // nsRuleNode::WalkRuleTree, in the AutoCSSValueArray.  So instead when
-  // we re-parse a token stream and get an ImageValue, we record it in this
-  // table so that the Declaration can be the object that keeps holding
-  // a reference to it.
-  nsTHashtable<nsRefPtrHashKey<mozilla::css::ImageValue> > mImageValues;
+  mozilla::SheetType mLevel;
 
 private:
   nsCSSValueTokenStream(const nsCSSValueTokenStream& aOther) = delete;

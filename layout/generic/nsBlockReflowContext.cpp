@@ -41,7 +41,7 @@ static nsIFrame* DescendIntoBlockLevelFrame(nsIFrame* aFrame)
   nsIAtom* type = aFrame->GetType();
   if (type == nsGkAtoms::columnSetFrame) {
     static_cast<nsColumnSetFrame*>(aFrame)->DrainOverflowColumns();
-    nsIFrame* child = aFrame->GetFirstPrincipalChild();
+    nsIFrame* child = aFrame->PrincipalChildList().FirstChild();
     if (child) {
       return DescendIntoBlockLevelFrame(child);
     }
@@ -250,10 +250,16 @@ nsBlockReflowContext::ReflowBlock(const LogicalRect&  aSpace,
     printf(" margin => %d, clearance => %d\n", mBStartMargin.get(), aClearance);
 #endif
 
-    // Adjust the available block size if it's constrained so that the
+    // Adjust the available size if it's constrained so that the
     // child frame doesn't think it can reflow into its margin area.
-    if (NS_UNCONSTRAINEDSIZE != aFrameRS.AvailableBSize()) {
-      aFrameRS.AvailableBSize() -= mBStartMargin.get() + aClearance;
+    if (mWritingMode.IsOrthogonalTo(mFrame->GetWritingMode())) {
+      if (NS_UNCONSTRAINEDSIZE != aFrameRS.AvailableISize()) {
+        aFrameRS.AvailableISize() -= mBStartMargin.get() + aClearance;
+      }
+    } else {
+      if (NS_UNCONSTRAINEDSIZE != aFrameRS.AvailableBSize()) {
+        aFrameRS.AvailableBSize() -= mBStartMargin.get() + aClearance;
+      }
     }
   } else {
     // nsBlockFrame::ReflowBlock might call us multiple times with
@@ -302,8 +308,9 @@ nsBlockReflowContext::ReflowBlock(const LogicalRect&  aSpace,
 
 #ifdef DEBUG
   if (!NS_INLINE_IS_BREAK_BEFORE(aFrameReflowStatus)) {
-    if (CRAZY_SIZE(mMetrics.ISize(mWritingMode)) ||
-        CRAZY_SIZE(mMetrics.BSize(mWritingMode))) {
+    if ((CRAZY_SIZE(mMetrics.ISize(mWritingMode)) ||
+         CRAZY_SIZE(mMetrics.BSize(mWritingMode))) &&
+        !mFrame->GetParent()->IsCrazySizeAssertSuppressed()) {
       printf("nsBlockReflowContext: ");
       nsFrame::ListTag(stdout, mFrame);
       printf(" metrics=%d,%d!\n",

@@ -167,15 +167,15 @@ nsresult
 nsFSURLEncoded::AddNameFilePair(const nsAString& aName,
                                 mozilla::dom::File* aFile)
 {
+  MOZ_ASSERT(aFile);
+
   if (!mWarnedFileControl) {
     SendJSWarning(mDocument, "ForgotFileEnctypeWarning", nullptr, 0);
     mWarnedFileControl = true;
   }
 
   nsAutoString filename;
-  if (aFile) {
-    aFile->GetName(filename);
-  }
+  aFile->GetName(filename);
 
   return AddNameValuePair(aName, filename);
 }
@@ -441,61 +441,60 @@ nsresult
 nsFSMultipartFormData::AddNameFilePair(const nsAString& aName,
                                        mozilla::dom::File* aFile)
 {
+  MOZ_ASSERT(aFile);
+
   // Encode the control name
   nsAutoCString nameStr;
   nsresult rv = EncodeVal(aName, nameStr, true);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  nsCString filename, contentType;
+  nsAutoString filename16;
+  aFile->GetName(filename16);
+
+  ErrorResult error;
+  nsAutoString filepath16;
+  aFile->GetPath(filepath16, error);
+  if (NS_WARN_IF(error.Failed())) {
+    return error.StealNSResult();
+  }
+
+  if (!filepath16.IsEmpty()) {
+    // File.path includes trailing "/"
+    filename16 = filepath16 + filename16;
+  }
+
+  nsAutoCString filename;
+  rv = EncodeVal(filename16, filename, true);
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  // Get content type
+  nsAutoString contentType16;
+  aFile->GetType(contentType16);
+  if (contentType16.IsEmpty()) {
+    contentType16.AssignLiteral("application/octet-stream");
+  }
+
+  nsAutoCString contentType;
+  contentType.Adopt(nsLinebreakConverter::
+                    ConvertLineBreaks(NS_ConvertUTF16toUTF8(contentType16).get(),
+                                      nsLinebreakConverter::eLinebreakAny,
+                                      nsLinebreakConverter::eLinebreakSpace));
+
+  // Get input stream
   nsCOMPtr<nsIInputStream> fileStream;
-  if (aFile) {
-    nsAutoString filename16;
-    aFile->GetName(filename16);
+  aFile->GetInternalStream(getter_AddRefs(fileStream), error);
+  if (NS_WARN_IF(error.Failed())) {
+    return error.StealNSResult();
+  }
 
-    ErrorResult error;
-    nsAutoString filepath16;
-    aFile->GetPath(filepath16, error);
-    if (NS_WARN_IF(error.Failed())) {
-      return error.StealNSResult();
-    }
-
-    if (!filepath16.IsEmpty()) {
-      // File.path includes trailing "/"
-      filename16 = filepath16 + filename16;
-    }
-
-    rv = EncodeVal(filename16, filename, true);
+  if (fileStream) {
+    // Create buffered stream (for efficiency)
+    nsCOMPtr<nsIInputStream> bufferedStream;
+    rv = NS_NewBufferedInputStream(getter_AddRefs(bufferedStream),
+                                   fileStream, 8192);
     NS_ENSURE_SUCCESS(rv, rv);
 
-    // Get content type
-    nsAutoString contentType16;
-    aFile->GetType(contentType16);
-    if (contentType16.IsEmpty()) {
-      contentType16.AssignLiteral("application/octet-stream");
-    }
-    contentType.Adopt(nsLinebreakConverter::
-                      ConvertLineBreaks(NS_ConvertUTF16toUTF8(contentType16).get(),
-                                        nsLinebreakConverter::eLinebreakAny,
-                                        nsLinebreakConverter::eLinebreakSpace));
-
-    // Get input stream
-    aFile->GetInternalStream(getter_AddRefs(fileStream), error);
-    if (NS_WARN_IF(error.Failed())) {
-      return error.StealNSResult();
-    }
-
-    if (fileStream) {
-      // Create buffered stream (for efficiency)
-      nsCOMPtr<nsIInputStream> bufferedStream;
-      rv = NS_NewBufferedInputStream(getter_AddRefs(bufferedStream),
-                                     fileStream, 8192);
-      NS_ENSURE_SUCCESS(rv, rv);
-
-      fileStream = bufferedStream;
-    }
-  }
-  else {
-    contentType.AssignLiteral("application/octet-stream");
+    fileStream = bufferedStream;
   }
 
   //
@@ -619,9 +618,7 @@ nsFSTextPlain::AddNameFilePair(const nsAString& aName,
                                mozilla::dom::File* aFile)
 {
   nsAutoString filename;
-  if (aFile) {
-    aFile->GetName(filename);
-  }
+  aFile->GetName(filename);
 
   AddNameValuePair(aName, filename);
   return NS_OK;
@@ -694,34 +691,16 @@ nsFSTextPlain::GetEncodedSubmission(nsIURI* aURI,
 nsEncodingFormSubmission::nsEncodingFormSubmission(const nsACString& aCharset,
                                                    nsIContent* aOriginatingElement)
   : nsFormSubmission(aCharset, aOriginatingElement)
+  , mEncoder(aCharset)
 {
-  nsAutoCString charset(aCharset);
-  // canonical name is passed so that we just have to check against
-  // *our* canonical names listed in charsetaliases.properties
-  if (charset.EqualsLiteral("ISO-8859-1")) {
-    charset.AssignLiteral("windows-1252");
-  }
-
-  if (!(charset.EqualsLiteral("UTF-8") || charset.EqualsLiteral("gb18030"))) {
-    NS_ConvertUTF8toUTF16 charsetUtf16(charset);
+  if (!(aCharset.EqualsLiteral("UTF-8") || aCharset.EqualsLiteral("gb18030"))) {
+    NS_ConvertUTF8toUTF16 charsetUtf16(aCharset);
     const char16_t* charsetPtr = charsetUtf16.get();
     SendJSWarning(aOriginatingElement ? aOriginatingElement->GetOwnerDocument()
                                       : nullptr,
                   "CannotEncodeAllUnicode",
                   &charsetPtr,
                   1);
-  }
-
-  mEncoder = do_CreateInstance(NS_SAVEASCHARSET_CONTRACTID);
-  if (mEncoder) {
-    nsresult rv =
-      mEncoder->Init(charset.get(),
-                     (nsISaveAsCharset::attr_EntityAfterCharsetConv + 
-                      nsISaveAsCharset::attr_FallbackDecimalNCR),
-                     0);
-    if (NS_FAILED(rv)) {
-      mEncoder = nullptr;
-    }
   }
 }
 
@@ -734,15 +713,8 @@ nsresult
 nsEncodingFormSubmission::EncodeVal(const nsAString& aStr, nsCString& aOut,
                                     bool aHeaderEncode)
 {
-  if (mEncoder && !aStr.IsEmpty()) {
-    aOut.Truncate();
-    nsresult rv = mEncoder->Convert(PromiseFlatString(aStr).get(),
-                                    getter_Copies(aOut));
-    NS_ENSURE_SUCCESS(rv, rv);
-  }
-  else {
-    // fall back to UTF-8
-    CopyUTF16toUTF8(aStr, aOut);
+  if (!mEncoder.Encode(aStr, aOut)) {
+    return NS_ERROR_OUT_OF_MEMORY;
   }
 
   if (aHeaderEncode) {
@@ -873,7 +845,6 @@ GetSubmissionFromForm(nsGenericHTMLElement* aForm,
     *aFormSubmission = new nsFSURLEncoded(charset, method, doc,
                                           aOriginatingElement);
   }
-  NS_ENSURE_TRUE(*aFormSubmission, NS_ERROR_OUT_OF_MEMORY);
 
   return NS_OK;
 }

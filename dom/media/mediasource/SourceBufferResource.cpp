@@ -13,12 +13,9 @@
 #include "mozilla/Logging.h"
 #include "MediaData.h"
 
-PRLogModuleInfo* GetSourceBufferResourceLog()
+mozilla::LogModule* GetSourceBufferResourceLog()
 {
-  static PRLogModuleInfo* sLogModule;
-  if (!sLogModule) {
-    sLogModule = PR_NewLogModule("SourceBufferResource");
-  }
+  static mozilla::LazyLogModule sLogModule("SourceBufferResource");
   return sLogModule;
 }
 
@@ -36,16 +33,6 @@ SourceBufferResource::Close()
   mClosed = true;
   mon.NotifyAll();
   return NS_OK;
-}
-
-nsresult
-SourceBufferResource::Read(char* aBuffer, uint32_t aCount, uint32_t* aBytes)
-{
-  SBR_DEBUGV("Read(aBuffer=%p, aCount=%u, aBytes=%p)",
-             aBytes, aCount, aBytes);
-  ReentrantMonitorAutoEnter mon(mMonitor);
-
-  return ReadInternal(aBuffer, aCount, aBytes, /* aMayBlock = */ true);
 }
 
 nsresult
@@ -74,7 +61,7 @@ SourceBufferResource::ReadInternal(char* aBuffer, uint32_t aCount, uint32_t* aBy
   uint32_t available = GetLength() - readOffset;
   uint32_t count = std::min(aCount, available);
   SBR_DEBUGV("readOffset=%llu GetLength()=%u available=%u count=%u mEnded=%d",
-             this, readOffset, GetLength(), available, count, mEnded);
+             readOffset, GetLength(), available, count, mEnded);
   if (available == 0) {
     SBR_DEBUGV("reached EOF");
     *aBytes = 0;
@@ -112,33 +99,6 @@ SourceBufferResource::ReadAtInternal(int64_t aOffset, char* aBuffer, uint32_t aC
   }
 
   return ReadInternal(aBuffer, aCount, aBytes, aMayBlock);
-}
-
-nsresult
-SourceBufferResource::Seek(int32_t aWhence, int64_t aOffset)
-{
-  SBR_DEBUG("Seek(aWhence=%d, aOffset=%lld)",
-            aWhence, aOffset);
-  ReentrantMonitorAutoEnter mon(mMonitor);
-
-  int64_t newOffset = mOffset;
-  switch (aWhence) {
-  case nsISeekableStream::NS_SEEK_END:
-    newOffset = GetLength() - aOffset;
-    break;
-  case nsISeekableStream::NS_SEEK_CUR:
-    newOffset += aOffset;
-    break;
-  case nsISeekableStream::NS_SEEK_SET:
-    newOffset = aOffset;
-    break;
-  }
-
-  SBR_DEBUGV("newOffset=%lld GetOffset()=%llu GetLength()=%llu)",
-             newOffset, mInputBuffer.GetOffset(), GetLength());
-  nsresult rv = SeekInternal(newOffset);
-  mon.NotifyAll();
-  return rv;
 }
 
 nsresult
@@ -212,7 +172,7 @@ SourceBufferResource::EvictAll()
 }
 
 void
-SourceBufferResource::AppendData(MediaLargeByteBuffer* aData)
+SourceBufferResource::AppendData(MediaByteBuffer* aData)
 {
   SBR_DEBUG("AppendData(aData=%p, aLength=%u)",
             aData->Elements(), aData->Length());

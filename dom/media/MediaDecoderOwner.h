@@ -117,10 +117,10 @@ public:
   };
 
   // Check if the decoder owner is active.
-  virtual bool IsActive() = 0;
+  virtual bool IsActive() const = 0;
 
   // Check if the decoder owner is hidden.
-  virtual bool IsHidden() = 0;
+  virtual bool IsHidden() const = 0;
 
   // Called by the media decoder and the video frame to get the
   // ImageContainer containing the video data.
@@ -129,6 +129,14 @@ public:
   // Called by the media decoder object, on the main thread,
   // when the connection between Rtsp server and client gets lost.
   virtual void ResetConnectionState() = 0;
+
+#ifdef MOZ_EME
+  // Dispatches a "encrypted" event to the HTMLMediaElement, with the
+  // provided init data. Actual dispatch may be delayed until HAVE_METADATA.
+  // Main thread only.
+  virtual void DispatchEncrypted(const nsTArray<uint8_t>& aInitData,
+                                 const nsAString& aInitDataType) = 0;
+#endif // MOZ_EME
 };
 
 } // namespace mozilla

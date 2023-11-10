@@ -18,8 +18,6 @@
 #include "nsHashKeys.h"
 #include "nsITimer.h"
 
-struct PRLogModuleInfo;
-
 namespace mozilla {
 
 class EventChainPostVisitor;
@@ -99,7 +97,7 @@ public:
   }
 #endif
 
-  static PRLogModuleInfo*
+  static mozilla::LogModule*
   GetLoggingModule()
 #ifdef DEBUG
   ;
@@ -117,6 +115,9 @@ public:
   {
     return ExperimentalFeaturesEnabled();
   }
+
+  static bool
+  IsFileHandleEnabled();
 
   already_AddRefed<FileManager>
   GetFileManager(PersistenceType aPersistenceType,
@@ -158,6 +159,11 @@ public:
   nsresult
   FlushPendingFileDeletions();
 
+#ifdef ENABLE_INTL_API
+  static const nsCString&
+  GetLocale();
+#endif
+
   static mozilla::Mutex&
   FileMutex()
   {
@@ -195,14 +201,18 @@ private:
   nsClassHashtable<nsRefPtrHashKey<FileManager>,
                    nsTArray<int64_t>> mPendingDeleteInfos;
 
-  // Lock protecting FileManager.mFileInfos and BlobImplBase.mFileInfos
+  // Lock protecting FileManager.mFileInfos.
   // It's s also used to atomically update FileInfo.mRefCnt, FileInfo.mDBRefCnt
   // and FileInfo.mSliceRefCnt
   mozilla::Mutex mFileMutex;
 
+#ifdef ENABLE_INTL_API
+  nsCString mLocale;
+#endif
+
   static bool sIsMainProcess;
   static bool sFullSynchronousMode;
-  static PRLogModuleInfo* sLoggingModule;
+  static LazyLogModule sLoggingModule;
   static Atomic<LoggingMode> sLoggingMode;
   static mozilla::Atomic<bool> sLowDiskSpaceMode;
 };

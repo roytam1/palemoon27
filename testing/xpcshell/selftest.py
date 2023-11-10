@@ -5,7 +5,7 @@
 #
 
 from __future__ import with_statement
-import sys, os, unittest, tempfile, shutil
+import sys, os, unittest, tempfile, shutil, re, pprint
 import mozinfo
 
 from StringIO import StringIO
@@ -295,6 +295,7 @@ class XPCShellTestsTests(unittest.TestCase):
     def setUp(self):
         self.log = StringIO()
         self.tempdir = tempfile.mkdtemp()
+        self.utility_path = os.path.join(objdir, 'dist', 'bin')
         logger = structured.commandline.setup_logging("selftest%s" % id(self),
                                                       {},
                                                       {"tbpl": self.log})
@@ -335,19 +336,22 @@ tail =
 
 """ + "\n".join(testlines))
 
-    def assertTestResult(self, expected, shuffle=False, verbose=False):
+    def assertTestResult(self, expected, shuffle=False, verbose=False,
+                         symbolsPath=None):
         """
         Assert that self.x.runTests with manifest=self.manifest
         returns |expected|.
         """
         self.assertEquals(expected,
                           self.x.runTests(xpcshellBin,
+                                          symbolsPath=symbolsPath,
                                           manifest=self.manifest,
                                           mozInfo=mozinfo.info,
                                           shuffle=shuffle,
                                           testsRootDir=self.tempdir,
                                           verbose=verbose,
-                                          sequential=True),
+                                          sequential=True,
+                                          utility_path=self.utility_path),
                           msg="""Tests should have %s, log:
 ========
 %s
@@ -403,6 +407,41 @@ tail =
         self.assertEquals(0, self.x.todoCount)
         self.assertInLog(TEST_FAIL_STRING)
         self.assertNotInLog(TEST_PASS_STRING)
+
+    @unittest.skipIf(mozinfo.isWin or not mozinfo.info.get('debug'),
+                     'We don\'t have a stack fixer on hand for windows.')
+    def testAssertStack(self):
+        """
+        When an assertion is hit, we should produce a useful stack.
+        """
+        # Passing symbolsPath will cause the stack fixer to use
+        # fix_stack_using_bpsyms and exercise the fileid utility in
+        # this test.
+        symbolsPath = None
+        candidate_path = os.path.join(build_obj.distdir, 'crashreporter-symbols')
+        if os.path.isdir(candidate_path):
+          symbolsPath = candidate_path
+
+        self.writeFile("test_assert.js", '''
+          add_test(function test_asserts_immediately() {
+            Components.classes["@mozilla.org/xpcom/debug;1"]
+                      .getService(Components.interfaces.nsIDebug2)
+                      .assertion("foo", "assertion failed", "test.js", 1)
+            run_next_test();
+          });
+        ''')
+
+        self.writeManifest(["test_assert.js"])
+        self.assertTestResult(False, symbolsPath=symbolsPath)
+
+        self.assertInLog("###!!! ASSERTION")
+        log_lines = self.log.getvalue().splitlines()
+        line_pat = "#\d\d:"
+        unknown_pat = "#\d\d\: \?\?\?\[.* \+0x[a-f0-9]+\]"
+        self.assertFalse(any(re.search(unknown_pat, line) for line in log_lines),
+                         "An stack frame without symbols was found in\n%s" % pprint.pformat(log_lines))
+        self.assertTrue(any(re.search(line_pat, line) for line in log_lines),
+                        "No line resembling a stack frame was found in\n%s" % pprint.pformat(log_lines))
 
     @unittest.skipIf(build_obj.defines.get('MOZ_B2G'),
                      'selftests with child processes fail on b2g desktop builds')

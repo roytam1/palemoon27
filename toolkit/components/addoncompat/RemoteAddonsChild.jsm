@@ -40,7 +40,7 @@ function setDefault(dict, key, default_)
 //
 // In the child, clients can watch for changes to all paths that start
 // with a given component.
-let NotificationTracker = {
+var NotificationTracker = {
   init: function() {
     let cpmm = Cc["@mozilla.org/childprocessmessagemanager;1"]
                .getService(Ci.nsISyncMessageSender);
@@ -140,7 +140,7 @@ let NotificationTracker = {
 // it runs, it notifies the parent that it needs to run its own
 // nsIContentPolicy list. If any policy in the parent rejects a
 // resource load, that answer is returned to the child.
-let ContentPolicyChild = {
+var ContentPolicyChild = {
   _classDescription: "Addon shim content policy",
   _classID: Components.ID("6e869130-635c-11e2-bcfd-0800200c9a66"),
   _contractID: "@mozilla.org/addon-child/policy;1",
@@ -203,11 +203,14 @@ let ContentPolicyChild = {
 
 // This is a shim channel whose only purpose is to return some string
 // data from an about: protocol handler.
-function AboutProtocolChannel(uri, contractID)
+function AboutProtocolChannel(uri, contractID, loadInfo)
 {
   this.URI = uri;
   this.originalURI = uri;
   this._contractID = contractID;
+  this._loadingPrincipal = loadInfo.loadingPrincipal;
+  this._securityFlags = loadInfo.securityFlags;
+  this._contentPolicyType = loadInfo.externalContentPolicyType;
 }
 
 AboutProtocolChannel.prototype = {
@@ -227,7 +230,10 @@ AboutProtocolChannel.prototype = {
                .getService(Ci.nsISyncMessageSender);
     let rval = cpmm.sendRpcMessage("Addons:AboutProtocol:OpenChannel", {
       uri: this.URI.spec,
-      contractID: this._contractID
+      contractID: this._contractID,
+      loadingPrincipal: this._loadingPrincipal,
+      securityFlags: this._securityFlags,
+      contentPolicyType: this._contentPolicyType
     }, {
       notificationCallbacks: this.notificationCallbacks,
       loadGroupNotificationCallbacks: this.loadGroup ? this.loadGroup.notificationCallbacks : null,
@@ -327,14 +333,14 @@ AboutProtocolInstance.prototype = {
   // available to CPOWs. Consequently, we return a shim channel that,
   // when opened, asks the parent to open the channel and read out all
   // the data.
-  newChannel: function(uri) {
-    return new AboutProtocolChannel(uri, this._contractID);
+  newChannel: function(uri, loadInfo) {
+    return new AboutProtocolChannel(uri, this._contractID, loadInfo);
   },
 
   QueryInterface: XPCOMUtils.generateQI([Ci.nsIFactory, Ci.nsIAboutModule])
 };
 
-let AboutProtocolChild = {
+var AboutProtocolChild = {
   _classDescription: "Addon shim about: protocol handler",
 
   init: function() {
@@ -369,7 +375,7 @@ let AboutProtocolChild = {
 
 // This code registers observers in the child whenever an add-on in
 // the parent asks for notifications on the given topic.
-let ObserverChild = {
+var ObserverChild = {
   init: function() {
     NotificationTracker.watch("observer", this);
   },
@@ -492,7 +498,7 @@ SandboxChild.prototype = {
                                          Ci.nsISupportsWeakReference])
 };
 
-let RemoteAddonsChild = {
+var RemoteAddonsChild = {
   _ready: false,
 
   makeReady: function() {

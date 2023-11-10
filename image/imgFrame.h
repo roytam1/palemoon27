@@ -108,6 +108,7 @@ class imgFrame
   typedef gfx::Color Color;
   typedef gfx::DataSourceSurface DataSourceSurface;
   typedef gfx::DrawTarget DrawTarget;
+  typedef gfx::Filter Filter;
   typedef gfx::IntSize IntSize;
   typedef gfx::SourceSurface SourceSurface;
   typedef gfx::SurfaceFormat SurfaceFormat;
@@ -154,7 +155,7 @@ public:
   nsresult InitWithDrawable(gfxDrawable* aDrawable,
                             const nsIntSize& aSize,
                             const SurfaceFormat aFormat,
-                            GraphicsFilter aFilter,
+                            Filter aFilter,
                             uint32_t aImageFlags);
 
   DrawableFrameRef DrawableRef();
@@ -173,7 +174,7 @@ public:
   void SetRawAccessOnly();
 
   bool Draw(gfxContext* aContext, const ImageRegion& aRegion,
-            GraphicsFilter aFilter, uint32_t aImageFlags);
+            Filter aFilter, uint32_t aImageFlags);
 
   nsresult ImageUpdated(const nsIntRect& aUpdateRect);
 
@@ -264,8 +265,8 @@ public:
   already_AddRefed<SourceSurface> GetSurface();
   already_AddRefed<DrawTarget> GetDrawTarget();
 
-  size_t SizeOfExcludingThis(gfxMemoryLocation aLocation,
-                             MallocSizeOf aMallocSizeOf) const;
+  void AddSizeOfExcludingThis(MallocSizeOf aMallocSizeOf, size_t& aHeapSizeOut,
+                              size_t& aNonHeapSizeOut) const;
 
 private: // methods
 
@@ -274,7 +275,6 @@ private: // methods
   nsresult LockImageData();
   nsresult UnlockImageData();
   nsresult Optimize();
-  nsresult Deoptimize();
 
   void AssertImageDataLocked() const;
 
@@ -293,7 +293,7 @@ private: // methods
   }
 
   struct SurfaceWithFormat {
-    nsRefPtr<gfxDrawable> mDrawable;
+    RefPtr<gfxDrawable> mDrawable;
     SurfaceFormat mFormat;
     SurfaceWithFormat() { }
     SurfaceWithFormat(gfxDrawable* aDrawable, SurfaceFormat aFormat)
@@ -433,7 +433,7 @@ public:
 private:
   DrawableFrameRef(const DrawableFrameRef& aOther) = delete;
 
-  nsRefPtr<imgFrame> mFrame;
+  RefPtr<imgFrame> mFrame;
   VolatileBufferPtr<uint8_t> mRef;
 };
 
@@ -448,6 +448,9 @@ private:
  * This may be considerably more expensive than is necessary just for drawing,
  * so only use this when you need to read or write the raw underlying image data
  * that the imgFrame holds.
+ *
+ * Once all an imgFrame's RawAccessFrameRefs go out of scope, new
+ * RawAccessFrameRefs cannot be created.
  */
 class RawAccessFrameRef final
 {
@@ -517,7 +520,7 @@ public:
 private:
   RawAccessFrameRef(const RawAccessFrameRef& aOther) = delete;
 
-  nsRefPtr<imgFrame> mFrame;
+  RefPtr<imgFrame> mFrame;
 };
 
 } // namespace image

@@ -18,6 +18,7 @@
 #include "mozilla/ArrayUtils.h"
 #include "mozilla/Assertions.h"
 #include "mozilla/Vector.h"
+#include "mozilla/TimeStamp.h"
 
 /**
  * A directory service key which provides the platform-correct "application
@@ -116,6 +117,12 @@
  * the application.
  */
 #define XRE_APP_DISTRIBUTION_DIR "XREAppDist"
+
+/**
+ * A directory service key which specifies the location for app dir add-ons.
+ * Should be a synonym for XCurProcD everywhere except in tests.
+ */
+#define XRE_ADDON_APP_DIR "XREAddonAppDir"
 
 /**
  * A directory service key which provides the update directory.
@@ -435,7 +442,7 @@ XRE_API(void,
         XRE_InstallX11ErrorHandler, ())
 
 XRE_API(void,
-        XRE_StartupTimelineRecord, (int aEvent, PRTime aWhen))
+        XRE_StartupTimelineRecord, (int aEvent, mozilla::TimeStamp aWhen))
 
 XRE_API(void,
         XRE_InitOmnijar, (nsIFile* aGreOmni,

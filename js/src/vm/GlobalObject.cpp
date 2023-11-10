@@ -21,18 +21,20 @@
 # include "builtin/Intl.h"
 #endif
 #include "builtin/MapObject.h"
+#include "builtin/ModuleObject.h"
 #include "builtin/Object.h"
 #include "builtin/RegExp.h"
-#include "builtin/SIMD.h"
+#include "builtin/SelfHostingDefines.h"
 #include "builtin/SymbolObject.h"
 #include "builtin/TypedObject.h"
+#include "builtin/WeakMapObject.h"
 #include "builtin/WeakSetObject.h"
 #include "vm/HelperThreads.h"
 #include "vm/PIC.h"
 #include "vm/RegExpStatics.h"
 #include "vm/RegExpStaticsObject.h"
+#include "vm/ScopeObject.h"
 #include "vm/StopIterationObject.h"
-#include "vm/WeakMapObject.h"
 
 #include "jscompartmentinlines.h"
 #include "jsobjinlines.h"
@@ -256,6 +258,11 @@ GlobalObject::createInternal(JSContext* cx, const Class* clasp)
     if (clasp->flags & JSCLASS_HAS_PRIVATE)
         global->setPrivate(nullptr);
 
+    Rooted<ClonedBlockObject*> lexical(cx, ClonedBlockObject::createGlobal(cx, global));
+    if (!lexical)
+        return nullptr;
+    global->setReservedSlot(LEXICAL_SCOPE, ObjectValue(*lexical));
+
     cx->compartment()->initGlobal(*global);
 
     if (!global->setQualifiedVarObj(cx))
@@ -276,20 +283,21 @@ GlobalObject::new_(JSContext* cx, const Class* clasp, JSPrincipals* principals,
 
     JSRuntime* rt = cx->runtime();
 
+    auto zoneSpecifier = options.creationOptions().zoneSpecifier();
     Zone* zone;
-    if (options.zoneSpecifier() == JS::SystemZone)
+    if (zoneSpecifier == JS::SystemZone)
         zone = rt->gc.systemZone;
-    else if (options.zoneSpecifier() == JS::FreshZone)
+    else if (zoneSpecifier == JS::FreshZone)
         zone = nullptr;
     else
-        zone = static_cast<Zone*>(options.zonePointer());
+        zone = static_cast<Zone*>(options.creationOptions().zonePointer());
 
     JSCompartment* compartment = NewCompartment(cx, zone, principals, options);
     if (!compartment)
         return nullptr;
 
     // Lazily create the system zone.
-    if (!rt->gc.systemZone && options.zoneSpecifier() == JS::SystemZone) {
+    if (!rt->gc.systemZone && zoneSpecifier == JS::SystemZone) {
         rt->gc.systemZone = compartment->zone();
         rt->gc.systemZone->isSystem = true;
     }
@@ -306,6 +314,12 @@ GlobalObject::new_(JSContext* cx, const Class* clasp, JSPrincipals* principals,
         JS_FireOnNewGlobalObject(cx, global);
 
     return global;
+}
+
+ClonedBlockObject&
+GlobalObject::lexicalScope() const
+{
+    return getReservedSlot(LEXICAL_SCOPE).toObject().as<ClonedBlockObject>();
 }
 
 /* static */ bool
@@ -403,11 +417,10 @@ GlobalObject::initSelfHostingBuiltins(JSContext* cx, Handle<GlobalObject*> globa
     return InitBareBuiltinCtor(cx, global, JSProto_Array) &&
            InitBareBuiltinCtor(cx, global, JSProto_TypedArray) &&
            InitBareBuiltinCtor(cx, global, JSProto_Uint8Array) &&
-           InitBareBuiltinCtor(cx, global, JSProto_Uint32Array) &&
            InitBareWeakMapCtor(cx, global) &&
            InitStopIterationClass(cx, global) &&
            InitSelfHostingCollectionIteratorFunctions(cx, global) &&
-           JS_DefineFunctions(cx, global, builtins);
+           DefineFunctions(cx, global, builtins, AsIntrinsic);
 }
 
 /* static */ bool
@@ -448,16 +461,23 @@ GlobalObject::warnOnceAbout(JSContext* cx, HandleObject obj, WarnOnceFlag flag,
     return true;
 }
 
-JSFunction *
-GlobalObject::createConstructor(JSContext *cx, Native ctor, JSAtom *nameArg, unsigned length,
-                                gc::AllocKind kind)
+JSFunction*
+GlobalObject::createConstructor(JSContext* cx, Native ctor, JSAtom* nameArg, unsigned length,
+                                gc::AllocKind kind, const JSJitInfo* jitInfo)
 {
     RootedAtom name(cx, nameArg);
-    return NewNativeConstructor(cx, ctor, length, name, kind);
+    JSFunction* fun = NewNativeConstructor(cx, ctor, length, name, kind);
+    if (!fun)
+        return nullptr;
+
+    if (jitInfo)
+        fun->setJitInfo(jitInfo);
+
+    return fun;
 }
 
-static NativeObject *
-CreateBlankProto(JSContext *cx, const Class *clasp, HandleObject proto, HandleObject global)
+static NativeObject*
+CreateBlankProto(JSContext* cx, const Class* clasp, HandleObject proto, HandleObject global)
 {
     MOZ_ASSERT(clasp != &JSFunction::class_);
 
@@ -521,7 +541,7 @@ GlobalDebuggees_finalize(FreeOp* fop, JSObject* obj)
 static const Class
 GlobalDebuggees_class = {
     "GlobalDebuggee", JSCLASS_HAS_PRIVATE,
-    nullptr, nullptr, nullptr, nullptr, nullptr,
+    nullptr, nullptr, nullptr, nullptr,
     nullptr, nullptr, nullptr, GlobalDebuggees_finalize
 };
 
@@ -641,16 +661,41 @@ GlobalObject::getSelfHostedFunction(JSContext* cx, Handle<GlobalObject*> global,
                                     HandlePropertyName selfHostedName, HandleAtom name,
                                     unsigned nargs, MutableHandleValue funVal)
 {
-    if (GlobalObject::maybeGetIntrinsicValue(cx, global, selfHostedName, funVal))
-        return true;
+    if (GlobalObject::maybeGetIntrinsicValue(cx, global, selfHostedName, funVal)) {
+        RootedFunction fun(cx, &funVal.toObject().as<JSFunction>());
+        if (fun->atom() == name)
+            return true;
 
-    JSFunction* fun =
-        NewScriptedFunction(cx, nargs, JSFunction::INTERPRETED_LAZY,
-                            name, gc::AllocKind::FUNCTION_EXTENDED, SingletonObject);
-    if (!fun)
+        if (fun->atom() == selfHostedName) {
+            // This function was initially cloned because it was called by
+            // other self-hosted code, so the clone kept its self-hosted name,
+            // instead of getting the name it's intended to have in content
+            // compartments. This can happen when a lazy builtin is initialized
+            // after self-hosted code for another builtin used the same
+            // function. In that case, we need to change the function's name,
+            // which is ok because it can't have been exposed to content
+            // before.
+            fun->initAtom(name);
+            return true;
+        }
+
+
+        // The function might be installed multiple times on the same or
+        // different builtins, under different property names, so its name
+        // might be neither "selfHostedName" nor "name". In that case, its
+        // canonical name must've been set using the `_SetCanonicalName`
+        // intrinsic.
+        cx->runtime()->assertSelfHostedFunctionHasCanonicalName(cx, selfHostedName);
+        return true;
+    }
+
+    RootedFunction fun(cx);
+    if (!cx->runtime()->createLazySelfHostedFunctionClone(cx, selfHostedName, name, nargs,
+                                                          /* proto = */ nullptr,
+                                                          SingletonObject, &fun))
+    {
         return false;
-    fun->setIsSelfHostedBuiltin();
-    fun->setExtendedSlot(0, StringValue(selfHostedName));
+    }
     funVal.setObject(*fun);
 
     return GlobalObject::addIntrinsicValue(cx, global, selfHostedName, funVal);
@@ -669,7 +714,7 @@ GlobalObject::addIntrinsicValue(JSContext* cx, Handle<GlobalObject*> global,
     Rooted<UnownedBaseShape*> base(cx, last->base()->unowned());
 
     RootedId id(cx, NameToId(name));
-    StackShape child(base, id, slot, 0, 0);
+    Rooted<StackShape> child(cx, StackShape(base, id, slot, 0, 0));
     Shape* shape = cx->compartment()->propertyTree.getChild(cx, last, child);
     if (!shape)
         return false;

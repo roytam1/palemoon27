@@ -90,8 +90,7 @@ nsPluginStreamToFile::Write(const char* aBuf, uint32_t aCount,
 {
   mOutputStream->Write(aBuf, aCount, aWriteCount);
   mOutputStream->Flush();
-  mOwner->GetURL(mFileURL.get(), mTarget, nullptr, nullptr, 0);
-  
+  mOwner->GetURL(mFileURL.get(), mTarget, nullptr, nullptr, 0, false);
   return NS_OK;
 }
 
@@ -122,7 +121,7 @@ NS_IMETHODIMP
 nsPluginStreamToFile::Close(void)
 {
   mOutputStream->Close();
-  mOwner->GetURL(mFileURL.get(), mTarget, nullptr, nullptr, 0);
+  mOwner->GetURL(mFileURL.get(), mTarget, nullptr, nullptr, 0, false);
   return NS_OK;
 }
 
@@ -191,7 +190,7 @@ nsNPAPIPluginStreamListener::CleanUpStream(NPReason reason)
   // Various bits of code in the rest of this method may result in the
   // deletion of this object. Use a KungFuDeathGrip to keep ourselves
   // alive during cleanup.
-  nsRefPtr<nsNPAPIPluginStreamListener> kungFuDeathGrip(this);
+  RefPtr<nsNPAPIPluginStreamListener> kungFuDeathGrip(this);
 
   if (mStreamCleanedUp)
     return NS_OK;
@@ -285,6 +284,7 @@ nsNPAPIPluginStreamListener::CallURLNotify(NPReason reason)
 nsresult
 nsNPAPIPluginStreamListener::OnStartBinding(nsPluginStreamListenerPeer* streamPeer)
 {
+  PROFILER_LABEL_FUNC(js::ProfileEntry::Category::OTHER);
   if (!mInst || !mInst->CanFireNotifications() || mStreamCleanedUp)
     return NS_ERROR_FAILURE;
 

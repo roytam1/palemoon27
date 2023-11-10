@@ -6,11 +6,21 @@
 #ifndef mozilla_net_Http2Stream_h
 #define mozilla_net_Http2Stream_h
 
+// HTTP/2 - RFC7540
+// https://www.rfc-editor.org/rfc/rfc7540.txt
+
+// HTTP/2 - RFC7540
+// https://www.rfc-editor.org/rfc/rfc7540.txt
+
 #include "mozilla/Attributes.h"
+#include "mozilla/UniquePtr.h"
 #include "nsAHttpTransaction.h"
 #include "nsISupportsPriority.h"
+#include "SimpleBuffer.h"
 
 class nsStandardURL;
+class nsIInputStream;
+class nsIOutputStream;
 
 namespace mozilla {
 namespace net {
@@ -50,7 +60,7 @@ public:
 
   virtual nsresult ReadSegments(nsAHttpSegmentReader *,  uint32_t, uint32_t *);
   virtual nsresult WriteSegments(nsAHttpSegmentWriter *, uint32_t, uint32_t *);
-  virtual bool DeferCleanup(nsresult status) { return false; }
+  virtual bool DeferCleanup(nsresult status);
 
   // The consumer stream is the synthetic pull stream hooked up to this stream
   // http2PushedStream overrides it
@@ -122,7 +132,7 @@ public:
     mLocalUnacked -= delta;
   }
 
-  uint64_t LocalUnAcked() { return mLocalUnacked; }
+  uint64_t LocalUnAcked();
   int64_t  ClientReceiveWindow()  { return mClientReceiveWindow; }
 
   bool     BlockedOnRwin() { return mBlockedOnRwin; }
@@ -141,11 +151,11 @@ public:
   Http2Session *Session() { return mSession; }
 
   static nsresult MakeOriginURL(const nsACString &origin,
-                                nsRefPtr<nsStandardURL> &url);
+                                RefPtr<nsStandardURL> &url);
 
   static nsresult MakeOriginURL(const nsACString &scheme,
                                 const nsACString &origin,
-                                nsRefPtr<nsStandardURL> &url);
+                                RefPtr<nsStandardURL> &url);
 
 protected:
   static void CreatePushHashKey(const nsCString &scheme,
@@ -168,6 +178,12 @@ protected:
 
   // The session that this stream is a subset of
   Http2Session *mSession;
+
+  // These are temporary state variables to hold the argument to
+  // Read/WriteSegments so it can be accessed by On(read/write)segment
+  // further up the stack.
+  nsAHttpSegmentReader        *mSegmentReader;
+  nsAHttpSegmentWriter        *mSegmentWriter;
 
   nsCString     mOrigin;
   nsCString     mHeaderHost;
@@ -197,6 +213,9 @@ protected:
 
   void     ChangeState(enum upstreamStateType);
 
+  virtual void AdjustInitialWindow();
+  nsresult TransmitFrame(const char *, uint32_t *, bool forceCommitment);
+
 private:
   friend class nsAutoPtr<Http2Stream>;
 
@@ -204,24 +223,18 @@ private:
   nsresult GenerateOpen();
 
   void     AdjustPushedPriority();
-  void     AdjustInitialWindow();
-  nsresult TransmitFrame(const char *, uint32_t *, bool forceCommitment);
   void     GenerateDataFrameHeader(uint32_t, bool);
+
+  nsresult BufferInput(uint32_t , uint32_t *);
 
   // The underlying HTTP transaction. This pointer is used as the key
   // in the Http2Session mStreamTransactionHash so it is important to
   // keep a reference to it as long as this stream is a member of that hash.
   // (i.e. don't change it or release it after it is set in the ctor).
-  nsRefPtr<nsAHttpTransaction> mTransaction;
+  RefPtr<nsAHttpTransaction> mTransaction;
 
   // The underlying socket transport object is needed to propogate some events
   nsISocketTransport         *mSocketTransport;
-
-  // These are temporary state variables to hold the argument to
-  // Read/WriteSegments so it can be accessed by On(read/write)segment
-  // further up the stack.
-  nsAHttpSegmentReader        *mSegmentReader;
-  nsAHttpSegmentWriter        *mSegmentWriter;
 
   // The quanta upstream data frames are chopped into
   uint32_t                    mChunkSize;
@@ -256,9 +269,13 @@ private:
   // Flag is set after TCP send autotuning has been disabled
   uint32_t                     mSetTCPSocketBuffer   : 1;
 
+  // Flag is set when OnWriteSegment is being called directly from stream instead
+  // of transaction
+  uint32_t                     mBypassInputBuffer   : 1;
+
   // The InlineFrame and associated data is used for composing control
   // frames and data frame headers.
-  nsAutoArrayPtr<uint8_t>      mTxInlineFrame;
+  UniquePtr<uint8_t[]>         mTxInlineFrame;
   uint32_t                     mTxInlineFrameSize;
   uint32_t                     mTxInlineFrameUsed;
 
@@ -309,6 +326,10 @@ private:
 
   // For Http2Push
   Http2PushedStream *mPushSource;
+
+  // Used to store stream data when the transaction channel cannot keep up
+  // and flow control has not yet kicked in.
+  SimpleBuffer mSimpleBuffer;
 
 /// connect tunnels
 public:

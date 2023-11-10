@@ -11,11 +11,12 @@
 #include "FrameMetrics.h"     // for ScrollableLayerGuid
 #include "Units.h"
 #include "mozilla/EventForwards.h"
+#include "mozilla/Function.h"
 #include "mozilla/layers/GeckoContentController.h"  // for APZStateChange
+#include "mozilla/RefPtr.h"
 #include "nsCOMPtr.h"
 #include "nsISupportsImpl.h"  // for NS_INLINE_DECL_REFCOUNTING
 #include "nsIWeakReferenceUtils.h"  // for nsWeakPtr
-#include "mozilla/nsRefPtr.h"
 
 template <class> class nsCOMPtr;
 class nsIDocument;
@@ -27,15 +28,10 @@ namespace layers {
 
 class ActiveElementManager;
 
-struct ContentReceivedInputBlockCallback {
-public:
-  NS_INLINE_DECL_REFCOUNTING(ContentReceivedInputBlockCallback);
-  virtual void Run(const ScrollableLayerGuid& aGuid,
-                   uint64_t aInputBlockId,
-                   bool aPreventDefault) const = 0;
-protected:
-  virtual ~ContentReceivedInputBlockCallback() {}
-};
+typedef Function<void(const ScrollableLayerGuid&,
+                      uint64_t /* input block id */,
+                      bool /* prevent default */)>
+        ContentReceivedInputBlockCallback;
 
 /**
  * A content-side component that keeps track of state for handling APZ
@@ -46,7 +42,7 @@ class APZEventState {
   typedef FrameMetrics::ViewID ViewID;
 public:
   APZEventState(nsIWidget* aWidget,
-                const nsRefPtr<ContentReceivedInputBlockCallback>& aCallback);
+                ContentReceivedInputBlockCallback&& aCallback);
 
   NS_INLINE_DECL_REFCOUNTING(APZEventState);
 
@@ -61,23 +57,27 @@ public:
   void ProcessTouchEvent(const WidgetTouchEvent& aEvent,
                          const ScrollableLayerGuid& aGuid,
                          uint64_t aInputBlockId,
-                         nsEventStatus aApzResponse);
+                         nsEventStatus aApzResponse,
+                         nsEventStatus aContentResponse);
   void ProcessWheelEvent(const WidgetWheelEvent& aEvent,
+                         const ScrollableLayerGuid& aGuid,
+                         uint64_t aInputBlockId);
+  void ProcessMouseEvent(const WidgetMouseEvent& aEvent,
                          const ScrollableLayerGuid& aGuid,
                          uint64_t aInputBlockId);
   void ProcessAPZStateChange(const nsCOMPtr<nsIDocument>& aDocument,
                              ViewID aViewId,
                              APZStateChange aChange,
                              int aArg);
+  void ProcessClusterHit();
 private:
   ~APZEventState();
-  bool SendPendingTouchPreventedResponse(bool aPreventDefault,
-                                         const ScrollableLayerGuid& aGuid);
+  bool SendPendingTouchPreventedResponse(bool aPreventDefault);
   already_AddRefed<nsIWidget> GetWidget() const;
 private:
   nsWeakPtr mWidget;
-  nsRefPtr<ActiveElementManager> mActiveElementManager;
-  nsRefPtr<ContentReceivedInputBlockCallback> mContentReceivedInputBlockCallback;
+  RefPtr<ActiveElementManager> mActiveElementManager;
+  ContentReceivedInputBlockCallback mContentReceivedInputBlockCallback;
   bool mPendingTouchPreventedResponse;
   ScrollableLayerGuid mPendingTouchPreventedGuid;
   uint64_t mPendingTouchPreventedBlockId;

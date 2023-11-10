@@ -15,7 +15,7 @@
 // themselves. When OCSP hard-fail is enabled, connections will be terminated.
 // Otherwise, they will succeed.
 
-let gSocketListener = {
+var gSocketListener = {
   onSocketAccepted: function(serverSocket, socketTransport) {
     socketTransport.setTimeout(Ci.nsISocketTransport.TIMEOUT_CONNECT, 30);
     socketTransport.setTimeout(Ci.nsISocketTransport.TIMEOUT_READ_WRITE, 30);
@@ -26,8 +26,9 @@ let gSocketListener = {
 
 function run_test() {
   do_get_profile();
+  Services.prefs.setIntPref("security.OCSP.enabled", 1);
 
-  add_tls_server_setup("OCSPStaplingServer");
+  add_tls_server_setup("OCSPStaplingServer", "ocsp_certs");
 
   let socket = Cc["@mozilla.org/network/server-socket;1"]
                  .createInstance(Ci.nsIServerSocket);
@@ -50,8 +51,8 @@ function add_tests_in_mode(useHardFail) {
   });
 
   add_connection_test("ocsp-stapling-none.example.com", useHardFail
-                      ? getXPCOMStatusFromNSS(SEC_ERROR_OCSP_SERVER_ERROR)
-                      : Cr.NS_OK, clearSessionCache);
+                      ? SEC_ERROR_OCSP_SERVER_ERROR
+                      : PRErrorCodeSuccess, clearSessionCache);
 
   // Reset state
   add_test(function() {

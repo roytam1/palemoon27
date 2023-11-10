@@ -45,7 +45,7 @@ nsPrintDialogServiceX::Show(nsIDOMWindow *aParent, nsIPrintSettings *aSettings,
 
   NS_PRECONDITION(aSettings, "aSettings must not be null");
 
-  nsRefPtr<nsPrintSettingsX> settingsX(do_QueryObject(aSettings));
+  RefPtr<nsPrintSettingsX> settingsX(do_QueryObject(aSettings));
   if (!settingsX)
     return NS_ERROR_FAILURE;
 
@@ -88,9 +88,14 @@ nsPrintDialogServiceX::Show(nsIDOMWindow *aParent, nsIPrintSettings *aSettings,
   int button = [panel runModal];
   nsCocoaUtils::CleanUpAfterNativeAppModalDialog();
 
-  settingsX->SetCocoaPrintInfo([[[NSPrintOperation currentOperation] printInfo] copy]);
+  NSPrintInfo* copy = [[[NSPrintOperation currentOperation] printInfo] copy];
+  if (!copy) {
+    return NS_ERROR_OUT_OF_MEMORY;
+  }
+  settingsX->SetCocoaPrintInfo(copy);
+  [copy release];
+
   [NSPrintOperation setCurrentOperation:nil];
-  [printInfo release];
   [tmpView release];
 
   if (button != NSOKButton)
@@ -128,7 +133,7 @@ nsPrintDialogServiceX::ShowPageSetup(nsIDOMWindow *aParent,
   NS_PRECONDITION(aNSSettings, "aSettings must not be null");
   NS_ENSURE_TRUE(aNSSettings, NS_ERROR_FAILURE);
 
-  nsRefPtr<nsPrintSettingsX> settingsX(do_QueryObject(aNSSettings));
+  RefPtr<nsPrintSettingsX> settingsX(do_QueryObject(aNSSettings));
   if (!settingsX)
     return NS_ERROR_FAILURE;
 

@@ -22,8 +22,8 @@
     branch.setBoolPref("extensions.blocklist.enabled", false);
     // Make url-classifier updates so rare that they won't affect tests
     branch.setIntPref("urlclassifier.updateinterval", 172800);
-    // Disable high-quality downscaling, since it makes reftests more difficult.
-    branch.setBoolPref("image.high_quality_downscaling.enabled", false);
+    // Disable downscale-during-decode, since it makes reftests more difficult.
+    branch.setBoolPref("image.downscale-during-decode.enabled", false);
     // Disable the single-color optimization, since it can cause intermittent
     // oranges and it causes many of our tests to test a different code path
     // than the one that normal images on the web use.
@@ -50,9 +50,6 @@
     // reflow so that that rare edge case doesn't lead to reftest
     // failures.
     branch.setBoolPref("layout.interruptible-reflow.enabled", false);
-    // Disable the auto-hide feature of touch caret to avoid potential
-    // intermittent issues.
-    branch.setIntPref("touchcaret.expiration.time", 0);
 
     // Tell the search service we are running in the US.  This also has the
     // desired side-effect of preventing our geoip lookup.
@@ -61,6 +58,3 @@
 
     // Make sure SelfSupport doesn't hit the network.
     branch.setCharPref("browser.selfsupport.url", "https://%(server)s/selfsupport-dummy/");
-
-    // Disable periodic updates of service workers.
-    branch.setBoolPref("dom.serviceWorkers.periodic-updates.enabled", false);

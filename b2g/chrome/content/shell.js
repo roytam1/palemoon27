@@ -4,6 +4,8 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
 
+window.performance.mark('gecko-shell-loadstart');
+
 Cu.import('resource://gre/modules/ContactService.jsm');
 Cu.import('resource://gre/modules/DataStoreChangeNotifier.jsm');
 Cu.import('resource://gre/modules/AlarmService.jsm');
@@ -18,9 +20,11 @@ Cu.import('resource://gre/modules/AlertsHelper.jsm');
 Cu.import('resource://gre/modules/RequestSyncService.jsm');
 Cu.import('resource://gre/modules/SystemUpdateService.jsm');
 #ifdef MOZ_WIDGET_GONK
+Cu.import('resource://gre/modules/MultiscreenHandler.jsm');
 Cu.import('resource://gre/modules/NetworkStatsService.jsm');
 Cu.import('resource://gre/modules/ResourceStatsService.jsm');
 #endif
+Cu.import('resource://gre/modules/KillSwitchMain.jsm');
 
 // Identity
 Cu.import('resource://gre/modules/SignInToWebsite.jsm');
@@ -30,6 +34,7 @@ Cu.import('resource://gre/modules/FxAccountsMgmtService.jsm');
 Cu.import('resource://gre/modules/DownloadsAPI.jsm');
 Cu.import('resource://gre/modules/MobileIdentityManager.jsm');
 Cu.import('resource://gre/modules/PresentationDeviceInfoManager.jsm');
+Cu.import('resource://gre/modules/AboutServiceWorkers.jsm');
 
 XPCOMUtils.defineLazyModuleGetter(this, "SystemAppProxy",
                                   "resource://gre/modules/SystemAppProxy.jsm");
@@ -72,9 +77,15 @@ XPCOMUtils.defineLazyServiceGetter(Services, 'captivePortalDetector',
                                   '@mozilla.org/toolkit/captive-detector;1',
                                   'nsICaptivePortalDetector');
 
-function getContentWindow() {
-  return shell.contentBrowser.contentWindow;
+if (AppConstants.MOZ_SAFE_BROWSING) {
+  XPCOMUtils.defineLazyModuleGetter(this, "SafeBrowsing",
+                "resource://gre/modules/SafeBrowsing.jsm");
 }
+
+XPCOMUtils.defineLazyModuleGetter(this, "SafeMode",
+                                  "resource://gre/modules/SafeMode.jsm");
+
+window.performance.measure('gecko-shell-jsm-loaded', 'gecko-shell-loadstart');
 
 function debug(str) {
   dump(' -*- Shell.js: ' + str + '\n');
@@ -86,7 +97,13 @@ var shell = {
 
   get CrashSubmit() {
     delete this.CrashSubmit;
+#ifdef MOZ_CRASHREPORTER
+    Cu.import("resource://gre/modules/CrashSubmit.jsm", this);
+    return this.CrashSubmit;
+#else
+    dump('Crash reporter : disabled at build time.');
     return this.CrashSubmit = null;
+#endif
   },
 
   onlineForCrashReport: function shell_onlineForCrashReport() {
@@ -213,20 +230,31 @@ var shell = {
   },
 
   bootstrap: function() {
-    let startManifestURL =
-      Cc['@mozilla.org/commandlinehandler/general-startup;1?type=b2gbootstrap']
-        .getService(Ci.nsISupports).wrappedJSObject.startManifestURL;
-    if (startManifestURL) {
-      Cu.import('resource://gre/modules/Bootstraper.jsm');
-      Bootstraper.ensureSystemAppInstall(startManifestURL)
-                 .then(this.start.bind(this))
-                 .catch(Bootstraper.bailout);
-    } else {
-      this.start();
-    }
+#ifdef MOZ_B2GDROID
+    Cc["@mozilla.org/b2g/b2gdroid-setup;1"]
+      .getService(Ci.nsIObserver).observe(window, "shell-startup", null);
+#endif
+
+    window.performance.mark('gecko-shell-bootstrap');
+
+    // Before anything, check if we want to start in safe mode.
+    SafeMode.check(window).then(() => {
+      let startManifestURL =
+        Cc['@mozilla.org/commandlinehandler/general-startup;1?type=b2gbootstrap']
+          .getService(Ci.nsISupports).wrappedJSObject.startManifestURL;
+      if (startManifestURL) {
+        Cu.import('resource://gre/modules/Bootstraper.jsm');
+        Bootstraper.ensureSystemAppInstall(startManifestURL)
+                   .then(this.start.bind(this))
+                   .catch(Bootstraper.bailout);
+      } else {
+        this.start();
+      }
+    });
   },
 
   start: function shell_start() {
+    window.performance.mark('gecko-shell-start');
     this._started = true;
 
     // This forces the initialization of the cookie service before we hit the
@@ -313,6 +341,18 @@ var shell = {
                   .sessionHistory = Cc["@mozilla.org/browser/shistory;1"]
                                       .createInstance(Ci.nsISHistory);
 
+    this.allowedAudioChannels = new Map();
+    let audioChannels = systemAppFrame.allowedAudioChannels;
+    audioChannels && audioChannels.forEach(function(audioChannel) {
+      this.allowedAudioChannels.set(audioChannel.name, audioChannel);
+      audioChannel.addEventListener('activestatechanged', this);
+      // Set all audio channels as unmuted by default
+      // because some audio in System app will be played
+      // before AudioChannelService[1] is Gaia is loaded.
+      // [1]: https://github.com/mozilla-b2g/gaia/blob/master/apps/system/js/audio_channel_service.js
+      audioChannel.setMuted(false);
+    }.bind(this));
+
     // On firefox mulet, shell.html is loaded in a tab
     // and we have to listen on the chrome event handler
     // to catch key events
@@ -334,7 +374,6 @@ var shell = {
     window.addEventListener('sizemodechange', this);
     window.addEventListener('unload', this);
     this.contentBrowser.addEventListener('mozbrowserloadstart', this, true);
-    this.contentBrowser.addEventListener('mozbrowserselectionstatechanged', this, true);
     this.contentBrowser.addEventListener('mozbrowserscrollviewchange', this, true);
     this.contentBrowser.addEventListener('mozbrowsercaretstatechanged', this);
 
@@ -344,13 +383,21 @@ var shell = {
     CaptivePortalLoginHelper.init();
 
     this.contentBrowser.src = homeURL;
-    this.isHomeLoaded = false;
+    this._isEventListenerReady = false;
+
+    window.performance.mark('gecko-shell-system-frame-set');
 
     ppmm.addMessageListener("content-handler", this);
     ppmm.addMessageListener("dial-handler", this);
     ppmm.addMessageListener("sms-handler", this);
     ppmm.addMessageListener("mail-handler", this);
     ppmm.addMessageListener("file-picker", this);
+
+    if (AppConstants.MOZ_SAFE_BROWSING) {
+      setTimeout(function() {
+        SafeBrowsing.init();
+      }, 5000);
+    }
   },
 
   stop: function shell_stop() {
@@ -361,7 +408,6 @@ var shell = {
     window.removeEventListener('mozfullscreenchange', this);
     window.removeEventListener('sizemodechange', this);
     this.contentBrowser.removeEventListener('mozbrowserloadstart', this, true);
-    this.contentBrowser.removeEventListener('mozbrowserselectionstatechanged', this, true);
     this.contentBrowser.removeEventListener('mozbrowserscrollviewchange', this, true);
     this.contentBrowser.removeEventListener('mozbrowsercaretstatechanged', this);
     ppmm.removeMessageListener("content-handler", this);
@@ -437,6 +483,13 @@ var shell = {
           this.contentBrowser.setVisible(true);
         }
         break;
+      case 'load':
+        if (content.document.location == 'about:blank') {
+          return;
+        }
+        content.removeEventListener('load', this, true);
+        this.notifyContentWindowLoaded();
+        break;
       case 'mozbrowserloadstart':
         if (content.document.location == 'about:blank') {
           this.contentBrowser.addEventListener('mozbrowserlocationchange', this, true);
@@ -456,29 +509,6 @@ var shell = {
         this.sendChromeEvent({
           type: 'scrollviewchange',
           detail: evt.detail,
-        });
-        break;
-      case 'mozbrowserselectionstatechanged':
-        // The mozbrowserselectionstatechanged event, may have crossed the chrome-content boundary.
-        // This event always dispatch to shell.js. But the offset we got from this event is
-        // based on tab's coordinate. So get the actual offsets between shell and evt.target.
-        let elt = evt.target;
-        let win = elt.ownerDocument.defaultView;
-        let offsetX = win.mozInnerScreenX - window.mozInnerScreenX;
-        let offsetY = win.mozInnerScreenY - window.mozInnerScreenY;
-
-        let rect = elt.getBoundingClientRect();
-        offsetX += rect.left;
-        offsetY += rect.top;
-
-        let data = evt.detail;
-        data.offsetX = offsetX;
-        data.offsetY = offsetY;
-
-        DoCommandHelper.setEvent(evt);
-        shell.sendChromeEvent({
-          type: 'selectionstatechanged',
-          detail: data,
         });
         break;
       case 'mozbrowsercaretstatechanged':
@@ -543,18 +573,41 @@ var shell = {
         break;
       case 'MozAfterPaint':
         window.removeEventListener('MozAfterPaint', this);
-        this.sendChromeEvent({
+        // This event should be sent before System app returns with
+        // system-message-listener-ready mozContentEvent, because it's on
+        // the critical launch path of the app.
+        SystemAppProxy._sendCustomEvent('mozChromeEvent', {
           type: 'system-first-paint'
-        });
+        }, /* noPending */ true);
         break;
       case 'unload':
         this.stop();
+        break;
+      case 'activestatechanged':
+        var channel = evt.target;
+        // TODO: We should get the `isActive` state from evt.isActive.
+        // Then we don't need to do `channel.isActive()` here.
+        channel.isActive().onsuccess = function(evt) {
+          SystemAppProxy._sendCustomEvent('mozSystemWindowChromeEvent', {
+            type: 'system-audiochannel-state-changed',
+            name: channel.name,
+            isActive: evt.target.result
+          });
+        }.bind(this);
         break;
     }
   },
 
   // Send an event to a specific window, document or element.
   sendEvent: function shell_sendEvent(target, type, details) {
+    if (target === this.contentBrowser) {
+      // We must ask SystemAppProxy to send the event in this case so
+      // that event would be dispatched from frame.contentWindow instead of
+      // on the System app frame.
+      SystemAppProxy._sendCustomEvent(type, details);
+      return;
+    }
+
     let doc = target.document || target.ownerDocument || target;
     let event = doc.createEvent('CustomEvent');
     event.initCustomEvent(type, true, true, details ? details : {});
@@ -562,21 +615,10 @@ var shell = {
   },
 
   sendCustomEvent: function shell_sendCustomEvent(type, details) {
-    let target = getContentWindow();
-    let payload = details ? Cu.cloneInto(details, target) : {};
-    this.sendEvent(target, type, payload);
+    SystemAppProxy._sendCustomEvent(type, details);
   },
 
   sendChromeEvent: function shell_sendChromeEvent(details) {
-    if (!this.isHomeLoaded) {
-      if (!('pendingChromeEvents' in this)) {
-        this.pendingChromeEvents = [];
-      }
-
-      this.pendingChromeEvents.push(details);
-      return;
-    }
-
     this.sendCustomEvent("mozChromeEvent", details);
   },
 
@@ -612,10 +654,12 @@ var shell = {
   },
 
   notifyContentStart: function shell_notifyContentStart() {
+    window.performance.mark('gecko-shell-notify-content-start');
     this.contentBrowser.removeEventListener('mozbrowserloadstart', this, true);
     this.contentBrowser.removeEventListener('mozbrowserlocationchange', this, true);
 
     let content = this.contentBrowser.contentWindow;
+    content.addEventListener('load', this, true);
 
     this.reportCrash(true);
 
@@ -629,26 +673,58 @@ var shell = {
     Cu.import('resource://gre/modules/OperatorApps.jsm');
 #endif
 
-    content.addEventListener('load', function shell_homeLoaded() {
-      content.removeEventListener('load', shell_homeLoaded);
-      shell.isHomeLoaded = true;
+    this.handleCmdLine();
+  },
 
-      if (Services.prefs.getBoolPref('b2g.orientation.animate')) {
-        Cu.import('resource://gre/modules/OrientationChangeHandler.jsm');
+  handleCmdLine: function shell_handleCmdLine() {
+  // This isn't supported on devices.
+#ifndef ANDROID
+    let b2gcmds = Cc["@mozilla.org/commandlinehandler/general-startup;1?type=b2gcmds"]
+                    .getService(Ci.nsISupports);
+    let args = b2gcmds.wrappedJSObject.cmdLine;
+    try {
+      // Returns null if -url is not present
+      let url = args.handleFlagWithParam("url", false);
+      if (url) {
+        this.sendChromeEvent({type: "mozbrowseropenwindow", url});
+        args.preventDefault = true;
       }
+    } catch(e) {
+      // Throws if -url is present with no params
+    }
+#endif
+  },
 
+  // This gets called when window.onload fires on the System app content window,
+  // which means things in <html> are parsed and statically referenced <script>s
+  // and <script defer>s are loaded and run.
+  notifyContentWindowLoaded: function shell_notifyContentWindowLoaded() {
 #ifdef MOZ_WIDGET_GONK
-      libcutils.property_set('sys.boot_completed', '1');
+    libcutils.property_set('sys.boot_completed', '1');
 #endif
 
-      Services.obs.notifyObservers(null, "browser-ui-startup-complete", "");
+    // This will cause Gonk Widget to remove boot animation from the screen
+    // and reveals the page.
+    Services.obs.notifyObservers(null, "browser-ui-startup-complete", "");
 
-      SystemAppProxy.setIsReady();
-      if ('pendingChromeEvents' in shell) {
-        shell.pendingChromeEvents.forEach((shell.sendChromeEvent).bind(shell));
-      }
-      delete shell.pendingChromeEvents;
-    });
+    SystemAppProxy.setIsLoaded();
+  },
+
+  // This gets called when the content sends us system-message-listener-ready
+  // mozContentEvent, OR when an observer message tell us we should consider
+  // the content as ready.
+  notifyEventListenerReady: function shell_notifyEventListenerReady() {
+    if (this._isEventListenerReady) {
+      Cu.reportError('shell.js: SystemApp has already been declared as being ready.');
+      return;
+    }
+    this._isEventListenerReady = true;
+
+    if (Services.prefs.getBoolPref('b2g.orientation.animate')) {
+      Cu.import('resource://gre/modules/OrientationChangeHandler.jsm');
+    }
+
+    SystemAppProxy.setIsReady();
   }
 };
 
@@ -657,11 +733,13 @@ Services.obs.addObserver(function onFullscreenOriginChange(subject, topic, data)
                           fullscreenorigin: data });
 }, "fullscreen-origin-change", false);
 
-DOMApplicationRegistry.registryStarted.then(function () {
-  shell.sendChromeEvent({ type: 'webapps-registry-start' });
-});
 DOMApplicationRegistry.registryReady.then(function () {
-  shell.sendChromeEvent({ type: 'webapps-registry-ready' });
+  // This event should be sent before System app returns with
+  // system-message-listener-ready mozContentEvent, because it's on
+  // the critical launch path of the app.
+  SystemAppProxy._sendCustomEvent('mozChromeEvent', {
+    type: 'webapps-registry-ready'
+  }, /* noPending */ true);
 });
 
 Services.obs.addObserver(function onBluetoothVolumeChange(subject, topic, data) {
@@ -674,6 +752,18 @@ Services.obs.addObserver(function onBluetoothVolumeChange(subject, topic, data) 
 Services.obs.addObserver(function(subject, topic, data) {
   shell.sendCustomEvent('mozmemorypressure');
 }, 'memory-pressure', false);
+
+Services.obs.addObserver(function(subject, topic, data) {
+  shell.notifyEventListenerReady();
+}, 'system-message-listener-ready', false);
+
+var permissionMap = new Map([
+  ['unknown', Services.perms.UNKNOWN_ACTION],
+  ['allow', Services.perms.ALLOW_ACTION],
+  ['deny', Services.perms.DENY_ACTION],
+  ['prompt', Services.perms.PROMPT_ACTION],
+]);
+var permissionMapRev = new Map(Array.from(permissionMap.entries()).reverse());
 
 var CustomEventManager = {
   init: function custevt_init() {
@@ -708,28 +798,31 @@ var CustomEventManager = {
       case 'inputregistry-remove':
         KeyboardHelper.handleEvent(detail);
         break;
-      case 'do-command':
-        DoCommandHelper.handleEvent(detail.cmd);
+      case 'system-audiochannel-list':
+      case 'system-audiochannel-mute':
+      case 'system-audiochannel-volume':
+        SystemAppMozBrowserHelper.handleEvent(detail);
         break;
       case 'copypaste-do-command':
         Services.obs.notifyObservers({ wrappedJSObject: shell.contentBrowser },
                                      'ask-children-to-execute-copypaste-command', detail.cmd);
         break;
-    }
-  }
-}
-
-let DoCommandHelper = {
-  _event: null,
-  setEvent: function docommand_setEvent(evt) {
-    this._event = evt;
-  },
-
-  handleEvent: function docommand_handleEvent(cmd) {
-    if (this._event) {
-      Services.obs.notifyObservers({ wrappedJSObject: this._event.target },
-                                   'copypaste-docommand', cmd);
-      this._event = null;
+      case 'add-permission':
+        Services.perms.add(Services.io.newURI(detail.uri, null, null),
+                           detail.permissionType, permissionMap.get(detail.permission));
+        break;
+      case 'remove-permission':
+        Services.perms.remove(Services.io.newURI(detail.uri, null, null),
+                              detail.permissionType);
+        break;
+      case 'test-permission':
+        let result = Services.perms.testExactPermission(
+          Services.io.newURI(detail.uri, null, null), detail.permissionType);
+        // Not equal check here because we want to prevent default only if it's not set
+        if (result !== permissionMapRev.get(detail.permission)) {
+          evt.preventDefault();
+        }
+        break;
     }
   }
 }
@@ -820,7 +913,7 @@ var WebappsHelper = {
   }
 }
 
-let KeyboardHelper = {
+var KeyboardHelper = {
   handleEvent: function keyboard_handleEvent(detail) {
     switch (detail.type) {
       case 'inputmethod-update-layouts':
@@ -831,6 +924,63 @@ let KeyboardHelper = {
       case 'inputregistry-remove':
         Keyboard.inputRegistryGlue.returnMessage(detail);
 
+        break;
+    }
+  }
+};
+
+var SystemAppMozBrowserHelper = {
+  handleEvent: function systemAppMozBrowser_handleEvent(detail) {
+    let request;
+    let name;
+    switch (detail.type) {
+      case 'system-audiochannel-list':
+        let audioChannels = [];
+        shell.allowedAudioChannels.forEach(function(value, name) {
+          audioChannels.push(name);
+        });
+        SystemAppProxy._sendCustomEvent('mozSystemWindowChromeEvent', {
+          type: 'system-audiochannel-list',
+          audioChannels: audioChannels
+        });
+        break;
+      case 'system-audiochannel-mute':
+        name = detail.name;
+        let isMuted = detail.isMuted;
+        request = shell.allowedAudioChannels.get(name).setMuted(isMuted);
+        request.onsuccess = function() {
+          SystemAppProxy._sendCustomEvent('mozSystemWindowChromeEvent', {
+            type: 'system-audiochannel-mute-onsuccess',
+            name: name,
+            isMuted: isMuted
+          });
+        };
+        request.onerror = function() {
+          SystemAppProxy._sendCustomEvent('mozSystemWindowChromeEvent', {
+            type: 'system-audiochannel-mute-onerror',
+            name: name,
+            isMuted: isMuted
+          });
+        };
+        break;
+      case 'system-audiochannel-volume':
+        name = detail.name;
+        let volume = detail.volume;
+        request = shell.allowedAudioChannels.get(name).setVolume(volume);
+        request.onsuccess = function() {
+          sSystemAppProxy._sendCustomEvent('mozSystemWindowChromeEvent', {
+            type: 'system-audiochannel-volume-onsuccess',
+            name: name,
+            volume: volume
+          });
+        };
+        request.onerror = function() {
+          SystemAppProxy._sendCustomEvent('mozSystemWindowChromeEvent', {
+            type: 'system-audiochannel-volume-onerror',
+            name: name,
+            volume: volume
+          });
+        };
         break;
     }
   }
@@ -904,6 +1054,7 @@ window.addEventListener('ContentStart', function update_onContentStart() {
   Cu.import('resource://gre/modules/WebappsUpdater.jsm');
   WebappsUpdater.handleContentStart(shell);
 
+#ifdef MOZ_UPDATER
   let promptCc = Cc["@mozilla.org/updates/update-prompt;1"];
   if (!promptCc) {
     return;
@@ -915,6 +1066,7 @@ window.addEventListener('ContentStart', function update_onContentStart() {
   }
 
   updatePrompt.wrappedJSObject.handleContentStart(shell);
+#endif
 });
 
 (function geolocationStatusTracker() {

@@ -32,7 +32,7 @@ DOMHighResTimeStamp
 Performance::Now() const
 {
   TimeDuration duration =
-    TimeStamp::Now() - mWorkerPrivate->NowBaseTimeStamp();
+    TimeStamp::Now() - mWorkerPrivate->CreationTimeStamp();
   double nowTime = duration.ToMilliseconds();
   // Round down to the nearest 20us, because if the timer is too accurate people
   // can do nasty timing attacks with it.  See similar code in the non-worker
@@ -57,21 +57,38 @@ Performance::GetPerformanceTimingFromString(const nsAString& aProperty)
   }
 
   if (aProperty.EqualsLiteral("navigationStart")) {
-    return mWorkerPrivate->NowBaseTimeHighRes();
+    return mWorkerPrivate->CreationTime();
   }
 
   MOZ_CRASH("IsPerformanceTimingAttribute and GetPerformanceTimingFromString are out of sync");
   return 0;
 }
 
-DOMHighResTimeStamp
-Performance::DeltaFromNavigationStart(DOMHighResTimeStamp aTime)
+void
+Performance::InsertUserEntry(PerformanceEntry* aEntry)
 {
-  if (aTime == 0) {
-    return 0;
+  if (mWorkerPrivate->PerformanceLoggingEnabled()) {
+    nsAutoCString uri;
+    nsCOMPtr<nsIURI> scriptURI = mWorkerPrivate->GetResolvedScriptURI();
+    if (!scriptURI || NS_FAILED(scriptURI->GetHost(uri))) {
+      // If we have no URI, just put in "none".
+      uri.AssignLiteral("none");
+    }
+    PerformanceBase::LogEntry(aEntry, uri);
   }
+  PerformanceBase::InsertUserEntry(aEntry);
+}
 
-  return aTime - mWorkerPrivate->NowBaseTimeHighRes();
+TimeStamp
+Performance::CreationTimeStamp() const
+{
+  return mWorkerPrivate->CreationTimeStamp();
+}
+
+DOMHighResTimeStamp
+Performance::CreationTime() const
+{
+  return mWorkerPrivate->CreationTime();
 }
 
 void

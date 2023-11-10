@@ -17,13 +17,11 @@ function setup() {
   }
 
   SpecialPowers.setBoolPref("dom.mozInputMethod.enabled", true);
-  SpecialPowers.setBoolPref("dom.mozInputMethod.testing", true);
   SpecialPowers.addPermission('input-manage', true, document);
 }
 
 function tearDown() {
   SpecialPowers.setBoolPref("dom.mozInputMethod.enabled", false);
-  SpecialPowers.setBoolPref("dom.mozInputMethod.testing", false);
   SpecialPowers.removePermission('input-manage', document);
   SimpleTest.finish();
 }
@@ -38,8 +36,7 @@ function runTest() {
     allow: true,
     context: {
       url: imeUrl,
-      appId: SpecialPowers.Ci.nsIScriptSecurityManager.NO_APP_ID,
-      isInBrowserElement: true
+      originAttributes: {inBrowser: true}
     }
   }], SimpleTest.waitForFocus.bind(SimpleTest, createFrames));
 }

@@ -60,7 +60,7 @@ const PREF_ENABLED = PREF_BRANCH + "enabled";
 const PREF_PREVIOUS_BUILDID = PREF_BRANCH + "previousBuildID";
 const PREF_CACHED_CLIENTID = PREF_BRANCH + "cachedClientID"
 const PREF_FHR_UPLOAD_ENABLED = "datareporting.healthreport.uploadEnabled";
-const PREF_ASYNC_PLUGIN_INIT = "dom.ipc.plugins.asyncInit";
+const PREF_ASYNC_PLUGIN_INIT = "dom.ipc.plugins.asyncInit.enabled";
 
 const MESSAGE_TELEMETRY_PAYLOAD = "Telemetry:Payload";
 const MESSAGE_TELEMETRY_GET_CHILD_PAYLOAD = "Telemetry:GetChildPayload";
@@ -84,7 +84,7 @@ const IDLE_TIMEOUT_SECONDS = 5 * 60;
 
 var gLastMemoryPoll = null;
 
-let gWasDebuggerAttached = false;
+var gWasDebuggerAttached = false;
 
 function getLocale() {
   return Cc["@mozilla.org/chrome/chrome-registry;1"].
@@ -141,7 +141,7 @@ function generateUUID() {
 /**
  * This is a policy object used to override behavior for testing.
  */
-let Policy = {
+var Policy = {
   now: () => new Date(),
   setDailyTimeout: (callback, delayMs) => setTimeout(callback, delayMs),
   clearDailyTimeout: (id) => clearTimeout(id),
@@ -188,7 +188,7 @@ function toLocalTimeISOString(date) {
 /**
  * Read current process I/O counters.
  */
-let processInfo = {
+var processInfo = {
   _initialized: false,
   _IO_COUNTERS: null,
   _kernel32: null,
@@ -434,7 +434,7 @@ this.TelemetrySession = Object.freeze({
    },
 });
 
-let Impl = {
+var Impl = {
   _histograms: {},
   _initialized: false,
   _log: null,
@@ -509,7 +509,7 @@ let Impl = {
     } catch (ex) {}
 
     if (si.process) {
-      for each (let field in Object.keys(si)) {
+      for (let field of Object.keys(si)) {
         if (field == "process")
           continue;
         ret[field] = si[field] - si.process
@@ -585,7 +585,6 @@ let Impl = {
    * with the following properties:
    *
    * - min, max, histogram_type, sum, sum_squares_{lo,hi}: simple integers;
-   * - log_sum, log_sum_squares: doubles;
    * - counts: array of counts for histogram buckets;
    * - ranges: array of calculated bucket sizes.
    *
@@ -598,7 +597,6 @@ let Impl = {
    *   histogram_type: <histogram_type>, sum: <sum>,
    *   sum_squares_lo: <sum_squares_lo>,
    *   sum_squares_hi: <sum_squares_hi>,
-   *   log_sum: <log_sum>, log_sum_squares: <log_sum_squares>,
    *   values: { bucket1: count1, bucket2: count2, ... } }
    */
   packHistogram: function packHistogram(hgram) {
@@ -612,10 +610,7 @@ let Impl = {
       sum: hgram.sum
     };
 
-    if (hgram.histogram_type == Telemetry.HISTOGRAM_EXPONENTIAL) {
-      retgram.log_sum = hgram.log_sum;
-      retgram.log_sum_squares = hgram.log_sum_squares;
-    } else {
+    if (hgram.histogram_type != Telemetry.HISTOGRAM_EXPONENTIAL) {
       retgram.sum_squares_lo = hgram.sum_squares_lo;
       retgram.sum_squares_hi = hgram.sum_squares_hi;
     }
@@ -910,6 +905,17 @@ let Impl = {
     this._log.trace("assemblePayloadWithMeasurements - reason: " + reason +
                     ", submitting subsession data: " + isSubsession);
 
+    // This allows wrapping data retrieval calls in a try-catch block so that
+    // failures don't break the rest of the ping assembly.
+    const protect = (fn) => {
+      try {
+        return fn();
+      } catch (ex) {
+        this._log.error("assemblePayloadWithMeasurements - caught exception", ex);
+        return null;
+      }
+    };
+
     // Payload common to chrome and content processes.
     let payloadObj = {
       ver: PAYLOAD_VERSION,
@@ -919,6 +925,14 @@ let Impl = {
       chromeHangs: Telemetry.chromeHangs,
       log: TelemetryLog.entries(),
     };
+
+    // Add extended set measurements common to chrome & content processes
+    if (Telemetry.canRecordExtended) {
+      payloadObj.chromeHangs = protect(() => Telemetry.chromeHangs);
+      payloadObj.threadHangStats = protect(() => this.getThreadHangStats(Telemetry.threadHangStats));
+      payloadObj.log = protect(() => TelemetryLog.entries());
+      payloadObj.webrtc = protect(() => Telemetry.webrtcStats);
+    }
 
     if (IS_CONTENT_PROCESS) {
       return payloadObj;

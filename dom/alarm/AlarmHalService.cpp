@@ -22,13 +22,15 @@ AlarmHalService::Init()
     return;
   }
   RegisterSystemTimezoneChangeObserver(this);
+  RegisterSystemClockChangeObserver(this);
 }
 
-/* virtual */ AlarmHalService::~AlarmHalService() 
+/* virtual */ AlarmHalService::~AlarmHalService()
 {
   if (mAlarmEnabled) {
     UnregisterTheOneAlarmObserver();
     UnregisterSystemTimezoneChangeObserver(this);
+    UnregisterSystemClockChangeObserver(this);
   }
 }
 
@@ -39,11 +41,11 @@ AlarmHalService::GetInstance()
 {
   if (!sSingleton) {
     sSingleton = new AlarmHalService();
-    sSingleton->Init(); 
+    sSingleton->Init();
     ClearOnShutdown(&sSingleton);
   }
 
-  nsRefPtr<AlarmHalService> service = sSingleton.get();
+  RefPtr<AlarmHalService> service = sSingleton.get();
   return service.forget();
 }
 
@@ -77,6 +79,14 @@ AlarmHalService::SetTimezoneChangedCb(nsITimezoneChangedCb* aTimeZoneChangedCb)
   return NS_OK;
 }
 
+NS_IMETHODIMP
+AlarmHalService::SetSystemClockChangedCb(
+    nsISystemClockChangedCb* aSystemClockChangedCb)
+{
+  mSystemClockChangedCb = aSystemClockChangedCb;
+  return NS_OK;
+}
+
 void
 AlarmHalService::Notify(const void_t& aVoid)
 {
@@ -95,6 +105,15 @@ AlarmHalService::Notify(
   }
   mTimezoneChangedCb->OnTimezoneChanged(
     aSystemTimezoneChangeInfo.newTimezoneOffsetMinutes());
+}
+
+void
+AlarmHalService::Notify(const int64_t& aClockDeltaMS)
+{
+  if (!mSystemClockChangedCb) {
+    return;
+  }
+  mSystemClockChangedCb->OnSystemClockChanged(aClockDeltaMS);
 }
 
 } // namespace alarm

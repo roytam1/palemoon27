@@ -1,4 +1,5 @@
-/* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
+/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
+/* vim: set ts=8 sts=2 et sw=2 tw=80: */
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -32,6 +33,7 @@ nsSHEntry::nsSHEntry()
   , mParent(nullptr)
   , mURIWasModified(false)
   , mIsSrcdocEntry(false)
+  , mScrollRestorationIsManual(false)
 {
 }
 
@@ -52,6 +54,7 @@ nsSHEntry::nsSHEntry(const nsSHEntry& aOther)
   , mURIWasModified(aOther.mURIWasModified)
   , mStateData(aOther.mStateData)
   , mIsSrcdocEntry(aOther.mIsSrcdocEntry)
+  , mScrollRestorationIsManual(false)
   , mSrcdocData(aOther.mSrcdocData)
   , mBaseURI(aOther.mBaseURI)
 {
@@ -83,7 +86,7 @@ nsSHEntry::SetScrollPosition(int32_t aX, int32_t aY)
 }
 
 NS_IMETHODIMP
-nsSHEntry::GetScrollPosition(int32_t *aX, int32_t *aY)
+nsSHEntry::GetScrollPosition(int32_t* aX, int32_t* aY)
 {
   *aX = mScrollPositionX;
   *aY = mScrollPositionY;
@@ -594,6 +597,20 @@ NS_IMETHODIMP
 nsSHEntry::SetBaseURI(nsIURI* aBaseURI)
 {
   mBaseURI = aBaseURI;
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+nsSHEntry::GetScrollRestorationIsManual(bool* aIsManual)
+{
+  *aIsManual = mScrollRestorationIsManual;
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+nsSHEntry::SetScrollRestorationIsManual(bool aIsManual)
+{
+  mScrollRestorationIsManual = aIsManual;
   return NS_OK;
 }
 

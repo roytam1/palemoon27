@@ -6,6 +6,8 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "mozilla/net/FTPChannelParent.h"
+#include "nsStringStream.h"
+#include "mozilla/net/ChannelEventQueue.h"
 #include "mozilla/dom/TabParent.h"
 #include "nsFTPChannel.h"
 #include "nsNetCID.h"
@@ -188,10 +190,16 @@ FTPChannelParent::DoAsyncOpen(const URIParams& aURI,
   if (NS_FAILED(rv))
     return SendFailedAsyncOpen(rv);
 
-  rv = ftpChan->AsyncOpen(this, nullptr);
+  if (loadInfo && loadInfo->GetEnforceSecurity()) {
+    rv = ftpChan->AsyncOpen2(this);
+  }
+  else {
+    rv = ftpChan->AsyncOpen(this, nullptr);
+  }
+
   if (NS_FAILED(rv))
     return SendFailedAsyncOpen(rv);
-  
+
   return true;
 }
 
@@ -619,7 +627,7 @@ public:
     return NS_OK;
   }
 private:
-  nsRefPtr<FTPChannelParent> mChannelParent;
+  RefPtr<FTPChannelParent> mChannelParent;
   nsresult mErrorCode;
   bool mSkipResume;
 };
@@ -682,7 +690,7 @@ FTPChannelParent::NotifyDiversionFailed(nsresult aErrorCode,
   mChannel = nullptr;
 
   if (!mIPCClosed) {
-    unused << SendDeleteSelf();
+    Unused << SendDeleteSelf();
   }
 }
 

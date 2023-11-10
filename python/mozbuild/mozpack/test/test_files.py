@@ -625,6 +625,8 @@ class TestManifestFile(TestWithTmpDir):
         f = ManifestFile('chrome')
         f.add(ManifestContent('chrome', 'global', 'toolkit/content/global/'))
         f.add(ManifestResource('chrome', 'gre-resources', 'toolkit/res/'))
+        f.add(ManifestResource('chrome/pdfjs', 'pdfjs', './'))
+        f.add(ManifestContent('chrome/pdfjs', 'pdfjs', 'pdfjs'))
         f.add(ManifestLocale('chrome', 'browser', 'en-US',
                              'en-US/locale/browser/'))
 
@@ -632,6 +634,8 @@ class TestManifestFile(TestWithTmpDir):
         self.assertEqual(open(self.tmppath('chrome.manifest')).readlines(), [
             'content global toolkit/content/global/\n',
             'resource gre-resources toolkit/res/\n',
+            'resource pdfjs pdfjs/\n',
+            'content pdfjs pdfjs/pdfjs\n',
             'locale browser en-US en-US/locale/browser/\n',
         ])
 
@@ -972,6 +976,21 @@ class TestFileFinder(MatchTestTemplate, TestWithTmpDir):
         self.finder = FileFinder(self.tmpdir, ignore=['foo/qux/*'])
         self.do_check('**', ['foo/bar', 'foo/baz', 'foo/quxz', 'bar'])
         self.do_check('foo/**', ['foo/bar', 'foo/baz', 'foo/quxz'])
+
+    def test_dotfiles(self):
+        """Finder can find files beginning with . is configured."""
+        self.prepare_match_test(with_dotfiles=True)
+        self.finder = FileFinder(self.tmpdir, find_dotfiles=True)
+        self.do_check('**', ['bar', 'foo/.foo', 'foo/.bar/foo',
+            'foo/bar', 'foo/baz', 'foo/qux/1', 'foo/qux/bar',
+            'foo/qux/2/test', 'foo/qux/2/test2'])
+
+    def test_dotfiles_plus_ignore(self):
+        self.prepare_match_test(with_dotfiles=True)
+        self.finder = FileFinder(self.tmpdir, find_dotfiles=True,
+                                 ignore=['foo/.bar/**'])
+        self.do_check('foo/**', ['foo/.foo', 'foo/bar', 'foo/baz',
+            'foo/qux/1', 'foo/qux/bar', 'foo/qux/2/test', 'foo/qux/2/test2'])
 
 
 class TestJarFinder(MatchTestTemplate, TestWithTmpDir):

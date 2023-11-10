@@ -5,7 +5,7 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "mp4_demuxer/Box.h"
-#include "mp4_demuxer/mp4_demuxer.h"
+#include "mp4_demuxer/Stream.h"
 #include "mozilla/Endian.h"
 #include <algorithm>
 
@@ -56,7 +56,7 @@ Box::Box(BoxContext* aContext, uint64_t aOffset, const Box* aParent)
       return;
     }
 
-    byteRange = &mContext->mByteRanges[i];
+    byteRange = static_cast<const MediaByteRange*>(&mContext->mByteRanges[i]);
     if (byteRange->Contains(headerRange)) {
       break;
     }
@@ -88,7 +88,7 @@ Box::Box(BoxContext* aContext, uint64_t aOffset, const Box* aParent)
     mBodyOffset = bigLengthRange.mEnd;
   } else if (size == 0) {
     // box extends to end of file.
-    size = mContext->mByteRanges.LastElement().mEnd - aOffset;
+    size = mContext->mByteRanges.LastInterval().mEnd - aOffset;
     mBodyOffset = headerRange.mEnd;
   } else {
     mBodyOffset = headerRange.mEnd;

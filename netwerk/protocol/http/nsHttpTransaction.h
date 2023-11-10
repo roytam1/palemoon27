@@ -16,6 +16,7 @@
 #include "TimingStruct.h"
 #include "Http2Push.h"
 #include "mozilla/net/DNS.h"
+#include "ARefBase.h"
 
 #ifdef MOZ_WIDGET_GONK
 #include "nsINetworkInterface.h"
@@ -45,6 +46,7 @@ class nsHttpTransaction final : public nsAHttpTransaction
                               , public ATokenBucketEvent
                               , public nsIInputStreamCallback
                               , public nsIOutputStreamCallback
+                              , public ARefBase
 {
 public:
     NS_DECL_THREADSAFE_ISUPPORTS
@@ -140,6 +142,7 @@ public:
         return r;
     }
     void SetPushedStream(Http2PushedStream *push) { mPushedStream = push; }
+    uint32_t InitialRwin() const { return mInitialRwin; };
 
     // Locked methods to get and set timing info
     const TimingStruct Timings();
@@ -159,8 +162,11 @@ public:
     mozilla::TimeStamp GetResponseStart();
     mozilla::TimeStamp GetResponseEnd();
 
+    int64_t GetTransferSize() { return mTransferSize; }
+
     bool Do0RTT() override;
     nsresult Finish0RTT(bool aRestart) override;
+
 private:
     friend class DeleteHttpTransaction;
     virtual ~nsHttpTransaction();
@@ -208,7 +214,7 @@ private:
             return NS_OK;
         }
       private:
-        nsRefPtr<nsHttpTransaction> mTrans;
+        RefPtr<nsHttpTransaction> mTrans;
         nsCOMPtr<nsIInterfaceRequestor> mCallbacks;
     };
 
@@ -229,8 +235,8 @@ private:
     nsCOMPtr<nsIInputStream>        mRequestStream;
     int64_t                         mRequestSize;
 
-    nsRefPtr<nsAHttpConnection>     mConnection;
-    nsRefPtr<nsHttpConnectionInfo>  mConnInfo;
+    RefPtr<nsAHttpConnection>     mConnection;
+    RefPtr<nsHttpConnectionInfo>  mConnInfo;
     nsHttpRequestHead              *mRequestHead;     // weak ref
     nsHttpResponseHead             *mResponseHead;    // owning pointer
 
@@ -241,6 +247,7 @@ private:
 
     int64_t                         mContentLength;   // equals -1 if unknown
     int64_t                         mContentRead;     // count of consumed content bytes
+    int64_t                         mTransferSize; // count of received bytes
 
     // After a 304/204 or other "no-content" style response we will skip over
     // up to MAX_INVALID_RESPONSE_BODY_SZ bytes when looking for the next
@@ -250,6 +257,7 @@ private:
     uint32_t                        mInvalidResponseBytesRead;
 
     Http2PushedStream               *mPushedStream;
+    uint32_t                        mInitialRwin;
 
     nsHttpChunkedDecoder            *mChunkedDecoder;
 
@@ -275,6 +283,7 @@ private:
     Atomic<uint32_t>                mCapsToClear;
 
     nsHttpVersion                   mHttpVersion;
+    uint16_t                        mHttpResponseCode;
 
     // state flags, all logically boolean, but not packed together into a
     // bitfield so as to avoid bitfield-induced races.  See bug 560579.
@@ -299,6 +308,7 @@ private:
     bool                            mReuseOnRestart;
     bool                            mContentDecoding;
     bool                            mContentDecodingCheck;
+    bool                            mDeferredSendProgress;
 
     // mClosed           := transaction has been explicitly closed
     // mTransactionDone  := transaction ran to completion or was interrupted
@@ -442,7 +452,7 @@ public:
     nsIInterfaceRequestor *SecurityCallbacks() { return mCallbacks; }
 
 private:
-    nsRefPtr<ASpdySession> mTunnelProvider;
+    RefPtr<ASpdySession> mTunnelProvider;
 
     bool                            m0RTTInProgress;
 

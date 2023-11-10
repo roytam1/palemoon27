@@ -4,13 +4,14 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
+#include "mozilla/TaskQueue.h"
+
 #include <string.h>
 #if defined(XP_WIN)
 #else
 #include <unistd.h>
 #endif
 
-#include "MediaTaskQueue.h"
 #include "FFmpegLog.h"
 #include "FFmpegDataDecoder.h"
 #include "prsystem.h"
@@ -22,13 +23,17 @@ namespace mozilla
 bool FFmpegDataDecoder<LIBAV_VER>::sFFmpegInitDone = false;
 StaticMutex FFmpegDataDecoder<LIBAV_VER>::sMonitor;
 
-FFmpegDataDecoder<LIBAV_VER>::FFmpegDataDecoder(FlushableMediaTaskQueue* aTaskQueue,
+FFmpegDataDecoder<LIBAV_VER>::FFmpegDataDecoder(FlushableTaskQueue* aTaskQueue,
+                                                MediaDataDecoderCallback* aCallback,
                                                 AVCodecID aCodecID)
   : mTaskQueue(aTaskQueue)
+  , mCallback(aCallback)
   , mCodecContext(nullptr)
   , mFrame(NULL)
   , mExtraData(nullptr)
   , mCodecID(aCodecID)
+  , mMonitor("FFMpegaDataDecoder")
+  , mIsFlushing(false)
 {
   MOZ_COUNT_CTOR(FFmpegDataDecoder);
 }
@@ -39,7 +44,7 @@ FFmpegDataDecoder<LIBAV_VER>::~FFmpegDataDecoder()
 }
 
 nsresult
-FFmpegDataDecoder<LIBAV_VER>::Init()
+FFmpegDataDecoder<LIBAV_VER>::InitDecoder()
 {
   FFMPEG_LOG("Initialising FFmpeg decoder.");
 
@@ -118,9 +123,48 @@ FFmpegDataDecoder<LIBAV_VER>::Init()
 }
 
 nsresult
+FFmpegDataDecoder<LIBAV_VER>::Shutdown()
+{
+  if (mTaskQueue) {
+    nsCOMPtr<nsIRunnable> runnable =
+      NS_NewRunnableMethod(this, &FFmpegDataDecoder<LIBAV_VER>::ProcessShutdown);
+    mTaskQueue->Dispatch(runnable.forget());
+  } else {
+    ProcessShutdown();
+  }
+  return NS_OK;
+}
+
+nsresult
 FFmpegDataDecoder<LIBAV_VER>::Flush()
 {
+  MOZ_ASSERT(mCallback->OnReaderTaskQueue());
+  mIsFlushing = true;
   mTaskQueue->Flush();
+  nsCOMPtr<nsIRunnable> runnable =
+    NS_NewRunnableMethod(this, &FFmpegDataDecoder<LIBAV_VER>::ProcessFlush);
+  MonitorAutoLock mon(mMonitor);
+  mTaskQueue->Dispatch(runnable.forget());
+  while (mIsFlushing) {
+    mon.Wait();
+  }
+  return NS_OK;
+}
+
+nsresult
+FFmpegDataDecoder<LIBAV_VER>::Drain()
+{
+  MOZ_ASSERT(mCallback->OnReaderTaskQueue());
+  nsCOMPtr<nsIRunnable> runnable =
+    NS_NewRunnableMethod(this, &FFmpegDataDecoder<LIBAV_VER>::ProcessDrain);
+  mTaskQueue->Dispatch(runnable.forget());
+  return NS_OK;
+}
+
+void
+FFmpegDataDecoder<LIBAV_VER>::ProcessFlush()
+{
+  MOZ_ASSERT(mTaskQueue->IsCurrentThreadIn());
   if (mCodecContext) {
 #if defined(XP_WIN)
     reinterpret_cast<void(*)(AVCodecContext*)>(FFmpegRuntimeLinker::avc_ptr[_flush_buffers])(mCodecContext);
@@ -128,11 +172,13 @@ FFmpegDataDecoder<LIBAV_VER>::Flush()
     avcodec_flush_buffers(mCodecContext);
 #endif
   }
-  return NS_OK;
+  MonitorAutoLock mon(mMonitor);
+  mIsFlushing = false;
+  mon.NotifyAll();
 }
 
-nsresult
-FFmpegDataDecoder<LIBAV_VER>::Shutdown()
+void
+FFmpegDataDecoder<LIBAV_VER>::ProcessShutdown()
 {
   StaticMutexAutoLock mon(sMonitor);
 
@@ -153,12 +199,12 @@ FFmpegDataDecoder<LIBAV_VER>::Shutdown()
 #endif
 #endif
   }
-  return NS_OK;
 }
 
 AVFrame*
 FFmpegDataDecoder<LIBAV_VER>::PrepareFrame()
 {
+  MOZ_ASSERT(mTaskQueue->IsCurrentThreadIn());
 #if LIBAVCODEC_VERSION_MAJOR >= 55
   if (mFrame) {
 #if defined(XP_WIN)

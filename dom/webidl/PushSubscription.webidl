@@ -9,11 +9,24 @@
 
 interface Principal;
 
-[JSImplementation="@mozilla.org/push/PushSubscription;1",
- Constructor(DOMString pushEndpoint, DOMString scope, Principal principal), ChromeOnly]
+enum PushEncryptionKeyName
+{
+  "p256dh",
+  "auth"
+};
+
+[Exposed=(Window,Worker), Func="nsContentUtils::PushEnabled",
+ ChromeConstructor(DOMString pushEndpoint, DOMString scope,
+                   ArrayBuffer? key, ArrayBuffer? authSecret)]
 interface PushSubscription
 {
     readonly attribute USVString endpoint;
-    readonly attribute DOMString subscriptionId;
+    ArrayBuffer? getKey(PushEncryptionKeyName name);
+    [Throws, UseCounter]
     Promise<boolean> unsubscribe();
+    jsonifier;
+
+    // Used to set the principal from the JS implemented PushManager.
+    [Exposed=Window,ChromeOnly]
+    void setPrincipal(Principal principal);
 };

@@ -15,8 +15,9 @@
 #include "js/Utility.h"
 
 // GCC versions 4.6 and above define __ARM_PCS_VFP to denote a hard-float
-// ABI target.
-#if defined(__ARM_PCS_VFP)
+// ABI target. The iOS toolchain doesn't define anything specific here,
+// but iOS always supports VFP.
+#if defined(__ARM_PCS_VFP) || defined(XP_IOS)
 #define JS_CODEGEN_ARM_HARDFP
 #endif
 
@@ -35,6 +36,10 @@ static const int32_t NUNBOX32_TYPE_OFFSET    = 4;
 static const int32_t NUNBOX32_PAYLOAD_OFFSET = 0;
 
 static const uint32_t ShadowStackSpace = 0;
+
+// How far forward/back can a jump go? Provide a generous buffer for thunks.
+static const uint32_t JumpImmediateRange = 25 * 1024 * 1024;
+
 ////
 // These offsets are related to bailouts.
 ////
@@ -109,7 +114,12 @@ class Registers
         (1 << r0) |
         (1 << r1) |
         (1 << Registers::r2) |
-        (1 << Registers::r3);
+        (1 << Registers::r3)
+#if defined(XP_IOS)
+        // per https://developer.apple.com/library/ios/documentation/Xcode/Conceptual/iPhoneOSABIReference/Articles/ARMv6FunctionCallingConventions.html#//apple_ref/doc/uid/TP40009021-SW4
+        | (1 << Registers::r9)
+#endif
+              ;
 
     static const SetType NonVolatileMask =
         (1 << Registers::r4) |
@@ -117,7 +127,9 @@ class Registers
         (1 << Registers::r6) |
         (1 << Registers::r7) |
         (1 << Registers::r8) |
+#if !defined(XP_IOS)
         (1 << Registers::r9) |
+#endif
         (1 << Registers::r10) |
         (1 << Registers::r11) |
         (1 << Registers::r12) |
@@ -239,7 +251,7 @@ class FloatRegisters
         invalid_freg
     };
 
-    typedef FPRegisterID Code;
+    typedef uint32_t Code;
     typedef FPRegisterID Encoding;
 
     // Content spilled during bailouts.
@@ -247,15 +259,15 @@ class FloatRegisters
         double d;
     };
 
-    static const char* GetDoubleName(Code code) {
-        static const char*  const Names[] = { "d0", "d1", "d2", "d3", "d4", "d5", "d6", "d7",
+    static const char* GetDoubleName(Encoding code) {
+        static const char * const Names[] = { "d0", "d1", "d2", "d3", "d4", "d5", "d6", "d7",
                                               "d8", "d9", "d10", "d11", "d12", "d13", "d14", "d15",
                                               "d16", "d17", "d18", "d19", "d20", "d21", "d22", "d23",
                                               "d24", "d25", "d26", "d27", "d28", "d29", "d30", "d31"};
         return Names[code];
     }
-    static const char* GetSingleName(Code code) {
-        static const char*  const Names[] = { "s0", "s1", "s2", "s3", "s4", "s5", "s6", "s7",
+    static const char* GetSingleName(Encoding code) {
+        static const char * const Names[] = { "s0", "s1", "s2", "s3", "s4", "s5", "s6", "s7",
                                               "s8", "s9", "s10", "s11", "s12", "s13", "s14", "s15",
                                               "s16", "s17", "s18", "s19", "s20", "s21", "s22", "s23",
                                               "s24", "s25", "s26", "s27", "s28", "s29", "s30", "s31"};
@@ -264,12 +276,12 @@ class FloatRegisters
 
     static const char* GetName(uint32_t i) {
         MOZ_ASSERT(i < Total);
-        return GetName(Code(i));
+        return GetName(Encoding(i));
     }
 
     static Code FromName(const char* name);
 
-    static const Code Invalid = invalid_freg;
+    static const Encoding Invalid = invalid_freg;
     static const uint32_t Total = 48;
     static const uint32_t TotalDouble = 16;
     static const uint32_t TotalSingle = 32;
@@ -383,8 +395,7 @@ class VFPRegister
 
     bool isSingle() const { return kind == Single; }
     bool isDouble() const { return kind == Double; }
-    bool isInt32x4() const { return false; }
-    bool isFloat32x4() const { return false; }
+    bool isSimd128() const { return false; }
     bool isFloat() const { return (kind == Double) || (kind == Single); }
     bool isInt() const { return (kind == UInt) || (kind == Int); }
     bool isSInt() const { return kind == Int; }
@@ -401,8 +412,7 @@ class VFPRegister
 
     VFPRegister asSingle() const { return singleOverlay(); }
     VFPRegister asDouble() const { return doubleOverlay(); }
-    VFPRegister asInt32x4() const { MOZ_CRASH("NYI"); }
-    VFPRegister asFloat32x4() const { MOZ_CRASH("NYI"); }
+    VFPRegister asSimd128() const { MOZ_CRASH("NYI"); }
 
     struct VFPRegIndexSplit;
     VFPRegIndexSplit encode();
@@ -432,7 +442,7 @@ class VFPRegister
     }
     Encoding encoding() const {
         MOZ_ASSERT(!_isInvalid && !_isMissing);
-        return Code(code_ | (kind << 5));
+        return Encoding(code_);
     }
     uint32_t id() const {
         return code_;
@@ -449,8 +459,8 @@ class VFPRegister
     }
     const char* name() const {
         if (isDouble())
-            return FloatRegisters::GetDoubleName(Code(code_));
-        return FloatRegisters::GetSingleName(Code(code_));
+            return FloatRegisters::GetDoubleName(Encoding(code_));
+        return FloatRegisters::GetSingleName(Encoding(code_));
     }
     bool operator != (const VFPRegister& other) const {
         return other.kind != kind || code_ != other.code_;
@@ -643,11 +653,11 @@ static inline bool UseHardFpABI()
 // have ABIArg which are represented by pair of general purpose registers.
 #define JS_CODEGEN_REGISTER_PAIR 1
 
-// See the comments above AsmJSMappedSize in AsmJSValidate.h for more info.
+// See MIRGenerator::foldableOffsetRange for more info.
 // TODO: Implement this for ARM. Note that it requires Codegen to respect the
 // offset field of AsmJSHeapAccess.
-static const size_t AsmJSCheckedImmediateRange = 0;
-static const size_t AsmJSImmediateRange = 0;
+static const size_t WasmCheckedImmediateRange = 0;
+static const size_t WasmImmediateRange = 0;
 
 } // namespace jit
 } // namespace js

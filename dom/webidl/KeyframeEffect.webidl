@@ -10,14 +10,34 @@
  * liability, trademark and document use rules apply.
  */
 
+enum IterationCompositeOperation {
+  "replace",
+  "accumulate"
+};
+
+dictionary KeyframeEffectOptions : AnimationEffectTimingProperties {
+  IterationCompositeOperation iterationComposite = "replace";
+  CompositeOperation          composite = "replace";
+  DOMString                   spacing = "distribute";
+};
+
+// For the constructor we use Element? for the first argument since we
+// don't support Animatable for pseudo-elements yet.
 [HeaderFile="mozilla/dom/KeyframeEffect.h",
- Func="nsDocument::IsWebAnimationsEnabled"]
+ Func="nsDocument::IsWebAnimationsEnabled",
+ Constructor(Element? target,
+             object? frames,
+             optional (unrestricted double or KeyframeEffectOptions) options)]
 interface KeyframeEffectReadOnly : AnimationEffectReadOnly {
   readonly attribute Element?  target;
+  readonly attribute IterationCompositeOperation iterationComposite;
+  readonly attribute CompositeOperation          composite;
+  readonly attribute DOMString                   spacing;
+
   // Not yet implemented:
-  // readonly attribute IterationCompositeOperation iterationComposite;
-  // readonly attribute CompositeOperation          composite;
-  // readonly attribute DOMString                   spacing;
   // KeyframeEffect             clone();
-  // sequence<ComputedKeyframe> getFrames ();
+
+  // We use object instead of ComputedKeyframe so that we can put the
+  // property-value pairs on the object.
+  [Throws] sequence<object> getFrames();
 };

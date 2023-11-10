@@ -202,7 +202,7 @@ nsBox::Shutdown()
 }
 
 nsresult
-nsBox::RelayoutChildAtOrdinal(nsBoxLayoutState& aState, nsIFrame* aChild)
+nsBox::RelayoutChildAtOrdinal(nsIFrame* aChild)
 {
   return NS_OK;
 }
@@ -452,11 +452,11 @@ nsBox::GetMaxSize(nsBoxLayoutState& aState)
 }
 
 nscoord
-nsBox::GetFlex(nsBoxLayoutState& aState)
+nsBox::GetFlex()
 {
   nscoord flex = 0;
 
-  nsIFrame::AddCSSFlex(aState, this, flex);
+  nsIFrame::AddCSSFlex(this, flex);
 
   return flex;
 }
@@ -834,7 +834,7 @@ nsIFrame::AddCSSMaxSize(nsIFrame* aBox, nsSize& aSize, bool &aWidthSet, bool &aH
 }
 
 bool
-nsIFrame::AddCSSFlex(nsBoxLayoutState& aState, nsIFrame* aBox, nscoord& aFlex)
+nsIFrame::AddCSSFlex(nsIFrame* aBox, nscoord& aFlex)
 {
     bool flexSet = false;
 
@@ -926,7 +926,7 @@ nsBox::GetChildBox(const nsIFrame* aFrame)
 {
   // box layout ends at box-wrapped frames, so don't allow these frames
   // to report child boxes.
-  return aFrame->IsBoxFrame() ? aFrame->GetFirstPrincipalChild() : nullptr;
+  return aFrame->IsBoxFrame() ? aFrame->PrincipalChildList().FirstChild() : nullptr;
 }
 
 /*static*/ nsIFrame*

@@ -18,7 +18,7 @@
 
 namespace mozilla {
 
-PRLogModuleInfo* gTrackEncoderLog;
+LazyLogModule gTrackEncoderLog("TrackEncoder");
 #define TRACK_LOG(type, msg) MOZ_LOG(gTrackEncoderLog, type, msg)
 
 static const int DEFAULT_CHANNELS = 1;
@@ -37,9 +37,6 @@ TrackEncoder::TrackEncoder()
   , mAudioInitCounter(0)
   , mVideoInitCounter(0)
 {
-  if (!gTrackEncoderLog) {
-    gTrackEncoderLog = PR_NewLogModule("TrackEncoder");
-  }
 }
 
 void
@@ -123,9 +120,6 @@ AudioTrackEncoder::AppendAudioSegment(const AudioSegment& aSegment)
   return NS_OK;
 }
 
-static const int AUDIO_PROCESSING_FRAMES = 640; /* > 10ms of 48KHz audio */
-static const uint8_t gZeroChannel[MAX_AUDIO_SAMPLE_SIZE*AUDIO_PROCESSING_FRAMES] = {0};
-
 /*static*/
 void
 AudioTrackEncoder::InterleaveTrackData(AudioChunk& aChunk,
@@ -133,19 +127,29 @@ AudioTrackEncoder::InterleaveTrackData(AudioChunk& aChunk,
                                        uint32_t aOutputChannels,
                                        AudioDataValue* aOutput)
 {
-  if (aChunk.mChannelData.Length() < aOutputChannels) {
-    // Up-mix. This might make the mChannelData have more than aChannels.
-    AudioChannelsUpMix(&aChunk.mChannelData, aOutputChannels, gZeroChannel);
-  }
-
-  if (aChunk.mChannelData.Length() > aOutputChannels) {
-    DownmixAndInterleave(aChunk.mChannelData, aChunk.mBufferFormat, aDuration,
-                         aChunk.mVolume, aOutputChannels, aOutput);
-  } else {
-    InterleaveAndConvertBuffer(aChunk.mChannelData.Elements(),
-                               aChunk.mBufferFormat, aDuration, aChunk.mVolume,
-                               aOutputChannels, aOutput);
-  }
+  switch(aChunk.mBufferFormat) {
+    case AUDIO_FORMAT_S16: {
+      AutoTArray<const int16_t*, 2> array;
+      array.SetLength(aOutputChannels);
+      for (uint32_t i = 0; i < array.Length(); i++) {
+        array[i] = static_cast<const int16_t*>(aChunk.mChannelData[i]);
+      }
+      InterleaveTrackData(array, aDuration, aOutputChannels, aOutput, aChunk.mVolume);
+      break;
+    }
+    case AUDIO_FORMAT_FLOAT32: {
+      AutoTArray<const float*, 2> array;
+      array.SetLength(aOutputChannels);
+      for (uint32_t i = 0; i < array.Length(); i++) {
+        array[i] = static_cast<const float*>(aChunk.mChannelData[i]);
+      }
+      InterleaveTrackData(array, aDuration, aOutputChannels, aOutput, aChunk.mVolume);
+      break;
+   }
+   case AUDIO_FORMAT_SILENCE: {
+      MOZ_ASSERT(false, "To implement.");
+    }
+  };
 }
 
 /*static*/
@@ -190,7 +194,7 @@ VideoTrackEncoder::NotifyQueuedTrackChanges(MediaStreamGraph* aGraph,
       VideoChunk chunk = *iter;
       if (!chunk.IsNull()) {
         gfx::IntSize imgsize = chunk.mFrame.GetImage()->GetSize();
-        gfxIntSize intrinsicSize = chunk.mFrame.GetIntrinsicSize();
+        gfx::IntSize intrinsicSize = chunk.mFrame.GetIntrinsicSize();
         nsresult rv = Init(imgsize.width, imgsize.height,
                            intrinsicSize.width, intrinsicSize.height,
                            aGraph->GraphRate());
@@ -225,7 +229,7 @@ VideoTrackEncoder::AppendVideoSegment(const VideoSegment& aSegment)
   VideoSegment::ChunkIterator iter(const_cast<VideoSegment&>(aSegment));
   while (!iter.IsEnded()) {
     VideoChunk chunk = *iter;
-    nsRefPtr<layers::Image> image = chunk.mFrame.GetImage();
+    RefPtr<layers::Image> image = chunk.mFrame.GetImage();
     mRawSegment.AppendFrame(image.forget(),
                             chunk.GetDuration(),
                             chunk.mFrame.GetIntrinsicSize(),

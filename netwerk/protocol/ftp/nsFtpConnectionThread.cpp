@@ -42,16 +42,18 @@
 #include "nsIURI.h"
 #include "nsILoadInfo.h"
 #include "nsNullPrincipal.h"
+#include "nsIAuthPrompt2.h"
 
 #ifdef MOZ_WIDGET_GONK
 #include "NetStatistics.h"
 #endif
 
-extern PRLogModuleInfo* gFTPLog;
+using namespace mozilla;
+using namespace mozilla::net;
+
+extern LazyLogModule gFTPLog;
 #define LOG(args)         MOZ_LOG(gFTPLog, mozilla::LogLevel::Debug, args)
 #define LOG_INFO(args)  MOZ_LOG(gFTPLog, mozilla::LogLevel::Info, args)
-
-using namespace mozilla::net;
 
 // remove FTP parameters (starting with ";") from the path
 static void
@@ -728,7 +730,7 @@ nsFtpState::S_user() {
             if (!prompter)
                 return NS_ERROR_NOT_INITIALIZED;
 
-            nsRefPtr<nsAuthInformationHolder> info =
+            RefPtr<nsAuthInformationHolder> info =
                 new nsAuthInformationHolder(nsIAuthInformation::AUTH_HOST,
                                             EmptyString(),
                                             EmptyCString());
@@ -817,7 +819,7 @@ nsFtpState::S_pass() {
             if (!prompter)
                 return NS_ERROR_NOT_INITIALIZED;
 
-            nsRefPtr<nsAuthInformationHolder> info =
+            RefPtr<nsAuthInformationHolder> info =
                 new nsAuthInformationHolder(nsIAuthInformation::AUTH_HOST |
                                             nsIAuthInformation::ONLY_PASSWORD,
                                             EmptyString(),
@@ -1609,14 +1611,6 @@ nsFtpState::R_opts() {
 ////////////////////////////////////////////////////////////////////////////////
 // nsIRequest methods:
 
-static inline
-uint32_t GetFtpTime()
-{
-    return uint32_t(PR_Now() / PR_USEC_PER_SEC);
-}
-
-uint32_t nsFtpState::mSessionStartTime = GetFtpTime();
-
 nsresult
 nsFtpState::Init(nsFtpChannel *channel)
 {
@@ -2137,7 +2131,7 @@ nsFtpState::SaveNetworkStats(bool enforce)
 
     // Create the event to save the network statistics.
     // the event is then dispathed to the main thread.
-    nsRefPtr<nsRunnable> event =
+    RefPtr<nsRunnable> event =
         new SaveNetworkStatsEvent(appId, isInBrowser, mActiveNetworkInfo,
                                   mCountRecv, 0, false);
     NS_DispatchToMainThread(event);

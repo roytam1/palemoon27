@@ -73,11 +73,11 @@ CacheChild::ExecuteOp(nsIGlobalObject* aGlobal, Promise* aPromise,
 }
 
 CachePushStreamChild*
-CacheChild::CreatePushStream(nsIAsyncInputStream* aStream)
+CacheChild::CreatePushStream(nsISupports* aParent, nsIAsyncInputStream* aStream)
 {
   mNumChildActors += 1;
   auto actor = SendPCachePushStreamConstructor(
-    new CachePushStreamChild(GetFeature(), aStream));
+    new CachePushStreamChild(GetFeature(), aParent, aStream));
   MOZ_ASSERT(actor);
   return static_cast<CachePushStreamChild*>(actor);
 }
@@ -109,7 +109,7 @@ CacheChild::StartDestroy()
     return;
   }
 
-  nsRefPtr<Cache> listener = mListener;
+  RefPtr<Cache> listener = mListener;
 
   // StartDestroy() can get called from either Cache or the Feature.
   // Theoretically we can get double called if the right race happens.  Handle
@@ -124,14 +124,14 @@ CacheChild::StartDestroy()
   MOZ_ASSERT(!mListener);
 
   // Start actor destruction from parent process
-  unused << SendTeardown();
+  Unused << SendTeardown();
 }
 
 void
 CacheChild::ActorDestroy(ActorDestroyReason aReason)
 {
   NS_ASSERT_OWNINGTHREAD(CacheChild);
-  nsRefPtr<Cache> listener = mListener;
+  RefPtr<Cache> listener = mListener;
   if (listener) {
     listener->DestroyInternal(this);
     // Cache listener should call ClearListener() in DestroyInternal()

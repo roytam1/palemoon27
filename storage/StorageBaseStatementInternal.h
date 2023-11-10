@@ -96,7 +96,7 @@ public:
 protected: // mix-in bits are protected
   StorageBaseStatementInternal();
 
-  nsRefPtr<Connection> mDBConnection;
+  RefPtr<Connection> mDBConnection;
   sqlite3 *mNativeConnection;
 
   /**
@@ -347,7 +347,7 @@ NS_DEFINE_STATIC_IID_ACCESSOR(StorageBaseStatementInternal,
 
   
 
-} // storage
-} // mozilla
+} // namespace storage
+} // namespace mozilla
 
 #endif // mozilla_storage_StorageBaseStatementInternal_h_

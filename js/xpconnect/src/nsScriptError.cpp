@@ -17,6 +17,7 @@
 #include "nsPIDOMWindow.h"
 #include "nsILoadContext.h"
 #include "nsIDocShell.h"
+#include "nsISensitiveInfoHiddenURI.h"
 
 nsScriptErrorBase::nsScriptErrorBase()
     :  mMessage(),
@@ -178,7 +179,26 @@ nsScriptErrorBase::InitWithWindowID(const nsAString& message,
                                     uint64_t aInnerWindowID)
 {
     mMessage.Assign(message);
-    mSourceName.Assign(sourceName);
+
+    if (!sourceName.IsEmpty()) {
+        mSourceName.Assign(sourceName);
+
+        nsCOMPtr<nsIURI> uri;
+        nsAutoCString pass;
+        if (NS_SUCCEEDED(NS_NewURI(getter_AddRefs(uri), sourceName)) &&
+            NS_SUCCEEDED(uri->GetPassword(pass)) &&
+            !pass.IsEmpty()) {
+            nsCOMPtr<nsISensitiveInfoHiddenURI> safeUri =
+                do_QueryInterface(uri);
+
+            nsAutoCString loc;
+            if (safeUri &&
+                NS_SUCCEEDED(safeUri->GetSensitiveInfoHiddenSpec(loc))) {
+                mSourceName.Assign(NS_ConvertUTF8toUTF16(loc));
+            }
+        }
+    }
+
     mLineNumber = lineNumber;
     mSourceLine.Assign(sourceLine);
     mColumnNumber = columnNumber;
@@ -217,9 +237,11 @@ nsScriptErrorBase::ToString(nsACString& /*UTF8*/ aResult)
     if (!mMessage.IsEmpty())
         tempMessage = ToNewUTF8String(mMessage);
     if (!mSourceName.IsEmpty())
-        tempSourceName = ToNewUTF8String(mSourceName);
+        // Use at most 512 characters from mSourceName.
+        tempSourceName = ToNewUTF8String(StringHead(mSourceName, 512));
     if (!mSourceLine.IsEmpty())
-        tempSourceLine = ToNewUTF8String(mSourceLine);
+        // Use at most 512 characters from mSourceLine.
+        tempSourceLine = ToNewUTF8String(StringHead(mSourceLine, 512));
 
     if (nullptr != tempSourceName && nullptr != tempSourceLine)
         temp = JS_smprintf(format0,

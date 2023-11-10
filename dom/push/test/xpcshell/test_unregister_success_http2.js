@@ -4,6 +4,15 @@
 'use strict';
 
 Cu.import("resource://gre/modules/Services.jsm");
+Cu.import("resource://testing-common/PromiseTestUtils.jsm");
+
+///////////////////
+//
+// Whitelisting this test.
+// As part of bug 1077403, the leaking uncaught rejection should be fixed.
+//
+// Instances of the rejection "record is undefined" may or may not appear.
+PromiseTestUtils.thisTestLeaksUncaughtRejectionsAndShouldBeFixed();
 
 const {PushDB, PushService, PushServiceHttp2} = serviceExports;
 
@@ -14,7 +23,7 @@ var serverPort = -1;
 
 function run_test() {
   var env = Cc["@mozilla.org/process/environment;1"].getService(Ci.nsIEnvironment);
-  serverPort = env.get("MOZHTTP2-PORT");
+  serverPort = env.get("MOZHTTP2_PORT");
   do_check_neq(serverPort, null);
 
   do_get_profile();
@@ -34,10 +43,6 @@ function run_test() {
 
   prefs.setIntPref("network.http.speculative-parallel-limit", oldPref);
 
-  disableServiceWorkerEvents(
-    'https://example.com/page/unregister-success'
-  );
-
   run_next_test();
 }
 
@@ -53,7 +58,10 @@ add_task(function* test_pushUnsubscriptionSuccess() {
     subscriptionUri: serverURL + '/subscriptionUnsubscriptionSuccess',
     pushEndpoint: serverURL + '/pushEndpointUnsubscriptionSuccess',
     pushReceiptEndpoint: serverURL + '/receiptPushEndpointUnsubscriptionSuccess',
-    scope: 'https://example.com/page/unregister-success'
+    scope: 'https://example.com/page/unregister-success',
+    originAttributes: ChromeUtils.originAttributesToSuffix(
+      { appId: Ci.nsIScriptSecurityManager.NO_APP_ID, inBrowser: false }),
+    quota: Infinity,
   });
 
   PushService.init({
@@ -61,8 +69,11 @@ add_task(function* test_pushUnsubscriptionSuccess() {
     db
   });
 
-  yield PushNotificationService.unregister(
-    'https://example.com/page/unregister-success');
+  yield PushService.unregister({
+    scope: 'https://example.com/page/unregister-success',
+    originAttributes: ChromeUtils.originAttributesToSuffix(
+      { appId: Ci.nsIScriptSecurityManager.NO_APP_ID, inBrowser: false }),
+  });
   let record = yield db.getByKeyID(serverURL + '/subscriptionUnsubscriptionSuccess');
   ok(!record, 'Unregister did not remove record');
 

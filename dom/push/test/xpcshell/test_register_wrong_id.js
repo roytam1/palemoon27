@@ -16,17 +16,14 @@ function run_test() {
     requestTimeout: 1000,
     retryBaseInterval: 150
   });
-  disableServiceWorkerEvents(
-    'https://example.com/mismatched'
-  );
   run_next_test();
 }
 
 add_task(function* test_register_wrong_id() {
   // Should reconnect after the register request times out.
   let registers = 0;
-  let helloDefer = Promise.defer();
-  let helloDone = after(2, helloDefer.resolve);
+  let helloDone;
+  let helloPromise = new Promise(resolve => helloDone = after(2, resolve));
 
   PushServiceWebSocket._generateID = () => clientChannelID;
   PushService.init({
@@ -59,15 +56,15 @@ add_task(function* test_register_wrong_id() {
   });
 
   yield rejects(
-    PushNotificationService.register('https://example.com/mismatched',
-      { appId: Ci.nsIScriptSecurityManager.NO_APP_ID, inBrowser: false }),
-    function(error) {
-      return error == 'TimeoutError';
-    },
-    'Wrong error for mismatched register reply'
+    PushService.register({
+      scope: 'https://example.com/mismatched',
+      originAttributes: ChromeUtils.originAttributesToSuffix(
+        { appId: Ci.nsIScriptSecurityManager.NO_APP_ID, inBrowser: false }),
+    }),
+    'Expected error for mismatched register reply'
   );
 
-  yield waitForPromise(helloDefer.promise, DEFAULT_TIMEOUT,
+  yield waitForPromise(helloPromise, DEFAULT_TIMEOUT,
     'Reconnect after mismatched register reply timed out');
   equal(registers, 1, 'Wrong register count');
 });

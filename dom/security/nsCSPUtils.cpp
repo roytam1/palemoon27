@@ -16,12 +16,10 @@
 
 #define DEFAULT_PORT -1
 
-static PRLogModuleInfo*
+static mozilla::LogModule*
 GetCspUtilsLog()
 {
-  static PRLogModuleInfo* gCspUtilsPRLog;
-  if (!gCspUtilsPRLog)
-    gCspUtilsPRLog = PR_NewLogModule("CSPUtils");
+  static mozilla::LazyLogModule gCspUtilsPRLog("CSPUtils");
   return gCspUtilsPRLog;
 }
 
@@ -85,6 +83,18 @@ CSP_LogMessage(const nsAString& aMessage,
   cspMsg.Append(NS_LITERAL_STRING("Content Security Policy: "));
   cspMsg.Append(aMessage);
 
+  // Currently 'aSourceLine' is not logged to the console, because similar
+  // information is already included within the source link of the message.
+  // For inline violations however, the line and column number are 0 and
+  // information contained within 'aSourceLine' can be really useful for devs.
+  // E.g. 'aSourceLine' might be: 'onclick attribute on DIV element'.
+  // In such cases we append 'aSourceLine' directly to the error message.
+  if (!aSourceLine.IsEmpty()) {
+    cspMsg.Append(NS_LITERAL_STRING(" Source: "));
+    cspMsg.Append(aSourceLine);
+    cspMsg.Append(NS_LITERAL_STRING("."));
+  }
+
   nsresult rv;
   if (aInnerWindowID > 0) {
     nsCString catStr;
@@ -140,6 +150,8 @@ CSP_ContentTypeToDirective(nsContentPolicyType aType)
     // BLock XSLT as script, see bug 910139
     case nsIContentPolicy::TYPE_XSLT:
     case nsIContentPolicy::TYPE_SCRIPT:
+    case nsIContentPolicy::TYPE_INTERNAL_SCRIPT:
+    case nsIContentPolicy::TYPE_INTERNAL_SCRIPT_PRELOAD:
       return nsIContentSecurityPolicy::SCRIPT_SRC_DIRECTIVE;
 
     case nsIContentPolicy::TYPE_STYLESHEET:
@@ -153,6 +165,11 @@ CSP_ContentTypeToDirective(nsContentPolicyType aType)
 
     case nsIContentPolicy::TYPE_WEB_MANIFEST:
       return nsIContentSecurityPolicy::WEB_MANIFEST_SRC_DIRECTIVE;
+
+    case nsIContentPolicy::TYPE_INTERNAL_WORKER:
+    case nsIContentPolicy::TYPE_INTERNAL_SHARED_WORKER:
+    case nsIContentPolicy::TYPE_INTERNAL_SERVICE_WORKER:
+      return nsIContentSecurityPolicy::CHILD_SRC_DIRECTIVE;
 
     case nsIContentPolicy::TYPE_SUBDOCUMENT:
       return nsIContentSecurityPolicy::FRAME_SRC_DIRECTIVE;
@@ -498,6 +515,21 @@ nsCSPHostSrc::permits(nsIURI* aUri, const nsAString& aNonce, bool aWasRedirected
 
   // 2) host matching: Enforce a single *
   if (mHost.EqualsASCII("*")) {
+    // The single ASTERISK character (*) does not match a URI's scheme of a type
+    // designating a globally unique identifier (such as blob:, data:, or filesystem:)
+    // At the moment firefox does not support filesystem; but for future compatibility
+    // we support it in CSP according to the spec, see: 4.2.2 Matching Source Expressions
+    // Note, that whitelisting any of these schemes would call nsCSPSchemeSrc::permits().
+    bool isBlobScheme =
+      (NS_SUCCEEDED(aUri->SchemeIs("blob", &isBlobScheme)) && isBlobScheme);
+    bool isDataScheme =
+      (NS_SUCCEEDED(aUri->SchemeIs("data", &isDataScheme)) && isDataScheme);
+    bool isFileScheme =
+      (NS_SUCCEEDED(aUri->SchemeIs("filesystem", &isFileScheme)) && isFileScheme);
+
+    if (isBlobScheme || isDataScheme || isFileScheme) {
+      return false;
+    }
     return true;
   }
 
@@ -645,6 +677,11 @@ nsCSPKeywordSrc::allows(enum CSPKeyword aKeyword, const nsAString& aHashOrNonce)
 void
 nsCSPKeywordSrc::toString(nsAString& outStr) const
 {
+  if (mInvalidated) {
+    MOZ_ASSERT(mKeyword == CSP_UNSAFE_INLINE,
+               "can only ignore 'unsafe-inline' within toString()");
+    return;
+  }
   outStr.AppendASCII(CSP_EnumToKeyword(mKeyword));
 }
 
@@ -652,8 +689,8 @@ void
 nsCSPKeywordSrc::invalidate()
 {
   mInvalidated = true;
-  NS_ASSERTION(mInvalidated == CSP_UNSAFE_INLINE,
-               "invalidate 'unsafe-inline' only within script-src");
+  MOZ_ASSERT(mKeyword == CSP_UNSAFE_INLINE,
+             "invalidate 'unsafe-inline' only within script-src");
 }
 
 /* ===== nsCSPNonceSrc ==================== */
@@ -933,6 +970,11 @@ nsCSPDirective::toDomCSPStruct(mozilla::dom::CSP& outCSP) const
       // does not have any srcs
       return;
 
+    case nsIContentSecurityPolicy::CHILD_SRC_DIRECTIVE:
+      outCSP.mChild_src.Construct();
+      outCSP.mChild_src.Value() = mozilla::Move(srcs);
+      return;
+
     // REFERRER_DIRECTIVE is handled in nsCSPPolicy::toDomCSPStruct()
 
     default:
@@ -963,6 +1005,49 @@ nsCSPDirective::getReportURIs(nsTArray<nsString> &outReportURIs) const
     mSrcs[i]->toString(tmpReportURI);
     outReportURIs.AppendElement(tmpReportURI);
   }
+}
+
+bool nsCSPDirective::equals(CSPDirective aDirective) const
+{
+  return (mDirective == aDirective);
+}
+
+/* =============== nsCSPChildSrcDirective ============= */
+
+nsCSPChildSrcDirective::nsCSPChildSrcDirective(CSPDirective aDirective)
+  : nsCSPDirective(aDirective)
+  , mHandleFrameSrc(false)
+{
+}
+
+nsCSPChildSrcDirective::~nsCSPChildSrcDirective()
+{
+}
+
+void nsCSPChildSrcDirective::setHandleFrameSrc()
+{
+  mHandleFrameSrc = true;
+}
+
+bool nsCSPChildSrcDirective::restrictsContentType(nsContentPolicyType aContentType) const
+{
+  if (aContentType == nsIContentPolicy::TYPE_SUBDOCUMENT) {
+    return mHandleFrameSrc;
+  }
+
+  return (aContentType == nsIContentPolicy::TYPE_INTERNAL_WORKER
+      || aContentType == nsIContentPolicy::TYPE_INTERNAL_SHARED_WORKER
+      || aContentType == nsIContentPolicy::TYPE_INTERNAL_SERVICE_WORKER
+      );
+}
+
+bool nsCSPChildSrcDirective::equals(CSPDirective aDirective) const
+{
+  if (aDirective == nsIContentSecurityPolicy::FRAME_SRC_DIRECTIVE) {
+    return mHandleFrameSrc;
+  }
+
+  return (aDirective == nsIContentSecurityPolicy::CHILD_SRC_DIRECTIVE);
 }
 
 /* =============== nsUpgradeInsecureDirective ============= */
@@ -1026,6 +1111,7 @@ nsCSPPolicy::permits(CSPDirective aDir,
   }
 
   NS_ASSERTION(aUri, "permits needs an uri to perform the check!");
+  outViolatedDirective.Truncate();
 
   nsCSPDirective* defaultDir = nullptr;
 
@@ -1082,8 +1168,13 @@ nsCSPPolicy::allows(nsContentPolicyType aContentType,
     }
   }
 
-  // Only match {nonce,hash}-source on specific directives (not default-src)
+  // {nonce,hash}-source should not consult default-src:
+  //   * return false if default-src is specified
+  //   * but allow the load if default-src is *not* specified (Bug 1198422)
   if (aKeyword == CSP_NONCE || aKeyword == CSP_HASH) {
+     if (!defaultDir) {
+       return true;
+     }
     return false;
   }
 

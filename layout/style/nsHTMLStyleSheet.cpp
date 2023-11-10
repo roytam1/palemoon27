@@ -51,6 +51,12 @@ nsHTMLStyleSheet::HTMLColorRule::MapRuleInfoInto(nsRuleData* aRuleData)
   }
 }
 
+/* virtual */ bool
+nsHTMLStyleSheet::HTMLColorRule::MightMapInheritedStyleData()
+{
+  return true;
+}
+
 #ifdef DEBUG
 /* virtual */ void
 nsHTMLStyleSheet::HTMLColorRule::List(FILE* out, int32_t aIndent) const
@@ -90,6 +96,12 @@ nsHTMLStyleSheet::TableTHRule::MapRuleInfoInto(nsRuleData* aRuleData)
   }
 }
 
+/* virtual */ bool
+nsHTMLStyleSheet::TableTHRule::MightMapInheritedStyleData()
+{
+  return true;
+}
+
 /* virtual */ void
 nsHTMLStyleSheet::TableQuirkColorRule::MapRuleInfoInto(nsRuleData* aRuleData)
 {
@@ -101,6 +113,12 @@ nsHTMLStyleSheet::TableQuirkColorRule::MapRuleInfoInto(nsRuleData* aRuleData)
       color->SetIntValue(NS_STYLE_COLOR_INHERIT_FROM_BODY,
                          eCSSUnit_Enumerated);
   }
+}
+
+/* virtual */ bool
+nsHTMLStyleSheet::TableQuirkColorRule::MightMapInheritedStyleData()
+{
+  return true;
 }
 
 
@@ -115,6 +133,12 @@ nsHTMLStyleSheet::LangRule::MapRuleInfoInto(nsRuleData* aRuleData)
       lang->SetStringValue(mLang, eCSSUnit_Ident);
     }
   }
+}
+
+/* virtual */ bool
+nsHTMLStyleSheet::LangRule::MightMapInheritedStyleData()
+{
+  return true;
 }
 
 #ifdef DEBUG
@@ -171,7 +195,7 @@ MappedAttrTable_MatchEntry(PLDHashTable *table, const PLDHashEntryHdr *hdr,
 static const PLDHashTableOps MappedAttrTable_Ops = {
   MappedAttrTable_HashKey,
   MappedAttrTable_MatchEntry,
-  PL_DHashMoveEntryStub,
+  PLDHashTable::MoveEntryStub,
   MappedAttrTable_ClearEntry,
   nullptr
 };
@@ -179,7 +203,7 @@ static const PLDHashTableOps MappedAttrTable_Ops = {
 // -----------------------------------------------------------
 
 struct LangRuleTableEntry : public PLDHashEntryHdr {
-  nsRefPtr<nsHTMLStyleSheet::LangRule> mRule;
+  RefPtr<nsHTMLStyleSheet::LangRule> mRule;
 };
 
 static PLDHashNumber
@@ -222,7 +246,7 @@ LangRuleTable_InitEntry(PLDHashEntryHdr *hdr, const void *key)
 static const PLDHashTableOps LangRuleTable_Ops = {
   LangRuleTable_HashKey,
   LangRuleTable_MatchEntry,
-  PL_DHashMoveEntryStub,
+  PLDHashTable::MoveEntryStub,
   LangRuleTable_ClearEntry,
   LangRuleTable_InitEntry
 };
@@ -298,6 +322,13 @@ nsHTMLStyleSheet::RulesMatching(ElementRuleProcessorData* aData)
   if (aData->mElement->GetAttr(kNameSpaceID_XML, nsGkAtoms::lang, lang)) {
     ruleWalker->Forward(LangRuleFor(lang));
   }
+
+  // Set the language to "x-math" on the <math> element, so that appropriate
+  // font settings are used for MathML.
+  if (aData->mElement->IsMathMLElement(nsGkAtoms::math)) {
+    nsGkAtoms::x_math->ToString(lang);
+    ruleWalker->Forward(LangRuleFor(lang));
+  }
 }
 
 // Test if style is dependent on content state
@@ -328,7 +359,9 @@ nsHTMLStyleSheet::HasDocumentStateDependentStyle(StateRuleProcessorData* aData)
 }
 
 /* virtual */ nsRestyleHint
-nsHTMLStyleSheet::HasAttributeDependentStyle(AttributeRuleProcessorData* aData)
+nsHTMLStyleSheet::HasAttributeDependentStyle(
+    AttributeRuleProcessorData* aData,
+    RestyleHintData& aRestyleHintDataResult)
 {
   // Do nothing on before-change checks
   if (!aData->mAttrHasChanged) {
@@ -417,7 +450,7 @@ nsHTMLStyleSheet::Reset()
 }
 
 nsresult
-nsHTMLStyleSheet::ImplLinkColorSetter(nsRefPtr<HTMLColorRule>& aRule, nscolor aColor)
+nsHTMLStyleSheet::ImplLinkColorSetter(RefPtr<HTMLColorRule>& aRule, nscolor aColor)
 {
   if (aRule && aRule->mColor == aColor) {
     return NS_OK;
@@ -470,7 +503,7 @@ nsHTMLStyleSheet::UniqueMappedAttributes(nsMappedAttributes* aMapped)
     // We added a new entry to the hashtable, so we have a new unique set.
     entry->mAttributes = aMapped;
   }
-  nsRefPtr<nsMappedAttributes> ret = entry->mAttributes;
+  RefPtr<nsMappedAttributes> ret = entry->mAttributes;
   return ret.forget();
 }
 

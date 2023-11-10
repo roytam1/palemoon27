@@ -98,7 +98,8 @@ class js::VerifyPreTracer : public JS::CallbackTracer
     NodeMap nodemap;
 
     explicit VerifyPreTracer(JSRuntime* rt)
-      : JS::CallbackTracer(rt), noggc(rt), number(rt->gc.gcNumber()), count(0), root(nullptr)
+      : JS::CallbackTracer(rt), noggc(rt), number(rt->gc.gcNumber()), count(0), curnode(nullptr),
+        root(nullptr), edgeptr(nullptr), term(nullptr)
     {}
 
     ~VerifyPreTracer() {
@@ -145,7 +146,11 @@ MakeNode(VerifyPreTracer* trc, void* thing, JS::TraceKind kind)
         node->thing = thing;
         node->count = 0;
         node->kind = kind;
-        trc->nodemap.add(p, thing, node);
+        if (!trc->nodemap.add(p, thing, node)) {
+            trc->edgeptr = trc->term;
+            return nullptr;
+        }
+
         return node;
     }
     return nullptr;
@@ -215,7 +220,7 @@ gc::GCRuntime::startVerifyPreBarriers()
             VerifyNode* child = MakeNode(trc, e.thing, e.kind);
             if (child) {
                 trc->curnode = child;
-                JS_TraceChildren(trc, e.thing, e.kind);
+                js::TraceChildren(trc, e.thing, e.kind);
             }
             if (trc->edgeptr == trc->term)
                 goto oom;
@@ -337,7 +342,7 @@ gc::GCRuntime::endVerifyPreBarriers()
         VerifyNode* node = NextNode(trc->root);
         while ((char*)node < trc->edgeptr) {
             cetrc.node = node;
-            JS_TraceChildren(&cetrc, node->thing, node->kind);
+            js::TraceChildren(&cetrc, node->thing, node->kind);
 
             if (node->count <= MAX_VERIFIER_EDGES) {
                 for (uint32_t i = 0; i < node->count; i++)
@@ -376,7 +381,7 @@ gc::VerifyBarriers(JSRuntime* rt, VerifierType type)
 void
 gc::GCRuntime::maybeVerifyPreBarriers(bool always)
 {
-    if (zealMode != ZealVerifierPreValue)
+    if (!hasZealMode(ZealMode::VerifierPre))
         return;
 
     if (rt->mainThread.suppressGC)

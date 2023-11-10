@@ -5,6 +5,7 @@
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
 import copy
+import importlib
 import json
 import math
 import mozdebug
@@ -62,9 +63,10 @@ if os.path.isdir(mozbase):
 
 from manifestparser import TestManifest
 from manifestparser.filters import chunk_by_slice, tags
-from mozlog import structured
+from mozlog import commandline
 import mozcrash
 import mozinfo
+from mozrunner.utils import get_stack_fixer_function
 
 # --------------------------------------------------------------
 
@@ -126,6 +128,7 @@ class XPCShellTestThread(Thread):
         self.xpcshell = kwargs.get('xpcshell')
         self.xpcsRunArgs = kwargs.get('xpcsRunArgs')
         self.failureManifest = kwargs.get('failureManifest')
+        self.stack_fixer_function = kwargs.get('stack_fixer_function')
 
         self.tests_root_dir = tests_root_dir
         self.app_dir_key = app_dir_key
@@ -491,17 +494,23 @@ class XPCShellTestThread(Thread):
         if self.saw_proc_start and not self.saw_proc_end:
             self.has_failure_output = True
 
+    def fix_text_output(self, line):
+        line = cleanup_encoding(line)
+        if self.stack_fixer_function is not None:
+            return self.stack_fixer_function(line)
+        return line
+
     def log_line(self, line):
         """Log a line of output (either a parser json object or text output from
         the test process"""
         if isinstance(line, basestring):
-            line = cleanup_encoding(line).rstrip("\r\n")
+            line = self.fix_text_output(line).rstrip('\r\n')
             self.log.process_output(self.proc_ident,
                                     line,
                                     command=self.complete_command)
         else:
             if 'message' in line:
-                line['message'] = cleanup_encoding(line['message'])
+                line['message'] = self.fix_text_output(line['message'])
             if 'xpcshell_process' in line:
                 line['thread'] =  ' '.join([current_thread().name, line['xpcshell_process']])
             else:
@@ -518,8 +527,7 @@ class XPCShellTestThread(Thread):
         self.log.info("<<<<<<<")
 
     def report_message(self, message):
-        """Stores or logs a json log message in mozlog.structured
-        format."""
+        """Stores or logs a json log message in mozlog format."""
         if self.verbose:
             self.log_line(message)
         else:
@@ -954,10 +962,10 @@ class XPCShellTests(object):
                             nodeMozInfo['hasNode'] = True
                             searchObj = re.search( r'SPDY server listening on port (.*)', msg, 0)
                             if searchObj:
-                              self.env["MOZSPDY-PORT"] = searchObj.group(1)
+                              self.env["MOZSPDY_PORT"] = searchObj.group(1)
                             searchObj = re.search( r'HTTP2 server listening on port (.*)', msg, 0)
                             if searchObj:
-                              self.env["MOZHTTP2-PORT"] = searchObj.group(1)
+                              self.env["MOZHTTP2_PORT"] = searchObj.group(1)
                     except OSError, e:
                         # This occurs if the subprocess couldn't be started
                         self.log.error('Could not run %s server: %s' % (name, str(e)))
@@ -965,6 +973,9 @@ class XPCShellTests(object):
             myDir = os.path.split(os.path.abspath(__file__))[0]
             startServer('moz-spdy', os.path.join(myDir, 'moz-spdy', 'moz-spdy.js'))
             startServer('moz-http2', os.path.join(myDir, 'moz-http2', 'moz-http2.js'))
+        elif os.getenv('MOZ_ASSUME_NODE_RUNNING', None):
+            self.log.info('Assuming required node servers are already running')
+            nodeMozInfo['hasNode'] = True
 
         mozinfo.update(nodeMozInfo)
 
@@ -1023,7 +1034,7 @@ class XPCShellTests(object):
                  testsRootDir=None, testingModulesDir=None, pluginsPath=None,
                  testClass=XPCShellTestThread, failureManifest=None,
                  log=None, stream=None, jsDebugger=False, jsDebuggerPort=0,
-                 test_tags=None, **otherOptions):
+                 test_tags=None, utility_path=None, **otherOptions):
         """Run xpcshell tests.
 
         |xpcshell|, is the xpcshell executable to use to run the tests.
@@ -1154,6 +1165,10 @@ class XPCShellTests(object):
 
         mozinfo.update(self.mozInfo)
 
+        self.stack_fixer_function = None
+        if utility_path and os.path.exists(utility_path):
+            self.stack_fixer_function = get_stack_fixer_function(utility_path, self.symbolsPath)
+
         # buildEnvironment() needs mozInfo, so we call it after mozInfo is initialized.
         self.buildEnvironment()
 
@@ -1201,6 +1216,7 @@ class XPCShellTests(object):
             'xpcsRunArgs': self.xpcsRunArgs,
             'failureManifest': failureManifest,
             'harness_timeout': self.harness_timeout,
+            'stack_fixer_function': self.stack_fixer_function,
         }
 
         if self.sequential:
@@ -1480,16 +1496,19 @@ class XPCShellOptions(OptionParser):
                         help="filter out tests that don't have the given tag. Can be "
                              "used multiple times in which case the test must contain "
                              "at least one of the given tags.")
+        self.add_option("--utility-path",
+                        action="store", dest="utility_path",
+                        default=None,
+                        help="Path to a directory containing utility programs, such "
+                             "as stack fixer scripts.")
 
 def main():
     parser = XPCShellOptions()
-    structured.commandline.add_logging_group(parser)
+    commandline.add_logging_group(parser)
     options, args = parser.parse_args()
 
 
-    log = structured.commandline.setup_logging("XPCShell",
-                                               options,
-                                               {"tbpl": sys.stdout})
+    log = commandline.setup_logging("XPCShell", options, {"tbpl": sys.stdout})
 
     if len(args) < 2 and options.manifest is None or \
        (len(args) < 1 and options.manifest is not None):

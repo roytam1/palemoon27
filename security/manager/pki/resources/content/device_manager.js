@@ -16,7 +16,7 @@ const nsDialogParamBlock = "@mozilla.org/embedcomp/dialogparam;1";
 const nsIPKCS11 = Components.interfaces.nsIPKCS11;
 const nsPKCS11ContractID = "@mozilla.org/security/pkcs11;1";
 
-let { Services } = Components.utils.import("resource://gre/modules/Services.jsm", {});
+var { Services } = Components.utils.import("resource://gre/modules/Services.jsm", {});
 
 var bundle;
 var secmoddb;
@@ -88,7 +88,7 @@ function RefreshDeviceList()
       } catch (e) { slots_done = true; }
       while (!slots_done) {
         var slot = null;
- 	try {
+        try {
           slot = slots.currentItem().QueryInterface(nsIPKCS11Slot);
         } catch (e) { slot = null; }
         // in the ongoing discussion of whether slot names or token names

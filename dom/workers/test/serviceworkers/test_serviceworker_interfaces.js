@@ -39,7 +39,7 @@ var ecmaGlobals =
     "Int32Array",
     "Int8Array",
     "InternalError",
-    {name: "Intl", b2g: false, android: false},
+    {name: "Intl", android: false},
     "Iterator",
     "JSON",
     "Map",
@@ -48,23 +48,12 @@ var ecmaGlobals =
     "Number",
     "Object",
     "Proxy",
-    "PushEvent",
-    "PushMessageData",
     "RangeError",
     "ReferenceError",
     "Reflect",
     "RegExp",
     "Set",
     {name: "SharedArrayBuffer", nightly: true},
-    {name: "SharedInt8Array", nightly: true},
-    {name: "SharedUint8Array", nightly: true},
-    {name: "SharedUint8ClampedArray", nightly: true},
-    {name: "SharedInt16Array", nightly: true},
-    {name: "SharedUint16Array", nightly: true},
-    {name: "SharedInt32Array", nightly: true},
-    {name: "SharedUint32Array", nightly: true},
-    {name: "SharedFloat32Array", nightly: true},
-    {name: "SharedFloat64Array", nightly: true},
     {name: "SIMD", nightly: true},
     {name: "Atomics", nightly: true},
     "StopIteration",
@@ -104,9 +93,13 @@ var interfaceNamesInGlobalScope =
 // IMPORTANT: Do not change this list without review from a DOM peer!
     { name: "DataStoreCursor", b2g: true },
 // IMPORTANT: Do not change this list without review from a DOM peer!
+    "DOMCursor",
+// IMPORTANT: Do not change this list without review from a DOM peer!
     "DOMError",
 // IMPORTANT: Do not change this list without review from a DOM peer!
     "DOMException",
+// IMPORTANT: Do not change this list without review from a DOM peer!
+    "DOMRequest",
 // IMPORTANT: Do not change this list without review from a DOM peer!
     "DOMStringList",
 // IMPORTANT: Do not change this list without review from a DOM peer!
@@ -116,9 +109,13 @@ var interfaceNamesInGlobalScope =
 // IMPORTANT: Do not change this list without review from a DOM peer!
     "ExtendableEvent",
 // IMPORTANT: Do not change this list without review from a DOM peer!
+    "ExtendableMessageEvent",
+// IMPORTANT: Do not change this list without review from a DOM peer!
     "FetchEvent",
 // IMPORTANT: Do not change this list without review from a DOM peer!
     "File",
+// IMPORTANT: Do not change this list without review from a DOM peer!
+    "FileReader",
 // IMPORTANT: Do not change this list without review from a DOM peer!
     "FileReaderSync",
 // IMPORTANT: Do not change this list without review from a DOM peer!
@@ -146,6 +143,8 @@ var interfaceNamesInGlobalScope =
 // IMPORTANT: Do not change this list without review from a DOM peer!
     "ImageBitmap",
 // IMPORTANT: Do not change this list without review from a DOM peer!
+    "ImageBitmapRenderingContext",
+// IMPORTANT: Do not change this list without review from a DOM peer!
     "ImageData",
 // IMPORTANT: Do not change this list without review from a DOM peer!
     "MessageChannel",
@@ -154,9 +153,9 @@ var interfaceNamesInGlobalScope =
 // IMPORTANT: Do not change this list without review from a DOM peer!
     "MessagePort",
 // IMPORTANT: Do not change this list without review from a DOM peer!
-    "Notification",
+    { name: "Notification", release: false },
 // IMPORTANT: Do not change this list without review from a DOM peer!
-    "NotificationEvent",
+    { name: "NotificationEvent", release: false },
 // IMPORTANT: Do not change this list without review from a DOM peer!
     "Performance",
 // IMPORTANT: Do not change this list without review from a DOM peer!
@@ -167,6 +166,14 @@ var interfaceNamesInGlobalScope =
     "PerformanceMeasure",
 // IMPORTANT: Do not change this list without review from a DOM peer!
     "Promise",
+// IMPORTANT: Do not change this list without review from a DOM peer!
+    { name: "PushEvent", b2g: false, android: false},
+// IMPORTANT: Do not change this list without review from a DOM peer!
+    { name: "PushManager", b2g: false, android: false},
+// IMPORTANT: Do not change this list without review from a DOM peer!
+    { name: "PushMessageData", b2g: false, android: false},
+// IMPORTANT: Do not change this list without review from a DOM peer!
+    { name: "PushSubscription", b2g: false, android: false},
 // IMPORTANT: Do not change this list without review from a DOM peer!
     "Request",
 // IMPORTANT: Do not change this list without review from a DOM peer!

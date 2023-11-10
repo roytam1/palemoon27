@@ -89,6 +89,10 @@ const PREFS_WHITELIST = [
   "storage.vacuum.last.",
   "svg.",
   "toolkit.startup.recent_crashes",
+  "ui.osk.enabled",
+  "ui.osk.detect_physical_keyboard",
+  "ui.osk.require_tablet_mode",
+  "ui.osk.debug.keyboardDisplayReason",
   "webgl.",
 ];
 
@@ -98,6 +102,34 @@ const PREFS_BLACKLIST = [
   /[.]print_to_filename$/,
   /^print[.]macosx[.]pagesetup/,
 ];
+
+// Table of getters for various preference types.
+// It's important to use getComplexValue for strings: it returns Unicode (wchars), getCharPref returns UTF-8 encoded chars.
+const PREFS_GETTERS = {};
+
+PREFS_GETTERS[Ci.nsIPrefBranch.PREF_STRING] = (prefs, name) => prefs.getComplexValue(name, Ci.nsISupportsString).data;
+PREFS_GETTERS[Ci.nsIPrefBranch.PREF_INT] = (prefs, name) => prefs.getIntPref(name);
+PREFS_GETTERS[Ci.nsIPrefBranch.PREF_BOOL] = (prefs, name) => prefs.getBoolPref(name);
+
+// Return the preferences filtered by PREFS_BLACKLIST and PREFS_WHITELIST lists
+// and also by the custom 'filter'-ing function.
+function getPrefList(filter) {
+  filter = filter || (name => true);
+  function getPref(name) {
+    let type = Services.prefs.getPrefType(name);
+    if (!(type in PREFS_GETTERS))
+      throw new Error("Unknown preference type " + type + " for " + name);
+    return PREFS_GETTERS[type](Services.prefs, name);
+  }
+
+  return PREFS_WHITELIST.reduce(function(prefs, branch) {
+    Services.prefs.getChildList(branch).forEach(function(name) {
+      if (filter(name) && !PREFS_BLACKLIST.some(re => re.test(name)))
+        prefs[name] = getPref(name);
+    });
+    return prefs;
+  }, {});
+}
 
 this.Troubleshoot = {
 
@@ -239,45 +271,11 @@ let dataProviders = {
   },
 
   modifiedPreferences: function modifiedPreferences(done) {
-    function getPref(name) {
-      let table = {};
-      table[Ci.nsIPrefBranch.PREF_STRING] = "getCharPref";
-      table[Ci.nsIPrefBranch.PREF_INT] = "getIntPref";
-      table[Ci.nsIPrefBranch.PREF_BOOL] = "getBoolPref";
-      let type = Services.prefs.getPrefType(name);
-      if (!(type in table))
-        throw new Error("Unknown preference type " + type + " for " + name);
-      return Services.prefs[table[type]](name);
-    }
-    done(PREFS_WHITELIST.reduce(function (prefs, branch) {
-      Services.prefs.getChildList(branch).forEach(function (name) {
-        if (Services.prefs.prefHasUserValue(name) &&
-            !PREFS_BLACKLIST.some(function (re) re.test(name)))
-          prefs[name] = getPref(name);
-      });
-      return prefs;
-    }, {}));
+    done(getPrefList(name => Services.prefs.prefHasUserValue(name)));
   },
 
   lockedPreferences: function lockedPreferences(done) {
-    function getPref(name) {
-      let table = {};
-      table[Ci.nsIPrefBranch.PREF_STRING] = "getCharPref";
-      table[Ci.nsIPrefBranch.PREF_INT] = "getIntPref";
-      table[Ci.nsIPrefBranch.PREF_BOOL] = "getBoolPref";
-      let type = Services.prefs.getPrefType(name);
-      if (!(type in table))
-        throw new Error("Unknown preference type " + type + " for " + name);
-      return Services.prefs[table[type]](name);
-    }
-    done(PREFS_WHITELIST.reduce(function (prefs, branch) {
-      Services.prefs.getChildList(branch).forEach(function (name) {
-        if (Services.prefs.prefIsLocked(name) &&
-            !PREFS_BLACKLIST.some(function (re) re.test(name)))
-          prefs[name] = getPref(name);
-      });
-      return prefs;
-    }, {}));
+    done(getPrefList(name => Services.prefs.prefIsLocked(name)));
   },
 
   graphics: function graphics(done) {
@@ -309,6 +307,9 @@ let dataProviders = {
               ["tryNewerDriver", suggestedDriverVersion] :
               ["blockedDriver"];
         break;
+      case Ci.nsIGfxInfo.FEATURE_BLOCKED_MISMATCHED_VERSION:
+        msg = ["blockedMismatchedVersion"];
+        break;
       }
       return msg;
     }
@@ -329,11 +330,10 @@ let dataProviders = {
                      QueryInterface(Ci.nsIInterfaceRequestor).
                      getInterface(Ci.nsIDOMWindowUtils);
       try {
-        // Error-state windows need to be skipped
-        if (winUtils.layerManagerType == "None" ||
-            winUtils.layerManagerType == "Reserved") {
+        // NOTE: windowless browser's windows should not be reported in the graphics troubleshoot report
+        if (winUtils.layerManagerType == "None") {
           continue;
-        }      
+        }
         data.numTotalWindows++;
         data.windowLayerManagerType = winUtils.layerManagerType;
         data.windowLayerManagerRemote = winUtils.layerManagerRemote;

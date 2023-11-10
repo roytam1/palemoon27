@@ -74,7 +74,9 @@ public:
   RecvClearCachedResources(const uint64_t& id) override;
 
   virtual bool
-  RecvDidComposite(const uint64_t& aId, const uint64_t& aTransactionId) override;
+  RecvDidComposite(const uint64_t& aId, const uint64_t& aTransactionId,
+                   const TimeStamp& aCompositeStart,
+                   const TimeStamp& aCompositeEnd) override;
 
   virtual bool
   RecvInvalidateAll() override;
@@ -83,13 +85,12 @@ public:
   RecvOverfill(const uint32_t &aOverfill) override;
 
   virtual bool
-  RecvUpdatePluginConfigurations(const nsIntPoint& aContentOffset,
-                                 const nsIntRegion& aVisibleRegion,
+  RecvUpdatePluginConfigurations(const LayoutDeviceIntPoint& aContentOffset,
+                                 const LayoutDeviceIntRegion& aVisibleRegion,
                                  nsTArray<PluginWindowData>&& aPlugins) override;
 
   virtual bool
-  RecvUpdatePluginVisibility(const uintptr_t& aOwnerWidget,
-                             nsTArray<uintptr_t>&& aWindowList) override;
+  RecvHideAllPlugins(const uintptr_t& aParentWidget) override;
 
   /**
    * Request that the parent tell us when graphics are ready on GPU.
@@ -166,21 +167,17 @@ private:
   private:
     // Pointer to the class that allows access to the shared memory that contains
     // the shared FrameMetrics
-    nsRefPtr<mozilla::ipc::SharedMemoryBasic> mBuffer;
+    RefPtr<mozilla::ipc::SharedMemoryBasic> mBuffer;
     CrossProcessMutex* mMutex;
     uint64_t mLayersId;
     // Unique ID of the APZC that is sharing the FrameMetrics
     uint32_t mAPZCId;
   };
 
-  static PLDHashOperator RemoveSharedMetricsForLayersId(const uint64_t& aKey,
-                                                        nsAutoPtr<SharedFrameMetricsData>& aData,
-                                                        void* aLayerTransactionChild);
-
-  nsRefPtr<ClientLayerManager> mLayerManager;
+  RefPtr<ClientLayerManager> mLayerManager;
   // When not multi-process, hold a reference to the CompositorParent to keep it
   // alive. This reference should be null in multi-process.
-  nsRefPtr<CompositorParent> mCompositorParent;
+  RefPtr<CompositorParent> mCompositorParent;
 
   // The ViewID of the FrameMetrics is used as the key for this hash table.
   // While this should be safe to use since the ViewID is unique
@@ -198,7 +195,7 @@ private:
   DISALLOW_EVIL_CONSTRUCTORS(CompositorChild);
 
   // When we receive overfill numbers, notify these client layer managers
-  nsAutoTArray<ClientLayerManager*,0> mOverfillObservers;
+  AutoTArray<ClientLayerManager*,0> mOverfillObservers;
 
   // True until the beginning of the two-step shutdown sequence of this actor.
   bool mCanSend;

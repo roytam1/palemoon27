@@ -22,6 +22,7 @@
 #include "mozilla/BloomFilter.h"
 #include "mozilla/EventStates.h"
 #include "mozilla/GuardObjects.h"
+#include "mozilla/dom/Element.h"
 
 class nsIAtom;
 class nsIContent;
@@ -225,7 +226,7 @@ struct MOZ_STACK_CLASS TreeMatchContext {
   }
 
   /* Helper class for maintaining the ancestor state */
-  class MOZ_STACK_CLASS AutoAncestorPusher {
+  class MOZ_RAII AutoAncestorPusher {
   public:
     explicit AutoAncestorPusher(TreeMatchContext& aTreeMatchContext
                                 MOZ_GUARD_OBJECT_NOTIFIER_PARAM)
@@ -295,7 +296,7 @@ struct MOZ_STACK_CLASS TreeMatchContext {
    * in cases where we may or may not want to be skipping flex/grid-item
    * style fixup for a particular chunk of code).
    */
-  class MOZ_STACK_CLASS AutoParentDisplayBasedStyleFixupSkipper {
+  class MOZ_RAII AutoParentDisplayBasedStyleFixupSkipper {
   public:
     explicit AutoParentDisplayBasedStyleFixupSkipper(TreeMatchContext& aTreeMatchContext,
                                                      bool aSkipParentDisplayBasedStyleFixup = true
@@ -335,7 +336,7 @@ struct MOZ_STACK_CLASS TreeMatchContext {
   nsRuleWalker::VisitedHandlingType mVisitedHandling;
 
   // For matching :scope
-  nsAutoTArray<mozilla::dom::Element*, 1> mScopes;
+  AutoTArray<mozilla::dom::Element*, 1> mScopes;
  public:
   // The document we're working with.
   nsIDocument* const mDocument;
@@ -379,7 +380,7 @@ struct MOZ_STACK_CLASS TreeMatchContext {
 
   // List of ancestor elements that define a style scope (due to having a
   // <style scoped> child).
-  nsAutoTArray<mozilla::dom::Element*, 1> mStyleScopes;
+  AutoTArray<mozilla::dom::Element*, 1> mStyleScopes;
 
   // The current style scope element for selector matching.
   mozilla::dom::Element* mCurrentStyleScope;

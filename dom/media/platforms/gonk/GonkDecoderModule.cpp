@@ -30,23 +30,22 @@ already_AddRefed<MediaDataDecoder>
 GonkDecoderModule::CreateVideoDecoder(const VideoInfo& aConfig,
                                      mozilla::layers::LayersBackend aLayersBackend,
                                      mozilla::layers::ImageContainer* aImageContainer,
-                                     FlushableMediaTaskQueue* aVideoTaskQueue,
+                                     FlushableTaskQueue* aVideoTaskQueue,
                                      MediaDataDecoderCallback* aCallback)
 {
-  nsRefPtr<MediaDataDecoder> decoder =
-  new GonkMediaDataDecoder(new GonkVideoDecoderManager(aVideoTaskQueue,
-                                                       aImageContainer, aConfig),
+  RefPtr<MediaDataDecoder> decoder =
+  new GonkMediaDataDecoder(new GonkVideoDecoderManager(aImageContainer, aConfig),
                            aVideoTaskQueue, aCallback);
   return decoder.forget();
 }
 
 already_AddRefed<MediaDataDecoder>
 GonkDecoderModule::CreateAudioDecoder(const AudioInfo& aConfig,
-                                      FlushableMediaTaskQueue* aAudioTaskQueue,
+                                      FlushableTaskQueue* aAudioTaskQueue,
                                       MediaDataDecoderCallback* aCallback)
 {
-  nsRefPtr<MediaDataDecoder> decoder =
-  new GonkMediaDataDecoder(new GonkAudioDecoderManager(aAudioTaskQueue, aConfig),
+  RefPtr<MediaDataDecoder> decoder =
+  new GonkMediaDataDecoder(new GonkAudioDecoderManager(aConfig),
                            aAudioTaskQueue, aCallback);
   return decoder.forget();
 }
@@ -62,12 +61,13 @@ GonkDecoderModule::DecoderNeedsConversion(const TrackInfo& aConfig) const
 }
 
 bool
-GonkDecoderModule::SupportsMimeType(const nsACString& aMimeType)
+GonkDecoderModule::SupportsMimeType(const nsACString& aMimeType) const
 {
   return aMimeType.EqualsLiteral("audio/mp4a-latm") ||
-  aMimeType.EqualsLiteral("video/mp4") ||
-  aMimeType.EqualsLiteral("video/mp4v-es") ||
-  aMimeType.EqualsLiteral("video/avc");
+    aMimeType.EqualsLiteral("audio/3gpp") ||
+    aMimeType.EqualsLiteral("video/mp4") ||
+    aMimeType.EqualsLiteral("video/mp4v-es") ||
+    aMimeType.EqualsLiteral("video/avc");
 }
 
 } // namespace mozilla

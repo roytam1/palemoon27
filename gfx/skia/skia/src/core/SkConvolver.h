@@ -6,8 +6,7 @@
 #define SK_CONVOLVER_H
 
 #include "SkSize.h"
-#include "SkTypes.h"
-#include "SkTArray.h"
+#include "SkTDArray.h"
 
 // avoid confusion with Mac OS X's math library (Carbon)
 #if defined(__APPLE__)
@@ -46,7 +45,7 @@ public:
         // The cast relies on ConvolutionFixed being a short, implying that on
         // the platforms we care about all (16) bits will fit into
         // the mantissa of a (32-bit) float.
-        SK_COMPILE_ASSERT(sizeof(ConvolutionFixed) == 2, ConvolutionFixed_type_should_fit_in_float_mantissa);
+        static_assert(sizeof(ConvolutionFixed) == 2, "ConvolutionFixed_type_should_fit_in_float_mantissa");
         float raw = static_cast<float>(x);
         return ldexpf(raw, -kShiftBits);
     }
@@ -58,6 +57,11 @@ public:
     // output image.
     int numValues() const { return static_cast<int>(fFilters.count()); }
 
+    void reserveAdditional(int filterCount, int filterValueCount) {
+        fFilters.setReserve(fFilters.count() + filterCount);
+        fFilterValues.setReserve(fFilterValues.count() + filterValueCount);
+    }
+
     // Appends the given list of scaling values for generating a given output
     // pixel. |filterOffset| is the distance from the edge of the image to where
     // the scaling factors start. The scaling factors apply to the source pixels
@@ -68,13 +72,6 @@ public:
     // brighness of the image.
     //
     // The filterLength must be > 0.
-    //
-    // This version will automatically convert your input to ConvolutionFixed point.
-    SK_API void AddFilter(int filterOffset,
-                          const float* filterValues,
-                          int filterLength);
-
-    // Same as the above version, but the input is already ConvolutionFixed point.
     void AddFilter(int filterOffset,
                    const ConvolutionFixed* filterValues,
                    int filterLength);
@@ -91,7 +88,7 @@ public:
         *filterOffset = filter.fOffset;
         *filterLength = filter.fTrimmedLength;
         if (filter.fTrimmedLength == 0) {
-            return NULL;
+            return nullptr;
         }
         return &fFilterValues[filter.fDataLocation];
     }
@@ -102,7 +99,7 @@ public:
   // |specifiedFilterLength| may be different if leading/trailing zeros of the
   // original floating point form were clipped.
   // There will be |filterLength| values in the return array.
-  // Returns NULL if the filter is 0-length (for instance when all floating
+  // Returns nullptr if the filter is 0-length (for instance when all floating
   // point values passed to AddFilter were clipped to 0).
     SK_API const ConvolutionFixed* GetSingleFilter(int* specifiedFilterLength,
         int* filterOffset,
@@ -112,7 +109,7 @@ public:
     // SIMD padding which happens outside of this class.
 
     void addFilterValue( ConvolutionFixed val ) {
-        fFilterValues.push_back( val );
+        fFilterValues.push( val );
     }
 private:
     struct FilterInstance {
@@ -132,12 +129,12 @@ private:
     };
 
     // Stores the information for each filter added to this class.
-    SkTArray<FilterInstance> fFilters;
+    SkTDArray<FilterInstance> fFilters;
 
     // We store all the filter values in this flat list, indexed by
     // |FilterInstance.data_location| to avoid the mallocs required for storing
     // each one separately.
-    SkTArray<ConvolutionFixed> fFilterValues;
+    SkTDArray<ConvolutionFixed> fFilterValues;
 
     // The maximum size of any filter we've added.
     int fMaxFilter;
@@ -153,7 +150,8 @@ typedef void (*SkConvolveVertically_pointer)(
 typedef void (*SkConvolve4RowsHorizontally_pointer)(
     const unsigned char* srcData[4],
     const SkConvolutionFilter1D& filter,
-    unsigned char* outRow[4]);
+    unsigned char* outRow[4],
+    size_t outRowBytes);
 typedef void (*SkConvolveHorizontally_pointer)(
     const unsigned char* srcData,
     const SkConvolutionFilter1D& filter,
@@ -192,7 +190,11 @@ struct SkConvolutionProcs {
 //
 // The layout in memory is assumed to be 4-bytes per pixel in B-G-R-A order
 // (this is ARGB when loaded into 32-bit words on a little-endian machine).
-SK_API void BGRAConvolve2D(const unsigned char* sourceData,
+/**
+ *  Returns false if it was unable to perform the convolution/rescale. in which case the output
+ *  buffer is assumed to be undefined.
+ */
+SK_API bool BGRAConvolve2D(const unsigned char* sourceData,
     int sourceByteRowStride,
     bool sourceHasAlpha,
     const SkConvolutionFilter1D& xfilter,

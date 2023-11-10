@@ -40,6 +40,7 @@
 #include "mozilla/unused.h"
 #include "nsILoadContext.h"
 #include "mozilla/dom/HTMLObjectElementBinding.h"
+#include "AudioChannelService.h"
 
 using namespace mozilla;
 using namespace mozilla::dom;
@@ -86,7 +87,7 @@ private:
   bool mCanceled;
 };
 
-static nsRefPtr<GLContext> sPluginContext = nullptr;
+static RefPtr<GLContext> sPluginContext = nullptr;
 
 static bool EnsureGLContext()
 {
@@ -168,7 +169,7 @@ using namespace mozilla::layers;
 
 static NS_DEFINE_IID(kIOutputStreamIID, NS_IOUTPUTSTREAM_IID);
 
-NS_IMPL_ISUPPORTS0(nsNPAPIPluginInstance)
+NS_IMPL_ISUPPORTS(nsNPAPIPluginInstance, nsIAudioChannelAgentCallback)
 
 nsNPAPIPluginInstance::nsNPAPIPluginInstance()
   : mDrawingModel(kDefaultDrawingModel)
@@ -252,6 +253,7 @@ nsNPAPIPluginInstance::Destroy()
 {
   Stop();
   mPlugin = nullptr;
+  mAudioChannelAgent = nullptr;
 
 #if MOZ_WIDGET_ANDROID
   if (mContentSurface)
@@ -278,6 +280,7 @@ nsNPAPIPluginInstance::StopTime()
 
 nsresult nsNPAPIPluginInstance::Initialize(nsNPAPIPlugin *aPlugin, nsPluginInstanceOwner* aOwner, const nsACString& aMIMEType)
 {
+  PROFILER_LABEL_FUNC(js::ProfileEntry::Category::OTHER);
   PLUGIN_LOG(PLUGIN_LOG_NORMAL, ("nsNPAPIPluginInstance::Initialize this=%p\n",this));
 
   NS_ENSURE_ARG_POINTER(aPlugin);
@@ -332,7 +335,7 @@ nsresult nsNPAPIPluginInstance::Stop()
 
   // clean up open streams
   while (mStreamListeners.Length() > 0) {
-    nsRefPtr<nsNPAPIPluginStreamListener> currentListener(mStreamListeners[0]);
+    RefPtr<nsNPAPIPluginStreamListener> currentListener(mStreamListeners[0]);
     currentListener->CleanUpStream(NPRES_USER_BREAK);
     mStreamListeners.RemoveElement(currentListener);
   }
@@ -376,14 +379,14 @@ nsNPAPIPluginInstance::GetDOMWindow()
   if (!mOwner)
     return nullptr;
 
-  nsRefPtr<nsPluginInstanceOwner> deathGrip(mOwner);
+  RefPtr<nsPluginInstanceOwner> deathGrip(mOwner);
 
   nsCOMPtr<nsIDocument> doc;
   mOwner->GetDocument(getter_AddRefs(doc));
   if (!doc)
     return nullptr;
 
-  nsRefPtr<nsPIDOMWindow> window = doc->GetWindow();
+  RefPtr<nsPIDOMWindow> window = doc->GetWindow();
 
   return window.forget();
 }
@@ -563,7 +566,7 @@ nsresult nsNPAPIPluginInstance::SetWindow(NPWindow* window)
     // That is somewhat complex to check, so we just use "unused"
     // to suppress any compiler warnings in build configurations
     // where the logging is a no-op.
-    mozilla::unused << error;
+    mozilla::Unused << error;
 
     mInPluginInitCall = oldVal;
 
@@ -580,9 +583,6 @@ nsNPAPIPluginInstance::NewStreamFromPlugin(const char* type, const char* target,
                                            nsIOutputStream* *result)
 {
   nsPluginStreamToFile* stream = new nsPluginStreamToFile(target, mOwner);
-  if (!stream)
-    return NS_ERROR_OUT_OF_MEMORY;
-
   return stream->QueryInterface(kIOutputStreamIID, (void**)result);
 }
 
@@ -590,7 +590,7 @@ nsresult
 nsNPAPIPluginInstance::NewStreamListener(const char* aURL, void* notifyData,
                                          nsNPAPIPluginStreamListener** listener)
 {
-  nsRefPtr<nsNPAPIPluginStreamListener> sl = new nsNPAPIPluginStreamListener(this, notifyData, aURL);
+  RefPtr<nsNPAPIPluginStreamListener> sl = new nsNPAPIPluginStreamListener(this, notifyData, aURL);
 
   mStreamListeners.AppendElement(sl);
 
@@ -655,6 +655,8 @@ nsresult nsNPAPIPluginInstance::HandleEvent(void* event, int16_t* result,
 {
   if (RUNNING != mRunning)
     return NS_OK;
+
+  PROFILER_LABEL_FUNC(js::ProfileEntry::Category::OTHER);
 
   if (!event)
     return NS_ERROR_FAILURE;
@@ -886,7 +888,7 @@ void* nsNPAPIPluginInstance::GetJavaSurface()
 void nsNPAPIPluginInstance::PostEvent(void* event)
 {
   PluginEventRunnable *r = new PluginEventRunnable(this, (ANPEvent*)event);
-  mPostedEvents.AppendElement(nsRefPtr<PluginEventRunnable>(r));
+  mPostedEvents.AppendElement(RefPtr<PluginEventRunnable>(r));
 
   NS_DispatchToMainThread(r);
 }
@@ -1068,12 +1070,8 @@ nsNPAPIPluginInstance* nsNPAPIPluginInstance::GetFromNPP(NPP npp)
 
 nsresult nsNPAPIPluginInstance::GetDrawingModel(int32_t* aModel)
 {
-#if defined(XP_MACOSX)
   *aModel = (int32_t)mDrawingModel;
   return NS_OK;
-#else
-  return NS_ERROR_FAILURE;
-#endif
 }
 
 nsresult nsNPAPIPluginInstance::IsRemoteDrawingCoreAnimation(bool* aDrawing)
@@ -1212,6 +1210,16 @@ nsNPAPIPluginInstance::GetImageSize(nsIntSize* aSize)
   return !library ? NS_ERROR_FAILURE : library->GetImageSize(&mNPP, aSize);
 }
 
+void
+nsNPAPIPluginInstance::DidComposite()
+{
+  if (RUNNING != mRunning)
+    return;
+
+  AutoPluginLibraryCall library(this);
+  library->DidComposite(&mNPP);
+}
+
 nsresult
 nsNPAPIPluginInstance::NotifyPainted(void)
 {
@@ -1245,7 +1253,7 @@ nsNPAPIPluginInstance::SetBackgroundUnknown()
 
 nsresult
 nsNPAPIPluginInstance::BeginUpdateBackground(nsIntRect* aRect,
-                                             gfxContext** aContext)
+                                             DrawTarget** aDrawTarget)
 {
   if (RUNNING != mRunning)
     return NS_OK;
@@ -1254,12 +1262,11 @@ nsNPAPIPluginInstance::BeginUpdateBackground(nsIntRect* aRect,
   if (!library)
     return NS_ERROR_FAILURE;
 
-  return library->BeginUpdateBackground(&mNPP, *aRect, aContext);
+  return library->BeginUpdateBackground(&mNPP, *aRect, aDrawTarget);
 }
 
 nsresult
-nsNPAPIPluginInstance::EndUpdateBackground(gfxContext* aContext,
-                                           nsIntRect* aRect)
+nsNPAPIPluginInstance::EndUpdateBackground(nsIntRect* aRect)
 {
   if (RUNNING != mRunning)
     return NS_OK;
@@ -1268,7 +1275,7 @@ nsNPAPIPluginInstance::EndUpdateBackground(gfxContext* aContext,
   if (!library)
     return NS_ERROR_FAILURE;
 
-  return library->EndUpdateBackground(&mNPP, aContext, *aRect);
+  return library->EndUpdateBackground(&mNPP, *aRect);
 }
 
 nsresult
@@ -1569,7 +1576,7 @@ nsNPAPIPluginInstance::GetJSContext(JSContext* *outContext)
   if (!mOwner)
     return NS_ERROR_FAILURE;
 
-  nsRefPtr<nsPluginInstanceOwner> deathGrip(mOwner);
+  RefPtr<nsPluginInstanceOwner> deathGrip(mOwner);
 
   *outContext = nullptr;
   nsCOMPtr<nsIDocument> document;
@@ -1626,6 +1633,35 @@ nsNPAPIPluginInstance::URLRedirectResponse(void* notifyData, NPBool allow)
   }
 }
 
+NPError
+nsNPAPIPluginInstance::InitAsyncSurface(NPSize *size, NPImageFormat format,
+                                        void *initData, NPAsyncSurface *surface)
+{
+  if (mOwner) {
+    return mOwner->InitAsyncSurface(size, format, initData, surface);
+  }
+
+  return NPERR_GENERIC_ERROR;
+}
+
+NPError
+nsNPAPIPluginInstance::FinalizeAsyncSurface(NPAsyncSurface *surface)
+{
+  if (mOwner) {
+    return mOwner->FinalizeAsyncSurface(surface);
+  }
+
+  return NPERR_GENERIC_ERROR;
+}
+
+void
+nsNPAPIPluginInstance::SetCurrentAsyncSurface(NPAsyncSurface *surface, NPRect *changed)
+{
+  if (mOwner) {
+    mOwner->SetCurrentAsyncSurface(surface, changed);
+  }
+}
+
 class CarbonEventModelFailureEvent : public nsRunnable {
 public:
   nsCOMPtr<nsIContent> mContent;
@@ -1672,8 +1708,8 @@ nsNPAPIPluginInstance::CarbonNPAPIFailure()
 static bool
 GetJavaVersionFromMimetype(nsPluginTag* pluginTag, nsCString& version)
 {
-  for (uint32_t i = 0; i < pluginTag->mMimeTypes.Length(); ++i) {
-    nsCString type = pluginTag->mMimeTypes[i];
+  for (uint32_t i = 0; i < pluginTag->MimeTypes().Length(); ++i) {
+    nsCString type = pluginTag->MimeTypes()[i];
     nsAutoCString jpi("application/x-java-applet;jpi-version=");
 
     int32_t idx = type.Find(jpi, false, 0, -1);
@@ -1710,7 +1746,7 @@ nsNPAPIPluginInstance::CheckJavaC2PJSObjectQuirk(uint16_t paramCount,
     return;
   }
 
-  nsRefPtr<nsPluginHost> pluginHost = nsPluginHost::GetInst();
+  RefPtr<nsPluginHost> pluginHost = nsPluginHost::GetInst();
   if (!pluginHost) {
     return;
   }
@@ -1786,4 +1822,72 @@ nsNPAPIPluginInstance::GetRunID(uint32_t* aRunID)
   }
 
   return library->GetRunID(aRunID);
+}
+
+nsresult
+nsNPAPIPluginInstance::GetOrCreateAudioChannelAgent(nsIAudioChannelAgent** aAgent)
+{
+  if (!mAudioChannelAgent) {
+    nsresult rv;
+    mAudioChannelAgent = do_CreateInstance("@mozilla.org/audiochannelagent;1", &rv);
+    if (NS_WARN_IF(!mAudioChannelAgent)) {
+      return NS_ERROR_FAILURE;
+    }
+
+    nsCOMPtr<nsPIDOMWindow> window = GetDOMWindow();
+    if (NS_WARN_IF(!window)) {
+      return NS_ERROR_FAILURE;
+    }
+
+    rv = mAudioChannelAgent->Init(window->GetCurrentInnerWindow(),
+                                 (int32_t)AudioChannelService::GetDefaultAudioChannel(),
+                                 this);
+    if (NS_WARN_IF(NS_FAILED(rv))) {
+      return rv;
+    }
+  }
+
+  nsCOMPtr<nsIAudioChannelAgent> agent = mAudioChannelAgent;
+  agent.forget(aAgent);
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+nsNPAPIPluginInstance::WindowVolumeChanged(float aVolume, bool aMuted)
+{
+  // We just support mute/unmute
+  nsresult rv = SetMuted(aMuted);
+  NS_WARN_IF(NS_FAILED(rv));
+  return rv;
+}
+
+NS_IMETHODIMP
+nsNPAPIPluginInstance::WindowAudioCaptureChanged(bool aCapture)
+{
+  return NS_OK;
+}
+
+nsresult
+nsNPAPIPluginInstance::SetMuted(bool aIsMuted)
+{
+  if (RUNNING != mRunning)
+    return NS_OK;
+
+  PLUGIN_LOG(PLUGIN_LOG_NORMAL, ("nsNPAPIPluginInstance informing plugin of mute state change this=%p\n",this));
+
+  if (!mPlugin || !mPlugin->GetLibrary())
+    return NS_ERROR_FAILURE;
+
+  NPPluginFuncs* pluginFunctions = mPlugin->PluginFuncs();
+
+  if (!pluginFunctions->setvalue)
+    return NS_ERROR_FAILURE;
+
+  PluginDestructionGuard guard(this);
+
+  NPError error;
+  NPBool value = static_cast<NPBool>(aIsMuted);
+  NS_TRY_SAFE_CALL_RETURN(error, (*pluginFunctions->setvalue)(&mNPP, NPNVmuteAudioBool, &value), this,
+                          NS_PLUGIN_CALL_UNSAFE_TO_REENTER_GECKO);
+  return (error == NPERR_NO_ERROR) ? NS_OK : NS_ERROR_FAILURE;
 }

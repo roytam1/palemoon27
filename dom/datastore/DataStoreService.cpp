@@ -14,6 +14,7 @@
 #include "mozilla/dom/DataStoreImplBinding.h"
 #include "nsIDataStore.h"
 
+#include "mozilla/BasePrincipal.h"
 #include "mozilla/Preferences.h"
 #include "mozilla/Services.h"
 #include "mozilla/StaticPtr.h"
@@ -56,6 +57,9 @@
     return NS_ERROR_FAILURE;                                                \
   }
 
+using mozilla::BasePrincipal;
+using mozilla::OriginAttributes;
+
 namespace mozilla {
 namespace dom {
 
@@ -75,6 +79,8 @@ public:
                 const nsAString& aManifestURL,
                 bool aReadOnly,
                 bool aEnabled)
+    : mReadOnly(true)
+    , mEnabled(false)
   {
     Init(aName, aOriginURL, aManifestURL, aReadOnly, aEnabled);
   }
@@ -121,6 +127,7 @@ namespace {
 
 // Singleton for DataStoreService.
 StaticRefPtr<DataStoreService> gDataStoreService;
+nsString gHomeScreenManifestURL;
 static uint64_t gCounterID = 0;
 
 typedef nsClassHashtable<nsUint32HashKey, DataStoreInfo> HashApp;
@@ -131,7 +138,7 @@ RejectPromise(nsPIDOMWindow* aWindow, Promise* aPromise, nsresult aRv)
   MOZ_ASSERT(NS_IsMainThread());
   MOZ_ASSERT(NS_FAILED(aRv));
 
-  nsRefPtr<DOMError> error;
+  RefPtr<DOMError> error;
   if (aRv == NS_ERROR_DOM_SECURITY_ERR) {
     error = new DOMError(aWindow, NS_LITERAL_STRING("SecurityError"),
                          NS_LITERAL_STRING("Access denied"));
@@ -149,36 +156,30 @@ DeleteDatabase(const nsAString& aName,
 {
   MOZ_ASSERT(XRE_IsParentProcess() && NS_IsMainThread());
 
-  nsRefPtr<DataStoreDB> db = new DataStoreDB(aManifestURL, aName);
+  RefPtr<DataStoreDB> db = new DataStoreDB(aManifestURL, aName);
   db->Delete();
 }
 
-PLDHashOperator
-DeleteDataStoresAppEnumerator(
-                             const uint32_t& aAppId,
-                             nsAutoPtr<DataStoreInfo>& aInfo,
-                             void* aUserData)
+static void
+DeleteDataStoresHelper(nsClassHashtable<nsStringHashKey, HashApp>& aStores,
+                       uint32_t aAppId)
 {
   MOZ_ASSERT(XRE_IsParentProcess() && NS_IsMainThread());
 
-  auto* appId = static_cast<uint32_t*>(aUserData);
-  if (*appId != aAppId) {
-    return PL_DHASH_NEXT;
+  for (auto iter1 = aStores.Iter(); !iter1.Done(); iter1.Next()) {
+    nsAutoPtr<HashApp>& apps = iter1.Data();
+    for (auto iter2 = apps->Iter(); !iter2.Done(); iter2.Next()) {
+      if (aAppId == iter2.Key()) {
+        nsAutoPtr<DataStoreInfo>& info = iter2.Data();
+        DeleteDatabase(info->mName, info->mManifestURL);
+        iter2.Remove();
+      }
+    }
+
+    if (apps->Count() == 0) {
+      iter1.Remove();
+    }
   }
-
-  DeleteDatabase(aInfo->mName, aInfo->mManifestURL);
-  return PL_DHASH_REMOVE;
-}
-
-PLDHashOperator
-DeleteDataStoresEnumerator(const nsAString& aName,
-                           nsAutoPtr<HashApp>& aApps,
-                           void* aUserData)
-{
-  MOZ_ASSERT(XRE_IsParentProcess() && NS_IsMainThread());
-
-  aApps->Enumerate(DeleteDataStoresAppEnumerator, aUserData);
-  return aApps->Count() ? PL_DHASH_NEXT : PL_DHASH_REMOVE;
 }
 
 void
@@ -213,17 +214,10 @@ ResetPermission(uint32_t aAppId, const nsAString& aOriginURL,
     return rv;
   }
 
-  nsIScriptSecurityManager* ssm = nsContentUtils::GetSecurityManager();
-  if (!ssm) {
-    return NS_ERROR_FAILURE;
-  }
-
-  nsCOMPtr<nsIPrincipal> principal;
-  rv = ssm->GetAppCodebasePrincipal(uri, aAppId, false,
-                                    getter_AddRefs(principal));
-  if (NS_WARN_IF(NS_FAILED(rv))) {
-    return rv;
-  }
+  OriginAttributes attrs(aAppId, false);
+  nsCOMPtr<nsIPrincipal> principal =
+    BasePrincipal::CreateCodebasePrincipal(uri, attrs);
+  NS_ENSURE_TRUE(principal, NS_ERROR_FAILURE);
 
   nsCOMPtr<nsIPermissionManager> pm =
     do_GetService(NS_PERMISSIONMANAGER_CONTRACTID);
@@ -304,152 +298,16 @@ ResetPermission(uint32_t aAppId, const nsAString& aOriginURL,
   return NS_OK;
 }
 
-class MOZ_STACK_CLASS GetDataStoreInfosData
-{
-public:
-  GetDataStoreInfosData(nsClassHashtable<nsStringHashKey, HashApp>& aAccessStores,
-                        const nsAString& aName, const nsAString& aManifestURL,
-                        uint32_t aAppId, nsTArray<DataStoreInfo>& aStores)
-    : mAccessStores(aAccessStores)
-    , mName(aName)
-    , mManifestURL(aManifestURL)
-    , mAppId(aAppId)
-    , mStores(aStores)
-  {}
-
-  nsClassHashtable<nsStringHashKey, HashApp>& mAccessStores;
-  nsString mName;
-  nsString mManifestURL;
-  uint32_t mAppId;
-  nsTArray<DataStoreInfo>& mStores;
-};
-
-PLDHashOperator
-GetDataStoreInfosEnumerator(const uint32_t& aAppId,
-                            DataStoreInfo* aInfo,
-                            void* aUserData)
+void
+HomeScreenPrefCallback(const char* aPrefName, void* /* aClosure */)
 {
   MOZ_ASSERT(XRE_IsParentProcess() && NS_IsMainThread());
-
-  auto* data = static_cast<GetDataStoreInfosData*>(aUserData);
-  if (aAppId == data->mAppId) {
-    return PL_DHASH_NEXT;
+  RefPtr<DataStoreService> service = DataStoreService::Get();
+  if (!service) {
+    return;
   }
 
-  HashApp* apps;
-  if (!data->mAccessStores.Get(data->mName, &apps)) {
-    return PL_DHASH_NEXT;
-  }
-
-  if (!data->mManifestURL.IsEmpty() &&
-      !data->mManifestURL.Equals(aInfo->mManifestURL)) {
-    return PL_DHASH_NEXT;
-  }
-
-  DataStoreInfo* accessInfo = nullptr;
-  if (!apps->Get(data->mAppId, &accessInfo)) {
-    return PL_DHASH_NEXT;
-  }
-
-  bool readOnly = aInfo->mReadOnly || accessInfo->mReadOnly;
-  DataStoreInfo* accessStore = data->mStores.AppendElement();
-  accessStore->Init(aInfo->mName, aInfo->mOriginURL,
-                    aInfo->mManifestURL, readOnly,
-                    aInfo->mEnabled);
-
-  return PL_DHASH_NEXT;
-}
-
-PLDHashOperator
-GetAppManifestURLsEnumerator(const uint32_t& aAppId,
-                             DataStoreInfo* aInfo,
-                             void* aUserData)
-{
-  MOZ_ASSERT(XRE_IsParentProcess() && NS_IsMainThread());
-
-  auto* manifestURLs = static_cast<nsIMutableArray*>(aUserData);
-  nsCOMPtr<nsISupportsString> manifestURL(do_CreateInstance(NS_SUPPORTS_STRING_CONTRACTID));
-  if (manifestURL) {
-    manifestURL->SetData(aInfo->mManifestURL);
-    manifestURLs->AppendElement(manifestURL, false);
-  }
-
-  return PL_DHASH_NEXT;
-}
-
-// This class is useful to enumerate the add permissions for each app.
-class MOZ_STACK_CLASS AddPermissionsData
-{
-public:
-  AddPermissionsData(const nsAString& aPermission, bool aReadOnly)
-    : mPermission(aPermission)
-    , mReadOnly(aReadOnly)
-    , mResult(NS_OK)
-  {}
-
-  nsString mPermission;
-  bool mReadOnly;
-  nsresult mResult;
-};
-
-PLDHashOperator
-AddPermissionsEnumerator(const uint32_t& aAppId,
-                         DataStoreInfo* aInfo,
-                         void* userData)
-{
-  MOZ_ASSERT(XRE_IsParentProcess() && NS_IsMainThread());
-
-  auto* data = static_cast<AddPermissionsData*>(userData);
-
-  // ReadOnly is decided by the owner first.
-  bool readOnly = data->mReadOnly || aInfo->mReadOnly;
-
-  data->mResult = ResetPermission(aAppId, aInfo->mOriginURL,
-                                  aInfo->mManifestURL,
-                                  data->mPermission,
-                                  readOnly);
-  return NS_FAILED(data->mResult) ? PL_DHASH_STOP : PL_DHASH_NEXT;
-}
-
-// This class is useful to enumerate the add permissions for each app.
-class MOZ_STACK_CLASS AddAccessPermissionsData
-{
-public:
-  AddAccessPermissionsData(uint32_t aAppId, const nsAString& aName,
-                           const nsAString& aOriginURL, bool aReadOnly)
-    : mAppId(aAppId)
-    , mName(aName)
-    , mOriginURL(aOriginURL)
-    , mReadOnly(aReadOnly)
-    , mResult(NS_OK)
-  {}
-
-  uint32_t mAppId;
-  nsString mName;
-  nsString mOriginURL;
-  bool mReadOnly;
-  nsresult mResult;
-};
-
-PLDHashOperator
-AddAccessPermissionsEnumerator(const uint32_t& aAppId,
-                               DataStoreInfo* aInfo,
-                               void* userData)
-{
-  MOZ_ASSERT(XRE_IsParentProcess() && NS_IsMainThread());
-
-  auto* data = static_cast<AddAccessPermissionsData*>(userData);
-
-  nsString permission;
-  GeneratePermissionName(permission, data->mName, aInfo->mManifestURL);
-
-  // ReadOnly is decided by the owner first.
-  bool readOnly = aInfo->mReadOnly || data->mReadOnly;
-
-  data->mResult = ResetPermission(data->mAppId, data->mOriginURL,
-                                  aInfo->mManifestURL,
-                                  permission, readOnly);
-  return NS_FAILED(data->mResult) ? PL_DHASH_STOP : PL_DHASH_NEXT;
+  service->HomeScreenPrefChanged();
 }
 
 } /* anonymous namespace */
@@ -470,7 +328,7 @@ public:
   }
 
   nsCOMPtr<nsPIDOMWindow> mWindow;
-  nsRefPtr<Promise> mPromise;
+  RefPtr<Promise> mPromise;
   nsTArray<DataStoreInfo> mStores;
 
   // This array contains the list of manifestURLs of the DataStores that are
@@ -503,7 +361,7 @@ public:
   {
     MOZ_ASSERT(XRE_IsParentProcess() && NS_IsMainThread());
 
-    nsRefPtr<DataStoreService> service = DataStoreService::Get();
+    RefPtr<DataStoreService> service = DataStoreService::Get();
     MOZ_ASSERT(service);
 
     service->EnableDataStore(mAppId, mName, mManifestURL);
@@ -548,7 +406,7 @@ public:
     if (aStatus == Success) {
       mTxn = aDb->Transaction();
 
-      nsRefPtr<IDBObjectStore> store =
+      RefPtr<IDBObjectStore> store =
       mTxn->ObjectStore(NS_LITERAL_STRING(DATASTOREDB_REVISION), error);
       if (NS_WARN_IF(error.Failed())) {
         return;
@@ -586,14 +444,14 @@ public:
     MOZ_ASSERT(aTxn);
 
     ErrorResult error;
-    nsRefPtr<IDBObjectStore> store =
+    RefPtr<IDBObjectStore> store =
       aTxn->ObjectStore(NS_LITERAL_STRING(DATASTOREDB_REVISION), error);
     if (NS_WARN_IF(error.Failed())) {
       return error.StealNSResult();
     }
     MOZ_ASSERT(store);
 
-    nsRefPtr<RevisionAddedEnableStoreCallback> callback =
+    RefPtr<RevisionAddedEnableStoreCallback> callback =
       new RevisionAddedEnableStoreCallback(mAppId, mName, mManifestURL);
 
     // Note: this cx is only used for rooting and AddRevision, neither of which
@@ -601,7 +459,7 @@ public:
     AutoSafeJSContext cx;
 
     // If the revision doesn't exist, let's create it.
-    nsRefPtr<DataStoreRevision> revision = new DataStoreRevision();
+    RefPtr<DataStoreRevision> revision = new DataStoreRevision();
     nsresult rv = revision->AddRevision(cx, store, 0,
                                         DataStoreRevision::RevisionVoid,
                                         callback);
@@ -618,10 +476,10 @@ public:
   {
     MOZ_ASSERT(XRE_IsParentProcess() && NS_IsMainThread());
 
-    nsRefPtr<IDBRequest> request;
+    RefPtr<IDBRequest> request;
     request.swap(mRequest);
 
-    nsRefPtr<IDBTransaction> txn;
+    RefPtr<IDBTransaction> txn;
     txn.swap(mTxn);
 
     request->RemoveEventListener(NS_LITERAL_STRING("success"), this, false);
@@ -654,7 +512,7 @@ public:
       MOZ_ASSERT(!error.Failed());
 #endif
 
-      nsRefPtr<DataStoreService> service = DataStoreService::Get();
+      RefPtr<DataStoreService> service = DataStoreService::Get();
       MOZ_ASSERT(service);
 
       return service->EnableDataStore(mAppId, mName, mManifestURL);
@@ -671,8 +529,8 @@ public:
 private:
   ~FirstRevisionIdCallback() {}
 
-  nsRefPtr<IDBRequest> mRequest;
-  nsRefPtr<IDBTransaction> mTxn;
+  RefPtr<IDBRequest> mRequest;
+  RefPtr<IDBTransaction> mTxn;
 
   uint32_t mAppId;
   nsString mName;
@@ -746,10 +604,10 @@ private:
                                 js::GetFunctionNativeReserved(&args.callee(), 0));
     uint32_t id = value.toInt32();
 
-    nsRefPtr<DataStoreService> service = DataStoreService::Get();
+    RefPtr<DataStoreService> service = DataStoreService::Get();
     MOZ_ASSERT(service);
 
-    nsRefPtr<RetrieveRevisionsCounter> counter = service->GetCounter(id);
+    RefPtr<RetrieveRevisionsCounter> counter = service->GetCounter(id);
     MOZ_ASSERT(counter);
 
     // When all the callbacks are called, we can resolve the promise and remove
@@ -763,8 +621,8 @@ private:
     return true;
   }
 
-  nsRefPtr<Promise> mPromise;
-  nsTArray<nsRefPtr<DataStore>> mResults;
+  RefPtr<Promise> mPromise;
+  nsTArray<RefPtr<DataStore>> mResults;
 
   uint32_t mId;
   uint32_t mCount;
@@ -776,7 +634,7 @@ DataStoreService::GetOrCreate()
   MOZ_ASSERT(NS_IsMainThread());
 
   if (!gDataStoreService) {
-    nsRefPtr<DataStoreService> service = new DataStoreService();
+    RefPtr<DataStoreService> service = new DataStoreService();
     if (NS_WARN_IF(NS_FAILED(service->Init()))) {
       return nullptr;
     }
@@ -784,7 +642,7 @@ DataStoreService::GetOrCreate()
     gDataStoreService = service;
   }
 
-  nsRefPtr<DataStoreService> service = gDataStoreService.get();
+  RefPtr<DataStoreService> service = gDataStoreService.get();
   return service.forget();
 }
 
@@ -793,7 +651,7 @@ DataStoreService::Get()
 {
   MOZ_ASSERT(NS_IsMainThread());
 
-  nsRefPtr<DataStoreService> service = gDataStoreService.get();
+  RefPtr<DataStoreService> service = gDataStoreService.get();
   return service.forget();
 }
 
@@ -808,6 +666,12 @@ DataStoreService::Shutdown()
       if (obs) {
         obs->RemoveObserver(gDataStoreService, "webapps-clear-data");
       }
+
+      nsresult rv =
+        Preferences::UnregisterCallback(HomeScreenPrefCallback,
+                                        "dom.mozApps.homescreenURL",
+                                        nullptr);
+      NS_WARN_IF(NS_FAILED(rv));
     }
 
     gDataStoreService = nullptr;
@@ -846,6 +710,13 @@ DataStoreService::Init()
   }
 
   nsresult rv = obs->AddObserver(this, "webapps-clear-data", false);
+  if (NS_WARN_IF(NS_FAILED(rv))) {
+    return rv;
+  }
+
+  rv = Preferences::RegisterCallback(HomeScreenPrefCallback,
+                                     "dom.mozApps.homescreenURL",
+                                     nullptr);
   if (NS_WARN_IF(NS_FAILED(rv))) {
     return rv;
   }
@@ -931,7 +802,7 @@ DataStoreService::GetDataStores(nsIDOMWindow* aWindow,
 
   nsCOMPtr<nsIGlobalObject> global = do_QueryInterface(window);
   ErrorResult rv;
-  nsRefPtr<Promise> promise = Promise::Create(global, rv);
+  RefPtr<Promise> promise = Promise::Create(global, rv);
   if (rv.Failed()) {
     return rv.StealNSResult();
   }
@@ -948,22 +819,20 @@ DataStoreService::GetDataStores(nsIDOMWindow* aWindow,
   // window, so we can skip the ipc communication.
   if (XRE_IsParentProcess()) {
     uint32_t appId;
-    nsresult rv = principal->GetAppId(&appId);
-    if (NS_FAILED(rv)) {
-      RejectPromise(window, promise, rv);
+    rv = principal->GetAppId(&appId);
+    if (NS_WARN_IF(rv.Failed())) {
+      RejectPromise(window, promise, rv.StealNSResult());
       promise.forget(aDataStores);
       return NS_OK;
     }
 
     rv = GetDataStoreInfos(aName, aOwner, appId, principal, stores);
-    if (NS_FAILED(rv)) {
-      RejectPromise(window, promise, rv);
+    if (NS_WARN_IF(rv.Failed())) {
+      RejectPromise(window, promise, rv.StealNSResult());
       promise.forget(aDataStores);
       return NS_OK;
     }
-  }
-
-  else {
+  } else {
     // This method can be called in the child so we need to send a request
     // to the parent and create DataStore object here.
     ContentChild* contentChild = ContentChild::GetSingleton();
@@ -1032,7 +901,7 @@ DataStoreService::GetDataStoresResolve(nsPIDOMWindow* aWindow,
   MOZ_ASSERT(NS_IsMainThread());
 
   if (!aStores.Length()) {
-    nsTArray<nsRefPtr<DataStore>> results;
+    nsTArray<RefPtr<DataStore>> results;
     aPromise->MaybeResolve(results);
     return;
   }
@@ -1041,7 +910,7 @@ DataStoreService::GetDataStoresResolve(nsPIDOMWindow* aWindow,
 
   // The counter will finish this task once all the DataStores will know their
   // first revision Ids.
-  nsRefPtr<RetrieveRevisionsCounter> counter =
+  RefPtr<RetrieveRevisionsCounter> counter =
     new RetrieveRevisionsCounter(++gCounterID, aPromise, aStores.Length());
   mPendingCounters.Put(gCounterID, counter);
 
@@ -1073,10 +942,10 @@ DataStoreService::GetDataStoresResolve(nsPIDOMWindow* aWindow,
     MOZ_ASSERT(global);
 
     JSAutoCompartment ac(cx, dataStoreJS);
-    nsRefPtr<DataStoreImpl> dataStoreObj = new DataStoreImpl(dataStoreJS,
+    RefPtr<DataStoreImpl> dataStoreObj = new DataStoreImpl(dataStoreJS,
                                                              global);
 
-    nsRefPtr<DataStore> exposedStore = new DataStore(aWindow);
+    RefPtr<DataStore> exposedStore = new DataStore(aWindow);
 
     ErrorResult error;
     exposedStore->SetDataStoreImpl(*dataStoreObj, error);
@@ -1096,7 +965,7 @@ DataStoreService::GetDataStoresResolve(nsPIDOMWindow* aWindow,
   }
 }
 
-// Thie method populates 'aStores' with the list of DataStores with 'aName' as
+// This method populates 'aStores' with the list of DataStores with 'aName' as
 // name and available for this 'aAppId'.
 nsresult
 DataStoreService::GetDataStoreInfos(const nsAString& aName,
@@ -1134,16 +1003,44 @@ DataStoreService::GetDataStoreInfos(const nsAString& aName,
     return NS_OK;
   }
 
-  DataStoreInfo* info = nullptr;
-  if (apps->Get(aAppId, &info) &&
-      (aOwner.IsEmpty() || aOwner.Equals(info->mManifestURL))) {
+  DataStoreInfo* appsInfo = nullptr;
+  if (apps->Get(aAppId, &appsInfo) &&
+      (aOwner.IsEmpty() || aOwner.Equals(appsInfo->mManifestURL))) {
     DataStoreInfo* owned = aStores.AppendElement();
-    owned->Init(info->mName, info->mOriginURL, info->mManifestURL, false,
-                info->mEnabled);
+    owned->Init(appsInfo->mName, appsInfo->mOriginURL, appsInfo->mManifestURL,
+                false, appsInfo->mEnabled);
   }
 
-  GetDataStoreInfosData data(mAccessStores, aName, aOwner, aAppId, aStores);
-  apps->EnumerateRead(GetDataStoreInfosEnumerator, &data);
+  for (auto iter = apps->ConstIter(); !iter.Done(); iter.Next()) {
+    if (iter.Key() == aAppId) {
+      continue;
+    }
+
+    DataStoreInfo* appInfo = iter.UserData();
+    MOZ_ASSERT(appInfo);
+
+    HashApp* accessApp;
+    if (!mAccessStores.Get(aName, &accessApp)) {
+      continue;
+    }
+
+    if (!aOwner.IsEmpty() &&
+        !aOwner.Equals(appInfo->mManifestURL)) {
+      continue;
+    }
+
+    DataStoreInfo* accessInfo = nullptr;
+    if (!accessApp->Get(aAppId, &accessInfo)) {
+      continue;
+    }
+
+    bool readOnly = appInfo->mReadOnly || accessInfo->mReadOnly;
+    DataStoreInfo* accessStore = aStores.AppendElement();
+    accessStore->Init(aName, appInfo->mOriginURL,
+                      appInfo->mManifestURL, readOnly,
+                      appInfo->mEnabled);
+  }
+
   return NS_OK;
 }
 
@@ -1161,10 +1058,22 @@ DataStoreService::GetAppManifestURLsForDataStore(const nsAString& aName,
 
   HashApp* apps = nullptr;
   if (mStores.Get(aName, &apps)) {
-    apps->EnumerateRead(GetAppManifestURLsEnumerator, manifestURLs.get());
+    for (auto iter = apps->ConstIter(); !iter.Done(); iter.Next()) {
+      nsCOMPtr<nsISupportsString> manifestURL(do_CreateInstance(NS_SUPPORTS_STRING_CONTRACTID));
+      if (manifestURL) {
+        manifestURL->SetData(iter.UserData()->mManifestURL);
+        manifestURLs->AppendElement(manifestURL, false);
+      }
+    }
   }
   if (mAccessStores.Get(aName, &apps)) {
-    apps->EnumerateRead(GetAppManifestURLsEnumerator, manifestURLs.get());
+    for (auto iter = apps->ConstIter(); !iter.Done(); iter.Next()) {
+      nsCOMPtr<nsISupportsString> manifestURL(do_CreateInstance(NS_SUPPORTS_STRING_CONTRACTID));
+      if (manifestURL) {
+        manifestURL->SetData(iter.UserData()->mManifestURL);
+        manifestURLs->AppendElement(manifestURL, false);
+      }
+    }
   }
 
   manifestURLs.forget(aManifestURLs);
@@ -1195,8 +1104,41 @@ DataStoreService::CheckPermission(nsIPrincipal* aPrincipal)
     return false;
   }
 
-  // Only support DataStore API for certified apps for now.
-  return status == nsIPrincipal::APP_STATUS_CERTIFIED;
+  // Certified apps are always allowed.
+  if (status == nsIPrincipal::APP_STATUS_CERTIFIED) {
+    return true;
+  }
+
+  if (status != nsIPrincipal::APP_STATUS_PRIVILEGED) {
+    return false;
+  }
+
+  // Privileged apps are allowed if they are the homescreen.
+  nsAdoptingString homescreen =
+    Preferences::GetString("dom.mozApps.homescreenURL");
+  if (!homescreen) {
+    return false;
+  }
+
+  uint32_t appId;
+  nsresult rv = aPrincipal->GetAppId(&appId);
+  if (NS_WARN_IF(NS_FAILED(rv))) {
+    return false;
+  }
+
+  nsCOMPtr<nsIAppsService> appsService =
+    do_GetService("@mozilla.org/AppsService;1");
+  if (NS_WARN_IF(!appsService)) {
+    return false;
+  }
+
+  nsAutoString manifestURL;
+  rv = appsService->GetManifestURLByLocalId(appId, manifestURL);
+  if (NS_WARN_IF(NS_FAILED(rv))) {
+    return false;
+  }
+
+  return manifestURL.Equals(homescreen);
 }
 
 NS_IMETHODIMP
@@ -1216,8 +1158,8 @@ DataStoreService::DeleteDataStores(uint32_t aAppId)
 {
   MOZ_ASSERT(XRE_IsParentProcess() && NS_IsMainThread());
 
-  mStores.Enumerate(DeleteDataStoresEnumerator, &aAppId);
-  mAccessStores.Enumerate(DeleteDataStoresEnumerator, &aAppId);
+  DeleteDataStoresHelper(mStores, aAppId);
+  DeleteDataStoresHelper(mAccessStores, aAppId);
 }
 
 NS_IMETHODIMP
@@ -1285,9 +1227,21 @@ DataStoreService::AddPermissions(uint32_t aAppId,
     return NS_OK;
   }
 
-  AddPermissionsData data(permission, aReadOnly);
-  apps->EnumerateRead(AddPermissionsEnumerator, &data);
-  return data.mResult;
+  for (auto iter = apps->ConstIter(); !iter.Done(); iter.Next()) {
+    DataStoreInfo* info = iter.UserData();
+    MOZ_ASSERT(info);
+
+    bool readOnly = aReadOnly || info->mReadOnly;
+
+    rv = ResetPermission(iter.Key(), info->mOriginURL,
+                         info->mManifestURL,
+                         permission, readOnly);
+    if (NS_WARN_IF(NS_FAILED(rv))) {
+      return rv;
+    }
+  }
+
+  return NS_OK;
 }
 
 nsresult
@@ -1305,9 +1259,25 @@ DataStoreService::AddAccessPermissions(uint32_t aAppId, const nsAString& aName,
     return NS_OK;
   }
 
-  AddAccessPermissionsData data(aAppId, aName, aOriginURL, aReadOnly);
-  apps->EnumerateRead(AddAccessPermissionsEnumerator, &data);
-  return data.mResult;
+  for (auto iter = apps->ConstIter(); !iter.Done(); iter.Next()) {
+    DataStoreInfo* info = iter.UserData();
+    MOZ_ASSERT(info);
+
+    nsAutoString permission;
+    GeneratePermissionName(permission, aName, info->mManifestURL);
+
+    // ReadOnly is decided by the owner first.
+    bool readOnly = info->mReadOnly || aReadOnly;
+
+    nsresult rv = ResetPermission(aAppId, aOriginURL,
+                                  info->mManifestURL,
+                                  permission, readOnly);
+    if (NS_WARN_IF(NS_FAILED(rv))) {
+      return rv;
+    }
+  }
+
+  return NS_OK;
 }
 
 // This method starts the operation to create the first revision for a DataStore
@@ -1319,9 +1289,9 @@ DataStoreService::CreateFirstRevisionId(uint32_t aAppId,
 {
   MOZ_ASSERT(XRE_IsParentProcess() && NS_IsMainThread());
 
-  nsRefPtr<DataStoreDB> db = new DataStoreDB(aManifestURL, aName);
+  RefPtr<DataStoreDB> db = new DataStoreDB(aManifestURL, aName);
 
-  nsRefPtr<FirstRevisionIdCallback> callback =
+  RefPtr<FirstRevisionIdCallback> callback =
     new FirstRevisionIdCallback(aAppId, aName, aManifestURL);
 
   Sequence<nsString> dbs;
@@ -1352,7 +1322,7 @@ DataStoreService::EnableDataStore(uint32_t aAppId, const nsAString& aName,
     ContentParent::GetAll(children);
     for (uint32_t i = 0; i < children.Length(); i++) {
       if (children[i]->NeedsDataStoreInfos()) {
-        unused << children[i]->SendDataStoreNotify(aAppId, nsAutoString(aName),
+        Unused << children[i]->SendDataStoreNotify(aAppId, nsAutoString(aName),
                                                    nsAutoString(aManifestURL));
       }
     }
@@ -1396,7 +1366,7 @@ DataStoreService::GetCounter(uint32_t aId) const
 {
   MOZ_ASSERT(NS_IsMainThread());
 
-  nsRefPtr<RetrieveRevisionsCounter> counter;
+  RefPtr<RetrieveRevisionsCounter> counter;
   return mPendingCounters.Get(aId, getter_AddRefs(counter))
            ? counter.forget() : nullptr;
 }
@@ -1463,6 +1433,91 @@ DataStoreService::GenerateUUID(nsAString& aID)
   CopyASCIItoUTF16(chars, aID);
 
   return NS_OK;
+}
+
+void
+DataStoreService::HomeScreenPrefChanged()
+{
+  MOZ_ASSERT(XRE_IsParentProcess() && NS_IsMainThread());
+
+  nsAdoptingString homescreen =
+    Preferences::GetString("dom.mozApps.homescreenURL");
+  if (homescreen == gHomeScreenManifestURL) {
+    return;
+  }
+
+  // Remove datastores of the old homescreen.
+  if (!gHomeScreenManifestURL.IsEmpty()) {
+    DeleteDataStoresIfNotAllowed(gHomeScreenManifestURL);
+  }
+
+  gHomeScreenManifestURL = homescreen;
+  if (gHomeScreenManifestURL.IsEmpty()) {
+    return;
+  }
+
+  // Add datastores for the new homescreen.
+  AddDataStoresIfAllowed(gHomeScreenManifestURL);
+}
+
+void
+DataStoreService::DeleteDataStoresIfNotAllowed(const nsAString& aManifestURL)
+{
+  nsCOMPtr<nsIAppsService> appsService =
+    do_GetService("@mozilla.org/AppsService;1");
+  if (NS_WARN_IF(!appsService)) {
+    return;
+  }
+
+  nsCOMPtr<mozIApplication> app;
+  nsresult rv = appsService->GetAppByManifestURL(aManifestURL,
+                                                 getter_AddRefs(app));
+  if (NS_WARN_IF(NS_FAILED(rv)) || !app) {
+    return;
+  }
+
+  uint32_t localId;
+  rv = app->GetLocalId(&localId);
+  if (NS_WARN_IF(NS_FAILED(rv))) {
+    return;
+  }
+
+  nsCOMPtr<nsIPrincipal> principal;
+  rv = app->GetPrincipal(getter_AddRefs(principal));
+
+  // We delete all the dataStores for this app here.
+  if (NS_WARN_IF(NS_FAILED(rv)) || !principal ||
+      !CheckPermission(principal)) {
+    DeleteDataStores(localId);
+  }
+}
+
+void
+DataStoreService::AddDataStoresIfAllowed(const nsAString& aManifestURL)
+{
+  nsCOMPtr<nsIAppsService> appsService =
+    do_GetService("@mozilla.org/AppsService;1");
+  if (NS_WARN_IF(!appsService)) {
+    return;
+  }
+
+  nsCOMPtr<mozIApplication> app;
+  nsresult rv = appsService->GetAppByManifestURL(aManifestURL,
+                                                 getter_AddRefs(app));
+  if (NS_WARN_IF(NS_FAILED(rv)) || !app) {
+    return;
+  }
+
+  uint32_t localId;
+  rv = app->GetLocalId(&localId);
+  if (NS_WARN_IF(NS_FAILED(rv))) {
+    return;
+  }
+
+  rv = appsService->UpdateDataStoreEntriesFromLocalId(localId);
+  if (NS_WARN_IF(NS_FAILED(rv))) {
+    return;
+  }
 }
 
 } // namespace dom

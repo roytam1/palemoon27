@@ -7,13 +7,14 @@
 
 #include "mp4_demuxer/Atom.h"
 #include "mp4_demuxer/AtomType.h"
-#include "mp4_demuxer/mp4_demuxer.h"
 #include "mp4_demuxer/SinfParser.h"
+#include "mp4_demuxer/Stream.h"
+#include "mp4_demuxer/Interval.h"
 #include "MediaResource.h"
 
 namespace mp4_demuxer {
+typedef int64_t Microseconds;
 
-class Stream;
 class Box;
 class BoxContext;
 class Moof;
@@ -162,7 +163,6 @@ public:
 class AuxInfo {
 public:
   AuxInfo(int64_t aMoofOffset, Saiz& aSaiz, Saio& aSaio);
-  bool GetByteRanges(nsTArray<MediaByteRange>* aByteRanges);
 
 private:
   int64_t mMoofOffset;
@@ -198,21 +198,20 @@ private:
 class MoofParser
 {
 public:
-  MoofParser(Stream* aSource, uint32_t aTrackId, bool aIsAudio, Monitor* aMonitor)
+  MoofParser(Stream* aSource, uint32_t aTrackId, bool aIsAudio)
     : mSource(aSource)
     , mOffset(0)
     , mTrex(aTrackId)
-    , mMonitor(aMonitor)
     , mIsAudio(aIsAudio)
   {
     // Setting the mTrex.mTrackId to 0 is a nasty work around for calculating
     // the composition range for MSE. We need an array of tracks.
   }
   bool RebuildFragmentedIndex(
-    const nsTArray<mozilla::MediaByteRange>& aByteRanges);
+    const mozilla::MediaByteRangeSet& aByteRanges);
   bool RebuildFragmentedIndex(BoxContext& aContext);
   Interval<Microseconds> GetCompositionRange(
-    const nsTArray<mozilla::MediaByteRange>& aByteRanges);
+    const mozilla::MediaByteRangeSet& aByteRanges);
   bool ReachedEnd();
   void ParseMoov(Box& aBox);
   void ParseTrak(Box& aBox);
@@ -227,12 +226,12 @@ public:
 
   bool BlockingReadNextMoof();
   bool HasMetadata();
-  already_AddRefed<mozilla::MediaLargeByteBuffer> Metadata();
+  already_AddRefed<mozilla::MediaByteBuffer> Metadata();
   MediaByteRange FirstCompleteMediaSegment();
   MediaByteRange FirstCompleteMediaHeader();
 
   mozilla::MediaByteRange mInitRange;
-  nsRefPtr<Stream> mSource;
+  RefPtr<Stream> mSource;
   uint64_t mOffset;
   nsTArray<uint64_t> mMoofOffsets;
   Mvhd mMvhd;
@@ -241,8 +240,7 @@ public:
   Tfdt mTfdt;
   Edts mEdts;
   Sinf mSinf;
-  Monitor* mMonitor;
-  nsTArray<Moof>& Moofs() { mMonitor->AssertCurrentThreadOwns(); return mMoofs; }
+  nsTArray<Moof>& Moofs() { return mMoofs; }
 private:
   void ScanForMetadata(mozilla::MediaByteRange& aFtyp,
                        mozilla::MediaByteRange& aMoov);

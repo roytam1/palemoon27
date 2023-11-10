@@ -25,7 +25,6 @@ if CONFIG['MOZ_WIDGET_TOOLKIT'] == 'android':
         'mobile/sutagent/android/watcher',
         'mobile/sutagent/android/ffxcp',
         'mobile/sutagent/android/fencp',
-        'mobile/robocop',
     ]
 
 for var in ('GRE_MILESTONE', 'MOZ_APP_VERSION', 'MOZ_APP_BASENAME',

@@ -259,8 +259,12 @@ assertEq(asmLink(asmCompile(USE_ASM + "function f() { return (4 % 2)|0 } return 
 assertEq(asmLink(asmCompile(USE_ASM + "function f() { return (3 % 2)|0 } return f"))(), 1);
 
 assertAsmTypeFail(USE_ASM + "function f() { var i=42,j=1.1; return +(i?i:j) } return f");
+assertEq(asmLink(asmCompile(USE_ASM + "function f() { return 0; 1 ? 1 : 1; return 0; } return f"))(), 0);
 assertEq(asmLink(asmCompile(USE_ASM + "function f() { var i=42,j=1.1; return +(i?+(i|0):j) } return f"))(), 42);
 assertEq(asmLink(asmCompile(USE_ASM + "function f() { var i=42,j=1; return (i?i:j)|0 } return f"))(), 42);
+
+assertEq(asmLink(asmCompile(USE_ASM + "function f() { return (0 > (-(~~1) >>> 0)) | 0; } return f"))(), 0);
+assertEq(asmLink(asmCompile(USE_ASM + "function f() { return 0 < 4294967294 | 0; } return f"))(), 1);
 
 var f = asmLink(asmCompile(USE_ASM + "function f(i,j) { i=i|0;j=j|0; return ((i|0)>(j|0)?(i+10)|0:(j+100)|0)|0 } return f"));
 assertEq(f(2, 4), 104);

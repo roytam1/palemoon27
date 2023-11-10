@@ -9,11 +9,12 @@
 #include "VideoUtils.h"
 #include "WMFUtils.h"
 #include "nsTArray.h"
+#include "TimeUnits.h"
 
 #include "mozilla/Logging.h"
 
-PRLogModuleInfo* GetDemuxerLog();
-#define LOG(...) MOZ_LOG(GetDemuxerLog(), mozilla::LogLevel::Debug, (__VA_ARGS__))
+extern mozilla::LogModule* GetPDMLog();
+#define LOG(...) MOZ_LOG(GetPDMLog(), mozilla::LogLevel::Debug, (__VA_ARGS__))
 
 namespace mozilla {
 
@@ -67,7 +68,6 @@ WMFAudioMFTManager::WMFAudioMFTManager(
   const AudioInfo& aConfig)
   : mAudioChannels(aConfig.mChannels)
   , mAudioRate(aConfig.mRate)
-  , mAudioFrameOffset(0)
   , mAudioFrameSum(0)
   , mMustRecaptureAudioPosition(true)
 {
@@ -113,63 +113,63 @@ WMFAudioMFTManager::GetMediaSubtypeGUID()
   };
 }
 
-already_AddRefed<MFTDecoder>
+bool
 WMFAudioMFTManager::Init()
 {
-  NS_ENSURE_TRUE(mStreamType != Unknown, nullptr);
+  NS_ENSURE_TRUE(mStreamType != Unknown, false);
 
   RefPtr<MFTDecoder> decoder(new MFTDecoder());
 
   HRESULT hr = decoder->Create(GetMFTGUID());
-  NS_ENSURE_TRUE(SUCCEEDED(hr), nullptr);
+  NS_ENSURE_TRUE(SUCCEEDED(hr), false);
 
   // Setup input/output media types
   RefPtr<IMFMediaType> inputType;
 
-  hr = wmf::MFCreateMediaType(byRef(inputType));
-  NS_ENSURE_TRUE(SUCCEEDED(hr), nullptr);
+  hr = wmf::MFCreateMediaType(getter_AddRefs(inputType));
+  NS_ENSURE_TRUE(SUCCEEDED(hr), false);
 
   hr = inputType->SetGUID(MF_MT_MAJOR_TYPE, MFMediaType_Audio);
-  NS_ENSURE_TRUE(SUCCEEDED(hr), nullptr);
+  NS_ENSURE_TRUE(SUCCEEDED(hr), false);
 
   hr = inputType->SetGUID(MF_MT_SUBTYPE, GetMediaSubtypeGUID());
-  NS_ENSURE_TRUE(SUCCEEDED(hr), nullptr);
+  NS_ENSURE_TRUE(SUCCEEDED(hr), false);
 
   hr = inputType->SetUINT32(MF_MT_AUDIO_SAMPLES_PER_SECOND, mAudioRate);
-  NS_ENSURE_TRUE(SUCCEEDED(hr), nullptr);
+  NS_ENSURE_TRUE(SUCCEEDED(hr), false);
 
   hr = inputType->SetUINT32(MF_MT_AUDIO_NUM_CHANNELS, mAudioChannels);
-  NS_ENSURE_TRUE(SUCCEEDED(hr), nullptr);
+  NS_ENSURE_TRUE(SUCCEEDED(hr), false);
 
   if (mStreamType == AAC) {
     hr = inputType->SetUINT32(MF_MT_AAC_PAYLOAD_TYPE, 0x0); // Raw AAC packet
-    NS_ENSURE_TRUE(SUCCEEDED(hr), nullptr);
+    NS_ENSURE_TRUE(SUCCEEDED(hr), false);
 
     hr = inputType->SetBlob(MF_MT_USER_DATA,
                             mUserData.Elements(),
                             mUserData.Length());
-    NS_ENSURE_TRUE(SUCCEEDED(hr), nullptr);
+    NS_ENSURE_TRUE(SUCCEEDED(hr), false);
   }
 
   RefPtr<IMFMediaType> outputType;
-  hr = wmf::MFCreateMediaType(byRef(outputType));
-  NS_ENSURE_TRUE(SUCCEEDED(hr), nullptr);
+  hr = wmf::MFCreateMediaType(getter_AddRefs(outputType));
+  NS_ENSURE_TRUE(SUCCEEDED(hr), false);
 
   hr = outputType->SetGUID(MF_MT_MAJOR_TYPE, MFMediaType_Audio);
-  NS_ENSURE_TRUE(SUCCEEDED(hr), nullptr);
+  NS_ENSURE_TRUE(SUCCEEDED(hr), false);
 
   hr = outputType->SetGUID(MF_MT_SUBTYPE, MFAudioFormat_PCM);
-  NS_ENSURE_TRUE(SUCCEEDED(hr), nullptr);
+  NS_ENSURE_TRUE(SUCCEEDED(hr), false);
 
   hr = outputType->SetUINT32(MF_MT_AUDIO_BITS_PER_SAMPLE, 16);
-  NS_ENSURE_TRUE(SUCCEEDED(hr), nullptr);
+  NS_ENSURE_TRUE(SUCCEEDED(hr), false);
 
   hr = decoder->SetMediaTypes(inputType, outputType);
-  NS_ENSURE_TRUE(SUCCEEDED(hr), nullptr);
+  NS_ENSURE_TRUE(SUCCEEDED(hr), false);
 
   mDecoder = decoder;
 
-  return decoder.forget();
+  return true;
 }
 
 HRESULT
@@ -200,11 +200,12 @@ WMFAudioMFTManager::UpdateOutputType()
 
 HRESULT
 WMFAudioMFTManager::Output(int64_t aStreamOffset,
-                           nsRefPtr<MediaData>& aOutData)
+                           RefPtr<MediaData>& aOutData)
 {
   aOutData = nullptr;
   RefPtr<IMFSample> sample;
   HRESULT hr;
+  int typeChangeCount = 0;
   while (true) {
     hr = mDecoder->Output(&sample);
     if (hr == MF_E_TRANSFORM_NEED_MORE_INPUT) {
@@ -213,6 +214,11 @@ WMFAudioMFTManager::Output(int64_t aStreamOffset,
     if (hr == MF_E_TRANSFORM_STREAM_CHANGE) {
       hr = UpdateOutputType();
       NS_ENSURE_TRUE(SUCCEEDED(hr), hr);
+      // Catch infinite loops, but some decoders perform at least 2 stream
+      // changes on consecutive calls, so be permissive.
+      // 100 is arbitrarily > 2.
+      NS_ENSURE_TRUE(typeChangeCount < 100, MF_E_TRANSFORM_STREAM_CHANGE);
+      ++typeChangeCount;
       continue;
     }
     break;
@@ -221,7 +227,7 @@ WMFAudioMFTManager::Output(int64_t aStreamOffset,
   NS_ENSURE_TRUE(SUCCEEDED(hr), hr);
 
   RefPtr<IMFMediaBuffer> buffer;
-  hr = sample->ConvertToContiguousBuffer(byRef(buffer));
+  hr = sample->ConvertToContiguousBuffer(getter_AddRefs(buffer));
   NS_ENSURE_TRUE(SUCCEEDED(hr), hr);
 
   BYTE* data = nullptr; // Note: *data will be owned by the IMFMediaBuffer, we don't need to free it.
@@ -260,8 +266,7 @@ WMFAudioMFTManager::Output(int64_t aStreamOffset,
     LONGLONG timestampHns = 0;
     hr = sample->GetSampleTime(&timestampHns);
     NS_ENSURE_TRUE(SUCCEEDED(hr), hr);
-    hr = HNsToFrames(timestampHns, mAudioRate, &mAudioFrameOffset);
-    NS_ENSURE_TRUE(SUCCEEDED(hr), hr);
+    mAudioTimeOffset = media::TimeUnit::FromMicroseconds(timestampHns / 10);
     mMustRecaptureAudioPosition = false;
   }
   // We can assume PCM 16 output.
@@ -275,35 +280,39 @@ WMFAudioMFTManager::Output(int64_t aStreamOffset,
     return S_OK;
   }
 
-  nsAutoArrayPtr<AudioDataValue> audioData(new AudioDataValue[numSamples]);
+  auto audioData = MakeUnique<AudioDataValue[]>(numSamples);
 
   int16_t* pcm = (int16_t*)data;
   for (int32_t i = 0; i < numSamples; ++i) {
+#ifdef MOZ_SAMPLE_TYPE_FLOAT32
     audioData[i] = AudioSampleToFloat(pcm[i]);
+#else
+    audioData[i] = pcm[i];
+#endif
   }
 
   buffer->Unlock();
-  int64_t timestamp;
-  hr = FramesToUsecs(mAudioFrameOffset + mAudioFrameSum, mAudioRate, &timestamp);
-  NS_ENSURE_TRUE(SUCCEEDED(hr), hr);
+
+  media::TimeUnit timestamp =
+    mAudioTimeOffset + FramesToTimeUnit(mAudioFrameSum, mAudioRate);
+  NS_ENSURE_TRUE(timestamp.IsValid(), E_FAIL);
 
   mAudioFrameSum += numFrames;
 
-  int64_t duration;
-  hr = FramesToUsecs(numFrames, mAudioRate, &duration);
-  NS_ENSURE_TRUE(SUCCEEDED(hr), hr);
+  media::TimeUnit duration = FramesToTimeUnit(numFrames, mAudioRate);
+  NS_ENSURE_TRUE(duration.IsValid(), E_FAIL);
 
   aOutData = new AudioData(aStreamOffset,
-                           timestamp,
-                           duration,
+                           timestamp.ToMicroseconds(),
+                           duration.ToMicroseconds(),
                            numFrames,
-                           audioData.forget(),
+                           Move(audioData),
                            mAudioChannels,
                            mAudioRate);
 
   #ifdef LOG_SAMPLE_DECODE
   LOG("Decoded audio sample! timestamp=%lld duration=%lld currentLength=%u",
-      timestamp, duration, currentLength);
+      timestamp.ToMicroseconds(), duration.ToMicroseconds(), currentLength);
   #endif
 
   return S_OK;

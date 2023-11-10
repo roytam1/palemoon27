@@ -16,6 +16,7 @@
 #include "nsDeviceStorage.h"
 #include "nsIFile.h"
 #include "nsPIDOMWindow.h"
+#include "nsGlobalWindow.h"
 
 namespace mozilla {
 namespace dom {
@@ -23,7 +24,7 @@ namespace dom {
 DeviceStorageFileSystem::DeviceStorageFileSystem(
   const nsAString& aStorageType,
   const nsAString& aStorageName)
-  : mDeviceStorage(nullptr)
+  : mWindowId(0)
 {
   MOZ_ASSERT(NS_IsMainThread(), "Only call on main thread!");
 
@@ -76,14 +77,15 @@ DeviceStorageFileSystem::Init(nsDOMDeviceStorage* aDeviceStorage)
 {
   MOZ_ASSERT(NS_IsMainThread(), "Only call on main thread!");
   MOZ_ASSERT(aDeviceStorage);
-  mDeviceStorage = aDeviceStorage;
+  nsCOMPtr<nsPIDOMWindow> window = aDeviceStorage->GetOwner();
+  MOZ_ASSERT(window->IsInnerWindow());
+  mWindowId = window->WindowID();
 }
 
 void
 DeviceStorageFileSystem::Shutdown()
 {
   MOZ_ASSERT(NS_IsMainThread(), "Only call on main thread!");
-  mDeviceStorage = nullptr;
   mShutdown = true;
 }
 
@@ -91,10 +93,9 @@ nsPIDOMWindow*
 DeviceStorageFileSystem::GetWindow() const
 {
   MOZ_ASSERT(NS_IsMainThread(), "Only call on main thread!");
-  if (!mDeviceStorage) {
-    return nullptr;
-  }
-  return mDeviceStorage->GetOwner();
+  nsGlobalWindow* window = nsGlobalWindow::GetInnerWindowWithId(mWindowId);
+  MOZ_ASSERT_IF(!mShutdown, window);
+  return window;
 }
 
 void
@@ -131,7 +132,7 @@ DeviceStorageFileSystem::IsSafeDirectory(Directory* aDir) const
 {
   MOZ_ASSERT(NS_IsMainThread(), "Only call on main thread!");
   MOZ_ASSERT(aDir);
-  nsRefPtr<FileSystemBase> fs = aDir->GetFileSystem();
+  RefPtr<FileSystemBase> fs = aDir->GetFileSystem();
   MOZ_ASSERT(fs);
   // Check if the given directory is from this storage.
   return fs->ToString() == mString;

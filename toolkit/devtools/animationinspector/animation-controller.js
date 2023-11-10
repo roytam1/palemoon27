@@ -6,7 +6,7 @@
 
 "use strict";
 
-const { classes: Cc, interfaces: Ci, utils: Cu, results: Cr } = Components;
+var { classes: Cc, interfaces: Ci, utils: Cu, results: Cr } = Components;
 
 Cu.import("resource://gre/modules/Task.jsm");
 Cu.import("resource://gre/modules/devtools/Loader.jsm");
@@ -113,7 +113,10 @@ let AnimationsController = {
                                                           "setPlaybackRate");
     this.hasTargetNode = yield target.actorHasMethod("domwalker",
                                                      "getNodeFromActor");
-    this.isNewUI = Services.prefs.getBoolPref("devtools.inspector.animationInspectorV3");
+    try {
+      this.isNewUI = Services.prefs.getBoolPref("devtools.inspector.animationInspectorV3");
+    } catch(ex) {
+    }
 
     if (this.destroyed) {
       console.warn("Could not fully initialize the AnimationsController");

@@ -29,14 +29,11 @@ class BroadcastChannelParent final : public PBroadcastChannelParent
 public:
   void CheckAndDeliver(const ClonedMessageData& aData,
                        const nsCString& aOrigin,
-                       const uint64_t aAppId,
-                       const bool aIsInBrowserElement,
                        const nsString& aChannel,
                        bool aPrivateBrowsing);
 
 private:
-  BroadcastChannelParent(const PrincipalInfo& aPrincipalInfo,
-                         const nsACString& aOrigin,
+  BroadcastChannelParent(const nsACString& aOrigin,
                          const nsAString& aChannel,
                          bool aPrivateBrowsing);
   ~BroadcastChannelParent();
@@ -48,11 +45,9 @@ private:
 
   virtual void ActorDestroy(ActorDestroyReason aWhy) override;
 
-  nsRefPtr<BroadcastChannelService> mService;
+  RefPtr<BroadcastChannelService> mService;
   nsCString mOrigin;
   nsString mChannel;
-  uint64_t mAppId;
-  bool mIsInBrowserElement;
   bool mPrivateBrowsing;
 };
 

@@ -84,9 +84,9 @@ CompareCacheClearEntry(PLDHashTable *table, PLDHashEntryHdr *hdr)
 }
 
 static const PLDHashTableOps gMapOps = {
-  PL_DHashVoidPtrKeyStub,
+  PLDHashTable::HashVoidPtrKeyStub,
   CompareCacheMatchEntry,
-  PL_DHashMoveEntryStub,
+  PLDHashTable::MoveEntryStub,
   CompareCacheClearEntry,
   CompareCacheInitEntry
 };
@@ -742,7 +742,8 @@ nsCertTree::DeleteEntryObject(uint32_t index)
         if (certdi->mAddonInfo) {
           cert = certdi->mAddonInfo->mCert;
         }
-        nsCertAddonInfo *addonInfo = certdi->mAddonInfo ? certdi->mAddonInfo : nullptr;
+        nsCertAddonInfo* addonInfo =
+          certdi->mAddonInfo ? certdi->mAddonInfo.get() : nullptr;
         if (certdi->mTypeOfEntry == nsCertTreeDispInfo::host_port_override) {
           mOverrideService->ClearValidityOverride(certdi->mAsciiHost, certdi->mPort);
           if (addonInfo) {
@@ -1281,9 +1282,6 @@ nsCertTree::PerformActionOnRow(const char16_t *action, int32_t row)
   return NS_OK;
 }
 
-/* void performActionOnCell (in wstring action, in long row, 
- *                           in wstring colID); 
- */
 NS_IMETHODIMP 
 nsCertTree::PerformActionOnCell(const char16_t *action, int32_t row, 
                                 nsITreeColumn* col)

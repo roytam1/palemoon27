@@ -6,6 +6,7 @@
 
 #include "jit/x86/MacroAssembler-x86.h"
 
+#include "mozilla/Alignment.h"
 #include "mozilla/Casting.h"
 
 #include "jit/Bailouts.h"
@@ -20,28 +21,73 @@
 using namespace js;
 using namespace js::jit;
 
-MacroAssemblerX86::Double*
-MacroAssemblerX86::getDouble(double d)
+// vpunpckldq requires 16-byte boundary for memory operand.
+// See convertUInt64ToDouble for the details.
+MOZ_ALIGNED_DECL(static const uint64_t, 16) TO_DOUBLE[4] = {
+    0x4530000043300000LL,
+    0x0LL,
+    0x4330000000000000LL,
+    0x4530000000000000LL
+};
+
+static const double TO_DOUBLE_HIGH_SCALE = 0x100000000;
+
+void
+MacroAssemblerX86::convertUInt64ToDouble(Register64 src, Register temp, FloatRegister dest)
 {
-    if (!doubleMap_.initialized()) {
-        enoughMemory_ &= doubleMap_.init();
-        if (!enoughMemory_)
-            return nullptr;
+    // SUBPD needs SSE2, HADDPD needs SSE3.
+    if (!HasSSE3()) {
+        convertUInt32ToDouble(src.high, dest);
+        movePtr(ImmPtr(&TO_DOUBLE_HIGH_SCALE), temp);
+        loadDouble(Address(temp, 0), ScratchDoubleReg);
+        asMasm().mulDouble(ScratchDoubleReg, dest);
+        convertUInt32ToDouble(src.low, ScratchDoubleReg);
+        asMasm().addDouble(ScratchDoubleReg, dest);
+        return;
     }
-    size_t doubleIndex;
-    DoubleMap::AddPtr p = doubleMap_.lookupForAdd(d);
-    if (p) {
-        doubleIndex = p->value();
-    } else {
-        doubleIndex = doubles_.length();
-        enoughMemory_ &= doubles_.append(Double(d));
-        enoughMemory_ &= doubleMap_.add(p, d, doubleIndex);
-        if (!enoughMemory_)
-            return nullptr;
-    }
-    Double& dbl = doubles_[doubleIndex];
-    MOZ_ASSERT(!dbl.uses.bound());
-    return &dbl;
+
+    // Following operation uses entire 128-bit of dest XMM register.
+    // Currently higher 64-bit is free when we have access to lower 64-bit.
+    MOZ_ASSERT(dest.size() == 8);
+    FloatRegister dest128 = FloatRegister(dest.encoding(), FloatRegisters::Simd128);
+
+    // Assume that src is represented as following:
+    //   src      = 0x HHHHHHHH LLLLLLLL
+
+    // Move src to dest (=dest128) and ScratchInt32x4Reg (=scratch):
+    //   dest     = 0x 00000000 00000000  00000000 LLLLLLLL
+    //   scratch  = 0x 00000000 00000000  00000000 HHHHHHHH
+    vmovd(src.low, dest128);
+    vmovd(src.high, ScratchSimd128Reg);
+
+    // Unpack and interleave dest and scratch to dest:
+    //   dest     = 0x 00000000 00000000  HHHHHHHH LLLLLLLL
+    vpunpckldq(ScratchSimd128Reg, dest128, dest128);
+
+    // Unpack and interleave dest and a constant C1 to dest:
+    //   C1       = 0x 00000000 00000000  45300000 43300000
+    //   dest     = 0x 45300000 HHHHHHHH  43300000 LLLLLLLL
+    // here, each 64-bit part of dest represents following double:
+    //   HI(dest) = 0x 1.00000HHHHHHHH * 2**84 == 2**84 + 0x HHHHHHHH 00000000
+    //   LO(dest) = 0x 1.00000LLLLLLLL * 2**52 == 2**52 + 0x 00000000 LLLLLLLL
+    movePtr(ImmPtr(TO_DOUBLE), temp);
+    vpunpckldq(Operand(temp, 0), dest128, dest128);
+
+    // Subtract a constant C2 from dest, for each 64-bit part:
+    //   C2       = 0x 45300000 00000000  43300000 00000000
+    // here, each 64-bit part of C2 represents following double:
+    //   HI(C2)   = 0x 1.0000000000000 * 2**84 == 2**84
+    //   LO(C2)   = 0x 1.0000000000000 * 2**52 == 2**52
+    // after the operation each 64-bit part of dest represents following:
+    //   HI(dest) = double(0x HHHHHHHH 00000000)
+    //   LO(dest) = double(0x 00000000 LLLLLLLL)
+    vsubpd(Operand(temp, sizeof(uint64_t) * 2), dest128, dest128);
+
+    // Add HI(dest) and LO(dest) in double and store it into LO(dest),
+    //   LO(dest) = double(0x HHHHHHHH 00000000) + double(0x 00000000 LLLLLLLL)
+    //            = double(0x HHHHHHHH LLLLLLLL)
+    //            = double(src)
+    vhaddpd(dest128, dest128);
 }
 
 void
@@ -52,42 +98,8 @@ MacroAssemblerX86::loadConstantDouble(double d, FloatRegister dest)
     Double* dbl = getDouble(d);
     if (!dbl)
         return;
-    masm.vmovsd_mr(reinterpret_cast<const void *>(dbl->uses.prev()), dest.encoding());
-    dbl->uses.setPrev(masm.size());
-}
-
-void
-MacroAssemblerX86::addConstantDouble(double d, FloatRegister dest)
-{
-    Double *dbl = getDouble(d);
-    if (!dbl)
-        return;
-    masm.vaddsd_mr(reinterpret_cast<const void *>(dbl->uses.prev()), dest.encoding(), dest.encoding());
-    dbl->uses.setPrev(masm.size());
-}
-
-MacroAssemblerX86::Float*
-MacroAssemblerX86::getFloat(float f)
-{
-    if (!floatMap_.initialized()) {
-        enoughMemory_ &= floatMap_.init();
-        if (!enoughMemory_)
-            return nullptr;
-    }
-    size_t floatIndex;
-    FloatMap::AddPtr p = floatMap_.lookupForAdd(f);
-    if (p) {
-        floatIndex = p->value();
-    } else {
-        floatIndex = floats_.length();
-        enoughMemory_ &= floats_.append(Float(f));
-        enoughMemory_ &= floatMap_.add(p, f, floatIndex);
-        if (!enoughMemory_)
-            return nullptr;
-    }
-    Float& flt = floats_[floatIndex];
-    MOZ_ASSERT(!flt.uses.bound());
-    return &flt;
+    masm.vmovsd_mr(nullptr, dest.encoding());
+    propagateOOM(dbl->uses.append(CodeOffset(masm.size())));
 }
 
 void
@@ -95,45 +107,11 @@ MacroAssemblerX86::loadConstantFloat32(float f, FloatRegister dest)
 {
     if (maybeInlineFloat(f, dest))
         return;
-    Float *flt = getFloat(f);
-    if (!flt)
-        return;
-    masm.vmovss_mr(reinterpret_cast<const void *>(flt->uses.prev()), dest.encoding());
-    flt->uses.setPrev(masm.size());
-}
-
-void
-MacroAssemblerX86::addConstantFloat32(float f, FloatRegister dest)
-{
     Float* flt = getFloat(f);
     if (!flt)
         return;
-    masm.vaddss_mr(reinterpret_cast<const void *>(flt->uses.prev()), dest.encoding(), dest.encoding());
-    flt->uses.setPrev(masm.size());
-}
-
-MacroAssemblerX86::SimdData*
-MacroAssemblerX86::getSimdData(const SimdConstant& v)
-{
-    if (!simdMap_.initialized()) {
-        enoughMemory_ &= simdMap_.init();
-        if (!enoughMemory_)
-            return nullptr;
-    }
-    size_t index;
-    SimdMap::AddPtr p = simdMap_.lookupForAdd(v);
-    if (p) {
-        index = p->value();
-    } else {
-        index = simds_.length();
-        enoughMemory_ &= simds_.append(SimdData(v));
-        enoughMemory_ &= simdMap_.add(p, v, index);
-        if (!enoughMemory_)
-            return nullptr;
-    }
-    SimdData& simd = simds_[index];
-    MOZ_ASSERT(!simd.uses.bound());
-    return &simd;
+    masm.vmovss_mr(nullptr, dest.encoding());
+    propagateOOM(flt->uses.append(CodeOffset(masm.size())));
 }
 
 void
@@ -146,8 +124,8 @@ MacroAssemblerX86::loadConstantInt32x4(const SimdConstant& v, FloatRegister dest
     if (!i4)
         return;
     MOZ_ASSERT(i4->type() == SimdConstant::Int32x4);
-    masm.vmovdqa_mr(reinterpret_cast<const void *>(i4->uses.prev()), dest.encoding());
-    i4->uses.setPrev(masm.size());
+    masm.vmovdqa_mr(nullptr, dest.encoding());
+    propagateOOM(i4->uses.append(CodeOffset(masm.size())));
 }
 
 void
@@ -160,8 +138,8 @@ MacroAssemblerX86::loadConstantFloat32x4(const SimdConstant& v, FloatRegister de
     if (!f4)
         return;
     MOZ_ASSERT(f4->type() == SimdConstant::Float32x4);
-    masm.vmovaps_mr(reinterpret_cast<const void *>(f4->uses.prev()), dest.encoding());
-    f4->uses.setPrev(masm.size());
+    masm.vmovaps_mr(nullptr, dest.encoding());
+    propagateOOM(f4->uses.append(CodeOffset(masm.size())));
 }
 
 void
@@ -169,20 +147,22 @@ MacroAssemblerX86::finish()
 {
     if (!doubles_.empty())
         masm.haltingAlign(sizeof(double));
-    for (size_t i = 0; i < doubles_.length(); i++) {
-        CodeLabel cl(doubles_[i].uses);
-        writeDoubleConstant(doubles_[i].value, cl.src());
-        addCodeLabel(cl);
+    for (const Double& d : doubles_) {
+        CodeOffset cst(masm.currentOffset());
+        for (CodeOffset use : d.uses)
+            addCodeLabel(CodeLabel(use, cst));
+        masm.doubleConstant(d.value);
         if (!enoughMemory_)
             return;
     }
 
     if (!floats_.empty())
         masm.haltingAlign(sizeof(float));
-    for (size_t i = 0; i < floats_.length(); i++) {
-        CodeLabel cl(floats_[i].uses);
-        writeFloatConstant(floats_[i].value, cl.src());
-        addCodeLabel(cl);
+    for (const Float& f : floats_) {
+        CodeOffset cst(masm.currentOffset());
+        for (CodeOffset use : f.uses)
+            addCodeLabel(CodeLabel(use, cst));
+        masm.floatConstant(f.value);
         if (!enoughMemory_)
             return;
     }
@@ -190,15 +170,15 @@ MacroAssemblerX86::finish()
     // SIMD memory values must be suitably aligned.
     if (!simds_.empty())
         masm.haltingAlign(SimdMemoryAlignment);
-    for (size_t i = 0; i < simds_.length(); i++) {
-        CodeLabel cl(simds_[i].uses);
-        SimdData& v = simds_[i];
+    for (const SimdData& v : simds_) {
+        CodeOffset cst(masm.currentOffset());
+        for (CodeOffset use : v.uses)
+            addCodeLabel(CodeLabel(use, cst));
         switch (v.type()) {
-          case SimdConstant::Int32x4:   writeInt32x4Constant(v.value, cl.src());   break;
-          case SimdConstant::Float32x4: writeFloat32x4Constant(v.value, cl.src()); break;
+          case SimdConstant::Int32x4:   masm.int32x4Constant(v.value.asInt32x4());     break;
+          case SimdConstant::Float32x4: masm.float32x4Constant(v.value.asFloat32x4()); break;
           default: MOZ_CRASH("unexpected SimdConstant type");
         }
-        addCodeLabel(cl);
         if (!enoughMemory_)
             return;
     }
@@ -223,11 +203,13 @@ MacroAssemblerX86::handleFailureWithHandlerTail(void* handler)
     Label bailout;
 
     loadPtr(Address(esp, offsetof(ResumeFromException, kind)), eax);
-    branch32(Assembler::Equal, eax, Imm32(ResumeFromException::RESUME_ENTRY_FRAME), &entryFrame);
-    branch32(Assembler::Equal, eax, Imm32(ResumeFromException::RESUME_CATCH), &catch_);
-    branch32(Assembler::Equal, eax, Imm32(ResumeFromException::RESUME_FINALLY), &finally);
-    branch32(Assembler::Equal, eax, Imm32(ResumeFromException::RESUME_FORCED_RETURN), &return_);
-    branch32(Assembler::Equal, eax, Imm32(ResumeFromException::RESUME_BAILOUT), &bailout);
+    asMasm().branch32(Assembler::Equal, eax, Imm32(ResumeFromException::RESUME_ENTRY_FRAME),
+                      &entryFrame);
+    asMasm().branch32(Assembler::Equal, eax, Imm32(ResumeFromException::RESUME_CATCH), &catch_);
+    asMasm().branch32(Assembler::Equal, eax, Imm32(ResumeFromException::RESUME_FINALLY), &finally);
+    asMasm().branch32(Assembler::Equal, eax, Imm32(ResumeFromException::RESUME_FORCED_RETURN),
+                      &return_);
+    asMasm().branch32(Assembler::Equal, eax, Imm32(ResumeFromException::RESUME_BAILOUT), &bailout);
 
     breakpoint(); // Invalid kind.
 
@@ -275,7 +257,8 @@ MacroAssemblerX86::handleFailureWithHandlerTail(void* handler)
         Label skipProfilingInstrumentation;
         // Test if profiler enabled.
         AbsoluteAddress addressOfEnabled(GetJitContext()->runtime->spsProfiler().addressOfEnabled());
-        branch32(Assembler::Equal, addressOfEnabled, Imm32(0), &skipProfilingInstrumentation);
+        asMasm().branch32(Assembler::Equal, addressOfEnabled, Imm32(0),
+                          &skipProfilingInstrumentation);
         profilerExitFrame();
         bind(&skipProfilingInstrumentation);
     }
@@ -355,9 +338,9 @@ MacroAssemblerX86::branchPtrInNurseryRange(Condition cond, Register ptr, Registe
 
     const Nursery& nursery = GetJitContext()->runtime->gcNursery();
     movePtr(ImmWord(-ptrdiff_t(nursery.start())), temp);
-    addPtr(ptr, temp);
-    branchPtr(cond == Assembler::Equal ? Assembler::Below : Assembler::AboveOrEqual,
-              temp, Imm32(nursery.nurserySize()), label);
+    asMasm().addPtr(ptr, temp);
+    asMasm().branchPtr(cond == Assembler::Equal ? Assembler::Below : Assembler::AboveOrEqual,
+                       temp, Imm32(nursery.nurserySize()), label);
 }
 
 void

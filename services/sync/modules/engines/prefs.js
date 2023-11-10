@@ -4,11 +4,11 @@
 
 this.EXPORTED_SYMBOLS = ['PrefsEngine', 'PrefRec'];
 
-const Cc = Components.classes;
-const Ci = Components.interfaces;
-const Cu = Components.utils;
+var Cc = Components.classes;
+var Ci = Components.interfaces;
+var Cu = Components.utils;
 
-const SYNC_PREFS_PREFIX = "services.sync.prefs.sync.";
+const PREF_SYNC_PREFS_PREFIX = "services.sync.prefs.sync.";
 
 Cu.import("resource://services-sync/engines.js");
 Cu.import("resource://services-sync/record.js");
@@ -87,21 +87,21 @@ PrefStore.prototype = {
   _getSyncPrefs: function () {
     let syncPrefs = Cc["@mozilla.org/preferences-service;1"]
                       .getService(Ci.nsIPrefService)
-                      .getBranch(SYNC_PREFS_PREFIX)
+                      .getBranch(PREF_SYNC_PREFS_PREFIX)
                       .getChildList("", {});
     // Also sync preferences that determine which prefs get synced.
-    let controlPrefs = syncPrefs.map(pref => SYNC_PREFS_PREFIX + pref);
+    let controlPrefs = syncPrefs.map(pref => PREF_SYNC_PREFS_PREFIX + pref);
     return controlPrefs.concat(syncPrefs);
   },
 
   _isSynced: function (pref) {
-    return pref.startsWith(SYNC_PREFS_PREFIX) ||
-            this._prefs.get(SYNC_PREFS_PREFIX + pref, false);
+    return pref.startsWith(PREF_SYNC_PREFS_PREFIX) ||
+           this._prefs.get(PREF_SYNC_PREFS_PREFIX + pref, false);
   },
 
   _getAllPrefs: function () {
     let values = {};
-    for each (let pref in this._getSyncPrefs()) {
+    for (let pref of this._getSyncPrefs()) {
       if (this._isSynced(pref)) {
         // Missing prefs get the null value.
         values[pref] = this._prefs.get(pref, null);
@@ -117,7 +117,7 @@ PrefStore.prototype = {
 
     // Update 'services.sync.prefs.sync.foo.pref' before 'foo.pref', otherwise
     // _isSynced returns false when 'foo.pref' doesn't exist (e.g., on a new device).
-    let prefs = Object.keys(values).sort(a => -a.indexOf(SYNC_PREFS_PREFIX));
+    let prefs = Object.keys(values).sort(a => -a.indexOf(PREF_SYNC_PREFS_PREFIX));
     for (let pref of prefs) {
       if (!this._isSynced(pref)) {
         continue;
@@ -248,8 +248,8 @@ PrefTracker.prototype = {
       case "nsPref:changed":
         // Trigger a sync for MULTI-DEVICE for a change that determines
         // which prefs are synced or a regular pref change.
-        if (data.indexOf(SYNC_PREFS_PREFIX) == 0 ||
-            this._prefs.get(SYNC_PREFS_PREFIX + data, false)) {
+        if (data.indexOf(PREF_SYNC_PREFS_PREFIX) == 0 ||
+            this._prefs.get(PREF_SYNC_PREFS_PREFIX + data, false)) {
           this.score += SCORE_INCREMENT_XLARGE;
           this.modified = true;
           this._log.trace("Preference " + data + " changed");

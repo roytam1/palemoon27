@@ -64,7 +64,7 @@ public:
     }
 
 private:
-    nsRefPtr<nsCacheEntryDescriptor> mDescriptor;
+    RefPtr<nsCacheEntryDescriptor> mDescriptor;
     nsICacheListener                *mListener;
     nsCOMPtr<nsIThread>              mThread;
 };
@@ -555,8 +555,8 @@ nsCacheEntryDescriptor::MarkValid()
 NS_IMETHODIMP
 nsCacheEntryDescriptor::Close()
 {
-    nsRefPtr<nsOutputStreamWrapper> outputWrapper;
-    nsTArray<nsRefPtr<nsInputStreamWrapper> > inputWrappers;
+    RefPtr<nsOutputStreamWrapper> outputWrapper;
+    nsTArray<RefPtr<nsInputStreamWrapper> > inputWrappers;
 
     {
         nsCacheServiceAutoLock lock;
@@ -659,7 +659,7 @@ nsCacheEntryDescriptor::nsInputStreamWrapper::Release()
 {
     // Holding a reference to descriptor ensures that cache service won't go
     // away. Do not grab cache service lock if there is no descriptor.
-    nsRefPtr<nsCacheEntryDescriptor> desc;
+    RefPtr<nsCacheEntryDescriptor> desc;
 
     {
         mozilla::MutexAutoLock lock(mLock);
@@ -851,7 +851,7 @@ nsCacheEntryDescriptor::nsDecompressInputStreamWrapper::Release()
 {
     // Holding a reference to descriptor ensures that cache service won't go
     // away. Do not grab cache service lock if there is no descriptor.
-    nsRefPtr<nsCacheEntryDescriptor> desc;
+    RefPtr<nsCacheEntryDescriptor> desc;
 
     {
         mozilla::MutexAutoLock lock(mLock);
@@ -1040,7 +1040,7 @@ nsCacheEntryDescriptor::nsOutputStreamWrapper::Release()
 {
     // Holding a reference to descriptor ensures that cache service won't go
     // away. Do not grab cache service lock if there is no descriptor.
-    nsRefPtr<nsCacheEntryDescriptor> desc;
+    RefPtr<nsCacheEntryDescriptor> desc;
 
     {
         mozilla::MutexAutoLock lock(mLock);
@@ -1270,7 +1270,7 @@ nsCacheEntryDescriptor::nsCompressOutputStreamWrapper::Release()
 {
     // Holding a reference to descriptor ensures that cache service won't go
     // away. Do not grab cache service lock if there is no descriptor.
-    nsRefPtr<nsCacheEntryDescriptor> desc;
+    RefPtr<nsCacheEntryDescriptor> desc;
 
     {
         mozilla::MutexAutoLock lock(mLock);
@@ -1397,12 +1397,6 @@ nsCompressOutputStreamWrapper::Close()
     }
     // Do not allow to initialize stream after calling Close().
     mStreamEnded = true;
-    
-    // In some rare cases, flushing the zlib stream can take too long
-    // and we lose our cache entry in the meantime. Do another check
-    // and bail if so.
-    if (!mDescriptor)
-        return NS_ERROR_NOT_AVAILABLE;
 
     if (mDescriptor->CacheEntry()) {
         nsAutoCString uncompressedLenStr;

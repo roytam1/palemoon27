@@ -226,7 +226,7 @@ public:
   }
 
   UniquePtr(UniquePtr&& aOther)
-    : mTuple(aOther.release(), Forward<DeleterType>(aOther.getDeleter()))
+    : mTuple(aOther.release(), Forward<DeleterType>(aOther.get_deleter()))
   {}
 
   MOZ_IMPLICIT
@@ -247,7 +247,7 @@ public:
                                ? IsSame<D, E>::value
                                : IsConvertible<E, D>::value),
                               int>::Type aDummy = 0)
-    : mTuple(aOther.release(), Forward<E>(aOther.getDeleter()))
+    : mTuple(aOther.release(), Forward<E>(aOther.get_deleter()))
   {
   }
 
@@ -256,7 +256,7 @@ public:
   UniquePtr& operator=(UniquePtr&& aOther)
   {
     reset(aOther.release());
-    getDeleter() = Forward<DeleterType>(aOther.getDeleter());
+    get_deleter() = Forward<DeleterType>(aOther.get_deleter());
     return *this;
   }
 
@@ -270,7 +270,7 @@ public:
                   "can't assign from UniquePtr holding an array");
 
     reset(aOther.release());
-    getDeleter() = Forward<E>(aOther.getDeleter());
+    get_deleter() = Forward<E>(aOther.get_deleter());
     return *this;
   }
 
@@ -291,10 +291,10 @@ public:
 
   Pointer get() const { return ptr(); }
 
-  DeleterType& getDeleter() { return del(); }
-  const DeleterType& getDeleter() const { return del(); }
+  DeleterType& get_deleter() { return del(); }
+  const DeleterType& get_deleter() const { return del(); }
 
-  Pointer release()
+  MOZ_WARN_UNUSED_RESULT Pointer release()
   {
     Pointer p = ptr();
     ptr() = nullptr;
@@ -306,7 +306,7 @@ public:
     Pointer old = ptr();
     ptr() = aPtr;
     if (old != nullptr) {
-      getDeleter()(old);
+      get_deleter()(old);
     }
   }
 
@@ -315,7 +315,6 @@ public:
     mTuple.swap(aOther.mTuple);
   }
 
-private:
   UniquePtr(const UniquePtr& aOther) = delete; // construct using Move()!
   void operator=(const UniquePtr& aOther) = delete; // assign using Move()!
 };
@@ -356,7 +355,6 @@ public:
     static_assert(!IsReference<D>::value, "must provide a deleter instance");
   }
 
-private:
   // delete[] knows how to handle *only* an array of a single class type.  For
   // delete[] to work correctly, it must know the size of each element, the
   // fields and base classes of each element requiring destruction, and so on.
@@ -369,7 +367,6 @@ private:
                               int>::Type aDummy = 0)
   = delete;
 
-public:
   UniquePtr(Pointer aPtr,
             typename Conditional<IsReference<D>::value,
                                  D,
@@ -389,7 +386,6 @@ public:
                   "rvalue deleter can't be stored by reference");
   }
 
-private:
   // Forbidden for the same reasons as stated above.
   template<typename U, typename V>
   UniquePtr(U&& aU, V&& aV,
@@ -398,9 +394,8 @@ private:
                               int>::Type aDummy = 0)
   = delete;
 
-public:
   UniquePtr(UniquePtr&& aOther)
-    : mTuple(aOther.release(), Forward<DeleterType>(aOther.getDeleter()))
+    : mTuple(aOther.release(), Forward<DeleterType>(aOther.get_deleter()))
   {}
 
   MOZ_IMPLICIT
@@ -416,7 +411,7 @@ public:
   UniquePtr& operator=(UniquePtr&& aOther)
   {
     reset(aOther.release());
-    getDeleter() = Forward<DeleterType>(aOther.getDeleter());
+    get_deleter() = Forward<DeleterType>(aOther.get_deleter());
     return *this;
   }
 
@@ -431,10 +426,10 @@ public:
   T& operator[](decltype(sizeof(int)) aIndex) const { return get()[aIndex]; }
   Pointer get() const { return mTuple.first(); }
 
-  DeleterType& getDeleter() { return mTuple.second(); }
-  const DeleterType& getDeleter() const { return mTuple.second(); }
+  DeleterType& get_deleter() { return mTuple.second(); }
+  const DeleterType& get_deleter() const { return mTuple.second(); }
 
-  Pointer release()
+  MOZ_WARN_UNUSED_RESULT Pointer release()
   {
     Pointer p = mTuple.first();
     mTuple.first() = nullptr;
@@ -459,14 +454,11 @@ public:
     }
   }
 
-private:
   template<typename U>
   void reset(U) = delete;
 
-public:
   void swap(UniquePtr& aOther) { mTuple.swap(aOther.mTuple); }
 
-private:
   UniquePtr(const UniquePtr& aOther) = delete; // construct using Move()!
   void operator=(const UniquePtr& aOther) = delete; // assign using Move()!
 };
@@ -504,7 +496,6 @@ public:
     delete[] aPtr;
   }
 
-private:
   template<typename U>
   void operator()(U* aPtr) const = delete;
 };
@@ -635,10 +626,6 @@ struct UniqueSelector<T[N]>
  * pointer is assigned to an object that will manage its ownership.  UniquePtr
  * ably serves this function.)
  */
-
-// We don't have variadic template support everywhere, so just hard-code arities
-// 0-8 for now.  If you need more arguments, feel free to add the extra
-// overloads (and deletions for the T = E[N] case).
 
 template<typename T, typename... Args>
 typename detail::UniqueSelector<T>::SingleObject

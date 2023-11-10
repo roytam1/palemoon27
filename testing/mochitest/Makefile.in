@@ -20,6 +20,7 @@ libs::
 TEST_HARNESS_BINS := \
   xpcshell$(BIN_SUFFIX) \
   ssltunnel$(BIN_SUFFIX) \
+  fileid$(BIN_SUFFIX) \
   certutil$(BIN_SUFFIX) \
   pk12util$(BIN_SUFFIX) \
   BadCertServer$(BIN_SUFFIX) \
@@ -33,12 +34,14 @@ ifeq ($(OS_ARCH),WINNT)
 TEST_HARNESS_BINS += \
   crashinject$(BIN_SUFFIX) \
   crashinjectdll$(DLL_SUFFIX) \
-  vmwarerecordinghelper$(DLL_SUFFIX) \
   $(NULL)
 endif
 
+# The fileid utility depends on mozglue. See bug 1069556.
 ifeq ($(OS_ARCH),Darwin)
-TEST_HARNESS_BINS += fix_macosx_stack.py
+TEST_HARNESS_BINS += \
+  fix_macosx_stack.py \
+  $(DLL_PREFIX)mozglue$(DLL_SUFFIX)
 endif
 
 ifeq ($(OS_ARCH),Linux)
@@ -100,7 +103,7 @@ include $(topsrcdir)/config/android-common.mk
 stage-package-android:
 	$(NSINSTALL) -D $(_DEST_DIR)
 	$(call RELEASE_SIGN_ANDROID_APK,\
-		$(DEPTH)/build/mobile/robocop/robocop-debug-unsigned-unaligned.apk,\
+		$(DEPTH)/mobile/android/tests/browser/robocop/robocop-debug-unsigned-unaligned.apk,\
 		$(_DEST_DIR)/robocop.apk)
 
 stage-package: stage-package-android
@@ -109,7 +112,6 @@ endif
 stage-package:
 	$(NSINSTALL) -D $(PKG_STAGE)/mochitest && $(NSINSTALL) -D $(PKG_STAGE)/bin/plugins && $(NSINSTALL) -D $(DIST)/plugins
 	cp $(DEPTH)/mozinfo.json $(PKG_STAGE)/mochitest
-	(cd $(DEPTH)/_tests/testing && tar $(TAR_CREATE_FLAGS) - mochitest) | (cd $(PKG_STAGE) && tar -xf -)
 	@cp $(DEPTH)/mozinfo.json $(PKG_STAGE)/mochitest
 	@(cd $(DIST_BIN) && tar $(TAR_CREATE_FLAGS) - $(TEST_HARNESS_BINS)) | (cd $(PKG_STAGE)/bin && tar -xf -)
 	@(cd $(DIST_BIN)/components && tar $(TAR_CREATE_FLAGS) - $(TEST_HARNESS_COMPONENTS)) | (cd $(PKG_STAGE)/bin/components && tar -xf -)

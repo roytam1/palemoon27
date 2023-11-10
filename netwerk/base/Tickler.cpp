@@ -13,7 +13,8 @@
 #include "nsThreadUtils.h"
 #include "prnetdb.h"
 
-#include "AndroidBridge.h"
+#include "mozilla/jni/Utils.h"
+#include "GeneratedJNIWrappers.h"
 
 namespace mozilla {
 namespace net {
@@ -80,7 +81,7 @@ Tickler::Init()
   MOZ_ASSERT(!mThread);
   MOZ_ASSERT(!mFD);
 
-  if (AndroidBridge::HasEnv()) {
+  if (jni::IsAvailable()) {
       widget::GeckoAppShell::EnableNetworkNotifications();
   }
 
@@ -260,7 +261,7 @@ NS_IMPL_ISUPPORTS(TicklerTimer, nsITimerCallback)
 
 NS_IMETHODIMP TicklerTimer::Notify(nsITimer *timer)
 {
-  nsRefPtr<Tickler> tickler = do_QueryReferent(mTickler);
+  RefPtr<Tickler> tickler = do_QueryReferent(mTickler);
   if (!tickler)
     return NS_ERROR_FAILURE;
   MutexAutoLock lock(tickler->mLock);

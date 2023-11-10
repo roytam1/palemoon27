@@ -56,9 +56,6 @@ function run_test() {
     'http2.retryInterval': 1000,
     'http2.maxRetries': 2
   });
-  disableServiceWorkerEvents(
-    'https://example.com/page'
-  );
 
   run_next_test();
 }
@@ -82,7 +79,9 @@ add_task(function* test1() {
     subscriptionUri: serverURL + '/subscription5xxCode',
     pushEndpoint: serverURL + '/pushEndpoint',
     pushReceiptEndpoint: serverURL + '/pushReceiptEndpoint',
-    scope: 'https://example.com/page'
+    scope: 'https://example.com/page',
+    originAttributes: '',
+    quota: Infinity,
   }];
 
   for (let record of records) {
@@ -91,7 +90,6 @@ add_task(function* test1() {
 
   PushService.init({
     serverURI: serverURL + "/subscribe",
-    service: PushServiceHttp2,
     db
   });
 

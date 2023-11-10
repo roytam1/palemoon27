@@ -10,6 +10,7 @@
 #include "mozilla/dom/Element.h"
 #include "mozilla/dom/Event.h" // for nsIDOMEvent::InternalDOMEvent()
 #include "mozilla/gfx/PathHelpers.h"
+#include "mozilla/UniquePtr.h"
 #include "nsString.h"
 #include "nsReadableUtils.h"
 #include "nsPresContext.h"
@@ -21,6 +22,7 @@
 #include "nsIStringBundle.h"
 #include "nsContentUtils.h"
 #include "nsIContentInlines.h"
+#include "ImageLayers.h"
 
 #ifdef ACCESSIBILITY
 #include "nsAccessibilityService.h"
@@ -45,7 +47,7 @@ public:
   void HasFocus(bool aHasFocus);
 
   nsCOMPtr<nsIContent> mArea;
-  nscoord* mCoords;
+  UniquePtr<nscoord[]> mCoords;
   int32_t mNumCoords;
   bool mHasFocus;
 };
@@ -55,7 +57,6 @@ Area::Area(nsIContent* aArea)
 {
   MOZ_COUNT_CTOR(Area);
   NS_PRECONDITION(mArea, "How did that happen?");
-  mCoords = nullptr;
   mNumCoords = 0;
   mHasFocus = false;
 }
@@ -63,7 +64,6 @@ Area::Area(nsIContent* aArea)
 Area::~Area()
 {
   MOZ_COUNT_DTOR(Area);
-  delete [] mCoords;
 }
 
 #include <stdlib.h>
@@ -104,7 +104,6 @@ void Area::ParseCoords(const nsAString& aSpec)
     char *tptr;
     char *n_str;
     int32_t i, cnt;
-    int32_t *value_list;
 
     /*
      * Nothing in an empty list
@@ -209,7 +208,7 @@ void Area::ParseCoords(const nsAString& aSpec)
     /*
      * Allocate space for the coordinate array.
      */
-    value_list = new nscoord[cnt];
+    UniquePtr<nscoord[]> value_list = MakeUnique<nscoord[]>(cnt);
     if (!value_list)
     {
       free(cp);
@@ -253,7 +252,7 @@ void Area::ParseCoords(const nsAString& aSpec)
     }
 
     mNumCoords = cnt;
-    mCoords = value_list;
+    mCoords = Move(value_list);
 
     free(cp);
   }
@@ -536,7 +535,8 @@ void PolyArea::Draw(nsIFrame* aFrame, DrawTarget& aDrawTarget,
         p2.y = pc->CSSPixelsToDevPixels(mCoords[i+1]);
         p1snapped = p1;
         p2snapped = p2;
-        SnapLineToDevicePixelsForStroking(p1snapped, p2snapped, aDrawTarget);
+        SnapLineToDevicePixelsForStroking(p1snapped, p2snapped, aDrawTarget,
+                                          aStrokeOptions.mLineWidth);
         aDrawTarget.StrokeLine(p1snapped, p2snapped, aColor, aStrokeOptions);
         p1 = p2;
       }
@@ -544,7 +544,8 @@ void PolyArea::Draw(nsIFrame* aFrame, DrawTarget& aDrawTarget,
       p2.y = pc->CSSPixelsToDevPixels(mCoords[1]);
       p1snapped = p1;
       p2snapped = p2;
-      SnapLineToDevicePixelsForStroking(p1snapped, p2snapped, aDrawTarget);
+      SnapLineToDevicePixelsForStroking(p1snapped, p2snapped, aDrawTarget,
+                                        aStrokeOptions.mLineWidth);
       aDrawTarget.StrokeLine(p1snapped, p2snapped, aColor, aStrokeOptions);
     }
   }

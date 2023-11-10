@@ -18,7 +18,10 @@ namespace jit {
 class MIRGenerator;
 class MIRGraph;
 
-void
+bool
+PruneUnusedBranches(MIRGenerator* mir, MIRGraph& graph);
+
+bool
 FoldTests(MIRGraph& graph);
 
 bool
@@ -83,7 +86,7 @@ AssertExtendedGraphCoherency(MIRGraph& graph);
 bool
 EliminateRedundantChecks(MIRGraph& graph);
 
-void
+bool
 AddKeepAliveInstructions(MIRGraph& graph);
 
 class MDefinition;
@@ -131,6 +134,7 @@ class LinearSum
       : terms_(other.terms_.allocPolicy()),
         constant_(other.constant_)
     {
+        AutoEnterOOMUnsafeRegion oomUnsafe;
         if (!terms_.appendAll(other.terms_))
           MOZ_CRASH("LinearSum::LinearSum");
     }

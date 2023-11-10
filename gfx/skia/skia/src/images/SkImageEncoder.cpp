@@ -7,6 +7,8 @@
 
 #include "SkImageEncoder.h"
 #include "SkBitmap.h"
+#include "SkPixelSerializer.h"
+#include "SkPixmap.h"
 #include "SkStream.h"
 #include "SkTemplates.h"
 
@@ -31,7 +33,7 @@ SkData* SkImageEncoder::encodeData(const SkBitmap& bm, int quality) {
     if (this->onEncode(&stream, bm, quality)) {
         return stream.copyToData();
     }
-    return NULL;
+    return nullptr;
 }
 
 bool SkImageEncoder::EncodeFile(const char file[], const SkBitmap& bm, Type t,
@@ -48,5 +50,39 @@ bool SkImageEncoder::EncodeStream(SkWStream* stream, const SkBitmap& bm, Type t,
 
 SkData* SkImageEncoder::EncodeData(const SkBitmap& bm, Type t, int quality) {
     SkAutoTDelete<SkImageEncoder> enc(SkImageEncoder::Create(t));
-    return enc.get() ? enc.get()->encodeData(bm, quality) : NULL;
+    return enc.get() ? enc.get()->encodeData(bm, quality) : nullptr;
+}
+
+SkData* SkImageEncoder::EncodeData(const SkImageInfo& info, const void* pixels, size_t rowBytes,
+                                   Type t, int quality) {
+    SkBitmap bm;
+    if (!bm.installPixels(info, const_cast<void*>(pixels), rowBytes)) {
+        return nullptr;
+    }
+    bm.setImmutable();
+    return SkImageEncoder::EncodeData(bm, t, quality);
+}
+
+SkData* SkImageEncoder::EncodeData(const SkPixmap& pixmap,
+                                   Type t, int quality) {
+    SkBitmap bm;
+    if (!bm.installPixels(pixmap)) {
+        return nullptr;
+    }
+    bm.setImmutable();
+    return SkImageEncoder::EncodeData(bm, t, quality);
+}
+
+namespace {
+class ImageEncoderPixelSerializer final : public SkPixelSerializer {
+protected:
+    bool onUseEncodedData(const void*, size_t) override { return true; }
+    SkData* onEncode(const SkPixmap& pmap) override {
+        return SkImageEncoder::EncodeData(pmap, SkImageEncoder::kPNG_Type, 100);
+    }
+};
+} // namespace
+
+SkPixelSerializer* SkImageEncoder::CreatePixelSerializer() {
+    return new ImageEncoderPixelSerializer;
 }

@@ -34,7 +34,7 @@ nsIRootBox::GetRootBox(nsIPresShell* aShell)
   }
 
   if (rootFrame) {
-    rootFrame = rootFrame->GetFirstPrincipalChild();
+    rootFrame = rootFrame->PrincipalChildList().FirstChild();
   }
 
   nsIRootBox* rootBox = do_QueryFrame(rootFrame);
@@ -119,7 +119,7 @@ nsRootBoxFrame::nsRootBoxFrame(nsStyleContext* aContext):
   mPopupSetFrame = nullptr;
 
   nsCOMPtr<nsBoxLayout> layout;
-  NS_NewStackLayout(PresContext()->PresShell(), layout);
+  NS_NewStackLayout(layout);
   SetLayoutManager(layout);
 }
 
@@ -179,6 +179,14 @@ nsRootBoxFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
                                  const nsRect&           aDirtyRect,
                                  const nsDisplayListSet& aLists)
 {
+  if (mContent && mContent->GetProperty(nsGkAtoms::DisplayPortMargins)) {
+    // The XUL document's root element may have displayport margins set in
+    // ChromeProcessController::InitializeRoot, and we should to supply the
+    // base rect.
+    nsRect displayPortBase = aDirtyRect.Intersect(nsRect(nsPoint(0, 0), GetSize()));
+    nsLayoutUtils::SetDisplayPortBase(mContent, displayPortBase);
+  }
+
   // root boxes don't need a debug border/outline or a selection overlay...
   // They *may* have a background propagated to them, so force creation
   // of a background display list element.
@@ -197,7 +205,7 @@ nsRootBoxFrame::HandleEvent(nsPresContext* aPresContext,
     return NS_OK;
   }
 
-  if (aEvent->message == NS_MOUSE_BUTTON_UP) {
+  if (aEvent->mMessage == eMouseUp) {
     nsFrame::HandleEvent(aPresContext, aEvent, aEventStatus);
   }
 

@@ -361,10 +361,10 @@ class nsHtml5AttributeName
     static nsHtml5AttributeName* ATTR_LANGUAGE;
     static nsHtml5AttributeName* ATTR_TEMPLATE;
     static nsHtml5AttributeName* ATTR_TABINDEX;
+    static nsHtml5AttributeName* ATTR_PROPERTY;
     static nsHtml5AttributeName* ATTR_READONLY;
     static nsHtml5AttributeName* ATTR_SELECTED;
     static nsHtml5AttributeName* ATTR_ROWLINES;
-    static nsHtml5AttributeName* ATTR_REFERRER;
     static nsHtml5AttributeName* ATTR_SEAMLESS;
     static nsHtml5AttributeName* ATTR_ROWALIGN;
     static nsHtml5AttributeName* ATTR_STRETCHY;
@@ -608,6 +608,7 @@ class nsHtml5AttributeName
     static nsHtml5AttributeName* ATTR_V_MATHEMATICAL;
     static nsHtml5AttributeName* ATTR_POINTER_EVENTS;
     static nsHtml5AttributeName* ATTR_PRIMITIVEUNITS;
+    static nsHtml5AttributeName* ATTR_REFERRERPOLICY;
     static nsHtml5AttributeName* ATTR_SYSTEMLANGUAGE;
     static nsHtml5AttributeName* ATTR_STROKE_LINECAP;
     static nsHtml5AttributeName* ATTR_SUBSCRIPTSHIFT;

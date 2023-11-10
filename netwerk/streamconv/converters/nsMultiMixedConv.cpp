@@ -13,10 +13,12 @@
 #include "nsIHttpChannelInternal.h"
 #include "nsURLHelper.h"
 #include "nsIStreamConverterService.h"
-#include "nsIPackagedAppService.h"
+#include "nsICacheInfoChannel.h"
 #include <algorithm>
 #include "nsContentSecurityManager.h"
 #include "nsHttp.h"
+#include "nsNetUtil.h"
+#include "nsIURI.h"
 
 //
 // Helper function for determining the length of data bytes up to
@@ -459,6 +461,31 @@ nsPartChannel::GetBaseChannel(nsIChannel ** aReturn)
     return NS_OK;
 }
 
+NS_IMETHODIMP
+nsPartChannel::GetPreamble(nsACString & aPreamble)
+{
+    aPreamble = mPreamble;
+    return NS_OK;
+}
+
+void
+nsPartChannel::SetPreamble(const nsACString& aPreamble)
+{
+    mPreamble = aPreamble;
+}
+
+NS_IMETHODIMP
+nsPartChannel::GetOriginalResponseHeader(nsACString & aOriginalResponseHeader)
+{
+    aOriginalResponseHeader = mOriginalResponseHeader;
+    return NS_OK;
+}
+
+void
+nsPartChannel::SetOriginalResponseHeader(const nsACString& aOriginalResponseHeader)
+{
+    mOriginalResponseHeader = aOriginalResponseHeader;
+}
 
 // nsISupports implementation
 NS_IMPL_ISUPPORTS(nsMultiMixedConv,
@@ -492,8 +519,7 @@ nsMultiMixedConv::AsyncConvertData(const char *aFromType, const char *aToType,
     //  in the raw stream.
     mFinalListener = aListener;
 
-    nsCOMPtr<nsIPackagedAppService> pas(do_QueryInterface(aCtxt));
-    if (pas) {
+    if (NS_LITERAL_CSTRING(APPLICATION_PACKAGE).Equals(aFromType)) {
         mPackagedApp = true;
     }
     return NS_OK;
@@ -508,7 +534,7 @@ public:
   explicit AutoFree(char *buffer) : mBuffer(buffer) {}
 
   ~AutoFree() {
-    free(mBuffer);
+    moz_free(mBuffer);
   }
 
   AutoFree& operator=(char *buffer) {
@@ -522,6 +548,49 @@ public:
 private:
   char *mBuffer;
 };
+
+char*
+nsMultiMixedConv::ProbeToken(char* aBuffer, uint32_t& aTokenLen)
+{
+    // To sign a packaged web app in the new security model, we need
+    // to add the signature to the package header. The header is the
+    // data before the first token and the header format is
+    //
+    // [field-name]: [field-value] CR LF
+    //
+    // So the package may look like:
+    //
+    // manifest-signature: MRjdkly...
+    // --gc0pJq0M:08jU534c0p
+    // Content-Location: /someapp.webmanifest
+    // Content-Type: application/manifest
+    //
+    // {
+    // "name": "My App",
+    // "description":"A great app!"
+    // ...
+    //
+    //
+    // We search for the first '\r\n--' and assign the subsquent chars
+    // to the token until another '\r\n'. '--' will be included in the
+    // token we probed. If the second '\r\n' is not found, we still treat
+    // the token is not found and more data will be requested.
+
+    char* posCRLFDashDash = PL_strstr(aBuffer, "\r\n--");
+    if (!posCRLFDashDash) {
+        return nullptr;
+    }
+
+    char* tokenStart = posCRLFDashDash + 2; // Skip "\r\n".
+    char* tokenEnd = PL_strstr(tokenStart, "\r\n");
+    if (!tokenEnd) {
+        return nullptr;
+    }
+
+    aTokenLen = tokenEnd - tokenStart;
+
+    return tokenStart;
+}
 
 // nsIStreamListener implementation
 NS_IMETHODIMP
@@ -542,14 +611,14 @@ nsMultiMixedConv::OnDataAvailable(nsIRequest *request, nsISupports *context,
         bufLen = count + mBufLen;
         NS_ENSURE_TRUE((bufLen >= count) && (bufLen >= mBufLen),
                        NS_ERROR_FAILURE);
-        buffer = (char *) malloc(bufLen);
+        buffer = (char *) moz_xmalloc(bufLen);
         if (!buffer)
             return NS_ERROR_OUT_OF_MEMORY;
 
         if (mBufLen) {
             // incorporate any buffered data into the parsing
             memcpy(buffer, mBuffer, mBufLen);
-            free(mBuffer);
+            moz_free(mBuffer);
             mBuffer = 0;
             mBufLen = 0;
         }
@@ -585,26 +654,38 @@ nsMultiMixedConv::OnDataAvailable(nsIRequest *request, nsISupports *context,
         } else if (mPackagedApp) {
             // We need to check the line starts with --
             if (!StringBeginsWith(firstBuffer, NS_LITERAL_CSTRING("--"))) {
-                return NS_ERROR_FAILURE;
-            }
+                char* tokenPos = ProbeToken(buffer, mTokenLen);
+                if (!tokenPos) {
+                    // No token is found. We need more data.
+                    mFirstOnData = true;
+                } else {
+                    // Token is probed.
+                    mToken = Substring(tokenPos, mTokenLen);
+                    mPreamble = nsCString(Substring(buffer, tokenPos));
 
-            // If the boundary was set in the header,
-            // we need to check it matches with the one in the file.
-            if (mTokenLen &&
-                !StringBeginsWith(Substring(firstBuffer, 2), mToken)) {
-                return NS_ERROR_FAILURE;
-            }
+                    // Push the cursor to the token so that the while loop below will
+                    // find token from the right position.
+                    cursor = tokenPos;
+                }
+            } else {
+                // If the boundary was set in the header,
+                // we need to check it matches with the one in the file.
+                if (mTokenLen &&
+                    !StringBeginsWith(Substring(firstBuffer, 2), mToken)) {
+                    return NS_ERROR_FAILURE;
+                }
 
-            // Save the token.
-            if (!mTokenLen) {
-                mToken = nsCString(Substring(firstBuffer, 2).BeginReading(),
-                                   posCR - 2);
-                mTokenLen = mToken.Length();
-            }
+                // Save the token.
+                if (!mTokenLen) {
+                    mToken = nsCString(Substring(firstBuffer, 2).BeginReading(),
+                                       posCR - 2);
+                    mTokenLen = mToken.Length();
+                }
 
-            cursor = buffer;
+                cursor = buffer;
+            }
         } else if (!PL_strnstr(cursor, token, mTokenLen + 2)) {
-            char *newBuffer = (char *) realloc(buffer, bufLen + mTokenLen + 1);
+            char *newBuffer = (char *) moz_xrealloc(buffer, bufLen + mTokenLen + 1);
             if (!newBuffer)
                 return NS_ERROR_OUT_OF_MEMORY;
             buffer = newBuffer;
@@ -630,8 +711,14 @@ nsMultiMixedConv::OnDataAvailable(nsIRequest *request, nsISupports *context,
         // for this "part" given the previous buffer given to 
         // us in the previous OnDataAvailable callback.
         bool done = false;
+        const char* originalCursor = cursor;
         rv = ParseHeaders(channel, cursor, bufLen, &done);
         if (NS_FAILED(rv)) return rv;
+
+        // Append the content to the original header.
+        if (cursor > originalCursor) {
+            mOriginalResponseHeader.Append(originalCursor, cursor - originalCursor);
+        }
 
         if (done) {
             mProcessingHeaders = false;
@@ -670,9 +757,16 @@ nsMultiMixedConv::OnDataAvailable(nsIRequest *request, nsISupports *context,
             // parse headers
             mNewPart = false;
             cursor = token;
-            bool done = false; 
+            bool done = false;
+            const char* originalCursor = cursor;
             rv = ParseHeaders(channel, cursor, bufLen, &done);
             if (NS_FAILED(rv)) return rv;
+
+            // Append the content to the original header.
+            if (cursor > originalCursor) {
+                mOriginalResponseHeader.Append(originalCursor, cursor - originalCursor);
+            }
+
             if (done) {
                 rv = SendStart(channel);
                 if (NS_FAILED(rv)) return rv;
@@ -753,7 +847,12 @@ nsMultiMixedConv::OnStartRequest(nsIRequest *request, nsISupports *ctxt) {
 
     nsCOMPtr<nsIChannel> channel = do_QueryInterface(request, &rv);
     if (NS_FAILED(rv)) return rv;
-    
+
+    nsCOMPtr<nsICacheInfoChannel> cacheChan = do_QueryInterface(request);
+    if (cacheChan) {
+        cacheChan->IsFromCache(&mIsFromCache);
+    }
+
     // ask the HTTP channel for the content-type and extract the boundary from it.
     nsCOMPtr<nsIHttpChannel> httpChannel = do_QueryInterface(channel, &rv);
     if (NS_SUCCEEDED(rv)) {
@@ -773,7 +872,7 @@ nsMultiMixedConv::OnStartRequest(nsIRequest *request, nsISupports *ctxt) {
     // Although it is compatible with multipart/* this format does not require
     // the boundary to be included in the header, as it can be ascertained from
     // the content of the file.
-    if (delimiter.Find("application/package") != kNotFound) {
+    if (delimiter.Find(NS_LITERAL_CSTRING(APPLICATION_PACKAGE)) != kNotFound) {
         mPackagedApp = true;
         mHasAppContentType = true;
         mToken.Truncate();
@@ -829,7 +928,14 @@ nsMultiMixedConv::OnStopRequest(nsIRequest *request, nsISupports *ctxt,
 
     // We should definitely have found a token at this point. Not having one
     // is clearly an error, so we need to pass it to the listener.
-    if (mToken.IsEmpty()) {
+    // However, since packaged apps usually have the boundary token at the
+    // begining of the content, if the package is served from the cache, and
+    // only metadata was saved for said package (meaning no content is available
+    // and `mFirstOnData` is true) then we wouldn't have a boundary even though
+    // no error has occured.
+    if (mToken.IsEmpty() &&
+        NS_SUCCEEDED(rv) && // don't hide channel error results
+        !(mPackagedApp && mIsFromCache && mFirstOnData)) {
         aStatus = NS_ERROR_FAILURE;
         rv = NS_ERROR_FAILURE;
     }
@@ -843,7 +949,7 @@ nsMultiMixedConv::OnStopRequest(nsIRequest *request, nsISupports *ctxt,
             (void) SendData(mBuffer, mBufLen);
             // don't bother checking the return value here, if the send failed
             // we're done anyway as we're in the OnStop() callback.
-            free(mBuffer);
+            moz_free(mBuffer);
             mBuffer = nullptr;
             mBufLen = 0;
         }
@@ -858,6 +964,12 @@ nsMultiMixedConv::OnStopRequest(nsIRequest *request, nsISupports *ctxt,
         // OnStartRequest!  -  This breaks necko's semantecs. 
         //(void) mFinalListener->OnStartRequest(request, ctxt);
         
+        (void) mFinalListener->OnStopRequest(request, ctxt, aStatus);
+    } else if (mIsFromCache && mFirstOnData) {
+        // `mFirstOnData` is true if the package's cache entry only holds
+        // metadata and no calls to OnDataAvailable are made.
+        // In this case we would not call OnStopRequest for any of the parts,
+        // so we need to call it here.
         (void) mFinalListener->OnStopRequest(request, ctxt, aStatus);
     }
 
@@ -881,12 +993,13 @@ nsMultiMixedConv::nsMultiMixedConv() :
     mIsByteRangeRequest = false;
     mPackagedApp        = false;
     mHasAppContentType  = false;
+    mIsFromCache        = false;
 }
 
 nsMultiMixedConv::~nsMultiMixedConv() {
     NS_ASSERTION(!mBuffer, "all buffered data should be gone");
     if (mBuffer) {
-        free(mBuffer);
+        moz_free(mBuffer);
         mBuffer = nullptr;
     }
 }
@@ -895,7 +1008,7 @@ nsresult
 nsMultiMixedConv::BufferData(char *aData, uint32_t aLen) {
     NS_ASSERTION(!mBuffer, "trying to over-write buffer");
 
-    char *buffer = (char *) malloc(aLen);
+    char *buffer = (char *) moz_xmalloc(aLen);
     if (!buffer) return NS_ERROR_OUT_OF_MEMORY;
 
     memcpy(buffer, aData, aLen);
@@ -946,6 +1059,13 @@ nsMultiMixedConv::SendStart(nsIChannel *aChannel) {
 
     // Set up the new part channel...
     mPartChannel = newChannel;
+
+    // Pass preamble to the channel.
+    mPartChannel->SetPreamble(mPreamble);
+
+    // Pass original http header.
+    mPartChannel->SetOriginalResponseHeader(mOriginalResponseHeader);
+    mOriginalResponseHeader = EmptyCString();
 
     // We pass the headers to the nsPartChannel
     mPartChannel->SetResponseHead(mResponseHead.forget());
@@ -1061,7 +1181,7 @@ nsMultiMixedConv::ParseHeaders(nsIChannel *aChannel, char *&aPtr,
     // It may already be initialized, from a previous call of ParseHeaders
     // since the headers for a single part may come in more then one chunk
     if (mPackagedApp && !mResponseHead) {
-        mResponseHead = new nsHttpResponseHead();
+        mResponseHead = new mozilla::net::nsHttpResponseHead();
     }
 
     mContentLength = UINT64_MAX; // XXX what if we were already called?

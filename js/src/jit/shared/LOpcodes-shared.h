@@ -14,6 +14,7 @@
     _(OsiPoint)                     \
     _(MoveGroup)                    \
     _(Integer)                      \
+    _(Integer64)                    \
     _(Pointer)                      \
     _(Double)                       \
     _(Float32)                      \
@@ -22,12 +23,15 @@
     _(SimdSplatX4)                  \
     _(Int32x4)                      \
     _(Float32x4)                    \
+    _(SimdAllTrue)                  \
+    _(SimdAnyTrue)                  \
     _(SimdReinterpretCast)          \
     _(SimdExtractElementI)          \
+    _(SimdExtractElementU2D)        \
+    _(SimdExtractElementB)          \
     _(SimdExtractElementF)          \
     _(SimdInsertElementI)           \
     _(SimdInsertElementF)           \
-    _(SimdSignMaskX4)               \
     _(SimdGeneralShuffleI)          \
     _(SimdGeneralShuffleF)          \
     _(SimdSwizzleI)                 \
@@ -68,11 +72,13 @@
     _(InitPropGetterSetter)         \
     _(CheckOverRecursed)            \
     _(DefVar)                       \
+    _(DefLexical)                   \
     _(DefFun)                       \
     _(CallKnown)                    \
     _(CallGeneric)                  \
     _(CallNative)                   \
     _(ApplyArgsGeneric)             \
+    _(ApplyArrayGeneric)            \
     _(Bail)                         \
     _(Unreachable)                  \
     _(EncodeSnapshot)               \
@@ -88,7 +94,6 @@
     _(SetArgumentsObjectArg)        \
     _(ReturnFromCtor)               \
     _(ComputeThis)                  \
-    _(LoadArrowThis)                \
     _(BitNotI)                      \
     _(BitNotV)                      \
     _(BitOpI)                       \
@@ -115,8 +120,8 @@
     _(CompareStrictS)               \
     _(CompareB)                     \
     _(CompareBAndBranch)            \
-    _(CompareV)                     \
-    _(CompareVAndBranch)            \
+    _(CompareBitwise)               \
+    _(CompareBitwiseAndBranch)      \
     _(CompareVM)                    \
     _(BitAndAndBranch)              \
     _(IsNullOrLikeUndefinedV)       \
@@ -162,6 +167,7 @@
     _(Concat)                       \
     _(CharCodeAt)                   \
     _(FromCharCode)                 \
+    _(SinCos)                       \
     _(StringSplit)                  \
     _(Int32ToDouble)                \
     _(Float32ToDouble)              \
@@ -181,6 +187,7 @@
     _(ValueToObjectOrNull)          \
     _(Int32x4ToFloat32x4)           \
     _(Float32x4ToInt32x4)           \
+    _(Float32x4ToUint32x4)          \
     _(Start)                        \
     _(OsrEntry)                     \
     _(OsrValue)                     \
@@ -188,8 +195,8 @@
     _(OsrReturnValue)               \
     _(OsrArgumentsObject)           \
     _(RegExp)                       \
-    _(RegExpExec)                   \
-    _(RegExpTest)                   \
+    _(RegExpMatcher)                \
+    _(RegExpTester)                 \
     _(RegExpReplace)                \
     _(StringReplace)                \
     _(Substr)                       \
@@ -220,6 +227,8 @@
     _(MonitorTypes)                 \
     _(PostWriteBarrierO)            \
     _(PostWriteBarrierV)            \
+    _(PostWriteElementBarrierO)     \
+    _(PostWriteElementBarrierV)     \
     _(InitializedLength)            \
     _(SetInitializedLength)         \
     _(UnboxedArrayLength)           \
@@ -255,6 +264,7 @@
     _(StoreTypedArrayElementHole)   \
     _(StoreTypedArrayElementStatic) \
     _(AtomicIsLockFree)             \
+    _(GuardSharedTypedArray)        \
     _(CompareExchangeTypedArrayElement) \
     _(AtomicExchangeTypedArrayElement) \
     _(AtomicTypedArrayElementBinop) \
@@ -265,6 +275,7 @@
     _(ClampVToUint8)                \
     _(LoadFixedSlotV)               \
     _(LoadFixedSlotT)               \
+    _(LoadFixedSlotAndUnbox)        \
     _(StoreFixedSlotV)              \
     _(StoreFixedSlotT)              \
     _(FunctionEnvironment)          \
@@ -272,9 +283,8 @@
     _(GetPropertyCacheT)            \
     _(GetPropertyPolymorphicV)      \
     _(GetPropertyPolymorphicT)      \
-    _(GetElementCacheV)             \
-    _(GetElementCacheT)             \
     _(BindNameCache)                \
+    _(CallBindVar)                  \
     _(CallGetProperty)              \
     _(GetNameCache)                 \
     _(CallGetIntrinsicValue)        \
@@ -284,10 +294,7 @@
     _(CallSetProperty)              \
     _(CallDeleteProperty)           \
     _(CallDeleteElement)            \
-    _(SetPropertyCacheV)            \
-    _(SetPropertyCacheT)            \
-    _(SetElementCacheV)             \
-    _(SetElementCacheT)             \
+    _(SetPropertyCache)             \
     _(SetPropertyPolymorphicV)      \
     _(SetPropertyPolymorphicT)      \
     _(CallIteratorStart)            \
@@ -326,7 +333,6 @@
     _(CallInstanceOf)               \
     _(InterruptCheck)               \
     _(AsmJSInterruptCheck)          \
-    _(InterruptCheckImplicit)       \
     _(GetDOMProperty)               \
     _(GetDOMMemberV)                \
     _(GetDOMMemberT)                \
@@ -362,9 +368,13 @@
     _(AssertResultV)                \
     _(AssertResultT)                \
     _(LexicalCheck)                 \
-    _(ThrowUninitializedLexical)    \
+    _(ThrowRuntimeLexicalError)     \
+    _(GlobalNameConflictsCheck)     \
     _(Debugger)                     \
     _(NewTarget)                    \
-    _(ArrowNewTarget)
+    _(ArrowNewTarget)               \
+    _(CheckReturn)                  \
+    _(CheckObjCoercible)            \
+    _(DebugCheckSelfHosted)
 
 #endif /* jit_shared_LOpcodes_shared_h */

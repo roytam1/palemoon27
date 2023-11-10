@@ -45,6 +45,7 @@ ABIArgGenerator::next(MIRType type)
     }
     switch (type) {
       case MIRType_Int32:
+      case MIRType_Int64:
       case MIRType_Pointer:
         current_ = ABIArg(IntArgRegs[regIndex_++]);
         break;
@@ -54,17 +55,13 @@ ABIArgGenerator::next(MIRType type)
       case MIRType_Double:
         current_ = ABIArg(FloatArgRegs[regIndex_++]);
         break;
+      case MIRType_Bool32x4:
       case MIRType_Int32x4:
-        // On Win64, >64 bit args need to be passed by reference, but asm.js
-        // doesn't allow passing SIMD values to FFIs. The only way to reach
-        // here is asm to asm calls, so we can break the ABI here.
-        current_ = ABIArg(FloatArgRegs[regIndex_++].asInt32x4());
-        break;
       case MIRType_Float32x4:
         // On Win64, >64 bit args need to be passed by reference, but asm.js
         // doesn't allow passing SIMD values to FFIs. The only way to reach
         // here is asm to asm calls, so we can break the ABI here.
-        current_ = ABIArg(FloatArgRegs[regIndex_++].asFloat32x4());
+        current_ = ABIArg(FloatArgRegs[regIndex_++].asSimd128());
         break;
       default:
         MOZ_CRASH("Unexpected argument type");
@@ -73,6 +70,7 @@ ABIArgGenerator::next(MIRType type)
 #else
     switch (type) {
       case MIRType_Int32:
+      case MIRType_Int64:
       case MIRType_Pointer:
         if (intRegIndex_ == NumIntArgRegs) {
             current_ = ABIArg(stackOffset_);
@@ -93,6 +91,7 @@ ABIArgGenerator::next(MIRType type)
         else
             current_ = ABIArg(FloatArgRegs[floatRegIndex_++]);
         break;
+      case MIRType_Bool32x4:
       case MIRType_Int32x4:
       case MIRType_Float32x4:
         if (floatRegIndex_ == NumFloatArgRegs) {
@@ -101,10 +100,7 @@ ABIArgGenerator::next(MIRType type)
             stackOffset_ += Simd128DataSize;
             break;
         }
-        if (type == MIRType_Int32x4)
-            current_ = ABIArg(FloatArgRegs[floatRegIndex_++].asInt32x4());
-        else
-            current_ = ABIArg(FloatArgRegs[floatRegIndex_++].asFloat32x4());
+        current_ = ABIArg(FloatArgRegs[floatRegIndex_++].asSimd128());
         break;
       default:
         MOZ_CRASH("Unexpected argument type");

@@ -69,9 +69,10 @@ CURRENT_DIRS := $($(CURRENT_TIER)_dirs)
 
 # Need a list of compile targets because we can't use pattern rules:
 # https://savannah.gnu.org/bugs/index.php?42833
+# Only recurse the paths starting with RECURSE_BASE_DIR when provided.
 .PHONY: $(compile_targets)
 $(compile_targets):
-	$(call SUBMAKE,$(@F),$(@D))
+	$(if $(filter $(RECURSE_BASE_DIR)%,$@),$(call SUBMAKE,$(@F),$(@D)))
 
 # The compile tier has different rules from other tiers.
 ifneq ($(CURRENT_TIER),compile)
@@ -128,7 +129,10 @@ endef
 $(foreach subtier,$(filter-out compile,$(TIERS)),$(eval $(call CREATE_SUBTIER_TRAVERSAL_RULE,$(subtier))))
 
 ifndef TOPLEVEL_BUILD
-libs:: target host
+ifdef COMPILE_ENVIRONMENT
+compile::
+	@$(MAKE) -C $(DEPTH) compile RECURSE_BASE_DIR=$(relativesrcdir)/
+endif # COMPILE_ENVIRONMENT
 endif
 
 endif # ifeq ($(NO_RECURSE_MAKELEVEL),$(MAKELEVEL))

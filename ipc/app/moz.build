@@ -4,11 +4,15 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
+# Any changes that affect Android need to be made in pie/moz.build as well.
+
 if CONFIG['MOZ_WIDGET_TOOLKIT'] == 'android':
     Program(CONFIG['MOZ_CHILD_PROCESS_NAME'])
     SOURCES += [
         'MozillaRuntimeMainAndroid.cpp',
     ]
+
+    DIRS += ['pie']
 else:
     kwargs = {
         'linkage': None,
@@ -69,11 +73,22 @@ if CONFIG['MOZ_SANDBOX'] and CONFIG['OS_TARGET'] in ('Linux', 'Android'):
     # from the function using it which breaks the build.  Work around that by
     # forcing there to be only one partition.
     if '-flto' in CONFIG['OS_CXXFLAGS'] and not CONFIG['CLANG_CXX']:
-	LDFLAGS += ['--param lto-partitions=1']
+        LDFLAGS += ['--param lto-partitions=1']
 
 if CONFIG['MOZ_SANDBOX'] and CONFIG['OS_TARGET'] == 'Darwin':
+    # For sandbox includes and the include dependencies those have
+    LOCAL_INCLUDES += [
+        '/security/sandbox/chromium',
+        '/security/sandbox/chromium-shim',
+    ]
     USE_LIBS += [
         'mozsandbox',
+        'rlz',
+    ]
+
+    DEFINES['HASH_NODE_ID_WITH_DEVICE_ID'] = 1;
+    SOURCES += [
+        'sha256.c',
     ]
 
 if CONFIG['_MSC_VER']:
@@ -95,11 +110,14 @@ if CONFIG['OS_ARCH'] == 'WINNT' and not CONFIG['GNU_CC']:
     LDFLAGS += ['/HEAP:0x40000']
 
 # Windows builds have dll linkage warnings due to msvcrt static linkage
-if CONFIG['OS_ARCH'] != 'WINNT':
-    FAIL_ON_WARNINGS = True
+if CONFIG['OS_ARCH'] == 'WINNT':
+    ALLOW_COMPILER_WARNINGS = True
 
 if CONFIG['MOZ_WIDGET_TOOLKIT'] == 'gonk':
     OS_LIBS += [
         'binder',
         'utils',
     ]
+
+if CONFIG['GNU_CXX']:
+    CXXFLAGS += ['-Wshadow']

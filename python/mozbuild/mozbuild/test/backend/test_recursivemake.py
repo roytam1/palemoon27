@@ -188,6 +188,7 @@ class TestRecursiveMakeBackend(BackendTester):
         lines = [l.strip() for l in open(p, 'rt').readlines()[1:] if not l.startswith('#')]
         self.assertEqual(lines, [
             'DEPTH := .',
+            'topobjdir := %s' % env.topobjdir,
             'topsrcdir := %s' % env.topsrcdir,
             'srcdir := %s' % env.topsrcdir,
             'VPATH := %s' % env.topsrcdir,
@@ -207,7 +208,7 @@ class TestRecursiveMakeBackend(BackendTester):
         self.assertTrue(os.path.exists(p))
 
         lines = [l.strip() for l in open(p, 'rt').readlines()]
-        self.assertEqual(len(lines), 9)
+        self.assertEqual(len(lines), 10)
 
         self.assertTrue(lines[0].startswith('# THIS FILE WAS AUTOMATICALLY'))
 
@@ -260,19 +261,20 @@ class TestRecursiveMakeBackend(BackendTester):
         lines = [l.strip() for l in open(backend_path, 'rt').readlines()[2:]]
 
         expected = {
+            'ALLOW_COMPILER_WARNINGS': [
+                'ALLOW_COMPILER_WARNINGS := 1',
+            ],
             'DISABLE_STL_WRAPPING': [
                 'DISABLE_STL_WRAPPING := 1',
             ],
             'EXTRA_COMPONENTS': [
                 'EXTRA_COMPONENTS += bar.js',
+                'EXTRA_COMPONENTS += dummy.manifest',
                 'EXTRA_COMPONENTS += foo.js',
             ],
             'EXTRA_PP_COMPONENTS': [
                 'EXTRA_PP_COMPONENTS += bar.pp.js',
                 'EXTRA_PP_COMPONENTS += foo.pp.js',
-            ],
-            'FAIL_ON_WARNINGS': [
-                'FAIL_ON_WARNINGS := 1',
             ],
             'VISIBILITY_FLAGS': [
                 'VISIBILITY_FLAGS :=',
@@ -305,6 +307,14 @@ class TestRecursiveMakeBackend(BackendTester):
                 'MOZBUILD_LDFLAGS += -x',
                 'MOZBUILD_LDFLAGS += -DELAYLOAD:foo.dll',
                 'MOZBUILD_LDFLAGS += -DELAYLOAD:bar.dll',
+            ],
+            'MOZBUILD_HOST_CFLAGS': [
+                'MOZBUILD_HOST_CFLAGS += -funroll-loops',
+                'MOZBUILD_HOST_CFLAGS += -wall',
+            ],
+            'MOZBUILD_HOST_CXXFLAGS': [
+                'MOZBUILD_HOST_CXXFLAGS += -funroll-loops-harder',
+                'MOZBUILD_HOST_CXXFLAGS += -wall-day-everyday',
             ],
             'WIN32_EXE_LDFLAGS': [
                 'WIN32_EXE_LDFLAGS += -subsystem:console',
@@ -408,6 +418,19 @@ class TestRecursiveMakeBackend(BackendTester):
         self.assertIn('res/bar.res', m)
         self.assertIn('res/tests/test.manifest', m)
         self.assertIn('res/tests/extra.manifest', m)
+
+    def test_branding_files(self):
+        """Ensure BRANDING_FILES is handled properly."""
+        env = self._consume('branding-files', RecursiveMakeBackend)
+
+        #BRANDING_FILES should appear in the dist_branding install manifest.
+        m = InstallManifest(path=os.path.join(env.topobjdir,
+            '_build_manifests', 'install', 'dist_branding'))
+        self.assertEqual(len(m), 4)
+        self.assertIn('app.ico', m)
+        self.assertIn('bar.ico', m)
+        self.assertIn('quux.png', m)
+        self.assertIn('icons/foo.ico', m)
 
     def test_js_preference_files(self):
         """Ensure PREF_JS_EXPORTS is written out correctly."""
@@ -567,6 +590,19 @@ class TestRecursiveMakeBackend(BackendTester):
         expected = ['DEFINES += -DFOO -DBAZ=\'"ab\'\\\'\'cd"\' -UQUX -DBAR=7 -DVALUE=\'xyz\'']
         self.assertEqual(defines, expected)
 
+    def test_host_defines(self):
+        """Test that HOST_DEFINES are written to backend.mk correctly."""
+        env = self._consume('host-defines', RecursiveMakeBackend)
+
+        backend_path = mozpath.join(env.topobjdir, 'backend.mk')
+        lines = [l.strip() for l in open(backend_path, 'rt').readlines()[2:]]
+
+        var = 'HOST_DEFINES'
+        defines = [val for val in lines if val.startswith(var)]
+
+        expected = ['HOST_DEFINES += -DFOO -DBAZ=\'"ab\'\\\'\'cd"\' -UQUX -DBAR=7 -DVALUE=\'xyz\'']
+        self.assertEqual(defines, expected)
+
     def test_local_includes(self):
         """Test that LOCAL_INCLUDES are written to backend.mk correctly."""
         env = self._consume('local_includes', RecursiveMakeBackend)
@@ -575,7 +611,7 @@ class TestRecursiveMakeBackend(BackendTester):
         lines = [l.strip() for l in open(backend_path, 'rt').readlines()[2:]]
 
         expected = [
-            'LOCAL_INCLUDES += -I$(topsrcdir)/bar/baz',
+            'LOCAL_INCLUDES += -I$(srcdir)/bar/baz',
             'LOCAL_INCLUDES += -I$(srcdir)/foo',
         ]
 
@@ -592,7 +628,7 @@ class TestRecursiveMakeBackend(BackendTester):
         topobjdir = env.topobjdir.replace('\\', '/')
 
         expected = [
-            'LOCAL_INCLUDES += -I%s/bar/baz' % topobjdir,
+            'LOCAL_INCLUDES += -Ibar/baz',
             'LOCAL_INCLUDES += -Ifoo',
         ]
 
@@ -646,8 +682,7 @@ class TestRecursiveMakeBackend(BackendTester):
         self.assertEqual(found, expected)
 
     def test_config(self):
-        """Test that CONFIGURE_SUBST_FILES and CONFIGURE_DEFINE_FILES are
-        properly handled."""
+        """Test that CONFIGURE_SUBST_FILES are properly handled."""
         env = self._consume('test_config', RecursiveMakeBackend)
 
         self.assertEqual(
@@ -655,25 +690,6 @@ class TestRecursiveMakeBackend(BackendTester):
                 '#ifdef foo\n',
                 'bar baz\n',
                 '@bar@\n',
-            ])
-
-        self.assertEqual(
-            open(os.path.join(env.topobjdir, 'file.h'), 'r').readlines(), [
-                '/* Comment */\n',
-                '#define foo\n',
-                '#define foo baz qux\n',
-                '#define foo baz qux\n',
-                '#define bar\n',
-                '#define bar 42\n',
-                '/* #undef bar */\n',
-                '\n',
-                '# define baz 1\n',
-                '\n',
-                '#ifdef foo\n',
-                '#   define   foo baz qux\n',
-                '#  define foo    baz qux\n',
-                '  #     define   foo   baz qux   \n',
-                '#endif\n',
             ])
 
     def test_jar_manifests(self):

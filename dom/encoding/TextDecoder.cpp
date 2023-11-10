@@ -7,6 +7,7 @@
 #include "mozilla/dom/TextDecoder.h"
 #include "mozilla/dom/EncodingUtils.h"
 #include "mozilla/dom/UnionTypes.h"
+#include "mozilla/UniquePtrExtensions.h"
 #include "nsContentUtils.h"
 #include <stdint.h>
 
@@ -26,7 +27,7 @@ TextDecoder::Init(const nsAString& aLabel, const bool aFatal,
   if (!EncodingUtils::FindEncodingForLabelNoReplacement(aLabel, encoding)) {
     nsAutoString label(aLabel);
     EncodingUtils::TrimSpaceCharacters(label);
-    aRv.ThrowRangeError(MSG_ENCODING_NOT_SUPPORTED, &label);
+    aRv.ThrowRangeError<MSG_ENCODING_NOT_SUPPORTED>(label);
     return;
   }
   InitWithEncoding(encoding, aFatal);
@@ -65,17 +66,21 @@ TextDecoder::Decode(const char* aInput, const int32_t aLength,
   }
   // Need a fallible allocator because the caller may be a content
   // and the content can specify the length of the string.
-  nsAutoArrayPtr<char16_t> buf(new (fallible) char16_t[outLen + 1]);
+  auto buf = MakeUniqueFallible<char16_t[]>(outLen + 1);
   if (!buf) {
     aRv.Throw(NS_ERROR_OUT_OF_MEMORY);
     return;
   }
 
   int32_t length = aLength;
-  rv = mDecoder->Convert(aInput, &length, buf, &outLen);
+  rv = mDecoder->Convert(aInput, &length, buf.get(), &outLen);
   MOZ_ASSERT(mFatal || rv != NS_ERROR_ILLEGAL_INPUT);
   buf[outLen] = 0;
-  aOutDecodedString.Append(buf, outLen);
+
+  if (!aOutDecodedString.Append(buf.get(), outLen, fallible)) {
+    aRv.Throw(NS_ERROR_OUT_OF_MEMORY);
+    return;
+  }
 
   // If the internal streaming flag of the decoder object is not set,
   // then reset the encoding algorithm state to the default values
@@ -83,7 +88,7 @@ TextDecoder::Decode(const char* aInput, const int32_t aLength,
     mDecoder->Reset();
     if (rv == NS_OK_UDEC_MOREINPUT) {
       if (mFatal) {
-        aRv.ThrowTypeError(MSG_DOM_DECODING_FAILED);
+        aRv.ThrowTypeError<MSG_DOM_DECODING_FAILED>();
       } else {
         // Need to emit a decode error manually
         // to simulate the EOF handling of the Encoding spec.
@@ -93,7 +98,7 @@ TextDecoder::Decode(const char* aInput, const int32_t aLength,
   }
 
   if (NS_FAILED(rv)) {
-    aRv.ThrowTypeError(MSG_DOM_DECODING_FAILED);
+    aRv.ThrowTypeError<MSG_DOM_DECODING_FAILED>();
   }
 }
 

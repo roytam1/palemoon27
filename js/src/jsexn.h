@@ -94,7 +94,8 @@ static_assert(JSEXN_ERR == 0 &&
               JSProto_Error + JSEXN_SYNTAXERR == JSProto_SyntaxError &&
               JSProto_Error + JSEXN_TYPEERR == JSProto_TypeError &&
               JSProto_Error + JSEXN_URIERR == JSProto_URIError &&
-              JSEXN_URIERR + 1 == JSEXN_LIMIT,
+              JSProto_Error + JSEXN_DEBUGGEEWOULDRUN == JSProto_DebuggeeWouldRun &&
+              JSEXN_DEBUGGEEWOULDRUN + 1 == JSEXN_LIMIT,
               "GetExceptionProtoKey and ExnTypeFromProtoKey require that "
               "each corresponding JSExnType and JSProtoKey value be separated "
               "by the same constant value");
@@ -118,10 +119,10 @@ ExnTypeFromProtoKey(JSProtoKey key)
 
 class AutoClearPendingException
 {
-    JSContext *cx;
+    JSContext* cx;
 
   public:
-    explicit AutoClearPendingException(JSContext *cxArg)
+    explicit AutoClearPendingException(JSContext* cxArg)
       : cx(cxArg)
     { }
 

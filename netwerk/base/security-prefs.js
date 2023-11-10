@@ -18,7 +18,6 @@ pref("security.tls.enable_0rtt_data", false);
 
 pref("security.ssl.treat_unsafe_negotiation_as_broken", false);
 pref("security.ssl.require_safe_negotiation",  false);
-pref("security.ssl.warn_missing_rfc5746",  1);
 pref("security.ssl.enable_ocsp_stapling", true);
 pref("security.ssl.enable_false_start", false);
 pref("security.ssl.false_start.require-npn", false);
@@ -40,7 +39,7 @@ pref("security.ssl3.dhe_rsa_camellia_128_sha", true); //FS Camellia
 pref("security.ssl3.dhe_rsa_camellia_256_sha", true); //FS Camellia
 pref("security.ssl3.rsa_aes_256_gcm_sha384", true);
 pref("security.ssl3.rsa_aes_256_sha256", true);
-pref("security.ssl3.rsa_aes_128_gcm_sha256", false);
+pref("security.ssl3.rsa_aes_128_gcm_sha256", true);
 pref("security.ssl3.rsa_aes_128_sha256", false);
 pref("security.ssl3.rsa_aes_128_sha", true);
 pref("security.ssl3.rsa_camellia_128_sha", true);
@@ -80,6 +79,8 @@ pref("security.password_lifetime",       30);
 pref("security.OCSP.enabled", 1);
 pref("security.OCSP.require", false);
 pref("security.OCSP.GET.enabled", false);
+
+pref("security.pki.cert_short_lifetime_in_days", 10);
 
 pref("security.ssl.errorReporting.enabled", false);
 pref("security.ssl.errorReporting.url", "https://data.mozilla.com/submit/sslreports");

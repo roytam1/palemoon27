@@ -30,7 +30,7 @@ struct LayerTransforms {
   gfx::Point GetStdDev();
 
   // 60 fps * 5 seconds worth of data
-  nsAutoTArray<gfx::Point, 300> mTransforms;
+  AutoTArray<gfx::Point, 300> mTransforms;
 };
 
 class LayerTransformRecorder {
@@ -48,8 +48,8 @@ private:
   std::map<uintptr_t,LayerTransforms*> mFrameTransforms;
 };
 
-} // mozilla
-} // layers
+} // namespace layers
+} // namespace mozilla
 
 namespace IPC {
 template<>
@@ -68,6 +68,6 @@ struct ParamTraits<mozilla::layers::FrameUniformityData>
   }
 };
 
-}// ipc
+} // namespace IPC
 
 #endif // mozilla_layers_FrameUniformityData_h_

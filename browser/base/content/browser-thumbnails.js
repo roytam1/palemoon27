@@ -92,7 +92,11 @@ let gBrowserThumbnails = {
 
   filterForThumbnailExpiration:
   function Thumbnails_filterForThumbnailExpiration(aCallback) {
-    aCallback([browser.currentURI.spec for (browser of gBrowser.browsers)]);
+    let _urls = [];
+    for (let browser of gBrowser.browsers) {
+        if(browser.currentURI) _urls.push(browser.currentURI.spec);
+    }
+    aCallback(_urls);
   },
 
   /**

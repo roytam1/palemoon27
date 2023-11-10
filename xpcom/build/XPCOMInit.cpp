@@ -6,8 +6,10 @@
 
 #include "base/basictypes.h"
 
+#include "mozilla/AbstractThread.h"
 #include "mozilla/Atomics.h"
 #include "mozilla/Poison.h"
+#include "mozilla/SharedThreadPool.h"
 #include "mozilla/XPCOM.h"
 #include "nsXULAppAPI.h"
 
@@ -136,10 +138,23 @@ extern nsresult nsStringInputStreamConstructor(nsISupports*, REFNSIID, void**);
 #include "mozilla/ipc/GeckoChildProcessHost.h"
 
 #include "ogg/ogg.h"
+#if defined(MOZ_VPX) && !defined(MOZ_VPX_NO_MEM_REPORTING)
+#if defined(HAVE_STDINT_H)
+// mozilla-config.h defines HAVE_STDINT_H, and then it's defined *again* in
+// vpx_config.h (which we include via vpx_mem.h, below). This redefinition
+// triggers a build warning on MSVC, so we have to #undef it first.
+#undef HAVE_STDINT_H
+#endif
+#include "vpx_mem/vpx_mem.h"
+#endif
+#ifdef MOZ_WEBM
+#include "nestegg/nestegg.h"
+#endif
 
 #include "GeckoProfiler.h"
 
 #include "jsapi.h"
+#include "js/Initialization.h"
 
 #include "gfxPlatform.h"
 
@@ -198,7 +213,7 @@ NS_GENERIC_FACTORY_CONSTRUCTOR(nsStorageStream)
 NS_GENERIC_FACTORY_CONSTRUCTOR(nsVersionComparatorImpl)
 NS_GENERIC_FACTORY_CONSTRUCTOR(nsScriptableBase64Encoder)
 
-NS_GENERIC_FACTORY_CONSTRUCTOR(nsVariant)
+NS_GENERIC_FACTORY_CONSTRUCTOR(nsVariantCC)
 
 NS_GENERIC_FACTORY_CONSTRUCTOR(nsHashPropertyBagCC)
 
@@ -483,6 +498,8 @@ NS_InitXPCOM2(nsIServiceManager** aResult,
 
   NS_LogInit();
 
+  mozilla::LogModule::Init();
+
   JS_SetCurrentEmbedderTimeFunction(TimeSinceProcessCreation);
 
   char aLocal;
@@ -594,17 +611,6 @@ NS_InitXPCOM2(nsIServiceManager** aResult,
   xpcomLib->GetPath(path);
   gGREBinPath = ToNewUnicode(path);
 
-#ifdef XP_MACOSX
-  nsCOMPtr<nsIFile> parent;
-  xpcomLib->GetParent(getter_AddRefs(parent));
-  parent->AppendNative(NS_LITERAL_CSTRING("MacOS"));
-  bool pathExists = false;
-  parent->Exists(&pathExists);
-  if (pathExists) {
-      xpcomLib = parent.forget();
-  }
-#endif
-
   xpcomLib->AppendNative(nsDependentCString(XPCOM_DLL));
   nsDirectoryService::gService->Set(NS_XPCOM_LIBRARY_FILE, xpcomLib);
 
@@ -669,6 +675,16 @@ NS_InitXPCOM2(nsIServiceManager** aResult,
                         OggReporter::CountingRealloc,
                         OggReporter::CountingFree);
 
+#if defined(MOZ_VPX) && !defined(MOZ_VPX_NO_MEM_REPORTING)
+  // And for VPX.
+  vpx_mem_set_functions(VPXReporter::CountingMalloc,
+                        VPXReporter::CountingCalloc,
+                        VPXReporter::CountingRealloc,
+                        VPXReporter::CountingFree,
+                        memcpy,
+                        memset,
+                        memmove);
+#endif
 
   // Initialize the JS engine.
   if (!JS_Init()) {
@@ -693,6 +709,12 @@ NS_InitXPCOM2(nsIServiceManager** aResult,
   // add any services listed in the "xpcom-directory-providers" category
   // to the directory service.
   nsDirectoryService::gService->RegisterCategoryProviders();
+
+  // Init SharedThreadPool (which needs the service manager).
+  SharedThreadPool::InitStatics();
+
+  // Init AbstractThread.
+  AbstractThread::InitStatics();
 
   // Force layout to spin up so that nsContentUtils is available for cx stack
   // munging.
@@ -722,6 +744,9 @@ NS_InitXPCOM2(nsIServiceManager** aResult,
   RegisterStrongMemoryReporter(new OggReporter());
 #ifdef MOZ_VPX
   RegisterStrongMemoryReporter(new VPXReporter());
+#endif
+#ifdef MOZ_WEBM
+  RegisterStrongMemoryReporter(new NesteggReporter());
 #endif
 
   mozilla::HangMonitor::Startup();
@@ -802,11 +827,12 @@ ShutdownXPCOM(nsIServiceManager* aServMgr)
       return NS_ERROR_UNEXPECTED;
     }
 
-    nsRefPtr<nsObserverService> observerService;
+    RefPtr<nsObserverService> observerService;
     CallGetService("@mozilla.org/observer-service;1",
                    (nsObserverService**)getter_AddRefs(observerService));
 
     if (observerService) {
+      mozilla::KillClearOnShutdown(ShutdownPhase::WillShutdown);
       observerService->NotifyObservers(nullptr,
                                        NS_XPCOM_WILL_SHUTDOWN_OBSERVER_ID,
                                        nullptr);
@@ -814,6 +840,7 @@ ShutdownXPCOM(nsIServiceManager* aServMgr)
       nsCOMPtr<nsIServiceManager> mgr;
       rv = NS_GetServiceManager(getter_AddRefs(mgr));
       if (NS_SUCCEEDED(rv)) {
+        mozilla::KillClearOnShutdown(ShutdownPhase::Shutdown);
         observerService->NotifyObservers(mgr, NS_XPCOM_SHUTDOWN_OBSERVER_ID,
                                          nullptr);
       }
@@ -826,6 +853,7 @@ ShutdownXPCOM(nsIServiceManager* aServMgr)
 
     mozilla::scache::StartupCache::DeleteSingleton();
     if (observerService)
+      mozilla::KillClearOnShutdown(ShutdownPhase::ShutdownThreads);
       observerService->NotifyObservers(nullptr,
                                        NS_XPCOM_SHUTDOWN_THREADS_OBSERVER_ID,
                                        nullptr);
@@ -856,6 +884,7 @@ ShutdownXPCOM(nsIServiceManager* aServMgr)
     // We save the "xpcom-shutdown-loaders" observers to notify after
     // the observerservice is gone.
     if (observerService) {
+      mozilla::KillClearOnShutdown(ShutdownPhase::ShutdownLoaders);
       observerService->EnumerateObservers(NS_XPCOM_SHUTDOWN_LOADERS_OBSERVER_ID,
                                           getter_AddRefs(moduleLoaders));
 
@@ -866,7 +895,7 @@ ShutdownXPCOM(nsIServiceManager* aServMgr)
   // Free ClearOnShutdown()'ed smart pointers.  This needs to happen *after*
   // we've finished notifying observers of XPCOM shutdown, because shutdown
   // observers themselves might call ClearOnShutdown().
-  mozilla::KillClearOnShutdown();
+  mozilla::KillClearOnShutdown(ShutdownPhase::ShutdownFinal);
 
   // XPCOM is officially in shutdown mode NOW
   // Set this only after the observers have been notified as this

@@ -825,11 +825,9 @@ WebConsoleActor.prototype =
       else if ("throw" in evalResult) {
         let error = evalResult.throw;
         errorGrip = this.createValueGrip(error);
-        let errorToString = evalInfo.window
-                            .evalInGlobalWithBindings("ex + ''", {ex: error});
-        if (errorToString && typeof errorToString.return == "string") {
-          errorMessage = errorToString.return;
-        }
+        errorMessage = error && (typeof error === "object")
+          ? error.unsafeDereference().toString()
+          : "" + error;
       }
     }
 
@@ -1040,7 +1038,7 @@ WebConsoleActor.prototype =
    * provide the "bindObjectActor" mechanism: the Web Console tells the
    * ObjectActor ID for which it desires to evaluate an expression. The
    * Debugger.Object pointed at by the actor ID is bound such that it is
-   * available during expression evaluation (evalInGlobalWithBindings()).
+   * available during expression evaluation (executeInGlobalWithBindings()).
    *
    * Example:
    *   _self['foobar'] = 'test'
@@ -1198,7 +1196,7 @@ WebConsoleActor.prototype =
       result = frame.evalWithBindings(aString, bindings, evalOptions);
     }
     else {
-      result = dbgWindow.evalInGlobalWithBindings(aString, bindings, evalOptions);
+      result = dbgWindow.executeInGlobalWithBindings(aString, bindings, evalOptions);
     }
 
     let helperResult = helpers.helperResult;

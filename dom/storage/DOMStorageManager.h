@@ -73,7 +73,7 @@ private:
     // weak ref only since cache references its manager.
     DOMStorageCache* mCache;
     // hard ref when this is sessionStorage to keep it alive forever.
-    nsRefPtr<DOMStorageCache> mCacheRef;
+    RefPtr<DOMStorageCache> mCacheRef;
   };
 
   // Ensures cache for a scope, when it doesn't exist it is created and initalized,
@@ -103,7 +103,7 @@ private:
 
 protected:
   // Keeps usage cache objects for eTLD+1 scopes we have touched.
-  nsDataHashtable<nsCStringHashKey, nsRefPtr<DOMStorageUsage> > mUsages;
+  nsDataHashtable<nsCStringHashKey, RefPtr<DOMStorageUsage> > mUsages;
 
   friend class DOMStorageCache;
   // Releases cache since it is no longer referrered by any DOMStorage object.
@@ -124,6 +124,9 @@ public:
 
   // Global getter of localStorage manager service
   static DOMLocalStorageManager* Self() { return sSelf; }
+
+  // Like Self, but creates an instance if we're not yet initialized.
+  static DOMLocalStorageManager* Ensure();
 
 private:
   static DOMLocalStorageManager* sSelf;

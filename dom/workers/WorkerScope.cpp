@@ -59,7 +59,8 @@ using mozilla::ipc::PrincipalInfo;
 BEGIN_WORKERS_NAMESPACE
 
 WorkerGlobalScope::WorkerGlobalScope(WorkerPrivate* aWorkerPrivate)
-: mWorkerPrivate(aWorkerPrivate)
+: mWindowInteractionsAllowed(0)
+, mWorkerPrivate(aWorkerPrivate)
 {
   mWorkerPrivate->AssertIsOnWorkerThread();
 }
@@ -137,7 +138,7 @@ WorkerGlobalScope::GetCaches(ErrorResult& aRv)
                                                  mWorkerPrivate, aRv);
   }
 
-  nsRefPtr<CacheStorage> ref = mCacheStorage;
+  RefPtr<CacheStorage> ref = mCacheStorage;
   return ref.forget();
 }
 
@@ -153,7 +154,7 @@ WorkerGlobalScope::Location()
     MOZ_ASSERT(mLocation);
   }
 
-  nsRefPtr<WorkerLocation> location = mLocation;
+  RefPtr<WorkerLocation> location = mLocation;
   return location.forget();
 }
 
@@ -167,7 +168,7 @@ WorkerGlobalScope::Navigator()
     MOZ_ASSERT(mNavigator);
   }
 
-  nsRefPtr<WorkerNavigator> navigator = mNavigator;
+  RefPtr<WorkerNavigator> navigator = mNavigator;
   return navigator.forget();
 }
 
@@ -176,7 +177,7 @@ WorkerGlobalScope::GetExistingNavigator() const
 {
   mWorkerPrivate->AssertIsOnWorkerThread();
 
-  nsRefPtr<WorkerNavigator> navigator = mNavigator;
+  RefPtr<WorkerNavigator> navigator = mNavigator;
   return navigator.forget();
 }
 
@@ -317,9 +318,11 @@ WorkerGlobalScope::Dump(const Optional<nsAString>& aString) const
     return;
   }
 
+#if !(defined(DEBUG) || defined(MOZ_ENABLE_JS_DUMP))
   if (!mWorkerPrivate->DumpEnabled()) {
     return;
   }
+#endif
 
   NS_ConvertUTF16toUTF8 str(aString.Value());
 
@@ -354,11 +357,12 @@ WorkerGlobalScope::GetIndexedDB(ErrorResult& aErrorResult)
 {
   mWorkerPrivate->AssertIsOnWorkerThread();
 
-  nsRefPtr<IDBFactory> indexedDB = mIndexedDB;
+  RefPtr<IDBFactory> indexedDB = mIndexedDB;
 
   if (!indexedDB) {
-    if (!mWorkerPrivate->IsIndexedDBAllowed()) {
+    if (!mWorkerPrivate->IsStorageAllowed()) {
       NS_WARNING("IndexedDB is not allowed in this worker!");
+      aErrorResult = NS_ERROR_DOM_SECURITY_ERR;
       return nullptr;
     }
 
@@ -416,6 +420,21 @@ DedicatedWorkerGlobalScope::WrapGlobalObject(JSContext* aCx,
 
   JS::CompartmentOptions options;
   mWorkerPrivate->CopyJSCompartmentOptions(options);
+
+  const bool usesSystemPrincipal = mWorkerPrivate->UsesSystemPrincipal();
+
+  // Note that xpc::ShouldDiscardSystemSource() and
+  // xpc::ExtraWarningsForSystemJS() read prefs that are cached on the main
+  // thread. This is benignly racey.
+  const bool discardSource = (usesSystemPrincipal ||
+                              mWorkerPrivate->IsInPrivilegedApp()) &&
+                             xpc::ShouldDiscardSystemSource();
+  const bool extraWarnings = usesSystemPrincipal &&
+                             xpc::ExtraWarningsForSystemJS();
+
+  JS::CompartmentBehaviors& behaviors = options.behaviors();
+  behaviors.setDiscardSource(discardSource)
+           .extraWarningsOverride().set(extraWarnings);
 
   return DedicatedWorkerGlobalScopeBinding_workers::Wrap(aCx, this, this,
                                                          options,
@@ -513,7 +532,7 @@ namespace {
 
 class SkipWaitingResultRunnable final : public WorkerRunnable
 {
-  nsRefPtr<PromiseWorkerProxy> mPromiseProxy;
+  RefPtr<PromiseWorkerProxy> mPromiseProxy;
 
 public:
   SkipWaitingResultRunnable(WorkerPrivate* aWorkerPrivate,
@@ -530,9 +549,7 @@ public:
     MOZ_ASSERT(aWorkerPrivate);
     aWorkerPrivate->AssertIsOnWorkerThread();
 
-    Promise* promise = mPromiseProxy->GetWorkerPromise();
-    MOZ_ASSERT(promise);
-
+    RefPtr<Promise> promise = mPromiseProxy->WorkerPromise();
     promise->MaybeResolve(JS::UndefinedHandleValue);
 
     // Release the reference on the worker thread.
@@ -544,7 +561,7 @@ public:
 
 class WorkerScopeSkipWaitingRunnable final : public nsRunnable
 {
-  nsRefPtr<PromiseWorkerProxy> mPromiseProxy;
+  RefPtr<PromiseWorkerProxy> mPromiseProxy;
   nsCString mScope;
 
 public:
@@ -560,43 +577,31 @@ public:
   Run() override
   {
     AssertIsOnMainThread();
-    nsRefPtr<ServiceWorkerManager> swm = ServiceWorkerManager::GetInstance();
+    RefPtr<ServiceWorkerManager> swm = ServiceWorkerManager::GetInstance();
     MOZ_ASSERT(swm);
 
-    MutexAutoLock lock(mPromiseProxy->GetCleanUpLock());
-    if (mPromiseProxy->IsClean()) {
+    MutexAutoLock lock(mPromiseProxy->Lock());
+    if (mPromiseProxy->CleanedUp()) {
       return NS_OK;
     }
-    WorkerPrivate* workerPrivate = mPromiseProxy->GetWorkerPrivate();
-    MOZ_ASSERT(workerPrivate);
 
+    WorkerPrivate* workerPrivate = mPromiseProxy->GetWorkerPrivate();
     swm->SetSkipWaitingFlag(workerPrivate->GetPrincipal(), mScope,
                             workerPrivate->ServiceWorkerID());
 
-    nsRefPtr<SkipWaitingResultRunnable> runnable =
+    RefPtr<SkipWaitingResultRunnable> runnable =
       new SkipWaitingResultRunnable(workerPrivate, mPromiseProxy);
 
     AutoJSAPI jsapi;
     jsapi.Init();
-    JSContext* cx = jsapi.cx();
-    if (runnable->Dispatch(cx)) {
-      return NS_OK;
+    if (!runnable->Dispatch(jsapi.cx())) {
+      NS_WARNING("Failed to dispatch SkipWaitingResultRunnable to the worker.");
     }
-
-    // Dispatch to worker thread failed because the worker is shutting down.
-    // Use a control runnable to release the runnable on the worker thread.
-    nsRefPtr<PromiseWorkerProxyControlRunnable> releaseRunnable =
-      new PromiseWorkerProxyControlRunnable(workerPrivate, mPromiseProxy);
-
-    if (!releaseRunnable->Dispatch(cx)) {
-      NS_RUNTIMEABORT("Failed to dispatch Claim control runnable.");
-    }
-
     return NS_OK;
   }
 };
 
-}
+} // namespace
 
 already_AddRefed<Promise>
 ServiceWorkerGlobalScope::SkipWaiting(ErrorResult& aRv)
@@ -604,28 +609,23 @@ ServiceWorkerGlobalScope::SkipWaiting(ErrorResult& aRv)
   mWorkerPrivate->AssertIsOnWorkerThread();
   MOZ_ASSERT(mWorkerPrivate->IsServiceWorker());
 
-  nsRefPtr<Promise> promise = Promise::Create(this, aRv);
+  RefPtr<Promise> promise = Promise::Create(this, aRv);
   if (NS_WARN_IF(aRv.Failed())) {
     return nullptr;
   }
 
-  nsRefPtr<PromiseWorkerProxy> promiseProxy =
+  RefPtr<PromiseWorkerProxy> promiseProxy =
     PromiseWorkerProxy::Create(mWorkerPrivate, promise);
-  if (!promiseProxy->GetWorkerPromise()) {
-    // Don't dispatch if adding the worker feature failed.
+  if (!promiseProxy) {
     promise->MaybeResolve(JS::UndefinedHandleValue);
     return promise.forget();
   }
 
-  nsRefPtr<WorkerScopeSkipWaitingRunnable> runnable =
+  RefPtr<WorkerScopeSkipWaitingRunnable> runnable =
     new WorkerScopeSkipWaitingRunnable(promiseProxy,
                                        NS_ConvertUTF16toUTF8(mScope));
 
-  aRv = NS_DispatchToMainThread(runnable);
-  if (NS_WARN_IF(aRv.Failed())) {
-    promise->MaybeReject(NS_ERROR_DOM_ABORT_ERR);
-  }
-
+  MOZ_ALWAYS_TRUE(NS_SUCCEEDED(NS_DispatchToMainThread(runnable)));
   return promise.forget();
 }
 
@@ -637,6 +637,15 @@ ServiceWorkerGlobalScope::InterceptionEnabled(JSContext* aCx, JSObject* aObj)
   MOZ_ASSERT(worker);
   worker->AssertIsOnWorkerThread();
   return worker->InterceptionEnabled();
+}
+
+bool
+ServiceWorkerGlobalScope::OpenWindowEnabled(JSContext* aCx, JSObject* aObj)
+{
+  WorkerPrivate* worker = GetCurrentThreadWorkerPrivate();
+  MOZ_ASSERT(worker);
+  worker->AssertIsOnWorkerThread();
+  return worker->OpenWindowEnabled();
 }
 
 WorkerDebuggerGlobalScope::WorkerDebuggerGlobalScope(
@@ -745,18 +754,6 @@ workerdebuggersandbox_resolve(JSContext *cx, JS::Handle<JSObject *> obj,
   return JS_ResolveStandardClass(cx, obj, id, resolvedp);
 }
 
-static bool
-workerdebuggersandbox_convert(JSContext *cx, JS::Handle<JSObject *> obj,
-                              JSType type, JS::MutableHandle<JS::Value> vp)
-{
-  if (type == JSTYPE_OBJECT) {
-    vp.setObject(*obj);
-    return true;
-  }
-
-  return JS::OrdinaryToPrimitive(cx, obj, type, vp);
-}
-
 static void
 workerdebuggersandbox_finalize(js::FreeOp *fop, JSObject *obj)
 {
@@ -780,15 +777,12 @@ const js::Class workerdebuggersandbox_class = {
     workerdebuggersandbox_enumerate,
     workerdebuggersandbox_resolve,
     nullptr, /* mayResolve */
-    workerdebuggersandbox_convert,
     workerdebuggersandbox_finalize,
     nullptr,
     nullptr,
     nullptr,
     JS_GlobalObjectTraceHook,
     JS_NULL_CLASS_SPEC, {
-      nullptr,
-      nullptr,
       false,
       nullptr,
       workerdebuggersandbox_moved
@@ -803,7 +797,7 @@ WorkerDebuggerGlobalScope::CreateSandbox(JSContext* aCx, const nsAString& aName,
   mWorkerPrivate->AssertIsOnWorkerThread();
 
   JS::CompartmentOptions options;
-  options.setInvisibleToDebugger(true);
+  options.creationOptions().setInvisibleToDebugger(true);
 
   JS::Rooted<JSObject*> sandbox(aCx,
     JS_NewGlobalObject(aCx, js::Jsvalify(&workerdebuggersandbox_class), nullptr,
@@ -901,10 +895,10 @@ void
 WorkerDebuggerGlobalScope::ReportError(JSContext* aCx,
                                        const nsAString& aMessage)
 {
-  JS::AutoFilename afn;
+  JS::UniqueChars chars;
   uint32_t lineno = 0;
-  JS::DescribeScriptedCaller(aCx, &afn, &lineno);
-  nsString filename(NS_ConvertUTF8toUTF16(afn.get()));
+  JS::DescribeScriptedCaller(aCx, &chars, &lineno);
+  nsString filename(NS_ConvertUTF8toUTF16(chars.get()));
   mWorkerPrivate->ReportErrorToDebugger(filename, lineno, aMessage);
 }
 

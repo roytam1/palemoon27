@@ -47,6 +47,5 @@ for (let i = 0; i < TEST_ITERATIONS; i++)
 for (let i = 0; i < TEST_ITERATIONS; i++)
     clInst.cl = 4;
 
-
 if (typeof reportCompare === "function")
     reportCompare(0,0,"OK");

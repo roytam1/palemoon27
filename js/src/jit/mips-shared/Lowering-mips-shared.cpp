@@ -106,7 +106,7 @@ LIRGeneratorMIPSShared::lowerDivI(MDiv* div)
     // Division instructions are slow. Division by constant denominators can be
     // rewritten to use other instructions.
     if (div->rhs()->isConstant()) {
-        int32_t rhs = div->rhs()->toConstant()->value().toInt32();
+        int32_t rhs = div->rhs()->toConstant()->toInt32();
         // Check for division by a positive power of two, which is an easy and
         // important case to optimize. Note that other optimizations are also
         // possible; division by negative powers of two can be optimized in a
@@ -147,7 +147,7 @@ LIRGeneratorMIPSShared::lowerModI(MMod* mod)
     }
 
     if (mod->rhs()->isConstant()) {
-        int32_t rhs = mod->rhs()->toConstant()->value().toInt32();
+        int32_t rhs = mod->rhs()->toConstant()->toInt32();
         int32_t shift = FloorLog2(rhs);
         if (rhs > 0 && 1 << shift == rhs) {
             LModPowTwoI* lir = new(alloc()) LModPowTwoI(useRegister(mod->lhs()), shift);
@@ -193,7 +193,8 @@ LIRGeneratorMIPSShared::newLTableSwitch(const LAllocation& in, const LDefinition
 LTableSwitchV*
 LIRGeneratorMIPSShared::newLTableSwitchV(MTableSwitch* tableswitch)
 {
-    return new(alloc()) LTableSwitchV(temp(), tempDouble(), temp(), tableswitch);
+    return new(alloc()) LTableSwitchV(useBox(tableswitch->getOperand(0)),
+                                      temp(), tempDouble(), temp(), tableswitch);
 }
 
 void
@@ -301,10 +302,10 @@ LIRGeneratorMIPSShared::visitAsmJSLoadHeap(MAsmJSLoadHeap* ins)
 
     // For MIPS it is best to keep the 'ptr' in a register if a bounds check
     // is needed.
-    if (ptr->isConstantValue() && !ins->needsBoundsCheck()) {
+    if (ptr->isConstant() && !ins->needsBoundsCheck()) {
         // A bounds check is only skipped for a positive index.
-        MOZ_ASSERT(ptr->constantValue().toInt32() >= 0);
-        ptrAlloc = LAllocation(ptr->constantVp());
+        MOZ_ASSERT(ptr->toConstant()->toInt32() >= 0);
+        ptrAlloc = LAllocation(ptr->toConstant());
     } else
         ptrAlloc = useRegisterAtStart(ptr);
 
@@ -318,9 +319,9 @@ LIRGeneratorMIPSShared::visitAsmJSStoreHeap(MAsmJSStoreHeap* ins)
     MOZ_ASSERT(ptr->type() == MIRType_Int32);
     LAllocation ptrAlloc;
 
-    if (ptr->isConstantValue() && !ins->needsBoundsCheck()) {
-        MOZ_ASSERT(ptr->constantValue().toInt32() >= 0);
-        ptrAlloc = LAllocation(ptr->constantVp());
+    if (ptr->isConstant() && !ins->needsBoundsCheck()) {
+        MOZ_ASSERT(ptr->toConstant()->toInt32() >= 0);
+        ptrAlloc = LAllocation(ptr->toConstant());
     } else
         ptrAlloc = useRegisterAtStart(ptr);
 
@@ -379,42 +380,171 @@ LIRGeneratorMIPSShared::visitSimdValueX4(MSimdValueX4* ins)
 void
 LIRGeneratorMIPSShared::visitCompareExchangeTypedArrayElement(MCompareExchangeTypedArrayElement* ins)
 {
-    MOZ_CRASH("NYI");
+    MOZ_ASSERT(ins->arrayType() != Scalar::Float32);
+    MOZ_ASSERT(ins->arrayType() != Scalar::Float64);
+
+    MOZ_ASSERT(ins->elements()->type() == MIRType_Elements);
+    MOZ_ASSERT(ins->index()->type() == MIRType_Int32);
+
+    const LUse elements = useRegister(ins->elements());
+    const LAllocation index = useRegisterOrConstant(ins->index());
+
+    // If the target is a floating register then we need a temp at the
+    // CodeGenerator level for creating the result.
+
+    const LAllocation newval = useRegister(ins->newval());
+    const LAllocation oldval = useRegister(ins->oldval());
+    LDefinition uint32Temp = LDefinition::BogusTemp();
+    if (ins->arrayType() == Scalar::Uint32 && IsFloatingPointType(ins->type()))
+        uint32Temp = temp();
+
+    LCompareExchangeTypedArrayElement* lir =
+        new(alloc()) LCompareExchangeTypedArrayElement(elements, index, oldval, newval, uint32Temp,
+                                                       /* valueTemp= */ temp(), /* offsetTemp= */ temp(),
+                                                       /* maskTemp= */ temp());
+
+    define(lir, ins);
 }
 
 void
 LIRGeneratorMIPSShared::visitAtomicExchangeTypedArrayElement(MAtomicExchangeTypedArrayElement* ins)
 {
-    MOZ_CRASH("NYI");
+    MOZ_ASSERT(ins->arrayType() <= Scalar::Uint32);
+
+    MOZ_ASSERT(ins->elements()->type() == MIRType_Elements);
+    MOZ_ASSERT(ins->index()->type() == MIRType_Int32);
+
+    const LUse elements = useRegister(ins->elements());
+    const LAllocation index = useRegisterOrConstant(ins->index());
+
+    // If the target is a floating register then we need a temp at the
+    // CodeGenerator level for creating the result.
+
+    const LAllocation value = useRegister(ins->value());
+    LDefinition uint32Temp = LDefinition::BogusTemp();
+    if (ins->arrayType() == Scalar::Uint32) {
+        MOZ_ASSERT(ins->type() == MIRType_Double);
+        uint32Temp = temp();
+    }
+
+    LAtomicExchangeTypedArrayElement* lir =
+        new(alloc()) LAtomicExchangeTypedArrayElement(elements, index, value, uint32Temp,
+                                                      /* valueTemp= */ temp(), /* offsetTemp= */ temp(),
+                                                      /* maskTemp= */ temp());
+
+    define(lir, ins);
 }
 
 void
 LIRGeneratorMIPSShared::visitAsmJSCompareExchangeHeap(MAsmJSCompareExchangeHeap* ins)
 {
-    MOZ_CRASH("NYI");
+    MOZ_ASSERT(ins->accessType() < Scalar::Float32);
+
+    MDefinition* ptr = ins->ptr();
+    MOZ_ASSERT(ptr->type() == MIRType_Int32);
+
+    LAsmJSCompareExchangeHeap* lir =
+        new(alloc()) LAsmJSCompareExchangeHeap(useRegister(ptr),
+                                               useRegister(ins->oldValue()),
+                                               useRegister(ins->newValue()),
+                                               /* valueTemp= */ temp(),
+                                               /* offsetTemp= */ temp(),
+                                               /* maskTemp= */ temp());
+
+    define(lir, ins);
 }
 
 void
 LIRGeneratorMIPSShared::visitAsmJSAtomicExchangeHeap(MAsmJSAtomicExchangeHeap* ins)
 {
-    MOZ_CRASH("NYI");
+    MOZ_ASSERT(ins->ptr()->type() == MIRType_Int32);
+
+    const LAllocation ptr = useRegister(ins->ptr());
+    const LAllocation value = useRegister(ins->value());
+
+    // The output may not be used but will be clobbered regardless,
+    // so ignore the case where we're not using the value and just
+    // use the output register as a temp.
+
+    LAsmJSAtomicExchangeHeap* lir =
+        new(alloc()) LAsmJSAtomicExchangeHeap(ptr, value,
+                                              /* valueTemp= */ temp(),
+                                              /* offsetTemp= */ temp(),
+                                              /* maskTemp= */ temp());
+    define(lir, ins);
 }
 
 void
 LIRGeneratorMIPSShared::visitAsmJSAtomicBinopHeap(MAsmJSAtomicBinopHeap* ins)
 {
-    MOZ_CRASH("NYI");
+    MOZ_ASSERT(ins->accessType() < Scalar::Float32);
+
+    MDefinition* ptr = ins->ptr();
+    MOZ_ASSERT(ptr->type() == MIRType_Int32);
+
+    if (!ins->hasUses()) {
+        LAsmJSAtomicBinopHeapForEffect* lir =
+            new(alloc()) LAsmJSAtomicBinopHeapForEffect(useRegister(ptr),
+                                                        useRegister(ins->value()),
+                                                        /* flagTemp= */ temp(),
+                                                        /* valueTemp= */ temp(),
+                                                        /* offsetTemp= */ temp(),
+                                                        /* maskTemp= */ temp());
+        add(lir, ins);
+        return;
+    }
+
+    LAsmJSAtomicBinopHeap* lir =
+        new(alloc()) LAsmJSAtomicBinopHeap(useRegister(ptr),
+                                           useRegister(ins->value()),
+                                           /* temp= */ LDefinition::BogusTemp(),
+                                           /* flagTemp= */ temp(),
+                                           /* valueTemp= */ temp(),
+                                           /* offsetTemp= */ temp(),
+                                           /* maskTemp= */ temp());
+
+    define(lir, ins);
 }
 
 void
 LIRGeneratorMIPSShared::visitAtomicTypedArrayElementBinop(MAtomicTypedArrayElementBinop* ins)
 {
-    MOZ_CRASH("NYI");
-}
+    MOZ_ASSERT(ins->arrayType() != Scalar::Uint8Clamped);
+    MOZ_ASSERT(ins->arrayType() != Scalar::Float32);
+    MOZ_ASSERT(ins->arrayType() != Scalar::Float64);
 
-void
-LIRGeneratorMIPSShared::visitRandom(MRandom* ins)
-{
-    LRandom* lir = new(alloc()) LRandom(tempFixed(CallTempReg0), tempFixed(CallTempReg1));
-    defineReturn(lir, ins);
+    MOZ_ASSERT(ins->elements()->type() == MIRType_Elements);
+    MOZ_ASSERT(ins->index()->type() == MIRType_Int32);
+
+    const LUse elements = useRegister(ins->elements());
+    const LAllocation index = useRegisterOrConstant(ins->index());
+    const LAllocation value = useRegister(ins->value());
+
+    if (!ins->hasUses()) {
+        LAtomicTypedArrayElementBinopForEffect* lir =
+            new(alloc()) LAtomicTypedArrayElementBinopForEffect(elements, index, value,
+                                                                /* flagTemp= */ temp(),
+                                                                /* valueTemp= */ temp(),
+                                                                /* offsetTemp= */ temp(),
+                                                                /* maskTemp= */ temp());
+        add(lir, ins);
+        return;
+    }
+
+    // For a Uint32Array with a known double result we need a temp for
+    // the intermediate output.
+
+    LDefinition flagTemp = temp();
+    LDefinition outTemp = LDefinition::BogusTemp();
+
+    if (ins->arrayType() == Scalar::Uint32 && IsFloatingPointType(ins->type()))
+        outTemp = temp();
+
+    // On mips, map flagTemp to temp1 and outTemp to temp2, at least for now.
+
+    LAtomicTypedArrayElementBinop* lir =
+        new(alloc()) LAtomicTypedArrayElementBinop(elements, index, value, flagTemp, outTemp,
+                                                   /* valueTemp= */ temp(), /* offsetTemp= */ temp(),
+                                                   /* maskTemp= */ temp());
+    define(lir, ins);
 }

@@ -31,6 +31,7 @@ EXPORTS.mozilla.plugins += [
     'PluginModuleParent.h',
     'PluginProcessChild.h',
     'PluginProcessParent.h',
+    'PluginQuirks.h',
     'PluginScriptableObjectChild.h',
     'PluginScriptableObjectParent.h',
     'PluginScriptableObjectUtils-inl.h',
@@ -86,6 +87,7 @@ UNIFIED_SOURCES += [
     'PluginModuleParent.cpp',
     'PluginProcessChild.cpp',
     'PluginProcessParent.cpp',
+    'PluginQuirks.cpp',
     'PluginScriptableObjectChild.cpp',
     'PluginScriptableObjectParent.cpp',
     'PluginStreamChild.cpp',
@@ -105,6 +107,11 @@ if CONFIG['MOZ_WIDGET_TOOLKIT'] == 'cocoa':
         'PluginUtilsOSX.mm',
     ]
 
+if CONFIG['MOZ_WIDGET_TOOLKIT'] == 'windows':
+    UNIFIED_SOURCES += [
+        'D3D11SurfaceHolder.cpp',
+    ]
+
 IPDL_SOURCES += [
     'PBrowserStream.ipdl',
     'PluginTypes.ipdlh',
@@ -116,8 +123,6 @@ IPDL_SOURCES += [
     'PPluginSurface.ipdl',
     'PStreamNotify.ipdl',
 ]
-
-FAIL_ON_WARNINGS = True
 
 include('/ipc/chromium/chromium-config.mozbuild')
 

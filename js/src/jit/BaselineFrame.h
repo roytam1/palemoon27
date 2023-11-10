@@ -24,13 +24,6 @@ struct BaselineDebugModeOSRInfo;
 //        locals
 //        stack values
 
-// Eval frames
-//
-// Like js::InterpreterFrame, every BaselineFrame is either a global frame
-// or a function frame. Both global and function frames can optionally
-// be "eval frames". The callee token for eval function frames is the
-// enclosing function. BaselineFrame::evalScript_ stores the eval script
-// itself.
 class BaselineFrame
 {
   public:
@@ -49,12 +42,11 @@ class BaselineFrame
 
         // Frame has execution observed by a Debugger.
         //
-        // See comment above 'debugMode' in jscompartment.h for explanation of
+        // See comment above 'isDebuggee' in jscompartment.h for explanation of
         // invariants of debuggee compartments, scripts, and frames.
         DEBUGGEE         = 1 << 6,
 
-        // Eval frame, see the "eval frames" comment.
-        EVAL             = 1 << 7,
+        // (1 << 7 and 1 << 8 are unused)
 
         // Frame has over-recursed on an early check.
         OVER_RECURSED    = 1 << 9,
@@ -100,9 +92,7 @@ class BaselineFrame
     uint32_t hiReturnValue_;
     uint32_t frameSize_;
     JSObject* scopeChain_;                // Scope chain (always initialized).
-    JSScript* evalScript_;                // If isEvalFrame(), the current eval script.
     ArgumentsObject* argsObj_;            // If HAS_ARGS_OBJ, the arguments object.
-    void* unused;                         // See static assertion re: sizeof, below.
     uint32_t overrideOffset_;             // If HAS_OVERRIDE_PC, the bytecode offset.
     uint32_t flags_;
 
@@ -138,7 +128,7 @@ class BaselineFrame
 
     inline void pushOnScopeChain(ScopeObject& scope);
     inline void popOffScopeChain();
-    inline void replaceInnermostScope(ScopeObject &scope);
+    inline void replaceInnermostScope(ScopeObject& scope);
 
     inline void popWith(JSContext* cx);
 
@@ -154,15 +144,7 @@ class BaselineFrame
         return CalleeTokenIsConstructing(calleeToken());
     }
     JSScript* script() const {
-        if (isEvalFrame())
-            return evalScript();
         return ScriptFromCalleeToken(calleeToken());
-    }
-    JSFunction* fun() const {
-        return CalleeTokenToFunction(calleeToken());
-    }
-    JSFunction* maybeFun() const {
-        return isFunctionFrame() ? fun() : nullptr;
     }
     JSFunction* callee() const {
         return CalleeTokenToFunction(calleeToken());
@@ -211,7 +193,8 @@ class BaselineFrame
     unsigned numFormalArgs() const {
         return script()->functionNonDelazifying()->nargs();
     }
-    Value& thisValue() const {
+    Value& thisArgument() const {
+        MOZ_ASSERT(isFunctionFrame());
         return *(Value*)(reinterpret_cast<const uint8_t*>(this) +
                          BaselineFrame::Size() +
                          offsetOfThis());
@@ -225,6 +208,7 @@ class BaselineFrame
   private:
     Value* evalNewTargetAddress() const {
         MOZ_ASSERT(isEvalFrame());
+        MOZ_ASSERT(script()->isDirectEvalInFunction());
         return (Value*)(reinterpret_cast<const uint8_t*>(this) +
                         BaselineFrame::Size() +
                         offsetOfEvalNewTarget());
@@ -232,15 +216,16 @@ class BaselineFrame
 
   public:
     Value newTarget() const {
-        MOZ_ASSERT(isFunctionFrame());
         if (isEvalFrame())
             return *evalNewTargetAddress();
-        if (fun()->isArrow())
-            return fun()->getExtendedSlot(FunctionExtended::ARROW_NEWTARGET_SLOT);
-        if (isConstructing())
+        MOZ_ASSERT(isFunctionFrame());
+        if (callee()->isArrow())
+            return callee()->getExtendedSlot(FunctionExtended::ARROW_NEWTARGET_SLOT);
+        if (isConstructing()) {
             return *(Value*)(reinterpret_cast<const uint8_t*>(this) +
                              BaselineFrame::Size() +
                              offsetOfArg(Max(numFormalArgs(), numActualArgs())));
+        }
         return UndefinedValue();
     }
 
@@ -275,12 +260,11 @@ class BaselineFrame
         return &flags_;
     }
 
-    inline bool pushBlock(JSContext* cx, Handle<StaticBlockObject*> block);
+    inline bool pushBlock(JSContext* cx, Handle<StaticBlockScope*> block);
     inline void popBlock(JSContext* cx);
-    inline bool freshenBlock(JSContext *cx);
+    inline bool freshenBlock(JSContext* cx);
 
-    bool strictEvalPrologue(JSContext* cx);
-    bool heavyweightFunPrologue(JSContext* cx);
+    bool initStrictEvalScopeObjects(JSContext* cx);
     bool initFunctionScopeObjects(JSContext* cx);
 
     void initArgsObjUnchecked(ArgumentsObject& argsobj) {
@@ -333,11 +317,6 @@ class BaselineFrame
     }
     void setHasCachedSavedFrame() {
         flags_ |= HAS_CACHED_SAVED_FRAME;
-    }
-
-    JSScript* evalScript() const {
-        MOZ_ASSERT(isEvalFrame());
-        return evalScript_;
     }
 
     bool overRecursed() const {
@@ -393,14 +372,14 @@ class BaselineFrame
 
     void trace(JSTracer* trc, JitFrameIterator& frame);
 
-    bool isFunctionFrame() const {
-        return CalleeTokenIsFunction(calleeToken());
-    }
     bool isGlobalFrame() const {
-        return !CalleeTokenIsFunction(calleeToken());
+        return script()->isGlobalCode();
     }
-     bool isEvalFrame() const {
-        return flags_ & EVAL;
+    bool isModuleFrame() const {
+        return script()->module();
+    }
+    bool isEvalFrame() const {
+        return script()->isForEval();
     }
     bool isStrictEvalFrame() const {
         return isEvalFrame() && script()->strict();
@@ -408,12 +387,12 @@ class BaselineFrame
     bool isNonStrictEvalFrame() const {
         return isEvalFrame() && !script()->strict();
     }
-    bool isDirectEvalFrame() const;
+    bool isNonGlobalEvalFrame() const;
     bool isNonStrictDirectEvalFrame() const {
-        return isNonStrictEvalFrame() && isDirectEvalFrame();
+        return isNonStrictEvalFrame() && isNonGlobalEvalFrame();
     }
-    bool isNonEvalFunctionFrame() const {
-        return isFunctionFrame() && !isEvalFrame();
+    bool isFunctionFrame() const {
+        return CalleeTokenIsFunction(calleeToken());
     }
     bool isDebuggerEvalFrame() const {
         return false;
@@ -432,7 +411,7 @@ class BaselineFrame
         return FramePointerOffset + js::jit::JitFrameLayout::offsetOfThis();
     }
     static size_t offsetOfEvalNewTarget() {
-        return offsetOfArg(0);
+        return FramePointerOffset + js::jit::JitFrameLayout::offsetOfEvalNewTarget();
     }
     static size_t offsetOfArg(size_t index) {
         return FramePointerOffset + js::jit::JitFrameLayout::offsetOfActualArg(index);
@@ -461,9 +440,6 @@ class BaselineFrame
     }
     static int reverseOffsetOfFlags() {
         return -int(Size()) + offsetof(BaselineFrame, flags_);
-    }
-    static int reverseOffsetOfEvalScript() {
-        return -int(Size()) + offsetof(BaselineFrame, evalScript_);
     }
     static int reverseOffsetOfReturnValue() {
         return -int(Size()) + offsetof(BaselineFrame, loReturnValue_);

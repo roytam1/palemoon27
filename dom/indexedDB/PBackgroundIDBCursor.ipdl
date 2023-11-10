@@ -4,6 +4,7 @@
 
 include protocol PBackgroundIDBTransaction;
 include protocol PBackgroundIDBVersionChangeTransaction;
+include protocol PBackgroundMutableFile;
 include protocol PBlob;
 
 include PBackgroundIDBSharedTypes;
@@ -50,6 +51,7 @@ struct ObjectStoreKeyCursorResponse
 struct IndexCursorResponse
 {
   Key key;
+  Key sortKey;
   Key objectKey;
   SerializedStructuredCloneReadInfo cloneInfo;
 };
@@ -57,6 +59,7 @@ struct IndexCursorResponse
 struct IndexKeyCursorResponse
 {
   Key key;
+  Key sortKey;
   Key objectKey;
 };
 
@@ -64,7 +67,7 @@ union CursorResponse
 {
   void_t;
   nsresult;
-  ObjectStoreCursorResponse;
+  ObjectStoreCursorResponse[];
   ObjectStoreKeyCursorResponse;
   IndexCursorResponse;
   IndexKeyCursorResponse;
@@ -75,14 +78,14 @@ protocol PBackgroundIDBCursor
   manager PBackgroundIDBTransaction or PBackgroundIDBVersionChangeTransaction;
 
 parent:
-  DeleteMe();
+  async DeleteMe();
 
-  Continue(CursorRequestParams params);
+  async Continue(CursorRequestParams params, Key key);
 
 child:
-  __delete__();
+  async __delete__();
 
-  Response(CursorResponse response);
+  async Response(CursorResponse response);
 };
 
 } // namespace indexedDB

@@ -74,7 +74,9 @@ typedef enum {
     AUDIO_STREAM_ENFORCED_AUDIBLE = 7, /* Sounds that cannot be muted by user and must be routed to speaker */
     AUDIO_STREAM_DTMF             = 8,
     AUDIO_STREAM_TTS              = 9,
+#if ANDROID_VERSION < 19
     AUDIO_STREAM_FM               = 10,
+#endif
 
     AUDIO_STREAM_CNT,
     AUDIO_STREAM_MAX              = AUDIO_STREAM_CNT - 1,
@@ -239,7 +241,7 @@ typedef enum {
 
 #if ANDROID_VERSION < 17
 typedef enum {
-    /* output devices */      
+    /* output devices */
     AUDIO_DEVICE_OUT_EARPIECE                  = 0x1,
     AUDIO_DEVICE_OUT_SPEAKER                   = 0x2,
     AUDIO_DEVICE_OUT_WIRED_HEADSET             = 0x4,
@@ -299,7 +301,7 @@ typedef enum {
     AUDIO_DEVICE_IN_FM_RX                 = 0x20000000,
     AUDIO_DEVICE_IN_FM_RX_A2DP            = 0x40000000,
     AUDIO_DEVICE_IN_DEFAULT               = 0x80000000,
-    
+
     AUDIO_DEVICE_IN_ALL     = (AUDIO_DEVICE_IN_COMMUNICATION |
                                AUDIO_DEVICE_IN_AMBIENT |
                                AUDIO_DEVICE_IN_BUILTIN_MIC |
@@ -550,7 +552,7 @@ typedef uint32_t audio_devices_t;
 typedef enum {
     AUDIO_POLICY_DEVICE_STATE_UNAVAILABLE,
     AUDIO_POLICY_DEVICE_STATE_AVAILABLE,
-    
+
     AUDIO_POLICY_DEVICE_STATE_CNT,
     AUDIO_POLICY_DEVICE_STATE_MAX = AUDIO_POLICY_DEVICE_STATE_CNT - 1,
 } audio_policy_dev_state_t;
@@ -967,6 +969,9 @@ public:
     static status_t getStreamVolumeIndex(audio_stream_type_t stream, int *index);
 
     static uint32_t getStrategyForStream(stream_type stream);
+#if ANDROID_VERSION >= 17
+    static audio_devices_t getDevicesForStream(audio_stream_type_t stream);
+#endif
 
     static audio_io_handle_t getOutputForEffect(effect_descriptor_t *desc);
     static status_t registerEffect(effect_descriptor_t *desc,
@@ -992,6 +997,23 @@ public:
     static bool isValidFormat(uint32_t format);
     static bool isLinearPCM(uint32_t format);
     static bool isModeInCall();
+
+#if ANDROID_VERSION >= 21
+    class AudioPortCallback : public RefBase
+    {
+    public:
+
+                AudioPortCallback() {}
+        virtual ~AudioPortCallback() {}
+
+        virtual void onAudioPortListUpdate() = 0;
+        virtual void onAudioPatchListUpdate() = 0;
+        virtual void onServiceDied() = 0;
+
+    };
+
+    static void setAudioPortCallback(sp<AudioPortCallback> callBack);
+#endif
 
 private:
 

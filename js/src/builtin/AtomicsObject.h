@@ -29,8 +29,6 @@ class AtomicsObject : public JSObject
     };
 };
 
-void atomics_fullMemoryBarrier();
-
 bool atomics_compareExchange(JSContext* cx, unsigned argc, Value* vp);
 bool atomics_exchange(JSContext* cx, unsigned argc, Value* vp);
 bool atomics_load(JSContext* cx, unsigned argc, Value* vp);
@@ -100,19 +98,22 @@ public:
     //
     // If the thread is waiting in a call to futexWait() and the
     // reason is WakeForJSInterrupt then the futexWait() will return
-    // with WokenForJSInterrupt; in the latter case the caller of
-    // futexWait() must handle the interrupt.
+    // with WaitingNotifiedForInterrupt; in the latter case the caller
+    // of futexWait() must handle the interrupt.
     void wake(WakeReason reason);
 
     bool isWaiting();
 
   private:
     enum FutexState {
-        Idle,                   // We are not waiting or woken
-        Waiting,                // We are waiting, nothing has happened yet
-        WaitingInterrupted,     // We are waiting, but have been interrupted
-        Woken,                  // Woken by a script call to futexWake
-        WokenForJSInterrupt     // Woken by an interrupt handler
+        Idle,                        // We are not waiting or woken
+        Waiting,                     // We are waiting, nothing has happened yet
+        WaitingNotifiedForInterrupt, // We are waiting, but have been interrupted,
+                                     //   and have not yet started running the
+                                     //   interrupt handler
+        WaitingInterrupted,          // We are waiting, but have been interrupted
+                                     //   and are running the interrupt handler
+        Woken                        // Woken by a script call to futexWake
     };
 
     // Condition variable that this runtime will wait on.

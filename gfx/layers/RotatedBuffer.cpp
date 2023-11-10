@@ -109,7 +109,7 @@ RotatedBuffer::DrawBufferQuadrant(gfx::DrawTarget* aTarget,
       aOperator == CompositionOp::OP_SOURCE) {
     aOperator = CompositionOp::OP_OVER;
     if (snapshot->GetFormat() == SurfaceFormat::B8G8R8A8) {
-      aTarget->ClearRect(ToRect(fillRect));
+      aTarget->ClearRect(IntRectToRect(fillRect));
     }
   }
 
@@ -119,7 +119,7 @@ RotatedBuffer::DrawBufferQuadrant(gfx::DrawTarget* aTarget,
   // We also need this clip in the case where we have a mask, since the mask surface
   // might cover more than fillRect, but we only want to touch the pixels inside
   // fillRect.
-  aTarget->PushClipRect(gfx::ToRect(fillRect));
+  aTarget->PushClipRect(IntRectToRect(fillRect));
 
   if (aMask) {
     Matrix oldTransform = aTarget->GetTransform();
@@ -149,7 +149,7 @@ RotatedBuffer::DrawBufferQuadrant(gfx::DrawTarget* aTarget,
 #else
     DrawSurfaceOptions options;
 #endif
-    aTarget->DrawSurface(snapshot, ToRect(fillRect),
+    aTarget->DrawSurface(snapshot, IntRectToRect(fillRect),
                          GetSourceRectangle(aXSide, aYSide),
                          options,
                          DrawOptions(aOpacity, aOperator));
@@ -221,14 +221,14 @@ RotatedContentBuffer::DrawTo(PaintedLayer* aLayer,
   // Also clip to the visible region if we're told to.
   if (!aLayer->GetValidRegion().Contains(BufferRect()) ||
       (ToData(aLayer)->GetClipToVisibleRegion() &&
-       !aLayer->GetVisibleRegion().Contains(BufferRect())) ||
-      IsClippingCheap(aTarget, aLayer->GetEffectiveVisibleRegion())) {
+       !aLayer->GetVisibleRegion().ToUnknownRegion().Contains(BufferRect())) ||
+      IsClippingCheap(aTarget, aLayer->GetEffectiveVisibleRegion().ToUnknownRegion())) {
     // We don't want to draw invalid stuff, so we need to clip. Might as
     // well clip to the smallest area possible --- the visible region.
     // Bug 599189 if there is a non-integer-translation transform in aTarget,
     // we might sample pixels outside GetEffectiveVisibleRegion(), which is wrong
     // and may cause gray lines.
-    gfxUtils::ClipToRegion(aTarget, aLayer->GetEffectiveVisibleRegion());
+    gfxUtils::ClipToRegion(aTarget, aLayer->GetEffectiveVisibleRegion().ToUnknownRegion());
     clipped = true;
   }
 
@@ -306,9 +306,12 @@ RotatedContentBuffer::BorrowDrawTargetForQuadrantUpdate(const IntRect& aBounds,
 void
 BorrowDrawTarget::ReturnDrawTarget(gfx::DrawTarget*& aReturned)
 {
+  MOZ_ASSERT(mLoanedDrawTarget);
   MOZ_ASSERT(aReturned == mLoanedDrawTarget);
-  mLoanedDrawTarget->SetTransform(mLoanedTransform);
-  mLoanedDrawTarget = nullptr;
+  if (mLoanedDrawTarget) {
+    mLoanedDrawTarget->SetTransform(mLoanedTransform);
+    mLoanedDrawTarget = nullptr;
+  }
   aReturned = nullptr;
 }
 
@@ -451,7 +454,7 @@ RotatedContentBuffer::BeginPaint(PaintedLayer* aLayer,
 
   while (true) {
     mode = aLayer->GetSurfaceMode();
-    neededRegion = aLayer->GetVisibleRegion();
+    neededRegion = aLayer->GetVisibleRegion().ToUnknownRegion();
     canReuseBuffer &= BufferSizeOkFor(neededRegion.GetBounds().Size());
     result.mContentType = layerContentType;
 
@@ -646,7 +649,7 @@ RotatedContentBuffer::BeginPaint(PaintedLayer* aLayer,
                          &destDTBuffer, &destDTBufferOnWhite);
             if (!destDTBuffer ||
                 (!destDTBufferOnWhite && (bufferFlags & BUFFER_COMPONENT_ALPHA))) {
-              gfxCriticalError() << "Failed 1 buffer db=" << hexa(destDTBuffer.get()) << " dw=" << hexa(destDTBufferOnWhite.get()) << " for " << destBufferRect.x << ", " << destBufferRect.y << ", " << destBufferRect.width << ", " << destBufferRect.height;
+              gfxCriticalError(CriticalLog::DefaultOptions(Factory::ReasonableSurfaceSize(IntSize(destBufferRect.width, destBufferRect.height)))) << "Failed 1 buffer db=" << hexa(destDTBuffer.get()) << " dw=" << hexa(destDTBufferOnWhite.get()) << " for " << destBufferRect.x << ", " << destBufferRect.y << ", " << destBufferRect.width << ", " << destBufferRect.height;
               return result;
             }
           }
@@ -668,7 +671,7 @@ RotatedContentBuffer::BeginPaint(PaintedLayer* aLayer,
                  &destDTBuffer, &destDTBufferOnWhite);
     if (!destDTBuffer ||
         (!destDTBufferOnWhite && (bufferFlags & BUFFER_COMPONENT_ALPHA))) {
-      gfxCriticalError() << "Failed 2 buffer db=" << hexa(destDTBuffer.get()) << " dw=" << hexa(destDTBufferOnWhite.get()) << " for " << destBufferRect.x << ", " << destBufferRect.y << ", " << destBufferRect.width << ", " << destBufferRect.height;
+      gfxCriticalError(CriticalLog::DefaultOptions(Factory::ReasonableSurfaceSize(IntSize(destBufferRect.width, destBufferRect.height)))) << "Failed 2 buffer db=" << hexa(destDTBuffer.get()) << " dw=" << hexa(destDTBufferOnWhite.get()) << " for " << destBufferRect.x << ", " << destBufferRect.y << ", " << destBufferRect.width << ", " << destBufferRect.height;
       return result;
     }
   }
@@ -734,6 +737,7 @@ RotatedContentBuffer::BorrowDrawTargetForPainting(PaintState& aPaintState,
   if (!result) {
     return nullptr;
   }
+
   nsIntRegion* drawPtr = &aPaintState.mRegionToDraw;
   if (aIter) {
     // The iterators draw region currently only contains the bounds of the region,
@@ -743,31 +747,30 @@ RotatedContentBuffer::BorrowDrawTargetForPainting(PaintState& aPaintState,
   }
   if (result->GetBackendType() == BackendType::DIRECT2D ||
       result->GetBackendType() == BackendType::DIRECT2D1_1) {
+    // Simplify the draw region to avoid hitting expensive drawing paths
+    // for complex regions.
     drawPtr->SimplifyOutwardByArea(100 * 100);
   }
 
   if (aPaintState.mMode == SurfaceMode::SURFACE_COMPONENT_ALPHA) {
     if (!mDTBuffer || !mDTBufferOnWhite) {
       // This can happen in release builds if allocating one of the two buffers
-      // failed. This is pretty bad and the reason for the failure is already
-      // reported through gfxCriticalError.
-      MOZ_ASSERT(false);
+      // failed. This in turn can happen if unreasonably large textures are
+      // requested.
       return nullptr;
     }
-    nsIntRegionRectIterator iter(*drawPtr);
-    const IntRect *iterRect;
-    while ((iterRect = iter.Next())) {
-      mDTBuffer->FillRect(Rect(iterRect->x, iterRect->y, iterRect->width, iterRect->height),
+    for (auto iter = drawPtr->RectIter(); !iter.Done(); iter.Next()) {
+      const IntRect& rect = iter.Get();
+      mDTBuffer->FillRect(Rect(rect.x, rect.y, rect.width, rect.height),
                           ColorPattern(Color(0.0, 0.0, 0.0, 1.0)));
-      mDTBufferOnWhite->FillRect(Rect(iterRect->x, iterRect->y, iterRect->width, iterRect->height),
+      mDTBufferOnWhite->FillRect(Rect(rect.x, rect.y, rect.width, rect.height),
                                  ColorPattern(Color(1.0, 1.0, 1.0, 1.0)));
     }
   } else if (aPaintState.mContentType == gfxContentType::COLOR_ALPHA && HaveBuffer()) {
     // HaveBuffer() => we have an existing buffer that we must clear
-    nsIntRegionRectIterator iter(*drawPtr);
-    const IntRect *iterRect;
-    while ((iterRect = iter.Next())) {
-      result->ClearRect(Rect(iterRect->x, iterRect->y, iterRect->width, iterRect->height));
+    for (auto iter = drawPtr->RectIter(); !iter.Done(); iter.Next()) {
+      const IntRect& rect = iter.Get();
+      result->ClearRect(Rect(rect.x, rect.y, rect.width, rect.height));
     }
   }
 

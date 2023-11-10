@@ -5,6 +5,9 @@
 
 "use strict";
 
+Components.utils.import("resource://gre/modules/XPCOMUtils.jsm");
+XPCOMUtils.defineLazyModuleGetter(this, "Services", "resource://gre/modules/Services.jsm");
+
 this.EXPORTED_SYMBOLS = ["AppConstants"];
 
 // Immutable for export.
@@ -49,8 +52,29 @@ let AppConstants = Object.freeze({
   false,
 #endif
 
+  MOZ_DEV_EDITION:
+#ifdef MOZ_DEV_EDITION
+  true,
+#else
+  false,
+#endif
+
+  MOZ_DEV_EDITION:
+#ifdef MOZ_DEV_EDITION
+  true,
+#else
+  false,
+#endif
+
   MOZ_SERVICES_HEALTHREPORT:
 #ifdef MOZ_SERVICES_HEALTHREPORT
+  true,
+#else
+  false,
+#endif
+
+  MOZ_DATA_REPORTING:
+#ifdef MOZ_DATA_REPORTING
   true,
 #else
   false,
@@ -77,6 +101,13 @@ let AppConstants = Object.freeze({
   false,
 #endif
 
+  MOZ_B2G_RIL:
+#ifdef MOZ_B2G_RIL
+  true,
+#else
+  false,
+#endif
+
   platform:
 #ifdef MOZ_WIDGET_GTK
   "linux",
@@ -93,6 +124,18 @@ let AppConstants = Object.freeze({
 #else
   "other",
 #endif
+
+  isPlatformAndVersionAtLeast(platform, version) {
+    let platformVersion = Services.sysinfo.getProperty("version");
+    return platform == this.platform &&
+           Services.vc.compare(platformVersion, version) >= 0;
+  },
+
+  isPlatformAndVersionAtMost(platform, version) {
+    let platformVersion = Services.sysinfo.getProperty("version");
+    return platform == this.platform &&
+           Services.vc.compare(platformVersion, version) <= 0;
+  },
 
   MOZ_CRASHREPORTER:
 #ifdef MOZ_CRASHREPORTER

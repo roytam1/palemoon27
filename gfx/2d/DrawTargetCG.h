@@ -6,7 +6,14 @@
 #ifndef mozilla_gfx_DrawTargetCG_h
 #define mozilla_gfx_DrawTargetCG_h
 
+#ifdef MOZ_WIDGET_COCOA
 #include <ApplicationServices/ApplicationServices.h>
+#import <OpenGL/OpenGL.h>
+#else
+#include <CoreGraphics/CoreGraphics.h>
+#include <OpenGLES/ES2/gl.h>
+#include <OpenGLES/ES2/glext.h>
+#endif
 
 #include "2D.h"
 #include "Rect.h"
@@ -19,7 +26,7 @@ namespace mozilla {
 namespace gfx {
 
 static inline CGAffineTransform
-GfxMatrixToCGAffineTransform(Matrix m)
+GfxMatrixToCGAffineTransform(const Matrix &m)
 {
   CGAffineTransform t;
   t.a = m._11;
@@ -113,6 +120,7 @@ class DrawTargetCG : public DrawTarget
 public:
   MOZ_DECLARE_REFCOUNTED_VIRTUAL_TYPENAME(DrawTargetCG, override)
   friend class BorrowedCGContext;
+  friend class UnboundnessFixer;
   friend class SourceSurfaceCGBitmapContext;
   DrawTargetCG();
   virtual ~DrawTargetCG();
@@ -173,6 +181,7 @@ public:
 
   virtual IntSize GetSize() override { return mSize; }
 
+  virtual void SetTransform(const Matrix &aTransform) override;
 
   /* This is for creating good compatible surfaces */
   virtual already_AddRefed<SourceSurface> CreateSourceSurfaceFromData(unsigned char *aData,
@@ -196,6 +205,7 @@ private:
   IntSize mSize;
   CGColorSpaceRef mColorSpace;
   CGContextRef mCg;
+  CGAffineTransform mOriginalTransform;
 
   /**
    * The image buffer, if the buffer is owned by this class.

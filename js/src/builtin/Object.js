@@ -51,6 +51,15 @@ function ObjectIsExtensible(obj) {
     return IsObject(obj) && std_Reflect_isExtensible(obj);
 }
 
+/* ES2015 19.1.3.5 Object.prototype.toLocaleString */
+function Object_toLocaleString() {
+    // Step 1.
+    var O = this;
+
+    // Step 2.
+    return callContentFunction(O.toString, O);
+}
+
 function ObjectDefineSetter(name, setter) {
     var object;
     if (this === null || this === undefined)
@@ -127,9 +136,6 @@ function ObjectLookupGetter(name) {
 
 // Draft proposal http://tc39.github.io/proposal-object-values-entries/#Object.values
 function ObjectValues(O) {
-    // Until https://bugzilla.mozilla.org/show_bug.cgi?id=1170372 implemented
-    var attrs = ATTR_CONFIGURABLE | ATTR_ENUMERABLE | ATTR_WRITABLE;
-
     // Steps 1-2.
     var object = ToObject(O);
 
@@ -144,7 +150,7 @@ function ObjectValues(O) {
             continue;
 
         var value = object[key];
-        _DefineDataProperty(values, valuesCount++, value, attrs);
+        _DefineDataProperty(values, valuesCount++, value);
     }
 
     // Step 5.
@@ -153,9 +159,6 @@ function ObjectValues(O) {
 
 // Draft proposal http://tc39.github.io/proposal-object-values-entries/#Object.entries
 function ObjectEntries(O) {
-    // Until https://bugzilla.mozilla.org/show_bug.cgi?id=1170372 implemented
-    var attrs = ATTR_CONFIGURABLE | ATTR_ENUMERABLE | ATTR_WRITABLE;
-
     // Steps 1-2.
     var object = ToObject(O);
 
@@ -170,7 +173,7 @@ function ObjectEntries(O) {
             continue;
 
         var value = object[key];
-        _DefineDataProperty(entries, entriesCount++, [key, value], attrs);
+        _DefineDataProperty(entries, entriesCount++, [key, value]);
     }
 
     // Step 5.

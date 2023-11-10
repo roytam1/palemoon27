@@ -197,14 +197,11 @@ struct JSSettings
 
 enum WorkerPreference
 {
-  WORKERPREF_DUMP = 0, // browser.dom.window.dump.enabled
-  WORKERPREF_DOM_CACHES, // dom.caches.enabled
-  WORKERPREF_SERVICEWORKERS, // dom.serviceWorkers.enabled
-  WORKERPREF_INTERCEPTION_ENABLED, // dom.serviceWorkers.interception.enabled
-  WORKERPREF_DOM_WORKERNOTIFICATION, // dom.webnotifications.workers.enabled
-  WORKERPREF_DOM_CACHES_TESTING, // dom.caches.testing.enabled
-  WORKERPREF_SERVICEWORKERS_TESTING, // dom.serviceWorkers.testing.enabled
-  WORKERPREF_INTERCEPTION_OPAQUE_ENABLED, // dom.serviceWorkers.interception.opaque.enabled
+#define WORKER_SIMPLE_PREF(name, getter, NAME) WORKERPREF_ ## NAME,
+#define WORKER_PREF(name, callback)
+#include "mozilla/dom/WorkerPrefs.h"
+#undef WORKER_SIMPLE_PREF
+#undef WORKER_PREF
   WORKERPREF_COUNT
 };
 
@@ -250,7 +247,7 @@ struct WorkerLoadInfo
   };
 
   // Only set if we have a custom overriden load group
-  nsRefPtr<InterfaceRequestor> mInterfaceRequestor;
+  RefPtr<InterfaceRequestor> mInterfaceRequestor;
 
   nsAutoPtr<mozilla::ipc::PrincipalInfo> mPrincipalInfo;
   nsCString mDomain;
@@ -269,7 +266,7 @@ struct WorkerLoadInfo
   bool mPrincipalIsSystem;
   bool mIsInPrivilegedApp;
   bool mIsInCertifiedApp;
-  bool mIndexedDBAllowed;
+  bool mStorageAllowed;
   bool mPrivateBrowsing;
   bool mServiceWorkersTestingInWindow;
 
@@ -289,6 +286,12 @@ FreezeWorkersForWindow(nsPIDOMWindow* aWindow);
 
 void
 ThawWorkersForWindow(nsPIDOMWindow* aWindow);
+
+void
+SuspendWorkersForWindow(nsPIDOMWindow* aWindow);
+
+void
+ResumeWorkersForWindow(nsPIDOMWindow* aWindow);
 
 class WorkerTask
 {

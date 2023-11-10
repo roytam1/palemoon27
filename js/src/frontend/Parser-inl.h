@@ -18,15 +18,13 @@ template <typename ParseHandler>
 bool
 ParseContext<ParseHandler>::init(Parser<ParseHandler>& parser)
 {
-    if (!parser.generateBlockId(sc->isFunctionBox()
-                                ? sc->asFunctionBox()->function()
-                                : sc->staticScope(),
-                                &this->bodyid))
-    {
+    if (!parser.generateBlockId(sc->staticScope(), &this->bodyid))
         return false;
-    }
 
-    if (!decls_.init() || !lexdeps.ensureMap(sc->context)) {
+    if (!decls_.init() ||
+        !lexdeps.ensureMap(sc->context) ||
+        !bodyLevelLexicallyDeclaredNames_.init())
+    {
         ReportOutOfMemory(sc->context);
         return false;
     }

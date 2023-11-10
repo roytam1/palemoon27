@@ -65,7 +65,7 @@ class IDBFactory final
 
   // This will only be set if the factory belongs to a window in a child
   // process.
-  nsRefPtr<TabChild> mTabChild;
+  RefPtr<TabChild> mTabChild;
 
   nsTArray<nsAutoPtr<PendingRequestInfo>> mPendingRequests;
 
@@ -109,16 +109,17 @@ public:
   AllowedForPrincipal(nsIPrincipal* aPrincipal,
                       bool* aIsSystemPrincipal = nullptr);
 
+#ifdef DEBUG
+  void
+  AssertIsOnOwningThread() const;
+
+  PRThread*
+  OwningThread() const;
+#else
   void
   AssertIsOnOwningThread() const
-#ifdef DEBUG
-  ;
-#else
   { }
 #endif
-
-  void
-  SetBackgroundActor(BackgroundFactoryChild* aBackgroundActor);
 
   void
   ClearBackgroundActor()

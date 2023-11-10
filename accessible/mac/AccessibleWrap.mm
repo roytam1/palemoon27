@@ -13,8 +13,10 @@
 #import "mozAccessible.h"
 #import "mozActionElements.h"
 #import "mozHTMLAccessible.h"
+#import "mozTableAccessible.h"
 #import "mozTextAccessible.h"
 
+using namespace mozilla;
 using namespace mozilla::a11y;
 
 AccessibleWrap::
@@ -28,18 +30,20 @@ AccessibleWrap::~AccessibleWrap()
 {
 }
 
-mozAccessible* 
+mozAccessible*
 AccessibleWrap::GetNativeObject()
 {
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK_NIL;
-  
-  if (!mNativeInited && !mNativeObject && !IsDefunct() && !AncestorIsFlat())
-    mNativeObject = [[GetNativeType() alloc] initWithAccessible:this];
-  
+
+  if (!mNativeInited && !mNativeObject && !IsDefunct() && !AncestorIsFlat()) {
+    uintptr_t accWrap = reinterpret_cast<uintptr_t>(this);
+    mNativeObject = [[GetNativeType() alloc] initWithAccessible:accWrap];
+  }
+
   mNativeInited = true;
-  
+
   return mNativeObject;
-  
+
   NS_OBJC_END_TRY_ABORT_BLOCK_NIL;
 }
 
@@ -59,51 +63,16 @@ AccessibleWrap::GetNativeType ()
   if (IsXULTabpanels())
     return [mozPaneAccessible class];
 
-  roles::Role role = Role();
-  switch (role) {
-    case roles::PUSHBUTTON:
-    case roles::SPLITBUTTON:
-    case roles::TOGGLE_BUTTON:
-    {
-      // if this button may show a popup, let's make it of the popupbutton type.
-      return HasPopup() ? [mozPopupButtonAccessible class] : 
-             [mozButtonAccessible class];
-    }
-    
-    case roles::PAGETAB:
-      return [mozButtonAccessible class];
+  if (IsTable())
+    return [mozTableAccessible class];
 
-    case roles::CHECKBUTTON:
-      return [mozCheckboxAccessible class];
-      
-    case roles::HEADING:
-      return [mozHeadingAccessible class];
+  if (IsTableRow())
+    return [mozTableRowAccessible class];
 
-    case roles::PAGETABLIST:
-      return [mozTabsAccessible class];
+  if (IsTableCell())
+    return [mozTableCellAccessible class];
 
-    case roles::ENTRY:
-    case roles::STATICTEXT:
-    case roles::CAPTION:
-    case roles::ACCEL_LABEL:
-    case roles::PASSWORD_TEXT:
-      // normal textfield (static or editable)
-      return [mozTextAccessible class];
-
-    case roles::TEXT_LEAF:
-      return [mozTextLeafAccessible class];
-
-    case roles::LINK:
-      return [mozLinkAccessible class];
-
-    case roles::COMBOBOX:
-      return [mozPopupButtonAccessible class];
-      
-    default:
-      return [mozAccessible class];
-  }
-  
-  return nil;
+  return GetTypeFromRole(Role());
 
   NS_OBJC_END_TRY_ABORT_BLOCK_NIL;
 }
@@ -135,14 +104,20 @@ AccessibleWrap::HandleAccEvent(AccEvent* aEvent)
   nsresult rv = Accessible::HandleAccEvent(aEvent);
   NS_ENSURE_SUCCESS(rv, rv);
 
+  if (IPCAccessibilityActive()) {
+    return NS_OK;
+  }
+
   uint32_t eventType = aEvent->GetEventType();
 
-  // ignore everything but focus-changed, value-changed, caret and selection
-  // events for now.
+  // ignore everything but focus-changed, value-changed, caret, selection
+  // and document load complete events for now.
   if (eventType != nsIAccessibleEvent::EVENT_FOCUS &&
       eventType != nsIAccessibleEvent::EVENT_VALUE_CHANGE &&
+      eventType != nsIAccessibleEvent::EVENT_TEXT_VALUE_CHANGE &&
       eventType != nsIAccessibleEvent::EVENT_TEXT_CARET_MOVED &&
-      eventType != nsIAccessibleEvent::EVENT_TEXT_SELECTION_CHANGED)
+      eventType != nsIAccessibleEvent::EVENT_TEXT_SELECTION_CHANGED &&
+      eventType != nsIAccessibleEvent::EVENT_DOCUMENT_LOAD_COMPLETE)
     return NS_OK;
 
   Accessible* accessible = aEvent->GetAccessible();
@@ -153,18 +128,7 @@ AccessibleWrap::HandleAccEvent(AccEvent* aEvent)
   if (!nativeAcc)
     return NS_ERROR_FAILURE;
 
-  switch (eventType) {
-    case nsIAccessibleEvent::EVENT_FOCUS:
-      [nativeAcc didReceiveFocus];
-      break;
-    case nsIAccessibleEvent::EVENT_VALUE_CHANGE:
-      [nativeAcc valueDidChange];
-      break;
-    case nsIAccessibleEvent::EVENT_TEXT_CARET_MOVED:
-    case nsIAccessibleEvent::EVENT_TEXT_SELECTION_CHANGED:
-      [nativeAcc selectedTextDidChange];
-      break;
-  }
+  FireNativeEvent(nativeAcc, eventType);
 
   return NS_OK;
 
@@ -273,4 +237,78 @@ AccessibleWrap::AncestorIsFlat()
   }
   // no parent was flat
   return false;
+}
+
+void
+a11y::FireNativeEvent(mozAccessible* aNativeAcc, uint32_t aEventType)
+{
+  NS_OBJC_BEGIN_TRY_ABORT_BLOCK;
+
+  switch (aEventType) {
+    case nsIAccessibleEvent::EVENT_FOCUS:
+      [aNativeAcc didReceiveFocus];
+      break;
+    case nsIAccessibleEvent::EVENT_VALUE_CHANGE:
+    case nsIAccessibleEvent::EVENT_TEXT_VALUE_CHANGE:
+      [aNativeAcc valueDidChange];
+      break;
+    case nsIAccessibleEvent::EVENT_TEXT_CARET_MOVED:
+    case nsIAccessibleEvent::EVENT_TEXT_SELECTION_CHANGED:
+      [aNativeAcc selectedTextDidChange];
+      break;
+    case nsIAccessibleEvent::EVENT_DOCUMENT_LOAD_COMPLETE:
+      [aNativeAcc documentLoadComplete];
+      break;
+  }
+
+  NS_OBJC_END_TRY_ABORT_BLOCK;
+}
+
+Class
+a11y::GetTypeFromRole(roles::Role aRole)
+{
+  NS_OBJC_BEGIN_TRY_ABORT_BLOCK_NIL;
+
+  switch (aRole) {
+    case roles::COMBOBOX:
+    case roles::PUSHBUTTON:
+    case roles::SPLITBUTTON:
+    case roles::TOGGLE_BUTTON:
+    {
+        return [mozButtonAccessible class];
+    }
+
+    case roles::PAGETAB:
+      return [mozButtonAccessible class];
+
+    case roles::CHECKBUTTON:
+      return [mozCheckboxAccessible class];
+
+    case roles::HEADING:
+      return [mozHeadingAccessible class];
+
+    case roles::PAGETABLIST:
+      return [mozTabsAccessible class];
+
+    case roles::ENTRY:
+    case roles::STATICTEXT:
+    case roles::CAPTION:
+    case roles::ACCEL_LABEL:
+    case roles::PASSWORD_TEXT:
+      // normal textfield (static or editable)
+      return [mozTextAccessible class];
+
+    case roles::TEXT_LEAF:
+      return [mozTextLeafAccessible class];
+
+    case roles::LINK:
+      return [mozLinkAccessible class];
+
+    default:
+      return [mozAccessible class];
+  }
+
+  return nil;
+
+  NS_OBJC_END_TRY_ABORT_BLOCK_NIL;
 }

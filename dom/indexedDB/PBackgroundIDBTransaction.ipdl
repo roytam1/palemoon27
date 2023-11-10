@@ -6,6 +6,7 @@ include protocol PBackgroundIDBCursor;
 include protocol PBackgroundIDBDatabase;
 include protocol PBackgroundIDBDatabaseFile;
 include protocol PBackgroundIDBRequest;
+include protocol PBackgroundMutableFile;
 
 include PBackgroundIDBSharedTypes;
 
@@ -21,19 +22,19 @@ protocol PBackgroundIDBTransaction
   manages PBackgroundIDBRequest;
 
 parent:
-  DeleteMe();
+  async DeleteMe();
 
-  Commit();
-  Abort(nsresult resultCode);
+  async Commit();
+  async Abort(nsresult resultCode);
 
-  PBackgroundIDBCursor(OpenCursorParams params);
+  async PBackgroundIDBCursor(OpenCursorParams params);
 
-  PBackgroundIDBRequest(RequestParams params);
+  async PBackgroundIDBRequest(RequestParams params);
 
 child:
-  __delete__();
+  async __delete__();
 
-  Complete(nsresult result);
+  async Complete(nsresult result);
 };
 
 } // namespace indexedDB

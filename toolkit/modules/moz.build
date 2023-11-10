@@ -9,6 +9,10 @@ BROWSER_CHROME_MANIFESTS += ['tests/browser/browser.ini']
 MOCHITEST_MANIFESTS += ['tests/mochitest/mochitest.ini']
 MOCHITEST_CHROME_MANIFESTS += ['tests/chrome/chrome.ini']
 
+TESTING_JS_MODULES += [
+    'tests/PromiseTestUtils.jsm',
+]
+
 SPHINX_TREES['toolkit_modules'] = 'docs'
 
 EXTRA_JS_MODULES += [
@@ -34,6 +38,7 @@ EXTRA_JS_MODULES += [
     'LoadContextInfo.jsm',
     'Log.jsm',
     'NewTabUtils.jsm',
+    'ObjectUtils.jsm',
     'PageMenu.jsm',
     'PageMetadata.jsm',
     'PermissionsUtils.jsm',
@@ -47,6 +52,7 @@ EXTRA_JS_MODULES += [
     'PropertyListUtils.jsm',
     'RemoteController.jsm',
     'RemoteFinder.jsm',
+    'RemotePageManager.jsm',
     'RemoteSecurityUI.jsm',
     'RemoteWebNavigation.jsm',
     'RemoteWebProgress.jsm',
@@ -61,7 +67,6 @@ EXTRA_JS_MODULES += [
     'SpatialNavigation.jsm',
     'Sqlite.jsm',
     'Task.jsm',
-    'TelemetryTimestamps.jsm',
     'Timer.jsm',
     'WebChannel.jsm',
     'ZipUtils.jsm',
@@ -97,10 +102,8 @@ for var in ('ANDROID_PACKAGE_NAME',
             'MOZ_APP_VERSION'):
             DEFINES[var] = CONFIG[var]
 
-for var in ('MOZILLA_OFFICIAL',
-            'MOZ_TOOLKIT_SEARCH'):
-    if CONFIG[var]:
-        DEFINES[var] = True
+if CONFIG['MOZ_TOOLKIT_SEARCH']:
+    DEFINES['MOZ_TOOLKIT_SEARCH'] = True
 
 EXTRA_PP_JS_MODULES += [
     'AppConstants.jsm',

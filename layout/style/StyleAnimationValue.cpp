@@ -1,4 +1,5 @@
-/* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
+/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
+/* vim: set ts=8 sts=2 et sw=2 tw=80: */
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -136,6 +137,7 @@ AppendFunction(nsCSSKeyword aTransformFunction)
       break;
     default:
       NS_ERROR("must be a transform function");
+      MOZ_FALLTHROUGH;
     case eCSSKeyword_translatex:
     case eCSSKeyword_translatey:
     case eCSSKeyword_translatez:
@@ -153,7 +155,7 @@ AppendFunction(nsCSSKeyword aTransformFunction)
       break;
   }
 
-  nsRefPtr<nsCSSValue::Array> arr = nsCSSValue::Array::Create(nargs + 1);
+  RefPtr<nsCSSValue::Array> arr = nsCSSValue::Array::Create(nargs + 1);
   arr->Item(0).SetIntValue(aTransformFunction, eCSSUnit_Enumerated);
 
   return arr.forget();
@@ -164,7 +166,7 @@ ToPrimitive(nsCSSValue::Array* aArray)
 {
   nsCSSKeyword tfunc = nsStyleTransformMatrix::TransformFunctionOf(aArray);
   nsCSSKeyword primitive = ToPrimitive(tfunc);
-  nsRefPtr<nsCSSValue::Array> arr = AppendFunction(primitive);
+  RefPtr<nsCSSValue::Array> arr = AppendFunction(primitive);
 
   // FIXME: This would produce fewer calc() expressions if the
   // zero were of compatible type (length vs. percent) when
@@ -259,7 +261,7 @@ AppendCSSShadowValue(const nsCSSShadowItem *aShadow,
   MOZ_ASSERT(aShadow, "shadow expected");
 
   // X, Y, Radius, Spread, Color, Inset
-  nsRefPtr<nsCSSValue::Array> arr = nsCSSValue::Array::Create(6);
+  RefPtr<nsCSSValue::Array> arr = nsCSSValue::Array::Create(6);
   nscoordToCSSValue(aShadow->mXOffset, arr->Item(0));
   nscoordToCSSValue(aShadow->mYOffset, arr->Item(1));
   nscoordToCSSValue(aShadow->mRadius, arr->Item(2));
@@ -282,7 +284,8 @@ AppendCSSShadowValue(const nsCSSShadowItem *aShadow,
 
 // Like nsStyleCoord::CalcValue, but with length in float pixels instead
 // of nscoord.
-struct PixelCalcValue {
+struct PixelCalcValue
+{
   float mLength, mPercent;
   bool mHasPercent;
 };
@@ -363,7 +366,7 @@ ExtractCalcValue(const nsCSSValue& aValue)
 static void
 SetCalcValue(const nsStyleCoord::CalcValue* aCalc, nsCSSValue& aValue)
 {
-  nsRefPtr<nsCSSValue::Array> arr = nsCSSValue::Array::Create(1);
+  RefPtr<nsCSSValue::Array> arr = nsCSSValue::Array::Create(1);
   if (!aCalc->mHasPercent) {
     nscoordToCSSValue(aCalc->mLength, arr->Item(0));
   } else {
@@ -379,7 +382,7 @@ SetCalcValue(const nsStyleCoord::CalcValue* aCalc, nsCSSValue& aValue)
 static void
 SetCalcValue(const PixelCalcValue& aCalc, nsCSSValue& aValue)
 {
-  nsRefPtr<nsCSSValue::Array> arr = nsCSSValue::Array::Create(1);
+  RefPtr<nsCSSValue::Array> arr = nsCSSValue::Array::Create(1);
   if (!aCalc.mHasPercent) {
     arr->Item(0).SetFloatValue(aCalc.mLength, eCSSUnit_Pixel);
   } else {
@@ -1128,7 +1131,7 @@ AddShadowItems(double aCoeff1, const nsCSSValue &aValue1,
              "wrong unit");
   nsCSSValue::Array *array1 = aValue1.GetArrayValue();
   nsCSSValue::Array *array2 = aValue2.GetArrayValue();
-  nsRefPtr<nsCSSValue::Array> resultArray = nsCSSValue::Array::Create(6);
+  RefPtr<nsCSSValue::Array> resultArray = nsCSSValue::Array::Create(6);
 
   for (size_t i = 0; i < 4; ++i) {
     AddCSSValuePixel(aCoeff1, array1->Item(i), aCoeff2, array2->Item(i),
@@ -1223,7 +1226,7 @@ AddTransformScale(double aCoeff1, const nsCSSValue &aValue1,
 StyleAnimationValue::AppendTransformFunction(nsCSSKeyword aTransformFunction,
                                              nsCSSValueList**& aListTail)
 {
-  nsRefPtr<nsCSSValue::Array> arr = AppendFunction(aTransformFunction);
+  RefPtr<nsCSSValue::Array> arr = AppendFunction(aTransformFunction);
   nsCSSValueList *item = new nsCSSValueList;
   item->mValue.SetArrayValue(arr, eCSSUnit_Function);
 
@@ -1606,7 +1609,7 @@ AddDifferentTransformLists(double aCoeff1, const nsCSSValueList* aList1,
   nsAutoPtr<nsCSSValueList> result;
   nsCSSValueList **resultTail = getter_Transfers(result);
 
-  nsRefPtr<nsCSSValue::Array> arr;
+  RefPtr<nsCSSValue::Array> arr;
   arr =
     StyleAnimationValue::AppendTransformFunction(eCSSKeyword_interpolatematrix,
                                                  resultTail);
@@ -1645,7 +1648,7 @@ AddFilterFunctionImpl(double aCoeff1, const nsCSSValueList* aList1,
              "expected function");
   MOZ_ASSERT(aList2->mValue.GetUnit() == eCSSUnit_Function,
              "expected function");
-  nsRefPtr<nsCSSValue::Array> a1 = aList1->mValue.GetArrayValue(),
+  RefPtr<nsCSSValue::Array> a1 = aList1->mValue.GetArrayValue(),
                               a2 = aList2->mValue.GetArrayValue();
   nsCSSKeyword filterFunction = a1->Item(0).GetKeywordValue();
   if (filterFunction != a2->Item(0).GetKeywordValue())
@@ -1684,6 +1687,7 @@ AddFilterFunctionImpl(double aCoeff1, const nsCSSValueList* aList1,
     case eCSSKeyword_invert:
     case eCSSKeyword_sepia:
       initialVal = 0.0f;
+      MOZ_FALLTHROUGH;
     case eCSSKeyword_brightness:
     case eCSSKeyword_contrast:
     case eCSSKeyword_opacity:
@@ -1755,7 +1759,7 @@ AddTransformLists(double aCoeff1, const nsCSSValueList* aList1,
   nsCSSValueList **resultTail = getter_Transfers(result);
 
   do {
-    nsRefPtr<nsCSSValue::Array> a1 = ToPrimitive(aList1->mValue.GetArrayValue()),
+    RefPtr<nsCSSValue::Array> a1 = ToPrimitive(aList1->mValue.GetArrayValue()),
                                 a2 = ToPrimitive(aList2->mValue.GetArrayValue());
     MOZ_ASSERT(
       TransformFunctionsMatch(nsStyleTransformMatrix::TransformFunctionOf(a1),
@@ -1765,7 +1769,7 @@ AddTransformLists(double aCoeff1, const nsCSSValueList* aList1,
                "resultTail isn't pointing to the tail (may leak)");
 
     nsCSSKeyword tfunc = nsStyleTransformMatrix::TransformFunctionOf(a1);
-    nsRefPtr<nsCSSValue::Array> arr;
+    RefPtr<nsCSSValue::Array> arr;
     if (tfunc != eCSSKeyword_matrix &&
         tfunc != eCSSKeyword_matrix3d &&
         tfunc != eCSSKeyword_interpolatematrix &&
@@ -1864,7 +1868,7 @@ AddTransformLists(double aCoeff1, const nsCSSValueList* aList1,
                            arr->Item(4));
           break;
         }
-        // FALL THROUGH
+        MOZ_FALLTHROUGH;
       }
       case eCSSKeyword_matrix:
       case eCSSKeyword_matrix3d:
@@ -2491,7 +2495,7 @@ BuildStyleRule(nsCSSProperty aProperty,
                bool aUseSVGMode)
 {
   // Set up an empty CSS Declaration
-  nsAutoPtr<css::Declaration> declaration(new css::Declaration());
+  RefPtr<css::Declaration> declaration(new css::Declaration());
   declaration->InitializeEmpty();
 
   bool changed; // ignored, but needed as outparam for ParseProperty
@@ -2503,20 +2507,18 @@ BuildStyleRule(nsCSSProperty aProperty,
     nsCSSProps::SubpropertyEntryFor(aProperty)[0] : aProperty;
 
   // Get a parser, parse the property, and check for CSS parsing errors.
-  // If any of these steps fails, we bail out and delete the declaration.
-  if (NS_FAILED(parser.ParseProperty(aProperty, aSpecifiedValue,
-                                     doc->GetDocumentURI(), baseURI,
-                                     aTargetElement->NodePrincipal(),
-                                     declaration, &changed, false,
-                                     aUseSVGMode)) ||
-      // check whether property parsed without CSS parsing errors
-      !declaration->HasNonImportantValueFor(propertyToCheck)) {
-    NS_WARNING("failure in BuildStyleRule");
+  // If this fails, we bail out and delete the declaration.
+  parser.ParseProperty(aProperty, aSpecifiedValue, doc->GetDocumentURI(),
+                       baseURI, aTargetElement->NodePrincipal(), declaration,
+                       &changed, false, aUseSVGMode);
+
+  // check whether property parsed without CSS parsing errors
+  if (!declaration->HasNonImportantValueFor(propertyToCheck)) {
     return nullptr;
   }
 
-  nsRefPtr<css::StyleRule> rule = new css::StyleRule(nullptr,
-                                                     declaration.forget(),
+  RefPtr<css::StyleRule> rule = new css::StyleRule(nullptr,
+                                                     declaration,
                                                      0, 0);
   return rule.forget();
 }
@@ -2533,7 +2535,7 @@ LookupStyleContext(dom::Element* aElement)
   return nsComputedDOMStyle::GetStyleContextForElement(aElement, nullptr, shell);
 }
 
-bool
+/* static */ bool
 StyleAnimationValue::ComputeValue(nsCSSProperty aProperty,
                                   dom::Element* aTargetElement,
                                   const nsAString& aSpecifiedValue,
@@ -2547,7 +2549,7 @@ StyleAnimationValue::ComputeValue(nsCSSProperty aProperty,
              "are in a document");
 
   // Parse specified value into a temporary css::StyleRule
-  nsRefPtr<css::StyleRule> styleRule =
+  RefPtr<css::StyleRule> styleRule =
     BuildStyleRule(aProperty, aTargetElement, aSpecifiedValue, aUseSVGMode);
   if (!styleRule) {
     return false;
@@ -2565,19 +2567,77 @@ StyleAnimationValue::ComputeValue(nsCSSProperty aProperty,
     return true;
   }
 
+  AutoTArray<PropertyStyleAnimationValuePair,1> values;
+  bool ok = ComputeValues(aProperty, nsCSSProps::eIgnoreEnabledState,
+                          aTargetElement, styleRule, values,
+                          aIsContextSensitive);
+  if (!ok) {
+    return false;
+  }
+
+  MOZ_ASSERT(values.Length() == 1);
+  MOZ_ASSERT(values[0].mProperty == aProperty);
+
+  aComputedValue = values[0].mValue;
+  return true;
+}
+
+/* static */ bool
+StyleAnimationValue::ComputeValues(nsCSSProperty aProperty,
+                                   nsCSSProps::EnabledState aEnabledState,
+                                   dom::Element* aTargetElement,
+                                   const nsAString& aSpecifiedValue,
+                                   bool aUseSVGMode,
+                                   nsTArray<PropertyStyleAnimationValuePair>& aResult)
+{
+  MOZ_ASSERT(aTargetElement, "null target element");
+  MOZ_ASSERT(aTargetElement->GetCurrentDoc(),
+             "we should only be able to actively animate nodes that "
+             "are in a document");
+
+  // Parse specified value into a temporary css::StyleRule
+  RefPtr<css::StyleRule> styleRule =
+    BuildStyleRule(aProperty, aTargetElement, aSpecifiedValue, aUseSVGMode);
+  if (!styleRule) {
+    return false;
+  }
+
+  aResult.Clear();
+  return ComputeValues(aProperty, aEnabledState, aTargetElement, styleRule,
+                       aResult, /* aIsContextSensitive */ nullptr);
+}
+
+/* static */ bool
+StyleAnimationValue::ComputeValues(
+    nsCSSProperty aProperty,
+    nsCSSProps::EnabledState aEnabledState,
+    dom::Element* aTargetElement,
+    css::StyleRule* aStyleRule,
+    nsTArray<PropertyStyleAnimationValuePair>& aValues,
+    bool* aIsContextSensitive)
+{
+  if (!nsCSSProps::IsEnabled(aProperty, aEnabledState)) {
+    return false;
+  }
+
   // Look up style context for our target element
-  nsRefPtr<nsStyleContext> styleContext = LookupStyleContext(aTargetElement);
+  RefPtr<nsStyleContext> styleContext = LookupStyleContext(aTargetElement);
   if (!styleContext) {
     return false;
   }
   nsStyleSet* styleSet = styleContext->PresContext()->StyleSet();
 
-  nsRefPtr<nsStyleContext> tmpStyleContext;
+  RefPtr<nsStyleContext> tmpStyleContext;
   if (aIsContextSensitive) {
+    MOZ_ASSERT(!nsCSSProps::IsShorthand(aProperty),
+               "to correctly set aIsContextSensitive for shorthand properties, "
+               "this code must be adjusted");
+
     nsCOMArray<nsIStyleRule> ruleArray;
     ruleArray.AppendObject(styleSet->InitialStyleRule());
-    ruleArray.AppendObject(styleRule);
-    styleRule->RuleMatched();
+    css::Declaration* declaration = aStyleRule->GetDeclaration();
+    ruleArray.AppendObject(declaration);
+    declaration->SetImmutable();
     tmpStyleContext =
       styleSet->ResolveStyleByAddingRules(styleContext, ruleArray);
     if (!tmpStyleContext) {
@@ -2588,8 +2648,8 @@ StyleAnimationValue::ComputeValue(nsCSSProperty aProperty,
     nsStyleStructID sid = nsCSSProps::kSIDTable[aProperty];
     tmpStyleContext->StyleData(sid);
 
-    // If the rule node will have cached style data if the value is not
-    // context-sensitive. So if there's nothing cached, it's not context
+    // The rule node will have unconditional cached style data if the value is
+    // not context-sensitive.  So if there's nothing cached, it's not context
     // sensitive.
     *aIsContextSensitive =
       !tmpStyleContext->RuleNode()->NodeHasCachedUnconditionalData(sid);
@@ -2603,8 +2663,9 @@ StyleAnimationValue::ComputeValue(nsCSSProperty aProperty,
   // value may have been biased by the 'initial' values supplied.
   if (!aIsContextSensitive || *aIsContextSensitive) {
     nsCOMArray<nsIStyleRule> ruleArray;
-    ruleArray.AppendObject(styleRule);
-    styleRule->RuleMatched();
+    css::Declaration* declaration = aStyleRule->GetDeclaration();
+    ruleArray.AppendObject(declaration);
+    declaration->SetImmutable();
     tmpStyleContext =
       styleSet->ResolveStyleByAddingRules(styleContext, ruleArray);
     if (!tmpStyleContext) {
@@ -2612,8 +2673,27 @@ StyleAnimationValue::ComputeValue(nsCSSProperty aProperty,
     }
   }
 
-  // Extract computed value of our property from the temporary style rule
-  return ExtractComputedValue(aProperty, tmpStyleContext, aComputedValue);
+  // Extract computed value of our property (or all longhand components, if
+  // aProperty is a shorthand) from the temporary style rule
+  if (nsCSSProps::IsShorthand(aProperty)) {
+    CSSPROPS_FOR_SHORTHAND_SUBPROPERTIES(p, aProperty, aEnabledState) {
+      if (nsCSSProps::kAnimTypeTable[*p] == eStyleAnimType_None) {
+        // Skip non-animatable component longhands.
+        continue;
+      }
+      PropertyStyleAnimationValuePair* pair = aValues.AppendElement();
+      pair->mProperty = *p;
+      if (!ExtractComputedValue(*p, tmpStyleContext,
+                                pair->mValue)) {
+        return false;
+      }
+    }
+    return true;
+  } else {
+    PropertyStyleAnimationValuePair* pair = aValues.AppendElement();
+    pair->mProperty = aProperty;
+    return ExtractComputedValue(aProperty, tmpStyleContext, pair->mValue);
+  }
 }
 
 bool
@@ -2843,9 +2923,9 @@ StyleCoordToCSSValue(const nsStyleCoord& aCoord, nsCSSValue& aCSSValue)
 }
 
 static void
-SetPositionValue(const nsStyleBackground::Position& aPos, nsCSSValue& aCSSValue)
+SetPositionValue(const nsStyleImageLayers::Position& aPos, nsCSSValue& aCSSValue)
 {
-  nsRefPtr<nsCSSValue::Array> posArray = nsCSSValue::Array::Create(4);
+  RefPtr<nsCSSValue::Array> posArray = nsCSSValue::Array::Create(4);
   aCSSValue.SetArrayValue(posArray.get(), eCSSUnit_Array);
 
   // NOTE: Array entries #0 and #2 here are intentionally left untouched, with
@@ -2882,7 +2962,7 @@ SubstitutePixelValues(nsStyleContext* aStyleContext,
     SetCalcValue(&c2, aOutput);
   } else if (aInput.UnitHasArrayValue()) {
     const nsCSSValue::Array *inputArray = aInput.GetArrayValue();
-    nsRefPtr<nsCSSValue::Array> outputArray =
+    RefPtr<nsCSSValue::Array> outputArray =
       nsCSSValue::Array::Create(inputArray->Count());
     for (size_t i = 0, i_end = inputArray->Count(); i < i_end; ++i) {
       SubstitutePixelValues(aStyleContext,
@@ -3018,6 +3098,14 @@ StyleAnimationValue::ExtractComputedValue(nsCSSProperty aProperty,
             static_cast<const nsStyleTextReset*>(styleStruct)->
               GetDecorationStyle();
           aComputedValue.SetIntValue(decorationStyle, eUnit_Enumerated);
+          break;
+        }
+
+        case eCSSProperty_text_emphasis_color: {
+          auto styleText = static_cast<const nsStyleText*>(styleStruct);
+          nscolor color = styleText->mTextEmphasisColorForeground ?
+            aStyleContext->StyleColor()->mColor : styleText->mTextEmphasisColor;
+          aComputedValue.SetColorValue(color);
           break;
         }
 
@@ -3204,12 +3292,12 @@ StyleAnimationValue::ExtractComputedValue(nsCSSProperty aProperty,
             static_cast<const nsStyleBackground*>(styleStruct);
           nsAutoPtr<nsCSSValueList> result;
           nsCSSValueList **resultTail = getter_Transfers(result);
-          MOZ_ASSERT(bg->mPositionCount > 0, "unexpected count");
-          for (uint32_t i = 0, i_end = bg->mPositionCount; i != i_end; ++i) {
+          MOZ_ASSERT(bg->mLayers.mPositionCount > 0, "unexpected count");
+          for (uint32_t i = 0, i_end = bg->mLayers.mPositionCount; i != i_end; ++i) {
             nsCSSValueList *item = new nsCSSValueList;
             *resultTail = item;
             resultTail = &item->mNext;
-            SetPositionValue(bg->mLayers[i].mPosition, item->mValue);
+            SetPositionValue(bg->mLayers.mLayers[i].mPosition, item->mValue);
           }
 
           aComputedValue.SetAndAdoptCSSValueListValue(result.forget(),
@@ -3222,23 +3310,23 @@ StyleAnimationValue::ExtractComputedValue(nsCSSProperty aProperty,
             static_cast<const nsStyleBackground*>(styleStruct);
           nsAutoPtr<nsCSSValuePairList> result;
           nsCSSValuePairList **resultTail = getter_Transfers(result);
-          MOZ_ASSERT(bg->mSizeCount > 0, "unexpected count");
-          for (uint32_t i = 0, i_end = bg->mSizeCount; i != i_end; ++i) {
+          MOZ_ASSERT(bg->mLayers.mSizeCount > 0, "unexpected count");
+          for (uint32_t i = 0, i_end = bg->mLayers.mSizeCount; i != i_end; ++i) {
             nsCSSValuePairList *item = new nsCSSValuePairList;
             *resultTail = item;
             resultTail = &item->mNext;
 
-            const nsStyleBackground::Size &size = bg->mLayers[i].mSize;
+            const nsStyleImageLayers::Size &size = bg->mLayers.mLayers[i].mSize;
             switch (size.mWidthType) {
-              case nsStyleBackground::Size::eContain:
-              case nsStyleBackground::Size::eCover:
+              case nsStyleImageLayers::Size::eContain:
+              case nsStyleImageLayers::Size::eCover:
                 item->mXValue.SetIntValue(size.mWidthType,
                                           eCSSUnit_Enumerated);
                 break;
-              case nsStyleBackground::Size::eAuto:
+              case nsStyleImageLayers::Size::eAuto:
                 item->mXValue.SetAutoValue();
                 break;
-              case nsStyleBackground::Size::eLengthPercentage:
+              case nsStyleImageLayers::Size::eLengthPercentage:
                 // XXXbz is there a good reason we can't just
                 // SetCalcValue(&size.mWidth, item->mXValue) here?
                 if (!size.mWidth.mHasPercent &&
@@ -3258,14 +3346,14 @@ StyleAnimationValue::ExtractComputedValue(nsCSSProperty aProperty,
             }
 
             switch (size.mHeightType) {
-              case nsStyleBackground::Size::eContain:
-              case nsStyleBackground::Size::eCover:
+              case nsStyleImageLayers::Size::eContain:
+              case nsStyleImageLayers::Size::eCover:
                 // leave it null
                 break;
-              case nsStyleBackground::Size::eAuto:
+              case nsStyleImageLayers::Size::eAuto:
                 item->mYValue.SetAutoValue();
                 break;
-              case nsStyleBackground::Size::eLengthPercentage:
+              case nsStyleImageLayers::Size::eLengthPercentage:
                 // XXXbz is there a good reason we can't just
                 // SetCalcValue(&size.mHeight, item->mYValue) here?
                 if (!size.mHeight.mHasPercent &&
@@ -3303,9 +3391,9 @@ StyleAnimationValue::ExtractComputedValue(nsCSSProperty aProperty,
             int32_t type = filter.GetType();
             if (type == NS_STYLE_FILTER_URL) {
               nsIDocument* doc = aStyleContext->PresContext()->Document();
-              nsRefPtr<nsStringBuffer> uriAsStringBuffer =
+              RefPtr<nsStringBuffer> uriAsStringBuffer =
                 GetURIAsUtf16StringBuffer(filter.GetURL());
-              nsRefPtr<mozilla::css::URLValue> url =
+              RefPtr<mozilla::css::URLValue> url =
                 new mozilla::css::URLValue(filter.GetURL(),
                                            uriAsStringBuffer,
                                            doc->GetDocumentURI(),
@@ -3474,11 +3562,11 @@ StyleAnimationValue::ExtractComputedValue(nsCSSProperty aProperty,
           return false;
         }
         nsAutoPtr<nsCSSValuePair> pair(new nsCSSValuePair);
-        nsRefPtr<nsStringBuffer> uriAsStringBuffer =
+        RefPtr<nsStringBuffer> uriAsStringBuffer =
           GetURIAsUtf16StringBuffer(paint.mPaint.mPaintServer);
         NS_ENSURE_TRUE(!!uriAsStringBuffer, false);
         nsIDocument* doc = aStyleContext->PresContext()->Document();
-        nsRefPtr<mozilla::css::URLValue> url =
+        RefPtr<mozilla::css::URLValue> url =
           new mozilla::css::URLValue(paint.mPaint.mPaintServer,
                                      uriAsStringBuffer,
                                      doc->GetDocumentURI(),
@@ -3507,7 +3595,7 @@ StyleAnimationValue::ExtractComputedValue(nsCSSProperty aProperty,
     }
     case eStyleAnimType_Shadow: {
       const nsCSSShadowArray *shadowArray =
-        *static_cast<const nsRefPtr<nsCSSShadowArray>*>(
+        *static_cast<const RefPtr<nsCSSShadowArray>*>(
           StyleDataAtOffset(styleStruct, ssOffset));
       if (!shadowArray) {
         aComputedValue.SetAndAdoptCSSValueListValue(nullptr, eUnit_Shadow);
@@ -3538,12 +3626,14 @@ StyleAnimationValue::GetScaleValue(const nsIFrame* aForFrame) const
   MOZ_ASSERT(list->mHead);
 
   RuleNodeCacheConditions dontCare;
+  bool dontCareBool;
   nsStyleTransformMatrix::TransformReferenceBox refBox(aForFrame);
   Matrix4x4 transform = nsStyleTransformMatrix::ReadTransforms(
                           list->mHead,
                           aForFrame->StyleContext(),
                           aForFrame->PresContext(), dontCare, refBox,
-                          aForFrame->PresContext()->AppUnitsPerDevPixel());
+                          aForFrame->PresContext()->AppUnitsPerDevPixel(),
+                          &dontCareBool);
 
   Matrix transform2d;
   bool canDraw2D = transform.CanDraw2D(&transform2d);
@@ -3772,11 +3862,11 @@ void
 StyleAnimationValue::SetAndAdoptCSSValueTripletValue(
                        nsCSSValueTriplet *aValueTriplet, Unit aUnit)
 {
-    FreeValue();
-    MOZ_ASSERT(IsCSSValueTripletUnit(aUnit), "bad unit");
-    MOZ_ASSERT(aValueTriplet != nullptr, "value pairs may not be null");
-    mUnit = aUnit;
-    mValue.mCSSValueTriplet = aValueTriplet; // take ownership
+  FreeValue();
+  MOZ_ASSERT(IsCSSValueTripletUnit(aUnit), "bad unit");
+  MOZ_ASSERT(aValueTriplet != nullptr, "value pairs may not be null");
+  mUnit = aUnit;
+  mValue.mCSSValueTriplet = aValueTriplet; // take ownership
 }
 
 void
@@ -3898,4 +3988,3 @@ StyleAnimationValue::operator==(const StyleAnimationValue& aOther) const
   NS_NOTREACHED("incomplete case");
   return false;
 }
-

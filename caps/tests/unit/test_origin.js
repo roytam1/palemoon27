@@ -20,9 +20,6 @@ function checkCrossOrigin(a, b) {
   do_check_false(a.subsumesConsideringDomain(b));
   do_check_false(b.subsumes(a));
   do_check_false(b.subsumesConsideringDomain(a));
-  do_check_eq(a.cookieJar === b.cookieJar,
-              a.originAttributes.appId == b.originAttributes.appId &&
-              a.originAttributes.inBrowser == b.originAttributes.inBrowser);
 }
 
 function checkOriginAttributes(prin, attrs, suffix) {
@@ -50,7 +47,7 @@ function run_test() {
   var nullPrin = Cu.getObjectPrincipal(new Cu.Sandbox(null));
   do_check_true(/^moz-nullprincipal:\{([0-9]|[a-z]|\-){36}\}$/.test(nullPrin.origin));
   checkOriginAttributes(nullPrin);
-  var ep = Cu.getObjectPrincipal(new Cu.Sandbox([exampleCom, nullPrin, exampleOrg]));
+  var ep = ssm.createExpandedPrincipal([exampleCom, nullPrin, exampleOrg]);
   checkOriginAttributes(ep);
   checkCrossOrigin(exampleCom, exampleOrg);
   checkCrossOrigin(exampleOrg, nullPrin);
@@ -96,6 +93,38 @@ function run_test() {
   checkOriginAttributes(exampleOrg_addon, { addonId: "dummy" }, '!addonId=dummy');
   do_check_eq(exampleOrg_addon.origin, 'http://example.org!addonId=dummy');
 
+  // Just userContext.
+  var exampleOrg_userContext = ssm.createCodebasePrincipal(makeURI('http://example.org'), {userContextId: 42});
+  checkOriginAttributes(exampleOrg_userContext, { userContextId: 42 }, '^userContextId=42');
+  do_check_eq(exampleOrg_userContext.origin, 'http://example.org^userContextId=42');
+
+  // UserContext and Addon.
+  var exampleOrg_userContextAddon = ssm.createCodebasePrincipal(makeURI('http://example.org'), {addonId: 'dummy', userContextId: 42});
+  var nullPrin_userContextAddon = ssm.createNullPrincipal({addonId: 'dummy', userContextId: 42});
+  checkOriginAttributes(exampleOrg_userContextAddon, {addonId: 'dummy', userContextId: 42}, '^addonId=dummy&userContextId=42');
+  checkOriginAttributes(nullPrin_userContextAddon, {addonId: 'dummy', userContextId: 42}, '^addonId=dummy&userContextId=42');
+  do_check_eq(exampleOrg_userContextAddon.origin, 'http://example.org^addonId=dummy&userContextId=42');
+
+  // UserContext and App.
+  var exampleOrg_userContextApp = ssm.createCodebasePrincipal(makeURI('http://example.org'), {appId: 24, userContextId: 42});
+  var nullPrin_userContextApp = ssm.createNullPrincipal({appId: 24, userContextId: 42});
+  checkOriginAttributes(exampleOrg_userContextApp, {appId: 24, userContextId: 42}, '^appId=24&userContextId=42');
+  checkOriginAttributes(nullPrin_userContextApp, {appId: 24, userContextId: 42}, '^appId=24&userContextId=42');
+  do_check_eq(exampleOrg_userContextApp.origin, 'http://example.org^appId=24&userContextId=42');
+
+  // Just signedPkg
+  var exampleOrg_signedPkg = ssm.createCodebasePrincipal(makeURI('http://example.org'), {signedPkg: 'whatever'});
+  checkOriginAttributes(exampleOrg_signedPkg, { signedPkg: 'id' }, '^signedPkg=whatever');
+  do_check_eq(exampleOrg_signedPkg.origin, 'http://example.org^signedPkg=whatever');
+
+  // signedPkg and browser
+  var exampleOrg_signedPkg_browser = ssm.createCodebasePrincipal(makeURI('http://example.org'), {signedPkg: 'whatever', inBrowser: true});
+  checkOriginAttributes(exampleOrg_signedPkg_browser, { signedPkg: 'whatever', inBrowser: true }, '^inBrowser=1&signedPkg=whatever');
+  do_check_eq(exampleOrg_signedPkg_browser.origin, 'http://example.org^inBrowser=1&signedPkg=whatever');
+
+  // Just signedPkg (but different value from 'exampleOrg_signedPkg_app')
+  var exampleOrg_signedPkg_another = ssm.createCodebasePrincipal(makeURI('http://example.org'), {signedPkg: 'whatup'});
+
   // Check that all of the above are cross-origin.
   checkCrossOrigin(exampleOrg_app, exampleOrg);
   checkCrossOrigin(exampleOrg_app, nullPrin_app);
@@ -105,4 +134,23 @@ function run_test() {
   checkCrossOrigin(exampleOrg_appBrowser, nullPrin_appBrowser);
   checkCrossOrigin(exampleOrg_appBrowser, exampleCom_appBrowser);
   checkCrossOrigin(exampleOrg_addon, exampleOrg);
+  checkCrossOrigin(exampleOrg_userContext, exampleOrg);
+  checkCrossOrigin(exampleOrg_userContextAddon, exampleOrg);
+  checkCrossOrigin(exampleOrg_userContext, exampleOrg_userContextAddon);
+  checkCrossOrigin(exampleOrg_userContext, exampleOrg_userContextApp);
+  checkCrossOrigin(exampleOrg_signedPkg, exampleOrg);
+  checkCrossOrigin(exampleOrg_signedPkg, exampleOrg_signedPkg_browser);
+  checkCrossOrigin(exampleOrg_signedPkg, exampleOrg_signedPkg_another);
+
+  // Check Principal kinds.
+  function checkKind(prin, kind) {
+    do_check_eq(prin.isNullPrincipal, kind == 'nullPrincipal');
+    do_check_eq(prin.isCodebasePrincipal, kind == 'codebasePrincipal');
+    do_check_eq(prin.isExpandedPrincipal, kind == 'expandedPrincipal');
+    do_check_eq(prin.isSystemPrincipal, kind == 'systemPrincipal');
+  }
+  checkKind(ssm.createNullPrincipal({}), 'nullPrincipal');
+  checkKind(ssm.createCodebasePrincipal(makeURI('http://www.example.com'), {}), 'codebasePrincipal');
+  checkKind(ssm.createExpandedPrincipal([ssm.createCodebasePrincipal(makeURI('http://www.example.com'), {})]), 'expandedPrincipal');
+  checkKind(ssm.getSystemPrincipal(), 'systemPrincipal');
 }

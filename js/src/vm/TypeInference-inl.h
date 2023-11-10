@@ -19,7 +19,6 @@
 #include "vm/BooleanObject.h"
 #include "vm/NumberObject.h"
 #include "vm/SharedArrayObject.h"
-#include "vm/SharedTypedArrayObject.h"
 #include "vm/StringObject.h"
 #include "vm/TypedArrayObject.h"
 #include "vm/UnboxedObject.h"
@@ -397,13 +396,13 @@ HasTypePropertyId(JSObject* obj, jsid id, TypeSet::Type type)
 }
 
 inline bool
-HasTypePropertyId(JSObject* obj, jsid id, const Value &value)
+HasTypePropertyId(JSObject* obj, jsid id, const Value& value)
 {
     return HasTypePropertyId(obj, id, TypeSet::GetValueType(value));
 }
 
 void AddTypePropertyId(ExclusiveContext* cx, ObjectGroup* group, JSObject* obj, jsid id, TypeSet::Type type);
-void AddTypePropertyId(ExclusiveContext* cx, ObjectGroup* group, JSObject* obj, jsid id, const Value &value);
+void AddTypePropertyId(ExclusiveContext* cx, ObjectGroup* group, JSObject* obj, jsid id, const Value& value);
 
 /* Add a possible type for a property of obj. */
 inline void
@@ -461,8 +460,8 @@ MarkObjectStateChange(ExclusiveContext* cx, JSObject* obj)
 }
 
 /* Interface helpers for JSScript*. */
+extern void TypeMonitorResult(JSContext* cx, JSScript* script, jsbytecode* pc, TypeSet::Type type);
 extern void TypeMonitorResult(JSContext* cx, JSScript* script, jsbytecode* pc, const Value& rval);
-extern void TypeDynamicResult(JSContext* cx, JSScript* script, jsbytecode* pc, TypeSet::Type type);
 
 /////////////////////////////////////////////////////////////////////
 // Script interface functions
@@ -503,7 +502,7 @@ template <typename TYPESET>
 TypeScript::BytecodeTypes(JSScript* script, jsbytecode* pc, uint32_t* bytecodeMap,
                           uint32_t* hint, TYPESET* typeArray)
 {
-    MOZ_ASSERT(js_CodeSpec[*pc].format & JOF_TYPESET);
+    MOZ_ASSERT(CodeSpec[*pc].format & JOF_TYPESET);
     uint32_t offset = script->pcToOffset(pc);
 
     // See if this pc is the next typeset opcode after the last one looked up.
@@ -558,6 +557,12 @@ TypeScript::Monitor(JSContext* cx, JSScript* script, jsbytecode* pc, const js::V
 }
 
 /* static */ inline void
+TypeScript::Monitor(JSContext* cx, JSScript* script, jsbytecode* pc, TypeSet::Type type)
+{
+    TypeMonitorResult(cx, script, pc, type);
+}
+
+/* static */ inline void
 TypeScript::Monitor(JSContext* cx, const js::Value& rval)
 {
     jsbytecode* pc;
@@ -584,7 +589,7 @@ TypeScript::MonitorAssign(JSContext* cx, HandleObject obj, jsid id)
         // But if we don't have too many properties yet, don't do anything.  The
         // idea here is that normal object initialization should not trigger
         // deoptimization in most cases, while actual usage as a hashmap should.
-        ObjectGroup *group = obj->group();
+        ObjectGroup* group = obj->group();
         if (group->basePropertyCount() < 128)
             return;
         MarkObjectGroupUnknownProperties(cx, group);
@@ -991,8 +996,8 @@ ObjectGroup::setBasePropertyCount(uint32_t count)
            | (count << OBJECT_FLAG_PROPERTY_COUNT_SHIFT);
 }
 
-inline HeapTypeSet *
-ObjectGroup::getProperty(ExclusiveContext *cx, JSObject *obj, jsid id)
+inline HeapTypeSet*
+ObjectGroup::getProperty(ExclusiveContext* cx, JSObject* obj, jsid id)
 {
     MOZ_ASSERT(JSID_IS_VOID(id) || JSID_IS_EMPTY(id) || JSID_IS_STRING(id) || JSID_IS_SYMBOL(id));
     MOZ_ASSERT_IF(!JSID_IS_EMPTY(id), id == IdToTypeId(id));
@@ -1000,17 +1005,17 @@ ObjectGroup::getProperty(ExclusiveContext *cx, JSObject *obj, jsid id)
     MOZ_ASSERT_IF(obj, obj->group() == this);
     MOZ_ASSERT_IF(singleton(), obj);
 
-    if (HeapTypeSet *types = maybeGetProperty(id))
+    if (HeapTypeSet* types = maybeGetProperty(id))
         return types;
 
-    Property *base = cx->typeLifoAlloc().new_<Property>(id);
+    Property* base = cx->typeLifoAlloc().new_<Property>(id);
     if (!base) {
         markUnknown(cx);
         return nullptr;
     }
 
     uint32_t propertyCount = basePropertyCount();
-    Property **pprop = TypeHashSet::Insert<jsid, Property, Property>
+    Property** pprop = TypeHashSet::Insert<jsid, Property, Property>
                            (cx->typeLifoAlloc(), propertySet, propertyCount, id);
     if (!pprop) {
         markUnknown(cx);

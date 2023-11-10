@@ -283,6 +283,10 @@ public:
   size_type NS_FASTCALL CountChar(char_type) const;
   int32_t NS_FASTCALL FindChar(char_type, index_type aOffset = 0) const;
 
+  inline bool Contains(char_type aChar) const
+  {
+    return FindChar(aChar) != kNotFound;
+  }
 
   /**
    * equality
@@ -876,11 +880,6 @@ public:
   }
 #endif /* DEBUG || FORCE_BUILD_REFCNT_LOGGING */
 
-  size_t SizeOfExcludingThisMustBeUnshared(mozilla::MallocSizeOf aMallocSizeOf)
-  const;
-  size_t SizeOfIncludingThisMustBeUnshared(mozilla::MallocSizeOf aMallocSizeOf)
-  const;
-
   size_t SizeOfExcludingThisIfUnshared(mozilla::MallocSizeOf aMallocSizeOf)
   const;
   size_t SizeOfIncludingThisIfUnshared(mozilla::MallocSizeOf aMallocSizeOf)
@@ -997,18 +996,7 @@ protected:
    */
   MOZ_WARN_UNUSED_RESULT bool ReplacePrep(index_type aCutStart,
                                           size_type aCutLength,
-                                          size_type aNewLength)
-  {
-    aCutLength = XPCOM_MIN(aCutLength, mLength - aCutStart);
-    uint32_t newTotalLen = mLength - aCutLength + aNewLength;
-    if (aCutStart == mLength && Capacity() > newTotalLen) {
-      mFlags &= ~F_VOIDED;
-      mData[newTotalLen] = char_type(0);
-      mLength = newTotalLen;
-      return true;
-    }
-    return ReplacePrepInternal(aCutStart, aCutLength, aNewLength, newTotalLen);
-  }
+                                          size_type aNewLength);
 
   MOZ_WARN_UNUSED_RESULT bool NS_FASTCALL ReplacePrepInternal(
     index_type aCutStart,

@@ -6,19 +6,21 @@
 #ifndef GFX_UTILS_H
 #define GFX_UTILS_H
 
-#include "gfxColor.h"
 #include "gfxTypes.h"
-#include "GraphicsFilter.h"
 #include "imgIContainer.h"
 #include "mozilla/gfx/2D.h"
 #include "mozilla/RefPtr.h"
+#include "mozilla/UniquePtr.h"
 #include "nsColor.h"
 #include "nsPrintfCString.h"
+#include "nsRegionFwd.h"
 #include "mozilla/gfx/Rect.h"
+#include "mozilla/CheckedInt.h"
 
 class gfxASurface;
 class gfxDrawable;
-class nsIntRegion;
+class nsIInputStream;
+class nsIGfxInfo;
 class nsIPresShell;
 
 namespace mozilla {
@@ -47,7 +49,7 @@ public:
      * If aDestSurface is given, it must have identical format, dimensions, and
      * stride as the source.
      *
-     * If the source is not gfxImageFormat::ARGB32, no operation is performed.  If
+     * If the source is not SurfaceFormat::A8R8G8B8_UINT32, no operation is performed.  If
      * aDestSurface is given, the data is copied over.
      */
     static bool PremultiplyDataSurface(DataSourceSurface* srcSurf,
@@ -80,7 +82,7 @@ public:
                                  const gfxSize&     aImageSize,
                                  const ImageRegion& aRegion,
                                  const mozilla::gfx::SurfaceFormat aFormat,
-                                 GraphicsFilter     aFilter,
+                                 mozilla::gfx::Filter aFilter,
                                  uint32_t           aImageFlags = imgIContainer::FLAG_NONE,
                                  gfxFloat           aOpacity = 1.0);
 
@@ -93,11 +95,6 @@ public:
      * Clip aTarget to the region aRegion.
      */
     static void ClipToRegion(mozilla::gfx::DrawTarget* aTarget, const nsIntRegion& aRegion);
-
-    /**
-     * Create a path consisting of rectangles in |aRegion|.
-     */
-    static void PathFromRegion(gfxContext* aContext, const nsIntRegion& aRegion);
 
     /*
      * Convert image format to depth value
@@ -135,7 +132,7 @@ public:
     /**
      * Helper function for ConvertYCbCrToRGB that finds the
      * RGB buffer size and format for given YCbCrImage.
-     * @param aSuggestedFormat will be set to gfxImageFormat::RGB24
+     * @param aSuggestedFormat will be set to SurfaceFormat::X8R8G8B8_UINT32
      *   if the desired format is not supported.
      * @param aSuggestedSize will be set to the picture size from aData
      *   if either the suggested size was {0,0}
@@ -161,9 +158,7 @@ public:
     /**
      * Clears surface to aColor (which defaults to transparent black).
      */
-    static void ClearThebesSurface(gfxASurface* aSurface,
-                                   mozilla::gfx::IntRect* aRect = nullptr,
-                                   const gfxRGBA& aColor = gfxRGBA(0.0, 0.0, 0.0, 0.0));
+    static void ClearThebesSurface(gfxASurface* aSurface);
 
     /**
      * Creates a copy of aSurface, but having the SurfaceFormat aFormat.
@@ -284,6 +279,20 @@ public:
     static nsCString GetAsDataURI(DrawTarget* aDT);
     static nsCString GetAsLZ4Base64Str(DataSourceSurface* aSourceSurface);
 
+    static mozilla::UniquePtr<uint8_t[]> GetImageBuffer(DataSourceSurface* aSurface,
+                                                        bool aIsAlphaPremultiplied,
+                                                        int32_t* outFormat);
+
+    static nsresult GetInputStream(DataSourceSurface* aSurface,
+                                   bool aIsAlphaPremultiplied,
+                                   const char* aMimeType,
+                                   const char16_t* aEncoderOptions,
+                                   nsIInputStream** outStream);
+
+    static nsresult ThreadSafeGetFeatureStatus(const nsCOMPtr<nsIGfxInfo>& gfxInfo,
+                                               int32_t feature,
+                                               int32_t* status);
+
     /**
      * Copy to the clipboard as a PNG encoded Data URL.
      */
@@ -292,10 +301,6 @@ public:
 
     static bool DumpDisplayList();
 
-    static bool sDumpPainting;
-    static bool sDumpPaintingIntermediate;
-    static bool sDumpPaintingToFile;
-    static bool sDumpPaintItems;
     static FILE* sDumpPaintFile;
 };
 
@@ -311,7 +316,6 @@ namespace gfx {
  */
 Color ToDeviceColor(Color aColor);
 Color ToDeviceColor(nscolor aColor);
-Color ToDeviceColor(const gfxRGBA& aColor);
 
 /* These techniques are suggested by "Bit Twiddling Hacks"
  */
@@ -344,6 +348,19 @@ NextPowerOfTwo(int aNumber)
     aNumber |= aNumber >> 16;
     return ++aNumber;
 #endif
+}
+
+/**
+ * Performs a checked multiply of the given width, height, and bytes-per-pixel
+ * values.
+ */
+static inline CheckedInt<uint32_t>
+SafeBytesForBitmap(uint32_t aWidth, uint32_t aHeight, unsigned aBytesPerPixel)
+{
+  MOZ_ASSERT(aBytesPerPixel > 0);
+  CheckedInt<uint32_t> width = uint32_t(aWidth);
+  CheckedInt<uint32_t> height = uint32_t(aHeight);
+  return width * height * aBytesPerPixel;
 }
 
 } // namespace gfx

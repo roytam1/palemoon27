@@ -45,3 +45,8 @@ PYTHON_UNIT_TESTS += [
 
 if CONFIG['GNU_CC'] and CONFIG['MOZ_OPTIMIZE']:
     CFLAGS += ['-O3']
+
+HOST_DEFINES = {
+    'UNICODE': True,
+    '_UNICODE': True,
+}

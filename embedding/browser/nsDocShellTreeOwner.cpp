@@ -1,4 +1,5 @@
-/* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
+/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
+/* vim: set ts=8 sts=2 et sw=2 tw=80: */
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -53,6 +54,7 @@
 #include "nsIWindowWatcher.h"
 #include "nsPIWindowWatcher.h"
 #include "nsIPrompt.h"
+#include "nsITabParent.h"
 #include "nsRect.h"
 #include "nsIWebBrowserChromeFocus.h"
 #include "nsIContent.h"
@@ -75,11 +77,15 @@ using namespace mozilla::dom;
 static nsresult
 GetDOMEventTarget(nsWebBrowser* aInBrowser, EventTarget** aTarget)
 {
-  NS_ENSURE_ARG_POINTER(aInBrowser);
+  if (!aInBrowser) {
+    return NS_ERROR_INVALID_POINTER;
+  }
 
   nsCOMPtr<nsIDOMWindow> domWindow;
   aInBrowser->GetContentDOMWindow(getter_AddRefs(domWindow));
-  NS_ENSURE_TRUE(domWindow, NS_ERROR_FAILURE);
+  if (!domWindow) {
+    return NS_ERROR_FAILURE;
+  }
 
   nsCOMPtr<nsPIDOMWindow> domWindowPrivate = do_QueryInterface(domWindow);
   NS_ENSURE_TRUE(domWindowPrivate, NS_ERROR_FAILURE);
@@ -331,6 +337,7 @@ nsDocShellTreeOwner::ContentShellAdded(nsIDocShellTreeItem* aContentShell,
 
   if (aPrimary) {
     mPrimaryContentShell = aContentShell;
+    mPrimaryTabParent = nullptr;
   }
   return NS_OK;
 }
@@ -359,9 +366,55 @@ nsDocShellTreeOwner::GetPrimaryContentShell(nsIDocShellTreeItem** aShell)
   }
 
   nsCOMPtr<nsIDocShellTreeItem> shell;
-  shell = mPrimaryContentShell ? mPrimaryContentShell : mWebBrowser->mDocShell;
+  if (!mPrimaryTabParent) {
+    shell =
+      mPrimaryContentShell ? mPrimaryContentShell : mWebBrowser->mDocShell;
+  }
   shell.forget(aShell);
 
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+nsDocShellTreeOwner::TabParentAdded(nsITabParent* aTab, bool aPrimary)
+{
+  if (mTreeOwner) {
+    return mTreeOwner->TabParentAdded(aTab, aPrimary);
+  }
+
+  if (aPrimary) {
+    mPrimaryTabParent = aTab;
+    mPrimaryContentShell = nullptr;
+  } else if (mPrimaryTabParent == aTab) {
+    mPrimaryTabParent = nullptr;
+  }
+
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+nsDocShellTreeOwner::TabParentRemoved(nsITabParent* aTab)
+{
+  if (mTreeOwner) {
+    return mTreeOwner->TabParentRemoved(aTab);
+  }
+
+  if (aTab == mPrimaryTabParent) {
+    mPrimaryTabParent = nullptr;
+  }
+
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+nsDocShellTreeOwner::GetPrimaryTabParent(nsITabParent** aTab)
+{
+  if (mTreeOwner) {
+    return mTreeOwner->GetPrimaryTabParent(aTab);
+  }
+
+  nsCOMPtr<nsITabParent> tab = mPrimaryTabParent;
+  tab.forget(aTab);
   return NS_OK;
 }
 
@@ -399,7 +452,7 @@ nsDocShellTreeOwner::SizeShellTo(nsIDocShellTreeItem* aShellItem,
   Set the preferred size on the aShellItem.
   */
 
-  nsRefPtr<nsPresContext> presContext;
+  RefPtr<nsPresContext> presContext;
   mWebBrowser->mDocShell->GetPresContext(getter_AddRefs(presContext));
   NS_ENSURE_TRUE(presContext, NS_ERROR_FAILURE);
 
@@ -480,6 +533,17 @@ nsDocShellTreeOwner::GetUnscaledDevicePixelsPerCSSPixel(double* aScale)
 {
   if (mWebBrowser) {
     return mWebBrowser->GetUnscaledDevicePixelsPerCSSPixel(aScale);
+  }
+
+  *aScale = 1.0;
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+nsDocShellTreeOwner::GetDevicePixelsPerDesktopPixel(double* aScale)
+{
+  if (mWebBrowser) {
+    return mWebBrowser->GetDevicePixelsPerDesktopPixel(aScale);
   }
 
   *aScale = 1.0;

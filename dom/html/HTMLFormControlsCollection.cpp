@@ -121,6 +121,9 @@ HTMLFormControlsCollection::FlushPendingNotifications()
 NS_IMPL_CYCLE_COLLECTION_CLASS(HTMLFormControlsCollection)
 
 NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(HTMLFormControlsCollection)
+  // Note: We intentionally don't set tmp->mForm to nullptr here, since doing
+  // so may result in crashes because of inconsistent null-checking after the
+  // object gets unlinked.
   tmp->Clear();
   NS_IMPL_CYCLE_COLLECTION_UNLINK_PRESERVED_WRAPPER
 NS_IMPL_CYCLE_COLLECTION_UNLINK_END
@@ -386,15 +389,6 @@ HTMLFormControlsCollection::NamedGetter(const nsAString& aName,
   MOZ_ASSERT_UNREACHABLE("Should only have Elements and NodeLists here.");
 }
 
-static PLDHashOperator
-CollectNames(const nsAString& aName,
-             nsISupports* /* unused */,
-             void* aClosure)
-{
-  static_cast<nsTArray<nsString>*>(aClosure)->AppendElement(aName);
-  return PL_DHASH_NEXT;
-}
-
 void
 HTMLFormControlsCollection::GetSupportedNames(unsigned aFlags,
                                               nsTArray<nsString>& aNames)
@@ -407,7 +401,9 @@ HTMLFormControlsCollection::GetSupportedNames(unsigned aFlags,
   // Just enumerate mNameLookupTable.  This won't guarantee order, but
   // that's OK, because the HTML5 spec doesn't define an order for
   // this enumeration.
-  mNameLookupTable.EnumerateRead(CollectNames, &aNames);
+  for (auto iter = mNameLookupTable.Iter(); !iter.Done(); iter.Next()) {
+    aNames.AppendElement(iter.Key());
+  }
 }
 
 /* virtual */ JSObject*

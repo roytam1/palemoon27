@@ -23,6 +23,7 @@
 #include "mozilla/layers/APZUtils.h"    // for CompleteAsyncTransform
 #include "mozilla/layers/Compositor.h"  // for Compositor
 #include "mozilla/layers/CompositorParent.h" // for CompositorParent, etc
+#include "mozilla/layers/LayerAnimationUtils.h" // for TimingFunctionToComputedTimingFunction
 #include "mozilla/layers/LayerMetricsWrapper.h" // for LayerMetricsWrapper
 #include "nsCoord.h"                    // for NSAppUnitsToFloatPixels, etc
 #include "nsDebug.h"                    // for NS_ASSERTION, etc
@@ -594,19 +595,22 @@ SampleAnimations(Layer* aLayer, TimeStamp aPoint)
     // example, while they are waiting to be removed) we currently just
     // assume that we should fill.
     timing.mFill = dom::FillMode::Both;
+    timing.mFunction =
+      AnimationUtils::TimingFunctionToComputedTimingFunction(
+        animation.easingFunction());
 
     ComputedTiming computedTiming =
       dom::KeyframeEffectReadOnly::GetComputedTimingAt(
         Nullable<TimeDuration>(elapsedDuration), timing);
 
-    MOZ_ASSERT(!computedTiming.mProgress.IsNull() &&
-               0.0 <= computedTiming.mProgress.Value() &&
-               computedTiming.mProgress.Value() <= 1.0,
-               "iteration progress should be in [0-1]");
+    MOZ_ASSERT(!computedTiming.mProgress.IsNull(),
+               "iteration progress should not be null");
 
-    int segmentIndex = 0;
+    uint32_t segmentIndex = 0;
+    size_t segmentSize = animation.segments().Length();
     AnimationSegment* segment = animation.segments().Elements();
-    while (segment->endPortion() < computedTiming.mProgress.Value()) {
+    while (segment->endPortion() < computedTiming.mProgress.Value() &&
+           segmentIndex < segmentSize - 1) {
       ++segment;
       ++segmentIndex;
     }
@@ -616,7 +620,8 @@ SampleAnimations(Layer* aLayer, TimeStamp aPoint)
       (segment->endPortion() - segment->startPortion());
 
     double portion =
-      animData.mFunctions[segmentIndex]->GetValue(positionInSegment);
+      ComputedTimingFunction::GetPortion(animData.mFunctions[segmentIndex],
+                                         positionInSegment);
 
     // interpolate the property
     Animatable interpolatedValue;

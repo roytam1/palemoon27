@@ -1749,7 +1749,8 @@ RemoveFromBindingManagerRunnable::Run()
   // down the old binding if the element is inserted back into the
   // DOM and loads a different binding.
   if (!mContent->IsInComposedDoc()) {
-    mManager->RemovedFromDocumentInternal(mContent, mDoc);
+    mManager->RemovedFromDocumentInternal(mContent, mDoc,
+                                          nsBindingManager::eRunDtor);
   }
 
   return NS_OK;
@@ -3399,10 +3400,12 @@ Element::Animate(JSContext* aContext,
     }
   }
 
+  Nullable<ElementOrCSSPseudoElement> target;
+  target.SetValue().SetAsElement() = this;
   // Bug 1211783: Use KeyframeEffect here (instead of KeyframeEffectReadOnly)
   RefPtr<KeyframeEffectReadOnly> effect =
-    KeyframeEffectReadOnly::Constructor(global, this, frames,
-      TimingParams::FromOptionsUnion(aOptions), aError);
+    KeyframeEffectReadOnly::Constructor(global, target, frames,
+      TimingParams::FromOptionsUnion(aOptions, target), aError);
   if (aError.Failed()) {
     return nullptr;
   }

@@ -113,9 +113,6 @@ pref("browser.cache.compression_level", 3);
 pref("browser.download.saveZoneInformation", 2);
 #endif
 
-// Whether or not MozAbortablePromise is enabled.
-pref("dom.abortablepromise.enabled", false);
-
 // Whether or not testing features are enabled.
 pref("dom.quotaManager.testing", false);
 
@@ -481,27 +478,33 @@ pref("media.getusermedia.aec_delay_agnostic", false);
 pref("media.getusermedia.noise", 1);
 pref("media.getusermedia.agc_enabled", false);
 pref("media.getusermedia.agc", 1);
-// Adjustments for OS-specific input delay (lower bound)
-// Adjustments for OS-specific AudioStream+cubeb+output delay (lower bound)
+// capture_delay: Adjustments for OS-specific input delay (lower bound)
+// playout_delay: Adjustments for OS-specific AudioStream+cubeb+output delay (lower bound)
+// full_duplex: enable cubeb full-duplex capture/playback
 #if defined(XP_MACOSX)
 pref("media.peerconnection.capture_delay", 50);
 pref("media.getusermedia.playout_delay", 10);
+pref("media.navigator.audio.full_duplex", false);
 #elif defined(XP_WIN)
 pref("media.peerconnection.capture_delay", 50);
 pref("media.getusermedia.playout_delay", 40);
+pref("media.navigator.audio.full_duplex", false);
 #elif defined(ANDROID)
 pref("media.peerconnection.capture_delay", 100);
 pref("media.getusermedia.playout_delay", 100);
+pref("media.navigator.audio.full_duplex", false);
 // Whether to enable Webrtc Hardware acceleration support
 pref("media.navigator.hardware.vp8_encode.acceleration_enabled", false);
 pref("media.navigator.hardware.vp8_decode.acceleration_enabled", false);
 #elif defined(XP_LINUX)
 pref("media.peerconnection.capture_delay", 70);
 pref("media.getusermedia.playout_delay", 50);
+pref("media.navigator.audio.full_duplex", false);
 #else
 // *BSD, others - merely a guess for now
 pref("media.peerconnection.capture_delay", 50);
 pref("media.getusermedia.playout_delay", 50);
+pref("media.navigator.audio.full_duplex", false);
 #endif
 #endif
 pref("media.mediasource.webm.audio.enabled", true);
@@ -1497,6 +1500,12 @@ pref("javascript.options.showInConsole", false);
 
 pref("javascript.options.throw_on_debuggee_would_run", false);
 pref("javascript.options.dump_stack_on_debuggee_would_run", false);
+
+#ifdef NIGHTLY_BUILD
+pref("javascript.options.shared_memory", true);
+#else
+pref("javascript.options.shared_memory", false);
+#endif
 
 // advanced prefs
 pref("advanced.mailftp",                    false);
@@ -2812,6 +2821,9 @@ pref("layout.float-fragments-inside-column.enabled", true);
 #endif
 
 // Is support for the Web Animations API enabled?
+// Before enabling this by default, make sure also CSSPseudoElement interface
+// has been spec'ed properly, or we should add a separate pref for
+// CSSPseudoElement interface. See Bug 1174575 for further details.
 #ifdef RELEASE_BUILD
 pref("dom.animations-api.core.enabled", false);
 #else

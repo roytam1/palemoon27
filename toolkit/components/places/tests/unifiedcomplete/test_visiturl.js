@@ -7,21 +7,21 @@ add_task(function*() {
   yield check_autocomplete({
     search: "mozilla.org",
     searchParam: "enable-actions",
-    matches: [ { uri: makeActionURI("visiturl", {url: "http://mozilla.org/", input: "mozilla.org"}), title: "http://mozilla.org/", style: [ "action", "visiturl" ] } ]
+    matches: [ { uri: makeActionURI("visiturl", {url: "http://mozilla.org/", input: "mozilla.org"}), title: "http://mozilla.org/", style: [ "action", "visiturl", "heuristic" ] } ]
   });
 
   do_print("visit url, with protocol");
   yield check_autocomplete({
     search: "https://mozilla.org",
     searchParam: "enable-actions",
-    matches: [ { uri: makeActionURI("visiturl", {url: "https://mozilla.org/", input: "https://mozilla.org"}), title: "https://mozilla.org/", style: [ "action", "visiturl" ] } ]
+    matches: [ { uri: makeActionURI("visiturl", {url: "https://mozilla.org/", input: "https://mozilla.org"}), title: "https://mozilla.org/", style: [ "action", "visiturl", "heuristic" ] } ]
   });
 
   do_print("visit url, about: protocol (no host)");
   yield check_autocomplete({
     search: "about:config",
     searchParam: "enable-actions",
-    matches: [ { uri: makeActionURI("visiturl", {url: "about:config", input: "about:config"}), title: "about:config", style: [ "action", "visiturl" ] } ]
+    matches: [ { uri: makeActionURI("visiturl", {url: "about:config", input: "about:config"}), title: "about:config", style: [ "action", "visiturl", "heuristic" ] } ]
   });
 
   // This is distinct because of how we predict being able to url autofill via

@@ -262,10 +262,9 @@ CSSAnimation::QueueEvents()
   StickyTimeDuration elapsedTime;
 
   if (message == eAnimationStart || message == eAnimationIteration) {
-    TimeDuration iterationStart = mEffect->Timing().mIterationDuration *
-                                    computedTiming.mCurrentIteration;
-    elapsedTime = StickyTimeDuration(std::max(iterationStart,
-                                              InitialAdvance()));
+    StickyTimeDuration iterationStart = computedTiming.mDuration *
+                                          computedTiming.mCurrentIteration;
+    elapsedTime = std::max(iterationStart, StickyTimeDuration(InitialAdvance()));
   } else {
     MOZ_ASSERT(message == eAnimationEnd);
     elapsedTime = computedTiming.mActiveDuration;
@@ -309,7 +308,8 @@ CSSAnimation::ElapsedTimeToTimeStamp(const StickyTimeDuration&
     return result;
   }
 
-  result = AnimationTimeToTimeStamp(aElapsedTime + mEffect->Timing().mDelay);
+  result = AnimationTimeToTimeStamp(aElapsedTime +
+                                    mEffect->SpecifiedTiming().mDelay);
   return result;
 }
 
@@ -442,9 +442,9 @@ nsAnimationManager::CheckAnimationRule(nsStyleContext* aStyleContext,
           KeyframeEffectReadOnly* oldEffect = oldAnim->GetEffect();
           KeyframeEffectReadOnly* newEffect = newAnim->GetEffect();
           animationChanged =
-            oldEffect->Timing() != newEffect->Timing() ||
+            oldEffect->SpecifiedTiming() != newEffect->SpecifiedTiming() ||
             oldEffect->Properties() != newEffect->Properties();
-          oldEffect->SetTiming(newEffect->Timing());
+          oldEffect->SetSpecifiedTiming(newEffect->SpecifiedTiming());
           oldEffect->CopyPropertiesFrom(*newEffect);
         }
 
@@ -644,13 +644,12 @@ nsAnimationManager::BuildAnimations(nsStyleContext* aStyleContext,
     dest->SetAnimationIndex(static_cast<uint64_t>(animIdx));
     aAnimations.AppendElement(dest);
 
-    AnimationTiming timing;
-    timing.mIterationDuration =
-      TimeDuration::FromMilliseconds(src.GetDuration());
+    TimingParams timing;
+    timing.mDuration.SetAsUnrestrictedDouble() = src.GetDuration();
     timing.mDelay = TimeDuration::FromMilliseconds(src.GetDelay());
-    timing.mIterationCount = src.GetIterationCount();
+    timing.mIterations = src.GetIterationCount();
     timing.mDirection = src.GetDirection();
-    timing.mFillMode = src.GetFillMode();
+    timing.mFill = src.GetFillMode();
 
     RefPtr<KeyframeEffectReadOnly> destEffect =
       new KeyframeEffectReadOnly(mPresContext->Document(), aTarget,
@@ -670,7 +669,7 @@ nsAnimationManager::BuildAnimations(nsStyleContext* aStyleContext,
     // the replacement on a per-property basis rather than a per-rule
     // basis, just like everything else in CSS.
 
-    AutoInfallibleTArray<KeyframeData, 16> sortedKeyframes;
+    AutoTArray<KeyframeData, 16> sortedKeyframes;
 
     for (uint32_t ruleIdx = 0, ruleEnd = rule->StyleRuleCount();
          ruleIdx != ruleEnd; ++ruleIdx) {
@@ -731,7 +730,7 @@ nsAnimationManager::BuildAnimations(nsStyleContext* aStyleContext,
       // means we need every keyframe with the property in it, except
       // for those keyframes where a later keyframe with the *same key*
       // also has the property.
-      AutoInfallibleTArray<uint32_t, 16> keyframesWithProperty;
+      AutoTArray<uint32_t, 16> keyframesWithProperty;
       float lastKey = 100.0f; // an invalid key
       for (uint32_t kfIdx = 0, kfEnd = sortedKeyframes.Length();
            kfIdx != kfEnd; ++kfIdx) {
@@ -851,7 +850,11 @@ nsAnimationManager::BuildSegment(InfallibleTArray<AnimationPropertySegment>&
   } else {
     tf = &aAnimation.GetTimingFunction();
   }
-  segment.mTimingFunction.Init(*tf);
+  if (tf->mType != nsTimingFunction::Type::Linear) {
+    ComputedTimingFunction computedTimingFunction;
+    computedTimingFunction.Init(*tf);
+    segment.mTimingFunction = Some(computedTimingFunction);
+  }
 
   return true;
 }

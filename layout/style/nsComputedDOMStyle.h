@@ -22,11 +22,13 @@
 #include "nsCoord.h"
 #include "nsColor.h"
 #include "nsIContent.h"
+#include "nsStyleStruct.h"
 
 namespace mozilla {
 namespace dom {
 class Element;
 } // namespace dom
+struct ComputedGridTrackInfo;
 } // namespace mozilla
 
 struct nsComputedStyleMap;
@@ -35,7 +37,6 @@ class nsIPresShell;
 class nsDOMCSSValueList;
 struct nsMargin;
 class nsROCSSPrimitiveValue;
-struct nsStyleBackground;
 class nsStyleCoord;
 class nsStyleCorners;
 struct nsStyleFilter;
@@ -190,7 +191,7 @@ private:
                                               const nsStyleCoord& aMaxSize);
   already_AddRefed<CSSValue> GetGridTemplateColumnsRows(
     const nsStyleGridTemplate& aTrackList,
-    const nsTArray<nscoord>* aTrackSizes);
+    const mozilla::ComputedGridTrackInfo* aTrackInfo);
   already_AddRefed<CSSValue> GetGridLine(const nsStyleGridLine& aGridLine);
 
   bool GetLineHeightCoord(nscoord& aCoord);
@@ -200,8 +201,9 @@ private:
                                                bool aIsBoxShadow);
 
   already_AddRefed<CSSValue> GetBackgroundList(
-    uint8_t nsStyleBackground::Layer::* aMember,
-    uint32_t nsStyleBackground::* aCount,
+    uint8_t nsStyleImageLayers::Layer::* aMember,
+    uint32_t nsStyleImageLayers::* aCount,
+    const nsStyleImageLayers& aLayers,
     const KTableEntry aTable[]);
 
   void GetCSSGradientString(const nsStyleGradient* aGradient,
@@ -554,9 +556,9 @@ private:
   void SetValueToStyleImage(const nsStyleImage& aStyleImage,
                             nsROCSSPrimitiveValue* aValue);
   void SetValueToPositionCoord(
-    const nsStyleBackground::Position::PositionCoord& aCoord,
+    const nsStyleImageLayers::Position::PositionCoord& aCoord,
     nsROCSSPrimitiveValue* aValue);
-  void SetValueToPosition(const nsStyleBackground::Position& aPosition,
+  void SetValueToPosition(const nsStyleImageLayers::Position& aPosition,
                           nsDOMCSSValueList* aValueList);
 
   /**

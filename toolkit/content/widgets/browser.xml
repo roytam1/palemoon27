@@ -1133,7 +1133,7 @@
 
           var ourFieldValues = {};
           var otherFieldValues = {};
-          for (var field of fieldsToSwap) {
+          for (let field of fieldsToSwap) {
             ourFieldValues[field] = this[field];
             otherFieldValues[field] = aOtherBrowser[field];
           }
@@ -1146,7 +1146,7 @@
           this.detachFormFill();
           aOtherBrowser.detachFormFill();
 
-          for (var field of fieldsToSwap) {
+          for (let field of fieldsToSwap) {
             this[field] = otherFieldValues[field];
             aOtherBrowser[field] = ourFieldValues[field];
           }

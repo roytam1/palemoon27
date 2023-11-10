@@ -1479,9 +1479,9 @@ bool
 TabParent::RecvRequestNativeKeyBindings(const WidgetKeyboardEvent& aEvent,
                                         MaybeNativeKeyBinding* aBindings)
 {
-  AutoInfallibleTArray<mozilla::CommandInt, 4> singleLine;
-  AutoInfallibleTArray<mozilla::CommandInt, 4> multiLine;
-  AutoInfallibleTArray<mozilla::CommandInt, 4> richText;
+  AutoTArray<mozilla::CommandInt, 4> singleLine;
+  AutoTArray<mozilla::CommandInt, 4> multiLine;
+  AutoTArray<mozilla::CommandInt, 4> richText;
 
   *aBindings = mozilla::void_t();
 
@@ -1693,9 +1693,9 @@ bool TabParent::SendRealKeyEvent(WidgetKeyboardEvent& event)
   if (event.mMessage == eKeyPress) {
     nsCOMPtr<nsIWidget> widget = GetWidget();
 
-    AutoInfallibleTArray<mozilla::CommandInt, 4> singleLine;
-    AutoInfallibleTArray<mozilla::CommandInt, 4> multiLine;
-    AutoInfallibleTArray<mozilla::CommandInt, 4> richText;
+    AutoTArray<mozilla::CommandInt, 4> singleLine;
+    AutoTArray<mozilla::CommandInt, 4> multiLine;
+    AutoTArray<mozilla::CommandInt, 4> richText;
 
     widget->ExecuteNativeKeyBinding(nsIWidget::NativeKeyBindingsForSingleLineEditor,
                                     event, DoCommandCallback, &singleLine);
@@ -3075,7 +3075,7 @@ TabParent::LayerTreeUpdate(bool aActive)
     event->InitEvent(NS_LITERAL_STRING("MozLayerTreeCleared"), true, false);
   }
   event->SetTrusted(true);
-  event->GetInternalNSEvent()->mFlags.mOnlyChromeDispatch = true;
+  event->WidgetEventPtr()->mFlags.mOnlyChromeDispatch = true;
   bool dummy;
   mFrameElement->DispatchEvent(event, &dummy);
   return true;
@@ -3110,7 +3110,7 @@ TabParent::RecvRemotePaintIsReady()
   RefPtr<Event> event = NS_NewDOMEvent(mFrameElement, nullptr, nullptr);
   event->InitEvent(NS_LITERAL_STRING("MozAfterRemotePaint"), false, false);
   event->SetTrusted(true);
-  event->GetInternalNSEvent()->mFlags.mOnlyChromeDispatch = true;
+  event->WidgetEventPtr()->mFlags.mOnlyChromeDispatch = true;
   bool dummy;
   mFrameElement->DispatchEvent(event, &dummy);
   return true;

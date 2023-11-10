@@ -6,7 +6,6 @@
 
 #include "mozilla/dom/KeyframeEffect.h"
 
-#include "mozilla/dom/AnimationEffectReadOnlyBinding.h"
 #include "mozilla/dom/KeyframeEffectBinding.h"
 #include "mozilla/dom/PropertyIndexedKeyframesBinding.h"
 #include "mozilla/AnimationUtils.h"
@@ -24,32 +23,19 @@
 
 namespace mozilla {
 
-bool
-AnimationTiming::FillsForwards() const
-{
-  return mFillMode == dom::FillMode::Both ||
-         mFillMode == dom::FillMode::Forwards;
-}
-
-bool
-AnimationTiming::FillsBackwards() const
-{
-  return mFillMode == dom::FillMode::Both ||
-         mFillMode == dom::FillMode::Backwards;
-}
-
 // Helper functions for generating a ComputedTimingProperties dictionary
 static void
 GetComputedTimingDictionary(const ComputedTiming& aComputedTiming,
                             const Nullable<TimeDuration>& aLocalTime,
-                            const AnimationTiming& aTiming,
+                            const TimingParams& aTiming,
                             dom::ComputedTimingProperties& aRetVal)
 {
   // AnimationEffectTimingProperties
   aRetVal.mDelay = aTiming.mDelay.ToMilliseconds();
-  aRetVal.mFill = aTiming.mFillMode;
-  aRetVal.mIterations = aTiming.mIterationCount;
-  aRetVal.mDuration.SetAsUnrestrictedDouble() = aTiming.mIterationDuration.ToMilliseconds();
+  aRetVal.mFill = aComputedTiming.mFill;
+  aRetVal.mIterations = aComputedTiming.mIterations;
+  aRetVal.mDuration.SetAsUnrestrictedDouble() =
+    aComputedTiming.mDuration.ToMilliseconds();
   aRetVal.mDirection = aTiming.mDirection;
 
   // ComputedTimingProperties
@@ -89,14 +75,15 @@ KeyframeEffectReadOnly::KeyframeEffectReadOnly(
   nsIDocument* aDocument,
   Element* aTarget,
   nsCSSPseudoElements::Type aPseudoType,
-  const AnimationTiming& aTiming)
+  const TimingParams& aTiming)
   : AnimationEffectReadOnly(aDocument)
   , mTarget(aTarget)
-  , mTiming(aTiming)
   , mPseudoType(aPseudoType)
   , mInEffectOnLastAnimationTimingUpdate(false)
 {
   MOZ_ASSERT(aTarget, "null animation target is not yet supported");
+
+  mTiming = new AnimationEffectTimingReadOnly(aTiming);
 }
 
 JSObject*
@@ -118,13 +105,20 @@ KeyframeEffectReadOnly::Composite() const
   return CompositeOperation::Replace;
 }
 
-void
-KeyframeEffectReadOnly::SetTiming(const AnimationTiming& aTiming)
+already_AddRefed<AnimationEffectTimingReadOnly>
+KeyframeEffectReadOnly::Timing() const
 {
-  if (mTiming == aTiming) {
+  RefPtr<AnimationEffectTimingReadOnly> temp(mTiming);
+  return temp.forget();
+}
+
+void
+KeyframeEffectReadOnly::SetSpecifiedTiming(const TimingParams& aTiming)
+{
+  if (mTiming->AsTimingParams() == aTiming) {
     return;
   }
-  mTiming = aTiming;
+  mTiming->SetTimingParams(aTiming);
   if (mAnimation) {
     mAnimation->NotifyEffectTimingUpdated();
   }
@@ -205,31 +199,36 @@ void
 KeyframeEffectReadOnly::GetComputedTimingAsDict(ComputedTimingProperties& aRetVal) const
 {
   const Nullable<TimeDuration> currentTime = GetLocalTime();
-  GetComputedTimingDictionary(GetComputedTimingAt(currentTime, mTiming),
+  GetComputedTimingDictionary(GetComputedTimingAt(currentTime,
+                                                  SpecifiedTiming()),
                               currentTime,
-                              mTiming,
+                              SpecifiedTiming(),
                               aRetVal);
 }
 
 ComputedTiming
 KeyframeEffectReadOnly::GetComputedTimingAt(
                           const Nullable<TimeDuration>& aLocalTime,
-                          const AnimationTiming& aTiming)
+                          const TimingParams& aTiming)
 {
-  const TimeDuration zeroDuration;
-
-  // Currently we expect negative durations to be picked up during CSS
-  // parsing but when we start receiving timing parameters from other sources
-  // we will need to clamp negative durations here.
-  // For now, if we're hitting this it probably means we're overflowing
-  // integer arithmetic in mozilla::TimeStamp.
-  MOZ_ASSERT(aTiming.mIterationDuration >= zeroDuration,
-             "Expecting iteration duration >= 0");
+  const StickyTimeDuration zeroDuration;
 
   // Always return the same object to benefit from return-value optimization.
   ComputedTiming result;
 
-  result.mActiveDuration = ActiveDuration(aTiming);
+  if (aTiming.mDuration.IsUnrestrictedDouble()) {
+    double durationMs = aTiming.mDuration.GetAsUnrestrictedDouble();
+    if (!IsNaN(durationMs) && durationMs >= 0.0f) {
+      result.mDuration = StickyTimeDuration::FromMilliseconds(durationMs);
+    }
+  }
+  result.mIterations = IsNaN(aTiming.mIterations) || aTiming.mIterations < 0.0f ?
+                       1.0f :
+                       aTiming.mIterations;
+  result.mActiveDuration = ActiveDuration(result.mDuration, result.mIterations);
+  result.mFill = aTiming.mFill == dom::FillMode::Auto ?
+                 dom::FillMode::None :
+                 aTiming.mFill;
 
   // The default constructor for ComputedTiming sets all other members to
   // values consistent with an animation that has not been sampled.
@@ -247,7 +246,7 @@ KeyframeEffectReadOnly::GetComputedTimingAt(
   StickyTimeDuration activeTime;
   if (localTime >= aTiming.mDelay + result.mActiveDuration) {
     result.mPhase = ComputedTiming::AnimationPhase::After;
-    if (!aTiming.FillsForwards()) {
+    if (!result.FillsForwards()) {
       // The animation isn't active or filling at this time.
       result.mProgress.SetNull();
       return result;
@@ -255,12 +254,11 @@ KeyframeEffectReadOnly::GetComputedTimingAt(
     activeTime = result.mActiveDuration;
     // Note that infinity == floor(infinity) so this will also be true when we
     // have finished an infinitely repeating animation of zero duration.
-    isEndOfFinalIteration =
-      aTiming.mIterationCount != 0.0 &&
-      aTiming.mIterationCount == floor(aTiming.mIterationCount);
+    isEndOfFinalIteration = result.mIterations != 0.0 &&
+                            result.mIterations == floor(result.mIterations);
   } else if (localTime < aTiming.mDelay) {
     result.mPhase = ComputedTiming::AnimationPhase::Before;
-    if (!aTiming.FillsBackwards()) {
+    if (!result.FillsBackwards()) {
       // The animation isn't active or filling at this time.
       result.mProgress.SetNull();
       return result;
@@ -275,19 +273,19 @@ KeyframeEffectReadOnly::GetComputedTimingAt(
 
   // Get the position within the current iteration.
   StickyTimeDuration iterationTime;
-  if (aTiming.mIterationDuration != zeroDuration) {
+  if (result.mDuration != zeroDuration) {
     iterationTime = isEndOfFinalIteration
-                    ? StickyTimeDuration(aTiming.mIterationDuration)
-                    : activeTime % aTiming.mIterationDuration;
+                    ? result.mDuration
+                    : activeTime % result.mDuration;
   } /* else, iterationTime is zero */
 
   // Determine the 0-based index of the current iteration.
   if (isEndOfFinalIteration) {
     result.mCurrentIteration =
-      aTiming.mIterationCount == NS_IEEEPositiveInfinity()
+      IsInfinite(result.mIterations) // Positive Infinity?
       ? UINT64_MAX // In GetComputedTimingDictionary(), we will convert this
                    // into Infinity.
-      : static_cast<uint64_t>(aTiming.mIterationCount) - 1;
+      : static_cast<uint64_t>(result.mIterations) - 1;
   } else if (activeTime == zeroDuration) {
     // If the active time is zero we're either in the first iteration
     // (including filling backwards) or we have finished an animation with an
@@ -295,11 +293,11 @@ KeyframeEffectReadOnly::GetComputedTimingAt(
     // the exact end of an iteration since we deal with that above).
     result.mCurrentIteration =
       result.mPhase == ComputedTiming::AnimationPhase::After
-      ? static_cast<uint64_t>(aTiming.mIterationCount) // floor
+      ? static_cast<uint64_t>(result.mIterations) // floor
       : 0;
   } else {
     result.mCurrentIteration =
-      static_cast<uint64_t>(activeTime / aTiming.mIterationDuration); // floor
+      static_cast<uint64_t>(activeTime / result.mDuration); // floor
   }
 
   // Normalize the iteration time into a fraction of the iteration duration.
@@ -308,15 +306,15 @@ KeyframeEffectReadOnly::GetComputedTimingAt(
   } else if (result.mPhase == ComputedTiming::AnimationPhase::After) {
     double progress = isEndOfFinalIteration
                       ? 1.0
-                      : fmod(aTiming.mIterationCount, 1.0f);
+                      : fmod(result.mIterations, 1.0);
     result.mProgress.SetValue(progress);
   } else {
     // We are in the active phase so the iteration duration can't be zero.
-    MOZ_ASSERT(aTiming.mIterationDuration != zeroDuration,
+    MOZ_ASSERT(result.mDuration != zeroDuration,
                "In the active phase of a zero-duration animation?");
-    double progress = aTiming.mIterationDuration == TimeDuration::Forever()
+    double progress = result.mDuration == StickyTimeDuration::Forever()
                       ? 0.0
-                      : iterationTime / aTiming.mIterationDuration;
+                      : iterationTime / result.mDuration;
     result.mProgress.SetValue(progress);
   }
 
@@ -341,23 +339,28 @@ KeyframeEffectReadOnly::GetComputedTimingAt(
     result.mProgress.SetValue(1.0 - result.mProgress.Value());
   }
 
+  if (aTiming.mFunction) {
+    result.mProgress.SetValue(
+      aTiming.mFunction->GetValue(result.mProgress.Value()));
+  }
+
   return result;
 }
 
 StickyTimeDuration
-KeyframeEffectReadOnly::ActiveDuration(const AnimationTiming& aTiming)
+KeyframeEffectReadOnly::ActiveDuration(const StickyTimeDuration& aIterationDuration,
+                                       double aIterationCount)
 {
-  if (aTiming.mIterationCount == mozilla::PositiveInfinity<float>()) {
+  if (IsInfinite(aIterationCount)) {
     // An animation that repeats forever has an infinite active duration
     // unless its iteration duration is zero, in which case it has a zero
     // active duration.
     const StickyTimeDuration zeroDuration;
-    return aTiming.mIterationDuration == zeroDuration
-           ? zeroDuration
-           : StickyTimeDuration::Forever();
+    return aIterationDuration == zeroDuration ?
+           zeroDuration :
+           StickyTimeDuration::Forever();
   }
-  return StickyTimeDuration(
-    aTiming.mIterationDuration.MultDouble(aTiming.mIterationCount));
+  return aIterationDuration.MultDouble(aIterationCount);
 }
 
 // https://w3c.github.io/web-animations/#in-play
@@ -466,11 +469,6 @@ KeyframeEffectReadOnly::ComposeStyle(RefPtr<AnimValuesStyleRule>& aStyleRule,
     return;
   }
 
-  MOZ_ASSERT(!computedTiming.mProgress.IsNull() &&
-             0.0 <= computedTiming.mProgress.Value() &&
-             computedTiming.mProgress.Value() <= 1.0,
-             "iteration progress should be in [0-1]");
-
   for (size_t propIdx = 0, propEnd = mProperties.Length();
        propIdx != propEnd; ++propIdx)
   {
@@ -508,15 +506,11 @@ KeyframeEffectReadOnly::ComposeStyle(RefPtr<AnimValuesStyleRule>& aStyleRule,
                                 *segmentEnd = segment + prop.mSegments.Length();
     while (segment->mToKey < computedTiming.mProgress.Value()) {
       MOZ_ASSERT(segment->mFromKey < segment->mToKey, "incorrect keys");
-      ++segment;
-      if (segment == segmentEnd) {
-        MOZ_ASSERT_UNREACHABLE("incorrect iteration progress");
-        break; // in order to continue in outer loop (just below)
+      if ((segment+1) == segmentEnd) {
+        break;
       }
+      ++segment;
       MOZ_ASSERT(segment->mFromKey == (segment-1)->mToKey, "incorrect keys");
-    }
-    if (segment == segmentEnd) {
-      continue;
     }
     MOZ_ASSERT(segment->mFromKey < segment->mToKey, "incorrect keys");
     MOZ_ASSERT(segment >= prop.mSegments.Elements() &&
@@ -533,7 +527,8 @@ KeyframeEffectReadOnly::ComposeStyle(RefPtr<AnimValuesStyleRule>& aStyleRule,
       (computedTiming.mProgress.Value() - segment->mFromKey) /
       (segment->mToKey - segment->mFromKey);
     double valuePosition =
-      segment->mTimingFunction.GetValue(positionInSegment);
+      ComputedTimingFunction::GetPortion(segment->mTimingFunction,
+                                         positionInSegment);
 
     StyleAnimationValue *val = aStyleRule->AddEmptyValue(prop.mProperty);
 
@@ -641,55 +636,6 @@ DumpAnimationProperties(nsTArray<AnimationProperty>& aAnimationProperties)
 }
 #endif
 
-// Extract an iteration duration from an UnrestrictedDoubleOrXXX object.
-template <typename T>
-static TimeDuration
-GetIterationDuration(const T& aDuration) {
-  // Always return the same object to benefit from return-value optimization.
-  TimeDuration result;
-  if (aDuration.IsUnrestrictedDouble()) {
-    double durationMs = aDuration.GetAsUnrestrictedDouble();
-    if (!IsNaN(durationMs) && durationMs >= 0.0f) {
-      result = TimeDuration::FromMilliseconds(durationMs);
-    }
-  }
-  // else, aDuration should be zero
-  return result;
-}
-
-/* static */ AnimationTiming
-KeyframeEffectReadOnly::ConvertKeyframeEffectOptions(
-    const UnrestrictedDoubleOrKeyframeEffectOptions& aOptions)
-{
-  AnimationTiming animationTiming;
-
-  if (aOptions.IsKeyframeEffectOptions()) {
-    const KeyframeEffectOptions& opt = aOptions.GetAsKeyframeEffectOptions();
-
-    animationTiming.mIterationDuration = GetIterationDuration(opt.mDuration);
-    animationTiming.mDelay = TimeDuration::FromMilliseconds(opt.mDelay);
-    // FIXME: Covert mIterationCount to a valid value.
-    // Bug 1214536 should revise this and keep the original value, so
-    // AnimationTimingEffectReadOnly can get the original iterations.
-    animationTiming.mIterationCount = (IsNaN(opt.mIterations) ||
-                                      opt.mIterations < 0.0f) ?
-                                        1.0f :
-                                        opt.mIterations;
-    animationTiming.mDirection = opt.mDirection;
-    // FIXME: We should store original value.
-    animationTiming.mFillMode = (opt.mFill == FillMode::Auto) ?
-                                  FillMode::None :
-                                  opt.mFill;
-  } else {
-    animationTiming.mIterationDuration = GetIterationDuration(aOptions);
-    animationTiming.mDelay = TimeDuration(0);
-    animationTiming.mIterationCount = 1.0f;
-    animationTiming.mDirection = PlaybackDirection::Normal;
-    animationTiming.mFillMode = FillMode::None;
-  }
-  return animationTiming;
-}
-
 /**
  * A property and StyleAnimationValue pair.
  */
@@ -717,7 +663,7 @@ enum class ValuePosition
 struct OrderedKeyframeValueEntry : KeyframeValue
 {
   float mOffset;
-  const ComputedTimingFunction* mTimingFunction;
+  const Maybe<ComputedTimingFunction>* mTimingFunction;
   ValuePosition mPosition;
 
   bool SameKeyframe(const OrderedKeyframeValueEntry& aOther) const
@@ -752,7 +698,9 @@ struct OrderedKeyframeValueEntry : KeyframeValue
       // Third, by easing.
       if (aLhs.mTimingFunction) {
         if (aRhs.mTimingFunction) {
-          int32_t order = aLhs.mTimingFunction->Compare(*aRhs.mTimingFunction);
+          int32_t order =
+            ComputedTimingFunction::Compare(*aLhs.mTimingFunction,
+                                            *aRhs.mTimingFunction);
           if (order != 0) {
             return order < 0;
           }
@@ -783,7 +731,7 @@ struct OrderedKeyframeValueEntry : KeyframeValue
 struct KeyframeValueEntry : KeyframeValue
 {
   float mOffset;
-  ComputedTimingFunction mTimingFunction;
+  Maybe<ComputedTimingFunction> mTimingFunction;
 
   struct PropertyOffsetComparator
   {
@@ -902,64 +850,6 @@ struct OffsetIndexedKeyframe
   binding_detail::FastKeyframe mKeyframeDict;
   nsTArray<PropertyValuesPair> mPropertyValuePairs;
 };
-
-/**
- * Parses a CSS <single-transition-timing-function> value from
- * aEasing into a ComputedTimingFunction.  If parsing fails, aResult will
- * be set to 'linear'.
- */
-static void
-ParseEasing(Element* aTarget,
-            const nsAString& aEasing,
-            ComputedTimingFunction& aResult)
-{
-  nsIDocument* doc = aTarget->OwnerDoc();
-
-  nsCSSValue value;
-  nsCSSParser parser;
-  parser.ParseLonghandProperty(eCSSProperty_animation_timing_function,
-                               aEasing,
-                               doc->GetDocumentURI(),
-                               doc->GetDocumentURI(),
-                               doc->NodePrincipal(),
-                               value);
-
-  switch (value.GetUnit()) {
-    case eCSSUnit_List: {
-      const nsCSSValueList* list = value.GetListValue();
-      if (list->mNext) {
-        // don't support a list of timing functions
-        break;
-      }
-      switch (list->mValue.GetUnit()) {
-        case eCSSUnit_Enumerated:
-        case eCSSUnit_Cubic_Bezier:
-        case eCSSUnit_Steps: {
-          nsTimingFunction timingFunction;
-          nsRuleNode::ComputeTimingFunction(list->mValue, timingFunction);
-          aResult.Init(timingFunction);
-          return;
-        }
-        default:
-          MOZ_ASSERT_UNREACHABLE("unexpected animation-timing-function list "
-                                 "item unit");
-        break;
-      }
-      break;
-    }
-    case eCSSUnit_Null:
-    case eCSSUnit_Inherit:
-    case eCSSUnit_Initial:
-    case eCSSUnit_Unset:
-    case eCSSUnit_TokenStream:
-      break;
-    default:
-      MOZ_ASSERT_UNREACHABLE("unexpected animation-timing-function unit");
-      break;
-  }
-
-  aResult.Init(nsTimingFunction(NS_STYLE_TRANSITION_TIMING_FUNCTION_LINEAR));
-}
 
 /**
  * An additional property (for a property-values pair) found on a Keyframe
@@ -1087,7 +977,11 @@ GetPropertyValuesPairs(JSContext* aCx,
       nsCSSProps::LookupPropertyByIDLName(propName,
                                           nsCSSProps::eEnabledForAllContent);
     if (property != eCSSProperty_UNKNOWN &&
-        nsCSSProps::kAnimTypeTable[property] != eStyleAnimType_None) {
+        (nsCSSProps::IsShorthand(property) ||
+         nsCSSProps::kAnimTypeTable[property] != eStyleAnimType_None)) {
+      // Only need to check for longhands being animatable, as the
+      // StyleAnimationValue::ComputeValues calls later on will check for
+      // a shorthand's components being animatable.
       AdditionalProperty* p = properties.AppendElement();
       p->mProperty = property;
       p->mJsidIndex = i;
@@ -1233,12 +1127,14 @@ ApplyDistributeSpacing(nsTArray<OffsetIndexedKeyframe>& aKeyframes)
  * objects.
  *
  * @param aTarget The target of the animation.
+ * @param aPseudoType The pseudo type of the target if it is a pseudo element.
  * @param aKeyframes The keyframes to read.
  * @param aResult The array to append the resulting KeyframeValueEntry
  *   objects to.
  */
 static void
 GenerateValueEntries(Element* aTarget,
+                     nsCSSPseudoElements::Type aPseudoType,
                      nsTArray<OffsetIndexedKeyframe>& aKeyframes,
                      nsTArray<KeyframeValueEntry>& aResult,
                      ErrorResult& aRv)
@@ -1249,8 +1145,10 @@ GenerateValueEntries(Element* aTarget,
 
   for (OffsetIndexedKeyframe& keyframe : aKeyframes) {
     float offset = float(keyframe.mKeyframeDict.mOffset.Value());
-    ComputedTimingFunction easing;
-    ParseEasing(aTarget, keyframe.mKeyframeDict.mEasing, easing);
+    // ParseEasing uses element's owner doc, so if it is a pseudo element,
+    // we use its parent element's owner doc.
+    Maybe<ComputedTimingFunction> easing =
+      AnimationUtils::ParseEasing(aTarget, keyframe.mKeyframeDict.mEasing);
     // We ignore keyframe.mKeyframeDict.mComposite since we don't support
     // composite modes on keyframes yet.
 
@@ -1286,6 +1184,7 @@ GenerateValueEntries(Element* aTarget,
       if (StyleAnimationValue::ComputeValues(pair.mProperty,
                                              nsCSSProps::eEnabledForAllContent,
                                              aTarget,
+                                             aPseudoType,
                                              pair.mValues[0],
                                              /* aUseSVGMode */ false,
                                              values)) {
@@ -1439,13 +1338,14 @@ static void
 BuildAnimationPropertyListFromKeyframeSequence(
     JSContext* aCx,
     Element* aTarget,
+    nsCSSPseudoElements::Type aPseudoType,
     JS::ForOfIterator& aIterator,
     nsTArray<AnimationProperty>& aResult,
     ErrorResult& aRv)
 {
   // Convert the object in aIterator to sequence<Keyframe>, producing
   // an array of OffsetIndexedKeyframe objects.
-  nsAutoTArray<OffsetIndexedKeyframe,4> keyframes;
+  AutoTArray<OffsetIndexedKeyframe,4> keyframes;
   if (!ConvertKeyframeSequence(aCx, aIterator, keyframes)) {
     aRv.Throw(NS_ERROR_FAILURE);
     return;
@@ -1472,7 +1372,7 @@ BuildAnimationPropertyListFromKeyframeSequence(
   // Convert the OffsetIndexedKeyframes into a list of KeyframeValueEntry
   // objects.
   nsTArray<KeyframeValueEntry> entries;
-  GenerateValueEntries(aTarget, keyframes, entries, aRv);
+  GenerateValueEntries(aTarget, aPseudoType, keyframes, entries, aRv);
   if (aRv.Failed()) {
     return;
   }
@@ -1496,6 +1396,7 @@ static void
 BuildAnimationPropertyListFromPropertyIndexedKeyframes(
     JSContext* aCx,
     Element* aTarget,
+    nsCSSPseudoElements::Type aPseudoType,
     JS::Handle<JS::Value> aValue,
     InfallibleTArray<AnimationProperty>& aResult,
     ErrorResult& aRv)
@@ -1511,8 +1412,10 @@ BuildAnimationPropertyListFromPropertyIndexedKeyframes(
     return;
   }
 
-  ComputedTimingFunction easing;
-  ParseEasing(aTarget, keyframes.mEasing, easing);
+  // ParseEasing uses element's owner doc, so if it is a pseudo element,
+  // we use its parent element's owner doc.
+  Maybe<ComputedTimingFunction> easing =
+    AnimationUtils::ParseEasing(aTarget, keyframes.mEasing);
 
   // We ignore easing.mComposite since we don't support composite modes on
   // keyframes yet.
@@ -1566,6 +1469,7 @@ BuildAnimationPropertyListFromPropertyIndexedKeyframes(
     if (!StyleAnimationValue::ComputeValues(pair.mProperty,
                                             nsCSSProps::eEnabledForAllContent,
                                             aTarget,
+                                            aPseudoType,
                                             pair.mValues[0],
                                             /* aUseSVGMode */ false,
                                             fromValues)) {
@@ -1618,6 +1522,7 @@ BuildAnimationPropertyListFromPropertyIndexedKeyframes(
       if (!StyleAnimationValue::ComputeValues(pair.mProperty,
                                               nsCSSProps::eEnabledForAllContent,
                                               aTarget,
+                                              aPseudoType,
                                               pair.mValues[i + 1],
                                               /* aUseSVGMode */ false,
                                               toValues)) {
@@ -1666,7 +1571,8 @@ BuildAnimationPropertyListFromPropertyIndexedKeyframes(
 KeyframeEffectReadOnly::BuildAnimationPropertyList(
     JSContext* aCx,
     Element* aTarget,
-    const Optional<JS::Handle<JSObject*>>& aFrames,
+    nsCSSPseudoElements::Type aPseudoType,
+    JS::Handle<JSObject*> aFrames,
     InfallibleTArray<AnimationProperty>& aResult,
     ErrorResult& aRv)
 {
@@ -1682,17 +1588,16 @@ KeyframeEffectReadOnly::BuildAnimationPropertyList(
   // we can look at the open-ended set of properties on a
   // PropertyIndexedKeyframes or Keyframe.
 
-  if (!aFrames.WasPassed() || !aFrames.Value().get()) {
-    // The argument was omitted, or was explicitly null.  In both cases,
-    // the default dictionary value for PropertyIndexedKeyframes would
-    // result in no keyframes.
+  if (!aFrames) {
+    // The argument was explicitly null.  In this case, the default dictionary
+    // value for PropertyIndexedKeyframes would result in no keyframes.
     return;
   }
 
   // At this point we know we have an object.  We try to convert it to a
   // sequence<Keyframe> first, and if that fails due to not being iterable,
   // we try to convert it to PropertyIndexedKeyframes.
-  JS::Rooted<JS::Value> objectValue(aCx, JS::ObjectValue(*aFrames.Value()));
+  JS::Rooted<JS::Value> objectValue(aCx, JS::ObjectValue(*aFrames));
   JS::ForOfIterator iter(aCx);
   if (!iter.init(objectValue, JS::ForOfIterator::AllowNonIterable)) {
     aRv.Throw(NS_ERROR_FAILURE);
@@ -1700,10 +1605,11 @@ KeyframeEffectReadOnly::BuildAnimationPropertyList(
   }
 
   if (iter.valueIsIterable()) {
-    BuildAnimationPropertyListFromKeyframeSequence(aCx, aTarget, iter,
-                                                   aResult, aRv);
+    BuildAnimationPropertyListFromKeyframeSequence(aCx, aTarget, aPseudoType,
+                                                   iter, aResult, aRv);
   } else {
     BuildAnimationPropertyListFromPropertyIndexedKeyframes(aCx, aTarget,
+                                                           aPseudoType,
                                                            objectValue, aResult,
                                                            aRv);
   }
@@ -1712,33 +1618,76 @@ KeyframeEffectReadOnly::BuildAnimationPropertyList(
 /* static */ already_AddRefed<KeyframeEffectReadOnly>
 KeyframeEffectReadOnly::Constructor(
     const GlobalObject& aGlobal,
-    Element* aTarget,
-    const Optional<JS::Handle<JSObject*>>& aFrames,
-    const UnrestrictedDoubleOrKeyframeEffectOptions& aOptions,
+    const Nullable<ElementOrCSSPseudoElement>& aTarget,
+    JS::Handle<JSObject*> aFrames,
+    const TimingParams& aTiming,
     ErrorResult& aRv)
 {
-  if (!aTarget) {
+  if (aTarget.IsNull()) {
     // We don't support null targets yet.
     aRv.Throw(NS_ERROR_DOM_ANIM_NO_TARGET_ERR);
     return nullptr;
   }
 
-  AnimationTiming timing = ConvertKeyframeEffectOptions(aOptions);
+  const ElementOrCSSPseudoElement& target = aTarget.Value();
+  MOZ_ASSERT(target.IsElement() || target.IsCSSPseudoElement(),
+             "Uninitialized target");
+
+  RefPtr<Element> targetElement;
+  nsCSSPseudoElements::Type pseudoType =
+    nsCSSPseudoElements::ePseudo_NotPseudoElement;
+  if (target.IsElement()) {
+    targetElement = &target.GetAsElement();
+  } else {
+    targetElement = target.GetAsCSSPseudoElement().ParentElement();
+    pseudoType = target.GetAsCSSPseudoElement().GetType();
+  }
+
+  if (!targetElement->GetCurrentDoc()) {
+    // Bug 1245748: We don't support targets that are not in a document yet.
+    aRv.Throw(NS_ERROR_DOM_ANIM_TARGET_NOT_IN_DOC_ERR);
+    return nullptr;
+  }
 
   InfallibleTArray<AnimationProperty> animationProperties;
-  BuildAnimationPropertyList(aGlobal.Context(), aTarget, aFrames,
-                             animationProperties, aRv);
+  BuildAnimationPropertyList(aGlobal.Context(), targetElement, pseudoType,
+                             aFrames, animationProperties, aRv);
 
   if (aRv.Failed()) {
     return nullptr;
   }
 
   RefPtr<KeyframeEffectReadOnly> effect =
-    new KeyframeEffectReadOnly(aTarget->OwnerDoc(), aTarget,
-                               nsCSSPseudoElements::ePseudo_NotPseudoElement,
-                               timing);
+    new KeyframeEffectReadOnly(targetElement->OwnerDoc(), targetElement,
+                               pseudoType, aTiming);
   effect->mProperties = Move(animationProperties);
   return effect.forget();
+}
+
+void
+KeyframeEffectReadOnly::GetTarget(
+    Nullable<OwningElementOrCSSPseudoElement>& aRv) const
+{
+  if (!mTarget) {
+    aRv.SetNull();
+    return;
+  }
+
+  switch (mPseudoType) {
+    case nsCSSPseudoElements::ePseudo_before:
+    case nsCSSPseudoElements::ePseudo_after:
+      aRv.SetValue().SetAsCSSPseudoElement() =
+        CSSPseudoElement::GetCSSPseudoElement(mTarget, mPseudoType);
+      break;
+
+    case nsCSSPseudoElements::ePseudo_NotPseudoElement:
+      aRv.SetValue().SetAsElement() = mTarget;
+      break;
+
+    default:
+      NS_NOTREACHED("Animation of unsupported pseudo-type");
+      aRv.SetNull();
+  }
 }
 
 void
@@ -1782,8 +1731,8 @@ KeyframeEffectReadOnly::GetFrames(JSContext*& aCx,
         entry->mProperty = property.mProperty;
         entry->mValue = segment.mToValue;
         entry->mOffset = segment.mToKey;
-        entry->mTimingFunction =
-          segment.mToKey == 1.0f ? nullptr : &segment.mTimingFunction;
+        entry->mTimingFunction = segment.mToKey == 1.0f ?
+          nullptr : &segment.mTimingFunction;
         entry->mPosition =
           segment.mFromKey == segment.mToKey && segment.mToKey == 1.0f ?
             ValuePosition::Last :
@@ -1802,10 +1751,10 @@ KeyframeEffectReadOnly::GetFrames(JSContext*& aCx,
     ComputedKeyframe keyframeDict;
     keyframeDict.mOffset.SetValue(entry->mOffset);
     keyframeDict.mComputedOffset.Construct(entry->mOffset);
-    if (entry->mTimingFunction) {
+    if (entry->mTimingFunction && entry->mTimingFunction->isSome()) {
       // If null, leave easing as its default "linear".
       keyframeDict.mEasing.Truncate();
-      entry->mTimingFunction->AppendToString(keyframeDict.mEasing);
+      entry->mTimingFunction->value().AppendToString(keyframeDict.mEasing);
     }
     keyframeDict.mComposite.SetValue(CompositeOperation::Replace);
 

@@ -3718,7 +3718,7 @@ nsFlexContainerFrame::Reflow(nsPresContext*           aPresContext,
   nscoord contentBoxMainSize = GetMainSizeFromReflowState(aReflowState,
                                                           axisTracker);
 
-  nsAutoTArray<StrutInfo, 1> struts;
+  AutoTArray<StrutInfo, 1> struts;
   DoFlexLayout(aPresContext, aDesiredSize, aReflowState, aStatus,
                contentBoxMainSize, availableBSizeForContent,
                struts, axisTracker);
@@ -3781,7 +3781,7 @@ public:
     NS_ASSERTION(aItem.HasIntrinsicRatio(),
                  "This should only be needed for items with an aspect ratio");
 
-    mItemProps.Set(nsIFrame::FlexItemMainSizeOverride(), reinterpret_cast<void *>(aItem.GetMainSize()));
+    mItemProps.Set(nsIFrame::FlexItemMainSizeOverride(), aItem.GetMainSize());
   }
 
   ~AutoFlexItemMainSizeOverride() {

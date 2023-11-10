@@ -107,6 +107,7 @@
 #include "HTMLImageElement.h"
 #include "mozilla/css/ImageLoader.h"
 #include "mozilla/layers/APZCTreeManager.h" // for layers::ZoomToRectBehavior
+#include "mozilla/dom/Promise.h"
 
 #ifdef XP_WIN
 #undef GetClassName
@@ -480,7 +481,7 @@ nsDOMWindowUtils::SetDisplayPortBaseForElement(int32_t aX,
 NS_IMETHODIMP
 nsDOMWindowUtils::SetResolution(float aResolution)
 {
-  if (!nsContentUtils::IsCallerChrome()) {
+  if (!nsContentUtils::LegacyIsCallerChromeOrNativeCode()) {
     return NS_ERROR_DOM_SECURITY_ERR;
   }
 
@@ -541,7 +542,7 @@ nsDOMWindowUtils::GetIsResolutionSet(bool* aIsResolutionSet) {
 NS_IMETHODIMP
 nsDOMWindowUtils::SetIsFirstPaint(bool aIsFirstPaint)
 {
-  if (!nsContentUtils::IsCallerChrome()) {
+  if (!nsContentUtils::LegacyIsCallerChromeOrNativeCode()) {
     return NS_ERROR_DOM_SECURITY_ERR;
   }
 
@@ -556,7 +557,7 @@ nsDOMWindowUtils::SetIsFirstPaint(bool aIsFirstPaint)
 NS_IMETHODIMP
 nsDOMWindowUtils::GetIsFirstPaint(bool *aIsFirstPaint)
 {
-  if (!nsContentUtils::IsCallerChrome()) {
+  if (!nsContentUtils::LegacyIsCallerChromeOrNativeCode()) {
     return NS_ERROR_DOM_SECURITY_ERR;
   }
 
@@ -1874,7 +1875,7 @@ nsDOMWindowUtils::DispatchDOMEventViaPresShell(nsIDOMNode* aTarget,
 
   NS_ENSURE_STATE(aEvent);
   aEvent->SetTrusted(aTrusted);
-  WidgetEvent* internalEvent = aEvent->GetInternalNSEvent();
+  WidgetEvent* internalEvent = aEvent->WidgetEventPtr();
   NS_ENSURE_STATE(internalEvent);
   nsCOMPtr<nsIContent> content = do_QueryInterface(aTarget);
   NS_ENSURE_STATE(content);
@@ -2269,28 +2270,30 @@ nsDOMWindowUtils::GetLayerManagerRemote(bool* retval)
 }
 
 NS_IMETHODIMP
-nsDOMWindowUtils::GetSupportsHardwareH264Decoding(nsAString& aRetval)
+nsDOMWindowUtils::GetSupportsHardwareH264Decoding(JS::MutableHandle<JS::Value> aPromise)
 {
-  MOZ_RELEASE_ASSERT(nsContentUtils::IsCallerChrome());
+  nsCOMPtr<nsPIDOMWindow> window = do_QueryReferent(mWindow);
+  NS_ENSURE_STATE(window);
+  nsCOMPtr<nsIGlobalObject> parentObject = do_QueryInterface(window);
+  NS_ENSURE_STATE(parentObject);
 
 #ifdef MOZ_FMP4
   nsCOMPtr<nsIWidget> widget = GetWidget();
-  if (!widget)
-    return NS_ERROR_FAILURE;
-
+  NS_ENSURE_STATE(widget);
   LayerManager *mgr = widget->GetLayerManager();
-  if (!mgr)
-    return NS_ERROR_FAILURE;
-
-  nsCString failureReason;
-  if (MP4Decoder::IsVideoAccelerated(mgr->GetCompositorBackendType(), failureReason)) {
-    aRetval.AssignLiteral("Yes");
-  } else {
-    aRetval.AssignLiteral("No; ");
-    AppendUTF8toUTF16(failureReason, aRetval);
-  }
+  NS_ENSURE_STATE(mgr);
+  RefPtr<Promise> promise =
+    MP4Decoder::IsVideoAccelerated(mgr->GetCompositorBackendType(), parentObject);
+  NS_ENSURE_STATE(promise);
+  aPromise.setObject(*promise->PromiseObj());
 #else
-  aRetval.AssignLiteral("No; Compiled without MP4 support.");
+  ErrorResult rv;
+  RefPtr<Promise> promise = Promise::Create(parentObject, rv);
+  if (rv.Failed()) {
+    return rv.StealNSResult();
+  }
+  promise.MaybeResolve(NS_LITERAL_STRING("No; Compiled without MP4 support."));
+  aPromise.setObject(*promise->PromiseObj());
 #endif
   return NS_OK;
 }
@@ -2377,8 +2380,13 @@ ComputeAnimationValue(nsCSSProperty aProperty,
                       StyleAnimationValue& aOutput)
 {
 
-  if (!StyleAnimationValue::ComputeValue(aProperty, aElement, aInput,
-                                         false, aOutput)) {
+  if (!StyleAnimationValue::ComputeValue(
+        aProperty,
+        aElement,
+        nsCSSPseudoElements::ePseudo_NotPseudoElement,
+        aInput,
+        false,
+        aOutput)) {
     return false;
   }
 
@@ -2413,12 +2421,15 @@ nsDOMWindowUtils::AdvanceTimeAndRefresh(int64_t aMilliseconds)
     }
   }
 
-  nsRefreshDriver* driver = GetPresContext()->RefreshDriver();
-  driver->AdvanceTimeAndRefresh(aMilliseconds);
+  nsPresContext* presContext = GetPresContext();
+  if (presContext) {
+    nsRefreshDriver* driver = presContext->RefreshDriver();
+    driver->AdvanceTimeAndRefresh(aMilliseconds);
 
-  RefPtr<LayerTransactionChild> transaction = GetLayerTransaction();
-  if (transaction && transaction->IPCOpen()) {
-    transaction->SendSetTestSampleTime(driver->MostRecentRefresh());
+    RefPtr<LayerTransactionChild> transaction = GetLayerTransaction();
+    if (transaction && transaction->IPCOpen()) {
+      transaction->SendSetTestSampleTime(driver->MostRecentRefresh());
+    }
   }
 
   return NS_OK;
@@ -2437,8 +2448,10 @@ nsDOMWindowUtils::RestoreNormalRefresh()
     transaction->SendLeaveTestMode();
   }
 
-  nsRefreshDriver* driver = GetPresContext()->RefreshDriver();
-  driver->RestoreNormalRefresh();
+  if (nsPresContext* pc = GetPresContext()) {
+    nsRefreshDriver* driver = pc->RefreshDriver();
+    driver->RestoreNormalRefresh();
+  }
 
   return NS_OK;
 }
@@ -2938,7 +2951,7 @@ nsDOMWindowUtils::EnableDialogs()
 NS_IMETHODIMP
 nsDOMWindowUtils::DisableDialogs()
 {
-  if (!nsContentUtils::LegacyIsCallerChromeOrNativeCode()) {
+  if (!nsContentUtils::IsCallerChrome()) {
     return NS_ERROR_DOM_SECURITY_ERR;
   }
 
@@ -2952,7 +2965,7 @@ nsDOMWindowUtils::DisableDialogs()
 NS_IMETHODIMP
 nsDOMWindowUtils::AreDialogsEnabled(bool* aResult)
 {
-  if (!nsContentUtils::LegacyIsCallerChromeOrNativeCode()) {
+  if (!nsContentUtils::IsCallerChrome()) {
     return NS_ERROR_DOM_SECURITY_ERR;
   }
 
@@ -3534,7 +3547,7 @@ nsDOMWindowUtils::DispatchEventToChromeOnly(nsIDOMEventTarget* aTarget,
   *aRetVal = false;
   MOZ_RELEASE_ASSERT(nsContentUtils::IsCallerChrome());
   NS_ENSURE_STATE(aTarget && aEvent);
-  aEvent->GetInternalNSEvent()->mFlags.mOnlyChromeDispatch = true;
+  aEvent->WidgetEventPtr()->mFlags.mOnlyChromeDispatch = true;
   aTarget->DispatchEvent(aEvent, aRetVal);
   return NS_OK;
 }
@@ -3685,7 +3698,7 @@ NS_IMETHODIMP
 nsDOMWindowUtils::SetHandlingUserInput(bool aHandlingUserInput,
                                        nsIJSRAIIHelper** aHelper)
 {
-  if (!nsContentUtils::LegacyIsCallerChromeOrNativeCode()) {
+  if (!nsContentUtils::IsCallerChrome()) {
     return NS_ERROR_DOM_SECURITY_ERR;
   }
 

@@ -10,10 +10,12 @@
 
 #include "nsDocument.h"
 #include "nsIDocumentInlines.h"
+#include "mozilla/AnimationComparator.h"
 #include "mozilla/ArrayUtils.h"
 #include "mozilla/AutoRestore.h"
 #include "mozilla/BinarySearch.h"
 #include "mozilla/DebugOnly.h"
+#include "mozilla/EffectSet.h"
 #include "mozilla/IntegerRange.h"
 #include "mozilla/MemoryReporting.h"
 #include "mozilla/Likely.h"
@@ -3156,6 +3158,32 @@ nsDocument::Timeline()
   return mDocumentTimeline;
 }
 
+void
+nsDocument::GetAnimations(nsTArray<RefPtr<Animation>>& aAnimations)
+{
+  FlushPendingNotifications(Flush_Style);
+
+  // Bug 1174575: Until we implement a suitable PseudoElement interface we
+  // don't have anything to return for the |target| attribute of
+  // KeyframeEffect(ReadOnly) objects that refer to pseudo-elements.
+  // Rather than return some half-baked version of these objects (e.g.
+  // we a null effect attribute) we simply don't provide access to animations
+  // whose effect refers to a pseudo-element until we can support them
+  // properly.
+  for (nsIContent* node = nsINode::GetFirstChild();
+       node;
+       node = node->GetNextNode(this)) {
+    if (!node->IsElement()) {
+      continue;
+    }
+
+    node->AsElement()->GetAnimationsUnsorted(aAnimations);
+  }
+
+  // Sort animations by priority
+  aAnimations.Sort(AnimationPtrComparator<RefPtr<Animation>>());
+}
+
 /* Return true if the document is in the focused top-level window, and is an
  * ancestor of the focused DOMWindow. */
 NS_IMETHODIMP
@@ -3310,7 +3338,7 @@ nsDocument::ElementFromPointHelper(float aX, float aY,
                                    bool aIgnoreRootScrollFrame,
                                    bool aFlushLayout)
 {
-  nsAutoTArray<RefPtr<Element>, 1> elementArray;
+  AutoTArray<RefPtr<Element>, 1> elementArray;
   ElementsFromPointHelper(aX, aY,
                           ((aIgnoreRootScrollFrame ?  nsIDocument::IGNORE_ROOT_SCROLL_FRAME : 0) |
                            (aFlushLayout ? nsIDocument::FLUSH_LAYOUT : 0) |
@@ -3432,7 +3460,7 @@ nsDocument::NodesFromRectHelper(float aX, float aY,
   if (!rootFrame)
     return NS_OK; // return nothing to premature XUL callers as a reminder to wait
 
-  nsAutoTArray<nsIFrame*,8> outFrames;
+  AutoTArray<nsIFrame*,8> outFrames;
   nsLayoutUtils::GetFramesForArea(rootFrame, rect, outFrames,
     nsLayoutUtils::IGNORE_PAINT_SUPPRESSION | nsLayoutUtils::IGNORE_CROSS_DOC |
     (aIgnoreRootScrollFrame ? nsLayoutUtils::IGNORE_ROOT_SCROLL_FRAME : 0));
@@ -5096,7 +5124,7 @@ nsDocument::DispatchContentLoadedEvents()
         // the ancestor document if we used the normal event
         // dispatching code.
 
-        WidgetEvent* innerEvent = event->GetInternalNSEvent();
+        WidgetEvent* innerEvent = event->WidgetEventPtr();
         if (innerEvent) {
           nsEventStatus status = nsEventStatus_eIgnore;
 
@@ -6643,6 +6671,7 @@ nsIDocument::ImportNode(nsINode& aNode, bool aDeep, ErrorResult& rv) const
       if (ShadowRoot::FromNode(imported)) {
         break;
       }
+      MOZ_FALLTHROUGH;
     }
     case nsIDOMNode::ATTRIBUTE_NODE:
     case nsIDOMNode::ELEMENT_NODE:
@@ -6982,8 +7011,8 @@ nsIDocument::GetHtmlChildElement(nsIAtom* aTag)
   return nullptr;
 }
 
-nsIContent*
-nsDocument::GetTitleContent(uint32_t aNamespace)
+Element*
+nsDocument::GetTitleElement()
 {
   // mMayHaveTitleElement will have been set to true if any HTML or SVG
   // <title> element has been bound to this document. So if it's false,
@@ -6993,19 +7022,26 @@ nsDocument::GetTitleContent(uint32_t aNamespace)
   if (!mMayHaveTitleElement)
     return nullptr;
 
+  Element* root = GetRootElement();
+  if (root && root->IsSVGElement(nsGkAtoms::svg)) {
+    // In SVG, the document's title must be a child
+    for (nsIContent* child = root->GetFirstChild();
+         child; child = child->GetNextSibling()) {
+      if (child->IsSVGElement(nsGkAtoms::title)) {
+        return child->AsElement();
+      }
+    }
+    return nullptr;
+  }
+
+  // We check the HTML namespace even for non-HTML documents, except SVG.  This
+  // matches the spec and the behavior of all tested browsers.
   RefPtr<nsContentList> list =
-    NS_GetContentList(this, aNamespace, NS_LITERAL_STRING("title"));
+    NS_GetContentList(this, kNameSpaceID_XHTML, NS_LITERAL_STRING("title"));
 
-  return list->Item(0, false);
-}
+  nsIContent* first = list->Item(0, false);
 
-void
-nsDocument::GetTitleFromElement(uint32_t aNamespace, nsAString& aTitle)
-{
-  nsIContent* title = GetTitleContent(aNamespace);
-  if (!title)
-    return;
-  nsContentUtils::GetNodeTextContent(title, false, aTitle);
+  return first ? first->AsElement() : nullptr;
 }
 
 NS_IMETHODIMP
@@ -7022,26 +7058,24 @@ nsDocument::GetTitle(nsString& aTitle)
 {
   aTitle.Truncate();
 
-  nsIContent *rootElement = GetRootElement();
-  if (!rootElement)
+  Element* rootElement = GetRootElement();
+  if (!rootElement) {
     return;
+  }
 
   nsAutoString tmp;
 
-  switch (rootElement->GetNameSpaceID()) {
 #ifdef MOZ_XUL
-    case kNameSpaceID_XUL:
-      rootElement->GetAttr(kNameSpaceID_None, nsGkAtoms::title, tmp);
-      break;
+  if (rootElement->IsXULElement()) {
+    rootElement->GetAttr(kNameSpaceID_None, nsGkAtoms::title, tmp);
+  } else
 #endif
-    case kNameSpaceID_SVG:
-      if (rootElement->IsSVGElement(nsGkAtoms::svg)) {
-        GetTitleFromElement(kNameSpaceID_SVG, tmp);
-        break;
-      } // else fall through
-    default:
-      GetTitleFromElement(kNameSpaceID_XHTML, tmp);
-      break;
+  {
+    Element* title = GetTitleElement();
+    if (!title) {
+      return;
+    }
+    nsContentUtils::GetNodeTextContent(title, false, tmp);
   }
 
   tmp.CompressWhitespace();
@@ -7051,41 +7085,56 @@ nsDocument::GetTitle(nsString& aTitle)
 NS_IMETHODIMP
 nsDocument::SetTitle(const nsAString& aTitle)
 {
-  Element *rootElement = GetRootElement();
-  if (!rootElement)
+  Element* rootElement = GetRootElement();
+  if (!rootElement) {
     return NS_OK;
-
-  switch (rootElement->GetNameSpaceID()) {
-    case kNameSpaceID_SVG:
-      return NS_OK; // SVG doesn't support setting a title
-#ifdef MOZ_XUL
-    case kNameSpaceID_XUL:
-      return rootElement->SetAttr(kNameSpaceID_None, nsGkAtoms::title,
-                                  aTitle, true);
-#endif
   }
+
+#ifdef MOZ_XUL
+  if (rootElement->IsXULElement()) {
+    return rootElement->SetAttr(kNameSpaceID_None, nsGkAtoms::title,
+                                aTitle, true);
+  }
+#endif
 
   // Batch updates so that mutation events don't change "the title
   // element" under us
   mozAutoDocUpdate updateBatch(this, UPDATE_CONTENT_MODEL, true);
 
-  nsIContent* title = GetTitleContent(kNameSpaceID_XHTML);
-  if (!title) {
-    Element *head = GetHeadElement();
-    if (!head)
-      return NS_OK;
+  nsCOMPtr<Element> title = GetTitleElement();
+  if (rootElement->IsSVGElement(nsGkAtoms::svg)) {
+    if (!title) {
+      RefPtr<mozilla::dom::NodeInfo> titleInfo =
+        mNodeInfoManager->GetNodeInfo(nsGkAtoms::title, nullptr,
+                                      kNameSpaceID_SVG,
+                                      nsIDOMNode::ELEMENT_NODE);
+      NS_NewSVGElement(getter_AddRefs(title), titleInfo.forget(),
+                       NOT_FROM_PARSER);
+      if (!title) {
+        return NS_OK;
+      }
+      rootElement->InsertChildAt(title, 0, true);
+    }
+  } else if (rootElement->IsHTMLElement()) {
+    if (!title) {
+      Element* head = GetHeadElement();
+      if (!head) {
+        return NS_OK;
+      }
 
-    {
       RefPtr<mozilla::dom::NodeInfo> titleInfo;
       titleInfo = mNodeInfoManager->GetNodeInfo(nsGkAtoms::title, nullptr,
-                                                kNameSpaceID_XHTML,
-                                                nsIDOMNode::ELEMENT_NODE);
+          kNameSpaceID_XHTML,
+          nsIDOMNode::ELEMENT_NODE);
       title = NS_NewHTMLTitleElement(titleInfo.forget());
-      if (!title)
+      if (!title) {
         return NS_OK;
-    }
+      }
 
-    head->AppendChildTo(title, true);
+      head->AppendChildTo(title, true);
+    }
+  } else {
+    return NS_OK;
   }
 
   return nsContentUtils::SetNodeTextContent(title, aTitle, false);
@@ -7657,6 +7706,7 @@ nsIDocument::AdoptNode(nsINode& aAdoptedNode, ErrorResult& rv)
         rv.Throw(NS_ERROR_DOM_HIERARCHY_REQUEST_ERR);
         return nullptr;
       }
+      MOZ_FALLTHROUGH;
     }
     case nsIDOMNode::ELEMENT_NODE:
     case nsIDOMNode::PROCESSING_INSTRUCTION_NODE:
@@ -7944,6 +7994,7 @@ nsDocument::GetViewportInfo(const ScreenIntSize& aDisplaySize)
     mValidMaxScale = !maxScaleStr.IsEmpty() && NS_SUCCEEDED(scaleMaxErrorCode);
 
     mViewportType = Specified;
+    MOZ_FALLTHROUGH;
   }
   case Specified:
   default:
@@ -8088,7 +8139,7 @@ nsIDocument::CreateEvent(const nsAString& aEventType, ErrorResult& rv) const
     rv.Throw(NS_ERROR_DOM_NOT_SUPPORTED_ERR);
     return nullptr;
   }
-  WidgetEvent* e = ev->GetInternalNSEvent();
+  WidgetEvent* e = ev->WidgetEventPtr();
   e->mFlags.mBubbles = false;
   e->mFlags.mCancelable = false;
   return ev.forget();
@@ -11166,7 +11217,7 @@ ExitFullscreenInDocTree(nsIDocument* aMaybeNotARootDoc)
   // order when exiting fullscreen, but we traverse the doctree in a
   // root-to-leaf order, so we save references to the documents we must
   // dispatch to so that we dispatch in the specified order.
-  nsAutoTArray<nsIDocument*, 8> changed;
+  AutoTArray<nsIDocument*, 8> changed;
 
   // Walk the tree of fullscreen documents, and reset their fullscreen state.
   ResetFullScreen(root, static_cast<void*>(&changed));
@@ -11737,7 +11788,7 @@ nsDocument::RequestFullScreen(Element* aElement,
   // order, but we traverse the doctree in a leaf-to-root order, so we save
   // references to the documents we must dispatch to so that we get the order
   // as specified.
-  nsAutoTArray<nsIDocument*, 8> changed;
+  AutoTArray<nsIDocument*, 8> changed;
 
   // Remember the root document, so that if a full-screen document is hidden
   // we can reset full-screen state in the remaining visible full-screen documents.

@@ -638,7 +638,7 @@ Event::IsDispatchStopped()
 }
 
 NS_IMETHODIMP_(WidgetEvent*)
-Event::GetInternalNSEvent()
+Event::WidgetEventPtr()
 {
   return mEvent;
 }
@@ -933,7 +933,7 @@ Event::GetScreenCoords(nsPresContext* aPresContext,
     LayoutDevicePixel::ToAppUnits(aPoint, aPresContext->DeviceContext()->AppUnitsPerDevPixelAtUnitFullZoom());
 
   if (aPresContext->PresShell()) {
-    pt = pt.RemoveResolution(aPresContext->PresShell()->GetCumulativeNonRootScaleResolution());
+    pt = pt.RemoveResolution(nsLayoutUtils::GetCurrentAPZResolutionScale(aPresContext->PresShell()));
   }
 
   pt += LayoutDevicePixel::ToAppUnits(guiEvent->widget->WidgetToScreenOffset(),

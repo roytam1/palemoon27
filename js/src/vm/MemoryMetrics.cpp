@@ -343,7 +343,9 @@ StatsCompartmentCallback(JSRuntime* rt, void* data, JSCompartment* compartment)
                                         &cStats.crossCompartmentWrappersTable,
                                         &cStats.regexpCompartment,
                                         &cStats.savedStacksSet,
-                                        &cStats.nonSyntacticLexicalScopesTable);
+                                        &cStats.nonSyntacticLexicalScopesTable,
+                                        &cStats.jitCompartment,
+                                        &cStats.privateData);
 }
 
 static void

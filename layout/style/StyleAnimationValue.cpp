@@ -2525,19 +2525,25 @@ BuildStyleRule(nsCSSProperty aProperty,
 
 inline
 already_AddRefed<nsStyleContext>
-LookupStyleContext(dom::Element* aElement)
+LookupStyleContext(dom::Element* aElement,
+                   nsCSSPseudoElements::Type aPseudoType)
 {
   nsIDocument* doc = aElement->GetCurrentDoc();
   nsIPresShell* shell = doc->GetShell();
   if (!shell) {
     return nullptr;
   }
-  return nsComputedDOMStyle::GetStyleContextForElement(aElement, nullptr, shell);
+
+  nsIAtom* pseudo =
+    aPseudoType < nsCSSPseudoElements::ePseudo_PseudoElementCount ?
+    nsCSSPseudoElements::GetPseudoAtom(aPseudoType) : nullptr;
+  return nsComputedDOMStyle::GetStyleContextForElement(aElement, pseudo, shell);
 }
 
 /* static */ bool
 StyleAnimationValue::ComputeValue(nsCSSProperty aProperty,
                                   dom::Element* aTargetElement,
+                                  nsCSSPseudoElements::Type aPseudoType,
                                   const nsAString& aSpecifiedValue,
                                   bool aUseSVGMode,
                                   StyleAnimationValue& aComputedValue,
@@ -2549,6 +2555,9 @@ StyleAnimationValue::ComputeValue(nsCSSProperty aProperty,
              "are in a document");
 
   // Parse specified value into a temporary css::StyleRule
+  // Note: BuildStyleRule needs an element's OwnerDoc, BaseURI, and Principal.
+  // If it is a pseudo element, use its parent element's OwnerDoc, BaseURI,
+  // and Principal.
   RefPtr<css::StyleRule> styleRule =
     BuildStyleRule(aProperty, aTargetElement, aSpecifiedValue, aUseSVGMode);
   if (!styleRule) {
@@ -2567,9 +2576,9 @@ StyleAnimationValue::ComputeValue(nsCSSProperty aProperty,
     return true;
   }
 
-  nsAutoTArray<PropertyStyleAnimationValuePair,1> values;
+  AutoTArray<PropertyStyleAnimationValuePair,1> values;
   bool ok = ComputeValues(aProperty, nsCSSProps::eIgnoreEnabledState,
-                          aTargetElement, styleRule, values,
+                          aTargetElement, aPseudoType, styleRule, values,
                           aIsContextSensitive);
   if (!ok) {
     return false;
@@ -2586,6 +2595,7 @@ StyleAnimationValue::ComputeValue(nsCSSProperty aProperty,
 StyleAnimationValue::ComputeValues(nsCSSProperty aProperty,
                                    nsCSSProps::EnabledState aEnabledState,
                                    dom::Element* aTargetElement,
+                                   nsCSSPseudoElements::Type aPseudoType,
                                    const nsAString& aSpecifiedValue,
                                    bool aUseSVGMode,
                                    nsTArray<PropertyStyleAnimationValuePair>& aResult)
@@ -2596,6 +2606,9 @@ StyleAnimationValue::ComputeValues(nsCSSProperty aProperty,
              "are in a document");
 
   // Parse specified value into a temporary css::StyleRule
+  // Note: BuildStyleRule needs an element's OwnerDoc, BaseURI, and Principal.
+  // If it is a pseudo element, use its parent element's OwnerDoc, BaseURI,
+  // and Principal.
   RefPtr<css::StyleRule> styleRule =
     BuildStyleRule(aProperty, aTargetElement, aSpecifiedValue, aUseSVGMode);
   if (!styleRule) {
@@ -2603,8 +2616,8 @@ StyleAnimationValue::ComputeValues(nsCSSProperty aProperty,
   }
 
   aResult.Clear();
-  return ComputeValues(aProperty, aEnabledState, aTargetElement, styleRule,
-                       aResult, /* aIsContextSensitive */ nullptr);
+  return ComputeValues(aProperty, aEnabledState, aTargetElement, aPseudoType,
+                       styleRule, aResult, /* aIsContextSensitive */ nullptr);
 }
 
 /* static */ bool
@@ -2612,6 +2625,7 @@ StyleAnimationValue::ComputeValues(
     nsCSSProperty aProperty,
     nsCSSProps::EnabledState aEnabledState,
     dom::Element* aTargetElement,
+    nsCSSPseudoElements::Type aPseudoType,
     css::StyleRule* aStyleRule,
     nsTArray<PropertyStyleAnimationValuePair>& aValues,
     bool* aIsContextSensitive)
@@ -2620,8 +2634,9 @@ StyleAnimationValue::ComputeValues(
     return false;
   }
 
-  // Look up style context for our target element
-  RefPtr<nsStyleContext> styleContext = LookupStyleContext(aTargetElement);
+  // Look up style context for our target, element:psuedo pair
+  RefPtr<nsStyleContext> styleContext = LookupStyleContext(aTargetElement,
+                                                           aPseudoType);
   if (!styleContext) {
     return false;
   }
@@ -2923,7 +2938,7 @@ StyleCoordToCSSValue(const nsStyleCoord& aCoord, nsCSSValue& aCSSValue)
 }
 
 static void
-SetPositionValue(const nsStyleBackground::Position& aPos, nsCSSValue& aCSSValue)
+SetPositionValue(const nsStyleImageLayers::Position& aPos, nsCSSValue& aCSSValue)
 {
   RefPtr<nsCSSValue::Array> posArray = nsCSSValue::Array::Create(4);
   aCSSValue.SetArrayValue(posArray.get(), eCSSUnit_Array);
@@ -3292,12 +3307,12 @@ StyleAnimationValue::ExtractComputedValue(nsCSSProperty aProperty,
             static_cast<const nsStyleBackground*>(styleStruct);
           nsAutoPtr<nsCSSValueList> result;
           nsCSSValueList **resultTail = getter_Transfers(result);
-          MOZ_ASSERT(bg->mPositionCount > 0, "unexpected count");
-          for (uint32_t i = 0, i_end = bg->mPositionCount; i != i_end; ++i) {
+          MOZ_ASSERT(bg->mLayers.mPositionCount > 0, "unexpected count");
+          for (uint32_t i = 0, i_end = bg->mLayers.mPositionCount; i != i_end; ++i) {
             nsCSSValueList *item = new nsCSSValueList;
             *resultTail = item;
             resultTail = &item->mNext;
-            SetPositionValue(bg->mLayers[i].mPosition, item->mValue);
+            SetPositionValue(bg->mLayers.mLayers[i].mPosition, item->mValue);
           }
 
           aComputedValue.SetAndAdoptCSSValueListValue(result.forget(),
@@ -3310,23 +3325,23 @@ StyleAnimationValue::ExtractComputedValue(nsCSSProperty aProperty,
             static_cast<const nsStyleBackground*>(styleStruct);
           nsAutoPtr<nsCSSValuePairList> result;
           nsCSSValuePairList **resultTail = getter_Transfers(result);
-          MOZ_ASSERT(bg->mSizeCount > 0, "unexpected count");
-          for (uint32_t i = 0, i_end = bg->mSizeCount; i != i_end; ++i) {
+          MOZ_ASSERT(bg->mLayers.mSizeCount > 0, "unexpected count");
+          for (uint32_t i = 0, i_end = bg->mLayers.mSizeCount; i != i_end; ++i) {
             nsCSSValuePairList *item = new nsCSSValuePairList;
             *resultTail = item;
             resultTail = &item->mNext;
 
-            const nsStyleBackground::Size &size = bg->mLayers[i].mSize;
+            const nsStyleImageLayers::Size &size = bg->mLayers.mLayers[i].mSize;
             switch (size.mWidthType) {
-              case nsStyleBackground::Size::eContain:
-              case nsStyleBackground::Size::eCover:
+              case nsStyleImageLayers::Size::eContain:
+              case nsStyleImageLayers::Size::eCover:
                 item->mXValue.SetIntValue(size.mWidthType,
                                           eCSSUnit_Enumerated);
                 break;
-              case nsStyleBackground::Size::eAuto:
+              case nsStyleImageLayers::Size::eAuto:
                 item->mXValue.SetAutoValue();
                 break;
-              case nsStyleBackground::Size::eLengthPercentage:
+              case nsStyleImageLayers::Size::eLengthPercentage:
                 // XXXbz is there a good reason we can't just
                 // SetCalcValue(&size.mWidth, item->mXValue) here?
                 if (!size.mWidth.mHasPercent &&
@@ -3346,14 +3361,14 @@ StyleAnimationValue::ExtractComputedValue(nsCSSProperty aProperty,
             }
 
             switch (size.mHeightType) {
-              case nsStyleBackground::Size::eContain:
-              case nsStyleBackground::Size::eCover:
+              case nsStyleImageLayers::Size::eContain:
+              case nsStyleImageLayers::Size::eCover:
                 // leave it null
                 break;
-              case nsStyleBackground::Size::eAuto:
+              case nsStyleImageLayers::Size::eAuto:
                 item->mYValue.SetAutoValue();
                 break;
-              case nsStyleBackground::Size::eLengthPercentage:
+              case nsStyleImageLayers::Size::eLengthPercentage:
                 // XXXbz is there a good reason we can't just
                 // SetCalcValue(&size.mHeight, item->mYValue) here?
                 if (!size.mHeight.mHasPercent &&

@@ -47,6 +47,7 @@
 #include "nsPIDOMWindow.h"
 #include "nsSandboxFlags.h"
 #include "xpcpublic.h"
+#include "nsIFrame.h"
 
 namespace mozilla {
 
@@ -233,7 +234,7 @@ EventListenerManager::AddEventListenerInternal(
   MOZ_ASSERT(// Main thread
              (NS_IsMainThread() && aEventMessage && aTypeAtom) ||
              // non-main-thread
-             (!NS_IsMainThread() && aEventMessage && !aTypeString.IsEmpty()) ||
+             (!NS_IsMainThread() && aEventMessage) ||
              aAllEvents, "Missing type"); // all-events listener
 
   if (!aListenerHolder || mClearingListeners) {
@@ -319,6 +320,8 @@ EventListenerManager::AddEventListenerInternal(
     }
   } else if (aTypeAtom == nsGkAtoms::ondeviceorientation) {
     EnableDevice(eDeviceOrientation);
+  } else if (aTypeAtom == nsGkAtoms::onabsolutedeviceorientation) {
+    EnableDevice(eAbsoluteDeviceOrientation);
   } else if (aTypeAtom == nsGkAtoms::ondeviceproximity || aTypeAtom == nsGkAtoms::onuserproximity) {
     EnableDevice(eDeviceProximity);
   } else if (aTypeAtom == nsGkAtoms::ondevicelight) {
@@ -410,10 +413,7 @@ EventListenerManager::AddEventListenerInternal(
   }
 
   if (IsApzAwareEvent(aTypeAtom)) {
-    nsCOMPtr<nsINode> node = do_QueryInterface(mTarget);
-    if (node) {
-      node->SetMayHaveApzAwareListeners();
-    }
+    ProcessApzAwareEventListenerAdd();
   }
 
   if (aTypeAtom && mTarget) {
@@ -426,11 +426,50 @@ EventListenerManager::AddEventListenerInternal(
   }
 }
 
+void
+EventListenerManager::ProcessApzAwareEventListenerAdd()
+{
+  // Mark the node as having apz aware listeners
+  nsCOMPtr<nsINode> node = do_QueryInterface(mTarget);
+  if (node) {
+    node->SetMayHaveApzAwareListeners();
+  }
+
+  // Schedule a paint so event regions on the layer tree gets updated
+  nsIDocument* doc = nullptr;
+  if (node) {
+    doc = node->OwnerDoc();
+  }
+  if (!doc) {
+    if (nsCOMPtr<nsPIDOMWindow> window = GetTargetAsInnerWindow()) {
+      doc = window->GetExtantDoc();
+    }
+  }
+  if (!doc) {
+    if (nsCOMPtr<DOMEventTargetHelper> helper = do_QueryInterface(mTarget)) {
+      if (nsPIDOMWindow* window = helper->GetOwner()) {
+        doc = window->GetExtantDoc();
+      }
+    }
+  }
+
+  if (doc) {
+    nsIPresShell* ps = doc->GetShell();
+    if (ps) {
+      nsIFrame* f = ps->GetRootFrame();
+      if (f) {
+        f->SchedulePaint();
+      }
+    }
+  }
+}
+
 bool
 EventListenerManager::IsDeviceType(EventMessage aEventMessage)
 {
   switch (aEventMessage) {
     case eDeviceOrientation:
+    case eAbsoluteDeviceOrientation:
     case eDeviceMotion:
     case eDeviceLight:
     case eDeviceProximity:
@@ -455,7 +494,21 @@ EventListenerManager::EnableDevice(EventMessage aEventMessage)
 
   switch (aEventMessage) {
     case eDeviceOrientation:
+#ifdef MOZ_WIDGET_ANDROID
+      // Falls back to SENSOR_ROTATION_VECTOR and SENSOR_ORIENTATION if
+      // unavailable on device.
+      window->EnableDeviceSensor(SENSOR_GAME_ROTATION_VECTOR);
+#else
       window->EnableDeviceSensor(SENSOR_ORIENTATION);
+#endif
+      break;
+    case eAbsoluteDeviceOrientation:
+#ifdef MOZ_WIDGET_ANDROID
+      // Falls back to SENSOR_ORIENTATION if unavailable on device.
+      window->EnableDeviceSensor(SENSOR_ROTATION_VECTOR);
+#else
+      window->EnableDeviceSensor(SENSOR_ORIENTATION);
+#endif
       break;
     case eDeviceProximity:
     case eUserProximity:
@@ -490,6 +543,17 @@ EventListenerManager::DisableDevice(EventMessage aEventMessage)
 
   switch (aEventMessage) {
     case eDeviceOrientation:
+#ifdef MOZ_WIDGET_ANDROID
+      // Disable all potential fallback sensors.
+      window->DisableDeviceSensor(SENSOR_GAME_ROTATION_VECTOR);
+      window->DisableDeviceSensor(SENSOR_ROTATION_VECTOR);
+#endif
+      window->DisableDeviceSensor(SENSOR_ORIENTATION);
+      break;
+    case eAbsoluteDeviceOrientation:
+#ifdef MOZ_WIDGET_ANDROID
+      window->DisableDeviceSensor(SENSOR_ROTATION_VECTOR);
+#endif
       window->DisableDeviceSensor(SENSOR_ORIENTATION);
       break;
     case eDeviceMotion:

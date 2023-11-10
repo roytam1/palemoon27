@@ -30,6 +30,7 @@
 #include "mozilla/layers/CompositableClient.h"  // for CompositableClient
 #include "mozilla/layers/Compositor.h"  // for Compositor
 #include "mozilla/layers/CompositorTypes.h"
+#include "mozilla/layers/LayerAnimationUtils.h"  // for TimingFunctionToComputedTimingFunction
 #include "mozilla/layers/LayerManagerComposite.h"  // for LayerComposite
 #include "mozilla/layers/LayerMetricsWrapper.h" // for LayerMetricsWrapper
 #include "mozilla/layers/LayersMessages.h"  // for TransformFunction, etc
@@ -470,31 +471,15 @@ Layer::SetAnimations(const AnimationArray& aAnimations)
   mAnimationData.Clear();
   for (uint32_t i = 0; i < mAnimations.Length(); i++) {
     AnimData* data = mAnimationData.AppendElement();
-    InfallibleTArray<nsAutoPtr<ComputedTimingFunction> >& functions =
+    InfallibleTArray<Maybe<ComputedTimingFunction>>& functions =
       data->mFunctions;
     const InfallibleTArray<AnimationSegment>& segments =
       mAnimations.ElementAt(i).segments();
     for (uint32_t j = 0; j < segments.Length(); j++) {
       TimingFunction tf = segments.ElementAt(j).sampleFn();
-      ComputedTimingFunction* ctf = new ComputedTimingFunction();
-      switch (tf.type()) {
-        case TimingFunction::TCubicBezierFunction: {
-          CubicBezierFunction cbf = tf.get_CubicBezierFunction();
-          ctf->Init(nsTimingFunction(cbf.x1(), cbf.y1(), cbf.x2(), cbf.y2()));
-          break;
-        }
-        default: {
-          NS_ASSERTION(tf.type() == TimingFunction::TStepFunction,
-                       "Function must be bezier or step");
-          StepFunction sf = tf.get_StepFunction();
-          nsTimingFunction::Type type = sf.type() == 1 ?
-                                          nsTimingFunction::Type::StepStart :
-                                          nsTimingFunction::Type::StepEnd;
-          ctf->Init(nsTimingFunction(type, sf.steps(),
-                                     nsTimingFunction::Keyword::Explicit));
-          break;
-        }
-      }
+
+      Maybe<ComputedTimingFunction> ctf =
+        AnimationUtils::TimingFunctionToComputedTimingFunction(tf);
       functions.AppendElement(ctf);
     }
 
@@ -892,6 +877,12 @@ Layer::GetTransform() const
   return transform;
 }
 
+const CSSTransformMatrix
+Layer::GetTransformTyped() const
+{
+  return ViewAs<CSSTransformMatrix>(GetTransform());
+}
+
 const Matrix4x4
 Layer::GetLocalTransform()
 {
@@ -907,6 +898,12 @@ Layer::GetLocalTransform()
   }
 
   return transform;
+}
+
+const LayerToParentLayerMatrix4x4
+Layer::GetLocalTransformTyped()
+{
+  return ViewAs<LayerToParentLayerMatrix4x4>(GetLocalTransform());
 }
 
 bool
@@ -1336,7 +1333,7 @@ ContainerLayer::Collect3DContextLeaves(nsTArray<Layer*>& aToSort)
 void
 ContainerLayer::SortChildrenBy3DZOrder(nsTArray<Layer*>& aArray)
 {
-  nsAutoTArray<Layer*, 10> toSort;
+  AutoTArray<Layer*, 10> toSort;
 
   for (Layer* l = GetFirstChild(); l; l = l->GetNextSibling()) {
     ContainerLayer* container = l->AsContainerLayer();

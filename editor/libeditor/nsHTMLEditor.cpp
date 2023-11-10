@@ -549,7 +549,7 @@ nsHTMLEditor::BeginningOfDocument()
   // Find first editable thingy
   bool done = false;
   nsCOMPtr<nsINode> curNode = rootElement.get(), selNode;
-  int32_t curOffset = 0, selOffset;
+  int32_t curOffset = 0, selOffset = 0;
   while (!done) {
     nsWSRunObject wsObj(this, curNode, curOffset);
     int32_t visOffset = 0;
@@ -619,7 +619,7 @@ nsHTMLEditor::HandleKeyPressEvent(nsIDOMKeyEvent* aKeyEvent)
   }
 
   WidgetKeyboardEvent* nativeKeyEvent =
-    aKeyEvent->AsEvent()->GetInternalNSEvent()->AsKeyboardEvent();
+    aKeyEvent->AsEvent()->WidgetEventPtr()->AsKeyboardEvent();
   NS_ENSURE_TRUE(nativeKeyEvent, NS_ERROR_UNEXPECTED);
   NS_ASSERTION(nativeKeyEvent->mMessage == eKeyPress,
                "HandleKeyPressEvent gets non-keypress event");
@@ -5209,7 +5209,7 @@ nsHTMLEditor::IsAcceptableInputEvent(nsIDOMEvent* aEvent)
   // While there is composition, all composition events in its top level window
   // are always fired on the composing editor.  Therefore, if this editor has
   // composition, the composition events should be handled in this editor.
-  if (mComposition && aEvent->GetInternalNSEvent()->AsCompositionEvent()) {
+  if (mComposition && aEvent->WidgetEventPtr()->AsCompositionEvent()) {
     return true;
   }
 

@@ -300,7 +300,7 @@ function makeActionURI(action, params) {
 
 // Ensure we have a default search engine and the keyword.enabled preference
 // set.
-add_task(function ensure_search_engine() {
+add_task(function* ensure_search_engine() {
   // keyword.enabled is necessary for the tests to see keyword searches.
   Services.prefs.setBoolPref("keyword.enabled", true);
 

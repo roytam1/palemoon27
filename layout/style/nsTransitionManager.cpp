@@ -55,8 +55,8 @@ ElementPropertyTransition::CurrentValuePortion() const
   // causing us to get called *after* the animation interval. So, just in
   // case, we override the fill mode to 'both' to ensure the progress
   // is never null.
-  AnimationTiming timingToUse = mTiming;
-  timingToUse.mFillMode = dom::FillMode::Both;
+  TimingParams timingToUse = SpecifiedTiming();
+  timingToUse.mFill = dom::FillMode::Both;
   ComputedTiming computedTiming = GetComputedTiming(&timingToUse);
 
   MOZ_ASSERT(!computedTiming.mProgress.IsNull(),
@@ -65,8 +65,9 @@ ElementPropertyTransition::CurrentValuePortion() const
              "Should have one animation property for a transition");
   MOZ_ASSERT(mProperties[0].mSegments.Length() == 1,
              "Animation property should have one segment for a transition");
-  return mProperties[0].mSegments[0].mTimingFunction
-         .GetValue(computedTiming.mProgress.Value());
+  return ComputedTimingFunction::GetPortion(
+           mProperties[0].mSegments[0].mTimingFunction,
+           computedTiming.mProgress.Value());
 }
 
 ////////////////////////// CSSTransition ////////////////////////////
@@ -150,7 +151,8 @@ CSSTransition::QueueEvents()
   nsTransitionManager* manager = presContext->TransitionManager();
   manager->QueueEvent(TransitionEventInfo(owningElement, owningPseudoType,
                                           property,
-                                          mEffect->Timing().mIterationDuration,
+                                          mEffect->GetComputedTiming()
+                                            .mDuration,
                                           AnimationTimeToTimeStamp(EffectEnd()),
                                           this));
 }
@@ -665,12 +667,12 @@ nsTransitionManager::ConsiderStartingTransition(
     reversePortion = valuePortion;
   }
 
-  AnimationTiming timing;
-  timing.mIterationDuration = TimeDuration::FromMilliseconds(duration);
+  TimingParams timing;
+  timing.mDuration.SetAsUnrestrictedDouble() = duration;
   timing.mDelay = TimeDuration::FromMilliseconds(delay);
-  timing.mIterationCount = 1;
+  timing.mIterations = 1.0;
   timing.mDirection = dom::PlaybackDirection::Normal;
-  timing.mFillMode = dom::FillMode::Backwards;
+  timing.mFill = dom::FillMode::Backwards;
 
   RefPtr<ElementPropertyTransition> pt =
     new ElementPropertyTransition(aElement->OwnerDoc(), aElement,
@@ -686,7 +688,11 @@ nsTransitionManager::ConsiderStartingTransition(
   segment.mToValue = endValue;
   segment.mFromKey = 0;
   segment.mToKey = 1;
-  segment.mTimingFunction.Init(tf);
+  if (tf.mType != nsTimingFunction::Type::Linear) {
+    ComputedTimingFunction computedTimingFunction;
+    computedTimingFunction.Init(tf);
+    segment.mTimingFunction = Some(computedTimingFunction);
+  }
 
   RefPtr<CSSTransition> animation =
     new CSSTransition(mPresContext->Document()->GetScopeObject());

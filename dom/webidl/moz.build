@@ -11,12 +11,13 @@ GENERATED_WEBIDL_FILES = [
 PREPROCESSED_WEBIDL_FILES = [
     'HTMLMediaElement.webidl',
     'Navigator.webidl',
+    'Promise.webidl',
+    'PromiseDebugging.webidl',
     'ServiceWorkerRegistration.webidl',
     'Window.webidl',
 ]
 
 WEBIDL_FILES = [
-    'AbortablePromise.webidl',
     'AbstractWorker.webidl',
     'ActivityRequestHandler.webidl',
     'AlarmsManager.webidl',
@@ -24,6 +25,7 @@ WEBIDL_FILES = [
     'Animatable.webidl',
     'Animation.webidl',
     'AnimationEffectReadOnly.webidl',
+    'AnimationEffectTimingReadOnly.webidl',
     'AnimationEvent.webidl',
     'AnimationTimeline.webidl',
     'AnonymousContent.webidl',
@@ -97,6 +99,7 @@ WEBIDL_FILES = [
     'CSSAnimation.webidl',
     'CSSLexer.webidl',
     'CSSPrimitiveValue.webidl',
+    'CSSPseudoElement.webidl',
     'CSSRuleList.webidl',
     'CSSStyleDeclaration.webidl',
     'CSSStyleSheet.webidl',
@@ -389,8 +392,6 @@ WEBIDL_FILES = [
     'PresentationSession.webidl',
     'ProcessingInstruction.webidl',
     'ProfileTimelineMarker.webidl',
-    'Promise.webidl',
-    'PromiseDebugging.webidl',
     'PropertyIndexedKeyframes.webidl',
     'RadioNodeList.webidl',
     'Range.webidl',

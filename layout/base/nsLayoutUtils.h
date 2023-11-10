@@ -1081,7 +1081,9 @@ public:
 
   class BoxCallback {
   public:
+    BoxCallback() : mIncludeCaptionBoxForTable(true) {}
     virtual void AddBox(nsIFrame* aFrame) = 0;
+    bool mIncludeCaptionBoxForTable;
   };
   /**
    * Collect all CSS boxes associated with aFrame and its
@@ -2668,6 +2670,12 @@ public:
   static bool AsyncPanZoomEnabled(nsIFrame* aFrame);
 
   /**
+   * Returns the current APZ Resolution Scale. When Java Pan/Zoom is
+   * enabled in Fennec it will always return 1.0.
+   */
+  static float GetCurrentAPZResolutionScale(nsIPresShell* aShell);
+
+  /**
    * Log a key/value pair for APZ testing during a paint.
    * @param aManager   The data will be written to the APZTestData associated
    *                   with this layer manager.
@@ -2763,6 +2771,15 @@ public:
   static void SetScrollPositionClampingScrollPortSize(nsIPresShell* aPresShell,
                                                       CSSSize aSize);
 
+  /**
+   * Returns true if the given scroll origin is "higher priority" than APZ.
+   * In general any content programmatic scrolls (e.g. scrollTo calls) are
+   * higher priority, and take precedence over APZ scrolling. This function
+   * returns true for those, and returns false for other origins like APZ
+   * itself, or scroll position updates from the history restore code.
+   */
+  static bool CanScrollOriginClobberApz(nsIAtom* aScrollOrigin);
+
   static FrameMetrics ComputeFrameMetrics(nsIFrame* aForFrame,
                                           nsIFrame* aScrollFrame,
                                           nsIContent* aContent,
@@ -2836,6 +2853,11 @@ public:
    */
   static CSSRect GetBoundingContentRect(const nsIContent* aContent,
                                         const nsIScrollableFrame* aRootScrollFrame);
+
+  /**
+   * Returns the first ancestor who is a float containing block.
+   */
+  static nsBlockFrame* GetFloatContainingBlock(nsIFrame* aFrame);
 
 private:
   static uint32_t sFontSizeInflationEmPerLine;

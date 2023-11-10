@@ -223,7 +223,7 @@ nsLoadGroup::Cancel(nsresult status)
     nsresult rv;
     uint32_t count = mRequests.EntryCount();
 
-    nsAutoTArray<nsIRequest*, 8> requests;
+    AutoTArray<nsIRequest*, 8> requests;
 
     if (!AppendRequestsToArray(&mRequests, &requests)) {
         return NS_ERROR_OUT_OF_MEMORY;
@@ -295,7 +295,7 @@ nsLoadGroup::Suspend()
     nsresult rv, firstError;
     uint32_t count = mRequests.EntryCount();
 
-    nsAutoTArray<nsIRequest*, 8> requests;
+    AutoTArray<nsIRequest*, 8> requests;
 
     if (!AppendRequestsToArray(&mRequests, &requests)) {
         return NS_ERROR_OUT_OF_MEMORY;
@@ -340,7 +340,7 @@ nsLoadGroup::Resume()
     nsresult rv, firstError;
     uint32_t count = mRequests.EntryCount();
 
-    nsAutoTArray<nsIRequest*, 8> requests;
+    AutoTArray<nsIRequest*, 8> requests;
 
     if (!AppendRequestsToArray(&mRequests, &requests)) {
         return NS_ERROR_OUT_OF_MEMORY;

@@ -56,7 +56,7 @@ add_task(function* test_default_behavior_host() {
   do_print("Restrict history, typed bookmark, should autoFill");
   yield check_autocomplete({
     search: "tp",
-    matches: [ { uri: uri4, title: "tpbk", style: [ "autofill" ] } ],
+    matches: [ { uri: uri4, title: "tpbk", style: [ "autofill", "heuristic" ] } ],
     autofilled: "tpbk/",
     completed: "tpbk/"
   });
@@ -77,7 +77,7 @@ add_task(function* test_default_behavior_host() {
   do_print("Restrict history, common visit, autoFill.typed = false, should autoFill");
   yield check_autocomplete({
     search: "vi",
-    matches: [ { uri: uri2, title: "visited", style: [ "autofill" ] } ],
+    matches: [ { uri: uri2, title: "visited", style: [ "autofill", "heuristic" ] } ],
     autofilled: "visited/",
     completed: "visited/"
   });
@@ -114,7 +114,7 @@ add_task(function* test_default_behavior_host() {
   do_print("Restrict typed, typed bookmark, autofill.typed = false, should autoFill");
   yield check_autocomplete({
     search: "tp",
-    matches: [ { uri: uri4, title: "tpbk", style: [ "autofill" ] } ],
+    matches: [ { uri: uri4, title: "tpbk", style: [ "autofill", "heuristic" ] } ],
     autofilled: "tpbk/",
     completed: "tpbk/"
   });
@@ -153,7 +153,7 @@ add_task(function* test_default_behavior_host() {
   do_print("Restrict bookmarks, typed bookmark, should autoFill");
   yield check_autocomplete({
     search: "tp",
-    matches: [ { uri: uri4, title: "tpbk", style: [ "autofill" ] } ],
+    matches: [ { uri: uri4, title: "tpbk", style: [ "autofill", "heuristic" ] } ],
     autofilled: "tpbk/",
     completed: "tpbk/"
   });
@@ -239,7 +239,7 @@ add_task(function* test_default_behavior_url() {
   do_print("URL: Restrict history, typed bookmark, should autoFill");
   yield check_autocomplete({
     search: "tpbk/t",
-    matches: [ { uri: uri4, title: "tpbk/tp/", style: [ "autofill" ] } ],
+    matches: [ { uri: uri4, title: "tpbk/tp/", style: [ "autofill", "heuristic" ] } ],
     autofilled: "tpbk/tp/",
     completed: "http://tpbk/tp/"
   });
@@ -277,7 +277,7 @@ add_task(function* test_default_behavior_url() {
   do_print("URL: Restrict bookmarks, typed bookmark, should autoFill");
   yield check_autocomplete({
     search: "tpbk/t",
-    matches: [ { uri: uri4, title: "tpbk/tp/", style: [ "autofill" ] } ],
+    matches: [ { uri: uri4, title: "tpbk/tp/", style: [ "autofill", "heuristic" ] } ],
     autofilled: "tpbk/tp/",
     completed: "http://tpbk/tp/"
   });

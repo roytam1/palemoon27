@@ -60,6 +60,9 @@ vpx_codec_enc_config_default
 vpx_img_alloc
 vpx_codec_encode
 vpx_codec_err_to_string
+#ifdef MOZ_WEBRTC
+vpx_codec_set_frame_buffer_functions
+#endif
 #endif
 #if defined(MOZ_VORBIS) || defined(MOZ_TREMOR)
 ogg_page_bos
@@ -127,6 +130,8 @@ moz_speex_resampler_skip_zeros
 moz_speex_resampler_set_skip_frac_num
 moz_speex_resampler_reset_mem
 cubeb_destroy
+cubeb_device_collection_destroy
+cubeb_enumerate_devices
 cubeb_init
 cubeb_get_backend_id
 cubeb_get_max_channel_count

@@ -5124,7 +5124,7 @@ nsDocument::DispatchContentLoadedEvents()
         // the ancestor document if we used the normal event
         // dispatching code.
 
-        WidgetEvent* innerEvent = event->GetInternalNSEvent();
+        WidgetEvent* innerEvent = event->WidgetEventPtr();
         if (innerEvent) {
           nsEventStatus status = nsEventStatus_eIgnore;
 
@@ -8139,7 +8139,7 @@ nsIDocument::CreateEvent(const nsAString& aEventType, ErrorResult& rv) const
     rv.Throw(NS_ERROR_DOM_NOT_SUPPORTED_ERR);
     return nullptr;
   }
-  WidgetEvent* e = ev->GetInternalNSEvent();
+  WidgetEvent* e = ev->WidgetEventPtr();
   e->mFlags.mBubbles = false;
   e->mFlags.mCancelable = false;
   return ev.forget();

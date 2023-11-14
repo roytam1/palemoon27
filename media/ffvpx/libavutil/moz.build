@@ -51,11 +51,14 @@ SOURCES += [
     'utils.c',
 ]
 
-if CONFIG['_MSC_VER']:
+if CONFIG['OS_ARCH'] == 'WINNT':
     SOURCES += [
-        '../compat/msvcrt/snprintf.c',
         '../compat/strtod.c'
     ]
+    if CONFIG['_MSC_VER'] < '1900':
+        SOURCES += [
+            '../compat/msvcrt/snprintf.c'
+        ]
 
 SYMBOLS_FILE =  'avutil.symbols'
 NO_VISIBILITY_FLAGS = True

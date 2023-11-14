@@ -120,8 +120,9 @@ enum class StyleBoxSizing : uint8_t {
 #define NS_STYLE_USER_MODIFY_WRITE_ONLY  2
 
 // -moz-window-dragging
-#define NS_STYLE_WINDOW_DRAGGING_DRAG    0
-#define NS_STYLE_WINDOW_DRAGGING_NO_DRAG 1
+#define NS_STYLE_WINDOW_DRAGGING_DEFAULT 0
+#define NS_STYLE_WINDOW_DRAGGING_DRAG    1
+#define NS_STYLE_WINDOW_DRAGGING_NO_DRAG 2
 
 // box-align
 #define NS_STYLE_BOX_ALIGN_STRETCH     0
@@ -304,6 +305,11 @@ enum class FillMode : uint32_t;
 // See nsStyleImageLayers
 #define NS_STYLE_IMAGELAYER_SIZE_CONTAIN             0
 #define NS_STYLE_IMAGELAYER_SIZE_COVER               1
+
+// Mask mode
+#define NS_STYLE_MASK_MODE_ALPHA                0
+#define NS_STYLE_MASK_MODE_LUMINANCE            1
+#define NS_STYLE_MASK_MODE_AUTO                 2
 
 // See nsStyleBackground
 #define NS_STYLE_BG_INLINE_POLICY_EACH_BOX      0
@@ -1153,6 +1159,12 @@ enum class FillMode : uint32_t;
 #define NS_STYLE_BLEND_SATURATION                   13
 #define NS_STYLE_BLEND_COLOR                        14
 #define NS_STYLE_BLEND_LUMINOSITY                   15
+
+// composite
+#define NS_STYLE_MASK_COMPOSITE_ADD                 0
+#define NS_STYLE_MASK_COMPOSITE_SUBSTRACT           1
+#define NS_STYLE_MASK_COMPOSITE_INTERSECT           2
+#define NS_STYLE_MASK_COMPOSITE_EXCLUDE             3
 
 // See nsStyleText::mControlCharacterVisibility
 #define NS_STYLE_CONTROL_CHARACTER_VISIBILITY_HIDDEN  0

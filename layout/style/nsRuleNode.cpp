@@ -4865,13 +4865,6 @@ nsRuleNode::ComputeUserInterfaceData(void* aStartStruct,
               parentUI->mUserFocus,
               NS_STYLE_USER_FOCUS_NONE, 0, 0, 0, 0);
 
-  // -moz-window-dragging: enum, inherit, initial
-  SetDiscrete(*aRuleData->ValueForWindowDragging(),
-              ui->mWindowDragging, conditions,
-              SETDSC_ENUMERATED | SETDSC_UNSET_INHERIT,
-              parentUI->mWindowDragging,
-              NS_STYLE_WINDOW_DRAGGING_NO_DRAG, 0, 0, 0, 0);
-
   COMPUTE_END_INHERITED(UserInterface, ui)
 }
 
@@ -4906,6 +4899,13 @@ nsRuleNode::ComputeUIResetData(void* aStartStruct,
               SETDSC_INTEGER | SETDSC_UNSET_INITIAL,
               parentUI->mForceBrokenImageIcon,
               0, 0, 0, 0, 0);
+
+  // -moz-window-dragging: enum, inherit, initial
+  SetDiscrete(*aRuleData->ValueForWindowDragging(),
+              ui->mWindowDragging, conditions,
+              SETDSC_ENUMERATED | SETDSC_UNSET_INITIAL,
+              parentUI->mWindowDragging,
+              NS_STYLE_WINDOW_DRAGGING_DEFAULT, 0, 0, 0, 0);
 
   // -moz-window-shadow: enum, inherit, initial
   SetDiscrete(*aRuleData->ValueForWindowShadow(),
@@ -5093,6 +5093,25 @@ nsRuleNode::ComputeTimingFunction(const nsCSSValue& aValue,
     default:
       NS_NOTREACHED("Invalid transition property unit");
   }
+}
+
+static uint8_t
+GetWillChangeBitFieldFromPropFlags(const nsCSSProperty& aProp)
+{
+  uint8_t willChangeBitField = 0;
+  if (nsCSSProps::PropHasFlags(aProp, CSS_PROPERTY_CREATES_STACKING_CONTEXT)) {
+    willChangeBitField |= NS_STYLE_WILL_CHANGE_STACKING_CONTEXT;
+  }
+
+  if (nsCSSProps::PropHasFlags(aProp, CSS_PROPERTY_FIXPOS_CB)) {
+    willChangeBitField |= NS_STYLE_WILL_CHANGE_FIXPOS_CB;
+  }
+
+  if (nsCSSProps::PropHasFlags(aProp, CSS_PROPERTY_ABSPOS_CB)) {
+    willChangeBitField |= NS_STYLE_WILL_CHANGE_ABSPOS_CB;
+  }
+
+  return willChangeBitField;
 }
 
 const void*
@@ -6105,16 +6124,16 @@ nsRuleNode::ComputeDisplayData(void* aStartStruct,
                                      nsCSSProps::eEnabledForAllContent);
         if (prop != eCSSProperty_UNKNOWN &&
             prop != eCSSPropertyExtra_variable) {
-          if (nsCSSProps::PropHasFlags(prop,
-                CSS_PROPERTY_CREATES_STACKING_CONTEXT)) {
-            display->mWillChangeBitField |=
-              NS_STYLE_WILL_CHANGE_STACKING_CONTEXT;
-          }
-          if (nsCSSProps::PropHasFlags(prop, CSS_PROPERTY_FIXPOS_CB)) {
-            display->mWillChangeBitField |= NS_STYLE_WILL_CHANGE_FIXPOS_CB;
-          }
-          if (nsCSSProps::PropHasFlags(prop, CSS_PROPERTY_ABSPOS_CB)) {
-            display->mWillChangeBitField |= NS_STYLE_WILL_CHANGE_ABSPOS_CB;
+          // If the property given is a shorthand, it indicates the expectation
+          // for all the longhands the shorthand expands to.
+          if (nsCSSProps::IsShorthand(prop)) {
+            for (const nsCSSProperty* shorthands =
+                   nsCSSProps::SubpropertyEntryFor(prop);
+                 *shorthands != eCSSProperty_UNKNOWN; ++shorthands) {
+              display->mWillChangeBitField |= GetWillChangeBitFieldFromPropFlags(*shorthands);
+            }
+          } else {
+            display->mWillChangeBitField |= GetWillChangeBitFieldFromPropFlags(prop);
           }
         }
       }
@@ -6451,6 +6470,22 @@ struct BackgroundItemComputer<nsCSSValueList, nsStyleImage>
   {
     SetStyleImage(aStyleContext, aSpecifiedValue->mValue, aComputedValue,
                   aConditions);
+  }
+};
+
+template <>
+struct BackgroundItemComputer<nsCSSValueList, nsCOMPtr<nsIURI> >
+{
+  static void ComputeValue(nsStyleContext* aStyleContext,
+                           const nsCSSValueList* aSpecifiedValue,
+                           nsCOMPtr<nsIURI>& aComputedValue,
+                           RuleNodeCacheConditions& aConditions)
+  {
+    if (eCSSUnit_Image == aSpecifiedValue->mValue.GetUnit()) {
+      aComputedValue = aSpecifiedValue->mValue.GetURLValue();
+    } else if (eCSSUnit_Null != aSpecifiedValue->mValue.GetUnit()) {
+      aComputedValue = nullptr;
+    }
   }
 };
 
@@ -6832,99 +6867,118 @@ nsRuleNode::ComputeBackgroundData(void* aStartStruct,
   // background-image: url (stored as image), none, inherit [list]
   nsStyleImage initialImage;
   SetImageLayerList(aContext, *aRuleData->ValueForBackgroundImage(),
-                    bg->mLayers.mLayers,
-                    parentBG->mLayers.mLayers, &nsStyleImageLayers::Layer::mImage,
-                    initialImage, parentBG->mLayers.mImageCount, bg->mLayers.mImageCount,
+                    bg->mImage.mLayers,
+                    parentBG->mImage.mLayers,
+                    &nsStyleImageLayers::Layer::mImage,
+                    initialImage, parentBG->mImage.mImageCount,
+                    bg->mImage.mImageCount,
                     maxItemCount, rebuild, conditions);
 
   // background-repeat: enum, inherit, initial [pair list]
   nsStyleImageLayers::Repeat initialRepeat;
   initialRepeat.SetInitialValues();
   SetImageLayerPairList(aContext, *aRuleData->ValueForBackgroundRepeat(),
-                        bg->mLayers.mLayers,
-                        parentBG->mLayers.mLayers, &nsStyleImageLayers::Layer::mRepeat,
-                        initialRepeat, parentBG->mLayers.mRepeatCount,
-                        bg->mLayers.mRepeatCount, maxItemCount, rebuild,
+                        bg->mImage.mLayers,
+                        parentBG->mImage.mLayers,
+                        &nsStyleImageLayers::Layer::mRepeat,
+                        initialRepeat, parentBG->mImage.mRepeatCount,
+                        bg->mImage.mRepeatCount, maxItemCount, rebuild,
                         conditions);
 
   // background-attachment: enum, inherit, initial [list]
   SetImageLayerList(aContext, *aRuleData->ValueForBackgroundAttachment(),
-                    bg->mLayers.mLayers, parentBG->mLayers.mLayers,
+                    bg->mImage.mLayers, parentBG->mImage.mLayers,
                     &nsStyleImageLayers::Layer::mAttachment,
                     uint8_t(NS_STYLE_IMAGELAYER_ATTACHMENT_SCROLL),
-                    parentBG->mLayers.mAttachmentCount,
-                    bg->mLayers.mAttachmentCount, maxItemCount, rebuild,
+                    parentBG->mImage.mAttachmentCount,
+                    bg->mImage.mAttachmentCount, maxItemCount, rebuild,
                     conditions);
 
   // background-clip: enum, inherit, initial [list]
   SetImageLayerList(aContext, *aRuleData->ValueForBackgroundClip(),
-                    bg->mLayers.mLayers,
-                    parentBG->mLayers.mLayers, &nsStyleImageLayers::Layer::mClip,
-                    uint8_t(NS_STYLE_IMAGELAYER_CLIP_BORDER), parentBG->mLayers.mClipCount,
-                    bg->mLayers.mClipCount, maxItemCount, rebuild, conditions);
+                    bg->mImage.mLayers,
+                    parentBG->mImage.mLayers,
+                    &nsStyleImageLayers::Layer::mClip,
+                    uint8_t(NS_STYLE_IMAGELAYER_CLIP_BORDER),
+                    parentBG->mImage.mClipCount,
+                    bg->mImage.mClipCount, maxItemCount, rebuild, conditions);
 
   // background-blend-mode: enum, inherit, initial [list]
   SetImageLayerList(aContext, *aRuleData->ValueForBackgroundBlendMode(),
-                    bg->mLayers.mLayers,
-                    parentBG->mLayers.mLayers, &nsStyleImageLayers::Layer::mBlendMode,
-                    uint8_t(NS_STYLE_BLEND_NORMAL), parentBG->mLayers.mBlendModeCount,
-                    bg->mLayers.mBlendModeCount, maxItemCount, rebuild,
+                    bg->mImage.mLayers,
+                    parentBG->mImage.mLayers,
+                    &nsStyleImageLayers::Layer::mBlendMode,
+                    uint8_t(NS_STYLE_BLEND_NORMAL),
+                    parentBG->mImage.mBlendModeCount,
+                    bg->mImage.mBlendModeCount, maxItemCount, rebuild,
                     conditions);
 
   // background-origin: enum, inherit, initial [list]
   SetImageLayerList(aContext, *aRuleData->ValueForBackgroundOrigin(),
-                    bg->mLayers.mLayers,
-                    parentBG->mLayers.mLayers, &nsStyleImageLayers::Layer::mOrigin,
-                    uint8_t(NS_STYLE_IMAGELAYER_ORIGIN_PADDING), parentBG->mLayers.mOriginCount,
-                    bg->mLayers.mOriginCount, maxItemCount, rebuild,
+                    bg->mImage.mLayers,
+                    parentBG->mImage.mLayers,
+                    &nsStyleImageLayers::Layer::mOrigin,
+                    uint8_t(NS_STYLE_IMAGELAYER_ORIGIN_PADDING),
+                    parentBG->mImage.mOriginCount,
+                    bg->mImage.mOriginCount, maxItemCount, rebuild,
                     conditions);
 
   // background-position: enum, length, percent (flags), inherit [pair list]
   nsStyleImageLayers::Position initialPosition;
   initialPosition.SetInitialPercentValues(0.0f);
   SetImageLayerList(aContext, *aRuleData->ValueForBackgroundPosition(),
-                    bg->mLayers.mLayers,
-                    parentBG->mLayers.mLayers, &nsStyleImageLayers::Layer::mPosition,
-                    initialPosition, parentBG->mLayers.mPositionCount,
-                    bg->mLayers.mPositionCount, maxItemCount, rebuild,
+                    bg->mImage.mLayers,
+                    parentBG->mImage.mLayers,
+                    &nsStyleImageLayers::Layer::mPosition,
+                    initialPosition, parentBG->mImage.mPositionCount,
+                    bg->mImage.mPositionCount, maxItemCount, rebuild,
                     conditions);
 
   // background-size: enum, length, auto, inherit, initial [pair list]
   nsStyleImageLayers::Size initialSize;
   initialSize.SetInitialValues();
   SetImageLayerPairList(aContext, *aRuleData->ValueForBackgroundSize(),
-                        bg->mLayers.mLayers,
-                        parentBG->mLayers.mLayers, &nsStyleImageLayers::Layer::mSize,
-                        initialSize, parentBG->mLayers.mSizeCount,
-                        bg->mLayers.mSizeCount, maxItemCount, rebuild,
+                        bg->mImage.mLayers,
+                        parentBG->mImage.mLayers,
+                        &nsStyleImageLayers::Layer::mSize,
+                        initialSize, parentBG->mImage.mSizeCount,
+                        bg->mImage.mSizeCount, maxItemCount, rebuild,
                         conditions);
 
   if (rebuild) {
     // Delete any extra items.  We need to keep layers in which any
     // property was specified.
-    bg->mLayers.mLayers.TruncateLength(maxItemCount);
+    bg->mImage.mLayers.TruncateLength(maxItemCount);
 
-    uint32_t fillCount = bg->mLayers.mImageCount;
-    FillBackgroundList(bg->mLayers.mLayers, &nsStyleImageLayers::Layer::mImage,
-                       bg->mLayers.mImageCount, fillCount);
-    FillBackgroundList(bg->mLayers.mLayers, &nsStyleImageLayers::Layer::mRepeat,
-                       bg->mLayers.mRepeatCount, fillCount);
-    FillBackgroundList(bg->mLayers.mLayers, &nsStyleImageLayers::Layer::mAttachment,
-                       bg->mLayers.mAttachmentCount, fillCount);
-    FillBackgroundList(bg->mLayers.mLayers, &nsStyleImageLayers::Layer::mClip,
-                       bg->mLayers.mClipCount, fillCount);
-    FillBackgroundList(bg->mLayers.mLayers, &nsStyleImageLayers::Layer::mBlendMode,
-                       bg->mLayers.mBlendModeCount, fillCount);
-    FillBackgroundList(bg->mLayers.mLayers, &nsStyleImageLayers::Layer::mOrigin,
-                       bg->mLayers.mOriginCount, fillCount);
-    FillBackgroundList(bg->mLayers.mLayers, &nsStyleImageLayers::Layer::mPosition,
-                       bg->mLayers.mPositionCount, fillCount);
-    FillBackgroundList(bg->mLayers.mLayers, &nsStyleImageLayers::Layer::mSize,
-                       bg->mLayers.mSizeCount, fillCount);
+    uint32_t fillCount = bg->mImage.mImageCount;
+    FillBackgroundList(bg->mImage.mLayers,
+                       &nsStyleImageLayers::Layer::mImage,
+                       bg->mImage.mImageCount, fillCount);
+    FillBackgroundList(bg->mImage.mLayers,
+                       &nsStyleImageLayers::Layer::mRepeat,
+                       bg->mImage.mRepeatCount, fillCount);
+    FillBackgroundList(bg->mImage.mLayers,
+                       &nsStyleImageLayers::Layer::mAttachment,
+                       bg->mImage.mAttachmentCount, fillCount);
+    FillBackgroundList(bg->mImage.mLayers,
+                       &nsStyleImageLayers::Layer::mClip,
+                       bg->mImage.mClipCount, fillCount);
+    FillBackgroundList(bg->mImage.mLayers,
+                       &nsStyleImageLayers::Layer::mBlendMode,
+                       bg->mImage.mBlendModeCount, fillCount);
+    FillBackgroundList(bg->mImage.mLayers,
+                       &nsStyleImageLayers::Layer::mOrigin,
+                       bg->mImage.mOriginCount, fillCount);
+    FillBackgroundList(bg->mImage.mLayers,
+                       &nsStyleImageLayers::Layer::mPosition,
+                       bg->mImage.mPositionCount, fillCount);
+    FillBackgroundList(bg->mImage.mLayers,
+                       &nsStyleImageLayers::Layer::mSize,
+                       bg->mImage.mSizeCount, fillCount);
   }
 
   // Now that the dust has settled, register the images with the document
-  bg->mLayers.TrackImages(aContext->PresContext());
+  bg->mImage.TrackImages(aContext->PresContext());
 
   COMPUTE_END_RESET(Background, bg)
 }
@@ -9701,19 +9755,6 @@ nsRuleNode::ComputeSVGResetData(void* aStartStruct,
       NS_NOTREACHED("unexpected unit");
   }
 
-  // mask: url, none, inherit
-  const nsCSSValue* maskValue = aRuleData->ValueForMask();
-  if (eCSSUnit_URL == maskValue->GetUnit()) {
-    svgReset->mMask = maskValue->GetURLValue();
-  } else if (eCSSUnit_None == maskValue->GetUnit() ||
-             eCSSUnit_Initial == maskValue->GetUnit() ||
-             eCSSUnit_Unset == maskValue->GetUnit()) {
-    svgReset->mMask = nullptr;
-  } else if (eCSSUnit_Inherit == maskValue->GetUnit()) {
-    conditions.SetUncacheable();
-    svgReset->mMask = parentSVGReset->mMask;
-  }
-
   // mask-type: enum, inherit, initial
   SetDiscrete(*aRuleData->ValueForMaskType(),
               svgReset->mMaskType,
@@ -9721,6 +9762,135 @@ nsRuleNode::ComputeSVGResetData(void* aStartStruct,
               SETDSC_ENUMERATED | SETDSC_UNSET_INITIAL,
               parentSVGReset->mMaskType,
               NS_STYLE_MASK_TYPE_LUMINANCE, 0, 0, 0, 0);
+
+  uint32_t maxItemCount = 1;
+  bool rebuild = false;
+
+  // mask-image: none | <url> | <image-list> | <element-reference>  | <gradient>
+  nsStyleImage initialImage;
+  SetImageLayerList(aContext, *aRuleData->ValueForMaskImage(),
+                    svgReset->mMask.mLayers,
+                    parentSVGReset->mMask.mLayers,
+                    &nsStyleImageLayers::Layer::mImage,
+                    initialImage, parentSVGReset->mMask.mImageCount,
+                    svgReset->mMask.mImageCount,
+                    maxItemCount, rebuild, conditions);
+  SetImageLayerList(aContext, *aRuleData->ValueForMaskImage(),
+                    svgReset->mMask.mLayers,
+                    parentSVGReset->mMask.mLayers,
+                    &nsStyleImageLayers::Layer::mSourceURI,
+                    nsCOMPtr<nsIURI>(), parentSVGReset->mMask.mImageCount,
+                    svgReset->mMask.mImageCount,
+                    maxItemCount, rebuild, conditions);
+
+  // mask-repeat: enum, inherit, initial [pair list]
+  nsStyleImageLayers::Repeat initialRepeat;
+  initialRepeat.SetInitialValues();
+  SetImageLayerPairList(aContext, *aRuleData->ValueForMaskRepeat(),
+                        svgReset->mMask.mLayers,
+                        parentSVGReset->mMask.mLayers,
+                        &nsStyleImageLayers::Layer::mRepeat,
+                        initialRepeat, parentSVGReset->mMask.mRepeatCount,
+                        svgReset->mMask.mRepeatCount, maxItemCount, rebuild,
+                        conditions);
+
+  // mask-clip: enum, inherit, initial [list]
+  SetImageLayerList(aContext, *aRuleData->ValueForMaskClip(),
+                    svgReset->mMask.mLayers,
+                    parentSVGReset->mMask.mLayers,
+                    &nsStyleImageLayers::Layer::mClip,
+                    uint8_t(NS_STYLE_IMAGELAYER_CLIP_BORDER),
+                    parentSVGReset->mMask.mClipCount,
+                    svgReset->mMask.mClipCount, maxItemCount, rebuild,
+                    conditions);
+
+  // mask-origin: enum, inherit, initial [list]
+  SetImageLayerList(aContext, *aRuleData->ValueForMaskOrigin(),
+                    svgReset->mMask.mLayers,
+                    parentSVGReset->mMask.mLayers,
+                    &nsStyleImageLayers::Layer::mOrigin,
+                    uint8_t(NS_STYLE_IMAGELAYER_ORIGIN_PADDING),
+                    parentSVGReset->mMask.mOriginCount,
+                    svgReset->mMask.mOriginCount, maxItemCount, rebuild,
+                    conditions);
+
+  // mask-position: enum, length, percent (flags), inherit [pair list]
+  nsStyleImageLayers::Position initialPosition;
+  initialPosition.SetInitialPercentValues(0.0f);
+  SetImageLayerList(aContext, *aRuleData->ValueForMaskPosition(),
+                    svgReset->mMask.mLayers,
+                    parentSVGReset->mMask.mLayers,
+                    &nsStyleImageLayers::Layer::mPosition,
+                    initialPosition, parentSVGReset->mMask.mPositionCount,
+                    svgReset->mMask.mPositionCount, maxItemCount, rebuild,
+                    conditions);
+
+  // mask-size: enum, length, auto, inherit, initial [pair list]
+  nsStyleImageLayers::Size initialSize;
+  initialSize.SetInitialValues();
+  SetImageLayerPairList(aContext, *aRuleData->ValueForMaskSize(),
+                        svgReset->mMask.mLayers,
+                        parentSVGReset->mMask.mLayers,
+                        &nsStyleImageLayers::Layer::mSize,
+                        initialSize, parentSVGReset->mMask.mSizeCount,
+                        svgReset->mMask.mSizeCount, maxItemCount, rebuild,
+                        conditions);
+
+  // mask-mode: enum, inherit, initial [list]
+  SetImageLayerList(aContext, *aRuleData->ValueForMaskMode(),
+                    svgReset->mMask.mLayers,
+                    parentSVGReset->mMask.mLayers,
+                    &nsStyleImageLayers::Layer::mMaskMode,
+                    uint8_t(NS_STYLE_MASK_MODE_AUTO),
+                    parentSVGReset->mMask.mMaskModeCount,
+                    svgReset->mMask.mMaskModeCount, maxItemCount, rebuild, conditions);
+
+  // mask-composite: enum, inherit, initial [list]
+  SetImageLayerList(aContext, *aRuleData->ValueForMaskComposite(),
+                    svgReset->mMask.mLayers,
+                    parentSVGReset->mMask.mLayers,
+                    &nsStyleImageLayers::Layer::mComposite,
+                    uint8_t(NS_STYLE_MASK_COMPOSITE_ADD),
+                    parentSVGReset->mMask.mCompositeCount,
+                    svgReset->mMask.mCompositeCount, maxItemCount, rebuild, conditions);
+
+  if (rebuild) {
+    // Delete any extra items.  We need to keep layers in which any
+    // property was specified.
+    svgReset->mMask.mLayers.TruncateLength(maxItemCount);
+
+    uint32_t fillCount = svgReset->mMask.mImageCount;
+
+    FillBackgroundList(svgReset->mMask.mLayers,
+                       &nsStyleImageLayers::Layer::mImage,
+                       svgReset->mMask.mImageCount, fillCount);
+    FillBackgroundList(svgReset->mMask.mLayers,
+                       &nsStyleImageLayers::Layer::mSourceURI,
+                       svgReset->mMask.mImageCount, fillCount);
+    FillBackgroundList(svgReset->mMask.mLayers,
+                       &nsStyleImageLayers::Layer::mRepeat,
+                       svgReset->mMask.mRepeatCount, fillCount);
+    FillBackgroundList(svgReset->mMask.mLayers,
+                       &nsStyleImageLayers::Layer::mClip,
+                       svgReset->mMask.mClipCount, fillCount);
+    FillBackgroundList(svgReset->mMask.mLayers,
+                       &nsStyleImageLayers::Layer::mOrigin,
+                       svgReset->mMask.mOriginCount, fillCount);
+    FillBackgroundList(svgReset->mMask.mLayers,
+                       &nsStyleImageLayers::Layer::mPosition,
+                       svgReset->mMask.mPositionCount, fillCount);
+    FillBackgroundList(svgReset->mMask.mLayers,
+                       &nsStyleImageLayers::Layer::mSize,
+                       svgReset->mMask.mSizeCount, fillCount);
+    FillBackgroundList(svgReset->mMask.mLayers,
+                       &nsStyleImageLayers::Layer::mMaskMode,
+                       svgReset->mMask.mMaskModeCount, fillCount);
+    FillBackgroundList(svgReset->mMask.mLayers,
+                       &nsStyleImageLayers::Layer::mComposite,
+                       svgReset->mMask.mCompositeCount, fillCount);
+  }
+
+  svgReset->mMask.TrackImages(aContext->PresContext());
 
   COMPUTE_END_RESET(SVGReset, svgReset)
 }

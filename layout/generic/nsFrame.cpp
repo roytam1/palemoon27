@@ -25,6 +25,7 @@
 #include "nsIContent.h"
 #include "nsIContentInlines.h"
 #include "nsContentUtils.h"
+#include "nsCSSPseudoElements.h"
 #include "nsIAtom.h"
 #include "nsString.h"
 #include "nsReadableUtils.h"
@@ -742,6 +743,56 @@ nsFrame::GetOffsets(int32_t &aStart, int32_t &aEnd) const
   return NS_OK;
 }
 
+static
+void
+AddAndRemoveImageAssociations(nsFrame* aFrame,
+                              const nsStyleImageLayers* aOldLayers,
+                              const nsStyleImageLayers* aNewLayers)
+{
+   ImageLoader* imageLoader =
+     aFrame->PresContext()->Document()->StyleImageLoader();
+
+  // If the old context had a background-image image, or mask-image image,
+  // and new context does not have the same image, clear the image load
+  // notifier (which keeps the image loading, if it still is) for the frame.
+  // We want to do this conservatively because some frames paint their
+  // backgrounds from some other frame's style data, and we don't want
+  // to clear those notifiers unless we have to.  (They'll be reset
+  // when we paint, although we could miss a notification in that
+  // interval.)
+
+  if (aOldLayers) {
+    NS_FOR_VISIBLE_IMAGE_LAYERS_BACK_TO_FRONT(i, (*aOldLayers)) {
+      // If there is an image in oldBG that's not in newBG, drop it.
+      if (i >= aNewLayers->mImageCount ||
+          !aOldLayers->mLayers[i].mImage.ImageDataEquals(
+            aNewLayers->mLayers[i].mImage)) {
+        const nsStyleImage& oldImage = aOldLayers->mLayers[i].mImage;
+        if (oldImage.GetType() != eStyleImageType_Image) {
+          continue;
+        }
+
+        imageLoader->DisassociateRequestFromFrame(oldImage.GetImageData(),
+                                                   aFrame);
+      }
+    }
+  }
+
+  NS_FOR_VISIBLE_IMAGE_LAYERS_BACK_TO_FRONT(i, (*aNewLayers)) {
+    // If there is an image in newBG that's not in oldBG, add it.
+    if (!aOldLayers || i >= aOldLayers->mImageCount ||
+        !aNewLayers->mLayers[i].mImage.ImageDataEquals(
+          aOldLayers->mLayers[i].mImage)) {
+      const nsStyleImage& newImage = aNewLayers->mLayers[i].mImage;
+      if (newImage.GetType() != eStyleImageType_Image) {
+        continue;
+      }
+
+      imageLoader->AssociateRequestToFrame(newImage.GetImageData(), aFrame);
+    }
+  }
+}
+
 // Subclass hook for style post processing
 /* virtual */ void
 nsFrame::DidSetStyleContext(nsStyleContext* aOldStyleContext)
@@ -766,50 +817,16 @@ nsFrame::DidSetStyleContext(nsStyleContext* aOldStyleContext)
     }
   }
 
-  ImageLoader* imageLoader = PresContext()->Document()->StyleImageLoader();
+  const nsStyleImageLayers *oldLayers = aOldStyleContext ?
+                              &aOldStyleContext->StyleBackground()->mImage :
+                              nullptr;
+  const nsStyleImageLayers *newLayers = &StyleBackground()->mImage;
+  AddAndRemoveImageAssociations(this, oldLayers, newLayers);
 
-  // If the old context had a background image image and new context
-  // does not have the same image, clear the image load notifier
-  // (which keeps the image loading, if it still is) for the frame.
-  // We want to do this conservatively because some frames paint their
-  // backgrounds from some other frame's style data, and we don't want
-  // to clear those notifiers unless we have to.  (They'll be reset
-  // when we paint, although we could miss a notification in that
-  // interval.)
-  const nsStyleBackground *oldBG = aOldStyleContext ?
-                                   aOldStyleContext->StyleBackground() :
-                                   nullptr;
-  const nsStyleBackground *newBG = StyleBackground();
-  const nsStyleImageLayers& oldBGLayers = oldBG->mLayers;
-  const nsStyleImageLayers& newBGLayers = newBG->mLayers;
-  if (oldBG) {
-    NS_FOR_VISIBLE_IMAGE_LAYERS_BACK_TO_FRONT(i, oldBGLayers) {
-      // If there is an image in oldBG that's not in newBG, drop it.
-      if (i >= newBGLayers.mImageCount ||
-          !oldBGLayers.mLayers[i].mImage.ImageDataEquals(newBGLayers.mLayers[i].mImage)) {
-        const nsStyleImage& oldImage = oldBGLayers.mLayers[i].mImage;
-        if (oldImage.GetType() != eStyleImageType_Image) {
-          continue;
-        }
-
-        imageLoader->DisassociateRequestFromFrame(oldImage.GetImageData(),
-                                                  this);
-      }
-    }
-  }
-
-  NS_FOR_VISIBLE_IMAGE_LAYERS_BACK_TO_FRONT(i, newBGLayers) {
-    // If there is an image in newBG that's not in oldBG, add it.
-    if (!oldBG || i >= oldBGLayers.mImageCount ||
-        !newBGLayers.mLayers[i].mImage.ImageDataEquals(oldBGLayers.mLayers[i].mImage)) {
-      const nsStyleImage& newImage = newBGLayers.mLayers[i].mImage;
-      if (newImage.GetType() != eStyleImageType_Image) {
-        continue;
-      }
-
-      imageLoader->AssociateRequestToFrame(newImage.GetImageData(), this);
-    }
-  }
+  oldLayers = aOldStyleContext ? &aOldStyleContext->StyleSVGReset()->mMask :
+                                  nullptr;
+  newLayers = &StyleSVGReset()->mMask;
+  AddAndRemoveImageAssociations(this, oldLayers, newLayers);
 
   if (aOldStyleContext) {
     // If we detect a change on margin, padding or border, we store the old
@@ -847,6 +864,7 @@ nsFrame::DidSetStyleContext(nsStyleContext* aOldStyleContext)
     }
   }
 
+  ImageLoader* imageLoader = PresContext()->Document()->StyleImageLoader();
   imgIRequest *oldBorderImage = aOldStyleContext
     ? aOldStyleContext->StyleBorder()->GetBorderImageRequest()
     : nullptr;
@@ -2017,8 +2035,7 @@ nsIFrame::BuildDisplayListForStackingContext(nsDisplayListBuilder* aBuilder,
   nsRect dirtyRectOutsideTransform = dirtyRect;
   if (isTransformed) {
     const nsRect overflow = GetVisualOverflowRectRelativeToSelf();
-    if (Extend3DContext() || Combines3DTransformWithAncestors() ||
-        nsDisplayTransform::ShouldPrerenderTransformedContent(aBuilder,
+    if (nsDisplayTransform::ShouldPrerenderTransformedContent(aBuilder,
                                                               this)) {
       dirtyRect = overflow;
     } else {
@@ -2026,9 +2043,15 @@ nsIFrame::BuildDisplayListForStackingContext(nsDisplayListBuilder* aBuilder,
         return;
       }
 
+      // If we're in preserve-3d then grab the dirty rect that was given to the root
+      // and transform using the combined transform.
+      if (Combines3DTransformWithAncestors()) {
+        dirtyRect = aBuilder->GetPreserves3DDirtyRect(this);
+      }
+
       nsRect untransformedDirtyRect;
       if (nsDisplayTransform::UntransformRect(dirtyRect, overflow, this,
-            nsPoint(0,0), &untransformedDirtyRect, false)) {
+            nsPoint(0,0), &untransformedDirtyRect, true)) {
         dirtyRect = untransformedDirtyRect;
       } else {
         NS_WARNING("Unable to untransform dirty rect!");
@@ -2100,8 +2123,7 @@ nsIFrame::BuildDisplayListForStackingContext(nsDisplayListBuilder* aBuilder,
     // Extend3DContext() also guarantees that applyAbsPosClipping and usingSVGEffects are false
     // We only modify the preserve-3d rect if we are the top of a preserve-3d heirarchy
     if (Extend3DContext()) {
-      nsRect dirty = aBuilder->GetPreserves3DDirtyRect(this);
-      aBuilder->MarkPreserve3DFramesForDisplayList(this, dirty);
+      aBuilder->MarkPreserve3DFramesForDisplayList(this);
     }
 
     if (aBuilder->IsBuildingLayerEventRegions()) {
@@ -2429,15 +2451,6 @@ nsIFrame::BuildDisplayListForChild(nsDisplayListBuilder*   aBuilder,
       dirty.SetEmpty();
     }
     pseudoStackingContext = true;
-  }
-  if (child->Combines3DTransformWithAncestors()) {
-    nsRect* savedDirty = static_cast<nsRect*>
-      (child->Properties().Get(nsDisplayListBuilder::Preserve3DDirtyRectProperty()));
-    if (savedDirty) {
-      dirty = *savedDirty;
-    } else {
-      dirty.SetEmpty();
-    }
   }
 
   NS_ASSERTION(childType != nsGkAtoms::placeholderFrame,
@@ -9084,13 +9097,13 @@ nsIFrame::IsPseudoStackingContextFromStyle() {
 }
 
 Element*
-nsIFrame::GetPseudoElement(nsCSSPseudoElements::Type aType)
+nsIFrame::GetPseudoElement(CSSPseudoElementType aType)
 {
   nsIFrame* frame = nullptr;
 
-  if (aType == nsCSSPseudoElements::ePseudo_before) {
+  if (aType == CSSPseudoElementType::before) {
     frame = nsLayoutUtils::GetBeforeFrame(this);
-  } else if (aType == nsCSSPseudoElements::ePseudo_after) {
+  } else if (aType == CSSPseudoElementType::after) {
     frame = nsLayoutUtils::GetAfterFrame(this);
   }
 
@@ -9100,7 +9113,7 @@ nsIFrame::GetPseudoElement(nsCSSPseudoElements::Type aType)
       return content->AsElement();
     }
   }
-  
+
   return nullptr;
 }
 

@@ -613,7 +613,19 @@ nsCSSFontDesc
 nsCSSProps::LookupFontDesc(const nsACString& aFontDesc)
 {
   MOZ_ASSERT(gFontDescTable, "no lookup table, needs addref");
-  return nsCSSFontDesc(gFontDescTable->Lookup(aFontDesc));
+  nsCSSFontDesc which = nsCSSFontDesc(gFontDescTable->Lookup(aFontDesc));
+
+  if (which == eCSSFontDesc_Display &&
+      !Preferences::GetBool("layout.css.font-display.enabled")) {
+    which = eCSSFontDesc_UNKNOWN;
+  } else if (which == eCSSFontDesc_UNKNOWN) {
+    // check for unprefixed font-feature-settings/font-language-override
+    nsAutoCString prefixedProp;
+    prefixedProp.AppendLiteral("-moz-");
+    prefixedProp.Append(aFontDesc);
+    which = nsCSSFontDesc(gFontDescTable->Lookup(prefixedProp));
+  }
+  return which;
 }
 
 nsCSSFontDesc
@@ -622,8 +634,11 @@ nsCSSProps::LookupFontDesc(const nsAString& aFontDesc)
   MOZ_ASSERT(gFontDescTable, "no lookup table, needs addref");
   nsCSSFontDesc which = nsCSSFontDesc(gFontDescTable->Lookup(aFontDesc));
 
-  // check for unprefixed font-feature-settings/font-language-override
-  if (which == eCSSFontDesc_UNKNOWN) {
+  if (which == eCSSFontDesc_Display &&
+      !Preferences::GetBool("layout.css.font-display.enabled")) {
+    which = eCSSFontDesc_UNKNOWN;
+  } else if (which == eCSSFontDesc_UNKNOWN) {
+    // check for unprefixed font-feature-settings/font-language-override
     nsAutoString prefixedProp;
     prefixedProp.AppendLiteral("-moz-");
     prefixedProp.Append(aFontDesc);
@@ -916,6 +931,24 @@ const KTableEntry nsCSSProps::kImageLayerRepeatPartKTable[] = {
 const KTableEntry nsCSSProps::kImageLayerSizeKTable[] = {
   { eCSSKeyword_contain, NS_STYLE_IMAGELAYER_SIZE_CONTAIN },
   { eCSSKeyword_cover,   NS_STYLE_IMAGELAYER_SIZE_COVER },
+  { eCSSKeyword_UNKNOWN, -1 }
+};
+
+const KTableEntry nsCSSProps::kImageLayerModeKTable[] = {
+  { eCSSKeyword_alpha, NS_STYLE_MASK_MODE_ALPHA },
+  { eCSSKeyword_luminance, NS_STYLE_MASK_MODE_LUMINANCE },
+  // FIXME https://bugzilla.mozilla.org/show_bug.cgi?id=1224424
+  // It's ambigious at mask shorthand parsing while we have both mask-mode:auto
+  // and mask-size:auto.
+  { eCSSKeyword_auto, NS_STYLE_MASK_MODE_AUTO },
+  { eCSSKeyword_UNKNOWN, -1 }
+};
+
+const KTableEntry nsCSSProps::kImageLayerCompositeKTable[] = {
+  { eCSSKeyword_add, NS_STYLE_MASK_COMPOSITE_ADD },
+  { eCSSKeyword_substract, NS_STYLE_MASK_COMPOSITE_SUBSTRACT },
+  { eCSSKeyword_intersect, NS_STYLE_MASK_COMPOSITE_INTERSECT },
+  { eCSSKeyword_exclude, NS_STYLE_MASK_COMPOSITE_EXCLUDE },
   { eCSSKeyword_UNKNOWN, -1 }
 };
 
@@ -1384,6 +1417,15 @@ KTableEntry nsCSSProps::kFloatKTable[] = {
 const KTableEntry nsCSSProps::kFloatEdgeKTable[] = {
   { eCSSKeyword_content_box, NS_STYLE_FLOAT_EDGE_CONTENT },
   { eCSSKeyword_margin_box, NS_STYLE_FLOAT_EDGE_MARGIN },
+  { eCSSKeyword_UNKNOWN, -1 }
+};
+
+const KTableEntry nsCSSProps::kFontDisplayKTable[] = {
+  { eCSSKeyword_auto, NS_FONT_DISPLAY_AUTO },
+  { eCSSKeyword_block, NS_FONT_DISPLAY_BLOCK },
+  { eCSSKeyword_swap, NS_FONT_DISPLAY_SWAP },
+  { eCSSKeyword_fallback, NS_FONT_DISPLAY_FALLBACK },
+  { eCSSKeyword_optional, NS_FONT_DISPLAY_OPTIONAL },
   { eCSSKeyword_UNKNOWN, -1 }
 };
 
@@ -2080,6 +2122,7 @@ const KTableEntry nsCSSProps::kWidthKTable[] = {
 };
 
 const KTableEntry nsCSSProps::kWindowDraggingKTable[] = {
+  { eCSSKeyword_default, NS_STYLE_WINDOW_DRAGGING_DEFAULT },
   { eCSSKeyword_drag, NS_STYLE_WINDOW_DRAGGING_DRAG },
   { eCSSKeyword_no_drag, NS_STYLE_WINDOW_DRAGGING_NO_DRAG },
   { eCSSKeyword_UNKNOWN, -1 }
@@ -2732,20 +2775,20 @@ static const nsCSSProperty gFlexFlowSubpropTable[] = {
 
 static const nsCSSProperty gGridTemplateSubpropTable[] = {
   eCSSProperty_grid_template_areas,
+  eCSSProperty_grid_template_rows, 
   eCSSProperty_grid_template_columns,
-  eCSSProperty_grid_template_rows,
   eCSSProperty_UNKNOWN
 };
 
 static const nsCSSProperty gGridSubpropTable[] = {
   eCSSProperty_grid_template_areas,
-  eCSSProperty_grid_template_columns,
   eCSSProperty_grid_template_rows,
+  eCSSProperty_grid_template_columns,
   eCSSProperty_grid_auto_flow,
-  eCSSProperty_grid_auto_columns,
   eCSSProperty_grid_auto_rows,
-  eCSSProperty_grid_column_gap, // can only be reset, not get/set
+  eCSSProperty_grid_auto_columns,
   eCSSProperty_grid_row_gap, // can only be reset, not get/set
+  eCSSProperty_grid_column_gap, // can only be reset, not get/set
   eCSSProperty_UNKNOWN
 };
 
@@ -2770,8 +2813,8 @@ static const nsCSSProperty gGridAreaSubpropTable[] = {
 };
 
 static const nsCSSProperty gGridGapSubpropTable[] = {
-  eCSSProperty_grid_column_gap,
   eCSSProperty_grid_row_gap,
+  eCSSProperty_grid_column_gap,
   eCSSProperty_UNKNOWN
 };
 
@@ -2839,6 +2882,21 @@ static const nsCSSProperty gScrollSnapTypeSubpropTable[] = {
   eCSSProperty_scroll_snap_type_y,
   eCSSProperty_UNKNOWN
 };
+
+static const nsCSSProperty gMaskSubpropTable[] = {
+  eCSSProperty_mask_image,
+  eCSSProperty_mask_repeat,
+  eCSSProperty_mask_position,
+  eCSSProperty_mask_clip,
+  eCSSProperty_mask_origin,
+  eCSSProperty_mask_size,
+  eCSSProperty_mask_composite,
+  eCSSProperty_mask_mode,
+  eCSSProperty_UNKNOWN
+};
+
+// FIXME: mask-border tables should be added when we implement
+// mask-border properties.
 
 const nsCSSProperty *const
 nsCSSProps::kSubpropertyTable[eCSSProperty_COUNT - eCSSProperty_COUNT_no_shorthands] = {

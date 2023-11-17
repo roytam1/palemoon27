@@ -308,7 +308,7 @@ TaggingService.prototype = {
     return tags;
   },
 
-  __tagFolders: null, 
+  __tagFolders: null,
   get _tagFolders() {
     if (!this.__tagFolders) {
       this.__tagFolders = [];
@@ -482,7 +482,7 @@ function TagAutoCompleteResult(searchString, searchResult,
 }
 
 TagAutoCompleteResult.prototype = {
-  
+
   /**
    * The original search string
    */
@@ -593,7 +593,7 @@ function TagAutoCompleteSearch() {
 }
 
 TagAutoCompleteSearch.prototype = {
-  _stopped : false, 
+  _stopped : false,
 
   /*
    * Search for a given string and notify a listener (either synchronously
@@ -611,10 +611,10 @@ TagAutoCompleteSearch.prototype = {
     this._stopped = false;
 
     // only search on characters for the last tag
-    var index = Math.max(searchString.lastIndexOf(","), 
+    var index = Math.max(searchString.lastIndexOf(","),
       searchString.lastIndexOf(";"));
-    var before = ''; 
-    if (index != -1) {  
+    var before = '';
+    if (index != -1) {
       before = searchString.slice(0, index+1);
       searchString = searchString.slice(index+1);
       // skip past whitespace
@@ -631,7 +631,7 @@ TagAutoCompleteSearch.prototype = {
       listener.onSearchResult(self, newResult);
       return;
     }
-    
+
     var self = this;
     // generator: if yields true, not done
     function* doSearch() {
@@ -646,7 +646,7 @@ TagAutoCompleteSearch.prototype = {
           results.push(before + searchResults[i]);
           comments.push(searchResults[i]);
         }
-    
+
         ++i;
 
         /* TODO: bug 481451
@@ -677,7 +677,7 @@ TagAutoCompleteSearch.prototype = {
       listener.onSearchResult(self, newResult);
       yield false;
     }
-    
+
     // chunk the search results via the generator
     var gen = doSearch();
     while (gen.next().value);

@@ -425,7 +425,6 @@ CERT_FindBitStringExtension(CERTCertExtension **extensions, int tag,
     if (tmpItem.len > 0) {
         PORT_Memcpy(retItem->data, tmpItem.data, (tmpItem.len + 7) >> 3);
     }
-
     retItem->len = tmpItem.len;
 
     rv = SECSuccess;

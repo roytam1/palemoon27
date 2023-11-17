@@ -32,7 +32,7 @@ DOMHighResTimeStamp
 Performance::Now() const
 {
   TimeDuration duration =
-    TimeStamp::Now() - mWorkerPrivate->CreationTimeStamp();
+    TimeStamp::Now() - mWorkerPrivate->NowBaseTimeStamp();
   double nowTime = duration.ToMilliseconds();
   // Round down to the nearest 20us, because if the timer is too accurate people
   // can do nasty timing attacks with it.  See similar code in the non-worker
@@ -57,7 +57,7 @@ Performance::GetPerformanceTimingFromString(const nsAString& aProperty)
   }
 
   if (aProperty.EqualsLiteral("navigationStart")) {
-    return mWorkerPrivate->CreationTime();
+    return mWorkerPrivate->NowBaseTime();
   }
 
   MOZ_CRASH("IsPerformanceTimingAttribute and GetPerformanceTimingFromString are out of sync");
@@ -82,13 +82,13 @@ Performance::InsertUserEntry(PerformanceEntry* aEntry)
 TimeStamp
 Performance::CreationTimeStamp() const
 {
-  return mWorkerPrivate->CreationTimeStamp();
+  return mWorkerPrivate->NowBaseTimeStamp();
 }
 
 DOMHighResTimeStamp
 Performance::CreationTime() const
 {
-  return mWorkerPrivate->CreationTime();
+  return mWorkerPrivate->NowBaseTime();
 }
 
 void

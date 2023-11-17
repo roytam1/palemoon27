@@ -153,7 +153,7 @@ public:
 
     ConsoleCallData* tmp = this;
     for (uint32_t i = 0; i < mCopiedArguments.Length(); ++i) {
-      NS_IMPL_CYCLE_COLLECTION_TRACE_JSVAL_MEMBER_CALLBACK(mCopiedArguments[i]);
+      NS_IMPL_CYCLE_COLLECTION_TRACE_JS_MEMBER_CALLBACK(mCopiedArguments[i])
     }
   }
 
@@ -778,11 +778,11 @@ Console::~Console()
 
   if (!NS_IsMainThread()) {
     if (mStorage) {
-      NS_ReleaseOnMainThread(mStorage);
+      NS_ReleaseOnMainThread(mStorage.forget());
     }
 
     if (mSandbox) {
-      NS_ReleaseOnMainThread(mSandbox);
+      NS_ReleaseOnMainThread(mSandbox.forget());
     }
   }
 

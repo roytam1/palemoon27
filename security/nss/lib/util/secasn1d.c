@@ -1114,7 +1114,7 @@ sec_asn1d_prepare_for_contents(sec_asn1d_state *state)
          * inspection, too) then move this code into the switch statement
          * below under cases SET_OF and SEQUENCE_OF; it will be cleaner.
          */
-        PORT_Assert(state->underlying_kind == SEC_ASN1_SET_OF || state->underlying_kind == SEC_ASN1_SEQUENCE_OF || state->underlying_kind == (SEC_ASN1_SEQUENCE_OF | SEC_ASN1_DYNAMIC) || state->underlying_kind == (SEC_ASN1_SEQUENCE_OF | SEC_ASN1_DYNAMIC));
+        PORT_Assert(state->underlying_kind == SEC_ASN1_SET_OF || state->underlying_kind == SEC_ASN1_SEQUENCE_OF || state->underlying_kind == (SEC_ASN1_SET_OF | SEC_ASN1_DYNAMIC) || state->underlying_kind == (SEC_ASN1_SEQUENCE_OF | SEC_ASN1_DYNAMIC));
         if (state->contents_length != 0 || state->indefinite) {
             const SEC_ASN1Template *subt;
 
@@ -2463,7 +2463,18 @@ sec_asn1d_parse_end_of_contents(sec_asn1d_state *state,
 
     if (state->pending == 0) {
         state->place = afterEndOfContents;
-        state->endofcontents = PR_TRUE;
+        /* These end-of-contents octets either terminate a SEQUENCE, a GROUP,
+         * or a constructed string. The SEQUENCE case is unique in that the
+         * state parses its own end-of-contents octets and therefore should not
+         * have its `endofcontents` flag set. We identify the SEQUENCE case by
+         * checking whether the child state's template is pointing at a
+         * template terminator (see `sec_asn1d_next_in_sequence`).
+         */
+        if (state->child && state->child->theTemplate->kind == 0) {
+            state->endofcontents = PR_FALSE;
+        } else {
+            state->endofcontents = PR_TRUE;
+        }
     }
 
     return len;

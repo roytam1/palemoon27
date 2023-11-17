@@ -911,7 +911,7 @@ struct RuleCascadeData {
 
   RuleHash                 mRuleHash;
   RuleHash*
-    mPseudoElementRuleHashes[nsCSSPseudoElements::ePseudo_PseudoElementCount];
+    mPseudoElementRuleHashes[static_cast<uint8_t>(CSSPseudoElementType::Count)];
   nsTArray<nsCSSRuleProcessor::StateSelector>  mStateSelectors;
   EventStates              mSelectorDocumentStates;
   PLDHashTable             mClassSelectors;
@@ -1493,7 +1493,7 @@ static bool AttrMatchesValue(const nsAttrSelector* aAttrSelector,
   const nsDefaultStringComparator defaultComparator;
   const nsASCIICaseInsensitiveStringComparator ciComparator;
   const nsStringComparator& comparator =
-      (aAttrSelector->mCaseSensitive || !isHTML)
+    aAttrSelector->IsValueCaseSensitive(isHTML)
                 ? static_cast<const nsStringComparator&>(defaultComparator)
                 : static_cast<const nsStringComparator&>(ciComparator);
 
@@ -2294,8 +2294,8 @@ static bool SelectorMatches(Element* aElement,
           result =
             aElement->
               AttrValueIs(attr->mNameSpace, matchAttribute, attr->mValue,
-                          (!isHTML || attr->mCaseSensitive) ? eCaseMatters
-                                                            : eIgnoreCase);
+                          attr->IsValueCaseSensitive(isHTML) ? eCaseMatters
+                                                             : eIgnoreCase);
         }
         else if (!aElement->HasAttr(attr->mNameSpace, matchAttribute)) {
           result = false;
@@ -2645,7 +2645,9 @@ nsCSSRuleProcessor::RulesMatching(PseudoElementRuleProcessorData* aData)
   RuleCascadeData* cascade = GetRuleCascade(aData->mPresContext);
 
   if (cascade) {
-    RuleHash* ruleHash = cascade->mPseudoElementRuleHashes[aData->mPseudoType];
+    RuleHash* ruleHash =
+      cascade->mPseudoElementRuleHashes[static_cast<uint8_t>(
+        aData->mPseudoType)];
     if (ruleHash) {
       NodeMatchContext nodeContext(EventStates(),
                                    nsCSSRuleProcessor::IsLink(aData->mElement));
@@ -2715,7 +2717,7 @@ static inline nsRestyleHint RestyleHintForOp(char16_t oper)
 nsRestyleHint
 nsCSSRuleProcessor::HasStateDependentStyle(ElementDependentRuleProcessorData* aData,
                                            Element* aStatefulElement,
-                                           nsCSSPseudoElements::Type aPseudoType,
+                                           CSSPseudoElementType aPseudoType,
                                            EventStates aStateMask)
 {
   MOZ_ASSERT(!aData->mTreeMatchContext.mForScopedStyle,
@@ -2723,7 +2725,7 @@ nsCSSRuleProcessor::HasStateDependentStyle(ElementDependentRuleProcessorData* aD
              "SelectorMatchesTree call");
 
   bool isPseudoElement =
-    aPseudoType != nsCSSPseudoElements::ePseudo_NotPseudoElement;
+    aPseudoType != CSSPseudoElementType::NotPseudo;
 
   RuleCascadeData* cascade = GetRuleCascade(aData->mPresContext);
 
@@ -2807,7 +2809,7 @@ nsCSSRuleProcessor::HasStateDependentStyle(StateRuleProcessorData* aData)
 {
   return HasStateDependentStyle(aData,
                                 aData->mElement,
-                                nsCSSPseudoElements::ePseudo_NotPseudoElement,
+                                CSSPseudoElementType::NotPseudo,
                                 aData->mStateMask);
 }
 
@@ -2889,7 +2891,7 @@ RestyleHintForSelectorWithAttributeChange(nsRestyleHint aCurrentHint,
          sel != aSelector;
          sel = sel->mNext) {
       MOZ_ASSERT(sel, "aSelector must be reachable from aRightmostSelector");
-      if (sel->PseudoType() != nsCSSPseudoElements::ePseudo_NotPseudoElement) {
+      if (sel->PseudoType() != CSSPseudoElementType::NotPseudo) {
         return eRestyle_Subtree;
       }
     }
@@ -3011,7 +3013,8 @@ nsCSSRuleProcessor::HasAttributeDependentStyle(
       EnumerateSelectors(cascade->mPossiblyNegatedIDSelectors, &data);
     }
 
-    if (aData->mAttribute == nsGkAtoms::_class) {
+    if (aData->mAttribute == nsGkAtoms::_class &&
+        aData->mNameSpaceID == kNameSpaceID_None) {
       const nsAttrValue* otherClasses = aData->mOtherValue;
       NS_ASSERTION(otherClasses ||
                    aData->mModType == nsIDOMMutationEvent::REMOVAL,
@@ -3409,11 +3412,12 @@ AddRule(RuleSelectorPair* aRuleInfo, RuleCascadeData* aCascade)
   RuleCascadeData * const cascade = aCascade;
 
   // Build the rule hash.
-  nsCSSPseudoElements::Type pseudoType = aRuleInfo->mSelector->PseudoType();
-  if (MOZ_LIKELY(pseudoType == nsCSSPseudoElements::ePseudo_NotPseudoElement)) {
+  CSSPseudoElementType pseudoType = aRuleInfo->mSelector->PseudoType();
+  if (MOZ_LIKELY(pseudoType == CSSPseudoElementType::NotPseudo)) {
     cascade->mRuleHash.AppendRule(*aRuleInfo);
-  } else if (pseudoType < nsCSSPseudoElements::ePseudo_PseudoElementCount) {
-    RuleHash*& ruleHash = cascade->mPseudoElementRuleHashes[pseudoType];
+  } else if (pseudoType < CSSPseudoElementType::Count) {
+    RuleHash*& ruleHash =
+      cascade->mPseudoElementRuleHashes[static_cast<uint8_t>(pseudoType)];
     if (!ruleHash) {
       ruleHash = new RuleHash(cascade->mQuirksMode);
       if (!ruleHash) {
@@ -3426,7 +3430,7 @@ AddRule(RuleSelectorPair* aRuleInfo, RuleCascadeData* aCascade)
     NS_ASSERTION(aRuleInfo->mSelector->mNext->mOperator == ':',
                  "Unexpected mNext combinator");
     ruleHash->AppendRule(*aRuleInfo);
-  } else if (pseudoType == nsCSSPseudoElements::ePseudo_AnonBox) {
+  } else if (pseudoType == CSSPseudoElementType::AnonBox) {
     NS_ASSERTION(!aRuleInfo->mSelector->mCasedTag &&
                  !aRuleInfo->mSelector->mIDList &&
                  !aRuleInfo->mSelector->mClassList &&
@@ -3444,7 +3448,7 @@ AddRule(RuleSelectorPair* aRuleInfo, RuleCascadeData* aCascade)
                          RuleValue(*aRuleInfo, 0, aCascade->mQuirksMode));
   } else {
 #ifdef MOZ_XUL
-    NS_ASSERTION(pseudoType == nsCSSPseudoElements::ePseudo_XULTree,
+    NS_ASSERTION(pseudoType == CSSPseudoElementType::XULTree,
                  "Unexpected pseudo type");
     // Index doesn't matter here, since we'll just be walking these
     // rules in order; just pass 0.
@@ -3459,8 +3463,8 @@ AddRule(RuleSelectorPair* aRuleInfo, RuleCascadeData* aCascade)
   for (nsCSSSelector* selector = aRuleInfo->mSelector;
            selector; selector = selector->mNext) {
     if (selector->IsPseudoElement()) {
-      nsCSSPseudoElements::Type pseudo = selector->PseudoType();
-      if (pseudo >= nsCSSPseudoElements::ePseudo_PseudoElementCount ||
+      CSSPseudoElementType pseudo = selector->PseudoType();
+      if (pseudo >= CSSPseudoElementType::Count ||
           !nsCSSPseudoElements::PseudoElementSupportsUserActionState(pseudo)) {
         NS_ASSERTION(!selector->mNegations, "Shouldn't have negations");
         // We do store selectors ending with pseudo-elements that allow :hover

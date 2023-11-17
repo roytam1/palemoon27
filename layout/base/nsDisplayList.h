@@ -576,7 +576,7 @@ public:
    * Because these frames include transforms set on their parent, dirty rects
    * for intermediate frames may be empty, yet child frames could still be visible.
    */
-  void MarkPreserve3DFramesForDisplayList(nsIFrame* aDirtyFrame, const nsRect& aDirtyRect);
+  void MarkPreserve3DFramesForDisplayList(nsIFrame* aDirtyFrame);
 
   const nsTArray<ThemeGeometry>& GetThemeGeometries() { return mThemeGeometries; }
 
@@ -615,11 +615,12 @@ public:
    * Adjusts mWindowDraggingRegion to take into account aFrame. If aFrame's
    * -moz-window-dragging value is |drag|, its border box is added to the
    * collected dragging region; if the value is |no-drag|, the border box is
-   * subtracted from the region.
+   * subtracted from the region; if the value is |default|, that frame does
+   * not influence the window dragging region.
    */
   void AdjustWindowDraggingRegion(nsIFrame* aFrame);
 
-  const LayoutDeviceIntRegion& GetWindowDraggingRegion() { return mWindowDraggingRegion; }
+  LayoutDeviceIntRegion GetWindowDraggingRegion() const;
 
   /**
    * Allocate memory in our arena. It will only be freed when this display list
@@ -968,8 +969,6 @@ public:
       aFrame->Properties().Get(OutOfFlowDisplayDataProperty()));
   }
 
-  NS_DECLARE_FRAME_PROPERTY_DELETABLE(Preserve3DDirtyRectProperty, nsRect)
-
   nsPresContext* CurrentPresContext() {
     return CurrentPresShellState()->mPresShell->GetPresContext();
   }
@@ -1228,6 +1227,7 @@ private:
   nsRegion                       mWindowExcludeGlassRegion;
   nsRegion                       mWindowOpaqueRegion;
   LayoutDeviceIntRegion          mWindowDraggingRegion;
+  LayoutDeviceIntRegion          mWindowNoDraggingRegion;
   // The display item for the Windows window glass background, if any
   nsDisplayItem*                 mGlassDisplayItem;
   // When encountering inactive layers, we need to hoist scroll info items

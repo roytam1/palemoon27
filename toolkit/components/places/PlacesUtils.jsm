@@ -1269,7 +1269,7 @@ this.PlacesUtils = {
       yield conn.executeCached(QUERY_STR, { url: spec }, aRow => {
         if (abort)
           throw StopIteration;
-        itemIds.push(aRow.getResultByIndex(0));  
+        itemIds.push(aRow.getResultByIndex(0));
       });
       if (!abort)
         aCallback(itemIds, aURI);
@@ -2105,8 +2105,8 @@ BaseTransaction.prototype = {
 
 
 /**
- * Transaction for performing several Places Transactions in a single batch. 
- * 
+ * Transaction for performing several Places Transactions in a single batch.
+ *
  * @param aName
  *        title of the aggregate transactions
  * @param aTransactions
@@ -2214,7 +2214,7 @@ PlacesCreateFolderTransaction.prototype = {
   __proto__: BaseTransaction.prototype,
 
   doTransaction: function CFTXN_doTransaction()
-  { 
+  {
     this.item.id = PlacesUtils.bookmarks.createFolder(this.item.parentId,
                                                       this.item.title,
                                                       this.item.index);
@@ -2302,7 +2302,7 @@ PlacesCreateBookmarkTransaction.prototype = {
     }
     if (this.item.annotations && this.item.annotations.length > 0)
       PlacesUtils.setAnnotationsForItem(this.item.id, this.item.annotations);
- 
+
     if (this.childTransactions && this.childTransactions.length > 0) {
       // Set the new item id into child transactions.
       for (let i = 0; i < this.childTransactions.length; ++i) {
@@ -2753,7 +2753,7 @@ PlacesEditBookmarkURITransaction.prototype = {
   undoTransaction: function EBUTXN_undoTransaction()
   {
     PlacesUtils.bookmarks.changeBookmarkURI(this.item.id, this.item.uri);
-    // move tags from new URI to old URI 
+    // move tags from new URI to old URI
     if (this.item.tags.length != 0) {
       // only untag the new URI if this is the only bookmark
       if (PlacesUtils.getBookmarksForURI(this.new.uri, {}).length == 0)
@@ -2956,7 +2956,7 @@ PlacesEditBookmarkPostDataTransaction.prototype = {
  * @param aItemId
  *        id of the item to edit
  * @param aNewDateAdded
- *        new date added for the item 
+ *        new date added for the item
  *
  * @return nsITransaction object
  */
@@ -2995,7 +2995,7 @@ PlacesEditItemDateAddedTransaction.prototype = {
  * @param aItemId
  *        id of the item to edit
  * @param aNewLastModified
- *        new last modified date for the item 
+ *        new last modified date for the item
  *
  * @return nsITransaction object
  */
@@ -3043,7 +3043,7 @@ PlacesEditItemLastModifiedTransaction.prototype = {
 this.PlacesSortFolderByNameTransaction =
  function PlacesSortFolderByNameTransaction(aFolderId)
 {
-  this.item = new TransactionItemCache();  
+  this.item = new TransactionItemCache();
   this.item.id = aFolderId;
 }
 
@@ -3059,7 +3059,7 @@ PlacesSortFolderByNameTransaction.prototype = {
     let count = contents.childCount;
 
     // sort between separators
-    let newOrder = []; 
+    let newOrder = [];
     let preSep = []; // temporary array for sorting each group of items
     let sortingMethod =
       function (a, b) {

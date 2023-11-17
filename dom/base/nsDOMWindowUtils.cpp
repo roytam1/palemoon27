@@ -77,8 +77,8 @@
 #include "mozilla/dom/TabChild.h"
 #include "mozilla/dom/IDBFactoryBinding.h"
 #include "mozilla/dom/IDBMutableFileBinding.h"
-#include "mozilla/dom/indexedDB/IDBMutableFile.h"
-#include "mozilla/dom/indexedDB/IndexedDatabaseManager.h"
+#include "mozilla/dom/IDBMutableFile.h"
+#include "mozilla/dom/IndexedDatabaseManager.h"
 #include "mozilla/dom/PermissionMessageUtils.h"
 #include "mozilla/dom/quota/PersistenceType.h"
 #include "mozilla/dom/quota/QuotaManager.h"
@@ -102,6 +102,7 @@
 #include "nsIStyleSheet.h"
 #include "nsIStyleSheetService.h"
 #include "nsContentPermissionHelper.h"
+#include "nsCSSPseudoElements.h"            // for CSSPseudoElementType
 #include "nsNetUtil.h"
 #include "nsDocument.h"
 #include "HTMLImageElement.h"
@@ -2380,13 +2381,12 @@ ComputeAnimationValue(nsCSSProperty aProperty,
                       StyleAnimationValue& aOutput)
 {
 
-  if (!StyleAnimationValue::ComputeValue(
-        aProperty,
-        aElement,
-        nsCSSPseudoElements::ePseudo_NotPseudoElement,
-        aInput,
-        false,
-        aOutput)) {
+  if (!StyleAnimationValue::ComputeValue(aProperty,
+                                         aElement,
+                                         CSSPseudoElementType::NotPseudo,
+                                         aInput,
+                                         false,
+                                         aOutput)) {
     return false;
   }
 
@@ -2989,7 +2989,7 @@ nsDOMWindowUtils::GetFileId(JS::Handle<JS::Value> aFile, JSContext* aCx,
 
   JSObject* obj = aFile.toObjectOrNull();
 
-  indexedDB::IDBMutableFile* mutableFile = nullptr;
+  IDBMutableFile* mutableFile = nullptr;
   if (NS_SUCCEEDED(UNWRAP_OBJECT(IDBMutableFile, obj, mutableFile))) {
     *_retval = mutableFile->GetFileId();
     return NS_OK;
@@ -3061,8 +3061,7 @@ nsDOMWindowUtils::GetFileReferences(const nsAString& aDatabaseName, int64_t aId,
   quota::PersistenceType persistenceType =
     quota::PersistenceTypeFromStorage(options.mStorage);
 
-  RefPtr<indexedDB::IndexedDatabaseManager> mgr =
-    indexedDB::IndexedDatabaseManager::Get();
+  RefPtr<IndexedDatabaseManager> mgr = IndexedDatabaseManager::Get();
 
   if (mgr) {
     rv = mgr->BlockAndGetFileReferences(persistenceType, origin, aDatabaseName,
@@ -3082,8 +3081,6 @@ NS_IMETHODIMP
 nsDOMWindowUtils::FlushPendingFileDeletions()
 {
   MOZ_RELEASE_ASSERT(nsContentUtils::IsCallerChrome());
-
-  using mozilla::dom::indexedDB::IndexedDatabaseManager;
 
   RefPtr<IndexedDatabaseManager> mgr = IndexedDatabaseManager::Get();
   if (mgr) {

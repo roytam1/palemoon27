@@ -1909,7 +1909,7 @@ NS_IMPL_CYCLE_COLLECTION_CLASS(nsDocument)
 
 NS_IMPL_CYCLE_COLLECTION_TRACE_BEGIN(nsDocument)
   if (tmp->PreservingWrapper()) {
-    NS_IMPL_CYCLE_COLLECTION_TRACE_JSVAL_MEMBER_CALLBACK(mExpandoAndGeneration.expando);
+    NS_IMPL_CYCLE_COLLECTION_TRACE_JS_MEMBER_CALLBACK(mExpandoAndGeneration.expando)
   }
   NS_IMPL_CYCLE_COLLECTION_TRACE_PRESERVED_WRAPPER
 NS_IMPL_CYCLE_COLLECTION_TRACE_END
@@ -2133,7 +2133,15 @@ nsDocument::Reset(nsIChannel* aChannel, nsILoadGroup* aLoadGroup)
   // Note that, since mTiming does not change during a reset, the
   // navigationStart time remains unchanged and therefore any future new
   // timeline will have the same global clock time as the old one.
-  mDocumentTimeline = nullptr;
+  if (mDocumentTimeline) {
+    nsRefreshDriver* rd = mPresShell && mPresShell->GetPresContext() ?
+                          mPresShell->GetPresContext()->RefreshDriver() :
+                          nullptr;
+    if (rd) {
+      mDocumentTimeline->NotifyRefreshDriverDestroying(rd);
+    }
+    mDocumentTimeline = nullptr;
+  }
 
   nsCOMPtr<nsIPropertyBag2> bag = do_QueryInterface(aChannel);
   if (bag) {

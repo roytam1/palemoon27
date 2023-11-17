@@ -38,8 +38,8 @@
 
 namespace mozilla {
 namespace dom {
-namespace indexedDB {
 
+using namespace mozilla::dom::indexedDB;
 using namespace mozilla::dom::workers;
 using namespace mozilla::ipc;
 
@@ -436,7 +436,7 @@ NS_IMPL_CYCLE_COLLECTION_UNLINK_END
 NS_IMPL_CYCLE_COLLECTION_TRACE_BEGIN_INHERITED(IDBRequest, IDBWrapperCache)
   // Don't need NS_IMPL_CYCLE_COLLECTION_TRACE_PRESERVED_WRAPPER because
   // DOMEventTargetHelper does it for us.
-  NS_IMPL_CYCLE_COLLECTION_TRACE_JSVAL_MEMBER_CALLBACK(mResultVal)
+  NS_IMPL_CYCLE_COLLECTION_TRACE_JS_MEMBER_CALLBACK(mResultVal)
 NS_IMPL_CYCLE_COLLECTION_TRACE_END
 
 NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION_INHERITED(IDBRequest)
@@ -660,6 +660,5 @@ WorkerFeature::Notify(JSContext* aCx, Status aStatus)
   return true;
 }
 
-} // namespace indexedDB
 } // namespace dom
 } // namespace mozilla

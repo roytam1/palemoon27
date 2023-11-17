@@ -211,7 +211,7 @@ function testToolbarFolder() {
 
   // child count (add 2 for pre-existing items)
   do_check_eq(toolbar.childCount, bookmarkData.length + 2);
-  
+
   // livemark
   var livemark = toolbar.getChild(1);
   // title

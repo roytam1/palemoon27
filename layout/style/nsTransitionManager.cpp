@@ -28,6 +28,7 @@
 #include "Layers.h"
 #include "FrameLayerBuilder.h"
 #include "nsCSSProps.h"
+#include "nsCSSPseudoElements.h"
 #include "nsDisplayList.h"
 #include "nsStyleChangeList.h"
 #include "nsStyleSet.h"
@@ -129,7 +130,7 @@ CSSTransition::QueueEvents()
   }
 
   dom::Element* owningElement;
-  nsCSSPseudoElements::Type owningPseudoType;
+  CSSPseudoElementType owningPseudoType;
   mOwningElement.GetElement(owningElement, owningPseudoType);
   MOZ_ASSERT(owningElement, "Owning element should be set");
 
@@ -177,56 +178,38 @@ CSSTransition::TransitionProperty() const
 }
 
 bool
-CSSTransition::HasLowerCompositeOrderThan(const Animation& aOther) const
+CSSTransition::HasLowerCompositeOrderThan(const CSSTransition& aOther) const
 {
+  MOZ_ASSERT(IsTiedToMarkup() && aOther.IsTiedToMarkup(),
+             "Should only be called for CSS transitions that are sorted "
+             "as CSS transitions (i.e. tied to CSS markup)");
+
   // 0. Object-equality case
   if (&aOther == this) {
     return false;
   }
 
-  // 1. Transitions sort lowest
-  const CSSTransition* otherTransition = aOther.AsCSSTransition();
-  if (!otherTransition) {
-    return true;
+  // 1. Sort by document order
+  if (!mOwningElement.Equals(aOther.mOwningElement)) {
+    return mOwningElement.LessThan(aOther.mOwningElement);
   }
 
-  // 2. CSS transitions that correspond to a transition-property property sort
-  // lower than CSS transitions owned by script.
-  if (!IsTiedToMarkup()) {
-    return !otherTransition->IsTiedToMarkup() ?
-           Animation::HasLowerCompositeOrderThan(aOther) :
-           false;
-  }
-  if (!otherTransition->IsTiedToMarkup()) {
-    return true;
+  // 2. (Same element and pseudo): Sort by transition generation
+  if (mAnimationIndex != aOther.mAnimationIndex) {
+    return mAnimationIndex < aOther.mAnimationIndex;
   }
 
-  // 3. Sort by document order
-  if (!mOwningElement.Equals(otherTransition->mOwningElement)) {
-    return mOwningElement.LessThan(otherTransition->mOwningElement);
-  }
-
-  // 4. (Same element and pseudo): Sort by transition generation
-  if (mAnimationIndex != otherTransition->mAnimationIndex) {
-    return mAnimationIndex < otherTransition->mAnimationIndex;
-  }
-
-  // 5. (Same transition generation): Sort by transition property
+  // 3. (Same transition generation): Sort by transition property
   return nsCSSProps::GetStringValue(TransitionProperty()) <
-         nsCSSProps::GetStringValue(otherTransition->TransitionProperty());
+         nsCSSProps::GetStringValue(aOther.TransitionProperty());
 }
 
 ////////////////////////// nsTransitionManager ////////////////////////////
 
 NS_IMPL_CYCLE_COLLECTION(nsTransitionManager, mEventDispatcher)
 
-NS_IMPL_CYCLE_COLLECTING_ADDREF(nsTransitionManager)
-NS_IMPL_CYCLE_COLLECTING_RELEASE(nsTransitionManager)
-
-NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(nsTransitionManager)
-  NS_INTERFACE_MAP_ENTRY(nsIStyleRuleProcessor)
-  NS_INTERFACE_MAP_ENTRY(nsISupports)
-NS_INTERFACE_MAP_END
+NS_IMPL_CYCLE_COLLECTION_ROOT_NATIVE(nsTransitionManager, AddRef)
+NS_IMPL_CYCLE_COLLECTION_UNROOT_NATIVE(nsTransitionManager, Release)
 
 void
 nsTransitionManager::StyleContextChanged(dom::Element *aElement,
@@ -279,16 +262,16 @@ nsTransitionManager::StyleContextChanged(dom::Element *aElement,
   // Return sooner (before the startedAny check below) for the most
   // common case: no transitions specified or running.
   const nsStyleDisplay *disp = newStyleContext->StyleDisplay();
-  nsCSSPseudoElements::Type pseudoType = newStyleContext->GetPseudoType();
-  if (pseudoType != nsCSSPseudoElements::ePseudo_NotPseudoElement) {
-    if (pseudoType != nsCSSPseudoElements::ePseudo_before &&
-        pseudoType != nsCSSPseudoElements::ePseudo_after) {
+  CSSPseudoElementType pseudoType = newStyleContext->GetPseudoType();
+  if (pseudoType != CSSPseudoElementType::NotPseudo) {
+    if (pseudoType != CSSPseudoElementType::before &&
+        pseudoType != CSSPseudoElementType::after) {
       return;
     }
 
-    NS_ASSERTION((pseudoType == nsCSSPseudoElements::ePseudo_before &&
+    NS_ASSERTION((pseudoType == CSSPseudoElementType::before &&
                   aElement->NodeInfo()->NameAtom() == nsGkAtoms::mozgeneratedcontentbefore) ||
-                 (pseudoType == nsCSSPseudoElements::ePseudo_after &&
+                 (pseudoType == CSSPseudoElementType::after &&
                   aElement->NodeInfo()->NameAtom() == nsGkAtoms::mozgeneratedcontentafter),
                  "Unexpected aElement coming through");
 
@@ -676,9 +659,8 @@ nsTransitionManager::ConsiderStartingTransition(
 
   RefPtr<ElementPropertyTransition> pt =
     new ElementPropertyTransition(aElement->OwnerDoc(), aElement,
-                                  aNewStyleContext->GetPseudoType(), timing);
-  pt->mStartForReversingTest = startForReversingTest;
-  pt->mReversePortion = reversePortion;
+                                  aNewStyleContext->GetPseudoType(), timing,
+                                  startForReversingTest, reversePortion);
 
   AnimationProperty& prop = *pt->Properties().AppendElement();
   prop.mProperty = aProperty;
@@ -753,8 +735,7 @@ nsTransitionManager::ConsiderStartingTransition(
 
 void
 nsTransitionManager::PruneCompletedTransitions(mozilla::dom::Element* aElement,
-                                               nsCSSPseudoElements::Type
-                                                 aPseudoType,
+                                               CSSPseudoElementType aPseudoType,
                                                nsStyleContext* aNewStyleContext)
 {
   AnimationCollection* collection =
@@ -804,24 +785,4 @@ nsTransitionManager::PruneCompletedTransitions(mozilla::dom::Element* aElement,
     // |collection| is now a dangling pointer!
     collection = nullptr;
   }
-}
-
-/*
- * nsIStyleRuleProcessor implementation
- */
-
-/* virtual */ size_t
-nsTransitionManager::SizeOfExcludingThis(MallocSizeOf aMallocSizeOf) const
-{
-  return CommonAnimationManager::SizeOfExcludingThis(aMallocSizeOf);
-
-  // Measurement of the following members may be added later if DMD finds it is
-  // worthwhile:
-  // - mEventDispatcher
-}
-
-/* virtual */ size_t
-nsTransitionManager::SizeOfIncludingThis(MallocSizeOf aMallocSizeOf) const
-{
-  return aMallocSizeOf(this) + SizeOfExcludingThis(aMallocSizeOf);
 }

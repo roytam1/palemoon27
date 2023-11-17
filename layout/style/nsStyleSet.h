@@ -25,7 +25,6 @@
 #include "nsCOMArray.h"
 #include "nsAutoPtr.h"
 #include "nsIStyleRule.h"
-#include "nsCSSPseudoElements.h"
 
 class gfxFontFeatureValueSet;
 class nsCSSKeyframesRule;
@@ -40,6 +39,7 @@ struct TreeMatchContext;
 
 namespace mozilla {
 class EventStates;
+enum class CSSPseudoElementType : uint8_t;
 } // namespace mozilla
 
 class nsEmptyStyleRule final : public nsIStyleRule
@@ -171,13 +171,13 @@ class nsStyleSet final
   ResolveStyleForNonElement(nsStyleContext* aParentContext);
 
   // Get a style context for a pseudo-element.  aParentElement must be
-  // non-null.  aPseudoID is the nsCSSPseudoElements::Type for the
+  // non-null.  aPseudoID is the CSSPseudoElementType for the
   // pseudo-element.  aPseudoElement must be non-null if the pseudo-element
   // type is one that allows user action pseudo-classes after it or allows
   // style attributes; otherwise, it is ignored.
   already_AddRefed<nsStyleContext>
   ResolvePseudoElementStyle(mozilla::dom::Element* aParentElement,
-                            nsCSSPseudoElements::Type aType,
+                            mozilla::CSSPseudoElementType aType,
                             nsStyleContext* aParentContext,
                             mozilla::dom::Element* aPseudoElement);
 
@@ -186,11 +186,11 @@ class nsStyleSet final
   // pseudo element.
   already_AddRefed<nsStyleContext>
   ProbePseudoElementStyle(mozilla::dom::Element* aParentElement,
-                          nsCSSPseudoElements::Type aType,
+                          mozilla::CSSPseudoElementType aType,
                           nsStyleContext* aParentContext);
   already_AddRefed<nsStyleContext>
   ProbePseudoElementStyle(mozilla::dom::Element* aParentElement,
-                          nsCSSPseudoElements::Type aType,
+                          mozilla::CSSPseudoElementType aType,
                           nsStyleContext* aParentContext,
                           TreeMatchContext& aTreeMatchContext,
                           mozilla::dom::Element* aPseudoElement = nullptr);
@@ -282,12 +282,13 @@ class nsStyleSet final
   nsRestyleHint HasStateDependentStyle(mozilla::dom::Element* aElement,
                                        mozilla::EventStates aStateMask);
   nsRestyleHint HasStateDependentStyle(mozilla::dom::Element* aElement,
-                                       nsCSSPseudoElements::Type aPseudoType,
+                                       mozilla::CSSPseudoElementType aPseudoType,
                                        mozilla::dom::Element* aPseudoElement,
                                        mozilla::EventStates aStateMask);
 
   // Test if style is dependent on the presence of an attribute.
   nsRestyleHint HasAttributeDependentStyle(mozilla::dom::Element* aElement,
+                                           int32_t        aNameSpaceID,
                                            nsIAtom*       aAttribute,
                                            int32_t        aModType,
                                            bool           aAttrHasChanged,
@@ -321,7 +322,7 @@ class nsStyleSet final
                                   nsIStyleSheet *aReferenceSheet);
 
   // Enable/Disable entire author style level (Doc, ScopedDoc & PresHint levels)
-  bool GetAuthorStyleDisabled();
+  bool GetAuthorStyleDisabled() const;
   nsresult SetAuthorStyleDisabled(bool aStyleDisabled);
 
   int32_t SheetCount(mozilla::SheetType aType) const {
@@ -412,7 +413,7 @@ private:
 
   // Move aRuleWalker forward by the appropriate rule if we need to add
   // a rule due to property restrictions on pseudo-elements.
-  void WalkRestrictionRule(nsCSSPseudoElements::Type aPseudoType,
+  void WalkRestrictionRule(mozilla::CSSPseudoElementType aPseudoType,
                            nsRuleWalker* aRuleWalker);
 
   void WalkDisableTextZoomRule(mozilla::dom::Element* aElement,
@@ -453,7 +454,7 @@ private:
   nsRuleNode* RuleNodeWithReplacement(mozilla::dom::Element* aElement,
                                       mozilla::dom::Element* aPseudoElement,
                                       nsRuleNode* aOldRuleNode,
-                                      nsCSSPseudoElements::Type aPseudoType,
+                                      mozilla::CSSPseudoElementType aPseudoType,
                                       nsRestyleHint aReplacements);
 
   already_AddRefed<nsStyleContext>
@@ -461,7 +462,7 @@ private:
              nsRuleNode* aRuleNode,
              nsRuleNode* aVisitedRuleNode,
              nsIAtom* aPseudoTag,
-             nsCSSPseudoElements::Type aPseudoType,
+             mozilla::CSSPseudoElementType aPseudoType,
              mozilla::dom::Element* aElementForAnimation,
              uint32_t aFlags);
 

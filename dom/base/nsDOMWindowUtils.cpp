@@ -102,6 +102,7 @@
 #include "nsIStyleSheet.h"
 #include "nsIStyleSheetService.h"
 #include "nsContentPermissionHelper.h"
+#include "nsCSSPseudoElements.h"            // for CSSPseudoElementType
 #include "nsNetUtil.h"
 #include "nsDocument.h"
 #include "HTMLImageElement.h"
@@ -2380,13 +2381,12 @@ ComputeAnimationValue(nsCSSProperty aProperty,
                       StyleAnimationValue& aOutput)
 {
 
-  if (!StyleAnimationValue::ComputeValue(
-        aProperty,
-        aElement,
-        nsCSSPseudoElements::ePseudo_NotPseudoElement,
-        aInput,
-        false,
-        aOutput)) {
+  if (!StyleAnimationValue::ComputeValue(aProperty,
+                                         aElement,
+                                         CSSPseudoElementType::NotPseudo,
+                                         aInput,
+                                         false,
+                                         aOutput)) {
     return false;
   }
 

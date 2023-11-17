@@ -17,6 +17,7 @@
 #include "nsCSSParser.h"
 #include "nsCSSPropertySet.h"
 #include "nsCSSProps.h" // For nsCSSProps::PropHasFlags
+#include "nsCSSPseudoElements.h"
 #include "nsCSSValue.h"
 #include "nsStyleUtil.h"
 #include <algorithm> // For std::max
@@ -74,16 +75,26 @@ NS_IMPL_RELEASE_INHERITED(KeyframeEffectReadOnly, AnimationEffectReadOnly)
 KeyframeEffectReadOnly::KeyframeEffectReadOnly(
   nsIDocument* aDocument,
   Element* aTarget,
-  nsCSSPseudoElements::Type aPseudoType,
+  CSSPseudoElementType aPseudoType,
   const TimingParams& aTiming)
+  : KeyframeEffectReadOnly(aDocument, aTarget, aPseudoType,
+                           new AnimationEffectTimingReadOnly(aTiming))
+{
+}
+
+KeyframeEffectReadOnly::KeyframeEffectReadOnly(
+  nsIDocument* aDocument,
+  Element* aTarget,
+  CSSPseudoElementType aPseudoType,
+  AnimationEffectTimingReadOnly* aTiming)
   : AnimationEffectReadOnly(aDocument)
   , mTarget(aTarget)
+  , mTiming(*aTiming)
   , mPseudoType(aPseudoType)
   , mInEffectOnLastAnimationTimingUpdate(false)
 {
+  MOZ_ASSERT(aTiming);
   MOZ_ASSERT(aTarget, "null animation target is not yet supported");
-
-  mTiming = new AnimationEffectTimingReadOnly(aTiming);
 }
 
 JSObject*
@@ -179,6 +190,14 @@ KeyframeEffectReadOnly::NotifyAnimationTimingUpdated()
       presContext->EffectCompositor()->
         RequestRestyle(mTarget, mPseudoType, restyleType,
                        mAnimation->CascadeLevel());
+    }
+
+    // If we're not relevant, we will have been removed from the EffectSet.
+    // As a result, when the restyle we requested above is fulfilled, our
+    // ComposeStyle will not get called and mProgressOnLastCompose will not
+    // be updated. Instead, we need to manually clear it.
+    if (!isRelevant) {
+      mProgressOnLastCompose.SetNull();
     }
   }
 }
@@ -578,6 +597,71 @@ KeyframeEffectReadOnly::~KeyframeEffectReadOnly()
 {
 }
 
+template <class KeyframeEffectType>
+/* static */ already_AddRefed<KeyframeEffectType>
+KeyframeEffectReadOnly::ConstructKeyframeEffect(const GlobalObject& aGlobal,
+                                                const Nullable<ElementOrCSSPseudoElement>& aTarget,
+                                                JS::Handle<JSObject*> aFrames,
+                                                const TimingParams& aTiming,
+                                                ErrorResult& aRv)
+{
+  if (aTarget.IsNull()) {
+    // We don't support null targets yet.
+    aRv.Throw(NS_ERROR_DOM_ANIM_NO_TARGET_ERR);
+    return nullptr;
+  }
+
+  const ElementOrCSSPseudoElement& target = aTarget.Value();
+  MOZ_ASSERT(target.IsElement() || target.IsCSSPseudoElement(),
+             "Uninitialized target");
+
+  RefPtr<Element> targetElement;
+  CSSPseudoElementType pseudoType = CSSPseudoElementType::NotPseudo;
+  if (target.IsElement()) {
+    targetElement = &target.GetAsElement();
+  } else {
+    targetElement = target.GetAsCSSPseudoElement().ParentElement();
+    pseudoType = target.GetAsCSSPseudoElement().GetType();
+  }
+
+  if (!targetElement->GetComposedDoc()) {
+    aRv.Throw(NS_ERROR_DOM_ANIM_TARGET_NOT_IN_DOC_ERR);
+    return nullptr;
+  }
+
+  InfallibleTArray<AnimationProperty> animationProperties;
+  BuildAnimationPropertyList(aGlobal.Context(), targetElement, pseudoType,
+                             aFrames, animationProperties, aRv);
+
+  if (aRv.Failed()) {
+    return nullptr;
+  }
+
+  RefPtr<KeyframeEffectType> effect =
+    new KeyframeEffectType(targetElement->OwnerDoc(), targetElement,
+                           pseudoType, aTiming);
+  effect->mProperties = Move(animationProperties);
+  return effect.forget();
+}
+
+// Explicit instantiations to avoid linker errors.
+
+template
+already_AddRefed<KeyframeEffectReadOnly>
+KeyframeEffectReadOnly::ConstructKeyframeEffect<>(const GlobalObject& aGlobal,
+                                                  const Nullable<ElementOrCSSPseudoElement>& aTarget,
+                                                  JS::Handle<JSObject*> aFrames,
+                                                  const TimingParams& aTiming,
+                                                  ErrorResult& aRv);
+
+template
+already_AddRefed<KeyframeEffect>
+KeyframeEffectReadOnly::ConstructKeyframeEffect<>(const GlobalObject& aGlobal,
+                                                  const Nullable<ElementOrCSSPseudoElement>& aTarget,
+                                                  JS::Handle<JSObject*> aFrames,
+                                                  const TimingParams& aTiming,
+                                                  ErrorResult& aRv);
+
 void
 KeyframeEffectReadOnly::ResetIsRunningOnCompositor()
 {
@@ -610,6 +694,9 @@ KeyframeEffectReadOnly::UpdateTargetRegistration()
     EffectSet* effectSet = EffectSet::GetEffectSet(mTarget, mPseudoType);
     if (effectSet) {
       effectSet->RemoveEffect(*this);
+      if (effectSet->IsEmpty()) {
+        EffectSet::DestroyEffectSet(mTarget, mPseudoType);
+      }
     }
   }
 }
@@ -1134,7 +1221,7 @@ ApplyDistributeSpacing(nsTArray<OffsetIndexedKeyframe>& aKeyframes)
  */
 static void
 GenerateValueEntries(Element* aTarget,
-                     nsCSSPseudoElements::Type aPseudoType,
+                     CSSPseudoElementType aPseudoType,
                      nsTArray<OffsetIndexedKeyframe>& aKeyframes,
                      nsTArray<KeyframeValueEntry>& aResult,
                      ErrorResult& aRv)
@@ -1338,7 +1425,7 @@ static void
 BuildAnimationPropertyListFromKeyframeSequence(
     JSContext* aCx,
     Element* aTarget,
-    nsCSSPseudoElements::Type aPseudoType,
+    CSSPseudoElementType aPseudoType,
     JS::ForOfIterator& aIterator,
     nsTArray<AnimationProperty>& aResult,
     ErrorResult& aRv)
@@ -1396,7 +1483,7 @@ static void
 BuildAnimationPropertyListFromPropertyIndexedKeyframes(
     JSContext* aCx,
     Element* aTarget,
-    nsCSSPseudoElements::Type aPseudoType,
+    CSSPseudoElementType aPseudoType,
     JS::Handle<JS::Value> aValue,
     InfallibleTArray<AnimationProperty>& aResult,
     ErrorResult& aRv)
@@ -1571,7 +1658,7 @@ BuildAnimationPropertyListFromPropertyIndexedKeyframes(
 KeyframeEffectReadOnly::BuildAnimationPropertyList(
     JSContext* aCx,
     Element* aTarget,
-    nsCSSPseudoElements::Type aPseudoType,
+    CSSPseudoElementType aPseudoType,
     JS::Handle<JSObject*> aFrames,
     InfallibleTArray<AnimationProperty>& aResult,
     ErrorResult& aRv)
@@ -1615,55 +1702,6 @@ KeyframeEffectReadOnly::BuildAnimationPropertyList(
   }
 }
 
-/* static */ already_AddRefed<KeyframeEffectReadOnly>
-KeyframeEffectReadOnly::Constructor(
-    const GlobalObject& aGlobal,
-    const Nullable<ElementOrCSSPseudoElement>& aTarget,
-    JS::Handle<JSObject*> aFrames,
-    const TimingParams& aTiming,
-    ErrorResult& aRv)
-{
-  if (aTarget.IsNull()) {
-    // We don't support null targets yet.
-    aRv.Throw(NS_ERROR_DOM_ANIM_NO_TARGET_ERR);
-    return nullptr;
-  }
-
-  const ElementOrCSSPseudoElement& target = aTarget.Value();
-  MOZ_ASSERT(target.IsElement() || target.IsCSSPseudoElement(),
-             "Uninitialized target");
-
-  RefPtr<Element> targetElement;
-  nsCSSPseudoElements::Type pseudoType =
-    nsCSSPseudoElements::ePseudo_NotPseudoElement;
-  if (target.IsElement()) {
-    targetElement = &target.GetAsElement();
-  } else {
-    targetElement = target.GetAsCSSPseudoElement().ParentElement();
-    pseudoType = target.GetAsCSSPseudoElement().GetType();
-  }
-
-  if (!targetElement->GetCurrentDoc()) {
-    // Bug 1245748: We don't support targets that are not in a document yet.
-    aRv.Throw(NS_ERROR_DOM_ANIM_TARGET_NOT_IN_DOC_ERR);
-    return nullptr;
-  }
-
-  InfallibleTArray<AnimationProperty> animationProperties;
-  BuildAnimationPropertyList(aGlobal.Context(), targetElement, pseudoType,
-                             aFrames, animationProperties, aRv);
-
-  if (aRv.Failed()) {
-    return nullptr;
-  }
-
-  RefPtr<KeyframeEffectReadOnly> effect =
-    new KeyframeEffectReadOnly(targetElement->OwnerDoc(), targetElement,
-                               pseudoType, aTiming);
-  effect->mProperties = Move(animationProperties);
-  return effect.forget();
-}
-
 void
 KeyframeEffectReadOnly::GetTarget(
     Nullable<OwningElementOrCSSPseudoElement>& aRv) const
@@ -1674,13 +1712,13 @@ KeyframeEffectReadOnly::GetTarget(
   }
 
   switch (mPseudoType) {
-    case nsCSSPseudoElements::ePseudo_before:
-    case nsCSSPseudoElements::ePseudo_after:
+    case CSSPseudoElementType::before:
+    case CSSPseudoElementType::after:
       aRv.SetValue().SetAsCSSPseudoElement() =
         CSSPseudoElement::GetCSSPseudoElement(mTarget, mPseudoType);
       break;
 
-    case nsCSSPseudoElements::ePseudo_NotPseudoElement:
+    case CSSPseudoElementType::NotPseudo:
       aRv.SetValue().SetAsElement() = mTarget;
       break;
 
@@ -1928,12 +1966,12 @@ KeyframeEffectReadOnly::GetAnimationFrame() const
     return nullptr;
   }
 
-  if (mPseudoType == nsCSSPseudoElements::ePseudo_before) {
+  if (mPseudoType == CSSPseudoElementType::before) {
     frame = nsLayoutUtils::GetBeforeFrame(frame);
-  } else if (mPseudoType == nsCSSPseudoElements::ePseudo_after) {
+  } else if (mPseudoType == CSSPseudoElementType::after) {
     frame = nsLayoutUtils::GetAfterFrame(frame);
   } else {
-    MOZ_ASSERT(mPseudoType == nsCSSPseudoElements::ePseudo_NotPseudoElement,
+    MOZ_ASSERT(mPseudoType == CSSPseudoElementType::NotPseudo,
                "unknown mPseudoType");
   }
   if (!frame) {
@@ -2061,6 +2099,21 @@ KeyframeEffectReadOnly::ShouldBlockCompositorAnimations(const nsIFrame*
   }
 
   return false;
+}
+
+//---------------------------------------------------------------------
+//
+// KeyframeEffect
+//
+//---------------------------------------------------------------------
+
+KeyframeEffect::KeyframeEffect(nsIDocument* aDocument,
+                               Element* aTarget,
+                               CSSPseudoElementType aPseudoType,
+                               const TimingParams& aTiming)
+  : KeyframeEffectReadOnly(aDocument, aTarget, aPseudoType,
+                           new AnimationEffectTiming(aTiming))
+{
 }
 
 JSObject*

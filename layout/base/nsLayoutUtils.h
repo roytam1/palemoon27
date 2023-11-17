@@ -16,7 +16,6 @@
 #include "mozilla/layout/FrameChildList.h"
 #include "nsThreadUtils.h"
 #include "nsIPrincipal.h"
-#include "nsCSSPseudoElements.h"
 #include "FrameMetrics.h"
 #include "nsIWidget.h"
 #include "nsCSSProperty.h"
@@ -62,6 +61,7 @@ struct nsStyleImageOrientation;
 struct nsOverflowAreas;
 
 namespace mozilla {
+enum class CSSPseudoElementType : uint8_t;
 class EventListenerManager;
 class SVGImageContext;
 struct IntrinsicSize;
@@ -325,6 +325,10 @@ public:
    * return the frame that has the non-psuedoelement style context for
    * the content.
    * This is aPrimaryFrame itself except for tableOuter frames.
+   *
+   * Given a non-null input, this will return null if and only if its
+   * argument is a table outer frame that is mid-destruction (and its
+   * table frame has been destroyed).
    */
   static nsIFrame* GetStyleFrame(nsIFrame* aPrimaryFrame);
 
@@ -651,7 +655,7 @@ public:
    */
   static bool HasPseudoStyle(nsIContent* aContent,
                                nsStyleContext* aStyleContext,
-                               nsCSSPseudoElements::Type aPseudoElement,
+                               mozilla::CSSPseudoElementType aPseudoElement,
                                nsPresContext* aPresContext);
 
   /**
@@ -2254,7 +2258,8 @@ public:
    */
   static bool GetAnimationContent(const nsIFrame* aFrame,
                                   nsIContent* &aContentResult,
-                                  nsCSSPseudoElements::Type &aPseudoTypeResult);
+                                  mozilla::CSSPseudoElementType
+                                    &aPseudoTypeResult);
 
   /**
    * Returns true if the frame has current (i.e. running or scheduled-to-run)

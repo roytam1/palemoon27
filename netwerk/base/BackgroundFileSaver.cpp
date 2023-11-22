@@ -1198,6 +1198,10 @@ DigestOutputStream::DigestOutputStream(nsIOutputStream* aStream,
 
 DigestOutputStream::~DigestOutputStream()
 {
+  nsNSSShutDownPreventionLock locker;
+  if (isAlreadyShutDown()) {
+    return;
+  }
   shutdown(calledFromObject);
 }
 
@@ -1251,6 +1255,8 @@ DigestOutputStream::IsNonBlocking(bool *retval)
 {
   return mOutputStream->IsNonBlocking(retval);
 }
+
+#undef LOG_ENABLED
 
 } // namespace net
 } // namespace mozilla

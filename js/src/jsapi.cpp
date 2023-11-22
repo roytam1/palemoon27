@@ -963,7 +963,8 @@ JS_TransplantObject(JSContext* cx, HandleObject origobj, HandleObject target)
         MOZ_ASSERT(Wrapper::wrappedObject(newIdentityWrapper) == newIdentity);
         if (!JSObject::swap(cx, origobj, newIdentityWrapper))
             MOZ_CRASH();
-        origobj->compartment()->putWrapper(cx, CrossCompartmentKey(newIdentity), origv);
+        if (!origobj->compartment()->putWrapper(cx, CrossCompartmentKey(newIdentity), origv))
+            MOZ_CRASH();
     }
 
     // The new identity object might be one of several things. Return it to avoid
@@ -1056,15 +1057,6 @@ static const JSStdName builtin_property_names[] = {
 #if JS_HAS_UNEVAL
     { EAGER_ATOM(uneval), JSProto_String },
 #endif
-#ifdef ENABLE_SIMD
-    { EAGER_ATOM(SIMD), JSProto_SIMD },
-#endif
-#ifdef ENABLE_BINARYDATA
-    { EAGER_ATOM(TypedObject), JSProto_TypedObject },
-#endif
-#ifdef ENABLE_SHARED_ARRAY_BUFFER
-    { EAGER_ATOM(Atomics), JSProto_Atomics },
-#endif
 
     { 0, JSProto_LIMIT }
 };
@@ -1104,14 +1096,8 @@ JS_ResolveStandardClass(JSContext* cx, HandleObject obj, HandleId id, bool* reso
     if (!stdnm)
         stdnm = LookupStdName(cx->names(), idAtom, builtin_property_names);
 
-#ifdef ENABLE_SHARED_ARRAY_BUFFER
-    if (stdnm && !cx->compartment()->creationOptions().getSharedMemoryAndAtomicsEnabled() &&
-        (stdnm->atomOffset == NAME_OFFSET(Atomics) ||
-         stdnm->atomOffset == NAME_OFFSET(SharedArrayBuffer)))
-    {
+    if (stdnm && GlobalObject::skipDeselectedConstructor(cx, stdnm->key))
         stdnm = nullptr;
-    }
-#endif
 
     // If this class is anonymous, then it doesn't exist as a global
     // property, so we won't resolve anything.
@@ -1153,6 +1139,9 @@ JS_MayResolveStandardClass(const JSAtomState& names, jsid id, JSObject* maybeObj
         return false;
 
     JSAtom* atom = JSID_TO_ATOM(id);
+
+    // This will return true even for deselected constructors.  (To do
+    // better, we need a JSContext here; it's fine as it is.)
 
     return atom == names.undefined ||
            LookupStdName(names, atom, standard_class_names) ||
@@ -1208,6 +1197,9 @@ JS_IdToProtoKey(JSContext* cx, HandleId id)
     JSAtom* atom = JSID_TO_ATOM(id);
     const JSStdName* stdnm = LookupStdName(cx->names(), atom, standard_class_names);
     if (!stdnm)
+        return JSProto_Null;
+
+    if (GlobalObject::skipDeselectedConstructor(cx, stdnm->key))
         return JSProto_Null;
 
     MOZ_ASSERT(MOZ_ARRAY_LENGTH(standard_class_names) == JSProto_LIMIT + 1);
@@ -3091,7 +3083,7 @@ DefineSelfHostedProperty(JSContext* cx, HandleObject obj, HandleId id,
             return false;
         }
         MOZ_ASSERT(setterValue.isObject() && setterValue.toObject().is<JSFunction>());
-        setterFunc = &getterValue.toObject().as<JSFunction>();
+        setterFunc = &setterValue.toObject().as<JSFunction>();
     }
     JSNative setterOp = JS_DATA_TO_FUNC_PTR(JSNative, setterFunc.get());
 
@@ -4153,11 +4145,11 @@ JS::FinishOffThreadScript(JSContext* maybecx, JSRuntime* rt, void* token)
         RootedScript script(maybecx);
         {
             AutoLastFrameCheck lfc(maybecx);
-            script = HelperThreadState().finishParseTask(maybecx, rt, token);
+            script = HelperThreadState().finishScriptParseTask(maybecx, rt, token);
         }
         return script;
     } else {
-        return HelperThreadState().finishParseTask(maybecx, rt, token);
+        return HelperThreadState().finishScriptParseTask(maybecx, rt, token);
     }
 }
 

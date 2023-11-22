@@ -781,6 +781,64 @@ intrinsic_ArrayBufferCopyData(JSContext* cx, unsigned argc, Value* vp)
 }
 
 static bool
+intrinsic_IsSpecificTypedArray(JSContext* cx, unsigned argc, Value* vp, Scalar::Type type)
+{
+    CallArgs args = CallArgsFromVp(argc, vp);
+    MOZ_ASSERT(args.length() == 1);
+    MOZ_ASSERT(args[0].isObject());
+
+    JSObject* obj = &args[0].toObject();
+
+    bool isArray = JS_GetArrayBufferViewType(obj) == type;
+
+    args.rval().setBoolean(isArray);
+    return true;
+}
+
+static bool
+intrinsic_IsUint8TypedArray(JSContext* cx, unsigned argc, Value* vp)
+{
+    return intrinsic_IsSpecificTypedArray(cx, argc, vp, Scalar::Uint8) ||
+           intrinsic_IsSpecificTypedArray(cx, argc, vp, Scalar::Uint8Clamped);
+}
+
+static bool
+intrinsic_IsInt8TypedArray(JSContext* cx, unsigned argc, Value* vp)
+{
+    return intrinsic_IsSpecificTypedArray(cx, argc, vp, Scalar::Int8);
+}
+
+static bool
+intrinsic_IsUint16TypedArray(JSContext* cx, unsigned argc, Value* vp)
+{
+    return intrinsic_IsSpecificTypedArray(cx, argc, vp, Scalar::Uint16);
+}
+
+static bool
+intrinsic_IsInt16TypedArray(JSContext* cx, unsigned argc, Value* vp)
+{
+    return intrinsic_IsSpecificTypedArray(cx, argc, vp, Scalar::Int16);
+}
+
+static bool
+intrinsic_IsUint32TypedArray(JSContext* cx, unsigned argc, Value* vp)
+{
+    return intrinsic_IsSpecificTypedArray(cx, argc, vp, Scalar::Uint32);
+}
+
+static bool
+intrinsic_IsInt32TypedArray(JSContext* cx, unsigned argc, Value* vp)
+{
+    return intrinsic_IsSpecificTypedArray(cx, argc, vp, Scalar::Int32);
+}
+
+static bool
+intrinsic_IsFloat32TypedArray(JSContext* cx, unsigned argc, Value* vp)
+{
+    return intrinsic_IsSpecificTypedArray(cx, argc, vp, Scalar::Float32);
+}
+
+static bool
 intrinsic_IsPossiblyWrappedTypedArray(JSContext* cx, unsigned argc, Value* vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
@@ -1327,6 +1385,34 @@ CallNonGenericSelfhostedMethod(JSContext* cx, unsigned argc, Value* vp)
     return CallNonGenericMethod<Test, CallSelfHostedNonGenericMethod>(cx, args);
 }
 
+bool
+js::IsCallSelfHostedNonGenericMethod(NativeImpl impl)
+{
+    return impl == CallSelfHostedNonGenericMethod;
+}
+
+bool
+js::ReportIncompatibleSelfHostedMethod(JSContext* cx, const CallArgs& args)
+{
+    // The contract for this function is the same as CallSelfHostedNonGenericMethod.
+    // The normal ReportIncompatible function doesn't work for selfhosted functions,
+    // because they always call the different CallXXXMethodIfWrapped methods,
+    // which would be reported as the called function instead.
+
+    // Lookup the selfhosted method that was invoked.
+    ScriptFrameIter iter(cx);
+    MOZ_ASSERT(iter.isFunctionFrame());
+
+    JSAutoByteString funNameBytes;
+    if (const char* funName = GetFunctionNameBytes(cx, iter.callee(cx), &funNameBytes)) {
+        JS_ReportErrorNumber(cx, GetErrorMessage, nullptr, JSMSG_INCOMPATIBLE_METHOD,
+                             funName, "method", InformalValueTypeName(args.thisv()));
+    }
+
+    return false;
+}
+
+
 /**
  * Returns the default locale as a well-formed, but not necessarily canonicalized,
  * BCP-47 language tag.
@@ -1768,6 +1854,13 @@ static const JSFunctionSpec intrinsic_functions[] = {
     JS_FN("ArrayBufferByteLength",   intrinsic_ArrayBufferByteLength,   1,0),
     JS_FN("ArrayBufferCopyData",     intrinsic_ArrayBufferCopyData,     4,0),
 
+    JS_FN("IsUint8TypedArray",        intrinsic_IsUint8TypedArray,      1,0),
+    JS_FN("IsInt8TypedArray",         intrinsic_IsInt8TypedArray,       1,0),
+    JS_FN("IsUint16TypedArray",       intrinsic_IsUint16TypedArray,     1,0),
+    JS_FN("IsInt16TypedArray",        intrinsic_IsInt16TypedArray,      1,0),
+    JS_FN("IsUint32TypedArray",       intrinsic_IsUint32TypedArray,     1,0),
+    JS_FN("IsInt32TypedArray",        intrinsic_IsInt32TypedArray,      1,0),
+    JS_FN("IsFloat32TypedArray",      intrinsic_IsFloat32TypedArray,    1,0),
     JS_INLINABLE_FN("IsTypedArray",
                     intrinsic_IsInstanceOfBuiltin<TypedArrayObject>,    1,0,
                     IntrinsicIsTypedArray),

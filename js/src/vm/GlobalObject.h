@@ -164,6 +164,7 @@ class GlobalObject : public NativeObject
         MOZ_ASSERT(key <= JSProto_LIMIT);
         return getSlot(APPLICATION_SLOTS + key);
     }
+    static bool skipDeselectedConstructor(JSContext* cx, JSProtoKey key);
     static bool ensureConstructor(JSContext* cx, Handle<GlobalObject*> global, JSProtoKey key);
     static bool resolveConstructor(JSContext* cx, Handle<GlobalObject*> global, JSProtoKey key);
     static bool initBuiltinConstructor(JSContext* cx, Handle<GlobalObject*> global,
@@ -467,16 +468,39 @@ class GlobalObject : public NativeObject
         return getOrCreateObject(cx, DATE_TIME_FORMAT_PROTO, initDateTimeFormatProto);
     }
 
+    static bool ensureModulePrototypesCreated(JSContext *cx, Handle<GlobalObject*> global);
+
+    JSObject* maybeGetModulePrototype() {
+        Value value = getSlot(MODULE_PROTO);
+        return value.isUndefined() ? nullptr : &value.toObject();
+    }
+
+    JSObject* maybeGetImportEntryPrototype() {
+        Value value = getSlot(IMPORT_ENTRY_PROTO);
+        return value.isUndefined() ? nullptr : &value.toObject();
+    }
+
+    JSObject* maybeGetExportEntryPrototype() {
+        Value value = getSlot(EXPORT_ENTRY_PROTO);
+        return value.isUndefined() ? nullptr : &value.toObject();
+    }
+
     JSObject* getModulePrototype() {
-        return &getSlot(MODULE_PROTO).toObject();
+        JSObject* proto = maybeGetModulePrototype();
+        MOZ_ASSERT(proto);
+        return proto;
     }
 
     JSObject* getImportEntryPrototype() {
-        return &getSlot(IMPORT_ENTRY_PROTO).toObject();
+        JSObject* proto = maybeGetImportEntryPrototype();
+        MOZ_ASSERT(proto);
+        return proto;
     }
 
     JSObject* getExportEntryPrototype() {
-        return &getSlot(EXPORT_ENTRY_PROTO).toObject();
+        JSObject* proto = maybeGetExportEntryPrototype();
+        MOZ_ASSERT(proto);
+        return proto;
     }
 
     static JSFunction*
@@ -600,7 +624,7 @@ class GlobalObject : public NativeObject
 
     static bool
     maybeGetIntrinsicValue(JSContext* cx, Handle<GlobalObject*> global, Handle<PropertyName*> name,
-                           MutableHandleValue vp)
+                           MutableHandleValue vp, bool* exists)
     {
         NativeObject* holder = getIntrinsicsHolder(cx, global);
         if (!holder)
@@ -608,15 +632,21 @@ class GlobalObject : public NativeObject
 
         if (Shape* shape = holder->lookupPure(name)) {
             vp.set(holder->getSlot(shape->slot()));
-            return true;
+            *exists = true;
+        } else {
+            *exists = false;
         }
-        return false;
+
+        return true;
     }
 
     static bool getIntrinsicValue(JSContext* cx, Handle<GlobalObject*> global,
                                   HandlePropertyName name, MutableHandleValue value)
     {
-        if (GlobalObject::maybeGetIntrinsicValue(cx, global, name, value))
+        bool exists = false;
+        if (!GlobalObject::maybeGetIntrinsicValue(cx, global, name, value, &exists))
+            return false;
+        if (exists)
             return true;
         if (!cx->runtime()->cloneSelfHostedValue(cx, name, value))
             return false;

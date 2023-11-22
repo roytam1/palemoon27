@@ -126,7 +126,6 @@ nsHTTPCompressConv::OnStopRequest(nsIRequest* request, nsISupports *aContext,
     status = NS_ERROR_NET_PARTIAL_TRANSFER;
   }
   if (NS_SUCCEEDED(status) && mMode == HTTP_COMPRESS_BROTLI) {
-    uint32_t waste;
     nsCOMPtr<nsIForcePendingChannel> fpChannel = do_QueryInterface(request);
     bool isPending = false;
     if (request) {
@@ -135,7 +134,9 @@ nsHTTPCompressConv::OnStopRequest(nsIRequest* request, nsISupports *aContext,
     if (fpChannel && !isPending) {
       fpChannel->ForcePending(true);
     }
-    status = BrotliHandler(nullptr, this, nullptr, 0, 0, &waste);
+    if (mBrotli->mTotalOut == 0 && !BrotliDecoderIsFinished(&mBrotli->mState)) {
+      status = NS_ERROR_INVALID_CONTENT_ENCODING;
+    }
     if (fpChannel && !isPending) {
       fpChannel->ForcePending(false);
     }
@@ -149,6 +150,7 @@ NS_METHOD
 nsHTTPCompressConv::BrotliHandler(nsIInputStream *stream, void *closure, const char *dataIn,
                                   uint32_t, uint32_t aAvail, uint32_t *countRead)
 {
+  MOZ_ASSERT(stream);
   nsHTTPCompressConv *self = static_cast<nsHTTPCompressConv *>(closure);
   *countRead = 0;
 
@@ -255,7 +257,7 @@ nsHTTPCompressConv::OnDataAvailable(nsIRequest* request,
       return NS_OK;
     }
 
-    // FALLTHROUGH
+    MOZ_FALLTHROUGH;
 
   case HTTP_COMPRESS_DEFLATE:
 

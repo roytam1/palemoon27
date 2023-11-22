@@ -1339,7 +1339,7 @@ Http2Stream::OnReadSegment(const char *buf,
     mRequestBodyLenRemaining -= dataLength;
     GenerateDataFrameHeader(dataLength, !mRequestBodyLenRemaining);
     ChangeState(SENDING_BODY);
-    // NO BREAK
+    MOZ_FALLTHROUGH;
 
   case SENDING_BODY:
     MOZ_ASSERT(mTxInlineFrameUsed, "OnReadSegment Send Data Header 0b");
@@ -1453,4 +1453,3 @@ Http2Stream::MapStreamToHttpConnection()
 
 } // namespace net
 } // namespace mozilla
-

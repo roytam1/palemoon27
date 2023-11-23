@@ -671,15 +671,16 @@ pref("plugins.update.notifyUser", false);
 //Enable tri-state option (Always/Never/Ask)
 pref("plugins.click_to_play", true);
 
-#ifdef XP_WIN
-pref("browser.preferences.instantApply", false);
-#else
-pref("browser.preferences.instantApply", true);
-#endif
 #ifdef XP_MACOSX
 pref("browser.preferences.animateFadeIn", true);
 #else
 pref("browser.preferences.animateFadeIn", false);
+#endif
+
+#ifdef XP_WIN
+pref("browser.preferences.instantApply", false);
+#else
+pref("browser.preferences.instantApply", true);
 #endif
 
 pref("browser.download.show_plugins_in_list", true);

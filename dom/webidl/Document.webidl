@@ -259,17 +259,12 @@ partial interface Document {
     Element createElementNS(DOMString? namespace, DOMString qualifiedName, DOMString typeExtension);
 };
 
-// https://w3c.github.io/page-visibility/#extensions-to-the-document-interface
+// http://dvcs.w3.org/hg/webperf/raw-file/tip/specs/PageVisibility/Overview.html#sec-document-interface
 partial interface Document {
-  [Pref="dom.visibilityAPI.enabled"]
   readonly attribute boolean hidden;
-  [Pref="dom.visibilityAPI.enabled"]
   readonly attribute boolean mozHidden;
-  [Pref="dom.visibilityAPI.enabled"]
   readonly attribute VisibilityState visibilityState;
-  [Pref="dom.visibilityAPI.enabled"]
   readonly attribute VisibilityState mozVisibilityState;
-  [Pref="dom.visibilityAPI.enabled"]
            attribute EventHandler onvisibilitychange;
 };
 
@@ -377,6 +372,10 @@ partial interface Document {
   [ChromeOnly] readonly attribute DOMString contentLanguage;
 
   [ChromeOnly] readonly attribute nsILoadGroup? documentLoadGroup;
+
+  // like documentURI, except that for error pages, it returns the URI we were
+  // trying to load when we hit an error, rather than the error page's own URI.
+  [ChromeOnly] readonly attribute URI? mozDocumentURIIfNotForErrorPages;
 };
 
 // Extension to give chrome JS the ability to determine when a document was

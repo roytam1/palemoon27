@@ -2702,7 +2702,7 @@ var BrowserOnClick = {
       case "Browser:CertExceptionError":
         this.onAboutCertError(msg.target, msg.data.elementId,
                               msg.data.isTopFrame, msg.data.location,
-                              msg.data.sslStatusAsString);
+                              msg.data.securityInfoAsString);
       break;
       case "Browser:SiteBlockedError":
         this.onAboutBlocked(msg.data.elementId, msg.data.reason,
@@ -2716,9 +2716,8 @@ var BrowserOnClick = {
         }
       break;
       case "Browser:SendSSLErrorReport":
-        this.onSSLErrorReport(msg.target, msg.data.elementId,
-                              msg.data.documentURI,
-                              msg.data.location,
+        this.onSSLErrorReport(msg.target,
+                              msg.data.uri,
                               msg.data.securityInfo);
       break;
       case "Browser:SetSSLErrorReportAuto":
@@ -2738,7 +2737,7 @@ var BrowserOnClick = {
         let weakCryptoOverride = Cc["@mozilla.org/security/weakcryptooverride;1"]
                                    .getService(Ci.nsIWeakCryptoOverride);
         weakCryptoOverride.addWeakCryptoOverride(
-          msg.data.location.hostname,
+          msg.data.uri.host,
           PrivateBrowsingUtils.isBrowserPrivate(gBrowser.selectedBrowser));
       break;
       case "Browser:SSLErrorGoBack":
@@ -2747,28 +2746,11 @@ var BrowserOnClick = {
     }
   },
 
-  onSSLErrorReport: function(browser, elementId, documentURI, location, securityInfo) {
-    function showReportStatus(reportStatus) {
-      gBrowser.selectedBrowser
-          .messageManager
-          .sendAsyncMessage("Browser:SSLErrorReportStatus",
-                            {
-                              reportStatus: reportStatus,
-                              documentURI: documentURI
-                            });
-    }
-
+  onSSLErrorReport: function(browser, uri, securityInfo) {
     if (!Services.prefs.getBoolPref("security.ssl.errorReporting.enabled")) {
-      showReportStatus("error");
       Cu.reportError("User requested certificate error report sending, but certificate error reporting is disabled");
       return;
     }
-
-    let bin = TLS_ERROR_REPORT_TELEMETRY_MANUAL_SEND;
-    if (Services.prefs.getBoolPref("security.ssl.errorReporting.automatic")) {
-      bin = TLS_ERROR_REPORT_TELEMETRY_AUTO_SEND;
-    }
-    Services.telemetry.getHistogramById("TLS_ERROR_REPORT_UI").add(bin);
 
     let serhelper = Cc["@mozilla.org/network/serialization-helper;1"]
                            .getService(Ci.nsISerializationHelper);
@@ -2779,87 +2761,13 @@ var BrowserOnClick = {
       Cu.reportError("transportSecurityInfo didn't have a failedCertChain for a failedChannel");
       return;
     }
-
-    showReportStatus("activity");
-
-    /*
-     * Requested info for the report:
-     * - Domain of bad connection
-     * - Error type (e.g. Pinning, domain mismatch, etc)
-     * - Cert chain (at minimum, same data to distrust each cert in the
-     *   chain)
-     * - Request data (e.g. User Agent, IP, Timestamp)
-     *
-     * The request data should be added to the report by the receiving server.
-     */
-
-    // TODO: can we pull this in from pippki.js isntead of duplicating it
-    // here?
-    function getDERString(cert)
-    {
-      var length = {};
-      var derArray = cert.getRawDER(length);
-      var derString = '';
-      for (var i = 0; i < derArray.length; i++) {
-        derString += String.fromCharCode(derArray[i]);
-      }
-      return derString;
-    }
-
-    // Convert the nsIX509CertList into a format that can be parsed into
-    // JSON
-    let asciiCertChain = [];
-    let certs = transportSecurityInfo.failedCertChain.getEnumerator();
-    while (certs.hasMoreElements()) {
-      let cert = certs.getNext();
-      cert.QueryInterface(Ci.nsIX509Cert);
-      asciiCertChain.push(btoa(getDERString(cert)));
-    }
-
-    let report = {
-      hostname: location.hostname,
-      port: location.port,
-      timestamp: Math.round(Date.now() / 1000),
-      errorCode: transportSecurityInfo.errorCode,
-      failedCertChain: asciiCertChain,
-      userAgent: window.navigator.userAgent,
-      version: 1,
-      build: gAppInfo.appBuildID,
-      product: gAppInfo.name,
-      channel: UpdateUtils.UpdateChannel
-    }
-
-    let reportURL = Services.prefs.getCharPref("security.ssl.errorReporting.url");
-
-    let xhr = Cc["@mozilla.org/xmlextras/xmlhttprequest;1"]
-        .createInstance(Ci.nsIXMLHttpRequest);
-    try {
-      xhr.open("POST", reportURL);
-    } catch (e) {
-      Cu.reportError("xhr.open exception", e);
-      showReportStatus("error");
-    }
-
-    xhr.onerror = function (e) {
-      // error making request to reportURL
-      Cu.reportError("xhr onerror", e);
-      showReportStatus("error");
-    };
-
-    xhr.onload = function (event) {
-      if (xhr.status !== 201 && xhr.status !== 0) {
-        // request returned non-success status
-        Cu.reportError("xhr returned failure code", xhr.status);
-        showReportStatus("error");
-      } else {
-        showReportStatus("complete");
-      }
-    };
-
-    xhr.send(JSON.stringify(report));
+    let errorReporter = Cc["@mozilla.org/securityreporter;1"]
+                          .getService(Ci.nsISecurityReporter);
+    errorReporter.reportTLSError(transportSecurityInfo,
+                                 uri.host, uri.port);
   },
 
-  onAboutCertError: function (browser, elementId, isTopFrame, location, sslStatusAsString) {
+  onAboutCertError: function (browser, elementId, isTopFrame, location, securityInfoAsString) {
 
     switch (elementId) {
       case "exceptionDialogButton":
@@ -2869,8 +2777,9 @@ var BrowserOnClick = {
 
         let serhelper = Cc["@mozilla.org/network/serialization-helper;1"]
                            .getService(Ci.nsISerializationHelper);
-        let sslStatus = serhelper.deserializeObject(sslStatusAsString);
-        sslStatus.QueryInterface(Components.interfaces.nsISSLStatus);
+        let securityInfo = serhelper.deserializeObject(securityInfoAsString);
+        let sslStatus = securityInfo.QueryInterface(Ci.nsISSLStatusProvider)
+                                    .SSLStatus;
         let params = { exceptionAdded : false,
                        sslStatus : sslStatus };
 
@@ -2892,6 +2801,19 @@ var BrowserOnClick = {
         if (params.exceptionAdded) {
           browser.reload();
         }
+
+        let errorInfo = getDetailedCertErrorInfo(location,
+                                                 securityInfoAsString);
+        browser.messageManager.sendAsyncMessage("AboutCertErrorDetails",
+                                                { info: errorInfo });
+        break;
+
+      case "copyToClipboard":
+        const gClipboardHelper = Cc["@mozilla.org/widget/clipboardhelper;1"]
+                                    .getService(Ci.nsIClipboardHelper);
+        let detailedInfo = getDetailedCertErrorInfo(location,
+                                                    securityInfoAsString);
+        gClipboardHelper.copyString(detailedInfo);
         break;
 
       case "getMeOutOfHereButton":
@@ -3120,6 +3042,76 @@ function BrowserReloadWithFlags(reloadFlags) {
           .sendAsyncMessage("Browser:Reload",
                             { flags: reloadFlags,
                               handlingUserInput: windowUtils.isHandlingUserInput });
+}
+
+/**
+ * Returns a string with detailed information about the certificate validation
+ * failure from the specified URI that can be used to send a report.
+ */
+function getDetailedCertErrorInfo(location, securityInfoAsString) {
+  if (!securityInfoAsString)
+    return "";
+
+  let details = [];
+  details.push(location);
+
+  const serhelper = Cc["@mozilla.org/network/serialization-helper;1"]
+                       .getService(Ci.nsISerializationHelper);
+  let securityInfo = serhelper.deserializeObject(securityInfoAsString);
+  securityInfo.QueryInterface(Ci.nsITransportSecurityInfo);
+
+  let errors = Cc["@mozilla.org/nss_errors_service;1"]
+                  .getService(Ci.nsINSSErrorsService);
+  let code = securityInfo.errorCode;
+  details.push(errors.getErrorMessage(errors.getXPCOMFromNSSError(code)));
+
+  const sss = Cc["@mozilla.org/ssservice;1"]
+                 .getService(Ci.nsISiteSecurityService);
+  // SiteSecurityService uses different storage if the channel is
+  // private. Thus we must give isSecureHost correct flags or we
+  // might get incorrect results.
+  let flags = PrivateBrowsingUtils.isWindowPrivate(window) ?
+              Ci.nsISocketProvider.NO_PERMANENT_STORAGE : 0;
+
+  let uri = Services.io.newURI(location, null, null);
+  details.push(sss.isSecureHost(sss.HEADER_HSTS, uri.host, flags));
+  details.push(sss.isSecureHost(sss.HEADER_HPKP, uri.host, flags));
+
+  let certChain = "";
+  if (securityInfo.failedCertChain) {
+    let certs = securityInfo.failedCertChain.getEnumerator();
+    while (certs.hasMoreElements()) {
+      let cert = certs.getNext();
+      cert.QueryInterface(Ci.nsIX509Cert);
+      certChain += getPEMString(cert);
+    }
+  }
+  details.push(certChain);
+  return gNavigatorBundle.getFormattedString("certErrorDetails.label", details, 5);
+}
+
+// TODO: can we pull getDERString and getPEMString in from pippki.js instead of
+// duplicating them here?
+function getDERString(cert)
+{
+  var length = {};
+  var derArray = cert.getRawDER(length);
+  var derString = '';
+  for (var i = 0; i < derArray.length; i++) {
+    derString += String.fromCharCode(derArray[i]);
+  }
+  return derString;
+}
+
+function getPEMString(cert)
+{
+  var derb64 = btoa(getDERString(cert));
+  // Wrap the Base64 string into lines of 64 characters,
+  // with CRLF line breaks (as specified in RFC 1421).
+  var wrapped = derb64.replace(/(\S{64}(?!$))/g, "$1\r\n");
+  return "-----BEGIN CERTIFICATE-----\r\n"
+         + wrapped
+         + "\r\n-----END CERTIFICATE-----\r\n";
 }
 
 var PrintPreviewListener = {

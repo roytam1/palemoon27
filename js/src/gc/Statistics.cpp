@@ -31,9 +31,6 @@ using mozilla::MakeRange;
 using mozilla::PodArrayZero;
 using mozilla::PodZero;
 
-/* Except for the first and last, slices of less than 10ms are not reported. */
-static const int64_t SLICE_MIN_REPORT_TIME = 10 * PRMJ_USEC_PER_MSEC;
-
 const char*
 js::gcstats::ExplainInvocationKind(JSGCInvocationKind gckind)
 {

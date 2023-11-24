@@ -81,10 +81,7 @@ public:
   NS_DECL_NSIREQUEST
   NS_DECL_THREADSAFE_ISUPPORTS
   NS_DECL_NSIEVENTTARGET
-  // missing from NS_DECL_NSIEVENTTARGET because MSVC
-  nsresult Dispatch(nsIRunnable* aEvent, uint32_t aFlags) {
-    return Dispatch(nsCOMPtr<nsIRunnable>(aEvent).forget(), aFlags);
-  }
+  using nsIEventTarget::Dispatch;
 
   explicit WebSocketImpl(WebSocket* aWebSocket)
   : mWebSocket(aWebSocket)
@@ -1566,7 +1563,7 @@ WebSocketImpl::Init(JSContext* aCx,
   // to reflect that upgrade. Please note that we can not upgrade from ws:
   // to wss: before performing content policy checks because CSP needs to
   // send reports in case the scheme is about to be upgraded.
-  if (!mSecure && originDoc && originDoc->GetUpgradeInsecureRequests()) {
+  if (!mSecure && originDoc && originDoc->GetUpgradeInsecureRequests(false)) {
     // let's use the old specification before the upgrade for logging
     NS_ConvertUTF8toUTF16 reportSpec(mURI);
 

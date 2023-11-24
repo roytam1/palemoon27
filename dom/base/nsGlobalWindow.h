@@ -461,7 +461,7 @@ public:
   bool DispatchResizeEvent(const mozilla::CSSIntSize& aSize);
 
   // Inner windows only.
-  virtual void RefreshCompartmentPrincipal() override;
+  void RefreshCompartmentPrincipal();
 
   // Outer windows only.
   virtual nsresult SetFullScreenInternal(bool aIsFullscreen, bool aFullscreenMode,

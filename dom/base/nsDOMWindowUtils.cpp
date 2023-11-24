@@ -1822,16 +1822,6 @@ nsDOMWindowUtils::GetFocusedInputType(char** aType)
 }
 
 NS_IMETHODIMP
-nsDOMWindowUtils::FindElementWithViewId(nsViewID aID,
-                                        nsIDOMElement** aResult)
-{
-  MOZ_RELEASE_ASSERT(nsContentUtils::IsCallerChrome());
-
-  RefPtr<nsIContent> content = nsLayoutUtils::FindContentFor(aID);
-  return content ? CallQueryInterface(content, aResult) : NS_OK;
-}
-
-NS_IMETHODIMP
 nsDOMWindowUtils::GetViewId(nsIDOMElement* aElement, nsViewID* aResult)
 {
   nsCOMPtr<nsIContent> content = do_QueryInterface(aElement);
@@ -2623,8 +2613,6 @@ nsDOMWindowUtils::ComputeAnimationDistance(nsIDOMElement* aElement,
                                            const nsAString& aValue2,
                                            double* aResult)
 {
-  MOZ_RELEASE_ASSERT(nsContentUtils::LegacyIsCallerChromeOrNativeCode());
-
   nsresult rv;
   nsCOMPtr<nsIContent> content = do_QueryInterface(aElement, &rv);
   NS_ENSURE_SUCCESS(rv, rv);
@@ -3971,9 +3959,11 @@ nsDOMWindowUtils::SetNextPaintSyncId(int32_t aSyncId)
     if (lm && lm->GetBackendType() == LayersBackend::LAYERS_CLIENT) {
       ClientLayerManager* clm = static_cast<ClientLayerManager*>(lm.get());
       clm->SetNextPaintSyncId(aSyncId);
+      return NS_OK;
     }
   }
 
+  NS_WARNING("Paint sync id could not be set on the ClientLayerManager");
   return NS_OK;
 }
 

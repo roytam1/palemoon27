@@ -2289,7 +2289,7 @@ nsDocument::ResetToURI(nsIURI *aURI, nsILoadGroup *aLoadGroup,
   // Refresh the principal on the compartment.
   nsPIDOMWindow* win = GetInnerWindow();
   if (win) {
-    win->RefreshCompartmentPrincipal();
+    nsGlobalWindow::Cast(win)->RefreshCompartmentPrincipal();
   }
 }
 
@@ -2580,12 +2580,12 @@ nsDocument::StartDocumentLoad(const char* aCommand, nsIChannel* aChannel,
     treeItem->GetSameTypeParent(getter_AddRefs(sameTypeParent));
     if (sameTypeParent) {
       mUpgradeInsecureRequests =
-        sameTypeParent->GetDocument()->GetUpgradeInsecureRequests();
+        sameTypeParent->GetDocument()->GetUpgradeInsecureRequests(false);
       // if the parent document makes use of upgrade-insecure-requests
       // then subdocument preloads should always be upgraded.
       mUpgradeInsecurePreloads =
         mUpgradeInsecureRequests ||
-        sameTypeParent->GetDocument()->GetUpgradeInsecurePreloads();
+        sameTypeParent->GetDocument()->GetUpgradeInsecureRequests(true);
     }
   }
 
@@ -2690,6 +2690,9 @@ nsDocument::ApplySettingsFromCSP(bool aSpeculative)
       if (!mUpgradeInsecureRequests) {
         rv = csp->GetUpgradeInsecureRequests(&mUpgradeInsecureRequests);
         NS_ENSURE_SUCCESS_VOID(rv);
+      }
+      if (!mUpgradeInsecurePreloads) {
+        mUpgradeInsecurePreloads = mUpgradeInsecureRequests;
       }
     }
     return;
@@ -2815,19 +2818,8 @@ nsDocument::InitCSP(nsIChannel* aChannel)
     }
   }
 
-  csp = do_CreateInstance("@mozilla.org/cspcontext;1", &rv);
-
-  if (NS_FAILED(rv)) {
-    MOZ_LOG(gCspPRLog, LogLevel::Debug, ("Failed to create CSP object: %x", rv));
-    return rv;
-  }
-
-  // used as a "self" identifier for the CSP.
-  nsCOMPtr<nsIURI> selfURI;
-  aChannel->GetURI(getter_AddRefs(selfURI));
-
-  // Store the request context for violation reports
-  csp->SetRequestContext(this, nullptr);
+  rv = principal->EnsureCSP(this, getter_AddRefs(csp));
+  NS_ENSURE_SUCCESS(rv, rv);
 
   // ----- if the doc is an app and we want a default CSP, apply it.
   if (applyAppDefaultCSP) {
@@ -2877,14 +2869,7 @@ nsDocument::InitCSP(nsIChannel* aChannel)
       aChannel->Cancel(NS_ERROR_CSP_FRAME_ANCESTOR_VIOLATION);
     }
   }
-
-  rv = principal->SetCsp(csp);
-  NS_ENSURE_SUCCESS(rv, rv);
-  MOZ_LOG(gCspPRLog, LogLevel::Debug,
-         ("Inserted CSP into principal %p", principal));
-
   ApplySettingsFromCSP(false);
-
   return NS_OK;
 }
 
@@ -3052,7 +3037,7 @@ nsDocument::RemoveFromIdTable(Element *aElement, nsIAtom* aId)
     ++mExpandoAndGeneration.generation;
   }
   if (entry->IsEmpty()) {
-    mIdentifierMap.RawRemoveEntry(entry);
+    mIdentifierMap.RemoveEntry(entry);
   }
 }
 
@@ -3836,8 +3821,8 @@ nsIDocument::ShouldThrottleFrameRequests()
     return false;
   }
 
-  if (!mIsShowing) {
-    // We're not showing (probably in a background tab or the bf cache).
+  if (Hidden()) {
+    // We're not visible (probably in a background tab or the bf cache).
     return true;
   }
 
@@ -5751,7 +5736,7 @@ nsIDocument::CreateAttribute(const nsAString& aName, ErrorResult& rv)
   }
 
   RefPtr<Attr> attribute = new Attr(nullptr, nodeInfo.forget(),
-                                      EmptyString(), false);
+                                    EmptyString());
   return attribute.forget();
 }
 
@@ -5784,7 +5769,7 @@ nsIDocument::CreateAttributeNS(const nsAString& aNamespaceURI,
   }
 
   RefPtr<Attr> attribute = new Attr(nullptr, nodeInfo.forget(),
-                                      EmptyString(), true);
+                                    EmptyString());
   return attribute.forget();
 }
 
@@ -7855,7 +7840,7 @@ nsDocument::GetViewportInfo(const ScreenIntSize& aDisplaySize)
   nsPresContext* context = mPresShell->GetPresContext();
   float fullZoom = context ? context->GetFullZoom() : 1.0;
   fullZoom = (fullZoom == 0.0) ? 1.0 : fullZoom;
-  CSSToLayoutDeviceScale layoutDeviceScale = context->CSSToDevPixelScale();
+  CSSToLayoutDeviceScale layoutDeviceScale = context ? context->CSSToDevPixelScale() : CSSToLayoutDeviceScale(1);
 
   CSSToScreenScale defaultScale = layoutDeviceScale
                                 * LayoutDeviceToScreenScale(1.0);
@@ -8068,7 +8053,7 @@ nsDocument::GetViewportInfo(const ScreenIntSize& aDisplaySize)
 
     // We need to perform a conversion, but only if the initial or maximum
     // scale were set explicitly by the user.
-    if (mValidScaleFloat) {
+    if (mValidScaleFloat && scaleFloat >= scaleMinFloat && scaleFloat <= scaleMaxFloat) {
       CSSSize displaySize = ScreenSize(aDisplaySize) / scaleFloat;
       size.width = std::max(size.width, displaySize.width);
       size.height = std::max(size.height, displaySize.height);
@@ -10845,6 +10830,24 @@ nsIDocument::ObsoleteSheet(const nsAString& aSheetURI, ErrorResult& rv)
   if (NS_FAILED(res)) {
     rv.Throw(res);
   }
+}
+
+already_AddRefed<nsIURI>
+nsIDocument::GetMozDocumentURIIfNotForErrorPages()
+{
+  if (mFailedChannel) {
+    nsCOMPtr<nsIURI> failedURI;
+    if (NS_SUCCEEDED(mFailedChannel->GetURI(getter_AddRefs(failedURI)))) {
+      return failedURI.forget();
+    }
+  }
+
+  nsCOMPtr<nsIURI> uri = GetDocumentURIObject();
+  if (!uri) {
+    return nullptr;
+  }
+
+  return uri.forget();
 }
 
 nsIHTMLCollection*

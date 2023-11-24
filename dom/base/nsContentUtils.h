@@ -876,8 +876,8 @@ public:
                                   uint32_t aLineNumber = 0,
                                   uint32_t aColumnNumber = 0);
 
-  static void LogMessageToConsole(const char* aMsg, ...);
-  
+  static void LogMessageToConsole(const char* aMsg);
+
   /**
    * Get the localized string named |aKey| in properties file |aFile|.
    */
@@ -968,20 +968,6 @@ public:
   static nsContentPolicyType InternalContentPolicyTypeToExternal(nsContentPolicyType aType);
 
   /**
-   * Map internal content policy types to external ones or script types or preload types:
-   *   * TYPE_INTERNAL_SCRIPT
-   *   * TYPE_INTERNAL_WORKER
-   *   * TYPE_INTERNAL_SHARED_WORKER
-   *   * TYPE_INTERNAL_SERVICE_WORKER
-   *   * TYPE_INTERNAL_SCRIPT_PRELOAD
-   *   * TYPE_INTERNAL_IMAGE_PRELOAD
-   *   * TYPE_INTERNAL_STYLESHEET_PRELOAD
-   *
-   * Note: DO NOT call this function unless you know what you're doing!
-   */
-  static nsContentPolicyType InternalContentPolicyTypeToExternalOrMCBInternal(nsContentPolicyType aType);
-
-  /**
    * Map internal content policy types to external ones or preload types:
    *   * TYPE_INTERNAL_SCRIPT_PRELOAD
    *   * TYPE_INTERNAL_IMAGE_PRELOAD
@@ -990,19 +976,6 @@ public:
    * Note: DO NOT call this function unless you know what you're doing!
    */
   static nsContentPolicyType InternalContentPolicyTypeToExternalOrPreload(nsContentPolicyType aType);
-
-  /**
-   * Map internal content policy types to external ones, worker, or preload types:
-   *   * TYPE_INTERNAL_WORKER
-   *   * TYPE_INTERNAL_SHARED_WORKER
-   *   * TYPE_INTERNAL_SERVICE_WORKER
-   *   * TYPE_INTERNAL_SCRIPT_PRELOAD
-   *   * TYPE_INTERNAL_IMAGE_PRELOAD
-   *   * TYPE_INTERNAL_STYLESHEET_PRELOAD
-   *
-   * Note: DO NOT call this function unless you know what you're doing!
-   */
-  static nsContentPolicyType InternalContentPolicyTypeToExternalOrCSPInternal(nsContentPolicyType aType);
 
   /**
    * Map internal content policy types to external ones, worker, or preload types:
@@ -2071,14 +2044,6 @@ public:
   }
 
   /**
-   * Returns true if the doc tree branch which contains aDoc contains any
-   * plugins which we don't control event dispatch for, i.e. do any plugins
-   * in the same tab as this document receive key events outside of our
-   * control? This always returns false on MacOSX.
-   */
-  static bool HasPluginWithUncontrolledEventDispatch(nsIDocument* aDoc);
-
-  /**
    * Return true if this doc is controlled by a ServiceWorker.
    */
   static bool IsControlledByServiceWorker(nsIDocument* aDocument);
@@ -2443,8 +2408,8 @@ public:
    * If the hostname for aURI is an IPv6 it encloses it in brackets,
    * otherwise it just outputs the hostname in aHost.
    */
-  static void GetHostOrIPv6WithBrackets(nsIURI* aURI, nsAString& aHost);
-  static void GetHostOrIPv6WithBrackets(nsIURI* aURI, nsCString& aHost);
+  static nsresult GetHostOrIPv6WithBrackets(nsIURI* aURI, nsAString& aHost);
+  static nsresult GetHostOrIPv6WithBrackets(nsIURI* aURI, nsCString& aHost);
 
   /*
    * Call the given callback on all remote children of the given top-level
@@ -2599,6 +2564,14 @@ public:
   static bool SerializeNodeToMarkup(nsINode* aRoot,
                                     bool aDescendentsOnly,
                                     nsAString& aOut);
+
+  /*
+   * Returns true iff the provided JSObject is a global, and its URI matches
+   * the provided about: URI.
+   * @param aGlobal the JSObject whose URI to check, if it is a global.
+   * @param aUri the URI to match, e.g. "about:feeds"
+   */
+  static bool IsSpecificAboutPage(JSObject* aGlobal, const char* aUri);
 
 private:
   static bool InitializeEventTable();

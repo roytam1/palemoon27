@@ -891,8 +891,8 @@ nsHTMLDocument::GetDomain(nsAString& aDomain)
   }
 
   nsAutoCString hostName;
-
-  if (NS_SUCCEEDED(uri->GetHost(hostName))) {
+  nsresult rv = nsContentUtils::GetHostOrIPv6WithBrackets(uri, hostName);
+  if (NS_SUCCEEDED(rv)) {
     CopyUTF8toUTF16(hostName, aDomain);
   } else {
     // If we can't get the host from the URI (e.g. about:, javascript:,
@@ -3250,6 +3250,12 @@ nsHTMLDocument::ExecCommand(const nsAString& commandID,
     }
     
     if (!nsContentUtils::IsCutCopyAllowed()) {
+      // We have rejected the event due to it not being performed in an
+      // input-driven context therefore, we report the error to the console.
+      nsContentUtils::ReportToConsole(nsIScriptError::warningFlag,
+                                      NS_LITERAL_CSTRING("DOM"), this,
+                                      nsContentUtils::eDOM_PROPERTIES,
+                                      "ExecCommandCutCopyDeniedNotInputDriven");
       return false;
     }
 

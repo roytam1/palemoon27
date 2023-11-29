@@ -242,6 +242,11 @@ public:
   static bool HasCriticalDisplayPort(nsIContent* aContent);
 
   /**
+   * Remove the displayport for the given element.
+   */
+  static void RemoveDisplayPort(nsIContent* aContent);
+
+  /**
    * Use heuristics to figure out the child list that
    * aChildFrame is currently in.
    */
@@ -2740,14 +2745,10 @@ public:
    * displayport yet (as tracked by |aBuilder|), calculate and set a
    * displayport.
    *
-   * If this function creates a displayport, it computes margins and stores
-   * |aDisplayPortBase| as the base rect.
-   *
    * This is intended to be called during display list building.
    */
   static void MaybeCreateDisplayPort(nsDisplayListBuilder& aBuilder,
-                                     nsIFrame* aScrollFrame,
-                                     nsRect aDisplayPortBase);
+                                     nsIFrame* aScrollFrame);
 
   static nsIScrollableFrame* GetAsyncScrollableAncestorFrame(nsIFrame* aTarget);
 
@@ -2757,6 +2758,12 @@ public:
    */
   static void SetZeroMarginDisplayPortOnAsyncScrollableAncestors(nsIFrame* aFrame,
                                                                  RepaintMode aRepaintMode);
+  /**
+   * Finds the closest ancestor async scrollable frame from aFrame that has a
+   * displayport and attempts to trigger the displayport expiry on that
+   * ancestor.
+   */
+  static void ExpireDisplayPortOnAsyncScrollableAncestor(nsIFrame* aFrame);
 
   static bool IsOutlineStyleAutoEnabled();
 

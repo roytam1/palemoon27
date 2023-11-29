@@ -16,6 +16,7 @@
 #include "mozilla/gfx/PathHelpers.h"
 #include "mozilla/Likely.h"
 #include "mozilla/Maybe.h"
+#include "mozilla/unused.h"
 #include "mozilla/MemoryReporting.h"
 #include "nsCharTraits.h"
 #include "nsFontMetrics.h"
@@ -1169,9 +1170,48 @@ nsLayoutUtils::SetDisplayPortMargins(nsIContent* aContent,
     }
   }
 
+  nsIFrame* frame = GetScrollFrameFromContent(aContent);
+  nsIScrollableFrame* scrollableFrame = frame ? frame->GetScrollTargetFrame() : nullptr;
+  if (!scrollableFrame) {
+    return true;
+  }
+
+  scrollableFrame->TriggerDisplayPortExpiration();
+
   // Display port margins changing means that the set of visible images may
-  // have drastically changed. Schedule an update.
-  aPresShell->ScheduleImageVisibilityUpdate();
+  // have drastically changed. Check if we should schedule an update.
+  nsRect oldDisplayPort;
+  bool hadDisplayPort =
+    scrollableFrame->GetDisplayPortAtLastImageVisibilityUpdate(&oldDisplayPort);
+
+  nsRect newDisplayPort;
+  Unused << GetDisplayPort(aContent, &newDisplayPort);
+
+  bool needImageVisibilityUpdate = !hadDisplayPort;
+  // Check if the total size has changed by a large factor.
+  if (!needImageVisibilityUpdate) {
+    if ((newDisplayPort.width > 2 * oldDisplayPort.width) ||
+        (oldDisplayPort.width > 2 * newDisplayPort.width) ||
+        (newDisplayPort.height > 2 * oldDisplayPort.height) ||
+        (oldDisplayPort.height > 2 * newDisplayPort.height)) {
+      needImageVisibilityUpdate = true;
+    }
+  }
+  // Check if it's moved by a significant amount.
+  if (!needImageVisibilityUpdate) {
+    if (nsRect* baseData = static_cast<nsRect*>(aContent->GetProperty(nsGkAtoms::DisplayPortBase))) {
+      nsRect base = *baseData;
+      if ((std::abs(newDisplayPort.X() - oldDisplayPort.X()) > base.width) ||
+          (std::abs(newDisplayPort.XMost() - oldDisplayPort.XMost()) > base.width) ||
+          (std::abs(newDisplayPort.Y() - oldDisplayPort.Y()) > base.height) ||
+          (std::abs(newDisplayPort.YMost() - oldDisplayPort.YMost()) > base.height)) {
+        needImageVisibilityUpdate = true;
+      }
+    }
+  }
+  if (needImageVisibilityUpdate) {
+    aPresShell->ScheduleImageVisibilityUpdate();
+  }
 
   return true;
 }
@@ -1204,6 +1244,13 @@ bool
 nsLayoutUtils::HasCriticalDisplayPort(nsIContent* aContent)
 {
   return GetCriticalDisplayPort(aContent, nullptr);
+}
+
+void
+nsLayoutUtils::RemoveDisplayPort(nsIContent* aContent)
+{
+  aContent->DeleteProperty(nsGkAtoms::DisplayPort);
+  aContent->DeleteProperty(nsGkAtoms::DisplayPortMargins);
 }
 
 nsContainerFrame*
@@ -3056,17 +3103,12 @@ nsLayoutUtils::CalculateAndSetDisplayPortMargins(nsIScrollableFrame* aScrollFram
 
 void
 nsLayoutUtils::MaybeCreateDisplayPort(nsDisplayListBuilder& aBuilder,
-                                      nsIFrame* aScrollFrame,
-                                      nsRect aDisplayPortBase) {
+                                      nsIFrame* aScrollFrame) {
   nsIContent* content = aScrollFrame->GetContent();
   nsIScrollableFrame* scrollableFrame = do_QueryFrame(aScrollFrame);
   if (!content || !scrollableFrame) {
     return;
   }
-
-  // Set the base rect. Note that this will not influence 'haveDisplayPort',
-  // which is based on either the whole rect or margins being set.
-  SetDisplayPortBase(content, aDisplayPortBase);
 
   bool haveDisplayPort = HasDisplayPort(content);
 
@@ -3129,6 +3171,37 @@ nsLayoutUtils::SetZeroMarginDisplayPortOnAsyncScrollableAncestors(nsIFrame* aFra
   }
 }
 
+void
+nsLayoutUtils::ExpireDisplayPortOnAsyncScrollableAncestor(nsIFrame* aFrame)
+{
+  nsIFrame* frame = aFrame;
+  while (frame) {
+    frame = nsLayoutUtils::GetCrossDocParentFrame(frame);
+    if (!frame) {
+      break;
+    }
+    nsIScrollableFrame* scrollAncestor = GetAsyncScrollableAncestorFrame(frame);
+    if (!scrollAncestor) {
+      break;
+    }
+    frame = do_QueryFrame(scrollAncestor);
+    MOZ_ASSERT(frame);
+    MOZ_ASSERT(scrollAncestor->WantAsyncScroll() ||
+      frame->PresContext()->PresShell()->GetRootScrollFrame() == frame);
+    if (nsLayoutUtils::AsyncPanZoomEnabled(frame) &&
+        nsLayoutUtils::HasDisplayPort(frame->GetContent())) {
+      scrollAncestor->TriggerDisplayPortExpiration();
+      // Stop after the first trigger. If it failed, there's no point in
+      // continuing because all the rest of the frames we encounter are going
+      // to be ancestors of |scrollAncestor| which will keep its displayport.
+      // If the trigger succeeded, we stop because when the trigger executes
+      // it will call this function again to trigger the next ancestor up the
+      // chain.
+      break;
+    }
+  }
+}
+
 nsresult
 nsLayoutUtils::PaintFrame(nsRenderingContext* aRenderingContext, nsIFrame* aFrame,
                           const nsRegion& aDirtyRegion, nscolor aBackstop,
@@ -3180,18 +3253,12 @@ nsLayoutUtils::PaintFrame(nsRenderingContext* aRenderingContext, nsIFrame* aFram
   }
 
   nsIFrame* rootScrollFrame = presShell->GetRootScrollFrame();
-  bool usingDisplayPort = false;
-  nsRect displayport;
   if (rootScrollFrame && !aFrame->GetParent()) {
     nsIScrollableFrame* rootScrollableFrame = presShell->GetRootScrollFrameAsScrollable();
     MOZ_ASSERT(rootScrollableFrame);
-    displayport = aFrame->GetVisualOverflowRectRelativeToSelf();
-    usingDisplayPort = rootScrollableFrame->DecideScrollableLayer(&builder,
-                         &displayport, /* aAllowCreateDisplayPort = */ true);
-
-    if (!gfxPrefs::LayoutUseContainersForRootFrames()) {
-      usingDisplayPort = false;
-    }
+    nsRect displayPortBase = aFrame->GetVisualOverflowRectRelativeToSelf();
+    Unused << rootScrollableFrame->DecideScrollableLayer(&builder, &displayPortBase,
+                /* aAllowCreateDisplayPort = */ true);
   }
 
   nsDisplayList hoistedScrollItemStorage;
@@ -3207,11 +3274,7 @@ nsLayoutUtils::PaintFrame(nsRenderingContext* aRenderingContext, nsIFrame* aFram
     // |ignoreViewportScrolling| and |usingDisplayPort| are persistent
     // document-rendering state.  We rely on PresShell to flush
     // retained layers as needed when that persistent state changes.
-    if (!usingDisplayPort) {
-      visibleRegion = aFrame->GetVisualOverflowRectRelativeToSelf();
-    } else {
-      visibleRegion = displayport;
-    }
+    visibleRegion = aFrame->GetVisualOverflowRectRelativeToSelf();
   } else {
     visibleRegion = aDirtyRegion;
   }

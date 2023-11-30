@@ -627,6 +627,8 @@ XRE_InitChildProcess(int aArgc,
       mozilla::sandboxing::InitLoggingIfRequired();
 #endif
 
+      OverrideDefaultLocaleIfNeeded();
+
       // Run the UI event loop on the main thread.
       uiMessageLoop.MessageLoop::Run();
 

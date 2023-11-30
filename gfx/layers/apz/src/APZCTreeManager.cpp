@@ -1051,9 +1051,11 @@ APZCTreeManager::ProcessWheelEvent(WidgetWheelEvent& aEvent,
                                    uint64_t* aOutInputBlockId)
 {
   ScrollWheelInput::ScrollMode scrollMode = ScrollWheelInput::SCROLLMODE_INSTANT;
-  if ((aEvent.deltaMode == nsIDOMWheelEvent::DOM_DELTA_LINE ||
-       aEvent.deltaMode == nsIDOMWheelEvent::DOM_DELTA_PAGE) &&
-      gfxPrefs::SmoothScrollEnabled() && gfxPrefs::WheelSmoothScrollEnabled())
+  if (gfxPrefs::SmoothScrollEnabled() &&
+      ((aEvent.deltaMode == nsIDOMWheelEvent::DOM_DELTA_LINE &&
+        gfxPrefs::WheelSmoothScrollEnabled()) ||
+       (aEvent.deltaMode == nsIDOMWheelEvent::DOM_DELTA_PAGE &&
+        gfxPrefs::PageSmoothScrollEnabled())))
   {
     scrollMode = ScrollWheelInput::SCROLLMODE_SMOOTH;
   }
@@ -1265,6 +1267,16 @@ APZCTreeManager::CancelAnimation(const ScrollableLayerGuid &aGuid)
   RefPtr<AsyncPanZoomController> apzc = GetTargetAPZC(aGuid);
   if (apzc) {
     apzc->CancelAnimation();
+  }
+}
+
+void
+APZCTreeManager::AdjustScrollForSurfaceShift(const ScreenPoint& aShift)
+{
+  MonitorAutoLock lock(mTreeLock);
+  RefPtr<AsyncPanZoomController> apzc = FindRootContentOrRootApzc();
+  if (apzc) {
+    apzc->AdjustScrollForSurfaceShift(aShift);
   }
 }
 
@@ -1731,6 +1743,33 @@ APZCTreeManager::FindRootContentApzcForLayersId(uint64_t aLayersId) const
         return apzc
             && apzc->GetLayersId() == aLayersId
             && apzc->IsRootContent();
+      });
+  return resultNode ? resultNode->GetApzc() : nullptr;
+}
+
+AsyncPanZoomController*
+APZCTreeManager::FindRootContentOrRootApzc() const
+{
+  mTreeLock.AssertCurrentThreadOwns();
+
+  // Note: this is intended to find the same "root" that would be found
+  // by AsyncCompositionManager::ApplyAsyncContentTransformToTree inside
+  // the MOZ_ANDROID_APZ block. That is, it should find the RCD node if there
+  // is one, or the root APZC if there is not.
+  // Since BreadthFirstSearch is a pre-order search, we first do a search for
+  // the RCD, and then if we don't find one, we do a search for the root APZC.
+  HitTestingTreeNode* resultNode = BreadthFirstSearch(mRootNode.get(),
+      [](HitTestingTreeNode* aNode) {
+        AsyncPanZoomController* apzc = aNode->GetApzc();
+        return apzc && apzc->IsRootContent();
+      });
+  if (resultNode) {
+    return resultNode->GetApzc();
+  }
+  resultNode = BreadthFirstSearch(mRootNode.get(),
+      [](HitTestingTreeNode* aNode) {
+        AsyncPanZoomController* apzc = aNode->GetApzc();
+        return (apzc != nullptr);
       });
   return resultNode ? resultNode->GetApzc() : nullptr;
 }

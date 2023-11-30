@@ -203,6 +203,8 @@ private:
   DECL_GFX_PREF(Live, "dom.w3c_touch_events.enabled",          TouchEventsEnabled, int32_t, 0);
 
   DECL_GFX_PREF(Live, "general.smoothScroll",                  SmoothScrollEnabled, bool, true);
+  DECL_GFX_PREF(Live, "general.smoothScroll.currentVelocityWeighting",
+                SmoothScrollCurrentVelocityWeighting, float, 0.25);
   DECL_GFX_PREF(Live, "general.smoothScroll.durationToIntervalRatio",
                 SmoothScrollDurationToIntervalRatio, int32_t, 200);
   DECL_GFX_PREF(Live, "general.smoothScroll.mouseWheel",       WheelSmoothScrollEnabled, bool, true);
@@ -210,6 +212,18 @@ private:
                 WheelSmoothScrollMaxDurationMs, int32_t, 400);
   DECL_GFX_PREF(Live, "general.smoothScroll.mouseWheel.durationMinMS",
                 WheelSmoothScrollMinDurationMs, int32_t, 200);
+  DECL_GFX_PREF(Live, "general.smoothScroll.pages",            PageSmoothScrollEnabled, bool, true);
+  DECL_GFX_PREF(Live, "general.smoothScroll.pages.durationMaxMS",
+                PageSmoothScrollMaxDurationMs, int32_t, 150);
+  DECL_GFX_PREF(Live, "general.smoothScroll.pages.durationMinMS",
+                PageSmoothScrollMinDurationMs, int32_t, 150);
+  DECL_GFX_PREF(Live, "general.smoothScroll.pixels",           PixelSmoothScrollEnabled, bool, true);
+  DECL_GFX_PREF(Live, "general.smoothScroll.pixels.durationMaxMS",
+                PixelSmoothScrollMaxDurationMs, int32_t, 150);
+  DECL_GFX_PREF(Live, "general.smoothScroll.pixels.durationMinMS",
+                PixelSmoothScrollMinDurationMs, int32_t, 150);
+  DECL_GFX_PREF(Live, "general.smoothScroll.stopDecelerationWeighting",
+                SmoothScrollStopDecelerationWeighting, float, 0.4f);
 
   DECL_GFX_PREF(Once, "gfx.android.rgb16.force",               AndroidRGB16Force, bool, false);
 #if defined(ANDROID)
@@ -251,6 +265,7 @@ private:
   // The maximums here are quite conservative, we can tighten them if problems show up.
   DECL_GFX_PREF(Once, "gfx.max-alloc-size",                    MaxAllocSize, int32_t, (int32_t)500000000);
   DECL_GFX_PREF(Once, "gfx.max-texture-size",                  MaxTextureSize, int32_t, (int32_t)32767);
+  DECL_GFX_PREF(Live, "gfx.partialpresent.force",              PartialPresent, int32_t, 0);
   DECL_GFX_PREF(Live, "gfx.perf-warnings.enabled",             PerfWarnings, bool, false);
   DECL_GFX_PREF(Live, "gfx.SurfaceTexture.detach.enabled",     SurfaceTextureDetachEnabled, bool, true);
   DECL_GFX_PREF(Live, "gfx.testing.device-reset",              DeviceResetForTesting, int32_t, 0);

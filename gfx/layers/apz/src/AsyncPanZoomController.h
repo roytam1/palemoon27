@@ -316,6 +316,15 @@ public:
   void CancelAnimation(CancelAnimationFlags aFlags = Default);
 
   /**
+   * Adjusts the scroll position to compensate for a shift in the surface, such
+   * that the content appears to remain visually in the same position. i.e. if
+   * the surface moves up by 10 screenpixels, the scroll position should also
+   * move up by 10 pixels so that what used to be at the top of the surface is
+   * now 10 pixels down the surface.
+   */
+  void AdjustScrollForSurfaceShift(const ScreenPoint& aShift);
+
+  /**
    * Clear any overscroll on this APZC.
    */
   void ClearOverscroll();
@@ -636,6 +645,9 @@ protected:
   // to a nearby snap position if appropriate. The current scroll position is
   // used as the final destination.
   void RequestSnap();
+  // Same as above, but takes into account the current velocity to find a
+  // predicted destination.
+  void RequestSnapToDestination();
 
   uint64_t mLayersId;
   RefPtr<CompositorParent> mCompositorParent;

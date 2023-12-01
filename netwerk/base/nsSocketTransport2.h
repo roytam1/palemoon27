@@ -157,6 +157,7 @@ public:
 
     uint64_t ByteCountReceived() override { return mInput.ByteCount(); }
     uint64_t ByteCountSent() override { return mOutput.ByteCount(); }
+    static void CloseSocket(PRFileDesc *aFd, bool aTelemetryEnabled);
 protected:
 
     virtual ~nsSocketTransport();
@@ -311,10 +312,13 @@ private:
     nsCOMPtr<nsICancelable> mDNSRequest;
     nsCOMPtr<nsIDNSRecord>  mDNSRecord;
 
-    // mNetAddr is valid from GetPeerAddr() once we have
+    // mNetAddr/mSelfAddr is valid from GetPeerAddr()/GetSelfAddr() once we have
     // reached STATE_TRANSFERRING. It must not change after that.
+    void                    SetSocketName(PRFileDesc *fd);
     mozilla::net::NetAddr   mNetAddr;
-    bool                    mNetAddrIsSet;
+    mozilla::net::NetAddr   mSelfAddr; // getsockname()
+    mozilla::Atomic<bool, mozilla::Relaxed> mNetAddrIsSet;
+    mozilla::Atomic<bool, mozilla::Relaxed> mSelfAddrIsSet;
 
     nsAutoPtr<mozilla::net::NetAddr> mBindAddr;
 

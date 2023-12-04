@@ -795,7 +795,7 @@ MediaFormatReader::UpdateReceivedNewData(TrackType aTrack)
   bool hasLastEnd;
   media::TimeUnit lastEnd = decoder.mTimeRanges.GetEnd(&hasLastEnd);
   if (hasLastEnd) {
-    if (decoder.mLastTimeRangesEnd && decoder.mLastTimeRangesEnd.ref() > lastEnd) {
+    if (decoder.mLastTimeRangesEnd && decoder.mLastTimeRangesEnd.ref() < lastEnd) {
       // New data was added after our previous end, we can clear the EOS flag.
       decoder.mDemuxEOS = false;
     }
@@ -1115,8 +1115,10 @@ MediaFormatReader::Update(TrackType aTrack)
               decoder.mLastSampleTime.ref().ToMicroseconds());
           InternalSeek(aTrack, InternalSeekTarget(decoder.mLastSampleTime.ref(), true));
         }
-        LOG("Rejecting %s promise: WAITING_FOR_DATA", TrackTypeToStr(aTrack));
-        decoder.RejectPromise(WAITING_FOR_DATA, __func__);
+        if (!decoder.mReceivedNewData) {
+          LOG("Rejecting %s promise: WAITING_FOR_DATA", TrackTypeToStr(aTrack));
+          decoder.RejectPromise(WAITING_FOR_DATA, __func__);
+        }
       }
       // Now that draining has completed, we check if we have received
       // new data again as the result may now be different from the earlier
@@ -1186,6 +1188,16 @@ MediaFormatReader::ReturnOutput(MediaData* aData, TrackType aTrack)
     }
     mAudio.mPromise.Resolve(aData, __func__);
   } else if (aTrack == TrackInfo::kVideoTrack) {
+    if (aData->mType != MediaData::RAW_DATA) {
+      VideoData* videoData = static_cast<VideoData*>(aData);
+
+      if (videoData->mDisplay != mInfo.mVideo.mDisplay) {
+        LOG("change of video display size (%dx%d->%dx%d)",
+            mInfo.mVideo.mDisplay.width, mInfo.mVideo.mDisplay.height,
+            videoData->mDisplay.width, videoData->mDisplay.height);
+        mInfo.mVideo.mDisplay = videoData->mDisplay;
+      }
+    }
     mVideo.mPromise.Resolve(aData, __func__);
   }
   LOG("Resolved data promise for %s", TrackTypeToStr(aTrack));
@@ -1562,15 +1574,12 @@ MediaFormatReader::GetBuffered()
   if (!mInitDone) {
     return intervals;
   }
-  int64_t startTime;
+  int64_t startTime = 0;
   if (!ForceZeroStartTime()) {
     if (!HaveStartTime()) {
       return intervals;
     }
     startTime = StartTime();
-  } else {
-    // MSE, start time is assumed to be 0 we can proceeed with what we have.
-    startTime = 0;
   }
   // Ensure we have up to date buffered time range.
   if (HasVideo()) {
@@ -1593,6 +1602,11 @@ MediaFormatReader::GetBuffered()
     intervals = Move(videoti);
   }
 
+  if (!intervals.Length() ||
+      intervals.GetStart() == media::TimeUnit::FromMicroseconds(0)) {
+    // IntervalSet already starts at 0 or is empty, nothing to shift.
+    return intervals;
+  }
   return intervals.Shift(media::TimeUnit::FromMicroseconds(-startTime));
 }
 

@@ -27,6 +27,7 @@
 #include "js/Vector.h"
 #include "vm/Debugger.h"
 #include "vm/SavedFrame.h"
+#include "vm/SPSProfiler.h"
 #include "vm/StringBuffer.h"
 #include "vm/Time.h"
 #include "vm/WrapperObject.h"
@@ -155,6 +156,10 @@ struct SavedFrame::Lookup {
         MOZ_ASSERT(source);
         MOZ_ASSERT_IF(framePtr.isSome(), pc);
         MOZ_ASSERT_IF(framePtr.isSome(), activation);
+
+#ifdef JS_MORE_DETERMINISTIC
+        column = 0;
+#endif
     }
 
     explicit Lookup(SavedFrame& savedFrame)
@@ -421,6 +426,9 @@ SavedFrame::initLine(uint32_t line)
 void
 SavedFrame::initColumn(uint32_t column)
 {
+#ifdef JS_MORE_DETERMINISTIC
+    column = 0;
+#endif
     initReservedSlot(JSSLOT_COLUMN, PrivateUint32Value(column));
 }
 
@@ -485,7 +493,8 @@ SavedFrame::create(JSContext* cx)
         return nullptr;
     assertSameCompartment(cx, proto);
 
-    RootedObject frameObj(cx, NewObjectWithGivenProto(cx, &SavedFrame::class_, proto));
+    RootedObject frameObj(cx, NewObjectWithGivenProto(cx, &SavedFrame::class_, proto,
+                                                      TenuredObject));
     if (!frameObj)
         return nullptr;
 
@@ -988,10 +997,8 @@ SavedFrame::toStringMethod(JSContext* cx, unsigned argc, Value* vp)
 bool
 SavedStacks::init()
 {
-    if (!pcLocationMap.init())
-        return false;
-
-    return frames.init();
+    return frames.init() &&
+           pcLocationMap.init();
 }
 
 bool
@@ -1008,6 +1015,7 @@ SavedStacks::saveCurrentStack(JSContext* cx, MutableHandleSavedFrame frame, unsi
         return true;
     }
 
+    AutoSPSEntry psuedoFrame(cx->runtime(), "js::SavedStacks::saveCurrentStack");
     FrameIter iter(cx, FrameIter::ALL_CONTEXTS, FrameIter::GO_THROUGH_SAVED);
     return insertFrames(cx, iter, frame, maxFrameCount);
 }
@@ -1037,13 +1045,7 @@ SavedStacks::sweep()
 void
 SavedStacks::trace(JSTracer* trc)
 {
-    if (pcLocationMap.initialized()) {
-        // Mark each of the source strings in our pc to location cache.
-        for (PCLocationMap::Enum e(pcLocationMap); !e.empty(); e.popFront()) {
-            LocationValue& loc = e.front().value();
-            TraceEdge(trc, &loc.source, "SavedStacks::PCLocationMap's memoized script source name");
-        }
-    }
+    pcLocationMap.trace(trc);
 }
 
 uint32_t
@@ -1062,7 +1064,8 @@ SavedStacks::clear()
 size_t
 SavedStacks::sizeOfExcludingThis(mozilla::MallocSizeOf mallocSizeOf)
 {
-    return frames.sizeOfExcludingThis(mallocSizeOf);
+    return frames.sizeOfExcludingThis(mallocSizeOf) +
+           pcLocationMap.sizeOfExcludingThis(mallocSizeOf);
 }
 
 bool

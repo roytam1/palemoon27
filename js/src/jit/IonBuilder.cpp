@@ -2465,7 +2465,7 @@ IonBuilder::finishLoop(CFGState& state, MBasicBlock* successor)
 }
 
 IonBuilder::ControlStatus
-IonBuilder::restartLoop(CFGState state)
+IonBuilder::restartLoop(const CFGState& state)
 {
     spew("New types at loop header, restarting loop body");
 
@@ -2493,6 +2493,12 @@ IonBuilder::restartLoop(CFGState state)
 
     loopDepth_++;
 
+    // Keep a local copy for these pointers since state will be overwritten in
+    // pushLoop since state is a reference to cfgStack_.back()
+    jsbytecode* condpc = state.loop.condpc;
+    jsbytecode* updatepc = state.loop.updatepc;
+    jsbytecode* updateEnd = state.loop.updateEnd;
+
     if (!pushLoop(state.loop.initialState, state.loop.initialStopAt, header, state.loop.osr,
                   state.loop.loopHead, state.loop.initialPc,
                   state.loop.bodyStart, state.loop.bodyEnd,
@@ -2503,9 +2509,9 @@ IonBuilder::restartLoop(CFGState state)
 
     CFGState& nstate = cfgStack_.back();
 
-    nstate.loop.condpc = state.loop.condpc;
-    nstate.loop.updatepc = state.loop.updatepc;
-    nstate.loop.updateEnd = state.loop.updateEnd;
+    nstate.loop.condpc = condpc;
+    nstate.loop.updatepc = updatepc;
+    nstate.loop.updateEnd = updateEnd;
 
     // Don't specializePhis(), as the header has been visited before and the
     // phis have already had their type set.
@@ -4760,6 +4766,7 @@ IonBuilder::binaryArithTryConcat(bool* emitted, JSOp op, MDefinition* left, MDef
     if (!maybeInsertResume())
         return false;
 
+    trackOptimizationSuccess();
     *emitted = true;
     return true;
 }
@@ -4811,6 +4818,7 @@ IonBuilder::binaryArithTrySpecialized(bool* emitted, JSOp op, MDefinition* left,
     if (!maybeInsertResume())
         return false;
 
+    trackOptimizationSuccess();
     *emitted = true;
     return true;
 }
@@ -4843,6 +4851,7 @@ IonBuilder::binaryArithTrySpecializedOnBaselineInspector(bool* emitted, JSOp op,
     if (!maybeInsertResume())
         return false;
 
+    trackOptimizationSuccess();
     *emitted = true;
     return true;
 }
@@ -4863,6 +4872,12 @@ IonBuilder::arithTrySharedStub(bool* emitted, JSOp op,
     if (actualOp == JSOP_POS)
         return true;
 
+    // FIXME: The JSOP_BITNOT path doesn't track optimizations yet.
+    if (actualOp != JSOP_BITNOT) {
+        trackOptimizationAttempt(TrackedStrategy::BinaryArith_SharedCache);
+        trackOptimizationSuccess();
+    }
+
     MInstruction* stub = nullptr;
     switch (actualOp) {
       case JSOP_NEG:
@@ -4878,7 +4893,6 @@ IonBuilder::arithTrySharedStub(bool* emitted, JSOp op,
       case JSOP_MUL:
       case JSOP_DIV:
       case JSOP_MOD:
-        trackOptimizationAttempt(TrackedStrategy::BinaryArith_SharedCache);
         stub = MBinarySharedStub::New(alloc(), left, right);
         break;
       default:
@@ -4925,6 +4939,8 @@ IonBuilder::jsop_binary_arith(JSOp op, MDefinition* left, MDefinition* right)
 
     // Not possible to optimize. Do a slow vm call.
     trackOptimizationAttempt(TrackedStrategy::BinaryArith_Call);
+    trackOptimizationSuccess();
+
     MDefinition::Opcode def_op = JSOpToMDefinition(op);
     MBinaryArithInstruction* ins = MBinaryArithInstruction::New(alloc(), def_op, left, right);
 
@@ -8341,27 +8357,32 @@ IonBuilder::testGlobalLexicalBinding(PropertyName* name)
     jsid id = NameToId(name);
     if (analysisContext)
         lexicalKey->ensureTrackedProperty(analysisContext, id);
-    if (!lexicalKey->unknownProperties()) {
-        // If the property is not found on the global lexical scope but it is
-        // found on the global and is configurable, freeze the typeset for its
-        // non-existence.
-        //
-        // In the case that it is found on the global but is non-configurable,
-        // the binding cannot be shadowed by a global lexical binding.
-        HeapTypeSetKey lexicalProperty = lexicalKey->property(id);
-        Shape* shape = obj->lookupPure(name);
-        if (shape) {
-            if ((JSOp(*pc) != JSOP_GETGNAME && !shape->writable()) ||
-                obj->getSlot(shape->slot()).isMagic(JS_UNINITIALIZED_LEXICAL))
-            {
-                return nullptr;
-            }
-        } else {
-            shape = script()->global().lookupPure(name);
-            if (!shape || shape->configurable())
-                MOZ_ALWAYS_FALSE(lexicalProperty.isOwnProperty(constraints()));
-            obj = &script()->global();
+
+    // If the property is not found on the global lexical scope but it is found
+    // on the global and is configurable, try to freeze the typeset for its
+    // non-existence.  If we don't have type information then fail.
+    //
+    // In the case that it is found on the global but is non-configurable,
+    // the binding cannot be shadowed by a global lexical binding.
+    Maybe<HeapTypeSetKey> lexicalProperty;
+    if (!lexicalKey->unknownProperties())
+        lexicalProperty.emplace(lexicalKey->property(id));
+    Shape* shape = obj->lookupPure(name);
+    if (shape) {
+        if ((JSOp(*pc) != JSOP_GETGNAME && !shape->writable()) ||
+            obj->getSlot(shape->slot()).isMagic(JS_UNINITIALIZED_LEXICAL))
+        {
+            return nullptr;
         }
+    } else {
+        shape = script()->global().lookupPure(name);
+        if (!shape || shape->configurable()) {
+            if (lexicalProperty.isSome())
+                MOZ_ALWAYS_FALSE(lexicalProperty->isOwnProperty(constraints()));
+            else
+                return nullptr;
+        }
+        obj = &script()->global();
     }
 
     return obj;
@@ -11076,7 +11097,7 @@ IonBuilder::jsop_getprop(PropertyName* name)
 
     // Try to emit a shared stub.
     trackOptimizationAttempt(TrackedStrategy::GetProp_SharedCache);
-    if (!getPropTrySharedStub(&emitted, obj) || emitted)
+    if (!getPropTrySharedStub(&emitted, obj, types) || emitted)
         return emitted;
 
     // Emit a call.
@@ -12016,7 +12037,7 @@ IonBuilder::getPropTryCache(bool* emitted, MDefinition* obj, PropertyName* name,
 }
 
 bool
-IonBuilder::getPropTrySharedStub(bool* emitted, MDefinition* obj)
+IonBuilder::getPropTrySharedStub(bool* emitted, MDefinition* obj, TemporaryTypeSet* types)
 {
     MOZ_ASSERT(*emitted == false);
 
@@ -12031,6 +12052,15 @@ IonBuilder::getPropTrySharedStub(bool* emitted, MDefinition* obj)
 
     if (!resumeAfter(stub))
         return false;
+
+    // Due to inlining, it's possible the observed TypeSet is non-empty,
+    // even though we know |obj| is null/undefined and the MCallGetProperty
+    // will throw. Don't push a TypeBarrier in this case, to avoid
+    // inlining the following (unreachable) JSOP_CALL.
+    if (*pc != JSOP_CALLPROP || !IsNullOrUndefined(obj->type())) {
+        if (!pushTypeBarrier(stub, types, BarrierKind::TypeSet))
+            return false;
+    }
 
     *emitted = true;
     return true;
@@ -13392,7 +13422,7 @@ IonBuilder::inTryFold(bool* emitted, MDefinition* obj, MDefinition* id)
         return true;
 
     TemporaryTypeSet* types = obj->resultTypeSet();
-    if (!types || types->unknownObject())
+    if (!types || types->unknownObject() || types->getKnownMIRType() != MIRType_Object)
         return true;
 
     for (unsigned i = 0, count = types->getObjectCount(); i < count; i++) {

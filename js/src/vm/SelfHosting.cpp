@@ -137,6 +137,18 @@ intrinsic_IsConstructor(JSContext* cx, unsigned argc, Value* vp)
     return true;
 }
 
+template<typename T>
+static bool
+intrinsic_IsInstanceOfBuiltin(JSContext* cx, unsigned argc, Value* vp)
+{
+    CallArgs args = CallArgsFromVp(argc, vp);
+    MOZ_ASSERT(args.length() == 1);
+    MOZ_ASSERT(args[0].isObject());
+
+    args.rval().setBoolean(args[0].toObject().is<T>());
+    return true;
+}
+
 /**
  * Self-hosting intrinsic returning the original constructor for a builtin
  * the name of which is the first and only argument.
@@ -169,18 +181,6 @@ intrinsic_GetBuiltinConstructor(JSContext* cx, unsigned argc, Value* vp)
     if (!GetBuiltinConstructor(cx, key, &ctor))
         return false;
     args.rval().setObject(*ctor);
-    return true;
-}
-
-template<typename T>
-static bool
-intrinsic_IsInstanceOfBuiltin(JSContext* cx, unsigned argc, Value* vp)
-{
-    CallArgs args = CallArgsFromVp(argc, vp);
-    MOZ_ASSERT(args.length() == 1);
-    MOZ_ASSERT(args[0].isObject());
-
-    args.rval().setBoolean(args[0].toObject().is<T>());
     return true;
 }
 
@@ -301,6 +301,29 @@ intrinsic_AssertionFailed(JSContext* cx, unsigned argc, Value* vp)
     return false;
 }
 
+/**
+ * Dumps a message to stderr, after stringifying it. Doesn't append a newline.
+ */
+static bool
+intrinsic_DumpMessage(JSContext* cx, unsigned argc, Value* vp)
+{
+    CallArgs args = CallArgsFromVp(argc, vp);
+#ifdef DEBUG
+    if (args.length() > 0) {
+        // try to dump the informative string
+        JSString* str = ToString<CanGC>(cx, args[0]);
+        if (str) {
+            str->dumpCharsNoNewline();
+            fputc('\n', stderr);
+        } else {
+            cx->recoverFromOutOfMemory();
+        }
+    }
+#endif
+    args.rval().setUndefined();
+    return true;
+}
+
 static bool
 intrinsic_MakeConstructible(JSContext* cx, unsigned argc, Value* vp)
 {
@@ -363,9 +386,11 @@ intrinsic_FinishBoundFunctionInit(JSContext* cx, unsigned argc, Value* vp)
     if (targetObj->isConstructor())
         bound->setIsConstructor();
 
-    // 9.4.1.3 BoundFunctionCreate, steps 2-3,8.
+    // 9.4.1.3 BoundFunctionCreate, Steps 2-3., 8.
     RootedObject proto(cx);
-    GetPrototype(cx, targetObj, &proto);
+    if (!GetPrototype(cx, targetObj, &proto))
+        return false;
+
     if (bound->getProto() != proto) {
         if (!SetPrototype(cx, bound, proto))
             return false;
@@ -373,6 +398,8 @@ intrinsic_FinishBoundFunctionInit(JSContext* cx, unsigned argc, Value* vp)
 
     bound->setExtendedSlot(BOUND_FUN_LENGTH_SLOT, args[2]);
     MOZ_ASSERT(!bound->hasGuessedAtom());
+
+    // 9.2.11 SetFunctionName, Step 6.
     RootedAtom name(cx, AtomizeString(cx, args[3].toString()));
     if (!name)
         return false;
@@ -609,26 +636,6 @@ intrinsic_NewStringIterator(JSContext* cx, unsigned argc, Value* vp)
 }
 
 static bool
-intrinsic_SetCanonicalName(JSContext* cx, unsigned argc, Value* vp)
-{
-    CallArgs args = CallArgsFromVp(argc, vp);
-    MOZ_ASSERT(args.length() == 2);
-
-    RootedFunction fun(cx, &args[0].toObject().as<JSFunction>());
-    MOZ_ASSERT(fun->isSelfHostedBuiltin());
-    RootedAtom atom(cx, AtomizeString(cx, args[1].toString()));
-    if (!atom)
-        return false;
-
-    fun->setAtom(atom);
-#ifdef DEBUG
-    fun->setExtendedSlot(HAS_SELFHOSTED_CANONICAL_NAME_SLOT, BooleanValue(true));
-#endif
-    args.rval().setUndefined();
-    return true;
-}
-
-static bool
 intrinsic_NewListIterator(JSContext* cx, unsigned argc, Value* vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
@@ -656,6 +663,26 @@ intrinsic_ActiveFunction(JSContext* cx, unsigned argc, Value* vp)
     ScriptFrameIter iter(cx);
     MOZ_ASSERT(iter.isFunctionFrame());
     args.rval().setObject(*iter.callee(cx));
+    return true;
+}
+
+static bool
+intrinsic_SetCanonicalName(JSContext* cx, unsigned argc, Value* vp)
+{
+    CallArgs args = CallArgsFromVp(argc, vp);
+    MOZ_ASSERT(args.length() == 2);
+
+    RootedFunction fun(cx, &args[0].toObject().as<JSFunction>());
+    MOZ_ASSERT(fun->isSelfHostedBuiltin());
+    RootedAtom atom(cx, AtomizeString(cx, args[1].toString()));
+    if (!atom)
+        return false;
+
+    fun->setAtom(atom);
+#ifdef DEBUG
+    fun->setExtendedSlot(HAS_SELFHOSTED_CANONICAL_NAME_SLOT, BooleanValue(true));
+#endif
+    args.rval().setUndefined();
     return true;
 }
 
@@ -1637,7 +1664,7 @@ intrinsic_NewModuleNamespace(JSContext* cx, unsigned argc, Value* vp)
     CallArgs args = CallArgsFromVp(argc, vp);
     MOZ_ASSERT(args.length() == 2);
     RootedModuleObject module(cx, &args[0].toObject().as<ModuleObject>());
-    RootedArrayObject exports(cx, &args[1].toObject().as<ArrayObject>());
+    RootedObject exports(cx, &args[1].toObject());
     RootedObject namespace_(cx, ModuleObject::createNamespace(cx, module, exports));
     if (!namespace_)
         return false;
@@ -1769,6 +1796,7 @@ static const JSFunctionSpec intrinsic_functions[] = {
     JS_FN("ThrowTypeError",          intrinsic_ThrowTypeError,          4,0),
     JS_FN("ThrowSyntaxError",        intrinsic_ThrowSyntaxError,        4,0),
     JS_FN("AssertionFailed",         intrinsic_AssertionFailed,         1,0),
+    JS_FN("DumpMessage",             intrinsic_DumpMessage,             1,0),
     JS_FN("OwnPropertyKeys",         intrinsic_OwnPropertyKeys,         1,0),
     JS_FN("MakeDefaultConstructor",  intrinsic_MakeDefaultConstructor,  2,0),
     JS_FN("_ConstructorForTypedArray", intrinsic_ConstructorForTypedArray, 1,0),
@@ -1801,7 +1829,6 @@ static const JSFunctionSpec intrinsic_functions[] = {
     JS_FN("GetIteratorPrototype",    intrinsic_GetIteratorPrototype,    0,0),
 
     JS_FN("NewArrayIterator",        intrinsic_NewArrayIterator,        0,0),
-    JS_FN("_SetCanonicalName",       intrinsic_SetCanonicalName,        2,0),
     JS_FN("CallArrayIteratorMethodIfWrapped",
           CallNonGenericSelfhostedMethod<Is<ArrayIteratorObject>>,      2,0),
 
@@ -1809,6 +1836,8 @@ static const JSFunctionSpec intrinsic_functions[] = {
     JS_FN("CallListIteratorMethodIfWrapped",
           CallNonGenericSelfhostedMethod<Is<ListIteratorObject>>,       2,0),
     JS_FN("ActiveFunction",          intrinsic_ActiveFunction,          0,0),
+
+    JS_FN("_SetCanonicalName",       intrinsic_SetCanonicalName,        2,0),
 
     JS_INLINABLE_FN("IsArrayIterator",
                     intrinsic_IsInstanceOfBuiltin<ArrayIteratorObject>, 1,0,
@@ -2096,9 +2125,7 @@ JSRuntime::initSelfHosting(JSContext* cx)
 
     char* filename = getenv("MOZ_SELFHOSTEDJS");
     if (filename) {
-        RootedScript script(cx);
-        if (Compile(cx, options, filename, &script))
-            ok = Execute(cx, script, *shg.get(), rv.address());
+        ok = ok && Evaluate(cx, options, filename, &rv);
     } else {
         uint32_t srcLen = GetRawScriptsSize();
 
@@ -2382,7 +2409,7 @@ JSRuntime::createLazySelfHostedFunctionClone(JSContext* cx, HandlePropertyName s
     if (!selfHostedFun)
         return false;
 
-    if (selfHostedFun->atom() != selfHostedName) {
+    if (!selfHostedFun->hasGuessedAtom() && selfHostedFun->atom() != selfHostedName) {
         MOZ_ASSERT(selfHostedFun->getExtendedSlot(HAS_SELFHOSTED_CANONICAL_NAME_SLOT).toBoolean());
         funName = selfHostedFun->atom();
     }

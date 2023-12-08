@@ -115,10 +115,8 @@ FFmpegH264Decoder<LIBAV_VER>::FFmpegH264Decoder(
   ImageContainer* aImageContainer)
   : FFmpegDataDecoder(aTaskQueue, aCallback, GetCodecId(aConfig.mMimeType))
   , mImageContainer(aImageContainer)
-  , mPictureWidth(aConfig.mImage.width)
-  , mPictureHeight(aConfig.mImage.height)
-  , mDisplayWidth(aConfig.mDisplay.width)
-  , mDisplayHeight(aConfig.mDisplay.height)
+  , mDisplay(aConfig.mDisplay)
+  , mImage(aConfig.mImage)
   , mCodecParser(nullptr)
 {
   MOZ_COUNT_CTOR(FFmpegH264Decoder);
@@ -143,18 +141,18 @@ FFmpegH264Decoder<LIBAV_VER>::Init()
 void
 FFmpegH264Decoder<LIBAV_VER>::InitCodecContext()
 {
-  mCodecContext->width = mPictureWidth;
-  mCodecContext->height = mPictureHeight;
+  mCodecContext->width = mImage.width;
+  mCodecContext->height = mImage.height;
 
   // We use the same logic as libvpx in determining the number of threads to use
   // so that we end up behaving in the same fashion when using ffmpeg as
   // we would otherwise cause various crashes (see bug 1236167)
   int decode_threads = 1;
-  if (mDisplayWidth >= 2048) {
+  if (mDisplay.width >= 2048) {
     decode_threads = 8;
-  } else if (mDisplayWidth >= 1024) {
+  } else if (mDisplay.width >= 1024) {
     decode_threads = 4;
-  } else if (mDisplayWidth >= 320) {
+  } else if (mDisplay.width >= 320) {
     decode_threads = 2;
   }
 
@@ -311,7 +309,7 @@ FFmpegH264Decoder<LIBAV_VER>::DoDecodeFrame(MediaRawData* aSample,
     }
 
     VideoInfo info;
-    info.mDisplay = nsIntSize(mDisplayWidth, mDisplayHeight);
+    info.mDisplay = mDisplay;
 
     VideoData::YCbCrBuffer b;
     b.mPlanes[0].mData = mFrame->data[0];
@@ -344,7 +342,7 @@ FFmpegH264Decoder<LIBAV_VER>::DoDecodeFrame(MediaRawData* aSample,
                                               b,
                                               !!mFrame->key_frame,
                                               -1,
-                                              gfx::IntRect(0, 0, mCodecContext->width, mCodecContext->height));
+                                              mImage);
     if (!v) {
       NS_WARNING("image allocation error.");
       mCallback->Error();

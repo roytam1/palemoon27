@@ -3472,9 +3472,8 @@ const BrowserSearch = {
       let url = doc.documentURI.toLowerCase();
       let mm = gBrowser.selectedBrowser.messageManager;
 
-      if (url === "about:home") {
-        AboutHome.focusInput(mm);
-      } else if (url === "about:newtab") {
+      if (url === "about:home" ||
+          (url === "about:newtab" && NewTabUtils.allPages.enabled)) {
         ContentSearch.focusInput(mm);
       } else if (!aSearchBar || document.activeElement != aSearchBar.textbox.inputField) {
         openUILinkIn(Services.search.defaultEngine.searchForm, "current");

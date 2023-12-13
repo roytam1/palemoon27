@@ -2041,14 +2041,26 @@ BrowserGlue.prototype = {
       let win = RecentWindow.getMostRecentBrowserWindow();
       win.openUILinkIn(data, "tab");
     }
-    let imageURL = "chrome://browser/skin/web-notifications-icon.svg";
+    // Show the application icon for XUL notifications. We assume system-level
+    // notifications will include their own icon.
+    let imageURL = this._hasSystemAlertsService() ? "" :
+                   "chrome://branding/content/about-logo.png";
     let title = gBrowserBundle.GetStringFromName("webNotifications.upgradeTitle");
-    let text = gBrowserBundle.GetStringFromName("webNotifications.upgradeInfo");
-    let url = Services.urlFormatter.formatURLPref("browser.push.warning.infoURL");
+    let text = gBrowserBundle.GetStringFromName("webNotifications.upgradeBody");
+    let url = Services.urlFormatter.formatURLPref("app.support.baseURL") +
+      "push#w_upgraded-notifications";
 
     AlertsService.showAlertNotification(imageURL, title, text,
                                         true, url, clickCallback);
   }),
+
+  _hasSystemAlertsService: function() {
+    try {
+      return !!Cc["@mozilla.org/system-alerts-service;1"].getService(
+        Ci.nsIAlertsService);
+    } catch (e) {}
+    return false;
+  },
 
   // ------------------------------
   // public nsIBrowserGlue members
@@ -2518,7 +2530,8 @@ ContentPermissionPrompt.prototype = {
     }
 
     var options = {
-      learnMoreURL: Services.urlFormatter.formatURLPref("browser.push.warning.infoURL"),
+      learnMoreURL:
+        Services.urlFormatter.formatURLPref("app.support.baseURL") + "push",
     };
 
     this._showPrompt(aRequest, message, "desktop-notification", actions,

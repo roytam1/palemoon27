@@ -789,6 +789,31 @@ pref("gecko.handlerService.schemes.ircs.3.uriTemplate", "chrome://browser-region
 // By default, we don't want protocol/content handlers to be registered from a different host, see bug 402287
 pref("gecko.handlerService.allowRegisterFromDifferentHost", false);
 
+#ifdef MOZ_SAFE_BROWSING
+// Name of the about: page contributed by safebrowsing to handle display of error
+// pages on phishing/malware hits.  (bug 399233)
+pref("urlclassifier.alternate_error_page", "blocked");
+
+// The number of random entries to send with a gethash request.
+pref("urlclassifier.gethashnoise", 4);
+
+// Gethash timeout for Safebrowsing.
+pref("urlclassifier.gethash.timeout_ms", 5000);
+
+// If an urlclassifier table has not been updated in this number of seconds,
+// a gethash request will be forced to check that the result is still in
+// the database.
+pref("urlclassifier.max-complete-age", 2700);
+// Tables for application reputation.
+pref("urlclassifier.downloadBlockTable", "goog-badbinurl-shavar");
+#ifdef XP_WIN
+// Only download the whitelist on Windows, since the whitelist is
+// only useful for suppressing remote lookups for signed binaries which we can
+// only verify on Windows (Bug 974579). Other platforms always do remote lookups.
+pref("urlclassifier.downloadAllowTable", "goog-downloadwhite-digest256");
+#endif
+#endif
+
 pref("browser.geolocation.warning.infoURL", "http://www.palemoon.org/info-url/geolocation.shtml");
 pref("browser.mixedcontent.warning.infoURL", "http://www.palemoon.org/info-url/mixedcontent.shtml");
 pref("browser.push.warning.infoURL", "https://www.mozilla.org/%LOCALE%/firefox/push/");
@@ -1260,13 +1285,13 @@ pref("browser.display.standalone_images.background_color", "#2E3B41");
 pref("view_source.tab", true);
 
 // Enable ServiceWorkers for Push API consumers.
-// Interception is still disabled.
 pref("dom.serviceWorkers.enabled", true);
+pref("dom.serviceWorkers.interception.enabled", true);
+pref("dom.serviceWorkers.openWindow.enabled", true);
+pref("dom.webnotifications.serviceworker.enabled", true);
 
 // Enable Push API.
 pref("dom.push.enabled", true);
-
-pref("dom.serviceWorkers.openWindow.enabled", true);
 
 // Disable reader mode by default.
 pref("reader.parse-on-load.enabled", false);
@@ -1332,6 +1357,9 @@ pref("status4evar.status.popup.mouseMirror", true);
 // How often to check for CPOW timeouts. CPOWs are only timed out by
 // the hang monitor.
 pref("dom.ipc.cpow.timeout", 500);
+
+// Causes access on unsafe CPOWs from browser code to throw by default.
+pref("dom.ipc.cpows.forbid-unsafe-from-browser", false);
 
 // Enable e10s hang monitoring (slow script checking and plugin hang
 // detection).

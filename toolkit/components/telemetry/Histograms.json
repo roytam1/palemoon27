@@ -280,7 +280,7 @@
   "GC_REASON_2": {
     "expires_in_version": "never",
     "kind": "enumerated",
-    "n_values": 10,
+    "n_values": 100,
     "description": "Reason (enum value) for initiating a GC"
   },
   "GC_IS_COMPARTMENTAL": {
@@ -407,13 +407,13 @@
   "GC_MINOR_REASON": {
     "expires_in_version": "never",
     "kind": "enumerated",
-    "n_values": "10",
+    "n_values": 100,
     "description": "Reason (enum value) for initiating a minor GC"
   },
   "GC_MINOR_REASON_LONG": {
     "expires_in_version": "never",
     "kind": "enumerated",
-    "n_values": "10",
+    "n_values": 100,
     "description": "Reason (enum value) that caused a long (>1ms) minor GC"
   },
   "GC_MINOR_US": {
@@ -3077,7 +3077,7 @@
   "STARTUP_MEASUREMENT_ERRORS": {
     "expires_in_version": "default",
     "kind": "enumerated",
-    "n_values": "mozilla::StartupTimeline::MAX_EVENT_ID",
+    "n_values": 16,
     "description": "Flags errors in startup calculation()"
   },
   "NETWORK_DISK_CACHE_OPEN": {
@@ -5445,13 +5445,7 @@
     "n_buckets": "1000",
     "description": "The time (in milliseconds) that it took a 'detach' request to go round trip."
   },
-  "MEDIA_WMF_DECODE_ERROR": {
-    "expires_in_version": "50",
-    "kind": "enumerated",
-    "n_values": 256,
-    "description": "WMF media decoder error or success (0) codes."
-  },
-  "DEVTOOLS_DEBUGGER_RDP_LOCAL_PROTOTYPESANDPROPERTIES_MS": {
+  "DEVTOOLS_DEBUGGER_RDP_LOCAL_RESUME_MS": {
     "expires_in_version": "never",
     "kind": "exponential",
     "high": "10000",

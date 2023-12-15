@@ -1354,6 +1354,8 @@ pref("status4evar.status.toolbar.maxLength", 0);
 pref("status4evar.status.popup.invertMirror", false);
 pref("status4evar.status.popup.mouseMirror", true);
 
+pref("privacy.trackingprotection.ui.enabled", false);
+
 // How often to check for CPOW timeouts. CPOWs are only timed out by
 // the hang monitor.
 pref("dom.ipc.cpow.timeout", 500);

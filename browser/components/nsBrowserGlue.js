@@ -129,21 +129,14 @@ if (AppConstants.MOZ_CRASHREPORTER) {
 XPCOMUtils.defineLazyModuleGetter(this, "ReaderParent",
                                   "resource:///modules/ReaderParent.jsm");
 
-XPCOMUtils.defineLazyGetter(this, "ShellService", function() {
-  try {
-    return Cc["@mozilla.org/browser/shell-service;1"].
-           getService(Ci.nsIShellService);
-  }
-  catch(ex) {
-    return null;
-  }
-});
-
 XPCOMUtils.defineLazyModuleGetter(this, "LightweightThemeManager",
                                   "resource://gre/modules/LightweightThemeManager.jsm");
 
 XPCOMUtils.defineLazyModuleGetter(this, "ExtensionManagement",
                                   "resource://gre/modules/ExtensionManagement.jsm");
+
+XPCOMUtils.defineLazyModuleGetter(this, "ShellService",
+                                  "resource:///modules/ShellService.jsm");
 
 XPCOMUtils.defineLazyServiceGetter(this, "AlertsService",
                                    "@mozilla.org/alerts-service;1", "nsIAlertsService");
@@ -1119,7 +1112,7 @@ BrowserGlue.prototype = {
     if (AppConstants.E10S_TESTING_ONLY) {
       E10SUINotification.checkStatus();
     }
-    if (AppConstants.platform == "win") {
+    if (AppConstants.E10S_TESTING_ONLY && AppConstants.platform == "win") {
       // Handles prompting to inform about incompatibilites when accessibility
       // and e10s are active together.
       E10SAccessibilityCheck.init();

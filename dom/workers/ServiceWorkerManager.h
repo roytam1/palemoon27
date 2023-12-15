@@ -376,19 +376,14 @@ public:
   bool
   IsControlled(nsIDocument* aDocument, ErrorResult& aRv);
 
-  already_AddRefed<nsIRunnable>
-  PrepareFetchEvent(const OriginAttributes& aOriginAttributes,
-                    nsIDocument* aDoc,
-                    const nsAString& aDocumentIdForTopLevelNavigation,
-                    nsIInterceptedChannel* aChannel,
-                    bool aIsReload,
-                    bool aIsSubresourceLoad,
-                    ErrorResult& aRv);
-
   void
-  DispatchPreparedFetchEvent(nsIInterceptedChannel* aChannel,
-                             nsIRunnable* aPreparedRunnable,
-                             ErrorResult& aRv);
+  DispatchFetchEvent(const OriginAttributes& aOriginAttributes,
+                     nsIDocument* aDoc,
+                     const nsAString& aDocumentIdForTopLevelNavigation,
+                     nsIInterceptedChannel* aChannel,
+                     bool aIsReload,
+                     bool aIsSubresourceLoad,
+                     ErrorResult& aRv);
 
   void
   Update(nsIPrincipal* aPrincipal,

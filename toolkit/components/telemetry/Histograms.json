@@ -280,7 +280,7 @@
   "GC_REASON_2": {
     "expires_in_version": "never",
     "kind": "enumerated",
-    "n_values": 10,
+    "n_values": 100,
     "description": "Reason (enum value) for initiating a GC"
   },
   "GC_IS_COMPARTMENTAL": {
@@ -407,13 +407,13 @@
   "GC_MINOR_REASON": {
     "expires_in_version": "never",
     "kind": "enumerated",
-    "n_values": "10",
+    "n_values": 100,
     "description": "Reason (enum value) for initiating a minor GC"
   },
   "GC_MINOR_REASON_LONG": {
     "expires_in_version": "never",
     "kind": "enumerated",
-    "n_values": "10",
+    "n_values": 100,
     "description": "Reason (enum value) that caused a long (>1ms) minor GC"
   },
   "GC_MINOR_US": {
@@ -3077,7 +3077,7 @@
   "STARTUP_MEASUREMENT_ERRORS": {
     "expires_in_version": "default",
     "kind": "enumerated",
-    "n_values": "mozilla::StartupTimeline::MAX_EVENT_ID",
+    "n_values": 16,
     "description": "Flags errors in startup calculation()"
   },
   "NETWORK_DISK_CACHE_OPEN": {
@@ -5473,13 +5473,7 @@
     "n_buckets": "1000",
     "description": "The time (in milliseconds) that it took a 'detach' request to go round trip."
   },
-  "MEDIA_WMF_DECODE_ERROR": {
-    "expires_in_version": "50",
-    "kind": "enumerated",
-    "n_values": 256,
-    "description": "WMF media decoder error or success (0) codes."
-  },
-  "DEVTOOLS_DEBUGGER_RDP_LOCAL_PROTOTYPESANDPROPERTIES_MS": {
+  "DEVTOOLS_DEBUGGER_RDP_LOCAL_RESUME_MS": {
     "expires_in_version": "never",
     "kind": "exponential",
     "high": "10000",
@@ -7278,7 +7272,49 @@
   "BROWSER_IS_USER_DEFAULT": {
     "expires_in_version": "never",
     "kind": "boolean",
+    "releaseChannelCollection": "opt-out",
     "description": "The result of the startup default desktop browser check."
+  },
+  "BROWSER_IS_USER_DEFAULT_ERROR": {
+    "expires_in_version": "never",
+    "kind": "boolean",
+    "releaseChannelCollection": "opt-out",
+    "description": "True if the browser was unable to determine if the browser was set as default."
+  },
+  "BROWSER_SET_DEFAULT_DIALOG_PROMPT_RAWCOUNT": {
+    "expires_in_version": "never",
+    "kind": "exponential",
+    "high": "250",
+    "n_buckets": "15",
+    "releaseChannelCollection": "opt-out",
+    "description": "The number of times that a profile has seen the 'Set Default Browser' dialog."
+  },
+  "BROWSER_SET_DEFAULT_ALWAYS_CHECK": {
+    "expires_in_version": "never",
+    "kind": "boolean",
+    "releaseChannelCollection": "opt-out",
+    "description": "True if the profile has `browser.shell.checkDefaultBrowser` set to true."
+  },
+  "BROWSER_SET_DEFAULT_RESULT": {
+    "expires_in_version": "never",
+    "kind": "enumerated",
+    "n_values": "4",
+    "releaseChannelCollection": "opt-out",
+    "description": "Result of the Set Default Browser dialog (0=Use Firefox + 'Always perform check' unchecked, 1=Use Firefox + 'Always perform check' checked, 2=Not Now + 'Always perform check' unchecked, 3=Not Now + 'Always perform check' checked)"
+  },
+  "BROWSER_SET_DEFAULT_ERROR": {
+    "expires_in_version": "never",
+    "kind": "boolean",
+    "releaseChannelCollection": "opt-out",
+    "description": "True if the browser was unable to set Firefox as the default browser"
+  },
+  "BROWSER_SET_DEFAULT_TIME_TO_COMPLETION_SECONDS": {
+    "expires_in_version": "never",
+    "kind": "exponential",
+    "high": "500",
+    "n_buckets": "15",
+    "releaseChannelCollection": "opt-out",
+    "description": "Time to successfully set Firefox as the default browser after clicking 'Set Firefox as Default'. Should be near-instant in some environments, others require user interaction. Measured in seconds."
   },
   "BROWSER_IS_ASSIST_DEFAULT": {
     "expires_in_version": "never",

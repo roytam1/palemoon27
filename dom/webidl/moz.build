@@ -573,6 +573,7 @@ WEBIDL_FILES = [
     'TVProgram.webidl',
     'TVSource.webidl',
     'TVTuner.webidl',
+    'U2F.webidl',
     'UDPMessageEvent.webidl',
     'UDPSocket.webidl',
     'UIEvent.webidl',

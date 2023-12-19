@@ -151,7 +151,7 @@ function clean() {
   errorHandler.didReportProlongedError = false;
 }
 
-add_identity_test(this, function test_401_logout() {
+add_identity_test(this, function* test_401_logout() {
   let server = sync_httpd_setup();
   yield setUp(server);
 
@@ -196,7 +196,7 @@ add_identity_test(this, function test_401_logout() {
   yield deferred.promise;
 });
 
-add_identity_test(this, function test_credentials_changed_logout() {
+add_identity_test(this, function* test_credentials_changed_logout() {
   let server = sync_httpd_setup();
   yield setUp(server);
 
@@ -446,7 +446,7 @@ add_identity_test(this, function test_shouldReportError() {
   do_check_false(errorHandler.didReportProlongedError);
 });
 
-add_identity_test(this, function test_shouldReportError_master_password() {
+add_identity_test(this, function* test_shouldReportError_master_password() {
   _("Test error ignored due to locked master password");
   let server = sync_httpd_setup();
   yield setUp(server);
@@ -491,7 +491,7 @@ add_identity_test(this, function test_shouldReportLoginFailureWithNoCluster() {
 
 // XXX - how to arrange for 'Service.identity.basicPassword = null;' in
 // an fxaccounts environment?
-add_task(function test_login_syncAndReportErrors_non_network_error() {
+add_task(function* test_login_syncAndReportErrors_non_network_error() {
   // Test non-network errors are reported
   // when calling syncAndReportErrors
   let server = sync_httpd_setup();
@@ -512,7 +512,7 @@ add_task(function test_login_syncAndReportErrors_non_network_error() {
   yield deferred.promise;
 });
 
-add_identity_test(this, function test_sync_syncAndReportErrors_non_network_error() {
+add_identity_test(this, function* test_sync_syncAndReportErrors_non_network_error() {
   // Test non-network errors are reported
   // when calling syncAndReportErrors
   let server = sync_httpd_setup();
@@ -541,7 +541,7 @@ add_identity_test(this, function test_sync_syncAndReportErrors_non_network_error
 
 // XXX - how to arrange for 'Service.identity.basicPassword = null;' in
 // an fxaccounts environment?
-add_task(function test_login_syncAndReportErrors_prolonged_non_network_error() {
+add_task(function* test_login_syncAndReportErrors_prolonged_non_network_error() {
   // Test prolonged, non-network errors are
   // reported when calling syncAndReportErrors.
   let server = sync_httpd_setup();
@@ -562,7 +562,7 @@ add_task(function test_login_syncAndReportErrors_prolonged_non_network_error() {
   yield deferred.promise;
 });
 
-add_identity_test(this, function test_sync_syncAndReportErrors_prolonged_non_network_error() {
+add_identity_test(this, function* test_sync_syncAndReportErrors_prolonged_non_network_error() {
   // Test prolonged, non-network errors are
   // reported when calling syncAndReportErrors.
   let server = sync_httpd_setup();
@@ -589,7 +589,7 @@ add_identity_test(this, function test_sync_syncAndReportErrors_prolonged_non_net
   yield deferred.promise;
 });
 
-add_identity_test(this, function test_login_syncAndReportErrors_network_error() {
+add_identity_test(this, function* test_login_syncAndReportErrors_network_error() {
   // Test network errors are reported when calling syncAndReportErrors.
   yield configureIdentity({username: "broken.wipe"});
   Service.serverURL  = FAKE_SERVER_URL;
@@ -627,7 +627,7 @@ add_test(function test_sync_syncAndReportErrors_network_error() {
   errorHandler.syncAndReportErrors();
 });
 
-add_identity_test(this, function test_login_syncAndReportErrors_prolonged_network_error() {
+add_identity_test(this, function* test_login_syncAndReportErrors_prolonged_network_error() {
   // Test prolonged, network errors are reported
   // when calling syncAndReportErrors.
   yield configureIdentity({username: "johndoe"});
@@ -667,7 +667,7 @@ add_test(function test_sync_syncAndReportErrors_prolonged_network_error() {
   errorHandler.syncAndReportErrors();
 });
 
-add_task(function test_login_prolonged_non_network_error() {
+add_task(function* test_login_prolonged_non_network_error() {
   // Test prolonged, non-network errors are reported
   let server = sync_httpd_setup();
   yield setUp(server);
@@ -688,7 +688,7 @@ add_task(function test_login_prolonged_non_network_error() {
   yield deferred.promise;
 });
 
-add_task(function test_sync_prolonged_non_network_error() {
+add_task(function* test_sync_prolonged_non_network_error() {
   // Test prolonged, non-network errors are reported
   let server = sync_httpd_setup();
   yield setUp(server);
@@ -715,7 +715,7 @@ add_task(function test_sync_prolonged_non_network_error() {
   yield deferred.promise;
 });
 
-add_identity_test(this, function test_login_prolonged_network_error() {
+add_identity_test(this, function* test_login_prolonged_network_error() {
   // Test prolonged, network errors are reported
   yield configureIdentity({username: "johndoe"});
   Service.serverURL  = FAKE_SERVER_URL;
@@ -754,7 +754,7 @@ add_test(function test_sync_prolonged_network_error() {
   Service.sync();
 });
 
-add_task(function test_login_non_network_error() {
+add_task(function* test_login_non_network_error() {
   // Test non-network errors are reported
   let server = sync_httpd_setup();
   yield setUp(server);
@@ -775,7 +775,7 @@ add_task(function test_login_non_network_error() {
   yield deferred.promise;
 });
 
-add_task(function test_sync_non_network_error() {
+add_task(function* test_sync_non_network_error() {
   // Test non-network errors are reported
   let server = sync_httpd_setup();
   yield setUp(server);
@@ -802,7 +802,7 @@ add_task(function test_sync_non_network_error() {
   yield deferred.promise;
 });
 
-add_identity_test(this, function test_login_network_error() {
+add_identity_test(this, function* test_login_network_error() {
   yield configureIdentity({username: "johndoe"});
   Service.serverURL  = FAKE_SERVER_URL;
   Service.clusterURL = FAKE_SERVER_URL;
@@ -843,7 +843,7 @@ add_test(function test_sync_network_error() {
   Service.sync();
 });
 
-add_identity_test(this, function test_sync_server_maintenance_error() {
+add_identity_test(this, function* test_sync_server_maintenance_error() {
   // Test server maintenance errors are not reported.
   let server = sync_httpd_setup();
   yield setUp(server);
@@ -879,7 +879,7 @@ add_identity_test(this, function test_sync_server_maintenance_error() {
   yield deferred.promise;
 });
 
-add_identity_test(this, function test_info_collections_login_server_maintenance_error() {
+add_identity_test(this, function* test_info_collections_login_server_maintenance_error() {
   // Test info/collections server maintenance errors are not reported.
   let server = sync_httpd_setup();
   yield setUp(server);
@@ -923,7 +923,7 @@ add_identity_test(this, function test_info_collections_login_server_maintenance_
   yield deferred.promise;
 });
 
-add_identity_test(this, function test_meta_global_login_server_maintenance_error() {
+add_identity_test(this, function* test_meta_global_login_server_maintenance_error() {
   // Test meta/global server maintenance errors are not reported.
   let server = sync_httpd_setup();
   yield setUp(server);
@@ -966,7 +966,7 @@ add_identity_test(this, function test_meta_global_login_server_maintenance_error
   yield deferred.promise;
 });
 
-add_identity_test(this, function test_crypto_keys_login_server_maintenance_error() {
+add_identity_test(this, function* test_crypto_keys_login_server_maintenance_error() {
   // Test crypto/keys server maintenance errors are not reported.
   let server = sync_httpd_setup();
   yield setUp(server);
@@ -1012,7 +1012,7 @@ add_identity_test(this, function test_crypto_keys_login_server_maintenance_error
   yield deferred.promise;
 });
 
-add_task(function test_sync_prolonged_server_maintenance_error() {
+add_task(function* test_sync_prolonged_server_maintenance_error() {
   // Test prolonged server maintenance errors are reported.
   let server = sync_httpd_setup();
   yield setUp(server);
@@ -1041,7 +1041,7 @@ add_task(function test_sync_prolonged_server_maintenance_error() {
   yield deferred.promise;
 });
 
-add_identity_test(this, function test_info_collections_login_prolonged_server_maintenance_error(){
+add_identity_test(this, function* test_info_collections_login_prolonged_server_maintenance_error(){
   // Test info/collections prolonged server maintenance errors are reported.
   let server = sync_httpd_setup();
   yield setUp(server);
@@ -1077,7 +1077,7 @@ add_identity_test(this, function test_info_collections_login_prolonged_server_ma
   yield deferred.promise;
 });
 
-add_identity_test(this, function test_meta_global_login_prolonged_server_maintenance_error(){
+add_identity_test(this, function* test_meta_global_login_prolonged_server_maintenance_error(){
   // Test meta/global prolonged server maintenance errors are reported.
   let server = sync_httpd_setup();
   yield setUp(server);
@@ -1113,7 +1113,7 @@ add_identity_test(this, function test_meta_global_login_prolonged_server_mainten
   yield deferred.promise;
 });
 
-add_identity_test(this, function test_download_crypto_keys_login_prolonged_server_maintenance_error(){
+add_identity_test(this, function* test_download_crypto_keys_login_prolonged_server_maintenance_error(){
   // Test crypto/keys prolonged server maintenance errors are reported.
   let server = sync_httpd_setup();
   yield setUp(server);
@@ -1151,7 +1151,7 @@ add_identity_test(this, function test_download_crypto_keys_login_prolonged_serve
   yield deferred.promise;
 });
 
-add_identity_test(this, function test_upload_crypto_keys_login_prolonged_server_maintenance_error(){
+add_identity_test(this, function* test_upload_crypto_keys_login_prolonged_server_maintenance_error(){
   // Test crypto/keys prolonged server maintenance errors are reported.
   let server = sync_httpd_setup();
 
@@ -1187,7 +1187,7 @@ add_identity_test(this, function test_upload_crypto_keys_login_prolonged_server_
   yield deferred.promise;
 });
 
-add_identity_test(this, function test_wipeServer_login_prolonged_server_maintenance_error(){
+add_identity_test(this, function* test_wipeServer_login_prolonged_server_maintenance_error(){
   // Test that we report prolonged server maintenance errors that occur whilst
   // wiping the server.
   let server = sync_httpd_setup();
@@ -1224,7 +1224,7 @@ add_identity_test(this, function test_wipeServer_login_prolonged_server_maintena
   yield deferred.promise;
 });
 
-add_identity_test(this, function test_wipeRemote_prolonged_server_maintenance_error(){
+add_identity_test(this, function* test_wipeRemote_prolonged_server_maintenance_error(){
   // Test that we report prolonged server maintenance errors that occur whilst
   // wiping all remote devices.
   let server = sync_httpd_setup();
@@ -1268,7 +1268,7 @@ add_identity_test(this, function test_wipeRemote_prolonged_server_maintenance_er
   yield deferred.promise;
 });
 
-add_task(function test_sync_syncAndReportErrors_server_maintenance_error() {
+add_task(function* test_sync_syncAndReportErrors_server_maintenance_error() {
   // Test server maintenance errors are reported
   // when calling syncAndReportErrors.
   let server = sync_httpd_setup();
@@ -1298,7 +1298,7 @@ add_task(function test_sync_syncAndReportErrors_server_maintenance_error() {
   yield deferred.promise;
 });
 
-add_identity_test(this, function test_info_collections_login_syncAndReportErrors_server_maintenance_error() {
+add_identity_test(this, function* test_info_collections_login_syncAndReportErrors_server_maintenance_error() {
   // Test info/collections server maintenance errors are reported
   // when calling syncAndReportErrors.
   let server = sync_httpd_setup();
@@ -1335,7 +1335,7 @@ add_identity_test(this, function test_info_collections_login_syncAndReportErrors
   yield deferred.promise;
 });
 
-add_identity_test(this, function test_meta_global_login_syncAndReportErrors_server_maintenance_error() {
+add_identity_test(this, function* test_meta_global_login_syncAndReportErrors_server_maintenance_error() {
   // Test meta/global server maintenance errors are reported
   // when calling syncAndReportErrors.
   let server = sync_httpd_setup();
@@ -1372,7 +1372,7 @@ add_identity_test(this, function test_meta_global_login_syncAndReportErrors_serv
   yield deferred.promise;
 });
 
-add_identity_test(this, function test_download_crypto_keys_login_syncAndReportErrors_server_maintenance_error() {
+add_identity_test(this, function* test_download_crypto_keys_login_syncAndReportErrors_server_maintenance_error() {
   // Test crypto/keys server maintenance errors are reported
   // when calling syncAndReportErrors.
   let server = sync_httpd_setup();
@@ -1411,7 +1411,7 @@ add_identity_test(this, function test_download_crypto_keys_login_syncAndReportEr
   yield deferred.promise;
 });
 
-add_identity_test(this, function test_upload_crypto_keys_login_syncAndReportErrors_server_maintenance_error() {
+add_identity_test(this, function* test_upload_crypto_keys_login_syncAndReportErrors_server_maintenance_error() {
   // Test crypto/keys server maintenance errors are reported
   // when calling syncAndReportErrors.
   let server = sync_httpd_setup();
@@ -1448,7 +1448,7 @@ add_identity_test(this, function test_upload_crypto_keys_login_syncAndReportErro
   yield deferred.promise;
 });
 
-add_identity_test(this, function test_wipeServer_login_syncAndReportErrors_server_maintenance_error() {
+add_identity_test(this, function* test_wipeServer_login_syncAndReportErrors_server_maintenance_error() {
   // Test crypto/keys server maintenance errors are reported
   // when calling syncAndReportErrors.
   let server = sync_httpd_setup();
@@ -1485,7 +1485,7 @@ add_identity_test(this, function test_wipeServer_login_syncAndReportErrors_serve
   yield deferred.promise;
 });
 
-add_identity_test(this, function test_wipeRemote_syncAndReportErrors_server_maintenance_error(){
+add_identity_test(this, function* test_wipeRemote_syncAndReportErrors_server_maintenance_error(){
   // Test that we report prolonged server maintenance errors that occur whilst
   // wiping all remote devices.
   let server = sync_httpd_setup();
@@ -1528,7 +1528,7 @@ add_identity_test(this, function test_wipeRemote_syncAndReportErrors_server_main
   yield deferred.promise;
 });
 
-add_task(function test_sync_syncAndReportErrors_prolonged_server_maintenance_error() {
+add_task(function* test_sync_syncAndReportErrors_prolonged_server_maintenance_error() {
   // Test prolonged server maintenance errors are
   // reported when calling syncAndReportErrors.
   let server = sync_httpd_setup();
@@ -1560,7 +1560,7 @@ add_task(function test_sync_syncAndReportErrors_prolonged_server_maintenance_err
   yield deferred.promise;
 });
 
-add_identity_test(this, function test_info_collections_login_syncAndReportErrors_prolonged_server_maintenance_error() {
+add_identity_test(this, function* test_info_collections_login_syncAndReportErrors_prolonged_server_maintenance_error() {
   // Test info/collections server maintenance errors are reported
   // when calling syncAndReportErrors.
   let server = sync_httpd_setup();
@@ -1599,7 +1599,7 @@ add_identity_test(this, function test_info_collections_login_syncAndReportErrors
   yield deferred.promise;
 });
 
-add_identity_test(this, function test_meta_global_login_syncAndReportErrors_prolonged_server_maintenance_error() {
+add_identity_test(this, function* test_meta_global_login_syncAndReportErrors_prolonged_server_maintenance_error() {
   // Test meta/global server maintenance errors are reported
   // when calling syncAndReportErrors.
   let server = sync_httpd_setup();
@@ -1638,7 +1638,7 @@ add_identity_test(this, function test_meta_global_login_syncAndReportErrors_prol
   yield deferred.promise;
 });
 
-add_identity_test(this, function test_download_crypto_keys_login_syncAndReportErrors_prolonged_server_maintenance_error() {
+add_identity_test(this, function* test_download_crypto_keys_login_syncAndReportErrors_prolonged_server_maintenance_error() {
   // Test crypto/keys server maintenance errors are reported
   // when calling syncAndReportErrors.
   let server = sync_httpd_setup();
@@ -1679,7 +1679,7 @@ add_identity_test(this, function test_download_crypto_keys_login_syncAndReportEr
   yield deferred.promise;
 });
 
-add_identity_test(this, function test_upload_crypto_keys_login_syncAndReportErrors_prolonged_server_maintenance_error() {
+add_identity_test(this, function* test_upload_crypto_keys_login_syncAndReportErrors_prolonged_server_maintenance_error() {
   // Test crypto/keys server maintenance errors are reported
   // when calling syncAndReportErrors.
   let server = sync_httpd_setup();
@@ -1718,7 +1718,7 @@ add_identity_test(this, function test_upload_crypto_keys_login_syncAndReportErro
   yield deferred.promise;
 });
 
-add_identity_test(this, function test_wipeServer_login_syncAndReportErrors_prolonged_server_maintenance_error() {
+add_identity_test(this, function* test_wipeServer_login_syncAndReportErrors_prolonged_server_maintenance_error() {
   // Test crypto/keys server maintenance errors are reported
   // when calling syncAndReportErrors.
   let server = sync_httpd_setup();
@@ -1757,7 +1757,7 @@ add_identity_test(this, function test_wipeServer_login_syncAndReportErrors_prolo
   yield deferred.promise;
 });
 
-add_task(function test_sync_engine_generic_fail() {
+add_task(function* test_sync_engine_generic_fail() {
   let server = sync_httpd_setup();
 
   let engine = engineManager.get("catapult");
@@ -1859,7 +1859,7 @@ add_test(function test_logs_on_login_error_despite_shouldReportError() {
 
 // This test should be the last one since it monkeypatches the engine object
 // and we should only have one engine object throughout the file (bug 629664).
-add_task(function test_engine_applyFailed() {
+add_task(function* test_engine_applyFailed() {
   let server = sync_httpd_setup();
 
   let engine = engineManager.get("catapult");

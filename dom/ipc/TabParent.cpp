@@ -941,11 +941,13 @@ TabParent::UpdateDimensions(const nsIntRect& rect, const ScreenIntSize& size)
   LayoutDeviceIntPoint chromeOffset = -GetChildProcessOffset();
 
   nsCOMPtr<nsIWidget> widget = GetWidget();
-  nsIntRect contentRect = rect;
-  if (widget) {
-    contentRect.x += widget->GetClientOffset().x;
-    contentRect.y += widget->GetClientOffset().y;
+  if (!widget) {
+    NS_WARNING("No widget found in TabParent::UpdateDimensions");
+    return;
   }
+  nsIntRect contentRect = rect;
+  contentRect.x += widget->GetClientOffset().x;
+  contentRect.y += widget->GetClientOffset().y;
 
   if (!mUpdatedDimensions || mOrientation != orientation ||
       mDimensions != size || !mRect.IsEqualEdges(contentRect) ||
@@ -957,10 +959,7 @@ TabParent::UpdateDimensions(const nsIntRect& rect, const ScreenIntSize& size)
     mOrientation = orientation;
     mChromeOffset = chromeOffset;
 
-    CSSToLayoutDeviceScale widgetScale;
-    if (widget) {
-      widgetScale = widget->GetDefaultScale();
-    }
+    CSSToLayoutDeviceScale widgetScale = widget->GetDefaultScale();
 
     LayoutDeviceIntRect devicePixelRect =
       ViewAs<LayoutDevicePixel>(mRect,
@@ -1877,7 +1876,7 @@ TabParent::RecvNotifyIMETextChange(const ContentCache& aContentCache,
   nsIMEUpdatePreference updatePreference = widget->GetIMEUpdatePreference();
   NS_ASSERTION(updatePreference.WantTextChange(),
                "Don't call Send/RecvNotifyIMETextChange without NOTIFY_TEXT_CHANGE");
-  MOZ_ASSERT(!aIMENotification.mTextChangeData.mCausedByComposition ||
+  MOZ_ASSERT(!aIMENotification.mTextChangeData.mCausedOnlyByComposition ||
                updatePreference.WantChangesCausedByComposition(),
     "The widget doesn't want text change notification caused by composition");
 #endif
@@ -2601,12 +2600,6 @@ TabParent::TryCacheDPIAndScale()
 
   nsCOMPtr<nsIWidget> widget = GetWidget();
 
-  if (!widget && mFrameElement) {
-    // Even if we don't have a widget (e.g. because we're display:none), there's
-    // probably a widget somewhere in the hierarchy our frame element lives in.
-    widget = nsContentUtils::WidgetForDocument(mFrameElement->OwnerDoc());
-  }
-
   if (widget) {
     mDPI = widget->GetDPI();
     mDefaultScale = widget->GetDefaultScale();
@@ -2616,15 +2609,10 @@ TabParent::TryCacheDPIAndScale()
 already_AddRefed<nsIWidget>
 TabParent::GetWidget() const
 {
-  nsCOMPtr<nsIContent> content = do_QueryInterface(mFrameElement);
-  if (!content)
+  if (!mFrameElement) {
     return nullptr;
-
-  nsIFrame *frame = content->GetPrimaryFrame();
-  if (!frame)
-    return nullptr;
-
-  nsCOMPtr<nsIWidget> widget = frame->GetNearestWidget();
+  }
+  nsCOMPtr<nsIWidget> widget = nsContentUtils::WidgetForDocument(mFrameElement->OwnerDoc());
   return widget.forget();
 }
 
@@ -2680,7 +2668,7 @@ TabParent::RecvBrowserFrameOpenWindow(PBrowserParent* aOpener,
   BrowserElementParent::OpenWindowResult opened =
     BrowserElementParent::OpenWindowOOP(TabParent::GetFrom(aOpener),
                                         this, aURL, aName, aFeatures);
-  *aOutWindowOpened = (opened != BrowserElementParent::OPEN_WINDOW_CANCELLED);
+  *aOutWindowOpened = (opened == BrowserElementParent::OPEN_WINDOW_ADDED);
   return true;
 }
 

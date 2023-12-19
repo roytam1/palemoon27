@@ -308,5 +308,9 @@ LOCAL_INCLUDES += CONFIG['SKIA_INCLUDES']
 
 DEFINES['GRAPHITE2_STATIC'] = True
 
+if CONFIG['CLANG_CXX']:
+    # Suppress warnings from Skia header files.
+    SOURCES['gfxPlatform.cpp'].flags += ['-Wno-implicit-fallthrough']
+
 if CONFIG['GKMEDIAS_SHARED_LIBRARY']:
     DEFINES['OTS_DLL'] = True

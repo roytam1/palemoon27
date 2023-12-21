@@ -145,12 +145,19 @@ NeckoParent::GetValidatedAppInfo(const SerializedLoadContext& aSerialized,
         continue;
       }
     }
+
     if (!aSerialized.mOriginAttributes.mSignedPkg.IsEmpty() &&
         aSerialized.mOriginAttributes.mSignedPkg != tabContext.OriginAttributesRef().mSignedPkg) {
       continue;
     }
-    aAttrs = OriginAttributes(appId, inBrowserElement);
-    aAttrs.mSignedPkg = tabContext.OriginAttributesRef().mSignedPkg;
+    if (aSerialized.mOriginAttributes.mUserContextId != tabContext.OriginAttributesRef().mUserContextId) {
+      continue;
+    }
+    aAttrs = OriginAttributes();
+    aAttrs.mAppId = appId;
+    aAttrs.mInBrowser = inBrowserElement;
+    aAttrs.mSignedPkg = aSerialized.mOriginAttributes.mSignedPkg;
+    aAttrs.mUserContextId = aSerialized.mOriginAttributes.mUserContextId;
     return nullptr;
   }
 

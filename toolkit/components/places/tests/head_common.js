@@ -124,7 +124,7 @@ function DBConn(aForceNewConnection) {
   }
 
   return gDBConn.connectionReady ? gDBConn : null;
-};
+}
 
 /**
  * Reads data from the provided inputstream.

@@ -116,13 +116,10 @@ public:
 
     JSContext* cx = jsapi.cx();
 
-    nsCOMPtr<nsPIDOMWindow> window =
-      do_QueryInterface(mPort->GetParentObject());
-
     ErrorResult rv;
     JS::Rooted<JS::Value> value(cx);
 
-    mData->Read(window, cx, &value, rv);
+    mData->Read(mPort->GetParentObject(), cx, &value, rv);
     if (NS_WARN_IF(rv.Failed())) {
       return rv.StealNSResult();
     }
@@ -282,15 +279,20 @@ NS_IMPL_ISUPPORTS(ForceCloseHelper, nsIIPCBackgroundChildCreateCallback)
 
 } // namespace
 
-MessagePort::MessagePort(nsPIDOMWindow* aWindow)
-  : DOMEventTargetHelper(aWindow)
-  , mInnerID(0)
+MessagePort::MessagePort(nsISupports* aSupports)
+  : mInnerID(0)
   , mMessageQueueEnabled(false)
   , mIsKeptAlive(false)
 {
   mIdentifier = new MessagePortIdentifier();
   mIdentifier->neutered() = true;
   mIdentifier->sequenceId() = 0;
+
+  nsCOMPtr<nsIGlobalObject> globalObject = do_QueryInterface(aSupports);
+  if (NS_WARN_IF(!globalObject)) {
+    return;
+  }
+  BindToOwner(globalObject);
 }
 
 MessagePort::~MessagePort()
@@ -300,21 +302,21 @@ MessagePort::~MessagePort()
 }
 
 /* static */ already_AddRefed<MessagePort>
-MessagePort::Create(nsPIDOMWindow* aWindow, const nsID& aUUID,
+MessagePort::Create(nsISupports* aSupport, const nsID& aUUID,
                     const nsID& aDestinationUUID, ErrorResult& aRv)
 {
-  RefPtr<MessagePort> mp = new MessagePort(aWindow);
+  RefPtr<MessagePort> mp = new MessagePort(aSupport);
   mp->Initialize(aUUID, aDestinationUUID, 1 /* 0 is an invalid sequence ID */,
                  false /* Neutered */, eStateUnshippedEntangled, aRv);
   return mp.forget();
 }
 
 /* static */ already_AddRefed<MessagePort>
-MessagePort::Create(nsPIDOMWindow* aWindow,
+MessagePort::Create(nsISupports* aSupport,
                     const MessagePortIdentifier& aIdentifier,
                     ErrorResult& aRv)
 {
-  RefPtr<MessagePort> mp = new MessagePort(aWindow);
+  RefPtr<MessagePort> mp = new MessagePort(aSupport);
   mp->Initialize(aIdentifier.uuid(), aIdentifier.destinationUuid(),
                  aIdentifier.sequenceId(), aIdentifier.neutered(),
                  eStateEntangling, aRv);

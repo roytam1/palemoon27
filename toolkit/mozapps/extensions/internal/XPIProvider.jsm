@@ -4058,7 +4058,7 @@ this.XPIProvider = {
 
           notifyComplete();
         });
-      };
+      }
     });
   },
 

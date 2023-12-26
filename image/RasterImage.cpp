@@ -1616,7 +1616,7 @@ RasterImage::DoError()
   if (mAnimating) {
     StopAnimation();
   }
-  mAnim.release();
+  mAnim = nullptr;
 
   // Release all locks.
   mLockCount = 0;

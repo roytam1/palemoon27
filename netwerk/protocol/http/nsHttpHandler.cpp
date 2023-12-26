@@ -178,8 +178,8 @@ nsHttpHandler::nsHttpHandler()
     , mDoNotTrackEnabled(false)
     , mSafeHintEnabled(false)
     , mParentalControlEnabled(false)
-    , mDebugObservations(false)
     , mHandlerActive(false)
+    , mDebugObservations(false)
     , mEnableSpdy(false)
     , mSpdyV31(true)
     , mHttp2Enabled(true)
@@ -246,6 +246,7 @@ nsHttpHandler::Init()
     nsresult rv;
 
     LOG(("nsHttpHandler::Init\n"));
+    MOZ_ASSERT(NS_IsMainThread());
 
     rv = nsHttp::CreateAtomTable();
     if (NS_FAILED(rv))
@@ -2019,6 +2020,7 @@ nsHttpHandler::Observe(nsISupports *subject,
                        const char *topic,
                        const char16_t *data)
 {
+    MOZ_ASSERT(NS_IsMainThread());
     LOG(("nsHttpHandler::Observe [topic=\"%s\"]\n", topic));
 
     if (!strcmp(topic, NS_PREFBRANCH_PREFCHANGE_TOPIC_ID)) {

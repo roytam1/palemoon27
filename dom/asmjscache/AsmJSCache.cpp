@@ -993,7 +993,8 @@ ParentRunnable::Run()
 
       // Metadata is now open.
       if (!SendOnOpenMetadataForRead(mMetadata)) {
-        Unused << Send__delete__(this, JS::AsmJSCache_InternalError);
+        Fail();
+        return NS_OK;
       }
 
       return NS_OK;
@@ -1035,7 +1036,8 @@ ParentRunnable::Run()
       FileDescriptor::PlatformHandleType handle =
         FileDescriptor::PlatformHandleType(PR_FileDesc2NativeHandle(mFileDesc));
       if (!SendOnOpenCacheFile(mFileSize, FileDescriptor(handle))) {
-        Unused << Send__delete__(this, JS::AsmJSCache_InternalError);
+        Fail();
+        return NS_OK;
       }
 
       return NS_OK;
@@ -1268,6 +1270,13 @@ public:
     return JS::AsmJSCache_Success;
   }
 
+  void Cleanup()
+  {
+#ifdef DEBUG
+    NoteActorDestroyed();
+#endif
+  }
+
 private:
   ~ChildRunnable()
   {
@@ -1326,7 +1335,7 @@ private:
   ActorDestroy(ActorDestroyReason why) override
   {
     MOZ_ASSERT(NS_IsMainThread());
-    mActorDestroyed = true;
+    NoteActorDestroyed();
   }
 
   void
@@ -1363,6 +1372,11 @@ private:
     mOpened = aResult == JS::AsmJSCache_Success;
     mResult = aResult;
     mCondVar.Notify();
+  }
+
+  void NoteActorDestroyed()
+  {
+    mActorDestroyed = true;
   }
 
   nsIPrincipal* const mPrincipal;
@@ -1550,6 +1564,7 @@ OpenFile(nsIPrincipal* aPrincipal,
   JS::AsmJSCacheResult openResult =
     childRunnable->BlockUntilOpen(aChildRunnable);
   if (openResult != JS::AsmJSCache_Success) {
+    childRunnable->Cleanup();
     return openResult;
   }
 

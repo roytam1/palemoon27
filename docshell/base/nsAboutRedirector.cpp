@@ -56,6 +56,11 @@ static RedirEntry kRedirMap[] = {
     nsIAboutModule::MAKE_LINKABLE
   },
   {
+    "checkerboard", "chrome://global/content/aboutCheckerboard.xhtml",
+    nsIAboutModule::URI_SAFE_FOR_UNTRUSTED_CONTENT |
+      nsIAboutModule::ALLOW_SCRIPT
+  },
+  {
     "license", "chrome://global/content/license.html",
     nsIAboutModule::URI_SAFE_FOR_UNTRUSTED_CONTENT |
     nsIAboutModule::MAKE_LINKABLE

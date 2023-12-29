@@ -4,19 +4,20 @@
      xmlns:em="http://www.mozilla.org/2004/em-rdf#">
 
   <Description about="urn:mozilla:install-manifest">
-    <em:id>addon1@tests.mozilla.org</em:id>
+    <em:id>tel-system-xpi@tests.mozilla.org</em:id>
     <em:version>1.0</em:version>
 
     <em:targetApplication>
       <Description>
         <em:id>toolkit@mozilla.org</em:id>
         <em:minVersion>0</em:minVersion>
-        <em:maxVersion>0.1</em:maxVersion>
+        <em:maxVersion>*</em:maxVersion>
       </Description>
     </em:targetApplication>
 
     <!-- Front End MetaData -->
-    <em:name>Addon1</em:name>
+    <em:name>XPI Telemetry System Add-on Test</em:name>
+    <em:description>A system addon which is shipped with Firefox.</em:description>
     <em:bootstrap>true</em:bootstrap>
 
   </Description>

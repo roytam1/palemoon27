@@ -20,6 +20,15 @@ const PREF_GETADDONS_BYIDS_PERFORMANCE   = "extensions.getAddons.getWithPerforma
 // Forcibly end the test if it runs longer than 15 minutes
 const TIMEOUT_MS = 900000;
 
+// Maximum error in file modification times. Some file systems don't store
+// modification times exactly. As long as we are closer than this then it
+// still passes.
+const MAX_TIME_DIFFERENCE = 3000;
+
+// Time to reset file modified time relative to Date.now() so we can test that
+// times are modified (10 hours old).
+const MAKE_FILE_OLD_DIFFERENCE = 10 * 3600 * 1000;
+
 Components.utils.import("resource://gre/modules/addons/AddonRepository.jsm");
 Components.utils.import("resource://gre/modules/XPCOMUtils.jsm");
 Components.utils.import("resource://gre/modules/FileUtils.jsm");
@@ -27,7 +36,7 @@ Components.utils.import("resource://gre/modules/Services.jsm");
 Components.utils.import("resource://gre/modules/NetUtil.jsm");
 Components.utils.import("resource://gre/modules/Promise.jsm");
 Components.utils.import("resource://gre/modules/Task.jsm");
-Components.utils.import("resource://gre/modules/osfile.jsm");
+const { OS } = Components.utils.import("resource://gre/modules/osfile.jsm", {});
 Components.utils.import("resource://gre/modules/AsyncShutdown.jsm");
 Components.utils.import("resource://testing-common/MockRegistrar.jsm");
 
@@ -37,9 +46,9 @@ XPCOMUtils.defineLazyModuleGetter(this, "HttpServer",
                                   "resource://testing-common/httpd.js");
 
 // We need some internal bits of AddonManager
-var AMscope = Components.utils.import("resource://gre/modules/AddonManager.jsm");
-var AddonManager = AMscope.AddonManager;
-var AddonManagerInternal = AMscope.AddonManagerInternal;
+var AMscope = Components.utils.import("resource://gre/modules/AddonManager.jsm", {});
+var { AddonManager, AddonManagerInternal, AddonManagerPrivate } = AMscope;
+
 // Mock out AddonManager's reference to the AsyncShutdown module so we can shut
 // down AddonManager from the test
 var MockAsyncShutdown = {
@@ -459,7 +468,7 @@ function overrideCertDB(handler) {
   let certDBFactory = {
     createInstance: function(outer, iid) {
       if (outer != null) {
-        throw Cr.NS_ERROR_NO_AGGREGATION;
+        throw Components.results.NS_ERROR_NO_AGGREGATION;
       }
       return fakeCertDB.QueryInterface(iid);
     }
@@ -1232,6 +1241,7 @@ function writeInstallRDFToXPIFile(aData, aFile, aExtraFile) {
   var zipW = AM_Cc["@mozilla.org/zipwriter;1"].
              createInstance(AM_Ci.nsIZipWriter);
   zipW.open(aFile, FileUtils.MODE_WRONLY | FileUtils.MODE_CREATE | FileUtils.MODE_TRUNCATE);
+  // Note these files are being created in the XPI archive with date "0" which is 1970-01-01.
   zipW.addEntryStream("install.rdf", 0, AM_Ci.nsIZipWriter.COMPRESSION_NONE,
                       stream, false);
   if (aExtraFile)
@@ -1766,7 +1776,7 @@ if ("nsIWindowsRegKey" in AM_Ci) {
       case AM_Ci.nsIWindowsRegKey.ROOT_KEY_CLASSES_ROOT:
         return MockRegistry.CLASSES_ROOT;
       default:
-        do_throw("Unknown root " + aRootKey);
+        do_throw("Unknown root " + aRoot);
         return null;
       }
     },
@@ -2093,9 +2103,11 @@ function do_exception_wrap(func) {
 /**
  * Change the schema version of the JSON extensions database
  */
-function changeXPIDBVersion(aNewVersion) {
+function changeXPIDBVersion(aNewVersion, aMutator = undefined) {
   let jData = loadJSON(gExtensionsJSON);
   jData.schemaVersion = aNewVersion;
+  if (aMutator)
+    aMutator(jData);
   saveJSON(jData, gExtensionsJSON);
 }
 

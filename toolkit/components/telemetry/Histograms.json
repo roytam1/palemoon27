@@ -5936,9 +5936,36 @@
     "description": "The time (in milliseconds) that it took a 'reconfigure thread' request to go round trip."
   },
   "MEDIA_RUST_MP4PARSE_SUCCESS": {
+    "alert_emails": ["giles@mozilla.com", "kinetik@flim.org"],
     "expires_in_version": "50",
     "kind": "boolean",
+    "bug_numbers": [1220885],
     "description": "(Bug 1220885) Whether the rust mp4 demuxer successfully parsed a stream segment.",
+    "cpp_guard": "MOZ_RUST_MP4PARSE"
+  },
+  "MEDIA_RUST_MP4PARSE_ERROR_CODE": {
+    "alert_emails": ["giles@mozilla.com", "kinetik@flim.org"],
+    "expires_in_version": "50",
+    "kind": "enumerated",
+    "n_values": 32,
+    "bug_numbers": [1238420],
+    "description": "The error code reported when an MP4 parse attempt has failed.",
+    "cpp_guard": "MOZ_RUST_MP4PARSE"
+  },
+  "MEDIA_RUST_MP4PARSE_TRACK_MATCH_AUDIO": {
+    "alert_emails": ["giles@mozilla.com", "kinetik@flim.org"],
+    "expires_in_version": "50",
+    "kind": "boolean",
+    "bug_numbers": [1231169],
+    "description": "Whether rust and stagefight mp4 parser audio track results match.",
+    "cpp_guard": "MOZ_RUST_MP4PARSE"
+  },
+  "MEDIA_RUST_MP4PARSE_TRACK_MATCH_VIDEO": {
+    "alert_emails": ["giles@mozilla.com", "kinetik@flim.org"],
+    "expires_in_version": "50",
+    "kind": "boolean",
+    "bug_numbers": [1231169],
+    "description": "Whether rust and stagefight mp4 parser video track results match.",
     "cpp_guard": "MOZ_RUST_MP4PARSE"
   },
   "MEDIA_WMF_DECODE_ERROR": {
@@ -9586,5 +9613,21 @@
     "bug_numbers": [1241278],
     "kind": "boolean",
     "description": "Usage of the deprecated Notification.requestPermission() callback argument"
+  },
+  "VIDEO_FASTSEEK_USED": {
+    "alert_emails": ["lchristie@mozilla.com", "cpearce@mozilla.com"],
+    "expires_in_version": "55",
+    "bug_numbers": [1245982],
+    "kind": "count",
+    "description": "Uses of HTMLMediaElement.fastSeek"
+  },
+  "VIDEO_DROPPED_FRAMES_PROPORTION" : {
+    "alert_emails": ["lchristie@mozilla.com", "cpearce@mozilla.com"],
+    "expires_in_version": "55",
+    "kind": "linear",
+    "high": 100,
+    "n_buckets": 50,
+    "bug_numbers": [1238433],
+    "description": "Percentage of frames decoded frames dropped in an HTMLVideoElement"
   }
 }

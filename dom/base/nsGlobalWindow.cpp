@@ -2449,13 +2449,10 @@ nsGlobalWindow::SetNewDocument(nsIDocument* aDocument,
 
   nsresult rv = NS_OK;
 
-  // Set mDoc even if this is an outer window to avoid
+  // We set mDoc even though this is an outer window to avoid
   // having to *always* reach into the inner window to find the
   // document.
   mDoc = aDocument;
-  if (IsInnerWindow()) {
-    ClearDocumentDependentSlots(cx);
-  }
 
   // Take this opportunity to clear mSuspendedDoc. Our old inner window is now
   // responsible for unsuspending it.
@@ -5383,9 +5380,7 @@ nsGlobalWindow::GetScreenXY(ErrorResult& aError)
   LayoutDeviceRect screenRectDev =
     LayoutDevicePixel::FromAppUnits(screenRect, dc->AppUnitsPerDevPixel());
 
-  nsCOMPtr<nsIWidget> widget = GetMainWidget();
-  DesktopToLayoutDeviceScale scale = widget ? widget->GetDesktopToDeviceScale()
-                                            : DesktopToLayoutDeviceScale(1.0);
+  DesktopToLayoutDeviceScale scale = dc->GetDesktopToDeviceScale();
   DesktopRect screenRectDesk = screenRectDev / scale;
 
   CSSPoint cssPt =
@@ -6008,9 +6003,7 @@ int32_t
 nsGlobalWindow::GetScrollMinX(ErrorResult& aError)
 {
   MOZ_ASSERT(IsInnerWindow());
-  int32_t scrollMinX = 0;
-  FORWARD_TO_OUTER_OR_THROW(GetScrollBoundaryOuter, (eSideLeft), aError, scrollMinX);
-  return scrollMinX;
+  FORWARD_TO_OUTER_OR_THROW(GetScrollBoundaryOuter, (eSideLeft), aError, 0);
 }
 
 NS_IMETHODIMP
@@ -8710,6 +8703,7 @@ void
 nsGlobalWindow::ForceClose()
 {
   MOZ_ASSERT(IsOuterWindow());
+  MOZ_ASSERT(XRE_GetProcessType() == GeckoProcessType_Default);
 
   if (IsFrame() || !mDocShell) {
     // This may be a frame in a frameset, or a window that's already closed.
@@ -8737,6 +8731,12 @@ nsGlobalWindow::FinalClose()
 
   // Flag that we were closed.
   mIsClosed = true;
+
+  // If we get here from CloseOuter then it means that the parent process is
+  // going to close our window for us. It's just important to set mIsClosed.
+  if (XRE_GetProcessType() == GeckoProcessType_Content) {
+    return;
+  }
 
   // This stuff is non-sensical but incredibly fragile. The reasons for the
   // behavior here don't make sense today and may not have ever made sense,

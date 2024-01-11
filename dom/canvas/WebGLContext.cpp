@@ -70,6 +70,10 @@
 #include "WebGLVertexArray.h"
 #include "WebGLVertexAttribData.h"
 
+#ifdef MOZ_WIDGET_COCOA
+#include "nsCocoaFeatures.h"
+#endif
+
 // Generated
 #include "mozilla/dom/WebGLRenderingContextBinding.h"
 
@@ -106,9 +110,9 @@ WebGLContext::WebGLContext()
     , mMaxFetchedVertices(0)
     , mMaxFetchedInstances(0)
     , mBypassShaderValidation(false)
-    , mGLMaxSamples(1)
     , mNeedsFakeNoAlpha(false)
     , mNeedsFakeNoStencil(false)
+    , mNeedsEmulatedLoneDepthStencil(false)
 {
     mGeneration = 0;
     mInvalidated = false;
@@ -888,6 +892,17 @@ WebGLContext::SetDimensions(int32_t signedWidth, int32_t signedHeight)
         // ANGLE doesn't quite handle this properly.
         if (gl->Caps().depth && !gl->Caps().stencil && gl->IsANGLE())
             mNeedsFakeNoStencil = true;
+
+        if (!mOptions.stencil && gl->Caps().stencil)
+            mNeedsFakeNoStencil = true;
+
+#ifdef MOZ_WIDGET_COCOA
+        if (!nsCocoaFeatures::IsAtLeastVersion(10, 12) &&
+            gl->Vendor() == GLVendor::Intel)
+        {
+            mNeedsEmulatedLoneDepthStencil = true;
+        }
+#endif
     }
 
     // Update mOptions.
@@ -1290,8 +1305,7 @@ WebGLContext::ClearScreen()
 
     const bool changeDrawBuffers = (mDefaultFB_DrawBuffer0 != LOCAL_GL_BACK);
     if (changeDrawBuffers) {
-        const GLenum back = LOCAL_GL_BACK;
-        gl->fDrawBuffers(1, &back);
+        gl->Screen()->SetDrawBuffer(LOCAL_GL_BACK);
     }
 
     GLbitfield bufferBits = LOCAL_GL_COLOR_BUFFER_BIT;
@@ -1303,7 +1317,7 @@ WebGLContext::ClearScreen()
     ForceClearFramebufferWithDefaultValues(bufferBits, mNeedsFakeNoAlpha);
 
     if (changeDrawBuffers) {
-        gl->fDrawBuffers(1, &mDefaultFB_DrawBuffer0);
+        gl->Screen()->SetDrawBuffer(mDefaultFB_DrawBuffer0);
     }
 }
 
@@ -1815,8 +1829,17 @@ WebGLContext::ScopedMaskWorkaround::ScopedMaskWorkaround(WebGLContext& webgl)
                               false);
     }
     if (mFakeNoStencil) {
+        MOZ_ASSERT(mWebGL.mStencilTestEnabled);
         mWebGL.gl->fDisable(LOCAL_GL_STENCIL_TEST);
     }
+}
+
+/*static*/ bool
+WebGLContext::ScopedMaskWorkaround::HasDepthButNoStencil(const WebGLFramebuffer* fb)
+{
+    const auto& depth = fb->DepthAttachment();
+    const auto& stencil = fb->StencilAttachment();
+    return depth.IsDefined() && !stencil.IsDefined();
 }
 
 WebGLContext::ScopedMaskWorkaround::~ScopedMaskWorkaround()
@@ -1895,9 +1918,70 @@ Intersect(uint32_t srcSize, int32_t dstStartInSrc, uint32_t dstSize,
     *out_intSize = std::max<int32_t>(0, intEndInSrc - *out_intStartInSrc);
 }
 
+static bool
+ZeroTexImageWithClear(WebGLContext* webgl, GLContext* gl, TexImageTarget target,
+                      GLuint tex, uint32_t level, const webgl::FormatUsageInfo* usage,
+                      uint32_t width, uint32_t height)
+{
+    MOZ_ASSERT(gl->IsCurrent());
+
+    ScopedFramebuffer scopedFB(gl);
+    ScopedBindFramebuffer scopedBindFB(gl, scopedFB.FB());
+
+    const auto format = usage->format;
+
+    GLenum attachPoint = 0;
+    GLbitfield clearBits = 0;
+
+    if (format->isColorFormat) {
+        attachPoint = LOCAL_GL_COLOR_ATTACHMENT0;
+        clearBits = LOCAL_GL_COLOR_BUFFER_BIT;
+    }
+
+    if (format->hasDepth) {
+        attachPoint = LOCAL_GL_DEPTH_ATTACHMENT;
+        clearBits |= LOCAL_GL_DEPTH_BUFFER_BIT;
+    }
+
+    if (format->hasStencil) {
+        attachPoint = (format->hasDepth ? LOCAL_GL_DEPTH_STENCIL_ATTACHMENT
+                                        : LOCAL_GL_STENCIL_ATTACHMENT);
+        clearBits |= LOCAL_GL_STENCIL_BUFFER_BIT;
+    }
+
+    MOZ_RELEASE_ASSERT(attachPoint && clearBits);
+
+    {
+        gl::GLContext::LocalErrorScope errorScope(*gl);
+        gl->fFramebufferTexture2D(LOCAL_GL_FRAMEBUFFER, attachPoint, target.get(), tex,
+                                  level);
+        if (errorScope.GetError()) {
+            MOZ_ASSERT(false);
+            return false;
+        }
+    }
+
+    auto status = gl->fCheckFramebufferStatus(LOCAL_GL_FRAMEBUFFER);
+    if (status != LOCAL_GL_FRAMEBUFFER_COMPLETE)
+        return false;
+
+    {
+        gl::GLContext::LocalErrorScope errorScope(*gl);
+
+        const bool fakeNoAlpha = false;
+        webgl->ForceClearFramebufferWithDefaultValues(clearBits, fakeNoAlpha);
+        if (errorScope.GetError()) {
+            MOZ_ASSERT(false);
+            return false;
+        }
+    }
+
+    return true;
+}
+
 bool
 ZeroTextureData(WebGLContext* webgl, const char* funcName, bool respecifyTexture,
-                TexImageTarget target, uint32_t level,
+                GLuint tex, TexImageTarget target, uint32_t level,
                 const webgl::FormatUsageInfo* usage, uint32_t xOffset, uint32_t yOffset,
                 uint32_t zOffset, uint32_t width, uint32_t height, uint32_t depth)
 {
@@ -1916,9 +2000,6 @@ ZeroTextureData(WebGLContext* webgl, const char* funcName, bool respecifyTexture
 
     gl::GLContext* gl = webgl->GL();
     gl->MakeCurrent();
-
-    ScopedUnpackReset scopedReset(webgl);
-    gl->fPixelStorei(LOCAL_GL_UNPACK_ALIGNMENT, 1); // Don't bother with striding it well.
 
     auto compression = usage->format->compression;
     if (compression) {
@@ -1949,6 +2030,10 @@ ZeroTextureData(WebGLContext* webgl, const char* funcName, bool respecifyTexture
         if (!zeros)
             return false;
 
+        ScopedUnpackReset scopedReset(webgl);
+        gl->fPixelStorei(LOCAL_GL_UNPACK_ALIGNMENT, 1); // Don't bother with striding it
+                                                        // well.
+
         GLenum error = DoCompressedTexSubImage(gl, target.get(), level, xOffset, yOffset,
                                                zOffset, width, height, depth, sizedFormat,
                                                byteCount, zeros.get());
@@ -1960,6 +2045,27 @@ ZeroTextureData(WebGLContext* webgl, const char* funcName, bool respecifyTexture
 
     const auto driverUnpackInfo = usage->idealUnpack;
     MOZ_RELEASE_ASSERT(driverUnpackInfo);
+
+    if (usage->isRenderable && depth == 1 &&
+        !xOffset && !yOffset && !zOffset)
+    {
+        // While we would like to skip the extra complexity of trying to zero with an FB
+        // clear, ANGLE_depth_texture requires this.
+        do {
+            if (respecifyTexture) {
+                const auto error = DoTexImage(gl, target, level, driverUnpackInfo, width,
+                                              height, depth, nullptr);
+                if (error)
+                    break;
+            }
+
+            if (ZeroTexImageWithClear(webgl, gl, target, tex, level, usage, width,
+                                      height))
+            {
+                return true;
+            }
+        } while (false);
+    }
 
     const webgl::PackingInfo packing = driverUnpackInfo->ToPacking();
 
@@ -1978,6 +2084,9 @@ ZeroTextureData(WebGLContext* webgl, const char* funcName, bool respecifyTexture
     UniqueBuffer zeros = calloc(1, byteCount);
     if (!zeros)
         return false;
+
+    ScopedUnpackReset scopedReset(webgl);
+    gl->fPixelStorei(LOCAL_GL_UNPACK_ALIGNMENT, 1); // Don't bother with striding it well.
 
     GLenum error;
     if (respecifyTexture) {

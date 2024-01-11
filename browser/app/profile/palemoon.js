@@ -1388,3 +1388,5 @@ pref("dom.ipc.reportProcessHangs", true);
 // by about:newtab. These values are in CSS pixels.
 pref("toolkit.pageThumbs.minWidth", 280);
 pref("toolkit.pageThumbs.minHeight", 190);
+
+pref("browser.esedbreader.loglevel", "Error");

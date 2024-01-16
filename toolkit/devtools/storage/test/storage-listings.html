@@ -8,10 +8,10 @@ Bug 970517 - Storage inspector front end - tests
   <title>Storage inspector test for listing hosts and storages</title>
 </head>
 <body>
-<iframe src="http://sectest1.example.org/browser/browser/devtools/storage/test/storage-unsecured-iframe.html"></iframe>
-<iframe src="https://sectest1.example.org:443/browser/browser/devtools/storage/test/storage-secured-iframe.html"></iframe>
+<iframe src="http://sectest1.example.org/browser/devtools/client/storage/test/storage-unsecured-iframe.html"></iframe>
+<iframe src="https://sectest1.example.org:443/browser/devtools/client/storage/test/storage-secured-iframe.html"></iframe>
 <script type="application/javascript;version=1.7">
-
+"use strict";
 let partialHostname = location.hostname.match(/^[^.]+(\..*)$/)[1];
 let cookieExpiresTime1 = 2000000000000;
 let cookieExpiresTime2 = 2000000001000;
@@ -26,70 +26,112 @@ localStorage.setItem("ls1", "foobar");
 localStorage.setItem("ls2", "foobar-2");
 // ... and finally some session storage items too
 sessionStorage.setItem("ss1", "foobar-3");
-console.log("added cookies and stuff from main page");
+dump("added cookies and stuff from main page\n");
 
-function success(event) {
-  setupIDB.next(event);
-}
-
-window.idbGenerator = function*(callback) {
+let idbGenerator = function*() {
   let request = indexedDB.open("idb1", 1);
-  request.onupgradeneeded = success;
-  request.onsuccess = success;
-  request.onerror = function(e) {
+  request.onerror = function() {
     throw new Error("error opening db connection");
   };
-  let event = yield undefined;
-  let db = event.target.result;
-  let store1 = db.createObjectStore("obj1", { keyPath: "id" });
-  store1.createIndex("name", "name", { unique: false });
-  store1.createIndex("email", "email", { unique: true });
-  let store2 = db.createObjectStore("obj2", { keyPath: "id2" });
+  let db = yield new Promise(done => {
+    request.onupgradeneeded = event => {
+      let db = event.target.result;
+      let store1 = db.createObjectStore("obj1", { keyPath: "id" });
+      store1.createIndex("name", "name", { unique: false });
+      store1.createIndex("email", "email", { unique: true });
+      let store2 = db.createObjectStore("obj2", { keyPath: "id2" });
+      store1.transaction.oncomplete = () => {
+        done(db);
+      };
+    };
+  });
 
-  store1.add({id: 1, name: "foo", email: "foo@bar.com"}).onsuccess = success;
-  yield undefined;
-  store1.add({id: 2, name: "foo2", email: "foo2@bar.com"}).onsuccess = success;
-  yield undefined;
-  store1.add({id: 3, name: "foo2", email: "foo3@bar.com"}).onsuccess = success;
-  yield undefined;
-  store2.add({id2: 1, name: "foo", email: "foo@bar.com", extra: "baz"}).onsuccess = success;
-  yield undefined;
+  // Prevents AbortError
+  yield new Promise(done => {
+    request.onsuccess = done;
+  });
 
-  yield undefined;
+  let transaction = db.transaction(["obj1", "obj2"], "readwrite");
+  let store1 = transaction.objectStore("obj1");
+  let store2 = transaction.objectStore("obj2");
+  store1.add({id: 1, name: "foo", email: "foo@bar.com"});
+  store1.add({id: 2, name: "foo2", email: "foo2@bar.com"});
+  store1.add({id: 3, name: "foo2", email: "foo3@bar.com"});
+  store2.add({
+    id2: 1,
+    name: "foo",
+    email: "foo@bar.com",
+    extra: "baz"
+  });
+  // Prevents AbortError during close()
+  yield new Promise(success => {
+    transaction.oncomplete = success;
+  });
+
   db.close();
 
   request = indexedDB.open("idb2", 1);
-  request.onupgradeneeded = success;
-  request.onsuccess = success;
-  event = yield undefined;
-
-  let db2 = event.target.result;
-  let store3 = db2.createObjectStore("obj3", { keyPath: "id3" });
-  store3.createIndex("name2", "name2", { unique: true });
-
-  yield undefined;
+  let db2 = yield new Promise(done => {
+    request.onupgradeneeded = event => {
+      let db2 = event.target.result;
+      let store3 = db2.createObjectStore("obj3", { keyPath: "id3" });
+      store3.createIndex("name2", "name2", { unique: true });
+      store3.transaction.oncomplete = () => {
+        done(db2);
+      }
+    };
+  });
+  // Prevents AbortError during close()
+  yield new Promise(done => {
+    request.onsuccess = done;
+  });
   db2.close();
-  console.log("added cookies and stuff from main page");
-  callback();
+
+  dump("added cookies and stuff from main page\n");
+};
+
+function deleteDB(dbName) {
+  return new Promise(resolve => {
+    dump("removing database " + dbName + " from " + document.location + "\n");
+    indexedDB.deleteDatabase(dbName).onsuccess = resolve;
+  });
 }
 
-function successClear(event) {
-  clearIterator.next(event);
+function fetchPut(cache, url) {
+  let response = yield fetch(url);
+  yield cache.put(url, response);
 }
 
-window.clear = function*(callback) {
+let cacheGenerator = function*() {
+  let cache = yield caches.open("plop");
+  yield fetchPut(cache, "404_cached_file.js");
+  yield fetchPut(cache, "browser_storage_basic.js");
+};
+
+window.setup = function*() {
+  yield idbGenerator();
+  yield cacheGenerator();
+};
+
+window.clear = function*() {
   document.cookie = "c1=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/browser";
-  document.cookie = "c3=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/; secure=true";
-  document.cookie = "cs2=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/; domain=" + partialHostname;
+  document.cookie =
+    "c3=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/; secure=true";
+  document.cookie =
+    "cs2=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/; domain=" +
+    partialHostname;
+
   localStorage.clear();
   sessionStorage.clear();
-  indexedDB.deleteDatabase("idb1").onsuccess = successClear;
-  yield undefined;
-  indexedDB.deleteDatabase("idb2").onsuccess = successClear;
-  yield undefined;
-  console.log("removed cookies and stuff from main page");
-  callback();
-}
+
+  yield deleteDB("idb1");
+  yield deleteDB("idb2");
+
+  yield caches.delete("plop");
+
+  dump("removed cookies, localStorage, sessionStorage and indexedDB data " +
+       "from " + document.location + "\n");
+};
 </script>
 </body>
 </html>

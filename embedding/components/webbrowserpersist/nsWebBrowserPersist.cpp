@@ -3471,7 +3471,7 @@ nsWebBrowserPersist::FixupAnchor(nsIDOMNode *aNode)
 }
 
 nsresult
-nsWebBrowserPersist::StoreAndFixupStyleSheet(nsIStyleSheet *aStyleSheet)
+nsWebBrowserPersist::StoreAndFixupStyleSheet(mozilla::CSSStyleSheet *aStyleSheet)
 {
     // TODO go through the style sheet fixing up all links
     return NS_OK;

@@ -648,10 +648,9 @@ private:
   void
   RemoveRegistrationInternal(ServiceWorkerRegistrationInfo* aRegistration);
 
-  // Removes all service worker registrations that matches the given
-  // mozIApplicationClearPrivateDataParams.
+  // Removes all service worker registrations that matches the given pattern.
   void
-  RemoveAllRegistrations(OriginAttributes* aParams);
+  RemoveAllRegistrations(OriginAttributesPattern* aPattern);
 
   RefPtr<ServiceWorkerManagerChild> mActor;
 

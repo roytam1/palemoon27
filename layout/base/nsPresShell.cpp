@@ -1398,19 +1398,18 @@ PresShell::AddUserSheet(nsISupports* aSheet)
 
   mStyleSet->BeginUpdate();
 
-  nsStyleSheetService *sheetService = nsStyleSheetService::gInstance;
-  nsCOMArray<nsIStyleSheet> & userSheets = *sheetService->UserStyleSheets();
-  int32_t i;
+  nsStyleSheetService* sheetService = nsStyleSheetService::gInstance;
+  nsTArray<RefPtr<CSSStyleSheet>>& userSheets = *sheetService->UserStyleSheets();
   // Iterate forwards when removing so the searches for RemoveStyleSheet are as
   // short as possible.
-  for (i = 0; i < userSheets.Count(); ++i) {
-    mStyleSet->RemoveStyleSheet(SheetType::User, userSheets[i]);
+  for (CSSStyleSheet* sheet : userSheets) {
+    mStyleSet->RemoveStyleSheet(SheetType::User, sheet);
   }
 
   // Now iterate backwards, so that the order of userSheets will be the same as
   // the order of sheets from it in the style set.
-  for (i = userSheets.Count() - 1; i >= 0; --i) {
-    mStyleSet->PrependStyleSheet(SheetType::User, userSheets[i]);
+  for (CSSStyleSheet* sheet : Reversed(userSheets)) {
+    mStyleSet->PrependStyleSheet(SheetType::User, sheet);
   }
 
   mStyleSet->EndUpdate();
@@ -1423,7 +1422,7 @@ PresShell::AddAgentSheet(nsISupports* aSheet)
 {
   // Make sure this does what nsDocumentViewer::CreateStyleSet does
   // wrt ordering.
-  nsCOMPtr<nsIStyleSheet> sheet = do_QueryInterface(aSheet);
+  RefPtr<CSSStyleSheet> sheet = do_QueryObject(aSheet);
   if (!sheet) {
     return;
   }
@@ -1435,14 +1434,14 @@ PresShell::AddAgentSheet(nsISupports* aSheet)
 void
 PresShell::AddAuthorSheet(nsISupports* aSheet)
 {
-  nsCOMPtr<nsIStyleSheet> sheet = do_QueryInterface(aSheet);
+  RefPtr<CSSStyleSheet> sheet = do_QueryObject(aSheet);
   if (!sheet) {
     return;
   }
 
   // Document specific "additional" Author sheets should be stronger than the ones
   // added with the StyleSheetService.
-  nsIStyleSheet* firstAuthorSheet = mDocument->FirstAdditionalAuthorSheet();
+  CSSStyleSheet* firstAuthorSheet = mDocument->FirstAdditionalAuthorSheet();
   if (firstAuthorSheet) {
     mStyleSet->InsertStyleSheetBefore(SheetType::Doc, sheet, firstAuthorSheet);
   } else {
@@ -1455,7 +1454,7 @@ PresShell::AddAuthorSheet(nsISupports* aSheet)
 void
 PresShell::RemoveSheet(SheetType aType, nsISupports* aSheet)
 {
-  nsCOMPtr<nsIStyleSheet> sheet = do_QueryInterface(aSheet);
+  RefPtr<CSSStyleSheet> sheet = do_QueryObject(aSheet);
   if (!sheet) {
     return;
   }
@@ -4405,7 +4404,7 @@ nsIPresShell::ReconstructStyleDataExternal()
 }
 
 void
-PresShell::RecordStyleSheetChange(nsIStyleSheet* aStyleSheet)
+PresShell::RecordStyleSheetChange(CSSStyleSheet* aStyleSheet)
 {
   // too bad we can't check that the update is UPDATE_STYLE
   NS_ASSERTION(mUpdateCount != 0, "must be in an update");
@@ -4426,7 +4425,7 @@ PresShell::RecordStyleSheetChange(nsIStyleSheet* aStyleSheet)
 }
 
 void
-PresShell::StyleSheetAdded(nsIStyleSheet* aStyleSheet,
+PresShell::StyleSheetAdded(CSSStyleSheet* aStyleSheet,
                            bool aDocumentSheet)
 {
   // We only care when enabled sheets are added
@@ -4438,7 +4437,7 @@ PresShell::StyleSheetAdded(nsIStyleSheet* aStyleSheet,
 }
 
 void
-PresShell::StyleSheetRemoved(nsIStyleSheet* aStyleSheet,
+PresShell::StyleSheetRemoved(CSSStyleSheet* aStyleSheet,
                              bool aDocumentSheet)
 {
   // We only care when enabled sheets are removed
@@ -4450,7 +4449,7 @@ PresShell::StyleSheetRemoved(nsIStyleSheet* aStyleSheet,
 }
 
 void
-PresShell::StyleSheetApplicableStateChanged(nsIStyleSheet* aStyleSheet)
+PresShell::StyleSheetApplicableStateChanged(CSSStyleSheet* aStyleSheet)
 {
   if (aStyleSheet->HasRules()) {
     RecordStyleSheetChange(aStyleSheet);
@@ -4458,19 +4457,19 @@ PresShell::StyleSheetApplicableStateChanged(nsIStyleSheet* aStyleSheet)
 }
 
 void
-PresShell::StyleRuleChanged(nsIStyleSheet* aStyleSheet)
+PresShell::StyleRuleChanged(CSSStyleSheet* aStyleSheet)
 {
   RecordStyleSheetChange(aStyleSheet);
 }
 
 void
-PresShell::StyleRuleAdded(nsIStyleSheet* aStyleSheet)
+PresShell::StyleRuleAdded(CSSStyleSheet* aStyleSheet)
 {
   RecordStyleSheetChange(aStyleSheet);
 }
 
 void
-PresShell::StyleRuleRemoved(nsIStyleSheet* aStyleSheet)
+PresShell::StyleRuleRemoved(CSSStyleSheet* aStyleSheet)
 {
   RecordStyleSheetChange(aStyleSheet);
 }
@@ -8520,34 +8519,37 @@ PresShell::IsVisible()
 }
 
 nsresult
-PresShell::GetAgentStyleSheets(nsCOMArray<nsIStyleSheet>& aSheets)
+PresShell::GetAgentStyleSheets(nsTArray<RefPtr<CSSStyleSheet>>& aSheets)
 {
   aSheets.Clear();
   int32_t sheetCount = mStyleSet->SheetCount(SheetType::Agent);
 
+  if (!aSheets.SetCapacity(sheetCount, fallible)) {
+    return NS_ERROR_OUT_OF_MEMORY;
+  }
+
   for (int32_t i = 0; i < sheetCount; ++i) {
-    nsIStyleSheet *sheet = mStyleSet->StyleSheetAt(SheetType::Agent, i);
-    if (!aSheets.AppendObject(sheet))
-      return NS_ERROR_OUT_OF_MEMORY;
+    CSSStyleSheet* sheet = mStyleSet->StyleSheetAt(SheetType::Agent, i);
+    aSheets.AppendElement(sheet);
   }
 
   return NS_OK;
 }
 
 nsresult
-PresShell::SetAgentStyleSheets(const nsCOMArray<nsIStyleSheet>& aSheets)
+PresShell::SetAgentStyleSheets(const nsTArray<RefPtr<CSSStyleSheet>>& aSheets)
 {
   return mStyleSet->ReplaceSheets(SheetType::Agent, aSheets);
 }
 
 nsresult
-PresShell::AddOverrideStyleSheet(nsIStyleSheet *aSheet)
+PresShell::AddOverrideStyleSheet(CSSStyleSheet* aSheet)
 {
   return mStyleSet->PrependStyleSheet(SheetType::Override, aSheet);
 }
 
 nsresult
-PresShell::RemoveOverrideStyleSheet(nsIStyleSheet *aSheet)
+PresShell::RemoveOverrideStyleSheet(CSSStyleSheet* aSheet)
 {
   return mStyleSet->RemoveStyleSheet(SheetType::Override, aSheet);
 }
@@ -9645,7 +9647,7 @@ PresShell::CloneStyleSet(nsStyleSet* aSet)
 
   int32_t i, n = aSet->SheetCount(SheetType::Override);
   for (i = 0; i < n; i++) {
-    nsIStyleSheet* ss = aSet->StyleSheetAt(SheetType::Override, i);
+    CSSStyleSheet* ss = aSet->StyleSheetAt(SheetType::Override, i);
     if (ss)
       clone->AppendStyleSheet(SheetType::Override, ss);
   }
@@ -9654,7 +9656,7 @@ PresShell::CloneStyleSet(nsStyleSet* aSet)
 #if 0
   n = aSet->SheetCount(SheetType::Doc);
   for (i = 0; i < n; i++) {
-    nsIStyleSheet* ss = aSet->StyleSheetAt(SheetType::Doc, i);
+    CSSStyleSheet* ss = aSet->StyleSheetAt(SheetType::Doc, i);
     if (ss)
       clone->AddDocStyleSheet(ss, mDocument);
   }
@@ -9662,14 +9664,14 @@ PresShell::CloneStyleSet(nsStyleSet* aSet)
 
   n = aSet->SheetCount(SheetType::User);
   for (i = 0; i < n; i++) {
-    nsIStyleSheet* ss = aSet->StyleSheetAt(SheetType::User, i);
+    CSSStyleSheet* ss = aSet->StyleSheetAt(SheetType::User, i);
     if (ss)
       clone->AppendStyleSheet(SheetType::User, ss);
   }
 
   n = aSet->SheetCount(SheetType::Agent);
   for (i = 0; i < n; i++) {
-    nsIStyleSheet* ss = aSet->StyleSheetAt(SheetType::Agent, i);
+    CSSStyleSheet* ss = aSet->StyleSheetAt(SheetType::Agent, i);
     if (ss)
       clone->AppendStyleSheet(SheetType::Agent, ss);
   }

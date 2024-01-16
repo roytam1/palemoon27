@@ -285,17 +285,6 @@ UpdateIsElementInStyleScopeFlagOnSubtree(Element* aElement)
   }
 }
 
-static Element*
-GetScopeElement(nsIStyleSheet* aSheet)
-{
-  RefPtr<CSSStyleSheet> cssStyleSheet = do_QueryObject(aSheet);
-  if (!cssStyleSheet) {
-    return nullptr;
-  }
-
-  return cssStyleSheet->GetScopeElement();
-}
-
 nsresult
 nsStyleLinkElement::DoUpdateStyleSheet(nsIDocument* aOldDocument,
                                        ShadowRoot* aOldShadowRoot,
@@ -327,7 +316,8 @@ nsStyleLinkElement::DoUpdateStyleSheet(nsIDocument* aOldDocument,
     return NS_OK;
   }
 
-  Element* oldScopeElement = GetScopeElement(mStyleSheet);
+  Element* oldScopeElement =
+    mStyleSheet ? mStyleSheet->GetScopeElement() : nullptr;
 
   if (mStyleSheet && (aOldDocument || aOldShadowRoot)) {
     MOZ_ASSERT(!(aOldDocument && aOldShadowRoot),

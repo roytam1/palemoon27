@@ -16,13 +16,13 @@
 #include "nsIOutputStream.h"
 #include "nsIInputStream.h"
 #include "nsIChannel.h"
-#include "nsIStyleSheet.h"
 #include "nsIDocumentEncoder.h"
 #include "nsITransport.h"
 #include "nsIProgressEventSink.h"
 #include "nsIFile.h"
 #include "nsIWebProgressListener2.h"
 
+#include "mozilla/CSSStyleSheet.h"
 #include "nsClassHashtable.h"
 #include "nsHashKeys.h"
 #include "nsTArray.h"
@@ -136,7 +136,7 @@ private:
     nsresult FixupXMLStyleSheetLink(nsIDOMProcessingInstruction *aPI, const nsAString &aHref);
     nsresult GetXMLStyleSheetLink(nsIDOMProcessingInstruction *aPI, nsAString &aHref);
 
-    nsresult StoreAndFixupStyleSheet(nsIStyleSheet *aStyleSheet);
+    nsresult StoreAndFixupStyleSheet(mozilla::CSSStyleSheet *aStyleSheet);
     nsresult SaveDocumentWithFixup(
         nsIDOMDocument *pDocument,
         nsIURI *aFile, bool aReplaceExisting, const nsACString &aFormatType,

@@ -1073,8 +1073,10 @@ size_t
 CSSStyleSheetInner::SizeOfIncludingThis(MallocSizeOf aMallocSizeOf) const
 {
   size_t n = aMallocSizeOf(this);
-  n += mOrderedRules.SizeOfExcludingThis(css::Rule::SizeOfCOMArrayElementIncludingThis,
-                                         aMallocSizeOf);
+  n += mOrderedRules.ShallowSizeOfExcludingThis(aMallocSizeOf);
+  for (size_t i = 0; i < mOrderedRules.Length(); i++) {
+    n += mOrderedRules[i]->SizeOfIncludingThis(aMallocSizeOf);
+  }
   n += mFirstChild ? mFirstChild->SizeOfIncludingThis(aMallocSizeOf) : 0;
 
   // Measurement of the following members may be added later if DMD finds it is
@@ -1272,7 +1274,7 @@ CSSStyleSheet::TraverseInner(nsCycleCollectionTraversalCallback &cb)
   RefPtr<CSSStyleSheet>* childSheetSlot = &mInner->mFirstChild;
   while (*childSheetSlot) {
     NS_CYCLE_COLLECTION_NOTE_EDGE_NAME(cb, "child sheet");
-    cb.NoteXPCOMChild(NS_ISUPPORTS_CAST(nsIStyleSheet*, childSheetSlot->get()));
+    cb.NoteXPCOMChild(NS_ISUPPORTS_CAST(nsIDOMCSSStyleSheet*, childSheetSlot->get()));
     childSheetSlot = &(*childSheetSlot)->mNext;
   }
 
@@ -1286,11 +1288,10 @@ CSSStyleSheet::TraverseInner(nsCycleCollectionTraversalCallback &cb)
 // QueryInterface implementation for CSSStyleSheet
 NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(CSSStyleSheet)
   NS_WRAPPERCACHE_INTERFACE_MAP_ENTRY
-  NS_INTERFACE_MAP_ENTRY(nsIStyleSheet)
   NS_INTERFACE_MAP_ENTRY(nsIDOMStyleSheet)
   NS_INTERFACE_MAP_ENTRY(nsIDOMCSSStyleSheet)
   NS_INTERFACE_MAP_ENTRY(nsICSSLoaderObserver)
-  NS_INTERFACE_MAP_ENTRY_AMBIGUOUS(nsISupports, nsIStyleSheet)
+  NS_INTERFACE_MAP_ENTRY_AMBIGUOUS(nsISupports, nsIDOMCSSStyleSheet)
   if (aIID.Equals(NS_GET_IID(CSSStyleSheet)))
     foundInterface = reinterpret_cast<nsISupports*>(this);
   else
@@ -1390,19 +1391,19 @@ CSSStyleSheet::SetPrincipal(nsIPrincipal* aPrincipal)
   }
 }
 
-/* virtual */ nsIURI*
+nsIURI*
 CSSStyleSheet::GetSheetURI() const
 {
   return mInner->mSheetURI;
 }
 
-/* virtual */ nsIURI*
+nsIURI*
 CSSStyleSheet::GetBaseURI() const
 {
   return mInner->mBaseURI;
 }
 
-/* virtual */ void
+void
 CSSStyleSheet::GetType(nsString& aType) const
 {
   aType.AssignLiteral("text/css");
@@ -1425,19 +1426,19 @@ CSSStyleSheet::SetMedia(nsMediaList* aMedia)
   mMedia = aMedia;
 }
 
-/* virtual */ bool
+bool
 CSSStyleSheet::HasRules() const
 {
   return StyleRuleCount() != 0;
 }
 
-/* virtual */ bool
+bool
 CSSStyleSheet::IsApplicable() const
 {
   return !mDisabled && mInner->mComplete;
 }
 
-/* virtual */ void
+void
 CSSStyleSheet::SetEnabled(bool aEnabled)
 {
   // Internal method, so callers must handle BeginUpdate/EndUpdate
@@ -1453,13 +1454,13 @@ CSSStyleSheet::SetEnabled(bool aEnabled)
   }
 }
 
-/* virtual */ bool
+bool
 CSSStyleSheet::IsComplete() const
 {
   return mInner->mComplete;
 }
 
-/* virtual */ void
+void
 CSSStyleSheet::SetComplete()
 {
   NS_ASSERTION(!mDirty, "Can't set a dirty sheet complete!");
@@ -1479,19 +1480,19 @@ CSSStyleSheet::SetComplete()
   }
 }
 
-/* virtual */ nsIStyleSheet*
+CSSStyleSheet*
 CSSStyleSheet::GetParentSheet() const
 {
   return mParent;
 }
 
-/* virtual */ nsIDocument*
+nsIDocument*
 CSSStyleSheet::GetOwningDocument() const
 {
   return mDocument;
 }
 
-/* virtual */ void
+void
 CSSStyleSheet::SetOwningDocument(nsIDocument* aDocument)
 { // not ref counted
   mDocument = aDocument;
@@ -1519,12 +1520,9 @@ CSSStyleSheet::FindOwningWindowInnerID() const
   }
 
   if (windowID == 0 && mOwnerRule) {
-    nsCOMPtr<nsIStyleSheet> sheet = static_cast<css::Rule*>(mOwnerRule)->GetStyleSheet();
+    RefPtr<CSSStyleSheet> sheet = static_cast<css::Rule*>(mOwnerRule)->GetStyleSheet();
     if (sheet) {
-      RefPtr<CSSStyleSheet> cssSheet = do_QueryObject(sheet);
-      if (cssSheet) {
-        windowID = cssSheet->FindOwningWindowInnerID();
-      }
+      windowID = sheet->FindOwningWindowInnerID();
     }
   }
 
@@ -1732,7 +1730,7 @@ struct ListEnumData {
   int32_t mIndent;
 };
 
-/* virtual */ void
+void
 CSSStyleSheet::List(FILE* out, int32_t aIndent) const
 {
 
@@ -1925,7 +1923,7 @@ CSSStyleSheet::GetHref(nsAString& aHref)
   return NS_OK;
 }
 
-/* virtual */ void
+void
 CSSStyleSheet::GetTitle(nsString& aTitle) const
 {
   aTitle = mTitle;

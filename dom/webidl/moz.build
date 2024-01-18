@@ -32,7 +32,6 @@ WEBIDL_FILES = [
     'AnonymousContent.webidl',
     'AppInfo.webidl',
     'AppNotificationServiceOptions.webidl',
-    'Apps.webidl',
     'APZTestData.webidl',
     'ArchiveReader.webidl',
     'ArchiveRequest.webidl',
@@ -631,7 +630,7 @@ if CONFIG['MOZ_WEBRTC']:
         'PeerConnectionImplEnums.webidl',
         'PeerConnectionObserver.webidl',
         'PeerConnectionObserverEnums.webidl',
-	'RTCCertificate.webidl',
+        'RTCCertificate.webidl',
         'RTCConfiguration.webidl',
         'RTCIceCandidate.webidl',
         'RTCIdentityAssertion.webidl',
@@ -656,6 +655,7 @@ if CONFIG['MOZ_WEBSPEECH']:
         'SpeechRecognitionResult.webidl',
         'SpeechRecognitionResultList.webidl',
         'SpeechSynthesis.webidl',
+        'SpeechSynthesisErrorEvent.webidl',
         'SpeechSynthesisEvent.webidl',
         'SpeechSynthesisUtterance.webidl',
         'SpeechSynthesisVoice.webidl',
@@ -673,7 +673,6 @@ WEBIDL_FILES += [
     'DeviceStorageChangeEvent.webidl',
     'DOMTransactionEvent.webidl',
     'HashChangeEvent.webidl',
-    'MozApplicationEvent.webidl',
     'MozSettingsEvent.webidl',
     'PageTransitionEvent.webidl',
     'PopStateEvent.webidl',
@@ -751,6 +750,7 @@ if CONFIG['MOZ_WIDGET_TOOLKIT'] == 'gonk':
         'MozNetworkStatsAlarm.webidl',
         'MozNetworkStatsData.webidl',
         'MozNetworkStatsInterface.webidl',
+        'MozNetworkStatsManager.webidl',
         'MozSpeakerManager.webidl',
         'MozWifiCapabilities.webidl',
         'MozWifiManager.webidl',
@@ -795,7 +795,6 @@ GENERATED_EVENTS_WEBIDL_FILES = [
     'IccChangeEvent.webidl',
     'ImageCaptureErrorEvent.webidl',
     'MediaStreamEvent.webidl',
-    'MozApplicationEvent.webidl',
     'MozCellBroadcastEvent.webidl',
     'MozClirModeEvent.webidl',
     'MozContactChangeEvent.webidl',
@@ -845,6 +844,7 @@ if CONFIG['MOZ_WEBRTC']:
 if CONFIG['MOZ_WEBSPEECH']:
     GENERATED_EVENTS_WEBIDL_FILES += [
         'SpeechRecognitionEvent.webidl',
+        'SpeechSynthesisErrorEvent.webidl',
         'SpeechSynthesisEvent.webidl',
     ]
 
@@ -906,5 +906,10 @@ if CONFIG['MOZ_PAY']:
 
 if CONFIG['MOZ_B2G']:
     WEBIDL_FILES += [
-        'Identity.webidl'
+        'Apps.webidl',
+        'Identity.webidl',
+        'MozApplicationEvent.webidl'
+    ]
+    GENERATED_EVENTS_WEBIDL_FILES += [
+        'MozApplicationEvent.webidl'
     ]

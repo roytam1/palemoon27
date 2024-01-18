@@ -54,8 +54,10 @@ interface NavigatorID {
 [NoInterfaceObject, Exposed=(Window,Worker)]
 interface NavigatorLanguage {
 
-  // These 2 values are cached. They are updated when pref
-  // intl.accept_languages is changed.
+  // These two attributes are cached because this interface is also implemented
+  // by Workernavigator and this way we don't have to go back to the
+  // main-thread from the worker thread anytime we need to retrieve them. They
+  // are updated when pref intl.accept_languages is changed.
 
   [Pure, Cached]
   readonly attribute DOMString? language;
@@ -98,7 +100,7 @@ interface NavigatorFeatures {
 };
 
 partial interface Navigator {
-  [Throws, Pref="dom.permissions.enabled"]
+  [Throws]
   readonly attribute Permissions permissions;
 };
 
@@ -188,7 +190,7 @@ Navigator implements NavigatorMobileId;
 
 // nsIDOMNavigator
 partial interface Navigator {
-  [Throws]
+  [Throws, Constant, Cached]
   readonly attribute DOMString oscpu;
   // WebKit/Blink support this; Trident/Presto do not.
   readonly attribute DOMString vendor;
@@ -198,7 +200,7 @@ partial interface Navigator {
   readonly attribute DOMString productSub;
   // WebKit/Blink/Trident/Presto support this.
   readonly attribute boolean cookieEnabled;
-  [Throws]
+  [Throws, Constant, Cached]
   readonly attribute DOMString buildID;
   [Throws, CheckAnyPermissions="power", UnsafeInPrerendering]
   readonly attribute MozPowerManager mozPower;
@@ -418,7 +420,7 @@ partial interface Navigator {
 
 // Service Workers/Navigation Controllers
 partial interface Navigator {
-  [Func="ServiceWorkerContainer::IsEnabled"]
+  [Func="ServiceWorkerContainer::IsEnabled", SameObject]
   readonly attribute ServiceWorkerContainer serviceWorker;
 };
 

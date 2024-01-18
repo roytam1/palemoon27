@@ -66,6 +66,7 @@
 #include "nsIScriptableRegion.h"
 #include <algorithm>
 #include "ScrollbarActivity.h"
+#include "../../editor/libeditor/nsTextEditRules.h"
 
 #ifdef ACCESSIBILITY
 #include "nsAccessibilityService.h"
@@ -3366,6 +3367,7 @@ nsTreeBodyFrame::PaintCell(int32_t              aRowIndex,
     if (dirtyRect.IntersectRect(aDirtyRect, elementRect)) {
       switch (aColumn->GetType()) {
         case nsITreeColumn::TYPE_TEXT:
+        case nsITreeColumn::TYPE_PASSWORD:
           PaintText(aRowIndex, aColumn, elementRect, aPresContext, aRenderingContext, aDirtyRect, currX);
           break;
         case nsITreeColumn::TYPE_CHECKBOX:
@@ -3672,6 +3674,11 @@ nsTreeBodyFrame::PaintText(int32_t              aRowIndex,
   // Now obtain the text for our cell.
   nsAutoString text;
   mView->GetCellText(aRowIndex, aColumn, text);
+
+  if (aColumn->Type() == nsITreeColumn::TYPE_PASSWORD) {
+    nsTextEditRules::FillBufWithPWChars(&text, text.Length());
+  }
+
   // We're going to paint this text so we need to ensure bidi is enabled if
   // necessary
   CheckTextForBidi(text);

@@ -3700,8 +3700,10 @@ nsDOMWindowUtils::GetContentAPZTestData(JSContext* aContext,
 
   if (nsIWidget* widget = GetWidget()) {
     RefPtr<LayerManager> lm = widget->GetLayerManager();
-    if (lm && lm->GetBackendType() == LayersBackend::LAYERS_CLIENT) {
-      ClientLayerManager* clm = static_cast<ClientLayerManager*>(lm.get());
+    if (!lm) {
+      return NS_OK;
+    }
+    if (ClientLayerManager* clm = lm->AsClientLayerManager()) {
       if (!clm->GetAPZTestData().ToJS(aOutContentTestData, aContext)) {
         return NS_ERROR_FAILURE;
       }
@@ -3719,8 +3721,10 @@ nsDOMWindowUtils::GetCompositorAPZTestData(JSContext* aContext,
 
   if (nsIWidget* widget = GetWidget()) {
     RefPtr<LayerManager> lm = widget->GetLayerManager();
-    if (lm && lm->GetBackendType() == LayersBackend::LAYERS_CLIENT) {
-      ClientLayerManager* clm = static_cast<ClientLayerManager*>(lm.get());
+    if (!lm) {
+      return NS_OK;
+    }
+    if (ClientLayerManager* clm = lm->AsClientLayerManager()) {
       APZTestData compositorSideData;
       clm->GetCompositorSideAPZTestData(&compositorSideData);
       if (!compositorSideData.ToJS(aOutCompositorTestData, aContext)) {
@@ -3955,9 +3959,8 @@ nsDOMWindowUtils::SetNextPaintSyncId(int32_t aSyncId)
   MOZ_RELEASE_ASSERT(nsContentUtils::IsCallerChrome());
   if (nsIWidget* widget = GetWidget()) {
     RefPtr<LayerManager> lm = widget->GetLayerManager();
-    if (lm && lm->GetBackendType() == LayersBackend::LAYERS_CLIENT) {
-      ClientLayerManager* clm = static_cast<ClientLayerManager*>(lm.get());
-      clm->SetNextPaintSyncId(aSyncId);
+    if (lm && lm->AsClientLayerManager()) {
+      lm->AsClientLayerManager()->SetNextPaintSyncId(aSyncId);
       return NS_OK;
     }
   }

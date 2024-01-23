@@ -747,6 +747,7 @@ PresShell::PresShell()
   mSelectionFlags = nsISelectionDisplay::DISPLAY_TEXT | nsISelectionDisplay::DISPLAY_IMAGES;
   mIsThemeSupportDisabled = false;
   mIsActive = true;
+  mIsHidden = false;
   // FIXME/bug 735029: find a better solution to this problem
 #if defined(MOZ_WIDGET_ANDROID) && !defined(MOZ_ANDROID_APZ)
   // The java pan/zoom code uses this to mean approximately "request a
@@ -778,6 +779,7 @@ PresShell::PresShell()
     addedPointerEventEnabled = true;
   }
 
+  mPaintingIsFrozen = false;
   mHasCSSBackgroundColor = true;
   mIsLastChromeOnlyEscapeKeyConsumed = false;
   mHasReceivedPaintMessage = false;
@@ -800,6 +802,13 @@ PresShell::~PresShell()
   NS_ASSERTION(mFirstCallbackEventRequest == nullptr &&
                mLastCallbackEventRequest == nullptr,
                "post-reflow queues not empty.  This means we're leaking");
+
+  // Verify that if painting was frozen, but we're being removed from the tree,
+  // that we now re-enable painting on our refresh driver, since it may need to
+  // be re-used by another presentation.
+  if (mPaintingIsFrozen) {
+    mPresContext->RefreshDriver()->Thaw();
+  }
 
 #ifdef DEBUG
   MOZ_ASSERT(mPresArenaAllocCount == 0,
@@ -10434,6 +10443,10 @@ void PresShell::QueryIsActive()
   if (docshell) {
     bool isActive;
     nsresult rv = docshell->GetIsActive(&isActive);
+    // Even though in theory the docshell here could be "Inactive and
+    // Foreground", thus implying aIsHidden=false for SetIsActive(),
+    // this is a newly created PresShell so we'd like to invalidate anyway
+    // upon being made active to ensure that the contents get painted.
     if (NS_SUCCEEDED(rv))
       SetIsActive(isActive);
   }
@@ -10471,6 +10484,11 @@ PresShell::SetIsActive(bool aIsActive, bool aIsHidden)
   NS_PRECONDITION(mDocument, "should only be called with a document");
 
   mIsActive = aIsActive;
+
+  // Keep track of whether we've called TabChild::MakeHidden() or not.
+  // This can still be true even if aIsHidden is false.
+  mIsHidden |= aIsHidden;
+
   nsPresContext* presContext = GetPresContext();
   if (presContext &&
       presContext->RefreshDriver()->PresContext() == presContext) {
@@ -10510,10 +10528,14 @@ PresShell::SetIsActive(bool aIsActive, bool aIsHidden)
   // and (ii) has easy access to the TabChild.  So we use this
   // notification to signal the TabChild to drop its layer tree and
   // stop trying to repaint.
-  if (aIsHidden) {
+  if (mIsHidden) {
     if (TabChild* tab = TabChild::GetFrom(this)) {
       if (aIsActive) {
         tab->MakeVisible();
+        // The only time we should set this to false is when
+        // TabChild::MakeVisible() is called.
+        mIsHidden = false;
+
         if (!mIsZombie) {
           if (nsIFrame* root = mFrameConstructor->GetRootFrame()) {
             FrameLayerBuilder::InvalidateAllLayersForFrame(
@@ -10731,6 +10753,26 @@ nsIPresShell::FontSizeInflationEnabled()
   }
 
   return mFontSizeInflationEnabled;
+}
+
+void
+PresShell::PausePainting()
+{
+  if (GetPresContext()->RefreshDriver()->PresContext() != GetPresContext())
+    return;
+
+  mPaintingIsFrozen = true;
+  GetPresContext()->RefreshDriver()->Freeze();
+}
+
+void
+PresShell::ResumePainting()
+{
+  if (GetPresContext()->RefreshDriver()->PresContext() != GetPresContext())
+    return;
+
+  mPaintingIsFrozen = false;
+  GetPresContext()->RefreshDriver()->Thaw();
 }
 
 void

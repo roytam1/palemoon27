@@ -52,6 +52,10 @@ XPCOMUtils.defineLazyModuleGetter(this, "LightweightThemeManager",
 XPCOMUtils.defineLazyModuleGetter(this, "NewTabURL",
                                   "resource:///modules/NewTabURL.jsm");
 
+XPCOMUtils.defineLazyServiceGetter(this, "gAboutNewTabService",
+                                   "@mozilla.org/browser/aboutnewtab-service;1",
+                                   "nsIAboutNewTabService");
+
 const nsIWebNavigation = Ci.nsIWebNavigation;
 const gToolbarInfoSeparators = ["|", "-"];
 
@@ -2484,8 +2488,11 @@ function URLBarSetURI(aURI) {
     } catch (e) {}
 
     // Replace initial page URIs with an empty string
-    // only if there's no opener (bug 370555).
-    if (gInitialPages.indexOf(uri.spec) != -1)
+    // 1. only if there's no opener (bug 370555).
+    // 2. if remote newtab is enabled and it's the default remote newtab page
+    let defaultRemoteURL = gAboutNewTabService.remoteEnabled &&
+                           uri.spec === gAboutNewTabService.newTabURL;
+    if (gInitialPages.includes(uri.spec) || defaultRemoteURL)
       value = gBrowser.selectedBrowser.hasContentOpener ? uri.spec : "";
     else
       value = losslessDecodeURI(uri);
@@ -3994,7 +4001,6 @@ function BrowserToolboxCustomizeChange(aType) {
     default:
       gHomeButton.updatePersonalToolbarStyle();
       BookmarkingUI.customizeChange();
-      allTabs.readPref();
   }
 }
 
@@ -5103,6 +5109,22 @@ function onViewToolbarsPopupShowing(aEvent, aInsertPoint) {
     popup.insertBefore(menuItem, firstMenuItem);
 
     menuItem.addEventListener("command", onViewToolbarCommand, false);
+  }
+
+  // The explicitOriginalTarget can be a nested child element of a toolbaritem.
+  let toolbarItem = aEvent.explicitOriginalTarget;
+
+  if (toolbarItem && toolbarItem.localName == "toolbarpaletteitem") {
+    toolbarItem = toolbarItem.firstChild;
+  } else {
+    while (toolbarItem && toolbarItem.parentNode) {
+      let parent = toolbarItem.parentNode;
+      if ((parent.classList && parent.classList.contains("customization-target")) ||
+          parent.localName == "toolbarpaletteitem" ||
+          parent.localName == "toolbar")
+        break;
+      toolbarItem = parent;
+    }
   }
 
   let showTabStripItems = toolbarItem && toolbarItem.id == "tabbrowser-tabs";

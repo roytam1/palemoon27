@@ -39,7 +39,7 @@ const SHARED_L10N = new ViewHelpers.L10N("chrome://devtools/locale/shared.proper
 
 var ActiveTabs = new Map();
 
-this.ResponsiveUIManager = {
+var Manager = {
   /**
    * Check if the a tab is in a responsive mode.
    * Leave the responsive mode if active,
@@ -52,6 +52,18 @@ this.ResponsiveUIManager = {
     if (this.isActiveForTab(aTab)) {
       ActiveTabs.get(aTab).close();
     } else {
+      this.runIfNeeded(aWindow, aTab);
+    }
+  },
+
+  /**
+   * Launches the responsive mode.
+   *
+   * @param aWindow the main window.
+   * @param aTab the tab targeted.
+   */
+  runIfNeeded: function(aWindow, aTab) {
+    if (!this.isActiveForTab(aTab)) {
       new ResponsiveUI(aWindow, aTab);
     }
   },
@@ -83,15 +95,11 @@ this.ResponsiveUIManager = {
   handleGcliCommand: function(aWindow, aTab, aCommand, aArgs) {
     switch (aCommand) {
       case "resize to":
-        if (!this.isActiveForTab(aTab)) {
-          new ResponsiveUI(aWindow, aTab);
-        }
+        this.runIfNeeded(aWindow, aTab);
         ActiveTabs.get(aTab).setSize(aArgs.width, aArgs.height);
         break;
       case "resize on":
-        if (!this.isActiveForTab(aTab)) {
-          new ResponsiveUI(aWindow, aTab);
-        }
+        this.runIfNeeded(aWindow, aTab);
         break;
       case "resize off":
         if (this.isActiveForTab(aTab)) {
@@ -105,7 +113,18 @@ this.ResponsiveUIManager = {
   }
 }
 
-EventEmitter.decorate(ResponsiveUIManager);
+EventEmitter.decorate(Manager);
+
+// If the experimental HTML UI is enabled, delegate the ResponsiveUIManager API
+// over to that tool instead.  Performing this delegation here allows us to
+// contain the pref check to a single place.
+if (Services.prefs.getBoolPref("devtools.responsive.html.enabled")) {
+  let { ResponsiveUIManager } =
+    require("devtools/client/responsive.html/manager");
+  this.ResponsiveUIManager = ResponsiveUIManager;
+} else {
+  this.ResponsiveUIManager = Manager;
+}
 
 var presets = [
   // Phones
@@ -851,36 +870,38 @@ ResponsiveUI.prototype = {
    * @param aHeight height of the browser.
    */
   setSize: function RUI_setSize(aWidth, aHeight) {
+    this.setWidth(aWidth);
+    this.setHeight(aHeight);
+  },
+
+  setWidth: function RUI_setWidth(aWidth) {
     aWidth = Math.min(Math.max(aWidth, MIN_WIDTH), MAX_WIDTH);
-    aHeight = Math.min(Math.max(aHeight, MIN_HEIGHT), MAX_HEIGHT);
+    this.stack.style.maxWidth = this.stack.style.minWidth = aWidth + "px";
 
-    // We resize the containing stack.
-    let style = "max-width: %width;" +
-                "min-width: %width;" +
-                "max-height: %height;" +
-                "min-height: %height;";
-
-    style = style.replace(/%width/g, aWidth + "px");
-    style = style.replace(/%height/g, aHeight + "px");
-
-    this.stack.setAttribute("style", style);
-
-    if (!this.ignoreY)
-      this.resizeBarV.setAttribute("top", Math.round(aHeight / 2));
     if (!this.ignoreX)
       this.resizeBarH.setAttribute("left", Math.round(aWidth / 2));
 
     let selectedPreset = this.menuitems.get(this.selectedItem);
 
-    // We update the custom menuitem if we are using it
     if (selectedPreset.custom) {
       selectedPreset.width = aWidth;
-      selectedPreset.height = aHeight;
-
       this.setMenuLabel(this.selectedItem, selectedPreset);
     }
   },
 
+  setHeight: function RUI_setHeight(aHeight) {
+    aHeight = Math.min(Math.max(aHeight, MIN_HEIGHT), MAX_HEIGHT);
+    this.stack.style.maxHeight = this.stack.style.minHeight = aHeight + "px";
+
+    if (!this.ignoreY)
+      this.resizeBarV.setAttribute("top", Math.round(aHeight / 2));
+
+    let selectedPreset = this.menuitems.get(this.selectedItem);
+    if (selectedPreset.custom) {
+      selectedPreset.height = aHeight;
+      this.setMenuLabel(this.selectedItem, selectedPreset);
+    }
+  },
   /**
    * Start the process of resizing the browser.
    *

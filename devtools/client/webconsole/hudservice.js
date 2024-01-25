@@ -16,15 +16,15 @@ var promise = require("promise");
 
 loader.lazyGetter(this, "Telemetry", () => require("devtools/client/shared/telemetry"));
 loader.lazyGetter(this, "WebConsoleFrame", () => require("devtools/client/webconsole/webconsole").WebConsoleFrame);
-loader.lazyImporter(this, "gDevTools", "resource://devtools/client/framework/gDevTools.jsm");
 loader.lazyImporter(this, "Services", "resource://gre/modules/Services.jsm");
+loader.lazyRequireGetter(this, "gDevTools", "devtools/client/framework/devtools", true);
 loader.lazyRequireGetter(this, "DebuggerServer", "devtools/server/main", true);
 loader.lazyRequireGetter(this, "DebuggerClient", "devtools/shared/client/main", true);
 loader.lazyGetter(this, "showDoorhanger", () => require("devtools/client/shared/doorhanger").showDoorhanger);
 loader.lazyRequireGetter(this, "viewSource", "devtools/client/shared/view-source");
 
 const STRINGS_URI = "chrome://devtools/locale/webconsole.properties";
-var l10n = new WebConsoleUtils.l10n(STRINGS_URI);
+var l10n = new WebConsoleUtils.L10n(STRINGS_URI);
 
 const BROWSER_CONSOLE_WINDOW_FEATURES = "chrome,titlebar,toolbar,centerscreen,resizable,dialog=no";
 

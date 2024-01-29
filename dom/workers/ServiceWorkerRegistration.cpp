@@ -334,8 +334,16 @@ public:
       promise->MaybeResolve(JS::UndefinedHandleValue);
     }
     mStatus.SuppressException();
-    mPromiseProxy->CleanUp(aCx);
+    mPromiseProxy->CleanUp();
     return true;
+  }
+
+  void
+  PostDispatch(WorkerPrivate* aWorkerPrivate, bool aSuccess) override
+  {
+    if (!aSuccess) {
+      mStatus.SuppressException();
+    }
   }
 };
 
@@ -381,12 +389,9 @@ public:
       return;
     }
 
-    AutoJSAPI jsapi;
-    jsapi.Init();
-
     RefPtr<UpdateResultRunnable> r =
       new UpdateResultRunnable(proxy, aStatus);
-    r->Dispatch(jsapi.cx());
+    r->Dispatch();
   }
 };
 
@@ -494,7 +499,7 @@ public:
       promise->MaybeReject(NS_ERROR_DOM_SECURITY_ERR);
     }
 
-    mPromiseWorkerProxy->CleanUp(aCx);
+    mPromiseWorkerProxy->CleanUp();
     return true;
   }
 };
@@ -548,9 +553,7 @@ private:
     RefPtr<WorkerRunnable> r =
       new FulfillUnregisterPromiseRunnable(proxy, aState);
 
-    AutoJSAPI jsapi;
-    jsapi.Init();
-    r->Dispatch(jsapi.cx());
+    r->Dispatch();
   }
 };
 
@@ -727,8 +730,8 @@ ServiceWorkerRegistrationMainThread::ShowNotification(JSContext* aCx,
 
   nsCOMPtr<nsIGlobalObject> global = do_QueryInterface(window);
   RefPtr<Promise> p =
-    Notification::ShowPersistentNotification(global,
-                                             mScope, aTitle, aOptions, aRv);
+    Notification::ShowPersistentNotification(aCx, global, mScope, aTitle,
+                                             aOptions, aRv);
   if (NS_WARN_IF(aRv.Failed())) {
     return nullptr;
   }
@@ -1060,7 +1063,7 @@ ServiceWorkerRegistrationWorkerThread::InitListener()
   worker->AssertIsOnWorkerThread();
 
   mListener = new WorkerListener(worker, this);
-  if (!worker->AddFeature(worker->GetJSContext(), this)) {
+  if (!worker->AddFeature(this)) {
     mListener = nullptr;
     NS_WARNING("Could not add feature");
     return;
@@ -1118,7 +1121,7 @@ ServiceWorkerRegistrationWorkerThread::ReleaseListener(Reason aReason)
   //    be null and we won't reach here.
   // 2) Otherwise, worker is still around even if we are going away.
   mWorkerPrivate->AssertIsOnWorkerThread();
-  mWorkerPrivate->RemoveFeature(mWorkerPrivate->GetJSContext(), this);
+  mWorkerPrivate->RemoveFeature(this);
 
   mListener->ClearRegistration();
 
@@ -1186,10 +1189,7 @@ WorkerListener::UpdateFound()
   if (mWorkerPrivate) {
     RefPtr<FireUpdateFoundRunnable> r =
       new FireUpdateFoundRunnable(mWorkerPrivate, this);
-    AutoJSAPI jsapi;
-    jsapi.Init();
-    if (NS_WARN_IF(!r->Dispatch(jsapi.cx()))) {
-    }
+    NS_WARN_IF(!r->Dispatch());
   }
 }
 
@@ -1205,7 +1205,7 @@ ServiceWorkerRegistrationWorkerThread::ShowNotification(JSContext* aCx,
   // also verifying scope so that we block the worker on the main thread only
   // once.
   RefPtr<Promise> p =
-    Notification::ShowPersistentNotification(mWorkerPrivate->GlobalScope(),
+    Notification::ShowPersistentNotification(aCx, mWorkerPrivate->GlobalScope(),
                                              mScope, aTitle, aOptions, aRv);
   if (NS_WARN_IF(aRv.Failed())) {
     return nullptr;

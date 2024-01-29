@@ -84,12 +84,20 @@ EXPORTS.mozilla += [
     'CSSVariableDeclarations.h',
     'CSSVariableResolver.h',
     'CSSVariableValues.h',
+    'HandleRefPtr.h',
     'IncrementalClearCOMRuleArray.h',
     'LayerAnimationInfo.h',
     'RuleNodeCacheConditions.h',
     'RuleProcessorCache.h',
+    'ServoStyleSet.h',
+    'ServoStyleSheet.h',
     'SheetType.h',
     'StyleAnimationValue.h',
+    'StyleBackendType.h',
+    'StyleSetHandle.h',
+    'StyleSetHandleInlines.h',
+    'StyleSheetHandle.h',
+    'StyleSheetHandleInlines.h',
 ]
 
 EXPORTS.mozilla.dom += [
@@ -112,6 +120,7 @@ EXPORTS.mozilla.css += [
     'Loader.h',
     'NameSpaceRule.h',
     'Rule.h',
+    'SheetParsingMode.h',
     'StyleRule.h',
 ]
 
@@ -171,6 +180,8 @@ UNIFIED_SOURCES += [
     'nsTransitionManager.cpp',
     'RuleNodeCacheConditions.cpp',
     'RuleProcessorCache.cpp',
+    'ServoStyleSet.cpp',
+    'ServoStyleSheet.cpp',
     'StyleAnimationValue.cpp',
     'StyleRule.cpp',
     'SVGAttrAnimationRuleProcessor.cpp',

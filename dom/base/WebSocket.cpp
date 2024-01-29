@@ -1254,7 +1254,7 @@ WebSocket::Constructor(const GlobalObject& aGlobal,
     }
 
     unsigned lineno, column;
-    JS::UniqueChars file;
+    JS::AutoFilename file;
     if (!JS::DescribeScriptedCaller(aGlobal.Context(), &file, &lineno,
                                     &column)) {
       NS_WARNING("Failed to get line number and filename in workers.");
@@ -1490,7 +1490,7 @@ WebSocketImpl::Init(JSContext* aCx,
     MOZ_ASSERT(aCx);
 
     unsigned lineno, column;
-    JS::UniqueChars file;
+    JS::AutoFilename file;
     if (JS::DescribeScriptedCaller(aCx, &file, &lineno, &column)) {
       mScriptFile = file.get();
       mScriptLine = lineno;
@@ -2143,8 +2143,7 @@ WebSocketImpl::RegisterFeature()
   MOZ_ASSERT(!mWorkerFeature);
   mWorkerFeature = new WebSocketWorkerFeature(this);
 
-  JSContext* cx = GetCurrentThreadJSContext();
-  if (!mWorkerPrivate->AddFeature(cx, mWorkerFeature)) {
+  if (!mWorkerPrivate->AddFeature(mWorkerFeature)) {
     NS_WARNING("Failed to register a feature.");
     mWorkerFeature = nullptr;
     return false;
@@ -2165,8 +2164,7 @@ WebSocketImpl::UnregisterFeature()
   mWorkerPrivate->AssertIsOnWorkerThread();
   MOZ_ASSERT(mWorkerFeature);
 
-  JSContext* cx = GetCurrentThreadJSContext();
-  mWorkerPrivate->RemoveFeature(cx, mWorkerFeature);
+  mWorkerPrivate->RemoveFeature(mWorkerFeature);
   mWorkerFeature = nullptr;
   mWorkerPrivate = nullptr;
 
@@ -2520,20 +2518,21 @@ public:
   {
   }
 
-  bool WorkerRun(JSContext* aCx, WorkerPrivate* aWorkerPrivate)
+  bool WorkerRun(JSContext* aCx, WorkerPrivate* aWorkerPrivate) override
   {
     aWorkerPrivate->AssertIsOnWorkerThread();
-    aWorkerPrivate->ModifyBusyCountFromWorker(aCx, true);
+    aWorkerPrivate->ModifyBusyCountFromWorker(true);
     return !NS_FAILED(mImpl->CancelInternal());
   }
 
-  void PostRun(JSContext* aCx, WorkerPrivate* aWorkerPrivate, bool aRunResult)
+  void PostRun(JSContext* aCx, WorkerPrivate* aWorkerPrivate,
+               bool aRunResult) override
   {
-    aWorkerPrivate->ModifyBusyCountFromWorker(aCx, false);
+    aWorkerPrivate->ModifyBusyCountFromWorker(false);
   }
 
   bool
-  PreDispatch(JSContext* aCx, WorkerPrivate* aWorkerPrivate)
+  PreDispatch(WorkerPrivate* aWorkerPrivate) override
   {
     // We don't call WorkerRunnable::PreDispatch because it would assert the
     // wrong thing about which thread we're on.
@@ -2542,8 +2541,7 @@ public:
   }
 
   void
-  PostDispatch(JSContext* aCx, WorkerPrivate* aWorkerPrivate,
-               bool aDispatchResult)
+  PostDispatch(WorkerPrivate* aWorkerPrivate, bool aDispatchResult) override
   {
     // We don't call WorkerRunnable::PostDispatch because it would assert the
     // wrong thing about which thread we're on.
@@ -2566,7 +2564,7 @@ WebSocketImpl::Cancel(nsresult aStatus)
     MOZ_ASSERT(mWorkerPrivate);
     RefPtr<CancelRunnable> runnable =
       new CancelRunnable(mWorkerPrivate, this);
-    if (!runnable->Dispatch(nullptr)) {
+    if (!runnable->Dispatch()) {
       return NS_ERROR_FAILURE;
     }
 
@@ -2690,10 +2688,10 @@ public:
   {
   }
 
-  bool WorkerRun(JSContext* aCx, WorkerPrivate* aWorkerPrivate)
+  bool WorkerRun(JSContext* aCx, WorkerPrivate* aWorkerPrivate) override
   {
     aWorkerPrivate->AssertIsOnWorkerThread();
-    aWorkerPrivate->ModifyBusyCountFromWorker(aCx, true);
+    aWorkerPrivate->ModifyBusyCountFromWorker(true);
 
     // No messages when disconnected.
     if (mWebSocketImpl->mDisconnectingOrDisconnected) {
@@ -2704,13 +2702,14 @@ public:
     return !NS_FAILED(mEvent->Run());
   }
 
-  void PostRun(JSContext* aCx, WorkerPrivate* aWorkerPrivate, bool aRunResult)
+  void PostRun(JSContext* aCx, WorkerPrivate* aWorkerPrivate,
+               bool aRunResult) override
   {
-    aWorkerPrivate->ModifyBusyCountFromWorker(aCx, false);
+    aWorkerPrivate->ModifyBusyCountFromWorker(false);
   }
 
   bool
-  PreDispatch(JSContext* aCx, WorkerPrivate* aWorkerPrivate)
+  PreDispatch(WorkerPrivate* aWorkerPrivate) override
   {
     // We don't call WorkerRunnable::PreDispatch because it would assert the
     // wrong thing about which thread we're on.  We're on whichever thread the
@@ -2720,8 +2719,7 @@ public:
   }
 
   void
-  PostDispatch(JSContext* aCx, WorkerPrivate* aWorkerPrivate,
-               bool aDispatchResult)
+  PostDispatch(WorkerPrivate* aWorkerPrivate, bool aDispatchResult) override
   {
     // We don't call WorkerRunnable::PreDispatch because it would assert the
     // wrong thing about which thread we're on.  We're on whichever thread the
@@ -2767,7 +2765,7 @@ WebSocketImpl::Dispatch(already_AddRefed<nsIRunnable>&& aEvent, uint32_t aFlags)
   RefPtr<WorkerRunnableDispatcher> event =
     new WorkerRunnableDispatcher(this, mWorkerPrivate, event_ref.forget());
 
-  if (!event->Dispatch(nullptr)) {
+  if (!event->Dispatch()) {
     return NS_ERROR_FAILURE;
   }
 

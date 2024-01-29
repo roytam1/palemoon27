@@ -109,6 +109,8 @@
 #include "mozilla/EventDispatcher.h"
 #include "mozilla/EventStateManager.h"
 #include "mozilla/RuleNodeCacheConditions.h"
+#include "mozilla/StyleSetHandle.h"
+#include "mozilla/StyleSetHandleInlines.h"
 
 #ifdef MOZ_XUL
 #include "nsXULPopupManager.h"
@@ -4059,51 +4061,42 @@ nsLayoutUtils::ComputeObjectDestRect(const nsRect& aConstraintRect,
   return nsRect(imageTopLeftPt, concreteObjectSize);
 }
 
-nsresult
-nsLayoutUtils::GetFontMetricsForFrame(const nsIFrame* aFrame,
-                                      nsFontMetrics** aFontMetrics,
-                                      float aInflation)
+already_AddRefed<nsFontMetrics>
+nsLayoutUtils::GetFontMetricsForFrame(const nsIFrame* aFrame, float aInflation)
 {
-  return nsLayoutUtils::GetFontMetricsForStyleContext(aFrame->StyleContext(),
-                                                      aFontMetrics,
-                                                      aInflation);
+  return GetFontMetricsForStyleContext(aFrame->StyleContext(), aInflation);
 }
 
-nsresult
+already_AddRefed<nsFontMetrics>
 nsLayoutUtils::GetFontMetricsForStyleContext(nsStyleContext* aStyleContext,
-                                             nsFontMetrics** aFontMetrics,
                                              float aInflation)
 {
-  // pass the user font set object into the device context to pass along to CreateFontGroup
   nsPresContext* pc = aStyleContext->PresContext();
-  gfxUserFontSet* fs = pc->GetUserFontSet();
-  gfxTextPerfMetrics* tp = pc->GetTextPerfMetrics();
 
   WritingMode wm(aStyleContext);
-  gfxFont::Orientation orientation =
+  const nsStyleFont* styleFont = aStyleContext->StyleFont();
+  nsFontMetrics::Params params;
+  params.language = styleFont->mLanguage;
+  params.explicitLanguage = styleFont->mExplicitLanguage;
+  params.orientation =
     wm.IsVertical() && !wm.IsSideways() ? gfxFont::eVertical
                                         : gfxFont::eHorizontal;
-
-  const nsStyleFont* styleFont = aStyleContext->StyleFont();
+  // pass the user font set object into the device context to
+  // pass along to CreateFontGroup
+  params.userFontSet = pc->GetUserFontSet();
+  params.textPerf = pc->GetTextPerfMetrics();
 
   // When aInflation is 1.0, avoid making a local copy of the nsFont.
   // This also avoids running font.size through floats when it is large,
   // which would be lossy.  Fortunately, in such cases, aInflation is
   // guaranteed to be 1.0f.
   if (aInflation == 1.0f) {
-    return pc->DeviceContext()->GetMetricsFor(styleFont->mFont,
-                                              styleFont->mLanguage,
-                                              styleFont->mExplicitLanguage,
-                                              orientation, fs, tp,
-                                              *aFontMetrics);
+    return pc->DeviceContext()->GetMetricsFor(styleFont->mFont, params);
   }
 
   nsFont font = styleFont->mFont;
   font.size = NSToCoordRound(font.size * aInflation);
-  return pc->DeviceContext()->GetMetricsFor(font, styleFont->mLanguage,
-                                            styleFont->mExplicitLanguage,
-                                            orientation, fs, tp,
-                                            *aFontMetrics);
+  return pc->DeviceContext()->GetMetricsFor(font, params);
 }
 
 nsIFrame*
@@ -8556,9 +8549,8 @@ nsLayoutUtils::SetBSizeFromFontMetrics(const nsIFrame* aFrame,
                                        WritingMode aLineWM,
                                        WritingMode aFrameWM)
 {
-  RefPtr<nsFontMetrics> fm;
-  float inflation = nsLayoutUtils::FontSizeInflationFor(aFrame);
-  nsLayoutUtils::GetFontMetricsForFrame(aFrame, getter_AddRefs(fm), inflation);
+  RefPtr<nsFontMetrics> fm =
+    nsLayoutUtils::GetInflatedFontMetricsForFrame(aFrame);
 
   if (fm) {
     // Compute final height of the frame.

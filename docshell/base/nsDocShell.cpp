@@ -266,9 +266,9 @@ static uint32_t gValidateOrigin = 0xffffffff;
 #define NS_EVENT_STARVATION_DELAY_HINT 2000
 
 #ifdef DEBUG
-static PRLogModuleInfo* gDocShellLog;
+static mozilla::LazyLogModule gDocShellLog("nsDocShell");
 #endif
-static PRLogModuleInfo* gDocShellLeakLog;
+static mozilla::LazyLogModule gDocShellLeakLog("nsDocShellLeak");;
 
 const char kBrandBundleURL[]      = "chrome://branding/locale/brand.properties";
 const char kAppstringsBundleURL[] = "chrome://global/locale/appstrings.properties";
@@ -818,17 +818,7 @@ nsDocShell::nsDocShell()
     CallGetService(NS_URIFIXUP_CONTRACTID, &sURIFixup);
   }
 
-#ifdef DEBUG
-  if (!gDocShellLog) {
-    gDocShellLog = PR_NewLogModule("nsDocShell");
-  }
-#endif
-  if (!gDocShellLeakLog) {
-    gDocShellLeakLog = PR_NewLogModule("nsDocShellLeak");
-  }
-  if (gDocShellLeakLog) {
-    MOZ_LOG(gDocShellLeakLog, LogLevel::Debug, ("DOCSHELL %p created\n", this));
-  }
+  MOZ_LOG(gDocShellLeakLog, LogLevel::Debug, ("DOCSHELL %p created\n", this));
 
 #ifdef DEBUG
   // We're counting the number of |nsDocShells| to help find leaks
@@ -887,8 +877,6 @@ nsDocShell::Init()
   NS_ASSERTION(mLoadGroup, "Something went wrong!");
 
   mContentListener = new nsDSURIContentListener(this);
-  NS_ENSURE_TRUE(mContentListener, NS_ERROR_OUT_OF_MEMORY);
-
   rv = mContentListener->Init();
   NS_ENSURE_SUCCESS(rv, rv);
 
@@ -896,7 +884,6 @@ nsDocShell::Init()
   // ref to us...  use an InterfaceRequestorProxy to do this.
   nsCOMPtr<nsIInterfaceRequestor> proxy =
     new InterfaceRequestorProxy(static_cast<nsIInterfaceRequestor*>(this));
-  NS_ENSURE_TRUE(proxy, NS_ERROR_OUT_OF_MEMORY);
   mLoadGroup->SetNotificationCallbacks(proxy);
 
   rv = nsDocLoader::AddDocLoaderAsChildOfRoot(this);
@@ -1658,7 +1645,6 @@ NS_IMETHODIMP
 nsDocShell::CreateLoadInfo(nsIDocShellLoadInfo** aLoadInfo)
 {
   nsDocShellLoadInfo* loadInfo = new nsDocShellLoadInfo();
-  NS_ENSURE_TRUE(loadInfo, NS_ERROR_OUT_OF_MEMORY);
   nsCOMPtr<nsIDocShellLoadInfo> localRef(loadInfo);
 
   localRef.forget(aLoadInfo);
@@ -2621,10 +2607,6 @@ nsDocShell::GetDocShellEnumerator(int32_t aItemType, int32_t aDirection,
     docShellEnum = new nsDocShellForwardsEnumerator;
   } else {
     docShellEnum = new nsDocShellBackwardsEnumerator;
-  }
-
-  if (!docShellEnum) {
-    return NS_ERROR_OUT_OF_MEMORY;
   }
 
   nsresult rv = docShellEnum->SetEnumDocShellType(aItemType);
@@ -6585,7 +6567,6 @@ nsDocShell::RefreshURI(nsIURI* aURI,
   }
 
   nsRefreshTimer* refreshTimer = new nsRefreshTimer();
-  NS_ENSURE_TRUE(refreshTimer, NS_ERROR_OUT_OF_MEMORY);
   uint32_t busyFlags = 0;
   GetBusyFlags(&busyFlags);
 

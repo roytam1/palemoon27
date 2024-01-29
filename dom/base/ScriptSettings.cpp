@@ -349,9 +349,10 @@ AutoJSAPI::InitInternal(JSObject* aGlobal, JSContext* aCx, bool aIsMainThread)
     mAutoNullableCompartment.emplace(mCx, aGlobal);
   }
 
+  JSRuntime* rt = JS_GetRuntime(aCx);
+  mOldErrorReporter.emplace(JS_GetErrorReporter(rt));
+
   if (aIsMainThread) {
-    JSRuntime* rt = JS_GetRuntime(aCx);
-    mOldErrorReporter.emplace(JS_GetErrorReporter(rt));
     JS_SetErrorReporter(rt, xpc::SystemErrorReporter);
   }
 }
@@ -413,14 +414,6 @@ AutoJSAPI::Init(JSObject* aObject)
 }
 
 bool
-AutoJSAPI::InitWithLegacyErrorReporting(nsIGlobalObject* aGlobalObject)
-{
-  MOZ_ASSERT(NS_IsMainThread());
-
-  return Init(aGlobalObject, FindJSContext(aGlobalObject));
-}
-
-bool
 AutoJSAPI::Init(nsPIDOMWindowInner* aWindow, JSContext* aCx)
 {
   return Init(nsGlobalWindow::Cast(aWindow), aCx);
@@ -444,18 +437,6 @@ AutoJSAPI::Init(nsGlobalWindow* aWindow)
   return Init(static_cast<nsIGlobalObject*>(aWindow));
 }
 
-bool
-AutoJSAPI::InitWithLegacyErrorReporting(nsPIDOMWindowInner* aWindow)
-{
-  return InitWithLegacyErrorReporting(nsGlobalWindow::Cast(aWindow));
-}
-
-bool
-AutoJSAPI::InitWithLegacyErrorReporting(nsGlobalWindow* aWindow)
-{
-  return InitWithLegacyErrorReporting(static_cast<nsIGlobalObject*>(aWindow));
-}
-
 // Even with autoJSAPIOwnsErrorReporting, the JS engine still sends warning
 // reports to the JSErrorReporter as soon as they are generated. These go
 // directly to the console, so we can handle them easily here.
@@ -465,11 +446,30 @@ AutoJSAPI::InitWithLegacyErrorReporting(nsGlobalWindow* aWindow)
 void
 WarningOnlyErrorReporter(JSContext* aCx, const char* aMessage, JSErrorReport* aRep)
 {
-  MOZ_ASSERT(NS_IsMainThread());
   MOZ_ASSERT(JSREPORT_IS_WARNING(aRep->flags));
+  if (!NS_IsMainThread()) {
+    // Reporting a warning on workers is a bit complicated because we have to
+    // climb our parent chain until we get to the main thread.  So go ahead and
+    // just go through the worker ReportError codepath here.
+    //
+    // That said, it feels like we should be able to short-circuit things a bit
+    // here by posting an appropriate runnable to the main thread directly...
+    // Worth looking into sometime.
+    workers::WorkerPrivate* worker = workers::GetWorkerPrivateFromContext(aCx);
+    MOZ_ASSERT(worker);
+
+    worker->ReportError(aCx, aMessage, aRep);
+    return;
+  }
 
   RefPtr<xpc::ErrorReport> xpcReport = new xpc::ErrorReport();
   nsGlobalWindow* win = xpc::CurrentWindowOrNull(aCx);
+  if (!win) {
+    // We run addons in a separate privileged compartment, but if we're in an
+    // addon compartment we should log warnings to the console of the associated
+    // DOM Window.
+    win = xpc::AddonWindowOrNull(JS::CurrentGlobalOrNull(aCx));
+  }
   xpcReport->Init(aRep, aMessage, nsContentUtils::IsCallerChrome(),
                   win ? win->AsInner()->WindowID() : 0);
   xpcReport->LogToConsole();
@@ -484,13 +484,7 @@ AutoJSAPI::TakeOwnershipOfErrorReporting()
   JSRuntime *rt = JS_GetRuntime(cx());
   mOldAutoJSAPIOwnsErrorReporting = JS::ContextOptionsRef(cx()).autoJSAPIOwnsErrorReporting();
   JS::ContextOptionsRef(cx()).setAutoJSAPIOwnsErrorReporting(true);
-  // Workers have their own error reporting mechanism which deals with warnings
-  // as well, so don't change the worker error reporter for now.  Once we switch
-  // all of workers to TakeOwnershipOfErrorReporting(), we will just make the
-  // default worker error reporter assert that it only sees warnings.
-  if (mIsMainThread) {
-    JS_SetErrorReporter(rt, WarningOnlyErrorReporter);
-  }
+  JS_SetErrorReporter(rt, WarningOnlyErrorReporter);
 }
 
 void
@@ -520,15 +514,23 @@ AutoJSAPI::ReportException()
   if (StealException(&exn) && jsReport.init(cx(), exn)) {
     if (mIsMainThread) {
       RefPtr<xpc::ErrorReport> xpcReport = new xpc::ErrorReport();
+
       RefPtr<nsGlobalWindow> win = xpc::WindowGlobalOrNull(errorGlobal);
+      if (!win) {
+        // We run addons in a separate privileged compartment, but they still
+        // expect to trigger the onerror handler of their associated DOM Window.
+        win = xpc::AddonWindowOrNull(errorGlobal);
+      }
       nsPIDOMWindowInner* inner = win ? win->AsInner() : nullptr;
       xpcReport->Init(jsReport.report(), jsReport.message(),
                       nsContentUtils::IsCallerChrome(),
                       inner ? inner->WindowID() : 0);
-      if (inner) {
+      if (inner && jsReport.report()->errorNumber != JSMSG_OUT_OF_MEMORY) {
         DispatchScriptErrorEvent(inner, JS_GetRuntime(cx()), xpcReport, exn);
       } else {
-        xpcReport->LogToConsole();
+        JS::Rooted<JSObject*> stack(cx(),
+          xpc::FindExceptionStackForConsoleReport(inner, exn));
+        xpcReport->LogToConsoleWithStack(stack);
       }
     } else {
       // On a worker, we just use the worker error reporting mechanism and don't
@@ -548,6 +550,7 @@ AutoJSAPI::ReportException()
     }
   } else {
     NS_WARNING("OOMed while acquiring uncaught exception from JSAPI");
+    ClearException();
   }
 }
 
@@ -589,6 +592,14 @@ AutoEntryScript::AutoEntryScript(nsIGlobalObject* aGlobalObject,
   if (aIsMainThread && gRunToCompletionListeners > 0) {
     mDocShellEntryMonitor.emplace(cx(), aReason);
   }
+}
+
+AutoEntryScript::AutoEntryScript(JSObject* aObject,
+                                 const char *aReason,
+                                 bool aIsMainThread,
+                                 JSContext* aCx)
+  : AutoEntryScript(xpc::NativeGlobal(aObject), aReason, aIsMainThread, aCx)
+{
 }
 
 AutoEntryScript::~AutoEntryScript()

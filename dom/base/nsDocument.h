@@ -798,7 +798,7 @@ public:
                                            mozilla::StyleSheetHandle aSheet) override;
   virtual void RemoveAdditionalStyleSheet(additionalSheetType aType,
                                           nsIURI* sheetURI) override;
-  virtual mozilla::StyleSheetHandle FirstAdditionalAuthorSheet() override;
+  virtual mozilla::StyleSheetHandle GetFirstAdditionalAuthorSheet() override;
 
   virtual nsIChannel* GetChannel() const override {
     return mChannel;
@@ -1694,6 +1694,10 @@ public:
   // pointing to them.  We track whether we ever reported use counters so
   // that we only report them once for the document.
   bool mReportedUseCounters:1;
+
+  // Whether we have filled our pres shell's style set with the document's
+  // additional sheets and sheets from the nsStyleSheetService.
+  bool mStyleSetFilled:1;
 
   uint8_t mXMLDeclarationBits;
 

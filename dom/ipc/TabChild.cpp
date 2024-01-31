@@ -2514,7 +2514,7 @@ TabChild::InitRenderingState(const TextureFactoryIdentifier& aTextureFactoryIden
 
     // Pushing layers transactions directly to a separate
     // compositor context.
-    PCompositorChild* compositorChild = CompositorChild::Get();
+    PCompositorBridgeChild* compositorChild = CompositorChild::Get();
     if (!compositorChild) {
       NS_WARNING("failed to get CompositorChild instance");
       PRenderFrameChild::Send__delete__(remoteFrame);

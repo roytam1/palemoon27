@@ -39,7 +39,8 @@
 #include "nsCSSRules.h"
 #include "nsPrintfCString.h"
 #include "nsIFrame.h"
-#include "RestyleManager.h"
+#include "mozilla/RestyleManagerHandle.h"
+#include "mozilla/RestyleManagerHandleInlines.h"
 #include "nsQueryObject.h"
 
 #include <inttypes.h>
@@ -750,10 +751,10 @@ nsStyleSet::AddDocStyleSheet(CSSStyleSheet* aSheet, nsIDocument* aDocument)
           break;
         }
       }
-      MOZ_ASSERT(!aDocument->FirstAdditionalAuthorSheet() ||
-                 aDocument->FirstAdditionalAuthorSheet()->IsGecko(),
+      MOZ_ASSERT(!aDocument->GetFirstAdditionalAuthorSheet() ||
+                 aDocument->GetFirstAdditionalAuthorSheet()->IsGecko(),
                  "why do we have a ServoStyleSheet for an nsStyleSet?");
-      if (sheet == aDocument->FirstAdditionalAuthorSheet()->GetAsGecko()) {
+      if (sheet == aDocument->GetFirstAdditionalAuthorSheet()->GetAsGecko()) {
         break;
       }
     }
@@ -1783,7 +1784,10 @@ nsStyleSet::ResolveStyleWithoutAnimation(dom::Element* aTarget,
              pseudoType == CSSPseudoElementType::before ||
              pseudoType == CSSPseudoElementType::after,
              "unexpected type for animations");
-  RestyleManager* restyleManager = PresContext()->RestyleManager();
+  MOZ_ASSERT(PresContext()->RestyleManager()->IsGecko(),
+             "stylo: the style set and restyle manager must have the same "
+             "StyleBackendType");
+  RestyleManager* restyleManager = PresContext()->RestyleManager()->AsGecko();
 
   bool oldSkipAnimationRules = restyleManager->SkipAnimationRules();
   restyleManager->SetSkipAnimationRules(true);
@@ -2289,7 +2293,10 @@ nsStyleSet::ReparentStyleContext(nsStyleContext* aStyleContext,
   CSSPseudoElementType pseudoType = aStyleContext->GetPseudoType();
   nsRuleNode* ruleNode = aStyleContext->RuleNode();
 
-  NS_ASSERTION(!PresContext()->RestyleManager()->SkipAnimationRules(),
+  MOZ_ASSERT(PresContext()->RestyleManager()->IsGecko(),
+             "stylo: the style set and restyle manager must have the same "
+             "StyleBackendType");
+  NS_ASSERTION(!PresContext()->RestyleManager()->AsGecko()->SkipAnimationRules(),
                "we no longer handle SkipAnimationRules()");
 
   nsRuleNode* visitedRuleNode = nullptr;
@@ -2574,5 +2581,8 @@ nsStyleSet::ClearSelectors()
   if (!mRuleTree) {
     return;
   }
-  PresContext()->RestyleManager()->ClearSelectors();
+  MOZ_ASSERT(PresContext()->RestyleManager()->IsGecko(),
+             "stylo: the style set and restyle manager must have the same "
+             "StyleBackendType");
+  PresContext()->RestyleManager()->AsGecko()->ClearSelectors();
 }

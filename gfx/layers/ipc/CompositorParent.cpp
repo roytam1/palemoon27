@@ -928,6 +928,39 @@ CompositorParent::RecvStopFrameTimeRecording(const uint32_t& aStartIndex,
   return true;
 }
 
+bool
+CompositorParent::RecvClearApproximatelyVisibleRegions(const uint64_t& aLayersId,
+                                                       const uint32_t& aPresShellId)
+{
+  ClearApproximatelyVisibleRegions(aLayersId, Some(aPresShellId));
+  return true;
+}
+
+void
+CompositorParent::ClearApproximatelyVisibleRegions(const uint64_t& aLayersId,
+                                                   const Maybe<uint32_t>& aPresShellId)
+{
+  if (mLayerManager) {
+    mLayerManager->ClearApproximatelyVisibleRegions(aLayersId, aPresShellId);
+
+    // We need to recomposite to update the minimap.
+    ScheduleComposition();
+  }
+}
+
+bool
+CompositorParent::RecvNotifyApproximatelyVisibleRegion(const ScrollableLayerGuid& aGuid,
+                                                       const CSSIntRegion& aRegion)
+{
+  if (mLayerManager) {
+    mLayerManager->UpdateApproximatelyVisibleRegion(aGuid, aRegion);
+
+    // We need to recomposite to update the minimap.
+    ScheduleComposition();
+  }
+  return true;
+}
+
 void
 CompositorParent::ActorDestroy(ActorDestroyReason why)
 {
@@ -1741,7 +1774,16 @@ static void
 EraseLayerState(uint64_t aId)
 {
   MonitorAutoLock lock(*sIndirectLayerTreesLock);
-  sIndirectLayerTrees.erase(aId);
+
+  auto iter = sIndirectLayerTrees.find(aId);
+  if (iter != sIndirectLayerTrees.end()) {
+    CompositorParent* parent = iter->second.mParent;
+    if (parent) {
+      parent->ClearApproximatelyVisibleRegions(aId, Nothing());
+    }
+
+    sIndirectLayerTrees.erase(iter);
+  }
 }
 
 /*static*/ void
@@ -1872,14 +1914,13 @@ CompositorParent::RequestNotifyLayerTreeCleared(uint64_t aLayersId, CompositorUp
 }
 
 /**
- * This class handles layer updates pushed directly from child
- * processes to the compositor thread.  It's associated with a
- * CompositorParent on the compositor thread.  While it uses the
- * PCompositor protocol to manage these updates, it doesn't actually
- * drive compositing itself.  For that it hands off work to the
- * CompositorParent it's associated with.
+ * This class handles layer updates pushed directly from child processes to
+ * the compositor thread. It's associated with a CompositorParent on the
+ * compositor thread. While it uses the PCompositorBridge protocol to manage
+ * these updates, it doesn't actually drive compositing itself. For that it
+ * hands off work to the CompositorParent it's associated with.
  */
-class CrossProcessCompositorParent final : public PCompositorParent,
+class CrossProcessCompositorParent final : public PCompositorBridgeParent,
                                            public ShadowLayersManager
 {
   friend class CompositorParent;
@@ -1921,6 +1962,35 @@ public:
   virtual bool RecvNotifyRegionInvalidated(const nsIntRegion& aRegion) override { return true; }
   virtual bool RecvStartFrameTimeRecording(const int32_t& aBufferSize, uint32_t* aOutStartIndex) override { return true; }
   virtual bool RecvStopFrameTimeRecording(const uint32_t& aStartIndex, InfallibleTArray<float>* intervals) override  { return true; }
+
+  virtual bool RecvClearApproximatelyVisibleRegions(const uint64_t& aLayersId,
+                                                    const uint32_t& aPresShellId) override
+  {
+    CompositorParent* parent;
+    { // scope lock
+      MonitorAutoLock lock(*sIndirectLayerTreesLock);
+      parent = sIndirectLayerTrees[aLayersId].mParent;
+    }
+    if (parent) {
+      parent->ClearApproximatelyVisibleRegions(aLayersId, Some(aPresShellId));
+    }
+    return true;
+  }
+
+  virtual bool RecvNotifyApproximatelyVisibleRegion(const ScrollableLayerGuid& aGuid,
+                                                    const CSSIntRegion& aRegion) override
+  {
+    CompositorParent* parent;
+    { // scope lock
+      MonitorAutoLock lock(*sIndirectLayerTreesLock);
+      parent = sIndirectLayerTrees[aGuid.mLayersId].mParent;
+    }
+    if (parent) {
+      return parent->RecvNotifyApproximatelyVisibleRegion(aGuid, aRegion);
+    }
+    return true;
+  }
+
   virtual bool RecvGetTileSize(int32_t* aWidth, int32_t* aHeight) override
   {
     *aWidth = gfxPlatform::GetPlatform()->GetTileWidth();
@@ -1999,8 +2069,8 @@ private:
   bool mNotifyAfterRemotePaint;
 };
 
-PCompositorParent*
-CompositorParent::LayerTreeState::CrossProcessPCompositor() const
+PCompositorBridgeParent*
+CompositorParent::LayerTreeState::CrossProcessPCompositorBridge() const
 {
   return mCrossProcessParent;
 }
@@ -2034,7 +2104,7 @@ CompositorParent::InvalidateRemoteLayers()
 {
   MOZ_ASSERT(CompositorLoop() == MessageLoop::current());
 
-  Unused << PCompositorParent::SendInvalidateLayers(0);
+  Unused << PCompositorBridgeParent::SendInvalidateLayers(0);
 
   MonitorAutoLock lock(*sIndirectLayerTreesLock);
   ForEachIndirectLayerTree([] (LayerTreeState* lts, const uint64_t& aLayersId) -> void {
@@ -2140,7 +2210,7 @@ OpenCompositor(CrossProcessCompositorParent* aCompositor,
   MOZ_ASSERT(ok);
 }
 
-/*static*/ PCompositorParent*
+/*static*/ PCompositorBridgeParent*
 CompositorParent::Create(Transport* aTransport, ProcessId aOtherPid)
 {
   gfxPlatform::InitLayersIPC();
@@ -2652,7 +2722,7 @@ CrossProcessCompositorParent::CloneToplevel(const InfallibleTArray<mozilla::ipc:
     if (aFds[i].protocolId() == (unsigned)GetProtocolId()) {
       Transport* transport = OpenDescriptor(aFds[i].fd(),
                                             Transport::MODE_SERVER);
-      PCompositorParent* compositor =
+      PCompositorBridgeParent* compositor =
         CompositorParent::Create(transport, base::GetProcId(aPeerProcess));
       compositor->CloneManagees(this, aCtx);
       compositor->IToplevelProtocol::SetTransport(transport);

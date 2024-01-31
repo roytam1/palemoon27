@@ -41,8 +41,15 @@ sync protocol PCompositor
   manages PLayerTransaction;
 
 child:
-  // The child should invalidate everything so that the whole window is redrawn.
-  async InvalidateAll();
+  // The child should invalidate retained layers. This is used for local
+  // compositor device resets, such as in CompositorD3D9, and ensures that
+  // TextureSources are recreated.
+  async InvalidateLayers(uint64_t layersId);
+
+  // The compositor type or device has changed, and a new texture factory
+  // identifier is available. Layers must be invalidated and the new identifier
+  // must be propagated.
+  async CompositorUpdated(uint64_t layersId, TextureFactoryIdentifier newIdentifier);
 
   // The compositor completed a layers transaction. id is the layers id
   // of the child layer tree that was composited (or 0 when notifying
@@ -139,6 +146,10 @@ parent:
   // Make sure any pending composites are started immediately and
   // block until they are completed.
   sync FlushRendering();
+
+  // Force an additional frame presentation to be executed. This is used to
+  // work around a windows presentation bug (See Bug 1232042)
+  async ForcePresent();
 
   // Get the size of the tiles. This number should not change at runtime.
   sync GetTileSize()

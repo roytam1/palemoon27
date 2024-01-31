@@ -543,6 +543,8 @@ public:
                            const TimeStamp& aCompositeReqEnd);
 
   void ClearCachedResources();
+  void InvalidateLayers();
+  void CompositorUpdated(const TextureFactoryIdentifier& aNewIdentifier);
 
   static inline TabChild* GetFrom(nsIDOMWindow* aWindow)
   {

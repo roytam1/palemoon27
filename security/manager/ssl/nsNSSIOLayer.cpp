@@ -86,7 +86,7 @@ static const bool FALSE_START_REQUIRE_NPN_DEFAULT = false;
 
 } // unnamed namespace
 
-extern PRLogModuleInfo* gPIPNSSLog;
+extern LazyLogModule gPIPNSSLog;
 
 nsNSSSocketInfo::nsNSSSocketInfo(SharedSSLState& aState, uint32_t providerFlags)
   : mFd(nullptr),
@@ -422,11 +422,11 @@ nsNSSSocketInfo::IsAcceptableForHost(const nsACString& hostname, bool* _retval)
   }
   nsAutoCString hostnameFlat(PromiseFlatCString(hostname));
   CertVerifier::Flags flags = CertVerifier::FLAG_LOCAL_ONLY;
+  ScopedCERTCertList unusedBuiltChain;
   SECStatus rv = certVerifier->VerifySSLServerCert(nssCert, nullptr,
                                                    mozilla::pkix::Now(),
                                                    nullptr, hostnameFlat.get(),
-                                                   false, flags, nullptr,
-                                                   nullptr);
+                                                   unusedBuiltChain, false, flags);
   if (rv != SECSuccess) {
     return NS_OK;
   }
@@ -2109,7 +2109,7 @@ ClientAuthDataRunnable::RunOnTargetThread()
   ScopedSECKEYPrivateKey privKey;
   ScopedCERTCertList certList;
   CERTCertListNode* node;
-  ScopedCERTCertNicknames nicknames;
+  UniqueCERTCertNicknames nicknames;
   int keyError = 0; // used for private key retrieval error
   SSM_UserCertChoice certChoice;
   int32_t NumberOfCerts = 0;
@@ -2254,7 +2254,7 @@ ClientAuthDataRunnable::RunOnTargetThread()
         if (certdb) {
           nsCOMPtr<nsIX509Cert> found_cert;
           nsresult find_rv =
-            certdb->FindCertByDBKey(rememberedDBKey.get(), nullptr,
+            certdb->FindCertByDBKey(rememberedDBKey.get(),
             getter_AddRefs(found_cert));
           if (NS_SUCCEEDED(find_rv) && found_cert) {
             nsNSSCertificate* obj_cert =
@@ -2313,7 +2313,7 @@ ClientAuthDataRunnable::RunOnTargetThread()
         goto noCert;
       }
 
-      nicknames = getNSSCertNicknamesFromCertList(certList.get());
+      nicknames.reset(getNSSCertNicknamesFromCertList(certList.get()));
 
       if (!nicknames) {
         goto loser;

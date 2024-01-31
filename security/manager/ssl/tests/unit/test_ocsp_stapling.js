@@ -223,6 +223,24 @@ function add_tests() {
                 SEC_ERROR_REVOKED_CERTIFICATE, true);
 }
 
+function check_ocsp_stapling_telemetry() {
+  let histogram = Cc["@mozilla.org/base/telemetry;1"]
+                    .getService(Ci.nsITelemetry)
+                    .getHistogramById("SSL_OCSP_STAPLING")
+                    .snapshot();
+  equal(histogram.counts[0], 0,
+        "Should have 0 connections for unused histogram bucket 0");
+  equal(histogram.counts[1], 7,
+        "Actual and expected connections with a good response should match");
+  equal(histogram.counts[2], 22,
+        "Actual and expected connections with no stapled response should match");
+  equal(histogram.counts[3], 0,
+        "Actual and expected connections with an expired response should match");
+  equal(histogram.counts[4], 23,
+        "Actual and expected connections with bad responses should match");
+  run_next_test();
+}
+
 function run_test() {
   do_get_profile();
 
@@ -237,6 +255,10 @@ function run_test() {
   add_tls_server_setup("OCSPStaplingServer", "ocsp_certs");
 
   add_tests();
+
+  add_test(function () {
+    fakeOCSPResponder.stop(check_ocsp_stapling_telemetry);
+  });
 
   run_next_test();
 }

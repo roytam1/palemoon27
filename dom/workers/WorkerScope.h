@@ -105,8 +105,7 @@ public:
   SetOnerror(OnErrorEventHandlerNonNull* aHandler);
 
   void
-  ImportScripts(JSContext* aCx, const Sequence<nsString>& aScriptURLs,
-                ErrorResult& aRv);
+  ImportScripts(const Sequence<nsString>& aScriptURLs, ErrorResult& aRv);
 
   int32_t
   SetTimeout(JSContext* aCx, Function& aHandler, const int32_t aTimeout,
@@ -325,7 +324,7 @@ public:
   IMPL_EVENT_HANDLER(message)
 
   void
-  SetImmediate(JSContext* aCx, Function& aHandler, ErrorResult& aRv);
+  SetImmediate(Function& aHandler, ErrorResult& aRv);
 
   void
   ReportError(JSContext* aCx, const nsAString& aMessage);

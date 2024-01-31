@@ -145,6 +145,9 @@ public:
 
   void IdentifyTextureHost(const TextureFactoryIdentifier& aIdentifier);
 
+  void UpdateTextureFactoryIdentifier(const TextureFactoryIdentifier& aNewIdentifier) {
+    mTextureFactoryIdentifier = aNewIdentifier;
+  }
   virtual int32_t GetMaxTextureSize() const override
   {
     return mTextureFactoryIdentifier.mMaxTextureSize;
@@ -180,6 +183,8 @@ public:
   int32_t GetSerial() { return mSerial; }
 
   SyncObject* GetSyncObject() { return mSyncObject; }
+
+  virtual CompositableForwarder* AsCompositableForwarder() override { return this; }
 
 protected:
   TextureFactoryIdentifier mTextureFactoryIdentifier;

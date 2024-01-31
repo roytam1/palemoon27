@@ -145,7 +145,7 @@ public:
   static bool PrefEnabled();
 
   // nsICSSLoaderObserver
-  NS_IMETHOD StyleSheetLoaded(mozilla::CSSStyleSheet* aSheet,
+  NS_IMETHOD StyleSheetLoaded(mozilla::StyleSheetHandle aSheet,
                               bool aWasAlternate,
                               nsresult aStatus) override;
 

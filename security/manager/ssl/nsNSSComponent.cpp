@@ -54,7 +54,7 @@
 using namespace mozilla;
 using namespace mozilla::psm;
 
-PRLogModuleInfo* gPIPNSSLog = nullptr;
+LazyLogModule gPIPNSSLog("pipnss");
 
 int nsNSSComponent::mInstanceCount = 0;
 
@@ -220,8 +220,6 @@ nsNSSComponent::nsNSSComponent()
 #endif
    mCertVerificationThread(nullptr)
 {
-  if (!gPIPNSSLog)
-    gPIPNSSLog = PR_NewLogModule("pipnss");
   MOZ_LOG(gPIPNSSLog, LogLevel::Debug, ("nsNSSComponent::ctor\n"));
 
   NS_ASSERTION( (0 == mInstanceCount), "nsNSSComponent is a singleton, but instantiated multiple times!");
@@ -906,8 +904,14 @@ void nsNSSComponent::setValidationOptions(bool isInitialSetting,
   CertVerifier::SHA1Mode sha1Mode = static_cast<CertVerifier::SHA1Mode>
       (Preferences::GetInt("security.pki.sha1_enforcement_level",
                            static_cast<int32_t>(CertVerifier::SHA1Mode::Allowed)));
-  if (sha1Mode > CertVerifier::SHA1Mode::OnlyBefore2016) {
-    sha1Mode = CertVerifier::SHA1Mode::Allowed;
+  switch (sha1Mode) {
+    case CertVerifier::SHA1Mode::Allowed:
+    case CertVerifier::SHA1Mode::Forbidden:
+    case CertVerifier::SHA1Mode::Before2016:
+    case CertVerifier::SHA1Mode::ImportedRoot:
+      break;
+    default:
+      sha1Mode = CertVerifier::SHA1Mode::Allowed;
   }
 
   CertVerifier::OcspDownloadConfig odc;
@@ -1159,6 +1163,9 @@ nsNSSComponent::InitializeNSS()
     return NS_ERROR_FAILURE;
   }
 
+  if (PK11_IsFIPS()) {
+    Telemetry::Accumulate(Telemetry::FIPS_ENABLED, true);
+  }
 
   MOZ_LOG(gPIPNSSLog, LogLevel::Debug, ("NSS Initialization done\n"));
   return NS_OK;
@@ -1359,6 +1366,11 @@ nsNSSComponent::Observe(nsISupports* aSubject, const char* aTopic,
                prefName.EqualsLiteral("security.pki.sha1_enforcement_level")) {
       MutexAutoLock lock(mutex);
       setValidationOptions(false, lock);
+#ifdef DEBUG
+    } else if (prefName.EqualsLiteral("security.test.built_in_root_hash")) {
+      MutexAutoLock lock(mutex);
+      mTestBuiltInRootHash = Preferences::GetString("security.test.built_in_root_hash");
+#endif // DEBUG
     } else {
       clearSessionCache = false;
     }
@@ -1482,6 +1494,34 @@ nsNSSComponent::IsNSSInitialized(bool* initialized)
   *initialized = mNSSInitialized;
   return NS_OK;
 }
+
+#ifdef DEBUG
+NS_IMETHODIMP
+nsNSSComponent::IsCertTestBuiltInRoot(CERTCertificate* cert, bool& result)
+{
+  MutexAutoLock lock(mutex);
+  MOZ_ASSERT(mNSSInitialized);
+
+  result = false;
+
+  if (mTestBuiltInRootHash.IsEmpty()) {
+    return NS_OK;
+  }
+
+  RefPtr<nsNSSCertificate> nsc = nsNSSCertificate::Create(cert);
+  if (!nsc) {
+    return NS_ERROR_FAILURE;
+  }
+  nsAutoString certHash;
+  nsresult rv = nsc->GetSha256Fingerprint(certHash);
+  if (NS_FAILED(rv)) {
+    return rv;
+  }
+
+  result = mTestBuiltInRootHash.Equals(certHash);
+  return NS_OK;
+}
+#endif // DEBUG
 
 SharedCertVerifier::~SharedCertVerifier() { }
 

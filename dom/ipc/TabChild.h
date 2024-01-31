@@ -504,6 +504,8 @@ public:
   static TabChild* GetFrom(nsIPresShell* aPresShell);
   static TabChild* GetFrom(uint64_t aLayersId);
 
+  uint64_t LayersId() { return mLayersId; }
+
   void DidComposite(uint64_t aTransactionId,
                     const TimeStamp& aCompositeStart,
                     const TimeStamp& aCompositeEnd);
@@ -512,6 +514,8 @@ public:
                            const TimeStamp& aCompositeReqEnd);
 
   void ClearCachedResources();
+  void InvalidateLayers();
+  void CompositorUpdated(const TextureFactoryIdentifier& aNewIdentifier);
 
   static inline TabChild* GetFrom(nsIDOMWindow* aWindow)
   {

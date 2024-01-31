@@ -5107,6 +5107,14 @@
     "description": "Killed, likely due to an OOM condition",
     "cpp_guard": "ANDROID"
   },
+  "FIPS_ENABLED": {
+    "alert_emails": ["seceng@mozilla.org"],
+    "expires_in_version": "54",
+    "kind": "flag",
+    "bug_numbers": [1241317],
+    "releaseChannelCollection": "opt-out",
+    "description": "Has FIPS mode been enabled?"
+  },
   "SECURITY_UI": {
     "expires_in_version": "never",
     "kind": "enumerated",
@@ -6673,6 +6681,11 @@
     "kind": "boolean",
     "description": "How many times has the devtool's JS Profiler been opened?"
   },
+  "DEVTOOLS_MEMORY_OPENED_BOOLEAN": {
+    "expires_in_version": "never",
+    "kind": "boolean",
+    "description": "How many times has the devtool's Memory Tool been opened?"
+  },
   "DEVTOOLS_NETMONITOR_OPENED_BOOLEAN": {
     "expires_in_version": "never",
     "kind": "boolean",
@@ -6837,6 +6850,11 @@
     "expires_in_version": "never",
     "kind": "flag",
     "description": "How many times has the devtool's toolbox been opened?"
+  },
+  "DEVTOOLS_MEMORY_OPENED_PER_USER_FLAG": {
+    "expires_in_version": "never",
+    "kind": "flag",
+    "description": "How many users have opened the devtool's Memory Tool?"
   },
   "DEVTOOLS_NETMONITOR_OPENED_PER_USER_FLAG": {
     "expires_in_version": "never",
@@ -7036,6 +7054,13 @@
     "high": "10000000",
     "n_buckets": 100,
     "description": "How long has the JS profiler been active (seconds)"
+  },
+  "DEVTOOLS_MEMORY_TIME_ACTIVE_SECONDS": {
+    "expires_in_version": "never",
+    "kind": "exponential",
+    "high": "10000000",
+    "n_buckets": 100,
+    "description": "How long has the Memory Tool been active (seconds)"
   },
   "DEVTOOLS_NETMONITOR_TIME_ACTIVE_SECONDS": {
     "expires_in_version": "never",
@@ -7873,11 +7898,11 @@
     "n_values": 4,
     "description": "Does enforcing a larger minimum RSA key size cause verification failures? 1 = no, 2 = yes, 3 = another error prevented finding a verified chain"
   },
-  "CERT_CHAIN_SIGNATURE_DIGEST_STATUS": {
+  "CERT_CHAIN_SHA1_POLICY_STATUS": {
     "expires_in_version": "default",
     "kind": "enumerated",
     "n_values": 6,
-    "description": "Information on weak signature digest algorithms in the chain: 1 = Only good algorithms, 2 = a weak algorithm was present in an end entity, 3 = a weak algorithm was present in a CA cert, 4 = a weak algorithm was present in both EE and CA certs, 5 = another error prevented signature algorithm from being determined"
+    "description": "1 = No SHA1 signatures, 2 = SHA1 certificates issued before 2016, 3 = SHA1 certificates issued by an imported root, 4 = SHA1 certificates issued after 2015, 5 = another error prevented successful verification"
   },
   "WEAVE_CONFIGURED": {
     "expires_in_version": "default",

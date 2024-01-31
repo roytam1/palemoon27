@@ -63,6 +63,7 @@ class SourceSurface;
 } // namespace gfx
 namespace widget {
 class TextEventDispatcher;
+class TextEventDispatcherListener;
 } // namespace widget
 } // namespace mozilla
 
@@ -341,6 +342,8 @@ class nsIWidget : public nsISupports {
     typedef mozilla::widget::NativeIMEContext NativeIMEContext;
     typedef mozilla::widget::SizeConstraints SizeConstraints;
     typedef mozilla::widget::TextEventDispatcher TextEventDispatcher;
+    typedef mozilla::widget::TextEventDispatcherListener
+      TextEventDispatcherListener;
     typedef mozilla::CompositorVsyncDispatcher CompositorVsyncDispatcher;
     typedef mozilla::LayoutDeviceIntMargin LayoutDeviceIntMargin;
     typedef mozilla::LayoutDeviceIntPoint LayoutDeviceIntPoint;
@@ -1282,14 +1285,6 @@ class nsIWidget : public nsISupports {
     }
 
     /**
-     * Clean up any resources used by Start/EndRemoteDrawing.
-     *
-     * Called by BasicCompositor on the compositor thread for OMTC drawing
-     * when the compositor is destroyed.
-     */
-    virtual void CleanupRemoteDrawing() = 0;
-
-    /**
      * A hook for the widget to prepare a Compositor, during the latter's initialization.
      *
      * If this method returns true, it means that the widget will be able to
@@ -1298,6 +1293,14 @@ class nsIWidget : public nsISupports {
      * a different compositor backend will be used (if any).
      */
     virtual bool InitCompositor(mozilla::layers::Compositor*) { return true; }
+
+    /**
+     * Clean up any resources used by Start/EndRemoteDrawing.
+     *
+     * Called by BasicCompositor on the compositor thread for OMTC drawing
+     * when the compositor is destroyed.
+     */
+    virtual void CleanupRemoteDrawing() = 0;
 
     /**
      * Called when Gecko knows which themed widgets exist in this window.
@@ -2020,6 +2023,14 @@ public:
      * widget.  Note that this never returns nullptr.
      */
     NS_IMETHOD_(TextEventDispatcher*) GetTextEventDispatcher() = 0;
+
+    /**
+     * GetNativeTextEventDispatcherListener() returns a
+     * TextEventDispatcherListener instance which is used when the widget
+     * instance handles native IME and/or keyboard events.
+     */
+    NS_IMETHOD_(TextEventDispatcherListener*)
+      GetNativeTextEventDispatcherListener() = 0;
 
     virtual void ZoomToRect(const uint32_t& aPresShellId,
                             const FrameMetrics::ViewID& aViewId,

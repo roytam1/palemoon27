@@ -158,6 +158,7 @@ nsHTTPIndex::OnFTPControlLog(bool server, const char *msg)
     // AutoEntryScript. This is Gecko specific and not in any spec.
     dom::AutoEntryScript aes(globalObject,
                              "nsHTTPIndex OnFTPControlLog");
+    aes.TakeOwnershipOfErrorReporting();
     JSContext* cx = aes.cx();
 
     JS::Rooted<JSObject*> global(cx, JS::CurrentGlobalOrNull(cx));
@@ -232,6 +233,7 @@ nsHTTPIndex::OnStartRequest(nsIRequest *request, nsISupports* aContext)
     // This is Gecko specific and not in any spec.
     dom::AutoEntryScript aes(globalObject,
                              "nsHTTPIndex set HTTPIndex property");
+    aes.TakeOwnershipOfErrorReporting();
     JSContext* cx = aes.cx();
 
     JS::Rooted<JSObject*> global(cx, JS::CurrentGlobalOrNull(cx));
@@ -652,9 +654,6 @@ nsHTTPIndex::Create(nsIURI* aBaseURL, nsIInterfaceRequestor* aRequestor,
   *aResult = nullptr;
 
   nsHTTPIndex* result = new nsHTTPIndex(aRequestor);
-  if (! result)
-    return NS_ERROR_OUT_OF_MEMORY;
-
   nsresult rv = result->Init(aBaseURL);
   if (NS_SUCCEEDED(rv))
   {

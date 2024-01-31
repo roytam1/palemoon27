@@ -17,10 +17,12 @@ using struct mozilla::layers::TextureFactoryIdentifier from "mozilla/layers/Comp
 using struct mozilla::layers::FrameMetrics from "FrameMetrics.h";
 using mozilla::layers::FrameMetrics::ViewID from "FrameMetrics.h";
 using mozilla::layers::MaybeZoomConstraints from "FrameMetrics.h";
+using struct mozilla::layers::ScrollableLayerGuid from "FrameMetrics.h";
 using mozilla::layers::LayersBackend from "mozilla/layers/LayersTypes.h";
 using mozilla::layers::TouchBehaviorFlags from "mozilla/layers/APZUtils.h";
 using mozilla::CrossProcessMutexHandle from "mozilla/ipc/CrossProcessMutex.h";
 using mozilla::ipc::SharedMemoryBasic::Handle from "mozilla/ipc/SharedMemoryBasic.h";
+using mozilla::CSSIntRegion from "Units.h";
 using mozilla::LayoutDeviceIntPoint from "Units.h";
 using mozilla::LayoutDeviceIntRegion from "Units.h";
 using class mozilla::TimeStamp from "mozilla/TimeStamp.h";
@@ -31,18 +33,25 @@ namespace layers {
 
 
 /**
- * The PCompositor protocol is used to manage communication between
+ * The PCompositorBridge protocol is used to manage communication between
  * the main thread and the compositor thread context. It's primary
  * purpose is to manage the PLayerTransaction sub protocol.
  */
-sync protocol PCompositor
+sync protocol PCompositorBridge
 {
   // A Compositor manages a single Layer Manager (PLayerTransaction)
   manages PLayerTransaction;
 
 child:
-  // The child should invalidate everything so that the whole window is redrawn.
-  async InvalidateAll();
+  // The child should invalidate retained layers. This is used for local
+  // compositor device resets, such as in CompositorD3D9, and ensures that
+  // TextureSources are recreated.
+  async InvalidateLayers(uint64_t layersId);
+
+  // The compositor type or device has changed, and a new texture factory
+  // identifier is available. Layers must be invalidated and the new identifier
+  // must be propagated.
+  async CompositorUpdated(uint64_t layersId, TextureFactoryIdentifier newIdentifier);
 
   // The compositor completed a layers transaction. id is the layers id
   // of the child layer tree that was composited (or 0 when notifying
@@ -140,6 +149,10 @@ parent:
   // block until they are completed.
   sync FlushRendering();
 
+  // Force an additional frame presentation to be executed. This is used to
+  // work around a windows presentation bug (See Bug 1232042)
+  async ForcePresent();
+
   // Get the size of the tiles. This number should not change at runtime.
   sync GetTileSize()
     returns (int32_t tileWidth, int32_t tileHeight);
@@ -166,6 +179,16 @@ parent:
    * @see RemotePaintIsReady
    */
   async RequestNotifyAfterRemotePaint();
+
+  // The child clears the 'approximately visible' regions associated with the
+  // provided layers ID and pres shell ID (i.e., the regions for all view IDs
+  // associated with those IDs).
+  async ClearApproximatelyVisibleRegions(uint64_t layersId, uint32_t presShellId);
+
+  // The child sends a region containing rects associated with the provided
+  // scrollable layer GUID that the child considers 'approximately visible'.
+  // We visualize this information in the APZ minimap.
+  async NotifyApproximatelyVisibleRegion(ScrollableLayerGuid guid, CSSIntRegion region);
 
 child:
   // Send back Compositor Frame Metrics from APZCs so tiled layers can

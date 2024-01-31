@@ -5799,6 +5799,18 @@ JS_ErrorFromException(JSContext* cx, HandleObject obj)
     return ErrorFromException(cx, obj);
 }
 
+void
+JSErrorReport::initLinebuf(const char16_t* linebuf, size_t linebufLength, size_t tokenOffset)
+{
+    MOZ_ASSERT(linebuf);
+    MOZ_ASSERT(tokenOffset <= linebufLength);
+    MOZ_ASSERT(linebuf[linebufLength] == '\0');
+
+    linebuf_ = linebuf;
+    linebufLength_ = linebufLength;
+    tokenOffset_ = tokenOffset;
+}
+
 JS_PUBLIC_API(bool)
 JS_ThrowStopIteration(JSContext* cx)
 {
@@ -6032,8 +6044,51 @@ JS_IsIdentifier(const char16_t* chars, size_t length)
 
 namespace JS {
 
+void AutoFilename::reset()
+{
+    if (ss_) {
+        reinterpret_cast<ScriptSource*>(ss_)->decref();
+        ss_ = nullptr;
+    }
+    if (filename_.is<const char*>())
+        filename_.as<const char*>() = nullptr;
+    else
+        filename_.as<UniqueChars>().reset();
+}
+
+void AutoFilename::setScriptSource(void* p)
+{
+    MOZ_ASSERT(!ss_);
+    MOZ_ASSERT(!get());
+    ss_ = p;
+    if (p) {
+        ScriptSource* ss = reinterpret_cast<ScriptSource*>(p);
+        ss->incref();
+        setUnowned(ss->filename());
+    }
+}
+
+void AutoFilename::setUnowned(const char* filename)
+{
+    MOZ_ASSERT(!get());
+    filename_.as<const char*>() = filename;
+}
+
+void AutoFilename::setOwned(UniqueChars&& filename)
+{
+    MOZ_ASSERT(!get());
+    filename_ = AsVariant(Move(filename));
+}
+
+const char* AutoFilename::get() const
+{
+    if (filename_.is<const char*>())
+        return filename_.as<const char*>();
+    return filename_.as<UniqueChars>().get();
+}
+
 JS_PUBLIC_API(bool)
-DescribeScriptedCaller(JSContext* cx, UniqueChars* filename, unsigned* lineno,
+DescribeScriptedCaller(JSContext* cx, AutoFilename* filename, unsigned* lineno,
                        unsigned* column)
 {
     if (filename)
@@ -6052,11 +6107,18 @@ DescribeScriptedCaller(JSContext* cx, UniqueChars* filename, unsigned* lineno,
     if (i.activation()->scriptedCallerIsHidden())
         return false;
 
-    if (filename && i.filename()) {
-        UniqueChars copy = DuplicateString(i.filename());
-        if (!copy)
-            return false;
-        *filename = Move(copy);
+    if (filename) {
+        if (i.isWasm()) {
+            // For Wasm, copy out the filename, there is no script source.
+            UniqueChars copy = DuplicateString(i.filename());
+            if (!copy)
+                filename->setUnowned("out of memory");
+            else
+                filename->setOwned(Move(copy));
+        } else {
+            // All other frames have a script source to read the filename from.
+            filename->setScriptSource(i.scriptSource());
+        }
     }
 
     if (lineno)
@@ -6240,6 +6302,12 @@ JS_DecodeInterpretedFunction(JSContext* cx, const void* data, uint32_t length)
     if (!decoder.codeFunction(&funobj))
         return nullptr;
     return funobj;
+}
+
+JS_PUBLIC_API(void)
+JS::SetBuildIdOp(JSRuntime* rt, JS::BuildIdOp buildIdOp)
+{
+    rt->buildIdOp = buildIdOp;
 }
 
 JS_PUBLIC_API(void)

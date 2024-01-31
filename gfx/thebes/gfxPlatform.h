@@ -611,11 +611,14 @@ public:
 
     virtual void FlushContentDrawing() {}
 
-    // If a device reset has occurred, update the necessary platform backend
-    // bits.
-    virtual bool UpdateForDeviceReset() {
-      return false;
-    }
+    // If a device reset has occurred, schedule any necessary paints in the
+    // widget. This should only be used within nsRefreshDriver.
+    virtual void SchedulePaintIfDeviceReset() {}
+
+    // Immediately update all platform bits if a device reset has occurred.
+    // This should only be used at the top of the callstack (i.e. within
+    // a task, OS event, or IPDL message).
+    virtual void UpdateRenderModeIfDeviceReset() {}
 
     /**
      * Helper method, creates a draw target for a specific Azure backend.
@@ -637,10 +640,6 @@ public:
       return mCompositorBackend;
     }
 
-    // Trigger a test-driven graphics device reset.
-    virtual void TestDeviceReset(DeviceResetReason aReason)
-    {}
-
     // Return information on how child processes should initialize graphics
     // devices. Currently this is only used on Windows.
     virtual void GetDeviceInitData(mozilla::gfx::DeviceInitData* aOut);
@@ -654,6 +653,10 @@ public:
     // context. These platforms should return true here.
     virtual bool RequiresAcceleratedGLContextForCompositorOGL() const {
       return false;
+    }
+
+    uint64_t GetDeviceCounter() const {
+      return mDeviceCounter;
     }
 
 protected:
@@ -684,6 +687,11 @@ protected:
      * If in a child process, triggers a refresh of device preferences.
      */
     void UpdateDeviceInitData();
+
+    /**
+     * Increase the global device counter after a device has been removed/reset.
+     */
+    void BumpDeviceCounter();
 
     /**
      * Called when new device preferences are available.
@@ -797,6 +805,9 @@ private:
 
     int32_t mScreenDepth;
     mozilla::gfx::IntSize mScreenSize;
+
+    // Generation number for devices that ClientLayerManagers might depend on.
+    uint64_t mDeviceCounter;
 };
 
 #endif /* GFX_PLATFORM_H */

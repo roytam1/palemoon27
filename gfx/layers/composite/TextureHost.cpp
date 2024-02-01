@@ -395,14 +395,14 @@ BufferTextureHost::BufferTextureHost(const BufferDescriptor& aDesc,
       const YCbCrDescriptor& ycbcr = mDescriptor.get_YCbCrDescriptor();
       mSize = ycbcr.ySize();
       mFormat = gfx::SurfaceFormat::YUV;
-      mHasInternalBuffer = true;
+      mHasIntermediateBuffer = true;
       break;
     }
     case BufferDescriptor::TRGBDescriptor: {
       const RGBDescriptor& rgb = mDescriptor.get_RGBDescriptor();
       mSize = rgb.size();
       mFormat = rgb.format();
-      mHasInternalBuffer = rgb.hasInternalBuffer();
+      mHasIntermediateBuffer = rgb.hasIntermediateBuffer();
       break;
     }
     default: MOZ_CRASH();
@@ -496,7 +496,7 @@ BufferTextureHost::Unlock()
 bool
 BufferTextureHost::EnsureWrappingTextureSource()
 {
-  MOZ_ASSERT(!mHasInternalBuffer);
+  MOZ_ASSERT(!mHasIntermediateBuffer);
   MOZ_ASSERT(mFormat != gfx::SurfaceFormat::YUV);
 
   if (mFirstSource) {
@@ -516,6 +516,16 @@ BufferTextureHost::EnsureWrappingTextureSource()
   }
 
   mFirstSource = mCompositor->CreateDataTextureSourceAround(surf);
+  if (!mFirstSource) {
+    // BasicCompositor::CreateDataTextureSourceAround never returns null
+    // and we don't expect to take this branch if we are using another backend.
+    // Returning false is fine but if we get into this situation it probably
+    // means something fishy is going on, like a texture being used with
+    // several compositor backends.
+    NS_WARNING("Failed to use a BufferTextureHost without intermediate buffer");
+    return false;
+  }
+
   mFirstSource->SetUpdateSerial(mUpdateSerial);
   mFirstSource->SetOwner(this);
 
@@ -525,7 +535,7 @@ BufferTextureHost::EnsureWrappingTextureSource()
 void
 BufferTextureHost::PrepareTextureSource(CompositableTextureSourceRef& aTexture)
 {
-  if (!mHasInternalBuffer) {
+  if (!mHasIntermediateBuffer) {
     EnsureWrappingTextureSource();
   }
 
@@ -543,9 +553,11 @@ BufferTextureHost::PrepareTextureSource(CompositableTextureSourceRef& aTexture)
   bool compatibleFormats = texture
                          && (mFormat == texture->GetFormat()
                              || (mFormat == gfx::SurfaceFormat::YUV
+                                 && mCompositor
                                  && mCompositor->SupportsEffect(EffectTypes::YCBCR)
                                  && texture->GetNextSibling())
                              || (mFormat == gfx::SurfaceFormat::YUV
+                                 && mCompositor
                                  && !mCompositor->SupportsEffect(EffectTypes::YCBCR)
                                  && texture->GetFormat() == gfx::SurfaceFormat::B8G8R8X8));
 
@@ -557,6 +569,7 @@ BufferTextureHost::PrepareTextureSource(CompositableTextureSourceRef& aTexture)
   if (!shouldCreateTexture) {
     mFirstSource = texture;
     mFirstSource->SetOwner(this);
+    mNeedsFullUpdate = true;
   }
 }
 
@@ -629,7 +642,7 @@ BufferTextureHost::Upload(nsIntRegion *aRegion)
     // attached to a layer.
     return false;
   }
-  if (!mHasInternalBuffer && EnsureWrappingTextureSource()) {
+  if (!mHasIntermediateBuffer && EnsureWrappingTextureSource()) {
     return true;
   }
 
@@ -788,7 +801,7 @@ ShmemTextureHost::DeallocateSharedData()
   if (mShmem) {
     MOZ_ASSERT(mDeallocator,
                "Shared memory would leak without a ISurfaceAllocator");
-    mDeallocator->DeallocShmem(*mShmem);
+    mDeallocator->AsShmemAllocator()->DeallocShmem(*mShmem);
     mShmem = nullptr;
   }
 }

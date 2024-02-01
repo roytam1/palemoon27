@@ -73,9 +73,10 @@ struct TextureDeallocParams
 {
   TextureData* data;
   RefPtr<TextureChild> actor;
-  RefPtr<ISurfaceAllocator> allocator;
+  RefPtr<ClientIPCAllocator> allocator;
   bool clientDeallocation;
   bool syncDeallocation;
+  bool workAroundSharedSurfaceOwnershipIssue;
 };
 
 void DeallocateTextureClient(TextureDeallocParams params);
@@ -132,9 +133,18 @@ public:
     SendClientRecycle();
   }
 
+  void CancelWaitForCompositorRecycle()
+  {
+    RECYCLE_LOG("[CLIENT] Cancelling wait for recycle %p\n", mWaitForRecycle.get());
+    {
+      MonitorAutoLock mon(mMonitor);
+      mWaitForRecycle = nullptr;
+    }
+  }
+
   CompositableForwarder* GetForwarder() { return mForwarder; }
 
-  ISurfaceAllocator* GetAllocator() { return mForwarder; }
+  ClientIPCAllocator* GetAllocator() { return mForwarder; }
 
   void ActorDestroy(ActorDestroyReason why) override;
 
@@ -179,7 +189,7 @@ private:
 };
 
 
-static void DestroyTextureData(TextureData* aTextureData, ISurfaceAllocator* aAllocator,
+static void DestroyTextureData(TextureData* aTextureData, ClientIPCAllocator* aAllocator,
                                bool aDeallocate, bool aMainThreadOnly)
 {
   if (!aTextureData) {
@@ -187,7 +197,7 @@ static void DestroyTextureData(TextureData* aTextureData, ISurfaceAllocator* aAl
   }
 
   if (aMainThreadOnly && !NS_IsMainThread()) {
-    RefPtr<ISurfaceAllocator> allocatorRef = aAllocator;
+    RefPtr<ClientIPCAllocator> allocatorRef = aAllocator;
     NS_DispatchToMainThread(NS_NewRunnableFunction([aTextureData, allocatorRef, aDeallocate]() -> void {
       DestroyTextureData(aTextureData, allocatorRef, aDeallocate, true);
     }));
@@ -239,7 +249,7 @@ DeallocateTextureClient(TextureDeallocParams params)
   MessageLoop* ipdlMsgLoop = nullptr;
 
   if (params.allocator) {
-    ipdlMsgLoop = params.allocator->GetMessageLoop();
+    ipdlMsgLoop = params.allocator->AsClientAllocator()->GetMessageLoop();
     if (!ipdlMsgLoop) {
       // An allocator with no message loop means we are too late in the shutdown
       // sequence.
@@ -273,7 +283,7 @@ DeallocateTextureClient(TextureDeallocParams params)
 
   if (!ipdlMsgLoop) {
     // If we don't have a message loop we can't know for sure that we are in
-    // the IPDL thread and use the ISurfaceAllocator.
+    // the IPDL thread and use the ClientIPCAllocator.
     // This should ideally not happen outside of gtest, but some shutdown raciness
     // could put us in this situation.
     params.allocator = nullptr;
@@ -282,9 +292,14 @@ DeallocateTextureClient(TextureDeallocParams params)
   if (!actor) {
     // We don't have an IPDL actor, probably because we destroyed the TextureClient
     // before sharing it with the compositor. It means the data cannot be owned by
-    // the TextureHost since we never created the TextureHost.
+    // the TextureHost since we never created the TextureHost...
+    // ..except if the lovely mWorkaroundAnnoyingSharedSurfaceOwnershipIssues member
+    // is set to true. In this case we are in a special situation where this
+    // TextureClient is in wrapped into another TextureClient which assumes it owns
+    // our data. This is specific to the gralloc SharedSurface.
+    bool shouldDeallocate = !params.workAroundSharedSurfaceOwnershipIssue;
     DestroyTextureData(params.data, params.allocator,
-                       true,    // client-side deallocation
+                       shouldDeallocate,
                        false);  // main-thread deallocation
     return;
   }
@@ -331,6 +346,7 @@ void TextureClient::Destroy(bool aForceSync)
     params.actor = actor;
     params.allocator = mAllocator;
     params.clientDeallocation = !!(mFlags & TextureFlags::DEALLOCATE_CLIENT);
+    params.workAroundSharedSurfaceOwnershipIssue = mWorkaroundAnnoyingSharedSurfaceOwnershipIssues;
     if (mWorkaroundAnnoyingSharedSurfaceLifetimeIssues) {
       params.data = nullptr;
     } else {
@@ -361,8 +377,31 @@ TextureClient::Lock(OpenMode aMode)
     return mOpenMode == aMode;
   }
 
+  if (mRemoveFromCompositableWaiter) {
+    mRemoveFromCompositableWaiter->WaitComplete();
+    mRemoveFromCompositableWaiter = nullptr;
+  }
+
   mIsLocked = mData->Lock(aMode, mReleaseFenceHandle.IsValid() ? &mReleaseFenceHandle : nullptr);
   mOpenMode = aMode;
+
+  auto format = GetFormat();
+  if (mIsLocked && CanExposeDrawTarget() &&
+      aMode == OpenMode::OPEN_READ_WRITE &&
+      NS_IsMainThread() &&
+      // the formats that we apparently expect, in the cairo backend. Any other
+      // format will trigger an assertion in GfxFormatToCairoFormat.
+      (format == SurfaceFormat::A8R8G8B8_UINT32 ||
+      format == SurfaceFormat::X8R8G8B8_UINT32 ||
+      format == SurfaceFormat::A8 ||
+      format == SurfaceFormat::R5G6B5_UINT16)) {
+    if (!BorrowDrawTarget()) {
+      // Failed to get a DrawTarget, means we won't be able to write into the
+      // texture, might as well fail now.
+      Unlock();
+      return false;
+    }
+  }
 
   return mIsLocked;
 }
@@ -397,10 +436,10 @@ TextureClient::Unlock()
 }
 
 bool
-TextureClient::HasInternalBuffer() const
+TextureClient::HasIntermediateBuffer() const
 {
   MOZ_ASSERT(IsValid());
-  return mData->HasInternalBuffer();
+  return mData->HasIntermediateBuffer();
 }
 
 gfx::IntSize
@@ -428,6 +467,9 @@ TextureClient::UpdateFromSurface(gfx::SourceSurface* aSurface)
   MOZ_ASSERT(IsValid());
   MOZ_ASSERT(mIsLocked);
   MOZ_ASSERT(aSurface);
+  // If you run into this assertion, make sure the texture was locked write-only
+  // rather than read-write.
+  MOZ_ASSERT(!mBorrowedDrawTarget);
 
   // XXX - It would be better to first try the DrawTarget approach and fallback
   // to the backend-specific implementation because the latter will usually do
@@ -529,10 +571,12 @@ TextureClient::WaitForBufferOwnership(bool aWaitReleaseFence)
     mRemoveFromCompositableWaiter = nullptr;
   }
 
+#if defined(MOZ_WIDGET_GONK) && ANDROID_VERSION < 21
   if (aWaitReleaseFence && mReleaseFenceHandle.IsValid()) {
     mData->WaitForFence(&mReleaseFenceHandle);
     mReleaseFenceHandle = FenceHandle();
   }
+#endif
 }
 
 // static
@@ -617,6 +661,14 @@ TextureClient::WaitForCompositorRecycle()
 }
 
 void
+TextureClient::CancelWaitForCompositorRecycle()
+{
+  if (IsSharedWithCompositor()) {
+    mActor->CancelWaitForCompositorRecycle();
+  }
+}
+
+void
 TextureClient::SetAddedToCompositableClient()
 {
   if (!mAddedToCompositableClient) {
@@ -645,7 +697,7 @@ TextureClient::SetRecycleAllocator(ITextureClientRecycleAllocator* aAllocator)
 bool
 TextureClient::InitIPDLActor(CompositableForwarder* aForwarder)
 {
-  MOZ_ASSERT(aForwarder && aForwarder->GetMessageLoop() == mAllocator->GetMessageLoop());
+  MOZ_ASSERT(aForwarder && aForwarder->GetMessageLoop() == mAllocator->AsClientAllocator()->GetMessageLoop());
   if (mActor && !mActor->mDestroyed && mActor->GetForwarder() == aForwarder) {
     return true;
   }
@@ -779,14 +831,15 @@ TextureClient::CreateForDrawing(CompositableForwarder* aAllocator,
 
 // static
 already_AddRefed<TextureClient>
-TextureClient::CreateForRawBufferAccess(ISurfaceAllocator* aAllocator,
+TextureClient::CreateForRawBufferAccess(ClientIPCAllocator* aAllocator,
                                         gfx::SurfaceFormat aFormat,
                                         gfx::IntSize aSize,
                                         gfx::BackendType aMoz2DBackend,
                                         TextureFlags aTextureFlags,
                                         TextureAllocationFlags aAllocFlags)
 {
-  MOZ_ASSERT(aAllocator->IPCOpen());
+  // also test the validity of aAllocator
+  MOZ_ASSERT(aAllocator && aAllocator->IPCOpen());
   if (!aAllocator || !aAllocator->IPCOpen()) {
     return nullptr;
   }
@@ -797,13 +850,6 @@ TextureClient::CreateForRawBufferAccess(ISurfaceAllocator* aAllocator,
 
   if (!gfx::Factory::AllowedSurfaceSize(aSize)) {
     return nullptr;
-  }
-
-  if (aFormat == SurfaceFormat::B8G8R8X8 &&
-      (aAllocFlags != TextureAllocationFlags::ALLOC_CLEAR_BUFFER_BLACK) &&
-      aMoz2DBackend == gfx::BackendType::SKIA) {
-    // skia requires alpha component of RGBX textures to be 255.
-    aAllocFlags = TextureAllocationFlags::ALLOC_CLEAR_BUFFER_WHITE;
   }
 
   TextureData* texData = BufferTextureData::Create(aSize, aFormat, aMoz2DBackend,
@@ -818,7 +864,7 @@ TextureClient::CreateForRawBufferAccess(ISurfaceAllocator* aAllocator,
 
 // static
 already_AddRefed<TextureClient>
-TextureClient::CreateForYCbCr(ISurfaceAllocator* aAllocator,
+TextureClient::CreateForYCbCr(ClientIPCAllocator* aAllocator,
                               gfx::IntSize aYSize,
                               gfx::IntSize aCbCrSize,
                               StereoMode aStereoMode,
@@ -845,7 +891,7 @@ TextureClient::CreateForYCbCr(ISurfaceAllocator* aAllocator,
 
 // static
 already_AddRefed<TextureClient>
-TextureClient::CreateForYCbCrWithBufferSize(ISurfaceAllocator* aAllocator,
+TextureClient::CreateForYCbCrWithBufferSize(ClientIPCAllocator* aAllocator,
                                             gfx::SurfaceFormat aFormat,
                                             size_t aSize,
                                             TextureFlags aTextureFlags)
@@ -866,7 +912,7 @@ TextureClient::CreateForYCbCrWithBufferSize(ISurfaceAllocator* aAllocator,
   return MakeAndAddRef<TextureClient>(data, aTextureFlags, aAllocator);
 }
 
-TextureClient::TextureClient(TextureData* aData, TextureFlags aFlags, ISurfaceAllocator* aAllocator)
+TextureClient::TextureClient(TextureData* aData, TextureFlags aFlags, ClientIPCAllocator* aAllocator)
 : mAllocator(aAllocator)
 , mActor(nullptr)
 , mData(aData)
@@ -878,6 +924,7 @@ TextureClient::TextureClient(TextureData* aData, TextureFlags aFlags, ISurfaceAl
 , mIsLocked(false)
 , mAddedToCompositableClient(false)
 , mWorkaroundAnnoyingSharedSurfaceLifetimeIssues(false)
+, mWorkaroundAnnoyingSharedSurfaceOwnershipIssues(false)
 #ifdef GFX_DEBUG_TRACK_CLIENTS_IN_POOL
 , mPoolTracker(nullptr)
 #endif
@@ -1027,7 +1074,7 @@ SyncObject::CreateSyncObject(SyncHandle aHandle)
 }
 
 already_AddRefed<TextureClient>
-TextureClient::CreateWithData(TextureData* aData, TextureFlags aFlags, ISurfaceAllocator* aAllocator)
+TextureClient::CreateWithData(TextureData* aData, TextureFlags aFlags, ClientIPCAllocator* aAllocator)
 {
   if (!aData) {
     return nullptr;

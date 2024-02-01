@@ -456,13 +456,6 @@ gfxPlatformMac::ReadAntiAliasingThreshold()
 }
 
 bool
-gfxPlatformMac::UseAcceleratedSkiaCanvas()
-{
-  // Lion or later is required
-  return nsCocoaFeatures::OnLionOrLater() && gfxPlatform::UseAcceleratedSkiaCanvas();
-}
-
-bool
 gfxPlatformMac::UseProgressivePaint()
 {
   // Progressive painting requires cross-process mutexes, which don't work so

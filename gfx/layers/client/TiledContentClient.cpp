@@ -387,7 +387,7 @@ gfxMemorySharedReadLock::GetReadCount()
   return mReadCount;
 }
 
-gfxShmSharedReadLock::gfxShmSharedReadLock(ISurfaceAllocator* aAllocator)
+gfxShmSharedReadLock::gfxShmSharedReadLock(ClientIPCAllocator* aAllocator)
   : mAllocator(aAllocator)
   , mAllocSuccess(false)
 {
@@ -395,7 +395,8 @@ gfxShmSharedReadLock::gfxShmSharedReadLock(ISurfaceAllocator* aAllocator)
   MOZ_ASSERT(mAllocator);
   if (mAllocator) {
 #define MOZ_ALIGN_WORD(x) (((x) + 3) & ~3)
-    if (mAllocator->AllocShmemSection(MOZ_ALIGN_WORD(sizeof(ShmReadLockInfo)), &mShmemSection)) {
+    if (mAllocator->AsLayerForwarder()->GetTileLockAllocator()->AllocShmemSection(
+        MOZ_ALIGN_WORD(sizeof(ShmReadLockInfo)), &mShmemSection)) {
       ShmReadLockInfo* info = GetShmReadLockInfoPtr();
       info->readCount = 1;
       mAllocSuccess = true;
@@ -427,7 +428,13 @@ gfxShmSharedReadLock::ReadUnlock() {
   int32_t readCount = PR_ATOMIC_DECREMENT(&info->readCount);
   MOZ_ASSERT(readCount >= 0);
   if (readCount <= 0) {
-    mAllocator->FreeShmemSection(mShmemSection);
+    auto fwd = mAllocator->AsLayerForwarder();
+    if (fwd) {
+      fwd->GetTileLockAllocator()->DeallocShmemSection(mShmemSection);
+    } else {
+      // we are on the compositor process
+      FixedSizeSmallShmemSectionAllocator::FreeShmemSection(mShmemSection);
+    }
   }
   return readCount;
 }
@@ -725,7 +732,7 @@ TileClient::GetBackBuffer(const nsIntRegion& aDirtyRegion,
   // Try to re-use the front-buffer if possible
   bool createdTextureClient = false;
   if (mFrontBuffer &&
-      mFrontBuffer->HasInternalBuffer() &&
+      mFrontBuffer->HasIntermediateBuffer() &&
       mFrontLock->GetReadCount() == 1 &&
       !(aMode == SurfaceMode::SURFACE_COMPONENT_ALPHA && !mFrontBufferOnWhite)) {
     // If we had a backbuffer we no longer care about it since we'll
@@ -1362,7 +1369,7 @@ ClientMultiTiledLayerBuffer::ValidateTile(TileClient& aTile,
   // Note, we don't call UpdatedTexture. The Updated function is called manually
   // by the TiledContentHost before composition.
 
-  if (backBuffer->HasInternalBuffer()) {
+  if (backBuffer->HasIntermediateBuffer()) {
     // If our new buffer has an internal buffer, we don't want to keep another
     // TextureClient around unnecessarily, so discard the back-buffer.
     aTile.DiscardBackBuffer();

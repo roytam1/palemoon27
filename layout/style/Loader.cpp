@@ -21,6 +21,7 @@
 #include "mozilla/MemoryReporting.h"
 
 #include "mozilla/css/Loader.h"
+#include "mozilla/ServoStyleSheet.h"
 #include "nsIRunnable.h"
 #include "nsIUnicharStreamLoader.h"
 #include "nsSyncLoadService.h"
@@ -532,10 +533,11 @@ LoaderReusableStyleSheets::FindReusableStyleSheet(nsIURI* aURL,
  * Loader Implementation *
  *************************/
 
-Loader::Loader(void)
+Loader::Loader(StyleBackendType aType)
   : mDocument(nullptr)
   , mDatasToNotifyOn(0)
   , mCompatMode(eCompatibility_FullStandards)
+  , mStyleBackendType(Some(aType))
   , mEnabled(true)
 #ifdef DEBUG
   , mSyncCallback(false)
@@ -1088,7 +1090,7 @@ Loader::CreateSheet(nsIURI* aURI,
   *aIsAlternate = IsAlternate(aTitle, aHasAlternateRel);
 
   // XXXheycam Cached sheets currently must be CSSStyleSheets.
-  if (aURI) {
+  if (aURI && GetStyleBackendType() == StyleBackendType::Gecko) {
     aSheetState = eSheetComplete;
     StyleSheetHandle::RefPtr sheet;
 
@@ -1236,7 +1238,11 @@ Loader::CreateSheet(nsIURI* aURI,
       SRICheck::IntegrityMetadata(aIntegrity, mDocument, &sriMetadata);
     }
 
-    *aSheet = new CSSStyleSheet(aCORSMode, aReferrerPolicy, sriMetadata);
+    if (GetStyleBackendType() == StyleBackendType::Gecko) {
+      *aSheet = new CSSStyleSheet(aCORSMode, aReferrerPolicy, sriMetadata);
+    } else {
+      *aSheet = new ServoStyleSheet(aCORSMode, aReferrerPolicy, sriMetadata);
+    }
     (*aSheet)->SetURIs(sheetURI, originalURI, baseURI);
   }
 
@@ -1734,19 +1740,27 @@ Loader::ParseSheet(const nsAString& aInput,
 
   aCompleted = false;
 
-  // XXXheycam ServoStyleSheets don't support parsing their contents yet.
-  MOZ_ASSERT(aLoadData->mSheet->IsGecko(),
-             "stylo: can't parse ServoStyleSheets contents yet");
-  nsCSSParser parser(this, aLoadData->mSheet->AsGecko());
-
   // Push our load data on the stack so any kids can pick it up
   mParsingDatas.AppendElement(aLoadData);
   nsIURI* sheetURI = aLoadData->mSheet->GetSheetURI();
   nsIURI* baseURI = aLoadData->mSheet->GetBaseURI();
-  nsresult rv = parser.ParseSheet(aInput, sheetURI, baseURI,
-                                  aLoadData->mSheet->Principal(),
-                                  aLoadData->mLineNumber,
-                                  aLoadData->mParsingMode);
+
+  nsresult rv;
+
+  if (aLoadData->mSheet->IsGecko()) {
+    nsCSSParser parser(this, aLoadData->mSheet->AsGecko());
+    rv = parser.ParseSheet(aInput, sheetURI, baseURI,
+                           aLoadData->mSheet->Principal(),
+                           aLoadData->mLineNumber,
+                           aLoadData->mParsingMode);
+  } else {
+    aLoadData->mSheet->AsServo()->ParseSheet(aInput, sheetURI, baseURI,
+                                             aLoadData->mSheet->Principal(),
+                                             aLoadData->mLineNumber,
+                                             aLoadData->mParsingMode);
+    rv = NS_OK;
+  }
+
   mParsingDatas.RemoveElementAt(mParsingDatas.Length() - 1);
 
   if (NS_FAILED(rv)) {
@@ -1861,7 +1875,7 @@ Loader::DoSheetComplete(SheetLoadData* aLoadData, nsresult aStatus,
       MOZ_ASSERT(!(data->mSheet->IsGecko() &&
                    data->mSheet->AsGecko()->IsModified()),
                  "should not get marked modified during parsing");
-      data->mSheet->SetComplete();
+      data->mSheet->AsStyleSheet()->SetComplete();
       data->ScheduleLoadEventIfNeeded(aStatus);
     }
     if (data->mMustNotify && (data->mObserver || !mObservers.IsEmpty())) {
@@ -2623,6 +2637,18 @@ Loader::SizeOfIncludingThis(mozilla::MallocSizeOf aMallocSizeOf) const
   // - mPreferredSheet, because it can be a shared string
 
   return n;
+}
+
+StyleBackendType
+Loader::GetStyleBackendType() const
+{
+  MOZ_ASSERT(mStyleBackendType || mDocument,
+             "you must construct a Loader with a document or set a "
+             "StyleBackendType on it before calling GetStyleBackendType");
+  if (mStyleBackendType) {
+    return *mStyleBackendType;
+  }
+  return mDocument->GetStyleBackendType();
 }
 
 } // namespace css

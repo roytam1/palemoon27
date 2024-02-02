@@ -7,9 +7,13 @@
 #ifndef mozilla_ServoStyleSet_h
 #define mozilla_ServoStyleSet_h
 
+#include "mozilla/EnumeratedArray.h"
 #include "mozilla/EventStates.h"
 #include "mozilla/RefPtr.h"
+#include "mozilla/ServoBindingHelpers.h"
+#include "mozilla/ServoStyleSheet.h"
 #include "mozilla/SheetType.h"
+#include "mozilla/UniquePtr.h"
 #include "nsChangeHint.h"
 #include "nsCSSPseudoElements.h"
 #include "nsIAtom.h"
@@ -110,6 +114,9 @@ public:
                                        EventStates aStateMask);
 
 private:
+  UniquePtr<RawServoStyleSet> mRawSet;
+  EnumeratedArray<SheetType, SheetType::Count,
+                  nsTArray<RefPtr<ServoStyleSheet>>> mSheets;
   int32_t mBatching;
 };
 

@@ -261,6 +261,11 @@ class nsStyleSet final
   // Free all of the data associated with this style set.
   void Shutdown();
 
+  // Notification that a style context with a null parent has been created.
+  // The argument is a style context that has not been fully initialized,
+  // but its parent and rule node are correct.
+  void AddStyleContextRoot(nsStyleContext* aStyleContext);
+
   // Notification that a style context is being destroyed.
   void NotifyStyleContextDestroyed(nsStyleContext* aStyleContext);
 
@@ -396,6 +401,11 @@ class nsStyleSet final
   // Tells the RestyleManager for the document using this style set
   // to drop any nsCSSSelector pointers it has.
   void ClearSelectors();
+
+  // Returns whether aSheetType represents a level of the cascade that uses
+  // CSSStyleSheets.  See gCSSSheetTypes in nsStyleSet.cpp for the list
+  // of CSS sheet types.
+  static bool IsCSSSheetType(mozilla::SheetType aSheetType);
 
 private:
   nsStyleSet(const nsStyleSet& aCopy) = delete;

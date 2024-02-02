@@ -26,6 +26,8 @@ typedef mozilla::dom::Element RawGeckoElement;
 class nsIDocument;
 typedef nsIDocument RawGeckoDocument;
 struct ServoNodeData;
+struct RawServoStyleSheet;
+struct RawServoStyleSet;
 #else
 struct RawGeckoNode;
 typedef struct RawGeckoNode RawGeckoNode;
@@ -35,6 +37,10 @@ struct RawGeckoDocument;
 typedef struct RawGeckoDocument RawGeckoDocument;
 struct ServoNodeData;
 typedef struct ServoNodeData ServoNodeData;
+struct RawServoStyleSheet;
+typedef struct RawServoStyleSheet RawServoStyleSheet;
+struct RawServoStyleSet;
+typedef struct RawServoStyleSet RawServoStyleSet;
 #endif
 
 #ifdef __cplusplus
@@ -70,8 +76,17 @@ ServoNodeData* Gecko_GetNodeData(RawGeckoNode* node);
 void Gecko_SetNodeData(RawGeckoNode* node, ServoNodeData* data);
 void Servo_DropNodeData(ServoNodeData* data);
 
+// Styleset and Stylesheet management.
+//
+// TODO: Make these return already_AddRefed and UniquePtr when the binding
+// generator is smart enough to handle them.
+RawServoStyleSheet* Servo_StylesheetFromUTF8Bytes(const uint8_t* bytes, uint32_t length);
+void Servo_ReleaseStylesheet(RawServoStyleSheet* sheet);
+RawServoStyleSet* Servo_InitStyleSet();
+void Servo_DropStyleSet(RawServoStyleSet* set);
+
 // Servo API.
-void Servo_RestyleDocument(RawGeckoDocument* aDoc);
+void Servo_RestyleDocument(RawGeckoDocument* doc, RawServoStyleSet* set);
 
 #ifdef __cplusplus
 } // extern "C"

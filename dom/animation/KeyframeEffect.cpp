@@ -19,6 +19,7 @@
 #include "nsCSSProps.h" // For nsCSSProps::PropHasFlags
 #include "nsCSSPseudoElements.h"
 #include "nsCSSValue.h"
+#include "nsDOMMutationObserver.h" // For nsAutoAnimationMutationBatch
 #include "nsStyleUtil.h"
 #include <algorithm> // For std::max
 
@@ -450,9 +451,17 @@ KeyframeEffectReadOnly::HasAnimationOfProperties(
   return false;
 }
 
-void
-KeyframeEffectReadOnly::CopyPropertiesFrom(const KeyframeEffectReadOnly& aOther)
+bool
+KeyframeEffectReadOnly::UpdateProperties(
+    const InfallibleTArray<AnimationProperty>& aProperties)
 {
+  // AnimationProperty::operator== does not compare mWinsInCascade and
+  // mIsRunningOnCompositor, we don't need to update anything here because
+  // we want to preserve
+  if (mProperties == aProperties) {
+    return false;
+  }
+
   nsCSSPropertySet winningInCascadeProperties;
   nsCSSPropertySet runningOnCompositorProperties;
 
@@ -465,7 +474,7 @@ KeyframeEffectReadOnly::CopyPropertiesFrom(const KeyframeEffectReadOnly& aOther)
     }
   }
 
-  mProperties = aOther.mProperties;
+  mProperties = aProperties;
 
   for (AnimationProperty& property : mProperties) {
     property.mWinsInCascade =
@@ -473,6 +482,18 @@ KeyframeEffectReadOnly::CopyPropertiesFrom(const KeyframeEffectReadOnly& aOther)
     property.mIsRunningOnCompositor =
       runningOnCompositorProperties.HasProperty(property.mProperty);
   }
+
+  if (mAnimation) {
+    nsPresContext* presContext = GetPresContext();
+    if (presContext) {
+      presContext->EffectCompositor()->
+        RequestRestyle(mTarget, mPseudoType,
+                       EffectCompositor::RestyleType::Layer,
+                       mAnimation->CascadeLevel());
+    }
+  }
+
+  return true;
 }
 
 void
@@ -2080,6 +2101,11 @@ KeyframeEffectReadOnly::ShouldBlockCompositorAnimations(const nsIFrame*
   bool shouldLog = nsLayoutUtils::IsAnimationLoggingEnabled();
 
   for (const AnimationProperty& property : mProperties) {
+    // If a property is overridden in the CSS cascade, it should not block other
+    // animations from running on the compositor.
+    if (!property.mWinsInCascade) {
+      continue;
+    }
     // Check for geometric properties
     if (IsGeometricProperty(property.mProperty)) {
       if (shouldLog) {
@@ -2115,7 +2141,7 @@ KeyframeEffect::KeyframeEffect(nsIDocument* aDocument,
                                CSSPseudoElementType aPseudoType,
                                const TimingParams& aTiming)
   : KeyframeEffectReadOnly(aDocument, aTarget, aPseudoType,
-                           new AnimationEffectTiming(aTiming))
+                           new AnimationEffectTiming(aTiming, this))
 {
 }
 
@@ -2124,6 +2150,40 @@ KeyframeEffect::WrapObject(JSContext* aCx,
                            JS::Handle<JSObject*> aGivenProto)
 {
   return KeyframeEffectBinding::Wrap(aCx, this, aGivenProto);
+}
+
+void KeyframeEffect::NotifySpecifiedTimingUpdated()
+{
+  nsIDocument* doc = nullptr;
+  // Bug 1249219:
+  // We don't support animation mutation observers on pseudo-elements yet.
+  if (mTarget &&
+      mPseudoType == CSSPseudoElementType::NotPseudo) {
+    doc = mTarget->OwnerDoc();
+  }
+
+  nsAutoAnimationMutationBatch mb(doc);
+
+  if (mAnimation) {
+    mAnimation->NotifyEffectTimingUpdated();
+
+    if (mAnimation->IsRelevant()) {
+      nsNodeUtils::AnimationChanged(mAnimation);
+    }
+
+    nsPresContext* presContext = GetPresContext();
+    if (presContext) {
+      presContext->EffectCompositor()->
+        RequestRestyle(mTarget, mPseudoType,
+                       EffectCompositor::RestyleType::Layer,
+                       mAnimation->CascadeLevel());
+    }
+  }
+}
+
+KeyframeEffect::~KeyframeEffect()
+{
+  mTiming->Unlink();
 }
 
 } // namespace dom

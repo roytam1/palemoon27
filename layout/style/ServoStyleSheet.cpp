@@ -5,51 +5,27 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "mozilla/ServoStyleSheet.h"
-
-using namespace mozilla::dom;
+#include "mozilla/StyleBackendType.h"
 
 namespace mozilla {
 
-nsIURI*
-ServoStyleSheet::GetSheetURI() const
+ServoStyleSheet::ServoStyleSheet(CORSMode aCORSMode,
+                                 net::ReferrerPolicy aReferrerPolicy,
+                                 const dom::SRIMetadata& aIntegrity)
+  : StyleSheet(StyleBackendType::Servo)
+  , StyleSheetInfo(aCORSMode, aReferrerPolicy, aIntegrity)
 {
-  MOZ_CRASH("stylo: not implemented");
 }
 
-nsIURI*
-ServoStyleSheet::GetOriginalURI() const
+ServoStyleSheet::~ServoStyleSheet()
 {
-  MOZ_CRASH("stylo: not implemented");
-}
-
-nsIURI*
-ServoStyleSheet::GetBaseURI() const
-{
-  MOZ_CRASH("stylo: not implemented");
-}
-
-void
-ServoStyleSheet::SetURIs(nsIURI* aSheetURI, nsIURI* aOriginalSheetURI, nsIURI* aBaseURI)
-{
-  MOZ_CRASH("stylo: not implemented");
+  DropSheet();
 }
 
 bool
 ServoStyleSheet::IsApplicable() const
 {
-  MOZ_CRASH("stylo: not implemented");
-}
-
-void
-ServoStyleSheet::SetComplete()
-{
-  MOZ_CRASH("stylo: not implemented");
-}
-
-void
-ServoStyleSheet::SetParsingMode(css::SheetParsingMode aMode)
-{
-  MOZ_CRASH("stylo: not implemented");
+  return !mDisabled && mComplete;
 }
 
 bool
@@ -61,23 +37,13 @@ ServoStyleSheet::HasRules() const
 nsIDocument*
 ServoStyleSheet::GetOwningDocument() const
 {
-  MOZ_CRASH("stylo: not implemented");
+  NS_ERROR("stylo: GetOwningDocument not implemented, returning null");
+
+  return nullptr;
 }
 
 void
 ServoStyleSheet::SetOwningDocument(nsIDocument* aDocument)
-{
-  MOZ_CRASH("stylo: not implemented");
-}
-
-void
-ServoStyleSheet::SetOwningNode(nsINode* aOwningNode)
-{
-  MOZ_CRASH("stylo: not implemented");
-}
-
-nsINode*
-ServoStyleSheet::GetOwnerNode() const
 {
   MOZ_CRASH("stylo: not implemented");
 }
@@ -94,36 +60,6 @@ ServoStyleSheet::AppendStyleSheet(StyleSheetHandle aSheet)
   MOZ_CRASH("stylo: not implemented");
 }
 
-nsIPrincipal*
-ServoStyleSheet::Principal() const
-{
-  MOZ_CRASH("stylo: not implemented");
-}
-
-void
-ServoStyleSheet::SetPrincipal(nsIPrincipal* aPrincipal)
-{
-  MOZ_CRASH("stylo: not implemented");
-}
-
-CORSMode
-ServoStyleSheet::GetCORSMode() const
-{
-  MOZ_CRASH("stylo: not implemented");
-}
-
-net::ReferrerPolicy
-ServoStyleSheet::GetReferrerPolicy() const
-{
-  MOZ_CRASH("stylo: not implemented");
-}
-
-void
-ServoStyleSheet::GetIntegrity(dom::SRIMetadata& aResult) const
-{
-  MOZ_CRASH("stylo: not implemented");
-}
-
 void
 ServoStyleSheet::ParseSheet(const nsAString& aInput,
                             nsIURI* aSheetURI,
@@ -132,7 +68,17 @@ ServoStyleSheet::ParseSheet(const nsAString& aInput,
                             uint32_t aLineNumber,
                             css::SheetParsingMode aParsingMode)
 {
-  MOZ_CRASH("stylo: not implemented");
+  DropSheet();
+
+  NS_ConvertUTF16toUTF8 input(aInput);
+  mSheet = already_AddRefed<RawServoStyleSheet>(Servo_StylesheetFromUTF8Bytes(
+      reinterpret_cast<const uint8_t*>(input.get()), input.Length()));
+}
+
+void
+ServoStyleSheet::DropSheet()
+{
+  mSheet = nullptr;
 }
 
 size_t

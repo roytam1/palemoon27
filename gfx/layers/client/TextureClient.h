@@ -48,7 +48,7 @@ namespace layers {
 class AsyncTransactionWaiter;
 class CompositableForwarder;
 class GrallocTextureData;
-class ISurfaceAllocator;
+class ClientIPCAllocator;
 class CompositableClient;
 struct PlanarYCbCrData;
 class Image;
@@ -80,6 +80,10 @@ enum TextureAllocationFlags {
   // TextureClientD3D11, which may otherwise choose D3D10 or non-KeyedMutex
   // surfaces when used on the main thread.
   ALLOC_FOR_OUT_OF_BAND_CONTENT = 1 << 5,
+
+  // Disable any cross-device synchronization. This is also for TextureClientD3D11,
+  // and creates a texture without KeyedMutex.
+  ALLOC_MANUAL_SYNCHRONIZATION = 1 << 6,
 };
 
 #ifdef XP_WIN
@@ -193,7 +197,7 @@ public:
 
   virtual bool CanExposeMappedData() const { return false; }
 
-  virtual bool HasInternalBuffer() const = 0;
+  virtual bool HasIntermediateBuffer() const = 0;
 
   virtual bool HasSynchronization() const { return false; }
 
@@ -203,15 +207,15 @@ public:
 
   virtual bool BorrowMappedYCbCrData(MappedYCbCrTextureData&) { return false; }
 
-  virtual void Deallocate(ISurfaceAllocator* aAllocator) = 0;
+  virtual void Deallocate(ClientIPCAllocator* aAllocator) = 0;
 
   /// Depending on the texture's flags either Deallocate or Forget is called.
-  virtual void Forget(ISurfaceAllocator* aAllocator) {}
+  virtual void Forget(ClientIPCAllocator* aAllocator) {}
 
   virtual bool Serialize(SurfaceDescriptor& aDescriptor) = 0;
 
   virtual TextureData*
-  CreateSimilar(ISurfaceAllocator* aAllocator,
+  CreateSimilar(ClientIPCAllocator* aAllocator,
                 TextureFlags aFlags = TextureFlags::DEFAULT,
                 TextureAllocationFlags aAllocFlags = ALLOC_DEFAULT) const { return nullptr; }
 
@@ -263,12 +267,12 @@ class TextureClient
   : public AtomicRefCountedWithFinalize<TextureClient>
 {
 public:
-  explicit TextureClient(TextureData* aData, TextureFlags aFlags, ISurfaceAllocator* aAllocator);
+  explicit TextureClient(TextureData* aData, TextureFlags aFlags, ClientIPCAllocator* aAllocator);
 
   virtual ~TextureClient();
 
   static already_AddRefed<TextureClient>
-  CreateWithData(TextureData* aData, TextureFlags aFlags, ISurfaceAllocator* aAllocator);
+  CreateWithData(TextureData* aData, TextureFlags aFlags, ClientIPCAllocator* aAllocator);
 
   // Creates and allocates a TextureClient usable with Moz2D.
   static already_AddRefed<TextureClient>
@@ -281,7 +285,7 @@ public:
 
   // Creates and allocates a TextureClient supporting the YCbCr format.
   static already_AddRefed<TextureClient>
-  CreateForYCbCr(ISurfaceAllocator* aAllocator,
+  CreateForYCbCr(ClientIPCAllocator* aAllocator,
                  gfx::IntSize aYSize,
                  gfx::IntSize aCbCrSize,
                  StereoMode aStereoMode,
@@ -290,7 +294,7 @@ public:
   // Creates and allocates a TextureClient (can be accessed through raw
   // pointers).
   static already_AddRefed<TextureClient>
-  CreateForRawBufferAccess(ISurfaceAllocator* aAllocator,
+  CreateForRawBufferAccess(ClientIPCAllocator* aAllocator,
                            gfx::SurfaceFormat aFormat,
                            gfx::IntSize aSize,
                            gfx::BackendType aMoz2dBackend,
@@ -301,7 +305,7 @@ public:
   // pointers) with a certain buffer size. It's unfortunate that we need this.
   // providing format and sizes could let us do more optimization.
   static already_AddRefed<TextureClient>
-  CreateForYCbCrWithBufferSize(ISurfaceAllocator* aAllocator,
+  CreateForYCbCrWithBufferSize(ClientIPCAllocator* aAllocator,
                                gfx::SurfaceFormat aFormat,
                                size_t aSize,
                                TextureFlags aTextureFlags);
@@ -413,7 +417,7 @@ public:
    * in-memory buffer. The consequence of this is that locking the
    * TextureClient does not contend with locking the texture on the host side.
    */
-  bool HasInternalBuffer() const;
+  bool HasIntermediateBuffer() const;
 
   /**
    * Allocate and deallocate a TextureChild actor.
@@ -462,6 +466,12 @@ public:
    * client in a transaction.
    */
   void WaitForCompositorRecycle();
+
+  /**
+   * Should only be called when dying. We no longer care whether the compositor
+   * has finished with the texture.
+   */
+  void CancelWaitForCompositorRecycle();
 
   /**
    * After being shared with the compositor side, an immutable texture is never
@@ -571,7 +581,7 @@ public:
 
   void SyncWithObject(SyncObject* aFence) { mData->SyncWithObject(aFence); }
 
-  ISurfaceAllocator* GetAllocator() { return mAllocator; }
+  ClientIPCAllocator* GetAllocator() { return mAllocator; }
 
   TextureClientRecycleAllocator* GetRecycleAllocator() { return mRecycleAllocator; }
   void SetRecycleAllocator(TextureClientRecycleAllocator* aAllocator);
@@ -609,7 +619,7 @@ protected:
   bool ToSurfaceDescriptor(SurfaceDescriptor& aDescriptor);
 
 
-  RefPtr<ISurfaceAllocator> mAllocator;
+  RefPtr<ClientIPCAllocator> mAllocator;
   RefPtr<TextureChild> mActor;
   RefPtr<TextureClientRecycleAllocator> mRecycleAllocator;
   RefPtr<AsyncTransactionWaiter> mRemoveFromCompositableWaiter;
@@ -623,11 +633,14 @@ protected:
   gl::GfxTextureWasteTracker mWasteTracker;
 
   OpenMode mOpenMode;
-  DebugOnly<uint32_t> mExpectedDtRefs;
+#ifdef DEBUG
+  uint32_t mExpectedDtRefs;
+#endif
   bool mIsLocked;
 
   bool mAddedToCompositableClient;
   bool mWorkaroundAnnoyingSharedSurfaceLifetimeIssues;
+  bool mWorkaroundAnnoyingSharedSurfaceOwnershipIssues;
 
   RefPtr<TextureReadbackSink> mReadbackSink;
 
@@ -677,7 +690,9 @@ public:
     MOZ_GUARD_OBJECT_NOTIFIER_INIT;
 
     mSucceeded = mTexture->Lock(aMode);
+#ifdef DEBUG
     mChecked = false;
+#endif
   }
   ~TextureClientAutoLock() {
     MOZ_ASSERT(mChecked);
@@ -687,13 +702,17 @@ public:
   }
 
   bool Succeeded() {
+#ifdef DEBUG
     mChecked = true;
+#endif
     return mSucceeded;
   }
 
 private:
   TextureClient* mTexture;
-  DebugOnly<bool> mChecked;
+#ifdef DEBUG
+  bool mChecked;
+#endif
   bool mSucceeded;
 };
 

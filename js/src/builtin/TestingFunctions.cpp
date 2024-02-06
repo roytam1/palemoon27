@@ -786,6 +786,8 @@ GCState(JSContext* cx, unsigned argc, Value* vp)
         state = "mark";
     else if (globalState == gc::SWEEP)
         state = "sweep";
+    else if (globalState == gc::FINALIZE)
+        state = "finalize";
     else if (globalState == gc::COMPACT)
         state = "compact";
     else
@@ -1642,7 +1644,7 @@ DisplayName(JSContext* cx, unsigned argc, Value* vp)
 }
 
 static JSObject*
-ShellObjectMetadataCallback(JSContext* cx, JSObject*)
+ShellObjectMetadataCallback(JSContext* cx, HandleObject)
 {
     AutoEnterOOMUnsafeRegion oomUnsafe;
 

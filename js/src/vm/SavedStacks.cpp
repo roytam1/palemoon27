@@ -1411,7 +1411,7 @@ SavedStacks::chooseSamplingProbability(JSCompartment* compartment)
 }
 
 JSObject*
-SavedStacksMetadataCallback(JSContext* cx, JSObject* target)
+SavedStacksMetadataCallback(JSContext* cx, HandleObject target)
 {
     RootedObject obj(cx, target);
 

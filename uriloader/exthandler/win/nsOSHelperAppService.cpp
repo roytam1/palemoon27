@@ -352,14 +352,14 @@ static void StripRundll32(nsString& aCommandString)
   if (bufLength == 0) // Error
     return false;
 
-  nsAutoArrayPtr<wchar_t> destination(new wchar_t[bufLength]);
+  mozilla::UniquePtr<wchar_t[]> destination(new wchar_t[bufLength]);
   if (!destination)
     return false;
-  if (!::ExpandEnvironmentStringsW(handlerCommand.get(), destination,
+  if (!::ExpandEnvironmentStringsW(handlerCommand.get(), destination.get(),
                                    bufLength))
     return false;
 
-  handlerCommand = static_cast<const wchar_t*>(destination);
+  handlerCommand = static_cast<const wchar_t*>(destination.get());
 
   // Remove quotes around paths
   handlerCommand.StripChars("\"");

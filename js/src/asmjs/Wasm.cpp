@@ -427,11 +427,10 @@ DecodeExpr(FunctionDecoder& f, ExprType expected)
       case Expr::IfElse:
         return DecodeIfElse(f, /* hasElse */ true, expected);
       case Expr::I32Clz:
+      case Expr::I32Popcnt:
         return DecodeUnaryOperator(f, expected, ExprType::I32);
       case Expr::I32Ctz:
         return f.fail("NYI: ctz");
-      case Expr::I32Popcnt:
-        return f.fail("NYI: popcnt");
       case Expr::I64Clz:
       case Expr::I64Ctz:
       case Expr::I64Popcnt:
@@ -484,8 +483,7 @@ DecodeExpr(FunctionDecoder& f, ExprType expected)
       case Expr::I64Shl:
       case Expr::I64ShrS:
       case Expr::I64ShrU:
-        return f.fail("NYI: i64") &&
-               DecodeBinaryOperator(f, expected, ExprType::I64);
+        return DecodeBinaryOperator(f, expected, ExprType::I64);
       case Expr::F32Add:
       case Expr::F32Sub:
       case Expr::F32Mul:
@@ -525,8 +523,7 @@ DecodeExpr(FunctionDecoder& f, ExprType expected)
       case Expr::I64GtU:
       case Expr::I64GeS:
       case Expr::I64GeU:
-        return f.fail("NYI: i64") &&
-               DecodeComparisonOperator(f, expected, ExprType::I64);
+        return DecodeComparisonOperator(f, expected, ExprType::I64);
       case Expr::F32Eq:
       case Expr::F32Ne:
       case Expr::F32Lt:

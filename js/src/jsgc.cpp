@@ -1938,7 +1938,9 @@ GCMarker::delayMarkingArena(Arena* arena)
     }
     arena->setNextDelayedMarking(unmarkedArenaStackTop);
     unmarkedArenaStackTop = arena;
+#ifdef DEBUG
     markLaterArenas++;
+#endif
 }
 
 void
@@ -2004,7 +2006,7 @@ AutoDisableCompactingGC::AutoDisableCompactingGC(JSRuntime* rt)
 {
     gc.disableCompactingGC();
     if (gc.isIncrementalGCInProgress() && gc.isCompactingGc())
-        AutoFinishGC finishGC(rt);
+        FinishGC(rt);
 }
 
 AutoDisableCompactingGC::~AutoDisableCompactingGC()
@@ -3513,11 +3515,11 @@ GCHelperState::waitForBackgroundThread()
     MOZ_ASSERT(CurrentThreadCanAccessRuntime(rt));
 
 #ifdef DEBUG
-    rt->gc.lockOwner.value = nullptr;
+    rt->gc.lockOwner = nullptr;
 #endif
     PR_WaitCondVar(done, PR_INTERVAL_NO_TIMEOUT);
 #ifdef DEBUG
-    rt->gc.lockOwner.value = PR_GetCurrentThread();
+    rt->gc.lockOwner = PR_GetCurrentThread();
 #endif
 }
 
@@ -5099,7 +5101,9 @@ GCRuntime::beginSweepingZoneGroup()
         if (rt->sweepZoneCallback)
             rt->sweepZoneCallback(zone);
 
+#ifdef DEBUG
         zone->gcLastZoneGroupIndex = zoneGroupIndex;
+#endif
     }
 
     validateIncrementalMarking();
@@ -6423,7 +6427,9 @@ GCRuntime::collect(bool nonincrementalByAPI, SliceBudget budget, JS::gcreason::R
     gcstats::AutoGCSlice agc(stats, scanZonesBeforeGC(), invocationKind, budget, reason);
 
     bool repeat = false;
+    unsigned cycleCount = 0;
     do {
+        cycleCount++;
         poked = false;
         bool wasReset = gcCycle(nonincrementalByAPI, budget, reason);
 
@@ -6456,6 +6462,8 @@ GCRuntime::collect(bool nonincrementalByAPI, SliceBudget budget, JS::gcreason::R
          */
         repeat = (poked && cleanUpEverything) || wasReset || repeatForDeadZone;
     } while (repeat);
+
+    agc.setCycleCount(cycleCount);
 }
 
 js::AutoEnqueuePendingParseTasksAfterGC::~AutoEnqueuePendingParseTasksAfterGC()
@@ -6725,21 +6733,20 @@ GCRuntime::gcIfRequested(JSContext* cx /* = nullptr */)
     return false;
 }
 
-AutoFinishGC::AutoFinishGC(JSRuntime* rt)
+void js::gc::FinishGC(JSRuntime* rt)
 {
     if (JS::IsIncrementalGCInProgress(rt)) {
         JS::PrepareForIncrementalGC(rt);
         JS::FinishIncrementalGC(rt, JS::gcreason::API);
     }
 
-    rt->gc.waitBackgroundSweepEnd();
     rt->gc.nursery.waitBackgroundFreeEnd();
 }
 
 AutoPrepareForTracing::AutoPrepareForTracing(JSRuntime* rt, ZoneSelector selector)
-  : finish(rt),
-    session(rt)
 {
+    js::gc::FinishGC(rt);
+    session.emplace(rt);
 }
 
 JSCompartment*
@@ -7786,6 +7793,22 @@ NewMemoryInfoObject(JSContext* cx)
     }
 
     return obj;
+}
+
+const char*
+StateName(State state)
+{
+    static const char* names[] = {
+        "None",
+        "MarkRoots",
+        "Mark",
+        "Sweep",
+        "Finalize",
+        "Compact"
+    };
+    MOZ_ASSERT(ArrayLength(names) == NUM_STATES);
+    MOZ_ASSERT(state < NUM_STATES);
+    return names[state];
 }
 
 } /* namespace gc */

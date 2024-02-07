@@ -839,6 +839,19 @@ LIRGenerator::visitTest(MTest* test)
             return;
         }
 
+        // Compare and branch Int64.
+        if (comp->compareType() == MCompare::Compare_Int64 ||
+            comp->compareType() == MCompare::Compare_UInt64)
+        {
+            JSOp op = ReorderComparison(comp->jsop(), &left, &right);
+            LCompare64AndBranch* lir = new(alloc()) LCompare64AndBranch(comp, op,
+                                                                        useInt64Register(left),
+                                                                        useInt64OrConstant(right),
+                                                                        ifTrue, ifFalse);
+            add(lir, test);
+            return;
+        }
+
         // Compare and branch doubles.
         if (comp->isDoubleComparison()) {
             LAllocation lhs = useRegister(left);
@@ -1069,6 +1082,16 @@ LIRGenerator::visitCompare(MCompare* comp)
         return;
     }
 
+    // Compare Int64.
+    if (comp->compareType() == MCompare::Compare_Int64 ||
+        comp->compareType() == MCompare::Compare_UInt64)
+    {
+        JSOp op = ReorderComparison(comp->jsop(), &left, &right);
+        define(new(alloc()) LCompare64(op, useInt64Register(left), useInt64OrConstant(right)),
+               comp);
+        return;
+    }
+
     // Compare doubles.
     if (comp->isDoubleComparison()) {
         define(new(alloc()) LCompareD(useRegister(left), useRegister(right)), comp);
@@ -1098,9 +1121,17 @@ LIRGenerator::lowerBitOp(JSOp op, MInstruction* ins)
     MDefinition* lhs = ins->getOperand(0);
     MDefinition* rhs = ins->getOperand(1);
 
-    if (lhs->type() == MIRType_Int32 && rhs->type() == MIRType_Int32) {
+    if (lhs->type() == MIRType_Int32) {
+        MOZ_ASSERT(rhs->type() == MIRType_Int32);
         ReorderCommutative(&lhs, &rhs, ins);
         lowerForALU(new(alloc()) LBitOpI(op), ins, lhs, rhs);
+        return;
+    }
+
+    if (lhs->type() == MIRType_Int64) {
+        MOZ_ASSERT(rhs->type() == MIRType_Int64);
+        ReorderCommutative(&lhs, &rhs, ins);
+        lowerForALUInt64(new(alloc()) LBitOpI64(op), ins, lhs, rhs);
         return;
     }
 
@@ -1197,7 +1228,9 @@ LIRGenerator::lowerShiftOp(JSOp op, MShiftInstruction* ins)
     MDefinition* lhs = ins->getOperand(0);
     MDefinition* rhs = ins->getOperand(1);
 
-    if (lhs->type() == MIRType_Int32 && rhs->type() == MIRType_Int32) {
+    if (lhs->type() == MIRType_Int32) {
+        MOZ_ASSERT(rhs->type() == MIRType_Int32);
+
         if (ins->type() == MIRType_Double) {
             MOZ_ASSERT(op == JSOP_URSH);
             lowerUrshD(ins->toUrsh());
@@ -1210,6 +1243,12 @@ LIRGenerator::lowerShiftOp(JSOp op, MShiftInstruction* ins)
                 assignSnapshot(lir, Bailout_OverflowInvalidate);
         }
         lowerForShift(lir, ins, lhs, rhs);
+        return;
+    }
+
+    if (lhs->type() == MIRType_Int64) {
+        MOZ_ASSERT(rhs->type() == MIRType_Int64);
+        lowerForShiftInt64(new(alloc()) LShiftI64(op), ins, lhs, rhs);
         return;
     }
 
@@ -1351,6 +1390,15 @@ LIRGenerator::visitClz(MClz* ins)
     MDefinition* num = ins->num();
 
     LClzI* lir = new(alloc()) LClzI(useRegisterAtStart(num));
+    define(lir, ins);
+}
+
+void
+LIRGenerator::visitPopcnt(MPopcnt* ins)
+{
+    MDefinition* num = ins->num();
+
+    LPopcntI* lir = new(alloc()) LPopcntI(useRegisterAtStart(num), temp());
     define(lir, ins);
 }
 
@@ -1516,17 +1564,29 @@ LIRGenerator::visitAdd(MAdd* ins)
         return;
     }
 
+    if (ins->specialization() == MIRType_Int64) {
+        MOZ_ASSERT(lhs->type() == MIRType_Int64);
+        ReorderCommutative(&lhs, &rhs, ins);
+        LAddI64* lir = new(alloc()) LAddI64;
+        lowerForALUInt64(lir, ins, lhs, rhs);
+        return;
+    }
+
     if (ins->specialization() == MIRType_Double) {
         MOZ_ASSERT(lhs->type() == MIRType_Double);
         ReorderCommutative(&lhs, &rhs, ins);
         lowerForFPU(new(alloc()) LMathD(JSOP_ADD), ins, lhs, rhs);
-    } else if (ins->specialization() == MIRType_Float32) {
+        return;
+    }
+
+    if (ins->specialization() == MIRType_Float32) {
         MOZ_ASSERT(lhs->type() == MIRType_Float32);
         ReorderCommutative(&lhs, &rhs, ins);
         lowerForFPU(new(alloc()) LMathF(JSOP_ADD), ins, lhs, rhs);
-    } else {
-        lowerBinaryV(JSOP_ADD, ins);
+        return;
     }
+
+    lowerBinaryV(JSOP_ADD, ins);
 }
 
 void
@@ -1549,15 +1609,27 @@ LIRGenerator::visitSub(MSub* ins)
         return;
     }
 
+    if (ins->specialization() == MIRType_Int64) {
+        MOZ_ASSERT(lhs->type() == MIRType_Int64);
+        ReorderCommutative(&lhs, &rhs, ins);
+        LSubI64* lir = new(alloc()) LSubI64;
+        lowerForALUInt64(lir, ins, lhs, rhs);
+        return;
+    }
+
     if (ins->specialization() == MIRType_Double) {
         MOZ_ASSERT(lhs->type() == MIRType_Double);
         lowerForFPU(new(alloc()) LMathD(JSOP_SUB), ins, lhs, rhs);
-    } else if (ins->specialization() == MIRType_Float32) {
+        return;
+    }
+
+    if (ins->specialization() == MIRType_Float32) {
         MOZ_ASSERT(lhs->type() == MIRType_Float32);
         lowerForFPU(new(alloc()) LMathF(JSOP_SUB), ins, lhs, rhs);
-    } else {
-        lowerBinaryV(JSOP_SUB, ins);
+        return;
     }
+
+    lowerBinaryV(JSOP_SUB, ins);
 }
 
 void
@@ -1577,7 +1649,18 @@ LIRGenerator::visitMul(MMul* ins)
             defineReuseInput(new(alloc()) LNegI(useRegisterAtStart(lhs)), ins, 0);
         else
             lowerMulI(ins, lhs, rhs);
-    } else if (ins->specialization() == MIRType_Double) {
+        return;
+    }
+
+    if (ins->specialization() == MIRType_Int64) {
+        MOZ_ASSERT(lhs->type() == MIRType_Int64);
+        ReorderCommutative(&lhs, &rhs, ins);
+        LMulI64* lir = new(alloc()) LMulI64;
+        lowerForALUInt64(lir, ins, lhs, rhs);
+        return;
+    }
+
+    if (ins->specialization() == MIRType_Double) {
         MOZ_ASSERT(lhs->type() == MIRType_Double);
         ReorderCommutative(&lhs, &rhs, ins);
 
@@ -1586,7 +1669,10 @@ LIRGenerator::visitMul(MMul* ins)
             defineReuseInput(new(alloc()) LNegD(useRegisterAtStart(lhs)), ins, 0);
         else
             lowerForFPU(new(alloc()) LMathD(JSOP_MUL), ins, lhs, rhs);
-    } else if (ins->specialization() == MIRType_Float32) {
+        return;
+    }
+
+    if (ins->specialization() == MIRType_Float32) {
         MOZ_ASSERT(lhs->type() == MIRType_Float32);
         ReorderCommutative(&lhs, &rhs, ins);
 
@@ -1595,9 +1681,10 @@ LIRGenerator::visitMul(MMul* ins)
             defineReuseInput(new(alloc()) LNegF(useRegisterAtStart(lhs)), ins, 0);
         else
             lowerForFPU(new(alloc()) LMathF(JSOP_MUL), ins, lhs, rhs);
-    } else {
-        lowerBinaryV(JSOP_MUL, ins);
+        return;
     }
+
+    lowerBinaryV(JSOP_MUL, ins);
 }
 
 void
@@ -1610,15 +1697,28 @@ LIRGenerator::visitDiv(MDiv* ins)
     if (ins->specialization() == MIRType_Int32) {
         MOZ_ASSERT(lhs->type() == MIRType_Int32);
         lowerDivI(ins);
-    } else if (ins->specialization() == MIRType_Double) {
+        return;
+    }
+
+    if (ins->specialization() == MIRType_Int64) {
+        MOZ_ASSERT(lhs->type() == MIRType_Int64);
+        lowerDivI64(ins);
+        return;
+    }
+
+    if (ins->specialization() == MIRType_Double) {
         MOZ_ASSERT(lhs->type() == MIRType_Double);
         lowerForFPU(new(alloc()) LMathD(JSOP_DIV), ins, lhs, rhs);
-    } else if (ins->specialization() == MIRType_Float32) {
+        return;
+    }
+
+    if (ins->specialization() == MIRType_Float32) {
         MOZ_ASSERT(lhs->type() == MIRType_Float32);
         lowerForFPU(new(alloc()) LMathF(JSOP_DIV), ins, lhs, rhs);
-    } else {
-        lowerBinaryV(JSOP_DIV, ins);
+        return;
     }
+
+    lowerBinaryV(JSOP_DIV, ins);
 }
 
 void
@@ -1630,7 +1730,17 @@ LIRGenerator::visitMod(MMod* ins)
         MOZ_ASSERT(ins->type() == MIRType_Int32);
         MOZ_ASSERT(ins->lhs()->type() == MIRType_Int32);
         lowerModI(ins);
-    } else if (ins->specialization() == MIRType_Double) {
+        return;
+    }
+
+    if (ins->specialization() == MIRType_Int64) {
+        MOZ_ASSERT(ins->type() == MIRType_Int64);
+        MOZ_ASSERT(ins->lhs()->type() == MIRType_Int64);
+        lowerModI64(ins);
+        return;
+    }
+
+    if (ins->specialization() == MIRType_Double) {
         MOZ_ASSERT(ins->type() == MIRType_Double);
         MOZ_ASSERT(ins->lhs()->type() == MIRType_Double);
         MOZ_ASSERT(ins->rhs()->type() == MIRType_Double);
@@ -1639,9 +1749,10 @@ LIRGenerator::visitMod(MMod* ins)
         LModD* lir = new(alloc()) LModD(useRegisterAtStart(ins->lhs()), useRegisterAtStart(ins->rhs()),
                                         tempFixed(CallTempReg0));
         defineReturn(lir, ins);
-    } else {
-        lowerBinaryV(JSOP_MOD, ins);
+        return;
     }
+
+    lowerBinaryV(JSOP_MOD, ins);
 }
 
 void

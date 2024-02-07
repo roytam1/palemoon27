@@ -10,7 +10,6 @@
 #define jsgc_h
 
 #include "mozilla/Atomics.h"
-#include "mozilla/DebugOnly.h"
 #include "mozilla/EnumeratedArray.h"
 #include "mozilla/MemoryReporting.h"
 #include "mozilla/TypeTraits.h"
@@ -49,7 +48,9 @@ enum State {
     MARK,
     SWEEP,
     FINALIZE,
-    COMPACT
+    COMPACT,
+
+    NUM_STATES
 };
 
 /* Map from C++ type to alloc kind. JSObject does not have a 1:1 mapping, so must use Arena::thingSize. */
@@ -790,12 +791,6 @@ const size_t MAX_EMPTY_CHUNK_AGE = 4;
 
 } /* namespace gc */
 
-extern bool
-InitGC(JSRuntime* rt, uint32_t maxbytes);
-
-extern void
-FinishGC(JSRuntime* rt);
-
 class InterpreterFrame;
 
 extern void
@@ -1295,6 +1290,9 @@ struct MOZ_RAII AutoAssertNoNurseryAlloc
     explicit AutoAssertNoNurseryAlloc(JSRuntime* rt) {}
 #endif
 };
+
+const char*
+StateName(State state);
 
 } /* namespace gc */
 

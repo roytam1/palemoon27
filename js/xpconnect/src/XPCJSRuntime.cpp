@@ -3184,11 +3184,11 @@ ReadSourceFromFilename(JSContext* cx, const char* filename, char16_t** src, size
         return NS_ERROR_FILE_TOO_BIG;
 
     // Allocate an internal buf the size of the file.
-    nsAutoArrayPtr<unsigned char> buf(new unsigned char[rawLen]);
+    UniquePtr<unsigned char[]> buf(new unsigned char[rawLen]);
     if (!buf)
         return NS_ERROR_OUT_OF_MEMORY;
 
-    unsigned char* ptr = buf;
+    unsigned char* ptr = buf.get();
     unsigned char* end = ptr + rawLen;
     while (ptr < end) {
         uint32_t bytesRead;
@@ -3199,7 +3199,7 @@ ReadSourceFromFilename(JSContext* cx, const char* filename, char16_t** src, size
         ptr += bytesRead;
     }
 
-    rv = nsScriptLoader::ConvertToUTF16(scriptChannel, buf, rawLen, EmptyString(),
+    rv = nsScriptLoader::ConvertToUTF16(scriptChannel, buf.get(), rawLen, EmptyString(),
                                         nullptr, *src, *len);
     NS_ENSURE_SUCCESS(rv, rv);
 

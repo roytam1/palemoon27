@@ -693,6 +693,8 @@ class MacroAssembler : public MacroAssemblerSpecific
     inline void andPtr(Imm32 imm, Register dest) PER_ARCH;
 
     inline void and64(Imm64 imm, Register64 dest) PER_ARCH;
+    inline void or64(Imm64 imm, Register64 dest) PER_ARCH;
+    inline void xor64(Imm64 imm, Register64 dest) PER_ARCH;
 
     inline void or32(Register src, Register dest) PER_SHARED_ARCH;
     inline void or32(Imm32 imm, Register dest) PER_SHARED_ARCH;
@@ -743,6 +745,7 @@ class MacroAssembler : public MacroAssemblerSpecific
     inline void subPtr(Register src, Register dest) PER_ARCH;
     inline void subPtr(Register src, const Address& dest) DEFINED_ON(mips_shared, arm, arm64, x86, x64);
     inline void subPtr(Imm32 imm, Register dest) PER_ARCH;
+    inline void subPtr(ImmWord imm, Register dest) DEFINED_ON(x64);
     inline void subPtr(const Address& addr, Register dest) DEFINED_ON(mips_shared, arm, arm64, x86, x64);
 
     inline void subDouble(FloatRegister src, FloatRegister dest) PER_SHARED_ARCH;

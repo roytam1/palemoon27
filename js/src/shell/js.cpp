@@ -10,6 +10,7 @@
 #include "mozilla/Atomics.h"
 #include "mozilla/DebugOnly.h"
 #include "mozilla/GuardObjects.h"
+#include "mozilla/IntegerPrintfMacros.h"
 #include "mozilla/PodOperations.h"
 #include "mozilla/SizePrintfMacros.h"
 
@@ -74,6 +75,7 @@
 #include "js/TrackedOptimizationInfo.h"
 #include "perf/jsperf.h"
 #include "shell/jsoptparse.h"
+#include "shell/jsshell.h"
 #include "shell/OSObject.h"
 #include "vm/ArgumentsObject.h"
 #include "vm/Compression.h"
@@ -358,7 +360,7 @@ GetLine(FILE* file, const char * prompt)
         return nullptr;
 
     char* current = buffer;
-    while (true) {
+    do {
         while (true) {
             if (fgets(current, size - len, file))
                 break;
@@ -386,11 +388,7 @@ GetLine(FILE* file, const char * prompt)
             buffer = tmp;
         }
         current = buffer + len;
-    }
-
-    if (len && !ferror(file))
-        return buffer;
-    free(buffer);
+    } while (true);
     return nullptr;
 }
 
@@ -3592,18 +3590,26 @@ SyntaxParse(JSContext* cx, unsigned argc, Value* vp)
     return true;
 }
 
+enum class ScriptKind
+{
+    Script,
+    Module
+};
+
 class OffThreadState {
-  public:
     enum State {
         IDLE,           /* ready to work; no token, no source */
         COMPILING,      /* working; no token, have source */
         DONE            /* compilation done: have token and source */
     };
 
+  public:
     OffThreadState() : monitor(), state(IDLE), token(), source(nullptr) { }
     bool init() { return monitor.init(); }
 
-    bool startIfIdle(JSContext* cx, ScopedJSFreePtr<char16_t>& newSource) {
+    bool startIfIdle(JSContext* cx, ScriptKind kind,
+                     ScopedJSFreePtr<char16_t>& newSource)
+    {
         AutoLockMonitor alm(monitor);
         if (state != IDLE)
             return false;
@@ -3612,6 +3618,7 @@ class OffThreadState {
 
         source = newSource.forget();
 
+        scriptKind = kind;
         state = COMPILING;
         return true;
     }
@@ -3640,9 +3647,9 @@ class OffThreadState {
         alm.notify();
     }
 
-    void* waitUntilDone(JSContext* cx) {
+    void* waitUntilDone(JSContext* cx, ScriptKind kind) {
         AutoLockMonitor alm(monitor);
-        if (state == IDLE)
+        if (state == IDLE || scriptKind != kind)
             return nullptr;
 
         if (state == COMPILING) {
@@ -3663,6 +3670,7 @@ class OffThreadState {
 
   private:
     Monitor monitor;
+    ScriptKind scriptKind;
     State state;
     void* token;
     char16_t* source;
@@ -3749,7 +3757,7 @@ OffThreadCompileScript(JSContext* cx, unsigned argc, Value* vp)
         return false;
     }
 
-    if (!offThreadState.startIfIdle(cx, ownedChars)) {
+    if (!offThreadState.startIfIdle(cx, ScriptKind::Script, ownedChars)) {
         JS_ReportError(cx, "called offThreadCompileScript without calling runOffThreadScript"
                        " to receive prior off-thread compilation");
         return false;
@@ -3773,9 +3781,9 @@ runOffThreadScript(JSContext* cx, unsigned argc, Value* vp)
 
     JSRuntime* rt = cx->runtime();
     if (OffThreadParsingMustWaitForGC(rt))
-        gc::AutoFinishGC finishgc(rt);
+        gc::FinishGC(rt);
 
-    void* token = offThreadState.waitUntilDone(cx);
+    void* token = offThreadState.waitUntilDone(cx, ScriptKind::Script);
     if (!token) {
         JS_ReportError(cx, "called runOffThreadScript when no compilation is pending");
         return false;
@@ -3851,7 +3859,7 @@ OffThreadCompileModule(JSContext* cx, unsigned argc, Value* vp)
         return false;
     }
 
-    if (!offThreadState.startIfIdle(cx, ownedChars)) {
+    if (!offThreadState.startIfIdle(cx, ScriptKind::Module, ownedChars)) {
         JS_ReportError(cx, "called offThreadCompileModule without receiving prior off-thread "
                        "compilation");
         return false;
@@ -3875,9 +3883,9 @@ FinishOffThreadModule(JSContext* cx, unsigned argc, Value* vp)
 
     JSRuntime* rt = cx->runtime();
     if (OffThreadParsingMustWaitForGC(rt))
-        gc::AutoFinishGC finishgc(rt);
+        gc::FinishGC(rt);
 
-    void* token = offThreadState.waitUntilDone(cx);
+    void* token = offThreadState.waitUntilDone(cx, ScriptKind::Module);
     if (!token) {
         JS_ReportError(cx, "called finishOffThreadModule when no compilation is pending");
         return false;
@@ -7252,7 +7260,7 @@ main(int argc, char** argv, char** envp)
 
 #ifdef DEBUG
     if (OOM_printAllocationCount)
-        printf("OOM max count: %u\n", OOM_counter);
+        printf("OOM max count: %" PRIu64 "\n", js::oom::counter);
 #endif
 
     JS::SetLargeAllocationFailureCallback(rt, nullptr, nullptr);

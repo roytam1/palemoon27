@@ -164,6 +164,13 @@ LIRGeneratorARM::lowerForALU(LInstructionHelper<1, 2, 0>* ins, MDefinition* mir,
 }
 
 void
+LIRGeneratorARM::lowerForALUInt64(LInstructionHelper<INT64_PIECES, 2 * INT64_PIECES, 0>* ins,
+                                  MDefinition* mir, MDefinition* lhs, MDefinition* rhs)
+{
+    MOZ_CRASH("NYI");
+}
+
+void
 LIRGeneratorARM::lowerForFPU(LInstructionHelper<1, 1, 0>* ins, MDefinition* mir, MDefinition* input)
 {
     ins->setOperand(0, useRegisterAtStart(input));
@@ -228,6 +235,13 @@ LIRGeneratorARM::lowerForShift(LInstructionHelper<1, 2, 0>* ins, MDefinition* mi
     ins->setOperand(0, useRegister(lhs));
     ins->setOperand(1, useRegisterOrConstant(rhs));
     define(ins, mir);
+}
+
+void
+LIRGeneratorARM::lowerForShiftInt64(LInstructionHelper<INT64_PIECES, INT64_PIECES + 1, 0>* ins,
+                                    MDefinition* mir, MDefinition* lhs, MDefinition* rhs)
+{
+    MOZ_CRASH("NYI");
 }
 
 void
@@ -322,6 +336,18 @@ LIRGeneratorARM::lowerModI(MMod* mod)
     if (mod->fallible())
         assignSnapshot(lir, Bailout_DoubleOutput);
     defineFixed(lir, mod, LAllocation(AnyRegister(r1)));
+}
+
+void
+LIRGeneratorARM::lowerDivI64(MDiv* div)
+{
+    MOZ_CRASH("NYI");
+}
+
+void
+LIRGeneratorARM::lowerModI64(MMod* mod)
+{
+    MOZ_CRASH("NYI");
 }
 
 void

@@ -87,6 +87,8 @@ nsHttpTransaction::nsHttpTransaction()
     , mConnection(nullptr)
     , mRequestHead(nullptr)
     , mResponseHead(nullptr)
+    , mReader(nullptr)
+    , mWriter(nullptr)
     , mContentLength(-1)
     , mContentRead(0)
     , mTransferSize(0)
@@ -581,7 +583,7 @@ nsHttpTransaction::OnTransportStatus(nsITransport* transport,
     // and the correct value will be returned in nsPerformance.
     if (TimingEnabled() && GetRequestStart().IsNull()) {
         if (status == NS_NET_STATUS_RESOLVING_HOST) {
-            SetDomainLookupStart(TimeStamp::Now());
+            SetDomainLookupStart(TimeStamp::Now(), true);
         } else if (status == NS_NET_STATUS_RESOLVED_HOST) {
             SetDomainLookupEnd(TimeStamp::Now());
         } else if (status == NS_NET_STATUS_CONNECTING_TO) {
@@ -971,11 +973,6 @@ nsHttpTransaction::Close(nsresult reason)
             PR_Now(), 0, EmptyCString());
     }
 
-    // we must no longer reference the connection!  find out if the
-    // connection was being reused before letting it go.
-    bool connReused = false;
-    if (mConnection)
-        connReused = mConnection->IsReused();
     mConnected = false;
     mTunnelProvider = nullptr;
 
@@ -985,6 +982,9 @@ nsHttpTransaction::Close(nsresult reason)
     // response and the connection was being reused, then we can (and really
     // should) assume that we wrote to a stale connection and we must therefore
     // repeat the request over a new connection.
+    //
+    // We have decided to retry not only in case of the reused connections, but
+    // all safe methods(bug 1236277).
     //
     // NOTE: the conditions under which we will automatically retry the HTTP
     // request have to be carefully selected to avoid duplication of the
@@ -1025,7 +1025,8 @@ nsHttpTransaction::Close(nsresult reason)
             mSentData && (!mConnection || mConnection->BytesWritten());
 
         if (!mReceivedData &&
-            (!reallySentData || connReused || mPipelinePosition)) {
+            ((mRequestHead && mRequestHead->IsSafeMethod()) ||
+             !reallySentData)) {
             // if restarting fails, then we must proceed to close the pipe,
             // which will notify the channel that the transaction failed.
 
@@ -1677,16 +1678,19 @@ nsHttpTransaction::HandleContentStart()
             // we're done with the socket.  please note that _all_ other
             // decoding is done when the channel receives the content data
             // so as not to block the socket transport thread too much.
-            // ignore chunked responses from HTTP/1.0 servers and proxies.
-            if (mResponseHead->Version() >= NS_HTTP_VERSION_1_1 &&
+            if (mResponseHead->Version() >= NS_HTTP_VERSION_1_0 &&
                 mResponseHead->HasHeaderValue(nsHttp::Transfer_Encoding, "chunked")) {
                 // we only support the "chunked" transfer encoding right now.
                 mChunkedDecoder = new nsHttpChunkedDecoder();
-                if (!mChunkedDecoder)
-                    return NS_ERROR_OUT_OF_MEMORY;
-                LOG(("chunked decoder created\n"));
+                LOG(("nsHttpTransaction %p chunked decoder created\n", this));
                 // Ignore server specified Content-Length.
-                mContentLength = -1;
+                if (mContentLength != int64_t(-1)) {
+                    LOG(("nsHttpTransaction %p chunked with C-L ignores C-L\n", this));
+                    mContentLength = -1;
+                    if (mConnection) {
+                        mConnection->DontReuse();
+                    }
+                }
             }
             else if (mContentLength == int64_t(-1))
                 LOG(("waiting for the server to close the connection.\n"));

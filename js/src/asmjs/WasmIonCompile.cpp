@@ -28,7 +28,6 @@ using namespace js::wasm;
 using mozilla::DebugOnly;
 using mozilla::Maybe;
 
-typedef Vector<size_t, 1, SystemAllocPolicy> LabelVector;
 typedef Vector<MBasicBlock*, 8, SystemAllocPolicy> BlockVector;
 
 // Encapsulates the compilation of a single function in an asm.js module. The
@@ -37,14 +36,11 @@ typedef Vector<MBasicBlock*, 8, SystemAllocPolicy> BlockVector;
 class FunctionCompiler
 {
   private:
-    typedef HashMap<uint32_t, BlockVector, DefaultHasher<uint32_t>, SystemAllocPolicy> LabeledBlockMap;
-    typedef HashMap<size_t, BlockVector, DefaultHasher<uint32_t>, SystemAllocPolicy> UnlabeledBlockMap;
-    typedef Vector<size_t, 4, SystemAllocPolicy> PositionStack;
+    typedef Vector<BlockVector, 0, SystemAllocPolicy> BlocksVector;
 
     ModuleGeneratorThreadView& mg_;
     const FuncBytecode&        func_;
     Decoder                    decoder_;
-    size_t                     nextId_;
     size_t                     lastReadCallSite_;
 
     TempAllocator&             alloc_;
@@ -54,12 +50,9 @@ class FunctionCompiler
 
     MBasicBlock*               curBlock_;
 
-    PositionStack              loopStack_;
-    PositionStack              breakableStack_;
-    UnlabeledBlockMap          unlabeledBreaks_;
-    UnlabeledBlockMap          unlabeledContinues_;
-    LabeledBlockMap            labeledBreaks_;
-    LabeledBlockMap            labeledContinues_;
+    uint32_t                   loopDepth_;
+    uint32_t                   blockDepth_;
+    BlocksVector               targets_;
 
     FuncCompileResults&        compileResults_;
 
@@ -69,13 +62,14 @@ class FunctionCompiler
       : mg_(mg),
         func_(func),
         decoder_(func.bytecode()),
-        nextId_(0),
         lastReadCallSite_(0),
         alloc_(mirGen.alloc()),
         graph_(mirGen.graph()),
         info_(mirGen.info()),
         mirGen_(mirGen),
         curBlock_(nullptr),
+        loopDepth_(0),
+        blockDepth_(0),
         compileResults_(compileResults)
     {}
 
@@ -86,21 +80,13 @@ class FunctionCompiler
 
     bool init()
     {
-        if (!unlabeledBreaks_.init() ||
-            !unlabeledContinues_.init() ||
-            !labeledBreaks_.init() ||
-            !labeledContinues_.init())
-        {
-            return false;
-        }
-
         // Prepare the entry block for MIR generation:
 
         const ValTypeVector& args = func_.sig().args();
 
         if (!mirGen_.ensureBallast())
             return false;
-        if (!newBlock(/* pred = */ nullptr, &curBlock_))
+        if (!newBlock(/* prev */ nullptr, &curBlock_))
             return false;
 
         for (ABIArgValTypeIter i(args); !i.done(); i++) {
@@ -153,11 +139,13 @@ class FunctionCompiler
 
     void checkPostconditions()
     {
-        MOZ_ASSERT(loopStack_.empty());
-        MOZ_ASSERT(unlabeledBreaks_.empty());
-        MOZ_ASSERT(unlabeledContinues_.empty());
-        MOZ_ASSERT(labeledBreaks_.empty());
-        MOZ_ASSERT(labeledContinues_.empty());
+        MOZ_ASSERT(loopDepth_ == 0);
+        MOZ_ASSERT(blockDepth_ == 0);
+#ifdef DEBUG
+        for (BlockVector& vec : targets_) {
+            MOZ_ASSERT(vec.empty());
+        }
+#endif
         MOZ_ASSERT(inDeadCode());
         MOZ_ASSERT(decoder_.done(), "all bytecode must be consumed");
         MOZ_ASSERT(func_.callSiteLineNums().length() == lastReadCallSite_);
@@ -445,11 +433,11 @@ class FunctionCompiler
     }
 
     template <class T>
-    MDefinition* bitwise(MDefinition* lhs, MDefinition* rhs)
+    MDefinition* bitwise(MDefinition* lhs, MDefinition* rhs, MIRType type)
     {
         if (inDeadCode())
             return nullptr;
-        T* ins = T::NewAsmJS(alloc(), lhs, rhs);
+        T* ins = T::NewAsmJS(alloc(), lhs, rhs, type);
         curBlock_->add(ins);
         return ins;
     }
@@ -786,7 +774,7 @@ class FunctionCompiler
             MOZ_ASSERT(IsPowerOfTwo(length));
             MConstant* mask = MConstant::New(alloc(), Int32Value(length - 1));
             curBlock_->add(mask);
-            MBitAnd* maskedIndex = MBitAnd::NewAsmJS(alloc(), index, mask);
+            MBitAnd* maskedIndex = MBitAnd::NewAsmJS(alloc(), index, mask, MIRType_Int32);
             curBlock_->add(maskedIndex);
             ptrFun = MAsmJSLoadFuncPtr::New(alloc(), maskedIndex, globalDataOffset);
             curBlock_->add(ptrFun);
@@ -876,9 +864,7 @@ class FunctionCompiler
     }
 
     void assertCurrentBlockIs(MBasicBlock* block) {
-        if (inDeadCode())
-            return;
-        MOZ_ASSERT(curBlock_ == block);
+        MOZ_ASSERT(inDeadCode() || curBlock_ == block);
     }
 
     bool appendThenBlock(BlockVector* thenBlocks)
@@ -890,17 +876,9 @@ class FunctionCompiler
 
     bool joinIf(const BlockVector& thenBlocks, MBasicBlock* joinBlock)
     {
-        if (!joinBlock)
-            return true;
         MOZ_ASSERT_IF(curBlock_, thenBlocks.back() == curBlock_);
-        for (size_t i = 0; i < thenBlocks.length(); i++) {
-            thenBlocks[i]->end(MGoto::New(alloc(), joinBlock));
-            if (!joinBlock->addPredecessor(alloc(), thenBlocks[i]))
-                return false;
-        }
         curBlock_ = joinBlock;
-        mirGraph().moveBlockToEnd(curBlock_);
-        return true;
+        return joinIfElse(thenBlocks);
     }
 
     void switchToElse(MBasicBlock* elseBlock)
@@ -915,19 +893,24 @@ class FunctionCompiler
     {
         if (inDeadCode() && thenBlocks.empty())
             return true;
-        MBasicBlock* pred = curBlock_ ? curBlock_ : thenBlocks[0];
+
         MBasicBlock* join;
-        if (!newBlock(pred, &join))
-            return false;
-        if (curBlock_)
-            curBlock_->end(MGoto::New(alloc(), join));
-        for (size_t i = 0; i < thenBlocks.length(); i++) {
-            thenBlocks[i]->end(MGoto::New(alloc(), join));
-            if (pred == curBlock_ || i > 0) {
-                if (!join->addPredecessor(alloc(), thenBlocks[i]))
-                    return false;
-            }
+
+        if (curBlock_) {
+            if (!goToNewBlock(curBlock_, &join))
+                return false;
+            if (!thenBlocks.empty() && !goToExistingBlock(thenBlocks[0], join))
+                return false;
+        } else {
+            if (!goToNewBlock(thenBlocks[0], &join))
+                return false;
         }
+
+        for (size_t i = 1; i < thenBlocks.length(); i++) {
+            if (!goToExistingBlock(thenBlocks[i], join))
+                return false;
+        }
+
         curBlock_ = join;
         return true;
     }
@@ -953,57 +936,49 @@ class FunctionCompiler
         return curBlock_->pop();
     }
 
-    bool startPendingLoop(size_t id, MBasicBlock** loopEntry)
+    bool startBlock()
     {
-        if (!loopStack_.append(id) || !breakableStack_.append(id))
-            return false;
-        if (inDeadCode()) {
-            *loopEntry = nullptr;
-            return true;
-        }
-        MOZ_ASSERT(curBlock_->loopDepth() == loopStack_.length() - 1);
-        *loopEntry = MBasicBlock::NewAsmJS(mirGraph(), info(), curBlock_,
-                                           MBasicBlock::PENDING_LOOP_HEADER);
-        if (!*loopEntry)
-            return false;
-        mirGraph().addBlock(*loopEntry);
-        (*loopEntry)->setLoopDepth(loopStack_.length());
-        curBlock_->end(MGoto::New(alloc(), *loopEntry));
-        curBlock_ = *loopEntry;
+        MOZ_ASSERT_IF(blockDepth_ < targets_.length(), targets_[blockDepth_].empty());
+        blockDepth_++;
         return true;
     }
 
-    bool branchAndStartLoopBody(MDefinition* cond, MBasicBlock** afterLoop)
+    bool finishBlock()
     {
-        if (inDeadCode()) {
-            *afterLoop = nullptr;
+        MOZ_ASSERT(blockDepth_);
+        uint32_t topLabel = --blockDepth_;
+        return bindBranches(topLabel);
+    }
+
+    bool startLoop(MBasicBlock** loopHeader)
+    {
+        *loopHeader = nullptr;
+
+        blockDepth_ += 2;
+        loopDepth_++;
+
+        if (inDeadCode())
             return true;
-        }
-        MOZ_ASSERT(curBlock_->loopDepth() > 0);
-        MBasicBlock* body;
-        if (!newBlock(curBlock_, &body))
+
+        // Create the loop header.
+        MOZ_ASSERT(curBlock_->loopDepth() == loopDepth_ - 1);
+        *loopHeader = MBasicBlock::NewAsmJS(mirGraph(), info(), curBlock_,
+                                            MBasicBlock::PENDING_LOOP_HEADER);
+        if (!*loopHeader)
             return false;
-        if (cond->isConstant() && cond->toConstant()->valueToBooleanInfallible()) {
-            *afterLoop = nullptr;
-            curBlock_->end(MGoto::New(alloc(), body));
-        } else {
-            if (!newBlockWithDepth(curBlock_, curBlock_->loopDepth() - 1, afterLoop))
-                return false;
-            curBlock_->end(MTest::New(alloc(), cond, body, *afterLoop));
-        }
+
+        (*loopHeader)->setLoopDepth(loopDepth_);
+        mirGraph().addBlock(*loopHeader);
+        curBlock_->end(MGoto::New(alloc(), *loopHeader));
+
+        MBasicBlock* body;
+        if (!goToNewBlock(*loopHeader, &body))
+            return false;
         curBlock_ = body;
         return true;
     }
 
   private:
-    size_t popLoop()
-    {
-        size_t id = loopStack_.popCopy();
-        MOZ_ASSERT(!unlabeledContinues_.has(id));
-        breakableStack_.popBack();
-        return id;
-    }
-
     void fixupRedundantPhis(MBasicBlock* b)
     {
         for (size_t i = 0, depth = b->stackDepth(); i < depth; i++) {
@@ -1012,20 +987,8 @@ class FunctionCompiler
                 b->setSlot(i, def->toPhi()->getOperand(0));
         }
     }
-    template <typename T>
-    void fixupRedundantPhis(MBasicBlock* loopEntry, T& map)
-    {
-        if (!map.initialized())
-            return;
-        for (typename T::Enum e(map); !e.empty(); e.popFront()) {
-            BlockVector& blocks = e.front().value();
-            for (size_t i = 0; i < blocks.length(); i++) {
-                if (blocks[i]->loopDepth() >= loopEntry->loopDepth())
-                    fixupRedundantPhis(blocks[i]);
-            }
-        }
-    }
-    bool setLoopBackedge(MBasicBlock* loopEntry, MBasicBlock* backedge, MBasicBlock* afterLoop)
+
+    bool setLoopBackedge(MBasicBlock* loopEntry, MBasicBlock* loopBody, MBasicBlock* backedge)
     {
         if (!loopEntry->setBackedgeAsmJS(backedge))
             return false;
@@ -1038,12 +1001,16 @@ class FunctionCompiler
         }
 
         // Fix up phis stored in the slots Vector of pending blocks.
-        if (afterLoop)
-            fixupRedundantPhis(afterLoop);
-        fixupRedundantPhis(loopEntry, labeledContinues_);
-        fixupRedundantPhis(loopEntry, labeledBreaks_);
-        fixupRedundantPhis(loopEntry, unlabeledContinues_);
-        fixupRedundantPhis(loopEntry, unlabeledBreaks_);
+        for (BlockVector& vec : targets_) {
+            for (MBasicBlock* block : vec) {
+                if (block->loopDepth() >= loopEntry->loopDepth())
+                    fixupRedundantPhis(block);
+            }
+        }
+
+        // The loop body, if any, might be referencing recycled phis too.
+        if (loopBody)
+            fixupRedundantPhis(loopBody);
 
         // Discard redundant phis and add to the free list.
         for (MPhiIterator phi = loopEntry->phisBegin(); phi != loopEntry->phisEnd(); ) {
@@ -1060,105 +1027,72 @@ class FunctionCompiler
     }
 
   public:
-    bool closeLoop(MBasicBlock* loopEntry, MBasicBlock* afterLoop)
+    bool closeLoop(MBasicBlock* loopHeader)
     {
-        size_t id = popLoop();
-        if (!loopEntry) {
-            MOZ_ASSERT(!afterLoop);
+        MOZ_ASSERT(blockDepth_ >= 2);
+        MOZ_ASSERT(loopDepth_);
+
+        uint32_t headerLabel = blockDepth_ - 1;
+        uint32_t afterLabel = blockDepth_ - 2;
+
+        if (!loopHeader) {
             MOZ_ASSERT(inDeadCode());
-            MOZ_ASSERT(!unlabeledBreaks_.has(id));
+            MOZ_ASSERT(afterLabel >= targets_.length() || targets_[afterLabel].empty());
+            MOZ_ASSERT(headerLabel >= targets_.length() || targets_[headerLabel].empty());
+            blockDepth_ -= 2;
+            loopDepth_--;
             return true;
         }
-        MOZ_ASSERT(loopEntry->loopDepth() == loopStack_.length() + 1);
-        MOZ_ASSERT_IF(afterLoop, afterLoop->loopDepth() == loopStack_.length());
-        if (curBlock_) {
-            MOZ_ASSERT(curBlock_->loopDepth() == loopStack_.length() + 1);
-            curBlock_->end(MGoto::New(alloc(), loopEntry));
-            if (!setLoopBackedge(loopEntry, curBlock_, afterLoop))
-                return false;
-        }
-        curBlock_ = afterLoop;
-        if (curBlock_)
-            mirGraph().moveBlockToEnd(curBlock_);
-        return bindUnlabeledBreaks(id);
-    }
 
-    bool branchAndCloseDoWhileLoop(MDefinition* cond, MBasicBlock* loopEntry)
-    {
-        size_t id = popLoop();
-        if (!loopEntry) {
-            MOZ_ASSERT(inDeadCode());
-            MOZ_ASSERT(!unlabeledBreaks_.has(id));
-            return true;
-        }
-        MOZ_ASSERT(loopEntry->loopDepth() == loopStack_.length() + 1);
-        if (curBlock_) {
-            MOZ_ASSERT(curBlock_->loopDepth() == loopStack_.length() + 1);
-            if (cond->isConstant()) {
-                if (cond->toConstant()->valueToBooleanInfallible()) {
-                    curBlock_->end(MGoto::New(alloc(), loopEntry));
-                    if (!setLoopBackedge(loopEntry, curBlock_, nullptr))
-                        return false;
-                    curBlock_ = nullptr;
-                } else {
-                    MBasicBlock* afterLoop;
-                    if (!newBlock(curBlock_, &afterLoop))
-                        return false;
-                    curBlock_->end(MGoto::New(alloc(), afterLoop));
-                    curBlock_ = afterLoop;
-                }
-            } else {
-                MBasicBlock* afterLoop;
-                if (!newBlock(curBlock_, &afterLoop))
-                    return false;
-                curBlock_->end(MTest::New(alloc(), cond, loopEntry, afterLoop));
-                if (!setLoopBackedge(loopEntry, curBlock_, afterLoop))
-                    return false;
-                curBlock_ = afterLoop;
-            }
-        }
-        return bindUnlabeledBreaks(id);
-    }
+        // Expr::Loop doesn't have an implicit backedge so temporarily set
+        // aside the end of the loop body to bind backedges.
+        MBasicBlock* loopBody = curBlock_;
+        curBlock_ = nullptr;
 
-    bool bindContinues(size_t id, const LabelVector* maybeLabels)
-    {
-        bool createdJoinBlock = false;
-        if (UnlabeledBlockMap::Ptr p = unlabeledContinues_.lookup(id)) {
-            if (!bindBreaksOrContinues(&p->value(), &createdJoinBlock))
-                return false;
-            unlabeledContinues_.remove(p);
-        }
-        return bindLabeledBreaksOrContinues(maybeLabels, &labeledContinues_, &createdJoinBlock);
-    }
-
-    bool bindLabeledBreaks(const LabelVector* maybeLabels)
-    {
-        bool createdJoinBlock = false;
-        return bindLabeledBreaksOrContinues(maybeLabels, &labeledBreaks_, &createdJoinBlock);
-    }
-
-    bool addBreak(uint32_t* maybeLabelId) {
-        if (maybeLabelId)
-            return addBreakOrContinue(*maybeLabelId, &labeledBreaks_);
-        return addBreakOrContinue(breakableStack_.back(), &unlabeledBreaks_);
-    }
-
-    bool addContinue(uint32_t* maybeLabelId) {
-        if (maybeLabelId)
-            return addBreakOrContinue(*maybeLabelId, &labeledContinues_);
-        return addBreakOrContinue(loopStack_.back(), &unlabeledContinues_);
-    }
-
-    bool startSwitch(size_t id, MDefinition* expr, int32_t low, int32_t high,
-                     MBasicBlock** switchBlock)
-    {
-        if (!breakableStack_.append(id))
+        // TODO (bug 1253544): blocks branching to the top join to a single
+        // backedge block. Could they directly be set as backedges of the loop
+        // instead?
+        if (!bindBranches(headerLabel))
             return false;
+
+        MOZ_ASSERT(loopHeader->loopDepth() == loopDepth_);
+
+        if (curBlock_) {
+            // We're on the loop backedge block, created by bindBranches.
+            MOZ_ASSERT(curBlock_->loopDepth() == loopDepth_);
+            curBlock_->end(MGoto::New(alloc(), loopHeader));
+            if (!setLoopBackedge(loopHeader, loopBody, curBlock_))
+                return false;
+        }
+
+        curBlock_ = loopBody;
+
+        loopDepth_--;
+        if (!bindBranches(afterLabel))
+            return false;
+
+        // If we have not created a new block in bindBranches, we're still on
+        // the inner loop body, which loop depth is incorrect.
+        if (curBlock_ && curBlock_->loopDepth() != loopDepth_) {
+            MBasicBlock* out;
+            if (!goToNewBlock(curBlock_, &out))
+                return false;
+            curBlock_ = out;
+        }
+
+        blockDepth_ -= 2;
+        return true;
+    }
+
+    bool startSwitch(MDefinition* expr, uint32_t numCases, MBasicBlock** switchBlock)
+    {
         if (inDeadCode()) {
             *switchBlock = nullptr;
             return true;
         }
-        curBlock_->end(MTableSwitch::New(alloc(), expr, low, high));
+        MOZ_ASSERT(numCases <= INT32_MAX);
+        MOZ_ASSERT(numCases);
+        curBlock_->end(MTableSwitch::New(alloc(), expr, 0, int32_t(numCases - 1)));
         *switchBlock = curBlock_;
         curBlock_ = nullptr;
         return true;
@@ -1166,65 +1100,89 @@ class FunctionCompiler
 
     bool startSwitchCase(MBasicBlock* switchBlock, MBasicBlock** next)
     {
+        MOZ_ASSERT(inDeadCode());
         if (!switchBlock) {
             *next = nullptr;
             return true;
         }
         if (!newBlock(switchBlock, next))
             return false;
-        if (curBlock_) {
-            curBlock_->end(MGoto::New(alloc(), *next));
-            if (!(*next)->addPredecessor(alloc(), curBlock_))
-                return false;
-        }
         curBlock_ = *next;
-        return true;
-    }
-
-    bool startSwitchDefault(MBasicBlock* switchBlock, BlockVector* cases, MBasicBlock** defaultBlock)
-    {
-        if (!startSwitchCase(switchBlock, defaultBlock))
-            return false;
-        if (!*defaultBlock)
-            return true;
-        mirGraph().moveBlockToEnd(*defaultBlock);
         return true;
     }
 
     bool joinSwitch(MBasicBlock* switchBlock, const BlockVector& cases, MBasicBlock* defaultBlock)
     {
-        size_t id = breakableStack_.popCopy();
+        MOZ_ASSERT(inDeadCode());
         if (!switchBlock)
             return true;
+
         MTableSwitch* mir = switchBlock->lastIns()->toTableSwitch();
         size_t defaultIndex;
         if (!mir->addDefault(defaultBlock, &defaultIndex))
             return false;
-        for (unsigned i = 0; i < cases.length(); i++) {
-            if (!cases[i]) {
+
+        for (MBasicBlock* caseBlock : cases) {
+            if (!caseBlock) {
                 if (!mir->addCase(defaultIndex))
                     return false;
             } else {
                 size_t caseIndex;
-                if (!mir->addSuccessor(cases[i], &caseIndex))
+                if (!mir->addSuccessor(caseBlock, &caseIndex))
                     return false;
                 if (!mir->addCase(caseIndex))
                     return false;
             }
         }
-        if (curBlock_) {
-            MBasicBlock* next;
-            if (!newBlock(curBlock_, &next))
-                return false;
-            curBlock_->end(MGoto::New(alloc(), next));
-            curBlock_ = next;
-        }
-        return bindUnlabeledBreaks(id);
+
+        return true;
     }
 
-    // Provides unique identifiers for internal uses in the control flow stacks;
-    // these ids have to grow monotonically.
-    unsigned nextId() { return nextId_++; }
+    bool br(uint32_t relativeDepth)
+    {
+        if (inDeadCode())
+            return true;
+
+        MOZ_ASSERT(relativeDepth < blockDepth_);
+        uint32_t absolute = blockDepth_ - 1 - relativeDepth;
+        if (absolute >= targets_.length()) {
+            if (!targets_.resize(absolute + 1))
+                return false;
+        }
+
+        if (!targets_[absolute].append(curBlock_))
+            return false;
+
+        curBlock_ = nullptr;
+        return true;
+    }
+
+    bool brIf(uint32_t relativeDepth, MDefinition* condition)
+    {
+        if (inDeadCode())
+            return true;
+
+        // TODO (bug 1253334): we could use MTest with the right jump target,
+        // here. If it's backward, it's trivial; if it's forward, we need to
+        // memorize it, then fix it later when we actually encounter the target.
+        MBasicBlock* thenBlock = nullptr;
+        MBasicBlock* joinBlock = nullptr;
+        if (!newBlock(curBlock_, &thenBlock))
+            return false;
+        if (!newBlock(curBlock_, &joinBlock))
+            return false;
+
+        curBlock_->end(MTest::New(alloc(), condition, thenBlock, joinBlock));
+        curBlock_ = thenBlock;
+        mirGraph().moveBlockToEnd(curBlock_);
+
+        if (!br(relativeDepth))
+            return false;
+
+        MOZ_ASSERT(inDeadCode());
+        curBlock_ = joinBlock;
+        return true;
+    }
 
     /************************************************************ DECODING ***/
 
@@ -1260,93 +1218,54 @@ class FunctionCompiler
 
     /*************************************************************************/
   private:
-    bool newBlockWithDepth(MBasicBlock* pred, unsigned loopDepth, MBasicBlock** block)
+    bool newBlock(MBasicBlock* pred, MBasicBlock** block)
     {
         *block = MBasicBlock::NewAsmJS(mirGraph(), info(), pred, MBasicBlock::NORMAL);
         if (!*block)
             return false;
         mirGraph().addBlock(*block);
-        (*block)->setLoopDepth(loopDepth);
+        (*block)->setLoopDepth(loopDepth_);
         return true;
     }
 
-    bool newBlock(MBasicBlock* pred, MBasicBlock** block)
+    bool goToNewBlock(MBasicBlock* pred, MBasicBlock** block)
     {
-        return newBlockWithDepth(pred, loopStack_.length(), block);
-    }
-
-    bool bindBreaksOrContinues(BlockVector* preds, bool* createdJoinBlock)
-    {
-        for (unsigned i = 0; i < preds->length(); i++) {
-            MBasicBlock* pred = (*preds)[i];
-            if (*createdJoinBlock) {
-                pred->end(MGoto::New(alloc(), curBlock_));
-                if (!curBlock_->addPredecessor(alloc(), pred))
-                    return false;
-            } else {
-                MBasicBlock* next;
-                if (!newBlock(pred, &next))
-                    return false;
-                pred->end(MGoto::New(alloc(), next));
-                if (curBlock_) {
-                    curBlock_->end(MGoto::New(alloc(), next));
-                    if (!next->addPredecessor(alloc(), curBlock_))
-                        return false;
-                }
-                curBlock_ = next;
-                *createdJoinBlock = true;
-            }
-            MOZ_ASSERT(curBlock_->begin() == curBlock_->end());
-            if (!mirGen_.ensureBallast())
-                return false;
-        }
-        preds->clear();
-        return true;
-    }
-
-    bool bindLabeledBreaksOrContinues(const LabelVector* maybeLabels, LabeledBlockMap* map,
-                                      bool* createdJoinBlock)
-    {
-        if (!maybeLabels)
-            return true;
-        const LabelVector& labels = *maybeLabels;
-        for (unsigned i = 0; i < labels.length(); i++) {
-            if (LabeledBlockMap::Ptr p = map->lookup(labels[i])) {
-                if (!bindBreaksOrContinues(&p->value(), createdJoinBlock))
-                    return false;
-                map->remove(p);
-            }
-            if (!mirGen_.ensureBallast())
-                return false;
-        }
-        return true;
-    }
-
-    template <class Key, class Map>
-    bool addBreakOrContinue(Key key, Map* map)
-    {
-        if (inDeadCode())
-            return true;
-        typename Map::AddPtr p = map->lookupForAdd(key);
-        if (!p) {
-            BlockVector empty;
-            if (!map->add(p, key, Move(empty)))
-                return false;
-        }
-        if (!p->value().append(curBlock_))
+        if (!newBlock(pred, block))
             return false;
-        curBlock_ = nullptr;
+        pred->end(MGoto::New(alloc(), *block));
         return true;
     }
 
-    bool bindUnlabeledBreaks(size_t id)
+    bool goToExistingBlock(MBasicBlock* prev, MBasicBlock* next)
     {
-        bool createdJoinBlock = false;
-        if (UnlabeledBlockMap::Ptr p = unlabeledBreaks_.lookup(id)) {
-            if (!bindBreaksOrContinues(&p->value(), &createdJoinBlock))
+        MOZ_ASSERT(prev);
+        MOZ_ASSERT(next);
+        prev->end(MGoto::New(alloc(), next));
+        return next->addPredecessor(alloc(), prev);
+    }
+
+    bool bindBranches(uint32_t absolute)
+    {
+        if (absolute >= targets_.length() || targets_[absolute].empty())
+            return true;
+
+        BlockVector& preds = targets_[absolute];
+
+        MBasicBlock* join;
+        if (!goToNewBlock(preds[0], &join))
+            return false;
+        for (size_t i = 1; i < preds.length(); i++) {
+            if (!mirGen_.ensureBallast())
                 return false;
-            unlabeledBreaks_.remove(p);
+            if (!goToExistingBlock(preds[i], join))
+                return false;
         }
+
+        if (curBlock_ && !goToExistingBlock(curBlock_, join))
+            return false;
+        curBlock_ = join;
+
+        preds.clear();
         return true;
     }
 };
@@ -1418,28 +1337,42 @@ EmitLoadGlobal(FunctionCompiler& f, ExprType type, MDefinition** def)
     return true;
 }
 
-static bool EmitExpr(FunctionCompiler&, ExprType, MDefinition**, LabelVector* = nullptr);
-static bool EmitExprStmt(FunctionCompiler&, MDefinition**, LabelVector* = nullptr);
+static bool EmitExpr(FunctionCompiler&, ExprType, MDefinition**);
 
 static bool
-EmitLoadStoreAddress(FunctionCompiler& f, uint32_t* offset, uint32_t* align, MDefinition** base)
+EmitLoadStoreAddress(FunctionCompiler& f, Scalar::Type viewType, uint32_t* offset,
+                     uint32_t* align, MDefinition** base)
 {
     *offset = f.readVarU32();
     MOZ_ASSERT(*offset == 0, "Non-zero offsets not supported yet");
 
     *align = f.readVarU32();
 
-    return EmitExpr(f, ExprType::I32, base);
+    if (!EmitExpr(f, ExprType::I32, base))
+        return false;
+
+    // TODO Remove this (and the viewType param) after implementing unaligned
+    // loads/stores.
+    if (f.mg().isAsmJS())
+        return true;
+
+    int32_t maskVal = ~(Scalar::byteSize(viewType) - 1);
+    if (maskVal == -1)
+        return true;
+
+    MDefinition* mask = f.constant(Int32Value(maskVal), MIRType_Int32);
+    *base = f.bitwise<MBitAnd>(*base, mask, MIRType_Int32);
+    return true;
 }
 
 static bool
-EmitLoad(FunctionCompiler& f, Scalar::Type scalarType, MDefinition** def)
+EmitLoad(FunctionCompiler& f, Scalar::Type viewType, MDefinition** def)
 {
     uint32_t offset, align;
     MDefinition* ptr;
-    if (!EmitLoadStoreAddress(f, &offset, &align, &ptr))
+    if (!EmitLoadStoreAddress(f, viewType, &offset, &align, &ptr))
         return false;
-    *def = f.loadHeap(scalarType, ptr);
+    *def = f.loadHeap(viewType, ptr);
     return true;
 }
 
@@ -1448,7 +1381,7 @@ EmitStore(FunctionCompiler& f, Scalar::Type viewType, MDefinition** def)
 {
     uint32_t offset, align;
     MDefinition* ptr;
-    if (!EmitLoadStoreAddress(f, &offset, &align, &ptr))
+    if (!EmitLoadStoreAddress(f, viewType, &offset, &align, &ptr))
         return false;
 
     MDefinition* rhs = nullptr;
@@ -1481,7 +1414,7 @@ EmitStoreWithCoercion(FunctionCompiler& f, Scalar::Type rhsType, Scalar::Type vi
 {
     uint32_t offset, align;
     MDefinition* ptr;
-    if (!EmitLoadStoreAddress(f, &offset, &align, &ptr))
+    if (!EmitLoadStoreAddress(f, viewType, &offset, &align, &ptr))
         return false;
 
     MDefinition* rhs = nullptr;
@@ -1554,7 +1487,7 @@ EmitAtomicsLoad(FunctionCompiler& f, MDefinition** def)
 
     uint32_t offset, align;
     MDefinition* index;
-    if (!EmitLoadStoreAddress(f, &offset, &align, &index))
+    if (!EmitLoadStoreAddress(f, viewType, &offset, &align, &index))
         return false;
 
     *def = f.atomicLoadHeap(viewType, index);
@@ -1568,7 +1501,7 @@ EmitAtomicsStore(FunctionCompiler& f, MDefinition** def)
 
     uint32_t offset, align;
     MDefinition* index;
-    if (!EmitLoadStoreAddress(f, &offset, &align, &index))
+    if (!EmitLoadStoreAddress(f, viewType, &offset, &align, &index))
         return false;
 
     MDefinition* value;
@@ -1587,7 +1520,7 @@ EmitAtomicsBinOp(FunctionCompiler& f, MDefinition** def)
 
     uint32_t offset, align;
     MDefinition* index;
-    if (!EmitLoadStoreAddress(f, &offset, &align, &index))
+    if (!EmitLoadStoreAddress(f, viewType, &offset, &align, &index))
         return false;
 
     MDefinition* value;
@@ -1604,7 +1537,7 @@ EmitAtomicsCompareExchange(FunctionCompiler& f, MDefinition** def)
 
     uint32_t offset, align;
     MDefinition* index;
-    if (!EmitLoadStoreAddress(f, &offset, &align, &index))
+    if (!EmitLoadStoreAddress(f, viewType, &offset, &align, &index))
         return false;
 
     MDefinition* oldValue;
@@ -1624,7 +1557,7 @@ EmitAtomicsExchange(FunctionCompiler& f, MDefinition** def)
 
     uint32_t offset, align;
     MDefinition* index;
-    if (!EmitLoadStoreAddress(f, &offset, &align, &index))
+    if (!EmitLoadStoreAddress(f, viewType, &offset, &align, &index))
         return false;
 
     MDefinition* value;
@@ -2194,7 +2127,8 @@ EmitDivOrMod(FunctionCompiler& f, ExprType type, bool isDiv, bool isUnsigned, MD
 static bool
 EmitDivOrMod(FunctionCompiler& f, ExprType type, bool isDiv, MDefinition** def)
 {
-    MOZ_ASSERT(type != ExprType::I32, "int div or mod must precise signedness");
+    MOZ_ASSERT(type != ExprType::I32 && type != ExprType::I64,
+               "int div or mod must indicate signedness");
     return EmitDivOrMod(f, type, isDiv, false, def);
 }
 
@@ -2226,6 +2160,30 @@ EmitComparison(FunctionCompiler& f, Expr expr, MDefinition** def)
           default: MOZ_CRASH("impossibru opcode");
         }
         break;
+      case Expr::I64Eq:
+      case Expr::I64Ne:
+      case Expr::I64LeS:
+      case Expr::I64LtS:
+      case Expr::I64LeU:
+      case Expr::I64LtU:
+      case Expr::I64GeS:
+      case Expr::I64GtS:
+      case Expr::I64GeU:
+      case Expr::I64GtU:
+        if (!EmitExpr(f, ExprType::I64, &lhs) || !EmitExpr(f, ExprType::I64, &rhs))
+            return false;
+        switch (expr) {
+          case Expr::I64LeS: case Expr::I64LtS: case Expr::I64GeS: case Expr::I64GtS:
+          case Expr::I64Eq: case Expr::I64Ne:
+            compareType = MCompare::Compare_Int64;
+            break;
+          case Expr::I64GeU: case Expr::I64GtU: case Expr::I64LeU: case Expr::I64LtU:
+            compareType = MCompare::Compare_UInt64;
+            break;
+          default:
+            MOZ_CRASH("unexpected opcode");
+        }
+        break;
       case Expr::F32Eq:
       case Expr::F32Ne:
       case Expr::F32Le:
@@ -2252,35 +2210,45 @@ EmitComparison(FunctionCompiler& f, Expr expr, MDefinition** def)
     JSOp compareOp;
     switch (expr) {
       case Expr::I32Eq:
+      case Expr::I64Eq:
       case Expr::F32Eq:
       case Expr::F64Eq:
         compareOp = JSOP_EQ;
         break;
       case Expr::I32Ne:
+      case Expr::I64Ne:
       case Expr::F32Ne:
       case Expr::F64Ne:
         compareOp = JSOP_NE;
         break;
       case Expr::I32LeS:
       case Expr::I32LeU:
+      case Expr::I64LeS:
+      case Expr::I64LeU:
       case Expr::F32Le:
       case Expr::F64Le:
         compareOp = JSOP_LE;
         break;
       case Expr::I32LtS:
       case Expr::I32LtU:
+      case Expr::I64LtS:
+      case Expr::I64LtU:
       case Expr::F32Lt:
       case Expr::F64Lt:
         compareOp = JSOP_LT;
         break;
       case Expr::I32GeS:
       case Expr::I32GeU:
+      case Expr::I64GeS:
+      case Expr::I64GeU:
       case Expr::F32Ge:
       case Expr::F64Ge:
         compareOp = JSOP_GE;
         break;
       case Expr::I32GtS:
       case Expr::I32GtU:
+      case Expr::I64GtS:
+      case Expr::I64GtU:
       case Expr::F32Gt:
       case Expr::F64Gt:
         compareOp = JSOP_GT;
@@ -2294,21 +2262,21 @@ EmitComparison(FunctionCompiler& f, Expr expr, MDefinition** def)
 
 template<class T>
 static bool
-EmitBitwise(FunctionCompiler& f, MDefinition** def)
+EmitBitwise(FunctionCompiler& f, ExprType type, MDefinition** def)
 {
     MDefinition* lhs;
-    if (!EmitExpr(f, ExprType::I32, &lhs))
+    if (!EmitExpr(f, type, &lhs))
         return false;
     MDefinition* rhs;
-    if (!EmitExpr(f, ExprType::I32, &rhs))
+    if (!EmitExpr(f, type, &rhs))
         return false;
-    *def = f.bitwise<T>(lhs, rhs);
+    MIRType mirType = ToMIRType(type);
+    *def = f.bitwise<T>(lhs, rhs, mirType);
     return true;
 }
 
-template<>
-bool
-EmitBitwise<MBitNot>(FunctionCompiler& f, MDefinition** def)
+static bool
+EmitBitwiseNot(FunctionCompiler& f, MDefinition** def)
 {
     MDefinition* in;
     if (!EmitExpr(f, ExprType::I32, &in))
@@ -2407,123 +2375,22 @@ EmitSimdOp(FunctionCompiler& f, ExprType type, SimdOperation op, SimdSign sign, 
 }
 
 static bool
-EmitWhile(FunctionCompiler& f, const LabelVector* maybeLabels)
+EmitLoop(FunctionCompiler& f, ExprType expected, MDefinition** def)
 {
-    size_t headId = f.nextId();
-
-    MBasicBlock* loopEntry;
-    if (!f.startPendingLoop(headId, &loopEntry))
+    MBasicBlock* loopHeader;
+    if (!f.startLoop(&loopHeader))
         return false;
-
-    MDefinition* condDef;
-    if (!EmitExpr(f, ExprType::I32, &condDef))
-        return false;
-
-    MBasicBlock* afterLoop;
-    if (!f.branchAndStartLoopBody(condDef, &afterLoop))
-        return false;
-
     f.addInterruptCheck();
-
-    MDefinition* _;
-    if (!EmitExprStmt(f, &_))
-        return false;
-
-    if (!f.bindContinues(headId, maybeLabels))
-        return false;
-
-    return f.closeLoop(loopEntry, afterLoop);
-}
-
-static bool
-EmitFor(FunctionCompiler& f, Expr expr, const LabelVector* maybeLabels)
-{
-    MOZ_ASSERT(expr == Expr::ForInitInc || expr == Expr::ForInitNoInc ||
-               expr == Expr::ForNoInitInc || expr == Expr::ForNoInitNoInc);
-    size_t headId = f.nextId();
-
-    if (expr == Expr::ForInitInc || expr == Expr::ForInitNoInc) {
-        MDefinition* _;
-        if (!EmitExprStmt(f, &_))
+    if (uint32_t numStmts = f.readVarU32()) {
+        for (uint32_t i = 0; i < numStmts - 1; i++) {
+            MDefinition* _;
+            if (!EmitExpr(f, ExprType::Void, &_))
+                return false;
+        }
+        if (!EmitExpr(f, expected, def))
             return false;
     }
-
-    MBasicBlock* loopEntry;
-    if (!f.startPendingLoop(headId, &loopEntry))
-        return false;
-
-    MDefinition* condDef;
-    if (!EmitExpr(f, ExprType::I32, &condDef))
-        return false;
-
-    MBasicBlock* afterLoop;
-    if (!f.branchAndStartLoopBody(condDef, &afterLoop))
-        return false;
-
-    f.addInterruptCheck();
-
-    MDefinition* _;
-    if (!EmitExprStmt(f, &_))
-        return false;
-
-    if (!f.bindContinues(headId, maybeLabels))
-        return false;
-
-    if (expr == Expr::ForInitInc || expr == Expr::ForNoInitInc) {
-        MDefinition* _;
-        if (!EmitExprStmt(f, &_))
-            return false;
-    }
-
-    return f.closeLoop(loopEntry, afterLoop);
-}
-
-static bool
-EmitDoWhile(FunctionCompiler& f, const LabelVector* maybeLabels)
-{
-    size_t headId = f.nextId();
-
-    MBasicBlock* loopEntry;
-    if (!f.startPendingLoop(headId, &loopEntry))
-        return false;
-
-    f.addInterruptCheck();
-
-    MDefinition* _;
-    if (!EmitExprStmt(f, &_))
-        return false;
-
-    if (!f.bindContinues(headId, maybeLabels))
-        return false;
-
-    MDefinition* condDef;
-    if (!EmitExpr(f, ExprType::I32, &condDef))
-        return false;
-
-    return f.branchAndCloseDoWhileLoop(condDef, loopEntry);
-}
-
-static bool
-EmitLabel(FunctionCompiler& f, LabelVector* maybeLabels)
-{
-    uint32_t labelId = f.readVarU32();
-
-    if (maybeLabels) {
-        if (!maybeLabels->append(labelId))
-            return false;
-        MDefinition* _;
-        return EmitExprStmt(f, &_, maybeLabels);
-    }
-
-    LabelVector labels;
-    if (!labels.append(labelId))
-        return false;
-
-    MDefinition* _;
-    if (!EmitExprStmt(f, &_, &labels))
-        return false;
-
-    return f.bindLabeledBreaks(&labels);
+    return f.closeLoop(loopHeader);
 }
 
 typedef bool HasElseBlock;
@@ -2594,53 +2461,62 @@ EmitIfElse(FunctionCompiler& f, bool hasElse, ExprType expected, MDefinition** d
 }
 
 static bool
-EmitTableSwitch(FunctionCompiler& f)
+EmitBrTable(FunctionCompiler& f)
 {
-    bool hasDefault = f.readU8();
-    int32_t low = f.readVarU32();
-    int32_t high = f.readVarU32();
+    uint32_t defaultDepth = f.readVarU32();
     uint32_t numCases = f.readVarU32();
 
-    MDefinition* exprDef;
-    if (!EmitExpr(f, ExprType::I32, &exprDef))
-        return false;
-
-    // Switch with no cases
-    if (!hasDefault && numCases == 0)
-        return true;
+    // Empty table
+    if (!numCases) {
+        MDefinition* _;
+        return EmitExpr(f, ExprType::I32, &_) &&
+               f.br(defaultDepth);
+    }
 
     BlockVector cases;
-    if (!cases.resize(high - low + 1))
+    if (!cases.resize(numCases))
+        return false;
+
+    Uint32Vector depths;
+    if (!depths.resize(numCases))
+        return false;
+
+    for (size_t i = 0; i < numCases; i++)
+        depths[i] = f.readVarU32();
+
+    MDefinition* index;
+    if (!EmitExpr(f, ExprType::I32, &index))
         return false;
 
     MBasicBlock* switchBlock;
-    if (!f.startSwitch(f.nextId(), exprDef, low, high, &switchBlock))
+    if (!f.startSwitch(index, numCases, &switchBlock))
         return false;
 
-    while (numCases--) {
-        int32_t caseValue = f.readVarU32();
-        MOZ_ASSERT(caseValue >= low && caseValue <= high);
-        unsigned caseIndex = caseValue - low;
-        if (!f.startSwitchCase(switchBlock, &cases[caseIndex]))
+    MBasicBlock* defaultBlock = nullptr;
+    if (!f.startSwitchCase(switchBlock, &defaultBlock))
+        return false;
+    if (!f.br(defaultDepth))
+        return false;
+
+    // TODO (bug 1253334): we could avoid one indirection here, by
+    // jump-threading by hand the jump to the right enclosing block.
+    for (uint32_t i = 0; i < numCases; i++) {
+        uint32_t depth = depths[i];
+        // Don't emit blocks for the default case, to reduce the number of
+        // MBasicBlocks created.
+        if (depth == defaultDepth)
+            continue;
+        if (!f.startSwitchCase(switchBlock, &cases[i]))
             return false;
-        MDefinition* _;
-        if (!EmitExprStmt(f, &_))
+        if (!f.br(depth))
             return false;
     }
-
-    MBasicBlock* defaultBlock;
-    if (!f.startSwitchDefault(switchBlock, &cases, &defaultBlock))
-        return false;
-
-    MDefinition* _;
-    if (hasDefault && !EmitExprStmt(f, &_))
-        return false;
 
     return f.joinSwitch(switchBlock, cases, defaultBlock);
 }
 
 static bool
-EmitRet(FunctionCompiler& f)
+EmitReturn(FunctionCompiler& f)
 {
     ExprType ret = f.sig().ret();
 
@@ -2659,41 +2535,41 @@ EmitRet(FunctionCompiler& f)
 static bool
 EmitBlock(FunctionCompiler& f, ExprType type, MDefinition** def)
 {
-    uint32_t numStmts = f.readVarU32();
-    if (numStmts) {
+    if (!f.startBlock())
+        return false;
+    if (uint32_t numStmts = f.readVarU32()) {
         for (uint32_t i = 0; i < numStmts - 1; i++) {
-            // Fine to clobber def, we only want the last use.
-            if (!EmitExprStmt(f, def))
+            MDefinition* _;
+            if (!EmitExpr(f, ExprType::Void, &_))
                 return false;
         }
         if (!EmitExpr(f, type, def))
             return false;
     }
-    return true;
+    return f.finishBlock();
 }
 
-typedef bool HasLabel;
-
 static bool
-EmitContinue(FunctionCompiler& f, bool hasLabel)
+EmitBr(FunctionCompiler& f)
 {
-    if (!hasLabel)
-        return f.addContinue(nullptr);
-    uint32_t labelId = f.readVarU32();
-    return f.addContinue(&labelId);
+    uint32_t relativeDepth = f.readVarU32();
+    return f.br(relativeDepth);
 }
 
 static bool
-EmitBreak(FunctionCompiler& f, bool hasLabel)
+EmitBrIf(FunctionCompiler& f)
 {
-    if (!hasLabel)
-        return f.addBreak(nullptr);
-    uint32_t labelId = f.readVarU32();
-    return f.addBreak(&labelId);
+    uint32_t relativeDepth = f.readVarU32();
+
+    MDefinition* condition;
+    if (!EmitExpr(f, ExprType::I32, &condition))
+        return false;
+
+    return f.brIf(relativeDepth, condition);
 }
 
 static bool
-EmitExpr(FunctionCompiler& f, ExprType type, MDefinition** def, LabelVector* maybeLabels)
+EmitExpr(FunctionCompiler& f, ExprType type, MDefinition** def)
 {
     if (!f.mirGen().ensureBallast())
         return false;
@@ -2709,29 +2585,16 @@ EmitExpr(FunctionCompiler& f, ExprType type, MDefinition** def, LabelVector* may
       case Expr::If:
       case Expr::IfElse:
         return EmitIfElse(f, HasElseBlock(op == Expr::IfElse), type, def);
-      case Expr::TableSwitch:
-        return EmitTableSwitch(f);
-      case Expr::While:
-        return EmitWhile(f, maybeLabels);
-      case Expr::DoWhile:
-        return EmitDoWhile(f, maybeLabels);
-      case Expr::ForInitInc:
-      case Expr::ForInitNoInc:
-      case Expr::ForNoInitNoInc:
-      case Expr::ForNoInitInc:
-        return EmitFor(f, op, maybeLabels);
-      case Expr::Label:
-        return EmitLabel(f, maybeLabels);
-      case Expr::Continue:
-        return EmitContinue(f, HasLabel(false));
-      case Expr::ContinueLabel:
-        return EmitContinue(f, HasLabel(true));
-      case Expr::Break:
-        return EmitBreak(f, HasLabel(false));
-      case Expr::BreakLabel:
-        return EmitBreak(f, HasLabel(true));
+      case Expr::Loop:
+        return EmitLoop(f, type, def);
+      case Expr::Br:
+        return EmitBr(f);
+      case Expr::BrIf:
+        return EmitBrIf(f);
+      case Expr::BrTable:
+        return EmitBrTable(f);
       case Expr::Return:
-        return EmitRet(f);
+        return EmitReturn(f);
       case Expr::Call:
         return EmitCall(f, exprOffset, type, def);
       case Expr::CallIndirect:
@@ -2781,24 +2644,28 @@ EmitExpr(FunctionCompiler& f, ExprType type, MDefinition** def, LabelVector* may
         return EmitUnary<MTruncateToInt32>(f, ExprType::F64, def);
       case Expr::I32Clz:
         return EmitUnary<MClz>(f, ExprType::I32, def);
+      case Expr::I32Ctz:
+        return EmitUnary<MCtz>(f, ExprType::I32, def);
+      case Expr::I32Popcnt:
+        return EmitUnary<MPopcnt>(f, ExprType::I32, def);
       case Expr::I32Abs:
         return EmitUnaryMir<MAbs>(f, ExprType::I32, def);
       case Expr::I32Neg:
         return EmitUnaryMir<MAsmJSNeg>(f, ExprType::I32, def);
       case Expr::I32Or:
-        return EmitBitwise<MBitOr>(f, def);
+        return EmitBitwise<MBitOr>(f, ExprType::I32, def);
       case Expr::I32And:
-        return EmitBitwise<MBitAnd>(f, def);
+        return EmitBitwise<MBitAnd>(f, ExprType::I32, def);
       case Expr::I32Xor:
-        return EmitBitwise<MBitXor>(f, def);
+        return EmitBitwise<MBitXor>(f, ExprType::I32, def);
       case Expr::I32Shl:
-        return EmitBitwise<MLsh>(f, def);
+        return EmitBitwise<MLsh>(f, ExprType::I32, def);
       case Expr::I32ShrS:
-        return EmitBitwise<MRsh>(f, def);
+        return EmitBitwise<MRsh>(f, ExprType::I32, def);
       case Expr::I32ShrU:
-        return EmitBitwise<MUrsh>(f, def);
+        return EmitBitwise<MUrsh>(f, ExprType::I32, def);
       case Expr::I32BitNot:
-        return EmitBitwise<MBitNot>(f, def);
+        return EmitBitwiseNot(f, def);
       case Expr::I32LoadMem8S:
         return EmitLoad(f, Scalar::Int8, def);
       case Expr::I32LoadMem8U:
@@ -2825,6 +2692,16 @@ EmitExpr(FunctionCompiler& f, ExprType type, MDefinition** def, LabelVector* may
       case Expr::I32LeU:
       case Expr::I32GtU:
       case Expr::I32GeU:
+      case Expr::I64Eq:
+      case Expr::I64Ne:
+      case Expr::I64LtS:
+      case Expr::I64LeS:
+      case Expr::I64LtU:
+      case Expr::I64LeU:
+      case Expr::I64GtS:
+      case Expr::I64GeS:
+      case Expr::I64GtU:
+      case Expr::I64GeU:
       case Expr::F32Eq:
       case Expr::F32Ne:
       case Expr::F32Lt:
@@ -2851,6 +2728,30 @@ EmitExpr(FunctionCompiler& f, ExprType type, MDefinition** def, LabelVector* may
       // I64
       case Expr::I64Const:
         return EmitLiteral(f, ExprType::I64, def);
+      case Expr::I64Or:
+        return EmitBitwise<MBitOr>(f, ExprType::I64, def);
+      case Expr::I64And:
+        return EmitBitwise<MBitAnd>(f, ExprType::I64, def);
+      case Expr::I64Xor:
+        return EmitBitwise<MBitXor>(f, ExprType::I64, def);
+      case Expr::I64Shl:
+        return EmitBitwise<MLsh>(f, ExprType::I64, def);
+      case Expr::I64ShrS:
+        return EmitBitwise<MRsh>(f, ExprType::I64, def);
+      case Expr::I64ShrU:
+        return EmitBitwise<MUrsh>(f, ExprType::I64, def);
+      case Expr::I64Add:
+        return EmitAddOrSub(f, ExprType::I64, IsAdd(true), def);
+      case Expr::I64Sub:
+        return EmitAddOrSub(f, ExprType::I64, IsAdd(false), def);
+      case Expr::I64Mul:
+        return EmitMultiply(f, ExprType::I64, def);
+      case Expr::I64DivS:
+      case Expr::I64DivU:
+        return EmitDivOrMod(f, ExprType::I64, IsDiv(true), IsUnsigned(op == Expr::I64DivU), def);
+      case Expr::I64RemS:
+      case Expr::I64RemU:
+        return EmitDivOrMod(f, ExprType::I64, IsDiv(false), IsUnsigned(op == Expr::I64RemU), def);
       // F32
       case Expr::F32Const:
         return EmitLiteral(f, ExprType::F32, def);
@@ -2979,12 +2880,7 @@ EmitExpr(FunctionCompiler& f, ExprType type, MDefinition** def, LabelVector* may
                           SimdSign::Unsigned, def);
 
       // Future opcodes
-      case Expr::Loop:
       case Expr::Select:
-      case Expr::Br:
-      case Expr::BrIf:
-      case Expr::I32Ctz:
-      case Expr::I32Popcnt:
       case Expr::F32CopySign:
       case Expr::F32Trunc:
       case Expr::F32Nearest:
@@ -3020,29 +2916,6 @@ EmitExpr(FunctionCompiler& f, ExprType type, MDefinition** def, LabelVector* may
       case Expr::I64Clz:
       case Expr::I64Ctz:
       case Expr::I64Popcnt:
-      case Expr::I64Add:
-      case Expr::I64Sub:
-      case Expr::I64Mul:
-      case Expr::I64DivS:
-      case Expr::I64DivU:
-      case Expr::I64RemS:
-      case Expr::I64RemU:
-      case Expr::I64Or:
-      case Expr::I64And:
-      case Expr::I64Xor:
-      case Expr::I64Shl:
-      case Expr::I64ShrU:
-      case Expr::I64ShrS:
-      case Expr::I64Eq:
-      case Expr::I64Ne:
-      case Expr::I64LtS:
-      case Expr::I64LeS:
-      case Expr::I64LtU:
-      case Expr::I64LeU:
-      case Expr::I64GtS:
-      case Expr::I64GeS:
-      case Expr::I64GtU:
-      case Expr::I64GeU:
         MOZ_CRASH("NYI");
       case Expr::Unreachable:
         break;
@@ -3051,12 +2924,6 @@ EmitExpr(FunctionCompiler& f, ExprType type, MDefinition** def, LabelVector* may
     }
 
     MOZ_CRASH("unexpected wasm opcode");
-}
-
-static bool
-EmitExprStmt(FunctionCompiler& f, MDefinition** def, LabelVector* maybeLabels)
-{
-    return EmitExpr(f, ExprType::Void, def, maybeLabels);
 }
 
 bool

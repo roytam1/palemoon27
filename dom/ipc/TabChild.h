@@ -191,11 +191,12 @@ public:
 
   virtual ScreenIntSize GetInnerSize() = 0;
 
+  // Get the Document for the top-level window in this tab.
+  already_AddRefed<nsIDocument> GetDocument() const;
+
 protected:
   virtual ~TabChildBase();
 
-  // Get the Document for the top-level window in this tab.
-  already_AddRefed<nsIDocument> GetDocument() const;
   // Get the pres-shell of the document for the top-level window in this tab.
   already_AddRefed<nsIPresShell> GetPresShell() const;
 
@@ -319,13 +320,16 @@ public:
                         const TextureFactoryIdentifier& aTextureFactoryIdentifier,
                         const uint64_t& aLayersId,
                         PRenderFrameChild* aRenderFrame,
-                        const bool& aParentIsActive) override;
+                        const bool& aParentIsActive,
+                        const nsSizeMode& aSizeMode) override;
 
   virtual bool RecvUpdateDimensions(const CSSRect& rect,
                                     const CSSSize& size,
-                                    const nsSizeMode& sizeMode,
                                     const ScreenOrientationInternal& orientation,
                                     const LayoutDeviceIntPoint& chromeDisp) override;
+
+  virtual bool
+  RecvSizeModeChanged(const nsSizeMode& aSizeMode) override;
 
   virtual bool RecvActivate() override;
 

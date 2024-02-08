@@ -8,6 +8,7 @@
 #define gc_GCInternals_h
 
 #include "mozilla/ArrayUtils.h"
+#include "mozilla/Maybe.h"
 #include "mozilla/PodOperations.h"
 
 #include "jscntxt.h"
@@ -19,20 +20,7 @@
 namespace js {
 namespace gc {
 
-class MOZ_RAII AutoCopyFreeListToArenas
-{
-    JSRuntime* runtime;
-    ZoneSelector selector;
-
-  public:
-    AutoCopyFreeListToArenas(JSRuntime* rt, ZoneSelector selector);
-    ~AutoCopyFreeListToArenas();
-};
-
-struct MOZ_RAII AutoFinishGC
-{
-    explicit AutoFinishGC(JSRuntime* rt);
-};
+void FinishGC(JSRuntime* rt);
 
 /*
  * This class should be used by any code that needs to exclusive access to the
@@ -58,9 +46,7 @@ class MOZ_RAII AutoTraceSession
 
 struct MOZ_RAII AutoPrepareForTracing
 {
-    AutoFinishGC finish;
-    AutoTraceSession session;
-    AutoCopyFreeListToArenas copy;
+    mozilla::Maybe<AutoTraceSession> session;
 
     AutoPrepareForTracing(JSRuntime* rt, ZoneSelector selector);
 };

@@ -161,7 +161,7 @@ public:
     static void NotifyMozMouseScrollEvent(const FrameMetrics::ViewID& aScrollId, const nsString& aEvent);
 
     /* Notify content that the repaint flush is complete. */
-    static void NotifyFlushComplete();
+    static void NotifyFlushComplete(nsIPresShell* aShell);
 
 private:
   static uint64_t sLastTargetAPZCNotificationInputBlock;

@@ -2565,6 +2565,8 @@ CanvasRenderingContext2D::ClearRect(double aX, double aY, double aW,
     return;
   }
 
+  EnsureTarget();
+
   mTarget->ClearRect(gfx::Rect(aX, aY, aW, aH));
 
   RedrawUser(gfxRect(aX, aY, aW, aH));
@@ -4953,8 +4955,15 @@ CanvasRenderingContext2D::DrawWindow(nsGlobalWindow& aWindow, double aX,
 
   nsCOMPtr<nsIPresShell> shell = presContext->PresShell();
   Unused << shell->RenderDocument(r, renderDocFlags, backgroundColor, thebes);
+  // If this canvas was contained in the drawn window, the pre-transaction callback
+  // may have returned its DT. If so, we must reacquire it here.
+  EnsureTarget();
   if (drawDT) {
     RefPtr<SourceSurface> snapshot = drawDT->Snapshot();
+    if (NS_WARN_IF(!snapshot)) {
+      aError.Throw(NS_ERROR_FAILURE);
+      return;
+    }
     RefPtr<DataSourceSurface> data = snapshot->GetDataSurface();
 
     DataSourceSurface::MappedSurface rawData;
@@ -5369,7 +5378,7 @@ void
 CanvasRenderingContext2D::PutImageData(ImageData& aImageData, double aDx,
                                        double aDy, ErrorResult& aError)
 {
-  dom::Uint8ClampedArray arr;
+  RootedTypedArray<Uint8ClampedArray> arr(nsContentUtils::RootingCxForThread());
   DebugOnly<bool> inited = arr.Init(aImageData.GetDataObject());
   MOZ_ASSERT(inited);
 
@@ -5385,7 +5394,7 @@ CanvasRenderingContext2D::PutImageData(ImageData& aImageData, double aDx,
                                        double aDirtyHeight,
                                        ErrorResult& aError)
 {
-  dom::Uint8ClampedArray arr;
+  RootedTypedArray<Uint8ClampedArray> arr(nsContentUtils::RootingCxForThread());
   DebugOnly<bool> inited = arr.Init(aImageData.GetDataObject());
   MOZ_ASSERT(inited);
 

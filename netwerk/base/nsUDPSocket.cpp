@@ -251,7 +251,7 @@ nsUDPSocket::nsUDPSocket()
   : mLock("nsUDPSocket.mLock")
   , mFD(nullptr)
   , mAppId(NECKO_UNKNOWN_APP_ID)
-  , mIsInBrowserElement(false)
+  , mIsInIsolatedMozBrowserElement(false)
   , mAttached(false)
   , mByteReadCount(0)
   , mByteWriteCount(0)
@@ -602,7 +602,7 @@ nsUDPSocket::InitWithAddress(const NetAddr *aAddr, nsIPrincipal *aPrincipal,
       return rv;
     }
 
-    rv = aPrincipal->GetIsInBrowserElement(&mIsInBrowserElement);
+    rv = aPrincipal->GetIsInIsolatedMozBrowserElement(&mIsInIsolatedMozBrowserElement);
     if (NS_FAILED(rv)) {
       return rv;
     }
@@ -762,7 +762,7 @@ nsUDPSocket::SaveNetworkStats(bool aEnforce)
     // Create the event to save the network statistics.
     // the event is then dispathed to the main thread.
     RefPtr<nsRunnable> event =
-      new SaveNetworkStatsEvent(mAppId, mIsInBrowserElement, mActiveNetworkInfo,
+      new SaveNetworkStatsEvent(mAppId, mIsInIsolatedMozBrowserElement, mActiveNetworkInfo,
                                 mByteReadCount, mByteWriteCount, false);
     NS_DispatchToMainThread(event);
 

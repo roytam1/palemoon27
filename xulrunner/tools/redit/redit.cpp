@@ -15,7 +15,9 @@
 
 // Mozilla headers (alphabetical)
 #include "mozilla/FileUtils.h"  // ScopedClose
-#include "nsAutoPtr.h"          // nsAutoArrayPtr
+#include "mozilla/UniquePtr.h"  // UniquePtr
+
+using mozilla::UniquePtr;
 
 /*
 Icon files are made up of:
@@ -120,12 +122,12 @@ wmain(int argc, wchar_t** argv)
 
   // Load all the data from the icon file
   long filesize = _filelength(file);
-  nsAutoArrayPtr<BYTE> data(new BYTE[filesize]);
+  UniquePtr<BYTE[]> data(new BYTE[filesize]);
   if(!data) {
     fprintf(stderr, "Failed to allocate memory for icon file.\n");
     return 1;
   }
-  _read(file, data, filesize);
+  _read(file, data.get(), filesize);
 
   IconHeader* header = reinterpret_cast<IconHeader*>(data.get());
 
@@ -139,25 +141,25 @@ wmain(int argc, wchar_t** argv)
   // Allocate the group resource entry
   long groupSize = sizeof(IconHeader)
                  + header->ImageCount * sizeof(IconResEntry);
-  nsAutoArrayPtr<BYTE> group(new BYTE[groupSize]);
+  UniquePtr<BYTE[]> group(new BYTE[groupSize]);
   if(!group) {
     fprintf(stderr, "Failed to allocate memory for new images.\n");
     return 1;
   }
-  memcpy(group, data, sizeof(IconHeader));
+  memcpy(group.get(), data.get(), sizeof(IconHeader));
 
   IconDirEntry* sourceIcon =
-                    reinterpret_cast<IconDirEntry*>(data
+                    reinterpret_cast<IconDirEntry*>(data.get()
                                                   + sizeof(IconHeader));
   IconResEntry* targetIcon =
-                    reinterpret_cast<IconResEntry*>(group
+                    reinterpret_cast<IconResEntry*>(group.get()
                                                   + sizeof(IconHeader));
 
   for (int id = 1; id <= header->ImageCount; id++) {
     // Add the individual icon
     if (!UpdateResourceW(updateRes, RT_ICON, MAKEINTRESOURCE(id),
                          MAKELANGID(LANG_NEUTRAL, SUBLANG_NEUTRAL),
-                         data + sourceIcon->ImageOffset,
+                         data.get() + sourceIcon->ImageOffset,
                          sourceIcon->ImageSize)) {
       fprintf(stderr, "Unable to update resource (RT_ICON).\n");
       return 1;
@@ -172,7 +174,7 @@ wmain(int argc, wchar_t** argv)
 
   if (!UpdateResourceW(updateRes, RT_GROUP_ICON, L"MAINICON",
                        MAKELANGID(LANG_NEUTRAL, SUBLANG_NEUTRAL),
-                       group, groupSize)) {
+                       group.get(), groupSize)) {
     fprintf(stderr, "Unable to update resource (RT_GROUP_ICON).\n");
     return 1;
   }

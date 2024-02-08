@@ -1269,9 +1269,7 @@ pref("browser.display.standalone_images.background_color", "#2E3B41");
 pref("view_source.tab", false);
 
 // Enable ServiceWorkers for Push API consumers.
-// Interception is still disabled.
 pref("dom.serviceWorkers.enabled", true);
-
 pref("dom.serviceWorkers.openWindow.enabled", true);
 
 // Enable Push API.

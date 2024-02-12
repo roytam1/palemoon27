@@ -452,6 +452,25 @@ class FunctionCompiler
         return ins;
     }
 
+    MDefinition* extendI32(MDefinition* op, bool isUnsigned)
+    {
+        if (inDeadCode())
+            return nullptr;
+        MExtendInt32ToInt64* ins = MExtendInt32ToInt64::NewAsmJS(alloc(), op, isUnsigned);
+        curBlock_->add(ins);
+        return ins;
+    }
+
+    template <class T>
+    MDefinition* truncate(MDefinition* op, bool isUnsigned)
+    {
+        if (inDeadCode())
+            return nullptr;
+        T* ins = T::NewAsmJS(alloc(), op, isUnsigned);
+        curBlock_->add(ins);
+        return ins;
+    }
+
     MDefinition* compare(MDefinition* lhs, MDefinition* rhs, JSOp op, MCompare::CompareType type)
     {
         if (inDeadCode())
@@ -468,46 +487,49 @@ class FunctionCompiler
         curBlock_->setSlot(info().localSlot(slot), def);
     }
 
-    MDefinition* loadHeap(Scalar::Type accessType, MDefinition* ptr)
+    MDefinition* loadHeap(MDefinition* base,
+                          const MAsmJSHeapAccess& access)
     {
         if (inDeadCode())
             return nullptr;
 
-        MOZ_ASSERT(!Scalar::isSimdType(accessType), "SIMD loads should use loadSimdHeap");
-        MAsmJSLoadHeap* load = MAsmJSLoadHeap::New(alloc(), accessType, ptr);
+        MOZ_ASSERT(!Scalar::isSimdType(access.accessType()), "SIMD loads should use loadSimdHeap");
+        MAsmJSLoadHeap* load = MAsmJSLoadHeap::New(alloc(), base, access);
         curBlock_->add(load);
         return load;
     }
 
-    MDefinition* loadSimdHeap(Scalar::Type accessType, MDefinition* ptr, unsigned numElems)
+    MDefinition* loadSimdHeap(MDefinition* base, const MAsmJSHeapAccess& access)
     {
         if (inDeadCode())
             return nullptr;
 
-        MOZ_ASSERT(Scalar::isSimdType(accessType), "loadSimdHeap can only load from a SIMD view");
-        MAsmJSLoadHeap* load = MAsmJSLoadHeap::New(alloc(), accessType, ptr, numElems);
+        MOZ_ASSERT(Scalar::isSimdType(access.accessType()),
+                   "loadSimdHeap can only load from a SIMD view");
+        MAsmJSLoadHeap* load = MAsmJSLoadHeap::New(alloc(), base, access);
         curBlock_->add(load);
         return load;
     }
 
-    void storeHeap(Scalar::Type accessType, MDefinition* ptr, MDefinition* v)
+    void storeHeap(MDefinition* base, const MAsmJSHeapAccess& access, MDefinition* v)
     {
         if (inDeadCode())
             return;
 
-        MOZ_ASSERT(!Scalar::isSimdType(accessType), "SIMD stores should use storeSimdHeap");
-        MAsmJSStoreHeap* store = MAsmJSStoreHeap::New(alloc(), accessType, ptr, v);
+        MOZ_ASSERT(!Scalar::isSimdType(access.accessType()),
+                   "SIMD stores should use storeSimdHeap");
+        MAsmJSStoreHeap* store = MAsmJSStoreHeap::New(alloc(), base, access, v);
         curBlock_->add(store);
     }
 
-    void storeSimdHeap(Scalar::Type accessType, MDefinition* ptr, MDefinition* v,
-                       unsigned numElems)
+    void storeSimdHeap(MDefinition* base, const MAsmJSHeapAccess& access, MDefinition* v)
     {
         if (inDeadCode())
             return;
 
-        MOZ_ASSERT(Scalar::isSimdType(accessType), "storeSimdHeap can only load from a SIMD view");
-        MAsmJSStoreHeap* store = MAsmJSStoreHeap::New(alloc(), accessType, ptr, v, numElems);
+        MOZ_ASSERT(Scalar::isSimdType(access.accessType()),
+                   "storeSimdHeap can only load from a SIMD view");
+        MAsmJSStoreHeap* store = MAsmJSStoreHeap::New(alloc(), base, access, v);
         curBlock_->add(store);
     }
 
@@ -519,59 +541,59 @@ class FunctionCompiler
         curBlock_->add(ins);
     }
 
-    MDefinition* atomicLoadHeap(Scalar::Type accessType, MDefinition* ptr)
+    MDefinition* atomicLoadHeap(MDefinition* base, const MAsmJSHeapAccess& access)
     {
         if (inDeadCode())
             return nullptr;
 
-        MAsmJSLoadHeap* load = MAsmJSLoadHeap::New(alloc(), accessType, ptr, /* numElems */ 0,
-                                                   MembarBeforeLoad, MembarAfterLoad);
+        MAsmJSLoadHeap* load = MAsmJSLoadHeap::New(alloc(), base, access);
         curBlock_->add(load);
         return load;
     }
 
-    void atomicStoreHeap(Scalar::Type accessType, MDefinition* ptr, MDefinition* v)
+    void atomicStoreHeap(MDefinition* base, const MAsmJSHeapAccess& access,
+                         MDefinition* v)
     {
         if (inDeadCode())
             return;
 
-        MAsmJSStoreHeap* store = MAsmJSStoreHeap::New(alloc(), accessType, ptr, v,
-                                                      /* numElems = */ 0,
-                                                      MembarBeforeStore, MembarAfterStore);
+        MAsmJSStoreHeap* store = MAsmJSStoreHeap::New(alloc(), base, access, v);
         curBlock_->add(store);
     }
 
-    MDefinition* atomicCompareExchangeHeap(Scalar::Type accessType, MDefinition* ptr, MDefinition* oldv,
-                                           MDefinition* newv)
+    MDefinition* atomicCompareExchangeHeap(MDefinition* base, const MAsmJSHeapAccess& access,
+                                           MDefinition* oldv, MDefinition* newv)
     {
         if (inDeadCode())
             return nullptr;
 
         MAsmJSCompareExchangeHeap* cas =
-            MAsmJSCompareExchangeHeap::New(alloc(), accessType, ptr, oldv, newv);
+            MAsmJSCompareExchangeHeap::New(alloc(), base, access, oldv, newv);
         curBlock_->add(cas);
         return cas;
     }
 
-    MDefinition* atomicExchangeHeap(Scalar::Type accessType, MDefinition* ptr, MDefinition* value)
+    MDefinition* atomicExchangeHeap(MDefinition* base, const MAsmJSHeapAccess& access,
+                                    MDefinition* value)
     {
         if (inDeadCode())
             return nullptr;
 
         MAsmJSAtomicExchangeHeap* cas =
-            MAsmJSAtomicExchangeHeap::New(alloc(), accessType, ptr, value);
+            MAsmJSAtomicExchangeHeap::New(alloc(), base, access, value);
         curBlock_->add(cas);
         return cas;
     }
 
-    MDefinition* atomicBinopHeap(js::jit::AtomicOp op, Scalar::Type accessType, MDefinition* ptr,
+    MDefinition* atomicBinopHeap(js::jit::AtomicOp op,
+                                 MDefinition* base, const MAsmJSHeapAccess& access,
                                  MDefinition* v)
     {
         if (inDeadCode())
             return nullptr;
 
         MAsmJSAtomicBinopHeap* binop =
-            MAsmJSAtomicBinopHeap::New(alloc(), op, accessType, ptr, v);
+            MAsmJSAtomicBinopHeap::New(alloc(), op, base, access, v);
         curBlock_->add(binop);
         return binop;
     }
@@ -1340,25 +1362,31 @@ EmitLoadGlobal(FunctionCompiler& f, ExprType type, MDefinition** def)
 static bool EmitExpr(FunctionCompiler&, ExprType, MDefinition**);
 
 static bool
-EmitLoadStoreAddress(FunctionCompiler& f, Scalar::Type viewType, uint32_t* offset,
-                     uint32_t* align, MDefinition** base)
+EmitHeapAddress(FunctionCompiler& f, MDefinition** base, MAsmJSHeapAccess* access)
 {
-    *offset = f.readVarU32();
-    MOZ_ASSERT(*offset == 0, "Non-zero offsets not supported yet");
+    uint32_t offset = f.readVarU32();
+    MOZ_ASSERT(offset == 0, "Non-zero offsets not supported yet");
+    access->setOffset(offset);
 
-    *align = f.readVarU32();
+    uint32_t align = f.readVarU32();
+    access->setAlign(align);
 
     if (!EmitExpr(f, ExprType::I32, base))
         return false;
 
     // TODO Remove this (and the viewType param) after implementing unaligned
     // loads/stores.
-    if (f.mg().isAsmJS())
+    if (f.mg().isAsmJS()) {
+        MOZ_ASSERT(offset == 0 && "asm.js validation does not produce load/store offsets");
         return true;
+    }
 
-    int32_t maskVal = ~(Scalar::byteSize(viewType) - 1);
+    int32_t maskVal = ~(Scalar::byteSize(access->accessType()) - 1);
     if (maskVal == -1)
         return true;
+
+    offset &= maskVal;
+    access->setOffset(offset);
 
     MDefinition* mask = f.constant(Int32Value(maskVal), MIRType_Int32);
     *base = f.bitwise<MBitAnd>(*base, mask, MIRType_Int32);
@@ -1368,20 +1396,20 @@ EmitLoadStoreAddress(FunctionCompiler& f, Scalar::Type viewType, uint32_t* offse
 static bool
 EmitLoad(FunctionCompiler& f, Scalar::Type viewType, MDefinition** def)
 {
-    uint32_t offset, align;
-    MDefinition* ptr;
-    if (!EmitLoadStoreAddress(f, viewType, &offset, &align, &ptr))
+    MDefinition* base;
+    MAsmJSHeapAccess access(viewType);
+    if (!EmitHeapAddress(f, &base, &access))
         return false;
-    *def = f.loadHeap(viewType, ptr);
+    *def = f.loadHeap(base, access);
     return true;
 }
 
 static bool
 EmitStore(FunctionCompiler& f, Scalar::Type viewType, MDefinition** def)
 {
-    uint32_t offset, align;
-    MDefinition* ptr;
-    if (!EmitLoadStoreAddress(f, viewType, &offset, &align, &ptr))
+    MDefinition* base;
+    MAsmJSHeapAccess access(viewType);
+    if (!EmitHeapAddress(f, &base, &access))
         return false;
 
     MDefinition* rhs = nullptr;
@@ -1403,7 +1431,7 @@ EmitStore(FunctionCompiler& f, Scalar::Type viewType, MDefinition** def)
       default: MOZ_CRASH("unexpected scalar type");
     }
 
-    f.storeHeap(viewType, ptr, rhs);
+    f.storeHeap(base, access, rhs);
     *def = rhs;
     return true;
 }
@@ -1412,9 +1440,9 @@ static bool
 EmitStoreWithCoercion(FunctionCompiler& f, Scalar::Type rhsType, Scalar::Type viewType,
                       MDefinition **def)
 {
-    uint32_t offset, align;
-    MDefinition* ptr;
-    if (!EmitLoadStoreAddress(f, viewType, &offset, &align, &ptr))
+    MDefinition* base;
+    MAsmJSHeapAccess access(viewType);
+    if (!EmitHeapAddress(f, &base, &access))
         return false;
 
     MDefinition* rhs = nullptr;
@@ -1431,7 +1459,7 @@ EmitStoreWithCoercion(FunctionCompiler& f, Scalar::Type rhsType, Scalar::Type vi
         MOZ_CRASH("unexpected coerced store");
     }
 
-    f.storeHeap(viewType, ptr, coerced);
+    f.storeHeap(base, access, coerced);
     *def = rhs;
     return true;
 }
@@ -1485,12 +1513,12 @@ EmitAtomicsLoad(FunctionCompiler& f, MDefinition** def)
 {
     Scalar::Type viewType = Scalar::Type(f.readU8());
 
-    uint32_t offset, align;
-    MDefinition* index;
-    if (!EmitLoadStoreAddress(f, viewType, &offset, &align, &index))
+    MDefinition* base;
+    MAsmJSHeapAccess access(viewType, 0, MembarBeforeLoad, MembarAfterLoad);
+    if (!EmitHeapAddress(f, &base, &access))
         return false;
 
-    *def = f.atomicLoadHeap(viewType, index);
+    *def = f.atomicLoadHeap(base, access);
     return true;
 }
 
@@ -1499,15 +1527,15 @@ EmitAtomicsStore(FunctionCompiler& f, MDefinition** def)
 {
     Scalar::Type viewType = Scalar::Type(f.readU8());
 
-    uint32_t offset, align;
-    MDefinition* index;
-    if (!EmitLoadStoreAddress(f, viewType, &offset, &align, &index))
+    MDefinition* base;
+    MAsmJSHeapAccess access(viewType, 0, MembarBeforeStore, MembarAfterStore);
+    if (!EmitHeapAddress(f, &base, &access))
         return false;
 
     MDefinition* value;
     if (!EmitExpr(f, ExprType::I32, &value))
         return false;
-    f.atomicStoreHeap(viewType, index, value);
+    f.atomicStoreHeap(base, access, value);
     *def = value;
     return true;
 }
@@ -1518,15 +1546,15 @@ EmitAtomicsBinOp(FunctionCompiler& f, MDefinition** def)
     Scalar::Type viewType = Scalar::Type(f.readU8());
     js::jit::AtomicOp op = js::jit::AtomicOp(f.readU8());
 
-    uint32_t offset, align;
-    MDefinition* index;
-    if (!EmitLoadStoreAddress(f, viewType, &offset, &align, &index))
+    MDefinition* base;
+    MAsmJSHeapAccess access(viewType);
+    if (!EmitHeapAddress(f, &base, &access))
         return false;
 
     MDefinition* value;
     if (!EmitExpr(f, ExprType::I32, &value))
         return false;
-    *def = f.atomicBinopHeap(op, viewType, index, value);
+    *def = f.atomicBinopHeap(op, base, access, value);
     return true;
 }
 
@@ -1535,9 +1563,9 @@ EmitAtomicsCompareExchange(FunctionCompiler& f, MDefinition** def)
 {
     Scalar::Type viewType = Scalar::Type(f.readU8());
 
-    uint32_t offset, align;
-    MDefinition* index;
-    if (!EmitLoadStoreAddress(f, viewType, &offset, &align, &index))
+    MDefinition* base;
+    MAsmJSHeapAccess access(viewType);
+    if (!EmitHeapAddress(f, &base, &access))
         return false;
 
     MDefinition* oldValue;
@@ -1546,7 +1574,7 @@ EmitAtomicsCompareExchange(FunctionCompiler& f, MDefinition** def)
     MDefinition* newValue;
     if (!EmitExpr(f, ExprType::I32, &newValue))
         return false;
-    *def = f.atomicCompareExchangeHeap(viewType, index, oldValue, newValue);
+    *def = f.atomicCompareExchangeHeap(base, access, oldValue, newValue);
     return true;
 }
 
@@ -1555,15 +1583,15 @@ EmitAtomicsExchange(FunctionCompiler& f, MDefinition** def)
 {
     Scalar::Type viewType = Scalar::Type(f.readU8());
 
-    uint32_t offset, align;
-    MDefinition* index;
-    if (!EmitLoadStoreAddress(f, viewType, &offset, &align, &index))
+    MDefinition* base;
+    MAsmJSHeapAccess access(viewType);
+    if (!EmitHeapAddress(f, &base, &access))
         return false;
 
     MDefinition* value;
     if (!EmitExpr(f, ExprType::I32, &value))
         return false;
-    *def = f.atomicExchangeHeap(viewType, index, value);
+    *def = f.atomicExchangeHeap(base, access, value);
     return true;
 }
 
@@ -1932,11 +1960,12 @@ EmitSimdLoad(FunctionCompiler& f, ExprType type, unsigned numElems, MDefinition*
     if (!numElems)
         numElems = defaultNumElems;
 
-    MDefinition* index;
-    if (!EmitExpr(f, ExprType::I32, &index))
+    MDefinition* base;
+    MAsmJSHeapAccess access(viewType, numElems);
+    if (!EmitHeapAddress(f, &base, &access))
         return false;
 
-    *def = f.loadSimdHeap(viewType, index, numElems);
+    *def = f.loadSimdHeap(base, access);
     return true;
 }
 
@@ -1949,15 +1978,16 @@ EmitSimdStore(FunctionCompiler& f, ExprType type, unsigned numElems, MDefinition
     if (!numElems)
         numElems = defaultNumElems;
 
-    MDefinition* index;
-    if (!EmitExpr(f, ExprType::I32, &index))
+    MDefinition* base;
+    MAsmJSHeapAccess access(viewType, numElems);
+    if (!EmitHeapAddress(f, &base, &access))
         return false;
 
     MDefinition* vec;
     if (!EmitExpr(f, type, &vec))
         return false;
 
-    f.storeSimdHeap(viewType, index, vec, numElems);
+    f.storeSimdHeap(base, access, vec);
     *def = vec;
     return true;
 }
@@ -2282,6 +2312,27 @@ EmitBitwiseNot(FunctionCompiler& f, MDefinition** def)
     if (!EmitExpr(f, ExprType::I32, &in))
         return false;
     *def = f.bitwise<MBitNot>(in);
+    return true;
+}
+
+static bool
+EmitExtendI32(FunctionCompiler& f, bool isUnsigned, MDefinition** def)
+{
+    MDefinition* in;
+    if (!EmitExpr(f, ExprType::I32, &in))
+        return false;
+    *def = f.extendI32(in, isUnsigned);
+    return true;
+}
+
+template<class T>
+static bool
+EmitTruncate(FunctionCompiler& f, ExprType type, bool isUnsigned, MDefinition** def)
+{
+    MDefinition* in;
+    if (!EmitExpr(f, type, &in))
+        return false;
+    *def = f.truncate<T>(in, isUnsigned);
     return true;
 }
 
@@ -2642,6 +2693,8 @@ EmitExpr(FunctionCompiler& f, ExprType type, MDefinition** def)
       case Expr::I32TruncSF64:
       case Expr::I32TruncUF64:
         return EmitUnary<MTruncateToInt32>(f, ExprType::F64, def);
+      case Expr::I32WrapI64:
+        return EmitUnary<MWrapInt64ToInt32>(f, ExprType::I64, def);
       case Expr::I32Clz:
         return EmitUnary<MClz>(f, ExprType::I32, def);
       case Expr::I32Ctz:
@@ -2728,6 +2781,17 @@ EmitExpr(FunctionCompiler& f, ExprType type, MDefinition** def)
       // I64
       case Expr::I64Const:
         return EmitLiteral(f, ExprType::I64, def);
+      case Expr::I64ExtendSI32:
+      case Expr::I64ExtendUI32:
+        return EmitExtendI32(f, IsUnsigned(op == Expr::I64ExtendUI32), def);
+      case Expr::I64TruncSF32:
+      case Expr::I64TruncUF32:
+        return EmitTruncate<MTruncateToInt64>(f, ExprType::F32,
+                                              IsUnsigned(op == Expr::I64TruncUF32), def);
+      case Expr::I64TruncSF64:
+      case Expr::I64TruncUF64:
+        return EmitTruncate<MTruncateToInt64>(f, ExprType::F64,
+                                              IsUnsigned(op == Expr::I64TruncUF64), def);
       case Expr::I64Or:
         return EmitBitwise<MBitOr>(f, ExprType::I64, def);
       case Expr::I64And:
@@ -2887,13 +2951,6 @@ EmitExpr(FunctionCompiler& f, ExprType type, MDefinition** def)
       case Expr::F64CopySign:
       case Expr::F64Nearest:
       case Expr::F64Trunc:
-      case Expr::I32WrapI64:
-      case Expr::I64ExtendSI32:
-      case Expr::I64ExtendUI32:
-      case Expr::I64TruncSF32:
-      case Expr::I64TruncSF64:
-      case Expr::I64TruncUF32:
-      case Expr::I64TruncUF64:
       case Expr::F32ConvertSI64:
       case Expr::F32ConvertUI64:
       case Expr::F64ConvertSI64:
@@ -2916,6 +2973,8 @@ EmitExpr(FunctionCompiler& f, ExprType type, MDefinition** def)
       case Expr::I64Clz:
       case Expr::I64Ctz:
       case Expr::I64Popcnt:
+      case Expr::MemorySize:
+      case Expr::GrowMemory:
         MOZ_CRASH("NYI");
       case Expr::Unreachable:
         break;

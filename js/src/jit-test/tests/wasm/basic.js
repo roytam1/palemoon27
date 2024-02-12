@@ -96,8 +96,8 @@ if (!hasI64) {
 // ----------------------------------------------------------------------------
 // imports
 
-assertErrorMessage(() => wasmEvalText('(module (import "a" "b"))', 1), Error, /Second argument, if present, must be an Object/);
-assertErrorMessage(() => wasmEvalText('(module (import "a" "b"))', null), Error, /Second argument, if present, must be an Object/);
+assertErrorMessage(() => wasmEvalText('(module (import "a" "b"))', 1), Error, /second argument, if present, must be an object/);
+assertErrorMessage(() => wasmEvalText('(module (import "a" "b"))', null), Error, /second argument, if present, must be an object/);
 
 const noImportObj = /no import object given/;
 const notObject = /import object field is not an Object/;
@@ -132,69 +132,102 @@ wasmEvalText('(module (import $foo "a" "" (result f64)))', {a: ()=> {}});
 // ----------------------------------------------------------------------------
 // memory
 
-wasmEvalText('(module (memory 65536))');
-wasmEvalText('(module (memory 131072))');
-assertErrorMessage(() => wasmEvalText('(module (memory 0))'), TypeError, /not a multiple of 0x10000/);
-assertErrorMessage(() => wasmEvalText('(module (memory 1))'), TypeError, /not a multiple of 0x10000/);
-assertErrorMessage(() => wasmEvalText('(module (memory 65535))'), TypeError, /not a multiple of 0x10000/);
-assertErrorMessage(() => wasmEvalText('(module (memory 131071))'), TypeError, /not a multiple of 0x10000/);
-assertErrorMessage(() => wasmEvalText('(module (memory 2147483648))'), TypeError, /initial memory size too big/);
+wasmEvalText('(module (memory 0))');
+wasmEvalText('(module (memory 1))');
+assertErrorMessage(() => wasmEvalText('(module (memory 65536))'), TypeError, /initial memory size too big/);
+assertErrorMessage(() => wasmEvalText('(module (memory 32768))'), TypeError, /initial memory size too big/);
 
 // May OOM, but must not crash:
 try {
-    wasmEvalText('(module (memory 2147418112))');
+    wasmEvalText('(module (memory 32767))');
 } catch (e) {
+    print(e);
     assertEq(String(e).indexOf("out of memory") != -1, true);
 }
 
-assertErrorMessage(() => wasmEvalText('(module (export "" memory))'), TypeError, /no memory section/);
+// Tests to reinstate pending a switch back to "real" memory exports:
+//
+//assertErrorMessage(() => wasmEvalText('(module (export "" memory))'), TypeError, /no memory section/);
+//
+//var buf = wasmEvalText('(module (memory 1) (export "" memory))');
+//assertEq(buf instanceof ArrayBuffer, true);
+//assertEq(buf.byteLength, 65536);
+//
+//assertErrorMessage(() => wasmEvalText('(module (memory 1) (export "a" memory) (export "a" memory))'), TypeError, /duplicate export/);
+//assertErrorMessage(() => wasmEvalText('(module (memory 1) (func) (export "a" memory) (export "a" 0))'), TypeError, /duplicate export/);
+//var {a, b} = wasmEvalText('(module (memory 1) (export "a" memory) (export "b" memory))');
+//assertEq(a instanceof ArrayBuffer, true);
+//assertEq(a, b);
+//
+//var obj = wasmEvalText('(module (memory 1) (func (result i32) (i32.const 42)) (func (nop)) (export "a" memory) (export "b" 0) (export "c" 1))');
+//assertEq(obj.a instanceof ArrayBuffer, true);
+//assertEq(obj.b instanceof Function, true);
+//assertEq(obj.c instanceof Function, true);
+//assertEq(obj.a.byteLength, 65536);
+//assertEq(obj.b(), 42);
+//assertEq(obj.c(), undefined);
+//
+//var obj = wasmEvalText('(module (memory 1) (func (result i32) (i32.const 42)) (export "" memory) (export "a" 0) (export "b" 0))');
+//assertEq(obj instanceof ArrayBuffer, true);
+//assertEq(obj.a instanceof Function, true);
+//assertEq(obj.b instanceof Function, true);
+//assertEq(obj.a, obj.b);
+//assertEq(obj.byteLength, 65536);
+//assertEq(obj.a(), 42);
+//
+//var buf = wasmEvalText('(module (memory 1 (segment 0 "")) (export "" memory))');
+//assertEq(new Uint8Array(buf)[0], 0);
+//
+//var buf = wasmEvalText('(module (memory 1 (segment 65536 "")) (export "" memory))');
+//assertEq(new Uint8Array(buf)[0], 0);
+//
+//var buf = wasmEvalText('(module (memory 1 (segment 0 "a")) (export "" memory))');
+//assertEq(new Uint8Array(buf)[0], 'a'.charCodeAt(0));
+//
+//var buf = wasmEvalText('(module (memory 1 (segment 0 "a") (segment 2 "b")) (export "" memory))');
+//assertEq(new Uint8Array(buf)[0], 'a'.charCodeAt(0));
+//assertEq(new Uint8Array(buf)[1], 0);
+//assertEq(new Uint8Array(buf)[2], 'b'.charCodeAt(0));
+//
+//var buf = wasmEvalText('(module (memory 1 (segment 65535 "c")) (export "" memory))');
+//assertEq(new Uint8Array(buf)[0], 0);
+//assertEq(new Uint8Array(buf)[65535], 'c'.charCodeAt(0));
+//
+//assertErrorMessage(() => wasmEvalText('(module (memory 1 (segment 65536 "a")) (export "" memory))'), TypeError, /data segment does not fit/);
+//assertErrorMessage(() => wasmEvalText('(module (memory 1 (segment 65535 "ab")) (export "" memory))'), TypeError, /data segment does not fit/);
 
-var buf = wasmEvalText('(module (memory 65536) (export "" memory))');
+var buf = wasmEvalText('(module (memory 1) (export "memory" memory))').memory;
 assertEq(buf instanceof ArrayBuffer, true);
 assertEq(buf.byteLength, 65536);
 
-assertErrorMessage(() => wasmEvalText('(module (memory 65536) (export "a" memory) (export "a" memory))'), TypeError, /duplicate export/);
-assertErrorMessage(() => wasmEvalText('(module (memory 65536) (func) (export "a" memory) (export "a" 0))'), TypeError, /duplicate export/);
-var {a, b} = wasmEvalText('(module (memory 65536) (export "a" memory) (export "b" memory))');
-assertEq(a instanceof ArrayBuffer, true);
-assertEq(a, b);
-
-var obj = wasmEvalText('(module (memory 65536) (func (result i32) (i32.const 42)) (func (nop)) (export "a" memory) (export "b" 0) (export "c" 1))');
-assertEq(obj.a instanceof ArrayBuffer, true);
+var obj = wasmEvalText('(module (memory 1) (func (result i32) (i32.const 42)) (func (nop)) (export "memory" memory) (export "b" 0) (export "c" 1))');
+assertEq(obj.memory instanceof ArrayBuffer, true);
 assertEq(obj.b instanceof Function, true);
 assertEq(obj.c instanceof Function, true);
-assertEq(obj.a.byteLength, 65536);
+assertEq(obj.memory.byteLength, 65536);
 assertEq(obj.b(), 42);
 assertEq(obj.c(), undefined);
 
-var obj = wasmEvalText('(module (memory 65536) (func (result i32) (i32.const 42)) (export "" memory) (export "a" 0) (export "b" 0))');
-assertEq(obj instanceof ArrayBuffer, true);
-assertEq(obj.a instanceof Function, true);
-assertEq(obj.b instanceof Function, true);
-assertEq(obj.a, obj.b);
-assertEq(obj.byteLength, 65536);
-assertEq(obj.a(), 42);
-
-var buf = wasmEvalText('(module (memory 65536 (segment 0 "")) (export "" memory))');
+var buf = wasmEvalText('(module (memory 1 (segment 0 "")) (export "memory" memory))').memory;
 assertEq(new Uint8Array(buf)[0], 0);
 
-var buf = wasmEvalText('(module (memory 65536 (segment 65536 "")) (export "" memory))');
+var buf = wasmEvalText('(module (memory 1 (segment 65536 "")) (export "memory" memory))').memory;
 assertEq(new Uint8Array(buf)[0], 0);
 
-var buf = wasmEvalText('(module (memory 65536 (segment 0 "a")) (export "" memory))');
+var buf = wasmEvalText('(module (memory 1 (segment 0 "a")) (export "memory" memory))').memory;
 assertEq(new Uint8Array(buf)[0], 'a'.charCodeAt(0));
 
-var buf = wasmEvalText('(module (memory 65536 (segment 0 "a") (segment 2 "b")) (export "" memory))');
+var buf = wasmEvalText('(module (memory 1 (segment 0 "a") (segment 2 "b")) (export "memory" memory))').memory;
 assertEq(new Uint8Array(buf)[0], 'a'.charCodeAt(0));
 assertEq(new Uint8Array(buf)[1], 0);
 assertEq(new Uint8Array(buf)[2], 'b'.charCodeAt(0));
 
-var buf = wasmEvalText('(module (memory 65536 (segment 65535 "c")) (export "" memory))');
+var buf = wasmEvalText('(module (memory 1 (segment 65535 "c")) (export "memory" memory))').memory;
 assertEq(new Uint8Array(buf)[0], 0);
 assertEq(new Uint8Array(buf)[65535], 'c'.charCodeAt(0));
 
-assertErrorMessage(() => wasmEvalText('(module (memory 65536 (segment 65536 "a")) (export "" memory))'), TypeError, /data segment does not fit/);
-assertErrorMessage(() => wasmEvalText('(module (memory 65536 (segment 65535 "ab")) (export "" memory))'), TypeError, /data segment does not fit/);
+assertErrorMessage(() => wasmEvalText('(module (memory 1 (segment 65536 "a")) (export "memory" memory))'), TypeError, /data segment does not fit/);
+assertErrorMessage(() => wasmEvalText('(module (memory 1 (segment 65535 "ab")) (export "memory" memory))'), TypeError, /data segment does not fit/);
 
 // ----------------------------------------------------------------------------
 // locals
@@ -327,26 +360,40 @@ var {v2i, i2i, i2v} = wasmEvalText(`(module
     (export "i2v" 8)
 )`);
 
+const badIndirectCall = /wasm indirect call signature mismatch/;
+
 assertEq(v2i(0), 13);
 assertEq(v2i(1), 42);
-assertErrorMessage(() => v2i(2), Error, /wasm indirect call signature mismatch/);
-assertErrorMessage(() => v2i(3), Error, /wasm indirect call signature mismatch/);
-assertErrorMessage(() => v2i(4), Error, /wasm indirect call signature mismatch/);
-assertErrorMessage(() => v2i(5), Error, /wasm indirect call signature mismatch/);
+assertErrorMessage(() => v2i(2), Error, badIndirectCall);
+assertErrorMessage(() => v2i(3), Error, badIndirectCall);
+assertErrorMessage(() => v2i(4), Error, badIndirectCall);
+assertErrorMessage(() => v2i(5), Error, badIndirectCall);
 
-assertErrorMessage(() => i2i(0), Error, /wasm indirect call signature mismatch/);
-assertErrorMessage(() => i2i(1), Error, /wasm indirect call signature mismatch/);
+assertErrorMessage(() => i2i(0), Error, badIndirectCall);
+assertErrorMessage(() => i2i(1), Error, badIndirectCall);
 assertEq(i2i(2, 100), 101);
 assertEq(i2i(3, 100), 102);
 assertEq(i2i(4, 100), 103);
 assertEq(i2i(5, 100), 104);
 
-assertErrorMessage(() => i2v(0), Error, /wasm indirect call signature mismatch/);
-assertErrorMessage(() => i2v(1), Error, /wasm indirect call signature mismatch/);
-assertErrorMessage(() => i2v(2), Error, /wasm indirect call signature mismatch/);
-assertErrorMessage(() => i2v(3), Error, /wasm indirect call signature mismatch/);
-assertErrorMessage(() => i2v(4), Error, /wasm indirect call signature mismatch/);
-assertErrorMessage(() => i2v(5), Error, /wasm indirect call signature mismatch/);
+assertErrorMessage(() => i2v(0), Error, badIndirectCall);
+assertErrorMessage(() => i2v(1), Error, badIndirectCall);
+assertErrorMessage(() => i2v(2), Error, badIndirectCall);
+assertErrorMessage(() => i2v(3), Error, badIndirectCall);
+assertErrorMessage(() => i2v(4), Error, badIndirectCall);
+assertErrorMessage(() => i2v(5), Error, badIndirectCall);
+
+{
+    enableSPSProfiling();
+    wasmEvalText(`(
+        module
+        (func (result i32) (i32.const 0))
+        (func)
+        (table 1 0)
+        (export "" 0)
+    )`)();
+    disableSPSProfiling();
+}
 
 for (bad of [6, 7, 100, Math.pow(2,31)-1, Math.pow(2,31), Math.pow(2,31)+1, Math.pow(2,32)-2, Math.pow(2,32)-1]) {
     assertThrowsInstanceOf(() => v2i(bad), RangeError);

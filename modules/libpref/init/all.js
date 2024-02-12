@@ -613,6 +613,8 @@ pref("apz.overscroll.stop_distance_threshold", "5.0");
 pref("apz.overscroll.stop_velocity_threshold", "0.01");
 pref("apz.overscroll.stretch_factor", "0.35");
 pref("apz.paint_skipping.enabled", true);
+// Fetch displayport updates early from the message queue
+pref("apz.peek_messages.enabled", true);
 
 // Whether to print the APZC tree for debugging
 pref("apz.printtree", false);
@@ -1439,6 +1441,7 @@ pref("javascript.options.strict.debug",     true);
 pref("javascript.options.baselinejit",      true);
 pref("javascript.options.ion",              true);
 pref("javascript.options.asmjs",            true);
+pref("javascript.options.wasm",             false);
 pref("javascript.options.native_regexp",    true);
 pref("javascript.options.parallel_parsing", true);
 #if !defined(RELEASE_BUILD) && !defined(ANDROID) && !defined(MOZ_B2G) && !defined(XP_IOS)

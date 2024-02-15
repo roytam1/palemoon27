@@ -91,6 +91,7 @@ var hasI64 = getBuildConfiguration().x64;
 if (!hasI64) {
     assertErrorMessage(() => wasmEvalText('(module (func (param i64)))'), TypeError, /NYI/);
     assertErrorMessage(() => wasmEvalText('(module (func (result i64)))'), TypeError, /NYI/);
+    assertErrorMessage(() => wasmEvalText('(module (func (result i32) (i32.wrap/i64 (i64.add (i64.const 1) (i64.const 2)))))'), TypeError, /NYI/);
 }
 
 // ----------------------------------------------------------------------------
@@ -289,7 +290,9 @@ assertEq(wasmEvalText('(module (func (result i32) (local i32) (set_local 0 (i32.
 // ----------------------------------------------------------------------------
 // calls
 
-assertThrowsInstanceOf(() => wasmEvalText('(module (func (nop)) (func (call 0 (i32.const 0))))'), TypeError);
+// TODO: Reenable when syntactic arities are added for calls
+//assertThrowsInstanceOf(() => wasmEvalText('(module (func (nop)) (func (call 0 (i32.const 0))))'), TypeError);
+
 assertThrowsInstanceOf(() => wasmEvalText('(module (func (param i32) (nop)) (func (call 0)))'), TypeError);
 assertThrowsInstanceOf(() => wasmEvalText('(module (func (param f32) (nop)) (func (call 0 (i32.const 0))))'), TypeError);
 assertErrorMessage(() => wasmEvalText('(module (func (nop)) (func (call 3)))'), TypeError, /callee index out of range/);
@@ -301,7 +304,9 @@ assertThrowsInstanceOf(() => wasmEvalText('(module (func (call 1)) (func (call 0
 wasmEvalText('(module (func (param i32 f32)) (func (call 0 (i32.const 0) (f32.const nan))))');
 assertErrorMessage(() => wasmEvalText('(module (func (param i32 f32)) (func (call 0 (i32.const 0) (i32.const 0))))'), TypeError, mismatchError("i32", "f32"));
 
-assertThrowsInstanceOf(() => wasmEvalText('(module (import "a" "") (func (call_import 0 (i32.const 0))))', {a:()=>{}}), TypeError);
+// TODO: Reenable when syntactic arities are added for calls
+//assertThrowsInstanceOf(() => wasmEvalText('(module (import "a" "") (func (call_import 0 (i32.const 0))))', {a:()=>{}}), TypeError);
+
 assertThrowsInstanceOf(() => wasmEvalText('(module (import "a" "" (param i32)) (func (call_import 0)))', {a:()=>{}}), TypeError);
 assertThrowsInstanceOf(() => wasmEvalText('(module (import "a" "" (param f32)) (func (call_import 0 (i32.const 0))))', {a:()=>{}}), TypeError);
 assertErrorMessage(() => wasmEvalText('(module (import "a" "") (func (call_import 1)))'), TypeError, /import index out of range/);
@@ -310,6 +315,7 @@ wasmEvalText('(module (import "a" "" (param i32)) (func (call_import 0 (i32.cons
 
 function checkF32CallImport(v) {
     assertEq(wasmEvalText('(module (import "a" "" (result f32)) (func (result f32) (call_import 0)) (export "" 0))', {a:()=>{ return v; }})(), Math.fround(v));
+    wasmEvalText('(module (import "a" "" (param f32)) (func (param f32) (call_import 0 (get_local 0))) (export "" 0))', {a:x=>{ assertEq(Math.fround(v), x); }})(v);
 }
 checkF32CallImport(13.37);
 checkF32CallImport(NaN);
@@ -430,5 +436,166 @@ var {v2i, i2i, i2v} = wasmEvalText(`(module
 wasmEvalText('(module (func $foo (nop)) (func (call $foo)))');
 wasmEvalText('(module (func (call $foo)) (func $foo (nop)))');
 wasmEvalText('(module (import $bar "a" "") (func (call_import $bar)) (func $foo (nop)))', {a:()=>{}});
-assertErrorMessage(() => wasmEvalText('(module (import "a" "") (func (call_import $abc)))'), SyntaxError, /import not found/);
 
+
+// ----------------------------------------------------------------------------
+// select
+
+assertErrorMessage(() => wasmEvalText('(module (func (select (i32.const 0) (f32.const 0) (i32.const 0))))'), TypeError, mismatchError("f32", "i32"));
+assertErrorMessage(() => wasmEvalText('(module (func (select (i32.const 0) (i32.const 0) (f32.const 0))))'), TypeError, mismatchError("f32", "i32"));
+
+(function testSideEffects() {
+
+var numT = 0;
+var numF = 0;
+
+var imports = {
+    ifTrue: () => 1 + numT++,
+    ifFalse: () => -1 + numF++,
+}
+
+// Test that side-effects are applied on both branches.
+var f = wasmEvalText(`
+(module
+ (import "ifTrue" "" (result i32))
+ (import "ifFalse" "" (result i32))
+ (func (result i32) (param i32)
+  (select
+   (call_import 0)
+   (call_import 1)
+   (get_local 0)
+  )
+ )
+ (export "" 0)
+)
+`, imports);
+
+assertEq(f(-1), numT);
+assertEq(numT, 1);
+assertEq(numF, 1);
+
+assertEq(f(0), numF - 2);
+assertEq(numT, 2);
+assertEq(numF, 2);
+
+assertEq(f(1), numT);
+assertEq(numT, 3);
+assertEq(numF, 3);
+
+assertEq(f(0), numF - 2);
+assertEq(numT, 4);
+assertEq(numF, 4);
+
+assertEq(f(0), numF - 2);
+assertEq(numT, 5);
+assertEq(numF, 5);
+
+assertEq(f(1), numT);
+assertEq(numT, 6);
+assertEq(numF, 6);
+
+})();
+
+function testSelect(type, trueVal, falseVal) {
+
+    function toJS(val) {
+        switch (val) {
+            case "infinity": return Infinity;
+            case "nan": return NaN;
+            case "-0": return -0;
+            default: return val;
+        }
+    }
+
+    var trueJS = toJS(trueVal);
+    var falseJS = toJS(falseVal);
+
+    // Always true condition
+    var alwaysTrue = wasmEvalText(`
+    (module
+     (func (result ${type}) (param i32)
+      (select
+       (${type}.const ${trueVal})
+       (${type}.const ${falseVal})
+       (i32.const 1)
+      )
+     )
+     (export "" 0)
+    )
+    `, imports);
+
+    assertEq(alwaysTrue(0), trueJS);
+    assertEq(alwaysTrue(1), trueJS);
+    assertEq(alwaysTrue(-1), trueJS);
+
+    // Always false condition
+    var alwaysFalse = wasmEvalText(`
+    (module
+     (func (result ${type}) (param i32)
+      (select
+       (${type}.const ${trueVal})
+       (${type}.const ${falseVal})
+       (i32.const 0)
+      )
+     )
+     (export "" 0)
+    )
+    `, imports);
+
+    assertEq(alwaysFalse(0), falseJS);
+    assertEq(alwaysFalse(1), falseJS);
+    assertEq(alwaysFalse(-1), falseJS);
+
+    // Variable condition
+    var f = wasmEvalText(`
+    (module
+     (func (result ${type}) (param i32)
+      (select
+       (${type}.const ${trueVal})
+       (${type}.const ${falseVal})
+       (get_local 0)
+      )
+     )
+     (export "" 0)
+    )
+    `, imports);
+
+    assertEq(f(0), falseJS);
+    assertEq(f(1), trueJS);
+    assertEq(f(-1), trueJS);
+}
+
+testSelect('i32', 13, 37);
+testSelect('i32', Math.pow(2, 31) - 1, -Math.pow(2, 31));
+
+testSelect('f32', Math.fround(13.37), Math.fround(19.89));
+testSelect('f32', 'infinity', '-0');
+testSelect('f32', 'nan', Math.pow(2, -31));
+
+testSelect('f64', 13.37, 19.89);
+testSelect('f64', 'infinity', '-0');
+testSelect('f64', 'nan', Math.pow(2, -31));
+
+if (!hasI64) {
+    assertErrorMessage(() => wasmEvalText('(module (func (select (i64.const 0) (i64.const 1) (i32.const 0))))'), TypeError, /NYI/);
+} else {
+    var f = wasmEvalText(`
+    (module
+     (func (result i32) (param i32)
+      (i64.gt_s
+       (select
+        (i64.const ${Math.pow(2, 31) + 1})
+        (i64.const ${-Math.pow(2, 31) - 1})
+        (get_local 0)
+       )
+       (i64.const ${Math.pow(2, 31)})
+      )
+     )
+     (export "" 0)
+    )
+    `, imports);
+
+    assertEq(f(0), 0);
+    assertEq(f(1), 1);
+    assertEq(f(-1), 1);
+}

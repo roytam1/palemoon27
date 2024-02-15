@@ -15,6 +15,7 @@
 #include "jsgc.h"
 #include "jsprf.h"
 
+#include "asmjs/WasmModule.h"
 #include "builtin/ModuleObject.h"
 #include "gc/GCInternals.h"
 #include "gc/Policy.h"
@@ -2150,10 +2151,6 @@ js::TenuringTracer::moveToTenured(JSObject* src)
     RelocationOverlay* overlay = RelocationOverlay::fromCell(src);
     overlay->forwardTo(dst);
     insertIntoFixupList(overlay);
-
-    if (MOZ_UNLIKELY(zone->hasDebuggers())) {
-        zone->enqueueForPromotionToTenuredLogging(*dst);
-    }
 
     TracePromoteToTenured(src, dst);
     MemProfiler::MoveNurseryToTenured(src, dst);

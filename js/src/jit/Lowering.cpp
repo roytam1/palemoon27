@@ -2466,6 +2466,12 @@ LIRGenerator::visitAsmJSInterruptCheck(MAsmJSInterruptCheck* ins)
 }
 
 void
+LIRGenerator::visitAsmThrowUnreachable(MAsmThrowUnreachable* ins)
+{
+    add(new(alloc()) LAsmThrowUnreachable, ins);
+}
+
+void
 LIRGenerator::visitStoreSlot(MStoreSlot* ins)
 {
     LInstruction* lir;
@@ -2688,6 +2694,18 @@ LIRGenerator::visitSetArrayLength(MSetArrayLength* ins)
     MOZ_ASSERT(ins->index()->isConstant());
     add(new(alloc()) LSetArrayLength(useRegister(ins->elements()),
                                      useRegisterOrConstant(ins->index())), ins);
+}
+
+void
+LIRGenerator::visitGetNextMapEntryForIterator(MGetNextMapEntryForIterator* ins)
+{
+    MOZ_ASSERT(ins->iter()->type() == MIRType_Object);
+    MOZ_ASSERT(ins->result()->type() == MIRType_Object);
+    auto lir = new(alloc()) LGetNextMapEntryForIterator(useRegister(ins->iter()),
+                                                        useRegister(ins->result()),
+                                                        temp(), temp(), temp());
+    define(lir, ins);
+    assignSafepoint(lir, ins);
 }
 
 void

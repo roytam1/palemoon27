@@ -3204,6 +3204,7 @@ MustBeUInt32(MDefinition* def, MDefinition** pwrapped)
         return defConst->type() == MIRType_Int32 && defConst->toInt32() >= 0;
     }
 
+    *pwrapped = nullptr;  // silence GCC warning
     return false;
 }
 
@@ -4552,7 +4553,8 @@ MAsmJSLoadHeap::mightAlias(const MDefinition* def) const
         if (!base()->isConstant() || !store->base()->isConstant())
             return true;
         const MConstant* otherBase = store->base()->toConstant();
-        return base()->toConstant()->equals(otherBase);
+        return base()->toConstant()->equals(otherBase) &&
+               offset() == store->offset();
     }
     return true;
 }
@@ -4563,7 +4565,9 @@ MAsmJSLoadHeap::congruentTo(const MDefinition* ins) const
     if (!ins->isAsmJSLoadHeap())
         return false;
     const MAsmJSLoadHeap* load = ins->toAsmJSLoadHeap();
-    return load->accessType() == accessType() && congruentIfOperandsEqual(load);
+    return load->accessType() == accessType() &&
+           load->offset() == offset() &&
+           congruentIfOperandsEqual(load);
 }
 
 bool

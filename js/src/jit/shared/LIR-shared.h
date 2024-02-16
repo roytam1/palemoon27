@@ -1247,6 +1247,15 @@ class LAsmJSInterruptCheck : public LInstructionHelper<0, 0, 0>
     }
 };
 
+class LAsmThrowUnreachable : public LInstructionHelper<0, 0, 0>
+{
+  public:
+    LIR_HEADER(AsmThrowUnreachable);
+
+    LAsmThrowUnreachable()
+    { }
+};
+
 class LInterruptCheck : public LInstructionHelper<0, 0, 0>
 {
     Label* oolEntry_;
@@ -3963,6 +3972,32 @@ class LTruncateFToInt32 : public LInstructionHelper<1, 1, 1>
     }
 };
 
+class LWrapInt64ToInt32 : public LInstructionHelper<1, INT64_PIECES, 0>
+{
+  public:
+    LIR_HEADER(WrapInt64ToInt32)
+
+    static const size_t Input = 0;
+
+    explicit LWrapInt64ToInt32(const LInt64Allocation& input) {
+        setInt64Operand(Input, input);
+    }
+};
+
+class LExtendInt32ToInt64 : public LInstructionHelper<INT64_PIECES, 1, 0>
+{
+  public:
+    LIR_HEADER(ExtendInt32ToInt64)
+
+    explicit LExtendInt32ToInt64(const LAllocation& input) {
+        setOperand(0, input);
+    }
+
+    const MExtendInt32ToInt64* mir() {
+        return mir_->toExtendInt32ToInt64();
+    }
+};
+
 // Convert a boolean value to a string.
 class LBooleanToString : public LInstructionHelper<1, 1, 0>
 {
@@ -4692,6 +4727,39 @@ class LSetArrayLength : public LInstructionHelper<0, 2, 0>
     }
     const LAllocation* index() {
         return getOperand(1);
+    }
+};
+
+class LGetNextMapEntryForIterator : public LInstructionHelper<1, 2, 3>
+{
+  public:
+    LIR_HEADER(GetNextMapEntryForIterator)
+
+    explicit LGetNextMapEntryForIterator(const LAllocation& iter, const LAllocation& result,
+                                         const LDefinition& temp0, const LDefinition& temp1,
+                                         const LDefinition& temp2)
+    {
+        setOperand(0, iter);
+        setOperand(1, result);
+        setTemp(0, temp0);
+        setTemp(1, temp1);
+        setTemp(2, temp2);
+    }
+
+    const LAllocation* iter() {
+        return getOperand(0);
+    }
+    const LAllocation* result() {
+        return getOperand(1);
+    }
+    const LDefinition* temp0() {
+        return getTemp(0);
+    }
+    const LDefinition* temp1() {
+        return getTemp(1);
+    }
+    const LDefinition* temp2() {
+        return getTemp(2);
     }
 };
 
@@ -7184,6 +7252,57 @@ class LHasClass : public LInstructionHelper<1, 1, 0>
     }
     MHasClass* mir() const {
         return mir_->toHasClass();
+    }
+};
+
+template<size_t Defs, size_t Ops>
+class LAsmSelectBase : public LInstructionHelper<Defs, Ops, 0>
+{
+    typedef LInstructionHelper<Defs, Ops, 0> Base;
+  public:
+    static const size_t TrueExprIndex = 0;
+
+    const LAllocation* trueExpr() {
+        static_assert(TrueExprIndex == 0, "trueExprIndex kept in sync");
+        return Base::getOperand(0);
+    }
+    const LAllocation* falseExpr() {
+        return Base::getOperand(1);
+    }
+    const LAllocation* condExpr() {
+        return Base::getOperand(2);
+    }
+
+    MAsmSelect* mir() const {
+        return Base::mir_->toAsmSelect();
+    }
+};
+
+class LAsmSelect : public LAsmSelectBase<1, 3>
+{
+  public:
+    LIR_HEADER(AsmSelect);
+
+    LAsmSelect(const LAllocation& trueExpr, const LAllocation& falseExpr, const LAllocation& cond) {
+        static_assert(TrueExprIndex == 0, "trueExprIndex kept in sync");
+        setOperand(0, trueExpr);
+        setOperand(1, falseExpr);
+        setOperand(2, cond);
+    }
+};
+
+class LAsmSelectI64 : public LAsmSelectBase<INT64_PIECES, 2 * INT64_PIECES + 1>
+{
+  public:
+    LIR_HEADER(AsmSelectI64);
+
+    LAsmSelectI64(const LInt64Allocation& trueExpr, const LInt64Allocation& falseExpr,
+                  const LAllocation& cond)
+    {
+        static_assert(TrueExprIndex == 0, "trueExprIndex kept in sync");
+        setInt64Operand(0, trueExpr);
+        setInt64Operand(1, falseExpr);
+        setOperand(2, cond);
     }
 };
 

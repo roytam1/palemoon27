@@ -21,7 +21,8 @@
 
 #include "asmjs/AsmJS.h"
 #include "asmjs/Wasm.h"
-#include "asmjs/WasmText.h"
+#include "asmjs/WasmBinaryToText.h"
+#include "asmjs/WasmTextToBinary.h"
 #include "jit/InlinableNatives.h"
 #include "jit/JitFrameIterator.h"
 #include "js/Debug.h"
@@ -37,6 +38,7 @@
 #include "vm/ProxyObject.h"
 #include "vm/SavedStacks.h"
 #include "vm/Stack.h"
+#include "vm/StringBuffer.h"
 #include "vm/TraceLogging.h"
 
 #include "jscntxtinlines.h"
@@ -493,42 +495,7 @@ static bool
 WasmIsSupported(JSContext* cx, unsigned argc, Value* vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
-    args.rval().setBoolean(wasm::HasCompilerSupport(cx));
-    return true;
-}
-
-static bool
-WasmEval(JSContext* cx, unsigned argc, Value* vp)
-{
-    CallArgs args = CallArgsFromVp(argc, vp);
-    RootedObject callee(cx, &args.callee());
-
-    if (args.length() < 1 || args.length() > 2) {
-        ReportUsageError(cx, callee, "Wrong number of arguments");
-        return false;
-    }
-
-    if (!args[0].isObject() || !args[0].toObject().is<ArrayBufferObject>()) {
-        ReportUsageError(cx, callee, "First argument must be an ArrayBuffer");
-        return false;
-    }
-
-    RootedObject importObj(cx);
-    if (!args.get(1).isUndefined()) {
-        if (!args.get(1).isObject()) {
-            ReportUsageError(cx, callee, "Second argument, if present, must be an Object");
-            return false;
-        }
-        importObj = &args[1].toObject();
-    }
-
-    Rooted<ArrayBufferObject*> code(cx, &args[0].toObject().as<ArrayBufferObject>());
-
-    RootedObject exportObj(cx);
-    if (!wasm::Eval(cx, code, importObj, &exportObj))
-        return false;
-
-    args.rval().setObject(*exportObj);
+    args.rval().setBoolean(wasm::HasCompilerSupport(cx) && cx->runtime()->options().wasm());
     return true;
 }
 
@@ -552,21 +519,64 @@ WasmTextToBinary(JSContext* cx, unsigned argc, Value* vp)
     if (!twoByteChars.initTwoByte(cx, args[0].toString()))
         return false;
 
+    wasm::Bytes bytes;
     UniqueChars error;
-    wasm::UniqueBytecode bytes = wasm::TextToBinary(twoByteChars.twoByteChars(), &error);
-    if (!bytes) {
+    if (!wasm::TextToBinary(twoByteChars.twoByteChars(), &bytes, &error)) {
         JS_ReportErrorNumber(cx, GetErrorMessage, nullptr, JSMSG_WASM_TEXT_FAIL,
                              error.get() ? error.get() : "out of memory");
         return false;
     }
 
-    Rooted<ArrayBufferObject*> buffer(cx, ArrayBufferObject::create(cx, bytes->length()));
-    if (!buffer)
+    RootedObject obj(cx, JS_NewUint8Array(cx, bytes.length()));
+    if (!obj)
         return false;
 
-    memcpy(buffer->dataPointer(), bytes->begin(), bytes->length());
+    memcpy(obj->as<TypedArrayObject>().viewDataUnshared(), bytes.begin(), bytes.length());
 
-    args.rval().setObject(*buffer);
+    args.rval().setObject(*obj);
+    return true;
+}
+
+static bool
+WasmBinaryToText(JSContext* cx, unsigned argc, Value* vp)
+{
+    MOZ_ASSERT(cx->runtime()->options().wasm());
+    CallArgs args = CallArgsFromVp(argc, vp);
+
+    if (!args.get(0).isObject() || !args.get(0).toObject().is<TypedArrayObject>()) {
+        JS_ReportErrorNumber(cx, GetErrorMessage, nullptr, JSMSG_WASM_BAD_BUF_ARG);
+        return false;
+    }
+
+    Rooted<TypedArrayObject*> code(cx, &args[0].toObject().as<TypedArrayObject>());
+    if (code->isSharedMemory()) {
+        JS_ReportErrorNumber(cx, GetErrorMessage, nullptr, JSMSG_WASM_BAD_BUF_ARG);
+        return false;
+    }
+
+    const uint8_t* bufferStart = code->bufferUnshared()->dataPointer();
+    const uint8_t* bytes = bufferStart + code->byteOffset();
+    uint32_t length = code->byteLength();
+
+    Vector<uint8_t> copy(cx);
+    if (code->bufferUnshared()->hasInlineData()) {
+        if (!copy.append(bytes, length))
+            return false;
+        bytes = copy.begin();
+    }
+
+    StringBuffer buffer(cx);
+    if (!wasm::BinaryToText(cx, bytes, length, buffer)) {
+        JS_ReportErrorNumber(cx, GetErrorMessage, nullptr, JSMSG_WASM_TEXT_FAIL,
+                             "print error");
+        return false;
+    }
+
+    JSString* result = buffer.finishString();
+    if (!result)
+        return false;
+
+    args.rval().setString(result);
     return true;
 }
 
@@ -2646,9 +2656,7 @@ ShortestPaths(JSContext* cx, unsigned argc, Value* vp)
     for (size_t i = 0; i < length; i++) {
         RootedValue el(cx, objs->getDenseElement(i));
         if (!el.isObject() && !el.isString() && !el.isSymbol()) {
-            ReportValueErrorFlags(cx, JSREPORT_ERROR, JSMSG_UNEXPECTED_TYPE,
-                                  JSDVG_SEARCH_STACK, el, nullptr,
-                                  "not an object, string, or symbol", nullptr);
+            JS_ReportError(cx, "Each target must be an object, string, or symbol");
             return false;
         }
     }
@@ -2759,8 +2767,11 @@ ShortestPaths(JSContext* cx, unsigned argc, Value* vp)
                     return false;
 
                 RootedValue predecessor(cx, values[i][j][k]);
-                if (!JS_DefineProperty(cx, part, "predecessor", predecessor, JSPROP_ENUMERATE))
+                if (!cx->compartment()->wrap(cx, &predecessor) ||
+                    !JS_DefineProperty(cx, part, "predecessor", predecessor, JSPROP_ENUMERATE))
+                {
                     return false;
+                }
 
                 if (names[i][j][k]) {
                     RootedString edge(cx, NewStringCopyZ<CanGC>(cx, names[i][j][k].get()));
@@ -3691,14 +3702,13 @@ gc::ZealModeHelpText),
 "wasmIsSupported()",
 "  Returns a boolean indicating whether WebAssembly is supported on the current device."),
 
-    JS_FN_HELP("wasmEval", WasmEval, 2, 0,
-"wasmEval(buffer, imports)",
-"  Compiles the given binary wasm module given by 'buffer' (which must be an ArrayBuffer)\n"
-"  and links the module's imports with the given 'imports' object."),
-
     JS_FN_HELP("wasmTextToBinary", WasmTextToBinary, 1, 0,
 "wasmTextToBinary(str)",
 "  Translates the given text wasm module into its binary encoding."),
+
+    JS_FN_HELP("wasmBinaryToText", WasmBinaryToText, 1, 0,
+"wasmBinaryToText(bin)",
+"  Translates binary encoding to text format"),
 
     JS_FN_HELP("isLazyFunction", IsLazyFunction, 1, 0,
 "isLazyFunction(fun)",

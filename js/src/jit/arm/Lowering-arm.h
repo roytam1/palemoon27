@@ -94,6 +94,7 @@ class LIRGeneratorARM : public LIRGeneratorShared
     void lowerPhi(MPhi* phi);
     void visitGuardShape(MGuardShape* ins);
     void visitGuardObjectGroup(MGuardObjectGroup* ins);
+    void visitAsmSelect(MAsmSelect* ins);
     void visitAsmJSUnsignedToDouble(MAsmJSUnsignedToDouble* ins);
     void visitAsmJSUnsignedToFloat32(MAsmJSUnsignedToFloat32* ins);
     void visitAsmJSLoadHeap(MAsmJSLoadHeap* ins);
@@ -112,6 +113,8 @@ class LIRGeneratorARM : public LIRGeneratorShared
     void visitAtomicTypedArrayElementBinop(MAtomicTypedArrayElementBinop* ins);
     void visitSubstr(MSubstr* ins);
     void visitRandom(MRandom* ins);
+    void visitTruncateToInt64(MTruncateToInt64* ins);
+    void visitInt64ToFloatingPoint(MInt64ToFloatingPoint* ins);
 };
 
 typedef LIRGeneratorARM LIRGeneratorSpecific;

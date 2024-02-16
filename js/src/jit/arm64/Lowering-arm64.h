@@ -84,6 +84,7 @@ class LIRGeneratorARM64 : public LIRGeneratorShared
     void lowerUMod(MMod* mod);
     void visitPowHalf(MPowHalf* ins);
     void visitAsmJSNeg(MAsmJSNeg* ins);
+    void visitAsmSelect(MAsmSelect* ins);
 
     LTableSwitchV* newLTableSwitchV(MTableSwitch* ins);
     LTableSwitch* newLTableSwitch(const LAllocation& in,
@@ -115,6 +116,8 @@ class LIRGeneratorARM64 : public LIRGeneratorShared
     void visitAtomicTypedArrayElementBinop(MAtomicTypedArrayElementBinop* ins);
     void visitSubstr(MSubstr* ins);
     void visitRandom(MRandom* ins);
+    void visitTruncateToInt64(MTruncateToInt64* ins);
+    void visitInt64ToFloatingPoint(MInt64ToFloatingPoint* ins);
 };
 
 typedef LIRGeneratorARM64 LIRGeneratorSpecific;

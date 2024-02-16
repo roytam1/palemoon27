@@ -51,6 +51,7 @@ using namespace js::frontend;
 using namespace js::jit;
 using namespace js::wasm;
 
+using mozilla::CeilingLog2;
 using mozilla::Compression::LZ4;
 using mozilla::HashGeneric;
 using mozilla::IsNaN;
@@ -1629,6 +1630,7 @@ class MOZ_STACK_CLASS ModuleValidator
         return standardLibrarySimdOpNames_.putNew(atom->asPropertyName(), op);
     }
     bool newSig(Sig&& sig, uint32_t* sigIndex) {
+        *sigIndex = 0;
         if (mg_.numSigs() >= MaxSigs)
             return failCurrentOffset("too many signatures");
 
@@ -2629,16 +2631,6 @@ class MOZ_STACK_CLASS FunctionValidator
         hasAlreadyReturned_(false)
     {}
 
-    ~FunctionValidator() {
-        if (m_.hasAlreadyFailed())
-            return;
-        MOZ_ASSERT(!blockDepth_);
-        MOZ_ASSERT(breakableStack_.empty());
-        MOZ_ASSERT(continuableStack_.empty());
-        MOZ_ASSERT(breakLabels_.empty());
-        MOZ_ASSERT(continueLabels_.empty());
-    }
-
     ModuleValidator& m() const        { return m_; }
     ExclusiveContext* cx() const      { return m_.cx(); }
     ParseNode* fn() const             { return fn_; }
@@ -2650,11 +2642,16 @@ class MOZ_STACK_CLASS FunctionValidator
         if (!m_.mg().startFuncDef(line, &fg_))
             return false;
 
-        encoder_.emplace(fg_.bytecode());
+        encoder_.emplace(fg_.bytes());
         return true;
     }
 
     bool finish(uint32_t funcIndex, unsigned generateTime) {
+        MOZ_ASSERT(!blockDepth_);
+        MOZ_ASSERT(breakableStack_.empty());
+        MOZ_ASSERT(continuableStack_.empty());
+        MOZ_ASSERT(breakLabels_.empty());
+        MOZ_ASSERT(continueLabels_.empty());
         return m_.mg().finishFuncDef(funcIndex, generateTime, &fg_);
     }
 
@@ -2680,8 +2677,7 @@ class MOZ_STACK_CLASS FunctionValidator
         LocalMap::AddPtr p = locals_.lookupForAdd(name);
         if (p)
             return failName(pn, "duplicate local name '%s' not allowed", name);
-        return locals_.add(p, name, Local(type, locals_.count())) &&
-               fg_.addLocal(type.canonicalToValType());
+        return locals_.add(p, name, Local(type, locals_.count()));
     }
 
     /****************************** For consistency of returns in a function */
@@ -2705,7 +2701,8 @@ class MOZ_STACK_CLASS FunctionValidator
         MOZ_ASSERT(expr == Expr::Br || expr == Expr::BrIf);
         MOZ_ASSERT(absolute < blockDepth_);
         return encoder().writeExpr(expr) &&
-               encoder().writeVarU32(blockDepth_ - 1 - absolute);
+               encoder().writeVarU32(blockDepth_ - 1 - absolute) &&
+               encoder().writeExpr(Expr::Nop);
     }
     void removeLabel(PropertyName* label, LabelMap* map) {
         LabelMap::Ptr p = map->lookup(label);
@@ -2821,9 +2818,9 @@ class MOZ_STACK_CLASS FunctionValidator
 
     MOZ_WARN_UNUSED_RESULT bool writeInt32Lit(int32_t i32) {
         return encoder().writeExpr(Expr::I32Const) &&
-               encoder().writeVarU32(i32);
+               encoder().writeVarS32(i32);
     }
-    MOZ_WARN_UNUSED_RESULT bool writeLit(NumLit lit) {
+    MOZ_WARN_UNUSED_RESULT bool writeConstExpr(NumLit lit) {
         switch (lit.which()) {
           case NumLit::Fixnum:
           case NumLit::NegativeInt:
@@ -2856,7 +2853,7 @@ class MOZ_STACK_CLASS FunctionValidator
                fg_.addCallSiteLineNum(m().tokenStream().srcCoords.lineNum(pn->pn_pos.begin));
     }
     MOZ_WARN_UNUSED_RESULT bool patchableCall(ParseNode* pn, size_t* offset) {
-        return encoder().writePatchableExpr(offset) &&
+        return encoder().writePatchableOneByteExpr(offset) &&
                fg_.addCallSiteLineNum(m().tokenStream().srcCoords.lineNum(pn->pn_pos.begin));
     }
     MOZ_WARN_UNUSED_RESULT bool writeSimdOp(SimdType simdType, SimdOperation op) {
@@ -2911,6 +2908,7 @@ CheckFunctionHead(ModuleValidator& m, ParseNode* fn)
 static bool
 CheckArgument(ModuleValidator& m, ParseNode* arg, PropertyName** name)
 {
+    *name = nullptr;
     if (!IsDefinition(arg))
         return m.fail(arg, "duplicate argument name not allowed");
 
@@ -3486,15 +3484,7 @@ CheckFinalReturn(FunctionValidator& f, ParseNode* lastNonEmptyStmt)
 }
 
 static bool
-SetLocal(FunctionValidator& f, NumLit lit)
-{
-    return f.encoder().writeExpr(Expr::SetLocal) &&
-           f.encoder().writeVarU32(f.numLocals()) &&
-           f.writeLit(lit);
-}
-
-static bool
-CheckVariable(FunctionValidator& f, ParseNode* var, uint32_t* numStmts)
+CheckVariable(FunctionValidator& f, ParseNode* var, ValTypeVector* types, Vector<NumLit>* inits)
 {
     if (!IsDefinition(var))
         return f.fail(var, "local variable names must not restate argument names");
@@ -3515,25 +3505,45 @@ CheckVariable(FunctionValidator& f, ParseNode* var, uint32_t* numStmts)
     if (!lit.valid())
         return f.failName(var, "var '%s' initializer out of range", name);
 
-    if (!lit.isZeroBits()) {
-        ++*numStmts;
-        if (!SetLocal(f, lit))
-            return false;
-    }
+    Type type = Type::canonicalize(Type::lit(lit));
 
-    return f.addLocal(var, name, Type::canonicalize(Type::lit(lit)));
+    return f.addLocal(var, name, type) &&
+           types->append(type.canonicalToValType()) &&
+           inits->append(lit);
 }
 
 static bool
-CheckVariables(FunctionValidator& f, ParseNode** stmtIter, uint32_t* numStmts)
+CheckVariables(FunctionValidator& f, ParseNode** stmtIter)
 {
     ParseNode* stmt = *stmtIter;
 
+    uint32_t firstVar = f.numLocals();
+
+    ValTypeVector types;
+    Vector<NumLit> inits(f.cx());
+
     for (; stmt && stmt->isKind(PNK_VAR); stmt = NextNonEmptyStatement(stmt)) {
         for (ParseNode* var = VarListHead(stmt); var; var = NextNode(var)) {
-            if (!CheckVariable(f, var, numStmts))
+            if (!CheckVariable(f, var, &types, &inits))
                 return false;
         }
+    }
+
+    MOZ_ASSERT(f.encoder().empty());
+
+    if (!EncodeLocalEntries(f.encoder(), types))
+        return false;
+
+    for (uint32_t i = 0; i < inits.length(); i++) {
+        NumLit lit = inits[i];
+        if (lit.isZeroBits())
+            continue;
+        if (!f.encoder().writeExpr(Expr::SetLocal))
+            return false;
+        if (!f.encoder().writeVarU32(firstVar + i))
+            return false;
+        if (!f.writeConstExpr(lit))
+            return false;
     }
 
     *stmtIter = stmt;
@@ -3550,7 +3560,7 @@ CheckNumericLiteral(FunctionValidator& f, ParseNode* num, Type* type)
     if (!lit.valid())
         return f.fail(num, "numeric literal out of representable integer range");
     *type = Type::lit(lit);
-    return f.writeLit(lit);
+    return f.writeConstExpr(lit);
 }
 
 static bool
@@ -3571,7 +3581,7 @@ CheckVarRef(FunctionValidator& f, ParseNode* varRef, Type* type)
         switch (global->which()) {
           case ModuleValidator::Global::ConstantLiteral:
             *type = global->varOrConstType();
-            return f.writeLit(global->constLiteralValue());
+            return f.writeConstExpr(global->constLiteralValue());
           case ModuleValidator::Global::ConstantImport:
           case ModuleValidator::Global::Variable: {
             *type = global->varOrConstType();
@@ -3606,11 +3616,15 @@ IsLiteralOrConstInt(FunctionValidator& f, ParseNode* pn, uint32_t* u32)
 }
 
 static const int32_t NoMask = -1;
+static const bool YesSimd = true;
+static const bool NoSimd = false;
 
 static bool
 CheckArrayAccess(FunctionValidator& f, ParseNode* viewName, ParseNode* indexExpr,
-                 Scalar::Type* viewType, int32_t* mask)
+                 bool isSimd, Scalar::Type* viewType, int32_t* mask)
 {
+    *mask = 0;
+
     if (!viewName->isKind(PNK_NAME))
         return f.fail(viewName, "base of array access must be a typed array view name");
 
@@ -3623,7 +3637,8 @@ CheckArrayAccess(FunctionValidator& f, ParseNode* viewName, ParseNode* indexExpr
     uint32_t index;
     if (IsLiteralOrConstInt(f, indexExpr, &index)) {
         uint64_t byteOffset = uint64_t(index) << TypedArrayShift(*viewType);
-        if (!f.m().tryConstantAccess(byteOffset, TypedArrayElemSize(*viewType)))
+        uint64_t width = isSimd ? Simd128DataSize : TypedArrayElemSize(*viewType);
+        if (!f.m().tryConstantAccess(byteOffset, width))
             return f.fail(indexExpr, "constant index out of range");
 
         *mask = NoMask;
@@ -3655,12 +3670,12 @@ CheckArrayAccess(FunctionValidator& f, ParseNode* viewName, ParseNode* indexExpr
         if (!pointerType.isIntish())
             return f.failf(pointerNode, "%s is not a subtype of int", pointerType.toChars());
     } else {
-        // For legacy compatibility, accept Int8/Uint8 accesses with no shift.
+        // For SIMD access, and legacy scalar access compatibility, accept
+        // Int8/Uint8 accesses with no shift.
         if (TypedArrayShift(*viewType) != 0)
             return f.fail(indexExpr, "index expression isn't shifted; must be an Int8/Uint8 access");
 
         MOZ_ASSERT(*mask == NoMask);
-        bool folded = false;
 
         ParseNode* pointerNode = indexExpr;
 
@@ -3668,7 +3683,7 @@ CheckArrayAccess(FunctionValidator& f, ParseNode* viewName, ParseNode* indexExpr
         if (!CheckExpr(f, pointerNode, &pointerType))
             return false;
 
-        if (folded) {
+        if (isSimd) {
             if (!pointerType.isIntish())
                 return f.failf(pointerNode, "%s is not a subtype of intish", pointerType.toChars());
         } else {
@@ -3682,34 +3697,37 @@ CheckArrayAccess(FunctionValidator& f, ParseNode* viewName, ParseNode* indexExpr
 
 static bool
 CheckAndPrepareArrayAccess(FunctionValidator& f, ParseNode* viewName, ParseNode* indexExpr,
-                           Scalar::Type* viewType, int32_t* mask)
+                           bool isSimd, Scalar::Type* viewType)
 {
+    size_t flagsAt;
+    if (!f.encoder().writePatchableFixedU8(&flagsAt))
+        return false;
+
     // asm.js doesn't have constant offsets, so just encode a 0.
     if (!f.encoder().writeVarU32(0))
         return false;
 
-    size_t alignAt;
-    if (!f.encoder().writePatchableVarU8(&alignAt))
-        return false;
-
     size_t prepareAt;
-    if (!f.encoder().writePatchableExpr(&prepareAt))
+    if (!f.encoder().writePatchableOneByteExpr(&prepareAt))
         return false;
 
-    if (!CheckArrayAccess(f, viewName, indexExpr, viewType, mask))
+    int32_t mask;
+    if (!CheckArrayAccess(f, viewName, indexExpr, isSimd, viewType, &mask))
         return false;
 
     // asm.js only has naturally-aligned accesses.
-    f.encoder().patchVarU8(alignAt, TypedArrayElemSize(*viewType));
+    size_t align = TypedArrayElemSize(*viewType);
+    MOZ_ASSERT(IsPowerOfTwo(align));
+    f.encoder().patchFixedU8(flagsAt, CeilingLog2(align));
 
     // Don't generate the mask op if there is no need for it which could happen for
     // a shift of zero or a SIMD access.
-    if (*mask != NoMask) {
-        f.encoder().patchExpr(prepareAt, Expr::I32And);
-        return f.writeInt32Lit(*mask);
+    if (mask != NoMask) {
+        f.encoder().patchOneByteExpr(prepareAt, Expr::I32And);
+        return f.writeInt32Lit(mask);
     }
 
-    f.encoder().patchExpr(prepareAt, Expr::Id);
+    f.encoder().patchOneByteExpr(prepareAt, Expr::Id);
     return true;
 }
 
@@ -3717,24 +3735,23 @@ static bool
 CheckLoadArray(FunctionValidator& f, ParseNode* elem, Type* type)
 {
     Scalar::Type viewType;
-    int32_t mask;
 
     size_t opcodeAt;
-    if (!f.encoder().writePatchableExpr(&opcodeAt))
+    if (!f.encoder().writePatchableOneByteExpr(&opcodeAt))
         return false;
 
-    if (!CheckAndPrepareArrayAccess(f, ElemBase(elem), ElemIndex(elem), &viewType, &mask))
+    if (!CheckAndPrepareArrayAccess(f, ElemBase(elem), ElemIndex(elem), NoSimd, &viewType))
         return false;
 
     switch (viewType) {
-      case Scalar::Int8:    f.encoder().patchExpr(opcodeAt, Expr::I32LoadMem8S);  break;
-      case Scalar::Uint8:   f.encoder().patchExpr(opcodeAt, Expr::I32LoadMem8U);  break;
-      case Scalar::Int16:   f.encoder().patchExpr(opcodeAt, Expr::I32LoadMem16S); break;
-      case Scalar::Uint16:  f.encoder().patchExpr(opcodeAt, Expr::I32LoadMem16U); break;
+      case Scalar::Int8:    f.encoder().patchOneByteExpr(opcodeAt, Expr::I32Load8S);  break;
+      case Scalar::Uint8:   f.encoder().patchOneByteExpr(opcodeAt, Expr::I32Load8U);  break;
+      case Scalar::Int16:   f.encoder().patchOneByteExpr(opcodeAt, Expr::I32Load16S); break;
+      case Scalar::Uint16:  f.encoder().patchOneByteExpr(opcodeAt, Expr::I32Load16U); break;
       case Scalar::Uint32:
-      case Scalar::Int32:   f.encoder().patchExpr(opcodeAt, Expr::I32LoadMem);    break;
-      case Scalar::Float32: f.encoder().patchExpr(opcodeAt, Expr::F32LoadMem);    break;
-      case Scalar::Float64: f.encoder().patchExpr(opcodeAt, Expr::F64LoadMem);    break;
+      case Scalar::Int32:   f.encoder().patchOneByteExpr(opcodeAt, Expr::I32Load);    break;
+      case Scalar::Float32: f.encoder().patchOneByteExpr(opcodeAt, Expr::F32Load);    break;
+      case Scalar::Float64: f.encoder().patchOneByteExpr(opcodeAt, Expr::F64Load);    break;
       default: MOZ_CRASH("unexpected scalar type");
     }
 
@@ -3763,12 +3780,11 @@ static bool
 CheckStoreArray(FunctionValidator& f, ParseNode* lhs, ParseNode* rhs, Type* type)
 {
     size_t opcodeAt;
-    if (!f.encoder().writePatchableExpr(&opcodeAt))
+    if (!f.encoder().writePatchableOneByteExpr(&opcodeAt))
         return false;
 
     Scalar::Type viewType;
-    int32_t mask;
-    if (!CheckAndPrepareArrayAccess(f, ElemBase(lhs), ElemIndex(lhs), &viewType, &mask))
+    if (!CheckAndPrepareArrayAccess(f, ElemBase(lhs), ElemIndex(lhs), NoSimd, &viewType))
         return false;
 
     Type rhsType;
@@ -3800,27 +3816,27 @@ CheckStoreArray(FunctionValidator& f, ParseNode* lhs, ParseNode* rhs, Type* type
     switch (viewType) {
       case Scalar::Int8:
       case Scalar::Uint8:
-        f.encoder().patchExpr(opcodeAt, Expr::I32StoreMem8);
+        f.encoder().patchOneByteExpr(opcodeAt, Expr::I32Store8);
         break;
       case Scalar::Int16:
       case Scalar::Uint16:
-        f.encoder().patchExpr(opcodeAt, Expr::I32StoreMem16);
+        f.encoder().patchOneByteExpr(opcodeAt, Expr::I32Store16);
         break;
       case Scalar::Int32:
       case Scalar::Uint32:
-        f.encoder().patchExpr(opcodeAt, Expr::I32StoreMem);
+        f.encoder().patchOneByteExpr(opcodeAt, Expr::I32Store);
         break;
       case Scalar::Float32:
         if (rhsType.isFloatish())
-            f.encoder().patchExpr(opcodeAt, Expr::F32StoreMem);
+            f.encoder().patchOneByteExpr(opcodeAt, Expr::F32Store);
         else
-            f.encoder().patchExpr(opcodeAt, Expr::F64StoreMemF32);
+            f.encoder().patchOneByteExpr(opcodeAt, Expr::F64StoreF32);
         break;
       case Scalar::Float64:
         if (rhsType.isFloatish())
-            f.encoder().patchExpr(opcodeAt, Expr::F32StoreMemF64);
+            f.encoder().patchOneByteExpr(opcodeAt, Expr::F32StoreF64);
         else
-            f.encoder().patchExpr(opcodeAt, Expr::F64StoreMem);
+            f.encoder().patchOneByteExpr(opcodeAt, Expr::F64Store);
         break;
       default: MOZ_CRASH("unexpected scalar type");
     }
@@ -3952,7 +3968,7 @@ CheckMathAbs(FunctionValidator& f, ParseNode* call, Type* type)
     ParseNode* arg = CallArgList(call);
 
     size_t opcodeAt;
-    if (!f.encoder().writePatchableExpr(&opcodeAt))
+    if (!f.encoder().writePatchableOneByteExpr(&opcodeAt))
         return false;
 
     Type argType;
@@ -3960,19 +3976,19 @@ CheckMathAbs(FunctionValidator& f, ParseNode* call, Type* type)
         return false;
 
     if (argType.isSigned()) {
-        f.encoder().patchExpr(opcodeAt, Expr::I32Abs);
+        f.encoder().patchOneByteExpr(opcodeAt, Expr::I32Abs);
         *type = Type::Unsigned;
         return true;
     }
 
     if (argType.isMaybeDouble()) {
-        f.encoder().patchExpr(opcodeAt, Expr::F64Abs);
+        f.encoder().patchOneByteExpr(opcodeAt, Expr::F64Abs);
         *type = Type::Double;
         return true;
     }
 
     if (argType.isMaybeFloat()) {
-        f.encoder().patchExpr(opcodeAt, Expr::F32Abs);
+        f.encoder().patchOneByteExpr(opcodeAt, Expr::F32Abs);
         *type = Type::Floatish;
         return true;
     }
@@ -3989,7 +4005,7 @@ CheckMathSqrt(FunctionValidator& f, ParseNode* call, Type* type)
     ParseNode* arg = CallArgList(call);
 
     size_t opcodeAt;
-    if (!f.encoder().writePatchableExpr(&opcodeAt))
+    if (!f.encoder().writePatchableOneByteExpr(&opcodeAt))
         return false;
 
     Type argType;
@@ -3997,13 +4013,13 @@ CheckMathSqrt(FunctionValidator& f, ParseNode* call, Type* type)
         return false;
 
     if (argType.isMaybeDouble()) {
-        f.encoder().patchExpr(opcodeAt, Expr::F64Sqrt);
+        f.encoder().patchOneByteExpr(opcodeAt, Expr::F64Sqrt);
         *type = Type::Double;
         return true;
     }
 
     if (argType.isMaybeFloat()) {
-        f.encoder().patchExpr(opcodeAt, Expr::F32Sqrt);
+        f.encoder().patchOneByteExpr(opcodeAt, Expr::F32Sqrt);
         *type = Type::Floatish;
         return true;
     }
@@ -4018,7 +4034,7 @@ CheckMathMinMax(FunctionValidator& f, ParseNode* callNode, bool isMax, Type* typ
         return f.fail(callNode, "Math.min/max must be passed at least 2 arguments");
 
     size_t opcodeAt;
-    if (!f.encoder().writePatchableExpr(&opcodeAt))
+    if (!f.encoder().writePatchableOneByteExpr(&opcodeAt))
         return false;
 
     ParseNode* firstArg = CallArgList(callNode);
@@ -4043,7 +4059,7 @@ CheckMathMinMax(FunctionValidator& f, ParseNode* callNode, bool isMax, Type* typ
         return f.failf(firstArg, "%s is not a subtype of double?, float? or signed",
                        firstType.toChars());
     }
-    f.encoder().patchExpr(opcodeAt, expr);
+    f.encoder().patchOneByteExpr(opcodeAt, expr);
 
     unsigned numArgs = CallArgListLength(callNode);
     ParseNode* nextArg = NextNode(firstArg);
@@ -4063,9 +4079,9 @@ CheckMathMinMax(FunctionValidator& f, ParseNode* callNode, bool isMax, Type* typ
 
 static bool
 CheckSharedArrayAtomicAccess(FunctionValidator& f, ParseNode* viewName, ParseNode* indexExpr,
-                             Scalar::Type* viewType, int32_t* mask)
+                             Scalar::Type* viewType)
 {
-    if (!CheckAndPrepareArrayAccess(f, viewName, indexExpr, viewType, mask))
+    if (!CheckAndPrepareArrayAccess(f, viewName, indexExpr, NoSimd, viewType))
         return false;
 
     // The global will be sane, CheckArrayAccess checks it.
@@ -4104,7 +4120,7 @@ static bool
 WriteAtomicOperator(FunctionValidator& f, Expr opcode, size_t* viewTypeAt)
 {
     return f.encoder().writeExpr(opcode) &&
-           f.encoder().writePatchableU8(viewTypeAt);
+           f.encoder().writePatchableFixedU8(viewTypeAt);
 }
 
 static bool
@@ -4121,11 +4137,10 @@ CheckAtomicsLoad(FunctionValidator& f, ParseNode* call, Type* type)
         return false;
 
     Scalar::Type viewType;
-    int32_t mask;
-    if (!CheckSharedArrayAtomicAccess(f, arrayArg, indexArg, &viewType, &mask))
+    if (!CheckSharedArrayAtomicAccess(f, arrayArg, indexArg, &viewType))
         return false;
 
-    f.encoder().patchU8(viewTypeAt, uint8_t(viewType));
+    f.encoder().patchFixedU8(viewTypeAt, uint8_t(viewType));
 
     *type = Type::Int;
     return true;
@@ -4146,8 +4161,7 @@ CheckAtomicsStore(FunctionValidator& f, ParseNode* call, Type* type)
         return false;
 
     Scalar::Type viewType;
-    int32_t mask;
-    if (!CheckSharedArrayAtomicAccess(f, arrayArg, indexArg, &viewType, &mask))
+    if (!CheckSharedArrayAtomicAccess(f, arrayArg, indexArg, &viewType))
         return false;
 
     Type rhsType;
@@ -4157,7 +4171,7 @@ CheckAtomicsStore(FunctionValidator& f, ParseNode* call, Type* type)
     if (!rhsType.isIntish())
         return f.failf(arrayArg, "%s is not a subtype of intish", rhsType.toChars());
 
-    f.encoder().patchU8(viewTypeAt, uint8_t(viewType));
+    f.encoder().patchFixedU8(viewTypeAt, uint8_t(viewType));
 
     *type = rhsType;
     return true;
@@ -4176,12 +4190,11 @@ CheckAtomicsBinop(FunctionValidator& f, ParseNode* call, Type* type, AtomicOp op
     size_t viewTypeAt;
     if (!WriteAtomicOperator(f, Expr::I32AtomicsBinOp, &viewTypeAt))
         return false;
-    if (!f.encoder().writeU8(uint8_t(op)))
+    if (!f.encoder().writeFixedU8(uint8_t(op)))
         return false;
 
     Scalar::Type viewType;
-    int32_t mask;
-    if (!CheckSharedArrayAtomicAccess(f, arrayArg, indexArg, &viewType, &mask))
+    if (!CheckSharedArrayAtomicAccess(f, arrayArg, indexArg, &viewType))
         return false;
 
     Type valueArgType;
@@ -4191,7 +4204,7 @@ CheckAtomicsBinop(FunctionValidator& f, ParseNode* call, Type* type, AtomicOp op
     if (!valueArgType.isIntish())
         return f.failf(valueArg, "%s is not a subtype of intish", valueArgType.toChars());
 
-    f.encoder().patchU8(viewTypeAt, uint8_t(viewType));
+    f.encoder().patchFixedU8(viewTypeAt, uint8_t(viewType));
 
     *type = Type::Int;
     return true;
@@ -4229,8 +4242,7 @@ CheckAtomicsCompareExchange(FunctionValidator& f, ParseNode* call, Type* type)
         return false;
 
     Scalar::Type viewType;
-    int32_t mask;
-    if (!CheckSharedArrayAtomicAccess(f, arrayArg, indexArg, &viewType, &mask))
+    if (!CheckSharedArrayAtomicAccess(f, arrayArg, indexArg, &viewType))
         return false;
 
     Type oldValueArgType;
@@ -4247,7 +4259,7 @@ CheckAtomicsCompareExchange(FunctionValidator& f, ParseNode* call, Type* type)
     if (!newValueArgType.isIntish())
         return f.failf(newValueArg, "%s is not a subtype of intish", newValueArgType.toChars());
 
-    f.encoder().patchU8(viewTypeAt, uint8_t(viewType));
+    f.encoder().patchFixedU8(viewTypeAt, uint8_t(viewType));
 
     *type = Type::Int;
     return true;
@@ -4268,8 +4280,7 @@ CheckAtomicsExchange(FunctionValidator& f, ParseNode* call, Type* type)
         return false;
 
     Scalar::Type viewType;
-    int32_t mask;
-    if (!CheckSharedArrayAtomicAccess(f, arrayArg, indexArg, &viewType, &mask))
+    if (!CheckSharedArrayAtomicAccess(f, arrayArg, indexArg, &viewType))
         return false;
 
     Type valueArgType;
@@ -4279,7 +4290,7 @@ CheckAtomicsExchange(FunctionValidator& f, ParseNode* call, Type* type)
     if (!valueArgType.isIntish())
         return f.failf(arrayArg, "%s is not a subtype of intish", valueArgType.toChars());
 
-    f.encoder().patchU8(viewTypeAt, uint8_t(viewType));
+    f.encoder().patchFixedU8(viewTypeAt, uint8_t(viewType));
 
     *type = Type::Int;
     return true;
@@ -4556,19 +4567,19 @@ CheckFloatCoercionArg(FunctionValidator& f, ParseNode* inputNode, Type inputType
                       size_t opcodeAt)
 {
     if (inputType.isMaybeDouble()) {
-        f.encoder().patchExpr(opcodeAt, Expr::F32DemoteF64);
+        f.encoder().patchOneByteExpr(opcodeAt, Expr::F32DemoteF64);
         return true;
     }
     if (inputType.isSigned()) {
-        f.encoder().patchExpr(opcodeAt, Expr::F32ConvertSI32);
+        f.encoder().patchOneByteExpr(opcodeAt, Expr::F32ConvertSI32);
         return true;
     }
     if (inputType.isUnsigned()) {
-        f.encoder().patchExpr(opcodeAt, Expr::F32ConvertUI32);
+        f.encoder().patchOneByteExpr(opcodeAt, Expr::F32ConvertUI32);
         return true;
     }
     if (inputType.isFloatish()) {
-        f.encoder().patchExpr(opcodeAt, Expr::Id);
+        f.encoder().patchOneByteExpr(opcodeAt, Expr::Id);
         return true;
     }
 
@@ -4588,7 +4599,7 @@ CheckCoercionArg(FunctionValidator& f, ParseNode* arg, Type expected, Type* type
         return CheckCoercedCall(f, arg, expected, type);
 
     size_t opcodeAt;
-    if (!f.encoder().writePatchableExpr(&opcodeAt))
+    if (!f.encoder().writePatchableOneByteExpr(&opcodeAt))
         return false;
 
     Type argType;
@@ -4601,7 +4612,7 @@ CheckCoercionArg(FunctionValidator& f, ParseNode* arg, Type expected, Type* type
     } else if (expected.isSimd()) {
         if (!(argType <= expected))
             return f.fail(arg, "argument to SIMD coercion isn't from the correct SIMD type");
-        f.encoder().patchExpr(opcodeAt, Expr::Id);
+        f.encoder().patchOneByteExpr(opcodeAt, Expr::Id);
     } else {
         MOZ_CRASH("not call coercions");
     }
@@ -4677,9 +4688,9 @@ CheckMathBuiltinCall(FunctionValidator& f, ParseNode* callNode, AsmJSMathBuiltin
         return f.fail(callNode, "math builtin cannot be used as float");
 
     if (opIsDouble)
-        f.encoder().patchExpr(opcodeAt, f64);
+        f.encoder().patchOneByteExpr(opcodeAt, f64);
     else
-        f.encoder().patchExpr(opcodeAt, f32);
+        f.encoder().patchOneByteExpr(opcodeAt, f32);
 
     if (arity == 2) {
         Type secondType;
@@ -4736,7 +4747,7 @@ CheckSimdCallArgsPatchable(FunctionValidator& f, ParseNode* call, unsigned expec
         MOZ_ASSERT(!!arg);
         Type argType;
         size_t patchAt;
-        if (!f.encoder().writePatchableExpr(&patchAt))
+        if (!f.encoder().writePatchableOneByteExpr(&patchAt))
             return false;
         if (!CheckExpr(f, arg, &argType))
             return false;
@@ -4805,14 +4816,14 @@ class CheckSimdScalarArgs
 
             // We emitted a double literal and actually want a float32.
             MOZ_ASSERT(patchAt != size_t(-1));
-            f.encoder().patchExpr(patchAt, Expr::F32DemoteF64);
+            f.encoder().patchOneByteExpr(patchAt, Expr::F32DemoteF64);
             return true;
         }
 
         if (patchAt == size_t(-1))
             return true;
 
-        f.encoder().patchExpr(patchAt, Expr::Id);
+        f.encoder().patchOneByteExpr(patchAt, Expr::Id);
         return true;
     }
 };
@@ -4862,7 +4873,7 @@ class CheckSimdVectorScalarArgs
             if (patchAt == size_t(-1))
                 return true;
 
-            f.encoder().patchExpr(patchAt, Expr::Id);
+            f.encoder().patchOneByteExpr(patchAt, Expr::Id);
             return true;
         }
 
@@ -4919,7 +4930,7 @@ class CheckSimdReplaceLaneArgs
                 return f.failf(arg, "%s is not a subtype of %s", actualType.toChars(),
                                Type(formalSimdType_).toChars());
             }
-            f.encoder().patchExpr(patchAt, Expr::Id);
+            f.encoder().patchOneByteExpr(patchAt, Expr::Id);
             return true;
           case 1:
             // Second argument is the lane (< vector length).
@@ -4927,7 +4938,7 @@ class CheckSimdReplaceLaneArgs
                 return f.failf(arg, "lane selector should be a constant integer literal");
             if (u32 >= GetSimdLanes(formalSimdType_))
                 return f.failf(arg, "lane selector should be in bounds");
-            f.encoder().patchExpr(patchAt, Expr::Id);
+            f.encoder().patchOneByteExpr(patchAt, Expr::Id);
             return true;
           case 2:
             // Third argument is the scalar
@@ -5069,7 +5080,7 @@ CheckSimdSwizzle(FunctionValidator& f, ParseNode* call, SimdType opType, Type* t
         return false;
 
     for (unsigned i = 0; i < 4; i++) {
-        if (!f.encoder().writeU8(uint8_t(lanes[i])))
+        if (!f.encoder().writeFixedU8(uint8_t(lanes[i])))
             return false;
     }
 
@@ -5102,7 +5113,7 @@ CheckSimdShuffle(FunctionValidator& f, ParseNode* call, SimdType opType, Type* t
         return false;
 
     for (unsigned i = 0; i < 4; i++) {
-        if (!f.encoder().writeU8(uint8_t(lanes[i])))
+        if (!f.encoder().writeFixedU8(uint8_t(lanes[i])))
             return false;
     }
 
@@ -5117,28 +5128,14 @@ CheckSimdLoadStoreArgs(FunctionValidator& f, ParseNode* call)
     if (!view->isKind(PNK_NAME))
         return f.fail(view, "expected Uint8Array view as SIMD.*.load/store first argument");
 
-    const ModuleValidator::Global* global = f.lookupGlobal(view->name());
-    if (!global ||
-        global->which() != ModuleValidator::Global::ArrayView ||
-        global->viewType() != Scalar::Uint8)
-    {
-        return f.fail(view, "expected Uint8Array view as SIMD.*.load/store first argument");
-    }
-
     ParseNode* indexExpr = NextNode(view);
-    uint32_t indexLit;
-    if (IsLiteralOrConstInt(f, indexExpr, &indexLit)) {
-        if (!f.m().tryConstantAccess(indexLit, Simd128DataSize))
-            return f.fail(indexExpr, "constant index out of range");
-        return f.writeInt32Lit(indexLit);
-    }
 
-    Type indexType;
-    if (!CheckExpr(f, indexExpr, &indexType))
+    Scalar::Type viewType;
+    if (!CheckAndPrepareArrayAccess(f, view, indexExpr, YesSimd, &viewType))
         return false;
 
-    if (!indexType.isIntish())
-        return f.failf(indexExpr, "%s is not a subtype of intish", indexType.toChars());
+    if (viewType != Scalar::Uint8)
+        return f.fail(view, "expected Uint8Array view as SIMD.*.load/store first argument");
 
     return true;
 }
@@ -5380,12 +5377,12 @@ CoerceResult(FunctionValidator& f, ParseNode* expr, Type expected, Type actual, 
     //      | patchAt | the thing we wanted to coerce | current position |>
     switch (expected.which()) {
       case Type::Void:
-        f.encoder().patchExpr(patchAt, Expr::Id);
+        f.encoder().patchOneByteExpr(patchAt, Expr::Id);
         break;
       case Type::Int:
         if (!actual.isIntish())
             return f.failf(expr, "%s is not a subtype of intish", actual.toChars());
-        f.encoder().patchExpr(patchAt, Expr::Id);
+        f.encoder().patchOneByteExpr(patchAt, Expr::Id);
         break;
       case Type::Float:
         if (!CheckFloatCoercionArg(f, expr, actual, patchAt))
@@ -5393,13 +5390,13 @@ CoerceResult(FunctionValidator& f, ParseNode* expr, Type expected, Type actual, 
         break;
       case Type::Double:
         if (actual.isMaybeDouble())
-            f.encoder().patchExpr(patchAt, Expr::Id);
+            f.encoder().patchOneByteExpr(patchAt, Expr::Id);
         else if (actual.isMaybeFloat())
-            f.encoder().patchExpr(patchAt, Expr::F64PromoteF32);
+            f.encoder().patchOneByteExpr(patchAt, Expr::F64PromoteF32);
         else if (actual.isSigned())
-            f.encoder().patchExpr(patchAt, Expr::F64ConvertSI32);
+            f.encoder().patchOneByteExpr(patchAt, Expr::F64ConvertSI32);
         else if (actual.isUnsigned())
-            f.encoder().patchExpr(patchAt, Expr::F64ConvertUI32);
+            f.encoder().patchOneByteExpr(patchAt, Expr::F64ConvertUI32);
         else
             return f.failf(expr, "%s is not a subtype of double?, float?, signed or unsigned", actual.toChars());
         break;
@@ -5407,7 +5404,7 @@ CoerceResult(FunctionValidator& f, ParseNode* expr, Type expected, Type actual, 
         MOZ_ASSERT(expected.isSimd(), "Incomplete switch");
         if (actual != expected)
             return f.failf(expr, "got type %s, expected %s", actual.toChars(), expected.toChars());
-        f.encoder().patchExpr(patchAt, Expr::Id);
+        f.encoder().patchOneByteExpr(patchAt, Expr::Id);
         break;
     }
 
@@ -5420,7 +5417,7 @@ CheckCoercedMathBuiltinCall(FunctionValidator& f, ParseNode* callNode, AsmJSMath
                             Type ret, Type* type)
 {
     size_t opcodeAt;
-    if (!f.encoder().writePatchableExpr(&opcodeAt))
+    if (!f.encoder().writePatchableOneByteExpr(&opcodeAt))
         return false;
     Type actual;
     if (!CheckMathBuiltinCall(f, callNode, func, &actual))
@@ -5435,7 +5432,7 @@ CheckCoercedSimdCall(FunctionValidator& f, ParseNode* call, const ModuleValidato
     MOZ_ASSERT(ret.isCanonical());
 
     size_t opcodeAt;
-    if (!f.encoder().writePatchableExpr(&opcodeAt))
+    if (!f.encoder().writePatchableOneByteExpr(&opcodeAt))
         return false;
 
     Type actual;
@@ -5459,7 +5456,7 @@ CheckCoercedAtomicsBuiltinCall(FunctionValidator& f, ParseNode* callNode,
     MOZ_ASSERT(ret.isCanonical());
 
     size_t opcodeAt;
-    if (!f.encoder().writePatchableExpr(&opcodeAt))
+    if (!f.encoder().writePatchableOneByteExpr(&opcodeAt))
         return false;
     Type actual;
     if (!CheckAtomicsBuiltinCall(f, callNode, func, &actual))
@@ -5476,10 +5473,10 @@ CheckCoercedCall(FunctionValidator& f, ParseNode* call, Type ret, Type* type)
 
     if (IsNumericLiteral(f.m(), call)) {
         size_t coerceOp;
-        if (!f.encoder().writePatchableExpr(&coerceOp))
+        if (!f.encoder().writePatchableOneByteExpr(&coerceOp))
             return false;
         NumLit lit = ExtractNumericLiteral(f.m(), call);
-        if (!f.writeLit(lit))
+        if (!f.writeConstExpr(lit))
             return false;
         return CoerceResult(f, call, ret, Type::lit(lit), coerceOp, type);
     }
@@ -5530,7 +5527,7 @@ CheckPos(FunctionValidator& f, ParseNode* pos, Type* type)
         return CheckCoercedCall(f, operand, Type::Double, type);
 
     size_t opcodeAt;
-    if (!f.encoder().writePatchableExpr(&opcodeAt))
+    if (!f.encoder().writePatchableOneByteExpr(&opcodeAt))
         return false;
 
     Type actual;
@@ -5546,7 +5543,7 @@ CheckNot(FunctionValidator& f, ParseNode* expr, Type* type)
     MOZ_ASSERT(expr->isKind(PNK_NOT));
     ParseNode* operand = UnaryKid(expr);
 
-    if (!f.encoder().writeExpr(Expr::I32Not))
+    if (!f.encoder().writeExpr(Expr::I32Eqz))
         return false;
 
     Type operandType;
@@ -5567,7 +5564,7 @@ CheckNeg(FunctionValidator& f, ParseNode* expr, Type* type)
     ParseNode* operand = UnaryKid(expr);
 
     size_t opcodeAt;
-    if (!f.encoder().writePatchableExpr(&opcodeAt))
+    if (!f.encoder().writePatchableOneByteExpr(&opcodeAt))
         return false;
 
     Type operandType;
@@ -5575,19 +5572,19 @@ CheckNeg(FunctionValidator& f, ParseNode* expr, Type* type)
         return false;
 
     if (operandType.isInt()) {
-        f.encoder().patchExpr(opcodeAt, Expr::I32Neg);
+        f.encoder().patchOneByteExpr(opcodeAt, Expr::I32Neg);
         *type = Type::Intish;
         return true;
     }
 
     if (operandType.isMaybeDouble()) {
-        f.encoder().patchExpr(opcodeAt, Expr::F64Neg);
+        f.encoder().patchOneByteExpr(opcodeAt, Expr::F64Neg);
         *type = Type::Double;
         return true;
     }
 
     if (operandType.isMaybeFloat()) {
-        f.encoder().patchExpr(opcodeAt, Expr::F32Neg);
+        f.encoder().patchOneByteExpr(opcodeAt, Expr::F32Neg);
         *type = Type::Floatish;
         return true;
     }
@@ -5602,7 +5599,7 @@ CheckCoerceToInt(FunctionValidator& f, ParseNode* expr, Type* type)
     ParseNode* operand = UnaryKid(expr);
 
     size_t opcodeAt;
-    if (!f.encoder().writePatchableExpr(&opcodeAt))
+    if (!f.encoder().writePatchableOneByteExpr(&opcodeAt))
         return false;
 
     Type operandType;
@@ -5611,7 +5608,7 @@ CheckCoerceToInt(FunctionValidator& f, ParseNode* expr, Type* type)
 
     if (operandType.isMaybeDouble() || operandType.isMaybeFloat()) {
         Expr opcode = operandType.isMaybeDouble() ? Expr::I32TruncSF64 : Expr::I32TruncSF32;
-        f.encoder().patchExpr(opcodeAt, opcode);
+        f.encoder().patchOneByteExpr(opcodeAt, opcode);
         *type = Type::Signed;
         return true;
     }
@@ -5619,7 +5616,7 @@ CheckCoerceToInt(FunctionValidator& f, ParseNode* expr, Type* type)
     if (!operandType.isIntish())
         return f.failf(operand, "%s is not a subtype of double?, float? or intish", operandType.toChars());
 
-    f.encoder().patchExpr(opcodeAt, Expr::Id);
+    f.encoder().patchOneByteExpr(opcodeAt, Expr::Id);
     *type = Type::Signed;
     return true;
 }
@@ -5751,7 +5748,7 @@ CheckMultiply(FunctionValidator& f, ParseNode* star, Type* type)
     ParseNode* rhs = MultiplyRight(star);
 
     size_t opcodeAt;
-    if (!f.encoder().writePatchableExpr(&opcodeAt))
+    if (!f.encoder().writePatchableOneByteExpr(&opcodeAt))
         return false;
 
     Type lhsType;
@@ -5765,19 +5762,19 @@ CheckMultiply(FunctionValidator& f, ParseNode* star, Type* type)
     if (lhsType.isInt() && rhsType.isInt()) {
         if (!IsValidIntMultiplyConstant(f.m(), lhs) && !IsValidIntMultiplyConstant(f.m(), rhs))
             return f.fail(star, "one arg to int multiply must be a small (-2^20, 2^20) int literal");
-        f.encoder().patchExpr(opcodeAt, Expr::I32Mul);
+        f.encoder().patchOneByteExpr(opcodeAt, Expr::I32Mul);
         *type = Type::Intish;
         return true;
     }
 
     if (lhsType.isMaybeDouble() && rhsType.isMaybeDouble()) {
-        f.encoder().patchExpr(opcodeAt, Expr::F64Mul);
+        f.encoder().patchOneByteExpr(opcodeAt, Expr::F64Mul);
         *type = Type::Double;
         return true;
     }
 
     if (lhsType.isMaybeFloat() && rhsType.isMaybeFloat()) {
-        f.encoder().patchExpr(opcodeAt, Expr::F32Mul);
+        f.encoder().patchOneByteExpr(opcodeAt, Expr::F32Mul);
         *type = Type::Floatish;
         return true;
     }
@@ -5798,7 +5795,7 @@ CheckAddOrSub(FunctionValidator& f, ParseNode* expr, Type* type, unsigned* numAd
     unsigned lhsNumAddOrSub, rhsNumAddOrSub;
 
     size_t opcodeAt;
-    if (!f.encoder().writePatchableExpr(&opcodeAt))
+    if (!f.encoder().writePatchableOneByteExpr(&opcodeAt))
         return false;
 
     if (lhs->isKind(PNK_ADD) || lhs->isKind(PNK_SUB)) {
@@ -5828,13 +5825,13 @@ CheckAddOrSub(FunctionValidator& f, ParseNode* expr, Type* type, unsigned* numAd
         return f.fail(expr, "too many + or - without intervening coercion");
 
     if (lhsType.isInt() && rhsType.isInt()) {
-        f.encoder().patchExpr(opcodeAt, expr->isKind(PNK_ADD) ? Expr::I32Add : Expr::I32Sub);
+        f.encoder().patchOneByteExpr(opcodeAt, expr->isKind(PNK_ADD) ? Expr::I32Add : Expr::I32Sub);
         *type = Type::Intish;
     } else if (lhsType.isMaybeDouble() && rhsType.isMaybeDouble()) {
-        f.encoder().patchExpr(opcodeAt, expr->isKind(PNK_ADD) ? Expr::F64Add : Expr::F64Sub);
+        f.encoder().patchOneByteExpr(opcodeAt, expr->isKind(PNK_ADD) ? Expr::F64Add : Expr::F64Sub);
         *type = Type::Double;
     } else if (lhsType.isMaybeFloat() && rhsType.isMaybeFloat()) {
-        f.encoder().patchExpr(opcodeAt, expr->isKind(PNK_ADD) ? Expr::F32Add : Expr::F32Sub);
+        f.encoder().patchOneByteExpr(opcodeAt, expr->isKind(PNK_ADD) ? Expr::F32Add : Expr::F32Sub);
         *type = Type::Floatish;
     } else {
         return f.failf(expr, "operands to + or - must both be int, float? or double?, got %s and %s",
@@ -5852,7 +5849,7 @@ CheckDivOrMod(FunctionValidator& f, ParseNode* expr, Type* type)
     MOZ_ASSERT(expr->isKind(PNK_DIV) || expr->isKind(PNK_MOD));
 
     size_t opcodeAt;
-    if (!f.encoder().writePatchableExpr(&opcodeAt))
+    if (!f.encoder().writePatchableOneByteExpr(&opcodeAt))
         return false;
 
     ParseNode* lhs = DivOrModLeft(expr);
@@ -5865,14 +5862,14 @@ CheckDivOrMod(FunctionValidator& f, ParseNode* expr, Type* type)
         return false;
 
     if (lhsType.isMaybeDouble() && rhsType.isMaybeDouble()) {
-        f.encoder().patchExpr(opcodeAt, expr->isKind(PNK_DIV) ? Expr::F64Div : Expr::F64Mod);
+        f.encoder().patchOneByteExpr(opcodeAt, expr->isKind(PNK_DIV) ? Expr::F64Div : Expr::F64Mod);
         *type = Type::Double;
         return true;
     }
 
     if (lhsType.isMaybeFloat() && rhsType.isMaybeFloat()) {
         if (expr->isKind(PNK_DIV))
-            f.encoder().patchExpr(opcodeAt, Expr::F32Div);
+            f.encoder().patchOneByteExpr(opcodeAt, Expr::F32Div);
         else
             return f.fail(expr, "modulo cannot receive float arguments");
         *type = Type::Floatish;
@@ -5880,13 +5877,13 @@ CheckDivOrMod(FunctionValidator& f, ParseNode* expr, Type* type)
     }
 
     if (lhsType.isSigned() && rhsType.isSigned()) {
-        f.encoder().patchExpr(opcodeAt, expr->isKind(PNK_DIV) ? Expr::I32DivS : Expr::I32RemS);
+        f.encoder().patchOneByteExpr(opcodeAt, expr->isKind(PNK_DIV) ? Expr::I32DivS : Expr::I32RemS);
         *type = Type::Intish;
         return true;
     }
 
     if (lhsType.isUnsigned() && rhsType.isUnsigned()) {
-        f.encoder().patchExpr(opcodeAt, expr->isKind(PNK_DIV) ? Expr::I32DivU : Expr::I32RemU);
+        f.encoder().patchOneByteExpr(opcodeAt, expr->isKind(PNK_DIV) ? Expr::I32DivU : Expr::I32RemU);
         *type = Type::Intish;
         return true;
     }
@@ -5902,7 +5899,7 @@ CheckComparison(FunctionValidator& f, ParseNode* comp, Type* type)
                comp->isKind(PNK_GE) || comp->isKind(PNK_EQ) || comp->isKind(PNK_NE));
 
     size_t opcodeAt;
-    if (!f.encoder().writePatchableExpr(&opcodeAt))
+    if (!f.encoder().writePatchableOneByteExpr(&opcodeAt))
         return false;
 
     ParseNode* lhs = ComparisonLeft(comp);
@@ -5968,7 +5965,7 @@ CheckComparison(FunctionValidator& f, ParseNode* comp, Type* type)
         MOZ_CRASH("unexpected type");
     }
 
-    f.encoder().patchExpr(opcodeAt, stmt);
+    f.encoder().patchOneByteExpr(opcodeAt, stmt);
     *type = Type::Int;
     return true;
 }
@@ -6324,7 +6321,7 @@ CheckIf(FunctionValidator& f, ParseNode* ifStmt)
 {
   recurse:
     size_t opcodeAt;
-    if (!f.encoder().writePatchableExpr(&opcodeAt))
+    if (!f.encoder().writePatchableOneByteExpr(&opcodeAt))
         return false;
 
     MOZ_ASSERT(ifStmt->isKind(PNK_IF));
@@ -6342,9 +6339,9 @@ CheckIf(FunctionValidator& f, ParseNode* ifStmt)
         return false;
 
     if (!elseStmt) {
-        f.encoder().patchExpr(opcodeAt, Expr::If);
+        f.encoder().patchOneByteExpr(opcodeAt, Expr::If);
     } else {
-        f.encoder().patchExpr(opcodeAt, Expr::IfElse);
+        f.encoder().patchOneByteExpr(opcodeAt, Expr::IfElse);
 
         if (elseStmt->isKind(PNK_IF)) {
             ifStmt = elseStmt;
@@ -6424,7 +6421,7 @@ CheckSwitchRange(FunctionValidator& f, ParseNode* stmt, int32_t* low, int32_t* h
     }
 
     int64_t i64 = (int64_t(*high) - int64_t(*low)) + 1;
-    if (i64 > 4 * 1024 * 1024)
+    if (i64 > MaxBrTableElems)
         return f.fail(initialStmt, "all switch statements generate tables; this table would be too big");
 
     *tableLength = uint32_t(i64);
@@ -6517,9 +6514,7 @@ CheckSwitch(FunctionValidator& f, ParseNode* switchStmt)
     if (!f.encoder().writeExpr(Expr::BrTable))
         return false;
 
-    // Write default depth and number of cases (tableLength - 1 + 1 (default)).
-    if (!f.encoder().writeVarU32(defaultDepth))
-        return false;
+    // Write the number of cases (tableLength - 1 + 1 (default)).
     if (!f.encoder().writeVarU32(tableLength))
         return false;
 
@@ -6527,9 +6522,13 @@ CheckSwitch(FunctionValidator& f, ParseNode* switchStmt)
     // a case is not explicitly defined, it goes to the default.
     for (size_t i = 0; i < tableLength; i++) {
         uint32_t target = caseDepths[i] == CASE_NOT_DEFINED ? defaultDepth : caseDepths[i];
-        if (!f.encoder().writeVarU32(target))
+        if (!f.encoder().writeFixedU32(target))
             return false;
     }
+
+    // Write the default depth.
+    if (!f.encoder().writeFixedU32(defaultDepth))
+        return false;
 
     // Subtract lowest case value, so that all the cases start from 0.
     if (low) {
@@ -6747,18 +6746,11 @@ CheckFunction(ModuleValidator& m)
     if (!CheckArguments(f, &stmtIter, &args))
         return false;
 
-    uint32_t numStmts = 0;
-
-    size_t numStmtsAt;
-    if (!f.encoder().writePatchableVarU32(&numStmtsAt))
-        return false;
-
-    if (!CheckVariables(f, &stmtIter, &numStmts))
+    if (!CheckVariables(f, &stmtIter))
         return false;
 
     ParseNode* lastNonEmptyStmt = nullptr;
     for (; stmtIter; stmtIter = NextNonEmptyStatement(stmtIter)) {
-        numStmts++;
         lastNonEmptyStmt = stmtIter;
         if (!CheckStatement(f, stmtIter))
             return false;
@@ -6766,8 +6758,6 @@ CheckFunction(ModuleValidator& m)
 
     if (!CheckFinalReturn(f, lastNonEmptyStmt))
         return false;
-
-    f.encoder().patchVarU32(numStmtsAt, numStmts);
 
     ModuleValidator::Func* func = nullptr;
     if (!CheckFunctionSignature(m, fn, Sig(Move(args), f.returnedType()), FunctionName(fn), &func))
@@ -8433,27 +8423,6 @@ js::IsAsmJSModuleLoadedFromCache(JSContext* cx, unsigned argc, Value* vp)
 /*****************************************************************************/
 // asm.js toString/toSource support
 
-static bool
-AppendUseStrictSource(JSContext* cx, HandleFunction fun, Handle<JSFlatString*> src, StringBuffer& out)
-{
-    // We need to add "use strict" in the body right after the opening
-    // brace.
-    size_t bodyStart = 0, bodyEnd;
-
-    // No need to test for functions created with the Function ctor as
-    // these don't implicitly inherit the "use strict" context. Strict mode is
-    // enabled for functions created with the Function ctor only if they begin with
-    // the "use strict" directive, but these functions won't validate as asm.js
-    // modules.
-
-    if (!FindBody(cx, fun, src, &bodyStart, &bodyEnd))
-        return false;
-
-    return out.appendSubstring(src, 0, bodyStart) &&
-           out.append("\n\"use strict\";\n") &&
-           out.appendSubstring(src, bodyStart, src->length() - bodyStart);
-}
-
 JSString*
 js::AsmJSModuleToString(JSContext* cx, HandleFunction fun, bool addParenToLambda)
 {
@@ -8510,13 +8479,8 @@ js::AsmJSModuleToString(JSContext* cx, HandleFunction fun, bool addParenToLambda
         if (!src)
             return nullptr;
 
-        if (module.strict()) {
-            if (!AppendUseStrictSource(cx, fun, src, out))
-                return nullptr;
-        } else {
-            if (!out.append(src))
-                return nullptr;
-        }
+        if (!out.append(src))
+            return nullptr;
 
         if (funCtor && !out.append("\n}"))
             return nullptr;
@@ -8560,27 +8524,11 @@ js::AsmJSFunctionToString(JSContext* cx, HandleFunction fun)
         // as they belong within a module.
         MOZ_ASSERT(!(begin == 0 && end == source->length() && source->argumentsNotIncluded()));
 
-        if (module.strict()) {
-            // AppendUseStrictSource expects its input to start right after the
-            // function name, so split the source chars from the src into two parts:
-            // the function name and the rest (arguments + body).
-
-            // asm.js functions can't be anonymous
-            MOZ_ASSERT(fun->atom());
-            if (!out.append(fun->atom()))
-                return nullptr;
-
-            size_t nameEnd = begin + fun->atom()->length();
-            Rooted<JSFlatString*> src(cx, source->substring(cx, nameEnd, end));
-            if (!src || !AppendUseStrictSource(cx, fun, src, out))
-                return nullptr;
-        } else {
-            Rooted<JSFlatString*> src(cx, source->substring(cx, begin, end));
-            if (!src)
-                return nullptr;
-            if (!out.append(src))
-                return nullptr;
-        }
+        Rooted<JSFlatString*> src(cx, source->substring(cx, begin, end));
+        if (!src)
+            return nullptr;
+        if (!out.append(src))
+            return nullptr;
     }
 
     return out.finishString();

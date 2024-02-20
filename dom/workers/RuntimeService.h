@@ -259,6 +259,8 @@ public:
   void
   SendOfflineStatusChangeEventToAllWorkers(bool aIsOffline);
 
+  uint32_t ClampedHardwareConcurrency() const;
+
 private:
   RuntimeService();
   ~RuntimeService();

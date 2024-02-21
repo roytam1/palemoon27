@@ -4679,6 +4679,10 @@ this.DOMApplicationRegistry = {
     return OS.Path.dirname(this.appsFile);
   },
 
+  areAnyAppsInstalled: function() {
+    return AppsUtils.areAnyAppsInstalled(this.webapps);
+  },
+
   updateDataStoreEntriesFromLocalId: function(aLocalId) {
     let app = appsService.getAppByLocalId(aLocalId);
     if (app) {

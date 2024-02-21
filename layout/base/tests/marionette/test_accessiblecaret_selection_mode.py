@@ -1,3 +1,4 @@
+
 # -*- coding: utf-8 -*-
 # This Source Code Form is subject to the terms of the Mozilla Public
 # License, v. 2.0. If a copy of the MPL was not distributed with this
@@ -18,16 +19,21 @@ def skip_if_not_rotatable(target):
     return wrapper
 
 
-class CommonCaretsTestCase(object):
-    '''Common test cases for a selection with a two carets.
-
-    To run these test cases, a subclass must inherit from both this class and
-    MarionetteTestCase.
+class AccessibleCaretSelectionModeTestCase(MarionetteTestCase):
+    '''Test cases for AccessibleCaret under selection mode, aka selection carets.
 
     '''
+
     def setUp(self):
         # Code to execute before a tests are run.
-        super(CommonCaretsTestCase, self).setUp()
+        super(AccessibleCaretSelectionModeTestCase, self).setUp()
+        self.carets_tested_pref = 'layout.accessiblecaret.enabled'
+        self.prefs = {
+            'layout.word_select.eat_space_to_next_word': False,
+            'layout.accessiblecaret.use_long_tap_injector': False,
+            self.carets_tested_pref: True,
+        }
+        self.marionette.set_prefs(self.prefs)
         self.actions = Actions(self.marionette)
 
     def open_test_html(self):
@@ -40,6 +46,7 @@ class CommonCaretsTestCase(object):
         self._textarea_rtl = self.marionette.find_element(By.ID, 'textarea_rtl')
         self._contenteditable = self.marionette.find_element(By.ID, 'contenteditable')
         self._content = self.marionette.find_element(By.ID, 'content')
+        self._non_selectable = self.marionette.find_element(By.ID, 'non_selectable')
 
     def open_test_html2(self):
         'Open html for testing and locate elements.'
@@ -78,6 +85,39 @@ class CommonCaretsTestCase(object):
 
         self._iframe = self.marionette.find_element(By.ID, 'frame')
 
+    def open_test_html_display_none(self):
+        'Open html for testing html with display: none.'
+        test_html = self.marionette.absolute_url('test_carets_display_none.html')
+        self.marionette.navigate(test_html)
+
+        self._html = self.marionette.find_element(By.ID, 'html')
+        self._content = self.marionette.find_element(By.ID, 'content')
+
+    def word_offset(self, text, ordinal):
+        'Get the character offset of the ordinal-th word in text.'
+        tokens = re.split(r'(\S+)', text)         # both words and spaces
+        spaces = tokens[0::2]                     # collect spaces at odd indices
+        words = tokens[1::2]                      # collect word at even indices
+
+        if ordinal >= len(words):
+            raise IndexError('Only %d words in text, but got ordinal %d' %
+                             (len(words), ordinal))
+
+        # Cursor position of the targeting word is behind the the first
+        # character in the word. For example, offset to 'def' in 'abc def' is
+        # between 'd' and 'e'.
+        offset = len(spaces[0]) + 1
+        offset += sum(len(words[i]) + len(spaces[i + 1]) for i in range(ordinal))
+        return offset
+
+    def test_word_offset(self):
+        text = ' ' * 3 + 'abc' + ' ' * 3 + 'def'
+
+        self.assertTrue(self.word_offset(text, 0), 4)
+        self.assertTrue(self.word_offset(text, 1), 10)
+        with self.assertRaises(IndexError):
+            self.word_offset(text, 2)
+
     def word_location(self, el, ordinal):
         '''Get the location (x, y) of the ordinal-th word in el.
 
@@ -88,16 +128,7 @@ class CommonCaretsTestCase(object):
 
         '''
         sel = SelectionManager(el)
-        tokens = re.split(r'(\S+)', sel.content)  # both words and spaces
-        words = tokens[0::2]                      # collect words at even indices
-        spaces = tokens[1::2]                     # collect spaces at odd indices
-        self.assertTrue(ordinal < len(words),
-                        'Expect at least %d words in the content.' % ordinal)
-
-        # Cursor position of the targeting word is behind the the first
-        # character in the word. For example, offset to 'def' in 'abc def' is
-        # between 'd' and 'e'.
-        offset = sum(len(words[i]) + len(spaces[i]) for i in range(ordinal)) + 1
+        offset = self.word_offset(sel.content, ordinal)
 
         # Move caret to the word.
         el.tap()
@@ -149,7 +180,7 @@ class CommonCaretsTestCase(object):
         x, y = self.word_location(el, wordOrdinal)
         self.long_press_on_location(el, x, y)
 
-    def _to_unix_line_ending(self, s):
+    def to_unix_line_ending(self, s):
         """Changes all Windows/Mac line endings in s to UNIX line endings."""
 
         return s.replace('\r\n', '\n').replace('\r', '\n')
@@ -165,7 +196,7 @@ class CommonCaretsTestCase(object):
         self.long_press_on_word(el, 0)
 
         # Ignore extra spaces selected after the word.
-        assertFunc(target_content, sel.selected_content.rstrip())
+        assertFunc(target_content, sel.selected_content)
 
     def _test_move_selection_carets(self, el, assertFunc):
         sel = SelectionManager(el)
@@ -191,8 +222,7 @@ class CommonCaretsTestCase(object):
         # Move the left caret to the previous position of the right caret.
         self.actions.flick(el, caret1_x, caret1_y, caret2_x, caret2_y).perform()
 
-        # Ignore extra spaces at the beginning of the content in comparison.
-        assertFunc(target_content.lstrip(), sel.selected_content.lstrip())
+        assertFunc(target_content, sel.selected_content)
 
     def _test_minimum_select_one_character(self, el, assertFunc,
                                            x=None, y=None):
@@ -245,6 +275,15 @@ class CommonCaretsTestCase(object):
         el1.tap()
         self._test_minimum_select_one_character(el2, self.assertEqual,
                                                 x=x, y=y)
+
+    def _test_focus_not_being_changed_by_long_press_on_non_selectable(self, el):
+        # Goal: Focus remains on the editable element el after long pressing on
+        # the non-selectable element.
+        sel = SelectionManager(el)
+        self.long_press_on_word(el, 0)
+        self.long_press_on_location(self._non_selectable)
+        active_sel = SelectionManager(self.marionette.get_active_element())
+        self.assertEqual(sel.content, active_sel.content)
 
     def _test_handle_tilt_when_carets_overlap_to_each_other(self, el, assertFunc):
         '''Test tilt handling when carets overlap to each other.
@@ -329,18 +368,18 @@ class CommonCaretsTestCase(object):
         # Drag end caret to target location
         (caret1_x, caret1_y), (caret2_x, caret2_y) = sel.selection_carets_location()
         self.actions.flick(self._body, caret2_x, caret2_y, end_caret_x, end_caret_y, 1).perform()
-        self.assertEqual(self._to_unix_line_ending(sel.selected_content.strip()),
+        self.assertEqual(self.to_unix_line_ending(sel.selected_content.strip()),
                          'this 3\nuser can select this')
 
         (caret1_x, caret1_y), (caret2_x, caret2_y) = sel.selection_carets_location()
         self.actions.flick(self._body, caret2_x, caret2_y, end_caret2_x, end_caret2_y, 1).perform()
-        self.assertEqual(self._to_unix_line_ending(sel.selected_content.strip()),
+        self.assertEqual(self.to_unix_line_ending(sel.selected_content.strip()),
                          'this 3\nuser can select this 4\nuser can select this 5\nuser')
 
         # Drag first caret to target location
         (caret1_x, caret1_y), (caret2_x, caret2_y) = sel.selection_carets_location()
         self.actions.flick(self._body, caret1_x, caret1_y, end_caret_x, end_caret_y, 1).perform()
-        self.assertEqual(self._to_unix_line_ending(sel.selected_content.strip()),
+        self.assertEqual(self.to_unix_line_ending(sel.selected_content.strip()),
                          '4\nuser can select this 5\nuser')
 
     def test_drag_caret_to_beginning_of_a_line(self):
@@ -364,7 +403,7 @@ class CommonCaretsTestCase(object):
         # Drag end caret back to the target word
         self.actions.flick(self._body, start_caret_x, start_caret_y, caret2_x, caret2_y).perform()
 
-        self.assertEqual(self._to_unix_line_ending(sel.selected_content.strip()), 'select')
+        self.assertEqual(self.to_unix_line_ending(sel.selected_content), 'select')
 
     @skip_if_not_rotatable
     def test_caret_position_after_changing_orientation_of_device(self):
@@ -388,7 +427,7 @@ class CommonCaretsTestCase(object):
         # other tests
         self.marionette.set_orientation('portrait')
 
-        self.assertEqual(self._to_unix_line_ending(sel.selected_content.strip()), 'o')
+        self.assertEqual(self.to_unix_line_ending(sel.selected_content), 'o')
 
     def test_select_word_inside_an_iframe(self):
         '''Bug 1088552
@@ -410,7 +449,24 @@ class CommonCaretsTestCase(object):
         self._bottomtext = self.marionette.find_element(By.ID, 'bottomtext')
         self.long_press_on_location(self._bottomtext)
 
-        self.assertNotEqual(self._to_unix_line_ending(sel.selected_content.strip()), '')
+        self.assertNotEqual(self.to_unix_line_ending(sel.selected_content), '')
+
+    def test_carets_initialized_in_display_none(self):
+        '''Test AccessibleCaretEventHub is properly initialized on a <html> with
+        display: none.
+
+        '''
+        self.open_test_html_display_none()
+
+        # Remove 'display: none' from <html>
+        self.marionette.execute_script(
+            'arguments[0].style.display = "unset";',
+            script_args=[self._html]
+        )
+
+        # If AccessibleCaretEventHub is initialized successfully, select a word
+        # should work.
+        self._test_long_press_to_select_a_word(self._content, self.assertEqual)
 
     ########################################################################
     # <input> test cases with selection carets enabled
@@ -443,18 +499,9 @@ class CommonCaretsTestCase(object):
         self.open_test_html()
         self._test_handle_tilt_when_carets_overlap_to_each_other(self._input, self.assertEqual)
 
-    ########################################################################
-    # <input> test cases with selection carets disabled
-    ########################################################################
-    def test_input_long_press_to_select_a_word_disabled(self):
-        with self.marionette.using_prefs({self.carets_tested_pref: False}):
-            self.open_test_html()
-            self._test_long_press_to_select_a_word(self._input, self.assertNotEqual)
-
-    def test_input_move_selection_carets_disabled(self):
-        with self.marionette.using_prefs({self.carets_tested_pref: False}):
-            self.open_test_html()
-            self._test_move_selection_carets(self._input, self.assertNotEqual)
+    def test_input_focus_not_changed_by_long_press_on_non_selectable(self):
+        self.open_test_html()
+        self._test_focus_not_being_changed_by_long_press_on_non_selectable(self._input)
 
     ########################################################################
     # <textarea> test cases with selection carets enabled
@@ -487,18 +534,9 @@ class CommonCaretsTestCase(object):
         self.open_test_html()
         self._test_handle_tilt_when_carets_overlap_to_each_other(self._textarea, self.assertEqual)
 
-    ########################################################################
-    # <textarea> test cases with selection carets disabled
-    ########################################################################
-    def test_textarea_long_press_to_select_a_word_disabled(self):
-        with self.marionette.using_prefs({self.carets_tested_pref: False}):
-            self.open_test_html()
-            self._test_long_press_to_select_a_word(self._textarea, self.assertNotEqual)
-
-    def test_textarea_move_selection_carets_disable(self):
-        with self.marionette.using_prefs({self.carets_tested_pref: False}):
-            self.open_test_html()
-            self._test_move_selection_carets(self._textarea, self.assertNotEqual)
+    def test_textarea_focus_not_changed_by_long_press_on_non_selectable(self):
+        self.open_test_html()
+        self._test_focus_not_being_changed_by_long_press_on_non_selectable(self._textarea)
 
     ########################################################################
     # <textarea> right-to-left test cases with selection carets enabled
@@ -515,18 +553,9 @@ class CommonCaretsTestCase(object):
         self.open_test_html()
         self._test_minimum_select_one_character(self._textarea_rtl, self.assertEqual)
 
-    ########################################################################
-    # <textarea> right-to-left test cases with selection carets disabled
-    ########################################################################
-    def test_textarea_rtl_long_press_to_select_a_word_disabled(self):
-        with self.marionette.using_prefs({self.carets_tested_pref: False}):
-            self.open_test_html()
-            self._test_long_press_to_select_a_word(self._textarea_rtl, self.assertNotEqual)
-
-    def test_textarea_rtl_move_selection_carets_disabled(self):
-        with self.marionette.using_prefs({self.carets_tested_pref: False}):
-            self.open_test_html()
-            self._test_move_selection_carets(self._textarea_rtl, self.assertNotEqual)
+    def test_textarea_rtl_focus_not_changed_by_long_press_on_non_selectable(self):
+        self.open_test_html()
+        self._test_focus_not_being_changed_by_long_press_on_non_selectable(self._textarea_rtl)
 
     ########################################################################
     # <div> contenteditable test cases with selection carets enabled
@@ -559,18 +588,9 @@ class CommonCaretsTestCase(object):
         self.open_test_html()
         self._test_handle_tilt_when_carets_overlap_to_each_other(self._contenteditable, self.assertEqual)
 
-    ########################################################################
-    # <div> contenteditable test cases with selection carets disabled
-    ########################################################################
-    def test_contenteditable_long_press_to_select_a_word_disabled(self):
-        with self.marionette.using_prefs({self.carets_tested_pref: False}):
-            self.open_test_html()
-            self._test_long_press_to_select_a_word(self._contenteditable, self.assertNotEqual)
-
-    def test_contenteditable_move_selection_carets_disabled(self):
-        with self.marionette.using_prefs({self.carets_tested_pref: False}):
-            self.open_test_html()
-            self._test_move_selection_carets(self._contenteditable, self.assertNotEqual)
+    def test_contenteditable_focus_not_changed_by_long_press_on_non_selectable(self):
+        self.open_test_html()
+        self._test_focus_not_being_changed_by_long_press_on_non_selectable(self._contenteditable)
 
     ########################################################################
     # <div> non-editable test cases with selection carets enabled
@@ -623,30 +643,6 @@ class CommonCaretsTestCase(object):
     def test_content_non_editable2_minimum_select_one_character(self):
         self.open_test_html2()
         self._test_minimum_select_one_character(self._content2, self.assertEqual)
-
-
-class SelectionCaretsTestCase(CommonCaretsTestCase, MarionetteTestCase):
-    def setUp(self):
-        super(SelectionCaretsTestCase, self).setUp()
-        self.carets_tested_pref = 'selectioncaret.enabled'
-
-        self.prefs = {
-            'layout.accessiblecaret.enabled': False,
-            self.carets_tested_pref: True,
-        }
-        self.marionette.set_prefs(self.prefs)
-
-
-class AccessibleCaretSelectionModeTestCase(CommonCaretsTestCase, MarionetteTestCase):
-    def setUp(self):
-        super(AccessibleCaretSelectionModeTestCase, self).setUp()
-        self.carets_tested_pref = 'layout.accessiblecaret.enabled'
-
-        self.prefs = {
-            'selectioncaret.enabled': False,
-            self.carets_tested_pref: True,
-        }
-        self.marionette.set_prefs(self.prefs)
 
     def test_long_press_to_select_when_partial_visible_word_is_selected(self):
         self.open_test_html()

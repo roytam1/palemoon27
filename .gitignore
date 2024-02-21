@@ -27,6 +27,7 @@ ID
 /config.log
 /.clang_complete
 /mach.ini
+/old-configure
 
 # Empty marker file that's generated when we check out NSS
 security/manager/.nss.checkout
@@ -42,6 +43,7 @@ security/manager/.nss.checkout
 # SpiderMonkey configury
 js/src/configure
 js/src/autom4te.cache
+js/src/old-configure
 # SpiderMonkey test result logs
 js/src/tests/results-*.html
 js/src/tests/results-*.txt

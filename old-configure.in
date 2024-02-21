@@ -979,7 +979,6 @@ LIB_PREFIX=lib
 DLL_SUFFIX=.so
 OBJ_SUFFIX=o
 LIB_SUFFIX=a
-ASM_SUFFIX=s
 IMPORT_LIB_SUFFIX=
 DIRENT_INO=d_ino
 MOZ_USER_DIR=".mozilla"
@@ -995,12 +994,10 @@ _PLATFORM_DEFAULT_TOOLKIT=cairo-gtk3
 if test -n "$CROSS_COMPILE"; then
     OS_TARGET="${target_os}"
     OS_ARCH=`echo $target_os | sed -e 's|/|_|g'`
-    OS_RELEASE=
     case "${target_os}" in
         linux*)       OS_ARCH=Linux OS_TARGET=Linux ;;
         kfreebsd*-gnu) OS_ARCH=GNU_kFreeBSD OS_TARGET=GNU/kFreeBSD ;;
         gnu*)         OS_ARCH=GNU ;;
-        solaris*)     OS_ARCH=SunOS OS_RELEASE=5 ;;
         mingw*)       OS_ARCH=WINNT OS_TARGET=WINNT ;;
         darwin*)      OS_ARCH=Darwin OS_TARGET=Darwin ;;
         dragonfly*)   OS_ARCH=DragonFly OS_TARGET=DragonFly ;;
@@ -1014,7 +1011,6 @@ if test -n "$CROSS_COMPILE"; then
 else
     OS_TARGET=`uname -s`
     OS_ARCH=`uname -s | sed -e 's|/|_|g'`
-    OS_RELEASE=`uname -r`
 fi
 
 # Before this used `uname -m` when not cross compiling
@@ -1038,8 +1034,6 @@ HOST_OS_ARCH=`echo $host_os | sed -e 's|/|_|g'`
 # OS_ARCH
 # OS_TEST
 # OS_TARGET
-# OS_RELEASE
-# OS_MINOR_RELEASE
 #
 
 case "$HOST_OS_ARCH" in
@@ -1070,24 +1064,6 @@ netbsd*)
 openbsd*)
     HOST_OS_ARCH=OpenBSD
     ;;
-solaris*)
-    HOST_OS_ARCH=SunOS
-    SOLARIS_SUNPRO_CC=
-    SOLARIS_SUNPRO_CXX=
-    if test -z "$GNU_CC"; then
-        if test "`$CC -V 2>&1 | egrep -c 'Sun.*C '`" != "0"; then
-            SOLARIS_SUNPRO_CC=1
-       fi
-    fi
-
-    if test -z "$GNU_CXX"; then
-       if test "`$CXX -V 2>&1 | egrep -c 'Sun.*C\+\+ '`" != "0"; then
-           SOLARIS_SUNPRO_CXX=1
-       fi
-    fi
-    AC_SUBST(SOLARIS_SUNPRO_CC)
-    AC_SUBST(SOLARIS_SUNPRO_CXX)
-    ;;
 esac
 
 case "$OS_ARCH" in
@@ -1097,34 +1073,12 @@ WINNT)
     fi
     ;;
 Windows_NT)
-#
-# If uname -s returns "Windows_NT", we assume that we are using
-# the uname.exe in MKS toolkit.
-#
-# The -r option of MKS uname only returns the major version number.
-# So we need to use its -v option to get the minor version number.
-# Moreover, it doesn't have the -p option, so we need to use uname -m.
-#
     OS_ARCH=WINNT
     OS_TARGET=WINNT
-    OS_MINOR_RELEASE=`uname -v`
-    if test "$OS_MINOR_RELEASE" = "00"; then
-        OS_MINOR_RELEASE=0
-    fi
-    OS_RELEASE="${OS_RELEASE}.${OS_MINOR_RELEASE}"
     ;;
 MINGW*_NT*)
-#
-# If uname -s returns MINGW32_NT-5.1, we assume that we are using
-# the uname.exe in the MSYS tools.
-#
-    OS_RELEASE=`expr $OS_ARCH : '.*NT-\(.*\)'`
     OS_ARCH=WINNT
     OS_TARGET=WINNT
-    ;;
-AIX)
-    OS_RELEASE=`uname -v`.`uname -r`
-    OS_TEST=${target_cpu}
     ;;
 Darwin)
     case "${target_cpu}" in
@@ -1201,7 +1155,6 @@ esac
 if test -z "$OS_TARGET"; then
     OS_TARGET=$OS_ARCH
 fi
-OS_CONFIG="${OS_TARGET}${OS_RELEASE}"
 
 dnl Set INTEL_ARCHITECTURE if we're compiling for x86-32 or x86-64.
 dnl ===============================================================
@@ -1487,15 +1440,6 @@ if test "$GNU_CC"; then
 
     ASFLAGS="$ASFLAGS $_DEFINES_CFLAGS"
 
-elif test "$SOLARIS_SUNPRO_CC"; then
-    DSO_CFLAGS=''
-    if test "$CPU_ARCH" = "sparc"; then
-        # for Sun Studio on Solaris/SPARC
-        DSO_PIC_CFLAGS='-xcode=pic32'
-    else
-        DSO_PIC_CFLAGS='-KPIC'
-    fi
-    _DEFINES_CFLAGS='$(ACDEFINES) -D_MOZILLA_CONFIG_H_ -DMOZILLA_CLIENT'
 else
     MKSHLIB='$(LD) $(DSO_LDOPTS) -h $(DSO_SONAME) -o $@'
     MKCSHLIB='$(LD) $(DSO_LDOPTS) -h $(DSO_SONAME) -o $@'
@@ -1820,61 +1764,6 @@ dnl System overrides of the defaults for target
 dnl ========================================================
 
 case "$target" in
-*-aix*)
-    AC_DEFINE(AIX)
-    if test ! "$GNU_CC"; then
-        if test ! "$HAVE_64BIT_BUILD"; then
-            # Compiling with Visual Age C++ object model compat is the
-            # default. To compile with object model ibm, add
-            # AIX_OBJMODEL=ibm to .mozconfig.
-            if test "$AIX_OBJMODEL" = "ibm"; then
-                CXXFLAGS="$CXXFLAGS -qobjmodel=ibm"
-            else
-                AIX_OBJMODEL=compat
-            fi
-        else
-            AIX_OBJMODEL=compat
-        fi
-        AC_SUBST(AIX_OBJMODEL)
-        DSO_LDOPTS='-qmkshrobj=1'
-        DSO_CFLAGS='-qflag=w:w'
-        DSO_PIC_CFLAGS=
-        LDFLAGS="$LDFLAGS -Wl,-brtl -blibpath:/usr/lib:/lib"
-        MOZ_FIX_LINK_PATHS=
-        MKSHLIB='$(CXX) $(DSO_LDOPTS) -o $@'
-        MKCSHLIB='$(CC) $(DSO_LDOPTS) -o $@'
-        if test "$COMPILE_ENVIRONMENT"; then
-            AC_LANG_SAVE
-            AC_LANG_CPLUSPLUS
-            AC_MSG_CHECKING([for IBM XLC/C++ compiler version >= 9.0.0.7])
-            AC_TRY_COMPILE([],
-                [#if (__IBMCPP__ < 900)
-                 #error "Bad compiler"
-                 #endif],
-                _BAD_COMPILER=,_BAD_COMPILER=1)
-            if test -n "$_BAD_COMPILER"; then
-                AC_MSG_RESULT([no])
-                AC_MSG_ERROR([IBM XLC/C++ 9.0.0.7 or higher is required to build.])
-            else
-                AC_MSG_RESULT([yes])
-            fi
-            AC_LANG_RESTORE
-            TARGET_COMPILER_ABI="ibmc"
-            CC_VERSION=`lslpp -Lcq vac.C 2>/dev/null | awk -F: '{ print $3 }'`
-            CXX_VERSION=`lslpp -Lcq vacpp.cmp.core 2>/dev/null | awk -F: '{ print $3 }'`
-        fi # COMPILE_ENVIRONMENT
-    fi
-    case "${target_os}" in
-    aix4.1*)
-        DLL_SUFFIX='_shr.a'
-        ;;
-    esac
-    if test "$COMPILE_ENVIRONMENT"; then
-        MOZ_CHECK_HEADERS(sys/inttypes.h)
-    fi # COMPILE_ENVIRONMENT
-    AC_DEFINE(NSCAP_DISABLE_DEBUG_PTR_TYPES)
-    ;;
-
 *-darwin*)
     MKSHLIB='$(CXX) $(CXXFLAGS) $(DSO_PIC_CFLAGS) $(DSO_LDOPTS) -o $@'
     MKCSHLIB='$(CC) $(CFLAGS) $(DSO_PIC_CFLAGS) $(DSO_LDOPTS) -o $@'
@@ -1952,43 +1841,6 @@ case "$target" in
     LDFLAGS=$_SAVE_LDFLAGS
 
     MOZ_FIX_LINK_PATHS="-Wl,-executable_path,${DIST}/bin"
-    ;;
-
-ia64*-hpux*)
-    DLL_SUFFIX=".so"
-    if test ! "$GNU_CC"; then
-       DSO_LDOPTS='-b'
-       DSO_CFLAGS=""
-       DSO_PIC_CFLAGS=
-       MKSHLIB='$(CXX) $(CXXFLAGS) $(DSO_LDOPTS) -o $@'
-       MKCSHLIB='$(CC) $(CFLAGS) $(DSO_LDOPTS) -o $@'
-       CXXFLAGS="$CXXFLAGS -Wc,-ansi_for_scope,on"
-    else
-       DSO_LDOPTS='-b -E'
-       MKSHLIB='$(LD) $(DSO_LDOPTS) -o $@'
-       MKCSHLIB='$(LD) $(DSO_LDOPTS) -o $@'
-    fi
-    MOZ_FIX_LINK_PATHS=
-    AC_DEFINE(NSCAP_DISABLE_DEBUG_PTR_TYPES)
-    AC_DEFINE(_LARGEFILE64_SOURCE)
-    ;;
-
-*-hpux*)
-    DLL_SUFFIX=".sl"
-    if test ! "$GNU_CC"; then
-        DSO_LDOPTS='-b -Wl,+s'
-        DSO_CFLAGS=""
-        DSO_PIC_CFLAGS="+Z"
-        MKSHLIB='$(CXX) $(CXXFLAGS) $(DSO_LDOPTS) -L$(DIST)/bin -o $@'
-        MKCSHLIB='$(LD) -b +s -L$(DIST)/bin -o $@'
-        CXXFLAGS="$CXXFLAGS -Wc,-ansi_for_scope,on"
-    else
-        DSO_LDOPTS='-b -E +s'
-        MKSHLIB='$(LD) $(DSO_LDOPTS) -L$(DIST)/bin -L$(DIST)/lib -o $@'
-        MKCSHLIB='$(LD) $(DSO_LDOPTS) -L$(DIST)/bin -L$(DIST)/lib -o $@'
-    fi
-    MOZ_POST_PROGRAM_COMMAND='chatr +s enable'
-    AC_DEFINE(NSCAP_DISABLE_DEBUG_PTR_TYPES)
     ;;
 
 *-android*|*-linuxandroid*)
@@ -2101,7 +1953,6 @@ ia64*-hpux*)
         ZIP=zip
         UNZIP=unzip
         DOXYGEN=:
-        ASM_SUFFIX=asm
         OBJ_SUFFIX=obj
         LIB_SUFFIX=lib
         DLL_PREFIX=
@@ -2364,99 +2215,6 @@ ia64*-hpux*)
     fi
     ;;
 
-*-solaris*)
-    AC_DEFINE(SOLARIS)
-    MOZ_FIX_LINK_PATHS=
-    # $ORIGIN/.. is for shared libraries under components/ to locate shared
-    # libraries one level up (e.g. libnspr4.so)
-    if test "$SOLARIS_SUNPRO_CC"; then
-       LDFLAGS="$LDFLAGS -z ignore -R '\$\$ORIGIN:\$\$ORIGIN/..' -z lazyload -z combreloc -z muldefs"
-       LIBS="-lCrun -lCstd -lc $LIBS"
-       AC_DEFINE(NSCAP_DISABLE_DEBUG_PTR_TYPES)
-       CFLAGS="$CFLAGS -xlibmieee -xstrconst -xbuiltin=%all -D__FUNCTION__=__func__"
-       CXXFLAGS="$CXXFLAGS -xlibmieee -xbuiltin=%all -features=tmplife,tmplrefstatic,extensions,no%except -norunpath -D__FUNCTION__=__func__ -template=no%extdef"
-       LDFLAGS="-xildoff $LDFLAGS"
-       MMX_FLAGS="-xarch=mmx -xO4"
-       SSE_FLAGS="-xarch=sse"
-       SSE2_FLAGS="-xarch=ssei2 -xO4"
-       if test -z "$CROSS_COMPILE" -a -f /usr/lib/ld/map.noexstk; then
-           _SAVE_LDFLAGS=$LDFLAGS
-           LDFLAGS="-M /usr/lib/ld/map.noexstk $LDFLAGS"
-           AC_TRY_LINK([#include <stdio.h>],
-                       [printf("Hello World\n");],
-                       ,
-                       [LDFLAGS=$_SAVE_LDFLAGS])
-       fi
-       MOZ_OPTIMIZE_FLAGS="-xO4"
-       MKSHLIB='$(CXX) $(CXXFLAGS) $(DSO_PIC_FLAGS) $(DSO_LDOPTS) -h $(DSO_SONAME) -o $@'
-       MKCSHLIB='$(CC) $(CFLAGS) $(DSO_PIC_FLAGS) $(DSO_LDOPTS) -h $(DSO_SONAME) -o $@'
-       DSO_LDOPTS='-G'
-       AR_LIST="$AR t"
-       AR_EXTRACT="$AR x"
-       AR_DELETE="$AR d"
-       AR='$(CXX) -xar'
-       AR_FLAGS='-o $@'
-       AS='/usr/ccs/bin/as'
-       ASFLAGS="$ASFLAGS -K PIC -L -P -D_ASM -D__STDC__=0"
-       AS_DASH_C_FLAG=''
-       TARGET_COMPILER_ABI="sunc"
-       CC_VERSION=`$CC -V 2>&1 | grep '^cc:' 2>/dev/null | $AWK -F\: '{ print $2 }'`
-       CXX_VERSION=`$CXX -V 2>&1 | grep '^CC:' 2>/dev/null | $AWK -F\: '{ print $2 }'`
-       AC_MSG_CHECKING([for Sun C++ compiler version >= 5.9])
-       AC_LANG_SAVE
-       AC_LANG_CPLUSPLUS
-       AC_TRY_COMPILE([],
-           [#if (__SUNPRO_CC < 0x590)
-           #error "Denied"
-           #endif],
-           _BAD_COMPILER=,_BAD_COMPILER=1)
-       if test -n "$_BAD_COMPILER"; then
-           _res="no"
-           AC_MSG_ERROR([Sun C++ 5.9 (Sun Studio 12) or higher is required to build. Your compiler version is $CXX_VERSION .])
-       else
-           _res="yes"
-       fi
-       AC_TRY_COMPILE([],
-           [#if (__SUNPRO_CC >= 0x5100)
-           #error "Sun C++ 5.10 or above"
-           #endif],
-           _ABOVE_SS12U1=,_ABOVE_SS12U1=1)
-       if test "$_ABOVE_SS12U1"; then
-           # disable xannotate
-           CXXFLAGS="$CXXFLAGS -xannotate=no"
-       fi
-       AC_MSG_RESULT([$_res])
-       AC_LANG_RESTORE
-    else
-       LDFLAGS="$LDFLAGS -Wl,-z,ignore -Wl,-R,'\$\$ORIGIN:\$\$ORIGIN/..' -Wl,-z,lazyload -Wl,-z,combreloc -Wl,-z,muldefs"
-       LIBS="-lc $LIBS"
-       ASFLAGS="$ASFLAGS -fPIC"
-       DSO_LDOPTS='-shared'
-       WARNINGS_AS_ERRORS='-Werror'
-       _WARNINGS_CFLAGS=''
-       _WARNINGS_CXXFLAGS=''
-       if test "$OS_RELEASE" = "5.3"; then
-           AC_DEFINE(MUST_UNDEF_HAVE_BOOLEAN_AFTER_INCLUDES)
-       fi
-    fi
-    if test "$OS_RELEASE" = "5.5.1"; then
-        AC_DEFINE(NEED_USLEEP_PROTOTYPE)
-    fi
-    ;;
-
-*-sunos*)
-    DSO_LDOPTS='-Bdynamic'
-    MKSHLIB='-$(LD) $(DSO_LDOPTS) -o $@'
-    MKCSHLIB='-$(LD) $(DSO_LDOPTS) -o $@'
-    AC_DEFINE(SUNOS4)
-    AC_DEFINE(SPRINTF_RETURNS_STRING)
-    case "$(target_os)" in
-    sunos4.1*)
-        DLL_SUFFIX='.so.1.0'
-        ;;
-    esac
-    ;;
-
 esac
 
 AC_SUBST_LIST(MMX_FLAGS)
@@ -2486,17 +2244,6 @@ dnl ========================================================
 case "$target" in
     *-linux*|*-kfreebsd*-gnu|*-gnu*)
         MOZ_COMPONENTS_VERSION_SCRIPT_LDFLAGS='-Wl,--version-script -Wl,$(BUILD_TOOLS)/gnu-ld-scripts/components-version-script'
-        ;;
-    *-solaris*)
-        if test -z "$GNU_CC"; then
-         MOZ_COMPONENTS_VERSION_SCRIPT_LDFLAGS='-M $(BUILD_TOOLS)/gnu-ld-scripts/components-mapfile'
-        else
-         if test -z "$GCC_USE_GNU_LD"; then
-          MOZ_COMPONENTS_VERSION_SCRIPT_LDFLAGS='-Wl,-M -Wl,$(BUILD_TOOLS)/gnu-ld-scripts/components-mapfile'
-         else
-          MOZ_COMPONENTS_VERSION_SCRIPT_LDFLAGS='-Wl,--version-script -Wl,$(BUILD_TOOLS)/gnu-ld-scripts/components-version-script'
-         fi
-        fi
         ;;
     *-darwin*)
         MOZ_COMPONENTS_VERSION_SCRIPT_LDFLAGS='-Wl,-exported_symbols_list -Wl,$(BUILD_TOOLS)/gnu-ld-scripts/components-export-list'
@@ -2550,11 +2297,6 @@ if test "$GNU_CC" -a "$OS_TARGET" != WINNT; then
     ;;
   esac
 fi         # GNU_CC
-
-# visibility hidden flag for Sun Studio on Solaris
-if test "$SOLARIS_SUNPRO_CC"; then
-VISIBILITY_FLAGS='-xldscope=hidden'
-fi         # Sun Studio on Solaris
 
 case "${OS_TARGET}" in
 WINNT|Darwin|Android)
@@ -2657,13 +2399,7 @@ MOZ_LINUX_PERF_EVENT
 
 dnl Checks for libraries.
 dnl ========================================================
-case $target in
-*-hpux11.*)
-    ;;
-*)
-    AC_CHECK_LIB(c_r, gethostbyname_r)
-    ;;
-esac
+AC_CHECK_LIB(c_r, gethostbyname_r)
 
 dnl We don't want to link with libdl even if it's present on OS X, since
 dnl it's not used and not part of the default installation. OS/2 has dlfcn
@@ -2687,15 +2423,7 @@ AC_CHECK_FUNCS(dladdr memmem)
 CFLAGS="$_SAVE_CFLAGS"
 
 if test ! "$GNU_CXX"; then
-
-    case $target in
-    *-aix*)
-        AC_CHECK_LIB(C_r, demangle)
-        ;;
-     *)
-        AC_CHECK_LIB(C, demangle)
-        ;;
-     esac
+    AC_CHECK_LIB(C, demangle)
 fi
 
 AC_CHECK_LIB(socket, socket)
@@ -2727,14 +2455,6 @@ else
         AC_CHECK_LIB(Xt, XtFree, [ XT_LIBS="-lXt $XT_LIBS"],
             [MISSING_X="$MISSING_X -lXt"], $X_PRE_LIBS $XT_LIBS $XLIBS)
         ])
-
-    # AIX needs the motif library linked before libXt to prevent
-    # crashes in plugins linked against Motif - Bug #98892
-    case "${target_os}" in
-    aix*)
-        XT_LIBS="-lXm $XT_LIBS"
-        ;;
-    esac
 
     dnl ========================================================
     dnl = Check for XShm
@@ -2868,21 +2588,6 @@ then
             AC_DEFINE(_REENTRANT)
             ;;
 
-        *-aix4.3*|*-aix5*)
-            AC_DEFINE(_REENTRANT)
-            ;;
-
-        *-hpux11.*)
-            AC_DEFINE(_REENTRANT)
-            ;;
-
-        *-*-solaris*)
-            AC_DEFINE(_REENTRANT)
-            if test "$SOLARIS_SUNPRO_CC"; then
-                CFLAGS="$CFLAGS -mt"
-                CXXFLAGS="$CXXFLAGS -mt"
-            fi
-            ;;
     esac
     LDFLAGS="${_PTHREAD_LDFLAGS} ${LDFLAGS}"
     AC_SUBST(MOZ_USE_PTHREADS)
@@ -3379,12 +3084,12 @@ _SAVE_LDFLAGS=$LDFLAGS
 _SAVE_LIBS=$LIBS
 if test "$LIBEVENT_DIR" = yes; then
     PKG_CHECK_MODULES(MOZ_LIBEVENT, libevent,
-        MOZ_NATIVE_LIBEVENT=1,
+        MOZ_SYSTEM_LIBEVENT=1,
         LIBEVENT_DIR=/usr)
 fi
 if test -z "$LIBEVENT_DIR" -o "$LIBEVENT_DIR" = no; then
-    MOZ_NATIVE_LIBEVENT=
-elif test -z "$MOZ_NATIVE_LIBEVENT"; then
+    MOZ_SYSTEM_LIBEVENT=
+elif test -z "$MOZ_SYSTEM_LIBEVENT"; then
     CFLAGS="-I${LIBEVENT_DIR}/include $CFLAGS"
     LDFLAGS="-L${LIBEVENT_DIR}/lib $LDFLAGS"
     MOZ_CHECK_HEADER(event.h,
@@ -3393,16 +3098,16 @@ elif test -z "$MOZ_NATIVE_LIBEVENT"; then
          fi],
         AC_MSG_ERROR([--with-system-libevent requested but event.h not found]))
     AC_CHECK_LIB(event, event_init,
-                 [MOZ_NATIVE_LIBEVENT=1
+                 [MOZ_SYSTEM_LIBEVENT=1
                   MOZ_LIBEVENT_CFLAGS="-I${LIBEVENT_DIR}/include"
                   MOZ_LIBEVENT_LIBS="-L${LIBEVENT_DIR}/lib -levent"],
-                 [MOZ_NATIVE_LIBEVENT= MOZ_LIBEVENT_CFLAGS= MOZ_LIBEVENT_LIBS=])
+                 [MOZ_SYSTEM_LIBEVENT= MOZ_LIBEVENT_CFLAGS= MOZ_LIBEVENT_LIBS=])
 fi
 CFLAGS=$_SAVE_CFLAGS
 LDFLAGS=$_SAVE_LDFLAGS
 LIBS=$_SAVE_LIBS
 
-AC_SUBST(MOZ_NATIVE_LIBEVENT)
+AC_SUBST(MOZ_SYSTEM_LIBEVENT)
 
 dnl ========================================================
 dnl = If NSS was not detected in the system,
@@ -3414,10 +3119,10 @@ MOZ_ARG_WITH_BOOL(system-nss,
     _USE_SYSTEM_NSS=1 )
 
 if test -n "$_USE_SYSTEM_NSS"; then
-    AM_PATH_NSS(3.31.1, [MOZ_NATIVE_NSS=1], [AC_MSG_ERROR([you don't have NSS installed or your version is too old])])
+    AM_PATH_NSS(3.31.1, [MOZ_SYSTEM_NSS=1], [AC_MSG_ERROR([you don't have NSS installed or your version is too old])])
 fi
 
-if test -n "$MOZ_NATIVE_NSS"; then
+if test -n "$MOZ_SYSTEM_NSS"; then
    NSS_LIBS="$NSS_LIBS -lcrmf"
 else
    NSS_CFLAGS="-I${DIST}/include/nss"
@@ -3457,12 +3162,12 @@ if test -n "${JPEG_DIR}" -a "${JPEG_DIR}" != "yes"; then
     LDFLAGS="-L${JPEG_DIR}/lib $LDFLAGS"
 fi
 if test -z "$JPEG_DIR" -o "$JPEG_DIR" = no; then
-    MOZ_NATIVE_JPEG=
+    MOZ_SYSTEM_JPEG=
 else
-    AC_CHECK_LIB(jpeg, jpeg_destroy_compress, [MOZ_NATIVE_JPEG=1 MOZ_JPEG_LIBS="-ljpeg"], MOZ_NATIVE_JPEG=)
+    AC_CHECK_LIB(jpeg, jpeg_destroy_compress, [MOZ_SYSTEM_JPEG=1 MOZ_JPEG_LIBS="-ljpeg"], MOZ_SYSTEM_JPEG=)
 fi
 
-if test "$MOZ_NATIVE_JPEG" = 1; then
+if test "$MOZ_SYSTEM_JPEG" = 1; then
     AC_TRY_COMPILE([ #include <stdio.h>
                      #include <sys/types.h>
                      #include <jpeglib.h> ],
@@ -3473,14 +3178,14 @@ if test "$MOZ_NATIVE_JPEG" = 1; then
                      #error "libjpeg-turbo JCS_EXTENSIONS required"
                      #endif
                      ],
-                   MOZ_NATIVE_JPEG=1,
+                   MOZ_SYSTEM_JPEG=1,
                    AC_MSG_ERROR([Insufficient JPEG library version for --with-system-jpeg]))
 fi
 CFLAGS=$_SAVE_CFLAGS
 LDFLAGS=$_SAVE_LDFLAGS
 LIBS=$_SAVE_LIBS
 
-if test -n "${JPEG_DIR}" -a -d "${JPEG_DIR}" -a "$MOZ_NATIVE_JPEG" = 1; then
+if test -n "${JPEG_DIR}" -a -d "${JPEG_DIR}" -a "$MOZ_SYSTEM_JPEG" = 1; then
     MOZ_JPEG_CFLAGS="-I${JPEG_DIR}/include"
     MOZ_JPEG_LIBS="-L${JPEG_DIR}/lib ${MOZ_JPEG_LIBS}"
 fi
@@ -3490,7 +3195,7 @@ dnl system ZLIB support
 dnl ========================================================
 MOZ_ZLIB_CHECK([1.2.3])
 
-if test "$MOZ_LINKER" = 1 -a "$MOZ_NATIVE_ZLIB" != 1; then
+if test "$MOZ_LINKER" = 1 -a "$MOZ_SYSTEM_ZLIB" != 1; then
     AC_MSG_ERROR([Custom dynamic linker requires --with-system-zlib])
 fi
 
@@ -3512,16 +3217,16 @@ if test -n "${BZ2_DIR}" -a "${BZ2_DIR}" != "yes"; then
     LDFLAGS="-L${BZ2_DIR}/lib $LDFLAGS"
 fi
 if test -z "$BZ2_DIR" -o "$BZ2_DIR" = no; then
-    MOZ_NATIVE_BZ2=
+    MOZ_SYSTEM_BZ2=
 else
-    AC_CHECK_LIB(bz2, BZ2_bzread, [MOZ_NATIVE_BZ2=1 MOZ_BZ2_LIBS="-lbz2"],
-    [MOZ_NATIVE_BZ2= MOZ_BZ2_CFLAGS= MOZ_BZ2_LIBS=])
+    AC_CHECK_LIB(bz2, BZ2_bzread, [MOZ_SYSTEM_BZ2=1 MOZ_BZ2_LIBS="-lbz2"],
+    [MOZ_SYSTEM_BZ2= MOZ_BZ2_CFLAGS= MOZ_BZ2_LIBS=])
 fi
 CFLAGS=$_SAVE_CFLAGS
 LDFLAGS=$_SAVE_LDFLAGS
 LIBS=$_SAVE_LIBS
 
-if test "${BZ2_DIR}" -a -d "${BZ2_DIR}" -a "$MOZ_NATIVE_BZ2" = 1; then
+if test "${BZ2_DIR}" -a -d "${BZ2_DIR}" -a "$MOZ_SYSTEM_BZ2" = 1; then
     MOZ_BZ2_CFLAGS="-I${BZ2_DIR}/include"
     MOZ_BZ2_LIBS="-L${BZ2_DIR}/lib ${MOZ_BZ2_LIBS}"
 fi
@@ -3541,16 +3246,16 @@ if test -n "${WEBP_DIR}" -a "${WEBP_DIR}" != "yes"; then
     LDFLAGS="-L${WEBP_DIR}/lib $LDFLAGS"
 fi
 if test -z "$WEBP_DIR" -o "$WEBP_DIR" = no; then
-    MOZ_NATIVE_WEBP=
+    MOZ_SYSTEM_WEBP=
 else
-    AC_CHECK_LIB(webp, WebPGetDecoderVersion, [MOZ_NATIVE_WEBP=1 MOZ_WEBP_LIBS="-lwebp"],
-        [MOZ_NATIVE_WEBP= MOZ_WEBP_CFLAGS= MOZ_WEBP_LIBS=])
+    AC_CHECK_LIB(webp, WebPGetDecoderVersion, [MOZ_SYSTEM_WEBP=1 MOZ_WEBP_LIBS="-lwebp"],
+        [MOZ_SYSTEM_WEBP= MOZ_WEBP_CFLAGS= MOZ_WEBP_LIBS=])
 fi
 CFLAGS=$_SAVE_CFLAGS
 LDFLAGS=$_SAVE_LDFLAGS
 LIBS=$_SAVE_LIBS
 
-if test "${WEBP_DIR}" -a -d "${WEBP_DIR}" -a "$MOZ_NATIVE_WEBP" = 1; then
+if test "${WEBP_DIR}" -a -d "${WEBP_DIR}" -a "$MOZ_SYSTEM_WEBP" = 1; then
     MOZ_WEBP_CFLAGS="-I${WEBP_DIR}/include"
     MOZ_WEBP_LIBS="-L${WEBP_DIR}/lib ${MOZ_WEBP_LIBS}"
 fi
@@ -3571,14 +3276,14 @@ if test -n "${PNG_DIR}" -a "${PNG_DIR}" != "yes"; then
     LDFLAGS="-L${PNG_DIR}/lib $LDFLAGS"
 fi
 if test -z "$PNG_DIR" -o "$PNG_DIR" = no; then
-    MOZ_NATIVE_PNG=
+    MOZ_SYSTEM_PNG=
 else
-    AC_CHECK_LIB(png, png_get_valid, [MOZ_NATIVE_PNG=1 MOZ_PNG_LIBS="-lpng"],
+    AC_CHECK_LIB(png, png_get_valid, [MOZ_SYSTEM_PNG=1 MOZ_PNG_LIBS="-lpng"],
                  AC_MSG_ERROR([--with-system-png requested but no working libpng found]))
     AC_CHECK_LIB(png, png_get_acTL, ,
                  AC_MSG_ERROR([--with-system-png won't work because the system's libpng doesn't have APNG support]))
 fi
-if test "$MOZ_NATIVE_PNG" = 1; then
+if test "$MOZ_SYSTEM_PNG" = 1; then
     AC_TRY_COMPILE([ #include <stdio.h>
                      #include <sys/types.h>
                      #include <png.h> ],
@@ -3588,20 +3293,20 @@ if test "$MOZ_NATIVE_PNG" = 1; then
                      #ifndef PNG_UINT_31_MAX
                      #error "Insufficient libpng version."
                      #endif ],
-                   MOZ_NATIVE_PNG=1,
+                   MOZ_SYSTEM_PNG=1,
                    AC_MSG_ERROR([--with-system-png requested but no working libpng found]))
 fi
 CFLAGS=$_SAVE_CFLAGS
 LDFLAGS=$_SAVE_LDFLAGS
 LIBS=$_SAVE_LIBS
 
-if test "${PNG_DIR}" -a -d "${PNG_DIR}" -a "$MOZ_NATIVE_PNG" = 1; then
+if test "${PNG_DIR}" -a -d "${PNG_DIR}" -a "$MOZ_SYSTEM_PNG" = 1; then
     MOZ_PNG_CFLAGS="-I${PNG_DIR}/include"
     MOZ_PNG_LIBS="-L${PNG_DIR}/lib ${MOZ_PNG_LIBS}"
 fi
 
 MOZ_PNG_ARM_NEON_CHECK=
-if test "$MOZ_NATIVE_PNG" != 1 -a "$CPU_ARCH" = "arm" ; then
+if test "$MOZ_SYSTEM_PNG" != 1 -a "$CPU_ARCH" = "arm" ; then
     MOZ_ARG_ENABLE_STRING(png-arm-neon-support,
         [  --enable-png-arm-neon-support=TYPE
              Options include:
@@ -3636,13 +3341,13 @@ dnl ========================================================
 MOZ_ARG_ENABLE_BOOL(system-hunspell,
 [  --enable-system-hunspell
                           Use system hunspell (located with pkgconfig)],
-    MOZ_NATIVE_HUNSPELL=1 )
+    MOZ_SYSTEM_HUNSPELL=1 )
 
-if test -n "$MOZ_NATIVE_HUNSPELL"; then
+if test -n "$MOZ_SYSTEM_HUNSPELL"; then
     PKG_CHECK_MODULES(MOZ_HUNSPELL, hunspell)
 fi
 
-AC_SUBST(MOZ_NATIVE_HUNSPELL)
+AC_SUBST(MOZ_SYSTEM_HUNSPELL)
 
 dnl ========================================================
 dnl system libffi Support
@@ -3704,7 +3409,7 @@ MOZ_ANDROID_OMX=
 MOZ_MEDIA_NAVIGATOR=
 MOZ_OMX_PLUGIN=
 MOZ_WEBP=1
-MOZ_NATIVE_LIBWEBP=
+MOZ_SYSTEM_LIBWEBP=
 MOZ_VPX_ERROR_CONCEALMENT=
 MOZ_WEBSPEECH=1
 MOZ_WEBSPEECH_MODELS=
@@ -3714,7 +3419,6 @@ MOZ_JXR=1
 VPX_AS=
 VPX_ASFLAGS=
 VPX_AS_CONVERSION=
-VPX_ASM_SUFFIX=
 VPX_X86_ASM=
 VPX_ARM_ASM=
 LIBJPEG_TURBO_AS=
@@ -5206,7 +4910,7 @@ dnl system libvpx Support
 dnl ========================================================
 MOZ_ARG_WITH_BOOL(system-libvpx,
 [  --with-system-libvpx    Use system libvpx (located with pkgconfig)],
-    MOZ_NATIVE_LIBVPX=1)
+    MOZ_SYSTEM_LIBVPX=1)
 
 MOZ_LIBVPX_CFLAGS=
 MOZ_LIBVPX_LIBS=
@@ -5217,7 +4921,7 @@ fi
 
 _SAVE_CFLAGS=$CFLAGS
 _SAVE_LIBS=$LIBS
-if test -n "$MOZ_NATIVE_LIBVPX"; then
+if test -n "$MOZ_SYSTEM_LIBVPX"; then
     dnl ============================
     dnl === libvpx Version check ===
     dnl ============================
@@ -5243,7 +4947,7 @@ fi
 CFLAGS=$_SAVE_CFLAGS
 LIBS=$_SAVE_LIBS
 
-AC_SUBST(MOZ_NATIVE_LIBVPX)
+AC_SUBST(MOZ_SYSTEM_LIBVPX)
 AC_SUBST_LIST(MOZ_LIBVPX_CFLAGS)
 AC_SUBST_LIST(MOZ_LIBVPX_LIBS)
 
@@ -5257,13 +4961,12 @@ else
     MOZ_TREMOR=1
 fi
 
-if test -z "$MOZ_NATIVE_LIBVPX"; then
+if test -z "$MOZ_SYSTEM_LIBVPX"; then
 
     dnl Detect if we can use an assembler to compile optimized assembly for libvpx.
     dnl We currently require yasm on all x86 platforms and require yasm 1.1.0 on Win32.
     dnl We currently require gcc on all arm platforms.
     VPX_AS=$YASM
-    VPX_ASM_SUFFIX=asm
     VPX_NEED_OBJ_INT_EXTRACT=
 
     dnl See if we have assembly on this platform.
@@ -5299,7 +5002,6 @@ if test -z "$MOZ_NATIVE_LIBVPX"; then
         dnl opcodes; actual arch detection is done at runtime.
         VPX_ASFLAGS="-march=armv7-a -mfpu=neon"
         VPX_AS_CONVERSION='$(PERL) $(topsrcdir)/media/libvpx/build/make/ads2gas.pl'
-        VPX_ASM_SUFFIX="$ASM_SUFFIX"
         VPX_ARM_ASM=1
         dnl Building with -mfpu=neon requires either the "softfp" or the
         dnl "hardfp" ABI. Depending on the compiler's default target, and the
@@ -5831,9 +5533,6 @@ i?86-*-linux*|x86_64-*-linux*|arm-*-linux*)
 *-android*|*-linuxandroid*)
   MOZ_CRASHREPORTER=1
   ;;
-*solaris*)
-  MOZ_CRASHREPORTER=1
-  ;;
 esac
 
 dnl = disabled anyway on AF
@@ -5854,7 +5553,7 @@ fi
 if test -n "$MOZ_CRASHREPORTER"; then
    AC_DEFINE(MOZ_CRASHREPORTER)
 
-  if test "$OS_TARGET" = "Linux" -o "$OS_ARCH" = "SunOS" && \
+  if test "$OS_TARGET" = "Linux" && \
     test -z "$SKIP_LIBRARY_CHECKS"; then
     PKG_CHECK_MODULES(MOZ_GTHREAD, gthread-2.0)
   fi
@@ -5882,7 +5581,7 @@ dnl ========================================================
 dnl = libjpeg-turbo configuration
 dnl ========================================================
 MOZ_LIBJPEG_TURBO=
-if test -z "$MOZ_NATIVE_JPEG"; then
+if test -z "$MOZ_SYSTEM_JPEG"; then
     MOZ_LIBJPEG_TURBO=1
 fi
 
@@ -5891,7 +5590,7 @@ MOZ_ARG_DISABLE_BOOL(libjpeg_turbo,
     MOZ_LIBJPEG_TURBO=,
     MOZ_LIBJPEG_TURBO=1)
 
-if test "$MOZ_NATIVE_JPEG" = 1 -a "$MOZ_LIBJPEG_TURBO" = 1; then
+if test "$MOZ_SYSTEM_JPEG" = 1 -a "$MOZ_LIBJPEG_TURBO" = 1; then
     AC_MSG_ERROR([cannot use --with-system-jpeg with --enable-libjpeg-turbo.])
 fi
 
@@ -6444,13 +6143,13 @@ dnl ========================================================
 dnl Check for sqlite
 dnl ========================================================
 
-MOZ_NATIVE_SQLITE=
+MOZ_SYSTEM_SQLITE=
 MOZ_ARG_ENABLE_BOOL(system-sqlite,
 [  --enable-system-sqlite  Use system sqlite (located with pkgconfig)],
-MOZ_NATIVE_SQLITE=1,
-MOZ_NATIVE_SQLITE= )
+MOZ_SYSTEM_SQLITE=1,
+MOZ_SYSTEM_SQLITE= )
 
-if test -n "$MOZ_NATIVE_SQLITE"
+if test -n "$MOZ_SYSTEM_SQLITE"
 then
     dnl ============================
     dnl === SQLite Version check ===
@@ -6604,10 +6303,10 @@ then
     fi
 fi
 
-if test -n "$MOZ_NATIVE_SQLITE"; then
-    AC_DEFINE(MOZ_NATIVE_SQLITE)
+if test -n "$MOZ_SYSTEM_SQLITE"; then
+    AC_DEFINE(MOZ_SYSTEM_SQLITE)
 fi
-AC_SUBST(MOZ_NATIVE_SQLITE)
+AC_SUBST(MOZ_SYSTEM_SQLITE)
 
 dnl ========================================================
 dnl = Enable help viewer (off by default)
@@ -6897,7 +6596,7 @@ if test -n "$MOZ_REPLACE_MALLOC" -a -z "$MOZ_MEMORY"; then
     AC_MSG_ERROR([--enable-replace-malloc requires --enable-jemalloc])
 elif test -n "$MOZ_REPLACE_MALLOC"; then
     AC_DEFINE(MOZ_REPLACE_MALLOC)
-    MOZ_NATIVE_JEMALLOC=
+    MOZ_SYSTEM_JEMALLOC=
 
     dnl Replace-malloc Mac linkage quirks
     if test -n "$MACOSX_DEPLOYMENT_TARGET"; then
@@ -6959,15 +6658,15 @@ dnl = Jemalloc build setup
 dnl ========================================================
 if test -z "$MOZ_MEMORY"; then
   if test -n "$MOZ_JEMALLOC4" -a -z "$MOZ_REPLACE_MALLOC"; then
-    MOZ_NATIVE_JEMALLOC=1
+    MOZ_SYSTEM_JEMALLOC=1
     AC_CHECK_FUNCS(mallctl nallocx,,
-      [MOZ_NATIVE_JEMALLOC=
+      [MOZ_SYSTEM_JEMALLOC=
        break])
-    if test -n "$MOZ_NATIVE_JEMALLOC"; then
+    if test -n "$MOZ_SYSTEM_JEMALLOC"; then
       MOZ_MEMORY=1
       AC_DEFINE(MOZ_MEMORY)
       AC_DEFINE(MOZ_JEMALLOC4)
-      AC_DEFINE(MOZ_NATIVE_JEMALLOC)
+      AC_DEFINE(MOZ_SYSTEM_JEMALLOC)
     fi
   fi
   case "${target}" in
@@ -7008,9 +6707,6 @@ else
   *-netbsd*)
     AC_DEFINE(MOZ_MEMORY_BSD)
     ;;
-  *-solaris*)
-    AC_DEFINE(MOZ_MEMORY_SOLARIS)
-    ;;
   *-mingw*)
     AC_DEFINE(MOZ_MEMORY_WINDOWS)
     export MOZ_NO_DEBUG_RTL=1
@@ -7030,7 +6726,7 @@ else
 fi # MOZ_MEMORY
 AC_SUBST(MOZ_MEMORY)
 AC_SUBST(MOZ_JEMALLOC4)
-AC_SUBST(MOZ_NATIVE_JEMALLOC)
+AC_SUBST(MOZ_SYSTEM_JEMALLOC)
 AC_SUBST(MOZ_CRT)
 export MOZ_CRT
 AC_SUBST(MOZ_GLUE_IN_PROGRAM)
@@ -7642,14 +7338,6 @@ if test -n "$INTEL_CC"; then
   PROFILE_USE_LDFLAGS=
 fi
 
-dnl Sun Studio on Solaris
-if test "$SOLARIS_SUNPRO_CC"; then
-  PROFILE_GEN_CFLAGS="-xprofile=collect:$_objdir/$enable_application"
-  PROFILE_GEN_LDFLAGS="-xprofile=collect:$_objdir/$enable_application"
-  PROFILE_USE_CFLAGS="-xprofile=use:$_objdir/$enable_application"
-  PROFILE_USE_LDFLAGS="-xprofile=use:$_objdir/$enable_application"
-fi
-
 AC_SUBST(PROFILE_GEN_CFLAGS)
 AC_SUBST(PROFILE_GEN_LDFLAGS)
 AC_SUBST(PROFILE_USE_CFLAGS)
@@ -7692,9 +7380,6 @@ MOZ_ARG_HEADER(Build dependencies)
 
 if test "$GNU_CC" -a "$GNU_CXX"; then
   _DEPEND_CFLAGS='-MD -MP -MF $(MDDEPDIR)/$(@F).pp'
-dnl Sun Studio on Solaris use -xM instead of -MD, see config/rules.mk
-elif test "$SOLARIS_SUNPRO_CC"; then
-  _DEPEND_CFLAGS=
 else
   dnl Don't override this for MSVC
   if test -z "$_WIN32_MSVC"; then
@@ -7739,7 +7424,7 @@ if test "$OS_ARCH" = "WINNT"; then
 fi
 AC_SUBST(GKMEDIAS_SHARED_LIBRARY)
 
-if test -z "$MOZ_NATIVE_ZLIB"; then
+if test -z "$MOZ_SYSTEM_ZLIB"; then
 if test -n "$JS_SHARED_LIBRARY" -o "$GKMEDIAS_SHARED_LIBRARY"; then
   ZLIB_IN_MOZGLUE=1
   AC_DEFINE(ZLIB_IN_MOZGLUE)
@@ -7809,8 +7494,7 @@ MOZ_ENABLE_SKIA=)
 
 dnl Skia GPU support may not reliably build on certain *BSDs (see bug 1234494).
 if test "${OS_TARGET}" = "OpenBSD" -o \
-        "${OS_TARGET}" = "NetBSD" -o \
-        "${OS_ARCH}" = "SunOS"; then
+        "${OS_TARGET}" = "NetBSD"; then \
     MOZ_DISABLE_SKIA_GPU=1
 else
     MOZ_DISABLE_SKIA_GPU=
@@ -8133,7 +7817,7 @@ case "$OS_TARGET" in
       NECKO_WIFI=1
     fi
     ;;
-  DragonFly|FreeBSD|SunOS|WINNT)
+  DragonFly|FreeBSD|WINNT)
     NECKO_WIFI=1
     ;;
   Linux)
@@ -8572,9 +8256,9 @@ HOST_CXXFLAGS=`echo \
     $HOST_CXXFLAGS`
 
 AC_SUBST(_DEPEND_CFLAGS)
-AC_SUBST(MOZ_NATIVE_JPEG)
-AC_SUBST(MOZ_NATIVE_PNG)
-AC_SUBST(MOZ_NATIVE_BZ2)
+AC_SUBST(MOZ_SYSTEM_JPEG)
+AC_SUBST(MOZ_SYSTEM_PNG)
+AC_SUBST(MOZ_SYSTEM_BZ2)
 
 AC_SUBST_LIST(MOZ_JPEG_CFLAGS)
 AC_SUBST_LIST(MOZ_JPEG_LIBS)
@@ -8597,9 +8281,9 @@ if test "$MOZ_WIDGET_TOOLKIT" = gonk -a -n "$MOZ_B2G_LOADER"; then
 fi
 AC_SUBST(MOZ_B2G_LOADER)
 
-AC_SUBST(MOZ_NATIVE_NSPR)
+AC_SUBST(MOZ_SYSTEM_NSPR)
 
-AC_SUBST(MOZ_NATIVE_NSS)
+AC_SUBST(MOZ_SYSTEM_NSS)
 AC_SUBST(NSS_DISABLE_DBM)
 
 HOST_CMFLAGS=-fobjc-exceptions
@@ -8653,7 +8337,6 @@ AC_SUBST(TARGET_OS)
 AC_SUBST(TARGET_XPCOM_ABI)
 AC_SUBST(OS_TARGET)
 AC_SUBST(OS_ARCH)
-AC_SUBST(OS_RELEASE)
 AC_SUBST(OS_TEST)
 AC_SUBST(CPU_ARCH)
 AC_SUBST(INTEL_ARCHITECTURE)
@@ -8678,7 +8361,6 @@ AC_DEFINE_UNQUOTED(MOZ_DLL_SUFFIX, "$DLL_SUFFIX")
 AC_SUBST(LIB_SUFFIX)
 AC_SUBST(OBJ_SUFFIX)
 AC_SUBST(BIN_SUFFIX)
-AC_SUBST(ASM_SUFFIX)
 AC_SUBST(IMPORT_LIB_SUFFIX)
 AC_SUBST(USE_N32)
 AC_SUBST(CC_VERSION)
@@ -8704,7 +8386,6 @@ AC_SUBST(MOZ_VPX_ERROR_CONCEALMENT)
 AC_SUBST(VPX_AS)
 AC_SUBST_LIST(VPX_ASFLAGS)
 AC_SUBST(VPX_AS_CONVERSION)
-AC_SUBST(VPX_ASM_SUFFIX)
 AC_SUBST(VPX_X86_ASM)
 AC_SUBST(VPX_ARM_ASM)
 AC_SUBST(VPX_NEED_OBJ_INT_EXTRACT)
@@ -8824,16 +8505,16 @@ DIRECTIVE4_LIST="MOZ_OFFICIAL_BRANDING=$MOZ_OFFICIAL_BRANDING
 MOZ_BRANDING_DIRECTORY=$MOZ_BRANDING_DIRECTORY
 MOZ_PHOENIX=$MOZ_PHOENIX
 MOZ_SANDBOX=$MOZ_SANDBOX
-MOZ_NATIVE_LIBEVENT=$MOZ_NATIVE_LIBEVENT
-MOZ_NATIVE_NSS=$MOZ_NATIVE_NSS
-MOZ_NATIVE_NSPR=$MOZ_NATIVE_NSPR
-MOZ_NATIVE_JPEG=$MOZ_NATIVE_JPEG
-MOZ_NATIVE_ZLIB=$MOZ_NATIVE_ZLIB
-MOZ_NATIVE_BZ2=$MOZ_NATIVE_BZ2
-MOZ_NATIVE_PNG=$MOZ_NATIVE_PNG
-MOZ_NATIVE_LIBVPX=$MOZ_NATIVE_LIBVPX
-MOZ_NATIVE_SQLITE=$MOZ_NATIVE_SQLITE
-MOZ_NATIVE_JEMALLOC=$MOZ_NATIVE_JEMALLOC"
+MOZ_SYSTEM_LIBEVENT=$MOZ_SYSTEM_LIBEVENT
+MOZ_SYSTEM_NSS=$MOZ_SYSTEM_NSS
+MOZ_SYSTEM_NSPR=$MOZ_SYSTEM_NSPR
+MOZ_SYSTEM_JPEG=$MOZ_SYSTEM_JPEG
+MOZ_SYSTEM_ZLIB=$MOZ_SYSTEM_ZLIB
+MOZ_SYSTEM_BZ2=$MOZ_SYSTEM_BZ2
+MOZ_SYSTEM_PNG=$MOZ_SYSTEM_PNG
+MOZ_SYSTEM_LIBVPX=$MOZ_SYSTEM_LIBVPX
+MOZ_SYSTEM_SQLITE=$MOZ_SYSTEM_SQLITE
+MOZ_SYSTEM_JEMALLOC=$MOZ_SYSTEM_JEMALLOC"
 
 DIRECTIVE4=`$PYTHON $_topsrcdir/build/directive4.py $DIRECTIVE4_LIST`
 
@@ -8927,7 +8608,7 @@ if test "$MOZ_TREE_FREETYPE"; then
    export LDFLAGS="$LDFLAGS $MOZ_DEBUG_LDFLAGS"
    # Spaces in the *_CFLAGS and *_LIBS variables are intentionally placed
    # to force freetype to use our settings rather than autodetecting
-   if test -n "$MOZ_NATIVE_PNG"; then
+   if test -n "$MOZ_SYSTEM_PNG"; then
      export LIBPNG_CFLAGS="$MOZ_PNG_CFLAGS "
    else
      export LIBPNG_CFLAGS="-I$_objdir/dist/include"
@@ -9035,7 +8716,7 @@ fi
 if test -n "$ZLIB_IN_MOZGLUE"; then
    MOZ_ZLIB_LIBS=
 fi
-export MOZ_NATIVE_ZLIB
+export MOZ_SYSTEM_ZLIB
 export MOZ_ZLIB_CFLAGS
 export MOZ_ZLIB_LIBS
 export MOZ_APP_NAME
@@ -9077,11 +8758,11 @@ ac_configure_args="$_SUBDIR_CONFIG_ARGS"
 
 fi # COMPILE_ENVIRONMENT
 
-export WRITE_MOZINFO=1
 dnl we need to run config.status after js/src subconfigure because we're
 dnl traversing its moz.build and we need its config.status for that.
 dnl However, writing our own config.status needs to happen before
 dnl subconfigures because the setup surrounding subconfigures alters
 dnl many AC_SUBSTed variables.
-MOZ_RUN_CONFIG_STATUS()
-unset WRITE_MOZINFO
+MOZ_RUN_ALL_SUBCONFIGURES()
+
+rm -fr confdefs* $ac_clean_files

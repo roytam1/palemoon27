@@ -1544,6 +1544,8 @@ var gBrowserInit = {
 
     BrowserOnClick.uninit();
 
+    FeedHandler.uninit();
+
     DevEdition.uninit();
 
     RefreshBlocker.uninit();

@@ -24,6 +24,12 @@ using namespace mozilla::dom;
 
 namespace mozilla {
 
+static void
+InheritOriginAttributes(nsIPrincipal* aLoadingPrincipal, OriginAttributes& aAttrs)
+{
+  aAttrs = BasePrincipal::Cast(aLoadingPrincipal)->OriginAttributesRef();
+}
+
 LoadInfo::LoadInfo(nsIPrincipal* aLoadingPrincipal,
                    nsIPrincipal* aTriggeringPrincipal,
                    nsINode* aLoadingContext,
@@ -38,6 +44,7 @@ LoadInfo::LoadInfo(nsIPrincipal* aLoadingPrincipal,
   , mInternalContentPolicyType(aContentPolicyType)
   , mTainting(LoadTainting::Basic)
   , mUpgradeInsecureRequests(false)
+  , mVerifySignedContent(false)
   , mInnerWindowID(0)
   , mOuterWindowID(0)
   , mParentOuterWindowID(0)
@@ -101,6 +108,46 @@ LoadInfo::LoadInfo(nsIPrincipal* aLoadingPrincipal,
   mOriginAttributes = BasePrincipal::Cast(mLoadingPrincipal)->OriginAttributesRef();
 }
 
+LoadInfo::LoadInfo(nsPIDOMWindow* aOuterWindow,
+                   nsIPrincipal* aLoadingPrincipal,
+                   nsIPrincipal* aTriggeringPrincipal,
+                   nsSecurityFlags aSecurityFlags)
+  : mLoadingPrincipal(aLoadingPrincipal)
+  , mTriggeringPrincipal(aTriggeringPrincipal)
+  , mSecurityFlags(aSecurityFlags)
+  , mInternalContentPolicyType(nsIContentPolicy::TYPE_DOCUMENT)
+  , mTainting(LoadTainting::Basic)
+  , mUpgradeInsecureRequests(false)
+  , mVerifySignedContent(false)
+  , mInnerWindowID(0)
+  , mOuterWindowID(0)
+  , mParentOuterWindowID(0)
+  , mEnforceSecurity(false)
+  , mInitialSecurityCheckDone(false)
+  , mIsThirdPartyContext(false) // NB: TYPE_DOCUMENT implies not third-party.
+  , mForcePreflight(false)
+  , mIsPreflight(false)
+{
+  // Top-level loads are never third-party
+  // Grab the information we can out of the window.
+  MOZ_ASSERT(aOuterWindow);
+
+  // if the load is sandboxed, we can not also inherit the principal
+  if (mSecurityFlags & nsILoadInfo::SEC_SANDBOXED) {
+    mSecurityFlags ^= nsILoadInfo::SEC_FORCE_INHERIT_PRINCIPAL;
+  }
+
+  // NB: Ignore the current inner window since we're navigating away from it.
+  mOuterWindowID = aOuterWindow->WindowID();
+
+  // TODO We can have a parent without a frame element in some cases dealing
+  // with the hidden window.
+  nsCOMPtr<nsPIDOMWindow> parent = aOuterWindow->GetScriptableParent();
+  mParentOuterWindowID = parent ? parent->WindowID() : 0;
+
+  mOriginAttributes = BasePrincipal::Cast(mLoadingPrincipal)->OriginAttributesRef();
+}
+
 LoadInfo::LoadInfo(const LoadInfo& rhs)
   : mLoadingPrincipal(rhs.mLoadingPrincipal)
   , mTriggeringPrincipal(rhs.mTriggeringPrincipal)
@@ -109,6 +156,7 @@ LoadInfo::LoadInfo(const LoadInfo& rhs)
   , mInternalContentPolicyType(rhs.mInternalContentPolicyType)
   , mTainting(rhs.mTainting)
   , mUpgradeInsecureRequests(rhs.mUpgradeInsecureRequests)
+  , mVerifySignedContent(rhs.mVerifySignedContent)
   , mInnerWindowID(rhs.mInnerWindowID)
   , mOuterWindowID(rhs.mOuterWindowID)
   , mParentOuterWindowID(rhs.mParentOuterWindowID)
@@ -132,6 +180,7 @@ LoadInfo::LoadInfo(nsIPrincipal* aLoadingPrincipal,
                    nsContentPolicyType aContentPolicyType,
                    LoadTainting aTainting,
                    bool aUpgradeInsecureRequests,
+                   bool aVerifySignedContent,
                    uint64_t aInnerWindowID,
                    uint64_t aOuterWindowID,
                    uint64_t aParentOuterWindowID,
@@ -150,6 +199,7 @@ LoadInfo::LoadInfo(nsIPrincipal* aLoadingPrincipal,
   , mInternalContentPolicyType(aContentPolicyType)
   , mTainting(aTainting)
   , mUpgradeInsecureRequests(aUpgradeInsecureRequests)
+  , mVerifySignedContent(aVerifySignedContent)
   , mInnerWindowID(aInnerWindowID)
   , mOuterWindowID(aOuterWindowID)
   , mParentOuterWindowID(aParentOuterWindowID)
@@ -388,6 +438,22 @@ NS_IMETHODIMP
 LoadInfo::GetUpgradeInsecureRequests(bool* aResult)
 {
   *aResult = mUpgradeInsecureRequests;
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+LoadInfo::SetVerifySignedContent(bool aVerifySignedContent)
+{
+  MOZ_ASSERT(mInternalContentPolicyType == nsIContentPolicy::TYPE_DOCUMENT,
+            "can only verify content for TYPE_DOCUMENT");
+  mVerifySignedContent = aVerifySignedContent;
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+LoadInfo::GetVerifySignedContent(bool* aResult)
+{
+  *aResult = mVerifySignedContent;
   return NS_OK;
 }
 

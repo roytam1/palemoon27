@@ -83,8 +83,10 @@ static RedirEntry kRedirMap[] = {
   { "home", "chrome://browser/content/abouthome/aboutHome.xhtml",
     nsIAboutModule::URI_SAFE_FOR_UNTRUSTED_CONTENT |
     nsIAboutModule::MAKE_LINKABLE |
-    nsIAboutModule::ALLOW_SCRIPT },
-  { "newtab", "chrome://browser/content/newtab/newTab.xhtml",
+    nsIAboutModule::ALLOW_SCRIPT |
+    nsIAboutModule::ENABLE_INDEXED_DB },
+  // the newtab's actual URL will be determined when the channel is created
+  { "newtab", "about:blank",
     nsIAboutModule::ALLOW_SCRIPT },
   { "permissions", "chrome://browser/content/preferences/aboutPermissions.xul",
     nsIAboutModule::ALLOW_SCRIPT },
@@ -132,18 +134,12 @@ AboutRedirector::NewChannel(nsIURI* aURI,
     if (!strcmp(path.get(), kRedirMap[i].id)) {
       nsAutoCString url;
 
-      // check if about:newtab got overridden
       if (path.EqualsLiteral("newtab")) {
+        // let the aboutNewTabService decide where to redirect
         nsCOMPtr<nsIAboutNewTabService> aboutNewTabService =
           do_GetService("@mozilla.org/browser/aboutnewtab-service;1", &rv);
+        rv = aboutNewTabService->GetNewTabURL(url);
         NS_ENSURE_SUCCESS(rv, rv);
-        bool overridden = false;
-        rv = aboutNewTabService->GetOverridden(&overridden);
-        NS_ENSURE_SUCCESS(rv, rv);
-        if (overridden) {
-          rv = aboutNewTabService->GetNewTabURL(url);
-          NS_ENSURE_SUCCESS(rv, rv);
-        }
       }
       // fall back to the specified url in the map
       if (url.IsEmpty()) {

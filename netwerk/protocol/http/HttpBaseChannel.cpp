@@ -101,6 +101,7 @@ HttpBaseChannel::HttpBaseChannel()
   , mCorsIncludeCredentials(false)
   , mCorsMode(nsIHttpChannelInternal::CORS_MODE_NO_CORS)
   , mRedirectMode(nsIHttpChannelInternal::REDIRECT_MODE_FOLLOW)
+  , mFetchCacheMode(nsIHttpChannelInternal::FETCH_CACHE_MODE_DEFAULT)
   , mOnStartRequestCalled(false)
   , mTransferSize(0)
   , mDecodedBodySize(0)
@@ -2323,6 +2324,47 @@ HttpBaseChannel::SetRedirectMode(uint32_t aMode)
   return NS_OK;
 }
 
+NS_IMETHODIMP
+HttpBaseChannel::GetFetchCacheMode(uint32_t* aFetchCacheMode)
+{
+  *aFetchCacheMode = mFetchCacheMode;
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+HttpBaseChannel::SetFetchCacheMode(uint32_t aFetchCacheMode)
+{
+  ENSURE_CALLED_BEFORE_CONNECT();
+  MOZ_ASSERT(mFetchCacheMode == nsIHttpChannelInternal::FETCH_CACHE_MODE_DEFAULT,
+             "SetFetchCacheMode() should only be called once per channel");
+
+  mFetchCacheMode = aFetchCacheMode;
+
+  // Now, set the load flags that implement each cache mode.
+  switch (mFetchCacheMode) {
+  case nsIHttpChannelInternal::FETCH_CACHE_MODE_NO_STORE:
+    // no-store means don't consult the cache on the way to the network, and
+    // don't store the response in the cache even if it's cacheable.
+    mLoadFlags |= INHIBIT_CACHING | LOAD_BYPASS_CACHE;
+    break;
+  case nsIHttpChannelInternal::FETCH_CACHE_MODE_RELOAD:
+    // reload means don't consult the cache on the way to the network, but
+    // do store the response in the cache if possible.
+    mLoadFlags |= LOAD_BYPASS_CACHE;
+    break;
+  case nsIHttpChannelInternal::FETCH_CACHE_MODE_NO_CACHE:
+    // no-cache means always validate what's in the cache.
+    mLoadFlags |= VALIDATE_ALWAYS;
+    break;
+  case nsIHttpChannelInternal::FETCH_CACHE_MODE_FORCE_CACHE:
+    // force-cache means don't validate unless if the response would vary.
+    mLoadFlags |= LOAD_FROM_CACHE;
+    break;
+  }
+
+  return NS_OK;
+}
+
 //-----------------------------------------------------------------------------
 // HttpBaseChannel::nsISupportsPriority
 //-----------------------------------------------------------------------------
@@ -2473,6 +2515,41 @@ HttpBaseChannel::ShouldIntercept(nsIURI* aURI)
     }
   }
   return shouldIntercept;
+}
+
+void
+HttpBaseChannel::SetLoadGroupUserAgentOverride()
+{
+  nsCOMPtr<nsIURI> uri;
+  GetURI(getter_AddRefs(uri));
+  nsAutoCString uriScheme;
+  if (uri) {
+    uri->GetScheme(uriScheme);
+  }
+  nsCOMPtr<nsILoadGroupChild> childLoadGroup = do_QueryInterface(mLoadGroup);
+  nsCOMPtr<nsILoadGroup> rootLoadGroup;
+  if (childLoadGroup) {
+    childLoadGroup->GetRootLoadGroup(getter_AddRefs(rootLoadGroup));
+  }
+  if (rootLoadGroup && !uriScheme.EqualsLiteral("file")) {
+    nsAutoCString ua;
+    if (nsContentUtils::IsNonSubresourceRequest(this)) {
+      gHttpHandler->OnUserAgentRequest(this);
+      GetRequestHeader(NS_LITERAL_CSTRING("User-Agent"), ua);
+      rootLoadGroup->SetUserAgentOverrideCache(ua);
+    } else {
+      GetRequestHeader(NS_LITERAL_CSTRING("User-Agent"), ua);
+      // Don't overwrite the UA if it is already set (eg by an XHR with explicit UA).
+      if (ua.IsEmpty()) {
+        rootLoadGroup->GetUserAgentOverrideCache(ua);
+        SetRequestHeader(NS_LITERAL_CSTRING("User-Agent"), ua, false);
+      }
+    }
+  } else {
+    // If the root loadgroup doesn't exist or if the channel's URI's scheme is "file",
+    // fall back on getting the UA override per channel.
+    gHttpHandler->OnUserAgentRequest(this);
+  }
 }
 
 //-----------------------------------------------------------------------------
@@ -2771,6 +2848,9 @@ HttpBaseChannel::SetupReplacementChannel(nsIURI       *newURI,
 
     // Preserve Redirect mode flag.
     httpInternal->SetRedirectMode(mRedirectMode);
+
+    // Preserve Cache mode flag.
+    httpInternal->SetFetchCacheMode(mFetchCacheMode);
   }
 
   // transfer application cache information

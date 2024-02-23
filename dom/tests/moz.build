@@ -27,7 +27,6 @@ MOCHITEST_MANIFESTS += [
     'mochitest/orientation/mochitest.ini',
     'mochitest/sessionstorage/mochitest.ini',
     'mochitest/storageevent/mochitest.ini',
-    'mochitest/webapps/mochitest.ini',
     'mochitest/webcomponents/mochitest.ini',
     'mochitest/whatwg/mochitest.ini',
 ]
@@ -38,7 +37,6 @@ MOCHITEST_CHROME_MANIFESTS += [
     'mochitest/general/chrome.ini',
     'mochitest/localstorage/chrome.ini',
     'mochitest/sessionstorage/chrome.ini',
-    'mochitest/webapps/chrome.ini',
     'mochitest/whatwg/chrome.ini',
 ]
 

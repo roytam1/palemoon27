@@ -15,12 +15,16 @@ from contextlib import contextmanager
 
 from decorators import do_crash_check
 from keys import Keys
-from marionette_transport import MarionetteTransport
 
 from mozrunner import B2GEmulatorRunner
 
 import geckoinstance
 import errors
+import transport
+
+WEBELEMENT_KEY = "ELEMENT"
+W3C_WEBELEMENT_KEY = "element-6066-11e4-a52e-4f735466cecf"
+
 
 class HTMLElement(object):
     """
@@ -620,15 +624,14 @@ class Marionette(object):
             self.port = self.emulator.setup_port_forwarding(remote_port=self.port)
             assert(self.emulator.wait_for_port(self.port)), "Timed out waiting for port!"
 
-        self.client = MarionetteTransport(
-            self.host,
-            self.port,
-            self.socket_timeout)
-
         if emulator:
             if busybox:
                 self.emulator.install_busybox(busybox=busybox)
             self.emulator.wait_for_system_message(self)
+
+        # for callbacks from a protocol level 2 or lower remote,
+        # we store the callback ID so it can be used by _send_emulator_result
+        self.emulator_callback_id = None
 
     def cleanup(self):
         if self.session:
@@ -664,29 +667,30 @@ class Marionette(object):
             s.close()
 
     def wait_for_port(self, timeout=60):
-        return MarionetteTransport.wait_for_port(self.host,
-                                                 self.port,
-                                                 timeout=timeout)
+        return transport.wait_for_port(self.host, self.port, timeout=timeout)
 
     @do_crash_check
-    def _send_message(self, command, body=None, key=None):
-        if not self.session_id and command != "newSession":
+    def _send_message(self, name, params=None, key=None):
+        if not self.session_id and name != "newSession":
             raise errors.MarionetteException("Please start a session")
 
-        message = {"name": command}
-        if body:
-            message["parameters"] = body
-
-        packet = json.dumps(message)
-
         try:
-            resp = self.client.send(packet)
+            if self.protocol < 3:
+                data = {"name": name}
+                if params:
+                    data["parameters"] = params
+                self.client.send(data)
+                msg = self.client.receive()
+
+            else:
+                msg = self.client.request(name, params)
+
         except IOError:
             if self.instance and not hasattr(self.instance, 'detached'):
                 # If we've launched the binary we've connected to, wait
                 # for it to shut down.
-                returncode = self.instance.runner.wait()
-                raise IOError("process died with returncode %d" % returncode)
+                returncode = self.instance.runner.wait(timeout=self.DEFAULT_STARTUP_TIMEOUT)
+                raise IOError("process died with returncode %s" % returncode)
             raise
         except socket.timeout:
             self.session = None
@@ -694,63 +698,79 @@ class Marionette(object):
             self.client.close()
             raise errors.TimeoutException("Connection timed out")
 
-        # Process any emulator commands that are sent from a script
-        # while it's executing
-        if isinstance(resp, dict) and any (k in resp for k in ("emulator_cmd", "emulator_shell")):
-            while True:
-                id = resp.get("id")
-                cmd = resp.get("emulator_cmd")
-                shell = resp.get("emulator_shell")
-                if cmd:
-                    resp = self._emulator_cmd(id, cmd)
-                    continue
-                if shell:
-                    resp = self._emulator_shell(id, shell)
-                    continue
-                break
+        if isinstance(msg, transport.Command):
+            if msg.name == "runEmulatorCmd":
+                self.emulator_callback_id = msg.params.get("id")
+                msg = self._emulator_cmd(msg.params["emulator_cmd"])
+            elif msg.name == "runEmulatorShell":
+                self.emulator_callback_id = msg.params.get("id")
+                msg = self._emulator_shell(msg.params["emulator_shell"])
+            else:
+                raise IOError("Unknown command: %s" % msg)
 
-        if "error" in resp:
-            self._handle_error(resp)
+        res, err = msg.result, msg.error
+        if err:
+            self._handle_error(err)
 
         if key is not None:
-            resp = resp[key]
-        return resp
+            return self._unwrap_response(res.get(key))
+        else:
+            return self._unwrap_response(res)
 
-    def _emulator_cmd(self, id, cmd):
+    def _unwrap_response(self, value):
+        if isinstance(value, dict) and \
+        (WEBELEMENT_KEY in value or W3C_WEBELEMENT_KEY in value):
+            if value.get(WEBELEMENT_KEY):
+                return HTMLElement(self, value.get(WEBELEMENT_KEY))
+            else:
+                return HTMLElement(self, value.get(W3C_WEBELEMENT_KEY))
+        elif isinstance(value, list):
+            return list(self._unwrap_response(item) for item in value)
+        else:
+            return value
+
+    def _emulator_cmd(self, cmd):
         if not self.emulator:
             raise errors.MarionetteException(
                 "No emulator in this test to run command against")
         payload = cmd.encode("ascii")
         result = self.emulator._run_telnet(payload)
-        return self._send_emulator_result(id, result)
+        return self._send_emulator_result(result)
 
-    def _emulator_shell(self, id, args):
-        if not self.emulator:
+    def _emulator_shell(self, args):
+        if not isinstance(args, list) or not self.emulator:
             raise errors.MarionetteException(
                 "No emulator in this test to run shell command against")
         buf = StringIO.StringIO()
         self.emulator.dm.shell(args, buf)
         result = str(buf.getvalue()[0:-1]).rstrip().splitlines()
         buf.close()
-        return self._send_emulator_result(id, result)
+        return self._send_emulator_result(result)
 
-    def _send_emulator_result(self, id, result):
-        return self.client.send({"name": "emulatorCmdResult",
-                                 "id": id,
-                                 "result": result})
-
-    def _handle_error(self, resp):
-        if self.protocol == 1:
-            if "error" not in resp or not isinstance(resp["error"], dict):
-                raise errors.MarionetteException(
-                    "Malformed packet, expected key 'error' to be a dict: %s" % resp)
-            error = resp["error"].get("status")
-            message = resp["error"].get("message")
-            stacktrace = resp["error"].get("stacktrace")
+    def _send_emulator_result(self, result):
+        if self.protocol < 3:
+            body = {"name": "emulatorCmdResult",
+                    "id": self.emulator_callback_id,
+                    "result": result}
+            self.client.send(body)
+            return self.client.receive()
         else:
-            error = resp["error"]
-            message = resp["message"]
-            stacktrace = resp["stacktrace"]
+            return self.client.respond(result)
+
+    def _handle_error(self, obj):
+        if self.protocol == 1:
+            if "error" not in obj or not isinstance(obj["error"], dict):
+                raise errors.MarionetteException(
+                    "Malformed packet, expected key 'error' to be a dict: %s" % obj)
+            error = obj["error"].get("status")
+            message = obj["error"].get("message")
+            stacktrace = obj["error"].get("stacktrace")
+
+        else:
+            error = obj["error"]
+            message = obj["message"]
+            stacktrace = obj["stacktrace"]
+
         raise errors.lookup(error)(message, stacktrace=stacktrace)
 
     def _reset_timeouts(self):
@@ -912,6 +932,105 @@ class Marionette(object):
             for perm in original_perms:
                 self.push_permission(perm, original_perms[perm])
 
+    def get_pref(self, pref):
+        '''Gets the preference value.
+
+        :param pref: Name of the preference.
+
+        Usage example::
+
+          marionette.get_pref('browser.tabs.warnOnClose')
+
+        '''
+        with self.using_context(self.CONTEXT_CONTENT):
+            pref_value = self.execute_script("""
+                Components.utils.import("resource://gre/modules/Services.jsm");
+                let pref = arguments[0];
+                let type = Services.prefs.getPrefType(pref);
+                switch (type) {
+                    case Services.prefs.PREF_STRING:
+                        return Services.prefs.getCharPref(pref);
+                    case Services.prefs.PREF_INT:
+                        return Services.prefs.getIntPref(pref);
+                    case Services.prefs.PREF_BOOL:
+                        return Services.prefs.getBoolPref(pref);
+                    case Services.prefs.PREF_INVALID:
+                        return null;
+                }
+                """, script_args=[pref], sandbox='system')
+            return pref_value
+
+    def clear_pref(self, pref):
+        with self.using_context(self.CONTEXT_CHROME):
+            self.execute_script("""
+               Components.utils.import("resource://gre/modules/Services.jsm");
+               let pref = arguments[0];
+               Services.prefs.clearUserPref(pref);
+               """, script_args=[pref])
+
+    def set_pref(self, pref, value):
+        with self.using_context(self.CONTEXT_CHROME):
+            if value is None:
+                self.clear_pref(pref)
+                return
+
+            if isinstance(value, bool):
+                func = 'setBoolPref'
+            elif isinstance(value, (int, long)):
+                func = 'setIntPref'
+            elif isinstance(value, basestring):
+                func = 'setCharPref'
+            else:
+                raise errors.MarionetteException(
+                    "Unsupported preference type: %s" % type(value))
+
+            self.execute_script("""
+                Components.utils.import("resource://gre/modules/Services.jsm");
+                let pref = arguments[0];
+                let value = arguments[1];
+                Services.prefs.%s(pref, value);
+                """ % func, script_args=[pref, value])
+
+    def set_prefs(self, prefs):
+        '''Sets preferences.
+
+        If the value of the preference to be set is None, reset the preference
+        to its default value. If no default value exists, the preference will
+        cease to exist.
+
+        :param prefs: A dict containing one or more preferences and their values
+        to be set.
+
+        Usage example::
+
+          marionette.set_prefs({'browser.tabs.warnOnClose': True})
+
+        '''
+        for pref, value in prefs.items():
+            self.set_pref(pref, value)
+
+    @contextmanager
+    def using_prefs(self, prefs):
+        '''Sets preferences for code being executed in a `with` block,
+        and restores them on exit.
+
+        :param prefs: A dict containing one or more preferences and their values
+        to be set.
+
+        Usage example::
+
+          with marionette.using_prefs({'browser.tabs.warnOnClose': True}):
+              # ... do stuff ...
+
+        '''
+        original_prefs = {p: self.get_pref(p) for p in prefs}
+        self.set_prefs(prefs)
+
+        try:
+            yield
+        finally:
+            self.set_prefs(original_prefs)
+
     def enforce_gecko_prefs(self, prefs):
         """
         Checks if the running instance has the given prefs. If not, it will kill the
@@ -1017,6 +1136,10 @@ class Marionette(object):
                 # We're managing a binary which has terminated, so restart it.
                 self.instance.restart()
 
+        self.client = transport.TcpTransport(
+            self.host,
+            self.port,
+            self.socket_timeout)
         self.protocol, _ = self.client.connect()
         self.wait_for_port(timeout=timeout)
 
@@ -1193,7 +1316,6 @@ class Marionette(object):
 
             marionette.set_context(marionette.CONTEXT_CHROME)
         """
-        assert(context == self.CONTEXT_CHROME or context == self.CONTEXT_CONTENT)
         if context not in [self.CONTEXT_CHROME, self.CONTEXT_CONTENT]:
             raise ValueError("Unknown context: %s" % context)
         self._send_message("setContext", {"value": context})
@@ -1396,8 +1518,8 @@ class Marionette(object):
             for arg in args:
                 wrapped[arg] = self.wrapArguments(args[arg])
         elif type(args) == HTMLElement:
-            wrapped = {"element-6066-11e4-a52e-4f735466cecf": args.id,
-                       "ELEMENT": args.id}
+            wrapped = {W3C_WEBELEMENT_KEY: args.id,
+                       WEBELEMENT_KEY: args.id}
         elif (isinstance(args, bool) or isinstance(args, basestring) or
               isinstance(args, int) or isinstance(args, float) or args is None):
             wrapped = args
@@ -1411,10 +1533,10 @@ class Marionette(object):
         elif isinstance(value, dict):
             unwrapped = {}
             for key in value:
-                if key == "element-6066-11e4-a52e-4f735466cecf":
+                if key == W3C_WEBELEMENT_KEY:
                     unwrapped = HTMLElement(self, value[key])
                     break
-                elif key == "ELEMENT":
+                elif key == WEBELEMENT_KEY:
                     unwrapped = HTMLElement(self, value[key])
                     break
                 else:
@@ -1595,9 +1717,7 @@ class Marionette(object):
         body = {"value": target, "using": method}
         if id:
             body["element"] = id
-        el = self._send_message("findElement", body, key="value")
-        ref = el["ELEMENT"]
-        return HTMLElement(self, ref)
+        return self._send_message("findElement", body, key="value")
 
     def find_elements(self, method, target, id=None):
         """Returns a list of all HTMLElement instances that match the
@@ -1622,13 +1742,9 @@ class Marionette(object):
         body = {"value": target, "using": method}
         if id:
             body["element"] = id
-        els = self._send_message(
+        return self._send_message(
             "findElements", body, key="value" if self.protocol == 1 else None)
-        assert(isinstance(els, list))
-        rv = []
-        for el in els:
-            rv.append(HTMLElement(self, el["ELEMENT"]))
-        return rv
+
 
     def get_active_element(self):
         el = self._send_message("getActiveElement", key="value")

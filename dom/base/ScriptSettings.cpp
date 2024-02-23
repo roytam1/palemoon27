@@ -303,7 +303,6 @@ FindJSContext(nsIGlobalObject* aGlobalObject)
 
 AutoJSAPI::AutoJSAPI()
   : mCx(nullptr)
-  , mOwnErrorReporting(false)
   , mOldAutoJSAPIOwnsErrorReporting(false)
   , mIsMainThread(false) // For lack of anything better
 {
@@ -311,16 +310,21 @@ AutoJSAPI::AutoJSAPI()
 
 AutoJSAPI::~AutoJSAPI()
 {
-  if (mOwnErrorReporting) {
-    ReportException();
-
-    // We need to do this _after_ processing the existing exception, because the
-    // JS engine can throw while doing that, and uses this bit to determine what
-    // to do in that case: squelch the exception if the bit is set, otherwise
-    // call the error reporter. Calling WarningOnlyErrorReporter with a
-    // non-warning will assert, so we need to make sure we do the former.
-    JS::ContextOptionsRef(cx()).setAutoJSAPIOwnsErrorReporting(mOldAutoJSAPIOwnsErrorReporting);
+  if (!mCx) {
+    // No need to do anything here: we never managed to Init, so can't have an
+    // exception on our (nonexistent) JSContext.  We also don't need to restore
+    // any state on it.
+    return;
   }
+
+  ReportException();
+
+  // We need to do this _after_ processing the existing exception, because the
+  // JS engine can throw while doing that, and uses this bit to determine what
+  // to do in that case: squelch the exception if the bit is set, otherwise
+  // call the error reporter. Calling WarningOnlyErrorReporter with a
+  // non-warning will assert, so we need to make sure we do the former.
+  JS::ContextOptionsRef(cx()).setAutoJSAPIOwnsErrorReporting(mOldAutoJSAPIOwnsErrorReporting);
 
   if (mOldErrorReporter.isSome()) {
     JS_SetErrorReporter(JS_GetRuntime(cx()), mOldErrorReporter.value());
@@ -328,10 +332,17 @@ AutoJSAPI::~AutoJSAPI()
 }
 
 void
+WarningOnlyErrorReporter(JSContext* aCx, const char* aMessage,
+                         JSErrorReport* aRep);
+
+void
 AutoJSAPI::InitInternal(JSObject* aGlobal, JSContext* aCx, bool aIsMainThread)
 {
   MOZ_ASSERT(aCx);
   MOZ_ASSERT(aIsMainThread == NS_IsMainThread());
+#ifdef DEBUG
+  bool haveException = JS_IsExceptionPending(aCx);
+#endif // DEBUG
 
   mCx = aCx;
   mIsMainThread = aIsMainThread;
@@ -350,16 +361,81 @@ AutoJSAPI::InitInternal(JSObject* aGlobal, JSContext* aCx, bool aIsMainThread)
   JSRuntime* rt = JS_GetRuntime(aCx);
   mOldErrorReporter.emplace(JS_GetErrorReporter(rt));
 
-  if (aIsMainThread) {
-    JS_SetErrorReporter(rt, xpc::SystemErrorReporter);
+  mOldAutoJSAPIOwnsErrorReporting = JS::ContextOptionsRef(aCx).autoJSAPIOwnsErrorReporting();
+  JS::ContextOptionsRef(aCx).setAutoJSAPIOwnsErrorReporting(true);
+  JS_SetErrorReporter(rt, WarningOnlyErrorReporter);
+
+#ifdef DEBUG
+  if (haveException) {
+    JS::Rooted<JS::Value> exn(aCx);
+    JS_GetPendingException(aCx, &exn);
+
+    JS_ClearPendingException(aCx);
+    if (exn.isObject()) {
+      JS::Rooted<JSObject*> exnObj(aCx, &exn.toObject());
+
+      nsAutoJSString stack, filename, name, message;
+      int32_t line;
+
+      JS::Rooted<JS::Value> tmp(aCx);
+      if (!JS_GetProperty(aCx, exnObj, "filename", &tmp)) {
+        JS_ClearPendingException(aCx);
+      }
+      if (tmp.isUndefined()) {
+        if (!JS_GetProperty(aCx, exnObj, "fileName", &tmp)) {
+          JS_ClearPendingException(aCx);
+        }
+      }
+
+      if (!filename.init(aCx, tmp)) {
+        JS_ClearPendingException(aCx);
+      }
+
+      if (!JS_GetProperty(aCx, exnObj, "stack", &tmp) ||
+          !stack.init(aCx, tmp)) {
+        JS_ClearPendingException(aCx);
+      }
+
+      if (!JS_GetProperty(aCx, exnObj, "name", &tmp) ||
+          !name.init(aCx, tmp)) {
+        JS_ClearPendingException(aCx);
+      }
+
+      if (!JS_GetProperty(aCx, exnObj, "message", &tmp) ||
+          !message.init(aCx, tmp)) {
+        JS_ClearPendingException(aCx);
+      }
+
+      if (!JS_GetProperty(aCx, exnObj, "lineNumber", &tmp) ||
+          !JS::ToInt32(aCx, tmp, &line)) {
+        JS_ClearPendingException(aCx);
+        line = 0;
+      }
+
+      printf_stderr("PREEXISTING EXCEPTION OBJECT: '%s: %s'\n%s:%d\n%s\n",
+                    NS_ConvertUTF16toUTF8(name).get(),
+                    NS_ConvertUTF16toUTF8(message).get(),
+                    NS_ConvertUTF16toUTF8(filename).get(), line,
+                    NS_ConvertUTF16toUTF8(stack).get());
+    } else {
+      // It's a primitive... not much we can do other than stringify it.
+      nsAutoJSString exnStr;
+      if (!exnStr.init(aCx, exn)) {
+        JS_ClearPendingException(aCx);
+      }
+
+      printf_stderr("PREEXISTING EXCEPTION PRIMITIVE: %s\n",
+                    NS_ConvertUTF16toUTF8(exnStr).get());
+    }
+    MOZ_ASSERT(false, "We had an exception; we should not have");
   }
+#endif // DEBUG
 }
 
 AutoJSAPI::AutoJSAPI(nsIGlobalObject* aGlobalObject,
                      bool aIsMainThread,
                      JSContext* aCx)
-  : mOwnErrorReporting(false)
-  , mOldAutoJSAPIOwnsErrorReporting(false)
+  : mOldAutoJSAPIOwnsErrorReporting(false)
   , mIsMainThread(aIsMainThread)
 {
   MOZ_ASSERT(aGlobalObject);
@@ -476,19 +552,11 @@ WarningOnlyErrorReporter(JSContext* aCx, const char* aMessage, JSErrorReport* aR
 void
 AutoJSAPI::TakeOwnershipOfErrorReporting()
 {
-  MOZ_ASSERT(!mOwnErrorReporting);
-  mOwnErrorReporting = true;
-
-  JSRuntime *rt = JS_GetRuntime(cx());
-  mOldAutoJSAPIOwnsErrorReporting = JS::ContextOptionsRef(cx()).autoJSAPIOwnsErrorReporting();
-  JS::ContextOptionsRef(cx()).setAutoJSAPIOwnsErrorReporting(true);
-  JS_SetErrorReporter(rt, WarningOnlyErrorReporter);
 }
 
 void
 AutoJSAPI::ReportException()
 {
-  MOZ_ASSERT(OwnsErrorReporting(), "This is not our exception to report!");
   if (!HasException()) {
     return;
   }
@@ -758,27 +826,13 @@ danger::AutoCxPusher::IsStackTop() const
 AutoJSContext::AutoJSContext(MOZ_GUARD_OBJECT_NOTIFIER_ONLY_PARAM_IN_IMPL)
   : mCx(nullptr)
 {
-  Init(false MOZ_GUARD_OBJECT_NOTIFIER_PARAM_TO_PARENT);
-}
-
-AutoJSContext::AutoJSContext(bool aSafe MOZ_GUARD_OBJECT_NOTIFIER_PARAM_IN_IMPL)
-  : mCx(nullptr)
-{
-  Init(aSafe MOZ_GUARD_OBJECT_NOTIFIER_PARAM_TO_PARENT);
-}
-
-void
-AutoJSContext::Init(bool aSafe MOZ_GUARD_OBJECT_NOTIFIER_PARAM_IN_IMPL)
-{
   JS::AutoSuppressGCAnalysis nogc;
   MOZ_ASSERT(!mCx, "mCx should not be initialized!");
 
   MOZ_GUARD_OBJECT_NOTIFIER_INIT;
 
   nsXPConnect *xpc = nsXPConnect::XPConnect();
-  if (!aSafe) {
-    mCx = xpc->GetCurrentJSContext();
-  }
+  mCx = xpc->GetCurrentJSContext();
 
   if (!mCx) {
     mJSAPI.Init();
@@ -814,9 +868,17 @@ ThreadsafeAutoJSContext::operator JSContext*() const
 }
 
 AutoSafeJSContext::AutoSafeJSContext(MOZ_GUARD_OBJECT_NOTIFIER_ONLY_PARAM_IN_IMPL)
-  : AutoJSContext(true MOZ_GUARD_OBJECT_NOTIFIER_PARAM_TO_PARENT)
-  , mAc(mCx, xpc::UnprivilegedJunkScope())
+  : AutoJSAPI()
 {
+  MOZ_ASSERT(NS_IsMainThread());
+
+  MOZ_GUARD_OBJECT_NOTIFIER_INIT;
+
+  DebugOnly<bool> ok = Init(xpc::UnprivilegedJunkScope());
+  MOZ_ASSERT(ok,
+             "This is quite odd.  We should have crashed in the "
+             "xpc::NativeGlobal() call if xpc::UnprivilegedJunkScope() "
+             "returned null, and inited correctly otherwise!");
 }
 
 ThreadsafeAutoSafeJSContext::ThreadsafeAutoSafeJSContext(MOZ_GUARD_OBJECT_NOTIFIER_ONLY_PARAM_IN_IMPL)

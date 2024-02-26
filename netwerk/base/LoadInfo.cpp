@@ -45,6 +45,7 @@ LoadInfo::LoadInfo(nsIPrincipal* aLoadingPrincipal,
   , mTainting(LoadTainting::Basic)
   , mUpgradeInsecureRequests(false)
   , mVerifySignedContent(false)
+  , mEnforceSRI(false)
   , mInnerWindowID(0)
   , mOuterWindowID(0)
   , mParentOuterWindowID(0)
@@ -69,20 +70,31 @@ LoadInfo::LoadInfo(nsIPrincipal* aLoadingPrincipal,
   }
 
   if (aLoadingContext) {
+    nsCOMPtr<nsPIDOMWindow> contextOuter = aLoadingContext->OwnerDoc()->GetWindow();
+    if (contextOuter) {
+      ComputeIsThirdPartyContext(contextOuter);
+    }
+
     nsCOMPtr<nsPIDOMWindow> outerWindow;
 
     // When the element being loaded is a frame, we choose the frame's window
     // for the window ID and the frame element's window as the parent
     // window. This is the behavior that Chrome exposes to add-ons.
-    nsCOMPtr<nsIFrameLoaderOwner> frameLoaderOwner = do_QueryInterface(aLoadingContext);
-    if (frameLoaderOwner) {
-      nsCOMPtr<nsIFrameLoader> fl = frameLoaderOwner->GetFrameLoader();
+    // NB: If the frameLoaderOwner doesn't have a frame loader, then the load
+    // must be coming from an object (such as a plugin) that's loaded into it
+    // instead of a document being loaded. In that case, treat this object like
+    // any other non-document-loading element.
+    nsCOMPtr<nsIFrameLoaderOwner> frameLoaderOwner =
+      do_QueryInterface(aLoadingContext);
+    nsCOMPtr<nsIFrameLoader> fl = frameLoaderOwner ?
+      frameLoaderOwner->GetFrameLoader() : nullptr;
+    if (fl) {
       nsCOMPtr<nsIDocShell> docShell;
-      if (fl && NS_SUCCEEDED(fl->GetDocShell(getter_AddRefs(docShell))) && docShell) {
+      if (NS_SUCCEEDED(fl->GetDocShell(getter_AddRefs(docShell))) && docShell) {
         outerWindow = do_GetInterface(docShell);
       }
     } else {
-      outerWindow = aLoadingContext->OwnerDoc()->GetWindow();
+      outerWindow = contextOuter.forget();
     }
 
     if (outerWindow) {
@@ -92,8 +104,6 @@ LoadInfo::LoadInfo(nsIPrincipal* aLoadingPrincipal,
 
       nsCOMPtr<nsPIDOMWindow> parent = outerWindow->GetScriptableParent();
       mParentOuterWindowID = parent->WindowID();
-
-      ComputeIsThirdPartyContext(outerWindow);
     }
 
     // if the document forces all requests to be upgraded from http to https, then
@@ -103,6 +113,15 @@ LoadInfo::LoadInfo(nsIPrincipal* aLoadingPrincipal,
       aLoadingContext->OwnerDoc()->GetUpgradeInsecureRequests(false) ||
       (nsContentUtils::IsPreloadType(mInternalContentPolicyType) &&
        aLoadingContext->OwnerDoc()->GetUpgradeInsecureRequests(true));
+
+    // if owner doc has content signature, we enforce SRI
+    nsCOMPtr<nsIChannel> channel = aLoadingContext->OwnerDoc()->GetChannel();
+    if (channel) {
+      nsCOMPtr<nsILoadInfo> loadInfo = channel->GetLoadInfo();
+      if (loadInfo) {
+        loadInfo->GetVerifySignedContent(&mEnforceSRI);
+      }
+    }
   }
 
   mOriginAttributes = BasePrincipal::Cast(mLoadingPrincipal)->OriginAttributesRef();
@@ -119,6 +138,7 @@ LoadInfo::LoadInfo(nsPIDOMWindow* aOuterWindow,
   , mTainting(LoadTainting::Basic)
   , mUpgradeInsecureRequests(false)
   , mVerifySignedContent(false)
+  , mEnforceSRI(false)
   , mInnerWindowID(0)
   , mOuterWindowID(0)
   , mParentOuterWindowID(0)
@@ -157,6 +177,7 @@ LoadInfo::LoadInfo(const LoadInfo& rhs)
   , mTainting(rhs.mTainting)
   , mUpgradeInsecureRequests(rhs.mUpgradeInsecureRequests)
   , mVerifySignedContent(rhs.mVerifySignedContent)
+  , mEnforceSRI(rhs.mEnforceSRI)
   , mInnerWindowID(rhs.mInnerWindowID)
   , mOuterWindowID(rhs.mOuterWindowID)
   , mParentOuterWindowID(rhs.mParentOuterWindowID)
@@ -181,6 +202,7 @@ LoadInfo::LoadInfo(nsIPrincipal* aLoadingPrincipal,
                    LoadTainting aTainting,
                    bool aUpgradeInsecureRequests,
                    bool aVerifySignedContent,
+                   bool aEnforceSRI,
                    uint64_t aInnerWindowID,
                    uint64_t aOuterWindowID,
                    uint64_t aParentOuterWindowID,
@@ -200,6 +222,7 @@ LoadInfo::LoadInfo(nsIPrincipal* aLoadingPrincipal,
   , mTainting(aTainting)
   , mUpgradeInsecureRequests(aUpgradeInsecureRequests)
   , mVerifySignedContent(aVerifySignedContent)
+  , mEnforceSRI(aEnforceSRI)
   , mInnerWindowID(aInnerWindowID)
   , mOuterWindowID(aOuterWindowID)
   , mParentOuterWindowID(aParentOuterWindowID)
@@ -244,22 +267,12 @@ LoadInfo::ComputeIsThirdPartyContext(nsPIDOMWindow* aOuterWindow)
     return;
   }
 
-  nsPIDOMWindow* win = aOuterWindow;
-  if (type == nsIContentPolicy::TYPE_SUBDOCUMENT) {
-    // If we're loading a subdocument, aOuterWindow points to the new window.
-    // Check if its parent is third-party (and then we can do the same check for
-    // it as we would do for other sub-resource loads.
-
-    win = aOuterWindow->GetScriptableParent();
-    MOZ_ASSERT(win);
-  }
-
   nsCOMPtr<mozIThirdPartyUtil> util(do_GetService(THIRDPARTYUTIL_CONTRACTID));
   if (NS_WARN_IF(!util)) {
     return;
   }
 
-  util->IsThirdPartyWindow(win, nullptr, &mIsThirdPartyContext);
+  util->IsThirdPartyWindow(aOuterWindow, nullptr, &mIsThirdPartyContext);
 }
 
 NS_IMPL_ISUPPORTS(LoadInfo, nsILoadInfo)
@@ -454,6 +467,20 @@ NS_IMETHODIMP
 LoadInfo::GetVerifySignedContent(bool* aResult)
 {
   *aResult = mVerifySignedContent;
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+LoadInfo::SetEnforceSRI(bool aEnforceSRI)
+{
+  mEnforceSRI = aEnforceSRI;
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+LoadInfo::GetEnforceSRI(bool* aResult)
+{
+  *aResult = mEnforceSRI;
   return NS_OK;
 }
 

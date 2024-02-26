@@ -27,6 +27,7 @@
 #include "gc/Memory.h"
 #include "js/GCAPI.h"
 #include "js/HeapAPI.h"
+#include "js/RootingAPI.h"
 #include "js/TracingAPI.h"
 
 struct JSRuntime;
@@ -121,6 +122,12 @@ inline bool
 IsObjectAllocKind(AllocKind kind)
 {
     return kind >= AllocKind::OBJECT_FIRST && kind <= AllocKind::OBJECT_LAST;
+}
+
+inline bool
+IsShapeAllocKind(AllocKind kind)
+{
+    return kind == AllocKind::SHAPE || kind == AllocKind::ACCESSOR_SHAPE;
 }
 
 inline bool
@@ -247,7 +254,7 @@ struct Cell
   protected:
     inline uintptr_t address() const;
     inline Chunk* chunk() const;
-};
+} JS_HAZ_GC_THING;
 
 // A GC TenuredCell gets behaviors that are valid for things in the Tenured
 // heap, such as access to the arena and mark bits.

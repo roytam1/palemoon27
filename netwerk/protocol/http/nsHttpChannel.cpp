@@ -1338,6 +1338,12 @@ nsHttpChannel::ProcessContentSignatureHeader(nsHttpResponseHead *aResponseHead)
     if (!mLoadInfo || !mLoadInfo->GetVerifySignedContent()) {
         return NS_OK;
     }
+
+    // check if we verify content signatures on this newtab channel
+    if (gHttpHandler->NewTabContentSignaturesDisabled()) {
+        return NS_OK;
+    }
+
     NS_ENSURE_TRUE(aResponseHead, NS_ERROR_ABORT);
     nsAutoCString contentSignatureHeader;
     nsHttpAtom atom = nsHttp::ResolveAtom("Content-Signature");
@@ -2079,7 +2085,7 @@ nsHttpChannel::StartRedirectChannelToHttps()
     LOG(("nsHttpChannel::HandleAsyncRedirectChannelToHttps() [STS]\n"));
 
     nsCOMPtr<nsIURI> upgradedURI;
-    nsresult rv = GetSecureUpgradedURI(mURI, getter_AddRefs(upgradedURI));
+    nsresult rv = NS_GetSecureUpgradedURI(mURI, getter_AddRefs(upgradedURI));
     NS_ENSURE_SUCCESS(rv,rv);
 
     return StartRedirectChannelToURI(upgradedURI,

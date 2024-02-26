@@ -34,7 +34,20 @@
 namespace mozilla {
 namespace dom {
 
-NS_IMPL_CYCLE_COLLECTION_WRAPPERCACHE_0(Directory)
+NS_IMPL_CYCLE_COLLECTION_CLASS(Directory)
+
+NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(Directory)
+  tmp->mFileSystem->Unlink();
+  NS_IMPL_CYCLE_COLLECTION_UNLINK_PRESERVED_WRAPPER
+NS_IMPL_CYCLE_COLLECTION_UNLINK_END
+
+NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN(Directory)
+  tmp->mFileSystem->Traverse(cb);
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_SCRIPT_OBJECTS
+NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
+
+NS_IMPL_CYCLE_COLLECTION_TRACE_WRAPPERCACHE(Directory)
+
 NS_IMPL_CYCLE_COLLECTING_ADDREF(Directory)
 NS_IMPL_CYCLE_COLLECTING_RELEASE(Directory)
 NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(Directory)
@@ -82,7 +95,7 @@ Directory::WrapObject(JSContext* aCx, JS::Handle<JSObject*> aGivenProto)
 }
 
 void
-Directory::GetName(nsString& aRetval) const
+Directory::GetName(nsAString& aRetval) const
 {
   aRetval.Truncate();
 
@@ -237,15 +250,13 @@ Directory::GetPath(nsAString& aRetval) const
 already_AddRefed<Promise>
 Directory::GetFilesAndDirectories()
 {
-  nsresult error = NS_OK;
-  nsString realPath;
   ErrorResult rv;
   RefPtr<GetDirectoryListingTask> task =
     new GetDirectoryListingTask(mFileSystem, mPath, mFilters, rv);
   if (NS_WARN_IF(rv.Failed())) {
     return nullptr;
   }
-  task->SetError(error);
+
   FileSystemPermissionRequest::RequestForTask(task);
   return task->GetPromise();
 }

@@ -63,6 +63,7 @@
 #include "plstr.h"
 #include "nsINestedURI.h"
 #include "mozilla/dom/nsCSPUtils.h"
+#include "mozilla/net/HttpBaseChannel.h"
 #include "nsIScriptError.h"
 #include "nsISiteSecurityService.h"
 #include "nsHttpHandler.h"
@@ -1657,9 +1658,10 @@ NS_SecurityHashURI(nsIURI *aURI)
     if (scheme.EqualsLiteral("file"))
         return schemeHash; // sad face
 
-    if (scheme.EqualsLiteral("imap") ||
-        scheme.EqualsLiteral("mailbox") ||
-        scheme.EqualsLiteral("news"))
+    bool hasFlag;
+    if (NS_FAILED(NS_URIChainHasFlags(baseURI,
+        nsIProtocolHandler::ORIGIN_IS_FULL_SPEC, &hasFlag)) ||
+        hasFlag)
     {
         nsAutoCString spec;
         uint32_t specHash;
@@ -1756,13 +1758,13 @@ NS_SecurityCompareURIs(nsIURI *aSourceURI,
         return NS_SUCCEEDED(rv) && filesAreEqual;
     }
 
-    // Special handling for mailnews schemes
-    if (targetScheme.EqualsLiteral("imap") ||
-        targetScheme.EqualsLiteral("mailbox") ||
-        targetScheme.EqualsLiteral("news"))
+    bool hasFlag;
+    if (NS_FAILED(NS_URIChainHasFlags(targetBaseURI,
+        nsIProtocolHandler::ORIGIN_IS_FULL_SPEC, &hasFlag)) ||
+        hasFlag)
     {
-        // Each message is a distinct trust domain; use the
-        // whole spec for comparison
+        // URIs with this flag have the whole spec as a distinct trust
+        // domain; use the whole spec for comparison
         nsAutoCString targetSpec;
         nsAutoCString sourceSpec;
         return ( NS_SUCCEEDED( targetBaseURI->GetSpec(targetSpec) ) &&
@@ -1929,28 +1931,10 @@ NS_IsHSTSUpgradeRedirect(nsIChannel *aOldChannel,
     return false;
   }
 
-  bool isHttps;
-  if (NS_FAILED(newURI->SchemeIs("https", &isHttps)) || !isHttps) {
-    return false;
-  }
-
   nsCOMPtr<nsIURI> upgradedURI;
-  if (NS_FAILED(oldURI->Clone(getter_AddRefs(upgradedURI)))) {
+  nsresult rv = NS_GetSecureUpgradedURI(oldURI, getter_AddRefs(upgradedURI));
+  if (NS_FAILED(rv)) {
     return false;
-  }
-
-  if (NS_FAILED(upgradedURI->SetScheme(NS_LITERAL_CSTRING("https")))) {
-    return false;
-  }
-
-  int32_t oldPort = -1;
-  if (NS_FAILED(oldURI->GetPort(&oldPort))) {
-    return false;
-  }
-  if (oldPort == 80 || oldPort == -1) {
-    upgradedURI->SetPort(-1);
-  } else {
-    upgradedURI->SetPort(oldPort);
   }
 
   bool res;
@@ -2333,6 +2317,45 @@ NS_ShouldSecureUpgrade(nsIURI* aURI,
     //Telemetry::Accumulate(Telemetry::HTTP_SCHEME_UPGRADE, 0);
   }
   aShouldUpgrade = false;
+  return NS_OK;
+}
+
+nsresult
+NS_GetSecureUpgradedURI(nsIURI* aURI, nsIURI** aUpgradedURI)
+{
+  nsCOMPtr<nsIURI> upgradedURI;
+
+  nsresult rv = aURI->Clone(getter_AddRefs(upgradedURI));
+  NS_ENSURE_SUCCESS(rv,rv);
+
+  // Change the scheme to HTTPS:
+  upgradedURI->SetScheme(NS_LITERAL_CSTRING("https"));
+
+  // Change the default port to 443:
+  nsCOMPtr<nsIStandardURL> upgradedStandardURL = do_QueryInterface(upgradedURI);
+  if (upgradedStandardURL) {
+    upgradedStandardURL->SetDefaultPort(443);
+  } else {
+    // If we don't have a nsStandardURL, fall back to using GetPort/SetPort.
+    // XXXdholbert Is this function even called with a non-nsStandardURL arg,
+    // in practice?
+    int32_t oldPort = -1;
+    rv = aURI->GetPort(&oldPort);
+    if (NS_FAILED(rv)) return rv;
+
+    // Keep any nonstandard ports so only the scheme is changed.
+    // For example:
+    //  http://foo.com:80 -> https://foo.com:443
+    //  http://foo.com:81 -> https://foo.com:81
+
+    if (oldPort == 80 || oldPort == -1) {
+        upgradedURI->SetPort(-1);
+    } else {
+        upgradedURI->SetPort(oldPort);
+    }
+  }
+
+  upgradedURI.forget(aUpgradedURI);
   return NS_OK;
 }
 

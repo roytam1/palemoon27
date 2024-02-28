@@ -7,11 +7,13 @@
 DIRS += [
     'actions',
     'components',
+    'images',
     'reducers',
 ]
 
 DevToolsModules(
     'app.js',
+    'constants.js',
     'index.css',
     'manager.js',
     'reducers.js',

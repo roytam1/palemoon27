@@ -42,6 +42,7 @@
 #include "vm/TypedArrayCommon.h"
 
 #include "jsfuninlines.h"
+#include "jsobjinlines.h"
 #include "jsscriptinlines.h"
 
 #include "vm/BooleanObject-inl.h"
@@ -114,7 +115,7 @@ intrinsic_ToPropertyKey(JSContext* cx, unsigned argc, Value* vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
     RootedId id(cx);
-    if (!ValueToId<CanGC>(cx, args[0], &id))
+    if (!ToPropertyKey(cx, args[0], &id))
         return false;
 
     args.rval().set(IdToValue(id));
@@ -1488,6 +1489,14 @@ intrinsic_LocalTZA(JSContext* cx, unsigned argc, Value* vp)
 }
 
 static bool
+intrinsic_AddContentTelemetry(JSContext* cx, unsigned argc, Value* vp)
+{
+    CallArgs args = CallArgsFromVp(argc, vp);
+    args.rval().setUndefined();
+    return true;
+}
+
+static bool
 intrinsic_ConstructFunction(JSContext* cx, unsigned argc, Value* vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
@@ -1818,6 +1827,7 @@ static const JSFunctionSpec intrinsic_functions[] = {
     JS_FN("_FinishBoundFunctionInit", intrinsic_FinishBoundFunctionInit, 4,0),
     JS_FN("RuntimeDefaultLocale",    intrinsic_RuntimeDefaultLocale,    0,0),
     JS_FN("LocalTZA",                intrinsic_LocalTZA,                0,0),
+    JS_FN("AddContentTelemetry",     intrinsic_AddContentTelemetry,     2,0),
 
     JS_INLINABLE_FN("_IsConstructing", intrinsic_IsConstructing,        0,0,
                     IntrinsicIsConstructing),

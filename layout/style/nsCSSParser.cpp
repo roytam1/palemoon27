@@ -2469,7 +2469,7 @@ SeparatorRequiredBetweenTokens(nsCSSTokenSerializationType aToken1,
                  aToken1 == eCSSTokenSerialization_Symbol_Equals ||
                  aToken1 == eCSSTokenSerialization_Symbol_Bar ||
                  aToken1 == eCSSTokenSerialization_Symbol_Slash ||
-                 aToken1 == eCSSTokenSerialization_Other ||
+                 aToken1 == eCSSTokenSerialization_Other,
                  "unexpected nsCSSTokenSerializationType value");
       return false;
   }
@@ -11461,6 +11461,7 @@ CSSParserImpl::ParsePropertyByFunction(nsCSSProperty aPropID)
     return ParseClipPath();
   case eCSSProperty_scroll_snap_type:
     return ParseScrollSnapType();
+#ifdef MOZ_ENABLE_MASK_AS_SHORTHAND
   case eCSSProperty_mask:
     return ParseImageLayers(nsStyleImageLayers::kMaskLayerTable);
   case eCSSProperty_mask_repeat:
@@ -11469,6 +11470,7 @@ CSSParserImpl::ParsePropertyByFunction(nsCSSProperty aPropID)
     return ParseImageLayerPosition(eCSSProperty_mask_position);
   case eCSSProperty_mask_size:
     return ParseImageLayerSize(eCSSProperty_mask_size);
+#endif
   case eCSSProperty_all:
     return ParseAll();
   default:
@@ -11879,7 +11881,7 @@ CSSParserImpl::ParseImageLayersItem(
   aState.mSize->mYValue.SetAutoValue();
   aState.mComposite->mValue.SetIntValue(NS_STYLE_MASK_COMPOSITE_ADD,
                                         eCSSUnit_Enumerated);
-  aState.mMode->mValue.SetIntValue(NS_STYLE_MASK_MODE_AUTO,
+  aState.mMode->mValue.SetIntValue(NS_STYLE_MASK_MODE_MATCH_SOURCE,
                                    eCSSUnit_Enumerated);
   bool haveColor = false,
        haveImage = false,

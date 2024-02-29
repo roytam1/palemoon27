@@ -425,6 +425,10 @@ RTCPeerConnection.prototype = {
     this.__DOM_IMPL__._innerObject = this;
     this._observer = new this._win.PeerConnectionObserver(this.__DOM_IMPL__);
 
+    var location = "" + this._win.location;
+    this._isLoop = location.startsWith("about:loop") ||
+                   location.startsWith("https://hello.firefox.com/");
+
     // Add a reference to the PeerConnection to global list (before init).
     _globalPCList.addPC(this);
 
@@ -577,6 +581,13 @@ RTCPeerConnection.prototype = {
           if (!server.credential) {
             throw new this._win.DOMException(msg + " - missing credential: " + urlStr,
                                              "InvalidAccessError");
+          }
+          if (server.credentialType != "password") {
+            this.logWarning("RTCConfiguration TURN credentialType \""+
+                            server.credentialType +
+                            "\" is not yet implemented. Treating as password."+
+                            " https://bugzil.la/1247616",
+                            null, 0);
           }
         }
         else if (!(url.scheme in { stun:1, stuns:1 })) {
@@ -1047,6 +1058,34 @@ RTCPeerConnection.prototype = {
     });
   },
 
+  _setParameters: function(sender, parameters) {
+    if (!Services.prefs.getBoolPref("media.peerconnection.simulcast")) {
+      return;
+    }
+    // validate parameters input
+    var encodings = parameters.encodings || [];
+
+    encodings.reduce((uniqueRids, encoding) => {
+      if (!encoding.rid && encodings.length > 1) {
+        throw new this._win.DOMException("Missing rid", "TypeError");
+      }
+      if (uniqueRids[encoding.rid]) {
+        throw new this._win.DOMException("Duplicate rid", "TypeError");
+      }
+      uniqueRids[encoding.rid] = true;
+      return uniqueRids;
+    }, {});
+
+    this._impl.setParameters(sender.track, parameters);
+  },
+
+  _getParameters: function(sender) {
+    if (!Services.prefs.getBoolPref("media.peerconnection.simulcast")) {
+      return;
+    }
+    return this._impl.getParameters(sender.track);
+  },
+
   close: function() {
     if (this._closed) {
       return;
@@ -1074,6 +1113,10 @@ RTCPeerConnection.prototype = {
 
   getReceivers: function() {
     return this._receivers;
+  },
+
+  mozSelectSsrc: function(receiver, ssrcIndex) {
+    this._impl.selectSsrc(receiver.track, ssrcIndex);
   },
 
   get localDescription() {
@@ -1334,15 +1377,16 @@ PeerConnectionObserver.prototype = {
   //                 STUN requests.
 
   handleIceConnectionStateChange: function(iceConnectionState) {
+    let pc = this._dompc;
 
     if (iceConnectionState === 'failed') {
-      this._dompc.logError("ICE failed, see about:webrtc for more details", null, 0);
+      pc.logError("ICE failed, see about:webrtc for more details", null, 0);
     }
     if (this._dompc.iceConnectionState === 'checking' &&
         (iceConnectionState === 'completed' ||
          iceConnectionState === 'connected')) {
     }
-    this._dompc.changeIceConnectionState(iceConnectionState);
+    pc.changeIceConnectionState(iceConnectionState);
   },
 
   // This method is responsible for updating iceGatheringState. This
@@ -1397,11 +1441,11 @@ PeerConnectionObserver.prototype = {
   },
 
   onGetStatsSuccess: function(dict) {
-    let chromeobj = new RTCStatsReport(this._dompc._win, dict);
-    let webidlobj = this._dompc._win.RTCStatsReport._create(this._dompc._win,
-                                                            chromeobj);
+    let pc = this._dompc;
+    let chromeobj = new RTCStatsReport(pc._win, dict);
+    let webidlobj = pc._win.RTCStatsReport._create(pc._win, chromeobj);
     chromeobj.makeStatsPublic();
-    this._dompc._onGetStatsSuccess(webidlobj);
+    pc._onGetStatsSuccess(webidlobj);
   },
 
   onGetStatsError: function(code, message) {
@@ -1414,7 +1458,7 @@ PeerConnectionObserver.prototype = {
     this.dispatchEvent(ev);
   },
 
-  onRemoveStream: function(stream, type) {
+  onRemoveStream: function(stream) {
     this.dispatchEvent(new this._dompc._win.MediaStreamEvent("removestream",
                                                              { stream: stream }));
   },
@@ -1425,24 +1469,23 @@ PeerConnectionObserver.prototype = {
                                                   new RTCRtpReceiver(this,
                                                                      track));
     pc._receivers.push(receiver);
-    let ev = new this._dompc._win.RTCTrackEvent("track",
-                                                { receiver: receiver,
-                                                  track: track,
-                                                  streams: streams });
+    let ev = new pc._win.RTCTrackEvent("track",
+                                       { receiver: receiver,
+                                         track: track,
+                                         streams: streams });
     this.dispatchEvent(ev);
 
     // Fire legacy event as well for a little bit.
-    ev = new this._dompc._win.MediaStreamTrackEvent("addtrack", { track: track });
+    ev = new pc._win.MediaStreamTrackEvent("addtrack", { track: track });
     this.dispatchEvent(ev);
   },
 
-  onRemoveTrack: function(track, type) {
-    let i = this._dompc._receivers.findIndex(receiver => receiver.track == track);
+  onRemoveTrack: function(track) {
+    let pc = this._dompc;
+    let i = pc._receivers.findIndex(receiver => receiver.track == track);
     if (i >= 0) {
-      this._receivers.splice(i, 1);
+      pc._receivers.splice(i, 1);
     }
-    this.dispatchEvent(new this._dompc._win.MediaStreamTrackEvent("removetrack",
-                                                                  { track: track }));
   },
 
   onReplaceTrackSuccess: function() {
@@ -1504,6 +1547,15 @@ RTCRtpSender.prototype = {
 
   replaceTrack: function(withTrack) {
     return this._pc._chain(() => this._pc._replaceTrack(this, withTrack));
+  },
+
+  setParameters: function(parameters) {
+    return this._pc._win.Promise.resolve()
+      .then(() => this._pc._setParameters(this, parameters));
+  },
+
+  getParameters: function() {
+    return this._pc._getParameters(this);
   }
 };
 

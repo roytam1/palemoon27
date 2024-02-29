@@ -347,13 +347,6 @@ MediaPipelineFactory::GetTransportParameters(
       for (auto i = uniquePts.begin(); i != uniquePts.end(); ++i) {
         (*aFilterOut)->AddUniquePT(*i);
       }
-    } else {
-      // Add local SSRCs so we can distinguish which RTCP packets actually
-      // belong to this pipeline.
-      for (auto i = aTrack.GetSsrcs().begin();
-           i != aTrack.GetSsrcs().end(); ++i) {
-        (*aFilterOut)->AddLocalSSRC(*i);
-      }
     }
   }
 
@@ -959,7 +952,7 @@ MediaPipelineFactory::EnsureExternalCodec(VideoSessionConduit& aConduit,
 #ifdef MOZ_WEBRTC_OMX
       encoder =
           OMXVideoCodec::CreateEncoder(OMXVideoCodec::CodecType::CODEC_H264);
-#elif !defined(MOZILLA_XPCOMRT_API)
+#else
       encoder = GmpVideoCodec::CreateEncoder();
 #endif
       if (encoder) {
@@ -972,7 +965,7 @@ MediaPipelineFactory::EnsureExternalCodec(VideoSessionConduit& aConduit,
 #ifdef MOZ_WEBRTC_OMX
       decoder =
           OMXVideoCodec::CreateDecoder(OMXVideoCodec::CodecType::CODEC_H264);
-#elif !defined(MOZILLA_XPCOMRT_API)
+#else
       decoder = GmpVideoCodec::CreateDecoder();
 #endif
       if (decoder) {

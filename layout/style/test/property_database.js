@@ -2797,8 +2797,19 @@ var gCSSProperties = {
       "caption", "icon", "menu", "message-box", "small-caption", "status-bar",
       // Gecko-specific system fonts
       "-moz-window", "-moz-document", "-moz-desktop", "-moz-info", "-moz-dialog", "-moz-button", "-moz-pull-down-menu", "-moz-list", "-moz-field", "-moz-workspace",
+      // line-height with calc()
+      "condensed bold italic small-caps 24px/calc(2px) Times New Roman, serif",
+      "condensed bold italic small-caps 24px/calc(50%) Times New Roman, serif",
+      "condensed bold italic small-caps 24px/calc(3*25px) Times New Roman, serif",
+      "condensed bold italic small-caps 24px/calc(25px*3) Times New Roman, serif",
+      "condensed bold italic small-caps 24px/calc(3*25px + 50%) Times New Roman, serif",
+      "condensed bold italic small-caps 24px/calc(1 + 2*3/4) Times New Roman, serif",
     ],
-    invalid_values: [ "9 fantasy", "-2px fantasy" ]
+    invalid_values: [ "9 fantasy", "-2px fantasy",
+      // line-height with calc()
+      "condensed bold italic small-caps 24px/calc(1 + 2px) Times New Roman, serif",
+      "condensed bold italic small-caps 24px/calc(100% + 0.1) Times New Roman, serif",
+    ]
   },
   "font-family": {
     domProp: "fontFamily",
@@ -3060,8 +3071,8 @@ var gCSSProperties = {
      */
     prerequisites: { "font-size": "19px", "font-size-adjust": "none", "font-family": "serif", "font-weight": "normal", "font-style": "normal", "height": "18px", "display": "block"},
     initial_values: [ "normal" ],
-    other_values: [ "1.0", "1", "1em", "47px", "-moz-block-height" ],
-    invalid_values: []
+    other_values: [ "1.0", "1", "1em", "47px", "-moz-block-height", "calc(2px)", "calc(50%)", "calc(3*25px)", "calc(25px*3)", "calc(3*25px + 50%)", "calc(1 + 2*3/4)" ],
+    invalid_values: [ "calc(1 + 2px)", "calc(100% + 0.1)" ]
   },
   "list-style": {
     domProp: "listStyle",
@@ -5981,12 +5992,15 @@ if (IsCSSPropertyPrefEnabled("layout.css.grid.enabled")) {
       "[a] 2.5fr [z] Repeat(4, 20px auto) [d]",
       "repeat(auto-fill, 0)",
       "[a] repeat( Auto-fill,1%)",
-      "[a] repeat(Auto-fit, 0)",
-      "repeat(Auto-fit,[] 1%)",
-      "repeat(auto-fit, [a] 1em) auto",
+      "minmax(auto,0) [a] repeat(Auto-fit, 0) minmax(0,auto)",
+      "minmax(calc(1% + 1px),auto) repeat(Auto-fit,[] 1%) minmax(auto,1%)",
       "[a] repeat( auto-fit,[a b] minmax(0,0) )",
       "[a] 40px repeat(auto-fit,[a b] minmax(1px, 0) [])",
-      "[a] auto [b] repeat(auto-fit,[a b] minmax(1mm, 1%) [c]) [c] auto",
+      "[a] calc(1%) [b] repeat(auto-fit,[a b] minmax(1mm, 1%) [c]) [c]",
+      "repeat(auto-fill,minmax(1%,auto))",
+      "repeat(auto-fill,minmax(1em,min-content)) minmax(min-content,0)",
+      "repeat(auto-fill,minmax(1fr,1em)) [a] minmax(0, max-content)",
+      "repeat(auto-fill,minmax(max-content,1mm))",
     ],
     invalid_values: [
       "",
@@ -6036,9 +6050,14 @@ if (IsCSSPropertyPrefEnabled("layout.css.grid.enabled")) {
       "repeat(auto-fill, 0 [] 0)",
       "repeat(auto-fill, min-content)",
       "repeat(auto-fit,max-content)",
+      "repeat(auto-fit,1fr)",
       "repeat(auto-fit,minmax(auto,auto))",
-      "repeat(auto-fit,[] minmax(1px, min-content))",
-      "repeat(auto-fit,[a] minmax(1%, auto) [])",
+      "repeat(auto-fit,minmax(min-content,1fr))",
+      "repeat(auto-fit,minmax(1fr,auto))",
+      "repeat(auto-fill, 10px) auto",
+      "auto repeat(auto-fit, 10px)",
+      "minmax(min-content,max-content) repeat(auto-fit, 0)",
+      "10px [a] 10px [b a] 1fr [b] repeat(auto-fill, 0)",
     ],
     unbalanced_values: [
       "(foo] 40px",
@@ -6053,10 +6072,9 @@ if (IsCSSPropertyPrefEnabled("layout.css.grid.enabled")) {
       "subgrid [] [foo bar]",
       "subgrid repeat(1, [])",
       "subgrid Repeat(4, [a] [b c] [] [d])",
-      "repeat(auto-fill, [])",
-      "[] repeat(Auto-fill, [a] [b c] [] [d])",
-      "[x] repeat( Auto-fill, [a b c]) []",
-      "[x] repeat(auto-fill, []) [y z]"
+      "subgrid repeat(auto-fill, [])",
+      "subgrid [x] repeat( Auto-fill, [a b c]) []",
+      "subgrid [x] repeat(auto-fill, []) [y z]"
     );
     gCSSProperties["grid-template-columns"].invalid_values.push(
       "subgrid (foo) 40px",
@@ -6078,6 +6096,7 @@ if (IsCSSPropertyPrefEnabled("layout.css.grid.enabled")) {
       "subgrid [a] repeat(auto-fit,[])",
       "subgrid repeat(auto-fill, 1px)",
       "subgrid repeat(auto-fill, 1px [])",
+      "subgrid repeat(Auto-fill, [a] [b c] [] [d])",
       "subgrid repeat(auto-fill, []) repeat(auto-fill, [])"
     );
   }
@@ -6116,70 +6135,17 @@ if (IsCSSPropertyPrefEnabled("layout.css.grid.enabled")) {
     ]
   };
 
-  gCSSProperties["grid-template"] = {
-    domProp: "gridTemplate",
-    inherited: false,
-    type: CSS_TYPE_TRUE_SHORTHAND,
-    subproperties: [
-      "grid-template-areas",
-      "grid-template-columns",
-      "grid-template-rows",
-    ],
-    initial_values: [
-      "none",
-      "none / none",
-    ],
-    other_values: [
-      // <'grid-template-columns'> / <'grid-template-rows'>
-      "40px / 100px",
-      "[foo] 40px [bar] / [baz] 100px [fizz]",
-      " none/100px",
-      "40px/none",
-      // [ <track-list> / ]? [ <line-names>? <string> <track-size>? <line-names>? ]+
-      "'fizz'",
-      "[bar] 'fizz'",
-      "[foo] 40px / 'fizz'",
-      "[foo] 40px / [bar] 'fizz'",
-      "[foo] 40px / 'fizz' 100px",
-      "[foo] 40px / [bar] 'fizz' 100px",
-      "[foo] 40px / [bar] 'fizz' 100px [buzz]",
-      "[foo] 40px / [bar] 'fizz' 100px [buzz] \n [a] '.' 200px [b]",
-    ],
-    invalid_values: [
-      "[foo] [bar] 40px / 100px",
-      "40px / [fizz] [buzz] 100px",
-      "40px / [fizz] [buzz] 'foo'",
-      "none / 'foo'"
-    ]
-  };
-  if (isGridTemplateSubgridValueEnabled) {
-    gCSSProperties["grid-template"].other_values.push(
-      "subgrid",
-      "subgrid/40px 20px",
-      "subgrid [foo] [] [bar baz] / 40px 20px",
-      "40px 20px/subgrid",
-      "40px 20px/subgrid  [foo] [] repeat(3, [a] [b]) [bar baz]",
-      "subgrid/subgrid",
-      "subgrid [foo] [] [bar baz]/subgrid [foo] [] [bar baz]"
-    );
-    gCSSProperties["grid-template"].invalid_values.push(
-      "subgrid []",
-      "subgrid [] / 'fizz'",
-      "subgrid / 'fizz'"
-    );
-  }
-
   gCSSProperties["grid"] = {
     domProp: "grid",
     inherited: false,
     type: CSS_TYPE_TRUE_SHORTHAND,
     subproperties: [
       "grid-template-areas",
-      "grid-template-columns",
       "grid-template-rows",
+      "grid-template-columns",
       "grid-auto-flow",
-      "grid-auto-columns",
       "grid-auto-rows",
+      "grid-auto-columns",
       "grid-column-gap",
       "grid-row-gap",
     ],
@@ -6192,8 +6158,21 @@ if (IsCSSPropertyPrefEnabled("layout.css.grid.enabled")) {
       "column dense auto",
       "dense row minmax(min-content, 2fr)",
       "row 40px / 100px",
+      // <'grid-template-rows'> / <'grid-template-columns'>
+      "40px / 100px",
+      "[foo] 40px [bar] / [baz] 100px [fizz]",
+      " none/100px",
+      "40px/none",
+      // [ <track-list> / ]? [ <line-names>? <string> <track-size>? <line-names>? ]+
+      "'fizz'",
+      "[bar] 'fizz'",
+      "'fizz' / [foo] 40px",
+      "[bar] 'fizz' / [foo] 40px",
+      "'fizz' 100px / [foo] 40px",
+      "[bar] 'fizz' 100px / [foo] 40px",
+      "[bar] 'fizz' 100px [buzz] / [foo] 40px",
+      "[bar] 'fizz' 100px [buzz] \n [a] '.' 200px [b] / [foo] 40px",
     ].concat(
-      gCSSProperties["grid-template"].other_values,
       gCSSProperties["grid-auto-flow"].other_values
     ),
     invalid_values: [
@@ -6201,12 +6180,31 @@ if (IsCSSPropertyPrefEnabled("layout.css.grid.enabled")) {
       "row -20px",
       "row 200ms",
       "row 40px 100px",
+      "[foo] [bar] 40px / 100px",
+      "[fizz] [buzz] 100px / 40px",
+      "[fizz] [buzz] 'foo' / 40px",
+      "'foo' / none"
     ].concat(
-      gCSSProperties["grid-template"].invalid_values,
       gCSSProperties["grid-auto-flow"].invalid_values
         .filter((v) => v != 'none')
     )
   };
+  if (isGridTemplateSubgridValueEnabled) {
+    gCSSProperties["grid"].other_values.push(
+      "subgrid",
+      "subgrid/40px 20px",
+      "subgrid [foo] [] [bar baz] / 40px 20px",
+      "40px 20px/subgrid",
+      "40px 20px/subgrid  [foo] [] repeat(3, [a] [b]) [bar baz]",
+      "subgrid/subgrid",
+      "subgrid [foo] [] [bar baz]/subgrid [foo] [] [bar baz]"
+    );
+    gCSSProperties["grid"].invalid_values.push(
+      "subgrid []",
+      "subgrid [] / 'fizz'",
+      "subgrid / 'fizz'"
+    );
+  }
 
   var gridLineOtherValues = [
     "foo",

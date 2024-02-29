@@ -25,7 +25,9 @@ public:
   void Unlink() override { mEffect = nullptr; }
 
   void SetEndDelay(double aEndDelay);
-  void SetDuration(const UnrestrictedDoubleOrString& aDuration);
+  void SetIterationStart(double aIterationStart, ErrorResult& aRv);
+  void SetDuration(const UnrestrictedDoubleOrString& aDuration,
+                   ErrorResult& aRv);
 
 private:
   void NotifyTimingUpdate();

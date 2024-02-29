@@ -8,24 +8,6 @@
 
 namespace mozilla {
 
-TimingParams::TimingParams(const dom::AnimationEffectTimingProperties& aRhs,
-                           const dom::Element* aTarget)
-  : mDuration(aRhs.mDuration)
-  , mDelay(TimeDuration::FromMilliseconds(aRhs.mDelay))
-  , mEndDelay(TimeDuration::FromMilliseconds(aRhs.mEndDelay))
-  , mIterations(aRhs.mIterations)
-  , mIterationStart(aRhs.mIterationStart)
-  , mDirection(aRhs.mDirection)
-  , mFill(aRhs.mFill)
-{
-  mFunction = AnimationUtils::ParseEasing(aTarget, aRhs.mEasing);
-}
-
-TimingParams::TimingParams(double aDuration)
-{
-  mDuration.SetAsUnrestrictedDouble() = aDuration;
-}
-
 template <class OptionsType>
 static const dom::AnimationEffectTimingProperties&
 GetTimingProperties(const OptionsType& aOptions);
@@ -52,10 +34,18 @@ template <class OptionsType>
 static TimingParams
 TimingParamsFromOptionsUnion(
   const OptionsType& aOptions,
-  const Nullable<dom::ElementOrCSSPseudoElement>& aTarget)
+  const Nullable<dom::ElementOrCSSPseudoElement>& aTarget,
+  ErrorResult& aRv)
 {
+  TimingParams result;
   if (aOptions.IsUnrestrictedDouble()) {
-    return TimingParams(aOptions.GetAsUnrestrictedDouble());
+    double durationInMs = aOptions.GetAsUnrestrictedDouble();
+    if (durationInMs >= 0) {
+      result.mDuration.emplace(
+        StickyTimeDuration::FromMilliseconds(durationInMs));
+    } else {
+      aRv.Throw(NS_ERROR_DOM_TYPE_ERR);
+    }
   } else {
     // If aTarget is a pseudo element, we pass its parent element because
     // TimingParams only needs its owner doc to parse easing and both pseudo
@@ -72,41 +62,54 @@ TimingParamsFromOptionsUnion(
         targetElement = target.GetAsCSSPseudoElement().ParentElement();
       }
     }
-    return TimingParams(GetTimingProperties(aOptions), targetElement);
+    const dom::AnimationEffectTimingProperties& timing =
+      GetTimingProperties(aOptions);
+
+    Maybe<StickyTimeDuration> duration =
+      TimingParams::ParseDuration(timing.mDuration, aRv);
+    if (aRv.Failed()) {
+      return result;
+    }
+    TimingParams::ValidateIterationStart(timing.mIterationStart, aRv);
+    if (aRv.Failed()) {
+      return result;
+    }
+
+    result.mDuration = duration;
+    result.mDelay = TimeDuration::FromMilliseconds(timing.mDelay);
+    result.mEndDelay = TimeDuration::FromMilliseconds(timing.mEndDelay);
+    result.mIterations = timing.mIterations;
+    result.mIterationStart = timing.mIterationStart;
+    result.mDirection = timing.mDirection;
+    result.mFill = timing.mFill;
+    result.mFunction =
+      AnimationUtils::ParseEasing(targetElement, timing.mEasing);
   }
+  return result;
 }
 
 /* static */ TimingParams
 TimingParams::FromOptionsUnion(
   const dom::UnrestrictedDoubleOrKeyframeEffectOptions& aOptions,
-  const Nullable<dom::ElementOrCSSPseudoElement>& aTarget)
+  const Nullable<dom::ElementOrCSSPseudoElement>& aTarget,
+  ErrorResult& aRv)
 {
-  return TimingParamsFromOptionsUnion(aOptions, aTarget);
+  return TimingParamsFromOptionsUnion(aOptions, aTarget, aRv);
 }
 
 /* static */ TimingParams
 TimingParams::FromOptionsUnion(
   const dom::UnrestrictedDoubleOrKeyframeAnimationOptions& aOptions,
-  const Nullable<dom::ElementOrCSSPseudoElement>& aTarget)
+  const Nullable<dom::ElementOrCSSPseudoElement>& aTarget,
+  ErrorResult& aRv)
 {
-  return TimingParamsFromOptionsUnion(aOptions, aTarget);
+  return TimingParamsFromOptionsUnion(aOptions, aTarget, aRv);
 }
 
 bool
 TimingParams::operator==(const TimingParams& aOther) const
 {
-  bool durationEqual;
-  if (mDuration.IsUnrestrictedDouble()) {
-    durationEqual = aOther.mDuration.IsUnrestrictedDouble() &&
-                    (mDuration.GetAsUnrestrictedDouble() ==
-                     aOther.mDuration.GetAsUnrestrictedDouble());
-  } else {
-    // We consider all string values and uninitialized values as meaning "auto".
-    // Since mDuration is either a string or uninitialized, we consider it equal
-    // if aOther.mDuration is also either a string or uninitialized.
-    durationEqual = !aOther.mDuration.IsUnrestrictedDouble();
-  }
-  return durationEqual &&
+  return mDuration == aOther.mDuration &&
          mDelay == aOther.mDelay &&
          mIterations == aOther.mIterations &&
          mIterationStart == aOther.mIterationStart &&

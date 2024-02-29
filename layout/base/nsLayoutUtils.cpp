@@ -142,7 +142,6 @@ using namespace mozilla::gfx;
 
 #define GRID_ENABLED_PREF_NAME "layout.css.grid.enabled"
 #define GRID_TEMPLATE_SUBGRID_ENABLED_PREF_NAME "layout.css.grid-template-subgrid-value.enabled"
-#define STICKY_ENABLED_PREF_NAME "layout.css.sticky.enabled"
 #define DISPLAY_CONTENTS_ENABLED_PREF_NAME "layout.css.display-contents.enabled"
 #define TEXT_ALIGN_UNSAFE_ENABLED_PREF_NAME "layout.css.text-align-unsafe-value.enabled"
 #define FLOAT_LOGICAL_VALUES_ENABLED_PREF_NAME "layout.css.float-logical-values.enabled"
@@ -221,39 +220,6 @@ GridEnabledPrefChangeCallback(const char* aPrefName, void* aClosure)
     nsCSSProps::kDisplayKTable[sIndexOfInlineGridInDisplayTable].mKeyword =
       isGridEnabled ? eCSSKeyword_inline_grid : eCSSKeyword_UNKNOWN;
   }
-}
-
-// When the pref "layout.css.sticky.enabled" changes, this function is invoked
-// to let us update kPositionKTable, to selectively disable or restore the
-// entry for "sticky" in that table.
-static void
-StickyEnabledPrefChangeCallback(const char* aPrefName, void* aClosure)
-{
-  MOZ_ASSERT(strncmp(aPrefName, STICKY_ENABLED_PREF_NAME,
-                     ArrayLength(STICKY_ENABLED_PREF_NAME)) == 0,
-             "We only registered this callback for a single pref, so it "
-             "should only be called for that pref");
-
-  static int32_t sIndexOfStickyInPositionTable;
-  static bool sIsStickyKeywordIndexInitialized; // initialized to false
-
-  bool isStickyEnabled =
-    Preferences::GetBool(STICKY_ENABLED_PREF_NAME, false);
-
-  if (!sIsStickyKeywordIndexInitialized) {
-    // First run: find the position of "sticky" in kPositionKTable.
-    sIndexOfStickyInPositionTable =
-      nsCSSProps::FindIndexOfKeyword(eCSSKeyword_sticky,
-                                     nsCSSProps::kPositionKTable);
-    MOZ_ASSERT(sIndexOfStickyInPositionTable >= 0,
-               "Couldn't find sticky in kPositionKTable");
-    sIsStickyKeywordIndexInitialized = true;
-  }
-
-  // OK -- now, stomp on or restore the "sticky" entry in kPositionKTable,
-  // depending on whether the sticky pref is enabled vs. disabled.
-  nsCSSProps::kPositionKTable[sIndexOfStickyInPositionTable].mKeyword =
-    isStickyEnabled ? eCSSKeyword_sticky : eCSSKeyword_UNKNOWN;
 }
 
 // When the pref "layout.css.display-contents.enabled" changes, this function is
@@ -669,6 +635,7 @@ nsLayoutUtils::IsTextAlignUnsafeValueEnabled()
 {
   static bool sTextAlignUnsafeValueEnabled;
   static bool sTextAlignUnsafeValueEnabledPrefCached = false;
+
   if (!sTextAlignUnsafeValueEnabledPrefCached) {
     sTextAlignUnsafeValueEnabledPrefCached = true;
     Preferences::AddBoolVarCache(&sTextAlignUnsafeValueEnabled,
@@ -950,8 +917,11 @@ GetDisplayPortFromMarginsData(nsIContent* aContent,
   ScreenSize alignment;
 
   if (gfxPrefs::LayersTilesEnabled()) {
-    alignment = ScreenSize(gfxPlatform::GetPlatform()->GetTileWidth(),
-                           gfxPlatform::GetPlatform()->GetTileHeight());
+    // Don't align to tiles if they are too large, because we could expand
+    // the displayport by a lot which can take more paint time. It's a tradeoff
+    // though because if we don't align to tiles we have more waste on upload.
+    alignment = ScreenSize(std::min(256, gfxPlatform::GetPlatform()->GetTileWidth()),
+                           std::min(256, gfxPlatform::GetPlatform()->GetTileHeight()));
   } else {
     // If we're not drawing with tiles then we need to be careful about not
     // hitting the max texture size and we only need 1 draw call per layer
@@ -4602,19 +4572,23 @@ AddIntrinsicSizeOffset(nsRenderingContext* aRenderingContext,
   pctTotal += pctOutsideSize;
 
   nscoord size;
-  if (GetAbsoluteCoord(aStyleSize, size) ||
-      GetIntrinsicCoord(aStyleSize, aRenderingContext, aFrame,
-                        PROP_WIDTH, size)) {
+  if (aType == nsLayoutUtils::MIN_ISIZE &&
+      (((aStyleSize.HasPercent() || aStyleMaxSize.HasPercent()) &&
+        aFrame->IsFrameOfType(nsIFrame::eReplacedSizing)) ||
+       (aStyleSize.HasPercent() &&
+        FormControlShrinksForPercentISize(aFrame)))) {
+    // A percentage width or max-width on replaced elements means they
+    // can shrink to 0.
+    // This is also true for percentage widths (but not max-widths) on
+    // text inputs.
+    // Note that if this is max-width, this overrides the fixed-width
+    // rule in the next condition.
+    result = 0; // let |min| handle padding/border/margin
+  } else if (GetAbsoluteCoord(aStyleSize, size) ||
+             GetIntrinsicCoord(aStyleSize, aRenderingContext, aFrame,
+                               PROP_WIDTH, size)) {
     result = nsLayoutUtils::AddPercents(aType, size + coordOutsideSize,
                                         pctOutsideSize);
-  } else if (aType == nsLayoutUtils::MIN_ISIZE &&
-             // The only cases of coord-percent-calc() units that
-             // GetAbsoluteCoord didn't handle are percent and calc()s
-             // containing percent.
-             aStyleSize.IsCoordPercentCalcUnit() &&
-             aFrame->IsFrameOfType(nsIFrame::eReplaced)) {
-    // A percentage width on replaced elements means they can shrink to 0.
-    result = 0; // let |min| handle padding/border/margin
   } else {
     // NOTE: We could really do a lot better for percents and for some
     // cases of calc() containing percent (certainly including any where
@@ -7633,9 +7607,6 @@ nsLayoutUtils::Initialize()
   Preferences::RegisterCallback(GridEnabledPrefChangeCallback,
                                 GRID_ENABLED_PREF_NAME);
   GridEnabledPrefChangeCallback(GRID_ENABLED_PREF_NAME, nullptr);
-  Preferences::RegisterCallback(StickyEnabledPrefChangeCallback,
-                                STICKY_ENABLED_PREF_NAME);
-  StickyEnabledPrefChangeCallback(STICKY_ENABLED_PREF_NAME, nullptr);
   Preferences::RegisterCallback(TextAlignUnsafeEnabledPrefChangeCallback,
                                 TEXT_ALIGN_UNSAFE_ENABLED_PREF_NAME);
   Preferences::RegisterCallback(DisplayContentsEnabledPrefChangeCallback,
@@ -7663,9 +7634,6 @@ nsLayoutUtils::Shutdown()
 
   Preferences::UnregisterCallback(GridEnabledPrefChangeCallback,
                                   GRID_ENABLED_PREF_NAME);
-  Preferences::UnregisterCallback(StickyEnabledPrefChangeCallback,
-                                  STICKY_ENABLED_PREF_NAME);
-
   nsComputedDOMStyle::UnregisterPrefChangeCallbacks();
 }
 
@@ -9045,9 +9013,7 @@ nsLayoutUtils::IsScrollFrameWithSnapping(nsIFrame* aFrame)
   if (!sf) {
     return false;
   }
-  ScrollbarStyles styles = sf->GetScrollbarStyles();
-  return styles.mScrollSnapTypeY != NS_STYLE_SCROLL_SNAP_TYPE_NONE ||
-         styles.mScrollSnapTypeX != NS_STYLE_SCROLL_SNAP_TYPE_NONE;
+  return sf->IsScrollFrameWithSnapping();
 }
 
 /* static */ nsBlockFrame*
@@ -9143,16 +9109,15 @@ static void UpdateDisplayPortMarginsForPendingMetrics(FrameMetrics& aMetrics) {
 
   DisplayPortMarginsPropertyData* currentData =
     static_cast<DisplayPortMarginsPropertyData*>(content->GetProperty(nsGkAtoms::DisplayPortMargins));
-  if (!currentData || currentData->mPriority > 0) {
+  if (!currentData) {
     return;
   }
 
   CSSPoint frameScrollOffset = CSSPoint::FromAppUnits(frame->GetScrollPosition());
   APZCCallbackHelper::AdjustDisplayPortForScrollDelta(aMetrics, frameScrollOffset);
 
-  content->SetProperty(nsGkAtoms::DisplayPortMargins,
-                       new DisplayPortMarginsPropertyData(aMetrics.GetDisplayPortMargins(), 0),
-                       nsINode::DeleteProperty<DisplayPortMarginsPropertyData>);
+  nsLayoutUtils::SetDisplayPortMargins(content, shell,
+                                       aMetrics.GetDisplayPortMargins(), 0);
 }
 
 /* static */ void

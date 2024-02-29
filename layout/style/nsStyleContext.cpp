@@ -324,9 +324,16 @@ nsStyleContext::MoveTo(nsStyleContext* aNewParent)
 
   // This function shouldn't be getting called if the parents have different
   // values for some flags in mBits, because if that were the case we would need
-  // to recompute those bits for |this|. (TODO: add more flags to |mask|.)
-  DebugOnly<uint64_t> mask = NS_STYLE_IN_DISPLAY_NONE_SUBTREE;
+  // to recompute those bits for |this|.
+  DebugOnly<uint64_t> mask = NS_STYLE_HAS_PSEUDO_ELEMENT_DATA |
+                             NS_STYLE_IN_DISPLAY_NONE_SUBTREE;
   MOZ_ASSERT((mParent->mBits & mask) == (aNewParent->mBits & mask));
+  MOZ_ASSERT((mParent->mBits & NS_STYLE_HAS_TEXT_DECORATION_LINES) ==
+             (aNewParent->mBits & NS_STYLE_HAS_TEXT_DECORATION_LINES) ||
+             StyleTextReset()->HasTextDecorationLines());
+  MOZ_ASSERT((mParent->mBits & NS_STYLE_RELEVANT_LINK_VISITED) ==
+             (aNewParent->mBits & NS_STYLE_RELEVANT_LINK_VISITED) ||
+             IsLinkContext());
 
   // Assertions checking for visited style are just to avoid some tricky
   // cases we can't be bothered handling at the moment.
@@ -599,10 +606,7 @@ nsStyleContext::ApplyStyleFixups(bool aSkipParentDisplayBasedStyleFixup)
     mBits |= NS_STYLE_HAS_TEXT_DECORATION_LINES;
   } else {
     // We might have defined a decoration.
-    const nsStyleTextReset* text = StyleTextReset();
-    uint8_t decorationLine = text->mTextDecorationLine;
-    if (decorationLine != NS_STYLE_TEXT_DECORATION_LINE_NONE &&
-        decorationLine != NS_STYLE_TEXT_DECORATION_LINE_OVERRIDE_ALL) {
+    if (StyleTextReset()->HasTextDecorationLines()) {
       mBits |= NS_STYLE_HAS_TEXT_DECORATION_LINES;
     }
   }
@@ -677,8 +681,8 @@ nsStyleContext::ApplyStyleFixups(bool aSkipParentDisplayBasedStyleFixup)
     }
   }
 
-  // Adjust the "display" values of flex and grid items (but not for raw text,
-  // placeholders, or table-parts). CSS3 Flexbox section 4 says:
+  // Adjust the "display" values of flex and grid items (but not for raw text
+  // or placeholders). CSS3 Flexbox section 4 says:
   //   # The computed 'display' of a flex item is determined
   //   # by applying the table in CSS 2.1 Chapter 9.7.
   // ...which converts inline-level elements to their block-level equivalents.
@@ -701,38 +705,23 @@ nsStyleContext::ApplyStyleFixups(bool aSkipParentDisplayBasedStyleFixup)
     }
     if (containerDisp->IsFlexOrGridDisplayType() &&
         GetPseudo() != nsCSSAnonBoxes::mozNonElement) {
+      // NOTE: Technically, we shouldn't modify the 'display' value of
+      // positioned elements, since they aren't flex/grid items. However,
+      // we don't need to worry about checking for that, because if we're
+      // positioned, we'll have already been through a call to
+      // EnsureBlockDisplay() in nsRuleNode, so this call here won't change
+      // anything. So we're OK.
       uint8_t displayVal = disp->mDisplay;
-      // Skip table parts.
-      // NOTE: This list needs to be kept in sync with
-      // nsCSSFrameConstructor::FindDisplayData() -- specifically,
-      // this should be the list of display-values that returns
-      // FCDATA_DESIRED_PARENT_TYPE_TO_BITS from that method.
-      if (NS_STYLE_DISPLAY_TABLE_CAPTION      != displayVal &&
-          NS_STYLE_DISPLAY_TABLE_ROW_GROUP    != displayVal &&
-          NS_STYLE_DISPLAY_TABLE_HEADER_GROUP != displayVal &&
-          NS_STYLE_DISPLAY_TABLE_FOOTER_GROUP != displayVal &&
-          NS_STYLE_DISPLAY_TABLE_COLUMN_GROUP != displayVal &&
-          NS_STYLE_DISPLAY_TABLE_COLUMN       != displayVal &&
-          NS_STYLE_DISPLAY_TABLE_ROW          != displayVal &&
-          NS_STYLE_DISPLAY_TABLE_CELL         != displayVal) {
-
-        // NOTE: Technically, we shouldn't modify the 'display' value of
-        // positioned elements, since they aren't flex/grid items. However,
-        // we don't need to worry about checking for that, because if we're
-        // positioned, we'll have already been through a call to
-        // EnsureBlockDisplay() in nsRuleNode, so this call here won't change
-        // anything. So we're OK.
-        nsRuleNode::EnsureBlockDisplay(displayVal);
-        if (displayVal != disp->mDisplay) {
-          NS_ASSERTION(!disp->IsAbsolutelyPositionedStyle(),
-                       "We shouldn't be changing the display value of "
-                       "positioned content (and we should have already "
-                       "converted its display value to be block-level...)");
-          nsStyleDisplay* mutable_display =
-            static_cast<nsStyleDisplay*>(GetUniqueStyleData(eStyleStruct_Display));
-          disp = mutable_display;
-          mutable_display->mDisplay = displayVal;
-        }
+      nsRuleNode::EnsureBlockDisplay(displayVal);
+      if (displayVal != disp->mDisplay) {
+        NS_ASSERTION(!disp->IsAbsolutelyPositionedStyle(),
+                     "We shouldn't be changing the display value of "
+                     "positioned content (and we should have already "
+                     "converted its display value to be block-level...)");
+        nsStyleDisplay* mutable_display =
+          static_cast<nsStyleDisplay*>(GetUniqueStyleData(eStyleStruct_Display));
+        disp = mutable_display;
+        mutable_display->mDisplay = displayVal;
       }
     }
   }
@@ -788,11 +777,18 @@ nsStyleContext::ApplyStyleFixups(bool aSkipParentDisplayBasedStyleFixup)
    *     to inline-block. [CSS21]
    *   ...etc.
    */
-  if (disp->mDisplay == NS_STYLE_DISPLAY_INLINE && mParent) {
+  if (disp->mDisplay == NS_STYLE_DISPLAY_INLINE &&
+      mPseudoTag != nsCSSAnonBoxes::mozNonElement &&
+      mParent) {
+    auto cbContext = mParent;
+    while (cbContext->StyleDisplay()->mDisplay == NS_STYLE_DISPLAY_CONTENTS) {
+      cbContext = cbContext->mParent;
+    }
+    MOZ_ASSERT(cbContext, "the root context can't have display:contents");
     // We don't need the full mozilla::WritingMode value (incorporating dir
     // and text-orientation) here; just the writing-mode property is enough.
     if (StyleVisibility()->mWritingMode !=
-        mParent->StyleVisibility()->mWritingMode) {
+          cbContext->StyleVisibility()->mWritingMode) {
       nsStyleDisplay* mutable_display =
         static_cast<nsStyleDisplay*>(GetUniqueStyleData(eStyleStruct_Display));
       disp = mutable_display;

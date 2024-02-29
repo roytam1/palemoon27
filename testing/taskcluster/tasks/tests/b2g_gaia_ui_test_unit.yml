@@ -3,7 +3,7 @@ $inherits:
   from: 'tasks/test.yml'
 task:
   metadata:
-    name: '[TC] Gaia Python Integration Unit Tests'
+    name: '[TC] - Gaia Python Integration Unit Tests'
     description: Gaia Python Integration Unit Tests run {{chunk}}
 
   payload:
@@ -17,7 +17,7 @@ task:
         --config-file ./mozharness_configs/gaia_integration_override.py
         --config-file ./mozharness_configs/remove_executables.py
         --installer-url {{build_url}}
-        --test-url {{tests_url}}
+        --test-packages-url {{test_packages_url}}
         --download-symbols ondemand
         --gip-suite unit
         --gaia-repo https://hg.mozilla.org/integration/gaia-central
@@ -30,8 +30,11 @@ task:
         expires: '{{#from_now}}1 year{{/from_now}}'
 
   extra:
+    treeherderEnv:
+      - production
+      - staging
     treeherder:
       groupName: Gaia Python Integration Tests
-      groupSymbol: tc-Gip
+      groupSymbol: Gip
       symbol: 'u'
       productName: b2g

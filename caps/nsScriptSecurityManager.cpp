@@ -27,6 +27,7 @@
 #include "nsXPIDLString.h"
 #include "nsCRT.h"
 #include "nsCRTGlue.h"
+#include "nsDocShell.h"
 #include "nsError.h"
 #include "nsDOMCID.h"
 #include "nsIXPConnect.h"
@@ -410,11 +411,32 @@ nsScriptSecurityManager::GetChannelURIPrincipal(nsIChannel* aChannel,
     nsCOMPtr<nsILoadContext> loadContext;
     NS_QueryNotificationCallbacks(aChannel, loadContext);
 
-    if (loadContext) {
-        return GetLoadContextCodebasePrincipal(uri, loadContext, aPrincipal);
+    nsCOMPtr<nsILoadInfo> loadInfo;
+    aChannel->GetLoadInfo(getter_AddRefs(loadInfo));
+    nsContentPolicyType contentPolicyType = nsIContentPolicy::TYPE_INVALID;
+    if (loadInfo) {
+      contentPolicyType = loadInfo->GetExternalContentPolicyType();
     }
 
-    OriginAttributes attrs(UNKNOWN_APP_ID, false);
+    OriginAttributes attrs;
+    if (nsIContentPolicy::TYPE_DOCUMENT == contentPolicyType ||
+        nsIContentPolicy::TYPE_SUBDOCUMENT == contentPolicyType) {
+      // If it's document or sub-document, inherit originAttributes from
+      // the document.
+      if (loadContext) {
+        return GetLoadContextCodebasePrincipal(uri, loadContext, aPrincipal);
+      }
+    } else {
+      // Inherit origin attributes from loading principal if any.
+      nsCOMPtr<nsIPrincipal> loadingPrincipal;
+      if (loadInfo) {
+        loadInfo->GetLoadingPrincipal(getter_AddRefs(loadingPrincipal));
+      }
+      if (loadingPrincipal) {
+        attrs = BasePrincipal::Cast(loadingPrincipal)->OriginAttributesRef();
+      }
+    }
+
     rv = MaybeSetAddonIdFromURI(attrs, uri);
     NS_ENSURE_SUCCESS(rv, rv);
     nsCOMPtr<nsIPrincipal> prin = BasePrincipal::CreateCodebasePrincipal(uri, attrs);
@@ -480,6 +502,8 @@ nsScriptSecurityManager::ContentSecurityPolicyPermitsJSAction(JSContext *cx)
             if (const char *file = scriptFilename.get()) {
                 CopyUTF8toUTF16(nsDependentCString(file), fileName);
             }
+        } else {
+            MOZ_ASSERT(!JS_IsExceptionPending(cx));
         }
         csp->LogViolationDetails(nsIContentSecurityPolicy::VIOLATION_TYPE_EVAL,
                                  fileName,

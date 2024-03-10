@@ -53,7 +53,6 @@ with Files('../public/TrackedOptimizationInfo.h'):
 if CONFIG['JS_BUNDLED_EDITLINE']:
     DIRS += ['editline']
 
-# editline needs to get built before the shell
 if not CONFIG['JS_DISABLE_SHELL']:
     DIRS += ['shell']
 
@@ -299,7 +298,6 @@ UNIFIED_SOURCES += [
     'proxy/OpaqueCrossCompartmentWrapper.cpp',
     'proxy/Proxy.cpp',
     'proxy/ScriptedDirectProxyHandler.cpp',
-    'proxy/ScriptedIndirectProxyHandler.cpp',
     'proxy/SecurityWrapper.cpp',
     'proxy/Wrapper.cpp',
     'vm/ArgumentsObject.cpp',

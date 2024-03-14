@@ -154,6 +154,7 @@
 #include "nsIScriptGlobalObject.h"
 #include "nsIScriptObjectPrincipal.h"
 #include "nsIScriptSecurityManager.h"
+#include "nsIScrollable.h"
 #include "nsIStreamConverterService.h"
 #include "nsIStringBundle.h"
 #include "nsIURI.h"
@@ -6582,6 +6583,20 @@ nsContentUtils::IsPDFJSEnabled()
    return NS_SUCCEEDED(rv) && canConvert;
 }
 
+bool
+nsContentUtils::IsSWFPlayerEnabled()
+{
+   nsCOMPtr<nsIStreamConverterService> convServ =
+     do_GetService("@mozilla.org/streamConverters;1");
+   nsresult rv = NS_ERROR_FAILURE;
+   bool canConvert = false;
+   if (convServ) {
+     rv = convServ->CanConvert("application/x-shockwave-flash",
+                               "text/html", &canConvert);
+   }
+   return NS_SUCCEEDED(rv) && canConvert;
+}
+
 already_AddRefed<nsIDocumentLoaderFactory>
 nsContentUtils::FindInternalContentViewer(const nsACString& aType,
                                           ContentViewerType* aLoaderType)
@@ -8923,4 +8938,25 @@ nsContentUtils::IsSpecificAboutPage(JSObject* aGlobal, const char* aUri)
   nsAutoCString spec;
   uri->GetSpec(spec);
   return spec.EqualsASCII(aUri);
+}
+
+/* static */ void
+nsContentUtils::SetScrollbarsVisibility(nsIDocShell* aDocShell, bool aVisible)
+{
+  nsCOMPtr<nsIScrollable> scroller = do_QueryInterface(aDocShell);
+
+  if (scroller) {
+    int32_t prefValue;
+
+    if (aVisible) {
+      prefValue = nsIScrollable::Scrollbar_Auto;
+    } else {
+      prefValue = nsIScrollable::Scrollbar_Never;
+    }
+
+    scroller->SetDefaultScrollbarPreferences(
+                nsIScrollable::ScrollOrientation_Y, prefValue);
+    scroller->SetDefaultScrollbarPreferences(
+                nsIScrollable::ScrollOrientation_X, prefValue);
+  }
 }

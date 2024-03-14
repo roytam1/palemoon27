@@ -51,7 +51,7 @@ namespace layers {
 class AsyncDragMetrics;
 class Composer2D;
 class Compositor;
-class CompositorChild;
+class CompositorBridgeChild;
 class LayerManager;
 class LayerManagerComposite;
 class PLayerTransactionChild;
@@ -326,7 +326,7 @@ class nsIWidget : public nsISupports {
 
   public:
     typedef mozilla::layers::Composer2D Composer2D;
-    typedef mozilla::layers::CompositorChild CompositorChild;
+    typedef mozilla::layers::CompositorBridgeChild CompositorBridgeChild;
     typedef mozilla::layers::AsyncDragMetrics AsyncDragMetrics;
     typedef mozilla::layers::FrameMetrics FrameMetrics;
     typedef mozilla::layers::LayerManager LayerManager;
@@ -1994,7 +1994,7 @@ public:
      * If this isn't directly compositing to its window surface,
      * return the compositor which is doing that on our behalf.
      */
-    virtual CompositorChild* GetRemoteRenderer()
+    virtual CompositorBridgeChild* GetRemoteRenderer()
     { return nullptr; }
 
     /**

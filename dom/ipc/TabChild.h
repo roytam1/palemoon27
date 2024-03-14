@@ -326,6 +326,7 @@ public:
   virtual bool RecvUpdateDimensions(const CSSRect& rect,
                                     const CSSSize& size,
                                     const ScreenOrientationInternal& orientation,
+                                    const LayoutDeviceIntPoint& aClientOffset,
                                     const LayoutDeviceIntPoint& chromeDisp) override;
 
   virtual bool
@@ -551,6 +552,7 @@ public:
 
   nsresult CreatePluginWidget(nsIWidget* aParent, nsIWidget** aOut);
 
+  LayoutDeviceIntPoint GetClientOffset() const { return mClientOffset; }
   LayoutDeviceIntPoint GetChromeDisplacement() { return mChromeDisp; };
 
   bool IPCOpen() { return mIPCOpen; }
@@ -698,6 +700,8 @@ private:
   SetAllowedTouchBehaviorCallback mSetAllowedTouchBehaviorCallback;
   bool mHasValidInnerSize;
   bool mDestroyed;
+  // Position of client area relative to the outer window
+  LayoutDeviceIntPoint mClientOffset;
   // Position of tab, relative to parent widget (typically the window)
   LayoutDeviceIntPoint mChromeDisp;
   TabId mUniqueId;

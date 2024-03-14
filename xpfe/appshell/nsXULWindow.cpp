@@ -2041,17 +2041,7 @@ void nsXULWindow::SetContentScrollbarVisibility(bool aVisible)
     return;
   }
 
-  MOZ_ASSERT(contentWin->IsOuterWindow());
-  contentWin = contentWin->GetCurrentInnerWindow();
-  if (contentWin) {
-    mozilla::ErrorResult rv;
-
-    RefPtr<nsGlobalWindow> window = static_cast<nsGlobalWindow*>(contentWin.get());
-    RefPtr<mozilla::dom::BarProp> scrollbars = window->GetScrollbars(rv);
-    if (scrollbars) {
-      scrollbars->SetVisible(aVisible, rv);
-    }
-  }
+  nsContentUtils::SetScrollbarsVisibility(contentWin->GetDocShell(), aVisible);
 }
 
 bool nsXULWindow::GetContentScrollbarVisibility()

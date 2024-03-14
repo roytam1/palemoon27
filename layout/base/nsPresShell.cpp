@@ -160,7 +160,7 @@
 
 #endif
 
-#include "mozilla/layers/CompositorChild.h"
+#include "mozilla/layers/CompositorBridgeChild.h"
 #include "GeckoProfiler.h"
 #include "gfxPlatform.h"
 #include "Layers.h"
@@ -5709,7 +5709,7 @@ NotifyCompositorOfVisibleRegionsChange(PresShell* aPresShell,
   const uint64_t layersId = tabChild->LayersId();
   const uint32_t presShellId = aPresShell->GetPresShellId();
 
-  // Retrieve the CompositorChild.
+  // Retrieve the CompositorBridgeChild.
   LayerManager* layerManager = aPresShell->GetLayerManager();
   if (!layerManager) {
     return;
@@ -5720,7 +5720,7 @@ NotifyCompositorOfVisibleRegionsChange(PresShell* aPresShell,
     return;
   }
 
-  CompositorChild* compositorChild = clientLayerManager->GetCompositorChild();
+  CompositorBridgeChild* compositorChild = clientLayerManager->GetCompositorBridgeChild();
   if (!compositorChild) {
     return;
   }

@@ -1203,20 +1203,26 @@ sticky_pref("browser.newtabpage.enhanced", false);
 // number of columns of newtab grid
 pref("browser.newtabpage.columns", 4);
 
+// directory tiles download URL
+pref("browser.newtabpage.directory.source", "https://tiles.services.mozilla.com/v3/links/fetch/%LOCALE%/%CHANNEL%");
+
+// endpoint to send newtab click and view pings
+pref("browser.newtabpage.directory.ping", "https://tiles.services.mozilla.com/v3/links/");
+
 // number of rows of newtab grid
 pref("browser.newtabpage.rows", 4);
 
 // activates the remote-hosted newtab page
 pref("browser.newtabpage.remote", false);
 
+// Toggles endpoints allowed for remote newtab communications
+pref("browser.newtabpage.remote.mode", "production");
+
 // content-signature tests for remote newtab
 pref("browser.newtabpage.remote.content-signing-test", false);
 
 // verification keys for remote-hosted newtab page
 pref("browser.newtabpage.remote.keys", "");
-
-// Toggles endpoints allowed for remote newtab communications
-pref("browser.newtabpage.remote.mode", "production");
 
 // Enable the DOM fullscreen API.
 pref("full-screen-api.enabled", true);
@@ -1268,7 +1274,11 @@ pref("media.webaudio.enabled", true);
 pref("dom.debug.propagate_gesture_events_through_content", false);
 
 // The request URL of the GeoLocation backend.
-pref("geo.wifi.uri", "http://ip-api.com/json/?fields=lat,lon,status,message");
+#ifdef RELEASE_BUILD
+pref("geo.wifi.uri", "https://www.googleapis.com/geolocation/v1/geolocate?key=%GOOGLE_API_KEY%");
+#else
+pref("geo.wifi.uri", "https://location.services.mozilla.com/v1/geolocate?key=%MOZILLA_API_KEY%");
+#endif
 
 #ifdef XP_MACOSX
 #ifdef RELEASE_BUILD
@@ -1381,6 +1391,17 @@ pref("status4evar.status.toolbar.maxLength", 0);
 pref("status4evar.status.popup.invertMirror", false);
 pref("status4evar.status.popup.mouseMirror", true);
 
+// Telemetry settings.
+// Determines if Telemetry pings can be archived locally.
+pref("toolkit.telemetry.archive.enabled", false);
+
+// Telemetry experiments settings.
+pref("experiments.enabled", false);
+pref("experiments.manifest.fetchIntervalSeconds", 86400);
+pref("experiments.manifest.uri", "https://telemetry-experiment.cdn.mozilla.net/manifest/v1/firefox/%VERSION%/%CHANNEL%");
+// Whether experiments are supported by the current application profile.
+pref("experiments.supported", false);
+
 pref("privacy.trackingprotection.ui.enabled", false);
 
 // Enable Contextual Identity Containers
@@ -1412,3 +1433,8 @@ pref("toolkit.pageThumbs.minWidth", 280);
 pref("toolkit.pageThumbs.minHeight", 190);
 
 pref("browser.esedbreader.loglevel", "Error");
+
+pref("browser.laterrun.enabled", false);
+
+// Enable browser frames for use on desktop.  Only exposed to chrome callers.
+pref("dom.mozBrowserFramesEnabled", true);

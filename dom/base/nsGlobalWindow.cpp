@@ -3812,7 +3812,7 @@ nsGlobalWindow::GetParentOuter()
   }
 
   nsCOMPtr<nsPIDOMWindowOuter> parent;
-  if (mDocShell->GetIsBrowserOrApp()) {
+  if (mDocShell->GetIsMozBrowserOrApp()) {
     parent = AsOuter();
   } else {
     parent = GetParent();
@@ -3978,7 +3978,7 @@ nsGlobalWindow::GetContentInternal(ErrorResult& aError, bool aUnprivilegedCaller
 
   // If we're contained in <iframe mozbrowser> or <iframe mozapp>, then
   // GetContent is the same as window.top.
-  if (mDocShell && mDocShell->GetIsInBrowserOrApp()) {
+  if (mDocShell && mDocShell->GetIsInMozBrowserOrApp()) {
     return GetTopOuter();
   }
 
@@ -7210,7 +7210,7 @@ nsGlobalWindow::ResizeToOuter(int32_t aWidth, int32_t aHeight, ErrorResult& aErr
    * If caller is a browser-element then dispatch a resize event to
    * the embedder.
    */
-  if (mDocShell && mDocShell->GetIsBrowserOrApp()) {
+  if (mDocShell && mDocShell->GetIsMozBrowserOrApp()) {
     CSSIntSize size(aWidth, aHeight);
     if (!DispatchResizeEvent(size)) {
       // The embedder chose to prevent the default action for this
@@ -7260,7 +7260,7 @@ nsGlobalWindow::ResizeByOuter(int32_t aWidthDif, int32_t aHeightDif,
    * If caller is a browser-element then dispatch a resize event to
    * parent.
    */
-  if (mDocShell && mDocShell->GetIsBrowserOrApp()) {
+  if (mDocShell && mDocShell->GetIsMozBrowserOrApp()) {
     CSSIntSize size;
     if (NS_FAILED(GetInnerSize(size))) {
       return;
@@ -8211,7 +8211,7 @@ nsGlobalWindow::CloseOuter(bool aTrustedCaller)
   MOZ_RELEASE_ASSERT(IsOuterWindow());
 
   if (!mDocShell || IsInModalState() ||
-      (IsFrame() && !mDocShell->GetIsBrowserOrApp())) {
+      (IsFrame() && !mDocShell->GetIsMozBrowserOrApp())) {
     // window.close() is called on a frame in a frameset, on a window
     // that's already closed, or on a window for which there's
     // currently a modal dialog open. Ignore such calls.
@@ -8737,7 +8737,7 @@ nsGlobalWindow::GetFrameElementOuter()
 {
   MOZ_RELEASE_ASSERT(IsOuterWindow());
 
-  if (!mDocShell || mDocShell->GetIsBrowserOrApp()) {
+  if (!mDocShell || mDocShell->GetIsMozBrowserOrApp()) {
     return nullptr;
   }
 
@@ -9096,9 +9096,12 @@ nsresult
 nsGlobalWindow::UpdateCommands(const nsAString& anAction, nsISelection* aSel, int16_t aReason)
 {
   // If this is a child process, redirect to the parent process.
-  if (nsCOMPtr<nsITabChild> child = do_GetInterface(GetDocShell())) {
-    nsContentUtils::AddScriptRunner(new ChildCommandDispatcher(this, child, anAction));
-    return NS_OK;
+  if (nsIDocShell* docShell = GetDocShell()) {
+    if (nsCOMPtr<nsITabChild> child = docShell->GetTabChild()) {
+      nsContentUtils::AddScriptRunner(new ChildCommandDispatcher(this, child,
+                                                                 anAction));
+      return NS_OK;
+    }
   }
 
   nsPIDOMWindowOuter *rootWindow = nsGlobalWindow::GetPrivateRoot();
@@ -10689,7 +10692,8 @@ nsGlobalWindow::ShowSlowScriptDialog()
       ProcessHangMonitor::Get()) {
     ProcessHangMonitor::SlowScriptAction action;
     RefPtr<ProcessHangMonitor> monitor = ProcessHangMonitor::Get();
-    nsCOMPtr<nsITabChild> child = do_GetInterface(GetDocShell());
+    nsIDocShell* docShell = GetDocShell();
+    nsCOMPtr<nsITabChild> child = docShell ? docShell->GetTabChild() : nullptr;
     action = monitor->NotifySlowScript(child,
                                        filename.get(),
                                        lineno);

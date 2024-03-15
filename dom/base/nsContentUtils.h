@@ -2137,6 +2137,11 @@ public:
    */
   static bool IsPDFJSEnabled();
 
+  /**
+   * Checks if internal SWF player is enabled.
+   */
+  static bool IsSWFPlayerEnabled();
+
   enum ContentViewerType
   {
       TYPE_UNSUPPORTED,
@@ -2569,6 +2574,8 @@ public:
    * @param aUri the URI to match, e.g. "about:feeds"
    */
   static bool IsSpecificAboutPage(JSObject* aGlobal, const char* aUri);
+
+  static void SetScrollbarsVisibility(nsIDocShell* aDocShell, bool aVisible);
 
 private:
   static bool InitializeEventTable();

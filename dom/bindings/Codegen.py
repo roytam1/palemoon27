@@ -14356,7 +14356,7 @@ def genConstructorBody(descriptor, initCall=""):
         """
         JS::Rooted<JSObject*> jsImplObj(cx);
         nsCOMPtr<nsIGlobalObject> globalHolder =
-          ConstructJSImplementation(cx, "${contractId}", global, &jsImplObj, aRv);
+          ConstructJSImplementation("${contractId}", global, &jsImplObj, aRv);
         if (aRv.Failed()) {
           return nullptr;
         }
@@ -15180,7 +15180,7 @@ class CallbackMethod(CallbackMember):
             $*{declThis}
             if (${callGuard}!JS::Call(cx, ${thisVal}, callable,
                           ${args}, &rval)) {
-              aRv.Throw(NS_ERROR_UNEXPECTED);
+              aRv.NoteJSContextException(cx);
               return${errorReturn};
             }
             """,

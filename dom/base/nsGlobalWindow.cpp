@@ -1141,6 +1141,7 @@ nsGlobalWindow::nsGlobalWindow(nsGlobalWindow *aOuterWindow)
     mIsPopupSpam(false),
     mBlockScriptedClosingFlag(false),
     mWasOffline(false),
+    mHasHadSlowScript(false),
     mNotifyIdleObserversIdleOnThaw(false),
     mNotifyIdleObserversActiveOnThaw(false),
     mCreatingInnerWindow(false),
@@ -1209,6 +1210,8 @@ nsGlobalWindow::nsGlobalWindow(nsGlobalWindow *aOuterWindow)
 
       Preferences::AddStrongObserver(mObserver, "intl.accept_languages");
     }
+
+    InitializeShowFocusRings();
   } else {
     // |this| is an outer window. Outer windows start out frozen and
     // remain frozen until they get an inner window, so freeze this
@@ -4305,23 +4308,6 @@ nsGlobalWindow::IndexedGetter(uint32_t aIndex)
 {
   FORWARD_TO_OUTER(IndexedGetterOuter, (aIndex), nullptr);
   MOZ_CRASH();
-}
-
-void
-nsGlobalWindow::GetSupportedNames(nsTArray<nsString>& aNames)
-{
-  FORWARD_TO_OUTER_VOID(GetSupportedNames, (aNames));
-
-  nsDOMWindowList* windows = GetWindowList();
-  if (windows) {
-    uint32_t length = windows->GetLength();
-    nsString* name = aNames.AppendElements(length);
-    for (uint32_t i = 0; i < length; ++i, ++name) {
-      nsCOMPtr<nsIDocShellTreeItem> item =
-        windows->GetDocShellTreeItemAt(i);
-      item->GetName(*name);
-    }
-  }
 }
 
 bool
@@ -7978,20 +7964,20 @@ nsGlobalWindow::MozRequestOverfill(OverfillCallback& aCallback,
 }
 
 void
-nsGlobalWindow::ClearTimeout(int32_t aHandle, ErrorResult& aError)
+nsGlobalWindow::ClearTimeout(int32_t aHandle)
 {
   MOZ_RELEASE_ASSERT(IsInnerWindow());
 
   if (aHandle > 0) {
-    ClearTimeoutOrInterval(aHandle, aError);
+    ClearTimeoutOrInterval(aHandle);
   }
 }
 
 void
-nsGlobalWindow::ClearInterval(int32_t aHandle, ErrorResult& aError)
+nsGlobalWindow::ClearInterval(int32_t aHandle)
 {
   if (aHandle > 0) {
-    ClearTimeoutOrInterval(aHandle, aError);
+    ClearTimeoutOrInterval(aHandle);
   }
 }
 
@@ -10085,6 +10071,24 @@ nsGlobalWindow::SetActive(bool aActive)
   }
 }
 
+bool
+nsGlobalWindow::IsTopLevelWindowActive()
+{
+   nsCOMPtr<nsIDocShellTreeItem> treeItem(GetDocShell());
+   if (!treeItem) {
+     return false;
+   }
+
+   nsCOMPtr<nsIDocShellTreeItem> rootItem;
+   treeItem->GetRootTreeItem(getter_AddRefs(rootItem));
+   if (!rootItem) {
+     return false;
+   }
+
+   nsCOMPtr<nsPIDOMWindow> domWindow = rootItem->GetWindow();
+   return domWindow && domWindow->IsActive();
+}
+
 void nsGlobalWindow::SetIsBackground(bool aIsBackground)
 {
   MOZ_ASSERT(IsOuterWindow());
@@ -10173,6 +10177,15 @@ static bool IsLink(nsIContent* aContent)
                                             nsGkAtoms::simple, eCaseMatters));
 }
 
+static bool ShouldShowFocusRingIfFocusedByMouse(nsIContent* aNode)
+{
+  if (!aNode) {
+    return true;
+  }
+  return !IsLink(aNode) &&
+         !aNode->IsAnyOfHTMLElements(nsGkAtoms::video, nsGkAtoms::audio);
+}
+
 void
 nsGlobalWindow::SetFocusedNode(nsIContent* aNode,
                                uint32_t aFocusMethod,
@@ -10206,9 +10219,10 @@ nsGlobalWindow::SetFocusedNode(nsIContent* aNode,
       // otherwise, we set mShowFocusRingForContent, as we don't want this to
       // be permanent for the window. On Windows, focus rings are only shown
       // when the FLAG_SHOWRING flag is used. On other platforms, focus rings
-      // are only hidden for clicks on links.
+      // are only visible on some elements.
 #ifndef XP_WIN
-      !(mFocusMethod & nsIFocusManager::FLAG_BYMOUSE) || !IsLink(aNode) ||
+      !(mFocusMethod & nsIFocusManager::FLAG_BYMOUSE) ||
+      ShouldShowFocusRingIfFocusedByMouse(aNode) ||
 #endif
       aFocusMethod & nsIFocusManager::FLAG_SHOWRING) {
         mShowFocusRingForContent = true;
@@ -10225,6 +10239,17 @@ nsGlobalWindow::GetFocusMethod()
   FORWARD_TO_INNER(GetFocusMethod, (), 0);
 
   return mFocusMethod;
+}
+
+void
+nsGlobalWindow::InitializeShowFocusRings()
+{
+  nsPIDOMWindow* root = GetPrivateRoot();
+  if (root) {
+    bool showAccelerators = false, showFocusRings = false;
+    root->GetKeyboardIndicators(&showAccelerators, &showFocusRings);
+    mShowFocusRings = showFocusRings;
+  }
 }
 
 bool
@@ -10330,15 +10355,6 @@ nsGlobalWindow::SetReadyForFocus()
 
   bool oldNeedsFocus = mNeedsFocus;
   mNeedsFocus = false;
-
-  // update whether focus rings need to be shown using the state from the
-  // root window
-  nsPIDOMWindow* root = GetPrivateRoot();
-  if (root) {
-    bool showAccelerators, showFocusRings;
-    root->GetKeyboardIndicators(&showAccelerators, &showFocusRings);
-    mShowFocusRings = showFocusRings;
-  }
 
   nsIFocusManager* fm = nsFocusManager::GetFocusManager();
   if (fm)
@@ -11251,6 +11267,13 @@ nsGlobalWindow::ShowSlowScriptDialog()
   JS::AutoFilename filename;
   unsigned lineno;
   bool hasFrame = JS::DescribeScriptedCaller(cx, &filename, &lineno);
+
+  // Record the slow script event if we haven't done so already for this inner window
+  // (which represents a particular page to the user).
+  if (!mHasHadSlowScript) {
+    Telemetry::Accumulate(Telemetry::SLOW_SCRIPT_PAGE_COUNT, 1);
+  }
+  mHasHadSlowScript = true;
 
   if (XRE_IsContentProcess() &&
       ProcessHangMonitor::Get()) {
@@ -12520,6 +12543,7 @@ nsGlobalWindow::RunTimeoutHandler(nsTimeout* aTimeout,
     reason = "setTimeout handler";
   }
 
+  bool abortIntervalHandler = false;
   nsCOMPtr<nsIScriptTimeoutHandler> handler(timeout->mScriptHandler);
   RefPtr<Function> callback = handler->GetCallback();
   if (!callback) {
@@ -12539,16 +12563,34 @@ nsGlobalWindow::RunTimeoutHandler(nsTimeout* aTimeout,
     options.setFileAndLine(filename, lineNo)
            .setVersion(JSVERSION_DEFAULT);
     JS::Rooted<JSObject*> global(aes.cx(), FastGetGlobalJSObject());
-    nsJSUtils::EvaluateString(aes.cx(), nsDependentString(script),
-                              global, options);
+    nsresult rv =
+      nsJSUtils::EvaluateString(aes.cx(), nsDependentString(script),
+                                global, options);
+    if (rv == NS_SUCCESS_DOM_SCRIPT_EVALUATION_THREW_UNCATCHABLE) {
+      abortIntervalHandler = true;
+    }
   } else {
     // Hold strong ref to ourselves while we call the callback.
     nsCOMPtr<nsISupports> me(static_cast<nsIDOMWindow *>(this));
-    ErrorResult ignored;
+    ErrorResult rv;
     JS::Rooted<JS::Value> ignoredVal(CycleCollectedJSRuntime::Get()->Runtime());
-    callback->Call(me, handler->GetArgs(), &ignoredVal, ignored, reason);
-    ignored.SuppressException();
+    callback->Call(me, handler->GetArgs(), &ignoredVal, rv, reason);
+    if (rv.IsUncatchableException()) {
+      abortIntervalHandler = true;
+    }
+
+    rv.SuppressException();
   }
+
+  // If we received an uncatchable exception, do not schedule the timeout again.
+  // This allows the slow script dialog to break easy DoS attacks like
+  // setInterval(function() { while(1); }, 100);
+  if (abortIntervalHandler) {
+    // If it wasn't an interval timer to begin with, this does nothing.  If it
+    // was, we'll treat it as a timeout that we just ran and discard it when
+    // we return.
+    timeout->mIsInterval = false;
+   }
 
   // We ignore any failures from calling EvaluateString() on the context or
   // Call() on a Function here since we're in a loop
@@ -12825,7 +12867,7 @@ nsGlobalWindow::RunTimeout(nsTimeout *aTimeout)
 }
 
 void
-nsGlobalWindow::ClearTimeoutOrInterval(int32_t aTimerID, ErrorResult& aError)
+nsGlobalWindow::ClearTimeoutOrInterval(int32_t aTimerID)
 {
   MOZ_RELEASE_ASSERT(IsInnerWindow());
 
@@ -14412,8 +14454,7 @@ nsGlobalWindow::GetExternal(ErrorResult& aRv)
   if (!mExternal) {
     AutoJSContext cx;
     JS::Rooted<JSObject*> jsImplObj(cx);
-    ConstructJSImplementation(cx, "@mozilla.org/sidebar;1",
-                              this, &jsImplObj, aRv);
+    ConstructJSImplementation("@mozilla.org/sidebar;1", this, &jsImplObj, aRv);
     if (aRv.Failed()) {
       return nullptr;
     }

@@ -103,6 +103,8 @@ public:
   virtual nsresult RegisterIdleObserver(nsIIdleObserver* aIdleObserver) = 0;
   virtual nsresult UnregisterIdleObserver(nsIIdleObserver* aIdleObserver) = 0;
 
+  virtual bool IsTopLevelWindowActive() = 0;
+
   // Outer windows only.
   virtual void SetActive(bool aActive)
   {
@@ -330,14 +332,6 @@ public:
   virtual nsresult FireDelayedDOMEvents() = 0;
 
   virtual bool IsFrozen() const = 0;
-
-  // Add a timeout to this window.
-  virtual nsresult SetTimeoutOrInterval(nsIScriptTimeoutHandler *aHandler,
-                                        int32_t interval,
-                                        bool aIsInterval, int32_t *aReturn) = 0;
-
-  // Clear a timeout from this window.
-  virtual nsresult ClearTimeoutOrInterval(int32_t aTimerID) = 0;
 
   nsPIDOMWindow *GetOuterWindow()
   {

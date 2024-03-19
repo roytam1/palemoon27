@@ -63,7 +63,7 @@ MSG_DEF(JSMSG_SPREAD_TOO_LARGE,        0, JSEXN_RANGEERR, "array too large due t
 MSG_DEF(JSMSG_BAD_WEAKMAP_KEY,         0, JSEXN_TYPEERR, "cannot use the given object as a weak map key")
 MSG_DEF(JSMSG_BAD_GETTER_OR_SETTER,    1, JSEXN_TYPEERR, "invalid {0} usage")
 MSG_DEF(JSMSG_BAD_ARRAY_LENGTH,        0, JSEXN_RANGEERR, "invalid array length")
-MSG_DEF(JSMSG_REDECLARED_VAR,          2, JSEXN_TYPEERR, "redeclaration of {0} {1}")
+MSG_DEF(JSMSG_REDECLARED_VAR,          2, JSEXN_SYNTAXERR, "redeclaration of {0} {1}")
 MSG_DEF(JSMSG_UNDECLARED_VAR,          1, JSEXN_REFERENCEERR, "assignment to undeclared variable {0}")
 MSG_DEF(JSMSG_GETTER_ONLY,             0, JSEXN_TYPEERR, "setting a property that has only a getter")
 MSG_DEF(JSMSG_OVERWRITING_ACCESSOR,    1, JSEXN_TYPEERR, "can't overwrite accessor property {0}")
@@ -381,6 +381,7 @@ MSG_DEF(JSMSG_PROXY_EXTENSIBILITY,     0, JSEXN_TYPEERR, "proxy must report same
 MSG_DEF(JSMSG_PROXY_GETOWN_OBJORUNDEF, 0, JSEXN_TYPEERR, "proxy [[GetOwnProperty]] must return an object or undefined")
 MSG_DEF(JSMSG_PROXY_REVOKED,           0, JSEXN_TYPEERR, "illegal operation attempted on a revoked proxy")
 MSG_DEF(JSMSG_PROXY_ARG_REVOKED,       1, JSEXN_TYPEERR, "argument {0} cannot be a revoked proxy")
+MSG_DEF(JSMSG_BAD_TRAP,                1, JSEXN_TYPEERR, "proxy handler's {0} trap wasn't undefined, null, or callable")
 
 // Structured cloning
 MSG_DEF(JSMSG_SC_BAD_CLONE_VERSION,    0, JSEXN_ERR, "unsupported structured clone version")
@@ -471,6 +472,7 @@ MSG_DEF(JSMSG_TYPEDOBJECT_HANDLE_UNATTACHED, 0, JSEXN_TYPEERR, "handle unattache
 MSG_DEF(JSMSG_TYPEDOBJECT_STRUCTTYPE_BAD_ARGS, 0, JSEXN_RANGEERR, "invalid field descriptor")
 MSG_DEF(JSMSG_TYPEDOBJECT_TOO_BIG,     0, JSEXN_ERR, "Type is too large to allocate")
 MSG_DEF(JSMSG_SIMD_FAILED_CONVERSION,  0, JSEXN_RANGEERR, "SIMD conversion loses precision")
+MSG_DEF(JSMSG_SIMD_TO_NUMBER,          0, JSEXN_TYPEERR, "can't convert SIMD value to number")
 
 // Typed array
 MSG_DEF(JSMSG_BAD_INDEX,               0, JSEXN_RANGEERR, "invalid or out-of-range index")

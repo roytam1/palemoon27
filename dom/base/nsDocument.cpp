@@ -1575,6 +1575,26 @@ nsDocument::~nsDocument()
       Accumulate(Telemetry::MIXED_CONTENT_PAGE_LOAD, mixedContentLevel);
 
       Accumulate(Telemetry::SCROLL_LINKED_EFFECT_FOUND, mHasScrollLinkedEffect);
+
+      // record mixed object subrequest telemetry
+      if (mHasMixedContentObjectSubrequest) {
+        /* mixed object subrequest loaded on page*/
+        Accumulate(Telemetry::MIXED_CONTENT_OBJECT_SUBREQUEST, 1);
+      } else {
+        /* no mixed object subrequests loaded on page*/
+        Accumulate(Telemetry::MIXED_CONTENT_OBJECT_SUBREQUEST, 0);
+      }
+
+      // record CSP telemetry on this document
+      if (mHasCSP) {
+        Accumulate(Telemetry::CSP_DOCUMENTS_COUNT, 1);
+      }
+      if (mHasUnsafeInlineCSP) {
+        Accumulate(Telemetry::CSP_UNSAFE_INLINE_DOCUMENTS_COUNT, 1);
+      }
+      if (mHasUnsafeEvalCSP) {
+        Accumulate(Telemetry::CSP_UNSAFE_EVAL_DOCUMENTS_COUNT, 1);
+      }
     }
   }
 
@@ -2312,7 +2332,7 @@ nsDocument::RemoveDocStyleSheetsFromStyleSets()
 
 void
 nsDocument::RemoveStyleSheetsFromStyleSets(
-    nsTArray<StyleSheetHandle::RefPtr>& aSheets,
+    const nsTArray<StyleSheetHandle::RefPtr>& aSheets,
     SheetType aType)
 {
   // The stylesheets should forget us
@@ -4152,7 +4172,7 @@ nsDocument::GetStyleSheetAt(int32_t aIndex) const
 }
 
 int32_t
-nsDocument::GetIndexOfStyleSheet(StyleSheetHandle aSheet) const
+nsDocument::GetIndexOfStyleSheet(const StyleSheetHandle aSheet) const
 {
   return mStyleSheets.IndexOf(aSheet);
 }

@@ -10,6 +10,7 @@
 #include <vector>
 #include "nsAutoPtr.h"
 #include "nsISupportsImpl.h"  // for NS_INLINE_DECL_THREADSAFE_REFCOUNTING
+#include "APZCTreeManager.h"
 #include "APZUtils.h"         // for CancelAnimationFlags
 #include "Layers.h"           // for Layer::ScrollDirection
 #include "Units.h"            // for ScreenPoint

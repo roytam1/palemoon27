@@ -1313,6 +1313,20 @@ class nsIWidget : public nsISupports {
     }
 
     /**
+     * Clean up any resources used by Start/EndRemoteDrawing.
+     *
+     * Called by BasicCompositor on the compositor thread for OMTC drawing
+     * when the compositor is destroyed.
+     */
+    virtual void CleanupRemoteDrawing() = 0;
+
+    /**
+     * Create DrawTarget used as BackBuffer of the screen
+     */
+    virtual already_AddRefed<mozilla::gfx::DrawTarget> CreateBackBufferDrawTarget(mozilla::gfx::DrawTarget* aScreenTarget,
+                                                                                  const LayoutDeviceIntRect& aRect) = 0;
+
+    /**
      * A hook for the widget to prepare a Compositor, during the latter's initialization.
      *
      * If this method returns true, it means that the widget will be able to
@@ -1321,14 +1335,6 @@ class nsIWidget : public nsISupports {
      * a different compositor backend will be used (if any).
      */
     virtual bool InitCompositor(mozilla::layers::Compositor*) { return true; }
-
-    /**
-     * Clean up any resources used by Start/EndRemoteDrawing.
-     *
-     * Called by BasicCompositor on the compositor thread for OMTC drawing
-     * when the compositor is destroyed.
-     */
-    virtual void CleanupRemoteDrawing() = 0;
 
     /**
      * Called when Gecko knows which themed widgets exist in this window.
@@ -1421,13 +1427,6 @@ class nsIWidget : public nsISupports {
      * Dispatches an event that must be handled by APZ first, when APZ is
      * enabled. If invoked in the child process, it is forwarded to the
      * parent process synchronously.
-     */
-    virtual nsEventStatus DispatchAPZAwareEvent(mozilla::WidgetInputEvent* aEvent) = 0;
-
-    /**
-     * Dispatches an event that must be transformed by APZ first, but is not
-     * actually handled by APZ. If invoked in the child process, it is
-     * forwarded to the parent process synchronously.
      */
     virtual nsEventStatus DispatchInputEvent(mozilla::WidgetInputEvent* aEvent) = 0;
 

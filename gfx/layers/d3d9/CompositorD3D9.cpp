@@ -265,7 +265,7 @@ CompositorD3D9::DrawQuad(const gfx::Rect &aRect,
   d3d9Device->SetVertexShaderConstantF(CBmLayerTransform, &aTransform._11, 4);
 
   IntPoint origin = mCurrentRT->GetOrigin();
-  float renderTargetOffset[] = { origin.x, origin.y, 0, 0 };
+  float renderTargetOffset[] = { float(origin.x), float(origin.y), 0, 0 };
   d3d9Device->SetVertexShaderConstantF(CBvRenderTargetOffset,
                                        renderTargetOffset,
                                        1);
@@ -291,11 +291,7 @@ CompositorD3D9::DrawQuad(const gfx::Rect &aRect,
   MaskType maskType = MaskType::MaskNone;
 
   if (aEffectChain.mSecondaryEffects[EffectTypes::MASK]) {
-    if (aTransform.Is2D()) {
-      maskType = MaskType::Mask2d;
-    } else {
-      maskType = MaskType::Mask3d;
-    }
+    maskType = MaskType::Mask;
   }
 
   gfx::Rect backdropDest;
@@ -682,6 +678,7 @@ void
 CompositorD3D9::BeginFrame(const nsIntRegion& aInvalidRegion,
                            const Rect *aClipRectIn,
                            const Rect& aRenderBounds,
+                           bool aOpaque,
                            Rect *aClipRectOut,
                            Rect *aRenderBoundsOut)
 {

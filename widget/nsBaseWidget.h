@@ -172,6 +172,8 @@ public:
   virtual already_AddRefed<mozilla::gfx::DrawTarget> StartRemoteDrawing() override;
   virtual void            EndRemoteDrawing() override { };
   virtual void            CleanupRemoteDrawing() override { };
+  virtual already_AddRefed<mozilla::gfx::DrawTarget> CreateBackBufferDrawTarget(mozilla::gfx::DrawTarget* aScreenTarget,
+                                                                                const LayoutDeviceIntRect& aRect) override;
   virtual void            UpdateThemeGeometries(const nsTArray<ThemeGeometry>& aThemeGeometries) override {}
   NS_IMETHOD              SetModal(bool aModal) override;
   virtual uint32_t        GetMaxTouchPoints() const override;
@@ -255,12 +257,8 @@ public:
                           const FrameMetrics::ViewID& aViewId,
                           const CSSRect& aRect,
                           const uint32_t& aFlags) override;
-  // Helper function for dispatching events which are not processed by APZ,
-  // but need to be transformed by APZ.
-  nsEventStatus DispatchInputEvent(mozilla::WidgetInputEvent* aEvent) override;
-
   // Dispatch an event that must be first be routed through APZ.
-  nsEventStatus DispatchAPZAwareEvent(mozilla::WidgetInputEvent* aEvent) override;
+  nsEventStatus DispatchInputEvent(mozilla::WidgetInputEvent* aEvent) override;
 
   void SetConfirmedTargetAPZC(uint64_t aInputBlockId,
                               const nsTArray<ScrollableLayerGuid>& aTargets) const override;

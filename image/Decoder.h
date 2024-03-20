@@ -285,6 +285,8 @@ public:
 
 protected:
   friend class nsICODecoder;
+  friend class PalettedSurfaceSink;
+  friend class SurfaceSink;
 
   virtual ~Decoder();
 

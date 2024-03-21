@@ -1106,12 +1106,6 @@ nsBaseWidget::ProcessUntransformedAPZEvent(WidgetInputEvent* aEvent,
   return status;
 }
 
-nsEventStatus
-nsBaseWidget::DispatchInputEvent(WidgetInputEvent* aEvent)
-{
-  return DispatchAPZAwareEvent(aEvent);
-}
-
 class DispatchWheelEventOnMainThread : public Task
 {
 public:
@@ -1179,7 +1173,7 @@ private:
 };
 
 nsEventStatus
-nsBaseWidget::DispatchAPZAwareEvent(WidgetInputEvent* aEvent)
+nsBaseWidget::DispatchInputEvent(WidgetInputEvent* aEvent)
 {
   MOZ_ASSERT(NS_IsMainThread());
   if (mAPZC) {
@@ -1364,6 +1358,15 @@ CompositorBridgeChild* nsBaseWidget::GetRemoteRenderer()
 already_AddRefed<mozilla::gfx::DrawTarget> nsBaseWidget::StartRemoteDrawing()
 {
   return nullptr;
+}
+
+already_AddRefed<mozilla::gfx::DrawTarget>
+nsBaseWidget::CreateBackBufferDrawTarget(mozilla::gfx::DrawTarget* aScreenTarget,
+                                         const LayoutDeviceIntRect& aRect)
+{
+  MOZ_ASSERT(aScreenTarget);
+  gfx::SurfaceFormat format = aScreenTarget->GetFormat() == gfx::SurfaceFormat::B8G8R8X8 ? gfx::SurfaceFormat::B8G8R8X8 : gfx::SurfaceFormat::B8G8R8A8;
+  return aScreenTarget->CreateSimilarDrawTarget(aRect.ToUnknownRect().Size(), format);
 }
 
 //-------------------------------------------------------------------------

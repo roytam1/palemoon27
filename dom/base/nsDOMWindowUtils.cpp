@@ -2370,13 +2370,17 @@ ComputeAnimationValue(nsCSSProperty aProperty,
                       const nsAString& aInput,
                       StyleAnimationValue& aOutput)
 {
+  nsIDocument* doc = aElement->GetCurrentDoc();
+  nsIPresShell* shell = doc->GetShell();
+  if (!shell) {
+    return false;
+  }
 
-  if (!StyleAnimationValue::ComputeValue(aProperty,
-                                         aElement,
-                                         CSSPseudoElementType::NotPseudo,
-                                         aInput,
-                                         false,
-                                         aOutput)) {
+  RefPtr<nsStyleContext> styleContext =
+    nsComputedDOMStyle::GetStyleContextForElement(aElement, nullptr, shell);
+
+  if (!StyleAnimationValue::ComputeValue(aProperty, aElement, styleContext,
+                                         aInput, false, aOutput)) {
     return false;
   }
 

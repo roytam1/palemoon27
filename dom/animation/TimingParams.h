@@ -7,27 +7,28 @@
 #ifndef mozilla_TimingParams_h
 #define mozilla_TimingParams_h
 
+#include "nsStringFwd.h"
 #include "mozilla/dom/Nullable.h"
 #include "mozilla/dom/UnionTypes.h" // For OwningUnrestrictedDoubleOrString
 #include "mozilla/ComputedTimingFunction.h"
 #include "mozilla/Maybe.h"
+#include "mozilla/StickyTimeDuration.h"
 #include "mozilla/TimeStamp.h" // for TimeDuration
 
 // X11 has a #define for None
 #ifdef None
 #undef None
 #endif
-#include "mozilla/dom/AnimationEffectReadOnlyBinding.h"  // for FillMode
-                                                         // and PlaybackDirection
+#include "mozilla/dom/AnimationEffectReadOnlyBinding.h" // for FillMode
+                                                        // and PlaybackDirection
+
+class nsIDocument;
 
 namespace mozilla {
 
 namespace dom {
-struct AnimationEffectTimingProperties;
-class Element;
 class UnrestrictedDoubleOrKeyframeEffectOptions;
 class UnrestrictedDoubleOrKeyframeAnimationOptions;
-class ElementOrCSSPseudoElement;
 }
 
 struct TimingParams
@@ -36,12 +37,10 @@ struct TimingParams
 
   static TimingParams FromOptionsUnion(
     const dom::UnrestrictedDoubleOrKeyframeEffectOptions& aOptions,
-    const Nullable<dom::ElementOrCSSPseudoElement>& aTarget,
-    ErrorResult& aRv);
+    nsIDocument* aDocument, ErrorResult& aRv);
   static TimingParams FromOptionsUnion(
     const dom::UnrestrictedDoubleOrKeyframeAnimationOptions& aOptions,
-    const Nullable<dom::ElementOrCSSPseudoElement>& aTarget,
-    ErrorResult& aRv);
+    nsIDocument* aDocument, ErrorResult& aRv);
 
   // Range-checks and validates an UnrestrictedDoubleOrString or
   // OwningUnrestrictedDoubleOrString object and converts to a
@@ -56,12 +55,13 @@ struct TimingParams
       double durationInMs = aDuration.GetAsUnrestrictedDouble();
       if (durationInMs >= 0) {
         result.emplace(StickyTimeDuration::FromMilliseconds(durationInMs));
-        return result;
+      } else {
+        aRv.ThrowTypeError<dom::MSG_ENFORCE_RANGE_OUT_OF_RANGE>(
+          NS_LITERAL_STRING("duration"));
       }
-    } else if (aDuration.GetAsString().EqualsLiteral("auto")) {
-      return result;
+    } else if (!aDuration.GetAsString().EqualsLiteral("auto")) {
+      aRv.ThrowTypeError<dom::MSG_INVALID_DURATION_ERROR>();
     }
-    aRv.Throw(NS_ERROR_DOM_TYPE_ERR);
     return result;
   }
 
@@ -69,9 +69,22 @@ struct TimingParams
                                      ErrorResult& aRv)
   {
     if (aIterationStart < 0) {
-      aRv.Throw(NS_ERROR_DOM_TYPE_ERR);
+      aRv.ThrowTypeError<dom::MSG_ENFORCE_RANGE_OUT_OF_RANGE>(
+        NS_LITERAL_STRING("iterationStart"));
     }
   }
+
+  static void ValidateIterations(double aIterations, ErrorResult& aRv)
+  {
+    if (IsNaN(aIterations) || aIterations < 0) {
+      aRv.ThrowTypeError<dom::MSG_ENFORCE_RANGE_OUT_OF_RANGE>(
+        NS_LITERAL_STRING("iterations"));
+    }
+  }
+
+  static Maybe<ComputedTimingFunction> ParseEasing(const nsAString& aEasing,
+                                                   nsIDocument* aDocument,
+                                                   ErrorResult& aRv);
 
   // mDuration.isNothing() represents the "auto" value
   Maybe<StickyTimeDuration> mDuration;

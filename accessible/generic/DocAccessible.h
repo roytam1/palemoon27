@@ -291,6 +291,11 @@ public:
     }
     return nullptr;
   }
+  uint32_t ARIAOwnedCount(Accessible* aParent) const
+  {
+    nsTArray<RefPtr<Accessible> >* children = mARIAOwnsHash.Get(aParent);
+    return children ? children->Length() : 0;
+  }
 
   /**
    * Return true if the given ID is referred by relation attribute.
@@ -358,9 +363,6 @@ protected:
   virtual ~DocAccessible();
 
   void LastRelease();
-
-  // Accessible
-  virtual void CacheChildren() override;
 
   // DocAccessible
   virtual nsresult AddEventListeners();

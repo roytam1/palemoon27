@@ -1422,36 +1422,6 @@ if (!aNode->IsContent() || !aNode->AsContent()->IsHTMLElement(nsGkAtoms::area))
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-// Accessible protected
-
-void
-DocAccessible::CacheChildren()
-{
-  // Search for accessible children starting from the document element since
-  // some web pages tend to insert elements under it rather than document body.
-  dom::Element* rootElm = mDocumentNode->GetRootElement();
-  if (!rootElm)
-    return;
-
-  // Ignore last HTML:br, copied from HyperTextAccessible.
-  TreeWalker walker(this, rootElm);
-  Accessible* lastChild = nullptr;
-  while (Accessible* child = walker.Next()) {
-    if (lastChild)
-      AppendChild(lastChild);
-
-    lastChild = child;
-  }
-
-  if (lastChild) {
-    if (lastChild->IsHTMLBr())
-      Document()->UnbindFromDocument(lastChild);
-    else
-      AppendChild(lastChild);
-  }
-}
-
-////////////////////////////////////////////////////////////////////////////////
 // Protected members
 
 void
@@ -1786,22 +1756,16 @@ DocAccessible::UpdateTreeOnInsertion(Accessible* aContainer)
 
   // Check to see if change occurred inside an alert, and fire an EVENT_ALERT
   // if it did.
-  if (!(updateFlags & eAlertAccessible)) {
-    // XXX: tree traversal is perf issue, accessible should know if they are
-    // children of alert accessible to avoid this.
+  if (!(updateFlags & eAlertAccessible) &&
+      (aContainer->IsAlert() || aContainer->IsInsideAlert())) {
     Accessible* ancestor = aContainer;
-    while (ancestor) {
-      if (ancestor->ARIARole() == roles::ALERT) {
+    do {
+      if (ancestor->IsAlert()) {
         FireDelayedEvent(nsIAccessibleEvent::EVENT_ALERT, ancestor);
         break;
       }
-
-      // Don't climb above this document.
-      if (ancestor == this)
-        break;
-
-      ancestor = ancestor->Parent();
     }
+    while ((ancestor = ancestor->Parent()));
   }
 
   MaybeNotifyOfValueChange(aContainer);
@@ -1834,34 +1798,9 @@ DocAccessible::UpdateTreeOnRemoval(Accessible* aContainer, nsIContent* aChildNod
   if (child) {
     updateFlags |= UpdateTreeInternal(child, false, reorderEvent);
   } else {
-    // aChildNode may not coorespond to a particular accessible, to handle
-    // this we go through all the children of aContainer.  Then if a child
-    // has aChildNode as an ancestor, or does not have the node for
-    // aContainer as an ancestor remove that child of aContainer.  Note that
-    // when we are called aChildNode may already have been removed from the DOM
-    // so we can't expect it to have a parent or what was it's parent to have
-    // it as a child.
-    nsINode* containerNode = aContainer->GetNode();
-    for (uint32_t idx = 0; idx < aContainer->ContentChildCount();) {
-      Accessible* child = aContainer->ContentChildAt(idx);
-
-      // If accessible doesn't have its own content then we assume parent
-      // will handle its update.  If child is DocAccessible then we don't
-      // handle updating it here either.
-      if (!child->HasOwnContent() || child->IsDoc()) {
-        idx++;
-        continue;
-      }
-
-      nsINode* childNode = child->GetContent();
-      while (childNode != aChildNode && childNode != containerNode &&
-             (childNode = childNode->GetParentNode()));
-
-      if (childNode != containerNode) {
-        updateFlags |= UpdateTreeInternal(child, false, reorderEvent);
-      } else {
-        idx++;
-      }
+    TreeWalker walker(aContainer, aChildNode, TreeWalker::eWalkCache);
+    while (Accessible* child = walker.Next()) {
+      updateFlags |= UpdateTreeInternal(child, false, reorderEvent);
     }
   }
 
@@ -2057,6 +1996,7 @@ DocAccessible::DoARIAOwnsRelocation(Accessible* aOwner)
       MoveChild(child, insertIdx);
       children->InsertElementAt(arrayIdx, child);
       arrayIdx++;
+      insertIdx = child->IndexInParent() + 1;
 
     } else if (SeizeChild(aOwner, child, insertIdx)) {
       children->InsertElementAt(arrayIdx, child);
@@ -2083,6 +2023,12 @@ DocAccessible::SeizeChild(Accessible* aNewParent, Accessible* aChild,
 
   int32_t oldIdxInParent = aChild->IndexInParent();
 
+#ifdef A11Y_LOG
+  logging::TreeInfo("aria owns seize child", 0,
+                    "old parent", oldParent, "new parent", aNewParent,
+                    "child", aChild, nullptr);
+#endif
+
   RefPtr<AccReorderEvent> reorderEvent = new AccReorderEvent(oldParent);
   RefPtr<AccMutationEvent> hideEvent = new AccHideEvent(aChild, false);
   reorderEvent->AddSubMutationEvent(hideEvent);
@@ -2097,6 +2043,11 @@ DocAccessible::SeizeChild(Accessible* aNewParent, Accessible* aChild,
     AutoTreeMutation mut(aNewParent);
     isReinserted = aNewParent->InsertChildAt(aIdxInParent, aChild);
   }
+
+#ifdef A11Y_LOG
+    logging::TreeInfo("aria owns seize child: new parent tree after",
+                      logging::eVerbose, aNewParent);
+#endif
 
   if (!isReinserted) {
     AutoTreeMutation mut(oldParent);
@@ -2136,9 +2087,19 @@ DocAccessible::MoveChild(Accessible* aChild, int32_t aIdxInParent)
   RefPtr<AccMutationEvent> hideEvent = new AccHideEvent(aChild, false);
   reorderEvent->AddSubMutationEvent(hideEvent);
 
+#ifdef A11Y_LOG
+  logging::TreeInfo("aria owns move child", 0,
+                    "parent", parent, "child", aChild, nullptr);
+#endif
+
   AutoTreeMutation mut(parent);
   parent->MoveChild(aIdxInParent, aChild);
   aChild->SetRelocated(true);
+
+#ifdef A11Y_LOG
+  logging::TreeInfo("aria owns move child: parent tree after",
+                    logging::eVerbose, parent);
+#endif
 
   FireDelayedEvent(hideEvent);
 

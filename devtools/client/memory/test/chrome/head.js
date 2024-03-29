@@ -17,6 +17,7 @@ var { immutableUpdate } = DevToolsUtils;
 
 var constants = require("devtools/client/memory/constants");
 var {
+  breakdowns,
   diffingState,
   dominatorTreeBreakdowns,
   dominatorTreeState,
@@ -27,6 +28,7 @@ var {
 const {
   getBreakdownDisplayData,
   getDominatorTreeBreakdownDisplayData,
+  L10N,
 } = require("devtools/client/memory/utils");
 
 var models = require("devtools/client/memory/models");
@@ -37,6 +39,7 @@ var Heap = React.createFactory(require("devtools/client/memory/components/heap")
 var CensusTreeItem = React.createFactory(require("devtools/client/memory/components/census-tree-item"));
 var DominatorTreeComponent = React.createFactory(require("devtools/client/memory/components/dominator-tree"));
 var DominatorTreeItem = React.createFactory(require("devtools/client/memory/components/dominator-tree-item"));
+var ShortestPaths = React.createFactory(require("devtools/client/memory/components/shortest-paths"));
 var Toolbar = React.createFactory(require("devtools/client/memory/components/toolbar"));
 
 // All tests are asynchronous.
@@ -132,6 +135,21 @@ var TEST_DOMINATOR_TREE_PROPS = Object.freeze({
   onCollapse: noop,
 });
 
+var TEST_SHORTEST_PATHS_PROPS = Object.freeze({
+  graph: Object.freeze({
+    nodes: [
+      { id: 1, label: ["other", "SomeType"] },
+      { id: 2, label: ["other", "SomeType"] },
+      { id: 3, label: ["other", "SomeType"] },
+    ],
+    edges: [
+      { from: 1, to: 2, name: "1->2" },
+      { from: 1, to: 3, name: "1->3" },
+      { from: 2, to: 3, name: "2->3" },
+    ],
+  }),
+});
+
 var TEST_HEAP_PROPS = Object.freeze({
   onSnapshotClick: noop,
   onLoadMoreSiblings: noop,
@@ -173,6 +191,8 @@ var TEST_HEAP_PROPS = Object.freeze({
     creationTime: 0,
     state: snapshotState.SAVED_CENSUS,
   }),
+  sizes: Object.freeze({ shortestPathsSize: .5 }),
+  onShortestPathsResize: noop,
 });
 
 var TEST_TOOLBAR_PROPS = Object.freeze({

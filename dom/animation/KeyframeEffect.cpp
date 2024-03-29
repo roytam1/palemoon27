@@ -6,6 +6,7 @@
 
 #include "mozilla/dom/KeyframeEffect.h"
 
+#include "mozilla/dom/AnimatableBinding.h"
 #include "mozilla/dom/KeyframeEffectBinding.h"
 #include "mozilla/dom/PropertyIndexedKeyframesBinding.h"
 #include "mozilla/AnimationUtils.h"
@@ -572,15 +573,15 @@ KeyframeEffectReadOnly::ComposeStyle(RefPtr<AnimValuesStyleRule>& aStyleRule,
     // FIXME: Maybe cache the current segment?
     const AnimationPropertySegment *segment = prop.mSegments.Elements(),
                                 *segmentEnd = segment + prop.mSegments.Length();
-    while (segment->mToKey < computedTiming.mProgress.Value()) {
-      MOZ_ASSERT(segment->mFromKey < segment->mToKey, "incorrect keys");
+    while (segment->mToKey <= computedTiming.mProgress.Value()) {
+      MOZ_ASSERT(segment->mFromKey <= segment->mToKey, "incorrect keys");
       if ((segment+1) == segmentEnd) {
         break;
       }
       ++segment;
       MOZ_ASSERT(segment->mFromKey == (segment-1)->mToKey, "incorrect keys");
     }
-    MOZ_ASSERT(segment->mFromKey < segment->mToKey, "incorrect keys");
+    MOZ_ASSERT(segment->mFromKey <= segment->mToKey, "incorrect keys");
     MOZ_ASSERT(segment >= prop.mSegments.Elements() &&
                size_t(segment - prop.mSegments.Elements()) <
                  prop.mSegments.Length(),
@@ -591,14 +592,24 @@ KeyframeEffectReadOnly::ComposeStyle(RefPtr<AnimValuesStyleRule>& aStyleRule,
       aStyleRule = new AnimValuesStyleRule();
     }
 
+    StyleAnimationValue* val = aStyleRule->AddEmptyValue(prop.mProperty);
+
+    // Special handling for zero-length segments
+    if (segment->mToKey == segment->mFromKey) {
+      if (computedTiming.mProgress.Value() < 0) {
+        *val = segment->mFromValue;
+      } else {
+        *val = segment->mToValue;
+      }
+      continue;
+    }
+
     double positionInSegment =
       (computedTiming.mProgress.Value() - segment->mFromKey) /
       (segment->mToKey - segment->mFromKey);
     double valuePosition =
       ComputedTimingFunction::GetPortion(segment->mTimingFunction,
                                          positionInSegment);
-
-    StyleAnimationValue *val = aStyleRule->AddEmptyValue(prop.mProperty);
 
 #ifdef DEBUG
     bool result =
@@ -652,14 +663,27 @@ KeyframeEffectReadOnly::~KeyframeEffectReadOnly()
 {
 }
 
-template <class KeyframeEffectType>
+template <class KeyframeEffectType, class OptionsType>
 /* static */ already_AddRefed<KeyframeEffectType>
-KeyframeEffectReadOnly::ConstructKeyframeEffect(const GlobalObject& aGlobal,
-                                                const Nullable<ElementOrCSSPseudoElement>& aTarget,
-                                                JS::Handle<JSObject*> aFrames,
-                                                const TimingParams& aTiming,
-                                                ErrorResult& aRv)
+KeyframeEffectReadOnly::ConstructKeyframeEffect(
+    const GlobalObject& aGlobal,
+    const Nullable<ElementOrCSSPseudoElement>& aTarget,
+    JS::Handle<JSObject*> aFrames,
+    const OptionsType& aOptions,
+    ErrorResult& aRv)
 {
+  nsIDocument* doc = AnimationUtils::GetCurrentRealmDocument(aGlobal.Context());
+  if (!doc) {
+    aRv.Throw(NS_ERROR_FAILURE);
+    return nullptr;
+  }
+
+  TimingParams timingParams =
+    TimingParams::FromOptionsUnion(aOptions, doc, aRv);
+  if (aRv.Failed()) {
+    return nullptr;
+  }
+
   if (aTarget.IsNull()) {
     // We don't support null targets yet.
     aRv.Throw(NS_ERROR_DOM_ANIM_NO_TARGET_ERR);
@@ -694,28 +718,10 @@ KeyframeEffectReadOnly::ConstructKeyframeEffect(const GlobalObject& aGlobal,
 
   RefPtr<KeyframeEffectType> effect =
     new KeyframeEffectType(targetElement->OwnerDoc(), targetElement,
-                           pseudoType, aTiming);
+                           pseudoType, timingParams);
   effect->mProperties = Move(animationProperties);
   return effect.forget();
 }
-
-// Explicit instantiations to avoid linker errors.
-
-template
-already_AddRefed<KeyframeEffectReadOnly>
-KeyframeEffectReadOnly::ConstructKeyframeEffect<>(const GlobalObject& aGlobal,
-                                                  const Nullable<ElementOrCSSPseudoElement>& aTarget,
-                                                  JS::Handle<JSObject*> aFrames,
-                                                  const TimingParams& aTiming,
-                                                  ErrorResult& aRv);
-
-template
-already_AddRefed<KeyframeEffect>
-KeyframeEffectReadOnly::ConstructKeyframeEffect<>(const GlobalObject& aGlobal,
-                                                  const Nullable<ElementOrCSSPseudoElement>& aTarget,
-                                                  JS::Handle<JSObject*> aFrames,
-                                                  const TimingParams& aTiming,
-                                                  ErrorResult& aRv);
 
 void
 KeyframeEffectReadOnly::ResetIsRunningOnCompositor()
@@ -1287,10 +1293,9 @@ GenerateValueEntries(Element* aTarget,
 
   for (OffsetIndexedKeyframe& keyframe : aKeyframes) {
     float offset = float(keyframe.mKeyframeDict.mOffset.Value());
-    // ParseEasing uses element's owner doc, so if it is a pseudo element,
-    // we use its parent element's owner doc.
     Maybe<ComputedTimingFunction> easing =
-      AnimationUtils::ParseEasing(aTarget, keyframe.mKeyframeDict.mEasing);
+      AnimationUtils::ParseEasing(keyframe.mKeyframeDict.mEasing,
+                                  aTarget->OwnerDoc());
     // We ignore keyframe.mKeyframeDict.mComposite since we don't support
     // composite modes on keyframes yet.
 
@@ -1554,10 +1559,8 @@ BuildAnimationPropertyListFromPropertyIndexedKeyframes(
     return;
   }
 
-  // ParseEasing uses element's owner doc, so if it is a pseudo element,
-  // we use its parent element's owner doc.
   Maybe<ComputedTimingFunction> easing =
-    AnimationUtils::ParseEasing(aTarget, keyframes.mEasing);
+    AnimationUtils::ParseEasing(keyframes.mEasing, aTarget->OwnerDoc());
 
   // We ignore easing.mComposite since we don't support composite modes on
   // keyframes yet.
@@ -1757,6 +1760,19 @@ KeyframeEffectReadOnly::BuildAnimationPropertyList(
   }
 }
 
+/* static */ already_AddRefed<KeyframeEffectReadOnly>
+KeyframeEffectReadOnly::Constructor(
+    const GlobalObject& aGlobal,
+    const Nullable<ElementOrCSSPseudoElement>& aTarget,
+    JS::Handle<JSObject*> aFrames,
+    const UnrestrictedDoubleOrKeyframeEffectOptions& aOptions,
+    ErrorResult& aRv)
+{
+  return ConstructKeyframeEffect<KeyframeEffectReadOnly>(aGlobal, aTarget,
+                                                         aFrames, aOptions,
+                                                         aRv);
+}
+
 void
 KeyframeEffectReadOnly::GetTarget(
     Nullable<OwningElementOrCSSPseudoElement>& aRv) const
@@ -1780,6 +1796,93 @@ KeyframeEffectReadOnly::GetTarget(
     default:
       NS_NOTREACHED("Animation of unsupported pseudo-type");
       aRv.SetNull();
+  }
+}
+
+static void
+CreatePropertyValue(nsCSSProperty aProperty,
+                    float aOffset,
+                    const Maybe<ComputedTimingFunction>& aTimingFunction,
+                    const StyleAnimationValue& aValue,
+                    AnimationPropertyValueDetails& aResult)
+{
+  aResult.mOffset = aOffset;
+
+  nsString stringValue;
+  StyleAnimationValue::UncomputeValue(aProperty, aValue, stringValue);
+  aResult.mValue = stringValue;
+
+  if (aTimingFunction) {
+    aResult.mEasing.Construct();
+    aTimingFunction->AppendToString(aResult.mEasing.Value());
+  } else {
+    aResult.mEasing.Construct(NS_LITERAL_STRING("linear"));
+  }
+
+  aResult.mComposite = CompositeOperation::Replace;
+}
+
+void
+KeyframeEffectReadOnly::GetProperties(
+    nsTArray<AnimationPropertyDetails>& aProperties,
+    ErrorResult& aRv) const
+{
+  for (const AnimationProperty& property : mProperties) {
+    AnimationPropertyDetails propertyDetails;
+    propertyDetails.mProperty =
+      NS_ConvertASCIItoUTF16(nsCSSProps::GetStringValue(property.mProperty));
+    propertyDetails.mRunningOnCompositor = property.mIsRunningOnCompositor;
+
+    nsXPIDLString localizedString;
+    if (property.mPerformanceWarning &&
+        property.mPerformanceWarning->ToLocalizedString(localizedString)) {
+      propertyDetails.mWarning.Construct(localizedString);
+    }
+
+    if (!propertyDetails.mValues.SetCapacity(property.mSegments.Length(),
+                                             mozilla::fallible)) {
+      aRv.Throw(NS_ERROR_OUT_OF_MEMORY);
+      return;
+    }
+
+    for (size_t segmentIdx = 0, segmentLen = property.mSegments.Length();
+         segmentIdx < segmentLen;
+         segmentIdx++)
+    {
+      const AnimationPropertySegment& segment = property.mSegments[segmentIdx];
+
+      binding_detail::FastAnimationPropertyValueDetails fromValue;
+      CreatePropertyValue(property.mProperty, segment.mFromKey,
+                          segment.mTimingFunction, segment.mFromValue,
+                          fromValue);
+      // We don't apply timing functions for zero-length segments, so
+      // don't return one here.
+      if (segment.mFromKey == segment.mToKey) {
+        fromValue.mEasing.Reset();
+      }
+      // The following won't fail since we have already allocated the capacity
+      // above.
+      propertyDetails.mValues.AppendElement(fromValue, mozilla::fallible);
+
+      // Normally we can ignore the to-value for this segment since it is
+      // identical to the from-value from the next segment. However, we need
+      // to add it if either:
+      // a) this is the last segment, or
+      // b) the next segment's from-value differs.
+      if (segmentIdx == segmentLen - 1 ||
+          property.mSegments[segmentIdx + 1].mFromValue != segment.mToValue) {
+        binding_detail::FastAnimationPropertyValueDetails toValue;
+        CreatePropertyValue(property.mProperty, segment.mToKey,
+                            Nothing(), segment.mToValue, toValue);
+        // It doesn't really make sense to have a timing function on the
+        // last property value or before a sudden jump so we just drop the
+        // easing property altogether.
+        toValue.mEasing.Reset();
+        propertyDetails.mValues.AppendElement(toValue, mozilla::fallible);
+      }
+    }
+
+    aProperties.AppendElement(propertyDetails);
   }
 }
 
@@ -1878,32 +1981,6 @@ KeyframeEffectReadOnly::GetFrames(JSContext*& aCx,
     } while (entry->SameKeyframe(*previousEntry));
 
     aResult.AppendElement(keyframe);
-  }
-}
-
-
-void
-KeyframeEffectReadOnly::GetPropertyState(
-    nsTArray<AnimationPropertyState>& aStates) const
-{
-  for (const AnimationProperty& property : mProperties) {
-    // Bug 1252730: We should also expose this winsInCascade as well.
-    if (!property.mWinsInCascade) {
-      continue;
-    }
-
-    AnimationPropertyState state;
-    state.mProperty.Construct(
-      NS_ConvertASCIItoUTF16(nsCSSProps::GetStringValue(property.mProperty)));
-    state.mRunningOnCompositor.Construct(property.mIsRunningOnCompositor);
-
-    nsXPIDLString localizedString;
-    if (property.mPerformanceWarning &&
-        property.mPerformanceWarning->ToLocalizedString(localizedString)) {
-      state.mWarning.Construct(localizedString);
-    }
-
-    aStates.AppendElement(state);
   }
 }
 
@@ -2135,7 +2212,7 @@ KeyframeEffectReadOnly::CanAnimateTransformOnCompositor(
 }
 
 bool
-KeyframeEffectReadOnly::ShouldBlockCompositorAnimations(
+KeyframeEffectReadOnly::ShouldBlockAsyncTransformAnimations(
   const nsIFrame* aFrame,
   AnimationPerformanceWarning::Type& aPerformanceWarning) const
 {
@@ -2155,7 +2232,7 @@ KeyframeEffectReadOnly::ShouldBlockCompositorAnimations(
     // Check for geometric properties
     if (IsGeometricProperty(property.mProperty)) {
       aPerformanceWarning =
-        AnimationPerformanceWarning::Type::WithGeometricProperties;
+        AnimationPerformanceWarning::Type::TransformWithGeometricProperties;
       return true;
     }
 
@@ -2213,6 +2290,30 @@ KeyframeEffect::WrapObject(JSContext* aCx,
                            JS::Handle<JSObject*> aGivenProto)
 {
   return KeyframeEffectBinding::Wrap(aCx, this, aGivenProto);
+}
+
+/* static */ already_AddRefed<KeyframeEffect>
+KeyframeEffect::Constructor(
+    const GlobalObject& aGlobal,
+    const Nullable<ElementOrCSSPseudoElement>& aTarget,
+    JS::Handle<JSObject*> aFrames,
+    const UnrestrictedDoubleOrKeyframeEffectOptions& aOptions,
+    ErrorResult& aRv)
+{
+  return ConstructKeyframeEffect<KeyframeEffect>(aGlobal, aTarget, aFrames,
+                                                 aOptions, aRv);
+}
+
+/* static */ already_AddRefed<KeyframeEffect>
+KeyframeEffect::Constructor(
+    const GlobalObject& aGlobal,
+    const Nullable<ElementOrCSSPseudoElement>& aTarget,
+    JS::Handle<JSObject*> aFrames,
+    const UnrestrictedDoubleOrKeyframeAnimationOptions& aOptions,
+    ErrorResult& aRv)
+{
+  return ConstructKeyframeEffect<KeyframeEffect>(aGlobal, aTarget, aFrames,
+                                                 aOptions, aRv);
 }
 
 void KeyframeEffect::NotifySpecifiedTimingUpdated()

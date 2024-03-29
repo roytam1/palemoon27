@@ -10,9 +10,12 @@
 #include "nsDebug.h"
 #include "nsIAtom.h"
 #include "nsIContent.h"
+#include "nsIDocument.h"
+#include "nsGlobalWindow.h"
 #include "nsString.h"
+#include "mozilla/Attributes.h"
 #include "mozilla/ComputedTimingFunction.h" // ComputedTimingFunction
-#include "mozilla/dom/Element.h" // For dom::Element
+#include "xpcpublic.h" // For xpc::NativeGlobal
 
 namespace mozilla {
 
@@ -37,22 +40,18 @@ AnimationUtils::LogAsyncAnimationFailure(nsCString& aMessage,
 }
 
 /* static */ Maybe<ComputedTimingFunction>
-AnimationUtils::ParseEasing(const dom::Element* aTarget,
-                            const nsAString& aEasing)
+AnimationUtils::ParseEasing(const nsAString& aEasing,
+                            nsIDocument* aDocument)
 {
-  if (!aTarget) {
-    return Nothing();
-  }
-
-  nsIDocument* doc = aTarget->OwnerDoc();
+  MOZ_ASSERT(aDocument);
 
   nsCSSValue value;
   nsCSSParser parser;
   parser.ParseLonghandProperty(eCSSProperty_animation_timing_function,
                                aEasing,
-                               doc->GetDocumentURI(),
-                               doc->GetDocumentURI(),
-                               doc->NodePrincipal(),
+                               aDocument->GetDocumentURI(),
+                               aDocument->GetDocumentURI(),
+                               aDocument->NodePrincipal(),
                                value);
 
   switch (value.GetUnit()) {
@@ -69,7 +68,7 @@ AnimationUtils::ParseEasing(const dom::Element* aTarget,
               NS_STYLE_TRANSITION_TIMING_FUNCTION_LINEAR) {
             return Nothing();
           }
-          // Fall through
+          MOZ_FALLTHROUGH;
         case eCSSUnit_Cubic_Bezier:
         case eCSSUnit_Steps: {
           nsTimingFunction timingFunction;
@@ -96,6 +95,16 @@ AnimationUtils::ParseEasing(const dom::Element* aTarget,
       break;
   }
   return Nothing();
+}
+
+/* static */ nsIDocument*
+AnimationUtils::GetCurrentRealmDocument(JSContext* aCx)
+{
+  nsGlobalWindow* win = xpc::CurrentWindowOrNull(aCx);
+  if (!win) {
+    return nullptr;
+  }
+  return win->GetDoc();
 }
 
 } // namespace mozilla

@@ -266,6 +266,13 @@ public:
    */
   bool HandleAppCommandMessage() const;
 
+  /**
+   * Callback of TextEventDispatcherListener::WillDispatchKeyboardEvent().
+   * This method sets alternative char codes of aKeyboardEvent.
+   */
+  void WillDispatchKeyboardEvent(WidgetKeyboardEvent& aKeyboardEvent,
+                                 uint32_t aIndex);
+
 private:
   RefPtr<nsWindowBase> mWidget;
   RefPtr<TextEventDispatcher> mDispatcher;
@@ -289,6 +296,26 @@ private:
   // the key.  If dead key fail to composite a character, mCommittedChars
   // indicates both the dead characters and the base characters.
   UniCharsAndModifiers mCommittedCharsAndModifiers;
+
+  // Following strings are computed by
+  // ComputeInputtingStringWithKeyboardLayout() which is typically called
+  // before dispatching keydown event.
+  // mInputtingStringAndModifiers's string is the string to be
+  // inputted into the focused editor and its modifier state is proper
+  // modifier state for inputting the string into the editor.
+  UniCharsAndModifiers mInputtingStringAndModifiers;
+  // mShiftedString is the string to be inputted into the editor with
+  // current modifier state with active shift state.
+  UniCharsAndModifiers mShiftedString;
+  // mUnshiftedString is the string to be inputted into the editor with
+  // current modifier state without shift state.
+  UniCharsAndModifiers mUnshiftedString;
+  // Following integers are computed by
+  // ComputeInputtingStringWithKeyboardLayout() which is typically called
+  // before dispatching keydown event.  The meaning of these values is same
+  // as charCode.
+  uint32_t mShiftedLatinChar;
+  uint32_t mUnshiftedLatinChar;
 
   WORD    mScanCode;
   bool    mIsExtended;
@@ -453,10 +480,11 @@ private:
   bool DispatchCommandEvent(uint32_t aEventCommand) const;
 
   /**
-   * DispatchKeyPressEventsWithKeyboardLayout() dispatches keypress event(s)
-   * with the information provided by KeyboardLayout class.
+   * DispatchKeyPressEventsWithoutCharMessage() dispatches keypress event(s)
+   * without char messages.  So, this should be used only when there are no
+   * following char messages.
    */
-  bool DispatchKeyPressEventsWithKeyboardLayout() const;
+  bool DispatchKeyPressEventsWithoutCharMessage() const;
 
   /**
    * Remove all following WM_CHAR, WM_SYSCHAR and WM_DEADCHAR messages for the
@@ -481,6 +509,13 @@ private:
    * or Backspace.
    */
   bool NeedsToHandleWithoutFollowingCharMessages() const;
+
+  /**
+   * ComputeInputtingStringWithKeyboardLayout() computes string to be inputted
+   * with the key and the modifier state, without shift state and with shift
+   * state.
+   */
+  void ComputeInputtingStringWithKeyboardLayout();
 };
 
 class KeyboardLayout

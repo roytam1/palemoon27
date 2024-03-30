@@ -673,6 +673,8 @@ NativeKey::NativeKey(nsWindowBase* aWidget,
   , mModKeyState(aModKeyState)
   , mVirtualKeyCode(0)
   , mOriginalVirtualKeyCode(0)
+  , mShiftedLatinChar(0)
+  , mUnshiftedLatinChar(0)
   , mScanCode(0)
   , mIsExtended(false)
   , mIsDeadKey(false)
@@ -861,6 +863,14 @@ NativeKey::NativeKey(nsWindowBase* aWidget,
     (IsFollowedByDeadCharMessage() ||
      keyboardLayout->IsDeadKey(mOriginalVirtualKeyCode, mModKeyState));
   mIsPrintableKey = KeyboardLayout::IsPrintableCharKey(mOriginalVirtualKeyCode);
+
+  // Compute some strings which may be inputted by the key with various
+  // modifier state if this key event won't cause text input actually.
+  // They will be used for setting alternativeCharCodes in the callback
+  // method which will be called by TextEventDispatcher.
+  if (IsKeyDownMessage() && NeedsToHandleWithoutFollowingCharMessages()) {
+    ComputeInputtingStringWithKeyboardLayout();
+  }
 }
 
 void
@@ -1527,7 +1537,7 @@ NativeKey::HandleKeyDownMessage(bool* aEventDispatched) const
   // keypress for almost all keys
   if (NeedsToHandleWithoutFollowingCharMessages()) {
     return (DispatchPluginEventsAndDiscardsCharMessages() ||
-            DispatchKeyPressEventsWithKeyboardLayout());
+            DispatchKeyPressEventsWithoutCharMessage());
   }
 
   MSG followingCharMsg;
@@ -1554,7 +1564,7 @@ NativeKey::HandleKeyDownMessage(bool* aEventDispatched) const
     return false;
   }
 
-  return DispatchKeyPressEventsWithKeyboardLayout();
+  return DispatchKeyPressEventsWithoutCharMessage();
 }
 
 bool
@@ -1726,6 +1736,12 @@ NativeKey::NeedsToHandleWithoutFollowingCharMessages() const
     return true;
   }
 
+  // If inputting two or more characters, should be dispatched after removing
+  // whole following char messages.
+  if (mCommittedCharsAndModifiers.mLength > 1) {
+    return true;
+  }
+
   // If any modifier keys which may cause printable keys becoming non-printable
   // are not pressed, we don't need special handling for the key.
   if (!mModKeyState.IsControl() && !mModKeyState.IsAlt() &&
@@ -1766,17 +1782,20 @@ NativeKey::GetFollowingCharMessage(MSG& aCharMsg) const
   aCharMsg.message = WM_NULL;
 
   if (mFakeCharMsgs) {
-    FakeCharMsg& fakeCharMsg = mFakeCharMsgs->ElementAt(0);
-    if (fakeCharMsg.mConsumed) {
-      return false;
+    for (size_t i = 0; i < mFakeCharMsgs->Length(); i++) {
+      FakeCharMsg& fakeCharMsg = mFakeCharMsgs->ElementAt(i);
+      if (fakeCharMsg.mConsumed) {
+        continue;
+      }
+      MSG charMsg = fakeCharMsg.GetCharMsg(mMsg.hwnd);
+      fakeCharMsg.mConsumed = true;
+      if (!IsCharMessage(charMsg)) {
+        return false;
+      }
+      aCharMsg = charMsg;
+      return true;
     }
-    MSG charMsg = fakeCharMsg.GetCharMsg(mMsg.hwnd);
-    fakeCharMsg.mConsumed = true;
-    if (!IsCharMessage(charMsg)) {
-      return false;
-    }
-    aCharMsg = charMsg;
-    return true;
+    return false;
   }
 
   // If next key message is not char message, we should give up to find a
@@ -1909,185 +1928,208 @@ NativeKey::DispatchPluginEventsAndDiscardsCharMessages() const
   return false;
 }
 
-bool
-NativeKey::DispatchKeyPressEventsWithKeyboardLayout() const
+void
+NativeKey::ComputeInputtingStringWithKeyboardLayout()
 {
-  MOZ_ASSERT(IsKeyDownMessage());
-  MOZ_ASSERT(!mIsDeadKey);
-
   KeyboardLayout* keyboardLayout = KeyboardLayout::GetInstance();
 
-  UniCharsAndModifiers inputtingChars(mCommittedCharsAndModifiers);
-  UniCharsAndModifiers shiftedChars;
-  UniCharsAndModifiers unshiftedChars;
-  uint32_t shiftedLatinChar = 0;
-  uint32_t unshiftedLatinChar = 0;
+  if (KeyboardLayout::IsPrintableCharKey(mVirtualKeyCode)) {
+    mInputtingStringAndModifiers = mCommittedCharsAndModifiers;
+  } else {
+    mInputtingStringAndModifiers.Clear();
+  }
+  mShiftedString.Clear();
+  mUnshiftedString.Clear();
+  mShiftedLatinChar = mUnshiftedLatinChar = 0;
 
-  if (!KeyboardLayout::IsPrintableCharKey(mVirtualKeyCode)) {
-    inputtingChars.Clear();
+  // XXX How about when Win key is pressed?
+  if (mModKeyState.IsControl() == mModKeyState.IsAlt()) {
+    return;
   }
 
-  if (mModKeyState.IsControl() ^ mModKeyState.IsAlt()) {
-    ModifierKeyState capsLockState(
-                       mModKeyState.GetModifiers() & MODIFIER_CAPSLOCK);
+  ModifierKeyState capsLockState(
+                     mModKeyState.GetModifiers() & MODIFIER_CAPSLOCK);
 
-    unshiftedChars =
-      keyboardLayout->GetUniCharsAndModifiers(mVirtualKeyCode, capsLockState);
-    capsLockState.Set(MODIFIER_SHIFT);
-    shiftedChars =
-      keyboardLayout->GetUniCharsAndModifiers(mVirtualKeyCode, capsLockState);
+  mUnshiftedString =
+    keyboardLayout->GetUniCharsAndModifiers(mVirtualKeyCode, capsLockState);
+  capsLockState.Set(MODIFIER_SHIFT);
+  mShiftedString =
+    keyboardLayout->GetUniCharsAndModifiers(mVirtualKeyCode, capsLockState);
 
-    // The current keyboard cannot input alphabets or numerics,
-    // we should append them for Shortcut/Access keys.
-    // E.g., for Cyrillic keyboard layout.
-    capsLockState.Unset(MODIFIER_SHIFT);
-    WidgetUtils::GetLatinCharCodeForKeyCode(mDOMKeyCode,
-                                            capsLockState.GetModifiers(),
-                                            &unshiftedLatinChar,
-                                            &shiftedLatinChar);
+  // The current keyboard cannot input alphabets or numerics,
+  // we should append them for Shortcut/Access keys.
+  // E.g., for Cyrillic keyboard layout.
+  capsLockState.Unset(MODIFIER_SHIFT);
+  WidgetUtils::GetLatinCharCodeForKeyCode(mDOMKeyCode,
+                                          capsLockState.GetModifiers(),
+                                          &mUnshiftedLatinChar,
+                                          &mShiftedLatinChar);
 
-    // If the shiftedLatinChar isn't 0, the key code is NS_VK_[A-Z].
-    if (shiftedLatinChar) {
-      // If the produced characters of the key on current keyboard layout
-      // are same as computed Latin characters, we shouldn't append the
-      // Latin characters to alternativeCharCode.
-      if (unshiftedLatinChar == unshiftedChars.mChars[0] &&
-          shiftedLatinChar == shiftedChars.mChars[0]) {
-        shiftedLatinChar = unshiftedLatinChar = 0;
-      }
-    } else if (unshiftedLatinChar) {
-      // If the shiftedLatinChar is 0, the keyCode doesn't produce
-      // alphabet character.  At that time, the character may be produced
-      // with Shift key.  E.g., on French keyboard layout, NS_VK_PERCENT
-      // key produces LATIN SMALL LETTER U WITH GRAVE (U+00F9) without
-      // Shift key but with Shift key, it produces '%'.
-      // If the unshiftedLatinChar is produced by the key on current
-      // keyboard layout, we shouldn't append it to alternativeCharCode.
-      if (unshiftedLatinChar == unshiftedChars.mChars[0] ||
-          unshiftedLatinChar == shiftedChars.mChars[0]) {
-        unshiftedLatinChar = 0;
-      }
+  // If the mShiftedLatinChar isn't 0, the key code is NS_VK_[A-Z].
+  if (mShiftedLatinChar) {
+    // If the produced characters of the key on current keyboard layout
+    // are same as computed Latin characters, we shouldn't append the
+    // Latin characters to alternativeCharCode.
+    if (mUnshiftedLatinChar == mUnshiftedString.mChars[0] &&
+        mShiftedLatinChar == mShiftedString.mChars[0]) {
+      mShiftedLatinChar = mUnshiftedLatinChar = 0;
     }
-
-    // If the charCode is not ASCII character, we should replace the
-    // charCode with ASCII character only when Ctrl is pressed.
-    // But don't replace the charCode when the charCode is not same as
-    // unmodified characters. In such case, Ctrl is sometimes used for a
-    // part of character inputting key combination like Shift.
-    if (mModKeyState.IsControl()) {
-      uint32_t ch =
-        mModKeyState.IsShift() ? shiftedLatinChar : unshiftedLatinChar;
-      if (ch &&
-          (!inputtingChars.mLength ||
-           inputtingChars.UniCharsCaseInsensitiveEqual(
-             mModKeyState.IsShift() ? shiftedChars : unshiftedChars))) {
-        inputtingChars.Clear();
-        inputtingChars.Append(ch, mModKeyState.GetModifiers());
-      }
+  } else if (mUnshiftedLatinChar) {
+    // If the mShiftedLatinChar is 0, the keyCode doesn't produce
+    // alphabet character.  At that time, the character may be produced
+    // with Shift key.  E.g., on French keyboard layout, NS_VK_PERCENT
+    // key produces LATIN SMALL LETTER U WITH GRAVE (U+00F9) without
+    // Shift key but with Shift key, it produces '%'.
+    // If the mUnshiftedLatinChar is produced by the key on current
+    // keyboard layout, we shouldn't append it to alternativeCharCode.
+    if (mUnshiftedLatinChar == mUnshiftedString.mChars[0] ||
+        mUnshiftedLatinChar == mShiftedString.mChars[0]) {
+      mUnshiftedLatinChar = 0;
     }
   }
 
-  if (inputtingChars.IsEmpty() &&
-      shiftedChars.IsEmpty() && unshiftedChars.IsEmpty()) {
-    nsresult rv = mDispatcher->BeginNativeInputTransaction();
-    if (NS_WARN_IF(NS_FAILED(rv))) {
-      return true;
-    }
+  if (!mModKeyState.IsControl()) {
+    return;
+  }
 
-    WidgetKeyboardEvent keypressEvent(true, eKeyPress, mWidget);
+  // If the charCode is not ASCII character, we should replace the
+  // charCode with ASCII character only when Ctrl is pressed.
+  // But don't replace the charCode when the charCode is not same as
+  // unmodified characters. In such case, Ctrl is sometimes used for a
+  // part of character inputting key combination like Shift.
+  uint32_t ch =
+    mModKeyState.IsShift() ? mShiftedLatinChar : mUnshiftedLatinChar;
+  if (!ch) {
+    return;
+  }
+  if (mInputtingStringAndModifiers.IsEmpty() ||
+      mInputtingStringAndModifiers.UniCharsCaseInsensitiveEqual(
+        mModKeyState.IsShift() ? mShiftedString : mUnshiftedString)) {
+    mInputtingStringAndModifiers.Clear();
+    mInputtingStringAndModifiers.Append(ch, mModKeyState.GetModifiers());
+  }
+}
+
+bool
+NativeKey::DispatchKeyPressEventsWithoutCharMessage() const
+{
+  MOZ_ASSERT(IsKeyDownMessage());
+  MOZ_ASSERT(!mIsDeadKey || !mCommittedCharsAndModifiers.IsEmpty());
+
+  nsresult rv = mDispatcher->BeginNativeInputTransaction();
+  if (NS_WARN_IF(NS_FAILED(rv))) {
+    return true;
+  }
+
+  WidgetKeyboardEvent keypressEvent(true, eKeyPress, mWidget);
+  if (mInputtingStringAndModifiers.IsEmpty() &&
+      mShiftedString.IsEmpty() && mUnshiftedString.IsEmpty()) {
     keypressEvent.keyCode = mDOMKeyCode;
-    nsEventStatus status = InitKeyEvent(keypressEvent, mModKeyState);
-    mDispatcher->MaybeDispatchKeypressEvents(keypressEvent, status,
-                                             const_cast<NativeKey*>(this));
-    return status == nsEventStatus_eConsumeNoDefault;
+  }
+  nsEventStatus status = InitKeyEvent(keypressEvent, mModKeyState);
+  mDispatcher->MaybeDispatchKeypressEvents(keypressEvent, status,
+                                           const_cast<NativeKey*>(this));
+  return status == nsEventStatus_eConsumeNoDefault;
+}
+
+void
+NativeKey::WillDispatchKeyboardEvent(WidgetKeyboardEvent& aKeyboardEvent,
+                                     uint32_t aIndex)
+{
+  uint32_t longestLength =
+    std::max(mInputtingStringAndModifiers.mLength,
+             std::max(mShiftedString.mLength, mUnshiftedString.mLength));
+  uint32_t skipUniChars = longestLength - mInputtingStringAndModifiers.mLength;
+  uint32_t skipShiftedChars = longestLength - mShiftedString.mLength;
+  uint32_t skipUnshiftedChars = longestLength - mUnshiftedString.mLength;
+  if (aIndex >= longestLength) {
+    return;
   }
 
-  uint32_t longestLength =
-    std::max(inputtingChars.mLength,
-             std::max(shiftedChars.mLength, unshiftedChars.mLength));
-  uint32_t skipUniChars = longestLength - inputtingChars.mLength;
-  uint32_t skipShiftedChars = longestLength - shiftedChars.mLength;
-  uint32_t skipUnshiftedChars = longestLength - unshiftedChars.mLength;
-  bool defaultPrevented = false;
-  for (uint32_t cnt = 0; cnt < longestLength; cnt++) {
-    uint16_t uniChar, shiftedChar, unshiftedChar;
-    uniChar = shiftedChar = unshiftedChar = 0;
-    ModifierKeyState modKeyState(mModKeyState);
-    if (skipUniChars <= cnt) {
-      if (cnt - skipUniChars  < inputtingChars.mLength) {
-        // If key in combination with Alt and/or Ctrl produces a different
-        // character than without them then do not report these flags
-        // because it is separate keyboard layout shift state. If dead-key
-        // and base character does not produce a valid composite character
-        // then both produced dead-key character and following base
-        // character may have different modifier flags, too.
-        modKeyState.Unset(MODIFIER_SHIFT | MODIFIER_CONTROL | MODIFIER_ALT |
-                          MODIFIER_ALTGRAPH | MODIFIER_CAPSLOCK);
-        modKeyState.Set(inputtingChars.mModifiers[cnt - skipUniChars]);
-      }
-      uniChar = inputtingChars.mChars[cnt - skipUniChars];
-    }
-    if (skipShiftedChars <= cnt)
-      shiftedChar = shiftedChars.mChars[cnt - skipShiftedChars];
-    if (skipUnshiftedChars <= cnt)
-      unshiftedChar = unshiftedChars.mChars[cnt - skipUnshiftedChars];
-    AutoTArray<AlternativeCharCode, 5> altArray;
+  nsTArray<AlternativeCharCode>& altArray = aKeyboardEvent.alternativeCharCodes;
 
-    if (shiftedChar || unshiftedChar) {
-      AlternativeCharCode chars(unshiftedChar, shiftedChar);
+  uint16_t shiftedChar = 0, unshiftedChar = 0;
+  if (skipUniChars <= aIndex) {
+    // XXX Modifying modifier state of aKeyboardEvent is illegal, but no way
+    //     to set different modifier state per keypress event except this
+    //     hack.  Note that ideally, dead key should cause composition events
+    //     instead of keypress events, though.
+    if (aIndex - skipUniChars  < mInputtingStringAndModifiers.mLength) {
+      ModifierKeyState modKeyState(mModKeyState);
+      // If key in combination with Alt and/or Ctrl produces a different
+      // character than without them then do not report these flags
+      // because it is separate keyboard layout shift state. If dead-key
+      // and base character does not produce a valid composite character
+      // then both produced dead-key character and following base
+      // character may have different modifier flags, too.
+      modKeyState.Unset(MODIFIER_SHIFT | MODIFIER_CONTROL | MODIFIER_ALT |
+                        MODIFIER_ALTGRAPH | MODIFIER_CAPSLOCK);
+      modKeyState.Set(
+        mInputtingStringAndModifiers.mModifiers[aIndex - skipUniChars]);
+      modKeyState.InitInputEvent(aKeyboardEvent);
+    }
+    uint16_t uniChar =
+      mInputtingStringAndModifiers.mChars[aIndex - skipUniChars];
+    if (aKeyboardEvent.mMessage == eKeyPress) {
+      // charCode is set from mKeyValue but e.g., when Ctrl key is pressed,
+      // the value should indicate an ASCII character for backward
+      // compatibility instead of inputting character without the modifiers.
+      aKeyboardEvent.charCode = uniChar;
+      MOZ_ASSERT(!aKeyboardEvent.keyCode);
+    } else if (uniChar) {
+      // If the event is not keypress event, we should set charCode as
+      // first alternative char code since the char code value is necessary
+      // for shortcut key handlers at looking for a proper handler.
+      AlternativeCharCode chars(0, 0);
+      if (!aKeyboardEvent.IsShift()) {
+        chars.mUnshiftedCharCode = uniChar;
+      } else {
+        chars.mShiftedCharCode = uniChar;
+      }
       altArray.AppendElement(chars);
     }
-    if (cnt == longestLength - 1) {
-      if (unshiftedLatinChar || shiftedLatinChar) {
-        AlternativeCharCode chars(unshiftedLatinChar, shiftedLatinChar);
-        altArray.AppendElement(chars);
-      }
-
-      // Typically, following virtual keycodes are used for a key which can
-      // input the character.  However, these keycodes are also used for
-      // other keys on some keyboard layout.  E.g., in spite of Shift+'1'
-      // inputs '+' on Thai keyboard layout, a key which is at '=/+'
-      // key on ANSI keyboard layout is VK_OEM_PLUS.  Native applications
-      // handle it as '+' key if Ctrl key is pressed.
-      char16_t charForOEMKeyCode = 0;
-      switch (mVirtualKeyCode) {
-        case VK_OEM_PLUS:   charForOEMKeyCode = '+'; break;
-        case VK_OEM_COMMA:  charForOEMKeyCode = ','; break;
-        case VK_OEM_MINUS:  charForOEMKeyCode = '-'; break;
-        case VK_OEM_PERIOD: charForOEMKeyCode = '.'; break;
-      }
-      if (charForOEMKeyCode &&
-          charForOEMKeyCode != unshiftedChars.mChars[0] &&
-          charForOEMKeyCode != shiftedChars.mChars[0] &&
-          charForOEMKeyCode != unshiftedLatinChar &&
-          charForOEMKeyCode != shiftedLatinChar) {
-        AlternativeCharCode OEMChars(charForOEMKeyCode, charForOEMKeyCode);
-        altArray.AppendElement(OEMChars);
-      }
-    }
-
-
-    nsresult rv = mDispatcher->BeginNativeInputTransaction();
-    if (NS_WARN_IF(NS_FAILED(rv))) {
-      return true;
-    }
-
-    // We should optimize this with improving TextEventDispatcher later.
-    WidgetKeyboardEvent keypressEvent(true, eKeyPress, mWidget);
-    keypressEvent.charCode = uniChar;
-    keypressEvent.alternativeCharCodes.AppendElements(altArray);
-    nsEventStatus status = InitKeyEvent(keypressEvent, modKeyState);
-    mDispatcher->MaybeDispatchKeypressEvents(keypressEvent, status,
-                                             const_cast<NativeKey*>(this));
-    defaultPrevented =
-      (status == nsEventStatus_eConsumeNoDefault || defaultPrevented);
-
-    if (mWidget->Destroyed()) {
-      return true;
-    }
   }
 
-  return defaultPrevented;
+  if (skipShiftedChars <= aIndex) {
+    shiftedChar = mShiftedString.mChars[aIndex - skipShiftedChars];
+  }
+  if (skipUnshiftedChars <= aIndex) {
+    unshiftedChar = mUnshiftedString.mChars[aIndex - skipUnshiftedChars];
+  }
+
+  if (shiftedChar || unshiftedChar) {
+    AlternativeCharCode chars(unshiftedChar, shiftedChar);
+    altArray.AppendElement(chars);
+  }
+
+  if (aIndex == longestLength - 1) {
+    if (mUnshiftedLatinChar || mShiftedLatinChar) {
+      AlternativeCharCode chars(mUnshiftedLatinChar, mShiftedLatinChar);
+      altArray.AppendElement(chars);
+    }
+
+    // Typically, following virtual keycodes are used for a key which can
+    // input the character.  However, these keycodes are also used for
+    // other keys on some keyboard layout.  E.g., in spite of Shift+'1'
+    // inputs '+' on Thai keyboard layout, a key which is at '=/+'
+    // key on ANSI keyboard layout is VK_OEM_PLUS.  Native applications
+    // handle it as '+' key if Ctrl key is pressed.
+    char16_t charForOEMKeyCode = 0;
+    switch (mVirtualKeyCode) {
+      case VK_OEM_PLUS:   charForOEMKeyCode = '+'; break;
+      case VK_OEM_COMMA:  charForOEMKeyCode = ','; break;
+      case VK_OEM_MINUS:  charForOEMKeyCode = '-'; break;
+      case VK_OEM_PERIOD: charForOEMKeyCode = '.'; break;
+    }
+    if (charForOEMKeyCode &&
+        charForOEMKeyCode != mUnshiftedString.mChars[0] &&
+        charForOEMKeyCode != mShiftedString.mChars[0] &&
+        charForOEMKeyCode != mUnshiftedLatinChar &&
+        charForOEMKeyCode != mShiftedLatinChar) {
+      AlternativeCharCode OEMChars(charForOEMKeyCode, charForOEMKeyCode);
+      altArray.AppendElement(OEMChars);
+    }
+  }
 }
 
 bool
@@ -2231,6 +2273,21 @@ KeyboardLayout::InitNativeKey(NativeKey& aNativeKey,
 {
   if (mIsPendingToRestoreKeyboardLayout) {
     LoadLayout(::GetKeyboardLayout(0));
+  }
+
+  // If the aNativeKey is initialized with WM_CHAR, the key information
+  // should be discarded because mKeyValue should have the string to be
+  // inputted.
+  if (aNativeKey.mMsg.message == WM_CHAR) {
+    aNativeKey.mKeyNameIndex = KEY_NAME_INDEX_USE_STRING;
+    if (aNativeKey.mMsg.wParam) {
+      aNativeKey.mCommittedCharsAndModifiers.Append(
+        static_cast<char16_t>(aNativeKey.mMsg.wParam),
+        aModKeyState.GetModifiers());
+    } else {
+      aNativeKey.mCommittedCharsAndModifiers.Clear();
+    }
+    return;
   }
 
   uint8_t virtualKey = aNativeKey.mOriginalVirtualKeyCode;

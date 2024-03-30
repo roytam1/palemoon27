@@ -245,11 +245,9 @@ function InplaceEditor(options, event) {
   this.input.addEventListener("blur", this._onBlur, false);
   this.input.addEventListener("keypress", this._onKeyPress, false);
   this.input.addEventListener("input", this._onInput, false);
-
-  this.input.addEventListener("dblclick",
-    (e) => { e.stopPropagation(); }, false);
-  this.input.addEventListener("mousedown",
-    (e) => { e.stopPropagation(); }, false);
+  this.input.addEventListener("dblclick", this._stopEventPropagation, false);
+  this.input.addEventListener("click", this._stopEventPropagation, false);
+  this.input.addEventListener("mousedown", this._stopEventPropagation, false);
 
   this.validate = options.validate;
 
@@ -299,7 +297,11 @@ InplaceEditor.prototype = {
     this.input.removeEventListener("blur", this._onBlur, false);
     this.input.removeEventListener("keypress", this._onKeyPress, false);
     this.input.removeEventListener("keyup", this._onKeyup, false);
-    this.input.removeEventListener("oninput", this._onInput, false);
+    this.input.removeEventListener("input", this._onInput, false);
+    this.input.removeEventListener("dblclick", this._stopEventPropagation, false);
+    this.input.removeEventListener("click", this._stopEventPropagation, false);
+    this.input.removeEventListener("mousedown", this._stopEventPropagation, false);
+
     this._stopAutosize();
 
     this.elt.style.display = this.originalDisplay;
@@ -364,11 +366,7 @@ InplaceEditor.prototype = {
     // will be wrong.
     this._measurement.textContent = this.input.value.replace(/ /g, "\u00a0");
 
-    // We add a bit of padding to the end.  Should be enough to fit
-    // any letter that could be typed, otherwise we'll scroll before
-    // we get a chance to resize.  Yuck.
-    let width = this._measurement.offsetWidth + 10;
-
+    let width = this._measurement.offsetWidth;
     if (this.multiline) {
       // Make sure there's some content in the current line.  This is a hack to
       // account for the fact that after adding a newline the <pre> doesn't grow
@@ -377,7 +375,12 @@ InplaceEditor.prototype = {
       this.input.style.height = this._measurement.offsetHeight + "px";
     }
 
-    this.input.style.width = width + "px";
+    if (width === 0) {
+      // If the editor is empty use a width corresponding to 1 character.
+      this.input.style.width = "1ch";
+    } else {
+      this.input.style.width = width + "px";
+    }
   },
 
   /**
@@ -1054,6 +1057,13 @@ InplaceEditor.prototype = {
     if (this.change) {
       this.change(this.currentInputValue);
     }
+  },
+
+  /**
+   * Stop propagation on the provided event
+   */
+  _stopEventPropagation: function(e) {
+    e.stopPropagation();
   },
 
   /**

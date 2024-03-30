@@ -72,6 +72,9 @@ html, body, #app, #memory-tool {
   display: flex;
   align-items: center;
   flex: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .devtools-toolbar > .toolbar-group > label {
@@ -84,7 +87,11 @@ html, body, #app, #memory-tool {
   margin-inline-end: 5px;
 }
 
-.devtools-toolbar > .toolbar-group > label.breakdown-by > span {
+.devtools-toolbar > .toolbar-group > label.display-by > span {
+  margin-inline-end: 5px;
+}
+
+.devtools-toolbar > .toolbar-group > label.label-by > span {
   margin-inline-end: 5px;
 }
 

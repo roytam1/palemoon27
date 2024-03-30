@@ -37,6 +37,9 @@
 #include "mozilla/dom/workers/bindings/ServiceWorker.h"
 
 #ifndef MOZ_SIMPLEPUSH
+#include "mozilla/dom/PushEventBinding.h"
+#include "mozilla/dom/PushMessageDataBinding.h"
+
 #include "nsIUnicodeDecoder.h"
 #include "nsIUnicodeEncoder.h"
 
@@ -201,11 +204,16 @@ public:
     }
     rv = mChannel->SetChannelInfo(&channelInfo);
     if (NS_WARN_IF(NS_FAILED(rv))) {
-      return rv;
+      mChannel->Cancel(NS_ERROR_INTERCEPTION_FAILED);
+      return NS_OK;
     }
 
-    mChannel->SynthesizeStatus(mInternalResponse->GetUnfilteredStatus(),
-                               mInternalResponse->GetUnfilteredStatusText());
+    rv = mChannel->SynthesizeStatus(mInternalResponse->GetUnfilteredStatus(),
+                                    mInternalResponse->GetUnfilteredStatusText());
+    if (NS_WARN_IF(NS_FAILED(rv))) {
+      mChannel->Cancel(NS_ERROR_INTERCEPTION_FAILED);
+      return NS_OK;
+    }
 
     AutoTArray<InternalHeaders::Entry, 5> entries;
     mInternalResponse->UnfilteredHeaders()->GetEntries(entries);
@@ -216,7 +224,16 @@ public:
     loadInfo->MaybeIncreaseTainting(mInternalResponse->GetTainting());
 
     rv = mChannel->FinishSynthesizedResponse(mResponseURLSpec);
-    NS_WARN_IF_FALSE(NS_SUCCEEDED(rv), "Failed to finish synthesized response");
+    if (NS_WARN_IF(NS_FAILED(rv))) {
+      mChannel->Cancel(NS_ERROR_INTERCEPTION_FAILED);
+      return NS_OK;
+    }
+
+    nsCOMPtr<nsIObserverService> obsService = services::GetObserverService();
+    if (obsService) {
+      obsService->NotifyObservers(underlyingChannel, "service-worker-synthesized-response", nullptr);
+    }
+
     return rv;
   }
 
@@ -984,6 +1001,12 @@ NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(PushMessageData)
   NS_INTERFACE_MAP_ENTRY(nsISupports)
 NS_INTERFACE_MAP_END
 
+JSObject*
+PushMessageData::WrapObject(JSContext* aCx, JS::Handle<JSObject*> aGivenProto)
+{
+  return mozilla::dom::PushMessageDataBinding::Wrap(aCx, this, aGivenProto);
+}
+
 void
 PushMessageData::Json(JSContext* cx, JS::MutableHandle<JS::Value> aRetval,
                       ErrorResult& aRv)
@@ -1092,6 +1115,12 @@ NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION_INHERITED(PushEvent)
 NS_INTERFACE_MAP_END_INHERITING(ExtendableEvent)
 
 NS_IMPL_CYCLE_COLLECTION_INHERITED(PushEvent, ExtendableEvent, mData)
+
+JSObject*
+PushEvent::WrapObjectInternal(JSContext* aCx, JS::Handle<JSObject*> aGivenProto)
+{
+  return mozilla::dom::PushEventBinding::Wrap(aCx, this, aGivenProto);
+}
 
 #endif /* ! MOZ_SIMPLEPUSH */
 

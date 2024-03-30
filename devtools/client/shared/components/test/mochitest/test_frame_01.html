@@ -32,7 +32,13 @@ window.onload = Task.async(function* () {
       onClick: ()=>{},
     }), window.document.body);
     yield forceRender(frame);
-    checkFrameString(frame, "mahscripts.js", 55, 10);
+    checkFrameString({
+      frame,
+      file: "mahscripts.js",
+      line: 55,
+      column: 10,
+      shouldLink: true,
+    });
 
     // Check when there's no column
     frame = ReactDOM.render(Frame({
@@ -43,7 +49,12 @@ window.onload = Task.async(function* () {
       onClick: ()=>{},
     }), window.document.body);
     yield forceRender(frame);
-    checkFrameString(frame, "mahscripts.js", 55);
+    checkFrameString({
+      frame,
+      file: "mahscripts.js",
+      line: 55,
+      shouldLink: true,
+    });
 
     // Check when column === 0
     frame = ReactDOM.render(Frame({
@@ -55,9 +66,15 @@ window.onload = Task.async(function* () {
       onClick: ()=>{},
     }), window.document.body);
     yield forceRender(frame);
-    checkFrameString(frame, "mahscripts.js", 55, 0);
+    checkFrameString({
+      frame,
+      file: "mahscripts.js",
+      line: 55,
+      shouldLink: true,
+    });
 
-    // Check when there's no parseable URL source
+    // Check when there's no parseable URL source;
+    // should not render line/columns
     frame = ReactDOM.render(Frame({
       frame: {
         source: "self-hosted",
@@ -66,9 +83,14 @@ window.onload = Task.async(function* () {
       onClick: ()=>{},
     }), window.document.body);
     yield forceRender(frame);
-    checkFrameString(frame, "self-hosted",1);
+    checkFrameString({
+      frame,
+      file: "self-hosted",
+      shouldLink: false,
+    });
 
-    // Check when there's no source
+    // Check when there's no source;
+    // should not render line/columns
     frame = ReactDOM.render(Frame({
       frame: {
         line: 1,
@@ -76,8 +98,100 @@ window.onload = Task.async(function* () {
       onClick: ()=>{},
     }), window.document.body);
     yield forceRender(frame);
-    checkFrameString(frame, "(unknown)",1);
-  } catch(e) {
+    checkFrameString({
+      frame,
+      file: "(unknown)",
+      shouldLink: false,
+    });
+
+    // Check when there's a column, but no number;
+    // no line/column info should render
+    frame = ReactDOM.render(Frame({
+      frame: {
+        source: "http://myfile.com/mahscripts.js",
+        column: 55,
+      },
+      onClick: ()=>{},
+    }), window.document.body);
+    yield forceRender(frame);
+    checkFrameString({
+      frame,
+      file: "mahscripts.js",
+      shouldLink: true,
+    });
+
+    // Check when line is 0; this should be an invalid
+    // line option, so don't render line/column
+    frame = ReactDOM.render(Frame({
+      frame: {
+        source: "http://myfile.com/mahscripts.js",
+        line: 0,
+        column: 55,
+      },
+      onClick: ()=>{},
+    }), window.document.body);
+    yield forceRender(frame);
+    checkFrameString({
+      frame,
+      file: "mahscripts.js",
+      shouldLink: true,
+    });
+
+    // Check when source is via Scratchpad; we should render out the
+    // lines and columns as this is linkable.
+    frame = ReactDOM.render(Frame({
+      frame: {
+        source: "Scratchpad/1",
+        line: 10,
+        column: 50,
+      },
+      onClick: ()=>{},
+    }), window.document.body);
+    yield forceRender(frame);
+    checkFrameString({
+      frame,
+      file: "Scratchpad/1",
+      line: 10,
+      column: 50,
+      shouldLink: true,
+    });
+
+    // Check that line and column can be strings
+    frame = ReactDOM.render(Frame({
+      frame: {
+        source: "http://myfile.com/mahscripts.js",
+        line: "10",
+        column: "55",
+      },
+      onClick: ()=>{},
+    }), window.document.body);
+    yield forceRender(frame);
+    checkFrameString({
+      frame,
+      file: "mahscripts.js",
+      line: 10,
+      column: 55,
+      shouldLink: true,
+    });
+
+    // Check that line and column can be strings,
+    // and that the `0` rendering rules apply when they are strings as well
+    frame = ReactDOM.render(Frame({
+      frame: {
+        source: "http://myfile.com/mahscripts.js",
+        line: "0",
+        column: "55",
+      },
+      onClick: ()=>{},
+    }), window.document.body);
+    yield forceRender(frame);
+    checkFrameString({
+      frame,
+      file: "mahscripts.js",
+      shouldLink: true,
+    });
+
+  } catch (e) {
     ok(false, "Got an error: " + DevToolsUtils.safeErrorString(e));
   } finally {
     SimpleTest.finish();

@@ -6048,7 +6048,7 @@ Parser<ParseHandler>::forHeadStart(YieldHandling yieldHandling,
     MOZ_ASSERT(isForIn != isForOf);
 
     // In a for-of loop, 'let' that starts the loop head is a |let| keyword,
-    // per the [lookahead ¡Ú let] restriction on the LeftHandSideExpression
+    // per the [lookahead â‰  let] restriction on the LeftHandSideExpression
     // variant of such loops.  Expressions that start with |let| can't be used
     // here.
     //
@@ -8944,11 +8944,7 @@ Parser<ParseHandler>::newRegExp()
     RegExpFlag flags = tokenStream.currentToken().regExpFlags();
 
     Rooted<RegExpObject*> reobj(context);
-    RegExpStatics* res = context->global()->getRegExpStatics(context);
-    if (!res)
-        return null();
-
-    reobj = RegExpObject::create(context, res, chars, length, flags, &tokenStream, alloc);
+    reobj = RegExpObject::create(context, chars, length, flags, &tokenStream, alloc);
     if (!reobj)
         return null();
 

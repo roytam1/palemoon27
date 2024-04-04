@@ -3661,7 +3661,7 @@ const BrowserSearch = {
       "urlbar",
     ];
 
-    BrowserUITelemetry.countSearchEvent(source, null, selection);
+    //BrowserUITelemetry.countSearchEvent(source, null, selection);
 
     if (SOURCES.indexOf(source) == -1) {
       Cu.reportError("Unknown source for search: " + source);
@@ -3676,7 +3676,7 @@ const BrowserSearch = {
 
   recordOneoffSearchInTelemetry: function (engine, source, type, where) {
     let id = this._getSearchEngineId(engine) + "." + source;
-    BrowserUITelemetry.countOneoffSearchEvent(id, type, where);
+    //BrowserUITelemetry.countOneoffSearchEvent(id, type, where);
   }
 };
 
@@ -3840,7 +3840,7 @@ function toOpenWindowByType(inType, uri, features)
 function OpenBrowserWindow(options)
 {
   var telemetryObj = {};
-  TelemetryStopwatch.start("FX_NEW_WINDOW_MS", telemetryObj);
+  //TelemetryStopwatch.start("FX_NEW_WINDOW_MS", telemetryObj);
 
   function newDocumentShown(doc, topic, data) {
     if (topic == "document-shown" &&
@@ -3848,7 +3848,7 @@ function OpenBrowserWindow(options)
         doc.defaultView == win) {
       Services.obs.removeObserver(newDocumentShown, "document-shown");
       Services.obs.removeObserver(windowClosed, "domwindowclosed");
-      TelemetryStopwatch.finish("FX_NEW_WINDOW_MS", telemetryObj);
+      //TelemetryStopwatch.finish("FX_NEW_WINDOW_MS", telemetryObj);
     }
   }
 
@@ -4874,18 +4874,18 @@ var TabsProgressListener = {
       if (aStateFlags & Ci.nsIWebProgressListener.STATE_IS_WINDOW) {
         if (aStateFlags & Ci.nsIWebProgressListener.STATE_START) {
           this._startedLoadTimer.add(aBrowser);
-          TelemetryStopwatch.start("FX_PAGE_LOAD_MS", aBrowser);
+          //TelemetryStopwatch.start("FX_PAGE_LOAD_MS", aBrowser);
           Services.telemetry.getHistogramById("FX_TOTAL_TOP_VISITS").add(true);
         } else if (aStateFlags & Ci.nsIWebProgressListener.STATE_STOP &&
                    this._startedLoadTimer.has(aBrowser)) {
           this._startedLoadTimer.delete(aBrowser);
-          TelemetryStopwatch.finish("FX_PAGE_LOAD_MS", aBrowser);
+          //TelemetryStopwatch.finish("FX_PAGE_LOAD_MS", aBrowser);
         }
       } else if (aStateFlags & Ci.nsIWebProgressListener.STATE_STOP &&
                  aStatus == Cr.NS_BINDING_ABORTED &&
                  this._startedLoadTimer.has(aBrowser)) {
         this._startedLoadTimer.delete(aBrowser);
-        TelemetryStopwatch.cancel("FX_PAGE_LOAD_MS", aBrowser);
+        //TelemetryStopwatch.cancel("FX_PAGE_LOAD_MS", aBrowser);
       }
     }
 
@@ -7374,7 +7374,7 @@ var gIdentityHandler = {
 
     // Don't allow left click, space or enter if the location has been modified.
     if (gURLBar.getAttribute("pageproxystate") != "valid") {
-      TelemetryStopwatch.cancel("FX_IDENTITY_POPUP_OPEN_MS");
+      //TelemetryStopwatch.cancel("FX_IDENTITY_POPUP_OPEN_MS");
       return;
     }
 

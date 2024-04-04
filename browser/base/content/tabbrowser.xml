@@ -1062,7 +1062,7 @@
               return;
 
             if (!aForceUpdate) {
-              TelemetryStopwatch.start("FX_TAB_SWITCH_UPDATE_MS");
+              //TelemetryStopwatch.start("FX_TAB_SWITCH_UPDATE_MS");
               if (!Services.appinfo.browserTabsRemoteAutostart) {
                 // old way of measuring tab paint which is not
                 // valid with e10s.
@@ -3701,8 +3701,8 @@
              */
 
             startTabSwitch: function () {
-              TelemetryStopwatch.cancel("FX_TAB_SWITCH_TOTAL_E10S_MS", window);
-              TelemetryStopwatch.start("FX_TAB_SWITCH_TOTAL_E10S_MS", window);
+              //TelemetryStopwatch.cancel("FX_TAB_SWITCH_TOTAL_E10S_MS", window);
+              //TelemetryStopwatch.start("FX_TAB_SWITCH_TOTAL_E10S_MS", window);
               this.addMarker("AsyncTabSwitch:Start");
               this.switchInProgress = true;
             },
@@ -3723,9 +3723,9 @@
                   cancelable: true
                 });
                 this.tabbrowser.dispatchEvent(event);
-                let time = TelemetryStopwatch.timeElapsed("FX_TAB_SWITCH_TOTAL_E10S_MS", window);
+                let time = -1;//TelemetryStopwatch.timeElapsed("FX_TAB_SWITCH_TOTAL_E10S_MS", window);
                 if (time != -1) {
-                  TelemetryStopwatch.finish("FX_TAB_SWITCH_TOTAL_E10S_MS", window);
+                  //TelemetryStopwatch.finish("FX_TAB_SWITCH_TOTAL_E10S_MS", window);
                   this.log("DEBUG: tab switch time = " + time);
                   this.addMarker("AsyncTabSwitch:Finish");
                 }
@@ -3735,15 +3735,15 @@
 
             spinnerDisplayed: function () {
               this.assert(!this.spinnerTab);
-              TelemetryStopwatch.start("FX_TAB_SWITCH_SPINNER_VISIBLE_MS", window);
+              //TelemetryStopwatch.start("FX_TAB_SWITCH_SPINNER_VISIBLE_MS", window);
               this.addMarker("AsyncTabSwitch:SpinnerShown");
             },
 
             spinnerHidden: function () {
               this.assert(this.spinnerTab);
               this.log("DEBUG: spinner time = " +
-                       TelemetryStopwatch.timeElapsed("FX_TAB_SWITCH_SPINNER_VISIBLE_MS", window));
-              TelemetryStopwatch.finish("FX_TAB_SWITCH_SPINNER_VISIBLE_MS", window);
+                       0/*TelemetryStopwatch.timeElapsed("FX_TAB_SWITCH_SPINNER_VISIBLE_MS", window)*/);
+              //TelemetryStopwatch.finish("FX_TAB_SWITCH_SPINNER_VISIBLE_MS", window);
               this.addMarker("AsyncTabSwitch:SpinnerHidden");
               // we do not get a onPaint after displaying the spinner
               this.maybeFinishTabSwitch();

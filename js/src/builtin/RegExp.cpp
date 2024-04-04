@@ -152,57 +152,88 @@ js::ExecuteRegExpLegacy(JSContext* cx, RegExpStatics* res, RegExpObject& reobj,
     return CreateRegExpMatchResult(cx, input, matches, rval);
 }
 
+enum RegExpSharedUse {
+    UseRegExpShared,
+    DontUseRegExpShared
+};
+
 /*
- * ES6 21.2.3.2.2.  Because this function only ever returns |obj| in the spec,
- * provided by the user, we omit it and just return the usual success/failure.
+ * ES 2016 draft Mar 25, 2016 21.2.3.2.2.
+ * Because this function only ever returns |obj| in the spec, provided by the
+ * user, we omit it and just return the usual success/failure.
  */
 static bool
 RegExpInitializeIgnoringLastIndex(JSContext* cx, Handle<RegExpObject*> obj,
                                   HandleValue patternValue, HandleValue flagsValue,
-                                  RegExpStaticsUse staticsUse)
+                                  RegExpSharedUse sharedUse = DontUseRegExpShared)
 {
     RootedAtom pattern(cx);
     if (patternValue.isUndefined()) {
         /* Step 1. */
         pattern = cx->names().empty;
     } else {
-        /* Steps 2-3. */
+        /* Step 2. */
         pattern = ToAtom<CanGC>(cx, patternValue);
         if (!pattern)
             return false;
     }
 
-    /* Step 4. */
+    /* Step 3. */
     RegExpFlag flags = RegExpFlag(0);
     if (!flagsValue.isUndefined()) {
-        /* Steps 5-6. */
+        /* Step 4. */
         RootedString flagStr(cx, ToString<CanGC>(cx, flagsValue));
         if (!flagStr)
             return false;
 
-        /* Step 7. */
+        /* Step 5. */
         if (!ParseRegExpFlags(cx, flagStr, &flags))
             return false;
     }
 
-    /* Steps 8-10. */
-    CompileOptions options(cx);
-    frontend::TokenStream dummyTokenStream(cx, options, nullptr, 0, nullptr);
-    if (!irregexp::ParsePatternSyntax(dummyTokenStream, cx->tempLifoAlloc(), pattern,
-                                      flags & UnicodeFlag))
-    {
-        return false;
-    }
-
-    if (staticsUse == UseRegExpStatics) {
-        RegExpStatics* res = cx->global()->getRegExpStatics(cx);
-        if (!res)
+    if (sharedUse == UseRegExpShared) {
+        /* Steps 7-8. */
+        RegExpGuard re(cx);
+        if (!cx->compartment()->regExps.get(cx, pattern, flags, &re))
             return false;
-        flags = RegExpFlag(flags | res->getFlags());
+
+        /* Steps 9-12. */
+        obj->initIgnoringLastIndex(pattern, flags);
+
+        obj->setShared(*re);
+    } else {
+        /* Steps 7-8. */
+        CompileOptions options(cx);
+        frontend::TokenStream dummyTokenStream(cx, options, nullptr, 0, nullptr);
+        if (!irregexp::ParsePatternSyntax(dummyTokenStream, cx->tempLifoAlloc(), pattern,
+                                          flags & UnicodeFlag))
+        {
+            return false;
+        }
+
+        /* Steps 9-12. */
+        obj->initIgnoringLastIndex(pattern, flags);
     }
 
-    /* Steps 11-13. */
-    obj->initIgnoringLastIndex(pattern, flags);
+    return true;
+}
+
+/* ES 2016 draft Mar 25, 2016 21.2.3.2.3. */
+bool
+js::RegExpCreate(JSContext* cx, HandleValue patternValue, HandleValue flagsValue,
+                 MutableHandleValue rval)
+{
+    /* Step 1. */
+    Rooted<RegExpObject*> regexp(cx, RegExpAlloc(cx, nullptr));
+    if (!regexp)
+         return false;
+
+    /* Step 2. */
+    if (!RegExpInitializeIgnoringLastIndex(cx, regexp, patternValue, flagsValue, UseRegExpShared))
+        return false;
+    regexp->zeroLastIndex(cx);
+
+    rval.setObject(*regexp);
     return true;
 }
 
@@ -289,7 +320,7 @@ regexp_compile_impl(JSContext* cx, const CallArgs& args)
         RootedValue F(cx, args.get(1));
 
         // Step 5, minus lastIndex zeroing.
-        if (!RegExpInitializeIgnoringLastIndex(cx, regexp, P, F, UseRegExpStatics))
+        if (!RegExpInitializeIgnoringLastIndex(cx, regexp, P, F))
             return false;
     }
 
@@ -434,7 +465,7 @@ js::regexp_construct(JSContext* cx, unsigned argc, Value* vp)
         return false;
 
     // Step 10.
-    if (!RegExpInitializeIgnoringLastIndex(cx, regexp, P, F, UseRegExpStatics))
+    if (!RegExpInitializeIgnoringLastIndex(cx, regexp, P, F))
         return false;
     regexp->zeroLastIndex(cx);
 
@@ -443,7 +474,7 @@ js::regexp_construct(JSContext* cx, unsigned argc, Value* vp)
 }
 
 bool
-js::regexp_construct_no_statics(JSContext* cx, unsigned argc, Value* vp)
+js::regexp_construct_self_hosting(JSContext* cx, unsigned argc, Value* vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
 
@@ -459,7 +490,7 @@ js::regexp_construct_no_statics(JSContext* cx, unsigned argc, Value* vp)
     if (!regexp)
         return false;
 
-    if (!RegExpInitializeIgnoringLastIndex(cx, regexp, args[0], args.get(1), DontUseRegExpStatics))
+    if (!RegExpInitializeIgnoringLastIndex(cx, regexp, args[0], args.get(1)))
         return false;
     regexp->zeroLastIndex(cx);
 
@@ -629,7 +660,6 @@ const JSFunctionSpec js::regexp_methods[] = {
  * RegExp class static properties and their Perl counterparts:
  *
  *  RegExp.input                $_
- *  RegExp.multiline            $*
  *  RegExp.lastMatch            $&
  *  RegExp.lastParen            $+
  *  RegExp.leftContext          $`
@@ -691,57 +721,8 @@ static_input_setter(JSContext* cx, unsigned argc, Value* vp)
     return true;
 }
 
-static bool
-WarnOnceAboutRegExpMultiline(JSContext* cx)
-{
-    if (!cx->compartment()->warnedAboutRegExpMultiline) {
-        if (!JS_ReportErrorFlagsAndNumber(cx, JSREPORT_WARNING, GetErrorMessage, nullptr,
-                                          JSMSG_DEPRECATED_REGEXP_MULTILINE))
-        {
-            return false;
-        }
-        cx->compartment()->warnedAboutRegExpMultiline = true;
-    }
-
-    return true;
-}
-
-static bool
-static_multiline_getter(JSContext* cx, unsigned argc, Value* vp)
-{
-    CallArgs args = CallArgsFromVp(argc, vp);
-    RegExpStatics* res = cx->global()->getRegExpStatics(cx);
-    if (!res)
-        return false;
-
-    if (!WarnOnceAboutRegExpMultiline(cx))
-        return false;
-
-    args.rval().setBoolean(res->multiline());
-    return true;
-}
-
-static bool
-static_multiline_setter(JSContext* cx, unsigned argc, Value* vp)
-{
-    CallArgs args = CallArgsFromVp(argc, vp);
-    RegExpStatics* res = cx->global()->getRegExpStatics(cx);
-    if (!res)
-        return false;
-
-    if (!WarnOnceAboutRegExpMultiline(cx))
-        return false;
-
-    bool b = ToBoolean(args.get(0));
-    res->setMultiline(cx, b);
-    args.rval().setBoolean(b);
-    return true;
-}
-
 const JSPropertySpec js::regexp_static_props[] = {
     JS_PSGS("input", static_input_getter, static_input_setter,
-            JSPROP_PERMANENT | JSPROP_ENUMERATE),
-    JS_PSGS("multiline", static_multiline_getter, static_multiline_setter,
             JSPROP_PERMANENT | JSPROP_ENUMERATE),
     JS_PSG("lastMatch", static_lastMatch_getter, JSPROP_PERMANENT | JSPROP_ENUMERATE),
     JS_PSG("lastParen", static_lastParen_getter, JSPROP_PERMANENT | JSPROP_ENUMERATE),
@@ -757,7 +738,6 @@ const JSPropertySpec js::regexp_static_props[] = {
     JS_PSG("$8", static_paren8_getter, JSPROP_PERMANENT | JSPROP_ENUMERATE),
     JS_PSG("$9", static_paren9_getter, JSPROP_PERMANENT | JSPROP_ENUMERATE),
     JS_PSGS("$_", static_input_getter, static_input_setter, JSPROP_PERMANENT),
-    JS_PSGS("$*", static_multiline_getter, static_multiline_setter, JSPROP_PERMANENT),
     JS_PSG("$&", static_lastMatch_getter, JSPROP_PERMANENT),
     JS_PSG("$+", static_lastParen_getter, JSPROP_PERMANENT),
     JS_PSG("$`", static_leftContext_getter, JSPROP_PERMANENT),
@@ -935,7 +915,7 @@ js::RegExpMatcher(JSContext* cx, unsigned argc, Value* vp)
  * This code cannot re-enter Ion code. */
 bool
 js::RegExpMatcherRaw(JSContext* cx, HandleObject regexp, HandleString input,
-                     int32_t lastIndex, bool sticky,
+                     uint32_t lastIndex, bool sticky,
                      MatchPairs* maybeMatches, MutableHandleValue output)
 {
     MOZ_ASSERT(lastIndex <= INT32_MAX);
@@ -1005,7 +985,7 @@ js::RegExpTester(JSContext* cx, unsigned argc, Value* vp)
  * This code cannot re-enter Ion code. */
 bool
 js::RegExpTesterRaw(JSContext* cx, HandleObject regexp, HandleString input,
-                    int32_t lastIndex, bool sticky, int32_t* endIndex)
+                    uint32_t lastIndex, bool sticky, int32_t* endIndex)
 {
     MOZ_ASSERT(lastIndex <= INT32_MAX);
 

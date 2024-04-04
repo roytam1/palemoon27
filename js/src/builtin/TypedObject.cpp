@@ -2246,6 +2246,20 @@ OutlineTransparentTypedObject::getOrCreateBuffer(JSContext* cx)
  * Typed object classes
  */
 
+const ObjectOps TypedObject::objectOps_ = {
+    TypedObject::obj_lookupProperty,
+    TypedObject::obj_defineProperty,
+    TypedObject::obj_hasProperty,
+    TypedObject::obj_getProperty,
+    TypedObject::obj_setProperty,
+    TypedObject::obj_getOwnPropertyDescriptor,
+    TypedObject::obj_deleteProperty,
+    nullptr, nullptr, /* watch/unwatch */
+    nullptr,   /* getElements */
+    TypedObject::obj_enumerate,
+    nullptr, /* thisValue */
+};
+
 #define DEFINE_TYPEDOBJ_CLASS(Name, Trace, flag)         \
     const Class Name::class_ = {                         \
         # Name,                                          \
@@ -2264,19 +2278,7 @@ OutlineTransparentTypedObject::getOrCreateBuffer(JSContext* cx)
         Trace,                                           \
         JS_NULL_CLASS_SPEC,                              \
         JS_NULL_CLASS_EXT,                               \
-        {                                                \
-            TypedObject::obj_lookupProperty,             \
-            TypedObject::obj_defineProperty,             \
-            TypedObject::obj_hasProperty,                \
-            TypedObject::obj_getProperty,                \
-            TypedObject::obj_setProperty,                \
-            TypedObject::obj_getOwnPropertyDescriptor,   \
-            TypedObject::obj_deleteProperty,             \
-            nullptr, nullptr, /* watch/unwatch */        \
-            nullptr,   /* getElements */                 \
-            TypedObject::obj_enumerate,                  \
-            nullptr, /* thisValue */                     \
-        }                                                \
+        &TypedObject::objectOps_                         \
     }
 
 DEFINE_TYPEDOBJ_CLASS(OutlineTransparentTypedObject, OutlineTypedObject::obj_trace, 0);
@@ -2943,16 +2945,14 @@ MemoryTracingVisitor::visitReference(ReferenceTypeDescr& descr, uint8_t* mem)
       case ReferenceTypeDescr::TYPE_OBJECT:
       {
         HeapPtrObject* objectPtr = reinterpret_cast<js::HeapPtrObject*>(mem);
-        if (*objectPtr)
-            TraceEdge(trace_, objectPtr, "reference-obj");
+        TraceNullableEdge(trace_, objectPtr, "reference-obj");
         return;
       }
 
       case ReferenceTypeDescr::TYPE_STRING:
       {
         HeapPtrString* stringPtr = reinterpret_cast<js::HeapPtrString*>(mem);
-        if (*stringPtr)
-            TraceEdge(trace_, stringPtr, "reference-str");
+        TraceNullableEdge(trace_, stringPtr, "reference-str");
         return;
       }
     }

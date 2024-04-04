@@ -931,8 +931,7 @@ private:
 // These are the various JSClasses and callbacks whose use that required
 // visibility from more than one .cpp file.
 
-struct XPCWrappedNativeJSClass;
-extern const XPCWrappedNativeJSClass XPC_WN_NoHelper_JSClass;
+extern const js::Class XPC_WN_NoHelper_JSClass;
 extern const js::Class XPC_WN_NoMods_WithCall_Proto_JSClass;
 extern const js::Class XPC_WN_NoMods_NoCall_Proto_JSClass;
 extern const js::Class XPC_WN_ModsAllowed_WithCall_Proto_JSClass;
@@ -949,33 +948,8 @@ extern bool
 XPC_WN_GetterSetter(JSContext* cx, unsigned argc, JS::Value* vp);
 
 // Macros to initialize Object or Function like XPC_WN classes
-#define XPC_WN_WithCall_ObjectOps                                             \
-    {                                                                         \
-        nullptr, /* lookupProperty */                                         \
-        nullptr, /* defineProperty */                                         \
-        nullptr, /* hasProperty */                                            \
-        nullptr, /* getProperty    */                                         \
-        nullptr, /* setProperty    */                                         \
-        nullptr, /* getOwnPropertyDescriptor */                               \
-        nullptr, /* deleteProperty */                                         \
-        nullptr, nullptr, /* watch/unwatch */                                 \
-        nullptr, /* getElements */                                            \
-        nullptr, /* enumerate */                                              \
-    }
-
-#define XPC_WN_NoCall_ObjectOps                                               \
-    {                                                                         \
-        nullptr, /* lookupProperty */                                         \
-        nullptr, /* defineProperty */                                         \
-        nullptr, /* hasProperty */                                            \
-        nullptr, /* getProperty    */                                         \
-        nullptr, /* setProperty    */                                         \
-        nullptr, /* getOwnPropertyDescriptor */                               \
-        nullptr, /* deleteProperty */                                         \
-        nullptr, nullptr, /* watch/unwatch */                                 \
-        nullptr, /* getElements */                                            \
-        nullptr, /* enumerate */                                              \
-    }
+#define XPC_WN_WithCall_ObjectOps JS_NULL_OBJECT_OPS
+#define XPC_WN_NoCall_ObjectOps   JS_NULL_OBJECT_OPS
 
 // Maybe this macro should check for class->enumerate ==
 // XPC_WN_Shared_Proto_Enumerate or something rather than checking for
@@ -1673,46 +1647,34 @@ public:
 // was a big problem when wrappers are reparented to different scopes (and
 // thus different protos (the DOM does this).
 
-// We maintain the invariant that every JSClass for which ext.isWrappedNative
-// is true is a contained in an instance of this struct, and can thus be cast
-// to it.
-//
-// XXXbz Do we still need this struct at all?
-struct XPCWrappedNativeJSClass
-{
-    js::Class base;
-};
-
 class XPCNativeScriptableShared
 {
 public:
-    const XPCNativeScriptableFlags& GetFlags() const {return mFlags;}
-    const JSClass*                  GetJSClass()
-        {return Jsvalify(&mJSClass.base);}
+    const XPCNativeScriptableFlags& GetFlags() const { return mFlags; }
 
-    XPCNativeScriptableShared(uint32_t aFlags, char* aName)
-        : mFlags(aFlags)
-        {memset(&mJSClass, 0, sizeof(mJSClass));
-         mJSClass.base.name = aName;  // take ownership
-         MOZ_COUNT_CTOR(XPCNativeScriptableShared);}
+    const JSClass* GetJSClass() { return Jsvalify(&mJSClass); }
 
-    ~XPCNativeScriptableShared()
-        {if (mJSClass.base.name)free((void*)mJSClass.base.name);
-         MOZ_COUNT_DTOR(XPCNativeScriptableShared);}
+    XPCNativeScriptableShared(uint32_t aFlags, char* aName, bool aPopulate);
 
-    char* TransferNameOwnership()
-        {char* name=(char*)mJSClass.base.name; mJSClass.base.name = nullptr;
-        return name;}
+    ~XPCNativeScriptableShared() {
+        if (mJSClass.name)
+            free((void*)mJSClass.name);
+        MOZ_COUNT_DTOR(XPCNativeScriptableShared);
+    }
 
-    void PopulateJSClass();
+    char* TransferNameOwnership() {
+        char* name = (char*)mJSClass.name;
+        mJSClass.name = nullptr;
+        return name;
+    }
 
-    void Mark()       {mFlags.Mark();}
-    void Unmark()     {mFlags.Unmark();}
-    bool IsMarked() const {return mFlags.IsMarked();}
+    void Mark()   { mFlags.Mark(); }
+    void Unmark() { mFlags.Unmark(); }
+    bool IsMarked() const { return mFlags.IsMarked(); }
 
 private:
     XPCNativeScriptableFlags mFlags;
-    XPCWrappedNativeJSClass  mJSClass;
+    js::Class mJSClass;
 };
 
 /***************************************************************************/

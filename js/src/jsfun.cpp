@@ -786,8 +786,7 @@ JSFunction::trace(JSTracer* trc)
                    (HeapValue*)toExtended()->extendedSlots, "nativeReserved");
     }
 
-    if (atom_)
-        TraceEdge(trc, &atom_, "atom");
+    TraceNullableEdge(trc, &atom_, "atom");
 
     if (isInterpreted()) {
         // Functions can be be marked as interpreted despite having no script
@@ -921,6 +920,15 @@ CreateFunctionPrototype(JSContext* cx, JSProtoKey key)
     return functionProto;
 }
 
+static const ClassSpec JSFunctionClassSpec = {
+    CreateFunctionConstructor,
+    CreateFunctionPrototype,
+    nullptr,
+    nullptr,
+    function_methods,
+    function_properties
+};
+
 const Class JSFunction::class_ = {
     js_Function_str,
     JSCLASS_HAS_CACHED_PROTO(JSProto_Function),
@@ -936,14 +944,7 @@ const Class JSFunction::class_ = {
     fun_hasInstance,
     nullptr,                 /* construct   */
     fun_trace,
-    {
-        CreateFunctionConstructor,
-        CreateFunctionPrototype,
-        nullptr,
-        nullptr,
-        function_methods,
-        function_properties
-    }
+    &JSFunctionClassSpec
 };
 
 const Class* const js::FunctionClassPtr = &JSFunction::class_;
@@ -1179,7 +1180,7 @@ JSString*
 fun_toStringHelper(JSContext* cx, HandleObject obj, unsigned indent)
 {
     if (!obj->is<JSFunction>()) {
-        if (JSFunToStringOp op = obj->getOps()->funToString)
+        if (JSFunToStringOp op = obj->getOpsFunToString())
             return op(cx, obj, indent);
 
         JS_ReportErrorNumber(cx, GetErrorMessage, nullptr,

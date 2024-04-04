@@ -719,7 +719,7 @@ pref("gfx.font_rendering.graphite.enabled", true);
 
 #ifdef XP_WIN
 pref("gfx.font_rendering.directwrite.force-enabled", false);
-pref("gfx.font_rendering.directwrite.use_gdi_table_loading", true);
+pref("gfx.font_rendering.directwrite.use_gdi_table_loading", false);
 #endif
 
 pref("gfx.font_rendering.opentype_svg.enabled", true);

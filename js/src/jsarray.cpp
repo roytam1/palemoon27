@@ -32,9 +32,11 @@
 #include "js/Conversions.h"
 #include "vm/ArgumentsObject.h"
 #include "vm/Interpreter.h"
+#include "vm/SelfHosting.h"
 #include "vm/Shape.h"
 #include "vm/StringBuffer.h"
 #include "vm/TypedArrayCommon.h"
+#include "vm/WrapperObject.h"
 
 #include "jsatominlines.h"
 
@@ -375,7 +377,7 @@ js::GetElements(JSContext* cx, HandleObject aobj, uint32_t length, Value* vp)
         }
     }
 
-    if (js::GetElementsOp op = aobj->getOps()->getElements) {
+    if (js::GetElementsOp op = aobj->getOpsGetElements()) {
         ElementAdder adder(cx, vp, length, ElementAdder::GetElement);
         return op(cx, aobj, 0, length, &adder);
     }
@@ -864,6 +866,63 @@ AddLengthProperty(ExclusiveContext* cx, HandleArrayObject obj)
                                      SHAPE_INVALID_SLOT,
                                      JSPROP_PERMANENT | JSPROP_SHARED | JSPROP_SHADOWABLE,
                                      0, /* allowDictionary = */ false);
+}
+
+static bool
+IsArrayConstructor(const JSObject* obj)
+{
+    // This must only return true if v is *the* Array constructor for the
+    // current compartment; we rely on the fact that any other Array
+    // constructor would be represented as a wrapper.
+    return obj->is<JSFunction>() &&
+           obj->as<JSFunction>().isNative() &&
+           obj->as<JSFunction>().native() == ArrayConstructor;
+}
+
+static bool
+IsArrayConstructor(const Value& v)
+{
+    return v.isObject() && IsArrayConstructor(&v.toObject());
+}
+
+bool
+js::IsWrappedArrayConstructor(JSContext* cx, const Value& v, bool* result)
+{
+    if (!v.isObject()) {
+        *result = false;
+        return true;
+    }
+    if (v.toObject().is<WrapperObject>()) {
+        JSObject* obj = CheckedUnwrap(&v.toObject());
+        if (!obj) {
+            JS_ReportError(cx, "Permission denied to access object");
+            return false;
+        }
+
+        *result = IsArrayConstructor(obj);
+    } else {
+        *result = false;
+    }
+    return true;
+}
+
+/* static */ bool
+IsArraySpecies(JSContext* cx, HandleObject origArray)
+{
+    RootedValue ctor(cx);
+    if (!GetPropertyPure(cx, origArray, NameToId(cx->names().constructor), ctor.address()))
+        return false;
+
+    if (!IsArrayConstructor(ctor))
+        return false;
+
+    RootedObject ctorObj(cx, &ctor.toObject());
+    RootedId speciesId(cx, SYMBOL_TO_JSID(cx->wellKnownSymbols().species));
+    JSFunction* getter;
+    if (!GetGetterPure(cx, ctorObj, speciesId, &getter))
+        return false;
+
+    return IsSelfHostedFunctionWithName(getter, cx->names().ArraySpecies);
 }
 
 #if JS_HAS_TOSOURCE
@@ -2592,184 +2651,6 @@ js::array_splice_impl(JSContext* cx, unsigned argc, Value* vp, bool returnValueI
     return true;
 }
 
-template <JSValueType TypeOne, JSValueType TypeTwo>
-DenseElementResult
-ArrayConcatDenseKernel(JSContext* cx, JSObject* obj1, JSObject* obj2, JSObject* result)
-{
-    uint32_t initlen1 = GetBoxedOrUnboxedInitializedLength<TypeOne>(obj1);
-    MOZ_ASSERT(initlen1 == GetAnyBoxedOrUnboxedArrayLength(obj1));
-
-    uint32_t initlen2 = GetBoxedOrUnboxedInitializedLength<TypeTwo>(obj2);
-    MOZ_ASSERT(initlen2 == GetAnyBoxedOrUnboxedArrayLength(obj2));
-
-    /* No overflow here due to nelements limit. */
-    uint32_t len = initlen1 + initlen2;
-
-    MOZ_ASSERT(GetBoxedOrUnboxedInitializedLength<TypeOne>(result) == 0);
-
-    DenseElementResult rv = EnsureBoxedOrUnboxedDenseElements<TypeOne>(cx, result, len);
-    if (rv != DenseElementResult::Success)
-        return rv;
-
-    CopyBoxedOrUnboxedDenseElements<TypeOne, TypeOne>(cx, result, obj1, 0, 0, initlen1);
-    CopyBoxedOrUnboxedDenseElements<TypeOne, TypeTwo>(cx, result, obj2, initlen1, 0, initlen2);
-
-    SetAnyBoxedOrUnboxedArrayLength(cx, result, len);
-    return DenseElementResult::Success;
-}
-
-DefineBoxedOrUnboxedFunctorPair4(ArrayConcatDenseKernel,
-                                 JSContext*, JSObject*, JSObject*, JSObject*);
-
-bool
-js::array_concat_dense(JSContext* cx, HandleObject obj1, HandleObject obj2,
-                       HandleObject result)
-{
-    ArrayConcatDenseKernelFunctor functor(cx, obj1, obj2, result);
-    DenseElementResult rv = CallBoxedOrUnboxedSpecialization(functor, obj1, obj2);
-    MOZ_ASSERT(rv != DenseElementResult::Incomplete);
-    return rv == DenseElementResult::Success;
-}
-
-/*
- * Python-esque sequence operations.
- */
-bool
-js::array_concat(JSContext* cx, unsigned argc, Value* vp)
-{
-    AutoSPSEntry pseudoFrame(cx->runtime(), "Array.prototype.concat");
-    CallArgs args = CallArgsFromVp(argc, vp);
-
-    /* Treat our |this| object as the first argument; see ECMA 15.4.4.4. */
-    Value* p = args.array() - 1;
-
-    /* Create a new Array object and root it using *vp. */
-    RootedObject aobj(cx, ToObject(cx, args.thisv()));
-    if (!aobj)
-        return false;
-
-    RootedObject narr(cx);
-    uint32_t length;
-    bool isArray;
-    if (!IsArray(cx, aobj, &isArray))
-        return false;
-    if (isArray && !ObjectMayHaveExtraIndexedProperties(aobj)) {
-        if (!GetLengthProperty(cx, aobj, &length))
-            return false;
-
-        size_t initlen = GetAnyBoxedOrUnboxedInitializedLength(aobj);
-        narr = NewFullyAllocatedArrayTryReuseGroup(cx, aobj, initlen);
-        if (!narr)
-            return false;
-        CopyAnyBoxedOrUnboxedDenseElements(cx, narr, aobj, 0, 0, initlen);
-        SetAnyBoxedOrUnboxedArrayLength(cx, narr, length);
-
-        args.rval().setObject(*narr);
-        if (argc == 0)
-            return true;
-        argc--;
-        p++;
-
-        if (length == initlen) {
-            while (argc) {
-                HandleValue v = HandleValue::fromMarkedLocation(p);
-                if (!v.isObject())
-                    break;
-                RootedObject obj(cx, &v.toObject());
-
-                // This should be IsConcatSpreadable
-                bool isArray;
-                if (!IsArray(cx, obj, &isArray))
-                    return false;
-                if (!isArray || ObjectMayHaveExtraIndexedProperties(obj))
-                    break;
-
-                uint32_t argLength;
-                if (!GetLengthProperty(cx, obj, &argLength))
-                    return false;
-
-                initlen = GetAnyBoxedOrUnboxedInitializedLength(obj);
-                if (argLength != initlen)
-                    break;
-
-                DenseElementResult result =
-                    EnsureAnyBoxedOrUnboxedDenseElements(cx, narr, length + argLength);
-                if (result == DenseElementResult::Failure)
-                    return false;
-                if (result == DenseElementResult::Incomplete)
-                    break;
-
-                SetAnyBoxedOrUnboxedInitializedLength(cx, narr, length + argLength);
-
-                bool success = true;
-                for (size_t i = 0; i < initlen; i++) {
-                    Value v = GetAnyBoxedOrUnboxedDenseElement(obj, i);
-                    if (!InitAnyBoxedOrUnboxedDenseElement(cx, narr, length + i, v)) {
-                        success = false;
-                        break;
-                    }
-                }
-                if (!success) {
-                    SetAnyBoxedOrUnboxedInitializedLength(cx, narr, length);
-                    break;
-                }
-
-                length += argLength;
-                SetAnyBoxedOrUnboxedArrayLength(cx, narr, length);
-
-                argc--;
-                p++;
-            }
-        }
-    } else {
-        narr = NewFullyAllocatedArrayTryReuseGroup(cx, aobj, 0);
-        if (!narr)
-            return false;
-        args.rval().setObject(*narr);
-        length = 0;
-    }
-
-    /* Loop over [0, argc] to concat args into narr, expanding all Arrays. */
-    for (unsigned i = 0; i <= argc; i++) {
-        if (!CheckForInterrupt(cx))
-            return false;
-        HandleValue v = HandleValue::fromMarkedLocation(&p[i]);
-        if (v.isObject()) {
-            RootedObject obj(cx, &v.toObject());
-            // This should be IsConcatSpreadable
-            bool isArray;
-            if (!IsArray(cx, obj, &isArray))
-                return false;
-            if (isArray) {
-                uint32_t alength;
-                if (!GetLengthProperty(cx, obj, &alength))
-                    return false;
-                RootedValue tmp(cx);
-                for (uint32_t slot = 0; slot < alength; slot++) {
-                    bool hole;
-                    if (!CheckForInterrupt(cx) || !GetElement(cx, obj, slot, &hole, &tmp))
-                        return false;
-
-                    /*
-                     * Per ECMA 262, 15.4.4.4, step 9, ignore nonexistent
-                     * properties.
-                     */
-                    if (!hole && !SetArrayElement(cx, narr, length + slot, tmp))
-                        return false;
-                }
-                length += alength;
-                continue;
-            }
-        }
-
-        if (!SetArrayElement(cx, narr, length, v))
-            return false;
-        length++;
-    }
-
-    return SetLengthProperty(cx, narr, length);
-}
-
 struct SortComparatorIndexes
 {
     bool operator()(uint32_t a, uint32_t b, bool* lessOrEqualp) {
@@ -2792,7 +2673,7 @@ GetIndexedPropertiesInRange(JSContext* cx, HandleObject obj, uint32_t begin, uin
     // properties.
     JSObject* pobj = obj;
     do {
-        if (!pobj->isNative() || pobj->getClass()->resolve || pobj->getOps()->lookupProperty)
+        if (!pobj->isNative() || pobj->getClass()->resolve || pobj->getOpsLookupProperty())
             return true;
     } while ((pobj = pobj->getProto()));
 
@@ -2984,7 +2865,7 @@ js::array_slice(JSContext* cx, unsigned argc, Value* vp)
     if (!narr)
         return false;
 
-    if (js::GetElementsOp op = obj->getOps()->getElements) {
+    if (js::GetElementsOp op = obj->getOpsGetElements()) {
         ElementAdder adder(cx, narr, end - begin, ElementAdder::CheckHasElemPreserveHoles);
         if (!op(cx, obj, begin, end, &adder))
             return false;
@@ -3072,18 +2953,6 @@ array_isArray(JSContext* cx, unsigned argc, Value* vp)
 }
 
 static bool
-IsArrayConstructor(const Value& v)
-{
-    // This must only return true if v is *the* Array constructor for the
-    // current compartment; we rely on the fact that any other Array
-    // constructor would be represented as a wrapper.
-    return v.isObject() &&
-           v.toObject().is<JSFunction>() &&
-           v.toObject().as<JSFunction>().isNative() &&
-           v.toObject().as<JSFunction>().native() == ArrayConstructor;
-}
-
-static bool
 ArrayFromCallArgs(JSContext* cx, CallArgs& args, HandleObject proto = nullptr)
 {
     JSObject* obj = NewCopiedArrayForCallingAllocationSite(cx, args.array(), args.length(), proto);
@@ -3108,9 +2977,8 @@ array_of(JSContext* cx, unsigned argc, Value* vp)
     // Step 4.
     RootedObject obj(cx);
     {
-        ConstructArgs cargs(cx);
-        if (!cargs.init(1))
-            return false;
+        FixedConstructArgs<1> cargs(cx);
+
         cargs[0].setNumber(args.length());
 
         if (!Construct(cx, args.thisv(), cargs, args.thisv(), &obj))
@@ -3152,7 +3020,7 @@ static const JSFunctionSpec array_methods[] = {
     JS_INLINABLE_FN("splice",   array_splice,       2,JSFUN_GENERIC_NATIVE, ArraySplice),
 
     /* Pythonic sequence methods. */
-    JS_INLINABLE_FN("concat",   array_concat,       1,JSFUN_GENERIC_NATIVE, ArrayConcat),
+    JS_SELF_HOSTED_FN("concat",      "ArrayConcat",      1,0),
     JS_INLINABLE_FN("slice",    array_slice,        2,JSFUN_GENERIC_NATIVE, ArraySlice),
 
     JS_SELF_HOSTED_FN("lastIndexOf", "ArrayLastIndexOf", 1,0),
@@ -3183,6 +3051,7 @@ static const JSFunctionSpec array_methods[] = {
 
 static const JSFunctionSpec array_static_methods[] = {
     JS_INLINABLE_FN("isArray",       array_isArray,        1,0, ArrayIsArray),
+    JS_SELF_HOSTED_FN("concat",      "ArrayStaticConcat", 2,0),
     JS_SELF_HOSTED_FN("lastIndexOf", "ArrayStaticLastIndexOf", 2,0),
     JS_SELF_HOSTED_FN("indexOf",     "ArrayStaticIndexOf", 2,0),
     JS_SELF_HOSTED_FN("forEach",     "ArrayStaticForEach", 2,0),
@@ -3196,6 +3065,11 @@ static const JSFunctionSpec array_static_methods[] = {
     JS_FN("of",                 array_of,           0,0),
 
     JS_FS_END
+};
+
+const JSPropertySpec array_static_props[] = {
+    JS_SELF_HOSTED_SYM_GET(species, "ArraySpecies", 0),
+    JS_PS_END
 };
 
 /* ES5 15.4.2 */
@@ -3316,6 +3190,16 @@ array_proto_finish(JSContext* cx, JS::HandleObject ctor, JS::HandleObject proto)
     return DefineProperty(cx, proto, id, value, nullptr, nullptr, JSPROP_READONLY);
 }
 
+static const ClassSpec ArrayObjectClassSpec = {
+    GenericCreateConstructor<ArrayConstructor, 1, AllocKind::FUNCTION, &jit::JitInfo_Array>,
+    CreateArrayPrototype,
+    array_static_methods,
+    array_static_props,
+    array_methods,
+    nullptr,
+    array_proto_finish
+};
+
 const Class ArrayObject::class_ = {
     "Array",
     JSCLASS_HAS_CACHED_PROTO(JSProto_Array) | JSCLASS_DELAY_METADATA_CALLBACK,
@@ -3331,15 +3215,7 @@ const Class ArrayObject::class_ = {
     nullptr, /* hasInstance */
     nullptr, /* construct */
     nullptr, /* trace */
-    {
-        GenericCreateConstructor<ArrayConstructor, 1, AllocKind::FUNCTION, &jit::JitInfo_Array>,
-        CreateArrayPrototype,
-        array_static_methods,
-        nullptr,
-        array_methods,
-        nullptr,
-        array_proto_finish
-    }
+    &ArrayObjectClassSpec
 };
 
 /*

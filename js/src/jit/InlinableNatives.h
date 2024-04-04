@@ -14,7 +14,6 @@
     _(ArrayPop)                     \
     _(ArrayShift)                   \
     _(ArrayPush)                    \
-    _(ArrayConcat)                  \
     _(ArraySlice)                   \
     _(ArraySplice)                  \
                                     \
@@ -96,8 +95,10 @@
     _(IntrinsicUnsafeGetBooleanFromReservedSlot) \
                                     \
     _(IntrinsicIsCallable)          \
+    _(IntrinsicIsConstructor)       \
     _(IntrinsicToObject)            \
     _(IntrinsicIsObject)            \
+    _(IntrinsicIsWrappedArrayConstructor) \
     _(IntrinsicToInteger)           \
     _(IntrinsicToString)            \
     _(IntrinsicIsConstructing)      \
@@ -110,6 +111,9 @@
     _(IntrinsicIsListIterator)      \
                                     \
     _(IntrinsicGetNextMapEntryForIterator) \
+                                    \
+    _(IntrinsicArrayBufferByteLength) \
+    _(IntrinsicPossiblyWrappedArrayBufferByteLength) \
                                     \
     _(IntrinsicIsTypedArray)        \
     _(IntrinsicIsPossiblyWrappedTypedArray) \

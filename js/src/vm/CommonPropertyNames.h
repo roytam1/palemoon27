@@ -19,7 +19,9 @@
     macro(apply, apply, "apply") \
     macro(arguments, arguments, "arguments") \
     macro(as, as, "as") \
+    macro(ArrayBufferSpecies, ArrayBufferSpecies, "ArrayBufferSpecies") \
     macro(ArrayIteratorNext, ArrayIteratorNext, "ArrayIteratorNext") \
+    macro(ArraySpecies, ArraySpecies, "ArraySpecies") \
     macro(ArrayType, ArrayType, "ArrayType") \
     macro(ArrayValues, ArrayValues, "ArrayValues") \
     macro(ArrayValuesAt, ArrayValuesAt, "ArrayValuesAt") \
@@ -58,6 +60,7 @@
     macro(ConvertAndCopyTo, ConvertAndCopyTo, "ConvertAndCopyTo") \
     macro(copyWithin, copyWithin, "copyWithin") \
     macro(count, count, "count") \
+    macro(CreateResolvingFunctions, CreateResolvingFunctions, "CreateResolvingFunctions") \
     macro(currency, currency, "currency") \
     macro(currencyDisplay, currencyDisplay, "currencyDisplay") \
     macro(DateTimeFormat, DateTimeFormat, "DateTimeFormat") \
@@ -207,6 +210,11 @@
     macro(parseInt, parseInt, "parseInt") \
     macro(pattern, pattern, "pattern") \
     macro(preventExtensions, preventExtensions, "preventExtensions") \
+    macro(promise, promise, "promise") \
+    macro(state, state, "state") \
+    macro(pending, pending, "pending") \
+    macro(fulfilled, fulfilled, "fulfilled") \
+    macro(rejected, rejected, "rejected") \
     macro(propertyIsEnumerable, propertyIsEnumerable, "propertyIsEnumerable") \
     macro(proto, proto, "__proto__") \
     macro(prototype, prototype, "prototype") \
@@ -226,6 +234,7 @@
     macro(shape, shape, "shape") \
     macro(size, size, "size") \
     macro(source, source, "source") \
+    macro(SpeciesConstructor, SpeciesConstructor, "SpeciesConstructor") \
     macro(stack, stack, "stack") \
     macro(star, star, "*") \
     macro(starDefaultStar, starDefaultStar, "*default*") \

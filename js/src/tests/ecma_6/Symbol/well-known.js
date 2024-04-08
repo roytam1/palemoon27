@@ -4,7 +4,12 @@
 var names = [
     "iterator",
     "match",
+    "replace",
+    "search",
     "species",
+    "split",
+    "toPrimitive",
+    "unscopables"
 ];
 
 for (var name of names) {

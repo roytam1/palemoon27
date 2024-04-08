@@ -101,7 +101,14 @@ InvokeFunction(JSContext* cx, HandleObject obj, bool constructing, uint32_t argc
         return InternalConstructWithProvidedThis(cx, fval, thisv, cargs, newTarget, rval);
     }
 
-    return Invoke(cx, thisv, fval, argc, argvWithoutThis, rval);
+    InvokeArgs args(cx);
+    if (!args.init(argc))
+        return false;
+
+    for (size_t i = 0; i < argc; i++)
+        args[i].set(argvWithoutThis[i]);
+
+    return Call(cx, fval, thisv, args, rval);
 }
 
 bool
@@ -790,22 +797,13 @@ InterpretResume(JSContext* cx, HandleObject obj, HandleValue val, HandleProperty
 
     MOZ_ASSERT(selfHostedFun.toObject().is<JSFunction>());
 
-    InvokeArgs args(cx);
-    if (!args.init(3))
-        return false;
-
-    args.setCallee(selfHostedFun);
-    args.setThis(UndefinedValue());
+    FixedInvokeArgs<3> args(cx);
 
     args[0].setObject(*obj);
     args[1].set(val);
     args[2].setString(kind);
 
-    if (!Invoke(cx, args))
-        return false;
-
-    rval.set(args.rval());
-    return true;
+    return Call(cx, selfHostedFun, UndefinedHandleValue, args, rval);
 }
 
 bool
@@ -1063,15 +1061,6 @@ CreateDerivedTypedObj(JSContext* cx, HandleObject descr,
     Rooted<TypeDescr*> descr1(cx, &descr->as<TypeDescr>());
     Rooted<TypedObject*> owner1(cx, &owner->as<TypedObject>());
     return OutlineTypedObject::createDerived(cx, descr1, owner1, offset);
-}
-
-JSString*
-RegExpReplace(JSContext* cx, HandleString string, HandleObject regexp, HandleString repl)
-{
-    MOZ_ASSERT(string);
-    MOZ_ASSERT(repl);
-
-    return str_replace_regexp_raw(cx, string, regexp.as<RegExpObject>(), repl);
 }
 
 JSString*

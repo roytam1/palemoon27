@@ -54,17 +54,36 @@ ValueToCallable(JSContext* cx, HandleValue v, int numToSkip = -1,
                 MaybeConstruct construct = NO_CONSTRUCT);
 
 /*
- * Invoke assumes that the given args have been pushed on the top of the
- * VM stack.
+ * Call or construct arguments that are stored in rooted memory.
+ *
+ * NOTE: Any necessary |GetThisValue| computation must have been performed on
+ *       |args.thisv()|, likely by the interpreter when pushing |this| onto the
+ *       stack.  If you're not sure whether |GetThisValue| processing has been
+ *       performed, use |Invoke|.
  */
 extern bool
-Invoke(JSContext* cx, const CallArgs& args, MaybeConstruct construct = NO_CONSTRUCT);
+InternalCallOrConstruct(JSContext* cx, const CallArgs& args,
+                        MaybeConstruct construct);
+
+/* A call operation that'll be rewritten later in this patch stack. */
+inline bool
+Invoke(JSContext* cx, const AnyInvokeArgs& args)
+{
+    return InternalCallOrConstruct(cx, args, NO_CONSTRUCT);
+}
 
 /*
- * This Invoke overload places the least requirements on the caller: it may be
- * called at any time and it takes care of copying the given callee, this, and
- * arguments onto the stack.
+ * Similar to InternalCallOrConstruct, but for use in places that really
+ * shouldn't use such an internal method directly (and won't, later in this
+ * patch stack).
  */
+inline bool
+InternalInvoke(JSContext* cx, const CallArgs& args)
+{
+    return InternalCallOrConstruct(cx, args, NO_CONSTRUCT);
+}
+
+// DEPRECATED.  TO BE REMOVED.  DO NOT ADD NEW USES.
 extern bool
 Invoke(JSContext* cx, const Value& thisv, const Value& fval, unsigned argc, const Value* argv,
        MutableHandleValue rval);
@@ -74,14 +93,83 @@ Invoke(JSContext* cx, const Value& thisv, const Value& fval, unsigned argc, cons
  * getter/setter calls.
  */
 extern bool
-InvokeGetter(JSContext* cx, const Value& thisv, Value fval, MutableHandleValue rval);
+CallGetter(JSContext* cx, HandleValue thisv, HandleValue getter, MutableHandleValue rval);
 
 extern bool
-InvokeSetter(JSContext* cx, const Value& thisv, Value fval, HandleValue v);
+CallSetter(JSContext* cx, HandleValue thisv, HandleValue setter, HandleValue rval);
+
+// ES7 rev 0c1bd3004329336774cbc90de727cd0cf5f11e93 7.3.12 Call(F, V, argumentsList).
+// All parameters are required, hopefully forcing callers to be careful not to
+// (say) blindly pass callee as |newTarget| when a different value should have
+// been passed.  Behavior is unspecified if any element of |args| isn't initialized.
+//
+// |rval| is written to *only* after |fval| and |thisv| have been consumed, so
+// |rval| *may* alias either argument.
+extern bool
+Call(JSContext* cx, HandleValue fval, HandleValue thisv, const AnyInvokeArgs& args,
+     MutableHandleValue rval);
+
+inline bool
+Call(JSContext* cx, HandleValue fval, HandleValue thisv, MutableHandleValue rval)
+{
+    FixedInvokeArgs<0> args(cx);
+    return Call(cx, fval, thisv, args, rval);
+}
+
+inline bool
+Call(JSContext* cx, HandleValue fval, JSObject* thisObj, MutableHandleValue rval)
+{
+    RootedValue thisv(cx, ObjectOrNullValue(thisObj));
+    FixedInvokeArgs<0> args(cx);
+    return Call(cx, fval, thisv, args, rval);
+}
+
+inline bool
+Call(JSContext* cx, HandleValue fval, HandleValue thisv, HandleValue arg0, MutableHandleValue rval)
+{
+    FixedInvokeArgs<1> args(cx);
+    args[0].set(arg0);
+    return Call(cx, fval, thisv, args, rval);
+}
+
+inline bool
+Call(JSContext* cx, HandleValue fval, JSObject* thisObj, HandleValue arg0,
+     MutableHandleValue rval)
+{
+    RootedValue thisv(cx, ObjectOrNullValue(thisObj));
+    FixedInvokeArgs<1> args(cx);
+    args[0].set(arg0);
+    return Call(cx, fval, thisv, args, rval);
+}
+
+inline bool
+Call(JSContext* cx, HandleValue fval, HandleValue thisv,
+     HandleValue arg0, HandleValue arg1, MutableHandleValue rval)
+{
+    FixedInvokeArgs<2> args(cx);
+    args[0].set(arg0);
+    args[1].set(arg1);
+    return Call(cx, fval, thisv, args, rval);
+}
+
+inline bool
+Call(JSContext* cx, HandleValue fval, JSObject* thisObj,
+     HandleValue arg0, HandleValue arg1, MutableHandleValue rval)
+{
+    RootedValue thisv(cx, ObjectOrNullValue(thisObj));
+    FixedInvokeArgs<2> args(cx);
+    args[0].set(arg0);
+    args[1].set(arg1);
+    return Call(cx, fval, thisv, args, rval);
+}
 
 // ES6 7.3.13 Construct(F, argumentsList, newTarget).  All parameters are
 // required, hopefully forcing callers to be careful not to (say) blindly pass
 // callee as |newTarget| when a different value should have been passed.
+// Behavior is unspecified if any element of |args| isn't initialized.
+//
+// |rval| is written to *only* after |fval| and |newTarget| have been consumed,
+// so |rval| *may* alias either argument.
 //
 // NOTE: As with the ES6 spec operation, it's the caller's responsibility to
 //       ensure |fval| and |newTarget| are both |IsConstructor|.
@@ -103,6 +191,9 @@ ConstructFromStack(JSContext* cx, const CallArgs& args);
 
 // Call Construct(fval, args, newTarget), but use the given |thisv| as |this|
 // during construction of |fval|.
+//
+// |rval| is written to *only* after |fval|, |thisv|, and |newTarget| have been
+// consumed, so |rval| *may* alias any of these arguments.
 //
 // This method exists only for very rare cases where a |this| was created
 // caller-side for construction of |fval|: basically only for JITs using

@@ -7918,6 +7918,61 @@ class MRegExpMatcher
     }
 };
 
+class MRegExpSearcher
+  : public MAryInstruction<4>,
+    public Mix4Policy<ObjectPolicy<0>,
+                      StringPolicy<1>,
+                      IntPolicy<2>,
+                      BooleanPolicy<3> >::Data
+{
+  private:
+
+    MRegExpSearcher(MDefinition* regexp, MDefinition* string, MDefinition* lastIndex,
+                    MDefinition* sticky)
+      : MAryInstruction<4>()
+    {
+        initOperand(0, regexp);
+        initOperand(1, string);
+        initOperand(2, lastIndex);
+        initOperand(3, sticky);
+
+        setMovable();
+        setResultType(MIRType_Int32);
+    }
+
+  public:
+    INSTRUCTION_HEADER(RegExpSearcher)
+
+    static MRegExpSearcher* New(TempAllocator& alloc, MDefinition* regexp, MDefinition* string,
+                                MDefinition* lastIndex, MDefinition* sticky)
+    {
+        return new(alloc) MRegExpSearcher(regexp, string, lastIndex, sticky);
+    }
+
+    MDefinition* regexp() const {
+        return getOperand(0);
+    }
+    MDefinition* string() const {
+        return getOperand(1);
+    }
+    MDefinition* lastIndex() const {
+        return getOperand(2);
+    }
+    MDefinition* sticky() const {
+        return getOperand(3);
+    }
+
+    bool writeRecoverData(CompactBufferWriter& writer) const override;
+
+    bool canRecoverOnBailout() const override {
+        return true;
+    }
+
+    bool possiblyCalls() const override {
+        return true;
+    }
+};
+
 class MRegExpTester
   : public MAryInstruction<4>,
     public Mix4Policy<ObjectPolicy<0>,
@@ -7972,75 +8027,73 @@ class MRegExpTester
     }
 };
 
-template <class Policy1>
-class MStrReplace
-  : public MTernaryInstruction,
-    public Mix3Policy<StringPolicy<0>, Policy1, StringPolicy<2> >::Data
+class MRegExpPrototypeOptimizable
+  : public MUnaryInstruction,
+    public SingleObjectPolicy::Data
 {
-  protected:
-
-    MStrReplace(MDefinition* string, MDefinition* pattern, MDefinition* replacement)
-      : MTernaryInstruction(string, pattern, replacement)
+    explicit MRegExpPrototypeOptimizable(MDefinition* object)
+      : MUnaryInstruction(object)
     {
+        setResultType(MIRType_Boolean);
         setMovable();
-        setResultType(MIRType_String);
     }
 
   public:
+    INSTRUCTION_HEADER(RegExpPrototypeOptimizable)
 
-    MDefinition* string() const {
+    static MRegExpPrototypeOptimizable* New(TempAllocator& alloc, MDefinition* obj) {
+        return new(alloc) MRegExpPrototypeOptimizable(obj);
+    }
+    MDefinition* object() const {
         return getOperand(0);
     }
-    MDefinition* pattern() const {
-        return getOperand(1);
-    }
-    MDefinition* replacement() const {
-        return getOperand(2);
-    }
-
-    bool possiblyCalls() const override {
-        return true;
+    AliasSet getAliasSet() const override {
+        return AliasSet::None();
     }
 };
 
-class MRegExpReplace
-  : public MStrReplace< ObjectPolicy<1> >
+class MRegExpInstanceOptimizable
+  : public MBinaryInstruction,
+    public MixPolicy<ObjectPolicy<0>, ObjectPolicy<1> >::Data
 {
-  private:
-
-    MRegExpReplace(MDefinition* string, MDefinition* pattern, MDefinition* replacement)
-      : MStrReplace< ObjectPolicy<1> >(string, pattern, replacement)
+    explicit MRegExpInstanceOptimizable(MDefinition* object, MDefinition* proto)
+      : MBinaryInstruction(object, proto)
     {
+        setResultType(MIRType_Boolean);
+        setMovable();
     }
 
   public:
-    INSTRUCTION_HEADER(RegExpReplace)
+    INSTRUCTION_HEADER(RegExpInstanceOptimizable)
 
-    static MRegExpReplace* New(TempAllocator& alloc, MDefinition* string, MDefinition* pattern, MDefinition* replacement) {
-        return new(alloc) MRegExpReplace(string, pattern, replacement);
+    static MRegExpInstanceOptimizable* New(TempAllocator& alloc, MDefinition* obj,
+                                           MDefinition* proto) {
+        return new(alloc) MRegExpInstanceOptimizable(obj, proto);
     }
-
-    bool writeRecoverData(CompactBufferWriter& writer) const override;
-    bool canRecoverOnBailout() const override {
-        // RegExpReplace will zero the lastIndex field when global flag is set.
-        // So we can only remove this if it's non-global.
-        // XXX: always return false for now, to work around bug 1132128.
-        if (false && pattern()->isRegExp())
-            return !pattern()->toRegExp()->source()->global();
-        return false;
+    MDefinition* object() const {
+        return getOperand(0);
+    }
+    MDefinition* proto() const {
+        return getOperand(1);
+    }
+    AliasSet getAliasSet() const override {
+        return AliasSet::None();
     }
 };
 
 class MStringReplace
-  : public MStrReplace< StringPolicy<1> >
+  : public MTernaryInstruction,
+    public Mix3Policy<StringPolicy<0>, StringPolicy<1>, StringPolicy<2> >::Data
 {
   private:
 
     bool isFlatReplacement_;
 
     MStringReplace(MDefinition* string, MDefinition* pattern, MDefinition* replacement)
-      : MStrReplace< StringPolicy<1> >(string, pattern, replacement), isFlatReplacement_(false)
+      : MTernaryInstruction(string, pattern, replacement), isFlatReplacement_(false)
     {
+        setMovable();
+        setResultType(MIRType_String);
     }
 
   public:
@@ -8073,14 +8126,25 @@ class MStringReplace
 
     bool writeRecoverData(CompactBufferWriter& writer) const override;
     bool canRecoverOnBailout() const override {
-        if (isFlatReplacement_)
-        {
+        if (isFlatReplacement_) {
             MOZ_ASSERT(!pattern()->isRegExp());
             return true;
         }
-        if (pattern()->isRegExp())
-            return !pattern()->toRegExp()->source()->global();
         return false;
+    }
+
+    MDefinition* string() const {
+        return getOperand(0);
+    }
+    MDefinition* pattern() const {
+        return getOperand(1);
+    }
+    MDefinition* replacement() const {
+        return getOperand(2);
+    }
+
+    bool possiblyCalls() const override {
+        return true;
     }
 };
 

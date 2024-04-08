@@ -998,7 +998,7 @@ extern JS_PUBLIC_API(JSRuntime*)
 JS_GetRuntime(JSContext* cx);
 
 extern JS_PUBLIC_API(JSRuntime*)
-JS_GetParentRuntime(JSContext* cx);
+JS_GetParentRuntime(JSRuntime* rt);
 
 JS_PUBLIC_API(void)
 JS_SetRuntimePrivate(JSRuntime* rt, void* data);
@@ -4874,7 +4874,10 @@ GetSymbolDescription(HandleSymbol symbol);
 #define JS_FOR_EACH_WELL_KNOWN_SYMBOL(macro) \
     macro(iterator) \
     macro(match) \
+    macro(replace) \
+    macro(search) \
     macro(species) \
+    macro(split) \
     macro(toPrimitive) \
     macro(hasInstance) \
     macro(unscopables)

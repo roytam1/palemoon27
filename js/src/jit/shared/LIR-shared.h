@@ -891,7 +891,7 @@ class LNewArray : public LInstructionHelper<1, 0, 1>
     }
 
     const char* extraName() const {
-        return mir()->shouldUseVM() ? "VMCall" : nullptr;
+        return mir()->templateObject() ? "VMCall" : nullptr;
     }
 
     const LDefinition* temp() {
@@ -953,7 +953,7 @@ class LNewObject : public LInstructionHelper<1, 0, 1>
     }
 
     const char* extraName() const {
-        return mir()->shouldUseVM() ? "VMCall" : nullptr;
+        return mir()->templateObject() ? "VMCall" : nullptr;
     }
 
     const LDefinition* temp() {
@@ -1254,6 +1254,47 @@ class LAsmThrowUnreachable : public LInstructionHelper<0, 0, 0>
 
     LAsmThrowUnreachable()
     { }
+};
+
+template<size_t Defs, size_t Ops>
+class LAsmReinterpretBase : public LInstructionHelper<Defs, Ops, 0>
+{
+    typedef LInstructionHelper<Defs, Ops, 0> Base;
+
+  public:
+    const LAllocation* input() {
+        return Base::getOperand(0);
+    }
+    MAsmReinterpret* mir() const {
+        return Base::mir_->toAsmReinterpret();
+    }
+};
+
+class LAsmReinterpret : public LAsmReinterpretBase<1, 1>
+{
+  public:
+    LIR_HEADER(AsmReinterpret);
+    explicit LAsmReinterpret(const LAllocation& input) {
+        setOperand(0, input);
+    }
+};
+
+class LAsmReinterpretFromI64 : public LAsmReinterpretBase<1, INT64_PIECES>
+{
+  public:
+    LIR_HEADER(AsmReinterpretFromI64);
+    explicit LAsmReinterpretFromI64(const LInt64Allocation& input) {
+        setInt64Operand(0, input);
+    }
+};
+
+class LAsmReinterpretToI64 : public LAsmReinterpretBase<INT64_PIECES, 1>
+{
+  public:
+    LIR_HEADER(AsmReinterpretToI64);
+    explicit LAsmReinterpretToI64(const LAllocation& input) {
+        setOperand(0, input);
+    }
 };
 
 class LInterruptCheck : public LInstructionHelper<0, 0, 0>
@@ -4470,6 +4511,16 @@ class LUnarySharedStub : public LCallInstructionHelper<BOX_PIECES, BOX_PIECES, 0
     }
 
     static const size_t Input = 0;
+};
+
+class LNullarySharedStub : public LCallInstructionHelper<BOX_PIECES, 0, 0>
+{
+  public:
+    LIR_HEADER(NullarySharedStub)
+
+    const MNullarySharedStub* mir() const {
+        return mir_->toNullarySharedStub();
+    }
 };
 
 class LLambdaForSingleton : public LCallInstructionHelper<1, 1, 0>
@@ -7958,10 +8009,6 @@ class LMemoryBarrier : public LInstructionHelper<0, 0, 0>
 
     MemoryBarrierBits type() const {
         return type_;
-    }
-
-    const MMemoryBarrier* mir() const {
-        return mir_->toMemoryBarrier();
     }
 };
 

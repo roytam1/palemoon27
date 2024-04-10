@@ -55,6 +55,7 @@ static constexpr Register CallTempReg5 = { Registers::x14 };
 static constexpr Register PreBarrierReg = { Registers::x1 };
 
 static constexpr Register ReturnReg = { Registers::x0 };
+static constexpr Register64 ReturnReg64(ReturnReg);
 static constexpr Register JSReturnReg = { Registers::x2 };
 static constexpr Register FramePointer = { Registers::fp };
 static constexpr Register ZeroRegister = { Registers::sp };
@@ -500,6 +501,18 @@ GetTempRegForIntArg(uint32_t usedIntArgs, uint32_t usedFloatArgs, Register* out)
         return false;
     *out = CallTempNonArgRegs[usedIntArgs];
     return true;
+}
+
+inline Imm32
+Imm64::firstHalf() const
+{
+    return low();
+}
+
+inline Imm32
+Imm64::secondHalf() const
+{
+    return hi();
 }
 
 void PatchJump(CodeLocationJump& jump_, CodeLocationLabel label,

@@ -72,17 +72,6 @@ Invoke(JSContext* cx, const AnyInvokeArgs& args)
     return InternalCallOrConstruct(cx, args, NO_CONSTRUCT);
 }
 
-/*
- * Similar to InternalCallOrConstruct, but for use in places that really
- * shouldn't use such an internal method directly (and won't, later in this
- * patch stack).
- */
-inline bool
-InternalInvoke(JSContext* cx, const CallArgs& args)
-{
-    return InternalCallOrConstruct(cx, args, NO_CONSTRUCT);
-}
-
 // DEPRECATED.  TO BE REMOVED.  DO NOT ADD NEW USES.
 extern bool
 Invoke(JSContext* cx, const Value& thisv, const Value& fval, unsigned argc, const Value* argv,
@@ -162,6 +151,15 @@ Call(JSContext* cx, HandleValue fval, JSObject* thisObj,
     args[1].set(arg1);
     return Call(cx, fval, thisv, args, rval);
 }
+
+// Perform the above Call() operation using the given arguments.  Similar to
+// ConstructFromStack() below, this handles |!IsCallable(args.calleev())|.
+//
+// This internal operation is intended only for use with arguments known to be
+// on the JS stack, or at least in carefully-rooted memory. The vast majority of
+// potential users should instead use InvokeArgs in concert with Call().
+extern bool
+CallFromStack(JSContext* cx, const CallArgs& args);
 
 // ES6 7.3.13 Construct(F, argumentsList, newTarget).  All parameters are
 // required, hopefully forcing callers to be careful not to (say) blindly pass

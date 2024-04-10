@@ -171,6 +171,7 @@ class LIRGenerator : public LIRGeneratorSpecific
     void visitStringReplace(MStringReplace* ins);
     void visitBinarySharedStub(MBinarySharedStub* ins);
     void visitUnarySharedStub(MUnarySharedStub* ins);
+    void visitNullarySharedStub(MNullarySharedStub* ins);
     void visitLambda(MLambda* ins);
     void visitLambdaArrow(MLambdaArrow* ins);
     void visitKeepAliveObject(MKeepAliveObject* ins);
@@ -186,6 +187,7 @@ class LIRGenerator : public LIRGeneratorSpecific
     void visitInterruptCheck(MInterruptCheck* ins);
     void visitAsmJSInterruptCheck(MAsmJSInterruptCheck* ins);
     void visitAsmThrowUnreachable(MAsmThrowUnreachable* ins);
+    void visitAsmReinterpret(MAsmReinterpret* ins);
     void visitStoreSlot(MStoreSlot* ins);
     void visitFilterTypeSet(MFilterTypeSet* ins);
     void visitTypeBarrier(MTypeBarrier* ins);
@@ -287,7 +289,6 @@ class LIRGenerator : public LIRGeneratorSpecific
     void visitGetDOMProperty(MGetDOMProperty* ins);
     void visitGetDOMMember(MGetDOMMember* ins);
     void visitRecompileCheck(MRecompileCheck* ins);
-    void visitMemoryBarrier(MMemoryBarrier* ins);
     void visitSimdBox(MSimdBox* ins);
     void visitSimdUnbox(MSimdUnbox* ins);
     void visitSimdExtractElement(MSimdExtractElement* ins);

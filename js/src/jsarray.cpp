@@ -925,6 +925,27 @@ IsArraySpecies(JSContext* cx, HandleObject origArray)
     return IsSelfHostedFunctionWithName(getter, cx->names().ArraySpecies);
 }
 
+/* static */ bool
+ArraySpeciesCreate(JSContext* cx, HandleObject origArray, uint32_t length, MutableHandleObject arr)
+{
+    RootedId createId(cx, NameToId(cx->names().ArraySpeciesCreate));
+    RootedFunction create(cx, JS::GetSelfHostedFunction(cx, "ArraySpeciesCreate", createId, 2));
+
+    FixedInvokeArgs<2> args(cx);
+
+    args[0].setObject(*origArray);
+    args[1].set(NumberValue(length));
+
+    RootedValue callee(cx, ObjectValue(*create));
+    RootedValue rval(cx);
+    if (!Call(cx, callee, UndefinedHandleValue, args, &rval))
+        return false;
+
+    MOZ_ASSERT(rval.isObject());
+    arr.set(&rval.toObject());
+    return true;
+}
+
 #if JS_HAS_TOSOURCE
 
 static bool
@@ -3043,6 +3064,7 @@ static const JSFunctionSpec array_methods[] = {
     JS_SELF_HOSTED_SYM_FN(iterator,  "ArrayValues",      0,0),
     JS_SELF_HOSTED_FN("entries",     "ArrayEntries",     0,0),
     JS_SELF_HOSTED_FN("keys",        "ArrayKeys",        0,0),
+    JS_SELF_HOSTED_FN("values",      "ArrayValues",      0,0),
 
     /* ES7 additions */
     JS_SELF_HOSTED_FN("includes",    "ArrayIncludes",    2,0),
@@ -3167,7 +3189,7 @@ CreateArrayPrototype(JSContext* cx, JSProtoKey key)
 static bool
 array_proto_finish(JSContext* cx, JS::HandleObject ctor, JS::HandleObject proto)
 {
-    // Add Array.prototype[@@unscopables]. ECMA-262 6.0 22.1.3.31.
+    // Add Array.prototype[@@unscopables]. ECMA-262 draft (2016 Mar 19) 22.1.3.32.
     RootedObject unscopables(cx, NewObjectWithGivenProto<PlainObject>(cx, nullptr, TenuredObject));
     if (!unscopables)
         return false;

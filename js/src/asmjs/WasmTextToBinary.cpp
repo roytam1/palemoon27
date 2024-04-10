@@ -211,8 +211,8 @@ enum class WasmAstExprKind
     SetLocal,
     Store,
     TernaryOperator,
-    Trap,
     UnaryOperator,
+    Unreachable
 };
 
 class WasmAstExpr : public WasmAstNode
@@ -241,10 +241,10 @@ struct WasmAstNop : WasmAstExpr
     {}
 };
 
-struct WasmAstTrap : WasmAstExpr
+struct WasmAstUnreachable : WasmAstExpr
 {
-    WasmAstTrap()
-      : WasmAstExpr(WasmAstExprKind::Trap)
+    WasmAstUnreachable()
+      : WasmAstExpr(WasmAstExprKind::Unreachable)
     {}
 };
 
@@ -325,18 +325,22 @@ class WasmAstBranch : public WasmAstExpr
     Expr expr_;
     WasmAstExpr* cond_;
     WasmRef target_;
+    WasmAstExpr* value_;
 
   public:
     static const WasmAstExprKind Kind = WasmAstExprKind::Branch;
-    explicit WasmAstBranch(Expr expr, WasmAstExpr* cond, WasmRef target)
+    explicit WasmAstBranch(Expr expr, WasmAstExpr* cond, WasmRef target, WasmAstExpr* value)
       : WasmAstExpr(Kind),
         expr_(expr),
         cond_(cond),
-        target_(target)
+        target_(target),
+        value_(value)
     {}
+
     Expr expr() const { return expr_; }
     WasmRef& target() { return target_; }
     WasmAstExpr& cond() const { MOZ_ASSERT(cond_); return *cond_; }
+    WasmAstExpr* maybeValue() const { return value_; }
 };
 
 class WasmAstCall : public WasmAstExpr
@@ -633,7 +637,9 @@ class WasmAstModule : public WasmAstNode
             return true;
         }
         *sigIndex = sigs_.length();
-        return sigs_.append(new (lifo_) WasmAstSig(WasmName(), Move(sig))) &&
+        auto* lifoSig = new (lifo_) WasmAstSig(WasmName(), Move(sig));
+        return lifoSig &&
+               sigs_.append(lifoSig) &&
                sigMap_.add(p, sigs_.back(), *sigIndex);
     }
     bool append(WasmAstSig* sig) {
@@ -827,9 +833,9 @@ class WasmToken
         Table,
         TernaryOpcode,
         Text,
-        Trap,
         Type,
         UnaryOpcode,
+        Unreachable,
         ValueType
     };
   private:
@@ -1621,6 +1627,11 @@ WasmTokenStream::next()
                     return WasmToken(WasmToken::ConversionOpcode, Expr::F64PromoteF32,
                                      begin, cur_);
                 break;
+              case 'r':
+                if (consume(MOZ_UTF16("reinterpret/i64")))
+                    return WasmToken(WasmToken::UnaryOpcode, Expr::F64ReinterpretI64,
+                                     begin, cur_);
+                break;
               case 's':
                 if (consume(MOZ_UTF16("sqrt")))
                     return WasmToken(WasmToken::UnaryOpcode, Expr::F64Sqrt, begin, cur_);
@@ -1987,8 +1998,11 @@ WasmTokenStream::next()
             return WasmToken(WasmToken::Table, begin, cur_);
         if (consume(MOZ_UTF16("type")))
             return WasmToken(WasmToken::Type, begin, cur_);
-        if (consume(MOZ_UTF16("trap")))
-            return WasmToken(WasmToken::Trap, begin, cur_);
+        break;
+
+      case 'u':
+        if (consume(MOZ_UTF16("unreachable")))
+            return WasmToken(WasmToken::Unreachable, begin, cur_);
         break;
 
       default:
@@ -2078,14 +2092,30 @@ ParseBranch(WasmParseContext& c, Expr expr)
     if (!c.ts.matchRef(&target, c.error))
         return nullptr;
 
-    WasmAstExpr* cond = nullptr;
-    if (expr == Expr::BrIf) {
-        cond = ParseExpr(c);
-        if (!cond)
+    WasmAstExpr* value = nullptr;
+    if (c.ts.getIf(WasmToken::OpenParen)) {
+        value = ParseExprInsideParens(c);
+        if (!value)
+            return nullptr;
+        if (!c.ts.match(WasmToken::CloseParen, c.error))
             return nullptr;
     }
 
-    return new(c.lifo) WasmAstBranch(expr, cond, target);
+    WasmAstExpr* cond = nullptr;
+    if (expr == Expr::BrIf) {
+        if (c.ts.getIf(WasmToken::OpenParen)) {
+            cond = ParseExprInsideParens(c);
+            if (!cond)
+                return nullptr;
+            if (!c.ts.match(WasmToken::CloseParen, c.error))
+                return nullptr;
+        } else {
+            cond = value;
+            value = nullptr;
+        }
+    }
+
+    return new(c.lifo) WasmAstBranch(expr, cond, target, value);
 }
 
 static bool
@@ -2433,7 +2463,7 @@ ParseConst(WasmParseContext& c, WasmToken constToken)
           case WasmToken::SignedInteger:
             return new(c.lifo) WasmAstConst(Val(uint64_t(val.sint())));
           case WasmToken::NegativeZero:
-            return new(c.lifo) WasmAstConst(Val(uint32_t(0)));
+            return new(c.lifo) WasmAstConst(Val(uint64_t(0)));
           default:
             break;
         }
@@ -2747,8 +2777,8 @@ ParseExprInsideParens(WasmParseContext& c)
     switch (token.kind()) {
       case WasmToken::Nop:
         return new(c.lifo) WasmAstNop;
-      case WasmToken::Trap:
-        return new(c.lifo) WasmAstTrap;
+      case WasmToken::Unreachable:
+        return new(c.lifo) WasmAstUnreachable;
       case WasmToken::BinaryOpcode:
         return ParseBinaryOperator(c, token.expr());
       case WasmToken::Block:
@@ -3307,6 +3337,9 @@ ResolveBranch(Resolver& r, WasmAstBranch& br)
     if (!r.resolveBranchTarget(br.target()))
         return false;
 
+    if (br.maybeValue() && !ResolveExpr(r, *br.maybeValue()))
+        return false;
+
     if (br.expr() == Expr::BrIf) {
         if (!ResolveExpr(r, br.cond()))
             return false;
@@ -3463,7 +3496,7 @@ ResolveExpr(Resolver& r, WasmAstExpr& expr)
 {
     switch (expr.kind()) {
       case WasmAstExprKind::Nop:
-      case WasmAstExprKind::Trap:
+      case WasmAstExprKind::Unreachable:
         return true;
       case WasmAstExprKind::BinaryOperator:
         return ResolveBinaryOperator(r, expr.as<WasmAstBinaryOperator>());
@@ -3609,7 +3642,7 @@ EncodeBranch(Encoder& e, WasmAstBranch& br)
     if (!e.writeVarU32(br.target().index()))
         return false;
 
-    if (!e.writeExpr(Expr::Nop))
+    if (br.maybeValue() ? !EncodeExpr(e, *br.maybeValue()) : !e.writeExpr(Expr::Nop))
         return false;
 
     if (br.expr() == Expr::BrIf) {
@@ -3805,7 +3838,7 @@ EncodeExpr(Encoder& e, WasmAstExpr& expr)
     switch (expr.kind()) {
       case WasmAstExprKind::Nop:
         return e.writeExpr(Expr::Nop);
-      case WasmAstExprKind::Trap:
+      case WasmAstExprKind::Unreachable:
         return e.writeExpr(Expr::Unreachable);
       case WasmAstExprKind::BinaryOperator:
         return EncodeBinaryOperator(e, expr.as<WasmAstBinaryOperator>());

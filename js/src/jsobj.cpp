@@ -108,9 +108,13 @@ js::InformalValueTypeName(const Value& v)
 }
 
 // ES6 draft rev37 6.2.4.4 FromPropertyDescriptor
-bool
-js::FromPropertyDescriptor(JSContext* cx, Handle<PropertyDescriptor> desc, MutableHandleValue vp)
+JS_PUBLIC_API(bool)
+JS::FromPropertyDescriptor(JSContext* cx, Handle<PropertyDescriptor> desc, MutableHandleValue vp)
 {
+    AssertHeapIsIdle(cx);
+    CHECK_REQUEST(cx);
+    assertSameCompartment(cx, desc);
+
     // Step 1.
     if (!desc.object()) {
         vp.setUndefined();
@@ -1123,7 +1127,7 @@ CopyProxyObject(JSContext* cx, Handle<ProxyObject*> from, Handle<ProxyObject*> t
     }
 
     RootedValue v(cx);
-    for (size_t n = 0; n < PROXY_EXTRA_SLOTS; n++) {
+    for (size_t n = 0; n < js::detail::PROXY_EXTRA_SLOTS; n++) {
         v = GetProxyExtra(from, n);
         if (!cx->compartment()->wrap(cx, &v))
             return false;
@@ -3959,14 +3963,13 @@ js::SpeciesConstructor(JSContext* cx, HandleObject obj, HandleValue defaultCtor,
     RootedValue func(cx);
     if (!GlobalObject::getSelfHostedFunction(cx, cx->global(), shName, shName, 2, &func))
         return false;
-    InvokeArgs args(cx);
-    if (!args.init(2))
-        return false;
-    args.setCallee(func);
-    args.setThis(UndefinedValue());
+
+    FixedInvokeArgs<2> args(cx);
+
     args[0].setObject(*obj);
     args[1].set(defaultCtor);
-    if (!Invoke(cx, args))
+
+    if (!Call(cx, func, UndefinedHandleValue, args, pctor))
         return false;
 
     pctor.set(args.rval());

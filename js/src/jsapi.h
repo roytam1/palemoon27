@@ -2846,6 +2846,16 @@ ObjectToCompletePropertyDescriptor(JSContext* cx,
                                    JS::HandleValue descriptor,
                                    JS::MutableHandle<PropertyDescriptor> desc);
 
+/*
+ * ES6 draft rev 32 (2015 Feb 2) 6.2.4.4 FromPropertyDescriptor(Desc).
+ *
+ * If desc.object() is null, then vp is set to undefined.
+ */
+extern JS_PUBLIC_API(bool)
+FromPropertyDescriptor(JSContext* cx,
+                       JS::Handle<JS::PropertyDescriptor> desc,
+                       JS::MutableHandleValue vp);
+
 } // namespace JS
 
 
@@ -5521,7 +5531,8 @@ JS_SetOffthreadIonCompilationEnabled(JSRuntime* rt, bool enabled);
     Register(BASELINE_ENABLE, "baseline.enable")                           \
     Register(OFFTHREAD_COMPILATION_ENABLE, "offthread-compilation.enable") \
     Register(SIGNALS_ENABLE, "signals.enable")                             \
-    Register(JUMP_THRESHOLD, "jump-threshold")
+    Register(JUMP_THRESHOLD, "jump-threshold")                             \
+    Register(WASM_TEST_MODE, "wasm.test-mode")
 
 typedef enum JSJitCompilerOption {
 #define JIT_COMPILER_DECLARE(key, str) \

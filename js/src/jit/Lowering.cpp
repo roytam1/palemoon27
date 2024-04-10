@@ -2362,6 +2362,17 @@ LIRGenerator::visitUnarySharedStub(MUnarySharedStub* ins)
 }
 
 void
+LIRGenerator::visitNullarySharedStub(MNullarySharedStub* ins)
+{
+    MOZ_ASSERT(ins->type() == MIRType_Value);
+
+    LNullarySharedStub* lir = new(alloc()) LNullarySharedStub();
+
+    defineSharedStubReturn(lir, ins);
+    assignSafepoint(lir, ins);
+}
+
+void
 LIRGenerator::visitLambda(MLambda* ins)
 {
     if (ins->info().singletonType || ins->info().useSingletonForClone) {
@@ -2492,6 +2503,17 @@ void
 LIRGenerator::visitAsmThrowUnreachable(MAsmThrowUnreachable* ins)
 {
     add(new(alloc()) LAsmThrowUnreachable, ins);
+}
+
+void
+LIRGenerator::visitAsmReinterpret(MAsmReinterpret* ins)
+{
+    if (ins->type() == MIRType_Int64)
+        defineInt64(new(alloc()) LAsmReinterpretToI64(useRegisterAtStart(ins->input())), ins);
+    else if (ins->input()->type() == MIRType_Int64)
+        define(new(alloc()) LAsmReinterpretFromI64(useInt64RegisterAtStart(ins->input())), ins);
+    else
+        define(new(alloc()) LAsmReinterpret(useRegisterAtStart(ins->input())), ins);
 }
 
 void
@@ -4206,13 +4228,6 @@ LIRGenerator::visitRecompileCheck(MRecompileCheck* ins)
     LRecompileCheck* lir = new(alloc()) LRecompileCheck(temp());
     add(lir, ins);
     assignSafepoint(lir, ins);
-}
-
-void
-LIRGenerator::visitMemoryBarrier(MMemoryBarrier* ins)
-{
-    LMemoryBarrier* lir = new(alloc()) LMemoryBarrier(ins->type());
-    add(lir, ins);
 }
 
 void

@@ -215,6 +215,7 @@
     _(Substr)                       \
     _(BinarySharedStub)             \
     _(UnarySharedStub)              \
+    _(NullarySharedStub)            \
     _(Lambda)                       \
     _(LambdaArrow)                  \
     _(LambdaForSingleton)           \
@@ -347,6 +348,9 @@
     _(InterruptCheck)               \
     _(AsmJSInterruptCheck)          \
     _(AsmThrowUnreachable)          \
+    _(AsmReinterpret)               \
+    _(AsmReinterpretToI64)          \
+    _(AsmReinterpretFromI64)        \
     _(GetDOMProperty)               \
     _(GetDOMMemberV)                \
     _(GetDOMMemberT)                \

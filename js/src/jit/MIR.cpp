@@ -351,6 +351,12 @@ MTest::New(TempAllocator& alloc, MDefinition* ins, MBasicBlock* ifTrue, MBasicBl
     return new(alloc) MTest(ins, ifTrue, ifFalse);
 }
 
+MTest*
+MTest::NewAsm(TempAllocator& alloc, MDefinition* ins, MBasicBlock* ifFalse)
+{
+    return new(alloc) MTest(ins, nullptr, ifFalse);
+}
+
 void
 MTest::cacheOperandMightEmulateUndefined(CompilerConstraintList* constraints)
 {
@@ -1384,8 +1390,12 @@ void
 MControlInstruction::printOpcode(GenericPrinter& out) const
 {
     MDefinition::printOpcode(out);
-    for (size_t j = 0; j < numSuccessors(); j++)
-        out.printf(" block%u", getSuccessor(j)->id());
+    for (size_t j = 0; j < numSuccessors(); j++) {
+        if (getSuccessor(j))
+            out.printf(" block%u", getSuccessor(j)->id());
+        else
+            out.printf(" (null-to-be-patched)");
+    }
 }
 
 void
@@ -1828,6 +1838,12 @@ MGoto::New(TempAllocator& alloc, MBasicBlock* target)
 {
     MOZ_ASSERT(target);
     return new(alloc) MGoto(target);
+}
+
+MGoto*
+MGoto::NewAsm(TempAllocator& alloc)
+{
+    return new(alloc) MGoto(nullptr);
 }
 
 void
@@ -4254,14 +4270,6 @@ MBeta::printOpcode(GenericPrinter& out) const
 }
 
 bool
-MNewObject::shouldUseVM() const
-{
-    if (JSObject* obj = templateObject())
-        return obj->is<PlainObject>() && obj->as<PlainObject>().hasDynamicSlots();
-    return true;
-}
-
-bool
 MCreateThisWithTemplate::canRecoverOnBailout() const
 {
     MOZ_ASSERT(templateObject()->is<PlainObject>() || templateObject()->is<UnboxedPlainObject>());
@@ -4487,25 +4495,6 @@ MNewArray::MNewArray(CompilerConstraintList* constraints, uint32_t length, MCons
                 convertDoubleElements_ = true;
         }
     }
-}
-
-bool
-MNewArray::shouldUseVM() const
-{
-    if (!templateObject())
-        return true;
-
-    if (templateObject()->is<UnboxedArrayObject>()) {
-        MOZ_ASSERT(templateObject()->as<UnboxedArrayObject>().capacity() >= length());
-        return !templateObject()->as<UnboxedArrayObject>().hasInlineElements();
-    }
-
-    MOZ_ASSERT(length() <= NativeObject::MAX_DENSE_ELEMENTS_COUNT);
-
-    size_t arraySlots =
-        gc::GetGCKindSlots(templateObject()->asTenured().getAllocKind()) - ObjectElements::VALUES_PER_HEADER;
-
-    return length() > arraySlots;
 }
 
 bool

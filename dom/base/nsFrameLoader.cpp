@@ -1687,7 +1687,7 @@ nsFrameLoader::ShouldUseRemoteProcess()
   // Don't try to launch nested children if we don't have OMTC.
   // They won't render!
   if (XRE_IsContentProcess() &&
-      !CompositorBridgeChild::ChildProcessHasCompositor()) {
+      !CompositorBridgeChild::ChildProcessHasCompositorBridge()) {
     return false;
   }
 

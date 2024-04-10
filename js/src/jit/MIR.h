@@ -2813,6 +2813,11 @@ class MGoto
     INSTRUCTION_HEADER(Goto)
     static MGoto* New(TempAllocator& alloc, MBasicBlock* target);
 
+    // Factory for asm, which may patch the target later.
+    static MGoto* NewAsm(TempAllocator& alloc);
+
+    static const size_t TargetIndex = 0;
+
     MBasicBlock* target() {
         return getSuccessor(0);
     }
@@ -2840,18 +2845,23 @@ class MTest
 {
     bool operandMightEmulateUndefined_;
 
-    MTest(MDefinition* ins, MBasicBlock* if_true, MBasicBlock* if_false)
+    MTest(MDefinition* ins, MBasicBlock* trueBranch, MBasicBlock* falseBranch)
       : operandMightEmulateUndefined_(true)
     {
         initOperand(0, ins);
-        setSuccessor(0, if_true);
-        setSuccessor(1, if_false);
+        setSuccessor(0, trueBranch);
+        setSuccessor(1, falseBranch);
     }
 
   public:
     INSTRUCTION_HEADER(Test)
     static MTest* New(TempAllocator& alloc, MDefinition* ins,
                       MBasicBlock* ifTrue, MBasicBlock* ifFalse);
+
+    // Factory for asm, which may patch the ifTrue branch later.
+    static MTest* NewAsm(TempAllocator& alloc, MDefinition* ins, MBasicBlock* ifFalse);
+
+    static const size_t TrueBranchIndex = 0;
 
     MDefinition* input() const {
         return getOperand(0);
@@ -3081,10 +3091,6 @@ class MNewArray
         return convertDoubleElements_;
     }
 
-    // Returns true if the code generator should call through to the
-    // VM rather than the fast path.
-    bool shouldUseVM() const;
-
     // NewArray is marked as non-effectful because all our allocations are
     // either lazy when we are using "new Array(length)" or bounded by the
     // script or the stack size when we are using "new Array(...)" or "[...]"
@@ -3203,7 +3209,7 @@ class MNewObject
         initialHeap_(initialHeap),
         mode_(mode)
     {
-        MOZ_ASSERT_IF(mode != ObjectLiteral, !shouldUseVM());
+        MOZ_ASSERT_IF(mode != ObjectLiteral, templateObject());
         setResultType(MIRType_Object);
 
         if (JSObject* obj = templateObject())
@@ -3227,10 +3233,6 @@ class MNewObject
     {
         return new(alloc) MNewObject(constraints, templateConst, initialHeap, mode);
     }
-
-    // Returns true if the code generator should call through to the
-    // VM rather than the fast path.
-    bool shouldUseVM() const;
 
     Mode mode() const {
         return mode_;
@@ -7583,6 +7585,24 @@ class MUnarySharedStub
     }
 };
 
+class MNullarySharedStub
+  : public MNullaryInstruction
+{
+    explicit MNullarySharedStub()
+      : MNullaryInstruction()
+    {
+        setResultType(MIRType_Value);
+    }
+
+  public:
+    INSTRUCTION_HEADER(NullarySharedStub)
+
+    static MNullarySharedStub* New(TempAllocator& alloc)
+    {
+        return new(alloc) MNullarySharedStub();
+    }
+};
+
 // Check the current frame for over-recursion past the global stack limit.
 class MCheckOverRecursed
   : public MNullaryInstruction
@@ -9968,7 +9988,21 @@ class MArrayJoin
     MDefinition* foldsTo(TempAllocator& alloc) override;
 };
 
-// See comments above MMemoryBarrier, below.
+// All barriered operations - MCompareExchangeTypedArrayElement,
+// MExchangeTypedArrayElement, and MAtomicTypedArrayElementBinop, as
+// well as MLoadUnboxedScalar and MStoreUnboxedScalar when they are
+// marked as requiring a memory barrer - have the following
+// attributes:
+//
+// - Not movable
+// - Not removable
+// - Not congruent with any other instruction
+// - Effectful (they alias every TypedArray store)
+//
+// The intended effect of those constraints is to prevent all loads
+// and stores preceding the barriered operation from being moved to
+// after the barriered operation, and vice versa, and to prevent the
+// barriered operation from being removed or hoisted.
 
 enum MemoryBarrierRequirement
 {
@@ -9976,7 +10010,7 @@ enum MemoryBarrierRequirement
     DoesRequireMemoryBarrier
 };
 
-// Also see comments above MMemoryBarrier, below.
+// Also see comments at MMemoryBarrierRequirement, above.
 
 // Load an unboxed scalar value from a typed array or other object.
 class MLoadUnboxedScalar
@@ -13647,49 +13681,6 @@ class MRecompileCheck : public MNullaryInstruction
     }
 };
 
-// All barriered operations - MMemoryBarrier, MCompareExchangeTypedArrayElement,
-// MExchangeTypedArrayElement, and MAtomicTypedArrayElementBinop, as well as
-// MLoadUnboxedScalar and MStoreUnboxedScalar when they are marked as requiring
-// a memory barrer - have the following attributes:
-//
-// - Not movable
-// - Not removable
-// - Not congruent with any other instruction
-// - Effectful (they alias every TypedArray store)
-//
-// The intended effect of those constraints is to prevent all loads
-// and stores preceding the barriered operation from being moved to
-// after the barriered operation, and vice versa, and to prevent the
-// barriered operation from being removed or hoisted.
-
-class MMemoryBarrier
-  : public MNullaryInstruction
-{
-    // The type is a combination of the memory barrier types in AtomicOp.h.
-    const MemoryBarrierBits type_;
-
-    explicit MMemoryBarrier(MemoryBarrierBits type)
-      : type_(type)
-    {
-        MOZ_ASSERT((type_ & ~MembarAllbits) == MembarNobits);
-        setGuard();             // Not removable
-    }
-
-  public:
-    INSTRUCTION_HEADER(MemoryBarrier)
-
-    static MMemoryBarrier* New(TempAllocator& alloc, MemoryBarrierBits type = MembarFull) {
-        return new(alloc) MMemoryBarrier(type);
-    }
-    MemoryBarrierBits type() const {
-        return type_;
-    }
-
-    AliasSet getAliasSet() const override {
-        return AliasSet::Store(AliasSet::UnboxedElement);
-    }
-};
-
 class MAtomicIsLockFree
   : public MUnaryInstruction,
     public ConvertToInt32Policy<0>::Data
@@ -14547,6 +14538,42 @@ class MAsmSelect
     }
 
     ALLOW_CLONE(MAsmSelect)
+};
+
+class MAsmReinterpret
+  : public MUnaryInstruction,
+    public NoTypePolicy::Data
+{
+    MAsmReinterpret(MDefinition* val, MIRType toType)
+      : MUnaryInstruction(val)
+    {
+        switch (val->type()) {
+          case MIRType_Int32:   MOZ_ASSERT(toType == MIRType_Float32); break;
+          case MIRType_Float32: MOZ_ASSERT(toType == MIRType_Int32);   break;
+          case MIRType_Double:  MOZ_ASSERT(toType == MIRType_Int64);   break;
+          case MIRType_Int64:   MOZ_ASSERT(toType == MIRType_Double);  break;
+          default:              MOZ_CRASH("unexpected reinterpret conversion");
+        }
+        setMovable();
+        setResultType(toType);
+    }
+
+  public:
+    INSTRUCTION_HEADER(AsmReinterpret)
+
+    static MAsmReinterpret* New(TempAllocator& alloc, MDefinition* val, MIRType toType)
+    {
+        return new(alloc) MAsmReinterpret(val, toType);
+    }
+
+    AliasSet getAliasSet() const override {
+        return AliasSet::None();
+    }
+    bool congruentTo(const MDefinition* ins) const override {
+        return congruentIfOperandsEqual(ins);
+    }
+
+    ALLOW_CLONE(MAsmReinterpret)
 };
 
 class MUnknownValue : public MNullaryInstruction

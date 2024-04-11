@@ -1749,11 +1749,11 @@ RuntimeService::ShutdownIdleThreads(nsITimer* aTimer, void* /* aClosure */)
     uint32_t delay(delta > TimeDuration(0) ? delta.ToMilliseconds() : 0);
 
     // Reschedule the timer.
-    MOZ_ALWAYS_TRUE(NS_SUCCEEDED(
+    MOZ_ALWAYS_SUCCEEDS(
       aTimer->InitWithFuncCallback(ShutdownIdleThreads,
                                    nullptr,
                                    delay,
-                                   nsITimer::TYPE_ONE_SHOT)));
+                                   nsITimer::TYPE_ONE_SHOT));
   }
 
   for (uint32_t index = 0; index < expiredThreads.Length(); index++) {
@@ -2358,13 +2358,13 @@ RuntimeService::NoteIdleThread(WorkerThread* aThread)
 
   // Too many idle threads, just shut this one down.
   if (shutdownThread) {
-    MOZ_ALWAYS_TRUE(NS_SUCCEEDED(aThread->Shutdown()));
+    MOZ_ALWAYS_SUCCEEDS(aThread->Shutdown());
   } else if (scheduleTimer) {
-    MOZ_ALWAYS_TRUE(NS_SUCCEEDED(
+    MOZ_ALWAYS_SUCCEEDS(
       mIdleThreadTimer->InitWithFuncCallback(ShutdownIdleThreads,
                                              nullptr,
                                              IDLE_THREAD_TIMEOUT_SEC * 1000,
-                                             nsITimer::TYPE_ONE_SHOT)));
+                                             nsITimer::TYPE_ONE_SHOT));
   }
 }
 
@@ -2444,6 +2444,12 @@ RuntimeService::SendOfflineStatusChangeEventToAllWorkers(bool aIsOffline)
   BROADCAST_ALL_WORKERS(OfflineStatusChangeEvent, aIsOffline);
 }
 
+void
+RuntimeService::MemoryPressureAllWorkers()
+{
+  BROADCAST_ALL_WORKERS(MemoryPressure, /* dummy = */ false);
+}
+
 uint32_t
 RuntimeService::ClampedHardwareConcurrency() const
 {
@@ -2495,6 +2501,7 @@ RuntimeService::Observe(nsISupports* aSubject, const char* aTopic,
   if (!strcmp(aTopic, MEMORY_PRESSURE_OBSERVER_TOPIC)) {
     GarbageCollectAllWorkers(/* shrinking = */ true);
     CycleCollectAllWorkers();
+    MemoryPressureAllWorkers();
     return NS_OK;
   }
   if (!strcmp(aTopic, NS_IOSERVICE_OFFLINE_STATUS_TOPIC)) {
@@ -2695,8 +2702,8 @@ WorkerThreadPrimaryRunnable::Run()
 
   RefPtr<FinishedRunnable> finishedRunnable =
     new FinishedRunnable(mThread.forget());
-  MOZ_ALWAYS_TRUE(NS_SUCCEEDED(mainThread->Dispatch(finishedRunnable,
-                                                    NS_DISPATCH_NORMAL)));
+  MOZ_ALWAYS_SUCCEEDS(mainThread->Dispatch(finishedRunnable,
+                                           NS_DISPATCH_NORMAL));
 
   profiler_unregister_thread();
   return NS_OK;
@@ -2746,7 +2753,7 @@ WorkerThreadPrimaryRunnable::FinishedRunnable::Run()
     rts->NoteIdleThread(thread);
   }
   else if (thread->ShutdownRequired()) {
-    MOZ_ALWAYS_TRUE(NS_SUCCEEDED(thread->Shutdown()));
+    MOZ_ALWAYS_SUCCEEDS(thread->Shutdown());
   }
 
   return NS_OK;

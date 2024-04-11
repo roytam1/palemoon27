@@ -317,7 +317,8 @@ private:
   PostRun(JSContext* aCx, WorkerPrivate* aWorkerPrivate, bool aRunResult)
           override;
 
-  NS_DECL_NSICANCELABLERUNNABLE
+  nsresult
+  Cancel() override;
 
   void
   ShutdownScriptLoader(JSContext* aCx,
@@ -718,7 +719,7 @@ private:
         NS_NewRunnableMethod(this,
           &ScriptLoaderRunnable::CancelMainThreadWithBindingAborted);
       NS_ASSERTION(runnable, "This should never fail!");
-      MOZ_ALWAYS_TRUE(NS_SUCCEEDED(NS_DispatchToMainThread(runnable)));
+      MOZ_ALWAYS_SUCCEEDS(NS_DispatchToMainThread(runnable));
     }
 
     return true;
@@ -1413,7 +1414,7 @@ CacheCreator::ResolvedCallback(JSContext* aCx, JS::Handle<JS::Value> aValue)
   JS::Rooted<JSObject*> obj(aCx, &aValue.toObject());
   Cache* cache = nullptr;
   nsresult rv = UNWRAP_OBJECT(Cache, obj, cache);
-  MOZ_ALWAYS_TRUE(NS_SUCCEEDED(rv));
+  MOZ_ALWAYS_SUCCEEDS(rv);
 
   mCache = cache;
   MOZ_ASSERT(mCache);
@@ -1869,7 +1870,7 @@ ScriptExecutorRunnable::PostRun(JSContext* aCx, WorkerPrivate* aWorkerPrivate,
   }
 }
 
-NS_IMETHODIMP
+nsresult
 ScriptExecutorRunnable::Cancel()
 {
   if (mLastIndex == mScriptLoader.mLoadInfos.Length() - 1) {

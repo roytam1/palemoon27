@@ -67,7 +67,7 @@ const char kMemoryPressureObserverTopic[] = "memory-pressure";
 const char kWindowObserverTopic[] = "inner-window-destroyed";
 
 class CancelableRunnableWrapper final
-  : public nsICancelableRunnable
+  : public nsCancelableRunnable
 {
   nsCOMPtr<nsIRunnable> mRunnable;
 
@@ -79,14 +79,12 @@ public:
     MOZ_ASSERT(aRunnable);
   }
 
-  NS_DECL_ISUPPORTS
-
 private:
   ~CancelableRunnableWrapper()
   { }
 
   NS_DECL_NSIRUNNABLE
-  NS_DECL_NSICANCELABLERUNNABLE
+  nsresult Cancel() override;
 };
 
 class DatabaseFile final
@@ -279,8 +277,8 @@ IDBDatabase::CloseInternal()
         obsSvc->RemoveObserver(mObserver, kCycleCollectionObserverTopic);
         obsSvc->RemoveObserver(mObserver, kMemoryPressureObserverTopic);
 
-        MOZ_ALWAYS_TRUE(NS_SUCCEEDED(
-          obsSvc->RemoveObserver(mObserver, kWindowObserverTopic)));
+        MOZ_ALWAYS_SUCCEEDS(
+          obsSvc->RemoveObserver(mObserver, kWindowObserverTopic));
       }
 
       mObserver = nullptr;
@@ -1055,7 +1053,7 @@ IDBDatabase::DelayedMaybeExpireFileActors()
     cancelable.swap(runnable);
   }
 
-  MOZ_ALWAYS_TRUE(NS_SUCCEEDED(NS_DispatchToCurrentThread(runnable)));
+  MOZ_ALWAYS_SUCCEEDS(NS_DispatchToCurrentThread(runnable));
 }
 
 nsresult
@@ -1288,8 +1286,6 @@ IDBDatabase::WrapObject(JSContext* aCx, JS::Handle<JSObject*> aGivenProto)
   return IDBDatabaseBinding::Wrap(aCx, this, aGivenProto);
 }
 
-NS_IMPL_ISUPPORTS(CancelableRunnableWrapper, nsIRunnable, nsICancelableRunnable)
-
 NS_IMETHODIMP
 CancelableRunnableWrapper::Run()
 {
@@ -1303,7 +1299,7 @@ CancelableRunnableWrapper::Run()
   return NS_OK;
 }
 
-NS_IMETHODIMP
+nsresult
 CancelableRunnableWrapper::Cancel()
 {
   if (mRunnable) {
@@ -1331,7 +1327,7 @@ Observer::Observe(nsISupports* aSubject,
       MOZ_ASSERT(supportsInt);
 
       uint64_t windowId;
-      MOZ_ALWAYS_TRUE(NS_SUCCEEDED(supportsInt->GetData(&windowId)));
+      MOZ_ALWAYS_SUCCEEDS(supportsInt->GetData(&windowId));
 
       if (windowId == mWindowId) {
         RefPtr<IDBDatabase> database = mWeakDatabase;

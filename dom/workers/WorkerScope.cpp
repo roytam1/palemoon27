@@ -19,6 +19,7 @@
 #include "mozilla/dom/PromiseWorkerProxy.h"
 #include "mozilla/dom/ServiceWorkerGlobalScopeBinding.h"
 #include "mozilla/dom/SharedWorkerGlobalScopeBinding.h"
+#include "mozilla/dom/SimpleGlobalObject.h"
 #include "mozilla/dom/WorkerDebuggerGlobalScopeBinding.h"
 #include "mozilla/dom/WorkerGlobalScopeBinding.h"
 #include "mozilla/dom/WorkerLocation.h"
@@ -117,12 +118,15 @@ WorkerGlobalScope::WrapObject(JSContext* aCx, JS::Handle<JSObject*> aGivenProto)
 }
 
 Console*
-WorkerGlobalScope::GetConsole()
+WorkerGlobalScope::GetConsole(ErrorResult& aRv)
 {
   mWorkerPrivate->AssertIsOnWorkerThread();
 
   if (!mConsole) {
-    mConsole = new Console(nullptr);
+    mConsole = Console::Create(nullptr, aRv);
+    if (NS_WARN_IF(aRv.Failed())) {
+      return nullptr;
+    }
   }
 
   return mConsole;
@@ -629,7 +633,7 @@ ServiceWorkerGlobalScope::SkipWaiting(ErrorResult& aRv)
     new WorkerScopeSkipWaitingRunnable(promiseProxy,
                                        NS_ConvertUTF16toUTF8(mScope));
 
-  MOZ_ALWAYS_TRUE(NS_SUCCEEDED(NS_DispatchToMainThread(runnable)));
+  MOZ_ALWAYS_SUCCEEDS(NS_DispatchToMainThread(runnable));
   return promise.forget();
 }
 
@@ -707,106 +711,6 @@ WorkerDebuggerGlobalScope::GetGlobal(JSContext* aCx,
   aGlobal.set(scope->GetWrapper());
 }
 
-class WorkerDebuggerSandboxPrivate : public nsIGlobalObject,
-                                     public nsWrapperCache
-{
-public:
-  explicit WorkerDebuggerSandboxPrivate(JSObject *global)
-  {
-    SetWrapper(global);
-  }
-
-  NS_DECL_CYCLE_COLLECTING_ISUPPORTS
-  NS_DECL_CYCLE_COLLECTION_SCRIPT_HOLDER_CLASS_AMBIGUOUS(WorkerDebuggerSandboxPrivate,
-                                                         nsIGlobalObject)
-
-  virtual JSObject *GetGlobalJSObject() override
-  {
-    return GetWrapper();
-  }
-
-  virtual JSObject* WrapObject(JSContext* cx,
-                               JS::Handle<JSObject*> aGivenProto) override
-  {
-    MOZ_CRASH("WorkerDebuggerSandboxPrivate doesn't use DOM bindings!");
-  }
-
-private:
-  virtual ~WorkerDebuggerSandboxPrivate()
-  {
-    ClearWrapper();
-  }
-};
-
-NS_IMPL_CYCLE_COLLECTION_CLASS(WorkerDebuggerSandboxPrivate)
-
-NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(WorkerDebuggerSandboxPrivate)
-  NS_IMPL_CYCLE_COLLECTION_UNLINK_PRESERVED_WRAPPER
-  tmp->UnlinkHostObjectURIs();
-NS_IMPL_CYCLE_COLLECTION_UNLINK_END
-
-NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN(WorkerDebuggerSandboxPrivate)
-
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_SCRIPT_OBJECTS
-  tmp->TraverseHostObjectURIs(cb);
-NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
-
-NS_IMPL_CYCLE_COLLECTION_TRACE_WRAPPERCACHE(WorkerDebuggerSandboxPrivate)
-
-NS_IMPL_CYCLE_COLLECTING_ADDREF(WorkerDebuggerSandboxPrivate)
-NS_IMPL_CYCLE_COLLECTING_RELEASE(WorkerDebuggerSandboxPrivate)
-NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(WorkerDebuggerSandboxPrivate)
-  NS_WRAPPERCACHE_INTERFACE_MAP_ENTRY
-  NS_INTERFACE_MAP_ENTRY(nsIGlobalObject)
-NS_INTERFACE_MAP_END
-
-static bool
-workerdebuggersandbox_enumerate(JSContext *cx, JS::Handle<JSObject *> obj)
-{
-  return JS_EnumerateStandardClasses(cx, obj);
-}
-
-static bool
-workerdebuggersandbox_resolve(JSContext *cx, JS::Handle<JSObject *> obj,
-                              JS::Handle<jsid> id, bool *resolvedp)
-{
-  return JS_ResolveStandardClass(cx, obj, id, resolvedp);
-}
-
-static void
-workerdebuggersandbox_finalize(js::FreeOp *fop, JSObject *obj)
-{
-  nsIGlobalObject *globalObject =
-    static_cast<nsIGlobalObject *>(JS_GetPrivate(obj));
-  NS_RELEASE(globalObject);
-}
-
-static void
-workerdebuggersandbox_moved(JSObject *obj, const JSObject *old)
-{
-}
-
-const js::Class workerdebuggersandbox_class = {
-    "workerdebuggersandbox",
-    JSCLASS_GLOBAL_FLAGS | JSCLASS_HAS_PRIVATE | JSCLASS_PRIVATE_IS_NSISUPPORTS,
-    nullptr,
-    nullptr,
-    nullptr,
-    nullptr,
-    workerdebuggersandbox_enumerate,
-    workerdebuggersandbox_resolve,
-    nullptr, /* mayResolve */
-    workerdebuggersandbox_finalize,
-    nullptr,
-    nullptr,
-    nullptr,
-    JS_GlobalObjectTraceHook,
-    JS_NULL_CLASS_SPEC, {
-      false,
-      nullptr,
-      workerdebuggersandbox_moved
-    }, JS_NULL_OBJECT_OPS
-};
 
 void
 WorkerDebuggerGlobalScope::CreateSandbox(JSContext* aCx, const nsAString& aName,
@@ -818,39 +722,16 @@ WorkerDebuggerGlobalScope::CreateSandbox(JSContext* aCx, const nsAString& aName,
 
   aResult.set(nullptr);
 
-  JS::CompartmentOptions options;
-  options.creationOptions().setInvisibleToDebugger(true);
-
+  JS::Rooted<JS::Value> protoVal(aCx);
+  protoVal.setObjectOrNull(aPrototype);
   JS::Rooted<JSObject*> sandbox(aCx,
-    JS_NewGlobalObject(aCx, js::Jsvalify(&workerdebuggersandbox_class), nullptr,
-                       JS::DontFireOnNewGlobalHook, options));
+    SimpleGlobalObject::Create(SimpleGlobalObject::GlobalType::WorkerDebuggerSandbox,
+                               protoVal));
+
   if (!sandbox) {
-    aRv.NoteJSContextException(aCx);
+    aRv.Throw(NS_ERROR_OUT_OF_MEMORY);
     return;
   }
-
-  {
-    JSAutoCompartment ac(aCx, sandbox);
-
-    JS::Rooted<JSObject*> prototype(aCx, aPrototype);
-    if (!JS_WrapObject(aCx, &prototype)) {
-      aRv.NoteJSContextException(aCx);
-      return;
-    }
-
-    if (!JS_SetPrototype(aCx, sandbox, prototype)) {
-      aRv.NoteJSContextException(aCx);
-      return;
-    }
-
-    nsCOMPtr<nsIGlobalObject> globalObject =
-      new WorkerDebuggerSandboxPrivate(sandbox);
-
-    // Pass on ownership of globalObject to |sandbox|.
-    JS_SetPrivate(sandbox, globalObject.forget().take());
-  }
-
-  JS_FireOnNewGlobalObject(aCx, sandbox);
 
   if (!JS_WrapObject(aCx, &sandbox)) {
     aRv.NoteJSContextException(aCx);
@@ -919,6 +800,44 @@ WorkerDebuggerGlobalScope::ReportError(JSContext* aCx,
   mWorkerPrivate->ReportErrorToDebugger(filename, lineno, aMessage);
 }
 
+void
+WorkerDebuggerGlobalScope::RetrieveConsoleEvents(JSContext* aCx,
+                                                 nsTArray<JS::Value>& aEvents,
+                                                 ErrorResult& aRv)
+{
+  WorkerGlobalScope* scope = mWorkerPrivate->GetOrCreateGlobalScope(aCx);
+  if (!scope) {
+    aRv.Throw(NS_ERROR_FAILURE);
+    return;
+  }
+
+  RefPtr<Console> console = scope->GetConsole(aRv);
+  if (NS_WARN_IF(aRv.Failed())) {
+    return;
+  }
+
+  console->RetrieveConsoleEvents(aCx, aEvents, aRv);
+}
+
+void
+WorkerDebuggerGlobalScope::SetConsoleEventHandler(JSContext* aCx,
+                                                  AnyCallback* aHandler,
+                                                  ErrorResult& aRv)
+{
+  WorkerGlobalScope* scope = mWorkerPrivate->GetOrCreateGlobalScope(aCx);
+  if (!scope) {
+    aRv.Throw(NS_ERROR_FAILURE);
+    return;
+  }
+
+  RefPtr<Console> console = scope->GetConsole(aRv);
+  if (NS_WARN_IF(aRv.Failed())) {
+    return;
+  }
+
+  console->SetConsoleEventHandler(aHandler);
+}
+
 Console*
 WorkerDebuggerGlobalScope::GetConsole(ErrorResult& aRv)
 {
@@ -926,7 +845,10 @@ WorkerDebuggerGlobalScope::GetConsole(ErrorResult& aRv)
 
   // Debugger console has its own console object.
   if (!mConsole) {
-    mConsole = new Console(nullptr);
+    mConsole = Console::Create(nullptr, aRv);
+    if (NS_WARN_IF(aRv.Failed())) {
+      return nullptr;
+    }
   }
 
   return mConsole;
@@ -953,7 +875,7 @@ GetGlobalObjectForGlobal(JSObject* global)
 
     if (!globalObject) {
       MOZ_ASSERT(IsDebuggerSandbox(global));
-      globalObject = static_cast<nsIGlobalObject *>(JS_GetPrivate(global));
+      globalObject = static_cast<SimpleGlobalObject*>(JS_GetPrivate(global));
 
       MOZ_ASSERT(globalObject);
     }
@@ -981,7 +903,8 @@ IsDebuggerGlobal(JSObject* object)
 bool
 IsDebuggerSandbox(JSObject* object)
 {
-  return js::GetObjectClass(object) == &workerdebuggersandbox_class;
+  return SimpleGlobalObject::SimpleGlobalType(object) ==
+    SimpleGlobalObject::GlobalType::WorkerDebuggerSandbox;
 }
 
 bool

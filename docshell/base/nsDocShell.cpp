@@ -14313,7 +14313,9 @@ nsDocShell::ShouldPrepareForIntercept(nsIURI* aURI, bool aIsNonSubresourceReques
   if (aIsNonSubresourceRequest) {
     PrincipalOriginAttributes attrs;
     attrs.InheritFromDocShellToDoc(mOriginAttributes, aURI);
-    *aShouldIntercept = swm->IsAvailable(attrs, aURI);
+    nsCOMPtr<nsIPrincipal> principal =
+      BasePrincipal::CreateCodebasePrincipal(aURI, attrs);
+    *aShouldIntercept = swm->IsAvailable(principal, aURI);
     return NS_OK;
   }
 

@@ -47,13 +47,11 @@ using namespace mozilla::dom::workers;
 namespace mozilla {
 namespace dom {
 
-class PostMessageRunnable final : public nsICancelableRunnable
+class PostMessageRunnable final : public nsCancelableRunnable
 {
   friend class MessagePort;
 
 public:
-  NS_DECL_ISUPPORTS
-
   PostMessageRunnable(MessagePort* aPort, SharedMessagePortMessage* aData)
     : mPort(aPort)
     , mData(aData)
@@ -80,7 +78,7 @@ public:
     return rv;
   }
 
-  NS_IMETHOD
+  nsresult
   Cancel() override
   {
     mPort = nullptr;
@@ -163,8 +161,6 @@ private:
   RefPtr<MessagePort> mPort;
   RefPtr<SharedMessagePortMessage> mData;
 };
-
-NS_IMPL_ISUPPORTS(PostMessageRunnable, nsICancelableRunnable, nsIRunnable)
 
 NS_IMPL_CYCLE_COLLECTION_CLASS(MessagePort)
 
@@ -567,7 +563,7 @@ MessagePort::Dispatch()
 
   mPostMessageRunnable = new PostMessageRunnable(this, data);
 
-  MOZ_ALWAYS_TRUE(NS_SUCCEEDED(NS_DispatchToCurrentThread(mPostMessageRunnable)));
+  MOZ_ALWAYS_SUCCEEDS(NS_DispatchToCurrentThread(mPostMessageRunnable));
 }
 
 void

@@ -905,6 +905,29 @@ nsFrameLoader::SwapWithOtherRemoteLoader(nsFrameLoader* aOther,
     return NS_ERROR_NOT_IMPLEMENTED;
   }
 
+  if (mRemoteBrowser->IsBrowserElement() !=
+      aOther->mRemoteBrowser->IsBrowserElement() ||
+      mRemoteBrowser->HasOwnApp() != aOther->mRemoteBrowser->HasOwnApp()) {
+    return NS_ERROR_NOT_IMPLEMENTED;
+  }
+
+  if (mRemoteBrowser->OriginAttributesRef() !=
+      aOther->mRemoteBrowser->OriginAttributesRef()) {
+    return NS_ERROR_NOT_IMPLEMENTED;
+  }
+
+  bool ourHasHistory =
+    mIsTopLevelContent &&
+    ourContent->IsXULElement(nsGkAtoms::browser) &&
+    !ourContent->HasAttr(kNameSpaceID_None, nsGkAtoms::disablehistory);
+  bool otherHasHistory =
+    aOther->mIsTopLevelContent &&
+    otherContent->IsXULElement(nsGkAtoms::browser) &&
+    !otherContent->HasAttr(kNameSpaceID_None, nsGkAtoms::disablehistory);
+  if (ourHasHistory != otherHasHistory) {
+    return NS_ERROR_NOT_IMPLEMENTED;
+  }
+
   if (mInSwap || aOther->mInSwap) {
     return NS_ERROR_NOT_IMPLEMENTED;
   }
@@ -1058,11 +1081,7 @@ nsFrameLoader::SwapWithOtherLoader(nsFrameLoader* aOther,
                   "Swapping some sort of random loaders?");
   NS_ENSURE_STATE(!mInShow && !aOther->mInShow);
 
-  if (IsRemoteFrame() && aOther->IsRemoteFrame()) {
-    return SwapWithOtherRemoteLoader(aOther, aFirstToSwap, aSecondToSwap);
-  }
-
-  if (IsRemoteFrame() || aOther->IsRemoteFrame()) {
+  if (IsRemoteFrame() != aOther->IsRemoteFrame()) {
     NS_WARNING("Swapping remote and non-remote frames is not currently supported");
     return NS_ERROR_NOT_IMPLEMENTED;
   }
@@ -1073,6 +1092,49 @@ nsFrameLoader::SwapWithOtherLoader(nsFrameLoader* aOther,
   if (!ourContent || !otherContent) {
     // Can't handle this
     return NS_ERROR_NOT_IMPLEMENTED;
+  }
+
+  bool ourHasSrcdoc = ourContent->IsHTMLElement(nsGkAtoms::iframe) &&
+                      ourContent->HasAttr(kNameSpaceID_None, nsGkAtoms::srcdoc);
+  bool otherHasSrcdoc = otherContent->IsHTMLElement(nsGkAtoms::iframe) &&
+                        otherContent->HasAttr(kNameSpaceID_None, nsGkAtoms::srcdoc);
+  if (ourHasSrcdoc || otherHasSrcdoc) {
+    // Ignore this case entirely for now, since we support XUL <-> HTML swapping
+    return NS_ERROR_NOT_IMPLEMENTED;
+  }
+
+  bool ourPassPointerEvents =
+    ourContent->AttrValueIs(kNameSpaceID_None,
+                            nsGkAtoms::mozpasspointerevents,
+                            nsGkAtoms::_true,
+                            eCaseMatters);
+  bool otherPassPointerEvents =
+    otherContent->AttrValueIs(kNameSpaceID_None,
+                              nsGkAtoms::mozpasspointerevents,
+                              nsGkAtoms::_true,
+                              eCaseMatters);
+  if (ourPassPointerEvents != otherPassPointerEvents) {
+    return NS_ERROR_NOT_IMPLEMENTED;
+  }
+
+  bool ourFullscreenAllowed =
+    ourContent->IsXULElement() ||
+    (OwnerIsBrowserOrAppFrame() &&
+      (ourContent->HasAttr(kNameSpaceID_None, nsGkAtoms::allowfullscreen) ||
+       ourContent->HasAttr(kNameSpaceID_None, nsGkAtoms::mozallowfullscreen)));
+  bool otherFullscreenAllowed =
+    otherContent->IsXULElement() ||
+    (aOther->OwnerIsBrowserOrAppFrame() &&
+      (otherContent->HasAttr(kNameSpaceID_None, nsGkAtoms::allowfullscreen) ||
+       otherContent->HasAttr(kNameSpaceID_None, nsGkAtoms::mozallowfullscreen)));
+  if (ourFullscreenAllowed != otherFullscreenAllowed) {
+    return NS_ERROR_NOT_IMPLEMENTED;
+  }
+
+  // Divert to a separate path for the remaining steps in the remote case
+  if (IsRemoteFrame()) {
+    MOZ_ASSERT(aOther->IsRemoteFrame());
+    return SwapWithOtherRemoteLoader(aOther, aFirstToSwap, aSecondToSwap);
   }
 
   // Make sure there are no same-origin issues
@@ -1210,7 +1272,12 @@ nsFrameLoader::SwapWithOtherLoader(nsFrameLoader* aOther,
   if (ourDocshell->GetIsBrowserElement() !=
       otherDocshell->GetIsBrowserElement() ||
       ourDocshell->GetIsApp() != otherDocshell->GetIsApp()) {
-      return NS_ERROR_NOT_IMPLEMENTED;
+    return NS_ERROR_NOT_IMPLEMENTED;
+  }
+
+  if (ourDocshell->GetOriginAttributes() !=
+      otherDocshell->GetOriginAttributes()) {
+    return NS_ERROR_NOT_IMPLEMENTED;
   }
 
   if (mInSwap || aOther->mInSwap) {

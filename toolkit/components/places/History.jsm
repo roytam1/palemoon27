@@ -570,9 +570,13 @@ var remove = Task.async(function*({guids, urls}, onResult = null) {
     // 4. For pages that should be removed, remove page.
     if (hasPagesToRemove) {
       let ids = pages.filter(p => p.toRemove).map(p => p.id);
+      // Note, we are already in a transaction, since callers create it.
       yield db.execute(`DELETE FROM moz_places
                         WHERE id IN (${ sqlList(ids) })
                        `);
+      // Hosts accumulated during the places delete are updated through a trigger
+      // (see nsPlacesTriggers.h).
+      yield db.execute(`DELETE FROM moz_updatehosts_temp`);
     }
 
     // 5. Notify observers.

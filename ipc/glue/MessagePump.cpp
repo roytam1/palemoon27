@@ -39,7 +39,7 @@ static MessagePump::Delegate* gFirstDelegate;
 namespace mozilla {
 namespace ipc {
 
-class DoWorkRunnable final : public nsICancelableRunnable,
+class DoWorkRunnable final : public nsCancelableRunnable,
                              public nsITimerCallback
 {
 public:
@@ -49,10 +49,10 @@ public:
     MOZ_ASSERT(aPump);
   }
 
-  NS_DECL_THREADSAFE_ISUPPORTS
+  NS_DECL_ISUPPORTS_INHERITED
   NS_DECL_NSIRUNNABLE
   NS_DECL_NSITIMERCALLBACK
-  NS_DECL_NSICANCELABLERUNNABLE
+  nsresult Cancel() override;
 
 private:
   ~DoWorkRunnable()
@@ -210,8 +210,8 @@ MessagePump::DoDelayedWork(base::MessagePump::Delegate* aDelegate)
   }
 }
 
-NS_IMPL_ISUPPORTS(DoWorkRunnable, nsIRunnable, nsITimerCallback,
-                                  nsICancelableRunnable)
+NS_IMPL_ISUPPORTS_INHERITED(DoWorkRunnable, nsCancelableRunnable,
+			    nsITimerCallback)
 
 NS_IMETHODIMP
 DoWorkRunnable::Run()
@@ -242,7 +242,7 @@ DoWorkRunnable::Notify(nsITimer* aTimer)
   return NS_OK;
 }
 
-NS_IMETHODIMP
+nsresult
 DoWorkRunnable::Cancel()
 {
   // Workers require cancelable runnables, but we can't really cancel cleanly
@@ -252,7 +252,7 @@ DoWorkRunnable::Cancel()
   // after this.  Unfortunately we cannot use flags to verify this because
   // DoWorkRunnable is a stateless singleton that can be in the event queue
   // multiple times simultaneously.
-  MOZ_ALWAYS_TRUE(NS_SUCCEEDED(Run()));
+  MOZ_ALWAYS_SUCCEEDS(Run());
   return NS_OK;
 }
 

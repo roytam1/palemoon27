@@ -8,6 +8,7 @@
 
 #include "mozilla/dom/BrowserElementAudioChannel.h"
 #include "mozilla/dom/ContentChild.h"
+#include "mozilla/dom/HTMLIFrameElement.h"
 #include "mozilla/Preferences.h"
 #include "mozilla/ErrorResult.h"
 #include "GeckoProfiler.h"
@@ -25,6 +26,7 @@
 #include "nsPresContext.h"
 #include "nsServiceManagerUtils.h"
 #include "nsSubDocumentFrame.h"
+#include "nsXULElement.h"
 
 using namespace mozilla;
 using namespace mozilla::dom;
@@ -220,11 +222,37 @@ nsGenericHTMLFrameElement::GetParentApplication(mozIApplication** aApplication)
   return NS_OK;
 }
 
-NS_IMETHODIMP
-nsGenericHTMLFrameElement::SwapFrameLoaders(nsIFrameLoaderOwner* aOtherOwner)
+void
+nsGenericHTMLFrameElement::SwapFrameLoaders(HTMLIFrameElement& aOtherLoaderOwner,
+                                            ErrorResult& rv)
 {
-  // We don't support this yet
-  return NS_ERROR_NOT_IMPLEMENTED;
+  if (&aOtherLoaderOwner == this) {
+    // nothing to do
+    return;
+  }
+
+  SwapFrameLoaders(aOtherLoaderOwner.mFrameLoader, rv);
+}
+
+void
+nsGenericHTMLFrameElement::SwapFrameLoaders(nsXULElement& aOtherLoaderOwner,
+                                            ErrorResult& rv)
+{
+  aOtherLoaderOwner.SwapFrameLoaders(mFrameLoader, rv);
+}
+
+void
+nsGenericHTMLFrameElement::SwapFrameLoaders(RefPtr<nsFrameLoader>& aOtherLoader,
+                                            mozilla::ErrorResult& rv)
+{
+  if (!mFrameLoader || !aOtherLoader) {
+    rv.Throw(NS_ERROR_NOT_IMPLEMENTED);
+    return;
+  }
+
+  rv = mFrameLoader->SwapWithOtherLoader(aOtherLoader,
+                                         mFrameLoader,
+                                         aOtherLoader);
 }
 
 NS_IMETHODIMP
@@ -706,12 +734,5 @@ nsGenericHTMLFrameElement::InitializeBrowserAPI()
   MOZ_ASSERT(mFrameLoader);
   InitBrowserElementAPI();
   return NS_OK;
-}
-
-void
-nsGenericHTMLFrameElement::SwapFrameLoaders(nsXULElement& aOtherOwner,
-                                            ErrorResult& aError)
-{
-  aError.Throw(NS_ERROR_NOT_IMPLEMENTED);
 }
 

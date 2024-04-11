@@ -638,6 +638,8 @@ nsNavBookmarks::RemoveItem(int64_t aItemId)
 
     // A broken url should not interrupt the removal process.
     (void)NS_NewURI(getter_AddRefs(uri), bookmark.url);
+    // We cannot assert since some automated tests are checking this path.
+    NS_WARN_IF_FALSE(uri, "Invalid URI in RemoveItem");
   }
 
   NOTIFY_OBSERVERS(mCanNotify, mCacheObservers, mObservers,
@@ -1121,6 +1123,8 @@ nsNavBookmarks::RemoveFolderChildren(int64_t aFolderId)
     if (child.type == TYPE_BOOKMARK) {
       // A broken url should not interrupt the removal process.
       (void)NS_NewURI(getter_AddRefs(uri), child.url);
+      // We cannot assert since some automated tests are checking this path.
+      NS_WARN_IF_FALSE(uri, "Invalid URI in RemoveFolderChildren");
     }
 
     NOTIFY_OBSERVERS(mCanNotify, mCacheObservers, mObservers,
@@ -2593,17 +2597,22 @@ void
 nsNavBookmarks::NotifyItemVisited(const ItemVisitData& aData)
 {
   nsCOMPtr<nsIURI> uri;
-  (void)NS_NewURI(getter_AddRefs(uri), aData.bookmark.url);
-  NOTIFY_OBSERVERS(mCanNotify, mCacheObservers, mObservers,
-                   nsINavBookmarkObserver,
-                   OnItemVisited(aData.bookmark.id,
-                                 aData.visitId,
-                                 aData.time,
-                                 aData.transitionType,
-                                 uri,
-                                 aData.bookmark.parentId,
-                                 aData.bookmark.guid,
-                                 aData.bookmark.parentGuid));
+  MOZ_ALWAYS_SUCCEEDS(NS_NewURI(getter_AddRefs(uri), aData.bookmark.url));
+  // Notify the visit only if we have a valid uri, otherwise the observer
+  // couldn't gather enough data from the notification.
+  // This should be false only if there's a bug in the code preceding us.
+  if (uri) {
+    NOTIFY_OBSERVERS(mCanNotify, mCacheObservers, mObservers,
+                     nsINavBookmarkObserver,
+                     OnItemVisited(aData.bookmark.id,
+                                   aData.visitId,
+                                   aData.time,
+                                   aData.transitionType,
+                                   uri,
+                                   aData.bookmark.parentId,
+                                   aData.bookmark.guid,
+                                   aData.bookmark.parentGuid));
+  }
 }
 
 void
@@ -2680,6 +2689,8 @@ nsNavBookmarks::OnVisit(nsIURI* aURI, int64_t aVisitId, PRTime aTime,
                         uint32_t aTransitionType, const nsACString& aGUID,
                         bool aHidden)
 {
+  NS_ENSURE_ARG(aURI);
+
   // If the page is bookmarked, notify observers for each associated bookmark.
   ItemVisitData visitData;
   nsresult rv = aURI->GetSpec(visitData.bookmark.url);
@@ -2700,6 +2711,8 @@ nsNavBookmarks::OnDeleteURI(nsIURI* aURI,
                             const nsACString& aGUID,
                             uint16_t aReason)
 {
+  NS_ENSURE_ARG(aURI);
+
 #ifdef DEBUG
   nsNavHistory* history = nsNavHistory::GetHistoryService();
   int64_t placeId;
@@ -2756,6 +2769,8 @@ nsNavBookmarks::OnPageChanged(nsIURI* aURI,
                               const nsAString& aNewValue,
                               const nsACString& aGUID)
 {
+  NS_ENSURE_ARG(aURI);
+
   nsresult rv;
   if (aChangedAttribute == nsINavHistoryObserver::ATTRIBUTE_FAVICON) {
     ItemChangeData changeData;
@@ -2803,6 +2818,8 @@ nsNavBookmarks::OnDeleteVisits(nsIURI* aURI, PRTime aVisitTime,
                                const nsACString& aGUID,
                                uint16_t aReason, uint32_t aTransitionType)
 {
+  NS_ENSURE_ARG(aURI);
+
   // Notify "cleartime" only if all visits to the page have been removed.
   if (!aVisitTime) {
     // If the page is bookmarked, notify observers for each associated bookmark.

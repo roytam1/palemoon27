@@ -251,9 +251,9 @@ IsExpandedPrincipal(nsIPrincipal* aPrincipal)
 
 nsPermissionManager::PermissionKey::PermissionKey(nsIPrincipal* aPrincipal)
 {
-  MOZ_ALWAYS_TRUE(NS_SUCCEEDED(GetHostForPrincipal(aPrincipal, mHost)));
-  MOZ_ALWAYS_TRUE(NS_SUCCEEDED(aPrincipal->GetAppId(&mAppId)));
-  MOZ_ALWAYS_TRUE(NS_SUCCEEDED(aPrincipal->GetIsInBrowserElement(&mIsInBrowserElement)));
+  MOZ_ALWAYS_SUCCEEDS(GetHostForPrincipal(aPrincipal, mHost));
+  MOZ_ALWAYS_SUCCEEDS(aPrincipal->GetAppId(&mAppId));
+  MOZ_ALWAYS_SUCCEEDS(aPrincipal->GetIsInBrowserElement(&mIsInBrowserElement));
 }
 
 /**

@@ -42,7 +42,11 @@
 #endif
 
 #ifdef XP_WIN
+#include "mozilla/widget/AudioSession.h"
 #include <windows.h>
+#if defined(MOZ_SANDBOX)
+#include "SandboxBroker.h"
+#endif
 #endif
 
 // all this crap is needed to do the interactive shell stuff
@@ -96,6 +100,20 @@ private:
     nsCOMPtr<nsIFile> mPluginDir;
     nsCOMPtr<nsIFile> mAppFile;
 };
+
+#ifdef XP_WIN
+class MOZ_STACK_CLASS AutoAudioSession
+{
+public:
+    AutoAudioSession() {
+        widget::StartAudioSession();
+    }
+
+    ~AutoAudioSession() {
+        widget::StopAudioSession();
+    }
+};
+#endif
 
 static const char kXPConnectServiceContractID[] = "@mozilla.org/js/xpc/XPConnect;1";
 
@@ -1463,6 +1481,19 @@ XRE_XPCShellMain(int argc, char** argv, char** envp)
         gfxPrefs::GetSingleton();
         // Initialize e10s check on the main thread, if not already done
         BrowserTabsRemoteAutostart();
+#ifdef XP_WIN
+        // Plugin may require audio session if installed plugin can initialize
+        // asynchronized.
+        AutoAudioSession audioSession;
+
+#if defined(MOZ_SANDBOX)
+        // Required for sandboxed child processes.
+        if (!SandboxBroker::Initialize()) {
+          NS_WARNING("Failed to initialize broker services, sandboxed "
+                     "processes will fail to start.");
+        }
+#endif
+#endif
 
         {
             JS::Rooted<JSObject*> glob(cx, holder->GetJSObject());

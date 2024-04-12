@@ -2983,8 +2983,7 @@ nsEditor::GetNodeLocation(nsIDOMNode* aChild, int32_t* outOffset)
 
   nsCOMPtr<nsIDOMNode> parent;
 
-  MOZ_ALWAYS_TRUE(NS_SUCCEEDED(
-    aChild->GetParentNode(getter_AddRefs(parent))));
+  MOZ_ALWAYS_SUCCEEDS(aChild->GetParentNode(getter_AddRefs(parent)));
   if (parent) {
     *outOffset = GetChildOffset(aChild, parent);
   }
@@ -4157,8 +4156,7 @@ void
 nsEditor::DoAfterDoTransaction(nsITransaction *aTxn)
 {
   bool isTransientTransaction;
-  MOZ_ALWAYS_TRUE(NS_SUCCEEDED(
-    aTxn->GetIsTransient(&isTransientTransaction)));
+  MOZ_ALWAYS_SUCCEEDS(aTxn->GetIsTransient(&isTransientTransaction));
 
   if (!isTransientTransaction)
   {
@@ -4172,8 +4170,7 @@ nsEditor::DoAfterDoTransaction(nsITransaction *aTxn)
       modCount = -modCount;
 
     // don't count transient transactions
-    MOZ_ALWAYS_TRUE(NS_SUCCEEDED(
-      IncrementModificationCount(1)));
+    MOZ_ALWAYS_SUCCEEDS(IncrementModificationCount(1));
   }
 }
 
@@ -4182,16 +4179,14 @@ void
 nsEditor::DoAfterUndoTransaction()
 {
   // all undoable transactions are non-transient
-  MOZ_ALWAYS_TRUE(NS_SUCCEEDED(
-    IncrementModificationCount(-1)));
+  MOZ_ALWAYS_SUCCEEDS(IncrementModificationCount(-1));
 }
 
 void
 nsEditor::DoAfterRedoTransaction()
 {
   // all redoable transactions are non-transient
-  MOZ_ALWAYS_TRUE(NS_SUCCEEDED(
-    IncrementModificationCount(1)));
+  MOZ_ALWAYS_SUCCEEDS(IncrementModificationCount(1));
 }
 
 already_AddRefed<ChangeAttributeTxn>

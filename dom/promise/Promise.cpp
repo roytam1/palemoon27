@@ -770,7 +770,6 @@ Promise::AppendNativeHandler(PromiseNativeHandler* aRunnable)
     // happen anyway.
     return;
   }
-  jsapi.TakeOwnershipOfErrorReporting();
 
   JSContext* cx = jsapi.cx();
   JS::Rooted<JSObject*> handlerWrapper(cx);
@@ -1761,7 +1760,6 @@ public:
     if (!jsapi.Init(mValues)) {
       return;
     }
-    jsapi.TakeOwnershipOfErrorReporting();
     JSContext* cx = jsapi.cx();
 
     JS::Rooted<JS::Value> value(cx, aValue);
@@ -2663,7 +2661,7 @@ Promise::RemoveFeature()
 }
 
 bool
-PromiseReportRejectFeature::Notify(JSContext* aCx, workers::Status aStatus)
+PromiseReportRejectFeature::Notify(workers::Status aStatus)
 {
   MOZ_ASSERT(aStatus > workers::Running);
   mPromise->MaybeReportRejectedOnce();
@@ -2922,7 +2920,7 @@ PromiseWorkerProxy::RejectedCallback(JSContext* aCx,
 }
 
 bool
-PromiseWorkerProxy::Notify(JSContext* aCx, Status aStatus)
+PromiseWorkerProxy::Notify(Status aStatus)
 {
   if (aStatus >= Canceling) {
     CleanUp();

@@ -371,6 +371,9 @@ public:
   void
   OfflineStatusChangeEvent(bool aIsOffline);
 
+  void
+  MemoryPressure(bool aDummy);
+
   bool
   RegisterSharedWorker(SharedWorker* aSharedWorker, MessagePort* aPort);
 
@@ -1062,10 +1065,10 @@ public:
   ModifyBusyCountFromWorker(bool aIncrease);
 
   bool
-  AddChildWorker(JSContext* aCx, ParentType* aChildWorker);
+  AddChildWorker(ParentType* aChildWorker);
 
   void
-  RemoveChildWorker(JSContext* aCx, ParentType* aChildWorker);
+  RemoveChildWorker(ParentType* aChildWorker);
 
   bool
   AddFeature(WorkerFeature* aFeature);
@@ -1190,6 +1193,9 @@ public:
 
   void
   OfflineStatusChangeEventInternal(bool aIsOffline);
+
+  void
+  MemoryPressureInternal();
 
   JSContext*
   GetJSContext() const

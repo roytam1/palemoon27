@@ -2910,7 +2910,7 @@ EvalInWorker(JSContext* cx, unsigned argc, Value* vp)
 
     CopyChars(chars, *str);
 
-    WorkerInput* input = js_new<WorkerInput>(JS_GetParentRuntime(cx), chars, str->length());
+    WorkerInput* input = js_new<WorkerInput>(JS_GetParentRuntime(JS_GetRuntime(cx)), chars, str->length());
     if (!input) {
         ReportOutOfMemory(cx);
         return false;
@@ -3252,9 +3252,13 @@ InvokeInterruptCallbackWrapper(JSContext* cx, unsigned argc, Value* vp)
         return false;
 
     JS::AutoSaveExceptionState savedExc(cx);
-    Value argv[1] = { BooleanValue(interruptRv) };
+
+    FixedInvokeArgs<1> iargs(cx);
+
+    iargs[0].setBoolean(interruptRv);
+
     RootedValue rv(cx);
-    if (!Invoke(cx, UndefinedValue(), args[0], 1, argv, &rv))
+    if (!js::Call(cx, args[0], UndefinedHandleValue, iargs, &rv))
         return false;
 
     args.rval().setUndefined();

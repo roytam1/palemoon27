@@ -21,7 +21,6 @@
     _(AtomicsExchange)              \
     _(AtomicsLoad)                  \
     _(AtomicsStore)                 \
-    _(AtomicsFence)                 \
     _(AtomicsAdd)                   \
     _(AtomicsSub)                   \
     _(AtomicsAnd)                   \
@@ -66,15 +65,19 @@
     _(MathCbrt)                     \
                                     \
     _(RegExpMatcher)                \
+    _(RegExpSearcher)               \
     _(RegExpTester)                 \
     _(IsRegExpObject)               \
+    _(RegExpPrototypeOptimizable)   \
+    _(RegExpInstanceOptimizable)    \
                                     \
     _(String)                       \
-    _(StringSplit)                  \
     _(StringCharCodeAt)             \
     _(StringFromCharCode)           \
     _(StringCharAt)                 \
-    _(StringReplace)                \
+                                    \
+    _(IntrinsicStringReplaceString) \
+    _(IntrinsicStringSplitString)   \
                                     \
     _(ObjectCreate)                 \
                                     \
@@ -104,6 +107,7 @@
     _(IntrinsicIsConstructing)      \
     _(IntrinsicSubstringKernel)     \
     _(IntrinsicDefineDataProperty)  \
+    _(IntrinsicObjectHasPrototype)  \
                                     \
     _(IntrinsicIsArrayIterator)     \
     _(IntrinsicIsMapIterator)       \

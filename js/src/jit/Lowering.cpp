@@ -2187,15 +2187,6 @@ MustCloneRegExpForCall(MCall* call, uint32_t useIndex)
     if (!target || !target->isNative())
         return true;
 
-    if (useIndex == MCall::IndexOfArgument(0) &&
-        (target->native() == str_split ||
-         target->native() == str_replace ||
-         target->native() == str_match ||
-         target->native() == str_search))
-    {
-        return false;
-    }
-
     return true;
 }
 
@@ -2217,6 +2208,13 @@ MustCloneRegExp(MRegExp* regexp)
         MDefinition* def = node->toDefinition();
         if (def->isRegExpMatcher()) {
             MRegExpMatcher* test = def->toRegExpMatcher();
+            if (test->indexOf(*iter) == 1) {
+                // Optimized RegExp.prototype.exec.
+                MOZ_ASSERT(test->regexp() == regexp);
+                continue;
+            }
+        } else if (def->isRegExpSearcher()) {
+            MRegExpSearcher* test = def->toRegExpSearcher();
             if (test->indexOf(*iter) == 1) {
                 // Optimized RegExp.prototype.exec.
                 MOZ_ASSERT(test->regexp() == regexp);
@@ -2259,12 +2257,24 @@ LIRGenerator::visitRegExpMatcher(MRegExpMatcher* ins)
     MOZ_ASSERT(ins->regexp()->type() == MIRType_Object);
     MOZ_ASSERT(ins->string()->type() == MIRType_String);
     MOZ_ASSERT(ins->lastIndex()->type() == MIRType_Int32);
-    MOZ_ASSERT(ins->sticky()->type() == MIRType_Boolean);
 
     LRegExpMatcher* lir = new(alloc()) LRegExpMatcher(useFixedAtStart(ins->regexp(), RegExpMatcherRegExpReg),
                                                       useFixedAtStart(ins->string(), RegExpMatcherStringReg),
-                                                      useFixedAtStart(ins->lastIndex(), RegExpMatcherLastIndexReg),
-                                                      useFixedAtStart(ins->sticky(), RegExpMatcherStickyReg));
+                                                      useFixedAtStart(ins->lastIndex(), RegExpMatcherLastIndexReg));
+    defineReturn(lir, ins);
+    assignSafepoint(lir, ins);
+}
+
+void
+LIRGenerator::visitRegExpSearcher(MRegExpSearcher* ins)
+{
+    MOZ_ASSERT(ins->regexp()->type() == MIRType_Object);
+    MOZ_ASSERT(ins->string()->type() == MIRType_String);
+    MOZ_ASSERT(ins->lastIndex()->type() == MIRType_Int32);
+
+    LRegExpSearcher* lir = new(alloc()) LRegExpSearcher(useFixedAtStart(ins->regexp(), RegExpTesterRegExpReg),
+                                                        useFixedAtStart(ins->string(), RegExpTesterStringReg),
+                                                        useFixedAtStart(ins->lastIndex(), RegExpTesterLastIndexReg));
     defineReturn(lir, ins);
     assignSafepoint(lir, ins);
 }
@@ -2275,28 +2285,34 @@ LIRGenerator::visitRegExpTester(MRegExpTester* ins)
     MOZ_ASSERT(ins->regexp()->type() == MIRType_Object);
     MOZ_ASSERT(ins->string()->type() == MIRType_String);
     MOZ_ASSERT(ins->lastIndex()->type() == MIRType_Int32);
-    MOZ_ASSERT(ins->sticky()->type() == MIRType_Boolean);
 
     LRegExpTester* lir = new(alloc()) LRegExpTester(useFixedAtStart(ins->regexp(), RegExpTesterRegExpReg),
                                                     useFixedAtStart(ins->string(), RegExpTesterStringReg),
-                                                    useFixedAtStart(ins->lastIndex(), RegExpTesterLastIndexReg),
-                                                    useFixedAtStart(ins->sticky(), RegExpTesterStickyReg));
+                                                    useFixedAtStart(ins->lastIndex(), RegExpTesterLastIndexReg));
     defineReturn(lir, ins);
     assignSafepoint(lir, ins);
 }
 
 void
-LIRGenerator::visitRegExpReplace(MRegExpReplace* ins)
+LIRGenerator::visitRegExpPrototypeOptimizable(MRegExpPrototypeOptimizable* ins)
 {
-    MOZ_ASSERT(ins->pattern()->type() == MIRType_Object);
-    MOZ_ASSERT(ins->string()->type() == MIRType_String);
-    MOZ_ASSERT(ins->replacement()->type() == MIRType_String);
+    MOZ_ASSERT(ins->object()->type() == MIRType_Object);
+    MOZ_ASSERT(ins->type() == MIRType_Boolean);
+    LRegExpPrototypeOptimizable* lir = new(alloc()) LRegExpPrototypeOptimizable(useRegister(ins->object()),
+                                                                                temp());
+    define(lir, ins);
+}
 
-    LRegExpReplace* lir = new(alloc()) LRegExpReplace(useRegisterOrConstantAtStart(ins->string()),
-                                                      useRegisterAtStart(ins->pattern()),
-                                                      useRegisterOrConstantAtStart(ins->replacement()));
-    defineReturn(lir, ins);
-    assignSafepoint(lir, ins);
+void
+LIRGenerator::visitRegExpInstanceOptimizable(MRegExpInstanceOptimizable* ins)
+{
+    MOZ_ASSERT(ins->object()->type() == MIRType_Object);
+    MOZ_ASSERT(ins->proto()->type() == MIRType_Object);
+    MOZ_ASSERT(ins->type() == MIRType_Boolean);
+    LRegExpInstanceOptimizable* lir = new(alloc()) LRegExpInstanceOptimizable(useRegister(ins->object()),
+                                                                              useRegister(ins->proto()),
+                                                                              temp());
+    define(lir, ins);
 }
 
 void
@@ -2335,6 +2351,17 @@ LIRGenerator::visitUnarySharedStub(MUnarySharedStub* ins)
     MOZ_ASSERT(ins->type() == MIRType_Value);
 
     LUnarySharedStub* lir = new(alloc()) LUnarySharedStub(useBoxFixedAtStart(input, R0));
+    defineSharedStubReturn(lir, ins);
+    assignSafepoint(lir, ins);
+}
+
+void
+LIRGenerator::visitNullarySharedStub(MNullarySharedStub* ins)
+{
+    MOZ_ASSERT(ins->type() == MIRType_Value);
+
+    LNullarySharedStub* lir = new(alloc()) LNullarySharedStub();
+
     defineSharedStubReturn(lir, ins);
     assignSafepoint(lir, ins);
 }
@@ -2470,6 +2497,17 @@ void
 LIRGenerator::visitAsmThrowUnreachable(MAsmThrowUnreachable* ins)
 {
     add(new(alloc()) LAsmThrowUnreachable, ins);
+}
+
+void
+LIRGenerator::visitAsmReinterpret(MAsmReinterpret* ins)
+{
+    if (ins->type() == MIRType_Int64)
+        defineInt64(new(alloc()) LAsmReinterpretToI64(useRegisterAtStart(ins->input())), ins);
+    else if (ins->input()->type() == MIRType_Int64)
+        define(new(alloc()) LAsmReinterpretFromI64(useInt64RegisterAtStart(ins->input())), ins);
+    else
+        define(new(alloc()) LAsmReinterpret(useRegisterAtStart(ins->input())), ins);
 }
 
 void
@@ -4184,13 +4222,6 @@ LIRGenerator::visitRecompileCheck(MRecompileCheck* ins)
     LRecompileCheck* lir = new(alloc()) LRecompileCheck(temp());
     add(lir, ins);
     assignSafepoint(lir, ins);
-}
-
-void
-LIRGenerator::visitMemoryBarrier(MMemoryBarrier* ins)
-{
-    LMemoryBarrier* lir = new(alloc()) LMemoryBarrier(ins->type());
-    add(lir, ins);
 }
 
 void

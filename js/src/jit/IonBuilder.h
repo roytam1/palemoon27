@@ -431,6 +431,7 @@ class IonBuilder
     bool getPropTryArgumentsLength(bool* emitted, MDefinition* obj);
     bool getPropTryArgumentsCallee(bool* emitted, MDefinition* obj, PropertyName* name);
     bool getPropTryConstant(bool* emitted, MDefinition* obj, jsid id, TemporaryTypeSet* types);
+    bool getPropTryNotDefined(bool* emitted, MDefinition* obj, jsid id, TemporaryTypeSet* types);
     bool getPropTryDefiniteSlot(bool* emitted, MDefinition* obj, PropertyName* name,
                                 BarrierKind barrier, TemporaryTypeSet* types);
     bool getPropTryModuleNamespace(bool* emitted, MDefinition* obj, PropertyName* name,
@@ -502,12 +503,25 @@ class IonBuilder
     // jsop_bitnot helpers.
     bool bitnotTrySpecialized(bool* emitted, MDefinition* input);
 
+    // jsop_pow helpers.
+    bool powTrySpecialized(bool* emitted, MDefinition* base, MDefinition* power, MIRType outputType);
+
     // jsop_compare helpers.
     bool compareTrySpecialized(bool* emitted, JSOp op, MDefinition* left, MDefinition* right);
     bool compareTryBitwise(bool* emitted, JSOp op, MDefinition* left, MDefinition* right);
     bool compareTrySpecializedOnBaselineInspector(bool* emitted, JSOp op, MDefinition* left,
                                                   MDefinition* right);
     bool compareTrySharedStub(bool* emitted, JSOp op, MDefinition* left, MDefinition* right);
+
+    // jsop_newarray helpers.
+    bool newArrayTrySharedStub(bool* emitted);
+    bool newArrayTryTemplateObject(bool* emitted, JSObject* templateObject, uint32_t length);
+    bool newArrayTryVM(bool* emitted, uint32_t length);
+
+    // jsop_newobject helpers.
+    bool newObjectTrySharedStub(bool* emitted);
+    bool newObjectTryTemplateObject(bool* emitted, JSObject* templateObject);
+    bool newObjectTryVM(bool* emitted);
 
     // jsop_in helpers.
     bool inTryDense(bool* emitted, MDefinition* obj, MDefinition* id);
@@ -719,6 +733,7 @@ class IonBuilder
     bool jsop_delprop(PropertyName* name);
     bool jsop_delelem();
     bool jsop_newarray(uint32_t length);
+    bool jsop_newarray(JSObject* templateObject, uint32_t length);
     bool jsop_newarray_copyonwrite();
     bool jsop_newobject();
     bool jsop_initelem();
@@ -803,7 +818,6 @@ class IonBuilder
     InliningStatus inlineMathHypot(CallInfo& callInfo);
     InliningStatus inlineMathMinMax(CallInfo& callInfo, bool max);
     InliningStatus inlineMathPow(CallInfo& callInfo);
-    InliningStatus inlineMathPowHelper(MDefinition* lhs, MDefinition* rhs, MIRType outputType);
     InliningStatus inlineMathRandom(CallInfo& callInfo);
     InliningStatus inlineMathImul(CallInfo& callInfo);
     InliningStatus inlineMathFRound(CallInfo& callInfo);
@@ -811,18 +825,23 @@ class IonBuilder
 
     // String natives.
     InliningStatus inlineStringObject(CallInfo& callInfo);
-    InliningStatus inlineConstantStringSplit(CallInfo& callInfo);
-    InliningStatus inlineStringSplit(CallInfo& callInfo);
     InliningStatus inlineStrCharCodeAt(CallInfo& callInfo);
     InliningStatus inlineConstantCharCodeAt(CallInfo& callInfo);
     InliningStatus inlineStrFromCharCode(CallInfo& callInfo);
     InliningStatus inlineStrCharAt(CallInfo& callInfo);
-    InliningStatus inlineStrReplace(CallInfo& callInfo);
+
+    // String intrinsics.
+    InliningStatus inlineStringReplaceString(CallInfo& callInfo);
+    InliningStatus inlineConstantStringSplitString(CallInfo& callInfo);
+    InliningStatus inlineStringSplitString(CallInfo& callInfo);
 
     // RegExp intrinsics.
     InliningStatus inlineRegExpMatcher(CallInfo& callInfo);
+    InliningStatus inlineRegExpSearcher(CallInfo& callInfo);
     InliningStatus inlineRegExpTester(CallInfo& callInfo);
     InliningStatus inlineIsRegExpObject(CallInfo& callInfo);
+    InliningStatus inlineRegExpPrototypeOptimizable(CallInfo& callInfo);
+    InliningStatus inlineRegExpInstanceOptimizable(CallInfo& callInfo);
 
     // Object natives and intrinsics.
     InliningStatus inlineObjectCreate(CallInfo& callInfo);
@@ -833,7 +852,6 @@ class IonBuilder
     InliningStatus inlineAtomicsExchange(CallInfo& callInfo);
     InliningStatus inlineAtomicsLoad(CallInfo& callInfo);
     InliningStatus inlineAtomicsStore(CallInfo& callInfo);
-    InliningStatus inlineAtomicsFence(CallInfo& callInfo);
     InliningStatus inlineAtomicsBinop(CallInfo& callInfo, InlinableNative target);
     InliningStatus inlineAtomicsIsLockFree(CallInfo& callInfo);
 
@@ -920,6 +938,7 @@ class IonBuilder
                                   const Class* clasp4 = nullptr);
     InliningStatus inlineIsConstructing(CallInfo& callInfo);
     InliningStatus inlineSubstringKernel(CallInfo& callInfo);
+    InliningStatus inlineObjectHasPrototype(CallInfo& callInfo);
 
     // Testing functions.
     InliningStatus inlineBailout(CallInfo& callInfo);
@@ -998,6 +1017,8 @@ class IonBuilder
 
     JSObject* testSingletonProperty(JSObject* obj, jsid id);
     JSObject* testSingletonPropertyTypes(MDefinition* obj, jsid id);
+
+    bool testNotDefinedProperty(MDefinition* obj, jsid id);
 
     uint32_t getDefiniteSlot(TemporaryTypeSet* types, PropertyName* name, uint32_t* pnfixed);
     MDefinition* convertUnboxedObjects(MDefinition* obj);

@@ -550,11 +550,6 @@ WarningOnlyErrorReporter(JSContext* aCx, const char* aMessage, JSErrorReport* aR
 }
 
 void
-AutoJSAPI::TakeOwnershipOfErrorReporting()
-{
-}
-
-void
 AutoJSAPI::ReportException()
 {
   if (!HasException()) {
@@ -657,8 +652,6 @@ AutoEntryScript::AutoEntryScript(nsIGlobalObject* aGlobalObject,
   if (aIsMainThread && gRunToCompletionListeners > 0) {
     mDocShellEntryMonitor.emplace(cx(), aReason);
   }
-
-  TakeOwnershipOfErrorReporting();
 }
 
 AutoEntryScript::AutoEntryScript(JSObject* aObject,

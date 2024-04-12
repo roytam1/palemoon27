@@ -208,7 +208,7 @@ FileInfo::Cleanup()
     RefPtr<CleanupFileRunnable> cleaner =
       new CleanupFileRunnable(mFileManager, id);
 
-    MOZ_ALWAYS_TRUE(NS_SUCCEEDED(NS_DispatchToMainThread(cleaner)));
+    MOZ_ALWAYS_SUCCEEDS(NS_DispatchToMainThread(cleaner));
     return;
   }
 

@@ -502,15 +502,6 @@ class JSObject : public js::gc::Cell
     bool reportNotConfigurable(JSContext* cx, jsid id, unsigned report = JSREPORT_ERROR);
     bool reportNotExtensible(JSContext* cx, unsigned report = JSREPORT_ERROR);
 
-    /*
-     * Get the property with the given id, then call it as a function with the
-     * given arguments, providing this object as |this|. If the property isn't
-     * callable a TypeError will be thrown. On success the value returned by
-     * the call is stored in *vp.
-     */
-    bool callMethod(JSContext* cx, js::HandleId id, unsigned argc, js::Value* argv,
-                    js::MutableHandleValue vp);
-
     static bool nonNativeSetProperty(JSContext* cx, js::HandleObject obj, js::HandleId id,
                                      js::HandleValue v, js::HandleValue receiver,
                                      JS::ObjectOpResult& result);
@@ -1250,18 +1241,10 @@ bool
 GetOwnPropertyDescriptor(JSContext* cx, HandleObject obj, HandleId id, MutableHandleValue vp);
 
 /*
- * ES6 draft rev 32 (2015 Feb 2) 6.2.4.4 FromPropertyDescriptor(Desc).
- *
- * If desc.object() is null, then vp is set to undefined.
- */
-extern bool
-FromPropertyDescriptor(JSContext* cx, Handle<PropertyDescriptor> desc, MutableHandleValue vp);
-
-/*
- * Like FromPropertyDescriptor, but ignore desc.object() and always set vp
+ * Like JS::FromPropertyDescriptor, but ignore desc.object() and always set vp
  * to an object on success.
  *
- * Use FromPropertyDescriptor for getOwnPropertyDescriptor, since desc.object()
+ * Use JS::FromPropertyDescriptor for getOwnPropertyDescriptor, since desc.object()
  * is used to indicate whether a result was found or not.  Use this instead for
  * defineProperty: it would be senseless to define a "missing" property.
  */

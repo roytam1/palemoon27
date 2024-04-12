@@ -374,7 +374,6 @@ IDBRequest::SetResultCallback(ResultCallback* aCallback)
       return;
     }
   }
-  autoJS.TakeOwnershipOfErrorReporting();
 
   JSContext* cx = autoJS.cx();
 
@@ -507,7 +506,7 @@ public:
 
 private:
   virtual bool
-  Notify(JSContext* aCx, Status aStatus) override;
+  Notify(Status aStatus) override;
 };
 
 IDBOpenDBRequest::IDBOpenDBRequest(IDBFactory* aFactory,
@@ -646,7 +645,7 @@ IDBOpenDBRequest::WrapObject(JSContext* aCx, JS::Handle<JSObject*> aGivenProto)
 
 bool
 IDBOpenDBRequest::
-WorkerFeature::Notify(JSContext* aCx, Status aStatus)
+WorkerFeature::Notify(Status aStatus)
 {
   MOZ_ASSERT(mWorkerPrivate);
   mWorkerPrivate->AssertIsOnWorkerThread();

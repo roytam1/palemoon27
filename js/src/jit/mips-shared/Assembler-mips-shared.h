@@ -129,13 +129,11 @@ static MOZ_CONSTEXPR_VAR Register AsmJSIonExitRegD2 = t0;
 static MOZ_CONSTEXPR_VAR Register RegExpMatcherRegExpReg = CallTempReg0;
 static MOZ_CONSTEXPR_VAR Register RegExpMatcherStringReg = CallTempReg1;
 static MOZ_CONSTEXPR_VAR Register RegExpMatcherLastIndexReg = CallTempReg2;
-static MOZ_CONSTEXPR_VAR Register RegExpMatcherStickyReg = CallTempReg3;
 
 // Registerd used in RegExpTester instruction (do not use ReturnReg).
 static MOZ_CONSTEXPR_VAR Register RegExpTesterRegExpReg = CallTempReg0;
 static MOZ_CONSTEXPR_VAR Register RegExpTesterStringReg = CallTempReg1;
 static MOZ_CONSTEXPR_VAR Register RegExpTesterLastIndexReg = CallTempReg2;
-static MOZ_CONSTEXPR_VAR Register RegExpTesterStickyReg = CallTempReg3;
 
 static MOZ_CONSTEXPR_VAR uint32_t CodeAlignment = 4;
 
@@ -635,6 +633,18 @@ class Operand
         return Register::FromCode(reg);
     }
 };
+
+inline Imm32
+Imm64::firstHalf() const
+{
+    return low();
+}
+
+inline Imm32
+Imm64::secondHalf() const
+{
+    return hi();
+}
 
 void
 PatchJump(CodeLocationJump& jump_, CodeLocationLabel label,

@@ -287,7 +287,7 @@ struct Zone : public JS::shadow::Zone,
      *   is silly
      * And so on.
      */
-    bool suppressObjectMetadataCallback;
+    bool suppressAllocationMetadataBuilder;
 
     js::gc::ArenaLists arenas;
 
@@ -308,6 +308,12 @@ struct Zone : public JS::shadow::Zone,
     // preserved for re-scanning during sweeping.
     using WeakEdges = js::Vector<js::gc::TenuredCell**, 0, js::SystemAllocPolicy>;
     WeakEdges gcWeakRefs;
+
+    // List of non-ephemeron weak containers to sweep during beginSweepingZoneGroup.
+    mozilla::LinkedList<WeakCache<void*>> weakCaches_;
+    void registerWeakCache(WeakCache<void*>* cachep) {
+        weakCaches_.insertBack(cachep);
+    }
 
     /*
      * Mapping from not yet marked keys to a vector of all values that the key

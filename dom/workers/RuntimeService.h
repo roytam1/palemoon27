@@ -134,10 +134,10 @@ public:
   GetService();
 
   bool
-  RegisterWorker(JSContext* aCx, WorkerPrivate* aWorkerPrivate);
+  RegisterWorker(WorkerPrivate* aWorkerPrivate);
 
   void
-  UnregisterWorker(JSContext* aCx, WorkerPrivate* aWorkerPrivate);
+  UnregisterWorker(WorkerPrivate* aWorkerPrivate);
 
   void
   RemoveSharedWorker(WorkerDomainInfo* aDomainInfo,
@@ -259,6 +259,9 @@ public:
   void
   SendOfflineStatusChangeEventToAllWorkers(bool aIsOffline);
 
+  void
+  MemoryPressureAllWorkers();
+
   uint32_t ClampedHardwareConcurrency() const;
 
 private:
@@ -282,7 +285,7 @@ private:
                       nsTArray<WorkerPrivate*>& aWorkers);
 
   bool
-  ScheduleWorker(JSContext* aCx, WorkerPrivate* aWorkerPrivate);
+  ScheduleWorker(WorkerPrivate* aWorkerPrivate);
 
   static void
   ShutdownIdleThreads(nsITimer* aTimer, void* aClosure);

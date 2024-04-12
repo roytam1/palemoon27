@@ -25,7 +25,7 @@ Zone * const Zone::NotOnList = reinterpret_cast<Zone*>(1);
 JS::Zone::Zone(JSRuntime* rt)
   : JS::shadow::Zone(rt, &rt->gc.marker),
     debuggers(nullptr),
-    suppressObjectMetadataCallback(false),
+    suppressAllocationMetadataBuilder(false),
     arenas(rt),
     types(this),
     compartments(),
@@ -422,4 +422,10 @@ ZoneList::clear()
 {
     while (!isEmpty())
         removeFront();
+}
+
+JS_PUBLIC_API(void)
+JS::shadow::RegisterWeakCache(JS::Zone* zone, WeakCache<void*>* cachep)
+{
+    zone->registerWeakCache(cachep);
 }

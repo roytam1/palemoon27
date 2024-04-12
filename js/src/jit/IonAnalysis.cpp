@@ -1865,7 +1865,7 @@ jit::MakeMRegExpHoistable(MIRGraph& graph)
 
                 // All MRegExp* MIR's don't adjust the regexp.
                 MDefinition* use = i->consumer()->toDefinition();
-                if (use->isRegExpReplace())
+                if (use->isRegExpMatcher() || use->isRegExpTester() || use->isRegExpSearcher())
                     continue;
 
                 hoistable = false;
@@ -2382,6 +2382,8 @@ jit::AssertBasicGraphCoherency(MIRGraph& graph)
         MOZ_ASSERT(control->resumePoint() == nullptr);
         for (uint32_t i = 0, end = control->numOperands(); i < end; i++)
             CheckOperand(control, control->getUseFor(i), &usesBalance);
+        for (size_t i = 0; i < control->numSuccessors(); i++)
+            MOZ_ASSERT(control->getSuccessor(i));
     }
 
     // In case issues, see the _DEBUG_CHECK_OPERANDS_USES_BALANCE macro above.
@@ -3751,8 +3753,10 @@ jit::AnalyzeNewScriptDefiniteProperties(JSContext* cx, JSFunction* fun,
     if (!RenumberBlocks(graph))
         return false;
 
-    if (!BuildDominatorTree(graph))
+    if (!BuildDominatorTree(graph)) {
+        ReportOutOfMemory(cx);
         return false;
+    }
 
     if (!EliminatePhis(&builder, graph, AggressiveObservability))
         return false;
@@ -3970,8 +3974,10 @@ jit::AnalyzeArgumentsUsage(JSContext* cx, JSScript* scriptArg)
     if (!RenumberBlocks(graph))
         return false;
 
-    if (!BuildDominatorTree(graph))
+    if (!BuildDominatorTree(graph)) {
+        ReportOutOfMemory(cx);
         return false;
+    }
 
     if (!EliminatePhis(&builder, graph, AggressiveObservability))
         return false;

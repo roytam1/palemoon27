@@ -67,7 +67,7 @@ public:
 
 private:
   virtual bool
-  Notify(JSContext* aCx, Status aStatus) override;
+  Notify(Status aStatus) override;
 };
 
 IDBTransaction::IDBTransaction(IDBDatabase* aDatabase,
@@ -989,7 +989,7 @@ IDBTransaction::Run()
 
 bool
 IDBTransaction::
-WorkerFeature::Notify(JSContext* aCx, Status aStatus)
+WorkerFeature::Notify(Status aStatus)
 {
   MOZ_ASSERT(mWorkerPrivate);
   mWorkerPrivate->AssertIsOnWorkerThread();

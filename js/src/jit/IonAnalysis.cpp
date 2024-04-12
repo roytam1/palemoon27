@@ -3753,8 +3753,10 @@ jit::AnalyzeNewScriptDefiniteProperties(JSContext* cx, JSFunction* fun,
     if (!RenumberBlocks(graph))
         return false;
 
-    if (!BuildDominatorTree(graph))
+    if (!BuildDominatorTree(graph)) {
+        ReportOutOfMemory(cx);
         return false;
+    }
 
     if (!EliminatePhis(&builder, graph, AggressiveObservability))
         return false;
@@ -3972,8 +3974,10 @@ jit::AnalyzeArgumentsUsage(JSContext* cx, JSScript* scriptArg)
     if (!RenumberBlocks(graph))
         return false;
 
-    if (!BuildDominatorTree(graph))
+    if (!BuildDominatorTree(graph)) {
+        ReportOutOfMemory(cx);
         return false;
+    }
 
     if (!EliminatePhis(&builder, graph, AggressiveObservability))
         return false;

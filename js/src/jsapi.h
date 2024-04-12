@@ -837,17 +837,7 @@ class MOZ_STACK_CLASS SourceBufferHolder final
 
 #define JSFUN_CONSTRUCTOR      0x400    /* native that can be called as a ctor */
 
-/*
- * Specify a generic native prototype methods, i.e., methods of a class
- * prototype that are exposed as static methods taking an extra leading
- * argument: the generic |this| parameter.
- *
- * If you set this flag in a JSFunctionSpec struct's flags initializer, then
- * that struct must live at least as long as the native static method object
- * created due to this flag by JS_DefineFunctions or JS_InitClass.  Typically
- * JSFunctionSpec structs are allocated in static arrays.
- */
-#define JSFUN_GENERIC_NATIVE   0x800
+//                             0x800    /* Unused */
 
 #define JSFUN_HAS_REST        0x1000    /* function has ...rest parameter. */
 
@@ -4882,6 +4872,7 @@ GetSymbolDescription(HandleSymbol symbol);
 
 /* Well-known symbols. */
 #define JS_FOR_EACH_WELL_KNOWN_SYMBOL(macro) \
+    macro(isConcatSpreadable) \
     macro(iterator) \
     macro(match) \
     macro(replace) \
@@ -5577,13 +5568,16 @@ JS_IsIdentifier(JSContext* cx, JS::HandleString str, bool* isIdentifier);
 extern JS_PUBLIC_API(bool)
 JS_IsIdentifier(const char16_t* chars, size_t length);
 
+namespace js {
+class ScriptSource;
+} // namespace js
+
 namespace JS {
 
 class MOZ_RAII JS_PUBLIC_API(AutoFilename)
 {
   private:
-    // Actually a ScriptSource, not put here to avoid including the world.
-    void* ss_;
+    js::ScriptSource* ss_;
     mozilla::Variant<const char*, UniqueChars> filename_;
 
     AutoFilename(const AutoFilename&) = delete;
@@ -5603,7 +5597,7 @@ class MOZ_RAII JS_PUBLIC_API(AutoFilename)
 
     void setOwned(UniqueChars&& filename);
     void setUnowned(const char* filename);
-    void setScriptSource(void* ss);
+    void setScriptSource(js::ScriptSource* ss);
 
     const char* get() const;
 };

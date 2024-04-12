@@ -906,7 +906,7 @@ js::IsWrappedArrayConstructor(JSContext* cx, const Value& v, bool* result)
     return true;
 }
 
-/* static */ bool
+static bool
 IsArraySpecies(JSContext* cx, HandleObject origArray)
 {
     RootedValue ctor(cx);
@@ -922,10 +922,13 @@ IsArraySpecies(JSContext* cx, HandleObject origArray)
     if (!GetGetterPure(cx, ctorObj, speciesId, &getter))
         return false;
 
+    if (!getter)
+        return false;
+
     return IsSelfHostedFunctionWithName(getter, cx->names().ArraySpecies);
 }
 
-/* static */ bool
+static bool
 ArraySpeciesCreate(JSContext* cx, HandleObject origArray, uint32_t length, MutableHandleObject arr)
 {
     RootedId createId(cx, NameToId(cx->names().ArraySpeciesCreate));
@@ -1389,8 +1392,8 @@ ArrayReverseDenseKernel(JSContext* cx, HandleObject obj, uint32_t length)
 DefineBoxedOrUnboxedFunctor3(ArrayReverseDenseKernel,
                              JSContext*, HandleObject, uint32_t);
 
-static bool
-array_reverse(JSContext* cx, unsigned argc, Value* vp)
+bool
+js::array_reverse(JSContext* cx, unsigned argc, Value* vp)
 {
     AutoSPSEntry pseudoFrame(cx->runtime(), "Array.prototype.reverse");
     CallArgs args = CallArgsFromVp(argc, vp);
@@ -2383,11 +2386,40 @@ CanOptimizeForDenseStorage(HandleObject arr, uint32_t startingIndex, uint32_t co
            startingIndex + count <= GetAnyBoxedOrUnboxedInitializedLength(arr);
 }
 
-/* ES5 15.4.4.12. */
-static bool
-array_splice(JSContext* cx, unsigned argc, Value* vp)
+/* ES 2016 draft Mar 25, 2016 22.1.3.26. */
+bool
+js::array_splice(JSContext* cx, unsigned argc, Value* vp)
 {
     return array_splice_impl(cx, argc, vp, true);
+}
+
+static inline bool
+ArraySpliceCopy(JSContext* cx, HandleObject arr, HandleObject obj,
+                uint32_t actualStart, uint32_t actualDeleteCount)
+{
+    /* Steps 14, 15, 15.e. */
+    RootedValue fromValue(cx);
+    for (uint32_t k = 0; k < actualDeleteCount; k++) {
+        /* Step 15.a (implicit). */
+
+        if (!CheckForInterrupt(cx))
+            return false;
+
+        /* Steps 15.b-c, 15.d.i-ii. */
+        bool hole;
+        if (!GetElement(cx, obj, actualStart + k, &hole, &fromValue))
+            return false;
+
+        /* Step 15.d. */
+        if (!hole) {
+            /* Step 15.d.iii-iv. */
+            if (!DefineElement(cx, arr, k, fromValue))
+                return false;
+        }
+    }
+
+    /* Steps 16-17. */
+    return SetLengthProperty(cx, arr, actualDeleteCount);
 }
 
 bool
@@ -2401,80 +2433,93 @@ js::array_splice_impl(JSContext* cx, unsigned argc, Value* vp, bool returnValueI
     if (!obj)
         return false;
 
-    /* Steps 3-4. */
+    /* Step 2. */
     uint32_t len;
     if (!GetLengthProperty(cx, obj, &len))
         return false;
 
-    /* Step 5. */
+    /* Step 3. */
     double relativeStart;
     if (!ToInteger(cx, args.get(0), &relativeStart))
         return false;
 
-    /* Step 6. */
+    /* Step 4. */
     uint32_t actualStart;
     if (relativeStart < 0)
         actualStart = Max(len + relativeStart, 0.0);
     else
         actualStart = Min(relativeStart, double(len));
 
-    /* Step 7. */
+    /* Step 5. */
     uint32_t actualDeleteCount;
-    if (args.length() != 1) {
+    if (args.length() == 0) {
+        /* Step 5.b. */
+        actualDeleteCount = 0;
+    } else if (args.length() == 1) {
+        /* Step 6.b. */
+        actualDeleteCount = len - actualStart;
+    } else {
+        /* Steps 7.b. */
         double deleteCountDouble;
-        RootedValue cnt(cx, args.length() >= 2 ? args[1] : Int32Value(0));
+        RootedValue cnt(cx, args[1]);
         if (!ToInteger(cx, cnt, &deleteCountDouble))
             return false;
+
+        /* Step 7.c. */
         actualDeleteCount = Min(Max(deleteCountDouble, 0.0), double(len - actualStart));
-    } else {
-        /*
-         * Non-standard: if start was specified but deleteCount was omitted,
-         * delete to the end of the array.  See bug 668024 for discussion.
-         */
-        actualDeleteCount = len - actualStart;
     }
+
+    /* Step 8 (implicit). */
 
     MOZ_ASSERT(len - actualStart >= actualDeleteCount);
 
-    /* Steps 2, 8-9. */
     RootedObject arr(cx);
-    if (CanOptimizeForDenseStorage(obj, actualStart, actualDeleteCount, cx)) {
-        if (returnValueIsUsed) {
+    if (IsArraySpecies(cx, obj)) {
+        if (CanOptimizeForDenseStorage(obj, actualStart, actualDeleteCount, cx)) {
+            if (returnValueIsUsed) {
+                /* Step 9. */
+                arr = NewFullyAllocatedArrayTryReuseGroup(cx, obj, actualDeleteCount);
+                if (!arr)
+                    return false;
+
+                /* Steps 10-11. */
+                DebugOnly<DenseElementResult> result =
+                    CopyAnyBoxedOrUnboxedDenseElements(cx, arr, obj, 0, actualStart, actualDeleteCount);
+                MOZ_ASSERT(result.value == DenseElementResult::Success);
+
+                /* Step 12 (implicit). */
+            }
+        } else {
+            /* Step 9. */
             arr = NewFullyAllocatedArrayTryReuseGroup(cx, obj, actualDeleteCount);
             if (!arr)
                 return false;
-            DebugOnly<DenseElementResult> result =
-                CopyAnyBoxedOrUnboxedDenseElements(cx, arr, obj, 0, actualStart, actualDeleteCount);
-            MOZ_ASSERT(result.value == DenseElementResult::Success);
+
+            /* Steps 10-12. */
+            if (!ArraySpliceCopy(cx, arr, obj, actualStart, actualDeleteCount))
+                return false;
         }
     } else {
-        arr = NewFullyAllocatedArrayTryReuseGroup(cx, obj, actualDeleteCount);
-        if (!arr)
+        /* Steps 9. */
+        if (!ArraySpeciesCreate(cx, obj, actualDeleteCount, &arr))
             return false;
 
-        RootedValue fromValue(cx);
-        for (uint32_t k = 0; k < actualDeleteCount; k++) {
-            bool hole;
-            if (!CheckForInterrupt(cx) ||
-                !GetElement(cx, obj, actualStart + k, &hole, &fromValue) ||
-                (!hole && !DefineElement(cx, arr, k, fromValue)))
-            {
-                return false;
-            }
-        }
+        /* Steps 10-12. */
+        if (!ArraySpliceCopy(cx, arr, obj, actualStart, actualDeleteCount))
+            return false;
     }
 
-    /* Step 11. */
+    /* Step 14. */
     uint32_t itemCount = (args.length() >= 2) ? (args.length() - 2) : 0;
 
     if (itemCount < actualDeleteCount) {
-        /* Step 12: the array is being shrunk. */
+        /* Step 15: the array is being shrunk. */
         uint32_t sourceIndex = actualStart + actualDeleteCount;
         uint32_t targetIndex = actualStart + itemCount;
         uint32_t finalLength = len - actualDeleteCount + itemCount;
 
         if (CanOptimizeForDenseStorage(obj, 0, len, cx)) {
-            /* Steps 12(a)-(b). */
+            /* Steps 15.a-b. */
             DenseElementResult result =
                 MoveAnyBoxedOrUnboxedDenseElements(cx, obj, targetIndex, sourceIndex,
                                                    len - sourceIndex);
@@ -2482,7 +2527,7 @@ js::array_splice_impl(JSContext* cx, unsigned argc, Value* vp, bool returnValueI
             if (result == DenseElementResult::Failure)
                 return false;
 
-            /* Steps 12(c)-(d). */
+            /* Steps 15.c-d. */
             SetAnyBoxedOrUnboxedInitializedLength(cx, obj, finalLength);
         } else {
             /*
@@ -2492,32 +2537,40 @@ js::array_splice_impl(JSContext* cx, unsigned argc, Value* vp, bool returnValueI
              * fallout.
              */
 
-            /* Steps 12(a)-(b). */
+            /* Steps 15.a-b. */
             RootedValue fromValue(cx);
             for (uint32_t from = sourceIndex, to = targetIndex; from < len; from++, to++) {
+                /* Steps 15.b.i-ii (implicit). */
+
                 if (!CheckForInterrupt(cx))
                     return false;
 
+                /* Steps 15.b.iii, 15.b.iv.1. */
                 bool hole;
                 if (!GetElement(cx, obj, from, &hole, &fromValue))
                     return false;
+
+                /* Steps 15.b.iv. */
                 if (hole) {
+                    /* Steps 15.b.v.1. */
                     if (!DeletePropertyOrThrow(cx, obj, to))
                         return false;
                 } else {
+                    /* Step 15.b.iv.2. */
                     if (!SetArrayElement(cx, obj, to, fromValue))
                         return false;
                 }
             }
 
-            /* Steps 12(c)-(d). */
+            /* Steps 15.c-d. */
             for (uint32_t k = len; k > finalLength; k--) {
+                /* Steps 15.d.i-ii. */
                 if (!DeletePropertyOrThrow(cx, obj, k - 1))
                     return false;
             }
         }
     } else if (itemCount > actualDeleteCount) {
-        /* Step 13. */
+        /* Step 16. */
 
         /*
          * Optimize only if the array is already dense and we can extend it to
@@ -2562,7 +2615,7 @@ js::array_splice_impl(JSContext* cx, unsigned argc, Value* vp, bool returnValueI
             if (result == DenseElementResult::Failure)
                 return false;
 
-            /* Steps 12(c)-(d). */
+            /* Steps 16.a-b. */
             SetAnyBoxedOrUnboxedInitializedLength(cx, obj, len + itemCount - actualDeleteCount);
         } else {
             RootedValue fromValue(cx);
@@ -2570,17 +2623,24 @@ js::array_splice_impl(JSContext* cx, unsigned argc, Value* vp, bool returnValueI
                 if (!CheckForInterrupt(cx))
                     return false;
 
+                /* Step 16.b.i. */
                 double from = k + actualDeleteCount - 1;
+
+                /* Step 16.b.ii. */
                 double to = k + itemCount - 1;
 
+                /* Steps 16.b.iii, 16.b.iv.1. */
                 bool hole;
                 if (!GetElement(cx, obj, from, &hole, &fromValue))
                     return false;
 
+                /* Steps 16.b.iv. */
                 if (hole) {
+                    /* Step 16.b.v.1. */
                     if (!DeletePropertyOrThrow(cx, obj, to))
                         return false;
                 } else {
+                    /* Step 16.b.iv.2. */
                     if (!SetArrayElement(cx, obj, to, fromValue))
                         return false;
                 }
@@ -2588,21 +2648,24 @@ js::array_splice_impl(JSContext* cx, unsigned argc, Value* vp, bool returnValueI
         }
     }
 
-    /* Step 10. */
+    /* Step 13 (reordered). */
     Value* items = args.array() + 2;
 
-    /* Steps 14-15. */
+    /* Steps 17-18. */
     for (uint32_t k = actualStart, i = 0; i < itemCount; i++, k++) {
+        /* Step 18.a (implicit). */
+
+        /* Step 18.b. */
         if (!SetArrayElement(cx, obj, k, HandleValue::fromMarkedLocation(&items[i])))
             return false;
     }
 
-    /* Step 16. */
+    /* Step 19. */
     double finalLength = double(len) - actualDeleteCount + itemCount;
     if (!SetLengthProperty(cx, obj, finalLength))
         return false;
 
-    /* Step 17. */
+    /* Step 20. */
     if (returnValueIsUsed)
         args.rval().setObject(*arr);
 
@@ -2767,35 +2830,10 @@ NormalizeSliceTerm(T value, uint32_t length)
     return uint32_t(value);
 }
 
-bool
-js::array_slice(JSContext* cx, unsigned argc, Value* vp)
+static bool
+ArraySliceOrdinary(JSContext* cx, HandleObject obj, uint32_t length, uint32_t begin, uint32_t end,
+                   MutableHandleObject arr)
 {
-    AutoSPSEntry pseudoFrame(cx->runtime(), "Array.prototype.slice");
-    CallArgs args = CallArgsFromVp(argc, vp);
-
-    RootedObject obj(cx, ToObject(cx, args.thisv()));
-    if (!obj)
-        return false;
-
-    uint32_t length;
-    if (!GetLengthProperty(cx, obj, &length))
-        return false;
-
-    uint32_t begin = 0;
-    uint32_t end = length;
-    if (args.length() > 0) {
-        double d;
-        if (!ToInteger(cx, args[0], &d))
-            return false;
-        begin = NormalizeSliceTerm(d, length);
-
-        if (args.hasDefined(1)) {
-            if (!ToInteger(cx, args[1], &d))
-                return false;
-            end = NormalizeSliceTerm(d, length);
-        }
-    }
-
     if (begin > end)
         begin = end;
 
@@ -2815,7 +2853,7 @@ js::array_slice(JSContext* cx, unsigned argc, Value* vp)
                 CopyAnyBoxedOrUnboxedDenseElements(cx, narr, obj, 0, begin, count);
             MOZ_ASSERT(result.value == DenseElementResult::Success);
         }
-        args.rval().setObject(*narr);
+        arr.set(narr);
         return true;
     }
 
@@ -2828,7 +2866,7 @@ js::array_slice(JSContext* cx, unsigned argc, Value* vp)
         if (!op(cx, obj, begin, end, &adder))
             return false;
 
-        args.rval().setObject(*narr);
+        arr.set(narr);
         return true;
     }
 
@@ -2840,7 +2878,99 @@ js::array_slice(JSContext* cx, unsigned argc, Value* vp)
             return false;
     }
 
-    args.rval().setObject(*narr);
+    arr.set(narr);
+    return true;
+}
+
+/* ES 2016 draft Mar 25, 2016 22.1.3.23. */
+bool
+js::array_slice(JSContext* cx, unsigned argc, Value* vp)
+{
+    AutoSPSEntry pseudoFrame(cx->runtime(), "Array.prototype.slice");
+    CallArgs args = CallArgsFromVp(argc, vp);
+
+    /* Step 1. */
+    RootedObject obj(cx, ToObject(cx, args.thisv()));
+    if (!obj)
+        return false;
+
+    /* Step 2. */
+    uint32_t length;
+    if (!GetLengthProperty(cx, obj, &length))
+        return false;
+
+    uint32_t k = 0;
+    uint32_t final = length;
+    if (args.length() > 0) {
+        double d;
+        /* Step 3. */
+        if (!ToInteger(cx, args[0], &d))
+            return false;
+
+        /* Step 4. */
+        k = NormalizeSliceTerm(d, length);
+
+        if (args.hasDefined(1)) {
+            /* Step 5. */
+            if (!ToInteger(cx, args[1], &d))
+                return false;
+
+            /* Step 6. */
+            final = NormalizeSliceTerm(d, length);
+        }
+    }
+
+    /* Step 7. */
+    uint32_t count = final > k ? final - k : 0;
+
+    RootedObject arr(cx);
+    if (IsArraySpecies(cx, obj)) {
+        /* Steps 8-11: Optimized for ordinary array. */
+        if (!ArraySliceOrdinary(cx, obj, length, k, final, &arr))
+            return false;
+
+        /* Step 12. */
+        args.rval().setObject(*arr);
+        return true;
+    }
+
+    /* Step 8. */
+    if (!ArraySpeciesCreate(cx, obj, count, &arr))
+        return false;
+
+    /* Step 9. */
+    uint32_t n = 0;
+
+    /* Step 10. */
+    RootedValue kValue(cx);
+    while (k < final) {
+        if (!CheckForInterrupt(cx))
+            return false;
+
+        /* Steps 10.a-b, and 10.c.i. */
+        bool kNotPresent;
+        if (!GetElement(cx, obj, k, &kNotPresent, &kValue))
+            return false;
+
+        /* Step 10.c. */
+        if (!kNotPresent) {
+            /* Steps 10.c.ii. */
+            if (!DefineElement(cx, arr, n, kValue))
+                return false;
+        }
+        /* Step 10.d. */
+        k++;
+
+        /* Step 10.e. */
+        n++;
+    }
+
+    /* Step 11. */
+    if (!SetLengthProperty(cx, arr, n))
+        return false;
+
+    /* Step 12. */
+    args.rval().setObject(*arr);
     return true;
 }
 
@@ -2878,7 +3008,7 @@ JSObject*
 js::array_slice_dense(JSContext* cx, HandleObject obj, int32_t begin, int32_t end,
                       HandleObject result)
 {
-    if (result) {
+    if (result && IsArraySpecies(cx, obj)) {
         ArraySliceDenseKernelFunctor functor(cx, obj, begin, end, result);
         DenseElementResult rv = CallBoxedOrUnboxedSpecialization(functor, result);
         MOZ_ASSERT(rv != DenseElementResult::Incomplete);
@@ -2958,8 +3088,6 @@ array_of(JSContext* cx, unsigned argc, Value* vp)
     return true;
 }
 
-#define GENERIC JSFUN_GENERIC_NATIVE
-
 static const JSFunctionSpec array_methods[] = {
 #if JS_HAS_TOSOURCE
     JS_FN(js_toSource_str,      array_toSource,     0,0),
@@ -2968,18 +3096,18 @@ static const JSFunctionSpec array_methods[] = {
     JS_FN(js_toLocaleString_str,       array_toLocaleString, 0,0),
 
     /* Perl-ish methods. */
-    JS_INLINABLE_FN("join",     array_join,         1,JSFUN_GENERIC_NATIVE, ArrayJoin),
-    JS_FN("reverse",            array_reverse,      0,JSFUN_GENERIC_NATIVE),
-    JS_FN("sort",               array_sort,         1,JSFUN_GENERIC_NATIVE),
-    JS_INLINABLE_FN("push",     array_push,         1,JSFUN_GENERIC_NATIVE, ArrayPush),
-    JS_INLINABLE_FN("pop",      array_pop,          0,JSFUN_GENERIC_NATIVE, ArrayPop),
-    JS_INLINABLE_FN("shift",    array_shift,        0,JSFUN_GENERIC_NATIVE, ArrayShift),
-    JS_FN("unshift",            array_unshift,      1,JSFUN_GENERIC_NATIVE),
-    JS_INLINABLE_FN("splice",   array_splice,       2,JSFUN_GENERIC_NATIVE, ArraySplice),
+    JS_INLINABLE_FN("join",     array_join,         1,0, ArrayJoin),
+    JS_FN("reverse",            array_reverse,      0,0),
+    JS_FN("sort",               array_sort,         1,0),
+    JS_INLINABLE_FN("push",     array_push,         1,0, ArrayPush),
+    JS_INLINABLE_FN("pop",      array_pop,          0,0, ArrayPop),
+    JS_INLINABLE_FN("shift",    array_shift,        0,0, ArrayShift),
+    JS_FN("unshift",            array_unshift,      1,0),
+    JS_INLINABLE_FN("splice",   array_splice,       2,0, ArraySplice),
 
     /* Pythonic sequence methods. */
     JS_SELF_HOSTED_FN("concat",      "ArrayConcat",      1,0),
-    JS_INLINABLE_FN("slice",    array_slice,        2,JSFUN_GENERIC_NATIVE, ArraySlice),
+    JS_INLINABLE_FN("slice",    array_slice,        2,0, ArraySlice),
 
     JS_SELF_HOSTED_FN("lastIndexOf", "ArrayLastIndexOf", 1,0),
     JS_SELF_HOSTED_FN("indexOf",     "ArrayIndexOf",     1,0),
@@ -3020,6 +3148,15 @@ static const JSFunctionSpec array_static_methods[] = {
     JS_SELF_HOSTED_FN("some",        "ArrayStaticSome",  2,0),
     JS_SELF_HOSTED_FN("reduce",      "ArrayStaticReduce", 2,0),
     JS_SELF_HOSTED_FN("reduceRight", "ArrayStaticReduceRight", 2,0),
+    JS_SELF_HOSTED_FN("join",        "ArrayStaticJoin", 2,0),
+    JS_SELF_HOSTED_FN("reverse",     "ArrayStaticReverse", 1,0),
+    JS_SELF_HOSTED_FN("sort",        "ArrayStaticSort", 2,0),
+    JS_SELF_HOSTED_FN("push",        "ArrayStaticPush", 2,0),
+    JS_SELF_HOSTED_FN("pop",         "ArrayStaticPop", 1,0),
+    JS_SELF_HOSTED_FN("shift",       "ArrayStaticShift", 1,0),
+    JS_SELF_HOSTED_FN("unshift",     "ArrayStaticUnshift", 2,0),
+    JS_SELF_HOSTED_FN("splice",      "ArrayStaticSplice", 3,0),
+    JS_SELF_HOSTED_FN("slice",       "ArrayStaticSlice", 3,0),
     JS_SELF_HOSTED_FN("from",        "ArrayFrom", 3,0),
     JS_FN("of",                 array_of,           0,0),
 

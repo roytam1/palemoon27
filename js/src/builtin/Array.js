@@ -265,38 +265,39 @@ function ArrayStaticForEach(list, callbackfn/*, thisArg*/) {
     callFunction(ArrayForEach, list, callbackfn, T);
 }
 
-/* ES5 15.4.4.19. */
+/* ES 2016 draft Mar 25, 2016 22.1.3.15. */
 function ArrayMap(callbackfn/*, thisArg*/) {
     /* Step 1. */
     var O = ToObject(this);
 
-    /* Step 2-3. */
+    /* Step 2. */
+    /* FIXME: Array operations should use ToLength (bug 924058). */
     var len = TO_UINT32(O.length);
 
-    /* Step 4. */
+    /* Step 3. */
     if (arguments.length === 0)
         ThrowTypeError(JSMSG_MISSING_FUN_ARG, 0, 'Array.prototype.map');
     if (!IsCallable(callbackfn))
         ThrowTypeError(JSMSG_NOT_FUNCTION, DecompileArg(0, callbackfn));
 
-    /* Step 5. */
+    /* Step 4. */
     var T = arguments.length > 1 ? arguments[1] : void 0;
 
-    /* Step 6. */
-    var A = std_Array(len);
+    /* Steps 5. */
+    var A = ArraySpeciesCreate(O, len);
 
-    /* Step 7-8. */
-    /* Step a (implicit), and d. */
+    /* Steps 6-7. */
+    /* Steps 7.a (implicit), and 7.d. */
     for (var k = 0; k < len; k++) {
-        /* Step b */
+        /* Steps 7.b-c. */
         if (k in O) {
-            /* Step c.i-iii. */
+            /* Steps 7.c.i-iii. */
             var mappedValue = callContentFunction(callbackfn, T, O[k], k, O);
             _DefineDataProperty(A, k, mappedValue);
         }
     }
 
-    /* Step 9. */
+    /* Step 8. */
     return A;
 }
 
@@ -309,42 +310,42 @@ function ArrayStaticMap(list, callbackfn/*, thisArg*/) {
     return callFunction(ArrayMap, list, callbackfn, T);
 }
 
-/* ES2015 22.1.3.7 Array.prototype.filter. */
+/* ES 2016 draft Mar 25, 2016 22.1.3.7 Array.prototype.filter. */
 function ArrayFilter(callbackfn/*, thisArg*/) {
-    /* Steps 1-2. */
+    /* Step 1. */
     var O = ToObject(this);
 
-    /* Steps 3-4. */
+    /* Step 2. */
     var len = ToInteger(O.length);
 
-    /* Step 5. */
+    /* Step 3. */
     if (arguments.length === 0)
         ThrowTypeError(JSMSG_MISSING_FUN_ARG, 0, 'Array.prototype.filter');
     if (!IsCallable(callbackfn))
         ThrowTypeError(JSMSG_NOT_FUNCTION, DecompileArg(0, callbackfn));
 
-    /* Step 6. */
+    /* Step 4. */
     var T = arguments.length > 1 ? arguments[1] : void 0;
 
-    /* Step 7. */
-    var A = [];
+    /* Step 5. */
+    var A = ArraySpeciesCreate(O, 0);
 
-    /* Steps 8-11. */
-    /* Steps 11.a (implicit), and 11.e. */
+    /* Steps 6-8. */
+    /* Steps 8.a (implicit), and 8.d. */
     for (var k = 0, to = 0; k < len; k++) {
-        /* Steps 11.b-c. */
+        /* Steps 8.b-c. */
         if (k in O) {
-            /* Steps 11.c.i-ii. */
+            /* Step 8.c.i. */
             var kValue = O[k];
-            /* Steps 11.c.iii-iv. */
+            /* Step 8.c.ii. */
             var selected = callContentFunction(callbackfn, T, kValue, k, O);
-            /* Step 11.c.v. */
+            /* Step 8.c.iii. */
             if (selected)
                 _DefineDataProperty(A, to++, kValue);
         }
     }
 
-    /* Step 12. */
+    /* Step 9. */
     return A;
 }
 
@@ -941,6 +942,23 @@ function ArraySpeciesCreate(originalArray, length) {
     return new C(length);
 }
 
+// ES 2017 draft (April 8, 2016) 22.1.3.1.1
+function IsConcatSpreadable(O) {
+    // Step 1.
+    if (!IsObject(O))
+        return false;
+
+    // Step 2.
+    var spreadable = O[std_isConcatSpreadable];
+
+    // Step 3.
+    if (spreadable !== undefined)
+        return ToBoolean(spreadable);
+
+    // Step 4.
+    return IsArray(O);
+}
+
 // ES 2016 draft Mar 25, 2016 22.1.3.1.
 // Note: Array.prototype.concat.length is 1.
 function ArrayConcat(arg1) {
@@ -964,8 +982,7 @@ function ArrayConcat(arg1) {
     var k, len;
     while (true) {
         // Steps 5.b-c.
-        // IsArray should be replaced with IsConcatSpreadable (bug 1041586).
-        if (IsArray(E)) {
+        if (IsConcatSpreadable(E)) {
             // Step 5.c.ii.
             len = ToLength(E.length);
 
@@ -1025,4 +1042,61 @@ function ArrayStaticConcat(arr, arg1) {
         ThrowTypeError(JSMSG_MISSING_FUN_ARG, 0, 'Array.concat');
     var args = callFunction(std_Array_slice, arguments, 1);
     return callFunction(std_Function_apply, ArrayConcat, arr, args);
+}
+
+function ArrayStaticJoin(arr, separator) {
+    if (arguments.length < 1)
+        ThrowTypeError(JSMSG_MISSING_FUN_ARG, 0, 'Array.join');
+    return callFunction(std_Array_join, arr, separator);
+}
+
+function ArrayStaticReverse(arr) {
+    if (arguments.length < 1)
+        ThrowTypeError(JSMSG_MISSING_FUN_ARG, 0, 'Array.reverse');
+    return callFunction(std_Array_reverse, arr);
+}
+
+function ArrayStaticSort(arr, comparefn) {
+    if (arguments.length < 1)
+        ThrowTypeError(JSMSG_MISSING_FUN_ARG, 0, 'Array.sort');
+    return callFunction(std_Array_sort, arr, comparefn);
+}
+
+function ArrayStaticPush(arr, arg1) {
+    if (arguments.length < 1)
+        ThrowTypeError(JSMSG_MISSING_FUN_ARG, 0, 'Array.push');
+    var args = callFunction(std_Array_slice, arguments, 1);
+    return callFunction(std_Function_apply, std_Array_push, arr, args);
+}
+
+function ArrayStaticPop(arr) {
+    if (arguments.length < 1)
+        ThrowTypeError(JSMSG_MISSING_FUN_ARG, 0, 'Array.pop');
+    return callFunction(std_Array_pop, arr);
+}
+
+function ArrayStaticShift(arr) {
+    if (arguments.length < 1)
+        ThrowTypeError(JSMSG_MISSING_FUN_ARG, 0, 'Array.shift');
+    return callFunction(std_Array_shift, arr);
+}
+
+function ArrayStaticUnshift(arr, arg1) {
+    if (arguments.length < 1)
+        ThrowTypeError(JSMSG_MISSING_FUN_ARG, 0, 'Array.unshift');
+    var args = callFunction(std_Array_slice, arguments, 1);
+    return callFunction(std_Function_apply, std_Array_unshift, arr, args);
+}
+
+function ArrayStaticSplice(arr, start, deleteCount) {
+    if (arguments.length < 1)
+        ThrowTypeError(JSMSG_MISSING_FUN_ARG, 0, 'Array.splice');
+    var args = callFunction(std_Array_slice, arguments, 1);
+    return callFunction(std_Function_apply, std_Array_splice, arr, args);
+}
+
+function ArrayStaticSlice(arr, start, end) {
+    if (arguments.length < 1)
+        ThrowTypeError(JSMSG_MISSING_FUN_ARG, 0, 'Array.slice');
+    return callFunction(std_Array_slice, arr, start, end);
 }

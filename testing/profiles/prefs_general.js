@@ -77,6 +77,9 @@ user_pref("geo.wifi.timeToWaitBeforeSending", 2000);
 user_pref("geo.wifi.scan", false);
 user_pref("geo.wifi.logging.enabled", true);
 
+// Prevent connection to the push server for tests.
+user_pref("dom.push.connection.enabled", false);
+
 // Make url-classifier updates so rare that they won't affect tests
 user_pref("urlclassifier.updateinterval", 172800);
 // Point the url-classifier to the local testing server for fast failures
@@ -88,6 +91,8 @@ user_pref("browser.trackingprotection.updateURL", "http://%(server)s/safebrowsin
 // Point update checks to the local testing server for fast failures
 user_pref("extensions.update.url", "http://%(server)s/extensions-dummy/updateURL");
 user_pref("extensions.update.background.url", "http://%(server)s/extensions-dummy/updateBackgroundURL");
+user_pref("extensions.blocklist.detailsURL", "http://%(server)s/extensions-dummy/blocklistDetailsURL");
+user_pref("extensions.blocklist.itemURL", "http://%(server)s/extensions-dummy/blocklistItemURL");
 user_pref("extensions.blocklist.url", "http://%(server)s/extensions-dummy/blocklistURL");
 user_pref("extensions.hotfix.url", "http://%(server)s/extensions-dummy/hotfixURL");
 user_pref("extensions.systemAddon.update.url", "http://%(server)s/dummy-system-addons.xml");
@@ -321,3 +326,4 @@ user_pref("browser.urlbar.suggest.searches", false);
 user_pref("dom.audiochannel.mutedByDefault", false);
 
 user_pref("webextensions.tests", true);
+user_pref("startup.homepage_welcome_url", "about:blank");

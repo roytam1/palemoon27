@@ -498,7 +498,8 @@ array_length_setter(JSContext* cx, HandleObject obj, HandleId id, MutableHandleV
         // we're here, do an impression of SetPropertyByDefining.
         const Class* clasp = obj->getClass();
         return DefineProperty(cx, obj, cx->names().length, vp,
-                              clasp->getProperty, clasp->setProperty, JSPROP_ENUMERATE, result);
+                              clasp->getGetProperty(), clasp->getSetProperty(),
+                              JSPROP_ENUMERATE, result);
     }
 
     Rooted<ArrayObject*> arr(cx, &obj->as<ArrayObject>());
@@ -933,6 +934,8 @@ ArraySpeciesCreate(JSContext* cx, HandleObject origArray, uint32_t length, Mutab
 {
     RootedId createId(cx, NameToId(cx->names().ArraySpeciesCreate));
     RootedFunction create(cx, JS::GetSelfHostedFunction(cx, "ArraySpeciesCreate", createId, 2));
+    if (!create)
+        return false;
 
     FixedInvokeArgs<2> args(cx);
 
@@ -2694,7 +2697,7 @@ GetIndexedPropertiesInRange(JSContext* cx, HandleObject obj, uint32_t begin, uin
     // properties.
     JSObject* pobj = obj;
     do {
-        if (!pobj->isNative() || pobj->getClass()->resolve || pobj->getOpsLookupProperty())
+        if (!pobj->isNative() || pobj->getClass()->getResolve() || pobj->getOpsLookupProperty())
             return true;
     } while ((pobj = pobj->getProto()));
 
@@ -3286,6 +3289,21 @@ array_proto_finish(JSContext* cx, JS::HandleObject ctor, JS::HandleObject proto)
     return DefineProperty(cx, proto, id, value, nullptr, nullptr, JSPROP_READONLY);
 }
 
+static const ClassOps ArrayObjectClassOps = {
+    array_addProperty,
+    nullptr, /* delProperty */
+    nullptr, /* getProperty */
+    nullptr, /* setProperty */
+    nullptr, /* enumerate */
+    nullptr, /* resolve */
+    nullptr, /* mayResolve */
+    nullptr, /* finalize */
+    nullptr, /* call */
+    nullptr, /* hasInstance */
+    nullptr, /* construct */
+    nullptr, /* trace */
+};
+
 static const ClassSpec ArrayObjectClassSpec = {
     GenericCreateConstructor<ArrayConstructor, 1, AllocKind::FUNCTION, &jit::JitInfo_Array>,
     CreateArrayPrototype,
@@ -3299,18 +3317,7 @@ static const ClassSpec ArrayObjectClassSpec = {
 const Class ArrayObject::class_ = {
     "Array",
     JSCLASS_HAS_CACHED_PROTO(JSProto_Array) | JSCLASS_DELAY_METADATA_BUILDER,
-    array_addProperty,
-    nullptr, /* delProperty */
-    nullptr, /* getProperty */
-    nullptr, /* setProperty */
-    nullptr, /* enumerate */
-    nullptr, /* resolve */
-    nullptr, /* mayResolve */
-    nullptr, /* finalize */
-    nullptr, /* call */
-    nullptr, /* hasInstance */
-    nullptr, /* construct */
-    nullptr, /* trace */
+    &ArrayObjectClassOps,
     &ArrayObjectClassSpec
 };
 

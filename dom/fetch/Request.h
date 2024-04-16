@@ -88,15 +88,27 @@ public:
   }
 
   void
-  SetContentPolicyType(nsContentPolicyType aContentPolicyType)
+  OverrideContentPolicyType(nsContentPolicyType aContentPolicyType)
   {
-    mRequest->SetContentPolicyType(aContentPolicyType);
+    mRequest->OverrideContentPolicyType(aContentPolicyType);
+  }
+
+  bool
+  IsContentPolicyTypeOverridden() const
+  {
+    return mRequest->IsContentPolicyTypeOverridden();
   }
 
   void
   GetReferrer(nsAString& aReferrer) const
   {
     mRequest->GetReferrer(aReferrer);
+  }
+
+  ReferrerPolicy
+  ReferrerPolicy_() const
+  {
+    return mRequest->ReferrerPolicy_();
   }
 
   InternalHeaders*

@@ -550,39 +550,44 @@ sandbox_addProperty(JSContext* cx, HandleObject obj, HandleId id, HandleValue v)
 
 #define XPCONNECT_SANDBOX_CLASS_METADATA_SLOT (XPCONNECT_GLOBAL_EXTRA_SLOT_OFFSET)
 
-static const js::Class SandboxClass = {
-    "Sandbox",
-    XPCONNECT_GLOBAL_FLAGS_WITH_EXTRA_SLOTS(1),
+static const js::ClassOps SandboxClassOps = {
     nullptr, nullptr, nullptr, nullptr,
     sandbox_enumerate, sandbox_resolve,
     nullptr,        /* mayResolve */
     sandbox_finalize,
     nullptr, nullptr, nullptr, JS_GlobalObjectTraceHook,
+};
+
+static const js::ClassExtension SandboxClassExtension = {
+    nullptr,      /* weakmapKeyDelegateOp */
+    sandbox_moved /* objectMovedOp */
+};
+
+static const js::Class SandboxClass = {
+    "Sandbox",
+    XPCONNECT_GLOBAL_FLAGS_WITH_EXTRA_SLOTS(1),
+    &SandboxClassOps,
     JS_NULL_CLASS_SPEC,
-    {
-      false,        /* isWrappedNative */
-      nullptr,      /* weakmapKeyDelegateOp */
-      sandbox_moved /* objectMovedOp */
-    },
+    &SandboxClassExtension,
     JS_NULL_OBJECT_OPS
 };
 
 // Note to whomever comes here to remove addProperty hooks: billm has promised
 // to do the work for this class.
-static const js::Class SandboxWriteToProtoClass = {
-    "Sandbox",
-    XPCONNECT_GLOBAL_FLAGS_WITH_EXTRA_SLOTS(1),
+static const js::ClassOps SandboxWriteToProtoClassOps = {
     sandbox_addProperty, nullptr, nullptr, nullptr,
     sandbox_enumerate, sandbox_resolve,
     nullptr,        /* mayResolve */
     sandbox_finalize,
     nullptr, nullptr, nullptr, JS_GlobalObjectTraceHook,
+};
+
+static const js::Class SandboxWriteToProtoClass = {
+    "Sandbox",
+    XPCONNECT_GLOBAL_FLAGS_WITH_EXTRA_SLOTS(1),
+    &SandboxWriteToProtoClassOps,
     JS_NULL_CLASS_SPEC,
-    {
-      false,        /* isWrappedNative */
-      nullptr,      /* weakmapKeyDelegateOp */
-      sandbox_moved /* objectMovedOp */
-    },
+    &SandboxClassExtension,
     JS_NULL_OBJECT_OPS
 };
 

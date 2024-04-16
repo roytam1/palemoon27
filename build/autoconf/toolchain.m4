@@ -21,8 +21,6 @@ COMPILER msvc _MSC_FULL_VER
 COMPILER clang __clang_major__.__clang_minor__.__clang_patchlevel__
 #elif defined(__GNUC__)
 COMPILER gcc __GNUC__.__GNUC_MINOR__.__GNUC_PATCHLEVEL__
-#elif defined(__INTEL_COMPILER)
-COMPILER icc __INTEL_COMPILER
 #endif
 EOF
 read dummy compiler CC_VERSION <<EOF
@@ -66,13 +64,6 @@ if test "$compiler" = "msvc"; then
      MSVC_VERSION_FULL="$CXX_VERSION"
      CC_VERSION=`echo ${CC_VERSION} | cut -c 1-4`
      CXX_VERSION=`echo ${CXX_VERSION} | cut -c 1-4`
-fi
-
-INTEL_CC=
-INTEL_CXX=
-if test "$compiler" = "icc"; then
-   INTEL_CC=1
-   INTEL_CXX=1
 fi
 
 CLANG_CC=
@@ -195,35 +186,12 @@ cross_compiling=yes
 
 AC_DEFUN([MOZ_CXX11],
 [
-dnl Check whether gcc's c++0x mode works
 dnl Updates to the test below should be duplicated further below for the
 dnl cross-compiling case.
 AC_LANG_CPLUSPLUS
 if test "$GNU_CXX"; then
-    CXXFLAGS="$CXXFLAGS -std=gnu++0x"
-    _ADDED_CXXFLAGS="-std=gnu++0x"
-
-    AC_CACHE_CHECK(for gcc c++0x headers bug without rtti,
-        ac_cv_cxx0x_headers_bug,
-        [AC_TRY_COMPILE([#include <memory>], [],
-                        ac_cv_cxx0x_headers_bug="no",
-                        ac_cv_cxx0x_headers_bug="yes")])
-
-    if test "$CLANG_CXX" -a "$ac_cv_cxx0x_headers_bug" = "yes"; then
-        CXXFLAGS="$CXXFLAGS -I$_topsrcdir/build/unix/headers"
-        _ADDED_CXXFLAGS="$_ADDED_CXXFLAGS -I$_topsrcdir/build/unix/headers"
-        AC_CACHE_CHECK(whether workaround for gcc c++0x headers conflict with clang works,
-            ac_cv_cxx0x_clang_workaround,
-            [AC_TRY_COMPILE([#include <memory>], [],
-                            ac_cv_cxx0x_clang_workaround="yes",
-                            ac_cv_cxx0x_clang_workaround="no")])
-
-        if test "ac_cv_cxx0x_clang_workaround" = "no"; then
-            AC_MSG_ERROR([Your toolchain does not support C++0x/C++11 mode properly. Please upgrade your toolchain])
-        fi
-    elif test "$ac_cv_cxx0x_headers_bug" = "yes"; then
-        AC_MSG_ERROR([Your toolchain does not support C++0x/C++11 mode properly. Please upgrade your toolchain])
-    fi
+    CXXFLAGS="$CXXFLAGS -std=gnu++11"
+    _ADDED_CXXFLAGS="-std=gnu++11"
 
     if test -n "$CLANG_CC"; then
         dnl We'd normally just check for the version from CC_VERSION (fed
@@ -304,7 +272,7 @@ EOF
             fi
         fi
 
-        HOST_CXXFLAGS="$HOST_CXXFLAGS -std=gnu++0x"
+        HOST_CXXFLAGS="$HOST_CXXFLAGS -std=gnu++11"
 
         _SAVE_CXXFLAGS="$CXXFLAGS"
         _SAVE_CPPFLAGS="$CPPFLAGS"
@@ -312,27 +280,6 @@ EOF
         CXXFLAGS="$HOST_CXXFLAGS"
         CPPFLAGS="$HOST_CPPFLAGS"
         CXX="$HOST_CXX"
-        AC_CACHE_CHECK(for host gcc c++0x headers bug without rtti,
-            ac_cv_host_cxx0x_headers_bug,
-            [AC_TRY_COMPILE([#include <memory>], [],
-                            ac_cv_host_cxx0x_headers_bug="no",
-                            ac_cv_host_cxx0x_headers_bug="yes")])
-
-        if test "$host_compiler" = CLANG -a "$ac_cv_host_cxx0x_headers_bug" = "yes"; then
-            CXXFLAGS="$CXXFLAGS -I$_topsrcdir/build/unix/headers"
-            AC_CACHE_CHECK(whether workaround for host gcc c++0x headers conflict with host clang works,
-                ac_cv_host_cxx0x_clang_workaround,
-                [AC_TRY_COMPILE([#include <memory>], [],
-                                ac_cv_host_cxx0x_clang_workaround="yes",
-                                ac_cv_host_cxx0x_clang_workaround="no")])
-
-            if test "ac_cv_host_cxx0x_clang_workaround" = "no"; then
-                AC_MSG_ERROR([Your host toolchain does not support C++0x/C++11 mode properly. Please upgrade your toolchain])
-            fi
-            HOST_CXXFLAGS="$CXXFLAGS"
-        elif test "$ac_cv_host_cxx0x_headers_bug" = "yes"; then
-            AC_MSG_ERROR([Your host toolchain does not support C++0x/C++11 mode properly. Please upgrade your toolchain])
-        fi
         if test "$host_compiler" = CLANG; then
             AC_TRY_COMPILE([], [#if !__has_feature(cxx_inheriting_constructors)
                                 #error inheriting constructors are not supported

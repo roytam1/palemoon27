@@ -430,10 +430,7 @@ str_resolve(JSContext* cx, HandleObject obj, HandleId id, bool* resolvedp)
     return true;
 }
 
-const Class StringObject::class_ = {
-    js_String_str,
-    JSCLASS_HAS_RESERVED_SLOTS(StringObject::RESERVED_SLOTS) |
-    JSCLASS_HAS_CACHED_PROTO(JSProto_String),
+static const ClassOps StringObjectClassOps = {
     nullptr, /* addProperty */
     nullptr, /* delProperty */
     nullptr, /* getProperty */
@@ -441,6 +438,13 @@ const Class StringObject::class_ = {
     str_enumerate,
     str_resolve,
     str_mayResolve
+};
+
+const Class StringObject::class_ = {
+    js_String_str,
+    JSCLASS_HAS_RESERVED_SLOTS(StringObject::RESERVED_SLOTS) |
+    JSCLASS_HAS_CACHED_PROTO(JSProto_String),
+    &StringObjectClassOps
 };
 
 /*
@@ -2305,6 +2309,9 @@ js::str_replace_string_raw(JSContext* cx, HandleString string, HandleString patt
         return nullptr;
 
     RootedAtom pat(cx, AtomizeString(cx, pattern));
+    if (!pat)
+        return nullptr;
+
     size_t patternLength = pat->length();
     int32_t match;
     uint32_t dollarIndex;

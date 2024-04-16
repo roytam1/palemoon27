@@ -761,14 +761,14 @@ protected:
                                   JS::AutoIdVector &props) const;
 };
 
-const js::Class OuterWindowProxyClass =
-    PROXY_CLASS_WITH_EXT(
-        "Proxy",
-        0, /* additional class flags */
-        PROXY_MAKE_EXT(
-            false,   /* isWrappedNative */
-            nsOuterWindowProxy::ObjectMoved
-        ));
+static const js::ClassExtension OuterWindowProxyClassExtension = PROXY_MAKE_EXT(
+    nsOuterWindowProxy::ObjectMoved
+);
+
+const js::Class OuterWindowProxyClass = PROXY_CLASS_WITH_EXT(
+    "Proxy",
+    0, /* additional class flags */
+    &OuterWindowProxyClassExtension);
 
 const char *
 nsOuterWindowProxy::className(JSContext *cx, JS::Handle<JSObject*> proxy) const
@@ -11584,7 +11584,7 @@ nsGlobalWindow::OpenInternal(const nsAString& aUrl, const nsAString& aName,
                                 options_ptr, /* aCalledFromScript = */ true,
                                 aDialog, aNavigate, nullptr, argv,
 				aLoadInfo,
-                                getter_AddRefs(domReturn));
+                                1.0f, 0, getter_AddRefs(domReturn));
     } else {
       // Force a system caller here so that the window watcher won't screw us
       // up.  We do NOT want this case looking at the JS context on the stack
@@ -11605,7 +11605,7 @@ nsGlobalWindow::OpenInternal(const nsAString& aUrl, const nsAString& aName,
                                 options_ptr, /* aCalledFromScript = */ false,
                                 aDialog, aNavigate, nullptr, aExtraArgument,
 				aLoadInfo,
-                                getter_AddRefs(domReturn));
+                                1.0f, 0, getter_AddRefs(domReturn));
 
     }
   }

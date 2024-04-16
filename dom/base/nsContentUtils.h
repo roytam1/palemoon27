@@ -1124,6 +1124,13 @@ public:
                                       bool aCancelable,
                                       bool *aDefaultAction = nullptr);
 
+  /**
+   * Helper function for dispatching a "DOMServiceWorkerFocusClient" event to
+   * the chrome event handler of the given DOM Window. This has the effect
+   * of focusing the corresponding tab and bringing the browser window
+   * to the foreground.
+   */
+  static nsresult DispatchFocusChromeEvent(nsPIDOMWindowOuter* aWindow);
 
   /**
    * This method creates and dispatches a trusted event.
@@ -2523,7 +2530,8 @@ public:
    */
   static nsresult SetFetchReferrerURIWithPolicy(nsIPrincipal* aPrincipal,
                                                 nsIDocument* aDoc,
-                                                nsIHttpChannel* aChannel);
+                                                nsIHttpChannel* aChannel,
+                                                mozilla::net::ReferrerPolicy aReferrerPolicy);
 
   static bool PushEnabled(JSContext* aCx, JSObject* aObj);
 

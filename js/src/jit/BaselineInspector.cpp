@@ -805,8 +805,6 @@ BaselineInspector::expectedPropertyAccessInputType(jsbytecode* pc)
             // Either an object or magic arguments.
             return MIRType_Value;
 
-          case ICStub::GetProp_ArrayLength:
-          case ICStub::GetProp_UnboxedArrayLength:
           case ICStub::GetProp_Unboxed:
           case ICStub::GetProp_TypedObject:
           case ICStub::GetProp_CallScripted:
@@ -814,7 +812,6 @@ BaselineInspector::expectedPropertyAccessInputType(jsbytecode* pc)
           case ICStub::GetProp_CallDOMProxyNative:
           case ICStub::GetProp_CallDOMProxyWithGenerationNative:
           case ICStub::GetProp_DOMProxyShadowed:
-          case ICStub::GetProp_ModuleNamespace:
           case ICStub::GetElem_NativeSlotName:
           case ICStub::GetElem_NativeSlotSymbol:
           case ICStub::GetElem_NativePrototypeSlotName:

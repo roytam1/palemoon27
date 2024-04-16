@@ -448,6 +448,33 @@ class TestEmitterBasic(unittest.TestCase):
         paths = sorted([v[0] for v in o.installs.values()])
         self.assertEqual(paths, expected)
 
+    def test_test_manifest_shared_support_files(self):
+        """Support files starting with '!' are given separate treatment, so their
+        installation can be resolved when running tests.
+        """
+        reader = self.reader('test-manifest-shared-support')
+        supported, child = self.read_topsrcdir(reader)
+
+        expected_deferred_installs = {
+            '!/child/test_sub.js',
+            '!/child/another-file.sjs',
+            '!/child/data/**',
+        }
+
+        self.assertEqual(len(supported.installs), 3)
+        self.assertEqual(set(supported.deferred_installs),
+                         expected_deferred_installs)
+        self.assertEqual(len(child.installs), 3)
+        self.assertEqual(len(child.pattern_installs), 1)
+
+    def test_test_manifest_deffered_install_missing(self):
+        """A non-existent shared support file reference produces an error."""
+        reader = self.reader('test-manifest-shared-missing')
+
+        with self.assertRaisesRegexp(SandboxValidationError,
+                                     'entry in support-files not present in the srcdir'):
+            self.read_topsrcdir(reader)
+
     def test_test_manifest_install_to_subdir(self):
         """ """
         reader = self.reader('test-manifest-install-subdir')
@@ -991,6 +1018,17 @@ class TestEmitterBasic(unittest.TestCase):
         self.assertIsInstance(objs[2], SharedLibrary)
         self.assertEqual(objs[2].basename, 'bar')
 
+    def test_install_shared_lib(self):
+        """Test that we can install a shared library with TEST_HARNESS_FILES"""
+        reader = self.reader('test-install-shared-lib')
+        objs = self.read_topsrcdir(reader)
+        self.assertIsInstance(objs[0], TestHarnessFiles)
+        self.assertIsInstance(objs[1], VariablePassthru)
+        self.assertIsInstance(objs[2], SharedLibrary)
+        for path, files in objs[0].files.walk():
+            for f in files:
+                self.assertEqual(str(f), '!libfoo.so')
+                self.assertEqual(path, 'foo/bar')
 
 if __name__ == '__main__':
     main()

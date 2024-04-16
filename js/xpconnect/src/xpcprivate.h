@@ -225,7 +225,7 @@ template class JS_PUBLIC_API(JS::WeakMapPtr)<JSObject*, JSObject*>;
 // wrappednative wrapper, holding the XPCWrappedNative in its private slot.
 static inline bool IS_WN_CLASS(const js::Class* clazz)
 {
-    return clazz->ext.isWrappedNative;
+    return clazz->isWrappedNative();
 }
 
 static inline bool IS_WN_REFLECTOR(JSObject* obj)
@@ -1657,8 +1657,8 @@ public:
     XPCNativeScriptableShared(uint32_t aFlags, char* aName, bool aPopulate);
 
     ~XPCNativeScriptableShared() {
-        if (mJSClass.name)
-            free((void*)mJSClass.name);
+        free((void*)mJSClass.name);
+        free((void*)mJSClass.cOps);
         MOZ_COUNT_DTOR(XPCNativeScriptableShared);
     }
 
@@ -1674,6 +1674,10 @@ public:
 
 private:
     XPCNativeScriptableFlags mFlags;
+
+    // This is an unusual js::Class instance: its name and cOps members are
+    // heap-allocated, unlike all other instances for which they are statically
+    // allocated. So we must free them in the destructor.
     js::Class mJSClass;
 };
 

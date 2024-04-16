@@ -287,6 +287,21 @@ SavedFrame::finishSavedFrameInit(JSContext* cx, HandleObject ctor, HandleObject 
     return FreezeObject(cx, proto);
 }
 
+static const ClassOps SavedFrameClassOps = {
+    nullptr,                    // addProperty
+    nullptr,                    // delProperty
+    nullptr,                    // getProperty
+    nullptr,                    // setProperty
+    nullptr,                    // enumerate
+    nullptr,                    // resolve
+    nullptr,                    // mayResolve
+    SavedFrame::finalize,       // finalize
+    nullptr,                    // call
+    nullptr,                    // hasInstance
+    nullptr,                    // construct
+    nullptr,                    // trace
+};
+
 const ClassSpec SavedFrame::classSpec_ = {
     GenericCreateConstructor<SavedFrame::construct, 0, gc::AllocKind::FUNCTION>,
     GenericCreatePrototype,
@@ -304,18 +319,7 @@ const ClassSpec SavedFrame::classSpec_ = {
     JSCLASS_HAS_RESERVED_SLOTS(SavedFrame::JSSLOT_COUNT) |
     JSCLASS_HAS_CACHED_PROTO(JSProto_SavedFrame) |
     JSCLASS_IS_ANONYMOUS,
-    nullptr,                    // addProperty
-    nullptr,                    // delProperty
-    nullptr,                    // getProperty
-    nullptr,                    // setProperty
-    nullptr,                    // enumerate
-    nullptr,                    // resolve
-    nullptr,                    // mayResolve
-    SavedFrame::finalize,       // finalize
-    nullptr,                    // call
-    nullptr,                    // hasInstance
-    nullptr,                    // construct
-    nullptr,                    // trace
+    &SavedFrameClassOps,
     &SavedFrame::classSpec_
 };
 
@@ -883,6 +887,19 @@ BuildStackString(JSContext* cx, HandleObject stack, MutableHandleString stringp,
     assertSameCompartment(cx, str);
     stringp.set(str);
     return true;
+}
+
+JS_PUBLIC_API(bool)
+IsSavedFrame(JSObject* obj)
+{
+    if (!obj)
+        return false;
+
+    JSObject* unwrapped = CheckedUnwrap(obj);
+    if (!unwrapped)
+        return false;
+
+    return js::SavedFrame::isSavedFrameAndNotProto(*unwrapped);
 }
 
 } /* namespace JS */

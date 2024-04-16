@@ -19,7 +19,8 @@ interface Request {
 
   [Func="mozilla::dom::Request::RequestContextEnabled"]
   readonly attribute RequestContext context;
-  readonly attribute DOMString referrer;
+  readonly attribute USVString referrer;
+  readonly attribute ReferrerPolicy referrerPolicy;
   readonly attribute RequestMode mode;
   readonly attribute RequestCredentials credentials;
   [Func="mozilla::dom::Request::RequestCacheEnabled"]
@@ -31,14 +32,16 @@ interface Request {
 
   // Bug 1124638 - Allow chrome callers to set the context.
   [ChromeOnly]
-  void setContentPolicyType(nsContentPolicyType context);
+  void overrideContentPolicyType(nsContentPolicyType context);
 };
 Request implements Body;
 
 dictionary RequestInit {
   ByteString method;
   HeadersInit headers;
-  BodyInit body;
+  BodyInit? body;
+  USVString referrer;
+  ReferrerPolicy referrerPolicy;
   RequestMode mode;
   RequestCredentials credentials;
   RequestCache cache;
@@ -59,3 +62,4 @@ enum RequestMode { "same-origin", "no-cors", "cors", "navigate" };
 enum RequestCredentials { "omit", "same-origin", "include" };
 enum RequestCache { "default", "no-store", "reload", "no-cache", "force-cache" };
 enum RequestRedirect { "follow", "error", "manual" };
+enum ReferrerPolicy { "", "no-referrer", "no-referrer-when-downgrade", "origin", "origin-when-cross-origin", "unsafe-url" };

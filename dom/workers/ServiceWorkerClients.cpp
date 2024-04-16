@@ -503,6 +503,11 @@ public:
     if (NS_SUCCEEDED(rv)) {
       MOZ_ASSERT(window);
 
+      rv = nsContentUtils::DispatchFocusChromeEvent(window);
+      if (NS_WARN_IF(NS_FAILED(rv))) {
+        return rv;
+      }
+
       WorkerPrivate* workerPrivate = mPromiseProxy->GetWorkerPrivate();
       MOZ_ASSERT(workerPrivate);
 
@@ -601,7 +606,7 @@ private:
                            spec.get(),
                            nullptr,
                            nullptr,
-                           false, false, true, nullptr, nullptr, nullptr,
+                           false, false, true, nullptr, nullptr, nullptr, 1.0f, 0,
                            getter_AddRefs(newWindow));
       nsCOMPtr<nsPIDOMWindowOuter> pwindow = nsPIDOMWindowOuter::From(newWindow);
       pwindow.forget(aWindow);

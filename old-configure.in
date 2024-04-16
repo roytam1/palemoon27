@@ -1440,13 +1440,7 @@ case "$target" in
     ;;
 
 *-*linux*)
-    # Note: both GNU_CC and INTEL_CC are set when using Intel's C compiler.
-    # Similarly for GNU_CXX and INTEL_CXX.
-    if test "$INTEL_CC" -o "$INTEL_CXX"; then
-        # -Os has been broken on Intel's C/C++ compilers for quite a
-        # while; Intel recommends against using it.
-        MOZ_OPTIMIZE_FLAGS="-O2"
-    elif test "$GNU_CC" -o "$GNU_CXX"; then
+    if test "$GNU_CC" -o "$GNU_CXX"; then
         MOZ_PGO_OPTIMIZE_FLAGS="-O3"
         MOZ_OPTIMIZE_FLAGS="-O2"
         if test -z "$CLANG_CC"; then
@@ -6581,13 +6575,6 @@ fi
 
 CFLAGS="$_SAVE_CFLAGS"
 
-if test -n "$INTEL_CC"; then
-  PROFILE_GEN_CFLAGS="-prof-gen -prof-dir ."
-  PROFILE_GEN_LDFLAGS=
-  PROFILE_USE_CFLAGS="-prof-use -prof-dir ."
-  PROFILE_USE_LDFLAGS=
-fi
-
 AC_SUBST(PROFILE_GEN_CFLAGS)
 AC_SUBST(PROFILE_GEN_LDFLAGS)
 AC_SUBST(PROFILE_USE_CFLAGS)
@@ -7553,6 +7540,7 @@ AC_SUBST(WCHAR_CFLAGS)
 AC_SUBST(HOST_CC)
 AC_SUBST(HOST_CXX)
 AC_SUBST(HOST_CFLAGS)
+AC_SUBST(HOST_CPPFLAGS)
 AC_SUBST(HOST_CXXFLAGS)
 AC_SUBST(HOST_LDFLAGS)
 AC_SUBST(HOST_OPTIMIZE_FLAGS)
@@ -7953,6 +7941,7 @@ export RUSTFLAGS
 export HOST_CC
 export HOST_CXX
 export HOST_CFLAGS
+export HOST_CPPFLAGS
 export HOST_CXXFLAGS
 export HOST_LDFLAGS
 

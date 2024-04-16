@@ -369,7 +369,8 @@ nsWindowWatcher::OpenWindow(nsIDOMWindow* aParent,
   return OpenWindowInternal(aParent, aUrl, aName, aFeatures,
                             /* calledFromJS = */ false, dialog,
                             /* navigate = */ true, nullptr, argv,
-                            /* aLoadInfo */ nullptr, aResult);
+                            /* aLoadInfo */ nullptr,
+                            /* openerFullZoom = */ nullptr, aResult);
 }
 
 struct SizeSpec
@@ -428,6 +429,8 @@ nsWindowWatcher::OpenWindow2(nsIDOMWindow* aParent,
                              nsITabParent* aOpeningTab,
                              nsISupports* aArguments,
                              nsIDocShellLoadInfo* aLoadInfo,
+                             float aOpenerFullZoom,
+                             uint8_t aOptionalArgc,
                              nsIDOMWindow** aResult)
 			       
 {
@@ -450,6 +453,7 @@ nsWindowWatcher::OpenWindow2(nsIDOMWindow* aParent,
                             aCalledFromScript, dialog,
                             aNavigate, aOpeningTab, argv,
                             aLoadInfo,
+                            aOptionalArgc >= 1 ? &aOpenerFullZoom : nullptr,
                             aResult);
 }
 
@@ -494,6 +498,7 @@ nsWindowWatcher::OpenWindowInternal(nsIDOMWindow* aParent,
                                     nsITabParent* aOpeningTab,
                                     nsIArray* aArgv,
                                     nsIDocShellLoadInfo* aLoadInfo,
+                                    float* aOpenerFullZoom,
                                     nsIDOMWindow** aResult)
 {
   nsresult rv = NS_OK;
@@ -1090,7 +1095,8 @@ nsWindowWatcher::OpenWindowInternal(nsIDOMWindow* aParent,
   }
 
   if (isNewToplevelWindow) {
-    SizeOpenedDocShellItem(newDocShellItem, aParent, isCallerChrome, sizeSpec);
+    SizeOpenedDocShellItem(newDocShellItem, aParent, isCallerChrome, sizeSpec,
+                           aOpenerFullZoom);
   }
 
   // XXXbz isn't windowIsModal always true when windowIsModalContentDialog?
@@ -2077,7 +2083,8 @@ void
 nsWindowWatcher::SizeOpenedDocShellItem(nsIDocShellTreeItem* aDocShellItem,
                                         nsIDOMWindow* aParent,
                                         bool aIsCallerChrome,
-                                        const SizeSpec& aSizeSpec)
+                                        const SizeSpec& aSizeSpec,
+                                        float* aOpenerFullZoom)
 {
   // position and size of window
   int32_t left = 0, top = 0, width = 100, height = 100;
@@ -2094,8 +2101,8 @@ nsWindowWatcher::SizeOpenedDocShellItem(nsIDocShellTreeItem* aDocShellItem,
     return;
   }
 
-  double openerZoom = 1.0;
-  if (aParent) {
+  double openerZoom = aOpenerFullZoom ? *aOpenerFullZoom : 1.0;
+  if (aParent && !aOpenerFullZoom) {
     nsCOMPtr<nsIDOMDocument> openerDoc;
     aParent->GetDocument(getter_AddRefs(openerDoc));
     if (openerDoc) {
@@ -2255,8 +2262,30 @@ nsWindowWatcher::SizeOpenedDocShellItem(nsIDocShellTreeItem* aDocShellItem,
   // size and position the window
 
   if (positionSpecified) {
-    treeOwnerAsWin->SetPosition(left * scale, top * scale);
-    // moving the window may have changed its scale factor
+    // Get the scale factor appropriate for the screen we're actually
+    // positioning on.
+    nsCOMPtr<nsIScreen> screen;
+    nsCOMPtr<nsIScreenManager> screenMgr(
+      do_GetService("@mozilla.org/gfx/screenmanager;1"));
+    if (screenMgr) {
+      screenMgr->ScreenForRect(left, top, 1, 1, getter_AddRefs(screen));
+    }
+    if (screen) {
+      screen->GetDefaultCSSScaleFactor(&scale);
+      int32_t screenLeft, screenTop, screenWd, screenHt;
+      screen->GetRectDisplayPix(&screenLeft, &screenTop, &screenWd, &screenHt);
+      // Adjust by desktop-pixel origin of the target screen to convert from
+      // per-screen CSS-px coordinates.
+      treeOwnerAsWin->SetPosition((left - screenLeft) * scale + screenLeft,
+                                  (top - screenTop) * scale + screenTop);
+    } else {
+      // Couldn't find screen? This shouldn't happen.
+      treeOwnerAsWin->SetPosition(left * scale, top * scale);
+    }
+    // This shouldn't be necessary, given the screen check above, but in case
+    // moving the window didn't put it where we expected (e.g. due to issues
+    // at the widget level, or whatever), let's re-fetch the scale factor for
+    // wherever it really ended up
     treeOwnerAsWin->GetUnscaledDevicePixelsPerCSSPixel(&scale);
   }
   if (aSizeSpec.SizeSpecified()) {

@@ -440,27 +440,32 @@ class CGDOMJSClass(CGThing):
 
         return fill(
             """
+            static const js::ClassOps sClassOps = {
+              ${addProperty}, /* addProperty */
+              nullptr,               /* delProperty */
+              nullptr,               /* getProperty */
+              nullptr,               /* setProperty */
+              ${enumerate}, /* enumerate */
+              ${resolve}, /* resolve */
+              ${mayResolve}, /* mayResolve */
+              ${finalize}, /* finalize */
+              ${call}, /* call */
+              nullptr,               /* hasInstance */
+              nullptr,               /* construct */
+              ${trace}, /* trace */
+            };
+
+            static const js::ClassExtension sClassExtension = {
+              nullptr, /* weakmapKeyDelegateOp */
+              ${objectMoved} /* objectMovedOp */
+            };
+
             static const DOMJSClass sClass = {
               { "${name}",
                 ${flags},
-                ${addProperty}, /* addProperty */
-                nullptr,               /* delProperty */
-                nullptr,               /* getProperty */
-                nullptr,               /* setProperty */
-                ${enumerate}, /* enumerate */
-                ${resolve}, /* resolve */
-                ${mayResolve}, /* mayResolve */
-                ${finalize}, /* finalize */
-                ${call}, /* call */
-                nullptr,               /* hasInstance */
-                nullptr,               /* construct */
-                ${trace}, /* trace */
+                &sClassOps,
                 JS_NULL_CLASS_SPEC,
-                {
-                  false,   /* isWrappedNative */
-                  nullptr, /* weakmapKeyDelegateOp */
-                  ${objectMoved} /* objectMovedOp */
-                },
+                &sClassExtension,
                 JS_NULL_OBJECT_OPS
               },
               $*{descriptor}
@@ -507,11 +512,14 @@ class CGDOMProxyJSClass(CGThing):
         objectMovedHook = OBJECT_MOVED_HOOK_NAME if self.descriptor.wrapperCache else 'nullptr'
         return fill(
             """
+            static const js::ClassExtension sClassExtension = PROXY_MAKE_EXT(
+                ${objectMoved}
+            );
+
             static const DOMJSClass sClass = {
               PROXY_CLASS_WITH_EXT("${name}",
                                    ${flags},
-                                   PROXY_MAKE_EXT(false,   /* isWrappedNative */
-                                                  ${objectMoved})),
+                                   &sClassExtension),
               $*{descriptor}
             };
             """,
@@ -590,18 +598,7 @@ class CGPrototypeJSClass(CGThing):
               {
                 "${name}Prototype",
                 JSCLASS_IS_DOMIFACEANDPROTOJSCLASS | JSCLASS_HAS_RESERVED_SLOTS(${slotCount}),
-                nullptr,               /* addProperty */
-                nullptr,               /* delProperty */
-                nullptr,               /* getProperty */
-                nullptr,               /* setProperty */
-                nullptr,               /* enumerate */
-                nullptr,               /* resolve */
-                nullptr,               /* mayResolve */
-                nullptr,               /* finalize */
-                nullptr,               /* call */
-                nullptr,               /* hasInstance */
-                nullptr,               /* construct */
-                nullptr,               /* trace */
+                JS_NULL_CLASS_OPS,
                 JS_NULL_CLASS_SPEC,
                 JS_NULL_CLASS_EXT,
                 JS_NULL_OBJECT_OPS
@@ -680,24 +677,39 @@ class CGInterfaceObjectJSClass(CGThing):
                           len(self.descriptor.interface.namedConstructors))
         (protoGetter, _) = InterfaceObjectProtoGetter(self.descriptor)
 
-        return fill(
+        if ctorname == "ThrowingConstructor" and hasinstance == "InterfaceHasInstance":
+            ret = ""
+            classOpsPtr = "&sBoringInterfaceObjectClassClassOps"
+        else:
+            ret = fill(
+                """
+                static const js::ClassOps sInterfaceObjectClassOps = {
+                    nullptr,               /* addProperty */
+                    nullptr,               /* delProperty */
+                    nullptr,               /* getProperty */
+                    nullptr,               /* setProperty */
+                    nullptr,               /* enumerate */
+                    nullptr,               /* resolve */
+                    nullptr,               /* mayResolve */
+                    nullptr,               /* finalize */
+                    ${ctorname}, /* call */
+                    ${hasInstance}, /* hasInstance */
+                    ${ctorname}, /* construct */
+                    nullptr,               /* trace */
+                };
+
+                """,
+                ctorname=ctorname,
+                hasInstance=hasinstance)
+            classOpsPtr = "&sInterfaceObjectClassOps"
+
+        ret = ret + fill(
             """
             static const DOMIfaceAndProtoJSClass sInterfaceObjectClass = {
               {
                 "Function",
                 JSCLASS_IS_DOMIFACEANDPROTOJSCLASS | JSCLASS_HAS_RESERVED_SLOTS(${slotCount}),
-                nullptr,               /* addProperty */
-                nullptr,               /* delProperty */
-                nullptr,               /* getProperty */
-                nullptr,               /* setProperty */
-                nullptr,               /* enumerate */
-                nullptr,               /* resolve */
-                nullptr,               /* mayResolve */
-                nullptr,               /* finalize */
-                ${ctorname}, /* call */
-                ${hasInstance}, /* hasInstance */
-                ${ctorname}, /* construct */
-                nullptr,               /* trace */
+                ${classOpsPtr},
                 JS_NULL_CLASS_SPEC,
                 JS_NULL_CLASS_EXT,
                 &sInterfaceObjectClassObjectOps
@@ -713,12 +725,13 @@ class CGInterfaceObjectJSClass(CGThing):
             slotCount=slotCount,
             ctorname=ctorname,
             hasInstance=hasinstance,
+            classOpsPtr=classOpsPtr,
             hooks=NativePropertyHooks(self.descriptor),
             name=self.descriptor.interface.identifier.name,
             prototypeID=prototypeID,
             depth=depth,
             protoGetter=protoGetter)
-
+        return ret
 
 class CGList(CGThing):
     """
@@ -12543,6 +12556,10 @@ class CGDictionary(CGThing):
             "convert": string.Template(conversionInfo.template).substitute(replacements),
             "propGet": propGet
         }
+        # The conversion code will only run where a default value or a value passed
+        # by the author needs to get converted, so we can remember if we have any
+        # members present here.
+        conversionReplacements["convert"] += "mIsAnyMemberPresent = true;\n"
         conversion = ("if (!isNull && !${propGet}) {\n"
                       "  return false;\n"
                       "}\n")

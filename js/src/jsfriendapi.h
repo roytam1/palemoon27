@@ -275,6 +275,8 @@ JS_DefineFunctionsWithHelp(JSContext* cx, JS::HandleObject obj, const JSFunction
 
 namespace js {
 
+extern JS_FRIEND_DATA(const js::ClassOps) ProxyClassOps;
+extern JS_FRIEND_DATA(const js::ClassExtension) ProxyClassExtension;
 extern JS_FRIEND_DATA(const js::ObjectOps) ProxyObjectOps;
 
 /*
@@ -283,43 +285,27 @@ extern JS_FRIEND_DATA(const js::ObjectOps) ProxyObjectOps;
  * NB: The macro invocation must be surrounded by braces, so as to
  *     allow for potential JSClass extensions.
  */
-#define PROXY_MAKE_EXT(isWrappedNative, objectMoved)                    \
+#define PROXY_MAKE_EXT(objectMoved)                                     \
     {                                                                   \
-        isWrappedNative,                                                \
         js::proxy_WeakmapKeyDelegate,                                   \
         objectMoved                                                     \
     }
 
-#define PROXY_CLASS_WITH_EXT(name, flags, ext)                                          \
+#define PROXY_CLASS_WITH_EXT(name, flags, extPtr)                                       \
     {                                                                                   \
         name,                                                                           \
         js::Class::NON_NATIVE |                                                         \
             JSCLASS_IS_PROXY |                                                          \
             JSCLASS_DELAY_METADATA_BUILDER |                                            \
             flags,                                                                      \
-        nullptr,                 /* addProperty */                                      \
-        nullptr,                 /* delProperty */                                      \
-        nullptr,                 /* getProperty */                                      \
-        nullptr,                 /* setProperty */                                      \
-        nullptr,                 /* enumerate */                                        \
-        nullptr,                 /* resolve */                                          \
-        nullptr,                 /* mayResolve */                                       \
-        js::proxy_Finalize,      /* finalize    */                                      \
-        nullptr,                 /* call        */                                      \
-        js::proxy_HasInstance,   /* hasInstance */                                      \
-        nullptr,                 /* construct   */                                      \
-        js::proxy_Trace,         /* trace       */                                      \
+        &js::ProxyClassOps,                                                             \
         JS_NULL_CLASS_SPEC,                                                             \
-        ext,                                                                            \
+        extPtr,                                                                         \
         &js::ProxyObjectOps                                                             \
     }
 
-#define PROXY_CLASS_DEF(name, flags)                                    \
-  PROXY_CLASS_WITH_EXT(name, flags,                                     \
-                       PROXY_MAKE_EXT(                                  \
-                         false,   /* isWrappedNative */                 \
-                         js::proxy_ObjectMoved                          \
-                       ))
+#define PROXY_CLASS_DEF(name, flags) \
+  PROXY_CLASS_WITH_EXT(name, flags, &js::ProxyClassExtension)
 
 /*
  * Proxy stubs, similar to JS_*Stub, for embedder proxy class definitions.
@@ -1327,6 +1313,11 @@ class MOZ_STACK_CLASS JS_FRIEND_API(AutoStableStringChars)
   private:
     AutoStableStringChars(const AutoStableStringChars& other) = delete;
     void operator=(const AutoStableStringChars& other) = delete;
+
+    bool baseIsInline(JS::Handle<JSLinearString*> linearString);
+    bool copyLatin1Chars(JSContext*, JS::Handle<JSLinearString*> linearString);
+    bool copyTwoByteChars(JSContext*, JS::Handle<JSLinearString*> linearString);
+    bool copyAndInflateLatin1Chars(JSContext*, JS::Handle<JSLinearString*> linearString);
 };
 
 struct MOZ_STACK_CLASS JS_FRIEND_API(ErrorReport)

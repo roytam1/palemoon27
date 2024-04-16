@@ -104,9 +104,7 @@ namespace {
 
 } /* anonymous namespace */
 
-const Class MapIteratorObject::class_ = {
-    "Map Iterator",
-    JSCLASS_HAS_RESERVED_SLOTS(MapIteratorObject::SlotCount),
+static const ClassOps MapIteratorObjectClassOps = {
     nullptr, /* addProperty */
     nullptr, /* delProperty */
     nullptr, /* getProperty */
@@ -115,6 +113,12 @@ const Class MapIteratorObject::class_ = {
     nullptr, /* resolve */
     nullptr, /* mayResolve */
     MapIteratorObject::finalize
+};
+
+const Class MapIteratorObject::class_ = {
+    "Map Iterator",
+    JSCLASS_HAS_RESERVED_SLOTS(MapIteratorObject::SlotCount),
+    &MapIteratorObjectClassOps
 };
 
 const JSFunctionSpec MapIteratorObject::methods[] = {
@@ -196,18 +200,6 @@ MapIteratorObject::next(JSContext* cx, Handle<MapIteratorObject*> mapIterator,
     MOZ_ASSERT(resultPairObj->getDenseInitializedLength() == 2);
     MOZ_ASSERT(resultPairObj->getDenseCapacity() >= 2);
 
-#ifdef DEBUG
-    // The array elements should be null, so that inlined
-    // _GetNextMapEntryForIterator doesn't have to perform pre-barrier.
-    RootedValue val(cx);
-    if (!GetElement(cx, resultPairObj, resultPairObj, 0, &val))
-        return false;
-    MOZ_ASSERT(val.isNull());
-    if (!GetElement(cx, resultPairObj, resultPairObj, 1, &val))
-        return false;
-    MOZ_ASSERT(val.isNull());
-#endif
-
     ValueMap::Range* range = MapIteratorObjectRange(mapIterator);
     if (!range || range->empty()) {
         js_delete(range);
@@ -259,10 +251,7 @@ MapIteratorObject::createResultPair(JSContext* cx)
 
 /*** Map *****************************************************************************************/
 
-const Class MapObject::class_ = {
-    "Map",
-    JSCLASS_HAS_PRIVATE |
-    JSCLASS_HAS_CACHED_PROTO(JSProto_Map),
+const ClassOps MapObject::classOps_ = {
     nullptr, // addProperty
     nullptr, // delProperty
     nullptr, // getProperty
@@ -275,6 +264,13 @@ const Class MapObject::class_ = {
     nullptr, // hasInstance
     nullptr, // construct
     mark
+};
+
+const Class MapObject::class_ = {
+    "Map",
+    JSCLASS_HAS_PRIVATE |
+    JSCLASS_HAS_CACHED_PROTO(JSProto_Map),
+    &MapObject::classOps_
 };
 
 const JSPropertySpec MapObject::properties[] = {
@@ -870,9 +866,7 @@ class SetIteratorObject : public NativeObject
 
 } /* anonymous namespace */
 
-const Class SetIteratorObject::class_ = {
-    "Set Iterator",
-    JSCLASS_HAS_RESERVED_SLOTS(SetIteratorObject::SlotCount),
+static const ClassOps SetIteratorObjectClassOps = {
     nullptr, /* addProperty */
     nullptr, /* delProperty */
     nullptr, /* getProperty */
@@ -881,6 +875,12 @@ const Class SetIteratorObject::class_ = {
     nullptr, /* resolve */
     nullptr, /* mayResolve */
     SetIteratorObject::finalize
+};
+
+const Class SetIteratorObject::class_ = {
+    "Set Iterator",
+    JSCLASS_HAS_RESERVED_SLOTS(SetIteratorObject::SlotCount),
+    &SetIteratorObjectClassOps
 };
 
 const JSFunctionSpec SetIteratorObject::methods[] = {
@@ -1006,10 +1006,7 @@ SetIteratorObject::next(JSContext* cx, unsigned argc, Value* vp)
 
 /*** Set *****************************************************************************************/
 
-const Class SetObject::class_ = {
-    "Set",
-    JSCLASS_HAS_PRIVATE |
-    JSCLASS_HAS_CACHED_PROTO(JSProto_Set),
+const ClassOps SetObject::classOps_ = {
     nullptr, // addProperty
     nullptr, // delProperty
     nullptr, // getProperty
@@ -1022,6 +1019,13 @@ const Class SetObject::class_ = {
     nullptr, // hasInstance
     nullptr, // construct
     mark
+};
+
+const Class SetObject::class_ = {
+    "Set",
+    JSCLASS_HAS_PRIVATE |
+    JSCLASS_HAS_CACHED_PROTO(JSProto_Set),
+    &SetObject::classOps_
 };
 
 const JSPropertySpec SetObject::properties[] = {

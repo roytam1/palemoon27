@@ -9,6 +9,7 @@
 #include "mozilla/dom/File.h"
 #include "mozilla/dom/FileSystemBase.h"
 #include "mozilla/dom/FileSystemUtils.h"
+#include "mozilla/dom/PFileSystemParams.h"
 #include "mozilla/dom/Promise.h"
 #include "mozilla/dom/ipc/BlobChild.h"
 #include "mozilla/dom/ipc/BlobParent.h"
@@ -18,20 +19,24 @@
 namespace mozilla {
 namespace dom {
 
-/* static */ already_AddRefed<RemoveTask>
-RemoveTask::Create(FileSystemBase* aFileSystem,
-                   nsIFile* aDirPath,
-                   nsIFile* aTargetPath,
-                   bool aRecursive,
-                   ErrorResult& aRv)
+/**
+ * RemoveTaskChild
+ */
+
+/* static */ already_AddRefed<RemoveTaskChild>
+RemoveTaskChild::Create(FileSystemBase* aFileSystem,
+                        nsIFile* aDirPath,
+                        nsIFile* aTargetPath,
+                        bool aRecursive,
+                        ErrorResult& aRv)
 {
   MOZ_ASSERT(NS_IsMainThread(), "Only call on main thread!");
   MOZ_ASSERT(aFileSystem);
   MOZ_ASSERT(aDirPath);
   MOZ_ASSERT(aTargetPath);
 
-  RefPtr<RemoveTask> task =
-    new RemoveTask(aFileSystem, aDirPath, aTargetPath, aRecursive);
+  RefPtr<RemoveTaskChild> task =
+    new RemoveTaskChild(aFileSystem, aDirPath, aTargetPath, aRecursive);
 
   // aTargetPath can be null. In this case SetError will be called.
 
@@ -50,18 +55,112 @@ RemoveTask::Create(FileSystemBase* aFileSystem,
   return task.forget();
 }
 
-/* static */ already_AddRefed<RemoveTask>
-RemoveTask::Create(FileSystemBase* aFileSystem,
-                   const FileSystemRemoveParams& aParam,
-                   FileSystemRequestParent* aParent,
-                   ErrorResult& aRv)
+RemoveTaskChild::RemoveTaskChild(FileSystemBase* aFileSystem,
+                                 nsIFile* aDirPath,
+                                 nsIFile* aTargetPath,
+                                 bool aRecursive)
+  : FileSystemTaskChildBase(aFileSystem)
+  , mDirPath(aDirPath)
+  , mTargetPath(aTargetPath)
+  , mRecursive(aRecursive)
+  , mReturnValue(false)
 {
-  MOZ_ASSERT(XRE_IsParentProcess(), "Only call from parent process!");
   MOZ_ASSERT(NS_IsMainThread(), "Only call on main thread!");
   MOZ_ASSERT(aFileSystem);
+  MOZ_ASSERT(aDirPath);
+  MOZ_ASSERT(aTargetPath);
+}
 
-  RefPtr<RemoveTask> task =
-    new RemoveTask(aFileSystem, aParam, aParent);
+RemoveTaskChild::~RemoveTaskChild()
+{
+  MOZ_ASSERT(NS_IsMainThread());
+}
+
+already_AddRefed<Promise>
+RemoveTaskChild::GetPromise()
+{
+  MOZ_ASSERT(NS_IsMainThread(), "Only call on main thread!");
+  return RefPtr<Promise>(mPromise).forget();
+}
+
+FileSystemParams
+RemoveTaskChild::GetRequestParams(const nsString& aSerializedDOMPath,
+                                  ErrorResult& aRv) const
+{
+  MOZ_ASSERT(NS_IsMainThread(), "Only call on main thread!");
+  FileSystemRemoveParams param;
+  param.filesystem() = aSerializedDOMPath;
+
+  aRv = mDirPath->GetPath(param.directory());
+  if (NS_WARN_IF(aRv.Failed())) {
+    return param;
+  }
+
+  param.recursive() = mRecursive;
+
+  nsAutoString path;
+  aRv = mTargetPath->GetPath(path);
+  if (NS_WARN_IF(aRv.Failed())) {
+    return param;
+  }
+
+  param.targetDirectory() = path;
+
+  return param;
+}
+
+void
+RemoveTaskChild::SetSuccessRequestResult(const FileSystemResponseValue& aValue,
+                                         ErrorResult& aRv)
+{
+  MOZ_ASSERT(NS_IsMainThread(), "Only call on main thread!");
+
+  FileSystemBooleanResponse r = aValue;
+  mReturnValue = r.success();
+}
+
+void
+RemoveTaskChild::HandlerCallback()
+{
+  MOZ_ASSERT(NS_IsMainThread(), "Only call on main thread!");
+
+  if (mFileSystem->IsShutdown()) {
+    mPromise = nullptr;
+    return;
+  }
+
+  if (HasError()) {
+    mPromise->MaybeReject(mErrorValue);
+    mPromise = nullptr;
+    return;
+  }
+
+  mPromise->MaybeResolve(mReturnValue);
+  mPromise = nullptr;
+}
+
+void
+RemoveTaskChild::GetPermissionAccessType(nsCString& aAccess) const
+{
+  aAccess.AssignLiteral(REMOVE_TASK_PERMISSION);
+}
+
+/**
+ * RemoveTaskParent
+ */
+
+/* static */ already_AddRefed<RemoveTaskParent>
+RemoveTaskParent::Create(FileSystemBase* aFileSystem,
+                         const FileSystemRemoveParams& aParam,
+                         FileSystemRequestParent* aParent,
+                         ErrorResult& aRv)
+{
+  MOZ_ASSERT(XRE_IsParentProcess(), "Only call from parent process!");
+  AssertIsOnBackgroundThread();
+  MOZ_ASSERT(aFileSystem);
+
+  RefPtr<RemoveTaskParent> task =
+    new RemoveTaskParent(aFileSystem, aParam, aParent);
 
   NS_ConvertUTF16toUTF8 directoryPath(aParam.directory());
   aRv = NS_NewNativeLocalFile(directoryPath, true,
@@ -86,91 +185,28 @@ RemoveTask::Create(FileSystemBase* aFileSystem,
   return task.forget();
 }
 
-RemoveTask::RemoveTask(FileSystemBase* aFileSystem,
-                       nsIFile* aDirPath,
-                       nsIFile* aTargetPath,
-                       bool aRecursive)
-  : FileSystemTaskBase(aFileSystem)
-  , mDirPath(aDirPath)
-  , mTargetPath(aTargetPath)
-  , mRecursive(aRecursive)
-  , mReturnValue(false)
-{
-  MOZ_ASSERT(NS_IsMainThread(), "Only call on main thread!");
-  MOZ_ASSERT(aFileSystem);
-  MOZ_ASSERT(aDirPath);
-  MOZ_ASSERT(aTargetPath);
-}
-
-RemoveTask::RemoveTask(FileSystemBase* aFileSystem,
-                       const FileSystemRemoveParams& aParam,
-                       FileSystemRequestParent* aParent)
-  : FileSystemTaskBase(aFileSystem, aParam, aParent)
+RemoveTaskParent::RemoveTaskParent(FileSystemBase* aFileSystem,
+                                   const FileSystemRemoveParams& aParam,
+                                   FileSystemRequestParent* aParent)
+  : FileSystemTaskParentBase(aFileSystem, aParam, aParent)
   , mRecursive(false)
   , mReturnValue(false)
 {
   MOZ_ASSERT(XRE_IsParentProcess(), "Only call from parent process!");
-  MOZ_ASSERT(NS_IsMainThread(), "Only call on main thread!");
+  AssertIsOnBackgroundThread();
   MOZ_ASSERT(aFileSystem);
 }
 
-RemoveTask::~RemoveTask()
-{
-  MOZ_ASSERT(!mPromise || NS_IsMainThread(),
-             "mPromise should be released on main thread!");
-}
-
-already_AddRefed<Promise>
-RemoveTask::GetPromise()
-{
-  MOZ_ASSERT(NS_IsMainThread(), "Only call on main thread!");
-  return RefPtr<Promise>(mPromise).forget();
-}
-
-FileSystemParams
-RemoveTask::GetRequestParams(const nsString& aSerializedDOMPath,
-                             ErrorResult& aRv) const
-{
-  MOZ_ASSERT(NS_IsMainThread(), "Only call on main thread!");
-  FileSystemRemoveParams param;
-  param.filesystem() = aSerializedDOMPath;
-
-  aRv = mDirPath->GetPath(param.directory());
-  if (NS_WARN_IF(aRv.Failed())) {
-    return param;
-  }
-
-  param.recursive() = mRecursive;
-
-  nsAutoString path;
-  aRv = mTargetPath->GetPath(path);
-  if (NS_WARN_IF(aRv.Failed())) {
-    return param;
-  }
-
-  param.targetDirectory() = path;
-
-  return param;
-}
-
 FileSystemResponseValue
-RemoveTask::GetSuccessRequestResult(ErrorResult& aRv) const
+RemoveTaskParent::GetSuccessRequestResult(ErrorResult& aRv) const
 {
-  MOZ_ASSERT(NS_IsMainThread(), "Only call on main thread!");
+  AssertIsOnBackgroundThread();
+
   return FileSystemBooleanResponse(mReturnValue);
 }
 
-void
-RemoveTask::SetSuccessRequestResult(const FileSystemResponseValue& aValue,
-                                    ErrorResult& aRv)
-{
-  MOZ_ASSERT(NS_IsMainThread(), "Only call on main thread!");
-  FileSystemBooleanResponse r = aValue;
-  mReturnValue = r.success();
-}
-
 nsresult
-RemoveTask::Work()
+RemoveTaskParent::IOWork()
 {
   MOZ_ASSERT(XRE_IsParentProcess(),
              "Only call from parent process!");
@@ -214,28 +250,9 @@ RemoveTask::Work()
 }
 
 void
-RemoveTask::HandlerCallback()
+RemoveTaskParent::GetPermissionAccessType(nsCString& aAccess) const
 {
-  MOZ_ASSERT(NS_IsMainThread(), "Only call on main thread!");
-  if (mFileSystem->IsShutdown()) {
-    mPromise = nullptr;
-    return;
-  }
-
-  if (HasError()) {
-    mPromise->MaybeReject(mErrorValue);
-    mPromise = nullptr;
-    return;
-  }
-
-  mPromise->MaybeResolve(mReturnValue);
-  mPromise = nullptr;
-}
-
-void
-RemoveTask::GetPermissionAccessType(nsCString& aAccess) const
-{
-  aAccess.AssignLiteral("write");
+  aAccess.AssignLiteral(REMOVE_TASK_PERMISSION);
 }
 
 } // namespace dom

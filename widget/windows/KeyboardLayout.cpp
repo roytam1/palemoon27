@@ -1179,8 +1179,9 @@ NativeKey::InitKeyEvent(WidgetKeyboardEvent& aKeyEvent,
       // triggering the menu bar for ALT key accelerators used in assistive
       // technologies such as Window-Eyes and ZoomText or for switching open
       // state of IME.
-      aKeyEvent.mFlags.mDefaultPrevented =
-        (mOriginalVirtualKeyCode == VK_MENU && mMsg.message != WM_SYSKEYUP);
+      if (mOriginalVirtualKeyCode == VK_MENU && mMsg.message != WM_SYSKEYUP) {
+        aKeyEvent.PreventDefaultBeforeDispatch();
+      }
       break;
     case eKeyPress:
       aKeyEvent.mUniqueId = sUniqueKeyEventId;
@@ -1210,8 +1211,8 @@ NativeKey::InitKeyEvent(WidgetKeyboardEvent& aKeyEvent,
 
   KeyboardLayout::NotifyIdleServiceOfUserActivity();
 
-  return aKeyEvent.mFlags.mDefaultPrevented ? nsEventStatus_eConsumeNoDefault :
-                                              nsEventStatus_eIgnore;
+  return aKeyEvent.DefaultPrevented() ? nsEventStatus_eConsumeNoDefault :
+                                        nsEventStatus_eIgnore;
 }
 
 bool
@@ -2070,24 +2071,12 @@ NativeKey::WillDispatchKeyboardEvent(WidgetKeyboardEvent& aKeyboardEvent,
     }
     uint16_t uniChar =
       mInputtingStringAndModifiers.mChars[aIndex - skipUniChars];
-    if (aKeyboardEvent.mMessage == eKeyPress) {
-      // charCode is set from mKeyValue but e.g., when Ctrl key is pressed,
-      // the value should indicate an ASCII character for backward
-      // compatibility instead of inputting character without the modifiers.
-      aKeyboardEvent.charCode = uniChar;
-      MOZ_ASSERT(!aKeyboardEvent.keyCode);
-    } else if (uniChar) {
-      // If the event is not keypress event, we should set charCode as
-      // first alternative char code since the char code value is necessary
-      // for shortcut key handlers at looking for a proper handler.
-      AlternativeCharCode chars(0, 0);
-      if (!aKeyboardEvent.IsShift()) {
-        chars.mUnshiftedCharCode = uniChar;
-      } else {
-        chars.mShiftedCharCode = uniChar;
-      }
-      altArray.AppendElement(chars);
-    }
+
+    // The charCode was set from mKeyValue. However, for example, when Ctrl key
+    // is pressed, its value should indicate an ASCII character for backward
+    // compatibility rather than inputting character without the modifiers.
+    // Therefore, we need to modify charCode value here.
+    aKeyboardEvent.SetCharCode(uniChar);
   }
 
   if (skipShiftedChars <= aIndex) {

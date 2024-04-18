@@ -29,9 +29,8 @@ namespace dom {
  * forwards incoming push messages to service workers running in the content
  * process, and emits XPCOM observer notifications for system subscriptions.
  *
- * The XPCOM service can only be used from the main process. Callers running
- * in the content process should use
- * `ServiceWorkerManager::SendPush{SubscriptionChange}Event` directly.
+ * This service exists solely to support `PushService.jsm`. Other callers
+ * should use `ServiceWorkerManager` directly.
  */
 class PushNotifier final : public nsIPushNotifier
 {
@@ -51,6 +50,8 @@ public:
                              const Maybe<nsTArray<uint8_t>>& aData);
   nsresult NotifySubscriptionChangeWorkers(const nsACString& aScope,
                                            nsIPrincipal* aPrincipal);
+  void NotifyErrorWorkers(const nsACString& aScope, const nsAString& aMessage,
+                          uint32_t aFlags);
 
 protected:
   virtual ~PushNotifier();

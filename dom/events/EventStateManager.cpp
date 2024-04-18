@@ -530,7 +530,7 @@ EventStateManager::PreHandleEvent(nsPresContext* aPresContext,
   // Do not take account eMouseEnterIntoWidget/ExitFromWidget so that loading
   // a page when user is not active doesn't change the state to active.
   WidgetMouseEvent* mouseEvent = aEvent->AsMouseEvent();
-  if (aEvent->mFlags.mIsTrusted &&
+  if (aEvent->IsTrusted() &&
       ((mouseEvent && mouseEvent->IsReal() &&
         IsMessageMouseUserActivity(mouseEvent->mMessage)) ||
        aEvent->mClass == eWheelEventClass ||
@@ -578,7 +578,7 @@ EventStateManager::PreHandleEvent(nsPresContext* aPresContext,
 #endif
   // Store last known screenPoint and clientPoint so pointer lock
   // can use these values as constants.
-  if (aEvent->mFlags.mIsTrusted &&
+  if (aEvent->IsTrusted() &&
       ((mouseEvent && mouseEvent->IsReal()) ||
        aEvent->mClass == eWheelEventClass) &&
       !sIsPointerLocked) {
@@ -644,7 +644,7 @@ EventStateManager::PreHandleEvent(nsPresContext* aPresContext,
     // from ESM::DispatchMouseOrPointerEvent (sending is permanent)).
     // Flag mNoCrossProcessBoundaryForwarding helps to
     // suppress sending accidental event from widget code.
-    aEvent->mFlags.mNoCrossProcessBoundaryForwarding = true;
+    aEvent->StopCrossProcessForwarding();
     break;
   case eMouseExitFromWidget:
     // If this is a remote frame, we receive eMouseExitFromWidget from the
@@ -661,7 +661,7 @@ EventStateManager::PreHandleEvent(nsPresContext* aPresContext,
 
     // Flag helps to suppress double event sending into process of content.
     // For more information see comment above, at eMouseEnterIntoWidget case.
-    aEvent->mFlags.mNoCrossProcessBoundaryForwarding = true;
+    aEvent->StopCrossProcessForwarding();
 
     // If the event is not a top-level window exit, then it's not
     // really an exit --- we may have traversed widget boundaries but
@@ -735,10 +735,10 @@ EventStateManager::PreHandleEvent(nsPresContext* aPresContext,
           (modifierMask == Prefs::ChromeAccessModifierMask() ||
            modifierMask == Prefs::ContentAccessModifierMask())) {
         AutoTArray<uint32_t, 10> accessCharCodes;
-        nsContentUtils::GetAccessKeyCandidates(keyEvent, accessCharCodes);
+        keyEvent->GetAccessKeyCandidates(accessCharCodes);
 
         if (HandleAccessKey(aPresContext, accessCharCodes,
-                            keyEvent->mFlags.mIsTrusted, modifierMask)) {
+                            keyEvent->IsTrusted(), modifierMask)) {
           *aStatus = nsEventStatus_eConsumeNoDefault;
         }
       }
@@ -773,7 +773,7 @@ EventStateManager::PreHandleEvent(nsPresContext* aPresContext,
   case eWheelOperationStart:
   case eWheelOperationEnd:
     {
-      NS_ASSERTION(aEvent->mFlags.mIsTrusted,
+      NS_ASSERTION(aEvent->IsTrusted(),
                    "Untrusted wheel event shouldn't be here");
 
       nsIContent* content = GetFocusedContent();
@@ -818,7 +818,7 @@ EventStateManager::PreHandleEvent(nsPresContext* aPresContext,
     DoContentCommandScrollEvent(aEvent->AsContentCommandEvent());
     break;
   case eCompositionStart:
-    if (aEvent->mFlags.mIsTrusted) {
+    if (aEvent->IsTrusted()) {
       // If the event is trusted event, set the selected text to data of
       // composition event.
       WidgetCompositionEvent* compositionEvent = aEvent->AsCompositionEvent();
@@ -1377,7 +1377,7 @@ EventStateManager::CreateClickHoldTimer(nsPresContext* inPresContext,
                                         nsIFrame* inDownFrame,
                                         WidgetGUIEvent* inMouseDownEvent)
 {
-  if (!inMouseDownEvent->mFlags.mIsTrusted ||
+  if (!inMouseDownEvent->IsTrusted() ||
       IsRemoteTarget(mGestureDownContent) ||
       sIsPointerLocked) {
     return;
@@ -1735,11 +1735,10 @@ EventStateManager::GenerateDragGesture(nsPresContext* aPresContext,
       nsCOMPtr<nsIWidget> widget = mCurrentTarget->GetNearestWidget();
 
       // get the widget from the target frame
-      WidgetDragEvent startEvent(aEvent->mFlags.mIsTrusted,
-                                 eDragStart, widget);
+      WidgetDragEvent startEvent(aEvent->IsTrusted(), eDragStart, widget);
       FillInEventFromGestureDown(&startEvent);
 
-      WidgetDragEvent gestureEvent(aEvent->mFlags.mIsTrusted,
+      WidgetDragEvent gestureEvent(aEvent->IsTrusted(),
                                    eLegacyDragGesture, widget);
       FillInEventFromGestureDown(&gestureEvent);
 
@@ -1795,7 +1794,7 @@ EventStateManager::GenerateDragGesture(nsPresContext* aPresContext,
                                               targetContent, selection);
         if (dragStarted) {
           sActiveESM = nullptr;
-          aEvent->mFlags.mPropagationStopped = true;
+          aEvent->StopPropagation();
         }
       }
 
@@ -2226,7 +2225,7 @@ EventStateManager::DispatchLegacyMouseScrollEvents(nsIFrame* aTargetFrame,
   nsWeakFrame targetFrame(aTargetFrame);
 
   MOZ_ASSERT(*aStatus != nsEventStatus_eConsumeNoDefault &&
-             !aEvent->mFlags.mDefaultPrevented,
+             !aEvent->DefaultPrevented(),
              "If you make legacy events dispatched for default prevented wheel "
              "event, you need to initialize stateX and stateY");
   EventState stateX, stateY;
@@ -2266,11 +2265,14 @@ EventStateManager::DispatchLegacyMouseScrollEvents(nsIFrame* aTargetFrame,
     }
   }
 
-  if (stateY.mDefaultPrevented || stateX.mDefaultPrevented) {
+  if (stateY.mDefaultPrevented) {
     *aStatus = nsEventStatus_eConsumeNoDefault;
-    aEvent->mFlags.mDefaultPrevented = true;
-    aEvent->mFlags.mDefaultPreventedByContent |=
-      stateY.mDefaultPreventedByContent || stateX.mDefaultPreventedByContent;
+    aEvent->PreventDefault(!stateY.mDefaultPreventedByContent);
+  }
+
+  if (stateX.mDefaultPrevented) {
+    *aStatus = nsEventStatus_eConsumeNoDefault;
+    aEvent->PreventDefault(!stateX.mDefaultPreventedByContent);
   }
 }
 
@@ -2291,7 +2293,7 @@ EventStateManager::SendLineScrollEvent(nsIFrame* aTargetFrame,
     targetContent = targetContent->GetParent();
   }
 
-  WidgetMouseScrollEvent event(aEvent->mFlags.mIsTrusted,
+  WidgetMouseScrollEvent event(aEvent->IsTrusted(),
                                eLegacyMouseLineOrPageScroll, aEvent->widget);
   event.mFlags.mDefaultPrevented = aState.mDefaultPrevented;
   event.mFlags.mDefaultPreventedByContent = aState.mDefaultPreventedByContent;
@@ -2309,8 +2311,8 @@ EventStateManager::SendLineScrollEvent(nsIFrame* aTargetFrame,
   EventDispatcher::Dispatch(targetContent, aTargetFrame->PresContext(),
                             &event, nullptr, &status);
   aState.mDefaultPrevented =
-    event.mFlags.mDefaultPrevented || status == nsEventStatus_eConsumeNoDefault;
-  aState.mDefaultPreventedByContent = event.mFlags.mDefaultPreventedByContent;
+    event.DefaultPrevented() || status == nsEventStatus_eConsumeNoDefault;
+  aState.mDefaultPreventedByContent = event.DefaultPreventedByContent();
 }
 
 void
@@ -2331,7 +2333,7 @@ EventStateManager::SendPixelScrollEvent(nsIFrame* aTargetFrame,
     targetContent = targetContent->GetParent();
   }
 
-  WidgetMouseScrollEvent event(aEvent->mFlags.mIsTrusted,
+  WidgetMouseScrollEvent event(aEvent->IsTrusted(),
                                eLegacyMousePixelScroll, aEvent->widget);
   event.mFlags.mDefaultPrevented = aState.mDefaultPrevented;
   event.mFlags.mDefaultPreventedByContent = aState.mDefaultPreventedByContent;
@@ -2349,8 +2351,8 @@ EventStateManager::SendPixelScrollEvent(nsIFrame* aTargetFrame,
   EventDispatcher::Dispatch(targetContent, aTargetFrame->PresContext(),
                             &event, nullptr, &status);
   aState.mDefaultPrevented =
-    event.mFlags.mDefaultPrevented || status == nsEventStatus_eConsumeNoDefault;
-  aState.mDefaultPreventedByContent = event.mFlags.mDefaultPreventedByContent;
+    event.DefaultPrevented() || status == nsEventStatus_eConsumeNoDefault;
+  aState.mDefaultPreventedByContent = event.DefaultPreventedByContent();
 }
 
 nsIFrame*
@@ -3127,7 +3129,7 @@ EventStateManager::PostHandleEvent(nsPresContext* aPresContext,
     break;
   case eWheelOperationEnd:
     {
-      MOZ_ASSERT(aEvent->mFlags.mIsTrusted);
+      MOZ_ASSERT(aEvent->IsTrusted());
       ScrollbarsForWheel::MayInactivate();
       WidgetWheelEvent* wheelEvent = aEvent->AsWheelEvent();
       nsIScrollableFrame* scrollTarget =
@@ -3141,7 +3143,7 @@ EventStateManager::PostHandleEvent(nsPresContext* aPresContext,
   case eWheel:
   case eWheelOperationStart:
     {
-      MOZ_ASSERT(aEvent->mFlags.mIsTrusted);
+      MOZ_ASSERT(aEvent->IsTrusted());
 
       if (*aStatus == nsEventStatus_eConsumeNoDefault) {
         ScrollbarsForWheel::Inactivate();
@@ -3174,7 +3176,7 @@ EventStateManager::PostHandleEvent(nsPresContext* aPresContext,
         // APZ to handle it, because it will track the velocity and predicted
         // destination from the momentum.
         if (wheelEvent->mFlags.mHandledByAPZ) {
-          wheelEvent->mFlags.mDefaultPrevented = true;
+          wheelEvent->PreventDefault();
         }
         action = WheelPrefs::GetInstance()->ComputeActionFor(wheelEvent);
       } else if (wheelEvent->mFlags.mHandledByAPZ) {
@@ -3420,8 +3422,7 @@ EventStateManager::PostHandleEvent(nsPresContext* aPresContext,
                                            getter_AddRefs(targetContent));
 
         nsCOMPtr<nsIWidget> widget = mCurrentTarget->GetNearestWidget();
-        WidgetDragEvent event(aEvent->mFlags.mIsTrusted,
-                              eLegacyDragDrop, widget);
+        WidgetDragEvent event(aEvent->IsTrusted(), eLegacyDragDrop, widget);
 
         WidgetMouseEvent* mouseEvent = aEvent->AsMouseEvent();
         event.refPoint = mouseEvent->refPoint;
@@ -3847,7 +3848,7 @@ CreateMouseOrPointerWidgetEvent(WidgetMouseEvent* aMouseEvent,
 
     nsAutoPtr<WidgetPointerEvent> newPointerEvent;
     newPointerEvent =
-      new WidgetPointerEvent(aMouseEvent->mFlags.mIsTrusted, aMessage,
+      new WidgetPointerEvent(aMouseEvent->IsTrusted(), aMessage,
                              aMouseEvent->widget);
     newPointerEvent->isPrimary = sourcePointer->isPrimary;
     newPointerEvent->pointerId = sourcePointer->pointerId;
@@ -3861,7 +3862,7 @@ CreateMouseOrPointerWidgetEvent(WidgetMouseEvent* aMouseEvent,
     aNewEvent = newPointerEvent.forget();
   } else {
     aNewEvent =
-      new WidgetMouseEvent(aMouseEvent->mFlags.mIsTrusted, aMessage,
+      new WidgetMouseEvent(aMouseEvent->IsTrusted(), aMessage,
                            aMouseEvent->widget, WidgetMouseEvent::eReal);
     aNewEvent->relatedTarget = aRelatedContent;
   }
@@ -4258,7 +4259,7 @@ EventStateManager::GenerateMouseEnterExit(WidgetMouseEvent* aMouseEvent)
         } else if (aMouseEvent->refPoint == sSynthCenteringPoint) {
           // This is the "synthetic native" event we dispatched to re-center the
           // pointer. Cancel it so we don't expose the centering move to content.
-          aMouseEvent->mFlags.mPropagationStopped = true;
+          aMouseEvent->StopPropagation();
           // Clear sSynthCenteringPoint so we don't cancel other events
           // targeted at the center.
           sSynthCenteringPoint = kInvalidRefPoint;
@@ -4504,8 +4505,7 @@ EventStateManager::FireDragEnterOrExit(nsPresContext* aPresContext,
                                        nsWeakFrame& aTargetFrame)
 {
   nsEventStatus status = nsEventStatus_eIgnore;
-  WidgetDragEvent event(aDragEvent->mFlags.mIsTrusted, aMessage,
-                        aDragEvent->widget);
+  WidgetDragEvent event(aDragEvent->IsTrusted(), aMessage, aDragEvent->widget);
   event.refPoint = aDragEvent->refPoint;
   event.modifiers = aDragEvent->modifiers;
   event.buttons = aDragEvent->buttons;
@@ -4649,7 +4649,7 @@ EventStateManager::InitAndDispatchClickEvent(WidgetMouseEvent* aEvent,
                                              nsWeakFrame aCurrentTarget,
                                              bool aNoContentDispatch)
 {
-  WidgetMouseEvent event(aEvent->mFlags.mIsTrusted, aMessage,
+  WidgetMouseEvent event(aEvent->IsTrusted(), aMessage,
                          aEvent->widget, WidgetMouseEvent::eReal);
 
   event.refPoint = aEvent->refPoint;
@@ -5913,7 +5913,7 @@ AutoHandlingUserInputStatePusher::AutoHandlingUserInputStatePusher(
     nsIPresShell::SetCapturingContent(nullptr, 0);
     nsIPresShell::AllowMouseCapture(true);
   }
-  if (!aDocument || !aEvent || !aEvent->mFlags.mIsTrusted) {
+  if (!aDocument || !aEvent || !aEvent->IsTrusted()) {
     return;
   }
   mResetFMMouseButtonHandlingState =

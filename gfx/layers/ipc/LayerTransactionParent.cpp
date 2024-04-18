@@ -366,7 +366,7 @@ LayerTransactionParent::RecvUpdate(InfallibleTArray<Edit>&& cset,
         layer->SetMaskLayer(nullptr);
       }
       layer->SetAnimations(common.animations());
-      layer->SetFrameMetrics(common.metrics());
+      layer->SetScrollMetadata(common.scrollMetadata());
       layer->SetDisplayListLog(common.displayListLog().get());
 
       // The updated invalid region is added to the existing one, since we can
@@ -781,7 +781,7 @@ LayerTransactionParent::RecvGetAnimationTransform(PLayerParent* aParent,
 static AsyncPanZoomController*
 GetAPZCForViewID(Layer* aLayer, FrameMetrics::ViewID aScrollID)
 {
-  for (uint32_t i = 0; i < aLayer->GetFrameMetricsCount(); i++) {
+  for (uint32_t i = 0; i < aLayer->GetScrollMetadataCount(); i++) {
     if (aLayer->GetFrameMetrics(i).GetScrollId() == aScrollID) {
       return aLayer->GetAsyncPanZoomController(i);
     }
@@ -796,25 +796,6 @@ GetAPZCForViewID(Layer* aLayer, FrameMetrics::ViewID aScrollID)
     }
   }
   return nullptr;
-}
-
-bool
-LayerTransactionParent::RecvUpdateScrollOffset(
-    const FrameMetrics::ViewID& aScrollID,
-    const uint32_t& aScrollGeneration,
-    const CSSPoint& aScrollOffset)
-{
-  if (mDestroyed || !layer_manager() || layer_manager()->IsDestroyed()) {
-    return false;
-  }
-
-  AsyncPanZoomController* controller = GetAPZCForViewID(mRoot, aScrollID);
-  if (!controller) {
-    return false;
-  }
-  controller->NotifyScrollUpdated(aScrollGeneration, aScrollOffset);
-  mShadowLayersManager->ForceComposite(this);
-  return true;
 }
 
 bool

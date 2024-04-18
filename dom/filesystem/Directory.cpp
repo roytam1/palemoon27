@@ -111,10 +111,21 @@ NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(Directory)
   NS_INTERFACE_MAP_ENTRY(nsISupports)
 NS_INTERFACE_MAP_END
 
-// static
-already_AddRefed<Promise>
+/* static */ bool
+Directory::DeviceStorageEnabled(JSContext* aCx, JSObject* aObj)
+{
+  if (!NS_IsMainThread()) {
+    return false;
+  }
+
+  return Preferences::GetBool("device.storage.enabled", false);
+}
+
+/* static */ already_AddRefed<Promise>
 Directory::GetRoot(FileSystemBase* aFileSystem, ErrorResult& aRv)
 {
+  // Only exposed for DeviceStorage.
+  MOZ_ASSERT(NS_IsMainThread());
   MOZ_ASSERT(aFileSystem);
 
   nsCOMPtr<nsIFile> path;
@@ -124,8 +135,9 @@ Directory::GetRoot(FileSystemBase* aFileSystem, ErrorResult& aRv)
     return nullptr;
   }
 
-  RefPtr<GetFileOrDirectoryTask> task =
-    GetFileOrDirectoryTask::Create(aFileSystem, path, eDOMRootDirectory, true, aRv);
+  RefPtr<GetFileOrDirectoryTaskChild> task =
+    GetFileOrDirectoryTaskChild::Create(aFileSystem, path, eDOMRootDirectory,
+                                        true, aRv);
   if (NS_WARN_IF(aRv.Failed())) {
     return nullptr;
   }
@@ -138,7 +150,6 @@ Directory::GetRoot(FileSystemBase* aFileSystem, ErrorResult& aRv)
 Directory::Create(nsISupports* aParent, nsIFile* aFile,
                   DirectoryType aType, FileSystemBase* aFileSystem)
 {
-  MOZ_ASSERT(NS_IsMainThread());
   MOZ_ASSERT(aParent);
   MOZ_ASSERT(aFile);
 
@@ -168,7 +179,6 @@ Directory::Directory(nsISupports* aParent,
   , mFile(aFile)
   , mType(aType)
 {
-  MOZ_ASSERT(NS_IsMainThread());
   MOZ_ASSERT(aFile);
 
   // aFileSystem can be null. In this case we create a OSFileSystem when needed.
@@ -220,6 +230,9 @@ already_AddRefed<Promise>
 Directory::CreateFile(const nsAString& aPath, const CreateFileOptions& aOptions,
                       ErrorResult& aRv)
 {
+  // Only exposed for DeviceStorage.
+  MOZ_ASSERT(NS_IsMainThread());
+
   RefPtr<Blob> blobData;
   InfallibleTArray<uint8_t> arrayData;
   bool replace = (aOptions.mIfExists == CreateIfExistsMode::Replace);
@@ -252,8 +265,9 @@ Directory::CreateFile(const nsAString& aPath, const CreateFileOptions& aOptions,
     return nullptr;
   }
 
-  RefPtr<CreateFileTask> task =
-    CreateFileTask::Create(fs, realPath, blobData, arrayData, replace, aRv);
+  RefPtr<CreateFileTaskChild> task =
+    CreateFileTaskChild::Create(fs, realPath, blobData, arrayData, replace,
+                                aRv);
   if (NS_WARN_IF(aRv.Failed())) {
     return nullptr;
   }
@@ -266,6 +280,9 @@ Directory::CreateFile(const nsAString& aPath, const CreateFileOptions& aOptions,
 already_AddRefed<Promise>
 Directory::CreateDirectory(const nsAString& aPath, ErrorResult& aRv)
 {
+  // Only exposed for DeviceStorage.
+  MOZ_ASSERT(NS_IsMainThread());
+
   nsCOMPtr<nsIFile> realPath;
   nsresult error = DOMPathToRealPath(aPath, getter_AddRefs(realPath));
 
@@ -274,8 +291,8 @@ Directory::CreateDirectory(const nsAString& aPath, ErrorResult& aRv)
     return nullptr;
   }
 
-  RefPtr<CreateDirectoryTask> task =
-    CreateDirectoryTask::Create(fs, realPath, aRv);
+  RefPtr<CreateDirectoryTaskChild> task =
+    CreateDirectoryTaskChild::Create(fs, realPath, aRv);
   if (NS_WARN_IF(aRv.Failed())) {
     return nullptr;
   }
@@ -288,6 +305,9 @@ Directory::CreateDirectory(const nsAString& aPath, ErrorResult& aRv)
 already_AddRefed<Promise>
 Directory::Get(const nsAString& aPath, ErrorResult& aRv)
 {
+  // Only exposed for DeviceStorage.
+  MOZ_ASSERT(NS_IsMainThread());
+
   nsCOMPtr<nsIFile> realPath;
   nsresult error = DOMPathToRealPath(aPath, getter_AddRefs(realPath));
 
@@ -296,9 +316,9 @@ Directory::Get(const nsAString& aPath, ErrorResult& aRv)
     return nullptr;
   }
 
-  RefPtr<GetFileOrDirectoryTask> task =
-    GetFileOrDirectoryTask::Create(fs, realPath, eNotDOMRootDirectory, false,
-                                   aRv);
+  RefPtr<GetFileOrDirectoryTaskChild> task =
+    GetFileOrDirectoryTaskChild::Create(fs, realPath, eNotDOMRootDirectory,
+                                        false, aRv);
   if (NS_WARN_IF(aRv.Failed())) {
     return nullptr;
   }
@@ -311,12 +331,16 @@ Directory::Get(const nsAString& aPath, ErrorResult& aRv)
 already_AddRefed<Promise>
 Directory::Remove(const StringOrFileOrDirectory& aPath, ErrorResult& aRv)
 {
+  // Only exposed for DeviceStorage.
+  MOZ_ASSERT(NS_IsMainThread());
   return RemoveInternal(aPath, false, aRv);
 }
 
 already_AddRefed<Promise>
 Directory::RemoveDeep(const StringOrFileOrDirectory& aPath, ErrorResult& aRv)
 {
+  // Only exposed for DeviceStorage.
+  MOZ_ASSERT(NS_IsMainThread());
   return RemoveInternal(aPath, true, aRv);
 }
 
@@ -324,6 +348,9 @@ already_AddRefed<Promise>
 Directory::RemoveInternal(const StringOrFileOrDirectory& aPath, bool aRecursive,
                           ErrorResult& aRv)
 {
+  // Only exposed for DeviceStorage.
+  MOZ_ASSERT(NS_IsMainThread());
+
   nsresult error = NS_OK;
   nsCOMPtr<nsIFile> realPath;
 
@@ -360,8 +387,8 @@ Directory::RemoveInternal(const StringOrFileOrDirectory& aPath, bool aRecursive,
     error = NS_ERROR_DOM_FILESYSTEM_NO_MODIFICATION_ALLOWED_ERR;
   }
 
-  RefPtr<RemoveTask> task =
-    RemoveTask::Create(fs, mFile, realPath, aRecursive, aRv);
+  RefPtr<RemoveTaskChild> task =
+    RemoveTaskChild::Create(fs, mFile, realPath, aRecursive, aRv);
   if (NS_WARN_IF(aRv.Failed())) {
     return nullptr;
   }
@@ -409,8 +436,8 @@ Directory::GetFilesAndDirectories(ErrorResult& aRv)
     return nullptr;
   }
 
-  RefPtr<GetDirectoryListingTask> task =
-    GetDirectoryListingTask::Create(fs, mFile, mType, mFilters, aRv);
+  RefPtr<GetDirectoryListingTaskChild> task =
+    GetDirectoryListingTaskChild::Create(fs, mFile, mType, mFilters, aRv);
   if (NS_WARN_IF(aRv.Failed())) {
     return nullptr;
   }
@@ -478,6 +505,18 @@ Directory::DOMPathToRealPath(const nsAString& aPath, nsIFile** aFile) const
 
   file.forget(aFile);
   return NS_OK;
+}
+
+bool
+Directory::ClonableToDifferentThreadOrProcess() const
+{
+  // If we don't have a fileSystem we are going to create a OSFileSystem that is
+  // clonable everywhere.
+  if (!mFileSystem) {
+    return true;
+  }
+
+  return mFileSystem->ClonableToDifferentThreadOrProcess();
 }
 
 } // namespace dom

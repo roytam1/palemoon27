@@ -43,6 +43,7 @@ function PushRecord(props) {
   this.p256dhPrivateKey = props.p256dhPrivateKey;
   this.authenticationSecret = props.authenticationSecret;
   this.systemRecord = !!props.systemRecord;
+  this.appServerKey = props.appServerKey;
   this.setQuota(props.quota);
   this.ctime = (typeof props.ctime === "number") ? props.ctime : 0;
 }
@@ -240,6 +241,22 @@ PushRecord.prototype = {
       this.principal.originAttributes, pattern);
   },
 
+  hasAuthenticationSecret() {
+    return !!this.authenticationSecret &&
+           this.authenticationSecret.byteLength == 16;
+  },
+
+  matchesAppServerKey(key) {
+    if (!this.appServerKey) {
+      return !key;
+    }
+    if (!key) {
+      return false;
+    }
+    return this.appServerKey.length === key.length &&
+           this.appServerKey.every((value, index) => value === key[index]);
+  },
+
   toSubscription() {
     return {
       endpoint: this.pushEndpoint,
@@ -247,6 +264,7 @@ PushRecord.prototype = {
       pushCount: this.pushCount,
       p256dhKey: this.p256dhPublicKey,
       authenticationSecret: this.authenticationSecret,
+      appServerKey: this.appServerKey,
       quota: this.quotaApplies() ? this.quota : -1,
     };
   },

@@ -37,7 +37,7 @@
 #include "nr_socket_prsock.h"
 #include "test_nr_socket.h"
 #include "ice_ctx.h"
-#include "stun_udp_socket_filter.h"
+#include "stun_socket_filter.h"
 #include "mozilla/net/DNS.h"
 
 #include "ice_ctx.h"
@@ -1286,7 +1286,7 @@ void SchedulableTrickleCandidate::Trickle() {
   ASSERT_TRUE(NS_SUCCEEDED(res));
 }
 
-class IceGatherTest : public StunTest {
+class WebRtcIceGatherTest : public StunTest {
  public:
   void SetUp() override {
     StunTest::SetUp();
@@ -1453,9 +1453,9 @@ class IceGatherTest : public StunTest {
   mozilla::UniquePtr<IceTestPeer> peer_;
 };
 
-class IceConnectTest : public StunTest {
+class WebRtcIceConnectTest : public StunTest {
  public:
-  IceConnectTest() :
+  WebRtcIceConnectTest() :
     initted_(false),
     use_nat_(false),
     filtering_type_(TestNat::ENDPOINT_INDEPENDENT),
@@ -1676,7 +1676,7 @@ class IceConnectTest : public StunTest {
     p2_->Connect(p1_.get(), TRICKLE_NONE, false);
     p1_->Connect(p2_.get(), TRICKLE_NONE, true);
     test_utils_->sts_target()->Dispatch(WrapRunnable(this,
-                                                    &IceConnectTest::CloseP1),
+                                                    &WebRtcIceConnectTest::CloseP1),
                                        NS_DISPATCH_SYNC);
     p2_->StartChecks();
 
@@ -1706,12 +1706,12 @@ class IceConnectTest : public StunTest {
   bool block_udp_;
 };
 
-class PrioritizerTest : public StunTest {
+class WebRtcIcePrioritizerTest : public StunTest {
  public:
-  PrioritizerTest():
+  WebRtcIcePrioritizerTest():
     prioritizer_(nullptr) {}
 
-  ~PrioritizerTest() {
+  ~WebRtcIcePrioritizerTest() {
     if (prioritizer_) {
       nr_interface_prioritizer_destroy(&prioritizer_);
     }
@@ -1754,9 +1754,10 @@ class PrioritizerTest : public StunTest {
   nr_interface_prioritizer *prioritizer_;
 };
 
-class PacketFilterTest : public StunTest {
+class WebRtcIcePacketFilterTest : public StunTest {
  public:
-  PacketFilterTest(): filter_(nullptr) {}
+  WebRtcIcePacketFilterTest(): udp_filter_(nullptr),
+                               tcp_filter_(nullptr) {}
 
   void SetUp() {
     StunTest::SetUp();
@@ -1764,14 +1765,20 @@ class PacketFilterTest : public StunTest {
     // Set up enough of the ICE ctx to allow the packet filter to work
     ice_ctx_ = NrIceCtx::Create("test", true);
 
-    nsCOMPtr<nsIUDPSocketFilterHandler> handler =
+    nsCOMPtr<nsISocketFilterHandler> udp_handler =
       do_GetService(NS_STUN_UDP_SOCKET_FILTER_HANDLER_CONTRACTID);
-    handler->NewFilter(getter_AddRefs(filter_));
+    ASSERT_TRUE(udp_handler);
+    udp_handler->NewFilter(getter_AddRefs(udp_filter_));
+
+    nsCOMPtr<nsISocketFilterHandler> tcp_handler =
+      do_GetService(NS_STUN_TCP_SOCKET_FILTER_HANDLER_CONTRACTID);
+    ASSERT_TRUE(tcp_handler);
+    tcp_handler->NewFilter(getter_AddRefs(tcp_filter_));
   }
 
   void TearDown() {
     test_utils_->sts_target()->Dispatch(WrapRunnable(this,
-                                                    &PacketFilterTest::TearDown_s),
+                                       &WebRtcIcePacketFilterTest::TearDown_s),
                                        NS_DISPATCH_SYNC);
     StunTest::TearDown();
   }
@@ -1786,11 +1793,37 @@ class PacketFilterTest : public StunTest {
     mozilla::net::NetAddr addr;
     MakeNetAddr(&addr, from_addr, from_port);
     bool result;
-    nsresult rv = filter_->FilterPacket(&addr, data, len,
-                                        nsIUDPSocketFilter::SF_INCOMING,
-                                        &result);
+    nsresult rv = udp_filter_->FilterPacket(&addr, data, len,
+                                            nsISocketFilter::SF_INCOMING,
+                                            &result);
     ASSERT_EQ(NS_OK, rv);
     ASSERT_EQ(expected_result, result);
+  }
+
+  void TestIncomingTcp(const uint8_t* data, uint32_t len,
+                       bool expected_result) {
+    mozilla::net::NetAddr addr;
+    bool result;
+    nsresult rv = tcp_filter_->FilterPacket(&addr, data, len,
+                                            nsISocketFilter::SF_INCOMING,
+                                            &result);
+    ASSERT_EQ(NS_OK, rv);
+    ASSERT_EQ(expected_result, result);
+  }
+
+  void TestIncomingTcpFramed(const uint8_t* data, uint32_t len,
+                             bool expected_result) {
+    mozilla::net::NetAddr addr;
+    bool result;
+    uint8_t* framed_data = new uint8_t[len+2];
+    framed_data[0] = htons(len);
+    memcpy(&framed_data[2], data, len);
+    nsresult rv = tcp_filter_->FilterPacket(&addr, framed_data, len+2,
+                                            nsISocketFilter::SF_INCOMING,
+                                            &result);
+    ASSERT_EQ(NS_OK, rv);
+    ASSERT_EQ(expected_result, result);
+    delete[] framed_data;
   }
 
   void TestOutgoing(const uint8_t* data, uint32_t len,
@@ -1799,11 +1832,37 @@ class PacketFilterTest : public StunTest {
     mozilla::net::NetAddr addr;
     MakeNetAddr(&addr, to_addr, to_port);
     bool result;
-    nsresult rv = filter_->FilterPacket(&addr, data, len,
-                                        nsIUDPSocketFilter::SF_OUTGOING,
-                                        &result);
+    nsresult rv = udp_filter_->FilterPacket(&addr, data, len,
+                                            nsISocketFilter::SF_OUTGOING,
+                                            &result);
     ASSERT_EQ(NS_OK, rv);
     ASSERT_EQ(expected_result, result);
+  }
+
+  void TestOutgoingTcp(const uint8_t* data, uint32_t len,
+                       bool expected_result) {
+    mozilla::net::NetAddr addr;
+    bool result;
+    nsresult rv = tcp_filter_->FilterPacket(&addr, data, len,
+                                            nsISocketFilter::SF_OUTGOING,
+                                            &result);
+    ASSERT_EQ(NS_OK, rv);
+    ASSERT_EQ(expected_result, result);
+  }
+
+  void TestOutgoingTcpFramed(const uint8_t* data, uint32_t len,
+                             bool expected_result) {
+    mozilla::net::NetAddr addr;
+    bool result;
+    uint8_t* framed_data = new uint8_t[len+2];
+    framed_data[0] = htons(len);
+    memcpy(&framed_data[2], data, len);
+    nsresult rv = tcp_filter_->FilterPacket(&addr, framed_data, len+2,
+                                            nsISocketFilter::SF_OUTGOING,
+                                            &result);
+    ASSERT_EQ(NS_OK, rv);
+    ASSERT_EQ(expected_result, result);
+    delete[] framed_data;
   }
 
  private:
@@ -1814,12 +1873,13 @@ class PacketFilterTest : public StunTest {
     net_addr->inet.port = port;
   }
 
-  nsCOMPtr<nsIUDPSocketFilter> filter_;
+  nsCOMPtr<nsISocketFilter> udp_filter_;
+  nsCOMPtr<nsISocketFilter> tcp_filter_;
   RefPtr<NrIceCtx> ice_ctx_;
 };
 }  // end namespace
 
-TEST_F(IceGatherTest, TestGatherFakeStunServerHostnameNoResolver) {
+TEST_F(WebRtcIceGatherTest, TestGatherFakeStunServerHostnameNoResolver) {
   if (stun_server_hostname_.empty()) {
     return;
   }
@@ -1829,7 +1889,7 @@ TEST_F(IceGatherTest, TestGatherFakeStunServerHostnameNoResolver) {
   Gather();
 }
 
-TEST_F(IceGatherTest, TestGatherFakeStunServerTcpHostnameNoResolver) {
+TEST_F(WebRtcIceGatherTest, TestGatherFakeStunServerTcpHostnameNoResolver) {
   if (stun_server_hostname_.empty()) {
     return;
   }
@@ -1841,7 +1901,7 @@ TEST_F(IceGatherTest, TestGatherFakeStunServerTcpHostnameNoResolver) {
   ASSERT_TRUE(StreamHasMatchingCandidate(0, " TCP "));
 }
 
-TEST_F(IceGatherTest, TestGatherFakeStunServerIpAddress) {
+TEST_F(WebRtcIceGatherTest, TestGatherFakeStunServerIpAddress) {
   if (stun_server_address_.empty()) {
     return;
   }
@@ -1852,7 +1912,7 @@ TEST_F(IceGatherTest, TestGatherFakeStunServerIpAddress) {
   Gather();
 }
 
-TEST_F(IceGatherTest, TestGatherStunServerIpAddressDefaultRouteOnly) {
+TEST_F(WebRtcIceGatherTest, TestGatherStunServerIpAddressDefaultRouteOnly) {
   if (stun_server_address_.empty()) {
     return;
   }
@@ -1865,7 +1925,7 @@ TEST_F(IceGatherTest, TestGatherStunServerIpAddressDefaultRouteOnly) {
   ASSERT_FALSE(StreamHasMatchingCandidate(0, " host "));
 }
 
-TEST_F(IceGatherTest, TestGatherFakeStunServerHostname) {
+TEST_F(WebRtcIceGatherTest, TestGatherFakeStunServerHostname) {
   if (stun_server_hostname_.empty()) {
     return;
   }
@@ -1876,14 +1936,14 @@ TEST_F(IceGatherTest, TestGatherFakeStunServerHostname) {
   Gather();
 }
 
-TEST_F(IceGatherTest, TestGatherFakeStunBogusHostname) {
+TEST_F(WebRtcIceGatherTest, TestGatherFakeStunBogusHostname) {
   EnsurePeer();
   peer_->SetStunServer(kBogusStunServerHostname, kDefaultStunServerPort);
   peer_->SetFakeResolver(stun_server_address_, stun_server_hostname_);
   Gather();
 }
 
-TEST_F(IceGatherTest, TestGatherDNSStunServerIpAddress) {
+TEST_F(WebRtcIceGatherTest, TestGatherDNSStunServerIpAddress) {
   if (stun_server_address_.empty()) {
     return;
   }
@@ -1896,7 +1956,7 @@ TEST_F(IceGatherTest, TestGatherDNSStunServerIpAddress) {
   ASSERT_TRUE(StreamHasMatchingCandidate(0, "typ srflx raddr"));
 }
 
-TEST_F(IceGatherTest, TestGatherDNSStunServerIpAddressTcp) {
+TEST_F(WebRtcIceGatherTest, TestGatherDNSStunServerIpAddressTcp) {
   if (stun_server_address_.empty()) {
     return;
   }
@@ -1913,7 +1973,7 @@ TEST_F(IceGatherTest, TestGatherDNSStunServerIpAddressTcp) {
   ASSERT_TRUE(StreamHasMatchingCandidate(0, "tcptype active", " 9 "));
 }
 
-TEST_F(IceGatherTest, TestGatherDNSStunServerHostname) {
+TEST_F(WebRtcIceGatherTest, TestGatherDNSStunServerHostname) {
   if (stun_server_hostname_.empty()) {
     return;
   }
@@ -1926,7 +1986,7 @@ TEST_F(IceGatherTest, TestGatherDNSStunServerHostname) {
   ASSERT_TRUE(StreamHasMatchingCandidate(0, "typ srflx raddr"));
 }
 
-TEST_F(IceGatherTest, TestGatherDNSStunServerHostnameTcp) {
+TEST_F(WebRtcIceGatherTest, TestGatherDNSStunServerHostnameTcp) {
   EnsurePeer(ICE_TEST_PEER_OFFERER | ICE_TEST_PEER_ENABLED_TCP);
   peer_->SetStunServer(stun_server_hostname_, kDefaultStunServerPort,
     kNrIceTransportTcp);
@@ -1939,7 +1999,7 @@ TEST_F(IceGatherTest, TestGatherDNSStunServerHostnameTcp) {
   ASSERT_TRUE(StreamHasMatchingCandidate(0, "tcptype active", " 9 "));
 }
 
-TEST_F(IceGatherTest, TestGatherDNSStunServerHostnameBothUdpTcp) {
+TEST_F(WebRtcIceGatherTest, TestGatherDNSStunServerHostnameBothUdpTcp) {
   if (stun_server_hostname_.empty()) {
     return;
   }
@@ -1958,7 +2018,7 @@ TEST_F(IceGatherTest, TestGatherDNSStunServerHostnameBothUdpTcp) {
   ASSERT_TRUE(StreamHasMatchingCandidate(0, " TCP "));
 }
 
-TEST_F(IceGatherTest, TestGatherDNSStunServerIpAddressBothUdpTcp) {
+TEST_F(WebRtcIceGatherTest, TestGatherDNSStunServerIpAddressBothUdpTcp) {
   if (stun_server_address_.empty()) {
     return;
   }
@@ -1977,7 +2037,7 @@ TEST_F(IceGatherTest, TestGatherDNSStunServerIpAddressBothUdpTcp) {
   ASSERT_TRUE(StreamHasMatchingCandidate(0, " TCP "));
 }
 
-TEST_F(IceGatherTest, TestGatherDNSStunBogusHostname) {
+TEST_F(WebRtcIceGatherTest, TestGatherDNSStunBogusHostname) {
   EnsurePeer();
   peer_->SetStunServer(kBogusStunServerHostname, kDefaultStunServerPort);
   peer_->SetDNSResolver();
@@ -1985,7 +2045,7 @@ TEST_F(IceGatherTest, TestGatherDNSStunBogusHostname) {
   ASSERT_TRUE(StreamHasMatchingCandidate(0, " UDP "));
 }
 
-TEST_F(IceGatherTest, TestGatherDNSStunBogusHostnameTcp) {
+TEST_F(WebRtcIceGatherTest, TestGatherDNSStunBogusHostnameTcp) {
   EnsurePeer(ICE_TEST_PEER_OFFERER | ICE_TEST_PEER_ENABLED_TCP);
   peer_->SetStunServer(kBogusStunServerHostname, kDefaultStunServerPort,
     kNrIceTransportTcp);
@@ -1994,7 +2054,7 @@ TEST_F(IceGatherTest, TestGatherDNSStunBogusHostnameTcp) {
   ASSERT_TRUE(StreamHasMatchingCandidate(0, " TCP "));
 }
 
-TEST_F(IceGatherTest, TestDefaultCandidate) {
+TEST_F(WebRtcIceGatherTest, TestDefaultCandidate) {
   EnsurePeer();
   peer_->SetStunServer(stun_server_hostname_, kDefaultStunServerPort);
   Gather();
@@ -2002,7 +2062,7 @@ TEST_F(IceGatherTest, TestDefaultCandidate) {
   ASSERT_TRUE(NS_SUCCEEDED(peer_->GetDefaultCandidate(0, &default_candidate)));
 }
 
-TEST_F(IceGatherTest, TestGatherTurn) {
+TEST_F(WebRtcIceGatherTest, TestGatherTurn) {
   EnsurePeer();
   if (turn_server_.empty())
     return;
@@ -2011,7 +2071,7 @@ TEST_F(IceGatherTest, TestGatherTurn) {
   Gather();
 }
 
-TEST_F(IceGatherTest, TestGatherTurnTcp) {
+TEST_F(WebRtcIceGatherTest, TestGatherTurnTcp) {
   EnsurePeer();
   if (turn_server_.empty())
     return;
@@ -2020,7 +2080,7 @@ TEST_F(IceGatherTest, TestGatherTurnTcp) {
   Gather();
 }
 
-TEST_F(IceGatherTest, TestGatherDisableComponent) {
+TEST_F(WebRtcIceGatherTest, TestGatherDisableComponent) {
   if (stun_server_hostname_.empty()) {
     return;
   }
@@ -2039,12 +2099,12 @@ TEST_F(IceGatherTest, TestGatherDisableComponent) {
   }
 }
 
-TEST_F(IceGatherTest, TestGatherVerifyNoLoopback) {
+TEST_F(WebRtcIceGatherTest, TestGatherVerifyNoLoopback) {
   Gather();
   ASSERT_FALSE(StreamHasMatchingCandidate(0, "127.0.0.1"));
 }
 
-TEST_F(IceGatherTest, TestGatherAllowLoopback) {
+TEST_F(WebRtcIceGatherTest, TestGatherAllowLoopback) {
   // Set up peer with loopback allowed.
   peer_ = MakeUnique<IceTestPeer>("P1", test_utils_, true, true);
   peer_->AddStream(1);
@@ -2052,7 +2112,7 @@ TEST_F(IceGatherTest, TestGatherAllowLoopback) {
   ASSERT_TRUE(StreamHasMatchingCandidate(0, "127.0.0.1"));
 }
 
-TEST_F(IceGatherTest, TestGatherTcpDisabled) {
+TEST_F(WebRtcIceGatherTest, TestGatherTcpDisabled) {
   // Set up peer with tcp disabled.
   peer_ = MakeUnique<IceTestPeer>("P1", test_utils_, true, false, false);
   peer_->AddStream(1);
@@ -2063,25 +2123,25 @@ TEST_F(IceGatherTest, TestGatherTcpDisabled) {
 
 // Verify that a bogus candidate doesn't cause crashes on the
 // main thread. See bug 856433.
-TEST_F(IceGatherTest, TestBogusCandidate) {
+TEST_F(WebRtcIceGatherTest, TestBogusCandidate) {
   Gather();
   peer_->ParseCandidate(0, kBogusIceCandidate);
 }
 
-TEST_F(IceGatherTest, VerifyTestStunServer) {
+TEST_F(WebRtcIceGatherTest, VerifyTestStunServer) {
   UseFakeStunUdpServerWithResponse("192.0.2.133", 3333);
   Gather();
   ASSERT_TRUE(StreamHasMatchingCandidate(0, " 192.0.2.133 3333 "));
 }
 
-TEST_F(IceGatherTest, VerifyTestStunTcpServer) {
+TEST_F(WebRtcIceGatherTest, VerifyTestStunTcpServer) {
   UseFakeStunTcpServerWithResponse("192.0.2.233", 3333);
   Gather();
   ASSERT_TRUE(StreamHasMatchingCandidate(0, " 192.0.2.233 3333 typ srflx",
     " tcptype "));
 }
 
-TEST_F(IceGatherTest, VerifyTestStunServerV6) {
+TEST_F(WebRtcIceGatherTest, VerifyTestStunServerV6) {
   if (!TestStunServer::GetInstance(AF_INET6)) {
     // No V6 addresses
     return;
@@ -2091,13 +2151,13 @@ TEST_F(IceGatherTest, VerifyTestStunServerV6) {
   ASSERT_TRUE(StreamHasMatchingCandidate(0, " beef:: 3333 "));
 }
 
-TEST_F(IceGatherTest, VerifyTestStunServerFQDN) {
+TEST_F(WebRtcIceGatherTest, VerifyTestStunServerFQDN) {
   UseFakeStunUdpServerWithResponse("192.0.2.133", 3333, "stun.example.com");
   Gather();
   ASSERT_TRUE(StreamHasMatchingCandidate(0, " 192.0.2.133 3333 "));
 }
 
-TEST_F(IceGatherTest, VerifyTestStunServerV6FQDN) {
+TEST_F(WebRtcIceGatherTest, VerifyTestStunServerV6FQDN) {
   if (!TestStunServer::GetInstance(AF_INET6)) {
     // No V6 addresses
     return;
@@ -2107,13 +2167,13 @@ TEST_F(IceGatherTest, VerifyTestStunServerV6FQDN) {
   ASSERT_TRUE(StreamHasMatchingCandidate(0, " beef:: 3333 "));
 }
 
-TEST_F(IceGatherTest, TestStunServerReturnsWildcardAddr) {
+TEST_F(WebRtcIceGatherTest, TestStunServerReturnsWildcardAddr) {
   UseFakeStunUdpServerWithResponse("0.0.0.0", 3333);
   Gather(kDefaultTimeout * 3);
   ASSERT_FALSE(StreamHasMatchingCandidate(0, " 0.0.0.0 "));
 }
 
-TEST_F(IceGatherTest, TestStunServerReturnsWildcardAddrV6) {
+TEST_F(WebRtcIceGatherTest, TestStunServerReturnsWildcardAddrV6) {
   if (!TestStunServer::GetInstance(AF_INET6)) {
     // No V6 addresses
     return;
@@ -2123,19 +2183,19 @@ TEST_F(IceGatherTest, TestStunServerReturnsWildcardAddrV6) {
   ASSERT_FALSE(StreamHasMatchingCandidate(0, " :: "));
 }
 
-TEST_F(IceGatherTest, TestStunServerReturnsPort0) {
+TEST_F(WebRtcIceGatherTest, TestStunServerReturnsPort0) {
   UseFakeStunUdpServerWithResponse("192.0.2.133", 0);
   Gather(kDefaultTimeout * 3);
   ASSERT_FALSE(StreamHasMatchingCandidate(0, " 192.0.2.133 0 "));
 }
 
-TEST_F(IceGatherTest, TestStunServerReturnsLoopbackAddr) {
+TEST_F(WebRtcIceGatherTest, TestStunServerReturnsLoopbackAddr) {
   UseFakeStunUdpServerWithResponse("127.0.0.133", 3333);
   Gather(kDefaultTimeout * 3);
   ASSERT_FALSE(StreamHasMatchingCandidate(0, " 127.0.0.133 "));
 }
 
-TEST_F(IceGatherTest, TestStunServerReturnsLoopbackAddrV6) {
+TEST_F(WebRtcIceGatherTest, TestStunServerReturnsLoopbackAddrV6) {
   if (!TestStunServer::GetInstance(AF_INET6)) {
     // No V6 addresses
     return;
@@ -2145,7 +2205,7 @@ TEST_F(IceGatherTest, TestStunServerReturnsLoopbackAddrV6) {
   ASSERT_FALSE(StreamHasMatchingCandidate(0, " ::1 "));
 }
 
-TEST_F(IceGatherTest, TestStunServerTrickle) {
+TEST_F(WebRtcIceGatherTest, TestStunServerTrickle) {
   UseFakeStunUdpServerWithResponse("192.0.2.1", 3333);
   TestStunServer::GetInstance(AF_INET)->SetDropInitialPackets(3);
   Gather(0);
@@ -2156,7 +2216,7 @@ TEST_F(IceGatherTest, TestStunServerTrickle) {
 
 // Test default route only with our fake STUN server and
 // apparently NATted.
-TEST_F(IceGatherTest, TestFakeStunServerNatedDefaultRouteOnly) {
+TEST_F(WebRtcIceGatherTest, TestFakeStunServerNatedDefaultRouteOnly) {
   peer_ = MakeUnique<IceTestPeer>("P1", test_utils_, true, false, false, false, true);
   peer_->AddStream(1);
   UseFakeStunUdpServerWithResponse("192.0.2.1", 3333);
@@ -2174,7 +2234,7 @@ TEST_F(IceGatherTest, TestFakeStunServerNatedDefaultRouteOnly) {
 
 // Test default route only with our fake STUN server and
 // apparently non-NATted.
-TEST_F(IceGatherTest, TestFakeStunServerNoNatDefaultRouteOnly) {
+TEST_F(WebRtcIceGatherTest, TestFakeStunServerNoNatDefaultRouteOnly) {
   peer_ = MakeUnique<IceTestPeer>("P1", test_utils_, true, false, false, false, true);
   peer_->AddStream(1);
   UseTestStunServer();
@@ -2185,7 +2245,7 @@ TEST_F(IceGatherTest, TestFakeStunServerNoNatDefaultRouteOnly) {
   ASSERT_TRUE(StreamHasMatchingCandidate(0, "srflx"));
 }
 
-TEST_F(IceGatherTest, TestStunTcpServerTrickle) {
+TEST_F(WebRtcIceGatherTest, TestStunTcpServerTrickle) {
   UseFakeStunTcpServerWithResponse("192.0.3.1", 3333);
   TestStunTcpServer::GetInstance(AF_INET)->SetDelay(500);
   Gather(0);
@@ -2194,7 +2254,7 @@ TEST_F(IceGatherTest, TestStunTcpServerTrickle) {
   ASSERT_TRUE(StreamHasMatchingCandidate(0, " 192.0.3.1 ", " tcptype "));
 }
 
-TEST_F(IceGatherTest, TestStunTcpAndUdpServerTrickle) {
+TEST_F(WebRtcIceGatherTest, TestStunTcpAndUdpServerTrickle) {
   UseFakeStunUdpTcpServersWithResponse("192.0.2.1", 3333, "192.0.3.1", 3333);
   TestStunServer::GetInstance(AF_INET)->SetDropInitialPackets(3);
   TestStunTcpServer::GetInstance(AF_INET)->SetDelay(500);
@@ -2206,31 +2266,31 @@ TEST_F(IceGatherTest, TestStunTcpAndUdpServerTrickle) {
   ASSERT_TRUE(StreamHasMatchingCandidate(0, " 192.0.3.1 ", " tcptype "));
 }
 
-TEST_F(IceConnectTest, TestGather) {
+TEST_F(WebRtcIceConnectTest, TestGather) {
   AddStream("first", 1);
   ASSERT_TRUE(Gather());
 }
 
-TEST_F(IceConnectTest, TestGatherTcp) {
+TEST_F(WebRtcIceConnectTest, TestGatherTcp) {
   Init(false, true);
   AddStream("first", 1);
   ASSERT_TRUE(Gather());
 }
 
-TEST_F(IceConnectTest, TestGatherAutoPrioritize) {
+TEST_F(WebRtcIceConnectTest, TestGatherAutoPrioritize) {
   Init(false, false);
   AddStream("first", 1);
   ASSERT_TRUE(Gather());
 }
 
 
-TEST_F(IceConnectTest, TestConnect) {
+TEST_F(WebRtcIceConnectTest, TestConnect) {
   AddStream("first", 1);
   ASSERT_TRUE(Gather());
   Connect();
 }
 
-TEST_F(IceConnectTest, TestConnectTcp) {
+TEST_F(WebRtcIceConnectTest, TestConnectTcp) {
   Init(false, true);
   AddStream("first", 1);
   ASSERT_TRUE(Gather());
@@ -2242,7 +2302,7 @@ TEST_F(IceConnectTest, TestConnectTcp) {
 
 //TCP SO tests works on localhost only with delay applied:
 //  tc qdisc add dev lo root netem delay 10ms
-TEST_F(IceConnectTest, DISABLED_TestConnectTcpSo) {
+TEST_F(WebRtcIceConnectTest, DISABLED_TestConnectTcpSo) {
   Init(false, true);
   AddStream("first", 1);
   ASSERT_TRUE(Gather());
@@ -2253,7 +2313,7 @@ TEST_F(IceConnectTest, DISABLED_TestConnectTcpSo) {
 }
 
 // Disabled because this breaks with hairpinning.
-TEST_F(IceConnectTest, DISABLED_TestConnectDefaultRouteOnly) {
+TEST_F(WebRtcIceConnectTest, DISABLED_TestConnectDefaultRouteOnly) {
   Init(false, false, true);
   AddStream("first", 1);
   ASSERT_TRUE(Gather());
@@ -2262,7 +2322,7 @@ TEST_F(IceConnectTest, DISABLED_TestConnectDefaultRouteOnly) {
   Connect();
 }
 
-TEST_F(IceConnectTest, TestLoopbackOnlySortOf) {
+TEST_F(WebRtcIceConnectTest, TestLoopbackOnlySortOf) {
   Init(true, false);
   AddStream("first", 1);
   SetCandidateFilter(IsLoopbackCandidate);
@@ -2271,7 +2331,7 @@ TEST_F(IceConnectTest, TestLoopbackOnlySortOf) {
   Connect();
 }
 
-TEST_F(IceConnectTest, TestConnectBothControllingP1Wins) {
+TEST_F(WebRtcIceConnectTest, TestConnectBothControllingP1Wins) {
   AddStream("first", 1);
   p1_->SetTiebreaker(1);
   p2_->SetTiebreaker(0);
@@ -2281,7 +2341,7 @@ TEST_F(IceConnectTest, TestConnectBothControllingP1Wins) {
   Connect();
 }
 
-TEST_F(IceConnectTest, TestConnectBothControllingP2Wins) {
+TEST_F(WebRtcIceConnectTest, TestConnectBothControllingP2Wins) {
   AddStream("first", 1);
   p1_->SetTiebreaker(0);
   p2_->SetTiebreaker(1);
@@ -2291,14 +2351,14 @@ TEST_F(IceConnectTest, TestConnectBothControllingP2Wins) {
   Connect();
 }
 
-TEST_F(IceConnectTest, TestConnectIceLiteOfferer) {
+TEST_F(WebRtcIceConnectTest, TestConnectIceLiteOfferer) {
   AddStream("first", 1);
   ASSERT_TRUE(Gather());
   p1_->SimulateIceLite();
   Connect();
 }
 
-TEST_F(IceConnectTest, TestTrickleBothControllingP1Wins) {
+TEST_F(WebRtcIceConnectTest, TestTrickleBothControllingP1Wins) {
   AddStream("first", 1);
   p1_->SetTiebreaker(1);
   p2_->SetTiebreaker(0);
@@ -2312,7 +2372,7 @@ TEST_F(IceConnectTest, TestTrickleBothControllingP1Wins) {
   AssertCheckingReached();
 }
 
-TEST_F(IceConnectTest, TestTrickleBothControllingP2Wins) {
+TEST_F(WebRtcIceConnectTest, TestTrickleBothControllingP2Wins) {
   AddStream("first", 1);
   p1_->SetTiebreaker(0);
   p2_->SetTiebreaker(1);
@@ -2326,7 +2386,7 @@ TEST_F(IceConnectTest, TestTrickleBothControllingP2Wins) {
   AssertCheckingReached();
 }
 
-TEST_F(IceConnectTest, TestTrickleIceLiteOfferer) {
+TEST_F(WebRtcIceConnectTest, TestTrickleIceLiteOfferer) {
   AddStream("first", 1);
   ASSERT_TRUE(Gather());
   p1_->SimulateIceLite();
@@ -2337,7 +2397,7 @@ TEST_F(IceConnectTest, TestTrickleIceLiteOfferer) {
   AssertCheckingReached();
 }
 
-TEST_F(IceConnectTest, TestGatherFullCone) {
+TEST_F(WebRtcIceConnectTest, TestGatherFullCone) {
   AddStream("first", 1);
   UseNat();
   SetFilteringType(TestNat::ENDPOINT_INDEPENDENT);
@@ -2345,7 +2405,7 @@ TEST_F(IceConnectTest, TestGatherFullCone) {
   ASSERT_TRUE(Gather());
 }
 
-TEST_F(IceConnectTest, TestGatherFullConeAutoPrioritize) {
+TEST_F(WebRtcIceConnectTest, TestGatherFullConeAutoPrioritize) {
   Init(true, false);
   AddStream("first", 1);
   UseNat();
@@ -2355,7 +2415,7 @@ TEST_F(IceConnectTest, TestGatherFullConeAutoPrioritize) {
 }
 
 
-TEST_F(IceConnectTest, TestConnectFullCone) {
+TEST_F(WebRtcIceConnectTest, TestConnectFullCone) {
   AddStream("first", 1);
   UseNat();
   SetFilteringType(TestNat::ENDPOINT_INDEPENDENT);
@@ -2366,7 +2426,7 @@ TEST_F(IceConnectTest, TestConnectFullCone) {
   Connect();
 }
 
-TEST_F(IceConnectTest, TestConnectNoNatRouteOnly) {
+TEST_F(WebRtcIceConnectTest, TestConnectNoNatRouteOnly) {
   Init(false, false, true);
   AddStream("first", 1);
   UseTestStunServer();
@@ -2379,7 +2439,7 @@ TEST_F(IceConnectTest, TestConnectNoNatRouteOnly) {
   Connect();
 }
 
-TEST_F(IceConnectTest, TestConnectFullConeDefaultRouteOnly) {
+TEST_F(WebRtcIceConnectTest, TestConnectFullConeDefaultRouteOnly) {
   Init(false, false, true);
   AddStream("first", 1);
   UseNat();
@@ -2391,7 +2451,7 @@ TEST_F(IceConnectTest, TestConnectFullConeDefaultRouteOnly) {
   Connect();
 }
 
-TEST_F(IceConnectTest, TestGatherAddressRestrictedCone) {
+TEST_F(WebRtcIceConnectTest, TestGatherAddressRestrictedCone) {
   AddStream("first", 1);
   UseNat();
   SetFilteringType(TestNat::ADDRESS_DEPENDENT);
@@ -2399,7 +2459,7 @@ TEST_F(IceConnectTest, TestGatherAddressRestrictedCone) {
   ASSERT_TRUE(Gather());
 }
 
-TEST_F(IceConnectTest, TestConnectAddressRestrictedCone) {
+TEST_F(WebRtcIceConnectTest, TestConnectAddressRestrictedCone) {
   AddStream("first", 1);
   UseNat();
   SetFilteringType(TestNat::ADDRESS_DEPENDENT);
@@ -2410,7 +2470,7 @@ TEST_F(IceConnectTest, TestConnectAddressRestrictedCone) {
   Connect();
 }
 
-TEST_F(IceConnectTest, TestGatherPortRestrictedCone) {
+TEST_F(WebRtcIceConnectTest, TestGatherPortRestrictedCone) {
   AddStream("first", 1);
   UseNat();
   SetFilteringType(TestNat::PORT_DEPENDENT);
@@ -2418,7 +2478,7 @@ TEST_F(IceConnectTest, TestGatherPortRestrictedCone) {
   ASSERT_TRUE(Gather());
 }
 
-TEST_F(IceConnectTest, TestConnectPortRestrictedCone) {
+TEST_F(WebRtcIceConnectTest, TestConnectPortRestrictedCone) {
   AddStream("first", 1);
   UseNat();
   SetFilteringType(TestNat::PORT_DEPENDENT);
@@ -2429,7 +2489,7 @@ TEST_F(IceConnectTest, TestConnectPortRestrictedCone) {
   Connect();
 }
 
-TEST_F(IceConnectTest, TestGatherSymmetricNat) {
+TEST_F(WebRtcIceConnectTest, TestGatherSymmetricNat) {
   AddStream("first", 1);
   UseNat();
   SetFilteringType(TestNat::PORT_DEPENDENT);
@@ -2437,7 +2497,7 @@ TEST_F(IceConnectTest, TestGatherSymmetricNat) {
   ASSERT_TRUE(Gather());
 }
 
-TEST_F(IceConnectTest, TestConnectSymmetricNat) {
+TEST_F(WebRtcIceConnectTest, TestConnectSymmetricNat) {
   if (turn_server_.empty())
     return;
 
@@ -2455,7 +2515,7 @@ TEST_F(IceConnectTest, TestConnectSymmetricNat) {
   Connect();
 }
 
-TEST_F(IceConnectTest, TestGatherNatBlocksUDP) {
+TEST_F(WebRtcIceConnectTest, TestGatherNatBlocksUDP) {
   if (turn_server_.empty())
     return;
 
@@ -2476,7 +2536,7 @@ TEST_F(IceConnectTest, TestGatherNatBlocksUDP) {
   ASSERT_TRUE(Gather(kDefaultTimeout * 3));
 }
 
-TEST_F(IceConnectTest, TestConnectNatBlocksUDP) {
+TEST_F(WebRtcIceConnectTest, TestConnectNatBlocksUDP) {
   if (turn_server_.empty())
     return;
 
@@ -2503,13 +2563,13 @@ TEST_F(IceConnectTest, TestConnectNatBlocksUDP) {
   Connect();
 }
 
-TEST_F(IceConnectTest, TestConnectTwoComponents) {
+TEST_F(WebRtcIceConnectTest, TestConnectTwoComponents) {
   AddStream("first", 2);
   ASSERT_TRUE(Gather());
   Connect();
 }
 
-TEST_F(IceConnectTest, TestConnectTwoComponentsDisableSecond) {
+TEST_F(WebRtcIceConnectTest, TestConnectTwoComponentsDisableSecond) {
   AddStream("first", 2);
   ASSERT_TRUE(Gather());
   p1_->DisableComponent(0, 2);
@@ -2518,7 +2578,7 @@ TEST_F(IceConnectTest, TestConnectTwoComponentsDisableSecond) {
 }
 
 
-TEST_F(IceConnectTest, TestConnectP2ThenP1) {
+TEST_F(WebRtcIceConnectTest, TestConnectP2ThenP1) {
   AddStream("first", 1);
   ASSERT_TRUE(Gather());
   ConnectP2();
@@ -2527,7 +2587,7 @@ TEST_F(IceConnectTest, TestConnectP2ThenP1) {
   WaitForComplete();
 }
 
-TEST_F(IceConnectTest, TestConnectP2ThenP1Trickle) {
+TEST_F(WebRtcIceConnectTest, TestConnectP2ThenP1Trickle) {
   AddStream("first", 1);
   ASSERT_TRUE(Gather());
   ConnectP2();
@@ -2537,7 +2597,7 @@ TEST_F(IceConnectTest, TestConnectP2ThenP1Trickle) {
   WaitForComplete();
 }
 
-TEST_F(IceConnectTest, TestConnectP2ThenP1TrickleTwoComponents) {
+TEST_F(WebRtcIceConnectTest, TestConnectP2ThenP1TrickleTwoComponents) {
   AddStream("first", 1);
   AddStream("second", 2);
   ASSERT_TRUE(Gather());
@@ -2552,14 +2612,14 @@ TEST_F(IceConnectTest, TestConnectP2ThenP1TrickleTwoComponents) {
   WaitForComplete(2);
 }
 
-TEST_F(IceConnectTest, TestConnectAutoPrioritize) {
+TEST_F(WebRtcIceConnectTest, TestConnectAutoPrioritize) {
   Init(false, false);
   AddStream("first", 1);
   ASSERT_TRUE(Gather());
   Connect();
 }
 
-TEST_F(IceConnectTest, TestConnectTrickleOneStreamOneComponent) {
+TEST_F(WebRtcIceConnectTest, TestConnectTrickleOneStreamOneComponent) {
   AddStream("first", 1);
   ASSERT_TRUE(Gather());
   ConnectTrickle();
@@ -2569,7 +2629,7 @@ TEST_F(IceConnectTest, TestConnectTrickleOneStreamOneComponent) {
   AssertCheckingReached();
 }
 
-TEST_F(IceConnectTest, TestConnectTrickleTwoStreamsOneComponent) {
+TEST_F(WebRtcIceConnectTest, TestConnectTrickleTwoStreamsOneComponent) {
   AddStream("first", 1);
   AddStream("second", 1);
   ASSERT_TRUE(Gather());
@@ -2650,7 +2710,7 @@ void DropTrickleCandidates(
     std::vector<SchedulableTrickleCandidate*>& candidates) {
 }
 
-TEST_F(IceConnectTest, TestConnectTrickleAddStreamDuringICE) {
+TEST_F(WebRtcIceConnectTest, TestConnectTrickleAddStreamDuringICE) {
   AddStream("first", 1);
   ASSERT_TRUE(Gather());
   ConnectTrickle();
@@ -2664,7 +2724,7 @@ TEST_F(IceConnectTest, TestConnectTrickleAddStreamDuringICE) {
   AssertCheckingReached();
 }
 
-TEST_F(IceConnectTest, TestConnectTrickleAddStreamAfterICE) {
+TEST_F(WebRtcIceConnectTest, TestConnectTrickleAddStreamAfterICE) {
   AddStream("first", 1);
   ASSERT_TRUE(Gather());
   ConnectTrickle();
@@ -2682,7 +2742,7 @@ TEST_F(IceConnectTest, TestConnectTrickleAddStreamAfterICE) {
   AssertCheckingReached();
 }
 
-TEST_F(IceConnectTest, RemoveStream) {
+TEST_F(WebRtcIceConnectTest, RemoveStream) {
   AddStream("first", 1);
   AddStream("second", 1);
   ASSERT_TRUE(Gather());
@@ -2699,7 +2759,7 @@ TEST_F(IceConnectTest, RemoveStream) {
   ConnectTrickle();
 }
 
-TEST_F(IceConnectTest, P1NoTrickle) {
+TEST_F(WebRtcIceConnectTest, P1NoTrickle) {
   AddStream("first", 1);
   ASSERT_TRUE(Gather());
   ConnectTrickle();
@@ -2709,7 +2769,7 @@ TEST_F(IceConnectTest, P1NoTrickle) {
   ASSERT_TRUE_WAIT(p2_->ice_complete(), 1000);
 }
 
-TEST_F(IceConnectTest, P2NoTrickle) {
+TEST_F(WebRtcIceConnectTest, P2NoTrickle) {
   AddStream("first", 1);
   ASSERT_TRUE(Gather());
   ConnectTrickle();
@@ -2719,7 +2779,7 @@ TEST_F(IceConnectTest, P2NoTrickle) {
   ASSERT_TRUE_WAIT(p2_->ice_complete(), 1000);
 }
 
-TEST_F(IceConnectTest, RemoveAndAddStream) {
+TEST_F(WebRtcIceConnectTest, RemoveAndAddStream) {
   AddStream("first", 1);
   AddStream("second", 1);
   ASSERT_TRUE(Gather());
@@ -2741,7 +2801,7 @@ TEST_F(IceConnectTest, RemoveAndAddStream) {
   ASSERT_TRUE_WAIT(p2_->ice_complete(), 1000);
 }
 
-TEST_F(IceConnectTest, RemoveStreamBeforeGather) {
+TEST_F(WebRtcIceConnectTest, RemoveStreamBeforeGather) {
   AddStream("first", 1);
   AddStream("second", 1);
   ASSERT_TRUE(Gather(0));
@@ -2754,7 +2814,7 @@ TEST_F(IceConnectTest, RemoveStreamBeforeGather) {
   ASSERT_TRUE_WAIT(p2_->ice_complete(), 1000);
 }
 
-TEST_F(IceConnectTest, RemoveStreamDuringGather) {
+TEST_F(WebRtcIceConnectTest, RemoveStreamDuringGather) {
   AddStream("first", 1);
   AddStream("second", 1);
   RemoveStream(0);
@@ -2766,7 +2826,7 @@ TEST_F(IceConnectTest, RemoveStreamDuringGather) {
   ASSERT_TRUE_WAIT(p2_->ice_complete(), 1000);
 }
 
-TEST_F(IceConnectTest, RemoveStreamDuringConnect) {
+TEST_F(WebRtcIceConnectTest, RemoveStreamDuringConnect) {
   AddStream("first", 1);
   AddStream("second", 1);
   ASSERT_TRUE(Gather());
@@ -2780,7 +2840,7 @@ TEST_F(IceConnectTest, RemoveStreamDuringConnect) {
   ASSERT_TRUE_WAIT(p2_->ice_complete(), 1000);
 }
 
-TEST_F(IceConnectTest, TestConnectRealTrickleOneStreamOneComponent) {
+TEST_F(WebRtcIceConnectTest, TestConnectRealTrickleOneStreamOneComponent) {
   AddStream("first", 1);
   AddStream("second", 1);
   ASSERT_TRUE(Gather(0));
@@ -2791,14 +2851,14 @@ TEST_F(IceConnectTest, TestConnectRealTrickleOneStreamOneComponent) {
   AssertCheckingReached();
 }
 
-TEST_F(IceConnectTest, TestSendReceive) {
+TEST_F(WebRtcIceConnectTest, TestSendReceive) {
   AddStream("first", 1);
   ASSERT_TRUE(Gather());
   Connect();
   SendReceive();
 }
 
-TEST_F(IceConnectTest, TestSendReceiveTcp) {
+TEST_F(WebRtcIceConnectTest, TestSendReceiveTcp) {
   Init(false, true);
   AddStream("first", 1);
   ASSERT_TRUE(Gather());
@@ -2811,7 +2871,7 @@ TEST_F(IceConnectTest, TestSendReceiveTcp) {
 
 //TCP SO tests works on localhost only with delay applied:
 //  tc qdisc add dev lo root netem delay 10ms
-TEST_F(IceConnectTest, DISABLED_TestSendReceiveTcpSo) {
+TEST_F(WebRtcIceConnectTest, DISABLED_TestSendReceiveTcpSo) {
   Init(false, true);
   AddStream("first", 1);
   ASSERT_TRUE(Gather());
@@ -2822,7 +2882,7 @@ TEST_F(IceConnectTest, DISABLED_TestSendReceiveTcpSo) {
   SendReceive();
 }
 
-TEST_F(IceConnectTest, TestConnectTurn) {
+TEST_F(WebRtcIceConnectTest, TestConnectTurn) {
   if (turn_server_.empty())
     return;
 
@@ -2833,7 +2893,7 @@ TEST_F(IceConnectTest, TestConnectTurn) {
   Connect();
 }
 
-TEST_F(IceConnectTest, TestConnectTurnWithDelay) {
+TEST_F(WebRtcIceConnectTest, TestConnectTurnWithDelay) {
   if (turn_server_.empty())
     return;
 
@@ -2849,7 +2909,7 @@ TEST_F(IceConnectTest, TestConnectTurnWithDelay) {
   WaitForComplete();
 }
 
-TEST_F(IceConnectTest, TestConnectTurnWithNormalTrickleDelay) {
+TEST_F(WebRtcIceConnectTest, TestConnectTurnWithNormalTrickleDelay) {
   if (turn_server_.empty())
     return;
 
@@ -2866,7 +2926,7 @@ TEST_F(IceConnectTest, TestConnectTurnWithNormalTrickleDelay) {
   AssertCheckingReached();
 }
 
-TEST_F(IceConnectTest, TestConnectTurnWithNormalTrickleDelayOneSided) {
+TEST_F(WebRtcIceConnectTest, TestConnectTurnWithNormalTrickleDelayOneSided) {
   if (turn_server_.empty())
     return;
 
@@ -2883,7 +2943,7 @@ TEST_F(IceConnectTest, TestConnectTurnWithNormalTrickleDelayOneSided) {
   AssertCheckingReached();
 }
 
-TEST_F(IceConnectTest, TestConnectTurnWithLargeTrickleDelay) {
+TEST_F(WebRtcIceConnectTest, TestConnectTurnWithLargeTrickleDelay) {
   if (turn_server_.empty())
     return;
 
@@ -2902,7 +2962,7 @@ TEST_F(IceConnectTest, TestConnectTurnWithLargeTrickleDelay) {
   AssertCheckingReached();
 }
 
-TEST_F(IceConnectTest, TestConnectTurnTcp) {
+TEST_F(WebRtcIceConnectTest, TestConnectTurnTcp) {
   if (turn_server_.empty())
     return;
 
@@ -2913,7 +2973,7 @@ TEST_F(IceConnectTest, TestConnectTurnTcp) {
   Connect();
 }
 
-TEST_F(IceConnectTest, TestConnectTurnOnly) {
+TEST_F(WebRtcIceConnectTest, TestConnectTurnOnly) {
   if (turn_server_.empty())
     return;
 
@@ -2927,7 +2987,7 @@ TEST_F(IceConnectTest, TestConnectTurnOnly) {
   Connect();
 }
 
-TEST_F(IceConnectTest, TestConnectTurnTcpOnly) {
+TEST_F(WebRtcIceConnectTest, TestConnectTurnTcpOnly) {
   if (turn_server_.empty())
     return;
 
@@ -2942,7 +3002,7 @@ TEST_F(IceConnectTest, TestConnectTurnTcpOnly) {
   Connect();
 }
 
-TEST_F(IceConnectTest, TestSendReceiveTurnOnly) {
+TEST_F(WebRtcIceConnectTest, TestSendReceiveTurnOnly) {
   if (turn_server_.empty())
     return;
 
@@ -2957,7 +3017,7 @@ TEST_F(IceConnectTest, TestSendReceiveTurnOnly) {
   SendReceive();
 }
 
-TEST_F(IceConnectTest, TestSendReceiveTurnTcpOnly) {
+TEST_F(WebRtcIceConnectTest, TestSendReceiveTurnTcpOnly) {
   if (turn_server_.empty())
     return;
 
@@ -2973,7 +3033,7 @@ TEST_F(IceConnectTest, TestSendReceiveTurnTcpOnly) {
   SendReceive();
 }
 
-TEST_F(IceConnectTest, TestSendReceiveTurnBothOnly) {
+TEST_F(WebRtcIceConnectTest, TestSendReceiveTurnBothOnly) {
   if (turn_server_.empty())
     return;
 
@@ -2998,13 +3058,13 @@ TEST_F(IceConnectTest, TestSendReceiveTurnBothOnly) {
   SendReceive();
 }
 
-TEST_F(IceConnectTest, TestConnectShutdownOneSide) {
+TEST_F(WebRtcIceConnectTest, TestConnectShutdownOneSide) {
   AddStream("first", 1);
   ASSERT_TRUE(Gather());
   ConnectThenDelete();
 }
 
-TEST_F(IceConnectTest, TestPollCandPairsBeforeConnect) {
+TEST_F(WebRtcIceConnectTest, TestPollCandPairsBeforeConnect) {
   AddStream("first", 1);
   ASSERT_TRUE(Gather());
 
@@ -3019,7 +3079,7 @@ TEST_F(IceConnectTest, TestPollCandPairsBeforeConnect) {
   ASSERT_EQ(0U, pairs.size());
 }
 
-TEST_F(IceConnectTest, TestPollCandPairsAfterConnect) {
+TEST_F(WebRtcIceConnectTest, TestPollCandPairsAfterConnect) {
   AddStream("first", 1);
   ASSERT_TRUE(Gather());
   Connect();
@@ -3042,7 +3102,7 @@ TEST_F(IceConnectTest, TestPollCandPairsAfterConnect) {
   ASSERT_TRUE(ContainsSucceededPair(pairs));
 }
 
-TEST_F(IceConnectTest, TestHostCandPairingFilter) {
+TEST_F(WebRtcIceConnectTest, TestHostCandPairingFilter) {
   AddStream("first", 1);
   ASSERT_TRUE(Gather(kDefaultTimeout, false));
   SetCandidateFilter(IsIpv4Candidate);
@@ -3070,7 +3130,7 @@ TEST_F(IceConnectTest, TestHostCandPairingFilter) {
   }
 }
 
-TEST_F(IceConnectTest, TestSrflxCandPairingFilter) {
+TEST_F(WebRtcIceConnectTest, TestSrflxCandPairingFilter) {
   if (stun_server_address_.empty()) {
     return;
   }
@@ -3112,7 +3172,7 @@ TEST_F(IceConnectTest, TestSrflxCandPairingFilter) {
   }
 }
 
-TEST_F(IceConnectTest, TestPollCandPairsDuringConnect) {
+TEST_F(WebRtcIceConnectTest, TestPollCandPairsDuringConnect) {
   AddStream("first", 1);
   ASSERT_TRUE(Gather());
 
@@ -3137,7 +3197,7 @@ TEST_F(IceConnectTest, TestPollCandPairsDuringConnect) {
   ASSERT_TRUE(ContainsSucceededPair(pairs2));
 }
 
-TEST_F(IceConnectTest, TestRLogRingBuffer) {
+TEST_F(WebRtcIceConnectTest, TestRLogRingBuffer) {
   AddStream("first", 1);
   ASSERT_TRUE(Gather());
 
@@ -3178,7 +3238,7 @@ TEST_F(IceConnectTest, TestRLogRingBuffer) {
   }
 }
 
-TEST_F(PrioritizerTest, TestPrioritizer) {
+TEST_F(WebRtcIcePrioritizerTest, TestPrioritizer) {
   SetPriorizer(::mozilla::CreateInterfacePrioritizer());
 
   AddInterface("0", NR_INTERFACE_TYPE_VPN, 100); // unknown vpn
@@ -3209,26 +3269,30 @@ TEST_F(PrioritizerTest, TestPrioritizer) {
   HasLowerPreference("5", "4");
 }
 
-TEST_F(PacketFilterTest, TestSendNonStunPacket) {
+TEST_F(WebRtcIcePacketFilterTest, TestSendNonStunPacket) {
   const unsigned char data[] = "12345abcde";
   TestOutgoing(data, sizeof(data), 123, 45, false);
+  TestOutgoingTcp(data, sizeof(data), false);
 }
 
-TEST_F(PacketFilterTest, TestRecvNonStunPacket) {
+TEST_F(WebRtcIcePacketFilterTest, TestRecvNonStunPacket) {
   const unsigned char data[] = "12345abcde";
   TestIncoming(data, sizeof(data), 123, 45, false);
+  TestIncomingTcp(data, sizeof(data), true);
 }
 
-TEST_F(PacketFilterTest, TestSendStunPacket) {
+TEST_F(WebRtcIcePacketFilterTest, TestSendStunPacket) {
   nr_stun_message *msg;
   ASSERT_EQ(0, nr_stun_build_req_no_auth(NULL, &msg));
   msg->header.type = NR_STUN_MSG_BINDING_REQUEST;
   ASSERT_EQ(0, nr_stun_encode_message(msg));
   TestOutgoing(msg->buffer, msg->length, 123, 45, true);
+  TestOutgoingTcp(msg->buffer, msg->length, true);
+  TestOutgoingTcpFramed(msg->buffer, msg->length, true);
   ASSERT_EQ(0, nr_stun_message_destroy(&msg));
 }
 
-TEST_F(PacketFilterTest, TestRecvStunPacketWithoutAPendingId) {
+TEST_F(WebRtcIcePacketFilterTest, TestRecvStunPacketWithoutAPendingId) {
   nr_stun_message *msg;
   ASSERT_EQ(0, nr_stun_build_req_no_auth(NULL, &msg));
 
@@ -3236,22 +3300,42 @@ TEST_F(PacketFilterTest, TestRecvStunPacketWithoutAPendingId) {
   msg->header.type = NR_STUN_MSG_BINDING_REQUEST;
   ASSERT_EQ(0, nr_stun_encode_message(msg));
   TestOutgoing(msg->buffer, msg->length, 123, 45, true);
+  TestOutgoingTcp(msg->buffer, msg->length, true);
 
   msg->header.id.octet[0] = 0;
   msg->header.type = NR_STUN_MSG_BINDING_RESPONSE;
   ASSERT_EQ(0, nr_stun_encode_message(msg));
   TestIncoming(msg->buffer, msg->length, 123, 45, true);
+  TestIncomingTcp(msg->buffer, msg->length, true);
 
   ASSERT_EQ(0, nr_stun_message_destroy(&msg));
 }
 
-TEST_F(PacketFilterTest, TestRecvStunPacketWithoutAPendingAddress) {
+TEST_F(WebRtcIcePacketFilterTest, TestRecvStunPacketWithoutAPendingIdTcpFramed) {
+  nr_stun_message *msg;
+  ASSERT_EQ(0, nr_stun_build_req_no_auth(NULL, &msg));
+
+  msg->header.id.octet[0] = 1;
+  msg->header.type = NR_STUN_MSG_BINDING_REQUEST;
+  ASSERT_EQ(0, nr_stun_encode_message(msg));
+  TestOutgoingTcpFramed(msg->buffer, msg->length, true);
+
+  msg->header.id.octet[0] = 0;
+  msg->header.type = NR_STUN_MSG_BINDING_RESPONSE;
+  ASSERT_EQ(0, nr_stun_encode_message(msg));
+  TestIncomingTcpFramed(msg->buffer, msg->length, true);
+
+  ASSERT_EQ(0, nr_stun_message_destroy(&msg));
+}
+
+TEST_F(WebRtcIcePacketFilterTest, TestRecvStunPacketWithoutAPendingAddress) {
   nr_stun_message *msg;
   ASSERT_EQ(0, nr_stun_build_req_no_auth(NULL, &msg));
 
   msg->header.type = NR_STUN_MSG_BINDING_REQUEST;
   ASSERT_EQ(0, nr_stun_encode_message(msg));
   TestOutgoing(msg->buffer, msg->length, 123, 45, true);
+  // nothing to test here for the TCP filter
 
   msg->header.type = NR_STUN_MSG_BINDING_RESPONSE;
   ASSERT_EQ(0, nr_stun_encode_message(msg));
@@ -3261,32 +3345,39 @@ TEST_F(PacketFilterTest, TestRecvStunPacketWithoutAPendingAddress) {
   ASSERT_EQ(0, nr_stun_message_destroy(&msg));
 }
 
-TEST_F(PacketFilterTest, TestRecvStunPacketWithPendingIdAndAddress) {
+TEST_F(WebRtcIcePacketFilterTest, TestRecvStunPacketWithPendingIdAndAddress) {
   nr_stun_message *msg;
   ASSERT_EQ(0, nr_stun_build_req_no_auth(NULL, &msg));
 
   msg->header.type = NR_STUN_MSG_BINDING_REQUEST;
   ASSERT_EQ(0, nr_stun_encode_message(msg));
   TestOutgoing(msg->buffer, msg->length, 123, 45, true);
+  TestOutgoingTcp(msg->buffer, msg->length, true);
 
   msg->header.type = NR_STUN_MSG_BINDING_RESPONSE;
   ASSERT_EQ(0, nr_stun_encode_message(msg));
   TestIncoming(msg->buffer, msg->length, 123, 45, true);
+  TestIncomingTcp(msg->buffer, msg->length, true);
 
   // Test whitelist by filtering non-stun packets.
   const unsigned char data[] = "12345abcde";
 
   // 123:45 is white-listed.
   TestOutgoing(data, sizeof(data), 123, 45, true);
+  TestOutgoingTcp(data, sizeof(data), true);
   TestIncoming(data, sizeof(data), 123, 45, true);
+  TestIncomingTcp(data, sizeof(data), true);
 
   // Indications pass as well.
   msg->header.type = NR_STUN_MSG_BINDING_INDICATION;
   ASSERT_EQ(0, nr_stun_encode_message(msg));
   TestOutgoing(msg->buffer, msg->length, 123, 45, true);
+  TestOutgoingTcp(msg->buffer, msg->length, true);
   TestIncoming(msg->buffer, msg->length, 123, 45, true);
+  TestIncomingTcp(msg->buffer, msg->length, true);
 
   // Packets from and to other address are still disallowed.
+  // Note: this doesn't apply for TCP connections
   TestOutgoing(data, sizeof(data), 123, 46, false);
   TestIncoming(data, sizeof(data), 123, 46, false);
   TestOutgoing(data, sizeof(data), 124, 45, false);
@@ -3295,32 +3386,73 @@ TEST_F(PacketFilterTest, TestRecvStunPacketWithPendingIdAndAddress) {
   ASSERT_EQ(0, nr_stun_message_destroy(&msg));
 }
 
-TEST_F(PacketFilterTest, TestSendNonRequestStunPacket) {
+TEST_F(WebRtcIcePacketFilterTest, TestRecvStunPacketWithPendingIdTcpFramed) {
+  nr_stun_message *msg;
+  ASSERT_EQ(0, nr_stun_build_req_no_auth(NULL, &msg));
+
+  msg->header.type = NR_STUN_MSG_BINDING_REQUEST;
+  ASSERT_EQ(0, nr_stun_encode_message(msg));
+  TestOutgoingTcpFramed(msg->buffer, msg->length, true);
+
+  msg->header.type = NR_STUN_MSG_BINDING_RESPONSE;
+  ASSERT_EQ(0, nr_stun_encode_message(msg));
+  TestIncomingTcpFramed(msg->buffer, msg->length, true);
+
+  // Test whitelist by filtering non-stun packets.
+  const unsigned char data[] = "12345abcde";
+
+  TestOutgoingTcpFramed(data, sizeof(data), true);
+  TestIncomingTcpFramed(data, sizeof(data), true);
+
+  ASSERT_EQ(0, nr_stun_message_destroy(&msg));
+}
+
+TEST_F(WebRtcIcePacketFilterTest, TestSendNonRequestStunPacket) {
   nr_stun_message *msg;
   ASSERT_EQ(0, nr_stun_build_req_no_auth(NULL, &msg));
 
   msg->header.type = NR_STUN_MSG_BINDING_RESPONSE;
   ASSERT_EQ(0, nr_stun_encode_message(msg));
   TestOutgoing(msg->buffer, msg->length, 123, 45, false);
+  TestOutgoingTcp(msg->buffer, msg->length, false);
 
   // Send a packet so we allow the incoming request.
   msg->header.type = NR_STUN_MSG_BINDING_REQUEST;
   ASSERT_EQ(0, nr_stun_encode_message(msg));
   TestOutgoing(msg->buffer, msg->length, 123, 45, true);
+  TestOutgoingTcp(msg->buffer, msg->length, true);
 
   // This packet makes us able to send a response.
   msg->header.type = NR_STUN_MSG_BINDING_REQUEST;
   ASSERT_EQ(0, nr_stun_encode_message(msg));
   TestIncoming(msg->buffer, msg->length, 123, 45, true);
+  TestIncomingTcp(msg->buffer, msg->length, true);
 
   msg->header.type = NR_STUN_MSG_BINDING_RESPONSE;
   ASSERT_EQ(0, nr_stun_encode_message(msg));
   TestOutgoing(msg->buffer, msg->length, 123, 45, true);
+  TestOutgoingTcp(msg->buffer, msg->length, true);
 
   ASSERT_EQ(0, nr_stun_message_destroy(&msg));
 }
 
-TEST(InternalsTest, TestAddBogusAttribute) {
+TEST_F(WebRtcIcePacketFilterTest, TestRecvDataPacketWithAPendingAddress) {
+  nr_stun_message *msg;
+  ASSERT_EQ(0, nr_stun_build_req_no_auth(NULL, &msg));
+
+  msg->header.type = NR_STUN_MSG_BINDING_REQUEST;
+  ASSERT_EQ(0, nr_stun_encode_message(msg));
+  TestOutgoing(msg->buffer, msg->length, 123, 45, true);
+  TestOutgoingTcp(msg->buffer, msg->length, true);
+
+  const unsigned char data[] = "12345abcde";
+  TestIncoming(data, sizeof(data), 123, 45, true);
+  TestIncomingTcp(data, sizeof(data), true);
+
+  ASSERT_EQ(0, nr_stun_message_destroy(&msg));
+}
+
+TEST(WebRtcIceInternalsTest, TestAddBogusAttribute) {
   nr_stun_message *req;
   ASSERT_EQ(0, nr_stun_message_create(&req));
   Data *data;

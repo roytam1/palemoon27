@@ -402,9 +402,9 @@ public:
                                     const bool& aRunInGlobalScope) override;
 
   virtual bool RecvAsyncMessage(const nsString& aMessage,
-                                const ClonedMessageData& aData,
                                 InfallibleTArray<CpowEntry>&& aCpows,
-                                const IPC::Principal& aPrincipal) override;
+                                const IPC::Principal& aPrincipal,
+                                const ClonedMessageData& aData) override;
 
   virtual bool RecvAppOfflineStatus(const uint32_t& aId, const bool& aOffline) override;
 
@@ -542,6 +542,8 @@ public:
   virtual bool RecvAudioChannelChangeNotification(const uint32_t& aAudioChannel,
                                                   const float& aVolume,
                                                   const bool& aMuted) override;
+
+  virtual bool RecvSetUseGlobalHistory(const bool& aUse) override;
 
   /**
    * Native widget remoting protocol for use with windowed plugins with e10s.

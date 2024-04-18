@@ -431,7 +431,9 @@ static bool
 IsFeatureInBlacklist(const nsCOMPtr<nsIGfxInfo>& gfxInfo, int32_t feature)
 {
     int32_t status;
-    if (!NS_SUCCEEDED(gfxUtils::ThreadSafeGetFeatureStatus(gfxInfo, feature, &status)))
+    nsCString discardFailureId;
+    if (!NS_SUCCEEDED(gfxUtils::ThreadSafeGetFeatureStatus(gfxInfo, feature,
+                                                           discardFailureId, &status)))
         return false;
 
     return status != nsIGfxInfo::FEATURE_STATUS_OK;
@@ -442,28 +444,34 @@ HasAcceleratedLayers(const nsCOMPtr<nsIGfxInfo>& gfxInfo)
 {
     int32_t status;
 
+    nsCString discardFailureId;
     gfxUtils::ThreadSafeGetFeatureStatus(gfxInfo,
                                          nsIGfxInfo::FEATURE_DIRECT3D_9_LAYERS,
+                                         discardFailureId,
                                          &status);
     if (status)
         return true;
     gfxUtils::ThreadSafeGetFeatureStatus(gfxInfo,
                                          nsIGfxInfo::FEATURE_DIRECT3D_10_LAYERS,
+                                         discardFailureId,
                                          &status);
     if (status)
         return true;
     gfxUtils::ThreadSafeGetFeatureStatus(gfxInfo,
                                          nsIGfxInfo::FEATURE_DIRECT3D_10_1_LAYERS,
+                                         discardFailureId,
                                          &status);
     if (status)
         return true;
     gfxUtils::ThreadSafeGetFeatureStatus(gfxInfo,
                                          nsIGfxInfo::FEATURE_DIRECT3D_11_LAYERS,
+                                         discardFailureId,
                                          &status);
     if (status)
         return true;
     gfxUtils::ThreadSafeGetFeatureStatus(gfxInfo,
                                          nsIGfxInfo::FEATURE_OPENGL_LAYERS,
+                                         discardFailureId,
                                          &status);
     if (status)
         return true;
@@ -1527,7 +1535,7 @@ WebGLContext::RunContextLossTimer()
     mContextLossHandler->RunTimer();
 }
 
-class UpdateContextLossStatusTask : public nsCancelableRunnable
+class UpdateContextLossStatusTask : public CancelableRunnable
 {
     RefPtr<WebGLContext> mWebGL;
 

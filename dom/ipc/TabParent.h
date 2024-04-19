@@ -183,9 +183,9 @@ public:
                  nsTArray<ipc::StructuredCloneData>* aRetVal) override;
 
   virtual bool RecvAsyncMessage(const nsString& aMessage,
-                                const ClonedMessageData& aData,
                                 InfallibleTArray<CpowEntry>&& aCpows,
-                                const IPC::Principal& aPrincipal) override;
+                                const IPC::Principal& aPrincipal,
+                                const ClonedMessageData& aData) override;
 
   virtual bool
   RecvNotifyIMEFocus(const ContentCache& aContentCache,
@@ -540,15 +540,13 @@ public:
 
   layout::RenderFrameParent* GetRenderFrame();
 
-  // Called by HttpChannelParent. The function may use a new process to
-  // reload the URI associated with the given channel.
-  void OnStartSignedPackageRequest(nsIChannel* aChannel,
-                                   const nsACString& aPackageId);
-
   void AudioChannelChangeNotification(nsPIDOMWindow* aWindow,
                                       AudioChannel aAudioChannel,
                                       float aVolume,
                                       bool aMuted);
+  bool SetRenderFrame(PRenderFrameParent* aRFParent);
+  bool GetRenderFrameInfo(TextureFactoryIdentifier* aTextureFactoryIdentifier,
+                          uint64_t* aLayersId);
 
 protected:
   bool ReceiveMessage(const nsString& aMessage,
@@ -575,10 +573,6 @@ protected:
 
   virtual bool RecvRemotePaintIsReady() override;
 
-  virtual bool RecvGetRenderFrameInfo(PRenderFrameParent* aRenderFrame,
-                                      TextureFactoryIdentifier* aTextureFactoryIdentifier,
-                                      uint64_t* aLayersId) override;
-
   virtual bool RecvSetDimensions(const uint32_t& aFlags,
                                  const int32_t& aX, const int32_t& aY,
                                  const int32_t& aCx, const int32_t& aCy) override;
@@ -588,10 +582,6 @@ protected:
 
   bool InitBrowserConfiguration(const nsCString& aURI,
                                 BrowserConfiguration& aConfiguration);
-
-  // Decide whether we have to use a new process to reload the URI associated
-  // with the given channel.
-  bool ShouldSwitchProcess(nsIChannel* aChannel);
 
   ContentCacheInParent mContentCache;
 

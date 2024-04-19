@@ -5,14 +5,17 @@
 <!DOCTYPE HTML>
 <html>
 <head>
-  <title>Make sure that Request.cache is not exposed by default</title>
+  <title>Bug 1039846 - Test fetch() http fetching in worker</title>
   <script type="text/javascript" src="/tests/SimpleTest/SimpleTest.js"></script>
   <link rel="stylesheet" type="text/css" href="/tests/SimpleTest/test.css" />
 </head>
 <body>
-<script>
-var req = new Request("");
-ok(!("cache" in req), "Request.cache should not be exposed by default");
+<p id="display"></p>
+<div id="content" style="display: none"></div>
+<pre id="test"></pre>
+<script type="text/javascript" src="sw_reroute.js"> </script>
+<script class="testbody" type="text/javascript">
+testScript("test_fetch_basic_http.js");
 </script>
 </body>
 </html>

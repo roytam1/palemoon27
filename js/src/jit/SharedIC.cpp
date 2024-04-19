@@ -460,12 +460,6 @@ ICStub::trace(JSTracer* trc)
         TraceEdge(trc, &callStub->getter(), "baseline-getpropcallnativeglobal-stub-getter");
         break;
       }
-      case ICStub::GetProp_ModuleNamespace: {
-        ICGetProp_ModuleNamespace* nsStub = toGetProp_ModuleNamespace();
-        TraceEdge(trc, &nsStub->getNamespace(), "baseline-getprop-modulenamespace-stub-namespace");
-        TraceEdge(trc, &nsStub->environment(), "baseline-getprop-modulenamespace-stub-environment");
-        break;
-      }
       case ICStub::SetProp_Native: {
         ICSetProp_Native* propStub = toSetProp_Native();
         TraceEdge(trc, &propStub->shape(), "baseline-setpropnative-stub-shape");
@@ -2117,51 +2111,6 @@ TryAttachLengthStub(JSContext* cx, SharedStubInfo* info,
         return true;
     }
 
-    if (!val.isObject())
-        return true;
-
-    RootedObject obj(cx, &val.toObject());
-
-    if (obj->is<ArrayObject>() && res.isInt32()) {
-        JitSpew(JitSpew_BaselineIC, "  Generating GetProp(Array.length) stub");
-        ICGetProp_ArrayLength::Compiler compiler(cx, info->engine());
-        ICStub* newStub = compiler.getStub(compiler.getStubSpace(info->outerScript(cx)));
-        if (!newStub)
-            return false;
-
-        *attached = true;
-        stub->addNewStub(newStub);
-        return true;
-    }
-
-    if (obj->is<UnboxedArrayObject>() && res.isInt32()) {
-        JitSpew(JitSpew_BaselineIC, "  Generating GetProp(UnboxedArray.length) stub");
-        ICGetProp_UnboxedArrayLength::Compiler compiler(cx, info->engine());
-        ICStub* newStub = compiler.getStub(compiler.getStubSpace(info->outerScript(cx)));
-        if (!newStub)
-            return false;
-
-        *attached = true;
-        stub->addNewStub(newStub);
-        return true;
-    }
-
-    if (obj->is<ArgumentsObject>() && res.isInt32()) {
-        JitSpew(JitSpew_BaselineIC, "  Generating GetProp(ArgsObj.length %s) stub",
-                obj->is<MappedArgumentsObject>() ? "Mapped" : "Unmapped");
-        ICGetProp_ArgumentsLength::Which which = ICGetProp_ArgumentsLength::Mapped;
-        if (obj->is<UnmappedArgumentsObject>())
-            which = ICGetProp_ArgumentsLength::Unmapped;
-        ICGetProp_ArgumentsLength::Compiler compiler(cx, info->engine(), which);
-        ICStub* newStub = compiler.getStub(compiler.getStubSpace(info->outerScript(cx)));
-        if (!newStub)
-            return false;
-
-        *attached = true;
-        stub->addNewStub(newStub);
-        return true;
-    }
-
     return true;
 }
 
@@ -2688,48 +2637,6 @@ TryAttachTypedObjectGetPropStub(JSContext* cx, SharedStubInfo* info,
 }
 
 static bool
-TryAttachModuleNamespaceGetPropStub(JSContext* cx, SharedStubInfo* info,
-                                    ICGetProp_Fallback* stub, HandlePropertyName name,
-                                    HandleValue val, bool* attached)
-{
-    MOZ_ASSERT(!*attached);
-
-    if (!ModuleNamespaceObject::isInstance(val))
-        return true;
-
-    Rooted<ModuleNamespaceObject*> ns(cx, &val.toObject().as<ModuleNamespaceObject>());
-
-    RootedModuleEnvironmentObject env(cx);
-    RootedShape shape(cx);
-    if (!ns->bindings().lookup(NameToId(name), env.address(), shape.address()))
-        return true;
-
-    // Don't emit a stub until the target binding has been initialized.
-    if (env->getSlot(shape->slot()).isMagic(JS_UNINITIALIZED_LEXICAL))
-        return true;
-
-    ICStub* monitorStub = stub->fallbackMonitorStub()->firstMonitorStub();
-
-    bool isFixedSlot;
-    uint32_t offset;
-    GetFixedOrDynamicSlotOffset(shape, &isFixedSlot, &offset);
-
-    // Instantiate this property for singleton holders, for use during Ion compilation.
-    if (IsIonEnabled(cx))
-        EnsureTrackPropertyTypes(cx, env, shape->propid());
-
-    ICGetProp_ModuleNamespace::Compiler compiler(cx, info->engine(), monitorStub,
-                                                 ns, env, isFixedSlot, offset);
-    ICStub* newStub = compiler.getStub(compiler.getStubSpace(info->outerScript(cx)));
-    if (!newStub)
-        return false;
-    stub->addNewStub(newStub);
-
-    *attached = true;
-    return true;
-}
-
-static bool
 TryAttachPrimitiveGetPropStub(JSContext* cx, SharedStubInfo* info,
                               ICGetProp_Fallback* stub, HandlePropertyName name,
                               HandleValue val, HandleValue res, bool* attached)
@@ -2797,7 +2704,7 @@ CheckHasNoSuchProperty(JSContext* cx, JSObject* obj, PropertyName* name,
                 return false;
             if (curObj->as<NativeObject>().contains(cx, NameToId(name)))
                 return false;
-            if (curObj->getClass()->getProperty)
+            if (curObj->getClass()->getGetProperty())
                 return false;
         } else if (curObj != obj) {
             // Non-native objects are only handled as the original receiver.
@@ -2972,11 +2879,6 @@ DoGetPropFallback(JSContext* cx, void* payload, ICGetProp_Fallback* stub_,
     if (attached)
         return true;
 
-    if (!TryAttachModuleNamespaceGetPropStub(cx, &info, stub, name, val, &attached))
-        return false;
-    if (attached)
-        return true;
-
     if (val.isString() || val.isNumber() || val.isBoolean()) {
         if (!TryAttachPrimitiveGetPropStub(cx, &info, stub, name, val, res, &attached))
             return false;
@@ -3046,58 +2948,6 @@ ICGetProp_Fallback::Compiler::postGenerateStubCode(MacroAssembler& masm, Handle<
         void* address = code->raw() + returnOffset_;
         cx->compartment()->jitCompartment()->initBaselineGetPropReturnAddr(address);
     }
-}
-
-bool
-ICGetProp_ArrayLength::Compiler::generateStubCode(MacroAssembler& masm)
-{
-    Label failure;
-    masm.branchTestObject(Assembler::NotEqual, R0, &failure);
-
-    Register scratch = R1.scratchReg();
-
-    // Unbox R0 and guard it's an array.
-    Register obj = masm.extractObject(R0, ExtractTemp0);
-    masm.branchTestObjClass(Assembler::NotEqual, obj, scratch, &ArrayObject::class_, &failure);
-
-    // Load obj->elements->length.
-    masm.loadPtr(Address(obj, NativeObject::offsetOfElements()), scratch);
-    masm.load32(Address(scratch, ObjectElements::offsetOfLength()), scratch);
-
-    // Guard length fits in an int32.
-    masm.branchTest32(Assembler::Signed, scratch, scratch, &failure);
-
-    masm.tagValue(JSVAL_TYPE_INT32, scratch, R0);
-    EmitReturnFromIC(masm);
-
-    // Failure case - jump to next stub
-    masm.bind(&failure);
-    EmitStubGuardFailure(masm);
-    return true;
-}
-
-bool
-ICGetProp_UnboxedArrayLength::Compiler::generateStubCode(MacroAssembler& masm)
-{
-    Label failure;
-    masm.branchTestObject(Assembler::NotEqual, R0, &failure);
-
-    Register scratch = R1.scratchReg();
-
-    // Unbox R0 and guard it's an unboxed array.
-    Register obj = masm.extractObject(R0, ExtractTemp0);
-    masm.branchTestObjClass(Assembler::NotEqual, obj, scratch, &UnboxedArrayObject::class_, &failure);
-
-    // Load obj->length.
-    masm.load32(Address(obj, UnboxedArrayObject::offsetOfLength()), scratch);
-
-    masm.tagValue(JSVAL_TYPE_INT32, scratch, R0);
-    EmitReturnFromIC(masm);
-
-    // Failure case - jump to next stub
-    masm.bind(&failure);
-    EmitStubGuardFailure(masm);
-    return true;
 }
 
 bool
@@ -3807,53 +3657,22 @@ ICGetProp_DOMProxyShadowed::Compiler::generateStubCode(MacroAssembler& masm)
 bool
 ICGetProp_ArgumentsLength::Compiler::generateStubCode(MacroAssembler& masm)
 {
+    MOZ_ASSERT(which_ == ICGetProp_ArgumentsLength::Magic);
+
     Label failure;
-    if (which_ == ICGetProp_ArgumentsLength::Magic) {
-        // Ensure that this is lazy arguments.
-        masm.branchTestMagicValue(Assembler::NotEqual, R0, JS_OPTIMIZED_ARGUMENTS, &failure);
 
-        // Ensure that frame has not loaded different arguments object since.
-        masm.branchTest32(Assembler::NonZero,
-                          Address(BaselineFrameReg, BaselineFrame::reverseOffsetOfFlags()),
-                          Imm32(BaselineFrame::HAS_ARGS_OBJ),
-                          &failure);
+    // Ensure that this is lazy arguments.
+    masm.branchTestMagicValue(Assembler::NotEqual, R0, JS_OPTIMIZED_ARGUMENTS, &failure);
 
-        Address actualArgs(BaselineFrameReg, BaselineFrame::offsetOfNumActualArgs());
-        masm.loadPtr(actualArgs, R0.scratchReg());
-        masm.tagValue(JSVAL_TYPE_INT32, R0.scratchReg(), R0);
-        EmitReturnFromIC(masm);
-
-        masm.bind(&failure);
-        EmitStubGuardFailure(masm);
-        return true;
-    }
-    MOZ_ASSERT(which_ == ICGetProp_ArgumentsLength::Mapped ||
-               which_ == ICGetProp_ArgumentsLength::Unmapped);
-
-    const Class* clasp = (which_ == ICGetProp_ArgumentsLength::Mapped)
-                         ? &MappedArgumentsObject::class_
-                         : &UnmappedArgumentsObject::class_;
-
-    Register scratchReg = R1.scratchReg();
-
-    // Guard on input being an arguments object.
-    masm.branchTestObject(Assembler::NotEqual, R0, &failure);
-    Register objReg = masm.extractObject(R0, ExtractTemp0);
-    masm.branchTestObjClass(Assembler::NotEqual, objReg, scratchReg, clasp, &failure);
-
-    // Get initial length value.
-    masm.unboxInt32(Address(objReg, ArgumentsObject::getInitialLengthSlotOffset()), scratchReg);
-
-    // Test if length has been overridden.
+    // Ensure that frame has not loaded different arguments object since.
     masm.branchTest32(Assembler::NonZero,
-                      scratchReg,
-                      Imm32(ArgumentsObject::LENGTH_OVERRIDDEN_BIT),
+                      Address(BaselineFrameReg, BaselineFrame::reverseOffsetOfFlags()),
+                      Imm32(BaselineFrame::HAS_ARGS_OBJ),
                       &failure);
 
-    // Nope, shift out arguments length and return it.
-    // No need to type monitor because this stub always returns Int32.
-    masm.rshiftPtr(Imm32(ArgumentsObject::PACKED_BITS_COUNT), scratchReg);
-    masm.tagValue(JSVAL_TYPE_INT32, scratchReg, R0);
+    Address actualArgs(BaselineFrameReg, BaselineFrame::offsetOfNumActualArgs());
+    masm.loadPtr(actualArgs, R0.scratchReg());
+    masm.tagValue(JSVAL_TYPE_INT32, R0.scratchReg(), R0);
     EmitReturnFromIC(masm);
 
     masm.bind(&failure);
@@ -4074,41 +3893,6 @@ ICGetProp_TypedObject::Compiler::generateStubCode(MacroAssembler& masm)
     else
         EmitReturnFromIC(masm);
 
-    masm.bind(&failure);
-    EmitStubGuardFailure(masm);
-
-    return true;
-}
-
-bool
-ICGetProp_ModuleNamespace::Compiler::generateStubCode(MacroAssembler& masm)
-{
-    Label failure;
-
-    AllocatableGeneralRegisterSet regs(availableGeneralRegs(1));
-
-    Register scratch = regs.takeAnyExcluding(ICTailCallReg);
-
-    // Guard on namespace object.
-    masm.branchTestObject(Assembler::NotEqual, R0, &failure);
-    Register object = masm.extractObject(R0, ExtractTemp0);
-    masm.loadPtr(Address(ICStubReg, ICGetProp_ModuleNamespace::offsetOfNamespace()), scratch);
-    masm.branchPtr(Assembler::NotEqual, object, scratch, &failure);
-
-    // Determine base pointer for load.
-    Register loadBase = regs.takeAnyExcluding(ICTailCallReg);
-    masm.loadPtr(Address(ICStubReg, ICGetProp_ModuleNamespace::offsetOfEnvironment()), loadBase);
-    if (!isFixedSlot_)
-        masm.loadPtr(Address(loadBase, NativeObject::offsetOfSlots()), loadBase);
-
-    // Load the property.
-    masm.load32(Address(ICStubReg, ICGetProp_ModuleNamespace::offsetOfOffset()), scratch);
-    masm.loadValue(BaseIndex(loadBase, scratch, TimesOne), R0);
-
-    // Enter type monitor IC to type-check result.
-    EmitEnterTypeMonitorIC(masm);
-
-    // Failure case - jump to next stub
     masm.bind(&failure);
     EmitStubGuardFailure(masm);
 

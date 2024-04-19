@@ -38,9 +38,6 @@ interface PushSubscription
     Promise<boolean> unsubscribe();
 
     // Implements the custom serializer specified in Push API, section 9.
+    [Throws]
     PushSubscriptionJSON toJSON();
-
-    // Used to set the principal from the JS implemented PushManager.
-    [Exposed=Window,ChromeOnly]
-    void setPrincipal(Principal principal);
 };

@@ -1180,8 +1180,7 @@ nsDocumentViewer::PermitUnloadInternal(bool aCallerClosesWindow,
   // the event being dispatched.
   if (!sIsBeforeUnloadDisabled && *aShouldPrompt && dialogsAreEnabled && mDocument &&
       (!sBeforeUnloadRequiresInteraction || mDocument->UserHasInteracted()) &&
-      (event->WidgetEventPtr()->mFlags.mDefaultPrevented ||
-       !text.IsEmpty())) {
+      (event->WidgetEventPtr()->DefaultPrevented() || !text.IsEmpty())) {
     // Ask the user if it's ok to unload the current page
 
     nsCOMPtr<nsIPrompt> prompt = do_GetInterface(docShell);

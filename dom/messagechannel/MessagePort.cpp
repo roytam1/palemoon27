@@ -47,7 +47,7 @@ using namespace mozilla::dom::workers;
 namespace mozilla {
 namespace dom {
 
-class PostMessageRunnable final : public nsCancelableRunnable
+class PostMessageRunnable final : public CancelableRunnable
 {
   friend class MessagePort;
 

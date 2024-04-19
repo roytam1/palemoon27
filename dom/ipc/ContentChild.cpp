@@ -70,6 +70,7 @@
 #include "mozilla/unused.h"
 
 #include "mozInlineSpellChecker.h"
+#include "nsDocShell.h"
 #include "nsIConsoleListener.h"
 #include "nsICycleCollectorListener.h"
 #include "nsIDragService.h"
@@ -173,8 +174,6 @@
 #include "mozilla/dom/mobileconnection/MobileConnectionChild.h"
 #include "mozilla/dom/mobilemessage/SmsChild.h"
 #include "mozilla/dom/devicestorage/DeviceStorageRequestChild.h"
-#include "mozilla/dom/PFileSystemRequestChild.h"
-#include "mozilla/dom/FileSystemTaskBase.h"
 #include "mozilla/dom/bluetooth/PBluetoothChild.h"
 #include "mozilla/dom/PFMRadioChild.h"
 #include "mozilla/dom/PPresentationChild.h"
@@ -849,6 +848,10 @@ ContentChild::ProvideWindowCommon(TabChild* aTabOpener,
   nsTArray<FrameScriptInfo> frameScripts;
   nsCString urlToLoad;
 
+  PRenderFrameChild* renderFrame = newChild->SendPRenderFrameConstructor();
+  TextureFactoryIdentifier textureFactoryIdentifier;
+  uint64_t layersId = 0;
+
   if (aIframeMoz) {
     MOZ_ASSERT(aTabOpener);
     newChild->SendBrowserFrameOpenWindow(aTabOpener, NS_ConvertUTF8toUTF16(url),
@@ -868,34 +871,51 @@ ContentChild::ProvideWindowCommon(TabChild* aTabOpener,
       baseURI->GetSpec(baseURIString);
     }
 
+    nsCOMPtr<nsPIDOMWindow> opener = do_QueryInterface(aParent);
+    nsIDocShell* openerShell;
+    RefPtr<nsDocShell> openerDocShell;
+    float fullZoom = 1.0f;
+    if (opener && (openerShell = opener->GetDocShell())) {
+      openerDocShell = static_cast<nsDocShell*>(openerShell);
+      nsCOMPtr<nsIContentViewer> cv;
+      openerDocShell->GetContentViewer(getter_AddRefs(cv));
+      if (cv) {
+        cv->GetFullZoom(&fullZoom);
+      }
+    }
+
     nsresult rv;
-    if (!SendCreateWindow(aTabOpener, newChild,
+    if (!SendCreateWindow(aTabOpener, newChild, renderFrame,
                           aChromeFlags, aCalledFromJS, aPositionSpecified,
                           aSizeSpecified, url,
                           name, features,
                           baseURIString,
+                          openerDocShell
+                            ? openerDocShell->GetOriginAttributes()
+                            : OriginAttributes(),
+                          fullZoom,
                           &rv,
                           aWindowIsNew,
                           &frameScripts,
-                          &urlToLoad)) {
+                          &urlToLoad,
+                          &textureFactoryIdentifier,
+                          &layersId)) {
+      PRenderFrameChild::Send__delete__(renderFrame);
       return NS_ERROR_NOT_AVAILABLE;
     }
 
     if (NS_FAILED(rv)) {
+      PRenderFrameChild::Send__delete__(renderFrame);
+      PBrowserChild::Send__delete__(newChild);
       return rv;
     }
   }
   if (!*aWindowIsNew) {
+    PRenderFrameChild::Send__delete__(renderFrame);
     PBrowserChild::Send__delete__(newChild);
     return NS_ERROR_ABORT;
   }
 
-  TextureFactoryIdentifier textureFactoryIdentifier;
-  uint64_t layersId = 0;
-  PRenderFrameChild* renderFrame = newChild->SendPRenderFrameConstructor();
-  newChild->SendGetRenderFrameInfo(renderFrame,
-                                   &textureFactoryIdentifier,
-                                   &layersId);
   if (layersId == 0) { // if renderFrame is invalid.
     PRenderFrameChild::Send__delete__(renderFrame);
     renderFrame = nullptr;
@@ -1803,24 +1823,6 @@ ContentChild::DeallocPDeviceStorageRequestChild(PDeviceStorageRequestChild* aDev
   return true;
 }
 
-PFileSystemRequestChild*
-ContentChild::AllocPFileSystemRequestChild(const FileSystemParams& aParams)
-{
-  MOZ_CRASH("Should never get here!");
-  return nullptr;
-}
-
-bool
-ContentChild::DeallocPFileSystemRequestChild(PFileSystemRequestChild* aFileSystem)
-{
-  mozilla::dom::FileSystemTaskBase* child =
-    static_cast<mozilla::dom::FileSystemTaskBase*>(aFileSystem);
-  // The reference is increased in FileSystemTaskBase::Start of
-  // FileSystemTaskBase.cpp. We should decrease it after IPC.
-  NS_RELEASE(child);
-  return true;
-}
-
 PMobileConnectionChild*
 ContentChild::SendPMobileConnectionConstructor(PMobileConnectionChild* aActor,
                                                const uint32_t& aClientId)
@@ -2408,9 +2410,9 @@ ContentChild::RecvLoadProcessScript(const nsString& aURL)
 
 bool
 ContentChild::RecvAsyncMessage(const nsString& aMsg,
-                               const ClonedMessageData& aData,
                                InfallibleTArray<CpowEntry>&& aCpows,
-                               const IPC::Principal& aPrincipal)
+                               const IPC::Principal& aPrincipal,
+                               const ClonedMessageData& aData)
 {
   RefPtr<nsFrameMessageManager> cpm = nsFrameMessageManager::GetChildProcessManager();
   if (cpm) {
@@ -3265,6 +3267,23 @@ ContentChild::RecvPushSubscriptionChange(const nsCString& aScope,
   nsresult rv = pushNotifier->NotifySubscriptionChangeWorkers(aScope,
                                                               aPrincipal);
   Unused << NS_WARN_IF(NS_FAILED(rv));
+#endif
+  return true;
+}
+
+bool
+ContentChild::RecvPushError(const nsCString& aScope, const nsString& aMessage,
+                            const uint32_t& aFlags)
+{
+#ifndef MOZ_SIMPLEPUSH
+  nsCOMPtr<nsIPushNotifier> pushNotifierIface =
+      do_GetService("@mozilla.org/push/Notifier;1");
+  if (NS_WARN_IF(!pushNotifierIface)) {
+      return true;
+  }
+  PushNotifier* pushNotifier =
+    static_cast<PushNotifier*>(pushNotifierIface.get());
+  pushNotifier->NotifyErrorWorkers(aScope, aMessage, aFlags);
 #endif
   return true;
 }

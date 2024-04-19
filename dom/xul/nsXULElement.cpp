@@ -1331,7 +1331,7 @@ nsXULElement::PreHandleEvent(EventChainPreVisitor& aVisitor)
                 WidgetInputEvent* orig = aVisitor.mEvent->AsInputEvent();
                 nsContentUtils::DispatchXULCommand(
                   commandContent,
-                  aVisitor.mEvent->mFlags.mIsTrusted,
+                  aVisitor.mEvent->IsTrusted(),
                   aVisitor.mDOMEvent,
                   nullptr,
                   orig->IsControl(),

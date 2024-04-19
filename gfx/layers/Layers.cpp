@@ -538,14 +538,14 @@ Layer::StartPendingAnimations(const TimeStamp& aReadyTime)
 void
 Layer::SetAsyncPanZoomController(uint32_t aIndex, AsyncPanZoomController *controller)
 {
-  MOZ_ASSERT(aIndex < GetFrameMetricsCount());
+  MOZ_ASSERT(aIndex < GetScrollMetadataCount());
   mApzcs[aIndex] = controller;
 }
 
 AsyncPanZoomController*
 Layer::GetAsyncPanZoomController(uint32_t aIndex) const
 {
-  MOZ_ASSERT(aIndex < GetFrameMetricsCount());
+  MOZ_ASSERT(aIndex < GetScrollMetadataCount());
 #ifdef DEBUG
   if (mApzcs[aIndex]) {
     MOZ_ASSERT(GetFrameMetrics(aIndex).IsScrollable());
@@ -555,9 +555,9 @@ Layer::GetAsyncPanZoomController(uint32_t aIndex) const
 }
 
 void
-Layer::FrameMetricsChanged()
+Layer::ScrollMetadataChanged()
 {
-  mApzcs.SetLength(GetFrameMetricsCount());
+  mApzcs.SetLength(GetScrollMetadataCount());
 }
 
 void
@@ -566,6 +566,11 @@ Layer::ApplyPendingUpdatesToSubtree()
   ApplyPendingUpdatesForThisTransaction();
   for (Layer* child = GetFirstChild(); child; child = child->GetNextSibling()) {
     child->ApplyPendingUpdatesToSubtree();
+  }
+  if (!GetParent()) {
+    // Once we're done recursing through the whole tree, clear the pending
+    // updates from the manager.
+    Manager()->ClearPendingScrollInfoUpdate();
   }
 }
 
@@ -846,17 +851,23 @@ Layer::CalculateScissorRect(const RenderTargetIntRect& aCurrentScissorRect)
   return currentClip.Intersect(scissor);
 }
 
+const ScrollMetadata&
+Layer::GetScrollMetadata(uint32_t aIndex) const
+{
+  MOZ_ASSERT(aIndex < GetScrollMetadataCount());
+  return mScrollMetadata[aIndex];
+}
+
 const FrameMetrics&
 Layer::GetFrameMetrics(uint32_t aIndex) const
 {
-  MOZ_ASSERT(aIndex < GetFrameMetricsCount());
-  return mFrameMetrics[aIndex];
+  return GetScrollMetadata(aIndex).GetMetrics();
 }
 
 bool
 Layer::HasScrollableFrameMetrics() const
 {
-  for (uint32_t i = 0; i < GetFrameMetricsCount(); i++) {
+  for (uint32_t i = 0; i < GetScrollMetadataCount(); i++) {
     if (GetFrameMetrics(i).IsScrollable()) {
       return true;
     }
@@ -939,6 +950,15 @@ Layer::ApplyPendingUpdatesForThisTransaction()
     mPendingAnimations->SwapElements(mAnimations);
     mPendingAnimations = nullptr;
     Mutated();
+  }
+
+  for (size_t i = 0; i < mScrollMetadata.Length(); i++) {
+    FrameMetrics& fm = mScrollMetadata[i].GetMetrics();
+    Maybe<ScrollUpdateInfo> update = Manager()->GetPendingScrollInfoUpdate(fm.GetScrollId());
+    if (update) {
+      fm.UpdatePendingScrollInfo(update.value());
+      Mutated();
+    }
   }
 }
 
@@ -1088,12 +1108,12 @@ Layer::GetCombinedClipRect() const
 {
   Maybe<ParentLayerIntRect> clip = GetClipRect();
 
-  for (size_t i = 0; i < mFrameMetrics.Length(); i++) {
-    if (!mFrameMetrics[i].HasClipRect()) {
+  for (size_t i = 0; i < mScrollMetadata.Length(); i++) {
+    if (!mScrollMetadata[i].HasClipRect()) {
       continue;
     }
 
-    const ParentLayerIntRect& other = mFrameMetrics[i].ClipRect();
+    const ParentLayerIntRect& other = mScrollMetadata[i].ClipRect();
     if (clip) {
       clip = Some(clip.value().Intersect(other));
     } else {
@@ -1968,10 +1988,10 @@ Layer::PrintInfo(std::stringstream& aStream, const char* aPrefix)
   if (mMaskLayer) {
     aStream << nsPrintfCString(" [mMaskLayer=%p]", mMaskLayer.get()).get();
   }
-  for (uint32_t i = 0; i < mFrameMetrics.Length(); i++) {
-    if (!mFrameMetrics[i].IsDefault()) {
+  for (uint32_t i = 0; i < mScrollMetadata.Length(); i++) {
+    if (!mScrollMetadata[i].IsDefault()) {
       aStream << nsPrintfCString(" [metrics%d=", i).get();
-      AppendToString(aStream, mFrameMetrics[i], "", "]");
+      AppendToString(aStream, mScrollMetadata[i], "", "]");
     }
   }
 }
@@ -2438,6 +2458,29 @@ LayerManager::DumpPacket(layerscope::LayersPacket* aPacket)
 LayerManager::IsLogEnabled()
 {
   return MOZ_LOG_TEST(GetLog(), LogLevel::Debug);
+}
+
+void
+LayerManager::SetPendingScrollUpdateForNextTransaction(FrameMetrics::ViewID aScrollId,
+                                                       const ScrollUpdateInfo& aUpdateInfo)
+{
+  mPendingScrollUpdates[aScrollId] = aUpdateInfo;
+}
+
+Maybe<ScrollUpdateInfo>
+LayerManager::GetPendingScrollInfoUpdate(FrameMetrics::ViewID aScrollId)
+{
+  auto it = mPendingScrollUpdates.find(aScrollId);
+  if (it != mPendingScrollUpdates.end()) {
+    return Some(it->second);
+  }
+  return Nothing();
+}
+
+void
+LayerManager::ClearPendingScrollInfoUpdate()
+{
+  mPendingScrollUpdates.clear();
 }
 
 void

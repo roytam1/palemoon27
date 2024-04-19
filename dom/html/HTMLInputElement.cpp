@@ -254,7 +254,7 @@ class HTMLInputElementState final : public nsISupports
                           nsTArray<OwningFileOrDirectory>& aResult) const
     {
       for (uint32_t i = 0; i < mBlobImplsOrDirectoryPaths.Length(); ++i) {
-        if (mBlobImplsOrDirectoryPaths[i].mType == Directory::BlobImplOrDirectoryPath::eBlobImpl) {
+        if (mBlobImplsOrDirectoryPaths[i].mType == BlobImplOrDirectoryPath::eBlobImpl) {
           RefPtr<File> file =
             File::Create(aWindow,
                          mBlobImplsOrDirectoryPaths[i].mBlobImpl);
@@ -263,7 +263,7 @@ class HTMLInputElementState final : public nsISupports
           OwningFileOrDirectory* element = aResult.AppendElement();
           element->SetAsFile() = file;
         } else {
-          MOZ_ASSERT(mBlobImplsOrDirectoryPaths[i].mType == Directory::BlobImplOrDirectoryPath::eDirectoryPath);
+          MOZ_ASSERT(mBlobImplsOrDirectoryPaths[i].mType == BlobImplOrDirectoryPath::eDirectoryPath);
 
           nsCOMPtr<nsIFile> file;
           NS_ConvertUTF16toUTF8 path(mBlobImplsOrDirectoryPaths[i].mDirectoryPath);
@@ -287,11 +287,10 @@ class HTMLInputElementState final : public nsISupports
       mBlobImplsOrDirectoryPaths.Clear();
       for (uint32_t i = 0; i < aArray.Length(); ++i) {
         if (aArray[i].IsFile()) {
-          Directory::BlobImplOrDirectoryPath* data =
-            mBlobImplsOrDirectoryPaths.AppendElement();
+          BlobImplOrDirectoryPath* data = mBlobImplsOrDirectoryPaths.AppendElement();
 
           data->mBlobImpl = aArray[i].GetAsFile()->Impl();
-          data->mType = Directory::BlobImplOrDirectoryPath::eBlobImpl;
+          data->mType = BlobImplOrDirectoryPath::eBlobImpl;
         } else {
           MOZ_ASSERT(aArray[i].IsDirectory());
           nsAutoString fullPath;
@@ -300,11 +299,11 @@ class HTMLInputElementState final : public nsISupports
             continue;
           }
 
-          Directory::BlobImplOrDirectoryPath* data =
+          BlobImplOrDirectoryPath* data =
             mBlobImplsOrDirectoryPaths.AppendElement();
 
           data->mDirectoryPath = fullPath;
-          data->mType = Directory::BlobImplOrDirectoryPath::eDirectoryPath;
+          data->mType = BlobImplOrDirectoryPath::eDirectoryPath;
         }
       }
     }
@@ -320,7 +319,18 @@ class HTMLInputElementState final : public nsISupports
 
     nsString mValue;
 
-    nsTArray<Directory::BlobImplOrDirectoryPath> mBlobImplsOrDirectoryPaths;
+    struct BlobImplOrDirectoryPath
+    {
+      RefPtr<BlobImpl> mBlobImpl;
+      nsString mDirectoryPath;
+
+      enum {
+        eBlobImpl,
+        eDirectoryPath
+      } mType;
+    };
+
+    nsTArray<BlobImplOrDirectoryPath> mBlobImplsOrDirectoryPaths;
 
     bool mChecked;
     bool mCheckedSet;
@@ -3351,8 +3361,7 @@ HTMLInputElement::PreHandleEvent(EventChainPreVisitor& aVisitor)
     }
   }
 
-  if (mType == NS_FORM_INPUT_NUMBER &&
-      aVisitor.mEvent->mFlags.mIsTrusted) {
+  if (mType == NS_FORM_INPUT_NUMBER && aVisitor.mEvent->IsTrusted()) {
     if (mNumberControlSpinnerIsSpinning) {
       // If the timer is running the user has depressed the mouse on one of the
       // spin buttons. If the mouse exits the button we either want to reverse
@@ -3437,7 +3446,7 @@ HTMLInputElement::PreHandleEvent(EventChainPreVisitor& aVisitor)
   // We do this after calling the base class' PreHandleEvent so that
   // nsIContent::PreHandleEvent doesn't reset any change we make to mCanHandle.
   if (mType == NS_FORM_INPUT_NUMBER &&
-      aVisitor.mEvent->mFlags.mIsTrusted  &&
+      aVisitor.mEvent->IsTrusted()  &&
       aVisitor.mEvent->originalTarget != this) {
     // <input type=number> has an anonymous <input type=text> descendant. If
     // 'input' or 'change' events are fired at that text control then we need
@@ -3714,7 +3723,7 @@ HTMLInputElement::MaybeInitPickers(EventChainPostVisitor& aVisitor)
   // - it's the left mouse button.
   // We do not prevent non-trusted click because authors can already use
   // .click(). However, the pickers will follow the rules of popup-blocking.
-  if (aVisitor.mEvent->mFlags.mDefaultPrevented) {
+  if (aVisitor.mEvent->DefaultPrevented()) {
     return NS_OK;
   }
   WidgetMouseEvent* mouseEvent = aVisitor.mEvent->AsMouseEvent();
@@ -3888,7 +3897,7 @@ HTMLInputElement::PostHandleEvent(EventChainPostVisitor& aVisitor)
     WidgetKeyboardEvent* keyEvent = aVisitor.mEvent->AsKeyboardEvent();
     if (mType ==  NS_FORM_INPUT_NUMBER &&
         keyEvent && keyEvent->mMessage == eKeyPress &&
-        aVisitor.mEvent->mFlags.mIsTrusted &&
+        aVisitor.mEvent->IsTrusted() &&
         (keyEvent->keyCode == NS_VK_UP || keyEvent->keyCode == NS_VK_DOWN) &&
         !(keyEvent->IsShift() || keyEvent->IsControl() ||
           keyEvent->IsAlt() || keyEvent->IsMeta() ||
@@ -3905,7 +3914,7 @@ HTMLInputElement::PostHandleEvent(EventChainPostVisitor& aVisitor)
       // the editor's handling of up/down keypress events. For that reason we
       // just ignore aVisitor.mEventStatus here and go ahead and handle the
       // event to increase/decrease the value of the number control.
-      if (!aVisitor.mEvent->mFlags.mDefaultPreventedByContent && IsMutable()) {
+      if (!aVisitor.mEvent->DefaultPreventedByContent() && IsMutable()) {
         StepNumberControlForUserEvent(keyEvent->keyCode == NS_VK_UP ? 1 : -1);
         aVisitor.mEventStatus = nsEventStatus_eConsumeNoDefault;
       }
@@ -3966,7 +3975,7 @@ HTMLInputElement::PostHandleEvent(EventChainPostVisitor& aVisitor)
               case NS_FORM_INPUT_IMAGE: // Bug 34418
               case NS_FORM_INPUT_COLOR:
               {
-                DispatchSimulatedClick(this, aVisitor.mEvent->mFlags.mIsTrusted,
+                DispatchSimulatedClick(this, aVisitor.mEvent->IsTrusted(),
                                        aVisitor.mPresContext);
                 aVisitor.mEventStatus = nsEventStatus_eConsumeNoDefault;
               } // case
@@ -3995,7 +4004,7 @@ HTMLInputElement::PostHandleEvent(EventChainPostVisitor& aVisitor)
                   rv = selectedRadioButton->Focus();
                   if (NS_SUCCEEDED(rv)) {
                     rv = DispatchSimulatedClick(selectedRadioButton,
-                                                aVisitor.mEvent->mFlags.mIsTrusted,
+                                                aVisitor.mEvent->IsTrusted(),
                                                 aVisitor.mPresContext);
                     if (NS_SUCCEEDED(rv)) {
                       aVisitor.mEventStatus = nsEventStatus_eConsumeNoDefault;
@@ -4107,8 +4116,7 @@ HTMLInputElement::PostHandleEvent(EventChainPostVisitor& aVisitor)
               }
             }
           }
-          if (mType == NS_FORM_INPUT_NUMBER &&
-              aVisitor.mEvent->mFlags.mIsTrusted) {
+          if (mType == NS_FORM_INPUT_NUMBER && aVisitor.mEvent->IsTrusted()) {
             if (mouseEvent->button == WidgetMouseEvent::eLeftButton &&
                 !(mouseEvent->IsShift() || mouseEvent->IsControl() ||
                   mouseEvent->IsAlt() || mouseEvent->IsMeta() ||
@@ -5049,13 +5057,6 @@ HTMLInputElement::GetFilesAndDirectories(ErrorResult& aRv)
 
   for (uint32_t i = 0; i < filesAndDirs.Length(); ++i) {
     if (filesAndDirs[i].IsDirectory()) {
-#if defined(ANDROID) || defined(MOZ_B2G)
-      MOZ_ASSERT(false,
-                 "Directory picking should have been redirected to normal "
-                 "file picking for platforms that don't have a directory "
-                 "picker");
-#endif
-
       RefPtr<Directory> directory = filesAndDirs[i].GetAsDirectory();
 
       // In future we could refactor SetFilePickerFiltersFromAccept to return a

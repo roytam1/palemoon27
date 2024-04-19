@@ -59,9 +59,13 @@ using mozilla::Variant;
 using mozilla::AsVariant;
 
 
-/*** Forward declarations ************************************************************************/
+/*** Forward declarations, ClassOps and Classes **************************************************/
 
-extern const Class DebuggerFrame_class;
+static void DebuggerFrame_finalize(FreeOp* fop, JSObject* obj);
+static void DebuggerEnv_trace(JSTracer* trc, JSObject* obj);
+static void DebuggerObject_trace(JSTracer* trc, JSObject* obj);
+static void DebuggerScript_trace(JSTracer* trc, JSObject* obj);
+static void DebuggerSource_trace(JSTracer* trc, JSObject* obj);
 
 enum {
     JSSLOT_DEBUGFRAME_OWNER,
@@ -71,35 +75,117 @@ enum {
     JSSLOT_DEBUGFRAME_COUNT
 };
 
-extern const Class DebuggerArguments_class;
+static const ClassOps DebuggerFrame_classOps = {
+    nullptr,    /* addProperty */
+    nullptr,    /* delProperty */
+    nullptr,    /* getProperty */
+    nullptr,    /* setProperty */
+    nullptr,    /* enumerate   */
+    nullptr,    /* resolve     */
+    nullptr,    /* mayResolve  */
+    DebuggerFrame_finalize,
+    nullptr,    /* call        */
+    nullptr,    /* hasInstance */
+    nullptr,    /* construct   */
+    nullptr,    /* trace   */
+};
+
+static const Class DebuggerFrame_class = {
+    "Frame",
+    JSCLASS_HAS_PRIVATE | JSCLASS_HAS_RESERVED_SLOTS(JSSLOT_DEBUGFRAME_COUNT),
+    &DebuggerFrame_classOps
+};
 
 enum {
     JSSLOT_DEBUGARGUMENTS_FRAME,
     JSSLOT_DEBUGARGUMENTS_COUNT
 };
 
-extern const Class DebuggerEnv_class;
+static const Class DebuggerArguments_class = {
+    "Arguments",
+    JSCLASS_HAS_RESERVED_SLOTS(JSSLOT_DEBUGARGUMENTS_COUNT)
+};
 
 enum {
     JSSLOT_DEBUGENV_OWNER,
     JSSLOT_DEBUGENV_COUNT
 };
 
-extern const Class DebuggerObject_class;
+static const ClassOps DebuggerEnv_classOps = {
+    nullptr,    /* addProperty */
+    nullptr,    /* delProperty */
+    nullptr,    /* getProperty */
+    nullptr,    /* setProperty */
+    nullptr,    /* enumerate   */
+    nullptr,    /* resolve     */
+    nullptr,    /* mayResolve  */
+    nullptr,    /* finalize    */
+    nullptr,    /* call        */
+    nullptr,    /* hasInstance */
+    nullptr,    /* construct   */
+    DebuggerEnv_trace
+};
+
+static const Class DebuggerEnv_class = {
+    "Environment",
+    JSCLASS_HAS_PRIVATE |
+    JSCLASS_HAS_RESERVED_SLOTS(JSSLOT_DEBUGENV_COUNT),
+    &DebuggerEnv_classOps
+};
 
 enum {
     JSSLOT_DEBUGOBJECT_OWNER,
     JSSLOT_DEBUGOBJECT_COUNT
 };
 
-extern const Class DebuggerScript_class;
+static const ClassOps DebuggerObject_classOps = {
+    nullptr,    /* addProperty */
+    nullptr,    /* delProperty */
+    nullptr,    /* getProperty */
+    nullptr,    /* setProperty */
+    nullptr,    /* enumerate   */
+    nullptr,    /* resolve     */
+    nullptr,    /* mayResolve  */
+    nullptr,    /* finalize    */
+    nullptr,    /* call        */
+    nullptr,    /* hasInstance */
+    nullptr,    /* construct   */
+    DebuggerObject_trace
+};
+
+static const Class DebuggerObject_class = {
+    "Object",
+    JSCLASS_HAS_PRIVATE |
+    JSCLASS_HAS_RESERVED_SLOTS(JSSLOT_DEBUGOBJECT_COUNT),
+    &DebuggerObject_classOps
+};
 
 enum {
     JSSLOT_DEBUGSCRIPT_OWNER,
     JSSLOT_DEBUGSCRIPT_COUNT
 };
 
-extern const Class DebuggerSource_class;
+static const ClassOps DebuggerScript_classOps = {
+    nullptr,    /* addProperty */
+    nullptr,    /* delProperty */
+    nullptr,    /* getProperty */
+    nullptr,    /* setProperty */
+    nullptr,    /* enumerate   */
+    nullptr,    /* resolve     */
+    nullptr,    /* mayResolve  */
+    nullptr,    /* finalize    */
+    nullptr,    /* call        */
+    nullptr,    /* hasInstance */
+    nullptr,    /* construct   */
+    DebuggerScript_trace
+};
+
+static const Class DebuggerScript_class = {
+    "Script",
+    JSCLASS_HAS_PRIVATE |
+    JSCLASS_HAS_RESERVED_SLOTS(JSSLOT_DEBUGSCRIPT_COUNT),
+    &DebuggerScript_classOps
+};
 
 enum {
     JSSLOT_DEBUGSOURCE_OWNER,
@@ -107,10 +193,27 @@ enum {
     JSSLOT_DEBUGSOURCE_COUNT
 };
 
-void DebuggerObject_trace(JSTracer* trc, JSObject* obj);
-void DebuggerEnv_trace(JSTracer* trc, JSObject* obj);
-void DebuggerScript_trace(JSTracer* trc, JSObject* obj);
-void DebuggerSource_trace(JSTracer* trc, JSObject* obj);
+static const ClassOps DebuggerSource_classOps = {
+    nullptr,    /* addProperty */
+    nullptr,    /* delProperty */
+    nullptr,    /* getProperty */
+    nullptr,    /* setProperty */
+    nullptr,    /* enumerate   */
+    nullptr,    /* resolve     */
+    nullptr,    /* mayResolve  */
+    nullptr,    /* finalize    */
+    nullptr,    /* call        */
+    nullptr,    /* hasInstance */
+    nullptr,    /* construct   */
+    DebuggerSource_trace
+};
+
+static const Class DebuggerSource_class = {
+    "Source",
+    JSCLASS_HAS_PRIVATE |
+    JSCLASS_HAS_RESERVED_SLOTS(JSSLOT_DEBUGSOURCE_COUNT),
+    &DebuggerSource_classOps
+};
 
 
 /*** Utils ***************************************************************************************/
@@ -2657,7 +2760,7 @@ Debugger::markIncomingCrossCompartmentEdges(JSTracer* trc)
     MOZ_ASSERT(state == gc::MARK_ROOTS || state == gc::COMPACT);
 
     for (Debugger* dbg : rt->debuggerList) {
-        Zone* zone = dbg->object->zone();
+        Zone* zone = MaybeForwarded(dbg->object.get())->zone();
         if ((state == gc::MARK_ROOTS && !zone->isCollecting()) ||
             (state == gc::COMPACT && !zone->isGCCompacting()))
         {
@@ -2882,16 +2985,26 @@ Debugger::finalize(FreeOp* fop, JSObject* obj)
     fop->delete_(dbg);
 }
 
-const Class Debugger::jsclass = {
+const ClassOps Debugger::classOps_ = {
+    nullptr,    /* addProperty */
+    nullptr,    /* delProperty */
+    nullptr,    /* getProperty */
+    nullptr,    /* setProperty */
+    nullptr,    /* enumerate   */
+    nullptr,    /* resolve     */
+    nullptr,    /* mayResolve  */
+    Debugger::finalize,
+    nullptr,    /* call        */
+    nullptr,    /* hasInstance */
+    nullptr,    /* construct   */
+    Debugger::traceObject
+};
+
+const Class Debugger::class_ = {
     "Debugger",
     JSCLASS_HAS_PRIVATE |
     JSCLASS_HAS_RESERVED_SLOTS(JSSLOT_DEBUG_COUNT),
-    nullptr, nullptr, nullptr, nullptr,
-    nullptr, nullptr, nullptr, Debugger::finalize,
-    nullptr,              /* call        */
-    nullptr,              /* hasInstance */
-    nullptr,              /* construct   */
-    Debugger::traceObject
+    &Debugger::classOps_
 };
 
 /* static */ Debugger*
@@ -2900,7 +3013,7 @@ Debugger::fromThisValue(JSContext* cx, const CallArgs& args, const char* fnname)
     JSObject* thisobj = NonNullObject(cx, args.thisv());
     if (!thisobj)
         return nullptr;
-    if (thisobj->getClass() != &Debugger::jsclass) {
+    if (thisobj->getClass() != &Debugger::class_) {
         JS_ReportErrorNumber(cx, GetErrorMessage, nullptr, JSMSG_INCOMPATIBLE_PROTO,
                              "Debugger", fnname, thisobj->getClass()->name);
         return nullptr;
@@ -3487,13 +3600,13 @@ Debugger::construct(JSContext* cx, unsigned argc, Value* vp)
     if (!GetProperty(cx, callee, callee, cx->names().prototype, &v))
         return false;
     RootedNativeObject proto(cx, &v.toObject().as<NativeObject>());
-    MOZ_ASSERT(proto->getClass() == &Debugger::jsclass);
+    MOZ_ASSERT(proto->getClass() == &Debugger::class_);
     /*
      * Make the new Debugger object. Each one has a reference to
      * Debugger.{Frame,Object,Script,Memory}.prototype in reserved slots. The
      * rest of the reserved slots are for hooks; they default to undefined.
      */
-    RootedNativeObject obj(cx, NewNativeObjectWithGivenProto(cx, &Debugger::jsclass, proto));
+    RootedNativeObject obj(cx, NewNativeObjectWithGivenProto(cx, &Debugger::class_, proto));
     if (!obj)
         return false;
     for (unsigned slot = JSSLOT_DEBUG_PROTO_START; slot < JSSLOT_DEBUG_PROTO_STOP; slot++)
@@ -4927,32 +5040,22 @@ void
 DebuggerScript_trace(JSTracer* trc, JSObject* obj)
 {
     /* This comes from a private pointer, so no barrier needed. */
-    DebuggerScriptReferent referent = GetScriptReferent(obj);
-    if (referent.is<JSScript*>()) {
-        if (JSScript* script = referent.as<JSScript*>()) {
+    gc::Cell* cell = GetScriptReferentCell(obj);
+    if (cell) {
+        if (cell->getTraceKind() == JS::TraceKind::Script) {
+            JSScript* script = static_cast<JSScript*>(cell);
             TraceManuallyBarrieredCrossCompartmentEdge(trc, obj, &script,
                                                        "Debugger.Script script referent");
             obj->as<NativeObject>().setPrivateUnbarriered(script);
+        } else {
+            JSObject* wasm = static_cast<JSObject*>(cell);
+            TraceManuallyBarrieredCrossCompartmentEdge(trc, obj, &wasm,
+                                                       "Debugger.Script wasm referent");
+            MOZ_ASSERT(wasm->is<WasmModuleObject>());
+            obj->as<NativeObject>().setPrivateUnbarriered(wasm);
         }
-    } else {
-        JSObject* wasm = referent.as<WasmModuleObject*>();
-        TraceManuallyBarrieredCrossCompartmentEdge(trc, obj, &wasm,
-                                                   "Debugger.Script wasm referent");
-        obj->as<NativeObject>().setPrivateUnbarriered(wasm);
     }
 }
-
-const Class DebuggerScript_class = {
-    "Script",
-    JSCLASS_HAS_PRIVATE |
-    JSCLASS_HAS_RESERVED_SLOTS(JSSLOT_DEBUGSCRIPT_COUNT),
-    nullptr, nullptr, nullptr, nullptr,
-    nullptr, nullptr, nullptr, nullptr,
-    nullptr,              /* call        */
-    nullptr,              /* hasInstance */
-    nullptr,              /* construct   */
-    DebuggerScript_trace
-};
 
 class DebuggerScriptSetPrivateMatcher
 {
@@ -6215,18 +6318,6 @@ DebuggerSource_trace(JSTracer* trc, JSObject* obj)
     }
 }
 
-const Class DebuggerSource_class = {
-    "Source",
-    JSCLASS_HAS_PRIVATE |
-    JSCLASS_HAS_RESERVED_SLOTS(JSSLOT_DEBUGSOURCE_COUNT),
-    nullptr, nullptr, nullptr, nullptr,
-    nullptr, nullptr, nullptr, nullptr,
-    nullptr,              /* call        */
-    nullptr,              /* hasInstance */
-    nullptr,              /* construct   */
-    DebuggerSource_trace
-};
-
 class SetDebuggerSourcePrivateMatcher
 {
     NativeObject* obj_;
@@ -6778,12 +6869,6 @@ DebuggerFrame_finalize(FreeOp* fop, JSObject* obj)
     DebuggerFrame_freeScriptFrameIterData(fop, obj);
 }
 
-const Class DebuggerFrame_class = {
-    "Frame", JSCLASS_HAS_PRIVATE | JSCLASS_HAS_RESERVED_SLOTS(JSSLOT_DEBUGFRAME_COUNT),
-    nullptr, nullptr, nullptr, nullptr,
-    nullptr, nullptr, nullptr, DebuggerFrame_finalize
-};
-
 static NativeObject*
 CheckThisFrame(JSContext* cx, const CallArgs& args, const char* fnname, bool checkLive)
 {
@@ -7006,10 +7091,6 @@ DebuggerFrame_getOlder(JSContext* cx, unsigned argc, Value* vp)
     args.rval().setNull();
     return true;
 }
-
-const Class DebuggerArguments_class = {
-    "Arguments", JSCLASS_HAS_RESERVED_SLOTS(JSSLOT_DEBUGARGUMENTS_COUNT)
-};
 
 /* The getter used for each element of frame.arguments. See DebuggerFrame_getArguments. */
 static bool
@@ -7546,18 +7627,6 @@ DebuggerObject_trace(JSTracer* trc, JSObject* obj)
         obj->as<NativeObject>().setPrivateUnbarriered(referent);
     }
 }
-
-const Class DebuggerObject_class = {
-    "Object",
-    JSCLASS_HAS_PRIVATE |
-    JSCLASS_HAS_RESERVED_SLOTS(JSSLOT_DEBUGOBJECT_COUNT),
-    nullptr, nullptr, nullptr, nullptr,
-    nullptr, nullptr, nullptr, nullptr,
-    nullptr,              /* call        */
-    nullptr,              /* hasInstance */
-    nullptr,              /* construct   */
-    DebuggerObject_trace
-};
 
 static NativeObject*
 DebuggerObject_checkThis(JSContext* cx, const CallArgs& args, const char* fnname)
@@ -8789,18 +8858,6 @@ DebuggerEnv_trace(JSTracer* trc, JSObject* obj)
     }
 }
 
-const Class DebuggerEnv_class = {
-    "Environment",
-    JSCLASS_HAS_PRIVATE |
-    JSCLASS_HAS_RESERVED_SLOTS(JSSLOT_DEBUGENV_COUNT),
-    nullptr, nullptr, nullptr, nullptr,
-    nullptr, nullptr, nullptr, nullptr,
-    nullptr,              /* call        */
-    nullptr,              /* hasInstance */
-    nullptr,              /* construct   */
-    DebuggerEnv_trace
-};
-
 static NativeObject*
 DebuggerEnv_checkThis(JSContext* cx, const CallArgs& args, const char* fnname,
                       bool requireDebuggee = true)
@@ -9285,7 +9342,7 @@ JS_DefineDebuggerObject(JSContext* cx, HandleObject obj)
     if (!objProto)
         return false;
     debugProto = InitClass(cx, obj,
-                           objProto, &Debugger::jsclass, Debugger::construct,
+                           objProto, &Debugger::class_, Debugger::construct,
                            1, Debugger::properties, Debugger::methods, nullptr,
                            Debugger::static_methods, debugCtor.address());
     if (!debugProto)
@@ -9389,7 +9446,7 @@ JS::dbg::IsDebugger(JSObject& obj)
 {
     JSObject* unwrapped = CheckedUnwrap(&obj);
     return unwrapped &&
-           js::GetObjectClass(unwrapped) == &Debugger::jsclass &&
+           js::GetObjectClass(unwrapped) == &Debugger::class_ &&
            js::Debugger::fromJSObject(unwrapped) != nullptr;
 }
 

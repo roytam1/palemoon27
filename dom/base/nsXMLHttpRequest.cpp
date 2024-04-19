@@ -2610,7 +2610,7 @@ nsXMLHttpRequest::Send(nsIVariant* aVariant, const Nullable<RequestBody>& aBody)
       nsCOMPtr<nsPIDOMWindow> owner = GetOwner();
       nsCOMPtr<nsIDocument> doc = owner ? owner->GetExtantDoc() : nullptr;
       nsContentUtils::SetFetchReferrerURIWithPolicy(mPrincipal, doc,
-                                                    httpChannel);
+                                                    httpChannel, mozilla::net::RP_Default);
     }
 
     // Some extensions override the http protocol handler and provide their own

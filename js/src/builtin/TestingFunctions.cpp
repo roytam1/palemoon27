@@ -351,7 +351,8 @@ MinorGC(JSContext* cx, unsigned argc, Value* vp)
     _("decommitThreshold",          JSGC_DECOMMIT_THRESHOLD,             true)  \
     _("minEmptyChunkCount",         JSGC_MIN_EMPTY_CHUNK_COUNT,          true)  \
     _("maxEmptyChunkCount",         JSGC_MAX_EMPTY_CHUNK_COUNT,          true)  \
-    _("compactingEnabled",          JSGC_COMPACTING_ENABLED,             true)
+    _("compactingEnabled",          JSGC_COMPACTING_ENABLED,             true)  \
+    _("refreshFrameSlicesEnabled",  JSGC_REFRESH_FRAME_SLICES_ENABLED,   true)
 
 static const struct ParamInfo {
     const char*     name;
@@ -1398,8 +1399,7 @@ finalize_counter_finalize(JSFreeOp* fop, JSObject* obj)
     ++finalizeCount;
 }
 
-static const JSClass FinalizeCounterClass = {
-    "FinalizeCounter", JSCLASS_IS_ANONYMOUS,
+static const JSClassOps FinalizeCounterClassOps = {
     nullptr, /* addProperty */
     nullptr, /* delProperty */
     nullptr, /* getProperty */
@@ -1408,6 +1408,11 @@ static const JSClass FinalizeCounterClass = {
     nullptr, /* resolve */
     nullptr, /* mayResolve */
     finalize_counter_finalize
+};
+
+static const JSClass FinalizeCounterClass = {
+    "FinalizeCounter", JSCLASS_IS_ANONYMOUS,
+    &FinalizeCounterClassOps
 };
 
 static bool
@@ -2101,8 +2106,7 @@ class CloneBufferObject : public NativeObject {
     }
 };
 
-const Class CloneBufferObject::class_ = {
-    "CloneBuffer", JSCLASS_HAS_RESERVED_SLOTS(CloneBufferObject::NUM_SLOTS),
+static const ClassOps CloneBufferObjectClassOps = {
     nullptr, /* addProperty */
     nullptr, /* delProperty */
     nullptr, /* getProperty */
@@ -2110,7 +2114,12 @@ const Class CloneBufferObject::class_ = {
     nullptr, /* enumerate */
     nullptr, /* resolve */
     nullptr, /* mayResolve */
-    Finalize
+    CloneBufferObject::Finalize
+};
+
+const Class CloneBufferObject::class_ = {
+    "CloneBuffer", JSCLASS_HAS_RESERVED_SLOTS(CloneBufferObject::NUM_SLOTS),
+    &CloneBufferObjectClassOps
 };
 
 const JSPropertySpec CloneBufferObject::props_[] = {

@@ -145,6 +145,13 @@ protected:
 
   virtual bool
   DeallocPAsmJSCacheEntryChild(PAsmJSCacheEntryChild* aActor) override;
+
+  virtual PFileSystemRequestChild*
+  AllocPFileSystemRequestChild(const FileSystemParams&) override;
+
+  virtual bool
+  DeallocPFileSystemRequestChild(PFileSystemRequestChild*) override;
+
 };
 
 class BackgroundChildImpl::ThreadLocal final

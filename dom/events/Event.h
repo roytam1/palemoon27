@@ -186,7 +186,7 @@ public:
 
   bool DefaultPrevented() const
   {
-    return mEvent->mFlags.mDefaultPrevented;
+    return mEvent->DefaultPrevented();
   }
 
   bool MultipleActionsPrevented() const
@@ -196,7 +196,7 @@ public:
 
   bool IsTrusted() const
   {
-    return mEvent->mFlags.mIsTrusted;
+    return mEvent->IsTrusted();
   }
 
   bool IsSynthesized() const

@@ -14,6 +14,8 @@
 #include "mozilla/media/MediaChild.h"
 #include "mozilla/Assertions.h"
 #include "mozilla/dom/PBlobChild.h"
+#include "mozilla/dom/PFileSystemRequestChild.h"
+#include "mozilla/dom/FileSystemTaskBase.h"
 #include "mozilla/dom/asmjscache/AsmJSCache.h"
 #include "mozilla/dom/cache/ActorUtils.h"
 #include "mozilla/dom/indexedDB/PBackgroundIDBFactoryChild.h"
@@ -412,6 +414,23 @@ BackgroundChildImpl::DeallocPAsmJSCacheEntryChild(PAsmJSCacheEntryChild* aActor)
   MOZ_ASSERT(aActor);
 
   dom::asmjscache::DeallocEntryChild(aActor);
+  return true;
+}
+
+dom::PFileSystemRequestChild*
+BackgroundChildImpl::AllocPFileSystemRequestChild(const FileSystemParams& aParams)
+{
+  MOZ_CRASH("Should never get here!");
+  return nullptr;
+}
+
+bool
+BackgroundChildImpl::DeallocPFileSystemRequestChild(PFileSystemRequestChild* aActor)
+{
+  // The reference is increased in FileSystemTaskBase::Start of
+  // FileSystemTaskBase.cpp. We should decrease it after IPC.
+  RefPtr<dom::FileSystemTaskChildBase> child =
+    dont_AddRef(static_cast<dom::FileSystemTaskChildBase*>(aActor));
   return true;
 }
 

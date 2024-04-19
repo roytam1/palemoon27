@@ -103,9 +103,17 @@ public:
   // window and document object sets it true.  Therefore, web applications
   // can handle the event if they add event listeners to the window or the
   // document.
+  // XXX This is an ancient and broken feature, don't use this for new bug
+  //     as far as possible.
   bool    mNoContentDispatch : 1;
   // If mOnlyChromeDispatch is true, the event is dispatched to only chrome.
   bool    mOnlyChromeDispatch : 1;
+  // If mOnlySystemGroupDispatchInContent is true, event listeners added to
+  // the default group for non-chrome EventTarget won't be called.
+  // Be aware, if this is true, EventDispatcher needs to check if each event
+  // listener is added to chrome node, so, don't set this to true for the
+  // events which are fired a lot of times like eMouseMove.
+  bool    mOnlySystemGroupDispatchInContent : 1;
   // If mWantReplyFromContentProcess is true, the event will be redispatched
   // in the parent process after the content process has handled it. Useful
   // for when the parent process need the know first how the event was used
@@ -120,6 +128,54 @@ public:
   inline bool InTargetPhase() const
   {
     return (mInBubblingPhase && mInCapturePhase);
+  }
+
+  /**
+   * Helper methods for methods of DOM Event.
+   */
+  inline void StopPropagation()
+  {
+    mPropagationStopped = true;
+  }
+  inline void StopImmediatePropagation()
+  {
+    StopPropagation();
+    mImmediatePropagationStopped = true;
+  }
+  inline void StopCrossProcessForwarding()
+  {
+    mNoCrossProcessBoundaryForwarding = true;
+  }
+  inline void PreventDefault(bool aCalledByDefaultHandler = true)
+  {
+    mDefaultPrevented = true;
+    // Note that even if preventDefault() has already been called by chrome,
+    // a call of preventDefault() by content needs to overwrite
+    // mDefaultPreventedByContent to true because in such case, defaultPrevented
+    // must be true when web apps check it after they call preventDefault().
+    if (aCalledByDefaultHandler) {
+      mDefaultPreventedByChrome = true;
+    } else {
+      mDefaultPreventedByContent = true;
+    }
+  }
+  // This should be used only before dispatching events into the DOM tree.
+  inline void PreventDefaultBeforeDispatch()
+  {
+    mDefaultPrevented = true;
+  }
+  inline bool DefaultPrevented() const
+  {
+    return mDefaultPrevented;
+  }
+  inline bool DefaultPreventedByContent() const
+  {
+    MOZ_ASSERT(!mDefaultPreventedByContent || DefaultPrevented());
+    return mDefaultPreventedByContent;
+  }
+  inline bool IsTrusted() const
+  {
+    return mIsTrusted;
   }
 
   inline void Clear()
@@ -300,11 +356,23 @@ public:
     originalTarget = aCopyTargets ? aEvent.originalTarget : nullptr;
   }
 
-  void PreventDefault()
+  /**
+   * Helper methods for methods of DOM Event.
+   */
+  void StopPropagation() { mFlags.StopPropagation(); }
+  void StopImmediatePropagation() { mFlags.StopImmediatePropagation(); }
+  void StopCrossProcessForwarding() { mFlags.StopCrossProcessForwarding(); }
+  void PreventDefault(bool aCalledByDefaultHandler = true)
   {
-    mFlags.mDefaultPrevented = true;
-    mFlags.mDefaultPreventedByChrome = true;
+    mFlags.PreventDefault(aCalledByDefaultHandler);
   }
+  void PreventDefaultBeforeDispatch() { mFlags.PreventDefaultBeforeDispatch(); }
+  bool DefaultPrevented() const { return mFlags.DefaultPrevented(); }
+  bool DefaultPreventedByContent() const
+  {
+    return mFlags.DefaultPreventedByContent();
+  }
+  bool IsTrusted() const { return mFlags.IsTrusted(); }
 
   /**
    * Utils for checking event types
@@ -786,7 +854,7 @@ public:
     : WidgetGUIEvent(aIsTrusted, aMessage, nullptr, eUIEventClass)
     , detail(0)
     , mCausedByUntrustedEvent(
-        aEventCausesThisEvent && !aEventCausesThisEvent->mFlags.mIsTrusted)
+        aEventCausesThisEvent && !aEventCausesThisEvent->IsTrusted())
   {
   }
 
@@ -808,7 +876,7 @@ public:
   // event, IsTrustable() returns what you expected.
   bool IsTrustable() const
   {
-    return mFlags.mIsTrusted && !mCausedByUntrustedEvent;
+    return IsTrusted() && !mCausedByUntrustedEvent;
   }
 
   void AssignUIEventData(const InternalUIEvent& aEvent, bool aCopyTargets)

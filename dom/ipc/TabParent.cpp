@@ -105,12 +105,6 @@ using namespace mozilla::services;
 using namespace mozilla::widget;
 using namespace mozilla::jsipc;
 
-#if DEUBG
-  #define LOG(args...) printf_stderr(args)
-#else
-  #define LOG(...)
-#endif
-
 // The flags passed by the webProgress notifications are 16 bits shifted
 // from the ones registered by webProgressListeners.
 #define NOTIFY_FLAG_SHIFT 16
@@ -367,6 +361,12 @@ TabParent::SetOwnerElement(Element* aElement)
     newTopLevelWin->AddBrowser(this);
   }
 
+  if (mFrameElement) {
+    bool useGlobalHistory =
+      !mFrameElement->HasAttr(kNameSpaceID_None, nsGkAtoms::disableglobalhistory);
+    Unused << SendSetUseGlobalHistory(useGlobalHistory);
+  }
+
   AddWindowListeners();
   TryCacheDPIAndScale();
 }
@@ -449,105 +449,6 @@ TabParent::IsVisible() const
   return visible;
 }
 
-static void LogChannelRelevantInfo(nsIURI* aURI,
-                                   nsIPrincipal* aLoadingPrincipal,
-                                   nsIPrincipal* aChannelResultPrincipal,
-                                   nsContentPolicyType aContentPolicyType) {
-  nsCString loadingOrigin;
-  aLoadingPrincipal->GetOrigin(loadingOrigin);
-
-  nsCString uriString;
-  aURI->GetAsciiSpec(uriString);
-  LOG("Loading %s from origin %s (type: %d)\n", uriString.get(),
-                                                loadingOrigin.get(),
-                                                aContentPolicyType);
-
-  nsCString resultPrincipalOrigin;
-  aChannelResultPrincipal->GetOrigin(resultPrincipalOrigin);
-  LOG("Result principal origin: %s\n", resultPrincipalOrigin.get());
-}
-
-bool
-TabParent::ShouldSwitchProcess(nsIChannel* aChannel)
-{
-  // If we lack of any information which is required to decide the need of
-  // process switch, consider that we should switch process.
-
-  // Prepare the channel loading principal.
-  nsCOMPtr<nsILoadInfo> loadInfo;
-  aChannel->GetLoadInfo(getter_AddRefs(loadInfo));
-  NS_ENSURE_TRUE(loadInfo, true);
-  nsCOMPtr<nsIPrincipal> loadingPrincipal;
-  loadInfo->GetLoadingPrincipal(getter_AddRefs(loadingPrincipal));
-  NS_ENSURE_TRUE(loadingPrincipal, true);
-
-  // Prepare the channel result principal.
-  nsCOMPtr<nsIPrincipal> resultPrincipal;
-  nsContentUtils::GetSecurityManager()->
-    GetChannelResultPrincipal(aChannel, getter_AddRefs(resultPrincipal));
-
-  // Log the debug info which is used to decide the need of proces switch.
-  nsCOMPtr<nsIURI> uri;
-  aChannel->GetURI(getter_AddRefs(uri));
-  LogChannelRelevantInfo(uri, loadingPrincipal, resultPrincipal,
-                         loadInfo->InternalContentPolicyType());
-
-  // Check if the signed package is loaded from the same origin.
-  bool sameOrigin = false;
-  loadingPrincipal->Equals(resultPrincipal, &sameOrigin);
-  if (sameOrigin) {
-    LOG("Loading singed package from the same origin. Don't switch process.\n");
-    return false;
-  }
-
-  // If this is not a top level document, there's no need to switch process.
-  if (nsIContentPolicy::TYPE_DOCUMENT != loadInfo->InternalContentPolicyType()) {
-    LOG("Subresource of a document. No need to switch process.\n");
-    return false;
-  }
-
-  // If this is a brand new process created to load the signed package
-  // (triggered by previous OnStartSignedPackageRequest), the loading origin
-  // will be "moz-safe-about:blank". In that case, we don't need to switch process
-  // again. We compare with "moz-safe-about:blank" without appId/isBrowserElement/etc
-  // taken into account. That's why we use originNoSuffix.
-  nsCString loadingOrigin;
-  loadingPrincipal->GetOrigin(loadingOrigin);
-  if (loadingOrigin.EqualsLiteral("moz-safe-about:blank")) {
-    LOG("The content is already loaded by a brand new process.\n");
-    return false;
-  }
-
-  return true;
-}
-
-void
-TabParent::OnStartSignedPackageRequest(nsIChannel* aChannel,
-                                       const nsACString& aPackageId)
-{
-  if (!ShouldSwitchProcess(aChannel)) {
-    return;
-  }
-
-  nsCOMPtr<nsIURI> uri;
-  aChannel->GetURI(getter_AddRefs(uri));
-
-  aChannel->Cancel(NS_BINDING_FAILED);
-
-  nsCString uriString;
-  uri->GetAsciiSpec(uriString);
-  LOG("We decide to switch process. Call nsFrameLoader::SwitchProcessAndLoadURIs: %s\n",
-       uriString.get());
-
-  RefPtr<nsFrameLoader> frameLoader = GetFrameLoader();
-  NS_ENSURE_TRUE_VOID(frameLoader);
-
-  nsresult rv = frameLoader->SwitchProcessAndLoadURI(uri, aPackageId);
-  if (NS_FAILED(rv)) {
-    NS_WARNING("Failed to switch process.");
-  }
-}
-
 void
 TabParent::DestroyInternal()
 {
@@ -579,6 +480,10 @@ TabParent::DestroyInternal()
 void
 TabParent::Destroy()
 {
+  // Aggressively release the window to avoid leaking the world in shutdown
+  // corner cases.
+  mBrowserDOMWindow = nullptr;
+
   if (mIsDestroyed) {
     return;
   }
@@ -858,22 +763,24 @@ TabParent::Show(const ScreenIntSize& size, bool aParentIsActive)
     uint64_t layersId = 0;
     bool success = false;
     RenderFrameParent* renderFrame = nullptr;
-    // If TabParent is initialized by parent side then the RenderFrame must also
-    // be created here. If TabParent is initialized by child side,
-    // child side will create RenderFrame.
-    MOZ_ASSERT(!GetRenderFrame());
     if (IsInitedByParent()) {
+        // If TabParent is initialized by parent side then the RenderFrame must also
+        // be created here. If TabParent is initialized by child side,
+        // child side will create RenderFrame.
+        MOZ_ASSERT(!GetRenderFrame());
         RefPtr<nsFrameLoader> frameLoader = GetFrameLoader();
         if (frameLoader) {
-          renderFrame =
-              new RenderFrameParent(frameLoader,
-                                    &textureFactoryIdentifier,
-                                    &layersId,
-                                    &success);
+          renderFrame = new RenderFrameParent(frameLoader, &success);
           MOZ_ASSERT(success);
+          layersId = renderFrame->GetLayersId();
+          renderFrame->GetTextureFactoryIdentifier(&textureFactoryIdentifier);
           AddTabParentToTable(layersId, this);
           Unused << SendPRenderFrameConstructor(renderFrame);
         }
+    } else {
+      // Otherwise, the child should have constructed the RenderFrame,
+      // and we should already know about it.
+      MOZ_ASSERT(GetRenderFrame());
     }
 
     nsCOMPtr<nsISupports> container = mFrameElement->OwnerDoc()->GetContainer();
@@ -1707,9 +1614,9 @@ TabParent::RecvRpcMessage(const nsString& aMessage,
 
 bool
 TabParent::RecvAsyncMessage(const nsString& aMessage,
-                            const ClonedMessageData& aData,
                             InfallibleTArray<CpowEntry>&& aCpows,
-                            const IPC::Principal& aPrincipal)
+                            const IPC::Principal& aPrincipal,
+                            const ClonedMessageData& aData)
 {
   // FIXME Permission check for TabParent in Content process
   nsIPrincipal* principal = aPrincipal;
@@ -2087,9 +1994,8 @@ TabParent::RecvReplyKeyEvent(const WidgetKeyboardEvent& event)
   NS_ENSURE_TRUE(mFrameElement, true);
 
   WidgetKeyboardEvent localEvent(event);
-  // Set mNoCrossProcessBoundaryForwarding to avoid this event from
-  // being infinitely redispatched and forwarded to the child again.
-  localEvent.mFlags.mNoCrossProcessBoundaryForwarding = true;
+  // Mark the event as not to be dispatched to remote process again.
+  localEvent.StopCrossProcessForwarding();
 
   // Here we convert the WidgetEvent that we received to an nsIDOMEvent
   // to be able to dispatch it to the <browser> element as the target element.
@@ -2119,7 +2025,7 @@ TabParent::RecvDispatchAfterKeyboardEvent(const WidgetKeyboardEvent& aEvent)
       PresShell::BeforeAfterKeyboardEventEnabled() &&
       localEvent.mMessage != eKeyPress) {
     presShell->DispatchAfterKeyboardEvent(mFrameElement, localEvent,
-                                          aEvent.mFlags.mDefaultPrevented);
+                                          aEvent.DefaultPrevented());
   }
 
   return true;
@@ -2529,16 +2435,14 @@ TabParent::AllocPRenderFrameParent()
 {
   MOZ_ASSERT(ManagedPRenderFrameParent().IsEmpty());
   RefPtr<nsFrameLoader> frameLoader = GetFrameLoader();
-  TextureFactoryIdentifier textureFactoryIdentifier;
   uint64_t layersId = 0;
   bool success = false;
 
   PRenderFrameParent* renderFrame =
-    new RenderFrameParent(frameLoader,
-                          &textureFactoryIdentifier,
-                          &layersId,
-                          &success);
+    new RenderFrameParent(frameLoader, &success);
   if (success) {
+    RenderFrameParent* rfp = static_cast<RenderFrameParent*>(renderFrame);
+    layersId = rfp->GetLayersId();
     AddTabParentToTable(layersId, this);
   }
   return renderFrame;
@@ -2552,19 +2456,46 @@ TabParent::DeallocPRenderFrameParent(PRenderFrameParent* aFrame)
 }
 
 bool
-TabParent::RecvGetRenderFrameInfo(PRenderFrameParent* aRenderFrame,
-                                  TextureFactoryIdentifier* aTextureFactoryIdentifier,
-                                  uint64_t* aLayersId)
+TabParent::SetRenderFrame(PRenderFrameParent* aRFParent)
 {
-  RenderFrameParent* renderFrame = static_cast<RenderFrameParent*>(aRenderFrame);
-  renderFrame->GetTextureFactoryIdentifier(aTextureFactoryIdentifier);
-  *aLayersId = renderFrame->GetLayersId();
+  if (IsInitedByParent()) {
+    return false;
+  }
+
+  RefPtr<nsFrameLoader> frameLoader = GetFrameLoader();
+
+  if (!frameLoader) {
+    return false;
+  }
+
+  RenderFrameParent* renderFrame = static_cast<RenderFrameParent*>(aRFParent);
+  bool success = renderFrame->Init(frameLoader);
+  if (!success) {
+    return false;
+  }
+
+  uint64_t layersId = renderFrame->GetLayersId();
+  AddTabParentToTable(layersId, this);
 
   if (mNeedLayerTreeReadyNotification) {
     RequestNotifyLayerTreeReady();
     mNeedLayerTreeReadyNotification = false;
   }
 
+  return true;
+}
+
+bool
+TabParent::GetRenderFrameInfo(TextureFactoryIdentifier* aTextureFactoryIdentifier,
+                              uint64_t* aLayersId)
+{
+  RenderFrameParent* rfp = GetRenderFrame();
+  if (!rfp) {
+    return false;
+  }
+
+  *aLayersId = rfp->GetLayersId();
+  rfp->GetTextureFactoryIdentifier(aTextureFactoryIdentifier);
   return true;
 }
 
@@ -2871,7 +2802,7 @@ bool
 TabParent::RequestNotifyLayerTreeReady()
 {
   RenderFrameParent* frame = GetRenderFrame();
-  if (!frame) {
+  if (!frame || !frame->IsInitted()) {
     mNeedLayerTreeReadyNotification = true;
   } else {
     CompositorBridgeParent::RequestNotifyLayerTreeReady(

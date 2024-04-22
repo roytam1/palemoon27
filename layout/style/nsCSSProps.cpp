@@ -890,13 +890,32 @@ const KTableEntry nsCSSProps::kImageLayerAttachmentKTable[] = {
 static_assert(NS_STYLE_IMAGELAYER_CLIP_BORDER == NS_STYLE_IMAGELAYER_ORIGIN_BORDER &&
               NS_STYLE_IMAGELAYER_CLIP_PADDING == NS_STYLE_IMAGELAYER_ORIGIN_PADDING &&
               NS_STYLE_IMAGELAYER_CLIP_CONTENT == NS_STYLE_IMAGELAYER_ORIGIN_CONTENT,
-              "bg-clip and bg-origin style constants must agree");
+              "Except background-clip:text, all {background,mask}-clip and "
+              "{background,mask}-origin style constants must agree");
+
 const KTableEntry nsCSSProps::kImageLayerOriginKTable[] = {
   { eCSSKeyword_border_box, NS_STYLE_IMAGELAYER_ORIGIN_BORDER },
   { eCSSKeyword_padding_box, NS_STYLE_IMAGELAYER_ORIGIN_PADDING },
   { eCSSKeyword_content_box, NS_STYLE_IMAGELAYER_ORIGIN_CONTENT },
   { eCSSKeyword_UNKNOWN, -1 }
 };
+
+KTableEntry nsCSSProps::kBackgroundClipKTable[] = {
+  { eCSSKeyword_border_box, NS_STYLE_IMAGELAYER_CLIP_BORDER },
+  { eCSSKeyword_padding_box, NS_STYLE_IMAGELAYER_CLIP_PADDING },
+  { eCSSKeyword_content_box, NS_STYLE_IMAGELAYER_CLIP_CONTENT },
+  // The next entry is controlled by the layout.css.background-clip-text.enabled
+  // pref.
+  { eCSSKeyword_text, NS_STYLE_IMAGELAYER_CLIP_TEXT },
+  { eCSSKeyword_UNKNOWN, -1 }
+};
+
+#if 0
+static_assert(ArrayLength(nsCSSProps::kImageLayerOriginKTable) ==
+              ArrayLength(nsCSSProps::kBackgroundClipKTable) - 1,
+              "background-clip has one extra value, which is text, compared"
+              "to {background,mask}-origin");
+#endif
 
 // Note: Don't change this table unless you update
 // ParseImageLayerPosition!
@@ -1270,6 +1289,9 @@ KTableEntry nsCSSProps::kDisplayKTable[] = {
   // The next two entries are controlled by the layout.css.grid.enabled pref.
   { eCSSKeyword_grid,                NS_STYLE_DISPLAY_GRID },
   { eCSSKeyword_inline_grid,         NS_STYLE_DISPLAY_INLINE_GRID },
+  // The next two entries are controlled by the layout.css.prefixes.webkit pref.
+  { eCSSKeyword__webkit_box,         NS_STYLE_DISPLAY_WEBKIT_BOX },
+  { eCSSKeyword__webkit_inline_box,  NS_STYLE_DISPLAY_WEBKIT_INLINE_BOX },
   // The next entry is controlled by the layout.css.display-contents.enabled
   // pref.
   { eCSSKeyword_contents,            NS_STYLE_DISPLAY_CONTENTS },
@@ -2369,6 +2391,12 @@ const KTableEntry nsCSSProps::kVectorEffectKTable[] = {
   { eCSSKeyword_UNKNOWN, -1 }
 };
 
+const KTableEntry nsCSSProps::kColorAdjustKTable[] = {
+  { eCSSKeyword_economy, NS_STYLE_COLOR_ADJUST_ECONOMY },
+  { eCSSKeyword_exact, NS_STYLE_COLOR_ADJUST_EXACT },
+  { eCSSKeyword_UNKNOWN, -1 }
+};
+
 const KTableEntry nsCSSProps::kColorInterpolationKTable[] = {
   { eCSSKeyword_auto, NS_STYLE_COLOR_INTERPOLATION_AUTO },
   { eCSSKeyword_srgb, NS_STYLE_COLOR_INTERPOLATION_SRGB },
@@ -3142,13 +3170,6 @@ enum ContentCheckCounter {
   ePropertyCount_for_Content
 };
 
-enum QuotesCheckCounter {
-  #define CSS_PROP_QUOTES ENUM_DATA_FOR_PROPERTY
-  #include "nsCSSPropList.h"
-  #undef CSS_PROP_QUOTES
-  ePropertyCount_for_Quotes
-};
-
 enum TextCheckCounter {
   #define CSS_PROP_TEXT ENUM_DATA_FOR_PROPERTY
   #include "nsCSSPropList.h"
@@ -3210,6 +3231,13 @@ enum VariablesCheckCounter {
   #include "nsCSSPropList.h"
   #undef CSS_PROP_VARIABLES
   ePropertyCount_for_Variables
+};
+
+enum EffectsCheckCounter {
+  #define CSS_PROP_EFFECTS ENUM_DATA_FOR_PROPERTY
+  #include "nsCSSPropList.h"
+  #undef CSS_PROP_EFFECTS
+  ePropertyCount_for_Effects
 };
 
 #undef ENUM_DATA_FOR_PROPERTY

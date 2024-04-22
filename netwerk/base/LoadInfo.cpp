@@ -126,6 +126,20 @@ LoadInfo::LoadInfo(nsIPrincipal* aLoadingPrincipal,
     }
   }
 
+  if (!(mSecurityFlags & nsILoadInfo::SEC_FORCE_PRIVATE_BROWSING)) {
+    if (aLoadingContext) {
+      nsCOMPtr<nsILoadContext> loadContext =
+        aLoadingContext->OwnerDoc()->GetLoadContext();
+      if (loadContext) {
+        bool usePrivateBrowsing;
+        nsresult rv = loadContext->GetUsePrivateBrowsing(&usePrivateBrowsing);
+        if (NS_SUCCEEDED(rv) && usePrivateBrowsing) {
+          mSecurityFlags |= nsILoadInfo::SEC_FORCE_PRIVATE_BROWSING;
+        }
+      }
+    }
+  }
+
   InheritOriginAttributes(mLoadingPrincipal, mOriginAttributes);
 }
 
@@ -300,7 +314,7 @@ LoadInfo::CloneForNewRequest() const
 NS_IMETHODIMP
 LoadInfo::GetLoadingPrincipal(nsIPrincipal** aLoadingPrincipal)
 {
-  NS_ADDREF(*aLoadingPrincipal = mLoadingPrincipal);
+  NS_IF_ADDREF(*aLoadingPrincipal = mLoadingPrincipal);
   return NS_OK;
 }
 
@@ -433,6 +447,14 @@ LoadInfo::GetDontFollowRedirects(bool* aResult)
 {
   *aResult =
     (mSecurityFlags & nsILoadInfo::SEC_DONT_FOLLOW_REDIRECTS);
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+LoadInfo::GetUsePrivateBrowsing(bool* aUsePrivateBrowsing)
+{
+  *aUsePrivateBrowsing = (mSecurityFlags &
+                          nsILoadInfo::SEC_FORCE_PRIVATE_BROWSING);
   return NS_OK;
 }
 

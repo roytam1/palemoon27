@@ -813,7 +813,7 @@ InplaceEditor.prototype = {
   /**
    * Handle loss of focus by calling done if it hasn't been called yet.
    */
-  _onBlur: function(event, doNotClear) {
+  _onBlur: function(event) {
     if (event && this.popup && this.popup.isOpen &&
         this.popup.selectedIndex >= 0) {
       let label, preLabel;
@@ -859,19 +859,11 @@ InplaceEditor.prototype = {
       };
       this.popup._panel.addEventListener("popuphidden", onPopupHidden);
       this.popup.hidePopup();
-      // Content type other than CSS_MIXED is used in rule-view where the values
-      // are live previewed. So we apply the value before returning.
-      if (this.contentType != CONTENT_TYPES.CSS_MIXED) {
-        this._apply();
-      }
       return;
     }
 
     this._apply();
-
-    if (!doNotClear) {
-      this._clear();
-    }
+    this._clear();
   },
 
   /**
@@ -1142,6 +1134,15 @@ InplaceEditor.prototype = {
         }
       } else if (this.contentType == CONTENT_TYPES.CSS_MIXED &&
                  /^\s*style\s*=/.test(query)) {
+        // Check if the style attribute is closed before the selection.
+        let styleValue = query.replace(/^\s*style\s*=\s*/, "");
+        // Look for a quote matching the opening quote (single or double).
+        if (/^("[^"]*"|'[^']*')/.test(styleValue)) {
+          // This emit is mainly to make the test flow simpler.
+          this.emit("after-suggest", "nothing to autocomplete");
+          return;
+        }
+
         // Detecting if cursor is at property or value;
         let match = query.match(/([:;"'=]?)\s*([^"';:=]+)?$/);
         if (match && match.length >= 2) {

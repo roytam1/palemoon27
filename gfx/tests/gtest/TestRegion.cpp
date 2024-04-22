@@ -6,7 +6,10 @@
 #include <algorithm>
 
 #include "gtest/gtest.h"
+#include "gtest/MozGTestBench.h"
+#include "nsRect.h"
 #include "nsRegion.h"
+#include "RegionBuilder.h"
 
 using namespace std;
 
@@ -562,3 +565,42 @@ TEST(Gfx, RegionVisitEdges) {
   }
 
 }
+
+MOZ_GTEST_BENCH(GfxBench, RegionOr, []{
+  const int size = 5000;
+  nsRegion r;
+  for (int i = 0; i < size; i++) {
+    r = r.Or(r, nsRect(i, i, i + 10, i + 10));
+  }
+});
+
+MOZ_GTEST_BENCH(GfxBench, RegionAnd, []{
+  const int size = 5000;
+  nsRegion r(nsRect(0, 0, size, size));
+  for (int i = 0; i < size; i++) {
+    nsRegion rMissingPixel(nsRect(0, 0, size, size));
+    rMissingPixel = rMissingPixel.Sub(rMissingPixel, nsRect(i, i, 1, 1));
+    r = r.And(r, rMissingPixel);
+  }
+});
+
+void TestExec() {
+  const int size = 5000;
+
+  RegionBuilder<nsRegion> r;
+  for (int i = 0; i < size; i++) {
+    r.Or(nsRect(i, i, i + 10, i + 10));
+  }
+  r.ToRegion();
+
+  RegionBuilder<nsIntRegion> rInt;
+  for (int i = 0; i < size; i++) {
+    rInt.Or(nsIntRect(i, i, i + 10, i + 10));
+  }
+  rInt.ToRegion();
+}
+
+MOZ_GTEST_BENCH(GfxBench, RegionBuilderOr, []{
+  TestExec();
+});
+

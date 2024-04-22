@@ -986,10 +986,20 @@ nsComputedDOMStyle::DoGetColor()
 }
 
 already_AddRefed<CSSValue>
+nsComputedDOMStyle::DoGetColorAdjust()
+{
+  RefPtr<nsROCSSPrimitiveValue> val = new nsROCSSPrimitiveValue;
+  val->SetIdent(
+    nsCSSProps::ValueToKeywordEnum(StyleVisibility()->mColorAdjust,
+                                   nsCSSProps::kColorAdjustKTable));
+  return val.forget();
+}
+
+already_AddRefed<CSSValue>
 nsComputedDOMStyle::DoGetOpacity()
 {
   RefPtr<nsROCSSPrimitiveValue> val = new nsROCSSPrimitiveValue;
-  val->SetNumber(StyleDisplay()->mOpacity);
+  val->SetNumber(StyleEffects()->mOpacity);
   return val.forget();
 }
 
@@ -1467,9 +1477,9 @@ nsComputedDOMStyle::DoGetCounterReset()
 already_AddRefed<CSSValue>
 nsComputedDOMStyle::DoGetQuotes()
 {
-  const nsStyleQuotes *quotes = StyleQuotes();
+  const auto& quotePairs = StyleList()->GetQuotePairs();
 
-  if (quotes->QuotesCount() == 0) {
+  if (quotePairs.IsEmpty()) {
     RefPtr<nsROCSSPrimitiveValue> val = new nsROCSSPrimitiveValue;
     val->SetIdent(eCSSKeyword_none);
     return val.forget();
@@ -1477,15 +1487,15 @@ nsComputedDOMStyle::DoGetQuotes()
 
   RefPtr<nsDOMCSSValueList> valueList = GetROCSSValueList(false);
 
-  for (uint32_t i = 0, i_end = quotes->QuotesCount(); i < i_end; ++i) {
+  for (const auto& quotePair : quotePairs) {
     RefPtr<nsROCSSPrimitiveValue> openVal = new nsROCSSPrimitiveValue;
     RefPtr<nsROCSSPrimitiveValue> closeVal = new nsROCSSPrimitiveValue;
 
     nsString s;
-    nsStyleUtil::AppendEscapedCSSString(*quotes->OpenQuoteAt(i), s);
+    nsStyleUtil::AppendEscapedCSSString(quotePair.first, s);
     openVal->SetString(s);
     s.Truncate();
-    nsStyleUtil::AppendEscapedCSSString(*quotes->CloseQuoteAt(i), s);
+    nsStyleUtil::AppendEscapedCSSString(quotePair.second, s);
     closeVal->SetString(s);
 
     valueList->AppendCSSValue(openVal.forget());
@@ -1841,7 +1851,7 @@ nsComputedDOMStyle::DoGetBackgroundClip()
   return GetBackgroundList(&nsStyleImageLayers::Layer::mClip,
                            &nsStyleImageLayers::mClipCount,
                            StyleBackground()->mImage,
-                           nsCSSProps::kImageLayerOriginKTable);
+                           nsCSSProps::kBackgroundClipKTable);
 }
 
 already_AddRefed<CSSValue>
@@ -3161,15 +3171,10 @@ nsComputedDOMStyle::DoGetOutlineWidth()
 
   nscoord width;
   if (outline->GetOutlineStyle() == NS_STYLE_BORDER_STYLE_NONE) {
-    NS_ASSERTION(outline->GetOutlineWidth(width) && width == 0,
-                 "unexpected width");
+    NS_ASSERTION(outline->GetOutlineWidth() == 0, "unexpected width");
     width = 0;
   } else {
-#ifdef DEBUG
-    bool res =
-#endif
-      outline->GetOutlineWidth(width);
-    NS_ASSERTION(res, "percent outline doesn't exist");
+    width = outline->GetOutlineWidth();
   }
   val->SetAppUnits(width);
 
@@ -3376,7 +3381,7 @@ nsComputedDOMStyle::DoGetBoxDecorationBreak()
 already_AddRefed<CSSValue>
 nsComputedDOMStyle::DoGetBoxShadow()
 {
-  return GetCSSShadowArray(StyleBorder()->mBoxShadow,
+  return GetCSSShadowArray(StyleEffects()->mBoxShadow,
                            StyleColor()->mColor,
                            true);
 }
@@ -3529,7 +3534,7 @@ already_AddRefed<CSSValue>
 nsComputedDOMStyle::DoGetVerticalAlign()
 {
   RefPtr<nsROCSSPrimitiveValue> val = new nsROCSSPrimitiveValue;
-  SetValueToCoord(val, StyleTextReset()->mVerticalAlign, false,
+  SetValueToCoord(val, StyleDisplay()->mVerticalAlign, false,
                   &nsComputedDOMStyle::GetLineHeightCoord,
                   nsCSSProps::kVerticalAlignKTable);
   return val.forget();
@@ -3921,11 +3926,19 @@ nsComputedDOMStyle::DoGetTextSizeAdjust()
 }
 
 already_AddRefed<CSSValue>
+nsComputedDOMStyle::DoGetWebkitTextFillColor()
+{
+  RefPtr<nsROCSSPrimitiveValue> val = new nsROCSSPrimitiveValue;
+  SetToRGBAColor(val, mStyleContext->GetTextFillColor());
+  return val.forget();
+}
+
+already_AddRefed<CSSValue>
 nsComputedDOMStyle::DoGetPointerEvents()
 {
   RefPtr<nsROCSSPrimitiveValue> val = new nsROCSSPrimitiveValue;
   val->SetIdent(
-    nsCSSProps::ValueToKeywordEnum(StyleVisibility()->mPointerEvents,
+    nsCSSProps::ValueToKeywordEnum(StyleUserInterface()->mPointerEvents,
                                    nsCSSProps::kPointerEventsKTable));
   return val.forget();
 }
@@ -4460,9 +4473,9 @@ nsComputedDOMStyle::DoGetClip()
 {
   RefPtr<nsROCSSPrimitiveValue> val = new nsROCSSPrimitiveValue;
 
-  const nsStyleDisplay* display = StyleDisplay();
+  const nsStyleEffects* effects = StyleEffects();
 
-  if (display->mClipFlags == NS_STYLE_CLIP_AUTO) {
+  if (effects->mClipFlags == NS_STYLE_CLIP_AUTO) {
     val->SetIdent(eCSSKeyword_auto);
   } else {
     // create the cssvalues for the sides, stick them in the rect object
@@ -4472,28 +4485,28 @@ nsComputedDOMStyle::DoGetClip()
     nsROCSSPrimitiveValue *leftVal   = new nsROCSSPrimitiveValue;
     nsDOMCSSRect * domRect = new nsDOMCSSRect(topVal, rightVal,
                                               bottomVal, leftVal);
-    if (display->mClipFlags & NS_STYLE_CLIP_TOP_AUTO) {
+    if (effects->mClipFlags & NS_STYLE_CLIP_TOP_AUTO) {
       topVal->SetIdent(eCSSKeyword_auto);
     } else {
-      topVal->SetAppUnits(display->mClip.y);
+      topVal->SetAppUnits(effects->mClip.y);
     }
 
-    if (display->mClipFlags & NS_STYLE_CLIP_RIGHT_AUTO) {
+    if (effects->mClipFlags & NS_STYLE_CLIP_RIGHT_AUTO) {
       rightVal->SetIdent(eCSSKeyword_auto);
     } else {
-      rightVal->SetAppUnits(display->mClip.width + display->mClip.x);
+      rightVal->SetAppUnits(effects->mClip.width + effects->mClip.x);
     }
 
-    if (display->mClipFlags & NS_STYLE_CLIP_BOTTOM_AUTO) {
+    if (effects->mClipFlags & NS_STYLE_CLIP_BOTTOM_AUTO) {
       bottomVal->SetIdent(eCSSKeyword_auto);
     } else {
-      bottomVal->SetAppUnits(display->mClip.height + display->mClip.y);
+      bottomVal->SetAppUnits(effects->mClip.height + effects->mClip.y);
     }
 
-    if (display->mClipFlags & NS_STYLE_CLIP_LEFT_AUTO) {
+    if (effects->mClipFlags & NS_STYLE_CLIP_LEFT_AUTO) {
       leftVal->SetIdent(eCSSKeyword_auto);
     } else {
-      leftVal->SetAppUnits(display->mClip.x);
+      leftVal->SetAppUnits(effects->mClip.x);
     }
     val->SetRect(domRect);
   }
@@ -4799,7 +4812,7 @@ already_AddRefed<CSSValue>
 nsComputedDOMStyle::DoGetMixBlendMode()
 {
   RefPtr<nsROCSSPrimitiveValue> val = new nsROCSSPrimitiveValue;
-  val->SetIdent(nsCSSProps::ValueToKeywordEnum(StyleDisplay()->mMixBlendMode,
+  val->SetIdent(nsCSSProps::ValueToKeywordEnum(StyleEffects()->mMixBlendMode,
                                                nsCSSProps::kBlendModeKTable));
   return val.forget();
 }
@@ -5719,7 +5732,7 @@ nsComputedDOMStyle::DoGetImageRendering()
 {
   RefPtr<nsROCSSPrimitiveValue> val = new nsROCSSPrimitiveValue;
   val->SetIdent(
-    nsCSSProps::ValueToKeywordEnum(StyleSVG()->mImageRendering,
+    nsCSSProps::ValueToKeywordEnum(StyleVisibility()->mImageRendering,
                                    nsCSSProps::kImageRenderingKTable));
   return val.forget();
 }
@@ -5739,7 +5752,7 @@ nsComputedDOMStyle::DoGetTextRendering()
 {
   RefPtr<nsROCSSPrimitiveValue> val = new nsROCSSPrimitiveValue;
   val->SetIdent(
-    nsCSSProps::ValueToKeywordEnum(StyleSVG()->mTextRendering,
+    nsCSSProps::ValueToKeywordEnum(StyleText()->mTextRendering,
                                    nsCSSProps::kTextRenderingKTable));
   return val.forget();
 }
@@ -6017,7 +6030,7 @@ nsComputedDOMStyle::CreatePrimitiveValueForStyleFilter(
 already_AddRefed<CSSValue>
 nsComputedDOMStyle::DoGetFilter()
 {
-  const nsTArray<nsStyleFilter>& filters = StyleSVGReset()->mFilters;
+  const nsTArray<nsStyleFilter>& filters = StyleEffects()->mFilters;
 
   if (filters.IsEmpty()) {
     RefPtr<nsROCSSPrimitiveValue> value = new nsROCSSPrimitiveValue;

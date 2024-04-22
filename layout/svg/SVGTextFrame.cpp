@@ -2757,13 +2757,11 @@ public:
   void NotifySelectionBackgroundNeedsFill(const Rect& aBackgroundRect,
                                           nscolor aColor,
                                           DrawTarget& aDrawTarget) override;
+  void PaintDecorationLine(Rect aPath, nscolor aColor) override;
+  void PaintSelectionDecorationLine(Rect aPath, nscolor aColor) override;
   void NotifyBeforeText(nscolor aColor) override;
   void NotifyGlyphPathEmitted() override;
   void NotifyAfterText() override;
-  void NotifyBeforeDecorationLine(nscolor aColor) override;
-  void NotifyDecorationLinePathEmitted() override;
-  void NotifyBeforeSelectionDecorationLine(nscolor aColor) override;
-  void NotifySelectionDecorationLinePathEmitted() override;
 
 private:
   void SetupContext();
@@ -2858,22 +2856,24 @@ SVGTextDrawPathCallbacks::NotifyAfterText()
 }
 
 void
-SVGTextDrawPathCallbacks::NotifyBeforeDecorationLine(nscolor aColor)
+SVGTextDrawPathCallbacks::PaintDecorationLine(Rect aPath, nscolor aColor)
 {
   mColor = aColor;
-  SetupContext();
-}
+  AntialiasMode aaMode =
+    nsSVGUtils::ToAntialiasMode(mFrame->StyleText()->mTextRendering);
 
-void
-SVGTextDrawPathCallbacks::NotifyDecorationLinePathEmitted()
-{
+  gfx->Save();
+  gfx->NewPath();
+  gfx->SetAntialiasMode(aaMode);
+  gfx->Rectangle(ThebesRect(aPath));
   HandleTextGeometry();
   gfx->NewPath();
   gfx->Restore();
 }
 
 void
-SVGTextDrawPathCallbacks::NotifyBeforeSelectionDecorationLine(nscolor aColor)
+SVGTextDrawPathCallbacks::PaintSelectionDecorationLine(Rect aPath,
+                                                       nscolor aColor)
 {
   if (IsClipPathChild()) {
     // Don't paint selection decorations when in a clip path.
@@ -2881,17 +2881,10 @@ SVGTextDrawPathCallbacks::NotifyBeforeSelectionDecorationLine(nscolor aColor)
   }
 
   mColor = aColor;
+
   gfx->Save();
-}
-
-void
-SVGTextDrawPathCallbacks::NotifySelectionDecorationLinePathEmitted()
-{
-  if (IsClipPathChild()) {
-    // Don't paint selection decorations when in a clip path.
-    return;
-  }
-
+  gfx->NewPath();
+  gfx->Rectangle(ThebesRect(aPath));
   FillAndStrokeGeometry();
   gfx->Restore();
 }
@@ -2904,7 +2897,7 @@ SVGTextDrawPathCallbacks::SetupContext()
   // XXX This is copied from nsSVGGlyphFrame::Render, but cairo doesn't actually
   // seem to do anything with the antialias mode.  So we can perhaps remove it,
   // or make SetAntialiasMode set cairo text antialiasing too.
-  switch (mFrame->StyleSVG()->mTextRendering) {
+  switch (mFrame->StyleText()->mTextRendering) {
   case NS_STYLE_TEXT_RENDERING_OPTIMIZESPEED:
     gfx->SetAntialiasMode(AntialiasMode::NONE);
     break;
@@ -3030,7 +3023,7 @@ SVGTextDrawPathCallbacks::StrokeGeometry()
                                           /*aContextPaint*/ nullptr);
         DrawOptions drawOptions;
         drawOptions.mAntialiasMode =
-          nsSVGUtils::ToAntialiasMode(mFrame->StyleSVG()->mTextRendering);
+          nsSVGUtils::ToAntialiasMode(mFrame->StyleText()->mTextRendering);
         gfx->GetDrawTarget()->Stroke(path, strokePattern, strokeOptions);
       }
     }
@@ -3756,18 +3749,20 @@ SVGTextFrame::PaintSVG(gfxContext& aContext,
     aContext.SetMatrix(runTransform);
 
     if (drawMode != DrawMode(0)) {
-      LayoutDeviceRect frameRect = LayoutDevicePixel::
-        FromAppUnits(frame->GetVisualOverflowRect(), auPerDevPx);
       bool paintSVGGlyphs;
+      nsTextFrame::PaintTextParams params(rendCtx.ThebesContext());
+      params.framePt = gfxPoint();
+      params.dirtyRect = LayoutDevicePixel::
+        FromAppUnits(frame->GetVisualOverflowRect(), auPerDevPx);
+      params.contextPaint = &contextPaint;
       if (ShouldRenderAsPath(frame, paintSVGGlyphs)) {
         SVGTextDrawPathCallbacks callbacks(&rendCtx, frame,
                                            matrixForPaintServers,
                                            paintSVGGlyphs);
-        frame->PaintText(&rendCtx, nsPoint(), frameRect, item,
-                         &contextPaint, &callbacks);
+        params.callbacks = &callbacks;
+        frame->PaintText(params, item);
       } else {
-        frame->PaintText(&rendCtx, nsPoint(), frameRect, item,
-                         &contextPaint, nullptr);
+        frame->PaintText(params, item);
       }
     }
 
@@ -5427,7 +5422,7 @@ SVGTextFrame::UpdateFontSizeScaleFactor()
     if (!geometricPrecision) {
       // Unfortunately we can't treat text-rendering:geometricPrecision
       // separately for each text frame.
-      geometricPrecision = f->StyleSVG()->mTextRendering ==
+      geometricPrecision = f->StyleText()->mTextRendering ==
                              NS_STYLE_TEXT_RENDERING_GEOMETRICPRECISION;
     }
     nscoord size = f->StyleFont()->mFont.size;

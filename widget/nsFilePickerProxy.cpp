@@ -175,8 +175,7 @@ nsFilePickerProxy::Recv__delete__(const MaybeInputData& aData,
     }
 
     RefPtr<Directory> directory =
-      Directory::Create(mParent, file,
-                        Directory::eDOMRootDirectory);
+      Directory::Create(mParent, file);
     MOZ_ASSERT(directory);
 
     OwningFileOrDirectory* element = mFilesOrDirectories.AppendElement();

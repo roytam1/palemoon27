@@ -135,6 +135,7 @@ using namespace mozilla::system;
 #include "MediaDecoder.h"
 #include "mozilla/layers/CompositorLRU.h"
 #include "mozilla/dom/devicestorage/DeviceStorageStatics.h"
+#include "mozilla/StaticPresData.h"
 
 #ifdef MOZ_B2G_BT
 #include "mozilla/dom/BluetoothUUID.h"
@@ -201,6 +202,7 @@ nsLayoutStatics::Initialize()
 
   nsCellMap::Init();
 
+  StaticPresData::Init();
   nsCSSRendering::Init();
 
   nsTextFrameTextRunCache::Init();
@@ -351,6 +353,7 @@ nsLayoutStatics::Shutdown()
   nsTextFrameTextRunCache::Shutdown();
   nsHTMLDNSPrefetch::Shutdown();
   nsCSSRendering::Shutdown();
+  StaticPresData::Shutdown();
 #ifdef DEBUG
   nsFrame::DisplayReflowShutdown();
 #endif

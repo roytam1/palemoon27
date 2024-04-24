@@ -8,10 +8,9 @@
 #ifndef __nsWindow_h__
 #define __nsWindow_h__
 
-#include "nsAutoPtr.h"
-
 #include "mozcontainer.h"
-
+#include "mozilla/RefPtr.h"
+#include "mozilla/UniquePtr.h"
 #include "nsIDragService.h"
 #include "nsITimer.h"
 #include "nsGkAtoms.h"
@@ -343,6 +342,15 @@ public:
                                                       uint32_t aAdditionalFlags,
                                                       nsIObserver* aObserver) override;
 
+#if GTK_CHECK_VERSION(3,4,0)
+    virtual nsresult SynthesizeNativeTouchPoint(uint32_t aPointerId,
+                                                TouchPointerState aPointerState,
+                                                LayoutDeviceIntPoint aPoint,
+                                                double aPointerPressure,
+                                                uint32_t aPointerOrientation,
+                                                nsIObserver* aObserver) override;
+#endif
+
     // HiDPI scale conversion
     gint GdkScaleFactor();
 
@@ -442,14 +450,15 @@ private:
 
 #ifdef MOZ_X11
     Display*            mXDisplay;
-    Drawable            mXWindow;
+    Window              mXWindow;
     Visual*             mXVisual;
     int                 mXDepth;
 #endif
 
 #ifdef MOZ_HAVE_SHMIMAGE
     // If we're using xshm rendering
-    RefPtr<nsShmImage>  mShmImage;
+    RefPtr<nsShmImage>  mFrontShmImage;
+    RefPtr<nsShmImage>  mBackShmImage;
 #endif
 
 #ifdef ACCESSIBILITY
@@ -552,7 +561,7 @@ private:
      */
     RefPtr<mozilla::widget::IMContextWrapper> mIMContext;
 
-    nsAutoPtr<mozilla::CurrentX11TimeGetter> mCurrentTimeGetter;
+    mozilla::UniquePtr<mozilla::CurrentX11TimeGetter> mCurrentTimeGetter;
 };
 
 class nsChildWindow : public nsWindow {

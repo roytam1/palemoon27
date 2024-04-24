@@ -32,12 +32,6 @@ class nsTextFragment;
 class nsDisplayTextGeometry;
 class nsDisplayText;
 
-class nsTextFrameTextRunCache {
-public:
-  static void Init();
-  static void Shutdown();
-};
-
 class nsTextFrame : public nsFrame {
   typedef mozilla::LayoutDeviceRect LayoutDeviceRect;
   typedef mozilla::TextRangeStyle TextRangeStyle;
@@ -436,6 +430,8 @@ public:
     gfxTextContextPaint* contextPaint = nullptr;
     DrawPathCallbacks* callbacks = nullptr;
     nscolor textColor = NS_RGBA(0, 0, 0, 0);
+    nscolor textStrokeColor = NS_RGBA(0, 0, 0, 0);
+    float textStrokeWidth = 0.0f;
     bool drawSoftHyphen = false;
     explicit DrawTextRunParams(gfxContext* aContext)
       : context(aContext) {}

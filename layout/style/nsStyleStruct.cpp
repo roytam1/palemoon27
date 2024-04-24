@@ -1062,6 +1062,26 @@ nsChangeHint nsStyleSVG::CalcDifference(const nsStyleSVG& aOther) const
 }
 
 // --------------------
+// nsStyleBasicShape
+
+nsCSSKeyword
+nsStyleBasicShape::GetShapeTypeName() const
+{
+  switch (mType) {
+    case nsStyleBasicShape::Type::ePolygon:
+      return eCSSKeyword_polygon;
+    case nsStyleBasicShape::Type::eCircle:
+      return eCSSKeyword_circle;
+    case nsStyleBasicShape::Type::eEllipse:
+      return eCSSKeyword_ellipse;
+    case nsStyleBasicShape::Type::eInset:
+      return eCSSKeyword_inset;
+  }
+  NS_NOTREACHED("unexpected type");
+  return eCSSKeyword_UNKNOWN;
+}
+
+// --------------------
 // nsStyleClipPath
 //
 nsStyleClipPath::nsStyleClipPath()
@@ -2758,7 +2778,7 @@ mozilla::StyleTransition::SetUnknownProperty(nsCSSProperty aProperty,
              aProperty == eCSSPropertyExtra_variable,
              "should be either unknown or custom property");
   mProperty = aProperty;
-  mUnknownProperty = do_GetAtom(aPropertyString);
+  mUnknownProperty = NS_Atomize(aPropertyString);
 }
 
 bool
@@ -3552,6 +3572,7 @@ nsStyleText::nsStyleText(StyleStructContext aContext)
   mTextAlignLastTrue = false;
   mTextEmphasisColorForeground = true;
   mWebkitTextFillColorForeground = true;
+  mWebkitTextStrokeColorForeground = true;
   mTextTransform = NS_STYLE_TEXT_TRANSFORM_NONE;
   mWhiteSpace = NS_STYLE_WHITESPACE_NORMAL;
   mWordBreak = NS_STYLE_WORDBREAK_NORMAL;
@@ -3570,12 +3591,14 @@ nsStyleText::nsStyleText(StyleStructContext aContext)
     NS_STYLE_TEXT_EMPHASIS_POSITION_DEFAULT;
   mTextEmphasisColor = aContext.DefaultColor();
   mWebkitTextFillColor = aContext.DefaultColor();
+  mWebkitTextStrokeColor = aContext.DefaultColor();
   mControlCharacterVisibility = nsCSSParser::ControlCharVisibilityDefault();
 
   mWordSpacing.SetCoordValue(0);
   mLetterSpacing.SetNormalValue();
   mLineHeight.SetNormalValue();
   mTextIndent.SetCoordValue(0);
+  mWebkitTextStrokeWidth.SetCoordValue(0);
 
   mTextShadow = nullptr;
   mTabSize = NS_STYLE_TABSIZE_INITIAL;
@@ -3588,6 +3611,7 @@ nsStyleText::nsStyleText(const nsStyleText& aSource)
     mTextAlignLastTrue(false),
     mTextEmphasisColorForeground(aSource.mTextEmphasisColorForeground),
     mWebkitTextFillColorForeground(aSource.mWebkitTextFillColorForeground),
+    mWebkitTextStrokeColorForeground(aSource.mWebkitTextStrokeColorForeground),
     mTextTransform(aSource.mTextTransform),
     mWhiteSpace(aSource.mWhiteSpace),
     mWordBreak(aSource.mWordBreak),
@@ -3604,10 +3628,12 @@ nsStyleText::nsStyleText(const nsStyleText& aSource)
     mTabSize(aSource.mTabSize),
     mTextEmphasisColor(aSource.mTextEmphasisColor),
     mWebkitTextFillColor(aSource.mWebkitTextFillColor),
+    mWebkitTextStrokeColor(aSource.mWebkitTextStrokeColor),
     mWordSpacing(aSource.mWordSpacing),
     mLetterSpacing(aSource.mLetterSpacing),
     mLineHeight(aSource.mLineHeight),
     mTextIndent(aSource.mTextIndent),
+    mWebkitTextStrokeWidth(aSource.mWebkitTextStrokeWidth),
     mTextShadow(aSource.mTextShadow),
     mTextEmphasisStyleString(aSource.mTextEmphasisStyleString)
 {
@@ -3671,7 +3697,8 @@ nsChangeHint nsStyleText::CalcDifference(const nsStyleText& aOther) const
 
   if (!AreShadowArraysEqual(mTextShadow, aOther.mTextShadow) ||
       mTextEmphasisStyle != aOther.mTextEmphasisStyle ||
-      mTextEmphasisStyleString != aOther.mTextEmphasisStyleString) {
+      mTextEmphasisStyleString != aOther.mTextEmphasisStyleString ||
+      mWebkitTextStrokeWidth != aOther.mWebkitTextStrokeWidth) {
     hint |= nsChangeHint_UpdateSubtreeOverflow |
             nsChangeHint_SchedulePaint |
             nsChangeHint_RepaintFrame;
@@ -3688,7 +3715,9 @@ nsChangeHint nsStyleText::CalcDifference(const nsStyleText& aOther) const
   if (mTextEmphasisColorForeground != aOther.mTextEmphasisColorForeground ||
       mTextEmphasisColor != aOther.mTextEmphasisColor ||
       mWebkitTextFillColorForeground != aOther.mWebkitTextFillColorForeground ||
-      mWebkitTextFillColor != aOther.mWebkitTextFillColor) {
+      mWebkitTextFillColor != aOther.mWebkitTextFillColor ||
+      mWebkitTextStrokeColorForeground != aOther.mWebkitTextStrokeColorForeground ||
+      mWebkitTextStrokeColor != aOther.mWebkitTextStrokeColor) {
     NS_UpdateHint(hint, nsChangeHint_SchedulePaint);
     NS_UpdateHint(hint, nsChangeHint_RepaintFrame);
   }

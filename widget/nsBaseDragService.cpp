@@ -436,8 +436,8 @@ nsBaseDragService::FireDragEventAtSource(EventMessage aEventMessage)
         WidgetDragEvent event(true, aEventMessage, nullptr);
         event.inputSource = mInputSource;
         if (aEventMessage == eDragEnd) {
-          event.refPoint = mEndDragPoint;
-          event.userCancelled = mUserCancelled;
+          event.mRefPoint = mEndDragPoint;
+          event.mUserCancelled = mUserCancelled;
         }
 
         nsCOMPtr<nsIContent> content = do_QueryInterface(mSourceNode);
@@ -475,7 +475,7 @@ GetPresShellForContent(nsIDOMNode* aDOMNode)
   if (!content)
     return nullptr;
 
-  nsCOMPtr<nsIDocument> document = content->GetCurrentDoc();
+  nsCOMPtr<nsIDocument> document = content->GetUncomposedDoc();
   if (document) {
     document->FlushPendingNotifications(Flush_Display);
 
@@ -566,7 +566,7 @@ nsBaseDragService::DrawDrag(nsIDOMNode* aDOMNode,
         dragRect = ToAppUnits(dragRect, nsPresContext::AppUnitsPerCSSPixel()).
                             ToOutsidePixels((*aPresContext)->AppUnitsPerDevPixel());
 
-        nsIntRect screenRect = rootFrame->GetScreenRectExternal();
+        nsIntRect screenRect = rootFrame->GetScreenRect();
         aScreenDragRect->SetRect(screenRect.x + dragRect.x, screenRect.y + dragRect.y,
                                  dragRect.width, dragRect.height);
       }
@@ -577,7 +577,7 @@ nsBaseDragService::DrawDrag(nsIDOMNode* aDOMNode,
       nsCOMPtr<nsIContent> content = do_QueryInterface(dragNode);
       nsIFrame* frame = content->GetPrimaryFrame();
       if (frame) {
-        nsIntRect screenRect = frame->GetScreenRectExternal();
+        nsIntRect screenRect = frame->GetScreenRect();
         aScreenDragRect->SetRect(screenRect.x, screenRect.y,
                                  screenRect.width, screenRect.height);
       }

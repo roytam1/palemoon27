@@ -1655,14 +1655,14 @@ nsCSSFrameConstructor::CreateGeneratedContent(nsFrameConstructorState& aState,
           if (mDocument->IsHTMLDocument() && aParentContent->IsHTMLElement()) {
             ToLowerCase(contentString);
           }
-          attrName = do_GetAtom(contentString);
+          attrName = NS_Atomize(contentString);
         }
       }
       else {
         if (mDocument->IsHTMLDocument() && aParentContent->IsHTMLElement()) {
           ToLowerCase(contentString);
         }
-        attrName = do_GetAtom(contentString);
+        attrName = NS_Atomize(contentString);
       }
 
       if (!attrName) {
@@ -2661,8 +2661,8 @@ nsCSSFrameConstructor::SetUpDocElementContainingBlock(nsIContent* aDocElement)
 {
   NS_PRECONDITION(aDocElement, "No element?");
   NS_PRECONDITION(!aDocElement->GetParent(), "Not root content?");
-  NS_PRECONDITION(aDocElement->GetCurrentDoc(), "Not in a document?");
-  NS_PRECONDITION(aDocElement->GetCurrentDoc()->GetRootElement() ==
+  NS_PRECONDITION(aDocElement->GetUncomposedDoc(), "Not in a document?");
+  NS_PRECONDITION(aDocElement->GetUncomposedDoc()->GetRootElement() ==
                   aDocElement, "Not the root of the document?");
 
   /*
@@ -5809,6 +5809,8 @@ nsCSSFrameConstructor::AddFrameConstructionItemsInternal(nsFrameConstructorState
     (aFlags & ITEM_ALLOW_PAGE_BREAK) &&
     aState.mPresContext->IsPaginated() &&
     !display->IsAbsolutelyPositionedStyle() &&
+    !(aParentFrame &&
+      aParentFrame->GetType() == nsGkAtoms::gridContainerFrame) &&
     !(bits & FCDATA_IS_TABLE_PART) &&
     !(bits & FCDATA_IS_SVG_TEXT);
 
@@ -8972,6 +8974,9 @@ nsCSSFrameConstructor::CreateContinuingFrame(nsPresContext*    aPresContext,
   } else if (nsGkAtoms::flexContainerFrame == frameType) {
     newFrame = NS_NewFlexContainerFrame(shell, styleContext);
     newFrame->Init(content, aParentFrame, aFrame);
+  } else if (nsGkAtoms::gridContainerFrame == frameType) {
+    newFrame = NS_NewGridContainerFrame(shell, styleContext);
+    newFrame->Init(content, aParentFrame, aFrame);
   } else if (nsGkAtoms::rubyFrame == frameType) {
     newFrame = NS_NewRubyFrame(shell, styleContext);
     newFrame->Init(content, aParentFrame, aFrame);
@@ -9520,7 +9525,7 @@ nsCSSFrameConstructor::RecreateFramesForContent(nsIContent*  aContent,
   // anyway).
   // Rebuilding the frame tree can have bad effects, especially if it's the
   // frame tree for chrome (see bug 157322).
-  NS_ENSURE_TRUE(aContent->GetCrossShadowCurrentDoc(), NS_ERROR_FAILURE);
+  NS_ENSURE_TRUE(aContent->GetComposedDoc(), NS_ERROR_FAILURE);
 
   // Is the frame ib-split? If so, we need to reframe the containing
   // block *here*, rather than trying to remove and re-insert the

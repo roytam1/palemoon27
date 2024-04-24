@@ -5,6 +5,7 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "mozilla/ArrayUtils.h"
+#include "mozilla/UniquePtr.h"
 #include "mozilla/TextEventDispatcher.h"
 #include "mozilla/TextEventDispatcherListener.h"
 
@@ -1894,7 +1895,7 @@ nsBaseWidget::GetWidgetScreen()
 }
 
 nsresult
-nsIWidget::SynthesizeNativeTouchTap(ScreenIntPoint aPointerScreenPoint, bool aLongTap,
+nsIWidget::SynthesizeNativeTouchTap(LayoutDeviceIntPoint aPoint, bool aLongTap,
                                     nsIObserver* aObserver)
 {
   AutoObserverNotifier notifier(aObserver, "touchtap");
@@ -1905,14 +1906,14 @@ nsIWidget::SynthesizeNativeTouchTap(ScreenIntPoint aPointerScreenPoint, bool aLo
   int pointerId = sPointerIdCounter;
   sPointerIdCounter++;
   nsresult rv = SynthesizeNativeTouchPoint(pointerId, TOUCH_CONTACT,
-                                           aPointerScreenPoint, 1.0, 90, nullptr);
+                                           aPoint, 1.0, 90, nullptr);
   if (NS_FAILED(rv)) {
     return rv;
   }
 
   if (!aLongTap) {
     nsresult rv = SynthesizeNativeTouchPoint(pointerId, TOUCH_REMOVE,
-                                             aPointerScreenPoint, 0, 0, nullptr);
+                                             aPoint, 0, 0, nullptr);
     return rv;
   }
 
@@ -1923,7 +1924,7 @@ nsIWidget::SynthesizeNativeTouchTap(ScreenIntPoint aPointerScreenPoint, bool aLo
     mLongTapTimer = do_CreateInstance(NS_TIMER_CONTRACTID, &rv);
     if (NS_FAILED(rv)) {
       SynthesizeNativeTouchPoint(pointerId, TOUCH_CANCEL,
-                                 aPointerScreenPoint, 0, 0, nullptr);
+                                 aPoint, 0, 0, nullptr);
       return NS_ERROR_UNEXPECTED;
     }
     // Windows requires recuring events, so we set this to a smaller window
@@ -1944,9 +1945,10 @@ nsIWidget::SynthesizeNativeTouchTap(ScreenIntPoint aPointerScreenPoint, bool aLo
                                mLongTapTouchPoint->mPosition, 0, 0, nullptr);
   }
 
-  mLongTapTouchPoint = new LongTapInfo(pointerId, aPointerScreenPoint,
-                                       TimeDuration::FromMilliseconds(elapse),
-                                       aObserver);
+  mLongTapTouchPoint =
+    MakeUnique<LongTapInfo>(pointerId, aPoint,
+                            TimeDuration::FromMilliseconds(elapse),
+                            aObserver);
   notifier.SkipNotification();  // we'll do it in the long-tap callback
   return NS_OK;
 }
@@ -3036,7 +3038,7 @@ nsBaseWidget::debug_WantPaintFlashing()
 nsBaseWidget::debug_DumpEvent(FILE *                aFileOut,
                               nsIWidget *           aWidget,
                               WidgetGUIEvent*       aGuiEvent,
-                              const nsAutoCString & aWidgetName,
+                              const char*           aWidgetName,
                               int32_t               aWindowID)
 {
   if (aGuiEvent->mMessage == eMouseMove) {
@@ -3060,17 +3062,17 @@ nsBaseWidget::debug_DumpEvent(FILE *                aFileOut,
           _GetPrintCount(),
           tempString.get(),
           (void *) aWidget,
-          aWidgetName.get(),
+          aWidgetName,
           aWindowID,
-          aGuiEvent->refPoint.x,
-          aGuiEvent->refPoint.y);
+          aGuiEvent->mRefPoint.x,
+          aGuiEvent->mRefPoint.y);
 }
 //////////////////////////////////////////////////////////////
 /* static */ void
 nsBaseWidget::debug_DumpPaintEvent(FILE *                aFileOut,
                                    nsIWidget *           aWidget,
                                    const nsIntRegion &   aRegion,
-                                   const nsAutoCString & aWidgetName,
+                                   const char *          aWidgetName,
                                    int32_t               aWindowID)
 {
   NS_ASSERTION(nullptr != aFileOut,"cmon, null output FILE");
@@ -3084,7 +3086,7 @@ nsBaseWidget::debug_DumpPaintEvent(FILE *                aFileOut,
           "%4d PAINT      widget=%p name=%-12s id=0x%-6x bounds-rect=%3d,%-3d %3d,%-3d",
           _GetPrintCount(),
           (void *) aWidget,
-          aWidgetName.get(),
+          aWidgetName,
           aWindowID,
           rect.x, rect.y, rect.width, rect.height
     );
@@ -3096,7 +3098,7 @@ nsBaseWidget::debug_DumpPaintEvent(FILE *                aFileOut,
 nsBaseWidget::debug_DumpInvalidate(FILE* aFileOut,
                                    nsIWidget* aWidget,
                                    const LayoutDeviceIntRect* aRect,
-                                   const nsAutoCString& aWidgetName,
+                                   const char* aWidgetName,
                                    int32_t aWindowID)
 {
   if (!debug_GetCachedBoolPref("nglayout.debug.invalidate_dumping"))
@@ -3109,7 +3111,7 @@ nsBaseWidget::debug_DumpInvalidate(FILE* aFileOut,
           "%4d Invalidate widget=%p name=%-12s id=0x%-6x",
           _GetPrintCount(),
           (void *) aWidget,
-          aWidgetName.get(),
+          aWidgetName,
           aWindowID);
 
   if (aRect) {

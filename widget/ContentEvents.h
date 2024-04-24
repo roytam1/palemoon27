@@ -175,14 +175,14 @@ public:
     return result;
   }
 
-  nsCOMPtr<dom::DataTransfer> clipboardData;
+  nsCOMPtr<dom::DataTransfer> mClipboardData;
 
   void AssignClipboardEventData(const InternalClipboardEvent& aEvent,
                                 bool aCopyTargets)
   {
     AssignEventData(aEvent, aCopyTargets);
 
-    clipboardData = aEvent.clipboardData;
+    mClipboardData = aEvent.mClipboardData;
   }
 };
 
@@ -197,8 +197,8 @@ public:
 
   InternalFocusEvent(bool aIsTrusted, EventMessage aMessage)
     : InternalUIEvent(aIsTrusted, aMessage, eFocusEventClass)
-    , fromRaise(false)
-    , isRefocus(false)
+    , mFromRaise(false)
+    , mIsRefocus(false)
   {
   }
 
@@ -213,18 +213,18 @@ public:
   }
 
   /// The possible related target
-  nsCOMPtr<dom::EventTarget> relatedTarget;
+  nsCOMPtr<dom::EventTarget> mRelatedTarget;
 
-  bool fromRaise;
-  bool isRefocus;
+  bool mFromRaise;
+  bool mIsRefocus;
 
   void AssignFocusEventData(const InternalFocusEvent& aEvent, bool aCopyTargets)
   {
     AssignUIEventData(aEvent, aCopyTargets);
 
-    relatedTarget = aCopyTargets ? aEvent.relatedTarget : nullptr;
-    fromRaise = aEvent.fromRaise;
-    isRefocus = aEvent.isRefocus;
+    mRelatedTarget = aCopyTargets ? aEvent.mRelatedTarget : nullptr;
+    mFromRaise = aEvent.mFromRaise;
+    mIsRefocus = aEvent.mIsRefocus;
   }
 };
 

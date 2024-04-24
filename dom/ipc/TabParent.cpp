@@ -1168,7 +1168,7 @@ bool TabParent::SendRealMouseEvent(WidgetMouseEvent& event)
   if (mIsDestroyed) {
     return false;
   }
-  event.refPoint += GetChildProcessOffset();
+  event.mRefPoint += GetChildProcessOffset();
 
   nsCOMPtr<nsIWidget> widget = GetWidget();
   if (widget) {
@@ -1220,7 +1220,7 @@ TabParent::SendRealDragEvent(WidgetDragEvent& event, uint32_t aDragAction,
   if (mIsDestroyed) {
     return false;
   }
-  event.refPoint += GetChildProcessOffset();
+  event.mRefPoint += GetChildProcessOffset();
   return PBrowserParent::SendRealDragEvent(event, aDragAction, aDropEffect);
 }
 
@@ -1238,7 +1238,7 @@ bool TabParent::SendMouseWheelEvent(WidgetWheelEvent& event)
   ScrollableLayerGuid guid;
   uint64_t blockId;
   ApzAwareEventRoutingToChild(&guid, &blockId, nullptr);
-  event.refPoint += GetChildProcessOffset();
+  event.mRefPoint += GetChildProcessOffset();
   return PBrowserParent::SendMouseWheelEvent(event, guid, blockId);
 }
 
@@ -1250,8 +1250,8 @@ bool TabParent::RecvDispatchWheelEvent(const mozilla::WidgetWheelEvent& aEvent)
   }
 
   WidgetWheelEvent localEvent(aEvent);
-  localEvent.widget = widget;
-  localEvent.refPoint -= GetChildProcessOffset();
+  localEvent.mWidget = widget;
+  localEvent.mRefPoint -= GetChildProcessOffset();
 
   widget->DispatchInputEvent(&localEvent);
   return true;
@@ -1266,8 +1266,8 @@ TabParent::RecvDispatchMouseEvent(const mozilla::WidgetMouseEvent& aEvent)
   }
 
   WidgetMouseEvent localEvent(aEvent);
-  localEvent.widget = widget;
-  localEvent.refPoint -= GetChildProcessOffset();
+  localEvent.mWidget = widget;
+  localEvent.mRefPoint -= GetChildProcessOffset();
 
   widget->DispatchInputEvent(&localEvent);
   return true;
@@ -1282,8 +1282,8 @@ TabParent::RecvDispatchKeyboardEvent(const mozilla::WidgetKeyboardEvent& aEvent)
   }
 
   WidgetKeyboardEvent localEvent(aEvent);
-  localEvent.widget = widget;
-  localEvent.refPoint -= GetChildProcessOffset();
+  localEvent.mWidget = widget;
+  localEvent.mRefPoint -= GetChildProcessOffset();
 
   widget->DispatchInputEvent(&localEvent);
   return true;
@@ -1462,7 +1462,7 @@ TabParent::RecvSynthesizeNativeMouseScrollEvent(const LayoutDeviceIntPoint& aPoi
 bool
 TabParent::RecvSynthesizeNativeTouchPoint(const uint32_t& aPointerId,
                                           const TouchPointerState& aPointerState,
-                                          const ScreenIntPoint& aPointerScreenPoint,
+                                          const LayoutDeviceIntPoint& aPoint,
                                           const double& aPointerPressure,
                                           const uint32_t& aPointerOrientation,
                                           const uint64_t& aObserverId)
@@ -1470,22 +1470,21 @@ TabParent::RecvSynthesizeNativeTouchPoint(const uint32_t& aPointerId,
   AutoSynthesizedEventResponder responder(this, aObserverId, "touchpoint");
   nsCOMPtr<nsIWidget> widget = GetWidget();
   if (widget) {
-    widget->SynthesizeNativeTouchPoint(aPointerId, aPointerState, aPointerScreenPoint,
+    widget->SynthesizeNativeTouchPoint(aPointerId, aPointerState, aPoint,
       aPointerPressure, aPointerOrientation, responder.GetObserver());
   }
   return true;
 }
 
 bool
-TabParent::RecvSynthesizeNativeTouchTap(const ScreenIntPoint& aPointerScreenPoint,
+TabParent::RecvSynthesizeNativeTouchTap(const LayoutDeviceIntPoint& aPoint,
                                         const bool& aLongTap,
                                         const uint64_t& aObserverId)
 {
   AutoSynthesizedEventResponder responder(this, aObserverId, "touchtap");
   nsCOMPtr<nsIWidget> widget = GetWidget();
   if (widget) {
-    widget->SynthesizeNativeTouchTap(aPointerScreenPoint, aLongTap,
-      responder.GetObserver());
+    widget->SynthesizeNativeTouchTap(aPoint, aLongTap, responder.GetObserver());
   }
   return true;
 }
@@ -1506,7 +1505,7 @@ bool TabParent::SendRealKeyEvent(WidgetKeyboardEvent& event)
   if (mIsDestroyed) {
     return false;
   }
-  event.refPoint += GetChildProcessOffset();
+  event.mRefPoint += GetChildProcessOffset();
 
   MaybeNativeKeyBinding bindings;
   bindings = void_t();
@@ -1543,9 +1542,9 @@ bool TabParent::SendRealTouchEvent(WidgetTouchEvent& event)
   // that the added touches are part of the touchend/cancel, when actually
   // they're not.
   if (event.mMessage == eTouchEnd || event.mMessage == eTouchCancel) {
-    for (int i = event.touches.Length() - 1; i >= 0; i--) {
-      if (!event.touches[i]->mChanged) {
-        event.touches.RemoveElementAt(i);
+    for (int i = event.mTouches.Length() - 1; i >= 0; i--) {
+      if (!event.mTouches[i]->mChanged) {
+        event.mTouches.RemoveElementAt(i);
       }
     }
   }
@@ -1560,8 +1559,8 @@ bool TabParent::SendRealTouchEvent(WidgetTouchEvent& event)
   }
 
   LayoutDeviceIntPoint offset = GetChildProcessOffset();
-  for (uint32_t i = 0; i < event.touches.Length(); i++) {
-    event.touches[i]->mRefPoint += offset;
+  for (uint32_t i = 0; i < event.mTouches.Length(); i++) {
+    event.mTouches[i]->mRefPoint += offset;
   }
 
   return (event.mMessage == eTouchMove) ?
@@ -2020,7 +2019,7 @@ TabParent::RecvDispatchAfterKeyboardEvent(const WidgetKeyboardEvent& aEvent)
   NS_ENSURE_TRUE(mFrameElement, true);
 
   WidgetKeyboardEvent localEvent(aEvent);
-  localEvent.widget = GetWidget();
+  localEvent.mWidget = GetWidget();
 
   nsIDocument* doc = mFrameElement->OwnerDoc();
   nsCOMPtr<nsIPresShell> presShell = doc->GetShell();
@@ -2674,8 +2673,8 @@ TabParent::InjectTouchEvent(const nsAString& aType,
   }
 
   WidgetTouchEvent event(true, msg, widget);
-  event.modifiers = aModifiers;
-  event.time = PR_IntervalNow();
+  event.mModifiers = aModifiers;
+  event.mTime = PR_IntervalNow();
 
   nsCOMPtr<nsIContent> content = do_QueryInterface(mFrameElement);
   if (!content || !content->OwnerDoc()) {
@@ -2688,7 +2687,7 @@ TabParent::InjectTouchEvent(const nsAString& aType,
   }
   nsPresContext* presContext = doc->GetShell()->GetPresContext();
 
-  event.touches.SetCapacity(aCount);
+  event.mTouches.SetCapacity(aCount);
   for (uint32_t i = 0; i < aCount; ++i) {
     LayoutDeviceIntPoint pt =
       LayoutDeviceIntPoint::FromAppUnitsRounded(
@@ -2707,7 +2706,7 @@ TabParent::InjectTouchEvent(const nsAString& aType,
     // about the meaning of changedTouches for each event, see
     // https://developer.mozilla.org/docs/Web/API/TouchEvent.changedTouches
     t->mChanged = true;
-    event.touches.AppendElement(t);
+    event.mTouches.AppendElement(t);
   }
 
   SendRealTouchEvent(event);

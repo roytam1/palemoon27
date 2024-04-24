@@ -10,6 +10,7 @@
 #include "mozilla/MathAlgorithms.h"
 #include "mozilla/RuleNodeCacheConditions.h"
 #include "mozilla/StyleAnimationValue.h"
+#include "mozilla/UniquePtr.h"
 #include "nsStyleTransformMatrix.h"
 #include "nsCOMArray.h"
 #include "nsIStyleRule.h"
@@ -466,6 +467,8 @@ StyleAnimationValue::ComputeDistance(nsCSSProperty aProperty,
     case eUnit_None:
     case eUnit_Normal:
     case eUnit_UnparsedString:
+    case eUnit_URL:
+    case eUnit_CurrentColor:
       return false;
 
     case eUnit_Enumerated:
@@ -831,6 +834,10 @@ StyleAnimationValue::ComputeDistance(nsCSSProperty aProperty,
       }
       aDistance = sqrt(squareDistance);
       return true;
+    }
+    // The CSS Shapes spec doesn't define paced animations for shape functions.
+    case eUnit_Shape: {
+      return false;
     }
     case eUnit_Filter:
       // FIXME: Support paced animations for filter function interpolation.
@@ -1752,6 +1759,278 @@ AddFilterFunction(double aCoeff1, const nsCSSValueList* aList1,
   return AddFilterFunctionImpl(aCoeff1, aList1, aCoeff2, aList2, aResultTail);
 }
 
+static inline uint32_t
+ShapeArgumentCount(nsCSSKeyword aShapeFunction)
+{
+  switch (aShapeFunction) {
+    case eCSSKeyword_circle:
+      return 2; // radius and center point
+    case eCSSKeyword_polygon:
+      return 2; // fill rule and a list of points
+    case eCSSKeyword_ellipse:
+      return 3; // two radii and center point
+    case eCSSKeyword_inset:
+      return 5; // four edge offsets and a list of corner radii
+    default:
+      MOZ_ASSERT_UNREACHABLE("Unknown shape type");
+      return 0;
+  }
+}
+
+static void
+AddPositions(double aCoeff1, const nsCSSValue& aPos1,
+             double aCoeff2, const nsCSSValue& aPos2,
+             nsCSSValue& aResultPos)
+{
+  MOZ_ASSERT(aPos1.GetUnit() == eCSSUnit_Array &&
+             aPos2.GetUnit() == eCSSUnit_Array,
+             "Args should be CSS <position>s, encoded as arrays");
+
+  const nsCSSValue::Array* posArray1 = aPos1.GetArrayValue();
+  const nsCSSValue::Array* posArray2 = aPos2.GetArrayValue();
+  MOZ_ASSERT(posArray1->Count() == 4 && posArray2->Count() == 4,
+             "CSSParserImpl::ParsePositionValue creates an array of length "
+             "4 - how did we get here?");
+
+  nsCSSValue::Array* resultPosArray = nsCSSValue::Array::Create(4);
+  aResultPos.SetArrayValue(resultPosArray, eCSSUnit_Array);
+
+  // Only iterate over elements 1 and 3.  The <position> is 'uncomputed' to
+  // only those elements.  See also the comment in SetPositionValue.
+  for (size_t i = 1; i < 4; i += 2) {
+    const nsCSSValue& v1 = posArray1->Item(i);
+    const nsCSSValue& v2 = posArray2->Item(i);
+    nsCSSValue& vr = resultPosArray->Item(i);
+    AddCSSValueCanonicalCalc(aCoeff1, v1,
+                             aCoeff2, v2, vr);
+  }
+}
+
+static UniquePtr<nsCSSValuePair>
+AddCSSValuePair(nsCSSProperty aProperty, uint32_t aRestrictions,
+                double aCoeff1, const nsCSSValuePair* aPair1,
+                double aCoeff2, const nsCSSValuePair* aPair2)
+{
+  MOZ_ASSERT(aPair1, "expected pair");
+  MOZ_ASSERT(aPair2, "expected pair");
+
+  UniquePtr<nsCSSValuePair> result;
+  nsCSSUnit unit[2];
+  unit[0] = GetCommonUnit(aProperty, aPair1->mXValue.GetUnit(),
+                          aPair2->mXValue.GetUnit());
+  unit[1] = GetCommonUnit(aProperty, aPair1->mYValue.GetUnit(),
+                          aPair2->mYValue.GetUnit());
+  if (unit[0] == eCSSUnit_Null || unit[1] == eCSSUnit_Null ||
+      unit[0] == eCSSUnit_URL || unit[0] == eCSSUnit_Enumerated) {
+    return result; // nullptr (returning |result| for RVO)
+  }
+
+  result = MakeUnique<nsCSSValuePair>();
+
+  static nsCSSValue nsCSSValuePair::* const pairValues[2] = {
+    &nsCSSValuePair::mXValue, &nsCSSValuePair::mYValue
+  };
+  for (uint32_t i = 0; i < 2; ++i) {
+    nsCSSValue nsCSSValuePair::*member = pairValues[i];
+    if (!AddCSSValuePixelPercentCalc(aRestrictions, unit[i],
+                                     aCoeff1, aPair1->*member,
+                                     aCoeff2, aPair2->*member,
+                                     result.get()->*member) ) {
+      MOZ_ASSERT(false, "unexpected unit");
+      result.reset();
+      return result; // nullptr (returning |result| for RVO)
+    }
+  }
+
+  return result;
+}
+
+static UniquePtr<nsCSSValuePairList>
+AddCSSValuePairList(nsCSSProperty aProperty,
+                    double aCoeff1, const nsCSSValuePairList* aList1,
+                    double aCoeff2, const nsCSSValuePairList* aList2)
+{
+  MOZ_ASSERT(aList1, "Can't add a null list");
+  MOZ_ASSERT(aList2, "Can't add a null list");
+
+  auto result = MakeUnique<nsCSSValuePairList>();
+  nsCSSValuePairList* resultPtr = result.get();
+
+  do {
+    static nsCSSValue nsCSSValuePairList::* const pairListValues[] = {
+      &nsCSSValuePairList::mXValue,
+      &nsCSSValuePairList::mYValue,
+    };
+    uint32_t restrictions = nsCSSProps::ValueRestrictions(aProperty);
+    for (uint32_t i = 0; i < ArrayLength(pairListValues); ++i) {
+      const nsCSSValue& v1 = aList1->*(pairListValues[i]);
+      const nsCSSValue& v2 = aList2->*(pairListValues[i]);
+
+      nsCSSValue& vr = resultPtr->*(pairListValues[i]);
+      nsCSSUnit unit =
+        GetCommonUnit(aProperty, v1.GetUnit(), v2.GetUnit());
+      if (unit == eCSSUnit_Null) {
+        return nullptr;
+      }
+      if (!AddCSSValuePixelPercentCalc(restrictions, unit,
+                                       aCoeff1, v1,
+                                       aCoeff2, v2, vr)) {
+        if (v1 != v2) {
+          return nullptr;
+        }
+        vr = v1;
+      }
+    }
+    aList1 = aList1->mNext;
+    aList2 = aList2->mNext;
+    if (!aList1 || !aList2) {
+      break;
+    }
+    resultPtr->mNext = new nsCSSValuePairList;
+    resultPtr = resultPtr->mNext;
+  } while (aList1 && aList2);
+
+  if (aList1 || aList2) {
+    return nullptr; // We can't interpolate lists of different lengths
+  }
+
+  return result;
+}
+
+static already_AddRefed<nsCSSValue::Array>
+AddShapeFunction(nsCSSProperty aProperty,
+                 double aCoeff1, const nsCSSValue::Array* aArray1,
+                 double aCoeff2, const nsCSSValue::Array* aArray2)
+{
+  MOZ_ASSERT(aArray1 && aArray1->Count() == 2, "expected shape function");
+  MOZ_ASSERT(aArray2 && aArray2->Count() == 2, "expected shape function");
+  MOZ_ASSERT(aArray1->Item(0).GetUnit() == eCSSUnit_Function,
+             "expected function");
+  MOZ_ASSERT(aArray2->Item(0).GetUnit() == eCSSUnit_Function,
+             "expected function");
+  MOZ_ASSERT(aArray1->Item(1).GetUnit() == eCSSUnit_Enumerated,
+             "expected geometry-box");
+  MOZ_ASSERT(aArray2->Item(1).GetUnit() == eCSSUnit_Enumerated,
+             "expected geometry-box");
+  MOZ_ASSERT(aArray1->Item(1).GetIntValue() == aArray2->Item(1).GetIntValue(),
+             "expected matching geometry-box values");
+  const nsCSSValue::Array* func1 = aArray1->Item(0).GetArrayValue();
+  const nsCSSValue::Array* func2 = aArray2->Item(0).GetArrayValue();
+  nsCSSKeyword shapeFuncName = func1->Item(0).GetKeywordValue();
+  if (shapeFuncName != func2->Item(0).GetKeywordValue()) {
+    return nullptr; // Can't add two shapes of different types.
+  }
+
+  RefPtr<nsCSSValue::Array> result = nsCSSValue::Array::Create(2);
+
+  nsCSSValue::Array* resultFuncArgs =
+    result->Item(0).InitFunction(shapeFuncName,
+                                 ShapeArgumentCount(shapeFuncName));
+  switch (shapeFuncName) {
+    case eCSSKeyword_ellipse:
+      // Add ellipses' |ry| values (but fail if we encounter an enum):
+      if (!AddCSSValuePixelPercentCalc(CSS_PROPERTY_VALUE_NONNEGATIVE,
+                                       GetCommonUnit(aProperty,
+                                                     func1->Item(2).GetUnit(),
+                                                     func2->Item(2).GetUnit()),
+                                       aCoeff1, func1->Item(2),
+                                       aCoeff2, func2->Item(2),
+                                       resultFuncArgs->Item(2))) {
+        return nullptr;
+      }
+      MOZ_FALLTHROUGH;  // to handle rx and center point
+    case eCSSKeyword_circle: {
+      // Add circles' |r| (or ellipses' |rx|) values:
+      if (!AddCSSValuePixelPercentCalc(CSS_PROPERTY_VALUE_NONNEGATIVE,
+                                       GetCommonUnit(aProperty,
+                                                     func1->Item(1).GetUnit(),
+                                                     func2->Item(1).GetUnit()),
+                                       aCoeff1, func1->Item(1),
+                                       aCoeff2, func2->Item(1),
+                                       resultFuncArgs->Item(1))) {
+        return nullptr;
+      }
+      // Add center points (defined as a <position>).
+      size_t posIndex = shapeFuncName == eCSSKeyword_circle ? 2 : 3;
+      AddPositions(aCoeff1, func1->Item(posIndex),
+                   aCoeff2, func2->Item(posIndex),
+                   resultFuncArgs->Item(posIndex));
+      break;
+    }
+    case eCSSKeyword_polygon: {
+      // Add polygons' corresponding points (if the fill rule matches):
+      int32_t fillRule = func1->Item(1).GetIntValue();
+      if (fillRule != func2->Item(1).GetIntValue()) {
+        return nullptr; // can't interpolate between different fill rules
+      }
+      resultFuncArgs->Item(1).SetIntValue(fillRule, eCSSUnit_Enumerated);
+
+      const nsCSSValuePairList* points1 = func1->Item(2).GetPairListValue();
+      const nsCSSValuePairList* points2 = func2->Item(2).GetPairListValue();
+      UniquePtr<nsCSSValuePairList> resultPoints =
+        AddCSSValuePairList(aProperty, aCoeff1, points1, aCoeff2, points2);
+      if (!resultPoints) {
+        return nullptr;
+      }
+      resultFuncArgs->Item(2).AdoptPairListValue(Move(resultPoints));
+      break;
+    }
+    case eCSSKeyword_inset: {
+      MOZ_ASSERT(func1->Count() == 6 && func2->Count() == 6,
+                 "Update for CSSParserImpl::ParseInsetFunction changes");
+      // Items 1-4 are respectively the top, right, bottom and left offsets
+      // from the reference box.
+      for (size_t i = 1; i <= 4; ++i) {
+        if (!AddCSSValuePixelPercentCalc(CSS_PROPERTY_VALUE_NONNEGATIVE,
+                                         GetCommonUnit(aProperty,
+                                                       func1->Item(i).GetUnit(),
+                                                       func2->Item(i).GetUnit()),
+                                         aCoeff1, func1->Item(i),
+                                         aCoeff2, func2->Item(i),
+                                         resultFuncArgs->Item(i))) {
+          return nullptr;
+        }
+      }
+      // Item 5 contains the radii of the rounded corners for the inset
+      // rectangle.
+      MOZ_ASSERT(func1->Item(5).GetUnit() == eCSSUnit_Array &&
+                 func2->Item(5).GetUnit() == eCSSUnit_Array,
+                 "Expected two arrays");
+      const nsCSSValue::Array* radii1 = func1->Item(5).GetArrayValue();
+      const nsCSSValue::Array* radii2 = func2->Item(5).GetArrayValue();
+      MOZ_ASSERT(radii1->Count() == 4 && radii2->Count() == 4);
+      nsCSSValue::Array* resultRadii = nsCSSValue::Array::Create(4);
+      resultFuncArgs->Item(5).SetArrayValue(resultRadii, eCSSUnit_Array);
+      // We use an arbitrary border-radius property here to get the appropriate
+      // restrictions for radii since this is a <border-radius> value.
+      uint32_t restrictions =
+        nsCSSProps::ValueRestrictions(eCSSProperty_border_top_left_radius);
+      for (size_t i = 0; i < 4; ++i) {
+        const nsCSSValuePair& pair1 = radii1->Item(i).GetPairValue();
+        const nsCSSValuePair& pair2 = radii2->Item(i).GetPairValue();
+        UniquePtr<nsCSSValuePair>
+          pairResult(AddCSSValuePair(aProperty, restrictions,
+                                     aCoeff1, &pair1,
+                                     aCoeff2, &pair2));
+        if (!pairResult) {
+          return nullptr;
+        }
+        resultRadii->Item(i).SetPairValue(pairResult.release());
+      }
+      break;
+    }
+    default:
+      MOZ_ASSERT_UNREACHABLE("Unknown shape type");
+      return nullptr;
+  }
+
+  // set the geometry-box value
+  result->Item(1).SetIntValue(aArray1->Item(1).GetIntValue(),
+                              eCSSUnit_Enumerated);
+
+  return result.forget();
+}
+
 static nsCSSValueList*
 AddTransformLists(double aCoeff1, const nsCSSValueList* aList1,
                   double aCoeff2, const nsCSSValueList* aList2)
@@ -1912,28 +2191,6 @@ AddTransformLists(double aCoeff1, const nsCSSValueList* aList1,
   return result.forget();
 }
 
-static void
-AddPositions(double aCoeff1, const nsCSSValue& aPos1,
-             double aCoeff2, const nsCSSValue& aPos2,
-             nsCSSValue& aResultPos)
-{
-  const nsCSSValue::Array* posArray1 = aPos1.GetArrayValue();
-  const nsCSSValue::Array* posArray2 = aPos2.GetArrayValue();
-  nsCSSValue::Array* resultPosArray = nsCSSValue::Array::Create(4);
-  aResultPos.SetArrayValue(resultPosArray, eCSSUnit_Array);
-
-  /* Only iterate over elements 1 and 3. The <position> is
-   * 'uncomputed' to only those elements.
-   */
-  for (size_t i = 1; i < 4; i += 2) {
-    const nsCSSValue& v1 = posArray1->Item(i);
-    const nsCSSValue& v2 = posArray2->Item(i);
-    nsCSSValue& vr = resultPosArray->Item(i);
-    AddCSSValueCanonicalCalc(aCoeff1, v1,
-                             aCoeff2, v2, vr);
-  }
-}
-
 bool
 StyleAnimationValue::AddWeighted(nsCSSProperty aProperty,
                                  double aCoeff1,
@@ -1955,6 +2212,8 @@ StyleAnimationValue::AddWeighted(nsCSSProperty aProperty,
     case eUnit_None:
     case eUnit_Normal:
     case eUnit_UnparsedString:
+    case eUnit_URL:
+    case eUnit_CurrentColor:
       return false;
 
     case eUnit_Enumerated:
@@ -2099,35 +2358,16 @@ StyleAnimationValue::AddWeighted(nsCSSProperty aProperty,
       return true;
     }
     case eUnit_CSSValuePair: {
-      const nsCSSValuePair *pair1 = aValue1.GetCSSValuePairValue();
-      const nsCSSValuePair *pair2 = aValue2.GetCSSValuePairValue();
-      nsCSSUnit unit[2];
-      unit[0] = GetCommonUnit(aProperty, pair1->mXValue.GetUnit(),
-                              pair2->mXValue.GetUnit());
-      unit[1] = GetCommonUnit(aProperty, pair1->mYValue.GetUnit(),
-                              pair2->mYValue.GetUnit());
-      if (unit[0] == eCSSUnit_Null || unit[1] == eCSSUnit_Null ||
-          unit[0] == eCSSUnit_URL || unit[0] == eCSSUnit_Enumerated) {
+      uint32_t restrictions = nsCSSProps::ValueRestrictions(aProperty);
+      UniquePtr<nsCSSValuePair> result(
+        AddCSSValuePair(aProperty, restrictions,
+                        aCoeff1, aValue1.GetCSSValuePairValue(),
+                        aCoeff2, aValue2.GetCSSValuePairValue()));
+      if (!result) {
         return false;
       }
 
-      nsAutoPtr<nsCSSValuePair> result(new nsCSSValuePair);
-      static nsCSSValue nsCSSValuePair::* const pairValues[2] = {
-        &nsCSSValuePair::mXValue, &nsCSSValuePair::mYValue
-      };
-      uint32_t restrictions = nsCSSProps::ValueRestrictions(aProperty);
-      for (uint32_t i = 0; i < 2; ++i) {
-        nsCSSValue nsCSSValuePair::*member = pairValues[i];
-        if (!AddCSSValuePixelPercentCalc(restrictions, unit[i],
-                                         aCoeff1, pair1->*member,
-                                         aCoeff2, pair2->*member,
-                                         result->*member) ) {
-          MOZ_ASSERT(false, "unexpected unit");
-          return false;
-        }
-      }
-
-      aResultValue.SetAndAdoptCSSValuePairValue(result.forget(),
+      aResultValue.SetAndAdoptCSSValuePairValue(result.release(),
                                                 eUnit_CSSValuePair);
       return true;
     }
@@ -2314,7 +2554,18 @@ StyleAnimationValue::AddWeighted(nsCSSProperty aProperty,
       aResultValue.SetAndAdoptCSSValueListValue(result.forget(), eUnit_Shadow);
       return true;
     }
-
+    case eUnit_Shape: {
+      RefPtr<nsCSSValue::Array> result =
+        AddShapeFunction(aProperty,
+                         aCoeff1, aValue1.GetCSSValueArrayValue(),
+                         aCoeff2, aValue2.GetCSSValueArrayValue());
+      if (!result) {
+        return false;
+      }
+      aResultValue.SetAndAdoptCSSValueArrayValue(result.forget().take(),
+                                                 eUnit_Shape);
+      return true;
+    }
     case eUnit_Filter: {
       const nsCSSValueList *list1 = aValue1.GetCSSValueListValue();
       const nsCSSValueList *list2 = aValue2.GetCSSValueListValue();
@@ -2443,44 +2694,12 @@ StyleAnimationValue::AddWeighted(nsCSSProperty aProperty,
     case eUnit_CSSValuePairList: {
       const nsCSSValuePairList *list1 = aValue1.GetCSSValuePairListValue();
       const nsCSSValuePairList *list2 = aValue2.GetCSSValuePairListValue();
-      nsAutoPtr<nsCSSValuePairList> result;
-      nsCSSValuePairList **resultTail = getter_Transfers(result);
-      do {
-        nsCSSValuePairList *item = new nsCSSValuePairList;
-        *resultTail = item;
-        resultTail = &item->mNext;
-
-        static nsCSSValue nsCSSValuePairList::* const pairListValues[] = {
-          &nsCSSValuePairList::mXValue,
-          &nsCSSValuePairList::mYValue,
-        };
-        uint32_t restrictions = nsCSSProps::ValueRestrictions(aProperty);
-        for (uint32_t i = 0; i < ArrayLength(pairListValues); ++i) {
-          const nsCSSValue &v1 = list1->*(pairListValues[i]);
-          const nsCSSValue &v2 = list2->*(pairListValues[i]);
-          nsCSSValue &vr = item->*(pairListValues[i]);
-          nsCSSUnit unit =
-            GetCommonUnit(aProperty, v1.GetUnit(), v2.GetUnit());
-          if (unit == eCSSUnit_Null) {
-            return false;
-          }
-          if (!AddCSSValuePixelPercentCalc(restrictions, unit, aCoeff1, v1,
-                                           aCoeff2, v2, vr) ) {
-            if (v1 != v2) {
-              return false;
-            }
-            vr = v1;
-          }
-        }
-        list1 = list1->mNext;
-        list2 = list2->mNext;
-      } while (list1 && list2);
-      if (list1 || list2) {
-        // We can't interpolate lists of different lengths.
+      UniquePtr<nsCSSValuePairList> result =
+        AddCSSValuePairList(aProperty, aCoeff1, list1, aCoeff2, list2);
+      if (!result) {
         return false;
       }
-
-      aResultValue.SetAndAdoptCSSValuePairListValue(result.forget());
+      aResultValue.SetAndAdoptCSSValuePairListValue(result.release());
       return true;
     }
   }
@@ -2790,14 +3009,19 @@ StyleAnimationValue::UncomputeValue(nsCSSProperty aProperty,
       // colors can be alone, or part of a paint server
       aSpecifiedValue.SetColorValue(aComputedValue.GetColorValue());
       break;
+    case eUnit_CurrentColor:
+      aSpecifiedValue.SetIntValue(NS_COLOR_CURRENTCOLOR, eCSSUnit_EnumColor);
+      break;
     case eUnit_Calc:
-    case eUnit_ObjectPosition: {
+    case eUnit_ObjectPosition:
+    case eUnit_URL: {
       nsCSSValue* val = aComputedValue.GetCSSValueValue();
       // Sanity-check that the underlying unit in the nsCSSValue is what we
       // expect for our StyleAnimationValue::Unit:
       MOZ_ASSERT((unit == eUnit_Calc && val->GetUnit() == eCSSUnit_Calc) ||
                  (unit == eUnit_ObjectPosition &&
-                  val->GetUnit() == eCSSUnit_Array),
+                  val->GetUnit() == eCSSUnit_Array) ||
+                 (unit == eUnit_URL && val->GetUnit() == eCSSUnit_URL),
                  "unexpected unit");
       aSpecifiedValue = *val;
       break;
@@ -2834,9 +3058,20 @@ StyleAnimationValue::UncomputeValue(nsCSSProperty aProperty,
     case eUnit_Shadow:
     case eUnit_Filter:
     case eUnit_BackgroundPosition:
-      aSpecifiedValue.
-        SetDependentListValue(aComputedValue.GetCSSValueListValue());
+      {
+        nsCSSValueList* computedList = aComputedValue.GetCSSValueListValue();
+        if (computedList) {
+          aSpecifiedValue.SetDependentListValue(computedList);
+        } else {
+          aSpecifiedValue.SetNoneValue();
+        }
+      }
       break;
+    case eUnit_Shape: {
+      nsCSSValue::Array* computedArray = aComputedValue.GetCSSValueArrayValue();
+      aSpecifiedValue.SetArrayValue(computedArray, eCSSUnit_Array);
+      break;
+    }
     case eUnit_Transform:
       aSpecifiedValue.
         SetSharedListValue(aComputedValue.GetCSSValueSharedListValue());
@@ -2847,6 +3082,41 @@ StyleAnimationValue::UncomputeValue(nsCSSProperty aProperty,
       break;
     default:
       return false;
+  }
+  return true;
+}
+
+bool
+StyleAnimationValue::UncomputeValue(nsCSSProperty aProperty,
+                                    StyleAnimationValue&& aComputedValue,
+                                    nsCSSValue& aSpecifiedValue)
+{
+  Unit unit = aComputedValue.GetUnit();
+  switch (unit) {
+    case eUnit_Dasharray:
+    case eUnit_Shadow:
+    case eUnit_Filter:
+    case eUnit_BackgroundPosition:
+      {
+        UniquePtr<nsCSSValueList> computedList =
+          aComputedValue.TakeCSSValueListValue();
+        if (computedList) {
+          aSpecifiedValue.AdoptListValue(Move(computedList));
+        } else {
+          aSpecifiedValue.SetNoneValue();
+        }
+      }
+      break;
+    case eUnit_CSSValuePairList:
+      {
+        UniquePtr<nsCSSValuePairList> computedList =
+          aComputedValue.TakeCSSValuePairListValue();
+        MOZ_ASSERT(computedList, "Pair list should never be null");
+        aSpecifiedValue.AdoptPairListValue(Move(computedList));
+      }
+      break;
+    default:
+      return UncomputeValue(aProperty, aComputedValue, aSpecifiedValue);
   }
   return true;
 }
@@ -2881,6 +3151,17 @@ inline void*
 StyleDataAtOffset(void* aStyleStruct, ptrdiff_t aOffset)
 {
   return reinterpret_cast<char*>(aStyleStruct) + aOffset;
+}
+
+static void
+SetCurrentOrActualColor(bool aIsForeground, nscolor aActualColor,
+                        StyleAnimationValue& aComputedValue)
+{
+  if (aIsForeground) {
+    aComputedValue.SetCurrentColorValue();
+  } else {
+    aComputedValue.SetColorValue(aActualColor);
+  }
 }
 
 static void
@@ -3129,6 +3410,96 @@ ExtractImageLayerSizePairList(const nsStyleImageLayers& aLayer,
   aComputedValue.SetAndAdoptCSSValuePairListValue(result.forget());
 }
 
+static bool
+StyleClipBasicShapeToCSSArray(const nsStyleClipPath& aClipPath,
+                              nsCSSValue::Array* aResult)
+{
+  MOZ_ASSERT(aResult->Count() == 2,
+             "Expected array to be presized for a function and the sizing-box");
+
+  const nsStyleBasicShape* shape = aClipPath.GetBasicShape();
+  nsCSSKeyword functionName = shape->GetShapeTypeName();
+  RefPtr<nsCSSValue::Array> functionArray;
+  switch (shape->GetShapeType()) {
+    case nsStyleBasicShape::Type::eCircle:
+    case nsStyleBasicShape::Type::eEllipse: {
+      const nsTArray<nsStyleCoord>& coords = shape->Coordinates();
+      MOZ_ASSERT(coords.Length() == ShapeArgumentCount(functionName) - 1,
+                 "Unexpected radii count");
+      // The "+1" is for the center point:
+      functionArray = aResult->Item(0).InitFunction(functionName,
+                                                    coords.Length() + 1);
+      for (size_t i = 0; i < coords.Length(); ++i) {
+        if (coords[i].GetUnit() == eStyleUnit_Enumerated) {
+          functionArray->Item(i + 1).SetIntValue(coords[i].GetIntValue(),
+                                                 eCSSUnit_Enumerated);
+        } else if (!StyleCoordToCSSValue(coords[i],
+                                         functionArray->Item(i + 1))) {
+          return false;
+        }
+      }
+      // Set functionArray's last item to the circle or ellipse's center point:
+      SetPositionValue(shape->GetPosition(),
+                       functionArray->Item(functionArray->Count() - 1));
+      break;
+    }
+    case nsStyleBasicShape::Type::ePolygon: {
+      functionArray =
+        aResult->Item(0).InitFunction(functionName,
+                                      ShapeArgumentCount(functionName));
+      functionArray->Item(1).SetIntValue(shape->GetFillRule(),
+                                         eCSSUnit_Enumerated);
+      nsCSSValuePairList* list = functionArray->Item(2).SetPairListValue();
+      const nsTArray<nsStyleCoord>& coords = shape->Coordinates();
+      MOZ_ASSERT((coords.Length() % 2) == 0);
+      for (size_t i = 0; i < coords.Length(); i += 2) {
+        if (i > 0) {
+          list->mNext = new nsCSSValuePairList;
+          list = list->mNext;
+        }
+        if (!StyleCoordToCSSValue(coords[i], list->mXValue) ||
+            !StyleCoordToCSSValue(coords[i + 1], list->mYValue)) {
+          return false;
+        }
+      }
+      break;
+    }
+    case nsStyleBasicShape::Type::eInset: {
+      const nsTArray<nsStyleCoord>& coords = shape->Coordinates();
+      MOZ_ASSERT(coords.Length() == ShapeArgumentCount(functionName) - 1,
+                 "Unexpected offset count");
+      functionArray =
+        aResult->Item(0).InitFunction(functionName, coords.Length() + 1);
+      for (size_t i = 0; i < coords.Length(); ++i) {
+        if (!StyleCoordToCSSValue(coords[i], functionArray->Item(i + 1))) {
+          return false;
+        }
+      }
+      RefPtr<nsCSSValue::Array> radiusArray = nsCSSValue::Array::Create(4);
+      const nsStyleCorners& radii = shape->GetRadius();
+      NS_FOR_CSS_FULL_CORNERS(corner) {
+        auto pair = MakeUnique<nsCSSValuePair>();
+        if (!StyleCoordToCSSValue(radii.Get(NS_FULL_TO_HALF_CORNER(corner, false)),
+                                  pair->mXValue) ||
+            !StyleCoordToCSSValue(radii.Get(NS_FULL_TO_HALF_CORNER(corner, true)),
+                                  pair->mYValue)) {
+              return false;
+            }
+        radiusArray->Item(corner).SetPairValue(pair.release());
+      }
+      // Set the last item in functionArray to the radius array:
+      functionArray->Item(functionArray->Count() - 1).
+                       SetArrayValue(radiusArray, eCSSUnit_Array);
+      break;
+    }
+    default:
+      MOZ_ASSERT_UNREACHABLE("Unknown shape type");
+      return false;
+  }
+  aResult->Item(1).SetIntValue(aClipPath.GetSizingBox(), eCSSUnit_Enumerated);
+  return true;
+}
+
 bool
 StyleAnimationValue::ExtractComputedValue(nsCSSProperty aProperty,
                                           nsStyleContext* aStyleContext,
@@ -3234,7 +3605,7 @@ StyleAnimationValue::ExtractComputedValue(nsCSSProperty aProperty,
           bool isForeground;
           styleTextReset->GetDecorationColor(color, isForeground);
           if (isForeground) {
-            color = aStyleContext->StyleColor()->mColor;
+            color = aStyleContext->GetTextFillColor();
           }
           aComputedValue.SetColorValue(color);
           break;
@@ -3250,14 +3621,25 @@ StyleAnimationValue::ExtractComputedValue(nsCSSProperty aProperty,
 
         case eCSSProperty_text_emphasis_color: {
           auto styleText = static_cast<const nsStyleText*>(styleStruct);
-          nscolor color = styleText->mTextEmphasisColorForeground ?
-            aStyleContext->StyleColor()->mColor : styleText->mTextEmphasisColor;
-          aComputedValue.SetColorValue(color);
+          SetCurrentOrActualColor(styleText->mTextEmphasisColorForeground,
+                                  styleText->mTextEmphasisColor,
+                                  aComputedValue);
           break;
         }
 
         case eCSSProperty__webkit_text_fill_color: {
-          aComputedValue.SetColorValue(aStyleContext->GetTextFillColor());
+          auto styleText = static_cast<const nsStyleText*>(styleStruct);
+          SetCurrentOrActualColor(styleText->mWebkitTextFillColorForeground,
+                                  styleText->mWebkitTextFillColor,
+                                  aComputedValue);
+          break;
+        }
+
+        case eCSSProperty__webkit_text_stroke_color: {
+          auto styleText = static_cast<const nsStyleText*>(styleStruct);
+          SetCurrentOrActualColor(styleText->mWebkitTextStrokeColorForeground,
+                                  styleText->mWebkitTextStrokeColor,
+                                  aComputedValue);
           break;
         }
 
@@ -3467,6 +3849,41 @@ StyleAnimationValue::ExtractComputedValue(nsCSSProperty aProperty,
           break;
         }
 #endif
+
+        case eCSSProperty_clip_path: {
+          const nsStyleSVGReset* svgReset =
+            static_cast<const nsStyleSVGReset*>(styleStruct);
+          const nsStyleClipPath& clipPath = svgReset->mClipPath;
+          const int32_t type = clipPath.GetType();
+
+          if (type == NS_STYLE_CLIP_PATH_URL) {
+            nsIDocument* doc = aStyleContext->PresContext()->Document();
+            RefPtr<nsStringBuffer> uriAsStringBuffer =
+              GetURIAsUtf16StringBuffer(clipPath.GetURL());
+            RefPtr<mozilla::css::URLValue> url =
+              new mozilla::css::URLValue(clipPath.GetURL(),
+                                         uriAsStringBuffer,
+                                         doc->GetDocumentURI(),
+                                         doc->NodePrincipal());
+            auto result = MakeUnique<nsCSSValue>();
+            result->SetURLValue(url);
+            aComputedValue.SetAndAdoptCSSValueValue(result.release(), eUnit_URL);
+          } else if (type == NS_STYLE_CLIP_PATH_BOX) {
+            aComputedValue.SetIntValue(clipPath.GetSizingBox(), eUnit_Enumerated);
+          } else if (type == NS_STYLE_CLIP_PATH_SHAPE) {
+            RefPtr<nsCSSValue::Array> result = nsCSSValue::Array::Create(2);
+            if (!StyleClipBasicShapeToCSSArray(clipPath, result)) {
+              return false;
+            }
+            aComputedValue.SetAndAdoptCSSValueArrayValue(result.forget().take(),
+                                                         eUnit_Shape);
+          } else {
+            MOZ_ASSERT(type == NS_STYLE_CLIP_PATH_NONE, "unknown type");
+            aComputedValue.SetNoneValue();
+          }
+          break;
+        }
+
         case eCSSProperty_filter: {
           const nsStyleEffects* effects =
             static_cast<const nsStyleEffects*>(styleStruct);
@@ -3622,6 +4039,10 @@ StyleAnimationValue::ExtractComputedValue(nsCSSProperty aProperty,
     case eStyleAnimType_EnumU8:
       aComputedValue.SetIntValue(*static_cast<const uint8_t*>(
         StyleDataAtOffset(styleStruct, ssOffset)), eUnit_Enumerated);
+      if (aProperty == eCSSProperty_visibility) {
+        aComputedValue.SetIntValue(aComputedValue.GetIntValue(),
+                                   eUnit_Visibility);
+      }
       return true;
     case eStyleAnimType_float:
       aComputedValue.SetFloatValue(*static_cast<const float*>(
@@ -3784,6 +4205,7 @@ StyleAnimationValue::operator=(const StyleAnimationValue& aOther)
     case eUnit_Normal:
     case eUnit_Auto:
     case eUnit_None:
+    case eUnit_CurrentColor:
       break;
     case eUnit_Enumerated:
     case eUnit_Visibility:
@@ -3803,6 +4225,7 @@ StyleAnimationValue::operator=(const StyleAnimationValue& aOther)
       break;
     case eUnit_Calc:
     case eUnit_ObjectPosition:
+    case eUnit_URL:
       MOZ_ASSERT(IsCSSValueUnit(mUnit),
                  "This clause is for handling nsCSSValue-backed units");
       MOZ_ASSERT(aOther.mValue.mCSSValue, "values may not be null");
@@ -3834,6 +4257,12 @@ StyleAnimationValue::operator=(const StyleAnimationValue& aOther)
       } else {
         mValue.mCSSValueList = nullptr;
       }
+      break;
+    case eUnit_Shape:
+      MOZ_ASSERT(aOther.mValue.mCSSValueArray,
+                 "value arrays may not be null");
+      mValue.mCSSValueArray = aOther.mValue.mCSSValueArray;
+      mValue.mCSSValueArray->AddRef();
       break;
     case eUnit_Transform:
       mValue.mCSSValueSharedList = aOther.mValue.mCSSValueSharedList;
@@ -3919,6 +4348,13 @@ StyleAnimationValue::SetColorValue(nscolor aColor)
 }
 
 void
+StyleAnimationValue::SetCurrentColorValue()
+{
+  FreeValue();
+  mUnit = eUnit_CurrentColor;
+}
+
+void
 StyleAnimationValue::SetUnparsedStringValue(const nsString& aString)
 {
   FreeValue();
@@ -3967,6 +4403,18 @@ StyleAnimationValue::SetAndAdoptCSSRectValue(nsCSSRect *aRect, Unit aUnit)
   MOZ_ASSERT(aRect != nullptr, "value pairs may not be null");
   mUnit = aUnit;
   mValue.mCSSRect = aRect; // take ownership
+}
+
+void
+StyleAnimationValue::SetAndAdoptCSSValueArrayValue(nsCSSValue::Array* aValue,
+                                                   Unit aUnit)
+{
+  FreeValue();
+  MOZ_ASSERT(IsCSSValueArrayUnit(aUnit), "bad unit");
+  MOZ_ASSERT(aValue != nullptr,
+             "not currently expecting any arrays to be null");
+  mUnit = aUnit;
+  mValue.mCSSValueArray = aValue; // take ownership
 }
 
 void
@@ -4036,6 +4484,7 @@ StyleAnimationValue::operator==(const StyleAnimationValue& aOther) const
     case eUnit_Normal:
     case eUnit_Auto:
     case eUnit_None:
+    case eUnit_CurrentColor:
       return true;
     case eUnit_Enumerated:
     case eUnit_Visibility:
@@ -4050,6 +4499,7 @@ StyleAnimationValue::operator==(const StyleAnimationValue& aOther) const
       return mValue.mColor == aOther.mValue.mColor;
     case eUnit_Calc:
     case eUnit_ObjectPosition:
+    case eUnit_URL:
       MOZ_ASSERT(IsCSSValueUnit(mUnit),
                  "This clause is for handling nsCSSValue-backed units");
       return *mValue.mCSSValue == *aOther.mValue.mCSSValue;
@@ -4065,6 +4515,8 @@ StyleAnimationValue::operator==(const StyleAnimationValue& aOther) const
     case eUnit_BackgroundPosition:
       return nsCSSValueList::Equal(mValue.mCSSValueList,
                                    aOther.mValue.mCSSValueList);
+    case eUnit_Shape:
+      return *mValue.mCSSValueArray == *aOther.mValue.mCSSValueArray;
     case eUnit_Transform:
       return *mValue.mCSSValueSharedList == *aOther.mValue.mCSSValueSharedList;
     case eUnit_CSSValuePairList:

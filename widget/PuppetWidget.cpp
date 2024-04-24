@@ -274,8 +274,7 @@ NS_IMETHODIMP
 PuppetWidget::Invalidate(const LayoutDeviceIntRect& aRect)
 {
 #ifdef DEBUG
-  debug_DumpInvalidate(stderr, this, &aRect,
-                       nsAutoCString("PuppetWidget"), 0);
+  debug_DumpInvalidate(stderr, this, &aRect, "PuppetWidget", 0);
 #endif
 
   if (mChild) {
@@ -296,21 +295,19 @@ void
 PuppetWidget::InitEvent(WidgetGUIEvent& event, LayoutDeviceIntPoint* aPoint)
 {
   if (nullptr == aPoint) {
-    event.refPoint.x = 0;
-    event.refPoint.y = 0;
+    event.mRefPoint = LayoutDeviceIntPoint(0, 0);
   } else {
     // use the point override if provided
-    event.refPoint = *aPoint;
+    event.mRefPoint = *aPoint;
   }
-  event.time = PR_Now() / 1000;
+  event.mTime = PR_Now() / 1000;
 }
 
 NS_IMETHODIMP
 PuppetWidget::DispatchEvent(WidgetGUIEvent* event, nsEventStatus& aStatus)
 {
 #ifdef DEBUG
-  debug_DumpEvent(stdout, event->widget, event,
-                  nsAutoCString("PuppetWidget"), 0);
+  debug_DumpEvent(stdout, event->mWidget, event, "PuppetWidget", 0);
 #endif
 
   MOZ_ASSERT(!mChild || mChild->mWindowType == eWindowType_popup,
@@ -452,7 +449,7 @@ PuppetWidget::SynthesizeNativeMouseScrollEvent(mozilla::LayoutDeviceIntPoint aPo
 nsresult
 PuppetWidget::SynthesizeNativeTouchPoint(uint32_t aPointerId,
                                          TouchPointerState aPointerState,
-                                         ScreenIntPoint aPointerScreenPoint,
+                                         LayoutDeviceIntPoint aPoint,
                                          double aPointerPressure,
                                          uint32_t aPointerOrientation,
                                          nsIObserver* aObserver)
@@ -462,13 +459,13 @@ PuppetWidget::SynthesizeNativeTouchPoint(uint32_t aPointerId,
     return NS_ERROR_FAILURE;
   }
   mTabChild->SendSynthesizeNativeTouchPoint(aPointerId, aPointerState,
-    aPointerScreenPoint, aPointerPressure, aPointerOrientation,
+    aPoint, aPointerPressure, aPointerOrientation,
     notifier.SaveObserver());
   return NS_OK;
 }
 
 nsresult
-PuppetWidget::SynthesizeNativeTouchTap(ScreenIntPoint aPointerScreenPoint,
+PuppetWidget::SynthesizeNativeTouchTap(LayoutDeviceIntPoint aPoint,
                                        bool aLongTap,
                                        nsIObserver* aObserver)
 {
@@ -476,7 +473,7 @@ PuppetWidget::SynthesizeNativeTouchTap(ScreenIntPoint aPointerScreenPoint,
   if (!mTabChild) {
     return NS_ERROR_FAILURE;
   }
-  mTabChild->SendSynthesizeNativeTouchTap(aPointerScreenPoint, aLongTap,
+  mTabChild->SendSynthesizeNativeTouchTap(aPoint, aLongTap,
     notifier.SaveObserver());
   return NS_OK;
 }
@@ -1034,7 +1031,7 @@ PuppetWidget::Paint()
   if (GetCurrentWidgetListener()) {
 #ifdef DEBUG
     debug_DumpPaintEvent(stderr, this, region.ToUnknownRegion(),
-                         nsAutoCString("PuppetWidget"), 0);
+                         "PuppetWidget", 0);
 #endif
 
     if (mozilla::layers::LayersBackend::LAYERS_CLIENT == mLayerManager->GetBackendType()) {

@@ -719,6 +719,12 @@ public:
   nscoord BSize(mozilla::WritingMode aWritingMode) const {
     return GetLogicalSize(aWritingMode).BSize(aWritingMode);
   }
+  nscoord ContentBSize() const { return ContentBSize(GetWritingMode()); }
+  nscoord ContentBSize(mozilla::WritingMode aWritingMode) const {
+    auto bp = GetLogicalUsedBorderAndPadding(aWritingMode);
+    bp.ApplySkipSides(GetLogicalSkipSides());
+    return std::max(0, BSize(aWritingMode) - bp.BStartEnd(aWritingMode));
+  }
 
   /**
    * When we change the size of the frame's border-box rect, we may need to
@@ -856,7 +862,8 @@ public:
 
 #define NS_DECLARE_FRAME_PROPERTY_WITH_DTOR(prop, type, dtor)             \
   static const mozilla::FramePropertyDescriptor<type>* prop() {           \
-    static MOZ_CONSTEXPR auto descriptor =                                \
+    /* Use of MOZ_CONSTEXPR caused startup crashes with MSVC2015u1 PGO. */\
+    static const auto descriptor =                                        \
       mozilla::FramePropertyDescriptor<type>::NewWithDestructor<dtor>();  \
     return &descriptor;                                                   \
   }
@@ -864,14 +871,16 @@ public:
 // Don't use this unless you really know what you're doing!
 #define NS_DECLARE_FRAME_PROPERTY_WITH_FRAME_IN_DTOR(prop, type, dtor)    \
   static const mozilla::FramePropertyDescriptor<type>* prop() {           \
-    static MOZ_CONSTEXPR auto descriptor = mozilla::                      \
+    /* Use of MOZ_CONSTEXPR caused startup crashes with MSVC2015u1 PGO. */\
+    static const auto descriptor = mozilla::                              \
       FramePropertyDescriptor<type>::NewWithDestructorWithFrame<dtor>();  \
     return &descriptor;                                                   \
   }
 
 #define NS_DECLARE_FRAME_PROPERTY_WITHOUT_DTOR(prop, type)                \
   static const mozilla::FramePropertyDescriptor<type>* prop() {           \
-    static MOZ_CONSTEXPR auto descriptor =                                \
+    /* Use of MOZ_CONSTEXPR caused startup crashes with MSVC2015u1 PGO. */\
+    static const auto descriptor =                                        \
       mozilla::FramePropertyDescriptor<type>::NewWithoutDestructor();     \
     return &descriptor;                                                   \
   }
@@ -962,10 +971,11 @@ public:
    * its rect) and the padding edge of the frame. Like GetRect(), returns
    * the dimensions as of the most recent reflow.
    *
-   * Note that this differs from StyleBorder()->GetBorder() in that
-   * this describes region of the frame's box, and
-   * StyleBorder()->GetBorder() describes a border.  They differ only
-   * for tables, particularly border-collapse tables.
+   * Note that this differs from StyleBorder()->GetComputedBorder() in
+   * that this describes a region of the frame's box, and
+   * StyleBorder()->GetComputedBorder() describes a border.  They differ
+   * for tables (particularly border-collapse tables) and themed
+   * elements.
    */
   virtual nsMargin GetUsedBorder() const;
   virtual mozilla::LogicalMargin

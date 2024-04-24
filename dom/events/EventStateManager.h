@@ -108,6 +108,10 @@ public:
                            nsIFrame* aTargetFrame,
                            nsEventStatus* aStatus);
 
+  void PostHandleKeyboardEvent(WidgetKeyboardEvent* aKeyboardEvent,
+                               nsEventStatus& aStatus,
+                               bool dispatchedToContentProcess);
+
   /**
    * DispatchLegacyMouseScrollEvents() dispatches eLegacyMouseLineOrPageScroll
    * event and eLegacyMousePixelScroll event for compatibility with old Gecko.
@@ -516,6 +520,12 @@ protected:
     bool IsOverOnePageScrollAllowedX(WidgetWheelEvent* aEvent);
     bool IsOverOnePageScrollAllowedY(WidgetWheelEvent* aEvent);
 
+    /**
+     * WheelEventsEnabledOnPlugins() returns true if user wants to use mouse
+     * wheel on plugins.
+     */
+    static bool WheelEventsEnabledOnPlugins();
+
   private:
     WheelPrefs();
     ~WheelPrefs();
@@ -579,6 +589,8 @@ protected:
     Action mOverriddenActionsX[COUNT_OF_MULTIPLIERS];
 
     static WheelPrefs* sInstance;
+
+    static bool sWheelEventsEnabledOnPlugins;
   };
 
   /**
@@ -669,12 +681,14 @@ protected:
     // Default action prefers the scrolled element immediately before if it's
     // still under the mouse cursor.  Otherwise, it prefers the nearest
     // scrollable ancestor which will be scrolled actually.
+    COMPUTE_DEFAULT_ACTION_TARGET_EXCEPT_PLUGIN  =
+      (PREFER_MOUSE_WHEEL_TRANSACTION |
+       PREFER_ACTUAL_SCROLLABLE_TARGET_ALONG_X_AXIS |
+       PREFER_ACTUAL_SCROLLABLE_TARGET_ALONG_Y_AXIS),
     // When this is specified, the result may be nsPluginFrame.  In such case,
     // the frame doesn't have nsIScrollableFrame interface.
     COMPUTE_DEFAULT_ACTION_TARGET                =
-      (PREFER_MOUSE_WHEEL_TRANSACTION |
-       PREFER_ACTUAL_SCROLLABLE_TARGET_ALONG_X_AXIS |
-       PREFER_ACTUAL_SCROLLABLE_TARGET_ALONG_Y_AXIS |
+      (COMPUTE_DEFAULT_ACTION_TARGET_EXCEPT_PLUGIN |
        INCLUDE_PLUGIN_AS_TARGET),
     // Look for the nearest scrollable ancestor which can be scrollable with
     // aEvent.
@@ -683,6 +697,17 @@ protected:
     COMPUTE_SCROLLABLE_ANCESTOR_ALONG_Y_AXIS     =
       (PREFER_ACTUAL_SCROLLABLE_TARGET_ALONG_Y_AXIS | START_FROM_PARENT)
   };
+  static ComputeScrollTargetOptions RemovePluginFromTarget(
+                                      ComputeScrollTargetOptions aOptions)
+  {
+    switch (aOptions) {
+      case COMPUTE_DEFAULT_ACTION_TARGET:
+        return COMPUTE_DEFAULT_ACTION_TARGET_EXCEPT_PLUGIN;
+      default:
+        MOZ_ASSERT(!(aOptions & INCLUDE_PLUGIN_AS_TARGET));
+        return aOptions;
+    }
+  }
   nsIFrame* ComputeScrollTarget(nsIFrame* aTargetFrame,
                                 WidgetWheelEvent* aEvent,
                                 ComputeScrollTargetOptions aOptions);
@@ -852,7 +877,7 @@ protected:
   /**
    * Set the fields of aEvent to reflect the mouse position and modifier keys
    * that were set when the user first pressed the mouse button (stored by
-   * BeginTrackingDragGesture). aEvent->widget must be
+   * BeginTrackingDragGesture). aEvent->mWidget must be
    * mCurrentTarget->GetNearestWidget().
    */
   void FillInEventFromGestureDown(WidgetMouseEvent* aEvent);
@@ -885,19 +910,16 @@ private:
   static void ResetLastOverForContent(const uint32_t& aIdx,
                                       RefPtr<OverOutElementsWrapper>& aChunk,
                                       nsIContent* aClosure);
-  void PostHandleKeyboardEvent(WidgetKeyboardEvent* aKeyboardEvent,
-                               nsEventStatus& aStatus,
-                               bool dispatchedToContentProcess);
 
   int32_t     mLockCursor;
   bool mLastFrameConsumedSetCursor;
 
-  // Last mouse event refPoint (the offset from the widget's origin in
+  // Last mouse event mRefPoint (the offset from the widget's origin in
   // device pixels) when mouse was locked, used to restore mouse position
   // after unlocking.
   LayoutDeviceIntPoint mPreLockPoint;
 
-  // Stores the refPoint of the last synthetic mouse move we dispatched
+  // Stores the mRefPoint of the last synthetic mouse move we dispatched
   // to re-center the mouse when we were pointer locked. If this is (-1,-1) it
   // means we've not recently dispatched a centering event. We use this to
   // detect when we receive the synth event, so we can cancel and not send it
@@ -908,7 +930,7 @@ private:
   nsCOMPtr<nsIContent> mCurrentTargetContent;
   static nsWeakFrame sLastDragOverFrame;
 
-  // Stores the refPoint (the offset from the widget's origin in device
+  // Stores the mRefPoint (the offset from the widget's origin in device
   // pixels) of the last mouse event.
   static LayoutDeviceIntPoint sLastRefPoint;
 

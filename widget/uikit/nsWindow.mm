@@ -143,10 +143,10 @@ private:
     WidgetMouseEvent event(true, aType, aWindow,
                            WidgetMouseEvent::eReal, WidgetMouseEvent::eNormal);
 
-    event.refPoint = aPoint;
+    event.mRefPoint = aPoint;
     event.clickCount = 1;
     event.button = WidgetMouseEvent::eLeftButton;
-    event.time = PR_IntervalNow();
+    event.mTime = PR_IntervalNow();
     event.inputSource = nsIDOMMouseEvent::MOZ_SOURCE_UNKNOWN;
 
     nsEventStatus status;
@@ -169,8 +169,8 @@ private:
     WidgetTouchEvent event(true, aType, aWindow);
     //XXX: I think nativeEvent.timestamp * 1000 is probably usable here but
     // I don't care that much right now.
-    event.time = PR_IntervalNow();
-    event.touches.SetCapacity(aTouches.count);
+    event.mTime = PR_IntervalNow();
+    event.mTouches.SetCapacity(aTouches.count);
     for (UITouch* touch in aTouches) {
         LayoutDeviceIntPoint loc = UIKitPointsToDevPixels([touch locationInView:self], [self contentScaleFactor]);
         LayoutDeviceIntPoint radius = UIKitPointsToDevPixels([touch majorRadius], [touch majorRadius]);
@@ -182,8 +182,8 @@ private:
         }
         int id = reinterpret_cast<int>(value);
         RefPtr<Touch> t = new Touch(id, loc, radius, 0.0f, 1.0f);
-        event.refPoint = loc;
-        event.touches.AppendElement(t);
+        event.mRefPoint = loc;
+        event.mTouches.AppendElement(t);
     }
     aWindow->DispatchInputEvent(&event);
 }
@@ -821,7 +821,7 @@ nsWindow::DispatchEvent(mozilla::WidgetGUIEvent* aEvent,
                         nsEventStatus& aStatus)
 {
   aStatus = nsEventStatus_eIgnore;
-  nsCOMPtr<nsIWidget> kungFuDeathGrip = do_QueryInterface(aEvent->widget);
+  nsCOMPtr<nsIWidget> kungFuDeathGrip(aEvent->mWidget);
 
   if (mWidgetListener)
     aStatus = mWidgetListener->HandleEvent(aEvent, mUseAttachedEvents);

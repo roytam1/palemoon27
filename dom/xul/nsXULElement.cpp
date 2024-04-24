@@ -437,7 +437,7 @@ already_AddRefed<nsINodeList>
 nsXULElement::GetElementsByAttribute(const nsAString& aAttribute,
                                      const nsAString& aValue)
 {
-    nsCOMPtr<nsIAtom> attrAtom(do_GetAtom(aAttribute));
+    nsCOMPtr<nsIAtom> attrAtom(NS_Atomize(aAttribute));
     void* attrValue = new nsString(aValue);
     RefPtr<nsContentList> list =
         new nsContentList(this,
@@ -468,7 +468,7 @@ nsXULElement::GetElementsByAttributeNS(const nsAString& aNamespaceURI,
                                        const nsAString& aValue,
                                        ErrorResult& rv)
 {
-    nsCOMPtr<nsIAtom> attrAtom(do_GetAtom(aAttribute));
+    nsCOMPtr<nsIAtom> attrAtom(NS_Atomize(aAttribute));
 
     int32_t nameSpaceId = kNameSpaceID_Wildcard;
     if (!aNamespaceURI.EqualsLiteral("*")) {
@@ -1050,14 +1050,14 @@ nsXULElement::BeforeSetAttr(int32_t aNamespaceID, nsIAtom* aName,
                             nsAttrValueOrString* aValue, bool aNotify)
 {
     if (aNamespaceID == kNameSpaceID_None && aName == nsGkAtoms::accesskey &&
-        IsInDoc()) {
+        IsInUncomposedDoc()) {
         nsAutoString oldValue;
         if (GetAttr(aNamespaceID, aName, oldValue)) {
             UnregisterAccessKey(oldValue);
         }
     } else if (aNamespaceID == kNameSpaceID_None &&
                (aName == nsGkAtoms::command || aName == nsGkAtoms::observes) &&
-               IsInDoc()) {
+               IsInUncomposedDoc()) {
 //         XXX sXBL/XBL2 issue! Owner or current document?
         nsAutoString oldValue;
         GetAttr(kNameSpaceID_None, nsGkAtoms::observes, oldValue);
@@ -1288,7 +1288,7 @@ nsXULElement::PreHandleEvent(EventChainPreVisitor& aVisitor)
     }
     if (aVisitor.mEvent->mMessage == eXULCommand &&
         aVisitor.mEvent->mClass == eInputEventClass &&
-        aVisitor.mEvent->originalTarget == static_cast<nsIContent*>(this) &&
+        aVisitor.mEvent->mOriginalTarget == static_cast<nsIContent*>(this) &&
         !IsXULElement(nsGkAtoms::command)) {
         // Check that we really have an xul command event. That will be handled
         // in a special way.
@@ -1571,7 +1571,7 @@ nsXULElement::LoadSrc()
                             nsGkAtoms::iframe)) {
         return NS_OK;
     }
-    if (!IsInDoc() ||
+    if (!IsInUncomposedDoc() ||
         !OwnerDoc()->GetRootElement() ||
         OwnerDoc()->GetRootElement()->
             NodeInfo()->Equals(nsGkAtoms::overlay, kNameSpaceID_XUL)) {

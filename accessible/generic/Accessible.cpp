@@ -275,7 +275,7 @@ Accessible::AccessKey() const
   }
 
   // Determine the access modifier used in this context.
-  nsIDocument* document = mContent->GetCurrentDoc();
+  nsIDocument* document = mContent->GetUncomposedDoc();
   if (!document)
     return KeyBinding();
 
@@ -537,7 +537,7 @@ Accessible::ChildAtPoint(int32_t aX, int32_t aY,
 
   WidgetMouseEvent dummyEvent(true, eMouseMove, rootWidget,
                               WidgetMouseEvent::eSynthesized);
-  dummyEvent.refPoint = LayoutDeviceIntPoint(aX - rootRect.x, aY - rootRect.y);
+  dummyEvent.mRefPoint = LayoutDeviceIntPoint(aX - rootRect.x, aY - rootRect.y);
 
   nsIFrame* popupFrame = nsLayoutUtils::
     GetPopupFrameForEventCoordinates(accDocument->PresContext()->GetRootPresContext(),
@@ -1614,7 +1614,7 @@ Accessible::RelationByType(RelationType aType)
       // above it).
       nsIFrame *frame = GetFrame();
       if (frame) {
-        nsView *view = frame->GetViewExternal();
+        nsView *view = frame->GetView();
         if (view) {
           nsIScrollableFrame *scrollFrame = do_QueryFrame(frame);
           if (scrollFrame || view->GetWidget() || !frame->GetParent())

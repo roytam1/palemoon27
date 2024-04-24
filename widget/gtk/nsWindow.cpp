@@ -5,10 +5,13 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
+#include "nsWindow.h"
+
 #include "mozilla/ArrayUtils.h"
 #include "mozilla/EventForwards.h"
 #include "mozilla/MiscEvents.h"
 #include "mozilla/MouseEvents.h"
+#include "mozilla/RefPtr.h"
 #include "mozilla/TextEventDispatcher.h"
 #include "mozilla/TextEvents.h"
 #include "mozilla/TimeStamp.h"
@@ -106,7 +109,6 @@ using namespace mozilla::widget;
 #include "nsGfxCIID.h"
 #include "nsImageToPixbuf.h"
 #include "nsIInterfaceRequestorUtils.h"
-#include "nsAutoPtr.h"
 #include "ClientLayerManager.h"
 
 #include "gfxPlatformGtk.h"
@@ -127,7 +129,6 @@ using namespace mozilla::widget;
 #include "nsIDOMWheelEvent.h"
 
 #include "NativeKeyBindings.h"
-#include "nsWindow.h"
 
 #include <dlfcn.h>
 
@@ -556,8 +557,8 @@ nsresult
 nsWindow::DispatchEvent(WidgetGUIEvent* aEvent, nsEventStatus& aStatus)
 {
 #ifdef DEBUG
-    debug_DumpEvent(stdout, aEvent->widget, aEvent,
-                    nsAutoCString("something"), 0);
+    debug_DumpEvent(stdout, aEvent->mWidget, aEvent,
+                    "something", 0);
 #endif
     aStatus = nsEventStatus_eIgnore;
     nsIWidgetListener* listener =
@@ -2307,8 +2308,8 @@ nsWindow::OnExposeEvent(cairo_t *cr)
     dt->PopClip();
 
 #  ifdef MOZ_HAVE_SHMIMAGE
-    if (mShmImage && MOZ_LIKELY(!mIsDestroyed)) {
-      mShmImage->Put(region);
+    if (mBackShmImage && MOZ_LIKELY(!mIsDestroyed)) {
+      mBackShmImage->Put(region);
     }
 #  endif  // MOZ_HAVE_SHMIMAGE
 #endif // MOZ_X11
@@ -2506,7 +2507,7 @@ nsWindow::OnEnterNotifyEvent(GdkEventCrossing *aEvent)
     WidgetMouseEvent event(true, eMouseEnterIntoWidget, this,
                            WidgetMouseEvent::eReal);
 
-    event.refPoint = GdkEventCoordsToDevicePixels(aEvent->x, aEvent->y);
+    event.mRefPoint = GdkEventCoordsToDevicePixels(aEvent->x, aEvent->y);
     event.AssignEventTime(GetWidgetEventTime(aEvent->time));
 
     LOG(("OnEnterNotify: %p\n", (void *)this));
@@ -2546,7 +2547,7 @@ nsWindow::OnLeaveNotifyEvent(GdkEventCrossing *aEvent)
     WidgetMouseEvent event(true, eMouseExitFromWidget, this,
                            WidgetMouseEvent::eReal);
 
-    event.refPoint = GdkEventCoordsToDevicePixels(aEvent->x, aEvent->y);
+    event.mRefPoint = GdkEventCoordsToDevicePixels(aEvent->x, aEvent->y);
     event.AssignEventTime(GetWidgetEventTime(aEvent->time));
 
     event.exit = is_top_level_mouse_exit(mGdkWindow, aEvent)
@@ -2616,21 +2617,21 @@ nsWindow::OnMotionNotifyEvent(GdkEventMotion *aEvent)
     guint modifierState;
     if (synthEvent) {
 #ifdef MOZ_X11
-        event.refPoint.x = nscoord(xevent.xmotion.x);
-        event.refPoint.y = nscoord(xevent.xmotion.y);
+        event.mRefPoint.x = nscoord(xevent.xmotion.x);
+        event.mRefPoint.y = nscoord(xevent.xmotion.y);
 
         modifierState = xevent.xmotion.state;
 
         event.AssignEventTime(GetWidgetEventTime(xevent.xmotion.time));
 #else
-        event.refPoint = GdkEventCoordsToDevicePixels(aEvent->x, aEvent->y);
+        event.mRefPoint = GdkEventCoordsToDevicePixels(aEvent->x, aEvent->y);
 
         modifierState = aEvent->state;
 
         event.AssignEventTime(GetWidgetEventTime(aEvent->time));
 #endif /* MOZ_X11 */
     } else {
-        event.refPoint = GetRefPoint(this, aEvent);
+        event.mRefPoint = GetRefPoint(this, aEvent);
 
         modifierState = aEvent->state;
 
@@ -2698,7 +2699,7 @@ void
 nsWindow::InitButtonEvent(WidgetMouseEvent& aEvent,
                           GdkEventButton* aGdkEvent)
 {
-    aEvent.refPoint = GetRefPoint(this, aGdkEvent);
+    aEvent.mRefPoint = GetRefPoint(this, aGdkEvent);
 
     guint modifierState = aGdkEvent->state;
     // aEvent's state includes the button state from immediately before this
@@ -3021,9 +3022,9 @@ mozilla::CurrentX11TimeGetter*
 nsWindow::GetCurrentTimeGetter() {
     MOZ_ASSERT(mGdkWindow, "Expected mGdkWindow to be set");
     if (MOZ_UNLIKELY(!mCurrentTimeGetter)) {
-        mCurrentTimeGetter = new CurrentX11TimeGetter(mGdkWindow);
+        mCurrentTimeGetter = MakeUnique<CurrentX11TimeGetter>(mGdkWindow);
     }
-    return mCurrentTimeGetter;
+    return mCurrentTimeGetter.get();
 }
 
 gboolean
@@ -3120,7 +3121,7 @@ nsWindow::OnKeyPressEvent(GdkEventKey *aEvent)
                                           WidgetMouseEvent::eReal,
                                           WidgetMouseEvent::eContextMenuKey);
 
-        contextMenuEvent.refPoint = LayoutDeviceIntPoint(0, 0);
+        contextMenuEvent.mRefPoint = LayoutDeviceIntPoint(0, 0);
         contextMenuEvent.AssignEventTime(GetWidgetEventTime(aEvent->time));
         contextMenuEvent.clickCount = 1;
         KeymapWrapper::InitInputEvent(contextMenuEvent, aEvent->state);
@@ -3188,7 +3189,7 @@ nsWindow::OnScrollEvent(GdkEventScroll *aEvent)
         return; 
 #endif
     WidgetWheelEvent wheelEvent(true, eWheel, this);
-    wheelEvent.deltaMode = nsIDOMWheelEvent::DOM_DELTA_LINE;
+    wheelEvent.mDeltaMode = nsIDOMWheelEvent::DOM_DELTA_LINE;
     switch (aEvent->direction) {
 #if GTK_CHECK_VERSION(3,4,0)
     case GDK_SCROLL_SMOOTH:
@@ -3198,8 +3199,8 @@ nsWindow::OnScrollEvent(GdkEventScroll *aEvent)
         mLastScrollEventTime = aEvent->time;
         // TODO - use a more appropriate scrolling unit than lines.
         // Multiply event deltas by 3 to emulate legacy behaviour.
-        wheelEvent.deltaX = aEvent->delta_x * 3;
-        wheelEvent.deltaY = aEvent->delta_y * 3;
+        wheelEvent.mDeltaX = aEvent->delta_x * 3;
+        wheelEvent.mDeltaY = aEvent->delta_y * 3;
         wheelEvent.mIsNoLineOrPageDelta = true;
         // This next step manually unsets smooth scrolling for touch devices 
         // that trigger GDK_SCROLL_SMOOTH. We use the slave device, which 
@@ -3208,26 +3209,26 @@ nsWindow::OnScrollEvent(GdkEventScroll *aEvent)
         GdkInputSource source = gdk_device_get_source(device);
         if (source == GDK_SOURCE_TOUCHSCREEN ||
             source == GDK_SOURCE_TOUCHPAD) {
-            wheelEvent.scrollType = WidgetWheelEvent::SCROLL_ASYNCHRONOUSELY;
+            wheelEvent.mScrollType = WidgetWheelEvent::SCROLL_ASYNCHRONOUSELY;
         }
         break;
     }
 #endif
     case GDK_SCROLL_UP:
-        wheelEvent.deltaY = wheelEvent.lineOrPageDeltaY = -3;
+        wheelEvent.mDeltaY = wheelEvent.mLineOrPageDeltaY = -3;
         break;
     case GDK_SCROLL_DOWN:
-        wheelEvent.deltaY = wheelEvent.lineOrPageDeltaY = 3;
+        wheelEvent.mDeltaY = wheelEvent.mLineOrPageDeltaY = 3;
         break;
     case GDK_SCROLL_LEFT:
-        wheelEvent.deltaX = wheelEvent.lineOrPageDeltaX = -1;
+        wheelEvent.mDeltaX = wheelEvent.mLineOrPageDeltaX = -1;
         break;
     case GDK_SCROLL_RIGHT:
-        wheelEvent.deltaX = wheelEvent.lineOrPageDeltaX = 1;
+        wheelEvent.mDeltaX = wheelEvent.mLineOrPageDeltaX = 1;
         break;
     }
 
-    wheelEvent.refPoint = GetRefPoint(this, aEvent);
+    wheelEvent.mRefPoint = GetRefPoint(this, aEvent);
 
     KeymapWrapper::InitInputEvent(wheelEvent, aEvent->state);
 
@@ -3372,7 +3373,7 @@ nsWindow::DispatchDragEvent(EventMessage aMsg, const LayoutDeviceIntPoint& aRefP
         InitDragEvent(event);
     }
 
-    event.refPoint = aRefPoint;
+    event.mRefPoint = aRefPoint;
     event.AssignEventTime(GetWidgetEventTime(aTime));
 
     DispatchInputEvent(&event);
@@ -3436,17 +3437,17 @@ nsWindow::OnTouchEvent(GdkEventTouch* aEvent)
 
     WidgetTouchEvent event(true, msg, this);
     KeymapWrapper::InitInputEvent(event, aEvent->state);
-    event.time = aEvent->time;
+    event.mTime = aEvent->time;
 
     if (aEvent->type == GDK_TOUCH_BEGIN || aEvent->type == GDK_TOUCH_UPDATE) {
         mTouches.Put(aEvent->sequence, touch.forget());
         // add all touch points to event object
         for (auto iter = mTouches.Iter(); !iter.Done(); iter.Next()) {
-            event.touches.AppendElement(new dom::Touch(*iter.UserData()));
+            event.mTouches.AppendElement(new dom::Touch(*iter.UserData()));
         }
     } else if (aEvent->type == GDK_TOUCH_END ||
                aEvent->type == GDK_TOUCH_CANCEL) {
-        *event.touches.AppendElement() = touch.forget();
+        *event.mTouches.AppendElement() = touch.forget();
     }
 
     DispatchInputEvent(&event);
@@ -6449,13 +6450,14 @@ nsWindow::GetDrawTarget(const LayoutDeviceIntRegion& aRegion, BufferMode* aBuffe
 #ifdef MOZ_X11
 #  ifdef MOZ_HAVE_SHMIMAGE
   if (nsShmImage::UseShm()) {
-    if (!mShmImage) {
-      mShmImage = new nsShmImage(mXDisplay, mXWindow, mXVisual, mXDepth);
+    mBackShmImage.swap(mFrontShmImage);
+    if (!mBackShmImage) {
+      mBackShmImage = new nsShmImage(mXDisplay, mXWindow, mXVisual, mXDepth);
     }
-    dt = mShmImage->CreateDrawTarget(aRegion);
+    dt = mBackShmImage->CreateDrawTarget(aRegion);
     *aBufferMode = BufferMode::BUFFER_NONE;
     if (!dt) {
-      mShmImage = nullptr;
+      mBackShmImage = nullptr;
     }
   }
 #  endif  // MOZ_HAVE_SHMIMAGE
@@ -6485,11 +6487,11 @@ nsWindow::EndRemoteDrawingInRegion(DrawTarget* aDrawTarget,
 {
 #ifdef MOZ_X11
 #  ifdef MOZ_HAVE_SHMIMAGE
-  if (!mGdkWindow || !mShmImage) {
+  if (!mGdkWindow || !mBackShmImage) {
     return;
   }
 
-  mShmImage->Put(aInvalidRegion);
+  mBackShmImage->Put(aInvalidRegion);
 #  endif // MOZ_HAVE_SHMIMAGE
 #endif // MOZ_X11
 }
@@ -6526,7 +6528,7 @@ nsWindow::GetDragInfo(WidgetMouseEvent* aMouseEvent,
                "gdk_window_get_toplevel should not return null");
     *aWindow = gdk_window;
 
-    if (!aMouseEvent->widget) {
+    if (!aMouseEvent->mWidget) {
         return false;
     }
 
@@ -6535,9 +6537,9 @@ nsWindow::GetDragInfo(WidgetMouseEvent* aMouseEvent,
     // moved since the mousedown.  (On the other hand, it's quite likely
     // that the mouse has moved, which is why we use the mouse position
     // from the event.)
-    LayoutDeviceIntPoint offset = aMouseEvent->widget->WidgetToScreenOffset();
-    *aRootX = aMouseEvent->refPoint.x + offset.x;
-    *aRootY = aMouseEvent->refPoint.y + offset.y;
+    LayoutDeviceIntPoint offset = aMouseEvent->mWidget->WidgetToScreenOffset();
+    *aRootX = aMouseEvent->mRefPoint.x + offset.x;
+    *aRootY = aMouseEvent->mRefPoint.y + offset.y;
 
     return true;
 }
@@ -6559,7 +6561,7 @@ nsWindow::BeginMoveDrag(WidgetMouseEvent* aEvent)
     screenX = DevicePixelsToGdkCoordRoundDown(screenX);
     screenY = DevicePixelsToGdkCoordRoundDown(screenY);
     gdk_window_begin_move_drag(gdk_window, button, screenX, screenY,
-                               aEvent->time);
+                               aEvent->mTime);
 
     return NS_OK;
 }
@@ -6613,7 +6615,7 @@ nsWindow::BeginResizeDrag(WidgetGUIEvent* aEvent,
 
     // tell the window manager to start the resize
     gdk_window_begin_resize_drag(gdk_window, window_edge, button,
-                                 screenX, screenY, aEvent->time);
+                                 screenX, screenY, aEvent->mTime);
 
     return NS_OK;
 }
@@ -6771,7 +6773,8 @@ nsWindow::SynthesizeNativeMouseEvent(LayoutDeviceIntPoint aPoint,
     // aNativeMessage != GDK_BUTTON_RELEASE we'll synthesize a motion event
     // that will be emitted by gdk_display_warp_pointer().
     GdkScreen* screen = gdk_window_get_screen(mGdkWindow);
-    gdk_display_warp_pointer(display, screen, aPoint.x, aPoint.y);
+    GdkPoint point = DevicePixelsToGdkPointRoundDown(aPoint);
+    gdk_display_warp_pointer(display, screen, point.x, point.y);
   }
 
   return NS_OK;
@@ -6836,6 +6839,85 @@ nsWindow::SynthesizeNativeMouseScrollEvent(mozilla::LayoutDeviceIntPoint aPoint,
 
   return NS_OK;
 }
+
+#if GTK_CHECK_VERSION(3,4,0)
+nsresult
+nsWindow::SynthesizeNativeTouchPoint(uint32_t aPointerId,
+                                     TouchPointerState aPointerState,
+                                     LayoutDeviceIntPoint aPoint,
+                                     double aPointerPressure,
+                                     uint32_t aPointerOrientation,
+                                     nsIObserver* aObserver)
+{
+  AutoObserverNotifier notifier(aObserver, "touchpoint");
+
+  if (!mGdkWindow) {
+    return NS_OK;
+  }
+
+  GdkEvent event;
+  memset(&event, 0, sizeof(GdkEvent));
+
+  static std::map<uint32_t, GdkEventSequence*> sKnownPointers;
+
+  auto result = sKnownPointers.find(aPointerId);
+  switch (aPointerState) {
+  case TOUCH_CONTACT:
+    if (result == sKnownPointers.end()) {
+      // GdkEventSequence isn't a thing we can instantiate, and never gets
+      // dereferenced in the gtk code. It's an opaque pointer, the only
+      // requirement is that it be distinct from other instances of
+      // GdkEventSequence*.
+      event.touch.sequence = (GdkEventSequence*)((uintptr_t)aPointerId);
+      sKnownPointers[aPointerId] = event.touch.sequence;
+      event.type = GDK_TOUCH_BEGIN;
+    } else {
+      event.touch.sequence = result->second;
+      event.type = GDK_TOUCH_UPDATE;
+    }
+    break;
+  case TOUCH_REMOVE:
+    event.type = GDK_TOUCH_END;
+    if (result == sKnownPointers.end()) {
+      NS_WARNING("Tried to synthesize touch-end for unknown pointer!");
+      return NS_ERROR_UNEXPECTED;
+    }
+    event.touch.sequence = result->second;
+    sKnownPointers.erase(result);
+    break;
+  case TOUCH_CANCEL:
+    event.type = GDK_TOUCH_CANCEL;
+    if (result == sKnownPointers.end()) {
+      NS_WARNING("Tried to synthesize touch-cancel for unknown pointer!");
+      return NS_ERROR_UNEXPECTED;
+    }
+    event.touch.sequence = result->second;
+    sKnownPointers.erase(result);
+    break;
+  case TOUCH_HOVER:
+  default:
+    return NS_ERROR_NOT_IMPLEMENTED;
+  }
+
+  event.touch.window = mGdkWindow;
+  event.touch.time = GDK_CURRENT_TIME;
+
+  GdkDisplay* display = gdk_window_get_display(mGdkWindow);
+  GdkDeviceManager* device_manager = gdk_display_get_device_manager(display);
+  event.touch.device = gdk_device_manager_get_client_pointer(device_manager);
+
+  event.touch.x_root = DevicePixelsToGdkCoordRoundDown(aPoint.x);
+  event.touch.y_root = DevicePixelsToGdkCoordRoundDown(aPoint.y);
+
+  LayoutDeviceIntPoint pointInWindow = aPoint - WidgetToScreenOffset();
+  event.touch.x = DevicePixelsToGdkCoordRoundDown(pointInWindow.x);
+  event.touch.y = DevicePixelsToGdkCoordRoundDown(pointInWindow.y);
+
+  gdk_event_put(&event);
+
+  return NS_OK;
+}
+#endif
 
 int32_t
 nsWindow::RoundsWidgetCoordinatesTo()

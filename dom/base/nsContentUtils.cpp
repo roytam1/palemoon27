@@ -3878,7 +3878,7 @@ nsContentUtils::MatchElementId(nsIContent *aContent, const nsAString& aId)
   NS_PRECONDITION(!aId.IsEmpty(), "Will match random elements");
   
   // ID attrs are generally stored as atoms, so just atomize this up front
-  nsCOMPtr<nsIAtom> id(do_GetAtom(aId));
+  nsCOMPtr<nsIAtom> id(NS_Atomize(aId));
   if (!id) {
     // OOM, so just bail
     return nullptr;
@@ -4019,7 +4019,7 @@ nsContentUtils::HasMutationListeners(nsINode* aNode,
   doc->MayDispatchMutationEvent(aTargetForSubtreeModified);
 
   // If we have a window, we can check it for mutation listeners now.
-  if (aNode->IsInDoc()) {
+  if (aNode->IsInUncomposedDoc()) {
     nsCOMPtr<EventTarget> piTarget(do_QueryInterface(window));
     if (piTarget) {
       EventListenerManager* manager = piTarget->GetExistingListenerManager();
@@ -4117,7 +4117,7 @@ nsContentUtils::UnmarkGrayJSListenersInCCGenerationDocuments()
   for (auto i = sEventListenerManagersHash->Iter(); !i.Done(); i.Next()) {
     auto entry = static_cast<EventListenerManagerMapEntry*>(i.Get());
     nsINode* n = static_cast<nsINode*>(entry->mListenerManager->GetTarget());
-    if (n && n->IsInDoc() &&
+    if (n && n->IsInUncomposedDoc() &&
         nsCCUncollectableMarker::InGeneration(n->OwnerDoc()->GetMarkedCCGeneration())) {
       entry->mListenerManager->MarkForCC();
     }
@@ -5157,7 +5157,7 @@ static void ProcessViewportToken(nsIDocument *aDocument,
 
   /* Check for known keys. If we find a match, insert the appropriate
    * information into the document header. */
-  nsCOMPtr<nsIAtom> key_atom = do_GetAtom(key);
+  nsCOMPtr<nsIAtom> key_atom = NS_Atomize(key);
   if (key_atom == nsGkAtoms::height)
     aDocument->SetHeaderData(nsGkAtoms::viewport_height, value);
   else if (key_atom == nsGkAtoms::width)
@@ -5260,7 +5260,7 @@ nsContentUtils::GetDragSession()
 nsresult
 nsContentUtils::SetDataTransferInEvent(WidgetDragEvent* aDragEvent)
 {
-  if (aDragEvent->dataTransfer || !aDragEvent->IsTrusted()) {
+  if (aDragEvent->mDataTransfer || !aDragEvent->IsTrusted()) {
     return NS_OK;
   }
 
@@ -5288,7 +5288,7 @@ nsContentUtils::SetDataTransferInEvent(WidgetDragEvent* aDragEvent)
     // from another application. In either case, a new dataTransfer should
     // be created that reflects the data.
     initialDataTransfer =
-      new DataTransfer(aDragEvent->target, aDragEvent->mMessage, true, -1);
+      new DataTransfer(aDragEvent->mTarget, aDragEvent->mMessage, true, -1);
 
     // now set it in the drag session so we don't need to create it again
     dragSession->SetDataTransfer(initialDataTransfer);
@@ -5301,11 +5301,13 @@ nsContentUtils::SetDataTransferInEvent(WidgetDragEvent* aDragEvent)
   }
 
   // each event should use a clone of the original dataTransfer.
-  initialDataTransfer->Clone(aDragEvent->target, aDragEvent->mMessage,
-                             aDragEvent->userCancelled,
+  initialDataTransfer->Clone(aDragEvent->mTarget, aDragEvent->mMessage,
+                             aDragEvent->mUserCancelled,
                              isCrossDomainSubFrameDrop,
-                             getter_AddRefs(aDragEvent->dataTransfer));
-  NS_ENSURE_TRUE(aDragEvent->dataTransfer, NS_ERROR_OUT_OF_MEMORY);
+                             getter_AddRefs(aDragEvent->mDataTransfer));
+  if (NS_WARN_IF(!aDragEvent->mDataTransfer)) {
+    return NS_ERROR_OUT_OF_MEMORY;
+  }
 
   // for the dragenter and dragover events, initialize the drop effect
   // from the drop action, which platform specific widget code sets before
@@ -5313,8 +5315,9 @@ nsContentUtils::SetDataTransferInEvent(WidgetDragEvent* aDragEvent)
   if (aDragEvent->mMessage == eDragEnter || aDragEvent->mMessage == eDragOver) {
     uint32_t action, effectAllowed;
     dragSession->GetDragAction(&action);
-    aDragEvent->dataTransfer->GetEffectAllowedInt(&effectAllowed);
-    aDragEvent->dataTransfer->SetDropEffectInt(FilterDropEffect(action, effectAllowed));
+    aDragEvent->mDataTransfer->GetEffectAllowedInt(&effectAllowed);
+    aDragEvent->mDataTransfer->SetDropEffectInt(
+                                 FilterDropEffect(action, effectAllowed));
   }
   else if (aDragEvent->mMessage == eDrop ||
            aDragEvent->mMessage == eLegacyDragDrop ||
@@ -5325,7 +5328,7 @@ nsContentUtils::SetDataTransferInEvent(WidgetDragEvent* aDragEvent)
     // dragover event.
     uint32_t dropEffect;
     initialDataTransfer->GetDropEffectInt(&dropEffect);
-    aDragEvent->dataTransfer->SetDropEffectInt(dropEffect);
+    aDragEvent->mDataTransfer->SetDropEffectInt(dropEffect);
   }
 
   return NS_OK;
@@ -5369,7 +5372,7 @@ bool
 nsContentUtils::CheckForSubFrameDrop(nsIDragSession* aDragSession,
                                      WidgetDragEvent* aDropEvent)
 {
-  nsCOMPtr<nsIContent> target = do_QueryInterface(aDropEvent->originalTarget);
+  nsCOMPtr<nsIContent> target = do_QueryInterface(aDropEvent->mOriginalTarget);
   if (!target) {
     return true;
   }
@@ -6684,7 +6687,7 @@ nsContentUtils::HasPluginWithUncontrolledEventDispatch(nsIContent* aContent)
   // We control dispatch to all mac plugins.
   return false;
 #else
-  if (!aContent || !aContent->IsInDoc()) {
+  if (!aContent || !aContent->IsInUncomposedDoc()) {
     return false;
   }
 
@@ -7704,7 +7707,7 @@ nsContentUtils::SendKeyEvent(nsIWidget* aWidget,
     return NS_ERROR_FAILURE;
 
   WidgetKeyboardEvent event(true, msg, aWidget);
-  event.modifiers = GetWidgetModifiers(aModifiers);
+  event.mModifiers = GetWidgetModifiers(aModifiers);
 
   if (msg == eKeyPress) {
     event.keyCode = aCharCode ? 0 : aKeyCode;
@@ -7767,8 +7770,8 @@ nsContentUtils::SendKeyEvent(nsIWidget* aWidget,
       break;
   }
 
-  event.refPoint.x = event.refPoint.y = 0;
-  event.time = PR_IntervalNow();
+  event.mRefPoint = LayoutDeviceIntPoint(0, 0);
+  event.mTime = PR_IntervalNow();
   if (!(aAdditionalFlags & nsIDOMWindowUtils::KEY_FLAG_NOT_SYNTHESIZED_FOR_TESTS)) {
     event.mFlags.mIsSynthesizedForTests = true;
   }
@@ -7836,21 +7839,20 @@ nsContentUtils::SendMouseEvent(nsCOMPtr<nsIPresShell> aPresShell,
   WidgetMouseEvent event(true, msg, widget, WidgetMouseEvent::eReal,
                          contextMenuKey ? WidgetMouseEvent::eContextMenuKey :
                                           WidgetMouseEvent::eNormal);
-  event.modifiers = GetWidgetModifiers(aModifiers);
+  event.mModifiers = GetWidgetModifiers(aModifiers);
   event.button = aButton;
   event.buttons = GetButtonsFlagForButton(aButton);
-  event.widget = widget;
   event.pressure = aPressure;
   event.inputSource = aInputSourceArg;
   event.clickCount = aClickCount;
-  event.time = PR_IntervalNow();
+  event.mTime = PR_IntervalNow();
   event.mFlags.mIsSynthesizedForTests = aIsSynthesized;
 
   nsPresContext* presContext = aPresShell->GetPresContext();
   if (!presContext)
     return NS_ERROR_FAILURE;
 
-  event.refPoint = ToWidgetPoint(CSSPoint(aX, aY), offset, presContext);
+  event.mRefPoint = ToWidgetPoint(CSSPoint(aX, aY), offset, presContext);
   event.ignoreRootScrollFrame = aIgnoreRootScrollFrame;
 
   nsEventStatus status = nsEventStatus_eIgnore;

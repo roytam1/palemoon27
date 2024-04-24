@@ -543,13 +543,12 @@ APZCCallbackHelper::ApplyCallbackTransform(WidgetEvent& aEvent,
 {
   if (aEvent.AsTouchEvent()) {
     WidgetTouchEvent& event = *(aEvent.AsTouchEvent());
-    for (size_t i = 0; i < event.touches.Length(); i++) {
-      event.touches[i]->mRefPoint = ApplyCallbackTransform(
-          event.touches[i]->mRefPoint, aGuid, aScale);
+    for (size_t i = 0; i < event.mTouches.Length(); i++) {
+      event.mTouches[i]->mRefPoint = ApplyCallbackTransform(
+          event.mTouches[i]->mRefPoint, aGuid, aScale);
     }
   } else {
-    aEvent.refPoint = ApplyCallbackTransform(
-        aEvent.refPoint, aGuid, aScale);
+    aEvent.mRefPoint = ApplyCallbackTransform(aEvent.mRefPoint, aGuid, aScale);
   }
 }
 
@@ -557,8 +556,8 @@ nsEventStatus
 APZCCallbackHelper::DispatchWidgetEvent(WidgetGUIEvent& aEvent)
 {
   nsEventStatus status = nsEventStatus_eConsumeNoDefault;
-  if (aEvent.widget) {
-    aEvent.widget->DispatchEvent(&aEvent, status);
+  if (aEvent.mWidget) {
+    aEvent.mWidget->DispatchEvent(&aEvent, status);
   }
   return status;
 }
@@ -573,18 +572,17 @@ APZCCallbackHelper::DispatchSynthesizedMouseEvent(EventMessage aMsg,
   MOZ_ASSERT(aMsg == eMouseMove || aMsg == eMouseDown ||
              aMsg == eMouseUp || aMsg == eMouseLongTap);
 
-  WidgetMouseEvent event(true, aMsg, nullptr,
+  WidgetMouseEvent event(true, aMsg, aWidget,
                          WidgetMouseEvent::eReal, WidgetMouseEvent::eNormal);
-  event.refPoint = LayoutDeviceIntPoint(aRefPoint.x, aRefPoint.y);
-  event.time = aTime;
+  event.mRefPoint = LayoutDeviceIntPoint(aRefPoint.x, aRefPoint.y);
+  event.mTime = aTime;
   event.button = WidgetMouseEvent::eLeftButton;
   event.inputSource = nsIDOMMouseEvent::MOZ_SOURCE_TOUCH;
   event.ignoreRootScrollFrame = true;
   if (aMsg != eMouseMove) {
     event.clickCount = 1;
   }
-  event.modifiers = aModifiers;
-  event.widget = aWidget;
+  event.mModifiers = aModifiers;
 
   return DispatchWidgetEvent(event);
 }
@@ -848,13 +846,13 @@ APZCCallbackHelper::SendSetTargetAPZCNotification(nsIWidget* aWidget,
       nsTArray<ScrollableLayerGuid> targets;
 
       if (const WidgetTouchEvent* touchEvent = aEvent.AsTouchEvent()) {
-        for (size_t i = 0; i < touchEvent->touches.Length(); i++) {
+        for (size_t i = 0; i < touchEvent->mTouches.Length(); i++) {
           waitForRefresh |= PrepareForSetTargetAPZCNotification(aWidget, aGuid,
-              rootFrame, touchEvent->touches[i]->mRefPoint, &targets);
+              rootFrame, touchEvent->mTouches[i]->mRefPoint, &targets);
         }
       } else if (const WidgetWheelEvent* wheelEvent = aEvent.AsWheelEvent()) {
         waitForRefresh = PrepareForSetTargetAPZCNotification(aWidget, aGuid,
-            rootFrame, wheelEvent->refPoint, &targets);
+            rootFrame, wheelEvent->mRefPoint, &targets);
       }
       // TODO: Do other types of events need to be handled?
 
@@ -878,8 +876,10 @@ APZCCallbackHelper::SendSetAllowedTouchBehaviorNotification(
         const SetAllowedTouchBehaviorCallback& aCallback)
 {
   nsTArray<TouchBehaviorFlags> flags;
-  for (uint32_t i = 0; i < aEvent.touches.Length(); i++) {
-    flags.AppendElement(widget::ContentHelper::GetAllowedTouchBehavior(aWidget, aEvent.touches[i]->mRefPoint));
+  for (uint32_t i = 0; i < aEvent.mTouches.Length(); i++) {
+    flags.AppendElement(
+      widget::ContentHelper::GetAllowedTouchBehavior(
+                               aWidget, aEvent.mTouches[i]->mRefPoint));
   }
   aCallback(aInputBlockId, flags);
 }

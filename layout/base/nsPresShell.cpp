@@ -198,6 +198,10 @@
 #include "nsIDocShellTreeOwner.h"
 #endif
 
+#ifdef MOZ_B2G
+#include "nsIHardwareKeyHandler.h"
+#endif
+
 #ifdef MOZ_TASK_TRACER
 #include "GeckoTaskTracer.h"
 using namespace mozilla::tasktracer;
@@ -746,6 +750,12 @@ PresShell::BeforeAfterKeyboardEventEnabled()
   return sBeforeAfterKeyboardEventEnabled;
 }
 
+/* static */ bool
+PresShell::IsTargetIframe(nsINode* aTarget)
+{
+  return aTarget && aTarget->IsHTMLElement(nsGkAtoms::iframe);
+}
+
 PresShell::PresShell()
   : mMouseLocation(NS_UNCONSTRAINEDSIZE, NS_UNCONSTRAINEDSIZE)
 {
@@ -965,12 +975,9 @@ PresShell::Init(nsIDocument* aDocument,
   if (mPresContext->IsRootContentDocument()) {
     mZoomConstraintsClient = new ZoomConstraintsClient();
     mZoomConstraintsClient->Init(this, mDocument);
-#ifndef MOZ_WIDGET_ANDROID
-    // Fennec will need some work to use this code; see bug 1180267.
     if (gfxPrefs::MetaViewportEnabled() || gfxPrefs::APZAllowZooming()) {
       mMobileViewportManager = new MobileViewportManager(this, mDocument);
     }
-#endif
   }
 }
 
@@ -3639,7 +3646,7 @@ PresShell::DispatchSynthMouseMove(WidgetGUIEvent* aEvent,
   uint32_t hoverGenerationBefore =
     restyleManager->AsGecko()->GetHoverGeneration();
   nsEventStatus status;
-  nsView* targetView = nsView::GetViewFor(aEvent->widget);
+  nsView* targetView = nsView::GetViewFor(aEvent->mWidget);
   if (!targetView)
     return;
   targetView->GetViewManager()->DispatchEvent(aEvent, targetView, &status);
@@ -3959,6 +3966,23 @@ PresShell::FlushPendingNotifications(mozilla::ChangesToFlush aFlush)
    * SetNeedStyleFlush calls on the document.
    */
   mozFlushType flushType = aFlush.mFlushType;
+
+#ifdef MOZ_ENABLE_PROFILER_SPS
+  static const char flushTypeNames[][20] = {
+    "Content",
+    "ContentAndNotify",
+    "Style",
+    "InterruptibleLayout",
+    "Layout",
+    "Display"
+  };
+
+  // Make sure that we don't miss things added to mozFlushType!
+  MOZ_ASSERT(static_cast<uint32_t>(flushType) <= ArrayLength(flushTypeNames));
+
+  PROFILER_LABEL_PRINTF("PresShell", "Flush",
+    js::ProfileEntry::Category::GRAPHICS, "(Flush_%s)", flushTypeNames[flushType - 1]);
+#endif
 
 #ifdef ACCESSIBILITY
 #ifdef DEBUG
@@ -4733,8 +4757,8 @@ PresShell::ClipListToRange(nsDisplayListBuilder *aBuilder,
       // Don't try to descend into subdocuments.
       // If this ever changes we'd need to add handling for subdocuments with
       // different zoom levels.
-      else if (content->GetCurrentDoc() ==
-                 aRange->GetStartParent()->GetCurrentDoc()) {
+      else if (content->GetUncomposedDoc() ==
+                 aRange->GetStartParent()->GetUncomposedDoc()) {
         // if the node is within the range, append it to the temporary list
         bool before, after;
         nsresult rv =
@@ -4781,7 +4805,6 @@ PresShell::CreateRangePaintInfo(nsIDOMRange* aRange,
                                 bool aForPrimarySelection)
 {
   nsRange* range = static_cast<nsRange*>(aRange);
-
   nsIFrame* ancestorFrame;
   nsIFrame* rootFrame = GetRootFrame();
 
@@ -4790,7 +4813,7 @@ PresShell::CreateRangePaintInfo(nsIDOMRange* aRange,
   // range.
   nsINode* startParent = range->GetStartParent();
   nsINode* endParent = range->GetEndParent();
-  nsIDocument* doc = startParent->GetCrossShadowCurrentDoc();
+  nsIDocument* doc = startParent->GetComposedDoc();
   if (startParent == doc || endParent == doc) {
     ancestorFrame = rootFrame;
   } else {
@@ -5022,7 +5045,7 @@ PresShell::RenderNode(nsIDOMNode* aNode,
 
   // nothing to draw if the node isn't in a document
   nsCOMPtr<nsINode> node = do_QueryInterface(aNode);
-  if (!node->IsInDoc())
+  if (!node->IsInUncomposedDoc())
     return nullptr;
 
   RefPtr<nsRange> range = new nsRange(node);
@@ -5497,7 +5520,7 @@ PresShell::ProcessSynthMouseMoveEvent(bool aFromScroll)
   // The appunits per devpixel ratio of |view|.
   int32_t viewAPD;
 
-  // refPoint will be mMouseLocation relative to the widget of |view|, the
+  // mRefPoint will be mMouseLocation relative to the widget of |view|, the
   // widget we will put in the event we dispatch, in viewAPD appunits
   nsPoint refpoint(0, 0);
 
@@ -5527,9 +5550,10 @@ PresShell::ProcessSynthMouseMoveEvent(bool aFromScroll)
   NS_ASSERTION(view->GetWidget(), "view should have a widget here");
   WidgetMouseEvent event(true, eMouseMove, view->GetWidget(),
                          WidgetMouseEvent::eSynthesized);
-  event.refPoint = LayoutDeviceIntPoint::FromAppUnitsToNearest(refpoint, viewAPD);
-  event.time = PR_IntervalNow();
-  // XXX set event.modifiers ?
+  event.mRefPoint =
+    LayoutDeviceIntPoint::FromAppUnitsToNearest(refpoint, viewAPD);
+  event.mTime = PR_IntervalNow();
+  // XXX set event.mModifiers ?
   // XXX mnakano I think that we should get the latest information from widget.
 
   nsCOMPtr<nsIPresShell> shell = pointVM->GetPresShell();
@@ -6015,14 +6039,31 @@ PresShell::AssumeAllFramesVisible()
     return true;
   }
 
-  // We assume all frames are visible in print, print preview, chrome, xul, and
+  // We assume all frames are visible in print, print preview, chrome, and
   // resource docs and don't keep track of them.
   if (mPresContext->Type() == nsPresContext::eContext_PrintPreview ||
       mPresContext->Type() == nsPresContext::eContext_Print ||
       mPresContext->IsChrome() ||
-      mDocument->IsResourceDoc() ||
-      mDocument->IsXULDocument()) {
+      mDocument->IsResourceDoc()) {
     return true;
+  }
+
+  // If we're assuming all frames are visible in the top level content
+  // document, we need to in subdocuments as well. Otherwise we can get in a
+  // situation where things like animations won't work in subdocuments because
+  // their frames appear not to be visible, since we won't schedule an image
+  // visibility update if the top level content document is assuming all
+  // frames are visible.
+  //
+  // Note that it's not safe to call IsRootContentDocument() if we're
+  // currently being destroyed, so we have to check that first.
+  if (!mHaveShutDown && !mIsDestroying &&
+      !mPresContext->IsRootContentDocument()) {
+    nsPresContext* presContext =
+      mPresContext->GetToplevelContentDocumentPresContext();
+    if (presContext && presContext->PresShell()->AssumeAllFramesVisible()) {
+      return true;
+    }
   }
 
   return false;
@@ -6563,7 +6604,7 @@ nsIContent*
 PresShell::GetCurrentEventContent()
 {
   if (mCurrentEventContent &&
-      mCurrentEventContent->GetCrossShadowCurrentDoc() != mDocument) {
+      mCurrentEventContent->GetComposedDoc() != mDocument) {
     mCurrentEventContent = nullptr;
     mCurrentEventFrame = nullptr;
   }
@@ -6604,7 +6645,7 @@ PresShell::GetEventTargetContent(WidgetEvent* aEvent)
     nsIFrame* currentEventFrame = GetCurrentEventFrame();
     if (currentEventFrame) {
       currentEventFrame->GetContentForEvent(aEvent, getter_AddRefs(content));
-      NS_ASSERTION(!content || content->GetCrossShadowCurrentDoc() == mDocument,
+      NS_ASSERTION(!content || content->GetComposedDoc() == mDocument,
                    "handing out content from a different doc");
     }
   }
@@ -6636,7 +6677,7 @@ PresShell::PopCurrentEventInfo()
 
     // Don't use it if it has moved to a different document.
     if (mCurrentEventContent &&
-        mCurrentEventContent->GetCrossShadowCurrentDoc() != mDocument) {
+        mCurrentEventContent->GetComposedDoc() != mDocument) {
       mCurrentEventContent = nullptr;
       mCurrentEventFrame = nullptr;
     }
@@ -6752,7 +6793,7 @@ PresShell::RecordMouseLocation(WidgetGUIEvent* aEvent)
     if (!rootFrame) {
       nsView* rootView = mViewManager->GetRootView();
       mMouseLocation = nsLayoutUtils::TranslateWidgetToView(mPresContext,
-        aEvent->widget, aEvent->refPoint, rootView);
+        aEvent->mWidget, aEvent->mRefPoint, rootView);
       mMouseEventTargetGuid = InputAPZContext::GetTargetLayerGuid();
     } else {
       mMouseLocation =
@@ -6762,7 +6803,7 @@ PresShell::RecordMouseLocation(WidgetGUIEvent* aEvent)
 #ifdef DEBUG_MOUSE_LOCATION
     if (aEvent->mMessage == eMouseEnterIntoWidget) {
       printf("[ps=%p]got mouse enter for %p\n",
-             this, aEvent->widget);
+             this, aEvent->mWidget);
     }
     printf("[ps=%p]setting mouse location to (%d,%d)\n",
            this, mMouseLocation.x, mMouseLocation.y);
@@ -6780,7 +6821,7 @@ PresShell::RecordMouseLocation(WidgetGUIEvent* aEvent)
     mMouseEventTargetGuid = InputAPZContext::GetTargetLayerGuid();
 #ifdef DEBUG_MOUSE_LOCATION
     printf("[ps=%p]got mouse exit for %p\n",
-           this, aEvent->widget);
+           this, aEvent->mWidget);
     printf("[ps=%p]clearing mouse location\n",
            this);
 #endif
@@ -6882,24 +6923,24 @@ DispatchPointerFromMouseOrTouch(PresShell* aShell,
       return NS_OK;
     }
 
-    for (uint32_t i = 0; i < touchEvent->touches.Length(); ++i) {
-      mozilla::dom::Touch* touch = touchEvent->touches[i];
+    for (uint32_t i = 0; i < touchEvent->mTouches.Length(); ++i) {
+      mozilla::dom::Touch* touch = touchEvent->mTouches[i];
       if (!touch || !touch->convertToPointer) {
         continue;
       }
 
       WidgetPointerEvent event(touchEvent->IsTrusted(), pointerMessage,
-                               touchEvent->widget);
+                               touchEvent->mWidget);
       event.isPrimary = i == 0;
       event.pointerId = touch->Identifier();
-      event.refPoint = touch->mRefPoint;
-      event.modifiers = touchEvent->modifiers;
+      event.mRefPoint = touch->mRefPoint;
+      event.mModifiers = touchEvent->mModifiers;
       event.width = touch->RadiusX();
       event.height = touch->RadiusY();
       event.tiltX = touch->tiltX;
       event.tiltY = touch->tiltY;
-      event.time = touchEvent->time;
-      event.timeStamp = touchEvent->timeStamp;
+      event.mTime = touchEvent->mTime;
+      event.mTimeStamp = touchEvent->mTimeStamp;
       event.mFlags = touchEvent->mFlags;
       event.button = WidgetMouseEvent::eLeftButton;
       event.buttons = WidgetMouseEvent::eLeftButtonFlag;
@@ -6977,11 +7018,8 @@ CheckPermissionForBeforeAfterKeyboardEvent(Element* aElement)
 static void
 BuildTargetChainForBeforeAfterKeyboardEvent(nsINode* aTarget,
                                             nsTArray<nsCOMPtr<Element> >& aChain,
-                                            bool& aTargetIsIframe)
+                                            bool aTargetIsIframe)
 {
-  nsCOMPtr<nsIContent> content(do_QueryInterface(aTarget));
-  aTargetIsIframe = content && content->IsHTMLElement(nsGkAtoms::iframe);
-
   Element* frameElement;
   // If event target is not an iframe, skip the event target and get its
   // parent frame.
@@ -7025,7 +7063,7 @@ PresShell::DispatchBeforeKeyboardEventInternal(const nsTArray<nsCOMPtr<Element> 
 
     aChainIndex = i;
     InternalBeforeAfterKeyboardEvent beforeEvent(aEvent.IsTrusted(),
-                                                 message, aEvent.widget);
+                                                 message, aEvent.mWidget);
     beforeEvent.AssignBeforeAfterKeyEventData(aEvent, false);
     EventDispatcher::Dispatch(eventTarget, mPresContext, &beforeEvent);
 
@@ -7059,7 +7097,7 @@ PresShell::DispatchAfterKeyboardEventInternal(const nsTArray<nsCOMPtr<Element> >
     }
 
     InternalBeforeAfterKeyboardEvent afterEvent(aEvent.IsTrusted(),
-                                                message, aEvent.widget);
+                                                message, aEvent.mWidget);
     afterEvent.AssignBeforeAfterKeyEventData(aEvent, false);
     afterEvent.mEmbeddedCancelled.SetValue(embeddedCancelled);
     EventDispatcher::Dispatch(eventTarget, mPresContext, &afterEvent);
@@ -7081,7 +7119,7 @@ PresShell::DispatchAfterKeyboardEvent(nsINode* aTarget,
 
   // Build up a target chain. Each item in the chain will receive an after event.
   AutoTArray<nsCOMPtr<Element>, 5> chain;
-  bool targetIsIframe = false;
+  bool targetIsIframe = IsTargetIframe(aTarget);
   BuildTargetChainForBeforeAfterKeyboardEvent(aTarget, chain, targetIsIframe);
   DispatchAfterKeyboardEventInternal(chain, aEvent, aEmbeddedCancelled);
 }
@@ -7092,7 +7130,7 @@ PresShell::CanDispatchEvent(const WidgetGUIEvent* aEvent) const
   bool rv =
     mPresContext && !mHaveShutDown && nsContentUtils::IsSafeToRunScript();
   if (aEvent) {
-    rv &= (aEvent && aEvent->widget && !aEvent->widget->Destroyed());
+    rv &= (aEvent && aEvent->mWidget && !aEvent->mWidget->Destroyed());
   }
   return rv;
 }
@@ -7104,19 +7142,25 @@ PresShell::HandleKeyboardEvent(nsINode* aTarget,
                                nsEventStatus* aStatus,
                                EventDispatchingCallback* aEventCB)
 {
+  MOZ_ASSERT(aTarget);
+  
+  // return true if the event target is in its child process
+  bool targetIsIframe = IsTargetIframe(aTarget);
+
+  // Dispatch event directly if the event is synthesized from
+  // nsITextInputProcessor, or there is no need to fire
+  // beforeKey* and afterKey* events.
   if (aEvent.mMessage == eKeyPress ||
       !BeforeAfterKeyboardEventEnabled()) {
-    EventDispatcher::Dispatch(aTarget, mPresContext,
-                              &aEvent, nullptr, aStatus, aEventCB);
+    ForwardKeyToInputMethodAppOrDispatch(targetIsIframe, aTarget, aEvent,
+                                         aStatus, aEventCB);
     return;
   }
 
-  MOZ_ASSERT(aTarget);
   MOZ_ASSERT(aEvent.mMessage == eKeyDown || aEvent.mMessage == eKeyUp);
 
   // Build up a target chain. Each item in the chain will receive a before event.
   AutoTArray<nsCOMPtr<Element>, 5> chain;
-  bool targetIsIframe = false;
   BuildTargetChainForBeforeAfterKeyboardEvent(aTarget, chain, targetIsIframe);
 
   // Dispatch before events. If each item in the chain consumes the before
@@ -7144,9 +7188,10 @@ PresShell::HandleKeyboardEvent(nsINode* aTarget,
     return;
   }
 
-  // Dispatch actual key event to event target.
-  EventDispatcher::Dispatch(aTarget, mPresContext,
-                            &aEvent, nullptr, aStatus, aEventCB);
+  if (ForwardKeyToInputMethodAppOrDispatch(targetIsIframe, aTarget, aEvent,
+                                           aStatus, aEventCB)) {
+    return;
+  }
 
   if (aEvent.DefaultPrevented()) {
     // When embedder prevents the default action of actual key event, attribute
@@ -7164,6 +7209,81 @@ PresShell::HandleKeyboardEvent(nsINode* aTarget,
 
   // Dispatch after events to all items in the chain.
   DispatchAfterKeyboardEventInternal(chain, aEvent, aEvent.DefaultPrevented());
+}
+
+#ifdef MOZ_B2G
+bool
+PresShell::ForwardKeyToInputMethodApp(nsINode* aTarget,
+                                      WidgetKeyboardEvent& aEvent,
+                                      nsEventStatus* aStatus)
+{
+  if (!XRE_IsParentProcess() || aEvent.mIsSynthesizedByTIP) {
+    return false;
+  }
+
+  if (!mHardwareKeyHandler) {
+    nsresult rv;
+    mHardwareKeyHandler =
+      do_GetService("@mozilla.org/HardwareKeyHandler;1", &rv);
+    if (!NS_SUCCEEDED(rv) || !mHardwareKeyHandler) {
+      return false;
+    }
+  }
+
+  if (mHardwareKeyHandler->ForwardKeyToInputMethodApp(aTarget,
+                                                      aEvent.AsKeyboardEvent(),
+                                                      aStatus)) {
+    // No need to dispatch the forwarded keyboard event to it's child process
+    aEvent.mFlags.mNoCrossProcessBoundaryForwarding = true;
+    return true;
+  }
+
+  return false;
+}
+#endif // MOZ_B2G
+
+bool
+PresShell::ForwardKeyToInputMethodAppOrDispatch(bool aIsTargetRemote,
+                                                nsINode* aTarget,
+                                                WidgetKeyboardEvent& aEvent,
+                                                nsEventStatus* aStatus,
+                                                EventDispatchingCallback* aEventCB)
+{
+#ifndef MOZ_B2G
+  // No need to forward to input-method-app if the platform isn't run on B2G.
+  EventDispatcher::Dispatch(aTarget, mPresContext,
+                            &aEvent, nullptr, aStatus, aEventCB);
+  return false;
+#else
+  // In-process case: the event target is in the current process
+  if (!aIsTargetRemote) {
+    if(ForwardKeyToInputMethodApp(aTarget, aEvent, aStatus)) {
+      return true;
+    }
+
+    // If the keyboard event isn't forwarded to the input-method-app,
+    // then it should be dispatched to its event target directly.
+    EventDispatcher::Dispatch(aTarget, mPresContext,
+                              &aEvent, nullptr, aStatus, aEventCB);
+
+    return false;
+  }
+
+  // OOP case: the event target is in its child process.
+  // Dispatch the keyboard event to the iframe that embeds the remote
+  // event target first.
+  EventDispatcher::Dispatch(aTarget, mPresContext,
+                            &aEvent, nullptr, aStatus, aEventCB);
+
+  // If the event is defaultPrevented, then there is no need to forward it
+  // to the input-method-app.
+  if (aEvent.mFlags.mDefaultPrevented) {
+    return false;
+  }
+
+  // Try forwarding to the input-method-app.
+  return ForwardKeyToInputMethodApp(aTarget, aEvent, aStatus);
+#endif // MOZ_B2G
 }
 
 nsresult
@@ -7259,9 +7379,11 @@ PresShell::HandleEvent(nsIFrame* aFrame,
     return NS_OK;
   }
 
-  nsIContent* capturingContent =
-    (aEvent->HasMouseEventMessage() ||
-     aEvent->mClass == eWheelEventClass ? GetCapturingContent() : nullptr);
+  nsIContent* capturingContent = ((aEvent->mClass == ePointerEventClass ||
+                                   aEvent->mClass == eWheelEventClass ||
+                                   aEvent->HasMouseEventMessage())
+                                 ? GetCapturingContent()
+                                 : nullptr);
 
   nsCOMPtr<nsIDocument> retargetEventDoc;
   if (!aDontRetargetEvents) {
@@ -7288,7 +7410,7 @@ PresShell::HandleEvent(nsIFrame* aFrame,
     } else if (capturingContent) {
       // if the mouse is being captured then retarget the mouse event at the
       // document that is being captured.
-      retargetEventDoc = capturingContent->GetCrossShadowCurrentDoc();
+      retargetEventDoc = capturingContent->GetComposedDoc();
 #ifdef ANDROID
     } else if ((aEvent->mClass == eTouchEventClass) ||
                (aEvent->mClass == eMouseEventClass) ||
@@ -7402,7 +7524,7 @@ PresShell::HandleEvent(nsIFrame* aFrame,
         if (!captureRetarget) {
           // A check was already done above to ensure that capturingContent is
           // in this presshell.
-          NS_ASSERTION(capturingContent->GetCrossShadowCurrentDoc() == GetDocument(),
+          NS_ASSERTION(capturingContent->GetComposedDoc() == GetDocument(),
                        "Unexpected document");
           nsIFrame* captureFrame = capturingContent->GetPrimaryFrame();
           if (captureFrame) {
@@ -7454,7 +7576,8 @@ PresShell::HandleEvent(nsIFrame* aFrame,
         // in the same document by taking the target of the events already in
         // the capture list
         nsCOMPtr<nsIContent> anyTarget;
-        if (TouchManager::gCaptureTouchList->Count() > 0 && touchEvent->touches.Length() > 1) {
+        if (TouchManager::gCaptureTouchList->Count() > 0 &&
+            touchEvent->mTouches.Length() > 1) {
           for (auto iter = TouchManager::gCaptureTouchList->Iter();
                !iter.Done();
                iter.Next()) {
@@ -7469,9 +7592,9 @@ PresShell::HandleEvent(nsIFrame* aFrame,
           }
         }
 
-        for (int32_t i = touchEvent->touches.Length(); i; ) {
+        for (int32_t i = touchEvent->mTouches.Length(); i; ) {
           --i;
-          dom::Touch* touch = touchEvent->touches[i];
+          dom::Touch* touch = touchEvent->mTouches[i];
 
           int32_t id = touch->Identifier();
           if (!TouchManager::gCaptureTouchList->Get(id, nullptr)) {
@@ -7505,10 +7628,10 @@ PresShell::HandleEvent(nsIFrame* aFrame,
 
               // if we couldn't find a target frame in the same document as
               // anyTarget, remove the touch from the capture touch list, as
-              // well as the event->touches array. touchmove events that aren't
+              // well as the event->mTouches array. touchmove events that aren't
               // in the captured touch list will be discarded
               if (!newTargetFrame) {
-                touchEvent->touches.RemoveElementAt(i);
+                touchEvent->mTouches.RemoveElementAt(i);
               } else {
                 target = newTargetFrame;
                 nsCOMPtr<nsIContent> targetContent;
@@ -7558,7 +7681,7 @@ PresShell::HandleEvent(nsIFrame* aFrame,
                                                         capturingContent))) {
       // A check was already done above to ensure that capturingContent is
       // in this presshell.
-      NS_ASSERTION(capturingContent->GetCrossShadowCurrentDoc() == GetDocument(),
+      NS_ASSERTION(capturingContent->GetComposedDoc() == GetDocument(),
                    "Unexpected document");
       nsIFrame* capturingFrame = capturingContent->GetPrimaryFrame();
       if (capturingFrame) {
@@ -7638,7 +7761,7 @@ PresShell::HandleEvent(nsIFrame* aFrame,
       case eTouchEnd: {
         // get the correct shell to dispatch to
         WidgetTouchEvent* touchEvent = aEvent->AsTouchEvent();
-        for (dom::Touch* touch : touchEvent->touches) {
+        for (dom::Touch* touch : touchEvent->mTouches) {
           if (!touch) {
             break;
           }
@@ -7681,19 +7804,19 @@ PresShell::HandleEvent(nsIFrame* aFrame,
     //
     // Note, currently for backwards compatibility we don't forward mouse events
     // to the active document when mouse is over some subdocument.
-    EventStateManager* activeESM =
-      EventStateManager::GetActiveEventStateManager();
-    if (activeESM && aEvent->HasMouseEventMessage() &&
-        activeESM != shell->GetPresContext()->EventStateManager() &&
-        static_cast<EventStateManager*>(activeESM)->GetPresContext()) {
-      nsIPresShell* activeShell =
-        static_cast<EventStateManager*>(activeESM)->GetPresContext()->
-          GetPresShell();
-      if (activeShell &&
-          nsContentUtils::ContentIsCrossDocDescendantOf(activeShell->GetDocument(),
-                                                        shell->GetDocument())) {
-        shell = static_cast<PresShell*>(activeShell);
-        frame = shell->GetRootFrame();
+    if (EventStateManager* activeESM = EventStateManager::GetActiveEventStateManager()) {
+      if (aEvent->mClass == ePointerEventClass || aEvent->HasMouseEventMessage()) {
+        if (activeESM != shell->GetPresContext()->EventStateManager()) {
+          if (nsPresContext* activeContext = activeESM->GetPresContext()) {
+            if (nsIPresShell* activeShell = activeContext->GetPresShell()) {
+              if (nsContentUtils::ContentIsCrossDocDescendantOf(activeShell->GetDocument(),
+                                                                shell->GetDocument())) {
+                shell = static_cast<PresShell*>(activeShell);
+                frame = shell->GetRootFrame();
+              }
+            }
+          }
+        }
       }
     }
 
@@ -8083,7 +8206,7 @@ PresShell::HandleEventInternal(WidgetEvent* aEvent,
 
     // FIXME. If the event was reused, we need to clear the old target,
     // bug 329430
-    aEvent->target = nullptr;
+    aEvent->mTarget = nullptr;
 
     // 1. Give event to event manager for pre event state changes and
     //    generation of synthetic events.
@@ -8154,6 +8277,14 @@ PresShell::HandleEventInternal(WidgetEvent* aEvent,
       break;
     }
   }
+
+  if (Telemetry::CanRecordBase() &&
+      !aEvent->mTimeStamp.IsNull() &&
+      aEvent->AsInputEvent()) {
+    double millis = (TimeStamp::Now() - aEvent->mTimeStamp).ToMilliseconds();
+    Telemetry::Accumulate(Telemetry::INPUT_EVENT_RESPONSE_MS, millis);
+  }
+
   return rv;
 }
 
@@ -8179,7 +8310,7 @@ nsIPresShell::DispatchGotOrLostPointerCaptureEvent(bool aIsGotCapture,
     bool dummy;
     // If the capturing element was removed from the DOM tree,
     // lostpointercapture event should be fired at the document.
-    if (!aIsGotCapture && !aCaptureTarget->IsInDoc()) {
+    if (!aIsGotCapture && !aCaptureTarget->IsInUncomposedDoc()) {
       aCaptureTarget->OwnerDoc()->DispatchEvent(event->InternalDOMEvent(), &dummy);
     } else {
       aCaptureTarget->DispatchEvent(event->InternalDOMEvent(), &dummy);
@@ -8243,7 +8374,7 @@ PresShell::DispatchTouchEventToDOM(WidgetEvent* aEvent,
   WidgetTouchEvent* touchEvent = aEvent->AsTouchEvent();
 
   // loop over all touches and dispatch events on any that have changed
-  for (dom::Touch* touch : touchEvent->touches) {
+  for (dom::Touch* touch : touchEvent->mTouches) {
     if (!touch || !touch->mChanged) {
       continue;
     }
@@ -8265,9 +8396,9 @@ PresShell::DispatchTouchEventToDOM(WidgetEvent* aEvent,
     }
     // copy the event
     WidgetTouchEvent newEvent(touchEvent->IsTrusted(),
-                              touchEvent->mMessage, touchEvent->widget);
+                              touchEvent->mMessage, touchEvent->mWidget);
     newEvent.AssignTouchEventData(*touchEvent, false);
-    newEvent.target = targetPtr;
+    newEvent.mTarget = targetPtr;
 
     RefPtr<PresShell> contentPresShell;
     if (doc == mDocument) {
@@ -8373,9 +8504,9 @@ PresShell::AdjustContextMenuKeyEvent(WidgetMouseEvent* aEvent)
         itemFrame = popupFrame;
 
       nsCOMPtr<nsIWidget> widget = popupFrame->GetNearestWidget();
-      aEvent->widget = widget;
+      aEvent->mWidget = widget;
       LayoutDeviceIntPoint widgetPoint = widget->WidgetToScreenOffset();
-      aEvent->refPoint = LayoutDeviceIntPoint::FromUnknownPoint(
+      aEvent->mRefPoint = LayoutDeviceIntPoint::FromUnknownPoint(
         itemFrame->GetScreenRect().BottomLeft()) - widgetPoint;
 
       mCurrentEventContent = itemFrame->GetContent();
@@ -8395,34 +8526,33 @@ PresShell::AdjustContextMenuKeyEvent(WidgetMouseEvent* aEvent)
   // and the coordinates returned by GetCurrentItemAndPositionForElement
   // are relative to the widget of the root of the root view manager.
   nsRootPresContext* rootPC = mPresContext->GetRootPresContext();
-  aEvent->refPoint.x = 0;
-  aEvent->refPoint.y = 0;
+  aEvent->mRefPoint = LayoutDeviceIntPoint(0, 0);
   if (rootPC) {
     rootPC->PresShell()->GetViewManager()->
-      GetRootWidget(getter_AddRefs(aEvent->widget));
+      GetRootWidget(getter_AddRefs(aEvent->mWidget));
 
-    if (aEvent->widget) {
+    if (aEvent->mWidget) {
       // default the refpoint to the topleft of our document
       nsPoint offset(0, 0);
       nsIFrame* rootFrame = mFrameConstructor->GetRootFrame();
       if (rootFrame) {
         nsView* view = rootFrame->GetClosestView(&offset);
-        offset += view->GetOffsetToWidget(aEvent->widget);
-        aEvent->refPoint =
+        offset += view->GetOffsetToWidget(aEvent->mWidget);
+        aEvent->mRefPoint =
           LayoutDeviceIntPoint::FromAppUnitsToNearest(offset, mPresContext->AppUnitsPerDevPixel());
       }
     }
   } else {
-    aEvent->widget = nullptr;
+    aEvent->mWidget = nullptr;
   }
 
   // see if we should use the caret position for the popup
   LayoutDeviceIntPoint caretPoint;
   // Beware! This may flush notifications via synchronous
   // ScrollSelectionIntoView.
-  if (PrepareToUseCaretPosition(aEvent->widget, caretPoint)) {
+  if (PrepareToUseCaretPosition(aEvent->mWidget, caretPoint)) {
     // caret position is good
-    aEvent->refPoint = caretPoint;
+    aEvent->mRefPoint = caretPoint;
     return true;
   }
 
@@ -8439,8 +8569,8 @@ PresShell::AdjustContextMenuKeyEvent(WidgetMouseEvent* aEvent)
     nsCOMPtr<nsIContent> currentPointElement;
     GetCurrentItemAndPositionForElement(currentFocus,
                                         getter_AddRefs(currentPointElement),
-                                        aEvent->refPoint,
-                                        aEvent->widget);
+                                        aEvent->mRefPoint,
+                                        aEvent->mWidget);
     if (currentPointElement) {
       mCurrentEventContent = currentPointElement;
       mCurrentEventFrame = nullptr;
@@ -8459,7 +8589,7 @@ PresShell::AdjustContextMenuKeyEvent(WidgetMouseEvent* aEvent)
 //    will also scroll the window as needed to make the caret visible.
 //
 //    The event widget should be the widget that generated the event, and
-//    whose coordinate system the resulting event's refPoint should be
+//    whose coordinate system the resulting event's mRefPoint should be
 //    relative to.  The returned point is in device pixels realtive to the
 //    widget passed in.
 bool
@@ -9709,10 +9839,10 @@ PresShell::DelayedInputEvent::~DelayedInputEvent()
 void
 PresShell::DelayedInputEvent::Dispatch()
 {
-  if (!mEvent || !mEvent->widget) {
+  if (!mEvent || !mEvent->mWidget) {
     return;
   }
-  nsCOMPtr<nsIWidget> widget = mEvent->widget;
+  nsCOMPtr<nsIWidget> widget = mEvent->mWidget;
   nsEventStatus status;
   widget->DispatchEvent(mEvent, status);
 }
@@ -9723,7 +9853,7 @@ PresShell::DelayedMouseEvent::DelayedMouseEvent(WidgetMouseEvent* aEvent) :
   WidgetMouseEvent* mouseEvent =
     new WidgetMouseEvent(aEvent->IsTrusted(),
                          aEvent->mMessage,
-                         aEvent->widget,
+                         aEvent->mWidget,
                          aEvent->reason,
                          aEvent->context);
   mouseEvent->AssignMouseEventData(*aEvent, false);
@@ -9736,7 +9866,7 @@ PresShell::DelayedKeyEvent::DelayedKeyEvent(WidgetKeyboardEvent* aEvent) :
   WidgetKeyboardEvent* keyEvent =
     new WidgetKeyboardEvent(aEvent->IsTrusted(),
                             aEvent->mMessage,
-                            aEvent->widget);
+                            aEvent->mWidget);
   keyEvent->AssignKeyEventData(*aEvent, false);
   keyEvent->mFlags.mIsSynthesizedForTests = aEvent->mFlags.mIsSynthesizedForTests;
   mEvent = keyEvent;

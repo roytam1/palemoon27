@@ -49,7 +49,6 @@
 #include "nsTextFrameUtils.h"
 #include "nsTextRunTransformations.h"
 #include "MathMLTextRunFactory.h"
-#include "nsExpirationTracker.h"
 #include "nsUnicodeProperties.h"
 #include "nsStyleUtil.h"
 #include "nsRubyFrame.h"
@@ -185,7 +184,6 @@ NS_DECLARE_FRAME_PROPERTY_DELETABLE(TabWidthProperty, TabWidthStore)
 
 NS_DECLARE_FRAME_PROPERTY_WITHOUT_DTOR(OffsetToFrameProperty, nsTextFrame)
 
-// text runs are destroyed by the text run cache
 NS_DECLARE_FRAME_PROPERTY_WITHOUT_DTOR(UninflatedTextRunProperty, gfxTextRun)
 
 NS_DECLARE_FRAME_PROPERTY_SMALL_VALUE(FontSizeInflationProperty, float)
@@ -295,6 +293,23 @@ public:
   }
 
   nscolor GetTextColor();
+
+  // SVG text has its own painting process, so we should never get its stroke
+  // property from here.
+  nscolor GetWebkitTextStrokeColor() {
+    if (mFrame->IsSVGText()) {
+      return 0;
+    }
+    return mFrame->StyleContext()->GetTextStrokeColor();
+  }
+  float GetWebkitTextStrokeWidth() {
+    if (mFrame->IsSVGText()) {
+      return 0.0f;
+    }
+    nscoord coord = mFrame->StyleText()->mWebkitTextStrokeWidth.GetCoordValue();
+    return mFrame->PresContext()->AppUnitsToFloatDevPixels(coord);
+  }
+
   /**
    * Compute the colors for normally-selected text. Returns false if
    * the normal selection is not being displayed.
@@ -412,6 +427,18 @@ DestroyUserData(void* aUserData)
   if (userData) {
     free(userData);
   }
+}
+
+static nsCSSProperty
+GetTextDecorationColorProp(nsStyleContext* aCtx)
+{
+  nscolor textColor;
+  bool foreground;
+  aCtx->StyleTextReset()->GetDecorationColor(textColor, foreground);
+
+  return (foreground && !aCtx->StyleText()->mWebkitTextFillColorForeground)
+         ? eCSSProperty__webkit_text_fill_color
+         : eCSSProperty_text_decoration_color;
 }
 
 /**
@@ -541,73 +568,6 @@ GlyphObserver::NotifyGlyphsChanged()
     // not easy to do well.
     shell->FrameNeedsReflow(f, nsIPresShell::eResize, NS_FRAME_IS_DIRTY);
   }
-}
-
-class FrameTextRunCache;
-
-static FrameTextRunCache *gTextRuns = nullptr;
-
-/*
- * Cache textruns and expire them after 3*10 seconds of no use.
- */
-class FrameTextRunCache final : public nsExpirationTracker<gfxTextRun,3> {
-public:
-  enum { TIMEOUT_SECONDS = 10 };
-  FrameTextRunCache()
-    : nsExpirationTracker<gfxTextRun,3>(TIMEOUT_SECONDS * 1000,
-                                        "FrameTextRunCache")
-  {}
-  ~FrameTextRunCache() {
-    AgeAllGenerations();
-  }
-
-  void RemoveFromCache(gfxTextRun* aTextRun) {
-    if (aTextRun->GetExpirationState()->IsTracked()) {
-      RemoveObject(aTextRun);
-    }
-  }
-
-  // This gets called when the timeout has expired on a gfxTextRun
-  virtual void NotifyExpired(gfxTextRun* aTextRun) {
-    UnhookTextRunFromFrames(aTextRun, nullptr);
-    RemoveFromCache(aTextRun);
-    delete aTextRun;
-  }
-};
-
-// Helper to create a textrun and remember it in the textframe cache,
-// for either 8-bit or 16-bit text strings
-template<typename T>
-UniquePtr<gfxTextRun>
-MakeTextRun(const T *aText, uint32_t aLength,
-            gfxFontGroup *aFontGroup, const gfxFontGroup::Parameters* aParams,
-            uint32_t aFlags, gfxMissingFontRecorder *aMFR)
-{
-    UniquePtr<gfxTextRun> textRun =
-        aFontGroup->MakeTextRun(aText, aLength, aParams, aFlags, aMFR);
-    if (!textRun) {
-        return nullptr;
-    }
-    nsresult rv = gTextRuns->AddObject(textRun.get());
-    if (NS_FAILED(rv)) {
-        gTextRuns->RemoveFromCache(textRun.get());
-        return nullptr;
-    }
-#ifdef NOISY_BIDI
-    printf("Created textrun\n");
-#endif
-    return textRun;
-}
-
-void
-nsTextFrameTextRunCache::Init() {
-    gTextRuns = new FrameTextRunCache();
-}
-
-void
-nsTextFrameTextRunCache::Shutdown() {
-    delete gTextRuns;
-    gTextRuns = nullptr;
 }
 
 int32_t nsTextFrame::GetContentEnd() const {
@@ -1019,7 +979,7 @@ private:
   AutoTArray<MappedFlow,10>   mMappedFlows;
   AutoTArray<nsTextFrame*,50> mLineBreakBeforeFrames;
   AutoTArray<nsAutoPtr<BreakSink>,10> mBreakSinks;
-  AutoTArray<gfxTextRun*,5>   mTextRunsToDelete;
+  AutoTArray<UniquePtr<gfxTextRun>,5> mTextRunsToDelete;
   nsLineBreaker                 mLineBreaker;
   gfxTextRun*                   mCurrentFramesAllSameTextRun;
   DrawTarget*                   mDrawTarget;
@@ -1533,12 +1493,6 @@ void BuildTextRunsScanner::FlushLineBreaks(gfxTextRun* aTrailingTextRun)
     mBreakSinks[i]->Finish(mMissingFonts);
   }
   mBreakSinks.Clear();
-
-  for (uint32_t i = 0; i < mTextRunsToDelete.Length(); ++i) {
-    gfxTextRun* deleteTextRun = mTextRunsToDelete[i];
-    gTextRuns->RemoveFromCache(deleteTextRun);
-    delete deleteTextRun;
-  }
   mTextRunsToDelete.Clear();
 }
 
@@ -2240,8 +2194,8 @@ BuildTextRunsScanner::BuildTextRunForFrames(void* aTextBuffer)
         transformingFactory.forget();
       }
     } else {
-      textRun = MakeTextRun(text, transformedLength, fontGroup, &params,
-                            textFlags, mMissingFonts);
+      textRun = fontGroup->MakeTextRun(text, transformedLength, &params,
+                                       textFlags, mMissingFonts);
     }
   } else {
     const uint8_t* text = static_cast<const uint8_t*>(textPtr);
@@ -2255,8 +2209,8 @@ BuildTextRunsScanner::BuildTextRunForFrames(void* aTextBuffer)
         transformingFactory.forget();
       }
     } else {
-      textRun = MakeTextRun(text, transformedLength, fontGroup, &params,
-                            textFlags, mMissingFonts);
+      textRun = fontGroup->MakeTextRun(text, transformedLength, &params,
+                                       textFlags, mMissingFonts);
     }
   }
   if (!textRun) {
@@ -2286,7 +2240,7 @@ BuildTextRunsScanner::BuildTextRunForFrames(void* aTextBuffer)
     DestroyUserData(userDataToDestroy);
     // Arrange for this textrun to be deleted the next time the linebreaker
     // is flushed out
-    mTextRunsToDelete.AppendElement(textRun.release());
+    mTextRunsToDelete.AppendElement(Move(textRun));
     return nullptr;
   }
 
@@ -2707,11 +2661,7 @@ nsTextFrame::EnsureTextRun(TextRunType aWhichTextRun,
                            uint32_t* aFlowEndInTextRun)
 {
   gfxTextRun *textRun = GetTextRun(aWhichTextRun);
-  if (textRun && (!aLine || !(*aLine)->GetInvalidateTextRuns())) {
-    if (textRun->GetExpirationState()->IsTracked()) {
-      gTextRuns->MarkUsed(textRun);
-    }
-  } else {
+  if (!textRun || (aLine && (*aLine)->GetInvalidateTextRuns())) {
     RefPtr<DrawTarget> refDT = aRefDrawTarget;
     if (!refDT) {
       refDT = CreateReferenceDrawTarget(this);
@@ -3629,10 +3579,8 @@ nsTextPaintStyle::GetTextColor()
     }
   }
 
-  nsCSSProperty property =
-    mFrame->StyleText()->mWebkitTextFillColorForeground
-    ? eCSSProperty_color : eCSSProperty__webkit_text_fill_color;
-  return nsLayoutUtils::GetColor(mFrame, property);
+  return nsLayoutUtils::GetColor(mFrame,
+                                 mFrame->StyleContext()->GetTextFillColorProp());
 }
 
 bool
@@ -3825,7 +3773,7 @@ nsTextPaintStyle::InitSelectionColorsAndShadow()
     if (sc) {
       mSelectionBGColor =
         sc->GetVisitedDependentColor(eCSSProperty_background_color);
-      mSelectionTextColor = sc->GetVisitedDependentColor(eCSSProperty_color);
+      mSelectionTextColor = sc->GetVisitedDependentColor(sc->GetTextFillColorProp());
       mHasSelectionShadow =
         nsRuleNode::HasAuthorSpecifiedRules(sc,
                                             NS_AUTHOR_SPECIFIED_TEXT_SHADOW,
@@ -3861,13 +3809,15 @@ nsTextPaintStyle::InitSelectionColorsAndShadow()
   if (mResolveColors) {
     // On MacOS X, we don't exchange text color and BG color.
     if (mSelectionTextColor == NS_DONT_CHANGE_COLOR) {
-      nsCSSProperty property = mFrame->IsSVGText() ? eCSSProperty_fill :
-                                                     eCSSProperty_color;
+      nsCSSProperty property = mFrame->IsSVGText()
+                               ? eCSSProperty_fill
+                               : mFrame->StyleContext()->GetTextFillColorProp();
       nscoord frameColor = mFrame->GetVisitedDependentColor(property);
       mSelectionTextColor = EnsureDifferentColors(frameColor, mSelectionBGColor);
     } else if (mSelectionTextColor == NS_CHANGE_COLOR_IF_SAME_AS_BG) {
-      nsCSSProperty property = mFrame->IsSVGText() ? eCSSProperty_fill :
-                                                     eCSSProperty_color;
+      nsCSSProperty property = mFrame->IsSVGText()
+                               ? eCSSProperty_fill
+                               : mFrame->StyleContext()->GetTextFillColorProp();
       nscolor frameColor = mFrame->GetVisitedDependentColor(property);
       if (frameColor == mSelectionBGColor) {
         mSelectionTextColor =
@@ -4565,21 +4515,8 @@ nsTextFrame::ClearTextRun(nsTextFrame* aStartContinuation,
   MOZ_ASSERT(checkmTextrun ? !mTextRun
                            : !Properties().Get(UninflatedTextRunProperty()));
 
-  // see comments in BuildTextRunForFrames...
-//  if (textRun->GetFlags() & gfxFontGroup::TEXT_IS_PERSISTENT) {
-//    NS_ERROR("Shouldn't reach here for now...");
-//    // the textrun's text may be referencing a DOM node that has changed,
-//    // so we'd better kill this textrun now.
-//    if (textRun->GetExpirationState()->IsTracked()) {
-//      gTextRuns->RemoveFromCache(textRun);
-//    }
-//    delete textRun;
-//    return;
-//  }
-
   if (!textRun->GetUserData()) {
-    // Remove it now because it's not doing anything useful
-    gTextRuns->RemoveFromCache(textRun);
+    // Delete it now because it's not doing anything useful
     delete textRun;
   }
 }
@@ -4738,6 +4675,16 @@ public:
 
   virtual nsRect GetComponentAlphaBounds(nsDisplayListBuilder* aBuilder) override
   {
+    if (gfxPlatform::GetPlatform()->RespectsFontStyleSmoothing()) {
+      // On OS X, web authors can turn off subpixel text rendering using the
+      // CSS property -moz-osx-font-smoothing. If they do that, we don't need
+      // to use component alpha layers for the affected text.
+      nsTextFrame* f = static_cast<nsTextFrame*>(mFrame);
+      const nsStyleFont* fontStyle = f->StyleFont();
+      if (fontStyle->mFont.smoothing == NS_FONT_SMOOTHING_GRAYSCALE) {
+        return nsRect();
+      }
+    }
     bool snap;
     return GetBounds(aBuilder, &snap);
   }
@@ -4916,8 +4863,9 @@ nsTextFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
   
   DO_GLOBAL_REFLOW_COUNT_DSP("nsTextFrame");
 
-  bool isTextTransparent =
-    NS_GET_A(StyleContext()->GetTextFillColor()) == 0;
+  nsStyleContext* sc = StyleContext();
+  bool isTextTransparent = (NS_GET_A(sc->GetTextFillColor()) == 0) &&
+                           (NS_GET_A(sc->GetTextStrokeColor()) == 0);
   Maybe<bool> isSelected;
   if (((GetStateBits() & TEXT_NO_RENDERED_GLYPHS) ||
        (isTextTransparent && !StyleText()->HasTextShadow())) &&
@@ -5097,7 +5045,7 @@ nsTextFrame::GetTextDecorations(
       // la la</font></a> case. The link underline should be green.
       useOverride = true;
       overrideColor =
-        nsLayoutUtils::GetColor(f, eCSSProperty_text_decoration_color);
+        nsLayoutUtils::GetColor(f, GetTextDecorationColorProp(context));
     }
 
     nsBlockFrame* fBlock = nsLayoutUtils::GetAsBlock(f);
@@ -5154,7 +5102,7 @@ nsTextFrame::GetTextDecorations(
                   nsLayoutUtils::GetColor(f, eCSSProperty_fill) :
                   NS_SAME_AS_FOREGROUND_COLOR;
       } else {
-        color = nsLayoutUtils::GetColor(f, eCSSProperty_text_decoration_color);
+        color = nsLayoutUtils::GetColor(f, GetTextDecorationColorProp(context));
       }
 
       bool swapUnderlineAndOverline = vertical && IsUnderlineRight(f);
@@ -5338,6 +5286,7 @@ nsTextFrame::UnionAdditionalOverflow(nsPresContext* aPresContext,
 {
   const WritingMode wm = GetWritingMode();
   bool verticalRun = mTextRun->IsVertical();
+  const gfxFloat appUnitsPerDevUnit = aPresContext->AppUnitsPerDevPixel();
 
   if (IsFloatingFirstLetterChild()) {
     bool inverted = wm.IsLineInverted();
@@ -5359,7 +5308,6 @@ nsTextFrame::UnionAdditionalOverflow(nsPresContext* aPresContext,
                                  : fontMetrics->MaxAscent();
 
     nsCSSRendering::DecorationRectParams params;
-    gfxFloat appUnitsPerDevUnit = aPresContext->AppUnitsPerDevPixel();
     Float gfxWidth =
       (verticalRun ? aVisualOverflowRect->height
                    : aVisualOverflowRect->width) /
@@ -5404,9 +5352,9 @@ nsTextFrame::UnionAdditionalOverflow(nsPresContext* aPresContext,
         nsLayoutUtils::InflationMinFontSizeFor(aBlock);
 
       const nscoord measure = verticalDec ? GetSize().height : GetSize().width;
-      const gfxFloat app = aPresContext->AppUnitsPerDevPixel();
-      gfxFloat gfxWidth = measure / app;
-      gfxFloat ascent = gfxFloat(GetLogicalBaseline(parentWM)) / app;
+      gfxFloat gfxWidth = measure / appUnitsPerDevUnit;
+      gfxFloat ascent = gfxFloat(GetLogicalBaseline(parentWM))
+                          / appUnitsPerDevUnit;
       nscoord frameBStart = 0;
       if (parentWM.IsVerticalRL()) {
         frameBStart = GetSize().width;
@@ -5482,6 +5430,17 @@ nsTextFrame::UnionAdditionalOverflow(nsPresContext* aPresContext,
 
     aVisualOverflowRect->UnionRect(*aVisualOverflowRect,
                                    UpdateTextEmphasis(parentWM, aProvider));
+  }
+
+  // text-stroke overflows
+  nscoord textStrokeWidth = StyleText()->mWebkitTextStrokeWidth.GetCoordValue();
+  if (textStrokeWidth > 0) {
+    nsRect strokeRect = *aVisualOverflowRect;
+    strokeRect.x -= textStrokeWidth;
+    strokeRect.y -= textStrokeWidth;
+    strokeRect.width += textStrokeWidth;
+    strokeRect.height += textStrokeWidth;
+    aVisualOverflowRect->UnionRect(*aVisualOverflowRect, strokeRect);
   }
 
   // Text-shadow overflows
@@ -6162,6 +6121,8 @@ nsTextFrame::PaintTextWithSelectionColors(
 
     // Draw text segment
     params.textColor = foreground;
+    params.textStrokeColor = aParams.textPaintStyle->GetWebkitTextStrokeColor();
+    params.textStrokeWidth = aParams.textPaintStyle->GetWebkitTextStrokeWidth();
     params.drawSoftHyphen = hyphenWidth > 0;
     DrawText(range, textBaselinePt, params);
     advance += hyphenWidth;
@@ -6689,6 +6650,13 @@ nsTextFrame::PaintText(const PaintTextParams& aParams,
     foregroundColor = gfxColor.ToABGR();
   }
 
+  nscolor textStrokeColor = textPaintStyle.GetWebkitTextStrokeColor();
+  if (aOpacity != 1.0f) {
+    gfx::Color gfxColor = gfx::Color::FromABGR(textStrokeColor);
+    gfxColor.a *= aOpacity;
+    textStrokeColor = gfxColor.ToABGR();
+  }
+
   range = Range(startOffset, startOffset + maxLength);
   if (!aParams.callbacks) {
     const nsStyleText* textStyle = StyleText();
@@ -6710,6 +6678,8 @@ nsTextFrame::PaintText(const PaintTextParams& aParams,
   params.advanceWidth = &advanceWidth;
   params.textStyle = &textPaintStyle;
   params.textColor = foregroundColor;
+  params.textStrokeColor = textStrokeColor;
+  params.textStrokeWidth = textPaintStyle.GetWebkitTextStrokeWidth();
   params.clipEdges = &clipEdges;
   params.drawSoftHyphen = (GetStateBits() & TEXT_HYPHEN_BREAK) != 0;
   params.contextPaint = aParams.contextPaint;
@@ -6724,18 +6694,30 @@ DrawTextRun(gfxTextRun* aTextRun,
             const nsTextFrame::DrawTextRunParams& aParams)
 {
   gfxTextRun::DrawParams params(aParams.context);
-  params.drawMode = aParams.callbacks ? DrawMode::GLYPH_PATH
-                                      : DrawMode::GLYPH_FILL;
   params.provider = aParams.provider;
   params.advanceWidth = aParams.advanceWidth;
   params.contextPaint = aParams.contextPaint;
   params.callbacks = aParams.callbacks;
   if (aParams.callbacks) {
     aParams.callbacks->NotifyBeforeText(aParams.textColor);
+    params.drawMode = DrawMode::GLYPH_PATH;
     aTextRun->Draw(aRange, aTextBaselinePt, params);
     aParams.callbacks->NotifyAfterText();
   } else {
-    aParams.context->SetColor(Color::FromABGR(aParams.textColor));
+    if (NS_GET_A(aParams.textColor) != 0) {
+      // Default drawMode is DrawMode::GLYPH_FILL
+      aParams.context->SetColor(Color::FromABGR(aParams.textColor));
+    } else {
+      params.drawMode = DrawMode::GLYPH_STROKE;
+    }
+
+    if (NS_GET_A(aParams.textStrokeColor) != 0 &&
+        aParams.textStrokeWidth != 0.0f) {
+      params.drawMode |= DrawMode::GLYPH_STROKE;
+      params.textStrokeWidth = aParams.textStrokeWidth;
+      params.textStrokeColor = aParams.textStrokeColor;
+    }
+
     aTextRun->Draw(aRange, aTextBaselinePt, params);
   }
 }
@@ -7821,6 +7803,7 @@ FindFirstLetterRange(const nsTextFragment* aFrag,
   // want to allow this to split a ligature.
   bool allowSplitLigature;
 
+  typedef unicode::Script Script;
   switch (unicode::GetScriptCode(aFrag->CharAt(aOffset + i))) {
     default:
       allowSplitLigature = true;
@@ -7833,39 +7816,39 @@ FindFirstLetterRange(const nsTextFragment* aFrag,
     // rule.
 
     // Indic
-    case MOZ_SCRIPT_BENGALI:
-    case MOZ_SCRIPT_DEVANAGARI:
-    case MOZ_SCRIPT_GUJARATI:
-    case MOZ_SCRIPT_GURMUKHI:
-    case MOZ_SCRIPT_KANNADA:
-    case MOZ_SCRIPT_MALAYALAM:
-    case MOZ_SCRIPT_ORIYA:
-    case MOZ_SCRIPT_TAMIL:
-    case MOZ_SCRIPT_TELUGU:
-    case MOZ_SCRIPT_SINHALA:
-    case MOZ_SCRIPT_BALINESE:
-    case MOZ_SCRIPT_LEPCHA:
-    case MOZ_SCRIPT_REJANG:
-    case MOZ_SCRIPT_SUNDANESE:
-    case MOZ_SCRIPT_JAVANESE:
-    case MOZ_SCRIPT_KAITHI:
-    case MOZ_SCRIPT_MEETEI_MAYEK:
-    case MOZ_SCRIPT_CHAKMA:
-    case MOZ_SCRIPT_SHARADA:
-    case MOZ_SCRIPT_TAKRI:
-    case MOZ_SCRIPT_KHMER:
+    case Script::BENGALI:
+    case Script::DEVANAGARI:
+    case Script::GUJARATI:
+    case Script::GURMUKHI:
+    case Script::KANNADA:
+    case Script::MALAYALAM:
+    case Script::ORIYA:
+    case Script::TAMIL:
+    case Script::TELUGU:
+    case Script::SINHALA:
+    case Script::BALINESE:
+    case Script::LEPCHA:
+    case Script::REJANG:
+    case Script::SUNDANESE:
+    case Script::JAVANESE:
+    case Script::KAITHI:
+    case Script::MEETEI_MAYEK:
+    case Script::CHAKMA:
+    case Script::SHARADA:
+    case Script::TAKRI:
+    case Script::KHMER:
 
     // Tibetan
-    case MOZ_SCRIPT_TIBETAN:
+    case Script::TIBETAN:
 
     // Myanmar
-    case MOZ_SCRIPT_MYANMAR:
+    case Script::MYANMAR:
 
     // Other SEAsian
-    case MOZ_SCRIPT_BUGINESE:
-    case MOZ_SCRIPT_NEW_TAI_LUE:
-    case MOZ_SCRIPT_CHAM:
-    case MOZ_SCRIPT_TAI_THAM:
+    case Script::BUGINESE:
+    case Script::NEW_TAI_LUE:
+    case Script::CHAM:
+    case Script::TAI_THAM:
 
     // What about Thai/Lao - any special handling needed?
     // Should we special-case Arabic lam-alef?

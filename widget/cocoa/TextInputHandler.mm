@@ -913,7 +913,7 @@ TISInputSourceWrapper::InitKeyEvent(NSEvent *aNativeKeyEvent,
     aKeyEvent.mNativeModifierFlags = [aNativeKeyEvent modifierFlags];
   }
 
-  aKeyEvent.refPoint = LayoutDeviceIntPoint(0, 0);
+  aKeyEvent.mRefPoint = LayoutDeviceIntPoint(0, 0);
   aKeyEvent.isChar = false; // XXX not used in XP level
 
   UInt32 kbType = GetKbdType();
@@ -2241,9 +2241,9 @@ TextInputHandler::InsertText(NSAttributedString* aAttrString,
 
   // Remove basic modifiers from keypress event because if they are included,
   // nsPlaintextEditor ignores the event.
-  keypressEvent.modifiers &= ~(MODIFIER_CONTROL |
-                               MODIFIER_ALT |
-                               MODIFIER_META);
+  keypressEvent.mModifiers &= ~(MODIFIER_CONTROL |
+                                MODIFIER_ALT |
+                                MODIFIER_META);
 
   // TODO:
   // If mCurrentKeyEvent.mKeyEvent is null, the text should be inputted as
@@ -3556,9 +3556,9 @@ IMEInputHandler::CharacterIndexForPoint(NSPoint& aPoint)
   WidgetQueryContentEvent charAt(true, eQueryCharacterAtPoint, mWidget);
   NSPoint ptInWindow = [mainWindow convertScreenToBase:aPoint];
   NSPoint ptInView = [mView convertPoint:ptInWindow fromView:nil];
-  charAt.refPoint.x =
+  charAt.mRefPoint.x =
     static_cast<int32_t>(ptInView.x) * mWidget->BackingScaleFactor();
-  charAt.refPoint.y =
+  charAt.mRefPoint.y =
     static_cast<int32_t>(ptInView.y) * mWidget->BackingScaleFactor();
   mWidget->DispatchWindowEvent(charAt);
   if (!charAt.mSucceeded ||
@@ -4145,14 +4145,14 @@ TextInputHandlerBase::AttachNativeKeyEvent(WidgetKeyboardEvent& aKeyEvent)
 
   // Don't try to replace a native event if one already exists.
   // OS X doesn't have an OS modifier, can't make a native event.
-  if (aKeyEvent.mNativeKeyEvent || aKeyEvent.modifiers & MODIFIER_OS) {
+  if (aKeyEvent.mNativeKeyEvent || aKeyEvent.mModifiers & MODIFIER_OS) {
     return NS_OK;
   }
 
   MOZ_LOG(gLog, LogLevel::Info,
     ("%p TextInputHandlerBase::AttachNativeKeyEvent, key=0x%X, char=0x%X, "
      "mod=0x%X", this, aKeyEvent.keyCode, aKeyEvent.charCode,
-     aKeyEvent.modifiers));
+     aKeyEvent.mModifiers));
 
   NSEventType eventType;
   if (aKeyEvent.mMessage == eKeyUp) {
@@ -4173,7 +4173,7 @@ TextInputHandlerBase::AttachNativeKeyEvent(WidgetKeyboardEvent& aKeyEvent)
 
   NSUInteger modifierFlags = 0;
   for (uint32_t i = 0; i < ArrayLength(sModifierFlagMap); ++i) {
-    if (aKeyEvent.modifiers & sModifierFlagMap[i][0]) {
+    if (aKeyEvent.mModifiers & sModifierFlagMap[i][0]) {
       modifierFlags |= sModifierFlagMap[i][1];
     }
   }

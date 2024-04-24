@@ -517,7 +517,7 @@ NS_IMETHODIMP nsPluginInstanceOwner::GetURL(const char *aURL,
     return NS_OK;
   }
 
-  nsIDocument *doc = content->GetCurrentDoc();
+  nsIDocument *doc = content->GetUncomposedDoc();
   if (!doc) {
     return NS_ERROR_FAILURE;
   }
@@ -2192,8 +2192,8 @@ TranslateToNPCocoaEvent(WidgetGUIEvent* anEvent, nsIFrame* aObjectFrame)
     case eLegacyMouseLineOrPageScroll: {
       WidgetWheelEvent* wheelEvent = anEvent->AsWheelEvent();
       if (wheelEvent) {
-        cocoaEvent.data.mouse.deltaX = wheelEvent->lineOrPageDeltaX;
-        cocoaEvent.data.mouse.deltaY = wheelEvent->lineOrPageDeltaY;
+        cocoaEvent.data.mouse.deltaX = wheelEvent->mLineOrPageDeltaX;
+        cocoaEvent.data.mouse.deltaY = wheelEvent->mLineOrPageDeltaY;
       } else {
         NS_WARNING("eLegacyMouseLineOrPageScroll is not a WidgetWheelEvent? "
                    "(could be, haven't checked)");
@@ -2385,11 +2385,11 @@ nsEventStatus nsPluginInstanceOwner::ProcessEvent(const WidgetGUIEvent& anEvent)
       case eWheel: {
         const WidgetWheelEvent* wheelEvent = anEvent.AsWheelEvent();
         int32_t delta = 0;
-        if (wheelEvent->lineOrPageDeltaY) {
-          switch (wheelEvent->deltaMode) {
+        if (wheelEvent->mLineOrPageDeltaY) {
+          switch (wheelEvent->mDeltaMode) {
             case nsIDOMWheelEvent::DOM_DELTA_PAGE:
               pluginEvent.event = WM_MOUSEWHEEL;
-              delta = -WHEEL_DELTA * wheelEvent->lineOrPageDeltaY;
+              delta = -WHEEL_DELTA * wheelEvent->mLineOrPageDeltaY;
               break;
             case nsIDOMWheelEvent::DOM_DELTA_LINE: {
               UINT linesPerWheelDelta = 0;
@@ -2403,8 +2403,8 @@ nsEventStatus nsPluginInstanceOwner::ProcessEvent(const WidgetGUIEvent& anEvent)
                 break;
               }
               pluginEvent.event = WM_MOUSEWHEEL;
-              delta = -WHEEL_DELTA / linesPerWheelDelta *
-                        wheelEvent->lineOrPageDeltaY;
+              delta = -WHEEL_DELTA / linesPerWheelDelta;
+              delta *= wheelEvent->mLineOrPageDeltaY;
               break;
             }
             case nsIDOMWheelEvent::DOM_DELTA_PIXEL:
@@ -2413,11 +2413,11 @@ nsEventStatus nsPluginInstanceOwner::ProcessEvent(const WidgetGUIEvent& anEvent)
               MOZ_ASSERT(!pluginEvent.event);
               break;
           }
-        } else if (wheelEvent->lineOrPageDeltaX) {
-          switch (wheelEvent->deltaMode) {
+        } else if (wheelEvent->mLineOrPageDeltaX) {
+          switch (wheelEvent->mDeltaMode) {
             case nsIDOMWheelEvent::DOM_DELTA_PAGE:
               pluginEvent.event = WM_MOUSEHWHEEL;
-              delta = -WHEEL_DELTA * wheelEvent->lineOrPageDeltaX;
+              delta = -WHEEL_DELTA * wheelEvent->mLineOrPageDeltaX;
               break;
             case nsIDOMWheelEvent::DOM_DELTA_LINE: {
               pluginEvent.event = WM_MOUSEHWHEEL;
@@ -2432,8 +2432,8 @@ nsEventStatus nsPluginInstanceOwner::ProcessEvent(const WidgetGUIEvent& anEvent)
               if (!charsPerWheelDelta) {
                 break;
               }
-              delta =
-                WHEEL_DELTA / charsPerWheelDelta * wheelEvent->lineOrPageDeltaX;
+              delta = WHEEL_DELTA / charsPerWheelDelta;
+              delta *= wheelEvent->mLineOrPageDeltaX;
               break;
             }
             case nsIDOMWheelEvent::DOM_DELTA_PIXEL:
@@ -2539,7 +2539,7 @@ nsEventStatus nsPluginInstanceOwner::ProcessEvent(const WidgetGUIEvent& anEvent)
 
 #ifdef MOZ_X11
   // this code supports windowless plugins
-  nsIWidget* widget = anEvent.widget;
+  nsIWidget* widget = anEvent.mWidget;
   XEvent pluginEvent = XEvent();
   pluginEvent.type = 0;
 
@@ -2565,8 +2565,9 @@ nsEventStatus nsPluginInstanceOwner::ProcessEvent(const WidgetGUIEvent& anEvent)
         const WidgetMouseEvent& mouseEvent = *anEvent.AsMouseEvent();
         // Get reference point relative to screen:
         LayoutDeviceIntPoint rootPoint(-1, -1);
-        if (widget)
-          rootPoint = anEvent.refPoint + widget->WidgetToScreenOffset();
+        if (widget) {
+          rootPoint = anEvent.mRefPoint + widget->WidgetToScreenOffset();
+        }
 #ifdef MOZ_WIDGET_GTK
         Window root = GDK_ROOT_WINDOW();
 #elif defined(MOZ_WIDGET_QT)
@@ -2583,7 +2584,7 @@ nsEventStatus nsPluginInstanceOwner::ProcessEvent(const WidgetGUIEvent& anEvent)
               event.type = anEvent.mMessage == eMouseOver ?
                 EnterNotify : LeaveNotify;
               event.root = root;
-              event.time = anEvent.time;
+              event.time = anEvent.mTime;
               event.x = pluginPoint.x;
               event.y = pluginPoint.y;
               event.x_root = rootPoint.x;
@@ -2602,7 +2603,7 @@ nsEventStatus nsPluginInstanceOwner::ProcessEvent(const WidgetGUIEvent& anEvent)
               XMotionEvent& event = pluginEvent.xmotion;
               event.type = MotionNotify;
               event.root = root;
-              event.time = anEvent.time;
+              event.time = anEvent.mTime;
               event.x = pluginPoint.x;
               event.y = pluginPoint.y;
               event.x_root = rootPoint.x;
@@ -2621,7 +2622,7 @@ nsEventStatus nsPluginInstanceOwner::ProcessEvent(const WidgetGUIEvent& anEvent)
               event.type = anEvent.mMessage == eMouseDown ?
                 ButtonPress : ButtonRelease;
               event.root = root;
-              event.time = anEvent.time;
+              event.time = anEvent.mTime;
               event.x = pluginPoint.x;
               event.y = pluginPoint.y;
               event.x_root = rootPoint.x;
@@ -2658,7 +2659,7 @@ nsEventStatus nsPluginInstanceOwner::ProcessEvent(const WidgetGUIEvent& anEvent)
           XKeyEvent &event = pluginEvent.xkey;
 #ifdef MOZ_WIDGET_GTK
           event.root = GDK_ROOT_WINDOW();
-          event.time = anEvent.time;
+          event.time = anEvent.mTime;
           const GdkEventKey* gdkEvent =
             static_cast<const GdkEventKey*>(anEvent.mPluginEvent);
           event.keycode = gdkEvent->hardware_keycode;

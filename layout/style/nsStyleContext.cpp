@@ -1128,7 +1128,10 @@ nsStyleContext::CalcStyleDifference(nsStyleContext* aOther,
           thisVisText->mTextEmphasisColor != otherVisText->mTextEmphasisColor ||
           thisVisText->mWebkitTextFillColorForeground !=
           otherVisText->mWebkitTextFillColorForeground ||
-          thisVisText->mWebkitTextFillColor != otherVisText->mWebkitTextFillColor) {
+          thisVisText->mWebkitTextFillColor != otherVisText->mWebkitTextFillColor ||
+          thisVisText->mWebkitTextStrokeColorForeground !=
+          otherVisText->mWebkitTextStrokeColorForeground ||
+          thisVisText->mWebkitTextStrokeColor != otherVisText->mWebkitTextStrokeColor) {
         change = true;
       }
     }
@@ -1310,7 +1313,8 @@ ExtractColor(nsCSSProperty aProperty,
 {
   StyleAnimationValue val;
   ExtractAnimationValue(aProperty, aStyleContext, val);
-  return val.GetColorValue();
+  return val.GetUnit() == StyleAnimationValue::eUnit_CurrentColor
+    ? aStyleContext->StyleColor()->mColor : val.GetColorValue();
 }
 
 static nscolor
@@ -1321,6 +1325,8 @@ ExtractColorLenient(nsCSSProperty aProperty,
   ExtractAnimationValue(aProperty, aStyleContext, val);
   if (val.GetUnit() == StyleAnimationValue::eUnit_Color) {
     return val.GetColorValue();
+  } else if (val.GetUnit() == StyleAnimationValue::eUnit_CurrentColor) {
+    return aStyleContext->StyleColor()->mColor;
   }
   return NS_RGBA(0, 0, 0, 0);
 }
@@ -1345,6 +1351,7 @@ nsStyleContext::GetVisitedDependentColor(nsCSSProperty aProperty)
                aProperty == eCSSProperty_text_decoration_color ||
                aProperty == eCSSProperty_text_emphasis_color ||
                aProperty == eCSSProperty__webkit_text_fill_color ||
+               aProperty == eCSSProperty__webkit_text_stroke_color ||
                aProperty == eCSSProperty_fill ||
                aProperty == eCSSProperty_stroke,
                "we need to add to nsStyleContext::CalcStyleDifference");

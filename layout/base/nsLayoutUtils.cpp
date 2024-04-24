@@ -2170,7 +2170,7 @@ nsLayoutUtils::GetEventCoordinatesRelativeTo(const WidgetEvent* aEvent,
     return nsPoint(NS_UNCONSTRAINEDSIZE, NS_UNCONSTRAINEDSIZE);
 
   return GetEventCoordinatesRelativeTo(aEvent,
-           aEvent->AsGUIEvent()->refPoint,
+           aEvent->AsGUIEvent()->mRefPoint,
            aFrame);
 }
 
@@ -2183,7 +2183,7 @@ nsLayoutUtils::GetEventCoordinatesRelativeTo(const WidgetEvent* aEvent,
     return nsPoint(NS_UNCONSTRAINEDSIZE, NS_UNCONSTRAINEDSIZE);
   }
 
-  nsIWidget* widget = aEvent->AsGUIEvent()->widget;
+  nsIWidget* widget = aEvent->AsGUIEvent()->mWidget;
   if (!widget) {
     return nsPoint(NS_UNCONSTRAINEDSIZE, NS_UNCONSTRAINEDSIZE);
   }
@@ -7437,7 +7437,7 @@ nsLayoutUtils::SurfaceFromElement(HTMLVideoElement* aElement,
   }
 
   // If it doesn't have a principal, just bail
-  nsCOMPtr<nsIPrincipal> principal = aElement->GetCurrentPrincipal();
+  nsCOMPtr<nsIPrincipal> principal = aElement->GetCurrentVideoPrincipal();
   if (!principal)
     return result;
 
@@ -9098,16 +9098,6 @@ nsLayoutUtils::GetSelectionBoundingRect(Selection* aSel)
   }
 
   return res;
-}
-
-/* static */ bool
-nsLayoutUtils::IsScrollFrameWithSnapping(nsIFrame* aFrame)
-{
-  nsIScrollableFrame* sf = do_QueryFrame(aFrame);
-  if (!sf) {
-    return false;
-  }
-  return sf->IsScrollFrameWithSnapping();
 }
 
 /* static */ nsBlockFrame*

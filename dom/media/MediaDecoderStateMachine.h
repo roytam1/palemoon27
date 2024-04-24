@@ -84,7 +84,6 @@ hardware (via AudioStream).
 
 #include "mozilla/Attributes.h"
 #include "mozilla/ReentrantMonitor.h"
-#include "mozilla/RollingMean.h"
 #include "mozilla/StateMirroring.h"
 
 #include "nsThreadUtils.h"
@@ -146,7 +145,6 @@ public:
 
   // Enumeration for the valid decoding states
   enum State {
-    DECODER_STATE_DECODING_NONE,
     DECODER_STATE_DECODING_METADATA,
     DECODER_STATE_WAIT_FOR_CDM,
     DECODER_STATE_DORMANT,
@@ -275,6 +273,8 @@ private:
 
   void SetAudioCaptured(bool aCaptured);
 
+  void ReadMetadata();
+
   RefPtr<MediaDecoder::SeekPromise> Seek(SeekTarget aTarget);
 
   RefPtr<ShutdownPromise> Shutdown();
@@ -330,17 +330,7 @@ private:
   TaskQueue* OwnerThread() const { return mTaskQueue; }
 
   // Schedules the shared state machine thread to run the state machine.
-  //
-  // The first variant coalesces multiple calls into a single state machine
-  // cycle, the second variant does not. The second variant must be used when
-  // not already on the state machine task queue.
   void ScheduleStateMachine();
-  void ScheduleStateMachineCrossThread()
-  {
-    nsCOMPtr<nsIRunnable> task =
-      NS_NewRunnableMethod(this, &MediaDecoderStateMachine::RunStateMachine);
-    OwnerThread()->Dispatch(task.forget());
-  }
 
   // Invokes ScheduleStateMachine to run in |aMicroseconds| microseconds,
   // unless it's already scheduled to run earlier, in which case the
@@ -477,10 +467,6 @@ protected:
   // media element -- use UpdatePlaybackPosition for that.  Called on the state
   // machine thread, caller must hold the decoder lock.
   void UpdatePlaybackPositionInternal(int64_t aTime);
-
-  // Decode monitor must be held. To determine if MDSM needs to turn off HW
-  // acceleration.
-  void CheckFrameValidity(VideoData* aData);
 
   // Update playback position and trigger next update by default time period.
   // Called on the state machine thread.
@@ -975,7 +961,7 @@ private:
   uint32_t AudioPrerollUsecs() const
   {
     MOZ_ASSERT(OnTaskQueue());
-    return IsRealTime() ? 0 : mAmpleAudioThresholdUsecs;
+    return IsRealTime() ? 0 : mAmpleAudioThresholdUsecs / 2;
   }
 
   uint32_t VideoPrerollFrames() const
@@ -1135,10 +1121,6 @@ private:
   bool mDropAudioUntilNextDiscontinuity;
   bool mDropVideoUntilNextDiscontinuity;
 
-  // True if we need to decode forwards to the seek target inside
-  // mCurrentSeekTarget.
-  bool mDecodeToSeekTarget;
-
   // Track the current seek promise made by the reader.
   MozPromiseRequestHolder<MediaDecoderReader::SeekPromise> mSeekRequest;
 
@@ -1158,7 +1140,8 @@ private:
 
   mozilla::MediaMetadataManager mMetadataManager;
 
-  mozilla::RollingMean<uint32_t, uint32_t> mCorruptFrames;
+  // Track our request to update the buffered ranges
+  MozPromiseRequestHolder<MediaDecoderReader::BufferedUpdatePromise> mBufferedUpdateRequest;
 
   // True if we need to call FinishDecodeFirstFrame() upon frame decoding
   // successeeding.
@@ -1178,13 +1161,6 @@ private:
 
   // Data about MediaStreams that are being fed by the decoder.
   const RefPtr<OutputStreamManager> mOutputStreamManager;
-
-  // The SourceMediaStream we are using to feed the mOutputStreams. This stream
-  // is never exposed outside the decoder.
-  // Only written on the main thread while holding the monitor. Therefore it
-  // can be read on any thread while holding the monitor, or on the main thread
-  // without holding the monitor.
-  RefPtr<DecodedStream> mStreamSink;
 
   // Media data resource from the decoder.
   RefPtr<MediaResource> mResource;
@@ -1248,6 +1224,10 @@ private:
   // True if the media is same-origin with the element. Data can only be
   // passed to MediaStreams when this is true.
   Mirror<bool> mSameOriginMedia;
+
+  // An identifier for the principal of the media. Used to track when
+  // main-thread induced principal changes get reflected on MSG thread.
+  Mirror<PrincipalHandle> mMediaPrincipalHandle;
 
   // Estimate of the current playback rate (bytes/second).
   Mirror<double> mPlaybackBytesPerSecond;

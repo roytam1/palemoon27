@@ -198,9 +198,9 @@ SwipeTracker::CreateSwipeGestureEvent(EventMessage aMsg, nsIWidget* aWidget,
                                       const LayoutDeviceIntPoint& aPosition)
 {
   WidgetSimpleGestureEvent geckoEvent(true, aMsg, aWidget);
-  geckoEvent.modifiers = 0;
-  geckoEvent.timeStamp = TimeStamp::Now();
-  geckoEvent.refPoint = aPosition;
+  geckoEvent.mModifiers = 0;
+  geckoEvent.mTimeStamp = TimeStamp::Now();
+  geckoEvent.mRefPoint = aPosition;
   geckoEvent.buttons = 0;
   return geckoEvent;
 }

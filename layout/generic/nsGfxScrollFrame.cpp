@@ -817,7 +817,7 @@ static nsIContent*
 GetBrowserRoot(nsIContent* aContent)
 {
   if (aContent) {
-    nsIDocument* doc = aContent->GetCurrentDoc();
+    nsIDocument* doc = aContent->GetUncomposedDoc();
     nsPIDOMWindow* win = doc->GetWindow();
     if (win) {
       nsCOMPtr<Element> frameElement = win->GetFrameElementInternal();
@@ -3636,26 +3636,6 @@ static void HandleScrollPref(nsIScrollable *aScrollable, int32_t aOrientation,
   }
 }
 
-bool
-ScrollFrameHelper::IsScrollFrameWithSnapping() const
-{
-  nsPresContext* presContext = mOuter->PresContext();
-  if (!presContext->IsDynamic() &&
-      !(mIsRoot && presContext->HasPaginatedScrolling())) {
-    return false;
-  }
-
-  if (!mIsRoot) {
-    const nsStyleDisplay& display = *mOuter->StyleDisplay();
-    return display.mScrollSnapTypeY != NS_STYLE_SCROLL_SNAP_TYPE_NONE ||
-           display.mScrollSnapTypeX != NS_STYLE_SCROLL_SNAP_TYPE_NONE;
-  } else {
-    const ScrollbarStyles& display = presContext->GetViewportScrollbarStylesOverride();
-    return display.mScrollSnapTypeY != NS_STYLE_SCROLL_SNAP_TYPE_NONE ||
-           display.mScrollSnapTypeX != NS_STYLE_SCROLL_SNAP_TYPE_NONE;
-  }
-}
-
 ScrollbarStyles
 ScrollFrameHelper::GetScrollbarStylesFromFrame() const
 {
@@ -4535,7 +4515,7 @@ ScrollFrameHelper::FireScrollEvent()
   // will bubble to the window)
   mozilla::layers::ScrollLinkedEffectDetector detector(content->GetComposedDoc());
   if (mIsRoot) {
-    nsIDocument* doc = content->GetCurrentDoc();
+    nsIDocument* doc = content->GetUncomposedDoc();
     if (doc) {
       EventDispatcher::Dispatch(doc, prescontext, &event, nullptr,  &status);
     }
@@ -5746,7 +5726,7 @@ ScrollFrameHelper::FireScrolledAreaEvent()
 
   event.mArea = mScrolledFrame->GetScrollableOverflowRectRelativeToParent();
 
-  nsIDocument *doc = content->GetCurrentDoc();
+  nsIDocument *doc = content->GetUncomposedDoc();
   if (doc) {
     EventDispatcher::Dispatch(doc, prescontext, &event, nullptr);
   }

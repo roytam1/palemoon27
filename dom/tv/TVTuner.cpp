@@ -209,7 +209,7 @@ TVTuner::ReloadMediaStream()
 nsresult
 TVTuner::InitMediaStream()
 {
-  nsCOMPtr<nsIDOMWindow> window = do_QueryInterface(GetOwner());
+  nsCOMPtr<nsPIDOMWindow> window = do_QueryInterface(GetOwner());
   RefPtr<DOMMediaStream> stream = nullptr;
   if (mStreamType == nsITVTunerData::TV_STREAM_TYPE_HW) {
     stream = DOMHwMediaStream::CreateHwStream(window);

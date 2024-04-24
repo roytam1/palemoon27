@@ -117,6 +117,8 @@ protected:
     , mNativeKeyCode(0)
     , mNativeModifierFlags(0)
 #endif
+    , mInputMethodAppState(eNotHandled)
+    , mIsSynthesizedByTIP(false)
   {
   }
 
@@ -142,6 +144,8 @@ public:
     , mNativeKeyCode(0)
     , mNativeModifierFlags(0)
 #endif
+    , mInputMethodAppState(eNotHandled)
+    , mIsSynthesizedByTIP(false)
   {
   }
 
@@ -210,6 +214,20 @@ public:
   // keyboard event.
   nsString mPluginTextEventString;
 #endif
+
+  // Indicates that the event is being handled by input method app
+  typedef uint8_t InputMethodAppStateType;
+  enum InputMethodAppState : InputMethodAppStateType
+  {
+    eNotHandled, // not yet handled by intput method app
+    eHandling,   // being handled by intput method app
+    eHandled     // handled by input method app
+  };
+  InputMethodAppState mInputMethodAppState;
+
+  // Indicates whether the event is synthesized from Text Input Processor
+  // or an actual event from nsAppShell.
+  bool mIsSynthesizedByTIP;
 
   // If the key should cause keypress events, this returns true.
   // Otherwise, false.
@@ -338,6 +356,8 @@ public:
       Assign(aEvent.mNativeCharactersIgnoringModifiers);
     mPluginTextEventString.Assign(aEvent.mPluginTextEventString);
 #endif
+    mInputMethodAppState = aEvent.mInputMethodAppState;
+    mIsSynthesizedByTIP = aEvent.mIsSynthesizedByTIP;
   }
 
 private:
@@ -608,7 +628,7 @@ public:
   {
     NS_ASSERTION(mMessage == eQueryDOMWidgetHittest,
                  "wrong initializer is called");
-    refPoint = aPoint;
+    mRefPoint = aPoint;
   }
 
   void RequestFontRanges()
@@ -662,7 +682,7 @@ public:
     void* mContentsRoot;
     uint32_t mOffset;
     // mTentativeCaretOffset is used by only eQueryCharacterAtPoint.
-    // This is the offset where caret would be if user clicked at the refPoint.
+    // This is the offset where caret would be if user clicked at the mRefPoint.
     uint32_t mTentativeCaretOffset;
     nsString mString;
     // mRect is used by eQueryTextRect, eQueryCaretRect, eQueryCharacterAtPoint

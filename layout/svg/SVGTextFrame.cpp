@@ -3735,7 +3735,7 @@ SVGTextFrame::PaintSVG(gfxContext& aContext,
       SetupContextPaint(&aDrawTarget, aContext.CurrentMatrix(),
                         frame, outerContextPaint, &contextPaint);
 
-    if (int(drawMode) & int(DrawMode::GLYPH_STROKE)) {
+    if (drawMode & DrawMode::GLYPH_STROKE) {
       // This may change the gfxContext's transform (for non-scaling stroke),
       // in which case this needs to happen before we call SetMatrix() below.
       nsSVGUtils::SetupCairoStrokeGeometry(frame, &aContext, outerContextPaint);
@@ -4905,7 +4905,7 @@ SVGTextFrame::GetTextPathPathElement(nsIFrame* aTextPathFrame)
     nsCOMPtr<nsIURI> targetURI;
     nsCOMPtr<nsIURI> base = content->GetBaseURI();
     nsContentUtils::NewURIWithDocumentCharset(getter_AddRefs(targetURI), href,
-                                              content->GetCurrentDoc(), base);
+                                              content->GetUncomposedDoc(), base);
 
     property = nsSVGEffects::GetTextPathProperty(targetURI, aTextPathFrame,
                                                  nsSVGEffects::HrefProperty());
@@ -5801,7 +5801,7 @@ SVGTextFrame::SetupContextPaint(const DrawTarget* aDrawTarget,
 
     aThisContextPaint->SetFillOpacity(opacity);
 
-    toDraw = DrawMode(int(toDraw) | int(DrawMode::GLYPH_FILL));
+    toDraw |= DrawMode::GLYPH_FILL;
   }
 
   // stroke:
@@ -5819,7 +5819,7 @@ SVGTextFrame::SetupContextPaint(const DrawTarget* aDrawTarget,
 
     aThisContextPaint->SetStrokeOpacity(opacity);
 
-    toDraw = DrawMode(int(toDraw) | int(DrawMode::GLYPH_STROKE));
+    toDraw |= DrawMode::GLYPH_STROKE;
   }
 
   return toDraw;

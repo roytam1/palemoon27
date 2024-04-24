@@ -248,7 +248,7 @@ nsComputedDOMStyle::nsComputedDOMStyle(dom::Element* aElement,
       --start;
       haveTwoColons = false;
     }
-    mPseudo = do_GetAtom(Substring(start, end));
+    mPseudo = NS_Atomize(Substring(start, end));
     MOZ_ASSERT(mPseudo);
 
     // There aren't any non-CSS2 pseudo-elements with a single ':'
@@ -3633,7 +3633,7 @@ nsComputedDOMStyle::DoGetTextDecorationColor()
   bool isForeground;
   StyleTextReset()->GetDecorationColor(color, isForeground);
   if (isForeground) {
-    color = StyleColor()->mColor;
+    color = mStyleContext->GetTextFillColor();
   }
 
   SetToRGBAColor(val, color);
@@ -3930,6 +3930,22 @@ nsComputedDOMStyle::DoGetWebkitTextFillColor()
 {
   RefPtr<nsROCSSPrimitiveValue> val = new nsROCSSPrimitiveValue;
   SetToRGBAColor(val, mStyleContext->GetTextFillColor());
+  return val.forget();
+}
+
+already_AddRefed<CSSValue>
+nsComputedDOMStyle::DoGetWebkitTextStrokeColor()
+{
+  RefPtr<nsROCSSPrimitiveValue> val = new nsROCSSPrimitiveValue;
+  SetToRGBAColor(val, mStyleContext->GetTextStrokeColor());
+  return val.forget();
+}
+
+already_AddRefed<CSSValue>
+nsComputedDOMStyle::DoGetWebkitTextStrokeWidth()
+{
+  RefPtr<nsROCSSPrimitiveValue> val = new nsROCSSPrimitiveValue;
+  val->SetAppUnits(StyleText()->mWebkitTextStrokeWidth.GetCoordValue());
   return val.forget();
 }
 
@@ -5781,31 +5797,6 @@ nsComputedDOMStyle::DoGetStopColor()
   return val.forget();
 }
 
-inline void AppendBasicShapeTypeToString(nsStyleBasicShape::Type aType,
-                                         nsAutoString& aString)
-{
-  nsCSSKeyword functionName;
-  switch (aType) {
-    case nsStyleBasicShape::Type::ePolygon:
-      functionName = eCSSKeyword_polygon;
-      break;
-    case nsStyleBasicShape::Type::eCircle:
-      functionName = eCSSKeyword_circle;
-      break;
-    case nsStyleBasicShape::Type::eEllipse:
-      functionName = eCSSKeyword_ellipse;
-      break;
-    case nsStyleBasicShape::Type::eInset:
-      functionName = eCSSKeyword_inset;
-      break;
-    default:
-      functionName = eCSSKeyword_UNKNOWN;
-      NS_NOTREACHED("unexpected type");
-  }
-  AppendASCIItoUTF16(nsCSSKeywords::GetStringValue(functionName),
-                     aString);
-}
-
 void
 nsComputedDOMStyle::BoxValuesToString(nsAString& aString,
                                       const nsTArray<nsStyleCoord>& aBoxValues)
@@ -5865,7 +5856,9 @@ nsComputedDOMStyle::CreatePrimitiveValueForClipPath(
     nsStyleBasicShape::Type type = aStyleBasicShape->GetShapeType();
     // Shape function name and opening parenthesis.
     nsAutoString shapeFunctionString;
-    AppendBasicShapeTypeToString(type, shapeFunctionString);
+    AppendASCIItoUTF16(nsCSSKeywords::GetStringValue(
+                         aStyleBasicShape->GetShapeTypeName()),
+                       shapeFunctionString);
     shapeFunctionString.Append('(');
     switch (type) {
       case nsStyleBasicShape::Type::ePolygon: {
@@ -5893,7 +5886,8 @@ nsComputedDOMStyle::CreatePrimitiveValueForClipPath(
       case nsStyleBasicShape::Type::eCircle:
       case nsStyleBasicShape::Type::eEllipse: {
         const nsTArray<nsStyleCoord>& radii = aStyleBasicShape->Coordinates();
-        MOZ_ASSERT(radii.Length() == (nsStyleBasicShape::Type::eCircle ? 1 : 2),
+        MOZ_ASSERT(radii.Length() ==
+                   (type == nsStyleBasicShape::Type::eCircle ? 1 : 2),
                    "wrong number of radii");
         for (size_t i = 0; i < radii.Length(); ++i) {
           nsAutoString radius;

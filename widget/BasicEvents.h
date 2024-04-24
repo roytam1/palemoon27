@@ -91,7 +91,7 @@ public:
   // exception.
   bool    mExceptionHasBeenRisen : 1;
   // If mRetargetToNonNativeAnonymous is true and the target is in a non-native
-  // native anonymous subtree, the event target is set to originalTarget.
+  // native anonymous subtree, the event target is set to mOriginalTarget.
   bool    mRetargetToNonNativeAnonymous : 1;
   // If mNoCrossProcessBoundaryForwarding is true, the event is not allowed to
   // cross process boundary.
@@ -177,6 +177,10 @@ public:
   {
     return mIsTrusted;
   }
+  inline bool PropagationStopped() const
+  {
+    return mPropagationStopped;
+  }
 
   inline void Clear()
   {
@@ -229,28 +233,28 @@ class WidgetEventTime
 public:
   // Elapsed time, in milliseconds, from a platform-specific zero time
   // to the time the message was created
-  uint64_t time;
+  uint64_t mTime;
   // Timestamp when the message was created. Set in parallel to 'time' until we
   // determine if it is safe to drop 'time' (see bug 77992).
-  TimeStamp timeStamp;
+  TimeStamp mTimeStamp;
 
   WidgetEventTime()
-    : time(0)
-    , timeStamp(TimeStamp::Now())
+    : mTime(0)
+    , mTimeStamp(TimeStamp::Now())
   {
   }
 
   WidgetEventTime(uint64_t aTime,
                   TimeStamp aTimeStamp)
-    : time(aTime)
-    , timeStamp(aTimeStamp)
+    : mTime(aTime)
+    , mTimeStamp(aTimeStamp)
   {
   }
 
   void AssignEventTime(const WidgetEventTime& aOther)
   {
-    time = aOther.time;
-    timeStamp = aOther.timeStamp;
+    mTime = aOther.mTime;
+    mTimeStamp = aOther.mTimeStamp;
   }
 };
 
@@ -267,9 +271,9 @@ protected:
     : WidgetEventTime()
     , mClass(aEventClassID)
     , mMessage(aMessage)
-    , refPoint(0, 0)
-    , lastRefPoint(0, 0)
-    , userType(nullptr)
+    , mRefPoint(0, 0)
+    , mLastRefPoint(0, 0)
+    , mSpecifiedEventType(nullptr)
   {
     MOZ_COUNT_CTOR(WidgetEvent);
     mFlags.Clear();
@@ -289,9 +293,9 @@ public:
     : WidgetEventTime()
     , mClass(eBasicEventClass)
     , mMessage(aMessage)
-    , refPoint(0, 0)
-    , lastRefPoint(0, 0)
-    , userType(nullptr)
+    , mRefPoint(0, 0)
+    , mLastRefPoint(0, 0)
+    , mSpecifiedEventType(nullptr)
   {
     MOZ_COUNT_CTOR(WidgetEvent);
     mFlags.Clear();
@@ -325,35 +329,40 @@ public:
   EventMessage mMessage;
   // Relative to the widget of the event, or if there is no widget then it is
   // in screen coordinates. Not modified by layout code.
-  LayoutDeviceIntPoint refPoint;
-  // The previous refPoint, if known, used to calculate mouse movement deltas.
-  LayoutDeviceIntPoint lastRefPoint;
+  LayoutDeviceIntPoint mRefPoint;
+  // The previous mRefPoint, if known, used to calculate mouse movement deltas.
+  LayoutDeviceIntPoint mLastRefPoint;
   // See BaseEventFlags definition for the detail.
   BaseEventFlags mFlags;
 
-  // Additional type info for user defined events
-  nsCOMPtr<nsIAtom> userType;
+  // If JS creates an event with unknown event type or known event type but
+  // for different event interface, the event type is stored to this.
+  // NOTE: This is always used if the instance is a WidgetCommandEvent instance.
+  nsCOMPtr<nsIAtom> mSpecifiedEventType;
 
-  nsString typeString; // always set on non-main-thread events
+  // nsIAtom isn't available on non-main thread due to unsafe.  Therefore,
+  // mSpecifiedEventTypeString is used instead of mSpecifiedEventType if
+  // the event is created in non-main thread.
+  nsString mSpecifiedEventTypeString;
 
   // Event targets, needed by DOM Events
-  nsCOMPtr<dom::EventTarget> target;
-  nsCOMPtr<dom::EventTarget> currentTarget;
-  nsCOMPtr<dom::EventTarget> originalTarget;
+  nsCOMPtr<dom::EventTarget> mTarget;
+  nsCOMPtr<dom::EventTarget> mCurrentTarget;
+  nsCOMPtr<dom::EventTarget> mOriginalTarget;
 
   void AssignEventData(const WidgetEvent& aEvent, bool aCopyTargets)
   {
     // mClass should be initialized with the constructor.
     // mMessage should be initialized with the constructor.
-    refPoint = aEvent.refPoint;
-    // lastRefPoint doesn't need to be copied.
+    mRefPoint = aEvent.mRefPoint;
+    // mLastRefPoint doesn't need to be copied.
     AssignEventTime(aEvent);
     // mFlags should be copied manually if it's necessary.
-    userType = aEvent.userType;
-    // typeString should be copied manually if it's necessary.
-    target = aCopyTargets ? aEvent.target : nullptr;
-    currentTarget = aCopyTargets ? aEvent.currentTarget : nullptr;
-    originalTarget = aCopyTargets ? aEvent.originalTarget : nullptr;
+    mSpecifiedEventType = aEvent.mSpecifiedEventType;
+    // mSpecifiedEventTypeString should be copied manually if it's necessary.
+    mTarget = aCopyTargets ? aEvent.mTarget : nullptr;
+    mCurrentTarget = aCopyTargets ? aEvent.mCurrentTarget : nullptr;
+    mOriginalTarget = aCopyTargets ? aEvent.mOriginalTarget : nullptr;
   }
 
   /**
@@ -373,6 +382,7 @@ public:
     return mFlags.DefaultPreventedByContent();
   }
   bool IsTrusted() const { return mFlags.IsTrusted(); }
+  bool PropagationStopped() const { return mFlags.PropagationStopped(); }
 
   /**
    * Utils for checking event types
@@ -495,7 +505,7 @@ protected:
   WidgetGUIEvent(bool aIsTrusted, EventMessage aMessage, nsIWidget* aWidget,
                  EventClassID aEventClassID)
     : WidgetEvent(aIsTrusted, aMessage, aEventClassID)
-    , widget(aWidget)
+    , mWidget(aWidget)
   {
   }
 
@@ -508,7 +518,7 @@ public:
 
   WidgetGUIEvent(bool aIsTrusted, EventMessage aMessage, nsIWidget* aWidget)
     : WidgetEvent(aIsTrusted, aMessage, eGUIEventClass)
-    , widget(aWidget)
+    , mWidget(aWidget)
   {
   }
 
@@ -523,8 +533,8 @@ public:
     return result;
   }
 
-  /// Originator of the event
-  nsCOMPtr<nsIWidget> widget;
+  // Originator of the event
+  nsCOMPtr<nsIWidget> mWidget;
 
   /*
    * Explanation for this PluginEvent class:
@@ -587,7 +597,7 @@ public:
     }
   };
 
-  /// Event for NPAPI plugin
+  // Event for NPAPI plugin
   PluginEvent mPluginEvent;
 
   void AssignGUIEventData(const WidgetGUIEvent& aEvent, bool aCopyTargets)
@@ -659,12 +669,12 @@ protected:
   WidgetInputEvent(bool aIsTrusted, EventMessage aMessage, nsIWidget* aWidget,
                    EventClassID aEventClassID)
     : WidgetGUIEvent(aIsTrusted, aMessage, aWidget, aEventClassID)
-    , modifiers(0)
+    , mModifiers(0)
   {
   }
 
   WidgetInputEvent()
-    : modifiers(0)
+    : mModifiers(0)
   {
   }
 
@@ -673,7 +683,7 @@ public:
 
   WidgetInputEvent(bool aIsTrusted, EventMessage aMessage, nsIWidget* aWidget)
     : WidgetGUIEvent(aIsTrusted, aMessage, aWidget, eInputEventClass)
-    , modifiers(0)
+    , mModifiers(0)
   {
   }
 
@@ -703,81 +713,81 @@ public:
   // true indicates the accel key on the environment is down
   bool IsAccel() const
   {
-    return ((modifiers & AccelModifier()) != 0);
+    return ((mModifiers & AccelModifier()) != 0);
   }
 
   // true indicates the shift key is down
   bool IsShift() const
   {
-    return ((modifiers & MODIFIER_SHIFT) != 0);
+    return ((mModifiers & MODIFIER_SHIFT) != 0);
   }
   // true indicates the control key is down
   bool IsControl() const
   {
-    return ((modifiers & MODIFIER_CONTROL) != 0);
+    return ((mModifiers & MODIFIER_CONTROL) != 0);
   }
   // true indicates the alt key is down
   bool IsAlt() const
   {
-    return ((modifiers & MODIFIER_ALT) != 0);
+    return ((mModifiers & MODIFIER_ALT) != 0);
   }
   // true indicates the meta key is down (or, on Mac, the Command key)
   bool IsMeta() const
   {
-    return ((modifiers & MODIFIER_META) != 0);
+    return ((mModifiers & MODIFIER_META) != 0);
   }
   // true indicates the win key is down on Windows. Or the Super or Hyper key
   // is down on Linux.
   bool IsOS() const
   {
-    return ((modifiers & MODIFIER_OS) != 0);
+    return ((mModifiers & MODIFIER_OS) != 0);
   }
   // true indicates the alt graph key is down
   // NOTE: on Mac, the option key press causes both IsAlt() and IsAltGrpah()
   //       return true.
   bool IsAltGraph() const
   {
-    return ((modifiers & MODIFIER_ALTGRAPH) != 0);
+    return ((mModifiers & MODIFIER_ALTGRAPH) != 0);
   }
   // true indicates the CapLock LED is turn on.
   bool IsCapsLocked() const
   {
-    return ((modifiers & MODIFIER_CAPSLOCK) != 0);
+    return ((mModifiers & MODIFIER_CAPSLOCK) != 0);
   }
   // true indicates the NumLock LED is turn on.
   bool IsNumLocked() const
   {
-    return ((modifiers & MODIFIER_NUMLOCK) != 0);
+    return ((mModifiers & MODIFIER_NUMLOCK) != 0);
   }
   // true indicates the ScrollLock LED is turn on.
   bool IsScrollLocked() const
   {
-    return ((modifiers & MODIFIER_SCROLLLOCK) != 0);
+    return ((mModifiers & MODIFIER_SCROLLLOCK) != 0);
   }
 
   // true indicates the Fn key is down, but this is not supported by native
   // key event on any platform.
   bool IsFn() const
   {
-    return ((modifiers & MODIFIER_FN) != 0);
+    return ((mModifiers & MODIFIER_FN) != 0);
   }
   // true indicates the FnLock LED is turn on, but we don't know such
   // keyboards nor platforms.
   bool IsFnLocked() const
   {
-    return ((modifiers & MODIFIER_FNLOCK) != 0);
+    return ((mModifiers & MODIFIER_FNLOCK) != 0);
   }
   // true indicates the Symbol is down, but this is not supported by native
   // key event on any platforms.
   bool IsSymbol() const
   {
-    return ((modifiers & MODIFIER_SYMBOL) != 0);
+    return ((mModifiers & MODIFIER_SYMBOL) != 0);
   }
   // true indicates the SymbolLock LED is turn on, but we don't know such
   // keyboards nor platforms.
   bool IsSymbolLocked() const
   {
-    return ((modifiers & MODIFIER_SYMBOLLOCK) != 0);
+    return ((mModifiers & MODIFIER_SYMBOLLOCK) != 0);
   }
 
   void InitBasicModifiers(bool aCtrlKey,
@@ -785,28 +795,28 @@ public:
                           bool aShiftKey,
                           bool aMetaKey)
   {
-    modifiers = 0;
+    mModifiers = 0;
     if (aCtrlKey) {
-      modifiers |= MODIFIER_CONTROL;
+      mModifiers |= MODIFIER_CONTROL;
     }
     if (aAltKey) {
-      modifiers |= MODIFIER_ALT;
+      mModifiers |= MODIFIER_ALT;
     }
     if (aShiftKey) {
-      modifiers |= MODIFIER_SHIFT;
+      mModifiers |= MODIFIER_SHIFT;
     }
     if (aMetaKey) {
-      modifiers |= MODIFIER_META;
+      mModifiers |= MODIFIER_META;
     }
   }
 
-  Modifiers modifiers;
+  Modifiers mModifiers;
 
   void AssignInputEventData(const WidgetInputEvent& aEvent, bool aCopyTargets)
   {
     AssignGUIEventData(aEvent, aCopyTargets);
 
-    modifiers = aEvent.modifiers;
+    mModifiers = aEvent.mModifiers;
   }
 };
 
@@ -820,7 +830,7 @@ class InternalUIEvent : public WidgetGUIEvent
 {
 protected:
   InternalUIEvent()
-    : detail(0)
+    : mDetail(0)
     , mCausedByUntrustedEvent(false)
   {
   }
@@ -828,7 +838,7 @@ protected:
   InternalUIEvent(bool aIsTrusted, EventMessage aMessage, nsIWidget* aWidget,
                   EventClassID aEventClassID)
     : WidgetGUIEvent(aIsTrusted, aMessage, aWidget, aEventClassID)
-    , detail(0)
+    , mDetail(0)
     , mCausedByUntrustedEvent(false)
   {
   }
@@ -836,7 +846,7 @@ protected:
   InternalUIEvent(bool aIsTrusted, EventMessage aMessage,
                   EventClassID aEventClassID)
     : WidgetGUIEvent(aIsTrusted, aMessage, nullptr, aEventClassID)
-    , detail(0)
+    , mDetail(0)
     , mCausedByUntrustedEvent(false)
   {
   }
@@ -852,7 +862,7 @@ public:
   InternalUIEvent(bool aIsTrusted, EventMessage aMessage,
                   const WidgetEvent* aEventCausesThisEvent)
     : WidgetGUIEvent(aIsTrusted, aMessage, nullptr, eUIEventClass)
-    , detail(0)
+    , mDetail(0)
     , mCausedByUntrustedEvent(
         aEventCausesThisEvent && !aEventCausesThisEvent->IsTrusted())
   {
@@ -868,7 +878,7 @@ public:
     return result;
   }
 
-  int32_t detail;
+  int32_t mDetail;
   // mCausedByUntrustedEvent is true if the event is caused by untrusted event.
   bool mCausedByUntrustedEvent;
 
@@ -883,7 +893,7 @@ public:
   {
     AssignGUIEventData(aEvent, aCopyTargets);
 
-    detail = aEvent.detail;
+    mDetail = aEvent.mDetail;
     mCausedByUntrustedEvent = aEvent.mCausedByUntrustedEvent;
   }
 };

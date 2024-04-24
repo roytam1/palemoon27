@@ -617,8 +617,8 @@ nsCocoaUtils::InitInputEvent(WidgetInputEvent& aInputEvent,
 {
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK;
 
-  aInputEvent.modifiers = ModifiersForEvent(aNativeEvent);
-  aInputEvent.time = PR_IntervalNow();
+  aInputEvent.mModifiers = ModifiersForEvent(aNativeEvent);
+  aInputEvent.mTime = PR_IntervalNow();
 
   NS_OBJC_END_TRY_ABORT_BLOCK;
 }

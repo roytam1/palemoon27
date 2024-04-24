@@ -1228,7 +1228,7 @@ nsAttrValue::ParseAtom(const nsAString& aValue)
 {
   ResetIfSet();
 
-  nsCOMPtr<nsIAtom> atom = NS_NewAtom(aValue);
+  nsCOMPtr<nsIAtom> atom = NS_Atomize(aValue);
   if (atom) {
     SetPtrValueAndType(atom.forget().take(), eAtomBase);
   }

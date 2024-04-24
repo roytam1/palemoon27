@@ -206,7 +206,7 @@ Element::IntrinsicState() const
 void
 Element::NotifyStateChange(EventStates aStates)
 {
-  nsIDocument* doc = GetCrossShadowCurrentDoc();
+  nsIDocument* doc = GetComposedDoc();
   if (doc) {
     nsAutoScriptBlocker scriptBlocker;
     doc->ContentStateChanged(this, aStates);
@@ -232,7 +232,7 @@ Element::UpdateState(bool aNotify)
   if (aNotify) {
     EventStates changedStates = oldState ^ mState;
     if (!changedStates.IsEmpty()) {
-      nsIDocument* doc = GetCrossShadowCurrentDoc();
+      nsIDocument* doc = GetComposedDoc();
       if (doc) {
         nsAutoScriptBlocker scriptBlocker;
         doc->ContentStateChanged(this, changedStates);
@@ -1019,7 +1019,7 @@ Element::CreateShadowRoot(ErrorResult& aError)
     return nullptr;
   }
 
-  nsIDocument* doc = GetCrossShadowCurrentDoc();
+  nsIDocument* doc = GetComposedDoc();
   nsIContent* destroyedFramesFor = nullptr;
   if (doc) {
     nsIPresShell* shell = doc->GetShell();
@@ -1070,7 +1070,7 @@ Element::CreateShadowRoot(ErrorResult& aError)
   // Recreate the frame for the bound content because binding a ShadowRoot
   // changes how things are rendered.
   if (doc) {
-    MOZ_ASSERT(doc == GetCrossShadowCurrentDoc());
+    MOZ_ASSERT(doc == GetComposedDoc());
     nsIPresShell* shell = doc->GetShell();
     if (shell) {
       shell->CreateFramesFor(destroyedFramesFor);
@@ -2117,8 +2117,8 @@ Element::DispatchClickEvent(nsPresContext* aPresContext,
   NS_PRECONDITION(aStatus, "Null out param?");
 
   WidgetMouseEvent event(aSourceEvent->IsTrusted(), eMouseClick,
-                         aSourceEvent->widget, WidgetMouseEvent::eReal);
-  event.refPoint = aSourceEvent->refPoint;
+                         aSourceEvent->mWidget, WidgetMouseEvent::eReal);
+  event.mRefPoint = aSourceEvent->mRefPoint;
   uint32_t clickCount = 1;
   float pressure = 0;
   uint16_t inputSource = 0;
@@ -2133,7 +2133,7 @@ Element::DispatchClickEvent(nsPresContext* aPresContext,
   event.pressure = pressure;
   event.clickCount = clickCount;
   event.inputSource = inputSource;
-  event.modifiers = aSourceEvent->modifiers;
+  event.mModifiers = aSourceEvent->mModifiers;
   if (aExtraEventFlags) {
     // Be careful not to overwrite existing flags!
     event.mFlags.Union(*aExtraEventFlags);
@@ -2497,7 +2497,7 @@ Element::SetAttrAndNotify(int32_t aNamespaceID,
     nsAutoString newValue;
     GetAttr(aNamespaceID, aName, newValue);
     if (!newValue.IsEmpty()) {
-      mutation.mNewAttrValue = do_GetAtom(newValue);
+      mutation.mNewAttrValue = NS_Atomize(newValue);
     }
     if (!oldValue->IsEmptyString()) {
       mutation.mPrevAttrValue = oldValue->GetAsAtom();
@@ -2735,7 +2735,7 @@ Element::UnsetAttr(int32_t aNameSpaceID, nsIAtom* aName,
     nsAutoString value;
     oldValue.ToString(value);
     if (!value.IsEmpty())
-      mutation.mPrevAttrValue = do_GetAtom(value);
+      mutation.mPrevAttrValue = NS_Atomize(value);
     mutation.mAttrChange = nsIDOMMutationEvent::REMOVAL;
 
     mozAutoSubtreeModified subtree(OwnerDoc(), this);
@@ -2974,7 +2974,7 @@ Element::PreHandleEventForLinks(EventChainPreVisitor& aVisitor)
     MOZ_FALLTHROUGH;
   case eFocus: {
     InternalFocusEvent* focusEvent = aVisitor.mEvent->AsFocusEvent();
-    if (!focusEvent || !focusEvent->isRefocus) {
+    if (!focusEvent || !focusEvent->mIsRefocus) {
       nsAutoString target;
       GetLinkTarget(target);
       nsContentUtils::TriggerLink(this, aVisitor.mPresContext, absURI, target,
@@ -3066,7 +3066,7 @@ Element::PostHandleEventForLinks(EventChainPostVisitor& aVisitor)
         // DOMActive event should be trusted since the activation is actually
         // occurred even if the cause is an untrusted click event.
         InternalUIEvent actEvent(true, eLegacyDOMActivate, mouseEvent);
-        actEvent.detail = 1;
+        actEvent.mDetail = 1;
 
         rv = shell->HandleDOMEventWithTarget(this, &actEvent, &status);
         if (NS_SUCCEEDED(rv)) {
@@ -3078,7 +3078,7 @@ Element::PostHandleEventForLinks(EventChainPostVisitor& aVisitor)
   }
   case eLegacyDOMActivate:
     {
-      if (aVisitor.mEvent->originalTarget == this) {
+      if (aVisitor.mEvent->mOriginalTarget == this) {
         nsAutoString target;
         GetLinkTarget(target);
         const InternalUIEvent* activeEvent = aVisitor.mEvent->AsUIEvent();

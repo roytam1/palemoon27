@@ -247,7 +247,7 @@ nsDOMWindowUtils::GetDocumentMetadata(const nsAString& aName,
 
   nsIDocument* doc = GetDocument();
   if (doc) {
-    nsCOMPtr<nsIAtom> name = do_GetAtom(aName);
+    nsCOMPtr<nsIAtom> name = NS_Atomize(aName);
     doc->GetHeaderData(name, aValue);
     return NS_OK;
   }
@@ -346,7 +346,7 @@ nsDOMWindowUtils::SetDisplayPortForElement(float aXPx, float aYPx,
     return NS_ERROR_INVALID_ARG;
   }
 
-  if (content->GetCurrentDoc() != presShell->GetDocument()) {
+  if (content->GetUncomposedDoc() != presShell->GetDocument()) {
     return NS_ERROR_INVALID_ARG;
   }
 
@@ -428,7 +428,7 @@ nsDOMWindowUtils::SetDisplayPortMarginsForElement(float aLeftMargin,
     return NS_ERROR_INVALID_ARG;
   }
 
-  if (content->GetCurrentDoc() != presShell->GetDocument()) {
+  if (content->GetUncomposedDoc() != presShell->GetDocument()) {
     return NS_ERROR_INVALID_ARG;
   }
 
@@ -470,7 +470,7 @@ nsDOMWindowUtils::SetDisplayPortBaseForElement(int32_t aX,
     return NS_ERROR_INVALID_ARG;
   }
 
-  if (content->GetCurrentDoc() != presShell->GetDocument()) {
+  if (content->GetUncomposedDoc() != presShell->GetDocument()) {
     return NS_ERROR_INVALID_ARG;
   }
 
@@ -697,10 +697,9 @@ nsDOMWindowUtils::SendPointerEventCommon(const nsAString& aType,
   }
 
   WidgetPointerEvent event(true, msg, widget);
-  event.modifiers = nsContentUtils::GetWidgetModifiers(aModifiers);
+  event.mModifiers = nsContentUtils::GetWidgetModifiers(aModifiers);
   event.button = aButton;
   event.buttons = nsContentUtils::GetButtonsFlagForButton(aButton);
-  event.widget = widget;
   event.pressure = aPressure;
   event.inputSource = aInputSourceArg;
   event.pointerId = aPointerId;
@@ -710,7 +709,7 @@ nsDOMWindowUtils::SendPointerEventCommon(const nsAString& aType,
   event.tiltY = aTiltY;
   event.isPrimary = (nsIDOMMouseEvent::MOZ_SOURCE_MOUSE == aInputSourceArg) ? true : aIsPrimary;
   event.clickCount = aClickCount;
-  event.time = PR_IntervalNow();
+  event.mTime = PR_IntervalNow();
   event.mFlags.mIsSynthesizedForTests = aOptionalArgCount >= 10 ? aIsSynthesized : true;
 
   nsPresContext* presContext = GetPresContext();
@@ -718,7 +717,8 @@ nsDOMWindowUtils::SendPointerEventCommon(const nsAString& aType,
     return NS_ERROR_FAILURE;
   }
 
-  event.refPoint = nsContentUtils::ToWidgetPoint(CSSPoint(aX, aY), offset, presContext);
+  event.mRefPoint =
+    nsContentUtils::ToWidgetPoint(CSSPoint(aX, aY), offset, presContext);
   event.ignoreRootScrollFrame = aIgnoreRootScrollFrame;
 
   nsEventStatus status;
@@ -822,27 +822,27 @@ nsDOMWindowUtils::SendWheelEvent(float aX,
   }
 
   WidgetWheelEvent wheelEvent(true, eWheel, widget);
-  wheelEvent.modifiers = nsContentUtils::GetWidgetModifiers(aModifiers);
-  wheelEvent.deltaX = aDeltaX;
-  wheelEvent.deltaY = aDeltaY;
-  wheelEvent.deltaZ = aDeltaZ;
-  wheelEvent.deltaMode = aDeltaMode;
-  wheelEvent.isMomentum =
+  wheelEvent.mModifiers = nsContentUtils::GetWidgetModifiers(aModifiers);
+  wheelEvent.mDeltaX = aDeltaX;
+  wheelEvent.mDeltaY = aDeltaY;
+  wheelEvent.mDeltaZ = aDeltaZ;
+  wheelEvent.mDeltaMode = aDeltaMode;
+  wheelEvent.mIsMomentum =
     (aOptions & WHEEL_EVENT_CAUSED_BY_MOMENTUM) != 0;
   wheelEvent.mIsNoLineOrPageDelta =
     (aOptions & WHEEL_EVENT_CAUSED_BY_NO_LINE_OR_PAGE_DELTA_DEVICE) != 0;
-  wheelEvent.customizedByUserPrefs =
+  wheelEvent.mCustomizedByUserPrefs =
     (aOptions & WHEEL_EVENT_CUSTOMIZED_BY_USER_PREFS) != 0;
-  wheelEvent.lineOrPageDeltaX = aLineOrPageDeltaX;
-  wheelEvent.lineOrPageDeltaY = aLineOrPageDeltaY;
-  wheelEvent.widget = widget;
+  wheelEvent.mLineOrPageDeltaX = aLineOrPageDeltaX;
+  wheelEvent.mLineOrPageDeltaY = aLineOrPageDeltaY;
 
-  wheelEvent.time = PR_Now() / 1000;
+  wheelEvent.mTime = PR_Now() / 1000;
 
   nsPresContext* presContext = GetPresContext();
   NS_ENSURE_TRUE(presContext, NS_ERROR_FAILURE);
 
-  wheelEvent.refPoint = nsContentUtils::ToWidgetPoint(CSSPoint(aX, aY), offset, presContext);
+  wheelEvent.mRefPoint =
+    nsContentUtils::ToWidgetPoint(CSSPoint(aX, aY), offset, presContext);
 
   widget->DispatchInputEvent(&wheelEvent);
 
@@ -854,40 +854,40 @@ nsDOMWindowUtils::SendWheelEvent(float aX,
 
   bool failedX = false;
   if ((aOptions & WHEEL_EVENT_EXPECTED_OVERFLOW_DELTA_X_ZERO) &&
-      wheelEvent.overflowDeltaX != 0) {
+      wheelEvent.mOverflowDeltaX != 0) {
     failedX = true;
   }
   if ((aOptions & WHEEL_EVENT_EXPECTED_OVERFLOW_DELTA_X_POSITIVE) &&
-      wheelEvent.overflowDeltaX <= 0) {
+      wheelEvent.mOverflowDeltaX <= 0) {
     failedX = true;
   }
   if ((aOptions & WHEEL_EVENT_EXPECTED_OVERFLOW_DELTA_X_NEGATIVE) &&
-      wheelEvent.overflowDeltaX >= 0) {
+      wheelEvent.mOverflowDeltaX >= 0) {
     failedX = true;
   }
   bool failedY = false;
   if ((aOptions & WHEEL_EVENT_EXPECTED_OVERFLOW_DELTA_Y_ZERO) &&
-      wheelEvent.overflowDeltaY != 0) {
+      wheelEvent.mOverflowDeltaY != 0) {
     failedY = true;
   }
   if ((aOptions & WHEEL_EVENT_EXPECTED_OVERFLOW_DELTA_Y_POSITIVE) &&
-      wheelEvent.overflowDeltaY <= 0) {
+      wheelEvent.mOverflowDeltaY <= 0) {
     failedY = true;
   }
   if ((aOptions & WHEEL_EVENT_EXPECTED_OVERFLOW_DELTA_Y_NEGATIVE) &&
-      wheelEvent.overflowDeltaY >= 0) {
+      wheelEvent.mOverflowDeltaY >= 0) {
     failedY = true;
   }
 
 #ifdef DEBUG
   if (failedX) {
-    nsPrintfCString debugMsg("SendWheelEvent(): unexpected overflowDeltaX: %f",
-                             wheelEvent.overflowDeltaX);
+    nsPrintfCString debugMsg("SendWheelEvent(): unexpected mOverflowDeltaX: %f",
+                             wheelEvent.mOverflowDeltaX);
     NS_WARNING(debugMsg.get());
   }
   if (failedY) {
-    nsPrintfCString debugMsg("SendWheelEvent(): unexpected overflowDeltaY: %f",
-                             wheelEvent.overflowDeltaY);
+    nsPrintfCString debugMsg("SendWheelEvent(): unexpected mOverflowDeltaY: %f",
+                             wheelEvent.mOverflowDeltaY);
     NS_WARNING(debugMsg.get());
   }
 #endif
@@ -969,15 +969,14 @@ nsDOMWindowUtils::SendTouchEventCommon(const nsAString& aType,
     return NS_ERROR_UNEXPECTED;
   }
   WidgetTouchEvent event(true, msg, widget);
-  event.modifiers = nsContentUtils::GetWidgetModifiers(aModifiers);
-  event.widget = widget;
-  event.time = PR_Now();
+  event.mModifiers = nsContentUtils::GetWidgetModifiers(aModifiers);
+  event.mTime = PR_Now();
 
   nsPresContext* presContext = GetPresContext();
   if (!presContext) {
     return NS_ERROR_FAILURE;
   }
-  event.touches.SetCapacity(aCount);
+  event.mTouches.SetCapacity(aCount);
   for (uint32_t i = 0; i < aCount; ++i) {
     LayoutDeviceIntPoint pt =
       nsContentUtils::ToWidgetPoint(CSSPoint(aXs[i], aYs[i]), offset, presContext);
@@ -989,7 +988,7 @@ nsDOMWindowUtils::SendTouchEventCommon(const nsAString& aType,
     RefPtr<Touch> t =
       new Touch(aIdentifiers[i], pt, radius, aRotationAngles[i], aForces[i]);
 
-    event.touches.AppendElement(t);
+    event.mTouches.AppendElement(t);
   }
 
   nsEventStatus status;
@@ -1139,10 +1138,10 @@ nsDOMWindowUtils::SendNativeTouchPoint(uint32_t aPointerId,
   }
 
   NS_DispatchToMainThread(NS_NewRunnableMethodWithArgs
-    <uint32_t, nsIWidget::TouchPointerState, ScreenIntPoint, double, uint32_t, nsIObserver*>
+    <uint32_t, nsIWidget::TouchPointerState, LayoutDeviceIntPoint, double, uint32_t, nsIObserver*>
     (widget, &nsIWidget::SynthesizeNativeTouchPoint, aPointerId,
     (nsIWidget::TouchPointerState)aTouchState,
-    ScreenIntPoint(aScreenX, aScreenY),
+    LayoutDeviceIntPoint(aScreenX, aScreenY),
     aPressure, aOrientation, aObserver));
   return NS_OK;
 }
@@ -1161,9 +1160,9 @@ nsDOMWindowUtils::SendNativeTouchTap(int32_t aScreenX,
   }
 
   NS_DispatchToMainThread(NS_NewRunnableMethodWithArgs
-    <ScreenIntPoint, bool, nsIObserver*>
+    <LayoutDeviceIntPoint, bool, nsIObserver*>
     (widget, &nsIWidget::SynthesizeNativeTouchTap,
-    ScreenIntPoint(aScreenX, aScreenY), aLongTap, aObserver));
+    LayoutDeviceIntPoint(aScreenX, aScreenY), aLongTap, aObserver));
   return NS_OK;
 }
 
@@ -1230,7 +1229,7 @@ nsDOMWindowUtils::GetWidgetForElement(nsIDOMElement* aElement)
     return GetWidget();
 
   nsCOMPtr<nsIContent> content = do_QueryInterface(aElement);
-  nsIDocument* doc = content->GetCurrentDoc();
+  nsIDocument* doc = content->GetUncomposedDoc();
   nsIPresShell* presShell = doc ? doc->GetShell() : nullptr;
 
   if (presShell) {
@@ -1349,17 +1348,18 @@ nsDOMWindowUtils::SendSimpleGestureEvent(const nsAString& aType,
   }
 
   WidgetSimpleGestureEvent event(true, msg, widget);
-  event.modifiers = nsContentUtils::GetWidgetModifiers(aModifiers);
+  event.mModifiers = nsContentUtils::GetWidgetModifiers(aModifiers);
   event.direction = aDirection;
   event.delta = aDelta;
   event.clickCount = aClickCount;
-  event.time = PR_IntervalNow();
+  event.mTime = PR_IntervalNow();
 
   nsPresContext* presContext = GetPresContext();
   if (!presContext)
     return NS_ERROR_FAILURE;
 
-  event.refPoint = nsContentUtils::ToWidgetPoint(CSSPoint(aX, aY), offset, presContext);
+  event.mRefPoint =
+    nsContentUtils::ToWidgetPoint(CSSPoint(aX, aY), offset, presContext);
 
   nsEventStatus status;
   return widget->DispatchEvent(&event, status);
@@ -1874,7 +1874,7 @@ nsDOMWindowUtils::DispatchDOMEventViaPresShell(nsIDOMNode* aTarget,
   if (content->OwnerDoc()->GetWindow() != window) {
     return NS_ERROR_DOM_HIERARCHY_REQUEST_ERR;
   }
-  nsCOMPtr<nsIDocument> targetDoc = content->GetCurrentDoc();
+  nsCOMPtr<nsIDocument> targetDoc = content->GetUncomposedDoc();
   NS_ENSURE_STATE(targetDoc);
   RefPtr<nsIPresShell> targetShell = targetDoc->GetShell();
   NS_ENSURE_STATE(targetShell);
@@ -1891,9 +1891,9 @@ static void
 InitEvent(WidgetGUIEvent& aEvent, LayoutDeviceIntPoint* aPt = nullptr)
 {
   if (aPt) {
-    aEvent.refPoint = *aPt;
+    aEvent.mRefPoint = *aPt;
   }
-  aEvent.time = PR_IntervalNow();
+  aEvent.mTime = PR_IntervalNow();
 }
 
 NS_IMETHODIMP
@@ -2370,7 +2370,7 @@ ComputeAnimationValue(nsCSSProperty aProperty,
                       const nsAString& aInput,
                       StyleAnimationValue& aOutput)
 {
-  nsIDocument* doc = aElement->GetCurrentDoc();
+  nsIDocument* doc = aElement->GetUncomposedDoc();
   nsIPresShell* shell = doc->GetShell();
   if (!shell) {
     return false;
@@ -2383,15 +2383,6 @@ ComputeAnimationValue(nsCSSProperty aProperty,
                                          aInput, false, aOutput)) {
     return false;
   }
-
-  // This matches TransExtractComputedValue in nsTransitionManager.cpp.
-  if (aProperty == eCSSProperty_visibility) {
-    MOZ_ASSERT(aOutput.GetUnit() == StyleAnimationValue::eUnit_Enumerated,
-               "unexpected unit");
-    aOutput.SetIntValue(aOutput.GetIntValue(),
-                        StyleAnimationValue::eUnit_Visibility);
-  }
-
   return true;
 }
 

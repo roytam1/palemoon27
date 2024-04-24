@@ -1082,6 +1082,7 @@ protected:
   bool ParseScrollSnapPoints(nsCSSValue& aValue, nsCSSProperty aPropID);
   bool ParseScrollSnapDestination(nsCSSValue& aValue);
   bool ParseScrollSnapCoordinate(nsCSSValue& aValue);
+  bool ParseWebkitTextStroke();
 
   /**
    * Parses a variable value from a custom property declaration.
@@ -3403,7 +3404,7 @@ CSSParserImpl::ParseMediaQuery(eMediaQueryType aQueryType,
       }
       // case insensitive from CSS - must be lower cased
       nsContentUtils::ASCIIToLower(mToken.mIdent);
-      mediaType = do_GetAtom(mToken.mIdent);
+      mediaType = NS_Atomize(mToken.mIdent);
       if (!gotNotOrOnly && mediaType == nsGkAtoms::_not) {
         gotNotOrOnly = true;
         query->SetNegated();
@@ -3555,7 +3556,7 @@ CSSParserImpl::ParseMediaQueryExpression(nsMediaQuery* aQuery)
     expr->mRange = nsMediaExpression::eEqual;
   }
 
-  nsCOMPtr<nsIAtom> mediaFeatureAtom = do_GetAtom(featureString);
+  nsCOMPtr<nsIAtom> mediaFeatureAtom = NS_Atomize(featureString);
   const nsMediaFeature *feature = nsMediaFeatures::features;
   for (; feature->mName; ++feature) {
     // See if name matches & all requirement flags are satisfied:
@@ -3919,7 +3920,7 @@ CSSParserImpl::ProcessNameSpace(const nsString& aPrefix,
   nsCOMPtr<nsIAtom> prefix;
 
   if (!aPrefix.IsEmpty()) {
-    prefix = do_GetAtom(aPrefix);
+    prefix = NS_Atomize(aPrefix);
   }
 
   RefPtr<css::NameSpaceRule> rule = new css::NameSpaceRule(prefix, aURLSpec,
@@ -5863,7 +5864,7 @@ CSSParserImpl::ParsePseudoSelector(int32_t&       aDataMask,
   buffer.Append(char16_t(':'));
   buffer.Append(mToken.mIdent);
   nsContentUtils::ASCIIToLower(buffer);
-  nsCOMPtr<nsIAtom> pseudo = do_GetAtom(buffer);
+  nsCOMPtr<nsIAtom> pseudo = NS_Atomize(buffer);
 
   // stash away some info about this pseudo so we only have to get it once.
   bool isTreePseudo = false;
@@ -10768,6 +10769,37 @@ CSSParserImpl::ParseWebkitGradient(nsCSSValue& aValue)
   return true;
 }
 
+bool
+CSSParserImpl::ParseWebkitTextStroke()
+{
+  static const nsCSSProperty kWebkitTextStrokeIDs[] = {
+    eCSSProperty__webkit_text_stroke_width,
+    eCSSProperty__webkit_text_stroke_color
+  };
+
+  const size_t numProps = MOZ_ARRAY_LENGTH(kWebkitTextStrokeIDs);
+  nsCSSValue values[numProps];
+
+  int32_t found = ParseChoice(values, kWebkitTextStrokeIDs, numProps);
+  if (found < 1) {
+    return false;
+  }
+
+  if (!(found & 1)) { // Provide default -webkit-text-stroke-width
+    values[0].SetFloatValue(0, eCSSUnit_Pixel);
+  }
+
+  if (!(found & 2)) { // Provide default -webkit-text-stroke-color
+    values[1].SetIntValue(NS_COLOR_CURRENTCOLOR, eCSSUnit_EnumColor);
+  }
+
+  for (size_t index = 0; index < numProps; ++index) {
+    AppendValue(kWebkitTextStrokeIDs[index], values[index]);
+  }
+
+  return true;
+}
+
   int32_t
 CSSParserImpl::ParseChoice(nsCSSValue aValues[],
                            const nsCSSProperty aPropIDs[], int32_t aNumIDs)
@@ -11539,6 +11571,8 @@ CSSParserImpl::ParsePropertyByFunction(nsCSSProperty aPropID)
   case eCSSProperty_mask_size:
     return ParseImageLayerSize(eCSSProperty_mask_size);
 #endif
+  case eCSSProperty__webkit_text_stroke:
+    return ParseWebkitTextStroke();
   case eCSSProperty_all:
     return ParseAll();
   default:
@@ -16591,7 +16625,7 @@ CSSParserImpl::GetNamespaceIdForPrefix(const nsString& aPrefix)
   int32_t nameSpaceID = kNameSpaceID_Unknown;
   if (mNameSpaceMap) {
     // user-specified identifiers are case-sensitive (bug 416106)
-    nsCOMPtr<nsIAtom> prefix = do_GetAtom(aPrefix);
+    nsCOMPtr<nsIAtom> prefix = NS_Atomize(aPrefix);
     nameSpaceID = mNameSpaceMap->FindNameSpaceID(prefix);
   }
   // else no declared namespaces

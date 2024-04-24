@@ -208,14 +208,14 @@ bool
 WidgetEvent::IsRetargetedNativeEventDelivererForPlugin() const
 {
   const WidgetPluginEvent* pluginEvent = AsPluginEvent();
-  return pluginEvent && pluginEvent->retargetToFocusedDocument;
+  return pluginEvent && pluginEvent->mRetargetToFocusedDocument;
 }
 
 bool
 WidgetEvent::IsNonRetargetedNativeEventDelivererForPlugin() const
 {
   const WidgetPluginEvent* pluginEvent = AsPluginEvent();
-  return pluginEvent && !pluginEvent->retargetToFocusedDocument;
+  return pluginEvent && !pluginEvent->mRetargetToFocusedDocument;
 }
 
 bool
@@ -270,15 +270,15 @@ WidgetEvent::IsAllowedToDispatchDOMEvent() const
       // DOM events (EventStateManager::PreHandleEvent), but not mousemove
       // DOM events.
       // Synthesized button up events also do not cause DOM events because they
-      // do not have a reliable refPoint.
+      // do not have a reliable mRefPoint.
       return AsMouseEvent()->reason == WidgetMouseEvent::eReal;
 
     case eWheelEventClass: {
       // wheel event whose all delta values are zero by user pref applied, it
       // shouldn't cause a DOM event.
       const WidgetWheelEvent* wheelEvent = AsWheelEvent();
-      return wheelEvent->deltaX != 0.0 || wheelEvent->deltaY != 0.0 ||
-             wheelEvent->deltaZ != 0.0;
+      return wheelEvent->mDeltaX != 0.0 || wheelEvent->mDeltaY != 0.0 ||
+             wheelEvent->mDeltaZ != 0.0;
     }
 
     // Following events are handled in EventStateManager, so, we don't need to
@@ -385,18 +385,18 @@ double
 WidgetWheelEvent::OverriddenDeltaX() const
 {
   if (!mAllowToOverrideSystemScrollSpeed) {
-    return deltaX;
+    return mDeltaX;
   }
-  return ComputeOverriddenDelta(deltaX, false);
+  return ComputeOverriddenDelta(mDeltaX, false);
 }
 
 double
 WidgetWheelEvent::OverriddenDeltaY() const
 {
   if (!mAllowToOverrideSystemScrollSpeed) {
-    return deltaY;
+    return mDeltaY;
   }
-  return ComputeOverriddenDelta(deltaY, true);
+  return ComputeOverriddenDelta(mDeltaY, true);
 }
 
 /******************************************************************************

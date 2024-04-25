@@ -338,7 +338,8 @@ MediaEngineWebRTCMicrophoneSource::Deallocate()
 
 nsresult
 MediaEngineWebRTCMicrophoneSource::Start(SourceMediaStream *aStream,
-                                         TrackID aID)
+                                         TrackID aID,
+                                         const PrincipalHandle& aPrincipalHandle)
 {
   AssertIsOnOwningThread();
   if (!mInitDone || !aStream) {
@@ -348,6 +349,8 @@ MediaEngineWebRTCMicrophoneSource::Start(SourceMediaStream *aStream,
   {
     MonitorAutoLock lock(mMonitor);
     mSources.AppendElement(aStream);
+    mPrincipalHandles.AppendElement(aPrincipalHandle);
+    MOZ_ASSERT(mSources.Length() == mPrincipalHandles.Length());
   }
 
   AudioSegment* segment = new AudioSegment();
@@ -357,6 +360,9 @@ MediaEngineWebRTCMicrophoneSource::Start(SourceMediaStream *aStream,
   aStream->RegisterForAudioMixing();
   LOG(("Start audio for stream %p", aStream));
 
+  if (!mListener) {
+    mListener = new mozilla::WebRTCAudioDataListener(this);
+  }
   if (mState == kStarted) {
     MOZ_ASSERT(aID == mTrackID);
     // Make sure we're associated with this stream
@@ -398,10 +404,14 @@ MediaEngineWebRTCMicrophoneSource::Stop(SourceMediaStream *aSource, TrackID aID)
   {
     MonitorAutoLock lock(mMonitor);
 
-    if (!mSources.RemoveElement(aSource)) {
+    size_t sourceIndex = mSources.IndexOf(aSource);
+    if (sourceIndex == mSources.NoIndex) {
       // Already stopped - this is allowed
       return NS_OK;
     }
+    mSources.RemoveElementAt(sourceIndex);
+    mPrincipalHandles.RemoveElementAt(sourceIndex);
+    MOZ_ASSERT(mSources.Length() == mPrincipalHandles.Length());
 
     aSource->EndTrack(aID);
 
@@ -417,6 +427,11 @@ MediaEngineWebRTCMicrophoneSource::Stop(SourceMediaStream *aSource, TrackID aID)
     }
 
     mState = kStopped;
+  }
+  if (mListener) {
+    // breaks a cycle, since the WebRTCAudioDataListener has a RefPtr to us
+    mListener->Shutdown();
+    mListener = nullptr;
   }
 
   mAudioInput->StopRecording(aSource);
@@ -436,7 +451,8 @@ void
 MediaEngineWebRTCMicrophoneSource::NotifyPull(MediaStreamGraph *aGraph,
                                               SourceMediaStream *aSource,
                                               TrackID aID,
-                                              StreamTime aDesiredTime)
+                                              StreamTime aDesiredTime,
+                                              const PrincipalHandle& aPrincipalHandle)
 {
   // Ignore - we push audio data
   LOG_FRAMES(("NotifyPull, desired = %ld", (int64_t) aDesiredTime));
@@ -451,7 +467,8 @@ MediaEngineWebRTCMicrophoneSource::NotifyOutputData(MediaStreamGraph* aGraph,
 {
 }
 
-// Called back on GraphDriver thread
+// Called back on GraphDriver thread!
+// Note this can be called back after ::Shutdown()
 void
 MediaEngineWebRTCMicrophoneSource::NotifyInputData(MediaStreamGraph* aGraph,
                                                    const AudioDataValue* aBuffer,
@@ -553,6 +570,13 @@ MediaEngineWebRTCMicrophoneSource::Init()
 void
 MediaEngineWebRTCMicrophoneSource::Shutdown()
 {
+  if (mListener) {
+    // breaks a cycle, since the WebRTCAudioDataListener has a RefPtr to us
+    mListener->Shutdown();
+    // Don't release the webrtc.org pointers yet until the Listener is (async) shutdown
+    mListener = nullptr;
+  }
+
   if (!mInitDone) {
     // duplicate these here in case we failed during Init()
     if (mChannel != -1 && mVoENetwork) {
@@ -600,7 +624,6 @@ MediaEngineWebRTCMicrophoneSource::Shutdown()
   mVoEBase = nullptr;
 
   mAudioInput = nullptr;
-  mListener = nullptr; // breaks a cycle, since the WebRTCAudioDataListener has a RefPtr to us
 
   mState = kReleased;
   mInitDone = false;
@@ -654,7 +677,8 @@ MediaEngineWebRTCMicrophoneSource::Process(int channel,
     nsAutoPtr<AudioSegment> segment(new AudioSegment());
     AutoTArray<const sample*,1> channels;
     channels.AppendElement(dest);
-    segment->AppendFrames(buffer.forget(), channels, length);
+    segment->AppendFrames(buffer.forget(), channels, length,
+                          mPrincipalHandles[i]);
     TimeStamp insertTime;
     segment->GetStartTime(insertTime);
 
@@ -707,7 +731,8 @@ MediaEngineWebRTCAudioCaptureSource::GetUUID(nsACString &aUUID)
 
 nsresult
 MediaEngineWebRTCAudioCaptureSource::Start(SourceMediaStream *aMediaStream,
-                                           TrackID aId)
+                                           TrackID aId,
+                                           const PrincipalHandle& aPrincipalHandle)
 {
   AssertIsOnOwningThread();
   aMediaStream->AddTrack(aId, 0, new AudioSegment());

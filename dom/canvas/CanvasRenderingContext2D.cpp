@@ -1037,7 +1037,7 @@ CanvasRenderingContext2D::ParseColor(const nsAString& aString,
     // otherwise resolve it
     nsCOMPtr<nsIPresShell> presShell = GetPresShell();
     RefPtr<nsStyleContext> parentContext;
-    if (mCanvasElement && mCanvasElement->IsInDoc()) {
+    if (mCanvasElement && mCanvasElement->IsInUncomposedDoc()) {
       // Inherit from the canvas element.
       parentContext = nsComputedDOMStyle::GetStyleContextForElement(
         mCanvasElement, nullptr, presShell);
@@ -1560,7 +1560,7 @@ CanvasRenderingContext2D::ClearTarget(int32_t aWidth, int32_t aHeight)
   // For vertical writing-mode, unless text-orientation is sideways,
   // we'll modify the initial value of textBaseline to 'middle'.
   RefPtr<nsStyleContext> canvasStyle;
-  if (mCanvasElement && mCanvasElement->IsInDoc()) {
+  if (mCanvasElement && mCanvasElement->IsInUncomposedDoc()) {
     nsCOMPtr<nsIPresShell> presShell = GetPresShell();
     if (presShell) {
       canvasStyle =
@@ -2206,7 +2206,7 @@ static already_AddRefed<nsStyleContext>
 GetFontParentStyleContext(Element* aElement, nsIPresShell* aPresShell,
                           ErrorResult& aError)
 {
-  if (aElement && aElement->IsInDoc()) {
+  if (aElement && aElement->IsInUncomposedDoc()) {
     // Inherit from the canvas element.
     RefPtr<nsStyleContext> result =
       nsComputedDOMStyle::GetStyleContextForElement(aElement, nullptr,
@@ -2408,7 +2408,7 @@ CanvasRenderingContext2D::ParseFilter(const nsAString& aString,
     return false;
   }
 
-  aFilterChain = sc->StyleSVGReset()->mFilters;
+  aFilterChain = sc->StyleEffects()->mFilters;
   return true;
 }
 
@@ -3752,7 +3752,7 @@ struct MOZ_STACK_CLASS CanvasBidiProcessor : public nsBidiPresUtils::BidiProcess
   }
 
   // current text run
-  nsAutoPtr<gfxTextRun> mTextRun;
+  UniquePtr<gfxTextRun> mTextRun;
 
   // pointer to a screen reference context used to measure text and such
   RefPtr<DrawTarget> mDrawTarget;
@@ -3825,7 +3825,7 @@ CanvasRenderingContext2D::DrawOrMeasureText(const nsAString& aRawText,
   bool isRTL = false;
 
   RefPtr<nsStyleContext> canvasStyle;
-  if (mCanvasElement && mCanvasElement->IsInDoc()) {
+  if (mCanvasElement && mCanvasElement->IsInUncomposedDoc()) {
     // try to find the closest context
     canvasStyle =
       nsComputedDOMStyle::GetStyleContextForElement(mCanvasElement,
@@ -4514,7 +4514,7 @@ CanvasRenderingContext2D::DrawImage(const CanvasImageSource& aImage,
     }
 
     // If it doesn't have a principal, just bail
-    nsCOMPtr<nsIPrincipal> principal = video->GetCurrentPrincipal();
+    nsCOMPtr<nsIPrincipal> principal = video->GetCurrentVideoPrincipal();
     if (!principal) {
       aError.Throw(NS_ERROR_NOT_AVAILABLE);
       return;
@@ -4739,7 +4739,11 @@ CanvasRenderingContext2D::DrawDirectlyToCanvas(
   // the matrix even though this is a temp gfxContext.
   AutoRestoreTransform autoRestoreTransform(mTarget);
 
-  RefPtr<gfxContext> context = new gfxContext(tempTarget);
+  RefPtr<gfxContext> context = gfxContext::ForDrawTarget(tempTarget);
+  if (!context) {
+    gfxDevCrash(LogReason::InvalidContext) << "Canvas context problem";
+    return;
+  }
   context->SetMatrix(contextMatrix.
                        Scale(1.0 / contextScale.width,
                              1.0 / contextScale.height).
@@ -4936,19 +4940,21 @@ CanvasRenderingContext2D::DrawWindow(nsGlobalWindow& aWindow, double aX,
       GlobalAlpha() == 1.0f &&
       UsedOperation() == CompositionOp::OP_OVER)
   {
-    thebes = new gfxContext(mTarget);
+    thebes = gfxContext::ForDrawTarget(mTarget);
+    MOZ_ASSERT(thebes); // alrady checked the draw target above
     thebes->SetMatrix(gfxMatrix(matrix._11, matrix._12, matrix._21,
                                 matrix._22, matrix._31, matrix._32));
   } else {
     drawDT =
       gfxPlatform::GetPlatform()->CreateOffscreenContentDrawTarget(IntSize(ceil(sw), ceil(sh)),
                                                                    SurfaceFormat::B8G8R8A8);
-    if (!drawDT) {
+    if (!drawDT || !drawDT->IsValid()) {
       aError.Throw(NS_ERROR_FAILURE);
       return;
     }
 
-    thebes = new gfxContext(drawDT);
+    thebes = gfxContext::ForDrawTarget(drawDT);
+    MOZ_ASSERT(thebes); // alrady checked the draw target above
     thebes->SetMatrix(gfxMatrix::Scaling(matrix._11, matrix._22));
   }
 

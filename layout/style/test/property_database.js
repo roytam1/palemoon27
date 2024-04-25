@@ -1368,6 +1368,14 @@ var gCSSProperties = {
     alias_for: "box-sizing",
     subproperties: [ "box-sizing" ],
   },
+  "color-adjust": {
+    domProp: "colorAdjust",
+    inherited: true,
+    type: CSS_TYPE_LONGHAND,
+    initial_values: [ "economy" ],
+    other_values: [ "exact" ],
+    invalid_values: []
+  },
   "-moz-columns": {
     domProp: "MozColumns",
     inherited: false,
@@ -2221,6 +2229,10 @@ var gCSSProperties = {
       /* error inside functions */
       "-moz-image-rect(url(data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAIAAAD8GO2jAAAAKElEQVR42u3NQQ0AAAgEoNP+nTWFDzcoQE1udQQCgUAgEAgEAsGTYAGjxAE/G/Q2tQAAAABJRU5ErkJggg==), rubbish, 50%, 30%, 0) transparent",
       "-moz-element(#a rubbish) black",
+      "text",
+      "text border-box",
+      "content-box text text",
+      "padding-box text url(404.png) text",
     ]
   },
   "background-attachment": {
@@ -5433,11 +5445,15 @@ if (IsCSSPropertyPrefEnabled("layout.css.text-combine-upright.enabled")) {
     inherited: true,
     type: CSS_TYPE_LONGHAND,
     initial_values: [ "none" ],
-    other_values: [ "all", "digits", "digits 2", "digits 3", "digits 4", "digits     3" ],
+    other_values: [ "all" ],
     invalid_values: [ "auto", "all 2", "none all", "digits -3", "digits 0",
                       "digits 12", "none 3", "digits 3.1415", "digits3", "digits 1",
                       "digits 3 all", "digits foo", "digits all", "digits 3.0" ]
   };
+  if (IsCSSPropertyPrefEnabled("layout.css.text-combine-upright-digits.enabled")) {
+    gCSSProperties["text-combine-upright"].other_values.push(
+      "digits", "digits 2", "digits 3", "digits 4", "digits     3");
+  }
 }
 
 if (IsCSSPropertyPrefEnabled("layout.css.masking.enabled")) {
@@ -7024,6 +7040,42 @@ if (IsCSSPropertyPrefEnabled("layout.css.prefixes.webkit")) {
     alias_for: "filter",
     subproperties: [ "filter" ],
   };
+  gCSSProperties["-webkit-text-fill-color"] = {
+    domProp: "webkitTextFillColor",
+    inherited: true,
+    type: CSS_TYPE_LONGHAND,
+    prerequisites: { "color": "black" },
+    initial_values: [ "currentColor", "black", "#000", "#000000", "rgb(0,0,0)" ],
+    other_values: [ "red", "rgba(255,255,255,0.5)", "transparent" ],
+    invalid_values: [ "#0", "#00", "#0000", "#00000", "#0000000", "#00000000", "#000000000", "000000", "ff00ff", "rgb(255,xxx,255)" ]
+  };
+  gCSSProperties["-webkit-text-stroke"] = {
+    domProp: "webkitTextStroke",
+    inherited: true,
+    type: CSS_TYPE_TRUE_SHORTHAND,
+    prerequisites: { "color": "black" },
+    subproperties: [ "-webkit-text-stroke-width", "-webkit-text-stroke-color" ],
+    initial_values: [ "0 currentColor", "currentColor 0px", "0", "currentColor", "0px black" ],
+    other_values: [ "thin black", "#f00 medium", "thick rgba(0,0,255,0.5)", "calc(4px - 8px) green", "2px", "green 0", "currentColor 4em", "currentColor calc(5px - 1px)" ],
+    invalid_values: [ "-3px black", "calc(50%+ 2px) #000", "30% #f00" ]
+  };
+  gCSSProperties["-webkit-text-stroke-color"] = {
+    domProp: "webkitTextStrokeColor",
+    inherited: true,
+    type: CSS_TYPE_LONGHAND,
+    prerequisites: { "color": "black" },
+    initial_values: [ "currentColor", "black", "#000", "#000000", "rgb(0,0,0)" ],
+    other_values: [ "red", "rgba(255,255,255,0.5)", "transparent" ],
+    invalid_values: [ "#0", "#00", "#0000", "#00000", "#0000000", "#00000000", "#000000000", "000000", "ff00ff", "rgb(255,xxx,255)" ]
+  };
+  gCSSProperties["-webkit-text-stroke-width"] = {
+    domProp: "webkitTextStrokeWidth",
+    inherited: true,
+    type: CSS_TYPE_LONGHAND,
+    initial_values: [ "0", "0px", "0em", "0ex", "calc(0pt)", "calc(4px - 8px)" ],
+    other_values: [ "thin", "medium", "thick", "17px", "0.2em", "calc(3*25px + 5em)", "calc(5px - 1px)" ],
+    invalid_values: [ "5%", "1px calc(nonsense)", "1px red", "-0.1px", "-3px", "30%" ]
+  },
   gCSSProperties["-webkit-text-size-adjust"] = {
     domProp: "webkitTextSizeAdjust",
     inherited: true,
@@ -7391,6 +7443,30 @@ if (IsCSSPropertyPrefEnabled("layout.css.text-emphasis.enabled")) {
     invalid_values: [ "rubbish", "dot rubbish", "rubbish dot", "open rubbish", "rubbish open", "open filled", "dot circle",
                       "open '#'", "'#' filled", "dot '#'", "'#' circle", "1", "1 open", "open 1" ]
   };
+}
+
+if (IsCSSPropertyPrefEnabled("layout.css.background-clip-text.enabled")) {
+  gCSSProperties["background-clip"].other_values.push(
+    "text",
+    "content-box, text",
+    "text, border-box",
+    "text, text"
+  );
+  gCSSProperties["background"].other_values.push(
+    "url(404.png) green padding-box text",
+    "content-box text url(404.png) blue"
+  );
+} else {
+  gCSSProperties["background-clip"].invalid_values.push(
+    "text",
+    "content-box, text",
+    "text, border-box",
+    "text, text"
+  );
+  gCSSProperties["background"].invalid_values.push(
+    "url(404.png) green padding-box text",
+    "content-box text url(404.png) blue"
+  );
 }
 
 // Copy aliased properties' fields from their alias targets.

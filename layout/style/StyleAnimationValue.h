@@ -9,6 +9,7 @@
 #define mozilla_StyleAnimationValue_h_
 
 #include "mozilla/gfx/MatrixFwd.h"
+#include "mozilla/UniquePtr.h"
 #include "nsStringFwd.h"
 #include "nsStringBuffer.h"
 #include "nsCoord.h"
@@ -197,10 +198,14 @@ public:
   /**
    * Creates a specified value for the given computed value.
    *
-   * The first overload fills in an nsCSSValue object; the second
-   * produces a string.  The nsCSSValue result may depend on objects
-   * owned by the |aComputedValue| object, so users of that variant
+   * The first two overloads fill in an nsCSSValue object; the third
+   * produces a string.  For the overload that takes a const
+   * StyleAnimationValue& reference, the nsCSSValue result may depend on
+   * objects owned by the |aComputedValue| object, so users of that variant
    * must keep |aComputedValue| alive longer than |aSpecifiedValue|.
+   * The overload that takes an rvalue StyleAnimationValue reference
+   * transfers ownership for some resources such that the |aComputedValue|
+   * does not depend on the lifetime of |aSpecifiedValue|.
    *
    * @param aProperty      The property whose value we're uncomputing.
    * @param aComputedValue The computed value to be converted.
@@ -209,6 +214,9 @@ public:
    */
   static bool UncomputeValue(nsCSSProperty aProperty,
                              const StyleAnimationValue& aComputedValue,
+                             nsCSSValue& aSpecifiedValue);
+  static bool UncomputeValue(nsCSSProperty aProperty,
+                             StyleAnimationValue&& aComputedValue,
                              nsCSSValue& aSpecifiedValue);
   static bool UncomputeValue(nsCSSProperty aProperty,
                              const StyleAnimationValue& aComputedValue,
@@ -258,15 +266,18 @@ public:
     eUnit_Percent,
     eUnit_Float,
     eUnit_Color,
+    eUnit_CurrentColor,
     eUnit_Calc, // nsCSSValue* (never null), always with a single
                 // calc() expression that's either length or length+percent
     eUnit_ObjectPosition, // nsCSSValue* (never null), always with a
                           // 4-entry nsCSSValue::Array
+    eUnit_URL, // nsCSSValue* (never null), always with a css::URLValue
     eUnit_CSSValuePair, // nsCSSValuePair* (never null)
     eUnit_CSSValueTriplet, // nsCSSValueTriplet* (never null)
     eUnit_CSSRect, // nsCSSRect* (never null)
     eUnit_Dasharray, // nsCSSValueList* (never null)
     eUnit_Shadow, // nsCSSValueList* (may be null)
+    eUnit_Shape,  // nsCSSValue::Array* (never null)
     eUnit_Filter, // nsCSSValueList* (may be null)
     eUnit_Transform, // nsCSSValueList* (never null)
     eUnit_BackgroundPosition, // nsCSSValueList* (never null)
@@ -285,6 +296,7 @@ private:
     nsCSSValuePair* mCSSValuePair;
     nsCSSValueTriplet* mCSSValueTriplet;
     nsCSSRect* mCSSRect;
+    nsCSSValue::Array* mCSSValueArray;
     nsCSSValueList* mCSSValueList;
     nsCSSValueSharedList* mCSSValueSharedList;
     nsCSSValuePairList* mCSSValuePairList;
@@ -339,6 +351,10 @@ public:
     NS_ASSERTION(IsCSSRectUnit(mUnit), "unit mismatch");
     return mValue.mCSSRect;
   }
+  nsCSSValue::Array* GetCSSValueArrayValue() const {
+    NS_ASSERTION(IsCSSValueArrayUnit(mUnit), "unit mismatch");
+    return mValue.mCSSValueArray;
+  }
   nsCSSValueList* GetCSSValueListValue() const {
     NS_ASSERTION(IsCSSValueListUnit(mUnit), "unit mismatch");
     return mValue.mCSSValueList;
@@ -366,6 +382,19 @@ public:
   /// @return the scale for this value, calculated with reference to @aForFrame.
   gfxSize GetScaleValue(const nsIFrame* aForFrame) const;
 
+  UniquePtr<nsCSSValueList> TakeCSSValueListValue() {
+    nsCSSValueList* list = GetCSSValueListValue();
+    mValue.mCSSValueList = nullptr;
+    mUnit = eUnit_Null;
+    return UniquePtr<nsCSSValueList>(list);
+  }
+  UniquePtr<nsCSSValuePairList> TakeCSSValuePairListValue() {
+    nsCSSValuePairList* list = GetCSSValuePairListValue();
+    mValue.mCSSValuePairList = nullptr;
+    mUnit = eUnit_Null;
+    return UniquePtr<nsCSSValuePairList>(list);
+  }
+
   explicit StyleAnimationValue(Unit aUnit = eUnit_Null) : mUnit(aUnit) {
     NS_ASSERTION(aUnit == eUnit_Null || aUnit == eUnit_Normal ||
                  aUnit == eUnit_Auto || aUnit == eUnit_None,
@@ -373,6 +402,12 @@ public:
   }
   StyleAnimationValue(const StyleAnimationValue& aOther)
     : mUnit(eUnit_Null) { *this = aOther; }
+  StyleAnimationValue(StyleAnimationValue&& aOther)
+    : mUnit(aOther.mUnit)
+    , mValue(aOther.mValue)
+  {
+    aOther.mUnit = eUnit_Null;
+  }
   enum IntegerConstructorType { IntegerConstructor };
   StyleAnimationValue(int32_t aInt, Unit aUnit, IntegerConstructorType);
   enum CoordConstructorType { CoordConstructor };
@@ -394,6 +429,7 @@ public:
   void SetPercentValue(float aPercent);
   void SetFloatValue(float aFloat);
   void SetColorValue(nscolor aColor);
+  void SetCurrentColorValue();
   void SetUnparsedStringValue(const nsString& aString);
 
   // These setters take ownership of |aValue|, and are therefore named
@@ -402,6 +438,7 @@ public:
   void SetAndAdoptCSSValuePairValue(nsCSSValuePair *aValue, Unit aUnit);
   void SetAndAdoptCSSValueTripletValue(nsCSSValueTriplet *aValue, Unit aUnit);
   void SetAndAdoptCSSRectValue(nsCSSRect *aValue, Unit aUnit);
+  void SetAndAdoptCSSValueArrayValue(nsCSSValue::Array* aValue, Unit aUnit);
   void SetAndAdoptCSSValueListValue(nsCSSValueList *aValue, Unit aUnit);
   void SetAndAdoptCSSValuePairListValue(nsCSSValuePairList *aValue);
 
@@ -426,7 +463,8 @@ private:
   }
   static bool IsCSSValueUnit(Unit aUnit) {
     return aUnit == eUnit_Calc ||
-           aUnit == eUnit_ObjectPosition;
+           aUnit == eUnit_ObjectPosition ||
+           aUnit == eUnit_URL;
   }
   static bool IsCSSValuePairUnit(Unit aUnit) {
     return aUnit == eUnit_CSSValuePair;
@@ -436,6 +474,9 @@ private:
   }
   static bool IsCSSRectUnit(Unit aUnit) {
     return aUnit == eUnit_CSSRect;
+  }
+  static bool IsCSSValueArrayUnit(Unit aUnit) {
+    return aUnit == eUnit_Shape;
   }
   static bool IsCSSValueListUnit(Unit aUnit) {
     return aUnit == eUnit_Dasharray || aUnit == eUnit_Filter ||

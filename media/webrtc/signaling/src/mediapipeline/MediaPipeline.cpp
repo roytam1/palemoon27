@@ -22,6 +22,7 @@
 #include "LayersLogging.h"
 #include "ImageTypes.h"
 #include "ImageContainer.h"
+#include "MediaStreamTrack.h"
 #include "VideoUtils.h"
 #ifdef WEBRTC_GONK
 #include "GrallocImages.h"
@@ -58,6 +59,7 @@
 #define DEFAULT_SAMPLE_RATE 32000
 
 using namespace mozilla;
+using namespace mozilla::dom;
 using namespace mozilla::gfx;
 using namespace mozilla::layers;
 
@@ -70,7 +72,6 @@ static char kDTLSExporterLabel[] = "EXTRACTOR-dtls_srtp";
 
 MediaPipeline::~MediaPipeline() {
   ASSERT_ON_THREAD(main_thread_);
-  MOZ_ASSERT(!stream_);  // Check that we have shut down already.
   MOZ_MTLOG(ML_INFO, "Destroying MediaPipeline: " << description_);
 }
 
@@ -102,13 +103,6 @@ nsresult MediaPipeline::Init_s() {
 // Disconnect us from the transport so that we can cleanly destruct the
 // pipeline on the main thread.  ShutdownMedia_m() must have already been
 // called
-void MediaPipeline::ShutdownTransport_s() {
-  ASSERT_ON_THREAD(sts_thread_);
-  MOZ_ASSERT(!stream_); // verifies that ShutdownMedia_m() has run
-
-  DetachTransport_s();
-}
-
 void
 MediaPipeline::DetachTransport_s()
 {
@@ -664,16 +658,16 @@ void MediaPipelineTransmit::AttachToTrack(const std::string& track_id) {
   description_ += "]";
 
   // TODO(ekr@rtfm.com): Check for errors
-  MOZ_MTLOG(ML_DEBUG, "Attaching pipeline to stream "
-            << static_cast<void *>(stream_) << " conduit type=" <<
+  MOZ_MTLOG(ML_DEBUG, "Attaching pipeline to track "
+            << static_cast<void *>(domtrack_) << " conduit type=" <<
             (conduit_->type() == MediaSessionConduit::AUDIO ?"audio":"video"));
 
-  stream_->AddListener(listener_);
-
-  // Is this a gUM mediastream?  If so, also register the Listener directly with
-  // the SourceMediaStream that's attached to the TrackUnion so we can get direct
-  // unqueued (and not resampled) data
-  listener_->direct_connect_ = domstream_->AddDirectListener(listener_);
+  // Register the Listener directly with the source if we can.
+  // We also register it as a non-direct listener so we fall back to that
+  // if installing the direct listener fails. As a direct listener we get access
+  // to direct unqueued (and not resampled) data.
+  domtrack_->AddDirectListener(listener_);
+  domtrack_->AddListener(listener_);
 
 #ifndef MOZILLA_INTERNAL_API
   // this enables the unit tests that can't fiddle with principals and the like
@@ -681,24 +675,52 @@ void MediaPipelineTransmit::AttachToTrack(const std::string& track_id) {
 #endif
 }
 
+bool
+MediaPipelineTransmit::IsVideo() const
+{
+  return !!domtrack_->AsVideoStreamTrack();
+}
+
 #if !defined(MOZILLA_EXTERNAL_LINKAGE)
-void MediaPipelineTransmit::UpdateSinkIdentity_m(nsIPrincipal* principal,
+void MediaPipelineTransmit::UpdateSinkIdentity_m(MediaStreamTrack* track,
+                                                 nsIPrincipal* principal,
                                                  const PeerIdentity* sinkIdentity) {
   ASSERT_ON_THREAD(main_thread_);
-  bool enableStream = principal->Subsumes(domstream_->GetPrincipal());
-  if (!enableStream) {
+
+  if (track != nullptr && track != domtrack_) {
+    // If a track is specified, then it might not be for this pipeline,
+    // since we receive notifications for all tracks on the PC.
+    // nullptr means that the PeerIdentity has changed and shall be applied
+    // to all tracks of the PC.
+    return;
+  }
+
+  bool enableTrack = principal->Subsumes(domtrack_->GetPrincipal());
+  if (!enableTrack) {
     // first try didn't work, but there's a chance that this is still available
-    // if our stream is bound to a peerIdentity, and the peer connection (our
-    // sink) is bound to the same identity, then we can enable the stream
-    PeerIdentity* streamIdentity = domstream_->GetPeerIdentity();
-    if (sinkIdentity && streamIdentity) {
-      enableStream = (*sinkIdentity == *streamIdentity);
+    // if our track is bound to a peerIdentity, and the peer connection (our
+    // sink) is bound to the same identity, then we can enable the track.
+    const PeerIdentity* trackIdentity = domtrack_->GetPeerIdentity();
+    if (sinkIdentity && trackIdentity) {
+      enableTrack = (*sinkIdentity == *trackIdentity);
     }
   }
 
-  listener_->SetEnabled(enableStream);
+  listener_->SetEnabled(enableTrack);
 }
 #endif
+
+void
+MediaPipelineTransmit::DetachMedia()
+{
+  ASSERT_ON_THREAD(main_thread_);
+  if (domtrack_) {
+    domtrack_->RemoveDirectListener(listener_);
+    domtrack_->RemoveListener(listener_);
+    domtrack_ = nullptr;
+  }
+  // Let the listener be destroyed with the pipeline (or later).
+}
 
 nsresult MediaPipelineTransmit::TransportReady_s(TransportInfo &info) {
   ASSERT_ON_THREAD(sts_thread_);
@@ -713,21 +735,24 @@ nsresult MediaPipelineTransmit::TransportReady_s(TransportInfo &info) {
   return NS_OK;
 }
 
-nsresult MediaPipelineTransmit::ReplaceTrack(DOMMediaStream *domstream,
-                                             const std::string& track_id) {
+nsresult MediaPipelineTransmit::ReplaceTrack(MediaStreamTrack& domtrack) {
   // MainThread, checked in calls we make
-  MOZ_MTLOG(ML_DEBUG, "Reattaching pipeline " << description_ << " to stream "
-            << static_cast<void *>(domstream->GetOwnedStream())
+#if !defined(MOZILLA_EXTERNAL_LINKAGE)
+  nsString nsTrackId;
+  domtrack.GetId(nsTrackId);
+  std::string track_id(NS_ConvertUTF16toUTF8(nsTrackId).get());
+#else
+  std::string track_id = domtrack.GetId();
+#endif
+  MOZ_MTLOG(ML_DEBUG, "Reattaching pipeline " << description_ << " to track "
+            << static_cast<void *>(&domtrack)
             << " track " << track_id << " conduit type=" <<
             (conduit_->type() == MediaSessionConduit::AUDIO ?"audio":"video"));
 
-  if (domstream_) { // may be excessive paranoia
-    DetachMediaStream();
-  }
-  domstream_ = domstream; // Detach clears it
-  stream_ = domstream->GetOwnedStream();
+  DetachMedia();
+  domtrack_ = &domtrack; // Detach clears it
   // Unsets the track id after RemoveListener() takes effect.
-  listener_->UnsetTrackId(stream_->GraphImpl());
+  listener_->UnsetTrackId(domtrack_->GraphImpl());
   track_id_ = track_id;
   AttachToTrack(track_id);
   return NS_OK;
@@ -889,28 +914,41 @@ UnsetTrackId(MediaStreamGraphImpl* graph) {
 }
 // Called if we're attached with AddDirectListener()
 void MediaPipelineTransmit::PipelineListener::
-NotifyRealtimeData(MediaStreamGraph* graph, TrackID tid,
-                   StreamTime offset,
-                   uint32_t events,
-                   const MediaSegment& media) {
-  MOZ_MTLOG(ML_DEBUG, "MediaPipeline::NotifyRealtimeData()");
+NotifyRealtimeTrackData(MediaStreamGraph* graph,
+                        StreamTime offset,
+                        const MediaSegment& media) {
+  MOZ_MTLOG(ML_DEBUG, "MediaPipeline::NotifyRealtimeTrackData() listener=" <<
+                      this << ", offset=" << offset <<
+                      ", duration=" << media.GetDuration());
 
-  NewData(graph, tid, offset, events, media);
+  NewData(graph, offset, media);
 }
 
 void MediaPipelineTransmit::PipelineListener::
-NotifyQueuedTrackChanges(MediaStreamGraph* graph, TrackID tid,
-                         StreamTime offset,
-                         uint32_t events,
-                         const MediaSegment& queued_media,
-                         MediaStream* aInputStream,
-                         TrackID aInputTrackID) {
-  MOZ_MTLOG(ML_DEBUG, "MediaPipeline::NotifyQueuedTrackChanges()");
+NotifyQueuedChanges(MediaStreamGraph* graph,
+                    StreamTime offset,
+                    const MediaSegment& queued_media) {
+  MOZ_MTLOG(ML_DEBUG, "MediaPipeline::NotifyQueuedChanges()");
 
   // ignore non-direct data if we're also getting direct data
   if (!direct_connect_) {
-    NewData(graph, tid, offset, events, queued_media);
+    NewData(graph, offset, queued_media);
   }
+}
+
+void MediaPipelineTransmit::PipelineListener::
+NotifyDirectListenerInstalled(InstallationResult aResult) {
+  MOZ_MTLOG(ML_INFO, "MediaPipeline::NotifyDirectListenerInstalled() listener= " <<
+                     this << ", result=" << static_cast<int32_t>(aResult));
+
+  direct_connect_ = InstallationResult::SUCCESS == aResult;
+}
+
+void MediaPipelineTransmit::PipelineListener::
+NotifyDirectListenerUninstalled() {
+  MOZ_MTLOG(ML_INFO, "MediaPipeline::NotifyDirectListenerUninstalled() listener=" << this);
+
+  direct_connect_ = false;
 }
 
 // I420 buffer size macros
@@ -918,14 +956,9 @@ NotifyQueuedTrackChanges(MediaStreamGraph* graph, TrackID tid,
 #define CRSIZE(x,y) ((((x)+1) >> 1) * (((y)+1) >> 1))
 #define I420SIZE(x,y) (YSIZE((x),(y)) + 2 * CRSIZE((x),(y)))
 
-// XXX NOTE: this code will have to change when we get support for multiple tracks of type
-// in a MediaStream and especially in a PeerConnection stream.  bug 1056650
-// It should be matching on the "correct" track for the pipeline, not just "any video track".
-
 void MediaPipelineTransmit::PipelineListener::
-NewData(MediaStreamGraph* graph, TrackID tid,
+NewData(MediaStreamGraph* graph,
         StreamTime offset,
-        uint32_t events,
         const MediaSegment& media) {
   if (!active_) {
     MOZ_MTLOG(ML_DEBUG, "Discarding packets because transport not ready");
@@ -935,15 +968,8 @@ NewData(MediaStreamGraph* graph, TrackID tid,
   if (conduit_->type() !=
       (media.GetType() == MediaSegment::AUDIO ? MediaSessionConduit::AUDIO :
                                                 MediaSessionConduit::VIDEO)) {
-    // Ignore data of wrong kind in case we have a muxed stream
-    return;
-  }
-
-  if (track_id_ == TRACK_INVALID) {
-    // Don't lock during normal media flow except on first sample
-    MutexAutoLock lock(mMutex);
-    track_id_ = track_id_external_ = tid;
-  } else if (tid != track_id_) {
+    MOZ_ASSERT(false, "The media type should always be correct since the "
+                      "listener is locked to a specific track");
     return;
   }
 
@@ -1395,6 +1421,35 @@ void GenericReceiveListener::AddSelf(MediaSegment* segment) {
                       queue_track_);
 }
 
+#ifndef USE_FAKE_MEDIA_STREAMS
+void GenericReceiveListener::SetPrincipalHandle_m(const PrincipalHandle& principal_handle)
+{
+  class Message : public ControlMessage
+  {
+  public:
+    Message(GenericReceiveListener* listener,
+            MediaStream* stream,
+            const PrincipalHandle& principal_handle)
+      : ControlMessage(stream), listener_(listener), principal_handle_(principal_handle)
+    {}
+
+    void Run() override {
+      listener_->SetPrincipalHandle_msg(principal_handle_);
+    }
+
+    RefPtr<GenericReceiveListener> listener_;
+    PrincipalHandle principal_handle_;
+  };
+
+  source_->GraphImpl()->AppendMessage(MakeUnique<Message>(this, source_, principal_handle));
+}
+
+void GenericReceiveListener::SetPrincipalHandle_msg(const PrincipalHandle& principal_handle)
+{
+  principal_handle_ = principal_handle;
+}
+#endif // USE_FAKE_MEDIA_STREAMS
+
 MediaPipelineReceiveAudio::PipelineListener::PipelineListener(
     SourceMediaStream * source, TrackID track_id,
     const RefPtr<MediaSessionConduit>& conduit, bool queue_track)
@@ -1472,7 +1527,8 @@ NotifyPull(MediaStreamGraph* graph, StreamTime desired_time) {
 
     outputChannels.AppendElements(channels);
 
-    segment.AppendFrames(samples.forget(), outputChannels, frames);
+    segment.AppendFrames(samples.forget(), outputChannels, frames,
+                         principal_handle_);
 
     // Handle track not actually added yet or removed/finished
     if (source_->AppendToTrack(track_id_, &segment)) {
@@ -1498,7 +1554,7 @@ nsresult MediaPipelineReceiveVideo::Init() {
   listener_->AddSelf(new VideoSegment());
 #endif
 
-  // Always happens before we can DetachMediaStream()
+  // Always happens before we can DetachMedia()
   static_cast<VideoSessionConduit *>(conduit_.get())->
       AttachRenderer(renderer_);
 
@@ -1601,7 +1657,8 @@ NotifyPull(MediaStreamGraph* graph, StreamTime desired_time) {
   // delta and thus messes up handling of the graph
   if (delta > 0) {
     VideoSegment segment;
-    segment.AppendFrame(image.forget(), delta, IntSize(width_, height_));
+    segment.AppendFrame(image.forget(), delta, IntSize(width_, height_),
+                        principal_handle_);
     // Handle track not actually added yet or removed/finished
     if (source_->AppendToTrack(track_id_, &segment)) {
       played_ticks_ = desired_time;

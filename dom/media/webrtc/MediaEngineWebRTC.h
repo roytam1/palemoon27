@@ -45,6 +45,7 @@
 #include "webrtc/voice_engine/include/voe_volume_control.h"
 #include "webrtc/voice_engine/include/voe_external_media.h"
 #include "webrtc/voice_engine/include/voe_audio_processing.h"
+#include "webrtc/modules/audio_processing/include/audio_processing.h"
 
 // Video Engine
 // conflicts with #include of scoped_ptr.h
@@ -88,7 +89,9 @@ public:
   {
     // Nothing to do here, everything is managed in MediaManager.cpp
   }
-  nsresult Start(SourceMediaStream* aMediaStream, TrackID aId) override;
+  nsresult Start(SourceMediaStream* aMediaStream,
+                 TrackID aId,
+                 const PrincipalHandle& aPrincipalHandle) override;
   nsresult Stop(SourceMediaStream* aMediaStream, TrackID aId) override;
   nsresult Restart(const dom::MediaTrackConstraints& aConstraints,
                    const MediaEnginePrefs &aPrefs,
@@ -103,8 +106,11 @@ public:
                        const AudioDataValue* aBuffer, size_t aFrames,
                        TrackRate aRate, uint32_t aChannels) override
   {}
-  void NotifyPull(MediaStreamGraph* aGraph, SourceMediaStream* aSource,
-                  TrackID aID, StreamTime aDesiredTime) override
+  void NotifyPull(MediaStreamGraph* aGraph,
+                  SourceMediaStream* aSource,
+                  TrackID aID,
+                  StreamTime aDesiredTime,
+                  const PrincipalHandle& aPrincipalHandle) override
   {}
   dom::MediaSourceEnum GetMediaSource() const override
   {
@@ -114,7 +120,7 @@ public:
   {
     return false;
   }
-  nsresult TakePhoto(PhotoCallback* aCallback) override
+  nsresult TakePhoto(MediaEnginePhotoCallback* aCallback) override
   {
     return NS_ERROR_NOT_IMPLEMENTED;
   }
@@ -382,8 +388,9 @@ protected:
   virtual ~WebRTCAudioDataListener() {}
 
 public:
-  explicit WebRTCAudioDataListener(MediaEngineAudioSource* aAudioSource) :
-    mAudioSource(aAudioSource)
+  explicit WebRTCAudioDataListener(MediaEngineAudioSource* aAudioSource)
+    : mMutex("WebRTCAudioDataListener")
+    , mAudioSource(aAudioSource)
   {}
 
   // AudioDataListenerInterface methods
@@ -391,16 +398,29 @@ public:
                                 AudioDataValue* aBuffer, size_t aFrames,
                                 TrackRate aRate, uint32_t aChannels) override
   {
-    mAudioSource->NotifyOutputData(aGraph, aBuffer, aFrames, aRate, aChannels);
+    MutexAutoLock lock(mMutex);
+    if (mAudioSource) {
+      mAudioSource->NotifyOutputData(aGraph, aBuffer, aFrames, aRate, aChannels);
+    }
   }
   virtual void NotifyInputData(MediaStreamGraph* aGraph,
                                const AudioDataValue* aBuffer, size_t aFrames,
                                TrackRate aRate, uint32_t aChannels) override
   {
-    mAudioSource->NotifyInputData(aGraph, aBuffer, aFrames, aRate, aChannels);
+    MutexAutoLock lock(mMutex);
+    if (mAudioSource) {
+      mAudioSource->NotifyInputData(aGraph, aBuffer, aFrames, aRate, aChannels);
+    }
+  }
+
+  void Shutdown()
+  {
+    MutexAutoLock lock(mMutex);
+    mAudioSource = nullptr;
   }
 
 private:
+  Mutex mMutex;
   RefPtr<MediaEngineAudioSource> mAudioSource;
 };
 
@@ -449,7 +469,9 @@ public:
                     const nsString& aDeviceId,
                     const nsACString& aOrigin) override;
   nsresult Deallocate() override;
-  nsresult Start(SourceMediaStream* aStream, TrackID aID) override;
+  nsresult Start(SourceMediaStream* aStream,
+                 TrackID aID,
+                 const PrincipalHandle& aPrincipalHandle) override;
   nsresult Stop(SourceMediaStream* aSource, TrackID aID) override;
   nsresult Restart(const dom::MediaTrackConstraints& aConstraints,
                    const MediaEnginePrefs &aPrefs,
@@ -459,7 +481,8 @@ public:
   void NotifyPull(MediaStreamGraph* aGraph,
                   SourceMediaStream* aSource,
                   TrackID aId,
-                  StreamTime aDesiredTime) override;
+                  StreamTime aDesiredTime,
+                  const PrincipalHandle& aPrincipalHandle) override;
 
   // AudioDataListenerInterface methods
   void NotifyOutputData(MediaStreamGraph* aGraph,
@@ -477,7 +500,7 @@ public:
     return dom::MediaSourceEnum::Microphone;
   }
 
-  nsresult TakePhoto(PhotoCallback* aCallback) override
+  nsresult TakePhoto(MediaEnginePhotoCallback* aCallback) override
   {
     return NS_ERROR_NOT_IMPLEMENTED;
   }
@@ -496,7 +519,9 @@ public:
   NS_DECL_THREADSAFE_ISUPPORTS
 
 protected:
-  ~MediaEngineWebRTCMicrophoneSource() { Shutdown(); }
+  ~MediaEngineWebRTCMicrophoneSource() {
+    Shutdown();
+  }
 
 private:
   void Init();
@@ -510,13 +535,17 @@ private:
   ScopedCustomReleasePtr<webrtc::VoENetwork> mVoENetwork;
   ScopedCustomReleasePtr<webrtc::VoEAudioProcessing> mVoEProcessing;
 
+  // accessed from the GraphDriver thread except for deletion
   nsAutoPtr<AudioPacketizer<AudioDataValue, int16_t>> mPacketizer;
+  ScopedCustomReleasePtr<webrtc::VoEExternalMedia> mVoERenderListener;
 
-  // mMonitor protects mSources[] access/changes, and transitions of mState
-  // from kStarted to kStopped (which are combined with EndTrack()).
-  // mSources[] is accessed from webrtc threads.
+  // mMonitor protects mSources[] and mPrinicpalIds[] access/changes, and
+  // transitions of mState from kStarted to kStopped (which are combined with
+  // EndTrack()). mSources[] and mPrincipalHandles[] are accessed from webrtc
+  // threads.
   Monitor mMonitor;
   nsTArray<RefPtr<SourceMediaStream>> mSources;
+  nsTArray<PrincipalHandle> mPrincipalHandles; // Maps to mSources.
   nsCOMPtr<nsIThread> mThread;
   int mCapIndex;
   int mChannel;
@@ -569,9 +598,12 @@ private:
   // gUM runnables can e.g. Enumerate from multiple threads
   Mutex mMutex;
   webrtc::VoiceEngine* mVoiceEngine;
+  webrtc::Config mConfig;
   RefPtr<mozilla::AudioInput> mAudioInput;
   bool mAudioEngineInit;
   bool mFullDuplex;
+  bool mExtendedFilter;
+  bool mDelayAgnostic;
   bool mHasTabVideoSource;
 
   // Store devices we've already seen in a hashtable for quick return.

@@ -48,6 +48,10 @@ namespace gfx {
 class DrawTarget;
 } // namespace gfx
 
+namespace ipc {
+class GeckoChildProcessHost;
+} // namespace ipc
+
 namespace layers {
 
 class APZCTreeManager;
@@ -240,6 +244,11 @@ public:
   virtual bool RecvFlushRendering() override;
   virtual bool RecvForcePresent() override;
 
+  virtual bool RecvAcknowledgeCompositorUpdate(const uint64_t& aLayersId) override {
+    MOZ_ASSERT_UNREACHABLE("This message is only sent cross-process");
+    return true;
+  }
+
   virtual bool RecvGetTileSize(int32_t* aWidth, int32_t* aHeight) override;
 
   virtual bool RecvNotifyRegionInvalidated(const nsIntRegion& aRegion) override;
@@ -408,7 +417,7 @@ public:
    * directly to us.  Transport is to its thread context.
    */
   static PCompositorBridgeParent*
-  Create(Transport* aTransport, ProcessId aOtherProcess);
+  Create(Transport* aTransport, ProcessId aOtherProcess, mozilla::ipc::GeckoChildProcessHost* aProcessHost);
 
   struct LayerTreeState {
     LayerTreeState();
@@ -428,6 +437,10 @@ public:
     bool mUpdatedPluginDataAvailable;
     RefPtr<CompositorUpdateObserver> mLayerTreeReadyObserver;
     RefPtr<CompositorUpdateObserver> mLayerTreeClearedObserver;
+
+    // Number of times the compositor has been reset without having been
+    // acknowledged by the child.
+    uint32_t mPendingCompositorUpdates;
 
     PCompositorBridgeParent* CrossProcessPCompositorBridge() const;
   };

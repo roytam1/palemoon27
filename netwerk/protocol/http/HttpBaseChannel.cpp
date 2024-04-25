@@ -103,6 +103,7 @@ HttpBaseChannel::HttpBaseChannel()
   , mRedirectMode(nsIHttpChannelInternal::REDIRECT_MODE_FOLLOW)
   , mFetchCacheMode(nsIHttpChannelInternal::FETCH_CACHE_MODE_DEFAULT)
   , mOnStartRequestCalled(false)
+  , mOnStopRequestCalled(false)
   , mTransferSize(0)
   , mDecodedBodySize(0)
   , mEncodedBodySize(0)
@@ -2636,8 +2637,13 @@ HttpBaseChannel::DoNotifyListener()
   mIsPending = false;
 
   if (mListener) {
+    MOZ_ASSERT(!mOnStopRequestCalled,
+               "We should not call OnStopRequest twice");
+
     nsCOMPtr<nsIStreamListener> listener = mListener;
     listener->OnStopRequest(this, mListenerContext, mStatus);
+
+    mOnStopRequestCalled = true;
   }
 
   // We have to make sure to drop the references to listeners and callbacks
@@ -3211,6 +3217,36 @@ HttpBaseChannel::GetPerformance()
     if (!mTimingEnabled) {
         return nullptr;
     }
+
+    nsCOMPtr<nsPIDOMWindow> pDomWindow = GetInnerDOMWindow();
+    if (!pDomWindow) {
+        return nullptr;
+    }
+
+    nsPerformance* docPerformance = pDomWindow->GetPerformance();
+    if (!docPerformance) {
+        return nullptr;
+    }
+    // iframes should be added to the parent's entries list.
+    if (mLoadFlags & LOAD_DOCUMENT_URI) {
+        return docPerformance->GetParentPerformance();
+    }
+    return docPerformance;
+}
+
+nsIURI*
+HttpBaseChannel::GetReferringPage()
+{
+  nsCOMPtr<nsPIDOMWindow> pDomWindow = GetInnerDOMWindow();
+  if (!pDomWindow) {
+    return nullptr;
+  }
+  return pDomWindow->GetDocumentURI();
+}
+
+nsPIDOMWindow*
+HttpBaseChannel::GetInnerDOMWindow()
+{
     nsCOMPtr<nsILoadContext> loadContext;
     NS_QueryNotificationCallbacks(this, loadContext);
     if (!loadContext) {
@@ -3240,15 +3276,7 @@ HttpBaseChannel::GetPerformance()
         }
     }
 
-    nsPerformance* docPerformance = pDomWindow->GetPerformance();
-    if (!docPerformance) {
-      return nullptr;
-    }
-    // iframes should be added to the parent's entries list.
-    if (mLoadFlags & LOAD_DOCUMENT_URI) {
-      return docPerformance->GetParentPerformance();
-    }
-    return docPerformance;
+    return pDomWindow;
 }
 
 //------------------------------------------------------------------------------

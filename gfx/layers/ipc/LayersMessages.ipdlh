@@ -230,6 +230,7 @@ struct CommonLayerAttributes {
   uint64_t scrollbarTargetContainerId;
   uint32_t scrollbarDirection;
   float scrollbarThumbRatio;
+  bool isScrollbarContainer;
   int8_t mixBlendMode;
   bool forceIsolatedGroup;
   nullable PLayer maskLayer;
@@ -350,18 +351,15 @@ struct SurfaceDescriptorTiles {
 };
 
 struct OpUseTiledLayerBuffer {
-  PCompositable compositable;
   SurfaceDescriptorTiles tileLayerDescriptor;
 };
 
 struct OpUseOverlaySource {
-  PCompositable compositable;
   OverlaySource overlay;
   IntRect picture;
 };
 
 struct OpPaintTextureRegion {
-  PCompositable compositable;
   ThebesBufferData bufferData;
   nsIntRegion updatedRegion;
 };
@@ -370,7 +368,6 @@ struct OpPaintTextureRegion {
  * Tells the CompositableHost to remove the corresponding TextureHost
  */
 struct OpRemoveTexture {
-  PCompositable compositable;
   PTexture texture;
 };
 
@@ -412,12 +409,10 @@ struct TimedTexture {
  * The list must not be empty.
  */
 struct OpUseTexture {
-  PCompositable compositable;
   TimedTexture[] textures;
 };
 
 struct OpUseComponentAlphaTextures {
-  PCompositable compositable;
   PTexture textureOnBlack;
   PTexture textureOnWhite;
 };
@@ -438,7 +433,7 @@ struct OpDeliverFenceToTracker {
   FenceHandle fence;
 };
 
-union CompositableOperation {
+union CompositableOperationDetail {
   OpPaintTextureRegion;
 
   OpUseTiledLayerBuffer;
@@ -449,6 +444,11 @@ union CompositableOperation {
   OpUseTexture;
   OpUseComponentAlphaTextures;
   OpUseOverlaySource;
+};
+
+struct CompositableOperation {
+  PCompositable compositable;
+  CompositableOperationDetail detail;
 };
 
 // A unit of a changeset; a set of these comprise a changeset
@@ -516,7 +516,7 @@ union AsyncParentMessageData {
 };
 
 union AsyncChildMessageData {
-  OpRemoveTextureAsync;
+  CompositableOperation;
 };
 
 } // namespace

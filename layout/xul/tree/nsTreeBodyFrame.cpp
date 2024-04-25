@@ -183,7 +183,7 @@ nsTreeBodyFrame::Init(nsIContent*       aContent,
 }
 
 nsSize
-nsTreeBodyFrame::GetMinSize(nsBoxLayoutState& aBoxLayoutState)
+nsTreeBodyFrame::GetXULMinSize(nsBoxLayoutState& aBoxLayoutState)
 {
   EnsureView();
 
@@ -226,7 +226,7 @@ nsTreeBodyFrame::GetMinSize(nsBoxLayoutState& aBoxLayoutState)
 
   AddBorderAndPadding(min);
   bool widthSet, heightSet;
-  nsIFrame::AddCSSMinSize(aBoxLayoutState, this, min, widthSet, heightSet);
+  nsIFrame::AddXULMinSize(aBoxLayoutState, this, min, widthSet, heightSet);
 
   return min;
 }
@@ -404,14 +404,14 @@ nsTreeBodyFrame::ManageReflowCallback(const nsRect& aRect, nscoord aHorzWidth)
 }
 
 void
-nsTreeBodyFrame::SetBounds(nsBoxLayoutState& aBoxLayoutState, const nsRect& aRect,
-                           bool aRemoveOverflowArea)
+nsTreeBodyFrame::SetXULBounds(nsBoxLayoutState& aBoxLayoutState, const nsRect& aRect,
+                              bool aRemoveOverflowArea)
 {
   nscoord horzWidth = CalcHorzWidth(GetScrollParts());
   ManageReflowCallback(aRect, horzWidth);
   mHorzWidth = horzWidth;
 
-  nsLeafBoxFrame::SetBounds(aBoxLayoutState, aRect, aRemoveOverflowArea);
+  nsLeafBoxFrame::SetXULBounds(aBoxLayoutState, aRect, aRemoveOverflowArea);
 }
 
 
@@ -804,7 +804,7 @@ FindScrollParts(nsIFrame* aCurrFrame, nsTreeBodyFrame::ScrollParts* aResult)
   
   nsScrollbarFrame *sf = do_QueryFrame(aCurrFrame);
   if (sf) {
-    if (!aCurrFrame->IsHorizontal()) {
+    if (!aCurrFrame->IsXULHorizontal()) {
       if (!aResult->mVScrollbar) {
         aResult->mVScrollbar = sf;
       }
@@ -2194,6 +2194,7 @@ nsTreeBodyFrame::GetImage(int32_t aRowIndex, nsTreeColumn* aCol, bool aUseContex
       if (nsContentUtils::CanLoadImage(srcURI, mContent, doc,
                                        mContent->NodePrincipal())) {
         nsresult rv = nsContentUtils::LoadImage(srcURI,
+                                                mContent,
                                                 doc,
                                                 mContent->NodePrincipal(),
                                                 doc->GetDocumentURI(),
@@ -2554,8 +2555,9 @@ static uint32_t GetDropEffect(WidgetGUIEvent* aEvent)
   nsContentUtils::SetDataTransferInEvent(dragEvent);
 
   uint32_t action = 0;
-  if (dragEvent->dataTransfer)
-    dragEvent->dataTransfer->GetDropEffectInt(&action);
+  if (dragEvent->mDataTransfer) {
+    dragEvent->mDataTransfer->GetDropEffectInt(&action);
+  }
   return action;
 }
 
@@ -2694,7 +2696,7 @@ nsTreeBodyFrame::HandleEvent(nsPresContext* aPresContext,
         // The dataTransfer was initialized by the call to GetDropEffect above.
         bool canDropAtNewLocation = false;
         mView->CanDrop(mSlots->mDropRow, mSlots->mDropOrient,
-                       aEvent->AsDragEvent()->dataTransfer,
+                       aEvent->AsDragEvent()->mDataTransfer,
                        &canDropAtNewLocation);
 
         if (canDropAtNewLocation) {
@@ -2727,7 +2729,8 @@ nsTreeBodyFrame::HandleEvent(nsPresContext* aPresContext,
     WidgetDragEvent* dragEvent = aEvent->AsDragEvent();
     nsContentUtils::SetDataTransferInEvent(dragEvent);
 
-    mView->Drop(mSlots->mDropRow, mSlots->mDropOrient, dragEvent->dataTransfer);
+    mView->Drop(mSlots->mDropRow, mSlots->mDropOrient,
+                dragEvent->mDataTransfer);
     mSlots->mDropRow = -1;
     mSlots->mDropOrient = -1;
     mSlots->mIsDragging = false;
@@ -3515,7 +3518,7 @@ nsTreeBodyFrame::PaintImage(int32_t              aRowIndex,
   nsStyleContext* imageContext = GetPseudoStyleContext(nsCSSAnonBoxes::moztreeimage);
 
   // Obtain opacity value for the image.
-  float opacity = imageContext->StyleDisplay()->mOpacity;
+  float opacity = imageContext->StyleEffects()->mOpacity;
 
   // Obtain the margins for the image and then deflate our rect by that
   // amount.  The image is assumed to be contained within the deflated rect.
@@ -3691,7 +3694,7 @@ nsTreeBodyFrame::PaintText(int32_t              aRowIndex,
   nsStyleContext* textContext = GetPseudoStyleContext(nsCSSAnonBoxes::moztreecelltext);
 
   // Obtain opacity value for the image.
-  float opacity = textContext->StyleDisplay()->mOpacity;
+  float opacity = textContext->StyleEffects()->mOpacity;
 
   // Obtain the margins for the text and then deflate our rect by that 
   // amount.  The text is assumed to be contained within the deflated rect.
@@ -4337,7 +4340,7 @@ nsTreeBodyFrame::RepeatButtonScroll(nsScrollbarFrame* aScrollbar)
   } else if (increment > 0) {
     direction = 1;
   }
-  bool isHorizontal = aScrollbar->IsHorizontal();
+  bool isHorizontal = aScrollbar->IsXULHorizontal();
 
   nsWeakFrame weakFrame(this);
   if (isHorizontal) {

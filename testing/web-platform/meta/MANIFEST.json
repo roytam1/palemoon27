@@ -18892,6 +18892,10 @@
         "url": "/web-animations/keyframe-effect/keyframe-handling.html"
       },
       {
+        "path": "web-animations/keyframe-effect/setFrames.html",
+        "url": "/web-animations/keyframe-effect/setFrames.html"
+      },
+      {
         "path": "webaudio/the-audio-api/the-audiobuffer-interface/idl-test.html",
         "url": "/webaudio/the-audio-api/the-audiobuffer-interface/idl-test.html"
       },
@@ -21529,6 +21533,10 @@
         "path": "webdriver/timeouts/page_load_timeouts_tests.py"
       },
       {
+        "path": "web-animations/animation-effect-timing/direction.html",
+        "url": "/web-animations/animation-effect-timing/direction.html"
+      },
+      {
         "path": "webdriver/user_input/clear_test.py"
       }
     ]
@@ -22211,6 +22219,18 @@
           {
             "path": "service-workers/service-worker/xhr.https.html",
             "url": "/service-workers/service-worker/xhr.https.html"
+          }
+        ],
+        "compat/webkit-text-fill-color-property-001d.html": [
+          {
+            "path": "compat/webkit-text-fill-color-property-001d.html",
+            "references": [
+              [
+                "/compat/webkit-text-fill-color-property-001-ref.html",
+                "=="
+              ]
+            ],
+            "url": "/compat/webkit-text-fill-color-property-001d.html"
           }
         ]
       }

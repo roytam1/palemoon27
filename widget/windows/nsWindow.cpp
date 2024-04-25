@@ -1698,7 +1698,7 @@ nsWindow::BeginResizeDrag(WidgetGUIEvent* aEvent,
 
   // tell Windows to start the resize
   ::PostMessage(toplevelWnd, WM_SYSCOMMAND, syscommand,
-                POINTTOPOINTS(aEvent->refPoint));
+                POINTTOPOINTS(aEvent->mRefPoint));
 
   return NS_OK;
 }
@@ -2918,7 +2918,7 @@ NS_METHOD nsWindow::Invalidate(bool aEraseBackground,
   debug_DumpInvalidate(stdout,
                        this,
                        nullptr,
-                       nsAutoCString("noname"),
+                       "noname",
                        (int32_t) mWnd);
 #endif // WIDGET_DEBUG_OUTPUT
 
@@ -2945,7 +2945,7 @@ NS_METHOD nsWindow::Invalidate(const LayoutDeviceIntRect& aRect)
     debug_DumpInvalidate(stdout,
                          this,
                          &aRect,
-                         nsAutoCString("noname"),
+                         "noname",
                          (int32_t) mWnd);
 #endif // WIDGET_DEBUG_OUTPUT
 
@@ -3649,15 +3649,13 @@ void nsWindow::InitEvent(WidgetGUIEvent& event, LayoutDeviceIntPoint* aPoint)
       cpos.y = GET_Y_LPARAM(pos);
 
       ::ScreenToClient(mWnd, &cpos);
-      event.refPoint.x = cpos.x;
-      event.refPoint.y = cpos.y;
+      event.mRefPoint = LayoutDeviceIntPoint(cpos.x, cpos.y);
     } else {
-      event.refPoint.x = 0;
-      event.refPoint.y = 0;
+      event.mRefPoint = LayoutDeviceIntPoint(0, 0);
     }
   } else {
     // use the point override if provided
-    event.refPoint = *aPoint;
+    event.mRefPoint = *aPoint;
   }
 
   event.AssignEventTime(CurrentMessageWidgetEventTime());
@@ -3685,9 +3683,9 @@ NS_IMETHODIMP nsWindow::DispatchEvent(WidgetGUIEvent* event,
 {
 #ifdef WIDGET_DEBUG_OUTPUT
   debug_DumpEvent(stdout,
-                  event->widget,
+                  event->mWidget,
                   event,
-                  nsAutoCString("something"),
+                  "something",
                   (int32_t) mWnd);
 #endif // WIDGET_DEBUG_OUTPUT
 
@@ -4049,7 +4047,7 @@ nsWindow::DispatchMouseEvent(EventMessage aEventMessage, WPARAM wParam,
       rect.x = 0;
       rect.y = 0;
 
-      if (rect.Contains(event.refPoint)) {
+      if (rect.Contains(event.mRefPoint)) {
         if (sCurrentWindow == nullptr || sCurrentWindow != this) {
           if ((nullptr != sCurrentWindow) && (!sCurrentWindow->mInDtor)) {
             LPARAM pos = sCurrentWindow->lParamToClient(lParamToScreen(lParam));
@@ -5048,7 +5046,7 @@ nsWindow::ProcessMessage(UINT msg, WPARAM& wParam, LPARAM& lParam,
         WidgetMouseEvent event(true, eMouseHitTest, this,
                                WidgetMouseEvent::eReal,
                                WidgetMouseEvent::eNormal);
-        event.refPoint = LayoutDeviceIntPoint(GET_X_LPARAM(pos), GET_Y_LPARAM(pos));
+        event.mRefPoint = LayoutDeviceIntPoint(GET_X_LPARAM(pos), GET_Y_LPARAM(pos));
         event.inputSource = MOUSE_INPUT_SOURCE();
         event.mFlags.mOnlyChromeDispatch = true;
         if (DispatchWindowEvent(&event)) {
@@ -5457,7 +5455,8 @@ nsWindow::ProcessMessage(UINT msg, WPARAM& wParam, LPARAM& lParam,
         touchPoint = gestureinfo->ptsLocation;
         touchPoint.ScreenToClient(mWnd);
         WidgetGestureNotifyEvent gestureNotifyEvent(true, eGestureNotify, this);
-        gestureNotifyEvent.refPoint = LayoutDeviceIntPoint::FromUnknownPoint(touchPoint);
+        gestureNotifyEvent.mRefPoint =
+          LayoutDeviceIntPoint::FromUnknownPoint(touchPoint);
         nsEventStatus status;
         DispatchEvent(&gestureNotifyEvent, status);
         mDisplayPanFeedback = gestureNotifyEvent.displayPanFeedback;
@@ -5737,7 +5736,7 @@ nsWindow::ClientMarginHitTestPoint(int32_t mx, int32_t my)
       WidgetMouseEvent event(true, eMouseHitTest, this,
                              WidgetMouseEvent::eReal,
                              WidgetMouseEvent::eNormal);
-      event.refPoint = LayoutDeviceIntPoint(pt.x, pt.y);
+      event.mRefPoint = LayoutDeviceIntPoint(pt.x, pt.y);
       event.inputSource = MOUSE_INPUT_SOURCE();
       event.mFlags.mOnlyChromeDispatch = true;
       bool result = ConvertStatus(DispatchInputEvent(&event));
@@ -6315,8 +6314,8 @@ bool nsWindow::OnGesture(WPARAM wParam, LPARAM lParam)
     modifierKeyState.InitInputEvent(wheelEvent);
 
     wheelEvent.button      = 0;
-    wheelEvent.time        = ::GetMessageTime();
-    wheelEvent.timeStamp   = GetMessageTimeStamp(wheelEvent.time);
+    wheelEvent.mTime       = ::GetMessageTime();
+    wheelEvent.mTimeStamp  = GetMessageTimeStamp(wheelEvent.mTime);
     wheelEvent.inputSource = nsIDOMMouseEvent::MOZ_SOURCE_TOUCH;
 
     bool endFeedback = true;
@@ -6328,12 +6327,14 @@ bool nsWindow::OnGesture(WPARAM wParam, LPARAM lParam)
     }
 
     if (mDisplayPanFeedback) {
-      mGesture.UpdatePanFeedbackX(mWnd,
-                                  DeprecatedAbs(RoundDown(wheelEvent.overflowDeltaX)),
-                                  endFeedback);
-      mGesture.UpdatePanFeedbackY(mWnd,
-                                  DeprecatedAbs(RoundDown(wheelEvent.overflowDeltaY)),
-                                  endFeedback);
+      mGesture.UpdatePanFeedbackX(
+                 mWnd,
+                 DeprecatedAbs(RoundDown(wheelEvent.mOverflowDeltaX)),
+                 endFeedback);
+      mGesture.UpdatePanFeedbackY(
+                 mWnd,
+                 DeprecatedAbs(RoundDown(wheelEvent.mOverflowDeltaY)),
+                 endFeedback);
       mGesture.PanFeedbackFinalize(mWnd, endFeedback);
     }
 
@@ -6352,8 +6353,8 @@ bool nsWindow::OnGesture(WPARAM wParam, LPARAM lParam)
   ModifierKeyState modifierKeyState;
   modifierKeyState.InitInputEvent(event);
   event.button    = 0;
-  event.time      = ::GetMessageTime();
-  event.timeStamp = GetMessageTimeStamp(event.time);
+  event.mTime     = ::GetMessageTime();
+  event.mTimeStamp = GetMessageTimeStamp(event.mTime);
   event.inputSource = nsIDOMMouseEvent::MOZ_SOURCE_TOUCH;
 
   nsEventStatus status;

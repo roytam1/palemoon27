@@ -188,7 +188,7 @@ NS_IMPL_CYCLE_COLLECTION_UNLINK_END
 
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN(nsEditor)
  nsIDocument* currentDoc =
-   tmp->mRootElement ? tmp->mRootElement->GetCurrentDoc() : nullptr;
+   tmp->mRootElement ? tmp->mRootElement->GetUncomposedDoc() : nullptr;
  if (currentDoc &&
      nsCCUncollectableMarker::InGeneration(cb, currentDoc->GetMarkedCCGeneration())) {
    return NS_SUCCESS_INTERRUPTED_TRAVERSE;
@@ -427,7 +427,7 @@ nsEditor::GetDesiredSpellCheckState()
     // Some of the page content might be editable and some not, if spellcheck=
     // is explicitly set anywhere, so if there's anything editable on the page,
     // return true and let the spellchecker figure it out.
-    nsCOMPtr<nsIHTMLDocument> doc = do_QueryInterface(content->GetCurrentDoc());
+    nsCOMPtr<nsIHTMLDocument> doc = do_QueryInterface(content->GetUncomposedDoc());
     return doc && doc->IsEditingOn();
   }
 
@@ -1205,7 +1205,7 @@ nsEditor::SetAttribute(nsIDOMElement* aElement, const nsAString& aAttribute,
 {
   nsCOMPtr<Element> element = do_QueryInterface(aElement);
   NS_ENSURE_TRUE(element, NS_ERROR_NULL_POINTER);
-  nsCOMPtr<nsIAtom> attribute = do_GetAtom(aAttribute);
+  nsCOMPtr<nsIAtom> attribute = NS_Atomize(aAttribute);
 
   RefPtr<ChangeAttributeTxn> txn =
     CreateTxnForSetAttribute(*element, *attribute, aValue);
@@ -1238,7 +1238,7 @@ nsEditor::RemoveAttribute(nsIDOMElement* aElement, const nsAString& aAttribute)
 {
   nsCOMPtr<Element> element = do_QueryInterface(aElement);
   NS_ENSURE_TRUE(element, NS_ERROR_NULL_POINTER);
-  nsCOMPtr<nsIAtom> attribute = do_GetAtom(aAttribute);
+  nsCOMPtr<nsIAtom> attribute = NS_Atomize(aAttribute);
 
   RefPtr<ChangeAttributeTxn> txn =
     CreateTxnForRemoveAttribute(*element, *attribute);
@@ -1339,7 +1339,7 @@ nsEditor::CreateNode(const nsAString& aTag,
                      int32_t aPosition,
                      nsIDOMNode** aNewNode)
 {
-  nsCOMPtr<nsIAtom> tag = do_GetAtom(aTag);
+  nsCOMPtr<nsIAtom> tag = NS_Atomize(aTag);
   nsCOMPtr<nsINode> parent = do_QueryInterface(aParent);
   NS_ENSURE_STATE(parent);
   *aNewNode = GetAsDOMNode(CreateNode(tag, parent, aPosition).take());
@@ -1792,7 +1792,7 @@ public:
     // Even if the change is caused by untrusted event, we need to dispatch
     // trusted input event since it's a fact.
     InternalEditorInputEvent inputEvent(true, eEditorInput, widget);
-    inputEvent.time = static_cast<uint64_t>(PR_Now() / 1000);
+    inputEvent.mTime = static_cast<uint64_t>(PR_Now() / 1000);
     inputEvent.mIsComposing = mIsComposing;
     nsEventStatus status = nsEventStatus_eIgnore;
     nsresult rv =
@@ -5101,7 +5101,7 @@ nsEditor::IsAcceptableInputEvent(nsIDOMEvent* aEvent)
       break;
   }
   if (needsWidget &&
-      (!widgetGUIEvent || !widgetGUIEvent->widget)) {
+      (!widgetGUIEvent || !widgetGUIEvent->mWidget)) {
     return false;
   }
 

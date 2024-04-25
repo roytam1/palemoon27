@@ -702,7 +702,7 @@ TextAttrsMgr::TextDecorValue::
   bool isForegroundColor = false;
   textReset->GetDecorationColor(mColor, isForegroundColor);
   if (isForegroundColor)
-    mColor = aFrame->StyleColor()->mColor;
+    mColor = aFrame->StyleContext()->GetTextFillColor();
 
   mLine = textReset->mTextDecorationLine &
     (NS_STYLE_TEXT_DECORATION_LINE_UNDERLINE |
@@ -828,7 +828,7 @@ TextAttrsMgr::TextPosValue
 TextAttrsMgr::TextPosTextAttr::
   GetTextPosValue(nsIFrame* aFrame) const
 {
-  const nsStyleCoord& styleCoord = aFrame->StyleTextReset()->mVerticalAlign;
+  const nsStyleCoord& styleCoord = aFrame->StyleDisplay()->mVerticalAlign;
   switch (styleCoord.GetUnit()) {
     case eStyleUnit_Enumerated:
       switch (styleCoord.GetIntValue()) {

@@ -275,7 +275,7 @@ Accessible::AccessKey() const
   }
 
   // Determine the access modifier used in this context.
-  nsIDocument* document = mContent->GetCurrentDoc();
+  nsIDocument* document = mContent->GetUncomposedDoc();
   if (!document)
     return KeyBinding();
 
@@ -432,9 +432,9 @@ Accessible::NativeState()
 
     // XXX we should look at layout for non XUL box frames, but need to decide
     // how that interacts with ARIA.
-    if (HasOwnContent() && mContent->IsXULElement() && frame->IsBoxFrame()) {
+    if (HasOwnContent() && mContent->IsXULElement() && frame->IsXULBoxFrame()) {
       const nsStyleXUL* xulStyle = frame->StyleXUL();
-      if (xulStyle && frame->IsBoxFrame()) {
+      if (xulStyle && frame->IsXULBoxFrame()) {
         // In XUL all boxes are either vertical or horizontal
         if (xulStyle->mBoxOrient == NS_STYLE_BOX_ORIENT_VERTICAL)
           state |= states::VERTICAL;
@@ -537,7 +537,7 @@ Accessible::ChildAtPoint(int32_t aX, int32_t aY,
 
   WidgetMouseEvent dummyEvent(true, eMouseMove, rootWidget,
                               WidgetMouseEvent::eSynthesized);
-  dummyEvent.refPoint = LayoutDeviceIntPoint(aX - rootRect.x, aY - rootRect.y);
+  dummyEvent.mRefPoint = LayoutDeviceIntPoint(aX - rootRect.x, aY - rootRect.y);
 
   nsIFrame* popupFrame = nsLayoutUtils::
     GetPopupFrameForEventCoordinates(accDocument->PresContext()->GetRootPresContext(),
@@ -1202,8 +1202,7 @@ Accessible::State()
   if (!frame)
     return state;
 
-  const nsStyleDisplay* display = frame->StyleDisplay();
-  if (display && display->mOpacity == 1.0f &&
+  if (frame->StyleEffects()->mOpacity == 1.0f &&
       !(state & states::INVISIBLE)) {
     state |= states::OPAQUE1;
   }
@@ -1615,7 +1614,7 @@ Accessible::RelationByType(RelationType aType)
       // above it).
       nsIFrame *frame = GetFrame();
       if (frame) {
-        nsView *view = frame->GetViewExternal();
+        nsView *view = frame->GetView();
         if (view) {
           nsIScrollableFrame *scrollFrame = do_QueryFrame(frame);
           if (scrollFrame || view->GetWidget() || !frame->GetParent())

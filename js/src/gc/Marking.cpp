@@ -2154,6 +2154,7 @@ JSObject*
 js::TenuringTracer::moveToTenured(JSObject* src)
 {
     MOZ_ASSERT(IsInsideNursery(src));
+    MOZ_ASSERT(!src->zone()->usedByExclusiveThread);
 
     AllocKind dstKind = src->allocKindForTenure(nursery());
     Zone* zone = src->zone();
@@ -2286,20 +2287,18 @@ js::TenuringTracer::moveObjectToTenured(JSObject* dst, JSObject* src, AllocKind 
         }
     }
 
-    if (src->getClass()->flags & JSCLASS_SKIP_NURSERY_FINALIZE) {
-        if (src->is<InlineTypedObject>()) {
-            InlineTypedObject::objectMovedDuringMinorGC(this, dst, src);
-        } else if (src->is<UnboxedArrayObject>()) {
-            tenuredSize += UnboxedArrayObject::objectMovedDuringMinorGC(this, dst, src, dstKind);
-        } else if (src->is<ArgumentsObject>()) {
-            tenuredSize += ArgumentsObject::objectMovedDuringMinorGC(this, dst, src);
-        } else if (JSObjectMovedOp op = dst->getClass()->extObjectMovedOp()) {
-            op(dst, src);
-        } else {
-            // Objects with JSCLASS_SKIP_NURSERY_FINALIZE need to be handled above
-            // to ensure any additional nursery buffers they hold are moved.
-            MOZ_CRASH("Unhandled JSCLASS_SKIP_NURSERY_FINALIZE Class");
-        }
+    if (src->is<InlineTypedObject>()) {
+        InlineTypedObject::objectMovedDuringMinorGC(this, dst, src);
+    } else if (src->is<UnboxedArrayObject>()) {
+        tenuredSize += UnboxedArrayObject::objectMovedDuringMinorGC(this, dst, src, dstKind);
+    } else if (src->is<ArgumentsObject>()) {
+        tenuredSize += ArgumentsObject::objectMovedDuringMinorGC(this, dst, src);
+    } else if (JSObjectMovedOp op = dst->getClass()->extObjectMovedOp()) {
+        op(dst, src);
+    } else if (src->getClass()->flags & JSCLASS_SKIP_NURSERY_FINALIZE) {
+        // Objects with JSCLASS_SKIP_NURSERY_FINALIZE need to be handled above
+        // to ensure any additional nursery buffers they hold are moved.
+        MOZ_CRASH("Unhandled JSCLASS_SKIP_NURSERY_FINALIZE Class");
     }
 
     return tenuredSize;

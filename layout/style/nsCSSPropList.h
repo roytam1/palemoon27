@@ -143,7 +143,6 @@
 #define CSS_PROP_DISPLAY(name_, id_, method_, flags_, pref_, parsevariant_, kwtable_, stylestructoffset_, animtype_) CSS_PROP(name_, id_, method_, flags_, pref_, parsevariant_, kwtable_, Display, stylestructoffset_, animtype_)
 #define CSS_PROP_VISIBILITY(name_, id_, method_, flags_, pref_, parsevariant_, kwtable_, stylestructoffset_, animtype_) CSS_PROP(name_, id_, method_, flags_, pref_, parsevariant_, kwtable_, Visibility, stylestructoffset_, animtype_)
 #define CSS_PROP_CONTENT(name_, id_, method_, flags_, pref_, parsevariant_, kwtable_, stylestructoffset_, animtype_) CSS_PROP(name_, id_, method_, flags_, pref_, parsevariant_, kwtable_, Content, stylestructoffset_, animtype_)
-#define CSS_PROP_QUOTES(name_, id_, method_, flags_, pref_, parsevariant_, kwtable_, stylestructoffset_, animtype_) CSS_PROP(name_, id_, method_, flags_, pref_, parsevariant_, kwtable_, Quotes, stylestructoffset_, animtype_)
 #define CSS_PROP_USERINTERFACE(name_, id_, method_, flags_, pref_, parsevariant_, kwtable_, stylestructoffset_, animtype_) CSS_PROP(name_, id_, method_, flags_, pref_, parsevariant_, kwtable_, UserInterface, stylestructoffset_, animtype_)
 #define CSS_PROP_UIRESET(name_, id_, method_, flags_, pref_, parsevariant_, kwtable_, stylestructoffset_, animtype_) CSS_PROP(name_, id_, method_, flags_, pref_, parsevariant_, kwtable_, UIReset, stylestructoffset_, animtype_)
 #define CSS_PROP_TABLE(name_, id_, method_, flags_, pref_, parsevariant_, kwtable_, stylestructoffset_, animtype_) CSS_PROP(name_, id_, method_, flags_, pref_, parsevariant_, kwtable_, Table, stylestructoffset_, animtype_)
@@ -157,6 +156,7 @@
 #define CSS_PROP_SVG(name_, id_, method_, flags_, pref_, parsevariant_, kwtable_, stylestructoffset_, animtype_) CSS_PROP(name_, id_, method_, flags_, pref_, parsevariant_, kwtable_, SVG, stylestructoffset_, animtype_)
 #define CSS_PROP_SVGRESET(name_, id_, method_, flags_, pref_, parsevariant_, kwtable_, stylestructoffset_, animtype_) CSS_PROP(name_, id_, method_, flags_, pref_, parsevariant_, kwtable_, SVGReset, stylestructoffset_, animtype_)
 #define CSS_PROP_VARIABLES(name_, id_, method_, flags_, pref_, parsevariant_, kwtable_, stylestructoffset_, animtype_) CSS_PROP(name_, id_, method_, flags_, pref_, parsevariant_, kwtable_, Variables, stylestructoffset_, animtype_)
+#define CSS_PROP_EFFECTS(name_, id_, method_, flags_, pref_, parsevariant_, kwtable_, stylestructoffset_, animtype_) CSS_PROP(name_, id_, method_, flags_, pref_, parsevariant_, kwtable_, Effects, stylestructoffset_, animtype_)
 
 // And similarly for logical properties.  An includer can define
 // CSS_PROP_LOGICAL to capture all logical properties, but otherwise they
@@ -228,10 +228,6 @@
 #define CSS_PROP_CONTENT(name_, id_, method_, flags_, pref_, parsevariant_, kwtable_, stylestructoffset_, animtype_) /* nothing */
 #define DEFINED_CSS_PROP_CONTENT
 #endif
-#ifndef CSS_PROP_QUOTES
-#define CSS_PROP_QUOTES(name_, id_, method_, flags_, pref_, parsevariant_, kwtable_, stylestructoffset_, animtype_) /* nothing */
-#define DEFINED_CSS_PROP_QUOTES
-#endif
 #ifndef CSS_PROP_USERINTERFACE
 #define CSS_PROP_USERINTERFACE(name_, id_, method_, flags_, pref_, parsevariant_, kwtable_, stylestructoffset_, animtype_) /* nothing */
 #define DEFINED_CSS_PROP_USERINTERFACE
@@ -283,6 +279,10 @@
 #ifndef CSS_PROP_VARIABLES
 #define CSS_PROP_VARIABLES(name_, id_, method_, flags_, pref_, parsevariant_, kwtable_, stylestructoffset_, animtype_) /* nothing */
 #define DEFINED_CSS_PROP_VARIABLES
+#endif
+#ifndef CSS_PROP_EFFECTS
+#define CSS_PROP_EFFECTS(name_, id_, method_, flags_, pref_, parsevariant_, kwtable_, stylestructoffset_, animtype_) /* nothing */
+#define DEFINED_CSS_PROP_EFFECTS
 #endif
 
 #ifndef CSS_PROP_LOGICAL
@@ -550,7 +550,7 @@ CSS_PROP_BACKGROUND(
         CSS_PROPERTY_VALUE_LIST_USES_COMMAS,
     "",
     VARIANT_KEYWORD, // used by list parsing
-    kImageLayerOriginKTable,
+    kBackgroundClipKTable,
     CSS_PROP_NO_OFFSET,
     eStyleAnimType_None)
 CSS_PROP_BACKGROUND(
@@ -1319,7 +1319,7 @@ CSS_PROP_BORDER(
     kBoxDecorationBreakKTable,
     CSS_PROP_NO_OFFSET,
     eStyleAnimType_None)
-CSS_PROP_BORDER(
+CSS_PROP_EFFECTS(
     box-shadow,
     box_shadow,
     BoxShadow,
@@ -1331,7 +1331,7 @@ CSS_PROP_BORDER(
     "",
     0,
     kBoxShadowTypeKTable,
-    offsetof(nsStyleBorder, mBoxShadow),
+    offsetof(nsStyleEffects, mBoxShadow),
     eStyleAnimType_Shadow)
 CSS_PROP_POSITION(
     box-sizing,
@@ -1363,7 +1363,7 @@ CSS_PROP_DISPLAY(
     kClearKTable,
     CSS_PROP_NO_OFFSET,
     eStyleAnimType_None)
-CSS_PROP_DISPLAY(
+CSS_PROP_EFFECTS(
     clip,
     clip,
     Clip,
@@ -1372,7 +1372,7 @@ CSS_PROP_DISPLAY(
     "",
     0,
     nullptr,
-    offsetof(nsStyleDisplay, mClip),
+    offsetof(nsStyleEffects, mClip),
     eStyleAnimType_Custom)
 CSS_PROP_COLOR(
     color,
@@ -1388,6 +1388,16 @@ CSS_PROP_COLOR(
     nullptr,
     offsetof(nsStyleColor, mColor),
     eStyleAnimType_Color)
+CSS_PROP_VISIBILITY(
+    color-adjust,
+    color_adjust,
+    ColorAdjust,
+    CSS_PROPERTY_PARSE_VALUE,
+    "layout.css.color-adjust.enabled",
+    VARIANT_HK,
+    kColorAdjustKTable,
+    CSS_PROP_NO_OFFSET,
+    eStyleAnimType_None)
 CSS_PROP_SHORTHAND(
     columns,
     columns,
@@ -2600,7 +2610,7 @@ CSS_PROP_POSITION(
     kWidthKTable,
     offsetof(nsStylePosition, mMinWidth),
     eStyleAnimType_Coord)
-CSS_PROP_DISPLAY(
+CSS_PROP_EFFECTS(
     mix-blend-mode,
     mix_blend_mode,
     MixBlendMode,
@@ -2713,7 +2723,7 @@ CSS_PROP_LOGICAL(
     Position,
     CSS_PROP_NO_OFFSET,
     eStyleAnimType_None)
-CSS_PROP_DISPLAY(
+CSS_PROP_EFFECTS(
     opacity,
     opacity,
     Opacity,
@@ -2724,7 +2734,7 @@ CSS_PROP_DISPLAY(
     "",
     VARIANT_HN,
     nullptr,
-    offsetof(nsStyleDisplay, mOpacity),
+    offsetof(nsStyleEffects, mOpacity),
     eStyleAnimType_float)
 CSS_PROP_DISPLAY(
     -moz-orient,
@@ -3023,7 +3033,7 @@ CSS_PROP_SVG(
     nullptr,
     CSS_PROP_NO_OFFSET,
     eStyleAnimType_None)
-CSS_PROP_VISIBILITY(
+CSS_PROP_USERINTERFACE(
     pointer-events,
     pointer_events,
     PointerEvents,
@@ -3032,7 +3042,7 @@ CSS_PROP_VISIBILITY(
     "",
     VARIANT_HK,
     kPointerEventsKTable,
-    offsetof(nsStyleVisibility, mPointerEvents),
+    offsetof(nsStyleUserInterface, mPointerEvents),
     eStyleAnimType_EnumU8)
 CSS_PROP_DISPLAY(
     position,
@@ -3047,7 +3057,7 @@ CSS_PROP_DISPLAY(
     kPositionKTable,
     CSS_PROP_NO_OFFSET,
     eStyleAnimType_None)
-CSS_PROP_QUOTES(
+CSS_PROP_LIST(
     quotes,
     quotes,
     Quotes,
@@ -3321,6 +3331,19 @@ CSS_PROP_TEXT(
     CSS_PROP_NO_OFFSET,
     eStyleAnimType_None)
 CSS_PROP_TEXT(
+    -webkit-text-fill-color,
+    _webkit_text_fill_color,
+    WebkitTextFillColor,
+    CSS_PROPERTY_PARSE_VALUE |
+        CSS_PROPERTY_APPLIES_TO_FIRST_LETTER_AND_FIRST_LINE |
+        CSS_PROPERTY_APPLIES_TO_PLACEHOLDER |
+        CSS_PROPERTY_IGNORED_WHEN_COLORS_DISABLED,
+    "layout.css.prefixes.webkit",
+    VARIANT_HC,
+    nullptr,
+    offsetof(nsStyleText, mWebkitTextFillColor),
+    eStyleAnimType_Custom)
+CSS_PROP_TEXT(
     text-indent,
     text_indent,
     TextIndent,
@@ -3379,6 +3402,38 @@ CSS_PROP_TEXT(
     "",
     VARIANT_AUTO | VARIANT_NONE | VARIANT_INHERIT,
     nullptr,
+    CSS_PROP_NO_OFFSET,
+    eStyleAnimType_None)
+CSS_PROP_SHORTHAND(
+    -webkit-text-stroke,
+    _webkit_text_stroke,
+    WebkitTextStroke,
+    CSS_PROPERTY_PARSE_FUNCTION,
+    "layout.css.prefixes.webkit")
+CSS_PROP_TEXT(
+    -webkit-text-stroke-color,
+    _webkit_text_stroke_color,
+    WebkitTextStrokeColor,
+    CSS_PROPERTY_PARSE_VALUE |
+        CSS_PROPERTY_APPLIES_TO_FIRST_LETTER_AND_FIRST_LINE |
+        CSS_PROPERTY_APPLIES_TO_PLACEHOLDER |
+        CSS_PROPERTY_IGNORED_WHEN_COLORS_DISABLED,
+    "layout.css.prefixes.webkit",
+    VARIANT_HC,
+    nullptr,
+    offsetof(nsStyleText, mWebkitTextStrokeColor),
+    eStyleAnimType_Custom)
+CSS_PROP_TEXT(
+    -webkit-text-stroke-width,
+    _webkit_text_stroke_width,
+    WebkitTextStrokeWidth,
+    CSS_PROPERTY_PARSE_VALUE |
+        CSS_PROPERTY_VALUE_NONNEGATIVE |
+        CSS_PROPERTY_APPLIES_TO_FIRST_LETTER_AND_FIRST_LINE |
+        CSS_PROPERTY_APPLIES_TO_PLACEHOLDER,
+    "layout.css.prefixes.webkit",
+    VARIANT_HKL | VARIANT_CALC,
+    kBorderWidthKTable,
     CSS_PROP_NO_OFFSET,
     eStyleAnimType_None)
 CSS_PROP_TEXT(
@@ -3618,7 +3673,7 @@ CSS_PROP_UIRESET(
 // NOTE: vertical-align is only supposed to apply to :first-letter when
 // 'float' is 'none', but we don't worry about that since it has no
 // effect otherwise
-CSS_PROP_TEXTRESET(
+CSS_PROP_DISPLAY(
     vertical-align,
     vertical_align,
     VerticalAlign,
@@ -3631,7 +3686,7 @@ CSS_PROP_TEXTRESET(
     "",
     VARIANT_HKLP | VARIANT_CALC,
     kVerticalAlignKTable,
-    offsetof(nsStyleTextReset, mVerticalAlign),
+    offsetof(nsStyleDisplay, mVerticalAlign),
     eStyleAnimType_Coord)
 CSS_PROP_VISIBILITY(
     visibility,
@@ -3910,7 +3965,7 @@ CSS_PROP_SVGRESET(
     0,
     nullptr,
     CSS_PROP_NO_OFFSET,
-    eStyleAnimType_None)
+    eStyleAnimType_Custom)
 CSS_PROP_SVG(
     clip-rule,
     clip_rule,
@@ -3981,7 +4036,7 @@ CSS_PROP_SVG(
     kFillRuleKTable,
     offsetof(nsStyleSVG, mFillRule),
     eStyleAnimType_EnumU8)
-CSS_PROP_SVGRESET(
+CSS_PROP_EFFECTS(
     filter,
     filter,
     Filter,
@@ -4013,7 +4068,7 @@ CSS_PROP_SVGRESET(
     nullptr,
     offsetof(nsStyleSVGReset, mFloodOpacity),
     eStyleAnimType_float)
-CSS_PROP_SVG(
+CSS_PROP_VISIBILITY(
     image-rendering,
     image_rendering,
     ImageRendering,
@@ -4021,7 +4076,7 @@ CSS_PROP_SVG(
     "",
     VARIANT_HK,
     kImageRenderingKTable,
-    offsetof(nsStyleSVG, mImageRendering),
+    offsetof(nsStyleVisibility, mImageRendering),
     eStyleAnimType_EnumU8)
 CSS_PROP_SVGRESET(
     lighting-color,
@@ -4319,7 +4374,7 @@ CSS_PROP_SVG(
     kTextAnchorKTable,
     offsetof(nsStyleSVG, mTextAnchor),
     eStyleAnimType_EnumU8)
-CSS_PROP_SVG(
+CSS_PROP_TEXT(
     text-rendering,
     text_rendering,
     TextRendering,
@@ -4327,7 +4382,7 @@ CSS_PROP_SVG(
     "",
     VARIANT_HK,
     kTextRenderingKTable,
-    offsetof(nsStyleSVG, mTextRendering),
+    offsetof(nsStyleText, mTextRendering),
     eStyleAnimType_EnumU8)
 CSS_PROP_SVGRESET(
     vector-effect,
@@ -4424,7 +4479,6 @@ CSS_PROP_FONT(
 #undef CSS_PROP_DISPLAY
 #undef CSS_PROP_VISIBILITY
 #undef CSS_PROP_CONTENT
-#undef CSS_PROP_QUOTES
 #undef CSS_PROP_USERINTERFACE
 #undef CSS_PROP_UIRESET
 #undef CSS_PROP_TABLE
@@ -4438,6 +4492,7 @@ CSS_PROP_FONT(
 #undef CSS_PROP_SVG
 #undef CSS_PROP_SVGRESET
 #undef CSS_PROP_VARIABLES
+#undef CSS_PROP_EFFECTS
 
 #else /* !defined(USED_CSS_PROP) */
 
@@ -4480,10 +4535,6 @@ CSS_PROP_FONT(
 #ifdef DEFINED_CSS_PROP_CONTENT
 #undef CSS_PROP_CONTENT
 #undef DEFINED_CSS_PROP_CONTENT
-#endif
-#ifdef DEFINED_CSS_PROP_QUOTES
-#undef CSS_PROP_QUOTES
-#undef DEFINED_CSS_PROP_QUOTES
 #endif
 #ifdef DEFINED_CSS_PROP_USERINTERFACE
 #undef CSS_PROP_USERINTERFACE
@@ -4536,6 +4587,10 @@ CSS_PROP_FONT(
 #ifdef DEFINED_CSS_PROP_VARIABLES
 #undef CSS_PROP_VARIABLES
 #undef DEFINED_CSS_PROP_VARIABLES
+#endif
+#ifdef DEFINED_CSS_PROP_EFFECTS
+#undef CSS_PROP_EFFECTS
+#undef DEFINED_CSS_PROP_EFFECTS
 #endif
 
 #endif /* !defined(USED_CSS_PROP) */

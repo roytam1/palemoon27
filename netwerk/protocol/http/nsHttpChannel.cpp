@@ -75,6 +75,7 @@
 #include "nsISocketTransport.h"
 #include "nsIStreamConverterService.h"
 #include "nsISiteSecurityService.h"
+#include "nsString.h"
 #include "nsCRT.h"
 #include "nsPerformance.h"
 #include "CacheObserver.h"
@@ -91,6 +92,7 @@
 #include "nsICompressConvStats.h"
 #include "nsCORSListenerProxy.h"
 #include "nsISocketProvider.h"
+#include "mozilla/net/Predictor.h"
 
 namespace mozilla { namespace net {
 
@@ -1614,6 +1616,25 @@ nsHttpChannel::ProcessResponse()
     LOG(("nsHttpChannel::ProcessResponse [this=%p httpStatus=%u]\n",
         this, httpStatus));
 
+    // Let the predictor know whether this was a cacheable response or not so
+    // that it knows whether or not to possibly prefetch this resource in the
+    // future.
+    // We use GetReferringPage because mReferrer may not be set at all, or may
+    // not be a full URI (HttpBaseChannel::SetReferrer has the gorey details).
+    // If that's null, though, we'll fall back to mReferrer just in case (this
+    // is especially useful in xpcshell tests, where we don't have an actual
+    // pageload to get a referrer from).
+    nsCOMPtr<nsIURI> referrer = GetReferringPage();
+    if (!referrer) {
+        referrer = mReferrer;
+    }
+    if (referrer) {
+        nsCOMPtr<nsILoadContextInfo> lci = GetLoadContextInfo(this);
+        mozilla::net::Predictor::UpdateCacheability(mReferrer, mURI, httpStatus,
+                                                    mRequestHead, mResponseHead,
+                                                    lci);
+    }
+
     if (mTransaction->ProxyConnectFailed()) {
         // Only allow 407 (authentication required) to continue
         if (httpStatus != 407)
@@ -2154,7 +2175,8 @@ nsHttpChannel::OpenRedirectChannel(nsresult rv)
 {
     AutoRedirectVetoNotifier notifier(this);
 
-    // Make sure to do this _after_ calling OnChannelRedirect
+    // Make sure to do this after we received redirect veto answer,
+    // i.e. after all sinks had been notified
     mRedirectChannel->SetOriginalURI(mOriginalURI);
 
     // And now, notify observers the deprecated way
@@ -2234,7 +2256,8 @@ nsHttpChannel::ContinueDoReplaceWithProxy(nsresult rv)
 
     NS_PRECONDITION(mRedirectChannel, "No redirect channel?");
 
-    // Make sure to do this _after_ calling OnChannelRedirect
+    // Make sure to do this after we received redirect veto answer,
+    // i.e. after all sinks had been notified
     mRedirectChannel->SetOriginalURI(mOriginalURI);
 
     // open new channel
@@ -2495,12 +2518,13 @@ nsHttpChannel::IsResumable(int64_t partialLen, int64_t contentLength,
                            bool ignoreMissingPartialLen) const
 {
     bool hasContentEncoding =
-        mCachedResponseHead->PeekHeader(nsHttp::Content_Encoding)
-        != nullptr;
+        (mCachedResponseHead->PeekHeader(nsHttp::Content_Encoding) != nullptr);
+    const char *etag = mCachedResponseHead->PeekHeader(nsHttp::ETag);
+    bool hasWeakEtag = etag && !strncmp(etag, "W/", 2);
 
     return (partialLen < contentLength) &&
            (partialLen > 0 || ignoreMissingPartialLen) &&
-           !hasContentEncoding &&
+           !hasContentEncoding && !hasWeakEtag &&
            mCachedResponseHead->IsResumable() &&
            !mCustomConditionalRequest &&
            !mCachedResponseHead->NoStore();
@@ -2900,7 +2924,8 @@ nsHttpChannel::ContinueProcessFallback(nsresult rv)
 
     NS_PRECONDITION(mRedirectChannel, "No redirect channel?");
 
-    // Make sure to do this _after_ calling OnChannelRedirect
+    // Make sure to do this after we received redirect veto answer,
+    // i.e. after all sinks had been notified
     mRedirectChannel->SetOriginalURI(mOriginalURI);
 
     if (mLoadInfo && mLoadInfo->GetEnforceSecurity()) {
@@ -3036,7 +3061,7 @@ nsHttpChannel::OpenCacheEntry(bool isHttps)
     uint32_t cacheEntryOpenFlags;
     bool offline = gIOService->IsOffline() || appOffline;
     if (offline || (mLoadFlags & INHIBIT_CACHING)) {
-        if (BYPASS_LOCAL_CACHE(mLoadFlags) && !offline) {
+        if (BYPASS_LOCAL_CACHE(mLoadFlags) && !offline && !PossiblyIntercepted()) {
             goto bypassCacheEntryOpen;
         }
         cacheEntryOpenFlags = nsICacheStorage::OPEN_READONLY;
@@ -3358,9 +3383,13 @@ nsHttpChannel::OnCacheEntryCheck(nsICacheEntry* entry, nsIApplicationCache* appC
         canAddImsHeader = false;
         doValidation = true;
     }
-    // Check isForcedValid to see if it is possible to skip validation
+    // Check isForcedValid to see if it is possible to skip validation.
+    // Don't skip validation if we have serious reason to believe that this
+    // content is invalid (it's expired).
     // See netwerk/cache2/nsICacheEntry.idl for details
-    else if (isForcedValid) {
+    else if (isForcedValid &&
+             (!mCachedResponseHead->ExpiresInPast() ||
+              !mCachedResponseHead->MustValidateIfExpired())) {
         LOG(("NOT validating based on isForcedValid being true.\n"));
         doValidation = false;
     }
@@ -3506,12 +3535,14 @@ nsHttpChannel::OnCacheEntryCheck(nsICacheEntry* entry, nsIApplicationCache* appC
         // expect it to be cached.  (we only keep it in our cache for the
         // purposes of back/forward, etc.)
         //
-        // the request method MUST be either GET or HEAD (see bug 175641).
+        // the request method MUST be either GET or HEAD (see bug 175641) and
+        // the cached response code must be < 400
         //
         // do not override conditional headers when consumer has defined its own
         if (!mCachedResponseHead->NoStore() &&
             (mRequestHead.IsGet() || mRequestHead.IsHead()) &&
-             !mCustomConditionalRequest) {
+            !mCustomConditionalRequest &&
+            (mCachedResponseHead->Status() < 400)) {
 
             if (mConcurentCacheAccess) {
                 // In case of concurrent read and also validation request we
@@ -4849,7 +4880,8 @@ nsHttpChannel::ContinueProcessRedirection(nsresult rv)
 
     NS_PRECONDITION(mRedirectChannel, "No redirect channel?");
 
-    // Make sure to do this _after_ calling OnChannelRedirect
+    // Make sure to do this after we received redirect veto answer,
+    // i.e. after all sinks had been notified
     mRedirectChannel->SetOriginalURI(mOriginalURI);
 
     // And now, the deprecated way
@@ -5074,6 +5106,8 @@ nsHttpChannel::AsyncOpen(nsIStreamListener *listener, nsISupports *context)
                "security flags in loadInfo but asyncOpen2() not called");
 
     LOG(("nsHttpChannel::AsyncOpen [this=%p]\n", this));
+
+    NS_CompareLoadInfoAndLoadContext(this);
 
     NS_ENSURE_ARG_POINTER(listener);
     NS_ENSURE_TRUE(!mIsPending, NS_ERROR_IN_PROGRESS);
@@ -6124,7 +6158,10 @@ nsHttpChannel::OnStopRequest(nsIRequest *request, nsISupports *ctxt, nsresult st
 
     if (mListener) {
         LOG(("  calling OnStopRequest\n"));
+        MOZ_ASSERT(!mOnStopRequestCalled,
+                   "We should not call OnStopRequest twice");
         mListener->OnStopRequest(this, mListenerContext, status);
+        mOnStopRequestCalled = true;
     }
 
     CloseCacheEntry(!contentComplete);
@@ -6609,6 +6646,26 @@ nsHttpChannel::SetPin(bool aPin)
     ENSURE_CALLED_BEFORE_CONNECT();
 
     mPinCacheContent = aPin;
+    return NS_OK;
+}
+
+NS_IMETHODIMP
+nsHttpChannel::ForceCacheEntryValidFor(uint32_t aSecondsToTheFuture)
+{
+    if (!mCacheEntry) {
+        LOG(("nsHttpChannel::ForceCacheEntryValidFor found no cache entry "
+             "for this channel [this=%p].", this));
+    } else {
+        mCacheEntry->ForceValidFor(aSecondsToTheFuture);
+
+        nsAutoCString key;
+        mCacheEntry->GetKey(key);
+
+        LOG(("nsHttpChannel::ForceCacheEntryValidFor successfully forced valid "
+             "entry with key %s for %d seconds. [this=%p]", ToNewCString(key),
+             aSecondsToTheFuture, this));
+    }
+
     return NS_OK;
 }
 

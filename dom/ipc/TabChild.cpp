@@ -1862,7 +1862,7 @@ TabChild::RecvRealMouseButtonEvent(const WidgetMouseEvent& aEvent,
   InputAPZContext context(aGuid, aInputBlockId, unused);
 
   WidgetMouseEvent localEvent(aEvent);
-  localEvent.widget = mPuppetWidget;
+  localEvent.mWidget = mPuppetWidget;
   APZCCallbackHelper::ApplyCallbackTransform(localEvent, aGuid,
       mPuppetWidget->GetDefaultScale());
   APZCCallbackHelper::DispatchWidgetEvent(localEvent);
@@ -1885,7 +1885,7 @@ TabChild::RecvMouseWheelEvent(const WidgetWheelEvent& aEvent,
   }
 
   WidgetWheelEvent localEvent(aEvent);
-  localEvent.widget = mPuppetWidget;
+  localEvent.mWidget = mPuppetWidget;
   APZCCallbackHelper::ApplyCallbackTransform(localEvent, aGuid,
       mPuppetWidget->GetDefaultScale());
   APZCCallbackHelper::DispatchWidgetEvent(localEvent);
@@ -1929,7 +1929,7 @@ TabChild::RecvRealTouchEvent(const WidgetTouchEvent& aEvent,
   TABC_LOG("Receiving touch event of type %d\n", aEvent.mMessage);
 
   WidgetTouchEvent localEvent(aEvent);
-  localEvent.widget = mPuppetWidget;
+  localEvent.mWidget = mPuppetWidget;
 
   APZCCallbackHelper::ApplyCallbackTransform(localEvent, aGuid,
       mPuppetWidget->GetDefaultScale());
@@ -1974,7 +1974,7 @@ TabChild::RecvRealDragEvent(const WidgetDragEvent& aEvent,
                             const uint32_t& aDropEffect)
 {
   WidgetDragEvent localEvent(aEvent);
-  localEvent.widget = mPuppetWidget;
+  localEvent.mWidget = mPuppetWidget;
 
   nsCOMPtr<nsIDragSession> dragSession = nsContentUtils::GetDragSession();
   if (dragSession) {
@@ -2010,7 +2010,7 @@ bool
 TabChild::RecvPluginEvent(const WidgetPluginEvent& aEvent)
 {
   WidgetPluginEvent localEvent(aEvent);
-  localEvent.widget = mPuppetWidget;
+  localEvent.mWidget = mPuppetWidget;
   nsEventStatus status = APZCCallbackHelper::DispatchWidgetEvent(localEvent);
   if (status != nsEventStatus_eConsumeNoDefault) {
     // If not consumed, we should call default action
@@ -2069,7 +2069,7 @@ TabChild::RecvRealKeyEvent(const WidgetKeyboardEvent& event,
   }
 
   WidgetKeyboardEvent localEvent(event);
-  localEvent.widget = mPuppetWidget;
+  localEvent.mWidget = mPuppetWidget;
   nsEventStatus status = APZCCallbackHelper::DispatchWidgetEvent(localEvent);
 
   if (event.mMessage == eKeyDown) {
@@ -2104,7 +2104,7 @@ bool
 TabChild::RecvCompositionEvent(const WidgetCompositionEvent& event)
 {
   WidgetCompositionEvent localEvent(event);
-  localEvent.widget = mPuppetWidget;
+  localEvent.mWidget = mPuppetWidget;
   APZCCallbackHelper::DispatchWidgetEvent(localEvent);
   Unused << SendOnEventNeedingAckHandled(event.mMessage);
   return true;
@@ -2114,7 +2114,7 @@ bool
 TabChild::RecvSelectionEvent(const WidgetSelectionEvent& event)
 {
   WidgetSelectionEvent localEvent(event);
-  localEvent.widget = mPuppetWidget;
+  localEvent.mWidget = mPuppetWidget;
   APZCCallbackHelper::DispatchWidgetEvent(localEvent);
   Unused << SendOnEventNeedingAckHandled(event.mMessage);
   return true;

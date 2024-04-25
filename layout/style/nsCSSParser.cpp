@@ -35,6 +35,7 @@
 #include "nsColor.h"
 #include "nsCSSPseudoClasses.h"
 #include "nsCSSPseudoElements.h"
+#include "nsCSSAnonBoxes.h"
 #include "nsNameSpaceManager.h"
 #include "nsXMLNameSpaceMap.h"
 #include "nsError.h"
@@ -1081,6 +1082,7 @@ protected:
   bool ParseScrollSnapPoints(nsCSSValue& aValue, nsCSSProperty aPropID);
   bool ParseScrollSnapDestination(nsCSSValue& aValue);
   bool ParseScrollSnapCoordinate(nsCSSValue& aValue);
+  bool ParseWebkitTextStroke();
 
   /**
    * Parses a variable value from a custom property declaration.
@@ -3402,7 +3404,7 @@ CSSParserImpl::ParseMediaQuery(eMediaQueryType aQueryType,
       }
       // case insensitive from CSS - must be lower cased
       nsContentUtils::ASCIIToLower(mToken.mIdent);
-      mediaType = do_GetAtom(mToken.mIdent);
+      mediaType = NS_Atomize(mToken.mIdent);
       if (!gotNotOrOnly && mediaType == nsGkAtoms::_not) {
         gotNotOrOnly = true;
         query->SetNegated();
@@ -3554,7 +3556,7 @@ CSSParserImpl::ParseMediaQueryExpression(nsMediaQuery* aQuery)
     expr->mRange = nsMediaExpression::eEqual;
   }
 
-  nsCOMPtr<nsIAtom> mediaFeatureAtom = do_GetAtom(featureString);
+  nsCOMPtr<nsIAtom> mediaFeatureAtom = NS_Atomize(featureString);
   const nsMediaFeature *feature = nsMediaFeatures::features;
   for (; feature->mName; ++feature) {
     // See if name matches & all requirement flags are satisfied:
@@ -3918,7 +3920,7 @@ CSSParserImpl::ProcessNameSpace(const nsString& aPrefix,
   nsCOMPtr<nsIAtom> prefix;
 
   if (!aPrefix.IsEmpty()) {
-    prefix = do_GetAtom(aPrefix);
+    prefix = NS_Atomize(aPrefix);
   }
 
   RefPtr<css::NameSpaceRule> rule = new css::NameSpaceRule(prefix, aURLSpec,
@@ -5862,7 +5864,7 @@ CSSParserImpl::ParsePseudoSelector(int32_t&       aDataMask,
   buffer.Append(char16_t(':'));
   buffer.Append(mToken.mIdent);
   nsContentUtils::ASCIIToLower(buffer);
-  nsCOMPtr<nsIAtom> pseudo = do_GetAtom(buffer);
+  nsCOMPtr<nsIAtom> pseudo = NS_Atomize(buffer);
 
   // stash away some info about this pseudo so we only have to get it once.
   bool isTreePseudo = false;
@@ -5879,6 +5881,13 @@ CSSParserImpl::ParsePseudoSelector(int32_t&       aDataMask,
        (pseudoClassType != nsCSSPseudoClasses::ePseudoClass_NotPseudoClass &&
         nsCSSPseudoClasses::PseudoClassIsUASheetOnly(pseudoClassType)))) {
     // This pseudo-element or pseudo-class is not exposed to content.
+    REPORT_UNEXPECTED_TOKEN(PEPseudoSelUnknown);
+    UngetToken();
+    return eSelectorParsingStatus_Error;
+  }
+
+  if (nsCSSAnonBoxes::IsNonElement(pseudo)) {
+    // Non-element anonymous boxes should not match any rule.
     REPORT_UNEXPECTED_TOKEN(PEPseudoSelUnknown);
     UngetToken();
     return eSelectorParsingStatus_Error;
@@ -6937,31 +6946,63 @@ CSSParserImpl::LookupKeywordPrefixAware(nsAString& aKeywordStr,
   nsCSSKeyword keyword = nsCSSKeywords::LookupKeyword(aKeywordStr);
 
   if (aKeywordTable == nsCSSProps::kDisplayKTable) {
-    if (keyword == eCSSKeyword__webkit_box &&
-        (sWebkitPrefixedAliasesEnabled || ShouldUseUnprefixingService())) {
-      // Treat "display: -webkit-box" as "display: flex". In simple scenarios,
-      // they largely behave the same, as long as we alias the associated
-      // properties to modern flexbox equivalents as well.
-      if (mWebkitBoxUnprefixState == eHaveNotUnprefixed) {
-        mWebkitBoxUnprefixState = eHaveUnprefixed;
+    // NOTE: This code will be considerably simpler once we can do away with
+    // all Unprefixing Service code, in bug 1259348. But for the time being, we
+    // have to support two different strategies for handling -webkit-box here:
+    // (1) "Native support" (sWebkitPrefixedAliasesEnabled): we assume that
+    //     -webkit-box will parse correctly (via an entry in kDisplayKTable),
+    //     and we simply make a note that we've parsed it (so that we can we
+    //     can give later "-moz-box" styling special handling as noted below).
+    // (2) "Unprefixing Service support" (ShouldUseUnprefixingService): we
+    //     convert "-webkit-box" directly to modern "flex" (& do the same for
+    //     any later "-moz-box" styling).
+    //
+    // Note that sWebkitPrefixedAliasesEnabled and
+    // ShouldUseUnprefixingService() are mutually exlusive, because the latter
+    // explicitly defers to the former.
+    if ((keyword == eCSSKeyword__webkit_box ||
+         keyword == eCSSKeyword__webkit_inline_box)) {
+      const bool usingUnprefixingService = ShouldUseUnprefixingService();
+      if (sWebkitPrefixedAliasesEnabled || usingUnprefixingService) {
+        // Make a note that we're accepting some "-webkit-{inline-}box" styling,
+        // so we can give special treatment to subsequent "-moz-{inline}-box".
+        // (See special treatment below.)
+        if (mWebkitBoxUnprefixState == eHaveNotUnprefixed) {
+          mWebkitBoxUnprefixState = eHaveUnprefixed;
+        }
+        if (usingUnprefixingService) {
+          // When we're using the unprefixing service, we treat
+          // "display:-webkit-box" as if it were "display:flex"
+          // (and "-webkit-inline-box" as "inline-flex").
+          return (keyword == eCSSKeyword__webkit_box) ?
+            eCSSKeyword_flex : eCSSKeyword_inline_flex;
+        }
       }
-      return eCSSKeyword_flex;
     }
 
-    // If we've seen "display: -webkit-box" in an earlier declaration and we
-    // tried to unprefix it to emulate support for it, then we have to watch
-    // out for later "display: -moz-box" declarations; they're likely just a
-    // halfhearted attempt at compatibility, and they actually end up stomping
-    // on our emulation of the earlier -webkit-box display-value, via the CSS
-    // cascade. To prevent this problem, we also treat "display: -moz-box" as
-    // "display: flex" (but only if we unprefixed an earlier "-webkit-box").
+    // If we've seen "display: -webkit-box" (or "-webkit-inline-box") in an
+    // earlier declaration and we honored it, then we have to watch out for
+    // later "display: -moz-box" (and "-moz-inline-box") declarations; they're
+    // likely just a halfhearted attempt at compatibility, and they actually
+    // end up stomping on our emulation of the earlier -webkit-box
+    // display-value, via the CSS cascade. To prevent this problem, we treat
+    // "display: -moz-box" & "-moz-inline-box" as if they were simply a
+    // repetition of the webkit equivalent that we already parsed.
     if (mWebkitBoxUnprefixState == eHaveUnprefixed &&
-        keyword == eCSSKeyword__moz_box) {
+        (keyword == eCSSKeyword__moz_box ||
+         keyword == eCSSKeyword__moz_inline_box)) {
       MOZ_ASSERT(sWebkitPrefixedAliasesEnabled || ShouldUseUnprefixingService(),
                  "mDidUnprefixWebkitBoxInEarlierDecl should only be set if "
                  "we're supporting webkit-prefixed aliases, or if we're using "
                  "the css unprefixing service on this site");
-      return eCSSKeyword_flex;
+      if (sWebkitPrefixedAliasesEnabled) {
+        return (keyword == eCSSKeyword__moz_box) ?
+          eCSSKeyword__webkit_box : eCSSKeyword__webkit_inline_box;
+      }
+      // (If we get here, we're using the Unprefixing Service, which means
+      // we're unprefixing all the way to modern flexbox display values.)
+      return (keyword == eCSSKeyword__moz_box) ?
+        eCSSKeyword_flex : eCSSKeyword_inline_flex;
     }
   }
 
@@ -10728,6 +10769,37 @@ CSSParserImpl::ParseWebkitGradient(nsCSSValue& aValue)
   return true;
 }
 
+bool
+CSSParserImpl::ParseWebkitTextStroke()
+{
+  static const nsCSSProperty kWebkitTextStrokeIDs[] = {
+    eCSSProperty__webkit_text_stroke_width,
+    eCSSProperty__webkit_text_stroke_color
+  };
+
+  const size_t numProps = MOZ_ARRAY_LENGTH(kWebkitTextStrokeIDs);
+  nsCSSValue values[numProps];
+
+  int32_t found = ParseChoice(values, kWebkitTextStrokeIDs, numProps);
+  if (found < 1) {
+    return false;
+  }
+
+  if (!(found & 1)) { // Provide default -webkit-text-stroke-width
+    values[0].SetFloatValue(0, eCSSUnit_Pixel);
+  }
+
+  if (!(found & 2)) { // Provide default -webkit-text-stroke-color
+    values[1].SetIntValue(NS_COLOR_CURRENTCOLOR, eCSSUnit_EnumColor);
+  }
+
+  for (size_t index = 0; index < numProps; ++index) {
+    AppendValue(kWebkitTextStrokeIDs[index], values[index]);
+  }
+
+  return true;
+}
+
   int32_t
 CSSParserImpl::ParseChoice(nsCSSValue aValues[],
                            const nsCSSProperty aPropIDs[], int32_t aNumIDs)
@@ -11499,6 +11571,8 @@ CSSParserImpl::ParsePropertyByFunction(nsCSSProperty aPropID)
   case eCSSProperty_mask_size:
     return ParseImageLayerSize(eCSSProperty_mask_size);
 #endif
+  case eCSSProperty__webkit_text_stroke:
+    return ParseWebkitTextStroke();
   case eCSSProperty_all:
     return ParseAll();
   default:
@@ -12003,13 +12077,16 @@ CSSParserImpl::ParseImageLayersItem(
         // The spec allows a second box value (for background-clip),
         // immediately following the first one (for background-origin).
 
-        // 'background-clip' and 'background-origin' use the same keyword table
-        MOZ_ASSERT(nsCSSProps::kKeywordTableTable[
-                     aTable[nsStyleImageLayers::origin]] ==
-                   nsCSSProps::kImageLayerOriginKTable);
-        MOZ_ASSERT(nsCSSProps::kKeywordTableTable[
-                     aTable[nsStyleImageLayers::clip]] ==
-                   nsCSSProps::kImageLayerOriginKTable);
+#ifdef DEBUG
+        for (size_t i = 0; nsCSSProps::kImageLayerOriginKTable[i].mValue != -1; i++) {
+          // For each keyword & value in kOriginKTable, ensure that
+          // kBackgroundKTable has a matching entry at the same position.
+          MOZ_ASSERT(nsCSSProps::kImageLayerOriginKTable[i].mKeyword ==
+                     nsCSSProps::kBackgroundClipKTable[i].mKeyword);
+          MOZ_ASSERT(nsCSSProps::kImageLayerOriginKTable[i].mValue ==
+                     nsCSSProps::kBackgroundClipKTable[i].mValue);
+        }
+#endif
         static_assert(NS_STYLE_IMAGELAYER_CLIP_BORDER ==
                       NS_STYLE_IMAGELAYER_ORIGIN_BORDER &&
                       NS_STYLE_IMAGELAYER_CLIP_PADDING ==
@@ -15093,6 +15170,9 @@ CSSParserImpl::ParseTextCombineUpright(nsCSSValue& aValue)
   // if 'digits', need to check for an explicit number [2, 3, 4]
   if (eCSSUnit_Enumerated == aValue.GetUnit() &&
       aValue.GetIntValue() == NS_STYLE_TEXT_COMBINE_UPRIGHT_DIGITS_2) {
+    if (!nsLayoutUtils::TextCombineUprightDigitsEnabled()) {
+      return false;
+    }
     if (!GetToken(true)) {
       return true;
     }
@@ -16545,7 +16625,7 @@ CSSParserImpl::GetNamespaceIdForPrefix(const nsString& aPrefix)
   int32_t nameSpaceID = kNameSpaceID_Unknown;
   if (mNameSpaceMap) {
     // user-specified identifiers are case-sensitive (bug 416106)
-    nsCOMPtr<nsIAtom> prefix = do_GetAtom(aPrefix);
+    nsCOMPtr<nsIAtom> prefix = NS_Atomize(aPrefix);
     nameSpaceID = mNameSpaceMap->FindNameSpaceID(prefix);
   }
   // else no declared namespaces

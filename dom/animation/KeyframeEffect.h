@@ -63,6 +63,11 @@ struct PropertyValuePair
   // property values, we store the specified property value as a token stream
   // (string).
   nsCSSValue    mValue;
+
+  bool operator==(const PropertyValuePair& aOther) const {
+    return mProperty == aOther.mProperty &&
+           mValue == aOther.mValue;
+  }
 };
 
 /**
@@ -82,6 +87,23 @@ struct PropertyValuePair
  */
 struct Keyframe
 {
+  Keyframe() = default;
+  Keyframe(const Keyframe& aOther) = default;
+  Keyframe(Keyframe&& aOther)
+  {
+    *this = Move(aOther);
+  }
+
+  Keyframe& operator=(const Keyframe& aOther) = default;
+  Keyframe& operator=(Keyframe&& aOther)
+  {
+    mOffset         = aOther.mOffset;
+    mComputedOffset = aOther.mComputedOffset;
+    mTimingFunction = Move(aOther.mTimingFunction);
+    mPropertyValues = Move(aOther.mPropertyValues);
+    return *this;
+  }
+
   Maybe<double>                 mOffset;
   double                        mComputedOffset = 0.0;
   Maybe<ComputedTimingFunction> mTimingFunction; // Nothing() here means
@@ -252,12 +274,6 @@ public:
   void
   GetComputedTimingAsDict(ComputedTimingProperties& aRetVal) const override;
 
-  // Return the duration of the active interval for the given duration and
-  // iteration count.
-  static StickyTimeDuration
-  ActiveDuration(const StickyTimeDuration& aIterationDuration,
-                 double aIterationCount);
-
   bool IsInPlay() const;
   bool IsCurrent() const;
   bool IsInEffect() const;
@@ -265,6 +281,9 @@ public:
   void SetAnimation(Animation* aAnimation);
   Animation* GetAnimation() const { return mAnimation; }
 
+  void SetFrames(JSContext* aContext, JS::Handle<JSObject*> aFrames,
+                 ErrorResult& aRv);
+  void SetFrames(nsTArray<Keyframe>&& aFrames, nsStyleContext* aStyleContext);
   const AnimationProperty*
   GetAnimationOfProperty(nsCSSProperty aProperty) const;
   bool HasAnimationOfProperty(nsCSSProperty aProperty) const {
@@ -278,12 +297,10 @@ public:
   InfallibleTArray<AnimationProperty>& Properties() {
     return mProperties;
   }
-  // Updates the set of properties using the supplied list whilst preserving
-  // the mWinsInCascade and mIsRunningOnCompositor state of any matching
-  // properties.
-  // Returns true if we updated anything in the properties.
-  bool UpdateProperties(
-    const InfallibleTArray<AnimationProperty>& aProperties);
+
+  // Update |mProperties| by recalculating from |mFrames| using |aStyleContext|
+  // to resolve specified values.
+  void UpdateProperties(nsStyleContext* aStyleContext);
 
   // Updates |aStyleRule| with the animation values produced by this
   // AnimationEffect for the current time except any properties already
@@ -351,10 +368,14 @@ protected:
   nsCOMPtr<Element> mTarget;
   RefPtr<Animation> mAnimation;
 
-  OwningNonNull<AnimationEffectTimingReadOnly> mTiming;
+  RefPtr<AnimationEffectTimingReadOnly> mTiming;
   CSSPseudoElementType mPseudoType;
 
-  InfallibleTArray<AnimationProperty> mProperties;
+  // The specified keyframes.
+  nsTArray<Keyframe>          mFrames;
+
+  // A set of per-property value arrays, derived from |mFrames|.
+  nsTArray<AnimationProperty> mProperties;
 
   // The computed progress last time we composed the style rule. This is
   // used to detect when the progress is not changing (e.g. due to a step

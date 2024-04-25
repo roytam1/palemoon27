@@ -22,13 +22,13 @@ MouseScrollEvent::MouseScrollEvent(EventTarget* aOwner,
     mEventIsInternal = false;
   } else {
     mEventIsInternal = true;
-    mEvent->time = PR_Now();
-    mEvent->refPoint.x = mEvent->refPoint.y = 0;
+    mEvent->mTime = PR_Now();
+    mEvent->mRefPoint = LayoutDeviceIntPoint(0, 0);
     static_cast<WidgetMouseEventBase*>(mEvent)->inputSource =
       nsIDOMMouseEvent::MOZ_SOURCE_UNKNOWN;
   }
 
-  mDetail = mEvent->AsMouseScrollEvent()->delta;
+  mDetail = mEvent->AsMouseScrollEvent()->mDelta;
 }
 
 NS_IMPL_ADDREF_INHERITED(MouseScrollEvent, MouseEvent)
@@ -62,7 +62,8 @@ MouseScrollEvent::InitMouseScrollEvent(const nsAString& aType,
                                aCtrlKey, aAltKey, aShiftKey, aMetaKey, aButton,
                                aRelatedTarget);
   NS_ENSURE_SUCCESS(rv, rv);
-  mEvent->AsMouseScrollEvent()->isHorizontal = (aAxis == HORIZONTAL_AXIS);
+  mEvent->AsMouseScrollEvent()->mIsHorizontal =
+    (aAxis == nsIDOMMouseScrollEvent::HORIZONTAL_AXIS);
   return NS_OK;
 }
 
@@ -78,7 +79,7 @@ MouseScrollEvent::GetAxis(int32_t* aResult)
 int32_t
 MouseScrollEvent::Axis()
 {
-  return mEvent->AsMouseScrollEvent()->isHorizontal ?
+  return mEvent->AsMouseScrollEvent()->mIsHorizontal ?
            static_cast<int32_t>(HORIZONTAL_AXIS) :
            static_cast<int32_t>(VERTICAL_AXIS);
 }

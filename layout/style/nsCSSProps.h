@@ -678,6 +678,9 @@ public:
   static const KTableEntry kImageLayerSizeKTable[];
   static const KTableEntry kImageLayerCompositeKTable[];
   static const KTableEntry kImageLayerModeKTable[];
+  // Not const because we modify its entries when the pref
+  // "layout.css.background-clip.text" changes:
+  static KTableEntry kBackgroundClipKTable[];
   static const KTableEntry kBlendModeKTable[];
   static const KTableEntry kBorderCollapseKTable[];
   static const KTableEntry kBorderColorKTable[];
@@ -707,6 +710,7 @@ public:
   static const KTableEntry kVectorEffectKTable[];
   static const KTableEntry kTextAnchorKTable[];
   static const KTableEntry kTextRenderingKTable[];
+  static const KTableEntry kColorAdjustKTable[];
   static const KTableEntry kColorInterpolationKTable[];
   static const KTableEntry kColumnFillKTable[];
   static const KTableEntry kBoxPropSourceKTable[];

@@ -152,8 +152,8 @@ TextEventDispatcher::GetState() const
 void
 TextEventDispatcher::InitEvent(WidgetGUIEvent& aEvent) const
 {
-  aEvent.time = PR_IntervalNow();
-  aEvent.refPoint = LayoutDeviceIntPoint(0, 0);
+  aEvent.mTime = PR_IntervalNow();
+  aEvent.mRefPoint = LayoutDeviceIntPoint(0, 0);
   aEvent.mFlags.mIsSynthesizedForTests = IsForTests();
   if (aEvent.mClass != eCompositionEventClass) {
     return;

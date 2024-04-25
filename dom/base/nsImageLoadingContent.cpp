@@ -878,7 +878,11 @@ nsImageLoadingContent::LoadImage(nsIURI* aNewURI,
   // Not blocked. Do the load.
   RefPtr<imgRequestProxy>& req = PrepareNextRequest(aImageLoadType);
   nsIContent* content = AsContent();
-  nsresult rv = nsContentUtils::LoadImage(aNewURI, aDocument,
+  nsCOMPtr<nsINode> thisNode =
+    do_QueryInterface(static_cast<nsIImageLoadingContent*>(this));
+  nsresult rv = nsContentUtils::LoadImage(aNewURI,
+                                          thisNode,
+                                          aDocument,
                                           aDocument->NodePrincipal(),
                                           aDocument->GetDocumentURI(),
                                           referrerPolicy,

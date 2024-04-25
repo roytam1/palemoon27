@@ -69,7 +69,7 @@ ElementPropertyTransition::CurrentValuePortion() const
              "Animation property should have one segment for a transition");
   return ComputedTimingFunction::GetPortion(
            mProperties[0].mSegments[0].mTimingFunction,
-           computedTiming.mProgress.Value());
+           computedTiming.mProgress.Value(), computedTiming.mBeforeFlag);
 }
 
 ////////////////////////// CSSTransition ////////////////////////////
@@ -799,4 +799,20 @@ nsTransitionManager::PruneCompletedTransitions(mozilla::dom::Element* aElement,
     // |collection| is now a dangling pointer!
     collection = nullptr;
   }
+}
+
+void
+nsTransitionManager::StopTransitionsForElement(
+  mozilla::dom::Element* aElement,
+  mozilla::CSSPseudoElementType aPseudoType)
+{
+  MOZ_ASSERT(aElement);
+  CSSTransitionCollection* collection =
+    CSSTransitionCollection::GetAnimationCollection(aElement, aPseudoType);
+  if (!collection) {
+    return;
+  }
+
+  nsAutoAnimationMutationBatch mb(aElement->OwnerDoc());
+  collection->Destroy();
 }

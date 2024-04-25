@@ -666,9 +666,9 @@ EventListenerManager::ListenerCanHandle(Listener* aListener,
   }
   if (aEvent->mMessage == eUnidentifiedEvent) {
     if (mIsMainThreadELM) {
-      return aListener->mTypeAtom == aEvent->userType;
+      return aListener->mTypeAtom == aEvent->mSpecifiedEventType;
     }
-    return aListener->mTypeString.Equals(aEvent->typeString);
+    return aListener->mTypeString.Equals(aEvent->mSpecifiedEventTypeString);
   }
   MOZ_ASSERT(mIsMainThreadELM);
   return aListener->mEventMessage == aEvent->mMessage;
@@ -681,7 +681,7 @@ EventListenerManager::AddEventListenerByType(
                         const EventListenerFlags& aFlags)
 {
   nsCOMPtr<nsIAtom> atom =
-    mIsMainThreadELM ? do_GetAtom(NS_LITERAL_STRING("on") + aType) : nullptr;
+    mIsMainThreadELM ? NS_Atomize(NS_LITERAL_STRING("on") + aType) : nullptr;
   EventMessage message = nsContentUtils::GetEventMessage(atom);
   AddEventListenerInternal(aListenerHolder, message, atom, aType, aFlags);
 }
@@ -693,7 +693,7 @@ EventListenerManager::RemoveEventListenerByType(
                         const EventListenerFlags& aFlags)
 {
   nsCOMPtr<nsIAtom> atom =
-    mIsMainThreadELM ? do_GetAtom(NS_LITERAL_STRING("on") + aType) : nullptr;
+    mIsMainThreadELM ? NS_Atomize(NS_LITERAL_STRING("on") + aType) : nullptr;
   EventMessage message = nsContentUtils::GetEventMessage(atom);
   RemoveEventListenerInternal(aListenerHolder, message, atom, aType, aFlags);
 }
@@ -1181,16 +1181,16 @@ EventListenerManager::HandleEventInternal(nsPresContext* aPresContext,
         if (!*aDOMEvent) {
           // This is tiny bit slow, but happens only once per event.
           nsCOMPtr<EventTarget> et =
-            do_QueryInterface(aEvent->originalTarget);
+              do_QueryInterface(aEvent->mOriginalTarget);
           RefPtr<Event> event = EventDispatcher::CreateEvent(et, aPresContext,
                                                                aEvent,
                                                                EmptyString());
           event.forget(aDOMEvent);
         }
         if (*aDOMEvent) {
-          if (!aEvent->currentTarget) {
-            aEvent->currentTarget = aCurrentTarget->GetTargetForDOMEvent();
-            if (!aEvent->currentTarget) {
+            if (!aEvent->mCurrentTarget) {
+              aEvent->mCurrentTarget = aCurrentTarget->GetTargetForDOMEvent();
+              if (!aEvent->mCurrentTarget) {
               break;
             }
           }
@@ -1232,11 +1232,11 @@ EventListenerManager::HandleEventInternal(nsPresContext* aPresContext,
     }
   }
 
-  aEvent->currentTarget = nullptr;
+  aEvent->mCurrentTarget = nullptr;
 
   if (mIsMainThreadELM && !hasListener) {
     mNoListenerForEvent = aEvent->mMessage;
-    mNoListenerForEventAtom = aEvent->userType;
+    mNoListenerForEventAtom = aEvent->mSpecifiedEventType;
   }
 
   if (aEvent->DefaultPrevented()) {
@@ -1345,7 +1345,7 @@ bool
 EventListenerManager::HasListenersFor(const nsAString& aEventName)
 {
   if (mIsMainThreadELM) {
-    nsCOMPtr<nsIAtom> atom = do_GetAtom(NS_LITERAL_STRING("on") + aEventName);
+    nsCOMPtr<nsIAtom> atom = NS_Atomize(NS_LITERAL_STRING("on") + aEventName);
     return HasListenersFor(atom);
   }
 

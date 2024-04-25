@@ -470,7 +470,8 @@ MemoryPressureObserver::Observe(nsISupports *aSubject,
     Factory::PurgeAllCaches();
     gfxGradientCache::PurgeAllCaches();
 
-    gfxPlatform::GetPlatform()->PurgeSkiaCache();
+    gfxPlatform::PurgeSkiaFontCache();
+    gfxPlatform::GetPlatform()->PurgeSkiaGPUCache();
     return NS_OK;
 }
 
@@ -599,13 +600,12 @@ gfxPlatform::Init()
                                gfxPrefs::Direct2DForceEnabled(),
                                gfxPrefs::DirectWriteFontRenderingForceEnabled());
       // Layers prefs
-      forcedPrefs.AppendPrintf("-L%d%d%d%d%d%d",
+      forcedPrefs.AppendPrintf("-L%d%d%d%d%d",
                                gfxPrefs::LayersAMDSwitchableGfxEnabled(),
                                gfxPrefs::LayersAccelerationDisabled(),
                                gfxPrefs::LayersAccelerationForceEnabled(),
                                gfxPrefs::LayersD3D11DisableWARP(),
-                               gfxPrefs::LayersD3D11ForceWARP(),
-                               gfxPrefs::LayersOffMainThreadCompositionForceEnabled());
+                               gfxPrefs::LayersD3D11ForceWARP());
       // WebGL prefs
       forcedPrefs.AppendPrintf("-W%d%d%d%d%d%d%d%d",
                                gfxPrefs::WebGLANGLEForceD3D11(),
@@ -878,8 +878,11 @@ gfxPlatform::ShutdownLayersIPC()
     if (XRE_IsContentProcess()) {
 
         gfx::VRManagerChild::ShutDown();
-        layers::ImageBridgeChild::ShutDown();
-        layers::CompositorBridgeChild::ShutDown();
+        // cf bug 1215265.
+        if (gfxPrefs::ChildProcessShutdown()) {
+          layers::CompositorBridgeChild::ShutDown();
+          layers::ImageBridgeChild::ShutDown();
+        }
 
     } else if (XRE_IsParentProcess()) {
 
@@ -937,24 +940,6 @@ gfxPlatform::CreateDrawTargetForSurface(gfxASurface *aSurface, const IntSize& aS
   aSurface->SetData(&kDrawTarget, drawTarget, nullptr);
   return drawTarget.forget();
 }
-
-// This is a temporary function used by ContentClient to build a DrawTarget
-// around the gfxASurface. This should eventually be replaced by plumbing
-// the DrawTarget through directly
-already_AddRefed<DrawTarget>
-gfxPlatform::CreateDrawTargetForUpdateSurface(gfxASurface *aSurface, const IntSize& aSize)
-{
-#ifdef XP_MACOSX
-  // this is a bit of a hack that assumes that the buffer associated with the CGContext
-  // will live around long enough that nothing bad will happen.
-  if (aSurface->GetType() == gfxSurfaceType::Quartz) {
-    return Factory::CreateDrawTargetForCairoCGContext(static_cast<gfxQuartzSurface*>(aSurface)->GetCGContext(), aSize);
-  }
-#endif
-  MOZ_CRASH("GFX: unused function");
-  return nullptr;
-}
-
 
 cairo_user_data_key_t kSourceSurface;
 
@@ -1335,7 +1320,17 @@ gfxPlatform::GetSkiaGLGlue()
 }
 
 void
-gfxPlatform::PurgeSkiaCache()
+gfxPlatform::PurgeSkiaFontCache()
+{
+#ifdef USE_SKIA
+  if (gfxPlatform::GetPlatform()->GetDefaultContentBackend() == BackendType::SKIA) {
+    SkGraphics::PurgeFontCache();
+  }
+#endif
+}
+
+void
+gfxPlatform::PurgeSkiaGPUCache()
 {
 #ifdef USE_SKIA_GPU
   if (!mSkiaGlue)
@@ -1446,13 +1441,26 @@ gfxPlatform::GetFontList(nsIAtom *aLangGroup,
                          const nsACString& aGenericFamily,
                          nsTArray<nsString>& aListOfFonts)
 {
-    return NS_ERROR_NOT_IMPLEMENTED;
+    gfxPlatformFontList::PlatformFontList()->GetFontList(aLangGroup,
+                                                         aGenericFamily,
+                                                         aListOfFonts);
+    return NS_OK;
 }
 
 nsresult
 gfxPlatform::UpdateFontList()
 {
-    return NS_ERROR_NOT_IMPLEMENTED;
+    gfxPlatformFontList::PlatformFontList()->UpdateFontList();
+    return NS_OK;
+}
+
+nsresult
+gfxPlatform::GetStandardFamilyName(const nsAString& aFontName,
+                                   nsAString& aFamilyName)
+{
+    gfxPlatformFontList::PlatformFontList()->GetStandardFamilyName(aFontName,
+                                                                   aFamilyName);
+    return NS_OK;
 }
 
 bool
@@ -1528,6 +1536,18 @@ gfxPlatform::UseGraphiteShaping()
 }
 
 gfxFontEntry*
+gfxPlatform::LookupLocalFont(const nsAString& aFontName,
+                             uint16_t aWeight,
+                             int16_t aStretch,
+                             uint8_t aStyle)
+{
+    return gfxPlatformFontList::PlatformFontList()->LookupLocalFont(aFontName,
+                                                                    aWeight,
+                                                                    aStretch,
+                                                                    aStyle);
+}
+
+gfxFontEntry*
 gfxPlatform::MakePlatformFont(const nsAString& aFontName,
                               uint16_t aWeight,
                               int16_t aStretch,
@@ -1535,15 +1555,12 @@ gfxPlatform::MakePlatformFont(const nsAString& aFontName,
                               const uint8_t* aFontData,
                               uint32_t aLength)
 {
-    // Default implementation does not handle activating downloaded fonts;
-    // just free the data and return.
-    // Platforms that support @font-face must override this,
-    // using the data to instantiate the font, and taking responsibility
-    // for freeing it when no longer required.
-    if (aFontData) {
-        NS_Free((void*)aFontData);
-    }
-    return nullptr;
+    return gfxPlatformFontList::PlatformFontList()->MakePlatformFont(aFontName,
+                                                                     aWeight,
+                                                                     aStretch,
+                                                                     aStyle,
+                                                                     aFontData,
+                                                                     aLength);
 }
 
 mozilla::layers::DiagnosticTypes
@@ -1929,6 +1946,8 @@ gfxPlatform::FlushFontAndWordCaches()
         fontCache->AgeAllGenerations();
         fontCache->FlushShapedWordCaches();
     }
+
+    gfxPlatform::PurgeSkiaFontCache();
 }
 
 void
@@ -2208,15 +2227,14 @@ gfxPlatform::GetScaledFontForFontWithCairoSkia(DrawTarget* aTarget, gfxFont* aFo
 /* static */ bool
 gfxPlatform::UsesOffMainThreadCompositing()
 {
-  InitLayersAccelerationPrefs();
   static bool firstTime = true;
   static bool result = false;
 
   if (firstTime) {
+    InitLayersAccelerationPrefs();
     result =
       sPrefBrowserTabsRemoteAutostart ||
-      gfxPrefs::LayersOffMainThreadCompositionEnabled() ||
-      gfxPrefs::LayersOffMainThreadCompositionForceEnabled();
+      !gfxPrefs::LayersOffMainThreadCompositionForceDisabled();
 #if defined(MOZ_WIDGET_GTK)
     // Linux users who chose OpenGL are being grandfathered in to OMTC
     result |= gfxPrefs::LayersAccelerationForceEnabled();

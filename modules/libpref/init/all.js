@@ -209,6 +209,9 @@ pref("ui.use_native_colors", true);
 pref("ui.click_hold_context_menus", false);
 // Duration of timeout of incremental search in menus (ms).  0 means infinite.
 pref("ui.menu.incremental_search.timeout", 1000);
+// If true, all popups won't hide automatically on blur
+pref("ui.popup.disable_autohide", false);
+
 pref("browser.display.use_document_fonts",  1);  // 0 = never, 1 = quick, 2 = always
 // 0 = default: always, except in high contrast mode
 // 1 = always
@@ -577,6 +580,7 @@ pref("apz.content_response_timeout", 300);
 pref("apz.drag.enabled", false);
 pref("apz.danger_zone_x", 50);
 pref("apz.danger_zone_y", 100);
+pref("apz.disable_for_scroll_linked_effects", false);
 pref("apz.displayport_expiry_ms", 15000);
 pref("apz.enlarge_displayport_when_clipped", false);
 pref("apz.fling_accel_base_mult", "1.0");
@@ -2062,6 +2066,7 @@ pref("network.prefetch-next", false);
 // enables the predictive service
 pref("network.predictor.enabled", false);
 pref("network.predictor.enable-hover-on-ssl", false);
+pref("network.predictor.enable-prefetch", true);
 pref("network.predictor.page-degradation.day", 0);
 pref("network.predictor.page-degradation.week", 5);
 pref("network.predictor.page-degradation.month", 10);
@@ -2072,9 +2077,12 @@ pref("network.predictor.subresource-degradation.week", 10);
 pref("network.predictor.subresource-degradation.month", 25);
 pref("network.predictor.subresource-degradation.year", 50);
 pref("network.predictor.subresource-degradation.max", 100);
+pref("network.predictor.prefetch-rolling-load-count", 10);
+pref("network.predictor.prefetch-min-confidence", 100);
 pref("network.predictor.preconnect-min-confidence", 90);
 pref("network.predictor.preresolve-min-confidence", 60);
 pref("network.predictor.redirect-likely-confidence", 75);
+pref("network.predictor.prefetch-force-valid-for", 10);
 pref("network.predictor.max-resources-per-entry", 100);
 pref("network.predictor.max-uri-length", 500);
 pref("network.predictor.cleaned-up", false);
@@ -2697,11 +2705,16 @@ pref("layout.css.scope-pseudo.enabled", true);
 // Is support for background-blend-mode enabled?
 pref("layout.css.background-blend-mode.enabled", true);
 
+// Is support for background-clip:text enabled? (bug 1263516)
+pref("layout.css.background-clip-text.enabled", false);
+
 // Is support for CSS vertical text enabled?
 pref("layout.css.vertical-text.enabled", true);
 
 // Is support for CSS text-combine-upright (tate-chu-yoko) enabled?
-pref("layout.css.text-combine-upright.enabled", false);
+pref("layout.css.text-combine-upright.enabled", true);
+// Is support for CSS text-combine-upright: digits 2-4 enabled?
+pref("layout.css.text-combine-upright-digits.enabled", false);
 
 // Is support for object-fit and object-position enabled?
 pref("layout.css.object-fit-and-position.enabled", true);
@@ -3532,6 +3545,9 @@ pref("plugin.scan.WindowsMediaPlayer", "7.0");
 // Locate plugins by the directories specified in the Windows registry for PLIDs
 // Which is currently HKLM\Software\MozillaPlugins\xxxPLIDxxx\Path
 pref("plugin.scan.plid.all", true);
+
+// Whether sending WM_MOUSEWHEEL and WM_MOUSEHWHEEL to plugins on Windows.
+pref("plugin.mousewheel.enabled", true);
 
 // Help Windows NT, 2000, and XP dialup a RAS connection
 // when a network address is unreachable.
@@ -4652,6 +4668,7 @@ pref("layers.low-precision-buffer", false);
 pref("layers.progressive-paint", false);
 pref("layers.tile-width", 256);
 pref("layers.tile-height", 256);
+pref("layers.child-process-shutdown", true);
 // Max number of layers per container. See Overwrite in mobile prefs.
 pref("layers.max-active", -1);
 // If this is set the tile size will only be treated as a suggestion.
@@ -4667,6 +4684,7 @@ pref("layers.offmainthreadcomposition.enabled", false);
 #else
 pref("layers.offmainthreadcomposition.enabled", true);
 #endif
+
 // Compositor target frame rate. NOTE: If vsync is enabled the compositor
 // frame rate will still be capped.
 // -1 -> default (match layout.frame_rate or 60 FPS)
@@ -4736,6 +4754,7 @@ pref("layers.prefer-opengl", false);
 pref("layers.prefer-d3d9", false);
 pref("layers.d3d11.force-warp", false);
 pref("layers.d3d11.disable-warp", false);
+
 #endif
 
 // Force all possible layers to be always active layers
@@ -5221,6 +5240,12 @@ pref("layout.accessiblecaret.height", "36.0");
 pref("layout.accessiblecaret.margin-left", "-18.5");
 pref("layout.accessiblecaret.bar.width", "2.0");
 
+// Show the selection bars at the two ends of the selection highlight.
+pref("layout.accessiblecaret.bar.enabled", true);
+
+// Show the caret when long tapping on an empty content.
+pref("layout.accessiblecaret.caret_shown_when_long_tapping_on_empty_content", false);
+
 // Timeout in milliseconds to hide the accessiblecaret under cursor mode while
 // no one touches it. Set the value to 0 to disable this feature.
 pref("layout.accessiblecaret.timeout_ms", 3000);
@@ -5229,9 +5254,12 @@ pref("layout.accessiblecaret.timeout_ms", 3000);
 // or long tap events does not fired by APZ.
 pref("layout.accessiblecaret.use_long_tap_injector", true);
 
-// Selection change notifications generated by Javascript, or misc internal
-// events hide AccessibleCarets by default.
+// Use AccessibleCaret default behaviours.
 pref("layout.accessiblecaret.extendedvisibility", false);
+
+// Selection change notifications generated by Javascript hide
+// AccessibleCarets and close UI interaction by default.
+pref("layout.accessiblecaret.allow_script_change_updates", false);
 
 // Optionally provide haptic feedback on longPress selection events.
 pref("layout.accessiblecaret.hapticfeedback", false);
@@ -5476,6 +5504,9 @@ pref("dom.input.fallbackUploadDir", "");
 
 // Turn rewriting of youtube embeds on/off
 pref("plugins.rewrite_youtube_embeds", true);
+
+// Is support for 'color-adjust' CSS property enabled?
+pref("layout.css.color-adjust.enabled", true);
 
 pref("devtools.serviceWorkers.testing.enabled", false);
 

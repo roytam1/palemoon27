@@ -1203,7 +1203,7 @@ nsComboboxControlFrame::CreateAnonymousContent(nsTArray<ContentInfo>& aElements)
   // isn't possible to set the display type in CSS2 to create a button frame.
 
     // create content used for display
-  //nsIAtom* tag = NS_NewAtom("mozcombodisplay");
+  //nsIAtom* tag = NS_Atomize("mozcombodisplay");
 
   // Add a child text content node for the label
 
@@ -1371,7 +1371,8 @@ nsComboboxControlFrame::CreateFrameFor(nsIContent*      aContent)
                              nsStyleSet::eSkipParentDisplayBasedStyleFixup);
 
   RefPtr<nsStyleContext> textStyleContext;
-  textStyleContext = styleSet->ResolveStyleForNonElement(mStyleContext);
+  textStyleContext = styleSet->
+    ResolveStyleForNonElement(mStyleContext, nsCSSAnonBoxes::mozText);
 
   // Start by creating our anonymous block frame
   mDisplayFrame = new (shell) nsComboboxDisplayFrame(styleContext, this);

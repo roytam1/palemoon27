@@ -67,6 +67,7 @@
 #endif
 #include "GeckoProfiler.h"
 #include "mozilla/ipc/ProtocolTypes.h"
+#include "mozilla/ipc/GeckoChildProcessHost.h"
 #include "mozilla/unused.h"
 #include "mozilla/Hal.h"
 #include "mozilla/HalTypes.h"
@@ -109,6 +110,7 @@ CompositorBridgeParent::LayerTreeState::LayerTreeState()
   , mCrossProcessParent(nullptr)
   , mLayerTree(nullptr)
   , mUpdatedPluginDataAvailable(false)
+  , mPendingCompositorUpdates(0)
 {
 }
 
@@ -1610,22 +1612,23 @@ CompositorBridgeParent::NewCompositor(const nsTArray<LayersBackend>& aBackendHin
   for (size_t i = 0; i < aBackendHints.Length(); ++i) {
     RefPtr<Compositor> compositor;
     if (aBackendHints[i] == LayersBackend::LAYERS_OPENGL) {
-      compositor = new CompositorOGL(mWidget,
+      compositor = new CompositorOGL(this,
+                                     mWidget,
                                      mEGLSurfaceSize.width,
                                      mEGLSurfaceSize.height,
                                      mUseExternalSurfaceSize);
     } else if (aBackendHints[i] == LayersBackend::LAYERS_BASIC) {
 #ifdef MOZ_WIDGET_GTK
       if (gfxPlatformGtk::GetPlatform()->UseXRender()) {
-        compositor = new X11BasicCompositor(mWidget);
+        compositor = new X11BasicCompositor(this, mWidget);
       } else
 #endif
       {
-        compositor = new BasicCompositor(mWidget);
+        compositor = new BasicCompositor(this, mWidget);
       }
 #ifdef XP_WIN
     } else if (aBackendHints[i] == LayersBackend::LAYERS_D3D11) {
-      compositor = new CompositorD3D11(mWidget);
+      compositor = new CompositorD3D11(this, mWidget);
     } else if (aBackendHints[i] == LayersBackend::LAYERS_D3D9) {
       compositor = new CompositorD3D9(this, mWidget);
 #endif
@@ -1932,6 +1935,7 @@ class CrossProcessCompositorBridgeParent final : public PCompositorBridgeParent,
 public:
   explicit CrossProcessCompositorBridgeParent(Transport* aTransport)
     : mTransport(aTransport)
+    , mSubprocess(nullptr)
     , mNotifyAfterRemotePaint(false)
     , mDestroyCalled(false)
   {
@@ -2047,6 +2051,7 @@ public:
 
   virtual AsyncCompositionManager* GetCompositionManager(LayerTransactionParent* aParent) override;
   virtual bool RecvRemotePluginsReady()  override { return false; }
+  virtual bool RecvAcknowledgeCompositorUpdate(const uint64_t& aLayersId) override;
 
   void DidComposite(uint64_t aId,
                     TimeStamp& aCompositeStart,
@@ -2065,6 +2070,7 @@ private:
   // ourself.  This is released (deferred) in ActorDestroy().
   RefPtr<CrossProcessCompositorBridgeParent> mSelfRef;
   Transport* mTransport;
+  ipc::GeckoChildProcessHost* mSubprocess;
 
   RefPtr<CompositorThreadHolder> mCompositorThreadHolder;
   // If true, we should send a RemotePaintIsReady message when the layer transaction
@@ -2175,6 +2181,11 @@ CompositorBridgeParent::ResetCompositorTask(const nsTArray<LayersBackend>& aBack
   ForEachIndirectLayerTree([&] (LayerTreeState* lts, uint64_t layersId) -> void {
     if (CrossProcessCompositorBridgeParent* cpcp = lts->mCrossProcessParent) {
       Unused << cpcp->SendCompositorUpdated(layersId, newIdentifier.value());
+
+      if (LayerTransactionParent* ltp = lts->mLayerTree) {
+        ltp->AddPendingCompositorUpdate();
+      }
+      lts->mPendingCompositorUpdates++;
     }
   });
 }
@@ -2199,6 +2210,9 @@ CompositorBridgeParent::ResetCompositorImpl(const nsTArray<LayersBackend>& aBack
     return Nothing();
   }
 
+  if (mCompositor) {
+    mCompositor->SetInvalid();
+  }
   mCompositor = compositor;
   mLayerManager->ChangeCompositor(compositor);
 
@@ -2215,12 +2229,17 @@ OpenCompositor(CrossProcessCompositorBridgeParent* aCompositor,
 }
 
 /*static*/ PCompositorBridgeParent*
-CompositorBridgeParent::Create(Transport* aTransport, ProcessId aOtherPid)
+CompositorBridgeParent::Create(Transport* aTransport, ProcessId aOtherPid, GeckoChildProcessHost* aProcessHost)
 {
   gfxPlatform::InitLayersIPC();
 
   RefPtr<CrossProcessCompositorBridgeParent> cpcp =
     new CrossProcessCompositorBridgeParent(aTransport);
+
+  if (aProcessHost) {
+    cpcp->mSubprocess = aProcessHost;
+    aProcessHost->AssociateActor();
+  }
 
   cpcp->mSelfRef = cpcp;
   CompositorLoop()->PostTask(
@@ -2279,6 +2298,12 @@ CrossProcessCompositorBridgeParent::ActorDestroy(ActorDestroyReason aWhy)
 {
   RefPtr<CompositorLRU> lru = CompositorLRU::GetSingleton();
   lru->Remove(this);
+
+  if (mSubprocess) {
+    mSubprocess->DissociateActor();
+    mSubprocess = nullptr;
+  }
+
   // We must keep this object alive untill the code handling message
   // reception is finished on this thread.
   MessageLoop::current()->PostTask(FROM_HERE,
@@ -2310,6 +2335,7 @@ CrossProcessCompositorBridgeParent::AllocPLayerTransactionParent(
     LayerTransactionParent* p = new LayerTransactionParent(lm, this, aId);
     p->AddIPDLReference();
     sIndirectLayerTrees[aId].mLayerTree = p;
+    p->SetPendingCompositorUpdates(state->mPendingCompositorUpdates);
     return p;
   }
 
@@ -2709,6 +2735,20 @@ CrossProcessCompositorBridgeParent::GetCompositionManager(LayerTransactionParent
   return state->mParent->GetCompositionManager(aLayerTree);
 }
 
+bool
+CrossProcessCompositorBridgeParent::RecvAcknowledgeCompositorUpdate(const uint64_t& aLayersId)
+{
+  MonitorAutoLock lock(*sIndirectLayerTreesLock);
+  CompositorBridgeParent::LayerTreeState& state = sIndirectLayerTrees[aLayersId];
+
+  if (LayerTransactionParent* ltp = state.mLayerTree) {
+    ltp->AcknowledgeCompositorUpdate();
+  }
+  MOZ_ASSERT(state.mPendingCompositorUpdates > 0);
+  state.mPendingCompositorUpdates--;
+  return true;
+}
+
 void
 CrossProcessCompositorBridgeParent::DeferredDestroy()
 {
@@ -2735,7 +2775,7 @@ CrossProcessCompositorBridgeParent::CloneToplevel(
       Transport* transport = OpenDescriptor(aFds[i].fd(),
                                             Transport::MODE_SERVER);
       PCompositorBridgeParent* compositor =
-        CompositorBridgeParent::Create(transport, base::GetProcId(aPeerProcess));
+        CompositorBridgeParent::Create(transport, base::GetProcId(aPeerProcess), mSubprocess);
       compositor->CloneManagees(this, aCtx);
       compositor->IToplevelProtocol::SetTransport(transport);
       // The reference to the compositor thread is held in OnChannelConnected().

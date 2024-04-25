@@ -86,7 +86,7 @@ nsTextBoxFrame::AttributeChanged(int32_t         aNameSpaceID,
                              NS_FRAME_IS_DIRTY);
     } else if (aRedraw) {
         nsBoxLayoutState state(PresContext());
-        Redraw(state);
+        XULRedraw(state);
     }
 
     // If the accesskey changed, register for the new value
@@ -228,7 +228,7 @@ nsTextBoxFrame::UpdateAttributes(nsIAtom*         aAttribute,
     if (aAttribute == nullptr || aAttribute == nsGkAtoms::crop) {
         static nsIContent::AttrValuesArray strings[] =
           {&nsGkAtoms::left, &nsGkAtoms::start, &nsGkAtoms::center,
-           &nsGkAtoms::right, &nsGkAtoms::end, nullptr};
+           &nsGkAtoms::right, &nsGkAtoms::end, &nsGkAtoms::none, nullptr};
         CroppingStyle cropType;
         switch (mContent->FindAttrValueIn(kNameSpaceID_None, nsGkAtoms::crop,
                                           strings, eCaseMatters)) {
@@ -243,8 +243,11 @@ nsTextBoxFrame::UpdateAttributes(nsIAtom*         aAttribute,
           case 4:
             cropType = CropRight;
             break;
-          default:
+          case 5:
             cropType = CropNone;
+            break;
+          default:
+            cropType = CropAuto;
             break;
         }
 
@@ -646,31 +649,37 @@ nsTextBoxFrame::CalculateTitleForWidth(nsRenderingContext& aRenderingContext,
     }
 
     const nsDependentString& kEllipsis = nsContentUtils::GetLocalizedEllipsis();
-    // start with an ellipsis
-    mCroppedTitle.Assign(kEllipsis);
+    if (mCropType != CropNone) {
+      // start with an ellipsis
+      mCroppedTitle.Assign(kEllipsis);
 
-    // see if the width is even smaller than the ellipsis
-    // if so, clear the text (XXX set as many '.' as we can?).
-    fm->SetTextRunRTL(false);
-    titleWidth = nsLayoutUtils::AppUnitWidthOfString(kEllipsis, *fm,
-                                                     drawTarget);
+      // see if the width is even smaller than the ellipsis
+      // if so, clear the text (XXX set as many '.' as we can?).
+      fm->SetTextRunRTL(false);
+      titleWidth = nsLayoutUtils::AppUnitWidthOfString(kEllipsis, *fm,
+                                                       drawTarget);
 
-    if (titleWidth > aWidth) {
-        mCroppedTitle.SetLength(0);
-        return 0;
+      if (titleWidth > aWidth) {
+          mCroppedTitle.SetLength(0);
+          return 0;
+      }
+
+      // if the ellipsis fits perfectly, no use in trying to insert
+      if (titleWidth == aWidth)
+          return titleWidth;
+
+      aWidth -= titleWidth;
+    } else {
+      mCroppedTitle.Truncate(0);
+      titleWidth = 0;
     }
-
-    // if the ellipsis fits perfectly, no use in trying to insert
-    if (titleWidth == aWidth)
-        return titleWidth;
-
-    aWidth -= titleWidth;
 
     // XXX: This whole block should probably take surrogates into account
     // XXX and clusters!
     // ok crop things
     switch (mCropType)
     {
+        case CropAuto:
         case CropNone:
         case CropRight:
         {
@@ -940,7 +949,7 @@ nsTextBoxFrame::DidSetStyleContext(nsStyleContext* aOldStyleContext)
 }
 
 NS_IMETHODIMP
-nsTextBoxFrame::DoLayout(nsBoxLayoutState& aBoxLayoutState)
+nsTextBoxFrame::DoXULLayout(nsBoxLayoutState& aBoxLayoutState)
 {
     if (mNeedsReflowCallback) {
         nsIReflowCallback* cb = new nsAsyncAccesskeyUpdate(this);
@@ -950,7 +959,7 @@ nsTextBoxFrame::DoLayout(nsBoxLayoutState& aBoxLayoutState)
         mNeedsReflowCallback = false;
     }
 
-    nsresult rv = nsLeafBoxFrame::DoLayout(aBoxLayoutState);
+    nsresult rv = nsLeafBoxFrame::DoXULLayout(aBoxLayoutState);
 
     CalcDrawRect(*aBoxLayoutState.GetRenderingContext());
 
@@ -1053,7 +1062,7 @@ nsTextBoxFrame::CalcDrawRect(nsRenderingContext &aRenderingContext)
 
     LogicalRect textRect(wm, LogicalPoint(wm, 0, 0), GetLogicalSize(wm));
     nsMargin borderPadding;
-    GetBorderAndPadding(borderPadding);
+    GetXULBorderAndPadding(borderPadding);
     textRect.Deflate(wm, LogicalMargin(wm, borderPadding));
 
     // determine (cropped) title and underline position
@@ -1099,7 +1108,7 @@ nsTextBoxFrame::CalcDrawRect(nsRenderingContext &aRenderingContext)
  * Ok return our dimensions
  */
 nsSize
-nsTextBoxFrame::GetPrefSize(nsBoxLayoutState& aBoxLayoutState)
+nsTextBoxFrame::GetXULPrefSize(nsBoxLayoutState& aBoxLayoutState)
 {
     CalcTextSize(aBoxLayoutState);
 
@@ -1108,7 +1117,7 @@ nsTextBoxFrame::GetPrefSize(nsBoxLayoutState& aBoxLayoutState)
 
     AddBorderAndPadding(size);
     bool widthSet, heightSet;
-    nsIFrame::AddCSSPrefSize(this, size, widthSet, heightSet);
+    nsIFrame::AddXULPrefSize(this, size, widthSet, heightSet);
 
     return size;
 }
@@ -1117,7 +1126,7 @@ nsTextBoxFrame::GetPrefSize(nsBoxLayoutState& aBoxLayoutState)
  * Ok return our dimensions
  */
 nsSize
-nsTextBoxFrame::GetMinSize(nsBoxLayoutState& aBoxLayoutState)
+nsTextBoxFrame::GetXULMinSize(nsBoxLayoutState& aBoxLayoutState)
 {
     CalcTextSize(aBoxLayoutState);
 
@@ -1125,7 +1134,7 @@ nsTextBoxFrame::GetMinSize(nsBoxLayoutState& aBoxLayoutState)
     DISPLAY_MIN_SIZE(this, size);
 
     // if there is cropping our min width becomes our border and padding
-    if (mCropType != CropNone) {
+    if (mCropType != CropNone && mCropType != CropAuto) {
         if (GetWritingMode().IsVertical()) {
             size.height = 0;
         } else {
@@ -1135,20 +1144,20 @@ nsTextBoxFrame::GetMinSize(nsBoxLayoutState& aBoxLayoutState)
 
     AddBorderAndPadding(size);
     bool widthSet, heightSet;
-    nsIFrame::AddCSSMinSize(aBoxLayoutState, this, size, widthSet, heightSet);
+    nsIFrame::AddXULMinSize(aBoxLayoutState, this, size, widthSet, heightSet);
 
     return size;
 }
 
 nscoord
-nsTextBoxFrame::GetBoxAscent(nsBoxLayoutState& aBoxLayoutState)
+nsTextBoxFrame::GetXULBoxAscent(nsBoxLayoutState& aBoxLayoutState)
 {
     CalcTextSize(aBoxLayoutState);
 
     nscoord ascent = mAscent;
 
     nsMargin m(0,0,0,0);
-    GetBorderAndPadding(m);
+    GetXULBorderAndPadding(m);
 
     WritingMode wm = GetWritingMode();
     ascent += LogicalMargin(wm, m).BStart(wm);

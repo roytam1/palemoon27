@@ -205,7 +205,7 @@ JSRuntime::JSRuntime(JSRuntime* parentRuntime)
     canUseSignalHandlers_(false),
     defaultFreeOp_(thisFromCtor()),
     debuggerMutations(0),
-    securityCallbacks(const_cast<JSSecurityCallbacks*>(&NullSecurityCallbacks)),
+    securityCallbacks(&NullSecurityCallbacks),
     DOMcallbacks(nullptr),
     destroyPrincipals(nullptr),
     readPrincipals(nullptr),
@@ -698,9 +698,7 @@ JSRuntime::getDefaultLocale()
     if (defaultLocale)
         return defaultLocale;
 
-    char* locale;
-    char* lang;
-    char* p;
+    const char* locale;
 #ifdef HAVE_SETLOCALE
     locale = setlocale(LC_ALL, nullptr);
 #else
@@ -708,10 +706,13 @@ JSRuntime::getDefaultLocale()
 #endif
     // convert to a well-formed BCP 47 language tag
     if (!locale || !strcmp(locale, "C"))
-        locale = const_cast<char*>("und");
-    lang = JS_strdup(this, locale);
+        locale = "und";
+
+    char* lang = JS_strdup(this, locale);
     if (!lang)
         return nullptr;
+
+    char* p;
     if ((p = strchr(lang, '.')))
         *p = '\0';
     while ((p = strchr(lang, '_')))

@@ -16,6 +16,7 @@
 #include "nsAlgorithm.h" // for clamped()
 #include "nsAutoPtr.h"
 #include "nsCSSAnonBoxes.h"
+#include "nsCSSFrameConstructor.h"
 #include "nsDataHashtable.h"
 #include "nsDisplayList.h"
 #include "nsHashKeys.h"
@@ -151,8 +152,21 @@ nsGridContainerFrame::TrackSize::Initialize(nscoord aPercentageBasis,
 {
   MOZ_ASSERT(mBase == 0 && mLimit == 0 && mState == 0,
              "track size data is expected to be initialized to zero");
+  auto minSizeUnit = aMinCoord.GetUnit();
+  auto maxSizeUnit = aMaxCoord.GetUnit();
+  if (aPercentageBasis == NS_UNCONSTRAINEDSIZE) {
+    // https://drafts.csswg.org/css-grid/#valdef-grid-template-columns-percentage
+    // "If the inline or block size of the grid container is indefinite,
+    //  <percentage> values relative to that size are treated as 'auto'."
+    if (aMinCoord.HasPercent()) {
+      minSizeUnit = eStyleUnit_Auto;
+    }
+    if (aMaxCoord.HasPercent()) {
+      maxSizeUnit = eStyleUnit_Auto;
+    }
+  }
   // http://dev.w3.org/csswg/css-grid/#algo-init
-  switch (aMinCoord.GetUnit()) {
+  switch (minSizeUnit) {
     case eStyleUnit_Auto:
       mState = eAutoMinSizing;
       break;
@@ -166,7 +180,7 @@ nsGridContainerFrame::TrackSize::Initialize(nscoord aPercentageBasis,
     default:
       mBase = nsRuleNode::ComputeCoordPercentCalc(aMinCoord, aPercentageBasis);
   }
-  switch (aMaxCoord.GetUnit()) {
+  switch (maxSizeUnit) {
     case eStyleUnit_Auto:
       mState |= eAutoMaxSizing;
       mLimit = NS_UNCONSTRAINEDSIZE;
@@ -2038,12 +2052,10 @@ nsGridContainerFrame::GridReflowState::CalculateTrackSizes(
   mRows.Initialize(mRowFunctions, mGridStyle->mGridRowGap,
                    aGrid.mGridRowEnd, aContentBox.BSize(mWM));
 
-  mIter.Reset(); // XXX cleanup this Reset mess!
   mCols.CalculateSizes(*this, mGridItems, mColFunctions,
                        aContentBox.ISize(mWM), &GridArea::mCols,
                        aConstraint);
 
-  mIter.Reset(); // XXX cleanup this Reset mess!
   mRows.CalculateSizes(*this, mGridItems, mRowFunctions,
                        aContentBox.BSize(mWM), &GridArea::mRows,
                        aConstraint);
@@ -2937,6 +2949,7 @@ nsGridContainerFrame::Grid::PlaceGridItems(GridReflowState& aState,
   int32_t minCol = 1;
   int32_t minRow = 1;
   aState.mGridItems.ClearAndRetainStorage();
+  aState.mIter.Reset();
   for (; !aState.mIter.AtEnd(); aState.mIter.Next()) {
     nsIFrame* child = *aState.mIter;
     GridItemInfo* info =
@@ -3208,12 +3221,8 @@ nsGridContainerFrame::Tracks::Initialize(
                              aFunctions.NumExplicitTracks());
   mSizes.SetLength(aNumTracks);
   PodZero(mSizes.Elements(), mSizes.Length());
-  nscoord percentageBasis = aContentBoxSize;
-  if (percentageBasis == NS_UNCONSTRAINEDSIZE) {
-    percentageBasis = 0;
-  }
   for (uint32_t i = 0, len = mSizes.Length(); i < len; ++i) {
-    mSizes[i].Initialize(percentageBasis,
+    mSizes[i].Initialize(aContentBoxSize,
                          aFunctions.MinSizingFor(i),
                          aFunctions.MaxSizingFor(i));
   }
@@ -3485,6 +3494,7 @@ nsGridContainerFrame::Tracks::ResolveIntrinsicSize(
   const TrackSize::StateBits flexMin =
     aConstraint == nsLayoutUtils::MIN_ISIZE ? TrackSize::eFlexMinSizing
                                             : TrackSize::StateBits(0);
+  iter.Reset();
   for (; !iter.AtEnd(); iter.Next()) {
     nsIFrame* child = *iter;
     const GridArea& area = aGridItems[iter.GridItemIndex()].mArea;
@@ -5005,7 +5015,6 @@ nsGridContainerFrame::Reflow(nsPresContext*           aPresContext,
     grid.PlaceGridItems(gridReflowState, computedMinSize, computedSize,
                         aReflowState.ComputedMaxSize());
 
-    gridReflowState.mIter.Reset();
     gridReflowState.CalculateTrackSizes(grid, computedSize,
                                         nsLayoutUtils::PREF_ISIZE);
 
@@ -5149,7 +5158,6 @@ nsGridContainerFrame::IntrinsicISize(nsRenderingContext* aRenderingContext,
   }
   state.mCols.Initialize(state.mColFunctions, state.mGridStyle->mGridColumnGap,
                          grid.mGridColEnd, NS_UNCONSTRAINEDSIZE);
-  state.mIter.Reset();
   state.mCols.CalculateSizes(state, state.mGridItems, state.mColFunctions,
                              NS_UNCONSTRAINEDSIZE, &GridArea::mCols,
                              aConstraint);
@@ -5342,45 +5350,12 @@ nsGridContainerFrame::MergeSortedExcessOverflowContainers(nsFrameList& aList)
 }
 
 #ifdef DEBUG
-static bool
-FrameWantsToBeInAnonymousGridItem(nsIFrame* aFrame)
-{
-  // Note: This needs to match the logic in
-  // nsCSSFrameConstructor::FrameConstructionItem::NeedsAnonFlexOrGridItem()
-  return aFrame->IsFrameOfType(nsIFrame::eLineParticipant);
-}
-
-// Debug-only override, to let us assert that our anonymous grid items are
-// set up correctly by the frame constructor -- in particular, we assert:
-//  (1) we don't have any inline non-replaced children
-//  (2) we don't have any consecutive anonymous grid items
-//  (3) we don't have any empty anonymous grid items
-//  (4) all children are on the expected child lists
 void
 nsGridContainerFrame::SetInitialChildList(ChildListID  aListID,
                                           nsFrameList& aChildList)
 {
   ChildListIDs supportedLists = kAbsoluteList | kFixedList | kPrincipalList;
   MOZ_ASSERT(supportedLists.Contains(aListID), "unexpected child list");
-
-  if (aListID == kPrincipalList) {
-    bool prevChildWasAnonGridItem = false;
-    for (nsFrameList::Enumerator e(aChildList); !e.AtEnd(); e.Next()) {
-      nsIFrame* child = e.get();
-      MOZ_ASSERT(!FrameWantsToBeInAnonymousGridItem(child),
-                 "frame wants to be inside an anonymous grid item, but it isn't");
-      if (child->StyleContext()->GetPseudo() ==
-            nsCSSAnonBoxes::anonymousGridItem) {
-        MOZ_ASSERT(!prevChildWasAnonGridItem, "two anon grid items in a row");
-        nsIFrame* firstWrappedChild = child->PrincipalChildList().FirstChild();
-        MOZ_ASSERT(firstWrappedChild,
-                   "anonymous grid item is empty (shouldn't happen)");
-        prevChildWasAnonGridItem = true;
-      } else {
-        prevChildWasAnonGridItem = false;
-      }
-    }
-  }
 
   return nsContainerFrame::SetInitialChildList(aListID, aChildList);
 }

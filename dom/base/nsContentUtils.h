@@ -662,6 +662,8 @@ public:
    * keep a mutable version around should pass in a clone.
    *
    * @param aURI uri of the image to be loaded
+   * @param aContext element of document where the result of this request
+   *                 will be used.
    * @param aLoadingDocument the document we belong to
    * @param aLoadingPrincipal the principal doing the load
    * @param aReferrer the referrer URI
@@ -674,6 +676,7 @@ public:
    * @return the imgIRequest for the image load
    */
   static nsresult LoadImage(nsIURI* aURI,
+                            nsINode* aContext,
                             nsIDocument* aLoadingDocument,
                             nsIPrincipal* aLoadingPrincipal,
                             nsIURI* aReferrer,

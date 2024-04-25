@@ -2330,12 +2330,16 @@ public:
    * CanOptimizeToImageLayer() first and it returned true.
    */
   virtual bool CanOptimizeToImageLayer(LayerManager* aManager,
-                                       nsDisplayListBuilder* aBuilder) = 0;
+                                       nsDisplayListBuilder* aBuilder);
 
-  virtual already_AddRefed<ImageContainer> GetContainer(LayerManager* aManager,
-                                                        nsDisplayListBuilder* aBuilder) = 0;
-  virtual void ConfigureLayer(ImageLayer* aLayer,
-                              const ContainerLayerParameters& aParameters) = 0;
+  already_AddRefed<ImageContainer> GetContainer(LayerManager* aManager,
+                                                nsDisplayListBuilder* aBuilder);
+  void ConfigureLayer(ImageLayer* aLayer,
+                      const ContainerLayerParameters& aParameters);
+
+  virtual already_AddRefed<imgIContainer> GetImage() = 0;
+
+  virtual nsRect GetDestRect() = 0;
 
   virtual bool SupportsOptimizingToImage() override { return true; }
 };
@@ -2706,11 +2710,6 @@ public:
   nsRect GetPositioningArea();
 
   /**
-   * Return the destination area of one instance of the image.
-   */
-  nsRect GetDestArea() const { return mDestArea; }
-
-  /**
    * Returns true if existing rendered pixels of this display item may need
    * to be redrawn if the positioning area size changes but its position does
    * not.
@@ -2730,10 +2729,8 @@ public:
   
   virtual bool CanOptimizeToImageLayer(LayerManager* aManager,
                                        nsDisplayListBuilder* aBuilder) override;
-  virtual already_AddRefed<ImageContainer> GetContainer(LayerManager* aManager,
-                                                        nsDisplayListBuilder *aBuilder) override;
-  virtual void ConfigureLayer(ImageLayer* aLayer,
-                              const ContainerLayerParameters& aParameters) override;
+  virtual already_AddRefed<imgIContainer> GetImage() override;
+  virtual nsRect GetDestRect() override;
 
   static nsRegion GetInsideClipRegion(nsDisplayItem* aItem, uint8_t aClip,
                                       const nsRect& aRect);
@@ -2750,7 +2747,6 @@ protected:
                                   gfxRect* aDestRect);
   bool IsNonEmptyFixedImage() const;
   nsRect GetBoundsInternal(nsDisplayListBuilder* aBuilder);
-  nsRect GetDestAreaInternal(nsDisplayListBuilder* aBuilder);
 
   void PaintInternal(nsDisplayListBuilder* aBuilder, nsRenderingContext* aCtx,
                      const nsRect& aBounds, nsRect* aClipRect);
@@ -2769,12 +2765,12 @@ protected:
   // mIsThemed is true or if FindBackground returned false.
   const nsStyleBackground* mBackgroundStyle;
   nsCOMPtr<imgIContainer> mImage;
-  RefPtr<ImageContainer> mImageContainer;
-  LayoutDeviceRect mImageLayerDestRect;
+  nsRect mFillRect;
+  nsRect mDestRect;
   /* Bounds of this display item */
   nsRect mBounds;
-  nsRect mDestArea;
   uint32_t mLayer;
+  bool mIsRasterImage;
 };
 
 

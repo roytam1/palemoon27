@@ -425,7 +425,7 @@ static bool
 ShouldSuppressFloatingOfDescendants(nsIFrame* aFrame)
 {
   return aFrame->IsFrameOfType(nsIFrame::eMathML) ||
-    aFrame->IsBoxFrame() ||
+    aFrame->IsXULBoxFrame() ||
     ::IsFlexOrGridContainer(aFrame);
 }
 
@@ -8345,7 +8345,7 @@ nsCSSFrameConstructor::ContentRemoved(nsIContent*  aContainer,
     // (If we're in the XUL block-wrapping situation, parentFrame is the
     // wrapper frame.)
     nsIFrame* grandparentFrame = parentFrame->GetParent();
-    if (grandparentFrame && grandparentFrame->IsBoxFrame() &&
+    if (grandparentFrame && grandparentFrame->IsXULBoxFrame() &&
         (grandparentFrame->GetStateBits() & NS_STATE_BOX_WRAPS_KIDS_IN_BLOCK) &&
         // check if this frame is the only one needing wrapping
         aChild == AnyKidsNeedBlockParent(parentFrame->PrincipalChildList().FirstChild()) &&
@@ -10486,6 +10486,49 @@ void nsCSSFrameConstructor::CreateNeededPseudoSiblings(
   iter.InsertItem(newItem);
 }
 
+#ifdef DEBUG
+static bool
+FrameWantsToBeInAnonymousItem(const nsIAtom* aParentType, const nsIFrame* aFrame)
+{
+  // Note: This needs to match the logic in
+  // nsCSSFrameConstructor::FrameConstructionItem::NeedsAnonFlexOrGridItem()
+  if (aParentType == nsGkAtoms::gridContainerFrame) {
+    return aFrame->IsFrameOfType(nsIFrame::eLineParticipant);
+  }
+  MOZ_ASSERT(aParentType == nsGkAtoms::flexContainerFrame);
+  return aFrame->IsFrameOfType(nsIFrame::eLineParticipant) ||
+         aFrame->GetType() == nsGkAtoms::placeholderFrame;
+}
+#endif
+
+static void
+VerifyGridFlexContainerChildren(nsIFrame* aParentFrame,
+                                const nsFrameList& aChildren)
+{
+#ifdef DEBUG
+  auto parentType = aParentFrame->GetType();
+  if (parentType != nsGkAtoms::flexContainerFrame &&
+      parentType != nsGkAtoms::gridContainerFrame) {
+    return;
+  }
+
+  bool prevChildWasAnonItem = false;
+  for (const nsIFrame* child : aChildren) {
+    MOZ_ASSERT(!FrameWantsToBeInAnonymousItem(parentType, child),
+               "frame wants to be inside an anonymous item, but it isn't");
+    if (IsAnonymousFlexOrGridItem(child)) {
+      AssertAnonymousFlexOrGridItemParent(child, aParentFrame);
+      MOZ_ASSERT(!prevChildWasAnonItem, "two anon items in a row");
+      nsIFrame* firstWrappedChild = child->PrincipalChildList().FirstChild();
+      MOZ_ASSERT(firstWrappedChild, "anonymous item shouldn't be empty");
+      prevChildWasAnonItem = true;
+    } else {
+      prevChildWasAnonItem = false;
+    }
+  }
+#endif
+}
+
 inline void
 nsCSSFrameConstructor::ConstructFramesFromItemList(nsFrameConstructorState& aState,
                                                    FrameConstructionItemList& aItems,
@@ -10504,6 +10547,7 @@ nsCSSFrameConstructor::ConstructFramesFromItemList(nsFrameConstructorState& aSta
     ConstructFramesFromItem(aState, iter, aParentFrame, aFrameItems);
   }
 
+  VerifyGridFlexContainerChildren(aParentFrame, aFrameItems);
   NS_ASSERTION(!aState.mHavePendingPopupgroup,
                "Should have proccessed it by now");
 }
@@ -10703,7 +10747,7 @@ nsCSSFrameConstructor::ProcessChildren(nsFrameConstructorState& aState,
 
   ConstructFramesFromItemList(aState, itemsToConstruct, aFrame, aFrameItems);
 
-  NS_ASSERTION(!aAllowBlockStyles || !aFrame->IsBoxFrame(),
+  NS_ASSERTION(!aAllowBlockStyles || !aFrame->IsXULBoxFrame(),
                "can't be both block and box");
 
   if (haveFirstLetterStyle) {
@@ -10716,15 +10760,15 @@ nsCSSFrameConstructor::ProcessChildren(nsFrameConstructorState& aState,
 
   // We might end up with first-line frames that change
   // AnyKidsNeedBlockParent() without changing itemsToConstruct, but that
-  // should never happen for cases whan aFrame->IsBoxFrame().
-  NS_ASSERTION(!haveFirstLineStyle || !aFrame->IsBoxFrame(),
+  // should never happen for cases whan aFrame->IsXULBoxFrame().
+  NS_ASSERTION(!haveFirstLineStyle || !aFrame->IsXULBoxFrame(),
                "Shouldn't have first-line style if we're a box");
-  NS_ASSERTION(!aFrame->IsBoxFrame() ||
+  NS_ASSERTION(!aFrame->IsXULBoxFrame() ||
                itemsToConstruct.AnyItemsNeedBlockParent() ==
                  (AnyKidsNeedBlockParent(aFrameItems.FirstChild()) != nullptr),
                "Something went awry in our block parent calculations");
 
-  if (aFrame->IsBoxFrame() && itemsToConstruct.AnyItemsNeedBlockParent()) {
+  if (aFrame->IsXULBoxFrame() && itemsToConstruct.AnyItemsNeedBlockParent()) {
     // XXXbz we could do this on the FrameConstructionItemList level,
     // no?  And if we cared we could look through the item list
     // instead of groveling through the framelist here..
@@ -12061,7 +12105,7 @@ nsCSSFrameConstructor::WipeContainingBlock(nsFrameConstructorState& aState,
 
   // Situation #1 is a XUL frame that contains frames that are required
   // to be wrapped in blocks.
-  if (aFrame->IsBoxFrame() &&
+  if (aFrame->IsXULBoxFrame() &&
       !(aFrame->GetStateBits() & NS_STATE_BOX_WRAPS_KIDS_IN_BLOCK) &&
       aItems.AnyItemsNeedBlockParent()) {
     RecreateFramesForContent(aFrame->GetContent(), true,

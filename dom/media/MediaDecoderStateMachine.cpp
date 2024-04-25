@@ -42,6 +42,7 @@
 #include "ImageContainer.h"
 #include "MediaDecoder.h"
 #include "MediaDecoderReader.h"
+#include "MediaDecoderReaderWrapper.h"
 #include "MediaDecoderStateMachine.h"
 #include "MediaShutdownManager.h"
 #include "MediaTimer.h"
@@ -219,6 +220,7 @@ MediaDecoderStateMachine::MediaDecoderStateMachine(MediaDecoder* aDecoder,
   mObservedDuration(TimeUnit(), "MediaDecoderStateMachine::mObservedDuration"),
   mFragmentEndTime(-1),
   mReader(aReader),
+  mReaderWrapper(new MediaDecoderReaderWrapper(aRealTime, mTaskQueue, aReader)),
   mDecodedAudioEndTime(0),
   mDecodedVideoEndTime(0),
   mPlaybackRate(1.0),
@@ -331,8 +333,6 @@ MediaDecoderStateMachine::~MediaDecoderStateMachine()
 {
   MOZ_ASSERT(NS_IsMainThread(), "Should be on main thread.");
   MOZ_COUNT_DTOR(MediaDecoderStateMachine);
-
-  mReader = nullptr;
 
 #ifdef XP_WIN
   timeEndPeriod(1);
@@ -464,12 +464,13 @@ void MediaDecoderStateMachine::DiscardStreamData()
   }
 }
 
-bool MediaDecoderStateMachine::HaveEnoughDecodedAudio(int64_t aAmpleAudioUSecs)
+bool MediaDecoderStateMachine::HaveEnoughDecodedAudio()
 {
   MOZ_ASSERT(OnTaskQueue());
 
+  int64_t ampleAudioUSecs = mAmpleAudioThresholdUsecs * mPlaybackRate;
   if (AudioQueue().GetSize() == 0 ||
-      GetDecodedAudioDuration() < aAmpleAudioUSecs) {
+      GetDecodedAudioDuration() < ampleAudioUSecs) {
     return false;
   }
 
@@ -566,14 +567,12 @@ MediaDecoderStateMachine::NeedToDecodeAudio()
 {
   MOZ_ASSERT(OnTaskQueue());
   SAMPLE_LOG("NeedToDecodeAudio() isDec=%d minPrl=%d enufAud=%d",
-             IsAudioDecoding(), mMinimizePreroll,
-             HaveEnoughDecodedAudio(mAmpleAudioThresholdUsecs * mPlaybackRate));
+             IsAudioDecoding(), mMinimizePreroll, HaveEnoughDecodedAudio());
 
   return IsAudioDecoding() &&
          mState != DECODER_STATE_SEEKING &&
          ((IsDecodingFirstFrame() && AudioQueue().GetSize() == 0) ||
-          (!mMinimizePreroll &&
-           !HaveEnoughDecodedAudio(mAmpleAudioThresholdUsecs * mPlaybackRate)));
+          (!mMinimizePreroll && !HaveEnoughDecodedAudio()));
 }
 
 bool
@@ -609,7 +608,6 @@ MediaDecoderStateMachine::OnAudioDecoded(MediaData* aAudioSample)
   RefPtr<MediaData> audio(aAudioSample);
   MOZ_ASSERT(audio);
   mAudioDataRequest.Complete();
-  aAudioSample->AdjustForStartTime(StartTime());
 
   // audio->GetEndTime() is not always mono-increasing in chained ogg.
   mDecodedAudioEndTime = std::max(audio->GetEndTime(), mDecodedAudioEndTime);
@@ -705,22 +703,6 @@ MediaDecoderStateMachine::Push(MediaData* aSample, MediaData::Type aSampleType)
   }
   UpdateNextFrameStatus();
   DispatchDecodeTasksIfNeeded();
-}
-
-void
-MediaDecoderStateMachine::PushFront(MediaData* aSample, MediaData::Type aSampleType)
-{
-  MOZ_ASSERT(OnTaskQueue());
-  MOZ_ASSERT(aSample);
-  if (aSample->mType == MediaData::AUDIO_DATA) {
-    AudioQueue().PushFront(aSample);
-  } else if (aSample->mType == MediaData::VIDEO_DATA) {
-    aSample->As<VideoData>()->mFrameID = ++mCurrentFrameID;
-    VideoQueue().PushFront(aSample);
-  } else {
-    // TODO: Handle MediaRawData, determine which queue should be pushed.
-  }
-  UpdateNextFrameStatus();
 }
 
 void
@@ -852,6 +834,11 @@ MediaDecoderStateMachine::OnNotDecoded(MediaData::Type aType,
         return;
       }
       CheckIfDecodeComplete();
+
+      // Schedule next cycle to see if we can leave buffering state.
+      if (mState == DECODER_STATE_BUFFERING) {
+        ScheduleStateMachine();
+      }
       return;
     }
     case DECODER_STATE_SEEKING: {
@@ -890,20 +877,19 @@ MediaDecoderStateMachine::MaybeFinishDecodeFirstFrame()
   }
 
   // We can now complete the pending seek.
-  mPendingSeek.Steal(mQueuedSeek);
   SetState(DECODER_STATE_SEEKING);
-  ScheduleStateMachine();
+  InitiateSeek(Move(mQueuedSeek));
   return true;
 }
 
 void
-MediaDecoderStateMachine::OnVideoDecoded(MediaData* aVideoSample)
+MediaDecoderStateMachine::OnVideoDecoded(MediaData* aVideoSample,
+                                         TimeStamp aDecodeStartTime)
 {
   MOZ_ASSERT(OnTaskQueue());
   RefPtr<MediaData> video(aVideoSample);
   MOZ_ASSERT(video);
   mVideoDataRequest.Complete();
-  aVideoSample->AdjustForStartTime(StartTime());
 
   // Handle abnormal or negative timestamps.
   mDecodedVideoEndTime = std::max(mDecodedVideoEndTime, video->GetEndTime());
@@ -939,7 +925,7 @@ MediaDecoderStateMachine::OnVideoDecoded(MediaData* aVideoSample)
       if (mReader->IsAsync()) {
         return;
       }
-      TimeDuration decodeTime = TimeStamp::Now() - mVideoDecodeStartTime;
+      TimeDuration decodeTime = TimeStamp::Now() - aDecodeStartTime;
       if (!IsDecodingFirstFrame() &&
           THRESHOLD_FACTOR * DurationToUsecs(decodeTime) > mLowAudioThresholdUsecs &&
           !HasLowUndecodedData())
@@ -977,10 +963,8 @@ MediaDecoderStateMachine::OnVideoDecoded(MediaData* aVideoSample)
           // in this case, we'll just decode forward. Bug 1026330.
           mCurrentSeek.mTarget.SetType(SeekTarget::Accurate);
         }
-        if (mCurrentSeek.mTarget.IsFast() ||
-            mPendingSeek.Exists()) {
-          // Non-precise seek; or a pending seek exists ; we can stop the seek
-          // at the first sample.
+        if (mCurrentSeek.mTarget.IsFast()) {
+          // Non-precise seek. We can stop the seek at the first sample.
           Push(video, MediaData::VIDEO_DATA);
         } else {
           // We're doing an accurate seek. We still need to discard
@@ -1274,10 +1258,6 @@ MediaDecoderStateMachine::SetDormant(bool aDormant)
     return;
   }
 
-  if (!mReader) {
-    return;
-  }
-
   if (mMetadataRequest.Exists()) {
     if (mPendingDormant && mPendingDormant.ref() != aDormant && !aDormant) {
       // We already have a dormant request pending; the new request would have
@@ -1296,10 +1276,8 @@ MediaDecoderStateMachine::SetDormant(bool aDormant)
     if (mState == DECODER_STATE_SEEKING) {
       if (mQueuedSeek.Exists()) {
         // Keep latest seek target
-      } else if (mPendingSeek.Exists()) {
-        mQueuedSeek.Steal(mPendingSeek);
       } else if (mCurrentSeek.Exists()) {
-        mQueuedSeek.Steal(mCurrentSeek);
+        mQueuedSeek = Move(mCurrentSeek);
       } else {
         mQueuedSeek.mTarget = SeekTarget(mCurrentPosition,
                                          SeekTarget::Accurate,
@@ -1316,7 +1294,6 @@ MediaDecoderStateMachine::SetDormant(bool aDormant)
       // back to MediaDecoder when we come out of dormant?
       RefPtr<MediaDecoder::SeekPromise> unused = mQueuedSeek.mPromise.Ensure(__func__);
     }
-    mPendingSeek.RejectIfExists(__func__);
     mCurrentSeek.RejectIfExists(__func__);
     SetState(DECODER_STATE_DORMANT);
     if (IsPlaying()) {
@@ -1354,7 +1331,6 @@ MediaDecoderStateMachine::Shutdown()
   mBufferedUpdateRequest.DisconnectIfExists();
 
   mQueuedSeek.RejectIfExists(__func__);
-  mPendingSeek.RejectIfExists(__func__);
   mCurrentSeek.RejectIfExists(__func__);
 
 #ifdef MOZ_EME
@@ -1368,11 +1344,7 @@ MediaDecoderStateMachine::Shutdown()
   Reset();
 
   mMediaSink->Shutdown();
-
-  // Shut down our start time rendezvous.
-  if (mStartTimeRendezvous) {
-    mStartTimeRendezvous->Destroy();
-  }
+  mReaderWrapper->Shutdown();
 
   DECODER_LOG("Shutdown started");
 
@@ -1408,9 +1380,8 @@ void MediaDecoderStateMachine::StartDecoding()
                  "Return from dormant must have queued seek");
     }
     if (mQueuedSeek.Exists()) {
-      mPendingSeek.Steal(mQueuedSeek);
       SetState(DECODER_STATE_SEEKING);
-      ScheduleStateMachine();
+      InitiateSeek(Move(mQueuedSeek));
       return;
     }
   }
@@ -1510,8 +1481,7 @@ MediaDecoderStateMachine::ReadMetadata()
   DECODER_LOG("Dispatching AsyncReadMetadata");
   // Set mode to METADATA since we are about to read metadata.
   mResource->SetReadMode(MediaCacheStream::MODE_METADATA);
-  mMetadataRequest.Begin(InvokeAsync(DecodeTaskQueue(), mReader.get(), __func__,
-                                     &MediaDecoderReader::AsyncReadMetadata)
+  mMetadataRequest.Begin(mReaderWrapper->ReadMetadata()
     ->Then(OwnerThread(), __func__, this,
            &MediaDecoderStateMachine::OnMetadataRead,
            &MediaDecoderStateMachine::OnMetadataNotRead));
@@ -1544,14 +1514,14 @@ MediaDecoderStateMachine::Seek(SeekTarget aTarget)
     return mQueuedSeek.mPromise.Ensure(__func__);
   }
   mQueuedSeek.RejectIfExists(__func__);
-  mPendingSeek.RejectIfExists(__func__);
-  mPendingSeek.mTarget = aTarget;
 
-  DECODER_LOG("Changed state to SEEKING (to %lld)", mPendingSeek.mTarget.GetTime().ToMicroseconds());
+  DECODER_LOG("Changed state to SEEKING (to %lld)", aTarget.GetTime().ToMicroseconds());
   SetState(DECODER_STATE_SEEKING);
-  ScheduleStateMachine();
 
-  return mPendingSeek.mPromise.Ensure(__func__);
+  SeekJob seekJob;
+  seekJob.mTarget = aTarget;
+  InitiateSeek(Move(seekJob));
+  return mCurrentSeek.mPromise.Ensure(__func__);
 }
 
 RefPtr<MediaDecoder::SeekPromise>
@@ -1631,12 +1601,12 @@ MediaDecoderStateMachine::DispatchDecodeTasksIfNeeded()
 }
 
 void
-MediaDecoderStateMachine::InitiateSeek()
+MediaDecoderStateMachine::InitiateSeek(SeekJob aSeekJob)
 {
   MOZ_ASSERT(OnTaskQueue());
 
   mCurrentSeek.RejectIfExists(__func__);
-  mCurrentSeek.Steal(mPendingSeek);
+  mCurrentSeek = Move(aSeekJob);
 
   // Bound the seek time to be inside the media range.
   int64_t end = Duration().ToMicroseconds();
@@ -1665,11 +1635,8 @@ MediaDecoderStateMachine::InitiateSeek()
 
   // Do the seek.
   RefPtr<MediaDecoderStateMachine> self = this;
-  SeekTarget seekTarget = mCurrentSeek.mTarget;
-  seekTarget.SetTime(seekTarget.GetTime() + media::TimeUnit::FromMicroseconds(StartTime()));
-  mSeekRequest.Begin(InvokeAsync(DecodeTaskQueue(), mReader.get(), __func__,
-                                 &MediaDecoderReader::Seek, seekTarget,
-                                 Duration().ToMicroseconds())
+  mSeekRequest.Begin(
+    mReaderWrapper->Seek(mCurrentSeek.mTarget, Duration())
     ->Then(OwnerThread(), __func__,
            [self] (media::TimeUnit) -> void {
              self->mSeekRequest.Complete();
@@ -1731,25 +1698,11 @@ MediaDecoderStateMachine::RequestAudioData()
   SAMPLE_LOG("Queueing audio task - queued=%i, decoder-queued=%o",
              AudioQueue().GetSize(), mReader->SizeOfAudioQueueInFrames());
 
-  if (mSentFirstFrameLoadedEvent) {
-    mAudioDataRequest.Begin(InvokeAsync(DecodeTaskQueue(), mReader.get(),
-                                        __func__, &MediaDecoderReader::RequestAudioData)
-      ->Then(OwnerThread(), __func__, this,
-             &MediaDecoderStateMachine::OnAudioDecoded,
-             &MediaDecoderStateMachine::OnAudioNotDecoded));
-  } else {
-    mAudioDataRequest.Begin(
-      InvokeAsync(DecodeTaskQueue(), mReader.get(), __func__,
-                  &MediaDecoderReader::RequestAudioData)
-      ->Then(OwnerThread(), __func__, mStartTimeRendezvous.get(),
-             &StartTimeRendezvous::ProcessFirstSample<AudioDataPromise, MediaData::AUDIO_DATA>,
-             &StartTimeRendezvous::FirstSampleRejected<MediaData::AUDIO_DATA>)
-      ->CompletionPromise()
-      ->Then(OwnerThread(), __func__, this,
-             &MediaDecoderStateMachine::OnAudioDecoded,
-             &MediaDecoderStateMachine::OnAudioNotDecoded)
-    );
-  }
+  mAudioDataRequest.Begin(
+    mReaderWrapper->RequestAudioData()
+    ->Then(OwnerThread(), __func__, this,
+           &MediaDecoderStateMachine::OnAudioDecoded,
+           &MediaDecoderStateMachine::OnAudioNotDecoded));
 }
 
 nsresult
@@ -1799,40 +1752,28 @@ MediaDecoderStateMachine::RequestVideoData()
   // Time the video decode, so that if it's slow, we can increase our low
   // audio threshold to reduce the chance of an audio underrun while we're
   // waiting for a video decode to complete.
-  mVideoDecodeStartTime = TimeStamp::Now();
+  TimeStamp videoDecodeStartTime = TimeStamp::Now();
 
   bool skipToNextKeyFrame = mSentFirstFrameLoadedEvent &&
     NeedToSkipToNextKeyframe();
 
-  int64_t currentTime =
-    mState == DECODER_STATE_SEEKING || !mSentFirstFrameLoadedEvent
-      ? 0 : GetMediaTime() + StartTime();
+  media::TimeUnit currentTime = media::TimeUnit::FromMicroseconds(
+    mState == DECODER_STATE_SEEKING ? 0 : GetMediaTime());
 
   SAMPLE_LOG("Queueing video task - queued=%i, decoder-queued=%o, skip=%i, time=%lld",
              VideoQueue().GetSize(), mReader->SizeOfVideoQueueInFrames(), skipToNextKeyFrame,
-             currentTime);
+             currentTime.ToMicroseconds());
 
-  if (mSentFirstFrameLoadedEvent) {
-    mVideoDataRequest.Begin(
-      InvokeAsync(DecodeTaskQueue(), mReader.get(), __func__,
-                  &MediaDecoderReader::RequestVideoData,
-                  skipToNextKeyFrame, currentTime)
-      ->Then(OwnerThread(), __func__, this,
-             &MediaDecoderStateMachine::OnVideoDecoded,
-             &MediaDecoderStateMachine::OnVideoNotDecoded));
-  } else {
-    mVideoDataRequest.Begin(
-      InvokeAsync(DecodeTaskQueue(), mReader.get(), __func__,
-                  &MediaDecoderReader::RequestVideoData,
-                  skipToNextKeyFrame, currentTime)
-      ->Then(OwnerThread(), __func__, mStartTimeRendezvous.get(),
-             &StartTimeRendezvous::ProcessFirstSample<VideoDataPromise, MediaData::VIDEO_DATA>,
-             &StartTimeRendezvous::FirstSampleRejected<MediaData::VIDEO_DATA>)
-      ->CompletionPromise()
-      ->Then(OwnerThread(), __func__, this,
-             &MediaDecoderStateMachine::OnVideoDecoded,
-             &MediaDecoderStateMachine::OnVideoNotDecoded));
-  }
+  RefPtr<MediaDecoderStateMachine> self = this;
+  mVideoDataRequest.Begin(
+    mReaderWrapper->RequestVideoData(skipToNextKeyFrame, currentTime)
+    ->Then(OwnerThread(), __func__,
+           [self, videoDecodeStartTime] (MediaData* aVideoSample) {
+             self->OnVideoDecoded(aVideoSample, videoDecodeStartTime);
+           },
+           [self] (MediaDecoderReader::NotDecodedReason aReason) {
+             self->OnVideoNotDecoded(aReason);
+           }));
 }
 
 void
@@ -1974,29 +1915,14 @@ MediaDecoderStateMachine::OnMetadataRead(MetadataHolder* aMetadata)
   mMetadataTags = aMetadata->mTags.forget();
   RefPtr<MediaDecoderStateMachine> self = this;
 
-  // Set up the start time rendezvous if it doesn't already exist (which is
-  // generally the case, unless we're coming out of dormant mode).
-  if (!mStartTimeRendezvous) {
-    mStartTimeRendezvous = new StartTimeRendezvous(OwnerThread(), HasAudio(), HasVideo(),
-                                                   mReader->ForceZeroStartTime() || IsRealTime());
-
-    mStartTimeRendezvous->AwaitStartTime()->Then(OwnerThread(), __func__,
-      [self] () -> void {
-        NS_ENSURE_TRUE_VOID(!self->IsShutdown());
-        self->mReader->DispatchSetStartTime(self->StartTime());
-      },
-      [] () -> void { NS_WARNING("Setting start time on reader failed"); }
-    );
-  }
-
   if (mInfo.mMetadataDuration.isSome()) {
     RecomputeDuration();
   } else if (mInfo.mUnadjustedMetadataEndTime.isSome()) {
-    mStartTimeRendezvous->AwaitStartTime()->Then(OwnerThread(), __func__,
+    mReaderWrapper->AwaitStartTime()->Then(OwnerThread(), __func__,
       [self] () -> void {
         NS_ENSURE_TRUE_VOID(!self->IsShutdown());
         TimeUnit unadjusted = self->mInfo.mUnadjustedMetadataEndTime.ref();
-        TimeUnit adjustment = TimeUnit::FromMicroseconds(self->StartTime());
+        TimeUnit adjustment = self->mReaderWrapper->StartTime();
         self->mInfo.mMetadataDuration.emplace(unadjusted - adjustment);
         self->RecomputeDuration();
       }, [] () -> void { NS_WARNING("Adjusting metadata end time failed"); }
@@ -2157,34 +2083,36 @@ MediaDecoderStateMachine::SeekCompleted()
     newCurrentTime = video ? video->mTime : seekTime;
   }
 
-  if (mDecodingFirstFrame) {
-    // We were resuming from dormant, or initiated a seek early.
-    // We can fire loadeddata now.
-    FinishDecodeFirstFrame();
-  }
-
-  // Change state to DECODING or COMPLETED now. SeekingStopped will
-  // call MediaDecoderStateMachine::Seek to reset our state to SEEKING
-  // if we need to seek again.
-
+  // Change state to DECODING or COMPLETED now.
   bool isLiveStream = mResource->IsLiveStream();
-  if (mPendingSeek.Exists()) {
-    // A new seek target came in while we were processing the old one. No rest
-    // for the seeking.
-    DECODER_LOG("A new seek came along while we were finishing the old one - staying in SEEKING");
-    SetState(DECODER_STATE_SEEKING);
-  } else if (GetMediaTime() == Duration().ToMicroseconds() && !isLiveStream) {
+  State nextState;
+  if (GetMediaTime() == Duration().ToMicroseconds() && !isLiveStream) {
     // Seeked to end of media, move to COMPLETED state. Note we don't do
     // this when playing a live stream, since the end of media will advance
     // once we download more data!
     DECODER_LOG("Changed state from SEEKING (to %lld) to COMPLETED", seekTime);
     // Explicitly set our state so we don't decode further, and so
     // we report playback ended to the media element.
-    SetState(DECODER_STATE_COMPLETED);
-    DispatchDecodeTasksIfNeeded();
+    nextState = DECODER_STATE_COMPLETED;
   } else {
     DECODER_LOG("Changed state from SEEKING (to %lld) to DECODING", seekTime);
+    nextState = DECODER_STATE_DECODING;
+  }
+
+  // We want to resolve the seek request prior finishing the first frame
+  // to ensure that the seeked event is fired prior loadeded.
+  mCurrentSeek.Resolve(nextState == DECODER_STATE_COMPLETED, __func__);
+
+  if (mDecodingFirstFrame) {
+    // We were resuming from dormant, or initiated a seek early.
+    // We can fire loadeddata now.
+    FinishDecodeFirstFrame();
+  }
+
+  if (nextState == DECODER_STATE_DECODING) {
     StartDecoding();
+  } else {
+    SetState(nextState);
   }
 
   // Ensure timestamps are up to date.
@@ -2198,7 +2126,6 @@ MediaDecoderStateMachine::SeekCompleted()
   // if we need to buffer after the seek.
   mQuickBuffering = false;
 
-  mCurrentSeek.Resolve(mState == DECODER_STATE_COMPLETED, __func__);
   ScheduleStateMachine();
 
   if (video) {
@@ -2347,9 +2274,6 @@ nsresult MediaDecoderStateMachine::RunStateMachine()
     }
 
     case DECODER_STATE_SEEKING: {
-      if (mPendingSeek.Exists()) {
-        InitiateSeek();
-      }
       return NS_OK;
     }
 
@@ -2531,7 +2455,8 @@ MediaDecoderStateMachine::DropVideoUpToSeekTarget(MediaData* aSample)
     DECODER_LOG("DropVideoUpToSeekTarget() found video frame [%lld, %lld] containing target=%lld",
                 video->mTime, video->GetEndTime(), target);
 
-    PushFront(video, MediaData::VIDEO_DATA);
+    MOZ_ASSERT(VideoQueue().GetSize() == 0, "Should be the 1st sample after seeking");
+    Push(video, MediaData::VIDEO_DATA);
   }
 
   return NS_OK;
@@ -2607,7 +2532,8 @@ MediaDecoderStateMachine::DropAudioUpToSeekTarget(MediaData* aSample)
                                        Move(audioData),
                                        channels,
                                        audio->mRate));
-  PushFront(data, MediaData::AUDIO_DATA);
+  MOZ_ASSERT(AudioQueue().GetSize() == 0, "Should be the 1st sample after seeking");
+  Push(data, MediaData::AUDIO_DATA);
 
   return NS_OK;
 }

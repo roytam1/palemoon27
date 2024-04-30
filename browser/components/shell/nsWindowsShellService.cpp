@@ -715,6 +715,7 @@ nsWindowsShellService::LaunchHTTPHandlerPane()
 NS_IMETHODIMP
 nsWindowsShellService::SetDefaultBrowser(bool aClaimAllTypes, bool aForAllUsers)
 {
+  nsresult rv;
   nsAutoString appHelperPath;
   if (NS_FAILED(GetHelperPath(appHelperPath)))
     return NS_ERROR_FAILURE;
@@ -725,6 +726,7 @@ nsWindowsShellService::SetDefaultBrowser(bool aClaimAllTypes, bool aForAllUsers)
     appHelperPath.AppendLiteral(" /SetAsDefaultAppUser");
   }
 
+  rv = LaunchHelper(appHelperPath);
   #if defined (_MSC_VER) && _MSC_VER >= 1600
   if (NS_SUCCEEDED(rv) && IsWin8OrLater()) {
     if (aClaimAllTypes) {
@@ -751,11 +753,9 @@ nsWindowsShellService::SetDefaultBrowser(bool aClaimAllTypes, bool aForAllUsers)
       }
     }
   }
-  
-  return rv;
   #endif
   
-  return LaunchHelper(appHelperPath);
+  return rv;
 }
 
 NS_IMETHODIMP

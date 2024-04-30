@@ -329,6 +329,7 @@ IsValidSelectionPoint(nsFrameSelection *aFrameSel, nsINode *aNode)
   return !limiter || nsContentUtils::ContentIsDescendantOf(aNode, limiter);
 }
 
+#if defined (_MSC_VER) && _MSC_VER >= 1700
 namespace mozilla {
 struct MOZ_STACK_CLASS AutoPrepareFocusRange
 {
@@ -424,6 +425,7 @@ struct MOZ_STACK_CLASS AutoPrepareFocusRange
   MOZ_DECL_USE_GUARD_OBJECT_NOTIFIER
 };
 }
+#endif
 
 ////////////BEGIN nsFrameSelection methods
 
@@ -925,7 +927,9 @@ nsFrameSelection::MoveCaret(nsDirection       aDirection,
     PostReason(nsISelectionListener::KEYPRESS_REASON);
   }
 
+  #if defined (_MSC_VER) && _MSC_VER >= 1700
   AutoPrepareFocusRange prep(sel, aContinueSelection, false);
+  #endif
 
   if (aAmount == eSelectLine) {
     result = FetchDesiredPos(desiredPos);
@@ -1505,7 +1509,9 @@ nsFrameSelection::HandleClick(nsIContent*        aNewFocus,
       return NS_OK; //shift clicked to maintained selection. rejected.
 
     int8_t index = GetIndexFromSelectionType(nsISelectionController::SELECTION_NORMAL);
+    #if defined (_MSC_VER) && _MSC_VER >= 1700
     AutoPrepareFocusRange prep(mDomSelections[index], aContinueSelection, aMultipleSelection);
+    #endif
     return TakeFocus(aNewFocus, aContentOffset, aContentEndOffset, aHint,
                      aContinueSelection, aMultipleSelection);
   }
@@ -2187,7 +2193,9 @@ nsFrameSelection::SelectAll()
   int32_t numChildren = rootContent->GetChildCount();
   PostReason(nsISelectionListener::NO_REASON);
   int8_t index = GetIndexFromSelectionType(nsISelectionController::SELECTION_NORMAL);
+  #if defined (_MSC_VER) && _MSC_VER >= 1700
   AutoPrepareFocusRange prep(mDomSelections[index], false, false);
+  #endif
   return TakeFocus(rootContent, 0, numChildren, CARET_ASSOCIATE_BEFORE, false, false);
 }
 
@@ -2226,7 +2234,9 @@ nsFrameSelection::NotifySelectionListeners(SelectionType aType)
 
 static bool IsCell(nsIContent *aContent)
 {
-  return aContent->IsAnyOfHTMLElements(nsGkAtoms::td, nsGkAtoms::th);
+  return ((aContent->Tag() == nsGkAtoms::td ||
+           aContent->Tag() == nsGkAtoms::th) &&
+          aContent->IsHTMLElement());
 }
 
 nsITableCellLayout* 
@@ -6230,10 +6240,11 @@ Selection::WrapObject(JSContext* aCx)
 
 // AutoHideSelectionChanges
 AutoHideSelectionChanges::AutoHideSelectionChanges(const nsFrameSelection* aFrame)
-  : AutoHideSelectionChanges(aFrame ?
-                             aFrame->GetSelection(nsISelectionController::SELECTION_NORMAL) :
-                             nullptr)
-{}
+{
+  AutoHideSelectionChanges(aFrame ?
+  aFrame->GetSelection(nsISelectionController::SELECTION_NORMAL) :
+                           nullptr);
+}
 
 // nsAutoCopyListener
 

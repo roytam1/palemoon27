@@ -234,8 +234,8 @@ protected:
 #endif
 
 private:
-  nsDOMCameraControl(const nsDOMCameraControl&) = delete;
-  nsDOMCameraControl& operator=(const nsDOMCameraControl&) = delete;
+  nsDOMCameraControl(const nsDOMCameraControl&) MOZ_DELETE;
+  nsDOMCameraControl& operator=(const nsDOMCameraControl&) MOZ_DELETE;
 };
 
 NS_DEFINE_STATIC_IID_ACCESSOR(nsDOMCameraControl, NS_DOM_CAMERA_CONTROL_CID)

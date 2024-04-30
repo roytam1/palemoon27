@@ -39,7 +39,7 @@
 #include "nsIFrame.h"
 #include "RestyleManager.h"
 
-#include <inttypes.h>
+#include "mozilla/MSIntTypes.h"
 
 using namespace mozilla;
 using namespace mozilla::dom;

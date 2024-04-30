@@ -10,7 +10,6 @@ DIRS += [
     'gmp-plugin',
     'gmp-plugin-openh264',
     'imagecapture',
-    'mediasource',
     'ogg',
     'platforms',
     'systemservices',
@@ -19,6 +18,9 @@ DIRS += [
     'webspeech',
     'webvtt',
 ]
+
+if CONFIG['MOZ_MEDIASOURCE']:
+	DIRS += ['mediasource']
 
 if CONFIG['MOZ_RAW']:
     DIRS += ['raw']

@@ -1689,10 +1689,10 @@ void MediaDecoderStateMachine::NotifyDataArrived(const char* aBuffer,
   if (!mDecoder->IsInfinite() || mStartTime == -1) {
     return;
   }
-  media::TimeIntervals buffered{mDecoder->GetBuffered()};
+  media::TimeIntervals buffered = mDecoder->GetBuffered();
   if (!buffered.IsInvalid()) {
     bool exists;
-    media::TimeUnit end{buffered.GetEnd(&exists)};
+    media::TimeUnit end = buffered.GetEnd(&exists);
     if (exists) {
       ReentrantMonitorAutoEnter mon(mDecoder->GetReentrantMonitor());
       mEndTime = std::max<int64_t>(mEndTime, end.ToMicroseconds());
@@ -2129,7 +2129,7 @@ bool MediaDecoderStateMachine::HasLowUndecodedData(int64_t aUsecs)
     return false;
   }
 
-  media::TimeIntervals buffered{mReader->GetBuffered()};
+  media::TimeIntervals buffered = mReader->GetBuffered();
   if (buffered.IsInvalid()) {
     return false;
   }

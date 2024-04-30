@@ -8,12 +8,13 @@
 
 #include "2D.h"
 #include "Filters.h"
+#include "mozilla/TypedEnum.h"
 #include <vector>
 
 namespace mozilla {
 namespace gfx {
 
-enum class CommandType : int8_t {
+MOZ_BEGIN_ENUM_CLASS(CommandType, int8_t)
   DRAWSURFACE = 0,
   DRAWFILTER,
   DRAWSURFACEWITHSHADOW,
@@ -32,7 +33,7 @@ enum class CommandType : int8_t {
   PUSHCLIPRECT,
   POPCLIP,
   SETTRANSFORM
-};
+MOZ_END_ENUM_CLASS(CommandType)
 
 class DrawingCommand
 {

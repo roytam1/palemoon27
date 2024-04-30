@@ -1263,6 +1263,7 @@ SEC_PKCS7CreateEncryptedDataWithPBEV2(SECOidTag pbe_algorithm,
     SECAlgorithmID *algid;
     SEC_PKCS7EncryptedData *enc_data;
     SECStatus rv;
+    SECAlgorithmID *pbe_algid;
 
     PORT_Assert(SEC_PKCS5IsAlgorithmPBEAlgTag(pbe_algorithm));
 
@@ -1274,7 +1275,6 @@ SEC_PKCS7CreateEncryptedDataWithPBEV2(SECOidTag pbe_algorithm,
     enc_data = cinfo->content.encryptedData;
     algid = &(enc_data->encContentInfo.contentEncAlg);
 
-    SECAlgorithmID *pbe_algid;
     pbe_algid = PK11_CreatePBEV2AlgorithmID(pbe_algorithm,
                                             cipher_algorithm,
                                             prf_algorithm,

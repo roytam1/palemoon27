@@ -50,7 +50,18 @@
  * don't indicate support for them here, due to
  * http://stackoverflow.com/questions/20498142/visual-studio-2013-explicit-keyword-bug
  */
-#  define MOZ_HAVE_CXX11_FINAL         final
+#  if _MSC_VER >= 1800
+#    define MOZ_HAVE_CXX11_DELETE
+#  endif
+#  if _MSC_VER >= 1700
+#    define MOZ_HAVE_CXX11_FINAL         final
+#  else
+#    if defined(__clang__)
+#      error Please do not try to use clang-cl with MSVC10 or below emulation!
+#    endif
+     /* MSVC <= 10 used to spell "final" as "sealed". */
+#    define MOZ_HAVE_CXX11_FINAL         sealed
+#  endif
 #  define MOZ_HAVE_CXX11_OVERRIDE
 #  define MOZ_HAVE_NEVER_INLINE          __declspec(noinline)
 #  define MOZ_HAVE_NORETURN              __declspec(noreturn)
@@ -196,6 +207,44 @@
 #  define MOZ_NORETURN          MOZ_HAVE_NORETURN
 #else
 #  define MOZ_NORETURN          /* no support */
+#endif
+
+/*
+ * MOZ_DELETE, specified immediately prior to the ';' terminating an undefined-
+ * method declaration, attempts to delete that method from the corresponding
+ * class.  An attempt to use the method will always produce an error *at compile
+ * time* (instead of sometimes as late as link time) when this macro can be
+ * implemented.  For example, you can use MOZ_DELETE to produce classes with no
+ * implicit copy constructor or assignment operator:
+ *
+ *   struct NonCopyable
+ *   {
+ *   private:
+ *     NonCopyable(const NonCopyable& aOther) MOZ_DELETE;
+ *     void operator=(const NonCopyable& aOther) MOZ_DELETE;
+ *   };
+ *
+ * If MOZ_DELETE can't be implemented for the current compiler, use of the
+ * annotated method will still cause an error, but the error might occur at link
+ * time in some cases rather than at compile time.
+ *
+ * MOZ_DELETE relies on C++11 functionality not universally implemented.  As a
+ * backstop, method declarations using MOZ_DELETE should be private.
+ */
+#if defined(MOZ_HAVE_CXX11_DELETE)
+#  define MOZ_DELETE            = delete
+#else
+#  define MOZ_DELETE            /* no support */
+#endif
+
+#if defined (_MSC_VER) && _MSC_VER <= 1600
+#define final MOZ_FINAL
+#endif
+
+#if defined (_MSC_VER) && _MSC_VER >= 1800
+#define MOZ_DEFAULT = default
+#else
+#define MOZ_DEFAULT
 #endif
 
 /**
@@ -660,6 +709,20 @@
 #  define MOZ_INHERIT_TYPE_ANNOTATIONS_FROM_TEMPLATE_ARGS /* nothing */
 #  define MOZ_NON_AUTOABLE /* nothing */
 #endif /* MOZ_CLANG_PLUGIN */
+
+/*
+ * MOZ_THIS_IN_INITIALIZER_LIST is used to avoid a warning when we know that
+ * it's safe to use 'this' in an initializer list.
+ */
+#ifdef _MSC_VER
+#  define MOZ_THIS_IN_INITIALIZER_LIST() \
+     __pragma(warning(push)) \
+     __pragma(warning(disable:4355)) \
+     this \
+     __pragma(warning(pop))
+#else
+#  define MOZ_THIS_IN_INITIALIZER_LIST() this
+#endif
 
 #endif /* __cplusplus */
 

@@ -123,6 +123,7 @@ GLLibraryEGL::EnsureInitialized()
 #endif
 
 #ifdef XP_WIN
+#ifdef MOZ_WEBGL
     if (!mEGLLibrary) {
         // On Windows, the GLESv2, EGL and DXSDK libraries are shipped with libxul and
         // we should look for them there. We have to load the libs in this
@@ -161,6 +162,7 @@ GLLibraryEGL::EnsureInitialized()
         if (!mEGLLibrary)
             return false;
     }
+    #endif
 
 #else // !Windows
 

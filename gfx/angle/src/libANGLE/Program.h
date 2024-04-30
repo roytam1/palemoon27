@@ -368,8 +368,8 @@ class Program : angle::NonCopyable
     struct VectorAndSamplerCount
     {
         VectorAndSamplerCount() : vectorCount(0), samplerCount(0) {}
-        VectorAndSamplerCount(const VectorAndSamplerCount &other) = default;
-        VectorAndSamplerCount &operator=(const VectorAndSamplerCount &other) = default;
+        VectorAndSamplerCount(const VectorAndSamplerCount &other) MOZ_DEFAULT;
+        VectorAndSamplerCount &operator=(const VectorAndSamplerCount &other) MOZ_DEFAULT;
 
         VectorAndSamplerCount &operator+=(const VectorAndSamplerCount &other)
         {

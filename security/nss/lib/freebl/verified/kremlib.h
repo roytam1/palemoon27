@@ -17,6 +17,7 @@
 #define __KREMLIB_H
 
 #include "kremlib_base.h"
+#include <stdint.h>
 
 /* For tests only: we might need this function to be forward-declared, because
  * the dependency on WasmSupport appears very late, after SimplifyWasm, and
@@ -390,25 +391,25 @@ store64(uint8_t *b, uint64_t i)
 typedef int32_t Prims_pos, Prims_nat, Prims_nonzero, Prims_int,
     krml_checked_int_t;
 
-inline static bool
+inline static int32_t
 Prims_op_GreaterThanOrEqual(int32_t x, int32_t y)
 {
     return x >= y;
 }
 
-inline static bool
+inline static int32_t
 Prims_op_LessThanOrEqual(int32_t x, int32_t y)
 {
     return x <= y;
 }
 
-inline static bool
+inline static int32_t
 Prims_op_GreaterThan(int32_t x, int32_t y)
 {
     return x > y;
 }
 
-inline static bool
+inline static int32_t
 Prims_op_LessThan(int32_t x, int32_t y)
 {
     return x < y;

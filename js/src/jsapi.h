@@ -32,6 +32,7 @@
 #include "js/Utility.h"
 #include "js/Value.h"
 #include "js/Vector.h"
+#include "mozilla/TypedEnum.h"
 
 /************************************************************************/
 
@@ -302,8 +303,8 @@ class AutoHashMapRooter : protected AutoGCRooter
     friend void AutoGCRooter::trace(JSTracer* trc);
 
   private:
-    AutoHashMapRooter(const AutoHashMapRooter& hmr) = delete;
-    AutoHashMapRooter& operator=(const AutoHashMapRooter& hmr) = delete;
+    AutoHashMapRooter(const AutoHashMapRooter& hmr) MOZ_DELETE;
+    AutoHashMapRooter& operator=(const AutoHashMapRooter& hmr) MOZ_DELETE;
 
     HashMapImpl map;
 
@@ -407,8 +408,8 @@ class AutoHashSetRooter : protected AutoGCRooter
     friend void AutoGCRooter::trace(JSTracer* trc);
 
   private:
-    AutoHashSetRooter(const AutoHashSetRooter& hmr) = delete;
-    AutoHashSetRooter& operator=(const AutoHashSetRooter& hmr) = delete;
+    AutoHashSetRooter(const AutoHashSetRooter& hmr) MOZ_DELETE;
+    AutoHashSetRooter& operator=(const AutoHashSetRooter& hmr) MOZ_DELETE;
 
     HashSetImpl set;
 
@@ -853,8 +854,8 @@ class MOZ_STACK_CLASS SourceBufferHolder final
     }
 
   private:
-    SourceBufferHolder(SourceBufferHolder&) = delete;
-    SourceBufferHolder& operator=(SourceBufferHolder&) = delete;
+    SourceBufferHolder(SourceBufferHolder&) MOZ_DELETE;
+    SourceBufferHolder& operator=(SourceBufferHolder&) MOZ_DELETE;
 
     const char16_t* data_;
     size_t length_;
@@ -2006,8 +2007,8 @@ class AutoIdArray : private AutoGCRooter
     MOZ_DECL_USE_GUARD_OBJECT_NOTIFIER
 
     /* No copy or assignment semantics. */
-    AutoIdArray(AutoIdArray& ida) = delete;
-    void operator=(AutoIdArray& ida) = delete;
+    AutoIdArray(AutoIdArray& ida) MOZ_DELETE;
+    void operator=(AutoIdArray& ida) MOZ_DELETE;
 };
 
 } /* namespace JS */
@@ -3425,7 +3426,7 @@ class JS_FRIEND_API(ReadOnlyCompileOptions)
 
   private:
     static JSObject * const nullObjectPtr;
-    void operator=(const ReadOnlyCompileOptions&) = delete;
+    void operator=(const ReadOnlyCompileOptions&) MOZ_DELETE;
 };
 
 /*
@@ -3515,7 +3516,7 @@ class JS_FRIEND_API(OwningCompileOptions) : public ReadOnlyCompileOptions
     }
 
   private:
-    void operator=(const CompileOptions& rhs) = delete;
+    void operator=(const CompileOptions& rhs) MOZ_DELETE;
 };
 
 /*
@@ -3601,7 +3602,7 @@ class MOZ_STACK_CLASS JS_FRIEND_API(CompileOptions) : public ReadOnlyCompileOpti
     }
 
   private:
-    void operator=(const CompileOptions& rhs) = delete;
+    void operator=(const CompileOptions& rhs) MOZ_DELETE;
 };
 
 /*
@@ -4244,7 +4245,7 @@ GetSymbolDescription(HandleSymbol symbol);
     macro(hasInstance) \
     macro(unscopables)
 
-enum class SymbolCode : uint32_t {
+MOZ_BEGIN_ENUM_CLASS(SymbolCode, uint32_t)
     // There is one SymbolCode for each well-known symbol.
 #define JS_DEFINE_SYMBOL_ENUM(name) name,
     JS_FOR_EACH_WELL_KNOWN_SYMBOL(JS_DEFINE_SYMBOL_ENUM)  // SymbolCode::iterator, etc.
@@ -4252,7 +4253,7 @@ enum class SymbolCode : uint32_t {
     Limit,
     InSymbolRegistry = 0xfffffffe,  // created by Symbol.for() or JS::GetSymbolFor()
     UniqueSymbol = 0xffffffff       // created by Symbol() or JS::NewSymbol()
-};
+MOZ_END_ENUM_CLASS(SymbolCode)
 
 /* For use in loops that iterate over the well-known symbols. */
 const size_t WellKnownSymbolLimit = size_t(SymbolCode::Limit);
@@ -4848,8 +4849,8 @@ class MOZ_STACK_CLASS JS_PUBLIC_API(AutoFilename)
 {
     void* scriptSource_;
 
-    AutoFilename(const AutoFilename&) = delete;
-    void operator=(const AutoFilename&) = delete;
+    AutoFilename(const AutoFilename&) MOZ_DELETE;
+    void operator=(const AutoFilename&) MOZ_DELETE;
 
   public:
     AutoFilename() : scriptSource_(nullptr) {}
@@ -5045,8 +5046,8 @@ class MOZ_STACK_CLASS JS_PUBLIC_API(ForOfIterator) {
 
     static const uint32_t NOT_ARRAY = UINT32_MAX;
 
-    ForOfIterator(const ForOfIterator&) = delete;
-    ForOfIterator& operator=(const ForOfIterator&) = delete;
+    ForOfIterator(const ForOfIterator&) MOZ_DELETE;
+    ForOfIterator& operator=(const ForOfIterator&) MOZ_DELETE;
 
   public:
     explicit ForOfIterator(JSContext* cx) : cx_(cx), iterator(cx_), index(NOT_ARRAY) { }
@@ -5156,10 +5157,10 @@ CaptureCurrentStack(JSContext* cx, MutableHandleObject stackp, unsigned maxFrame
  * sane default value is chosen for the out param.
  */
 
-enum class SavedFrameResult {
+MOZ_BEGIN_ENUM_CLASS(SavedFrameResult)
     Ok,
     AccessDenied
-};
+MOZ_END_ENUM_CLASS(SavedFrameResult)
 
 /*
  * Given a SavedFrame JSObject, get its source property. Defaults to the empty

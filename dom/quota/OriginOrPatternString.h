@@ -61,7 +61,7 @@ private:
   { }
 
   bool
-  operator==(const OriginOrPatternString& aOther) = delete;
+  operator==(const OriginOrPatternString& aOther) MOZ_DELETE;
 
   bool mIsOrigin;
   bool mIsPattern;

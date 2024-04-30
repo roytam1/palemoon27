@@ -17,7 +17,7 @@
 #ifndef WOFF2_VARIABLE_LENGTH_H_
 #define WOFF2_VARIABLE_LENGTH_H_
 
-#include <inttypes.h>
+#include "mozilla/MSIntTypes.h"
 #include <vector>
 #include "./buffer.h"
 

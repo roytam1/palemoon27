@@ -24,7 +24,7 @@
 #include "nsArenaMemoryStats.h"
 #include "nsPrintfCString.h"
 
-#include <inttypes.h>
+#include "mozilla/MSIntTypes.h"
 
 // Size to use for PLArena block allocations.
 static const size_t ARENA_PAGE_SIZE = 8192;

@@ -252,11 +252,9 @@ TableBackgroundPainter::TranslateContext(nscoord aDX,
                                          nscoord aDY)
 {
   mRenderPt += nsPoint(aDX, aDY);
-  for (auto& col : mCols) {
-    col.mCol.mRect.MoveBy(-aDX, -aDY);
-  }
-  for (auto& colGroup : mColGroups) {
-    colGroup.mRect.MoveBy(-aDX, -aDY);
+  for (uint32_t i = 0; i < mNumCols; i++) {
+      mCols[i].mCol.mRect.MoveBy(-aDX, -aDY);
+        mCols[i].mColGroup.mRect.MoveBy(-aDX, -aDY);
   }
 }
 
@@ -319,7 +317,8 @@ TableBackgroundPainter::PaintTable(nsTableFrame*   aTableFrame,
     //Start with table's left border.
     nscoord lastLeftBorder = aTableFrame->GetContinuousLeftBCBorderWidth();
 
-    for (nsTableColGroupFrame* cgFrame : colGroupFrames) {
+    for (nsTableColGroupFrame* cgFrame = static_cast<nsTableColGroupFrame*>(colGroupList.FirstChild());
+         cgFrame; cgFrame = static_cast<nsTableColGroupFrame*>(cgFrame->GetNextSibling())) {
       /*Create data struct for column group*/
       TableBackgroundData& cgData = *mColGroups.AppendElement(TableBackgroundData(cgFrame));
       if (mIsBorderCollapse && cgData.ShouldSetBCBorder()) {

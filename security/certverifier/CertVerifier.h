@@ -16,12 +16,12 @@ namespace mozilla { namespace psm {
 struct ChainValidationCallbackState;
 
 // These values correspond to the CERT_CHAIN_KEY_SIZE_STATUS telemetry.
-enum class KeySizeStatus {
+MOZ_BEGIN_ENUM_CLASS(KeySizeStatus)
   NeverChecked = 0,
   LargeMinimumSucceeded = 1,
   CompatibilityRisk = 2,
   AlreadyBad = 3,
-};
+MOZ_END_ENUM_CLASS(KeySizeStatus)
 
 class CertVerifier
 {

@@ -26,6 +26,7 @@
 #define mozilla_pkix_Result_h
 
 #include <cassert>
+#include "mozilla/TypedEnum.h"
 
 namespace mozilla { namespace pkix {
 
@@ -189,12 +190,11 @@ static const unsigned int FATAL_ERROR_FLAG = 0x800;
                      SEC_ERROR_NO_MEMORY) \
     /* nothing here */
 
-enum class Result
-{
+MOZ_BEGIN_ENUM_CLASS(Result)
 #define MOZILLA_PKIX_MAP(name, value, nss_name) name = value,
   MOZILLA_PKIX_MAP_LIST
 #undef MOZILLA_PKIX_MAP
-};
+MOZ_END_ENUM_CLASS(Result)
 
 // Returns the stringified name of the given result, e.g. "Result::Success",
 // or nullptr if result is unknown (invalid).

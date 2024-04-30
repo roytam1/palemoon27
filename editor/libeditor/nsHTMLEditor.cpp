@@ -744,21 +744,24 @@ bool
 nsHTMLEditor::NodeIsBlockStatic(const dom::Element* aElement)
 {
   MOZ_ASSERT(aElement);
+  
+  nsIAtom* tagAtom = aElement->Tag();
+  MOZ_ASSERT(tagAtom);
 
   // Nodes we know we want to treat as block
   // even though the parser says they're not:
-  if (aElement->IsAnyOfHTMLElements(nsGkAtoms::body,
-                                    nsGkAtoms::head,
-                                    nsGkAtoms::tbody,
-                                    nsGkAtoms::thead,
-                                    nsGkAtoms::tfoot,
-                                    nsGkAtoms::tr,
-                                    nsGkAtoms::th,
-                                    nsGkAtoms::td,
-                                    nsGkAtoms::li,
-                                    nsGkAtoms::dt,
-                                    nsGkAtoms::dd,
-                                    nsGkAtoms::pre)) {
+  if (tagAtom == nsGkAtoms::body ||
+      tagAtom == nsGkAtoms::head ||
+      tagAtom == nsGkAtoms::tbody ||
+      tagAtom == nsGkAtoms::thead ||
+      tagAtom == nsGkAtoms::tfoot ||
+      tagAtom == nsGkAtoms::tr ||
+      tagAtom == nsGkAtoms::th ||
+      tagAtom == nsGkAtoms::td ||
+      tagAtom == nsGkAtoms::li ||
+      tagAtom == nsGkAtoms::dt ||
+      tagAtom == nsGkAtoms::dd ||
+      tagAtom == nsGkAtoms::pre) {
     return true;
   }
 
@@ -3048,8 +3051,9 @@ nsHTMLEditor::GetEmbeddedObjects(nsISupportsArray** aNodeList)
 
       // See if it's an image or an embed and also include all links.
       // Let mail decide which link to send or not
-      if (element->IsAnyOfHTMLElements(nsGkAtoms::img, nsGkAtoms::embed,
-                                       nsGkAtoms::a) ||
+      if (element->IsHTMLElement(nsGkAtoms::img) ||
+          element->IsHTMLElement(nsGkAtoms::embed) ||
+          element->IsHTMLElement(nsGkAtoms::a) ||
           (element->IsHTMLElement(nsGkAtoms::body) &&
            element->HasAttr(kNameSpaceID_None, nsGkAtoms::background))) {
         nsCOMPtr<nsIDOMNode> domNode = do_QueryInterface(node);

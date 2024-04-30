@@ -7,6 +7,8 @@
 #ifndef js_TrackedOptimizationInfo_h
 #define js_TrackedOptimizationInfo_h
 
+#include "mozilla/TypedEnum.h"
+
 namespace JS {
 
 #define TRACKED_STRATEGY_LIST(_)                        \
@@ -253,29 +255,29 @@ namespace JS {
     _(Call_Return,                              \
       "call return")
 
-enum class TrackedStrategy : uint32_t {
+MOZ_BEGIN_ENUM_CLASS(TrackedStrategy, uint32_t)
 #define STRATEGY_OP(name, msg) name,
     TRACKED_STRATEGY_LIST(STRATEGY_OP)
 #undef STRATEGY_OPT
 
     Count
-};
+MOZ_END_ENUM_CLASS(TrackedStrategy)
 
-enum class TrackedOutcome : uint32_t {
+MOZ_BEGIN_ENUM_CLASS(TrackedOutcome, uint32_t)
 #define OUTCOME_OP(name, msg) name,
     TRACKED_OUTCOME_LIST(OUTCOME_OP)
 #undef OUTCOME_OP
 
     Count
-};
+MOZ_END_ENUM_CLASS(TrackedOutcome)
 
-enum class TrackedTypeSite : uint32_t {
+MOZ_BEGIN_ENUM_CLASS(TrackedTypeSite, uint32_t)
 #define TYPESITE_OP(name, msg) name,
     TRACKED_TYPESITE_LIST(TYPESITE_OP)
 #undef TYPESITE_OP
 
     Count
-};
+MOZ_END_ENUM_CLASS(TrackedTypeSite)
 
 extern JS_PUBLIC_API(const char*)
 TrackedStrategyString(TrackedStrategy strategy);

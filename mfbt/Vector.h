@@ -649,12 +649,12 @@ public:
   void swap(ThisVector& aOther);
 
 private:
-  VectorBase(const VectorBase&) = delete;
-  void operator=(const VectorBase&) = delete;
+  VectorBase(const VectorBase&) MOZ_DELETE;
+  void operator=(const VectorBase&) MOZ_DELETE;
 
   /* Move-construct/assign only from our derived class, ThisVector. */
-  VectorBase(VectorBase&&) = delete;
-  void operator=(VectorBase&&) = delete;
+  VectorBase(VectorBase&&) MOZ_DELETE;
+  void operator=(VectorBase&&) MOZ_DELETE;
 };
 
 /* This does the re-entrancy check plus several other sanity checks. */

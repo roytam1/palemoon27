@@ -210,22 +210,24 @@ TrackBuffersManager::Buffered()
   TimeUnit highestEndTime;
 
   nsTArray<const TimeIntervals*> tracks;
+  const TimeIntervals* trackRanges;
+  uint32_t i;
   if (HasVideo()) {
     tracks.AppendElement(&mVideoBufferedRanges);
   }
   if (HasAudio()) {
     tracks.AppendElement(&mAudioBufferedRanges);
   }
-  for (auto trackRanges : tracks) {
+  for (i = 0; i <= tracks.Length(); i++) {
     highestEndTime = std::max(trackRanges->GetEnd(), highestEndTime);
   }
 
   // 3. Let intersection ranges equal a TimeRange object containing a single range from 0 to highest end time.
-  TimeIntervals intersection{TimeInterval(TimeUnit::FromSeconds(0), highestEndTime)};
+  TimeIntervals intersection = TimeIntervals(TimeInterval(TimeUnit::FromSeconds(0), highestEndTime));
 
   // 4. For each track buffer managed by this SourceBuffer, run the following steps:
   //   1. Let track ranges equal the track buffer ranges for the current track buffer.
-  for (const TimeIntervals* trackRanges : tracks) {
+  for (i = 0; i <= trackRanges->Length(); i++) {
     // 2. If readyState is "ended", then set the end time on the last range in track ranges to highest end time.
     // 3. Let new intersection ranges equal the intersection between the intersection ranges and the track ranges.
     if (mEnded) {
@@ -272,16 +274,19 @@ TrackBuffersManager::CompleteResetParserState()
   MOZ_ASSERT(OnTaskQueue());
   MSE_DEBUG("");
 
-  for (auto& track : GetTracksList()) {
+  nsTArray<TrackData*> track;
+  TrackBuffersManager* GetTracksList();
+  uint32_t i;
+  for (i = 0; i <= track.Length(); i++) {
     // 2. Unset the last decode timestamp on all track buffers.
     // 3. Unset the last frame duration on all track buffers.
     // 4. Unset the highest end timestamp on all track buffers.
     // 5. Set the need random access point flag on all track buffers to true.
-    track->ResetAppendState();
+    track.ResetAppendState();
 
     // if we have been aborted, we may have pending frames that we are going
     // to discard now.
-    track->mQueuedSamples.Clear();
+    track.mQueuedSamples.Clear();
   }
 
   // 6. If the mode attribute equals "sequence", then set the group start timestamp to the group end timestamp
@@ -455,7 +460,7 @@ TrackBuffersManager::CodedFrameRemoval(TimeInterval aInterval)
     // timestamps greater than or equal to start and less than the remove end timestamp.
     // 4. Remove decoding dependencies of the coded frames removed in the previous step:
     // Remove all coded frames between the coded frames removed in the previous step and the next random access point after those removed frames.
-    TimeIntervals removedInterval{TimeInterval(start, removeEndTimestamp)};
+    TimeIntervals removedInterval = TimeIntervals(TimeInterval(start, removeEndTimestamp));
     RemoveFrames(removedInterval, *track, 0);
 
     // 5. If this object is in activeSourceBuffers, the current playback position
@@ -1842,10 +1847,9 @@ TrackBuffersManager::GetSample(TrackInfo::TrackType aTrack,
   // Our previous index has been overwritten, attempt to find the new one.
   for (uint32_t i = 0; i < track.Length(); i++) {
     const nsRefPtr<MediaRawData>& sample = track[i];
-    TimeInterval sampleInterval{
-      TimeUnit::FromMicroseconds(sample->mTimecode),
-      TimeUnit::FromMicroseconds(sample->mTimecode + sample->mDuration),
-      aFuzz};
+    TimeInterval sampleInterval =
+      TimeInterval(TimeUnit::FromMicroseconds(sample->mTimecode),
+      TimeUnit::FromMicroseconds(sample->mTimecode + sample->mDuration));
 
     if (sampleInterval.ContainsWithStrictEnd(trackData.mNextSampleTimecode)) {
       nsRefPtr<MediaRawData> p = sample->Clone();
@@ -1866,10 +1870,9 @@ TrackBuffersManager::GetSample(TrackInfo::TrackType aTrack,
   // presentation timestamp. There will likely be small jerkiness.
     for (uint32_t i = 0; i < track.Length(); i++) {
     const nsRefPtr<MediaRawData>& sample = track[i];
-    TimeInterval sampleInterval{
-      TimeUnit::FromMicroseconds(sample->mTime),
-      TimeUnit::FromMicroseconds(sample->GetEndTime()),
-      aFuzz};
+    TimeInterval sampleInterval =
+      TimeInterval(TimeUnit::FromMicroseconds(sample->mTime),
+      TimeUnit::FromMicroseconds(sample->GetEndTime()));
 
     if (sampleInterval.ContainsWithStrictEnd(trackData.mNextSampleTimecode)) {
       nsRefPtr<MediaRawData> p = sample->Clone();

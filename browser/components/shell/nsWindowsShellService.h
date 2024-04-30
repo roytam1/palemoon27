@@ -27,8 +27,10 @@ public:
 protected:
   bool IsDefaultBrowserVista(bool aCheckAllTypes, bool* aIsDefaultBrowser);
   nsresult LaunchControlPanelDefaultPrograms();
+  #if defined (_MSC_VER) && _MSC_VER >= 1600
   nsresult LaunchModernSettingsDialogDefaultApps();
   nsresult LaunchHTTPHandlerPane();
+  #endif
 
 private:
   bool      mCheckedThisSession;

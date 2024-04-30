@@ -1,4 +1,4 @@
-// Copyright (c) 2009-2017 The OTS Authors. All rights reserved.
+// Copyright (c) 2009 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,23 +10,44 @@
 // hhea - Horizontal Header
 // http://www.microsoft.com/typography/otspec/hhea.htm
 
+#define TABLE_NAME "hhea"
+
 namespace ots {
 
-bool OpenTypeHHEA::Parse(const uint8_t *data, size_t length) {
+bool ots_hhea_parse(OpenTypeFile *file, const uint8_t *data, size_t length) {
   Buffer table(data, length);
+  OpenTypeHHEA *hhea = new OpenTypeHHEA;
+  file->hhea = hhea;
 
-  if (!table.ReadU32(&this->version)) {
-    return Error("Failed to read table version");
+  if (!table.ReadU32(&hhea->header.version)) {
+    return OTS_FAILURE_MSG("Failed to read hhea version");
   }
-  if (this->version >> 16 != 1) {
-    return Error("Unsupported majorVersion: %d", this->version >> 16);
+  if (hhea->header.version >> 16 != 1) {
+    return OTS_FAILURE_MSG("Bad hhea version of %d", hhea->header.version);
   }
 
-  return OpenTypeMetricsHeader::Parse(data, length);
+  if (!ParseMetricsHeader(file, &table, &hhea->header)) {
+    return OTS_FAILURE_MSG("Failed to parse horizontal metrics");
+  }
+
+  return true;
 }
 
-bool OpenTypeHHEA::Serialize(OTSStream *out) {
-  return OpenTypeMetricsHeader::Serialize(out);
+bool ots_hhea_should_serialise(OpenTypeFile *file) {
+  return file->hhea != NULL;
+}
+
+bool ots_hhea_serialise(OTSStream *out, OpenTypeFile *file) {
+  if (!SerialiseMetricsHeader(file, out, &file->hhea->header)) {
+    return OTS_FAILURE_MSG("Failed to serialise horizontal metrics");
+  }
+  return true;
+}
+
+void ots_hhea_free(OpenTypeFile *file) {
+  delete file->hhea;
 }
 
 }  // namespace ots
+
+#undef TABLE_NAME

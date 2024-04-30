@@ -505,7 +505,7 @@ MediaFormatReader::RequestVideoData(bool aSkipToNextKeyframe,
 
   MOZ_ASSERT(HasVideo() && mPlatform && mVideo.mDecoder);
 
-  media::TimeUnit timeThreshold{media::TimeUnit::FromMicroseconds(aTimeThreshold)};
+  media::TimeUnit timeThreshold = media::TimeUnit::FromMicroseconds(aTimeThreshold);
   if (ShouldSkip(aSkipToNextKeyframe, timeThreshold)) {
     Flush(TrackInfo::kVideoTrack);
     nsRefPtr<VideoDataPromise> p = mVideo.mPromise.Ensure(__func__);
@@ -840,7 +840,7 @@ MediaFormatReader::DecodeDemuxedSamples(TrackType aTrack,
       decoder.mInfo = info;
       decoder.mLastStreamSourceID = info->GetID();
       // Flush will clear our array of queued samples. So make a copy now.
-      nsTArray<nsRefPtr<MediaRawData>> samples{decoder.mQueuedSamples};
+      nsTArray<nsRefPtr<MediaRawData>>& samples = decoder.mQueuedSamples;
       Flush(aTrack);
       decoder.mDecoder->Shutdown();
       decoder.mDecoder = nullptr;
@@ -859,7 +859,29 @@ MediaFormatReader::DecodeDemuxedSamples(TrackType aTrack,
             sample->mTime);
         decoder.mTimeThreshold = Some(TimeUnit::FromMicroseconds(sample->mTime));
         nsRefPtr<MediaFormatReader> self = this;
+	#if defined (_MSC_VER) && _MSC_VER <= 1600
         decoder.mSeekRequest.Begin(decoder.mTrackDemuxer->Seek(decoder.mTimeThreshold.ref())
+                   ->Then(GetTaskQueue(), __func__,
+                          [self, aTrack] (media::TimeUnit aTime) {
+                            auto& decoder = self->GetDecoderData(aTrack);
+                            decoder.mSeekRequest.Complete();
+                            self->ScheduleUpdate(aTrack);
+                          },
+                          [self, aTrack] (DemuxerFailureReason aResult) {
+                            auto& decoder = self->GetDecoderData(aTrack);
+                            decoder.mSeekRequest.Complete();
+                              if (DemuxerFailureReason::WAITING_FOR_DATA)
+                                self->NotifyWaitingForData(aTrack);
+
+                              if (DemuxerFailureReason::END_OF_STREAM)
+                                self->NotifyEndOfStream(aTrack);
+
+                                self->NotifyError(aTrack);
+
+                            decoder.mTimeThreshold.reset();
+                          }));
+	#else
+	decoder.mSeekRequest.Begin(decoder.mTrackDemuxer->Seek(decoder.mTimeThreshold.ref())
                    ->Then(GetTaskQueue(), __func__,
                           [self, aTrack] (media::TimeUnit aTime) {
                             auto& decoder = self->GetDecoderData(aTrack);
@@ -885,6 +907,7 @@ MediaFormatReader::DecodeDemuxedSamples(TrackType aTrack,
                             }
                             decoder.mTimeThreshold.reset();
                           }));
+	#endif
         return;
       }
     }

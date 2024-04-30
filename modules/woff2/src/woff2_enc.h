@@ -18,7 +18,7 @@
 #define WOFF2_WOFF2_ENC_H_
 
 #include <stddef.h>
-#include <inttypes.h>
+#include "mozilla/MSIntTypes.h"
 #include <string>
 
 using std::string;

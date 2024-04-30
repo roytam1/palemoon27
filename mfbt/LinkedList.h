@@ -120,8 +120,8 @@ private:
 
 public:
   LinkedListElement()
-    : mNext(this),
-      mPrev(this),
+    : mNext(MOZ_THIS_IN_INITIALIZER_LIST()),
+      mPrev(MOZ_THIS_IN_INITIALIZER_LIST()),
       mIsSentinel(false)
   { }
 
@@ -239,8 +239,8 @@ private:
   };
 
   explicit LinkedListElement(NodeKind nodeKind)
-    : mNext(this),
-      mPrev(this),
+    : mNext(MOZ_THIS_IN_INITIALIZER_LIST()),
+      mPrev(MOZ_THIS_IN_INITIALIZER_LIST()),
       mIsSentinel(nodeKind == NODE_KIND_SENTINEL)
   { }
 
@@ -288,8 +288,8 @@ private:
   }
 
 private:
-  LinkedListElement& operator=(const LinkedListElement<T>& aOther) = delete;
-  LinkedListElement(const LinkedListElement<T>& aOther) = delete;
+  LinkedListElement& operator=(const LinkedListElement<T>& aOther) MOZ_DELETE;
+  LinkedListElement(const LinkedListElement<T>& aOther) MOZ_DELETE;
 };
 
 template<typename T>
@@ -478,8 +478,8 @@ private:
 #endif
   }
 
-  LinkedList& operator=(const LinkedList<T>& aOther) = delete;
-  LinkedList(const LinkedList<T>& aOther) = delete;
+  LinkedList& operator=(const LinkedList<T>& aOther) MOZ_DELETE;
+  LinkedList(const LinkedList<T>& aOther) MOZ_DELETE;
 };
 
 template <typename T>

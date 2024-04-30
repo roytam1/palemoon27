@@ -7,7 +7,6 @@
 #ifndef MOZILLA_MEDIASOURCEDECODER_H_
 #define MOZILLA_MEDIASOURCEDECODER_H_
 
-#include "mozilla/Atomics.h"
 #include "mozilla/Attributes.h"
 #include "nsCOMPtr.h"
 #include "nsError.h"
@@ -22,7 +21,12 @@ class MediaResource;
 class MediaDecoderStateMachine;
 class SourceBufferDecoder;
 class TrackBuffer;
-enum MSRangeRemovalAction : uint8_t;
+
+enum MSRangeRemovalAction : uint8_t {
+  RUN = 0,
+  SKIP = 1
+};
+
 class MediaSourceDemuxer;
 
 namespace dom {
@@ -110,7 +114,7 @@ private:
   nsRefPtr<MediaDecoderReader> mReader;
   bool mIsUsingFormatReader;
   nsRefPtr<MediaSourceDemuxer> mDemuxer;
-  Atomic<bool> mEnded;
+  bool mEnded;
 };
 
 } // namespace mozilla

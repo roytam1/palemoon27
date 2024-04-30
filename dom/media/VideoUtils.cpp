@@ -384,6 +384,7 @@ ParseCodecsString(const nsAString& aCodecs, nsTArray<nsString>& aOutCodecs)
   return true;
 }
 
+#if defined (_MSC_VER) && _MSC_VER >= 1700
 static bool
 CheckContentType(const nsAString& aContentType,
                  mozilla::Function<bool(const nsAString&)> aSubtypeFilter,
@@ -402,7 +403,9 @@ CheckContentType(const nsAString& aContentType,
   if (!ParseCodecsString(codecsStr, codecs)) {
     return false;
   }
-  for (const nsString& codec : codecs) {
+  uint32_t length = codecs.Length();
+  for (uint32_t i = 0; i < length; ++i) {
+  const nsString& codec = codecs[i];
     if (!aCodecFilter(codec)) {
       return false;
     }
@@ -439,5 +442,6 @@ IsAACContentType(const nsAString& aContentType)
              codec.EqualsLiteral("mp4a.67");     // MPEG2 AAC-LC
     });
 }
+#endif // MSC_VER >= 1700
 
 } // end namespace mozilla

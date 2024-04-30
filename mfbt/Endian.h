@@ -615,9 +615,9 @@ private:
     memcpy(aPtr, &tmp, sizeof(T));
   }
 
-  Endian() = delete;
-  Endian(const Endian& aTther) = delete;
-  void operator=(const Endian& aOther) = delete;
+  Endian() MOZ_DELETE;
+  Endian(const Endian& aTther) MOZ_DELETE;
+  void operator=(const Endian& aOther) MOZ_DELETE;
 };
 
 template<Endianness ThisEndian>

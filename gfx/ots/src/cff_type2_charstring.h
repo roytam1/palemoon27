@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2017 The OTS Authors. All rights reserved.
+// Copyright (c) 2010 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -35,7 +35,7 @@ namespace ots {
 //  cff_table: A buffer which contains actual byte code of charstring, global
 //             subroutines and local subroutines.
 bool ValidateType2CharStringIndex(
-    Font *font,
+    OpenTypeFile *file,
     const CFFIndex &char_strings_index,
     const CFFIndex &global_subrs_index,
     const std::map<uint16_t, uint8_t> &fd_select,

@@ -1001,7 +1001,9 @@ MediaSourceReader::GetBuffered()
   // Must set the capacity of the nsTArray first: bug #1164444
   activeRanges.SetCapacity(mTrackBuffers.Length());
 
-  for (const auto& trackBuffer : mTrackBuffers) {
+  TrackBuffer* trackBuffer;
+  uint32_t i;
+  for (i = 0; i <= mTrackBuffers.Length(); i++) {
     activeRanges.AppendElement(trackBuffer->Buffered());
     highestEndTime = std::max(highestEndTime, activeRanges.LastElement().GetEnd());
   }
@@ -1009,7 +1011,9 @@ MediaSourceReader::GetBuffered()
   buffered +=
     media::TimeInterval(media::TimeUnit::FromMicroseconds(0), highestEndTime);
 
-  for (auto& range : activeRanges) {
+    SourceBufferDecoder* decoder;
+    media::TimeIntervals range = decoder->GetBuffered();
+  for (i = 0; i <= activeRanges.Length(); i++) {
     if (IsEnded() && range.Length()) {
       // Set the end time on the last range to highestEndTime by adding a
       // new range spanning the current end time to highestEndTime, which
@@ -1038,7 +1042,7 @@ MediaSourceReader::FirstDecoder(MediaData::Type aType)
   }
 
   nsRefPtr<SourceBufferDecoder> firstDecoder;
-  media::TimeUnit lowestStartTime{media::TimeUnit::FromInfinity()};
+  media::TimeUnit lowestStartTime = media::TimeUnit::FromInfinity();
 
   for (uint32_t i = 0; i < decoders.Length(); ++i) {
     media::TimeIntervals r = decoders[i]->GetBuffered();

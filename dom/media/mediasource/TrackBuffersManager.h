@@ -10,7 +10,6 @@
 #include "SourceBufferContentManager.h"
 #include "MediaDataDemuxer.h"
 #include "MediaSourceDecoder.h"
-#include "mozilla/Atomics.h"
 #include "mozilla/Maybe.h"
 #include "mozilla/Monitor.h"
 #include "mozilla/Pair.h"
@@ -144,11 +143,11 @@ private:
   nsRefPtr<MediaLargeByteBuffer> mInputBuffer;
   // The current append state as per https://w3c.github.io/media-source/#sourcebuffer-append-state
   // Accessed on both the main thread and the task queue.
-  Atomic<AppendState> mAppendState;
+  AppendState mAppendState;
   // Buffer full flag as per https://w3c.github.io/media-source/#sourcebuffer-buffer-full-flag.
   // Accessed on both the main thread and the task queue.
   // TODO: Unused for now.
-  Atomic<bool> mBufferFull;
+  bool mBufferFull;
   bool mFirstInitializationSegmentReceived;
   bool mActiveTrack;
   Maybe<TimeUnit> mGroupStartTimestamp;
@@ -327,18 +326,18 @@ private:
   nsMainThreadPtrHandle<MediaSourceDecoder> mParentDecoder;
 
   // Set to true if mediasource state changed to ended.
-  Atomic<bool> mEnded;
+  bool mEnded;
 
   // Global size of this source buffer content.
-  Atomic<int64_t> mSizeSourceBuffer;
+  int64_t mSizeSourceBuffer;
   uint32_t mEvictionThreshold;
-  Atomic<bool> mEvictionOccurred;
+  bool mEvictionOccurred;
 
   // Monitor to protect following objects accessed across multiple threads.
   // mMonitor is also notified if the value of mAppendRunning becomes false.
   mutable Monitor mMonitor;
   // Set to true while a BufferAppend is running or is pending.
-  Atomic<bool> mAppendRunning;
+  bool mAppendRunning;
   // Stable audio and video track time ranges.
   TimeIntervals mVideoBufferedRanges;
   TimeIntervals mAudioBufferedRanges;

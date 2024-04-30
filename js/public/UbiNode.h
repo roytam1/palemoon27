@@ -207,8 +207,8 @@ class Base {
     virtual JSCompartment* compartment() const { return nullptr; }
 
   private:
-    Base(const Base& rhs) = delete;
-    Base& operator=(const Base& rhs) = delete;
+    Base(const Base& rhs) MOZ_DELETE;
+    Base& operator=(const Base& rhs) MOZ_DELETE;
 };
 
 // A traits template with a specialization for each referent type that
@@ -301,7 +301,7 @@ class Node {
     bool operator==(const Node& rhs) const { return *base() == *rhs.base(); }
     bool operator!=(const Node& rhs) const { return *base() != *rhs.base(); }
 
-    explicit operator bool() const {
+    MOZ_EXPLICIT_CONVERSION operator bool() const {
         return base()->ptr != nullptr;
     }
 
@@ -382,8 +382,8 @@ class Edge {
     Node referent;
 
   private:
-    Edge(const Edge&) = delete;
-    Edge& operator=(const Edge&) = delete;
+    Edge(const Edge&) MOZ_DELETE;
+    Edge& operator=(const Edge&) MOZ_DELETE;
 };
 
 
@@ -418,16 +418,16 @@ class EdgeRange {
     virtual void popFront() = 0;
 
   private:
-    EdgeRange(const EdgeRange&) = delete;
-    EdgeRange& operator=(const EdgeRange&) = delete;
+    EdgeRange(const EdgeRange&) MOZ_DELETE;
+    EdgeRange& operator=(const EdgeRange&) MOZ_DELETE;
 };
 
 
 // A dumb Edge concrete class. All but the most essential members have the
 // default behavior.
 class SimpleEdge : public Edge {
-    SimpleEdge(SimpleEdge&) = delete;
-    SimpleEdge& operator=(const SimpleEdge&) = delete;
+    SimpleEdge(SimpleEdge&) MOZ_DELETE;
+    SimpleEdge& operator=(const SimpleEdge&) MOZ_DELETE;
 
   public:
     SimpleEdge() : Edge() { }

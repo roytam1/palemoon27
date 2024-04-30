@@ -8,6 +8,7 @@
 
 #include "mozilla/RefPtr.h"
 #include "mozilla/Attributes.h"
+#include "mozilla/TypedEnum.h"
 #include <stdint.h>
 
 namespace mozilla {
@@ -66,7 +67,7 @@ struct SurfaceCaps final
     }
 };
 
-enum class SharedSurfaceType : uint8_t {
+MOZ_BEGIN_ENUM_CLASS(SharedSurfaceType, uint8_t)
     Unknown = 0,
 
     Basic,
@@ -79,16 +80,16 @@ enum class SharedSurfaceType : uint8_t {
     IOSurface,
 
     Max
-};
+MOZ_END_ENUM_CLASS(SharedSurfaceType)
 
-enum class AttachmentType : uint8_t {
+MOZ_BEGIN_ENUM_CLASS(AttachmentType, uint8_t)
     Screen = 0,
 
     GLTexture,
     GLRenderbuffer,
 
     Max
-};
+MOZ_END_ENUM_CLASS(AttachmentType)
 
 } /* namespace gfx */
 } /* namespace mozilla */

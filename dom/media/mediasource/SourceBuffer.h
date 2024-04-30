@@ -274,8 +274,8 @@ private:
   bool mUpdating;
   bool mIsUsingFormatReader;
 
-  mozilla::Atomic<bool> mActive;
-
+  bool mActive;
+  
   int64_t mReportedOffset;
 
   MediaPromiseRequestHolder<SourceBufferContentManager::AppendPromise> mPendingAppend;

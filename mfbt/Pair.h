@@ -164,8 +164,6 @@ public:
     : Base(Move(aOther.first()), Move(aOther.second()))
   { }
 
-  Pair(const Pair& aOther) = default;
-
   Pair& operator=(Pair&& aOther)
   {
     MOZ_ASSERT(this != &aOther, "Self-moves are prohibited");
@@ -175,8 +173,6 @@ public:
 
     return *this;
   }
-
-  Pair& operator=(const Pair& aOther) = default;
 
   /** The A instance. */
   using Base::first;

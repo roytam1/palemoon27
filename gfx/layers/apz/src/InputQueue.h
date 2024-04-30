@@ -140,7 +140,7 @@ private:
 private:
   // The queue of touch blocks that have not yet been fully processed.
   // This member must only be accessed on the controller/UI thread.
-  nsTArray<UniquePtr<CancelableBlockState>> mInputBlockQueue;
+  nsTArray<nsAutoPtr<CancelableBlockState>> mInputBlockQueue;
 };
 
 }

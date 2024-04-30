@@ -10,6 +10,7 @@
 
 #include "MediaSourceDemuxer.h"
 #include "SourceBufferList.h"
+#include "mozilla/nsRefPtr.h"
 
 namespace mozilla {
 
@@ -61,18 +62,20 @@ MediaSourceDemuxer::ScanSourceBuffersForContent()
   MonitorAutoLock mon(mMonitor);
 
   bool haveEmptySourceBuffer = false;
-  for (const auto& sourceBuffer : mSourceBuffers) {
-    MediaInfo info = sourceBuffer->GetMetadata();
+  TrackBuffersManager* trackBuffer;
+  uint32_t i;
+  for (i = 0; i <= mSourceBuffers.Length(); i++) {
+    MediaInfo info = trackBuffer->GetMetadata();
     if (!info.HasAudio() && !info.HasVideo()) {
       haveEmptySourceBuffer = true;
     }
     if (info.HasAudio() && !mAudioTrack) {
       mInfo.mAudio = info.mAudio;
-      mAudioTrack = sourceBuffer;
+      mAudioTrack = trackBuffer;
     }
     if (info.HasVideo() && !mVideoTrack) {
       mInfo.mVideo = info.mVideo;
-      mVideoTrack = sourceBuffer;
+      mVideoTrack = trackBuffer;
     }
     if (info.IsEncrypted() && !mInfo.IsEncrypted()) {
       mInfo.mCrypto = info.mCrypto;

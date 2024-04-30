@@ -6600,8 +6600,6 @@ class CGPerSignatureCall(CGThing):
             self.returnType.isGoannaInterface()):
             wrapCode += dedent(
                 """
-                static_assert(!IsPointer<decltype(result)>::value,
-                              "NewObject implies that we need to keep the object alive with a strong reference.");
                 """)
 
         setSlot = self.idlNode.isAttr() and self.idlNode.slotIndex is not None
@@ -8373,10 +8371,10 @@ class CGEnum(CGThing):
     def declare(self):
         decl = fill(
             """
-            enum class ${name} : uint32_t {
+            MOZ_BEGIN_ENUM_CLASS(${name}, uint32_t)
               $*{enums}
               EndGuard_
-            };
+            MOZ_END_ENUM_CLASS(${name})
             """,
             name=self.enum.identifier.name,
             enums=",\n".join(map(getEnumValueName, self.enum.values())) + ",\n")
@@ -9455,8 +9453,8 @@ class CGClass(CGThing):
 
                 def declare(self, cgClass):
                     name = cgClass.getNameString()
-                    return ("%s(const %s&) = delete;\n"
-                            "void operator=(const %s) = delete;\n" % (name, name, name))
+                    return ("%s(const %s&) MOZ_DELETE;\n"
+                            "void operator=(const %s) MOZ_DELETE;\n" % (name, name, name))
 
             disallowedCopyConstructors = [DisallowedCopyConstructor()]
         else:

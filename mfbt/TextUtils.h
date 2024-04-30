@@ -24,14 +24,14 @@ template<>
 class MakeUnsignedChar<char16_t>
 {
 public:
-  using Type = char16_t;
+  typedef char16_t Type;
 };
 
 template<>
 class MakeUnsignedChar<char32_t>
 {
 public:
-  using Type = char32_t;
+  typedef char32_t Type;
 };
 
 } // namespace detail
@@ -46,7 +46,8 @@ template<typename Char>
 const bool 
 IsAsciiAlpha(Char aChar)
 {
-  using UnsignedChar = typename detail::MakeUnsignedChar<Char>::Type;
+  typename detail::MakeUnsignedChar<Char>::Type;
+  typedef detail::MakeUnsignedChar<Char>::Type UnsignedChar;
   return ('a' <= static_cast<UnsignedChar>(aChar) &&
           static_cast<UnsignedChar>(aChar) <= 'z') ||
          ('A' <= static_cast<UnsignedChar>(aChar) &&

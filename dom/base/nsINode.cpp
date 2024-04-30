@@ -1657,7 +1657,9 @@ ConvertNodesOrStringsIntoNode(const Sequence<OwningNodeOrString>& aNodes,
 
   nsCOMPtr<nsINode> fragment = aDocument->CreateDocumentFragment();
 
-  for (const auto& node : aNodes) {
+  uint32_t length = aNodes.Length();
+  for (uint32_t i = 0; i < length; ++i) {
+  const auto& node = aNodes[i];
     nsCOMPtr<nsINode> childNode = GetNodeFromNodeOrString(node, aDocument);
     fragment->AppendChild(*childNode, aRv);
     if (aRv.Failed()) {
@@ -1672,7 +1674,9 @@ static void
 InsertNodesIntoHashset(const Sequence<OwningNodeOrString>& aNodes,
                        nsTHashtable<nsPtrHashKey<nsINode>>& aHashset)
 {
-  for (const auto& node : aNodes) {
+  uint32_t length = aNodes.Length();
+  for (uint32_t i = 0; i < length; ++i) {
+  const auto& node = aNodes[i];
     if (node.IsNode()) {
       aHashset.PutEntry(node.GetAsNode());
     }

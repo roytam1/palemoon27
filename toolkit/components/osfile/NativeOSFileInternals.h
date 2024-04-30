@@ -17,7 +17,7 @@ public:
 private:
   ~NativeOSFileInternalsService() {}
   // Avoid accidental use of built-in operator=
-  void operator=(const NativeOSFileInternalsService& other) = delete;
+  void operator=(const NativeOSFileInternalsService& other) MOZ_DELETE;
 };
 
 } // namespace mozilla

@@ -2187,8 +2187,8 @@ class MOZ_STACK_CLASS StringRegExpGuard
     }
 
   private:
-    StringRegExpGuard(const StringRegExpGuard&) = delete;
-    void operator=(const StringRegExpGuard&) = delete;
+    StringRegExpGuard(const StringRegExpGuard&) MOZ_DELETE;
+    void operator=(const StringRegExpGuard&) MOZ_DELETE;
 };
 
 } /* anonymous namespace */
@@ -2441,8 +2441,8 @@ class RopeBuilder {
     JSContext* cx;
     RootedString res;
 
-    RopeBuilder(const RopeBuilder& other) = delete;
-    void operator=(const RopeBuilder& other) = delete;
+    RopeBuilder(const RopeBuilder& other) MOZ_DELETE;
+    void operator=(const RopeBuilder& other) MOZ_DELETE;
 
   public:
     explicit RopeBuilder(JSContext* cx)

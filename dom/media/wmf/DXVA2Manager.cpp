@@ -219,6 +219,7 @@ DXVA2Manager::CreateD3D9DXVA()
   return nullptr;
 }
 
+#if defined (_MSC_VER) && _MSC_VER >= 1700 // Requires the Windows 8 SDK
 class D3D11DXVA2Manager : public DXVA2Manager
 {
 public:
@@ -465,6 +466,7 @@ DXVA2Manager::CreateD3D11DXVA()
 
   return manager.forget();
 }
+#endif // _MSC_VER >= 1700
 
 DXVA2Manager::DXVA2Manager()
   : mLock("DXVA2Manager")

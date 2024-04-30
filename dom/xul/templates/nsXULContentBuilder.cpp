@@ -1263,13 +1263,16 @@ bool
 nsXULContentBuilder::IsOpen(nsIContent* aElement)
 {
     // Determine if this is a <treeitem> or <menu> element
+	if (!aElement->IsXULElement())
+        return true;
 
     // XXXhyatt Use the XBL service to obtain a base tag.
-    if (aElement->IsAnyOfXULElements(nsGkAtoms::menu,
-                                     nsGkAtoms::menubutton,
-                                     nsGkAtoms::toolbarbutton,
-                                     nsGkAtoms::button,
-                                     nsGkAtoms::treeitem))
+    nsIAtom *tag = aElement->Tag();
+    if (tag == nsGkAtoms::menu ||
+        tag == nsGkAtoms::menubutton ||
+        tag == nsGkAtoms::toolbarbutton ||
+        tag == nsGkAtoms::button ||
+        tag == nsGkAtoms::treeitem)
         return aElement->AttrValueIs(kNameSpaceID_None, nsGkAtoms::open,
                                      nsGkAtoms::_true, eCaseMatters);
     return true;

@@ -768,8 +768,8 @@ class Debugger : private mozilla::LinkedListElement<Debugger>
     JSObject* wrapSource(JSContext* cx, js::HandleScriptSource source);
 
   private:
-    Debugger(const Debugger&) = delete;
-    Debugger & operator=(const Debugger&) = delete;
+    Debugger(const Debugger&) MOZ_DELETE;
+    Debugger & operator=(const Debugger&) MOZ_DELETE;
 };
 
 class BreakpointSite {

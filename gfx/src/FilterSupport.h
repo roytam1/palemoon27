@@ -13,7 +13,7 @@
 #include "mozilla/gfx/2D.h"
 #include "nsClassHashtable.h"
 #include "nsTArray.h"
-#include "nsRegion.h"
+#include "nsRegion.h" // includes TypedEnum.h
 
 namespace mozilla {
 namespace gfx {
@@ -161,7 +161,7 @@ class SourceSurface;
 class FilterNode;
 struct FilterAttribute;
 
-enum class AttributeType {
+MOZ_BEGIN_ENUM_CLASS(AttributeType)
   eBool,
   eUint,
   eFloat,
@@ -175,7 +175,7 @@ enum class AttributeType {
   eAttributeMap,
   eFloats,
   Max
-};
+MOZ_END_ENUM_CLASS(AttributeType)
 
 // Limits
 const float kMaxStdDeviation = 500;
@@ -230,16 +230,16 @@ private:
   mutable nsClassHashtable<nsUint32HashKey, FilterAttribute>  mMap;
 };
 
-enum class ColorSpace {
+MOZ_BEGIN_ENUM_CLASS(ColorSpace)
   SRGB,
   LinearRGB,
   Max
-};
+MOZ_END_ENUM_CLASS(ColorSpace)
 
-enum class AlphaModel {
+MOZ_BEGIN_ENUM_CLASS(AlphaModel)
   Unpremultiplied,
   Premultiplied
-};
+MOZ_END_ENUM_CLASS(AlphaModel)
 
 class ColorModel {
 public:
@@ -267,7 +267,7 @@ public:
   AlphaModel mAlphaModel;
 };
 
-enum class PrimitiveType {
+MOZ_BEGIN_ENUM_CLASS(PrimitiveType)
   Empty = 0,
   Blend,
   Morphology,
@@ -288,7 +288,7 @@ enum class PrimitiveType {
   SpecularLighting,
   ToAlpha,
   Max
-};
+MOZ_END_ENUM_CLASS(PrimitiveType)
 
 /**
  * A data structure to carry attributes for a given primitive that's part of a

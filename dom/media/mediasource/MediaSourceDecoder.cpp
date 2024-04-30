@@ -347,8 +347,8 @@ MediaSourceDecoder::SelectDecoder(int64_t aTarget,
   MOZ_ASSERT(!mIsUsingFormatReader);
   ReentrantMonitorAutoEnter mon(GetReentrantMonitor());
 
-  media::TimeUnit target{media::TimeUnit::FromMicroseconds(aTarget)};
-  media::TimeUnit tolerance{media::TimeUnit::FromMicroseconds(aTolerance + aTarget)};
+  media::TimeUnit target = media::TimeUnit::FromMicroseconds(aTarget);
+  media::TimeUnit tolerance = media::TimeUnit::FromMicroseconds(aTolerance + aTarget);
 
   // aTolerance gives a slight bias toward the start of a range only.
   // Consider decoders in order of newest to oldest, as a newer decoder

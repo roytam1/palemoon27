@@ -95,7 +95,7 @@ public:
   }
 
 private:
-  nsDOMNavigationTiming(const nsDOMNavigationTiming &) = delete;
+  nsDOMNavigationTiming(const nsDOMNavigationTiming &) MOZ_DELETE;
   ~nsDOMNavigationTiming();
 
   void Clear();

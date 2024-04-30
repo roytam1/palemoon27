@@ -237,7 +237,7 @@ TrackBuffer::BufferAppend()
     mLastEndTimestamp.emplace(end);
   }
 
-  TimeUnit starttu{TimeUnit::FromMicroseconds(start)};
+  TimeUnit starttu = TimeUnit::FromMicroseconds(start);
 
   if (gotMedia && starttu != mAdjustedTimestamp &&
       ((start < 0 && -start < FUZZ_TIMESTAMP_OFFSET && starttu < mAdjustedTimestamp) ||
@@ -337,7 +337,7 @@ TrackBuffer::EvictData(TimeUnit aPlaybackTime,
   // Get a list of initialized decoders.
   nsTArray<SourceBufferDecoder*> decoders;
   decoders.AppendElements(mInitializedDecoders);
-  const TimeUnit evictThresholdTime{TimeUnit::FromSeconds(MSE_EVICT_THRESHOLD_TIME)};
+  const TimeUnit evictThresholdTime = TimeUnit::FromSeconds(MSE_EVICT_THRESHOLD_TIME);
 
   // First try to evict data before the current play position, starting
   // with the oldest decoder.
@@ -539,8 +539,10 @@ TrackBuffer::Buffered()
   ReentrantMonitorAutoEnter mon(mParentDecoder->GetReentrantMonitor());
 
   TimeIntervals buffered;
-
-  for (auto& decoder : mInitializedDecoders) {
+  SourceBufferDecoder* decoder;
+  uint32_t i;
+  
+  for (i = 0; i <= mInitializedDecoders.Length(); i++) {
     buffered += decoder->GetBuffered();
   }
   // mParser may not be initialized yet, and will only be so if we have a
@@ -927,8 +929,10 @@ bool
 TrackBuffer::ContainsTime(int64_t aTime, int64_t aTolerance)
 {
   ReentrantMonitorAutoEnter mon(mParentDecoder->GetReentrantMonitor());
-  TimeUnit time{TimeUnit::FromMicroseconds(aTime)};
-  for (auto& decoder : mInitializedDecoders) {
+  TimeUnit time = TimeUnit::FromMicroseconds(aTime);
+  SourceBufferDecoder* decoder;
+  uint32_t i;
+  for (i = 0; i <= mInitializedDecoders.Length(); i++) {
     TimeIntervals r = decoder->GetBuffered();
     r.SetFuzz(TimeUnit::FromMicroseconds(aTolerance));
     if (r.Contains(time)) {

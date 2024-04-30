@@ -11,7 +11,10 @@
 #include "nsNetUtil.h"
 #include "nsIPrincipal.h"
 #include "DOMMediaStream.h"
+#ifdef MOZ_MEDIASOURCE
 #include "mozilla/dom/MediaSource.h"
+#endif
+
 #include "nsIMemoryReporter.h"
 #include "mozilla/dom/File.h"
 #include "mozilla/Preferences.h"
@@ -579,12 +582,14 @@ nsMediaStreamProtocolHandler::GetScheme(nsACString &result)
   return NS_OK;
 }
 
+#ifdef MOZ_MEDIASOURCE
 NS_IMETHODIMP
 nsMediaSourceProtocolHandler::GetScheme(nsACString &result)
 {
   result.AssignLiteral(MEDIASOURCEURI_SCHEME);
   return NS_OK;
 }
+#endif
 
 NS_IMETHODIMP
 nsFontTableProtocolHandler::GetScheme(nsACString &result)
@@ -668,6 +673,7 @@ nsFontTableProtocolHandler::NewURI(const nsACString& aSpec,
   return NS_OK;
 }
 
+#ifdef MOZ_MEDIASOURCE
 nsresult
 NS_GetSourceForMediaSourceURI(nsIURI* aURI, mozilla::dom::MediaSource** aSource)
 {
@@ -683,3 +689,4 @@ NS_GetSourceForMediaSourceURI(nsIURI* aURI, mozilla::dom::MediaSource** aSource)
   source.forget(aSource);
   return NS_OK;
 }
+#endif

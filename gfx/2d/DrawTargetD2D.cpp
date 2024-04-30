@@ -6,7 +6,9 @@
 #include <initguid.h>
 #include "DrawTargetD2D.h"
 #include "SourceSurfaceD2D.h"
+#ifdef USE_D2D1_1
 #include "SourceSurfaceD2D1.h"
+#endif
 #include "SourceSurfaceD2DTarget.h"
 #include "ShadersD2D.h"
 #include "PathD2D.h"
@@ -19,8 +21,10 @@
 #include "mozilla/Constants.h"
 #include "FilterNodeSoftware.h"
 
+#ifdef USE_D2D1_1
 #include "FilterNodeD2D1.h"
 #include "ExtendInputEffectD2D1.h"
+#endif
 
 #include <dwrite.h>
 
@@ -321,6 +325,7 @@ DrawTargetD2D::GetBitmapForSurface(SourceSurface *aSurface,
   return bitmap.forget();
 }
 
+#ifdef USE_D2D1_1
 already_AddRefed<ID2D1Image>
 DrawTargetD2D::GetImageForSurface(SourceSurface *aSurface)
 {
@@ -331,6 +336,7 @@ DrawTargetD2D::GetImageForSurface(SourceSurface *aSurface)
 
   return image.forget();
 }
+#endif
 
 void
 DrawTargetD2D::DrawSurface(SourceSurface *aSurface,
@@ -365,6 +371,7 @@ DrawTargetD2D::DrawFilter(FilterNode *aNode,
                           const Point &aDestPoint,
                           const DrawOptions &aOptions)
 {
+#ifdef USE_D2D1_1
   RefPtr<ID2D1DeviceContext> dc;
   HRESULT hr;
   
@@ -390,6 +397,7 @@ DrawTargetD2D::DrawFilter(FilterNode *aNode,
       return;
     }
   }
+  #endif
 
   if (aNode->GetBackendType() != FILTER_BACKEND_SOFTWARE) {
     gfxWarning() << "Invalid filter backend passed to DrawTargetD2D!";
@@ -1303,18 +1311,24 @@ DrawTargetD2D::CreateGradientStops(GradientStop *rawStops, uint32_t aNumStops, E
     return nullptr;
   }
 
+  #ifdef USE_D2D1_1
   return MakeAndAddRef<GradientStopsD2D>(stopCollection, Factory::GetDirect3D11Device());
+  #else
+  return MakeAndAddRef<GradientStopsD2D>(stopCollection);
+  #endif
 }
 
 already_AddRefed<FilterNode>
 DrawTargetD2D::CreateFilter(FilterType aType)
 {
+#ifdef USE_D2D1_1
   RefPtr<ID2D1DeviceContext> dc;
   HRESULT hr = mRT->QueryInterface((ID2D1DeviceContext**)byRef(dc));
 
   if (SUCCEEDED(hr)) {
     return FilterNodeD2D1::Create(dc, aType);
   }
+  #endif
   return FilterNodeSoftware::Create(aType);
 }
 
@@ -2702,11 +2716,13 @@ DrawTargetD2D::factory()
     gfxWarning() << "Failed to create Direct2D factory.";
   }
 
+  #ifdef USE_D2D1_1
   RefPtr<ID2D1Factory1> factoryD2D1;
   hr = mFactory->QueryInterface((ID2D1Factory1**)byRef(factoryD2D1));
   if (SUCCEEDED(hr)) {
     ExtendInputEffectD2D1::Register(factoryD2D1);
   }
+  #endif
 
   return mFactory;
 }
@@ -2715,11 +2731,13 @@ void
 DrawTargetD2D::CleanupD2D()
 {
   if (mFactory) {
+  #ifdef USE_D2D1_1
     RefPtr<ID2D1Factory1> factoryD2D1;
     HRESULT hr = mFactory->QueryInterface((ID2D1Factory1**)byRef(factoryD2D1));
     if (SUCCEEDED(hr)) {
       ExtendInputEffectD2D1::Unregister(factoryD2D1);
     }
+	#endif
 
     mFactory->Release();
     mFactory = nullptr;

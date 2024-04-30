@@ -240,19 +240,23 @@ GetFirstNonAAncestor(nsIContent* aContent)
 static bool
 IsTextContentElement(nsIContent* aContent)
 {
-  if (aContent->IsSVGElement(nsGkAtoms::text)) {
+if (!aContent->IsSVGElement()) {
+    return false;
+  }
+  
+  if (aContent->Tag() == nsGkAtoms::text) {
     nsIContent* parent = GetFirstNonAAncestor(aContent->GetParent());
     return !parent || !IsTextContentElement(parent);
   }
 
-  if (aContent->IsSVGElement(nsGkAtoms::textPath)) {
+  if (aContent->Tag() == nsGkAtoms::textPath) {
     nsIContent* parent = GetFirstNonAAncestor(aContent->GetParent());
     return parent && parent->IsSVGElement(nsGkAtoms::text);
   }
 
-  if (aContent->IsAnyOfSVGElements(nsGkAtoms::a,
-                                   nsGkAtoms::tspan,
-                                   nsGkAtoms::altGlyph)) {
+  if (aContent->Tag() == nsGkAtoms::a ||
+      aContent->Tag() == nsGkAtoms::tspan ||
+      aContent->Tag() == nsGkAtoms::altGlyph) {
     return true;
   }
 

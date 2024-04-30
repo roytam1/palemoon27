@@ -16,6 +16,7 @@
 #include "nsIChannelEventSink.h"
 #include "nsIAsyncVerifyRedirectCallback.h"
 #include "mozilla/Attributes.h"
+#include "mozilla/TypedEnum.h"
 
 class nsIURI;
 class nsIParser;
@@ -29,11 +30,10 @@ NS_StartCORSPreflight(nsIChannel* aRequestChannel,
                       nsTArray<nsCString>& aACUnsafeHeaders,
                       nsIChannel** aPreflightChannel);
 
-enum class DataURIHandling
-{
+MOZ_BEGIN_ENUM_CLASS(DataURIHandling)
   Allow,
   Disallow
-};
+MOZ_END_ENUM_CLASS(DataURIHandling)
 
 class nsCORSListenerProxy final : public nsIStreamListener,
                                       public nsIInterfaceRequestor,

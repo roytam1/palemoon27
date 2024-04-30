@@ -9,6 +9,7 @@
 #include <stdint.h>
 #include "mozilla/Assertions.h"
 #include "mozilla/Constants.h"   // for M_PI
+#include "mozilla/TypedEnum.h"
 
 // First time gfxPrefs::GetSingleton() needs to be called on the main thread,
 // before any of the methods accessing the values are used, but after
@@ -77,14 +78,14 @@ private:
 
 private:
   // Enums for the update policy.
-  enum class UpdatePolicy {
+  MOZ_BEGIN_NESTED_ENUM_CLASS(UpdatePolicy)
     Skip, // Set the value to default, skip any Preferences calls
     Once, // Evaluate the preference once, unchanged during the session
     Live  // Evaluate the preference and set callback so it stays current/live
-  };
+  MOZ_END_NESTED_ENUM_CLASS(UpdatePolicy)
 
   // Since we cannot use const char*, use a function that returns it.
-  template <UpdatePolicy Update, class T, T Default(void), const char* Pref(void)>
+  template <MOZ_ENUM_CLASS_ENUM_TYPE(UpdatePolicy) Update, class T, T Default(void), const char* Pref(void)>
   class PrefTemplate
   {
   public:
@@ -387,8 +388,8 @@ private:
 
   gfxPrefs();
   ~gfxPrefs();
-  gfxPrefs(const gfxPrefs&) = delete;
-  gfxPrefs& operator=(const gfxPrefs&) = delete;
+  gfxPrefs(const gfxPrefs&) MOZ_DELETE;
+  gfxPrefs& operator=(const gfxPrefs&) MOZ_DELETE;
 };
 
 #undef DECL_GFX_PREF /* Don't need it outside of this file */

@@ -42,11 +42,8 @@ extern "C" {
   /*!\deprecated Use #VPX_TS_MAX_PERIODICITY instead. */
 #define MAX_PERIODICITY VPX_TS_MAX_PERIODICITY
 
-/*! Temporal+Spatial Scalability: Maximum number of coding layers */
-#define VPX_MAX_LAYERS  12  // 3 temporal + 4 spatial layers are allowed.
-
-/*!\deprecated Use #VPX_MAX_LAYERS instead. */
-#define MAX_LAYERS    VPX_MAX_LAYERS  // 3 temporal + 4 spatial layers allowed.
+  /*!\deprecated Use #VPX_TS_MAX_LAYERS instead. */
+#define MAX_LAYERS      VPX_TS_MAX_LAYERS
 
 /*! Spatial Scalability: Maximum number of coding layers */
 #define VPX_SS_MAX_LAYERS       5
@@ -62,7 +59,7 @@ extern "C" {
    * types, removing or reassigning enums, adding/removing/rearranging
    * fields to structures
    */
-#define VPX_ENCODER_ABI_VERSION (5 + VPX_CODEC_ABI_VERSION) /**<\hideinitializer*/
+#define VPX_ENCODER_ABI_VERSION (3 + VPX_CODEC_ABI_VERSION) /**<\hideinitializer*/
 
 
   /*! \brief Encoder capabilities bitfield
@@ -164,9 +161,7 @@ extern "C" {
     VPX_CODEC_STATS_PKT,       /**< Two-pass statistics for this frame */
     VPX_CODEC_FPMB_STATS_PKT,  /**< first pass mb statistics for this frame */
     VPX_CODEC_PSNR_PKT,        /**< PSNR statistics for this frame */
-    // Spatial SVC is still experimental and may be removed before the next ABI
-    // bump.
-#if VPX_ENCODER_ABI_VERSION > (5 + VPX_CODEC_ABI_VERSION)
+#if CONFIG_SPATIAL_SVC
     VPX_CODEC_SPATIAL_SVC_LAYER_SIZES, /**< Sizes for each layer in this frame*/
     VPX_CODEC_SPATIAL_SVC_LAYER_PSNR, /**< PSNR for each layer in this frame*/
 #endif
@@ -206,9 +201,7 @@ extern "C" {
         double       psnr[4];     /**< PSNR, total/y/u/v */
       } psnr;                       /**< data for PSNR packet */
       vpx_fixed_buf_t raw;     /**< data for arbitrary packets */
-      // Spatial SVC is still experimental and may be removed before the next
-      // ABI bump.
-#if VPX_ENCODER_ABI_VERSION > (5 + VPX_CODEC_ABI_VERSION)
+#if CONFIG_SPATIAL_SVC
       size_t layer_sizes[VPX_SS_MAX_LAYERS];
       struct vpx_psnr_pkt layer_psnr[VPX_SS_MAX_LAYERS];
 #endif
@@ -222,22 +215,6 @@ extern "C" {
     } data; /**< packet data */
   } vpx_codec_cx_pkt_t; /**< alias for struct vpx_codec_cx_pkt */
 
-
-  /*!\brief Encoder return output buffer callback
-   *
-   * This callback function, when registered, returns with packets when each
-   * spatial layer is encoded.
-   */
-  // putting the definitions here for now. (agrange: find if there
-  // is a better place for this)
-  typedef void (* vpx_codec_enc_output_cx_pkt_cb_fn_t)(vpx_codec_cx_pkt_t *pkt,
-                                                       void *user_data);
-
-  /*!\brief Callback function pointer / user data pair storage */
-  typedef struct vpx_codec_enc_output_cx_cb_pair {
-    vpx_codec_enc_output_cx_pkt_cb_fn_t output_cx_pkt; /**< Callback function */
-    void                            *user_priv; /**< Pointer to private data */
-  } vpx_codec_priv_output_cx_pkt_cb_pair_t;
 
   /*!\brief Rational Number
    *
@@ -732,22 +709,6 @@ extern "C" {
      * ts_periodicity=8, then ts_layer_id = (0,1,0,1,0,1,0,1).
     */
     unsigned int           ts_layer_id[VPX_TS_MAX_PERIODICITY];
-
-    /*!\brief Target bitrate for each spatial/temporal layer.
-     *
-     * These values specify the target coding bitrate to be used for each
-     * spatial/temporal layer.
-     *
-     */
-    unsigned int           layer_target_bitrate[VPX_MAX_LAYERS];
-
-    /*!\brief Temporal layering mode indicating which temporal layering scheme to use.
-     *
-     * The value (refer to VP9E_TEMPORAL_LAYERING_MODE) specifies the
-     * temporal layering mode to use.
-     *
-     */
-    int                    temporal_layering_mode;
   } vpx_codec_enc_cfg_t; /**< alias for struct vpx_codec_enc_cfg */
 
   /*!\brief  vp9 svc extra configure parameters
@@ -756,11 +717,10 @@ extern "C" {
    *
    */
   typedef struct vpx_svc_parameters {
-    int max_quantizers[VPX_MAX_LAYERS]; /**< Max Q for each layer */
-    int min_quantizers[VPX_MAX_LAYERS]; /**< Min Q for each layer */
-    int scaling_factor_num[VPX_MAX_LAYERS]; /**< Scaling factor-numerator */
-    int scaling_factor_den[VPX_MAX_LAYERS]; /**< Scaling factor-denominator */
-    int temporal_layering_mode; /**< Temporal layering mode */
+    int max_quantizers[VPX_SS_MAX_LAYERS];
+    int min_quantizers[VPX_SS_MAX_LAYERS];
+    int scaling_factor_num[VPX_SS_MAX_LAYERS];
+    int scaling_factor_den[VPX_SS_MAX_LAYERS];
   } vpx_svc_extra_cfg_t;
 
 
@@ -847,9 +807,9 @@ extern "C" {
    * be called by all applications to initialize the configuration structure
    * before specializing the configuration with application specific values.
    *
-   * \param[in]    iface     Pointer to the algorithm interface to use.
-   * \param[out]   cfg       Configuration buffer to populate.
-   * \param[in]    reserved  Must set to 0 for VP8 and VP9.
+   * \param[in]    iface   Pointer to the algorithm interface to use.
+   * \param[out]   cfg     Configuration buffer to populate
+   * \param[in]    usage   End usage. Set to 0 or use codec specific values.
    *
    * \retval #VPX_CODEC_OK
    *     The configuration was populated.
@@ -860,7 +820,7 @@ extern "C" {
    */
   vpx_codec_err_t  vpx_codec_enc_config_default(vpx_codec_iface_t    *iface,
                                                 vpx_codec_enc_cfg_t  *cfg,
-                                                unsigned int          reserved);
+                                                unsigned int          usage);
 
 
   /*!\brief Set or change configuration

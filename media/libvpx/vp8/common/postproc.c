@@ -330,7 +330,7 @@ void vp8_deblock(VP8_COMMON                 *cm,
     double level = 6.0e-05 * q * q * q - .0067 * q * q + .306 * q + .0065;
     int ppl = (int)(level + .5);
 
-    const MODE_INFO *mode_info_context = cm->mi;
+    const MODE_INFO *mode_info_context = cm->show_frame_mi;
     int mbr, mbc;
 
     /* The pixel thresholds are adjusted according to if or not the macroblock
@@ -355,8 +355,8 @@ void vp8_deblock(VP8_COMMON                 *cm,
                 else
                     mb_ppl = (unsigned char)ppl;
 
-                memset(ylptr, mb_ppl, 16);
-                memset(uvlptr, mb_ppl, 8);
+                vpx_memset(ylptr, mb_ppl, 16);
+                vpx_memset(uvlptr, mb_ppl, 8);
 
                 ylptr += 16;
                 uvlptr += 8;
@@ -403,7 +403,7 @@ void vp8_de_noise(VP8_COMMON                 *cm,
     (void) low_var_thresh;
     (void) flag;
 
-    memset(limits, (unsigned char)ppl, 16 * mb_cols);
+    vpx_memset(limits, (unsigned char)ppl, 16 * mb_cols);
 
     /* TODO: The original code don't filter the 2 outer rows and columns. */
     for (mbr = 0; mbr < mb_rows; mbr++)
@@ -427,7 +427,7 @@ void vp8_de_noise(VP8_COMMON                 *cm,
     }
 }
 
-static double gaussian(double sigma, double mu, double x)
+double vp8_gaussian(double sigma, double mu, double x)
 {
     return 1 / (sigma * sqrt(2.0 * 3.14159265)) *
            (exp(-(x - mu) * (x - mu) / (2 * sigma * sigma)));
@@ -455,7 +455,7 @@ static void fillrd(struct postproc_state *state, int q, int a)
 
         for (i = -32; i < 32; i++)
         {
-            const int v = (int)(.5 + 256 * gaussian(sigma, 0, i));
+            const int v = (int)(.5 + 256 * vp8_gaussian(sigma, 0, i));
 
             if (v)
             {
@@ -518,7 +518,6 @@ void vp8_plane_add_noise_c(unsigned char *Start, char *noise,
                            unsigned int Width, unsigned int Height, int Pitch)
 {
     unsigned int i, j;
-    (void)bothclamp;
 
     for (i = 0; i < Height; i++)
     {
@@ -763,7 +762,7 @@ int vp8_post_proc_frame(VP8_COMMON *oci, YV12_BUFFER_CONFIG *dest, vp8_ppflags_t
             /* insure that postproc is set to all 0's so that post proc
              * doesn't pull random data in from edge
              */
-            memset((&oci->post_proc_buffer_int)->buffer_alloc,128,(&oci->post_proc_buffer)->frame_size);
+            vpx_memset((&oci->post_proc_buffer_int)->buffer_alloc,128,(&oci->post_proc_buffer)->frame_size);
 
         }
     }

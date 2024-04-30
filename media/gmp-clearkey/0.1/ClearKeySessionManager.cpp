@@ -14,10 +14,41 @@
 #include "gmp-task-utils.h"
 #if defined(ENABLE_WMF)
 #include "WMFUtils.h"
-#include <versionhelpers.h>
 #endif
 
 #include "mozilla/Assertions.h"
+
+#if defined (_MSC_VER) && _MSC_VER <= 1800 
+// Windows 8 SDK and older have no versionhelpers.h
+// file
+#define VERSIONHELPERAPI inline bool
+
+VERSIONHELPERAPI
+IsWindowsVersionOrGreater(WORD wMajorVersion, WORD wMinorVersion, WORD wServicePackMajor)
+{
+    OSVERSIONINFOEXW osvi = { sizeof(osvi), 0, 0, 0, 0, {0}, 0, 0 };
+    DWORDLONG        const dwlConditionMask = VerSetConditionMask(
+        VerSetConditionMask(
+        VerSetConditionMask(
+            0, VER_MAJORVERSION, VER_GREATER_EQUAL),
+               VER_MINORVERSION, VER_GREATER_EQUAL),
+               VER_SERVICEPACKMAJOR, VER_GREATER_EQUAL);
+
+    osvi.dwMajorVersion = wMajorVersion;
+    osvi.dwMinorVersion = wMinorVersion;
+    osvi.wServicePackMajor = wServicePackMajor;
+
+    return VerifyVersionInfoW(&osvi, VER_MAJORVERSION | VER_MINORVERSION | VER_SERVICEPACKMAJOR, dwlConditionMask) != FALSE;
+}
+
+VERSIONHELPERAPI
+IsWindowsVistaOrGreater()
+{
+    return IsWindowsVersionOrGreater(HIBYTE(_WIN32_WINNT_VISTA), LOBYTE(_WIN32_WINNT_VISTA), 0);
+}
+#else
+#include <versionhelpers.h>
+#endif
 
 using namespace mozilla;
 using namespace std;

@@ -77,14 +77,14 @@ Poly1305Do(unsigned char *out, const unsigned char *ad, unsigned int adLen,
         Hacl_Poly1305_mk_state(stateStack, stateStack + offset);
 
     unsigned char block[16] = { 0 };
+    unsigned int i;
+    unsigned int j;
     Hacl_Poly1305_init(state, (uint8_t *)key);
 
     Poly1305PadUpdate(state, block, ad, adLen);
     memset(block, 0, 16);
     Poly1305PadUpdate(state, block, ciphertext, ciphertextLen);
 
-    unsigned int i;
-    unsigned int j;
     for (i = 0, j = adLen; i < 8; i++, j >>= 8) {
         block[i] = j;
     }

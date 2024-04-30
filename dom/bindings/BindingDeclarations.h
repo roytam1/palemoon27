@@ -179,8 +179,8 @@ public:
 
 private:
   // Forbid copy-construction and assignment
-  Optional_base(const Optional_base& other) = delete;
-  const Optional_base &operator=(const Optional_base &other) = delete;
+  Optional_base(const Optional_base& other) MOZ_DELETE;
+  const Optional_base &operator=(const Optional_base &other) MOZ_DELETE;
 
 protected:
   Maybe<InternalType> mImpl;
@@ -269,9 +269,9 @@ template<>
 class Optional<JS::Value>
 {
 private:
-  Optional() = delete;
+  Optional() MOZ_DELETE;
 
-  explicit Optional(JS::Value aValue) = delete;
+  explicit Optional(JS::Value aValue) MOZ_DELETE;
 };
 
 // A specialization of Optional for NonNull that lets us get a T& from Value()
@@ -362,8 +362,8 @@ public:
 
 private:
   // Forbid copy-construction and assignment
-  Optional(const Optional& other) = delete;
-  const Optional &operator=(const Optional &other) = delete;
+  Optional(const Optional& other) MOZ_DELETE;
+  const Optional &operator=(const Optional &other) MOZ_DELETE;
 
   bool mPassed;
   const nsAString* mStr;

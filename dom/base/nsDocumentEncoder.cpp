@@ -1379,7 +1379,9 @@ nsHTMLCopyEncoder::SetSelection(nsISelection* aSelection)
        selContent = selContent->GetParent())
   {
     // checking for selection inside a plaintext form widget
-    if (selContent->IsAnyOfHTMLElements(nsGkAtoms::input, nsGkAtoms::textarea))
+    nsIAtom *atom = selContent->Tag();
+    if (atom == nsGkAtoms::input ||
+        atom == nsGkAtoms::textarea)
     {
       mIsTextWidget = true;
       break;
@@ -1513,32 +1515,34 @@ nsHTMLCopyEncoder::IncludeInContext(nsINode *aNode)
   if (!content)
     return false;
 
-  return content->IsAnyOfHTMLElements(nsGkAtoms::b,
-                                      nsGkAtoms::i,
-                                      nsGkAtoms::u,
-                                      nsGkAtoms::a,
-                                      nsGkAtoms::tt,
-                                      nsGkAtoms::s,
-                                      nsGkAtoms::big,
-                                      nsGkAtoms::small,
-                                      nsGkAtoms::strike,
-                                      nsGkAtoms::em,
-                                      nsGkAtoms::strong,
-                                      nsGkAtoms::dfn,
-                                      nsGkAtoms::code,
-                                      nsGkAtoms::cite,
-                                      nsGkAtoms::var,
-                                      nsGkAtoms::abbr,
-                                      nsGkAtoms::font,
-                                      nsGkAtoms::script,
-                                      nsGkAtoms::span,
-                                      nsGkAtoms::pre,
-                                      nsGkAtoms::h1,
-                                      nsGkAtoms::h2,
-                                      nsGkAtoms::h3,
-                                      nsGkAtoms::h4,
-                                      nsGkAtoms::h5,
-                                      nsGkAtoms::h6);
+  nsIAtom *tag = content->Tag();
+
+  return (tag == nsGkAtoms::b        ||
+          tag == nsGkAtoms::i        ||
+          tag == nsGkAtoms::u        ||
+          tag == nsGkAtoms::a        ||
+          tag == nsGkAtoms::tt       ||
+          tag == nsGkAtoms::s        ||
+          tag == nsGkAtoms::big      ||
+          tag == nsGkAtoms::small    ||
+          tag == nsGkAtoms::strike   ||
+          tag == nsGkAtoms::em       ||
+          tag == nsGkAtoms::strong   ||
+          tag == nsGkAtoms::dfn      ||
+          tag == nsGkAtoms::code     ||
+          tag == nsGkAtoms::cite     ||
+          tag == nsGkAtoms::var      ||
+          tag == nsGkAtoms::abbr     ||
+          tag == nsGkAtoms::font     ||
+          tag == nsGkAtoms::script   ||
+          tag == nsGkAtoms::span     ||
+          tag == nsGkAtoms::pre      ||
+          tag == nsGkAtoms::h1       ||
+          tag == nsGkAtoms::h2       ||
+          tag == nsGkAtoms::h3       ||
+          tag == nsGkAtoms::h4       ||
+          tag == nsGkAtoms::h5       ||
+          tag == nsGkAtoms::h6);
 }
 
 
@@ -1888,9 +1892,9 @@ nsHTMLCopyEncoder::IsRoot(nsIDOMNode* aNode)
     return content->IsHTMLElement(nsGkAtoms::div);
   }
 
-  return content->IsAnyOfHTMLElements(nsGkAtoms::body,
-                                      nsGkAtoms::td,
-                                      nsGkAtoms::th);
+  return content->IsHTMLElement(nsGkAtoms::body) 
+			|| content->IsHTMLElement(nsGkAtoms::td)
+                        || content->IsHTMLElement(nsGkAtoms::th);
 }
 
 bool
@@ -2008,12 +2012,11 @@ nsHTMLCopyEncoder::GetImmediateContextCount(const nsTArray<nsINode*>& aAncestorA
       break;
     }
     nsCOMPtr<nsIContent> content(do_QueryInterface(node));
-    if (!content ||
-        !content->IsAnyOfHTMLElements(nsGkAtoms::tr,
-                                      nsGkAtoms::thead,
-                                      nsGkAtoms::tbody,
-                                      nsGkAtoms::tfoot,
-                                      nsGkAtoms::table)) {
+    if (!content || !content->IsHTMLElement() || (content->Tag() != nsGkAtoms::tr    &&
+                                           content->Tag() != nsGkAtoms::thead &&
+                                           content->Tag() != nsGkAtoms::tbody &&
+                                           content->Tag() != nsGkAtoms::tfoot &&
+                                           content->Tag() != nsGkAtoms::table)) {
       break;
     }
     ++j;

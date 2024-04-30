@@ -325,8 +325,8 @@ private:
 
   void InitInternal(JSObject* aGlobal, JSContext* aCx, bool aIsMainThread);
 
-  AutoJSAPI(const AutoJSAPI&) = delete;
-  AutoJSAPI& operator= (const AutoJSAPI&) = delete;
+  AutoJSAPI(const AutoJSAPI&) MOZ_DELETE;
+  AutoJSAPI& operator= (const AutoJSAPI&) MOZ_DELETE;
 };
 
 /*

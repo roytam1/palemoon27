@@ -559,7 +559,9 @@ public:
   }
 
   bool Contains(const ElemType& aInterval) const {
-    for (const auto& interval : mIntervals) {
+  uint32_t length = mIntervals.Length();
+    for (uint32_t i = 0; i < length; ++i) {
+    const auto& interval = mIntervals[i];
       if (aInterval.LeftOf(interval)) {
         // Will never succeed.
         return false;
@@ -601,7 +603,9 @@ public:
   // Shift all values by aOffset.
   SelfType& Shift(const T& aOffset)
   {
-    for (auto& interval : mIntervals) {
+    uint32_t length = mIntervals.Length();
+    for (uint32_t i = 0; i < length; ++i) {
+    auto& interval = mIntervals[i];
       interval.mStart = interval.mStart + aOffset;
       interval.mEnd = interval.mEnd + aOffset;
     }
@@ -609,7 +613,9 @@ public:
   }
 
   void SetFuzz(const T& aFuzz) {
-    for (auto& interval : mIntervals) {
+  uint32_t length = mIntervals.Length();
+    for (uint32_t i = 0; i < length; ++i) {
+    auto& interval = mIntervals[i];
       interval.SetFuzz(aFuzz);
     }
     Normalize();

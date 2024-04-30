@@ -145,8 +145,8 @@ struct nsStyleGradientStop {
   bool mIsInterpolationHint;
 
   // Use ==/!= on nsStyleGradient instead of on the gradient stop.
-  bool operator==(const nsStyleGradientStop&) const = delete;
-  bool operator!=(const nsStyleGradientStop&) const = delete;
+  bool operator==(const nsStyleGradientStop&) const MOZ_DELETE;
+  bool operator!=(const nsStyleGradientStop&) const MOZ_DELETE;
 };
 
 class nsStyleGradient final {
@@ -183,8 +183,8 @@ private:
   // Private destructor, to discourage deletion outside of Release():
   ~nsStyleGradient() {}
 
-  nsStyleGradient(const nsStyleGradient& aOther) = delete;
-  nsStyleGradient& operator=(const nsStyleGradient& aOther) = delete;
+  nsStyleGradient(const nsStyleGradient& aOther) MOZ_DELETE;
+  nsStyleGradient& operator=(const nsStyleGradient& aOther) MOZ_DELETE;
 };
 
 enum nsStyleImageType {
@@ -1051,7 +1051,7 @@ protected:
 private:
   nscoord       mTwipsPerPixel;
 
-  nsStyleBorder& operator=(const nsStyleBorder& aOther) = delete;
+  nsStyleBorder& operator=(const nsStyleBorder& aOther) MOZ_DELETE;
 };
 
 
@@ -1213,7 +1213,7 @@ private:
   nsString  mListStyleType;             // [inherited]
   nsRefPtr<mozilla::CounterStyle> mCounterStyle; // [inherited]
   nsRefPtr<imgRequestProxy> mListStyleImage; // [inherited]
-  nsStyleList& operator=(const nsStyleList& aOther) = delete;
+  nsStyleList& operator=(const nsStyleList& aOther) MOZ_DELETE;
 public:
   nsRect        mImageRegion;           // [inherited] the rect to use within an image
 };
@@ -3011,7 +3011,7 @@ struct nsStyleClipPath
 
 private:
   void ReleaseRef();
-  void* operator new(size_t) = delete;
+  void* operator new(size_t) MOZ_DELETE;
 
   int32_t mType; // see NS_STYLE_CLIP_PATH_* constants in nsStyleConsts.h
   union {

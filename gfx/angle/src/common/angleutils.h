@@ -10,6 +10,7 @@
 #define COMMON_ANGLEUTILS_H_
 
 #include "common/platform.h"
+#include "mozilla/Attributes.h"
 
 #include <climits>
 #include <cstdarg>
@@ -26,11 +27,11 @@ namespace angle
 class NonCopyable
 {
   public:
-    NonCopyable() = default;
-    ~NonCopyable() = default;
+    NonCopyable() MOZ_DEFAULT;
+    ~NonCopyable() MOZ_DEFAULT;
   protected:
-    NonCopyable(const NonCopyable&) = delete;
-    void operator=(const NonCopyable&) = delete;
+    NonCopyable(const NonCopyable&) MOZ_DELETE;
+    void operator=(const NonCopyable&) MOZ_DELETE;
 };
 
 }

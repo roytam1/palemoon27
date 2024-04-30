@@ -35,6 +35,7 @@
 #include "nsLayoutUtils.h"
 #include "nsFrameState.h"
 #include "CaretAssociationHint.h"
+#include "mozilla/TypedEnum.h"
 
 #ifdef ACCESSIBILITY
 #include "mozilla/a11y/AccTypes.h"
@@ -315,10 +316,10 @@ void NS_MergeReflowStatusInto(nsReflowStatus* aPrimary,
 /**
  * DidReflow status values.
  */
-enum class nsDidReflowStatus : uint32_t {
+MOZ_BEGIN_ENUM_CLASS(nsDidReflowStatus, uint32_t)
   NOT_FINISHED,
   FINISHED
-};
+MOZ_END_ENUM_CLASS(nsDidReflowStatus)
 
 /**
  * When there is no scrollable overflow rect, the visual overflow rect
@@ -1896,12 +1897,12 @@ public:
     RenderedText() : mOffsetWithinNodeRenderedText(0),
         mOffsetWithinNodeText(0) {}
   };
-  enum class TextOffsetType {
+  MOZ_BEGIN_NESTED_ENUM_CLASS(TextOffsetType)
     // Passed-in start and end offsets are within the content text.
     OFFSETS_IN_CONTENT_TEXT,
     // Passed-in start and end offsets are within the rendered text.
     OFFSETS_IN_RENDERED_TEXT
-  };
+  MOZ_END_NESTED_ENUM_CLASS(TextOffsetType)
   virtual RenderedText GetRenderedText(uint32_t aStartOffset = 0,
                                        uint32_t aEndOffset = UINT32_MAX,
                                        TextOffsetType aOffsetType =

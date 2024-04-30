@@ -22,7 +22,7 @@ public:
   virtual const uint32_t Size() const override;
   virtual void StringAt(uint32_t aIndex,
                         const char** aOutString, uint32_t *aOutLength) const override;
-  virtual ~GMPStringListImpl() override;
+  virtual ~GMPStringListImpl();
   void RelinquishData(nsTArray<nsCString>& aStrings);
 
 private:

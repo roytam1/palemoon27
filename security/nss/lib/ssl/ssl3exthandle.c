@@ -1957,6 +1957,8 @@ ssl_SendRecordSizeLimitXtn(const sslSocket *ss, TLSExtensionData *xtnData,
                            sslBuffer *buf, PRBool *added)
 {
     PRUint32 maxLimit;
+    PRUint32 limit = PR_MIN(ss->opt.recordSizeLimit, maxLimit);
+    SECStatus rv = sslBuffer_AppendNumber(buf, limit, 2);
     if (ss->sec.isServer) {
         maxLimit = (ss->version >= SSL_LIBRARY_VERSION_TLS_1_3)
                        ? (MAX_FRAGMENT_LENGTH + 1)
@@ -1966,8 +1968,6 @@ ssl_SendRecordSizeLimitXtn(const sslSocket *ss, TLSExtensionData *xtnData,
                        ? (MAX_FRAGMENT_LENGTH + 1)
                        : MAX_FRAGMENT_LENGTH;
     }
-    PRUint32 limit = PR_MIN(ss->opt.recordSizeLimit, maxLimit);
-    SECStatus rv = sslBuffer_AppendNumber(buf, limit, 2);
     if (rv != SECSuccess) {
         return SECFailure;
     }

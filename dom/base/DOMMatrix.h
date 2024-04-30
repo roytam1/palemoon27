@@ -136,9 +136,9 @@ protected:
   virtual ~DOMMatrixReadOnly() {}
 
 private:
-  DOMMatrixReadOnly() = delete;
-  DOMMatrixReadOnly(const DOMMatrixReadOnly&) = delete;
-  DOMMatrixReadOnly& operator=(const DOMMatrixReadOnly&) = delete;
+  DOMMatrixReadOnly() MOZ_DELETE;
+  DOMMatrixReadOnly(const DOMMatrixReadOnly&) MOZ_DELETE;
+  DOMMatrixReadOnly& operator=(const DOMMatrixReadOnly&) MOZ_DELETE;
 };
 
 class DOMMatrix final : public DOMMatrixReadOnly

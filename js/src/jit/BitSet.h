@@ -43,8 +43,8 @@ class BitSet
         return RawLengthForBits(numBits_);
     }
 
-    BitSet(const BitSet&) = delete;
-    void operator=(const BitSet&) = delete;
+    BitSet(const BitSet&) MOZ_DELETE;
+    void operator=(const BitSet&) MOZ_DELETE;
 
   public:
     class Iterator;

@@ -51,8 +51,8 @@ struct UniformBlock
 {
     UniformBlock();
     UniformBlock(const std::string &nameIn, bool isArrayIn, unsigned int arrayElementIn);
-    UniformBlock(const UniformBlock &other) = default;
-    UniformBlock &operator=(const UniformBlock &other) = default;
+    UniformBlock(const UniformBlock &other) MOZ_DEFAULT;
+    UniformBlock &operator=(const UniformBlock &other) MOZ_DEFAULT;
 
     std::string nameWithArrayIndex() const;
 

@@ -105,7 +105,7 @@ class ObjectOpResult
         return code_ == OkCode;
     }
 
-    explicit operator bool() const { return ok(); }
+    MOZ_EXPLICIT_CONVERSION operator bool() const { return ok(); }
 
     /* Set this ObjectOpResult to true and return true. */
     bool succeed() {

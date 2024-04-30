@@ -8,13 +8,14 @@
 
 #include <stddef.h>
 #include <stdint.h>
+#include "mozilla/TypedEnum.h"
 
 namespace mozilla {
 namespace gfx {
 
 typedef float Float;
 
-enum class SurfaceType : int8_t {
+MOZ_BEGIN_ENUM_CLASS(SurfaceType, int8_t)
   DATA, /* Data surface - bitmap in memory */
   D2D1_BITMAP, /* Surface wrapping a ID2D1Bitmap */
   D2D1_DRAWTARGET, /* Surface made from a D2D draw target */
@@ -27,9 +28,9 @@ enum class SurfaceType : int8_t {
   D2D1_1_IMAGE, /* A D2D 1.1 ID2D1Image SourceSurface */
   RECORDING, /* Surface used for recording */
   TILED /* Surface from a tiled DrawTarget */
-};
+MOZ_END_ENUM_CLASS(SurfaceType)
 
-enum class SurfaceFormat : int8_t {
+MOZ_BEGIN_ENUM_CLASS(SurfaceFormat, int8_t)
   B8G8R8A8,
   B8G8R8X8,
   R8G8B8A8,
@@ -38,7 +39,7 @@ enum class SurfaceFormat : int8_t {
   A8,
   YUV,
   UNKNOWN
-};
+MOZ_END_ENUM_CLASS(SurfaceFormat)
 
 inline bool IsOpaque(SurfaceFormat aFormat)
 {
@@ -53,7 +54,7 @@ inline bool IsOpaque(SurfaceFormat aFormat)
   }
 }
 
-enum class FilterType : int8_t {
+MOZ_BEGIN_ENUM_CLASS(FilterType, int8_t)
   BLEND = 0,
   TRANSFORM,
   MORPHOLOGY,
@@ -80,15 +81,15 @@ enum class FilterType : int8_t {
   CROP,
   PREMULTIPLY,
   UNPREMULTIPLY
-};
+MOZ_END_ENUM_CLASS(FilterType)
 
-enum class DrawTargetType : int8_t {
+MOZ_BEGIN_ENUM_CLASS(DrawTargetType, int8_t)
   SOFTWARE_RASTER = 0,
   HARDWARE_RASTER,
   VECTOR
-};
+MOZ_END_ENUM_CLASS(DrawTargetType)
 
-enum class BackendType : int8_t {
+MOZ_BEGIN_ENUM_CLASS(BackendType, int8_t)
   NONE = 0,
   DIRECT2D,
   COREGRAPHICS,
@@ -97,49 +98,49 @@ enum class BackendType : int8_t {
   SKIA,
   RECORDING,
   DIRECT2D1_1
-};
+MOZ_END_ENUM_CLASS(BackendType)
 
-enum class FontType : int8_t {
+MOZ_BEGIN_ENUM_CLASS(FontType, int8_t)
   DWRITE,
   GDI,
   MAC,
   SKIA,
   CAIRO,
   COREGRAPHICS
-};
+MOZ_END_ENUM_CLASS(FontType)
 
-enum class NativeSurfaceType : int8_t {
+MOZ_BEGIN_ENUM_CLASS(NativeSurfaceType, int8_t)
   D3D10_TEXTURE,
   CAIRO_SURFACE,
   CAIRO_CONTEXT,
   CGCONTEXT,
   CGCONTEXT_ACCELERATED,
   OPENGL_TEXTURE
-};
+MOZ_END_ENUM_CLASS(NativeSurfaceType)
 
-enum class NativeFontType : int8_t {
+MOZ_BEGIN_ENUM_CLASS(NativeFontType, int8_t)
   DWRITE_FONT_FACE,
   GDI_FONT_FACE,
   MAC_FONT_FACE,
   SKIA_FONT_FACE,
   CAIRO_FONT_FACE
-};
+MOZ_END_ENUM_CLASS(NativeFontType)
 
-enum class FontStyle : int8_t {
+MOZ_BEGIN_ENUM_CLASS(FontStyle, int8_t)
   NORMAL,
   ITALIC,
   BOLD,
   BOLD_ITALIC
-};
+MOZ_END_ENUM_CLASS(FontStyle)
 
-enum class FontHinting : int8_t {
+MOZ_BEGIN_ENUM_CLASS(FontHinting, int8_t)
   NONE,
   LIGHT,
   NORMAL,
   FULL
-};
+MOZ_END_ENUM_CLASS(FontHinting)
 
-enum class CompositionOp : int8_t {
+MOZ_BEGIN_ENUM_CLASS(CompositionOp, int8_t)
   OP_OVER,
   OP_ADD,
   OP_ATOP,
@@ -167,58 +168,58 @@ enum class CompositionOp : int8_t {
   OP_COLOR,
   OP_LUMINOSITY,
   OP_COUNT
-};
+MOZ_END_ENUM_CLASS(CompositionOp)
 
-enum class ExtendMode : int8_t {
+MOZ_BEGIN_ENUM_CLASS(ExtendMode, int8_t)
   CLAMP,
   REPEAT,
   REFLECT
-};
+MOZ_END_ENUM_CLASS(ExtendMode)
 
-enum class FillRule : int8_t {
+MOZ_BEGIN_ENUM_CLASS(FillRule, int8_t)
   FILL_WINDING,
   FILL_EVEN_ODD
-};
+MOZ_END_ENUM_CLASS(FillRule)
 
-enum class AntialiasMode : int8_t {
+MOZ_BEGIN_ENUM_CLASS(AntialiasMode, int8_t)
   NONE,
   GRAY,
   SUBPIXEL,
   DEFAULT
-};
+MOZ_END_ENUM_CLASS(AntialiasMode)
 
-enum class Filter : int8_t {
+MOZ_BEGIN_ENUM_CLASS(Filter, int8_t)
   GOOD,
   LINEAR,
   POINT
-};
+MOZ_END_ENUM_CLASS(Filter)
 
-enum class PatternType : int8_t {
+MOZ_BEGIN_ENUM_CLASS(PatternType, int8_t)
   COLOR,
   SURFACE,
   LINEAR_GRADIENT,
   RADIAL_GRADIENT
-};
+MOZ_END_ENUM_CLASS(PatternType)
 
-enum class JoinStyle : int8_t {
+MOZ_BEGIN_ENUM_CLASS(JoinStyle, int8_t)
   BEVEL,
   ROUND,
   MITER, //!< Mitered if within the miter limit, else, if the backed supports
          //!< it (D2D), the miter is clamped. If the backend does not support
          //!< miter clamping the behavior is as for MITER_OR_BEVEL.
   MITER_OR_BEVEL //!< Mitered if within the miter limit, else beveled.
-};
+MOZ_END_ENUM_CLASS(JoinStyle)
 
-enum class CapStyle : int8_t {
+MOZ_BEGIN_ENUM_CLASS(CapStyle, int8_t)
   BUTT,
   ROUND,
   SQUARE
-};
+MOZ_END_ENUM_CLASS(CapStyle)
 
-enum class SamplingBounds : int8_t {
+MOZ_BEGIN_ENUM_CLASS(SamplingBounds, int8_t)
   UNBOUNDED,
   BOUNDED
-};
+MOZ_END_ENUM_CLASS(SamplingBounds)
 
 /* Color is stored in non-premultiplied form */
 struct Color

@@ -10,7 +10,6 @@
 
 
 #include "vp8/common/blockd.h"
-#include "modecosts.h"
 #include "onyx_int.h"
 #include "treewriter.h"
 #include "vp8/common/entropymode.h"

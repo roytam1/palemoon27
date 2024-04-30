@@ -202,7 +202,7 @@ private:
 
     Impl& operator=(const T& aNewValue) { Set(aNewValue); return *this; }
     Impl& operator=(const Impl& aOther) { Set(aOther); return *this; }
-    Impl(const Impl& aOther) = delete;
+    Impl(const Impl& aOther) MOZ_DELETE;
 
   protected:
     ~Impl() { MOZ_DIAGNOSTIC_ASSERT(mMirrors.IsEmpty()); }
@@ -252,7 +252,7 @@ public:
   void Set(const T& aNewValue) { mImpl->Set(aNewValue); }
   Canonical& operator=(const T& aNewValue) { Set(aNewValue); return *this; }
   Canonical& operator=(const Canonical& aOther) { Set(aOther); return *this; }
-  Canonical(const Canonical& aOther) = delete;
+  Canonical(const Canonical& aOther) MOZ_DELETE;
 
 private:
   nsRefPtr<Impl> mImpl;

@@ -53,7 +53,7 @@ public:
   {
   }
 
-  explicit Headers(const Headers& aOther) = delete;
+  explicit Headers(const Headers& aOther) MOZ_DELETE;
 
   static bool PrefEnabled(JSContext* cx, JSObject* obj);
 

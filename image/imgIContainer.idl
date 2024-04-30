@@ -17,6 +17,7 @@
 #include "nsRect.h"
 #include "nsSize.h"
 #include "limits.h"
+#include "mozilla/TypedEnum.h"
 
 namespace mozilla {
 namespace layers {
@@ -71,8 +72,7 @@ struct Orientation;
  *
  * BAD_ARGS: We failed to draw because bad arguments were passed to draw().
  */
-enum class DrawResult : uint8_t
-{
+MOZ_BEGIN_ENUM_CLASS(DrawResult, uint8_t)
   SUCCESS,
   INCOMPLETE,
   WRONG_SIZE,
@@ -80,7 +80,7 @@ enum class DrawResult : uint8_t
   TEMPORARY_ERROR,
   BAD_IMAGE,
   BAD_ARGS
-};
+MOZ_END_ENUM_CLASS(DrawResult)
 
 }
 }

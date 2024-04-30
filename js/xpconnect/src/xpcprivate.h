@@ -1950,8 +1950,8 @@ public:
     bool IsMarked() const {return mJSObject.hasFlag(1);}
 
 private:
-    XPCWrappedNativeTearOff(const XPCWrappedNativeTearOff& r) = delete;
-    XPCWrappedNativeTearOff& operator= (const XPCWrappedNativeTearOff& r) = delete;
+    XPCWrappedNativeTearOff(const XPCWrappedNativeTearOff& r) MOZ_DELETE;
+    XPCWrappedNativeTearOff& operator= (const XPCWrappedNativeTearOff& r) MOZ_DELETE;
 
 private:
     XPCNativeInterface* mInterface;
@@ -3029,8 +3029,8 @@ private:
     MOZ_DECL_USE_GUARD_OBJECT_NOTIFIER
 
     // No copying or assignment allowed
-    AutoScriptEvaluate(const AutoScriptEvaluate&) = delete;
-    AutoScriptEvaluate & operator =(const AutoScriptEvaluate&) = delete;
+    AutoScriptEvaluate(const AutoScriptEvaluate&) MOZ_DELETE;
+    AutoScriptEvaluate & operator =(const AutoScriptEvaluate&) MOZ_DELETE;
 };
 
 /***************************************************************************/

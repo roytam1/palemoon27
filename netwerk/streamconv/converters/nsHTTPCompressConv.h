@@ -55,14 +55,14 @@ public:
         : mTotalOut(0)
         , mStatus(NS_OK)
     {
-        BrotliDecoderStateInit(&mState);
+        BrotliStateInit(&mState);
     }
     ~BrotliWrapper()
     {
-        BrotliDecoderStateCleanup(&mState);
+        BrotliStateCleanup(&mState);
     }
   
-    BrotliDecoderState mState;
+    BrotliState mState;
     size_t             mTotalOut;
     nsresult           mStatus;
   

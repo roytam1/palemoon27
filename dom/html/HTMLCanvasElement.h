@@ -12,6 +12,7 @@
 #include "nsGkAtoms.h"
 #include "nsSize.h"
 #include "nsError.h"
+#include "mozilla/TypedEnum.h"
 
 #include "mozilla/gfx/Rect.h"
 
@@ -35,11 +36,11 @@ class FileCallback;
 class HTMLCanvasPrintState;
 class PrintCallback;
 
-enum class CanvasContextType : uint8_t {
+MOZ_BEGIN_ENUM_CLASS(CanvasContextType, uint8_t)
   Canvas2D,
   WebGL1,
   WebGL2
-};
+MOZ_END_ENUM_CLASS(CanvasContextType)
 
 class HTMLCanvasElement final : public nsGenericHTMLElement,
                                     public nsIDOMHTMLCanvasElement

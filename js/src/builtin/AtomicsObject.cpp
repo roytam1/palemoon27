@@ -1100,7 +1100,7 @@ js::FutexRuntime::wait(JSContext* cx, double timeout_ms, AtomicsObject::FutexWai
     // 4000s is about the longest timeout slice that is guaranteed to
     // work cross-platform.
 
-    const uint64_t maxSlice = 4000000000LLU;
+    const uint64_t maxSlice = 4000000000LU;
     bool retval = true;
 
     for (;;) {

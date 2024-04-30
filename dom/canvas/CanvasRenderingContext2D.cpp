@@ -2421,10 +2421,17 @@ ValidateRect(double& aX, double& aY, double& aWidth, double& aHeight)
   // The values of canvas API input are in double precision, but Moz2D APIs are
   // using float precision. Bypass canvas API calls when the input is out of
   // float precision to avoid precision problem
+  #if defined (_MSC_VER) && _MSC_VER <= 1700
+  if (!_finite((float)aX) | _finite((float)aY) |
+      !_finite((float)aWidth) | _finite((float)aHeight)) {
+    return false;
+  }
+  #else
   if (!std::isfinite((float)aX) | !std::isfinite((float)aY) |
       !std::isfinite((float)aWidth) | !std::isfinite((float)aHeight)) {
     return false;
   }
+  #endif
 
   // bug 1074733
   // The canvas spec does not forbid rects with negative w or h, so given

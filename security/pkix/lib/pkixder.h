@@ -38,7 +38,7 @@
 // undefined state.
 
 #include "pkix/Input.h"
-#include "pkix/pkixtypes.h"
+#include "pkix/pkixtypes.h" // Includes TypedEnum.h
 
 namespace mozilla { namespace pkix { namespace der {
 
@@ -74,7 +74,10 @@ enum Tag : uint8_t
   GENERALIZED_TIME = UNIVERSAL | 0x18,
 };
 
-enum class EmptyAllowed { No = 0, Yes = 1 };
+MOZ_BEGIN_ENUM_CLASS(EmptyAllowed) 
+No = 0, 
+Yes = 1 
+MOZ_END_ENUM_CLASS(EmptyAllowed)
 
 Result ReadTagAndGetValue(Reader& input, /*out*/ uint8_t& tag,
                           /*out*/ Input& value);
@@ -261,12 +264,12 @@ ExpectTagAndGetValueAtEnd(Input outer, uint8_t expectedTag,
 
 namespace internal {
 
-enum class IntegralValueRestriction
-{
+MOZ_BEGIN_ENUM_CLASS(IntegralValueRestriction)
+
   NoRestriction,
   MustBePositive,
   MustBe0To127,
-};
+MOZ_END_ENUM_CLASS(IntegralValueRestriction)
 
 Result IntegralBytes(Reader& input, uint8_t tag,
                      IntegralValueRestriction valueRestriction,
@@ -479,7 +482,12 @@ CertificateSerialNumber(Reader& input, /*out*/ Input& value)
 
 // x.509 and OCSP both use this same version numbering scheme, though OCSP
 // only supports v1.
-enum class Version { v1 = 0, v2 = 1, v3 = 2, v4 = 3 };
+MOZ_BEGIN_ENUM_CLASS(Version) 
+v1 = 0, 
+v2 = 1, 
+v3 = 2, 
+v4 = 3 
+MOZ_END_ENUM_CLASS(Version)
 
 // X.509 Certificate and OCSP ResponseData both use this
 // "[0] EXPLICIT Version DEFAULT <defaultVersion>" construct, but with
@@ -600,11 +608,10 @@ OptionalExtensions(Reader& input, uint8_t tag,
 Result DigestAlgorithmIdentifier(Reader& input,
                                  /*out*/ DigestAlgorithm& algorithm);
 
-enum class PublicKeyAlgorithm
-{
+MOZ_BEGIN_ENUM_CLASS(PublicKeyAlgorithm)
   RSA_PKCS1,
   ECDSA,
-};
+MOZ_END_ENUM_CLASS(PublicKeyAlgorithm)
 
 Result SignatureAlgorithmIdentifierValue(
          Reader& input,
@@ -618,7 +625,7 @@ public:
   Input algorithm;
   Input signature;
 
-  void operator=(const SignedDataWithSignature&) = delete;
+  void operator=(const SignedDataWithSignature&) MOZ_DELETE;
 };
 
 // Parses a SEQUENCE into tbs and then parses an AlgorithmIdentifier followed

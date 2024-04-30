@@ -309,6 +309,19 @@ __declspec(noreturn) __inline void MOZ_NoReturn() {}
  */
 
 #ifdef __cplusplus
+#  if defined(__clang__)
+#    define MOZ_SUPPORT_ASSERT_CONDITION_TYPE_VALIDATION
+#  elif defined(__GNUC__)
+//   B2G GCC 4.4 has insufficient decltype support.
+#    if MOZ_GCC_VERSION_AT_LEAST(4, 5, 0)
+#      define MOZ_SUPPORT_ASSERT_CONDITION_TYPE_VALIDATION
+#    endif
+#  elif defined(_MSC_VER)
+//   Disabled for now because of insufficient decltype support. Bug 1004028.
+#  endif
+#endif
+
+#ifdef MOZ_SUPPORT_ASSERT_CONDITION_TYPE_VALIDATION
 #  include "mozilla/TypeTraits.h"
 namespace mozilla {
 namespace detail {

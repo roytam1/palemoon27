@@ -60,9 +60,9 @@ public:
   nsCOMPtr<dom::EventTarget> mTarget;
   nsCOMPtr<nsIDOMEvent> mEvent;
   nsString              mEventType;
-  bool                  mBubbles = false;
-  bool                  mDispatchChromeOnly = false;
-  bool                  mCanceled = false;
+  bool                  mBubbles;
+  bool                  mDispatchChromeOnly;
+  bool                  mCanceled;
 };
 
 class LoadBlockingAsyncEventDispatcher final : public AsyncEventDispatcher

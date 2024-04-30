@@ -161,7 +161,7 @@ public:
   }
 
 private:
-  VolatileBufferPtr(VolatileBufferPtr const& vbufptr) = delete;
+  VolatileBufferPtr(VolatileBufferPtr const& vbufptr) MOZ_DELETE;
 };
 
 }; /* namespace mozilla */

@@ -206,12 +206,13 @@ static int
 sdb_chmod(const char *filename, int pmode)
 {
     int result;
+    wchar_t *filenameWide;
 
     if (!filename) {
         return -1;
     }
 
-    wchar_t *filenameWide = _NSSUTIL_UTF8ToWide(filename);
+    filenameWide = _NSSUTIL_UTF8ToWide(filename);
     if (!filenameWide) {
         return -1;
     }

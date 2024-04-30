@@ -39,8 +39,8 @@ class JS_PUBLIC_API(WeakMapPtr)
     void* ptr;
 
     // WeakMapPtr is neither copyable nor assignable.
-    WeakMapPtr(const WeakMapPtr& wmp) = delete;
-    WeakMapPtr& operator=(const WeakMapPtr& wmp) = delete;
+    WeakMapPtr(const WeakMapPtr& wmp) MOZ_DELETE;
+    WeakMapPtr& operator=(const WeakMapPtr& wmp) MOZ_DELETE;
 };
 
 } /* namespace JS */

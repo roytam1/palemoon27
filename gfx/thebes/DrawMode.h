@@ -6,8 +6,10 @@
 #ifndef DrawMode_h
 #define DrawMode_h
 
+#include "mozilla/TypedEnum.h"
+
 // Options for how the text should be drawn
-enum class DrawMode : int {
+MOZ_BEGIN_ENUM_CLASS(DrawMode, int)
   // GLYPH_FILL and GLYPH_STROKE draw into the current context
   //  and may be used together with bitwise OR.
   GLYPH_FILL = 1,
@@ -19,7 +21,7 @@ enum class DrawMode : int {
   // When GLYPH_FILL and GLYPH_STROKE are both set, draws the
   //  stroke underneath the fill.
   GLYPH_STROKE_UNDERNEATH = 8
-};
+MOZ_END_ENUM_CLASS(DrawMode)
 
 #endif
 

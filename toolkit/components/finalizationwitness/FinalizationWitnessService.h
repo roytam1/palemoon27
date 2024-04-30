@@ -19,7 +19,7 @@ class FinalizationWitnessService final : public nsIFinalizationWitnessService
   NS_DECL_NSIFINALIZATIONWITNESSSERVICE
  private:
   ~FinalizationWitnessService() {}
-  void operator=(const FinalizationWitnessService* other) = delete;
+  void operator=(const FinalizationWitnessService* other) MOZ_DELETE;
 };
 
 } // namespace mozilla

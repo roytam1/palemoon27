@@ -165,10 +165,10 @@ public:
    */
   static bool GetDisplayPort(nsIContent* aContent, nsRect *aResult = nullptr);
 
-  enum class RepaintMode : uint8_t {
+  MOZ_BEGIN_NESTED_ENUM_CLASS(RepaintMode, uint8_t)
     Repaint,
     DoNotRepaint
-  };
+  MOZ_END_NESTED_ENUM_CLASS(RepaintMode)
 
   /**
    * Set the display port margins for a content element to be used with a

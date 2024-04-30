@@ -15,17 +15,21 @@
 #include "vp9/common/vp9_pred_common.h"
 #include "vp9/common/vp9_seg_common.h"
 
+static INLINE const MB_MODE_INFO *get_mbmi(const MODE_INFO *const mi) {
+  return (mi != NULL) ? &mi->mbmi : NULL;
+}
+
 // Returns a context number for the given MB prediction signal
 int vp9_get_pred_context_switchable_interp(const MACROBLOCKD *xd) {
   // Note:
   // The mode info data structure has a one element border above and to the
   // left of the entries correpsonding to real macroblocks.
   // The prediction flags in these dummy entries are initialised to 0.
-  const MB_MODE_INFO *const left_mbmi = xd->left_mbmi;
-  const int left_type = xd->left_available && is_inter_block(left_mbmi) ?
-                            left_mbmi->interp_filter : SWITCHABLE_FILTERS;
-  const MB_MODE_INFO *const above_mbmi = xd->above_mbmi;
-  const int above_type = xd->up_available && is_inter_block(above_mbmi) ?
+  const MB_MODE_INFO *const left_mbmi = get_mbmi(get_left_mi(xd));
+  const int left_type = left_mbmi != NULL && is_inter_block(left_mbmi) ?
+                           left_mbmi->interp_filter : SWITCHABLE_FILTERS;
+  const MB_MODE_INFO *const above_mbmi = get_mbmi(get_above_mi(xd));
+  const int above_type = above_mbmi != NULL && is_inter_block(above_mbmi) ?
                              above_mbmi->interp_filter : SWITCHABLE_FILTERS;
 
   if (left_type == above_type)
@@ -46,10 +50,10 @@ int vp9_get_pred_context_switchable_interp(const MACROBLOCKD *xd) {
 // 2 - intra/--, --/intra
 // 3 - intra/intra
 int vp9_get_intra_inter_context(const MACROBLOCKD *xd) {
-  const MB_MODE_INFO *const above_mbmi = xd->above_mbmi;
-  const MB_MODE_INFO *const left_mbmi = xd->left_mbmi;
-  const int has_above = xd->up_available;
-  const int has_left = xd->left_available;
+  const MB_MODE_INFO *const above_mbmi = get_mbmi(get_above_mi(xd));
+  const MB_MODE_INFO *const left_mbmi = get_mbmi(get_left_mi(xd));
+  const int has_above = above_mbmi != NULL;
+  const int has_left = left_mbmi != NULL;
 
   if (has_above && has_left) {  // both edges available
     const int above_intra = !is_inter_block(above_mbmi);
@@ -66,10 +70,10 @@ int vp9_get_intra_inter_context(const MACROBLOCKD *xd) {
 int vp9_get_reference_mode_context(const VP9_COMMON *cm,
                                    const MACROBLOCKD *xd) {
   int ctx;
-  const MB_MODE_INFO *const above_mbmi = xd->above_mbmi;
-  const MB_MODE_INFO *const left_mbmi = xd->left_mbmi;
-  const int has_above = xd->up_available;
-  const int has_left = xd->left_available;
+  const MB_MODE_INFO *const above_mbmi = get_mbmi(get_above_mi(xd));
+  const MB_MODE_INFO *const left_mbmi = get_mbmi(get_left_mi(xd));
+  const int has_above = above_mbmi != NULL;
+  const int has_left = left_mbmi != NULL;
   // Note:
   // The mode info data structure has a one element border above and to the
   // left of the entries correpsonding to real macroblocks.
@@ -109,10 +113,10 @@ int vp9_get_reference_mode_context(const VP9_COMMON *cm,
 int vp9_get_pred_context_comp_ref_p(const VP9_COMMON *cm,
                                     const MACROBLOCKD *xd) {
   int pred_context;
-  const MB_MODE_INFO *const above_mbmi = xd->above_mbmi;
-  const MB_MODE_INFO *const left_mbmi = xd->left_mbmi;
-  const int above_in_image = xd->up_available;
-  const int left_in_image = xd->left_available;
+  const MB_MODE_INFO *const above_mbmi = get_mbmi(get_above_mi(xd));
+  const MB_MODE_INFO *const left_mbmi = get_mbmi(get_left_mi(xd));
+  const int above_in_image = above_mbmi != NULL;
+  const int left_in_image = left_mbmi != NULL;
 
   // Note:
   // The mode info data structure has a one element border above and to the
@@ -190,10 +194,10 @@ int vp9_get_pred_context_comp_ref_p(const VP9_COMMON *cm,
 
 int vp9_get_pred_context_single_ref_p1(const MACROBLOCKD *xd) {
   int pred_context;
-  const MB_MODE_INFO *const above_mbmi = xd->above_mbmi;
-  const MB_MODE_INFO *const left_mbmi = xd->left_mbmi;
-  const int has_above = xd->up_available;
-  const int has_left = xd->left_available;
+  const MB_MODE_INFO *const above_mbmi = get_mbmi(get_above_mi(xd));
+  const MB_MODE_INFO *const left_mbmi = get_mbmi(get_left_mi(xd));
+  const int has_above = above_mbmi != NULL;
+  const int has_left = left_mbmi != NULL;
   // Note:
   // The mode info data structure has a one element border above and to the
   // left of the entries correpsonding to real macroblocks.
@@ -256,10 +260,10 @@ int vp9_get_pred_context_single_ref_p1(const MACROBLOCKD *xd) {
 
 int vp9_get_pred_context_single_ref_p2(const MACROBLOCKD *xd) {
   int pred_context;
-  const MB_MODE_INFO *const above_mbmi = xd->above_mbmi;
-  const MB_MODE_INFO *const left_mbmi = xd->left_mbmi;
-  const int has_above = xd->up_available;
-  const int has_left = xd->left_available;
+  const MB_MODE_INFO *const above_mbmi = get_mbmi(get_above_mi(xd));
+  const MB_MODE_INFO *const left_mbmi = get_mbmi(get_left_mi(xd));
+  const int has_above = above_mbmi != NULL;
+  const int has_left = left_mbmi != NULL;
 
   // Note:
   // The mode info data structure has a one element border above and to the
@@ -344,11 +348,11 @@ int vp9_get_pred_context_single_ref_p2(const MACROBLOCKD *xd) {
 // left of the entries corresponding to real blocks.
 // The prediction flags in these dummy entries are initialized to 0.
 int vp9_get_tx_size_context(const MACROBLOCKD *xd) {
-  const int max_tx_size = max_txsize_lookup[xd->mi[0]->mbmi.sb_type];
-  const MB_MODE_INFO *const above_mbmi = xd->above_mbmi;
-  const MB_MODE_INFO *const left_mbmi = xd->left_mbmi;
-  const int has_above = xd->up_available;
-  const int has_left = xd->left_available;
+  const int max_tx_size = max_txsize_lookup[xd->mi[0].src_mi->mbmi.sb_type];
+  const MB_MODE_INFO *const above_mbmi = get_mbmi(get_above_mi(xd));
+  const MB_MODE_INFO *const left_mbmi = get_mbmi(get_left_mi(xd));
+  const int has_above = above_mbmi != NULL;
+  const int has_left = left_mbmi != NULL;
   int above_ctx = (has_above && !above_mbmi->skip) ? (int)above_mbmi->tx_size
                                                    : max_tx_size;
   int left_ctx = (has_left && !left_mbmi->skip) ? (int)left_mbmi->tx_size

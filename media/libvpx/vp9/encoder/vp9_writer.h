@@ -19,7 +19,7 @@
 extern "C" {
 #endif
 
-typedef struct vp9_writer {
+typedef struct {
   unsigned int lowvalue;
   unsigned int range;
   int count;

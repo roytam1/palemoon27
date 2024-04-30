@@ -110,8 +110,8 @@ private:
 
    mozilla::ScopedCERTCertList mCertList;
 
-   nsNSSCertList(const nsNSSCertList&) = delete;
-   void operator=(const nsNSSCertList&) = delete;
+   nsNSSCertList(const nsNSSCertList&) MOZ_DELETE;
+   void operator=(const nsNSSCertList&) MOZ_DELETE;
 };
 
 class nsNSSCertListEnumerator: public nsISimpleEnumerator,
@@ -130,8 +130,8 @@ private:
 
    mozilla::ScopedCERTCertList mCertList;
 
-   nsNSSCertListEnumerator(const nsNSSCertListEnumerator&) = delete;
-   void operator=(const nsNSSCertListEnumerator&) = delete;
+   nsNSSCertListEnumerator(const nsNSSCertListEnumerator&) MOZ_DELETE;
+   void operator=(const nsNSSCertListEnumerator&) MOZ_DELETE;
 };
 
 

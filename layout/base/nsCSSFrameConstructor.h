@@ -70,8 +70,8 @@ public:
                                   nsXPIDLString& aAltText);
 
 private:
-  nsCSSFrameConstructor(const nsCSSFrameConstructor& aCopy) = delete;
-  nsCSSFrameConstructor& operator=(const nsCSSFrameConstructor& aCopy) = delete;
+  nsCSSFrameConstructor(const nsCSSFrameConstructor& aCopy) MOZ_DELETE;
+  nsCSSFrameConstructor& operator=(const nsCSSFrameConstructor& aCopy) MOZ_DELETE;
 
 public:
   mozilla::RestyleManager* RestyleManager() const
@@ -1192,7 +1192,7 @@ private:
     bool mIsForSVGAElement:1;
 
   private:
-    FrameConstructionItem(const FrameConstructionItem& aOther) = delete; /* not implemented */
+    FrameConstructionItem(const FrameConstructionItem& aOther) MOZ_DELETE; /* not implemented */
   };
 
   /**

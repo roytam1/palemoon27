@@ -629,7 +629,7 @@ struct nsTArray_CopyWithConstructors
 template<class E>
 struct nsTArray_CopyChooser
 {
-  using Type = nsTArray_CopyWithMemutils;
+  typedef nsTArray_CopyWithMemutils Type;
 };
 
 //
@@ -639,31 +639,31 @@ struct nsTArray_CopyChooser
 template<class E>
 struct nsTArray_CopyChooser<JS::Heap<E>>
 {
-  using Type = nsTArray_CopyWithConstructors<JS::Heap<E>>;
+  typedef nsTArray_CopyWithConstructors<JS::Heap<E>> Type;
 };
 
 template<>
 struct nsTArray_CopyChooser<JS::ObjectPtr>
 {
-  using Type = nsTArray_CopyWithConstructors<JS::ObjectPtr>;
+  typedef nsTArray_CopyWithConstructors<JS::ObjectPtr> Type;
 };
 
 template<>
 struct nsTArray_CopyChooser<nsRegion>
 {
-  using Type = nsTArray_CopyWithConstructors<nsRegion>;
+  typedef nsTArray_CopyWithConstructors<nsRegion> Type;
 };
 
 template<>
 struct nsTArray_CopyChooser<nsIntRegion>
 {
-  using Type = nsTArray_CopyWithConstructors<nsIntRegion>;
+  typedef nsTArray_CopyWithConstructors<nsIntRegion> Type;
 };
 
 template<>
 struct nsTArray_CopyChooser<mozilla::layers::TileClient>
 {
-  using Type = nsTArray_CopyWithConstructors<mozilla::layers::TileClient>;
+  typedef nsTArray_CopyWithConstructors<mozilla::layers::TileClient> Type;
 };
 
 

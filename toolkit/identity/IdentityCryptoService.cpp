@@ -106,8 +106,8 @@ private:
   SECKEYPublicKey * mPublicKey;
   nsCOMPtr<nsIEventTarget> mThread;
 
-  KeyPair(const KeyPair &) = delete;
-  void operator=(const KeyPair &) = delete;
+  KeyPair(const KeyPair &) MOZ_DELETE;
+  void operator=(const KeyPair &) MOZ_DELETE;
 };
 
 NS_IMPL_ISUPPORTS(KeyPair, nsIIdentityKeyPair)
@@ -146,8 +146,8 @@ private:
   nsCOMPtr<nsIIdentityKeyPair> mKeyPair; // out
   nsCOMPtr<nsIEventTarget> mThread;
 
-  KeyGenRunnable(const KeyGenRunnable &) = delete;
-  void operator=(const KeyGenRunnable &) = delete;
+  KeyGenRunnable(const KeyGenRunnable &) MOZ_DELETE;
+  void operator=(const KeyGenRunnable &) MOZ_DELETE;
 };
 
 class SignRunnable : public nsRunnable, public nsNSSShutDownObject
@@ -187,8 +187,8 @@ private:
   nsCString mSignature; // out
 
 private:
-  SignRunnable(const SignRunnable &) = delete;
-  void operator=(const SignRunnable &) = delete;
+  SignRunnable(const SignRunnable &) MOZ_DELETE;
+  void operator=(const SignRunnable &) MOZ_DELETE;
 };
 
 class IdentityCryptoService final : public nsIIdentityCryptoService
@@ -216,8 +216,8 @@ public:
 
 private:
   ~IdentityCryptoService() { }
-  IdentityCryptoService(const KeyPair &) = delete;
-  void operator=(const IdentityCryptoService &) = delete;
+  IdentityCryptoService(const KeyPair &) MOZ_DELETE;
+  void operator=(const IdentityCryptoService &) MOZ_DELETE;
 
   nsCOMPtr<nsIEventTarget> mThread;
 };

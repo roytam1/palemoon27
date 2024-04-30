@@ -191,7 +191,7 @@ class ArrayBufferObject : public ArrayBufferObjectMaybeShared
         uint8_t* data() const { return data_; }
         BufferKind kind() const { return kind_; }
 
-        explicit operator bool() const { return data_ != nullptr; }
+        MOZ_EXPLICIT_CONVERSION operator bool() const { return data_ != nullptr; }
     };
 
     static const Class class_;

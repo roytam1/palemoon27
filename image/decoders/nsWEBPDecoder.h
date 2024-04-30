@@ -22,7 +22,7 @@ class nsWEBPDecoder : public Decoder
 {
 public:
   nsWEBPDecoder(RasterImage* aImage);
-  ~nsWEBPDecoder() override;
+  ~nsWEBPDecoder();
 
   void InitInternal() override;
   void WriteInternal(const char* aBuffer, uint32_t aCount) override;

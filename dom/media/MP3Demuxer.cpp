@@ -6,7 +6,7 @@
 
 #include "MP3Demuxer.h"
 
-#include <inttypes.h>
+#include "mozilla/MSIntTypes.h"
 #include <algorithm>
 
 #include "mozilla/Assertions.h"
@@ -412,10 +412,10 @@ MP3TrackDemuxer::FindNextFrame() {
   }
 
   if (!foundFrame || !mParser.CurrentFrame().Length()) {
-    return { 0, 0 };
+    return MediaByteRange(0, 0);
   }
 
-  return { frameHeaderOffset, frameHeaderOffset + mParser.CurrentFrame().Length() };
+  return MediaByteRange(frameHeaderOffset, frameHeaderOffset + mParser.CurrentFrame().Length());
 }
 
 bool

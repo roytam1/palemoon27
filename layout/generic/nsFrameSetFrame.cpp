@@ -345,12 +345,13 @@ nsHTMLFramesetFrame::Init(nsIContent*       aContent,
     if (!child->IsHTMLElement())
       continue;
 
-    if (child->IsAnyOfHTMLElements(nsGkAtoms::frameset, nsGkAtoms::frame)) {
+	  nsIAtom *tag = child->Tag();
+    if (tag == nsGkAtoms::frameset || tag == nsGkAtoms::frame) {
       nsRefPtr<nsStyleContext> kidSC;
 
       kidSC = shell->StyleSet()->ResolveStyleFor(child->AsElement(),
                                                  mStyleContext);
-      if (child->IsHTMLElement(nsGkAtoms::frameset)) {
+      if (tag == nsGkAtoms::frameset) {
         frame = NS_NewHTMLFramesetFrame(shell, kidSC);
 
         nsHTMLFramesetFrame* childFrame = (nsHTMLFramesetFrame*)frame;

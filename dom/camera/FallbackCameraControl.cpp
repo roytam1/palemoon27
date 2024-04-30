@@ -68,6 +68,6 @@ protected:
   virtual nsresult PullParametersImpl() override { return NS_ERROR_NOT_INITIALIZED; }
 
 private:
-  FallbackCameraControl(const FallbackCameraControl&) = delete;
-  FallbackCameraControl& operator=(const FallbackCameraControl&) = delete;
+  FallbackCameraControl(const FallbackCameraControl&) MOZ_DELETE;
+  FallbackCameraControl& operator=(const FallbackCameraControl&) MOZ_DELETE;
 };

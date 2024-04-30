@@ -162,8 +162,8 @@ private:
   RefPtr<T>& mRefPtr;
   T* mTmp;
 
-  OutParamRef() = delete;
-  OutParamRef& operator=(const OutParamRef&) = delete;
+  OutParamRef() MOZ_DELETE;
+  OutParamRef& operator=(const OutParamRef&) MOZ_DELETE;
 };
 
 /**
@@ -185,11 +185,51 @@ byRef(RefPtr<T>& aPtr)
  *     return MakeAndAddRef<T>(...);
  *   }
  */
-template<typename T, typename... Args>
+template<typename T>
 already_AddRefed<T>
-MakeAndAddRef(Args&&... aArgs)
+MakeAndAddRef()
 {
-  RefPtr<T> p(new T(Forward<Args>(aArgs)...));
+  RefPtr<T> p(new T());
+  return p.forget();
+}
+
+template<typename T, typename A>
+already_AddRefed<T>
+MakeAndAddRef(A aA)
+{
+  RefPtr<T> p(new T(Forward<A>(aA)));
+  return p.forget();
+}
+
+template<typename T, typename A, typename B>
+already_AddRefed<T>
+MakeAndAddRef(A aA, B bB)
+{
+  RefPtr<T> p(new T(Forward<A>(aA), Forward<B>(bB)));
+  return p.forget();
+}
+
+template<typename T, typename A, typename B, typename C>
+already_AddRefed<T>
+MakeAndAddRef(A aA, B bB, C cC)
+{
+  RefPtr<T> p(new T(Forward<A>(aA), Forward<B>(bB), Forward<C>(cC)));
+  return p.forget();
+}
+
+template<typename T, typename A, typename B, typename C, typename D>
+already_AddRefed<T>
+MakeAndAddRef(A aA, B bB, C cC, D dD)
+{
+  RefPtr<T> p(new T(Forward<A>(aA), Forward<B>(bB), Forward<C>(cC), Forward<D>(dD)));
+  return p.forget();
+}
+
+template<typename T, typename A, typename B, typename C, typename D, typename E>
+already_AddRefed<T>
+MakeAndAddRef(A aA, B bB, C cC, D dD, E eE)
+{
+  RefPtr<T> p(new T(Forward<A>(aA), Forward<B>(bB), Forward<C>(cC), Forward<D>(dD), Forward<E>(eE)));
   return p.forget();
 }
 

@@ -831,8 +831,8 @@ class InlineFrameIterator
     }
 
   private:
-    InlineFrameIterator() = delete;
-    InlineFrameIterator(const InlineFrameIterator& iter) = delete;
+    InlineFrameIterator() MOZ_DELETE;
+    InlineFrameIterator(const InlineFrameIterator& iter) MOZ_DELETE;
 };
 
 } // namespace jit

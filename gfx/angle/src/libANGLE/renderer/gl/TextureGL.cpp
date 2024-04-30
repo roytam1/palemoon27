@@ -84,8 +84,9 @@ static LevelInfoGL GetLevelInfo(GLenum originalFormat, GLenum destinationFormat)
                        GetLUMAWorkaroundInfo(originalFormatInfo, destinationFormat));
 }
 
-LUMAWorkaroundGL::LUMAWorkaroundGL() : LUMAWorkaroundGL(false, GL_NONE)
+LUMAWorkaroundGL::LUMAWorkaroundGL()
 {
+  LUMAWorkaroundGL(false, GL_NONE);
 }
 
 LUMAWorkaroundGL::LUMAWorkaroundGL(bool enabled_, GLenum workaroundFormat_)
@@ -93,8 +94,9 @@ LUMAWorkaroundGL::LUMAWorkaroundGL(bool enabled_, GLenum workaroundFormat_)
 {
 }
 
-LevelInfoGL::LevelInfoGL() : LevelInfoGL(GL_NONE, false, LUMAWorkaroundGL())
+LevelInfoGL::LevelInfoGL()
 {
+  LevelInfoGL(GL_NONE, false, LUMAWorkaroundGL());
 }
 
 LevelInfoGL::LevelInfoGL(GLenum sourceFormat_,

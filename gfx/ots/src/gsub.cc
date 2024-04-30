@@ -1,4 +1,4 @@
-// Copyright (c) 2011-2017 The OTS Authors. All rights reserved.
+// Copyright (c) 2011 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -33,23 +33,23 @@ enum GSUB_TYPE {
 };
 
 // Lookup type parsers.
-bool ParseSingleSubstitution(const ots::Font *font,
+bool ParseSingleSubstitution(const ots::OpenTypeFile *file,
                              const uint8_t *data, const size_t length);
-bool ParseMutipleSubstitution(const ots::Font *font,
+bool ParseMutipleSubstitution(const ots::OpenTypeFile *file,
                               const uint8_t *data, const size_t length);
-bool ParseAlternateSubstitution(const ots::Font *font,
+bool ParseAlternateSubstitution(const ots::OpenTypeFile *file,
                                 const uint8_t *data, const size_t length);
-bool ParseLigatureSubstitution(const ots::Font *font,
+bool ParseLigatureSubstitution(const ots::OpenTypeFile *file,
       const uint8_t *data, const size_t length);
-bool ParseContextSubstitution(const ots::Font *font,
+bool ParseContextSubstitution(const ots::OpenTypeFile *file,
                               const uint8_t *data, const size_t length);
-bool ParseChainingContextSubstitution(const ots::Font *font,
+bool ParseChainingContextSubstitution(const ots::OpenTypeFile *file,
                                       const uint8_t *data,
                                       const size_t length);
-bool ParseExtensionSubstitution(const ots::Font *font,
+bool ParseExtensionSubstitution(const ots::OpenTypeFile *file,
                                 const uint8_t *data, const size_t length);
 bool ParseReverseChainingContextSingleSubstitution(
-    const ots::Font *font, const uint8_t *data, const size_t length);
+    const ots::OpenTypeFile *file, const uint8_t *data, const size_t length);
 
 const ots::LookupSubtableParser::TypeParser kGsubTypeParsers[] = {
   {GSUB_TYPE_SINGLE, ParseSingleSubstitution},
@@ -70,7 +70,7 @@ const ots::LookupSubtableParser kGsubLookupSubtableParser = {
 
 // Lookup Type 1:
 // Single Substitution Subtable
-bool ParseSingleSubstitution(const ots::Font *font,
+bool ParseSingleSubstitution(const ots::OpenTypeFile *file,
                              const uint8_t *data, const size_t length) {
   ots::Buffer subtable(data, length);
 
@@ -82,12 +82,7 @@ bool ParseSingleSubstitution(const ots::Font *font,
     return OTS_FAILURE_MSG("Failed to read single subst table header");
   }
 
-  ots::OpenTypeMAXP *maxp = static_cast<ots::OpenTypeMAXP*>(
-      font->GetTypedTable(OTS_TAG_MAXP));
-  if (!maxp) {
-    return OTS_FAILURE_MSG("Required maxp table missing");
-  }
-  const uint16_t num_glyphs = maxp->num_glyphs;
+  const uint16_t num_glyphs = file->maxp->num_glyphs;
   if (format == 1) {
     // Parse SingleSubstFormat1
     int16_t delta_glyph_id = 0;
@@ -122,7 +117,7 @@ bool ParseSingleSubstitution(const ots::Font *font,
   if (offset_coverage < subtable.offset() || offset_coverage >= length) {
     return OTS_FAILURE_MSG("Bad coverage offset %x", offset_coverage);
   }
-  if (!ots::ParseCoverageTable(font, data + offset_coverage,
+  if (!ots::ParseCoverageTable(file, data + offset_coverage,
                                length - offset_coverage, num_glyphs)) {
     return OTS_FAILURE_MSG("Failed to parse coverage table");
   }
@@ -130,7 +125,7 @@ bool ParseSingleSubstitution(const ots::Font *font,
   return true;
 }
 
-bool ParseSequenceTable(const ots::Font *font,
+bool ParseSequenceTable(const ots::OpenTypeFile *file,
                         const uint8_t *data, const size_t length,
                         const uint16_t num_glyphs) {
   ots::Buffer subtable(data, length);
@@ -157,7 +152,7 @@ bool ParseSequenceTable(const ots::Font *font,
 
 // Lookup Type 2:
 // Multiple Substitution Subtable
-bool ParseMutipleSubstitution(const ots::Font *font,
+bool ParseMutipleSubstitution(const ots::OpenTypeFile *file,
                               const uint8_t *data, const size_t length) {
   ots::Buffer subtable(data, length);
 
@@ -175,12 +170,7 @@ bool ParseMutipleSubstitution(const ots::Font *font,
     return OTS_FAILURE_MSG("Bad multiple subst table format %d", format);
   }
 
-  ots::OpenTypeMAXP *maxp = static_cast<ots::OpenTypeMAXP*>(
-      font->GetTypedTable(OTS_TAG_MAXP));
-  if (!maxp) {
-    return OTS_FAILURE_MSG("Required maxp table missing");
-  }
-  const uint16_t num_glyphs = maxp->num_glyphs;
+  const uint16_t num_glyphs = file->maxp->num_glyphs;
   const unsigned sequence_end = static_cast<unsigned>(6) +
       sequence_count * 2;
   if (sequence_end > std::numeric_limits<uint16_t>::max()) {
@@ -194,7 +184,7 @@ bool ParseMutipleSubstitution(const ots::Font *font,
     if (offset_sequence < sequence_end || offset_sequence >= length) {
       return OTS_FAILURE_MSG("Bad sequence offset %d for sequence %d", offset_sequence, i);
     }
-    if (!ParseSequenceTable(font, data + offset_sequence, length - offset_sequence,
+    if (!ParseSequenceTable(file, data + offset_sequence, length - offset_sequence,
                             num_glyphs)) {
       return OTS_FAILURE_MSG("Failed to parse sequence table %d", i);
     }
@@ -203,7 +193,7 @@ bool ParseMutipleSubstitution(const ots::Font *font,
   if (offset_coverage < sequence_end || offset_coverage >= length) {
     return OTS_FAILURE_MSG("Bad coverage offset %d", offset_coverage);
   }
-  if (!ots::ParseCoverageTable(font, data + offset_coverage,
+  if (!ots::ParseCoverageTable(file, data + offset_coverage,
                                length - offset_coverage, num_glyphs)) {
     return OTS_FAILURE_MSG("Failed to parse coverage table");
   }
@@ -211,7 +201,7 @@ bool ParseMutipleSubstitution(const ots::Font *font,
   return true;
 }
 
-bool ParseAlternateSetTable(const ots::Font *font,
+bool ParseAlternateSetTable(const ots::OpenTypeFile *file,
                             const uint8_t *data, const size_t length,
                             const uint16_t num_glyphs) {
   ots::Buffer subtable(data, length);
@@ -237,7 +227,7 @@ bool ParseAlternateSetTable(const ots::Font *font,
 
 // Lookup Type 3:
 // Alternate Substitution Subtable
-bool ParseAlternateSubstitution(const ots::Font *font,
+bool ParseAlternateSubstitution(const ots::OpenTypeFile *file,
                                 const uint8_t *data, const size_t length) {
   ots::Buffer subtable(data, length);
 
@@ -255,12 +245,7 @@ bool ParseAlternateSubstitution(const ots::Font *font,
     return OTS_FAILURE_MSG("Bad alternate subst table format %d", format);
   }
 
-  ots::OpenTypeMAXP *maxp = static_cast<ots::OpenTypeMAXP*>(
-      font->GetTypedTable(OTS_TAG_MAXP));
-  if (!maxp) {
-    return OTS_FAILURE_MSG("Required maxp table missing");
-  }
-  const uint16_t num_glyphs = maxp->num_glyphs;
+  const uint16_t num_glyphs = file->maxp->num_glyphs;
   const unsigned alternate_set_end = static_cast<unsigned>(6) +
       alternate_set_count * 2;
   if (alternate_set_end > std::numeric_limits<uint16_t>::max()) {
@@ -275,7 +260,7 @@ bool ParseAlternateSubstitution(const ots::Font *font,
         offset_alternate_set >= length) {
       return OTS_FAILURE_MSG("Bad alternate set offset %d for set %d", offset_alternate_set, i);
     }
-    if (!ParseAlternateSetTable(font, data + offset_alternate_set,
+    if (!ParseAlternateSetTable(file, data + offset_alternate_set,
                                 length - offset_alternate_set,
                                 num_glyphs)) {
       return OTS_FAILURE_MSG("Failed to parse alternate set");
@@ -285,7 +270,7 @@ bool ParseAlternateSubstitution(const ots::Font *font,
   if (offset_coverage < alternate_set_end || offset_coverage >= length) {
     return OTS_FAILURE_MSG("Bad coverage offset %d", offset_coverage);
   }
-  if (!ots::ParseCoverageTable(font, data + offset_coverage,
+  if (!ots::ParseCoverageTable(file, data + offset_coverage,
                                length - offset_coverage, num_glyphs)) {
     return OTS_FAILURE_MSG("Failed to parse coverage table");
   }
@@ -293,7 +278,7 @@ bool ParseAlternateSubstitution(const ots::Font *font,
   return true;
 }
 
-bool ParseLigatureTable(const ots::Font *font,
+bool ParseLigatureTable(const ots::OpenTypeFile *file,
                         const uint8_t *data, const size_t length,
                         const uint16_t num_glyphs) {
   ots::Buffer subtable(data, length);
@@ -325,7 +310,7 @@ bool ParseLigatureTable(const ots::Font *font,
   return true;
 }
 
-bool ParseLigatureSetTable(const ots::Font *font,
+bool ParseLigatureSetTable(const ots::OpenTypeFile *file,
                            const uint8_t *data, const size_t length,
                            const uint16_t num_glyphs) {
   ots::Buffer subtable(data, length);
@@ -348,7 +333,7 @@ bool ParseLigatureSetTable(const ots::Font *font,
     if (offset_ligature < ligature_end || offset_ligature >= length) {
       return OTS_FAILURE_MSG("Bad ligature offset %d for ligature %d", offset_ligature, i);
     }
-    if (!ParseLigatureTable(font, data + offset_ligature, length - offset_ligature,
+    if (!ParseLigatureTable(file, data + offset_ligature, length - offset_ligature,
                             num_glyphs)) {
       return OTS_FAILURE_MSG("Failed to parse ligature %d", i);
     }
@@ -359,7 +344,7 @@ bool ParseLigatureSetTable(const ots::Font *font,
 
 // Lookup Type 4:
 // Ligature Substitution Subtable
-bool ParseLigatureSubstitution(const ots::Font *font,
+bool ParseLigatureSubstitution(const ots::OpenTypeFile *file,
                                const uint8_t *data, const size_t length) {
   ots::Buffer subtable(data, length);
 
@@ -377,12 +362,7 @@ bool ParseLigatureSubstitution(const ots::Font *font,
     return OTS_FAILURE_MSG("Bad ligature substitution table format %d", format);
   }
 
-  ots::OpenTypeMAXP *maxp = static_cast<ots::OpenTypeMAXP*>(
-      font->GetTypedTable(OTS_TAG_MAXP));
-  if (!maxp) {
-    return OTS_FAILURE_MSG("Required maxp table missing");
-  }
-  const uint16_t num_glyphs = maxp->num_glyphs;
+  const uint16_t num_glyphs = file->maxp->num_glyphs;
   const unsigned ligature_set_end = static_cast<unsigned>(6) +
       lig_set_count * 2;
   if (ligature_set_end > std::numeric_limits<uint16_t>::max()) {
@@ -397,7 +377,7 @@ bool ParseLigatureSubstitution(const ots::Font *font,
         offset_ligature_set >= length) {
       return OTS_FAILURE_MSG("Bad ligature set offset %d for set %d", offset_ligature_set, i);
     }
-    if (!ParseLigatureSetTable(font, data + offset_ligature_set,
+    if (!ParseLigatureSetTable(file, data + offset_ligature_set,
                                length - offset_ligature_set, num_glyphs)) {
       return OTS_FAILURE_MSG("Failed to parse ligature set %d", i);
     }
@@ -406,7 +386,7 @@ bool ParseLigatureSubstitution(const ots::Font *font,
   if (offset_coverage < ligature_set_end || offset_coverage >= length) {
     return OTS_FAILURE_MSG("Bad coverage offset %d", offset_coverage);
   }
-  if (!ots::ParseCoverageTable(font, data + offset_coverage,
+  if (!ots::ParseCoverageTable(file, data + offset_coverage,
                                length - offset_coverage, num_glyphs)) {
     return OTS_FAILURE_MSG("Failed to parse coverage table");
   }
@@ -416,54 +396,34 @@ bool ParseLigatureSubstitution(const ots::Font *font,
 
 // Lookup Type 5:
 // Contextual Substitution Subtable
-bool ParseContextSubstitution(const ots::Font *font,
+bool ParseContextSubstitution(const ots::OpenTypeFile *file,
                               const uint8_t *data, const size_t length) {
-  ots::OpenTypeMAXP *maxp = static_cast<ots::OpenTypeMAXP*>(
-      font->GetTypedTable(OTS_TAG_MAXP));
-  if (!maxp) {
-    return OTS_FAILURE_MSG("Required maxp table missing");
-  }
-  ots::OpenTypeGSUB *gsub = static_cast<ots::OpenTypeGSUB*>(
-      font->GetTypedTable(OTS_TAG_GSUB));
-  if (!gsub) {
-    return OTS_FAILURE_MSG("Internal error!");
-  }
-  return ots::ParseContextSubtable(font, data, length, maxp->num_glyphs,
-                                   gsub->num_lookups);
+  return ots::ParseContextSubtable(file, data, length, file->maxp->num_glyphs,
+                                   file->gsub->num_lookups);
 }
 
 // Lookup Type 6:
 // Chaining Contextual Substitution Subtable
-bool ParseChainingContextSubstitution(const ots::Font *font,
+bool ParseChainingContextSubstitution(const ots::OpenTypeFile *file,
                                       const uint8_t *data,
                                       const size_t length) {
-  ots::OpenTypeMAXP *maxp = static_cast<ots::OpenTypeMAXP*>(
-      font->GetTypedTable(OTS_TAG_MAXP));
-  if (!maxp) {
-    return OTS_FAILURE_MSG("Required maxp table missing");
-  }
-  ots::OpenTypeGSUB *gsub = static_cast<ots::OpenTypeGSUB*>(
-      font->GetTypedTable(OTS_TAG_GSUB));
-  if (!gsub) {
-    return OTS_FAILURE_MSG("Internal error!");
-  }
-  return ots::ParseChainingContextSubtable(font, data, length,
-                                           maxp->num_glyphs,
-                                           gsub->num_lookups);
+  return ots::ParseChainingContextSubtable(file, data, length,
+                                           file->maxp->num_glyphs,
+                                           file->gsub->num_lookups);
 }
 
 // Lookup Type 7:
 // Extension Substition
-bool ParseExtensionSubstitution(const ots::Font *font,
+bool ParseExtensionSubstitution(const ots::OpenTypeFile *file,
                                 const uint8_t *data, const size_t length) {
-  return ots::ParseExtensionSubtable(font, data, length,
+  return ots::ParseExtensionSubtable(file, data, length,
                                      &kGsubLookupSubtableParser);
 }
 
 // Lookup Type 8:
 // Reverse Chaining Contexual Single Substitution Subtable
 bool ParseReverseChainingContextSingleSubstitution(
-    const ots::Font *font, const uint8_t *data, const size_t length) {
+    const ots::OpenTypeFile *file, const uint8_t *data, const size_t length) {
   ots::Buffer subtable(data, length);
 
   uint16_t format = 0;
@@ -474,12 +434,7 @@ bool ParseReverseChainingContextSingleSubstitution(
     return OTS_FAILURE_MSG("Failed to read reverse chaining header");
   }
 
-  ots::OpenTypeMAXP *maxp = static_cast<ots::OpenTypeMAXP*>(
-      font->GetTypedTable(OTS_TAG_MAXP));
-  if (!maxp) {
-    return OTS_FAILURE_MSG("Required maxp table missing");
-  }
-  const uint16_t num_glyphs = maxp->num_glyphs;
+  const uint16_t num_glyphs = file->maxp->num_glyphs;
 
   uint16_t backtrack_glyph_count = 0;
   if (!subtable.ReadU16(&backtrack_glyph_count)) {
@@ -541,7 +496,7 @@ bool ParseReverseChainingContextSingleSubstitution(
   if (offset_coverage < substitute_end || offset_coverage >= length) {
     return OTS_FAILURE_MSG("Bad coverage offset %d in reverse chaining table", offset_coverage);
   }
-  if (!ots::ParseCoverageTable(font, data + offset_coverage,
+  if (!ots::ParseCoverageTable(file, data + offset_coverage,
                                length - offset_coverage, num_glyphs)) {
     return OTS_FAILURE_MSG("Failed to parse coverage table in reverse chaining table");
   }
@@ -551,7 +506,7 @@ bool ParseReverseChainingContextSingleSubstitution(
         offsets_backtrack[i] >= length) {
       return OTS_FAILURE_MSG("Bad backtrack offset %d for backtrack %d in reverse chaining table", offsets_backtrack[i], i);
     }
-    if (!ots::ParseCoverageTable(font, data + offsets_backtrack[i],
+    if (!ots::ParseCoverageTable(file, data + offsets_backtrack[i],
                                  length - offsets_backtrack[i], num_glyphs)) {
       return OTS_FAILURE_MSG("Failed to parse coverage table for backtrack %d in reverse chaining table", i);
     }
@@ -562,7 +517,7 @@ bool ParseReverseChainingContextSingleSubstitution(
         offsets_lookahead[i] >= length) {
       return OTS_FAILURE_MSG("Bad lookahead offset %d for lookahead %d in reverse chaining table", offsets_lookahead[i], i);
     }
-    if (!ots::ParseCoverageTable(font, data + offsets_lookahead[i],
+    if (!ots::ParseCoverageTable(file, data + offsets_lookahead[i],
                                  length - offsets_lookahead[i], num_glyphs)) {
       return OTS_FAILURE_MSG("Failed to parse lookahead coverage table %d in reverse chaining table", i);
     }
@@ -573,12 +528,75 @@ bool ParseReverseChainingContextSingleSubstitution(
 
 }  // namespace
 
+#define DROP_THIS_TABLE(msg_) \
+  do { \
+    OTS_FAILURE_MSG(msg_ ", table discarded"); \
+    file->gsub->data = 0; \
+    file->gsub->length = 0; \
+  } while (0)
+
 namespace ots {
 
-bool OpenTypeGSUB::Parse(const uint8_t *data, size_t length) {
-  // Parsing gsub table requires |maxp->num_glyphs|
-  Font *font = GetFont();
+// As far as I checked, following fonts contain invalid values in GSUB table.
+// OTS will drop their GSUB table.
+//
+// # too large substitute (value is 0xFFFF)
+// kaiu.ttf
+// mingliub2.ttf
+// mingliub1.ttf
+// mingliub0.ttf
+// GraublauWeb.otf
+// GraublauWebBold.otf
+//
+// # too large alternate (value is 0xFFFF)
+// ManchuFont.ttf
+//
+// # bad offset to lang sys table (NULL offset)
+// DejaVuMonoSansBold.ttf
+// DejaVuMonoSansBoldOblique.ttf
+// DejaVuMonoSansOblique.ttf
+// DejaVuSansMono-BoldOblique.ttf
+// DejaVuSansMono-Oblique.ttf
+// DejaVuSansMono-Bold.ttf
+//
+// # bad start coverage index
+// GenBasBI.ttf
+// GenBasI.ttf
+// AndBasR.ttf
+// GenBkBasI.ttf
+// CharisSILR.ttf
+// CharisSILBI.ttf
+// CharisSILI.ttf
+// CharisSILB.ttf
+// DoulosSILR.ttf
+// CharisSILBI.ttf
+// GenBkBasB.ttf
+// GenBkBasR.ttf
+// GenBkBasBI.ttf
+// GenBasB.ttf
+// GenBasR.ttf
+//
+// # glyph range is overlapping
+// KacstTitleL.ttf
+// KacstDecorative.ttf
+// KacstTitle.ttf
+// KacstArt.ttf
+// KacstPoster.ttf
+// KacstQurn.ttf
+// KacstDigital.ttf
+// KacstBook.ttf
+// KacstFarsi.ttf
+
+bool ots_gsub_parse(OpenTypeFile *file, const uint8_t *data, size_t length) {
+  // Parsing gsub table requires |file->maxp->num_glyphs|
+  if (!file->maxp) {
+    return OTS_FAILURE_MSG("Missing maxp table in font, needed by GSUB");
+  }
+
   Buffer table(data, length);
+
+  OpenTypeGSUB *gsub = new OpenTypeGSUB;
+  file->gsub = gsub;
 
   uint32_t version = 0;
   uint16_t offset_script_list = 0;
@@ -588,63 +606,80 @@ bool OpenTypeGSUB::Parse(const uint8_t *data, size_t length) {
       !table.ReadU16(&offset_script_list) ||
       !table.ReadU16(&offset_feature_list) ||
       !table.ReadU16(&offset_lookup_list)) {
-    return Error("Incomplete table");
+    DROP_THIS_TABLE("Incomplete table");
+    return true;
   }
 
   if (version != 0x00010000) {
-    return Error("Bad version");
+    DROP_THIS_TABLE("Bad version");
+    return true;
   }
 
   if (offset_lookup_list) {
     if (offset_lookup_list < kGsubHeaderSize || offset_lookup_list >= length) {
-      return Error("Bad lookup list offset in table header");
+      DROP_THIS_TABLE("Bad lookup list offset in table header");
+      return true;
     }
 
-    if (!ParseLookupListTable(font, data + offset_lookup_list,
+    if (!ParseLookupListTable(file, data + offset_lookup_list,
                               length - offset_lookup_list,
                               &kGsubLookupSubtableParser,
-                              &this->num_lookups)) {
-      return Error("Failed to parse lookup list table");
+                              &gsub->num_lookups)) {
+      DROP_THIS_TABLE("Failed to parse lookup list table");
+      return true;
     }
   }
 
   uint16_t num_features = 0;
   if (offset_feature_list) {
     if (offset_feature_list < kGsubHeaderSize || offset_feature_list >= length) {
-      return Error("Bad feature list offset in table header");
+      DROP_THIS_TABLE("Bad feature list offset in table header");
+      return true;
     }
 
-    if (!ParseFeatureListTable(font, data + offset_feature_list,
-                               length - offset_feature_list, this->num_lookups,
+    if (!ParseFeatureListTable(file, data + offset_feature_list,
+                               length - offset_feature_list, gsub->num_lookups,
                                &num_features)) {
-      return Error("Failed to parse feature list table");
+      DROP_THIS_TABLE("Failed to parse feature list table");
+      return true;
     }
   }
 
   if (offset_script_list) {
     if (offset_script_list < kGsubHeaderSize || offset_script_list >= length) {
-      return Error("Bad script list offset in table header");
+      DROP_THIS_TABLE("Bad script list offset in table header");
+      return true;
     }
 
-    if (!ParseScriptListTable(font, data + offset_script_list,
+    if (!ParseScriptListTable(file, data + offset_script_list,
                               length - offset_script_list, num_features)) {
-      return Error("Failed to parse script list table");
+      DROP_THIS_TABLE("Failed to parse script list table");
+      return true;
     }
   }
 
-  this->m_data = data;
-  this->m_length = length;
+  gsub->data = data;
+  gsub->length = length;
   return true;
 }
 
-bool OpenTypeGSUB::Serialize(OTSStream *out) {
-  if (!out->Write(this->m_data, this->m_length)) {
-    return Error("Failed to write GSUB table");
+bool ots_gsub_should_serialise(OpenTypeFile *file) {
+  return file->gsub != NULL && file->gsub->data != NULL;
+}
+
+bool ots_gsub_serialise(OTSStream *out, OpenTypeFile *file) {
+  if (!out->Write(file->gsub->data, file->gsub->length)) {
+    return OTS_FAILURE_MSG("Failed to write GSUB table");
   }
 
   return true;
+}
+
+void ots_gsub_free(OpenTypeFile *file) {
+  delete file->gsub;
 }
 
 }  // namespace ots
 
 #undef TABLE_NAME
+#undef DROP_THIS_TABLE

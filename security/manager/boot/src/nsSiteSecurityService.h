@@ -141,8 +141,6 @@ private:
                             uint64_t* aMaxAge, bool* aIncludeSubdomains);
   nsresult SetHPKPState(const char* aHost, SiteHPKPState& entry, uint32_t flags);
 
-  const nsSTSPreload *GetPreloadListEntry(const char *aHost);
-
   bool mUsePreloadList;
   bool mUseStsService;
   int64_t mPreloadListTimeOffset;

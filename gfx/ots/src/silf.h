@@ -10,7 +10,17 @@
 #include "ots.h"
 #include "graphite.h"
 
+#include <math.h>
+
 namespace ots {
+
+// Visual C++ 2012 and earlier do not support log2
+#ifndef std::log2
+double log2(double x)
+{
+  return log(x) / log(2);
+}
+#endif
 
 class OpenTypeSILF : public Table {
  public:

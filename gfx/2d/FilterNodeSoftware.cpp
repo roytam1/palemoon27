@@ -3214,7 +3214,7 @@ FilterNodeLightingSoftware<LightType, LightingType>::SetAttribute(uint32_t aInde
   }
   switch (aIndex) {
     case ATT_LIGHTING_SURFACE_SCALE:
-      mSurfaceScale = std::fpclassify(aValue) == FP_SUBNORMAL ? 0.0 : aValue;
+      mSurfaceScale = aValue;
       break;
     default:
       MOZ_CRASH();

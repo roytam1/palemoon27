@@ -14,6 +14,7 @@
 #include "gfxDrawable.h"
 #include "imgIContainer.h"
 #include "MainThreadUtils.h"
+#include "mozilla/TypedEnum.h"
 
 namespace mozilla {
 namespace image {
@@ -22,7 +23,7 @@ class ImageRegion;
 class DrawableFrameRef;
 class RawAccessFrameRef;
 
-enum class BlendMethod : int8_t {
+MOZ_BEGIN_ENUM_CLASS(BlendMethod, int8_t)
   // All color components of the frame, including alpha, overwrite the current
   // contents of the frame's output buffer region.
   SOURCE,
@@ -30,20 +31,20 @@ enum class BlendMethod : int8_t {
   // The frame should be composited onto the output buffer based on its alpha,
   // using a simple OVER operation.
   OVER
-};
+MOZ_END_ENUM_CLASS(BlendMethod)
 
-enum class DisposalMethod : int8_t {
+MOZ_BEGIN_ENUM_CLASS(DisposalMethod, int8_t)
   CLEAR_ALL = -1,  // Clear the whole image, revealing what's underneath.
   NOT_SPECIFIED,   // Leave the frame and let the new frame draw on top.
   KEEP,            // Leave the frame and let the new frame draw on top.
   CLEAR,           // Clear the frame's area, revealing what's underneath.
   RESTORE_PREVIOUS // Restore the previous (composited) frame.
-};
+MOZ_END_ENUM_CLASS(DisposalMethod)
 
-enum class Opacity : uint8_t {
+MOZ_BEGIN_ENUM_CLASS(Opacity, uint8_t)
   OPAQUE,
   SOME_TRANSPARENCY
-};
+MOZ_END_ENUM_CLASS(Opacity)
 
 
 /**
@@ -420,7 +421,7 @@ public:
     return *this;
   }
 
-  explicit operator bool() const { return bool(mFrame); }
+  MOZ_EXPLICIT_CONVERSION operator bool() const { return bool(mFrame); }
 
   imgFrame* operator->()
   {
@@ -500,7 +501,7 @@ public:
     return *this;
   }
 
-  explicit operator bool() const { return bool(mFrame); }
+  MOZ_EXPLICIT_CONVERSION operator bool() const { return bool(mFrame); }
 
   imgFrame* operator->()
   {

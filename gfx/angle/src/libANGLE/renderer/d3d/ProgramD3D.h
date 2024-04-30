@@ -88,8 +88,8 @@ struct D3DVarying final
                unsigned int componentCountIn,
                unsigned int outputSlotIn);
 
-    D3DVarying(const D3DVarying &) = default;
-    D3DVarying &operator=(const D3DVarying &) = default;
+    D3DVarying(const D3DVarying &) MOZ_DEFAULT;
+    D3DVarying &operator=(const D3DVarying &) MOZ_DEFAULT;
 
     std::string semanticName;
     unsigned int semanticIndex;

@@ -39,8 +39,8 @@ class SplayTree
     bool enableCheckCoherency;
 #endif
 
-    SplayTree(const SplayTree&) = delete;
-    SplayTree& operator=(const SplayTree&) = delete;
+    SplayTree(const SplayTree&) MOZ_DELETE;
+    SplayTree& operator=(const SplayTree&) MOZ_DELETE;
 
   public:
 

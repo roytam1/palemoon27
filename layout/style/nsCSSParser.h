@@ -48,8 +48,8 @@ public:
   static void Shutdown();
 
 private:
-  nsCSSParser(nsCSSParser const&) = delete;
-  nsCSSParser& operator=(nsCSSParser const&) = delete;
+  nsCSSParser(nsCSSParser const&) MOZ_DELETE;
+  nsCSSParser& operator=(nsCSSParser const&) MOZ_DELETE;
 
 public:
   // Set a style sheet for the parser to fill in. The style sheet must

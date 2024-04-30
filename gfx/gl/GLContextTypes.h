@@ -7,24 +7,25 @@
 #define GLCONTEXT_TYPES_H_
 
 #include "GLTypes.h"
+#include "mozilla/TypedEnum.h"
 
 namespace mozilla {
 namespace gl {
 
 class GLContext;
 
-enum class GLContextType {
+MOZ_BEGIN_ENUM_CLASS(GLContextType)
     Unknown,
     WGL,
     CGL,
     GLX,
     EGL
-};
+MOZ_END_ENUM_CLASS(GLContextType)
 
-enum class OriginPos : uint8_t {
+MOZ_BEGIN_ENUM_CLASS(OriginPos, uint8_t)
   TopLeft,
   BottomLeft
-};
+MOZ_END_ENUM_CLASS(OriginPos)
 
 struct GLFormats
 {

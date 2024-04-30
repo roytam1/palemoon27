@@ -40,7 +40,7 @@ struct DependentAddPtr
 
 
     bool found() const                 { return addPtr.found(); }
-    explicit operator bool() const     { return found(); }
+    MOZ_EXPLICIT_CONVERSION operator bool() const     { return found(); }
     const Entry& operator*() const     { return *addPtr; }
     const Entry* operator->() const    { return &*addPtr; }
 
@@ -48,9 +48,9 @@ struct DependentAddPtr
     AddPtr addPtr ;
     const uint64_t originalGcNumber;
 
-    DependentAddPtr() = delete;
-    DependentAddPtr(const DependentAddPtr&) = delete;
-    DependentAddPtr& operator=(const DependentAddPtr&) = delete;
+    DependentAddPtr() MOZ_DELETE;
+    DependentAddPtr(const DependentAddPtr&) MOZ_DELETE;
+    DependentAddPtr& operator=(const DependentAddPtr&) MOZ_DELETE;
 };
 
 } // namespace js

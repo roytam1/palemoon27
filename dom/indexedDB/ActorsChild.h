@@ -137,8 +137,8 @@ private:
   explicit ThreadLocal(const nsID& aBackgroundChildLoggingId);
   ~ThreadLocal();
 
-  ThreadLocal() = delete;
-  ThreadLocal(const ThreadLocal& aOther) = delete;
+  ThreadLocal() MOZ_DELETE;
+  ThreadLocal(const ThreadLocal& aOther) MOZ_DELETE;
 };
 
 class BackgroundFactoryChild final
@@ -202,7 +202,7 @@ private:
                                      override;
 
   bool
-  SendDeleteMe() = delete;
+  SendDeleteMe() MOZ_DELETE;
 };
 
 class BackgroundDatabaseChild;
@@ -405,7 +405,7 @@ private:
   RecvInvalidate() override;
 
   bool
-  SendDeleteMe() = delete;
+  SendDeleteMe() MOZ_DELETE;
 };
 
 class BackgroundVersionChangeTransactionChild;
@@ -505,7 +505,7 @@ private:
                                    override;
 
   bool
-  SendDeleteMe() = delete;
+  SendDeleteMe() MOZ_DELETE;
 };
 
 class BackgroundVersionChangeTransactionChild final
@@ -561,7 +561,7 @@ private:
                                    override;
 
   bool
-  SendDeleteMe() = delete;
+  SendDeleteMe() MOZ_DELETE;
 };
 
 class BackgroundRequestChild final
@@ -728,10 +728,10 @@ private:
 
   // Force callers to use SendContinueInternal.
   bool
-  SendContinue(const CursorRequestParams& aParams) = delete;
+  SendContinue(const CursorRequestParams& aParams) MOZ_DELETE;
 
   bool
-  SendDeleteMe() = delete;
+  SendDeleteMe() MOZ_DELETE;
 };
 
 // XXX This doesn't belong here. However, we're not yet porting MutableFile

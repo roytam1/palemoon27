@@ -147,6 +147,7 @@ static SECStatus
 blake2b_Begin(BLAKE2BContext* ctx, uint8_t outlen, const uint8_t* key,
               size_t keylen)
 {
+    uint64_t param = outlen ^ (keylen << 8) ^ (1 << 16) ^ (1 << 24);
     PORT_Assert(ctx != NULL);
     if (!ctx) {
         goto failure;
@@ -164,7 +165,6 @@ blake2b_Begin(BLAKE2BContext* ctx, uint8_t outlen, const uint8_t* key,
     }
 
     /* Mix key size(keylen) and desired hash length(outlen) into h0 */
-    uint64_t param = outlen ^ (keylen << 8) ^ (1 << 16) ^ (1 << 24);
     PORT_Memcpy(ctx->h, iv, 8 * 8);
     ctx->h[0] ^= param;
     ctx->outlen = outlen;
@@ -402,12 +402,12 @@ BLAKE2B_Flatten(BLAKE2BContext* ctx, unsigned char* space)
 BLAKE2BContext*
 BLAKE2B_Resurrect(unsigned char* space, void* arg)
 {
+    BLAKE2BContext* ctx = BLAKE2B_NewContext();
     PORT_Assert(space != NULL);
     if (!space) {
         PORT_SetError(SEC_ERROR_INVALID_ARGS);
         return NULL;
     }
-    BLAKE2BContext* ctx = BLAKE2B_NewContext();
     if (ctx == NULL) {
         PORT_SetError(SEC_ERROR_INVALID_ARGS);
         return NULL;

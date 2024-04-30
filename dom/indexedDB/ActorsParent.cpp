@@ -3714,8 +3714,8 @@ private:
   }
 
   // No funny business allowed.
-  CachedStatement(const CachedStatement&) = delete;
-  CachedStatement& operator=(const CachedStatement&) = delete;
+  CachedStatement(const CachedStatement&) MOZ_DELETE;
+  CachedStatement& operator=(const CachedStatement&) MOZ_DELETE;
 };
 
 class NormalTransaction final
@@ -4912,7 +4912,7 @@ private:
 
   // Must call SendResponseInternal!
   bool
-  SendResponse(const CursorResponse& aResponse) = delete;
+  SendResponse(const CursorResponse& aResponse) MOZ_DELETE;
 
   // IPDL methods.
   virtual void

@@ -104,7 +104,7 @@ struct CrossCompartmentKey
     }
 
   private:
-    CrossCompartmentKey() = delete;
+    CrossCompartmentKey() MOZ_DELETE;
 };
 
 struct WrapperHasher : public DefaultHasher<CrossCompartmentKey>
@@ -607,8 +607,8 @@ class AutoCompartment
     JSCompartment* origin() const { return origin_; }
 
   private:
-    AutoCompartment(const AutoCompartment&) = delete;
-    AutoCompartment & operator=(const AutoCompartment&) = delete;
+    AutoCompartment(const AutoCompartment&) MOZ_DELETE;
+    AutoCompartment & operator=(const AutoCompartment&) MOZ_DELETE;
 };
 
 /*

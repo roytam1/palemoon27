@@ -1344,9 +1344,9 @@ public:
   WorkerAvailable(JSContext* aCx, JSObject* /* unused */);
 
 private:
-  ChromeWorkerPrivate() = delete;
-  ChromeWorkerPrivate(const ChromeWorkerPrivate& aRHS) = delete;
-  ChromeWorkerPrivate& operator =(const ChromeWorkerPrivate& aRHS) = delete;
+  ChromeWorkerPrivate() MOZ_DELETE;
+  ChromeWorkerPrivate(const ChromeWorkerPrivate& aRHS) MOZ_DELETE;
+  ChromeWorkerPrivate& operator =(const ChromeWorkerPrivate& aRHS) MOZ_DELETE;
 };
 
 WorkerPrivate*

@@ -22,6 +22,7 @@
 #include "AudioSampleFormat.h"
 #include "mozilla/RefPtr.h"
 #include "TimeUnits.h"
+#include "mozilla/TypedEnum.h"
 
 using mozilla::CheckedInt64;
 using mozilla::CheckedUint64;
@@ -217,10 +218,10 @@ class SharedThreadPool;
 // thread pool to ensure they can run when the MediaDataDecoder clients'
 // thread pool is blocked.  Tasks on the PLATFORM_DECODER thread pool must not
 // wait on tasks in the PLAYBACK thread pool.
-enum class MediaThreadType {
+MOZ_BEGIN_ENUM_CLASS(MediaThreadType)
   PLAYBACK, // MediaDecoderStateMachine and MediaDecoderReader
   PLATFORM_DECODER
-};
+MOZ_END_ENUM_CLASS(MediaThreadType)
 // Returns the thread pool that is shared amongst all decoder state machines
 // for decoding streams.
 already_AddRefed<SharedThreadPool> GetMediaThreadPool(MediaThreadType aType);
@@ -283,13 +284,17 @@ bool
 ParseCodecsString(const nsAString& aCodecs, nsTArray<nsString>& aOutCodecs);
 
 bool
+IsAACCodecString(const nsAString& aCodec);
+
+#if defined (_MSC_VER) && _MSC_VER >= 1700
+
+bool
 IsH264ContentType(const nsAString& aContentType);
 
 bool
 IsAACContentType(const nsAString& aContentType);
 
-bool
-IsAACCodecString(const nsAString& aCodec);
+#endif
 
 } // end namespace mozilla
 

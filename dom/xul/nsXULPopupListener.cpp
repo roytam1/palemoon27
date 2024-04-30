@@ -190,8 +190,8 @@ nsXULPopupListener::HandleEvent(nsIDOMEvent* aEvent)
   // to show, we know (guaranteed) that we're dealing with a menu or
   // submenu of an already-showing popup.  We don't need to do anything at all.
   if (!mIsContext) {
-    if (targetContent &&
-        targetContent->IsAnyOfXULElements(nsGkAtoms::menu, nsGkAtoms::menuitem))
+    nsIAtom *tag = targetContent ? targetContent->Tag() : nullptr;
+    if (tag == nsGkAtoms::menu || tag == nsGkAtoms::menuitem)
       return NS_OK;
   }
 

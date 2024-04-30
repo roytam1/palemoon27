@@ -10,8 +10,8 @@ namespace gl
 {
 
 inline Version::Version()
-    : Version(0, 0)
 {
+  Version(0, 0);
 }
 
 inline Version::Version(GLuint major_, GLuint minor_)

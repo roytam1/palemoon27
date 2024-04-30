@@ -33,7 +33,7 @@ public:
 
   T& operator[](size_t aOffset) const { return mStart[aOffset]; }
 
-  explicit operator bool() const { return mStart != nullptr; }
+  MOZ_EXPLICIT_CONVERSION operator bool() const { return mStart != nullptr; }
 };
 
 } // namespace mozilla

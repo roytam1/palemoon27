@@ -76,11 +76,10 @@ os_open(const char *filename, int oflag, int pmode)
 {
     int fd;
 
+    wchar_t *filenameWide = _NSSUTIL_UTF8ToWide(filename);
     if (!filename) {
         return -1;
     }
-
-    wchar_t *filenameWide = _NSSUTIL_UTF8ToWide(filename);
     if (!filenameWide) {
         return -1;
     }
@@ -95,11 +94,10 @@ os_stat(const char *path, os_stat_type *buffer)
 {
     int result;
 
+    wchar_t *pathWide = _NSSUTIL_UTF8ToWide(path);
     if (!path) {
         return -1;
     }
-
-    wchar_t *pathWide = _NSSUTIL_UTF8ToWide(path);
     if (!pathWide) {
         return -1;
     }
@@ -114,15 +112,14 @@ os_fopen(const char *filename, const char *mode)
 {
     FILE *fp;
 
+    wchar_t *filenameWide = _NSSUTIL_UTF8ToWide(filename);
+    wchar_t *modeWide = _NSSUTIL_UTF8ToWide(mode);
     if (!filename || !mode) {
         return NULL;
     }
-
-    wchar_t *filenameWide = _NSSUTIL_UTF8ToWide(filename);
     if (!filenameWide) {
         return NULL;
     }
-    wchar_t *modeWide = _NSSUTIL_UTF8ToWide(mode);
     if (!modeWide) {
         PORT_Free(filenameWide);
         return NULL;
@@ -139,11 +136,8 @@ _NSSUTIL_Access(const char *path, PRAccessHow how)
 {
     int result;
 
-    if (!path) {
-        return PR_FAILURE;
-    }
-
     int mode;
+    wchar_t *pathWide = _NSSUTIL_UTF8ToWide(path);
     switch (how) {
         case PR_ACCESS_WRITE_OK:
             mode = 2;
@@ -158,8 +152,10 @@ _NSSUTIL_Access(const char *path, PRAccessHow how)
             return PR_FAILURE;
     }
 
-    wchar_t *pathWide = _NSSUTIL_UTF8ToWide(path);
     if (!pathWide) {
+        return PR_FAILURE;
+    }
+    if (!path) {
         return PR_FAILURE;
     }
     result = _waccess(pathWide, mode);
@@ -173,11 +169,10 @@ nssutil_Delete(const char *name)
 {
     BOOL result;
 
+    wchar_t *nameWide = _NSSUTIL_UTF8ToWide(name);
     if (!name) {
         return PR_FAILURE;
     }
-
-    wchar_t *nameWide = _NSSUTIL_UTF8ToWide(name);
     if (!nameWide) {
         return PR_FAILURE;
     }
@@ -192,15 +187,14 @@ nssutil_Rename(const char *from, const char *to)
 {
     BOOL result;
 
-    if (!from || !to) {
-        return PR_FAILURE;
-    }
-
     wchar_t *fromWide = _NSSUTIL_UTF8ToWide(from);
+    wchar_t *toWide = _NSSUTIL_UTF8ToWide(to);
     if (!fromWide) {
         return PR_FAILURE;
     }
-    wchar_t *toWide = _NSSUTIL_UTF8ToWide(to);
+    if (!from || !to) {
+        return PR_FAILURE;
+    }
     if (!toWide) {
         PORT_Free(fromWide);
         return PR_FAILURE;

@@ -418,11 +418,13 @@ private:
   /*
    * Position ruby frames. Called from RepositionFrame.
    */
+   #if defined (_MSC_VER) && _MSC_VER >= 1700
   static nscoord RepositionRubyFrame(
     nsIFrame* aFrame,
     const nsContinuationStates* aContinuationStates,
     const mozilla::WritingMode aContainerWM,
     const mozilla::LogicalMargin& aBorderPadding);
+    #endif
 
   /*
    * Position aFrame and its descendants to their visual places. Also if aFrame

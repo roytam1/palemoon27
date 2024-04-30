@@ -287,7 +287,7 @@ class GlobalObject : public NativeObject
 
   private:
     // Disallow use of unqualified JSObject::create in GlobalObject.
-    static GlobalObject* create(...) = delete;
+    static GlobalObject* create(...) MOZ_DELETE;
 
     friend struct ::JSRuntime;
     static GlobalObject* createInternal(JSContext* cx, const Class* clasp);

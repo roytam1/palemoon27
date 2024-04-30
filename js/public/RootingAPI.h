@@ -169,8 +169,8 @@ struct PersistentRootedMarker;
     }                                                                                             \
 
 #define DELETE_ASSIGNMENT_OPS(Wrapper, T)                                                 \
-    template <typename S> Wrapper<T>& operator=(S) = delete;                                      \
-    Wrapper<T>& operator=(const Wrapper<T>&) = delete;
+    template <typename S> Wrapper<T>& operator=(S) MOZ_DELETE;                                      \
+    Wrapper<T>& operator=(const Wrapper<T>&) MOZ_DELETE;
 
 #define DECLARE_NONPOINTER_ACCESSOR_METHODS(ptr)                                                  \
     const T* address() const { return &(ptr); }                                                   \
@@ -522,7 +522,7 @@ class MOZ_STACK_CLASS MutableHandle : public js::MutableHandleBase<T>
 
   private:
     // Disallow nullptr for overloading purposes.
-    MutableHandle(decltype(nullptr)) = delete;
+    MutableHandle(decltype(nullptr)) MOZ_DELETE;
 
   public:
     void set(T v) {
@@ -618,7 +618,7 @@ class InternalHandle<T*>
         offset(uintptr_t(field))
     {}
 
-    void operator=(InternalHandle<T*> other) = delete;
+    void operator=(InternalHandle<T*> other) MOZ_DELETE;
 };
 
 /*
@@ -815,7 +815,7 @@ class MOZ_STACK_CLASS Rooted : public js::RootedBase<T>
 
     MOZ_DECL_USE_GUARD_OBJECT_NOTIFIER
 
-    Rooted(const Rooted&) = delete;
+    Rooted(const Rooted&) MOZ_DELETE;
 };
 
 } /* namespace JS */
@@ -895,7 +895,7 @@ class FakeRooted : public RootedBase<T>
 
     MOZ_DECL_USE_GUARD_OBJECT_NOTIFIER
 
-    FakeRooted(const FakeRooted&) = delete;
+    FakeRooted(const FakeRooted&) MOZ_DELETE;
 };
 
 /* Interface substitute for MutableHandle<T> which is not required to point to rooted memory. */

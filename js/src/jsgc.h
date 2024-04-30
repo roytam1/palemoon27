@@ -1368,8 +1368,8 @@ class ZoneList
     explicit ZoneList(Zone* singleZone);
     void check() const;
 
-    ZoneList(const ZoneList& other) = delete;
-    ZoneList& operator=(const ZoneList& other) = delete;
+    ZoneList(const ZoneList& other) MOZ_DELETE;
+    ZoneList& operator=(const ZoneList& other) MOZ_DELETE;
 };
 
 } /* namespace gc */

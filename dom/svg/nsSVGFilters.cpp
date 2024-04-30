@@ -489,9 +489,9 @@ nsSVGFELightingElement::ComputeLightAttributes(nsSVGFilterInstance* aInstance)
   for (nsCOMPtr<nsIContent> child = nsINode::GetFirstChild();
        child;
        child = child->GetNextSibling()) {
-    if (child->IsAnyOfSVGElements(nsGkAtoms::feDistantLight,
-                                  nsGkAtoms::fePointLight,
-                                  nsGkAtoms::feSpotLight)) {
+    if (child->IsSVGElement(nsGkAtoms::feDistantLight) ||
+        child->IsSVGElement(nsGkAtoms::fePointLight) ||
+        child->IsSVGElement(nsGkAtoms::feSpotLight)) {
       return static_cast<SVGFELightElement*>(child.get())->ComputeLightAttributes(aInstance);
     }
   }

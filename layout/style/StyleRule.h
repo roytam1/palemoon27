@@ -44,8 +44,8 @@ public:
 private: 
   nsAtomList* Clone(bool aDeep) const;
 
-  nsAtomList(const nsAtomList& aCopy) = delete;
-  nsAtomList& operator=(const nsAtomList& aCopy) = delete;
+  nsAtomList(const nsAtomList& aCopy) MOZ_DELETE;
+  nsAtomList& operator=(const nsAtomList& aCopy) MOZ_DELETE;
 };
 
 struct nsPseudoClassList {
@@ -82,8 +82,8 @@ public:
 private: 
   nsPseudoClassList* Clone(bool aDeep) const;
 
-  nsPseudoClassList(const nsPseudoClassList& aCopy) = delete;
-  nsPseudoClassList& operator=(const nsPseudoClassList& aCopy) = delete;
+  nsPseudoClassList(const nsPseudoClassList& aCopy) MOZ_DELETE;
+  nsPseudoClassList& operator=(const nsPseudoClassList& aCopy) MOZ_DELETE;
 };
 
 #define NS_ATTR_FUNC_SET        0     // [attr]
@@ -118,8 +118,8 @@ public:
 private: 
   nsAttrSelector* Clone(bool aDeep) const;
 
-  nsAttrSelector(const nsAttrSelector& aCopy) = delete;
-  nsAttrSelector& operator=(const nsAttrSelector& aCopy) = delete;
+  nsAttrSelector(const nsAttrSelector& aCopy) MOZ_DELETE;
+  nsAttrSelector& operator=(const nsAttrSelector& aCopy) MOZ_DELETE;
 };
 
 struct nsCSSSelector {
@@ -211,8 +211,8 @@ private:
   // int16_t to make sure it packs well with mOperator
   int16_t        mPseudoType;
 
-  nsCSSSelector(const nsCSSSelector& aCopy) = delete;
-  nsCSSSelector& operator=(const nsCSSSelector& aCopy) = delete;
+  nsCSSSelector(const nsCSSSelector& aCopy) MOZ_DELETE;
+  nsCSSSelector& operator=(const nsCSSSelector& aCopy) MOZ_DELETE;
 };
 
 /**
@@ -265,8 +265,8 @@ protected:
   nsCSSSelectorList* Clone(bool aDeep) const;
 
 private:
-  nsCSSSelectorList(const nsCSSSelectorList& aCopy) = delete;
-  nsCSSSelectorList& operator=(const nsCSSSelectorList& aCopy) = delete;
+  nsCSSSelectorList(const nsCSSSelectorList& aCopy) MOZ_DELETE;
+  nsCSSSelectorList& operator=(const nsCSSSelectorList& aCopy) MOZ_DELETE;
 };
 
 // 464bab7a-2fce-4f30-ab44-b7a5f3aae57d
@@ -380,7 +380,7 @@ private:
   nsRefPtr<DOMCSSStyleRule> mDOMRule;
 
 private:
-  StyleRule& operator=(const StyleRule& aCopy) = delete;
+  StyleRule& operator=(const StyleRule& aCopy) MOZ_DELETE;
 };
 
 NS_DEFINE_STATIC_IID_ACCESSOR(StyleRule, NS_CSS_STYLE_RULE_IMPL_CID)

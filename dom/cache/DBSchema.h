@@ -127,8 +127,8 @@ private:
   static nsresult ExtractId(mozIStorageStatement* aState, uint32_t aPos,
                             nsID* aIdOut);
 
-  DBSchema() = delete;
-  ~DBSchema() = delete;
+  DBSchema() MOZ_DELETE;
+  ~DBSchema() MOZ_DELETE;
 
   static const int32_t kLatestSchemaVersion;
   static const int32_t kMaxEntriesPerStatement;

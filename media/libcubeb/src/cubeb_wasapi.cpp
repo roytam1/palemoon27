@@ -21,6 +21,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <cmath>
+#include "nsMathUtils.h"
 
 /**Taken from winbase.h, Not in MinGW.*/
 #ifndef STACK_SIZE_PARAM_IS_A_RESERVATION
@@ -1215,7 +1216,7 @@ void close_wasapi_stream(cubeb_stream * stm)
 
   SafeRelease(stm->audio_clock);
   stm->audio_clock = NULL;
-  stm->total_frames_written += round(stm->frames_written * stream_to_mix_samplerate_ratio(stm));
+  stm->total_frames_written += NS_round(stm->frames_written * stream_to_mix_samplerate_ratio(stm));
   stm->frames_written = 0;
 
   if (stm->resampler) {
@@ -1338,7 +1339,7 @@ int wasapi_stream_get_position(cubeb_stream * stm, uint64_t * position)
 
   /* Calculate the logical stream head in frames at the stream sample rate. */
   uint64_t max_pos = stm->total_frames_written +
-                     round(stm->frames_written * stream_to_mix_samplerate_ratio(stm));
+                     NS_round(stm->frames_written * stream_to_mix_samplerate_ratio(stm));
 
   *position = max_pos;
   if (stream_delay <= *position) {

@@ -319,8 +319,8 @@ private:
                 nsIDocument* aDocumentToUse,
                 nsINode* aOwningNodeToUse);
 
-  CSSStyleSheet(const CSSStyleSheet& aCopy) = delete;
-  CSSStyleSheet& operator=(const CSSStyleSheet& aCopy) = delete;
+  CSSStyleSheet(const CSSStyleSheet& aCopy) MOZ_DELETE;
+  CSSStyleSheet& operator=(const CSSStyleSheet& aCopy) MOZ_DELETE;
 
 protected:
   virtual ~CSSStyleSheet();

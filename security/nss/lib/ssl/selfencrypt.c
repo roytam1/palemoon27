@@ -193,6 +193,14 @@ ssl_SelfEncryptUnprotectInt(
     PRUint8 *out, unsigned int *outLen, unsigned int maxOutLen)
 {
     sslReader reader = SSL_READER(in, inLen);
+    sslReadBuffer ivBuffer = { 0 };
+    PRUint64 cipherTextLen = 0;
+    sslReadBuffer cipherTextBuffer = { 0 };
+    sslReadBuffer encodedMacBuffer = { 0 };
+    SECItem ivItem = { siBuffer, (unsigned char *)ivBuffer.buf, AES_BLOCK_SIZE };
+    unsigned int computedMacLen = 0;
+    unsigned int bytesToMac = reader.offset;
+    unsigned char computedMac[SHA256_LENGTH];
 
     sslReadBuffer encodedKeyNameBuffer = { 0 };
     SECStatus rv = sslRead_Read(&reader, SELF_ENCRYPT_KEY_NAME_LEN,
@@ -201,26 +209,21 @@ ssl_SelfEncryptUnprotectInt(
         return SECFailure;
     }
 
-    sslReadBuffer ivBuffer = { 0 };
     rv = sslRead_Read(&reader, AES_BLOCK_SIZE, &ivBuffer);
     if (rv != SECSuccess) {
         return SECFailure;
     }
 
-    PRUint64 cipherTextLen = 0;
     rv = sslRead_ReadNumber(&reader, 2, &cipherTextLen);
     if (rv != SECSuccess) {
         return SECFailure;
     }
 
-    sslReadBuffer cipherTextBuffer = { 0 };
     rv = sslRead_Read(&reader, (unsigned int)cipherTextLen, &cipherTextBuffer);
     if (rv != SECSuccess) {
         return SECFailure;
     }
-    unsigned int bytesToMac = reader.offset;
 
-    sslReadBuffer encodedMacBuffer = { 0 };
     rv = sslRead_Read(&reader, SHA256_LENGTH, &encodedMacBuffer);
     if (rv != SECSuccess) {
         return SECFailure;
@@ -240,8 +243,6 @@ ssl_SelfEncryptUnprotectInt(
     }
 
     /* 2. Check the MAC */
-    unsigned char computedMac[SHA256_LENGTH];
-    unsigned int computedMacLen = 0;
     rv = ssl_MacBuffer(macKey, CKM_SHA256_HMAC, in, bytesToMac,
                        computedMac, &computedMacLen, sizeof(computedMac));
     if (rv != SECSuccess) {
@@ -254,7 +255,6 @@ ssl_SelfEncryptUnprotectInt(
     }
 
     /* 3. OK, it verifies, now decrypt. */
-    SECItem ivItem = { siBuffer, (unsigned char *)ivBuffer.buf, AES_BLOCK_SIZE };
     rv = PK11_Decrypt(encKey, CKM_AES_CBC_PAD, &ivItem,
                       out, outLen, maxOutLen, cipherTextBuffer.buf, cipherTextLen);
     if (rv != SECSuccess) {

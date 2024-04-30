@@ -124,7 +124,9 @@ TrackUnionStream::TrackUnionStream(DOMMediaStream* aWrapper) :
         }
       }
       if (trackAdded) {
-        for (MediaStreamListener* l : mListeners) {
+      uint32_t length = mListeners.Length();
+        for (uint32_t i = 0; i < length; ++i) {
+	MediaStreamListener* l = mListeners[i];
           l->NotifyFinishedTrackCreation(Graph());
         }
       }

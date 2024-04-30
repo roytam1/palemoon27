@@ -116,7 +116,7 @@ public:
     gfxFloat mRadii[8];
 
   private:
-    PixelRoundedRect() = delete;
+    PixelRoundedRect() MOZ_DELETE;
   };
 
   /**

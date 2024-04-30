@@ -129,8 +129,8 @@ public:
   }
 
 private:
-  nsAttrAndChildArray(const nsAttrAndChildArray& aOther) = delete;
-  nsAttrAndChildArray& operator=(const nsAttrAndChildArray& aOther) = delete;
+  nsAttrAndChildArray(const nsAttrAndChildArray& aOther) MOZ_DELETE;
+  nsAttrAndChildArray& operator=(const nsAttrAndChildArray& aOther) MOZ_DELETE;
 
   void Clear();
 

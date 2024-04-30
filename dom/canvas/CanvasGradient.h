@@ -13,6 +13,7 @@
 #include "mozilla/gfx/2D.h"
 #include "nsWrapperCache.h"
 #include "gfxGradientCache.h"
+#include "mozilla/TypedEnum.h"
 
 namespace mozilla {
 namespace dom {
@@ -23,10 +24,10 @@ public:
   NS_INLINE_DECL_CYCLE_COLLECTING_NATIVE_REFCOUNTING(CanvasGradient)
   NS_DECL_CYCLE_COLLECTION_SCRIPT_HOLDER_NATIVE_CLASS(CanvasGradient)
 
-  enum class Type : uint8_t {
+  MOZ_BEGIN_NESTED_ENUM_CLASS(Type, uint8_t)
     LINEAR = 0,
     RADIAL
-  };
+  MOZ_END_NESTED_ENUM_CLASS(Type)
 
   Type GetType()
   {

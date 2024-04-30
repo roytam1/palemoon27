@@ -1822,10 +1822,10 @@ private:
   // = delete, to be sure (at compile time) that no client code can invoke
   // them. (Unlike the other PositionTracker derived classes, this class here
   // deals with FlexLines, not with individual FlexItems or frames.)
-  void EnterMargin(const nsMargin& aMargin) = delete;
-  void ExitMargin(const nsMargin& aMargin) = delete;
-  void EnterChildFrame(nscoord aChildFrameSize) = delete;
-  void ExitChildFrame(nscoord aChildFrameSize) = delete;
+  void EnterMargin(const nsMargin& aMargin) MOZ_DELETE;
+  void ExitMargin(const nsMargin& aMargin) MOZ_DELETE;
+  void EnterChildFrame(nscoord aChildFrameSize) MOZ_DELETE;
+  void ExitChildFrame(nscoord aChildFrameSize) MOZ_DELETE;
 
   nscoord  mPackingSpaceRemaining;
   uint32_t mNumPackingSpacesRemaining;

@@ -101,7 +101,7 @@ protected:
   // The thread can't die while we're running in it, and we only use it for
   // pointer-comparison with the current thread anyway - so we make it atomic
   // and don't refcount it.
-  Atomic<nsIThread*> mRunningThread;
+  nsIThread* mRunningThread;
 
   // RAII class that gets instantiated for each dispatched task.
   class AutoTaskGuard : public AutoTaskDispatcher

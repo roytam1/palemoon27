@@ -1615,7 +1615,7 @@ TConstantUnion *TIntermConstantUnion::foldUnaryWithSameReturnType(TOperator op, 
             break;
 
           case EOpAsinh:
-            if (!foldFloatTypeUnary(operandArray[i], &asinhf, infoSink, &resultArray[i]))
+            if (!foldFloatTypeUnary(operandArray[i], &sinhf, infoSink, &resultArray[i]))
                 return nullptr;
             break;
 
@@ -1623,7 +1623,7 @@ TConstantUnion *TIntermConstantUnion::foldUnaryWithSameReturnType(TOperator op, 
             // For acosh(x), results are undefined if x < 1, we are choosing to set result to 0.
             if (getType().getBasicType() == EbtFloat && operandArray[i].getFConst() < 1.0f)
                 UndefinedConstantFoldingError(getLine(), op, getType().getBasicType(), infoSink, &resultArray[i]);
-            else if (!foldFloatTypeUnary(operandArray[i], &acoshf, infoSink, &resultArray[i]))
+            else if (!foldFloatTypeUnary(operandArray[i], &coshf, infoSink, &resultArray[i]))
                 return nullptr;
             break;
 
@@ -1631,7 +1631,7 @@ TConstantUnion *TIntermConstantUnion::foldUnaryWithSameReturnType(TOperator op, 
             // For atanh(x), results are undefined if |x| >= 1, we are choosing to set result to 0.
             if (getType().getBasicType() == EbtFloat && fabsf(operandArray[i].getFConst()) >= 1.0f)
                 UndefinedConstantFoldingError(getLine(), op, getType().getBasicType(), infoSink, &resultArray[i]);
-            else if (!foldFloatTypeUnary(operandArray[i], &atanhf, infoSink, &resultArray[i]))
+            else if (!foldFloatTypeUnary(operandArray[i], &tanhf, infoSink, &resultArray[i]))
                 return nullptr;
             break;
 
@@ -1690,13 +1690,8 @@ TConstantUnion *TIntermConstantUnion::foldUnaryWithSameReturnType(TOperator op, 
                 return nullptr;
             break;
 
-          case EOpTrunc:
-            if (!foldFloatTypeUnary(operandArray[i], &truncf, infoSink, &resultArray[i]))
-                return nullptr;
-            break;
-
           case EOpRound:
-            if (!foldFloatTypeUnary(operandArray[i], &roundf, infoSink, &resultArray[i]))
+            if (!foldFloatTypeUnary(operandArray[i], &NS_roundf, infoSink, &resultArray[i]))
                 return nullptr;
             break;
 
@@ -1707,9 +1702,9 @@ TConstantUnion *TIntermConstantUnion::foldUnaryWithSameReturnType(TOperator op, 
                 float result;
                 float fractPart = modff(x, &result);
                 if (fabsf(fractPart) == 0.5f)
-                    result = 2.0f * roundf(x / 2.0f);
+                    result = 2.0f * NS_roundf(x / 2.0f);
                 else
-                    result = roundf(x);
+                    result = NS_roundf(x);
                 resultArray[i].setFConst(result);
                 break;
             }
@@ -1799,11 +1794,6 @@ TConstantUnion *TIntermConstantUnion::foldUnaryWithSameReturnType(TOperator op, 
             if (getType().getBasicType() == EbtFloat && operandArray[i].getFConst() <= 0.0f)
                 UndefinedConstantFoldingError(getLine(), op, getType().getBasicType(), infoSink, &resultArray[i]);
             else if (!foldFloatTypeUnary(operandArray[i], &logf, infoSink, &resultArray[i]))
-                return nullptr;
-            break;
-
-          case EOpExp2:
-            if (!foldFloatTypeUnary(operandArray[i], &exp2f, infoSink, &resultArray[i]))
                 return nullptr;
             break;
 

@@ -266,8 +266,8 @@ class TType
     {
     }
 
-    TType(const TType &) = default;
-    TType &operator=(const TType &) = default;
+    TType(const TType &) MOZ_DEFAULT;
+    TType &operator=(const TType &) MOZ_DEFAULT;
 
     TBasicType getBasicType() const
     {

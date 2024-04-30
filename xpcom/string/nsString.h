@@ -84,7 +84,7 @@ public:
 
 private:
   // NOT TO BE IMPLEMENTED
-  NS_LossyConvertUTF16toASCII(char) = delete;
+  NS_LossyConvertUTF16toASCII(char) MOZ_DELETE;
 };
 
 
@@ -108,7 +108,7 @@ public:
 
 private:
   // NOT TO BE IMPLEMENTED
-  NS_ConvertASCIItoUTF16(char16_t) = delete;
+  NS_ConvertASCIItoUTF16(char16_t) MOZ_DELETE;
 };
 
 
@@ -147,7 +147,7 @@ public:
 
 private:
   // NOT TO BE IMPLEMENTED
-  NS_ConvertUTF16toUTF8(char) = delete;
+  NS_ConvertUTF16toUTF8(char) MOZ_DELETE;
 };
 
 
@@ -171,7 +171,7 @@ public:
 
 private:
   // NOT TO BE IMPLEMENTED
-  NS_ConvertUTF8toUTF16(char16_t) = delete;
+  NS_ConvertUTF8toUTF16(char16_t) MOZ_DELETE;
 };
 
 

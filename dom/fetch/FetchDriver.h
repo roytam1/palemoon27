@@ -77,9 +77,9 @@ private:
 
   DebugOnly<bool> mResponseAvailableCalled;
 
-  FetchDriver() = delete;
-  FetchDriver(const FetchDriver&) = delete;
-  FetchDriver& operator=(const FetchDriver&) = delete;
+  FetchDriver() MOZ_DELETE;
+  FetchDriver(const FetchDriver&) MOZ_DELETE;
+  FetchDriver& operator=(const FetchDriver&) MOZ_DELETE;
   ~FetchDriver();
 
   nsresult Fetch(bool aCORSFlag);

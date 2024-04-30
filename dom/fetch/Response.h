@@ -34,7 +34,7 @@ class Response final : public nsISupports
 public:
   Response(nsIGlobalObject* aGlobal, InternalResponse* aInternalResponse);
 
-  Response(const Response& aOther) = delete;
+  Response(const Response& aOther) MOZ_DELETE;
 
   JSObject*
   WrapObject(JSContext* aCx) override

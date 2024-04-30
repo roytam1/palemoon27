@@ -226,8 +226,9 @@ tls13_ClientHandleKeyShareXtn(const sslSocket *ss, TLSExtensionData *xtnData,
                               SECItem *data)
 {
     SECStatus rv;
-    PORT_Assert(PR_CLIST_IS_EMPTY(&xtnData->remoteKeyShares));
     TLS13KeyShareEntry *ks = NULL;
+    sslReader rdr = SSL_READER(data->data, data->len);
+    PORT_Assert(PR_CLIST_IS_EMPTY(&xtnData->remoteKeyShares));
 
     PORT_Assert(!ss->sec.isServer);
 
@@ -240,7 +241,6 @@ tls13_ClientHandleKeyShareXtn(const sslSocket *ss, TLSExtensionData *xtnData,
     SSL_TRC(3, ("%d: SSL3[%d]: handle key_share extension",
                 SSL_GETPID(), ss->fd));
 
-    sslReader rdr = SSL_READER(data->data, data->len);
     rv = tls13_DecodeKeyShareEntry(&rdr, &ks);
     if ((rv != SECSuccess) || !ks) {
         ssl3_ExtSendAlert(ss, alert_fatal, illegal_parameter);
@@ -315,6 +315,7 @@ tls13_ServerHandleKeyShareXtn(const sslSocket *ss, TLSExtensionData *xtnData,
 {
     SECStatus rv;
     PRUint32 length;
+    sslReader rdr = SSL_READER(data->data, data->len);
 
     PORT_Assert(ss->sec.isServer);
     PORT_Assert(PR_CLIST_IS_EMPTY(&xtnData->remoteKeyShares));
@@ -338,7 +339,6 @@ tls13_ServerHandleKeyShareXtn(const sslSocket *ss, TLSExtensionData *xtnData,
         goto loser;
     }
 
-    sslReader rdr = SSL_READER(data->data, data->len);
     while (SSL_READER_REMAINING(&rdr)) {
         TLS13KeyShareEntry *ks = NULL;
         rv = tls13_DecodeKeyShareEntry(&rdr, &ks);
@@ -810,6 +810,8 @@ tls13_ServerSendSupportedVersionsXtn(const sslSocket *ss, TLSExtensionData *xtnD
                                      sslBuffer *buf, PRBool *added)
 {
     SECStatus rv;
+    PRUint16 ver = tls13_EncodeDraftVersion(SSL_LIBRARY_VERSION_TLS_1_3,
+                                            ss->protocolVariant);
 
     if (ss->version < SSL_LIBRARY_VERSION_TLS_1_3) {
         return SECSuccess;
@@ -818,8 +820,6 @@ tls13_ServerSendSupportedVersionsXtn(const sslSocket *ss, TLSExtensionData *xtnD
     SSL_TRC(3, ("%d: TLS13[%d]: server send supported_versions extension",
                 SSL_GETPID(), ss->fd));
 
-    PRUint16 ver = tls13_EncodeDraftVersion(SSL_LIBRARY_VERSION_TLS_1_3,
-                                            ss->protocolVariant);
     rv = sslBuffer_AppendNumber(buf, ver, 2);
     if (rv != SECSuccess) {
         return SECFailure;
@@ -1265,6 +1265,9 @@ tls13_ServerHandleEsniXtn(const sslSocket *ss, TLSExtensionData *xtnData,
     PRUint8 *plainText = NULL;
     int ptLen;
     SECStatus rv;
+    PRUint64 tmp;
+    sslReader sniRdr = SSL_READER(plainText, ptLen);
+    SECItem sniItem = { siBuffer, (unsigned char *)SSL_READER_CURRENT(&sniRdr), 0 };
 
     /* If we are doing < TLS 1.3, then ignore this. */
     if (ss->version < SSL_LIBRARY_VERSION_TLS_1_3) {
@@ -1289,7 +1292,6 @@ tls13_ServerHandleEsniXtn(const sslSocket *ss, TLSExtensionData *xtnData,
     }
 
     /* Read out the interior extension. */
-    sslReader sniRdr = SSL_READER(plainText, ptLen);
 
     rv = sslRead_Read(&sniRdr, sizeof(xtnData->esniNonce), &buf);
     if (rv != SECSuccess) {
@@ -1298,7 +1300,6 @@ tls13_ServerHandleEsniXtn(const sslSocket *ss, TLSExtensionData *xtnData,
     PORT_Memcpy(xtnData->esniNonce, buf.buf, sizeof(xtnData->esniNonce));
 
     /* We need to capture the whole block with the length. */
-    SECItem sniItem = { siBuffer, (unsigned char *)SSL_READER_CURRENT(&sniRdr), 0 };
     rv = sslRead_ReadVariable(&sniRdr, 2, &buf);
     if (rv != SECSuccess) {
         goto loser;
@@ -1308,7 +1309,6 @@ tls13_ServerHandleEsniXtn(const sslSocket *ss, TLSExtensionData *xtnData,
     /* Check the padding. Note we don't need to do this in constant time
      * because it's inside the AEAD boundary. */
     /* TODO(ekr@rtfm.com): check that the padding is the right length. */
-    PRUint64 tmp;
     while (SSL_READER_REMAINING(&sniRdr)) {
         rv = sslRead_ReadNumber(&sniRdr, 1, &tmp);
         if (rv != SECSuccess) {

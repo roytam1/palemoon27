@@ -287,15 +287,18 @@ txMozillaXMLOutput::endElement()
         }
 
         // Handle elements that are different when parser-created
-        if (element->IsAnyOfHTMLElements(nsGkAtoms::title,
-                                         nsGkAtoms::object,
-                                         nsGkAtoms::applet,
-                                         nsGkAtoms::select,
-                                         nsGkAtoms::textarea) ||
-            element->IsSVGElement(nsGkAtoms::title)) {
+		int32_t ns = element->GetNameSpaceID();
+        nsIAtom* localName = element->Tag();
+		
+        if ((ns == kNameSpaceID_XHTML && (localName == nsGkAtoms::title ||
+                                          localName == nsGkAtoms::object ||
+                                          localName == nsGkAtoms::applet ||
+                                          localName == nsGkAtoms::select ||
+                                          localName == nsGkAtoms::textarea)) ||
+            (ns == kNameSpaceID_SVG && localName == nsGkAtoms::title)) {
             element->DoneAddingChildren(true);
-        } else if (element->IsSVGElement(nsGkAtoms::script) ||
-                   element->IsHTMLElement(nsGkAtoms::script)) {
+        } else if ((ns == kNameSpaceID_XHTML || ns == kNameSpaceID_SVG) &&
+                   localName == nsGkAtoms::script) {
             nsCOMPtr<nsIScriptElement> sele = do_QueryInterface(element);
             MOZ_ASSERT(sele, "script elements need to implement nsIScriptElement");
             bool block = sele->AttemptToExecute();
@@ -305,11 +308,12 @@ txMozillaXMLOutput::endElement()
                 rv = mNotifier->AddScriptElement(sele);
                 NS_ENSURE_SUCCESS(rv, rv);
             }
-        } else if (element->IsAnyOfHTMLElements(nsGkAtoms::input,
-                                                nsGkAtoms::button,
-                                                nsGkAtoms::menuitem,
-                                                nsGkAtoms::audio,
-                                                nsGkAtoms::video)) {
+        } else if (ns == kNameSpaceID_XHTML &&
+                   (localName == nsGkAtoms::input ||
+                    localName == nsGkAtoms::button ||
+                    localName == nsGkAtoms::menuitem ||
+                    localName == nsGkAtoms::audio ||
+                    localName == nsGkAtoms::video)) {
           element->DoneCreatingElement();
         }   
     }

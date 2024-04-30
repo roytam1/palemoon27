@@ -165,9 +165,9 @@ struct TConstParameter
     }
 
     // Both constructor arguments must be const.
-    TConstParameter(TString *n, TType *t) = delete;
-    TConstParameter(const TString *n, TType *t) = delete;
-    TConstParameter(TString *n, const TType *t) = delete;
+    TConstParameter(TString *n, TType *t) MOZ_DELETE;
+    TConstParameter(const TString *n, TType *t) MOZ_DELETE;
+    TConstParameter(TString *n, const TType *t) MOZ_DELETE;
 
     const TString *name;
     const TType *type;

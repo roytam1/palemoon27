@@ -7,7 +7,6 @@
 #if !defined(MediaFormatReader_h_)
 #define MediaFormatReader_h_
 
-#include "mozilla/Atomics.h"
 #include "mozilla/Maybe.h"
 #include "mozilla/Monitor.h"
 #include "MediaDataDemuxer.h"
@@ -305,7 +304,7 @@ private:
     }
 
     // Used by the MDSM for logging purposes.
-    Atomic<size_t> mSizeOfQueue;
+    size_t mSizeOfQueue;
     // Sample format monitoring.
     uint32_t mLastStreamSourceID;
     Maybe<uint32_t> mNextStreamSourceID;

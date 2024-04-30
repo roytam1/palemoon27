@@ -8,6 +8,7 @@
 #define jit_shared_Encoding_x86_shared_h
 
 #include "jit/shared/Constants-x86-shared.h"
+#include "mozilla/TypedEnum.h"
 
 namespace js {
 namespace jit {
@@ -107,14 +108,14 @@ enum OneByteOpcodeID {
     OP_GROUP5_Ev                    = 0xFF
 };
 
-enum class ShiftID {
+MOZ_BEGIN_ENUM_CLASS(ShiftID)
     vpsrld = 2,
     vpsrlq = 2,
     vpsrldq = 3,
     vpsrad = 4,
     vpslld = 6,
     vpsllq = 6
-};
+MOZ_END_ENUM_CLASS(ShiftID)
 
 enum TwoByteOpcodeID {
     OP2_UD2             = 0x0B,

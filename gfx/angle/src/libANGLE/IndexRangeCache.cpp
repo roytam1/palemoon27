@@ -77,8 +77,8 @@ void IndexRangeCache::clear()
 }
 
 IndexRangeCache::IndexRangeKey::IndexRangeKey()
-    : IndexRangeCache::IndexRangeKey(GL_NONE, 0, 0, false)
 {
+  IndexRangeCache::IndexRangeKey(GL_NONE, 0, 0, false);
 }
 
 IndexRangeCache::IndexRangeKey::IndexRangeKey(GLenum type_,

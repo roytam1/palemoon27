@@ -2358,12 +2358,13 @@ nsXULPopupManager::IsValidMenuItem(nsPresContext* aPresContext,
                                    nsIContent* aContent,
                                    bool aOnPopup)
 {
-  if (aContent->IsXULElement()) {
-    if (!aContent->IsAnyOfXULElements(nsGkAtoms::menu, nsGkAtoms::menuitem)) {
+  int32_t ns = aContent->GetNameSpaceID();
+  nsIAtom *tag = aContent->Tag();
+  if (ns == kNameSpaceID_XUL) {
+    if (tag != nsGkAtoms::menu && tag != nsGkAtoms::menuitem)
       return false;
-    }
   }
-  else if (!aOnPopup || !aContent->IsHTMLElement(nsGkAtoms::option)) {
+  else if (ns != kNameSpaceID_XHTML || !aOnPopup || tag != nsGkAtoms::option) {
     return false;
   }
 

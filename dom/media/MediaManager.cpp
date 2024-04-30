@@ -1639,7 +1639,8 @@ MediaManager::GetUserMedia(
         // iterate through advanced, forcing mediaSource to match "root"
         const char *camera = EnumToASCII(dom::MediaSourceEnumValues::strings,
                                          dom::MediaSourceEnum::Camera);
-        for (MediaTrackConstraintSet& cs : vc.mAdvanced.Value()) {
+        for (uint32_t i = 0; i < vc.mAdvanced.Value().Length(); ++i) {
+	MediaTrackConstraintSet& cs = vc.mAdvanced.Value()[i];
           if (cs.mMediaSource.EqualsASCII(camera)) {
             cs.mMediaSource = vc.mMediaSource;
           }
@@ -1652,7 +1653,9 @@ MediaManager::GetUserMedia(
         vc.mBrowserWindow.Construct(-1);
       }
       if (vc.mAdvanced.WasPassed()) {
-        for (MediaTrackConstraintSet& cs : vc.mAdvanced.Value()) {
+      uint32_t length = vc.mAdvanced.Value().Length();
+        for (uint32_t i = 0; i < length; i++) {
+	MediaTrackConstraintSet& cs = vc.mAdvanced.Value()[i];
           if (cs.mBrowserWindow.WasPassed()) {
             cs.mBrowserWindow.Construct(-1);
           }

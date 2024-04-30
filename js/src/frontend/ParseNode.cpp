@@ -7,6 +7,7 @@
 #include "frontend/ParseNode-inl.h"
 
 #include "frontend/Parser.h"
+#include "mozilla/TypedEnum.h"
 
 #include "jscntxtinlines.h"
 
@@ -97,7 +98,10 @@ class NodeStack {
 
 } /* anonymous namespace */
 
-enum class PushResult { Recyclable, CleanUpLater };
+MOZ_BEGIN_ENUM_CLASS(PushResult) 
+Recyclable, 
+CleanUpLater 
+MOZ_END_ENUM_CLASS(PushResult)
 
 static PushResult
 PushCodeNodeChildren(ParseNode* node, NodeStack* stack)

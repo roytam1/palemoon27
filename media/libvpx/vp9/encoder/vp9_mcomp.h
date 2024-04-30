@@ -66,13 +66,7 @@ struct SPEED_FEATURES;
 
 int vp9_init_search_range(int size);
 
-int vp9_refining_search_sad(const struct macroblock *x,
-                            struct mv *ref_mv,
-                            int sad_per_bit, int distance,
-                            const struct vp9_variance_vtable *fn_ptr,
-                            const struct mv *center_mv);
-
-// Runs sequence of diamond searches in smaller steps for RD.
+// Runs sequence of diamond searches in smaller steps for RD
 int vp9_full_pixel_diamond(const struct VP9_COMP *cpi, MACROBLOCK *x,
                            MV *mvp_full, int step_param,
                            int sadpb, int further_steps, int do_refine,
@@ -80,19 +74,13 @@ int vp9_full_pixel_diamond(const struct VP9_COMP *cpi, MACROBLOCK *x,
                            const vp9_variance_fn_ptr_t *fn_ptr,
                            const MV *ref_mv, MV *dst_mv);
 
-// Perform integral projection based motion estimation.
-unsigned int vp9_int_pro_motion_estimation(const struct VP9_COMP *cpi,
-                                           MACROBLOCK *x,
-                                           BLOCK_SIZE bsize,
-                                           int mi_row, int mi_col);
-
 typedef int (integer_mv_pattern_search_fn) (
     const MACROBLOCK *x,
     MV *ref_mv,
     int search_param,
     int error_per_bit,
     int do_init_search,
-    int *cost_list,
+    int *sad_list,
     const vp9_variance_fn_ptr_t *vf,
     int use_mvcost,
     const MV *center_mv,
@@ -112,7 +100,7 @@ typedef int (fractional_mv_step_fp) (
     const vp9_variance_fn_ptr_t *vfp,
     int forced_stop,  // 0 - full, 1 - qtr only, 2 - half only
     int iters_per_step,
-    int *cost_list,
+    int *sad_list,
     int *mvjcost, int *mvcost[2],
     int *distortion, unsigned int *sse1,
     const uint8_t *second_pred,
@@ -120,8 +108,6 @@ typedef int (fractional_mv_step_fp) (
 
 extern fractional_mv_step_fp vp9_find_best_sub_pixel_tree;
 extern fractional_mv_step_fp vp9_find_best_sub_pixel_tree_pruned;
-extern fractional_mv_step_fp vp9_find_best_sub_pixel_tree_pruned_more;
-extern fractional_mv_step_fp vp9_find_best_sub_pixel_tree_pruned_evenmore;
 
 typedef int (*vp9_full_search_fn_t)(const MACROBLOCK *x,
                                     const MV *ref_mv, int sad_per_bit,
@@ -154,7 +140,7 @@ struct VP9_COMP;
 int vp9_full_pixel_search(struct VP9_COMP *cpi, MACROBLOCK *x,
                           BLOCK_SIZE bsize, MV *mvp_full,
                           int step_param, int error_per_bit,
-                          int *cost_list,
+                          int *sad_list,
                           const MV *ref_mv, MV *tmp_mv,
                           int var_max, int rd);
 

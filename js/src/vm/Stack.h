@@ -1144,8 +1144,8 @@ class Activation
     }
 
   private:
-    Activation(const Activation& other) = delete;
-    void operator=(const Activation& other) = delete;
+    Activation(const Activation& other) MOZ_DELETE;
+    void operator=(const Activation& other) MOZ_DELETE;
 };
 
 // This variable holds a special opcode value which is greater than all normal

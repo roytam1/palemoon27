@@ -12,6 +12,7 @@
 #endif
 
 #include "mozilla/Likely.h"
+#include "mozilla/TypedEnum.h"
 
 #include <stdint.h>
 
@@ -116,27 +117,19 @@
 
 /*@{*/
 
-enum class nsresult : uint32_t
-{
-  #undef ERROR
-  #define ERROR(key, val) key = val
-  #include "ErrorList.h"
-  #undef ERROR
-};
-
-/*
- * enum classes don't place their initializers in the global scope, so we need
- * constants for compatibility with old code.
- */
-const nsresult
-  #define ERROR(key, val) key = nsresult::key
-  #include "ErrorList.h"
-  #undef ERROR
-;
+#if defined(MOZ_HAVE_CXX11_ENUM_TYPE)
+  typedef enum tag_nsresult : uint32_t
+  {
+    #undef ERROR
+    #define ERROR(key, val) key = val
+    #include "ErrorList.h"
+    #undef ERROR
+  } nsresult;
 
 #undef SUCCESS_OR_FAILURE
 #undef SUCCESS
 #undef FAILURE
+#endif
 
 /**
  * @name Standard Error Handling Macros

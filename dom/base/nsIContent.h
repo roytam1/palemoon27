@@ -260,11 +260,213 @@ public:
     return mNodeInfo->Equals(aTag, kNameSpaceID_XHTML);
   }
 
+  /*
   template<typename First, typename... Args>
   inline bool IsAnyOfHTMLElements(First aFirst, Args... aArgs) const
   {
     return IsHTMLElement() && IsNodeInternal(aFirst, aArgs...);
   }
+  */
+  
+  /* This causes runtime execution failure
+  template<typename First>
+  inline bool IsAnyOfHTMLElements(First aFirst) const
+  {
+    return IsHTMLElement() && IsNodeInternal(aFirst);
+  }
+  
+  template<typename First, typename A1>
+  inline bool IsAnyOfHTMLElements(First aFirst, A1 aA1) const
+  {
+    return IsHTMLElement() && IsNodeInternal(aFirst, aA1);
+  }
+
+  template<typename First, typename A1, typename A2>
+  inline bool IsAnyOfHTMLElements(First aFirst, A1 aA1, A2 aA2) const
+  {
+    return IsHTMLElement() && IsNodeInternal(aFirst, aA1, aA2);
+  }
+
+  template<typename First, typename A1, typename A2, typename A3>
+  inline bool IsAnyOfHTMLElements(First aFirst, A1 aA1, A2 aA2, A3 aA3) const
+  {
+    return IsHTMLElement() && IsNodeInternal(aFirst, aA1, aA2, aA3);
+  }
+
+  template<typename First, typename A1, typename A2, typename A3, typename A4>
+  inline bool IsAnyOfHTMLElements(First aFirst, A1 aA1, A2 aA2, A3 aA3, A4 aA4) const
+  {
+    return IsHTMLElement() && IsNodeInternal(aFirst, aA1, aA2, aA3, aA4);
+  }
+  
+  template<typename First, typename A1, typename A2, typename A3, typename A4, typename A5>
+  inline bool IsAnyOfHTMLElements(First aFirst, A1 aA1, A2 aA2, A3 aA3, A4 aA4, A5 aA5) const
+  {
+    return IsHTMLElement() && IsNodeInternal(aFirst, aA1, aA2, aA3, aA4, aA5);
+  }
+  
+  template<typename First, typename A1, typename A2, typename A3, typename A4, typename A5, typename A6>
+  inline bool IsAnyOfHTMLElements(First aFirst, A1 aA1, A2 aA2, A3 aA3, A4 aA4, A5 aA5, A6 aA6) const
+  {
+    return IsHTMLElement() && IsNodeInternal(aFirst, aA1, aA2, aA3, aA4, aA5, aA6);
+  }
+  
+  template<typename First, typename A1, typename A2, typename A3, typename A4, typename A5, typename A6, typename A7>
+  inline bool IsAnyOfHTMLElements(First aFirst, A1 aA1, A2 aA2, A3 aA3, A4 aA4, A5 aA5, A6 aA6, A7 aA7) const
+  {
+    return IsHTMLElement() && IsNodeInternal(aFirst, aA1, aA2, aA3, aA4, aA5, aA6, aA7);
+  }
+  
+  template<typename First, typename A1, typename A2, typename A3, typename A4, typename A5, typename A6, typename A7, typename A8>
+  inline bool IsAnyOfHTMLElements(First aFirst, A1 aA1, A2 aA2, A3 aA3, A4 aA4, A5 aA5, A6 aA6, A7 aA7, A8 aA8) const
+  {
+    return IsHTMLElement() && IsNodeInternal(aFirst, aA1, aA2, aA3, aA4, aA5, aA6, aA7, aA8);
+  }
+  
+  template<typename First, typename A1, typename A2, typename A3, typename A4, typename A5, typename A6, typename A7, typename A8, typename A9>
+  inline bool IsAnyOfHTMLElements(First aFirst, A1 aA1, A2 aA2, A3 aA3, A4 aA4, A5 aA5, A6 aA6, A7 aA7, A8 aA8, A9 aA9) const
+  {
+    return IsHTMLElement() && IsNodeInternal(aFirst, aA1, aA2, aA3, aA4, aA5, aA6, aA7, aA8, aA9);
+  }
+  
+  template<typename First, typename A1, typename A2, typename A3, typename A4, typename A5, typename A6, typename A7, typename A8, typename A9, typename A10>
+  inline bool IsAnyOfHTMLElements(First aFirst, A1 aA1, A2 aA2, A3 aA3, A4 aA4, A5 aA5, A6 aA6, A7 aA7, A8 aA8, A9 aA9, A10 aA10) const
+  {
+    return IsHTMLElement() && IsNodeInternal(aFirst, aA1, aA2, aA3, aA4, aA5, aA6, aA7, aA8, aA9, aA10);
+  }
+  
+  template<typename First, typename A1, typename A2, typename A3, typename A4, typename A5, typename A6, typename A7, typename A8, typename A9, typename A10, typename A11>
+  inline bool IsAnyOfHTMLElements(First aFirst, A1 aA1, A2 aA2, A3 aA3, A4 aA4, A5 aA5, A6 aA6, A7 aA7, A8 aA8, A9 aA9, A10 aA10, A11 aA11) const
+  {
+    return IsHTMLElement() && IsNodeInternal(aFirst, aA1, aA2, aA3, aA4, aA5, aA6, aA7, aA8, aA9, aA10, aA11);
+  }
+  
+  template<typename First, typename A1, typename A2, typename A3, typename A4, typename A5, typename A6, typename A7, typename A8, typename A9, typename A10, typename A11, typename A12>
+  inline bool IsAnyOfHTMLElements(First aFirst, A1 aA1, A2 aA2, A3 aA3, A4 aA4, A5 aA5, A6 aA6, A7 aA7, A8 aA8, A9 aA9, A10 aA10, A11 aA11, A12 aA12) const
+  {
+    return IsHTMLElement() && IsNodeInternal(aFirst, aA1, aA2, aA3, aA4, aA5, aA6, aA7, aA8, aA9, aA10, aA11, aA12);
+  }
+  
+  template<typename First, typename A1, typename A2, typename A3, typename A4, typename A5, typename A6, typename A7, typename A8, typename A9, typename A10, typename A11, typename A12, typename A13>
+  inline bool IsAnyOfHTMLElements(First aFirst, A1 aA1, A2 aA2, A3 aA3, A4 aA4, A5 aA5, A6 aA6, A7 aA7, A8 aA8, A9 aA9, A10 aA10, A11 aA11, A12 aA12, A13 aA13) const
+  {
+    return IsHTMLElement() && IsNodeInternal(aFirst, aA1, aA2, aA3, aA4, aA5, aA6, aA7, aA8, aA9, aA10, aA11, aA12, aA13);
+  }
+  
+  template<typename First, typename A1, typename A2, typename A3, typename A4, typename A5, typename A6, typename A7, typename A8, typename A9, typename A10, typename A11, typename A12, typename A13, typename A14>
+  inline bool IsAnyOfHTMLElements(First aFirst, A1 aA1, A2 aA2, A3 aA3, A4 aA4, A5 aA5, A6 aA6, A7 aA7, A8 aA8, A9 aA9, A10 aA10, A11 aA11, A12 aA12, A13 aA13, A14 aA14) const
+  {
+    return IsHTMLElement() && IsNodeInternal(aFirst, aA1, aA2, aA3, aA4, aA5, aA6, aA7, aA8, aA9, aA10, aA11, aA12, aA13, aA14);
+  }
+  
+  template<typename First, typename A1, typename A2, typename A3, typename A4, typename A5, typename A6, typename A7, typename A8, typename A9, typename A10, typename A11, typename A12, typename A13, typename A14, typename A15>
+  inline bool IsAnyOfHTMLElements(First aFirst, A1 aA1, A2 aA2, A3 aA3, A4 aA4, A5 aA5, A6 aA6, A7 aA7, A8 aA8, A9 aA9, A10 aA10, A11 aA11, A12 aA12, A13 aA13, A14 aA14, A15 aA15) const
+  {
+    return IsHTMLElement() && IsNodeInternal(aFirst, aA1, aA2, aA3, aA4, aA5, aA6, aA7, aA8, aA9, aA10, aA11, aA12, aA13, aA14, aA15);
+  }
+  
+  template<typename First, typename A1, typename A2, typename A3, typename A4, typename A5, typename A6, typename A7, typename A8, typename A9, typename A10, typename A11, typename A12, typename A13, typename A14, typename A15, typename A16>
+  inline bool IsAnyOfHTMLElements(First aFirst, A1 aA1, A2 aA2, A3 aA3, A4 aA4, A5 aA5, A6 aA6, A7 aA7, A8 aA8, A9 aA9, A10 aA10, A11 aA11, A12 aA12, A13 aA13, A14 aA14, A15 aA15, A16 aA16) const
+  {
+    return IsHTMLElement() && IsNodeInternal(aFirst, aA1, aA2, aA3, aA4, aA5, aA6, aA7, aA8, aA9, aA10, aA11, aA12, aA13, aA14, aA15, aA16);
+  }
+  
+  template<typename First, typename A1, typename A2, typename A3, typename A4, typename A5, typename A6, typename A7, typename A8, typename A9, typename A10, typename A11, typename A12, typename A13, typename A14, typename A15, typename A16, typename A17>
+  inline bool IsAnyOfHTMLElements(First aFirst, A1 aA1, A2 aA2, A3 aA3, A4 aA4, A5 aA5, A6 aA6, A7 aA7, A8 aA8, A9 aA9, A10 aA10, A11 aA11, A12 aA12, A13 aA13, A14 aA14, A15 aA15, A16 aA16, A17 aA17) const
+  {
+    return IsHTMLElement() && IsNodeInternal(aFirst, aA1, aA2, aA3, aA4, aA5, aA6, aA7, aA8, aA9, aA10, aA11, aA12, aA13, aA14, aA15, aA16, aA17);
+  }
+  
+  template<typename First, typename A1, typename A2, typename A3, typename A4, typename A5, typename A6, typename A7, typename A8, typename A9, typename A10, typename A11, typename A12, typename A13, typename A14, typename A15, typename A16, typename A17, typename A18>
+  inline bool IsAnyOfHTMLElements(First aFirst, A1 aA1, A2 aA2, A3 aA3, A4 aA4, A5 aA5, A6 aA6, A7 aA7, A8 aA8, A9 aA9, A10 aA10, A11 aA11, A12 aA12, A13 aA13, A14 aA14, A15 aA15, A16 aA16, A17 aA17, A18 aA18) const
+  {
+    return IsHTMLElement() && IsNodeInternal(aFirst, aA1, aA2, aA3, aA4, aA5, aA6, aA7, aA8, aA9, aA10, aA11, aA12, aA13, aA14, aA15, aA16, aA17, aA18);
+  }
+  
+  template<typename First, typename A1, typename A2, typename A3, typename A4, typename A5, typename A6, typename A7, typename A8, typename A9, typename A10, typename A11, typename A12, typename A13, typename A14, typename A15, typename A16, typename A17, typename A18, typename A19>
+  inline bool IsAnyOfHTMLElements(First aFirst, A1 aA1, A2 aA2, A3 aA3, A4 aA4, A5 aA5, A6 aA6, A7 aA7, A8 aA8, A9 aA9, A10 aA10, A11 aA11, A12 aA12, A13 aA13, A14 aA14, A15 aA15, A16 aA16, A17 aA17, A18 aA18, A19 aA19) const
+  {
+    return IsHTMLElement() && IsNodeInternal(aFirst, aA1, aA2, aA3, aA4, aA5, aA6, aA7, aA8, aA9, aA10, aA11, aA12, aA13, aA14, aA15, aA16, aA17, aA18, aA19);
+  }
+  
+  template<typename First, typename A1, typename A2, typename A3, typename A4, typename A5, typename A6, typename A7, typename A8, typename A9, typename A10, typename A11, typename A12, typename A13, typename A14, typename A15, typename A16, typename A17, typename A18, typename A19, typename A20>
+  inline bool IsAnyOfHTMLElements(First aFirst, A1 aA1, A2 aA2, A3 aA3, A4 aA4, A5 aA5, A6 aA6, A7 aA7, A8 aA8, A9 aA9, A10 aA10, A11 aA11, A12 aA12, A13 aA13, A14 aA14, A15 aA15, A16 aA16, A17 aA17, A18 aA18, A19 aA19, A20 aA20) const
+  {
+    return IsHTMLElement() && IsNodeInternal(aFirst, aA1, aA2, aA3, aA4, aA5, aA6, aA7, aA8, aA9, aA10, aA11, aA12, aA13, aA14, aA15, aA16, aA17, aA18, aA19, aA20);
+  }
+  
+  template<typename First, typename A1, typename A2, typename A3, typename A4, typename A5, typename A6, typename A7, typename A8, typename A9, typename A10, typename A11, typename A12, typename A13, typename A14, typename A15, typename A16, typename A17, typename A18, typename A19, typename A20, typename A21>
+  inline bool IsAnyOfHTMLElements(First aFirst, A1 aA1, A2 aA2, A3 aA3, A4 aA4, A5 aA5, A6 aA6, A7 aA7, A8 aA8, A9 aA9, A10 aA10, A11 aA11, A12 aA12, A13 aA13, A14 aA14, A15 aA15, A16 aA16, A17 aA17, A18 aA18, A19 aA19, A20 aA20, A21 aA21) const
+  {
+    return IsHTMLElement() && IsNodeInternal(aFirst, aA1, aA2, aA3, aA4, aA5, aA6, aA7, aA8, aA9, aA10, aA11, aA12, aA13, aA14, aA15, aA16, aA17, aA18, aA19, aA20, aA21);
+  }
+  
+  template<typename First, typename A1, typename A2, typename A3, typename A4, typename A5, typename A6, typename A7, typename A8, typename A9, typename A10, typename A11, typename A12, typename A13, typename A14, typename A15, typename A16, typename A17, typename A18, typename A19, typename A20, typename A21, typename A22>
+  inline bool IsAnyOfHTMLElements(First aFirst, A1 aA1, A2 aA2, A3 aA3, A4 aA4, A5 aA5, A6 aA6, A7 aA7, A8 aA8, A9 aA9, A10 aA10, A11 aA11, A12 aA12, A13 aA13, A14 aA14, A15 aA15, A16 aA16, A17 aA17, A18 aA18, A19 aA19, A20 aA20, A21 aA21, A22 aA22) const
+  {
+    return IsHTMLElement() && IsNodeInternal(aFirst, aA1, aA2, aA3, aA4, aA5, aA6, aA7, aA8, aA9, aA10, aA11, aA12, aA13, aA14, aA15, aA16, aA17, aA18, aA19, aA20, aA21, aA22);
+  }
+  
+  template<typename First, typename A1, typename A2, typename A3, typename A4, typename A5, typename A6, typename A7, typename A8, typename A9, typename A10, typename A11, typename A12, typename A13, typename A14, typename A15, typename A16, typename A17, typename A18, typename A19, typename A20, typename A21, typename A22, typename A23>
+  inline bool IsAnyOfHTMLElements(First aFirst, A1 aA1, A2 aA2, A3 aA3, A4 aA4, A5 aA5, A6 aA6, A7 aA7, A8 aA8, A9 aA9, A10 aA10, A11 aA11, A12 aA12, A13 aA13, A14 aA14, A15 aA15, A16 aA16, A17 aA17, A18 aA18, A19 aA19, A20 aA20, A21 aA21, A22 aA22, A23 aA23) const
+  {
+    return IsHTMLElement() && IsNodeInternal(aFirst, aA1, aA2, aA3, aA4, aA5, aA6, aA7, aA8, aA9, aA10, aA11, aA12, aA13, aA14, aA15, aA16, aA17, aA18, aA19, aA20, aA21, aA22, aA23);
+  }
+  
+  template<typename First, typename A1, typename A2, typename A3, typename A4, typename A5, typename A6, typename A7, typename A8, typename A9, typename A10, typename A11, typename A12, typename A13, typename A14, typename A15, typename A16, typename A17, typename A18, typename A19, typename A20, typename A21, typename A22, typename A23, typename A24>
+  inline bool IsAnyOfHTMLElements(First aFirst, A1 aA1, A2 aA2, A3 aA3, A4 aA4, A5 aA5, A6 aA6, A7 aA7, A8 aA8, A9 aA9, A10 aA10, A11 aA11, A12 aA12, A13 aA13, A14 aA14, A15 aA15, A16 aA16, A17 aA17, A18 aA18, A19 aA19, A20 aA20, A21 aA21, A22 aA22, A23 aA23, A24 aA24) const
+  {
+    return IsHTMLElement() && IsNodeInternal(aFirst, aA1, aA2, aA3, aA4, aA5, aA6, aA7, aA8, aA9, aA10, aA11, aA12, aA13, aA14, aA15, aA16, aA17, aA18, aA19, aA20, aA21, aA22, aA23, aA24);
+  }
+  
+  template<typename First, typename A1, typename A2, typename A3, typename A4, typename A5, typename A6, typename A7, typename A8, typename A9, typename A10, typename A11, typename A12, typename A13, typename A14, typename A15, typename A16, typename A17, typename A18, typename A19, typename A20, typename A21, typename A22, typename A23, typename A24, typename A25>
+  inline bool IsAnyOfHTMLElements(First aFirst, A1 aA1, A2 aA2, A3 aA3, A4 aA4, A5 aA5, A6 aA6, A7 aA7, A8 aA8, A9 aA9, A10 aA10, A11 aA11, A12 aA12, A13 aA13, A14 aA14, A15 aA15, A16 aA16, A17 aA17, A18 aA18, A19 aA19, A20 aA20, A21 aA21, A22 aA22, A23 aA23, A24 aA24, A25 aA25) const
+  {
+    return IsHTMLElement() && IsNodeInternal(aFirst, aA1, aA2, aA3, aA4, aA5, aA6, aA7, aA8, aA9, aA10, aA11, aA12, aA13, aA14, aA15, aA16, aA17, aA18, aA19, aA20, aA21, aA22, aA23, aA24, aA25);
+  }
+  
+  template<typename First, typename A1, typename A2, typename A3, typename A4, typename A5, typename A6, typename A7, typename A8, typename A9, typename A10, typename A11, typename A12, typename A13, typename A14, typename A15, typename A16, typename A17, typename A18, typename A19, typename A20, typename A21, typename A22, typename A23, typename A24, typename A25, typename A26>
+  inline bool IsAnyOfHTMLElements(First aFirst, A1 aA1, A2 aA2, A3 aA3, A4 aA4, A5 aA5, A6 aA6, A7 aA7, A8 aA8, A9 aA9, A10 aA10, A11 aA11, A12 aA12, A13 aA13, A14 aA14, A15 aA15, A16 aA16, A17 aA17, A18 aA18, A19 aA19, A20 aA20, A21 aA21, A22 aA22, A23 aA23, A24 aA24, A25 aA25, A26 aA26) const
+  {
+    return IsHTMLElement() && IsNodeInternal(aFirst, aA1, aA2, aA3, aA4, aA5, aA6, aA7, aA8, aA9, aA10, aA11, aA12, aA13, aA14, aA15, aA16, aA17, aA18, aA19, aA20, aA21, aA22, aA23, aA24, aA25, aA26);
+  }
+  
+  template<typename First, typename A1, typename A2, typename A3, typename A4, typename A5, typename A6, typename A7, typename A8, typename A9, typename A10, typename A11, typename A12, typename A13, typename A14, typename A15, typename A16, typename A17, typename A18, typename A19, typename A20, typename A21, typename A22, typename A23, typename A24, typename A25, typename A26, typename A27>
+  inline bool IsAnyOfHTMLElements(First aFirst, A1 aA1, A2 aA2, A3 aA3, A4 aA4, A5 aA5, A6 aA6, A7 aA7, A8 aA8, A9 aA9, A10 aA10, A11 aA11, A12 aA12, A13 aA13, A14 aA14, A15 aA15, A16 aA16, A17 aA17, A18 aA18, A19 aA19, A20 aA20, A21 aA21, A22 aA22, A23 aA23, A24 aA24, A25 aA25, A26 aA26, A27 aA27) const
+  {
+    return IsHTMLElement() && IsNodeInternal(aFirst, aA1, aA2, aA3, aA4, aA5, aA6, aA7, aA8, aA9, aA10, aA11, aA12, aA13, aA14, aA15, aA16, aA17, aA18, aA19, aA20, aA21, aA22, aA23, aA24, aA25, aA26, aA27);
+  }
+  
+  template<typename First, typename A1, typename A2, typename A3, typename A4, typename A5, typename A6, typename A7, typename A8, typename A9, typename A10, typename A11, typename A12, typename A13, typename A14, typename A15, typename A16, typename A17, typename A18, typename A19, typename A20, typename A21, typename A22, typename A23, typename A24, typename A25, typename A26, typename A27, typename A28>
+  inline bool IsAnyOfHTMLElements(First aFirst, A1 aA1, A2 aA2, A3 aA3, A4 aA4, A5 aA5, A6 aA6, A7 aA7, A8 aA8, A9 aA9, A10 aA10, A11 aA11, A12 aA12, A13 aA13, A14 aA14, A15 aA15, A16 aA16, A17 aA17, A18 aA18, A19 aA19, A20 aA20, A21 aA21, A22 aA22, A23 aA23, A24 aA24, A25 aA25, A26 aA26, A27 aA27, A28 aA28) const
+  {
+    return IsHTMLElement() && IsNodeInternal(aFirst, aA1, aA2, aA3, aA4, aA5, aA6, aA7, aA8, aA9, aA10, aA11, aA12, aA13, aA14, aA15, aA16, aA17, aA18, aA19, aA20, aA21, aA22, aA23, aA24, aA25, aA26, aA27, aA28);
+  }
+  
+  template<typename First, typename A1, typename A2, typename A3, typename A4, typename A5, typename A6, typename A7, typename A8, typename A9, typename A10, typename A11, typename A12, typename A13, typename A14, typename A15, typename A16, typename A17, typename A18, typename A19, typename A20, typename A21, typename A22, typename A23, typename A24, typename A25, typename A26, typename A27, typename A28, typename A29>
+  inline bool IsAnyOfHTMLElements(First aFirst, A1 aA1, A2 aA2, A3 aA3, A4 aA4, A5 aA5, A6 aA6, A7 aA7, A8 aA8, A9 aA9, A10 aA10, A11 aA11, A12 aA12, A13 aA13, A14 aA14, A15 aA15, A16 aA16, A17 aA17, A18 aA18, A19 aA19, A20 aA20, A21 aA21, A22 aA22, A23 aA23, A24 aA24, A25 aA25, A26 aA26, A27 aA27, A28 aA28, A29 aA29) const
+  {
+    return IsHTMLElement() && IsNodeInternal(aFirst, aA1, aA2, aA3, aA4, aA5, aA6, aA7, aA8, aA9, aA10, aA11, aA12, aA13, aA14, aA15, aA16, aA17, aA18, aA19, aA20, aA21, aA22, aA23, aA24, aA25, aA26, aA27, aA28, aA29);
+  }
+  
+  template<typename First, typename A1, typename A2, typename A3, typename A4, typename A5, typename A6, typename A7, typename A8, typename A9, typename A10, typename A11, typename A12, typename A13, typename A14, typename A15, typename A16, typename A17, typename A18, typename A19, typename A20, typename A21, typename A22, typename A23, typename A24, typename A25, typename A26, typename A27, typename A28, typename A29, typename A30>
+  inline bool IsAnyOfHTMLElements(First aFirst, A1 aA1, A2 aA2, A3 aA3, A4 aA4, A5 aA5, A6 aA6, A7 aA7, A8 aA8, A9 aA9, A10 aA10, A11 aA11, A12 aA12, A13 aA13, A14 aA14, A15 aA15, A16 aA16, A17 aA17, A18 aA18, A19 aA19, A20 aA20, A21 aA21, A22 aA22, A23 aA23, A24 aA24, A25 aA25, A26 aA26, A27 aA27, A28 aA28, A29 aA29, A30 aA30) const
+  {
+    return IsHTMLElement() && IsNodeInternal(aFirst, aA1, aA2, aA3, aA4, aA5, aA6, aA7, aA8, aA9, aA10, aA11, aA12, aA13, aA14, aA15, aA16, aA17, aA18, aA19, aA20, aA21, aA22, aA23, aA24, aA25, aA26, aA27, aA28, aA29, aA30);
+  }
+  
+  template<typename First, typename A1, typename A2, typename A3, typename A4, typename A5, typename A6, typename A7, typename A8, typename A9, typename A10, typename A11, typename A12, typename A13, typename A14, typename A15, typename A16, typename A17, typename A18, typename A19, typename A20, typename A21, typename A22, typename A23, typename A24, typename A25, typename A26, typename A27, typename A28, typename A29, typename A30, typename A31>
+  inline bool IsAnyOfHTMLElements(First aFirst, A1 aA1, A2 aA2, A3 aA3, A4 aA4, A5 aA5, A6 aA6, A7 aA7, A8 aA8, A9 aA9, A10 aA10, A11 aA11, A12 aA12, A13 aA13, A14 aA14, A15 aA15, A16 aA16, A17 aA17, A18 aA18, A19 aA19, A20 aA20, A21 aA21, A22 aA22, A23 aA23, A24 aA24, A25 aA25, A26 aA26, A27 aA27, A28 aA28, A29 aA29, A30 aA30, A31 aA31) const
+  {
+    return IsHTMLElement() && IsNodeInternal(aFirst, aA1, aA2, aA3, aA4, aA5, aA6, aA7, aA8, aA9, aA10, aA11, aA12, aA13, aA14, aA15, aA16, aA17, aA18, aA19, aA20, aA21, aA22, aA23, aA24, aA25, aA26, aA27, aA28, aA29, aA30, aA31);
+  }
+  
+  template<typename First, typename A1, typename A2, typename A3, typename A4, typename A5, typename A6, typename A7, typename A8, typename A9, typename A10, typename A11, typename A12, typename A13, typename A14, typename A15, typename A16, typename A17, typename A18, typename A19, typename A20, typename A21, typename A22, typename A23, typename A24, typename A25, typename A26, typename A27, typename A28, typename A29, typename A30, typename A31, typename A32>
+  inline bool IsAnyOfHTMLElements(First aFirst, A1 aA1, A2 aA2, A3 aA3, A4 aA4, A5 aA5, A6 aA6, A7 aA7, A8 aA8, A9 aA9, A10 aA10, A11 aA11, A12 aA12, A13 aA13, A14 aA14, A15 aA15, A16 aA16, A17 aA17, A18 aA18, A19 aA19, A20 aA20, A21 aA21, A22 aA22, A23 aA23, A24 aA24, A25 aA25, A26 aA26, A27 aA27, A28 aA28, A29 aA29, A30 aA30, A31 aA31, A32 aA32) const
+  {
+    return IsHTMLElement() && IsNodeInternal(aFirst, aA1, aA2, aA3, aA4, aA5, aA6, aA7, aA8, aA9, aA10, aA11, aA12, aA13, aA14, aA15, aA16, aA17, aA18, aA19, aA20, aA21, aA22, aA23, aA24, aA25, aA26, aA27, aA28, aA29, aA30, aA31, aA32);
+  }
+  */
 
   inline bool IsSVGElement() const
   {
@@ -276,11 +478,79 @@ public:
     return mNodeInfo->Equals(aTag, kNameSpaceID_SVG);
   }
 
-  template<typename First, typename... Args>
-  inline bool IsAnyOfSVGElements(First aFirst, Args... aArgs) const
+  /*
+  template<typename First, typename A1>
+  inline bool IsAnyOfSVGElements(First aFirst, A1 aA1) const
   {
-    return IsSVGElement() && IsNodeInternal(aFirst, aArgs...);
+    return IsSVGElement() && IsNodeInternal(aFirst, aA1);
   }
+  
+  template<typename First, typename A1, typename A2>
+  inline bool IsAnyOfSVGElements(First aFirst, A1 aA1, A2 aA2) const
+  {
+    return IsSVGElement() && IsNodeInternal(aFirst, aA1, aA2);
+  }
+  
+  template<typename First, typename A1, typename A2, typename A3>
+  inline bool IsAnyOfSVGElements(First aFirst, A1 aA1, A2 aA2, A3 aA3) const
+  {
+    return IsSVGElement() && IsNodeInternal(aFirst, aA1, aA2, aA3);
+  }
+  
+  template<typename First, typename A1, typename A2, typename A3, typename A4>
+  inline bool IsAnyOfSVGElements(First aFirst, A1 aA1, A2 aA2, A3 aA3, A4 aA4) const
+  {
+    return IsSVGElement() && IsNodeInternal(aFirst, aA1, aA2, aA3, aA4);
+  }
+  
+  template<typename First, typename A1, typename A2, typename A3, typename A4, typename A5>
+  inline bool IsAnyOfSVGElements(First aFirst, A1 aA1, A2 aA2, A3 aA3, A4 aA4, A5 aA5) const
+  {
+    return IsSVGElement() && IsNodeInternal(aFirst, aA1, aA2, aA3, aA4, aA5);
+  }
+  
+  template<typename First, typename A1, typename A2, typename A3, typename A4, typename A5, typename A6>
+  inline bool IsAnyOfSVGElements(First aFirst, A1 aA1, A2 aA2, A3 aA3, A4 aA4, A5 aA5, A6 aA6) const
+  {
+    return IsSVGElement() && IsNodeInternal(aFirst, aA1, aA2, aA3, aA4, aA5, aA6);
+  }
+  
+  template<typename First, typename A1, typename A2, typename A3, typename A4, typename A5, typename A6, typename A7>
+  inline bool IsAnyOfSVGElements(First aFirst, A1 aA1, A2 aA2, A3 aA3, A4 aA4, A5 aA5, A6 aA6, A7 aA7) const
+  {
+    return IsSVGElement() && IsNodeInternal(aFirst, aA1, aA2, aA3, aA4, aA5, aA6, aA7);
+  }
+  
+  template<typename First, typename A1, typename A2, typename A3, typename A4, typename A5, typename A6, typename A7, typename A8>
+  inline bool IsAnyOfSVGElements(First aFirst, A1 aA1, A2 aA2, A3 aA3, A4 aA4, A5 aA5, A6 aA6, A7 aA7, A8 aA8) const
+  {
+    return IsSVGElement() && IsNodeInternal(aFirst, aA1, aA2, aA3, aA4, aA5, aA6, aA7, aA8);
+  }
+  
+  template<typename First, typename A1, typename A2, typename A3, typename A4, typename A5, typename A6, typename A7, typename A8, typename A9>
+  inline bool IsAnyOfSVGElements(First aFirst, A1 aA1, A2 aA2, A3 aA3, A4 aA4, A5 aA5, A6 aA6, A7 aA7, A8 aA8, A9 aA9) const
+  {
+    return IsSVGElement() && IsNodeInternal(aFirst, aA1, aA2, aA3, aA4, aA5, aA6, aA7, aA8, aA9);
+  }
+  
+  template<typename First, typename A1, typename A2, typename A3, typename A4, typename A5, typename A6, typename A7, typename A8, typename A9, typename A10>
+  inline bool IsAnyOfSVGElements(First aFirst, A1 aA1, A2 aA2, A3 aA3, A4 aA4, A5 aA5, A6 aA6, A7 aA7, A8 aA8, A9 aA9, A10 aA10) const
+  {
+    return IsSVGElement() && IsNodeInternal(aFirst, aA1, aA2, aA3, aA4, aA5, aA6, aA7, aA8, aA9, aA10);
+  }
+  
+  template<typename First, typename A1, typename A2, typename A3, typename A4, typename A5, typename A6, typename A7, typename A8, typename A9, typename A10, typename A11>
+  inline bool IsAnyOfSVGElements(First aFirst, A1 aA1, A2 aA2, A3 aA3, A4 aA4, A5 aA5, A6 aA6, A7 aA7, A8 aA8, A9 aA9, A10 aA10, A11 aA11) const
+  {
+    return IsSVGElement() && IsNodeInternal(aFirst, aA1, aA2, aA3, aA4, aA5, aA6, aA7, aA8, aA9, aA10, aA11);
+  }
+  
+  template<typename First, typename A1, typename A2, typename A3, typename A4, typename A5, typename A6, typename A7, typename A8, typename A9, typename A10, typename A11, typename A12>
+  inline bool IsAnyOfSVGElements(First aFirst, A1 aA1, A2 aA2, A3 aA3, A4 aA4, A5 aA5, A6 aA6, A7 aA7, A8 aA8, A9 aA9, A10 aA10, A11 aA11, A12 aA12) const
+  {
+    return IsSVGElement() && IsNodeInternal(aFirst, aA1, aA2, aA3, aA4, aA5, aA6, aA7, aA8, aA9, aA10, aA11, aA12);
+  }
+  */
 
   inline bool IsXULElement() const
   {
@@ -292,11 +562,61 @@ public:
     return mNodeInfo->Equals(aTag, kNameSpaceID_XUL);
   }
 
-  template<typename First, typename... Args>
-  inline bool IsAnyOfXULElements(First aFirst, Args... aArgs) const
+  /*
+  template<typename First, typename A1>
+  inline bool IsAnyOfXULElements(First aFirst, A1 aA1) const
   {
-    return IsXULElement() && IsNodeInternal(aFirst, aArgs...);
+    return IsXULElement() && IsNodeInternal(aFirst, aA1);
   }
+  
+  template<typename First, typename A1, typename A2>
+  inline bool IsAnyOfXULElements(First aFirst, A1 aA1, A2 aA2) const
+  {
+    return IsXULElement() && IsNodeInternal(aFirst, aA1, aA2);
+  }
+  
+  template<typename First, typename A1, typename A2, typename A3>
+  inline bool IsAnyOfXULElements(First aFirst, A1 aA1, A2 aA2, A3 aA3) const
+  {
+    return IsXULElement() && IsNodeInternal(aFirst, aA1, aA2, aA3);
+  }
+  
+  template<typename First, typename A1, typename A2, typename A3, typename A4>
+  inline bool IsAnyOfXULElements(First aFirst, A1 aA1, A2 aA2, A3 aA3, A4 aA4) const
+  {
+    return IsXULElement() && IsNodeInternal(aFirst, aA1, aA2, aA3, aA4);
+  }
+  
+  template<typename First, typename A1, typename A2, typename A3, typename A4, typename A5>
+  inline bool IsAnyOfXULElements(First aFirst, A1 aA1, A2 aA2, A3 aA3, A4 aA4, A5 aA5) const
+  {
+    return IsXULElement() && IsNodeInternal(aFirst, aA1, aA2, aA3, aA4, aA5);
+  }
+  
+  template<typename First, typename A1, typename A2, typename A3, typename A4, typename A5, typename A6>
+  inline bool IsAnyOfXULElements(First aFirst, A1 aA1, A2 aA2, A3 aA3, A4 aA4, A5 aA5, A6 aA6) const
+  {
+    return IsXULElement() && IsNodeInternal(aFirst, aA1, aA2, aA3, aA4, aA5, aA6);
+  }
+  
+  template<typename First, typename A1, typename A2, typename A3, typename A4, typename A5, typename A6, typename A7>
+  inline bool IsAnyOfXULElements(First aFirst, A1 aA1, A2 aA2, A3 aA3, A4 aA4, A5 aA5, A6 aA6, A7 aA7) const
+  {
+    return IsXULElement() && IsNodeInternal(aFirst, aA1, aA2, aA3, aA4, aA5, aA6, aA7);
+  }
+  
+  template<typename First, typename A1, typename A2, typename A3, typename A4, typename A5, typename A6, typename A7, typename A8>
+  inline bool IsAnyOfXULElements(First aFirst, A1 aA1, A2 aA2, A3 aA3, A4 aA4, A5 aA5, A6 aA6, A7 aA7, A8 aA8) const
+  {
+    return IsXULElement() && IsNodeInternal(aFirst, aA1, aA2, aA3, aA4, aA5, aA6, aA7, aA8);
+  }
+  
+  template<typename First, typename A1, typename A2, typename A3, typename A4, typename A5, typename A6, typename A7, typename A8, typename A9>
+  inline bool IsAnyOfXULElements(First aFirst, A1 aA1, A2 aA2, A3 aA3, A4 aA4, A5 aA5, A6 aA6, A7 aA7, A8 aA8, A9 aA9) const
+  {
+    return IsXULElement() && IsNodeInternal(aFirst, aA1, aA2, aA3, aA4, aA5, aA6, aA7, aA8, aA9);
+  }
+  */
 
   inline bool IsMathMLElement() const
   {
@@ -308,11 +628,142 @@ public:
     return mNodeInfo->Equals(aTag, kNameSpaceID_MathML);
   }
 
+  /*
   template<typename First, typename... Args>
   inline bool IsAnyOfMathMLElements(First aFirst, Args... aArgs) const
   {
     return IsMathMLElement() && IsNodeInternal(aFirst, aArgs...);
   }
+  */
+  
+  /* Again, this causes runtime execution failure
+  template<typename First>
+  inline bool IsAnyOfMathMLElements(First aFirst) const
+  {
+    return IsMathMLElement() && IsNodeInternal(aFirst);
+  }
+  
+  template<typename First, typename A1>
+  inline bool IsAnyOfMathMLElements(First aFirst, A1 aA1) const
+  {
+    return IsMathMLElement() && IsNodeInternal(aFirst, aA1);
+  }
+  
+  template<typename First, typename A1, typename A2>
+  inline bool IsAnyOfMathMLElements(First aFirst, A1 aA1, A2 aA2) const
+  {
+    return IsMathMLElement() && IsNodeInternal(aFirst, aA1, aA2);
+  }
+  
+  template<typename First, typename A1, typename A2, typename A3>
+  inline bool IsAnyOfMathMLElements(First aFirst, A1 aA1, A2 aA2, A3 aA3) const
+  {
+    return IsMathMLElement() && IsNodeInternal(aFirst, aA1, aA2, aA3);
+  }
+  
+  template<typename First, typename A1, typename A2, typename A3, typename A4>
+  inline bool IsAnyOfMathMLElements(First aFirst, A1 aA1, A2 aA2, A3 aA3, A4 aA4) const
+  {
+    return IsMathMLElement() && IsNodeInternal(aFirst, aA1, aA2, aA3, aA4);
+  }
+  
+  template<typename First, typename A1, typename A2, typename A3, typename A4, typename A5>
+  inline bool IsAnyOfMathMLElements(First aFirst, A1 aA1, A2 aA2, A3 aA3, A4 aA4, A5 aA5) const
+  {
+    return IsMathMLElement() && IsNodeInternal(aFirst, aA1, aA2, aA3, aA4, aA5);
+  }
+  
+  template<typename First, typename A1, typename A2, typename A3, typename A4, typename A5, typename A6>
+  inline bool IsAnyOfMathMLElements(First aFirst, A1 aA1, A2 aA2, A3 aA3, A4 aA4, A5 aA5, A6 aA6) const
+  {
+    return IsMathMLElement() && IsNodeInternal(aFirst, aA1, aA2, aA3, aA4, aA5, aA6);
+  }
+  
+  template<typename First, typename A1, typename A2, typename A3, typename A4, typename A5, typename A6, typename A7>
+  inline bool IsAnyOfMathMLElements(First aFirst, A1 aA1, A2 aA2, A3 aA3, A4 aA4, A5 aA5, A6 aA6, A7 aA7) const
+  {
+    return IsMathMLElement() && IsNodeInternal(aFirst, aA1, aA2, aA3, aA4, aA5, aA6, aA7);
+  }
+  
+  template<typename First, typename A1, typename A2, typename A3, typename A4, typename A5, typename A6, typename A7, typename A8>
+  inline bool IsAnyOfMathMLElements(First aFirst, A1 aA1, A2 aA2, A3 aA3, A4 aA4, A5 aA5, A6 aA6, A7 aA7, A8 aA8) const
+  {
+    return IsMathMLElement() && IsNodeInternal(aFirst, aA1, aA2, aA3, aA4, aA5, aA6, aA7, aA8);
+  }
+  
+  template<typename First, typename A1, typename A2, typename A3, typename A4, typename A5, typename A6, typename A7, typename A8, typename A9>
+  inline bool IsAnyOfMathMLElements(First aFirst, A1 aA1, A2 aA2, A3 aA3, A4 aA4, A5 aA5, A6 aA6, A7 aA7, A8 aA8, A9 aA9) const
+  {
+    return IsMathMLElement() && IsNodeInternal(aFirst, aA1, aA2, aA3, aA4, aA5, aA6, aA7, aA8, aA9);
+  }
+  
+  template<typename First, typename A1, typename A2, typename A3, typename A4, typename A5, typename A6, typename A7, typename A8, typename A9, typename A10>
+  inline bool IsAnyOfMathMLElements(First aFirst, A1 aA1, A2 aA2, A3 aA3, A4 aA4, A5 aA5, A6 aA6, A7 aA7, A8 aA8, A9 aA9, A10 aA10) const
+  {
+    return IsMathMLElement() && IsNodeInternal(aFirst, aA1, aA2, aA3, aA4, aA5, aA6, aA7, aA8, aA9, aA10);
+  }
+  
+  template<typename First, typename A1, typename A2, typename A3, typename A4, typename A5, typename A6, typename A7, typename A8, typename A9, typename A10, typename A11>
+  inline bool IsAnyOfMathMLElements(First aFirst, A1 aA1, A2 aA2, A3 aA3, A4 aA4, A5 aA5, A6 aA6, A7 aA7, A8 aA8, A9 aA9, A10 aA10, A11 aA11) const
+  {
+    return IsMathMLElement() && IsNodeInternal(aFirst, aA1, aA2, aA3, aA4, aA5, aA6, aA7, aA8, aA9, aA10, aA11);
+  }
+  
+  template<typename First, typename A1, typename A2, typename A3, typename A4, typename A5, typename A6, typename A7, typename A8, typename A9, typename A10, typename A11, typename A12>
+  inline bool IsAnyOfMathMLElements(First aFirst, A1 aA1, A2 aA2, A3 aA3, A4 aA4, A5 aA5, A6 aA6, A7 aA7, A8 aA8, A9 aA9, A10 aA10, A11 aA11, A12 aA12) const
+  {
+    return IsMathMLElement() && IsNodeInternal(aFirst, aA1, aA2, aA3, aA4, aA5, aA6, aA7, aA8, aA9, aA10, aA11, aA12);
+  }
+  
+  template<typename First, typename A1, typename A2, typename A3, typename A4, typename A5, typename A6, typename A7, typename A8, typename A9, typename A10, typename A11, typename A12, typename A13>
+  inline bool IsAnyOfMathMLElements(First aFirst, A1 aA1, A2 aA2, A3 aA3, A4 aA4, A5 aA5, A6 aA6, A7 aA7, A8 aA8, A9 aA9, A10 aA10, A11 aA11, A12 aA12, A13 aA13) const
+  {
+    return IsMathMLElement() && IsNodeInternal(aFirst, aA1, aA2, aA3, aA4, aA5, aA6, aA7, aA8, aA9, aA10, aA11, aA12, aA13);
+  }
+  
+  template<typename First, typename A1, typename A2, typename A3, typename A4, typename A5, typename A6, typename A7, typename A8, typename A9, typename A10, typename A11, typename A12, typename A13, typename A14>
+  inline bool IsAnyOfMathMLElements(First aFirst, A1 aA1, A2 aA2, A3 aA3, A4 aA4, A5 aA5, A6 aA6, A7 aA7, A8 aA8, A9 aA9, A10 aA10, A11 aA11, A12 aA12, A13 aA13, A14 aA14) const
+  {
+    return IsMathMLElement() && IsNodeInternal(aFirst, aA1, aA2, aA3, aA4, aA5, aA6, aA7, aA8, aA9, aA10, aA11, aA12, aA13, aA14);
+  }
+  
+  template<typename First, typename A1, typename A2, typename A3, typename A4, typename A5, typename A6, typename A7, typename A8, typename A9, typename A10, typename A11, typename A12, typename A13, typename A14, typename A15>
+  inline bool IsAnyOfMathMLElements(First aFirst, A1 aA1, A2 aA2, A3 aA3, A4 aA4, A5 aA5, A6 aA6, A7 aA7, A8 aA8, A9 aA9, A10 aA10, A11 aA11, A12 aA12, A13 aA13, A14 aA14, A15 aA15) const
+  {
+    return IsMathMLElement() && IsNodeInternal(aFirst, aA1, aA2, aA3, aA4, aA5, aA6, aA7, aA8, aA9, aA10, aA11, aA12, aA13, aA14, aA15);
+  }
+  
+  template<typename First, typename A1, typename A2, typename A3, typename A4, typename A5, typename A6, typename A7, typename A8, typename A9, typename A10, typename A11, typename A12, typename A13, typename A14, typename A15, typename A16>
+  inline bool IsAnyOfMathMLElements(First aFirst, A1 aA1, A2 aA2, A3 aA3, A4 aA4, A5 aA5, A6 aA6, A7 aA7, A8 aA8, A9 aA9, A10 aA10, A11 aA11, A12 aA12, A13 aA13, A14 aA14, A15 aA15, A16 aA16) const
+  {
+    return IsMathMLElement() && IsNodeInternal(aFirst, aA1, aA2, aA3, aA4, aA5, aA6, aA7, aA8, aA9, aA10, aA11, aA12, aA13, aA14, aA15, aA16);
+  }
+  
+  template<typename First, typename A1, typename A2, typename A3, typename A4, typename A5, typename A6, typename A7, typename A8, typename A9, typename A10, typename A11, typename A12, typename A13, typename A14, typename A15, typename A16, typename A17>
+  inline bool IsAnyOfMathMLElements(First aFirst, A1 aA1, A2 aA2, A3 aA3, A4 aA4, A5 aA5, A6 aA6, A7 aA7, A8 aA8, A9 aA9, A10 aA10, A11 aA11, A12 aA12, A13 aA13, A14 aA14, A15 aA15, A16 aA16, A17 aA17) const
+  {
+    return IsMathMLElement() && IsNodeInternal(aFirst, aA1, aA2, aA3, aA4, aA5, aA6, aA7, aA8, aA9, aA10, aA11, aA12, aA13, aA14, aA15, aA16, aA17);
+  }
+  
+  template<typename First, typename A1, typename A2, typename A3, typename A4, typename A5, typename A6, typename A7, typename A8, typename A9, typename A10, typename A11, typename A12, typename A13, typename A14, typename A15, typename A16, typename A17, typename A18>
+  inline bool IsAnyOfMathMLElements(First aFirst, A1 aA1, A2 aA2, A3 aA3, A4 aA4, A5 aA5, A6 aA6, A7 aA7, A8 aA8, A9 aA9, A10 aA10, A11 aA11, A12 aA12, A13 aA13, A14 aA14, A15 aA15, A16 aA16, A17 aA17, A18 aA18) const
+  {
+    return IsMathMLElement() && IsNodeInternal(aFirst, aA1, aA2, aA3, aA4, aA5, aA6, aA7, aA8, aA9, aA10, aA11, aA12, aA13, aA14, aA15, aA16, aA17, aA18);
+  }
+  
+  template<typename First, typename A1, typename A2, typename A3, typename A4, typename A5, typename A6, typename A7, typename A8, typename A9, typename A10, typename A11, typename A12, typename A13, typename A14, typename A15, typename A16, typename A17, typename A18, typename A19>
+  inline bool IsAnyOfMathMLElements(First aFirst, A1 aA1, A2 aA2, A3 aA3, A4 aA4, A5 aA5, A6 aA6, A7 aA7, A8 aA8, A9 aA9, A10 aA10, A11 aA11, A12 aA12, A13 aA13, A14 aA14, A15 aA15, A16 aA16, A17 aA17, A18 aA18, A19 aA19) const
+  {
+    return IsMathMLElement() && IsNodeInternal(aFirst, aA1, aA2, aA3, aA4, aA5, aA6, aA7, aA8, aA9, aA10, aA11, aA12, aA13, aA14, aA15, aA16, aA17, aA18, aA19);
+  }
+  
+  template<typename First, typename A1, typename A2, typename A3, typename A4, typename A5, typename A6, typename A7, typename A8, typename A9, typename A10, typename A11, typename A12, typename A13, typename A14, typename A15, typename A16, typename A17, typename A18, typename A19, typename A20>
+  inline bool IsAnyOfMathMLElements(First aFirst, A1 aA1, A2 aA2, A3 aA3, A4 aA4, A5 aA5, A6 aA6, A7 aA7, A8 aA8, A9 aA9, A10 aA10, A11 aA11, A12 aA12, A13 aA13, A14 aA14, A15 aA15, A16 aA16, A17 aA17, A18 aA18, A19 aA19, A20 aA20) const
+  {
+    return IsMathMLElement() && IsNodeInternal(aFirst, aA1, aA2, aA3, aA4, aA5, aA6, aA7, aA8, aA9, aA10, aA11, aA12, aA13, aA14, aA15, aA16, aA17, aA18, aA19, aA20);
+  }
+  */
+  
   inline bool IsActiveChildrenElement() const
   {
     return mNodeInfo->Equals(nsGkAtoms::children, kNameSpaceID_XBL) &&

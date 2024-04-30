@@ -52,8 +52,8 @@ class TName
     POOL_ALLOCATOR_NEW_DELETE();
     explicit TName(const TString &name) : mName(name), mIsInternal(false) {}
     TName() : mName(), mIsInternal(false) {}
-    TName(const TName &) = default;
-    TName &operator=(const TName &) = default;
+    TName(const TName &) MOZ_DEFAULT;
+    TName &operator=(const TName &) MOZ_DEFAULT;
 
     const TString &getString() const { return mName; }
     void setString(const TString &string) { mName = string; }
@@ -260,7 +260,7 @@ class TIntermSymbol : public TIntermTyped
     TName mSymbol;
 
   private:
-    TIntermSymbol(const TIntermSymbol &) = default;  // Note: not deleted, just private!
+    TIntermSymbol(const TIntermSymbol &) MOZ_DEFAULT;  // Note: not deleted, just private!
 };
 
 // A Raw node stores raw code, that the translator will insert verbatim
@@ -272,7 +272,7 @@ class TIntermRaw : public TIntermTyped
     TIntermRaw(const TType &type, const TString &rawText)
         : TIntermTyped(type),
           mRawText(rawText) { }
-    TIntermRaw(const TIntermRaw &) = delete;
+    TIntermRaw(const TIntermRaw &) MOZ_DELETE;
 
     TIntermTyped *deepCopy() const override
     {
@@ -382,7 +382,7 @@ class TIntermOperator : public TIntermTyped
         : TIntermTyped(type),
           mOp(op) {}
 
-    TIntermOperator(const TIntermOperator &) = default;
+    TIntermOperator(const TIntermOperator &) MOZ_DEFAULT;
 
     TOperator mOp;
 };

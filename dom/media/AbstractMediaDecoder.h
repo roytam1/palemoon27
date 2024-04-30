@@ -12,6 +12,7 @@
 #include "nsISupports.h"
 #include "nsDataHashtable.h"
 #include "nsThreadUtils.h"
+#include "mozilla/TypedEnum.h"
 
 namespace mozilla
 {
@@ -32,10 +33,10 @@ static inline bool IsCurrentThread(nsIThread* aThread) {
   return NS_GetCurrentThread() == aThread;
 }
 
-enum class MediaDecoderEventVisibility : int8_t {
+MOZ_BEGIN_ENUM_CLASS(MediaDecoderEventVisibility, int8_t)
   Observable,
   Suppressed
-};
+MOZ_END_ENUM_CLASS(MediaDecoderEventVisibility)
 
 /**
  * The AbstractMediaDecoder class describes the public interface for a media decoder

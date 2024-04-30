@@ -507,9 +507,9 @@ public:
   int32_t mPortCount;
 
   // True if the graph needs another iteration after the current iteration.
-  Atomic<bool> mNeedAnotherIteration;
+  bool mNeedAnotherIteration;
   // GraphDriver may need a WakeUp() if something changes
-  Atomic<bool> mGraphDriverAsleep;
+  bool mGraphDriverAsleep;
 
   // mMonitor guards the data below.
   // MediaStreamGraph normally does its work without holding mMonitor, so it is

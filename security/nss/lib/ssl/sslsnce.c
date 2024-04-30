@@ -732,11 +732,10 @@ ServerSessionIDLookup(const PRIPv6Addr *addr,
 void
 ssl_ServerCacheSessionID(sslSessionID *sid)
 {
-    PORT_Assert(sid);
-
     sidCacheEntry sce;
     PRUint32 now = 0;
     cacheDesc *cache = &globalCache;
+    PORT_Assert(sid);
 
     if (sid->u.ssl3.sessionIDLength == 0) {
         return;

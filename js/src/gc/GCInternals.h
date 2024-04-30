@@ -49,8 +49,8 @@ class AutoTraceSession
     JSRuntime* runtime;
 
   private:
-    AutoTraceSession(const AutoTraceSession&) = delete;
-    void operator=(const AutoTraceSession&) = delete;
+    AutoTraceSession(const AutoTraceSession&) MOZ_DELETE;
+    void operator=(const AutoTraceSession&) MOZ_DELETE;
 
     HeapState prevState;
 };
@@ -74,7 +74,7 @@ class IncrementalSafety
     static IncrementalSafety Safe() { return IncrementalSafety(nullptr); }
     static IncrementalSafety Unsafe(const char* reason) { return IncrementalSafety(reason); }
 
-    explicit operator bool() const {
+    MOZ_EXPLICIT_CONVERSION operator bool() const {
         return reason_ == nullptr;
     }
 

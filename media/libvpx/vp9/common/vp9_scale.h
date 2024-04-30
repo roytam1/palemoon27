@@ -33,7 +33,7 @@ struct scale_factors {
 
   convolve_fn_t predict[2][2][2];  // horiz, vert, avg
 #if CONFIG_VP9_HIGHBITDEPTH
-  highbd_convolve_fn_t highbd_predict[2][2][2];  // horiz, vert, avg
+  high_convolve_fn_t high_predict[2][2][2];  // horiz, vert, avg
 #endif
 };
 

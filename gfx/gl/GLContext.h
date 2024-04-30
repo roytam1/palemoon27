@@ -84,7 +84,7 @@ namespace mozilla {
 namespace mozilla {
 namespace gl {
 
-enum class GLFeature {
+MOZ_BEGIN_ENUM_CLASS(GLFeature)
     bind_buffer_offset,
     blend_minmax,
     clear_buffers,
@@ -136,17 +136,17 @@ enum class GLFeature {
     uniform_matrix_nonsquare,
     vertex_array_object,
     EnumMax
-};
+MOZ_END_ENUM_CLASS(GLFeature)
 
-enum class ContextProfile : uint8_t {
+MOZ_BEGIN_ENUM_CLASS(ContextProfile, uint8_t)
     Unknown = 0,
     OpenGL, // only for IsAtLeast's <profile> parameter
     OpenGLCore,
     OpenGLCompatibility,
     OpenGLES
-};
+MOZ_END_ENUM_CLASS(ContextProfile)
 
-enum class GLVendor {
+MOZ_BEGIN_ENUM_CLASS(GLVendor)
     Intel,
     NVIDIA,
     ATI,
@@ -157,9 +157,9 @@ enum class GLVendor {
     VMware,
     ARM,
     Other
-};
+MOZ_END_ENUM_CLASS(GLVendor)
 
-enum class GLRenderer {
+MOZ_BEGIN_ENUM_CLASS(GLRenderer)
     Adreno200,
     Adreno205,
     AdrenoTM200,
@@ -173,7 +173,7 @@ enum class GLRenderer {
     IntelHD3000,
     MicrosoftBasicRenderDriver,
     Other
-};
+MOZ_END_ENUM_CLASS(GLRenderer)
 
 class GLContext
     : public GLLibraryLoader

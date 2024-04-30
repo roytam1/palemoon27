@@ -12,7 +12,6 @@
 #define _WIN32_WINNT 0x0600
 #include <windows.h>
 #include <winbase.h>
-#include <VersionHelpers.h>
 #include <stdlib.h>
 #include <io.h>
 #include <fcntl.h>

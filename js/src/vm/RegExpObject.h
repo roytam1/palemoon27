@@ -242,8 +242,8 @@ class RegExpGuard : public JS::CustomAutoRooter
 {
     RegExpShared* re_;
 
-    RegExpGuard(const RegExpGuard&) = delete;
-    void operator=(const RegExpGuard&) = delete;
+    RegExpGuard(const RegExpGuard&) MOZ_DELETE;
+    void operator=(const RegExpGuard&) MOZ_DELETE;
 
   public:
     explicit RegExpGuard(ExclusiveContext* cx)
@@ -466,7 +466,7 @@ class RegExpObject : public NativeObject
     }
 
     /* Call setShared in preference to setPrivate. */
-    void setPrivate(void* priv) = delete;
+    void setPrivate(void* priv) MOZ_DELETE;
 };
 
 /*

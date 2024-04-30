@@ -179,7 +179,7 @@ private:
   nsTArray<nsISupports*> mArray;
 
   // don't implement these, defaults will muck with refcounts!
-  nsCOMArray_base& operator=(const nsCOMArray_base& aOther) = delete;
+  nsCOMArray_base& operator=(const nsCOMArray_base& aOther) MOZ_DELETE;
 };
 
 inline void
@@ -450,7 +450,7 @@ public:
 private:
 
   // don't implement these!
-  nsCOMArray<T>& operator=(const nsCOMArray<T>& aOther) = delete;
+  nsCOMArray<T>& operator=(const nsCOMArray<T>& aOther) MOZ_DELETE;
 };
 
 template<typename T>

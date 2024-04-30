@@ -10,6 +10,7 @@
 #define mozilla_EnumeratedArray_h
 
 #include "mozilla/Array.h"
+#include "mozilla/TypedEnum.h"
 
 namespace mozilla {
 
@@ -38,7 +39,7 @@ namespace mozilla {
  *
  */
 template<typename IndexType,
-         IndexType SizeAsEnumValue,
+         MOZ_TEMPLATE_ENUM_CLASS_ENUM_TYPE(IndexType) SizeAsEnumValue,
          typename ValueType>
 class EnumeratedArray
 {

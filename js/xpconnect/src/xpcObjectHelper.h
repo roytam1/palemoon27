@@ -123,7 +123,7 @@ protected:
     nsISupports*             mCanonical;
 
 private:
-    xpcObjectHelper(xpcObjectHelper& aOther) = delete;
+    xpcObjectHelper(xpcObjectHelper& aOther) MOZ_DELETE;
 
     nsISupports*             mObject;
     nsWrapperCache*          mCache;

@@ -1405,6 +1405,11 @@ nsBidiPresUtils::IsFirstOrLast(nsIFrame* aFrame,
   }
 }
 
+#if defined (_MSC_VER) && _MSC_VER >= 1700
+// Visual C++ 2010 is incompatible with range based for loops. Only enable when using
+// Visual C++ 2012 or newer. See bug 1141931 especially part 8, as this effectively
+// reverts it
+
 /* static */ nscoord
 nsBidiPresUtils::RepositionRubyFrame(
   nsIFrame* aFrame,
@@ -1481,6 +1486,7 @@ nsBidiPresUtils::RepositionRubyFrame(
   }
   return icoord;
 }
+#endif // MSC_VER >= 1700
 
 /* static */ nscoord
 nsBidiPresUtils::RepositionFrame(nsIFrame* aFrame,
@@ -1554,9 +1560,11 @@ nsBidiPresUtils::RepositionFrame(nsIFrame* aFrame,
     }
     icoord += reverseDir ?
       borderPadding.IStart(frameWM) : borderPadding.IEnd(frameWM);
+      #if defined (_MSC_VER) && _MSC_VER >= 1700
   } else if (aFrame->StyleDisplay()->IsRubyDisplayType()) {
     icoord += RepositionRubyFrame(aFrame, aContinuationStates,
                                   aContainerWM, borderPadding);
+	#endif
   } else {
     icoord +=
       frameWM.IsOrthogonalTo(aContainerWM) ? aFrame->BSize() : frameISize;
@@ -1596,8 +1604,7 @@ nsBidiPresUtils::InitContinuationStates(nsIFrame*              aFrame,
   state->mFirstVisualFrame = nullptr;
   state->mFrameCount = 0;
 
-  if (!IsBidiLeaf(aFrame) ||
-      aFrame->StyleDisplay()->IsRubyDisplayType()) {
+  if (!IsBidiLeaf(aFrame)) {
     // Continue for child frames
     nsIFrame* frame;
     for (frame = aFrame->GetFirstPrincipalChild();

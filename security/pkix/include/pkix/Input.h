@@ -81,7 +81,7 @@ public:
   }
 
   // This is intentionally not explicit in order to allow value semantics.
-  Input(const Input&) = default;
+  Input(const Input&) { };
 
   // Initialize the input. data must be non-null and len must be less than
   // 65536. Init may not be called more than once.
@@ -127,7 +127,7 @@ private:
   const uint8_t* data;
   size_t len;
 
-  void operator=(const Input&) = delete; // Use Init instead.
+  void operator=(const Input&) MOZ_DELETE; // Use Init instead.
 };
 
 inline bool
@@ -290,13 +290,13 @@ public:
   class Mark final
   {
   public:
-    Mark(const Mark&) = default; // Intentionally not explicit.
+    Mark(const Mark&) MOZ_DEFAULT; // Intentionally not explicit.
   private:
     friend class Reader;
     Mark(const Reader& input, const uint8_t* mark) : input(input), mark(mark) { }
     const Reader& input;
     const uint8_t* const mark;
-    void operator=(const Mark&) = delete;
+    void operator=(const Mark&) MOZ_DELETE;
   };
 
   Mark GetMark() const { return Mark(*this, input); }
@@ -325,8 +325,8 @@ private:
   const uint8_t* input;
   const uint8_t* end;
 
-  Reader(const Reader&) = delete;
-  void operator=(const Reader&) = delete;
+  Reader(const Reader&) MOZ_DELETE;
+  void operator=(const Reader&) MOZ_DELETE;
 };
 
 inline bool

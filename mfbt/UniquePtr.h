@@ -286,7 +286,7 @@ public:
     return get();
   }
 
-  explicit operator bool() const { return get() != nullptr; }
+  MOZ_EXPLICIT_CONVERSION operator bool() const { return get() != nullptr; }
 
   Pointer get() const { return ptr(); }
 
@@ -315,8 +315,8 @@ public:
   }
 
 private:
-  UniquePtr(const UniquePtr& aOther) = delete; // construct using Move()!
-  void operator=(const UniquePtr& aOther) = delete; // assign using Move()!
+  UniquePtr(const UniquePtr& aOther) MOZ_DELETE; // construct using Move()!
+  void operator=(const UniquePtr& aOther) MOZ_DELETE; // assign using Move()!
 };
 
 // In case you didn't read the comment by the main definition (you should!): the
@@ -425,7 +425,7 @@ public:
     return *this;
   }
 
-  explicit operator bool() const { return get() != nullptr; }
+  MOZ_EXPLICIT_CONVERSION operator bool() const { return get() != nullptr; }
 
   T& operator[](decltype(sizeof(int)) aIndex) const { return get()[aIndex]; }
   Pointer get() const { return mTuple.first(); }
@@ -460,14 +460,14 @@ public:
 
 private:
   template<typename U>
-  void reset(U) = delete;
+  void reset(U) MOZ_DELETE;
 
 public:
   void swap(UniquePtr& aOther) { mTuple.swap(aOther.mTuple); }
 
 private:
-  UniquePtr(const UniquePtr& aOther) = delete; // construct using Move()!
-  void operator=(const UniquePtr& aOther) = delete; // assign using Move()!
+  UniquePtr(const UniquePtr& aOther) MOZ_DELETE; // construct using Move()!
+  void operator=(const UniquePtr& aOther) MOZ_DELETE; // assign using Move()!
 };
 
 /** A default deletion policy using plain old operator delete. */
@@ -505,7 +505,7 @@ public:
 
 private:
   template<typename U>
-  void operator()(U* aPtr) const = delete;
+  void operator()(U* aPtr) const MOZ_DELETE;
 };
 
 template<typename T, class D>
@@ -639,11 +639,84 @@ struct UniqueSelector<T[N]>
 // 0-8 for now.  If you need more arguments, feel free to add the extra
 // overloads (and deletions for the T = E[N] case).
 
-template<typename T, typename... Args>
+template<typename T>
 typename detail::UniqueSelector<T>::SingleObject
-MakeUnique(Args&&... aArgs)
+MakeUnique()
 {
-  return UniquePtr<T>(new T(Forward<Args>(aArgs)...));
+  return UniquePtr<T>(new T());
+}
+
+template<typename T, typename A1>
+typename detail::UniqueSelector<T>::SingleObject
+MakeUnique(A1&& aA1)
+{
+  return UniquePtr<T>(new T(Forward<A1>(aA1)));
+}
+
+template<typename T, typename A1, typename A2>
+typename detail::UniqueSelector<T>::SingleObject
+MakeUnique(A1&& aA1, A2&& aA2)
+{
+  return UniquePtr<T>(new T(Forward<A1>(aA1), Forward<A2>(aA2)));
+}
+
+template<typename T, typename A1, typename A2, typename A3>
+typename detail::UniqueSelector<T>::SingleObject
+MakeUnique(A1&& aA1, A2&& aA2, A3&& aA3)
+{
+  return UniquePtr<T>(new T(Forward<A1>(aA1), Forward<A2>(aA2),
+                            Forward<A3>(aA3)));
+}
+
+template<typename T, typename A1, typename A2, typename A3, typename A4>
+typename detail::UniqueSelector<T>::SingleObject
+MakeUnique(A1&& aA1, A2&& aA2, A3&& aA3, A4&& aA4)
+{
+  return UniquePtr<T>(new T(Forward<A1>(aA1), Forward<A2>(aA2),
+                            Forward<A3>(aA3), Forward<A4>(aA4)));
+}
+
+template<typename T, typename A1, typename A2, typename A3, typename A4,
+         typename A5>
+typename detail::UniqueSelector<T>::SingleObject
+MakeUnique(A1&& aA1, A2&& aA2, A3&& aA3, A4&& aA4, A5&& aA5)
+{
+  return UniquePtr<T>(new T(Forward<A1>(aA1), Forward<A2>(aA2),
+                            Forward<A3>(aA3), Forward<A4>(aA4),
+                            Forward<A5>(aA5)));
+}
+
+template<typename T, typename A1, typename A2, typename A3, typename A4,
+         typename A5, typename A6>
+typename detail::UniqueSelector<T>::SingleObject
+MakeUnique(A1&& a1, A2&& a2, A3&& a3, A4&& a4, A5&& a5, A6&& a6)
+{
+  return UniquePtr<T>(new T(Forward<A1>(a1), Forward<A2>(a2),
+                            Forward<A3>(a3), Forward<A4>(a4),
+                            Forward<A5>(a5), Forward<A6>(a6)));
+}
+
+template<typename T, typename A1, typename A2, typename A3, typename A4,
+         typename A5, typename A6, typename A7>
+typename detail::UniqueSelector<T>::SingleObject
+MakeUnique(A1&& a1, A2&& a2, A3&& a3, A4&& a4, A5&& a5, A6&& a6, A7&& a7)
+{
+  return UniquePtr<T>(new T(Forward<A1>(a1), Forward<A2>(a2),
+                            Forward<A3>(a3), Forward<A4>(a4),
+                            Forward<A5>(a5), Forward<A6>(a6),
+                            Forward<A7>(a7)));
+}
+
+template<typename T, typename A1, typename A2, typename A3, typename A4,
+         typename A5, typename A6, typename A7, typename A8>
+typename detail::UniqueSelector<T>::SingleObject
+MakeUnique(A1&& a1, A2&& a2, A3&& a3, A4&& a4, A5&& a5, A6&& a6, A7&& a7,
+           A8&& a8)
+{
+  return UniquePtr<T>(new T(Forward<A1>(a1), Forward<A2>(a2),
+                            Forward<A3>(a3), Forward<A4>(a4),
+                            Forward<A5>(a5), Forward<A6>(a6),
+                            Forward<A7>(a7), Forward<A8>(a8)));
 }
 
 template<typename T>
@@ -654,10 +727,48 @@ MakeUnique(decltype(sizeof(int)) aN)
   return UniquePtr<T>(new ArrayType[aN]());
 }
 
-template<typename T, typename... Args>
+template<typename T>
 typename detail::UniqueSelector<T>::KnownBound
-MakeUnique(Args&&... aArgs) = delete;
+MakeUnique() MOZ_DELETE;
 
+template<typename T, typename A1>
+typename detail::UniqueSelector<T>::KnownBound
+MakeUnique(A1&& aA1) MOZ_DELETE;
+
+template<typename T, typename A1, typename A2>
+typename detail::UniqueSelector<T>::KnownBound
+MakeUnique(A1&& aA1, A2&& aA2) MOZ_DELETE;
+
+template<typename T, typename A1, typename A2, typename A3>
+typename detail::UniqueSelector<T>::KnownBound
+MakeUnique(A1&& aA1, A2&& aA2, A3&& aA3) MOZ_DELETE;
+
+template<typename T, typename A1, typename A2, typename A3, typename A4>
+typename detail::UniqueSelector<T>::KnownBound
+MakeUnique(A1&& aA1, A2&& aA2, A3&& aA3, A4&& aA4) MOZ_DELETE;
+
+template<typename T, typename A1, typename A2, typename A3, typename A4,
+         typename A5>
+typename detail::UniqueSelector<T>::KnownBound
+MakeUnique(A1&& aA1, A2&& aA2, A3&& aA3, A4&& aA4, A5&& aA5) MOZ_DELETE;
+
+template<typename T, typename A1, typename A2, typename A3, typename A4,
+         typename A5, typename A6>
+typename detail::UniqueSelector<T>::KnownBound
+MakeUnique(A1&& a1, A2&& a2, A3&& a3, A4&& a4, A5&& a5,
+           A6&& a6) MOZ_DELETE;
+
+template<typename T, typename A1, typename A2, typename A3, typename A4,
+         typename A5, typename A6, typename A7>
+typename detail::UniqueSelector<T>::KnownBound
+MakeUnique(A1&& a1, A2&& a2, A3&& a3, A4&& a4, A5&& a5, A6&& a6,
+           A7&& a7) MOZ_DELETE;
+
+template<typename T, typename A1, typename A2, typename A3, typename A4,
+         typename A5, typename A6, typename A7, typename A8>
+typename detail::UniqueSelector<T>::KnownBound
+MakeUnique(A1&& a1, A2&& a2, A3&& a3, A4&& a4, A5&& a5, A6&& a6,
+           A7&& a7, A8&& a8) MOZ_DELETE;
 } // namespace mozilla
 
 #endif /* mozilla_UniquePtr_h */

@@ -18,7 +18,7 @@
 #ifndef WOFF2_STORE_BYTES_H_
 #define WOFF2_STORE_BYTES_H_
 
-#include <inttypes.h>
+#include "mozilla/MSIntTypes.h"
 #include <stddef.h>
 #include <string.h>
 

@@ -187,11 +187,39 @@ AddToHash(uint32_t aHash, uintptr_t aA)
   return detail::AddUintptrToHash<sizeof(uintptr_t)>(aHash, aA);
 }
 
-template<typename A, typename... Args>
+template<typename A, typename B>
 MOZ_WARN_UNUSED_RESULT uint32_t
-AddToHash(uint32_t aHash, A aArg, Args... aArgs)
+AddToHash(uint32_t aHash, A aA, B aB)
 {
-  return AddToHash(AddToHash(aHash, aArg), aArgs...);
+  return AddToHash(AddToHash(aHash, aA), aB);
+}
+
+template<typename A, typename B, typename C>
+MOZ_WARN_UNUSED_RESULT uint32_t
+AddToHash(uint32_t aHash, A aA, B aB, C aC)
+{
+  return AddToHash(AddToHash(aHash, aA, aB), aC);
+}
+
+template<typename A, typename B, typename C, typename D>
+MOZ_WARN_UNUSED_RESULT uint32_t
+AddToHash(uint32_t aHash, A aA, B aB, C aC, D aD)
+{
+  return AddToHash(AddToHash(aHash, aA, aB, aC), aD);
+}
+
+template<typename A, typename B, typename C, typename D, typename E>
+MOZ_WARN_UNUSED_RESULT uint32_t
+AddToHash(uint32_t aHash, A aA, B aB, C aC, D aD, E aE)
+{
+  return AddToHash(AddToHash(aHash, aA, aB, aC, aD), aE);
+}
+
+template<typename A, typename B, typename C, typename D, typename E, typename F>
+MOZ_WARN_UNUSED_RESULT uint32_t
+AddToHash(uint32_t aHash, A aA, B aB, C aC, D aD, E aE, F aF)
+{
+  return AddToHash(AddToHash(aHash, aA, aB, aC, aD, aE), aF);
 }
 
 /**
@@ -201,11 +229,46 @@ AddToHash(uint32_t aHash, A aArg, Args... aArgs)
  * much better than calling AddToHash(x, y), because AddToHash(x, y) assumes
  * that x has already been hashed.
  */
-template<typename... Args>
+template<typename A>
 MOZ_WARN_UNUSED_RESULT inline uint32_t
-HashGeneric(Args... aArgs)
+HashGeneric(A aA)
 {
-  return AddToHash(0, aArgs...);
+  return AddToHash(0, aA);
+}
+
+template<typename A, typename B>
+MOZ_WARN_UNUSED_RESULT inline uint32_t
+HashGeneric(A aA, B aB)
+{
+  return AddToHash(0, aA, aB);
+}
+
+template<typename A, typename B, typename C>
+MOZ_WARN_UNUSED_RESULT inline uint32_t
+HashGeneric(A aA, B aB, C aC)
+{
+  return AddToHash(0, aA, aB, aC);
+}
+
+template<typename A, typename B, typename C, typename D>
+MOZ_WARN_UNUSED_RESULT inline uint32_t
+HashGeneric(A aA, B aB, C aC, D aD)
+{
+  return AddToHash(0, aA, aB, aC, aD);
+}
+
+template<typename A, typename B, typename C, typename D, typename E>
+MOZ_WARN_UNUSED_RESULT inline uint32_t
+HashGeneric(A aA, B aB, C aC, D aD, E aE)
+{
+  return AddToHash(0, aA, aB, aC, aD, aE);
+}
+
+template<typename A, typename B, typename C, typename D, typename E, typename F>
+MOZ_WARN_UNUSED_RESULT inline uint32_t
+HashGeneric(A aA, B aB, C aC, D aD, E aE, F aF)
+{
+  return AddToHash(0, aA, aB, aC, aD, aE, aF);
 }
 
 namespace detail {

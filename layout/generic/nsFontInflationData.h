@@ -40,8 +40,8 @@ private:
 
   explicit nsFontInflationData(nsIFrame* aBFCFrame);
 
-  nsFontInflationData(const nsFontInflationData&) = delete;
-  void operator=(const nsFontInflationData&) = delete;
+  nsFontInflationData(const nsFontInflationData&) MOZ_DELETE;
+  void operator=(const nsFontInflationData&) MOZ_DELETE;
 
   void UpdateWidth(const nsHTMLReflowState &aReflowState);
   enum SearchDirection { eFromStart, eFromEnd };

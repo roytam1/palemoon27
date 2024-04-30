@@ -73,8 +73,8 @@ public:
     }
 
 private:
-    HRTFKernel(const HRTFKernel& other) = delete;
-    void operator=(const HRTFKernel& other) = delete;
+    HRTFKernel(const HRTFKernel& other) MOZ_DELETE;
+    void operator=(const HRTFKernel& other) MOZ_DELETE;
 
     // Note: this is destructive on the passed in |impulseResponse|.
     HRTFKernel(float* impulseResponse, size_t fftSize, float sampleRate);

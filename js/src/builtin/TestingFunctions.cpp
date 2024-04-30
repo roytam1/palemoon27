@@ -2028,8 +2028,8 @@ class BackEdge {
 
   private:
     // No copy constructor or copying assignment.
-    BackEdge(const BackEdge&) = delete;
-    BackEdge& operator=(const BackEdge&) = delete;
+    BackEdge(const BackEdge&) MOZ_DELETE;
+    BackEdge& operator=(const BackEdge&) MOZ_DELETE;
 };
 
 // A path-finding handler class for use with JS::ubi::BreadthFirst.

@@ -85,8 +85,8 @@ public:
   char16_t*            mBrandName; //  needed as a substitute name for a document
 
 private:
-  nsPrintData() = delete;
-  nsPrintData& operator=(const nsPrintData& aOther) = delete;
+  nsPrintData() MOZ_DELETE;
+  nsPrintData& operator=(const nsPrintData& aOther) MOZ_DELETE;
 
 };
 

@@ -491,9 +491,9 @@ IsFontSizeInflationContainer(nsIFrame* aFrame,
                    // outer one should be considered a container.
                    // (Important, e.g., for nsSelectsAreaFrame.)
                    (aFrame->GetParent()->GetContent() == content) ||
-                   (content && (content->IsAnyOfHTMLElements(nsGkAtoms::option,
-                                                             nsGkAtoms::optgroup,
-                                                             nsGkAtoms::select) ||
+                   (content && (content->IsHTMLElement(nsGkAtoms::option) ||
+                                content->IsHTMLElement(nsGkAtoms::optgroup) ||
+                                content->IsHTMLElement(nsGkAtoms::select) ||
                                 content->IsInNativeAnonymousSubtree()))) &&
                   !(aFrame->IsBoxFrame() && aFrame->GetParent()->IsBoxFrame());
   NS_ASSERTION(!aFrame->IsFrameOfType(nsIFrame::eLineParticipant) ||
@@ -1648,9 +1648,9 @@ inline static bool IsSVGContentWithCSSClip(const nsIFrame *aFrame)
   // elements regardless of the value of the 'position' property. Here we obey
   // the CSS spec for outer-<svg> (since that's what we generally do), but
   // obey the SVG spec for other SVG elements to which 'clip' applies.
+  nsIAtom *tag = aFrame->GetContent()->Tag();
   return (aFrame->GetStateBits() & NS_FRAME_SVG_LAYOUT) &&
-          aFrame->GetContent()->IsAnyOfSVGElements(nsGkAtoms::svg,
-                                                   nsGkAtoms::foreignObject);
+          (tag == nsGkAtoms::svg || tag == nsGkAtoms::foreignObject);
 }
 
 bool

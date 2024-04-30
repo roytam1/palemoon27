@@ -1,13 +1,9 @@
-// Copyright (c) 2009-2017 The OTS Authors. All rights reserved.
+// Copyright (c) 2009 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef OTS_H_
 #define OTS_H_
-
-#ifdef HAVE_CONFIG_H
-#include "config.h"
-#endif
 
 #include <stddef.h>
 #include <cstdarg>
@@ -16,7 +12,6 @@
 #include <cstdlib>
 #include <cstring>
 #include <limits>
-#include <map>
 
 #include "opentype-sanitiser.h"
 
@@ -27,22 +22,18 @@ char (&ArraySizeHelper(T (&array)[N]))[N];
 
 namespace ots {
 
-#if !defined(OTS_DEBUG)
+#if defined(_MSC_VER) || !defined(OTS_DEBUG)
 #define OTS_FAILURE() false
 #else
-#define OTS_FAILURE() \
-  (\
-    std::fprintf(stderr, "ERROR at %s:%d (%s)\n", \
-                 __FILE__, __LINE__, __FUNCTION__) \
-    && false\
-  )
+#define OTS_FAILURE() ots::Failure(__FILE__, __LINE__, __PRETTY_FUNCTION__)
+bool Failure(const char *f, int l, const char *fn);
 #endif
 
 // All OTS_FAILURE_* macros ultimately evaluate to 'false', just like the original
 // message-less OTS_FAILURE(), so that the current parser will return 'false' as
 // its result (indicating a failure).
 
-#if !defined(OTS_DEBUG)
+#if defined(_MSC_VER) || !defined(OTS_DEBUG)
 #define OTS_MESSAGE_(level,otf_,...) \
   (otf_)->context->Message(level,__VA_ARGS__)
 #else
@@ -58,12 +49,16 @@ namespace ots {
 #define OTS_WARNING_MSG_(otf_,...) \
   OTS_MESSAGE_(1,otf_,__VA_ARGS__)
 
+// Generate a message with an associated table tag
+#define OTS_FAILURE_MSG_TAG_(otf_,msg_,tag_) \
+  (OTS_MESSAGE_(0,otf_,"%4.4s: %s", tag_, msg_), false)
+
 // Convenience macros for use in files that only handle a single table tag,
 // defined as TABLE_NAME at the top of the file; the 'file' variable is
-// expected to be the current FontFile pointer.
-#define OTS_FAILURE_MSG(...) OTS_FAILURE_MSG_(font->file, TABLE_NAME ": " __VA_ARGS__)
+// expected to be the current OpenTypeFile pointer.
+#define OTS_FAILURE_MSG(...) OTS_FAILURE_MSG_(file, TABLE_NAME ": " __VA_ARGS__)
 
-#define OTS_WARNING(...) OTS_WARNING_MSG_(font->file, TABLE_NAME ": " __VA_ARGS__)
+#define OTS_WARNING(...) OTS_WARNING_MSG_(file, TABLE_NAME ": " __VA_ARGS__)
 
 // -----------------------------------------------------------------------------
 // Buffer helper class
@@ -146,6 +141,15 @@ class Buffer {
     return ReadU32(reinterpret_cast<uint32_t*>(value));
   }
 
+  bool ReadTag(uint32_t *value) {
+    if (offset_ + 4 > length_) {
+      return OTS_FAILURE();
+    }
+    std::memcpy(value, buffer_ + offset_, sizeof(uint32_t));
+    offset_ += 4;
+    return true;
+  }
+
   bool ReadR64(uint64_t *value) {
     if (offset_ + 8 > length_) {
       return OTS_FAILURE();
@@ -158,7 +162,6 @@ class Buffer {
   const uint8_t *buffer() const { return buffer_; }
   size_t offset() const { return offset_; }
   size_t length() const { return length_; }
-  size_t remaining() const { return length_ - offset_; }
 
   void set_offset(size_t newoffset) { offset_ = newoffset; }
 
@@ -186,153 +189,66 @@ template<typename T> T Round2(T value) {
 
 bool IsValidVersionTag(uint32_t tag);
 
-#define OTS_TAG_CFF  OTS_TAG('C','F','F',' ')
-#define OTS_TAG_CMAP OTS_TAG('c','m','a','p')
-#define OTS_TAG_CVT  OTS_TAG('c','v','t',' ')
-#define OTS_TAG_FEAT OTS_TAG('F','e','a','t')
-#define OTS_TAG_FPGM OTS_TAG('f','p','g','m')
-#define OTS_TAG_GASP OTS_TAG('g','a','s','p')
-#define OTS_TAG_GDEF OTS_TAG('G','D','E','F')
-#define OTS_TAG_GLAT OTS_TAG('G','l','a','t')
-#define OTS_TAG_GLOC OTS_TAG('G','l','o','c')
-#define OTS_TAG_GLYF OTS_TAG('g','l','y','f')
-#define OTS_TAG_GPOS OTS_TAG('G','P','O','S')
-#define OTS_TAG_GSUB OTS_TAG('G','S','U','B')
-#define OTS_TAG_HDMX OTS_TAG('h','d','m','x')
-#define OTS_TAG_HEAD OTS_TAG('h','e','a','d')
-#define OTS_TAG_HHEA OTS_TAG('h','h','e','a')
-#define OTS_TAG_HMTX OTS_TAG('h','m','t','x')
-#define OTS_TAG_KERN OTS_TAG('k','e','r','n')
-#define OTS_TAG_LOCA OTS_TAG('l','o','c','a')
-#define OTS_TAG_LTSH OTS_TAG('L','T','S','H')
-#define OTS_TAG_MATH OTS_TAG('M','A','T','H')
-#define OTS_TAG_MAXP OTS_TAG('m','a','x','p')
-#define OTS_TAG_NAME OTS_TAG('n','a','m','e')
-#define OTS_TAG_OS2  OTS_TAG('O','S','/','2')
-#define OTS_TAG_POST OTS_TAG('p','o','s','t')
-#define OTS_TAG_PREP OTS_TAG('p','r','e','p')
-#define OTS_TAG_SILE OTS_TAG('S','i','l','e')
-#define OTS_TAG_SILF OTS_TAG('S','i','l','f')
-#define OTS_TAG_SILL OTS_TAG('S','i','l','l')
-#define OTS_TAG_VDMX OTS_TAG('V','D','M','X')
-#define OTS_TAG_VHEA OTS_TAG('v','h','e','a')
-#define OTS_TAG_VMTX OTS_TAG('v','m','t','x')
-#define OTS_TAG_VORG OTS_TAG('V','O','R','G')
+#define FOR_EACH_TABLE_TYPE \
+  F(cff, CFF) \
+  F(cmap, CMAP) \
+  F(cvt, CVT) \
+  F(fpgm, FPGM) \
+  F(gasp, GASP) \
+  F(gdef, GDEF) \
+  F(glyf, GLYF) \
+  F(gpos, GPOS) \
+  F(gsub, GSUB) \
+  F(hdmx, HDMX) \
+  F(head, HEAD) \
+  F(hhea, HHEA) \
+  F(hmtx, HMTX) \
+  F(kern, KERN) \
+  F(loca, LOCA) \
+  F(ltsh, LTSH) \
+  F(math, MATH) \
+  F(maxp, MAXP) \
+  F(name, NAME) \
+  F(os2, OS2) \
+  F(post, POST) \
+  F(prep, PREP) \
+  F(vdmx, VDMX) \
+  F(vorg, VORG) \
+  F(vhea, VHEA) \
+  F(vmtx, VMTX)
 
-struct Font;
-struct FontFile;
-struct TableEntry;
-struct Arena;
+#define F(name, capname) struct OpenType##capname;
+FOR_EACH_TABLE_TYPE
+#undef F
 
-class Table {
- public:
-  explicit Table(Font *font, uint32_t tag, uint32_t type)
-      : m_tag(tag),
-        m_type(type),
-        m_font(font),
-        m_shouldSerialize(true) {
+struct OpenTypeFile {
+  OpenTypeFile() {
+#define F(name, capname) name = NULL;
+    FOR_EACH_TABLE_TYPE
+#undef F
   }
-
-  virtual ~Table() { }
-
-  virtual bool Parse(const uint8_t *data, size_t length) = 0;
-  virtual bool Serialize(OTSStream *out) = 0;
-  virtual bool ShouldSerialize();
-
-  // Return the tag (table type) this Table was parsed as, to support
-  // "poor man's RTTI" so that we know if we can safely down-cast to
-  // a specific Table subclass. The m_type field is initialized to the
-  // appropriate tag when a subclass is constructed, or to zero for
-  // TablePassthru (indicating unparsed data).
-  uint32_t Type() { return m_type; }
-
-  Font* GetFont() { return m_font; }
-
-  bool Error(const char *format, ...);
-  bool Warning(const char *format, ...);
-  bool Drop(const char *format, ...);
-  bool DropGraphite(const char *format, ...);
-
- private:
-  void Message(int level, const char *format, va_list va);
-
-  uint32_t m_tag;
-  uint32_t m_type;
-  Font *m_font;
-  bool m_shouldSerialize;
-};
-
-class TablePassthru : public Table {
- public:
-  explicit TablePassthru(Font *font, uint32_t tag)
-      : Table(font, tag, 0),
-        m_data(NULL),
-        m_length(0) {
-  }
-
-  bool Parse(const uint8_t *data, size_t length);
-  bool Serialize(OTSStream *out);
-
- private:
-  const uint8_t *m_data;
-  size_t m_length;
-};
-
-struct Font {
-  explicit Font(FontFile *f)
-      : file(f),
-        version(0),
-        num_tables(0),
-        search_range(0),
-        entry_selector(0),
-        range_shift(0),
-        dropped_graphite(false) {
-  }
-
-  bool ParseTable(const TableEntry& tableinfo, const uint8_t* data,
-                  Arena &arena);
-  Table* GetTable(uint32_t tag) const;
-
-  // This checks that the returned Table is actually of the correct subclass
-  // for |tag|, so it can safely be downcast to the corresponding OpenTypeXXXX;
-  // if not (i.e. if the table was treated as Passthru), it will return NULL.
-  Table* GetTypedTable(uint32_t tag) const;
-
-  // Drop all Graphite tables and don't parse new ones.
-  void DropGraphite();
-
-  FontFile *file;
 
   uint32_t version;
   uint16_t num_tables;
   uint16_t search_range;
   uint16_t entry_selector;
   uint16_t range_shift;
-  bool dropped_graphite;
-
- private:
-  std::map<uint32_t, Table*> m_tables;
-};
-
-struct TableEntry {
-  uint32_t tag;
-  uint32_t offset;
-  uint32_t length;
-  uint32_t uncompressed_length;
-  uint32_t chksum;
-
-  bool operator<(const TableEntry& other) const {
-    return tag < other.tag;
-  }
-};
-
-struct FontFile {
-  ~FontFile();
 
   OTSContext *context;
-  std::map<TableEntry, Table*> tables;
-  std::map<uint32_t, TableEntry> table_entries;
+
+#define F(name, capname) OpenType##capname *name;
+FOR_EACH_TABLE_TYPE
+#undef F
 };
+
+#define F(name, capname) \
+bool ots_##name##_parse(OpenTypeFile *f, const uint8_t *d, size_t l); \
+bool ots_##name##_should_serialise(OpenTypeFile *f); \
+bool ots_##name##_serialise(OTSStream *s, OpenTypeFile *f); \
+void ots_##name##_free(OpenTypeFile *f);
+// TODO(yusukes): change these function names to follow Chromium coding rule.
+FOR_EACH_TABLE_TYPE
+#undef F
 
 }  // namespace ots
 

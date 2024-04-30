@@ -2890,7 +2890,7 @@ JitProfilingFrameIterator::JitProfilingFrameIterator(
     returnAddressToFp_ = frameScript()->baselineScript()->method()->raw();
 }
 
-template <typename FrameType, typename ReturnType=CommonFrameLayout*>
+template <typename FrameType, typename ReturnType>
 inline ReturnType
 GetPreviousRawFrame(FrameType* frame)
 {

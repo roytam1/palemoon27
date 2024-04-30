@@ -165,7 +165,7 @@ private:
   friend class AsyncNotifyCurrentStateRunnable;
   friend class ProgressTrackerInit;
 
-  ProgressTracker(const ProgressTracker& aOther) = delete;
+  ProgressTracker(const ProgressTracker& aOther) MOZ_DELETE;
 
   // This method should only be called once, and only on an ProgressTracker
   // that was initialized without an image. ProgressTrackerInit automates this.

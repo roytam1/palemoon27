@@ -57,8 +57,8 @@ public:
 
   // It doesn't make any sense to convert a DOMString to a const nsString or
   // nsAString reference; this class is meant for outparams only.
-  operator const nsString&() = delete;
-  operator const nsAString&() = delete;
+  operator const nsString&() MOZ_DELETE;
+  operator const nsAString&() MOZ_DELETE;
 
   nsString& AsAString()
   {

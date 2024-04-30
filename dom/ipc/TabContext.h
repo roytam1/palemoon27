@@ -276,8 +276,8 @@ public:
   const TabContext& GetTabContext();
 
 private:
-  MaybeInvalidTabContext(const MaybeInvalidTabContext&) = delete;
-  MaybeInvalidTabContext& operator=(const MaybeInvalidTabContext&) = delete;
+  MaybeInvalidTabContext(const MaybeInvalidTabContext&) MOZ_DELETE;
+  MaybeInvalidTabContext& operator=(const MaybeInvalidTabContext&) MOZ_DELETE;
 
   const char* mInvalidReason;
   MutableTabContext mTabContext;

@@ -715,9 +715,9 @@ nsHTMLEditRules::GetListState(bool *aMixed, bool *aOL, bool *aUL, bool *aDL)
           *aOL = true;
         }
       }
-    } else if (curElement->IsAnyOfHTMLElements(nsGkAtoms::dl,
-                                               nsGkAtoms::dt,
-                                               nsGkAtoms::dd)) {
+    } else if (curElement->IsHTMLElement(nsGkAtoms::dl) ||
+               curElement->IsHTMLElement(nsGkAtoms::dt) ||
+               curElement->IsHTMLElement(nsGkAtoms::dd)) {
       *aDL = true;
     } else {
       bNonList = true;
@@ -753,9 +753,9 @@ nsHTMLEditRules::GetListItemState(bool *aMixed, bool *aLI, bool *aDT, bool *aDD)
     nsCOMPtr<dom::Element> element = do_QueryInterface(curNode);
     if (!element) {
       bNonList = true;
-    } else if (element->IsAnyOfHTMLElements(nsGkAtoms::ul,
-                                            nsGkAtoms::ol,
-                                            nsGkAtoms::li)) {
+    } else if (element->IsHTMLElement(nsGkAtoms::ul) ||
+               element->IsHTMLElement(nsGkAtoms::ol) ||
+               element->IsHTMLElement(nsGkAtoms::li)) {
       *aLI = true;
     } else if (element->IsHTMLElement(nsGkAtoms::dt)) {
       *aDT = true;
@@ -6203,8 +6203,9 @@ nsHTMLEditRules::LookInsideDivBQandList(nsCOMArray<nsIDOMNode>& aNodeArray)
   // we've found innermost list/blockquote/div: 
   // replace the one node in the array with these nodes
   aNodeArray.RemoveObjectAt(0);
-  if (curNode->IsAnyOfHTMLElements(nsGkAtoms::div,
-                                   nsGkAtoms::blockquote)) {
+  if (curNode->IsElement() &&
+      (curNode->AsElement()->IsHTMLElement(nsGkAtoms::div) ||
+       curNode->AsElement()->IsHTMLElement(nsGkAtoms::blockquote))) {
     int32_t j = 0;
     return GetInnerContent(curNode->AsDOMNode(), aNodeArray, &j, false, false);
   }
@@ -7136,14 +7137,14 @@ nsHTMLEditRules::RemoveBlockStyle(nsCOMArray<nsIDOMNode>& arrayOfNodes)
       res = mHTMLEditor->RemoveBlockContainer(curNode); 
       NS_ENSURE_SUCCESS(res, res);
     } else if (curElement &&
-               (curElement->IsAnyOfHTMLElements(nsGkAtoms::table,
-                                                nsGkAtoms::tr,
-                                                nsGkAtoms::tbody,
-                                                nsGkAtoms::td,
-                                                nsGkAtoms::li,
-                                                nsGkAtoms::blockquote,
-                                                nsGkAtoms::div) ||
-                nsHTMLEditUtils::IsList(curElement))) {
+               (curElement->IsHTMLElement(nsGkAtoms::table)      ||
+                curElement->IsHTMLElement(nsGkAtoms::tr)         ||
+                curElement->IsHTMLElement(nsGkAtoms::tbody)      ||
+                curElement->IsHTMLElement(nsGkAtoms::td)         ||
+                nsHTMLEditUtils::IsList(curElement)       ||
+                curElement->IsHTMLElement(nsGkAtoms::li)         ||
+                curElement->IsHTMLElement(nsGkAtoms::blockquote) ||
+                curElement->IsHTMLElement(nsGkAtoms::div))) {
       // process any partial progress saved
       if (curBlock)
       {
@@ -7285,8 +7286,8 @@ nsHTMLEditRules::ApplyBlockStyle(nsCOMArray<nsIDOMNode>& arrayOfNodes, const nsA
              (curNodeTag.EqualsLiteral("td"))         ||
              nsHTMLEditUtils::IsList(curNode)                     ||
              (curNodeTag.EqualsLiteral("li"))         ||
-             curNode->IsAnyOfHTMLElements(nsGkAtoms::blockquote,
-                                          nsGkAtoms::div)) {
+             curNode->Tag() == nsGkAtoms::blockquote  ||
+             curNode->Tag() == nsGkAtoms::div) {
       curBlock = 0;  // forget any previous block used for previous inline nodes
       // recursion time
       nsCOMArray<nsIDOMNode> childArray;
@@ -7932,8 +7933,8 @@ nsHTMLEditRules::AdjustSelection(Selection* aSelection,
   nearNode = mHTMLEditor->GetNextHTMLNode(selNode, selOffset, true);
   if (nearNode && (nsTextEditUtils::IsBreak(nearNode) ||
                    nsEditor::IsTextNode(nearNode) ||
-                   nearNode->IsAnyOfHTMLElements(nsGkAtoms::img,
-                                                 nsGkAtoms::hr))) {
+                   nearNode->Tag() == nsGkAtoms::img ||
+                   nearNode->Tag() == nsGkAtoms::hr)) {
     return NS_OK; // this is a good place for the caret to be
   }
 

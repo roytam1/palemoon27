@@ -182,9 +182,11 @@ nsXULTooltipListener::MouseMove(nsIDOMEvent* aEvent)
                                     nsGkAtoms::_true, eCaseMatters)) {
       nsCOMPtr<nsIContent> targetContent = do_QueryInterface(eventTarget);
       while (targetContent && targetContent != sourceContent) {
-        if (targetContent->IsAnyOfXULElements(nsGkAtoms::menupopup,
-                                              nsGkAtoms::panel,
-                                              nsGkAtoms::tooltip)) {
+        nsIAtom* tag = targetContent->Tag();
+        if (targetContent->GetNameSpaceID() == kNameSpaceID_XUL &&
+            (tag == nsGkAtoms::menupopup ||
+             tag == nsGkAtoms::panel ||
+             tag == nsGkAtoms::tooltip)) {
           mSourceNode = nullptr;
           return;
         }

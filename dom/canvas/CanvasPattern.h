@@ -11,6 +11,7 @@
 #include "mozilla/RefPtr.h"
 #include "nsISupports.h"
 #include "nsWrapperCache.h"
+#include "mozilla/TypedEnum.h"
 
 class nsIPrincipal;
 
@@ -29,12 +30,12 @@ public:
   NS_INLINE_DECL_CYCLE_COLLECTING_NATIVE_REFCOUNTING(CanvasPattern)
   NS_DECL_CYCLE_COLLECTION_SCRIPT_HOLDER_NATIVE_CLASS(CanvasPattern)
 
-  enum class RepeatMode : uint8_t {
+  MOZ_BEGIN_NESTED_ENUM_CLASS(RepeatMode, uint8_t)
     REPEAT,
     REPEATX,
     REPEATY,
     NOREPEAT
-  };
+  MOZ_END_NESTED_ENUM_CLASS(RepeatMode)
 
   CanvasPattern(CanvasRenderingContext2D* aContext,
                 gfx::SourceSurface* aSurface,

@@ -5220,13 +5220,31 @@ SweepThing(ObjectGroup* group, AutoClearTypeInferenceStateOnOOM* oom)
     group->maybeSweep(oom);
 }
 
-template <typename T, typename... Args>
+template <typename T>
 static bool
-SweepArenaList(ArenaHeader** arenasToSweep, SliceBudget& sliceBudget, Args... args)
+SweepArenaList(ArenaHeader** arenasToSweep, SliceBudget& sliceBudget)
 {
     while (ArenaHeader* arena = *arenasToSweep) {
         for (ArenaCellIterUnderGC i(arena); !i.done(); i.next())
-            SweepThing(i.get<T>(), args...);
+            SweepThing(i.get<T>());
+
+        *arenasToSweep = (*arenasToSweep)->next;
+        AllocKind kind = MapTypeToFinalizeKind<T>::kind;
+        sliceBudget.step(Arena::thingsPerArena(Arena::thingSize(kind)));
+        if (sliceBudget.isOverBudget())
+            return false;
+    }
+
+    return true;
+}
+
+template <typename T, typename A1>
+static bool
+SweepArenaList(ArenaHeader** arenasToSweep, SliceBudget& sliceBudget, A1 a1)
+{
+    while (ArenaHeader* arena = *arenasToSweep) {
+        for (ArenaCellIterUnderGC i(arena); !i.done(); i.next())
+            SweepThing(i.get<T>(), a1);
 
         *arenasToSweep = (*arenasToSweep)->next;
         AllocKind kind = MapTypeToFinalizeKind<T>::kind;

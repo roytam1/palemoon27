@@ -2682,7 +2682,7 @@ nsresult nsWebBrowserPersist::OnWalkDOMNode(nsIDOMNode *aNode)
         return NS_OK;
     }
 
-    if (content->IsAnyOfHTMLElements(nsGkAtoms::td, nsGkAtoms::th)) {
+    if (content->IsHTMLElement(nsGkAtoms::td) || content->IsHTMLElement(nsGkAtoms::th)) {
         StoreURIAttribute(aNode, "background");
         return NS_OK;
     }
@@ -2977,7 +2977,7 @@ nsWebBrowserPersist::CloneNodeWithFixedUpAttributes(
         return rv;
     }
 
-    if (content->IsAnyOfHTMLElements(nsGkAtoms::td, nsGkAtoms::th)) {
+    if (content->IsHTMLElement(nsGkAtoms::td) || content->IsHTMLElement(nsGkAtoms::th)) {
         rv = GetNodeToFixup(aNodeIn, aNodeOut);
         if (NS_SUCCEEDED(rv) && *aNodeOut)
         {

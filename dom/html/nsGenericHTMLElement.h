@@ -314,11 +314,85 @@ public:
     return mNodeInfo->Equals(aTag);
   }
 
-  template<typename First, typename... Args>
-  inline bool IsAnyOfHTMLElements(First aFirst, Args... aArgs) const
+  /* This causes runtime execution failure
+  template<typename First, typename A1>
+  inline bool IsAnyOfHTMLElements(First aFirst, A1 aA1) const
   {
-    return IsNodeInternal(aFirst, aArgs...);
+    return IsNodeInternal(aFirst, aA1);
   }
+  
+  template<typename First, typename A1, typename A2>
+  inline bool IsAnyOfHTMLElements(First aFirst, A1 aA1, A2 aA2) const
+  {
+    return IsNodeInternal(aFirst, aA1, aA2);
+  }
+
+  template<typename First, typename A1, typename A2, typename A3>
+  inline bool IsAnyOfHTMLElements(First aFirst, A1 aA1, A2 aA2, A3 aA3) const
+  {
+    return IsNodeInternal(aFirst, aA1, aA2, aA3);
+  }
+
+  template<typename First, typename A1, typename A2, typename A3, typename A4>
+  inline bool IsAnyOfHTMLElements(First aFirst, A1 aA1, A2 aA2, A3 aA3, A4 aA4) const
+  {
+    return IsNodeInternal(aFirst, aA1, aA2, aA3, aA4);
+  }
+  
+  template<typename First, typename A1, typename A2, typename A3, typename A4, typename A5>
+  inline bool IsAnyOfHTMLElements(First aFirst, A1 aA1, A2 aA2, A3 aA3, A4 aA4, A5 aA5) const
+  {
+    return IsNodeInternal(aFirst, aA1, aA2, aA3, aA4, aA5);
+  }
+  
+  template<typename First, typename A1, typename A2, typename A3, typename A4, typename A5, typename A6>
+  inline bool IsAnyOfHTMLElements(First aFirst, A1 aA1, A2 aA2, A3 aA3, A4 aA4, A5 aA5, A6 aA6) const
+  {
+    return IsNodeInternal(aFirst, aA1, aA2, aA3, aA4, aA5, aA6);
+  }
+  
+  template<typename First, typename A1, typename A2, typename A3, typename A4, typename A5, typename A6, typename A7>
+  inline bool IsAnyOfHTMLElements(First aFirst, A1 aA1, A2 aA2, A3 aA3, A4 aA4, A5 aA5, A6 aA6, A7 aA7) const
+  {
+    return IsNodeInternal(aFirst, aA1, aA2, aA3, aA4, aA5, aA6, aA7);
+  }
+  
+  template<typename First, typename A1, typename A2, typename A3, typename A4, typename A5, typename A6, typename A7, typename A8>
+  inline bool IsAnyOfHTMLElements(First aFirst, A1 aA1, A2 aA2, A3 aA3, A4 aA4, A5 aA5, A6 aA6, A7 aA7, A8 aA8) const
+  {
+    return IsNodeInternal(aFirst, aA1, aA2, aA3, aA4, aA5, aA6, aA7, aA8);
+  }
+  
+  template<typename First, typename A1, typename A2, typename A3, typename A4, typename A5, typename A6, typename A7, typename A8, typename A9>
+  inline bool IsAnyOfHTMLElements(First aFirst, A1 aA1, A2 aA2, A3 aA3, A4 aA4, A5 aA5, A6 aA6, A7 aA7, A8 aA8, A9 aA9) const
+  {
+    return IsNodeInternal(aFirst, aA1, aA2, aA3, aA4, aA5, aA6, aA7, aA8, aA9);
+  }
+  
+  template<typename First, typename A1, typename A2, typename A3, typename A4, typename A5, typename A6, typename A7, typename A8, typename A9, typename A10>
+  inline bool IsAnyOfHTMLElements(First aFirst, A1 aA1, A2 aA2, A3 aA3, A4 aA4, A5 aA5, A6 aA6, A7 aA7, A8 aA8, A9 aA9, A10 aA10) const
+  {
+    return IsNodeInternal(aFirst, aA1, aA2, aA3, aA4, aA5, aA6, aA7, aA8, aA9, aA10);
+  }
+  
+  template<typename First, typename A1, typename A2, typename A3, typename A4, typename A5, typename A6, typename A7, typename A8, typename A9, typename A10, typename A11>
+  inline bool IsAnyOfHTMLElements(First aFirst, A1 aA1, A2 aA2, A3 aA3, A4 aA4, A5 aA5, A6 aA6, A7 aA7, A8 aA8, A9 aA9, A10 aA10, A11 aA11) const
+  {
+    return IsNodeInternal(aFirst, aA1, aA2, aA3, aA4, aA5, aA6, aA7, aA8, aA9, aA10, aA11);
+  }
+  
+  template<typename First, typename A1, typename A2, typename A3, typename A4, typename A5, typename A6, typename A7, typename A8, typename A9, typename A10, typename A11, typename A12>
+  inline bool IsAnyOfHTMLElements(First aFirst, A1 aA1, A2 aA2, A3 aA3, A4 aA4, A5 aA5, A6 aA6, A7 aA7, A8 aA8, A9 aA9, A10 aA10, A11 aA11, A12 aA12) const
+  {
+    return IsNodeInternal(aFirst, aA1, aA2, aA3, aA4, aA5, aA6, aA7, aA8, aA9, aA10, aA11, aA12);
+  }
+  
+  template<typename First, typename A1, typename A2, typename A3, typename A4, typename A5, typename A6, typename A7, typename A8, typename A9, typename A10, typename A11, typename A12, typename A13>
+  inline bool IsAnyOfHTMLElements(First aFirst, A1 aA1, A2 aA2, A3 aA3, A4 aA4, A5 aA5, A6 aA6, A7 aA7, A8 aA8, A9 aA9, A10 aA10, A11 aA11, A12 aA12, A13 aA13) const
+  {
+    return IsNodeInternal(aFirst, aA1, aA2, aA3, aA4, aA5, aA6, aA7, aA8, aA9, aA10, aA11, aA12, aA13);
+  }
+  */
 
 protected:
   virtual ~nsGenericHTMLElement() {}
@@ -955,10 +1029,15 @@ public:
   static inline bool
   ShouldExposeIdAsHTMLDocumentProperty(Element* aElement)
   {
-    return aElement->IsAnyOfHTMLElements(nsGkAtoms::img,
-                                         nsGkAtoms::applet,
-                                         nsGkAtoms::embed,
-                                         nsGkAtoms::object);
+    if (!aElement->IsHTMLElement()) {
+      return false;
+    }
+	
+    nsIAtom* tag = aElement->Tag();
+    return tag == nsGkAtoms::img ||
+           tag == nsGkAtoms::applet ||
+           tag == nsGkAtoms::embed ||
+           tag == nsGkAtoms::object;
   }
 
   static bool

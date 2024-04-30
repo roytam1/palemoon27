@@ -20,6 +20,7 @@
 #include "mozilla/gfx/Point.h"       // for mozilla::gfx::IntSize
 #include "mozilla/gfx/2D.h"          // for SourceSurface
 #include "SVGImageContext.h"         // for SVGImageContext
+#include "mozilla/TypedEnum.h"		 // for enum class emulation
 
 namespace mozilla {
 namespace image {
@@ -117,16 +118,16 @@ VectorSurfaceKey(const gfx::IntSize& aSize,
   return SurfaceKey(aSize, aSVGContext, aAnimationTime, 0);
 }
 
-enum class Lifetime : uint8_t {
+MOZ_BEGIN_ENUM_CLASS(Lifetime, uint8_t)
   Transient,
   Persistent
-};
+MOZ_END_ENUM_CLASS(Lifetime)
 
-enum class InsertOutcome : uint8_t {
+MOZ_BEGIN_ENUM_CLASS(InsertOutcome, uint8_t)
   SUCCESS,                 // Success (but see Insert documentation).
   FAILURE,                 // Couldn't insert (e.g., for capacity reasons).
   FAILURE_ALREADY_PRESENT  // A surface with the same key is already present.
-};
+MOZ_END_ENUM_CLASS(InsertOutcome)
 
 /**
  * SurfaceCache is an imagelib-global service that allows caching of temporary

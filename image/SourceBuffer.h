@@ -140,8 +140,8 @@ public:
 private:
   friend class SourceBuffer;
 
-  SourceBufferIterator(const SourceBufferIterator&) = delete;
-  SourceBufferIterator& operator=(const SourceBufferIterator&) = delete;
+  SourceBufferIterator(const SourceBufferIterator&) MOZ_DELETE;
+  SourceBufferIterator& operator=(const SourceBufferIterator&) MOZ_DELETE;
 
   bool HasMore() const { return mState != COMPLETE; }
 
@@ -314,8 +314,8 @@ private:
     }
 
   private:
-    Chunk(const Chunk&) = delete;
-    Chunk& operator=(const Chunk&) = delete;
+    Chunk(const Chunk&) MOZ_DELETE;
+    Chunk& operator=(const Chunk&) MOZ_DELETE;
 
     size_t mCapacity;
     size_t mLength;

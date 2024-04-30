@@ -20,7 +20,7 @@
  * For this reason, *never* use the SCN* macros provided by this header!
  */
 
-#include <inttypes.h>
+#include "mozilla/MSIntTypes.h"
 
 /*
  * Fix up Android's broken [u]intptr_t inttype macros. Android's PRI*PTR

@@ -849,11 +849,14 @@ nsXHTMLContentSerializer::MaybeEnterInPreContent(nsIContent* aNode)
     return;
   }
 
+  nsIAtom *name = aNode->Tag();
+
   if (IsElementPreformatted(aNode) ||
-      aNode->IsAnyOfHTMLElements(nsGkAtoms::script,
-                                 nsGkAtoms::style,
-                                 nsGkAtoms::noscript,
-                                 nsGkAtoms::noframes)) {
+      name == nsGkAtoms::script ||
+      name == nsGkAtoms::style ||
+      name == nsGkAtoms::noscript ||
+      name == nsGkAtoms::noframes
+      ) {
     PreLevel()++;
   }
 }
@@ -866,11 +869,13 @@ nsXHTMLContentSerializer::MaybeLeaveFromPreContent(nsIContent* aNode)
     return;
   }
 
+  nsIAtom *name = aNode->Tag();
   if (IsElementPreformatted(aNode) ||
-      aNode->IsAnyOfHTMLElements(nsGkAtoms::script,
-                                 nsGkAtoms::style,
-                                 nsGkAtoms::noscript,
-                                 nsGkAtoms::noframes)) {
+      name == nsGkAtoms::script ||
+      name == nsGkAtoms::style ||
+      name == nsGkAtoms::noscript ||
+      name == nsGkAtoms::noframes
+    ) {
     --PreLevel();
   }
 }

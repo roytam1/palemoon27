@@ -23,6 +23,7 @@
 #include "libANGLE/renderer/Renderer.h"
 #include "libANGLE/renderer/ProgramImpl.h"
 #include "libANGLE/queryconversions.h"
+#include "nsMathUtils.h"
 
 namespace gl
 {
@@ -62,13 +63,13 @@ DestT UniformStateQueryCast(SrcT value);
 template <>
 GLint UniformStateQueryCast(GLfloat value)
 {
-    return clampCast<GLint>(roundf(value));
+    return clampCast<GLint>(NS_roundf(value));
 }
 
 template <>
 GLuint UniformStateQueryCast(GLfloat value)
 {
-    return clampCast<GLuint>(roundf(value));
+    return clampCast<GLuint>(NS_roundf(value));
 }
 
 // From-Integer-to-Integer Casts

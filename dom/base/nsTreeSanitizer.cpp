@@ -1273,7 +1273,8 @@ nsTreeSanitizer::SanitizeAttributes(mozilla::dom::Element* aElement,
 
   // If we've got HTML audio or video, add the controls attribute, because
   // otherwise the content is unplayable with scripts removed.
-  if (aElement->IsAnyOfHTMLElements(nsGkAtoms::video, nsGkAtoms::audio)) {
+  if (aElement->IsHTMLElement(nsGkAtoms::video) ||
+      aElement->IsHTMLElement(nsGkAtoms::audio)) {
     aElement->SetAttr(kNameSpaceID_None,
                       nsGkAtoms::controls,
                       EmptyString(),

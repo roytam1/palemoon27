@@ -159,15 +159,14 @@ GetBackendName(mozilla::gfx::BackendType aBackend)
   MOZ_CRASH("Incomplete switch");
 }
 
-enum class DeviceResetReason
-{
+MOZ_BEGIN_ENUM_CLASS(DeviceResetReason)
   OK = 0,
   HUNG,
   REMOVED,
   RESET,
   DRIVER_ERROR,
   INVALID_CALL
-};
+MOZ_END_ENUM_CLASS(DeviceResetReason)
 
 class gfxPlatform {
     friend class SRGBOverrideObserver;

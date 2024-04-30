@@ -18,7 +18,7 @@
 #define WOFF2_WOFF2_DEC_H_
 
 #include <stddef.h>
-#include <inttypes.h>
+#include "mozilla/MSIntTypes.h"
 #include "./woff2_out.h"
 
 namespace woff2 {

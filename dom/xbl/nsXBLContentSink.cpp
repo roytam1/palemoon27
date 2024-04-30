@@ -137,9 +137,9 @@ nsXBLContentSink::FlushText(bool aReleaseTextNode)
     nsIContent* content = GetCurrentContent();
     if (content &&
         (content->NodeInfo()->NamespaceEquals(kNameSpaceID_XBL) ||
-         (content->IsXULElement() &&
-          !content->IsAnyOfXULElements(nsGkAtoms::label,
-                                       nsGkAtoms::description)))) {
+         (content->NodeInfo()->NamespaceEquals(kNameSpaceID_XUL) &&
+          content->Tag() != nsGkAtoms::label &&
+          content->Tag() != nsGkAtoms::description))) {
 
       bool isWS = true;
       if (mTextLength > 0) {

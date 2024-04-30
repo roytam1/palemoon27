@@ -69,8 +69,8 @@ public:
 protected:
   T* mValue;
 
-  ScopedPtr(const ScopedPtr&) = delete;
-  void operator=(const ScopedPtr&) = delete;
+  ScopedPtr(const ScopedPtr&) MOZ_DELETE;
+  void operator=(const ScopedPtr&) MOZ_DELETE;
 };
 
 template <typename T, void(&Destroyer)(T*)>

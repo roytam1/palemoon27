@@ -408,12 +408,12 @@ DecodePointer(void* dest,
 {
     const SEC_ASN1Template* ptrTemplate =
         SEC_ASN1GetSubtemplate(templateEntry, dest, PR_FALSE);
+    void* subdata = PORT_ArenaZAlloc(arena, ptrTemplate->size);
+    *(void**)((char*)dest + templateEntry->offset) = subdata;
     if (!ptrTemplate) {
         PORT_SetError(SEC_ERROR_INVALID_ARGS);
         return SECFailure;
     }
-    void* subdata = PORT_ArenaZAlloc(arena, ptrTemplate->size);
-    *(void**)((char*)dest + templateEntry->offset) = subdata;
     if (subdata) {
         return DecodeItem(subdata, ptrTemplate, src, arena, checkTag);
     } else {

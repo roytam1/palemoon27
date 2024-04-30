@@ -29,7 +29,6 @@ typedef struct vp9_denoiser {
   YV12_BUFFER_CONFIG running_avg_y[MAX_REF_FRAMES];
   YV12_BUFFER_CONFIG mc_running_avg_y;
   int increase_denoising;
-  int frame_buffer_initialized;
 } VP9_DENOISER;
 
 void vp9_denoiser_update_frame_info(VP9_DENOISER *denoiser,
@@ -55,10 +54,6 @@ int vp9_denoiser_alloc(VP9_DENOISER *denoiser, int width, int height,
                        int use_highbitdepth,
 #endif
                        int border);
-
-#if CONFIG_VP9_TEMPORAL_DENOISING
-int total_adj_strong_thresh(BLOCK_SIZE bs, int increase_denoising);
-#endif
 
 void vp9_denoiser_free(VP9_DENOISER *denoiser);
 

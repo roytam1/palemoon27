@@ -27,6 +27,7 @@
 #include "pkix/pkix.h"
 #include "pkixcheck.h"
 #include "pkixutil.h"
+#include "mozilla/TypedEnum.h"
 
 namespace {
 
@@ -37,11 +38,11 @@ const size_t SHA1_DIGEST_LENGTH = 160 / 8;
 namespace mozilla { namespace pkix {
 
 // These values correspond to the tag values in the ASN.1 CertStatus
-enum class CertStatus : uint8_t {
+MOZ_BEGIN_ENUM_CLASS(CertStatus, uint8_t)
   Good = der::CONTEXT_SPECIFIC | 0,
   Revoked = der::CONTEXT_SPECIFIC | der::CONSTRUCTED | 1,
   Unknown = der::CONTEXT_SPECIFIC | 2
-};
+MOZ_END_ENUM_CLASS(CertStatus)
 
 class Context final
 {
@@ -75,8 +76,8 @@ public:
   Time* validThrough;
   bool expired;
 
-  Context(const Context&) = delete;
-  void operator=(const Context&) = delete;
+  Context(const Context&) MOZ_DELETE;
+  void operator=(const Context&) MOZ_DELETE;
 };
 
 // Verify that potentialSigner is a valid delegated OCSP response signing cert
@@ -144,11 +145,10 @@ CheckOCSPResponseSignerCert(TrustDomain& trustDomain,
   return rv;
 }
 
-enum class ResponderIDType : uint8_t
-{
+MOZ_BEGIN_ENUM_CLASS(ResponderIDType, uint8_t)
   byName = der::CONTEXT_SPECIFIC | der::CONSTRUCTED | 1,
   byKey = der::CONTEXT_SPECIFIC | der::CONSTRUCTED | 2
-};
+MOZ_END_ENUM_CLASS(ResponderIDType)
 
 static inline Result OCSPResponse(Reader&, Context&);
 static inline Result ResponseBytes(Reader&, Context&);

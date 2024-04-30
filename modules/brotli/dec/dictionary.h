@@ -6,59 +6,33 @@
 
 /* Collection of static dictionary words. */
 
-#ifndef BROTLI_COMMON_DICTIONARY_H_
-#define BROTLI_COMMON_DICTIONARY_H_
+#ifndef BROTLI_DEC_DICTIONARY_H_
+#define BROTLI_DEC_DICTIONARY_H_
 
-#include <brotli/port.h>
-#include <brotli/types.h>
+#include "./types.h"
 
 #if defined(__cplusplus) || defined(c_plusplus)
 extern "C" {
 #endif
 
-typedef struct BrotliDictionary {
-  /**
-   * Number of bits to encode index of dictionary word in a bucket.
-   *
-   * Specification: Appendix A. Static Dictionary Data
-   *
-   * Words in a dictionary are bucketed by length.
-   * @c 0 means that there are no words of a given length.
-   * Dictionary consists of words with length of [4..24] bytes.
-   * Values at [0..3] and [25..31] indices should not be addressed.
-   */
-  const uint8_t size_bits_by_length[32];
+extern const uint8_t kBrotliDictionary[122784];
 
-  /* assert(offset[i + 1] == offset[i] + (bits[i] ? (i << bits[i]) : 0)) */
-  const uint32_t offsets_by_length[32];
+static const uint32_t kBrotliDictionaryOffsetsByLength[] = {
+  0, 0, 0, 0, 0, 4096, 9216, 21504, 35840, 44032, 53248, 63488, 74752, 87040,
+  93696, 100864, 104704, 106752, 108928, 113536, 115968, 118528, 119872, 121280,
+  122016
+};
 
-  /* assert(data_size == offsets_by_length[31]) */
-  const size_t data_size;
+static const uint8_t kBrotliDictionarySizeBitsByLength[] = {
+  0, 0, 0, 0, 10, 10, 11, 11, 10, 10, 10, 10, 10,
+  9, 9, 8, 7, 7,  8,  7,  7,  6,  6,  5,  5,
+};
 
-  /* Data array is not bound, and should obey to size_bits_by_length values.
-     Specified size matches default (RFC 7932) dictionary. Its size is
-     defined by data_size */
-  const uint8_t* data;
-} BrotliDictionary;
-
-BROTLI_COMMON_API extern const BrotliDictionary* BrotliGetDictionary(void);
-
-/**
- * Sets dictionary data.
- *
- * When dictionary data is already set / present, this method is no-op.
- *
- * Dictionary data MUST be provided before BrotliGetDictionary is invoked.
- * This method is used ONLY in multi-client environment (e.g. C + Java),
- * to reduce storage by sharing single dictionary between implementations.
- */
-BROTLI_COMMON_API void BrotliSetDictionaryData(const uint8_t* data);
-
-#define BROTLI_MIN_DICTIONARY_WORD_LENGTH 4
-#define BROTLI_MAX_DICTIONARY_WORD_LENGTH 24
+static const int kBrotliMinDictionaryWordLength = 4;
+static const int kBrotliMaxDictionaryWordLength = 24;
 
 #if defined(__cplusplus) || defined(c_plusplus)
 }  /* extern "C" */
 #endif
 
-#endif  /* BROTLI_COMMON_DICTIONARY_H_ */
+#endif  /* BROTLI_DEC_DICTIONARY_H_ */

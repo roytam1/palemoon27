@@ -8,6 +8,7 @@
 #ifndef ZCONF_H
 #define ZCONF_H
 
+/* This header does prefixing as below, but with an updated set of names. */
 #include "mozzconf.h"
 
 /*
@@ -433,7 +434,7 @@ typedef uLong FAR uLongf;
    typedef unsigned long z_crc_t;
 #endif
 
-#if !defined(_WIN32)
+#ifdef HAVE_UNISTD_H    /* may be set to #if 1 by ./configure */
 #  define Z_HAVE_UNISTD_H
 #endif
 

@@ -28,19 +28,18 @@
 #include "pkix/Input.h"
 #include "pkix/Time.h"
 #include "stdint.h"
+#include "mozilla/TypedEnum.h"
 
 namespace mozilla { namespace pkix {
 
-enum class DigestAlgorithm
-{
+MOZ_BEGIN_ENUM_CLASS(DigestAlgorithm)
   sha512 = 1,
   sha384 = 2,
   sha256 = 3,
   sha1 = 4,
-};
+MOZ_END_ENUM_CLASS(DigestAlgorithm)
 
-enum class NamedCurve
-{
+MOZ_BEGIN_ENUM_CLASS(NamedCurve)
   // secp521r1 (OID 1.3.132.0.35, RFC 5480)
   secp521r1 = 1,
 
@@ -49,7 +48,7 @@ enum class NamedCurve
 
   // secp256r1 (OID 1.2.840.10045.3.1.7, RFC 5480)
   secp256r1 = 3,
-};
+MOZ_END_ENUM_CLASS(NamedCurve)
 
 struct SignedDigest final
 {
@@ -57,13 +56,15 @@ struct SignedDigest final
   DigestAlgorithm digestAlgorithm;
   Input signature;
 
-  void operator=(const SignedDigest&) = delete;
+  void operator=(const SignedDigest&) MOZ_DELETE;
 };
 
-enum class EndEntityOrCA { MustBeEndEntity = 0, MustBeCA = 1 };
+MOZ_BEGIN_ENUM_CLASS(EndEntityOrCA) 
+MustBeEndEntity = 0, 
+MustBeCA = 1 
+MOZ_END_ENUM_CLASS(EndEntityOrCA)
 
-enum class KeyUsage : uint8_t
-{
+MOZ_BEGIN_ENUM_CLASS(KeyUsage, uint8_t)
   digitalSignature = 0,
   nonRepudiation   = 1,
   keyEncipherment  = 2,
@@ -74,17 +75,16 @@ enum class KeyUsage : uint8_t
   // encipherOnly  = 7,
   // decipherOnly  = 8,
   noParticularKeyUsageRequired = 0xff,
-};
+MOZ_END_ENUM_CLASS(KeyUsage)
 
-enum class KeyPurposeId
-{
+MOZ_BEGIN_ENUM_CLASS(KeyPurposeId)
   anyExtendedKeyUsage = 0,
   id_kp_serverAuth = 1,           // id-kp-serverAuth
   id_kp_clientAuth = 2,           // id-kp-clientAuth
   id_kp_codeSigning = 3,          // id-kp-codeSigning
   id_kp_emailProtection = 4,      // id-kp-emailProtection
   id_kp_OCSPSigning = 9,          // id-kp-OCSPSigning
-};
+MOZ_END_ENUM_CLASS(KeyPurposeId)
 
 struct CertPolicyId final
 {
@@ -97,13 +97,12 @@ struct CertPolicyId final
   static const CertPolicyId anyPolicy;
 };
 
-enum class TrustLevel
-{
+MOZ_BEGIN_ENUM_CLASS(TrustLevel)
   TrustAnchor = 1,        // certificate is a trusted root CA certificate or
                           // equivalent *for the given policy*.
   ActivelyDistrusted = 2, // certificate is known to be bad
   InheritsTrust = 3       // certificate must chain to a trust anchor
-};
+MOZ_END_ENUM_CLASS(TrustLevel)
 
 // CertID references the information needed to do revocation checking for the
 // certificate issued by the given issuer with the given serial number.
@@ -129,7 +128,7 @@ public:
   const Input issuerSubjectPublicKeyInfo;
   const Input serialNumber;
 
-  void operator=(const CertID&) = delete;
+  void operator=(const CertID&) MOZ_DELETE;
 };
 
 class DERArray
@@ -190,8 +189,8 @@ public:
     IssuerChecker();
     virtual ~IssuerChecker();
 
-    IssuerChecker(const IssuerChecker&) = delete;
-    void operator=(const IssuerChecker&) = delete;
+    IssuerChecker(const IssuerChecker&) MOZ_DELETE;
+    void operator=(const IssuerChecker&) MOZ_DELETE;
   };
 
   // Search for a CA certificate with the given name. The implementation must
@@ -326,8 +325,8 @@ public:
 protected:
   TrustDomain() { }
 
-  TrustDomain(const TrustDomain&) = delete;
-  void operator=(const TrustDomain&) = delete;
+  TrustDomain(const TrustDomain&) MOZ_DELETE;
+  void operator=(const TrustDomain&) MOZ_DELETE;
 };
 
 } } // namespace mozilla::pkix

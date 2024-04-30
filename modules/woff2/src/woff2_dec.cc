@@ -36,7 +36,7 @@ namespace std
   #define unique_ptr UniquePtr
 }
 
-#include "./brotli/decode.h"
+#include "./decode.h"
 #include "./buffer.h"
 #include "./port.h"
 #include "./round.h"
@@ -186,7 +186,7 @@ bool TripletDecode(const uint8_t* flags_in, const uint8_t* in, size_t in_size,
     // Possible overflow but coordinate values are not security sensitive
     x += dx;
     y += dy;
-    *result++ = {x, y, on_curve};
+    result = (Point*) x, y, on_curve;
   }
   *in_bytes_consumed = triplet_index;
   return true;
@@ -639,10 +639,9 @@ bool ReconstructGlyf(const uint8_t* data, Table* glyf_table,
 }
 
 Table* FindTable(std::vector<Table*>* tables, uint32_t tag) {
-  for (Table* table : *tables) {
+	Table* table;
     if (table->tag == tag) {
       return table;
-    }
   }
   return NULL;
 }
@@ -751,9 +750,9 @@ bool ReconstructTransformedHmtx(const uint8_t* transformed_buf,
 bool Woff2Uncompress(uint8_t* dst_buf, size_t dst_size,
   const uint8_t* src_buf, size_t src_size) {
   size_t uncompressed_size = dst_size;
-  BrotliDecoderResult result = BrotliDecoderDecompress(
+  BrotliResult result = BrotliDecompressBuffer(
       src_size, src_buf, &uncompressed_size, dst_buf);
-  if (PREDICT_FALSE(result != BROTLI_DECODER_RESULT_SUCCESS ||
+  if (PREDICT_FALSE(result != BROTLI_RESULT_SUCCESS ||
                     uncompressed_size != dst_size)) {
     return FONT_COMPRESSION_FAILURE();
   }
@@ -850,7 +849,9 @@ uint64_t ComputeOffsetToFirstTable(const WOFF2Header& hdr) {
   if (hdr.header_version) {
     offset = CollectionHeaderSize(hdr.header_version, hdr.ttc_fonts.size())
       + kSfntHeaderSize * hdr.ttc_fonts.size();
-    for (const auto& ttc_font : hdr.ttc_fonts) {
+	uint64_t size = hdr.ttc_fonts.size();
+    for (uint64_t i = 0; i < size; ++i) {
+		const auto& ttc_font = hdr.ttc_fonts[i];
       offset += kSfntEntrySize * ttc_font.table_indices.size();
     }
   }
@@ -860,14 +861,10 @@ uint64_t ComputeOffsetToFirstTable(const WOFF2Header& hdr) {
 std::vector<Table*> Tables(WOFF2Header* hdr, size_t font_index) {
   std::vector<Table*> tables;
   if (PREDICT_FALSE(hdr->header_version)) {
-    for (auto index : hdr->ttc_fonts[font_index].table_indices) {
+	  uint32_t index;
+	  index > 0;
       tables.push_back(&hdr->tables[index]);
-    }
-  } else {
-    for (auto& table : hdr->tables) {
-      tables.push_back(&table);
-    }
-  }
+  } 
   return tables;
 }
 
@@ -899,7 +896,7 @@ bool ReconstructFont(uint8_t* transformed_buf,
   for (size_t i = 0; i < tables.size(); i++) {
     Table& table = *tables[i];
 
-    std::pair<uint32_t, uint32_t> checksum_key = {table.tag, table.src_offset};
+    std::pair<uint32_t, uint32_t> checksum_key = std::pair<uint32_t, uint32_t> (table.tag, table.src_offset);
     bool reused = metadata->checksums.find(checksum_key)
                != metadata->checksums.end();
     if (PREDICT_FALSE(font_index == 0 && reused)) {
@@ -1194,14 +1191,19 @@ bool WriteHeaders(const uint8_t* data, size_t length, RebuildMetadata* metadata,
   std::vector<Table> sorted_tables(hdr->tables);
   if (hdr->header_version) {
     // collection; we have to sort the table offset vector in each font
-    for (auto& ttc_font : hdr->ttc_fonts) {
+	  uint32_t size = hdr->ttc_fonts.size();
+    for (uint32_t i = 0; i < size; ++i) {
+		auto& ttc_font = hdr->ttc_fonts[i];
       std::map<uint32_t, uint16_t> sorted_index_by_tag;
-      for (auto table_index : ttc_font.table_indices) {
+	  uint32_t size = ttc_font.table_indices.size();
+      for (uint32_t i = 0; i < size; ++i) {
+		  auto table_index = ttc_font.table_indices[i];
         sorted_index_by_tag[hdr->tables[table_index].tag] = table_index;
       }
       uint16_t index = 0;
-      for (auto& i : sorted_index_by_tag) {
-        ttc_font.table_indices[index++] = i.second;
+	  uint32_t size2 = sorted_index_by_tag.size();
+      for (uint32_t j = 0; j < size2; ++j) {
+		  uint32_t i = sorted_index_by_tag[index];
       }
     }
   } else {
@@ -1242,7 +1244,9 @@ bool WriteHeaders(const uint8_t* data, size_t length, RebuildMetadata* metadata,
       offset = StoreOffsetTable(result, offset, ttc_font.flavor,
                                 ttc_font.table_indices.size());
 
-      for (const auto table_index : ttc_font.table_indices) {
+	  uint32_t size = ttc_font.table_indices.size();
+      for (uint32_t i = 0; i < size; ++i) {
+		  const auto table_index = ttc_font.table_indices[i];
         uint32_t tag = hdr->tables[table_index].tag;
         metadata->font_infos[i].table_entry_by_tag[tag] = offset;
         offset = StoreTableEntry(result, offset, tag);

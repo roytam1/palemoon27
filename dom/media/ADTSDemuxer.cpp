@@ -6,7 +6,7 @@
 
 #include "ADTSDemuxer.h"
 
-#include <inttypes.h>
+#include "mozilla/MSIntTypes.h"
 
 #include "nsAutoPtr.h"
 #include "VideoUtils.h"

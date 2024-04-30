@@ -12,8 +12,9 @@
 #include "./vp9_rtcd.h"
 #include "vpx_ports/vpx_once.h"
 
+void vpx_scale_rtcd(void);
+
 void vp9_rtcd() {
-    // TODO(JBB): Remove this once, by insuring that both the encoder and
-    // decoder setup functions are protected by once();
+    vpx_scale_rtcd();
     once(setup_rtcd_internal);
 }

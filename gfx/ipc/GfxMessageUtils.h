@@ -24,7 +24,7 @@
 #include "mozilla/layers/LayersTypes.h"
 #include "mozilla/layers/CompositorTypes.h"
 #include "FrameMetrics.h"
-#include "FilterSupport.h"
+#include "FilterSupport.h" // includes TypedEnum.h
 #include "mozilla/layers/GoannaContentController.h"
 
 #ifdef _MSC_VER
@@ -34,7 +34,13 @@
 namespace mozilla {
 
 typedef gfxImageFormat PixelFormat;
+#if defined(MOZ_HAVE_CXX11_STRONG_ENUMS)
 typedef ::GraphicsFilter GraphicsFilterType;
+#else
+// If we don't have support for enum classes, then we need to use the actual
+// enum type here instead of the simulated enum class.
+typedef GraphicsFilter::Enum GraphicsFilterType;
+#endif
 
 } // namespace mozilla
 
@@ -192,7 +198,7 @@ struct ParamTraits<gfxRect>
 
 template <>
 struct ParamTraits<gfxContentType>
-  : public ContiguousEnumSerializer<
+  : public ContiguousTypedEnumSerializer<
              gfxContentType,
              gfxContentType::COLOR,
              gfxContentType::SENTINEL>
@@ -200,7 +206,7 @@ struct ParamTraits<gfxContentType>
 
 template <>
 struct ParamTraits<gfxSurfaceType>
-  : public ContiguousEnumSerializer<
+  : public ContiguousTypedEnumSerializer<
              gfxSurfaceType,
              gfxSurfaceType::Image,
              gfxSurfaceType::Max>
@@ -216,7 +222,7 @@ struct ParamTraits<mozilla::GraphicsFilterType>
 
 template <>
 struct ParamTraits<mozilla::layers::LayersBackend>
-  : public ContiguousEnumSerializer<
+  : public ContiguousTypedEnumSerializer<
              mozilla::layers::LayersBackend,
              mozilla::layers::LayersBackend::LAYERS_NONE,
              mozilla::layers::LayersBackend::LAYERS_LAST>
@@ -224,7 +230,7 @@ struct ParamTraits<mozilla::layers::LayersBackend>
 
 template <>
 struct ParamTraits<mozilla::layers::ScaleMode>
-  : public ContiguousEnumSerializer<
+  : public ContiguousTypedEnumSerializer<
              mozilla::layers::ScaleMode,
              mozilla::layers::ScaleMode::SCALE_NONE,
              mozilla::layers::ScaleMode::SENTINEL>
@@ -232,7 +238,7 @@ struct ParamTraits<mozilla::layers::ScaleMode>
 
 template <>
 struct ParamTraits<gfxImageFormat>
-  : public ContiguousEnumSerializer<
+  : public ContiguousTypedEnumSerializer<
              gfxImageFormat,
              gfxImageFormat::ARGB32,
              gfxImageFormat::Unknown>
@@ -248,7 +254,7 @@ struct ParamTraits<mozilla::gfx::AttributeName>
 
 template <>
 struct ParamTraits<mozilla::gfx::AttributeType>
-  : public ContiguousEnumSerializer<
+  : public ContiguousTypedEnumSerializer<
              mozilla::gfx::AttributeType,
              mozilla::gfx::AttributeType::eBool,
              mozilla::gfx::AttributeType::Max>
@@ -256,7 +262,7 @@ struct ParamTraits<mozilla::gfx::AttributeType>
 
 template <>
 struct ParamTraits<mozilla::gfx::PrimitiveType>
-  : public ContiguousEnumSerializer<
+  : public ContiguousTypedEnumSerializer<
              mozilla::gfx::PrimitiveType,
              mozilla::gfx::PrimitiveType::Empty,
              mozilla::gfx::PrimitiveType::Max>
@@ -264,7 +270,7 @@ struct ParamTraits<mozilla::gfx::PrimitiveType>
 
 template <>
 struct ParamTraits<mozilla::gfx::ColorSpace>
-  : public ContiguousEnumSerializer<
+  : public ContiguousTypedEnumSerializer<
              mozilla::gfx::ColorSpace,
              mozilla::gfx::ColorSpace::SRGB,
              mozilla::gfx::ColorSpace::Max>
@@ -272,14 +278,14 @@ struct ParamTraits<mozilla::gfx::ColorSpace>
 
 template <>
 struct ParamTraits<mozilla::layers::TextureFlags>
-  : public BitFlagsEnumSerializer<
+  : public BitFlagsTypedEnumSerializer<
             mozilla::layers::TextureFlags,
             mozilla::layers::TextureFlags::ALL_BITS>
 {};
 
 template <>
 struct ParamTraits<mozilla::layers::TextureIdentifier>
-  : public ContiguousEnumSerializer<
+  : public ContiguousTypedEnumSerializer<
              mozilla::layers::TextureIdentifier,
              mozilla::layers::TextureIdentifier::Front,
              mozilla::layers::TextureIdentifier::HighBound>
@@ -287,14 +293,14 @@ struct ParamTraits<mozilla::layers::TextureIdentifier>
 
 template <>
 struct ParamTraits<mozilla::layers::DeprecatedTextureHostFlags>
-  : public BitFlagsEnumSerializer<
+  : public BitFlagsTypedEnumSerializer<
              mozilla::layers::DeprecatedTextureHostFlags,
              mozilla::layers::DeprecatedTextureHostFlags::ALL_BITS>
 {};
 
 template <>
 struct ParamTraits<mozilla::layers::DiagnosticTypes>
-  : public BitFlagsEnumSerializer<
+  : public BitFlagsTypedEnumSerializer<
              mozilla::layers::DiagnosticTypes,
              mozilla::layers::DiagnosticTypes::ALL_BITS>
 {};
@@ -848,7 +854,7 @@ struct ParamTraits<mozilla::layers::TextureInfo>
 
 template <>
 struct ParamTraits<mozilla::layers::CompositableType>
-  : public ContiguousEnumSerializer<
+  : public ContiguousTypedEnumSerializer<
              mozilla::layers::CompositableType,
              mozilla::layers::CompositableType::UNKNOWN,
              mozilla::layers::CompositableType::COUNT>
@@ -856,7 +862,7 @@ struct ParamTraits<mozilla::layers::CompositableType>
 
 template <>
 struct ParamTraits<mozilla::gfx::SurfaceFormat>
-  : public ContiguousEnumSerializer<
+  : public ContiguousTypedEnumSerializer<
              mozilla::gfx::SurfaceFormat,
              mozilla::gfx::SurfaceFormat::B8G8R8A8,
              mozilla::gfx::SurfaceFormat::UNKNOWN>

@@ -143,8 +143,8 @@ namespace jit {
     ~ExecutablePool();
 
   private:
-    ExecutablePool(const ExecutablePool&) = delete;
-    void operator=(const ExecutablePool&) = delete;
+    ExecutablePool(const ExecutablePool&) MOZ_DELETE;
+    void operator=(const ExecutablePool&) MOZ_DELETE;
 
     // It should be impossible for us to roll over, because only small
     // pools have multiple holders, and they have one holder per chunk
@@ -444,8 +444,8 @@ class ExecutableAllocator {
 #endif
 
   private:
-    ExecutableAllocator(const ExecutableAllocator&) = delete;
-    void operator=(const ExecutableAllocator&) = delete;
+    ExecutableAllocator(const ExecutableAllocator&) MOZ_DELETE;
+    void operator=(const ExecutableAllocator&) MOZ_DELETE;
 
 #if ENABLE_ASSEMBLER_WX_EXCLUSIVE
     static void reprotectRegion(void*, size_t, ProtectionSetting);

@@ -317,9 +317,8 @@ IsOffsetParent(nsIFrame* aFrame)
     // with display: table-cell with no actual table
     nsIContent* content = aFrame->GetContent();
 
-    return content->IsAnyOfHTMLElements(nsGkAtoms::table,
-                                        nsGkAtoms::td,
-                                        nsGkAtoms::th);
+    return content->IsHTMLElement(nsGkAtoms::table) || content->IsHTMLElement(nsGkAtoms::td)
+      || content->IsHTMLElement(nsGkAtoms::th);
   }
   return false;
 }
@@ -812,7 +811,7 @@ nsGenericHTMLElement::GetEventListenerManagerForAttr(nsIAtom* aAttrName,
 EventHandlerNonNull*                                                          \
 nsGenericHTMLElement::GetOn##name_()                                          \
 {                                                                             \
-  if (IsAnyOfHTMLElements(nsGkAtoms::body, nsGkAtoms::frameset)) {            \
+  if (Tag() == nsGkAtoms::body || Tag() == nsGkAtoms::frameset) {             \
     /* XXXbz note to self: add tests for this! */                             \
     nsPIDOMWindow* win = OwnerDoc()->GetInnerWindow();                        \
     if (win) {                                                                \
@@ -828,7 +827,7 @@ nsGenericHTMLElement::GetOn##name_()                                          \
 void                                                                          \
 nsGenericHTMLElement::SetOn##name_(EventHandlerNonNull* handler)              \
 {                                                                             \
-  if (IsAnyOfHTMLElements(nsGkAtoms::body, nsGkAtoms::frameset)) {            \
+  if (Tag() == nsGkAtoms::body || Tag() == nsGkAtoms::frameset) {             \
     nsPIDOMWindow* win = OwnerDoc()->GetInnerWindow();                        \
     if (!win) {                                                               \
       return;                                                                 \
@@ -845,7 +844,7 @@ nsGenericHTMLElement::SetOn##name_(EventHandlerNonNull* handler)              \
 already_AddRefed<EventHandlerNonNull>                                         \
 nsGenericHTMLElement::GetOn##name_()                                          \
 {                                                                             \
-  if (IsAnyOfHTMLElements(nsGkAtoms::body, nsGkAtoms::frameset)) {            \
+  if (Tag() == nsGkAtoms::body || Tag() == nsGkAtoms::frameset) {             \
     /* XXXbz note to self: add tests for this! */                             \
     nsPIDOMWindow* win = OwnerDoc()->GetInnerWindow();                        \
     if (win) {                                                                \
@@ -867,7 +866,7 @@ nsGenericHTMLElement::GetOn##name_()                                          \
 void                                                                          \
 nsGenericHTMLElement::SetOn##name_(EventHandlerNonNull* handler)              \
 {                                                                             \
-  if (IsAnyOfHTMLElements(nsGkAtoms::body, nsGkAtoms::frameset)) {            \
+  if (Tag() == nsGkAtoms::body || Tag() == nsGkAtoms::frameset) {             \
     nsPIDOMWindow* win = OwnerDoc()->GetInnerWindow();                        \
     if (!win) {                                                               \
       return;                                                                 \
@@ -1015,7 +1014,7 @@ nsGenericHTMLElement::ParseAttribute(int32_t aNamespaceID,
 
       aResult.ParseAtom(aValue);
 
-      if (CanHaveName(NodeInfo()->NameAtom())) {
+      if (CanHaveName(Tag())) {
         SetHasName();
         AddToNameTable(aResult.GetAtomValue());
       }
@@ -1800,15 +1799,17 @@ nsGenericHTMLElement::GetContextMenu(nsIDOMHTMLMenuElement** aContextMenu)
 bool
 nsGenericHTMLElement::IsLabelable() const
 {
-  return IsAnyOfHTMLElements(nsGkAtoms::progress, nsGkAtoms::meter);
+  return Tag() == nsGkAtoms::progress ||
+         Tag() == nsGkAtoms::meter;
 }
 
 bool
 nsGenericHTMLElement::IsInteractiveHTMLContent(bool aIgnoreTabindex) const
 {
-  return IsAnyOfHTMLElements(nsGkAtoms::details, nsGkAtoms::embed,
-                             nsGkAtoms::keygen) ||
-         HasAttr(kNameSpaceID_None, nsGkAtoms::tabindex);
+  return Tag() == nsGkAtoms::details ||
+         Tag() == nsGkAtoms::embed ||
+         Tag() == nsGkAtoms::keygen ||
+         (!aIgnoreTabindex && HasAttr(kNameSpaceID_None, nsGkAtoms::tabindex));
 }
 
 already_AddRefed<UndoManager>

@@ -168,13 +168,13 @@ class Builder {
             return *this;
         }
 
-        explicit operator bool() const {
+        MOZ_EXPLICIT_CONVERSION operator bool() const {
             // If we ever instantiate BuiltThing<Value>, this might not suffice.
             return value;
         }
 
       private:
-        BuiltThing() = delete;
+        BuiltThing() MOZ_DELETE;
     };
 
   public:

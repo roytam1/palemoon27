@@ -5628,7 +5628,9 @@ nsCSSFrameConstructor::AddFrameConstructionItemsInternal(nsFrameConstructorState
   nsIContent *parent = aContent->GetParent();
   if (parent) {
     // Check tag first, since that check will usually fail
-    if (parent->IsAnyOfHTMLElements(nsGkAtoms::select, nsGkAtoms::optgroup) &&
+	nsIAtom* parentTag = parent->Tag();
+    if ((parentTag == nsGkAtoms::select || parentTag == nsGkAtoms::optgroup) &&
+        parent->IsHTMLElement() &&
         // <option> is ok no matter what
         !aContent->IsHTMLElement(nsGkAtoms::option) &&
         // <optgroup> is OK in <select> but not in <optgroup>
@@ -6801,7 +6803,9 @@ static bool
 IsSpecialFramesetChild(nsIContent* aContent)
 {
   // IMPORTANT: This must match the conditions in nsHTMLFramesetFrame::Init.
-  return aContent->IsAnyOfHTMLElements(nsGkAtoms::frameset, nsGkAtoms::frame);
+  return aContent->IsHTMLElement() &&
+    (aContent->Tag() == nsGkAtoms::frameset ||
+     aContent->Tag() == nsGkAtoms::frame);
 }
 
 static void

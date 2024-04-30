@@ -12,7 +12,6 @@
 #include "AudioMixer.h"
 #include "AudioSegment.h"
 #include "SelfRef.h"
-#include "mozilla/Atomics.h"
 
 struct cubeb_stream;
 
@@ -472,7 +471,7 @@ private:
    * shutdown of the audio stream. */
   nsCOMPtr<nsIThread> mInitShutdownThread;
   dom::AudioChannel mAudioChannel;
-  Atomic<bool> mInCallback;
+  bool mInCallback;
   /* A thread has been created to be able to pause and restart the audio thread,
    * but has not done so yet. This indicates that the callback should return
    * early */

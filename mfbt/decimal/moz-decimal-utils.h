@@ -35,8 +35,8 @@
 
 #define WTF_MAKE_NONCOPYABLE(ClassName) \
   private: \
-    ClassName(const ClassName&) = delete; \
-    void operator=(const ClassName&) = delete;
+    ClassName(const ClassName&) MOZ_DELETE; \
+    void operator=(const ClassName&) MOZ_DELETE;
 
 #if defined(_MSC_VER)
 namespace std {

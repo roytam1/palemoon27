@@ -19,6 +19,7 @@
 #include "nsStringGlue.h"               // for nsCString
 #include "xpcom-config.h"               // for CPP_THROW_NEW
 #include "mozilla/Move.h"               // for mozilla::Move
+#include "mozilla/TypedEnum.h"			// for enum class emulation
 
 class nsIntRegion;
 class gfx3DMatrix;
@@ -39,12 +40,12 @@ class gfx3DMatrix;
  * projects including Qt, Gtk, Wine. It should perform reasonably well.
  */
 
-enum class VisitSide {
+MOZ_BEGIN_ENUM_CLASS(VisitSide)
 	TOP,
 	BOTTOM,
 	LEFT,
 	RIGHT
-};
+MOZ_END_ENUM_CLASS(VisitSide)
 
 class nsRegionRectIterator;
 

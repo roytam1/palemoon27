@@ -90,12 +90,12 @@ NSSCMSContentInfo *
 NSS_CMSContentInfo_GetChildContentInfo(NSSCMSContentInfo *cinfo)
 {
     NSSCMSContentInfo *ccinfo = NULL;
+    SECOidTag tag = NSS_CMSContentInfo_GetContentTypeTag(cinfo);
 
     if (cinfo == NULL) {
         return NULL;
     }
 
-    SECOidTag tag = NSS_CMSContentInfo_GetContentTypeTag(cinfo);
     switch (tag) {
         case SEC_OID_PKCS7_SIGNED_DATA:
             if (cinfo->content.signedData != NULL) {
@@ -248,13 +248,14 @@ NSS_CMSContentInfo_SetContent_EncryptedData(NSSCMSMessage *cmsg, NSSCMSContentIn
 void *
 NSS_CMSContentInfo_GetContent(NSSCMSContentInfo *cinfo)
 {
+  SECOidTag tag = cinfo->contentTypeTag
+                        ? cinfo->contentTypeTag->offset
+                        : SEC_OID_UNKNOWN;
+			
     if (cinfo == NULL) {
         return NULL;
     }
 
-    SECOidTag tag = cinfo->contentTypeTag
-                        ? cinfo->contentTypeTag->offset
-                        : SEC_OID_UNKNOWN;
     switch (tag) {
         case SEC_OID_PKCS7_DATA:
         case SEC_OID_PKCS7_SIGNED_DATA:

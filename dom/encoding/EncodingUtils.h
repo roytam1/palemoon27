@@ -139,7 +139,7 @@ public:
                                    nsACString& aOutGroup);
 
 private:
-  EncodingUtils() = delete;
+  EncodingUtils() MOZ_DELETE;
 };
 
 } // dom

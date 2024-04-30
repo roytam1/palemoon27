@@ -57,8 +57,8 @@ private:
   BodyIdToFile(nsIFile* aBaseDir, const nsID& aId, BodyFileType aType,
                nsIFile** aBodyFileOut);
 
-  FileUtils() = delete;
-  ~FileUtils() = delete;
+  FileUtils() MOZ_DELETE;
+  ~FileUtils() MOZ_DELETE;
 };
 
 } // namespace cache

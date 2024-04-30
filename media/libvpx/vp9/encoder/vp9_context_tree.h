@@ -11,11 +11,9 @@
 #ifndef VP9_ENCODER_VP9_CONTEXT_TREE_H_
 #define VP9_ENCODER_VP9_CONTEXT_TREE_H_
 
-#include "vp9/common/vp9_blockd.h"
+#include "vp9/common/vp9_onyxc_int.h"
 
 struct VP9_COMP;
-struct VP9Common;
-struct ThreadData;
 
 // Structure to hold snapshot of coding context during the mode picking process
 typedef struct {
@@ -35,7 +33,6 @@ typedef struct {
   int is_coded;
   int num_4x4_blk;
   int skip;
-  int pred_pixel_ready;
   // For current partition, only if all Y, U, and V transform blocks'
   // coefficients are quantized to 0, skippable is set to 0.
   int skippable;
@@ -46,11 +43,6 @@ typedef struct {
   int single_pred_diff;
   int64_t tx_rd_diff[TX_MODES];
   int64_t best_filter_diff[SWITCHABLE_FILTER_CONTEXTS];
-
-  // TODO(jingning) Use RD_COST struct here instead. This involves a boarder
-  // scope of refactoring.
-  int rate;
-  int64_t dist;
 
 #if CONFIG_VP9_TEMPORAL_DENOISING
   unsigned int newmv_sse;
@@ -80,7 +72,7 @@ typedef struct PC_TREE {
   };
 } PC_TREE;
 
-void vp9_setup_pc_tree(struct VP9Common *cm, struct ThreadData *td);
-void vp9_free_pc_tree(struct ThreadData *td);
+void vp9_setup_pc_tree(struct VP9Common *cm, struct VP9_COMP *cpi);
+void vp9_free_pc_tree(struct VP9_COMP *cpi);
 
 #endif /* VP9_ENCODER_VP9_CONTEXT_TREE_H_ */

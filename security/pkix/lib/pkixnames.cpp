@@ -36,6 +36,7 @@
 
 #include "pkixcheck.h"
 #include "pkixutil.h"
+#include "mozilla/TypedEnum.h"
 
 namespace mozilla { namespace pkix {
 
@@ -51,8 +52,7 @@ namespace {
 //      uniformResourceIdentifier       [6]     IA5String,
 //      iPAddress                       [7]     OCTET STRING,
 //      registeredID                    [8]     OBJECT IDENTIFIER }
-enum class GeneralNameType : uint8_t
-{
+MOZ_BEGIN_ENUM_CLASS(GeneralNameType, uint8_t)
   // Note that these values are NOT contiguous. Some values have the
   // der::CONSTRUCTED bit set while others do not.
   // (The der::CONSTRUCTED bit is for types where the value is a SEQUENCE.)
@@ -68,7 +68,7 @@ enum class GeneralNameType : uint8_t
   // nameConstraints is a pseudo-GeneralName used to signify that a
   // reference ID is actually the entire name constraint extension.
   nameConstraints = 0xff
-};
+MOZ_END_ENUM_CLASS(GeneralNameType)
 
 inline Result
 ReadGeneralName(Reader& reader,
@@ -114,14 +114,16 @@ ReadGeneralName(Reader& reader,
   return Success;
 }
 
-enum class FallBackToSearchWithinSubject { No = 0, Yes = 1 };
+MOZ_BEGIN_ENUM_CLASS(FallBackToSearchWithinSubject) 
+No = 0, 
+Yes = 1 
+MOZ_END_ENUM_CLASS(FallBackToSearchWithinSubject)
 
-enum class MatchResult
-{
+MOZ_BEGIN_ENUM_CLASS(MatchResult)
   NoNamesOfGivenType = 0,
   Mismatch = 1,
   Match = 2
-};
+MOZ_END_ENUM_CLASS(MatchResult)
 
 Result SearchNames(const Input* subjectAltName, Input subject,
                    GeneralNameType referenceIDType,
@@ -164,21 +166,26 @@ Result CheckPresentedIDConformsToConstraints(GeneralNameType referenceIDType,
 uint8_t LocaleInsensitveToLower(uint8_t a);
 bool StartsWithIDNALabel(Input id);
 
-enum class IDRole
-{
+MOZ_BEGIN_ENUM_CLASS(IDRole)
   ReferenceID = 0,
   PresentedID = 1,
   NameConstraint = 2,
-};
+MOZ_END_ENUM_CLASS(IDRole)
 
-enum class AllowWildcards { No = 0, Yes = 1 };
+MOZ_BEGIN_ENUM_CLASS(AllowWildcards) 
+No = 0, 
+Yes = 1 
+MOZ_END_ENUM_CLASS(AllowWildcards)
 
 // DNSName constraints implicitly allow subdomain matching when there is no
 // leading dot ("foo.example.com" matches a constraint of "example.com"), but
 // RFC822Name constraints only allow subdomain matching when there is a leading
 // dot ("foo.example.com" does not match "example.com" but does match
 // ".example.com").
-enum class AllowDotlessSubdomainMatches { No = 0, Yes = 1 };
+MOZ_BEGIN_ENUM_CLASS(AllowDotlessSubdomainMatches) 
+No = 0, 
+Yes = 1 
+MOZ_END_ENUM_CLASS(AllowDotlessSubdomainMatches)
 
 bool IsValidDNSID(Input hostname, IDRole idRole,
                   AllowWildcards allowWildcards);
@@ -718,11 +725,10 @@ MatchPresentedIDWithReferenceID(GeneralNameType presentedIDType,
   return Success;
 }
 
-enum class NameConstraintsSubtrees : uint8_t
-{
+MOZ_BEGIN_ENUM_CLASS(NameConstraintsSubtrees, uint8_t)
   permittedSubtrees = der::CONSTRUCTED | der::CONTEXT_SPECIFIC | 0,
   excludedSubtrees  = der::CONSTRUCTED | der::CONTEXT_SPECIFIC | 1
-};
+MOZ_END_ENUM_CLASS(NameConstraintsSubtrees)
 
 Result CheckPresentedIDConformsToNameConstraintsSubtrees(
          GeneralNameType presentedIDType,

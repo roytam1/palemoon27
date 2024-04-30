@@ -35,8 +35,8 @@ public:
   size_t ByteLength() const { return mArrayLength * sizeof(ElemType); }
 
 private:
-  HeapCopyOfStackArray() = delete;
-  HeapCopyOfStackArray(const HeapCopyOfStackArray&) = delete;
+  HeapCopyOfStackArray() MOZ_DELETE;
+  HeapCopyOfStackArray(const HeapCopyOfStackArray&) MOZ_DELETE;
 
   const size_t mArrayLength;
   ScopedDeletePtr<ElemType> const mArrayData;

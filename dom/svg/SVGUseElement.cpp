@@ -221,19 +221,20 @@ SVGUseElement::CreateAnonymousContent()
 
   // make sure target is valid type for <use>
   // QIable nsSVGGraphicsElement would eliminate enumerating all elements
-  if (!targetContent->IsAnyOfSVGElements(nsGkAtoms::svg,
-                                         nsGkAtoms::symbol,
-                                         nsGkAtoms::g,
-                                         nsGkAtoms::path,
-                                         nsGkAtoms::text,
-                                         nsGkAtoms::rect,
-                                         nsGkAtoms::circle,
-                                         nsGkAtoms::ellipse,
-                                         nsGkAtoms::line,
-                                         nsGkAtoms::polyline,
-                                         nsGkAtoms::polygon,
-                                         nsGkAtoms::image,
-                                         nsGkAtoms::use))
+  nsIAtom *tag = targetContent->Tag();
+  if (tag != nsGkAtoms::svg &&
+      tag != nsGkAtoms::symbol &&
+      tag != nsGkAtoms::g &&
+      tag != nsGkAtoms::path &&
+      tag != nsGkAtoms::text &&
+      tag != nsGkAtoms::rect &&
+      tag != nsGkAtoms::circle &&
+      tag != nsGkAtoms::ellipse &&
+      tag != nsGkAtoms::line &&
+      tag != nsGkAtoms::polyline &&
+      tag != nsGkAtoms::polygon &&
+      tag != nsGkAtoms::image &&
+      tag != nsGkAtoms::use)
     return nullptr;
 
   // circular loop detection
@@ -311,7 +312,8 @@ SVGUseElement::CreateAnonymousContent()
     newcontent = svgNode;
   }
 
-  if (newcontent->IsAnyOfSVGElements(nsGkAtoms::svg, nsGkAtoms::symbol)) {
+  if (newcontent->IsSVGElement() && (newcontent->Tag() == nsGkAtoms::svg ||
+                              newcontent->Tag() == nsGkAtoms::symbol)) {
     nsSVGElement *newElement = static_cast<nsSVGElement*>(newcontent.get());
 
     if (mLengthAttributes[ATTR_WIDTH].IsExplicitlySet())
@@ -340,7 +342,8 @@ SVGUseElement::DestroyAnonymousContent()
 bool
 SVGUseElement::OurWidthAndHeightAreUsed() const
 {
-  return mClone && mClone->IsAnyOfSVGElements(nsGkAtoms::svg, nsGkAtoms::symbol);
+  return mClone && mClone->IsSVGElement() && (mClone->Tag() == nsGkAtoms::svg ||
+                                       mClone->Tag() == nsGkAtoms::symbol);
 }
 
 //----------------------------------------------------------------------

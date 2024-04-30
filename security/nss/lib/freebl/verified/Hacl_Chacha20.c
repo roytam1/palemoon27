@@ -18,7 +18,8 @@
 static void
 Hacl_Lib_LoadStore32_uint32s_from_le_bytes(uint32_t *output, uint8_t *input, uint32_t len)
 {
-    for (uint32_t i = (uint32_t)0U; i < len; i = i + (uint32_t)1U) {
+    uint32_t i;
+    for (i = (uint32_t)0U; i < len; i = i + (uint32_t)1U) {
         uint8_t *x0 = input + (uint32_t)4U * i;
         uint32_t inputi = load32_le(x0);
         output[i] = inputi;
@@ -28,7 +29,8 @@ Hacl_Lib_LoadStore32_uint32s_from_le_bytes(uint32_t *output, uint8_t *input, uin
 static void
 Hacl_Lib_LoadStore32_uint32s_to_le_bytes(uint8_t *output, uint32_t *input, uint32_t len)
 {
-    for (uint32_t i = (uint32_t)0U; i < len; i = i + (uint32_t)1U) {
+    uint32_t i;
+    for (i = (uint32_t)0U; i < len; i = i + (uint32_t)1U) {
         uint32_t hd1 = input[i];
         uint8_t *x0 = output + (uint32_t)4U * i;
         store32_le(x0, hd1);
@@ -46,31 +48,31 @@ Hacl_Impl_Chacha20_quarter_round(uint32_t *st, uint32_t a, uint32_t b, uint32_t 
 {
     uint32_t sa = st[a];
     uint32_t sb0 = st[b];
-    st[a] = sa + sb0;
     uint32_t sd = st[d];
     uint32_t sa10 = st[a];
     uint32_t sda = sd ^ sa10;
-    st[d] = Hacl_Impl_Chacha20_rotate_left(sda, (uint32_t)16U);
     uint32_t sa0 = st[c];
     uint32_t sb1 = st[d];
-    st[c] = sa0 + sb1;
     uint32_t sd0 = st[b];
     uint32_t sa11 = st[c];
     uint32_t sda0 = sd0 ^ sa11;
-    st[b] = Hacl_Impl_Chacha20_rotate_left(sda0, (uint32_t)12U);
     uint32_t sa2 = st[a];
     uint32_t sb2 = st[b];
-    st[a] = sa2 + sb2;
     uint32_t sd1 = st[d];
     uint32_t sa12 = st[a];
     uint32_t sda1 = sd1 ^ sa12;
-    st[d] = Hacl_Impl_Chacha20_rotate_left(sda1, (uint32_t)8U);
     uint32_t sa3 = st[c];
     uint32_t sb = st[d];
-    st[c] = sa3 + sb;
     uint32_t sd2 = st[b];
     uint32_t sa1 = st[c];
     uint32_t sda2 = sd2 ^ sa1;
+    st[a] = sa + sb0;
+    st[d] = Hacl_Impl_Chacha20_rotate_left(sda, (uint32_t)16U);
+    st[c] = sa0 + sb1;
+    st[b] = Hacl_Impl_Chacha20_rotate_left(sda0, (uint32_t)12U);
+    st[a] = sa2 + sb2;
+    st[d] = Hacl_Impl_Chacha20_rotate_left(sda1, (uint32_t)8U);
+    st[c] = sa3 + sb;
     st[b] = Hacl_Impl_Chacha20_rotate_left(sda2, (uint32_t)7U);
 }
 
@@ -90,14 +92,16 @@ Hacl_Impl_Chacha20_double_round(uint32_t *st)
 inline static void
 Hacl_Impl_Chacha20_rounds(uint32_t *st)
 {
-    for (uint32_t i = (uint32_t)0U; i < (uint32_t)10U; i = i + (uint32_t)1U)
+    uint32_t i;
+    for (i = (uint32_t)0U; i < (uint32_t)10U; i = i + (uint32_t)1U)
         Hacl_Impl_Chacha20_double_round(st);
 }
 
 inline static void
 Hacl_Impl_Chacha20_sum_states(uint32_t *st, uint32_t *st_)
 {
-    for (uint32_t i = (uint32_t)0U; i < (uint32_t)16U; i = i + (uint32_t)1U) {
+    uint32_t i;
+    for (i = (uint32_t)0U; i < (uint32_t)16U; i = i + (uint32_t)1U) {
         uint32_t xi = st[i];
         uint32_t yi = st_[i];
         st[i] = xi + yi;
@@ -150,9 +154,10 @@ Hacl_Impl_Chacha20_update(uint8_t *output, uint8_t *plain, uint32_t *st, uint32_
     uint32_t *k = b;
     uint32_t *ib = b + (uint32_t)16U;
     uint32_t *ob = b + (uint32_t)32U;
+    uint32_t i;
     Hacl_Impl_Chacha20_chacha20_core(k, st, ctr);
     Hacl_Lib_LoadStore32_uint32s_from_le_bytes(ib, plain, (uint32_t)16U);
-    for (uint32_t i = (uint32_t)0U; i < (uint32_t)16U; i = i + (uint32_t)1U) {
+    for (i = (uint32_t)0U; i < (uint32_t)16U; i = i + (uint32_t)1U) {
         uint32_t xi = ib[i];
         uint32_t yi = k[i];
         ob[i] = xi ^ yi;
@@ -169,9 +174,10 @@ Hacl_Impl_Chacha20_update_last(
     uint32_t ctr)
 {
     uint8_t block[64U] = { 0U };
-    Hacl_Impl_Chacha20_chacha20_block(block, st, ctr);
     uint8_t *mask = block;
-    for (uint32_t i = (uint32_t)0U; i < len; i = i + (uint32_t)1U) {
+    uint32_t i;
+    Hacl_Impl_Chacha20_chacha20_block(block, st, ctr);
+    for (i = (uint32_t)0U; i < len; i = i + (uint32_t)1U) {
         uint8_t xi = plain[i];
         uint8_t yi = mask[i];
         output[i] = xi ^ yi;
@@ -186,7 +192,8 @@ Hacl_Impl_Chacha20_chacha20_counter_mode_blocks(
     uint32_t *st,
     uint32_t ctr)
 {
-    for (uint32_t i = (uint32_t)0U; i < num_blocks; i = i + (uint32_t)1U) {
+    uint32_t i;
+    for (i = (uint32_t)0U; i < num_blocks; i = i + (uint32_t)1U) {
         uint8_t *b = plain + (uint32_t)64U * i;
         uint8_t *o = output + (uint32_t)64U * i;
         Hacl_Impl_Chacha20_update(o, b, st, ctr + i);

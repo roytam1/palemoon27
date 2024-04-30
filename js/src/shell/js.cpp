@@ -971,7 +971,7 @@ class AutoNewContext
     Maybe<JSAutoRequest> newRequest;
     Maybe<AutoCompartment> newCompartment;
 
-    AutoNewContext(const AutoNewContext&) = delete;
+    AutoNewContext(const AutoNewContext&) MOZ_DELETE;
 
   public:
     AutoNewContext() : oldcx(nullptr), newcx(nullptr) {}

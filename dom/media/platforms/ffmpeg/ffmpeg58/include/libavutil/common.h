@@ -31,7 +31,7 @@
 #endif
 
 #include <errno.h>
-#include <inttypes.h>
+#include "mozilla/MSIntTypes.h"
 #include <limits.h>
 #include <math.h>
 #include <stdint.h>

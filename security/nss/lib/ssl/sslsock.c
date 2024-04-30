@@ -55,38 +55,38 @@ static const sslSocketOps ssl_secure_ops = { /* SSL. */
 ** default settings for socket enables
 */
 static sslOptions ssl_defaults = {
-    .nextProtoNego = { siBuffer, NULL, 0 },
-    .maxEarlyDataSize = 1 << 16,
-    .recordSizeLimit = MAX_FRAGMENT_LENGTH + 1,
-    .useSecurity = PR_TRUE,
-    .useSocks = PR_FALSE,
-    .requestCertificate = PR_FALSE,
-    .requireCertificate = SSL_REQUIRE_FIRST_HANDSHAKE,
-    .handshakeAsClient = PR_FALSE,
-    .handshakeAsServer = PR_FALSE,
-    .noCache = PR_FALSE,
-    .fdx = PR_FALSE,
-    .detectRollBack = PR_TRUE,
-    .noLocks = PR_FALSE,
-    .enableSessionTickets = PR_FALSE,
-    .enableDeflate = PR_FALSE,
-    .enableRenegotiation = SSL_RENEGOTIATE_REQUIRES_XTN,
-    .requireSafeNegotiation = PR_FALSE,
-    .enableFalseStart = PR_FALSE,
-    .cbcRandomIV = PR_TRUE,
-    .enableOCSPStapling = PR_FALSE,
-    .enableALPN = PR_TRUE,
-    .reuseServerECDHEKey = PR_TRUE,
-    .enableFallbackSCSV = PR_FALSE,
-    .enableServerDhe = PR_TRUE,
-    .enableExtendedMS = PR_FALSE,
-    .enableSignedCertTimestamps = PR_FALSE,
-    .requireDHENamedGroups = PR_FALSE,
-    .enable0RttData = PR_FALSE,
-    .enableTls13CompatMode = PR_FALSE,
-    .enableDtlsShortHeader = PR_FALSE,
-    .enableHelloDowngradeCheck = PR_FALSE,
-    .enableV2CompatibleHello = PR_FALSE
+    { siBuffer, NULL, 0 }, /* nextProtoNego */
+    1 << 16,
+    MAX_FRAGMENT_LENGTH + 1,
+    PR_TRUE,    /* useSecurity        */
+    PR_FALSE,   /* useSocks           */
+    PR_FALSE,   /* requestCertificate */
+    2,          /* requireCertificate */
+    PR_FALSE,   /* handshakeAsClient  */
+    PR_FALSE,   /* handshakeAsServer  */
+    PR_FALSE,   /* enableSSL2         */ /* now defaults to off in NSS 3.13 */
+    PR_FALSE,   /* unusedBit9         */
+    PR_FALSE,   /* unusedBit10        */
+    PR_FALSE,   /* noCache            */
+    PR_FALSE,   /* fdx                */
+    PR_FALSE,   /* v2CompatibleHello  */ /* now defaults to off in NSS 3.13 */
+    PR_TRUE,    /* detectRollBack     */
+    PR_FALSE,   /* noStepDown         */
+    PR_FALSE,   /* bypassPKCS11       */
+    PR_FALSE,   /* noLocks            */
+    PR_FALSE,   /* enableSessionTickets */
+    PR_FALSE,   /* enableDeflate      */
+    2,          /* enableRenegotiation (default: requires extension) */
+    PR_FALSE,   /* requireSafeNegotiation */
+    PR_FALSE,   /* enableFalseStart   */
+    PR_TRUE,    /* cbcRandomIV        */
+    PR_FALSE,   /* enableOCSPStapling */
+    PR_TRUE,    /* enableNPN          */
+    PR_FALSE,   /* enableALPN         */
+    PR_TRUE,    /* reuseServerECDHEKey */
+    PR_FALSE,   /* enableFallbackSCSV */
+    PR_TRUE,    /* enableServerDhe */
+    PR_FALSE    /* enableExtendedMS    */
 };
 
 /*
@@ -2043,6 +2043,7 @@ SSL_SetNextProtoNego(PRFileDesc *fd, const unsigned char *data,
                      unsigned int length)
 {
     sslSocket *ss;
+    size_t firstLen = data[0] + 1;
 
     ss = ssl_FindSocket(fd);
     if (!ss) {
@@ -2061,7 +2062,6 @@ SSL_SetNextProtoNego(PRFileDesc *fd, const unsigned char *data,
     ssl_GetSSL3HandshakeLock(ss);
     SECITEM_FreeItem(&ss->opt.nextProtoNego, PR_FALSE);
     SECITEM_AllocItem(NULL, &ss->opt.nextProtoNego, length);
-    size_t firstLen = data[0] + 1;
     /* firstLen <= length is ensured by ssl3_ValidateAppProtocol. */
     PORT_Memcpy(ss->opt.nextProtoNego.data + (length - firstLen), data, firstLen);
     PORT_Memcpy(ss->opt.nextProtoNego.data, data + firstLen, length - firstLen);
@@ -3785,11 +3785,11 @@ ssl_GetKeyPairRef(sslKeyPair *keyPair)
 void
 ssl_FreeKeyPair(sslKeyPair *keyPair)
 {
+  PRInt32 newCount = PR_ATOMIC_DECREMENT(&keyPair->refCount);
     if (!keyPair) {
         return;
     }
 
-    PRInt32 newCount = PR_ATOMIC_DECREMENT(&keyPair->refCount);
     if (!newCount) {
         SECKEY_DestroyPrivateKey(keyPair->privKey);
         SECKEY_DestroyPublicKey(keyPair->pubKey);
@@ -4106,6 +4106,7 @@ SSLExp_SetResumptionToken(PRFileDesc *fd, const PRUint8 *token,
 {
     sslSocket *ss = ssl_FindSocket(fd);
     sslSessionID *sid = NULL;
+    SECStatus rv = ssl_DecodeResumptionToken(sid, token, len);
 
     if (!ss) {
         SSL_DBG(("%d: SSL[%d]: bad socket in SSL_SetResumptionToken",
@@ -4136,7 +4137,6 @@ SSLExp_SetResumptionToken(PRFileDesc *fd, const PRUint8 *token,
     }
 
     /* Populate NewSessionTicket values */
-    SECStatus rv = ssl_DecodeResumptionToken(sid, token, len);
     if (rv != SECSuccess) {
         // If decoding fails, we assume the token is bad.
         PORT_SetError(SSL_ERROR_BAD_RESUMPTION_TOKEN_ERROR);
@@ -4193,13 +4193,14 @@ SECStatus
 SSLExp_GetResumptionTokenInfo(const PRUint8 *tokenData, unsigned int tokenLen,
                               SSLResumptionTokenInfo *tokenOut, PRUintn len)
 {
+    sslSessionID sid = { 0 };
+    SSLResumptionTokenInfo token;
+    token.peerCert = CERT_DupCertificate(sid.peerCert);
     if (!tokenData || !tokenOut || !tokenLen ||
         len > sizeof(SSLResumptionTokenInfo)) {
         PORT_SetError(SEC_ERROR_INVALID_ARGS);
         return SECFailure;
     }
-    sslSessionID sid = { 0 };
-    SSLResumptionTokenInfo token;
 
     /* Populate sid values */
     if (ssl_DecodeResumptionToken(&sid, tokenData, tokenLen) != SECSuccess) {
@@ -4207,8 +4208,6 @@ SSLExp_GetResumptionTokenInfo(const PRUint8 *tokenData, unsigned int tokenLen,
         PORT_SetError(SSL_ERROR_BAD_RESUMPTION_TOKEN_ERROR);
         return SECFailure;
     }
-
-    token.peerCert = CERT_DupCertificate(sid.peerCert);
 
     token.alpnSelectionLen = sid.u.ssl3.alpnSelection.len;
     token.alpnSelection = PORT_ZAlloc(token.alpnSelectionLen);

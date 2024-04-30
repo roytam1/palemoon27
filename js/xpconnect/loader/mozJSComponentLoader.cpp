@@ -147,8 +147,8 @@ private:
     char*      mBuf;
 
     // prevent copying and assignment
-    JSCLContextHelper(const JSCLContextHelper&) = delete;
-    const JSCLContextHelper& operator=(const JSCLContextHelper&) = delete;
+    JSCLContextHelper(const JSCLContextHelper&) MOZ_DELETE;
+    const JSCLContextHelper& operator=(const JSCLContextHelper&) MOZ_DELETE;
 };
 
 static nsresult

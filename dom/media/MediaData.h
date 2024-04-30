@@ -420,7 +420,7 @@ private:
   // It is designed to share potentially big byte arrays.
 class MediaLargeByteBuffer : public FallibleTArray<uint8_t> {
   NS_INLINE_DECL_THREADSAFE_REFCOUNTING(MediaLargeByteBuffer);
-  MediaLargeByteBuffer() = default;
+  MediaLargeByteBuffer() { };
   explicit MediaLargeByteBuffer(size_t aCapacity) : FallibleTArray<uint8_t>(aCapacity) {}
 
 private:

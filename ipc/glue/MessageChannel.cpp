@@ -201,8 +201,8 @@ private:
     DebugOnly<bool> mMoved;
 
     // Disable harmful methods.
-    InterruptFrame(const InterruptFrame& aOther) = delete;
-    InterruptFrame& operator=(const InterruptFrame&) = delete;
+    InterruptFrame(const InterruptFrame& aOther) MOZ_DELETE;
+    InterruptFrame& operator=(const InterruptFrame&) MOZ_DELETE;
 };
 
 class MOZ_STACK_CLASS MessageChannel::CxxStackFrame
@@ -259,9 +259,9 @@ private:
     MessageChannel& mThat;
 
     // Disable harmful methods.
-    CxxStackFrame() = delete;
-    CxxStackFrame(const CxxStackFrame&) = delete;
-    CxxStackFrame& operator=(const CxxStackFrame&) = delete;
+    CxxStackFrame() MOZ_DELETE;
+    CxxStackFrame(const CxxStackFrame&) MOZ_DELETE;
+    CxxStackFrame& operator=(const CxxStackFrame&) MOZ_DELETE;
 };
 
 namespace {

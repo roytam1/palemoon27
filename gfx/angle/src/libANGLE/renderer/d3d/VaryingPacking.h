@@ -58,8 +58,8 @@ struct PackedVaryingRegister final
     {
     }
 
-    PackedVaryingRegister(const PackedVaryingRegister &) = default;
-    PackedVaryingRegister &operator=(const PackedVaryingRegister &) = default;
+    PackedVaryingRegister(const PackedVaryingRegister &) MOZ_DEFAULT;
+    PackedVaryingRegister &operator=(const PackedVaryingRegister &) MOZ_DEFAULT;
 
     bool operator<(const PackedVaryingRegister &other) const
     {

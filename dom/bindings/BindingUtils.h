@@ -1007,7 +1007,6 @@ WrapNewBindingNonWrapperCachedObject(JSContext* cx,
                                      T* value,
                                      JS::MutableHandle<JS::Value> rval)
 {
-  static_assert(IsRefcounted<T>::value, "Don't pass owned classes in here.");
   MOZ_ASSERT(value);
   // We try to wrap in the compartment of the underlying object of "scope"
   JS::Rooted<JSObject*> obj(cx);
@@ -1049,7 +1048,6 @@ WrapNewBindingNonWrapperCachedObject(JSContext* cx,
                                      nsAutoPtr<T>& value,
                                      JS::MutableHandle<JS::Value> rval)
 {
-  static_assert(!IsRefcounted<T>::value, "Only pass owned classes in here.");
   // We do a runtime check on value, because otherwise we might in
   // fact end up wrapping a null and invoking methods on it later.
   if (!value) {
@@ -1087,8 +1085,7 @@ WrapNewBindingNonWrapperCachedObject(JSContext* cx,
 }
 
 // Helper for smart pointers (nsRefPtr/nsCOMPtr).
-template <template <typename> class SmartPtr, typename T,
-          typename U=typename EnableIf<IsRefcounted<T>::value, T>::Type>
+template <template <typename> class SmartPtr, typename T>
 inline bool
 WrapNewBindingNonWrapperCachedObject(JSContext* cx, JS::Handle<JSObject*> scope,
                                      const SmartPtr<T>& value,
@@ -1947,8 +1944,8 @@ private:
   static const size_t sInlineCapacity = 64;
   nsString::char_type mInlineStorage[sInlineCapacity];
 
-  FakeString(const FakeString& other) = delete;
-  void operator=(const FakeString& other) = delete;
+  FakeString(const FakeString& other) MOZ_DELETE;
+  void operator=(const FakeString& other) MOZ_DELETE;
 
   void SetData(nsString::char_type* aData) {
     MOZ_ASSERT(mFlags == nsString::F_TERMINATED);
@@ -2087,14 +2084,14 @@ template<typename T,
          bool isOwningUnion=IsBaseOf<AllOwningUnionBase, T>::value>
 class SequenceTracer
 {
-  explicit SequenceTracer() = delete; // Should never be instantiated
+  explicit SequenceTracer() MOZ_DELETE; // Should never be instantiated
 };
 
 // sequence<object> or sequence<object?>
 template<>
 class SequenceTracer<JSObject*, false, false, false>
 {
-  explicit SequenceTracer() = delete; // Should never be instantiated
+  explicit SequenceTracer() MOZ_DELETE; // Should never be instantiated
 
 public:
   static void TraceSequence(JSTracer* trc, JSObject** objp, JSObject** end) {
@@ -2108,7 +2105,7 @@ public:
 template<>
 class SequenceTracer<JS::Value, false, false, false>
 {
-  explicit SequenceTracer() = delete; // Should never be instantiated
+  explicit SequenceTracer() MOZ_DELETE; // Should never be instantiated
 
 public:
   static void TraceSequence(JSTracer* trc, JS::Value* valp, JS::Value* end) {
@@ -2122,7 +2119,7 @@ public:
 template<typename T>
 class SequenceTracer<Sequence<T>, false, false, false>
 {
-  explicit SequenceTracer() = delete; // Should never be instantiated
+  explicit SequenceTracer() MOZ_DELETE; // Should never be instantiated
 
 public:
   static void TraceSequence(JSTracer* trc, Sequence<T>* seqp, Sequence<T>* end) {
@@ -2136,7 +2133,7 @@ public:
 template<typename T>
 class SequenceTracer<nsTArray<T>, false, false, false>
 {
-  explicit SequenceTracer() = delete; // Should never be instantiated
+  explicit SequenceTracer() MOZ_DELETE; // Should never be instantiated
 
 public:
   static void TraceSequence(JSTracer* trc, nsTArray<T>* seqp, nsTArray<T>* end) {
@@ -2150,7 +2147,7 @@ public:
 template<typename T>
 class SequenceTracer<T, true, false, false>
 {
-  explicit SequenceTracer() = delete; // Should never be instantiated
+  explicit SequenceTracer() MOZ_DELETE; // Should never be instantiated
 
 public:
   static void TraceSequence(JSTracer* trc, T* dictp, T* end) {
@@ -2164,7 +2161,7 @@ public:
 template<typename T>
 class SequenceTracer<T, false, true, false>
 {
-  explicit SequenceTracer() = delete; // Should never be instantiated
+  explicit SequenceTracer() MOZ_DELETE; // Should never be instantiated
 
 public:
   static void TraceSequence(JSTracer* trc, T* arrayp, T* end) {
@@ -2178,7 +2175,7 @@ public:
 template<typename T>
 class SequenceTracer<T, false, false, true>
 {
-  explicit SequenceTracer() = delete; // Should never be instantiated
+  explicit SequenceTracer() MOZ_DELETE; // Should never be instantiated
 
 public:
   static void TraceSequence(JSTracer* trc, T* arrayp, T* end) {
@@ -2192,7 +2189,7 @@ public:
 template<typename T>
 class SequenceTracer<Nullable<T>, false, false, false>
 {
-  explicit SequenceTracer() = delete; // Should never be instantiated
+  explicit SequenceTracer() MOZ_DELETE; // Should never be instantiated
 
 public:
   static void TraceSequence(JSTracer* trc, Nullable<T>* seqp,
@@ -2232,7 +2229,7 @@ void TraceMozMap(JSTracer* trc, MozMap<T>& map)
 template<typename T>
 class SequenceTracer<MozMap<T>, false, false, false>
 {
-  explicit SequenceTracer() = delete; // Should never be instantiated
+  explicit SequenceTracer() MOZ_DELETE; // Should never be instantiated
 
 public:
   static void TraceSequence(JSTracer* trc, MozMap<T>* seqp, MozMap<T>* end) {
@@ -3247,18 +3244,16 @@ StrongOrRawPtr(already_AddRefed<S>&& aPtr)
   return aPtr.template downcast<T>();
 }
 
-template<class T,
-         class ReturnType=typename Conditional<IsRefcounted<T>::value, T*,
-                                               nsAutoPtr<T>>::Type>
-inline ReturnType
+template<class T>
+inline T*
 StrongOrRawPtr(T* aPtr)
 {
-  return ReturnType(aPtr);
+  return aPtr;
 }
 
 template<class T, template<typename> class SmartPtr, class S>
 inline void
-StrongOrRawPtr(SmartPtr<S>&& aPtr) = delete;
+StrongOrRawPtr(SmartPtr<S>&& aPtr) MOZ_DELETE;
 
 template<class T>
 struct StrongPtrForMember

@@ -41,8 +41,8 @@ protected:
   class DOMCallback;
 
 private:
-  DOMCameraControlListener(const DOMCameraControlListener&) = delete;
-  DOMCameraControlListener& operator=(const DOMCameraControlListener&) = delete;
+  DOMCameraControlListener(const DOMCameraControlListener&) MOZ_DELETE;
+  DOMCameraControlListener& operator=(const DOMCameraControlListener&) MOZ_DELETE;
 };
 
 } // namespace mozilla

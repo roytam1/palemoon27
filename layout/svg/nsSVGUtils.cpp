@@ -1161,9 +1161,10 @@ nsSVGUtils::PathExtentsToMaxStrokeExtents(const gfxRect& aPathExtents,
                                           nsSVGPathGeometryFrame* aFrame,
                                           const gfxMatrix& aMatrix)
 {
-  bool strokeMayHaveCorners =
-    !aFrame->GetContent()->IsAnyOfSVGElements(nsGkAtoms::circle,
-                                              nsGkAtoms::ellipse);
+const nsIAtom* tag = aFrame->GetContent()->Tag();
+
+  bool strokeMayHaveCorners = (tag != nsGkAtoms::circle &&
+                               tag != nsGkAtoms::ellipse);
 
   // For a shape without corners the stroke can only extend half the stroke
   // width from the path in the x/y-axis directions. For shapes with corners
@@ -1173,10 +1174,9 @@ nsSVGUtils::PathExtentsToMaxStrokeExtents(const gfxRect& aPathExtents,
 
   // The stroke can extend even further for paths that can be affected by
   // stroke-miterlimit.
-  bool affectedByMiterlimit =
-    aFrame->GetContent()->IsAnyOfSVGElements(nsGkAtoms::path,
-                                             nsGkAtoms::polyline,
-                                             nsGkAtoms::polygon);
+  bool affectedByMiterlimit = (tag == nsGkAtoms::path ||
+                               tag == nsGkAtoms::polyline ||
+                               tag == nsGkAtoms::polygon);
 
   if (affectedByMiterlimit) {
     const nsStyleSVG* style = aFrame->StyleSVG();

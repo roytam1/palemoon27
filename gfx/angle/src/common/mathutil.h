@@ -11,6 +11,7 @@
 
 #include "common/debug.h"
 #include "common/platform.h"
+#include "nsMathUtils.h"
 
 #include <limits>
 #include <algorithm>
@@ -558,7 +559,7 @@ typedef Range<unsigned int> RangeUI;
 
 struct IndexRange
 {
-    IndexRange() : IndexRange(0, 0, 0) {}
+    IndexRange() { IndexRange(0, 0, 0); }
     IndexRange(size_t start_, size_t end_, size_t vertexIndexCount_)
         : start(start_), end(end_), vertexIndexCount(vertexIndexCount_)
     {
@@ -584,8 +585,8 @@ struct IndexRange
 // packSnorm2x16 : round(clamp(c, -1, +1) * 32767.0)
 inline uint32_t packSnorm2x16(float f1, float f2)
 {
-    uint16_t leastSignificantBits = static_cast<uint16_t>(roundf(clamp(f1, -1.0f, 1.0f) * 32767.0f));
-    uint16_t mostSignificantBits = static_cast<uint16_t>(roundf(clamp(f2, -1.0f, 1.0f) * 32767.0f));
+    uint16_t leastSignificantBits = static_cast<uint16_t>(NS_roundf(clamp(f1, -1.0f, 1.0f) * 32767.0f));
+    uint16_t mostSignificantBits = static_cast<uint16_t>(NS_roundf(clamp(f2, -1.0f, 1.0f) * 32767.0f));
     return static_cast<uint32_t>(mostSignificantBits) << 16 | static_cast<uint32_t>(leastSignificantBits);
 }
 
@@ -611,8 +612,8 @@ inline void unpackSnorm2x16(uint32_t u, float *f1, float *f2)
 // packUnorm2x16 : round(clamp(c, 0, +1) * 65535.0)
 inline uint32_t packUnorm2x16(float f1, float f2)
 {
-    uint16_t leastSignificantBits = static_cast<uint16_t>(roundf(clamp(f1, 0.0f, 1.0f) * 65535.0f));
-    uint16_t mostSignificantBits = static_cast<uint16_t>(roundf(clamp(f2, 0.0f, 1.0f) * 65535.0f));
+    uint16_t leastSignificantBits = static_cast<uint16_t>(NS_roundf(clamp(f1, 0.0f, 1.0f) * 65535.0f));
+    uint16_t mostSignificantBits = static_cast<uint16_t>(NS_roundf(clamp(f2, 0.0f, 1.0f) * 65535.0f));
     return static_cast<uint32_t>(mostSignificantBits) << 16 | static_cast<uint32_t>(leastSignificantBits);
 }
 

@@ -322,17 +322,16 @@ nsSMILTimeContainer::NotifyTimeChange()
   // Copy the timed elements to a separate array before calling
   // HandleContainerTimeChange on each them in case doing so mutates
   // mMilestoneEntries.
-  nsTArray<RefPtr<mozilla::dom::SVGAnimationElement>> elems;
   const MilestoneEntry* p = mMilestoneEntries.Elements();
+#if DEBUG
+  uint32_t queueLength = mMilestoneEntries.Length();
+#endif
   while (p < mMilestoneEntries.Elements() + mMilestoneEntries.Length()) {
-    elems.AppendElement(p->mTimebase.get());
-    ++p;
-  }
-
-  p = nullptr;
-  mHoldingEntries = false;
-
-  for (auto& elem : elems) {
+    mozilla::dom::SVGAnimationElement* elem = p->mTimebase.get();
     elem->TimedElement().HandleContainerTimeChange();
+    MOZ_ASSERT(queueLength == mMilestoneEntries.Length(),
+               "Call to HandleContainerTimeChange resulted in a change to the "
+               "queue of milestones");
+    ++p;
   }
 }

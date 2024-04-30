@@ -719,8 +719,11 @@ protected:
 
     bool IsReadWriteTextElement() const
     {
-        return IsAnyOfXULElements(nsGkAtoms::textbox, nsGkAtoms::textarea) &&
-               !HasAttr(kNameSpaceID_None, nsGkAtoms::readonly);
+        const nsIAtom* tag = Tag();
+        return
+            GetNameSpaceID() == kNameSpaceID_XUL &&
+            (tag == nsGkAtoms::textbox || tag == nsGkAtoms::textarea) &&
+            !HasAttr(kNameSpaceID_None, nsGkAtoms::readonly);
     }
 
     virtual JSObject* WrapNode(JSContext *aCx) override;

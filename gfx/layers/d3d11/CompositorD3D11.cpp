@@ -20,7 +20,9 @@
 
 #include "mozilla/EnumeratedArray.h"
 
+#ifdef MOZ_METRO
 #include <dxgi1_2.h>
+#endif
 
 namespace mozilla {
 
@@ -1077,51 +1079,12 @@ CompositorD3D11::BeginFrame(const nsIntRegion& aInvalidRegion,
 void
 CompositorD3D11::EndFrame()
 {
-  if (!mDefaultRT) {
-    return;
-  }
-
   mContext->Flush();
 
   nsIntSize oldSize = mSize;
   EnsureSize();
-  UINT presentInterval = 0;
-
-  if (gfxWindowsPlatform::GetPlatform()->IsWARP()) {
-    // When we're using WARP we cannot present immediately as it causes us
-    // to tear when rendering. When not using WARP it appears the DWM takes
-    // care of tearing for us.
-    presentInterval = 1;
-  }
-
   if (oldSize == mSize) {
-    RefPtr<IDXGISwapChain1> chain;
-    HRESULT hr = mSwapChain->QueryInterface((IDXGISwapChain1**)byRef(chain));
-    if (SUCCEEDED(hr) && chain) {
-      DXGI_PRESENT_PARAMETERS params;
-      PodZero(&params);
-      params.DirtyRectsCount = mInvalidRegion.GetNumRects();
-      std::vector<RECT> rects;
-      rects.reserve(params.DirtyRectsCount);
-
-      nsIntRegionRectIterator iter(mInvalidRegion);
-      const nsIntRect* r;
-      uint32_t i = 0;
-      while ((r = iter.Next()) != nullptr) {
-        RECT rect;
-        rect.left = r->x;
-        rect.top = r->y;
-        rect.bottom = r->YMost();
-        rect.right = r->XMost();
-
-        rects.push_back(rect);
-      }
-
-      params.pDirtyRects = &rects.front();
-      chain->Present1(presentInterval, mDisableSequenceForNextFrame ? DXGI_PRESENT_DO_NOT_SEQUENCE : 0, &params);
-    } else {
-      mSwapChain->Present(presentInterval, mDisableSequenceForNextFrame ? DXGI_PRESENT_DO_NOT_SEQUENCE : 0);
-    }
+    mSwapChain->Present(0, mDisableSequenceForNextFrame ? DXGI_PRESENT_DO_NOT_SEQUENCE : 0);
     mDisableSequenceForNextFrame = false;
     if (mTarget) {
       PaintToTarget();

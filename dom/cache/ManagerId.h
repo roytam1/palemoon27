@@ -59,8 +59,8 @@ private:
             uint32_t aAppId, bool aInBrowserElement);
   ~ManagerId();
 
-  ManagerId(const ManagerId&) = delete;
-  ManagerId& operator=(const ManagerId&) = delete;
+  ManagerId(const ManagerId&) MOZ_DELETE;
+  ManagerId& operator=(const ManagerId&) MOZ_DELETE;
 
   // only accessible on main thread
   nsCOMPtr<nsIPrincipal> mPrincipal;

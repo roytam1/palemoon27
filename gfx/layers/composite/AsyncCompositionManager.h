@@ -227,8 +227,8 @@ public:
 private:
   AsyncCompositionManager* mManager;
 
-  AutoResolveRefLayers(const AutoResolveRefLayers&) = delete;
-  AutoResolveRefLayers& operator=(const AutoResolveRefLayers&) = delete;
+  AutoResolveRefLayers(const AutoResolveRefLayers&) MOZ_DELETE;
+  AutoResolveRefLayers& operator=(const AutoResolveRefLayers&) MOZ_DELETE;
 };
 
 } // layers

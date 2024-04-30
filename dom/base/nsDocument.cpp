@@ -147,7 +147,10 @@
 #include "mozilla/dom/HTMLLinkElement.h"
 #include "mozilla/dom/HTMLMediaElement.h"
 #include "mozilla/dom/HTMLImageElement.h"
+
+#ifdef MOZ_MEDIASOURCE
 #include "mozilla/dom/MediaSource.h"
+#endif
 
 #include "mozAutoDocUpdate.h"
 #include "nsGlobalWindow.h"
@@ -4555,6 +4558,7 @@ nsDocument::SetScopeObject(nsIGlobalObject* aGlobal)
   }
 }
 
+#ifdef MOZ_MEDIASOURCE
 static void
 CheckIfContainsMSEContent(nsISupports* aSupports, void* aContainsMSE)
 {
@@ -4579,6 +4583,7 @@ nsDocument::ContainsMSEContent()
                              static_cast<void*>(&containsMSE));
   return containsMSE;
 }
+#endif
 
 static void
 NotifyActivityChanged(nsISupports *aSupports, void *aUnused)
@@ -8835,11 +8840,13 @@ nsDocument::CanSavePresentation(nsIRequest *aNewRequest)
   }
 #endif // MOZ_WEBRTC
 
+  #ifdef MOZ_MEDIASOURCE
   // Don't save presentations for documents containing MSE content, to
   // reduce memory usage.
   if (ContainsMSEContent()) {
     return false;
   }
+  #endif
 
   bool canCache = true;
   if (mSubDocuments)

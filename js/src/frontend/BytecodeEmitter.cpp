@@ -596,7 +596,7 @@ class NonLocalExitScope {
     const int savedDepth;
     uint32_t openScopeIndex;
 
-    NonLocalExitScope(const NonLocalExitScope&) = delete;
+    NonLocalExitScope(const NonLocalExitScope&) MOZ_DELETE;
 
   public:
     explicit NonLocalExitScope(ExclusiveContext* cx_, BytecodeEmitter* bce_)

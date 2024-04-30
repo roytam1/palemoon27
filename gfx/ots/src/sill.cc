@@ -5,6 +5,7 @@
 #include "sill.h"
 
 #include "feat.h"
+#include "silf.h"
 #include <cmath>
 #include <unordered_set>
 
@@ -35,7 +36,7 @@ bool OpenTypeSILL::Parse(const uint8_t* data, size_t length) {
       this->searchRange = this->entrySelector = this->rangeShift = 0;
     }
   } else {
-    unsigned floorLog2 = std::floor(std::log2(this->numLangs));
+    unsigned floorLog2 = std::floor(ots::log2(this->numLangs));
     if (this->searchRange != (unsigned)std::pow(2, floorLog2) ||
         this->entrySelector != floorLog2 ||
         this->rangeShift != this->numLangs - this->searchRange) {

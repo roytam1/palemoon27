@@ -369,8 +369,8 @@ private:
   static int32_t sCachedFloatManagerCount;
   static void* sCachedFloatManagers[NS_FLOAT_MANAGER_CACHE_SIZE];
 
-  nsFloatManager(const nsFloatManager&) = delete;
-  void operator=(const nsFloatManager&) = delete;
+  nsFloatManager(const nsFloatManager&) MOZ_DELETE;
+  void operator=(const nsFloatManager&) MOZ_DELETE;
 };
 
 /**

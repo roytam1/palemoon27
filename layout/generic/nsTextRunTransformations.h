@@ -35,8 +35,8 @@ struct nsTransformedCharStyle final {
 
 private:
   ~nsTransformedCharStyle() {}
-  nsTransformedCharStyle(const nsTransformedCharStyle& aOther) = delete;
-  nsTransformedCharStyle& operator=(const nsTransformedCharStyle& aOther) = delete;
+  nsTransformedCharStyle(const nsTransformedCharStyle& aOther) MOZ_DELETE;
+  nsTransformedCharStyle& operator=(const nsTransformedCharStyle& aOther) MOZ_DELETE;
 };
 
 class nsTransformingTextRunFactory {

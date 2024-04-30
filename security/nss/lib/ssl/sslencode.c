@@ -214,6 +214,8 @@ sslRead_ReadVariable(sslReader *reader, unsigned int sizeLen, sslReadBuffer *out
 SECStatus
 sslRead_ReadNumber(sslReader *reader, unsigned int bytes, PRUint64 *num)
 {
+    unsigned int i;
+    PRUint64 number = 0;
     if (!reader || !num) {
         PORT_SetError(SEC_ERROR_INVALID_ARGS);
         return SECFailure;
@@ -224,8 +226,6 @@ sslRead_ReadNumber(sslReader *reader, unsigned int bytes, PRUint64 *num)
         PORT_SetError(SEC_ERROR_BAD_DATA);
         return SECFailure;
     }
-    unsigned int i;
-    PRUint64 number = 0;
     for (i = 0; i < bytes; i++) {
         number = (number << 8) + reader->buf.buf[i + reader->offset];
     }

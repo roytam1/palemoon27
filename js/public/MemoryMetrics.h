@@ -189,7 +189,7 @@ struct NotableClassInfo : public ClassInfo
     char* className_;
 
   private:
-    NotableClassInfo(const NotableClassInfo& info) = delete;
+    NotableClassInfo(const NotableClassInfo& info) MOZ_DELETE;
 };
 
 // Data for tracking JIT-code memory usage.
@@ -313,7 +313,7 @@ struct NotableStringInfo : public StringInfo
     size_t length;
 
   private:
-    NotableStringInfo(const NotableStringInfo& info) = delete;
+    NotableStringInfo(const NotableStringInfo& info) MOZ_DELETE;
 };
 
 // This class holds information about the memory taken up by script sources
@@ -374,7 +374,7 @@ struct NotableScriptSourceInfo : public ScriptSourceInfo
     char* filename_;
 
   private:
-    NotableScriptSourceInfo(const NotableScriptSourceInfo& info) = delete;
+    NotableScriptSourceInfo(const NotableScriptSourceInfo& info) MOZ_DELETE;
 };
 
 // These measurements relate directly to the JSRuntime, and not to zones and

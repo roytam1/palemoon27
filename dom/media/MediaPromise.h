@@ -61,7 +61,8 @@ struct ReturnType {
 
 template<typename MethodType>
 struct TakesArgument {
-  static const bool value = decltype(detail::TakesArgumentHelper(DeclVal<MethodType>()))::value;
+  typedef decltype(detail::TakesArgumentHelper(DeclVal<MethodType>())) Type;
+  static const bool value = Type::value;
 };
 
 template<typename MethodType, typename TargetType>

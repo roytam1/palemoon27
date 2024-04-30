@@ -42,7 +42,7 @@
 #  elif MOZ_USING_LIBCXX && defined(__clang__)
 #    define MOZ_HAVE_CXX11_ATOMICS
 #  endif
-#elif defined(_MSC_VER)
+#elif defined(_MSC_VER) && _MSC_VER >= 1800
 #  define MOZ_HAVE_CXX11_ATOMICS
 #endif
 
@@ -76,7 +76,7 @@ namespace mozilla {
  * Note that for simplicity and practicality, not all of the modes in
  * C++11 are supported.  The missing C++11 modes are either subsumed by
  * the modes we provide below, or not relevant for the CPUs we support
- * in Goanna.  These three modes are confusing enough as it is!
+ * in Gecko.  These three modes are confusing enough as it is!
  */
 enum MemoryOrdering {
   /*
@@ -284,7 +284,8 @@ private:
   {
 #if defined(__clang__) || defined(_MSC_VER)
     return aVal;
-#elif defined(__GNUC__) && !MOZ_GCC_VERSION_AT_LEAST(4, 7, 0)
+#elif defined(__GNUC__) && MOZ_GCC_VERSION_AT_LEAST(4, 6, 0) && \
+    !MOZ_GCC_VERSION_AT_LEAST(4, 7, 0)
     return aVal * sizeof(T);
 #else
     return aVal;
@@ -504,7 +505,11 @@ struct AtomicIntrinsics<T*, Order> : public IntrinsicMemoryOps<T*, Order>,
 
 /*
  * Windows comes with a full complement of atomic operations.
- * We'll provide as much as we can for Vista and above.
+ * Unfortunately, most of those aren't available for Windows XP (even if
+ * the compiler supports intrinsics for them), which is the oldest
+ * version of Windows we support.  Therefore, we only provide operations
+ * on 32-bit datatypes for 32-bit Windows versions; for 64-bit Windows
+ * versions, we support 64-bit datatypes as well.
  */
 
 #  include <intrin.h>
@@ -582,7 +587,7 @@ struct PrimitiveIntrinsics<4>
   {
     /*
      * _InterlockedExchangeSubtract isn't available before Windows 7,
-     * and we must support Windows Vista.
+     * and we must support Windows XP.
      */
     return _InterlockedExchangeAdd(aPtr, -aVal);
   }
@@ -617,6 +622,8 @@ struct PrimitiveIntrinsics<4>
     return _InterlockedCompareExchange(aPtr, aNewVal, aOldVal) == aOldVal;
   }
 };
+
+#  if defined(_M_X64)
 
 #    pragma intrinsic(_InterlockedExchangeAdd64)
 #    pragma intrinsic(_InterlockedOr64)
@@ -673,6 +680,8 @@ struct PrimitiveIntrinsics<8>
     return _InterlockedCompareExchange64(aPtr, aNewVal, aOldVal) == aOldVal;
   }
 };
+
+#  endif
 
 #  pragma intrinsic(_ReadWriteBarrier)
 
@@ -895,8 +904,10 @@ namespace detail {
 template<typename T, MemoryOrdering Order>
 class AtomicBase
 {
-  static_assert(sizeof(T) == 4 || sizeof(T) == 8,
-                "mozilla/Atomics.h only supports 32-bit and 64-bit types");
+  // We only support 32-bit types on 32-bit Windows, which constrains our
+  // implementation elsewhere.  But we support pointer-sized types everywhere.
+  static_assert(sizeof(T) == 4 || (sizeof(uintptr_t) == 8 && sizeof(T) == 8),
+                "mozilla/Atomics.h only supports 32-bit and pointer-sized types");
 
 protected:
   typedef typename detail::AtomicIntrinsics<T, Order> Intrinsics;
@@ -1040,7 +1051,7 @@ public:
   }
 
 private:
-  Atomic(Atomic<T, Order>& aOther) = delete;
+  Atomic(Atomic<T, Order>& aOther) MOZ_DELETE;
 };
 
 /**
@@ -1073,7 +1084,7 @@ public:
   }
 
 private:
-  Atomic(Atomic<T*, Order>& aOther) = delete;
+  Atomic(Atomic<T*, Order>& aOther) MOZ_DELETE;
 };
 
 /**
@@ -1096,7 +1107,7 @@ public:
   using Base::operator=;
 
 private:
-  Atomic(Atomic<T, Order>& aOther) = delete;
+  Atomic(Atomic<T, Order>& aOther) MOZ_DELETE;
 };
 
 /**
@@ -1147,7 +1158,7 @@ public:
   }
 
 private:
-  Atomic(Atomic<bool, Order>& aOther) = delete;
+  Atomic(Atomic<bool, Order>& aOther) MOZ_DELETE;
 };
 
 } // namespace mozilla

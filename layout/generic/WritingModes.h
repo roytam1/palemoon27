@@ -778,7 +778,7 @@ private:
 #endif
 
   // We don't allow construction of a LogicalPoint with no writing mode.
-  LogicalPoint() = delete;
+  LogicalPoint() MOZ_DELETE;
 
   // Accessors that don't take or check a WritingMode value.
   // These are for internal use only; they are called by methods that have
@@ -987,7 +987,7 @@ public:
 private:
   friend class LogicalRect;
 
-  LogicalSize() = delete;
+  LogicalSize() MOZ_DELETE;
 
 #ifdef DEBUG
   WritingMode GetWritingMode() const { return mWritingMode; }
@@ -1290,7 +1290,7 @@ public:
 private:
   friend class LogicalRect;
 
-  LogicalMargin() = delete;
+  LogicalMargin() MOZ_DELETE;
 
 #ifdef DEBUG
   WritingMode GetWritingMode() const { return mWritingMode; }
@@ -1743,7 +1743,7 @@ public:
   }
 
 private:
-  LogicalRect() = delete;
+  LogicalRect() MOZ_DELETE;
 
 #ifdef DEBUG
   WritingMode GetWritingMode() const { return mWritingMode; }

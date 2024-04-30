@@ -176,7 +176,7 @@ class JS_FRIEND_API(GCCellPtr)
     }
 
     // Allow GCCellPtr to be used in a boolean context.
-    explicit operator bool() const {
+    MOZ_EXPLICIT_CONVERSION operator bool() const {
         MOZ_ASSERT(bool(asCell()) == (kind() != JSTRACE_NULL));
         return asCell();
     }

@@ -26,8 +26,8 @@ class PriorityQueue
 {
     Vector<T, MinInlineCapacity, AllocPolicy> heap;
 
-    PriorityQueue(const PriorityQueue&) = delete;
-    PriorityQueue& operator=(const PriorityQueue&) = delete;
+    PriorityQueue(const PriorityQueue&) MOZ_DELETE;
+    PriorityQueue& operator=(const PriorityQueue&) MOZ_DELETE;
 
   public:
 

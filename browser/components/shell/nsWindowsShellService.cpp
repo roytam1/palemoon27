@@ -47,6 +47,10 @@
 #include <mbstring.h>
 #include <shlwapi.h>
 
+#if defined (_MSC_VER) && _MSC_VER <= 1500
+enum { AL_EFFECTIVE	= ( AL_MACHINE + 1 ); }
+#endif
+
 #ifndef MAX_BUF
 #define MAX_BUF 4096
 #endif
@@ -324,6 +328,7 @@ nsWindowsShellService::ShortcutMaintenance()
   return LaunchHelper(appHelperPath);
 }
 
+#if defined (_MSC_VER) && _MSC_VER >= 1600
 static bool
 IsAARDefaultHTTP(IApplicationAssociationRegistration* pAAR,
                  bool* aIsDefaultBrowser)
@@ -358,6 +363,7 @@ IsAARDefaultHTML(IApplicationAssociationRegistration* pAAR,
   }
   return SUCCEEDED(hr);
 }
+#endif
 
 /*
  * Query's the AAR for the default status.
@@ -369,6 +375,7 @@ bool
 nsWindowsShellService::IsDefaultBrowserVista(bool aCheckAllTypes,
                                              bool* aIsDefaultBrowser)
 {
+#if defined (_MSC_VER) && _MSC_VER >= 1600
   IApplicationAssociationRegistration* pAAR;
   HRESULT hr = CoCreateInstance(CLSID_ApplicationAssociationRegistration,
                                 nullptr,
@@ -399,6 +406,7 @@ nsWindowsShellService::IsDefaultBrowserVista(bool aCheckAllTypes,
     pAAR->Release();
     return true;
   }
+  #endif
   return false;
 }
 
@@ -610,6 +618,7 @@ nsWindowsShellService::GetCanSetDesktopBackground(bool* aResult)
   return NS_OK;
 }
 
+#if defined (_MSC_VER) && _MSC_VER >= 1600
 static nsresult
 DynSHOpenWithDialog(HWND hwndParent, const OPENASINFO *poainfo)
 {
@@ -634,6 +643,7 @@ DynSHOpenWithDialog(HWND hwndParent, const OPENASINFO *poainfo)
   FreeLibrary(shellDLL);
   return rv;
 }
+#endif
 
 nsresult
 nsWindowsShellService::LaunchControlPanelDefaultPrograms()
@@ -666,6 +676,7 @@ nsWindowsShellService::LaunchControlPanelDefaultPrograms()
   return NS_OK;
 }
 
+#if defined (_MSC_VER) && _MSC_VER >= 1600
 nsresult
 nsWindowsShellService::LaunchModernSettingsDialogDefaultApps()
 {
@@ -699,6 +710,7 @@ nsWindowsShellService::LaunchHTTPHandlerPane()
                      OAIF_REGISTER_EXT;
   return DynSHOpenWithDialog(nullptr, &info);
 }
+#endif
 
 NS_IMETHODIMP
 nsWindowsShellService::SetDefaultBrowser(bool aClaimAllTypes, bool aForAllUsers)
@@ -713,7 +725,7 @@ nsWindowsShellService::SetDefaultBrowser(bool aClaimAllTypes, bool aForAllUsers)
     appHelperPath.AppendLiteral(" /SetAsDefaultAppUser");
   }
 
-  nsresult rv = LaunchHelper(appHelperPath);
+  #if defined (_MSC_VER) && _MSC_VER >= 1600
   if (NS_SUCCEEDED(rv) && IsWin8OrLater()) {
     if (aClaimAllTypes) {
       rv = LaunchControlPanelDefaultPrograms();
@@ -739,8 +751,11 @@ nsWindowsShellService::SetDefaultBrowser(bool aClaimAllTypes, bool aForAllUsers)
       }
     }
   }
-
+  
   return rv;
+  #endif
+  
+  return LaunchHelper(appHelperPath);
 }
 
 NS_IMETHODIMP

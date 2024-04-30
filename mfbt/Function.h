@@ -39,82 +39,82 @@ namespace mozilla {
 
 namespace detail {
 
-template<typename ReturnType, typename... Arguments>
+template<typename ReturnType, typename Argument1>
 class FunctionImplBase
 {
 public:
   virtual ~FunctionImplBase() {}
-  virtual ReturnType call(Arguments... aArguments) = 0;
+  virtual ReturnType call(Argument1 aArgument1) = 0;
 };
 
 // Normal Callable Object.
-template <typename Callable, typename ReturnType, typename... Arguments>
-class FunctionImpl : public FunctionImplBase<ReturnType, Arguments...>
+template <typename Callable, typename ReturnType, typename Argument1>
+class FunctionImpl : public FunctionImplBase<ReturnType, Argument1>
 {
   public:
     explicit FunctionImpl(const Callable& aCallable)
       : mCallable(aCallable) {}
 
-    ReturnType call(Arguments... aArguments) override
+    ReturnType call(Argument1 aArgument1) override
     {
-      return mCallable(Forward<Arguments>(aArguments)...);
+      return mCallable(Forward<Argument1>(aArgument1));
     }
   private:
     Callable mCallable;
 };
 
 // Base class for passing pointer to member function.
-template <typename Callable, typename ReturnType, typename... Arguments>
-class MemberFunctionImplBase : public FunctionImplBase<ReturnType, Arguments...>
+template <typename Callable, typename ReturnType, typename Argument1>
+class MemberFunctionImplBase : public FunctionImplBase<ReturnType, Argument1>
 {
 public:
   explicit MemberFunctionImplBase(const Callable& aCallable)
     : mCallable(aCallable) {}
 
-  ReturnType call(Arguments... aArguments) override
+  ReturnType call(Argument1 aArgument1) override
   {
-    return callInternal(Forward<Arguments>(aArguments)...);
+    return callInternal(Forward<Argument1>(aArgument1));
   }
 private:
-  template<typename ThisType, typename... Args>
-  ReturnType callInternal(ThisType* aThis, Args&&... aArguments)
+  template<typename ThisType, typename A1>
+  ReturnType callInternal(ThisType* aThis, A1&& aA1)
   {
-    return (aThis->*mCallable)(Forward<Args>(aArguments)...);
+    return (aThis->*mCallable)(Forward<A1>(aA1));
   }
 
-  template<typename ThisType, typename... Args>
-  ReturnType callInternal(ThisType&& aThis, Args&&... aArguments)
+  template<typename ThisType, typename A1>
+  ReturnType callInternal(ThisType&& aThis, A1&& aA1)
   {
-    return (aThis.*mCallable)(Forward<Args>(aArguments)...);
+    return (aThis.*mCallable)(Forward<A1>(aA1));
   }
   Callable mCallable;
 };
 
 // For non-const member function specialization of FunctionImpl.
-template <typename ThisType, typename... Args, typename ReturnType, typename... Arguments>
-class FunctionImpl<ReturnType(ThisType::*)(Args...),
-                   ReturnType, Arguments...>
-  : public MemberFunctionImplBase<ReturnType(ThisType::*)(Args...),
-                                  ReturnType, Arguments...>
+template <typename ThisType, typename A1, typename ReturnType, typename Argument1>
+class FunctionImpl<ReturnType(ThisType::*)(A1),
+                   ReturnType, Argument1>
+  : public MemberFunctionImplBase<ReturnType(ThisType::*)(A1),
+                                  ReturnType, Argument1>
 {
 public:
-  explicit FunctionImpl(ReturnType(ThisType::*aMemberFunc)(Args...))
-    : MemberFunctionImplBase<ReturnType(ThisType::*)(Args...),
-                             ReturnType, Arguments...>(aMemberFunc)
+  explicit FunctionImpl(ReturnType(ThisType::*aMemberFunc)(A1))
+    : MemberFunctionImplBase<ReturnType(ThisType::*)(A1),
+                             ReturnType, Argument1>(aMemberFunc)
   {}
 };
 
 // For const member function specialization of FunctionImpl.
-template <typename ThisType, typename... Args, typename ReturnType, typename... Arguments>
-class FunctionImpl<ReturnType(ThisType::*)(Args...) const,
-                   ReturnType, Arguments...>
-  : public MemberFunctionImplBase<ReturnType(ThisType::*)(Args...) const,
-                                  ReturnType, Arguments...>
+template <typename ThisType, typename A1, typename ReturnType, typename Argument1>
+class FunctionImpl<ReturnType(ThisType::*)(A1) const,
+                   ReturnType, Argument1>
+  : public MemberFunctionImplBase<ReturnType(ThisType::*)(A1) const,
+                                  ReturnType, Argument1>
 {
 public:
-  explicit FunctionImpl(ReturnType(ThisType::*aConstMemberFunc)(Args...) const)
-    : MemberFunctionImplBase<ReturnType(ThisType::*)(Args...) const,
-                             ReturnType, Arguments...>(aConstMemberFunc)
+  explicit FunctionImpl(ReturnType(ThisType::*aConstMemberFunc)(A1) const)
+    : MemberFunctionImplBase<ReturnType(ThisType::*)(A1) const,
+                             ReturnType, Argument1>(aConstMemberFunc)
   {}
 };
 
@@ -128,8 +128,8 @@ public:
 template<typename Signature>
 class Function;
 
-template<typename ReturnType, typename... Arguments>
-class Function<ReturnType(Arguments...)>
+template<typename ReturnType, typename Argument1>
+class Function<ReturnType(Argument1)>
 {
 public:
   Function() {}
@@ -137,7 +137,7 @@ public:
   // This constructor is implicit to match the interface of |std::function|.
   template <typename Callable>
   MOZ_IMPLICIT Function(const Callable& aCallable)
-    : mImpl(MakeUnique<detail::FunctionImpl<Callable, ReturnType, Arguments...>>(aCallable))
+    : mImpl(MakeUnique<detail::FunctionImpl<Callable, ReturnType, Argument1>>(aCallable))
   {}
 
   // Move constructor and move assingment operator.
@@ -151,19 +151,19 @@ public:
   template <typename Callable>
   Function& operator=(const Callable& aCallable)
   {
-    mImpl = MakeUnique<detail::FunctionImpl<Callable, ReturnType, Arguments...>>(aCallable);
+    mImpl = MakeUnique<detail::FunctionImpl<Callable, ReturnType, Argument1>>(aCallable);
     return *this;
   }
 
-  template<typename... Args>
-  ReturnType operator()(Args&&... aArguments) const
+  template<typename A1>
+  ReturnType operator()(A1&& aA1) const
   {
     MOZ_ASSERT(mImpl);
-    return mImpl->call(Forward<Args>(aArguments)...);
+    return mImpl->call(Forward<A1>(aA1));
   }
 private:
   // TODO: Consider implementing a small object optimization.
-  UniquePtr<detail::FunctionImplBase<ReturnType, Arguments...>> mImpl;
+  UniquePtr<detail::FunctionImplBase<ReturnType, Argument1>> mImpl;
 };
 
 } // namespace mozilla

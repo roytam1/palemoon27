@@ -15,20 +15,20 @@
 #include "nsISupportsImpl.h"
 #include "mozilla/nsRefPtr.h"
 #include "nsTArray.h"
+#include "mozilla/TypedEnum.h"
 
 namespace mozilla {
 
 class MediaTrackDemuxer;
 class TrackMetadataHolder;
 
-enum class DemuxerFailureReason : int8_t
-{
+MOZ_BEGIN_ENUM_CLASS(DemuxerFailureReason, int8_t)
   WAITING_FOR_DATA,
   END_OF_STREAM,
   DEMUXER_ERROR,
   CANCELED,
   SHUTDOWN,
-};
+MOZ_END_ENUM_CLASS(DemuxerFailureReason)
 
 
 // Allows reading the media data: to retrieve the metadata and demux samples.

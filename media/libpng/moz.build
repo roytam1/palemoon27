@@ -38,13 +38,6 @@ if CONFIG['CPU_ARCH'] == 'arm':
         'arm/filter_neon.S'
     ]
 
-if CONFIG['INTEL_ARCHITECTURE']:
-    DEFINES['MOZ_PNG_USE_INTEL_SSE'] = True
-    UNIFIED_SOURCES += [
-        'sse2/filter_sse2_intrinsics.c',
-        'sse2/intel_init.c'
-    ]
-
 Library('mozpng')
 
 MSVC_ENABLE_PGO = True

@@ -108,7 +108,7 @@ public:
 private:
   virtual ~SelectionCarets();
 
-  SelectionCarets() = delete;
+  SelectionCarets() MOZ_DELETE;
 
   /**
    * Set visibility for selection caret.

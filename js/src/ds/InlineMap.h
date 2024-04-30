@@ -122,7 +122,7 @@ class InlineMap
             return isInlinePtr ? bool(inlPtr) : mapPtr.found();
         }
 
-        explicit operator bool() const {
+        MOZ_EXPLICIT_CONVERSION operator bool() const {
             return found();
         }
 
@@ -162,7 +162,7 @@ class InlineMap
             return isInlinePtr ? inlPtrFound : mapAddPtr.found();
         }
 
-        explicit operator bool() const {
+        MOZ_EXPLICIT_CONVERSION operator bool() const {
             return found();
         }
 

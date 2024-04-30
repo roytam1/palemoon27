@@ -1401,8 +1401,9 @@ AddInterFrameSpacingToSize(nsHTMLReflowMetrics&    aDesiredSize,
   if (MOZ_UNLIKELY(!parentContent)) {
     return 0;
   }
-  if (parentContent->IsAnyOfMathMLElements(nsGkAtoms::math,
-                                           nsGkAtoms::mtd_)) {
+  nsIAtom *parentTag = parentContent->Tag();
+  if (parentContent->GetNameSpaceID() == kNameSpaceID_MathML && 
+      (parentTag == nsGkAtoms::math || parentTag == nsGkAtoms::mtd_)) {
     gap = GetInterFrameSpacingFor(aFrame->StyleFont()->mScriptLevel,
                                   parent, aFrame);
     // add our own italic correction

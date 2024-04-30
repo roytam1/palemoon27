@@ -13,7 +13,9 @@
 
 #define BLOBURI_SCHEME "blob"
 #define MEDIASTREAMURI_SCHEME "mediastream"
+#ifdef MOZ_MEDIASOURCE
 #define MEDIASOURCEURI_SCHEME "mediasource"
+#endif
 #define FONTTABLEURI_SCHEME "moz-fonttable"
 #define RTSPURI_SCHEME "rtsp"
 
@@ -24,7 +26,9 @@ namespace mozilla {
 class DOMMediaStream;
 namespace dom {
 class FileImpl;
+#ifdef MOZ_MEDIASOURCE
 class MediaSource;
+#endif
 }
 }
 
@@ -77,11 +81,13 @@ public:
   NS_IMETHOD GetScheme(nsACString &result) override;
 };
 
+#ifdef MOZ_MEDIASOURCE
 class nsMediaSourceProtocolHandler : public nsHostObjectProtocolHandler
 {
 public:
   NS_IMETHOD GetScheme(nsACString &result) override;
 };
+#endif
 
 class nsFontTableProtocolHandler : public nsHostObjectProtocolHandler
 {
@@ -108,11 +114,13 @@ inline bool IsMediaStreamURI(nsIURI* aUri)
   return NS_SUCCEEDED(aUri->SchemeIs(MEDIASTREAMURI_SCHEME, &isStream)) && isStream;
 }
 
+#ifdef MOZ_MEDIASOURCE
 inline bool IsMediaSourceURI(nsIURI* aUri)
 {
   bool isMediaSource;
   return NS_SUCCEEDED(aUri->SchemeIs(MEDIASOURCEURI_SCHEME, &isMediaSource)) && isMediaSource;
 }
+#endif
 
 inline bool IsFontTableURI(nsIURI* aUri)
 {
@@ -129,8 +137,10 @@ NS_GetStreamForBlobURI(nsIURI* aURI, nsIInputStream** aStream);
 extern nsresult
 NS_GetStreamForMediaStreamURI(nsIURI* aURI, mozilla::DOMMediaStream** aStream);
 
+#ifdef MOZ_MEDIASOURCE
 extern nsresult
 NS_GetSourceForMediaSourceURI(nsIURI* aURI, mozilla::dom::MediaSource** aSource);
+#endif
 
 #define NS_BLOBPROTOCOLHANDLER_CID \
 { 0xb43964aa, 0xa078, 0x44b2, \
@@ -140,9 +150,11 @@ NS_GetSourceForMediaSourceURI(nsIURI* aURI, mozilla::dom::MediaSource** aSource)
 { 0x27d1fa24, 0x2b73, 0x4db3, \
 	{ 0xab, 0x48, 0xb9, 0x83, 0x83, 0x40, 0xe0, 0x81 } }
 
+#ifdef MOZ_MEDIASOURCE 
 #define NS_MEDIASOURCEPROTOCOLHANDLER_CID \
 { 0x12ef31fc, 0xa8fb, 0x4661, \
 	{ 0x9a, 0x63, 0xfb, 0x61, 0x04,0x5d, 0xb8, 0x61 } }
+#endif
 
 #define NS_FONTTABLEPROTOCOLHANDLER_CID \
 { 0x3fc8f04e, 0xd719, 0x43ca, \

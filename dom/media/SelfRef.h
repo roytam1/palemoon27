@@ -37,8 +37,8 @@ public:
 
   operator bool() const { return mHeld; }
 
-  SelfReference(const SelfReference& aOther) = delete;
-  void operator=(const SelfReference& aOther) = delete;
+  SelfReference(const SelfReference& aOther) MOZ_DELETE;
+  void operator=(const SelfReference& aOther) MOZ_DELETE;
 private:
   bool mHeld;
 };

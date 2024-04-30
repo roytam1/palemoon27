@@ -10,7 +10,6 @@ if CONFIG['MOZ_TREE_CAIRO']:
 DIRS += [
     '2d',
     'ycbcr',
-    'angle',
     'src',
     'qcms',
     'gl',
@@ -21,6 +20,9 @@ DIRS += [
     'thebes',
     'ipc',
 ]
+
+if CONFIG['MOZ_WEBGL']:
+    DIRS += ['angle']
 
 if CONFIG['MOZ_ENABLE_SKIA']:
     DIRS += ['skia']

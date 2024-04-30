@@ -75,13 +75,13 @@ private:
   void Init(const substring_type&);
 
   // NOT TO BE IMPLEMENTED
-  void operator=(const self_type&) = delete;
+  void operator=(const self_type&) MOZ_DELETE;
 
   // NOT TO BE IMPLEMENTED
-  nsTPromiseFlatString_CharT() = delete;
+  nsTPromiseFlatString_CharT() MOZ_DELETE;
 
   // NOT TO BE IMPLEMENTED
-  nsTPromiseFlatString_CharT(const string_type& aStr) = delete;
+  nsTPromiseFlatString_CharT(const string_type& aStr) MOZ_DELETE;
 
 public:
 

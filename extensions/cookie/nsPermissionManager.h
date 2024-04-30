@@ -103,7 +103,7 @@ public:
 
   private:
     // Default ctor shouldn't be used.
-    PermissionKey() = delete;
+    PermissionKey() MOZ_DELETE;
 
     // Dtor shouldn't be used outside of the class.
     ~PermissionKey() {};
@@ -283,7 +283,7 @@ private:
     bool                      browserOnly;
     nsCOMArray<nsIPermission> permissions;
 
-    GetPermissionsForAppStruct() = delete;
+    GetPermissionsForAppStruct() MOZ_DELETE;
     GetPermissionsForAppStruct(uint32_t aAppId, bool aBrowserOnly)
       : appId(aAppId)
       , browserOnly(aBrowserOnly)

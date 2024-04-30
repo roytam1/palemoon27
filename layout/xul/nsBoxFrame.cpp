@@ -1116,10 +1116,11 @@ nsBoxFrame::AttributeChanged(int32_t aNameSpaceID,
 
   // Ignore 'width', 'height', 'screenX', 'screenY' and 'sizemode' on a
   // <window>.
-  if (mContent->IsAnyOfXULElements(nsGkAtoms::window,
-                                   nsGkAtoms::page,
-                                   nsGkAtoms::dialog,
-                                   nsGkAtoms::wizard) &&
+  nsIAtom *tag = mContent->Tag();
+  if ((tag == nsGkAtoms::window ||
+       tag == nsGkAtoms::page ||
+       tag == nsGkAtoms::dialog ||
+       tag == nsGkAtoms::wizard) &&
       (nsGkAtoms::width == aAttribute ||
        nsGkAtoms::height == aAttribute ||
        nsGkAtoms::screenX == aAttribute ||
@@ -1875,14 +1876,17 @@ void
 nsBoxFrame::RegUnregAccessKey(bool aDoReg)
 {
   MOZ_ASSERT(mContent);
+  
+  // find out what type of element this is
+  nsIAtom *atom = mContent->Tag();
 
   // only support accesskeys for the following elements
-  if (!mContent->IsAnyOfXULElements(nsGkAtoms::button,
-                                    nsGkAtoms::toolbarbutton,
-                                    nsGkAtoms::checkbox,
-                                    nsGkAtoms::textbox,
-                                    nsGkAtoms::tab,
-                                    nsGkAtoms::radio)) {
+  if (atom != nsGkAtoms::button &&
+      atom != nsGkAtoms::toolbarbutton &&
+      atom != nsGkAtoms::checkbox &&
+      atom != nsGkAtoms::textbox &&
+      atom != nsGkAtoms::tab &&
+      atom != nsGkAtoms::radio) {
     return;
   }
 

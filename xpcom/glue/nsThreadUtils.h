@@ -18,7 +18,6 @@
 #include "nsCOMPtr.h"
 #include "nsAutoPtr.h"
 #include "mozilla/Likely.h"
-#include "mozilla/TypeTraits.h"
 
 //-----------------------------------------------------------------------------
 // These methods are alternatives to the methods on nsIThreadManager, provided
@@ -296,41 +295,130 @@ public:
   typedef typename ReturnTypeEnforcer<ReturnType>::ReturnTypeIsSafe check;
 };
 
-template<class ClassType, bool Owning>
+template<class ClassType, typename Arg, bool Owning>
 struct nsRunnableMethodReceiver
 {
   nsRefPtr<ClassType> mObj;
-  explicit nsRunnableMethodReceiver(ClassType* aObj) : mObj(aObj) {}
+  Arg mArg;
+  nsRunnableMethodReceiver(ClassType* aObj, Arg aArg)
+    : mObj(aObj)
+    , mArg(aArg)
+  {
+  }
   ~nsRunnableMethodReceiver() { Revoke(); }
   ClassType* Get() const { return mObj.get(); }
   void Revoke() { mObj = nullptr; }
 };
 
+template<class ClassType, typename Arg1, typename Arg2, bool Owning>
+struct nsRunnableMethodReceiver2
+{
+  nsRefPtr<ClassType> mObj;
+  Arg1 mArg1;
+  Arg2 mArg2;
+  nsRunnableMethodReceiver2(ClassType* aObj, Arg1 aArg1, Arg2 aArg2)
+    : mObj(aObj)
+    , mArg1(aArg1)
+	, mArg2(aArg2)
+  {
+  }
+  ~nsRunnableMethodReceiver2() { Revoke(); }
+  ClassType* Get() const { return mObj.get(); }
+  void Revoke() { mObj = nullptr; }
+};
+
+template<class ClassType, bool Owning>
+struct nsRunnableMethodReceiver<ClassType, void, Owning>
+{
+  nsRefPtr<ClassType> mObj;
+  explicit nsRunnableMethodReceiver(ClassType* aObj)
+    : mObj(aObj)
+  {
+  }
+  ~nsRunnableMethodReceiver() { Revoke(); }
+  ClassType* Get() const { return mObj.get(); }
+  void Revoke() { mObj = nullptr; }
+};
+
+template<class ClassType, bool Owning>
+struct nsRunnableMethodReceiver2<ClassType, void, void, Owning>
+{
+  nsRefPtr<ClassType> mObj;
+  explicit nsRunnableMethodReceiver2(ClassType* aObj)
+    : mObj(aObj)
+  {
+  }
+  ~nsRunnableMethodReceiver2() { Revoke(); }
+  ClassType* Get() const { return mObj.get(); }
+  void Revoke() { mObj = nullptr; }
+};
+
 template<class ClassType>
-struct nsRunnableMethodReceiver<ClassType, false>
+struct nsRunnableMethodReceiver<ClassType, void, false>
 {
   ClassType* MOZ_NON_OWNING_REF mObj;
   explicit nsRunnableMethodReceiver(ClassType* aObj) : mObj(aObj) {}
-  ClassType* Get() const { return mObj; }
+  ClassType* Get() const { return mObj.get(); }
+  void Revoke() { mObj = nullptr; }
+};
+
+template<class ClassType>
+struct nsRunnableMethodReceiver2<ClassType, void, void, false>
+{
+  ClassType* MOZ_NON_OWNING_REF mObj;
+  explicit nsRunnableMethodReceiver2(ClassType* aObj) : mObj(aObj) {}
+  ClassType* Get() const { return mObj.get(); }
   void Revoke() { mObj = nullptr; }
 };
 
 template<typename Method, bool Owning> struct nsRunnableMethodTraits;
+template<typename Method, bool Owning> struct nsRunnableMethodTraits2;
 
-template<class C, typename R, bool Owning, typename... As>
-struct nsRunnableMethodTraits<R(C::*)(As...), Owning>
+template<class C, typename R, typename A, bool Owning>
+struct nsRunnableMethodTraits<R(C::*)(A), Owning>
 {
   typedef C class_type;
   typedef R return_type;
+  typedef A arg_type;
+  typedef nsRunnableMethod<C, R, Owning> base_type;
+};
+
+template<class C, typename R, typename A, typename B, bool Owning>
+struct nsRunnableMethodTraits2<R(C::*)(A, B), Owning>
+{
+  typedef C class_type;
+  typedef R return_type;
+  typedef A arg_type1;
+  typedef B arg_type2;
+  typedef nsRunnableMethod<C, R, Owning> base_type;
+};
+
+template<class C, typename R, bool Owning>
+struct nsRunnableMethodTraits<R(C::*)(), Owning>
+{
+  typedef C class_type;
+  typedef R return_type;
+  typedef void arg_type;
   typedef nsRunnableMethod<C, R, Owning> base_type;
 };
 
 #ifdef NS_HAVE_STDCALL
-template<class C, typename R, bool Owning, typename... As>
-struct nsRunnableMethodTraits<R(__stdcall C::*)(As...), Owning>
+template<class C, typename R, typename A, bool Owning>
+struct nsRunnableMethodTraits<R(__stdcall C::*)(A), Owning>
 {
   typedef C class_type;
   typedef R return_type;
+  typedef A arg_type;
+  typedef nsRunnableMethod<C, R, Owning> base_type;
+};
+
+template<class C, typename R, typename A, typename B, bool Owning>
+struct nsRunnableMethodTraits<R(__stdcall C::*)(A, B), Owning>
+{
+  typedef C class_type;
+  typedef R return_type;
+  typedef A arg_type1;
+  typedef B arg_type2;
   typedef nsRunnableMethod<C, R, Owning> base_type;
 };
 
@@ -339,6 +427,7 @@ struct nsRunnableMethodTraits<R(NS_STDCALL C::*)(), Owning>
 {
   typedef C class_type;
   typedef R return_type;
+  typedef void arg_type;
   typedef nsRunnableMethod<C, R, Owning> base_type;
 };
 #endif
@@ -519,24 +608,9 @@ struct NonnsISupportsPointerStorageClass
                          StorePtrPassByPtr<TWithoutPointer>>
 {};
 
-template<typename>
-struct SFINAE1True : mozilla::TrueType
-{};
-
-template<class T>
-static auto HasRefCountMethodsTest(int)
-    -> SFINAE1True<decltype(mozilla::DeclVal<T>().AddRef(),
-                            mozilla::DeclVal<T>().Release())>;
-template<class>
-static auto HasRefCountMethodsTest(long) -> mozilla::FalseType;
-
-template<class T>
-struct HasRefCountMethods : decltype(HasRefCountMethodsTest<T>(0))
-{};
-
 template<typename TWithoutPointer>
 struct PointerStorageClass
-  : mozilla::Conditional<HasRefCountMethods<TWithoutPointer>::value,
+  : mozilla::Conditional<mozilla::IsBaseOf<nsISupports, TWithoutPointer>::value,
                          StorensRefPtrPassByPtr<TWithoutPointer>,
                          typename NonnsISupportsPointerStorageClass<
                            TWithoutPointer
@@ -604,24 +678,31 @@ struct ParameterStorage
 } /* namespace detail */
 
 // struct used to store arguments and later apply them to a method.
-template <typename... Ts> struct nsRunnableMethodArguments;
+
+template<typename T0> struct nsRunnableMethodArguments;
+template<typename T0> struct nsRunnableMethodArguments1;
+template<typename T0, typename T1> struct nsRunnableMethodArguments2;
+template<typename T0, typename T1, typename T2> struct nsRunnableMethodArguments3;
+template<typename T0, typename T1, typename T2, typename T3> struct nsRunnableMethodArguments4;
 
 // Specializations for 0-4 arguments, add more as required.
 // TODO Use tuple instead; And/or use lambdas.
-template <>
-struct nsRunnableMethodArguments<>
+
+template<typename T0> 
+struct nsRunnableMethodArguments
 {
   template<class C, typename M> void apply(C* o, M m)
   {
     ((*o).*m)();
   }
 };
-template <typename T0>
-struct nsRunnableMethodArguments<T0>
+
+template <typename B0>
+struct nsRunnableMethodArguments1<nsRunnableMethodArguments<B0>>
 {
-  typename ::detail::ParameterStorage<T0>::Type m0;
+  typename ::detail::ParameterStorage<B0>::Type m0;
   template<typename A0>
-  nsRunnableMethodArguments(A0&& a0)
+  nsRunnableMethodArguments1(A0&& a0)
     : m0(mozilla::Forward<A0>(a0))
   {}
   template<class C, typename M> void apply(C* o, M m)
@@ -629,13 +710,14 @@ struct nsRunnableMethodArguments<T0>
     ((*o).*m)(m0.PassAsParameter());
   }
 };
-template <typename T0, typename T1>
-struct nsRunnableMethodArguments<T0, T1>
+
+template <typename B0, typename B1>
+struct nsRunnableMethodArguments2<nsRunnableMethodArguments<B0>, nsRunnableMethodArguments<B1>>
 {
-  typename ::detail::ParameterStorage<T0>::Type m0;
-  typename ::detail::ParameterStorage<T1>::Type m1;
+  typename ::detail::ParameterStorage<B0>::Type m0;
+  typename ::detail::ParameterStorage<B1>::Type m1;
   template<typename A0, typename A1>
-  nsRunnableMethodArguments(A0&& a0, A1&& a1)
+  nsRunnableMethodArguments2(A0&& a0, A1&& a1)
     : m0(mozilla::Forward<A0>(a0))
     , m1(mozilla::Forward<A1>(a1))
   {}
@@ -644,14 +726,15 @@ struct nsRunnableMethodArguments<T0, T1>
     ((*o).*m)(m0.PassAsParameter(), m1.PassAsParameter());
   }
 };
-template <typename T0, typename T1, typename T2>
-struct nsRunnableMethodArguments<T0, T1, T2>
+
+template <typename B0, typename B1, typename B2>
+struct nsRunnableMethodArguments3<nsRunnableMethodArguments<B0>, nsRunnableMethodArguments<B1>, nsRunnableMethodArguments<B2>>
 {
-  typename ::detail::ParameterStorage<T0>::Type m0;
-  typename ::detail::ParameterStorage<T1>::Type m1;
-  typename ::detail::ParameterStorage<T2>::Type m2;
+  typename ::detail::ParameterStorage<B0>::Type m0;
+  typename ::detail::ParameterStorage<B1>::Type m1;
+  typename ::detail::ParameterStorage<B2>::Type m2;
   template<typename A0, typename A1, typename A2>
-  nsRunnableMethodArguments(A0&& a0, A1&& a1, A2&& a2)
+  nsRunnableMethodArguments3(A0&& a0, A1&& a1, A2&& a2)
     : m0(mozilla::Forward<A0>(a0))
     , m1(mozilla::Forward<A1>(a1))
     , m2(mozilla::Forward<A2>(a2))
@@ -661,15 +744,16 @@ struct nsRunnableMethodArguments<T0, T1, T2>
     ((*o).*m)(m0.PassAsParameter(), m1.PassAsParameter(), m2.PassAsParameter());
   }
 };
-template <typename T0, typename T1, typename T2, typename T3>
-struct nsRunnableMethodArguments<T0, T1, T2, T3>
+
+template <typename B0, typename B1, typename B2, typename B3>
+struct nsRunnableMethodArguments4<nsRunnableMethodArguments<B0>, nsRunnableMethodArguments<B1>, nsRunnableMethodArguments<B2>, nsRunnableMethodArguments<B3>>
 {
-  typename ::detail::ParameterStorage<T0>::Type m0;
-  typename ::detail::ParameterStorage<T1>::Type m1;
-  typename ::detail::ParameterStorage<T2>::Type m2;
-  typename ::detail::ParameterStorage<T3>::Type m3;
+  typename ::detail::ParameterStorage<B0>::Type m0;
+  typename ::detail::ParameterStorage<B1>::Type m1;
+  typename ::detail::ParameterStorage<B2>::Type m2;
+  typename ::detail::ParameterStorage<B3>::Type m3;
   template<typename A0, typename A1, typename A2, typename A3>
-  nsRunnableMethodArguments(A0&& a0, A1&& a1, A2&& a2, A3&& a3)
+  nsRunnableMethodArguments4(A0&& a0, A1&& a1, A2&& a2, A3&& a3)
     : m0(mozilla::Forward<A0>(a0))
     , m1(mozilla::Forward<A1>(a1))
     , m2(mozilla::Forward<A2>(a2))
@@ -682,33 +766,104 @@ struct nsRunnableMethodArguments<T0, T1, T2, T3>
   }
 };
 
-template<typename Method, bool Owning, typename... Storages>
+template<typename Method, typename Arg, bool Owning>
 class nsRunnableMethodImpl
   : public nsRunnableMethodTraits<Method, Owning>::base_type
 {
-  typedef typename nsRunnableMethodTraits<Method, Owning>::class_type
-      ClassType;
-  nsRunnableMethodReceiver<ClassType, Owning> mReceiver;
+  typedef typename nsRunnableMethodTraits<Method, Owning>::class_type ClassType;
+  nsRunnableMethodReceiver<ClassType, Arg, Owning> mReceiver;
+  nsRunnableMethodArguments1<nsRunnableMethodArguments<Arg>> mArg;
   Method mMethod;
-  nsRunnableMethodArguments<Storages...> mArgs;
 public:
-  virtual ~nsRunnableMethodImpl() { Revoke(); };
-  template<typename... Args>
-  explicit nsRunnableMethodImpl(ClassType* aObj, Method aMethod,
-                                Args&&... aArgs)
-    : mReceiver(aObj)
+  nsRunnableMethodImpl(ClassType* aObj, Method aMethod, Arg aArg)
+    : mReceiver(aObj, aArg)
     , mMethod(aMethod)
-    , mArgs(mozilla::Forward<Args>(aArgs)...)
+	, mArg(mozilla::Forward<Arg>(aArg))
   {
-    static_assert(sizeof...(Storages) == sizeof...(Args), "Storages and Args should have equal sizes");
   }
+  
   NS_IMETHOD Run()
   {
     if (MOZ_LIKELY(mReceiver.Get())) {
-      mArgs.apply(mReceiver.Get(), mMethod);
+      mArg.apply(mReceiver.Get(), mMethod);
     }
     return NS_OK;
   }
+  void Revoke() { mReceiver.Revoke(); }
+};
+
+template<typename Method, typename Arg1, typename Arg2, bool Owning>
+class nsRunnableMethodImpl2
+  : public nsRunnableMethodTraits2<Method, Owning>::base_type
+{
+  typedef typename nsRunnableMethodTraits2<Method, Owning>::class_type ClassType;
+  nsRunnableMethodReceiver2<ClassType, Arg1, Arg2, Owning> mReceiver;
+  Method mMethod;
+public:
+  nsRunnableMethodImpl2(ClassType* aObj, Method aMethod, Arg1 aArg1, Arg2 aArg2)
+    : mReceiver(aObj, aArg1, aArg2)
+    , mMethod(aMethod)
+  {
+  }
+  NS_IMETHOD Run()
+  {
+    if (MOZ_LIKELY(mReceiver.mObj)) {
+      ((*mReceiver.mObj).*mMethod)(mReceiver.mArg1, mReceiver.mArg2);
+    }
+    return NS_OK;
+  }
+  void Revoke() { mReceiver.Revoke(); }
+};
+
+template<typename Method, bool Owning>
+class nsRunnableMethodImpl<Method, void, Owning>
+  : public nsRunnableMethodTraits<Method, Owning>::base_type
+{
+  typedef typename nsRunnableMethodTraits<Method, Owning>::class_type ClassType;
+  nsRunnableMethodReceiver<ClassType, void, Owning> mReceiver;
+  Method mMethod;
+
+public:
+  nsRunnableMethodImpl(ClassType* aObj, Method aMethod)
+    : mReceiver(aObj)
+    , mMethod(aMethod)
+  {
+  }
+
+  NS_IMETHOD Run()
+  {
+    if (MOZ_LIKELY(mReceiver.mObj)) {
+      ((*mReceiver.mObj).*mMethod)();
+    }
+    return NS_OK;
+  }
+
+  void Revoke() { mReceiver.Revoke(); }
+};
+
+template<typename Method, bool Owning>
+class nsRunnableMethodImpl2<Method, void, void, Owning>
+  : public nsRunnableMethodTraits2<Method, Owning>::base_type
+{
+  typedef typename nsRunnableMethodTraits2<Method, Owning>::class_type ClassType;
+  nsRunnableMethodReceiver2<ClassType, void, void, Owning> mReceiver;
+  Method mMethod;
+
+public:
+  nsRunnableMethodImpl2(ClassType* aObj, Method aMethod)
+    : mReceiver(aObj)
+    , mMethod(aMethod)
+  {
+  }
+
+  NS_IMETHOD Run()
+  {
+    if (MOZ_LIKELY(mReceiver.mObj)) {
+      ((*mReceiver.mObj).*mMethod)();
+    }
+    return NS_OK;
+  }
+
   void Revoke() { mReceiver.Revoke(); }
 };
 
@@ -726,51 +881,54 @@ template<typename PtrType, typename Method>
 typename nsRunnableMethodTraits<Method, true>::base_type*
 NS_NewRunnableMethod(PtrType aPtr, Method aMethod)
 {
-  return new nsRunnableMethodImpl<Method, true>(aPtr, aMethod);
+  return new nsRunnableMethodImpl<Method, void, true>(aPtr, aMethod);
+}
+
+template<typename T>
+struct dependent_type
+{
+  typedef T type;
+};
+
+
+// Similar to NS_NewRunnableMethod. Call like so:
+// Type myArg;
+// nsCOMPtr<nsIRunnable> event =
+//   NS_NewRunnableMethodWithArg<Type>(myObject, &MyClass::HandleEvent, myArg);
+template<typename Arg, typename Method, typename PtrType>
+typename nsRunnableMethodTraits<Method, true>::base_type*
+NS_NewRunnableMethodWithArg(PtrType&& aPtr, Method aMethod,
+                            typename dependent_type<Arg>::type aArg)
+{
+  return new nsRunnableMethodImpl<Method, Arg, true>(aPtr, aMethod, aArg);
 }
 
 template<typename PtrType, typename Method>
 typename nsRunnableMethodTraits<Method, false>::base_type*
 NS_NewNonOwningRunnableMethod(PtrType&& aPtr, Method aMethod)
 {
-  return new nsRunnableMethodImpl<Method, false>(aPtr, aMethod);
-}
-
-// Similar to NS_NewRunnableMethod. Call like so:
-// nsCOMPtr<nsIRunnable> event =
-//   NS_NewRunnableMethodWithArg<Type>(myObject, &MyClass::HandleEvent, myArg);
-// 'Type' is the stored type for the argument, see ParameterStorage for details.
-template<typename Storage, typename Method, typename PtrType, typename Arg>
-typename nsRunnableMethodTraits<Method, true>::base_type*
-NS_NewRunnableMethodWithArg(PtrType&& aPtr, Method aMethod, Arg&& aArg)
-{
-  return new nsRunnableMethodImpl<Method, true, Storage>(
-      aPtr, aMethod, mozilla::Forward<Arg>(aArg));
+  return new nsRunnableMethodImpl<Method, void, false>(aPtr, aMethod);
 }
 
 // Similar to NS_NewRunnableMethod. Call like so:
 // nsCOMPtr<nsIRunnable> event =
 //   NS_NewRunnableMethodWithArg<Types,...>(myObject, &MyClass::HandleEvent, myArg1,...);
 // 'Types' are the stored type for each argument, see ParameterStorage for details.
-template<typename... Storages, typename Method, typename PtrType, typename... Args>
-typename nsRunnableMethodTraits<Method, true>::base_type*
-NS_NewRunnableMethodWithArgs(PtrType&& aPtr, Method aMethod, Args&&... aArgs)
+template<typename Arg1, typename Arg2, typename Method, typename PtrType>
+typename nsRunnableMethodTraits2<Method, true>::base_type*
+NS_NewRunnableMethodWithArgs(PtrType&& aPtr, Method aMethod, typename dependent_type<Arg1>::type aArg1, typename dependent_type<Arg2>::type aArg2)
 {
-  static_assert(sizeof...(Storages) == sizeof...(Args),
-                "<Storages...> size should be equal to number of arguments");
-  return new nsRunnableMethodImpl<Method, true, Storages...>(
-      aPtr, aMethod, mozilla::Forward<Args>(aArgs)...);
+  return new nsRunnableMethodImpl2<Method, Arg1, Arg2, true>(
+      aPtr, aMethod, mozilla::Forward<Arg1>(aArg1), mozilla::Forward<Arg2>(aArg2));
 }
 
-template<typename... Storages, typename Method, typename PtrType, typename... Args>
-typename nsRunnableMethodTraits<Method, true>::base_type*
+template<typename Arg1, typename Arg2, typename Method, typename PtrType>
+typename nsRunnableMethodTraits2<Method, true>::base_type*
 NS_NewNonOwningRunnableMethodWithArgs(PtrType&& aPtr, Method aMethod,
-                                      Args&&... aArgs)
+                                      typename dependent_type<Arg1>::type aArg1, typename dependent_type<Arg2>::type aArg2)
 {
-  static_assert(sizeof...(Storages) == sizeof...(Args),
-                "<Storages...> size should be equal to number of arguments");
-  return new nsRunnableMethodImpl<Method, false, Storages...>(
-      aPtr, aMethod, mozilla::Forward<Args>(aArgs)...);
+  return new nsRunnableMethodImpl2<Method, Arg1, Arg2, false>(
+      aPtr, aMethod, mozilla::Forward<Arg1>(aArg1), mozilla::Forward<Arg2>(aArg2));
 }
 
 #endif  // XPCOM_GLUE_AVOID_NSPR
@@ -876,8 +1034,8 @@ public:
 private:
   volatile uint32_t mCounter;
 
-  nsThreadPoolNaming(const nsThreadPoolNaming&) = delete;
-  void operator=(const nsThreadPoolNaming&) = delete;
+  nsThreadPoolNaming(const nsThreadPoolNaming&) MOZ_DELETE;
+  void operator=(const nsThreadPoolNaming&) MOZ_DELETE;
 };
 
 /**

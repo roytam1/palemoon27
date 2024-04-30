@@ -676,6 +676,7 @@ MFCreateAlignedMemoryBuffer(DWORD cbMaxLength,
   return (MFCreateAlignedMemoryBufferPtr)(cbMaxLength, fAlignmentFlags, ppBuffer);
 }
 
+#if defined (_MSC_VER) && _MSC_VER >= 1700
 HRESULT
 MFCreateDXGIDeviceManager(UINT *pResetToken, IMFDXGIDeviceManager **ppDXVAManager)
 {
@@ -694,6 +695,7 @@ MFCreateDXGISurfaceBuffer(REFIID riid,
   ENSURE_FUNCTION_PTR(MFCreateDXGISurfaceBuffer, mfplat.dll)
   return (MFCreateDXGISurfaceBufferPtr)(riid, punkSurface, uSubresourceIndex, fButtomUpWhenLinear, ppBuffer);
 }
+#endif
 
 } // end namespace wmf
 } // end namespace mozilla

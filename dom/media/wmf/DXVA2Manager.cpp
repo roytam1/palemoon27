@@ -448,6 +448,7 @@ D3D11DXVA2Manager::ConfigureForSize(uint32_t aWidth, uint32_t aHeight)
   return S_OK;
 }
 
+#ifdef USE_D2D1_1
 /* static */
 DXVA2Manager*
 DXVA2Manager::CreateD3D11DXVA()
@@ -466,6 +467,7 @@ DXVA2Manager::CreateD3D11DXVA()
 
   return manager.forget();
 }
+#endif
 #endif // _MSC_VER >= 1700
 
 DXVA2Manager::DXVA2Manager()

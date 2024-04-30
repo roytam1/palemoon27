@@ -32,13 +32,13 @@ let bootstrap = {
   store: null,
 
   init() {
-    // TODO: Should we track this as a separate tool from the old version?
-    // See bug 1242057.
     this.telemetry.toolOpened("responsive");
     let store = this.store = Store();
-    let app = createElement(App);
+    let app = App({
+      onExit: () => window.postMessage({type: "exit"}, "*"),
+    });
     let provider = createElement(Provider, { store }, app);
-    ReactDOM.render(provider, document.querySelector("#app"));
+    ReactDOM.render(provider, document.querySelector("#root"));
   },
 
   destroy() {
@@ -70,6 +70,12 @@ window.addEventListener("unload", function onUnload() {
 
 // Allows quick testing of actions from the console
 window.dispatch = action => bootstrap.dispatch(action);
+
+// Expose the store on window for testing
+Object.defineProperty(window, "store", {
+  get: () => bootstrap.store,
+  enumerable: true,
+});
 
 /**
  * Called by manager.js to add the initial viewport based on the original page.

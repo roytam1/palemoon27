@@ -18,7 +18,7 @@ enum IDBTransactionMode {
     "versionchange"
 };
 
-[Exposed=(Window,Worker)]
+[Exposed=(Window,Worker,System)]
 interface IDBTransaction : EventTarget {
     [Throws]
     readonly    attribute IDBTransactionMode mode;

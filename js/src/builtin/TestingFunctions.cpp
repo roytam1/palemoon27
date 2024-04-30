@@ -1213,7 +1213,6 @@ ResetOOMFailure(JSContext* cx, unsigned argc, Value* vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
     args.rval().setBoolean(js::oom::HadSimulatedOOM());
-    HelperThreadState().waitForAllThreads();
     js::oom::ResetSimulatedOOM();
     return true;
 }

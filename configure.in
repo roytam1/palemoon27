@@ -423,18 +423,18 @@ dnl Special win32 checks
 dnl ========================================================
 
 # Target the Windows 8.1 SDK by default
-WINSDK_TARGETVER=603
+WINSDK_TARGETVER=602
 WINVER=502
 
 MOZ_ARG_WITH_STRING(windows-version,
 [  --with-windows-version=WINSDK_TARGETVER
-                          Windows SDK version to target. Win8.1 (603) is
+                          Windows SDK version to target. Win8 (602) is
                           currently the minimum supported version.],
   WINSDK_TARGETVER=$withval)
 
-# Currently only version 603 is allowed
+# Currently only version 602 and 603 is allowed
 case "$WINSDK_TARGETVER" in
-603)
+602|603)
     MOZ_WINSDK_TARGETVER=0${WINSDK_TARGETVER}0000
     ;;
 
@@ -5750,6 +5750,10 @@ if test -n "$MOZ_ANGLE_RENDERER"; then
   # Find a D3D compiler DLL in a Windows SDK.
   MOZ_D3DCOMPILER_VISTA_DLL=
   case "$MOZ_WINSDK_MAXVER" in
+  0x0602*)
+    MOZ_D3DCOMPILER_VISTA_DLL=d3dcompiler_46.dll
+    AC_MSG_RESULT([Found D3D compiler in Windows SDK 8.])
+  ;;
   0x0603*)
     MOZ_D3DCOMPILER_VISTA_DLL=d3dcompiler_47.dll
     AC_MSG_RESULT([Found D3D compiler in Windows SDK 8.1.])

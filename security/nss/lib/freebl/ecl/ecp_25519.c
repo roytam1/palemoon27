@@ -104,7 +104,7 @@ ec_Curve25519_pt_mul(SECItem *X, SECItem *k, SECItem *P)
 {
     PRUint8 *px;
     PRUint8 basePoint[32] = { 9 };
-    SECStatus rv = ec_Curve25519_mul(X->data, k->data, px);
+    SECStatus rv;
 
     if (!P) {
         px = basePoint;
@@ -116,6 +116,7 @@ ec_Curve25519_pt_mul(SECItem *X, SECItem *k, SECItem *P)
         px = P->data;
     }
 
+    rv = ec_Curve25519_mul(X->data, k->data, px);
     if (NSS_SecureMemcmpZero(X->data, X->len) == 0) {
         return SECFailure;
     }

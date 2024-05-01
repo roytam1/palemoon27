@@ -2219,12 +2219,13 @@ pk11_PubDeriveECKeyWithKDF(
     if (crv != CKR_OK) {
         /* For curves that only use X as public value and no encoding we don't
          * have to try again. (Currently only Curve25519) */
-	 SECItem *pubValue = SEC_ASN1EncodeItem(NULL, NULL,
-                                               &pubKey->u.ec.publicValue,
-                                               SEC_ASN1_GET(SEC_OctetStringTemplate));
+        SECItem *pubValue;
         if (pk11_ECGetPubkeyEncoding(pubKey) == ECPoint_XOnly) {
             goto loser;
         }
+        pubValue = SEC_ASN1EncodeItem(NULL, NULL,
+                                      &pubKey->u.ec.publicValue,
+                                      SEC_ASN1_GET(SEC_OctetStringTemplate));
         if (pubValue == NULL) {
             goto loser;
         }

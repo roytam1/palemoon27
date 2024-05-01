@@ -450,11 +450,10 @@ SECStatus
 ssl_DecodeResumptionToken(sslSessionID *sid, const PRUint8 *encodedToken,
                           PRUint32 encodedTokenLen)
 {
-    sslReader reader = SSL_READER(encodedToken, encodedTokenLen);
+    sslReader reader;
     sslReadBuffer readerBuffer = { 0 };
     PRUint64 tmpInt = 0;
-    SECItem tempItem = { siBuffer, (unsigned char *)readerBuffer.buf,
-                             readerBuffer.len };
+    SECItem tempItem;
     PORT_Assert(encodedTokenLen);
     PORT_Assert(encodedToken);
     PORT_Assert(sid);
@@ -470,6 +469,9 @@ ssl_DecodeResumptionToken(sslSessionID *sid, const PRUint8 *encodedToken,
     }
 
     /* These variables are used across macros. Don't use them outside. */
+    reader.buf.buf = encodedToken;
+    reader.buf.len = encodedTokenLen;
+    reader.offset = 0;
     reader.offset += 1; // We read the version already. Skip the first byte.
 
     if (sslRead_ReadNumber(&reader, 8, &tmpInt) != SECSuccess) {
@@ -508,6 +510,9 @@ ssl_DecodeResumptionToken(sslSessionID *sid, const PRUint8 *encodedToken,
     }
     if (readerBuffer.len) {
         PORT_Assert(!sid->peerCert);
+        tempItem.type = siBuffer;
+        tempItem.data = (unsigned char *)readerBuffer.buf;
+        tempItem.len = readerBuffer.len;
         sid->peerCert = CERT_NewTempCertificate(NULL, /* dbHandle */
                                                 &tempItem,
                                                 NULL, PR_FALSE, PR_TRUE);
@@ -525,6 +530,9 @@ ssl_DecodeResumptionToken(sslSessionID *sid, const PRUint8 *encodedToken,
         if (!sid->peerCertStatus.items) {
             return SECFailure;
         }
+        tempItem.type = siBuffer;
+        tempItem.data = (unsigned char *)readerBuffer.buf;
+        tempItem.len = readerBuffer.len;
         SECITEM_CopyItem(NULL, &sid->peerCertStatus.items[0], &tempItem);
     }
 
@@ -555,6 +563,9 @@ ssl_DecodeResumptionToken(sslSessionID *sid, const PRUint8 *encodedToken,
     }
     if (readerBuffer.len) {
         PORT_Assert(!sid->localCert);
+        tempItem.type = siBuffer;
+        tempItem.data = (unsigned char *)readerBuffer.buf;
+        tempItem.len = readerBuffer.len;
         sid->localCert = CERT_NewTempCertificate(NULL, /* dbHandle */
                                                  &tempItem,
                                                  NULL, PR_FALSE, PR_TRUE);
@@ -714,11 +725,12 @@ PRBool
 ssl_IsResumptionTokenUsable(sslSocket *ss, sslSessionID *sid)
 {
     PRTime endTime = 0;
-    NewSessionTicket *ticket = &sid->u.ssl3.locked.sessionTicket;
+    NewSessionTicket *ticket;
     PORT_Assert(ss);
     PORT_Assert(sid);
 
     // Check that the ticket didn't expire.
+    ticket = &sid->u.ssl3.locked.sessionTicket;
     if (ticket->ticket_lifetime_hint != 0) {
         endTime = ticket->received_timestamp +
                   (PRTime)(ticket->ticket_lifetime_hint * PR_USEC_PER_SEC);
@@ -752,9 +764,8 @@ ssl_IsResumptionTokenUsable(sslSocket *ss, sslSessionID *sid)
 static SECStatus
 ssl_EncodeResumptionToken(sslSessionID *sid, sslBuffer *encodedTokenBuf)
 {
-    PRUint64 len = sid->peerID ? strlen(sid->peerID) : 0;
-    SECStatus rv = sslBuffer_AppendNumber(encodedTokenBuf,
-                                          SSLResumptionTokenVersion, 1);
+    PRUint64 len;
+    SECStatus rv;
     PORT_Assert(encodedTokenBuf);
     PORT_Assert(sid);
     if (!sid || !sid->u.ssl3.locked.sessionTicket.ticket.len ||
@@ -769,6 +780,8 @@ ssl_EncodeResumptionToken(sslSessionID *sid, sslBuffer *encodedTokenBuf)
      * SECItems are prepended with a 64-bit length field followed by the bytes.
      * Optional bytes are encoded as a 0-length item if not present.
      */
+    rv = sslBuffer_AppendNumber(encodedTokenBuf,
+                                SSLResumptionTokenVersion, 1);
     if (rv != SECSuccess) {
         return SECFailure;
     }
@@ -850,6 +863,7 @@ ssl_EncodeResumptionToken(sslSessionID *sid, sslBuffer *encodedTokenBuf)
         }
     }
 
+    len = sid->peerID ? strlen(sid->peerID) : 0;
     if (len > PR_UINT8_MAX) {
         // This string really shouldn't be that long.
         PORT_SetError(SEC_ERROR_LIBRARY_FAILURE);
@@ -1059,11 +1073,10 @@ void
 ssl_CacheExternalToken(sslSocket *ss)
 {
     sslBuffer encodedToken = SSL_BUFFER_EMPTY;
-    sslSessionID *sid = ss->sec.ci.sid;
-    SECStatus rv = ss->resumptionTokenCallback(
-        ss->fd, SSL_BUFFER_BASE(&encodedToken), SSL_BUFFER_LEN(&encodedToken),
-        ss->resumptionTokenContext);
+    sslSessionID *sid;
+    SECStatus rv;
     PORT_Assert(ss);
+    sid = ss->sec.ci.sid;
     PORT_Assert(sid);
     PORT_Assert(sid->cached == never_cached);
     PORT_Assert(ss->resumptionTokenCallback);
@@ -1101,6 +1114,9 @@ ssl_CacheExternalToken(sslSocket *ss)
     PRINT_BUF(40, (ss, "SSL: encoded resumption token",
                    SSL_BUFFER_BASE(&encodedToken),
                    SSL_BUFFER_LEN(&encodedToken)));
+    rv = ss->resumptionTokenCallback(
+        ss->fd, SSL_BUFFER_BASE(&encodedToken), SSL_BUFFER_LEN(&encodedToken),
+        ss->resumptionTokenContext);
     if (rv == SECSuccess) {
         sid->cached = in_external_cache;
     }
@@ -1134,11 +1150,12 @@ ssl_CacheSessionID(sslSocket *ss)
 void
 ssl_UncacheSessionID(sslSocket *ss)
 {
-    sslSecurityInfo *sec = &ss->sec;
+    sslSecurityInfo *sec;
     if (ss->opt.noCache) {
         return;
     }
 
+    sec = &ss->sec;
     PORT_Assert(sec);
 
     if (sec->ci.sid) {

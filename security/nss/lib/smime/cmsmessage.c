@@ -170,14 +170,16 @@ NSS_CMSMessage_GetContentInfo(NSSCMSMessage *cmsg)
 SECItem *
 NSS_CMSMessage_GetContent(NSSCMSMessage *cmsg)
 {
-    /* this is a shortcut */
-    NSSCMSContentInfo *cinfo = NSS_CMSMessage_GetContentInfo(cmsg);
-    SECItem *pItem = NSS_CMSContentInfo_GetInnerContent(cinfo);
+    NSSCMSContentInfo *cinfo;
+    SECItem *pItem;
     
     if (cmsg == NULL) {
         return NULL;
     }
 
+    /* this is a shortcut */
+    cinfo = NSS_CMSMessage_GetContentInfo(cmsg);
+    pItem = NSS_CMSContentInfo_GetInnerContent(cinfo);
     return pItem;
 }
 

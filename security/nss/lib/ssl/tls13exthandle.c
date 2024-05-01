@@ -227,7 +227,7 @@ tls13_ClientHandleKeyShareXtn(const sslSocket *ss, TLSExtensionData *xtnData,
 {
     SECStatus rv;
     TLS13KeyShareEntry *ks = NULL;
-    sslReader rdr = SSL_READER(data->data, data->len);
+    sslReader rdr;
     PORT_Assert(PR_CLIST_IS_EMPTY(&xtnData->remoteKeyShares));
 
     PORT_Assert(!ss->sec.isServer);
@@ -240,6 +240,11 @@ tls13_ClientHandleKeyShareXtn(const sslSocket *ss, TLSExtensionData *xtnData,
 
     SSL_TRC(3, ("%d: SSL3[%d]: handle key_share extension",
                 SSL_GETPID(), ss->fd));
+
+    /*rdr = SSL_READER(data->data, data->len);*/
+    rdr.buf.buf = data->data;
+    rdr.buf.len = data->len;
+    rdr.offset = 0;
 
     rv = tls13_DecodeKeyShareEntry(&rdr, &ks);
     if ((rv != SECSuccess) || !ks) {
@@ -315,7 +320,7 @@ tls13_ServerHandleKeyShareXtn(const sslSocket *ss, TLSExtensionData *xtnData,
 {
     SECStatus rv;
     PRUint32 length;
-    sslReader rdr = SSL_READER(data->data, data->len);
+    sslReader rdr;
 
     PORT_Assert(ss->sec.isServer);
     PORT_Assert(PR_CLIST_IS_EMPTY(&xtnData->remoteKeyShares));
@@ -338,6 +343,11 @@ tls13_ServerHandleKeyShareXtn(const sslSocket *ss, TLSExtensionData *xtnData,
         PORT_SetError(SSL_ERROR_RX_MALFORMED_KEY_SHARE);
         goto loser;
     }
+
+    /*rdr = SSL_READER(data->data, data->len);*/
+    rdr.buf.buf = data->data;
+    rdr.buf.len = data->len;
+    rdr.offset = 0;
 
     while (SSL_READER_REMAINING(&rdr)) {
         TLS13KeyShareEntry *ks = NULL;
@@ -810,8 +820,7 @@ tls13_ServerSendSupportedVersionsXtn(const sslSocket *ss, TLSExtensionData *xtnD
                                      sslBuffer *buf, PRBool *added)
 {
     SECStatus rv;
-    PRUint16 ver = tls13_EncodeDraftVersion(SSL_LIBRARY_VERSION_TLS_1_3,
-                                            ss->protocolVariant);
+    PRUint16 ver;
 
     if (ss->version < SSL_LIBRARY_VERSION_TLS_1_3) {
         return SECSuccess;
@@ -820,6 +829,8 @@ tls13_ServerSendSupportedVersionsXtn(const sslSocket *ss, TLSExtensionData *xtnD
     SSL_TRC(3, ("%d: TLS13[%d]: server send supported_versions extension",
                 SSL_GETPID(), ss->fd));
 
+    ver = tls13_EncodeDraftVersion(SSL_LIBRARY_VERSION_TLS_1_3,
+                                   ss->protocolVariant);
     rv = sslBuffer_AppendNumber(buf, ver, 2);
     if (rv != SECSuccess) {
         return SECFailure;
@@ -1266,8 +1277,8 @@ tls13_ServerHandleEsniXtn(const sslSocket *ss, TLSExtensionData *xtnData,
     int ptLen;
     SECStatus rv;
     PRUint64 tmp;
-    sslReader sniRdr = SSL_READER(plainText, ptLen);
-    SECItem sniItem = { siBuffer, (unsigned char *)SSL_READER_CURRENT(&sniRdr), 0 };
+    sslReader sniRdr;
+    SECItem sniItem;
 
     /* If we are doing < TLS 1.3, then ignore this. */
     if (ss->version < SSL_LIBRARY_VERSION_TLS_1_3) {
@@ -1292,6 +1303,10 @@ tls13_ServerHandleEsniXtn(const sslSocket *ss, TLSExtensionData *xtnData,
     }
 
     /* Read out the interior extension. */
+    /*sniRdr = SSL_READER(plainText, ptLen);*/
+    sniRdr.buf.buf = plainText;
+    sniRdr.buf.len = ptLen;
+    sniRdr.offset = 0;
 
     rv = sslRead_Read(&sniRdr, sizeof(xtnData->esniNonce), &buf);
     if (rv != SECSuccess) {
@@ -1300,6 +1315,11 @@ tls13_ServerHandleEsniXtn(const sslSocket *ss, TLSExtensionData *xtnData,
     PORT_Memcpy(xtnData->esniNonce, buf.buf, sizeof(xtnData->esniNonce));
 
     /* We need to capture the whole block with the length. */
+    /*sniItem = { siBuffer, (unsigned char *)SSL_READER_CURRENT(&sniRdr), 0 };*/
+    sniItem.type = siBuffer;
+    sniItem.data = (unsigned char *)SSL_READER_CURRENT(&sniRdr);
+    sniItem.len = 0;
+
     rv = sslRead_ReadVariable(&sniRdr, 2, &buf);
     if (rv != SECSuccess) {
         goto loser;

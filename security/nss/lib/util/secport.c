@@ -151,12 +151,13 @@ void *
 PORT_ZAllocAlignedOffset(size_t size, size_t alignment, size_t offset)
 {
     void *mem = NULL;
-    void *v = PORT_ZAllocAligned(size, alignment, &mem);
-    if (!v) {
-        return NULL;
-    }
+    void *v;
     PORT_Assert(offset < size);
     if (offset > size) {
+        return NULL;
+    }
+    v = PORT_ZAllocAligned(size, alignment, &mem);
+    if (!v) {
         return NULL;
     }
 

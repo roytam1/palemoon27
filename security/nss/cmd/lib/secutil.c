@@ -230,7 +230,7 @@ SECU_GetModulePassword(PK11SlotInfo *slot, PRBool retry, void *arg)
     }
 
     switch (pwdata->source) {
-    char *pw = SECU_GetPasswordString(NULL, prompt);
+    char *pw;
         case PW_NONE:
             sprintf(prompt, "Enter Password or Pin for \"%s\":",
                     PK11_GetTokenName(slot));
@@ -241,6 +241,7 @@ SECU_GetModulePassword(PK11SlotInfo *slot, PRBool retry, void *arg)
             sprintf(prompt,
                     "Press Enter, then enter PIN for \"%s\" on external device.\n",
                     PK11_GetTokenName(slot));
+            pw = SECU_GetPasswordString(NULL, prompt);
             PORT_Free(pw);
         /* Fall Through */
         case PW_PLAINTEXT:
@@ -3841,10 +3842,11 @@ static SECStatus
 countItems(const char *arg, unsigned int *numItems)
 {
     char *str = PORT_Strdup(arg);
-    char *p = strtok(str, ",");
+    char *p;
     if (!str) {
         return SECFailure;
     }
+    p = strtok(str, ",");
     while (p) {
         ++(*numItems);
         p = strtok(NULL, ",");
@@ -3943,8 +3945,8 @@ parseSigSchemeList(const char *arg, const SSLSignatureScheme **enabledSigSchemes
     SSLSignatureScheme *schemes;
     unsigned int numValues = 0;
     unsigned int count = 0;
-    char *str = PORT_Strdup(arg);
-    char *p = strtok(str, ",");
+    char *str;
+    char *p;
 
     if (countItems(arg, &numValues) != SECSuccess) {
         return SECFailure;
@@ -3955,9 +3957,11 @@ parseSigSchemeList(const char *arg, const SSLSignatureScheme **enabledSigSchemes
     }
 
     /* Get group names. */
+    str = PORT_Strdup(arg);
     if (!str) {
         goto done;
     }
+    p = strtok(str, ",");
     while (p) {
         SSLSignatureScheme scheme = schemeNameToScheme(p);
         if (scheme == ssl_sig_none) {

@@ -1460,3 +1460,15 @@ GLboolean GL_APIENTRY glIsVertexArrayOES(GLuint array)
     return gl::IsVertexArrayOES(array);
 }
 }
+
+#if 1 /* hacks */
+extern "C" void _imp__moz_free(void* a) {
+#undef free
+  free(a);
+}
+
+extern "C" void* _imp__moz_xmalloc(size_t n) {
+#undef malloc
+  return malloc(n);
+}
+#endif

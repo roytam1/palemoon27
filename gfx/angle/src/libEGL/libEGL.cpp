@@ -277,3 +277,19 @@ __eglMustCastToProperFunctionPointerType EGLAPIENTRY eglGetProcAddress(const cha
 }
 
 }
+
+#if 1 /* hacks */
+#undef free
+#undef malloc
+
+extern "C" void free(void* a);
+extern "C" void* malloc(size_t n);
+
+extern "C" void _imp__moz_free(void* a) {
+  free(a);
+}
+
+extern "C" void* _imp__moz_xmalloc(size_t n) {
+  return malloc(n);
+}
+#endif

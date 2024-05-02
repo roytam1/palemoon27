@@ -244,7 +244,7 @@
 #if defined (_MSC_VER) && _MSC_VER >= 1800
 #define MOZ_DEFAULT = default
 #else
-#define MOZ_DEFAULT
+#define MOZ_DEFAULT {}
 #endif
 
 /**

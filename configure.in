@@ -5723,6 +5723,7 @@ fi
 
 if test -n "$MOZ_WEBGL"; then
   AC_DEFINE(MOZ_WEBGL)
+  AC_SUBST(MOZ_WEBGL)
 fi
 
 # This is potentially set in external mozconfig files; if it's set,

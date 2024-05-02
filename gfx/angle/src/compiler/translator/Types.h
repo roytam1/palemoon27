@@ -267,7 +267,21 @@ class TType
     }
 
     TType(const TType &) MOZ_DEFAULT;
-    TType &operator=(const TType &) MOZ_DEFAULT;
+    TType &operator=(const TType &rhs)
+    {
+        type = rhs.type;
+        precision = rhs.precision;
+        qualifier = rhs.qualifier;
+        invariant = rhs.invariant;
+        layoutQualifier = rhs.layoutQualifier;
+        primarySize = rhs.primarySize;
+        secondarySize = rhs.secondarySize;
+        array = rhs.array;
+        arraySize = rhs.arraySize;
+        interfaceBlock = rhs.interfaceBlock;
+        structure = rhs.structure;
+        return *this;
+    }
 
     TBasicType getBasicType() const
     {

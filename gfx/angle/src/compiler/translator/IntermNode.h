@@ -53,7 +53,11 @@ class TName
     explicit TName(const TString &name) : mName(name), mIsInternal(false) {}
     TName() : mName(), mIsInternal(false) {}
     TName(const TName &) MOZ_DEFAULT;
-    TName &operator=(const TName &) MOZ_DEFAULT;
+    TName &operator=(const TName &rhs)
+    {
+        mName = rhs.mName;
+        return *this;
+    }
 
     const TString &getString() const { return mName; }
     void setString(const TString &string) { mName = string; }
@@ -260,7 +264,9 @@ class TIntermSymbol : public TIntermTyped
     TName mSymbol;
 
   private:
-    TIntermSymbol(const TIntermSymbol &) MOZ_DEFAULT;  // Note: not deleted, just private!
+    TIntermSymbol(const TIntermSymbol &rhs) 
+      : TIntermTyped(rhs.mType), mId(rhs.mId), mSymbol(rhs.mSymbol) {
+    }  // Note: not deleted, just private!
 };
 
 // A Raw node stores raw code, that the translator will insert verbatim
@@ -382,7 +388,9 @@ class TIntermOperator : public TIntermTyped
         : TIntermTyped(type),
           mOp(op) {}
 
-    TIntermOperator(const TIntermOperator &) MOZ_DEFAULT;
+    TIntermOperator(const TIntermOperator &rhs)
+        : TIntermTyped(rhs.mType),
+          mOp(rhs.mOp) {}
 
     TOperator mOp;
 };

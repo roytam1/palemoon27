@@ -30,8 +30,8 @@ class NonCopyable
     NonCopyable() MOZ_DEFAULT;
     ~NonCopyable() MOZ_DEFAULT;
   protected:
-    NonCopyable(const NonCopyable&) MOZ_DELETE;
-    void operator=(const NonCopyable&) MOZ_DELETE;
+    NonCopyable(const NonCopyable&) MOZ_DEFAULT;
+    void operator=(const NonCopyable&) MOZ_DEFAULT;
 };
 
 }

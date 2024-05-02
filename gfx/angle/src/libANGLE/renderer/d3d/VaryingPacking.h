@@ -59,7 +59,15 @@ struct PackedVaryingRegister final
     }
 
     PackedVaryingRegister(const PackedVaryingRegister &) MOZ_DEFAULT;
-    PackedVaryingRegister &operator=(const PackedVaryingRegister &) MOZ_DEFAULT;
+    PackedVaryingRegister &operator=(const PackedVaryingRegister &rhs)
+    {
+        packedVarying = rhs.packedVarying;
+        varyingArrayIndex = rhs.varyingArrayIndex;
+        varyingRowIndex = rhs.varyingRowIndex;
+        registerRow = rhs.registerRow;
+        registerColumn = rhs.registerColumn;
+        return *this;
+    }
 
     bool operator<(const PackedVaryingRegister &other) const
     {

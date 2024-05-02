@@ -9,6 +9,7 @@ XPCOMUtils.defineLazyModuleGetter(this, "PrivateBrowsingUtils",
 
 Cu.import("resource://gre/modules/ExtensionUtils.jsm");
 Cu.import("resource://gre/modules/AddonManager.jsm");
+Cu.import("resource://gre/modules/AppConstants.jsm");
 
 const XUL_NS = "http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul";
 
@@ -36,7 +37,7 @@ global.IconDetails = {
   //
   // If no context is specified, instead of throwing an error, this
   // function simply logs a warning message.
-  normalize(details, extension, context = null, localize = false) {
+  normalize(details, extension, context = null) {
     let result = {};
 
     try {
@@ -48,7 +49,6 @@ global.IconDetails = {
         // an ImageData property. But Schema.jsm doesn't normalize
         // actual ImageData objects, so they will come from a global
         // with the right property.
-        let global = Cu.getGlobalForObject(imageData);
         if (instanceOf(imageData, "ImageData")) {
           imageData = {"19": imageData};
         }
@@ -74,12 +74,7 @@ global.IconDetails = {
             throw new Error(`Invalid icon size ${size}, must be an integer`);
           }
 
-          let url = path[size];
-          if (localize) {
-            url = extension.localize(url);
-          }
-
-          url = baseURI.resolve(path[size]);
+          let url = baseURI.resolve(path[size]);
 
           // The Chrome documentation specifies these parameters as
           // relative paths. We currently accept absolute URLs as well,
@@ -131,6 +126,38 @@ global.makeWidgetId = id => {
   return id.replace(/[^a-z0-9_-]/g, "_");
 };
 
+function promisePopupShown(popup) {
+  return new Promise(resolve => {
+    if (popup.state == "open") {
+      resolve();
+    } else {
+      popup.addEventListener("popupshown", function onPopupShown(event) {
+        popup.removeEventListener("popupshown", onPopupShown);
+        resolve();
+      });
+    }
+  });
+}
+
+XPCOMUtils.defineLazyGetter(global, "stylesheets", () => {
+  let styleSheetService = Cc["@mozilla.org/content/style-sheet-service;1"]
+      .getService(Components.interfaces.nsIStyleSheetService);
+  let styleSheetURI = Services.io.newURI("chrome://browser/content/extension.css",
+                                         null, null);
+  let styleSheet = styleSheetService.preloadSheet(styleSheetURI,
+                                                  styleSheetService.AGENT_SHEET);
+  let stylesheets = [styleSheet];
+
+  if (AppConstants.platform === "macosx") {
+    styleSheetURI = Services.io.newURI("chrome://browser/content/extension-mac.css",
+                                       null, null);
+    let macStyleSheet = styleSheetService.preloadSheet(styleSheetURI,
+                                                       styleSheetService.AGENT_SHEET);
+    stylesheets.push(macStyleSheet);
+  }
+  return stylesheets;
+});
+
 class BasePopup {
   constructor(extension, viewNode, popupURL) {
     let popupURI = Services.io.newURI(popupURL, null, extension.baseURI);
@@ -156,6 +183,7 @@ class BasePopup {
 
   destroy() {
     this.browserReady.then(() => {
+      this.browser.removeEventListener("DOMWindowCreated", this, true);
       this.browser.removeEventListener("load", this, true);
       this.browser.removeEventListener("DOMTitleChanged", this, true);
       this.browser.removeEventListener("DOMWindowClose", this, true);
@@ -181,6 +209,16 @@ class BasePopup {
     switch (event.type) {
       case this.DESTROY_EVENT:
         this.destroy();
+        break;
+
+      case "DOMWindowCreated":
+        if (event.target === this.browser.contentDocument) {
+          let winUtils = this.browser.contentWindow
+              .QueryInterface(Ci.nsIInterfaceRequestor).getInterface(Ci.nsIDOMWindowUtils);
+          for (let stylesheet of global.stylesheets) {
+            winUtils.addSheet(stylesheet, winUtils.AGENT_SHEET);
+          }
+        }
         break;
 
       case "DOMWindowClose":
@@ -210,7 +248,6 @@ class BasePopup {
 
   createBrowser(viewNode, popupURI) {
     let document = viewNode.ownerDocument;
-
     this.browser = document.createElementNS(XUL_NS, "browser");
     this.browser.setAttribute("type", "content");
     this.browser.setAttribute("disableglobalhistory", "true");
@@ -242,7 +279,7 @@ class BasePopup {
                    .getInterface(Ci.nsIDOMWindowUtils)
                    .allowScriptsToClose();
 
-      this.context = new ExtensionPage(this.extension, {
+      this.context = new ExtensionContext(this.extension, {
         type: "popup",
         contentWindow,
         uri: popupURI,
@@ -252,6 +289,7 @@ class BasePopup {
       GlobalManager.injectInDocShell(this.browser.docShell, this.extension, this.context);
       this.browser.setAttribute("src", this.context.uri.spec);
 
+      this.browser.addEventListener("DOMWindowCreated", this, true);
       this.browser.addEventListener("load", this, true);
       this.browser.addEventListener("DOMTitleChanged", this, true);
       this.browser.addEventListener("DOMWindowClose", this, true);
@@ -260,6 +298,10 @@ class BasePopup {
 
   // Resizes the browser to match the preferred size of the content.
   resizeBrowser() {
+    if (!this.browser) {
+      return;
+    }
+
     let width, height;
     try {
       let w = {}, h = {};
@@ -316,7 +358,12 @@ global.PanelPopup = class PanelPopup extends BasePopup {
   }
 
   closePopup() {
-    this.viewNode.hidePopup();
+    promisePopupShown(this.viewNode).then(() => {
+      // Make sure we're not already destroyed.
+      if (this.viewNode) {
+        this.viewNode.hidePopup();
+      }
+    });
   }
 };
 

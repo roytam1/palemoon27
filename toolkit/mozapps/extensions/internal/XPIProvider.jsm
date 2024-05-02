@@ -923,11 +923,15 @@ var loadManifestFromWebManifest = Task.async(function*(aUri) {
   addon.applyBackgroundUpdates = AddonManager.AUTOUPDATE_DEFAULT;
 
   function getLocale(aLocale) {
+    // Use the raw manifest, here, since we need values with their
+    // localization placeholders still in place.
+    let rawManifest = extension.rawManifest;
+
     let result = {
-      name: extension.localize(manifest.name, aLocale),
-      description: extension.localize(manifest.description, aLocale),
-      creator: null,
-      homepageURL: null,
+      name: extension.localize(rawManifest.name, aLocale),
+      description: extension.localize(rawManifest.description, aLocale),
+      creator: extension.localize(rawManifest.creator, aLocale),
+      homepageURL: extension.localize(rawManifest.homepage_url, aLocale),
 
       developers: null,
       translators: null,
@@ -3832,8 +3836,9 @@ this.XPIProvider = {
    * @param aFile
    *        An nsIFile for the unpacked add-on directory or XPI file.
    *
-   * @return a Promise that rejects if the add-on is not a valid restartless
-   *         add-on or if the same ID is already temporarily installed
+   * @return a Promise that resolves to an Addon object on success, or rejects
+   *         if the add-on is not a valid restartless add-on or if the
+   *         same ID is already temporarily installed
    */
   installTemporaryAddon: Task.async(function*(aFile) {
     let addon = yield loadManifestFromFile(aFile, TemporaryInstallLocation);
@@ -3925,7 +3930,16 @@ this.XPIProvider = {
 
      for (let [id, val] of this.activeAddons) {
        if (aInstanceID == val.instanceID) {
-         return new Promise(resolve => this.getAddonByID(id, resolve));
+         if (val.safeWrapper) {
+           return Promise.resolve(val.safeWrapper);
+         }
+
+         return new Promise(resolve => {
+           this.getAddonByID(id, function(addon) {
+             val.safeWrapper = new PrivateWrapper(addon);
+             resolve(val.safeWrapper);
+           });
+         });
        }
      }
 
@@ -4212,7 +4226,7 @@ this.XPIProvider = {
 
     for (let [id, val] of this.activeAddons) {
       aConnection.setAddonOptions(
-        id, { global: val.bootstrapScope });
+        id, { global: val.debugGlobal || val.bootstrapScope });
     }
   },
 
@@ -4501,6 +4515,8 @@ this.XPIProvider = {
     this.addAddonsToCrashReporter();
 
     this.activeAddons.set(aId, {
+      debugGlobal: null,
+      safeWrapper: null,
       bootstrapScope: null,
       // a Symbol passed to this add-on, which it can use to identify itself
       instanceID: Symbol(aId),
@@ -7313,6 +7329,32 @@ AddonWrapper.prototype = {
     return getURIForResourceInFile(addon._sourceBundle, aPath);
   }
 };
+
+/**
+ * The PrivateWrapper is used to expose certain functionality only when being
+ * called with the add-on instanceID, disallowing other add-ons to access it.
+ */
+function PrivateWrapper(aAddon) {
+  AddonWrapper.call(this, aAddon);
+}
+
+PrivateWrapper.prototype = Object.create(AddonWrapper.prototype);
+Object.assign(PrivateWrapper.prototype, {
+
+  /**
+   * Defines a global context to be used in the console
+   * of the add-on debugging window.
+   *
+   * @param  global
+   *         The object to set as global context. Must be a window object.
+   */
+  setDebugGlobal(global) {
+    let activeAddon;
+    if (activeAddon = XPIProvider.activeAddons.get(this.id)) {
+      activeAddon.debugGlobal = global;
+    }
+  }
+});
 
 function chooseValue(aAddon, aObj, aProp) {
   let repositoryAddon = aAddon._repositoryAddon;

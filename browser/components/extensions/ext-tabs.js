@@ -34,7 +34,7 @@ function getSender(context, target, sender) {
 
     sender.tab = TabManager.convert(context.extension, tab);
   } else if ("tabId" in sender) {
-    // The message came from an ExtensionPage. In that case, it should
+    // The message came from an ExtensionContext. In that case, it should
     // include a tabId property (which is filled in by the page-open
     // listener below).
     sender.tab = TabManager.convert(context.extension, TabManager.getTab(sender.tabId));
@@ -42,14 +42,14 @@ function getSender(context, target, sender) {
   }
 }
 
-// WeakMap[ExtensionPage -> {tab, parentWindow}]
+// WeakMap[ExtensionContext -> {tab, parentWindow}]
 var pageDataMap = new WeakMap();
 
 /* eslint-disable mozilla/balanced-listeners */
 // This listener fires whenever an extension page opens in a tab
 // (either initiated by the extension or the user). Its job is to fill
 // in some tab-specific details and keep data around about the
-// ExtensionPage.
+// ExtensionContext.
 extensions.on("page-load", (type, page, params, sender, delegate) => {
   if (params.type == "tab" || params.type == "popup") {
     let browser = params.docShell.chromeEventHandler;
@@ -397,16 +397,20 @@ extensions.registerSchemaAPI("tabs", null, (extension, context) => {
       }).api(),
 
       create: function(createProperties) {
-        return new Promise(resolve => {
+        return new Promise((resolve, reject) => {
           function createInWindow(window) {
             let url;
+
             if (createProperties.url !== null) {
               url = context.uri.resolve(createProperties.url);
-            } else {
-              url = window.BROWSER_NEW_TAB_URL;
+
+              if (!context.checkLoadURL(url, {dontReportErrors: true})) {
+                reject({message: `URL not allowed: ${url}`});
+                return;
+              }
             }
 
-            let tab = window.gBrowser.addTab(url);
+            let tab = window.gBrowser.addTab(url || window.BROWSER_NEW_TAB_URL);
 
             let active = true;
             if (createProperties.active !== null) {
@@ -460,10 +464,23 @@ extensions.registerSchemaAPI("tabs", null, (extension, context) => {
 
       update: function(tabId, updateProperties) {
         let tab = tabId !== null ? TabManager.getTab(tabId) : TabManager.activeTab;
-        let tabbrowser = tab.ownerDocument.defaultView.gBrowser;
-        if (updateProperties.url !== null) {
-          tab.linkedBrowser.loadURI(updateProperties.url);
+
+        if (!tab) {
+          return Promise.reject({message: `No tab found with tabId: ${tabId}`});
         }
+
+        let tabbrowser = tab.ownerDocument.defaultView.gBrowser;
+
+        if (updateProperties.url !== null) {
+          let url = context.uri.resolve(updateProperties.url);
+
+          if (!context.checkLoadURL(url, {dontReportErrors: true})) {
+            return Promise.reject({message: `URL not allowed: ${url}`});
+          }
+
+          tab.linkedBrowser.loadURI(url);
+        }
+
         if (updateProperties.active !== null) {
           if (updateProperties.active) {
             tabbrowser.selectedTab = tab;
@@ -623,10 +640,23 @@ extensions.registerSchemaAPI("tabs", null, (extension, context) => {
         };
 
         return context.sendMessage(browser.messageManager, "Extension:Capture",
-                                   message, recipient);
+                                   message, {recipient});
       },
 
-      _execute: function(tabId, details, kind) {
+      detectLanguage: function(tabId) {
+        let tab = tabId !== null ? TabManager.getTab(tabId) : TabManager.activeTab;
+        if (!tab) {
+          return Promise.reject({message: `Invalid tab ID: ${tabId}`});
+        }
+
+        let browser = tab.linkedBrowser;
+        let recipient = {innerWindowID: browser.innerWindowID};
+
+        return context.sendMessage(browser.messageManager, "Extension:DetectLanguage",
+                                   {}, {recipient});
+      },
+
+      _execute: function(tabId, details, kind, method) {
         let tab = tabId !== null ? TabManager.getTab(tabId) : TabManager.activeTab;
         let mm = tab.linkedBrowser.messageManager;
 
@@ -634,6 +664,15 @@ extensions.registerSchemaAPI("tabs", null, (extension, context) => {
           js: [],
           css: [],
         };
+
+        // We require a `code` or a `file` property, but we can't accept both.
+        if ((details.code === null) == (details.file === null)) {
+          return Promise.reject({message: `${method} requires either a 'code' or a 'file' property, but not both`});
+        }
+
+        if (details.frameId !== null && details.allFrames) {
+          return Promise.reject({message: `'frameId' and 'allFrames' are mutually exclusive`});
+        }
 
         let recipient = {
           innerWindowID: tab.linkedBrowser.innerWindowID,
@@ -660,22 +699,27 @@ extensions.registerSchemaAPI("tabs", null, (extension, context) => {
         if (details.allFrames) {
           options.all_frames = details.allFrames;
         }
+        if (details.frameId !== null) {
+          options.frame_id = details.frameId;
+        }
         if (details.matchAboutBlank) {
           options.match_about_blank = details.matchAboutBlank;
         }
         if (details.runAt !== null) {
           options.run_at = details.runAt;
+        } else {
+          options.run_at = "document_idle";
         }
 
-        return context.sendMessage(mm, "Extension:Execute", {options}, recipient);
+        return context.sendMessage(mm, "Extension:Execute", {options}, {recipient});
       },
 
       executeScript: function(tabId, details) {
-        return self.tabs._execute(tabId, details, "js");
+        return self.tabs._execute(tabId, details, "js", "executeScript");
       },
 
       insertCSS: function(tabId, details) {
-        return self.tabs._execute(tabId, details, "css");
+        return self.tabs._execute(tabId, details, "css", "insertCSS");
       },
 
       connect: function(tabId, connectInfo) {

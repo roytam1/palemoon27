@@ -81,7 +81,7 @@ public:
   }
 
   // This is intentionally not explicit in order to allow value semantics.
-  Input(const Input&) { };
+  Input(const Input &rhs) : data(rhs.data), len(rhs.len) { };
 
   // Initialize the input. data must be non-null and len must be less than
   // 65536. Init may not be called more than once.
@@ -290,7 +290,7 @@ public:
   class Mark final
   {
   public:
-    Mark(const Mark&) MOZ_DEFAULT; // Intentionally not explicit.
+    Mark(const Mark &rhs) : input(rhs.input), mark(rhs.mark) { } // Intentionally not explicit.
   private:
     friend class Reader;
     Mark(const Reader& input, const uint8_t* mark) : input(input), mark(mark) { }

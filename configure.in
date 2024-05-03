@@ -425,23 +425,32 @@ dnl ========================================================
 # Target the Windows 8.1 SDK by default
 WINSDK_TARGETVER=602
 WINVER=502
+MOZ_USE_D2D=
 
 MOZ_ARG_WITH_STRING(windows-version,
 [  --with-windows-version=WINSDK_TARGETVER
-                          Windows SDK version to target. Win8 (602) is
+                          Windows SDK version to target. Win7 (601) is
                           currently the minimum supported version.],
   WINSDK_TARGETVER=$withval)
 
-# Currently only version 602 and 603 is allowed
+# Currently only version 601 to 603 is allowed
 case "$WINSDK_TARGETVER" in
-602|603)
+601)
     MOZ_WINSDK_TARGETVER=0${WINSDK_TARGETVER}0000
     ;;
-
+602|603)
+    MOZ_WINSDK_TARGETVER=0${WINSDK_TARGETVER}0000
+    MOZ_USE_D2D=1
+    CFLAGS="$CFLAGS -DUSE_D2D1_1"
+    CXXFLAGS="$CXXFLAGS -DUSE_D2D1_1"
+    ;;
 *)
     AC_MSG_ERROR([Invalid value for --with-windows-version ($WINSDK_TARGETVER)]);
     ;;
 esac
+
+AC_DEFINE(MOZ_USE_D2D)
+AC_SUBST(MOZ_USE_D2D)
 
 case "$target" in
 *-mingw*)
@@ -491,7 +500,7 @@ case "$target" in
             MSVC_C_RUNTIME_DLL=msvcr100.dll
             MSVC_CXX_RUNTIME_DLL=msvcp100.dll
             MSVC_REDIST_OPENMP_DIR=Microsoft.VC100.OPENMP
-            MSVC_OPENMP_DLL=vcomp.dll
+            MSVC_OPENMP_DLL=vcomp100.dll
 	elif test "$_CC_MAJOR_VERSION" = "17"; then
             _CC_SUITE=11
             MSVS_VERSION=2012
@@ -5742,6 +5751,10 @@ if test -n "$MOZ_WEBGL_CONFORMANT"; then
 fi
 
 MOZ_REQUIRE_ALL_D3DCS=1
+MOZ_ARG_DISABLE_BOOL(require-d3d-compilers,
+[  --disable-require-d3d-compilers     Disable requiring of D3D Compilers],
+    MOZ_REQUIRE_ALL_D3DCS=,
+    MOZ_REQUIRE_ALL_D3DCS=1)
 
 dnl ========================================================
 dnl D3D compiler DLL
@@ -7900,14 +7913,14 @@ if test "$MOZ_TREE_CAIRO"; then
         QUARTZ_FONT_FEATURE="#define CAIRO_HAS_QUARTZ_FONT 1"
         ;;
       windows)
-        WIN32_D2D_SURFACE_FEATURE="#define CAIRO_HAS_D2D_SURFACE 1"
-        WIN32_DWRITE_FONT_FEATURE="#define CAIRO_HAS_DWRITE_FONT 1"
         WIN32_FONT_FEATURE="#define CAIRO_HAS_WIN32_FONT 1"
         WIN32_SURFACE_FEATURE="#define CAIRO_HAS_WIN32_SURFACE 1"
-        MOZ_ENABLE_D2D_SURFACE=1
-        MOZ_ENABLE_DWRITE_FONT=1
-        CFLAGS="$CFLAGS -DUSE_D2D1_1"
-        CXXFLAGS="$CXXFLAGS -DUSE_D2D1_1"
+        if test "$MOZ_USE_D2D"; then
+          WIN32_DWRITE_FONT_FEATURE="#define CAIRO_HAS_DWRITE_FONT 1"
+          WIN32_D2D_SURFACE_FEATURE="#define CAIRO_HAS_D2D_SURFACE 1"
+          MOZ_ENABLE_D2D_SURFACE=1
+          MOZ_ENABLE_DWRITE_FONT=1
+        fi
 
         MOZ_CHECK_HEADER(d3d9.h, MOZ_ENABLE_D3D9_LAYER=1)
 

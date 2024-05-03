@@ -14,6 +14,7 @@
 #include "mozilla/Preferences.h"
 #include "mfapi.h"
 #include "MFTDecoder.h"
+#include <initguid.h>
 
 const CLSID CLSID_VideoProcessorMFT =
 {
@@ -219,7 +220,7 @@ DXVA2Manager::CreateD3D9DXVA()
   return nullptr;
 }
 
-#if defined (_MSC_VER) && _MSC_VER >= 1700 // Requires the Windows 8 SDK
+#if defined (_MSC_VER) //&& _MSC_VER >= 1700 // Requires the Windows 8 SDK
 class D3D11DXVA2Manager : public DXVA2Manager
 {
 public:

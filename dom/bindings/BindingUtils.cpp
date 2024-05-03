@@ -761,49 +761,41 @@ CreateInterfaceObject(JSContext* cx, JS::Handle<JSObject*> global,
   return constructor;
 }
 
-bool
-DefineWebIDLBindingUnforgeablePropertiesOnXPCObject(JSContext* cx,
-                                                    JS::Handle<JSObject*> obj,
-                                                    const NativeProperties* properties)
-{
-  if (properties->unforgeableAttributes &&
-      !DefinePrefable(cx, obj, properties->unforgeableAttributes)) {
-    return false;
-  }
-
-  return true;
-}
-
-bool
-DefineWebIDLBindingPropertiesOnXPCObject(JSContext* cx,
-                                         JS::Handle<JSObject*> obj,
-                                         const NativeProperties* properties)
-{
-  if (properties->methods &&
-      !DefinePrefable(cx, obj, properties->methods)) {
-    return false;
-  }
-
-  if (properties->attributes &&
-      !DefinePrefable(cx, obj, properties->attributes)) {
-    return false;
-  }
-
-  return true;
-}
-
 static JSObject*
 CreateInterfacePrototypeObject(JSContext* cx, JS::Handle<JSObject*> global,
                                JS::Handle<JSObject*> parentProto,
                                const js::Class* protoClass,
                                const NativeProperties* properties,
-                               const NativeProperties* chromeOnlyProperties)
+                               const NativeProperties* chromeOnlyProperties,
+                               const char* const* unscopableNames)
 {
   JS::Rooted<JSObject*> ourProto(cx,
     JS_NewObjectWithUniqueType(cx, Jsvalify(protoClass), parentProto));
   if (!ourProto ||
       !DefineProperties(cx, ourProto, properties, chromeOnlyProperties)) {
     return nullptr;
+  }
+
+  if (unscopableNames) {
+    JS::Rooted<JSObject*> unscopableObj(cx, JS_NewPlainObject(cx));
+    if (!unscopableObj) {
+      return nullptr;
+    }
+
+    for (; *unscopableNames; ++unscopableNames) {
+      if (!JS_DefineProperty(cx, unscopableObj, *unscopableNames,
+                             JS::TrueHandleValue, JSPROP_ENUMERATE)) {
+        return nullptr;
+      }
+    }
+
+    JS::Rooted<jsid> unscopableId(cx,
+      SYMBOL_TO_JSID(JS::GetWellKnownSymbol(cx, JS::SymbolCode::unscopables)));
+    // Readonly and non-enumerable to match Array.prototype.
+    if (!JS_DefinePropertyById(cx, ourProto, unscopableId, unscopableObj,
+                               JSPROP_READONLY)) {
+      return nullptr;
+    }
   }
 
   return ourProto;
@@ -861,7 +853,8 @@ CreateInterfaceObjects(JSContext* cx, JS::Handle<JSObject*> global,
                        JS::Heap<JSObject*>* constructorCache,
                        const NativeProperties* properties,
                        const NativeProperties* chromeOnlyProperties,
-                       const char* name, bool defineOnGlobal)
+                       const char* name, bool defineOnGlobal,
+                       const char* const* unscopableNames)
 {
   MOZ_ASSERT(protoClass || constructorClass || constructor,
              "Need at least one class or a constructor!");
@@ -887,12 +880,16 @@ CreateInterfaceObjects(JSContext* cx, JS::Handle<JSObject*> global,
   MOZ_ASSERT(!(constructorClass || constructor) == !constructorCache,
              "If, and only if, there is an interface object we need to cache "
              "it");
+  MOZ_ASSERT(constructorProto || (!constructorClass && !constructor),
+             "Must have a constructor proto if we plan to create a constructor "
+             "object");
 
   JS::Rooted<JSObject*> proto(cx);
   if (protoClass) {
     proto =
       CreateInterfacePrototypeObject(cx, global, protoProto, protoClass,
-                                     properties, chromeOnlyProperties);
+                                     properties, chromeOnlyProperties,
+                                     unscopableNames);
     if (!proto) {
       return;
     }

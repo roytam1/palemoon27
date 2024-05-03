@@ -455,6 +455,13 @@ BasePrincipal::GetAppId(uint32_t* aAppId)
 }
 
 NS_IMETHODIMP
+BasePrincipal::GetAddonId(nsAString& aAddonId)
+{
+  aAddonId.Assign(mOriginAttributes.mAddonId);
+  return NS_OK;
+}
+
+NS_IMETHODIMP
 BasePrincipal::GetUserContextId(uint32_t* aUserContextId)
 {
   *aUserContextId = UserContextId();
@@ -505,6 +512,28 @@ BasePrincipal::CreateCodebasePrincipal(nsIURI* aURI, const OriginAttributes& aAt
   rv = codebase->Init(aURI, aAttrs);
   NS_ENSURE_SUCCESS(rv, nullptr);
   return codebase.forget();
+}
+
+already_AddRefed<BasePrincipal>
+BasePrincipal::CreateCodebasePrincipal(const nsACString& aOrigin)
+{
+  MOZ_ASSERT(!StringBeginsWith(aOrigin, NS_LITERAL_CSTRING("[")),
+             "CreateCodebasePrincipal does not support System and Expanded principals");
+
+  MOZ_ASSERT(!StringBeginsWith(aOrigin, NS_LITERAL_CSTRING(NS_NULLPRINCIPAL_SCHEME ":")),
+             "CreateCodebasePrincipal does not support nsNullPrincipal");
+
+  nsAutoCString originNoSuffix;
+  mozilla::OriginAttributes attrs;
+  if (!attrs.PopulateFromOrigin(aOrigin, originNoSuffix)) {
+    return nullptr;
+  }
+
+  nsCOMPtr<nsIURI> uri;
+  nsresult rv = NS_NewURI(getter_AddRefs(uri), originNoSuffix);
+  NS_ENSURE_SUCCESS(rv, nullptr);
+
+  return BasePrincipal::CreateCodebasePrincipal(uri, attrs);
 }
 
 bool

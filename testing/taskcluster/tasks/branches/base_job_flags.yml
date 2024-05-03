@@ -23,6 +23,7 @@ flags:
     - aries
     - aries-ota
     - aries-eng
+    - eslint-gecko
 
   tests:
     - cppunit

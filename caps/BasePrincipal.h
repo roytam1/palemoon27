@@ -157,6 +157,7 @@ public:
   NS_IMETHOD GetOriginSuffix(nsACString& aOriginSuffix) final;
   NS_IMETHOD GetAppStatus(uint16_t* aAppStatus) final;
   NS_IMETHOD GetAppId(uint32_t* aAppStatus) final;
+  NS_IMETHOD GetAddonId(nsAString& aAddonId) final;
   NS_IMETHOD GetIsInBrowserElement(bool* aIsInBrowserElement) final;
   NS_IMETHOD GetUnknownAppId(bool* aUnknownAppId) final;
   NS_IMETHOD GetUserContextId(uint32_t* aUserContextId) final;
@@ -168,6 +169,7 @@ public:
   static BasePrincipal* Cast(nsIPrincipal* aPrin) { return static_cast<BasePrincipal*>(aPrin); }
   static already_AddRefed<BasePrincipal>
   CreateCodebasePrincipal(nsIURI* aURI, const OriginAttributes& aAttrs);
+  static already_AddRefed<BasePrincipal> CreateCodebasePrincipal(const nsACString& aOrigin);
 
   const OriginAttributes& OriginAttributesRef() { return mOriginAttributes; }
   uint32_t AppId() const { return mOriginAttributes.mAppId; }

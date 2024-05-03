@@ -103,10 +103,10 @@ global.IconDetails = {
 
   // Returns the appropriate icon URL for the given icons object and the
   // screen resolution of the given window.
-  getURL(icons, window, extension) {
+  getURL(icons, window, extension, size = 18) {
     const DEFAULT = "chrome://browser/content/extension.svg";
 
-    return AddonManager.getPreferredIconURL({icons: icons}, 18, window) || DEFAULT;
+    return AddonManager.getPreferredIconURL({icons: icons}, size, window) || DEFAULT;
   },
 
   convertImageDataToPNG(imageData, context) {
@@ -656,7 +656,31 @@ global.WindowManager = {
 
   windowType(window) {
     // TODO: Make this work.
+
+    let {chromeFlags} = window.QueryInterface(Ci.nsIInterfaceRequestor)
+                              .getInterface(Ci.nsIDocShell)
+                              .treeOwner.QueryInterface(Ci.nsIInterfaceRequestor)
+                              .getInterface(Ci.nsIXULWindow);
+
+    if (chromeFlags & Ci.nsIWebBrowserChrome.CHROME_OPENAS_DIALOG) {
+      return "popup";
+    }
+
     return "normal";
+  },
+
+  updateGeometry(window, options) {
+    if (options.left !== null || options.top !== null) {
+      let left = options.left !== null ? options.left : window.screenX;
+      let top = options.top !== null ? options.top : window.screenY;
+      window.moveTo(left, top);
+    }
+
+    if (options.width !== null || options.height !== null) {
+      let width = options.width !== null ? options.width : window.outerWidth;
+      let height = options.height !== null ? options.height : window.outerHeight;
+      window.resizeTo(width, height);
+    }
   },
 
   getId(window) {
@@ -668,7 +692,11 @@ global.WindowManager = {
     return id;
   },
 
-  getWindow(id) {
+  getWindow(id, context) {
+    if (id == this.WINDOW_ID_CURRENT) {
+      return currentWindow(context);
+    }
+
     for (let window of WindowListManager.browserWindows(true)) {
       if (this.getId(window) == id) {
         return window;
@@ -677,23 +705,76 @@ global.WindowManager = {
     return null;
   },
 
+  setState(window, state) {
+    if (state != "fullscreen" && window.fullScreen) {
+      window.fullScreen = false;
+    }
+
+    switch (state) {
+      case "maximized":
+        window.maximize();
+        break;
+
+      case "minimized":
+      case "docked":
+        window.minimize();
+        break;
+
+      case "normal":
+        // Restore sometimes returns the window to its previous state, rather
+        // than to the "normal" state, so it may need to be called anywhere from
+        // zero to two times.
+        window.restore();
+        if (window.windowState != window.STATE_NORMAL) {
+          window.restore();
+        }
+        if (window.windowState != window.STATE_NORMAL) {
+          // And on OS-X, where normal vs. maximized is basically a heuristic,
+          // we need to cheat.
+          window.sizeToContent();
+        }
+        break;
+
+      case "fullscreen":
+        window.fullScreen = true;
+        break;
+
+      default:
+        throw new Error(`Unexpected window state: ${state}`);
+    }
+  },
+
   convert(extension, window, getInfo) {
+    const STATES = {
+      [window.STATE_MAXIMIZED]: "maximized",
+      [window.STATE_MINIMIZED]: "minimized",
+      [window.STATE_NORMAL]: "normal",
+    };
+    let state = STATES[window.windowState];
+    if (window.fullScreen) {
+      state = "fullscreen";
+    }
+
+    let xulWindow = window.QueryInterface(Ci.nsIInterfaceRequestor)
+                          .getInterface(Ci.nsIDocShell)
+                          .treeOwner.QueryInterface(Ci.nsIInterfaceRequestor)
+                          .getInterface(Ci.nsIXULWindow);
+
     let result = {
       id: this.getId(window),
-      focused: window == WindowManager.topWindow,
+      focused: window.document.hasFocus(),
       top: window.screenY,
       left: window.screenX,
       width: window.outerWidth,
       height: window.outerHeight,
       incognito: PrivateBrowsingUtils.isWindowPrivate(window),
-
-      // We fudge on these next two.
       type: this.windowType(window),
-      state: window.fullScreen ? "fullscreen" : "normal",
+      state,
+      alwaysOnTop: xulWindow.zLevel >= Ci.nsIXULWindow.raisedZ,
     };
 
     if (getInfo && getInfo.populate) {
-      results.tabs = TabManager.for(extension).getTabs(window);
+      result.tabs = TabManager.for(extension).getTabs(window);
     }
 
     return result;
@@ -826,39 +907,44 @@ global.AllWindowEvents = {
     }
   },
 
-  removeListener(type, listener) {
-    if (type == "domwindowopened") {
+  removeListener(eventType, listener) {
+    if (eventType == "domwindowopened") {
       return WindowListManager.removeOpenListener(listener);
-    } else if (type == "domwindowclosed") {
+    } else if (eventType == "domwindowclosed") {
       return WindowListManager.removeCloseListener(listener);
     }
 
-    let listeners = this._listeners.get(type);
+    let listeners = this._listeners.get(eventType);
     listeners.delete(listener);
     if (listeners.size == 0) {
-      this._listeners.delete(type);
+      this._listeners.delete(eventType);
       if (this._listeners.size == 0) {
         WindowListManager.removeOpenListener(this.openListener);
       }
     }
 
     // Unregister listener from all existing windows.
+    let useCapture = eventType === "focus" || eventType === "blur";
     for (let window of WindowListManager.browserWindows()) {
-      if (type == "progress") {
+      if (eventType == "progress") {
         window.gBrowser.removeTabsProgressListener(listener);
       } else {
-        window.removeEventListener(type, listener);
+        window.removeEventListener(eventType, listener, useCapture);
       }
     }
   },
 
+  /* eslint-disable mozilla/balanced-listeners */
   addWindowListener(window, eventType, listener) {
+    let useCapture = eventType === "focus" || eventType === "blur";
+
     if (eventType == "progress") {
       window.gBrowser.addTabsProgressListener(listener);
     } else {
-      window.addEventListener(eventType, listener);
+      window.addEventListener(eventType, listener, useCapture);
     }
   },
+  /* eslint-enable mozilla/balanced-listeners */
 
   // Runs whenever the "load" event fires for a new window.
   openListener(window) {

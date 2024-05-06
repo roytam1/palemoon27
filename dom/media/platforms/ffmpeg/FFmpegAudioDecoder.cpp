@@ -64,12 +64,15 @@ FFmpegAudioDecoder<LIBAV_VER>::InitCodecContext()
 #endif
 }
 
-static UniquePtr<AudioDataValue[]>
+static AlignedAudioBuffer
 CopyAndPackAudio(AVFrame* aFrame, uint32_t aNumChannels, uint32_t aNumAFrames)
 {
   MOZ_ASSERT(aNumChannels <= MAX_CHANNELS);
 
-  auto audio = MakeUnique<AudioDataValue[]>(aNumChannels * aNumAFrames);
+  AlignedAudioBuffer audio(aNumChannels * aNumAFrames);
+  if (!audio) {
+    return audio;
+  }
 
   if (aFrame->format == AV_SAMPLE_FMT_FLT) {
 #ifdef MOZ_SAMPLE_TYPE_FLOAT32
@@ -184,12 +187,12 @@ FFmpegAudioDecoder<LIBAV_VER>::DecodePacket(MediaRawData* aSample)
       uint32_t numChannels = mCodecContext->channels;
       uint32_t samplingRate = mCodecContext->sample_rate;
 
-      UniquePtr<AudioDataValue[]> audio =
+      AlignedAudioBuffer audio =
         CopyAndPackAudio(mFrame, numChannels, mFrame->nb_samples);
 
       media::TimeUnit duration =
         FramesToTimeUnit(mFrame->nb_samples, samplingRate);
-      if (!duration.IsValid()) {
+      if (!audio || !duration.IsValid()) {
         NS_WARNING("Invalid count of accumulated audio samples");
         mCallback->Error();
         return;

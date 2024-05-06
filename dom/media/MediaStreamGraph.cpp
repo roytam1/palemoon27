@@ -126,7 +126,8 @@ MediaStreamGraphImpl::AddStreamGraphThread(MediaStream* aStream)
     STREAM_LOG(LogLevel::Debug, ("Adding media stream %p to the graph, in the suspended stream array", aStream));
   } else {
     mStreams.AppendElement(aStream);
-    STREAM_LOG(LogLevel::Debug, ("Adding media stream %p to the graph", aStream));
+    STREAM_LOG(LogLevel::Debug, ("Adding media stream %p to graph %p, count %lu", aStream, this, mStreams.Length()));
+    LIFECYCLE_LOG("Adding media stream %p to graph %p, count %lu", aStream, this, mStreams.Length());
   }
 
   SetStreamOrderDirty();
@@ -156,9 +157,12 @@ MediaStreamGraphImpl::RemoveStreamGraphThread(MediaStream* aStream)
     mStreams.RemoveElement(aStream);
   }
 
-  NS_RELEASE(aStream); // probably destroying it
+  STREAM_LOG(LogLevel::Debug, ("Removed media stream %p from graph %p, count %lu",
+                               aStream, this, mStreams.Length()));
+  LIFECYCLE_LOG("Removed media stream %p from graph %p, count %lu",
+                aStream, this, mStreams.Length());
 
-  STREAM_LOG(LogLevel::Debug, ("Removing media stream %p from the graph", aStream));
+  NS_RELEASE(aStream); // probably destroying it
 }
 
 void
@@ -433,19 +437,18 @@ namespace {
   const uint32_t IN_MUTED_CYCLE = 1;
 } // namespace
 
-void
-MediaStreamGraphImpl::UpdateStreamOrder()
+bool
+MediaStreamGraphImpl::AudioTrackPresent(bool& aNeedsAEC)
 {
-#ifdef MOZ_WEBRTC
-  bool shouldAEC = false;
-#endif
+  AssertOnGraphThreadOrNotRunning();
+
   bool audioTrackPresent = false;
-  for (uint32_t i = 0; i < mStreams.Length(); ++i) {
+  for (uint32_t i = 0; i < mStreams.Length() && audioTrackPresent == false; ++i) {
     MediaStream* stream = mStreams[i];
+    SourceMediaStream* source = stream->AsSourceStream();
 #ifdef MOZ_WEBRTC
-    if (stream->AsSourceStream() &&
-        stream->AsSourceStream()->NeedsMixing()) {
-      shouldAEC = true;
+    if (source && source->NeedsMixing()) {
+      aNeedsAEC = true;
     }
 #endif
     // If this is a AudioNodeStream, force a AudioCallbackDriver.
@@ -457,14 +460,45 @@ MediaStreamGraphImpl::UpdateStreamOrder()
         audioTrackPresent = true;
       }
     }
+    if (source) {
+      for (auto& data : source->mPendingTracks) {
+        if (data.mData->GetType() == MediaSegment::AUDIO) {
+          audioTrackPresent = true;
+          break;
+        }
+      }
+    }
   }
+
+  // XXX For some reason, there are race conditions when starting an audio input where
+  // we find no active audio tracks.  In any case, if we have an active audio input we
+  // should not allow a switch back to a SystemClockDriver
+  if (!audioTrackPresent && mInputDeviceUsers.Count() != 0) {
+    NS_WARNING("No audio tracks, but full-duplex audio is enabled!!!!!");
+    audioTrackPresent = true;
+#ifdef MOZ_WEBRTC
+    aNeedsAEC = true;
+#endif
+  }
+
+  return audioTrackPresent;
+}
+
+void
+MediaStreamGraphImpl::UpdateStreamOrder()
+{
+  bool shouldAEC = false;
+  bool audioTrackPresent = AudioTrackPresent(shouldAEC);
+
   // Note that this looks for any audio streams, input or output, and switches to a
-  // SystemClockDriver if there are none
+  // SystemClockDriver if there are none.  However, if another is already pending, let that
+  // switch happen.
 
   if (!audioTrackPresent && mRealtime &&
       CurrentDriver()->AsAudioCallbackDriver()) {
     MonitorAutoLock mon(mMonitor);
-    if (CurrentDriver()->AsAudioCallbackDriver()->IsStarted()) {
+    if (CurrentDriver()->AsAudioCallbackDriver()->IsStarted() &&
+        !(CurrentDriver()->Switching())) {
       if (mLifecycleState == LIFECYCLE_RUNNING) {
         SystemClockDriver* driver = new SystemClockDriver(this);
         CurrentDriver()->SwitchAtNextIteration(driver);
@@ -489,13 +523,21 @@ MediaStreamGraphImpl::UpdateStreamOrder()
   }
 
 #ifdef MOZ_WEBRTC
+  // Whenever we change AEC state, notify the current driver, which also
+  // will sample the state when the driver inits
   if (shouldAEC && !mFarendObserverRef && gFarendObserver) {
     mFarendObserverRef = gFarendObserver;
     mMixer.AddCallback(mFarendObserverRef);
+    if (CurrentDriver()->AsAudioCallbackDriver()) {
+      CurrentDriver()->AsAudioCallbackDriver()->SetMicrophoneActive(true);
+    }
   } else if (!shouldAEC && mFarendObserverRef){
     if (mMixer.FindCallback(mFarendObserverRef)) {
       mMixer.RemoveCallback(mFarendObserverRef);
       mFarendObserverRef = nullptr;
+      if (CurrentDriver()->AsAudioCallbackDriver()) {
+        CurrentDriver()->AsAudioCallbackDriver()->SetMicrophoneActive(false);
+      }
     }
   }
 #endif
@@ -1045,7 +1087,7 @@ MediaStreamGraphImpl::PlayVideo(MediaStream* aStream)
 }
 
 void
-MediaStreamGraphImpl::OpenAudioInputImpl(CubebUtils::AudioDeviceID aID,
+MediaStreamGraphImpl::OpenAudioInputImpl(int aID,
                                          AudioDataListener *aListener)
 {
   // Bug 1238038 Need support for multiple mics at once
@@ -1084,7 +1126,7 @@ MediaStreamGraphImpl::OpenAudioInputImpl(CubebUtils::AudioDeviceID aID,
 }
 
 nsresult
-MediaStreamGraphImpl::OpenAudioInput(CubebUtils::AudioDeviceID aID,
+MediaStreamGraphImpl::OpenAudioInput(int aID,
                                      AudioDataListener *aListener)
 {
   // So, so, so annoying.  Can't AppendMessage except on Mainthread
@@ -1096,7 +1138,7 @@ MediaStreamGraphImpl::OpenAudioInput(CubebUtils::AudioDeviceID aID,
   }
   class Message : public ControlMessage {
   public:
-    Message(MediaStreamGraphImpl *aGraph, CubebUtils::AudioDeviceID aID,
+    Message(MediaStreamGraphImpl *aGraph, int aID,
             AudioDataListener *aListener) :
       ControlMessage(nullptr), mGraph(aGraph), mID(aID), mListener(aListener) {}
     virtual void Run()
@@ -1104,9 +1146,7 @@ MediaStreamGraphImpl::OpenAudioInput(CubebUtils::AudioDeviceID aID,
       mGraph->OpenAudioInputImpl(mID, mListener);
     }
     MediaStreamGraphImpl *mGraph;
-    // aID is a cubeb_devid, and we assume that opaque ptr is valid until
-    // we close cubeb.
-    CubebUtils::AudioDeviceID mID;
+    int mID;
     RefPtr<AudioDataListener> mListener;
   };
   // XXX Check not destroyed!
@@ -1125,7 +1165,7 @@ MediaStreamGraphImpl::CloseAudioInputImpl(AudioDataListener *aListener)
     return; // still in use
   }
   mInputDeviceUsers.Remove(aListener);
-  mInputDeviceID = nullptr;
+  mInputDeviceID = -1;
   mInputWanted = false;
   AudioCallbackDriver *driver = CurrentDriver()->AsAudioCallbackDriver();
   if (driver) {
@@ -1134,20 +1174,8 @@ MediaStreamGraphImpl::CloseAudioInputImpl(AudioDataListener *aListener)
   mAudioInputs.RemoveElement(aListener);
 
   // Switch Drivers since we're adding or removing an input (to nothing/system or output only)
-  bool audioTrackPresent = false;
-  for (uint32_t i = 0; i < mStreams.Length(); ++i) {
-    MediaStream* stream = mStreams[i];
-    // If this is a AudioNodeStream, force a AudioCallbackDriver.
-    if (stream->AsAudioNodeStream()) {
-      audioTrackPresent = true;
-    } else if (CurrentDriver()->AsAudioCallbackDriver()) {
-      // only if there's a real switch!
-      for (StreamBuffer::TrackIter tracks(stream->GetStreamBuffer(), MediaSegment::AUDIO);
-           !tracks.IsEnded(); tracks.Next()) {
-        audioTrackPresent = true;
-      }
-    }
-  }
+  bool shouldAEC = false;
+  bool audioTrackPresent = AudioTrackPresent(shouldAEC);
 
   MonitorAutoLock mon(mMonitor);
   if (mLifecycleState == LIFECYCLE_RUNNING) {
@@ -1563,6 +1591,14 @@ MediaStreamGraphImpl::ForceShutDown(ShutdownTicket* aShutdownTicket)
     MonitorAutoLock lock(mMonitor);
     mForceShutDown = true;
     mForceShutdownTicket = aShutdownTicket;
+    if (mLifecycleState == LIFECYCLE_THREAD_NOT_STARTED) {
+      // We *could* have just sent this a message to start up, so don't
+      // yank the rug out from under it.  Tell it to startup and let it
+      // shut down.
+      RefPtr<GraphDriver> driver = CurrentDriver();
+      MonitorAutoUnlock unlock(mMonitor);
+      driver->Start();
+    }
     EnsureNextIterationLocked();
   }
 }
@@ -2594,7 +2630,7 @@ MediaStream::AddMainThreadListener(MainThreadMediaStreamListener* aListener)
 }
 
 nsresult
-SourceMediaStream::OpenAudioInput(CubebUtils::AudioDeviceID aID,
+SourceMediaStream::OpenAudioInput(int aID,
                                   AudioDataListener *aListener)
 {
   if (GraphImpl()) {
@@ -2643,6 +2679,7 @@ SourceMediaStream::AddTrackInternal(TrackID aID, TrackRate aRate, StreamTime aSt
   nsTArray<TrackData> *track_data = (aFlags & ADDTRACK_QUEUED) ?
                                     &mPendingTracks : &mUpdateTracks;
   TrackData* data = track_data->AppendElement();
+  LIFECYCLE_LOG("AddTrackInternal: %lu/%lu", mPendingTracks.Length(), mUpdateTracks.Length());
   data->mID = aID;
   data->mInputRate = aRate;
   data->mResamplerChannelCount = 0;
@@ -2660,6 +2697,7 @@ SourceMediaStream::FinishAddTracks()
 {
   MutexAutoLock lock(mMutex);
   mUpdateTracks.AppendElements(Move(mPendingTracks));
+  LIFECYCLE_LOG("FinishAddTracks: %lu/%lu", mPendingTracks.Length(), mUpdateTracks.Length());
   if (GraphImpl()) {
     GraphImpl()->EnsureNextIteration();
   }
@@ -3189,9 +3227,9 @@ MediaStreamGraphImpl::MediaStreamGraphImpl(GraphDriverType aDriverRequested,
   : MediaStreamGraph(aSampleRate)
   , mPortCount(0)
   , mInputWanted(false)
-  , mInputDeviceID(nullptr)
+  , mInputDeviceID(-1)
   , mOutputWanted(true)
-  , mOutputDeviceID(nullptr)
+  , mOutputDeviceID(-1)
   , mNeedAnotherIteration(false)
   , mGraphDriverAsleep(false)
   , mMonitor("MediaStreamGraphImpl")
@@ -3652,17 +3690,9 @@ MediaStreamGraphImpl::ApplyAudioContextOperationImpl(
   // This is the same logic as in UpdateStreamOrder, but it's simpler to have it
   // here as well so we don't have to store the Promise(s) on the Graph.
   if (aOperation != AudioContextOperation::Resume) {
-    bool audioTrackPresent = false;
-    for (uint32_t i = 0; i < mStreams.Length(); ++i) {
-      MediaStream* stream = mStreams[i];
-      if (stream->AsAudioNodeStream()) {
-        audioTrackPresent = true;
-      }
-      for (StreamBuffer::TrackIter tracks(stream->GetStreamBuffer(), MediaSegment::AUDIO);
-          !tracks.IsEnded(); tracks.Next()) {
-        audioTrackPresent = true;
-      }
-    }
+    bool shouldAEC = false;
+    bool audioTrackPresent = AudioTrackPresent(shouldAEC);
+
     if (!audioTrackPresent && CurrentDriver()->AsAudioCallbackDriver()) {
       CurrentDriver()->AsAudioCallbackDriver()->
         EnqueueStreamAndPromiseForOperation(aDestinationStream, aPromise,

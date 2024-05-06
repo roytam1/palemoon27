@@ -7,6 +7,7 @@
 #include "ImageContainer.h"
 #include "nsITimer.h"
 #include "mozilla/Monitor.h"
+#include "mozilla/UniquePtr.h"
 #include "nsITabSource.h"
 
 namespace mozilla {
@@ -85,9 +86,11 @@ private:
     int32_t mViewportWidth;
     int32_t mViewportHeight;
     int32_t mTimePerFrame;
-    ScopedFreePtr<unsigned char> mData;
+    UniquePtr<unsigned char[]> mData;
     size_t mDataSize;
     nsCOMPtr<nsPIDOMWindowOuter> mWindow;
+    // If this is set, we will run despite mWindow == nullptr.
+    bool mBlackedoutWindow;
     RefPtr<layers::SourceSurfaceImage> mImage;
     nsCOMPtr<nsITimer> mTimer;
     Monitor mMonitor;

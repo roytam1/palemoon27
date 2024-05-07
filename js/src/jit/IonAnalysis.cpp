@@ -120,6 +120,12 @@ FlagPhiInputsAsHavingRemovedUses(MBasicBlock* block, MBasicBlock* succ, MPhiVect
         bool isUsed = false;
         for (size_t idx = 0; !isUsed && idx < worklist.length(); idx++) {
             phi = worklist[idx];
+            if (phi->isUseRemoved() || phi->isImplicitlyUsed()) {
+                // The phi is implicitly used.
+                isUsed = true;
+                break;
+            }
+
             MUseIterator usesEnd(phi->usesEnd());
             for (MUseIterator use(phi->usesBegin()); use != usesEnd; use++) {
                 MNode* consumer = (*use)->consumer();
@@ -143,12 +149,6 @@ FlagPhiInputsAsHavingRemovedUses(MBasicBlock* block, MBasicBlock* succ, MPhiVect
                 phi = cdef->toPhi();
                 if (phi->isInWorklist())
                     continue;
-
-                if (phi->isUseRemoved() || phi->isImplicitlyUsed()) {
-                    // The phi is implicitly used.
-                    isUsed = true;
-                    break;
-                }
 
                 phi->setInWorklist();
                 if (!worklist.append(phi))
@@ -421,27 +421,11 @@ SplitCriticalEdgesForBlock(MIRGraph& graph, MBasicBlock* block)
         if (target->numPredecessors() < 2)
             continue;
 
-        // Create a new block inheriting from the predecessor.
-        MBasicBlock* split = MBasicBlock::NewSplitEdge(graph, block->info(), block);
+        // Create a simple new block which contains a goto and which split the
+        // edge between block and target.
+        MBasicBlock* split = MBasicBlock::NewSplitEdge(graph, block->info(), block, i, target);
         if (!split)
             return false;
-        split->setLoopDepth(block->loopDepth());
-        graph.insertBlockAfter(block, split);
-        split->end(MGoto::New(graph.alloc(), target));
-
-        // The entry resume point won't properly reflect state at the start of
-        // the split edge, so remove it.  Split edges start out empty, but might
-        // have fallible code moved into them later.  Rather than immediately
-        // figure out a valid resume point and pc we can use for the split edge,
-        // we wait until lowering (see LIRGenerator::visitBlock), where this
-        // will be easier.
-        if (MResumePoint* rp = split->entryResumePoint()) {
-            rp->releaseUses();
-            split->clearEntryResumePoint();
-        }
-
-        block->replaceSuccessor(i, split);
-        target->replacePredecessor(block, split);
     }
     return true;
 }
@@ -950,7 +934,9 @@ jit::EliminateDeadResumePointOperands(MIRGenerator* mir, MIRGraph& graph)
 bool
 js::jit::DeadIfUnused(const MDefinition* def)
 {
-    return !def->isEffectful() && !def->isGuard() && !def->isGuardRangeBailouts() &&
+    return !def->isEffectful() &&
+           (!def->isGuard() || def->block() == def->block()->graph().osrBlock()) &&
+           !def->isGuardRangeBailouts() &&
            !def->isControlInstruction() &&
            (!def->isInstruction() || !def->toInstruction()->resumePoint());
 }
@@ -1483,17 +1469,20 @@ TypeAnalyzer::adjustPhiInputs(MPhi* phi)
         if (in->type() == MIRType_Value)
             continue;
 
-        if (in->isUnbox() && phi->typeIncludes(in->toUnbox()->input())) {
-            // The input is being explicitly unboxed, so sneak past and grab
-            // the original box.
-            phi->replaceOperand(i, in->toUnbox()->input());
-        } else {
+        // The input is being explicitly unboxed, so sneak past and grab
+        // the original box.
+        if (in->isUnbox() && phi->typeIncludes(in->toUnbox()->input()))
+            in = in->toUnbox()->input();
+
+        if (in->type() != MIRType_Value) {
             if (!alloc().ensureBallast())
                 return false;
 
-            MDefinition* box = AlwaysBoxAt(alloc(), in->block()->lastIns(), in);
-            phi->replaceOperand(i, box);
+            MBasicBlock* pred = phi->block()->getPredecessor(i);
+            in = AlwaysBoxAt(alloc(), pred->lastIns(), in);
         }
+
+        phi->replaceOperand(i, in);
     }
 
     return true;
@@ -1848,6 +1837,9 @@ jit::MakeMRegExpHoistable(MIRGraph& graph)
 
     for (ReversePostorderIterator block(graph.rpoBegin()); block != graph.rpoEnd(); block++) {
         for (MDefinitionIterator iter(*block); iter; iter++) {
+            if (!*iter)
+                MOZ_CRASH("confirm bug 1263794.");
+
             if (!iter->isRegExp())
                 continue;
 
@@ -1896,14 +1888,12 @@ jit::MakeMRegExpHoistable(MIRGraph& graph)
     return true;
 }
 
-bool
+void
 jit::RenumberBlocks(MIRGraph& graph)
 {
     size_t id = 0;
     for (ReversePostorderIterator block(graph.rpoBegin()); block != graph.rpoEnd(); block++)
         block->setId(id++);
-
-    return true;
 }
 
 // A utility for code which deletes blocks. Renumber the remaining blocks,
@@ -2285,6 +2275,32 @@ CheckUse(const MDefinition* producer, const MUse* use, int32_t* usesBalance)
 #endif
     ++*usesBalance;
 }
+
+// To properly encode entry resume points, we have to ensure that all the
+// operands of the entry resume point are located before the safeInsertTop
+// location.
+static void
+AssertOperandsBeforeSafeInsertTop(MResumePoint* resume)
+{
+    MBasicBlock* block = resume->block();
+    if (block == block->graph().osrBlock())
+        return;
+    MInstruction* stop = block->safeInsertTop();
+    for (size_t i = 0, e = resume->numOperands(); i < e; ++i) {
+        MDefinition* def = resume->getOperand(i);
+        if (def->block() != block)
+            continue;
+        if (def->isPhi())
+            continue;
+
+        for (MInstructionIterator ins = block->begin(); true; ins++) {
+            if (*ins == def)
+                break;
+            MOZ_ASSERT(*ins != stop,
+                       "Resume point operand located after the safeInsertTop location");
+        }
+    }
+}
 #endif // DEBUG
 
 void
@@ -2322,13 +2338,14 @@ jit::AssertBasicGraphCoherency(MIRGraph& graph)
         for (size_t i = 0; i < block->numPredecessors(); i++)
             MOZ_ASSERT(CheckPredecessorImpliesSuccessor(*block, block->getPredecessor(i)));
 
-        if (block->entryResumePoint()) {
-            MOZ_ASSERT(!block->entryResumePoint()->instruction());
-            MOZ_ASSERT(block->entryResumePoint()->block() == *block);
+        if (MResumePoint* resume = block->entryResumePoint()) {
+            MOZ_ASSERT(!resume->instruction());
+            MOZ_ASSERT(resume->block() == *block);
+            AssertOperandsBeforeSafeInsertTop(resume);
         }
-        if (block->outerResumePoint()) {
-            MOZ_ASSERT(!block->outerResumePoint()->instruction());
-            MOZ_ASSERT(block->outerResumePoint()->block() == *block);
+        if (MResumePoint* resume = block->outerResumePoint()) {
+            MOZ_ASSERT(!resume->instruction());
+            MOZ_ASSERT(resume->block() == *block);
         }
         for (MResumePointIterator iter(block->resumePointsBegin()); iter != block->resumePointsEnd(); iter++) {
             // We cannot yet assert that is there is no instruction then this is
@@ -2832,6 +2849,9 @@ TryEliminateBoundsCheck(BoundsCheckMap& checks, size_t blockIndex, MBoundsCheck*
     dominated->replaceAllUsesWith(dominated->index());
 
     if (!dominated->isMovable())
+        return true;
+
+    if (!dominated->fallible())
         return true;
 
     MBoundsCheck* dominating = FindDominatingBoundsCheck(checks, dominated, blockIndex);
@@ -3755,19 +3775,22 @@ jit::AnalyzeNewScriptDefiniteProperties(JSContext* cx, JSFunction* fun,
 
     FinishDefinitePropertiesAnalysis(cx, constraints);
 
-    if (!SplitCriticalEdges(graph))
+    if (!SplitCriticalEdges(graph)) {
+        ReportOutOfMemory(cx);
         return false;
+    }
 
-    if (!RenumberBlocks(graph))
-        return false;
+    RenumberBlocks(graph);
 
     if (!BuildDominatorTree(graph)) {
         ReportOutOfMemory(cx);
         return false;
     }
 
-    if (!EliminatePhis(&builder, graph, AggressiveObservability))
+    if (!EliminatePhis(&builder, graph, AggressiveObservability)) {
+        ReportOutOfMemory(cx);
         return false;
+    }
 
     MDefinition* thisValue = graph.entryBlock()->getSlot(info.thisSlot());
 
@@ -3976,19 +3999,22 @@ jit::AnalyzeArgumentsUsage(JSContext* cx, JSScript* scriptArg)
         return true;
     }
 
-    if (!SplitCriticalEdges(graph))
+    if (!SplitCriticalEdges(graph)) {
+        ReportOutOfMemory(cx);
         return false;
+    }
 
-    if (!RenumberBlocks(graph))
-        return false;
+    RenumberBlocks(graph);
 
     if (!BuildDominatorTree(graph)) {
         ReportOutOfMemory(cx);
         return false;
     }
 
-    if (!EliminatePhis(&builder, graph, AggressiveObservability))
+    if (!EliminatePhis(&builder, graph, AggressiveObservability)) {
+        ReportOutOfMemory(cx);
         return false;
+    }
 
     MDefinition* argumentsValue = graph.entryBlock()->getSlot(info.argsObjSlot());
 

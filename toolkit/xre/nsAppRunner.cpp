@@ -610,37 +610,15 @@ CanShowProfileManager()
   return true;
 }
 
-#if defined(XP_WIN) && defined(MOZ_CONTENT_SANDBOX)
-static const char*
-SandboxTempDirParent()
-{
-  return NS_WIN_LOW_INTEGRITY_TEMP_BASE;
-}
-#endif
-
-#if defined(XP_MACOSX) && defined(MOZ_CONTENT_SANDBOX)
-static const char*
-SandboxTempDirParent()
-{
-  return NS_OS_TEMP_DIR;
-}
-#endif
-
 #if (defined(XP_WIN) || defined(XP_MACOSX)) && defined(MOZ_CONTENT_SANDBOX)
 static already_AddRefed<nsIFile>
-GetAndCleanTempDir(const nsAString& aTempDirSuffix)
+GetAndCleanTempDir()
 {
   // Get the directory within which we'll place the
   // sandbox-writable temp directory
   nsCOMPtr<nsIFile> tempDir;
-  nsresult rv = NS_GetSpecialDirectory(SandboxTempDirParent(),
-      getter_AddRefs(tempDir));
-  if (NS_WARN_IF(NS_FAILED(rv))) {
-    return nullptr;
-  }
-
-  // Append our profile specific temp name.
-  rv = tempDir->Append(NS_LITERAL_STRING("Temp-") + aTempDirSuffix);
+  nsresult rv = NS_GetSpecialDirectory(NS_APP_CONTENT_PROCESS_TEMP_DIR,
+                                       getter_AddRefs(tempDir));
   if (NS_WARN_IF(NS_FAILED(rv))) {
     return nullptr;
   }
@@ -721,7 +699,7 @@ SetUpSandboxEnvironment()
   }
 
   // Get (and clean up if still there) the sandbox-writable temp directory.
-  nsCOMPtr<nsIFile> tempDir = GetAndCleanTempDir(tempDirSuffix);
+  nsCOMPtr<nsIFile> tempDir = GetAndCleanTempDir();
   if (!tempDir) {
     NS_WARNING("Failed to get or clean sandboxed temp directory.");
     return;
@@ -743,16 +721,9 @@ CleanUpSandboxEnvironment()
   }
 #endif
 
-  // Get temp directory suffix pref.
-  nsAdoptingString tempDirSuffix =
-    Preferences::GetString("security.sandbox.content.tempDirSuffix");
-  if (tempDirSuffix.IsEmpty()) {
-    return;
-  }
-
   // Get and remove the sandbox-writable temp directory.
   // This function already warns if the deletion fails.
-  nsCOMPtr<nsIFile> tempDir = GetAndCleanTempDir(tempDirSuffix);
+  nsCOMPtr<nsIFile> tempDir = GetAndCleanTempDir();
 }
 #endif
 
@@ -3406,6 +3377,24 @@ XREMain::XRE_mainInit(bool* aExitFlag)
   }
 #endif
 
+#if defined(MOZ_SANDBOX) && defined(XP_WIN)
+  bool brokerInitialized = SandboxBroker::Initialize();
+  Telemetry::Accumulate(Telemetry::SANDBOX_BROKER_INITIALIZED,
+                        brokerInitialized);
+  if (!brokerInitialized) {
+#if defined(MOZ_CONTENT_SANDBOX)
+    // If we're sandboxing content and we fail to initialize, then crashing here
+    // seems like the sensible option.
+    if (BrowserTabsRemoteAutostart()) {
+      MOZ_CRASH("Failed to initialize broker services, can't continue.");
+    }
+#endif
+    // Otherwise just warn for the moment, as most things will work.
+    NS_WARNING("Failed to initialize broker services, sandboxed processes will "
+               "fail to start.");
+  }
+#endif
+
 #ifdef XP_MACOSX
   if (EnvHasValue("MOZ_LAUNCHED_CHILD")) {
     // This is needed, on relaunch, to force the OS to use the "Cocoa Dock
@@ -3760,12 +3749,6 @@ XREMain::XRE_mainStartup(bool* aExitFlag)
     int result;
 #ifdef XP_WIN
     UseParentConsole();
-#if defined(MOZ_SANDBOX)
-    if (!SandboxBroker::Initialize()) {
-      NS_WARNING("Failed to initialize broker services, sandboxed processes "
-                 "will fail to start.");
-    }
-#endif
 #endif
     // RunGTest will only be set if we're in xul-unit
     if (mozilla::RunGTest) {
@@ -4390,20 +4373,6 @@ XREMain::XRE_mainRun()
   }
 #endif /* MOZ_INSTRUMENT_EVENT_LOOP */
 
-#if defined(MOZ_SANDBOX) && defined(XP_WIN)
-  if (!SandboxBroker::Initialize()) {
-#if defined(MOZ_CONTENT_SANDBOX)
-    // If we're sandboxing content and we fail to initialize, then crashing here
-    // seems like the sensible option.
-    if (BrowserTabsRemoteAutostart()) {
-      MOZ_CRASH("Failed to initialize broker services, can't continue.");
-    }
-#endif
-    // Otherwise just warn for the moment, as most things will work.
-    NS_WARNING("Failed to initialize broker services, sandboxed processes will "
-               "fail to start.");
-  }
-#endif
 #if (defined(XP_WIN) || defined(XP_MACOSX)) && defined(MOZ_CONTENT_SANDBOX)
   SetUpSandboxEnvironment();
 #endif

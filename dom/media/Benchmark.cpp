@@ -32,6 +32,8 @@ VP9Benchmark::IsVP9DecodeFast()
     RefPtr<WebMDemuxer> demuxer =
       new WebMDemuxer(new BufferMediaResource(sWebMSample, sizeof(sWebMSample), nullptr,
                                               NS_LITERAL_CSTRING("video/webm")));
+    PDMFactory::Init();
+
     RefPtr<Benchmark> estimiser =
       new Benchmark(demuxer,
                     {
@@ -70,13 +72,13 @@ VP9Benchmark::IsVP9DecodeFast()
 }
 
 Benchmark::Benchmark(MediaDataDemuxer* aDemuxer, const Parameters& aParameters)
-  : QueueObject(AbstractThread::MainThread())
+  : QueueObject(AbstractThread::GetCurrent())
   , mParameters(aParameters)
   , mKeepAliveUntilComplete(this)
   , mPlaybackState(this, aDemuxer)
 {
   MOZ_COUNT_CTOR(Benchmark);
-  MOZ_ASSERT(NS_IsMainThread());
+  MOZ_ASSERT(Thread(), "Must be run in task queue");
 }
 
 Benchmark::~Benchmark()
@@ -87,6 +89,8 @@ Benchmark::~Benchmark()
 RefPtr<Benchmark::BenchmarkPromise>
 Benchmark::Run()
 {
+  MOZ_ASSERT(OnThread());
+
   RefPtr<BenchmarkPromise> p = mPromise.Ensure(__func__);
   RefPtr<Benchmark> self = this;
   mPlaybackState.Dispatch(
@@ -97,7 +101,7 @@ Benchmark::Run()
 void
 Benchmark::ReturnResult(uint32_t aDecodeFps)
 {
-  MOZ_ASSERT(NS_IsMainThread());
+  MOZ_ASSERT(OnThread());
 
   mPromise.ResolveIfExists(aDecodeFps, __func__);
 }
@@ -105,10 +109,18 @@ Benchmark::ReturnResult(uint32_t aDecodeFps)
 void
 Benchmark::Dispose()
 {
-  MOZ_ASSERT(NS_IsMainThread());
+  MOZ_ASSERT(OnThread());
 
   mKeepAliveUntilComplete = nullptr;
   mPromise.RejectIfExists(false, __func__);
+}
+
+void
+Benchmark::Init()
+{
+  MOZ_ASSERT(NS_IsMainThread());
+
+  PDMFactory::Init();
 }
 
 BenchmarkPlayback::BenchmarkPlayback(Benchmark* aMainThreadState,
@@ -122,8 +134,7 @@ BenchmarkPlayback::BenchmarkPlayback(Benchmark* aMainThreadState,
   , mFrameCount(0)
   , mFinished(false)
 {
-  MOZ_ASSERT(NS_IsMainThread());
-  PDMFactory::Init();
+  MOZ_ASSERT(static_cast<Benchmark*>(mMainThreadState)->OnThread());
 }
 
 void
@@ -140,6 +151,7 @@ BenchmarkPlayback::DemuxSamples()
         mDemuxer->GetTrackDemuxer(TrackInfo::kVideoTrack, 0);
       if (!mTrackDemuxer) {
         MainThreadShutdown();
+        return;
       }
       DemuxNextSample();
     },
@@ -188,9 +200,9 @@ BenchmarkPlayback::InitDecoder(TrackInfo&& aInfo)
   }
   RefPtr<Benchmark> ref(mMainThreadState);
   mDecoder->Init()->Then(
-    ref->Thread(), __func__,
+    Thread(), __func__,
     [this, ref](TrackInfo::TrackType aTrackType) {
-      Dispatch(NS_NewRunnableFunction([this, ref]() { InputExhausted(); }));
+      InputExhausted();
     },
     [this, ref](MediaDataDecoder::DecoderFailureReason aReason) {
       MainThreadShutdown();
@@ -201,6 +213,8 @@ void
 BenchmarkPlayback::MainThreadShutdown()
 {
   MOZ_ASSERT(OnThread());
+
+  mFinished = true;
 
   if (mDecoder) {
     mDecoder->Flush();
@@ -240,7 +254,6 @@ BenchmarkPlayback::Output(MediaData* aData)
         (frames == ref->mParameters.mFramesToMeasure ||
          elapsedTime >= ref->mParameters.mTimeout)) {
       uint32_t decodeFps = frames / elapsedTime.ToSeconds();
-      mFinished = true;
       MainThreadShutdown();
       ref->Dispatch(NS_NewRunnableFunction([ref, decodeFps]() {
         ref->ReturnResult(decodeFps);
@@ -285,7 +298,6 @@ BenchmarkPlayback::DrainComplete()
     int32_t frames = mFrameCount - ref->mParameters.mStartupFrame;
     TimeDuration elapsedTime = TimeStamp::Now() - mDecodeStartTime;
     uint32_t decodeFps = frames / elapsedTime.ToSeconds();
-    mFinished = true;
     MainThreadShutdown();
     ref->Dispatch(NS_NewRunnableFunction([ref, decodeFps]() {
       ref->ReturnResult(decodeFps);

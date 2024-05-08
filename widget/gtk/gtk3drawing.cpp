@@ -41,9 +41,9 @@ static GtkWidget* gComboBoxEntryArrowWidget;
 static GtkWidget* gHandleBoxWidget;
 static GtkWidget* gToolbarWidget;
 static GtkWidget* gFrameWidget;
-static GtkWidget* gStatusbarWidget;
 static GtkWidget* gProgressWidget;
 static GtkWidget* gTabWidget;
+static GtkWidget* gTextViewWidget;
 static GtkWidget* gTooltipWidget;
 static GtkWidget* gMenuBarWidget;
 static GtkWidget* gMenuBarItemWidget;
@@ -509,6 +509,8 @@ ensure_tooltip_widget()
 {
     if (!gTooltipWidget) {
         gTooltipWidget = gtk_window_new(GTK_WINDOW_POPUP);
+        GtkStyleContext* style = gtk_widget_get_style_context(gTooltipWidget);
+        gtk_style_context_add_class(style, GTK_STYLE_CLASS_TOOLTIP);
         gtk_widget_realize(gTooltipWidget);
         moz_gtk_set_widget_name(gTooltipWidget);
     }
@@ -536,23 +538,11 @@ ensure_progress_widget()
 }
 
 static gint
-ensure_statusbar_widget()
-{
-    if (!gStatusbarWidget) {
-      gStatusbarWidget = gtk_statusbar_new();
-      setup_widget_prototype(gStatusbarWidget);
-    }
-    return MOZ_GTK_SUCCESS;
-}
-
-static gint
 ensure_frame_widget()
 {
     if (!gFrameWidget) {
-        ensure_statusbar_widget();
         gFrameWidget = gtk_frame_new(NULL);
-        gtk_container_add(GTK_CONTAINER(gStatusbarWidget), gFrameWidget);
-        gtk_widget_realize(gFrameWidget);
+        setup_widget_prototype(gFrameWidget);
     }
     return MOZ_GTK_SUCCESS;
 }
@@ -717,6 +707,17 @@ ensure_scrolled_window_widget()
         setup_widget_prototype(gScrolledWindowWidget);
     }
     return MOZ_GTK_SUCCESS;
+}
+
+static void
+ensure_text_view_widget()
+{
+    if (gTextViewWidget)
+        return;
+
+    gTextViewWidget = gtk_text_view_new();
+    ensure_scrolled_window_widget();
+    gtk_container_add(GTK_CONTAINER(gScrolledWindowWidget), gTextViewWidget);
 }
 
 gint
@@ -1950,11 +1951,8 @@ moz_gtk_tooltip_paint(cairo_t *cr, GdkRectangle* rect,
     gtk_widget_set_direction(gTooltipWidget, direction);
 
     style = gtk_widget_get_style_context(gTooltipWidget);
-    gtk_style_context_save(style);
-    gtk_style_context_add_class(style, GTK_STYLE_CLASS_TOOLTIP);
     gtk_render_background(style, cr, rect->x, rect->y, rect->width, rect->height);
     gtk_render_frame(style, cr, rect->x, rect->y, rect->width, rect->height);
-    gtk_style_context_restore(style);
     return MOZ_GTK_SUCCESS;
 }
 
@@ -1965,11 +1963,16 @@ moz_gtk_resizer_paint(cairo_t *cr, GdkRectangle* rect,
 {
     GtkStyleContext* style;
 
-    ensure_frame_widget();
-    gtk_widget_set_direction(gStatusbarWidget, GTK_TEXT_DIR_LTR);
+    // gtk_render_handle() draws a background, so use GtkTextView and its
+    // GTK_STYLE_CLASS_VIEW to match the background with textarea elements.
+    // The resizer is drawn with shaded variants of the background color, and
+    // so a transparent background would lead to a transparent resizer.
+    ensure_text_view_widget();
+    gtk_widget_set_direction(gTextViewWidget, GTK_TEXT_DIR_LTR);
 
-    style = gtk_widget_get_style_context(gStatusbarWidget);
+    style = gtk_widget_get_style_context(gTextViewWidget);
     gtk_style_context_save(style);
+    gtk_style_context_add_class(style, GTK_STYLE_CLASS_VIEW);
     gtk_style_context_add_class(style, GTK_STYLE_CLASS_GRIP);
     gtk_style_context_set_state(style, GetStateFlagsFromGtkWidgetState(state));
 
@@ -2998,17 +3001,25 @@ moz_gtk_get_tab_scroll_arrow_size(gint* width, gint* height)
     return MOZ_GTK_SUCCESS;
 }
 
-gint
-moz_gtk_get_arrow_size(gint* width, gint* height)
+void
+moz_gtk_get_arrow_size(GtkThemeWidgetType widgetType, gint* width, gint* height)
 {
-    GtkRequisition requisition;
-    ensure_button_arrow_widget();
+    GtkWidget* widget;
+    switch (widgetType) {
+        case MOZ_GTK_DROPDOWN:
+            ensure_combo_box_widgets();
+            widget = gComboBoxArrowWidget;
+            break;
+        default:
+            ensure_button_arrow_widget();
+            widget = gButtonArrowWidget;
+            break;
+    }
 
-    gtk_widget_get_preferred_size(gButtonArrowWidget, NULL, &requisition);
+    GtkRequisition requisition;
+    gtk_widget_get_preferred_size(widget, NULL, &requisition);
     *width = requisition.width;
     *height = requisition.height;
-
-    return MOZ_GTK_SUCCESS;
 }
 
 gint
@@ -3085,6 +3096,27 @@ moz_gtk_get_menu_separator_height(gint *size)
     *size += (wide_separators) ? separator_height : 1;
 
     return MOZ_GTK_SUCCESS;
+}
+
+void
+moz_gtk_get_entry_min_height(gint* height)
+{
+    ensure_entry_widget();
+    GtkStyleContext* style = gtk_widget_get_style_context(gEntryWidget);
+    if (!gtk_check_version(3, 20, 0)) {
+        gtk_style_context_get(style, gtk_style_context_get_state(style),
+                              "min-height", height,
+                              nullptr);
+    } else {
+        *height = 0;
+    }
+
+    GtkBorder border;
+    GtkBorder padding;
+    gtk_style_context_get_border(style, GTK_STATE_FLAG_NORMAL, &border);
+    gtk_style_context_get_padding(style, GTK_STATE_FLAG_NORMAL, &padding);
+
+    *height += (border.top + border.bottom + padding.top + padding.bottom);
 }
 
 void
@@ -3434,10 +3466,10 @@ moz_gtk_shutdown()
     gComboBoxEntryTextareaWidget = NULL;
     gHandleBoxWidget = NULL;
     gToolbarWidget = NULL;
-    gStatusbarWidget = NULL;
     gFrameWidget = NULL;
     gProgressWidget = NULL;
     gTabWidget = NULL;
+    gTextViewWidget = nullptr;
     gTooltipWidget = NULL;
     gMenuBarWidget = NULL;
     gMenuBarItemWidget = NULL;

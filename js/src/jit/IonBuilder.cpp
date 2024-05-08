@@ -1815,8 +1815,8 @@ IonBuilder::inspectOpcode(JSOp op)
       case JSOP_UNINITIALIZED:
         return pushConstant(MagicValue(JS_UNINITIALIZED_LEXICAL));
 
-      case JSOP_POP:
-        current->pop();
+      case JSOP_POP: {
+        MDefinition* def = current->pop();
 
         // POP opcodes frequently appear where values are killed, e.g. after
         // SET* opcodes. Place a resume point afterwards to avoid capturing
@@ -1824,7 +1824,10 @@ IonBuilder::inspectOpcode(JSOp op)
         // resume point is obviously unnecessary.
         if (pc[JSOP_POP_LENGTH] == JSOP_POP)
             return true;
+        if (def->isConstant())
+            return true;
         return maybeInsertResume();
+      }
 
       case JSOP_POPN:
         for (uint32_t i = 0, n = GET_UINT16(pc); i < n; i++)
@@ -3062,7 +3065,7 @@ IonBuilder::processSwitchEnd(DeferredEdge* breaks, jsbytecode* exitpc)
         successor = newBlock(current, exitpc);
 
     if (!successor)
-        return ControlStatus_Ended;
+        return ControlStatus_Error;
 
     // If there is current, the current block flows into this one.
     // So current is also a predecessor to this block
@@ -5942,7 +5945,8 @@ IonBuilder::inlineCalls(CallInfo& callInfo, const ObjectVector& targets, BoolVec
         if (choiceSet[i])
             count++;
     }
-    retPhi->reserveLength(count);
+    if (!retPhi->reserveLength(count))
+        return false;
 
     // Inline each of the inlineable targets.
     for (uint32_t i = 0; i < targets.length(); i++) {

@@ -1135,22 +1135,39 @@ Debugger::wrapDebuggeeValue(JSContext* cx, MutableHandleValue vp)
     return true;
 }
 
-bool
-Debugger::unwrapDebuggeeObject(JSContext* cx, MutableHandleObject obj)
+static NativeObject*
+ToNativeDebuggerObject(JSContext* cx, MutableHandleObject obj)
 {
     if (obj->getClass() != &DebuggerObject_class) {
-        JS_ReportErrorNumber(cx, GetErrorMessage, nullptr, JSMSG_NOT_EXPECTED_TYPE,
-                             "Debugger", "Debugger.Object", obj->getClass()->name);
-        return false;
+        JS_ReportErrorNumber(cx, GetErrorMessage, nullptr,
+                             JSMSG_NOT_EXPECTED_TYPE, "Debugger",
+                             "Debugger.Object", obj->getClass()->name);
+        return nullptr;
     }
+
     NativeObject* ndobj = &obj->as<NativeObject>();
 
     Value owner = ndobj->getReservedSlot(JSSLOT_DEBUGOBJECT_OWNER);
-    if (owner.isUndefined() || &owner.toObject() != object) {
+    if (owner.isUndefined()) {
         JS_ReportErrorNumber(cx, GetErrorMessage, nullptr,
-                             owner.isUndefined()
-                             ? JSMSG_DEBUG_OBJECT_PROTO
-                             : JSMSG_DEBUG_OBJECT_WRONG_OWNER);
+                             JSMSG_DEBUG_OBJECT_PROTO);
+        return nullptr;
+    }
+
+    return ndobj;
+}
+
+bool
+Debugger::unwrapDebuggeeObject(JSContext* cx, MutableHandleObject obj)
+{
+    NativeObject* ndobj = ToNativeDebuggerObject(cx, obj);
+    if (!ndobj)
+        return false;
+
+    Value owner = ndobj->getReservedSlot(JSSLOT_DEBUGOBJECT_OWNER);
+    if (&owner.toObject() != object) {
+        JS_ReportErrorNumber(cx, GetErrorMessage, nullptr,
+                             JSMSG_DEBUG_OBJECT_WRONG_OWNER);
         return false;
     }
 
@@ -4961,6 +4978,33 @@ Debugger::drainTraceLoggerScriptCalls(JSContext* cx, unsigned argc, Value* vp)
 }
 #endif
 
+bool
+Debugger::adoptDebuggeeValue(JSContext* cx, unsigned argc, Value* vp)
+{
+    THIS_DEBUGGER(cx, argc, vp, "adoptDebuggeeValue", args, dbg);
+    if (!args.requireAtLeast(cx, "Debugger.adoptDebuggeeValue", 1))
+        return false;
+
+    RootedValue v(cx, args[0]);
+    if (v.isObject()) {
+        RootedObject obj(cx, &v.toObject());
+        NativeObject* ndobj = ToNativeDebuggerObject(cx, &obj);
+        if (!ndobj) {
+            return false;
+        }
+
+        obj.set(static_cast<JSObject*>(ndobj->getPrivate()));
+        v = ObjectValue(*obj);
+
+        if (!dbg->wrapDebuggeeValue(cx, &v)) {
+            return false;
+        }
+    }
+
+    args.rval().set(v);
+    return true;
+}
+
 const JSPropertySpec Debugger::properties[] = {
     JS_PSGS("enabled", Debugger::getEnabled, Debugger::setEnabled, 0),
     JS_PSGS("onDebuggerStatement", Debugger::getOnDebuggerStatement,
@@ -5004,6 +5048,7 @@ const JSFunctionSpec Debugger::methods[] = {
     JS_FN("drainTraceLogger", Debugger::drainTraceLogger, 0, 0),
 # endif
 #endif
+    JS_FN("adoptDebuggeeValue", Debugger::adoptDebuggeeValue, 1, 0),
     JS_FS_END
 };
 
@@ -8159,6 +8204,40 @@ DebuggerObject_getAllocationSite(JSContext* cx, unsigned argc, Value* vp)
     return true;
 }
 
+// Returns the "name" field (see js.msg), which may be used as a unique
+// identifier, for any error object with a JSErrorReport or undefined
+// if the object has no JSErrorReport.
+static bool
+DebuggerObject_getErrorMessageName(JSContext *cx, unsigned argc, Value* vp)
+{
+    THIS_DEBUGOBJECT_REFERENT(cx, argc, vp, "get errorMessageName", args, referent);
+
+    JSObject* obj = referent;
+    if (IsCrossCompartmentWrapper(obj))
+        obj = CheckedUnwrap(obj);
+
+    if (!obj) {
+        JS_ReportError(cx, "Permission denied to access object");
+        return false;
+    }
+
+    JSErrorReport* report = nullptr;
+    if (obj->is<ErrorObject>())
+        report = obj->as<ErrorObject>().getErrorReport();
+
+    if (report) {
+        const JSErrorFormatString* efs = GetErrorMessage(nullptr, report->errorNumber);
+        RootedString str(cx, JS_NewStringCopyZ(cx, efs->name));
+        if (!cx->compartment()->wrap(cx, &str))
+            return false;
+        args.rval().setString(str);
+    } else {
+        args.rval().setUndefined();
+    }
+
+    return true;
+}
+
 static bool
 DebuggerObject_getOwnPropertyDescriptor(JSContext* cx, unsigned argc, Value* vp)
 {
@@ -8656,45 +8735,6 @@ DebuggerObject_forceLexicalInitializationByName(JSContext *cx, unsigned argc, Va
     return true;
 }
 
-// Returns the "name" field (see js.msg), which may be used as a unique
-// identifier, for any error object with a JSErrorReport or undefined
-// if the error object has no JSErrorReport.
-bool
-DebuggerObject_getErrorMessageName(JSContext *cx, unsigned argc, Value* vp)
-{
-    CallArgs args = CallArgsFromVp(argc, vp);
-    if (!args.requireAtLeast(cx, "Debugger.Object.prototype.getErrorMessageName", 1))
-        return false;
-
-    RootedObject obj(cx);
-
-    bool isErrorObject = false;
-    if (args[0].isObject()) {
-        obj = &args[0].toObject();
-        if (IsCrossCompartmentWrapper(obj))
-            obj = UncheckedUnwrap(obj);
-        isErrorObject = obj->is<ErrorObject>();
-    }
-
-    if (!isErrorObject) {
-        JS_ReportErrorNumber(cx, GetErrorMessage, nullptr, JSMSG_UNEXPECTED_TYPE,
-                             "argument", "not an error object");
-        return false;
-    }
-
-    JSErrorReport* report = obj->as<ErrorObject>().getErrorReport();
-
-    if (report) {
-        const JSErrorFormatString* efs = GetErrorMessage(nullptr, report->errorNumber);
-        RootedString str(cx, JS_NewStringCopyZ(cx, efs->name));
-        args.rval().setString(str);
-    } else {
-        args.rval().setUndefined();
-    }
-
-    return true;
-}
-
 static bool
 DebuggerObject_executeInGlobal(JSContext* cx, unsigned argc, Value* vp)
 {
@@ -8800,6 +8840,7 @@ static const JSPropertySpec DebuggerObject_properties[] = {
     JS_PSG("boundArguments", DebuggerObject_getBoundArguments, 0),
     JS_PSG("global", DebuggerObject_getGlobal, 0),
     JS_PSG("allocationSite", DebuggerObject_getAllocationSite, 0),
+    JS_PSG("errorMessageName", DebuggerObject_getErrorMessageName, 0),
     JS_PS_END
 };
 
@@ -8829,7 +8870,6 @@ static const JSFunctionSpec DebuggerObject_methods[] = {
     JS_FN("preventExtensions", DebuggerObject_preventExtensions, 0, 0),
     JS_FN("isSealed", DebuggerObject_isSealed, 0, 0),
     JS_FN("forceLexicalInitializationByName", DebuggerObject_forceLexicalInitializationByName, 1, 0),
-    JS_FN("getErrorMessageName", DebuggerObject_getErrorMessageName, 1, 0),
     JS_FN("isFrozen", DebuggerObject_isFrozen, 0, 0),
     JS_FN("isExtensible", DebuggerObject_isExtensible, 0, 0),
     JS_FN("apply", DebuggerObject_apply, 0, 0),

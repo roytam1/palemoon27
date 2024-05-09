@@ -284,8 +284,8 @@ public:
         }
 
         if (profile == ContextProfile::OpenGL) {
-            return profile == ContextProfile::OpenGLCore ||
-                   profile == ContextProfile::OpenGLCompatibility;
+            return mProfile == ContextProfile::OpenGLCore ||
+                   mProfile == ContextProfile::OpenGLCompatibility;
         }
 
         return profile == mProfile;
@@ -3454,8 +3454,6 @@ public:
 protected:
     friend class GLScreenBuffer;
     UniquePtr<GLScreenBuffer> mScreen;
-
-    void DestroyScreenBuffer();
 
     SharedSurface* mLockedSurface;
 

@@ -253,7 +253,6 @@ def old_configure_options(*options):
     '--enable-precompiled-startupcache',
     '--enable-pref-extensions',
     '--enable-printing',
-    '--enable-profilelocking',
     '--enable-pulseaudio',
     '--enable-raw',
     '--enable-readline',
@@ -330,10 +329,8 @@ def old_configure_options(*options):
     '--with-doc-output-dir',
     '--with-float-abi',
     '--with-fpu',
-    '--with-gonk-toolchain-prefix',
     '--with-google-api-keyfile',
     '--with-google-oauth-api-keyfile',
-    '--with-gradle',
     '--with-intl-api',
     '--with-ios-sdk',
     '--with-java-bin-path',
@@ -370,7 +367,6 @@ def old_configure_options(*options):
     '--with-unify-dist',
     '--with-user-appdir',
     '--with-windows-version',
-    '--with-xulrunner-stub-name',
     '--x-includes',
     '--x-libraries',
 
@@ -382,7 +378,6 @@ def old_configure_options(*options):
 )
 @imports(_from='__builtin__', _import='compile')
 @imports(_from='__builtin__', _import='open')
-@imports(_from='__builtin__', _import='zip')
 @imports('logging')
 @imports('os')
 @imports('subprocess')

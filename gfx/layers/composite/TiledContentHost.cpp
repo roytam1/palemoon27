@@ -21,8 +21,6 @@
 #include "mozilla/layers/TiledContentClient.h"
 #include "gfxPrefs.h"
 
-class gfxReusableSurfaceWrapper;
-
 namespace mozilla {
 using namespace gfx;
 namespace layers {

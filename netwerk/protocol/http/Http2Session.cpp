@@ -3631,7 +3631,7 @@ Http2Session::TakeTransport(nsISocketTransport **,
   return NS_ERROR_UNEXPECTED;
 }
 
-nsHttpConnection *
+already_AddRefed<nsHttpConnection>
 Http2Session::TakeHttpConnection()
 {
   MOZ_ASSERT(false, "TakeHttpConnection of Http2Session");

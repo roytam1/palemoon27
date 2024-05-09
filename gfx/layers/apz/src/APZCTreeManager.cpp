@@ -367,7 +367,8 @@ APZCTreeManager::PrepareNodeForLayer(const LayerMetricsWrapper& aLayer,
         GetEventRegionsOverride(aParent, aLayer));
     node->SetScrollbarData(aLayer.GetScrollbarTargetContainerId(),
                            aLayer.GetScrollbarDirection(),
-                           aLayer.GetScrollbarSize());
+                           aLayer.GetScrollbarSize(),
+                           aLayer.IsScrollbarContainer());
     return node;
   }
 
@@ -546,7 +547,8 @@ APZCTreeManager::PrepareNodeForLayer(const LayerMetricsWrapper& aLayer,
 
   node->SetScrollbarData(aLayer.GetScrollbarTargetContainerId(),
                          aLayer.GetScrollbarDirection(),
-                         aLayer.GetScrollbarSize());
+                         aLayer.GetScrollbarSize(),
+                         aLayer.IsScrollbarContainer());
   return node;
 }
 
@@ -1078,6 +1080,14 @@ APZCTreeManager::ProcessMouseEvent(WidgetMouseEventBase& aEvent,
   aEvent.mRefPoint.y = input.mOrigin.y;
   aEvent.mFlags.mHandledByAPZ = true;
   return status;
+}
+
+void
+APZCTreeManager::ProcessTouchVelocity(uint32_t aTimestampMs, float aSpeedY)
+{
+  if (mApzcForInputBlock) {
+    mApzcForInputBlock->HandleTouchVelocity(aTimestampMs, aSpeedY);
+  }
 }
 
 nsEventStatus
@@ -1938,7 +1948,7 @@ APZCTreeManager::GetScreenToApzcTransform(const AsyncPanZoomController *aApzc) c
     // ancestorUntransform is updated to RC.Inverse() * QC.Inverse() when parent == P
     ancestorUntransform = parent->GetAncestorTransform().Inverse();
     // asyncUntransform is updated to PA.Inverse() when parent == P
-    Matrix4x4 asyncUntransform = parent->GetCurrentAsyncTransformWithOverscroll().Inverse().ToUnknownMatrix();
+    Matrix4x4 asyncUntransform = parent->GetCurrentAsyncTransformWithOverscroll(AsyncPanZoomController::NORMAL).Inverse().ToUnknownMatrix();
     // untransformSinceLastApzc is RC.Inverse() * QC.Inverse() * PA.Inverse()
     Matrix4x4 untransformSinceLastApzc = ancestorUntransform * asyncUntransform;
 
@@ -1970,7 +1980,7 @@ APZCTreeManager::GetApzcToGeckoTransform(const AsyncPanZoomController *aApzc) co
   // leftmost matrix in a multiplication is applied first.
 
   // asyncUntransform is LA.Inverse()
-  Matrix4x4 asyncUntransform = aApzc->GetCurrentAsyncTransformWithOverscroll().Inverse().ToUnknownMatrix();
+  Matrix4x4 asyncUntransform = aApzc->GetCurrentAsyncTransformWithOverscroll(AsyncPanZoomController::NORMAL).Inverse().ToUnknownMatrix();
 
   // aTransformToGeckoOut is initialized to LA.Inverse() * LD * MC * NC * OC * PC
   result = asyncUntransform * aApzc->GetTransformToLastDispatchedPaint() * aApzc->GetAncestorTransform();

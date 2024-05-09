@@ -6,6 +6,7 @@
 
 #include "jit/mips-shared/CodeGenerator-mips-shared.h"
 
+#include "mozilla/DebugOnly.h"
 #include "mozilla/MathAlgorithms.h"
 
 #include "jscntxt.h"
@@ -29,6 +30,7 @@
 using namespace js;
 using namespace js::jit;
 
+using mozilla::DebugOnly;
 using mozilla::FloorLog2;
 using mozilla::NegativeInfinity;
 using JS::GenericNaN;
@@ -1463,17 +1465,8 @@ CodeGeneratorMIPSShared::visitNotD(LNotD* ins)
     FloatRegister in = ToFloatRegister(ins->input());
     Register dest = ToRegister(ins->output());
 
-    Label falsey, done;
     masm.loadConstantDouble(0.0, ScratchDoubleReg);
-    masm.ma_bc1d(in, ScratchDoubleReg, &falsey, Assembler::DoubleEqualOrUnordered, ShortJump);
-
-    masm.move32(Imm32(0), dest);
-    masm.ma_b(&done, ShortJump);
-
-    masm.bind(&falsey);
-    masm.move32(Imm32(1), dest);
-
-    masm.bind(&done);
+    masm.ma_cmp_set_double(dest, in, ScratchDoubleReg, Assembler::DoubleEqualOrUnordered);
 }
 
 void
@@ -1484,17 +1477,8 @@ CodeGeneratorMIPSShared::visitNotF(LNotF* ins)
     FloatRegister in = ToFloatRegister(ins->input());
     Register dest = ToRegister(ins->output());
 
-    Label falsey, done;
     masm.loadConstantFloat32(0.0f, ScratchFloat32Reg);
-    masm.ma_bc1s(in, ScratchFloat32Reg, &falsey, Assembler::DoubleEqualOrUnordered, ShortJump);
-
-    masm.move32(Imm32(0), dest);
-    masm.ma_b(&done, ShortJump);
-
-    masm.bind(&falsey);
-    masm.move32(Imm32(1), dest);
-
-    masm.bind(&done);
+    masm.ma_cmp_set_float32(dest, in, ScratchFloat32Reg, Assembler::DoubleEqualOrUnordered);
 }
 
 void
@@ -1959,6 +1943,32 @@ CodeGeneratorMIPSShared::visitAsmSelect(LAsmSelect* ins)
             MOZ_CRASH("unhandled type in visitAsmSelect!");
 
         masm.bind(&done);
+    }
+}
+
+void
+CodeGeneratorMIPSShared::visitAsmReinterpret(LAsmReinterpret* lir)
+{
+    MOZ_ASSERT(gen->compilingAsmJS());
+    MAsmReinterpret* ins = lir->mir();
+
+    MIRType to = ins->type();
+    DebugOnly<MIRType> from = ins->input()->type();
+
+    switch (to) {
+      case MIRType_Int32:
+        MOZ_ASSERT(from == MIRType_Float32);
+        masm.as_mfc1(ToRegister(lir->output()), ToFloatRegister(lir->input()));
+        break;
+      case MIRType_Float32:
+        MOZ_ASSERT(from == MIRType_Int32);
+        masm.as_mtc1(ToRegister(lir->input()), ToFloatRegister(lir->output()));
+        break;
+      case MIRType_Double:
+      case MIRType_Int64:
+        MOZ_CRASH("not handled by this LIR opcode");
+      default:
+        MOZ_CRASH("unexpected AsmReinterpret");
     }
 }
 

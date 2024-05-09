@@ -6295,7 +6295,7 @@ void AutoFilename::setScriptSource(js::ScriptSource* p)
 void AutoFilename::setUnowned(const char* filename)
 {
     MOZ_ASSERT(!get());
-    filename_.as<const char*>() = filename;
+    filename_.as<const char*>() = filename ? filename : "";
 }
 
 void AutoFilename::setOwned(UniqueChars&& filename)
@@ -6565,8 +6565,11 @@ JS::SetOutOfMemoryCallback(JSRuntime* rt, OutOfMemoryCallback cb, void* data)
 JS_PUBLIC_API(bool)
 JS::CaptureCurrentStack(JSContext* cx, JS::MutableHandleObject stackp, unsigned maxFrameCount)
 {
+    AssertHeapIsIdle(cx);
+    CHECK_REQUEST(cx);
+    MOZ_RELEASE_ASSERT(cx->compartment());
+
     JSCompartment* compartment = cx->compartment();
-    MOZ_ASSERT(compartment);
     Rooted<SavedFrame*> frame(cx);
     if (!compartment->savedStacks().saveCurrentStack(cx, &frame, maxFrameCount))
         return false;
@@ -6579,9 +6582,12 @@ JS::CopyAsyncStack(JSContext* cx, JS::HandleObject asyncStack,
                    JS::HandleString asyncCause, JS::MutableHandleObject stackp,
                    unsigned maxFrameCount)
 {
+    AssertHeapIsIdle(cx);
+    CHECK_REQUEST(cx);
+    MOZ_RELEASE_ASSERT(cx->compartment());
+
     js::AssertObjectIsSavedFrameOrWrapper(cx, asyncStack);
     JSCompartment* compartment = cx->compartment();
-    MOZ_ASSERT(compartment);
     Rooted<SavedFrame*> frame(cx);
     if (!compartment->savedStacks().copyAsyncStack(cx, asyncStack, asyncCause,
                                                    &frame, maxFrameCount))

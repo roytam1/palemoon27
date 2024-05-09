@@ -6,6 +6,8 @@
 
 #include "jit/mips-shared/MacroAssembler-mips-shared.h"
 
+#include "jit/MacroAssembler.h"
+
 using namespace js;
 using namespace jit;
 
@@ -1097,6 +1099,14 @@ MacroAssemblerMIPSShared::atomicExchange(int nbytes, bool signExtend, const Base
 
 //{{{ check_macroassembler_style
 // ===============================================================
+// MacroAssembler high-level usage.
+
+void
+MacroAssembler::flush()
+{
+}
+
+// ===============================================================
 // Stack manipulation functions.
 
 void
@@ -1295,9 +1305,5 @@ MacroAssembler::branchPtrInNurseryRange(Condition cond, Register ptr, Register t
     branchPtr(cond == Assembler::Equal ? Assembler::Below : Assembler::AboveOrEqual,
               SecondScratchReg, Imm32(nursery.nurserySize()), label);
 }
-
-void
-MacroAssembler::flush()
-{}
 
 //}}} check_macroassembler_style

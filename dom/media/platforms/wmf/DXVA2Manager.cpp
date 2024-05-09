@@ -13,6 +13,8 @@
 #include "mozilla/layers/D3D11ShareHandleImage.h"
 #include "mozilla/layers/ImageBridgeChild.h"
 #include "mozilla/Preferences.h"
+#include "mozilla/Telemetry.h"
+#include "MediaTelemetryConstants.h"
 #include "mfapi.h"
 #include "MFTDecoder.h"
 #include "DriverCrashGuard.h"

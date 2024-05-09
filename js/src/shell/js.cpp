@@ -2410,10 +2410,10 @@ DisassWithSrc(JSContext* cx, unsigned argc, Value* vp)
         return false;
     }
 
-#define LINE_BUF_LEN 512
+    const size_t lineBufLen = 512;
     unsigned len, line1, line2, bupline;
     FILE* file;
-    char linebuf[LINE_BUF_LEN];
+    char linebuf[lineBufLen];
     static const char sep[] = ";-------------------------";
 
     bool ok = true;
@@ -2449,7 +2449,7 @@ DisassWithSrc(JSContext* cx, unsigned argc, Value* vp)
         /* burn the leading lines */
         line2 = PCToLineNumber(script, pc);
         for (line1 = 0; line1 < line2 - 1; line1++) {
-            char* tmp = fgets(linebuf, LINE_BUF_LEN, file);
+            char* tmp = fgets(linebuf, lineBufLen, file);
             if (!tmp) {
                 JS_ReportError(cx, "failed to read %s fully", script->filename());
                 ok = false;
@@ -2464,14 +2464,20 @@ DisassWithSrc(JSContext* cx, unsigned argc, Value* vp)
             if (line2 < line1) {
                 if (bupline != line2) {
                     bupline = line2;
-                    Sprint(&sprinter, "%s %3u: BACKUP\n", sep, line2);
+                    if (Sprint(&sprinter, "%s %3u: BACKUP\n", sep, line2) == -1) {
+                        ok = false;
+                        goto bail;
+                    }
                 }
             } else {
                 if (bupline && line1 == line2)
-                    Sprint(&sprinter, "%s %3u: RESTORE\n", sep, line2);
+                    if (Sprint(&sprinter, "%s %3u: RESTORE\n", sep, line2) == -1) {
+                        ok = false;
+                        goto bail;
+                    }
                 bupline = 0;
                 while (line1 < line2) {
-                    if (!fgets(linebuf, LINE_BUF_LEN, file)) {
+                    if (!fgets(linebuf, lineBufLen, file)) {
                         JS_ReportErrorNumber(cx, my_GetErrorMessage, nullptr,
                                              JSSMSG_UNEXPECTED_EOF,
                                              script->filename());
@@ -2479,7 +2485,10 @@ DisassWithSrc(JSContext* cx, unsigned argc, Value* vp)
                         goto bail;
                     }
                     line1++;
-                    Sprint(&sprinter, "%s %3u: %s", sep, line1, linebuf);
+                    if (Sprint(&sprinter, "%s %3u: %s", sep, line1, linebuf) == -1) {
+                        ok = false;
+                        goto bail;
+                    }
                 }
             }
 
@@ -2498,7 +2507,6 @@ DisassWithSrc(JSContext* cx, unsigned argc, Value* vp)
     }
     args.rval().setUndefined();
     return ok;
-#undef LINE_BUF_LEN
 }
 
 #endif /* DEBUG */
@@ -4866,7 +4874,13 @@ class ShellAutoEntryMonitor : JS::dbg::AutoEntryMonitor {
         RootedString displayId(cx, JS_GetFunctionDisplayId(function));
         if (displayId) {
             UniqueChars displayIdStr(JS_EncodeStringToUTF8(cx, displayId));
-            oom = !displayIdStr || !log.append(mozilla::Move(displayIdStr));
+            if (!displayIdStr) {
+                // We report OOM in buildResult.
+                cx->recoverFromOutOfMemory();
+                oom = true;
+                return;
+            }
+            oom = !log.append(mozilla::Move(displayIdStr));
             return;
         }
 
@@ -6966,18 +6980,20 @@ Shell(JSContext* cx, OptionParser* op, char** envp)
 
 static void
 SetOutputFile(const char* const envVar,
-              FILE* defaultOut,
-              RCFile** outFile)
+              RCFile* defaultOut,
+              RCFile** outFileP)
 {
+    RCFile* outFile;
+
     const char* outPath = getenv(envVar);
     FILE* newfp;
-    if (outPath && *outPath && (newfp = fopen(outPath, "w"))) {
-        *outFile = js_new<RCFile>(newfp);
-        (*outFile)->acquire();
-    } else {
-        *outFile = js_new<RCFile>(defaultOut);
-        (*outFile)->acquire();
-    }
+    if (outPath && *outPath && (newfp = fopen(outPath, "w")))
+        outFile = js_new<RCFile>(newfp);
+    else
+        outFile = defaultOut;
+
+    outFile->acquire();
+    *outFileP = outFile;
 }
 
 /* Pretend we can always preserve wrappers for dummy DOM objects. */
@@ -7038,8 +7054,15 @@ main(int argc, char** argv, char** envp)
     setlocale(LC_ALL, "");
 #endif
 
-    SetOutputFile("JS_STDERR", stderr, &gErrFile);
-    SetOutputFile("JS_STDOUT", stdout, &gOutFile);
+    // Special-case stdout and stderr. We bump their refcounts to prevent them
+    // from getting closed and then having some printf fail somewhere.
+    RCFile rcStdout(stdout);
+    rcStdout.acquire();
+    RCFile rcStderr(stderr);
+    rcStderr.acquire();
+
+    SetOutputFile("JS_STDOUT", &rcStdout, &gOutFile);
+    SetOutputFile("JS_STDERR", &rcStderr, &gErrFile);
 
     OptionParser op("Usage: {progname} [options] [[script] scriptArgs*]");
 

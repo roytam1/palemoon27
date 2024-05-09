@@ -1221,7 +1221,7 @@ class MVariadicT : public T
     FixedList<MUse> operands_;
 
   protected:
-    bool init(TempAllocator& alloc, size_t length) {
+    MOZ_WARN_UNUSED_RESULT bool init(TempAllocator& alloc, size_t length) {
         return operands_.init(alloc, length);
     }
     void initOperand(size_t index, MDefinition* operand) {
@@ -2022,7 +2022,7 @@ class MSimdGeneralShuffle :
         return new(alloc) MSimdGeneralShuffle(numVectors, numLanes, type);
     }
 
-    bool init(TempAllocator& alloc) {
+    MOZ_WARN_UNUSED_RESULT bool init(TempAllocator& alloc) {
         return MVariadicInstruction::init(alloc, numVectors_ + numLanes_);
     }
     void setVector(unsigned i, MDefinition* vec) {
@@ -2666,7 +2666,7 @@ class MTableSwitch final
         return successors_.length();
     }
 
-    bool addSuccessor(MBasicBlock* successor, size_t* index) {
+    MOZ_WARN_UNUSED_RESULT bool addSuccessor(MBasicBlock* successor, size_t* index) {
         MOZ_ASSERT(successors_.length() < (size_t)(high_ - low_ + 2));
         MOZ_ASSERT(!successors_.empty());
         *index = successors_.length();
@@ -2711,14 +2711,14 @@ class MTableSwitch final
         return high() - low() + 1;
     }
 
-    bool addDefault(MBasicBlock* block, size_t* index = nullptr) {
+    MOZ_WARN_UNUSED_RESULT bool addDefault(MBasicBlock* block, size_t* index = nullptr) {
         MOZ_ASSERT(successors_.empty());
         if (index)
             *index = 0;
         return successors_.append(block);
     }
 
-    bool addCase(size_t successorIndex) {
+    MOZ_WARN_UNUSED_RESULT bool addCase(size_t successorIndex) {
         return cases_.append(successorIndex);
     }
 
@@ -2727,7 +2727,7 @@ class MTableSwitch final
         return blocks_[i];
     }
 
-    bool addBlock(MBasicBlock* block) {
+    MOZ_WARN_UNUSED_RESULT bool addBlock(MBasicBlock* block) {
         return blocks_.append(block);
     }
 
@@ -3630,7 +3630,7 @@ class MArrayState
 
     explicit MArrayState(MDefinition* arr);
 
-    bool init(TempAllocator& alloc, MDefinition* obj, MDefinition* len);
+    MOZ_WARN_UNUSED_RESULT bool init(TempAllocator& alloc, MDefinition* obj, MDefinition* len);
 
     void initElement(uint32_t index, MDefinition* def) {
         initOperand(index + 2, def);
@@ -5510,6 +5510,10 @@ class MToString :
     {
         setResultType(MIRType_String);
         setMovable();
+
+        // Objects might override toString and Symbols throw.
+        if (def->mightBeType(MIRType_Object) || def->mightBeType(MIRType_Symbol))
+            setGuard();
     }
 
   public:
@@ -6899,6 +6903,11 @@ class MDiv : public MBinaryArithInstruction
         return specialization_ < MIRType_Object;
     }
 
+    bool congruentTo(const MDefinition* ins) const override {
+        return MBinaryArithInstruction::congruentTo(ins) &&
+               unsigned_ == ins->toDiv()->isUnsigned();
+    }
+
     ALLOW_CLONE(MDiv)
 };
 
@@ -6976,6 +6985,11 @@ class MMod : public MBinaryArithInstruction
     void truncate() override;
     void collectRangeInfoPreTrunc() override;
     TruncateKind operandTruncateKind(size_t index) const override;
+
+    bool congruentTo(const MDefinition* ins) const override {
+        return MBinaryArithInstruction::congruentTo(ins) &&
+               unsigned_ == ins->toMod()->isUnsigned();
+    }
 
     ALLOW_CLONE(MMod)
 };
@@ -7228,7 +7242,8 @@ class MPhi final
     public InlineListNode<MPhi>,
     public NoTypePolicy::Data
 {
-    js::Vector<MUse, 2, JitAllocPolicy> inputs_;
+    using InputVector = js::Vector<MUse, 2, JitAllocPolicy>;
+    InputVector inputs_;
 
     TruncateKind truncateKind_;
     bool hasBackedgeType_;
@@ -7334,29 +7349,30 @@ class MPhi final
 
     // Add types for this phi which speculate about new inputs that may come in
     // via a loop backedge.
-    bool addBackedgeType(MIRType type, TemporaryTypeSet* typeSet);
+    MOZ_WARN_UNUSED_RESULT bool addBackedgeType(MIRType type, TemporaryTypeSet* typeSet);
 
     // Initializes the operands vector to the given capacity,
     // permitting use of addInput() instead of addInputSlow().
-    bool reserveLength(size_t length) {
+    MOZ_WARN_UNUSED_RESULT bool reserveLength(size_t length) {
         return inputs_.reserve(length);
     }
 
     // Use only if capacity has been reserved by reserveLength
     void addInput(MDefinition* ins) {
-        // Use infallibleGrowByUninitialized and placement-new instead of just
-        // infallibleAppend to avoid creating a temporary MUse which will get
-        // linked into |ins|'s use list and then unlinked in favor of the
-        // MUse in the Vector. We'd ideally like to use an emplace method here,
-        // once Vector supports that.
-        inputs_.infallibleGrowByUninitialized(1);
-        new (&inputs_.back()) MUse(ins, this);
+        inputs_.infallibleEmplaceBack(ins, this);
     }
 
     // Appends a new input to the input vector. May perform reallocation.
     // Prefer reserveLength() and addInput() instead, where possible.
-    bool addInputSlow(MDefinition* ins) {
+    MOZ_WARN_UNUSED_RESULT bool addInputSlow(MDefinition* ins) {
         return inputs_.emplaceBack(ins, this);
+    }
+
+    // Appends a new input to the input vector. Infallible because
+    // we know the inputs fits in the vector's inline storage.
+    void addInlineInput(MDefinition* ins) {
+        MOZ_ASSERT(inputs_.length() < InputVector::InlineLength);
+        MOZ_ALWAYS_TRUE(addInputSlow(ins));
     }
 
     // Update the type of this phi after adding |ins| as an input. Set
@@ -8039,7 +8055,6 @@ class MRegExpPrototypeOptimizable
       : MUnaryInstruction(object)
     {
         setResultType(MIRType_Boolean);
-        setMovable();
     }
 
   public:
@@ -8064,7 +8079,6 @@ class MRegExpInstanceOptimizable
       : MBinaryInstruction(object, proto)
     {
         setResultType(MIRType_Boolean);
-        setMovable();
     }
 
   public:
@@ -9123,12 +9137,14 @@ class MBoundsCheck
         return minimum_;
     }
     void setMinimum(int32_t n) {
+        MOZ_ASSERT(fallible_);
         minimum_ = n;
     }
     int32_t maximum() const {
         return maximum_;
     }
     void setMaximum(int32_t n) {
+        MOZ_ASSERT(fallible_);
         maximum_ = n;
     }
     MDefinition* foldsTo(TempAllocator& alloc) override;
@@ -9137,6 +9153,8 @@ class MBoundsCheck
             return false;
         const MBoundsCheck* other = ins->toBoundsCheck();
         if (minimum() != other->minimum() || maximum() != other->maximum())
+            return false;
+        if (fallible() != other->fallible())
             return false;
         return congruentIfOperandsEqual(other);
     }
@@ -9895,7 +9913,6 @@ class MArraySlice
         unboxedType_(unboxedType)
     {
         setResultType(MIRType_Object);
-        setResultTypeSet(obj->resultTypeSet());
     }
 
   public:
@@ -13346,7 +13363,7 @@ class MResumePoint final :
   protected:
     // Initializes operands_ to an empty array of a fixed length.
     // The array may then be filled in by inherit().
-    bool init(TempAllocator& alloc);
+    MOZ_WARN_UNUSED_RESULT bool init(TempAllocator& alloc);
 
     void clearOperand(size_t index) {
         // FixedList doesn't initialize its elements, so do an unchecked init.

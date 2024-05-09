@@ -17,6 +17,7 @@
 #include "CubebUtils.h"
 #include "nsPrintfCString.h"
 #include "gfxPrefs.h"
+#include "AudioConverter.h"
 
 namespace mozilla {
 
@@ -272,6 +273,25 @@ OpenDumpFile(AudioStream* aStream)
   return f;
 }
 
+template <typename T>
+typename EnableIf<IsSame<T, int16_t>::value, void>::Type
+WriteDumpFileHelper(T* aInput, size_t aSamples, FILE* aFile) {
+  fwrite(aInput, sizeof(T), aSamples, aFile);
+}
+
+template <typename T>
+typename EnableIf<IsSame<T, float>::value, void>::Type
+WriteDumpFileHelper(T* aInput, size_t aSamples, FILE* aFile) {
+  AutoTArray<uint8_t, 1024*2> buf;
+  buf.SetLength(aSamples*2);
+  uint8_t* output = buf.Elements();
+  for (uint32_t i = 0; i < aSamples; ++i) {
+    SetUint16LE(output + i*2, int16_t(aInput[i]*32767.0f));
+  }
+  fwrite(output, 2, aSamples, aFile);
+  fflush(aFile);
+}
+
 static void
 WriteDumpFile(FILE* aDumpFile, AudioStream* aStream, uint32_t aFrames,
               void* aBuffer)
@@ -280,22 +300,20 @@ WriteDumpFile(FILE* aDumpFile, AudioStream* aStream, uint32_t aFrames,
     return;
 
   uint32_t samples = aStream->GetOutChannels()*aFrames;
-  if (AUDIO_OUTPUT_FORMAT == AUDIO_FORMAT_S16) {
-    fwrite(aBuffer, 2, samples, aDumpFile);
-    return;
-  }
 
-  NS_ASSERTION(AUDIO_OUTPUT_FORMAT == AUDIO_FORMAT_FLOAT32, "bad format");
-  AutoTArray<uint8_t, 1024*2> buf;
-  buf.SetLength(samples*2);
-  float* input = static_cast<float*>(aBuffer);
-  uint8_t* output = buf.Elements();
-  for (uint32_t i = 0; i < samples; ++i) {
-    SetUint16LE(output + i*2, int16_t(input[i]*32767.0f));
-  }
-  fwrite(output, 2, samples, aDumpFile);
-  fflush(aDumpFile);
+  using SampleT = AudioSampleTraits<AUDIO_OUTPUT_FORMAT>::Type;
+  WriteDumpFileHelper(reinterpret_cast<SampleT*>(aBuffer), samples, aDumpFile);
 }
+
+template <AudioSampleFormat N>
+struct ToCubebFormat {
+  static const cubeb_sample_format value = CUBEB_SAMPLE_FLOAT32NE;
+};
+
+template <>
+struct ToCubebFormat<AUDIO_FORMAT_S16> {
+  static const cubeb_sample_format value = CUBEB_SAMPLE_S16NE;
+};
 
 nsresult
 AudioStream::Init(uint32_t aNumChannels, uint32_t aRate,
@@ -332,14 +350,13 @@ AudioStream::Init(uint32_t aNumChannels, uint32_t aRate,
     return NS_ERROR_INVALID_ARG;
   }
 #endif
-  if (AUDIO_OUTPUT_FORMAT == AUDIO_FORMAT_S16) {
-    params.format = CUBEB_SAMPLE_S16NE;
-  } else {
-    params.format = CUBEB_SAMPLE_FLOAT32NE;
-  }
 
+  params.format = ToCubebFormat<AUDIO_OUTPUT_FORMAT>::value;
   mAudioClock.Init();
 
+  AudioConfig inConfig(mChannels, mInRate);
+  AudioConfig outConfig(mOutChannels, mOutRate);
+  mAudioConverter = MakeUnique<AudioConverter>(inConfig, outConfig);
   return OpenCubeb(params);
 }
 
@@ -550,10 +567,10 @@ AudioStream::Downmix(Chunk* aChunk)
     return false;
   }
 
-  if (aChunk->Channels() > 2 && aChunk->Channels() <= 8) {
-    DownmixAudioToStereo(aChunk->GetWritable(),
-                         aChunk->Channels(),
-                         aChunk->Frames());
+  if (aChunk->Channels() > 2) {
+    MOZ_ASSERT(mAudioConverter);
+    mAudioConverter->Process(aChunk->GetWritable(),
+                             aChunk->Channels() * aChunk->Frames());
   }
 
   if (aChunk->Channels() >= 2 && mIsMonoAudioEnabled) {

@@ -6,7 +6,6 @@ dnl file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
 dnl Process this file with autoconf to produce a configure script.
 dnl ========================================================
-
 AC_PREREQ(2.13)
 AC_INIT(js/src/jsapi.h)
 AC_CONFIG_AUX_DIR(${srcdir}/build/autoconf)
@@ -262,8 +261,6 @@ case "$target" in
             # Disable C++11 thread-safe statics due to crashes on XP (bug 1204752)
             # See https://connect.microsoft.com/VisualStudio/feedback/details/1789709/visual-c-2015-runtime-broken-on-windows-server-2003-c-11-magic-statics
             CXXFLAGS="$CXXFLAGS -Zc:threadSafeInit-"
-        else
-            AC_MSG_ERROR([This version ($CC_VERSION) of the MSVC compiler is unsupported. See https://developer.mozilla.org/en/Windows_Build_Prerequisites.])
         fi
         AC_SUBST(MSVC_C_RUNTIME_DLL)
         AC_SUBST(MSVC_CXX_RUNTIME_DLL)
@@ -719,14 +716,6 @@ dnl ========================================================
 dnl GNU specific defaults
 dnl ========================================================
 if test "$GNU_CC"; then
-    # Per bug 719659 comment 2, some of the headers on ancient build machines
-    # may require gnu89 inline semantics.  But otherwise, we use C99.
-    # But on OS X we just use C99 plus GNU extensions, in order to fix
-    # bug 917526.
-    CFLAGS="$CFLAGS -std=gnu99"
-    if test "${OS_ARCH}" != Darwin; then
-        CFLAGS="$CFLAGS -fgnu89-inline"
-    fi
     MKSHLIB='$(CXX) $(CXXFLAGS) $(DSO_PIC_CFLAGS) $(DSO_LDOPTS) -Wl,-h,$(DSO_SONAME) -o $@'
     MKCSHLIB='$(CC) $(CFLAGS) $(DSO_PIC_CFLAGS) $(DSO_LDOPTS) -Wl,-h,$(DSO_SONAME) -o $@'
     DSO_LDOPTS='-shared'
@@ -2750,8 +2739,6 @@ AC_CHECK_FUNCS(setlocale localeconv)
 AC_SUBST(MOZILLA_VERSION)
 
 AC_SUBST(ac_configure_args)
-
-AC_SUBST(TOOLCHAIN_PREFIX)
 
 if test -n "$JS_STANDALONE"; then
 MOZ_APP_NAME="mozjs"

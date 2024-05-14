@@ -103,7 +103,6 @@ if test -n "$gonkdir" ; then
     kernel_name=`uname -s | tr "[[:upper:]]" "[[:lower:]]"`
     android_source="$gonkdir"
     ANDROID_SOURCE="$android_source"
-    ANDROID_NDK="${ANDROID_SOURCE}/ndk"
     dnl Default to ICS
     ANDROID_VERSION=15
     if test -n "${PLATFORM_SDK_VERSION}"; then
@@ -412,10 +411,6 @@ case "$target" in
               fi
               WIN_UCRT_REDIST_DIR=`cd "$WIN_UCRT_REDIST_DIR" && pwd`
             fi
-        else
-            AC_MSG_ERROR([This version (${_CC_MAJOR_VERSION}.${_CC_MINOR_VERSION}.${_CC_BUILD_VERSION}) of the MSVC compiler is unsupported.
-You must install Visual C++ 2013 Update 3 or newer in order to build.
-See https://developer.mozilla.org/en/Windows_Build_Prerequisites.])
         fi
         AC_SUBST(MSVS_VERSION)
         AC_SUBST(MSVC_HAS_DIA_SDK)
@@ -925,14 +920,6 @@ if test "$GNU_CC"; then
     MMX_FLAGS="-mmmx"
     SSE_FLAGS="-msse"
     SSE2_FLAGS="-msse2"
-    # Per bug 719659 comment 2, some of the headers on ancient build machines
-    # may require gnu89 inline semantics.  But otherwise, we use C99.
-    # But on OS X we just use C99 plus GNU extensions, in order to fix
-    # bug 917526.
-    CFLAGS="$CFLAGS -std=gnu99"
-    if test "${OS_ARCH}" != Darwin; then
-        CFLAGS="$CFLAGS -fgnu89-inline"
-    fi
     # FIXME: Let us build with strict aliasing. bug 414641.
     CFLAGS="$CFLAGS -fno-strict-aliasing"
     MKSHLIB='$(CXX) $(CXXFLAGS) $(DSO_PIC_CFLAGS) $(DSO_LDOPTS) -Wl,-h,$(DSO_SONAME) -o $@'
@@ -7073,7 +7060,6 @@ AC_SUBST(MOZ_TOOLKIT_SEARCH)
 AC_SUBST(MOZ_FEEDS)
 AC_SUBST(NS_PRINTING)
 AC_SUBST(MOZ_HELP_VIEWER)
-AC_SUBST(TOOLCHAIN_PREFIX)
 
 AC_SUBST(JAVA)
 AC_SUBST(JAVAC)

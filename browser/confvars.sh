@@ -26,18 +26,14 @@ fi
 # Enable building ./signmar and running libmar signature tests
 MOZ_ENABLE_SIGNMAR=1
 
-MOZ_CHROME_FILE_FORMAT=omni
+
 MOZ_SERVICES_COMMON=1
 MOZ_SERVICES_CRYPTO=1
 MOZ_SERVICES_SYNC=1
 MOZ_APP_VERSION=$FIREFOX_VERSION
 MOZ_APP_VERSION_ABOUT=$FIREFOX_VERSION_ABOUT
 MOZ_EXTENSIONS_DEFAULT=" gio"
-
 MOZ_SERVICES_FXACCOUNTS=1
-MOZ_WEBGL_CONFORMANT=1
-MOZ_ACTIVITIES=1
-MOZ_JSDOWNLOADS=1
 MOZ_WEBM_ENCODER=1
 
 # Enable checking that add-ons are signed by the trusted root
@@ -72,10 +68,15 @@ MAR_CHANNEL_ID=palemoon-release
 MOZ_PROFILE_MIGRATOR=1
 MOZ_EXTENSION_MANAGER=1
 MOZ_APP_STATIC_INI=1
+MOZ_WEBGL_CONFORMANT=1
 MOZ_MEDIA_NAVIGATOR=1
 if test "$OS_TARGET" = "WINNT" -o "$OS_TARGET" = "Darwin"; then
   MOZ_FOLD_LIBS=1
 fi
+# Enable activities. These are used for FxOS developers currently.
+MOZ_ACTIVITIES=1
+MOZ_JSDOWNLOADS=1
+MOZ_RUST_MP4PARSE=1
 
 # Include the DevTools client, not just the server (which is the default)
 MOZ_DEVTOOLS=all

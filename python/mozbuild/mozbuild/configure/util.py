@@ -65,10 +65,26 @@ class ConfigureOutputHandler(logging.Handler):
         # ascii, which blatantly fails when trying to print out non-ascii.
         def fix_encoding(fh):
             try:
-                if not fh.isatty():
-                    return codecs.getwriter(locale.getpreferredencoding())(fh)
+                isatty = fh.isatty()
             except AttributeError:
-                pass
+                isatty = True
+
+            if not isatty:
+                encoding = None
+                try:
+                    encoding = locale.getpreferredencoding()
+                except ValueError:
+                    # On english OSX, LC_ALL is UTF-8 (not en-US.UTF-8), and
+                    # that throws off locale._parse_localename, which ends up
+                    # being used on e.g. homebrew python.
+                    if os.environ.get('LC_ALL', '').upper() == 'UTF-8':
+                        encoding = 'utf-8'
+
+                # locale._parse_localename makes locale.getpreferredencoding
+                # return None when LC_ALL is C, instead of e.g. 'US-ASCII' or
+                # 'ANSI_X3.4-1968' when it uses nl_langinfo.
+                if encoding:
+                    return codecs.getwriter(encoding)(fh)
             return fh
 
         self._stdout = fix_encoding(stdout)
@@ -121,19 +137,7 @@ class ConfigureOutputHandler(logging.Handler):
                 return
             else:
                 if record.levelno >= logging.ERROR and len(self._debug):
-                    self._keep_if_debug = self.PRINT
-                    if len(self._debug) == self._debug.maxlen:
-                        r = self._debug.popleft()
-                        self.emit(logging.LogRecord(
-                            r.name, r.levelno, r.pathname, r.lineno,
-                            '<truncated - see config.log for full output>',
-                            (), None))
-                    while True:
-                        try:
-                            self.emit(self._debug.popleft())
-                        except IndexError:
-                            break
-                    self._keep_if_debug = self.KEEP
+                    self._emit_queue()
 
                 if self._stdout_waiting == self.WAITING and self._same_output:
                     self._stdout_waiting = self.INTERRUPTED
@@ -151,9 +155,30 @@ class ConfigureOutputHandler(logging.Handler):
     @contextmanager
     def queue_debug(self):
         self._keep_if_debug = self.KEEP
-        yield
+        try:
+            yield
+        except Exception:
+            self._emit_queue()
+            # The exception will be handled and very probably printed out by
+            # something upper in the stack.
+            raise
         self._keep_if_debug = self.THROW
         self._debug.clear()
+
+    def _emit_queue(self):
+        self._keep_if_debug = self.PRINT
+        if len(self._debug) == self._debug.maxlen:
+            r = self._debug.popleft()
+            self.emit(logging.LogRecord(
+                r.name, r.levelno, r.pathname, r.lineno,
+                '<truncated - see config.log for full output>',
+                (), None))
+        while True:
+            try:
+                self.emit(self._debug.popleft())
+            except IndexError:
+                break
+        self._keep_if_debug = self.KEEP
 
 
 class LineIO(object):

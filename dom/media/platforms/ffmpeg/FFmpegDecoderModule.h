@@ -34,7 +34,8 @@ public:
                      layers::LayersBackend aLayersBackend,
                      layers::ImageContainer* aImageContainer,
                      FlushableTaskQueue* aVideoTaskQueue,
-                     MediaDataDecoderCallback* aCallback) override
+                     MediaDataDecoderCallback* aCallback,
+                     DecoderDoctorDiagnostics* aDiagnostics) override
   {
     RefPtr<MediaDataDecoder> decoder =
       new FFmpegH264Decoder<V>(aVideoTaskQueue, aCallback, aConfig,
@@ -45,14 +46,16 @@ public:
   already_AddRefed<MediaDataDecoder>
   CreateAudioDecoder(const AudioInfo& aConfig,
                      FlushableTaskQueue* aAudioTaskQueue,
-                     MediaDataDecoderCallback* aCallback) override
+                     MediaDataDecoderCallback* aCallback,
+                     DecoderDoctorDiagnostics* aDiagnostics) override
   {
     RefPtr<MediaDataDecoder> decoder =
       new FFmpegAudioDecoder<V>(aAudioTaskQueue, aCallback, aConfig);
     return decoder.forget();
   }
 
-  bool SupportsMimeType(const nsACString& aMimeType) const override
+  bool SupportsMimeType(const nsACString& aMimeType,
+                        DecoderDoctorDiagnostics* aDiagnostics) const override
   {
     AVCodecID audioCodec = FFmpegAudioDecoder<V>::GetCodecId(aMimeType);
     AVCodecID videoCodec = FFmpegH264Decoder<V>::GetCodecId(aMimeType);

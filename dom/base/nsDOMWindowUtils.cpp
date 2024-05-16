@@ -2421,6 +2421,19 @@ nsDOMWindowUtils::AdvanceTimeAndRefresh(int64_t aMilliseconds)
 }
 
 NS_IMETHODIMP
+nsDOMWindowUtils::GetLastTransactionId(uint64_t *aLastTransactionId)
+{
+  nsPresContext* presContext = GetPresContext();
+  if (!presContext) {
+    return NS_ERROR_UNEXPECTED;
+  }
+
+  nsRefreshDriver* driver = presContext->GetRootPresContext()->RefreshDriver();
+  *aLastTransactionId = driver->LastTransactionId();
+  return NS_OK;
+}
+
+NS_IMETHODIMP
 nsDOMWindowUtils::RestoreNormalRefresh()
 {
   MOZ_RELEASE_ASSERT(nsContentUtils::IsCallerChrome());

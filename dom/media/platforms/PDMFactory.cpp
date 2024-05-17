@@ -131,6 +131,7 @@ already_AddRefed<MediaDataDecoder>
 PDMFactory::CreateDecoder(const TrackInfo& aConfig,
                           FlushableTaskQueue* aTaskQueue,
                           MediaDataDecoderCallback* aCallback,
+                          DecoderDoctorDiagnostics* aDiagnostics,
                           layers::LayersBackend aLayersBackend,
                           layers::ImageContainer* aImageContainer)
 {
@@ -141,12 +142,13 @@ PDMFactory::CreateDecoder(const TrackInfo& aConfig,
                                 aConfig,
                                 aTaskQueue,
                                 aCallback,
+                                aDiagnostics,
                                 aLayersBackend,
                                 aImageContainer);
   }
 
   for (auto& current : mCurrentPDMs) {
-    if (!current->SupportsMimeType(aConfig.mMimeType)) {
+    if (!current->SupportsMimeType(aConfig.mMimeType, aDiagnostics)) {
       continue;
     }
     RefPtr<MediaDataDecoder> m =
@@ -154,6 +156,7 @@ PDMFactory::CreateDecoder(const TrackInfo& aConfig,
                            aConfig,
                            aTaskQueue,
                            aCallback,
+                           aDiagnostics,
                            aLayersBackend,
                            aImageContainer);
     if (m) {
@@ -169,6 +172,7 @@ PDMFactory::CreateDecoderWithPDM(PlatformDecoderModule* aPDM,
                                  const TrackInfo& aConfig,
                                  FlushableTaskQueue* aTaskQueue,
                                  MediaDataDecoderCallback* aCallback,
+                                 DecoderDoctorDiagnostics* aDiagnostics,
                                  layers::LayersBackend aLayersBackend,
                                  layers::ImageContainer* aImageContainer)
 {
@@ -178,7 +182,8 @@ PDMFactory::CreateDecoderWithPDM(PlatformDecoderModule* aPDM,
   if (aConfig.GetAsAudioInfo()) {
     m = aPDM->CreateAudioDecoder(*aConfig.GetAsAudioInfo(),
                                  aTaskQueue,
-                                 aCallback);
+                                 aCallback,
+                                 aDiagnostics);
     return m.forget();
   }
 
@@ -203,7 +208,8 @@ PDMFactory::CreateDecoderWithPDM(PlatformDecoderModule* aPDM,
                           aLayersBackend,
                           aImageContainer,
                           aTaskQueue,
-                          callback);
+                          callback,
+                          aDiagnostics);
     const nsresult rv = h->GetLastError();
     if (NS_SUCCEEDED(rv) || rv == NS_ERROR_NOT_INITIALIZED) {
       // The H264Converter either successfully created the wrapped decoder,
@@ -216,7 +222,8 @@ PDMFactory::CreateDecoderWithPDM(PlatformDecoderModule* aPDM,
                                  aLayersBackend,
                                  aImageContainer,
                                  aTaskQueue,
-                                 callback);
+                                 callback,
+                                 aDiagnostics);
   }
 
   if (callbackWrapper && m) {
@@ -227,12 +234,13 @@ PDMFactory::CreateDecoderWithPDM(PlatformDecoderModule* aPDM,
 }
 
 bool
-PDMFactory::SupportsMimeType(const nsACString& aMimeType) const
+PDMFactory::SupportsMimeType(const nsACString& aMimeType,
+                             DecoderDoctorDiagnostics* aDiagnostics) const
 {
   if (mEMEPDM) {
-    return mEMEPDM->SupportsMimeType(aMimeType);
+    return mEMEPDM->SupportsMimeType(aMimeType, aDiagnostics);
   }
-  RefPtr<PlatformDecoderModule> current = GetDecoder(aMimeType);
+  RefPtr<PlatformDecoderModule> current = GetDecoder(aMimeType, aDiagnostics);
   return !!current;
 }
 
@@ -305,11 +313,12 @@ PDMFactory::StartupPDM(PlatformDecoderModule* aPDM)
 }
 
 already_AddRefed<PlatformDecoderModule>
-PDMFactory::GetDecoder(const nsACString& aMimeType) const
+PDMFactory::GetDecoder(const nsACString& aMimeType,
+                       DecoderDoctorDiagnostics* aDiagnostics) const
 {
   RefPtr<PlatformDecoderModule> pdm;
   for (auto& current : mCurrentPDMs) {
-    if (current->SupportsMimeType(aMimeType)) {
+    if (current->SupportsMimeType(aMimeType, aDiagnostics)) {
       pdm = current;
       break;
     }

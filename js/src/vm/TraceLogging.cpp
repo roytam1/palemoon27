@@ -30,11 +30,17 @@ using mozilla::NativeEndian;
 TraceLoggerThreadState* traceLoggerState = nullptr;
 
 #if defined(_WIN32)
+#include <windows.h>
+
+SYSTEM_INFO si;
+
 #include <intrin.h>
 static __inline uint64_t
 rdtsc(void)
 {
-    return __rdtsc();
+    if(!si.dwPageSize)
+        GetSystemInfo(&si);
+    return si.dwProcessorType > 486 ? __rdtsc() : 0;
 }
 #elif defined(__i386__)
 static __inline__ uint64_t

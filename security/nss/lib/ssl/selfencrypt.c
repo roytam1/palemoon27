@@ -197,9 +197,9 @@ ssl_SelfEncryptUnprotectInt(
     PRUint64 cipherTextLen = 0;
     sslReadBuffer cipherTextBuffer = { 0 };
     sslReadBuffer encodedMacBuffer = { 0 };
-    SECItem ivItem = { siBuffer, (unsigned char *)ivBuffer.buf, AES_BLOCK_SIZE };
+    SECItem ivItem = { 0 };
     unsigned int computedMacLen = 0;
-    unsigned int bytesToMac = reader.offset;
+    unsigned int bytesToMac;
     unsigned char computedMac[SHA256_LENGTH];
 
     sslReadBuffer encodedKeyNameBuffer = { 0 };
@@ -218,6 +218,7 @@ ssl_SelfEncryptUnprotectInt(
     if (rv != SECSuccess) {
         return SECFailure;
     }
+    bytesToMac = reader.offset;
 
     rv = sslRead_Read(&reader, (unsigned int)cipherTextLen, &cipherTextBuffer);
     if (rv != SECSuccess) {
@@ -255,6 +256,9 @@ ssl_SelfEncryptUnprotectInt(
     }
 
     /* 3. OK, it verifies, now decrypt. */
+    ivItem.type = siBuffer;
+    ivItem.data = (unsigned char *)ivBuffer.buf;
+    ivItem.len = AES_BLOCK_SIZE;
     rv = PK11_Decrypt(encKey, CKM_AES_CBC_PAD, &ivItem,
                       out, outLen, maxOutLen, cipherTextBuffer.buf, cipherTextLen);
     if (rv != SECSuccess) {

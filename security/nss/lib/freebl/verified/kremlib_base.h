@@ -190,7 +190,7 @@ imaxdiv_t __cdecl imaxdiv(intmax_t numer, intmax_t denom)
 
 #endif // _MSC_VER >= 1800 ]
 
-#ifdef _MSC_VER <= 1700
+#if defined(_MSC_VER) && _MSC_VER <= 1700
 /* stdbool.h standard header */
 
 #define __bool_true_false_are_defined	1

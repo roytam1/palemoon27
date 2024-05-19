@@ -129,17 +129,18 @@ Hacl_Bignum_Fmul_mul_shift_reduce_(uint64_t *output, uint32_t *input, uint32_t *
 inline static void
 Hacl_Bignum_Fmul_fmul(uint32_t *output, uint32_t *input, uint32_t *input2)
 {
-    uint32_t i0 = output[0U];
-    uint32_t i1 = output[1U];
-    uint32_t i0_ = i0 & (uint32_t)0x3ffffffU;
-    uint32_t i1_ = i1 + (i0 >> (uint32_t)26U);
-    uint32_t tmp[5U] = { 0U };
     uint64_t t[5U] = { 0U };
+    uint32_t tmp[5U] = { 0U };
+    uint32_t i0, i1, i0_, i1_;
     memcpy(tmp, input, (uint32_t)5U * sizeof input[0U]);
     Hacl_Bignum_Fmul_mul_shift_reduce_(t, tmp, input2);
     Hacl_Bignum_Fproduct_carry_wide_(t);
     Hacl_Bignum_Modulo_carry_top_wide(t);
     Hacl_Bignum_Fproduct_copy_from_wide_(output, t);
+    i0 = output[0U];
+    i1 = output[1U];
+    i0_ = i0 & (uint32_t)0x3ffffffU;
+    i1_ = i1 + (i0 >> (uint32_t)26U);
     output[0U] = i0_;
     output[1U] = i1_;
 }
@@ -183,13 +184,14 @@ Hacl_Impl_Poly1305_32_poly1305_update(
     uint32_t r2 = i2 >> (uint32_t)4U & (uint32_t)0x3ffffffU;
     uint32_t r3 = i3 >> (uint32_t)6U & (uint32_t)0x3ffffffU;
     uint32_t r4 = i4 >> (uint32_t)8U;
-    uint32_t b4 = tmp[4U];
-    uint32_t b4_ = (uint32_t)0x1000000U | b4;
+    uint32_t b4, b4_;
     tmp[0U] = r0;
     tmp[1U] = r1;
     tmp[2U] = r2;
     tmp[3U] = r3;
     tmp[4U] = r4;
+    b4 = tmp[4U];
+    b4_ = (uint32_t)0x1000000U | b4;
     tmp[4U] = b4_;
     Hacl_Bignum_AddAndMultiply_add_and_multiply(acc, tmp, r5);
 }
@@ -217,15 +219,17 @@ Hacl_Impl_Poly1305_32_poly1305_process_last_block_(
     uint32_t r2 = i2 >> (uint32_t)4U & (uint32_t)0x3ffffffU;
     uint32_t r3 = i3 >> (uint32_t)6U & (uint32_t)0x3ffffffU;
     uint32_t r4 = i4 >> (uint32_t)8U;
-    Hacl_Impl_Poly1305_32_State_poly1305_state scrut0 = st;
-    uint32_t *h = scrut0.h;
-    Hacl_Impl_Poly1305_32_State_poly1305_state scrut = st;
-    uint32_t *r = scrut.r;
+    Hacl_Impl_Poly1305_32_State_poly1305_state scrut0, scrut;
+    uint32_t *h, *r;
     tmp[0U] = r0;
     tmp[1U] = r1;
     tmp[2U] = r2;
     tmp[3U] = r3;
     tmp[4U] = r4;
+    scrut0 = st;
+    h = scrut0.h;
+    scrut = st;
+    r = scrut.r;
     Hacl_Bignum_AddAndMultiply_add_and_multiply(h, tmp, r);
 }
 
@@ -235,11 +239,9 @@ Hacl_Impl_Poly1305_32_poly1305_process_last_block(
     uint8_t *m,
     uint64_t rem_)
 {
-    uint8_t zero1 = (uint8_t)0U;
     uint8_t block[16U];
-    uint32_t i0;
-    uint32_t i;
-    uint32_t _i;
+    uint8_t zero1 = (uint8_t)0U;
+    uint32_t i0, i, _i;
     KRML_CHECK_SIZE(zero1, (uint32_t)16U);
     for (_i = 0U; _i < (uint32_t)16U; ++_i)
         block[_i] = zero1;
@@ -253,69 +255,73 @@ Hacl_Impl_Poly1305_32_poly1305_process_last_block(
 static void
 Hacl_Impl_Poly1305_32_poly1305_last_pass(uint32_t *acc)
 {
-    uint32_t t0 = acc[0U];
-    uint32_t t10 = acc[1U];
-    uint32_t t20 = acc[2U];
-    uint32_t t30 = acc[3U];
-    uint32_t t40 = acc[4U];
-    uint32_t t1_ = t10 + (t0 >> (uint32_t)26U);
-    uint32_t mask_261 = (uint32_t)0x3ffffffU;
-    uint32_t t0_ = t0 & mask_261;
-    uint32_t t2_ = t20 + (t1_ >> (uint32_t)26U);
-    uint32_t t1__ = t1_ & mask_261;
-    uint32_t t3_ = t30 + (t2_ >> (uint32_t)26U);
-    uint32_t t2__ = t2_ & mask_261;
-    uint32_t t4_ = t40 + (t3_ >> (uint32_t)26U);
-    uint32_t t3__ = t3_ & mask_261;
-    uint32_t t00 = acc[0U];
-    uint32_t t1 = acc[1U];
-    uint32_t t2 = acc[2U];
-    uint32_t t3 = acc[3U];
-    uint32_t t4 = acc[4U];
-    uint32_t t1_0 = t1 + (t00 >> (uint32_t)26U);
-    uint32_t t0_0 = t00 & (uint32_t)0x3ffffffU;
-    uint32_t t2_0 = t2 + (t1_0 >> (uint32_t)26U);
-    uint32_t t1__0 = t1_0 & (uint32_t)0x3ffffffU;
-    uint32_t t3_0 = t3 + (t2_0 >> (uint32_t)26U);
-    uint32_t t2__0 = t2_0 & (uint32_t)0x3ffffffU;
-    uint32_t t4_0 = t4 + (t3_0 >> (uint32_t)26U);
-    uint32_t t3__0 = t3_0 & (uint32_t)0x3ffffffU;
-    uint32_t i0 = acc[0U];
-    uint32_t i1 = acc[1U];
-    uint32_t i0_ = i0 & (uint32_t)0x3ffffffU;
-    uint32_t i1_ = i1 + (i0 >> (uint32_t)26U);
-    uint32_t a0 = acc[0U];
-    uint32_t a1 = acc[1U];
-    uint32_t a2 = acc[2U];
-    uint32_t a3 = acc[3U];
-    uint32_t a4 = acc[4U];
-    uint32_t mask0 = FStar_UInt32_gte_mask(a0, (uint32_t)0x3fffffbU);
-    uint32_t mask1 = FStar_UInt32_eq_mask(a1, (uint32_t)0x3ffffffU);
-    uint32_t mask2 = FStar_UInt32_eq_mask(a2, (uint32_t)0x3ffffffU);
-    uint32_t mask3 = FStar_UInt32_eq_mask(a3, (uint32_t)0x3ffffffU);
-    uint32_t mask4 = FStar_UInt32_eq_mask(a4, (uint32_t)0x3ffffffU);
-    uint32_t mask = (((mask0 & mask1) & mask2) & mask3) & mask4;
-    uint32_t a0_ = a0 - ((uint32_t)0x3fffffbU & mask);
-    uint32_t a1_ = a1 - ((uint32_t)0x3ffffffU & mask);
-    uint32_t a2_ = a2 - ((uint32_t)0x3ffffffU & mask);
-    uint32_t a3_ = a3 - ((uint32_t)0x3ffffffU & mask);
-    uint32_t a4_ = a4 - ((uint32_t)0x3ffffffU & mask);
+    uint32_t t0, t10, t20, t30, t40, t1_, mask_261, t0_, t2_, t1__, t3_;
+    uint32_t t2__, t4_, t3__, t00, t1, t2, t3, t4, t1_0, t0_0, t2_0, t1__0;
+    uint32_t t3_0, t2__0, t4_0, t3__0, i0, i1, i0_, i1_, a0, a1, a2, a3, a4;
+    uint32_t mask0, mask1, mask2, mask3, mask4, mask, a0_, a1_, a2_, a3_, a4_;
     Hacl_Bignum_Fproduct_carry_limb_(acc);
     Hacl_Bignum_Modulo_carry_top(acc);
+    t0 = acc[0U];
+    t10 = acc[1U];
+    t20 = acc[2U];
+    t30 = acc[3U];
+    t40 = acc[4U];
+    t1_ = t10 + (t0 >> (uint32_t)26U);
+    mask_261 = (uint32_t)0x3ffffffU;
+    t0_ = t0 & mask_261;
+    t2_ = t20 + (t1_ >> (uint32_t)26U);
+    t1__ = t1_ & mask_261;
+    t3_ = t30 + (t2_ >> (uint32_t)26U);
+    t2__ = t2_ & mask_261;
+    t4_ = t40 + (t3_ >> (uint32_t)26U);
+    t3__ = t3_ & mask_261;
     acc[0U] = t0_;
     acc[1U] = t1__;
     acc[2U] = t2__;
     acc[3U] = t3__;
     acc[4U] = t4_;
     Hacl_Bignum_Modulo_carry_top(acc);
+    t00 = acc[0U];
+    t1 = acc[1U];
+    t2 = acc[2U];
+    t3 = acc[3U];
+    t4 = acc[4U];
+    t1_0 = t1 + (t00 >> (uint32_t)26U);
+    t0_0 = t00 & (uint32_t)0x3ffffffU;
+    t2_0 = t2 + (t1_0 >> (uint32_t)26U);
+    t1__0 = t1_0 & (uint32_t)0x3ffffffU;
+    t3_0 = t3 + (t2_0 >> (uint32_t)26U);
+    t2__0 = t2_0 & (uint32_t)0x3ffffffU;
+    t4_0 = t4 + (t3_0 >> (uint32_t)26U);
+    t3__0 = t3_0 & (uint32_t)0x3ffffffU;
     acc[0U] = t0_0;
     acc[1U] = t1__0;
     acc[2U] = t2__0;
     acc[3U] = t3__0;
     acc[4U] = t4_0;
     Hacl_Bignum_Modulo_carry_top(acc);
+    i0 = acc[0U];
+    i1 = acc[1U];
+    i0_ = i0 & (uint32_t)0x3ffffffU;
+    i1_ = i1 + (i0 >> (uint32_t)26U);
     acc[0U] = i0_;
     acc[1U] = i1_;
+    a0 = acc[0U];
+    a1 = acc[1U];
+    a2 = acc[2U];
+    a3 = acc[3U];
+    a4 = acc[4U];
+    mask0 = FStar_UInt32_gte_mask(a0, (uint32_t)0x3fffffbU);
+    mask1 = FStar_UInt32_eq_mask(a1, (uint32_t)0x3ffffffU);
+    mask2 = FStar_UInt32_eq_mask(a2, (uint32_t)0x3ffffffU);
+    mask3 = FStar_UInt32_eq_mask(a3, (uint32_t)0x3ffffffU);
+    mask4 = FStar_UInt32_eq_mask(a4, (uint32_t)0x3ffffffU);
+    mask = (((mask0 & mask1) & mask2) & mask3) & mask4;
+    a0_ = a0 - ((uint32_t)0x3fffffbU & mask);
+    a1_ = a1 - ((uint32_t)0x3ffffffU & mask);
+    a2_ = a2 - ((uint32_t)0x3ffffffU & mask);
+    a3_ = a3 - ((uint32_t)0x3ffffffU & mask);
+    a4_ = a4 - ((uint32_t)0x3ffffffU & mask);
     acc[0U] = a0_;
     acc[1U] = a1_;
     acc[2U] = a2_;
@@ -326,9 +332,10 @@ Hacl_Impl_Poly1305_32_poly1305_last_pass(uint32_t *acc)
 static Hacl_Impl_Poly1305_32_State_poly1305_state
 Hacl_Impl_Poly1305_32_mk_state(uint32_t *r, uint32_t *h)
 {
-    Hacl_Impl_Poly1305_32_State_poly1305_state r1;
-    Hacl_Impl_Poly1305_32_State_poly1305_state h1;
-    return r1, h1;
+    Hacl_Impl_Poly1305_32_State_poly1305_state state = {0};
+    state.r = r;
+    state.h = h;
+    return state;
 }
 
 static void
@@ -340,8 +347,9 @@ Hacl_Standalone_Poly1305_32_poly1305_blocks(
     if (!(len1 == (uint64_t)0U)) {
         uint8_t *block = m;
         uint8_t *tail1 = m + (uint32_t)16U;
-	uint64_t len2 = len1 - (uint64_t)1U;
+        uint64_t len2;
         Hacl_Impl_Poly1305_32_poly1305_update(st, block);
+        len2 = len1 - (uint64_t)1U;
         Hacl_Standalone_Poly1305_32_poly1305_blocks(st, tail1, len2);
     }
 }
@@ -353,37 +361,32 @@ Hacl_Standalone_Poly1305_32_poly1305_partial(
     uint64_t len1,
     uint8_t *kr)
 {
-    Hacl_Impl_Poly1305_32_State_poly1305_state scrut = st;
-    uint32_t *r = scrut.r;
-    uint32_t *x0 = r;
-    FStar_UInt128_t k1 = load128_le(kr);
-    Hacl_Impl_Poly1305_32_State_poly1305_state scrut0 = st;
-    uint32_t *h = scrut0.h;
-    uint32_t *x00 = h;
-    FStar_UInt128_t
-        k_clamped =
+    Hacl_Impl_Poly1305_32_State_poly1305_state scrut, scrut0;
+    FStar_UInt128_t k1, k_clamped;
+    uint32_t *r, *h, *x0, *x00;
+    uint32_t r0, r1, r2, r3, r4;
+    scrut = st;
+    r = scrut.r;
+    x0 = r;
+    k1 = load128_le(kr);
+    k_clamped =
             FStar_UInt128_logand(k1,
                                  FStar_UInt128_logor(FStar_UInt128_shift_left(FStar_UInt128_uint64_to_uint128((uint64_t)0x0ffffffc0ffffffcU),
                                                                               (uint32_t)64U),
                                                      FStar_UInt128_uint64_to_uint128((uint64_t)0x0ffffffc0fffffffU)));
-    uint32_t r0 = (uint32_t)FStar_UInt128_uint128_to_uint64(k_clamped) & (uint32_t)0x3ffffffU;
-    uint32_t
-        r1 =
-            (uint32_t)FStar_UInt128_uint128_to_uint64(FStar_UInt128_shift_right(k_clamped, (uint32_t)26U)) & (uint32_t)0x3ffffffU;
-    uint32_t
-        r2 =
-            (uint32_t)FStar_UInt128_uint128_to_uint64(FStar_UInt128_shift_right(k_clamped, (uint32_t)52U)) & (uint32_t)0x3ffffffU;
-    uint32_t
-        r3 =
-            (uint32_t)FStar_UInt128_uint128_to_uint64(FStar_UInt128_shift_right(k_clamped, (uint32_t)78U)) & (uint32_t)0x3ffffffU;
-    uint32_t
-        r4 =
-            (uint32_t)FStar_UInt128_uint128_to_uint64(FStar_UInt128_shift_right(k_clamped, (uint32_t)104U)) & (uint32_t)0x3ffffffU;
+    r0 = (uint32_t)FStar_UInt128_uint128_to_uint64(k_clamped) & (uint32_t)0x3ffffffU;
+    r1 = (uint32_t)FStar_UInt128_uint128_to_uint64(FStar_UInt128_shift_right(k_clamped, (uint32_t)26U)) & (uint32_t)0x3ffffffU;
+    r2 = (uint32_t)FStar_UInt128_uint128_to_uint64(FStar_UInt128_shift_right(k_clamped, (uint32_t)52U)) & (uint32_t)0x3ffffffU;
+    r3 = (uint32_t)FStar_UInt128_uint128_to_uint64(FStar_UInt128_shift_right(k_clamped, (uint32_t)78U)) & (uint32_t)0x3ffffffU;
+    r4 = (uint32_t)FStar_UInt128_uint128_to_uint64(FStar_UInt128_shift_right(k_clamped, (uint32_t)104U)) & (uint32_t)0x3ffffffU;
     x0[0U] = r0;
     x0[1U] = r1;
     x0[2U] = r2;
     x0[3U] = r3;
     x0[4U] = r4;
+    scrut0 = st;
+    h = scrut0.h;
+    x00 = h;
     x00[0U] = (uint32_t)0U;
     x00[1U] = (uint32_t)0U;
     x00[2U] = (uint32_t)0U;
@@ -403,13 +406,15 @@ Hacl_Standalone_Poly1305_32_poly1305_complete(
     uint64_t len16 = len1 >> (uint32_t)4U;
     uint64_t rem16 = len1 & (uint64_t)0xfU;
     uint8_t *part_input = m;
+    Hacl_Impl_Poly1305_32_State_poly1305_state scrut;
+    uint32_t *h, *acc;
     uint8_t *last_block = m + (uint32_t)((uint64_t)16U * len16);
-    Hacl_Impl_Poly1305_32_State_poly1305_state scrut = st;
-    uint32_t *h = scrut.h;
-    uint32_t *acc = h;
     Hacl_Standalone_Poly1305_32_poly1305_partial(st, part_input, len16, kr);
     if (!(rem16 == (uint64_t)0U))
         Hacl_Impl_Poly1305_32_poly1305_process_last_block(st, last_block, rem16);
+    scrut = st;
+    h = scrut.h;
+    acc = h;
     Hacl_Impl_Poly1305_32_poly1305_last_pass(acc);
 }
 
@@ -425,28 +430,31 @@ Hacl_Standalone_Poly1305_32_crypto_onetimeauth_(
     uint32_t *h = buf + (uint32_t)5U;
     Hacl_Impl_Poly1305_32_State_poly1305_state st = Hacl_Impl_Poly1305_32_mk_state(r, h);
     uint8_t *key_s = k1 + (uint32_t)16U;
-    Hacl_Impl_Poly1305_32_State_poly1305_state scrut = st;
-    uint32_t *h5 = scrut.h;
-    uint32_t *acc = h5;
-    FStar_UInt128_t k_ = load128_le(key_s);
-    uint32_t h0 = acc[0U];
-    uint32_t h1 = acc[1U];
-    uint32_t h2 = acc[2U];
-    uint32_t h3 = acc[3U];
-    uint32_t h4 = acc[4U];
-    FStar_UInt128_t
-        acc_ =
-            FStar_UInt128_logor(FStar_UInt128_shift_left(FStar_UInt128_uint64_to_uint128((uint64_t)h4),
-                                                         (uint32_t)104U),
-                                FStar_UInt128_logor(FStar_UInt128_shift_left(FStar_UInt128_uint64_to_uint128((uint64_t)h3),
-                                                                             (uint32_t)78U),
-                                                    FStar_UInt128_logor(FStar_UInt128_shift_left(FStar_UInt128_uint64_to_uint128((uint64_t)h2),
-                                                                                                 (uint32_t)52U),
-                                                                        FStar_UInt128_logor(FStar_UInt128_shift_left(FStar_UInt128_uint64_to_uint128((uint64_t)h1),
-                                                                                                                     (uint32_t)26U),
-                                                                                            FStar_UInt128_uint64_to_uint128((uint64_t)h0)))));
-    FStar_UInt128_t mac_ = FStar_UInt128_add_mod(acc_, k_);
+    Hacl_Impl_Poly1305_32_State_poly1305_state scrut;
+    uint32_t *h5, *acc;
+    FStar_UInt128_t k_, acc_, mac_;
+    uint32_t h0, h1, h2, h3, h4;
+
     Hacl_Standalone_Poly1305_32_poly1305_complete(st, input, len1, k1);
+    scrut = st;
+    h5 = scrut.h;
+    acc = h5;
+    k_ = load128_le(key_s);
+    h0 = acc[0U];
+    h1 = acc[1U];
+    h2 = acc[2U];
+    h3 = acc[3U];
+    h4 = acc[4U];
+    acc_ = FStar_UInt128_logor(FStar_UInt128_shift_left(FStar_UInt128_uint64_to_uint128((uint64_t)h4),
+                                                        (uint32_t)104U),
+                               FStar_UInt128_logor(FStar_UInt128_shift_left(FStar_UInt128_uint64_to_uint128((uint64_t)h3),
+                                                                            (uint32_t)78U),
+                                                   FStar_UInt128_logor(FStar_UInt128_shift_left(FStar_UInt128_uint64_to_uint128((uint64_t)h2),
+                                                                                                (uint32_t)52U),
+                                                                       FStar_UInt128_logor(FStar_UInt128_shift_left(FStar_UInt128_uint64_to_uint128((uint64_t)h1),
+                                                                                                                    (uint32_t)26U),
+                                                                                           FStar_UInt128_uint64_to_uint128((uint64_t)h0)))));
+    mac_ = FStar_UInt128_add_mod(acc_, k_);
     store128_le(output, mac_);
 }
 
@@ -478,34 +486,29 @@ Hacl_Poly1305_32_init(Hacl_Impl_Poly1305_32_State_poly1305_state st, uint8_t *k1
     Hacl_Impl_Poly1305_32_State_poly1305_state scrut = st;
     uint32_t *r = scrut.r;
     uint32_t *x0 = r;
-    FStar_UInt128_t k10 = load128_le(k1);
-    Hacl_Impl_Poly1305_32_State_poly1305_state scrut0 = st;
-    uint32_t *h = scrut0.h;
-    uint32_t *x00 = h;
-    FStar_UInt128_t
-        k_clamped =
+    FStar_UInt128_t k10, k_clamped;
+    Hacl_Impl_Poly1305_32_State_poly1305_state scrut0;
+    uint32_t *h, *x00;
+    uint32_t r0, r1, r2, r3, r4;
+    k10 = load128_le(k1);
+    k_clamped =
             FStar_UInt128_logand(k10,
                                  FStar_UInt128_logor(FStar_UInt128_shift_left(FStar_UInt128_uint64_to_uint128((uint64_t)0x0ffffffc0ffffffcU),
                                                                               (uint32_t)64U),
                                                      FStar_UInt128_uint64_to_uint128((uint64_t)0x0ffffffc0fffffffU)));
-    uint32_t r0 = (uint32_t)FStar_UInt128_uint128_to_uint64(k_clamped) & (uint32_t)0x3ffffffU;
-    uint32_t
-        r1 =
-            (uint32_t)FStar_UInt128_uint128_to_uint64(FStar_UInt128_shift_right(k_clamped, (uint32_t)26U)) & (uint32_t)0x3ffffffU;
-    uint32_t
-        r2 =
-            (uint32_t)FStar_UInt128_uint128_to_uint64(FStar_UInt128_shift_right(k_clamped, (uint32_t)52U)) & (uint32_t)0x3ffffffU;
-    uint32_t
-        r3 =
-            (uint32_t)FStar_UInt128_uint128_to_uint64(FStar_UInt128_shift_right(k_clamped, (uint32_t)78U)) & (uint32_t)0x3ffffffU;
-    uint32_t
-        r4 =
-            (uint32_t)FStar_UInt128_uint128_to_uint64(FStar_UInt128_shift_right(k_clamped, (uint32_t)104U)) & (uint32_t)0x3ffffffU;
+    r0 = (uint32_t)FStar_UInt128_uint128_to_uint64(k_clamped) & (uint32_t)0x3ffffffU;
+    r1 = (uint32_t)FStar_UInt128_uint128_to_uint64(FStar_UInt128_shift_right(k_clamped, (uint32_t)26U)) & (uint32_t)0x3ffffffU;
+    r2 = (uint32_t)FStar_UInt128_uint128_to_uint64(FStar_UInt128_shift_right(k_clamped, (uint32_t)52U)) & (uint32_t)0x3ffffffU;
+    r3 = (uint32_t)FStar_UInt128_uint128_to_uint64(FStar_UInt128_shift_right(k_clamped, (uint32_t)78U)) & (uint32_t)0x3ffffffU;
+    r4 = (uint32_t)FStar_UInt128_uint128_to_uint64(FStar_UInt128_shift_right(k_clamped, (uint32_t)104U)) & (uint32_t)0x3ffffffU;
     x0[0U] = r0;
     x0[1U] = r1;
     x0[2U] = r2;
     x0[3U] = r3;
     x0[4U] = r4;
+    scrut0 = st;
+    h = scrut0.h;
+    x00 = h;
     x00[0U] = (uint32_t)0U;
     x00[1U] = (uint32_t)0U;
     x00[2U] = (uint32_t)0U;
@@ -542,11 +545,13 @@ Hacl_Poly1305_32_update_last(
     uint8_t *m,
     uint32_t len1)
 {
-    Hacl_Impl_Poly1305_32_State_poly1305_state scrut = st;
-    uint32_t *h = scrut.h;
-    uint32_t *acc = h;
+    Hacl_Impl_Poly1305_32_State_poly1305_state scrut;
+    uint32_t *h, *acc;
     if (!((uint64_t)len1 == (uint64_t)0U))
         Hacl_Impl_Poly1305_32_poly1305_process_last_block(st, m, (uint64_t)len1);
+    scrut = st;
+    h = scrut.h;
+    acc = h;
     Hacl_Impl_Poly1305_32_poly1305_last_pass(acc);
 }
 

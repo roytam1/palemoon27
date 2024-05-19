@@ -46,33 +46,35 @@ Hacl_Impl_Chacha20_rotate_left(uint32_t a, uint32_t s)
 inline static void
 Hacl_Impl_Chacha20_quarter_round(uint32_t *st, uint32_t a, uint32_t b, uint32_t c, uint32_t d)
 {
-    uint32_t sa = st[a];
-    uint32_t sb0 = st[b];
-    uint32_t sd = st[d];
-    uint32_t sa10 = st[a];
-    uint32_t sda = sd ^ sa10;
-    uint32_t sa0 = st[c];
-    uint32_t sb1 = st[d];
-    uint32_t sd0 = st[b];
-    uint32_t sa11 = st[c];
-    uint32_t sda0 = sd0 ^ sa11;
-    uint32_t sa2 = st[a];
-    uint32_t sb2 = st[b];
-    uint32_t sd1 = st[d];
-    uint32_t sa12 = st[a];
-    uint32_t sda1 = sd1 ^ sa12;
-    uint32_t sa3 = st[c];
-    uint32_t sb = st[d];
-    uint32_t sd2 = st[b];
-    uint32_t sa1 = st[c];
-    uint32_t sda2 = sd2 ^ sa1;
+    uint32_t sa, sb0, sd, sa10, sda, sa0, sb1, sd0, sa11, sda0, sa2, sb2, sd1, sa12, sda1, sa3, sb, sd2, sa1, sda2;
+
+    sa = st[a];
+    sb0 = st[b];
     st[a] = sa + sb0;
+    sd = st[d];
+    sa10 = st[a];
+    sda = sd ^ sa10;
     st[d] = Hacl_Impl_Chacha20_rotate_left(sda, (uint32_t)16U);
+    sa0 = st[c];
+    sb1 = st[d];
     st[c] = sa0 + sb1;
+    sd0 = st[b];
+    sa11 = st[c];
+    sda0 = sd0 ^ sa11;
     st[b] = Hacl_Impl_Chacha20_rotate_left(sda0, (uint32_t)12U);
+    sa2 = st[a];
+    sb2 = st[b];
     st[a] = sa2 + sb2;
+    sd1 = st[d];
+    sa12 = st[a];
+    sda1 = sd1 ^ sa12;
     st[d] = Hacl_Impl_Chacha20_rotate_left(sda1, (uint32_t)8U);
+    sa3 = st[c];
+    sb = st[d];
     st[c] = sa3 + sb;
+    sd2 = st[b];
+    sa1 = st[c];
+    sda2 = sd2 ^ sa1;
     st[b] = Hacl_Impl_Chacha20_rotate_left(sda2, (uint32_t)7U);
 }
 
@@ -174,9 +176,10 @@ Hacl_Impl_Chacha20_update_last(
     uint32_t ctr)
 {
     uint8_t block[64U] = { 0U };
-    uint8_t *mask = block;
+    uint8_t *mask;
     uint32_t i;
     Hacl_Impl_Chacha20_chacha20_block(block, st, ctr);
+    mask = block;
     for (i = (uint32_t)0U; i < len; i = i + (uint32_t)1U) {
         uint8_t xi = plain[i];
         uint8_t yi = mask[i];

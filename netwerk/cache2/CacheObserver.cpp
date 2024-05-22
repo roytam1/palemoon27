@@ -11,6 +11,7 @@
 #include "nsIObserverService.h"
 #include "mozilla/Services.h"
 #include "mozilla/Preferences.h"
+#include "mozilla/TimeStamp.h"
 #include "nsServiceManagerUtils.h"
 #include "prsystem.h"
 #include <time.h>
@@ -84,6 +85,9 @@ bool CacheObserver::sSanitizeOnShutdown = kDefaultSanitizeOnShutdown;
 
 static bool kDefaultClearCacheOnShutdown = false;
 bool CacheObserver::sClearCacheOnShutdown = kDefaultClearCacheOnShutdown;
+
+static int32_t const kDefaultMaxShutdownIOLag = 2; // seconds
+int32_t CacheObserver::sMaxShutdownIOLag = kDefaultMaxShutdownIOLag;
 
 NS_IMPL_ISUPPORTS(CacheObserver,
                   nsIObserver,
@@ -231,6 +235,9 @@ CacheObserver::AttachToPreferences()
     &sSanitizeOnShutdown, "privacy.sanitize.sanitizeOnShutdown", kDefaultSanitizeOnShutdown);
   mozilla::Preferences::AddBoolVarCache(
     &sClearCacheOnShutdown, "privacy.clearOnShutdown.cache", kDefaultClearCacheOnShutdown);
+
+  mozilla::Preferences::AddIntVarCache(
+    &sMaxShutdownIOLag, "browser.cache.max_shutdown_io_lag", kDefaultMaxShutdownIOLag);
 }
 
 // static
@@ -406,6 +413,13 @@ bool CacheObserver::EntryIsTooBig(int64_t aSize, bool aUsingDisk)
     return true;
 
   return false;
+}
+
+// static
+TimeDuration const& CacheObserver::MaxShutdownIOLag()
+{
+  static TimeDuration period = TimeDuration::FromSeconds(sMaxShutdownIOLag);
+  return period;
 }
 
 NS_IMETHODIMP

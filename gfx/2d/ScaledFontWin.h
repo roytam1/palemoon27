@@ -22,6 +22,8 @@ public:
 
   bool GetFontFileData(FontFileDataOutput aDataCallback, void *aBaton) override;
 
+  virtual bool GetFontDescriptor(FontDescriptorOutput aCb, void* aBaton) override;
+
 #ifdef USE_SKIA
   virtual SkTypeface* GetSkTypeface();
 #endif

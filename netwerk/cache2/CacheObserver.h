@@ -65,6 +65,8 @@ class CacheObserver : public nsIObserver
 
   static bool EntryIsTooBig(int64_t aSize, bool aUsingDisk);
 
+  static TimeDuration const& MaxShutdownIOLag();
+
 private:
   static CacheObserver* sSelf;
 
@@ -91,6 +93,7 @@ private:
   static int32_t sHalfLifeExperiment;
   static bool sSanitizeOnShutdown;
   static bool sClearCacheOnShutdown;
+  static int32_t sMaxShutdownIOLag;
 
   // Non static properties, accessible via sSelf
   nsCOMPtr<nsIFile> mCacheParentDirectoryOverride;

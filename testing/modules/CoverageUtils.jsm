@@ -93,6 +93,69 @@ CoverageCollector.prototype._getLinesCovered = function () {
   return coveredLines;
 }
 
+CoverageCollector.prototype._getUncoveredLines = function() {
+  let uncoveredLines = {};
+  this._scripts.forEach(s => {
+    let scriptName = s.url;
+    let scriptOffsets = s.getAllOffsets();
+
+    if (!uncoveredLines[scriptName]){
+      uncoveredLines[scriptName] = new Set();
+    }
+
+    // Get all lines in the script
+    scriptOffsets.forEach( function(element, index) {
+      if (!element){
+        return;
+      }
+      uncoveredLines[scriptName].add(index);
+    });
+  });
+
+  // For all covered lines, delete their entry
+  for (let scriptName in this._allCoverage){
+    for (let key in this._allCoverage[scriptName]){
+      let [lineNumber, columnNumber, offset] = key.split('#');
+      uncoveredLines[scriptName].delete(parseInt(lineNumber, 10));
+    }
+  }
+
+  return uncoveredLines;
+}
+
+CoverageCollector.prototype._getMethodNames = function() {
+  let methodNames = {};
+  this._scripts.forEach(s => {
+    let method = s.displayName;
+    // If the method name is undefined, we return early
+    if (!method){
+      return;
+    }
+
+    let scriptName = s.url;
+    let tempMethodCov = [];
+    let scriptOffsets = s.getAllOffsets();
+
+    if (!methodNames[scriptName]){
+      methodNames[scriptName] = {};
+    }
+
+    /**
+    * Get all lines contained within the method and
+    * push a record of the form:
+    * <method name> : <lines covered>
+    */
+    scriptOffsets.forEach(function (element, index){
+      if (!element){
+        return;
+      }
+      tempMethodCov.push(index);
+    });
+    methodNames[scriptName][method] = tempMethodCov;
+  });
+
+  return methodNames;
+}
 
 /**
  * Records lines covered since the last time coverage was recorded,

@@ -135,6 +135,9 @@ private:
 
   // It's a short time fix, and will be removed after landing bug 1206637.
   DECL_GFX_PREF(Live, "accessibility.monoaudio.enable",        MonoAudio, bool, false);
+  DECL_GFX_PREF(Live, "media.resampling.enabled",              AudioSinkResampling, bool, false);
+  DECL_GFX_PREF(Live, "media.resampling.rate",                 AudioSinkResampleRate, uint32_t, 48000);
+  DECL_GFX_PREF(Live, "media.forcestereo.enabled",             AudioSinkForceStereo, bool, true);
 
   // The apz prefs are explained in AsyncPanZoomController.cpp
   DECL_GFX_PREF(Live, "apz.allow_checkerboarding",             APZAllowCheckerboarding, bool, true);
@@ -265,7 +268,10 @@ private:
   DECL_GFX_PREF(Live, "gfx.layerscope.port",                   LayerScopePort, int32_t, 23456);
   // Note that        "gfx.logging.level" is defined in Logging.h
   DECL_GFX_PREF(Once, "gfx.logging.crash.length",              GfxLoggingCrashLength, uint32_t, 16);
+  DECL_GFX_PREF(Live, "gfx.logging.painted-pixel-count.enabled",GfxLoggingPaintedPixelCountEnabled, bool, false);
   // The maximums here are quite conservative, we can tighten them if problems show up.
+  DECL_GFX_PREF(Once, "gfx.logging.texture-usage.enabled",     GfxLoggingTextureUsageEnabled, bool, false);
+  DECL_GFX_PREF(Once, "gfx.logging.peak-texture-usage.enabled",GfxLoggingPeakTextureUsageEnabled, bool, false);
   DECL_GFX_PREF(Once, "gfx.max-alloc-size",                    MaxAllocSize, int32_t, (int32_t)500000000);
   DECL_GFX_PREF(Once, "gfx.max-texture-size",                  MaxTextureSize, int32_t, (int32_t)32767);
   DECL_GFX_PREF(Live, "gfx.partialpresent.force",              PartialPresent, int32_t, 0);
@@ -275,6 +281,10 @@ private:
   DECL_GFX_PREF(Live, "gfx.testing.device-fail",               DeviceFailForTesting, bool, false);
 
   DECL_GFX_PREF(Live, "gfx.content.use-native-pushlayer",      UseNativePushLayer, bool, false);
+
+  // Disable surface sharing due to issues with compatible FBConfigs on
+  // NVIDIA drivers as described in bug 1193015.
+  DECL_GFX_PREF(Live, "gfx.use-glx-texture-from-pixmap",       UseGLXTextureFromPixmap, bool, false);
 
   // These times should be in milliseconds
   DECL_GFX_PREF(Once, "gfx.touch.resample.delay-threshold",    TouchResampleVsyncDelayThreshold, int32_t, 20);
@@ -430,7 +440,7 @@ private:
   DECL_GFX_PREF(Live, "webgl.all-angle-options",               WebGLAllANGLEOptions, bool, false);
   DECL_GFX_PREF(Live, "webgl.angle.force-d3d11",               WebGLANGLEForceD3D11, bool, false);
   DECL_GFX_PREF(Live, "webgl.angle.try-d3d11",                 WebGLANGLETryD3D11, bool, false);
-  DECL_GFX_PREF(Once, "webgl.angle.force-warp",                WebGLANGLEForceWARP, bool, false);
+  DECL_GFX_PREF(Live, "webgl.angle.force-warp",                WebGLANGLEForceWARP, bool, false);
   DECL_GFX_PREF(Live, "webgl.bypass-shader-validation",        WebGLBypassShaderValidator, bool, true);
   DECL_GFX_PREF(Live, "webgl.can-lose-context-in-foreground",  WebGLCanLoseContextInForeground, bool, true);
   DECL_GFX_PREF(Live, "webgl.default-no-alpha",                WebGLDefaultNoAlpha, bool, false);

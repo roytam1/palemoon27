@@ -5,6 +5,7 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "GMPDecoderModule.h"
+#include "DecoderDoctorDiagnostics.h"
 #include "GMPAudioDecoder.h"
 #include "GMPVideoDecoder.h"
 #include "MediaDataDecoderProxy.h"
@@ -31,18 +32,15 @@ GMPDecoderModule::~GMPDecoderModule()
 static already_AddRefed<MediaDataDecoderProxy>
 CreateDecoderWrapper(MediaDataDecoderCallback* aCallback)
 {
-  nsCOMPtr<mozIGeckoMediaPluginService> gmpService = do_GetService("@mozilla.org/gecko-media-plugin-service;1");
-  if (!gmpService) {
+  RefPtr<gmp::GeckoMediaPluginService> s(gmp::GeckoMediaPluginService::GetGeckoMediaPluginService());
+  if (!s) {
     return nullptr;
   }
-
-  nsCOMPtr<nsIThread> thread;
-  nsresult rv = gmpService->GetThread(getter_AddRefs(thread));
-  if (NS_FAILED(rv)) {
+  RefPtr<AbstractThread> thread(s->GetAbstractGMPThread());
+  if (!thread) {
     return nullptr;
   }
-
-  RefPtr<MediaDataDecoderProxy> decoder(new MediaDataDecoderProxy(thread, aCallback));
+  RefPtr<MediaDataDecoderProxy> decoder(new MediaDataDecoderProxy(thread.forget(), aCallback));
   return decoder.forget();
 }
 
@@ -56,6 +54,13 @@ GMPDecoderModule::CreateVideoDecoder(const VideoInfo& aConfig,
 {
   if (!aConfig.mMimeType.EqualsLiteral("video/avc")) {
     return nullptr;
+  }
+
+  if (aDiagnostics) {
+    const Maybe<nsCString> preferredGMP = PreferredGMP(aConfig.mMimeType);
+    if (preferredGMP.isSome()) {
+      aDiagnostics->SetGMP(preferredGMP.value());
+    }
   }
 
   RefPtr<MediaDataDecoderProxy> wrapper = CreateDecoderWrapper(aCallback);
@@ -75,6 +80,13 @@ GMPDecoderModule::CreateAudioDecoder(const AudioInfo& aConfig,
 {
   if (!aConfig.mMimeType.EqualsLiteral("audio/mp4a-latm")) {
     return nullptr;
+  }
+
+  if (aDiagnostics) {
+    const Maybe<nsCString> preferredGMP = PreferredGMP(aConfig.mMimeType);
+    if (preferredGMP.isSome()) {
+      aDiagnostics->SetGMP(preferredGMP.value());
+    }
   }
 
   RefPtr<MediaDataDecoderProxy> wrapper = CreateDecoderWrapper(aCallback);
@@ -235,7 +247,12 @@ bool
 GMPDecoderModule::SupportsMimeType(const nsACString& aMimeType,
                                    DecoderDoctorDiagnostics* aDiagnostics) const
 {
-  return SupportsMimeType(aMimeType, PreferredGMP(aMimeType));
+  const Maybe<nsCString> preferredGMP = PreferredGMP(aMimeType);
+  bool rv = SupportsMimeType(aMimeType, preferredGMP);
+  if (rv && aDiagnostics && preferredGMP.isSome()) {
+    aDiagnostics->SetGMP(preferredGMP.value());
+  }
+  return rv;
 }
 
 } // namespace mozilla

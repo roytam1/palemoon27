@@ -202,6 +202,9 @@ public:
   virtual bool IsRunningTimeout() = 0;
 
   // Audio API
+  bool GetMediaSuspended() const;
+  void SetMediaSuspended(bool aSuspended);
+
   bool GetAudioMuted() const;
   void SetAudioMuted(bool aMuted);
 
@@ -211,17 +214,8 @@ public:
   bool GetAudioCaptured() const;
   nsresult SetAudioCapture(bool aCapture);
 
-  virtual void SetServiceWorkersTestingEnabled(bool aEnabled)
-  {
-    MOZ_ASSERT(IsOuterWindow());
-    mServiceWorkersTestingEnabled = aEnabled;
-  }
-
-  bool GetServiceWorkersTestingEnabled()
-  {
-    MOZ_ASSERT(IsOuterWindow());
-    return mServiceWorkersTestingEnabled;
-  }
+  void SetServiceWorkersTestingEnabled(bool aEnabled);
+  bool GetServiceWorkersTestingEnabled();
 
   already_AddRefed<mozilla::dom::ServiceWorkerRegistrationMainThread>
     GetServiceWorkerRegistration(const nsAString& aScope);
@@ -850,6 +844,7 @@ protected:
   // "active".  Only used on outer windows.
   bool                   mIsBackground;
 
+  bool                   mMediaSuspended;
   bool                   mAudioMuted;
   float                  mAudioVolume;
 

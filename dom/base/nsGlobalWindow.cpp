@@ -618,7 +618,7 @@ nsPIDOMWindow::nsPIDOMWindow(nsPIDOMWindow *aOuterWindow)
   mMayHavePointerEnterLeaveEventListener(false),
   mInnerObjectsFreed(false),
   mIsModalContentWindow(false),
-  mIsActive(false), mIsBackground(false),
+  mIsActive(false), mIsBackground(false), mMediaSuspended(false),
   mAudioMuted(false), mAudioVolume(1.0), mAudioCaptured(false),
   mDesktopModeViewport(false), mInnerWindow(nullptr),
   mOuterWindow(aOuterWindow),
@@ -3718,6 +3718,32 @@ nsPIDOMWindow::CreatePerformanceObjectIfNeeded()
 }
 
 bool
+nsPIDOMWindow::GetMediaSuspended() const
+{
+  if (IsInnerWindow()) {
+    return mOuterWindow->GetMediaSuspended();
+  }
+
+  return mMediaSuspended;
+}
+
+void
+nsPIDOMWindow::SetMediaSuspended(bool aSuspended)
+{
+  if (IsInnerWindow()) {
+    mOuterWindow->SetMediaSuspended(aSuspended);
+    return;
+  }
+
+  if (mMediaSuspended == aSuspended) {
+    return;
+  }
+
+  mMediaSuspended = aSuspended;
+  RefreshMediaElements();
+}
+
+bool
 nsPIDOMWindow::GetAudioMuted() const
 {
   if (IsInnerWindow()) {
@@ -3780,6 +3806,28 @@ nsPIDOMWindow::RefreshMediaElements()
   if (service) {
     service->RefreshAgentsVolume(GetOuterWindow());
   }
+}
+
+void
+nsPIDOMWindow::SetServiceWorkersTestingEnabled(bool aEnabled)
+{
+  // Devtools should only be setting this on the top level window.  Its
+  // ok if devtools clears the flag on clean up of nested windows, though.
+  // It will have no affect.
+#ifdef DEBUG
+  nsCOMPtr<nsPIDOMWindow> topWindow = GetScriptableTop();
+  MOZ_ASSERT_IF(aEnabled, this == topWindow);
+#endif
+  mServiceWorkersTestingEnabled = aEnabled;
+}
+
+bool
+nsPIDOMWindow::GetServiceWorkersTestingEnabled()
+{
+  // Automatically get this setting from the top level window so that nested
+  // iframes get the correct devtools setting.
+  nsCOMPtr<nsPIDOMWindow> topWindow = GetScriptableTop();
+  return topWindow->mServiceWorkersTestingEnabled;
 }
 
 bool
@@ -6674,10 +6722,7 @@ nsGlobalWindow::CanMoveResizeWindows(bool aCallerIsChrome)
     }
   }
 
-  // The preference is useful for the webapp runtime. Webapps should be able
-  // to resize or move their window.
-  if (mDocShell && !Preferences::GetBool("dom.always_allow_move_resize_window",
-                                         false)) {
+  if (mDocShell) {
     bool allow;
     nsresult rv = mDocShell->GetAllowWindowControl(&allow);
     if (NS_SUCCEEDED(rv) && !allow)
@@ -10404,12 +10449,15 @@ nsGlobalWindow::DispatchAsyncHashchange(nsIURI *aOldURI, nsIURI *aNewURI)
 
   // Make sure that aOldURI and aNewURI are identical up to the '#', and that
   // their hashes are different.
-  nsAutoCString oldBeforeHash, oldHash, newBeforeHash, newHash;
-  nsContentUtils::SplitURIAtHash(aOldURI, oldBeforeHash, oldHash);
-  nsContentUtils::SplitURIAtHash(aNewURI, newBeforeHash, newHash);
-
-  NS_ENSURE_STATE(oldBeforeHash.Equals(newBeforeHash));
-  NS_ENSURE_STATE(!oldHash.Equals(newHash));
+  bool equal = false;
+  NS_ENSURE_STATE(NS_SUCCEEDED(aOldURI->EqualsExceptRef(aNewURI, &equal)) && equal);
+  nsAutoCString oldHash, newHash;
+  bool oldHasHash, newHasHash;
+  NS_ENSURE_STATE(NS_SUCCEEDED(aOldURI->GetRef(oldHash)) &&
+                  NS_SUCCEEDED(aNewURI->GetRef(newHash)) &&
+                  NS_SUCCEEDED(aOldURI->GetHasRef(&oldHasHash)) &&
+                  NS_SUCCEEDED(aNewURI->GetHasRef(&newHasHash)) &&
+                  (oldHasHash != newHasHash || !oldHash.Equals(newHash)));
 
   nsAutoCString oldSpec, newSpec;
   aOldURI->GetSpec(oldSpec);

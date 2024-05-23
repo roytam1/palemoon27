@@ -1498,16 +1498,21 @@ Search.prototype = {
     let typed = Prefs.autofillTyped || this.hasBehavior("typed");
     let bookmarked = this.hasBehavior("bookmark") && !this.hasBehavior("history");
 
-    return [
-      bookmarked ? typed ? SQL_BOOKMARKED_TYPED_HOST_QUERY
-                         : SQL_BOOKMARKED_HOST_QUERY
-                 : typed ? SQL_TYPED_HOST_QUERY
-                         : SQL_HOST_QUERY,
-      {
-        query_type: QUERYTYPE_AUTOFILL_HOST,
-        searchString: this._searchString.toLowerCase()
-      }
-    ];
+    let query = [];
+    if (bookmarked) {
+      query.push(typed ? SQL_BOOKMARKED_TYPED_HOST_QUERY
+                       : SQL_BOOKMARKED_HOST_QUERY);
+    } else {
+      query.push(typed ? SQL_TYPED_HOST_QUERY
+                       : SQL_HOST_QUERY);
+    }
+
+    query.push({
+      query_type: QUERYTYPE_AUTOFILL_HOST,
+      searchString: this._searchString.toLowerCase()
+    });
+
+    return query;
   },
 
   /**

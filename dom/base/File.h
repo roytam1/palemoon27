@@ -224,7 +224,7 @@ public:
               const ChromeFilePropertyBag& aBag,
               ErrorResult& aRv);
 
-  void GetName(nsAString& aName);
+  void GetName(nsAString& aName) const;
 
   int64_t GetLastModified(ErrorResult& aRv);
 
@@ -256,7 +256,7 @@ public:
 
   BlobImpl() {}
 
-  virtual void GetName(nsAString& aName) = 0;
+  virtual void GetName(nsAString& aName) const = 0;
 
   virtual void GetPath(nsAString& aName, ErrorResult& aRv) = 0;
 
@@ -392,7 +392,7 @@ public:
     mContentType.SetIsVoid(false);
   }
 
-  virtual void GetName(nsAString& aName) override;
+  virtual void GetName(nsAString& aName) const override;
 
   virtual void GetPath(nsAString& aName, ErrorResult& aRv) override;
 
@@ -759,7 +759,17 @@ public:
 
   explicit EmptyBlobImpl(const nsAString& aContentType)
     : BlobImplBase(aContentType, 0 /* aLength */)
-  {}
+  {
+    mImmutable = true;
+  }
+
+  EmptyBlobImpl(const nsAString& aName,
+                const nsAString& aContentType,
+                int64_t aLastModifiedDate)
+    : BlobImplBase(aName, aContentType, 0, aLastModifiedDate)
+  {
+    mImmutable = true;
+  }
 
   virtual void GetInternalStream(nsIInputStream** aStream,
                                  ErrorResult& aRv) override;

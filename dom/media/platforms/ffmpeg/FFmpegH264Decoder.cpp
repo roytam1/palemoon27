@@ -385,6 +385,14 @@ FFmpegH264Decoder<LIBAV_VER>::ProcessDrain()
   mCallback->DrainComplete();
 }
 
+void
+FFmpegH264Decoder<LIBAV_VER>::ProcessFlush()
+{
+  mPtsContext.Reset();
+  mDurationMap.Clear();
+  FFmpegDataDecoder::ProcessFlush();
+}
+
 FFmpegH264Decoder<LIBAV_VER>::~FFmpegH264Decoder()
 {
   MOZ_COUNT_DTOR(FFmpegH264Decoder);

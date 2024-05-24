@@ -456,7 +456,7 @@ File::WrapObject(JSContext* aCx, JS::Handle<JSObject*> aGivenProto)
 }
 
 void
-File::GetName(nsAString& aFileName)
+File::GetName(nsAString& aFileName) const
 {
   mImpl->GetName(aFileName);
 }
@@ -675,7 +675,7 @@ NS_IMPL_ISUPPORTS(BlobImpl, BlobImpl)
 NS_IMPL_ISUPPORTS_INHERITED0(BlobImplFile, BlobImpl)
 
 void
-BlobImplBase::GetName(nsAString& aName)
+BlobImplBase::GetName(nsAString& aName) const
 {
   NS_ASSERTION(mIsFile, "Should only be called on files");
   aName = mName;
@@ -951,6 +951,11 @@ EmptyBlobImpl::CreateSlice(uint64_t aStart, uint64_t aLength,
 {
   MOZ_ASSERT(!aStart && !aLength);
   RefPtr<BlobImpl> impl = new EmptyBlobImpl(aContentType);
+
+  DebugOnly<bool> isMutable;
+  MOZ_ASSERT(NS_SUCCEEDED(impl->GetMutable(&isMutable)));
+  MOZ_ASSERT(!isMutable);
+
   return impl.forget();
 }
 
@@ -958,6 +963,11 @@ void
 EmptyBlobImpl::GetInternalStream(nsIInputStream** aStream,
                                  ErrorResult& aRv)
 {
+  if (NS_WARN_IF(!aStream)) {
+    aRv.Throw(NS_ERROR_FAILURE);
+    return;
+  }
+
   nsresult rv = NS_NewCStringInputStream(aStream, EmptyCString());
   if (NS_WARN_IF(NS_FAILED(rv))) {
     aRv.Throw(rv);

@@ -20,6 +20,7 @@
 #include "mozilla/dom/EventTarget.h"
 
 struct JSCompartment;
+class nsIDocument;
 
 namespace mozilla {
 
@@ -126,7 +127,7 @@ public:
     return nsPIDOMWindow::GetOuterFromCurrentInner(GetOwner());
   }
 
-  nsresult CheckInnerWindowCorrectness()
+  nsresult CheckInnerWindowCorrectness() const
   {
     NS_ENSURE_STATE(!mHasOrHasHadOwnerWindow || mOwnerWindow);
     if (mOwnerWindow && !mOwnerWindow->IsCurrentInnerWindow()) {
@@ -136,6 +137,12 @@ public:
   }
 
   nsPIDOMWindow* GetOwner() const { return mOwnerWindow; }
+  // Like GetOwner, but only returns non-null if the window being returned is
+  // current (in the "current document" sense of the HTML spec).
+  nsPIDOMWindow* GetWindowIfCurrent() const;
+  // Returns the document associated with this event target, if that document is
+  // the current document of its browsing context.  Will return null otherwise.
+  nsIDocument* GetDocumentIfCurrent() const;
   void BindToOwner(nsIGlobalObject* aOwner);
   void BindToOwner(nsPIDOMWindow* aOwner);
   void BindToOwner(DOMEventTargetHelper* aOther);

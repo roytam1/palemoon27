@@ -349,7 +349,7 @@ LayerManagerComposite::PostProcessLayers(Layer* aLayer,
   if (integerTranslation &&
       !aLayer->HasMaskLayers() &&
       aLayer->IsOpaqueForVisibility()) {
-    if (aLayer->GetContentFlags() & Layer::CONTENT_OPAQUE) {
+    if (aLayer->IsOpaque()) {
       localOpaque.OrWith(composite->GetFullyRenderedRegion());
     }
     localOpaque.MoveBy(*integerTranslation);
@@ -1053,7 +1053,7 @@ LayerManagerComposite::RenderToPresentationSurface()
     AndroidBridge::Bridge()->SetPresentationSurface(surface);
   }
 
-  CompositorOGL* compositor = static_cast<CompositorOGL*>(mCompositor.get());
+  CompositorOGL* compositor = mCompositor->AsCompositorOGL();
   GLContext* gl = compositor->gl();
   GLContextEGL* egl = GLContextEGL::Cast(gl);
 
@@ -1064,7 +1064,7 @@ LayerManagerComposite::RenderToPresentationSurface()
   const IntSize windowSize = AndroidBridge::Bridge()->GetNativeWindowSize(window);
 
 #elif defined(MOZ_WIDGET_GONK)
-  CompositorOGL* compositor = static_cast<CompositorOGL*>(mCompositor.get());
+  CompositorOGL* compositor = mCompositor->AsCompositorOGL();
   nsScreenGonk* screen = static_cast<nsWindow*>(mCompositor->GetWidget())->GetScreen();
   if (!screen->IsPrimaryScreen()) {
     // Only primary screen support mirroring

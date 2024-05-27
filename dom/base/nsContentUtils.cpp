@@ -5855,23 +5855,6 @@ nsContentUtils::GetUTFOrigin(nsIURI* aURI, nsAString& aOrigin)
 }
 
 /* static */
-nsIDocument*
-nsContentUtils::GetDocumentFromScriptContext(nsIScriptContext *aScriptContext)
-{
-  if (!aScriptContext) {
-    return nullptr;
-  }
-
-  nsCOMPtr<nsPIDOMWindow> window =
-    do_QueryInterface(aScriptContext->GetGlobalObject());
-  if (!window) {
-    return nullptr;
-  }
-
-  return window->GetDoc();
-}
-
-/* static */
 bool
 nsContentUtils::CheckMayLoad(nsIPrincipal* aPrincipal, nsIChannel* aChannel, bool aAllowIfInheritsPrincipal)
 {

@@ -175,7 +175,7 @@ BasicCompositor::CreateRenderTargetForWindow(const LayoutDeviceIntRect& aRect, S
   IntRect rect = aRect.ToUnknownRect();
 
   if (aBufferMode != BufferMode::BUFFER_NONE) {
-    RefPtr<DrawTarget> target = mWidget->CreateBackBufferDrawTarget(mDrawTarget, aRect);
+    RefPtr<DrawTarget> target = mWidget->CreateBackBufferDrawTarget(mDrawTarget, aRect, aInit == INIT_MODE_CLEAR);
     if (!target) {
       return nullptr;
     }
@@ -615,6 +615,14 @@ BasicCompositor::EndFrameForExternalComposition(const gfx::Matrix& aTransform)
   mDidExternalComposition = true;
 }
 
+BasicCompositor*
+AssertBasicCompositor(Compositor* aCompositor)
+{
+  BasicCompositor* compositor = aCompositor ? aCompositor->AsBasicCompositor()
+                                            : nullptr;
+  MOZ_DIAGNOSTIC_ASSERT(!!compositor);
+  return compositor;
+}
 
 } // namespace layers
 } // namespace mozilla

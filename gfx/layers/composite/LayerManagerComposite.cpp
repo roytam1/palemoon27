@@ -349,7 +349,7 @@ LayerManagerComposite::PostProcessLayers(Layer* aLayer,
   if (integerTranslation &&
       !aLayer->HasMaskLayers() &&
       aLayer->IsOpaqueForVisibility()) {
-    if (aLayer->GetContentFlags() & Layer::CONTENT_OPAQUE) {
+    if (aLayer->IsOpaque()) {
       localOpaque.OrWith(composite->GetFullyRenderedRegion());
     }
     localOpaque.MoveBy(*integerTranslation);
@@ -412,6 +412,10 @@ LayerManagerComposite::UpdateAndRender()
   nsIntRegion invalid;
   bool didEffectiveTransforms = false;
 
+  nsIntRegion opaque;
+  LayerIntRegion visible;
+  PostProcessLayers(mRoot, opaque, visible, Nothing());
+
   if (mClonedLayerTreeProperties) {
     // Effective transforms are needed by ComputeDifferences().
     mRoot->ComputeEffectiveTransforms(gfx::Matrix4x4());
@@ -465,11 +469,7 @@ LayerManagerComposite::UpdateAndRender()
     mRoot->ComputeEffectiveTransforms(gfx::Matrix4x4());
   }
 
-  nsIntRegion opaque;
-  LayerIntRegion visible;
-  PostProcessLayers(mRoot, opaque, visible, Nothing());
-
-  Render(invalid);
+  Render(invalid, opaque);
 #if defined(MOZ_WIDGET_ANDROID) || defined(MOZ_WIDGET_GONK)
   RenderToPresentationSurface();
 #endif
@@ -801,7 +801,7 @@ ClearLayerFlags(Layer* aLayer) {
 }
 
 void
-LayerManagerComposite::Render(const nsIntRegion& aInvalidRegion)
+LayerManagerComposite::Render(const nsIntRegion& aInvalidRegion, const nsIntRegion& aOpaqueRegion)
 {
   PROFILER_LABEL("LayerManagerComposite", "Render",
     js::ProfileEntry::Category::GRAPHICS);
@@ -887,14 +887,13 @@ LayerManagerComposite::Render(const nsIntRegion& aInvalidRegion)
   CompositorBench(mCompositor, bounds);
 
   MOZ_ASSERT(mRoot->GetOpacity() == 1);
-  bool opaqueContent = (mRoot->GetContentFlags() & Layer::CONTENT_OPAQUE) != 0;
   if (mRoot->GetClipRect()) {
     clipRect = *mRoot->GetClipRect();
     Rect rect(clipRect.x, clipRect.y, clipRect.width, clipRect.height);
-    mCompositor->BeginFrame(aInvalidRegion, &rect, bounds, opaqueContent, nullptr, &actualBounds);
+    mCompositor->BeginFrame(aInvalidRegion, &rect, bounds, aOpaqueRegion, nullptr, &actualBounds);
   } else {
     gfx::Rect rect;
-    mCompositor->BeginFrame(aInvalidRegion, nullptr, bounds, opaqueContent, &rect, &actualBounds);
+    mCompositor->BeginFrame(aInvalidRegion, nullptr, bounds, aOpaqueRegion, &rect, &actualBounds);
     clipRect = ParentLayerIntRect(rect.x, rect.y, rect.width, rect.height);
   }
 
@@ -1053,7 +1052,7 @@ LayerManagerComposite::RenderToPresentationSurface()
     AndroidBridge::Bridge()->SetPresentationSurface(surface);
   }
 
-  CompositorOGL* compositor = static_cast<CompositorOGL*>(mCompositor.get());
+  CompositorOGL* compositor = mCompositor->AsCompositorOGL();
   GLContext* gl = compositor->gl();
   GLContextEGL* egl = GLContextEGL::Cast(gl);
 
@@ -1064,7 +1063,7 @@ LayerManagerComposite::RenderToPresentationSurface()
   const IntSize windowSize = AndroidBridge::Bridge()->GetNativeWindowSize(window);
 
 #elif defined(MOZ_WIDGET_GONK)
-  CompositorOGL* compositor = static_cast<CompositorOGL*>(mCompositor.get());
+  CompositorOGL* compositor = mCompositor->AsCompositorOGL();
   nsScreenGonk* screen = static_cast<nsWindow*>(mCompositor->GetWidget())->GetScreen();
   if (!screen->IsPrimaryScreen()) {
     // Only primary screen support mirroring
@@ -1148,9 +1147,7 @@ LayerManagerComposite::RenderToPresentationSurface()
   Rect bounds(0.0f, 0.0f, scale * pageWidth, (float)actualHeight);
   Rect rect, actualBounds;
   MOZ_ASSERT(mRoot->GetOpacity() == 1);
-  bool opaqueContent = (mRoot->GetContentFlags() & Layer::CONTENT_OPAQUE) != 0;
-
-  mCompositor->BeginFrame(invalid, nullptr, bounds, opaqueContent, &rect, &actualBounds);
+  mCompositor->BeginFrame(invalid, nullptr, bounds, nsIntRegion(), &rect, &actualBounds);
 
   // The Java side of Fennec sets a scissor rect that accounts for
   // chrome such as the URL bar. Override that so that the entire frame buffer

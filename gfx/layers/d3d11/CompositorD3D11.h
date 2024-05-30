@@ -45,6 +45,8 @@ public:
   CompositorD3D11(CompositorBridgeParent* aParent, nsIWidget* aWidget);
   ~CompositorD3D11();
 
+  virtual CompositorD3D11* AsCompositorD3D11() override { return this; }
+
   virtual bool Initialize() override;
   virtual void Destroy() override {}
   virtual void DetachWidget() override { mWidget = nullptr; }
@@ -112,7 +114,7 @@ public:
   virtual void BeginFrame(const nsIntRegion& aInvalidRegion,
                           const gfx::Rect *aClipRectIn,
                           const gfx::Rect& aRenderBounds,
-                          bool aOpaque,
+                          const nsIntRegion& aOpaqueRegion,
                           gfx::Rect *aClipRectOut = nullptr,
                           gfx::Rect *aRenderBoundsOut = nullptr) override;
 

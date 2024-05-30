@@ -33,6 +33,10 @@ class Accessible;
 }
 #endif
 
+namespace gfx {
+class DrawTarget;
+} // namespace gfx
+
 namespace layers {
 class BasicLayerManager;
 class CompositorBridgeChild;
@@ -91,6 +95,7 @@ class nsBaseWidget : public nsIWidget, public nsSupportsWeakReference
 
 protected:
   typedef base::Thread Thread;
+  typedef mozilla::gfx::DrawTarget DrawTarget;
   typedef mozilla::layers::BasicLayerManager BasicLayerManager;
   typedef mozilla::layers::BufferMode BufferMode;
   typedef mozilla::layers::CompositorBridgeChild CompositorBridgeChild;
@@ -167,9 +172,10 @@ public:
   virtual void            DrawWindowOverlay(LayerManagerComposite* aManager, LayoutDeviceIntRect aRect) override {}
   virtual already_AddRefed<mozilla::gfx::DrawTarget> StartRemoteDrawing() override;
   virtual void            EndRemoteDrawing() override { };
-  virtual void            CleanupRemoteDrawing() override { };
+  virtual void            CleanupRemoteDrawing() override;
   virtual already_AddRefed<mozilla::gfx::DrawTarget> CreateBackBufferDrawTarget(mozilla::gfx::DrawTarget* aScreenTarget,
-                                                                                const LayoutDeviceIntRect& aRect) override;
+                                                                                const LayoutDeviceIntRect& aRect,
+                                                                                const LayoutDeviceIntRect& aClearRect) override;
   virtual void            UpdateThemeGeometries(const nsTArray<ThemeGeometry>& aThemeGeometries) override {}
   NS_IMETHOD              SetModal(bool aModal) override;
   virtual uint32_t        GetMaxTouchPoints() const override;
@@ -255,6 +261,7 @@ public:
                           const uint32_t& aFlags) override;
   // Dispatch an event that must be first be routed through APZ.
   nsEventStatus DispatchInputEvent(mozilla::WidgetInputEvent* aEvent) override;
+  void DispatchEventToAPZOnly(mozilla::WidgetInputEvent* aEvent) override;
 
   void SetConfirmedTargetAPZC(uint64_t aInputBlockId,
                               const nsTArray<ScrollableLayerGuid>& aTargets) const override;
@@ -309,10 +316,6 @@ public:
 
   virtual const SizeConstraints GetSizeConstraints() override;
   virtual void SetSizeConstraints(const SizeConstraints& aConstraints) override;
-
-  virtual bool CaptureWidgetOnScreen(RefPtr<mozilla::gfx::DrawTarget> aDT) override {
-    return false;
-  }
 
   virtual void StartAsyncScrollbarDrag(const AsyncDragMetrics& aDragMetrics) override;
 
@@ -514,7 +517,10 @@ protected:
   RefPtr<CompositorBridgeParent> mCompositorBridgeParent;
   RefPtr<mozilla::CompositorVsyncDispatcher> mCompositorVsyncDispatcher;
   RefPtr<APZCTreeManager> mAPZC;
+  RefPtr<GeckoContentController> mRootContentController;
   RefPtr<APZEventState> mAPZEventState;
+  // Back buffer of BasicCompositor
+  RefPtr<DrawTarget> mLastBackBuffer;
   SetAllowedTouchBehaviorCallback mSetAllowedTouchBehaviorCallback;
   RefPtr<WidgetShutdownObserver> mShutdownObserver;
   RefPtr<TextEventDispatcher> mTextEventDispatcher;

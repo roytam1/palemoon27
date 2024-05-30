@@ -24,6 +24,8 @@ public:
   CompositorD3D9(CompositorBridgeParent* aParent, nsIWidget *aWidget);
   ~CompositorD3D9();
 
+  virtual CompositorD3D9* AsCompositorD3D9() override { return this; }
+
   virtual bool Initialize() override;
   virtual void Destroy() override {}
   virtual void DetachWidget() override { mWidget = nullptr; }
@@ -65,7 +67,7 @@ public:
   virtual void BeginFrame(const nsIntRegion& aInvalidRegion,
                           const gfx::Rect *aClipRectIn,
                           const gfx::Rect& aRenderBounds,
-                          bool aOpaque,
+                          const nsIntRegion& aOpaqueRegion,
                           gfx::Rect *aClipRectOut = nullptr,
                           gfx::Rect *aRenderBoundsOut = nullptr) override;
 

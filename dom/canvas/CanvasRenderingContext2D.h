@@ -408,7 +408,6 @@ public:
   void DrawWindow(nsGlobalWindow& aWindow, double aX, double aY, double aW, double aH,
                   const nsAString& aBgColor, uint32_t aFlags,
                   mozilla::ErrorResult& aError);
-  void DrawWidgetAsOnScreen(nsGlobalWindow& aWindow, mozilla::ErrorResult& aError);
   void AsyncDrawXULElement(nsXULElement& aElem, double aX, double aY, double aW,
                            double aH, const nsAString& aBgColor, uint32_t aFlags,
                            mozilla::ErrorResult& aError);

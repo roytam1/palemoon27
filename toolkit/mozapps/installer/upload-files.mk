@@ -62,23 +62,31 @@ JSSHELL_BINS  = \
   js$(BIN_SUFFIX) \
   $(DLL_PREFIX)mozglue$(DLL_SUFFIX) \
   $(NULL)
+
 ifndef MOZ_SYSTEM_NSPR
+  ifdef MOZ_FOLD_LIBS
+    JSSHELL_BINS += $(DLL_PREFIX)nss3$(DLL_SUFFIX)
+  else
+    JSSHELL_BINS += \
+      $(DLL_PREFIX)nspr4$(DLL_SUFFIX) \
+      $(DLL_PREFIX)plds4$(DLL_SUFFIX) \
+      $(DLL_PREFIX)plc4$(DLL_SUFFIX) \
+      $(NULL)
+  endif # MOZ_FOLD_LIBS
+endif # MOZ_SYSTEM_NSPR
+
 ifdef MSVC_C_RUNTIME_DLL
-JSSHELL_BINS += $(MSVC_C_RUNTIME_DLL)
+  JSSHELL_BINS += $(MSVC_C_RUNTIME_DLL)
 endif
 ifdef MSVC_CXX_RUNTIME_DLL
-JSSHELL_BINS += $(MSVC_CXX_RUNTIME_DLL)
+  JSSHELL_BINS += $(MSVC_CXX_RUNTIME_DLL)
 endif
-ifdef MOZ_FOLD_LIBS
-JSSHELL_BINS += $(DLL_PREFIX)nss3$(DLL_SUFFIX)
-else
-JSSHELL_BINS += \
-  $(DLL_PREFIX)nspr4$(DLL_SUFFIX) \
-  $(DLL_PREFIX)plds4$(DLL_SUFFIX) \
-  $(DLL_PREFIX)plc4$(DLL_SUFFIX) \
-  $(NULL)
-endif # MOZ_FOLD_LIBS
-endif # MOZ_SYSTEM_NSPR
+
+ifdef WIN_UCRT_REDIST_DIR
+  JSSHELL_BINS += $(notdir $(wildcard $(DIST)/bin/api-ms-win-*.dll))
+  JSSHELL_BINS += ucrtbase.dll
+endif
+
 ifdef MOZ_SHARED_ICU
 ifeq ($(OS_TARGET), WINNT)
 JSSHELL_BINS += \
@@ -612,23 +620,23 @@ NO_PKG_FILES += \
 # If a manifest has not been supplied, the following
 # files should be excluded from the package too
 ifndef MOZ_PKG_MANIFEST
-NO_PKG_FILES += ssltunnel*
+  NO_PKG_FILES += ssltunnel*
 endif
 
 ifdef MOZ_DMD
-NO_PKG_FILES += SmokeDMD
+  NO_PKG_FILES += SmokeDMD
 endif
 
 DEFINES += -DDLL_PREFIX=$(DLL_PREFIX) -DDLL_SUFFIX=$(DLL_SUFFIX) -DBIN_SUFFIX=$(BIN_SUFFIX)
 
 ifeq (cocoa,$(MOZ_WIDGET_TOOLKIT))
-DEFINES += -DDIR_MACOS=Contents/MacOS/ -DDIR_RESOURCES=Contents/Resources/
+  DEFINES += -DDIR_MACOS=Contents/MacOS/ -DDIR_RESOURCES=Contents/Resources/
 else
-DEFINES += -DDIR_MACOS= -DDIR_RESOURCES=
+  DEFINES += -DDIR_MACOS= -DDIR_RESOURCES=
 endif
 
 ifdef MOZ_FOLD_LIBS
-DEFINES += -DMOZ_FOLD_LIBS=1
+  DEFINES += -DMOZ_FOLD_LIBS=1
 endif
 
 GARBAGE		+= $(DIST)/$(PACKAGE) $(PACKAGE)
@@ -644,32 +652,22 @@ PKG_ARG = , '$(pkg)'
 # from the now deprecated MOZ_PKG_MANIFEST_P when MOZ_PKG_MANIFEST is not
 # defined.
 ifndef MOZ_PKG_MANIFEST
-ifdef MOZ_PKG_MANIFEST_P
-MOZ_PKG_MANIFEST := $(MOZ_PKG_MANIFEST_P)
-endif # MOZ_PKG_MANIFEST_P
+  ifdef MOZ_PKG_MANIFEST_P
+    MOZ_PKG_MANIFEST := $(MOZ_PKG_MANIFEST_P)
+  endif # MOZ_PKG_MANIFEST_P
 endif # MOZ_PKG_MANIFEST
 
-# For smooth transition of comm-central
 ifndef MOZ_PACKAGER_FORMAT
-ifeq ($(MOZ_CHROME_FILE_FORMAT),flat)
-ifdef MOZ_OMNIJAR
-MOZ_PACKAGER_FORMAT := omni
-else
-MOZ_PACKAGER_FORMAT := flat
-endif
-endif
-endif
-ifndef MOZ_PACKAGER_FORMAT
-MOZ_PACKAGER_FORMAT = $(error MOZ_PACKAGER_FORMAT is not set)
+  MOZ_PACKAGER_FORMAT = $(error MOZ_PACKAGER_FORMAT is not set)
 endif
 
 ifneq (android,$(MOZ_WIDGET_TOOLKIT))
-OPTIMIZEJARS = 1
-ifneq (gonk,$(MOZ_WIDGET_TOOLKIT))
-ifdef NIGHTLY_BUILD
-DISABLE_JAR_COMPRESSION = 1
-endif
-endif
+  OPTIMIZEJARS = 1
+  ifneq (gonk,$(MOZ_WIDGET_TOOLKIT))
+    ifdef NIGHTLY_BUILD
+      DISABLE_JAR_COMPRESSION = 1
+    endif
+  endif
 endif
 
 # A js binary is needed to perform verification of JavaScript minification.
@@ -677,13 +675,13 @@ endif
 # (such as release automation) can provide their own js binary to enable
 # verification when cross-compiling.
 ifndef JS_BINARY
-ifndef CROSS_COMPILE
-JS_BINARY = $(wildcard $(DIST)/bin/js)
-endif
+  ifndef CROSS_COMPILE
+    JS_BINARY = $(wildcard $(DIST)/bin/js)
+  endif
 endif
 
 ifeq ($(OS_TARGET), WINNT)
-INSTALLER_PACKAGE = $(DIST)/$(PKG_INST_PATH)$(PKG_INST_BASENAME).exe
+  INSTALLER_PACKAGE = $(DIST)/$(PKG_INST_PATH)$(PKG_INST_BASENAME).exe
 endif
 
 # These are necessary because some of our packages/installers contain spaces
@@ -705,13 +703,13 @@ CHECKSUM_FILES = $(CHECKSUM_FILE)
 
 # Upload MAR tools only if AB_CD is unset or en_US
 ifeq (,$(AB_CD:en-US=))
-ifeq (WINNT,$(OS_TARGET))
-UPLOAD_EXTRA_FILES += host/bin/mar.exe
-UPLOAD_EXTRA_FILES += host/bin/mbsdiff.exe
-else
-UPLOAD_EXTRA_FILES += host/bin/mar
-UPLOAD_EXTRA_FILES += host/bin/mbsdiff
-endif
+  ifeq (WINNT,$(OS_TARGET))
+    UPLOAD_EXTRA_FILES += host/bin/mar.exe
+    UPLOAD_EXTRA_FILES += host/bin/mbsdiff.exe
+  else
+    UPLOAD_EXTRA_FILES += host/bin/mar
+    UPLOAD_EXTRA_FILES += host/bin/mbsdiff
+  endif
 endif
 
 UPLOAD_FILES= \
@@ -741,41 +739,41 @@ UPLOAD_FILES= \
   $(if $(UPLOAD_EXTRA_FILES), $(foreach f, $(UPLOAD_EXTRA_FILES), $(wildcard $(DIST)/$(f))))
 
 ifdef MOZ_CRASHREPORTER_UPLOAD_FULL_SYMBOLS
-UPLOAD_FILES += \
-  $(call QUOTED_WILDCARD,$(DIST)/$(PKG_PATH)$(SYMBOL_FULL_ARCHIVE_BASENAME).zip)
+  UPLOAD_FILES += \
+    $(call QUOTED_WILDCARD,$(DIST)/$(PKG_PATH)$(SYMBOL_FULL_ARCHIVE_BASENAME).zip)
 endif
 
 ifdef MOZ_CODE_COVERAGE
-UPLOAD_FILES += \
-  $(call QUOTED_WILDCARD,$(DIST)/$(PKG_PATH)$(CODE_COVERAGE_ARCHIVE_BASENAME).zip)
+  UPLOAD_FILES += \
+    $(call QUOTED_WILDCARD,$(DIST)/$(PKG_PATH)$(CODE_COVERAGE_ARCHIVE_BASENAME).zip)
 endif
 
 ifdef UNIFY_DIST
-UNIFY_ARCH := $(notdir $(patsubst %/,%,$(dir $(UNIFY_DIST))))
-UPLOAD_FILES += \
-  $(call QUOTED_WILDCARD,$(UNIFY_DIST)/$(SDK_PATH)$(PKG_BASENAME)-$(UNIFY_ARCH).sdk$(SDK_SUFFIX)) \
-  $(call QUOTED_WILDCARD,$(UNIFY_DIST)/$(SDK_PATH)$(PKG_BASENAME)-$(UNIFY_ARCH).sdk$(SDK_SUFFIX).asc)
+  UNIFY_ARCH := $(notdir $(patsubst %/,%,$(dir $(UNIFY_DIST))))
+  UPLOAD_FILES += \
+    $(call QUOTED_WILDCARD,$(UNIFY_DIST)/$(SDK_PATH)$(PKG_BASENAME)-$(UNIFY_ARCH).sdk$(SDK_SUFFIX)) \
+    $(call QUOTED_WILDCARD,$(UNIFY_DIST)/$(SDK_PATH)$(PKG_BASENAME)-$(UNIFY_ARCH).sdk$(SDK_SUFFIX).asc)
 endif
 
 SIGN_CHECKSUM_CMD=
 ifdef MOZ_SIGN_CMD
-# If we're signing with gpg, we'll have a bunch of extra detached signatures to
-# upload. We also want to sign our checksums file
-SIGN_CHECKSUM_CMD=$(MOZ_SIGN_CMD) -f gpg $(CHECKSUM_FILE)
+  # If we're signing with gpg, we'll have a bunch of extra detached signatures to
+  # upload. We also want to sign our checksums file
+  SIGN_CHECKSUM_CMD=$(MOZ_SIGN_CMD) -f gpg $(CHECKSUM_FILE)
 
-CHECKSUM_FILES += $(CHECKSUM_FILE).asc
-UPLOAD_FILES += $(call QUOTED_WILDCARD,$(DIST)/$(COMPLETE_MAR).asc)
-UPLOAD_FILES += $(call QUOTED_WILDCARD,$(wildcard $(DIST)/$(PARTIAL_MAR).asc))
-UPLOAD_FILES += $(call QUOTED_WILDCARD,$(INSTALLER_PACKAGE).asc)
-UPLOAD_FILES += $(call QUOTED_WILDCARD,$(DIST)/$(PACKAGE).asc)
+  CHECKSUM_FILES += $(CHECKSUM_FILE).asc
+  UPLOAD_FILES += $(call QUOTED_WILDCARD,$(DIST)/$(COMPLETE_MAR).asc)
+  UPLOAD_FILES += $(call QUOTED_WILDCARD,$(wildcard $(DIST)/$(PARTIAL_MAR).asc))
+  UPLOAD_FILES += $(call QUOTED_WILDCARD,$(INSTALLER_PACKAGE).asc)
+  UPLOAD_FILES += $(call QUOTED_WILDCARD,$(DIST)/$(PACKAGE).asc)
 endif
 
 ifdef MOZ_STUB_INSTALLER
-UPLOAD_FILES += $(call QUOTED_WILDCARD,$(DIST)/$(PKG_INST_PATH)$(PKG_STUB_BASENAME).exe)
+  UPLOAD_FILES += $(call QUOTED_WILDCARD,$(DIST)/$(PKG_INST_PATH)$(PKG_STUB_BASENAME).exe)
 endif
 
 ifndef MOZ_PKG_SRCDIR
-MOZ_PKG_SRCDIR = $(topsrcdir)
+  MOZ_PKG_SRCDIR = $(topsrcdir)
 endif
 
 SRC_TAR_PREFIX = $(MOZ_APP_NAME)-$(MOZ_PKG_VERSION)
@@ -788,7 +786,7 @@ SRC_TAR_EXCLUDE_PATHS += \
   --exclude='$(MOZILLA_DIR)/Makefile' \
   --exclude='$(MOZILLA_DIR)/dist'
 ifdef MOZ_OBJDIR
-SRC_TAR_EXCLUDE_PATHS += --exclude='$(MOZ_OBJDIR)'
+  SRC_TAR_EXCLUDE_PATHS += --exclude='$(MOZ_OBJDIR)'
 endif
 CREATE_SOURCE_TAR = $(TAR) -c --owner=0 --group=0 --numeric-owner \
   --mode=go-w $(SRC_TAR_EXCLUDE_PATHS) --transform='s,^\./,$(SRC_TAR_PREFIX)/,' -f
@@ -801,9 +799,9 @@ SOURCE_UPLOAD_FILES = $(SOURCE_TAR)
 HG ?= hg
 CREATE_HG_BUNDLE_CMD  = $(HG) -v -R $(topsrcdir) bundle --base null
 ifdef HG_BUNDLE_REVISION
-CREATE_HG_BUNDLE_CMD += -r $(HG_BUNDLE_REVISION)
+  CREATE_HG_BUNDLE_CMD += -r $(HG_BUNDLE_REVISION)
 endif
 CREATE_HG_BUNDLE_CMD += $(HG_BUNDLE_FILE)
 ifdef UPLOAD_HG_BUNDLE
-SOURCE_UPLOAD_FILES  += $(HG_BUNDLE_FILE)
+  SOURCE_UPLOAD_FILES  += $(HG_BUNDLE_FILE)
 endif

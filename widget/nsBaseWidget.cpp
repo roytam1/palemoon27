@@ -590,15 +590,15 @@ double nsIWidget::DefaultScaleOverride()
 //-------------------------------------------------------------------------
 void nsBaseWidget::AddChild(nsIWidget* aChild)
 {
-  NS_PRECONDITION(!aChild->GetNextSibling() && !aChild->GetPrevSibling(),
-                  "aChild not properly removed from its old child list");
+  MOZ_RELEASE_ASSERT(!aChild->GetNextSibling() && !aChild->GetPrevSibling(),
+                     "aChild not properly removed from its old child list");
 
   if (!mFirstChild) {
     mFirstChild = mLastChild = aChild;
   } else {
     // append to the list
-    NS_ASSERTION(mLastChild, "Bogus state");
-    NS_ASSERTION(!mLastChild->GetNextSibling(), "Bogus state");
+    MOZ_RELEASE_ASSERT(mLastChild);
+    MOZ_RELEASE_ASSERT(!mLastChild->GetNextSibling());
     mLastChild->SetNextSibling(aChild);
     aChild->SetPrevSibling(mLastChild);
     mLastChild = aChild;
@@ -620,7 +620,7 @@ void nsBaseWidget::RemoveChild(nsIWidget* aChild)
   nsIWidget* parent = aChild->GetParent();
   NS_ASSERTION(!parent || parent == this, "Not one of our kids!");
 #else
-  NS_ASSERTION(aChild->GetParent() == this, "Not one of our kids!");
+  MOZ_RELEASE_ASSERT(aChild->GetParent() == this, "Not one of our kids!");
 #endif
 #endif
 
@@ -980,10 +980,10 @@ void nsBaseWidget::ConfigureAPZCTreeManager()
         aInputBlockId, aFlags));
   };
 
-  RefPtr<GeckoContentController> controller = CreateRootContentController();
-  if (controller) {
+  mRootContentController = CreateRootContentController();
+  if (mRootContentController) {
     uint64_t rootLayerTreeId = mCompositorBridgeParent->RootLayerTreeId();
-    CompositorBridgeParent::SetControllerForLayerTree(rootLayerTreeId, controller);
+    CompositorBridgeParent::SetControllerForLayerTree(rootLayerTreeId, mRootContentController);
   }
 
   // When APZ is enabled, we can actually enable raw touch events because we
@@ -1199,6 +1199,18 @@ nsBaseWidget::DispatchInputEvent(WidgetInputEvent* aEvent)
   return status;
 }
 
+void
+nsBaseWidget::DispatchEventToAPZOnly(mozilla::WidgetInputEvent* aEvent)
+{
+  MOZ_ASSERT(NS_IsMainThread());
+  if (mAPZC) {
+    MOZ_ASSERT(APZThreadUtils::IsControllerThread());
+    uint64_t inputBlockId = 0;
+    ScrollableLayerGuid guid;
+    mAPZC->ReceiveInputEvent(*aEvent, &guid, &inputBlockId);
+  }
+}
+
 nsIDocument*
 nsBaseWidget::GetDocument() const
 {
@@ -1288,6 +1300,11 @@ void nsBaseWidget::CreateCompositor(int aWidth, int aHeight)
 
   if (!success || !lf) {
     NS_WARNING("Failed to create an OMT compositor.");
+    mAPZC = nullptr;
+    if (mRootContentController) {
+      mRootContentController->Destroy();
+      mRootContentController = nullptr;
+    }
     DestroyCompositor();
     mLayerManager = nullptr;
     mCompositorBridgeChild = nullptr;
@@ -1368,7 +1385,7 @@ nsBaseWidget::CleanupRemoteDrawing()
 already_AddRefed<mozilla::gfx::DrawTarget>
 nsBaseWidget::CreateBackBufferDrawTarget(mozilla::gfx::DrawTarget* aScreenTarget,
                                          const LayoutDeviceIntRect& aRect,
-                                         const bool aInitModeClear)
+                                         const LayoutDeviceIntRect& aClearRect)
 {
   MOZ_ASSERT(aScreenTarget);
   gfx::SurfaceFormat format = gfx::SurfaceFormat::B8G8R8A8;
@@ -1384,8 +1401,9 @@ nsBaseWidget::CreateBackBufferDrawTarget(mozilla::gfx::DrawTarget* aScreenTarget
       mLastBackBuffer->GetSize() <= clientSize) {
     target = mLastBackBuffer;
     target->SetTransform(gfx::Matrix());
-    if (aInitModeClear) {
-      target->ClearRect(gfx::Rect(0, 0, size.width, size.height));
+    if (!aClearRect.IsEmpty()) {
+      gfx::IntRect clearRect = aClearRect.ToUnknownRect() - aRect.ToUnknownRect().TopLeft();
+      target->ClearRect(gfx::Rect(clearRect.x, clearRect.y, clearRect.width, clearRect.height));
     }
   } else {
     target = aScreenTarget->CreateSimilarDrawTarget(size, format);
@@ -1405,6 +1423,14 @@ void nsBaseWidget::OnDestroy()
     mTextEventDispatcher->OnDestroyWidget();
     // Don't release it until this widget actually released because after this
     // is called, TextEventDispatcher() may create it again.
+  }
+
+  // If this widget is being destroyed, let the APZ code know to drop references
+  // to this widget. Callers of this function all should be holding a deathgrip
+  // on this widget already.
+  if (mRootContentController) {
+    mRootContentController->Destroy();
+    mRootContentController = nullptr;
   }
 }
 
@@ -2107,60 +2133,6 @@ nsIWidget::UpdateRegisteredPluginWindowVisibility(uintptr_t aOwnerWidget,
     }
   }
 #endif
-}
-
-already_AddRefed<mozilla::gfx::SourceSurface>
-nsIWidget::SnapshotWidgetOnScreen()
-{
-  // This is only supported on a widget with a compositor.
-  LayerManager* layerManager = GetLayerManager();
-  if (!layerManager) {
-    return nullptr;
-  }
-
-  ClientLayerManager* lm = layerManager->AsClientLayerManager();
-  if (!lm) {
-    return nullptr;
-  }
-
-  CompositorBridgeChild* cc = lm->GetRemoteRenderer();
-  if (!cc) {
-    return nullptr;
-  }
-
-  LayoutDeviceIntRect bounds;
-  GetBounds(bounds);
-  if (bounds.IsEmpty()) {
-    return nullptr;
-  }
-
-  gfx::IntSize size(bounds.width, bounds.height);
-
-  ShadowLayerForwarder* forwarder = lm->AsShadowForwarder();
-  SurfaceDescriptor surface;
-  if (!forwarder->AllocSurfaceDescriptor(size, gfxContentType::COLOR_ALPHA, &surface)) {
-    return nullptr;
-  }
-
-  if (!cc->SendMakeWidgetSnapshot(surface)) {
-    return nullptr;
-  }
-
-  RefPtr<gfx::DataSourceSurface> snapshot = GetSurfaceForDescriptor(surface);
-  RefPtr<gfx::DrawTarget> dt =
-    gfxPlatform::GetPlatform()->CreateOffscreenContentDrawTarget(size, gfx::SurfaceFormat::B8G8R8A8);
-  if (!snapshot || !dt) {
-    forwarder->DestroySurfaceDescriptor(&surface);
-    return nullptr;
-  }
-
-  dt->DrawSurface(snapshot,
-                  gfx::Rect(gfx::Point(), gfx::Size(size)),
-                  gfx::Rect(gfx::Point(), gfx::Size(size)),
-                  gfx::DrawSurfaceOptions(gfx::Filter::POINT));
-
-  forwarder->DestroySurfaceDescriptor(&surface);
-  return dt->Snapshot();
 }
 
 NS_IMETHODIMP_(nsIWidget::NativeIMEContext)

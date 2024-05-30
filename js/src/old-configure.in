@@ -226,26 +226,19 @@ case "$target" in
         _MSVC_VER_FILTER='s|.*[^!-~]([0-9]+\.[0-9]+\.[0-9]+(\.[0-9]+)?).*|\1|p'
         changequote([,])
 
-        # Determine compiler version
-        _CC_MAJOR_VERSION=`echo ${CC_VERSION} | cut -c 1-2`
-        _CC_MINOR_VERSION=`echo ${CC_VERSION} | cut -c 3-4`
-        _MSC_VER=${CC_VERSION}
-
-        _CXX_MAJOR_VERSION=`echo ${CXX_VERSION} | cut -c 1-2`
-
-        if test "$_CC_MAJOR_VERSION" != "$_CXX_MAJOR_VERSION"; then
-            AC_MSG_ERROR([The major versions of \$CC and \$CXX do not match.])
-        fi
+        _MSC_VER=`echo ${CC_VERSION} | cut -c 1-2,4-5`
 
         AC_DEFINE(_CRT_SECURE_NO_WARNINGS)
         AC_DEFINE(_CRT_NONSTDC_NO_WARNINGS)
         AC_DEFINE(_USE_MATH_DEFINES) # Otherwise MSVC's math.h doesn't #define M_PI.
 
-        if test "$_CC_MAJOR_VERSION" = "18"; then
+        case "$CC_VERSION" in
+        18*)
             _CC_SUITE=12
             MSVC_C_RUNTIME_DLL=msvcr120.dll
             MSVC_CXX_RUNTIME_DLL=msvcp120.dll
-        elif test "$_CC_MAJOR_VERSION" = "19"; then
+            ;;
+        19*)
             _CC_SUITE=14
             MSVC_C_RUNTIME_DLL=vcruntime140.dll
             MSVC_CXX_RUNTIME_DLL=msvcp140.dll
@@ -262,7 +255,8 @@ case "$target" in
             # Disable C++11 thread-safe statics due to crashes on XP (bug 1204752)
             # See https://connect.microsoft.com/VisualStudio/feedback/details/1789709/visual-c-2015-runtime-broken-on-windows-server-2003-c-11-magic-statics
             CXXFLAGS="$CXXFLAGS -Zc:threadSafeInit-"
-        fi
+            ;;
+        esac
         AC_SUBST(MSVC_C_RUNTIME_DLL)
         AC_SUBST(MSVC_CXX_RUNTIME_DLL)
 
@@ -411,32 +405,6 @@ dnl ========================================================
 dnl The universal machinery sets UNIVERSAL_BINARY to inform packager.mk
 dnl that a universal binary is being produced.
 AC_SUBST(UNIVERSAL_BINARY)
-
-dnl ========================================================
-dnl Check for MacOS deployment target version
-dnl ========================================================
-
-MOZ_ARG_ENABLE_STRING(macos-target,
-                      [  --enable-macos-target=VER (default=10.6)
-                          Set the minimum MacOS version needed at runtime],
-                      [_MACOSX_DEPLOYMENT_TARGET=$enableval])
-
-if test "$target_cpu" != "arm"; then
-case "$target" in
-*-darwin*)
-    if test -n "$_MACOSX_DEPLOYMENT_TARGET" ; then
-        dnl Use the specified value
-        export MACOSX_DEPLOYMENT_TARGET=$_MACOSX_DEPLOYMENT_TARGET
-    else
-        dnl No value specified on the command line or in the environment,
-        dnl use architecture minimum.
-        export MACOSX_DEPLOYMENT_TARGET=10.6
-    fi
-    ;;
-esac
-fi
-
-AC_SUBST(MACOSX_DEPLOYMENT_TARGET)
 
 dnl ========================================================
 dnl = Mac OS X SDK support
@@ -919,9 +887,9 @@ case "$target" in
 *-android*|*-linuxandroid*)
     AC_DEFINE(NO_PW_GECOS)
     MOZ_GFX_OPTIMIZE_MOBILE=1
-    MOZ_OPTIMIZE_FLAGS="-O3 -fno-reorder-functions"
+    MOZ_OPTIMIZE_FLAGS="-O3"
     if test -z "$CLANG_CC"; then
-       MOZ_OPTIMIZE_FLAGS="-freorder-blocks $MOZ_OPTIMIZE_FLAGS"
+       MOZ_OPTIMIZE_FLAGS="-freorder-blocks -fno-reorder-functions $MOZ_OPTIMIZE_FLAGS"
     fi
     # The Maemo builders don't know about this flag
     MOZ_ARM_VFP_FLAGS="-mfpu=vfp"
@@ -1126,9 +1094,7 @@ case "$target" in
         LDFLAGS="$LDFLAGS -DYNAMICBASE"
         RCFLAGS="-nologo"
     fi
-    AC_DEFINE(HAVE_SNPRINTF)
     AC_DEFINE(HAVE__MSIZE)
-    AC_DEFINE(HW_THREADS)
     AC_DEFINE(STDC_HEADERS)
     AC_DEFINE(WIN32_LEAN_AND_MEAN)
     BIN_SUFFIX='.exe'
@@ -1857,25 +1823,6 @@ dnl ========================================================
 MOZ_ARG_HEADER(Application)
 
 ENABLE_TESTS=
-
-USE_ARM_KUSER=
-
-case "${target}" in
-    arm*-android*|arm*-linuxandroid*)
-        USE_ARM_KUSER=1
-        ;;
-esac
-
-dnl ========================================================
-dnl Use ARM userspace kernel helpers; tell NSPR to enable
-dnl their usage and use them in spidermonkey.
-dnl ========================================================
-MOZ_ARG_WITH_BOOL(arm-kuser,
-[  --with-arm-kuser         Use kuser helpers (Linux/ARM only -- requires kernel 2.6.13 or later)],
-    USE_ARM_KUSER=1,)
-if test -n "$USE_ARM_KUSER"; then
-   AC_DEFINE(USE_ARM_KUSER)
-fi
 
 dnl ========================================================
 dnl =

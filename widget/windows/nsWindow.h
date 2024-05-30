@@ -299,8 +299,6 @@ public:
   bool IsPopup();
   virtual bool ShouldUseOffMainThreadCompositing() override;
 
-  bool CaptureWidgetOnScreen(RefPtr<mozilla::gfx::DrawTarget> aDT) override;
-
   const IMEContext& DefaultIMC() const { return mDefaultIMC; }
 
   virtual void SetCandidateWindowForPlugin(

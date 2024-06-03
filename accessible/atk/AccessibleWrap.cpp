@@ -286,7 +286,7 @@ AccessibleWrap::GetNativeInterface(void** aOutAccessible)
   *aOutAccessible = nullptr;
 
   if (!mAtkObject) {
-    if (IsDefunct() || !nsAccUtils::IsEmbeddedObject(this)) {
+    if (IsDefunct() || IsText()) {
       // We don't create ATK objects for node which has been shutdown or
       // plain text leaves
       return;
@@ -1583,6 +1583,14 @@ MaiAtkObject::FireTextChangeEvent(const nsString& aStr, int32_t aStart,
     g_signal_emit_by_name(this, signal_name, aStart, aLen,
                           NS_ConvertUTF16toUTF8(aStr).get());
   }
+}
+
+void
+a11y::ProxyShowHideEvent(ProxyAccessible* aTarget, ProxyAccessible* aParent,
+                         bool aInsert, bool aFromUser)
+{
+  MaiAtkObject* obj = MAI_ATK_OBJECT(GetWrapperFor(aTarget));
+  obj->FireAtkShowHideEvent(GetWrapperFor(aParent), aInsert, aFromUser);
 }
 
 #define ADD_EVENT "children_changed::add"

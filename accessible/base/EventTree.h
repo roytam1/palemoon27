@@ -56,9 +56,10 @@ private:
 class EventTree final {
 public:
   EventTree() :
-    mFirst(nullptr), mNext(nullptr), mContainer(nullptr), mFireReorder(true) { }
-  explicit EventTree(Accessible* aContainer) :
-    mFirst(nullptr), mNext(nullptr), mContainer(aContainer), mFireReorder(true) { }
+    mFirst(nullptr), mNext(nullptr), mContainer(nullptr), mFireReorder(false) { }
+  explicit EventTree(Accessible* aContainer, bool aFireReorder) :
+    mFirst(nullptr), mNext(nullptr), mContainer(aContainer),
+    mFireReorder(aFireReorder) { }
   ~EventTree() { Clear(); }
 
   void Shown(Accessible* aChild)
@@ -94,7 +95,7 @@ private:
   EventTree* FindOrInsert(Accessible* aContainer);
 
   void Mutated(AccMutationEvent* aEv);
-  void Clear() { mFirst = nullptr; mNext = nullptr; mContainer = nullptr; }
+  void Clear();
 
   nsAutoPtr<EventTree> mFirst;
   nsAutoPtr<EventTree> mNext;

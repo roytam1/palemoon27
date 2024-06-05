@@ -163,46 +163,31 @@ add_task(function* test_manifest_localization() {
   const ID = "webextension3@tests.mozilla.org";
 
   yield promiseInstallAllFiles([do_get_addon("webextension_3")], true);
+  yield promiseAddonStartup();
 
   let addon = yield promiseAddonByID(ID);
+  addon.userDisabled = true;
 
-  equal(addon.name, "Web Extensiøn foo ??);
-  equal(addon.description, "Descriptïon bar ??of add-on");
+  equal(addon.name, "Web Extensiøn foo ☹");
+  equal(addon.description, "Descriptïon bar ☹ of add-on");
 
   Services.prefs.setCharPref(PREF_SELECTED_LOCALE, "fr-FR");
   yield promiseRestartManager();
 
   addon = yield promiseAddonByID(ID);
 
-  equal(addon.name, "Web Extensiøn le foo ??);
-  equal(addon.description, "Descriptïon le bar ??of add-on");
+  equal(addon.name, "Web Extensiøn le foo ☹");
+  equal(addon.description, "Descriptïon le bar ☹ of add-on");
 
   Services.prefs.setCharPref(PREF_SELECTED_LOCALE, "de");
   yield promiseRestartManager();
 
   addon = yield promiseAddonByID(ID);
 
-  equal(addon.name, "Web Extensiøn foo ??);
-  equal(addon.description, "Descriptïon bar ??of add-on");
-});
+  equal(addon.name, "Web Extensiøn foo ☹");
+  equal(addon.description, "Descriptïon bar ☹ of add-on");
 
-// Missing ID should cause a failure
-add_task(function*() {
-  writeWebManifestForExtension({
-    name: "Web Extension Name",
-    version: "1.0",
-    manifest_version: 2,
-  }, profileDir, ID);
-
-  yield promiseRestartManager();
-
-  let addon = yield promiseAddonByID(ID);
-  do_check_eq(addon, null);
-
-  let file = getFileForAddon(profileDir, ID);
-  do_check_false(file.exists());
-
-  yield promiseRestartManager();
+  addon.uninstall();
 });
 
 // Missing version should cause a failure

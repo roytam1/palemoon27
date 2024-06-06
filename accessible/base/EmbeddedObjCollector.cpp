@@ -8,29 +8,15 @@
 
 using namespace mozilla::a11y;
 
-////////////////////////////////////////////////////////////////////////////////
-// nsAccCollector
-////////////////////////////////////////////////////////////////////////////////
-
-AccCollector::
-  AccCollector(Accessible* aRoot, filters::FilterFuncPtr aFilterFunc) :
-  mFilterFunc(aFilterFunc), mRoot(aRoot), mRootChildIdx(0)
-{
-}
-
-AccCollector::~AccCollector()
-{
-}
-
 uint32_t
-AccCollector::Count()
+EmbeddedObjCollector::Count()
 {
   EnsureNGetIndex(nullptr);
   return mObjects.Length();
 }
 
 Accessible*
-AccCollector::GetAccessibleAt(uint32_t aIndex)
+EmbeddedObjCollector::GetAccessibleAt(uint32_t aIndex)
 {
   Accessible* accessible = mObjects.SafeElementAt(aIndex, nullptr);
   if (accessible)
@@ -39,26 +25,13 @@ AccCollector::GetAccessibleAt(uint32_t aIndex)
   return EnsureNGetObject(aIndex);
 }
 
-int32_t
-AccCollector::GetIndexAt(Accessible* aAccessible)
-{
-  int32_t index = mObjects.IndexOf(aAccessible);
-  if (index != -1)
-    return index;
-
-  return EnsureNGetIndex(aAccessible);
-}
-
-////////////////////////////////////////////////////////////////////////////////
-// nsAccCollector protected
-
 Accessible*
-AccCollector::EnsureNGetObject(uint32_t aIndex)
+EmbeddedObjCollector::EnsureNGetObject(uint32_t aIndex)
 {
   uint32_t childCount = mRoot->ChildCount();
   while (mRootChildIdx < childCount) {
     Accessible* child = mRoot->GetChildAt(mRootChildIdx++);
-    if (!(mFilterFunc(child) & filters::eMatch))
+    if (child->IsText())
       continue;
 
     AppendObject(child);
@@ -70,12 +43,12 @@ AccCollector::EnsureNGetObject(uint32_t aIndex)
 }
 
 int32_t
-AccCollector::EnsureNGetIndex(Accessible* aAccessible)
+EmbeddedObjCollector::EnsureNGetIndex(Accessible* aAccessible)
 {
   uint32_t childCount = mRoot->ChildCount();
   while (mRootChildIdx < childCount) {
     Accessible* child = mRoot->GetChildAt(mRootChildIdx++);
-    if (!(mFilterFunc(child) & filters::eMatch))
+    if (child->IsText())
       continue;
 
     AppendObject(child);
@@ -85,16 +58,6 @@ AccCollector::EnsureNGetIndex(Accessible* aAccessible)
 
   return -1;
 }
-
-void
-AccCollector::AppendObject(Accessible* aAccessible)
-{
-  mObjects.AppendElement(aAccessible);
-}
-
-////////////////////////////////////////////////////////////////////////////////
-// EmbeddedObjCollector
-////////////////////////////////////////////////////////////////////////////////
 
 int32_t
 EmbeddedObjCollector::GetIndexAt(Accessible* aAccessible)
@@ -106,8 +69,7 @@ EmbeddedObjCollector::GetIndexAt(Accessible* aAccessible)
   if (aAccessible->mInt.mIndexOfEmbeddedChild != -1)
     return aAccessible->mInt.mIndexOfEmbeddedChild;
 
-  return mFilterFunc(aAccessible) & filters::eMatch ?
-    EnsureNGetIndex(aAccessible) : -1;
+  return !aAccessible->IsText() ?  EnsureNGetIndex(aAccessible) : -1;
 }
 
 void

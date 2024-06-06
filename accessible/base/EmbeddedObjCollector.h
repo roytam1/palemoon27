@@ -5,8 +5,6 @@
 #ifndef mozilla_a11y_EmbeddedObjCollector_h__
 #define mozilla_a11y_EmbeddedObjCollector_h__
 
-#include "Filters.h"
-
 #include "nsTArray.h"
 
 namespace mozilla {
@@ -15,14 +13,18 @@ namespace a11y {
 class Accessible;
 
 /**
- * Collect accessible children complying with filter function. Provides quick
- * access to accessible by index.
+ * Collect embedded objects. Provide quick access to accessible by index and
+ * vice versa.
  */
-class AccCollector
+class EmbeddedObjCollector final
 {
 public:
-  AccCollector(Accessible* aRoot, filters::FilterFuncPtr aFilterFunc);
-  virtual ~AccCollector();
+  ~EmbeddedObjCollector() { }
+
+  /**
+   * Return index of the given accessible within the collection.
+   */
+  int32_t GetIndexAt(Accessible* aAccessible);
 
   /**
    * Return accessible count within the collection.
@@ -33,11 +35,6 @@ public:
    * Return an accessible from the collection at the given index.
    */
   Accessible* GetAccessibleAt(uint32_t aIndex);
-
-  /**
-   * Return index of the given accessible within the collection.
-   */
-  virtual int32_t GetIndexAt(Accessible* aAccessible);
 
 protected:
   /**
@@ -50,43 +47,20 @@ protected:
    */
   int32_t EnsureNGetIndex(Accessible* aAccessible);
 
+  // Make sure it's used by Accessible class only.
+  explicit EmbeddedObjCollector(Accessible* aRoot) :
+    mRoot(aRoot), mRootChildIdx(0) {}
+
   /**
    * Append the object to collection.
    */
-  virtual void AppendObject(Accessible* aAccessible);
-
-  filters::FilterFuncPtr mFilterFunc;
-  Accessible* mRoot;
-  uint32_t mRootChildIdx;
-
-  nsTArray<Accessible*> mObjects;
-
-private:
-  AccCollector();
-  AccCollector(const AccCollector&);
-  AccCollector& operator =(const AccCollector&);
-};
-
-/**
- * Collect embedded objects. Provide quick access to accessible by index and
- * vice versa.
- */
-class EmbeddedObjCollector final : public AccCollector
-{
-public:
-  virtual ~EmbeddedObjCollector() { }
-
-public:
-  virtual int32_t GetIndexAt(Accessible* aAccessible) override;
-
-protected:
-  // Make sure it's used by Accessible class only.
-  explicit EmbeddedObjCollector(Accessible* aRoot) :
-    AccCollector(aRoot, filters::GetEmbeddedObject) { }
-
-  virtual void AppendObject(Accessible* aAccessible) override;
+  void AppendObject(Accessible* aAccessible);
 
   friend class Accessible;
+
+  Accessible* mRoot;
+  uint32_t mRootChildIdx;
+  nsTArray<Accessible*> mObjects;
 };
 
 } // namespace a11y

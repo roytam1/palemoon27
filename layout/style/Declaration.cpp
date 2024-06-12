@@ -1150,8 +1150,16 @@ Declaration::GetValue(nsCSSProperty aProperty, nsAString& aValue,
         // Not serializable, bail.
         return;
       }
-
-      // The <'grid-template'> part:
+      // Fall through to eCSSProperty_grid_template
+      MOZ_FALLTHROUGH;
+    }
+    case eCSSProperty_grid_template: {
+      const nsCSSValue& areasValue =
+        *data->ValueFor(eCSSProperty_grid_template_areas);
+      const nsCSSValue& columnsValue =
+        *data->ValueFor(eCSSProperty_grid_template_columns);
+      const nsCSSValue& rowsValue =
+        *data->ValueFor(eCSSProperty_grid_template_rows);
       if (areasValue.GetUnit() == eCSSUnit_None) {
         AppendValueToString(eCSSProperty_grid_template_rows,
                             aValue, aSerialization);
@@ -1643,13 +1651,6 @@ Declaration::SizeOfIncludingThis(mozilla::MallocSizeOf aMallocSizeOf) const
     n += mImportantVariables->SizeOfIncludingThis(aMallocSizeOf);
   }
   return n;
-}
-
-bool
-Declaration::HasVariableDeclaration(const nsAString& aName) const
-{
-  return (mVariables && mVariables->Has(aName)) ||
-         (mImportantVariables && mImportantVariables->Has(aName));
 }
 
 void

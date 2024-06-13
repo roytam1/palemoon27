@@ -5303,7 +5303,7 @@ nsRuleNode::ComputeDisplayData(void* aStartStruct,
                          display, parentDisplay, aRuleData,
                          conditions);
 
-  display->mTransitions.SetLength(numTransitions);
+  display->mTransitions.SetLengthNonZero(numTransitions);
 
   FOR_ALL_TRANSITION_PROPS(p) {
     const TransitionPropInfo& i = transitionPropInfo[p];
@@ -5460,7 +5460,7 @@ nsRuleNode::ComputeDisplayData(void* aStartStruct,
                          display, parentDisplay, aRuleData,
                          conditions);
 
-  display->mAnimations.SetLength(numAnimations);
+  display->mAnimations.SetLengthNonZero(numAnimations);
 
   FOR_ALL_ANIMATION_PROPS(p) {
     const TransitionPropInfo& i = animationPropInfo[p];
@@ -6779,8 +6779,8 @@ template <class ComputedValueItem>
 static void
 SetImageLayerList(nsStyleContext* aStyleContext,
                   const nsCSSValue& aValue,
-                  AutoTArray< nsStyleImageLayers::Layer, 1> &aLayers,
-                  const AutoTArray<nsStyleImageLayers::Layer, 1> &aParentLayers,
+                  nsStyleAutoArray<nsStyleImageLayers::Layer>& aLayers,
+                  const nsStyleAutoArray<nsStyleImageLayers::Layer>& aParentLayers,
                   ComputedValueItem nsStyleImageLayers::Layer::* aResultLocation,
                   ComputedValueItem aInitialValue,
                   uint32_t aParentItemCount,
@@ -6844,9 +6844,8 @@ template <class ComputedValueItem>
 static void
 SetImageLayerPairList(nsStyleContext* aStyleContext,
                       const nsCSSValue& aValue,
-                      AutoTArray< nsStyleImageLayers::Layer, 1> &aLayers,
-                      const AutoTArray<nsStyleImageLayers::Layer, 1>
-                                                                 &aParentLayers,
+                      nsStyleAutoArray<nsStyleImageLayers::Layer>& aLayers,
+                      const nsStyleAutoArray<nsStyleImageLayers::Layer>& aParentLayers,
                       ComputedValueItem nsStyleImageLayers::Layer::*
                                                                 aResultLocation,
                       ComputedValueItem aInitialValue,
@@ -6911,7 +6910,8 @@ SetImageLayerPairList(nsStyleContext* aStyleContext,
 
 template <class ComputedValueItem>
 static void
-FillBackgroundList(AutoTArray< nsStyleImageLayers::Layer, 1> &aLayers,
+FillBackgroundList(
+    nsStyleAutoArray<nsStyleImageLayers::Layer>& aLayers,
     ComputedValueItem nsStyleImageLayers::Layer::* aResultLocation,
     uint32_t aItemCount, uint32_t aFillCount)
 {
@@ -7033,7 +7033,7 @@ nsRuleNode::ComputeBackgroundData(void* aStartStruct,
   if (rebuild) {
     // Delete any extra items.  We need to keep layers in which any
     // property was specified.
-    bg->mImage.mLayers.TruncateLength(maxItemCount);
+    bg->mImage.mLayers.TruncateLengthNonZero(maxItemCount);
 
     uint32_t fillCount = bg->mImage.mImageCount;
     FillBackgroundList(bg->mImage.mLayers,
@@ -9852,7 +9852,7 @@ nsRuleNode::ComputeSVGResetData(void* aStartStruct,
   if (rebuild) {
     // Delete any extra items.  We need to keep layers in which any
     // property was specified.
-    svgReset->mMask.mLayers.TruncateLength(maxItemCount);
+    svgReset->mMask.mLayers.TruncateLengthNonZero(maxItemCount);
 
     uint32_t fillCount = svgReset->mMask.mImageCount;
 

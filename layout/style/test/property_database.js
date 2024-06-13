@@ -665,7 +665,7 @@ if (IsCSSPropertyPrefEnabled("layout.css.prefixes.webkit")) {
     "-webkit-gradient(linear, 1 2, 3 4, color-stop(0, rgb(1,2,3)))",
     "-webkit-gradient(linear, 1 2, 3 4, color-stop(0, #00ff00))",
     "-webkit-gradient(linear, 1 2, 3 4, color-stop(0, #00f))",
-    "-webkit-gradient(linear, 1 2, 3 4, color-stop(0, hsla(240, 30%, 50%, 0.9)))",
+    "-webkit-gradient(linear, 1 2, 3 4, color-stop(0, hsla(240, 30%, 50%, 0.8)))",
     "-webkit-gradient(linear, 1 2, 3 4, color-stop(0, rgba(255, 230, 10, 0.5)))",
 
     // linear w/ multiple color stops:
@@ -4331,7 +4331,7 @@ var gCSSProperties = {
     initial_values: [ "auto", "normal" ],
     other_values: [ "start", "end", "flex-start", "flex-end", "self-start",
                     "self-end", "center", "left", "right", "baseline",
-                    "last-baseline", "stretch", "left true", "true right",
+                    "last-baseline", "stretch", "left unsafe", "unsafe right",
                     "safe right", "center safe" ],
     invalid_values: [ "space-between", "abc", "30px", "none",
                       "legacy left", "right legacy" ]
@@ -4873,25 +4873,6 @@ function logical_box_prop_get_computed(cs, property)
     throw "Unexpected property";
   }
   return cs.getPropertyValue(property);
-}
-
-// Helper to get computed style of "-webkit-box-orient" from "flex-direction"
-// and the "writing-mode".
-function webkit_orient_get_computed(cs, property)
-{
-  var writingMode = cs.getPropertyValue("writing-mode") || "horizontal-tb";
-
-  var mapping; // map from flex-direction values to -webkit-box-orient values.
-  if (writingMode == "horizontal-tb") {
-    // Horizontal writing-mode
-    mapping = { "row" : "horizontal", "column" : "vertical"};
-  } else {
-    // Vertical writing-mode
-    mapping = { "row" : "vertical",   "column" : "horizontal"};
-  }
-
-  var flexDirection = cs.getPropertyValue("flex-direction");
-  return mapping[flexDirection];
 }
 
 // Get the computed value for a property.  For shorthands, return the
@@ -6151,6 +6132,59 @@ if (IsCSSPropertyPrefEnabled("layout.css.grid.enabled")) {
     ]
   };
 
+  gCSSProperties["grid-template"] = {
+    domProp: "gridTemplate",
+    inherited: false,
+    type: CSS_TYPE_TRUE_SHORTHAND,
+    subproperties: [
+      "grid-template-areas",
+      "grid-template-rows",
+      "grid-template-columns",
+    ],
+    initial_values: [
+      "none",
+      "none / none",
+    ],
+    other_values: [
+      // <'grid-template-rows'> / <'grid-template-columns'>
+      "40px / 100px",
+      "[foo] 40px [bar] / [baz] 100px [fizz]",
+      " none/100px",
+      "40px/none",
+      // [ <track-list> / ]? [ <line-names>? <string> <track-size>? <line-names>? ]+
+      "'fizz'",
+      "[bar] 'fizz'",
+      "'fizz' / [foo] 40px",
+      "[bar] 'fizz' / [foo] 40px",
+      "'fizz' 100px / [foo] 40px",
+      "[bar] 'fizz' 100px / [foo] 40px",
+      "[bar] 'fizz' 100px [buzz] / [foo] 40px",
+      "[bar] 'fizz' 100px [buzz] \n [a] '.' 200px [b] / [foo] 40px",
+    ],
+    invalid_values: [
+      "[foo] [bar] 40px / 100px",
+      "[fizz] [buzz] 100px / 40px",
+      "[fizz] [buzz] 'foo' / 40px",
+      "'foo' / none"
+    ]
+  };
+  if (isGridTemplateSubgridValueEnabled) {
+    gCSSProperties["grid-template"].other_values.push(
+      "subgrid",
+      "subgrid/40px 20px",
+      "subgrid [foo] [] [bar baz] / 40px 20px",
+      "40px 20px/subgrid",
+      "40px 20px/subgrid  [foo] [] repeat(3, [a] [b]) [bar baz]",
+      "subgrid/subgrid",
+      "subgrid [foo] [] [bar baz]/subgrid [foo] [] [bar baz]"
+    );
+    gCSSProperties["grid-template"].invalid_values.push(
+      "subgrid []",
+      "subgrid [] / 'fizz'",
+      "subgrid / 'fizz'"
+    );
+  }
+
   gCSSProperties["grid"] = {
     domProp: "grid",
     inherited: false,
@@ -6174,21 +6208,8 @@ if (IsCSSPropertyPrefEnabled("layout.css.grid.enabled")) {
       "column dense auto",
       "dense row minmax(min-content, 2fr)",
       "row 40px / 100px",
-      // <'grid-template-rows'> / <'grid-template-columns'>
-      "40px / 100px",
-      "[foo] 40px [bar] / [baz] 100px [fizz]",
-      " none/100px",
-      "40px/none",
-      // [ <track-list> / ]? [ <line-names>? <string> <track-size>? <line-names>? ]+
-      "'fizz'",
-      "[bar] 'fizz'",
-      "'fizz' / [foo] 40px",
-      "[bar] 'fizz' / [foo] 40px",
-      "'fizz' 100px / [foo] 40px",
-      "[bar] 'fizz' 100px / [foo] 40px",
-      "[bar] 'fizz' 100px [buzz] / [foo] 40px",
-      "[bar] 'fizz' 100px [buzz] \n [a] '.' 200px [b] / [foo] 40px",
     ].concat(
+      gCSSProperties["grid-template"].other_values,
       gCSSProperties["grid-auto-flow"].other_values
     ),
     invalid_values: [
@@ -6196,31 +6217,12 @@ if (IsCSSPropertyPrefEnabled("layout.css.grid.enabled")) {
       "row -20px",
       "row 200ms",
       "row 40px 100px",
-      "[foo] [bar] 40px / 100px",
-      "[fizz] [buzz] 100px / 40px",
-      "[fizz] [buzz] 'foo' / 40px",
-      "'foo' / none"
     ].concat(
+      gCSSProperties["grid-template"].invalid_values,
       gCSSProperties["grid-auto-flow"].invalid_values
         .filter((v) => v != 'none')
     )
   };
-  if (isGridTemplateSubgridValueEnabled) {
-    gCSSProperties["grid"].other_values.push(
-      "subgrid",
-      "subgrid/40px 20px",
-      "subgrid [foo] [] [bar baz] / 40px 20px",
-      "40px 20px/subgrid",
-      "40px 20px/subgrid  [foo] [] repeat(3, [a] [b]) [bar baz]",
-      "subgrid/subgrid",
-      "subgrid [foo] [] [bar baz]/subgrid [foo] [] [bar baz]"
-    );
-    gCSSProperties["grid"].invalid_values.push(
-      "subgrid []",
-      "subgrid [] / 'fizz'",
-      "subgrid / 'fizz'"
-    );
-  }
 
   var gridLineOtherValues = [
     "foo",
@@ -6566,17 +6568,6 @@ if (IsCSSPropertyPrefEnabled("layout.css.background-blend-mode.enabled")) {
     other_values: [ "multiply", "screen", "overlay", "darken", "lighten", "color-dodge", "color-burn",
       "hard-light", "soft-light", "difference", "exclusion", "hue", "saturation", "color", "luminosity" ],
     invalid_values: ["none", "10px", "multiply multiply"]
-  };
-}
-
-if (SpecialPowers.getBoolPref("layout.css.will-change.enabled")) {
-  gCSSProperties["will-change"] = {
-    domProp: "willChange",
-    inherited: false,
-    type: CSS_TYPE_LONGHAND,
-    initial_values: [ "auto" ],
-    other_values: [ "scroll-position", "contents", "transform", "opacity", "scroll-position, transform", "transform, opacity", "contents, transform", "property-that-doesnt-exist-yet" ],
-    invalid_values: [ "none", "all", "default", "auto, scroll-position", "scroll-position, auto", "transform scroll-position", ",", "trailing,", "will-change", "transform, will-change" ]
   };
 }
 
@@ -7195,13 +7186,6 @@ if (IsCSSPropertyPrefEnabled("layout.css.prefixes.webkit")) {
     alias_for: "border-bottom-right-radius",
     subproperties: [ "border-bottom-right-radius" ],
   };
-  gCSSProperties["-webkit-appearance"] = {
-    domProp: "webkitAppearance",
-    inherited: false,
-    type: CSS_TYPE_SHORTHAND_AND_LONGHAND,
-    alias_for: "-moz-appearance",
-    subproperties: [ "-moz-appearance" ],
-  };
   gCSSProperties["-webkit-background-clip"] = {
     domProp: "webkitBackgroundClip",
     inherited: false,
@@ -7248,44 +7232,43 @@ if (IsCSSPropertyPrefEnabled("layout.css.prefixes.webkit")) {
     domProp: "webkitBoxFlex",
     inherited: false,
     type: CSS_TYPE_SHORTHAND_AND_LONGHAND,
-    alias_for: "flex-grow",
-    subproperties: [ "flex-grow" ],
+    alias_for: "-moz-box-flex",
+    subproperties: [ "-moz-box-flex" ],
   };
   gCSSProperties["-webkit-box-ordinal-group"] = {
     domProp: "webkitBoxOrdinalGroup",
     inherited: false,
     type: CSS_TYPE_SHORTHAND_AND_LONGHAND,
-    alias_for: "order",
-    subproperties: [ "order" ],
+    alias_for: "-moz-box-ordinal-group",
+    subproperties: [ "-moz-box-ordinal-group" ],
   };
-  /* This one is not an alias - it's implemented as a logical property: */
   gCSSProperties["-webkit-box-orient"] = {
     domProp: "webkitBoxOrient",
     inherited: false,
-    type: CSS_TYPE_LONGHAND,
-    logical: true,
-    get_computed: webkit_orient_get_computed,
-    initial_values: [ "horizontal" ],
-    other_values: [ "vertical" ],
-    invalid_values: [
-      "0", "0px", "auto",
-      /* Flex-direction values: */
-      "row", "column", "row-reverse", "column-reverse",
-    ],
+    type: CSS_TYPE_SHORTHAND_AND_LONGHAND,
+    alias_for: "-moz-box-orient",
+    subproperties: [ "-moz-box-orient" ],
+  };
+  gCSSProperties["-webkit-box-direction"] = {
+    domProp: "webkitBoxDirection",
+    inherited: false,
+    type: CSS_TYPE_SHORTHAND_AND_LONGHAND,
+    alias_for: "-moz-box-direction",
+    subproperties: [ "-moz-box-direction" ],
   };
   gCSSProperties["-webkit-box-align"] = {
     domProp: "webkitBoxAlign",
     inherited: false,
     type: CSS_TYPE_SHORTHAND_AND_LONGHAND,
-    alias_for: "align-items",
-    subproperties: [ "align-items" ],
+    alias_for: "-moz-box-align",
+    subproperties: [ "-moz-box-align" ],
   };
   gCSSProperties["-webkit-box-pack"] = {
     domProp: "webkitBoxPack",
     inherited: false,
     type: CSS_TYPE_SHORTHAND_AND_LONGHAND,
-    alias_for: "justify-content",
-    subproperties: [ "justify-content" ],
+    alias_for: "-moz-box-pack",
+    subproperties: [ "-moz-box-pack" ],
   };
   gCSSProperties["-webkit-user-select"] = {
     domProp: "webkitUserSelect",

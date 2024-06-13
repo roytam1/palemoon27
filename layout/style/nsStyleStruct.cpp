@@ -2317,10 +2317,9 @@ nsStyleImageLayers::nsStyleImageLayers()
   , mMaskModeCount(1)
   , mBlendModeCount(1)
   , mCompositeCount(1)
+  , mLayers(nsStyleAutoArray<Layer>::WITH_SINGLE_INITIAL_ELEMENT)
 {
   MOZ_COUNT_CTOR(nsStyleImageLayers);
-  mLayers.AppendElement();
-  NS_ASSERTION(mLayers.Length() == 1, "auto array must have room for 1 element");
 }
 
 nsStyleImageLayers::nsStyleImageLayers(const nsStyleImageLayers &aSource)
@@ -2388,7 +2387,8 @@ nsStyleImageLayers::CalcDifference(const nsStyleImageLayers& aOther) const
     return hint;
   }
 
-  if (mBlendModeCount != aOther.mBlendModeCount ||
+  if (mAttachmentCount != aOther.mAttachmentCount ||
+      mBlendModeCount != aOther.mBlendModeCount ||
       mClipCount != aOther.mClipCount ||
       mCompositeCount != aOther.mCompositeCount ||
       mMaskModeCount != aOther.mMaskModeCount ||
@@ -2406,7 +2406,12 @@ bool
 nsStyleImageLayers::HasLayerWithImage() const
 {
   for (uint32_t i = 0; i < mImageCount; i++) {
-    if (mLayers[i].mSourceURI) {
+    // mLayers[i].mSourceURI can be nullptr if mask-image prop value is
+    // <element-reference> or <gradient>
+    // mLayers[i].mImage can be empty if mask-image prop value is a reference
+    // to SVG mask element.
+    // So we need to test both mSourceURI and mImage.
+    if (mLayers[i].mSourceURI || !mLayers[i].mImage.IsEmpty()) {
       return true;
     }
   }
@@ -2832,6 +2837,8 @@ mozilla::StyleAnimation::operator==(const mozilla::StyleAnimation& aOther) const
 
 nsStyleDisplay::nsStyleDisplay(StyleStructContext aContext)
   : mWillChangeBitField(0)
+  , mTransitions(nsStyleAutoArray<StyleTransition>::WITH_SINGLE_INITIAL_ELEMENT)
+  , mAnimations(nsStyleAutoArray<StyleAnimation>::WITH_SINGLE_INITIAL_ELEMENT)
 {
   MOZ_COUNT_CTOR(nsStyleDisplay);
   mAppearance = NS_THEME_NONE;
@@ -2872,18 +2879,12 @@ nsStyleDisplay::nsStyleDisplay(StyleStructContext aContext)
   // Initial value for mScrollSnapDestination is "0px 0px"
   mScrollSnapDestination.SetInitialZeroValues();
 
-  mTransitions.AppendElement();
-  MOZ_ASSERT(mTransitions.Length() == 1,
-             "appending within auto buffer should never fail");
   mTransitions[0].SetInitialValues();
   mTransitionTimingFunctionCount = 1;
   mTransitionDurationCount = 1;
   mTransitionDelayCount = 1;
   mTransitionPropertyCount = 1;
 
-  mAnimations.AppendElement();
-  MOZ_ASSERT(mAnimations.Length() == 1,
-             "appending within auto buffer should never fail");
   mAnimations[0].SetInitialValues();
   mAnimationTimingFunctionCount = 1;
   mAnimationDurationCount = 1;

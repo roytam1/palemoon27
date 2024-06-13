@@ -258,12 +258,16 @@ public:
   // @see CrossProcessCompositorBridgeParent::RecvRequestNotifyAfterRemotePaint
   virtual bool RecvRequestNotifyAfterRemotePaint() override { return true; };
 
-  virtual bool RecvClearApproximatelyVisibleRegions(const uint64_t& aLayersId,
-                                                    const uint32_t& aPresShellId) override;
-  void ClearApproximatelyVisibleRegions(const uint64_t& aLayersId,
-                                        const Maybe<uint32_t>& aPresShellId);
-  virtual bool RecvNotifyApproximatelyVisibleRegion(const ScrollableLayerGuid& aGuid,
-                                                    const CSSIntRegion& aRegion) override;
+  virtual bool RecvClearVisibleRegions(const uint64_t& aLayersId,
+                                       const uint32_t& aPresShellId) override;
+  void ClearVisibleRegions(const uint64_t& aLayersId,
+                           const Maybe<uint32_t>& aPresShellId);
+  virtual bool RecvUpdateVisibleRegion(const VisibilityCounter& aCounter,
+                                       const ScrollableLayerGuid& aGuid,
+                                       const CSSIntRegion& aRegion) override;
+  void UpdateVisibleRegion(const VisibilityCounter& aCounter,
+                           const ScrollableLayerGuid& aGuid,
+                           const CSSIntRegion& aRegion);
 
   virtual void ActorDestroy(ActorDestroyReason why) override;
 
@@ -599,9 +603,6 @@ protected:
   nsIntPoint mPluginsLayerOffset;
   nsIntRegion mPluginsLayerVisibleRegion;
   nsTArray<PluginWindowData> mCachedPluginData;
-  // indicates if we are currently waiting on a plugin update confirmation.
-  // When this is true, composition is currently on hold.
-  bool mPluginUpdateResponsePending;
   // indicates if plugin window visibility and metric updates are currently
   // being defered due to a scroll operation.
   bool mDeferPluginWindows;

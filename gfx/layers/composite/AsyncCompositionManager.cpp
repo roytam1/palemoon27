@@ -234,7 +234,7 @@ SetShadowTransform(Layer* aLayer, LayerToParentLayerMatrix4x4 aTransform)
   aTransform.PostScale(1.0f / aLayer->GetPostXScale(),
                        1.0f / aLayer->GetPostYScale(),
                        1);
-  aLayer->AsLayerComposite()->SetShadowTransform(aTransform.ToUnknownMatrix());
+  aLayer->AsLayerComposite()->SetShadowBaseTransform(aTransform.ToUnknownMatrix());
 }
 
 static void
@@ -642,7 +642,7 @@ SampleAnimations(Layer* aLayer, TimeStamp aPoint)
       if (ContainerLayer* c = aLayer->AsContainerLayer()) {
         matrix.PostScale(c->GetInheritedXScale(), c->GetInheritedYScale(), 1);
       }
-      layerComposite->SetShadowTransform(matrix);
+      layerComposite->SetShadowBaseTransform(matrix);
       layerComposite->SetShadowTransformSetByAnimation(true);
       break;
     }
@@ -811,6 +811,11 @@ AsyncCompositionManager::ApplyAsyncContentTransformToTree(Layer *aLayer,
   // The final clip for the layer is the intersection of these clips.
   Maybe<ParentLayerIntRect> asyncClip = aLayer->GetClipRect();
 
+  // If we are a perspective transform ContainerLayer, apply the clip deferred
+  // from our child (if there is any) before we iterate over our frame metrics,
+  // because this clip is subject to all async transforms of this layer.
+  asyncClip = IntersectMaybeRects(asyncClip, clipDeferredFromChildren);
+
   // The transform of a mask layer is relative to the masked layer's parent
   // layer. So whenever we apply an async transform to a layer, we need to
   // apply that same transform to the layer's own mask layer.
@@ -934,6 +939,12 @@ AsyncCompositionManager::ApplyAsyncContentTransformToTree(Layer *aLayer,
         // our scroll clip to it instead of to this layer (see bug 1168263).
         // A layer with a perspective transform shouldn't have multiple
         // children with FrameMetrics, nor a child with multiple FrameMetrics.
+        // (A child with multiple FrameMetrics would mean that there's *another*
+        // scrollable element between the one with the CSS perspective and the
+        // transformed element. But you'd have to use preserve-3d on the inner
+        // scrollable element in order to have the perspective apply to the
+        // transformed child, and preserve-3d is not supported on scrollable
+        // elements, so this case can't occur.)
         MOZ_ASSERT(!aClipDeferredToParent);
         aClipDeferredToParent = Some(clip);
       } else {
@@ -958,8 +969,7 @@ AsyncCompositionManager::ApplyAsyncContentTransformToTree(Layer *aLayer,
   }
 
   if (hasAsyncTransform || clipDeferredFromChildren) {
-    aLayer->AsLayerComposite()->SetShadowClipRect(
-        IntersectMaybeRects(asyncClip, clipDeferredFromChildren));
+    aLayer->AsLayerComposite()->SetShadowClipRect(asyncClip);
   }
 
   if (hasAsyncTransform) {
@@ -1426,7 +1436,7 @@ AsyncCompositionManager::TransformShadowTree(TimeStamp aCurrentFrame,
 
   gfx::Matrix4x4 trans = rootComposite->GetShadowBaseTransform();
   trans *= gfx::Matrix4x4::From2D(mWorldTransform);
-  rootComposite->SetShadowTransform(trans);
+  rootComposite->SetShadowBaseTransform(trans);
 
   if (gfxPrefs::CollectScrollTransforms()) {
     RecordShadowTransforms(root);

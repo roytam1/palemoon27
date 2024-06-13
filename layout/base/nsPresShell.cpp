@@ -1184,8 +1184,9 @@ PresShell::Destroy()
   mSynthMouseMoveEvent.Revoke();
 
   mUpdateApproximateFrameVisibilityEvent.Revoke();
+  mNotifyCompositorOfVisibleRegionsChangeEvent.Revoke();
 
-  ClearApproximatelyVisibleFramesList(Some(OnNonvisible::DISCARD_IMAGES));
+  ClearVisibleFramesSets(Some(OnNonvisible::DISCARD_IMAGES));
 
   if (mCaret) {
     mCaret->Terminate();
@@ -1343,7 +1344,7 @@ nsIPresShell::SetAuthorStyleDisabled(bool aStyleDisabled)
 {
   if (aStyleDisabled != mStyleSet->GetAuthorStyleDisabled()) {
     mStyleSet->SetAuthorStyleDisabled(aStyleDisabled);
-    ReconstructStyleData();
+    RestyleForCSSRuleChanges();
 
     nsCOMPtr<nsIObserverService> observerService =
       mozilla::services::GetObserverService();
@@ -1452,7 +1453,7 @@ PresShell::AddUserSheet(nsISupports* aSheet)
 
   mStyleSet->EndUpdate();
 
-  ReconstructStyleData();
+  RestyleForCSSRuleChanges();
 }
 
 void
@@ -1468,7 +1469,7 @@ PresShell::AddAgentSheet(nsISupports* aSheet)
   }
 
   mStyleSet->AppendStyleSheet(SheetType::Agent, sheet);
-  ReconstructStyleData();
+  RestyleForCSSRuleChanges();
 }
 
 void
@@ -1491,7 +1492,7 @@ PresShell::AddAuthorSheet(nsISupports* aSheet)
     mStyleSet->AppendStyleSheet(SheetType::Doc, sheet);
   }
 
-  ReconstructStyleData();
+  RestyleForCSSRuleChanges();
 }
 
 void
@@ -1504,7 +1505,7 @@ PresShell::RemoveSheet(SheetType aType, nsISupports* aSheet)
   }
 
   mStyleSet->RemoveStyleSheet(aType, sheet);
-  ReconstructStyleData();
+  RestyleForCSSRuleChanges();
 }
 
 NS_IMETHODIMP
@@ -2407,7 +2408,7 @@ PresShell::EndUpdate(nsIDocument *aDocument, nsUpdateType aUpdateType)
   if (aUpdateType & UPDATE_STYLE) {
     mStyleSet->EndUpdate();
     if (mStylesHaveChanged || !mChangedScopeStyleRoots.IsEmpty())
-      ReconstructStyleData();
+      RestyleForCSSRuleChanges();
   }
 
   mFrameConstructor->EndUpdate();
@@ -4440,7 +4441,7 @@ PresShell::ReconstructFrames(void)
 }
 
 void
-nsIPresShell::ReconstructStyleDataInternal()
+nsIPresShell::RestyleForCSSRuleChanges()
 {
   AutoTArray<RefPtr<mozilla::dom::Element>,1> scopeRoots;
   mChangedScopeStyleRoots.SwapElements(scopeRoots);
@@ -4488,12 +4489,6 @@ nsIPresShell::ReconstructStyleDataInternal()
                                        NS_STYLE_HINT_NONE);
     }
   }
-}
-
-void
-nsIPresShell::ReconstructStyleDataExternal()
-{
-  ReconstructStyleDataInternal();
 }
 
 void
@@ -4573,6 +4568,71 @@ nsIFrame*
 PresShell::GetPlaceholderFrameFor(nsIFrame* aFrame) const
 {
   return mFrameConstructor->GetPlaceholderFrameFor(aFrame);
+}
+
+void
+PresShell::NotifyCompositorOfVisibleRegionsChange()
+{
+  mNotifyCompositorOfVisibleRegionsChangeEvent.Revoke();
+
+  if (!mVisibleRegions) {
+    return;
+  }
+
+  // Retrieve the layers ID and pres shell ID.
+  TabChild* tabChild = TabChild::GetFrom(this);
+  if (!tabChild) {
+    return;
+  }
+
+  const uint64_t layersId = tabChild->LayersId();
+  const uint32_t presShellId = GetPresShellId();
+
+  // Retrieve the CompositorBridgeChild.
+  LayerManager* layerManager = GetLayerManager();
+  if (!layerManager) {
+    return;
+  }
+
+  ClientLayerManager* clientLayerManager = layerManager->AsClientLayerManager();
+  if (!clientLayerManager) {
+    return;
+  }
+
+  CompositorBridgeChild* compositorChild = clientLayerManager->GetCompositorBridgeChild();
+  if (!compositorChild) {
+    return;
+  }
+
+  // Clear the old visible regions associated with this document.
+  compositorChild->SendClearVisibleRegions(layersId, presShellId);
+
+  // Send the new visible regions to the compositor.
+  for (auto iter = mVisibleRegions->mApproximate.ConstIter();
+      !iter.Done();
+      iter.Next()) {
+    const ViewID viewId = iter.Key();
+    const CSSIntRegion* region = iter.UserData();
+    MOZ_ASSERT(region);
+
+    const ScrollableLayerGuid guid(layersId, presShellId, viewId);
+
+    compositorChild->SendUpdateVisibleRegion(VisibilityCounter::MAY_BECOME_VISIBLE,
+                                             guid, *region);
+  }
+
+  for (auto iter = mVisibleRegions->mInDisplayPort.ConstIter();
+      !iter.Done();
+      iter.Next()) {
+    const ViewID viewId = iter.Key();
+    const CSSIntRegion* region = iter.UserData();
+    MOZ_ASSERT(region);
+
+    const ScrollableLayerGuid guid(layersId, presShellId, viewId);
+
+    compositorChild->SendUpdateVisibleRegion(VisibilityCounter::IN_DISPLAYPORT,
+                                             guid, *region);
+  }
 }
 
 nsresult
@@ -4685,6 +4745,9 @@ PresShell::RenderDocument(const nsRect& aRect, uint32_t aFlags,
 
   nsLayoutUtils::PaintFrame(&rc, rootFrame, nsRegion(aRect),
                             aBackgroundColor, flags);
+
+  // We don't call NotifyCompositorOfVisibleRegionsChange here because we're
+  // not painting to the window, and hence there should be no change.
 
   return NS_OK;
 }
@@ -4838,12 +4901,12 @@ PresShell::CreateRangePaintInfo(nsIDOMRange* aRange,
       ancestorFrame = ancestorFrame->GetParent();
   }
 
-  if (!ancestorFrame)
+  if (!ancestorFrame) {
     return nullptr;
-
-  auto info = MakeUnique<RangePaintInfo>(range, ancestorFrame);
+  }
 
   // get a display list containing the range
+  auto info = MakeUnique<RangePaintInfo>(range, ancestorFrame);
   info->mBuilder.SetIncludeAllOutOfFlows();
   if (aForPrimarySelection) {
     info->mBuilder.SetSelectedFramesOnly();
@@ -5576,17 +5639,14 @@ PresShell::ProcessSynthMouseMoveEvent(bool aFromScroll)
   }
 }
 
-static void
-AddFrameToVisibleRegions(nsIFrame* aFrame,
-                         nsViewManager* aViewManager,
-                         Maybe<VisibleRegions>& aVisibleRegions)
+void
+PresShell::AddFrameToVisibleRegions(nsIFrame* aFrame, VisibilityCounter aForCounter)
 {
-  if (!aVisibleRegions) {
+  if (!mVisibleRegions) {
     return;
   }
 
   MOZ_ASSERT(aFrame);
-  MOZ_ASSERT(aViewManager);
 
   // Retrieve the view ID for this frame (which we obtain from the enclosing
   // scrollable frame).
@@ -5621,20 +5681,22 @@ AddFrameToVisibleRegions(nsIFrame* aFrame,
     return;
   }
 
-  CSSIntRegion* regionForView = aVisibleRegions->LookupOrAdd(viewID);
+  VisibleRegions& regions = aForCounter == VisibilityCounter::MAY_BECOME_VISIBLE
+                          ? mVisibleRegions->mApproximate
+                          : mVisibleRegions->mInDisplayPort;
+  CSSIntRegion* regionForView = regions.LookupOrAdd(viewID);
   MOZ_ASSERT(regionForView);
 
   regionForView->OrWith(CSSPixel::FromAppUnitsRounded(frameRectInScrolledFrameSpace));
 }
 
 /* static */ void
-PresShell::MarkFramesInListApproximatelyVisible(const nsDisplayList& aList,
-                                                Maybe<VisibleRegions>& aVisibleRegions)
+PresShell::MarkFramesInListApproximatelyVisible(const nsDisplayList& aList)
 {
   for (nsDisplayItem* item = aList.GetBottom(); item; item = item->GetAbove()) {
     nsDisplayList* sublist = item->GetChildren();
     if (sublist) {
-      MarkFramesInListApproximatelyVisible(*sublist, aVisibleRegions);
+      MarkFramesInListApproximatelyVisible(*sublist);
       continue;
     }
 
@@ -5652,126 +5714,54 @@ PresShell::MarkFramesInListApproximatelyVisible(const nsDisplayList& aList,
     presShell->mApproximatelyVisibleFrames.PutEntry(frame);
     if (presShell->mApproximatelyVisibleFrames.Count() > count) {
       // The frame was added to mApproximatelyVisibleFrames, so increment its visible count.
-      frame->IncApproximateVisibleCount();
+      frame->IncVisibilityCount(VisibilityCounter::MAY_BECOME_VISIBLE);
     }
 
-    AddFrameToVisibleRegions(frame, presShell->mViewManager, aVisibleRegions);
-  }
-}
-
-void
-PresShell::ReportBadStateDuringVisibilityUpdate()
-{
-  if (!NS_IsMainThread()) {
-    gfxCriticalNote << "Got null frame in frame visibility: off-main-thread";
-  }
-  if (mIsZombie) {
-    gfxCriticalNote << "Got null frame in frame visibility: mIsZombie";
-  }
-  if (mIsDestroying) {
-    gfxCriticalNote << "Got null frame in frame visibility: mIsDestroying";
-  }
-  if (mIsReflowing) {
-    gfxCriticalNote << "Got null frame in frame visibility: mIsReflowing";
-  }
-  if (mPaintingIsFrozen) {
-    gfxCriticalNote << "Got null frame in frame visibility: mPaintingIsFrozen";
-  }
-  if (mForwardingContainer) {
-    gfxCriticalNote << "Got null frame in frame visibility: mForwardingContainer";
-  }
-  if (mIsNeverPainting) {
-    gfxCriticalNote << "Got null frame in frame visibility: mIsNeverPainting";
-  }
-  if (mIsDocumentGone) {
-    gfxCriticalNote << "Got null frame in frame visibility: mIsDocumentGone";
-  }
-  if (!nsContentUtils::IsSafeToRunScript()) {
-    gfxCriticalNote << "Got null frame in frame visibility: not safe to run script";
-  }
-}
-
-void
-PresShell::SetInFrameVisibilityUpdate(bool aState)
-{
-  mInFrameVisibilityUpdate = aState;
-}
-
-static void
-NotifyCompositorOfVisibleRegionsChange(PresShell* aPresShell,
-                                       const Maybe<VisibleRegions>& aRegions)
-{
-  if (!aRegions) {
-    return;
-  }
-
-  MOZ_ASSERT(aPresShell);
-
-  // Retrieve the layers ID and pres shell ID.
-  TabChild* tabChild = TabChild::GetFrom(aPresShell);
-  if (!tabChild) {
-    return;
-  }
-
-  const uint64_t layersId = tabChild->LayersId();
-  const uint32_t presShellId = aPresShell->GetPresShellId();
-
-  // Retrieve the CompositorBridgeChild.
-  LayerManager* layerManager = aPresShell->GetLayerManager();
-  if (!layerManager) {
-    return;
-  }
-
-  ClientLayerManager* clientLayerManager = layerManager->AsClientLayerManager();
-  if (!clientLayerManager) {
-    return;
-  }
-
-  CompositorBridgeChild* compositorChild = clientLayerManager->GetCompositorBridgeChild();
-  if (!compositorChild) {
-    return;
-  }
-
-  // Clear the old approximately visible regions associated with this document.
-  compositorChild->SendClearApproximatelyVisibleRegions(layersId, presShellId);
-
-  // Send the new approximately visible regions to the compositor.
-  for (auto iter = aRegions->ConstIter(); !iter.Done(); iter.Next()) {
-    const ViewID viewId = iter.Key();
-    const CSSIntRegion* region = iter.UserData();
-    MOZ_ASSERT(region);
-
-    const ScrollableLayerGuid guid(layersId, presShellId, viewId);
-
-    compositorChild->SendNotifyApproximatelyVisibleRegion(guid, *region);
+    presShell->AddFrameToVisibleRegions(frame, VisibilityCounter::MAY_BECOME_VISIBLE);
   }
 }
 
 /* static */ void
-PresShell::DecApproximateVisibleCount(VisibleFrames& aFrames,
-                                      Maybe<OnNonvisible> aNonvisibleAction
-                                        /* = Nothing() */)
+PresShell::DecVisibleCount(const VisibleFrames& aFrames,
+                           VisibilityCounter aCounter,
+                           Maybe<OnNonvisible> aNonvisibleAction /* = Nothing() */)
 {
-  for (auto iter = aFrames.Iter(); !iter.Done(); iter.Next()) {
+  for (auto iter = aFrames.ConstIter(); !iter.Done(); iter.Next()) {
     nsIFrame* frame = iter.Get()->GetKey();
-
-    if (MOZ_UNLIKELY(!frame)) {
-      // We are about to crash, annotate crash report with some info that might
-      // help debug the crash (bug 1251150)
-      ReportBadStateDuringVisibilityUpdate();
-    }
-
-    SetInFrameVisibilityUpdate(true);
-
     // Decrement the frame's visible count if we're still tracking its
     // visibility. (We may not be, if the frame disabled visibility tracking
     // after we added it to the visible frames list.)
     if (frame->TrackingVisibility()) {
-      frame->DecApproximateVisibleCount(aNonvisibleAction);
+      frame->DecVisibilityCount(aCounter, aNonvisibleAction);
     }
-
-    SetInFrameVisibilityUpdate(false);
   }
+}
+
+void
+PresShell::InitVisibleRegionsIfVisualizationEnabled(VisibilityCounter aForCounter)
+{
+  // If we're visualizing visible regions, initialize a
+  // VisibleRegionsContainer to store them.  Visibility-related functions we
+  // call will only do the work of populating this object and sending it to
+  // the compositor if we've created it, so we don't need to check the prefs
+  // everywhere.
+  if (!gfxPrefs::APZMinimap() ||
+      !gfxPrefs::APZMinimapVisibilityEnabled()) {
+    mVisibleRegions = nullptr;
+    return;
+  }
+
+  if (mVisibleRegions) {
+    // Clear the regions we're about to update. We don't want to clear both,
+    // or the two visibility tracking methods will interfere with each other.
+    VisibleRegions& regions = aForCounter == VisibilityCounter::MAY_BECOME_VISIBLE
+                            ? mVisibleRegions->mApproximate
+                            : mVisibleRegions->mInDisplayPort;
+    regions.Clear();
+    return;
+  }
+
+  mVisibleRegions = MakeUnique<VisibleRegionsContainer>();
 }
 
 void
@@ -5785,70 +5775,72 @@ PresShell::RebuildApproximateFrameVisibilityDisplayList(const nsDisplayList& aLi
   VisibleFrames oldApproximatelyVisibleFrames;
   mApproximatelyVisibleFrames.SwapElements(oldApproximatelyVisibleFrames);
 
-  // If we're visualizing visible regions, create a VisibleRegions object to
-  // store information about them. The functions we call will populate this
-  // object and send it to the compositor only if it's Some(), so we don't
-  // need to check the prefs everywhere.
-  Maybe<VisibleRegions> visibleRegions;
-  if (gfxPrefs::APZMinimap() && gfxPrefs::APZMinimapVisibilityEnabled()) {
-    visibleRegions.emplace();
-  }
+  InitVisibleRegionsIfVisualizationEnabled(VisibilityCounter::MAY_BECOME_VISIBLE);
 
-  MarkFramesInListApproximatelyVisible(aList, visibleRegions);
+  MarkFramesInListApproximatelyVisible(aList);
 
-  DecApproximateVisibleCount(oldApproximatelyVisibleFrames);
+  DecVisibleCount(oldApproximatelyVisibleFrames,
+                  VisibilityCounter::MAY_BECOME_VISIBLE);
 
-  NotifyCompositorOfVisibleRegionsChange(this, visibleRegions);
+  NotifyCompositorOfVisibleRegionsChange();
 }
 
 /* static */ void
-PresShell::ClearApproximateFrameVisibilityVisited(nsView* aView, bool aClear)
+PresShell::ClearVisibleFramesForUnvisitedPresShells(nsView* aView, bool aClear)
 {
   nsViewManager* vm = aView->GetViewManager();
   if (aClear) {
     PresShell* presShell = static_cast<PresShell*>(vm->GetPresShell());
     if (!presShell->mApproximateFrameVisibilityVisited) {
-      presShell->ClearApproximatelyVisibleFramesList();
+      presShell->ClearVisibleFramesSets();
     }
     presShell->mApproximateFrameVisibilityVisited = false;
   }
   for (nsView* v = aView->GetFirstChild(); v; v = v->GetNextSibling()) {
-    ClearApproximateFrameVisibilityVisited(v, v->GetViewManager() != vm);
+    ClearVisibleFramesForUnvisitedPresShells(v, v->GetViewManager() != vm);
   }
 }
 
 void
-PresShell::ClearApproximatelyVisibleFramesList(Maybe<OnNonvisible> aNonvisibleAction
-                                                 /* = Nothing() */)
+PresShell::ClearVisibleFramesSets(Maybe<OnNonvisible> aNonvisibleAction
+                                    /* = Nothing() */)
 {
-  if (mInFrameVisibilityUpdate) {
-    gfxCriticalNoteOnce << "ClearApproximatelyVisibleFramesList is re-entering on "
-                        << (NS_IsMainThread() ? "" : "non-") << "main thread";
-  }
-  DecApproximateVisibleCount(mApproximatelyVisibleFrames, aNonvisibleAction);
+  DecVisibleCount(mApproximatelyVisibleFrames,
+                  VisibilityCounter::MAY_BECOME_VISIBLE,
+                  aNonvisibleAction);
   mApproximatelyVisibleFrames.Clear();
+
+  DecVisibleCount(mInDisplayPortFrames,
+                  VisibilityCounter::IN_DISPLAYPORT,
+                  aNonvisibleAction);
+  mInDisplayPortFrames.Clear();
+
+  if (mVisibleRegions) {
+    mVisibleRegions->mApproximate.Clear();
+    mVisibleRegions->mInDisplayPort.Clear();
+    NotifyCompositorOfVisibleRegionsChange();
+  }
 }
 
 void
 PresShell::MarkFramesInSubtreeApproximatelyVisible(nsIFrame* aFrame,
                                                    const nsRect& aRect,
-                                                   Maybe<VisibleRegions>& aVisibleRegions,
                                                    bool aRemoveOnly /* = false */)
 {
   MOZ_ASSERT(aFrame->PresContext()->PresShell() == this, "wrong presshell");
 
   if (aFrame->TrackingVisibility() &&
       aFrame->StyleVisibility()->IsVisible() &&
-      (!aRemoveOnly || aFrame->GetVisibility() == Visibility::APPROXIMATELY_VISIBLE)) {
+      (!aRemoveOnly || aFrame->IsVisibleOrMayBecomeVisibleSoon())) {
     MOZ_ASSERT(!AssumeAllFramesVisible());
     uint32_t count = mApproximatelyVisibleFrames.Count();
     mApproximatelyVisibleFrames.PutEntry(aFrame);
     if (mApproximatelyVisibleFrames.Count() > count) {
       // The frame was added to mApproximatelyVisibleFrames, so increment its visible count.
-      aFrame->IncApproximateVisibleCount();
+      aFrame->IncVisibilityCount(VisibilityCounter::MAY_BECOME_VISIBLE);
     }
 
-    AddFrameToVisibleRegions(aFrame, mViewManager, aVisibleRegions);
+    AddFrameToVisibleRegions(aFrame, VisibilityCounter::MAY_BECOME_VISIBLE);
   }
 
   nsSubDocumentFrame* subdocFrame = do_QueryFrame(aFrame);
@@ -5917,7 +5909,7 @@ PresShell::MarkFramesInSubtreeApproximatelyVisible(nsIFrame* aFrame,
           }
         }
       }
-      MarkFramesInSubtreeApproximatelyVisible(child, r, aVisibleRegions);
+      MarkFramesInSubtreeApproximatelyVisible(child, r);
     }
   }
 }
@@ -5934,35 +5926,24 @@ PresShell::RebuildApproximateFrameVisibility(nsRect* aRect,
     return;
   }
 
-  if (mInFrameVisibilityUpdate) {
-    gfxCriticalNoteOnce << "RebuildApproximateFrameVisibility is re-entering on "
-                        << (NS_IsMainThread() ? "" : "non-") << "main thread";
-  }
-
   // Remove the entries of the mApproximatelyVisibleFrames hashtable and put
   // them in oldApproximatelyVisibleFrames.
   VisibleFrames oldApproximatelyVisibleFrames;
   mApproximatelyVisibleFrames.SwapElements(oldApproximatelyVisibleFrames);
 
-  // If we're visualizing visible regions, create a VisibleRegions object to
-  // store information about them. The functions we call will populate this
-  // object and send it to the compositor only if it's Some(), so we don't
-  // need to check the prefs everywhere.
-  Maybe<VisibleRegions> visibleRegions;
-  if (gfxPrefs::APZMinimap() && gfxPrefs::APZMinimapVisibilityEnabled()) {
-    visibleRegions.emplace();
-  }
+  InitVisibleRegionsIfVisualizationEnabled(VisibilityCounter::MAY_BECOME_VISIBLE);
 
   nsRect vis(nsPoint(0, 0), rootFrame->GetSize());
   if (aRect) {
     vis = *aRect;
   }
 
-  MarkFramesInSubtreeApproximatelyVisible(rootFrame, vis, visibleRegions, aRemoveOnly);
+  MarkFramesInSubtreeApproximatelyVisible(rootFrame, vis, aRemoveOnly);
 
-  DecApproximateVisibleCount(oldApproximatelyVisibleFrames);
+  DecVisibleCount(oldApproximatelyVisibleFrames,
+                  VisibilityCounter::MAY_BECOME_VISIBLE);
 
-  NotifyCompositorOfVisibleRegionsChange(this, visibleRegions);
+  NotifyCompositorOfVisibleRegionsChange();
 }
 
 void
@@ -5986,12 +5967,12 @@ PresShell::DoUpdateApproximateFrameVisibility(bool aRemoveOnly)
   // call update on that frame
   nsIFrame* rootFrame = GetRootFrame();
   if (!rootFrame) {
-    ClearApproximatelyVisibleFramesList(Some(OnNonvisible::DISCARD_IMAGES));
+    ClearVisibleFramesSets(Some(OnNonvisible::DISCARD_IMAGES));
     return;
   }
 
   RebuildApproximateFrameVisibility(/* aRect = */ nullptr, aRemoveOnly);
-  ClearApproximateFrameVisibilityVisited(rootFrame->GetView(), true);
+  ClearVisibleFramesForUnvisitedPresShells(rootFrame->GetView(), true);
 
 #ifdef DEBUG_FRAME_VISIBILITY_DISPLAY_LIST
   // This can be used to debug the frame walker by comparing beforeFrameList
@@ -6005,7 +5986,8 @@ PresShell::DoUpdateApproximateFrameVisibility(bool aRemoveOnly)
   if (rootScroll) {
     nsIContent* content = rootScroll->GetContent();
     if (content) {
-      Unused << nsLayoutUtils::GetDisplayPort(content, &updateRect, RelativeTo::ScrollFrame);
+      Unused << nsLayoutUtils::GetDisplayPortForVisibilityTesting(content, &updateRect,
+        RelativeTo::ScrollFrame);
     }
 
     if (IgnoringViewportScrolling()) {
@@ -6020,7 +6002,7 @@ PresShell::DoUpdateApproximateFrameVisibility(bool aRemoveOnly)
 
   RebuildApproximateFrameVisibilityDisplayList(list);
 
-  ClearApproximateFrameVisibilityVisited(rootFrame->GetView(), true);
+  ClearVisibleFramesForUnvisitedPresShells(rootFrame->GetView(), true);
 
   list.DeleteAll();
 #endif
@@ -6125,14 +6107,16 @@ PresShell::ScheduleApproximateFrameVisibilityUpdateNow()
 }
 
 void
-PresShell::EnsureFrameInApproximatelyVisibleList(nsIFrame* aFrame)
+PresShell::MarkFrameVisibleInDisplayPort(nsIFrame* aFrame)
 {
   if (!aFrame->TrackingVisibility()) {
     return;
   }
 
   if (AssumeAllFramesVisible()) {
-    aFrame->IncApproximateVisibleCount();
+    if (aFrame->GetVisibility() != Visibility::IN_DISPLAYPORT) {
+      aFrame->IncVisibilityCount(VisibilityCounter::IN_DISPLAYPORT);
+    }
     return;
   }
 
@@ -6145,20 +6129,31 @@ PresShell::EnsureFrameInApproximatelyVisibleList(nsIFrame* aFrame)
   }
 #endif
 
-  if (mInFrameVisibilityUpdate) {
-    gfxCriticalNoteOnce << "EnsureFrameInApproximatelyVisibleList is re-entering on "
-                        << (NS_IsMainThread() ? "" : "non-") << "main thread";
+  if (!mInDisplayPortFrames.Contains(aFrame)) {
+    MOZ_ASSERT(!AssumeAllFramesVisible());
+    mInDisplayPortFrames.PutEntry(aFrame);
+    aFrame->IncVisibilityCount(VisibilityCounter::IN_DISPLAYPORT);
   }
 
-  if (!mApproximatelyVisibleFrames.Contains(aFrame)) {
-    MOZ_ASSERT(!AssumeAllFramesVisible());
-    mApproximatelyVisibleFrames.PutEntry(aFrame);
-    aFrame->IncApproximateVisibleCount();
+  AddFrameToVisibleRegions(aFrame, VisibilityCounter::IN_DISPLAYPORT);
+}
+
+static void
+RemoveFrameFromVisibleSet(nsIFrame* aFrame,
+                          VisibleFrames& aSet,
+                          VisibilityCounter aCounter)
+{
+  uint32_t count = aSet.Count();
+  aSet.RemoveEntry(aFrame);
+
+  if (aFrame->TrackingVisibility() && aSet.Count() < count) {
+    aFrame->DecVisibilityCount(aCounter);
   }
+
 }
 
 void
-PresShell::RemoveFrameFromApproximatelyVisibleList(nsIFrame* aFrame)
+PresShell::MarkFrameNonvisible(nsIFrame* aFrame)
 {
 #ifdef DEBUG
   // Make sure it's in this pres shell.
@@ -6171,24 +6166,16 @@ PresShell::RemoveFrameFromApproximatelyVisibleList(nsIFrame* aFrame)
 
   if (AssumeAllFramesVisible()) {
     MOZ_ASSERT(mApproximatelyVisibleFrames.Count() == 0,
-               "Shouldn't have any frames in the table");
+               "Shouldn't have any frames in the approximate visibility set");
+    MOZ_ASSERT(mInDisplayPortFrames.Count() == 0,
+               "Shouldn't have any frames in the in-displayport visibility set");
     return;
   }
 
-  if (mInFrameVisibilityUpdate) {
-    gfxCriticalNoteOnce << "RemoveFrameFromApproximatelyVisibleList is re-entering on "
-                        << (NS_IsMainThread() ? "" : "non-") << "main thread";
-  }
-
-  uint32_t count = mApproximatelyVisibleFrames.Count();
-  mApproximatelyVisibleFrames.RemoveEntry(aFrame);
-
-  if (aFrame->TrackingVisibility() &&
-      mApproximatelyVisibleFrames.Count() < count) {
-    // aFrame was in the hashtable, and we're still tracking its visibility,
-    // so we need to decrement its visible count.
-    aFrame->DecApproximateVisibleCount();
-  }
+  RemoveFrameFromVisibleSet(aFrame, mApproximatelyVisibleFrames,
+                            VisibilityCounter::MAY_BECOME_VISIBLE);
+  RemoveFrameFromVisibleSet(aFrame, mInDisplayPortFrames,
+                            VisibilityCounter::IN_DISPLAYPORT);
 }
 
 class nsAutoNotifyDidPaint
@@ -6376,8 +6363,30 @@ PresShell::Paint(nsView*        aViewToPaint,
   }
 
   if (frame) {
+    // Remove the entries of the mInDisplayPortFrames hashtable and put them
+    // in oldInDisplayPortFrames.
+    VisibleFrames oldInDisplayPortFrames;
+    mInDisplayPortFrames.SwapElements(oldInDisplayPortFrames);
+
+    InitVisibleRegionsIfVisualizationEnabled(VisibilityCounter::IN_DISPLAYPORT);
+
     // We can paint directly into the widget using its layer manager.
     nsLayoutUtils::PaintFrame(nullptr, frame, aDirtyRegion, bgcolor, flags);
+
+    DecVisibleCount(oldInDisplayPortFrames, VisibilityCounter::IN_DISPLAYPORT);
+
+    if (mVisibleRegions &&
+        !mNotifyCompositorOfVisibleRegionsChangeEvent.IsPending()) {
+      // Asynchronously notify the compositor of the new visible regions,
+      // since this is happening during a paint and updating the visible
+      // regions triggers a recomposite.
+      RefPtr<nsRunnableMethod<PresShell>> event =
+        NS_NewRunnableMethod(this, &PresShell::NotifyCompositorOfVisibleRegionsChange);
+      if (NS_SUCCEEDED(NS_DispatchToMainThread(event))) {
+        mNotifyCompositorOfVisibleRegionsChangeEvent = event;
+      }
+    }
+
     return;
   }
 
@@ -9024,6 +9033,7 @@ void
 PresShell::Freeze()
 {
   mUpdateApproximateFrameVisibilityEvent.Revoke();
+  mNotifyCompositorOfVisibleRegionsChangeEvent.Revoke();
 
   MaybeReleaseCapturingContent();
 
@@ -11047,11 +11057,6 @@ PresShell::UpdateImageLockingState()
   nsresult rv = mDocument->SetImageLockingState(locked);
 
   if (locked) {
-    if (mInFrameVisibilityUpdate) {
-      gfxCriticalNoteOnce << "UpdateImageLockingState is re-entering on "
-                          << (NS_IsMainThread() ? "" : "non-") << "main thread";
-    }
-
     // Request decodes for visible image frames; we want to start decoding as
     // quickly as possible when we get foregrounded to minimize flashing.
     for (auto iter = mApproximatelyVisibleFrames.Iter(); !iter.Done(); iter.Next()) {
@@ -11091,6 +11096,11 @@ PresShell::AddSizeOfIncludingThis(MallocSizeOf aMallocSizeOf,
     *aPresShellSize += mCaret->SizeOfIncludingThis(aMallocSizeOf);
   }
   *aPresShellSize += mApproximatelyVisibleFrames.ShallowSizeOfExcludingThis(aMallocSizeOf);
+  *aPresShellSize += mInDisplayPortFrames.ShallowSizeOfExcludingThis(aMallocSizeOf);
+  *aPresShellSize += mVisibleRegions
+                   ? mVisibleRegions->mApproximate.ShallowSizeOfIncludingThis(aMallocSizeOf) +
+                     mVisibleRegions->mInDisplayPort.ShallowSizeOfIncludingThis(aMallocSizeOf)
+                   : 0;
   *aPresShellSize += mFramesToDirty.ShallowSizeOfExcludingThis(aMallocSizeOf);
   *aPresShellSize += aArenaObjectsSize->mOther;
 

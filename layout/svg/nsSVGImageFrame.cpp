@@ -45,17 +45,15 @@ private:
   nsSVGImageFrame *mFrame;
 };
 
-typedef nsSVGPathGeometryFrame nsSVGImageFrameBase;
-
-class nsSVGImageFrame : public nsSVGImageFrameBase,
-                        public nsIReflowCallback
+class nsSVGImageFrame : public nsSVGPathGeometryFrame
+                      , public nsIReflowCallback
 {
   friend nsIFrame*
   NS_NewSVGImageFrame(nsIPresShell* aPresShell, nsStyleContext* aContext);
 
 protected:
   explicit nsSVGImageFrame(nsStyleContext* aContext)
-    : nsSVGImageFrameBase(aContext)
+    : nsSVGPathGeometryFrame(aContext)
     , mReflowCallbackPosted(false)
   {
     EnableVisibilityTracking();
@@ -155,7 +153,13 @@ nsSVGImageFrame::Init(nsIContent*       aContent,
   NS_ASSERTION(aContent->IsSVGElement(nsGkAtoms::image),
                "Content is not an SVG image!");
 
-  nsSVGImageFrameBase::Init(aContent, aParent, aPrevInFlow);
+  nsSVGPathGeometryFrame::Init(aContent, aParent, aPrevInFlow);
+
+  if (GetStateBits() & NS_FRAME_IS_NONDISPLAY) {
+    // Non-display frames are likely to be patterns, masks or the like.
+    // Treat them as always visible.
+    IncVisibilityCount(VisibilityCounter::IN_DISPLAYPORT);
+  }
 
   mListener = new nsSVGImageListener(this);
   nsCOMPtr<nsIImageLoadingContent> imageLoader = do_QueryInterface(mContent);
@@ -173,6 +177,10 @@ nsSVGImageFrame::Init(nsIContent*       aContent,
 /* virtual */ void
 nsSVGImageFrame::DestroyFrom(nsIFrame* aDestructRoot)
 {
+  if (GetStateBits() & NS_FRAME_IS_NONDISPLAY) {
+    DecVisibilityCount(VisibilityCounter::IN_DISPLAYPORT);
+  }
+
   if (mReflowCallbackPosted) {
     PresContext()->PresShell()->CancelReflowCallback(this);
     mReflowCallbackPosted = false;
@@ -227,8 +235,8 @@ nsSVGImageFrame::AttributeChanged(int32_t         aNameSpaceID,
     }
   }
 
-  return nsSVGImageFrameBase::AttributeChanged(aNameSpaceID,
-                                               aAttribute, aModType);
+  return nsSVGPathGeometryFrame::AttributeChanged(aNameSpaceID,
+                                                  aAttribute, aModType);
 }
 
 void
@@ -237,12 +245,13 @@ nsSVGImageFrame::OnVisibilityChange(Visibility aNewVisibility,
 {
   nsCOMPtr<nsIImageLoadingContent> imageLoader = do_QueryInterface(mContent);
   if (!imageLoader) {
+    nsSVGPathGeometryFrame::OnVisibilityChange(aNewVisibility, aNonvisibleAction);
     return;
   }
 
   imageLoader->OnVisibilityChange(aNewVisibility, aNonvisibleAction);
 
-  nsSVGImageFrameBase::OnVisibilityChange(aNewVisibility, aNonvisibleAction);
+  nsSVGPathGeometryFrame::OnVisibilityChange(aNewVisibility, aNonvisibleAction);
 }
 
 gfx::Matrix

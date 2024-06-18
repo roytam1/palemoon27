@@ -510,7 +510,7 @@ nsStyleSet::GatherRuleProcessors(SheetType aType)
         sheetsForScope.AppendElements(sheets.Elements() + start, end - start);
         nsCSSRuleProcessor* oldRP = oldScopedRuleProcessorHash.Get(scope);
         mScopedDocSheetRuleProcessors.AppendElement
-          (new nsCSSRuleProcessor(sheetsForScope, aType, scope, oldRP));
+          (new nsCSSRuleProcessor(Move(sheetsForScope), aType, scope, oldRP));
 
         start = end;
       } while (start < count);
@@ -979,6 +979,8 @@ nsStyleSet::GetContext(nsStyleContext* aParentContext,
       // Update CSS animations in case the animation-name has just changed.
       PresContext()->AnimationManager()->UpdateAnimations(result,
                                                           aElementForAnimation);
+      PresContext()->EffectCompositor()->UpdateEffectProperties(
+        result, aElementForAnimation, result->GetPseudoType());
 
       animRule = PresContext()->EffectCompositor()->
                    GetAnimationRule(aElementForAnimation,

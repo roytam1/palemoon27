@@ -70,10 +70,6 @@ extern const wchar_t* kFlashFullscreenClass;
 #include <ApplicationServices/ApplicationServices.h>
 #endif // defined(XP_MACOSX)
 
-// This is the pref used to determine whether to use Shumway on a Flash object
-// (when Shumway is enabled).
-static const char kShumwayWhitelistPref[] = "shumway.swf.whitelist";
-
 using namespace mozilla::plugins;
 using namespace mozilla::layers;
 using namespace mozilla::gl;
@@ -138,7 +134,6 @@ PluginInstanceParent::PluginInstanceParent(PluginModuleParent* parent,
     , mUseSurrogate(true)
     , mNPP(npp)
     , mNPNIface(npniface)
-    , mIsWhitelistedForShumway(false)
     , mWindowType(NPWindowTypeWindow)
     , mDrawingModel(kDefaultDrawingModel)
     , mLastRecordedDrawingModel(-1)
@@ -1277,7 +1272,7 @@ PluginInstanceParent::UpdateScrollCapture(bool& aRequestNewCapture)
     RECT bounds = {0};
     ::GetWindowRect(mChildPluginHWND, &bounds);
     if ((bounds.left == bounds.right && bounds.top == bounds.bottom) ||
-        (!mWindowSize.width && !mWindowSize.height)) {
+        mWindowSize.IsEmpty()) {
         CAPTURE_LOG("empty bounds");
         // Lots of null window plugins in content, don't capture.
         return false;
@@ -1303,7 +1298,7 @@ PluginInstanceParent::UpdateScrollCapture(bool& aRequestNewCapture)
     bool isVisible = ::IsWindowVisible(mChildPluginHWND);
 
     CAPTURE_LOG("validcap=%d visible=%d region=%d clip=%d:%dx%dx%dx%d",
-                mValidFirstCapture, isVisible, rgnType, clipCorrect
+                mValidFirstCapture, isVisible, rgnType, clipCorrect,
                 clip.left, clip.top, clip.right, clip.bottom);
 
     // We have a good capture and can't update so keep using the existing
@@ -1332,6 +1327,11 @@ PluginInstanceParent::UpdateScrollCapture(bool& aRequestNewCapture)
     }
 
     IntSize targetSize = mScrollCapture->GetSize();
+
+    if (targetSize.IsEmpty()) {
+        return false;
+    }
+
     RefPtr<gfx::DrawTarget> dt =
         gfxPlatform::GetPlatform()->CreateDrawTargetForSurface(mScrollCapture,
                                                                targetSize);

@@ -15,11 +15,7 @@
 #include "OggWriter.h"
 #include "OpusTrackEncoder.h"
 
-#ifdef MOZ_VORBIS
-#include "VorbisTrackEncoder.h"
-#endif
 #ifdef MOZ_WEBM_ENCODER
-#include "VorbisTrackEncoder.h"
 #include "VP8TrackEncoder.h"
 #include "WebMWriter.h"
 #endif
@@ -78,6 +74,16 @@ MediaEncoder::NotifyQueuedTrackChanges(MediaStreamGraph* aGraph,
   if (!mDirectConnected) {
     NotifyRealtimeData(aGraph, aID, aTrackOffset, aTrackEvents, aQueuedMedia);
   } else {
+    if (aTrackEvents != 0) {
+      // forward events (TRACK_EVENT_ENDED) but not the media
+      if (aQueuedMedia.GetType() == MediaSegment::VIDEO) {
+        VideoSegment segment;
+        NotifyRealtimeData(aGraph, aID, aTrackOffset, aTrackEvents, segment);
+      } else {
+        AudioSegment segment;
+        NotifyRealtimeData(aGraph, aID, aTrackOffset, aTrackEvents, segment);
+      }
+    }
     if (mSuspended == RECORD_RESUMED) {
       if (mVideoEncoder) {
         if (aQueuedMedia.GetType() == MediaSegment::VIDEO) {
@@ -135,8 +141,9 @@ MediaEncoder::CreateEncoder(const nsAString& aMIMEType, uint32_t aAudioBitrate,
   else if (MediaEncoder::IsWebMEncoderEnabled() &&
           (aMIMEType.EqualsLiteral(VIDEO_WEBM) ||
           (aTrackTypes & ContainerWriter::CREATE_VIDEO_TRACK))) {
-    if (aTrackTypes & ContainerWriter::CREATE_AUDIO_TRACK) {
-      audioEncoder = new VorbisTrackEncoder();
+    if (aTrackTypes & ContainerWriter::CREATE_AUDIO_TRACK
+        && MediaDecoder::IsOpusEnabled()) {
+      audioEncoder = new OpusTrackEncoder();
       NS_ENSURE_TRUE(audioEncoder, nullptr);
     }
     videoEncoder = new VP8TrackEncoder();

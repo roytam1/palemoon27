@@ -35,6 +35,12 @@
 #undef LOG
 #endif
 
+// GetCurrentTime is defined in winbase.h as zero argument macro forwarding to
+// GetTickCount() and conflicts with MediaStream::GetCurrentTime.
+#ifdef GetCurrentTime
+#undef GetCurrentTime
+#endif
+
 using namespace mozilla;
 using namespace mozilla::dom;
 using namespace mozilla::layers;
@@ -1405,7 +1411,6 @@ DOMHwMediaStream::Init(MediaStream* stream, OverlayImage* aImage)
 #endif
     srcStream->AddTrack(TRACK_VIDEO_PRIMARY, 0, new VideoSegment());
     srcStream->AppendToTrack(TRACK_VIDEO_PRIMARY, &segment);
-    srcStream->FinishAddTracks();
     srcStream->AdvanceKnownTracksTime(STREAM_TIME_MAX);
   }
 }

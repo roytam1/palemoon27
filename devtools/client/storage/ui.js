@@ -40,6 +40,17 @@ const HIDDEN_COLUMNS = [
   "isSecure"
 ];
 
+const REASON = {
+  NEW_ROW: "new-row",
+  NEXT_50_ITEMS: "next-50-items",
+  POPULATE: "populate",
+  UPDATE: "update"
+};
+
+// Maximum length of item name to show in context menu label - will be
+// trimmed with ellipsis if it's longer.
+const ITEM_NAME_MAX_LENGTH = 32;
+
 /**
  * StorageUI is controls and builds the UI of the Storage Inspector.
  *
@@ -59,7 +70,10 @@ var StorageUI = this.StorageUI = function StorageUI(front, target, panelWin) {
   this.front = front;
 
   let treeNode = this._panelDoc.getElementById("storage-tree");
-  this.tree = new TreeWidget(treeNode, {defaultType: "dir"});
+  this.tree = new TreeWidget(treeNode, {
+    defaultType: "dir",
+    contextMenuId: "storage-tree-popup"
+  });
   this.onHostSelect = this.onHostSelect.bind(this);
   this.tree.on("select", this.onHostSelect);
 
@@ -67,6 +81,7 @@ var StorageUI = this.StorageUI = function StorageUI(front, target, panelWin) {
   this.table = new TableWidget(tableNode, {
     emptyText: L10N.getStr("table.emptyText"),
     highlightUpdated: true,
+    cellContextMenuId: "storage-table-popup"
   });
 
   this.displayObjectSidebar = this.displayObjectSidebar.bind(this);
@@ -74,6 +89,9 @@ var StorageUI = this.StorageUI = function StorageUI(front, target, panelWin) {
 
   this.handleScrollEnd = this.handleScrollEnd.bind(this);
   this.table.on(TableWidget.EVENTS.SCROLL_END, this.handleScrollEnd);
+
+  this.editItem = this.editItem.bind(this);
+  this.table.on(TableWidget.EVENTS.CELL_EDIT, this.editItem);
 
   this.sidebar = this._panelDoc.getElementById("storage-sidebar");
   this.sidebar.setAttribute("width", "300");
@@ -95,6 +113,35 @@ var StorageUI = this.StorageUI = function StorageUI(front, target, panelWin) {
 
   this.handleKeypress = this.handleKeypress.bind(this);
   this._panelDoc.addEventListener("keypress", this.handleKeypress);
+
+  this.onTreePopupShowing = this.onTreePopupShowing.bind(this);
+  this._treePopup = this._panelDoc.getElementById("storage-tree-popup");
+  this._treePopup.addEventListener("popupshowing", this.onTreePopupShowing);
+
+  this.onTablePopupShowing = this.onTablePopupShowing.bind(this);
+  this._tablePopup = this._panelDoc.getElementById("storage-table-popup");
+  this._tablePopup.addEventListener("popupshowing", this.onTablePopupShowing);
+
+  this.onRemoveItem = this.onRemoveItem.bind(this);
+  this.onRemoveAllFrom = this.onRemoveAllFrom.bind(this);
+  this.onRemoveAll = this.onRemoveAll.bind(this);
+
+  this._tablePopupDelete = this._panelDoc.getElementById(
+    "storage-table-popup-delete");
+  this._tablePopupDelete.addEventListener("command", this.onRemoveItem);
+
+  this._tablePopupDeleteAllFrom = this._panelDoc.getElementById(
+    "storage-table-popup-delete-all-from");
+  this._tablePopupDeleteAllFrom.addEventListener("command",
+    this.onRemoveAllFrom);
+
+  this._tablePopupDeleteAll = this._panelDoc.getElementById(
+    "storage-table-popup-delete-all");
+  this._tablePopupDeleteAll.addEventListener("command", this.onRemoveAll);
+
+  this._treePopupDeleteAll = this._panelDoc.getElementById(
+    "storage-tree-popup-delete-all");
+  this._treePopupDeleteAll.addEventListener("command", this.onRemoveAll);
 };
 
 exports.StorageUI = StorageUI;
@@ -102,7 +149,6 @@ exports.StorageUI = StorageUI;
 StorageUI.prototype = {
 
   storageTypes: null,
-  shouldResetColumns: true,
   shouldLoadMoreItems: true,
 
   set animationsEnabled(value) {
@@ -110,11 +156,27 @@ StorageUI.prototype = {
   },
 
   destroy: function() {
+    this.table.off(TableWidget.EVENTS.ROW_SELECTED, this.displayObjectSidebar);
+    this.table.off(TableWidget.EVENTS.SCROLL_END, this.handleScrollEnd);
+    this.table.off(TableWidget.EVENTS.CELL_EDIT, this.editItem);
+    this.table.destroy();
+
     this.front.off("stores-update", this.onUpdate);
     this.front.off("stores-cleared", this.onCleared);
     this._panelDoc.removeEventListener("keypress", this.handleKeypress);
     this.searchBox.removeEventListener("input", this.filterItems);
     this.searchBox = null;
+
+    this._treePopup.removeEventListener("popupshowing",
+      this.onTreePopupShowing);
+    this._treePopupDeleteAll.removeEventListener("command", this.onRemoveAll);
+
+    this._tablePopup.removeEventListener("popupshowing",
+      this.onTablePopupShowing);
+    this._tablePopupDelete.removeEventListener("command", this.onRemoveItem);
+    this._tablePopupDeleteAllFrom.removeEventListener("command",
+      this.onRemoveAllFrom);
+    this._tablePopupDeleteAll.removeEventListener("command", this.onRemoveAll);
   },
 
   /**
@@ -124,6 +186,31 @@ StorageUI.prototype = {
     this.view.empty();
     this.sidebar.hidden = true;
     this.table.clearSelection();
+  },
+
+  getCurrentActor: function() {
+    let type = this.table.datatype;
+
+    return this.storageTypes[type];
+  },
+
+  makeFieldsEditable: function() {
+    let actor = this.getCurrentActor();
+
+    if (typeof actor.getEditableFields !== "undefined" &&
+        this.table.datatype !== "sessionStorage") {
+      actor.getEditableFields().then(fields => {
+        this.table.makeFieldsEditable(fields);
+      });
+    } else if (this.table._editableFieldsEngine) {
+      this.table._editableFieldsEngine.destroy();
+    }
+  },
+
+  editItem: function(eventType, data) {
+    let actor = this.getCurrentActor();
+
+    actor.editItem(data);
   },
 
   /**
@@ -219,7 +306,8 @@ StorageUI.prototype = {
             this.tree.add([type, host, ...name]);
             if (!this.tree.selectedItem) {
               this.tree.selectedItem = [type, host, name[0], name[1]];
-              this.fetchStorageObjects(type, host, [JSON.stringify(name)], 1);
+              this.fetchStorageObjects(type, host, [JSON.stringify(name)],
+                                       REASON.NEW_ROW);
             }
           } catch (ex) {
             // Do nothing
@@ -227,7 +315,8 @@ StorageUI.prototype = {
         }
 
         if (this.tree.isSelected([type, host])) {
-          this.fetchStorageObjects(type, host, added[type][host], 1);
+          this.fetchStorageObjects(type, host, added[type][host],
+                                   REASON.NEW_ROW);
         }
       }
     }
@@ -295,9 +384,9 @@ StorageUI.prototype = {
           toUpdate.push(name);
         }
       }
-      this.fetchStorageObjects(type, host, toUpdate, 2);
+      this.fetchStorageObjects(type, host, toUpdate, REASON.UPDATE);
     } catch (ex) {
-      this.fetchStorageObjects(type, host, changed[type][host], 2);
+      this.fetchStorageObjects(type, host, changed[type][host], REASON.UPDATE);
     }
   },
 
@@ -311,26 +400,34 @@ StorageUI.prototype = {
    *        Hostname
    * @param {array} names
    *        Names of particular store objects. Empty if all are requested
-   * @param {number} reason
-   *        3 for loading next 50 items, 2 for update, 1 for new row in an
-   *        existing table and 0 when populating a table for the first time
-   *        for the given host/type
+   * @param {Constant} reason
+   *        See REASON constant at top of file.
    */
   fetchStorageObjects: function(type, host, names, reason) {
-    let fetchOpts = reason === 3 ? {offset: this.itemOffset}
-                                 : {};
+    let fetchOpts = reason === REASON.NEXT_50_ITEMS ? {offset: this.itemOffset}
+                                                    : {};
     let storageType = this.storageTypes[type];
+
+    if (reason !== REASON.NEXT_50_ITEMS &&
+        reason !== REASON.UPDATE &&
+        reason !== REASON.NEW_ROW &&
+        reason !== REASON.POPULATE) {
+      throw new Error("Invalid reason specified");
+    }
 
     storageType.getStoreObjects(host, names, fetchOpts).then(({data}) => {
       if (!data.length) {
         this.emit("store-objects-updated");
         return;
       }
-      if (this.shouldResetColumns) {
+      if (reason === REASON.POPULATE) {
         this.resetColumns(data[0], type);
+        this.table.host = host;
       }
       this.populateTable(data, reason);
       this.emit("store-objects-updated");
+
+      this.makeFieldsEditable();
     }, Cu.reportError);
   },
 
@@ -369,7 +466,6 @@ StorageUI.prototype = {
             this.tree.add([type, host, ...names]);
             if (!this.tree.selectedItem) {
               this.tree.selectedItem = [type, host, names[0], names[1]];
-              this.fetchStorageObjects(type, host, [name], 0);
             }
           } catch (ex) {
             // Do Nothing
@@ -377,7 +473,6 @@ StorageUI.prototype = {
         }
         if (!this.tree.selectedItem) {
           this.tree.selectedItem = [type, host];
-          this.fetchStorageObjects(type, host, null, 0);
         }
       }
     }
@@ -557,8 +652,7 @@ StorageUI.prototype = {
     if (item.length > 2) {
       names = [JSON.stringify(item.slice(2))];
     }
-    this.shouldResetColumns = true;
-    this.fetchStorageObjects(type, host, names, 0);
+    this.fetchStorageObjects(type, host, names, REASON.POPULATE);
     this.itemOffset = 0;
   },
 
@@ -588,7 +682,7 @@ StorageUI.prototype = {
       }
     }
     this.table.setColumns(columns, null, HIDDEN_COLUMNS);
-    this.shouldResetColumns = false;
+    this.table.datatype = type;
     this.hideSidebar();
   },
 
@@ -597,10 +691,8 @@ StorageUI.prototype = {
    *
    * @param {array[object]} data
    *        Array of objects to be populated in the storage table
-   * @param {number} reason
-   *        The reason of this populateTable call. 3 for loading next 50 items,
-   *        2 for update, 1 for new row in an existing table and 0 when
-   *        populating a table for the first time for the given host/type
+   * @param {Constant} reason
+   *        See REASON constant at top of file.
    */
   populateTable: function(data, reason) {
     for (let item of data) {
@@ -619,14 +711,25 @@ StorageUI.prototype = {
       if (item.lastAccessed != null) {
         item.lastAccessed = new Date(item.lastAccessed).toUTCString();
       }
-      if (reason < 2 || reason == 3) {
-        this.table.push(item, reason == 0);
-      } else {
-        this.table.update(item);
-        if (item == this.table.selectedRow && !this.sidebar.hidden) {
-          this.displayObjectSidebar();
-        }
+
+      switch (reason) {
+        case REASON.POPULATE:
+          // Update without flashing the row.
+          this.table.push(item, true);
+          break;
+        case REASON.NEW_ROW:
+        case REASON.NEXT_50_ITEMS:
+          // Update and flash the row.
+          this.table.push(item, false);
+          break;
+        case REASON.UPDATE:
+          this.table.update(item);
+          if (item == this.table.selectedRow && !this.sidebar.hidden) {
+            this.displayObjectSidebar();
+          }
+          break;
       }
+
       this.shouldLoadMoreItems = true;
     }
   },
@@ -671,6 +774,99 @@ StorageUI.prototype = {
     if (item.length > 2) {
       names = [JSON.stringify(item.slice(2))];
     }
-    this.fetchStorageObjects(type, host, names, 3);
-  }
+    this.fetchStorageObjects(type, host, names, REASON.NEXT_50_ITEMS);
+  },
+
+  /**
+   * Fires before a cell context menu with the "Delete" action is shown.
+   * If the current storage actor doesn't support removing items, prevent
+   * showing the menu.
+   */
+  onTablePopupShowing: function(event) {
+    if (!this.getCurrentActor().removeItem) {
+      event.preventDefault();
+      return;
+    }
+
+    const maxLen = ITEM_NAME_MAX_LENGTH;
+    let [type] = this.tree.selectedItem;
+    let rowId = this.table.contextMenuRowId;
+    let data = this.table.items.get(rowId);
+    let name = data[this.table.uniqueId];
+
+    if (name.length > maxLen) {
+      name = name.substr(0, maxLen) + L10N.ellipsis;
+    }
+
+    this._tablePopupDelete.setAttribute("label",
+      L10N.getFormatStr("storage.popupMenu.deleteLabel", name));
+
+    if (type === "cookies") {
+      let host = data.host;
+      if (host.length > maxLen) {
+        host = host.substr(0, maxLen) + L10N.ellipsis;
+      }
+
+      this._tablePopupDeleteAllFrom.hidden = false;
+      this._tablePopupDeleteAllFrom.setAttribute("label",
+        L10N.getFormatStr("storage.popupMenu.deleteAllFromLabel", host));
+    } else {
+      this._tablePopupDeleteAllFrom.hidden = true;
+    }
+  },
+
+  onTreePopupShowing: function(event) {
+    let showMenu = false;
+    let selectedItem = this.tree.selectedItem;
+    // Never show menu on the 1st level item
+    if (selectedItem && selectedItem.length > 1) {
+      // this.currentActor() would return wrong value here
+      let actor = this.storageTypes[selectedItem[0]];
+      if (actor.removeAll) {
+        showMenu = true;
+      }
+    }
+
+    if (!showMenu) {
+      event.preventDefault();
+    }
+  },
+
+  /**
+   * Handles removing an item from the storage
+   */
+  onRemoveItem: function() {
+    let [, host] = this.tree.selectedItem;
+    let actor = this.getCurrentActor();
+    let rowId = this.table.contextMenuRowId;
+    let data = this.table.items.get(rowId);
+
+    actor.removeItem(host, data[this.table.uniqueId]);
+  },
+
+  /**
+   * Handles removing all items from the storage
+   */
+  onRemoveAll: function() {
+    // Cannot use this.currentActor() if the handler is called from the
+    // tree context menu: it returns correct value only after the table
+    // data from server are successfully fetched (and that's async).
+    let [type, host] = this.tree.selectedItem;
+    let actor = this.storageTypes[type];
+
+    actor.removeAll(host);
+  },
+
+  /**
+   * Handles removing all cookies with exactly the same domain as the
+   * cookie in the selected row.
+   */
+  onRemoveAllFrom: function() {
+    let [, host] = this.tree.selectedItem;
+    let actor = this.getCurrentActor();
+    let rowId = this.table.contextMenuRowId;
+    let data = this.table.items.get(rowId);
+
+    actor.removeAll(host, data.host);
+  },
 };

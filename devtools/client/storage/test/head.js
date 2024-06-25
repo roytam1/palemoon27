@@ -11,6 +11,7 @@ var { TargetFactory } = require("devtools/client/framework/target");
 var promise = require("promise");
 var DevToolsUtils = require("devtools/shared/DevToolsUtils");
 
+const {TableWidget} = require("devtools/client/shared/widgets/TableWidget");
 const SPLIT_CONSOLE_PREF = "devtools.toolbox.splitconsoleEnabled";
 const STORAGE_PREF = "devtools.storage.enabled";
 const DUMPEMIT_PREF = "devtools.dump.emit";
@@ -92,15 +93,38 @@ function* openTabAndSetupStorage(url) {
   gWindow = content.wrappedJSObject;
 
   // Setup the async storages in main window and for all its iframes
-  let callSetup = function*(win) {
-    if (typeof (win.setup) == "function") {
-      yield win.setup();
+  yield ContentTask.spawn(gBrowser.selectedBrowser, null, function*() {
+    /**
+     * Get all windows including frames recursively.
+     *
+     * @param {Window} [baseWindow]
+     *        The base window at which to start looking for child windows
+     *        (optional).
+     * @return {Set}
+     *         A set of windows.
+     */
+    function getAllWindows(baseWindow) {
+      let windows = new Set();
+
+      let _getAllWindows = function(win) {
+        windows.add(win.wrappedJSObject);
+
+        for (let i = 0; i < win.length; i++) {
+          _getAllWindows(win[i]);
+        }
+      };
+      _getAllWindows(baseWindow);
+
+      return windows;
     }
-    for (let i = 0; i < win.frames.length; i++) {
-      yield callSetup(win.frames[i]);
+
+    let windows = getAllWindows(content);
+    for (let win of windows) {
+      if (win.setup) {
+        yield win.setup();
+      }
     }
-  };
-  yield callSetup(gWindow);
+  });
 
   // open storage inspector
   return yield openStoragePanel();
@@ -194,41 +218,48 @@ function forceCollections() {
 }
 
 /**
- * Get all windows including frames recursively.
- *
- * @param {Window} [baseWindow]
- *        The base window at which to start looking for child windows
- *        (optional).
- * @return {Set}
- *         A set of windows.
- */
-function getAllWindows(baseWindow=gWindow) {
-  let windows = new Set();
-
-  let _getAllWindows = function(win) {
-    windows.add(win);
-
-    for (let i = 0; i < win.length; i++) {
-      _getAllWindows(win[i]);
-    }
-  };
-  _getAllWindows(baseWindow);
-
-  return windows;
-}
-
-/**
  * Cleans up and finishes the test
  */
 function* finishTests() {
-  for (let win of getAllWindows()) {
-    if (win.clear) {
-      console.log("Clearing cookies, localStorage and indexedDBs from " +
-                  win.document.location);
-      yield win.clear();
-    }
-  }
+  // Bug 1233497 makes it so that we can no longer yield CPOWs from Tasks.
+  // We work around this by calling clear() via a ContentTask instead.
+  yield ContentTask.spawn(gBrowser.selectedBrowser, null, function*() {
+    /**
+     * Get all windows including frames recursively.
+     *
+     * @param {Window} [baseWindow]
+     *        The base window at which to start looking for child windows
+     *        (optional).
+     * @return {Set}
+     *         A set of windows.
+     */
+    function getAllWindows(baseWindow) {
+      let windows = new Set();
 
+      let _getAllWindows = function(win) {
+        windows.add(win.wrappedJSObject);
+
+        for (let i = 0; i < win.length; i++) {
+          _getAllWindows(win[i]);
+        }
+      };
+      _getAllWindows(baseWindow);
+
+      return windows;
+    }
+
+    let windows = getAllWindows(content);
+    for (let win of windows) {
+      win.localStorage.clear();
+      win.sessionStorage.clear();
+
+      if (win.clear) {
+        yield win.clear();
+      }
+    }
+  });
+
+  Services.cookies.removeAll();
   forceCollections();
   finish();
 }
@@ -478,17 +509,13 @@ function matchVariablesViewProperty(prop, rule) {
  *        The array id of the item in the tree
  */
 function* selectTreeItem(ids) {
-  // Expand tree as some/all items could be collapsed leading to click on an
-  // incorrect tree item
-  gUI.tree.expandAll();
-
-  let selector = "[data-id='" + JSON.stringify(ids) + "'] > .tree-widget-item";
-  let target = gPanelWindow.document.querySelector(selector);
-  ok(target, "tree item found with ids " + JSON.stringify(ids));
+  /* If this item is already selected, return */
+  if (gUI.tree.isSelected(ids)) {
+    return;
+  }
 
   let updated = gUI.once("store-objects-updated");
-
-  yield click(target);
+  gUI.tree.selectedItem = ids;
   yield updated;
 }
 
@@ -535,4 +562,314 @@ function once(target, eventName, useCapture = false) {
   }
 
   return deferred.promise;
+}
+
+/**
+ * Get values for a row.
+ *
+ * @param  {String}  id
+ *         The uniqueId of the given row.
+ * @param  {Boolean} includeHidden
+ *         Include hidden columns.
+ *
+ * @return {Object}
+ *         An object of column names to values for the given row.
+ */
+function getRowValues(id, includeHidden = false) {
+  let cells = getRowCells(id, includeHidden);
+  let values = {};
+
+  for (let name in cells) {
+    let cell = cells[name];
+
+    values[name] = cell.value;
+  }
+
+  return values;
+}
+
+/**
+ * Get cells for a row.
+ *
+ * @param  {String}  id
+ *         The uniqueId of the given row.
+ * @param  {Boolean} includeHidden
+ *         Include hidden columns.
+ *
+ * @return {Object}
+ *         An object of column names to cells for the given row.
+ */
+function getRowCells(id, includeHidden = false) {
+  let doc = gPanelWindow.document;
+  let table = gUI.table;
+  let item = doc.querySelector(".table-widget-column#" + table.uniqueId +
+                               " .table-widget-cell[value='" + id + "']");
+
+  if (!item) {
+    ok(false, "Row id '" + id + "' exists");
+  }
+
+  let index = table.columns.get(table.uniqueId).visibleCellNodes.indexOf(item);
+  let cells = {};
+
+  for (let [name, column] of [...table.columns]) {
+    if (!includeHidden && column.column.parentNode.hidden) {
+      continue;
+    }
+    cells[name] = column.visibleCellNodes[index];
+  }
+
+  return cells;
+}
+
+/**
+ * Get a cell value.
+ *
+ * @param {String} id
+ *        The uniqueId of the row.
+ * @param {String} column
+ *        The id of the column
+ *
+ * @yield {String}
+ *        The cell value.
+ */
+function getCellValue(id, column) {
+  let row = getRowValues(id, true);
+
+  return row[column];
+}
+
+/**
+ * Edit a cell value. The cell is assumed to be in edit mode, see startCellEdit.
+ *
+ * @param {String} id
+ *        The uniqueId of the row.
+ * @param {String} column
+ *        The id of the column
+ * @param {String} newValue
+ *        Replacement value.
+ * @param {Boolean} validate
+ *        Validate result? Default true.
+ *
+ * @yield {String}
+ *        The uniqueId of the changed row.
+ */
+function* editCell(id, column, newValue, validate = true) {
+  let row = getRowCells(id, true);
+  let editableFieldsEngine = gUI.table._editableFieldsEngine;
+
+  editableFieldsEngine.edit(row[column]);
+
+  return yield typeWithTerminator(newValue, "VK_RETURN", validate);
+}
+
+/**
+ * Begin edit mode for a cell.
+ *
+ * @param {String} id
+ *        The uniqueId of the row.
+ * @param {String} column
+ *        The id of the column
+ * @param {Boolean} selectText
+ *        Select text? Default true.
+ */
+function* startCellEdit(id, column, selectText = true) {
+  let row = getRowCells(id, true);
+  let editableFieldsEngine = gUI.table._editableFieldsEngine;
+  let cell = row[column];
+
+  info("Selecting row " + id);
+  gUI.table.selectedRow = id;
+
+  info("Starting cell edit (" + id + ", " + column + ")");
+  editableFieldsEngine.edit(cell);
+
+  if (!selectText) {
+    let textbox = gUI.table._editableFieldsEngine.textbox;
+    textbox.selectionEnd = textbox.selectionStart;
+  }
+}
+
+/**
+ * Check a cell value.
+ *
+ * @param {String} id
+ *        The uniqueId of the row.
+ * @param {String} column
+ *        The id of the column
+ * @param {String} expected
+ *        Expected value.
+ */
+function checkCell(id, column, expected) {
+  is(getCellValue(id, column), expected,
+     column + " column has the right value for " + id);
+}
+
+/**
+ * Show or hide a column.
+ *
+ * @param  {String} id
+ *         The uniqueId of the given column.
+ * @param  {Boolean} state
+ *         true = show, false = hide
+ */
+function showColumn(id, state) {
+  let columns = gUI.table.columns;
+  let column = columns.get(id);
+
+  if (state) {
+    column.wrapper.removeAttribute("hidden");
+  } else {
+    column.wrapper.setAttribute("hidden", true);
+  }
+}
+
+/**
+ * Show or hide all columns.
+ *
+ * @param  {Boolean} state
+ *         true = show, false = hide
+ */
+function showAllColumns(state) {
+  let columns = gUI.table.columns;
+
+  for (let [id] of columns) {
+    showColumn(id, state);
+  }
+}
+
+/**
+ * Type a string in the currently selected editor and then wait for the row to
+ * be updated.
+ *
+ * @param  {String} str
+ *         The string to type.
+ * @param  {String} terminator
+ *         The terminating key e.g. VK_RETURN or VK_TAB
+ * @param  {Boolean} validate
+ *         Validate result? Default true.
+ */
+function* typeWithTerminator(str, terminator, validate = true) {
+  let editableFieldsEngine = gUI.table._editableFieldsEngine;
+  let textbox = editableFieldsEngine.textbox;
+  let colName = textbox.closest(".table-widget-column").id;
+
+  let changeExpected = str !== textbox.value;
+
+  if (!changeExpected) {
+    return editableFieldsEngine.currentTarget.getAttribute("data-id");
+  }
+
+  info("Typing " + str);
+  EventUtils.sendString(str);
+
+  info("Pressing " + terminator);
+  EventUtils.synthesizeKey(terminator, {});
+
+  if (validate) {
+    info("Validating results... waiting for ROW_EDIT event.");
+    let uniqueId = yield gUI.table.once(TableWidget.EVENTS.ROW_EDIT);
+
+    checkCell(uniqueId, colName, str);
+    return uniqueId;
+  }
+
+  return yield gUI.table.once(TableWidget.EVENTS.ROW_EDIT);
+}
+
+function getCurrentEditorValue() {
+  let editableFieldsEngine = gUI.table._editableFieldsEngine;
+  let textbox = editableFieldsEngine.textbox;
+
+  return textbox.value;
+}
+
+/**
+ * Press a key x times.
+ *
+ * @param  {String} key
+ *         The key to press e.g. VK_RETURN or VK_TAB
+ * @param {Number} x
+ *         The number of times to press the key.
+ * @param {Object} modifiers
+ *         The event modifier e.g. {shiftKey: true}
+ */
+function PressKeyXTimes(key, x, modifiers = {}) {
+  for (let i = 0; i < x; i++) {
+    EventUtils.synthesizeKey(key, modifiers);
+  }
+}
+
+/**
+ * Wait for a context menu popup to open.
+ *
+ * @param nsIDOMElement popup
+ *        The XUL popup you expect to open.
+ * @param nsIDOMElement button
+ *        The button/element that receives the contextmenu event. This is
+ *        expected to open the popup.
+ * @param function onShown
+ *        Function to invoke on popupshown event.
+ * @param function onHidden
+ *        Function to invoke on popuphidden event.
+ * @return object
+ *         A Promise object that is resolved after the popuphidden event
+ *         callback is invoked.
+ */
+function waitForContextMenu(popup, button, onShown, onHidden) {
+  let deferred = promise.defer();
+
+  function onPopupShown() {
+    info("onPopupShown");
+    popup.removeEventListener("popupshown", onPopupShown);
+
+    onShown && onShown();
+
+    // Use executeSoon() to get out of the popupshown event.
+    popup.addEventListener("popuphidden", onPopupHidden);
+    executeSoon(() => popup.hidePopup());
+  }
+  function onPopupHidden() {
+    info("onPopupHidden");
+    popup.removeEventListener("popuphidden", onPopupHidden);
+
+    onHidden && onHidden();
+
+    deferred.resolve(popup);
+  }
+
+  popup.addEventListener("popupshown", onPopupShown);
+
+  info("wait for the context menu to open");
+  button.scrollIntoView();
+  let eventDetails = {type: "contextmenu", button: 2};
+  EventUtils.synthesizeMouse(button, 5, 2, eventDetails,
+                             button.ownerDocument.defaultView);
+  return deferred.promise;
+}
+
+/**
+ * Verify the storage inspector state: check that given type/host exists
+ * in the tree, and that the table contains rows with specified names.
+ *
+ * @param {Array} state Array of state specifications. For example,
+ *        [["cookies", "example.com"], ["c1", "c2"]] means to select the
+ *        "example.com" host in cookies and then verify there are "c1" and "c2"
+ *        cookies (and no other ones).
+ */
+function* checkState(state) {
+  for (let [store, names] of state) {
+    let storeName = store.join(" > ");
+    info(`Selecting tree item ${storeName}`);
+    yield selectTreeItem(store);
+
+    let items = gUI.table.items;
+
+    is(items.size, names.length,
+      `There is correct number of rows in ${storeName}`);
+    for (let name of names) {
+      ok(items.has(name),
+        `There is item with name '${name}' in ${storeName}`);
+    }
+  }
 }

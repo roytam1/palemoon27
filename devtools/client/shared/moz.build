@@ -32,6 +32,7 @@ DevToolsModules(
     'getjson.js',
     'inplace-editor.js',
     'Jsbeautify.jsm',
+    'l10n.js',
     'node-attribute-parser.js',
     'options-view.js',
     'output-parser.js',
@@ -43,4 +44,5 @@ DevToolsModules(
     'theme.js',
     'undo.js',
     'view-source.js',
+    'webgl-utils.js',
 )

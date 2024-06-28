@@ -225,7 +225,8 @@ this.ViewHelpers = {
   },
 
   /**
-   * Sets a side pane hidden or visible.
+   * Sets a toggled pane hidden or visible. The pane can either be displayed on
+   * the side (right or left depending on the locale) or at the bottom.
    *
    * @param object aFlags
    *        An object containing some of the following properties:
@@ -246,9 +247,7 @@ this.ViewHelpers = {
     aPane.removeAttribute("hidden");
 
     // Add a class to the pane to handle min-widths, margins and animations.
-    if (!aPane.classList.contains("generic-toggled-side-pane")) {
-      aPane.classList.add("generic-toggled-side-pane");
-    }
+    aPane.classList.add("generic-toggled-pane");
 
     // Avoid useless toggles.
     if (aFlags.visible == !aPane.hasAttribute("pane-collapsed")) {
@@ -265,29 +264,37 @@ this.ViewHelpers = {
 
     // Computes and sets the pane margins in order to hide or show it.
     let doToggle = () => {
+      // Negative margins are applied to "right" and "left" to support RTL and
+      // LTR directions, as well as to "bottom" to support vertical layouts.
+      // Unnecessary negative margins are forced to 0 via CSS in widgets.css.
       if (aFlags.visible) {
         aPane.style.marginLeft = "0";
         aPane.style.marginRight = "0";
+        aPane.style.marginBottom = "0";
         aPane.removeAttribute("pane-collapsed");
       } else {
-        let margin = ~~(aPane.getAttribute("width")) + 1;
-        aPane.style.marginLeft = -margin + "px";
-        aPane.style.marginRight = -margin + "px";
+        let width = Math.floor(aPane.getAttribute("width")) + 1;
+        let height = Math.floor(aPane.getAttribute("height")) + 1;
+        aPane.style.marginLeft = -width + "px";
+        aPane.style.marginRight = -width + "px";
+        aPane.style.marginBottom = -height + "px";
         aPane.setAttribute("pane-collapsed", "");
       }
 
-      // Invoke the callback when the transition ended.
+      // Wait for the animation to end before calling afterToggle()
       if (aFlags.animated) {
         aPane.addEventListener("transitionend", function onEvent() {
           aPane.removeEventListener("transitionend", onEvent, false);
+          // Prevent unwanted transitions: if the panel is hidden and the layout
+          // changes margins will be updated and the panel will pop out.
+          aPane.removeAttribute("animated");
           if (aFlags.callback) aFlags.callback();
         }, false);
-      }
-      // Invoke the callback immediately since there's no transition.
-      else {
+      } else {
+        // Invoke the callback immediately since there's no transition.
         if (aFlags.callback) aFlags.callback();
       }
-    }
+    };
 
     // Sometimes it's useful delaying the toggle a few ticks to ensure
     // a smoother slide in-out animation.
@@ -299,114 +306,7 @@ this.ViewHelpers = {
   }
 };
 
-/**
- * Localization convenience methods.
- *
- * @param string aStringBundleName
- *        The desired string bundle's name.
- */
-ViewHelpers.L10N = function(aStringBundleName) {
-  XPCOMUtils.defineLazyGetter(this, "stringBundle", () =>
-    Services.strings.createBundle(aStringBundleName));
 
-  XPCOMUtils.defineLazyGetter(this, "ellipsis", () =>
-    Services.prefs.getComplexValue("intl.ellipsis", Ci.nsIPrefLocalizedString).data);
-};
-
-ViewHelpers.L10N.prototype = {
-  stringBundle: null,
-
-  /**
-   * L10N shortcut function.
-   *
-   * @param string aName
-   * @return string
-   */
-  getStr: function(aName) {
-    return this.stringBundle.GetStringFromName(aName);
-  },
-
-  /**
-   * L10N shortcut function.
-   *
-   * @param string aName
-   * @param array aArgs
-   * @return string
-   */
-  getFormatStr: function(aName, ...aArgs) {
-    return this.stringBundle.formatStringFromName(aName, aArgs, aArgs.length);
-  },
-
-  /**
-   * L10N shortcut function for numeric arguments that need to be formatted.
-   * All numeric arguments will be fixed to 2 decimals and given a localized
-   * decimal separator. Other arguments will be left alone.
-   *
-   * @param string aName
-   * @param array aArgs
-   * @return string
-   */
-  getFormatStrWithNumbers: function(aName, ...aArgs) {
-    let newArgs = aArgs.map(x => typeof x == "number" ? this.numberWithDecimals(x, 2) : x);
-    return this.stringBundle.formatStringFromName(aName, newArgs, newArgs.length);
-  },
-
-  /**
-   * Converts a number to a locale-aware string format and keeps a certain
-   * number of decimals.
-   *
-   * @param number aNumber
-   *        The number to convert.
-   * @param number aDecimals [optional]
-   *        Total decimals to keep.
-   * @return string
-   *         The localized number as a string.
-   */
-  numberWithDecimals: function(aNumber, aDecimals = 0) {
-    // If this is an integer, don't do anything special.
-    if (aNumber == (aNumber | 0)) {
-      return aNumber;
-    }
-    if (isNaN(aNumber) || aNumber == null) {
-      return "0";
-    }
-    let localized = aNumber.toLocaleString(); // localize
-
-    // If no grouping or decimal separators are available, bail out, because
-    // padding with zeros at the end of the string won't make sense anymore.
-    if (!localized.match(/[^\d]/)) {
-      return localized;
-    }
-
-    return aNumber.toLocaleString(undefined, {
-      maximumFractionDigits: aDecimals,
-      minimumFractionDigits: aDecimals
-    });
-  }
-};
-
-/**
- * A helper for having the same interface as ViewHelpers.L10N, but for
- * more than one file. Useful for abstracting l10n string locations.
- */
-ViewHelpers.MultiL10N = function(aStringBundleNames) {
-  let l10ns = aStringBundleNames.map(bundle => new ViewHelpers.L10N(bundle));
-  let proto = ViewHelpers.L10N.prototype;
-
-  Object.getOwnPropertyNames(proto)
-    .map(name => ({
-      name: name,
-      desc: Object.getOwnPropertyDescriptor(proto, name)
-    }))
-    .filter(property => property.desc.value instanceof Function)
-    .forEach(method => {
-      this[method.name] = function(...args) {
-        for (let l10n of l10ns) {
-          try { return method.desc.value.apply(l10n, args) } catch (e) {}
-        }
-      };
-    });
-};
 
 /**
  * Shortcuts for lazily accessing and setting various preferences.

@@ -8,11 +8,13 @@
 
 #include "mozilla/dom/DecoderDoctorNotificationBinding.h"
 #include "mozilla/Logging.h"
+#include "mozilla/Preferences.h"
 #include "nsGkAtoms.h"
 #include "nsIDocument.h"
 #include "nsIObserverService.h"
 #include "nsITimer.h"
 #include "nsIWeakReference.h"
+#include "nsPluginHost.h"
 
 static mozilla::LazyLogModule sDecoderDoctorLog("DecoderDoctor");
 #define DD_LOG(level, arg, ...) MOZ_LOG(sDecoderDoctorLog, level, (arg, ##__VA_ARGS__))
@@ -265,7 +267,7 @@ void
 DecoderDoctorDocumentWatcher::ReportAnalysis(
   dom::DecoderDoctorNotificationType aNotificationType,
   const char* aReportStringId,
-  const nsAString& aFormats)
+  const nsAString& aParams)
 {
   MOZ_ASSERT(NS_IsMainThread());
 
@@ -273,24 +275,82 @@ DecoderDoctorDocumentWatcher::ReportAnalysis(
     return;
   }
 
-  const char16_t* params[] = { aFormats.Data() };
+  // 'params' will only be forwarded for non-empty strings.
+  const char16_t* params[1] = { aParams.Data() };
   DD_DEBUG("DecoderDoctorDocumentWatcher[%p, doc=%p]::ReportAnalysis() ReportToConsole - aMsg='%s' params[0]='%s'",
            this, mDocument, aReportStringId,
-           NS_ConvertUTF16toUTF8(params[0]).get());
+           aParams.IsEmpty() ? "<no params>" : NS_ConvertUTF16toUTF8(params[0]).get());
   nsContentUtils::ReportToConsole(nsIScriptError::warningFlag,
                                   NS_LITERAL_CSTRING("Media"),
                                   mDocument,
                                   nsContentUtils::eDOM_PROPERTIES,
                                   aReportStringId,
-                                  params,
-                                  ArrayLength(params));
+                                  aParams.IsEmpty() ? nullptr : params,
+                                  aParams.IsEmpty() ? 0 : 1);
 
-  // For now, disable all front-end notifications by default.
-  // TODO: Future bugs will use finer-grained filtering instead.
-  if (Preferences::GetBool("media.decoderdoctor.enable-notification-bar", false)) {
-    DispatchNotification(
-      mDocument->GetInnerWindow(), aNotificationType, aFormats);
+  // "media.decoder-doctor.notifications-allowed" controls which notifications
+  // may be dispatched to the front-end. It either contains:
+  // - '*' -> Allow everything.
+  // - Comma-separater list of ids -> Allow if aReportStringId (from
+  //                                  dom.properties) is one of them.
+  // - Nothing (missing or empty) -> Disable everything.
+  nsAdoptingCString filter =
+    Preferences::GetCString("media.decoder-doctor.notifications-allowed");
+  filter.StripWhitespace();
+  bool allowed = false;
+  if (!filter || filter.IsEmpty()) {
+    // Allow nothing.
+  } else if (filter.EqualsLiteral("*")) {
+    allowed = true;
+  } else for (uint32_t start = 0; start < filter.Length(); ) {
+    int32_t comma = filter.FindChar(',', start);
+    uint32_t end = (comma >= 0) ? uint32_t(comma) : filter.Length();
+    if (strncmp(aReportStringId, filter.Data() + start, end - start) == 0) {
+      allowed = true;
+      break;
+    }
+    // Skip comma. End of line will be caught in for 'while' clause.
+    start = end + 1;
   }
+  if (allowed) {
+    DispatchNotification(
+      mDocument->GetInnerWindow(), aNotificationType, aParams);
+  }
+}
+
+enum SilverlightPresence {
+  eNoSilverlight,
+  eSilverlightDisabled,
+  eSilverlightEnabled
+};
+static SilverlightPresence
+CheckSilverlight()
+{
+  MOZ_ASSERT(NS_IsMainThread());
+  RefPtr<nsPluginHost> pluginHost = nsPluginHost::GetInst();
+  if (!pluginHost) {
+    return eNoSilverlight;
+  }
+  nsTArray<nsCOMPtr<nsIInternalPluginTag>> plugins;
+  pluginHost->GetPlugins(plugins, /*aIncludeDisabled*/ true);
+  for (const auto& plugin : plugins) {
+    for (const auto& mime : plugin->MimeTypes()) {
+      if (mime.LowerCaseEqualsLiteral("application/x-silverlight")
+          || mime.LowerCaseEqualsLiteral("application/x-silverlight-2")) {
+        return plugin->IsEnabled() ? eSilverlightEnabled : eSilverlightDisabled;
+      }
+    }
+  }
+
+  return eNoSilverlight;
+}
+
+static void AppendToStringList(nsAString& list, const nsAString& item)
+{
+  if (!list.IsEmpty()) {
+    list += NS_LITERAL_STRING(", ");
+  }
+  list += item;
 }
 
 void
@@ -299,35 +359,53 @@ DecoderDoctorDocumentWatcher::SynthesizeAnalysis()
   MOZ_ASSERT(NS_IsMainThread());
 
   bool canPlay = false;
+#if defined(XP_WIN)
+  bool WMFNeeded = false;
+#endif
 #if defined(MOZ_FFMPEG)
   bool FFMpegNeeded = false;
 #endif
+  nsAutoString playableFormats;
   nsAutoString unplayableFormats;
+  nsAutoString supportedKeySystems;
   nsAutoString unsupportedKeySystems;
+  DecoderDoctorDiagnostics::KeySystemIssue lastKeySystemIssue =
+    DecoderDoctorDiagnostics::eUnset;
 
   for (auto& diag : mDiagnosticsSequence) {
     switch (diag.mDecoderDoctorDiagnostics.Type()) {
     case DecoderDoctorDiagnostics::eFormatSupportCheck:
       if (diag.mDecoderDoctorDiagnostics.CanPlay()) {
         canPlay = true;
+        AppendToStringList(playableFormats,
+                           diag.mDecoderDoctorDiagnostics.Format());
       } else {
+#if defined(XP_WIN)
+        if (diag.mDecoderDoctorDiagnostics.DidWMFFailToLoad()) {
+          WMFNeeded = true;
+        }
+#endif
 #if defined(MOZ_FFMPEG)
         if (diag.mDecoderDoctorDiagnostics.DidFFmpegFailToLoad()) {
           FFMpegNeeded = true;
         }
 #endif
-        if (!unplayableFormats.IsEmpty()) {
-          unplayableFormats += NS_LITERAL_STRING(", ");
-        }
-        unplayableFormats += diag.mDecoderDoctorDiagnostics.Format();
+        AppendToStringList(unplayableFormats,
+                           diag.mDecoderDoctorDiagnostics.Format());
       }
       break;
     case DecoderDoctorDiagnostics::eMediaKeySystemAccessRequest:
-      if (!diag.mDecoderDoctorDiagnostics.IsKeySystemSupported()) {
-        if (!unsupportedKeySystems.IsEmpty()) {
-          unsupportedKeySystems += NS_LITERAL_STRING(", ");
+      if (diag.mDecoderDoctorDiagnostics.IsKeySystemSupported()) {
+        AppendToStringList(supportedKeySystems,
+                           diag.mDecoderDoctorDiagnostics.KeySystem());
+      } else {
+        AppendToStringList(unsupportedKeySystems,
+                           diag.mDecoderDoctorDiagnostics.KeySystem());
+        DecoderDoctorDiagnostics::KeySystemIssue issue =
+          diag.mDecoderDoctorDiagnostics.GetKeySystemIssue();
+        if (issue != DecoderDoctorDiagnostics::eUnset) {
+          lastKeySystemIssue = issue;
         }
-        unsupportedKeySystems += diag.mDecoderDoctorDiagnostics.KeySystem();
       }
       break;
     default:
@@ -339,33 +417,61 @@ DecoderDoctorDocumentWatcher::SynthesizeAnalysis()
     }
   }
 
-  if (!canPlay) {
+  // Look at Key System issues first, as they may influence format checks.
+  if (!unsupportedKeySystems.IsEmpty() && supportedKeySystems.IsEmpty()) {
+    // No supported key systems!
+    switch (lastKeySystemIssue) {
+    case DecoderDoctorDiagnostics::eWidevineWithNoWMF:
+      if (CheckSilverlight() != eSilverlightEnabled) {
+        DD_DEBUG("DecoderDoctorDocumentWatcher[%p, doc=%p]::SynthesizeAnalysis() - unsupported key systems: %s, widevine without WMF nor Silverlight",
+                 this, mDocument, NS_ConvertUTF16toUTF8(unplayableFormats).get());
+        ReportAnalysis(dom::DecoderDoctorNotificationType::Platform_decoder_not_found,
+                       "MediaWidevineNoWMFNoSilverlight", NS_LITERAL_STRING(""));
+        return;
+      }
+      break;
+    default:
+      break;
+    }
+  }
+
+  if (!canPlay && !unplayableFormats.IsEmpty()) {
+#if defined(XP_WIN)
+    if (WMFNeeded) {
+      DD_DEBUG("DecoderDoctorDocumentWatcher[%p, doc=%p]::SynthesizeAnalysis() - formats: %s -> Cannot play media because WMF was not found",
+               this, mDocument, NS_ConvertUTF16toUTF8(unplayableFormats).get());
+      ReportAnalysis(dom::DecoderDoctorNotificationType::Platform_decoder_not_found,
+                     "MediaWMFNeeded", unplayableFormats);
+      return;
+    }
+#endif
 #if defined(MOZ_FFMPEG)
     if (FFMpegNeeded) {
       DD_DEBUG("DecoderDoctorDocumentWatcher[%p, doc=%p]::SynthesizeAnalysis() - unplayable formats: %s -> Cannot play media because platform decoder was not found",
                this, mDocument, NS_ConvertUTF16toUTF8(unplayableFormats).get());
       ReportAnalysis(dom::DecoderDoctorNotificationType::Platform_decoder_not_found,
                      "MediaPlatformDecoderNotFound", unplayableFormats);
-    } else
-#endif
-    {
-      DD_WARN("DecoderDoctorDocumentWatcher[%p, doc=%p]::SynthesizeAnalysis() - Cannot play media, unplayable formats: %s",
-              this, mDocument, NS_ConvertUTF16toUTF8(unplayableFormats).get());
-      ReportAnalysis(dom::DecoderDoctorNotificationType::Cannot_play,
-                     "MediaCannotPlayNoDecoders", unplayableFormats);
+      return;
     }
-  } else if (!unplayableFormats.IsEmpty()) {
+#endif
+    DD_WARN("DecoderDoctorDocumentWatcher[%p, doc=%p]::SynthesizeAnalysis() - Cannot play media, unplayable formats: %s",
+            this, mDocument, NS_ConvertUTF16toUTF8(unplayableFormats).get());
+    ReportAnalysis(dom::DecoderDoctorNotificationType::Cannot_play,
+                   "MediaCannotPlayNoDecoders", unplayableFormats);
+    return;
+  }
+  if (!unplayableFormats.IsEmpty()) {
     DD_INFO("DecoderDoctorDocumentWatcher[%p, doc=%p]::SynthesizeAnalysis() - Can play media, but no decoders for some requested formats: %s",
             this, mDocument, NS_ConvertUTF16toUTF8(unplayableFormats).get());
-    if (Preferences::GetBool("media.decoderdoctor.verbose", false)) {
+    if (Preferences::GetBool("media.decoder-doctor.verbose", false)) {
       ReportAnalysis(
         dom::DecoderDoctorNotificationType::Can_play_but_some_missing_decoders,
         "MediaNoDecoders", unplayableFormats);
     }
-  } else {
-    DD_DEBUG("DecoderDoctorDocumentWatcher[%p, doc=%p]::SynthesizeAnalysis() - Can play media, decoders available for all requested formats",
-             this, mDocument);
+    return;
   }
+  DD_DEBUG("DecoderDoctorDocumentWatcher[%p, doc=%p]::SynthesizeAnalysis() - Can play media, decoders available for all requested formats",
+           this, mDocument);
 }
 
 void

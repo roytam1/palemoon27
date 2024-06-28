@@ -63,6 +63,7 @@ using namespace mozilla::media;
 #undef LOG
 #undef DECODER_LOG
 #undef VERBOSE_LOG
+#undef DUMP_LOG
 
 #define LOG(m, l, x, ...) \
   MOZ_LOG(m, l, ("Decoder=%p " x, mDecoderID, ##__VA_ARGS__))
@@ -78,6 +79,9 @@ using namespace mozilla::media;
 #define DECODER_WARN_HELPER(a, b) NS_WARNING b
 #define DECODER_WARN(x, ...) \
   DECODER_WARN_HELPER(0, (nsPrintfCString("Decoder=%p " x, mDecoderID, ##__VA_ARGS__).get()))
+
+#define DUMP_LOG(x, ...) \
+  NS_DebugBreak(NS_DEBUG_WARNING, nsPrintfCString("Decoder=%p " x, mDecoderID, ##__VA_ARGS__).get(), nullptr, nullptr, -1)
 
 // Certain constants get stored as member variables and then adjusted by various
 // scale factors on a per-decoder basis. We want to make sure to avoid using these
@@ -295,11 +299,6 @@ MediaDecoderStateMachine::MediaDecoderStateMachine(MediaDecoder* aDecoder,
   MOZ_COUNT_CTOR(MediaDecoderStateMachine);
   NS_ASSERTION(NS_IsMainThread(), "Should be on main thread.");
 
-  // Dispatch initialization that needs to happen on that task queue.
-  nsCOMPtr<nsIRunnable> r = NS_NewRunnableMethodWithArg<RefPtr<MediaDecoder>>(
-    this, &MediaDecoderStateMachine::InitializationTask, aDecoder);
-  mTaskQueue->Dispatch(r.forget());
-
   InitVideoQueuePrefs();
 
   mBufferingWait = IsRealTime() ? 0 : 15;
@@ -312,22 +311,6 @@ MediaDecoderStateMachine::MediaDecoderStateMachine(MediaDecoder* aDecoder,
   // function per-process is OK, provided each call is matched by a corresponding
   // timeEndPeriod() call.
   timeBeginPeriod(1);
-#endif
-
-  mAudioQueueListener = AudioQueue().PopEvent().Connect(
-    mTaskQueue, this, &MediaDecoderStateMachine::OnAudioPopped);
-  mVideoQueueListener = VideoQueue().PopEvent().Connect(
-    mTaskQueue, this, &MediaDecoderStateMachine::OnVideoPopped);
-
-  mMetadataManager.Connect(mReader->TimedMetadataEvent(), OwnerThread());
-
-  mMediaSink = CreateMediaSink(mAudioCaptured);
-
-#ifdef MOZ_EME
-  mCDMProxyPromise.Begin(aDecoder->RequestCDMProxy()->Then(
-    OwnerThread(), __func__, this,
-    &MediaDecoderStateMachine::OnCDMProxyReady,
-    &MediaDecoderStateMachine::OnCDMProxyNotReady));
 #endif
 }
 
@@ -403,8 +386,7 @@ MediaDecoderStateMachine::CreateMediaSink(bool aAudioCaptured)
 
   RefPtr<media::MediaSink> mediaSink =
     new VideoSink(mTaskQueue, audioSink, mVideoQueue,
-                  mVideoFrameContainer, mRealTime,
-                  *mFrameStats,
+                  mVideoFrameContainer, *mFrameStats,
                   sVideoQueueSendToCompositorSize);
   return mediaSink.forget();
 }
@@ -1065,14 +1047,35 @@ bool MediaDecoderStateMachine::IsPlaying() const
   return mMediaSink->IsPlaying();
 }
 
-nsresult MediaDecoderStateMachine::Init()
+nsresult MediaDecoderStateMachine::Init(MediaDecoder* aDecoder)
 {
   MOZ_ASSERT(NS_IsMainThread());
+
+  // Dispatch initialization that needs to happen on that task queue.
+  nsCOMPtr<nsIRunnable> r = NS_NewRunnableMethodWithArg<RefPtr<MediaDecoder>>(
+    this, &MediaDecoderStateMachine::InitializationTask, aDecoder);
+  mTaskQueue->Dispatch(r.forget());
+
+  mAudioQueueListener = AudioQueue().PopEvent().Connect(
+    mTaskQueue, this, &MediaDecoderStateMachine::OnAudioPopped);
+  mVideoQueueListener = VideoQueue().PopEvent().Connect(
+    mTaskQueue, this, &MediaDecoderStateMachine::OnVideoPopped);
+
+  mMetadataManager.Connect(mReader->TimedMetadataEvent(), OwnerThread());
+
+  mMediaSink = CreateMediaSink(mAudioCaptured);
+
+#ifdef MOZ_EME
+  mCDMProxyPromise.Begin(aDecoder->RequestCDMProxy()->Then(
+    OwnerThread(), __func__, this,
+    &MediaDecoderStateMachine::OnCDMProxyReady,
+    &MediaDecoderStateMachine::OnCDMProxyNotReady));
+#endif
+
   nsresult rv = mReader->Init();
   NS_ENSURE_SUCCESS(rv, rv);
 
-  nsCOMPtr<nsIRunnable> r = NS_NewRunnableMethod(
-    this, &MediaDecoderStateMachine::ReadMetadata);
+  r = NS_NewRunnableMethod(this, &MediaDecoderStateMachine::ReadMetadata);
   OwnerThread()->Dispatch(r.forget());
 
   return NS_OK;
@@ -2866,6 +2869,28 @@ uint32_t MediaDecoderStateMachine::GetAmpleVideoFrames() const
   return (mReader->IsAsync() && mReader->VideoIsHardwareAccelerated())
     ? std::max<uint32_t>(sVideoQueueHWAccelSize, MIN_VIDEO_QUEUE_SIZE)
     : std::max<uint32_t>(sVideoQueueDefaultSize, MIN_VIDEO_QUEUE_SIZE);
+}
+
+void
+MediaDecoderStateMachine::DumpDebugInfo()
+{
+  MOZ_ASSERT(NS_IsMainThread());
+
+  // It is fine to capture a raw pointer here because MediaDecoder only call
+  // this function before shutdown begins.
+  nsCOMPtr<nsIRunnable> r = NS_NewRunnableFunction([this] () {
+    DUMP_LOG(
+      "GetMediaTime=%lld GetClock=%lld "
+      "mState=%s mPlayState=%d mDecodingFirstFrame=%d IsPlaying=%d "
+      "mAudioStatus=%s mVideoStatus=%s mDecodedAudioEndTime=%lld mDecodedVideoEndTime=%lld "
+      "mIsAudioPrerolling=%d mIsVideoPrerolling=%d",
+      GetMediaTime(), mMediaSink->IsStarted() ? GetClock() : -1,
+      gMachineStateStr[mState], mPlayState.Ref(), mDecodingFirstFrame, IsPlaying(),
+      AudioRequestStatus(), VideoRequestStatus(), mDecodedAudioEndTime, mDecodedVideoEndTime,
+      mIsAudioPrerolling, mIsVideoPrerolling);
+  });
+
+  OwnerThread()->DispatchStateChange(r.forget());
 }
 
 void MediaDecoderStateMachine::AddOutputStream(ProcessedMediaStream* aStream,

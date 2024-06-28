@@ -142,7 +142,7 @@ public:
                            MediaDecoderReader* aReader,
                            bool aRealTime = false);
 
-  nsresult Init();
+  nsresult Init(MediaDecoder* aDecoder);
 
   // Enumeration for the valid decoding states
   enum State {
@@ -156,6 +156,8 @@ public:
     DECODER_STATE_SHUTDOWN,
     DECODER_STATE_ERROR
   };
+
+  void DumpDebugInfo();
 
   void AddOutputStream(ProcessedMediaStream* aStream, bool aFinishWhenEnded);
   // Remove an output stream added with AddOutputStream.

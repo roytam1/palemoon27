@@ -26,7 +26,6 @@ UNIFIED_SOURCES += [
 if CONFIG['MOZ_WEBM_ENCODER']:
     UNIFIED_SOURCES += [
         'TestVideoTrackEncoder.cpp',
-        'TestVorbisTrackEncoder.cpp',
         'TestWebMWriter.cpp',
     ]
 
@@ -39,9 +38,14 @@ TEST_HARNESS_FILES.gtest += [
     'mediasource_test.mp4',
     'noise.mp3',
     'noise_vbr.mp3',
+    'short-zero-in-moov.mp4',
+    'short-zero-inband.mov',
     'small-shot-false-positive.mp3',
     'small-shot.mp3',
     'test.webm',
+    'test_case_1224361.vp8.ivf',
+    'test_case_1224363.vp8.ivf',
+    'test_case_1224369.vp8.ivf',
 ]
 
 include('/ipc/chromium/chromium-config.mozbuild')

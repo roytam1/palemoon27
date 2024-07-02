@@ -22,8 +22,11 @@ module.exports = createClass({
   displayName: "ResizableViewport",
 
   propTypes: {
+    devices: PropTypes.shape(Types.devices).isRequired,
     location: Types.location.isRequired,
+    screenshot: PropTypes.shape(Types.screenshot).isRequired,
     viewport: PropTypes.shape(Types.viewport).isRequired,
+    onChangeViewportDevice: PropTypes.func.isRequired,
     onResizeViewport: PropTypes.func.isRequired,
     onRotateViewport: PropTypes.func.isRequired,
   },
@@ -97,6 +100,8 @@ module.exports = createClass({
 
     // Update the viewport store with the new width and height.
     this.props.onResizeViewport(width, height);
+    // Change the device selector back to an unselected device
+    this.props.onChangeViewportDevice("");
 
     this.setState({
       lastClientX,
@@ -106,16 +111,30 @@ module.exports = createClass({
 
   render() {
     let {
+      devices,
       location,
+      screenshot,
       viewport,
+      onChangeViewportDevice,
+      onResizeViewport,
       onRotateViewport,
     } = this.props;
+
+    let resizeHandleClass = "viewport-resize-handle";
+
+    if (screenshot.isCapturing) {
+      resizeHandleClass += " hidden";
+    }
 
     return dom.div(
       {
         className: "resizable-viewport",
       },
       ViewportToolbar({
+        devices,
+        selectedDevice: viewport.device,
+        onChangeViewportDevice,
+        onResizeViewport,
         onRotateViewport,
       }),
       Browser({
@@ -125,7 +144,7 @@ module.exports = createClass({
         isResizing: this.state.isResizing
       }),
       dom.div({
-        className: "viewport-resize-handle",
+        className: resizeHandleClass,
         onMouseDown: this.onResizeStart,
       }),
       dom.div({

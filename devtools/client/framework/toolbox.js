@@ -92,8 +92,6 @@ const ToolboxButtons = exports.ToolboxButtons = [
     isTargetSupported: target => !target.isAddon },
   { id: "command-button-responsive" },
   { id: "command-button-paintflashing" },
-  { id: "command-button-tilt",
-    commands: "devtools/client/tilt/tilt-commands" },
   { id: "command-button-scratchpad" },
   { id: "command-button-eyedropper" },
   { id: "command-button-screenshot" },
@@ -415,6 +413,7 @@ Toolbox.prototype = {
         this._addZoomKeys();
         this._loadInitialZoom();
       }
+      this._setToolbarKeyboardNavigation();
 
       this.webconsolePanel = this.doc.querySelector("#toolbox-panel-webconsole");
       this.webconsolePanel.height = Services.prefs.getIntPref(SPLITCONSOLE_HEIGHT_PREF);
@@ -911,6 +910,72 @@ Toolbox.prototype = {
   },
 
   /**
+   * Sets up keyboard navigation with and within the dev tools toolbar.
+   */
+  _setToolbarKeyboardNavigation() {
+    let toolbar = this.doc.querySelector(".devtools-tabbar");
+    // Set and track aria-activedescendant to indicate which control is
+    // currently focused within the toolbar (for accessibility purposes).
+    toolbar.addEventListener("focus", event => {
+      let { target, rangeParent } = event;
+      let control, controlID = toolbar.getAttribute("aria-activedescendant");
+
+      if (controlID) {
+        control = this.doc.getElementById(controlID);
+      }
+      if (rangeParent || !control) {
+        // If range parent is present, the focused is moved within the toolbar,
+        // simply updating aria-activedescendant. Or if aria-activedescendant is
+        // not available, set it to target.
+        toolbar.setAttribute("aria-activedescendant", target.id);
+      } else {
+        // When range parent is not present, we focused into the toolbar, move
+        // focus to current aria-activedescendant.
+        event.preventDefault();
+        control.focus();
+      }
+    }, true)
+
+    toolbar.addEventListener("keypress", event => {
+      let { key, target } = event;
+      let win = this.doc.defaultView;
+      let elm, type;
+      if (key === "Tab") {
+        // Tabbing when toolbar or its contents are focused should move focus to
+        // next/previous focusable element relative to toolbar itself.
+        if (event.shiftKey) {
+          elm = toolbar;
+          type = Services.focus.MOVEFOCUS_BACKWARD;
+        } else {
+          // To move focus to next element following the toolbar, relative
+          // element needs to be the last element in its subtree.
+          let last = toolbar.lastChild;
+          while (last && last.lastChild) {
+            last = last.lastChild;
+          }
+          elm = last;
+          type = Services.focus.MOVEFOCUS_FORWARD;
+        }
+      } else if (key === "ArrowLeft") {
+        // Using left arrow key inside toolbar should move focus to previous
+        // toolbar control.
+        elm = target;
+        type = Services.focus.MOVEFOCUS_BACKWARD;
+      } else if (key === "ArrowRight") {
+        // Using right arrow key inside toolbar should move focus to next
+        // toolbar control.
+        elm = target;
+        type = Services.focus.MOVEFOCUS_FORWARD;
+      } else {
+        // Ignore all other keys.
+        return;
+      }
+      event.preventDefault();
+      Services.focus.moveFocus(win, elm, type, 0);
+    });
+  },
+
+  /**
    * Add buttons to the UI as specified in the devtools.toolbox.toolbarSpec pref
    */
   _buildButtons: function() {
@@ -1016,12 +1081,6 @@ Toolbox.prototype = {
         return false;
       }
 
-      // Disable tilt in E10S mode. Removing it from the list of toolbox buttons
-      // allows a bunch of tests to pass without modification.
-      if (this.target.isMultiProcess && options.id === "command-button-tilt") {
-        return false;
-      }
-
       return {
         id: options.id,
         button: button,
@@ -1058,22 +1117,6 @@ Toolbox.prototype = {
     });
 
     this._updateNoautohideButton();
-
-    // Tilt is handled separately because it is disabled in E10S mode. Because
-    // we have removed tilt from toolboxButtons we have to deal with it here.
-    let tiltEnabled = !this.target.isMultiProcess &&
-                      Services.prefs.getBoolPref("devtools.command-button-tilt.enabled");
-    let tiltButton = this.doc.getElementById("command-button-tilt");
-    // Remote toolboxes don't add the button to the DOM at all
-    if (!tiltButton) {
-      return;
-    }
-
-    if (tiltEnabled) {
-      tiltButton.removeAttribute("hidden");
-    } else {
-      tiltButton.setAttribute("hidden", "true");
-    }
   },
 
   /**
@@ -1138,7 +1181,6 @@ Toolbox.prototype = {
       label.setAttribute("crop", "end");
       label.setAttribute("flex", "1");
       radio.appendChild(label);
-      radio.setAttribute("flex", "1");
     }
 
     if (!toolDefinition.bgTheme) {

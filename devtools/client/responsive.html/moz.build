@@ -6,9 +6,11 @@
 
 DIRS += [
     'actions',
+    'audio',
     'components',
     'images',
     'reducers',
+    'utils',
 ]
 
 DevToolsModules(
@@ -17,6 +19,7 @@ DevToolsModules(
     'index.css',
     'manager.js',
     'reducers.js',
+    'responsive-ua.css',
     'store.js',
     'types.js',
 )

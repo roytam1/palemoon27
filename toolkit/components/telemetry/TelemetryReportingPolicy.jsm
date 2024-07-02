@@ -19,8 +19,8 @@ Cu.import("resource://services-common/observers.js", this);
 
 XPCOMUtils.defineLazyModuleGetter(this, "TelemetrySend",
                                   "resource://gre/modules/TelemetrySend.jsm");
-XPCOMUtils.defineLazyModuleGetter(this, "UpdateChannel",
-                                  "resource://gre/modules/UpdateChannel.jsm");
+XPCOMUtils.defineLazyModuleGetter(this, "UpdateUtils",
+                                  "resource://gre/modules/UpdateUtils.jsm");
 
 const LOGGER_NAME = "Toolkit.Telemetry";
 const LOGGER_PREFIX = "TelemetryReportingPolicy::";
@@ -60,6 +60,17 @@ const DEPRECATED_FHR_PREFS = [
 const NOTIFICATION_DELAY_FIRST_RUN_MSEC = 60 * 1000; // 60s
 // Same as above, for the next runs.
 const NOTIFICATION_DELAY_NEXT_RUNS_MSEC = 10 * 1000; // 10s
+
+/**
+ * This is a policy object used to override behavior within this module.
+ * Tests override properties on this object to allow for control of behavior
+ * that would otherwise be very hard to cover.
+ */
+var Policy = {
+  now: () => new Date(),
+  setShowInfobarTimeout: (callback, delayMs) => setTimeout(callback, delayMs),
+  clearShowInfobarTimeout: (id) => clearTimeout(id),
+};
 
 /**
  * Represents a request to display data policy.
@@ -130,9 +141,30 @@ this.TelemetryReportingPolicy = {
   canUpload: function() {
     return TelemetryReportingPolicyImpl.canUpload();
   },
+
+  /**
+   * Test only method, restarts the policy.
+   */
+  reset: function() {
+    return TelemetryReportingPolicyImpl.reset();
+  },
+
+  /**
+   * Test only method, used to check if user is notified of the policy in tests.
+   */
+  testIsUserNotified: function() {
+    return TelemetryReportingPolicyImpl.isUserNotifiedOfCurrentPolicy;
+  },
+
+  /**
+   * Test only method, used to simulate the infobar being shown in xpcshell tests.
+   */
+  testInfobarShown: function() {
+    return TelemetryReportingPolicyImpl._infobarShownCallback();
+  },
 };
 
-let TelemetryReportingPolicyImpl = {
+var TelemetryReportingPolicyImpl = {
   _logger: null,
   // Keep track of the notification status if user wasn't notified already.
   _notificationInProgress: false,
@@ -152,11 +184,17 @@ let TelemetryReportingPolicyImpl = {
    * @return {Object} A date object or null on errors.
    */
   get dataSubmissionPolicyNotifiedDate() {
-    let prefString = Preferences.get(PREF_ACCEPTED_POLICY_DATE, 0);
+    let prefString = Preferences.get(PREF_ACCEPTED_POLICY_DATE, "0");
     let valueInteger = parseInt(prefString, 10);
 
-    // If nothing or an invalid value is saved in the prefs, bail out.
-    if (Number.isNaN(valueInteger) || valueInteger == 0) {
+    // Bail out if we didn't store any value yet.
+    if (valueInteger == 0) {
+      this._log.info("get dataSubmissionPolicyNotifiedDate - No date stored yet.");
+      return null;
+    }
+
+    // If an invalid value is saved in the prefs, bail out too.
+    if (Number.isNaN(valueInteger)) {
       this._log.error("get dataSubmissionPolicyNotifiedDate - Invalid date stored.");
       return null;
     }
@@ -213,7 +251,7 @@ let TelemetryReportingPolicyImpl = {
     // use the general minimum policy version.
     let channel = "";
     try {
-      channel = UpdateChannel.get(false);
+      channel = UpdateUtils.getUpdateChannel(false);
     } catch(e) {
       this._log.error("minimumPolicyVersion - Unable to retrieve the current channel.");
       return minPolicyVersion;
@@ -252,6 +290,14 @@ let TelemetryReportingPolicyImpl = {
   },
 
   /**
+   * Test only method, restarts the policy.
+   */
+  reset: function() {
+    this.shutdown();
+    return this.setup();
+  },
+
+  /**
    * Setup the policy.
    */
   setup: function() {
@@ -272,7 +318,7 @@ let TelemetryReportingPolicyImpl = {
 
     this._detachObservers();
 
-    clearTimeout(this._startupNotificationTimerId);
+    Policy.clearShowInfobarTimeout(this._startupNotificationTimerId);
   },
 
   /**
@@ -297,14 +343,10 @@ let TelemetryReportingPolicyImpl = {
       return false;
     }
 
-    // Make sure the user is notified of the current policy. If he isn't, don't try
-    // to upload anything.
-    if (!this._ensureUserNotified()) {
-      return false;
-    }
-
-    // Submission is enabled and user is notified: upload is allowed.
-    return true;
+    // Submission is enabled. We enable upload if user is notified or we need to bypass
+    // the policy.
+    const bypassNotification = Preferences.get(PREF_BYPASS_NOTIFICATION, false);
+    return this.isUserNotifiedOfCurrentPolicy || bypassNotification;
   },
 
   /**
@@ -318,26 +360,30 @@ let TelemetryReportingPolicyImpl = {
   },
 
   /**
-   * Make sure the user is notified about the policy before allowing upload.
-   * @return {Boolean} True if the user was notified, false otherwise.
+   * Show the data choices infobar if the user wasn't already notified and data submission
+   * is enabled.
    */
-  _ensureUserNotified: function() {
-    const BYPASS_NOTIFICATION = Preferences.get(PREF_BYPASS_NOTIFICATION, false);
-    if (this.isUserNotifiedOfCurrentPolicy || BYPASS_NOTIFICATION) {
-      return true;
+  _showInfobar: function() {
+    if (!this.dataSubmissionEnabled) {
+      this._log.trace("_showInfobar - Data submission disabled by the policy.");
+      return;
     }
 
-    this._log.trace("ensureUserNotified - User not notified, notifying now.");
+    const bypassNotification = Preferences.get(PREF_BYPASS_NOTIFICATION, false);
+    if (this.isUserNotifiedOfCurrentPolicy || bypassNotification) {
+      this._log.trace("_showInfobar - User already notified or bypassing the policy.");
+      return;
+    }
+
     if (this._notificationInProgress) {
-      this._log.trace("ensureUserNotified - User not notified, notification in progress.");
-      return false;
+      this._log.trace("_showInfobar - User not notified, notification already in progress.");
+      return;
     }
 
+    this._log.trace("_showInfobar - User not notified, notifying now.");
     this._notificationInProgress = true;
     let request = new NotifyPolicyRequest(this._log);
     Observers.notify("datareporting:notify-data-policy:request", request);
-
-    return false;
   },
 
   /**
@@ -354,7 +400,7 @@ let TelemetryReportingPolicyImpl = {
    */
   _recordNotificationData: function() {
     this._log.trace("_recordNotificationData");
-    this.dataSubmissionPolicyNotifiedDate = new Date();
+    this.dataSubmissionPolicyNotifiedDate = Policy.now();
     this.dataSubmissionPolicyAcceptedVersion = this.currentPolicyVersion;
     // The user was notified and the notification data saved: the notification
     // is no longer in progress.
@@ -370,9 +416,9 @@ let TelemetryReportingPolicyImpl = {
     const delay =
       isFirstRun ? NOTIFICATION_DELAY_FIRST_RUN_MSEC: NOTIFICATION_DELAY_NEXT_RUNS_MSEC;
 
-    this._startupNotificationTimerId = setTimeout(
+    this._startupNotificationTimerId = Policy.setShowInfobarTimeout(
         // Calling |canUpload| eventually shows the infobar, if needed.
-        () => this.canUpload(), delay);
+        () => this._showInfobar(), delay);
     // We performed at least a run, flip the firstRun preference.
     Preferences.set(PREF_FIRST_RUN, false);
   },

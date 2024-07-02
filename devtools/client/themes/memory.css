@@ -104,7 +104,7 @@ html, body, #app, #memory-tool {
 }
 
 #take-snapshot::before {
-  background-image: url(images/command-screenshot.png);
+  background-image: url(images/command-screenshot.svg);
 }
 
 #clear-snapshots::before {
@@ -115,23 +115,8 @@ html, body, #app, #memory-tool {
   background-image: url(chrome://devtools/skin/images/diff.svg);
 }
 
-@media (min-resolution: 1.1dppx) {
-  #take-snapshot::before {
-    background-image: url(images/command-screenshot@2x.png);
-  }
-}
-
-/**
- * Due to toolbar styles of `.devtools-toolbarbutton:not([label])` which overrides
- * .devtools-toolbarbutton's min-width of 78px, reset the min-width.
- */
-#import-snapshot,
-#clear-snapshots {
-  -moz-box-align: center;
+#import-snapshot {
   flex-grow: 1;
-  padding: 1px;
-  margin: 2px 1px;
-  min-width: unset;
 }
 
 .spacer {
@@ -200,11 +185,17 @@ html, body, #app, #memory-tool {
   color: var(--theme-body-color);
   border-bottom: 1px solid rgba(128,128,128,0.15);
   padding: 8px;
+  cursor: default;
 }
 
 .snapshot-list-item.selected {
   background-color: var(--theme-selection-background);
   color: var(--theme-selection-color);
+}
+
+.snapshot-list-item.selected ::-moz-selection {
+  background-color: var(--theme-selection-color);
+  color: var(--theme-selection-background);
 }
 
 .snapshot-list-item .snapshot-info {
@@ -274,7 +265,7 @@ html, body, #app, #memory-tool {
    * is the sidebar. @see #memory-tool-container.
    */
   flex: 1;
-  background-color: var(--theme-toolbar-background);
+  background-color: var(--theme-body-background);
 
   /**
    * By default, flex items have min-width: auto;
@@ -307,6 +298,7 @@ html, body, #app, #memory-tool {
 
 #heap-view > .heap-view-panel > .snapshot-status,
 #heap-view > .heap-view-panel > .take-snapshot,
+#heap-view .empty,
 #shortest-paths-select-node-msg {
   margin: auto;
   margin-top: 65px;
@@ -384,6 +376,7 @@ html, body, #app, #memory-tool {
 .tree-node {
   height: var(--heap-tree-row-height);
   line-height: var(--heap-tree-row-height);
+  cursor: default;
 }
 
 .children-pointer {
@@ -414,6 +407,11 @@ html, body, #app, #memory-tool {
 .heap-tree-item.focused {
   background-color: var(--theme-selection-background);
   color: var(--theme-selection-color);
+}
+
+.heap-tree-item.focused ::-moz-selection {
+  background-color: var(--theme-selection-color);
+  color: var(--theme-selection-background);
 }
 
 .heap-tree-item-bytes,
@@ -472,7 +470,6 @@ html, body, #app, #memory-tool {
 .heap-tree-percent,
 .heap-tree-item-name {
   white-space: nowrap;
-  overflow: hidden;
 }
 
 .heap-tree-number {
@@ -496,7 +493,7 @@ html, body, #app, #memory-tool {
 }
 
 .heap-tree-percent {
-  flex: 0 0 3.5em;
+  width: 4ch;
 }
 
 .heap-tree-item.focused .heap-tree-number,
@@ -504,8 +501,17 @@ html, body, #app, #memory-tool {
   color: inherit;
 }
 
-.spacer {
-  flex: 1;
+/**
+ * Tree map
+ */
+
+.tree-map-container {
+  width: 100%;
+  height: 100%;
+  position: relative;
+  overflow: hidden;
+  margin-top: -1em;
+  padding-bottom: 1em;
 }
 
 /**

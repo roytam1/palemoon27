@@ -10,7 +10,7 @@
 const {Cc, Ci, Cu} = require("chrome");
 const promise = require("promise");
 const Services = require("Services");
-const {Tools} = require("devtools/client/main");
+const {Tools} = require("devtools/client/definitions");
 const {setTimeout, clearTimeout} =
       Cu.import("resource://gre/modules/Timer.jsm", {});
 const {CssLogic} = require("devtools/shared/inspector/css-logic");
@@ -1500,11 +1500,15 @@ CssRuleView.prototype = {
    * Handle the keypress event in the rule view.
    */
   _onKeypress: function(event) {
+    if (!event.target.closest("#sidebar-panel-ruleview")) {
+      return;
+    }
+
     let isOSX = Services.appinfo.OS === "Darwin";
 
     if (((isOSX && event.metaKey && !event.ctrlKey && !event.altKey) ||
         (!isOSX && event.ctrlKey && !event.metaKey && !event.altKey)) &&
-        event.code === "KeyF") {
+        event.key === "f") {
       this.searchField.focus();
       event.preventDefault();
     }

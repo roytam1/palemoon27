@@ -524,8 +524,9 @@ SendPing(void* aClosure, nsIContent* aContent, nsIURI* aURI,
     return;
   }
 
-  // Don't bother caching the result of this URI load.
-  chan->SetLoadFlags(nsIRequest::INHIBIT_CACHING);
+  // Don't bother caching the result of this URI load, but do not exempt
+  // it from Safe Browsing.
+  chan->SetLoadFlags(nsIRequest::INHIBIT_CACHING | nsIChannel::LOAD_CLASSIFY_URI);
 
   nsCOMPtr<nsIHttpChannel> httpChan = do_QueryInterface(chan);
   if (!httpChan) {
@@ -1494,8 +1495,7 @@ nsDocShell::LoadURI(nsIURI* aURI,
       }
       // Don't inherit from the current page.  Just do the safe thing
       // and pretend that we were loaded by a nullprincipal.
-      owner = do_CreateInstance("@mozilla.org/nullprincipal;1");
-      NS_ENSURE_TRUE(owner, NS_ERROR_FAILURE);
+      owner = nsNullPrincipal::Create();
       inheritOwner = false;
     }
   }
@@ -3487,6 +3487,11 @@ nsDocShell::CanAccessItem(nsIDocShellTreeItem* aTargetItem,
     return false;
   }
 
+  if (static_cast<nsDocShell*>(targetDS.get())->GetOriginAttributes() !=
+      static_cast<nsDocShell*>(accessingDS.get())->GetOriginAttributes()) {
+    return false;
+  }
+
   // A private document can't access a non-private one, and vice versa.
   if (static_cast<nsDocShell*>(targetDS.get())->UsePrivateBrowsing() !=
       static_cast<nsDocShell*>(accessingDS.get())->UsePrivateBrowsing()) {
@@ -4799,6 +4804,9 @@ nsDocShell::DisplayLoadError(nsresult aError, nsIURI* aURI,
   } else if (NS_ERROR_FILE_NOT_FOUND == aError) {
     NS_ENSURE_ARG_POINTER(aURI);
     error.AssignLiteral("fileNotFound");
+  } else if (NS_ERROR_FILE_ACCESS_DENIED == aError) {
+    NS_ENSURE_ARG_POINTER(aURI);
+    error.AssignLiteral("fileAccessDenied");
   } else if (NS_ERROR_UNKNOWN_HOST == aError) {
     NS_ENSURE_ARG_POINTER(aURI);
     // Get the host
@@ -5055,6 +5063,11 @@ nsDocShell::DisplayLoadError(nsresult aError, nsIURI* aURI,
       case NS_ERROR_INTERCEPTION_FAILED:
         // ServiceWorker intercepted request, but something went wrong.
         error.AssignLiteral("corruptedContentError");
+        break;
+      case NS_ERROR_NET_INADEQUATE_SECURITY:
+        // Server negotiated bad TLS for HTTP/2.
+        error.AssignLiteral("inadequateSecurityError");
+        addHostPort = true;
         break;
       default:
         break;
@@ -7582,6 +7595,7 @@ nsDocShell::EndPageLoad(nsIWebProgress* aProgress,
   //
   if (url && NS_FAILED(aStatus)) {
     if (aStatus == NS_ERROR_FILE_NOT_FOUND ||
+        aStatus == NS_ERROR_FILE_ACCESS_DENIED ||
         aStatus == NS_ERROR_CORRUPTED_CONTENT ||
         aStatus == NS_ERROR_INVALID_CONTENT_ENCODING) {
       DisplayLoadError(aStatus, url, nullptr, aChannel);
@@ -7806,6 +7820,7 @@ nsDocShell::EndPageLoad(nsIWebProgress* aProgress,
                aStatus == NS_ERROR_UNSAFE_CONTENT_TYPE ||
                aStatus == NS_ERROR_REMOTE_XUL ||
                aStatus == NS_ERROR_INTERCEPTION_FAILED ||
+               aStatus == NS_ERROR_NET_INADEQUATE_SECURITY ||
                NS_ERROR_GET_MODULE(aStatus) == NS_ERROR_MODULE_SECURITY) {
       // Errors to be shown for any frame
       DisplayLoadError(aStatus, url, nullptr, aChannel);
@@ -9674,6 +9689,11 @@ nsDocShell::InternalLoad(nsIURI* aURI,
 
   NS_ENSURE_TRUE(!mIsBeingDestroyed, NS_ERROR_NOT_AVAILABLE);
 
+  rv = EnsureScriptEnvironment();
+  if (NS_FAILED(rv)) {
+    return rv;
+  }
+
   // wyciwyg urls can only be loaded through history. Any normal load of
   // wyciwyg through docshell is  illegal. Disallow such loads.
   if (aLoadType & LOAD_CMD_NORMAL) {
@@ -9689,15 +9709,11 @@ nsDocShell::InternalLoad(nsIURI* aURI,
     isJavaScript = false;
   }
 
-  //
   // First, notify any nsIContentPolicy listeners about the document load.
   // Only abort the load if a content policy listener explicitly vetos it!
-  //
-  nsCOMPtr<Element> requestingElement;
   // Use nsPIDOMWindow since we _want_ to cross the chrome boundary if needed
-  if (mScriptGlobal) {
-    requestingElement = mScriptGlobal->AsOuter()->GetFrameElementInternal();
-  }
+  nsCOMPtr<Element> requestingElement =
+    mScriptGlobal->AsOuter()->GetFrameElementInternal();
 
   RefPtr<nsGlobalWindow> MMADeathGrip = mScriptGlobal;
 
@@ -9859,8 +9875,6 @@ nsDocShell::InternalLoad(nsIURI* aURI,
       if (aURI) {
         aURI->GetSpec(spec);
       }
-      // RM 2018-12-03 We miss all loadInfo setting up here 
-      // so we cannot set aIsFromProcessingFrameAttributes
       rv = win->OpenNoNavigate(NS_ConvertUTF8toUTF16(spec),
                                name,  // window name
                                EmptyString(), // Features
@@ -10595,10 +10609,16 @@ nsDocShell::DoURILoad(nsIURI* aURI,
                       nsIURI* aBaseURI,
                       nsContentPolicyType aContentPolicyType)
 {
-  nsresult rv;
-  nsCOMPtr<nsIURILoader> uriLoader;
+  // Double-check that we're still around to load this URI.
+  if (mIsBeingDestroyed) {
+    // Return NS_OK despite not doing anything to avoid throwing exceptions from
+    // nsLocation::SetHref if the unload handler of the existing page tears us
+    // down.
+    return NS_OK;
+  }
 
-  uriLoader = do_GetService(NS_URI_LOADER_CONTRACTID, &rv);
+  nsresult rv;
+  nsCOMPtr<nsIURILoader> uriLoader = do_GetService(NS_URI_LOADER_CONTRACTID, &rv);
   if (NS_FAILED(rv)) {
     return rv;
   }
@@ -10637,30 +10657,28 @@ nsDocShell::DoURILoad(nsIURI* aURI,
 
   // For mozWidget, display a load error if we navigate to a page which is not
   // claimed in |widgetPages|.
-  if (mScriptGlobal) {
-    // When we go to display a load error for an invalid mozWidget page, we will
-    // try to load an about:neterror page, which is also an invalid mozWidget
-    // page. To avoid recursion, we skip this check if aURI's scheme is "about".
+  // When we go to display a load error for an invalid mozWidget page, we will
+  // try to load an about:neterror page, which is also an invalid mozWidget
+  // page. To avoid recursion, we skip this check if aURI's scheme is "about".
 
-    // The goal is to prevent leaking sensitive information of an invalid page of
-    // an app, so allowing about:blank would not be conflict to the goal.
-    bool isAbout = false;
-    rv = aURI->SchemeIs("about", &isAbout);
-    if (NS_SUCCEEDED(rv) && !isAbout &&
-        nsIDocShell::GetIsApp()) {
-      nsCOMPtr<Element> frameElement = mScriptGlobal->AsOuter()->GetFrameElementInternal();
-      if (frameElement) {
-        nsCOMPtr<nsIMozBrowserFrame> browserFrame = do_QueryInterface(frameElement);
-        // |GetReallyIsApp| indicates the browser frame is a valid app or widget.
-        // Here we prevent navigating to an app or widget which loses its validity
-        // by loading invalid page or other way.
-        if (browserFrame && !browserFrame->GetReallyIsApp()) {
-          nsCOMPtr<nsIObserverService> serv = services::GetObserverService();
-          if (serv) {
-              serv->NotifyObservers(GetDocument(), "invalid-widget", nullptr);
-          }
-          return NS_ERROR_MALFORMED_URI;
+  // The goal is to prevent leaking sensitive information of an invalid page of
+  // an app, so allowing about:blank would not be conflict to the goal.
+  bool isAbout = false;
+  rv = aURI->SchemeIs("about", &isAbout);
+  if (NS_SUCCEEDED(rv) && !isAbout &&
+      nsIDocShell::GetIsApp()) {
+    nsCOMPtr<Element> frameElement = mScriptGlobal->AsOuter()->GetFrameElementInternal();
+    if (frameElement) {
+      nsCOMPtr<nsIMozBrowserFrame> browserFrame = do_QueryInterface(frameElement);
+      // |GetReallyIsApp| indicates the browser frame is a valid app or widget.
+      // Here we prevent navigating to an app or widget which loses its validity
+      // by loading invalid page or other way.
+      if (browserFrame && !browserFrame->GetReallyIsApp()) {
+        nsCOMPtr<nsIObserverService> serv = services::GetObserverService();
+        if (serv) {
+            serv->NotifyObservers(GetDocument(), "invalid-widget", nullptr);
         }
+        return NS_ERROR_MALFORMED_URI;
       }
     }
   }
@@ -10670,10 +10688,7 @@ nsDocShell::DoURILoad(nsIURI* aURI,
 
   bool isSrcdoc = !aSrcdoc.IsVoid();
 
-  // There are three cases we care about:
-  // * Null mScriptGlobal: shouldn't happen but does (see bug 1240246). In this
-  //   case, we create a loadingPrincipal as for a top-level load, but we leave
-  //   requestingNode and requestingWindow null.
+  // There are two cases we care about:
   // * Top-level load (GetFrameElementInternal returns null). In this case,
   //   requestingNode is null, but requestingWindow is our mScriptGlobal.
   //   TODO we want to pass null for loadingPrincipal in this case.
@@ -10684,18 +10699,20 @@ nsDocShell::DoURILoad(nsIURI* aURI,
   nsCOMPtr<nsPIDOMWindowOuter> requestingWindow;
 
   nsCOMPtr<nsIPrincipal> loadingPrincipal;
-  if (mScriptGlobal) {
-    requestingNode = mScriptGlobal->AsOuter()->GetFrameElementInternal();
-    if (requestingNode) {
-      // If we have a requesting node, then use that as our loadingPrincipal.
-      loadingPrincipal = requestingNode->NodePrincipal();
-    } else {
-      MOZ_ASSERT(aContentPolicyType == nsIContentPolicy::TYPE_DOCUMENT);
-      requestingWindow = mScriptGlobal->AsOuter();
+  requestingNode = mScriptGlobal->AsOuter()->GetFrameElementInternal();
+  if (requestingNode) {
+    // If we have a requesting node, then use that as our loadingPrincipal.
+    loadingPrincipal = requestingNode->NodePrincipal();
+  } else {
+    if (aContentPolicyType != nsIContentPolicy::TYPE_DOCUMENT) {
+      // If this isn't a top-level load and mScriptGlobal's frame element is
+      // null, then the element got removed from the DOM while we were trying to
+      // load this resource. This docshell is scheduled for destruction already,
+      // so bail out here.
+      return NS_OK;
     }
-  }
 
-  if (!loadingPrincipal) {
+    requestingWindow = mScriptGlobal->AsOuter();
     if (mItemType != typeChrome) {
       nsIScriptSecurityManager* ssm = nsContentUtils::GetSecurityManager();
       ssm->GetDocShellCodebasePrincipal(aURI, this, getter_AddRefs(loadingPrincipal));

@@ -41,9 +41,12 @@ waitForExplicitFinish();
 var EXPECTED_DTU_ASSERT_FAILURE_COUNT = 0;
 
 registerCleanupFunction(function() {
-  if (DevToolsUtils.assertionFailureCount !== EXPECTED_DTU_ASSERT_FAILURE_COUNT) {
-    ok(false, "Should have had the expected number of DevToolsUtils.assert() failures. Expected " +
-      EXPECTED_DTU_ASSERT_FAILURE_COUNT + ", got " + DevToolsUtils.assertionFailureCount);
+  if (DevToolsUtils.assertionFailureCount !==
+      EXPECTED_DTU_ASSERT_FAILURE_COUNT) {
+    ok(false,
+      "Should have had the expected number of DevToolsUtils.assert() failures."
+      + " Expected " + EXPECTED_DTU_ASSERT_FAILURE_COUNT
+      + ", got " + DevToolsUtils.assertionFailureCount);
   }
 });
 
@@ -162,18 +165,23 @@ function synthesizeKeyFromKeyTag(key) {
 }
 
 /**
- * Wait for eventName on target.
- * @param {Object} target An observable object that either supports on/off or
- * addEventListener/removeEventListener
- * @param {String} eventName
- * @param {Boolean} useCapture Optional, for
+ * Wait for eventName on target to be delivered a number of times.
+ *
+ * @param {Object} target
+ *        An observable object that either supports on/off or
  *        addEventListener/removeEventListener
+ * @param {String} eventName
+ * @param {Number} numTimes
+ *        Number of deliveries to wait for.
+ * @param {Boolean} useCapture
+ *        Optional, for addEventListener/removeEventListener
  * @return A promise that resolves when the event has been handled
  */
-function once(target, eventName, useCapture = false) {
+function waitForNEvents(target, eventName, numTimes, useCapture = false) {
   info("Waiting for event: '" + eventName + "' on " + target + ".");
 
   let deferred = promise.defer();
+  let count = 0;
 
   for (let [add, remove] of [
     ["addEventListener", "removeEventListener"],
@@ -183,14 +191,31 @@ function once(target, eventName, useCapture = false) {
     if ((add in target) && (remove in target)) {
       target[add](eventName, function onEvent(...aArgs) {
         info("Got event: '" + eventName + "' on " + target + ".");
-        target[remove](eventName, onEvent, useCapture);
-        deferred.resolve.apply(deferred, aArgs);
+        if (++count == numTimes) {
+          target[remove](eventName, onEvent, useCapture);
+          deferred.resolve.apply(deferred, aArgs);
+        }
       }, useCapture);
       break;
     }
   }
 
   return deferred.promise;
+}
+
+/**
+ * Wait for eventName on target.
+ *
+ * @param {Object} target
+ *        An observable object that either supports on/off or
+ *        addEventListener/removeEventListener
+ * @param {String} eventName
+ * @param {Boolean} useCapture
+ *        Optional, for addEventListener/removeEventListener
+ * @return A promise that resolves when the event has been handled
+ */
+function once(target, eventName, useCapture = false) {
+  return waitForNEvents(target, eventName, 1, useCapture);
 }
 
 /**
@@ -217,6 +242,20 @@ function waitForTick() {
   let deferred = promise.defer();
   executeSoon(deferred.resolve);
   return deferred.promise;
+}
+
+/**
+ * This shouldn't be used in the tests, but is useful when writing new tests or
+ * debugging existing tests in order to introduce delays in the test steps
+ *
+ * @param {Number} ms
+ *        The time to wait
+ * @return A promise that resolves when the time is passed
+ */
+function wait(ms) {
+  let def = promise.defer();
+  content.setTimeout(def.resolve, ms);
+  return def.promise;
 }
 
 /**
@@ -268,16 +307,30 @@ var openNewTabAndToolbox = Task.async(function* (url, toolId, hostType) {
 });
 
 /**
+ * Close a tab and if necessary, the toolbox that belongs to it
+ * @param {Tab} tab The tab to close.
+ * @return {Promise} Resolves when the toolbox and tab have been destroyed and
+ * closed.
+ */
+var closeTabAndToolbox = Task.async(function*(tab = gBrowser.selectedTab) {
+  let target = TargetFactory.forTab(gBrowser.selectedTab);
+  if (target) {
+    yield gDevTools.closeToolbox(target);
+  }
+
+  yield removeTab(gBrowser.selectedTab);
+});
+
+/**
  * Close a toolbox and the current tab.
  * @param {Toolbox} toolbox The toolbox to close.
  * @return {Promise} Resolves when the toolbox and tab have been destroyed and
  * closed.
  */
-function closeToolboxAndTab(toolbox) {
-  return toolbox.destroy().then(function() {
-    gBrowser.removeCurrentTab();
-  });
-}
+var closeToolboxAndTab = Task.async(function*(toolbox) {
+  yield toolbox.destroy();
+  yield removeTab(gBrowser.selectedTab);
+});
 
 /**
  * Waits until a predicate returns true.
@@ -364,7 +417,7 @@ function waitForContextMenu(popup, button, onShown, onHidden) {
   info("wait for the context menu to open");
   button.scrollIntoView();
   let eventDetails = {type: "contextmenu", button: 2};
-  EventUtils.synthesizeMouse(button, 2, 2, eventDetails,
+  EventUtils.synthesizeMouse(button, 5, 2, eventDetails,
                              button.ownerDocument.defaultView);
   return deferred.promise;
 }

@@ -281,15 +281,15 @@ txMozillaXMLOutput::endElement()
 
     // Handle html-elements
     if (!mNoFixup) {
-        if (element->IsHTMLElement()) {
+        if (element->IsHTML()) {
             rv = endHTMLElement(element);
             NS_ENSURE_SUCCESS(rv, rv);
         }
 
         // Handle elements that are different when parser-created
-		int32_t ns = element->GetNameSpaceID();
+        int32_t ns = element->GetNameSpaceID();
         nsIAtom* localName = element->Tag();
-		
+
         if ((ns == kNameSpaceID_XHTML && (localName == nsGkAtoms::title ||
                                           localName == nsGkAtoms::object ||
                                           localName == nsGkAtoms::applet ||
@@ -645,7 +645,7 @@ txMozillaXMLOutput::createTxWrapper()
         }
 #endif
 
-        if (childContent->NodeInfo()->NameAtom() == nsGkAtoms::documentTypeNodeName) {
+        if (childContent->Tag() == nsGkAtoms::documentTypeNodeName) {
 #ifdef DEBUG
             // The new documentElement should go after the document type.
             // This is needed for cases when there is no existing
@@ -677,8 +677,9 @@ nsresult
 txMozillaXMLOutput::startHTMLElement(nsIContent* aElement, bool aIsHTML)
 {
     nsresult rv = NS_OK;
+    nsIAtom *atom = aElement->Tag();
 
-    if ((!aElement->IsHTMLElement(nsGkAtoms::tr) || !aIsHTML) &&
+    if ((atom != nsGkAtoms::tr || !aIsHTML) &&
         NS_PTR_TO_INT32(mTableStateStack.peek()) == ADDED_TBODY) {
         uint32_t last = mCurrentNodeStack.Count() - 1;
         NS_ASSERTION(last != (uint32_t)-1, "empty stack");
@@ -688,10 +689,10 @@ txMozillaXMLOutput::startHTMLElement(nsIContent* aElement, bool aIsHTML)
         mTableStateStack.pop();
     }
 
-    if (aElement->IsHTMLElement(nsGkAtoms::table) && aIsHTML) {
+    if (atom == nsGkAtoms::table && aIsHTML) {
         mTableState = TABLE;
     }
-    else if (aElement->IsHTMLElement(nsGkAtoms::tr) && aIsHTML &&
+    else if (atom == nsGkAtoms::tr && aIsHTML &&
              NS_PTR_TO_INT32(mTableStateStack.peek()) == TABLE) {
         nsCOMPtr<nsIContent> tbody;
         rv = createHTMLElement(nsGkAtoms::tbody, getter_AddRefs(tbody));
@@ -709,7 +710,7 @@ txMozillaXMLOutput::startHTMLElement(nsIContent* aElement, bool aIsHTML)
 
         mCurrentNode = tbody;
     }
-    else if (aElement->IsHTMLElement(nsGkAtoms::head) &&
+    else if (atom == nsGkAtoms::head &&
              mOutputFormat.mMethod == eHTMLOutput) {
         // Insert META tag, according to spec, 16.2, like
         // <META http-equiv="Content-Type" content="text/html; charset=EUC-JP">
@@ -741,8 +742,10 @@ txMozillaXMLOutput::startHTMLElement(nsIContent* aElement, bool aIsHTML)
 nsresult
 txMozillaXMLOutput::endHTMLElement(nsIContent* aElement)
 {
+    nsIAtom *atom = aElement->Tag();
+
     if (mTableState == ADDED_TBODY) {
-        NS_ASSERTION(aElement->IsHTMLElement(nsGkAtoms::tbody),
+        NS_ASSERTION(atom == nsGkAtoms::tbody,
                      "Element flagged as added tbody isn't a tbody");
         uint32_t last = mCurrentNodeStack.Count() - 1;
         NS_ASSERTION(last != (uint32_t)-1, "empty stack");
@@ -754,7 +757,7 @@ txMozillaXMLOutput::endHTMLElement(nsIContent* aElement)
 
         return NS_OK;
     }
-    else if (mCreatingNewDocument && aElement->IsHTMLElement(nsGkAtoms::meta)) {
+    else if (mCreatingNewDocument && atom == nsGkAtoms::meta) {
         // handle HTTP-EQUIV data
         nsAutoString httpEquiv;
         aElement->GetAttr(kNameSpaceID_None, nsGkAtoms::httpEquiv, httpEquiv);

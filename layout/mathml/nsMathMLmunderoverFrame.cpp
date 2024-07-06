@@ -79,7 +79,7 @@ nsMathMLmunderoverFrame::ScriptIncrement(nsIFrame* aFrame)
   }
   child = child->GetNextSibling();
   if (aFrame == child) {
-    if (mContent->IsMathMLElement(nsGkAtoms::mover_)) {
+    if (mContent->Tag() == nsGkAtoms::mover_) {
       return mIncrementOver ? 1 : 0;
     }
     return mIncrementUnder ? 1 : 0;
@@ -135,13 +135,12 @@ XXX The winner is the outermost setting in conflicting settings like these:
         tag == nsGkAtoms::munderover_) {
       underscriptFrame = baseFrame->GetNextSibling();
     } else {
-      NS_ASSERTION(tag == nsGkAtoms::mover_,
-                   "mContent->NodeInfo()->NameAtom() not recognized");
+      NS_ASSERTION(tag == nsGkAtoms::mover_, "mContent->Tag() not recognized");
       overscriptFrame = baseFrame->GetNextSibling();
     }
   }
   if (underscriptFrame &&
-      mContent->IsMathMLElement(nsGkAtoms::munderover_)) {
+      tag == nsGkAtoms::munderover_) {
     overscriptFrame = underscriptFrame->GetNextSibling();
 
   }
@@ -311,14 +310,14 @@ nsMathMLmunderoverFrame::Place(nsRenderingContext& aRenderingContext,
   if (NS_MATHML_EMBELLISH_IS_MOVABLELIMITS(mEmbellishData.flags) &&
       StyleFont()->mMathDisplay == NS_MATHML_DISPLAYSTYLE_INLINE) {
     //place like sub sup or subsup
-    if (mContent->IsMathMLElement(nsGkAtoms::munderover_)) {
+    if (tag == nsGkAtoms::munderover_) {
       return nsMathMLmmultiscriptsFrame::PlaceMultiScript(PresContext(),
                                                           aRenderingContext,
                                                           aPlaceOrigin,
                                                           aDesiredSize,
                                                           this, 0, 0,
                                                           fontSizeInflation);
-    } else if (mContent->IsMathMLElement( nsGkAtoms::munder_)) {
+    } else if (tag == nsGkAtoms::munder_) {
       return nsMathMLmmultiscriptsFrame::PlaceMultiScript(PresContext(),
                                                           aRenderingContext,
                                                           aPlaceOrigin,
@@ -326,8 +325,7 @@ nsMathMLmunderoverFrame::Place(nsRenderingContext& aRenderingContext,
                                                           this, 0, 0,
                                                           fontSizeInflation);
     } else {
-      NS_ASSERTION(mContent->IsMathMLElement(nsGkAtoms::mover_),
-                   "mContent->NodeInfo()->NameAtom() not recognized");
+      NS_ASSERTION(tag == nsGkAtoms::mover_, "mContent->Tag() not recognized");
       return nsMathMLmmultiscriptsFrame::PlaceMultiScript(PresContext(),
                                                           aRenderingContext,
                                                           aPlaceOrigin,

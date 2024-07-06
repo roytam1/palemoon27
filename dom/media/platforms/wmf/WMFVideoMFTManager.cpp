@@ -137,14 +137,10 @@ public:
 
   NS_IMETHOD Run() {
     NS_ASSERTION(NS_IsMainThread(), "Must be on main thread.");
-	#ifdef USE_D2D1_1
     if (mBackend == LayersBackend::LAYERS_D3D11 &&
         IsWin8OrLater()) {
       mDXVA2Manager = DXVA2Manager::CreateD3D11DXVA();
-    } 
-	else 
-	#endif
-	{
+    } else {
       mDXVA2Manager = DXVA2Manager::CreateD3D9DXVA();
     }
     return NS_OK;

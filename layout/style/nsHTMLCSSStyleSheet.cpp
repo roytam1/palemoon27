@@ -84,7 +84,7 @@ nsHTMLCSSStyleSheet::ElementRulesMatching(nsPresContext* aPresContext,
 }
 
 void
-nsHTMLCSSStyleSheet::PseudoElementRulesMatching(Element* aPseudoElement,
+nsHTMLCSSStyleSheet::PseudoElementRulesMatching(mozilla::dom::Element* aPseudoElement,
                                                 nsCSSPseudoElements::Type
                                                   aPseudoType,
                                                 nsRuleWalker* aRuleWalker)

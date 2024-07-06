@@ -453,12 +453,22 @@ BASE_EXPORT extern void PrintTo(const base::FilePath& path, std::ostream* out);
 // objects.
 namespace BASE_HASH_NAMESPACE {
 
+#if defined(COMPILER_GCC)
+
 template<>
 struct hash<base::FilePath> {
   size_t operator()(const base::FilePath& f) const {
     return hash<base::FilePath::StringType>()(f.value());
   }
 };
+
+#elif defined(COMPILER_MSVC)
+
+inline size_t hash_value(const base::FilePath& f) {
+  return hash_value(f.value());
+}
+
+#endif  // COMPILER
 
 }  // namespace BASE_HASH_NAMESPACE
 

@@ -7,9 +7,12 @@
 #define GFX_HARFBUZZSHAPER_H
 
 #include "gfxFont.h"
+#include "gfxFontUtils.h"
 
 #include "harfbuzz/hb.h"
 #include "nsUnicodeProperties.h"
+
+using namespace mozilla;
 
 class gfxHarfBuzzShaper : public gfxFontShaper {
 public:

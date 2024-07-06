@@ -914,8 +914,7 @@ nsStyleSet::GetContext(nsStyleContext* aParentContext,
     }
   }
 
-  if (aElementForAnimation &&
-      aElementForAnimation->IsHTMLElement(nsGkAtoms::body) &&
+  if (aElementForAnimation && aElementForAnimation->IsHTML(nsGkAtoms::body) &&
       aPseudoType == nsCSSPseudoElements::ePseudo_NotPseudoElement &&
       PresContext()->CompatibilityMode() == eCompatibility_NavQuirks) {
     nsIDocument* doc = aElementForAnimation->GetCurrentDoc();
@@ -1683,7 +1682,7 @@ void
 nsStyleSet::WalkDisableTextZoomRule(Element* aElement, nsRuleWalker* aRuleWalker)
 {
   aRuleWalker->SetLevel(eAgentSheet, false, false);
-  if (aElement->IsSVGElement(nsGkAtoms::text))
+  if (aElement->IsSVG(nsGkAtoms::text))
     aRuleWalker->Forward(mDisableTextZoomStyleRule);
 }
 

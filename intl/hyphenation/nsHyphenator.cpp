@@ -9,6 +9,7 @@
 #include "nsUnicodeProperties.h"
 #include "nsUnicharUtilCIID.h"
 #include "nsIURI.h"
+#include "nsUnicharUtils.h"
 
 #include "hyphen.h"
 

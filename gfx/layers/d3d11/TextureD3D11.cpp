@@ -372,11 +372,10 @@ TextureClientD3D11::BorrowDrawTarget()
   }
 
   // This may return a null DrawTarget
-  #ifdef USE_D2D1_1
+  #if USE_D2D1_1
   if (mTexture) {
     mDrawTarget = Factory::CreateDrawTargetForD3D11Texture(mTexture, mFormat);
-  } 
-  else
+  } else
   #endif
   {
     MOZ_ASSERT(mTexture10);

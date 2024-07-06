@@ -11,15 +11,8 @@ TOutputGLSL::TOutputGLSL(TInfoSinkBase& objSink,
                          ShHashFunction64 hashFunction,
                          NameMap& nameMap,
                          TSymbolTable& symbolTable,
-                         int shaderVersion,
-                         ShShaderOutput output)
-    : TOutputGLSLBase(objSink,
-                      clampingStrategy,
-                      hashFunction,
-                      nameMap,
-                      symbolTable,
-                      shaderVersion,
-                      output)
+                         int shaderVersion)
+    : TOutputGLSLBase(objSink, clampingStrategy, hashFunction, nameMap, symbolTable, shaderVersion)
 {
 }
 
@@ -28,30 +21,13 @@ bool TOutputGLSL::writeVariablePrecision(TPrecision)
     return false;
 }
 
-void TOutputGLSL::visitSymbol(TIntermSymbol *node)
+void TOutputGLSL::visitSymbol(TIntermSymbol* node)
 {
     TInfoSinkBase& out = objSink();
 
-    const TString &symbol = node->getSymbol();
-    if (symbol == "gl_FragDepthEXT")
+    if (node->getSymbol() == "gl_FragDepthEXT")
     {
         out << "gl_FragDepth";
-    }
-    else if (symbol == "gl_FragColor" && IsGLSL130OrNewer(getShaderOutput()))
-    {
-        out << "webgl_FragColor";
-    }
-    else if (symbol == "gl_FragData" && IsGLSL130OrNewer(getShaderOutput()))
-    {
-        out << "webgl_FragData";
-    }
-    else if (symbol == "gl_SecondaryFragColorEXT")
-    {
-        out << "angle_SecondaryFragColor";
-    }
-    else if (symbol == "gl_SecondaryFragDataEXT")
-    {
-        out << "angle_SecondaryFragData";
     }
     else
     {
@@ -59,7 +35,7 @@ void TOutputGLSL::visitSymbol(TIntermSymbol *node)
     }
 }
 
-TString TOutputGLSL::translateTextureFunction(TString &name)
+TString TOutputGLSL::translateTextureFunction(TString& name)
 {
     static const char *simpleRename[] = {
         "texture2DLodEXT", "texture2DLod",
@@ -70,31 +46,10 @@ TString TOutputGLSL::translateTextureFunction(TString &name)
         "textureCubeGradEXT", "textureCubeGradARB",
         NULL, NULL
     };
-    static const char *legacyToCoreRename[] = {
-        "texture2D", "texture",
-        "texture2DProj", "textureProj",
-        "texture2DLod", "textureLod",
-        "texture2DProjLod", "textureProjLod",
-        "texture2DRect", "texture",
-        "textureCube", "texture",
-        "textureCubeLod", "textureLod",
-        // Extensions
-        "texture2DLodEXT", "textureLod",
-        "texture2DProjLodEXT", "textureProjLod",
-        "textureCubeLodEXT", "textureLod",
-        "texture2DGradEXT", "textureGrad",
-        "texture2DProjGradEXT", "textureProjGrad",
-        "textureCubeGradEXT", "textureGrad",
-        NULL, NULL
-    };
-    const char **mapping = (IsGLSL130OrNewer(getShaderOutput())) ?
-        legacyToCoreRename : simpleRename;
 
-    for (int i = 0; mapping[i] != NULL; i += 2)
-    {
-        if (name == mapping[i])
-        {
-            return mapping[i+1];
+    for (int i = 0; simpleRename[i] != NULL; i += 2) {
+        if (name == simpleRename[i]) {
+            return simpleRename[i+1];
         }
     }
 

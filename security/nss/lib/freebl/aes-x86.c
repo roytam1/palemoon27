@@ -8,6 +8,7 @@
 #include "rijndael.h"
 #include "secerr.h"
 
+#if (!defined(_MSC_VER) || (defined(_MSC_VER) && _MSC_VER > 1400))
 #include <wmmintrin.h> /* aes-ni */
 
 #define EXPAND_KEY128(k, rcon, res)                   \
@@ -155,3 +156,4 @@ rijndael_native_encryptBlock(AESContext *cx,
     m = _mm_aesenclast_si128(m, cx->keySchedule[cx->Nr]);
     _mm_storeu_si128((__m128i *)output, m);
 }
+#endif

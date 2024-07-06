@@ -17,7 +17,16 @@
 #include "WMFUtils.h"
 #include "ClearKeyUtils.h"
 
-#if defined (_MSC_VER) && _MSC_VER <= 1800 
+#include <stdio.h>
+
+#define INITGUID
+#include <guiddef.h>
+
+#pragma comment(lib, "mfuuid.lib")
+#pragma comment(lib, "wmcodecdspuuid")
+#pragma comment(lib, "mfplat.lib")
+
+#if defined (_MSC_VER) && _MSC_VER <= 1700 
 // Windows 8 SDK and older have no versionhelpers.h
 // file
 #define VERSIONHELPERAPI inline bool
@@ -45,24 +54,9 @@ IsWindows7OrGreater()
 {
     return IsWindowsVersionOrGreater(HIBYTE(_WIN32_WINNT_WIN7), LOBYTE(_WIN32_WINNT_WIN7), 0);
 }
-
-VERSIONHELPERAPI
-IsWindows8OrGreater()
-{
-    return IsWindowsVersionOrGreater(HIBYTE(_WIN32_WINNT_WIN8), LOBYTE(_WIN32_WINNT_WIN8), 0);
-}
 #else
 #include <versionhelpers.h>
 #endif
-
-#include <stdio.h>
-
-#define INITGUID
-#include <guiddef.h>
-
-#pragma comment(lib, "mfuuid.lib")
-#pragma comment(lib, "wmcodecdspuuid")
-#pragma comment(lib, "mfplat.lib")
 
 void LOG(const char* format, ...)
 {
@@ -125,12 +119,13 @@ WMFDecoderDllNameFor(CodecType aCodec)
   } else if (aCodec == AAC) {
     // For AAC decoding, we need to use msauddecmft.dll on Win8,
     // msmpeg2adec.dll on Win7, and msheaacdec.dll on Vista.
-	#if defined (_MSC_VER) && _MSC_VER >= 1700
+#if defined (_MSC_VER) && _MSC_VER >= 1700
     if (IsWindows8OrGreater()) {
       return "msauddecmft.dll";
-    } else 
-	#endif
-	if (IsWindows7OrGreater()) {
+    }
+	else 
+		#endif
+		if (IsWindows7OrGreater()) {
       return "msmpeg2adec.dll";
     } else {
       return "mfheaacdec.dll";

@@ -123,13 +123,6 @@ TrackUnionStream::TrackUnionStream(DOMMediaStream* aWrapper) :
           mappedTracksWithMatchingInputTracks.AppendElement(true);
         }
       }
-      if (trackAdded) {
-      uint32_t length = mListeners.Length();
-        for (uint32_t i = 0; i < length; ++i) {
-	MediaStreamListener* l = mListeners[i];
-          l->NotifyFinishedTrackCreation(Graph());
-        }
-      }
     }
     for (int32_t i = mTrackMap.Length() - 1; i >= 0; --i) {
       if (mappedTracksFinished[i]) {

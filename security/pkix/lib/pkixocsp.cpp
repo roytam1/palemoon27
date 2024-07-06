@@ -27,7 +27,7 @@
 #include "pkix/pkix.h"
 #include "pkixcheck.h"
 #include "pkixutil.h"
-#include "mozilla/TypedEnum.h"
+#include "pkixder.h"
 
 namespace {
 

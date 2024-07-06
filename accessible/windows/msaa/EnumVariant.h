@@ -40,8 +40,8 @@ public:
     /* [out] */ IEnumVARIANT** aEnumVaraint);
 
 private:
-  ChildrenEnumVariant() = delete;
-  ChildrenEnumVariant& operator =(const ChildrenEnumVariant&) = delete;
+  ChildrenEnumVariant() MOZ_DELETE;
+  ChildrenEnumVariant& operator =(const ChildrenEnumVariant&) MOZ_DELETE;
 
   ChildrenEnumVariant(const ChildrenEnumVariant& aEnumVariant) :
     mAnchorAcc(aEnumVariant.mAnchorAcc), mCurAcc(aEnumVariant.mCurAcc),

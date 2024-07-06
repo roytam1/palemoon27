@@ -24,7 +24,7 @@
 #include "mozilla/layers/LayersTypes.h"
 #include "mozilla/layers/CompositorTypes.h"
 #include "FrameMetrics.h"
-#include "FilterSupport.h" // includes TypedEnum.h
+#include "FilterSupport.h"
 #include "mozilla/layers/GoannaContentController.h"
 
 #ifdef _MSC_VER
@@ -34,13 +34,7 @@
 namespace mozilla {
 
 typedef gfxImageFormat PixelFormat;
-#if defined(MOZ_HAVE_CXX11_STRONG_ENUMS)
 typedef ::GraphicsFilter GraphicsFilterType;
-#else
-// If we don't have support for enum classes, then we need to use the actual
-// enum type here instead of the simulated enum class.
-typedef GraphicsFilter::Enum GraphicsFilterType;
-#endif
 
 } // namespace mozilla
 
@@ -214,7 +208,7 @@ struct ParamTraits<gfxSurfaceType>
 
 template <>
 struct ParamTraits<mozilla::GraphicsFilterType>
-  : public ContiguousEnumSerializer<
+  : public ContiguousTypedEnumSerializer<
              mozilla::GraphicsFilterType,
              GraphicsFilter::FILTER_FAST,
              GraphicsFilter::FILTER_SENTINEL>

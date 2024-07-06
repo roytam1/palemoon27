@@ -38,7 +38,7 @@ public:
   virtual bool RemoveChild(Accessible* aAccessible) override;
 
 protected:
-  virtual ~OuterDocAccessible() override;
+  virtual ~OuterDocAccessible();
 
   // Accessible
   virtual void CacheChildren() override;

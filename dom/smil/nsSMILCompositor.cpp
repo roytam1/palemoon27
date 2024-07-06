@@ -6,7 +6,9 @@
 #include "nsSMILCompositor.h"
 #include "nsSMILCSSProperty.h"
 #include "nsCSSProps.h"
+#include "nsComputedDOMStyle.h"
 #include "nsHashKeys.h"
+#include "nsStyleContext.h"
 
 // PLDHashEntryHdr methods
 bool

@@ -4,47 +4,45 @@
 // found in the LICENSE file.
 //
 
-#ifndef COMPILER_TRANSLATOR_DIRECTIVEHANDLER_H_
-#define COMPILER_TRANSLATOR_DIRECTIVEHANDLER_H_
+#ifndef COMPILER_DIRECTIVE_HANDLER_H_
+#define COMPILER_DIRECTIVE_HANDLER_H_
 
-#include "common/angleutils.h"
 #include "compiler/translator/ExtensionBehavior.h"
 #include "compiler/translator/Pragma.h"
 #include "compiler/preprocessor/DirectiveHandlerBase.h"
 
 class TDiagnostics;
 
-class TDirectiveHandler : public pp::DirectiveHandler, angle::NonCopyable
+class TDirectiveHandler : public pp::DirectiveHandler
 {
   public:
     TDirectiveHandler(TExtensionBehavior& extBehavior,
                       TDiagnostics& diagnostics,
-                      int& shaderVersion,
-                      bool debugShaderPrecisionSupported);
-    ~TDirectiveHandler() override;
+                      int& shaderVersion);
+    virtual ~TDirectiveHandler();
 
     const TPragma& pragma() const { return mPragma; }
     const TExtensionBehavior& extensionBehavior() const { return mExtensionBehavior; }
 
-    void handleError(const pp::SourceLocation &loc, const std::string &msg) override;
+    virtual void handleError(const pp::SourceLocation& loc,
+                             const std::string& msg);
 
-    void handlePragma(const pp::SourceLocation &loc,
-                      const std::string &name,
-                      const std::string &value,
-                      bool stdgl) override;
+    virtual void handlePragma(const pp::SourceLocation& loc,
+                              const std::string& name,
+                              const std::string& value);
 
-    void handleExtension(const pp::SourceLocation &loc,
-                         const std::string &name,
-                         const std::string &behavior) override;
+    virtual void handleExtension(const pp::SourceLocation& loc,
+                                 const std::string& name,
+                                 const std::string& behavior);
 
-    void handleVersion(const pp::SourceLocation &loc, int version) override;
+    virtual void handleVersion(const pp::SourceLocation& loc,
+                               int version);
 
   private:
     TPragma mPragma;
     TExtensionBehavior& mExtensionBehavior;
     TDiagnostics& mDiagnostics;
     int& mShaderVersion;
-    bool mDebugShaderPrecisionSupported;
 };
 
-#endif  // COMPILER_TRANSLATOR_DIRECTIVEHANDLER_H_
+#endif  // COMPILER_DIRECTIVE_HANDLER_H_

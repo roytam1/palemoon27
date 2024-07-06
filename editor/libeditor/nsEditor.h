@@ -25,7 +25,7 @@
 #include "nsString.h"                   // for nsCString
 #include "nsWeakReference.h"            // for nsSupportsWeakReference
 #include "nscore.h"                     // for nsresult, nsAString, etc
-#include "mozilla/TypedEnum.h"			// for enum class emulation
+#include "mozilla/TypedEnum.h"			// for enum class stubs
 
 class AddStyleSheetTxn;
 class DeleteNodeTxn;

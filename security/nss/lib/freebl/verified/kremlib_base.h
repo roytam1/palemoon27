@@ -34,7 +34,11 @@
 #pragma once
 #endif
 
+#if (!defined(_MSC_VER) || (defined(_MSC_VER) && _MSC_VER > 1400))
 #include <stdint.h>
+#else
+#include "MSStdInt.h"
+#endif
 
 // 7.8 Format conversion of integer types
 

@@ -36,7 +36,7 @@ void rijndael_native_encryptBlock(AESContext *cx,
 
 /* Stub definitions for the above rijndael_native_* functions, which
  * shouldn't be used unless NSS_X86_OR_X64 is defined */
-#ifndef NSS_X86_OR_X64
+#if (!defined(NSS_X86_OR_X64) || (defined(_MSC_VER) && _MSC_VER <= 1400))
 void
 rijndael_native_key_expansion(AESContext *cx, const unsigned char *key,
                               unsigned int Nk)

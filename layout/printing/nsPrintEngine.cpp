@@ -3041,7 +3041,7 @@ bool nsPrintEngine::HasFramesetChild(nsIContent* aContent)
   for (nsIContent* child = aContent->GetFirstChild();
        child;
        child = child->GetNextSibling()) {
-    if (child->IsHTMLElement(nsGkAtoms::frameset)) {
+    if (child->IsHTML(nsGkAtoms::frameset)) {
       return true;
     }
   }

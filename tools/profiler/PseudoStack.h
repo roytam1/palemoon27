@@ -412,8 +412,8 @@ public:
   }
 
   // No copying.
-  PseudoStack(const PseudoStack&) = delete;
-  void operator=(const PseudoStack&) = delete;
+  PseudoStack(const PseudoStack&) MOZ_DELETE;
+  void operator=(const PseudoStack&) MOZ_DELETE;
 
   // Keep a list of pending markers that must be moved
   // to the circular buffer

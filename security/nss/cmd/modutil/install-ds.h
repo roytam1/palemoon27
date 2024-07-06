@@ -9,6 +9,10 @@
 #include <prio.h>
 #include <prmem.h>
 
+#ifndef PR_GetEnvSecure
+#define PR_GetEnvSecure PR_GetEnv
+#endif
+
 extern PRFileDesc* Pk11Install_FD;
 extern int Pk11Install_yylex();
 extern int Pk11Install_yylinenum;

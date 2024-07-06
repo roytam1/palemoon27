@@ -26,6 +26,7 @@
 #include "nsStyleStruct.h"
 #include "nsHTMLReflowMetrics.h"
 #include "nsFrameList.h"
+#include "mozilla/TypedEnum.h"
 #include "mozilla/layout/FrameChildList.h"
 #include "FramePropertyTable.h"
 #include "nsDirection.h"
@@ -35,7 +36,6 @@
 #include "nsLayoutUtils.h"
 #include "nsFrameState.h"
 #include "CaretAssociationHint.h"
-#include "mozilla/TypedEnum.h"
 
 #ifdef ACCESSIBILITY
 #include "mozilla/a11y/AccTypes.h"

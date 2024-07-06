@@ -16,6 +16,7 @@
 #include "MediaResource.h"
 #include "SharedDecoderManager.h"
 #include "SharedThreadPool.h"
+#include "TimeUnits.h"
 #include "VideoUtils.h"
 
 #include <algorithm>
@@ -25,6 +26,7 @@ using namespace mozilla::media;
 using mozilla::layers::Image;
 using mozilla::layers::LayerManager;
 using mozilla::layers::LayersBackend;
+using mozilla::media::TimeUnit;
 
 #ifdef PR_LOGGING
 PRLogModuleInfo* GetFormatDecoderLog() {
@@ -859,7 +861,6 @@ MediaFormatReader::DecodeDemuxedSamples(TrackType aTrack,
             sample->mTime);
         decoder.mTimeThreshold = Some(TimeUnit::FromMicroseconds(sample->mTime));
         nsRefPtr<MediaFormatReader> self = this;
-	#if defined (_MSC_VER) && _MSC_VER <= 1600
         decoder.mSeekRequest.Begin(decoder.mTrackDemuxer->Seek(decoder.mTimeThreshold.ref())
                    ->Then(GetTaskQueue(), __func__,
                           [self, aTrack] (media::TimeUnit aTime) {
@@ -870,28 +871,8 @@ MediaFormatReader::DecodeDemuxedSamples(TrackType aTrack,
                           [self, aTrack] (DemuxerFailureReason aResult) {
                             auto& decoder = self->GetDecoderData(aTrack);
                             decoder.mSeekRequest.Complete();
-                              if (DemuxerFailureReason::WAITING_FOR_DATA)
-                                self->NotifyWaitingForData(aTrack);
-
-                              if (DemuxerFailureReason::END_OF_STREAM)
-                                self->NotifyEndOfStream(aTrack);
-
-                                self->NotifyError(aTrack);
-
-                            decoder.mTimeThreshold.reset();
-                          }));
-	#else
-	decoder.mSeekRequest.Begin(decoder.mTrackDemuxer->Seek(decoder.mTimeThreshold.ref())
-                   ->Then(GetTaskQueue(), __func__,
-                          [self, aTrack] (media::TimeUnit aTime) {
-                            auto& decoder = self->GetDecoderData(aTrack);
-                            decoder.mSeekRequest.Complete();
-                            self->ScheduleUpdate(aTrack);
-                          },
-                          [self, aTrack] (DemuxerFailureReason aResult) {
-                            auto& decoder = self->GetDecoderData(aTrack);
-                            decoder.mSeekRequest.Complete();
-                            switch (aResult) {
+                            int8_t result = aResult;
+                            switch (result) {
                               case DemuxerFailureReason::WAITING_FOR_DATA:
                                 self->NotifyWaitingForData(aTrack);
                                 break;
@@ -907,7 +888,6 @@ MediaFormatReader::DecodeDemuxedSamples(TrackType aTrack,
                             }
                             decoder.mTimeThreshold.reset();
                           }));
-	#endif
         return;
       }
     }

@@ -1998,7 +1998,7 @@ PresShell::Initialize(nscoord aWidth, nscoord aHeight)
     }
   }
 
-  if (root && root->IsXULElement()) {
+  if (root && root->IsXUL()) {
     mozilla::Telemetry::AccumulateTimeDelta(Telemetry::XUL_INITIAL_FRAME_CONSTRUCTION,
                                             timerStart);
   }
@@ -3192,7 +3192,7 @@ PresShell::GoToAnchor(const nsAString& aAnchorName, bool aScroll,
   }
 
   const Element *root = mDocument->GetRootElement();
-  if (root && root->IsSVGElement(nsGkAtoms::svg)) {
+  if (root && root->IsSVG(nsGkAtoms::svg)) {
     // We need to execute this even if there is an empty anchor name
     // so that any existing SVG fragment identifier effect is removed
     if (SVGFragmentIdentifier::ProcessFragmentIdentifier(mDocument, aAnchorName)) {
@@ -3235,7 +3235,7 @@ PresShell::GoToAnchor(const nsAString& aAnchorName, bool aScroll,
         // Ensure it's an anchor element
         content = do_QueryInterface(node);
         if (content) {
-          if (content->IsHTMLElement(nsGkAtoms::a)) {
+          if (content->Tag() == nsGkAtoms::a && content->IsHTML()) {
             break;
           }
           content = nullptr;
@@ -6117,7 +6117,7 @@ PresShell::AssumeAllImagesVisible()
       mPresContext->Type() == nsPresContext::eContext_Print ||
       mPresContext->IsChrome() ||
       mDocument->IsResourceDoc() ||
-      mDocument->IsXULDocument()) {
+      mDocument->IsXUL()) {
     return true;
   }
 
@@ -7103,7 +7103,7 @@ BuildTargetChainForBeforeAfterKeyboardEvent(nsINode* aTarget,
                                             bool& aTargetIsIframe)
 {
   nsCOMPtr<nsIContent> content(do_QueryInterface(aTarget));
-  aTargetIsIframe = content && content->IsHTMLElement(nsGkAtoms::iframe);
+  aTargetIsIframe = content && content->IsHTML(nsGkAtoms::iframe);
 
   Element* frameElement;
   // If event target is not an iframe, skip the event target and get its
@@ -7542,7 +7542,8 @@ PresShell::HandleEvent(nsIFrame* aFrame,
                        "Unexpected document");
           nsIFrame* captureFrame = capturingContent->GetPrimaryFrame();
           if (captureFrame) {
-            if (capturingContent->IsHTMLElement(nsGkAtoms::select)) {
+            if (capturingContent->Tag() == nsGkAtoms::select &&
+                capturingContent->IsHTML()) {
               // a dropdown <select> has a child in its selectPopupList and we should
               // capture on that instead.
               nsIFrame* childFrame = captureFrame->GetChildList(nsIFrame::kSelectPopupList).FirstChild();
@@ -9651,7 +9652,7 @@ PresShell::ProcessReflowCommands(bool aInterruptible)
     int32_t intElapsed = int32_t(elapsed.ToMilliseconds());
 
     Telemetry::ID id;
-    if (mDocument->GetRootElement()->IsXULElement()) {
+    if (mDocument->GetRootElement()->IsXUL()) {
       id = mIsActive
         ? Telemetry::XUL_FOREGROUND_REFLOW_MS
         : Telemetry::XUL_BACKGROUND_REFLOW_MS;

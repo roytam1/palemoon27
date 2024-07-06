@@ -433,7 +433,7 @@ MOZ_ARG_WITH_STRING(windows-version,
                           currently the minimum supported version.],
   WINSDK_TARGETVER=$withval)
 
-# Currently only version 601 to 603 is allowed
+# Currently only version 601 to 603 are allowed
 case "$WINSDK_TARGETVER" in
 601)
     MOZ_WINSDK_TARGETVER=0${WINSDK_TARGETVER}0000
@@ -501,6 +501,11 @@ case "$target" in
             MSVC_CXX_RUNTIME_DLL=msvcp100.dll
             MSVC_REDIST_OPENMP_DIR=Microsoft.VC100.OPENMP
             MSVC_OPENMP_DLL=vcomp100.dll
+            # C4275: non dll-interface class 'stdext::exception' used as base for dll-interface class 'this'
+            # C4355: 'this' : used in base member initializer list
+            # C4396: 'this' : the inline specifier cannot be used when a friend declaration refers to a specialization of a function template
+            CFLAGS="$CFLAGS -wd4275 -wd4355 -wd4396"
+            CXXFLAGS="$CXXFLAGS -wd4275 -wd4355 -wd4396"
 	elif test "$_CC_MAJOR_VERSION" = "17"; then
             _CC_SUITE=11
             MSVS_VERSION=2012
@@ -562,7 +567,7 @@ See https://developer.mozilla.org/en/Windows_Build_Prerequisites.])
           if test ! -d "$WIN32_REDIST_DIR"; then
             AC_MSG_ERROR([Invalid Win32 Redist directory: ${WIN32_REDIST_DIR}])
           fi
-          
+
           if test -f "$WIN32_REDIST_DIR/$MSVC_C_RUNTIME_DLL"; then
             AC_MSG_ERROR([The Win32 Redist directory must be set to the directory above Microsoft.VCXX0.CRT])
           fi
@@ -2228,7 +2233,7 @@ ia64*-hpux*)
         MKCSHLIB='$(LD) -NOLOGO -DLL -OUT:$@ -PDB:$(LINK_PDBFILE) $(DSO_LDOPTS)'
         MKSHLIB_FORCE_ALL=
         MKSHLIB_UNFORCE_ALL=
-        dnl Set subsystem version 6.
+        dnl Set subsystem version 5 for Windows XP.
         WIN32_SUBSYSTEM_VERSION=5.01
         if test "$HAVE_64BIT_BUILD"; then
             WIN32_SUBSYSTEM_VERSION=5.02
@@ -2241,12 +2246,19 @@ ia64*-hpux*)
         _DEFINES_CXXFLAGS='-FI $(DEPTH)/dist/include/mozilla-config.h -DMOZILLA_CLIENT'
         CFLAGS="$CFLAGS -W3 -Gy"
         CXXFLAGS="$CXXFLAGS -W3 -Gy"
-	if test "$_CC_SUITE" -ge "12"; then
+        if test "$_CC_SUITE" -ge "11"; then
+        if test "$CPU_ARCH" = "x86"; then
+            dnl VS2012+ defaults to -arch:SSE2.
+            CFLAGS="$CFLAGS -arch:IA32"
+            CXXFLAGS="$CXXFLAGS -arch:IA32"
+        fi
+        fi
+        if test "$_CC_SUITE" -ge "12"; then
         dnl VS2013+ requires -FS when parallel building by make -jN.
         dnl If nothing, compiler sometimes causes C1041 error.
         CFLAGS="$CFLAGS -FS"
         CXXFLAGS="$CXXFLAGS -FS"
-	fi
+        fi
         # khuey says we can safely ignore MSVC warning C4251
         # MSVC warning C4244 (implicit type conversion may lose data) warns
         # and requires workarounds for perfectly valid code.  Also, GCC/clang
@@ -2281,10 +2293,10 @@ ia64*-hpux*)
         MOZ_OPTIMIZE_FLAGS='-O1 -Oi'
         MOZ_FIX_LINK_PATHS=
         MOZ_COMPONENT_NSPR_LIBS='$(NSPR_LIBS)'
-        # Don't enable these flags on clang-cl since it doesn't ignore unknown arguments by default, and
+        # Disable these flags on clang-cl since it doesn't ignore unknown arguments by default, and
         # autoconf insists on passing $LDFLAGS to the compiler.
         if test -z "$CLANG_CL"; then
-            LDFLAGS="$LDFLAGS -LARGEADDRESSAWARE -NXCOMPAT -OPT:REF -OPT:ICF=15"
+            LDFLAGS="$LDFLAGS -LARGEADDRESSAWARE -NXCOMPAT"
             if test -z "$DEVELOPER_OPTIONS"; then
                 LDFLAGS="$LDFLAGS -RELEASE"
             fi
@@ -3879,7 +3891,13 @@ else
   MOZ_FMP4=
 fi
 MOZ_FFMPEG=
-MOZ_WEBRTC=
+MOZ_WEBRTC=1
+MOZ_PEERCONNECTION=
+MOZ_SRTP=
+MOZ_WEBRTC_SIGNALING=
+MOZ_WEBRTC_ASSERT_ALWAYS=1
+MOZ_WEBRTC_HARDWARE_AEC_NS=
+MOZ_SCTP=
 MOZ_ANDROID_OMX=
 MOZ_MEDIA_NAVIGATOR=
 MOZ_OMX_PLUGIN=
@@ -3938,7 +3956,7 @@ MOZ_ANDROID_SEARCH_ACTIVITY=
 MOZ_ANDROID_DOWNLOADS_INTEGRATION=
 MOZ_ANDROID_MLS_STUMBLER=
 MOZ_ANDROID_SHARE_OVERLAY=
-ACCESSIBILITY=
+ACCESSIBILITY=1
 MOZ_TIME_MANAGER=
 MOZ_PAY=
 MOZ_AUDIO_CHANNEL_MANAGER=
@@ -4265,8 +4283,8 @@ case "$MOZ_WIDGET_TOOLKIT" in
 
 cairo-windows)
     MOZ_WIDGET_TOOLKIT=windows
-    MOZ_PDF_PRINTING=1
     MOZ_WEBGL=1
+    MOZ_PDF_PRINTING=1
     MOZ_INSTRUMENT_EVENT_LOOP=1
     if test -n "$GNU_CC"; then
         MOZ_FOLD_LIBS=
@@ -4276,8 +4294,8 @@ cairo-windows)
 cairo-gtk3)
     MOZ_WIDGET_TOOLKIT=gtk3
     MOZ_ENABLE_GTK=1
-    MOZ_WEBGL=1
     MOZ_ENABLE_GTK3=1
+    MOZ_WEBGL=1
     MOZ_ENABLE_XREMOTE=1
     MOZ_GL_DEFAULT_PROVIDER=GLX
 
@@ -4324,7 +4342,7 @@ cairo-qt)
       XT_LIBS=
     fi
 
-    MOZ_WEBGL=1
+	MOZ_WEBGL=1
     USE_FC_FREETYPE=1
     TK_CFLAGS='$(MOZ_QT_CFLAGS)'
     TK_LIBS='$(MOZ_QT_LIBS)'
@@ -4343,9 +4361,9 @@ cairo-cocoa)
     TK_CFLAGS="-DNO_X11"
     CFLAGS="$CFLAGS $TK_CFLAGS"
     CXXFLAGS="$CXXFLAGS $TK_CFLAGS"
-    MOZ_WEBGL=1
     MOZ_USER_DIR="Mozilla"
     MOZ_FS_LAYOUT=bundle
+    MOZ_WEBGL=1
     MOZ_INSTRUMENT_EVENT_LOOP=1
     ;;
 
@@ -4357,9 +4375,9 @@ cairo-uikit)
     TK_LIBS='-Wl,-framework,Foundation -Wl,-framework,CoreFoundation -Wl,-framework,CoreGraphics -Wl,-framework,CoreText'
     CFLAGS="$CFLAGS $TK_CFLAGS"
     CXXFLAGS="$CXXFLAGS $TK_CFLAGS"
-    MOZ_WEBGL=1
     MOZ_USER_DIR="Mozilla"
     MOZ_FS_LAYOUT=bundle
+    MOZ_WEBGL=1
     ;;
 
 cairo-android)
@@ -4379,9 +4397,9 @@ cairo-gonk)
     TK_CFLAGS='$(MOZ_CAIRO_CFLAGS) $(MOZ_PIXMAN_CFLAGS)'
     TK_LIBS='$(MOZ_CAIRO_LIBS) $(MOZ_PIXMAN_LIBS)'
     MOZ_PDF_PRINTING=1
-    MOZ_WEBGL=1
     MOZ_TOUCH=1
     MOZ_INSTRUMENT_EVENT_LOOP=1
+    MOZ_WEBGL=1
     ;;
 
 esac
@@ -5065,12 +5083,12 @@ MOZ_ARG_DISABLE_BOOL(dbm,
     NSS_DISABLE_DBM=)
 
 dnl ========================================================
-dnl accessibility support off by default on all platforms
+dnl accessibility support on by default on all platforms
 dnl ========================================================
-MOZ_ARG_ENABLE_BOOL(accessibility,
-[  --enable-accessibility Enable accessibility support],
-    ACCESSIBILITY=1,
-    ACCESSIBILITY= )
+MOZ_ARG_DISABLE_BOOL(accessibility,
+[  --disable-accessibility Disable accessibility support],
+    ACCESSIBILITY=,
+    ACCESSIBILITY=1 )
 if test "$ACCESSIBILITY"; then
     case "$target" in
     *-mingw*)
@@ -5093,21 +5111,99 @@ if test "${MOZ_WIDGET_TOOLKIT}" = "linuxgl" -a "$ACCESSIBILITY" != "1"; then
     AC_MSG_ERROR(["Accessibility is required for the linuxgl widget backend"])
 fi
 
+dnl Turn off webrtc for OS's we don't handle yet, but allow
+dnl --enable-webrtc to override.  Can disable for everything in
+dnl the master list above.
+if test -n "$MOZ_WEBRTC"; then
+    case "$target" in
+    *-linux*|*-mingw*|*-darwin*|*-android*|*-linuxandroid*|*-dragonfly*|*-freebsd*|*-netbsd*|*-openbsd*)
+        dnl Leave enabled
+        ;;
+    *)
+        dnl default to disabled for all others
+        MOZ_WEBRTC=
+        ;;
+    esac
+fi
+
+dnl Temporary until webrtc works on gonk-L
+if test -n "$gonkdir" && test "$ANDROID_VERSION" -ge 21; then
+    MOZ_WEBRTC=
+fi
+
+AC_TRY_COMPILE([#include <linux/ethtool.h>],
+               [ struct ethtool_cmd cmd; cmd.speed_hi = 0; ],
+               MOZ_WEBRTC_HAVE_ETHTOOL_SPEED_HI=1)
+
+AC_SUBST(MOZ_WEBRTC_HAVE_ETHTOOL_SPEED_HI)
+
+# target_arch is from {ia32|x64|arm|ppc}
+case "$CPU_ARCH" in
+x86_64 | arm | x86 | ppc* | ia64)
+    :
+    ;;
+*)
+# unsupported arch for webrtc
+    MOZ_WEBRTC=
+    ;;
+
+esac
+
 dnl ========================================================
-dnl = Enable WebRTC code
+dnl = Disable WebRTC code
 dnl ========================================================
-MOZ_ARG_ENABLE_BOOL(webrtc,
-[  --enable-webrtc        Enable support for WebRTC],
-    MOZ_WEBRTC=1,
-    MOZ_WEBRTC=)
+MOZ_ARG_DISABLE_BOOL(webrtc,
+[  --disable-webrtc        Disable support for WebRTC],
+    MOZ_WEBRTC=,
+    MOZ_WEBRTC=1)
 
 if test -n "$MOZ_WEBRTC"; then
-    AC_ERROR("WebRTC is no longer supported. Please remove --enable-webrtc")
+    AC_DEFINE(MOZ_WEBRTC)
+    dnl MOZ_WEBRTC_ASSERT_ALWAYS turns on a number of safety asserts in
+    dnl opt/production builds (via MOZ_CRASH())
+    AC_DEFINE(MOZ_WEBRTC_ASSERT_ALWAYS)
+    MOZ_RAW=1
+    MOZ_VPX=1
+    MOZ_VPX_ERROR_CONCEALMENT=1
+
+dnl enable once Signaling lands
+    MOZ_WEBRTC_SIGNALING=1
+    AC_DEFINE(MOZ_WEBRTC_SIGNALING)
+dnl enable once PeerConnection lands
+    MOZ_PEERCONNECTION=1
+    AC_DEFINE(MOZ_PEERCONNECTION)
+    MOZ_SCTP=1
+    MOZ_SRTP=1
+    AC_DEFINE(MOZ_SCTP)
+    AC_DEFINE(MOZ_SRTP)
+    if test -n "$MOZ_X11"; then
+      MOZ_WEBRTC_X11_LIBS="-lXext -lXdamage -lXfixes -lXcomposite"
+    fi
+else
+    MOZ_SYNTH_PICO=
+fi
+
+dnl ========================================================
+dnl = Force hardware AEC, disable webrtc.org AEC
+dnl ========================================================
+MOZ_ARG_ENABLE_BOOL(hardware-aec-ns,
+[  --enable-hardware-aec-ns   Enable support for hardware AEC and noise suppression],
+    MOZ_WEBRTC_HARDWARE_AEC_NS=1,
+    MOZ_WEBRTC_HARDWARE_AEC_NS=)
+
+if test -n "$MOZ_WEBRTC_HARDWARE_AEC_NS"; then
+    AC_DEFINE(MOZ_WEBRTC_HARDWARE_AEC_NS)
 fi
 
 AC_SUBST(MOZ_WEBRTC)
-
-dnl ========================================================
+AC_SUBST(MOZ_WEBRTC_LEAKING_TESTS)
+AC_SUBST(MOZ_WEBRTC_SIGNALING)
+AC_SUBST(MOZ_PEERCONNECTION)
+AC_SUBST(MOZ_WEBRTC_ASSERT_ALWAYS)
+AC_SUBST(MOZ_WEBRTC_HARDWARE_AEC_NS)
+AC_SUBST(MOZ_SCTP)
+AC_SUBST(MOZ_SRTP)
+AC_SUBST_LIST(MOZ_WEBRTC_X11_LIBS)
 
 dnl Use integers over floats for audio on B2G and Android
 dnl (regarless of the CPU architecture, because audio
@@ -5257,7 +5353,7 @@ dnl ========================================================
 dnl FFmpeg H264/AAC Decoding Support
 dnl ========================================================
 case "$OS_TARGET" in
-Darwin|Android)
+WINNT|Darwin|Android)
     ;;
 *)
     MOZ_FFMPEG=1
@@ -5732,7 +5828,7 @@ MOZ_ARG_DISABLE_BOOL(webgl,
 [  --disable-webgl     Disable building of the WebGL implementation],
     MOZ_WEBGL_DISABLED=1,
     MOZ_WEBGL_DISABLED=)
-	
+
 if test -n "$MOZ_WEBGL_DISABLED"; then
   MOZ_WEBGL=
   MOZ_ANGLE_RENDERER=
@@ -5740,7 +5836,9 @@ fi
 
 if test -n "$MOZ_WEBGL"; then
   AC_DEFINE(MOZ_WEBGL)
+  AC_DEFINE(MOZ_ANGLE_RENDERER)
   AC_SUBST(MOZ_WEBGL)
+  AC_SUBST(MOZ_ANGLE_RENDERER)
 fi
 
 # This is potentially set in external mozconfig files; if it's set,
@@ -5748,6 +5846,7 @@ fi
 # for conformant implementations.
 if test -n "$MOZ_WEBGL_CONFORMANT"; then
   AC_DEFINE(MOZ_WEBGL_CONFORMANT)
+  AC_SUBST(MOZ_WEBGL_CONFORMANT)
 fi
 
 MOZ_REQUIRE_ALL_D3DCS=1
@@ -5811,6 +5910,9 @@ if test -n "$MOZ_ANGLE_RENDERER"; then
   ######################################
   # Find _43 for use by XP.
 
+  if test "$HAVE_64BIT_BUILD"; then
+    AC_MSG_RESULT([We are building a 64-bit binary, skip checking d3dcompiler_43.])
+  else
     # Get the SDK path from the registry.
     # First try to get the June 2010 SDK
     MOZ_DIRECTX_SDK_REG_KEY=`reg query 'HKLM\Software\Microsoft\DirectX' //s | grep 'Microsoft DirectX SDK (June 2010)' | head -n 1`
@@ -5858,6 +5960,7 @@ if test -n "$MOZ_ANGLE_RENDERER"; then
     else
       AC_MSG_RESULT([Couldn't find an acceptable DirectX SDK for ANGLE, needed for d3dcompiler_43.])
     fi
+  fi
 
   ######################################
   # Check that we found what we needed.
@@ -6257,12 +6360,12 @@ MOZ_ARG_ENABLE_BOOL(update-packaging,
 AC_SUBST(MOZ_UPDATE_PACKAGING)
 
 dnl ========================================================
-dnl Do not build the tests by default
+dnl build the tests by default
 dnl ========================================================
-MOZ_ARG_ENABLE_BOOL(tests,
-[  --enable-tests         Build test libraries & programs],
-    ENABLE_TESTS=1,
-    ENABLE_TESTS= )
+MOZ_ARG_DISABLE_BOOL(tests,
+[  --disable-tests         Do not build test libraries & programs],
+    ENABLE_TESTS=,
+    ENABLE_TESTS=1 )
 
 if test -n "$ENABLE_TESTS"; then
     GTEST_HAS_RTTI=0
@@ -8755,37 +8858,6 @@ fi
 AC_SUBST(MOZILLA_VERSION)
 
 AC_SUBST(ac_configure_args)
-
-dnl ========================================================
-dnl Directive 4
-dnl ========================================================
-
-DIRECTIVE4_LIST="MOZ_OFFICIAL_BRANDING=$MOZ_OFFICIAL_BRANDING
-MOZ_BRANDING_DIRECTORY=$MOZ_BRANDING_DIRECTORY
-MOZ_PHOENIX=$MOZ_PHOENIX
-MOZ_SANDBOX=$MOZ_SANDBOX
-MOZ_NATIVE_LIBEVENT=$MOZ_NATIVE_LIBEVENT
-MOZ_NATIVE_NSS=$MOZ_NATIVE_NSS
-MOZ_NATIVE_NSPR=$MOZ_NATIVE_NSPR
-MOZ_NATIVE_JPEG=$MOZ_NATIVE_JPEG
-MOZ_NATIVE_ZLIB=$MOZ_NATIVE_ZLIB
-MOZ_NATIVE_BZ2=$MOZ_NATIVE_BZ2
-MOZ_NATIVE_PNG=$MOZ_NATIVE_PNG
-MOZ_NATIVE_LIBVPX=$MOZ_NATIVE_LIBVPX
-MOZ_NATIVE_SQLITE=$MOZ_NATIVE_SQLITE
-MOZ_NATIVE_JEMALLOC=$MOZ_NATIVE_JEMALLOC"
-
-DIRECTIVE4=`$PYTHON $_topsrcdir/build/directive4.py $DIRECTIVE4_LIST`
-
-if test -n "$DIRECTIVE4"; then
-    if test -n "$MC_PRIVATE_BUILD"; then
-        AC_MSG_WARN([Private Build - The configuration you have chosen to use with official branding deviates from official build configuration. Your build is thus for personal and private use only and must not be (re)distributed - Please see: http://www.palemoon.org/redist.shtml])
-    else
-        AC_MSG_ERROR([Branding Violation - Please see: http://www.palemoon.org/redist.shtml])
-    fi
-fi
-
-AC_SUBST(DIRECTIVE4)
 
 dnl Spit out some output
 dnl ========================================================

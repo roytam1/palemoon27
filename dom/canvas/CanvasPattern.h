@@ -11,7 +11,6 @@
 #include "mozilla/RefPtr.h"
 #include "nsISupports.h"
 #include "nsWrapperCache.h"
-#include "mozilla/TypedEnum.h"
 
 class nsIPrincipal;
 

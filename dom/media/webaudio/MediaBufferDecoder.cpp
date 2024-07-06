@@ -23,7 +23,6 @@
 #include "VideoUtils.h"
 #include "WebAudioUtils.h"
 #include "mozilla/dom/Promise.h"
-#include "mozilla/TypedEnum.h"
 
 namespace mozilla {
 

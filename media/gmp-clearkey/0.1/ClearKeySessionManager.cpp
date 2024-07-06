@@ -18,7 +18,7 @@
 
 #include "mozilla/Assertions.h"
 
-#if defined (_MSC_VER) && _MSC_VER <= 1800 
+#if defined (_MSC_VER) && _MSC_VER <= 1700 
 // Windows 8 SDK and older have no versionhelpers.h
 // file
 #define VERSIONHELPERAPI inline bool

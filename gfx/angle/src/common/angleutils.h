@@ -10,31 +10,19 @@
 #define COMMON_ANGLEUTILS_H_
 
 #include "common/platform.h"
-#include "mozilla/Attributes.h"
 
-#include <climits>
-#include <cstdarg>
-#include <cstddef>
+#include <stddef.h>
+#include <limits.h>
 #include <string>
 #include <set>
 #include <sstream>
-#include <vector>
+#include <cstdarg>
 
-// A helper class to disallow copy and assignment operators
-namespace angle
-{
-
-class NonCopyable
-{
-  public:
-    NonCopyable() MOZ_DEFAULT;
-    ~NonCopyable() MOZ_DEFAULT;
-  protected:
-    NonCopyable(const NonCopyable&) MOZ_DEFAULT;
-    void operator=(const NonCopyable&) MOZ_DEFAULT;
-};
-
-}
+// A macro to disallow the copy constructor and operator= functions
+// This must be used in the private: declarations for a class
+#define DISALLOW_COPY_AND_ASSIGN(TypeName) \
+  TypeName(const TypeName&);               \
+  void operator=(const TypeName&)
 
 template <typename T, size_t N>
 inline size_t ArraySize(T(&)[N])
@@ -71,9 +59,9 @@ void SafeDelete(T*& resource)
 template <typename T>
 void SafeDeleteContainer(T& resource)
 {
-    for (auto &element : resource)
+    for (typename T::iterator i = resource.begin(); i != resource.end(); i++)
     {
-        SafeDelete(element);
+        SafeDelete(*i);
     }
     resource.clear();
 }
@@ -105,13 +93,6 @@ template <typename T>
 inline void StructZero(T *obj)
 {
     memset(obj, 0, sizeof(T));
-}
-
-template <typename T>
-inline bool IsMaskFlagSet(T mask, T flag)
-{
-    // Handles multibit flags as well
-    return (mask & flag) == flag;
 }
 
 inline const char* MakeStaticString(const std::string &str)
@@ -151,22 +132,20 @@ inline std::string Str(int i)
     return strstr.str();
 }
 
-size_t FormatStringIntoVector(const char *fmt, va_list vararg, std::vector<char>& buffer);
-
 std::string FormatString(const char *fmt, va_list vararg);
 std::string FormatString(const char *fmt, ...);
 
-// snprintf is not defined with MSVC prior to to msvc14
-#if defined(_MSC_VER) && _MSC_VER < 1900
+#if defined(_MSC_VER)
 #define snprintf _snprintf
 #endif
+
+#define VENDOR_ID_AMD 0x1002
+#define VENDOR_ID_INTEL 0x8086
+#define VENDOR_ID_NVIDIA 0x10DE
 
 #define GL_BGRA4_ANGLEX 0x6ABC
 #define GL_BGR5_A1_ANGLEX 0x6ABD
 #define GL_INT_64_ANGLEX 0x6ABE
 #define GL_STRUCT_ANGLEX 0x6ABF
-
-// Hidden enum for the NULL D3D device type.
-#define EGL_PLATFORM_ANGLE_DEVICE_TYPE_NULL_ANGLE 0x6AC0
 
 #endif // COMMON_ANGLEUTILS_H_

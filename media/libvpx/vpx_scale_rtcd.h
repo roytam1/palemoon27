@@ -9,15 +9,17 @@
 #if defined(_WIN64)
 /* 64 bit Windows */
 #ifdef _MSC_VER
-#include "vpx_scale_rtcd_x86_64-win64-vs8.h"
+#include "vpx_scale_rtcd_x86_64-win64-vs12.h"
 #else
 #include "vpx_scale_rtcd_x86_64-win64-gcc.h"
 #endif
 
 #elif defined(_WIN32)
 /* 32 bit Windows, MSVC. */
-#ifdef _MSC_VER
+#if defined(_MSC_VER) && _MSC_VER <= 1400
 #include "vpx_scale_rtcd_x86-win32-vs8.h"
+#elif defined(_MSC_VER)
+#include "vpx_scale_rtcd_x86-win32-vs12.h"
 #else
 #include "vpx_scale_rtcd_x86-win32-gcc.h"
 #endif

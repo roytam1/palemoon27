@@ -23,6 +23,17 @@
 #include "gfxUtils.h" // not part of Moz2D
 #endif
 
+#if defined (_MSC_VER) && _MSC_VER < 1800
+#define FP_SUBNORMAL	(_FPCLASS_ND | _FPCLASS_PD)
+inline bool fpclass(float x, int fpcls) {
+  return !!(_fpclass(x) & fpcls);
+}
+#else
+inline bool fpclass(float x, int fpcls) {
+  return std::fpclassify(x) == fpcls;
+}
+#endif
+
 namespace mozilla {
 namespace gfx {
 
@@ -3214,7 +3225,7 @@ FilterNodeLightingSoftware<LightType, LightingType>::SetAttribute(uint32_t aInde
   }
   switch (aIndex) {
     case ATT_LIGHTING_SURFACE_SCALE:
-      mSurfaceScale = aValue;
+      mSurfaceScale = fpclass(aValue, FP_SUBNORMAL) ? 0.0 : aValue;
       break;
     default:
       MOZ_CRASH();

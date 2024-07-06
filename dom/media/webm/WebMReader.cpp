@@ -12,6 +12,7 @@
 #include "WebMBufferedParser.h"
 #include "gfx2DGlue.h"
 #include "Layers.h"
+#include "mozilla/dom/HTMLMediaElement.h"
 #include "mozilla/Preferences.h"
 #include "SharedThreadPool.h"
 

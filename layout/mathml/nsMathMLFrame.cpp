@@ -158,7 +158,7 @@ nsMathMLFrame::GetPresentationDataFrom(nsIFrame*           aFrame,
     if (!content)
       break;
 
-    if (content->IsMathMLElement(nsGkAtoms::math)) {
+    if (content->Tag() == nsGkAtoms::math) {
       break;
     }
     frame = frame->GetParent();

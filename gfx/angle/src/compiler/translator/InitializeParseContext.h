@@ -4,14 +4,14 @@
 // found in the LICENSE file.
 //
 
-#ifndef COMPILER_TRANSLATOR_INITIALIZEPARSECONTEXT_H_
-#define COMPILER_TRANSLATOR_INITIALIZEPARSECONTEXT_H_
+#ifndef __INITIALIZE_PARSE_CONTEXT_INCLUDED_
+#define __INITIALIZE_PARSE_CONTEXT_INCLUDED_
 
 bool InitializeParseContextIndex();
 void FreeParseContextIndex();
 
-class TParseContext;
+struct TParseContext;
 extern void SetGlobalParseContext(TParseContext* context);
 extern TParseContext* GetGlobalParseContext();
 
-#endif // COMPILER_TRANSLATOR_INITIALIZEPARSECONTEXT_H_
+#endif // __INITIALIZE_PARSE_CONTEXT_INCLUDED_

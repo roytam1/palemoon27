@@ -126,9 +126,8 @@ MP4Decoder::CanHandleMediaType(const nsACString& aMIMETypeExcludingCodecs,
     if (!ParseCodecsString(aCodecs, codecs)) {
       return false;
     }
-    uint32_t length = codecs.Length();
-    for (uint32_t i = 0; i < length; ++i) {
-    const nsString& codec = codecs[i];
+    for (size_t i = 0; i < codecs.Length(); i++) {
+      const nsString& codec = codecs[i];
       if (IsAACCodecString(codec)) {
         codecMimes.AppendElement(NS_LITERAL_CSTRING("audio/mp4a-latm"));
         continue;
@@ -154,9 +153,8 @@ MP4Decoder::CanHandleMediaType(const nsACString& aMIMETypeExcludingCodecs,
   if (!platform) {
     return false;
   }
-  uint32_t length = codecMimes.Length();
-  for (uint32_t i = 0; i < length; ++i) {
-  const nsCString& codecMime = codecMimes[i];
+  for (size_t i = 0; i < codecMimes.Length(); i++) {
+    const nsCString& codecMime = codecMimes[i];
     if (!platform->SupportsMimeType(codecMime)) {
       return false;
     }

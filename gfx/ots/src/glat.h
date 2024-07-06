@@ -7,6 +7,7 @@
 
 #include <vector>
 
+#include "mozilla/Attributes.h"
 #include "ots.h"
 #include "graphite.h"
 
@@ -153,7 +154,7 @@ class OpenTypeGLAT_v3 : public OpenTypeGLAT_Basic {
 class OpenTypeGLAT : public Table {
  public:
   explicit OpenTypeGLAT(Font* font, uint32_t tag)
-      : Table(font, tag, tag), font(font), tag(tag) { }
+      : Table(font, tag, tag), font(font), tag(tag), handler(nullptr) { }
   OpenTypeGLAT(const OpenTypeGLAT& other) MOZ_DELETE;
   OpenTypeGLAT& operator=(const OpenTypeGLAT& other) MOZ_DELETE;
   ~OpenTypeGLAT() { delete handler; }

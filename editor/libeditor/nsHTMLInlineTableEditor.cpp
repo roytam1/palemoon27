@@ -22,6 +22,8 @@
 #include "nsString.h"
 #include "nscore.h"
 
+using mozilla::dom::Element;
+
 // Uncomment the following line if you want to disable
 // table deletion when the only column/row is removed
 // #define DISABLE_TABLE_DELETION 1

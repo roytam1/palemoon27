@@ -4,8 +4,8 @@
 // found in the LICENSE file.
 //
 
-#include "common/debug.h"
 #include "compiler/translator/ScalarizeVecAndMatConstructorArgs.h"
+#include "compiler/translator/compilerdebug.h"
 
 #include <algorithm>
 
@@ -39,7 +39,7 @@ bool ContainsVectorNode(const TIntermSequence &sequence)
 
 TIntermConstantUnion *ConstructIndexNode(int index)
 {
-    TConstantUnion *u = new TConstantUnion[1];
+    ConstantUnion *u = new ConstantUnion[1];
     u[0].setIConst(index);
 
     TType type(EbtInt, EbpUndefined, EvqConst, 1);
@@ -109,13 +109,7 @@ bool ScalarizeVecAndMatConstructorArgs::visitAggregate(Visit visit, TIntermAggre
                 scalarizeArgs(node, false, true);
             break;
           case EOpConstructMat2:
-          case EOpConstructMat2x3:
-          case EOpConstructMat2x4:
-          case EOpConstructMat3x2:
           case EOpConstructMat3:
-          case EOpConstructMat3x4:
-          case EOpConstructMat4x2:
-          case EOpConstructMat4x3:
           case EOpConstructMat4:
             if (ContainsVectorNode(*(node->getSequence())))
                 scalarizeArgs(node, true, false);
@@ -150,20 +144,8 @@ void ScalarizeVecAndMatConstructorArgs::scalarizeArgs(
       case EOpConstructMat2:
         size = 4;
         break;
-      case EOpConstructMat2x3:
-      case EOpConstructMat3x2:
-        size = 6;
-        break;
-      case EOpConstructMat2x4:
-      case EOpConstructMat4x2:
-        size = 8;
-        break;
       case EOpConstructMat3:
         size = 9;
-        break;
-      case EOpConstructMat3x4:
-      case EOpConstructMat4x3:
-        size = 12;
         break;
       case EOpConstructMat4:
         size = 16;

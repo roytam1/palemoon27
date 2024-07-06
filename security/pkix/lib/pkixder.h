@@ -38,7 +38,8 @@
 // undefined state.
 
 #include "pkix/Input.h"
-#include "pkix/pkixtypes.h" // Includes TypedEnum.h
+#include "pkix/pkixtypes.h"
+#include "mozilla/TypedEnum.h"
 
 namespace mozilla { namespace pkix { namespace der {
 
@@ -76,7 +77,7 @@ enum Tag : uint8_t
 
 MOZ_BEGIN_ENUM_CLASS(EmptyAllowed) 
 No = 0, 
-Yes = 1 
+Yes = 1
 MOZ_END_ENUM_CLASS(EmptyAllowed)
 
 Result ReadTagAndGetValue(Reader& input, /*out*/ uint8_t& tag,
@@ -265,7 +266,6 @@ ExpectTagAndGetValueAtEnd(Input outer, uint8_t expectedTag,
 namespace internal {
 
 MOZ_BEGIN_ENUM_CLASS(IntegralValueRestriction)
-
   NoRestriction,
   MustBePositive,
   MustBe0To127,

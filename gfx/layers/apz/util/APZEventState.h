@@ -16,6 +16,7 @@
 #include "nsISupportsImpl.h"  // for NS_INLINE_DECL_REFCOUNTING
 #include "nsIWeakReferenceUtils.h"  // for nsWeakPtr
 #include "mozilla/nsRefPtr.h"
+#include "nsIDocument.h"
 
 template <class> class nsCOMPtr;
 class nsIDOMWindowUtils;

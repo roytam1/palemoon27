@@ -13,6 +13,12 @@
 #include "nsITimer.h"
 #include "nsIWeakReferenceUtils.h"
 #include "nsIWidget.h"
+#include "APZCCallbackHelper.h"
+#include "nsIDOMMouseEvent.h"
+#include "mozilla/TouchEvents.h"
+#include "nsIPresShell.h"
+#include "nsLayoutUtils.h"
+#include "nsIScrollableFrame.h"
 
 #define APZES_LOG(...)
 // #define APZES_LOG(...) printf_stderr("APZCCH: " __VA_ARGS__)

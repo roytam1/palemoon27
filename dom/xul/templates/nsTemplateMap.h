@@ -8,6 +8,7 @@
 
 #include "pldhash.h"
 #include "nsXULElement.h"
+#include "mozilla/fallible.h"
 
 class nsTemplateMap {
 protected:
@@ -38,7 +39,7 @@ public:
                      "aContent already in map");
 
         Entry* entry = static_cast<Entry*>
-            (PL_DHashTableAdd(&mTable, aContent, fallible));
+			(PL_DHashTableAdd(&mTable, aContent, mozilla::fallible));
 
         if (entry) {
             entry->mContent = aContent;

@@ -216,7 +216,7 @@ SVGUseElement::CreateAnonymousContent()
 
   LookupHref();
   nsIContent* targetContent = mSource.get();
-  if (!targetContent)
+  if (!targetContent || !targetContent->IsSVG())
     return nullptr;
 
   // make sure target is valid type for <use>
@@ -248,7 +248,7 @@ SVGUseElement::CreateAnonymousContent()
     for (nsCOMPtr<nsIContent> content = GetParent();
          content;
          content = content->GetParent()) {
-      if (content->IsSVGElement(nsGkAtoms::use) &&
+      if (content->IsSVG(nsGkAtoms::use) &&
           static_cast<SVGUseElement*>(content.get())->mOriginal == mOriginal) {
         return nullptr;
       }
@@ -268,7 +268,7 @@ SVGUseElement::CreateAnonymousContent()
   if (!newcontent)
     return nullptr;
 
-  if (newcontent->IsSVGElement(nsGkAtoms::symbol)) {
+  if (newcontent->IsSVG(nsGkAtoms::symbol)) {
     nsIDocument *document = GetComposedDoc();
     if (!document)
       return nullptr;
@@ -312,7 +312,7 @@ SVGUseElement::CreateAnonymousContent()
     newcontent = svgNode;
   }
 
-  if (newcontent->IsSVGElement() && (newcontent->Tag() == nsGkAtoms::svg ||
+  if (newcontent->IsSVG() && (newcontent->Tag() == nsGkAtoms::svg ||
                               newcontent->Tag() == nsGkAtoms::symbol)) {
     nsSVGElement *newElement = static_cast<nsSVGElement*>(newcontent.get());
 
@@ -342,7 +342,7 @@ SVGUseElement::DestroyAnonymousContent()
 bool
 SVGUseElement::OurWidthAndHeightAreUsed() const
 {
-  return mClone && mClone->IsSVGElement() && (mClone->Tag() == nsGkAtoms::svg ||
+  return mClone && mClone->IsSVG() && (mClone->Tag() == nsGkAtoms::svg ||
                                        mClone->Tag() == nsGkAtoms::symbol);
 }
 
@@ -364,7 +364,7 @@ SVGUseElement::SyncWidthOrHeight(nsIAtom* aName)
       target->SetLength(aName, mLengthAttributes[index]);
       return;
     }
-    if (mClone->IsSVGElement(nsGkAtoms::svg)) {
+    if (mClone->Tag() == nsGkAtoms::svg) {
       // Our width/height attribute is now no longer explicitly set, so we
       // need to revert the clone's width/height to the width/height of the
       // content that's being cloned.

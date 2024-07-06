@@ -15,7 +15,6 @@
 #include "nsISupportsImpl.h"
 #include "mozilla/nsRefPtr.h"
 #include "nsTArray.h"
-#include "mozilla/TypedEnum.h"
 
 namespace mozilla {
 

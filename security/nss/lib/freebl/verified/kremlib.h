@@ -17,7 +17,7 @@
 #define __KREMLIB_H
 
 #include "kremlib_base.h"
-#include <stdint.h>
+//#include <stdint.h>
 
 /* For tests only: we might need this function to be forward-declared, because
  * the dependency on WasmSupport appears very late, after SimplifyWasm, and

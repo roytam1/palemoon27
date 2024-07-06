@@ -20,7 +20,7 @@
 #include "mozilla/gfx/Point.h"       // for mozilla::gfx::IntSize
 #include "mozilla/gfx/2D.h"          // for SourceSurface
 #include "SVGImageContext.h"         // for SVGImageContext
-#include "mozilla/TypedEnum.h"		 // for enum class emulation
+#include "mozilla/TypedEnum.h"		 // For enum class stubs
 
 namespace mozilla {
 namespace image {

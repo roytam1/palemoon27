@@ -1246,7 +1246,7 @@ nsBoxFrame::AttributeChanged(int32_t aNameSpaceID,
     RegUnregAccessKey(true);
   }
   else if (aAttribute == nsGkAtoms::rows &&
-           mContent->IsXULElement(nsGkAtoms::tree)) {
+           tag == nsGkAtoms::tree) {
     // Reflow ourselves and all our children if "rows" changes, since
     // nsTreeBodyFrame's layout reads this from its parent (this frame).
     PresContext()->PresShell()->
@@ -1313,7 +1313,7 @@ nsBoxFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
   mozilla::layers::FrameMetrics::ViewID scrollTargetId =
     mozilla::layers::FrameMetrics::NULL_SCROLL_ID;
 
-  if (GetContent()->IsXULElement()) {
+  if (GetContent()->IsXUL()) {
     // forcelayer is only supported on XUL elements with box layout
     if (GetContent()->HasAttr(kNameSpaceID_None, nsGkAtoms::layer)) {
       forceLayer = true;
@@ -1876,7 +1876,7 @@ void
 nsBoxFrame::RegUnregAccessKey(bool aDoReg)
 {
   MOZ_ASSERT(mContent);
-  
+
   // find out what type of element this is
   nsIAtom *atom = mContent->Tag();
 

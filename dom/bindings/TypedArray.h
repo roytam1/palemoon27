@@ -300,7 +300,7 @@ class MOZ_STACK_CLASS RootedTypedArray : public ArrayType,
 public:
   explicit RootedTypedArray(JSContext* cx MOZ_GUARD_OBJECT_NOTIFIER_PARAM) :
     ArrayType(),
-    TypedArrayRooter<ArrayType>(cx, MOZ_THIS_IN_INITIALIZER_LIST()
+    TypedArrayRooter<ArrayType>(cx, this
                                 MOZ_GUARD_OBJECT_NOTIFIER_PARAM_TO_PARENT)
   {
   }

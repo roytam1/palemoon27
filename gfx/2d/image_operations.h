@@ -29,6 +29,11 @@
 #ifndef SKIA_EXT_IMAGE_OPERATIONS_H_
 #define SKIA_EXT_IMAGE_OPERATIONS_H_
 
+#ifdef _MSC_VER
+#define _USE_MATH_DEFINES
+#include <math.h>
+#endif
+
 #include "skia/include/core/SkTypes.h"
 #include "Types.h"
 #include "convolver.h"

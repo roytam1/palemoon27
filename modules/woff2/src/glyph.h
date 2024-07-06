@@ -19,7 +19,7 @@
 #define WOFF2_GLYPH_H_
 
 #include <stddef.h>
-#include <inttypes.h>
+#include "woff2_common.h"
 #include <vector>
 
 namespace woff2 {

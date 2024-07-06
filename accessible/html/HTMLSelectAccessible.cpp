@@ -126,12 +126,13 @@ HTMLSelectListAccessible::CacheChildren()
   // a flat tree under the Select List.
   for (nsIContent* childContent = mContent->GetFirstChild(); childContent;
        childContent = childContent->GetNextSibling()) {
-    if (!childContent->IsHTMLElement()) {
+    if (!childContent->IsHTML()) {
       continue;
     }
 
-    if (childContent->IsAnyOfHTMLElements(nsGkAtoms::option,
-                                          nsGkAtoms::optgroup)) {
+    nsIAtom* tag = childContent->Tag();
+    if (tag == nsGkAtoms::option ||
+        tag == nsGkAtoms::optgroup) {
 
       // Get an accessible for option or optgroup and cache it.
       nsRefPtr<Accessible> accessible =

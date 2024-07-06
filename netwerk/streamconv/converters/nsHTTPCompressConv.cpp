@@ -7,8 +7,10 @@
 #include "nsHTTPCompressConv.h"
 #include "nsMemory.h"
 #include "plstr.h"
+#include "nsAutoPtr.h"
 #include "nsCOMPtr.h"
 #include "nsError.h"
+#include "nsIRequest.h"
 #include "nsStreamUtils.h"
 #include "nsStringStream.h"
 #include "nsComponentManagerUtils.h"
@@ -18,7 +20,7 @@
 
 // brotli headers
 #include "state.h"
-#include "decode.h"
+#include "brotli/decode.h"
 
 namespace mozilla {
 namespace net {
@@ -148,7 +150,7 @@ nsHTTPCompressConv::BrotliHandler(nsIInputStream *stream, void *closure, const c
   unsigned char *outPtr;
   size_t outSize;
   size_t avail = aAvail;
-  BrotliResult res;
+  BrotliDecoderResult res;
 
   if (!self->mBrotli) {
     *countRead = aAvail;
@@ -167,19 +169,21 @@ nsHTTPCompressConv::BrotliHandler(nsIInputStream *stream, void *closure, const c
     // brotli api is documented in brotli/dec/decode.h and brotli/dec/decode.c
 
     size_t totalOut = self->mBrotli->mTotalOut;
-    res = ::BrotliDecompressStream(
+    res = ::BrotliDecoderDecompressStream(
+      &self->mBrotli->mState,
       &avail, reinterpret_cast<const unsigned char **>(&dataIn),
-      &outSize, &outPtr, &self->mBrotli->mTotalOut, &self->mBrotli->mState);
+      &outSize, &outPtr, &totalOut);
+    self->mBrotli->mTotalOut = totalOut;
     outSize = kOutSize - outSize;
 
-    if (res == BROTLI_RESULT_ERROR) {
+    if (res == BROTLI_DECODER_RESULT_ERROR) {
       self->mBrotli->mStatus = NS_ERROR_INVALID_CONTENT_ENCODING;
       return self->mBrotli->mStatus;
     }
 
     // in 'the current implementation' brotli must consume everything before
     // asking for more input
-    if (res == BROTLI_RESULT_NEEDS_MORE_INPUT) {
+    if (res == BROTLI_DECODER_RESULT_NEEDS_MORE_INPUT) {
       MOZ_ASSERT(!avail);
       if (avail) {
         self->mBrotli->mStatus = NS_ERROR_UNEXPECTED;
@@ -198,13 +202,13 @@ nsHTTPCompressConv::BrotliHandler(nsIInputStream *stream, void *closure, const c
       }
     }
 
-    if (res == BROTLI_RESULT_SUCCESS ||
-        res == BROTLI_RESULT_NEEDS_MORE_INPUT) {
+    if (res == BROTLI_DECODER_RESULT_SUCCESS ||
+        res == BROTLI_DECODER_RESULT_NEEDS_MORE_INPUT) {
       *countRead = aAvail;
       return NS_OK;
     }
-    MOZ_ASSERT (res == BROTLI_RESULT_NEEDS_MORE_OUTPUT);
-  } while (res == BROTLI_RESULT_NEEDS_MORE_OUTPUT);
+    MOZ_ASSERT (res == BROTLI_DECODER_RESULT_NEEDS_MORE_OUTPUT);
+  } while (res == BROTLI_DECODER_RESULT_NEEDS_MORE_OUTPUT);
 
   self->mBrotli->mStatus = NS_ERROR_UNEXPECTED;
   return self->mBrotli->mStatus;

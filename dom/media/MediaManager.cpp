@@ -978,7 +978,7 @@ static void
   {
     nsTArray<nsRefPtr<typename DeviceType::Source> > sources;
 
-    MediaSourceEnum src = StringToEnum(dom::MediaSourceEnumValues::strings,
+	dom::MediaSourceEnum src = StringToEnum(dom::MediaSourceEnumValues::strings,
                                        aConstraints.mMediaSource,
                                        dom::MediaSourceEnum::Other);
     (engine->*aEnumerate)(src, &sources);
@@ -1631,7 +1631,7 @@ MediaManager::GetUserMedia(
 
   if (c.mVideo.IsMediaTrackConstraints()) {
     auto& vc = c.mVideo.GetAsMediaTrackConstraints();
-    MediaSourceEnum src = StringToEnum(dom::MediaSourceEnumValues::strings,
+    dom::MediaSourceEnum src = StringToEnum(dom::MediaSourceEnumValues::strings,
                                        vc.mMediaSource,
                                        dom::MediaSourceEnum::Other);
     if (vc.mAdvanced.WasPassed()) {
@@ -1639,11 +1639,9 @@ MediaManager::GetUserMedia(
         // iterate through advanced, forcing mediaSource to match "root"
         const char *camera = EnumToASCII(dom::MediaSourceEnumValues::strings,
                                          dom::MediaSourceEnum::Camera);
-        for (uint32_t i = 0; i < vc.mAdvanced.Value().Length(); ++i) {
-	MediaTrackConstraintSet& cs = vc.mAdvanced.Value()[i];
-          if (cs.mMediaSource.EqualsASCII(camera)) {
-            cs.mMediaSource = vc.mMediaSource;
-          }
+		MediaTrackConstraintSet mtcs;
+          if (mtcs.mMediaSource.EqualsASCII(camera)) {
+            mtcs.mMediaSource = vc.mMediaSource;
         }
       }
     }
@@ -1653,12 +1651,11 @@ MediaManager::GetUserMedia(
         vc.mBrowserWindow.Construct(-1);
       }
       if (vc.mAdvanced.WasPassed()) {
-      uint32_t length = vc.mAdvanced.Value().Length();
-        for (uint32_t i = 0; i < length; i++) {
-	MediaTrackConstraintSet& cs = vc.mAdvanced.Value()[i];
-          if (cs.mBrowserWindow.WasPassed()) {
-            cs.mBrowserWindow.Construct(-1);
-          }
+        uint32_t length = vc.mAdvanced.Value().Length();
+      for (uint32_t i = 0; i < length; i++) {
+        if (vc.mAdvanced.Value()[i].mBrowserWindow.WasPassed()) {
+          vc.mAdvanced.Value()[i].mBrowserWindow.Construct(-1);
+		  }
         }
       }
     }

@@ -21,6 +21,10 @@ static int MozCPUInfo(CPUFeature feature)
       return mozilla::supports_sse3();
     case kSSE4_1:
       return mozilla::supports_sse4_1();
+    case kAVX:
+      return mozilla::supports_avx();
+    case kAVX2:
+      return mozilla::supports_avx2();
 #endif
 #if defined(WEBP_USE_NEON) || defined(WEBP_ANDROID_NEON)
     case kNEON:

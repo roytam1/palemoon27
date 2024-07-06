@@ -4,8 +4,8 @@
 // found in the LICENSE file.
 //
 
-#ifndef COMPILER_TRANSLATOR_OUTPUTESSL_H_
-#define COMPILER_TRANSLATOR_OUTPUTESSL_H_
+#ifndef CROSSCOMPILERGLSL_OUTPUTESSL_H_
+#define CROSSCOMPILERGLSL_OUTPUTESSL_H_
 
 #include "compiler/translator/OutputGLSLBase.h"
 
@@ -17,14 +17,10 @@ public:
                 ShHashFunction64 hashFunction,
                 NameMap& nameMap,
                 TSymbolTable& symbolTable,
-                int shaderVersion,
-                bool forceHighp);
+                int shaderVersion);
 
 protected:
-  bool writeVariablePrecision(TPrecision precision) override;
-
-private:
-    bool mForceHighp;
+    virtual bool writeVariablePrecision(TPrecision precision);
 };
 
-#endif  // COMPILER_TRANSLATOR_OUTPUTESSL_H_
+#endif  // CROSSCOMPILERGLSL_OUTPUTESSL_H_

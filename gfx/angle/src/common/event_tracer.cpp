@@ -4,53 +4,46 @@
 
 #include "common/event_tracer.h"
 
-#include "common/debug.h"
-
-namespace angle
+namespace gl
 {
 
-const unsigned char *GetTraceCategoryEnabledFlag(const char *name)
-{
-    angle::Platform *platform = ANGLEPlatformCurrent();
-    ASSERT(platform);
+GetCategoryEnabledFlagFunc g_getCategoryEnabledFlag;
+AddTraceEventFunc g_addTraceEvent;
 
-    const unsigned char *categoryEnabledFlag = platform->getTraceCategoryEnabledFlag(name);
-    if (categoryEnabledFlag != nullptr)
+}  // namespace gl
+
+extern "C" {
+
+void TRACE_ENTRY SetTraceFunctionPointers(GetCategoryEnabledFlagFunc getCategoryEnabledFlag,
+                                          AddTraceEventFunc addTraceEvent)
+{
+    gl::g_getCategoryEnabledFlag = getCategoryEnabledFlag;
+    gl::g_addTraceEvent = addTraceEvent;
+}
+
+}  // extern "C"
+
+namespace gl
+{
+
+const unsigned char* TraceGetTraceCategoryEnabledFlag(const char* name)
+{
+    if (g_getCategoryEnabledFlag)
     {
-        return categoryEnabledFlag;
+        return g_getCategoryEnabledFlag(name);
     }
-
     static unsigned char disabled = 0;
     return &disabled;
 }
 
-Platform::TraceEventHandle AddTraceEvent(char phase, const unsigned char* categoryGroupEnabled, const char* name, unsigned long long id,
-                                         int numArgs, const char** argNames, const unsigned char* argTypes,
-                                         const unsigned long long* argValues, unsigned char flags)
+void TraceAddTraceEvent(char phase, const unsigned char* categoryGroupEnabled, const char* name, unsigned long long id,
+                        int numArgs, const char** argNames, const unsigned char* argTypes,
+                        const unsigned long long* argValues, unsigned char flags)
 {
-    angle::Platform *platform = ANGLEPlatformCurrent();
-    ASSERT(platform);
-
-    double timestamp = platform->monotonicallyIncreasingTime();
-
-    if (timestamp != 0)
+    if (g_addTraceEvent)
     {
-        angle::Platform::TraceEventHandle handle =
-            platform->addTraceEvent(phase,
-                                    categoryGroupEnabled,
-                                    name,
-                                    id,
-                                    timestamp,
-                                    numArgs,
-                                    argNames,
-                                    argTypes,
-                                    argValues,
-                                    flags);
-        ASSERT(handle != 0);
-        return handle;
+        g_addTraceEvent(phase, categoryGroupEnabled, name, id, numArgs, argNames, argTypes, argValues, flags);
     }
-
-    return static_cast<Platform::TraceEventHandle>(0);
 }
 
-}  // namespace angle
+}  // namespace gl

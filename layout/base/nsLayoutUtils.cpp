@@ -95,6 +95,7 @@
 #include "FrameLayerBuilder.h"
 #include "mozilla/layers/APZCTreeManager.h"
 #include "mozilla/Telemetry.h"
+#include "mozilla/EventDispatcher.h"
 
 #ifdef MOZ_XUL
 #include "nsXULPopupManager.h"
@@ -1188,7 +1189,7 @@ nsLayoutUtils::GetBeforeFrameForContent(nsIFrame* aFrame,
     const nsTArray<nsIContent*>& pseudos(*prop);
     for (uint32_t i = 0; i < pseudos.Length(); ++i) {
       if (pseudos[i]->GetParent() == aContent &&
-          pseudos[i]->NodeInfo()->NameAtom() == nsGkAtoms::mozgeneratedcontentbefore) {
+          pseudos[i]->Tag() == nsGkAtoms::mozgeneratedcontentbefore) {
         return pseudos[i]->GetPrimaryFrame();
       }
     }
@@ -1227,7 +1228,7 @@ nsLayoutUtils::GetAfterFrameForContent(nsIFrame* aFrame,
     const nsTArray<nsIContent*>& pseudos(*prop);
     for (uint32_t i = 0; i < pseudos.Length(); ++i) {
       if (pseudos[i]->GetParent() == aContent &&
-          pseudos[i]->NodeInfo()->NameAtom() == nsGkAtoms::mozgeneratedcontentafter) {
+          pseudos[i]->Tag() == nsGkAtoms::mozgeneratedcontentafter) {
         return pseudos[i]->GetPrimaryFrame();
       }
     }
@@ -1332,7 +1333,7 @@ nsLayoutUtils::IsGeneratedContentFor(nsIContent* aContent,
     return false;
   }
 
-  return (aFrame->GetContent()->NodeInfo()->NameAtom() == nsGkAtoms::mozgeneratedcontentbefore) ==
+  return (aFrame->GetContent()->Tag() == nsGkAtoms::mozgeneratedcontentbefore) ==
     (aPseudoElement == nsCSSPseudoElements::before);
 }
 

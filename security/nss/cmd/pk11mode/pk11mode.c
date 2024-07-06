@@ -34,6 +34,10 @@
 #include "plgetopt.h"
 #include "prenv.h"
 
+#ifndef PR_GetEnvSecure
+#define PR_GetEnvSecure PR_GetEnv
+#endif
+
 #include "pk11table.h"
 
 #define NUM_ELEM(array) (sizeof(array) / sizeof(array[0]))

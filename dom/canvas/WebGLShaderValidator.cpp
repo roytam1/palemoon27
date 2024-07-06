@@ -32,6 +32,7 @@ ChooseValidatorCompileOptions(const ShBuiltInResources& resources,
 {
     int options = SH_VARIABLES |
                   SH_ENFORCE_PACKING_RESTRICTIONS |
+                  SH_INIT_VARYINGS_WITHOUT_STATIC_USE |
                   SH_OBJECT_CODE |
                   SH_LIMIT_CALL_STACK_DEPTH;
 
@@ -84,7 +85,7 @@ WebGLContext::CreateShaderValidator(GLenum shaderType) const
 
     ShShaderSpec spec = SH_WEBGL_SPEC;
     ShShaderOutput outputLanguage = gl->IsGLES() ? SH_ESSL_OUTPUT
-                                                 : SH_GLSL_COMPATIBILITY_OUTPUT;
+                                                 : SH_GLSL_OUTPUT;
 
     ShBuiltInResources resources;
     memset(&resources, 0, sizeof(resources));
@@ -170,7 +171,7 @@ ShaderValidator::GetInfoLog(nsACString* out) const
 {
     MOZ_ASSERT(mHasRun);
 
-    const std::string &log = ShGetInfoLog(mHandle);
+    const std::string &log = "";//ShGetInfoLog(mHandle);
     out->Assign(log.data(), log.length());
 }
 
@@ -179,7 +180,7 @@ ShaderValidator::GetOutput(nsACString* out) const
 {
     MOZ_ASSERT(mHasRun);
 
-    const std::string &output = ShGetObjectCode(mHandle);
+    const std::string &output = "";//ShGetObjectCode(mHandle);
     out->Assign(output.data(), output.length());
 }
 
@@ -202,13 +203,13 @@ ShaderValidator::CanLinkTo(const ShaderValidator* prev, nsCString* const out_log
                 if (itrVert->name != itrFrag->name)
                     continue;
 
-                if (!itrVert->isSameUniformAtLinkTime(*itrFrag)) {
+                /*if (!itrVert->isSameUniformAtLinkTime(*itrFrag)) {
                     nsPrintfCString error("Uniform `%s`is not linkable between"
                                           " attached shaders.",
                                           itrFrag->name.c_str());
                     *out_log = error;
                     return false;
-                }
+                }*/
 
                 break;
             }
@@ -229,13 +230,13 @@ ShaderValidator::CanLinkTo(const ShaderValidator* prev, nsCString* const out_log
                 if (itrVert->name != itrFrag->name)
                     continue;
 
-                if (!itrVert->isSameVaryingAtLinkTime(*itrFrag)) {
+                /*if (!itrVert->isSameVaryingAtLinkTime(*itrFrag)) {
                     nsPrintfCString error("Varying `%s`is not linkable between"
                                           " attached shaders.",
                                           itrFrag->name.c_str());
                     *out_log = error;
                     return false;
-                }
+                }*/
 
                 definedInVertShader = true;
                 break;
@@ -318,14 +319,14 @@ ShaderValidator::FindUniformByMappedName(const std::string& mappedName,
                                          bool* const out_isArray) const
 {
     const std::vector<sh::Uniform>& uniforms = *ShGetUniforms(mHandle);
-    for (auto itr = uniforms.begin(); itr != uniforms.end(); ++itr) {
+    /*for (auto itr = uniforms.begin(); itr != uniforms.end(); ++itr) {
         const sh::ShaderVariable* found;
         if (!itr->findInfoByMappedName(mappedName, &found, out_userName))
             continue;
 
         *out_isArray = found->isArray();
         return true;
-    }
+    }*/
 
     return false;
 }

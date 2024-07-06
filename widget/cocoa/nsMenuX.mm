@@ -432,12 +432,11 @@ void nsMenuX::MenuConstruct()
     nsIContent *child = menuPopup->GetChildAt(i);
     if (child) {
       // depending on the type, create a menu item, separator, or submenu
-      if (child->IsAnyOfXULElements(nsGkAtoms::menuitem,
-                                    nsGkAtoms::menuseparator)) {
+      nsIAtom *tag = child->Tag();
+      if (tag == nsGkAtoms::menuitem || tag == nsGkAtoms::menuseparator)
         LoadMenuItem(child);
-      } else if (child->IsXULElement(nsGkAtoms::menu)) {
+      else if (tag == nsGkAtoms::menu)
         LoadSubMenu(child);
-      }
     }
   } // for each menu item
 
@@ -502,7 +501,7 @@ void nsMenuX::LoadMenuItem(nsIContent* inMenuItemContent)
   // printf("menuitem %s \n", NS_LossyConvertUTF16toASCII(menuitemName).get());
 
   EMenuItemType itemType = eRegularMenuItemType;
-  if (inMenuItemContent->IsXULElement(nsGkAtoms::menuseparator)) {
+  if (inMenuItemContent->Tag() == nsGkAtoms::menuseparator) {
     itemType = eSeparatorMenuItemType;
   }
   else {

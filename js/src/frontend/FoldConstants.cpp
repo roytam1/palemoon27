@@ -7,7 +7,6 @@
 #include "frontend/FoldConstants.h"
 
 #include "mozilla/FloatingPoint.h"
-#include "mozilla/TypedEnum.h"
 
 #include "jslibmath.h"
 
@@ -17,6 +16,8 @@
 
 #include "jscntxtinlines.h"
 #include "jsobjinlines.h"
+
+#include "mozilla/TypedEnum.h"
 
 using namespace js;
 using namespace js::frontend;

@@ -1473,9 +1473,7 @@ public:
 
   js::ExpandoAndGeneration mExpandoAndGeneration;
 
-  #ifdef MOZ_MEDIASOURCE
   bool ContainsMSEContent();
-  #endif
 
 protected:
   already_AddRefed<nsIPresShell> doCreateShell(nsPresContext* aContext,

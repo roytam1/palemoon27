@@ -43,6 +43,10 @@ struct ObservationWithStack
   nsString                                  mFilename;
 };
 
+} // anonymous namespace
+
+namespace mozilla {
+
 class MainThreadIOLoggerImpl final : public mozilla::IOInterposeObserver
 {
 public:
@@ -199,10 +203,6 @@ MainThreadIOLoggerImpl::Observe(Observation& aObservation)
   mObservations.push_back(ObservationWithStack(aObservation, nullptr));
   lock.Notify();
 }
-
-} // anonymous namespace
-
-namespace mozilla {
 
 namespace MainThreadIOLogger {
 

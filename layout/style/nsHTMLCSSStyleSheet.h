@@ -15,6 +15,7 @@
 
 #include "nsDataHashtable.h"
 #include "nsIStyleRuleProcessor.h"
+#include "nsCSSPseudoElements.h"
 
 class nsRuleWalker;
 struct MiscContainer;

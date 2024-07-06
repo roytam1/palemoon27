@@ -67,6 +67,10 @@ typedef unsigned __int64 uint64_t;
 
 #endif
 
+#if defined (_MSC_VER) && _MSC_VER < 1800
+#define strtof strtod
+#endif
+
 HB_BEGIN_DECLS
 
 

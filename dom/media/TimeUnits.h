@@ -212,7 +212,13 @@ public:
     return *this;
   }
 
-  TimeUnit(const TimeUnit&) { };
+  TimeUnit(const TimeUnit&) {};
+
+  TimeUnit& operator = (const TimeUnit& aOther)
+  {
+    mValue = aOther.mValue;
+    return *this;
+  }
 
 private:
   explicit TimeUnit(CheckedInt64 aMicroseconds)
@@ -263,7 +269,7 @@ public:
       End(0).ToMicroseconds() == INT64_MIN;
   }
 
-  TimeIntervals() { };
+  TimeIntervals() {};
 
   // Make TimeIntervals interchangeable with dom::TimeRanges.
   explicit TimeIntervals(dom::TimeRanges* aRanges)

@@ -270,6 +270,7 @@ WEBIDL_FILES = [
     'MediaList.webidl',
     'MediaQueryList.webidl',
     'MediaRecorder.webidl',
+    'MediaSource.webidl',
     'MediaStream.webidl',
     'MediaStreamAudioDestinationNode.webidl',
     'MediaStreamAudioSourceNode.webidl',
@@ -373,6 +374,8 @@ WEBIDL_FILES = [
     'SharedWorkerGlobalScope.webidl',
     'SimpleGestureEvent.webidl',
     'SocketCommon.webidl',
+    'SourceBuffer.webidl',
+    'SourceBufferList.webidl',
     'StereoPannerNode.webidl',
     'Storage.webidl',
     'StorageEvent.webidl',
@@ -586,14 +589,6 @@ if CONFIG['MOZ_WEBRTC']:
         'RTCSessionDescription.webidl',
         'WebrtcGlobalInformation.webidl',
     ]
-    
-if CONFIG['MOZ_MEDIASOURCE']:
-    WEBIDL_FILES += [
-		'MediaSource.webidl',
-		'SourceBuffer.webidl',
-		'SourceBufferList.webidl',
-	]
-		
 
 if CONFIG['MOZ_WEBSPEECH']:
     WEBIDL_FILES += [

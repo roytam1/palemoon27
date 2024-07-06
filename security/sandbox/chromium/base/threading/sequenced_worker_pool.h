@@ -336,7 +336,7 @@ class BASE_EXPORT SequencedWorkerPool : public TaskRunner {
   bool IsShutdownInProgress();
 
  protected:
-  ~SequencedWorkerPool() override;
+  ~SequencedWorkerPool();
 
   void OnDestruct() const override;
 

@@ -4,26 +4,25 @@
 // found in the LICENSE file.
 //
 
-#ifndef COMPILER_TRANSLATOR_OUTPUTGLSL_H_
-#define COMPILER_TRANSLATOR_OUTPUTGLSL_H_
+#ifndef CROSSCOMPILERGLSL_OUTPUTGLSL_H_
+#define CROSSCOMPILERGLSL_OUTPUTGLSL_H_
 
 #include "compiler/translator/OutputGLSLBase.h"
 
 class TOutputGLSL : public TOutputGLSLBase
 {
-  public:
+public:
     TOutputGLSL(TInfoSinkBase& objSink,
                 ShArrayIndexClampingStrategy clampingStrategy,
                 ShHashFunction64 hashFunction,
                 NameMap& nameMap,
                 TSymbolTable& symbolTable,
-                int shaderVersion,
-                ShShaderOutput output);
+                int shaderVersion);
 
-  protected:
-    bool writeVariablePrecision(TPrecision) override;
-    void visitSymbol(TIntermSymbol *node) override;
-    TString translateTextureFunction(TString &name) override;
+protected:
+    virtual bool writeVariablePrecision(TPrecision);
+    virtual void visitSymbol(TIntermSymbol* node);
+    virtual TString translateTextureFunction(TString& name);
 };
 
-#endif  // COMPILER_TRANSLATOR_OUTPUTGLSL_H_
+#endif  // CROSSCOMPILERGLSL_OUTPUTGLSL_H_

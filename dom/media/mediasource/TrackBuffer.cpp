@@ -539,11 +539,9 @@ TrackBuffer::Buffered()
   ReentrantMonitorAutoEnter mon(mParentDecoder->GetReentrantMonitor());
 
   TimeIntervals buffered;
-  SourceBufferDecoder* decoder;
-  uint32_t i;
-  
-  for (i = 0; i <= mInitializedDecoders.Length(); i++) {
-    buffered += decoder->GetBuffered();
+
+  for (size_t i = 0; i < mInitializedDecoders.Length(); ++i) {
+    buffered += mInitializedDecoders[i]->GetBuffered();
   }
   // mParser may not be initialized yet, and will only be so if we have a
   // buffered range.
@@ -930,10 +928,8 @@ TrackBuffer::ContainsTime(int64_t aTime, int64_t aTolerance)
 {
   ReentrantMonitorAutoEnter mon(mParentDecoder->GetReentrantMonitor());
   TimeUnit time = TimeUnit::FromMicroseconds(aTime);
-  SourceBufferDecoder* decoder;
-  uint32_t i;
-  for (i = 0; i <= mInitializedDecoders.Length(); i++) {
-    TimeIntervals r = decoder->GetBuffered();
+  for (uint32_t i = 0; i < mInitializedDecoders.Length(); ++i) {
+    TimeIntervals r = mInitializedDecoders[i]->GetBuffered();
     r.SetFuzz(TimeUnit::FromMicroseconds(aTolerance));
     if (r.Contains(time)) {
       return true;

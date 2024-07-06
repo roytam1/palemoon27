@@ -13,6 +13,7 @@
 #include "mozilla/Endian.h"
 #include "mp4_demuxer/AtomType.h"
 #include "mp4_demuxer/ByteReader.h"
+#include "mp4_demuxer/mp4_demuxer.h"
 
 using namespace mozilla;
 

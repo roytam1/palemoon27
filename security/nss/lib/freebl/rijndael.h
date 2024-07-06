@@ -6,7 +6,11 @@
 #define _RIJNDAEL_H_ 1
 
 #include "blapii.h"
+#if (!defined(_MSC_VER) || (defined(_MSC_VER) && _MSC_VER > 1400))
 #include <stdint.h>
+#else
+#include "MSStdInt.h"
+#endif
 
 #if defined(NSS_X86_OR_X64)
 /* GCC <= 4.8 doesn't support including emmintrin.h without enabling SSE2 */

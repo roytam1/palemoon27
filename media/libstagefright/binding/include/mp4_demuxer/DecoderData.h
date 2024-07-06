@@ -56,7 +56,7 @@ private:
 class MP4AudioInfo : public mozilla::AudioInfo
 {
 public:
-  MP4AudioInfo() { };
+  MP4AudioInfo() {};
 
   void Update(const stagefright::MetaData* aMetaData,
               const char* aMimeType);
@@ -67,7 +67,7 @@ public:
 class MP4VideoInfo : public mozilla::VideoInfo
 {
 public:
-  MP4VideoInfo() { };
+  MP4VideoInfo() {};
 
   void Update(const stagefright::MetaData* aMetaData,
               const char* aMimeType);

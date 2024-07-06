@@ -94,7 +94,7 @@ public:
     state = Type2State<T>::result;
     ::new (storage.addr()) T(Move(aU));
   }
-  
+
   template <class T, class U1>
   void construct(const U1& aU1)
   {

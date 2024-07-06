@@ -23,6 +23,7 @@
 
 using namespace mozilla;
 using namespace mozilla::layout;
+using namespace mozilla::image;
 
 nsTableRowGroupFrame::nsTableRowGroupFrame(nsStyleContext* aContext):
   nsContainerFrame(aContext)

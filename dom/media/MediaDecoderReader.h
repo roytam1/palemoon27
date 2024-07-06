@@ -6,6 +6,7 @@
 #if !defined(MediaDecoderReader_h_)
 #define MediaDecoderReader_h_
 
+#include "mozilla/TypedEnum.h"
 #include "AbstractMediaDecoder.h"
 #include "MediaInfo.h"
 #include "MediaData.h"
@@ -13,7 +14,6 @@
 #include "MediaQueue.h"
 #include "AudioCompactor.h"
 #include "TimeUnits.h"
-#include "mozilla/TypedEnum.h"
 
 namespace mozilla {
 

@@ -260,9 +260,9 @@ public:
   virtual Accessible* Next() override;
 
 private:
-  ARIAOwnedByIterator() = delete;
-  ARIAOwnedByIterator(const ARIAOwnedByIterator&) = delete;
-  ARIAOwnedByIterator& operator = (const ARIAOwnedByIterator&) = delete;
+  ARIAOwnedByIterator() MOZ_DELETE;
+  ARIAOwnedByIterator(const ARIAOwnedByIterator&) MOZ_DELETE;
+  ARIAOwnedByIterator& operator = (const ARIAOwnedByIterator&) MOZ_DELETE;
 
   const Accessible* mDependent;
 };
@@ -280,9 +280,9 @@ public:
   virtual Accessible* Next() override;
 
 private:
-  ARIAOwnsIterator() = delete;
-  ARIAOwnsIterator(const ARIAOwnsIterator&) = delete;
-  ARIAOwnsIterator& operator = (const ARIAOwnsIterator&) = delete;
+  ARIAOwnsIterator() MOZ_DELETE;
+  ARIAOwnsIterator(const ARIAOwnsIterator&) MOZ_DELETE;
+  ARIAOwnsIterator& operator = (const ARIAOwnsIterator&) MOZ_DELETE;
 
   IDRefsIterator mIter;
   const Accessible* mOwner;
@@ -323,9 +323,9 @@ public:
   virtual Accessible* Next() override;
 
 private:
-  ItemIterator() = delete;
-  ItemIterator(const ItemIterator&) = delete;
-  ItemIterator& operator = (const ItemIterator&) = delete;
+  ItemIterator() MOZ_DELETE;
+  ItemIterator(const ItemIterator&) MOZ_DELETE;
+  ItemIterator& operator = (const ItemIterator&) MOZ_DELETE;
 
   Accessible* mContainer;
   Accessible* mAnchor;
@@ -345,9 +345,9 @@ public:
   virtual Accessible* Next() override;
 
 private:
-  XULTreeItemIterator() = delete;
-  XULTreeItemIterator(const XULTreeItemIterator&) = delete;
-  XULTreeItemIterator& operator = (const XULTreeItemIterator&) = delete;
+  XULTreeItemIterator() MOZ_DELETE;
+  XULTreeItemIterator(const XULTreeItemIterator&) MOZ_DELETE;
+  XULTreeItemIterator& operator = (const XULTreeItemIterator&) MOZ_DELETE;
 
   XULTreeAccessible* mXULTree;
   nsITreeView* mTreeView;

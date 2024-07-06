@@ -43,12 +43,11 @@ namespace {
 class ArrayBoundsClamperMarker : public TIntermTraverser {
 public:
     ArrayBoundsClamperMarker()
-        : TIntermTraverser(true, false, false),
-          mNeedsClamp(false)
+        : mNeedsClamp(false)
    {
    }
 
-    bool visitBinary(Visit visit, TIntermBinary *node) override
+   virtual bool visitBinary(Visit visit, TIntermBinary* node)
    {
        if (node->getOp() == EOpIndexIndirect)
        {

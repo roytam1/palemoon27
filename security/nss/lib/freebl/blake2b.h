@@ -9,7 +9,11 @@
 #define BLAKE_H
 
 #include <stddef.h>
+#if (!defined(_MSC_VER) || (defined(_MSC_VER) && _MSC_VER > 1400))
 #include <stdint.h>
+#else
+#include "MSStdInt.h"
+#endif
 
 struct Blake2bContextStr {
     uint64_t h[8];                     /* chained state */

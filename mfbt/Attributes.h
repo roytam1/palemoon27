@@ -53,6 +53,9 @@
 #  if _MSC_VER >= 1800
 #    define MOZ_HAVE_CXX11_DELETE
 #  endif
+# if _MSC_VER >= 1800
+#define MOZ_HAVE_CXX11_DEFAULT
+#endif
 #  if _MSC_VER >= 1700
 #    define MOZ_HAVE_CXX11_FINAL         final
 #  else
@@ -209,44 +212,6 @@
 #  define MOZ_NORETURN          /* no support */
 #endif
 
-/*
- * MOZ_DELETE, specified immediately prior to the ';' terminating an undefined-
- * method declaration, attempts to delete that method from the corresponding
- * class.  An attempt to use the method will always produce an error *at compile
- * time* (instead of sometimes as late as link time) when this macro can be
- * implemented.  For example, you can use MOZ_DELETE to produce classes with no
- * implicit copy constructor or assignment operator:
- *
- *   struct NonCopyable
- *   {
- *   private:
- *     NonCopyable(const NonCopyable& aOther) MOZ_DELETE;
- *     void operator=(const NonCopyable& aOther) MOZ_DELETE;
- *   };
- *
- * If MOZ_DELETE can't be implemented for the current compiler, use of the
- * annotated method will still cause an error, but the error might occur at link
- * time in some cases rather than at compile time.
- *
- * MOZ_DELETE relies on C++11 functionality not universally implemented.  As a
- * backstop, method declarations using MOZ_DELETE should be private.
- */
-#if defined(MOZ_HAVE_CXX11_DELETE)
-#  define MOZ_DELETE            = delete
-#else
-#  define MOZ_DELETE            /* no support */
-#endif
-
-#if defined (_MSC_VER) && _MSC_VER <= 1600
-#define final MOZ_FINAL
-#endif
-
-#if defined (_MSC_VER) && _MSC_VER >= 1800
-#define MOZ_DEFAULT = default
-#else
-#define MOZ_DEFAULT {}
-#endif
-
 /**
  * MOZ_COLD tells the compiler that a function is "cold", meaning infrequently
  * executed. This may lead it to optimize for size more aggressively than speed,
@@ -368,6 +333,59 @@
 #ifdef __cplusplus
 
 /*
+ * MOZ_DELETE, specified immediately prior to the ';' terminating an undefined-
+ * method declaration, attempts to delete that method from the corresponding
+ * class.  An attempt to use the method will always produce an error *at compile
+ * time* (instead of sometimes as late as link time) when this macro can be
+ * implemented.  For example, you can use MOZ_DELETE to produce classes with no
+ * implicit copy constructor or assignment operator:
+ *
+ *   struct NonCopyable
+ *   {
+ *   private:
+ *     NonCopyable(const NonCopyable& aOther) MOZ_DELETE;
+ *     void operator=(const NonCopyable& aOther) MOZ_DELETE;
+ *   };
+ *
+ * If MOZ_DELETE can't be implemented for the current compiler, use of the
+ * annotated method will still cause an error, but the error might occur at link
+ * time in some cases rather than at compile time.
+ *
+ * MOZ_DELETE relies on C++11 functionality not universally implemented.  As a
+ * backstop, method declarations using MOZ_DELETE should be private.
+ */
+#if defined(MOZ_HAVE_CXX11_DELETE)
+#  define MOZ_DELETE            = delete
+#else
+#  define MOZ_DELETE            /* no support */
+#endif
+
+#if defined(MOZ_HAVE_CXX11_DEFAULT)
+#define MOZ_DEFAULT				= default
+#else
+#define MOZ_DEFAULT				/* no support */
+#endif
+
+/**
+ * MOZ_WARN_UNUSED_RESULT tells the compiler to emit a warning if a function's
+ * return value is not used by the caller.
+ *
+ * Place this attribute at the very beginning of a function definition. For
+ * example, write
+ *
+ *   MOZ_WARN_UNUSED_RESULT int foo();
+ *
+ * or
+ *
+ *   MOZ_WARN_UNUSED_RESULT int foo() { return 42; }
+ */
+#if defined(__GNUC__) || defined(__clang__)
+#  define MOZ_WARN_UNUSED_RESULT __attribute__ ((warn_unused_result))
+#else
+#  define MOZ_WARN_UNUSED_RESULT
+#endif
+
+/*
  * MOZ_OVERRIDE explicitly indicates that a virtual member function in a class
  * overrides a member function of a base class, rather than potentially being a
  * new member function.  MOZ_OVERRIDE should be placed immediately before the
@@ -402,10 +420,17 @@
  * semantics and merely documents the override relationship to the reader (but
  * of course must still be used correctly to not break C++11 compilers).
  */
+#if defined(__clang__) && __clang_major__ >= 3
+# define MOZ_HAVE_CXX11_OVERRIDE
+#elif defined(__GNUC__) && (__GNUC__ > 4 || (__GNUC__ == 4 && __GNUC_MINOR__ >= 7))
+# if defined(__GXX_EXPERIMENTAL_CXX0X__) || __cplusplus >= 201103L
+#  define MOZ_HAVE_CXX11_OVERRIDE
+# endif
+#endif
 #if defined(MOZ_HAVE_CXX11_OVERRIDE)
-#  define MOZ_OVERRIDE          override
+# define MOZ_OVERRIDE          override
 #else
-#  define MOZ_OVERRIDE          /* no support */
+# define MOZ_OVERRIDE          /* no override support, or unknown support */
 #endif
 
 /*
@@ -477,23 +502,8 @@
 #  define MOZ_FINAL             /* no support */
 #endif
 
-/**
- * MOZ_WARN_UNUSED_RESULT tells the compiler to emit a warning if a function's
- * return value is not used by the caller.
- *
- * Place this attribute at the very beginning of a function definition. For
- * example, write
- *
- *   MOZ_WARN_UNUSED_RESULT int foo();
- *
- * or
- *
- *   MOZ_WARN_UNUSED_RESULT int foo() { return 42; }
- */
-#if defined(__GNUC__) || defined(__clang__)
-#  define MOZ_WARN_UNUSED_RESULT __attribute__ ((warn_unused_result))
-#else
-#  define MOZ_WARN_UNUSED_RESULT
+#if defined (_MSC_VER) && _MSC_VER <= 1700
+#define final MOZ_FINAL
 #endif
 
 /*

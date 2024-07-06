@@ -420,7 +420,7 @@ nsContentList::nsContentList(nsINode* aRootNode,
   // not parser-created and don't need to be flushing stuff under us
   // to get our kids right.
   nsIDocument* doc = mRootNode->GetUncomposedDoc();
-  mFlushesNeeded = doc && !doc->IsHTMLDocument();
+  mFlushesNeeded = doc && !doc->IsHTML();
 }
 
 nsContentList::nsContentList(nsINode* aRootNode,
@@ -453,7 +453,7 @@ nsContentList::nsContentList(nsINode* aRootNode,
   // not parser-created and don't need to be flushing stuff under us
   // to get our kids right.
   nsIDocument* doc = mRootNode->GetUncomposedDoc();
-  mFlushesNeeded = doc && !doc->IsHTMLDocument();
+  mFlushesNeeded = doc && !doc->IsHTML();
 }
 
 nsContentList::~nsContentList()
@@ -865,7 +865,7 @@ nsContentList::Match(Element *aElement)
     return toReturn;
 
   bool matchHTML = aElement->GetNameSpaceID() == kNameSpaceID_XHTML &&
-    aElement->OwnerDoc()->IsHTMLDocument();
+    aElement->OwnerDoc()->IsHTML();
  
   if (unknown) {
     return matchHTML ? ni->QualifiedNameEquals(mHTMLMatchAtom) :

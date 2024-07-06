@@ -13,6 +13,7 @@
 #include "jit/JitcodeMap.h"
 #include "jit/JitSpewer.h"
 #include "js/TrackedOptimizationInfo.h"
+#include "jsprf.h"
 
 using namespace js;
 using namespace js::jit;

@@ -10,10 +10,10 @@
 #include "nsIScreen.h"
 #include "nsCOMPtr.h"
 #include "mozilla/nsRefPtr.h"
+#include "mozilla/TypedEnum.h"
 
 #include "mozilla/gfx/2D.h"
 #include "mozilla/EnumeratedArray.h"
-#include "mozilla/TypedEnum.h"
 
 namespace mozilla {
 namespace gfx {

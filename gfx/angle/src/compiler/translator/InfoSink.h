@@ -4,8 +4,8 @@
 // found in the LICENSE file.
 //
 
-#ifndef COMPILER_TRANSLATOR_INFOSINK_H_
-#define COMPILER_TRANSLATOR_INFOSINK_H_
+#ifndef _INFOSINK_INCLUDED_
+#define _INFOSINK_INCLUDED_
 
 #include <math.h>
 #include <stdlib.h>
@@ -113,4 +113,4 @@ public:
     TInfoSinkBase obj;
 };
 
-#endif // COMPILER_TRANSLATOR_INFOSINK_H_
+#endif // _INFOSINK_INCLUDED_

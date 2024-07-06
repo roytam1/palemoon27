@@ -7,6 +7,7 @@
 
 #include "mozilla/Attributes.h"
 #include "demuxer/TrackDemuxer.h"
+#include "mp4_demuxer.h"
 
 namespace mp4_demuxer
 {

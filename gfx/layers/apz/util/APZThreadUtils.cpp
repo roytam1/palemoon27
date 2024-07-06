@@ -6,6 +6,8 @@
 #include "mozilla/layers/APZThreadUtils.h"
 
 #include "mozilla/layers/Compositor.h"
+#include "nsIWidget.h"
+#include "mozilla/gfx/2D.h"
 
 namespace mozilla {
 namespace layers {

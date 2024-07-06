@@ -40,7 +40,7 @@ FrameTagToString(dom::Element* aElement)
     nsFrame::ListTag(result, frame);
   } else {
     nsAutoString buf;
-    aElement->NodeInfo()->NameAtom()->ToString(buf);
+    aElement->Tag()->ToString(buf);
     result.AppendPrintf("(%s@%p)", NS_ConvertUTF16toUTF8(buf).get(), aElement);
   }
   return result;

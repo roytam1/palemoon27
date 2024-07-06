@@ -1037,53 +1037,6 @@ WrapNewBindingNonWrapperCachedObject(JSContext* cx,
   return JS_WrapValue(cx, rval);
 }
 
-// Create a JSObject wrapping "value", for cases when "value" is a
-// non-wrapper-cached owned object using WebIDL bindings.  "value" must implement a
-// WrapObject() method taking a JSContext, a scope, and a boolean outparam that
-// is true if the JSObject took ownership
-template <class T>
-inline bool
-WrapNewBindingNonWrapperCachedObject(JSContext* cx,
-                                     JS::Handle<JSObject*> scopeArg,
-                                     nsAutoPtr<T>& value,
-                                     JS::MutableHandle<JS::Value> rval)
-{
-  // We do a runtime check on value, because otherwise we might in
-  // fact end up wrapping a null and invoking methods on it later.
-  if (!value) {
-    NS_RUNTIMEABORT("Don't try to wrap null objects");
-  }
-  // We try to wrap in the compartment of the underlying object of "scope"
-  JS::Rooted<JSObject*> obj(cx);
-  {
-    // scope for the JSAutoCompartment so that we restore the compartment
-    // before we call JS_WrapValue.
-    Maybe<JSAutoCompartment> ac;
-    // Maybe<Handle> doesn't so much work, and in any case, adding
-    // more Maybe (one for a Rooted and one for a Handle) adds more
-    // code (and branches!) than just adding a single rooted.
-    JS::Rooted<JSObject*> scope(cx, scopeArg);
-    if (js::IsWrapper(scope)) {
-      scope = js::CheckedUnwrap(scope, /* stopAtOuter = */ false);
-      if (!scope)
-        return false;
-      ac.emplace(cx, scope);
-    }
-
-    MOZ_ASSERT(js::IsObjectInContextCompartment(scope, cx));
-    if (!value->WrapObject(cx, &obj)) {
-      return false;
-    }
-
-    value.forget();
-  }
-
-  // We can end up here in all sorts of compartments, per above.  Make
-  // sure to JS_WrapValue!
-  rval.set(JS::ObjectValue(*obj));
-  return JS_WrapValue(cx, rval);
-}
-
 // Helper for smart pointers (nsRefPtr/nsCOMPtr).
 template <template <typename> class SmartPtr, typename T>
 inline bool

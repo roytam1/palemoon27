@@ -1656,12 +1656,12 @@ nsDOMWindowUtils::GetTranslationNodes(nsIDOMNode* aRoot,
   // skip the root tag from being a translation node.
   nsIContent* content = root;
   while ((limit > 0) && (content = content->GetNextNode(root))) {
-    if (!content->IsHTMLElement()) {
+    if (!content->IsHTML()) {
       continue;
     }
 
     nsIAtom* localName = content->Tag();
-    
+
     // Skip elements that usually contain non-translatable text content.
     if (localName == nsGkAtoms::script ||
         localName == nsGkAtoms::iframe ||

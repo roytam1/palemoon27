@@ -14015,29 +14015,27 @@ _ACEOF
 ac_fn_c_check_type "$LINENO" "struct in6_addr" "ac_cv_type_struct_in6_addr" "#define _GNU_SOURCE
 #include <sys/types.h>
 #ifdef HAVE_NETINET_IN_H
-#	include <netinet/in.h>
+#include <netinet/in.h>
 #endif
 #ifdef HAVE_NETINET_IN6_H
-#	include <netinet/in6.h>
+#include <netinet/in6.h>
 #endif
 #ifdef HAVE_SYS_SOCKET_H
-#	include <sys/socket.h>
+#include <sys/socket.h>
 #endif
 #ifdef HAVE_NETDB_H
-#	include <netdb.h>
+#include <netdb.h>
 #endif
 #ifdef WIN32
-#	if defined(_WIN32_WINNT) && _WIN32_WINNT < 0x0600
-#		undef _WIN32_WINNT
-#		define _WIN32_WINNT 0x600
-#	endif
-#	define WIN32_LEAN_AND_MEAN
-#	if defined(_MSC_VER) && (_MSC_VER < 1300)
-#		include <winsock.h>
-#	else
-#		include <winsock2.h>
-#		include <ws2tcpip.h>
-#	endif
+#define WIN32_WINNT 0x400
+#define _WIN32_WINNT 0x400
+#define WIN32_LEAN_AND_MEAN
+#if defined(_MSC_VER) && (_MSC_VER < 1300)
+#include <winsock.h>
+#else
+#include <winsock2.h>
+#include <ws2tcpip.h>
+#endif
 #endif
 
 "
@@ -14064,10 +14062,8 @@ ac_fn_c_check_type "$LINENO" "struct sockaddr_in6" "ac_cv_type_struct_sockaddr_i
 #include <netdb.h>
 #endif
 #ifdef WIN32
-#	if defined(_WIN32_WINNT) && _WIN32_WINNT < 0x0600
-#		undef _WIN32_WINNT
-#		define _WIN32_WINNT 0x600
-#	endif
+#define WIN32_WINNT 0x400
+#define _WIN32_WINNT 0x400
 #define WIN32_LEAN_AND_MEAN
 #if defined(_MSC_VER) && (_MSC_VER < 1300)
 #include <winsock.h>
@@ -14101,10 +14097,8 @@ ac_fn_c_check_type "$LINENO" "sa_family_t" "ac_cv_type_sa_family_t" "#define _GN
 #include <netdb.h>
 #endif
 #ifdef WIN32
-#	if defined(_WIN32_WINNT) && _WIN32_WINNT < 0x0600
-#		undef _WIN32_WINNT
-#		define _WIN32_WINNT 0x600
-#	endif
+#define WIN32_WINNT 0x400
+#define _WIN32_WINNT 0x400
 #define WIN32_LEAN_AND_MEAN
 #if defined(_MSC_VER) && (_MSC_VER < 1300)
 #include <winsock.h>
@@ -14138,10 +14132,8 @@ ac_fn_c_check_type "$LINENO" "struct addrinfo" "ac_cv_type_struct_addrinfo" "#de
 #include <netdb.h>
 #endif
 #ifdef WIN32
-#	if defined(_WIN32_WINNT) && _WIN32_WINNT < 0x0600
-#		undef _WIN32_WINNT
-#		define _WIN32_WINNT 0x600
-#	endif
+#define WIN32_WINNT 0x400
+#define _WIN32_WINNT 0x400
 #define WIN32_LEAN_AND_MEAN
 #if defined(_MSC_VER) && (_MSC_VER < 1300)
 #include <winsock.h>
@@ -14175,10 +14167,8 @@ ac_fn_c_check_type "$LINENO" "struct sockaddr_storage" "ac_cv_type_struct_sockad
 #include <netdb.h>
 #endif
 #ifdef WIN32
-#	if defined(_WIN32_WINNT) && _WIN32_WINNT < 0x0600
-#		undef _WIN32_WINNT
-#		define _WIN32_WINNT 0x600
-#	endif
+#define WIN32_WINNT 0x400
+#define _WIN32_WINNT 0x400
 #define WIN32_LEAN_AND_MEAN
 #if defined(_MSC_VER) && (_MSC_VER < 1300)
 #include <winsock.h>
@@ -14209,10 +14199,8 @@ ac_fn_c_check_member "$LINENO" "struct in6_addr" "s6_addr32" "ac_cv_member_struc
 #include <sys/socket.h>
 #endif
 #ifdef WIN32
-#	if defined(_WIN32_WINNT) && _WIN32_WINNT < 0x0600
-#		undef _WIN32_WINNT
-#		define _WIN32_WINNT 0x600
-#	endif
+#define WIN32_WINNT 0x400
+#define _WIN32_WINNT 0x400
 #define WIN32_LEAN_AND_MEAN
 #if defined(_MSC_VER) && (_MSC_VER < 1300)
 #include <winsock.h>
@@ -14242,10 +14230,8 @@ ac_fn_c_check_member "$LINENO" "struct in6_addr" "s6_addr16" "ac_cv_member_struc
 #include <sys/socket.h>
 #endif
 #ifdef WIN32
-#	if defined(_WIN32_WINNT) && _WIN32_WINNT < 0x0600
-#		undef _WIN32_WINNT
-#		define _WIN32_WINNT 0x600
-#	endif
+#define WIN32_WINNT 0x400
+#define _WIN32_WINNT 0x400
 #define WIN32_LEAN_AND_MEAN
 #if defined(_MSC_VER) && (_MSC_VER < 1300)
 #include <winsock.h>
@@ -14275,10 +14261,8 @@ ac_fn_c_check_member "$LINENO" "struct sockaddr_in" "sin_len" "ac_cv_member_stru
 #include <sys/socket.h>
 #endif
 #ifdef WIN32
-#	if defined(_WIN32_WINNT) && _WIN32_WINNT < 0x0600
-#		undef _WIN32_WINNT
-#		define _WIN32_WINNT 0x600
-#	endif
+#define WIN32_WINNT 0x400
+#define _WIN32_WINNT 0x400
 #define WIN32_LEAN_AND_MEAN
 #if defined(_MSC_VER) && (_MSC_VER < 1300)
 #include <winsock.h>
@@ -14308,10 +14292,8 @@ ac_fn_c_check_member "$LINENO" "struct sockaddr_in6" "sin6_len" "ac_cv_member_st
 #include <sys/socket.h>
 #endif
 #ifdef WIN32
-#	if defined(_WIN32_WINNT) && _WIN32_WINNT < 0x0600
-#		undef _WIN32_WINNT
-#		define _WIN32_WINNT 0x600
-#	endif
+#define WIN32_WINNT 0x400
+#define _WIN32_WINNT 0x400
 #define WIN32_LEAN_AND_MEAN
 #if defined(_MSC_VER) && (_MSC_VER < 1300)
 #include <winsock.h>
@@ -14341,10 +14323,8 @@ ac_fn_c_check_member "$LINENO" "struct sockaddr_storage" "ss_family" "ac_cv_memb
 #include <sys/socket.h>
 #endif
 #ifdef WIN32
-#	if defined(_WIN32_WINNT) && _WIN32_WINNT < 0x0600
-#		undef _WIN32_WINNT
-#		define _WIN32_WINNT 0x600
-#	endif
+#define WIN32_WINNT 0x400
+#define _WIN32_WINNT 0x400
 #define WIN32_LEAN_AND_MEAN
 #if defined(_MSC_VER) && (_MSC_VER < 1300)
 #include <winsock.h>
@@ -14374,10 +14354,8 @@ ac_fn_c_check_member "$LINENO" "struct sockaddr_storage" "__ss_family" "ac_cv_me
 #include <sys/socket.h>
 #endif
 #ifdef WIN32
-#	if defined(_WIN32_WINNT) && _WIN32_WINNT < 0x0600
-#		undef _WIN32_WINNT
-#		define _WIN32_WINNT 0x600
-#	endif
+#define WIN32_WINNT 0x400
+#define _WIN32_WINNT 0x400
 #define WIN32_LEAN_AND_MEAN
 #if defined(_MSC_VER) && (_MSC_VER < 1300)
 #include <winsock.h>

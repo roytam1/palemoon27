@@ -215,13 +215,6 @@ AddToHash(uint32_t aHash, A aA, B aB, C aC, D aD, E aE)
   return AddToHash(AddToHash(aHash, aA, aB, aC, aD), aE);
 }
 
-template<typename A, typename B, typename C, typename D, typename E, typename F>
-MOZ_WARN_UNUSED_RESULT uint32_t
-AddToHash(uint32_t aHash, A aA, B aB, C aC, D aD, E aE, F aF)
-{
-  return AddToHash(AddToHash(aHash, aA, aB, aC, aD, aE), aF);
-}
-
 /**
  * The HashGeneric class of functions let you hash one or more values.
  *
@@ -262,13 +255,6 @@ MOZ_WARN_UNUSED_RESULT inline uint32_t
 HashGeneric(A aA, B aB, C aC, D aD, E aE)
 {
   return AddToHash(0, aA, aB, aC, aD, aE);
-}
-
-template<typename A, typename B, typename C, typename D, typename E, typename F>
-MOZ_WARN_UNUSED_RESULT inline uint32_t
-HashGeneric(A aA, B aB, C aC, D aD, E aE, F aF)
-{
-  return AddToHash(0, aA, aB, aC, aD, aE, aF);
 }
 
 namespace detail {

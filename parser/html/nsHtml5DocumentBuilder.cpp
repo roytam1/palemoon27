@@ -81,7 +81,7 @@ nsHtml5DocumentBuilder::UpdateStyleSheet(nsIContent* aElement)
     mScriptLoader->AddExecuteBlocker();
   }
 
-  if (aElement->IsHTMLElement(nsGkAtoms::link)) {
+  if (aElement->IsHTML(nsGkAtoms::link)) {
     // look for <link rel="next" href="url">
     nsAutoString relVal;
     aElement->GetAttr(kNameSpaceID_None, nsGkAtoms::rel, relVal);

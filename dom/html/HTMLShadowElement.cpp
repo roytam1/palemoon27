@@ -94,7 +94,8 @@ IsInFallbackContent(nsIContent* aContent)
 {
   nsINode* parentNode = aContent->GetParentNode();
   while (parentNode) {
-    if (parentNode->IsHTMLElement(nsGkAtoms::content)) {
+    if (parentNode->IsElement() &&
+        parentNode->AsElement()->IsHTML(nsGkAtoms::content)) {
       return true;
     }
     parentNode = parentNode->GetParentNode();

@@ -14,6 +14,7 @@
 #include "CameraCommon.h"
 #include "ICameraControl.h"
 #include "CameraControlListener.h"
+#include "nsThreadUtils.h"
 
 namespace mozilla {
 namespace dom {

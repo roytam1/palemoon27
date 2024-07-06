@@ -87,7 +87,7 @@ PipelineDetachTransport_s(RefPtr<MediaPipeline> pipeline,
   mainThread->Dispatch(
       // Make sure we let go of our reference before dispatching
       // If the dispatch fails, well, we're hosed anyway.
-      WrapRunnableNM(PipelineReleaseRef_m, pipeline.forget()),
+      WrapRunnableNM(PipelineReleaseRef_m, Move(pipeline)),
       NS_DISPATCH_NORMAL);
 }
 
@@ -101,7 +101,7 @@ SourceStreamInfo::RemoveTrack(const std::string& trackId)
     pipeline->ShutdownMedia_m();
     mParent->GetSTSThread()->Dispatch(
         WrapRunnableNM(PipelineDetachTransport_s,
-                       pipeline.forget(),
+                       Move(pipeline),
                        mParent->GetMainThread()),
         NS_DISPATCH_NORMAL);
   }
@@ -369,7 +369,8 @@ nsresult PeerConnectionMedia::UpdateMediaPipelines(
     }
   }
 
-  for (auto& stream : mRemoteSourceStreams) {
+  for (size_t i = 0; i < mRemoteSourceStreams.Length(); i++) {
+    auto& stream = mRemoteSourceStreams[i];
     stream->StartReceiving();
   }
 

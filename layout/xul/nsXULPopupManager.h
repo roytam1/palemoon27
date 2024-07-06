@@ -24,6 +24,7 @@
 #include "nsStyleConsts.h"
 #include "nsWidgetInitData.h"
 #include "mozilla/Attributes.h"
+#include "Units.h"
 
 // X.h defines KeyPress
 #ifdef KeyPress

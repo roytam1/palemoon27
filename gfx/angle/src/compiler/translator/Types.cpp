@@ -46,9 +46,9 @@ const char* getBasicString(TBasicType t)
 }
 
 TType::TType(const TPublicType &p)
-    : type(p.type), precision(p.precision), qualifier(p.qualifier), invariant(p.invariant),
-      layoutQualifier(p.layoutQualifier), primarySize(p.primarySize), secondarySize(p.secondarySize),
-      array(p.array), arraySize(p.arraySize), interfaceBlock(0), structure(0)
+    : type(p.type), precision(p.precision), qualifier(p.qualifier), layoutQualifier(p.layoutQualifier),
+      primarySize(p.primarySize), secondarySize(p.secondarySize), array(p.array), arraySize(p.arraySize),
+      interfaceBlock(0), structure(0)
 {
     if (p.userDef)
         structure = p.userDef->getStruct();
@@ -142,8 +142,7 @@ TString TType::buildMangledName() const
         mangledName += interfaceBlock->mangledName();
         break;
       default:
-        // EbtVoid, EbtAddress and non types
-        break;
+        UNREACHABLE();
     }
 
     if (isMatrix())
@@ -179,12 +178,11 @@ size_t TType::getObjectSize() const
 
     if (isArray())
     {
-        // TODO: getArraySize() returns an int, not a size_t
-        size_t currentArraySize = getArraySize();
-        if (currentArraySize > INT_MAX / totalSize)
+        size_t arraySize = getArraySize();
+        if (arraySize > INT_MAX / totalSize)
             totalSize = INT_MAX;
         else
-            totalSize *= currentArraySize;
+            totalSize *= arraySize;
     }
 
     return totalSize;
@@ -201,31 +199,9 @@ bool TStructure::containsArrays() const
     return false;
 }
 
-bool TStructure::containsType(TBasicType type) const
+TString TFieldListCollection::buildMangledName() const
 {
-    for (size_t i = 0; i < mFields->size(); ++i)
-    {
-        const TType *fieldType = (*mFields)[i]->type();
-        if (fieldType->getBasicType() == type || fieldType->isStructureContainingType(type))
-            return true;
-    }
-    return false;
-}
-
-bool TStructure::containsSamplers() const
-{
-    for (size_t i = 0; i < mFields->size(); ++i)
-    {
-        const TType *fieldType = (*mFields)[i]->type();
-        if (IsSampler(fieldType->getBasicType()) || fieldType->isStructureContainingSamplers())
-            return true;
-    }
-    return false;
-}
-
-TString TFieldListCollection::buildMangledName(const TString &mangledNamePrefix) const
-{
-    TString mangledName(mangledNamePrefix);
+    TString mangledName(mangledNamePrefix());
     mangledName += *mName;
     for (size_t i = 0; i < mFields->size(); ++i)
     {

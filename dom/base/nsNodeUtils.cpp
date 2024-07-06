@@ -224,7 +224,7 @@ nsNodeUtils::LastRelease(nsINode* aNode)
       static_cast<nsGenericHTMLFormElement*>(aNode)->ClearForm(true);
     }
 
-    if (aNode->IsHTMLElement(nsGkAtoms::img) &&
+    if (aNode->IsElement() && aNode->AsElement()->IsHTML(nsGkAtoms::img) &&
         aNode->HasFlag(ADDED_TO_FORM)) {
       HTMLImageElement* imageElem = static_cast<HTMLImageElement*>(aNode);
       imageElem->ClearForm(true);
@@ -542,7 +542,8 @@ nsNodeUtils::CloneAndAdopt(nsINode *aNode, bool aClone, bool aDeep,
   // cloning, so kids of the new node aren't confused about whether they're
   // in a document.
 #ifdef MOZ_XUL
-  if (aClone && !aParent && aNode->IsXULElement()) {
+  if (aClone && !aParent && aNode->IsElement() &&
+      aNode->AsElement()->IsXUL()) {
     if (!aNode->OwnerDoc()->IsLoadedAsInteractiveData()) {
       clone->SetFlags(NODE_FORCE_XBL_BINDINGS);
     }
@@ -570,7 +571,7 @@ nsNodeUtils::UnlinkUserData(nsINode *aNode)
 bool
 nsNodeUtils::IsTemplateElement(const nsINode *aNode)
 {
-  return aNode->IsHTMLElement(nsGkAtoms::_template);
+  return aNode->IsElement() && aNode->AsElement()->IsHTML(nsGkAtoms::_template);
 }
 
 nsIContent*

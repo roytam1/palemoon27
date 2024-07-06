@@ -39,6 +39,7 @@
 #include <media/stagefright/MetaData.h>
 #include <utils/String8.h>
 #include "nsTArray.h"
+#include "mozilla/Move.h"
 
 static const uint32_t kMAX_ALLOCATION =
     (SIZE_MAX < INT32_MAX ? SIZE_MAX : INT32_MAX) - 128;
@@ -4150,11 +4151,11 @@ nsTArray<MediaSource::Indice> MPEG4Source::exportIndex()
 {
   FallibleTArray<MediaSource::Indice> index;
   if (!mTimescale) {
-    return nsTArray<MediaSource::Indice>(Move(index));
+	  return nsTArray<MediaSource::Indice>(mozilla::Move(index));
   }
 
   if (!index.SetCapacity(mSampleTable->countSamples())) {
-    return nsTArray<MediaSource::Indice>(Move(index));
+	  return nsTArray<MediaSource::Indice>(mozilla::Move(index));
   }
   for (uint32_t sampleIndex = 0; sampleIndex < mSampleTable->countSamples();
           sampleIndex++) {
@@ -4188,7 +4189,7 @@ nsTArray<MediaSource::Indice> MPEG4Source::exportIndex()
   if (index.Length() != 0) {
       FallibleTArray<Indice*> composition_order;
       if (!composition_order.SetCapacity(index.Length())) {
-        return nsTArray<MediaSource::Indice>(Move(index));
+		  return nsTArray<MediaSource::Indice>(mozilla::Move(index));
       }
       for (uint32_t i = 0; i < index.Length(); i++) {
         MOZ_ALWAYS_TRUE(composition_order.AppendElement(&index[i]));
@@ -4201,7 +4202,7 @@ nsTArray<MediaSource::Indice> MPEG4Source::exportIndex()
       }
   }
 
-  return nsTArray<MediaSource::Indice>(Move(index));
+  return nsTArray<MediaSource::Indice>(mozilla::Move(index));
 }
 
 MPEG4Extractor::Track *MPEG4Extractor::findTrackByMimePrefix(

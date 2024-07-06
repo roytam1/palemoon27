@@ -39,9 +39,9 @@ public:
 
 private:
   ~nsAccessiblePivot();
-  nsAccessiblePivot() = delete;
-  nsAccessiblePivot(const nsAccessiblePivot&) = delete;
-  void operator = (const nsAccessiblePivot&) = delete;
+  nsAccessiblePivot() MOZ_DELETE;
+  nsAccessiblePivot(const nsAccessiblePivot&) MOZ_DELETE;
+  void operator = (const nsAccessiblePivot&) MOZ_DELETE;
 
   /*
    * Notify all observers on a pivot change. Return true if it has changed and

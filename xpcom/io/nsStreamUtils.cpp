@@ -19,6 +19,7 @@
 #include "nsIBufferedStreams.h"
 #include "nsNetCID.h"
 #include "nsServiceManagerUtils.h"
+#include "nsICloneableInputStream.h"
 
 using namespace mozilla;
 

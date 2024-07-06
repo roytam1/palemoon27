@@ -1074,23 +1074,43 @@ int hnj_hyphen_norm(const char *word, int word_size, char * hyphens,
 }
 
 /* get the word with all possible hyphenations (output: hyphword) */
-void hnj_hyphen_hyphword(const char * word, int l, const char * hyphens, 
+void hnj_hyphen_hyphword(const char * word, int word_size, const char * hyphens,
     char * hyphword, char *** rep, int ** pos, int ** cut)
 {
-  int hyphenslen = l + 5;
+  int hyphword_size;
+  int nonstandard = 0;
+  int i;
+  int j = 0;
 
-  int i, j;
-  for (i = 0, j = 0; i < l; i++, j++) {
-    if (hyphens[i]&1) {
-      hyphword[j] = word[i];
-      if (*rep && *pos && *cut && (*rep)[i]) {
-        size_t offset = j - (*pos)[i] + 1;
-        strncpy(hyphword + offset, (*rep)[i], hyphenslen - offset - 1);
-        hyphword[hyphenslen-1] = '\0';
-        j += strlen((*rep)[i]) - (*pos)[i];
+  if (word_size <= 0 || word_size > INT_MAX / 2) {
+    hyphword[0] = '\0';
+    return;
+  }
+  
+  /* hyphword buffer size must be at least 2 * l */
+  hyphword_size = 2 * word_size - 1;
+
+  if (*rep && *pos && *cut) {
+    nonstandard = 1;
+  }
+
+  for (i = 0; i < word_size && j < hyphword_size; i++) {
+    hyphword[j++] = word[i];
+    if (hyphens[i]&1 && j < hyphword_size) {
+      if (nonstandard && (*rep)[i] && j >= (*pos)[i]) {
+        char *s;
+        /* non-standard */
+        j -= (*pos)[i];
+        s = (*rep)[i];
+        while (*s && j < hyphword_size) {
+          hyphword[j++] = *s++;
+        }
         i += (*cut)[i] - (*pos)[i];
-      } else hyphword[++j] = '=';
-    } else hyphword[j] = word[i];
+      } else {
+        /* standard */
+        hyphword[j++] = '=';
+      }
+    }
   }
   hyphword[j] = '\0';
 }

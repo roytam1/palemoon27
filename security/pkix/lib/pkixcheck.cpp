@@ -30,42 +30,28 @@
 
 namespace mozilla { namespace pkix {
 
-// 4.1.2.5 Validity
-
 Result
 CheckValidity(Input encodedValidity, Time time)
 {
   Reader validity(encodedValidity);
   Time notBefore(Time::uninitialized);
   if (der::TimeChoice(validity, notBefore) != Success) {
-    return Result::ERROR_INVALID_DER_TIME;
+    return Result::ERROR_EXPIRED_CERTIFICATE;
+  }
+  if (time < notBefore) {
+    return Result::ERROR_EXPIRED_CERTIFICATE;
   }
 
   Time notAfter(Time::uninitialized);
   if (der::TimeChoice(validity, notAfter) != Success) {
-    return Result::ERROR_INVALID_DER_TIME;
+    return Result::ERROR_EXPIRED_CERTIFICATE;
   }
-
-  if (der::End(validity) != Success) {
-    return Result::ERROR_INVALID_DER_TIME;
-  }
-
-  if (notBefore > notAfter) {
-    return Result::ERROR_INVALID_DER_TIME;
-  }
-
-  if (time < notBefore) {
-    return Result::ERROR_NOT_YET_VALID_CERTIFICATE;
-  }
-
   if (time > notAfter) {
     return Result::ERROR_EXPIRED_CERTIFICATE;
   }
 
-  return Success;
+  return der::End(validity);
 }
-
-// 4.1.2.7 Subject Public Key Info
 
 // 4.2.1.3. Key Usage (id-ce-keyUsage)
 
@@ -329,10 +315,6 @@ DecodeBasicConstraints(Reader& input, /*out*/ bool& isCA,
   return Success;
 }
 
-//  BasicConstraints ::= SEQUENCE {
-//          cA                      BOOLEAN DEFAULT FALSE,
-//          pathLenConstraint       INTEGER (0..MAX) OPTIONAL }
-
 // RFC5280 4.2.1.9. Basic Constraints (id-ce-basicConstraints)
 Result
 CheckBasicConstraints(EndEntityOrCA endEntityOrCA,
@@ -469,6 +451,10 @@ MatchEKU(Reader& value, KeyPurposeId requiredEKU,
       case KeyPurposeId::anyExtendedKeyUsage:
         return NotReached("anyExtendedKeyUsage should start with found==true",
                           Result::FATAL_ERROR_LIBRARY_FAILURE);
+
+      default:
+        return NotReached("unrecognized EKU",
+                          Result::FATAL_ERROR_LIBRARY_FAILURE);
     }
   }
 
@@ -502,11 +488,10 @@ CheckExtendedKeyUsage(EndEntityOrCA endEntityOrCA,
     bool found = requiredEKU == KeyPurposeId::anyExtendedKeyUsage;
 
     Reader input(*encodedExtendedKeyUsage);
-    Result rv = der::NestedOf(input, der::SEQUENCE, der::OIDTag,
-                              der::EmptyAllowed::No, [&](Reader& r) {
-      return MatchEKU(r, requiredEKU, endEntityOrCA, found, foundOCSPSigning);
-    });
-    if (rv != Success) {
+    if (der::NestedOf(input, der::SEQUENCE, der::OIDTag, der::EmptyAllowed::No,
+                      bind(MatchEKU, _1, requiredEKU, endEntityOrCA,
+                           ref(found), ref(foundOCSPSigning)))
+          != Success) {
       return Result::ERROR_INADEQUATE_CERT_TYPE;
     }
     if (der::End(input) != Success) {

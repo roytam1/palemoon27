@@ -24,11 +24,7 @@ class DOMMediaStream;
 namespace dom {
 
 class File;
-
-#ifdef MOZ_MEDIASOURCE
 class MediaSource;
-#endif
-
 class GlobalObject;
 struct objectURLOptions;
 
@@ -67,13 +63,11 @@ public:
                               const objectURLOptions& aOptions,
                               nsString& aResult,
                               ErrorResult& aError);
-	#ifdef MOZ_MEDIASOURCE
   static void CreateObjectURL(const GlobalObject& aGlobal,
                               MediaSource& aSource,
                               const objectURLOptions& aOptions,
                               nsString& aResult,
                               ErrorResult& aError);
-	#endif
   static void RevokeObjectURL(const GlobalObject& aGlobal,
                               const nsAString& aURL);
 

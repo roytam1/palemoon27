@@ -7,6 +7,8 @@
 #include "ProcessGlobal.h"
 
 #include "nsContentCID.h"
+#include "nsDOMClassInfoID.h"
+#include "mozilla/HoldDropJSObjects.h"
 
 using namespace mozilla;
 using namespace mozilla::dom;
@@ -22,7 +24,7 @@ ProcessGlobal::ProcessGlobal(nsFrameMessageManager* aMessageManager)
 ProcessGlobal::~ProcessGlobal()
 {
   mAnonymousGlobalScopes.Clear();
-  mozilla::DropJSObjects(this);
+  DropJSObjects(this);
 }
 
 ProcessGlobal*

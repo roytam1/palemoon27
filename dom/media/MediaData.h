@@ -10,17 +10,13 @@
 #include "mozilla/gfx/Rect.h"
 #include "nsRect.h"
 #include "AudioSampleFormat.h"
+#include "ImageContainer.h"
 #include "nsIMemoryReporter.h"
 #include "SharedBuffer.h"
 #include "mozilla/nsRefPtr.h"
 #include "nsTArray.h"
 
 namespace mozilla {
-
-namespace layers {
-class Image;
-class ImageContainer;
-}
 
 class MediaLargeByteBuffer;
 class MediaByteBuffer;
@@ -304,20 +300,20 @@ protected:
 class CryptoTrack
 {
 public:
-  CryptoTrack() : valid(false) {}
-  bool valid;
-  int32_t mode;
-  int32_t iv_size;
-  nsTArray<uint8_t> key;
+  CryptoTrack() : mValid(false) {}
+  bool mValid;
+  int32_t mMode;
+  int32_t mIVSize;
+  nsTArray<uint8_t> mKeyId;
 };
 
 class CryptoSample : public CryptoTrack
 {
 public:
-  nsTArray<uint16_t> plain_sizes;
-  nsTArray<uint32_t> encrypted_sizes;
-  nsTArray<uint8_t> iv;
-  nsTArray<nsCString> session_ids;
+  nsTArray<uint16_t> mPlainSizes;
+  nsTArray<uint32_t> mEncryptedSizes;
+  nsTArray<uint8_t> mIV;
+  nsTArray<nsCString> mSessionIds;
 };
 
 // MediaRawData is a MediaData container used to store demuxed, still compressed
@@ -420,7 +416,7 @@ private:
   // It is designed to share potentially big byte arrays.
 class MediaLargeByteBuffer : public FallibleTArray<uint8_t> {
   NS_INLINE_DECL_THREADSAFE_REFCOUNTING(MediaLargeByteBuffer);
-  MediaLargeByteBuffer() { };
+  MediaLargeByteBuffer() {};
   explicit MediaLargeByteBuffer(size_t aCapacity) : FallibleTArray<uint8_t>(aCapacity) {}
 
 private:
@@ -433,6 +429,14 @@ class MediaByteBuffer : public nsTArray<uint8_t> {
 
 private:
   ~MediaByteBuffer() {}
+};
+
+  // DataBuffer is a ref counted infallible TArray.
+class DataBuffer : public nsTArray<uint8_t> {
+  NS_INLINE_DECL_THREADSAFE_REFCOUNTING(DataBuffer);
+
+private:
+  ~DataBuffer() {}
 };
 
 } // namespace mozilla

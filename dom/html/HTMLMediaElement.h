@@ -66,11 +66,7 @@ namespace dom {
 #define TIMEUPDATE_MS 250
 
 class MediaError;
-
-#ifdef MOZ_MEDIASOURCE
 class MediaSource;
-#endif
-
 class TextTrackList;
 class AudioTrackList;
 class VideoTrackList;
@@ -541,10 +537,7 @@ public:
     mIsCasting = aShow;
   }
 
-  #ifdef MOZ_MEDIASOURCE
   already_AddRefed<MediaSource> GetMozMediaSourceObject() const;
-  #endif
-  
   already_AddRefed<DOMMediaStream> GetMozSrcObject() const;
 
   void SetMozSrcObject(DOMMediaStream& aValue);
@@ -1055,9 +1048,7 @@ protected:
   nsRefPtr<StreamSizeListener> mMediaStreamSizeListener;
 
   // Holds a reference to the MediaSource supplying data for playback.
-  #ifdef MOZ_MEDIASOURCE
   nsRefPtr<MediaSource> mMediaSource;
-  #endif
 
   // Holds a reference to the first channel we open to the media resource.
   // Once the decoder is created, control over the channel passes to the

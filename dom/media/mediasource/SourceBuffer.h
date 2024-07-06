@@ -9,6 +9,7 @@
 
 #include "MediaPromise.h"
 #include "MediaSource.h"
+#include "SourceBufferContentManager.h"
 #include "js/RootingAPI.h"
 #include "mozilla/Assertions.h"
 #include "mozilla/Atomics.h"
@@ -275,7 +276,7 @@ private:
   bool mIsUsingFormatReader;
 
   bool mActive;
-  
+
   int64_t mReportedOffset;
 
   MediaPromiseRequestHolder<SourceBufferContentManager::AppendPromise> mPendingAppend;

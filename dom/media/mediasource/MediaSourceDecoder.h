@@ -7,6 +7,7 @@
 #ifndef MOZILLA_MEDIASOURCEDECODER_H_
 #define MOZILLA_MEDIASOURCEDECODER_H_
 
+#include "mozilla/Atomics.h"
 #include "mozilla/Attributes.h"
 #include "nsCOMPtr.h"
 #include "nsError.h"
@@ -22,10 +23,10 @@ class MediaDecoderStateMachine;
 class SourceBufferDecoder;
 class TrackBuffer;
 
-enum MSRangeRemovalAction : uint8_t {
+MOZ_BEGIN_ENUM_CLASS(MSRangeRemovalAction, uint8_t)
   RUN = 0,
   SKIP = 1
-};
+MOZ_END_ENUM_CLASS(MSRangeRemovalAction)
 
 class MediaSourceDemuxer;
 

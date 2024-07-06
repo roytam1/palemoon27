@@ -16,7 +16,6 @@
 #include "nsIChannelEventSink.h"
 #include "nsIAsyncVerifyRedirectCallback.h"
 #include "mozilla/Attributes.h"
-#include "mozilla/TypedEnum.h"
 
 class nsIURI;
 class nsIParser;

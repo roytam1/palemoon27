@@ -279,7 +279,7 @@ nsSMILTimeContainer::PopMilestoneElementsAtMilestone(
 void
 nsSMILTimeContainer::Traverse(nsCycleCollectionTraversalCallback* aCallback)
 {
-  AutoRestore<bool> saveHolding(mHoldingEntries);
+  mozilla::AutoRestore<bool> saveHolding(mHoldingEntries);
   mHoldingEntries = true;
   const MilestoneEntry* p = mMilestoneEntries.Elements();
   while (p < mMilestoneEntries.Elements() + mMilestoneEntries.Length()) {
@@ -316,22 +316,24 @@ nsSMILTimeContainer::NotifyTimeChange()
   // milestone elements. This is because any timed element with dependents and
   // with significant transitions yet to fire should have their next milestone
   // registered. Other timed elements don't matter.
-  AutoRestore<bool> saveHolding(mHoldingEntries);
+  mozilla::AutoRestore<bool> saveHolding(mHoldingEntries);
   mHoldingEntries = true;
 
   // Copy the timed elements to a separate array before calling
   // HandleContainerTimeChange on each them in case doing so mutates
   // mMilestoneEntries.
+  nsTArray<mozilla::RefPtr<mozilla::dom::SVGAnimationElement>> elems;
   const MilestoneEntry* p = mMilestoneEntries.Elements();
-#if DEBUG
-  uint32_t queueLength = mMilestoneEntries.Length();
-#endif
   while (p < mMilestoneEntries.Elements() + mMilestoneEntries.Length()) {
-    mozilla::dom::SVGAnimationElement* elem = p->mTimebase.get();
-    elem->TimedElement().HandleContainerTimeChange();
-    MOZ_ASSERT(queueLength == mMilestoneEntries.Length(),
-               "Call to HandleContainerTimeChange resulted in a change to the "
-               "queue of milestones");
+    elems.AppendElement(p->mTimebase.get());
     ++p;
+  }
+
+  p = nullptr;
+  mHoldingEntries = false;
+
+  for (size_t i = 0; i < elems.Length(); i++) {
+    mozilla::RefPtr<mozilla::dom::SVGAnimationElement>& elem = elems[i];
+    elem->TimedElement().HandleContainerTimeChange();
   }
 }

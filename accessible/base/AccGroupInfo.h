@@ -78,9 +78,9 @@ protected:
   AccGroupInfo(Accessible* aItem, a11y::role aRole);
 
 private:
-  AccGroupInfo() = delete;
-  AccGroupInfo(const AccGroupInfo&) = delete;
-  AccGroupInfo& operator =(const AccGroupInfo&) = delete;
+  AccGroupInfo() MOZ_DELETE;
+  AccGroupInfo(const AccGroupInfo&) MOZ_DELETE;
+  AccGroupInfo& operator =(const AccGroupInfo&) MOZ_DELETE;
 
   static mozilla::a11y::role BaseRole(mozilla::a11y::role aRole)
   {

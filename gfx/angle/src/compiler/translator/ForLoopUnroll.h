@@ -4,8 +4,8 @@
 // found in the LICENSE file.
 //
 
-#ifndef COMPILER_TRANSLATOR_FORLOOPUNROLL_H_
-#define COMPILER_TRANSLATOR_FORLOOPUNROLL_H_
+#ifndef COMPILER_FORLOOPUNROLL_H_
+#define COMPILER_FORLOOPUNROLL_H_
 
 #include "compiler/translator/LoopInfo.h"
 
@@ -25,16 +25,15 @@ class ForLoopUnrollMarker : public TIntermTraverser
     };
 
     ForLoopUnrollMarker(UnrollCondition condition)
-        : TIntermTraverser(true, false, false),
-          mUnrollCondition(condition),
+        : mUnrollCondition(condition),
           mSamplerArrayIndexIsFloatLoopIndex(false),
           mVisitSamplerArrayIndexNodeInsideLoop(false)
     {
     }
 
-    bool visitBinary(Visit, TIntermBinary *node) override;
-    bool visitLoop(Visit, TIntermLoop *node) override;
-    void visitSymbol(TIntermSymbol *node) override;
+    virtual bool visitBinary(Visit, TIntermBinary *node);
+    virtual bool visitLoop(Visit, TIntermLoop *node);
+    virtual void visitSymbol(TIntermSymbol *node);
 
     bool samplerArrayIndexIsFloatLoopIndex() const
     {
@@ -48,4 +47,4 @@ class ForLoopUnrollMarker : public TIntermTraverser
     bool mVisitSamplerArrayIndexNodeInsideLoop;
 };
 
-#endif // COMPILER_TRANSLATOR_FORLOOPUNROLL_H_
+#endif

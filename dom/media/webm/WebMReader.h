@@ -19,6 +19,17 @@
 
 #include "NesteggPacketHolder.h"
 
+#ifdef MOZ_TREMOR
+#include "tremor/ivorbiscodec.h"
+#else
+#include "vorbis/codec.h"
+#endif
+
+#include "OpusParser.h"
+
+#include "VorbisUtils.h"
+#include "OggReader.h"
+
 namespace mozilla {
 static const unsigned NS_PER_USEC = 1000;
 static const double NS_PER_S = 1e9;
@@ -208,6 +219,58 @@ private:
   // Booleans to indicate if we have audio and/or video data
   bool mHasVideo;
   bool mHasAudio;
+};
+
+class VorbisDecoder : public WebMAudioDecoder
+{
+public:
+  nsresult Init();
+  void Shutdown();
+  nsresult ResetDecode();
+  nsresult DecodeHeader(const unsigned char* aData, size_t aLength);
+  nsresult FinishInit(AudioInfo& aInfo);
+  bool Decode(const unsigned char* aData, size_t aLength,
+              int64_t aOffset, uint64_t aTstampUsecs,
+              int64_t aDiscardPadding, int32_t* aTotalFrames);
+  explicit VorbisDecoder(WebMReader* aReader);
+  ~VorbisDecoder();
+private:
+  nsRefPtr<WebMReader> mReader;
+
+  // Vorbis decoder state
+  vorbis_info mVorbisInfo;
+  vorbis_comment mVorbisComment;
+  vorbis_dsp_state mVorbisDsp;
+  vorbis_block mVorbisBlock;
+  int64_t mPacketCount;
+};
+
+class OpusDecoder : public WebMAudioDecoder
+{
+public:
+  nsresult Init();
+  void Shutdown();
+  nsresult ResetDecode();
+  nsresult DecodeHeader(const unsigned char* aData, size_t aLength);
+  nsresult FinishInit(AudioInfo& aInfo);
+  bool Decode(const unsigned char* aData, size_t aLength,
+              int64_t aOffset, uint64_t aTstampUsecs,
+              int64_t aDiscardPadding, int32_t* aTotalFrames);
+  explicit OpusDecoder(WebMReader* aReader);
+  ~OpusDecoder();
+private:
+  nsRefPtr<WebMReader> mReader;
+
+  // Opus decoder state
+  nsAutoPtr<OpusParser> mOpusParser;
+  OpusMSDecoder* mOpusDecoder;
+  uint16_t mSkip;        // Samples left to trim before playback.
+  bool mDecodedHeader;
+
+  // Opus padding should only be discarded on the final packet.  Once this
+  // is set to true, if the reader attempts to decode any further packets it
+  // will raise an error so we can indicate that the file is invalid.
+  bool mPaddingDiscarded;
 };
 
 } // namespace mozilla

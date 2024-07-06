@@ -49,7 +49,6 @@
 #include "mozilla/CSSVariableValues.h"
 #include "mozilla/dom/URL.h"
 #include "gfxFontFamilyList.h"
-#include "mozilla/TypedEnum.h"
 
 using namespace mozilla;
 

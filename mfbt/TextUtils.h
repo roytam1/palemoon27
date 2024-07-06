@@ -46,8 +46,7 @@ template<typename Char>
 const bool 
 IsAsciiAlpha(Char aChar)
 {
-  typename detail::MakeUnsignedChar<Char>::Type;
-  typedef detail::MakeUnsignedChar<Char>::Type UnsignedChar;
+  typedef typename detail::MakeUnsignedChar<Char>::Type UnsignedChar;
   return ('a' <= static_cast<UnsignedChar>(aChar) &&
           static_cast<UnsignedChar>(aChar) <= 'z') ||
          ('A' <= static_cast<UnsignedChar>(aChar) &&

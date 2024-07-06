@@ -33,8 +33,8 @@ protected:
 private:
   ImageAccessible* Intl() { return mIntl->AsImage(); }
 
-  xpcAccessibleImage(const xpcAccessibleImage&) = delete;
-  xpcAccessibleImage& operator =(const xpcAccessibleImage&) = delete;
+  xpcAccessibleImage(const xpcAccessibleImage&) MOZ_DELETE;
+  xpcAccessibleImage& operator =(const xpcAccessibleImage&) MOZ_DELETE;
 };
 
 } // namespace a11y

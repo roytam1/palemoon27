@@ -147,15 +147,15 @@ unpackFromFloat16(uint16_t v)
     return f32Value;
 }
 
-enum class WebGLTexelPremultiplicationOp : int {
+MOZ_BEGIN_ENUM_CLASS(WebGLTexelPremultiplicationOp, int)
     None,
     Premultiply,
     Unpremultiply
-};
+MOZ_END_ENUM_CLASS(WebGLTexelPremultiplicationOp)
 
 namespace WebGLTexelConversions {
 
-template<WebGLTexelFormat Format>
+template<MOZ_ENUM_CLASS_ENUM_TYPE(WebGLTexelFormat) Format>
 struct IsFloatFormat
 {
     static const bool Value =
@@ -166,7 +166,7 @@ struct IsFloatFormat
         Format == WebGLTexelFormat::A32F;
 };
 
-template<WebGLTexelFormat Format>
+template<MOZ_ENUM_CLASS_ENUM_TYPE(WebGLTexelFormat) Format>
 struct IsHalfFloatFormat
 {
     static const bool Value =
@@ -177,7 +177,7 @@ struct IsHalfFloatFormat
         Format == WebGLTexelFormat::A16F;
 };
 
-template<WebGLTexelFormat Format>
+template<MOZ_ENUM_CLASS_ENUM_TYPE(WebGLTexelFormat) Format>
 struct Is16bppFormat
 {
     static const bool Value =
@@ -186,7 +186,7 @@ struct Is16bppFormat
         Format == WebGLTexelFormat::RGB565;
 };
 
-template<WebGLTexelFormat Format,
+template<MOZ_ENUM_CLASS_ENUM_TYPE(WebGLTexelFormat) Format,
          bool IsFloat = IsFloatFormat<Format>::Value,
          bool Is16bpp = Is16bppFormat<Format>::Value,
          bool IsHalfFloat = IsHalfFloatFormat<Format>::Value>
@@ -195,28 +195,28 @@ struct DataTypeForFormat
     typedef uint8_t Type;
 };
 
-template<WebGLTexelFormat Format>
+template<MOZ_ENUM_CLASS_ENUM_TYPE(WebGLTexelFormat) Format>
 struct DataTypeForFormat<Format, true, false, false>
 {
     typedef float Type;
 };
 
-template<WebGLTexelFormat Format>
+template<MOZ_ENUM_CLASS_ENUM_TYPE(WebGLTexelFormat) Format>
 struct DataTypeForFormat<Format, false, true, false>
 {
     typedef uint16_t Type;
 };
 
-template<WebGLTexelFormat Format>
+template<MOZ_ENUM_CLASS_ENUM_TYPE(WebGLTexelFormat) Format>
 struct DataTypeForFormat<Format, false, false, true>
 {
     typedef uint16_t Type;
 };
 
-template<WebGLTexelFormat Format>
+template<MOZ_ENUM_CLASS_ENUM_TYPE(WebGLTexelFormat) Format>
 struct IntermediateFormat
 {
-    static const WebGLTexelFormat Value
+    static const MOZ_ENUM_CLASS_ENUM_TYPE(WebGLTexelFormat) Value
         = IsFloatFormat<Format>::Value
           ? WebGLTexelFormat::RGBA32F
           : IsHalfFloatFormat<Format>::Value ? WebGLTexelFormat::RGBA16F
@@ -332,7 +332,7 @@ MOZ_ALWAYS_INLINE bool HasColor(WebGLTexelFormat format) {
 //----------------------------------------------------------------------
 // Pixel unpacking routines.
 
-template<WebGLTexelFormat Format, typename SrcType, typename DstType>
+template<MOZ_ENUM_CLASS_ENUM_TYPE(WebGLTexelFormat) Format, typename SrcType, typename DstType>
 MOZ_ALWAYS_INLINE void
 unpack(const SrcType* __restrict src,
        DstType* __restrict dst)
@@ -537,8 +537,8 @@ unpack<WebGLTexelFormat::A16F, uint16_t, uint16_t>(const uint16_t* __restrict sr
 // Pixel packing routines.
 //
 
-template<WebGLTexelFormat Format,
-         WebGLTexelPremultiplicationOp PremultiplicationOp,
+template<MOZ_ENUM_CLASS_ENUM_TYPE(WebGLTexelFormat) Format,
+         MOZ_ENUM_CLASS_ENUM_TYPE(WebGLTexelPremultiplicationOp) PremultiplicationOp,
          typename SrcType,
          typename DstType>
 MOZ_ALWAYS_INLINE void

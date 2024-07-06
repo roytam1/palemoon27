@@ -13,6 +13,7 @@
 #include "nsIPrincipal.h"
 #include "nsIScriptObjectPrincipal.h"
 #include "nsIURI.h"
+#include "nsPIDOMWindow.h"
 #include "nsThreadUtils.h"
 #include "prlog.h"
 

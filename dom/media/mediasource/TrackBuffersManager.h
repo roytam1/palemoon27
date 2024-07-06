@@ -10,6 +10,8 @@
 #include "SourceBufferContentManager.h"
 #include "MediaDataDemuxer.h"
 #include "MediaSourceDecoder.h"
+#include "SourceBuffer.h"
+#include "mozilla/Atomics.h"
 #include "mozilla/Maybe.h"
 #include "mozilla/Monitor.h"
 #include "mozilla/Pair.h"

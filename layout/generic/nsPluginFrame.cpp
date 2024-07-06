@@ -731,7 +731,7 @@ nsPluginFrame::IsHidden(bool aCheckVisibilityStyle) const
   }
 
   // only <embed> tags support the HIDDEN attribute
-  if (mContent->IsHTMLElement(nsGkAtoms::embed)) {
+  if (mContent->Tag() == nsGkAtoms::embed) {
     // Yes, these are really the kooky ways that you could tell 4.x
     // not to hide the <embed> once you'd put the 'hidden' attribute
     // on the tag...

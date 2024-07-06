@@ -26,6 +26,7 @@
 #include "nsIDNSRecord.h"
 #include "nsIDNSService.h"
 #include "nsICancelable.h"
+#include "mozilla/Services.h"
 
 using namespace mozilla::net;
 using namespace mozilla;

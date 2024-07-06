@@ -668,7 +668,7 @@ void RuleHash::EnumerateAllRules(Element* aElement, ElementDependentRuleProcesso
                                  NodeMatchContext& aNodeContext)
 {
   int32_t nameSpace = aElement->GetNameSpaceID();
-  nsIAtom* tag = aElement->NodeInfo()->NameAtom();
+  nsIAtom* tag = aElement->Tag();
   nsIAtom* id = aElement->GetID();
   const nsAttrValue* classList = aElement->GetClasses();
 
@@ -1246,6 +1246,21 @@ InitSystemMetrics()
       case LookAndFeel::eWindowsTheme_AeroLite:
         sSystemMetrics->AppendElement(nsGkAtoms::windows_theme_aero_lite);
         break;
+      case LookAndFeel::eWindowsTheme_LunaBlue:
+        sSystemMetrics->AppendElement(nsGkAtoms::windows_theme_luna_blue);
+        break;
+      case LookAndFeel::eWindowsTheme_LunaOlive:
+        sSystemMetrics->AppendElement(nsGkAtoms::windows_theme_luna_olive);
+        break;
+      case LookAndFeel::eWindowsTheme_LunaSilver:
+        sSystemMetrics->AppendElement(nsGkAtoms::windows_theme_luna_silver);
+        break;
+      case LookAndFeel::eWindowsTheme_Royale:
+        sSystemMetrics->AppendElement(nsGkAtoms::windows_theme_royale);
+        break;
+      case LookAndFeel::eWindowsTheme_Zune:
+        sSystemMetrics->AppendElement(nsGkAtoms::windows_theme_zune);
+        break;
       case LookAndFeel::eWindowsTheme_Generic:
         sSystemMetrics->AppendElement(nsGkAtoms::windows_theme_generic);
         break;
@@ -1678,7 +1693,7 @@ StateSelectorMatches(Element* aElement,
                                            NS_EVENT_STATE_HOVER) &&
       aTreeMatchContext.mCompatMode == eCompatibility_NavQuirks &&
       ActiveHoverQuirkMatches(aSelector, aSelectorFlags) &&
-      aElement->IsHTMLElement() && !nsCSSRuleProcessor::IsLink(aElement)) {
+      aElement->IsHTML() && !nsCSSRuleProcessor::IsLink(aElement)) {
     // In quirks mode, only make links sensitive to selectors ":active"
     // and ":hover".
     return false;
@@ -1757,9 +1772,9 @@ static bool SelectorMatches(Element* aElement,
 
   if (aSelector->mLowercaseTag) {
     nsIAtom* selectorTag =
-      (aTreeMatchContext.mIsHTMLDocument && aElement->IsHTMLElement()) ?
+      (aTreeMatchContext.mIsHTMLDocument && aElement->IsHTML()) ?
         aSelector->mLowercaseTag : aSelector->mCasedTag;
-    if (selectorTag != aElement->NodeInfo()->NameAtom()) {
+    if (selectorTag != aElement->Tag()) {
       return false;
     }
   }
@@ -1870,7 +1885,7 @@ static bool SelectorMatches(Element* aElement,
           } while (child &&
                    (!IsSignificantChild(child, true, false) ||
                     (child->GetNameSpaceID() == aElement->GetNameSpaceID() &&
-                     child->NodeInfo()->NameAtom()->Equals(nsDependentString(pseudoClass->u.mString)))));
+                     child->Tag()->Equals(nsDependentString(pseudoClass->u.mString)))));
           if (child != nullptr) {
             return false;
           }
@@ -2073,7 +2088,7 @@ static bool SelectorMatches(Element* aElement,
         break;
 
       case nsCSSPseudoClasses::ePseudoClass_mozIsHTML:
-        if (!aTreeMatchContext.mIsHTMLDocument || !aElement->IsHTMLElement()) {
+        if (!aTreeMatchContext.mIsHTMLDocument || !aElement->IsHTML()) {
           return false;
         }
         break;
@@ -2152,7 +2167,7 @@ static bool SelectorMatches(Element* aElement,
 
       case nsCSSPseudoClasses::ePseudoClass_mozTableBorderNonzero:
         {
-          if (!aElement->IsHTMLElement(nsGkAtoms::table)) {
+          if (!aElement->IsHTML(nsGkAtoms::table)) {
             return false;
           }
           const nsAttrValue *val = aElement->GetParsedAttr(nsGkAtoms::border);
@@ -2248,7 +2263,7 @@ static bool SelectorMatches(Element* aElement,
 
       do {
         bool isHTML =
-          (aTreeMatchContext.mIsHTMLDocument && aElement->IsHTMLElement());
+          (aTreeMatchContext.mIsHTMLDocument && aElement->IsHTML());
         matchAttribute = isHTML ? attr->mLowercaseAttr : attr->mCasedAttr;
         if (attr->mNameSpace == kNameSpaceID_Unknown) {
           // Attr selector with a wildcard namespace.  We have to examine all
@@ -3709,7 +3724,7 @@ AncestorFilter::PushAncestor(Element *aElement)
 #ifdef DEBUG
   mElements.AppendElement(aElement);
 #endif
-  mHashes.AppendElement(aElement->NodeInfo()->NameAtom()->hash());
+  mHashes.AppendElement(aElement->Tag()->hash());
   nsIAtom *id = aElement->GetID();
   if (id) {
     mHashes.AppendElement(id->hash());

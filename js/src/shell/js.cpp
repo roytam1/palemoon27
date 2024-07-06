@@ -4340,6 +4340,8 @@ SetSharedArrayBuffer(JSContext* cx, unsigned argc, Value* vp)
     return true;
 }
 
+using namespace JS;
+
 class SprintOptimizationTypeInfoOp : public ForEachTrackedOptimizationTypeInfoOp
 {
     Sprinter *sp;

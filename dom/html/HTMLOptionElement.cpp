@@ -4,6 +4,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
+#include "mozilla/dom/HTMLOptGroupElement.h"
 #include "mozilla/dom/HTMLOptionElement.h"
 #include "mozilla/dom/HTMLOptionElementBinding.h"
 #include "mozilla/dom/HTMLSelectElement.h"
@@ -311,8 +312,7 @@ HTMLOptionElement::GetText(nsAString& aText)
         child->NodeType() == nsIDOMNode::CDATA_SECTION_NODE) {
       child->AppendTextTo(text);
     }
-    if (child->IsHTMLElement(nsGkAtoms::script) ||
-        child->IsSVGElement(nsGkAtoms::script)) {
+    if (child->IsHTML(nsGkAtoms::script) || child->IsSVG(nsGkAtoms::script)) {
       child = child->GetNextNonChildNode(this);
     } else {
       child = child->GetNextNode(this);
@@ -377,12 +377,12 @@ HTMLOptionElement::GetSelect()
 {
   nsIContent* parent = this;
   while ((parent = parent->GetParent()) &&
-         parent->IsHTMLElement()) {
+         parent->IsHTML()) {
     HTMLSelectElement* select = HTMLSelectElement::FromContent(parent);
     if (select) {
       return select;
     }
-    if (!parent->IsHTMLElement(nsGkAtoms::optgroup)) {
+    if (parent->Tag() != nsGkAtoms::optgroup) {
       break;
     }
   }

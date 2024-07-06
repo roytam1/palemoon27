@@ -140,7 +140,8 @@ nsXULPopupListener::HandleEvent(nsIDOMEvent* aEvent)
   if (!targetContent) {
     return NS_OK;
   }
-  if (targetContent->IsXULElement(nsGkAtoms::browser) &&
+  if (targetContent->Tag() == nsGkAtoms::browser &&
+      targetContent->IsXUL() &&
       EventStateManager::IsRemoteTarget(targetContent)) {
     return NS_OK;
   }
@@ -306,7 +307,7 @@ GetImmediateChild(nsIContent* aContent, nsIAtom *aTag)
   for (nsIContent* child = aContent->GetFirstChild();
        child;
        child = child->GetNextSibling()) {
-    if (child->IsXULElement(aTag)) {
+    if (child->Tag() == aTag) {
       nsCOMPtr<nsIContent> ret = child;
       return ret.forget();
     }

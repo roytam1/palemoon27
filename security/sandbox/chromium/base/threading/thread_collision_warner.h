@@ -138,7 +138,7 @@ struct BASE_EXPORT AsserterBase {
 };
 
 struct BASE_EXPORT DCheckAsserter : public AsserterBase {
-  ~DCheckAsserter() override {}
+  ~DCheckAsserter() {}
   void warn() override;
 };
 

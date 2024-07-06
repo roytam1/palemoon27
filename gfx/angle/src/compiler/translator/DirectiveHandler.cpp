@@ -8,15 +8,15 @@
 
 #include <sstream>
 
-#include "common/debug.h"
+#include "compiler/translator/compilerdebug.h"
 #include "compiler/translator/Diagnostics.h"
 
 static TBehavior getBehavior(const std::string& str)
 {
-    const char kRequire[] = "require";
-    const char kEnable[] = "enable";
-    const char kDisable[] = "disable";
-    const char kWarn[] = "warn";
+    static const std::string kRequire("require");
+    static const std::string kEnable("enable");
+    static const std::string kDisable("disable");
+    static const std::string kWarn("warn");
 
     if (str == kRequire) return EBhRequire;
     else if (str == kEnable) return EBhEnable;
@@ -27,12 +27,10 @@ static TBehavior getBehavior(const std::string& str)
 
 TDirectiveHandler::TDirectiveHandler(TExtensionBehavior& extBehavior,
                                      TDiagnostics& diagnostics,
-                                     int& shaderVersion,
-                                     bool debugShaderPrecisionSupported)
+                                     int& shaderVersion)
     : mExtensionBehavior(extBehavior),
       mDiagnostics(diagnostics),
-      mShaderVersion(shaderVersion),
-      mDebugShaderPrecisionSupported(debugShaderPrecisionSupported)
+      mShaderVersion(shaderVersion)
 {
 }
 
@@ -48,68 +46,50 @@ void TDirectiveHandler::handleError(const pp::SourceLocation& loc,
 
 void TDirectiveHandler::handlePragma(const pp::SourceLocation& loc,
                                      const std::string& name,
-                                     const std::string& value,
-                                     bool stdgl)
+                                     const std::string& value)
 {
-    if (stdgl)
-    {
-        const char kInvariant[] = "invariant";
-        const char kAll[] = "all";
+    static const std::string kSTDGL("STDGL");
+    static const std::string kOptimize("optimize");
+    static const std::string kDebug("debug");
+    static const std::string kOn("on");
+    static const std::string kOff("off");
 
-        if (name == kInvariant && value == kAll)
-            mPragma.stdgl.invariantAll = true;
+    bool invalidValue = false;
+    if (name == kSTDGL)
+    {
         // The STDGL pragma is used to reserve pragmas for use by future
-        // revisions of GLSL.  Do not generate an error on unexpected
-        // name and value.
+        // revisions of GLSL. Ignore it.
         return;
+    }
+    else if (name == kOptimize)
+    {
+        if (value == kOn) mPragma.optimize = true;
+        else if (value == kOff) mPragma.optimize = false;
+        else invalidValue = true;
+    }
+    else if (name == kDebug)
+    {
+        if (value == kOn) mPragma.debug = true;
+        else if (value == kOff) mPragma.debug = false;
+        else invalidValue = true;
     }
     else
     {
-        const char kOptimize[] = "optimize";
-        const char kDebug[] = "debug";
-        const char kDebugShaderPrecision[] = "webgl_debug_shader_precision";
-        const char kOn[] = "on";
-        const char kOff[] = "off";
-
-        bool invalidValue = false;
-        if (name == kOptimize)
-        {
-            if (value == kOn) mPragma.optimize = true;
-            else if (value == kOff) mPragma.optimize = false;
-            else invalidValue = true;
-        }
-        else if (name == kDebug)
-        {
-            if (value == kOn) mPragma.debug = true;
-            else if (value == kOff) mPragma.debug = false;
-            else invalidValue = true;
-        }
-        else if (name == kDebugShaderPrecision && mDebugShaderPrecisionSupported)
-        {
-            if (value == kOn) mPragma.debugShaderPrecision = true;
-            else if (value == kOff) mPragma.debugShaderPrecision = false;
-            else invalidValue = true;
-        }
-        else
-        {
-            mDiagnostics.report(pp::Diagnostics::PP_UNRECOGNIZED_PRAGMA, loc, name);
-            return;
-        }
-
-        if (invalidValue)
-        {
-            mDiagnostics.writeInfo(pp::Diagnostics::PP_ERROR, loc,
-                                   "invalid pragma value", value,
-                                   "'on' or 'off' expected");
-        }
+        mDiagnostics.report(pp::Diagnostics::PP_UNRECOGNIZED_PRAGMA, loc, name);
+        return;
     }
+
+    if (invalidValue)
+      mDiagnostics.writeInfo(pp::Diagnostics::PP_ERROR, loc,
+                             "invalid pragma value", value,
+                             "'on' or 'off' expected");
 }
 
 void TDirectiveHandler::handleExtension(const pp::SourceLocation& loc,
                                         const std::string& name,
                                         const std::string& behavior)
 {
-    const char kExtAll[] = "all";
+    static const std::string kExtAll("all");
 
     TBehavior behaviorVal = getBehavior(behavior);
     if (behaviorVal == EBhUndefined)

@@ -5238,13 +5238,13 @@ SweepArenaList(ArenaHeader** arenasToSweep, SliceBudget& sliceBudget)
     return true;
 }
 
-template <typename T, typename A1>
+template <typename T, typename A>
 static bool
-SweepArenaList(ArenaHeader** arenasToSweep, SliceBudget& sliceBudget, A1 a1)
+SweepArenaList(ArenaHeader** arenasToSweep, SliceBudget& sliceBudget, A a)
 {
     while (ArenaHeader* arena = *arenasToSweep) {
         for (ArenaCellIterUnderGC i(arena); !i.done(); i.next())
-            SweepThing(i.get<T>(), a1);
+            SweepThing(i.get<T>(), a);
 
         *arenasToSweep = (*arenasToSweep)->next;
         AllocKind kind = MapTypeToFinalizeKind<T>::kind;

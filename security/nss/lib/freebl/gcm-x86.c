@@ -8,6 +8,7 @@
 #include "gcm.h"
 #include "secerr.h"
 
+#if (!defined(_MSC_VER) || (defined(_MSC_VER) && _MSC_VER > 1400))
 #include <wmmintrin.h> /* clmul */
 
 #define WRITE64(x, bytes)   \
@@ -125,3 +126,4 @@ gcm_HashZeroX_hw(gcmHashContext *ghash)
     ghash->x = _mm_setzero_si128();
     return SECSuccess;
 }
+#endif

@@ -8,6 +8,8 @@
 
 #include <math.h>
 
+#include "mozilla/RefPtr.h"
+#include "SharedThreadPool.h"
 #include "nsComponentManagerUtils.h"
 #include "nsThreadUtils.h"
 #include "mozilla/RefPtr.h"

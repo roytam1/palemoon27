@@ -158,7 +158,7 @@ nsXULTooltipListener::MouseMove(nsIDOMEvent* aEvent)
     aEvent->InternalDOMEvent()->GetCurrentTarget());
   mSourceNode = do_GetWeakReference(sourceContent);
 #ifdef MOZ_XUL
-  mIsSourceTree = sourceContent->IsXULElement(nsGkAtoms::treechildren);
+  mIsSourceTree = sourceContent->Tag() == nsGkAtoms::treechildren;
   if (mIsSourceTree)
     CheckTreeBodyMove(mouseEvent);
 #endif
@@ -539,7 +539,7 @@ GetImmediateChild(nsIContent* aContent, nsIAtom *aTag, nsIContent** aResult)
   for (uint32_t i = 0; i < childCount; i++) {
     nsIContent *child = aContent->GetChildAt(i);
 
-    if (child->IsXULElement(aTag)) {
+    if (child->Tag() == aTag) {
       *aResult = child;
       NS_ADDREF(*aResult);
       return;

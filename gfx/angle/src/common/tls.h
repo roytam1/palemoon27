@@ -12,16 +12,6 @@
 #include "common/platform.h"
 
 #ifdef ANGLE_PLATFORM_WINDOWS
-
-// TLS does not exist for Windows Store and needs to be emulated
-#   ifdef ANGLE_ENABLE_WINDOWS_STORE
-#       ifndef TLS_OUT_OF_INDEXES
-#           define TLS_OUT_OF_INDEXES static_cast<DWORD>(0xFFFFFFFF)
-#       endif
-#       ifndef CREATE_SUSPENDED
-#           define CREATE_SUSPENDED 0x00000004
-#       endif
-#   endif
     typedef DWORD TLSIndex;
 #   define TLS_INVALID_INDEX (TLS_OUT_OF_INDEXES)
 #elif defined(ANGLE_PLATFORM_POSIX)
@@ -34,9 +24,6 @@
 #   error Unsupported platform.
 #endif
 
-// TODO(kbr): for POSIX platforms this will have to be changed to take
-// in a destructor function pointer, to allow the thread-local storage
-// to be properly deallocated upon thread exit.
 TLSIndex CreateTLSIndex();
 bool DestroyTLSIndex(TLSIndex index);
 

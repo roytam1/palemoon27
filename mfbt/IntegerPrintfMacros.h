@@ -20,7 +20,13 @@
  * For this reason, *never* use the SCN* macros provided by this header!
  */
 
-#include "mozilla/MSIntTypes.h"
+#if defined(MOZ_CUSTOM_INTTYPES_H)
+#  include MOZ_CUSTOM_INTTYPES_H
+#elif defined(_MSC_VER) && _MSC_VER <= 1700
+#  include "mozilla/MSIntTypes.h"
+#else
+#  include <inttypes.h>
+#endif
 
 /*
  * Fix up Android's broken [u]intptr_t inttype macros. Android's PRI*PTR

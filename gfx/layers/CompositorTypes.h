@@ -89,7 +89,7 @@ MOZ_BEGIN_ENUM_CLASS(DiagnosticTypes, uint8_t)
   BIGIMAGE_BORDERS = 1 << 2,
   FLASH_BORDERS    = 1 << 3,
   ALL_BITS         = (1 << 4) - 1
-MOZ_END_NESTED_ENUM_CLASS(DiagnosticTypes)
+MOZ_END_ENUM_CLASS(DiagnosticTypes)
 MOZ_MAKE_ENUM_CLASS_BITWISE_OPERATORS(DiagnosticTypes)
 
 #define DIAGNOSTIC_FLASH_COUNTER_MAX 100

@@ -2564,8 +2564,7 @@ nsContentUtils::GenerateStateKey(nsIContent* aContent,
     // we can't figure out form info.  Append the tag name if it's an element
     // to avoid restoring state for one type of element on another type.
     if (aContent->IsElement()) {
-      KeyAppendString(nsDependentAtomString(aContent->NodeInfo()->NameAtom()),
-                      aKey);
+      KeyAppendString(nsDependentAtomString(aContent->Tag()), aKey);
     }
     else {
       // Append a character that is not "d" or "f" to disambiguate from
@@ -4124,7 +4123,7 @@ nsContentUtils::CreateContextualFragment(nsINode* aContextNode,
   // If we don't have a document here, we can't get the right security context
   // for compiling event handlers... so just bail out.
   nsCOMPtr<nsIDocument> document = aContextNode->OwnerDoc();
-  bool isHTML = document->IsHTMLDocument();
+  bool isHTML = document->IsHTML();
 #ifdef DEBUG
   nsCOMPtr<nsIHTMLDocument> htmlDoc = do_QueryInterface(document);
   NS_ASSERTION(!isHTML || htmlDoc, "Should have HTMLDocument here!");
@@ -4143,9 +4142,9 @@ nsContentUtils::CreateContextualFragment(nsINode* aContextNode,
       }
     }
     
-    if (contextAsContent && !contextAsContent->IsHTMLElement(nsGkAtoms::html)) {
+    if (contextAsContent && !contextAsContent->IsHTML(nsGkAtoms::html)) {
       aRv = ParseFragmentHTML(aFragment, frag,
-                              contextAsContent->NodeInfo()->NameAtom(),
+                              contextAsContent->Tag(),
                               contextAsContent->GetNameSpaceID(),
                               (document->GetCompatibilityMode() ==
                                eCompatibility_NavQuirks),
@@ -4772,9 +4771,8 @@ nsContentUtils::TriggerLink(nsIContent *aContent, nsPresContext *aPresContext,
     // as downloadable. If this check fails we will just do the normal thing
     // (i.e. navigate to the resource).
     nsAutoString fileName;
-    if ((!aContent->IsHTMLElement(nsGkAtoms::a) &&
-         !aContent->IsHTMLElement(nsGkAtoms::area) &&
-         !aContent->IsSVGElement(nsGkAtoms::a)) ||
+    if ((!aContent->IsHTML(nsGkAtoms::a) && !aContent->IsHTML(nsGkAtoms::area) &&
+         !aContent->IsSVG(nsGkAtoms::a)) ||
         !aContent->GetAttr(kNameSpaceID_None, nsGkAtoms::download, fileName) ||
         NS_FAILED(aContent->NodePrincipal()->CheckMayLoad(aLinkURI, false, true))) {
       fileName.SetIsVoid(true); // No actionable download attribute was found.
@@ -6945,7 +6943,7 @@ nsContentUtils::IsContentInsertionPoint(const nsIContent* aContent)
   }
 
   // Check if the content is a web components content insertion point.
-  if (aContent->IsHTMLElement(nsGkAtoms::content)) {
+  if (aContent->IsHTML(nsGkAtoms::content)) {
     return static_cast<const HTMLContentElement*>(aContent)->IsInsertionPoint();
   }
 

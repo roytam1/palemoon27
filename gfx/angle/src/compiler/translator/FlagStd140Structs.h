@@ -4,8 +4,8 @@
 // found in the LICENSE file.
 //
 
-#ifndef COMPILER_TRANSLATOR_FLAGSTD140STRUCTS_H_
-#define COMPILER_TRANSLATOR_FLAGSTD140STRUCTS_H_
+#ifndef COMPILER_FLAGSTD140STRUCTS_H_
+#define COMPILER_FLAGSTD140STRUCTS_H_
 
 #include "compiler/translator/IntermNode.h"
 
@@ -18,17 +18,11 @@ namespace sh
 class FlagStd140Structs : public TIntermTraverser
 {
   public:
-
-    FlagStd140Structs()
-        : TIntermTraverser(true, false, false)
-    {
-    }
-
     const std::vector<TIntermTyped *> getFlaggedNodes() const { return mFlaggedNodes; }
 
   protected:
-    bool visitBinary(Visit visit, TIntermBinary *binaryNode) override;
-    void visitSymbol(TIntermSymbol *symbol) override;
+    virtual bool visitBinary(Visit visit, TIntermBinary *binaryNode);
+    virtual void visitSymbol(TIntermSymbol *symbol);
 
   private:
     bool isInStd140InterfaceBlock(TIntermTyped *node) const;
@@ -40,4 +34,4 @@ std::vector<TIntermTyped *> FlagStd140ValueStructs(TIntermNode *node);
 
 }
 
-#endif // COMPILER_TRANSLATOR_FLAGSTD140STRUCTS_H_
+#endif // COMPILER_FLAGSTD140STRUCTS_H_

@@ -7,19 +7,19 @@
 //   Methods for GLSL to HLSL translation for uniforms and interface blocks.
 //
 
-#ifndef COMPILER_TRANSLATOR_UNIFORMHLSL_H_
-#define COMPILER_TRANSLATOR_UNIFORMHLSL_H_
+#ifndef TRANSLATOR_UNIFORMHLSL_H_
+#define TRANSLATOR_UNIFORMHLSL_H_
 
-#include "compiler/translator/OutputHLSL.h"
+#include "compiler/translator/Types.h"
 
 namespace sh
 {
 class StructureHLSL;
 
-class UniformHLSL : angle::NonCopyable
+class UniformHLSL
 {
   public:
-    UniformHLSL(StructureHLSL *structureHLSL, ShShaderOutput outputType, const std::vector<Uniform> &uniforms);
+    UniformHLSL(StructureHLSL *structureHLSL, TranslatorHLSL *translator);
 
     void reserveUniformRegisters(unsigned int registerCount);
     void reserveInterfaceBlockRegisters(unsigned int registerCount);
@@ -60,4 +60,4 @@ class UniformHLSL : angle::NonCopyable
 
 }
 
-#endif // COMPILER_TRANSLATOR_UNIFORMHLSL_H_
+#endif // TRANSLATOR_UNIFORMHLSL_H_

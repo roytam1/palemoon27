@@ -111,7 +111,8 @@ NS_QUERYFRAME_TAIL_INHERITING(nsImageControlFrameSuper)
 a11y::AccType
 nsImageControlFrame::AccessibleType()
 {
-  if (mContent->IsAnyOfHTMLElements(nsGkAtoms::button, nsGkAtoms::input)) {
+  if (mContent->Tag() == nsGkAtoms::button ||
+      mContent->Tag() == nsGkAtoms::input) {
     return a11y::eHTMLButtonType;
   }
 

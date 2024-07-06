@@ -7,6 +7,7 @@
 #include "mozilla/LoadInfo.h"
 
 #include "mozilla/Assertions.h"
+#include "nsContentUtils.h"
 #include "nsIDocument.h"
 #include "nsIDOMDocument.h"
 #include "nsISupportsImpl.h"

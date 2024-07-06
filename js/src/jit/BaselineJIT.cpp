@@ -24,6 +24,7 @@
 
 #include "jit/JitFrames-inl.h"
 #include "vm/Stack-inl.h"
+#include "vm/Debugger.h"
 
 using namespace js;
 using namespace js::jit;

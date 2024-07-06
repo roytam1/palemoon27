@@ -6,6 +6,8 @@
 #ifndef __nsLookAndFeel
 #define __nsLookAndFeel
 
+#include <windows.h>
+#include "nsCOMPtr.h"
 #include "nsXPLookAndFeel.h"
 #include "nsIWindowsRegKey.h"
 

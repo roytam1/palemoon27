@@ -67,11 +67,9 @@
 #include "MediaStreamGraph.h"
 #include "nsIScriptError.h"
 #include "nsHostObjectProtocolHandler.h"
-#ifdef MOZ_MEDIASOURCE
 #include "mozilla/dom/MediaSource.h"
-#include "MediaSourceDecoder.h"
-#endif
 #include "MediaMetadataManager.h"
+#include "MediaSourceDecoder.h"
 #include "AudioStreamTrack.h"
 #include "VideoStreamTrack.h"
 
@@ -434,9 +432,7 @@ NS_IMPL_RELEASE_INHERITED(HTMLMediaElement, nsGenericHTMLElement)
 NS_IMPL_CYCLE_COLLECTION_CLASS(HTMLMediaElement)
 
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INHERITED(HTMLMediaElement, nsGenericHTMLElement)
-#ifdef MOZ_MEDIASOURCE
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mMediaSource)
-  #endif
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mSrcStream)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mPlaybackStream)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mSrcAttrStream)
@@ -461,9 +457,7 @@ NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN_INHERITED(HTMLMediaElement, nsGenericHTMLE
     tmp->EndSrcMediaStreamPlayback();
   }
   NS_IMPL_CYCLE_COLLECTION_UNLINK(mSrcAttrStream)
-  #ifdef MOZ_MEDIASOURCE
   NS_IMPL_CYCLE_COLLECTION_UNLINK(mMediaSource)
-  #endif
   NS_IMPL_CYCLE_COLLECTION_UNLINK(mSourcePointer)
   NS_IMPL_CYCLE_COLLECTION_UNLINK(mLoadBlockedDoc)
   NS_IMPL_CYCLE_COLLECTION_UNLINK(mSourceLoadCandidate)
@@ -515,7 +509,6 @@ HTMLMediaElement::IsVideo()
   return false;
 }
 
-#ifdef MOZ_MEDIASOURCE
 already_AddRefed<MediaSource>
 HTMLMediaElement::GetMozMediaSourceObject() const
 {
@@ -525,7 +518,6 @@ HTMLMediaElement::GetMozMediaSourceObject() const
   }
   return source.forget();
 }
-#endif
 
 already_AddRefed<DOMMediaStream>
 HTMLMediaElement::GetMozSrcObject() const
@@ -664,12 +656,10 @@ void HTMLMediaElement::AbortExistingLoads()
   if (mSrcStream) {
     EndSrcMediaStreamPlayback();
   }
-  #ifdef MOZ_MEDIASOURCE
   if (mMediaSource) {
     mMediaSource->Detach();
     mMediaSource = nullptr;
   }
-  #endif
 
   RemoveMediaElementFromURITable();
   mLoadingSrc = nullptr;
@@ -828,7 +818,7 @@ static bool HasSourceChildren(nsIContent* aElement)
   for (nsIContent* child = aElement->GetFirstChild();
        child;
        child = child->GetNextSibling()) {
-    if (child->IsHTMLElement(nsGkAtoms::source))
+    if (child->IsHTML(nsGkAtoms::source))
     {
       return true;
     }
@@ -1096,15 +1086,10 @@ void HTMLMediaElement::UpdatePreloadAction()
                                                        kNameSpaceID_None);
     // MSE should ignore preload attribute, so it should also ignore the pref
     // when src is from MSE. Default to auto in that case.
-	#ifdef MOZ_MEDIASOURCE
     uint32_t preloadDefault = (mLoadingSrc && IsMediaSourceURI(mLoadingSrc)) ?
                               HTMLMediaElement::PRELOAD_ATTR_AUTO :
                               Preferences::GetInt("media.preload.default",
                                                   HTMLMediaElement::PRELOAD_ATTR_METADATA);
-	#else
-	uint32_t preloadDefault = Preferences::GetInt("media.preload.default",
-                                                  HTMLMediaElement::PRELOAD_ATTR_METADATA);
-	#endif
     uint32_t preloadAuto =
       Preferences::GetInt("media.preload.auto",
                           HTMLMediaElement::PRELOAD_ENOUGH);
@@ -1116,14 +1101,9 @@ void HTMLMediaElement::UpdatePreloadAction()
       PreloadAttrValue attr = static_cast<PreloadAttrValue>(val->GetEnumValue());
       // If loaded through an MSE source, preload should be ignored, so treat
       // it as empty/auto in that case.
-	  #ifdef MOZ_MEDIASOURCE
       if (attr == HTMLMediaElement::PRELOAD_ATTR_EMPTY ||
           attr == HTMLMediaElement::PRELOAD_ATTR_AUTO ||
           (mLoadingSrc && IsMediaSourceURI(mLoadingSrc)))
-		  #else
-		  if (attr == HTMLMediaElement::PRELOAD_ATTR_EMPTY ||
-          attr == HTMLMediaElement::PRELOAD_ATTR_AUTO)
-		  #endif
       {
         nextAction = static_cast<PreloadAction>(preloadAuto);
       } else if (attr == HTMLMediaElement::PRELOAD_ATTR_METADATA) {
@@ -1226,7 +1206,6 @@ nsresult HTMLMediaElement::LoadResource()
     return NS_OK;
   }
 
-  #ifdef MOZ_MEDIASOURCE
   if (IsMediaSourceURI(mLoadingSrc)) {
     nsRefPtr<MediaSource> source;
     rv = NS_GetSourceForMediaSourceURI(mLoadingSrc, getter_AddRefs(source));
@@ -1255,7 +1234,6 @@ nsresult HTMLMediaElement::LoadResource()
     }
     return FinishDecoderSetup(decoder, resource, nullptr, nullptr);
   }
-  #endif
 
   nsSecurityFlags securityFlags = nsILoadInfo::SEC_NORMAL;
   if (nsContentUtils::ChannelShouldInheritPrincipal(NodePrincipal(),
@@ -1625,16 +1603,10 @@ already_AddRefed<TimeRanges>
 HTMLMediaElement::Seekable() const
 {
   nsRefPtr<TimeRanges> ranges = new TimeRanges();
-  #ifdef MOZ_MEDIASOURCE
   if (mMediaSource ||
       (mDecoder && mReadyState > nsIDOMHTMLMediaElement::HAVE_NOTHING)) {
     mDecoder->GetSeekable().ToTimeRanges(ranges);
   }
-  #else
-  if (mDecoder && mReadyState > nsIDOMHTMLMediaElement::HAVE_NOTHING) {
-    mDecoder->GetSeekable().ToTimeRanges(ranges);
-  }
-  #endif
   return ranges.forget();
 }
 
@@ -2162,12 +2134,10 @@ HTMLMediaElement::~HTMLMediaElement()
   if (mSrcStream) {
     EndSrcMediaStreamPlayback();
   }
-  #ifdef MOZ_MEDIASOURCE
   if (mMediaSource) {
     mMediaSource->Detach();
     mMediaSource = nullptr;
   }
-  #endif
 
   NS_ASSERTION(MediaElementTableCount(this, mLoadingSrc) == 0,
     "Destroyed media element should no longer be in element table");
@@ -3230,17 +3200,15 @@ void HTMLMediaElement::MetadataLoaded(const MediaInfo* aInfo,
     mDecoder->SetFragmentEndTime(mFragmentEnd);
   }
   if (mIsEncrypted) {
-  #ifdef MOZ_MEDIASOURCE
     if (!mMediaSource) {
       DecodeError();
       return;
     }
-	#endif
   }
 
   // Expose the tracks to JS directly.
   for (uint32_t i = 0; i < mOutputStreams.Length(); ++i) {
-  OutputMediaStream* out = &mOutputStreams[i];
+    OutputMediaStream* out = &mOutputStreams[i];
     if (aInfo->HasAudio()) {
       TrackID audioTrackId = aInfo->mAudio.mTrackId;
       out->mStream->CreateDOMTrack(audioTrackId, MediaSegment::AUDIO);
@@ -3477,15 +3445,9 @@ void HTMLMediaElement::CheckProgress(bool aHaveNewProgress)
   if (now - mDataTime >= TimeDuration::FromMilliseconds(STALL_MS)) {
     DispatchAsyncEvent(NS_LITERAL_STRING("stalled"));
 
-	#ifdef MOZ_MEDIASOURCE
     if (mLoadingSrc && IsMediaSourceURI(mLoadingSrc)) {
       ChangeDelayLoadStatus(false);
     }
-	#else
-	if (mLoadingSrc) {
-      ChangeDelayLoadStatus(false);
-    }
-	#endif
 
     NS_ASSERTION(mProgressTimer, "detected stalled without timer");
     // Stop timer events, which prevents repeated stalled events until there
@@ -3770,7 +3732,6 @@ bool HTMLMediaElement::CanActivateAutoplay()
   // being paused. We also activate autoplay when playing a media source since
   // the data download is controlled by the script and there is no way to
   // evaluate MediaDecoder::CanPlayThrough().
-  #ifdef MOZ_MEDIASOURCE
   return !mPausedForInactiveDocumentOrChannel &&
          mAutoplaying &&
          mPaused &&
@@ -3779,16 +3740,6 @@ bool HTMLMediaElement::CanActivateAutoplay()
          HasAttr(kNameSpaceID_None, nsGkAtoms::autoplay) &&
          mAutoplayEnabled &&
          !IsEditable();
-  #else
-  return !mPausedForInactiveDocumentOrChannel &&
-         mAutoplaying &&
-         mPaused &&
-         ((mDecoder && mReadyState >= nsIDOMHTMLMediaElement::HAVE_ENOUGH_DATA) ||
-          mSrcStream) &&
-         HasAttr(kNameSpaceID_None, nsGkAtoms::autoplay) &&
-         mAutoplayEnabled &&
-         !IsEditable();
-  #endif
 }
 
 void HTMLMediaElement::CheckAutoplayDataReady()
@@ -3888,11 +3839,9 @@ nsresult HTMLMediaElement::DispatchAsyncEvent(const nsAString& aName)
   NS_DispatchToMainThread(event);
 
   // Only collect rebuffer and stall rate stats for MSE video.
-  #ifdef MOZ_MEDIASOURCE
   if (!mMediaSource) {
     return NS_OK;
   }
-  #endif
 
   if ((aName.EqualsLiteral("play") || aName.EqualsLiteral("playing"))) {
     mPlayTime.Start();
@@ -3994,11 +3943,9 @@ void HTMLMediaElement::SuspendOrResumeElement(bool aPauseElement, bool aSuspendE
   if (aPauseElement != mPausedForInactiveDocumentOrChannel) {
     mPausedForInactiveDocumentOrChannel = aPauseElement;
     if (aPauseElement) {
-	#ifdef MOZ_MEDIASOURCE
       if (mMediaSource) {
         ReportMSETelemetry();
       }
-	  #endif
 
       if (mDecoder) {
         mDecoder->Pause();
@@ -4076,7 +4023,6 @@ void HTMLMediaElement::AddRemoveSelfReference()
 
   // See the comment at the top of this file for the explanation of this
   // boolean expression.
-  #ifdef MOZ_MEDIASOURCE
   bool needSelfReference = !mShuttingDown &&
     ownerDoc->IsActive() &&
     (mDelayingLoadEvent ||
@@ -4086,16 +4032,6 @@ void HTMLMediaElement::AddRemoveSelfReference()
      CanActivateAutoplay() ||
      (mMediaSource ? mProgressTimer :
       mNetworkState == nsIDOMHTMLMediaElement::NETWORK_LOADING));
-	  #else
-	  bool needSelfReference = !mShuttingDown &&
-    ownerDoc->IsActive() &&
-    (mDelayingLoadEvent ||
-     (!mPaused && mDecoder && !mDecoder->IsEndedOrShutdown()) ||
-     (!mPaused && mSrcStream && !mSrcStream->IsFinished()) ||
-     (mDecoder && mDecoder->IsSeeking()) ||
-     CanActivateAutoplay() ||
-     (mNetworkState == nsIDOMHTMLMediaElement::NETWORK_LOADING));
-	  #endif
 
   if (needSelfReference != mHasSelfReference) {
     mHasSelfReference = needSelfReference;
@@ -4215,7 +4151,7 @@ nsIContent* HTMLMediaElement::GetNextSource()
     nsIContent* child = GetChildAt(startOffset);
 
     // If child is a <source> element, it is the next candidate.
-    if (child && child->IsHTMLElement(nsGkAtoms::source)) {
+    if (child && child->IsHTML(nsGkAtoms::source)) {
       mSourceLoadCandidate = child;
       return child;
     }

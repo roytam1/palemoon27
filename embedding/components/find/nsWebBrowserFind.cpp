@@ -25,6 +25,7 @@
 #include "nsISelection.h"
 #include "nsIFrame.h"
 #include "nsITextControlFrame.h"
+#include "nsRange.h"
 #include "nsReadableUtils.h"
 #include "nsIDOMHTMLElement.h"
 #include "nsIDOMHTMLDocument.h"

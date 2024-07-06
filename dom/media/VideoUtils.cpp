@@ -384,7 +384,6 @@ ParseCodecsString(const nsAString& aCodecs, nsTArray<nsString>& aOutCodecs)
   return true;
 }
 
-#if defined (_MSC_VER) && _MSC_VER >= 1700
 static bool
 CheckContentType(const nsAString& aContentType,
                  mozilla::Function<bool(const nsAString&)> aSubtypeFilter,
@@ -403,9 +402,8 @@ CheckContentType(const nsAString& aContentType,
   if (!ParseCodecsString(codecsStr, codecs)) {
     return false;
   }
-  uint32_t length = codecs.Length();
-  for (uint32_t i = 0; i < length; ++i) {
-  const nsString& codec = codecs[i];
+  for (size_t i = 0; i < codecs.Length(); i++) {
+    nsString& codec = codecs[i];
     if (!aCodecFilter(codec)) {
       return false;
     }
@@ -417,10 +415,10 @@ bool
 IsH264ContentType(const nsAString& aContentType)
 {
   return CheckContentType(aContentType,
-    [](const nsAString& type) {
+    [](const nsAString& type) -> bool {
       return type.EqualsLiteral("video/mp4");
     },
-    [](const nsAString& codec) {
+    [](const nsAString& codec) -> bool {
       int16_t profile = 0;
       int16_t level = 0;
       return ExtractH264CodecDetails(codec, profile, level);
@@ -432,16 +430,15 @@ bool
 IsAACContentType(const nsAString& aContentType)
 {
   return CheckContentType(aContentType,
-    [](const nsAString& type) {
+    [](const nsAString& type) -> bool {
       return type.EqualsLiteral("audio/mp4") ||
              type.EqualsLiteral("audio/x-m4a");
     },
-    [](const nsAString& codec) {
+    [](const nsAString& codec) -> bool {
       return codec.EqualsLiteral("mp4a.40.2") || // MPEG4 AAC-LC
              codec.EqualsLiteral("mp4a.40.5") || // MPEG4 HE-AAC
              codec.EqualsLiteral("mp4a.67");     // MPEG2 AAC-LC
     });
 }
-#endif // MSC_VER >= 1700
 
 } // end namespace mozilla

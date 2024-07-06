@@ -33,6 +33,7 @@
 using namespace js;
 using namespace js::gc;
 using namespace js::jit;
+using mozilla::PodArrayZero;
 
 using mozilla::DebugOnly;
 

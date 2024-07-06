@@ -134,7 +134,8 @@ MediaEngineCameraVideoSource::GetFitnessDistance(const webrtc::CaptureCapability
 /* static */ void
 MediaEngineCameraVideoSource::TrimLessFitCandidates(CapabilitySet& set) {
   uint32_t best = UINT32_MAX;
-  for (auto& candidate : set) {
+  for (size_t i = 0; i < set.Length(); i++) {
+    auto& candidate = set[i];
     if (best > candidate.mDistance) {
       best = candidate.mDistance;
     }
@@ -167,7 +168,8 @@ MediaEngineCameraVideoSource::GetBestFitnessDistance(
   }
 
   bool first = true;
-  for (const MediaTrackConstraintSet* cs : aConstraintSets) {
+  for (size_t j = 0; j < aConstraintSets.Length(); ++j) {
+    const MediaTrackConstraintSet *cs = aConstraintSets[j];
     for (size_t i = 0; i < candidateSet.Length();  ) {
       auto& candidate = candidateSet[i];
       webrtc::CaptureCapability cap;
@@ -223,7 +225,8 @@ MediaEngineCameraVideoSource::ChooseCapability(
   // Filter further with all advanced constraints (that don't overconstrain).
 
   if (aConstraints.mAdvanced.WasPassed()) {
-    for (const MediaTrackConstraintSet &cs : aConstraints.mAdvanced.Value()) {
+    for (uint32_t j = 0; j < aConstraints.mAdvanced.Value().Length(); ++j) {
+      const MediaTrackConstraintSet& cs = aConstraints.mAdvanced.Value()[j];
       CapabilitySet rejects;
       for (size_t i = 0; i < candidateSet.Length();) {
         auto& candidate = candidateSet[i];
@@ -258,7 +261,8 @@ MediaEngineCameraVideoSource::ChooseCapability(
     prefs.mHeight.SetAsLong() = aPrefs.GetHeight();
     prefs.mFrameRate.SetAsDouble() = aPrefs.mFPS;
 
-    for (auto& candidate : candidateSet) {
+    for (size_t i = 0; i < candidateSet.Length(); i++) {
+      auto& candidate = candidateSet[i];
       webrtc::CaptureCapability cap;
       GetCapability(candidate.mIndex, cap);
       candidate.mDistance = GetFitnessDistance(cap, prefs);
@@ -271,7 +275,8 @@ MediaEngineCameraVideoSource::ChooseCapability(
   // E.g. I420 over RGB24 can remove a needless format conversion.
 
   bool found = false;
-  for (auto& candidate : candidateSet) {
+  for (size_t i = 0; i < candidateSet.Length(); i++) {
+    auto& candidate = candidateSet[i];
     webrtc::CaptureCapability cap;
     GetCapability(candidate.mIndex, cap);
     if (cap.rawType == webrtc::RawVideoType::kVideoI420 ||

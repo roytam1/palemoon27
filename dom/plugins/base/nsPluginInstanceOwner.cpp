@@ -59,6 +59,7 @@ using mozilla::DefaultXDisplay;
 #include "nsFrameSelection.h"
 #include "PuppetWidget.h"
 #include "nsPIWindowRoot.h"
+#include "mozilla/plugins/PluginAsyncSurrogate.h"
 
 #include "nsContentCID.h"
 #include "nsWidgetsCID.h"
@@ -1004,11 +1005,13 @@ NS_IMETHODIMP nsPluginInstanceOwner::GetTagType(nsPluginTagType *result)
   *result = nsPluginTagType_Unknown;
 
   nsCOMPtr<nsIContent> content = do_QueryReferent(mContent);
-  if (content->IsHTMLElement(nsGkAtoms::applet))
+  nsIAtom *atom = content->Tag();
+
+  if (atom == nsGkAtoms::applet)
     *result = nsPluginTagType_Applet;
-  else if (content->IsHTMLElement(nsGkAtoms::embed))
+  else if (atom == nsGkAtoms::embed)
     *result = nsPluginTagType_Embed;
-  else if (content->IsHTMLElement(nsGkAtoms::object))
+  else if (atom == nsGkAtoms::object)
     *result = nsPluginTagType_Object;
 
   return NS_OK;
@@ -1492,7 +1495,7 @@ nsPluginInstanceOwner::NotifyDestroyPending()
   if (NS_FAILED(mInstance->GetNPP(&npp)) || !npp) {
     return;
   }
-  PluginAsyncSurrogate::NotifyDestroyPending(npp);
+  NotifyDestroyPending();
 }
 
 nsresult nsPluginInstanceOwner::DispatchFocusToPlugin(nsIDOMEvent* aFocusEvent)

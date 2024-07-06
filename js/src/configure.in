@@ -340,19 +340,19 @@ MOZ_CHECK_COMPILER_WRAPPER
 dnl Special win32 checks
 dnl ========================================================
 
-# Target the Windows 8.1 SDK by default
+# Target the Windows 7 SDK by default
 WINSDK_TARGETVER=601
 WINVER=502
 
 MOZ_ARG_WITH_STRING(windows-version,
 [  --with-windows-version=WINSDK_TARGETVER
-                          Windows SDK version to target. Win7 (601) is
+                          Windows SDK version to target. Win8.1 (603) is
                           currently the minimum supported version.],
   WINSDK_TARGETVER=$withval)
 
-# Currently only version 601 to 603 is allowed
+# Currently only versions 601, 603 are allowed
 case "$WINSDK_TARGETVER" in
-601|602|603)
+601|603)
     MOZ_WINSDK_TARGETVER=0${WINSDK_TARGETVER}0000
     ;;
 
@@ -409,14 +409,15 @@ case "$target" in
         AC_DEFINE(_CRT_SECURE_NO_WARNINGS)
         AC_DEFINE(_CRT_NONSTDC_NO_WARNINGS)
 
-        if test "$_CC_MAJOR_VERSION" = "16"; then
+		if test "$_CC_MAJOR_VERSION" = "16"; then
             _CC_SUITE=10
             MSVC_C_RUNTIME_DLL=msvcr100.dll
             MSVC_CXX_RUNTIME_DLL=msvcp100.dll
-        elif test "$_CC_MAJOR_VERSION" = "17"; then
-            _CC_SUITE=11
-            MSVC_C_RUNTIME_DLL=msvcr110.dll
-            MSVC_CXX_RUNTIME_DLL=msvcp110.dll
+            # C4275: non dll-interface class 'stdext::exception' used as base for dll-interface class 'this'
+            # C4355: 'this' : used in base member initializer list
+            # C4396: 'this' : the inline specifier cannot be used when a friend declaration refers to a specialization of a function template
+            CFLAGS="$CFLAGS -wd4275 -wd4355 -wd4396"
+            CXXFLAGS="$CXXFLAGS -wd4275 -wd4355 -wd4396"
         elif test "$_CC_MAJOR_VERSION" = "18"; then
             _CC_SUITE=12
             MSVC_C_RUNTIME_DLL=msvcr120.dll
@@ -1780,6 +1781,13 @@ ia64*-hpux*)
         _DEFINES_CXXFLAGS='-FI $(DEPTH)/js/src/js-confdefs.h -DMOZILLA_CLIENT'
         CFLAGS="$CFLAGS -W3 -Gy"
         CXXFLAGS="$CXXFLAGS -W3 -Gy"
+        if test "$_CC_SUITE" -ge "11"; then
+        if test "$CPU_ARCH" = "x86"; then
+            dnl VS2012+ defaults to -arch:SSE2.
+            CFLAGS="$CFLAGS -arch:IA32"
+            CXXFLAGS="$CXXFLAGS -arch:IA32"
+        fi
+        fi
         if test "$_CC_SUITE" -ge "12"; then
         dnl VS2013+ requires -FS when parallel building by make -jN.
         dnl If nothing, compiler sometimes causes C1041 error.
@@ -2798,6 +2806,17 @@ AC_SUBST(NIGHTLY_BUILD)
 AC_SUBST(RELEASE_BUILD)
 
 dnl ========================================================
+dnl Disable compiling sources in unified mode.
+dnl ========================================================
+
+MOZ_ARG_DISABLE_BOOL(unified-compilation,
+[  --disable-unified-compilation
+                          Disable unified compilation of some C/C++ sources],
+    MOZ_DISABLE_UNIFIED_COMPILATION=1,
+    MOZ_DISABLE_UNIFIED_COMPILATION=)
+AC_SUBST(MOZ_DISABLE_UNIFIED_COMPILATION)
+
+dnl ========================================================
 dnl =
 dnl = Check for external package dependencies
 dnl =
@@ -2834,7 +2853,7 @@ dnl ========================================================
 
 MOZ_ARG_HEADER(Application)
 
-ENABLE_TESTS=
+ENABLE_TESTS=1
 
 USE_ARM_KUSER=
 
@@ -2872,12 +2891,12 @@ MOZ_ARG_ENABLE_STRING(ui-locale,
 AC_SUBST(MOZ_UI_LOCALE)
 
 dnl ========================================================
-dnl Do not build the tests by default
+dnl build the tests by default
 dnl ========================================================
-MOZ_ARG_ENABLE_BOOL(tests,
-[  --enable-tests         Build test libraries & programs],
-    ENABLE_TESTS=1,
-    ENABLE_TESTS= )
+MOZ_ARG_DISABLE_BOOL(tests,
+[  --disable-tests         Do not build test libraries & programs],
+    ENABLE_TESTS=,
+    ENABLE_TESTS=1 )
 
 dnl ========================================================
 dnl =

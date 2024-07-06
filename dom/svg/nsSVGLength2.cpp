@@ -227,7 +227,7 @@ float
 nsSVGLength2::GetUnitScaleFactor(nsIFrame *aFrame, uint8_t aUnitType) const
 {
   nsIContent* content = aFrame->GetContent();
-  if (content->IsSVGElement()) {
+  if (content->IsSVG()) {
     return GetUnitScaleFactor(SVGElementMetrics(static_cast<nsSVGElement*>(content)), aUnitType);
   }
   return GetUnitScaleFactor(NonSVGFrameUserSpaceMetrics(aFrame), aUnitType);

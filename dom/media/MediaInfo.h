@@ -50,12 +50,12 @@ public:
   {
     MOZ_COUNT_CTOR(TrackInfo);
   }
-  
+
   TrackInfo(int32_t aWidth, int32_t aHeight)
   {
-  MOZ_COUNT_CTOR(TrackInfo);
+    MOZ_COUNT_CTOR(TrackInfo);
   }
-  
+
   // Only used for backward compatibility. Do not use in new code.
   void Init(TrackType aType,
             const nsAString& aId,
@@ -172,7 +172,7 @@ public:
   VideoInfo()
     : TrackInfo(-1, -1)
   {
-  MOZ_COUNT_CTOR(VideoInfo);
+    MOZ_COUNT_CTOR(VideoInfo);
   }
 
   VideoInfo(int32_t aWidth, int32_t aHeight)
@@ -185,7 +185,7 @@ public:
     , mExtraData(new MediaByteBuffer)
     , mRotation(kDegree_0)
   {
-  MOZ_COUNT_CTOR(VideoInfo);
+    MOZ_COUNT_CTOR(VideoInfo);
   }
 
   VideoInfo(const VideoInfo& aOther)
@@ -197,7 +197,7 @@ public:
     , mExtraData(aOther.mExtraData)
     , mRotation(aOther.mRotation)
   {
-  MOZ_COUNT_CTOR(TrackInfo);
+    MOZ_COUNT_CTOR(VideoInfo);
   }
 
   virtual bool IsValid() const override
@@ -220,6 +220,11 @@ public:
     return MakeUnique<VideoInfo>(*this);
   }
 
+  virtual ~VideoInfo()
+  {
+    MOZ_COUNT_DTOR(VideoInfo);
+  }
+
   Rotation ToSupportedRotation(int32_t aDegree)
   {
     switch (aDegree) {
@@ -233,11 +238,6 @@ public:
         NS_WARN_IF_FALSE(aDegree == 0, "Invalid rotation degree, ignored");
         return kDegree_0;
     }
-  }
-  
-  virtual ~VideoInfo()
-  {
-    MOZ_COUNT_DTOR(VideoInfo);
   }
 
   // Size in pixels at which the video is rendered. This is after it has
@@ -416,15 +416,15 @@ public:
   {
     return HasVideo() || HasAudio();
   }
-  
+
   MediaInfo()
   {
-  MOZ_COUNT_CTOR(MediaInfo);
+    MOZ_COUNT_CTOR(MediaInfo);
   }
-  
+
   virtual ~MediaInfo()
   {
-  MOZ_COUNT_DTOR(MediaInfo);
+    MOZ_COUNT_DTOR(MediaInfo);
   }
 
   // TODO: Store VideoInfo and AudioIndo in arrays to support multi-tracks.

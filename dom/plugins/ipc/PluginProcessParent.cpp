@@ -13,6 +13,8 @@
 #include "mozilla/plugins/PluginMessageUtils.h"
 #include "mozilla/Telemetry.h"
 #include "nsThreadUtils.h"
+#include "nsIProperties.h"
+#include "nsIFile.h"
 
 #if defined(XP_WIN) && defined(MOZ_SANDBOX)
 #include "nsDirectoryServiceDefs.h"

@@ -13,6 +13,7 @@
 #include "mozilla/MemoryReporting.h"
 #include "mozilla/Range.h"
 #include "mozilla/RangedPtr.h"
+#include "mozilla/TypedEnum.h"
 
 #include <stdarg.h>
 #include <stddef.h>
@@ -32,7 +33,6 @@
 #include "js/Utility.h"
 #include "js/Value.h"
 #include "js/Vector.h"
-#include "mozilla/TypedEnum.h"
 
 /************************************************************************/
 

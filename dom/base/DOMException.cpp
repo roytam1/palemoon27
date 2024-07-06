@@ -19,6 +19,7 @@
 #include "nsMemory.h"
 #include "prprf.h"
 #include "xpcprivate.h"
+#include "mozilla/dom/ToJSValue.h"
 
 #include "mozilla/dom/DOMExceptionBinding.h"
 #include "mozilla/ErrorResult.h"

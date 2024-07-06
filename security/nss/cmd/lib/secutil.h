@@ -20,6 +20,10 @@
 #include "sslt.h"
 #include "blapi.h"
 
+#ifndef PR_GetEnvSecure
+#define PR_GetEnvSecure PR_GetEnv
+#endif
+
 #define SEC_CT_PRIVATE_KEY "private-key"
 #define SEC_CT_PUBLIC_KEY "public-key"
 #define SEC_CT_CERTIFICATE "certificate"

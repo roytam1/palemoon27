@@ -16,6 +16,7 @@
 #include "mozilla/StaticPtr.h"
 #include "mozilla/TextRange.h"
 #include "mozilla/WindowsVersion.h"
+#include "WritingModes.h"
 
 #include <msctf.h>
 #include <textstor.h>

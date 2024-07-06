@@ -16,6 +16,7 @@
             'ciferfam.h',
             'eccutil.h',
             'hasht.h',
+            'MSStdInt.h',
             'nssb64.h',
             'nssb64t.h',
             'nssilckt.h',

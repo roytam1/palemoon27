@@ -8,6 +8,7 @@
 #include "nsCache.h"
 #include <limits.h>
 
+#include "mozilla/fallible.h"
 #include "nscore.h"
 #include "nsDiskCacheBinding.h"
 #include "nsCacheService.h"
@@ -237,7 +238,7 @@ nsDiskCacheBindery::AddBinding(nsDiskCacheBinding * binding)
     hashEntry = (HashTableEntry *)
       PL_DHashTableAdd(&table,
                        (void *)(uintptr_t) binding->mRecord.HashNumber(),
-                       fallible);
+					   mozilla::fallible);
     if (!hashEntry) return NS_ERROR_OUT_OF_MEMORY;
     
     if (hashEntry->mBinding == nullptr) {

@@ -18,6 +18,11 @@
 #define WOFF2_PORT_H_
 
 #include <assert.h>
+#if defined(_MSC_VER) && _MSC_VER >= 1800
+#include <inttypes.h>
+#else
+#include "mozilla/MSIntTypes.h"
+#endif
 
 namespace woff2 {
 

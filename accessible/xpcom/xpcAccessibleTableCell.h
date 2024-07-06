@@ -42,8 +42,8 @@ protected:
 private:
   TableCellAccessible* Intl() { return mIntl->AsTableCell(); }
 
-  xpcAccessibleTableCell(const xpcAccessibleTableCell&) = delete;
-  xpcAccessibleTableCell& operator =(const xpcAccessibleTableCell&) = delete;
+  xpcAccessibleTableCell(const xpcAccessibleTableCell&) MOZ_DELETE;
+  xpcAccessibleTableCell& operator =(const xpcAccessibleTableCell&) MOZ_DELETE;
 };
 
 } // namespace a11y

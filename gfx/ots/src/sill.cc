@@ -5,9 +5,17 @@
 #include "sill.h"
 
 #include "feat.h"
-#include "silf.h"
 #include <cmath>
+#include <math.h>
 #include <unordered_set>
+
+#ifndef __log2i__
+#define __log2i__
+static inline double log2i(int n)
+{
+    return log(n + 0.0) / log(2.0);
+}
+#endif
 
 namespace ots {
 
@@ -36,11 +44,11 @@ bool OpenTypeSILL::Parse(const uint8_t* data, size_t length) {
       this->searchRange = this->entrySelector = this->rangeShift = 0;
     }
   } else {
-    unsigned floorLog2 = std::floor(ots::log2(this->numLangs));
-    if (this->searchRange != (unsigned)std::pow(2, floorLog2) ||
+    unsigned floorLog2 = std::floor(log2i(this->numLangs));
+    if (this->searchRange != (unsigned)std::pow(2.0, floorLog2+0.0) ||
         this->entrySelector != floorLog2 ||
         this->rangeShift != this->numLangs - this->searchRange) {
-      this->searchRange = (unsigned)std::pow(2, floorLog2);
+      this->searchRange = (unsigned)std::pow(2.0, floorLog2+0.0);
       this->entrySelector = floorLog2;
       this->rangeShift = this->numLangs - this->searchRange;
     }

@@ -4,24 +4,20 @@
 // found in the LICENSE file.
 //
 
-#ifndef COMPILER_TRANSLATOR_TRANSLATORGLSL_H_
-#define COMPILER_TRANSLATOR_TRANSLATORGLSL_H_
+#ifndef COMPILER_TRANSLATORGLSL_H_
+#define COMPILER_TRANSLATORGLSL_H_
 
 #include "compiler/translator/Compiler.h"
 
-class TranslatorGLSL : public TCompiler
-{
-  public:
-    TranslatorGLSL(sh::GLenum type, ShShaderSpec spec, ShShaderOutput output);
+class TranslatorGLSL : public TCompiler {
+public:
+    TranslatorGLSL(sh::GLenum type, ShShaderSpec spec);
 
-  protected:
-    void initBuiltInFunctionEmulator(BuiltInFunctionEmulator *emu, int compileOptions) override;
+protected:
+    virtual void translate(TIntermNode* root);
 
-    void translate(TIntermNode *root, int compileOptions) override;
-
-  private:
-    void writeVersion(TIntermNode *root);
-    void writeExtensionBehavior(TIntermNode *root);
+private:
+    void writeExtensionBehavior();
 };
 
-#endif  // COMPILER_TRANSLATOR_TRANSLATORGLSL_H_
+#endif  // COMPILER_TRANSLATORGLSL_H_

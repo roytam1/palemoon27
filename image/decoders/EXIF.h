@@ -10,6 +10,7 @@
 #include "nsDebug.h"
 
 #include "Orientation.h"
+#include "mozilla/TypedEnum.h"
 
 namespace mozilla {
 namespace image {

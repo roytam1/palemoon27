@@ -69,8 +69,8 @@ private:
 
   friend class xpcAccessibleHyperText;
 
-  xpcAccessibleTextRange(const xpcAccessibleTextRange&) = delete;
-  xpcAccessibleTextRange& operator =(const xpcAccessibleTextRange&) = delete;
+  xpcAccessibleTextRange(const xpcAccessibleTextRange&) MOZ_DELETE;
+  xpcAccessibleTextRange& operator =(const xpcAccessibleTextRange&) MOZ_DELETE;
 
   TextRange mRange;
 };

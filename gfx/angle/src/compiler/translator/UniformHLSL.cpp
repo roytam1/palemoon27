@@ -7,13 +7,14 @@
 //   Methods for GLSL to HLSL translation for uniforms and interface blocks.
 //
 
-#include "compiler/translator/UniformHLSL.h"
-
+#include "OutputHLSL.h"
+#include "common/blocklayout.h"
 #include "common/utilities.h"
+#include "compiler/translator/UniformHLSL.h"
 #include "compiler/translator/StructureHLSL.h"
-#include "compiler/translator/UtilsHLSL.h"
-#include "compiler/translator/blocklayoutHLSL.h"
 #include "compiler/translator/util.h"
+#include "compiler/translator/UtilsHLSL.h"
+#include "compiler/translator/TranslatorHLSL.h"
 
 namespace sh
 {
@@ -60,13 +61,13 @@ static TString InterfaceBlockStructName(const TInterfaceBlock &interfaceBlock)
     return DecoratePrivate(interfaceBlock.name()) + "_type";
 }
 
-UniformHLSL::UniformHLSL(StructureHLSL *structureHLSL, ShShaderOutput outputType, const std::vector<Uniform> &uniforms)
+UniformHLSL::UniformHLSL(StructureHLSL *structureHLSL, TranslatorHLSL *translator)
     : mUniformRegister(0),
       mInterfaceBlockRegister(0),
       mSamplerRegister(0),
       mStructureHLSL(structureHLSL),
-      mOutputType(outputType),
-      mUniforms(uniforms)
+      mOutputType(translator->getOutputType()),
+      mUniforms(translator->getUniforms())
 {}
 
 void UniformHLSL::reserveUniformRegisters(unsigned int registerCount)
@@ -104,7 +105,7 @@ unsigned int UniformHLSL::declareUniformAndAssignRegister(const TType &type, con
 
     unsigned int registerCount = HLSLVariableRegisterCount(*uniform, mOutputType);
 
-    if (gl::IsSamplerType(uniform->type))
+    if (gl::IsSampler(uniform->type))
     {
         mSamplerRegister += registerCount;
     }

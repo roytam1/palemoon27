@@ -4,36 +4,35 @@
 // found in the LICENSE file.
 //
 
-#ifndef COMPILER_TRANSLATOR_TIMING_RESTRICTFRAGMENTSHADERTIMING_H_
-#define COMPILER_TRANSLATOR_TIMING_RESTRICTFRAGMENTSHADERTIMING_H_
+#ifndef COMPILER_TIMING_RESTRICT_FRAGMENT_SHADER_TIMING_H_
+#define COMPILER_TIMING_RESTRICT_FRAGMENT_SHADER_TIMING_H_
 
 #include "compiler/translator/IntermNode.h"
 #include "compiler/translator/depgraph/DependencyGraph.h"
 
 class TInfoSinkBase;
 
-class RestrictFragmentShaderTiming : TDependencyGraphTraverser
-{
-  public:
-    RestrictFragmentShaderTiming(TInfoSinkBase &sink);
-    void enforceRestrictions(const TDependencyGraph &graph);
+class RestrictFragmentShaderTiming : TDependencyGraphTraverser {
+public:
+    RestrictFragmentShaderTiming(TInfoSinkBase& sink);
+    void enforceRestrictions(const TDependencyGraph& graph);
     int numErrors() const { return mNumErrors; }
 
-    void visitArgument(TGraphArgument *parameter) override;
-    void visitSelection(TGraphSelection *selection) override;
-    void visitLoop(TGraphLoop *loop) override;
-    void visitLogicalOp(TGraphLogicalOp *logicalOp) override;
+    virtual void visitArgument(TGraphArgument* parameter);
+    virtual void visitSelection(TGraphSelection* selection);
+    virtual void visitLoop(TGraphLoop* loop);
+    virtual void visitLogicalOp(TGraphLogicalOp* logicalOp);
 
-  private:
-    void beginError(const TIntermNode *node);
-    void validateUserDefinedFunctionCallUsage(const TDependencyGraph &graph);
-    bool isSamplingOp(const TIntermAggregate *intermFunctionCall) const;
+private:
+    void beginError(const TIntermNode* node);
+    void validateUserDefinedFunctionCallUsage(const TDependencyGraph& graph);
+    bool isSamplingOp(const TIntermAggregate* intermFunctionCall) const;
 
-    TInfoSinkBase &mSink;
+    TInfoSinkBase& mSink;
     int mNumErrors;
 
     typedef std::set<TString> StringSet;
     StringSet mSamplingOps;
 };
 
-#endif  // COMPILER_TRANSLATOR_TIMING_RESTRICTFRAGMENTSHADERTIMING_H_
+#endif  // COMPILER_TIMING_RESTRICT_FRAGMENT_SHADER_TIMING_H_

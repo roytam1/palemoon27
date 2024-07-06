@@ -5,8 +5,7 @@
 //
 
 #include "compiler/translator/InitializeVariables.h"
-
-#include "common/debug.h"
+#include "compiler/translator/compilerdebug.h"
 
 namespace
 {
@@ -14,10 +13,10 @@ namespace
 TIntermConstantUnion *constructFloatConstUnionNode(const TType &type)
 {
     TType myType = type;
-    unsigned char size = static_cast<unsigned char>(myType.getNominalSize());
+    unsigned char size = myType.getNominalSize();
     if (myType.isMatrix())
         size *= size;
-    TConstantUnion *u = new TConstantUnion[size];
+    ConstantUnion *u = new ConstantUnion[size];
     for (int ii = 0; ii < size; ++ii)
         u[ii].setFConst(0.0f);
 
@@ -29,7 +28,7 @@ TIntermConstantUnion *constructFloatConstUnionNode(const TType &type)
 
 TIntermConstantUnion *constructIndexNode(int index)
 {
-    TConstantUnion *u = new TConstantUnion[1];
+    ConstantUnion *u = new ConstantUnion[1];
     u[0].setIConst(index);
 
     TType type(EbtInt, EbpUndefined, EvqConst, 1);

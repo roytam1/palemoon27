@@ -58,7 +58,7 @@ public:
 class Mdhd : public Mvhd
 {
 public:
-	Mdhd() { };
+  Mdhd() {};
   explicit Mdhd(Box& aBox);
 };
 

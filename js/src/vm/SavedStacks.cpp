@@ -28,8 +28,10 @@
 #include "jscntxtinlines.h"
 
 #include "vm/NativeObject-inl.h"
+#include "mozilla/DebugOnly.h"
 
 using mozilla::AddToHash;
+using mozilla::DebugOnly;
 using mozilla::HashString;
 
 namespace js {

@@ -8,10 +8,13 @@
  *  be found in the AUTHORS file in the root of the source tree.
  */
 
+#include "./vpx_config.h"
+#include "./vp8_rtcd.h"
+
+#if HAVE_SSE4_1
 
 #include <smmintrin.h> /* SSE4.1 */
 
-#include "./vp8_rtcd.h"
 #include "vp8/encoder/block.h"
 #include "vp8/common/entropy.h" /* vp8_default_inv_zig_zag */
 
@@ -126,3 +129,5 @@ void vp8_regular_quantize_b_sse4_1(BLOCK *b, BLOCKD *d) {
 
     *d->eob = eob;
 }
+
+#endif

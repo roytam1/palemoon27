@@ -4,8 +4,8 @@
 // found in the LICENSE file.
 //
 
-#ifndef COMPILER_TRANSLATOR_RENAMEFUNCTION_H_
-#define COMPILER_TRANSLATOR_RENAMEFUNCTION_H_
+#ifndef COMPILER_RENAME_FUNCTION
+#define COMPILER_RENAME_FUNCTION
 
 #include "compiler/translator/IntermNode.h"
 
@@ -20,7 +20,7 @@ public:
     , mOldFunctionName(oldFunctionName)
     , mNewFunctionName(newFunctionName) {}
 
-    bool visitAggregate(Visit visit, TIntermAggregate *node) override
+    virtual bool visitAggregate(Visit visit, TIntermAggregate* node)
     {
         TOperator op = node->getOp();
         if ((op == EOpFunction || op == EOpFunctionCall) && node->getName() == mOldFunctionName)
@@ -33,4 +33,4 @@ private:
     const TString mNewFunctionName;
 };
 
-#endif  // COMPILER_TRANSLATOR_RENAMEFUNCTION_H_
+#endif  // COMPILER_RENAME_FUNCTION

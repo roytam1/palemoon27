@@ -9,6 +9,7 @@
 #include "nsRubyTextContainerFrame.h"
 #include "nsPresContext.h"
 #include "nsStyleContext.h"
+#include "nsLineLayout.h"
 #include "WritingModes.h"
 #include "mozilla/UniquePtr.h"
 

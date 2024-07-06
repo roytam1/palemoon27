@@ -28,7 +28,7 @@ nsComposeTxtSrvFilter::Skip(nsIDOMNode* aNode, bool *_retval)
   // their type is "cite"
   nsCOMPtr<nsIContent> content(do_QueryInterface(aNode));
   if (content) {
-  nsIAtom *tag = content->Tag();
+    nsIAtom *tag = content->Tag();
     if (tag == nsGkAtoms::blockquote) {
       if (mIsForMail) {
         *_retval = content->AttrValueIs(kNameSpaceID_None, nsGkAtoms::type,

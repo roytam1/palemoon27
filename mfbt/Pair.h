@@ -164,7 +164,21 @@ public:
     : Base(Move(aOther.first()), Move(aOther.second()))
   { }
 
+  Pair(const Pair& aOther)
+    : Base(Move(aOther.first()), Move(aOther.second()))
+  { }
+
   Pair& operator=(Pair&& aOther)
+  {
+    MOZ_ASSERT(this != &aOther, "Self-moves are prohibited");
+
+    first() = Move(aOther.first());
+    second() = Move(aOther.second());
+
+    return *this;
+  }
+
+  Pair& operator=(const Pair& aOther)
   {
     MOZ_ASSERT(this != &aOther, "Self-moves are prohibited");
 

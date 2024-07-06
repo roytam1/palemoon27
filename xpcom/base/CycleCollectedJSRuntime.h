@@ -15,6 +15,7 @@
 #include "nsDataHashtable.h"
 #include "nsHashKeys.h"
 #include "nsTArray.h"
+#include "mozilla/TypedEnum.h"
 
 class nsCycleCollectionNoteRootCallback;
 class nsIException;

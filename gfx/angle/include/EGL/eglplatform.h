@@ -25,7 +25,7 @@
 */
 
 /* Platform-specific types and definitions for egl.h
- * $Revision: 30994 $ on $Date: 2015-04-30 13:36:48 -0700 (Thu, 30 Apr 2015) $
+ * $Revision: 23432 $ on $Date: 2013-10-09 00:57:24 -0700 (Wed, 09 Oct 2013) $
  *
  * Adopters may modify khrplatform.h and this file to suit their platform.
  * You are encouraged to submit all modifications to the Khronos group so that
@@ -75,13 +75,7 @@
 
 typedef HDC     EGLNativeDisplayType;
 typedef HBITMAP EGLNativePixmapType;
-
-#if !defined(WINAPI_FAMILY) || (WINAPI_FAMILY == WINAPI_FAMILY_DESKTOP_APP) /* Windows Desktop */
 typedef HWND    EGLNativeWindowType;
-#else /* Windows Store */
-#include <inspectable.h>
-typedef IInspectable* EGLNativeWindowType;
-#endif
 
 #elif defined(__WINSCW__) || defined(__SYMBIAN32__)  /* Symbian */
 
@@ -99,12 +93,6 @@ typedef struct ANativeWindow*           EGLNativeWindowType;
 typedef struct egl_native_pixmap_t*     EGLNativePixmapType;
 typedef void*                           EGLNativeDisplayType;
 
-#elif defined(USE_OZONE)
-
-typedef intptr_t EGLNativeDisplayType;
-typedef intptr_t EGLNativeWindowType;
-typedef intptr_t EGLNativePixmapType;
-
 #elif defined(__unix__)
 
 /* X11 (tentative)  */
@@ -114,18 +102,6 @@ typedef intptr_t EGLNativePixmapType;
 typedef Display *EGLNativeDisplayType;
 typedef Pixmap   EGLNativePixmapType;
 typedef Window   EGLNativeWindowType;
-
-#elif defined(__GNUC__) && ( defined(__APPLE_CPP__) || defined(__APPLE_CC__) || defined(__MACOS_CLASSIC__) )
-
-#if defined(__OBJC__)
-@class CALayer;
-#else
-class CALayer;
-#endif
-
-typedef void *EGLNativeDisplayType;
-typedef void *EGLNativePixmapType;
-typedef CALayer *EGLNativeWindowType;
 
 #else
 #error "Platform not recognized"

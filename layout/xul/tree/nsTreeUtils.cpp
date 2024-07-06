@@ -56,7 +56,7 @@ nsTreeUtils::GetImmediateChild(nsIContent* aContainer, nsIAtom* aTag)
 {
   dom::FlattenedChildIterator iter(aContainer);
   for (nsIContent* child = iter.GetNextChild(); child; child = iter.GetNextChild()) {
-    if (child->IsXULElement(aTag)) {
+    if (child->Tag() == aTag) {
       return child;
     }
   }
@@ -69,7 +69,7 @@ nsTreeUtils::GetDescendantChild(nsIContent* aContainer, nsIAtom* aTag)
 {
   dom::FlattenedChildIterator iter(aContainer);
   for (nsIContent* child = iter.GetNextChild(); child; child = iter.GetNextChild()) {
-    if (child->IsXULElement(aTag)) {
+    if (child->Tag() == aTag) {
       return child;
     }
 

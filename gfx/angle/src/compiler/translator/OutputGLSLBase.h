@@ -4,8 +4,8 @@
 // found in the LICENSE file.
 //
 
-#ifndef COMPILER_TRANSLATOR_OUTPUTGLSLBASE_H_
-#define COMPILER_TRANSLATOR_OUTPUTGLSLBASE_H_
+#ifndef CROSSCOMPILERGLSL_OUTPUTGLSLBASE_H_
+#define CROSSCOMPILERGLSL_OUTPUTGLSLBASE_H_
 
 #include <set>
 
@@ -21,35 +21,25 @@ class TOutputGLSLBase : public TIntermTraverser
                     ShHashFunction64 hashFunction,
                     NameMap &nameMap,
                     TSymbolTable& symbolTable,
-                    int shaderVersion,
-                    ShShaderOutput output);
-
-    ShShaderOutput getShaderOutput() const
-    {
-        return mOutput;
-    }
+                    int shaderVersion);
 
   protected:
     TInfoSinkBase &objSink() { return mObjSink; }
     void writeTriplet(Visit visit, const char *preStr, const char *inStr, const char *postStr);
-    void writeLayoutQualifier(const TType &type);
     void writeVariableType(const TType &type);
     virtual bool writeVariablePrecision(TPrecision precision) = 0;
     void writeFunctionParameters(const TIntermSequence &args);
-    const TConstantUnion *writeConstantUnion(const TType &type, const TConstantUnion *pConstUnion);
-    void writeConstructorTriplet(Visit visit, const TType &type, const char *constructorBaseType);
+    const ConstantUnion *writeConstantUnion(const TType &type, const ConstantUnion *pConstUnion);
     TString getTypeName(const TType &type);
 
-    void visitSymbol(TIntermSymbol *node) override;
-    void visitConstantUnion(TIntermConstantUnion *node) override;
-    bool visitBinary(Visit visit, TIntermBinary *node) override;
-    bool visitUnary(Visit visit, TIntermUnary *node) override;
-    bool visitSelection(Visit visit, TIntermSelection *node) override;
-    bool visitSwitch(Visit visit, TIntermSwitch *node) override;
-    bool visitCase(Visit visit, TIntermCase *node) override;
-    bool visitAggregate(Visit visit, TIntermAggregate *node) override;
-    bool visitLoop(Visit visit, TIntermLoop *node) override;
-    bool visitBranch(Visit visit, TIntermBranch *node) override;
+    virtual void visitSymbol(TIntermSymbol *node);
+    virtual void visitConstantUnion(TIntermConstantUnion *node);
+    virtual bool visitBinary(Visit visit, TIntermBinary *node);
+    virtual bool visitUnary(Visit visit, TIntermUnary *node);
+    virtual bool visitSelection(Visit visit, TIntermSelection *node);
+    virtual bool visitAggregate(Visit visit, TIntermAggregate *node);
+    virtual bool visitLoop(Visit visit, TIntermLoop *node);
+    virtual bool visitBranch(Visit visit, TIntermBranch *node);
 
     void visitCodeBlock(TIntermNode *node);
 
@@ -58,17 +48,14 @@ class TOutputGLSLBase : public TIntermTraverser
     TString hashName(const TString &name);
     // Same as hashName(), but without hashing built-in variables.
     TString hashVariableName(const TString &name);
-    // Same as hashName(), but without hashing built-in functions and with unmangling.
-    TString hashFunctionNameIfNeeded(const TName &mangledName);
+    // Same as hashName(), but without hashing built-in functions.
+    TString hashFunctionName(const TString &mangled_name);
     // Used to translate function names for differences between ESSL and GLSL
     virtual TString translateTextureFunction(TString &name) { return name; }
 
   private:
     bool structDeclared(const TStructure *structure) const;
     void declareStruct(const TStructure *structure);
-
-    void declareInterfaceBlockLayout(const TInterfaceBlock *interfaceBlock);
-    void declareInterfaceBlock(const TInterfaceBlock *interfaceBlock);
 
     void writeBuiltInFunctionTriplet(Visit visit, const char *preStr, bool useEmulatedFunction);
 
@@ -91,8 +78,6 @@ class TOutputGLSLBase : public TIntermTraverser
     TSymbolTable &mSymbolTable;
 
     const int mShaderVersion;
-
-    ShShaderOutput mOutput;
 };
 
-#endif  // COMPILER_TRANSLATOR_OUTPUTGLSLBASE_H_
+#endif  // CROSSCOMPILERGLSL_OUTPUTGLSLBASE_H_

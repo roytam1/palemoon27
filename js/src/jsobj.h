@@ -26,7 +26,6 @@
 #include "vm/Shape.h"
 #include "vm/String.h"
 #include "vm/Xdr.h"
-#include "mozilla/TypedEnum.h"
 
 namespace JS {
 struct ClassInfo;

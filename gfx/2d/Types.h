@@ -8,6 +8,7 @@
 
 #include <stddef.h>
 #include <stdint.h>
+
 #include "mozilla/TypedEnum.h"
 
 namespace mozilla {
@@ -54,7 +55,7 @@ inline bool IsOpaque(SurfaceFormat aFormat)
   }
 }
 
-MOZ_BEGIN_ENUM_CLASS(FilterType, int8_t)
+MOZ_BEGIN_ENUM_CLASS(FilterType,int8_t)
   BLEND = 0,
   TRANSFORM,
   MORPHOLOGY,

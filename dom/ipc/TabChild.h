@@ -35,6 +35,7 @@
 #include "mozilla/layers/CompositorTypes.h"
 #include "nsIWebBrowserChrome3.h"
 #include "mozilla/dom/ipc/IdType.h"
+#include "mozilla/jsipc/CrossProcessObjectWrappers.h"
 
 class nsICachedFileDescriptorListener;
 class nsIDOMWindowUtils;

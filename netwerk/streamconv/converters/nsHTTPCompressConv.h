@@ -7,6 +7,7 @@
 #define	__nsHTTPCompressConv__h__	1
 
 #include "nsIStreamConverter.h"
+#include "nsAutoPtr.h"
 #include "nsCOMPtr.h"
 
 #include "zlib.h"
@@ -55,14 +56,14 @@ public:
         : mTotalOut(0)
         , mStatus(NS_OK)
     {
-        BrotliStateInit(&mState);
+        BrotliDecoderStateInit(&mState);
     }
     ~BrotliWrapper()
     {
-        BrotliStateCleanup(&mState);
+        BrotliDecoderStateCleanup(&mState);
     }
   
-    BrotliState mState;
+    BrotliDecoderState mState;
     size_t             mTotalOut;
     nsresult           mStatus;
   

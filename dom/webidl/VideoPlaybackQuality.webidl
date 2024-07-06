@@ -10,6 +10,7 @@
  * liability, trademark and document use rules apply.
  */
 
+[Func="mozilla::dom::MediaSource::Enabled"]
 interface VideoPlaybackQuality {
   readonly attribute DOMHighResTimeStamp creationTime;
   readonly attribute unsigned long totalVideoFrames;

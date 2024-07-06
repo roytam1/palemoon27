@@ -129,18 +129,11 @@ struct EnumSerializer {
 template <typename E,
           E MinLegal,
           E HighBound>
-class ContiguousEnumValidator
+struct ContiguousEnumValidator
 {
-  // Silence overzealous -Wtype-limits bug in GCC fixed in GCC 4.8:
-  // "comparison of unsigned expression >= 0 is always true"
-  // http://gcc.gnu.org/bugzilla/show_bug.cgi?id=11856
-  template <typename T>
-  static bool IsLessThanOrEqual(T a, T b) { return a <= b; }
-
-public:
   static bool IsLegalValue(E e)
   {
-    return IsLessThanOrEqual(MinLegal, e) && e < HighBound;
+    return MinLegal <= e && e < HighBound;
   }
 };
 

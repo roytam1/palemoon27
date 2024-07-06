@@ -95,8 +95,8 @@ public:
   }
 
 private:
-  Relation& operator = (const Relation&) = delete;
-  Relation(const Relation&) = delete;
+  Relation& operator = (const Relation&) MOZ_DELETE;
+  Relation(const Relation&) MOZ_DELETE;
 
   nsAutoPtr<AccIterable> mFirstIter;
   AccIterable* mLastIter;

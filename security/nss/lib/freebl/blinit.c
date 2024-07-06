@@ -44,11 +44,15 @@ check_xcr0_ymm()
     PRUint32 xcr0;
 #if defined(_MSC_VER)
 #if defined(_M_IX86)
+#  if _MSC_VER > 1400
     __asm {
         mov ecx, 0
         xgetbv
         mov xcr0, eax
     }
+#  else
+    xcr0 = 0;
+#  endif
 #else
     xcr0 = (PRUint32)_xgetbv(0); /* Requires VS2010 SP1 or later. */
 #endif /* _M_IX86 */
@@ -79,6 +83,7 @@ CheckX86CPUSupport()
     char *disable_pclmul = PR_GetEnvSecure("NSS_DISABLE_PCLMUL");
     char *disable_avx = PR_GetEnvSecure("NSS_DISABLE_AVX");
     char *disable_ssse3 = PR_GetEnvSecure("NSS_DISABLE_SSSE3");
+#if (!defined(_MSC_VER) || (defined(_MSC_VER) && _MSC_VER > 1400))
     freebl_cpuid(1, &eax, &ebx, &ecx, &edx);
     aesni_support_ = (PRBool)((ecx & ECX_AESNI) != 0 && disable_hw_aes == NULL);
     clmul_support_ = (PRBool)((ecx & ECX_CLMUL) != 0 && disable_pclmul == NULL);
@@ -88,6 +93,7 @@ CheckX86CPUSupport()
                    disable_avx == NULL;
     ssse3_support_ = (PRBool)((ecx & ECX_SSSE3) != 0 &&
                               disable_ssse3 == NULL);
+#endif
 }
 #endif /* NSS_X86_OR_X64 */
 

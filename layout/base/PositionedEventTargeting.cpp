@@ -179,14 +179,14 @@ IsElementClickable(nsIFrame* aFrame, nsIAtom* stopAt = nullptr)
   // ancestors to look for elements accepting the click.
   for (nsIContent* content = aFrame->GetContent(); content;
        content = content->GetFlattenedTreeParent()) {
-	   nsIAtom* tag = content->Tag();
-    if (content->IsHTMLElement() && stopAt && tag == stopAt) {
+    nsIAtom* tag = content->Tag();
+    if (content->IsHTML() && stopAt && tag == stopAt) {
       break;
     }
     if (HasTouchListener(content) || HasMouseListener(content)) {
       return true;
     }
-    if (content->IsHTMLElement()) {
+    if (content->IsHTML()) {
       if (tag == nsGkAtoms::button ||
           tag == nsGkAtoms::input ||
           tag == nsGkAtoms::select ||
@@ -194,22 +194,21 @@ IsElementClickable(nsIFrame* aFrame, nsIAtom* stopAt = nullptr)
           tag == nsGkAtoms::label) {
         return true;
       }
-
-    // Bug 921928: we don't have access to the content of remote iframe.
-    // So fluffing won't go there. We do an optimistic assumption here:
-    // that the content of the remote iframe needs to be a target.
-    if (tag == nsGkAtoms::iframe &&
+      // Bug 921928: we don't have access to the content of remote iframe.
+      // So fluffing won't go there. We do an optimistic assumption here:
+      // that the content of the remote iframe needs to be a target.
+      if (tag == nsGkAtoms::iframe &&
           content->AttrValueIs(kNameSpaceID_None, nsGkAtoms::mozbrowser,
                                nsGkAtoms::_true, eIgnoreCase) &&
           content->AttrValueIs(kNameSpaceID_None, nsGkAtoms::Remote,
                                nsGkAtoms::_true, eIgnoreCase)) {
-      return true;
+        return true;
       }
-	} else if (content->IsXULElement()) {
+    } else if (content->IsXUL()) {
       nsIAtom* tag = content->Tag();
-    // See nsCSSFrameConstructor::FindXULTagData. This code is not
-    // really intended to be used with XUL, though.
-    if (tag == nsGkAtoms::button ||
+      // See nsCSSFrameConstructor::FindXULTagData. This code is not
+      // really intended to be used with XUL, though.
+      if (tag == nsGkAtoms::button ||
           tag == nsGkAtoms::checkbox ||
           tag == nsGkAtoms::radio ||
           tag == nsGkAtoms::autorepeatbutton ||
@@ -219,10 +218,9 @@ IsElementClickable(nsIFrame* aFrame, nsIAtom* stopAt = nullptr)
           tag == nsGkAtoms::menulist ||
           tag == nsGkAtoms::scrollbarbutton ||
           tag == nsGkAtoms::resizer) {
-      return true;
+        return true;
       }
-	}
-
+    }
     static nsIContent::AttrValuesArray clickableRoles[] =
       { &nsGkAtoms::button, &nsGkAtoms::key, nullptr };
     if (content->FindAttrValueIn(kNameSpaceID_None, nsGkAtoms::role,

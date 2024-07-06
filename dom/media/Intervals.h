@@ -428,7 +428,8 @@ public:
 
   SelfType& operator-= (const SelfType& aIntervals)
   {
-    for (const auto& interval : aIntervals.mIntervals) {
+    for (size_t i = 0; i < aIntervals.mIntervals.Length(); ++i) {
+      const auto& interval = aIntervals.mIntervals[i];
       *this -= interval;
     }
     return *this;
@@ -559,9 +560,8 @@ public:
   }
 
   bool Contains(const ElemType& aInterval) const {
-  uint32_t length = mIntervals.Length();
-    for (uint32_t i = 0; i < length; ++i) {
-    const auto& interval = mIntervals[i];
+    for (IndexType i = 0; i < mIntervals.Length(); i++) {
+      const ElemType& interval = mIntervals[i];
       if (aInterval.LeftOf(interval)) {
         // Will never succeed.
         return false;
@@ -574,7 +574,8 @@ public:
   }
 
   bool Contains(const T& aX) const {
-    for (const auto& interval : mIntervals) {
+    for (IndexType i = 0; i < mIntervals.Length(); i++) {
+      const ElemType& interval = mIntervals[i];
       if (interval.Contains(aX)) {
         return true;
       }
@@ -583,7 +584,8 @@ public:
   }
 
   bool ContainsStrict(const T& aX) const {
-    for (const auto& interval : mIntervals) {
+    for (IndexType i = 0; i < mIntervals.Length(); i++) {
+      const ElemType& interval = mIntervals[i];
       if (interval.ContainsStrict(aX)) {
         return true;
       }
@@ -592,7 +594,8 @@ public:
   }
 
   bool ContainsWithStrictEnd(const T& aX) const {
-    for (const auto& interval : mIntervals) {
+    for (IndexType i = 0; i < mIntervals.Length(); i++) {
+      const ElemType& interval = mIntervals[i];
       if (interval.ContainsWithStrictEnd(aX)) {
         return true;
       }
@@ -603,9 +606,8 @@ public:
   // Shift all values by aOffset.
   SelfType& Shift(const T& aOffset)
   {
-    uint32_t length = mIntervals.Length();
-    for (uint32_t i = 0; i < length; ++i) {
-    auto& interval = mIntervals[i];
+    for (IndexType i = 0; i < mIntervals.Length(); i++) {
+      ElemType& interval = mIntervals[i];
       interval.mStart = interval.mStart + aOffset;
       interval.mEnd = interval.mEnd + aOffset;
     }
@@ -613,9 +615,8 @@ public:
   }
 
   void SetFuzz(const T& aFuzz) {
-  uint32_t length = mIntervals.Length();
-    for (uint32_t i = 0; i < length; ++i) {
-    auto& interval = mIntervals[i];
+    for (IndexType i = 0; i < mIntervals.Length(); i++) {
+      ElemType& interval = mIntervals[i];
       interval.SetFuzz(aFuzz);
     }
     Normalize();

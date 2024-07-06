@@ -4,8 +4,8 @@
 // found in the LICENSE file.
 //
 
-#ifndef COMPILER_TRANSLATOR_VARIABLEPACKER_H_
-#define COMPILER_TRANSLATOR_VARIABLEPACKER_H_
+#ifndef _VARIABLEPACKER_INCLUDED_
+#define _VARIABLEPACKER_INCLUDED_
 
 #include <vector>
 #include "compiler/translator/VariableInfo.h"
@@ -38,4 +38,4 @@ class VariablePacker {
     std::vector<unsigned> rows_;
 };
 
-#endif // COMPILER_TRANSLATOR_VARIABLEPACKER_H_
+#endif // _VARIABLEPACKER_INCLUDED_

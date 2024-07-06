@@ -632,7 +632,7 @@ nsXULElement::PerformAccesskey(bool aKeyCausesActivation,
 {
     nsCOMPtr<nsIContent> content(this);
 
-    if (IsXULElement(nsGkAtoms::label)) {
+    if (Tag() == nsGkAtoms::label) {
         nsCOMPtr<nsIDOMElement> element;
 
         nsAutoString control;
@@ -857,7 +857,7 @@ nsXULElement::BindToTree(nsIDocument* aDocument,
     // We do this during binding, not element construction, because elements
     // can be moved from the document that creates them to another document.
 
-    if (!XULElementsRulesInMinimalXULSheet(NodeInfo()->NameAtom())) {
+    if (!XULElementsRulesInMinimalXULSheet(Tag())) {
       doc->EnsureOnDemandBuiltInUASheet(nsLayoutStylesheetCache::XULSheet());
       // To keep memory usage down it is important that we try and avoid
       // pulling xul.css into non-XUL documents. That should be very rare, and

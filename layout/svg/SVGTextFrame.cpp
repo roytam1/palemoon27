@@ -210,7 +210,7 @@ TrimOffsets(uint32_t& aStart, uint32_t& aLength,
 static nsIContent*
 GetFirstNonAAncestor(nsIContent* aContent)
 {
-  while (aContent && aContent->IsSVGElement(nsGkAtoms::a)) {
+  while (aContent && aContent->IsSVG(nsGkAtoms::a)) {
     aContent = aContent->GetParent();
   }
   return aContent;
@@ -240,10 +240,10 @@ GetFirstNonAAncestor(nsIContent* aContent)
 static bool
 IsTextContentElement(nsIContent* aContent)
 {
-if (!aContent->IsSVGElement()) {
+  if (!aContent->IsSVG()) {
     return false;
   }
-  
+
   if (aContent->Tag() == nsGkAtoms::text) {
     nsIContent* parent = GetFirstNonAAncestor(aContent->GetParent());
     return !parent || !IsTextContentElement(parent);
@@ -251,7 +251,7 @@ if (!aContent->IsSVGElement()) {
 
   if (aContent->Tag() == nsGkAtoms::textPath) {
     nsIContent* parent = GetFirstNonAAncestor(aContent->GetParent());
-    return parent && parent->IsSVGElement(nsGkAtoms::text);
+    return parent && parent->IsSVG(nsGkAtoms::text);
   }
 
   if (aContent->Tag() == nsGkAtoms::a ||
@@ -1726,7 +1726,7 @@ TextFrameIterator::Next()
       if (next) {
         // Descend into this frame, and accumulate its position.
         mCurrentPosition += next->GetPosition();
-        if (next->GetContent()->IsSVGElement(nsGkAtoms::textPath)) {
+        if (next->GetContent()->Tag() == nsGkAtoms::textPath) {
           // Record this <textPath> frame.
           mTextPathFrames.AppendElement(next);
         }
@@ -1747,7 +1747,7 @@ TextFrameIterator::Next()
           }
           // Remove the current frame's position.
           mCurrentPosition -= mCurrentFrame->GetPosition();
-          if (mCurrentFrame->GetContent()->IsSVGElement(nsGkAtoms::textPath)) {
+          if (mCurrentFrame->GetContent()->Tag() == nsGkAtoms::textPath) {
             // Pop off the <textPath> frame if this is a <textPath>.
             mTextPathFrames.TruncateLength(mTextPathFrames.Length() - 1);
           }
@@ -1761,7 +1761,7 @@ TextFrameIterator::Next()
           if (next) {
             // Moving to the next sibling.
             mCurrentPosition += next->GetPosition();
-            if (next->GetContent()->IsSVGElement(nsGkAtoms::textPath)) {
+            if (next->GetContent()->Tag() == nsGkAtoms::textPath) {
               // Record this <textPath> frame.
               mTextPathFrames.AppendElement(next);
             }
@@ -2993,7 +2993,7 @@ SVGTextDrawPathCallbacks::StrokeGeometry()
       GeneralPattern strokePattern;
       nsSVGUtils::MakeStrokePatternFor(mFrame, gfx, &strokePattern, /*aContextPaint*/ nullptr);
       if (strokePattern.GetPattern()) {
-        if (!mFrame->GetParent()->GetContent()->IsSVGElement()) {
+        if (!mFrame->GetParent()->GetContent()->IsSVG()) {
           // The cast that follows would be unsafe
           MOZ_ASSERT(false, "Our nsTextFrame's parent's content should be SVG");
           return;
@@ -3223,7 +3223,7 @@ SVGTextFrame::Init(nsIContent*       aContent,
                    nsContainerFrame* aParent,
                    nsIFrame*         aPrevInFlow)
 {
-  NS_ASSERTION(aContent->IsSVGElement(nsGkAtoms::text), "Content is not an SVG text");
+  NS_ASSERTION(aContent->IsSVG(nsGkAtoms::text), "Content is not an SVG text");
 
   SVGTextFrameBase::Init(aContent, aParent, aPrevInFlow);
   AddStateBits((aParent->GetStateBits() & NS_STATE_SVG_CLIPPATH_CHILD) |
@@ -3431,7 +3431,7 @@ SVGTextFrame::MutationObserver::AttributeChanged(
                                                 nsIAtom* aAttribute,
                                                 int32_t aModType)
 {
-  if (!aElement->IsSVGElement()) {
+  if (!aElement->IsSVG()) {
     return;
   }
 
@@ -3449,7 +3449,7 @@ SVGTextFrame::HandleAttributeChangeInDescendant(Element* aElement,
                                                 int32_t aNameSpaceID,
                                                 nsIAtom* aAttribute)
 {
-  if (aElement->IsSVGElement(nsGkAtoms::textPath)) {
+  if (aElement->Tag() == nsGkAtoms::textPath) {
     if (aNameSpaceID == kNameSpaceID_None &&
         aAttribute == nsGkAtoms::startOffset) {
       NotifyGlyphMetricsChange();
@@ -4446,7 +4446,7 @@ SVGTextFrame::ResolvePositionsForNode(nsIContent* aContent,
     return true;
   }
 
-  if (aContent->IsSVGElement(nsGkAtoms::textPath)) {
+  if (aContent->Tag() == nsGkAtoms::textPath) {
     // <textPath> elements are as if they are specified with x="0" y="0", but
     // only if they actually have some text content.
     if (HasTextContent(aContent)) {
@@ -4458,7 +4458,7 @@ SVGTextFrame::ResolvePositionsForNode(nsIContent* aContent,
       mPositions[aIndex].mPosition = gfxPoint();
       mPositions[aIndex].mStartOfChunk = true;
     }
-  } else if (!aContent->IsSVGElement(nsGkAtoms::a)) {
+  } else if (aContent->Tag() != nsGkAtoms::a) {
     // We have a text content element that can have x/y/dx/dy/rotate attributes.
     nsSVGElement* element = static_cast<nsSVGElement*>(aContent);
 
@@ -4556,7 +4556,7 @@ SVGTextFrame::ResolvePositionsForNode(nsIContent* aContent,
   }
 
   // Recurse to children.
-  bool inTextPath = aInTextPath || aContent->IsSVGElement(nsGkAtoms::textPath);
+  bool inTextPath = aInTextPath || aContent->Tag() == nsGkAtoms::textPath;
   for (nsIContent* child = aContent->GetFirstChild();
        child;
        child = child->GetNextSibling()) {
@@ -4567,7 +4567,7 @@ SVGTextFrame::ResolvePositionsForNode(nsIContent* aContent,
     }
   }
 
-  if (aContent->IsSVGElement(nsGkAtoms::textPath)) {
+  if (aContent->Tag() == nsGkAtoms::textPath) {
     // Force a new anchored chunk just after a <textPath>.
     aForceStartOfChunk = true;
   }
@@ -4855,7 +4855,7 @@ SVGTextFrame::GetTextPathPathElement(nsIFrame* aTextPathFrame)
   }
 
   Element* element = property->GetReferencedElement();
-  return (element && element->IsSVGElement(nsGkAtoms::path)) ?
+  return (element && element->IsSVG(nsGkAtoms::path)) ?
     static_cast<SVGPathElement*>(element) : nullptr;
 }
 

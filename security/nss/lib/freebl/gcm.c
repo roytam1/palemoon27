@@ -30,7 +30,7 @@ SECStatus gcm_HashMult_sftw32(gcmHashContext *ghash, const unsigned char *buf,
 
 /* Stub definitions for the above *_hw functions, which shouldn't be
  * used unless NSS_X86_OR_X64 is defined */
-#ifndef NSS_X86_OR_X64
+#if (!defined(NSS_X86_OR_X64) || (defined(_MSC_VER) && _MSC_VER <= 1400))
 SECStatus
 gcm_HashWrite_hw(gcmHashContext *ghash, unsigned char *outbuf)
 {

@@ -14,6 +14,7 @@
 #include "mozilla/dom/Promise.h"
 #include "mozilla/dom/URL.h"
 #include "mozilla/dom/workers/bindings/URL.h"
+#include "nsNetUtil.h"
 
 #include "WorkerPrivate.h"
 

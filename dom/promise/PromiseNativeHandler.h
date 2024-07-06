@@ -7,6 +7,7 @@
 #ifndef mozilla_dom_PromiseNativeHandler_h
 #define mozilla_dom_PromiseNativeHandler_h
 
+#include "js/Value.h"
 #include "nsISupports.h"
 
 namespace mozilla {

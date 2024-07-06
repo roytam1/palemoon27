@@ -4,8 +4,8 @@
 // found in the LICENSE file.
 //
 
-#ifndef COMPILER_TRANSLATOR_COMMON_H_
-#define COMPILER_TRANSLATOR_COMMON_H_
+#ifndef _COMMON_INCLUDED_
+#define _COMMON_INCLUDED_
 
 #include <map>
 #include <sstream>
@@ -14,9 +14,9 @@
 #include <limits>
 #include <stdio.h>
 
-#include "common/angleutils.h"
-#include "common/debug.h"
 #include "compiler/translator/PoolAlloc.h"
+#include "compiler/translator/compilerdebug.h"
+#include "common/angleutils.h"
 
 struct TSourceLoc {
     int first_file;
@@ -89,4 +89,4 @@ inline TString str(T i)
     return buffer;
 }
 
-#endif // COMPILER_TRANSLATOR_COMMON_H_
+#endif // _COMMON_INCLUDED_

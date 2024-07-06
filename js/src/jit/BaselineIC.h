@@ -632,108 +632,91 @@ class ICStub
     void markCode(JSTracer* trc, const char* name);
     void updateCode(JitCode* stubCode);
     void trace(JSTracer* trc);
-    
-    template <typename T>
+
+	template <typename T>
     static T* New(ICStubSpace* space, JitCode* code) {
         if (!code)
             return nullptr;
         return space->allocate<T>(code);
     }
 
-    template <typename T, typename A1>
-    static T* New(ICStubSpace* space, JitCode* code, A1&& a1) {
+	template <typename T, typename A>
+    static T* New(ICStubSpace* space, JitCode* code, A&& a) {
         if (!code)
             return nullptr;
-        return space->allocate<T>(code, mozilla::Forward<A1>(a1));
+        return space->allocate<T>(code, mozilla::Forward<A>(a));
     }
-    
-    template <typename T, typename A1, typename A2>
-    static T* New(ICStubSpace* space, JitCode* code, A1&& a1, A2&& a2) {
+
+    template <typename T, typename A, typename B>
+    static T* New(ICStubSpace* space, JitCode* code, A&& a, B&& b) {
         if (!code)
             return nullptr;
-        return space->allocate<T>(code, mozilla::Forward<A1>(a1), mozilla::Forward<A2>(a2));
+		return space->allocate<T>(code, mozilla::Forward<A>(a), mozilla::Forward<B>(b));
     }
-    
-    template <typename T, typename A1, typename A2, typename A3>
-    static T* New(ICStubSpace* space, JitCode* code, A1&& a1, A2&& a2, A3&& a3) {
+
+	template <typename T, typename A, typename B, typename C>
+    static T* New(ICStubSpace* space, JitCode* code, A&& a, B&& b, C&& c) {
         if (!code)
             return nullptr;
-        return space->allocate<T>(code, mozilla::Forward<A1>(a1), mozilla::Forward<A2>(a2), 
-	mozilla::Forward<A3>(a3));
+        return space->allocate<T>(code, mozilla::Forward<A>(a), 
+			mozilla::Forward<B>(b), mozilla::Forward<C>(c));
     }
-    
-    template <typename T, typename A1, typename A2, typename A3, typename A4>
-    static T* New(ICStubSpace* space, JitCode* code, A1&& a1, A2&& a2, A3&& a3, A4&& a4) {
+
+	template <typename T, typename A, typename B, typename C, typename D>
+    static T* New(ICStubSpace* space, JitCode* code, A&& a, B&& b, C&& c, D&& d) {
         if (!code)
             return nullptr;
-        return space->allocate<T>(code, mozilla::Forward<A1>(a1), mozilla::Forward<A2>(a2), 
-	mozilla::Forward<A3>(a3), mozilla::Forward<A4>(a4));
+        return space->allocate<T>(code, mozilla::Forward<A>(a), 
+			mozilla::Forward<B>(b), mozilla::Forward<C>(c), 
+			mozilla::Forward<D>(d));
     }
-    
-    template <typename T, typename A1, typename A2, typename A3, typename A4, typename A5>
-    static T* New(ICStubSpace* space, JitCode* code, A1&& a1, A2&& a2, A3&& a3, A4&& a4, 
-    A5&& a5) {
+
+	template <typename T, typename A, typename B, typename C, typename D, typename E>
+    static T* New(ICStubSpace* space, JitCode* code, A&& a, B&& b, C&& c, D&& d, E&& e) {
         if (!code)
             return nullptr;
-        return space->allocate<T>(code, mozilla::Forward<A1>(a1), mozilla::Forward<A2>(a2), 
-	mozilla::Forward<A3>(a3), mozilla::Forward<A4>(a4), mozilla::Forward<A5>(a5));
+        return space->allocate<T>(code, mozilla::Forward<A>(a), 
+			mozilla::Forward<B>(b), mozilla::Forward<C>(c), 
+			mozilla::Forward<D>(d), mozilla::Forward<E>(e));
     }
-    
-    template <typename T, typename A1, typename A2, typename A3, typename A4, typename A5, 
-    typename A6>
-    static T* New(ICStubSpace* space, JitCode* code, A1&& a1, A2&& a2, A3&& a3, A4&& a4, 
-    A5&& a5, A6&& a6) {
+
+	template <typename T, typename A, typename B, typename C, typename D, typename E, typename F>
+    static T* New(ICStubSpace* space, JitCode* code, A&& a, B&& b, C&& c, D&& d, E&& e, F&& f) {
         if (!code)
             return nullptr;
-        return space->allocate<T>(code, mozilla::Forward<A1>(a1), mozilla::Forward<A2>(a2), 
-	mozilla::Forward<A3>(a3), mozilla::Forward<A4>(a4), mozilla::Forward<A5>(a5), 
-	mozilla::Forward<A6>(a6));
+        return space->allocate<T>(code, mozilla::Forward<A>(a), 
+			mozilla::Forward<B>(b), mozilla::Forward<C>(c), 
+			mozilla::Forward<D>(d), mozilla::Forward<E>(e), mozilla::Forward<F>(f));
     }
-    
-    template <typename T, typename A1, typename A2, typename A3, typename A4, typename A5, 
-    typename A6, typename A7>
-    static T* New(ICStubSpace* space, JitCode* code, A1&& a1, A2&& a2, A3&& a3, A4&& a4, 
-    A5&& a5, A6&& a6, A7&& a7) {
+
+	template <typename T, typename A, typename B, typename C, typename D, typename E, typename F, typename G>
+    static T* New(ICStubSpace* space, JitCode* code, A&& a, B&& b, C&& c, D&& d, E&& e, F&& f, G&& g) {
         if (!code)
             return nullptr;
-        return space->allocate<T>(code, mozilla::Forward<A1>(a1), mozilla::Forward<A2>(a2), 
-	mozilla::Forward<A3>(a3), mozilla::Forward<A4>(a4), mozilla::Forward<A5>(a5), 
-	mozilla::Forward<A6>(a6), mozilla::Forward<A7>(a7));
+        return space->allocate<T>(code, mozilla::Forward<A>(a), 
+			mozilla::Forward<B>(b), mozilla::Forward<C>(c), 
+			mozilla::Forward<D>(d), mozilla::Forward<E>(e), mozilla::Forward<F>(f),
+			mozilla::Forward<G>(g));
     }
-    
-    template <typename T, typename A1, typename A2, typename A3, typename A4, typename A5, 
-    typename A6, typename A7, typename A8>
-    static T* New(ICStubSpace* space, JitCode* code, A1&& a1, A2&& a2, A3&& a3, A4&& a4, 
-    A5&& a5, A6&& a6, A7&& a7, A8&& a8) {
+
+	template <typename T, typename A, typename B, typename C, typename D, typename E, typename F, typename G, typename H>
+    static T* New(ICStubSpace* space, JitCode* code, A&& a, B&& b, C&& c, D&& d, E&& e, F&& f, G&& g, H&& h) {
         if (!code)
             return nullptr;
-        return space->allocate<T>(code, mozilla::Forward<A1>(a1), mozilla::Forward<A2>(a2), 
-	mozilla::Forward<A3>(a3), mozilla::Forward<A4>(a4), mozilla::Forward<A5>(a5), 
-	mozilla::Forward<A6>(a6), mozilla::Forward<A7>(a7), mozilla::Forward<A8>(a8));
+        return space->allocate<T>(code, mozilla::Forward<A>(a), 
+			mozilla::Forward<B>(b), mozilla::Forward<C>(c), 
+			mozilla::Forward<D>(d), mozilla::Forward<E>(e), mozilla::Forward<F>(f),
+			mozilla::Forward<G>(g), mozilla::Forward<H>(h));
     }
-    
-    template <typename T, typename A1, typename A2, typename A3, typename A4, typename A5, 
-    typename A6, typename A7, typename A8, typename A9>
-    static T* New(ICStubSpace* space, JitCode* code, A1&& a1, A2&& a2, A3&& a3, A4&& a4, 
-    A5&& a5, A6&& a6, A7&& a7, A8&& a8, A9&& a9) {
+
+	template <typename T, typename A, typename B, typename C, typename D, typename E, typename F, typename G, typename H, typename P>
+    static T* New(ICStubSpace* space, JitCode* code, A&& a, B&& b, C&& c, D&& d, E&& e, F&& f, G&& g, H&& h, P&& p) {
         if (!code)
             return nullptr;
-        return space->allocate<T>(code, mozilla::Forward<A1>(a1), mozilla::Forward<A2>(a2), 
-	mozilla::Forward<A3>(a3), mozilla::Forward<A4>(a4), mozilla::Forward<A5>(a5), 
-	mozilla::Forward<A6>(a6), mozilla::Forward<A7>(a7), mozilla::Forward<A8>(a8), 
-	mozilla::Forward<A9>(a9));
-    }
-    
-    template <typename T, typename A1, typename A2, typename A3, typename A4, typename A5, 
-    typename A6, typename A7, typename A8, typename A9, typename A10>
-    static T* New(ICStubSpace* space, JitCode* code, A1&& a1, A2&& a2, A3&& a3, A4&& a4, 
-    A5&& a5, A6&& a6, A7&& a7, A8&& a8, A9&& a9, A10&& a10) {
-        if (!code)
-            return nullptr;
-        return space->allocate<T>(code, mozilla::Forward<A1>(a1), mozilla::Forward<A2>(a2), 
-	mozilla::Forward<A3>(a3), mozilla::Forward<A4>(a4), mozilla::Forward<A5>(a5), 
-	mozilla::Forward<A6>(a6), mozilla::Forward<A7>(a7), mozilla::Forward<A8>(a8), 
-	mozilla::Forward<A9>(a9), mozilla::Forward<A10>(a10));
+        return space->allocate<T>(code, mozilla::Forward<A>(a), 
+			mozilla::Forward<B>(b), mozilla::Forward<C>(c), 
+			mozilla::Forward<D>(d), mozilla::Forward<E>(e), mozilla::Forward<F>(f),
+			mozilla::Forward<G>(g), mozilla::Forward<H>(h), mozilla::Forward<P>(p));
     }
 
   protected:

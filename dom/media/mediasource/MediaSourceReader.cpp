@@ -7,6 +7,8 @@
 
 #include <cmath>
 #include "prlog.h"
+#include "TimeUnits.h"
+#include "mozilla/Preferences.h"
 #include "DecoderTraits.h"
 #include "MediaDecoderOwner.h"
 #include "MediaFormatReader.h"
@@ -1001,19 +1003,16 @@ MediaSourceReader::GetBuffered()
   // Must set the capacity of the nsTArray first: bug #1164444
   activeRanges.SetCapacity(mTrackBuffers.Length());
 
-  TrackBuffer* trackBuffer;
-  uint32_t i;
-  for (i = 0; i <= mTrackBuffers.Length(); i++) {
-    activeRanges.AppendElement(trackBuffer->Buffered());
+  for (size_t i = 0; i <= mTrackBuffers.Length(); i++) {
+    activeRanges.AppendElement(mTrackBuffers[i]->Buffered());
     highestEndTime = std::max(highestEndTime, activeRanges.LastElement().GetEnd());
   }
 
   buffered +=
     media::TimeInterval(media::TimeUnit::FromMicroseconds(0), highestEndTime);
 
-    SourceBufferDecoder* decoder;
-    media::TimeIntervals range = decoder->GetBuffered();
-  for (i = 0; i <= activeRanges.Length(); i++) {
+  for (size_t i = 0; i <= activeRanges.Length(); i++) {
+    media::TimeIntervals& range = activeRanges[i];
     if (IsEnded() && range.Length()) {
       // Set the end time on the last range to highestEndTime by adding a
       // new range spanning the current end time to highestEndTime, which

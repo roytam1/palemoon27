@@ -13,6 +13,7 @@
 #include "mozilla/Attributes.h"
 #include "mozilla/Compiler.h"
 #include "mozilla/Move.h"
+#include "mozilla/NullPtr.h"
 #include "mozilla/Pair.h"
 #include "mozilla/TypeTraits.h"
 
@@ -229,9 +230,10 @@ public:
     : mTuple(aOther.release(), Forward<DeleterType>(aOther.getDeleter()))
   {}
 
-  MOZ_IMPLICIT
-  UniquePtr(decltype(nullptr))
-    : mTuple(nullptr, DeleterType())
+  template<typename N>
+  UniquePtr(N,
+            typename EnableIf<IsNullPointer<N>::value, int>::Type aDummy = 0)
+    : mTuple(static_cast<Pointer>(nullptr), DeleterType())
   {
     static_assert(!IsPointer<D>::value, "must provide a deleter instance");
     static_assert(!IsReference<D>::value, "must provide a deleter instance");
@@ -273,8 +275,9 @@ public:
     return *this;
   }
 
-  UniquePtr& operator=(decltype(nullptr))
+  UniquePtr& operator=(NullptrT aNull)
   {
+    MOZ_ASSERT(aNull == nullptr);
     reset(nullptr);
     return *this;
   }
@@ -366,7 +369,7 @@ private:
             typename EnableIf<IsPointer<U>::value &&
                               IsConvertible<U, Pointer>::value,
                               int>::Type aDummy = 0)
-  = delete;
+  MOZ_DELETE;
 
 public:
   UniquePtr(Pointer aPtr,
@@ -395,16 +398,17 @@ private:
             typename EnableIf<IsPointer<U>::value &&
                               IsConvertible<U, Pointer>::value,
                               int>::Type aDummy = 0)
-  = delete;
+  MOZ_DELETE;
 
 public:
   UniquePtr(UniquePtr&& aOther)
     : mTuple(aOther.release(), Forward<DeleterType>(aOther.getDeleter()))
   {}
 
-  MOZ_IMPLICIT
-  UniquePtr(decltype(nullptr))
-    : mTuple(nullptr, DeleterType())
+  template<typename N>
+  UniquePtr(N,
+            typename EnableIf<IsNullPointer<N>::value, int>::Type aDummy = 0)
+    : mTuple(static_cast<Pointer>(nullptr), DeleterType())
   {
     static_assert(!IsPointer<D>::value, "must provide a deleter instance");
     static_assert(!IsReference<D>::value, "must provide a deleter instance");
@@ -419,7 +423,7 @@ public:
     return *this;
   }
 
-  UniquePtr& operator=(decltype(nullptr))
+  UniquePtr& operator=(NullptrT)
   {
     reset();
     return *this;
@@ -460,7 +464,14 @@ public:
 
 private:
   template<typename U>
-  void reset(U) MOZ_DELETE;
+  void reset(U,
+             typename EnableIf<!IsNullPointer<U>::value &&
+                               !IsSame<U,
+                                       Conditional<(sizeof(int) == sizeof(void*)),
+                                                   int,
+                                                   long>::Type>::value,
+                               int>::Type aDummy = 0)
+  MOZ_DELETE;
 
 public:
   void swap(UniquePtr& aOther) { mTuple.swap(aOther.mTuple); }
@@ -531,29 +542,33 @@ operator!=(const UniquePtr<T, D>& aX, const UniquePtr<U, E>& aY)
 
 template<typename T, class D>
 bool
-operator==(const UniquePtr<T, D>& aX, decltype(nullptr))
+operator==(const UniquePtr<T, D>& aX, NullptrT aNull)
 {
+  MOZ_ASSERT(aNull == nullptr);
   return !aX;
 }
 
 template<typename T, class D>
 bool
-operator==(decltype(nullptr), const UniquePtr<T, D>& aX)
+operator==(NullptrT aNull, const UniquePtr<T, D>& aX)
 {
+  MOZ_ASSERT(aNull == nullptr);
   return !aX;
 }
 
 template<typename T, class D>
 bool
-operator!=(const UniquePtr<T, D>& aX, decltype(nullptr))
+operator!=(const UniquePtr<T, D>& aX, NullptrT aNull)
 {
+  MOZ_ASSERT(aNull == nullptr);
   return bool(aX);
 }
 
 template<typename T, class D>
 bool
-operator!=(decltype(nullptr), const UniquePtr<T, D>& aX)
+operator!=(NullptrT aNull, const UniquePtr<T, D>& aX)
 {
+  MOZ_ASSERT(aNull == nullptr);
   return bool(aX);
 }
 
@@ -769,6 +784,7 @@ template<typename T, typename A1, typename A2, typename A3, typename A4,
 typename detail::UniqueSelector<T>::KnownBound
 MakeUnique(A1&& a1, A2&& a2, A3&& a3, A4&& a4, A5&& a5, A6&& a6,
            A7&& a7, A8&& a8) MOZ_DELETE;
+
 } // namespace mozilla
 
 #endif /* mozilla_UniquePtr_h */

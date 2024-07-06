@@ -11,7 +11,6 @@
 
 #include "jsfriendapi.h"
 #include "jstypes.h"
-#include "mozilla/TypedEnum.h"
 
 #include "js/Value.h"
 

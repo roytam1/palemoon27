@@ -24,6 +24,7 @@
 #include "nsAutoPtr.h"
 #include "nsTWeakRef.h"
 #include "nsCrashOnException.h"
+#include "nsPluginHost.h"
 
 using namespace mozilla;
 

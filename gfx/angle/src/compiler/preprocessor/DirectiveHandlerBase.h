@@ -4,8 +4,8 @@
 // found in the LICENSE file.
 //
 
-#ifndef COMPILER_PREPROCESSOR_DIRECTIVEHANDLERBASE_H_
-#define COMPILER_PREPROCESSOR_DIRECTIVEHANDLERBASE_H_
+#ifndef COMPILER_PREPROCESSOR_DIRECTIVE_HANDLER_H_
+#define COMPILER_PREPROCESSOR_DIRECTIVE_HANDLER_H_
 
 #include <string>
 
@@ -29,8 +29,7 @@ class DirectiveHandler
     // Handle pragma of form: #pragma name[(value)]
     virtual void handlePragma(const SourceLocation &loc,
                               const std::string &name,
-                              const std::string &value,
-                              bool stdgl) = 0;
+                              const std::string &value) = 0;
 
     virtual void handleExtension(const SourceLocation &loc,
                                  const std::string &name,
@@ -41,5 +40,4 @@ class DirectiveHandler
 };
 
 }  // namespace pp
-
-#endif  // COMPILER_PREPROCESSOR_DIRECTIVEHANDLERBASE_H_
+#endif  // COMPILER_PREPROCESSOR_DIRECTIVE_HANDLER_H_

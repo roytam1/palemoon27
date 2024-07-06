@@ -7,13 +7,12 @@
 #ifndef MOZILLA_SOURCEBUFFERCONTENTMANAGER_H_
 #define MOZILLA_SOURCEBUFFERCONTENTMANAGER_H_
 
+#include "mozilla/TypedEnum.h"
+#include "TimeUnits.h"
 #include "MediaData.h"
 #include "MediaPromise.h"
 #include "MediaSourceDecoder.h"
-#include "SourceBuffer.h"
-#include "TimeUnits.h"
 #include "nsString.h"
-#include "mozilla/TypedEnum.h"
 
 namespace mozilla {
 
@@ -23,6 +22,10 @@ namespace dom {
 
 using media::TimeUnit;
 using media::TimeIntervals;
+
+namespace dom {
+class SourceBuffer;
+}
 
 class SourceBufferContentManager {
 public:

@@ -8,6 +8,7 @@
 #include "mozilla/Attributes.h"
 #include "mozilla/EventForwards.h"
 #include "nsTitleBarFrame.h"
+#include "Units.h"
 
 class nsIBaseWindow;
 class nsMenuPopupFrame;
@@ -66,8 +67,8 @@ protected:
   static void RestoreOriginalSize(nsIContent* aContent);
 
 protected:
-  LayoutDeviceIntRect mMouseDownRect;
-  LayoutDeviceIntPoint mMouseDownPoint;
+	mozilla::LayoutDeviceIntRect mMouseDownRect;
+	mozilla::LayoutDeviceIntPoint mMouseDownPoint;
 }; // class nsResizerFrame
 
 #endif /* nsResizerFrame_h___ */

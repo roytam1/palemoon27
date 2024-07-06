@@ -7,6 +7,7 @@
 #define GMPUtils_h_
 
 #include "mozilla/UniquePtr.h"
+#include "nsIFile.h"
 
 namespace mozilla {
 

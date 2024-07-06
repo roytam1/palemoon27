@@ -65,6 +65,7 @@
 #include "CanvasImageCache.h"
 
 #include <algorithm>
+#include <math.h>
 #include <stdlib.h>
 #include <time.h>
 
@@ -1636,7 +1637,6 @@ CanvasRenderingContext2D::GetInputStream(const char *aMimeType,
     // so always 4-value pixels.
     // GetImageBuffer => SurfaceToPackedBGRA [=> ConvertBGRXToBGRA]
     int32_t dataSize = mWidth * mHeight * 4;
-#pragma omp parallel for
     for (int32_t j = 0; j < dataSize; ++j) {
       if (imageBuffer[j] !=0 && imageBuffer[j] != 255)
         imageBuffer[j] += rand() % 3 - 1;
@@ -2421,17 +2421,10 @@ ValidateRect(double& aX, double& aY, double& aWidth, double& aHeight)
   // The values of canvas API input are in double precision, but Moz2D APIs are
   // using float precision. Bypass canvas API calls when the input is out of
   // float precision to avoid precision problem
-  #if defined (_MSC_VER) && _MSC_VER <= 1700
-  if (!_finite((float)aX) | _finite((float)aY) |
-      !_finite((float)aWidth) | _finite((float)aHeight)) {
+  if (!_finite((float)aX) | !_finite((float)aY) |
+      !_finite((float)aWidth) | !_finite((float)aHeight)) {
     return false;
   }
-  #else
-  if (!std::isfinite((float)aX) | !std::isfinite((float)aY) |
-      !std::isfinite((float)aWidth) | !std::isfinite((float)aHeight)) {
-    return false;
-  }
-  #endif
 
   // bug 1074733
   // The canvas spec does not forbid rects with negative w or h, so given

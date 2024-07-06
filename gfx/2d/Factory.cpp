@@ -34,12 +34,13 @@
 
 #ifdef WIN32
 #include "DrawTargetD2D.h"
-#ifdef USE_D2D1_1
-#include "DrawTargetD2D1.h"
-#endif
 #include "ScaledFontDWrite.h"
 #include <d3d10_1.h>
 #include "HelpersD2D.h"
+#endif
+
+#ifdef USE_D2D1_1
+#include "DrawTargetD2D1.h"
 #endif
 
 #include "DrawTargetDual.h"
@@ -184,8 +185,10 @@ void PreferenceAccess::SetAccess(PreferenceAccess* aAccess) {
 
 #ifdef WIN32
 ID3D10Device1 *Factory::mD3D10Device;
+#ifdef USE_D2D1_1
 ID3D11Device *Factory::mD3D11Device;
 ID2D1Device *Factory::mD2D1Device;
+#endif
 #endif
 
 DrawEventRecorder *Factory::mRecorder;
@@ -340,7 +343,7 @@ Factory::CreateDrawTarget(BackendType aBackend, const IntSize &aSize, SurfaceFor
       }
       break;
     }
-	#ifdef USE_D2D1_1
+  #ifdef USE_D2D1_1
   case BackendType::DIRECT2D1_1:
     {
       RefPtr<DrawTargetD2D1> newTarget;
@@ -350,7 +353,7 @@ Factory::CreateDrawTarget(BackendType aBackend, const IntSize &aSize, SurfaceFor
       }
       break;
     }
-	#endif
+#endif
 #elif defined XP_MACOSX
   case BackendType::COREGRAPHICS:
   case BackendType::COREGRAPHICS_ACCELERATED:
@@ -517,10 +520,10 @@ Factory::GetMaxSurfaceSize(BackendType aType)
 #ifdef WIN32
   case BackendType::DIRECT2D:
     return DrawTargetD2D::GetMaxSurfaceSize();
-	#ifdef USE_D2D1_1
+#ifdef USE_D2D1_1
   case BackendType::DIRECT2D1_1:
     return DrawTargetD2D1::GetMaxSurfaceSize();
-	#endif
+#endif
 #endif
   default:
     return 0;
@@ -779,13 +782,13 @@ Factory::GetD2DVRAMUsageSourceSurface()
 void
 Factory::D2DCleanup()
 {
-#ifdef USE_D2D1_1
+  #ifdef USE_D2D1_1
   if (mD2D1Device) {
     mD2D1Device->Release();
     mD2D1Device = nullptr;
   }
   DrawTargetD2D1::CleanupD2D();
-  #endif
+#endif
   DrawTargetD2D::CleanupD2D();
 }
 

@@ -6643,8 +6643,9 @@ nsWindow::GetPreferredCompositorBackends(nsTArray<LayersBackend>& aHints)
 
     if (!prefs.mPreferD3D9) {
       aHints.AppendElement(LayersBackend::LAYERS_D3D11);
-    } else {
-      // We don't want D3D9 except when explicitly preffed on
+    }
+    if (prefs.mPreferD3D9 || !mozilla::IsVistaOrLater()) {
+      // We don't want D3D9 except on Windows XP
       aHints.AppendElement(LayersBackend::LAYERS_D3D9);
     }
   }

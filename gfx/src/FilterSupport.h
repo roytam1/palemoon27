@@ -13,7 +13,7 @@
 #include "mozilla/gfx/2D.h"
 #include "nsClassHashtable.h"
 #include "nsTArray.h"
-#include "nsRegion.h" // includes TypedEnum.h
+#include "nsRegion.h"
 
 namespace mozilla {
 namespace gfx {

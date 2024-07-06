@@ -49,8 +49,10 @@ void Write255UShort(std::vector<uint8_t>* out, int value) {
 void Store255UShort(int val, size_t* offset, uint8_t* dst) {
   std::vector<uint8_t> packed;
   Write255UShort(&packed, val);
-	  uint8_t packed_byte;
+  for (size_t i = 0; i < packed.size(); i++) {
+    uint8_t packed_byte = packed[i];
     dst[(*offset)++] = packed_byte;
+  }
 }
 
 // Based on section 6.1.1 of MicroType Express draft spec

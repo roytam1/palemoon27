@@ -14,6 +14,7 @@
 #include "gfxPlatform.h"
 #include "gfxUtils.h"
 #include "gfxAlphaRecovery.h"
+#include "mozilla/gfx/Logging.h"
 
 static bool gDisableOptimize = false;
 
@@ -30,6 +31,8 @@ static bool gDisableOptimize = false;
 namespace mozilla {
 
 using namespace gfx;
+using namespace mozilla;
+using namespace mozilla::gfx;
 
 namespace image {
 

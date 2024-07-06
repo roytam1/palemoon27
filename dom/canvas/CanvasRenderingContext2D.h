@@ -27,6 +27,7 @@
 #include "mozilla/EnumeratedArray.h"
 #include "FilterSupport.h"
 #include "nsSVGEffects.h"
+#include "mozilla/TypedEnum.h"
 
 class nsGlobalWindow;
 class nsXULElement;
@@ -554,7 +555,7 @@ public:
     GRADIENT = 2
   MOZ_END_NESTED_ENUM_CLASS(CanvasMultiGetterType)
 
-   MOZ_BEGIN_NESTED_ENUM_CLASS(Style, uint8_t)
+  MOZ_BEGIN_NESTED_ENUM_CLASS(Style, uint8_t)
     STROKE = 0,
     FILL,
     MAX

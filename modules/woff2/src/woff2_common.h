@@ -18,7 +18,11 @@
 #define WOFF2_WOFF2_COMMON_H_
 
 #include <stddef.h>
+#if defined(_MSC_VER) && _MSC_VER >= 1800
+#include <inttypes.h>
+#else
 #include "mozilla/MSIntTypes.h"
+#endif
 
 #include <string>
 

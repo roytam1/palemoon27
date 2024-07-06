@@ -11,6 +11,8 @@
 #include "nsIOutputStream.h"
 #include "nsAutoPtr.h"
 #include "nsCycleCollectionParticipant.h"
+#include "nsCOMPtr.h"
+#include "nsIObserverService.h"
 
 //-----------------------------------------------------------------------------
 

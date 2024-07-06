@@ -23,8 +23,8 @@
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef THIRD_PARTY_SYSTEMINFO_SYSTEMINFO_H_
-#define THIRD_PARTY_SYSTEMINFO_SYSTEMINFO_H_
+#ifndef SystemInfo_h
+#define SystemInfo_h
 
 namespace rx {
 
@@ -32,4 +32,4 @@ bool isWindowsVistaOrGreater();
 
 } // namespace rx
 
-#endif // THIRD_PARTY_SYSTEMINFO_SYSTEMINFO_H_
+#endif // SystemInfo_h

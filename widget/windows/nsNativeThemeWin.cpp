@@ -851,7 +851,7 @@ bool
 nsNativeThemeWin::IsMenuActive(nsIFrame *aFrame, uint8_t aWidgetType)
 {
   nsIContent* content = aFrame->GetContent();
-  if (content->IsXULElement() &&
+  if (content->IsXUL() &&
       content->NodeInfo()->Equals(nsGkAtoms::richlistitem))
     return CheckBooleanAttr(aFrame, nsGkAtoms::selected);
 
@@ -971,7 +971,7 @@ nsNativeThemeWin::GetThemePartAndState(nsIFrame* aFrame, uint8_t aWidgetType,
           /* XUL textboxes don't get focused themselves, because they have child
            * html:input.. but we can check the XUL focused attributes on them
            */
-          if (content && content->IsXULElement() && IsFocused(aFrame))
+          if (content && content->IsXUL() && IsFocused(aFrame))
             aState = TFS_EDITBORDER_FOCUSED;
           else if (eventState.HasAtLeastOneOfStates(NS_EVENT_STATE_ACTIVE | NS_EVENT_STATE_FOCUS))
             aState = TFS_EDITBORDER_FOCUSED;
@@ -1290,7 +1290,7 @@ nsNativeThemeWin::GetThemePartAndState(nsIFrame* aFrame, uint8_t aWidgetType,
     }
     case NS_THEME_DROPDOWN: {
       nsIContent* content = aFrame->GetContent();
-      bool isHTML = content && content->IsHTMLElement();
+      bool isHTML = content && content->IsHTML();
       bool useDropBorder = isHTML || IsMenuListEditable(aFrame);
       EventStates eventState = GetContentState(aFrame, aWidgetType);
 
@@ -1888,7 +1888,7 @@ RENDER_AGAIN:
   // Draw focus rectangles for XP HTML checkboxes and radio buttons
   // XXX it'd be nice to draw these outside of the frame
   if (((aWidgetType == NS_THEME_CHECKBOX || aWidgetType == NS_THEME_RADIO) &&
-        aFrame->GetContent()->IsHTMLElement()) ||
+        aFrame->GetContent()->IsHTML()) ||
       aWidgetType == NS_THEME_RANGE ||
       aWidgetType == NS_THEME_SCALE_HORIZONTAL ||
       aWidgetType == NS_THEME_SCALE_VERTICAL) {
@@ -2049,7 +2049,7 @@ nsNativeThemeWin::GetWidgetBorder(nsDeviceContext* aContext,
                  aWidgetType == NS_THEME_TEXTFIELD ||
                  aWidgetType == NS_THEME_TEXTFIELD_MULTILINE)) {
     nsIContent* content = aFrame->GetContent();
-    if (content && content->IsHTMLElement()) {
+    if (content && content->IsHTML()) {
       // We need to pad textfields by 1 pixel, since the caret will draw
       // flush against the edge by default if we don't.
       aResult->top++;
@@ -2133,7 +2133,7 @@ nsNativeThemeWin::GetWidgetPadding(nsDeviceContext* aContext,
 
     /* textfields need extra pixels on all sides, otherwise they
      * wrap their content too tightly.  The actual border is drawn 1px
-     * inside the specified rectangle, so Goanna will end up making the
+     * inside the specified rectangle, so Gecko will end up making the
      * contents look too small.  Instead, we add 2px padding for the
      * contents and fix this. (Used to be 1px added, see bug 430212)
      */
@@ -2387,7 +2387,7 @@ nsNativeThemeWin::GetMinimumWidgetSize(nsPresContext* aPresContext, nsIFrame* aF
       // FIXME bug 403934: We should probably really separate
       // GetPreferredWidgetSize from GetMinimumWidgetSize, so callers can
       // use the one they want.
-      if (aFrame->GetContent()->IsHTMLElement()) {
+      if (aFrame->GetContent()->IsHTML()) {
         sizeReq = TS_MIN;
       }
       break;
@@ -3120,7 +3120,7 @@ nsresult nsNativeThemeWin::ClassicGetThemePartAndState(nsIFrame* aFrame, uint8_t
           const nsStyleUserInterface *uiData = aFrame->StyleUserInterface();
           // The down state is flat if the button is focusable
           if (uiData->mUserFocus == NS_STYLE_USER_FOCUS_NORMAL) {
-            if (!aFrame->GetContent()->IsHTMLElement())
+            if (!aFrame->GetContent()->IsHTML())
               aState |= DFCS_FLAT;
 
             aFocused = true;
@@ -3162,7 +3162,7 @@ nsresult nsNativeThemeWin::ClassicGetThemePartAndState(nsIFrame* aFrame, uint8_t
       }
 
       contentState = GetContentState(aFrame, aWidgetType);
-      if (!content->IsXULElement() &&
+      if (!content->IsXUL() &&
           contentState.HasState(NS_EVENT_STATE_FOCUS)) {
         aFocused = true;
       }
@@ -3682,7 +3682,7 @@ RENDER_AGAIN:
 
       // Fill in background
       if (IsDisabled(aFrame, eventState) ||
-          (aFrame->GetContent()->IsXULElement() &&
+          (aFrame->GetContent()->IsXUL() &&
            IsReadOnly(aFrame)))
         ::FillRect(hdc, &widgetRect, (HBRUSH) (COLOR_BTNFACE+1));
       else

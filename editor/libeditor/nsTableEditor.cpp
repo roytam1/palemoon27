@@ -219,8 +219,8 @@ nsHTMLEditor::GetFirstRow(nsIDOMElement* aTableElement, nsIDOMNode** aRowNode)
     nsCOMPtr<nsIContent> content = do_QueryInterface(tableChild);
     if (content)
     {
-	nsIAtom *atom = content->Tag();
-	
+      nsIAtom *atom = content->Tag();
+
       if (atom == nsGkAtoms::tr) {
         // Found a row directly under <table>
         *aRowNode = tableChild;
@@ -3369,7 +3369,7 @@ nsHTMLEditor::IsEmptyCell(dom::Element* aCell)
 
   // We insert a single break into a cell by default
   //   to have some place to locate a cursor -- it is dispensable
-  if (cellChild->IsHTMLElement(nsGkAtoms::br)) {
+  if (cellChild->IsElement() && cellChild->AsElement()->IsHTML(nsGkAtoms::br)) {
     return true;
   }
 

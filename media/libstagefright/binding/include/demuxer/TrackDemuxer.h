@@ -5,6 +5,8 @@
 #ifndef TRACK_DEMUXER_H_
 #define TRACK_DEMUXER_H_
 
+#include "mozilla/MSIntTypes.h"
+
 template <class T> struct already_AddRefed;
 
 namespace mozilla {

@@ -150,7 +150,7 @@ nsMathMLElement::ParseAttribute(int32_t aNamespaceID,
                                 nsAttrValue& aResult)
 {
   if (aNamespaceID == kNameSpaceID_None) {
-    if (IsMathMLElement(nsGkAtoms::math) && aAttribute == nsGkAtoms::mode) {
+    if (Tag() == nsGkAtoms::math && aAttribute == nsGkAtoms::mode) {
       WarnDeprecated(nsGkAtoms::mode->GetUTF16String(),
                      nsGkAtoms::display->GetUTF16String(), OwnerDoc());
     }

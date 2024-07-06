@@ -42,6 +42,10 @@
 #include "plstr.h"
 #include "prerror.h"
 
+#ifndef PR_GetEnvSecure
+#define PR_GetEnvSecure PR_GetEnv
+#endif
+
 /* softoken headers */
 #include "pkcs11.h"
 #include "pkcs11t.h"

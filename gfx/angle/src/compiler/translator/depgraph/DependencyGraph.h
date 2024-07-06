@@ -4,8 +4,8 @@
 // found in the LICENSE file.
 //
 
-#ifndef COMPILER_TRANSLATOR_DEPGRAPH_DEPENDENCYGRAPH_H_
-#define COMPILER_TRANSLATOR_DEPGRAPH_DEPENDENCYGRAPH_H_
+#ifndef COMPILER_DEPGRAPH_DEPENDENCY_GRAPH_H
+#define COMPILER_DEPGRAPH_DEPENDENCY_GRAPH_H
 
 #include "compiler/translator/IntermNode.h"
 
@@ -46,10 +46,9 @@ protected:
 class TGraphParentNode : public TGraphNode {
 public:
     TGraphParentNode(TIntermNode* node) : TGraphNode(node) {}
-    ~TGraphParentNode() override {}
+    virtual ~TGraphParentNode() {}
     void addDependentNode(TGraphNode* node) { if (node != this) mDependentNodes.insert(node); }
-    void traverse(TDependencyGraphTraverser *graphTraverser) override;
-
+    virtual void traverse(TDependencyGraphTraverser* graphTraverser);
 private:
     TGraphNodeSet mDependentNodes;
 };
@@ -62,11 +61,10 @@ public:
     TGraphArgument(TIntermAggregate* intermFunctionCall, int argumentNumber)
         : TGraphParentNode(intermFunctionCall)
         , mArgumentNumber(argumentNumber) {}
-    ~TGraphArgument() override {}
+    virtual ~TGraphArgument() {}
     const TIntermAggregate* getIntermFunctionCall() const { return intermNode->getAsAggregate(); }
     int getArgumentNumber() const { return mArgumentNumber; }
-    void traverse(TDependencyGraphTraverser *graphTraverser) override;
-
+    virtual void traverse(TDependencyGraphTraverser* graphTraverser);
 private:
     int mArgumentNumber;
 };
@@ -78,9 +76,9 @@ class TGraphFunctionCall : public TGraphParentNode {
 public:
     TGraphFunctionCall(TIntermAggregate* intermFunctionCall)
         : TGraphParentNode(intermFunctionCall) {}
-    ~TGraphFunctionCall() override {}
+    virtual ~TGraphFunctionCall() {}
     const TIntermAggregate* getIntermFunctionCall() const { return intermNode->getAsAggregate(); }
-    void traverse(TDependencyGraphTraverser *graphTraverser) override;
+    virtual void traverse(TDependencyGraphTraverser* graphTraverser);
 };
 
 //
@@ -89,9 +87,9 @@ public:
 class TGraphSymbol : public TGraphParentNode {
 public:
     TGraphSymbol(TIntermSymbol* intermSymbol) : TGraphParentNode(intermSymbol) {}
-    ~TGraphSymbol() override {}
+    virtual ~TGraphSymbol() {}
     const TIntermSymbol* getIntermSymbol() const { return intermNode->getAsSymbolNode(); }
-    void traverse(TDependencyGraphTraverser *graphTraverser) override;
+    virtual void traverse(TDependencyGraphTraverser* graphTraverser);
 };
 
 //
@@ -100,9 +98,9 @@ public:
 class TGraphSelection : public TGraphNode {
 public:
     TGraphSelection(TIntermSelection* intermSelection) : TGraphNode(intermSelection) {}
-    ~TGraphSelection() override {}
+    virtual ~TGraphSelection() {}
     const TIntermSelection* getIntermSelection() const { return intermNode->getAsSelectionNode(); }
-    void traverse(TDependencyGraphTraverser *graphTraverser) override;
+    virtual void traverse(TDependencyGraphTraverser* graphTraverser);
 };
 
 //
@@ -111,9 +109,9 @@ public:
 class TGraphLoop : public TGraphNode {
 public:
     TGraphLoop(TIntermLoop* intermLoop) : TGraphNode(intermLoop) {}
-    ~TGraphLoop() override {}
+    virtual ~TGraphLoop() {}
     const TIntermLoop* getIntermLoop() const { return intermNode->getAsLoopNode(); }
-    void traverse(TDependencyGraphTraverser *graphTraverser) override;
+    virtual void traverse(TDependencyGraphTraverser* graphTraverser);
 };
 
 //
@@ -122,10 +120,10 @@ public:
 class TGraphLogicalOp : public TGraphNode {
 public:
     TGraphLogicalOp(TIntermBinary* intermLogicalOp) : TGraphNode(intermLogicalOp) {}
-    ~TGraphLogicalOp() override {}
+    virtual ~TGraphLogicalOp() {}
     const TIntermBinary* getIntermLogicalOp() const { return intermNode->getAsBinaryNode(); }
     const char* getOpString() const;
-    void traverse(TDependencyGraphTraverser *graphTraverser) override;
+    virtual void traverse(TDependencyGraphTraverser* graphTraverser);
 };
 
 //
@@ -188,10 +186,9 @@ private:
 //
 // When using this, just fill in the methods for nodes you want visited.
 //
-class TDependencyGraphTraverser : angle::NonCopyable {
+class TDependencyGraphTraverser {
 public:
     TDependencyGraphTraverser() : mDepth(0) {}
-    virtual ~TDependencyGraphTraverser() {}
 
     virtual void visitSymbol(TGraphSymbol* symbol) {};
     virtual void visitArgument(TGraphArgument* selection) {};
@@ -212,4 +209,4 @@ private:
     TGraphNodeSet mVisited;
 };
 
-#endif // COMPILER_TRANSLATOR_DEPGRAPH_DEPENDENCYGRAPH_H_
+#endif

@@ -7,6 +7,7 @@
 #include "Preprocessor.h"
 
 #include <cassert>
+#include <sstream>
 
 #include "DiagnosticsBase.h"
 #include "DirectiveParser.h"
@@ -26,11 +27,12 @@ struct PreprocessorImpl
     DirectiveParser directiveParser;
     MacroExpander macroExpander;
 
-    PreprocessorImpl(Diagnostics *diag, DirectiveHandler *directiveHandler)
+    PreprocessorImpl(Diagnostics *diag,
+                     DirectiveHandler *directiveHandler)
         : diagnostics(diag),
           tokenizer(diag),
           directiveParser(&tokenizer, &macroSet, diag, directiveHandler),
-          macroExpander(&directiveParser, &macroSet, diag, false)
+          macroExpander(&directiveParser, &macroSet, diag)
     {
     }
 };
@@ -50,12 +52,12 @@ bool Preprocessor::init(size_t count,
                         const char * const string[],
                         const int length[])
 {
-    static const int kDefaultGLSLVersion = 100;
+    static const int kGLSLVersion = 100;
 
     // Add standard pre-defined macros.
     predefineMacro("__LINE__", 0);
     predefineMacro("__FILE__", 0);
-    predefineMacro("__VERSION__", kDefaultGLSLVersion);
+    predefineMacro("__VERSION__", kGLSLVersion);
     predefineMacro("GL_ES", 1);
 
     return mImpl->tokenizer.init(count, string, length);
@@ -63,7 +65,20 @@ bool Preprocessor::init(size_t count,
 
 void Preprocessor::predefineMacro(const char *name, int value)
 {
-    PredefineMacro(&mImpl->macroSet, name, value);
+    std::ostringstream stream;
+    stream << value;
+
+    Token token;
+    token.type = Token::CONST_INT;
+    token.text = stream.str();
+
+    Macro macro;
+    macro.predefined = true;
+    macro.type = Macro::kTypeObj;
+    macro.name = name;
+    macro.replacements.push_back(token);
+
+    mImpl->macroSet[name] = macro;
 }
 
 void Preprocessor::lex(Token *token)

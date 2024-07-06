@@ -565,7 +565,8 @@ public:
 
   inline bool IsAbbreviation() const
   {
-    return mContent->IsAnyOfHTMLElements(nsGkAtoms::abbr, nsGkAtoms::acronym);
+    return mContent->IsHTML() &&
+      (mContent->Tag() == nsGkAtoms::abbr || mContent->Tag() == nsGkAtoms::acronym);
   }
 
   bool IsApplication() const { return mType == eApplicationType; }
@@ -1139,9 +1140,9 @@ protected:
   nsRoleMapEntry* mRoleMapEntry;
 
 private:
-  Accessible() = delete;
-  Accessible(const Accessible&) = delete;
-  Accessible& operator =(const Accessible&) = delete;
+  Accessible() MOZ_DELETE;
+  Accessible(const Accessible&) MOZ_DELETE;
+  Accessible& operator =(const Accessible&) MOZ_DELETE;
 
 };
 

@@ -8,8 +8,8 @@
 // length_limits.h
 //
 
-#ifndef COMPILER_TRANSLATOR_LENGTHLIMITS_H_
-#define COMPILER_TRANSLATOR_LENGTHLIMITS_H_
+#if !defined(__LENGTH_LIMITS_H)
+#define __LENGTH_LIMITS_H 1
 
 #include "GLSLANG/ShaderLang.h"
 
@@ -18,4 +18,4 @@
 
 size_t GetGlobalMaxTokenSize(ShShaderSpec spec);
 
-#endif // COMPILER_TRANSLATOR_LENGTHLIMITS_H_
+#endif // !(defined(__LENGTH_LIMITS_H)

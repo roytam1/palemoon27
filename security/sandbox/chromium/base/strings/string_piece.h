@@ -441,6 +441,8 @@ BASE_EXPORT std::ostream& operator<<(std::ostream& o,
 
 namespace BASE_HASH_NAMESPACE {
 
+#if defined(COMPILER_GCC)
+
 template<>
 struct hash<base::StringPiece> {
   std::size_t operator()(const base::StringPiece& sp) const {
@@ -453,6 +455,17 @@ struct hash<base::StringPiece16> {
     HASH_STRING_PIECE(base::StringPiece16, sp16);
   }
 };
+
+#elif defined(COMPILER_MSVC)
+
+inline size_t hash_value(const base::StringPiece& sp) {
+  HASH_STRING_PIECE(base::StringPiece, sp);
+}
+inline size_t hash_value(const base::StringPiece16& sp16) {
+  HASH_STRING_PIECE(base::StringPiece16, sp16);
+}
+
+#endif  // COMPILER
 
 }  // namespace BASE_HASH_NAMESPACE
 

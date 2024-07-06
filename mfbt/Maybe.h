@@ -321,9 +321,7 @@ public:
     MOZ_ASSERT(mIsSome);
     return ref();
   }
-  
-  /* If |isSome()|, runs the provided function or functor on the contents of
-   * this Maybe. */
+
   /* If |isSome()|, runs the provided function or functor on the contents of
    * this Maybe. */
   template<typename F>

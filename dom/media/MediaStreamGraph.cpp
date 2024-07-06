@@ -215,7 +215,7 @@ MediaStreamGraphImpl::ExtractPendingInput(SourceMediaStream* aStream,
       SourceMediaStream::TrackData* data = &aStream->mUpdateTracks[i];
       aStream->ApplyTrackDisabling(data->mID, data->mData);
       for (uint32_t j = 0; j < aStream->mListeners.Length(); ++j) {
-      MediaStreamListener* l = aStream->mListeners[j];
+        MediaStreamListener* l = aStream->mListeners[j];
         StreamTime offset = (data->mCommands & SourceMediaStream::TRACK_CREATE)
             ? data->mStart : aStream->mBuffer.FindTrack(data->mID)->GetSegment()->GetDuration();
         l->NotifyQueuedTrackChanges(this, data->mID,
@@ -246,12 +246,6 @@ MediaStreamGraphImpl::ExtractPendingInput(SourceMediaStream* aStream,
       if (data->mCommands & SourceMediaStream::TRACK_END) {
         aStream->mBuffer.FindTrack(data->mID)->SetEnded();
         aStream->mUpdateTracks.RemoveElementAt(i);
-      }
-    }
-    if (notifiedTrackCreated) {
-      for (uint32_t k = 0; k < aStream->mListeners.Length(); ++k) {
-      MediaStreamListener* l = aStream->mListeners[k];
-        l->NotifyFinishedTrackCreation(this);
       }
     }
     if (!aStream->mFinished) {

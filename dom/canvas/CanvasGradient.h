@@ -13,7 +13,6 @@
 #include "mozilla/gfx/2D.h"
 #include "nsWrapperCache.h"
 #include "gfxGradientCache.h"
-#include "mozilla/TypedEnum.h"
 
 namespace mozilla {
 namespace dom {

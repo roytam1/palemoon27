@@ -82,7 +82,7 @@ private:
     Skip, // Set the value to default, skip any Preferences calls
     Once, // Evaluate the preference once, unchanged during the session
     Live  // Evaluate the preference and set callback so it stays current/live
-  MOZ_END_NESTED_ENUM_CLASS(UpdatePolicy)
+	MOZ_END_NESTED_ENUM_CLASS(UpdatePolicy)
 
   // Since we cannot use const char*, use a function that returns it.
   template <MOZ_ENUM_CLASS_ENUM_TYPE(UpdatePolicy) Update, class T, T Default(void), const char* Pref(void)>
@@ -205,7 +205,6 @@ private:
   DECL_GFX_PREF(Once, "gfx.direct2d.disabled",                 Direct2DDisabled, bool, false);
   DECL_GFX_PREF(Once, "gfx.direct2d.force-enabled",            Direct2DForceEnabled, bool, false);
   DECL_GFX_PREF(Live, "gfx.direct2d.use1_1",                   Direct2DUse1_1, bool, false);
-  DECL_GFX_PREF(Live, "gfx.direct2d.allow-fallback",           Direct2DAllowFallback, bool, false);
   DECL_GFX_PREF(Live, "gfx.gralloc.fence-with-readpixels",     GrallocFenceWithReadPixels, bool, false);
   DECL_GFX_PREF(Live, "gfx.layerscope.enabled",                LayerScopeEnabled, bool, false);
   DECL_GFX_PREF(Live, "gfx.layerscope.port",                   LayerScopePort, int32_t, 23456);

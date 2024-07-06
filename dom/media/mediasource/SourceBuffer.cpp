@@ -8,6 +8,7 @@
 
 #include "AsyncEventRunner.h"
 #include "MediaData.h"
+#include "MediaSourceDemuxer.h"
 #include "MediaSourceUtils.h"
 #include "TrackBuffer.h"
 #include "mozilla/ErrorResult.h"

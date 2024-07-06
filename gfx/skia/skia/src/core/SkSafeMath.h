@@ -17,10 +17,12 @@
 
 class SkSafeMath {
 public:
-    SkSafeMath() = default;
+    SkSafeMath() : fOK(true) {};
 
     bool ok() const { return fOK; }
+#if !defined(_MSC_VER) || (defined(_MSC_VER) && _MSC_VER > 1600)
     explicit operator bool() const { return fOK; }
+#endif
 
     size_t mul(size_t x, size_t y) {
         return sizeof(size_t) == sizeof(uint64_t) ? mul64(x, y) : mul32(x, y);
@@ -102,7 +104,7 @@ private:
             return result;
         }
     }
-    bool fOK = true;
+    bool fOK;
 };
 
 #endif//SkSafeMath_DEFINED

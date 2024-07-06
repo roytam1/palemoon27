@@ -17,6 +17,7 @@
 #include "mozilla/TemplateLib.h"
 
 #include <string.h>
+#include <windows.h>
 
 #include "jsapi.h"
 #include "jsarray.h"
@@ -71,6 +72,12 @@ using namespace js::gc;
 
 using mozilla::DebugOnly;
 using mozilla::Maybe;
+
+#if !defined(_KERNEL32_)
+#define WINBASEAPI DECLSPEC_IMPORT
+#else
+#define WINBASEAPI
+#endif
 
 JS_FRIEND_API(JSObject*)
 JS_ObjectToInnerObject(JSContext* cx, HandleObject obj)

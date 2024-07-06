@@ -25,6 +25,7 @@
 #include <algorithm>
 
 using namespace mozilla;
+using namespace mozilla::image;
 
 struct nsTableCellReflowState : public nsHTMLReflowState
 {

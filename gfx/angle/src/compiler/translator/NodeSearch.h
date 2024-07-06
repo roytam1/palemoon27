@@ -6,8 +6,8 @@
 // NodeSearch.h: Utilities for searching translator node graphs
 //
 
-#ifndef COMPILER_TRANSLATOR_NODESEARCH_H_
-#define COMPILER_TRANSLATOR_NODESEARCH_H_
+#ifndef TRANSLATOR_NODESEARCH_H_
+#define TRANSLATOR_NODESEARCH_H_
 
 #include "compiler/translator/IntermNode.h"
 
@@ -19,8 +19,7 @@ class NodeSearchTraverser : public TIntermTraverser
 {
   public:
     NodeSearchTraverser()
-        : TIntermTraverser(true, false, false),
-          mFound(false)
+        : mFound(false)
     {}
 
     bool found() const { return mFound; }
@@ -54,6 +53,28 @@ class FindDiscard : public NodeSearchTraverser<FindDiscard>
     }
 };
 
+class FindSideEffectRewriting : public NodeSearchTraverser<FindSideEffectRewriting>
+{
+  public:
+    virtual bool visitBinary(Visit visit, TIntermBinary *node)
+    {
+        switch (node->getOp())
+        {
+          case EOpLogicalOr:
+          case EOpLogicalAnd:
+            if (node->getRight()->hasSideEffects())
+            {
+                mFound = true;
+            }
+            break;
+
+          default: break;
+        }
+
+        return !mFound;
+    }
+};
+
 }
 
-#endif // COMPILER_TRANSLATOR_NODESEARCH_H_
+#endif // TRANSLATOR_NODESEARCH_H_

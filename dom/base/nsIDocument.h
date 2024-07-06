@@ -149,9 +149,10 @@ struct FullScreenOptions {
 } // namespace dom
 } // namespace mozilla
 
+// 137c6144-513e-4edf-840e-5e3156638ed6
 #define NS_IDOCUMENT_IID \
-{ 0x0b78eabe, 0x8b94, 0x4ea1, \
-  { 0x93, 0x31, 0x5d, 0x48, 0xe8, 0x3a, 0xda, 0x95 } }
+{ 0x137c6144, 0x513e, 0x4edf, \
+  { 0x84, 0x0e, 0x5e, 0x31, 0x56, 0x63, 0x8e, 0xd6 } }
 
 // Enum for requesting a particular type of document when creating a doc
 enum DocumentFlavor {
@@ -1324,7 +1325,7 @@ public:
    * media documents).  Returns false for XHTML and any other documents parsed
    * by the XML parser.
    */
-  bool IsHTMLDocument() const
+  bool IsHTML() const
   {
     return mType == eHTML;
   }
@@ -1332,15 +1333,15 @@ public:
   {
     return mType == eHTML || mType == eXHTML;
   }
-  bool IsXMLDocument() const
+  bool IsXML() const
   {
-    return !IsHTMLDocument();
+    return !IsHTML();
   }
-  bool IsSVGDocument() const
+  bool IsSVG() const
   {
     return mType == eSVG;
   }
-  bool IsXULDocument() const
+  bool IsXUL() const
   {
     return mType == eXUL;
   }
@@ -1350,7 +1351,7 @@ public:
   }
   bool LoadsFullXULStyleSheetUpFront()
   {
-    return IsXULDocument() || AllowXULXBL();
+    return IsXUL() || AllowXULXBL();
   }
 
   virtual bool IsScriptEnabled() = 0;

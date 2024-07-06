@@ -133,17 +133,17 @@ MP4Demuxer::DemuxAudioSample()
   MOZ_ASSERT(mAudioIterator);
   nsRefPtr<mozilla::MediaRawData> sample(mAudioIterator->GetNext());
   if (sample) {
-    if (sample->mCrypto.valid) {
-      nsAutoPtr<MediaRawDataWriter> writer(sample->CreateWriter());
-      writer->mCrypto.mode = mAudioConfig->mCrypto.mode;
-      writer->mCrypto.iv_size = mAudioConfig->mCrypto.iv_size;
-      writer->mCrypto.key.AppendElements(mAudioConfig->mCrypto.key);
+    if (sample->mCrypto.mValid) {
+      nsAutoPtr<mozilla::MediaRawDataWriter> writer(sample->CreateWriter());
+      writer->mCrypto.mMode = mAudioConfig->mCrypto.mMode;
+      writer->mCrypto.mIVSize = mAudioConfig->mCrypto.mIVSize;
+      writer->mCrypto.mKeyId.AppendElements(mAudioConfig->mCrypto.mKeyId);
     }
   }
   return sample.forget();
 }
 
-already_AddRefed<MediaRawData>
+already_AddRefed<mozilla::MediaRawData>
 MP4Demuxer::DemuxVideoSample()
 {
   mMonitor->AssertCurrentThreadOwns();
@@ -151,10 +151,10 @@ MP4Demuxer::DemuxVideoSample()
   nsRefPtr<mozilla::MediaRawData> sample(mVideoIterator->GetNext());
   if (sample) {
     sample->mExtraData = mVideoConfig->GetAsVideoInfo()->mExtraData;
-    if (sample->mCrypto.valid) {
-      nsAutoPtr<MediaRawDataWriter> writer(sample->CreateWriter());
-      writer->mCrypto.mode = mVideoConfig->mCrypto.mode;
-      writer->mCrypto.key.AppendElements(mVideoConfig->mCrypto.key);
+    if (sample->mCrypto.mValid) {
+      nsAutoPtr<mozilla::MediaRawDataWriter> writer(sample->CreateWriter());
+      writer->mCrypto.mMode = mVideoConfig->mCrypto.mMode;
+      writer->mCrypto.mKeyId.AppendElements(mVideoConfig->mCrypto.mKeyId);
     }
     if (sample->mTime >= mNextKeyframeTime) {
       mNextKeyframeTime = mVideoIterator->GetNextKeyframeTime();

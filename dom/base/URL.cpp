@@ -8,9 +8,7 @@
 #include "nsGlobalWindow.h"
 #include "DOMMediaStream.h"
 #include "mozilla/dom/File.h"
-#ifdef MOZ_MEDIASOURCE
 #include "mozilla/dom/MediaSource.h"
-#endif
 #include "mozilla/dom/URLBinding.h"
 #include "nsHostObjectProtocolHandler.h"
 #include "nsServiceManagerUtils.h"
@@ -134,7 +132,6 @@ URL::CreateObjectURL(const GlobalObject& aGlobal, DOMMediaStream& aStream,
                           aResult, aError);
 }
 
-#ifdef MOZ_MEDIASOURCE
 void
 URL::CreateObjectURL(const GlobalObject& aGlobal, MediaSource& aSource,
                      const objectURLOptions& aOptions,
@@ -145,7 +142,6 @@ URL::CreateObjectURL(const GlobalObject& aGlobal, MediaSource& aSource,
                           NS_LITERAL_CSTRING(MEDIASOURCEURI_SCHEME), aOptions,
                           aResult, aError);
 }
-#endif
 
 void
 URL::CreateObjectURLInternal(const GlobalObject& aGlobal, nsISupports* aObject,

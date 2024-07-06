@@ -130,6 +130,7 @@ using namespace mozilla::system;
 #include "nsDocument.h"
 #include "mozilla/dom/HTMLVideoElement.h"
 #include "CameraPreferences.h"
+#include "mozilla/dom/ServiceWorkerRegistrar.h"
 #include "MediaDecoder.h"
 
 using namespace mozilla;

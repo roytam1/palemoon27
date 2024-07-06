@@ -13,6 +13,8 @@
 #include "xpcprivate.h"
 #include "WrapperFactory.h"
 #include "mozilla/Preferences.h"
+#include "JavaScriptChild.h"
+#include "JavaScriptParent.h"
 
 using namespace js;
 using namespace JS;

@@ -73,10 +73,6 @@
 
 #include "VsyncSource.h"
 
-#ifndef D3D11_CREATE_DEVICE_VIDEO_SUPPORT
-#define D3D11_CREATE_DEVICE_VIDEO_SUPPORT 0x800
-#endif
-
 using namespace mozilla;
 using namespace mozilla::gfx;
 using namespace mozilla::layers;
@@ -482,9 +478,9 @@ gfxWindowsPlatform::UpdateRenderMode()
 
       imgLoader::Singleton()->ClearCache(true);
       imgLoader::Singleton()->ClearCache(false);
-	  #ifdef USE_D2D1_1
+#ifdef USE_D2D1_1
       Factory::SetDirect3D11Device(nullptr);
-	  #endif
+#endif
 
       didReset = true;
     }
@@ -593,12 +589,12 @@ gfxWindowsPlatform::UpdateRenderMode()
         contentMask |= BackendTypeBit(BackendType::DIRECT2D1_1);
         canvasMask |= BackendTypeBit(BackendType::DIRECT2D1_1);
         defaultBackend = BackendType::DIRECT2D1_1;
-      }
-	  else 
-	  #endif
-	  {
+      } else {
+		  #endif
         defaultBackend = BackendType::DIRECT2D;
+      #ifdef USE_D2D1_1
       }
+#endif
     } else {
       canvasMask |= BackendTypeBit(BackendType::SKIA);
     }
@@ -656,14 +652,6 @@ gfxWindowsPlatform::CreateDevice(nsRefPtr<IDXGIAdapter1> &adapter1,
 void
 gfxWindowsPlatform::VerifyD2DDevice(bool aAttemptForce)
 {
-    // Check if fallback to unsupported D2D version is allowed when
-    // the Direct2D 1.1 feature set isn't available.
-	#ifdef USE_D2D1_1
-    if (!Factory::SupportsD2D1() && !gfxPrefs::Direct2DAllowFallback()) {
-      return;
-    }
-	#endif
-    
 #ifdef CAIRO_HAS_D2D_SURFACE
     if (mD2DDevice) {
         ID3D10Device1 *device = cairo_d2d_device_get_device(mD2DDevice);
@@ -726,10 +714,10 @@ gfxWindowsPlatform::VerifyD2DDevice(bool aAttemptForce)
         mozilla::gfx::Factory::SetDirect3D10Device(cairo_d2d_device_get_device(mD2DDevice));
     }
 
-	#ifdef USE_D2D1_1
+#	ifdef USE_D2D1_1
     if (Factory::SupportsD2D1()) {
     }
-	#endif
+#	endif
 #endif
 }
 

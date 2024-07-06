@@ -19,7 +19,6 @@
 #include "nsStringGlue.h"               // for nsCString
 #include "xpcom-config.h"               // for CPP_THROW_NEW
 #include "mozilla/Move.h"               // for mozilla::Move
-#include "mozilla/TypedEnum.h"			// for enum class emulation
 
 class nsIntRegion;
 class gfx3DMatrix;

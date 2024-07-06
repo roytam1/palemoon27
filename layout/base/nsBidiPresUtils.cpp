@@ -99,7 +99,7 @@ struct BidiParagraphData {
       for (nsIContent* content = aBlockFrame->GetContent() ; content; 
            content = content->GetParent()) {
         if (content->IsNodeOfType(nsINode::eHTML_FORM_CONTROL) ||
-            content->IsXULElement()) {
+            content->IsXUL()) {
           mIsVisual = false;
           break;
         }
@@ -1158,7 +1158,7 @@ nsBidiPresUtils::TraverseFrames(nsBlockFrame*              aBlockFrame,
         // U+FFFC"
         // <wbr>, however, is treated as U+200B ZERO WIDTH SPACE. See
         // http://dev.w3.org/html5/spec/Overview.html#phrasing-content-1
-        aBpd->AppendUnichar(content->IsHTMLElement(nsGkAtoms::wbr) ?
+        aBpd->AppendUnichar(content->IsHTML(nsGkAtoms::wbr) ?
                             kZWSP : kObjectSubstitute);
         if (!frame->IsInlineOutside()) {
           // if it is not inline, end the paragraph
@@ -1405,11 +1405,6 @@ nsBidiPresUtils::IsFirstOrLast(nsIFrame* aFrame,
   }
 }
 
-#if defined (_MSC_VER) && _MSC_VER >= 1700
-// Visual C++ 2010 is incompatible with range based for loops. Only enable when using
-// Visual C++ 2012 or newer. See bug 1141931 especially part 8, as this effectively
-// reverts it
-
 /* static */ nscoord
 nsBidiPresUtils::RepositionRubyFrame(
   nsIFrame* aFrame,
@@ -1439,7 +1434,8 @@ nsBidiPresUtils::RepositionRubyFrame(
       nscoord segmentISize = RepositionFrame(rbc, isLTR, icoord,
                                              aContinuationStates,
                                              frameWM, false, frameSize);
-      for (nsRubyTextContainerFrame* rtc : textContainers) {
+      for (size_t i = 0; i < textContainers.Length(); i++) {
+        nsRubyTextContainerFrame* rtc = textContainers[i];
         nscoord isize = RepositionFrame(rtc, isLTR, icoord, aContinuationStates,
                                         frameWM, false, frameSize);
         segmentISize = std::max(segmentISize, isize);
@@ -1459,7 +1455,8 @@ nsBidiPresUtils::RepositionRubyFrame(
       nscoord columnISize = RepositionFrame(column.mBaseFrame, isLTR, icoord,
                                             aContinuationStates,
                                             frameWM, false, frameSize);
-      for (nsRubyTextFrame* rt : column.mTextFrames) {
+      for (size_t i = 0; i < column.mTextFrames.Length(); i++) {
+        nsRubyTextFrame* rt = column.mTextFrames[i];
         nscoord isize = RepositionFrame(rt, isLTR, icoord, aContinuationStates,
                                         frameWM, false, frameSize);
         columnISize = std::max(columnISize, isize);
@@ -1486,7 +1483,6 @@ nsBidiPresUtils::RepositionRubyFrame(
   }
   return icoord;
 }
-#endif // MSC_VER >= 1700
 
 /* static */ nscoord
 nsBidiPresUtils::RepositionFrame(nsIFrame* aFrame,
@@ -1560,11 +1556,9 @@ nsBidiPresUtils::RepositionFrame(nsIFrame* aFrame,
     }
     icoord += reverseDir ?
       borderPadding.IStart(frameWM) : borderPadding.IEnd(frameWM);
-      #if defined (_MSC_VER) && _MSC_VER >= 1700
   } else if (aFrame->StyleDisplay()->IsRubyDisplayType()) {
     icoord += RepositionRubyFrame(aFrame, aContinuationStates,
                                   aContainerWM, borderPadding);
-	#endif
   } else {
     icoord +=
       frameWM.IsOrthogonalTo(aContainerWM) ? aFrame->BSize() : frameISize;
@@ -1604,7 +1598,8 @@ nsBidiPresUtils::InitContinuationStates(nsIFrame*              aFrame,
   state->mFirstVisualFrame = nullptr;
   state->mFrameCount = 0;
 
-  if (!IsBidiLeaf(aFrame)) {
+  if (!IsBidiLeaf(aFrame) ||
+      aFrame->StyleDisplay()->IsRubyDisplayType()) {
     // Continue for child frames
     nsIFrame* frame;
     for (frame = aFrame->GetFirstPrincipalChild();

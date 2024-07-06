@@ -22,7 +22,6 @@
 #include "AudioSampleFormat.h"
 #include "mozilla/RefPtr.h"
 #include "TimeUnits.h"
-#include "mozilla/TypedEnum.h"
 
 using mozilla::CheckedInt64;
 using mozilla::CheckedUint64;
@@ -284,17 +283,13 @@ bool
 ParseCodecsString(const nsAString& aCodecs, nsTArray<nsString>& aOutCodecs);
 
 bool
-IsAACCodecString(const nsAString& aCodec);
-
-#if defined (_MSC_VER) && _MSC_VER >= 1700
-
-bool
 IsH264ContentType(const nsAString& aContentType);
 
 bool
 IsAACContentType(const nsAString& aContentType);
 
-#endif
+bool
+IsAACCodecString(const nsAString& aCodec);
 
 } // end namespace mozilla
 

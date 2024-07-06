@@ -7,15 +7,13 @@
 //   Utility methods for GLSL to HLSL translation.
 //
 
-#ifndef COMPILER_TRANSLATOR_UTILSHLSL_H_
-#define COMPILER_TRANSLATOR_UTILSHLSL_H_
+#ifndef TRANSLATOR_UTILSHLSL_H_
+#define TRANSLATOR_UTILSHLSL_H_
 
 #include <vector>
 #include "compiler/translator/Types.h"
 
 #include "angle_gl.h"
-
-class TName;
 
 namespace sh
 {
@@ -24,9 +22,6 @@ TString TextureString(const TType &type);
 TString SamplerString(const TType &type);
 // Prepends an underscore to avoid naming clashes
 TString Decorate(const TString &string);
-TString DecorateIfNeeded(const TName &name);
-// Decorates and also unmangles the function name
-TString DecorateFunctionIfNeeded(const TName &name);
 TString DecorateUniform(const TString &string, const TType &type);
 TString DecorateField(const TString &string, const TStructure &structure);
 TString DecoratePrivate(const TString &privateText);
@@ -39,4 +34,4 @@ TString QualifierString(TQualifier qualifier);
 
 }
 
-#endif // COMPILER_TRANSLATOR_UTILSHLSL_H_
+#endif // TRANSLATOR_UTILSHLSL_H_

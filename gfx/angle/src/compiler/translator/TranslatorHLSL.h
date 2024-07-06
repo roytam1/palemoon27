@@ -4,8 +4,8 @@
 // found in the LICENSE file.
 //
 
-#ifndef COMPILER_TRANSLATOR_TRANSLATORHLSL_H_
-#define COMPILER_TRANSLATOR_TRANSLATORHLSL_H_
+#ifndef COMPILER_TRANSLATORHLSL_H_
+#define COMPILER_TRANSLATORHLSL_H_
 
 #include "compiler/translator/Compiler.h"
 
@@ -13,7 +13,7 @@ class TranslatorHLSL : public TCompiler
 {
   public:
     TranslatorHLSL(sh::GLenum type, ShShaderSpec spec, ShShaderOutput output);
-    TranslatorHLSL *getAsTranslatorHLSL() override { return this; }
+    virtual TranslatorHLSL *getAsTranslatorHLSL() { return this; }
 
     bool hasInterfaceBlock(const std::string &interfaceBlockName) const;
     unsigned int getInterfaceBlockRegister(const std::string &interfaceBlockName) const;
@@ -22,13 +22,10 @@ class TranslatorHLSL : public TCompiler
     unsigned int getUniformRegister(const std::string &uniformName) const;
 
   protected:
-    void translate(TIntermNode *root, int compileOptions) override;
-
-    // collectVariables needs to be run always so registers can be assigned.
-    bool shouldCollectVariables(int compileOptions) override { return true; }
+    virtual void translate(TIntermNode* root);
 
     std::map<std::string, unsigned int> mInterfaceBlockRegisterMap;
     std::map<std::string, unsigned int> mUniformRegisterMap;
 };
 
-#endif  // COMPILER_TRANSLATOR_TRANSLATORHLSL_H_
+#endif  // COMPILER_TRANSLATORHLSL_H_

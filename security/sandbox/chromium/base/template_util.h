@@ -33,10 +33,27 @@ template <class T> struct is_pointer<T*> : true_type {};
 template<typename T>
 struct is_member_function_pointer : false_type {};
 
-template <typename R, typename Z, typename... A>
-struct is_member_function_pointer<R(Z::*)(A...)> : true_type {};
-template <typename R, typename Z, typename... A>
-struct is_member_function_pointer<R(Z::*)(A...) const> : true_type {};
+template <typename R, typename Z, typename A>
+struct is_member_function_pointer<R(Z::*)(A)> : true_type {};
+template <typename R, typename Z, typename A>
+struct is_member_function_pointer<R(Z::*)(A) const> : true_type {};
+
+template <typename R, typename Z, typename A, typename B>
+struct is_member_function_pointer<R(Z::*)(A, B)> : true_type {};
+template <typename R, typename Z, typename A, typename B>
+struct is_member_function_pointer<R(Z::*)(A, B) const> : true_type {};
+
+template <typename R, typename Z, typename A, typename B, typename C>
+struct is_member_function_pointer<R(Z::*)(A, B, C)> : true_type {};
+template <typename R, typename Z, typename A, typename B, typename C>
+struct is_member_function_pointer<R(Z::*)(A, B, C) const> : true_type {};
+
+template <typename R, typename Z, typename A, typename B, typename C,
+          typename D>
+struct is_member_function_pointer<R(Z::*)(A, B, C, D)> : true_type {};
+template <typename R, typename Z, typename A, typename B, typename C,
+          typename D>
+struct is_member_function_pointer<R(Z::*)(A, B, C, D) const> : true_type {};
 
 
 template <class T, class U> struct is_same : public false_type {};

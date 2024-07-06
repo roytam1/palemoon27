@@ -35,7 +35,6 @@
 #include "nsNetUtil.h"
 #include "nsStreamUtils.h"
 #include "ActiveLayerTracker.h"
-
 #ifdef MOZ_WEBGL
 #include "WebGL1Context.h"
 #include "WebGL2Context.h"
@@ -666,7 +665,7 @@ GetCanvasContextType(const nsAString& str, CanvasContextType* const out_type)
     return true;
   }
 
-  #ifdef MOZ_WEBGL
+#ifdef MOZ_WEBGL
   if (str.EqualsLiteral("experimental-webgl")) {
     *out_type = CanvasContextType::WebGL1;
     return true;
@@ -689,7 +688,7 @@ GetCanvasContextType(const nsAString& str, CanvasContextType* const out_type)
       return true;
     }
   }
-  #endif
+#endif
 
   return false;
 }
@@ -705,7 +704,7 @@ CreateContextForCanvas(CanvasContextType contextType, HTMLCanvasElement* canvas)
     ret = new CanvasRenderingContext2D();
     break;
 
-    #ifdef MOZ_WEBGL
+#ifdef MOZ_WEBGL
   case CanvasContextType::WebGL1:
     Telemetry::Accumulate(Telemetry::CANVAS_WEBGL_USED, 1);
 
@@ -721,7 +720,7 @@ CreateContextForCanvas(CanvasContextType contextType, HTMLCanvasElement* canvas)
     if (!ret)
       return nullptr;
     break;
-    #endif
+#endif
   }
   MOZ_ASSERT(ret);
 

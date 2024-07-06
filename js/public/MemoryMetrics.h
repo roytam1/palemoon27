@@ -12,6 +12,7 @@
 
 #include "mozilla/MemoryReporting.h"
 #include "mozilla/PodOperations.h"
+#include "js/TracingAPI.h"
 
 #include <string.h>
 

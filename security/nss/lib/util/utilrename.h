@@ -10,6 +10,10 @@
 #ifndef _LIBUTIL_H_
 #define _LIBUTIL_H_ _LIBUTIL_H__Util
 
+#ifndef PR_GetEnvSecure
+#define PR_GetEnvSecure PR_GetEnv
+#endif
+
 #ifdef USE_UTIL_DIRECTLY
 
 /* functions moved from libnss3 */

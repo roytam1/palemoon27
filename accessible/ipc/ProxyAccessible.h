@@ -7,6 +7,7 @@
 #ifndef mozilla_a11y_ProxyAccessible_h
 #define mozilla_a11y_ProxyAccessible_h
 
+#include "mozilla/a11y/RelationType.h"
 #include "mozilla/a11y/Role.h"
 #include "nsIAccessibleText.h"
 #include "nsString.h"
@@ -17,7 +18,6 @@ namespace a11y {
 
 class Attribute;
 class DocAccessibleParent;
-enum class RelationType;
 
 class ProxyAccessible
 {

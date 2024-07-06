@@ -52,4 +52,14 @@ _mm_castsi128_pd(__m128i __A)
 }
 #endif
 
+#if (_MSC_VER == 1400)
+// For Visual Studio 2005
+__inline __m128 _mm_castpd_ps(__m128d PD) { union { __m128 ps; __m128d pd; } c; c.pd = PD; return c.ps; }
+__inline __m128i _mm_castpd_si128(__m128d PD) { union { __m128i pi; __m128d pd; } c; c.pd = PD; return c.pi; }
+__inline __m128d _mm_castps_pd(__m128 PS) { union { __m128 ps; __m128d pd; } c; c.ps = PS; return c.pd; }
+__inline __m128i _mm_castps_si128(__m128 PS) { union { __m128 ps; __m128i pi; } c; c.ps = PS; return c.pi; }
+__inline __m128 _mm_castsi128_ps(__m128i PI) { union { __m128 ps; __m128i pi; } c; c.pi = PI; return c.ps; }
+__inline __m128d _mm_castsi128_pd(__m128i PI) { union { __m128i pi; __m128d pd; } c; c.pi = PI; return c.pd; }
+#endif
+
 #endif  // VPX_PORTS_EMMINTRIN_COMPAT_H_

@@ -21,7 +21,7 @@
 #include "prenv.h"
 #include "prinit.h"
 
-#include <stdint.h>
+//#include <stdint.h>
 
 #ifdef DEBUG
 #define THREADMARK

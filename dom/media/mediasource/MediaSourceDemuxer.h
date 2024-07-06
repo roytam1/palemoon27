@@ -14,8 +14,8 @@
 #include "MediaSource.h"
 #include "MediaTaskQueue.h"
 #include "TrackBuffersManager.h"
+#include "mozilla/Atomics.h"
 #include "mozilla/Monitor.h"
-#include "SourceBufferList.h"
 
 namespace mozilla {
 

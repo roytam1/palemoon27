@@ -37,6 +37,7 @@
 #include "nsPerformance.h"
 #include "nsINetworkInterceptController.h"
 #include "mozIThirdPartyUtil.h"
+#include "nsIConsoleService.h"
 
 #include <algorithm>
 

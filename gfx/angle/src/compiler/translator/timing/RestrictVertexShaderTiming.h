@@ -4,8 +4,8 @@
 // found in the LICENSE file.
 //
 
-#ifndef COMPILER_TRANSLATOR_TIMING_RESTRICTVERTEXSHADERTIMING_H_
-#define COMPILER_TRANSLATOR_TIMING_RESTRICTVERTEXSHADERTIMING_H_
+#ifndef COMPILER_TIMING_RESTRICT_VERTEX_SHADER_TIMING_H_
+#define COMPILER_TIMING_RESTRICT_VERTEX_SHADER_TIMING_H_
 
 #include "compiler/translator/IntermNode.h"
 #include "compiler/translator/InfoSink.h"
@@ -22,11 +22,10 @@ public:
     void enforceRestrictions(TIntermNode* root) { root->traverse(this); }
     int numErrors() { return mNumErrors; }
 
-    void visitSymbol(TIntermSymbol *) override;
-
+    virtual void visitSymbol(TIntermSymbol*);
 private:
     TInfoSinkBase& mSink;
     int mNumErrors;
 };
 
-#endif  // COMPILER_TRANSLATOR_TIMING_RESTRICTVERTEXSHADERTIMING_H_
+#endif  // COMPILER_TIMING_RESTRICT_VERTEX_SHADER_TIMING_H_

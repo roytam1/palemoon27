@@ -63,8 +63,7 @@ has_cpuid_bits(unsigned int level, CPUIDRegister reg, unsigned int bits)
   return (unsigned(regs[reg]) & bits) == bits;
 }
 
-// Visual C++ 2010 does not support _xgetbv
-// static uint64_t xgetbv(uint32_t xcr) { return _xgetbv(xcr); }
+static uint64_t xgetbv(uint32_t xcr) { return _xgetbv(xcr); }
 
 #elif (defined(__GNUC__) || defined(__SUNPRO_CC)) && (defined(__i386) || defined(__x86_64__))
 
@@ -163,6 +162,29 @@ namespace sse_private {
 
 #if !defined(MOZILLA_PRESUME_SSE4_2)
   bool sse4_2_enabled = has_cpuid_bits(1u, ecx, (1u<<20));
+#endif
+
+  static bool has_avx()
+  {
+      const unsigned AVX = 1u << 28;
+      const unsigned OSXSAVE = 1u << 27;
+      const unsigned XSAVE = 1u << 26;
+
+      const unsigned XMM_STATE = 1u << 1;
+      const unsigned YMM_STATE = 1u << 2;
+      const unsigned AVX_STATE = XMM_STATE | YMM_STATE;
+
+      return has_cpuid_bits(1u, ecx, AVX | OSXSAVE | XSAVE) &&
+          // ensure the OS supports XSAVE of YMM registers
+          (xgetbv(0) & AVX_STATE) == AVX_STATE;
+  }
+
+#if !defined(MOZILLA_PRESUME_AVX)
+  bool avx_enabled = has_avx();
+#endif
+
+#if !defined(MOZILLA_PRESUME_AVX2)
+  bool avx2_enabled = has_avx() && has_cpuid_bits(7u, ebx, (1u<<5));
 #endif
 
 #endif

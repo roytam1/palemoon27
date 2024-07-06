@@ -28,6 +28,7 @@
 namespace mozilla {
 
 using namespace gl;
+using dom::AutoJSAPI;
 
 bool
 IsGLDepthFormat(TexInternalFormat internalformat)

@@ -19,7 +19,7 @@
 #define WOFF2_FONT_H_
 
 #include <stddef.h>
-#include <inttypes.h>
+#include "woff2_common.h"
 #include <map>
 #include <vector>
 

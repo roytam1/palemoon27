@@ -177,10 +177,10 @@ nsHTMLEditUtils::IsListItem(nsIDOMNode* aNode)
 }
 
 bool
-nsHTMLEditUtils::IsListItem(nsINode* aNode)
+nsHTMLEditUtils::IsListItem(nsINode* node)
 {
-  MOZ_ASSERT(aNode);
-  nsCOMPtr<nsIAtom> nodeAtom = aNode->Tag();
+  MOZ_ASSERT(node);
+  nsCOMPtr<nsIAtom> nodeAtom = node->Tag();
   return (nodeAtom == nsGkAtoms::li)
       || (nodeAtom == nsGkAtoms::dd)
       || (nodeAtom == nsGkAtoms::dt);
@@ -199,10 +199,10 @@ nsHTMLEditUtils::IsTableElement(nsIDOMNode* aNode)
 }
 
 bool
-nsHTMLEditUtils::IsTableElement(nsINode* aNode)
+nsHTMLEditUtils::IsTableElement(nsINode* node)
 {
-  MOZ_ASSERT(aNode);
-  nsCOMPtr<nsIAtom> nodeAtom = aNode->Tag();
+  MOZ_ASSERT(node);
+  nsCOMPtr<nsIAtom> nodeAtom = node->Tag();
   return (nodeAtom == nsGkAtoms::table)
       || (nodeAtom == nsGkAtoms::tr)
       || (nodeAtom == nsGkAtoms::td)
@@ -230,12 +230,12 @@ nsHTMLEditUtils::IsTableElementButNotTable(nsINode* aNode)
   MOZ_ASSERT(aNode);
   nsCOMPtr<nsIAtom> nodeAtom = aNode->Tag();
   return (nodeAtom == nsGkAtoms::tr)
-	|| (nodeAtom == nsGkAtoms::td)
-	|| (nodeAtom == nsGkAtoms::th)
-	|| (nodeAtom == nsGkAtoms::thead)
-	|| (nodeAtom == nsGkAtoms::tfoot)
-	|| (nodeAtom == nsGkAtoms::tbody)
-	|| (nodeAtom == nsGkAtoms::caption);
+      || (nodeAtom == nsGkAtoms::td)
+      || (nodeAtom == nsGkAtoms::th)
+      || (nodeAtom == nsGkAtoms::thead)
+      || (nodeAtom == nsGkAtoms::tfoot)
+      || (nodeAtom == nsGkAtoms::tbody)
+      || (nodeAtom == nsGkAtoms::caption);
 }
 
 ///////////////////////////////////////////////////////////////////////////
@@ -250,7 +250,7 @@ nsHTMLEditUtils::IsTable(nsIDOMNode* aNode)
 bool
 nsHTMLEditUtils::IsTable(nsINode* aNode)
 {
-  return aNode && aNode->IsHTMLElement(nsGkAtoms::table);
+  return aNode && aNode->IsElement() && aNode->Tag() == nsGkAtoms::table;
 }
 
 ///////////////////////////////////////////////////////////////////////////
@@ -275,10 +275,10 @@ nsHTMLEditUtils::IsTableCell(nsIDOMNode* aNode)
 }
 
 bool
-nsHTMLEditUtils::IsTableCell(nsINode* aNode)
+nsHTMLEditUtils::IsTableCell(nsINode* node)
 {
-  MOZ_ASSERT(aNode);
-  nsCOMPtr<nsIAtom> nodeAtom = aNode->Tag();
+  MOZ_ASSERT(node);
+  nsCOMPtr<nsIAtom> nodeAtom = node->Tag();
   return (nodeAtom == nsGkAtoms::td)
       || (nodeAtom == nsGkAtoms::th);
 }
@@ -310,10 +310,10 @@ nsHTMLEditUtils::IsList(nsIDOMNode* aNode)
 }
 
 bool
-nsHTMLEditUtils::IsList(nsINode* aNode)
+nsHTMLEditUtils::IsList(nsINode* node)
 {
-  MOZ_ASSERT(aNode);
-  nsCOMPtr<nsIAtom> nodeAtom = aNode->Tag();
+  MOZ_ASSERT(node);
+  nsCOMPtr<nsIAtom> nodeAtom = node->Tag();
   return (nodeAtom == nsGkAtoms::ul)
       || (nodeAtom == nsGkAtoms::ol)
       || (nodeAtom == nsGkAtoms::dl);
@@ -366,7 +366,7 @@ nsHTMLEditUtils::IsPre(nsIDOMNode* aNode)
 bool
 nsHTMLEditUtils::IsImage(nsINode* aNode)
 {
-  return aNode && aNode->IsHTMLElement(nsGkAtoms::img);
+  return aNode && aNode->Tag() == nsGkAtoms::img;
 }
 
 bool 
@@ -409,7 +409,7 @@ bool
 nsHTMLEditUtils::IsNamedAnchor(nsINode* aNode)
 {
   MOZ_ASSERT(aNode);
-  if (!aNode->IsHTMLElement(nsGkAtoms::a)) {
+  if (!aNode->IsElement() || !aNode->AsElement()->IsHTML(nsGkAtoms::a)) {
     return false;
   }
 
@@ -443,7 +443,7 @@ bool
 nsHTMLEditUtils::IsMozDiv(nsINode* aNode)
 {
   MOZ_ASSERT(aNode);
-  return aNode->IsHTMLElement(nsGkAtoms::div) &&
+  return aNode->Tag() == nsGkAtoms::div &&
          nsTextEditUtils::HasMozAttr(GetAsDOMNode(aNode));
 }
 

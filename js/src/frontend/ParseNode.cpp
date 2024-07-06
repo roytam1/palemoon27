@@ -7,9 +7,10 @@
 #include "frontend/ParseNode-inl.h"
 
 #include "frontend/Parser.h"
-#include "mozilla/TypedEnum.h"
 
 #include "jscntxtinlines.h"
+
+#include "mozilla/TypedEnum.h"
 
 using namespace js;
 using namespace js::frontend;

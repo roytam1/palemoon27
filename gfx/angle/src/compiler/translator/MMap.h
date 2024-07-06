@@ -4,8 +4,8 @@
 // found in the LICENSE file.
 //
 
-#ifndef COMPILER_TRANSLATOR_MMAP_H_
-#define COMPILER_TRANSLATOR_MMAP_H_
+#ifndef _MMAP_INCLUDED_
+#define _MMAP_INCLUDED_
 
 //
 // Encapsulate memory mapped files
@@ -53,4 +53,4 @@ private:
     char*           fBuff;      // the actual data;
 };
 
-#endif // COMPILER_TRANSLATOR_MMAP_H_
+#endif // _MMAP_INCLUDED_

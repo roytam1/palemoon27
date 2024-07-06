@@ -342,10 +342,10 @@ nsHTMLFramesetFrame::Init(nsIContent*       aContent,
 
     // IMPORTANT: This must match the conditions in
     // nsCSSFrameConstructor::ContentAppended/Inserted/Removed
-    if (!child->IsHTMLElement())
+    if (!child->IsHTML())
       continue;
 
-	  nsIAtom *tag = child->Tag();
+    nsIAtom *tag = child->Tag();
     if (tag == nsGkAtoms::frameset || tag == nsGkAtoms::frame) {
       nsRefPtr<nsStyleContext> kidSC;
 

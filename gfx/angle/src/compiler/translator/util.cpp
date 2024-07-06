@@ -9,10 +9,9 @@
 #include <limits>
 
 #include "compiler/preprocessor/numeric_lex.h"
-#include "compiler/translator/SymbolTable.h"
 #include "common/utilities.h"
 
-bool strtof_clamp(const std::string &str, float *value)
+bool atof_clamp(const char *str, float *value)
 {
     bool success = pp::numeric_lex_float(str, value);
     if (!success)
@@ -20,11 +19,11 @@ bool strtof_clamp(const std::string &str, float *value)
     return success;
 }
 
-bool atoi_clamp(const char *str, unsigned int *value)
+bool atoi_clamp(const char *str, int *value)
 {
     bool success = pp::numeric_lex_int(str, value);
     if (!success)
-        *value = std::numeric_limits<unsigned int>::max();
+        *value = std::numeric_limits<int>::max();
     return success;
 }
 
@@ -219,6 +218,7 @@ bool IsVaryingOut(TQualifier qualifier)
     switch (qualifier)
     {
       case EvqVaryingOut:
+      case EvqInvariantVaryingOut:
       case EvqSmoothOut:
       case EvqFlatOut:
       case EvqCentroidOut:
@@ -236,6 +236,7 @@ bool IsVaryingIn(TQualifier qualifier)
     switch (qualifier)
     {
       case EvqVaryingIn:
+      case EvqInvariantVaryingIn:
       case EvqSmoothIn:
       case EvqFlatIn:
       case EvqCentroidIn:
@@ -267,6 +268,8 @@ InterpolationType GetInterpolationType(TQualifier qualifier)
       case EvqFragmentIn:
       case EvqVaryingIn:
       case EvqVaryingOut:
+      case EvqInvariantVaryingIn:
+      case EvqInvariantVaryingOut:
         return INTERPOLATION_SMOOTH;
 
       case EvqCentroidIn:
@@ -278,47 +281,8 @@ InterpolationType GetInterpolationType(TQualifier qualifier)
     }
 }
 
-GetVariableTraverser::GetVariableTraverser(const TSymbolTable &symbolTable)
-    : mSymbolTable(symbolTable)
-{
-}
-
-template void GetVariableTraverser::setTypeSpecificInfo(
-    const TType &type, const TString& name, InterfaceBlockField *variable);
-template void GetVariableTraverser::setTypeSpecificInfo(
-    const TType &type, const TString& name, ShaderVariable *variable);
-template void GetVariableTraverser::setTypeSpecificInfo(
-    const TType &type, const TString& name, Uniform *variable);
-
-template<>
-void GetVariableTraverser::setTypeSpecificInfo(
-    const TType &type, const TString& name, Varying *variable)
-{
-    ASSERT(variable);
-    switch (type.getQualifier())
-    {
-      case EvqVaryingIn:
-      case EvqVaryingOut:
-      case EvqVertexOut:
-      case EvqSmoothOut:
-      case EvqFlatOut:
-      case EvqCentroidOut:
-        if (mSymbolTable.isVaryingInvariant(std::string(name.c_str())) || type.isInvariant())
-        {
-            variable->isInvariant = true;
-        }
-        break;
-      default:
-        break;
-    }
-
-    variable->interpolation = GetInterpolationType(type.getQualifier());
-}
-
 template <typename VarT>
-void GetVariableTraverser::traverse(const TType &type,
-                                    const TString &name,
-                                    std::vector<VarT> *output)
+void GetVariableTraverser::traverse(const TType &type, const TString &name, std::vector<VarT> *output)
 {
     const TStructure *structure = type.getStruct();
 
@@ -345,16 +309,15 @@ void GetVariableTraverser::traverse(const TType &type,
             traverse(*field->type(), field->name(), &variable.fields);
         }
     }
-    setTypeSpecificInfo(type, name, &variable);
+
     visitVariable(&variable);
 
     ASSERT(output);
     output->push_back(variable);
 }
 
-template void GetVariableTraverser::traverse(const TType &, const TString &, std::vector<InterfaceBlockField> *);
-template void GetVariableTraverser::traverse(const TType &, const TString &, std::vector<ShaderVariable> *);
 template void GetVariableTraverser::traverse(const TType &, const TString &, std::vector<Uniform> *);
 template void GetVariableTraverser::traverse(const TType &, const TString &, std::vector<Varying> *);
+template void GetVariableTraverser::traverse(const TType &, const TString &, std::vector<InterfaceBlockField> *);
 
 }

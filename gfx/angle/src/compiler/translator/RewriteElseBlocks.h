@@ -7,16 +7,16 @@
 //   all if-else blocks to if-if blocks.
 //
 
-#ifndef COMPILER_TRANSLATOR_REWRITEELSEBLOCKS_H_
-#define COMPILER_TRANSLATOR_REWRITEELSEBLOCKS_H_
+#ifndef COMPILER_REWRITE_ELSE_BLOCKS_H_
+#define COMPILER_REWRITE_ELSE_BLOCKS_H_
 
 #include "compiler/translator/IntermNode.h"
 
 namespace sh
 {
 
-void RewriteElseBlocks(TIntermNode *node, unsigned int *temporaryIndex);
+void RewriteElseBlocks(TIntermNode *node);
 
 }
 
-#endif // COMPILER_TRANSLATOR_REWRITEELSEBLOCKS_H_
+#endif // COMPILER_REWRITE_ELSE_BLOCKS_H_

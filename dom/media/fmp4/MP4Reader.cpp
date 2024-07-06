@@ -233,7 +233,6 @@ bool MP4Reader::IsWaitingMediaResources() {
 }
 
 bool MP4Reader::IsWaitingOnCDMResource() {
-  // EME Stub
   return false;
 }
 

@@ -124,9 +124,7 @@ HRESULT DXVA2CreateDirect3DDeviceManager9(UINT *pResetToken,
                                           IDirect3DDeviceManager9 **ppDXVAManager);
 
 
-#if defined (_MSC_VER) //&& _MSC_VER >= 1700
 HRESULT MFCreateDXGIDeviceManager(UINT *pResetToken, IMFDXGIDeviceManager **ppDXVAManager);
-#endif
 
 HRESULT MFCreateSample(IMFSample **ppIMFSample);
 
@@ -134,13 +132,11 @@ HRESULT MFCreateAlignedMemoryBuffer(DWORD cbMaxLength,
                                     DWORD fAlignmentFlags,
                                     IMFMediaBuffer **ppBuffer);
 
-#if defined (_MSC_VER) //&& _MSC_VER >= 1700
 HRESULT MFCreateDXGISurfaceBuffer(REFIID riid,
                                   IUnknown *punkSurface,
                                   UINT uSubresourceIndex,
                                   BOOL fButtomUpWhenLinear,
                                   IMFMediaBuffer **ppBuffer);
-#endif
 
 } // end namespace wmf
 } // end namespace mozilla

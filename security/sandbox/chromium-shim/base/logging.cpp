@@ -42,6 +42,8 @@ int GetVlogLevelHelper(const char* file, size_t N) {
   return 0;
 }
 
+// MSVC doesn't like complex extern templates and DLLs.
+#if !defined(COMPILER_MSVC)
 // Explicit instantiations for commonly used comparisons.
 template std::string* MakeCheckOpString<int, int>(
     const int&, const int&, const char* names);
@@ -53,6 +55,7 @@ template std::string* MakeCheckOpString<unsigned int, unsigned long>(
     const unsigned int&, const unsigned long&, const char* names);
 template std::string* MakeCheckOpString<std::string, std::string>(
     const std::string&, const std::string&, const char* name);
+#endif
 
 #if defined(OS_WIN)
 LogMessage::SaveLastError::SaveLastError() : last_error_(::GetLastError()) {

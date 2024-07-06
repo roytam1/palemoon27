@@ -248,9 +248,9 @@ public:
   bool Next(nsAString& aAttrName, nsAString& aAttrValue);
 
 private:
-  AttrIterator() = delete;
-  AttrIterator(const AttrIterator&) = delete;
-  AttrIterator& operator= (const AttrIterator&) = delete;
+  AttrIterator() MOZ_DELETE;
+  AttrIterator(const AttrIterator&) MOZ_DELETE;
+  AttrIterator& operator= (const AttrIterator&) MOZ_DELETE;
 
   nsIContent* mContent;
   uint32_t mAttrIdx;

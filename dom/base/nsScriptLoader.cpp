@@ -189,7 +189,7 @@ NS_IMPL_ISUPPORTS(nsScriptLoader, nsIStreamLoaderObserver)
 static bool
 IsScriptEventHandler(nsIContent* aScriptElement)
 {
-  if (!aScriptElement->IsHTMLElement()) {
+  if (!aScriptElement->IsHTML()) {
     return false;
   }
 
@@ -595,7 +595,7 @@ nsScriptLoader::ProcessScriptElement(nsIScriptElement *aElement)
     // no 'type=' element
     // "language" is a deprecated attribute of HTML, so we check it only for
     // HTML script elements.
-    if (scriptContent->IsHTMLElement()) {
+    if (scriptContent->IsHTML()) {
       nsAutoString language;
       scriptContent->GetAttr(kNameSpaceID_None, nsGkAtoms::language, language);
       if (!language.IsEmpty()) {

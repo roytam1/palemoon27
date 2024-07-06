@@ -11,6 +11,7 @@
 #include "nsRect.h"
 #include "mozilla/Attributes.h"
 #include "mozilla/EventForwards.h"
+#include "Units.h"
 
 class nsIWidget;
 

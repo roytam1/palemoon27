@@ -744,7 +744,7 @@ nsFind::NextNode(nsIDOMRange* aSearchRange,
 
 bool nsFind::IsBlockNode(nsIContent* aContent)
 {
-  if (!aContent->IsHTMLElement()) {
+  if (!aContent->IsHTML()) {
     return false;
   }
 
@@ -785,15 +785,15 @@ bool nsFind::IsVisibleNode(nsIDOMNode *aDOMNode)
 
 bool nsFind::SkipNode(nsIContent* aContent)
 {
+  nsIAtom *atom;
 
-nsIAtom *atom;
 #ifdef HAVE_BIDI_ITERATOR
-atom = aContent->Tag();
+  atom = aContent->Tag();
 
   // We may not need to skip comment nodes,
   // now that IsTextNode distinguishes them from real text nodes.
   return (aContent->IsNodeOfType(nsINode::eCOMMENT) ||
-          (aContent->IsHTMLElement() &&
+          (aContent->IsHTML() &&
            (atom == sScriptAtom ||
             atom == sNoframesAtom ||
             atom == sSelectAtom)));
@@ -807,10 +807,10 @@ atom = aContent->Tag();
   nsIContent *content = aContent;
   while (content)
   {
-  atom = content->Tag();
-  
+    atom = content->Tag();
+
     if (aContent->IsNodeOfType(nsINode::eCOMMENT) ||
-        (content->IsHTMLElement() &&
+        (content->IsHTML() &&
          (atom == nsGkAtoms::script ||
           atom == nsGkAtoms::noframes ||
           atom == nsGkAtoms::select)))

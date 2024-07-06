@@ -10,7 +10,6 @@
 #include <sstream>
 #include <stdio.h>
 #include <vector>
-#include "mozilla/TypedEnum.h"
 
 #ifdef MOZ_LOGGING
 #include <prlog.h>

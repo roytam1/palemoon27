@@ -7,8 +7,8 @@
 // operations with ternary operations.
 //
 
-#ifndef COMPILER_TRANSLATOR_UNFOLDSHORTCIRCUITAST_H_
-#define COMPILER_TRANSLATOR_UNFOLDSHORTCIRCUITAST_H_
+#ifndef COMPILER_UNFOLD_SHORT_CIRCUIT_AST_H_
+#define COMPILER_UNFOLD_SHORT_CIRCUIT_AST_H_
 
 #include "common/angleutils.h"
 #include "compiler/translator/IntermNode.h"
@@ -20,12 +20,32 @@
 class UnfoldShortCircuitAST : public TIntermTraverser
 {
   public:
-    UnfoldShortCircuitAST()
-        : TIntermTraverser(true, false, false)
-    {
-    }
+    UnfoldShortCircuitAST() { }
 
-    bool visitBinary(Visit visit, TIntermBinary *) override;
+    virtual bool visitBinary(Visit visit, TIntermBinary *);
+
+    void updateTree();
+
+  private:
+    struct NodeUpdateEntry
+    {
+        NodeUpdateEntry(TIntermNode *_parent,
+                        TIntermNode *_original,
+                        TIntermNode *_replacement)
+            : parent(_parent),
+              original(_original),
+              replacement(_replacement) {}
+
+        TIntermNode *parent;
+        TIntermNode *original;
+        TIntermNode *replacement;
+    };
+
+    // During traversing, save all the replacements that need to happen;
+    // then replace them by calling updateNodes().
+    std::vector<NodeUpdateEntry> replacements;
+
+    DISALLOW_COPY_AND_ASSIGN(UnfoldShortCircuitAST);
 };
 
-#endif  // COMPILER_TRANSLATOR_UNFOLDSHORTCIRCUITAST_H_
+#endif  // COMPILER_UNFOLD_SHORT_CIRCUIT_AST_H_

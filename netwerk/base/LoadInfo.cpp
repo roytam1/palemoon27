@@ -18,6 +18,7 @@
 #include "nsISupportsImpl.h"
 #include "nsISupportsUtils.h"
 #include "nsContentUtils.h"
+#include "nsDocShell.h"
 #include "nsGlobalWindow.h"
 
 using namespace mozilla::dom;
@@ -60,6 +61,19 @@ LoadInfo::LoadInfo(nsIPrincipal* aLoadingPrincipal,
 {
   MOZ_ASSERT(mLoadingPrincipal);
   MOZ_ASSERT(mTriggeringPrincipal);
+
+#ifdef DEBUG
+  // TYPE_DOCUMENT loads initiated by javascript tests will go through
+  // nsIOService and use the wrong constructor.  Don't enforce the
+  // !TYPE_DOCUMENT check in those cases
+  bool skipContentTypeCheck = false;
+  skipContentTypeCheck = Preferences::GetBool("network.loadinfo.skip_type_assertion");
+#endif
+
+  // This constructor shouldn't be used for TYPE_DOCUMENT loads that don't
+  // have a loadingPrincipal
+  MOZ_ASSERT(skipContentTypeCheck ||
+             mInternalContentPolicyType != nsIContentPolicy::TYPE_DOCUMENT);
 
   // TODO(bug 1259873): Above, we initialize mIsThirdPartyContext to false meaning
   // that consumers of LoadInfo that don't pass a context or pass a context from
@@ -149,11 +163,14 @@ LoadInfo::LoadInfo(nsIPrincipal* aLoadingPrincipal,
   InheritOriginAttributes(mLoadingPrincipal, mOriginAttributes);
 }
 
+/* Constructor takes an outer window, but no loadingNode or loadingPrincipal.
+ * This constructor should only be used for TYPE_DOCUMENT loads, since they
+ * have a null loadingNode and loadingPrincipal.
+*/
 LoadInfo::LoadInfo(nsPIDOMWindowOuter* aOuterWindow,
-                   nsIPrincipal* aLoadingPrincipal,
                    nsIPrincipal* aTriggeringPrincipal,
                    nsSecurityFlags aSecurityFlags)
-  : mLoadingPrincipal(aLoadingPrincipal)
+  : mLoadingPrincipal(nullptr)
   , mTriggeringPrincipal(aTriggeringPrincipal)
   , mSecurityFlags(aSecurityFlags)
   , mInternalContentPolicyType(nsIContentPolicy::TYPE_DOCUMENT)
@@ -173,6 +190,7 @@ LoadInfo::LoadInfo(nsPIDOMWindowOuter* aOuterWindow,
   // Top-level loads are never third-party
   // Grab the information we can out of the window.
   MOZ_ASSERT(aOuterWindow);
+  MOZ_ASSERT(mTriggeringPrincipal);
 
   // if the load is sandboxed, we can not also inherit the principal
   if (mSecurityFlags & nsILoadInfo::SEC_SANDBOXED) {
@@ -187,7 +205,12 @@ LoadInfo::LoadInfo(nsPIDOMWindowOuter* aOuterWindow,
   nsCOMPtr<nsPIDOMWindowOuter> parent = aOuterWindow->GetScriptableParent();
   mParentOuterWindowID = parent ? parent->WindowID() : 0;
 
-  InheritOriginAttributes(mLoadingPrincipal, mOriginAttributes);
+  // get the docshell from the outerwindow, and then get the originattributes
+  nsCOMPtr<nsIDocShell> docShell = aOuterWindow->GetDocShell();
+  MOZ_ASSERT(docShell);
+  const DocShellOriginAttributes attrs =
+    nsDocShell::Cast(docShell)->GetOriginAttributes();
+  mOriginAttributes.InheritFromDocShellToNecko(attrs);
 }
 
 LoadInfo::LoadInfo(const LoadInfo& rhs)
@@ -257,7 +280,8 @@ LoadInfo::LoadInfo(nsIPrincipal* aLoadingPrincipal,
   , mIsPreflight(aIsPreflight)
   , mIsFromProcessingFrameAttributes(false)
 {
-  MOZ_ASSERT(mLoadingPrincipal);
+  // Only top level TYPE_DOCUMENT loads can have a null loadingPrincipal
+  MOZ_ASSERT(mLoadingPrincipal || aContentPolicyType == nsIContentPolicy::TYPE_DOCUMENT);
   MOZ_ASSERT(mTriggeringPrincipal);
 
   mRedirectChainIncludingInternalRedirects.SwapElements(

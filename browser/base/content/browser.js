@@ -1433,9 +1433,6 @@ var gBrowserInit = {
       cmd.removeAttribute("hidden");
     }
 
-    // Add Devtools menuitems and listeners
-    gDevToolsBrowser.registerBrowserWindow(window);
-
     let appMenuButton = document.getElementById("appmenu-button");
     let appMenuPopup = document.getElementById("appmenu-popup");
     if (appMenuButton && appMenuPopup) {
@@ -1515,8 +1512,6 @@ var gBrowserInit = {
     // load completes). In that case, there's nothing to do here.
     if (!this._loadHandled)
       return;
-
-    gDevToolsBrowser.forgetBrowserWindow(window);
 
     let desc = Object.getOwnPropertyDescriptor(window, "DeveloperToolbar");
     if (desc && !desc.get) {

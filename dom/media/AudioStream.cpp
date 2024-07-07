@@ -339,10 +339,8 @@ AudioStream::Init(uint32_t aNumChannels, uint32_t aRate,
   params.channels = mOutChannels;
 #if defined(__ANDROID__)
 #if defined(MOZ_B2G)
-  mAudioChannel = aAudioChannel;
   params.stream_type = CubebUtils::ConvertChannelToCubebType(aAudioChannel);
 #else
-  mAudioChannel = dom::AudioChannel::Content;
   params.stream_type = CUBEB_STREAM_TYPE_MUSIC;
 #endif
 
@@ -516,19 +514,12 @@ AudioStream::GetPosition()
   return mAudioClock.GetPositionUnlocked();
 }
 
-// This function is miscompiled by PGO with MSVC 2010.  See bug 768333.
-#ifdef _MSC_VER
-#pragma optimize("", off)
-#endif
 int64_t
 AudioStream::GetPositionInFrames()
 {
   MonitorAutoLock mon(mMonitor);
   return mAudioClock.GetPositionInFrames();
 }
-#ifdef _MSC_VER
-#pragma optimize("", on)
-#endif
 
 int64_t
 AudioStream::GetPositionInFramesUnlocked()

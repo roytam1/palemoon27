@@ -2999,7 +2999,7 @@ class ICGetElemNativeCompiler : public ICStubCompiler
         pcOffset_(pcOffset)
     {}
 
-    ICStub* getStub(ICStubSpace* space) {
+    ICStub *getStub(ICStubSpace *space) {
         RootedShape shape(cx, obj_->lastProperty());
         if (kind == ICStub::GetElem_NativeSlot) {
             MOZ_ASSERT(obj_ == holder_);
@@ -3890,7 +3890,7 @@ class ICGetProp_Primitive : public ICMonitoredStub
             offset_(offset)
         {}
 
-        ICStub* getStub(ICStubSpace* space) {
+        ICStub *getStub(ICStubSpace *space) {
             RootedShape protoShape(cx, prototype_->lastProperty());
             return ICStub::New<ICGetProp_Primitive>(space, getStubCode(), firstMonitorStub_,
                                                     protoShape, offset_);
@@ -4498,7 +4498,7 @@ class ICGetProp_CallScripted : public ICGetPropCallPrototypeGetter
                                                    getter, pcOffset, /* outerClass = */ nullptr)
         {}
 
-        ICStub* getStub(ICStubSpace* space) {
+        ICStub *getStub(ICStubSpace *space) {
             ReceiverGuard::Token guard = ReceiverGuard::objectToken(receiver_);
             Shape *holderShape = holder_->lastProperty();
             return ICStub::New<ICGetProp_CallScripted>(space, getStubCode(), firstMonitorStub_,
@@ -4545,7 +4545,7 @@ class ICGetProp_CallNative : public ICGetPropCallGetter
             inputDefinitelyObject_(inputDefinitelyObject)
         {}
 
-        ICStub* getStub(ICStubSpace* space) {
+        ICStub *getStub(ICStubSpace *space) {
             RootedShape shape(cx, holder_->lastProperty());
             return ICStub::New<ICGetProp_CallNative>(space, getStubCode(), firstMonitorStub_,
                                                      holder_, shape, getter_, pcOffset_);
@@ -4591,7 +4591,7 @@ class ICGetProp_CallNativePrototype : public ICGetPropCallPrototypeGetter
             inputDefinitelyObject_(inputDefinitelyObject)
         {}
 
-        ICStub* getStub(ICStubSpace* space) {
+        ICStub *getStub(ICStubSpace *space) {
             ReceiverGuard::Token guard = ReceiverGuard::objectToken(receiver_);
             Shape *holderShape = holder_->lastProperty();
             return ICStub::New<ICGetProp_CallNativePrototype>(space, getStubCode(), firstMonitorStub_,

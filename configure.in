@@ -567,10 +567,10 @@ See https://developer.mozilla.org/en/Windows_Build_Prerequisites.])
           if test ! -d "$WIN32_REDIST_DIR"; then
             AC_MSG_ERROR([Invalid Win32 Redist directory: ${WIN32_REDIST_DIR}])
           fi
-
-          if test -f "$WIN32_REDIST_DIR/$MSVC_C_RUNTIME_DLL"; then
-            AC_MSG_ERROR([The Win32 Redist directory must be set to the directory above Microsoft.VCXX0.CRT])
-          fi
+          
+          #if test -f "$WIN32_REDIST_DIR/$MSVC_C_RUNTIME_DLL"; then
+          #  AC_MSG_ERROR([The Win32 Redist directory must be set to the directory above Microsoft.VCXX0.CRT])
+          #fi
           WIN32_REDIST_DIR=`cd "$WIN32_REDIST_DIR" && pwd`
         fi
 

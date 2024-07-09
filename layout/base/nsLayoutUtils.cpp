@@ -2315,6 +2315,10 @@ nsLayoutUtils::GetTransformToAncestorScale(nsIFrame* aFrame)
 nsIFrame*
 nsLayoutUtils::FindNearestCommonAncestorFrame(nsIFrame* aFrame1, nsIFrame* aFrame2)
 {
+  if (MOZ_UNLIKELY(!aFrame1 || !aFrame2)) {
+    return nullptr;
+  }
+
   nsAutoTArray<nsIFrame*,100> ancestors1;
   nsAutoTArray<nsIFrame*,100> ancestors2;
   nsIFrame* commonAncestor = nullptr;

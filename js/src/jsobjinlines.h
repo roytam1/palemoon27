@@ -324,11 +324,6 @@ JSObject::getMetadata() const
 inline js::GlobalObject &
 JSObject::global() const
 {
-#ifdef DEBUG
-    JSObject* obj = const_cast<JSObject*>(this);
-    while (JSObject* parent = obj->getParent())
-        obj = parent;
-#endif
     /*
      * The global is read-barriered so that it is kept live by access through
      * the JSCompartment. When accessed through a JSObject, however, the global
@@ -570,9 +565,9 @@ ToPrimitive(JSContext* cx, JSType preferredType, MutableHandleValue vp)
  * or embedding code.
  */
 inline bool
-IsInternalFunctionObject(JSObject* funobj)
+IsInternalFunctionObject(JSObject *funobj)
 {
-    JSFunction* fun = &funobj->as<JSFunction>();
+    JSFunction *fun = &funobj->as<JSFunction>();
     MOZ_ASSERT_IF(fun->isLambda(),
                   fun->isInterpreted() || fun->isAsmJSNative());
     return fun->isLambda() && fun->isInterpreted() && !fun->environment();
@@ -688,20 +683,20 @@ NewObjectWithClassProto(ExclusiveContext* cx, const Class* clasp, HandleObject p
 }
 
 template<typename T>
-inline T*
-NewObjectWithProto(ExclusiveContext* cx, HandleObject proto, HandleObject parent,
+inline T *
+NewObjectWithProto(ExclusiveContext *cx, HandleObject proto,
                    gc::AllocKind allocKind, NewObjectKind newKind = GenericObject)
 {
-    JSObject* obj = NewObjectWithClassProto(cx, &T::class_, proto, parent, allocKind, newKind);
+    JSObject *obj = NewObjectWithClassProto(cx, &T::class_, proto, NullPtr(), allocKind, newKind);
     return obj ? &obj->as<T>() : nullptr;
 }
 
 template<typename T>
-inline T*
-NewObjectWithProto(ExclusiveContext* cx, HandleObject proto, HandleObject parent,
+inline T *
+NewObjectWithProto(ExclusiveContext *cx, HandleObject proto,
                    NewObjectKind newKind = GenericObject)
 {
-    JSObject* obj = NewObjectWithClassProto(cx, &T::class_, proto, parent, newKind);
+    JSObject* obj = NewObjectWithClassProto(cx, &T::class_, proto, NullPtr(), newKind);
     return obj ? &obj->as<T>() : nullptr;
 }
 
@@ -741,24 +736,24 @@ NewBuiltinClassInstance(ExclusiveContext* cx, gc::AllocKind allocKind, NewObject
 
 // Used to optimize calls to (new Object())
 bool
-NewObjectScriptedCall(JSContext* cx, MutableHandleObject obj);
+NewObjectScriptedCall(JSContext *cx, MutableHandleObject obj);
 
-JSObject*
-NewObjectWithGroupCommon(JSContext* cx, HandleObjectGroup group, HandleObject parent,
+JSObject *
+NewObjectWithGroupCommon(JSContext *cx, HandleObjectGroup group, HandleObject parent,
                          gc::AllocKind allocKind, NewObjectKind newKind);
 
 template <typename T>
-inline T*
-NewObjectWithGroup(JSContext* cx, HandleObjectGroup group, HandleObject parent,
+inline T *
+NewObjectWithGroup(JSContext *cx, HandleObjectGroup group, HandleObject parent,
                    gc::AllocKind allocKind, NewObjectKind newKind = GenericObject)
 {
-    JSObject* obj = NewObjectWithGroupCommon(cx, group, parent, allocKind, newKind);
+    JSObject *obj = NewObjectWithGroupCommon(cx, group, parent, allocKind, newKind);
     return obj ? &obj->as<T>() : nullptr;
 }
 
 template <typename T>
-inline T*
-NewObjectWithGroup(JSContext* cx, HandleObjectGroup group, HandleObject parent,
+inline T *
+NewObjectWithGroup(JSContext *cx, HandleObjectGroup group, HandleObject parent,
                    NewObjectKind newKind = GenericObject)
 {
     gc::AllocKind allocKind = gc::GetGCObjectKind(group->clasp());

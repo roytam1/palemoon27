@@ -56,9 +56,8 @@ JS_GetObjectFunction(JSObject* obj);
 extern JS_FRIEND_API(bool)
 JS_SplicePrototype(JSContext* cx, JS::HandleObject obj, JS::HandleObject proto);
 
-extern JS_FRIEND_API(JSObject*)
-JS_NewObjectWithUniqueType(JSContext* cx, const JSClass* clasp, JS::HandleObject proto,
-                           JS::HandleObject parent);
+extern JS_FRIEND_API(JSObject *)
+JS_NewObjectWithUniqueType(JSContext *cx, const JSClass *clasp, JS::HandleObject proto);
 
 // Allocate an object in exactly the same way as JS_NewObjectWithGivenProto, but
 // without invoking the metadata callback on it.  This allows creation of
@@ -711,13 +710,13 @@ JS_FRIEND_API(JSFunction*)
 DefineFunctionWithReserved(JSContext* cx, JSObject* obj, const char* name, JSNative call,
                            unsigned nargs, unsigned attrs);
 
-JS_FRIEND_API(JSFunction*)
-NewFunctionWithReserved(JSContext* cx, JSNative call, unsigned nargs, unsigned flags,
-                        JSObject* parent, const char* name);
+JS_FRIEND_API(JSFunction *)
+NewFunctionWithReserved(JSContext *cx, JSNative call, unsigned nargs, unsigned flags,
+                        const char *name);
 
-JS_FRIEND_API(JSFunction*)
-NewFunctionByIdWithReserved(JSContext* cx, JSNative native, unsigned nargs, unsigned flags,
-                            JSObject* parent, jsid id);
+JS_FRIEND_API(JSFunction *)
+NewFunctionByIdWithReserved(JSContext *cx, JSNative native, unsigned nargs, unsigned flags,
+                            jsid id);
 
 JS_FRIEND_API(const JS::Value&)
 GetFunctionNativeReserved(JSObject* fun, size_t which);

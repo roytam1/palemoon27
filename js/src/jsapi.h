@@ -2457,8 +2457,8 @@ JS_GlobalObjectTraceHook(JSTracer* trc, JSObject* global);
 extern JS_PUBLIC_API(void)
 JS_FireOnNewGlobalObject(JSContext* cx, JS::HandleObject global);
 
-extern JS_PUBLIC_API(JSObject*)
-JS_NewObject(JSContext* cx, const JSClass* clasp, JS::Handle<JSObject*> parent = JS::NullPtr());
+extern JS_PUBLIC_API(JSObject *)
+JS_NewObject(JSContext *cx, const JSClass *clasp);
 
 /* Queries the [[Extensible]] property of the object. */
 extern JS_PUBLIC_API(bool)
@@ -3064,17 +3064,17 @@ JS_SetReservedSlot(JSObject* obj, uint32_t index, jsval v);
 /*
  * Functions and scripts.
  */
-extern JS_PUBLIC_API(JSFunction*)
-JS_NewFunction(JSContext* cx, JSNative call, unsigned nargs, unsigned flags,
-               JS::Handle<JSObject*> parent, const char* name);
+extern JS_PUBLIC_API(JSFunction *)
+JS_NewFunction(JSContext *cx, JSNative call, unsigned nargs, unsigned flags,
+               const char *name);
 
 /*
  * Create the function with the name given by the id. JSID_IS_STRING(id) must
  * be true.
  */
-extern JS_PUBLIC_API(JSFunction*)
-JS_NewFunctionById(JSContext* cx, JSNative call, unsigned nargs, unsigned flags,
-                   JS::Handle<JSObject*> parent, JS::Handle<jsid> id);
+extern JS_PUBLIC_API(JSFunction *)
+JS_NewFunctionById(JSContext *cx, JSNative call, unsigned nargs, unsigned flags,
+                   JS::Handle<jsid> id);
 
 namespace JS {
 

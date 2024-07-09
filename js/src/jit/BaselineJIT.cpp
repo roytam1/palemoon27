@@ -1074,11 +1074,11 @@ jit::AddSizeOfBaselineData(JSScript* script, mozilla::MallocSizeOf mallocSizeOf,
 }
 
 void
-jit::ToggleBaselineProfiling(JSRuntime* runtime, bool enable)
+jit::ToggleBaselineProfiling(JSRuntime *runtime, bool enable)
 {
     for (ZonesIter zone(runtime, SkipAtoms); !zone.done(); zone.next()) {
         for (gc::ZoneCellIter i(zone, gc::FINALIZE_SCRIPT); !i.done(); i.next()) {
-            JSScript* script = i.get<JSScript>();
+            JSScript *script = i.get<JSScript>();
             if (!script->hasBaselineScript())
                 continue;
             script->baselineScript()->toggleProfilerInstrumentation(enable);
@@ -1088,11 +1088,11 @@ jit::ToggleBaselineProfiling(JSRuntime* runtime, bool enable)
 
 #ifdef JS_TRACE_LOGGING
 void
-jit::ToggleBaselineTraceLoggerScripts(JSRuntime* runtime, bool enable)
+jit::ToggleBaselineTraceLoggerScripts(JSRuntime *runtime, bool enable)
 {
     for (ZonesIter zone(runtime, SkipAtoms); !zone.done(); zone.next()) {
         for (gc::ZoneCellIter i(zone, gc::FINALIZE_SCRIPT); !i.done(); i.next()) {
-            JSScript* script = i.get<JSScript>();
+            JSScript *script = i.get<JSScript>();
             if (!script->hasBaselineScript())
                 continue;
             script->baselineScript()->toggleTraceLoggerScripts(runtime, script, enable);
@@ -1101,11 +1101,11 @@ jit::ToggleBaselineTraceLoggerScripts(JSRuntime* runtime, bool enable)
 }
 
 void
-jit::ToggleBaselineTraceLoggerEngine(JSRuntime* runtime, bool enable)
+jit::ToggleBaselineTraceLoggerEngine(JSRuntime *runtime, bool enable)
 {
     for (ZonesIter zone(runtime, SkipAtoms); !zone.done(); zone.next()) {
         for (gc::ZoneCellIter i(zone, gc::FINALIZE_SCRIPT); !i.done(); i.next()) {
-            JSScript* script = i.get<JSScript>();
+            JSScript *script = i.get<JSScript>();
             if (!script->hasBaselineScript())
                 continue;
             script->baselineScript()->toggleTraceLoggerEngine(enable);

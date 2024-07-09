@@ -142,7 +142,7 @@ IsBackgroundFinalized(AllocKind kind)
 }
 
 static inline bool
-CanBeFinalizedInBackground(gc::AllocKind kind, const Class* clasp)
+CanBeFinalizedInBackground(gc::AllocKind kind, const Class *clasp)
 {
     MOZ_ASSERT(kind <= gc::FINALIZE_OBJECT_LAST);
     /* If the class has no finalizer or a finalizer that is safe to call on
@@ -594,7 +594,7 @@ class ArenaLists
 
   public:
     /* For each arena kind, a list of arenas remaining to be swept. */
-    ArenaHeader* arenaListsToSweep[FINALIZE_LIMIT];
+    ArenaHeader *arenaListsToSweep[FINALIZE_LIMIT];
 
     /* During incremental sweeping, a list of the arenas already swept. */
     unsigned incrementalSweptArenaKind;
@@ -602,20 +602,20 @@ class ArenaLists
 
     // Arena lists which have yet to be swept, but need additional foreground
     // processing before they are swept.
-    ArenaHeader* gcShapeArenasToUpdate;
-    ArenaHeader* gcAccessorShapeArenasToUpdate;
-    ArenaHeader* gcScriptArenasToUpdate;
-    ArenaHeader* gcObjectGroupArenasToUpdate;
+    ArenaHeader *gcShapeArenasToUpdate;
+    ArenaHeader *gcAccessorShapeArenasToUpdate;
+    ArenaHeader *gcScriptArenasToUpdate;
+    ArenaHeader *gcObjectGroupArenasToUpdate;
 
     // While sweeping type information, these lists save the arenas for the
     // objects which have already been finalized in the foreground (which must
     // happen at the beginning of the GC), so that type sweeping can determine
     // which of the object pointers are marked.
     ArenaList savedObjectArenas[FINALIZE_OBJECT_LIMIT];
-    ArenaHeader* savedEmptyObjectArenas;
+    ArenaHeader *savedEmptyObjectArenas;
 
   public:
-    explicit ArenaLists(JSRuntime* rt) : runtime_(rt) {
+    explicit ArenaLists(JSRuntime *rt) : runtime_(rt) {
         for (size_t i = 0; i != FINALIZE_LIMIT; ++i)
             freeLists[i].initAsEmpty();
         for (size_t i = 0; i != FINALIZE_LIMIT; ++i)
@@ -637,7 +637,7 @@ class ArenaLists
         return offset + thingKind * sizeof(FreeList);
     }
 
-    const FreeList* getFreeList(AllocKind thingKind) const {
+    const FreeList *getFreeList(AllocKind thingKind) const {
         return &freeLists[thingKind];
     }
 
@@ -1174,15 +1174,43 @@ class RelocationOverlay
     RelocationOverlay *next() const {
         return next_;
     }
+
+    static bool isCellForwarded(Cell *cell) {
+        return fromCell(cell)->isForwarded();
+    }
 };
 
 /* Functions for checking and updating things that might be moved by compacting GC. */
 
+#define TYPE_MIGHT_BE_FORWARDED(T, value)                                     \
+    inline bool                                                               \
+    TypeMightBeForwarded(T *thing)                                            \
+    {                                                                         \
+        return value;                                                         \
+    }                                                                         \
+
+TYPE_MIGHT_BE_FORWARDED(JSObject, true)
+TYPE_MIGHT_BE_FORWARDED(JSString, false)
+TYPE_MIGHT_BE_FORWARDED(JS::Symbol, false)
+TYPE_MIGHT_BE_FORWARDED(JSScript, false)
+TYPE_MIGHT_BE_FORWARDED(Shape, false)
+TYPE_MIGHT_BE_FORWARDED(BaseShape, false)
+TYPE_MIGHT_BE_FORWARDED(jit::JitCode, false)
+TYPE_MIGHT_BE_FORWARDED(LazyScript, false)
+TYPE_MIGHT_BE_FORWARDED(ObjectGroup, false)
+
+#undef TYPE_MIGHT_BE_FORWARDED
+
 template <typename T>
 inline bool
-IsForwarded(T* t)
+IsForwarded(T *t)
 {
-    RelocationOverlay* overlay = RelocationOverlay::fromCell(t);
+    RelocationOverlay *overlay = RelocationOverlay::fromCell(t);
+    if (!TypeMightBeForwarded(t)) {
+        MOZ_ASSERT(!overlay->isForwarded());
+        return false;
+    }
+
     return overlay->isForwarded();
 }
 
@@ -1236,10 +1264,10 @@ MaybeForwarded(T t)
 
 template <typename T>
 inline void
-CheckGCThingAfterMovingGC(T* t)
+CheckGCThingAfterMovingGC(T *t)
 {
     MOZ_ASSERT_IF(t, !IsInsideNursery(t));
-    MOZ_ASSERT_IF(t, !IsForwarded(t));
+    MOZ_ASSERT_IF(t, !RelocationOverlay::isCellForwarded(t));
 }
 
 inline void
@@ -1364,6 +1392,7 @@ class ZoneList
     void append(Zone* zone);
     void transferFrom(ZoneList& other);
     void removeFront();
+    void clear();
 
   private:
     explicit ZoneList(Zone* singleZone);

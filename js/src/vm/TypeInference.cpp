@@ -686,7 +686,7 @@ TypeSet::readBarrier(const TypeSet* types)
 }
 
 bool
-TypeSet::clone(LifoAlloc* alloc, TemporaryTypeSet* result) const
+TypeSet::clone(LifoAlloc *alloc, TemporaryTypeSet *result) const
 {
     MOZ_ASSERT(result->empty());
 
@@ -2408,13 +2408,13 @@ TypeZone::addPendingRecompile(JSContext* cx, JSScript* script)
 }
 
 void
-js::PrintTypes(JSContext* cx, JSCompartment* comp, bool force)
+js::PrintTypes(JSContext *cx, JSCompartment *comp, bool force)
 {
 #ifdef DEBUG
     gc::AutoSuppressGC suppressGC(cx);
     JSAutoRequest request(cx);
 
-    Zone* zone = comp->zone();
+    Zone *zone = comp->zone();
     AutoEnterAnalysis enter(nullptr, zone);
 
     if (!force && !InferSpewActive(ISpewResult))
@@ -2427,7 +2427,7 @@ js::PrintTypes(JSContext* cx, JSCompartment* comp, bool force)
     }
 
     for (gc::ZoneCellIter i(zone, gc::FINALIZE_OBJECT_GROUP); !i.done(); i.next()) {
-        ObjectGroup* group = i.get<ObjectGroup>();
+        ObjectGroup *group = i.get<ObjectGroup>();
         group->print();
     }
 #endif
@@ -3099,18 +3099,27 @@ js::TypeMonitorCallSlow(JSContext* cx, JSObject* callee, const CallArgs& args, b
 }
 
 static inline bool
-IsAboutToBeFinalized(TypeSet::ObjectKey** keyp)
+IsAboutToBeFinalized(TypeSet::ObjectKey **keyp)
 {
-    // Mask out the low bit indicating whether this is a group or JS object.
-    uintptr_t flagBit = uintptr_t(*keyp) & 1;
-    gc::Cell* tmp = reinterpret_cast<gc::Cell*>(uintptr_t(*keyp) & ~1);
-    bool isAboutToBeFinalized = IsCellAboutToBeFinalized(&tmp);
-    *keyp = reinterpret_cast<TypeSet::ObjectKey*>(uintptr_t(tmp) | flagBit);
+    TypeSet::ObjectKey *key = *keyp;
+    bool isAboutToBeFinalized;
+    if (key->isGroup()) {
+        ObjectGroup *group = key->groupNoBarrier();
+        isAboutToBeFinalized = IsObjectGroupAboutToBeFinalized(&group);
+        if (!isAboutToBeFinalized)
+            *keyp = TypeSet::ObjectKey::get(group);
+    } else {
+        MOZ_ASSERT(key->isSingleton());
+        JSObject *singleton = key->singletonNoBarrier();
+        isAboutToBeFinalized = IsObjectAboutToBeFinalized(&singleton);
+        if (!isAboutToBeFinalized)
+            *keyp = TypeSet::ObjectKey::get(singleton);
+    }
     return isAboutToBeFinalized;
 }
 
 void
-js::FillBytecodeTypeMap(JSScript* script, uint32_t* bytecodeMap)
+js::FillBytecodeTypeMap(JSScript *script, uint32_t *bytecodeMap)
 {
     uint32_t added = 0;
     for (jsbytecode* pc = script->code(); pc < script->codeEnd(); pc += GetBytecodeLength(pc)) {
@@ -3875,11 +3884,11 @@ ConstraintTypeSet::sweep(Zone* zone, AutoClearTypeInferenceStateOnOOM& oom)
         clearObjects();
         objectCount = 0;
         for (unsigned i = 0; i < oldCapacity; i++) {
-            ObjectKey* key = oldArray[i];
+            ObjectKey *key = oldArray[i];
             if (!key)
                 continue;
             if (!IsAboutToBeFinalized(&key)) {
-                ObjectKey** pentry =
+                ObjectKey **pentry =
                     TypeHashSet::Insert<ObjectKey*, ObjectKey, ObjectKey>
                         (zone->types.typeLifoAlloc, objectSet, objectCount, key);
                 if (pentry) {
@@ -3909,9 +3918,9 @@ ConstraintTypeSet::sweep(Zone* zone, AutoClearTypeInferenceStateOnOOM& oom)
         }
         setBaseObjectCount(objectCount);
     } else if (objectCount == 1) {
-        ObjectKey* key = (ObjectKey*) objectSet;
+        ObjectKey *key = (ObjectKey *) objectSet;
         if (!IsAboutToBeFinalized(&key)) {
-            objectSet = reinterpret_cast<ObjectKey**>(key);
+            objectSet = reinterpret_cast<ObjectKey **>(key);
         } else {
             // As above, mark type sets containing objects with unknown
             // properties as unknown.

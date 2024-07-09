@@ -15,6 +15,7 @@
 
 #include "gc/Marking.h"
 #include "jit/AliasAnalysis.h"
+#include "jit/AlignmentMaskAnalysis.h"
 #include "jit/BacktrackingAllocator.h"
 #include "jit/BaselineFrame.h"
 #include "jit/BaselineInspector.h"
@@ -484,12 +485,12 @@ jit::LazyLinkTopActivation(JSContext* cx)
     return script->baselineOrIonRawPointer();
 }
 /* static */ void
-JitRuntime::Mark(JSTracer* trc)
+JitRuntime::Mark(JSTracer *trc)
 {
     MOZ_ASSERT(!trc->runtime()->isHeapMinorCollecting());
-    Zone* zone = trc->runtime()->atomsCompartment()->zone();
+    Zone *zone = trc->runtime()->atomsCompartment()->zone();
     for (gc::ZoneCellIterUnderGC i(zone, gc::FINALIZE_JITCODE); !i.done(); i.next()) {
-        JitCode* code = i.get<JitCode>();
+        JitCode *code = i.get<JitCode>();
         MarkJitCodeRoot(trc, &code, "wrapper");
     }
 
@@ -657,9 +658,9 @@ JitCode::fixupNurseryObjects(JSContext* cx, const ObjectVector& nurseryObjects)
 }
 
 void
-JitCode::finalize(FreeOp* fop)
+JitCode::finalize(FreeOp *fop)
 {
-    JSRuntime* rt = fop->runtime();
+    JSRuntime *rt = fop->runtime();
 
     // If this jitcode has a bytecode map, de-register it.
     if (hasBytecodeMap_) {
@@ -1111,14 +1112,14 @@ IonScript::unlinkFromRuntime(FreeOp* fop)
 }
 
 void
-jit::ToggleBarriers(JS::Zone* zone, bool needs)
+jit::ToggleBarriers(JS::Zone *zone, bool needs)
 {
-    JSRuntime* rt = zone->runtimeFromMainThread();
+    JSRuntime *rt = zone->runtimeFromMainThread();
     if (!rt->hasJitRuntime())
         return;
 
     for (gc::ZoneCellIterUnderGC i(zone, gc::FINALIZE_SCRIPT); !i.done(); i.next()) {
-        JSScript* script = i.get<JSScript>();
+        JSScript *script = i.get<JSScript>();
         if (script->hasIonScript())
             script->ionScript()->toggleBarriers(needs);
         if (script->hasBaselineScript())
@@ -1242,6 +1243,18 @@ OptimizeMIR(MIRGenerator* mir)
         AssertExtendedGraphCoherency(graph);
 
         if (mir->shouldCancel("Apply types"))
+            return false;
+    }
+
+    if (mir->optimizationInfo().amaEnabled()) {
+        AutoTraceLog log(logger, TraceLogger_AlignmentMaskAnalysis);
+        AlignmentMaskAnalysis ama(graph);
+        if (!ama.analyze())
+            return false;
+        IonSpewPass("Alignment Mask Analysis");
+        AssertExtendedGraphCoherency(graph);
+
+        if (mir->shouldCancel("Alignment Mask Analysis"))
             return false;
     }
 

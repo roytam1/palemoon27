@@ -1096,7 +1096,7 @@ js::TestIntegrityLevel(JSContext* cx, HandleObject obj, IntegrityLevel level, bo
  * FIXME bug 547327: estimate the size from the allocation site.
  */
 static inline gc::AllocKind
-NewObjectGCKind(const js::Class* clasp)
+NewObjectGCKind(const js::Class *clasp)
 {
     if (clasp == &ArrayObject::class_)
         return gc::FINALIZE_OBJECT8;
@@ -1105,7 +1105,7 @@ NewObjectGCKind(const js::Class* clasp)
     return gc::FINALIZE_OBJECT4;
 }
 
-static inline JSObject*
+static inline JSObject *
 NewObject(ExclusiveContext* cx, HandleObjectGroup group, HandleObject parent, gc::AllocKind kind,
           NewObjectKind newKind)
 {
@@ -1483,7 +1483,7 @@ CreateThisForFunctionWithGroup(JSContext *cx, HandleObjectGroup group,
     if (group->maybeUnboxedLayout() && newKind != SingletonObject)
         return UnboxedPlainObject::create(cx, group, newKind);
 
-    if (TypeNewScript* newScript = group->newScript()) {
+    if (TypeNewScript *newScript = group->newScript()) {
         if (newScript->analyzed()) {
             // The definite properties analysis has been performed for this
             // group, so get the shape and finalize kind to use from the

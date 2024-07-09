@@ -29,14 +29,26 @@ namespace jit {
 class JitCode;
 } // namespace jit
 
-template <typename, AllowGC allowGC = CanGC>
+template <typename T, AllowGC allowGC>
 JSObject *
 Allocate(ExclusiveContext *cx, gc::AllocKind kind, size_t nDynamicSlots, gc::InitialHeap heap,
          const Class *clasp);
 
-template <typename T, AllowGC allowGC = CanGC>
+template <typename T>
+JSObject *
+Allocate(ExclusiveContext *cx, gc::AllocKind kind, size_t nDynamicSlots, gc::InitialHeap heap,
+         const Class *clasp) {
+  return Allocate<T, CanGC>(cx, kind, nDynamicSlots, heap, clasp);
+}
+
+template <typename T, AllowGC allowGC>
 T *
 Allocate(ExclusiveContext *cx);
+template <typename T>
+T *
+Allocate(ExclusiveContext *cx) {
+  return Allocate<T, CanGC>(cx);
+}
 
 namespace gc {
 

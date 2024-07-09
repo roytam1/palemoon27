@@ -60,6 +60,19 @@ extern JS_FRIEND_API(JSObject*)
 JS_NewObjectWithUniqueType(JSContext* cx, const JSClass* clasp, JS::HandleObject proto,
                            JS::HandleObject parent);
 
+// Like JS_NewObjectWithGivenProto but allows passing an explicit parent argument.  Don't use this; it's deprecated.
+extern JS_FRIEND_API(JSObject *)
+JS_DeprecatedNewObjectWithGivenProtoAndParent(JSContext *cx, const JSClass *clasp,
+                                              JS::Handle<JSObject*> proto,
+                                              JS::Handle<JSObject*> parent);
+
+// Allocate an object in exactly the same way as JS_NewObjectWithGivenProto, but
+// without invoking the metadata callback on it.  This allows creation of
+// internal bookkeeping objects that are guaranteed to not have metadata
+// attached to them.
+extern JS_FRIEND_API(JSObject *)
+JS_NewObjectWithoutMetadata(JSContext *cx, const JSClass *clasp, JS::Handle<JSObject*> proto);
+
 extern JS_FRIEND_API(uint32_t)
 JS_ObjectCountDynamicSlots(JS::HandleObject obj);
 
@@ -116,6 +129,25 @@ JS_ObjectToOuterObject(JSContext* cx, JS::HandleObject obj);
 
 extern JS_FRIEND_API(JSObject*)
 JS_CloneObject(JSContext* cx, JS::HandleObject obj, JS::HandleObject proto);
+
+/*
+ * Copy the own properties of src to dst in a fast way.  src and dst must both
+ * be native and must be in the compartment of cx.  They must have the same
+ * class, the same parent, and the same prototype.  Class reserved slots will
+ * NOT be copied.
+ *
+ * dst must not have any properties on it before this function is called.
+ *
+ * src must have been allocated via JS_NewObjectWithoutMetadata so that we can
+ * be sure it has no metadata that needs copying to dst.  This also means that
+ * dst needs to have the compartment global as its parent.  This function will
+ * preserve the existing metadata on dst, if any.
+ */
+extern JS_FRIEND_API(bool)
+JS_InitializePropertiesFromCompatibleNativeObject(JSContext *cx,
+                                                  JS::HandleObject dst,
+                                                  JS::HandleObject src);
+
 
 extern JS_FRIEND_API(JSString*)
 JS_BasicObjectToString(JSContext* cx, JS::HandleObject obj);
@@ -496,15 +528,14 @@ GetAnyCompartmentInZone(JS::Zone* zone);
 namespace shadow {
 
 struct ObjectGroup {
-    const Class* clasp;
-    JSObject*   proto;
+    const Class *clasp;
+    JSObject    *proto;
+    JSCompartment *compartment;
 };
 
 struct BaseShape {
-    const js::Class* clasp_;
-    JSObject* parent;
-    JSObject* _1;
-    JSCompartment* compartment;
+    const js::Class *clasp_;
+    JSObject *parent;
 };
 
 class Shape {
@@ -516,11 +547,12 @@ public:
     static const uint32_t FIXED_SLOTS_SHIFT = 27;
 };
 
-// This layout is shared by all objects except for Typed Objects (which still
-// have a shape and group).
+// This layout is shared by all native objects. For non-native objects, the
+// group may always be accessed safely, and other members may be as well,
+// depending on the object's specific layout.
 struct Object {
-    shadow::Shape       *shape;
     shadow::ObjectGroup *group;
+    shadow::Shape       *shape;
     JS::Value           *slots;
     void                *_1;
 
@@ -636,27 +668,28 @@ IsScopeObject(JSObject *obj);
 JS_FRIEND_API(bool)
 IsCallObject(JSObject *obj);
 
+JS_FRIEND_API(bool)
+CanAccessObjectShape(JSObject *obj);
+
 inline JSObject *
 GetObjectParent(JSObject *obj)
 {
     MOZ_ASSERT(!IsScopeObject(obj));
+    MOZ_ASSERT(CanAccessObjectShape(obj));
     return reinterpret_cast<shadow::Object*>(obj)->shape->base->parent;
 }
 
-static MOZ_ALWAYS_INLINE JSCompartment*
-GetObjectCompartment(JSObject* obj)
+static MOZ_ALWAYS_INLINE JSCompartment *
+GetObjectCompartment(JSObject *obj)
 {
-    return reinterpret_cast<shadow::Object*>(obj)->shape->base->compartment;
+    return reinterpret_cast<shadow::Object*>(obj)->group->compartment;
 }
 
-JS_FRIEND_API(JSObject*)
-GetObjectParentMaybeScope(JSObject *obj);
-
-JS_FRIEND_API(JSObject*)
+JS_FRIEND_API(JSObject *)
 GetGlobalForObjectCrossCompartment(JSObject *obj);
 
-JS_FRIEND_API(JSObject*)
-GetPrototypeNoProxy(JSObject* obj);
+JS_FRIEND_API(JSObject *)
+GetPrototypeNoProxy(JSObject *obj);
 
 // Sidestep the activeContext checking implicitly performed in
 // JS_SetPendingException.

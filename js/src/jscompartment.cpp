@@ -36,6 +36,7 @@ using namespace js::jit;
 using mozilla::PodArrayZero;
 
 using mozilla::DebugOnly;
+using mozilla::PodArrayZero;
 
 JSCompartment::JSCompartment(Zone* zone, const JS::CompartmentOptions& options = JS::CompartmentOptions())
   : options_(options),

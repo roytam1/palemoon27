@@ -320,10 +320,6 @@ class Shape;
 class UnownedBaseShape;
 struct StackBaseShape;
 
-namespace gc {
-void MergeCompartments(JSCompartment* source, JSCompartment* target);
-}
-
 // This class is used to add a post barrier on the AccessorShape's getter/setter
 // objects. It updates the shape's entry in the parent's KidsHash table.
 class ShapeGetterSetterRef : public gc::BufferableRef
@@ -838,9 +834,10 @@ class Shape : public gc::TenuredCell
                                  BaseShape::Flag flag, TaggedProto proto, Shape *last);
 
     uint32_t getObjectFlags() const { return base()->getObjectFlags(); }
-    bool hasObjectFlag(BaseShape::Flag flag) const {
-        MOZ_ASSERT(!(flag & ~BaseShape::OBJECT_FLAG_MASK));
-        return !!(base()->flags & flag);
+    bool hasAllObjectFlags(BaseShape::Flag flags) const {
+        MOZ_ASSERT(flags);
+        MOZ_ASSERT(!(flags & ~BaseShape::OBJECT_FLAG_MASK));
+        return (base()->flags & flags) == flags;
     }
 
   protected:

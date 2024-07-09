@@ -5529,7 +5529,7 @@ GCRuntime::endSweepPhase(bool lastGC)
 }
 
 GCRuntime::IncrementalProgress
-GCRuntime::compactPhase(bool lastGC, JS::gcreason::Reason reason)
+GCRuntime::compactPhase(JS::gcreason::Reason reason)
 {
     gcstats::AutoPhase ap(stats, gcstats::PHASE_COMPACT);
 
@@ -5562,16 +5562,18 @@ GCRuntime::compactPhase(bool lastGC, JS::gcreason::Reason reason)
 #endif
 
     // Release the relocated arenas, or in debug builds queue them to be
-    // released until the start of the next GC unless this is the last GC.
+    // released until the start of the next GC unless this is the last GC or we
+    // are doing a last ditch GC.
 #ifndef DEBUG
     releaseRelocatedArenas(relocatedList);
 #else
-    protectRelocatedArenas(relocatedList);
-    MOZ_ASSERT(!relocatedArenasToRelease);
-    if (!lastGC)
-        relocatedArenasToRelease = relocatedList;
-    else
+    if (reason == JS::gcreason::DESTROY_RUNTIME || reason == JS::gcreason::LAST_DITCH) {
         releaseRelocatedArenas(relocatedList);
+    } else {
+        MOZ_ASSERT(!relocatedArenasToRelease);
+        protectRelocatedArenas(relocatedList);
+        relocatedArenasToRelease = relocatedList;
+    }
 #endif
 
     // Ensure execess chunks are returns to the system and free arenas
@@ -6001,7 +6003,7 @@ GCRuntime::incrementalCollectSlice(SliceBudget& budget, JS::gcreason::Reason rea
             break;
 
       case COMPACT:
-        if (isCompacting && compactPhase(lastGC, reason) == NotFinished)
+        if (isCompacting && compactPhase(reason) == NotFinished)
             break;
 
         finishCollection(reason);
@@ -6613,7 +6615,7 @@ js::NewCompartment(JSContext* cx, Zone* zone, JSPrincipals* principals,
 }
 
 void
-gc::MergeCompartments(JSCompartment* source, JSCompartment* target)
+gc::MergeCompartments(JSCompartment *source, JSCompartment *target)
 {
     // The source compartment must be specifically flagged as mergable.  This
     // also implies that the compartment is not visible to the debugger.
@@ -6621,7 +6623,7 @@ gc::MergeCompartments(JSCompartment* source, JSCompartment* target)
 
     MOZ_ASSERT(source->addonId == target->addonId);
 
-    JSRuntime* rt = source->runtimeFromMainThread();
+    JSRuntime *rt = source->runtimeFromMainThread();
 
     AutoPrepareForTracing prepare(rt, SkipAtoms);
 
@@ -6645,28 +6647,29 @@ gc::MergeCompartments(JSCompartment* source, JSCompartment* target)
     // type information generations are in sync.
 
     for (ZoneCellIter iter(source->zone(), FINALIZE_SCRIPT); !iter.done(); iter.next()) {
-        JSScript* script = iter.get<JSScript>();
+        JSScript *script = iter.get<JSScript>();
         MOZ_ASSERT(script->compartment() == source);
         script->compartment_ = target;
         script->setTypesGeneration(target->zone()->types.generation);
     }
 
     for (ZoneCellIter iter(source->zone(), FINALIZE_BASE_SHAPE); !iter.done(); iter.next()) {
-        BaseShape* base = iter.get<BaseShape>();
+        BaseShape *base = iter.get<BaseShape>();
         MOZ_ASSERT(base->compartment() == source);
         base->compartment_ = target;
     }
 
     for (ZoneCellIter iter(source->zone(), FINALIZE_OBJECT_GROUP); !iter.done(); iter.next()) {
-        ObjectGroup* group = iter.get<ObjectGroup>();
+        ObjectGroup *group = iter.get<ObjectGroup>();
         group->setGeneration(target->zone()->types.generation);
+        group->compartment_ = target;
     }
 
     // Fixup zone pointers in source's zone to refer to target's zone.
 
     for (size_t thingKind = 0; thingKind != FINALIZE_LIMIT; thingKind++) {
         for (ArenaIter aiter(source->zone(), AllocKind(thingKind)); !aiter.done(); aiter.next()) {
-            ArenaHeader* aheader = aiter.get();
+            ArenaHeader *aheader = aiter.get();
             aheader->zone = target->zone();
         }
     }

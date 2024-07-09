@@ -29,7 +29,6 @@
 #include "js/RootingAPI.h"
 #include "js/UbiNode.h"
 #include "vm/ObjectGroup.h"
-#include "vm/PropDesc.h"
 
 #ifdef _MSC_VER
 #pragma warning(push)
@@ -115,8 +114,8 @@ class Debugger;
 class Nursery;
 class StaticBlockObject;
 
-typedef JSPropertyOp         PropertyOp;
-typedef JSStrictPropertyOp   StrictPropertyOp;
+typedef JSGetterOp GetterOp;
+typedef JSSetterOp SetterOp;
 typedef JSPropertyDescriptor PropertyDescriptor;
 
 /* Limit on the number of slotful properties in an object. */
@@ -893,16 +892,16 @@ class Shape : public gc::TenuredCell
         return (flags & IN_DICTIONARY) != 0;
     }
 
-    inline PropertyOp getter() const;
+    inline GetterOp getter() const;
     bool hasDefaultGetter() const { return !getter(); }
-    PropertyOp getterOp() const { MOZ_ASSERT(!hasGetterValue()); return getter(); }
-    inline JSObject* getterObject() const;
+    GetterOp getterOp() const { MOZ_ASSERT(!hasGetterValue()); return getter(); }
+    inline JSObject *getterObject() const;
     bool hasGetterObject() const { return hasGetterValue() && getterObject(); }
 
     // Per ES5, decode null getterObj as the undefined value, which encodes as null.
     Value getterValue() const {
         MOZ_ASSERT(hasGetterValue());
-        if (JSObject* getterObj = getterObject())
+        if (JSObject *getterObj = getterObject())
             return ObjectValue(*getterObj);
         return UndefinedValue();
     }
@@ -911,16 +910,16 @@ class Shape : public gc::TenuredCell
         return hasGetterValue() ? getterValue() : UndefinedValue();
     }
 
-    inline StrictPropertyOp setter() const;
+    inline SetterOp setter() const;
     bool hasDefaultSetter() const { return !setter(); }
-    StrictPropertyOp setterOp() const { MOZ_ASSERT(!hasSetterValue()); return setter(); }
-    inline JSObject* setterObject() const;
+    SetterOp setterOp() const { MOZ_ASSERT(!hasSetterValue()); return setter(); }
+    inline JSObject *setterObject() const;
     bool hasSetterObject() const { return hasSetterValue() && setterObject(); }
 
     // Per ES5, decode null setterObj as the undefined value, which encodes as null.
     Value setterValue() const {
         MOZ_ASSERT(hasSetterValue());
-        if (JSObject* setterObj = setterObject())
+        if (JSObject *setterObj = setterObject())
             return ObjectValue(*setterObj);
         return UndefinedValue();
     }
@@ -936,9 +935,9 @@ class Shape : public gc::TenuredCell
         return flags & OVERWRITTEN;
     }
 
-    void update(PropertyOp getter, StrictPropertyOp setter, uint8_t attrs);
+    void update(GetterOp getter, SetterOp setter, uint8_t attrs);
 
-    bool matches(const Shape* other) const {
+    bool matches(const Shape *other) const {
         return propid_.get() == other->propid_.get() &&
                matchesParamsAfterId(other->base(), other->maybeSlot(), other->attrs, other->flags,
                                     other->getter(), other->setter());
@@ -946,8 +945,8 @@ class Shape : public gc::TenuredCell
 
     inline bool matches(const StackShape& other) const;
 
-    bool matchesParamsAfterId(BaseShape* base, uint32_t aslot, unsigned aattrs, unsigned aflags,
-                              PropertyOp rawGetter, StrictPropertyOp rawSetter) const
+    bool matchesParamsAfterId(BaseShape *base, uint32_t aslot, unsigned aattrs, unsigned aflags,
+                              GetterOp rawGetter, SetterOp rawSetter) const
     {
         return base->unowned() == this->base()->unowned() &&
                maybeSlot() == aslot &&
@@ -1038,18 +1037,8 @@ class Shape : public gc::TenuredCell
         return (attrs & (JSPROP_SETTER | JSPROP_GETTER)) != 0;
     }
 
-    PropDesc::Writability writability() const {
-        return (attrs & JSPROP_READONLY) ? PropDesc::NonWritable : PropDesc::Writable;
-    }
-    PropDesc::Enumerability enumerability() const {
-        return (attrs & JSPROP_ENUMERATE) ? PropDesc::Enumerable : PropDesc::NonEnumerable;
-    }
-    PropDesc::Configurability configurability() const {
-        return (attrs & JSPROP_PERMANENT) ? PropDesc::NonConfigurable : PropDesc::Configurable;
-    }
-
     /*
-     * For ES5 compatibility, we allow properties with PropertyOp-flavored
+     * For ES5 compatibility, we allow properties with SetterOp-flavored
      * setters to be shadowed when set. The "own" property thereby created in
      * the directly referenced object will have the same getter and setter as
      * the prototype property. See bug 552432.
@@ -1122,14 +1111,14 @@ class AccessorShape : public Shape
     friend class NativeObject;
 
     union {
-        PropertyOp      rawGetter;      /* getter hook for shape */
-        JSObject*       getterObj;     /* user-defined callable "get" object or
-                                           null if shape->hasGetterValue() */
+        GetterOp rawGetter;     /* getter hook for shape */
+        JSObject *getterObj;    /* user-defined callable "get" object or
+                                   null if shape->hasGetterValue() */
     };
     union {
-        StrictPropertyOp rawSetter;     /* setter hook for shape */
-        JSObject*       setterObj;     /* user-defined callable "set" object or
-                                           null if shape->hasSetterValue() */
+        SetterOp rawSetter;     /* setter hook for shape */
+        JSObject *setterObj;    /* user-defined callable "set" object or
+                                   null if shape->hasSetterValue() */
     };
 
   public:
@@ -1151,23 +1140,22 @@ class AutoRooterGetterSetter
     class Inner : private JS::CustomAutoRooter
     {
       public:
-        inline Inner(ExclusiveContext* cx, uint8_t attrs,
-                     PropertyOp* pgetter_, StrictPropertyOp* psetter_);
+        inline Inner(ExclusiveContext *cx, uint8_t attrs, GetterOp *pgetter_, SetterOp *psetter_);
 
       private:
-        virtual void trace(JSTracer* trc);
+        virtual void trace(JSTracer *trc);
 
         uint8_t attrs;
-        PropertyOp* pgetter;
-        StrictPropertyOp* psetter;
+        GetterOp *pgetter;
+        SetterOp *psetter;
     };
 
   public:
-    inline AutoRooterGetterSetter(ExclusiveContext* cx, uint8_t attrs,
-                                  PropertyOp* pgetter, StrictPropertyOp* psetter
+    inline AutoRooterGetterSetter(ExclusiveContext *cx, uint8_t attrs,
+                                  GetterOp *pgetter, SetterOp *psetter
                                   MOZ_GUARD_OBJECT_NOTIFIER_PARAM);
-    inline AutoRooterGetterSetter(ExclusiveContext* cx, uint8_t attrs,
-                                  JSNative* pgetter, JSNative* psetter
+    inline AutoRooterGetterSetter(ExclusiveContext *cx, uint8_t attrs,
+                                  JSNative *pgetter, JSNative *psetter
                                   MOZ_GUARD_OBJECT_NOTIFIER_PARAM);
 
   private:
@@ -1177,7 +1165,7 @@ class AutoRooterGetterSetter
 
 struct EmptyShape : public js::Shape
 {
-    EmptyShape(UnownedBaseShape* base, uint32_t nfixed)
+    EmptyShape(UnownedBaseShape *base, uint32_t nfixed)
       : js::Shape(base, nfixed)
     {
         // Only empty shapes can be NON_NATIVE.
@@ -1290,13 +1278,13 @@ typedef HashSet<InitialShapeEntry, InitialShapeEntry, SystemAllocPolicy> Initial
 struct StackShape
 {
     /* For performance, StackShape only roots when absolutely necessary. */
-    UnownedBaseShape* base;
-    jsid             propid;
-    PropertyOp       rawGetter;
-    StrictPropertyOp rawSetter;
-    uint32_t         slot_;
-    uint8_t          attrs;
-    uint8_t          flags;
+    UnownedBaseShape *base;
+    jsid propid;
+    GetterOp rawGetter;
+    SetterOp rawSetter;
+    uint32_t slot_;
+    uint8_t attrs;
+    uint8_t flags;
 
     explicit StackShape(UnownedBaseShape* base, jsid propid, uint32_t slot,
                         unsigned attrs, unsigned flags)
@@ -1324,7 +1312,7 @@ struct StackShape
         flags(shape->flags)
     {}
 
-    void updateGetterSetter(PropertyOp rawGetter, StrictPropertyOp rawSetter) {
+    void updateGetterSetter(GetterOp rawGetter, SetterOp rawSetter) {
         MOZ_ASSERT_IF((attrs & JSPROP_GETTER) && rawGetter, !IsPoisonedPtr(rawGetter));
         MOZ_ASSERT_IF((attrs & JSPROP_SETTER) && rawSetter, !IsPoisonedPtr(rawSetter));
 
@@ -1419,13 +1407,13 @@ Shape::Shape(UnownedBaseShape* base, uint32_t nfixed)
     kids.setNull();
 }
 
-inline PropertyOp
+inline GetterOp
 Shape::getter() const
 {
     return isAccessorShape() ? asAccessorShape().rawGetter : nullptr;
 }
 
-inline StrictPropertyOp
+inline SetterOp
 Shape::setter() const
 {
     return isAccessorShape() ? asAccessorShape().rawSetter : nullptr;

@@ -2147,8 +2147,8 @@ DefinePropertyById(JSContext* cx, HandleObject obj, HandleId id, HandleValue val
                    const JSNativeWrapper& get, const JSNativeWrapper& set,
                    unsigned attrs, unsigned flags)
 {
-    JSPropertyOp getter = JS_CAST_NATIVE_TO(get.op, JSPropertyOp);
-    JSStrictPropertyOp setter = JS_CAST_NATIVE_TO(set.op, JSStrictPropertyOp);
+    JSGetterOp getter = JS_CAST_NATIVE_TO(get.op, JSGetterOp);
+    JSSetterOp setter = JS_CAST_NATIVE_TO(set.op, JSSetterOp);
 
     // JSPROP_READONLY has no meaning when accessors are involved. Ideally we'd
     // throw if this happens, but we've accepted it for long enough that it's
@@ -2163,7 +2163,7 @@ DefinePropertyById(JSContext* cx, HandleObject obj, HandleId id, HandleValue val
     // JS Function objects.
     //
     // But skip doing this if our accessors are the well-known stub
-    // accessors, since those are known to be JSPropertyOps.  Assert
+    // accessors, since those are known to be JSGetterOps.  Assert
     // some sanity about it, though.
     MOZ_ASSERT_IF(getter == JS_PropertyStub,
                   setter == JS_StrictPropertyStub || (attrs & JSPROP_PROPOP_ACCESSORS));
@@ -2191,7 +2191,7 @@ DefinePropertyById(JSContext* cx, HandleObject obj, HandleId id, HandleValue val
             if (get.info)
                 getobj->setJitInfo(get.info);
 
-            getter = JS_DATA_TO_FUNC_PTR(PropertyOp, getobj);
+            getter = JS_DATA_TO_FUNC_PTR(GetterOp, getobj);
             attrs |= JSPROP_GETTER;
         }
         if (setter && !(attrs & JSPROP_SETTER)) {
@@ -2206,7 +2206,7 @@ DefinePropertyById(JSContext* cx, HandleObject obj, HandleId id, HandleValue val
             if (set.info)
                 setobj->setJitInfo(set.info);
 
-            setter = JS_DATA_TO_FUNC_PTR(StrictPropertyOp, setobj);
+            setter = JS_DATA_TO_FUNC_PTR(SetterOp, setobj);
             attrs |= JSPROP_SETTER;
         }
     } else {
@@ -2731,15 +2731,15 @@ JS_DefineProperties(JSContext* cx, HandleObject obj, const JSPropertySpec* ps)
 }
 
 JS_PUBLIC_API(bool)
-JS::ParsePropertyDescriptorObject(JSContext* cx,
-                                  HandleObject obj,
-                                  HandleValue descObj,
-                                  MutableHandle<JSPropertyDescriptor> desc)
+JS::ObjectToCompletePropertyDescriptor(JSContext *cx,
+                                       HandleObject obj,
+                                       HandleValue descObj,
+                                       MutableHandle<JSPropertyDescriptor> desc)
 {
-    Rooted<PropDesc> d(cx);
-    if (!d.initialize(cx, descObj))
+    if (!ToPropertyDescriptor(cx, descObj, true, desc))
         return false;
-    d.populatePropertyDescriptor(obj, desc);
+    CompletePropertyDescriptor(desc);
+    desc.object().set(obj);
     return true;
 }
 
@@ -4464,6 +4464,28 @@ JS_RestoreFrameChain(JSContext* cx)
     AssertHeapIsIdleOrIterating(cx);
     CHECK_REQUEST(cx);
     cx->restoreFrameChain();
+}
+
+JS::AutoSetAsyncStackForNewCalls::AutoSetAsyncStackForNewCalls(
+  JSContext *cx, HandleObject stack, HandleString asyncCause)
+  : cx(cx),
+    oldAsyncStack(cx, cx->runtime()->asyncStackForNewActivations),
+    oldAsyncCause(cx, cx->runtime()->asyncCauseForNewActivations)
+{
+    CHECK_REQUEST(cx);
+
+    SavedFrame *asyncStack = &stack->as<SavedFrame>();
+    MOZ_ASSERT(!asyncCause->empty());
+
+    cx->runtime()->asyncStackForNewActivations = asyncStack;
+    cx->runtime()->asyncCauseForNewActivations = asyncCause;
+}
+
+JS::AutoSetAsyncStackForNewCalls::~AutoSetAsyncStackForNewCalls()
+{
+    cx->runtime()->asyncCauseForNewActivations = oldAsyncCause;
+    cx->runtime()->asyncStackForNewActivations =
+      oldAsyncStack ? &oldAsyncStack->as<SavedFrame>() : nullptr;
 }
 
 /************************************************************************/

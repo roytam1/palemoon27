@@ -5,6 +5,7 @@
   'sources': [
     'aeskeywrap.c',
     'alg2268.c',
+    'cmac.c',
     'alghmac.c',
     'arcfive.c',
     'arcfour.c',
@@ -34,6 +35,8 @@
     'ecl/ecp_jac.c',
     'ecl/ecp_jm.c',
     'ecl/ecp_mont.c',
+    'ecl/ecp_secp384r1.c',
+    'ecl/ecp_secp521r1.c',
     'fipsfreebl.c',
     'blinit.c',
     'freeblver.c',
@@ -99,7 +102,7 @@
     }],
     [ 'OS=="win"', {
       'libraries': [
-        'advapi32.lib',
+        '-ladvapi32',
       ],
       'conditions': [
         [ 'cc_use_gnu_ld!=1 and target_arch=="x64"', {

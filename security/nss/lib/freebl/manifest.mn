@@ -85,6 +85,7 @@ EXPORTS = \
 	$(NULL)
 
 PRIVATE_EXPORTS = \
+	cmac.h \
 	alghmac.h \
 	blake2b.h \
 	blapi.h \
@@ -106,7 +107,7 @@ ECL_HDRS = ecl-exp.h ecl.h ecp.h ecl-priv.h
 ECL_SRCS = ecl.c ecl_mult.c ecl_gf.c \
 	ecp_aff.c ecp_jac.c ecp_mont.c \
 	ec_naf.c ecp_jm.c ecp_256.c ecp_384.c ecp_521.c \
-	ecp_256_32.c ecp_25519.c
+	ecp_256_32.c ecp_25519.c ecp_secp384r1.c ecp_secp521r1.c
 SHA_SRCS = sha_fast.c
 MPCPU_SRCS = mpcpucache.c
 VERIFIED_SRCS = $(NULL)
@@ -119,6 +120,7 @@ CSRCS = \
 	md2.c \
 	md5.c \
 	sha512.c \
+	cmac.c \
 	alghmac.c \
 	rawhash.c \
 	alg2268.c \
@@ -162,6 +164,7 @@ CSRCS = \
 ALL_CSRCS := $(CSRCS)
 
 ALL_HDRS =  \
+	cmac.h \
 	alghmac.h \
 	blake2b.h \
 	blapi.h \

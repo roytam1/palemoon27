@@ -324,10 +324,14 @@ static const struct mechanismList mechanisms[] = {
     { CKM_AES_CBC, { 16, 32, CKF_EN_DE_WR_UN }, PR_TRUE },
     { CKM_AES_MAC, { 16, 32, CKF_SN_VR }, PR_TRUE },
     { CKM_AES_MAC_GENERAL, { 16, 32, CKF_SN_VR }, PR_TRUE },
+    { CKM_AES_CMAC, { 16, 32, CKF_SN_VR }, PR_TRUE },
+    { CKM_AES_CMAC_GENERAL, { 16, 32, CKF_SN_VR }, PR_TRUE },
     { CKM_AES_CBC_PAD, { 16, 32, CKF_EN_DE_WR_UN }, PR_TRUE },
     { CKM_AES_CTS, { 16, 32, CKF_EN_DE }, PR_TRUE },
     { CKM_AES_CTR, { 16, 32, CKF_EN_DE }, PR_TRUE },
     { CKM_AES_GCM, { 16, 32, CKF_EN_DE }, PR_TRUE },
+    { CKM_AES_XCBC_MAC_96, { 16, 16, CKF_SN_VR }, PR_TRUE },
+    { CKM_AES_XCBC_MAC, { 16, 16, CKF_SN_VR }, PR_TRUE },
     /* ------------------------- Camellia Operations --------------------- */
     { CKM_CAMELLIA_KEY_GEN, { 16, 32, CKF_GENERATE }, PR_TRUE },
     { CKM_CAMELLIA_ECB, { 16, 32, CKF_EN_DE_WR_UN }, PR_TRUE },
@@ -346,6 +350,7 @@ static const struct mechanismList mechanisms[] = {
     /* ------------------------- ChaCha20 Operations ---------------------- */
     { CKM_NSS_CHACHA20_KEY_GEN, { 32, 32, CKF_GENERATE }, PR_TRUE },
     { CKM_NSS_CHACHA20_POLY1305, { 32, 32, CKF_EN_DE }, PR_TRUE },
+    { CKM_NSS_CHACHA20_CTR, { 32, 32, CKF_EN_DE }, PR_TRUE },
 #endif /* NSS_DISABLE_CHACHAPOLY */
     /* ------------------------- Hashing Operations ----------------------- */
     { CKM_MD2, { 0, 0, CKF_DIGEST }, PR_FALSE },
@@ -509,7 +514,11 @@ static const struct mechanismList mechanisms[] = {
     { CKM_NSS_JPAKE_FINAL_SHA512, { 0, 0, CKF_DERIVE }, PR_TRUE },
     /* -------------------- Constant Time TLS MACs ----------------------- */
     { CKM_NSS_HMAC_CONSTANT_TIME, { 0, 0, CKF_DIGEST }, PR_TRUE },
-    { CKM_NSS_SSL3_MAC_CONSTANT_TIME, { 0, 0, CKF_DIGEST }, PR_TRUE }
+    { CKM_NSS_SSL3_MAC_CONSTANT_TIME, { 0, 0, CKF_DIGEST }, PR_TRUE },
+    /* --------------------IPSEC ----------------------- */
+    { CKM_NSS_IKE_PRF_PLUS_DERIVE, { 8, 255 * 64, CKF_DERIVE }, PR_TRUE },
+    { CKM_NSS_IKE_PRF_DERIVE, { 8, 64, CKF_DERIVE }, PR_TRUE },
+    { CKM_NSS_IKE1_PRF_DERIVE, { 8, 64, CKF_DERIVE }, PR_TRUE }
 };
 static const CK_ULONG mechanismCount = sizeof(mechanisms) / sizeof(mechanisms[0]);
 
@@ -617,7 +626,7 @@ sftk_hasNullPassword(SFTKSlot *slot, SFTKDBHandle *keydb)
     pwenabled = PR_FALSE;
     if (sftkdb_HasPasswordSet(keydb) == SECSuccess) {
         PRBool tokenRemoved = PR_FALSE;
-        SECStatus rv = sftkdb_CheckPassword(keydb, "", &tokenRemoved);
+        SECStatus rv = sftkdb_CheckPasswordNull(keydb, &tokenRemoved);
         if (tokenRemoved) {
             sftk_CloseAllSessions(slot, PR_FALSE);
         }
@@ -1574,6 +1583,7 @@ sftk_handleObject(SFTKObject *object, SFTKSession *session)
     CK_OBJECT_HANDLE handle;
     CK_BBOOL ckfalse = CK_FALSE;
     CK_BBOOL cktrue = CK_TRUE;
+    PRBool isLoggedIn, needLogin;
     CK_RV crv;
 
     /* make sure all the base object types are defined. If not set the
@@ -1591,9 +1601,13 @@ sftk_handleObject(SFTKObject *object, SFTKSession *session)
     if (crv != CKR_OK)
         return crv;
 
+    PZ_Lock(slot->slotLock);
+    isLoggedIn = slot->isLoggedIn;
+    needLogin = slot->needLogin;
+    PZ_Unlock(slot->slotLock);
+
     /* don't create a private object if we aren't logged in */
-    if ((!slot->isLoggedIn) && (slot->needLogin) &&
-        (sftk_isTrue(object, CKA_PRIVATE))) {
+    if (!isLoggedIn && needLogin && sftk_isTrue(object, CKA_PRIVATE)) {
         return CKR_USER_NOT_LOGGED_IN;
     }
 
@@ -1815,8 +1829,6 @@ sftk_GetPubKey(SFTKObject *object, CK_KEY_TYPE key_type,
                     break; /* key was not DER encoded, no need to unwrap */
                 }
 
-                PORT_Assert(pubKey->u.ec.ecParams.name != ECCurve25519);
-
                 /* handle the encoded case */
                 if ((pubKey->u.ec.publicValue.data[0] == SEC_ASN1_OCTET_STRING) &&
                     pubKey->u.ec.publicValue.len > keyLen) {
@@ -1827,7 +1839,13 @@ sftk_GetPubKey(SFTKObject *object, CK_KEY_TYPE key_type,
                                                 SEC_ASN1_GET(SEC_OctetStringTemplate),
                                                 &pubKey->u.ec.publicValue);
                     /* nope, didn't decode correctly */
-                    if ((rv != SECSuccess) || (publicValue.data[0] != EC_POINT_FORM_UNCOMPRESSED) || (publicValue.len != keyLen)) {
+                    if ((rv != SECSuccess) || (publicValue.len != keyLen)) {
+                        crv = CKR_ATTRIBUTE_VALUE_INVALID;
+                        break;
+                    }
+                    /* we don't handle compressed points except in the case of ECCurve25519 */
+                    if ((pubKey->u.ec.ecParams.fieldID.type != ec_field_plain) &&
+                        (publicValue.data[0] != EC_POINT_FORM_UNCOMPRESSED)) {
                         crv = CKR_ATTRIBUTE_VALUE_INVALID;
                         break;
                     }
@@ -2193,6 +2211,124 @@ sftk_GetPrivKey(SFTKObject *object, CK_KEY_TYPE key_type, CK_RV *crvp)
     object->objectInfo = priv;
     object->infoFree = (SFTKFree)nsslowkey_DestroyPrivateKey;
     return priv;
+}
+
+/* populate a public key object from a lowpublic keys structure */
+CK_RV
+sftk_PutPubKey(SFTKObject *publicKey, SFTKObject *privateKey, CK_KEY_TYPE keyType, NSSLOWKEYPublicKey *pubKey)
+{
+    CK_OBJECT_CLASS classType = CKO_PUBLIC_KEY;
+    CK_BBOOL cktrue = CK_TRUE;
+    CK_RV crv = CKR_OK;
+    sftk_DeleteAttributeType(publicKey, CKA_CLASS);
+    sftk_DeleteAttributeType(publicKey, CKA_KEY_TYPE);
+    sftk_DeleteAttributeType(publicKey, CKA_VALUE);
+
+    switch (keyType) {
+        case CKK_RSA:
+            sftk_DeleteAttributeType(publicKey, CKA_MODULUS);
+            sftk_DeleteAttributeType(publicKey, CKA_PUBLIC_EXPONENT);
+            /* format the keys */
+            /* fill in the RSA dependent paramenters in the public key */
+            crv = sftk_AddAttributeType(publicKey, CKA_MODULUS,
+                                        sftk_item_expand(&pubKey->u.rsa.modulus));
+            if (crv != CKR_OK) {
+                break;
+            }
+            crv = sftk_AddAttributeType(publicKey, CKA_PUBLIC_EXPONENT,
+                                        sftk_item_expand(&pubKey->u.rsa.publicExponent));
+            break;
+        case CKK_DSA:
+            sftk_DeleteAttributeType(publicKey, CKA_PRIME);
+            sftk_DeleteAttributeType(publicKey, CKA_SUBPRIME);
+            sftk_DeleteAttributeType(publicKey, CKA_BASE);
+            crv = sftk_AddAttributeType(publicKey, CKA_PRIME,
+                                        sftk_item_expand(&pubKey->u.dsa.params.prime));
+            if (crv != CKR_OK) {
+                break;
+            }
+            crv = sftk_AddAttributeType(publicKey, CKA_SUBPRIME,
+                                        sftk_item_expand(&pubKey->u.dsa.params.subPrime));
+            if (crv != CKR_OK) {
+                break;
+            }
+            crv = sftk_AddAttributeType(publicKey, CKA_BASE,
+                                        sftk_item_expand(&pubKey->u.dsa.params.base));
+            if (crv != CKR_OK) {
+                break;
+            }
+            crv = sftk_AddAttributeType(publicKey, CKA_VALUE,
+                                        sftk_item_expand(&pubKey->u.dsa.publicValue));
+            break;
+        case CKK_DH:
+            sftk_DeleteAttributeType(publicKey, CKA_PRIME);
+            sftk_DeleteAttributeType(publicKey, CKA_BASE);
+            crv = sftk_AddAttributeType(publicKey, CKA_PRIME,
+                                        sftk_item_expand(&pubKey->u.dh.prime));
+            if (crv != CKR_OK) {
+                break;
+            }
+            crv = sftk_AddAttributeType(publicKey, CKA_BASE,
+                                        sftk_item_expand(&pubKey->u.dh.base));
+            if (crv != CKR_OK) {
+                break;
+            }
+            crv = sftk_AddAttributeType(publicKey, CKA_VALUE,
+                                        sftk_item_expand(&pubKey->u.dh.publicValue));
+            break;
+        case CKK_EC:
+            sftk_DeleteAttributeType(publicKey, CKA_EC_PARAMS);
+            sftk_DeleteAttributeType(publicKey, CKA_EC_POINT);
+            crv = sftk_AddAttributeType(publicKey, CKA_EC_PARAMS,
+                                        sftk_item_expand(&pubKey->u.ec.ecParams.DEREncoding));
+            if (crv != CKR_OK) {
+                break;
+            }
+            crv = sftk_AddAttributeType(publicKey, CKA_EC_POINT,
+                                        sftk_item_expand(&pubKey->u.ec.publicValue));
+            break;
+        default:
+            return CKR_KEY_TYPE_INCONSISTENT;
+    }
+    if (crv != CKR_OK) {
+        return crv;
+    }
+    crv = sftk_AddAttributeType(publicKey, CKA_CLASS, &classType,
+                                sizeof(CK_OBJECT_CLASS));
+    if (crv != CKR_OK) {
+        return crv;
+    }
+    crv = sftk_AddAttributeType(publicKey, CKA_KEY_TYPE, &keyType,
+                                sizeof(CK_KEY_TYPE));
+    if (crv != CKR_OK) {
+        return crv;
+    }
+    /* now handle the operator attributes */
+    if (sftk_isTrue(privateKey, CKA_DECRYPT)) {
+        crv = sftk_forceAttribute(publicKey, CKA_ENCRYPT, &cktrue, sizeof(CK_BBOOL));
+        if (crv != CKR_OK) {
+            return crv;
+        }
+    }
+    if (sftk_isTrue(privateKey, CKA_SIGN)) {
+        crv = sftk_forceAttribute(publicKey, CKA_VERIFY, &cktrue, sizeof(CK_BBOOL));
+        if (crv != CKR_OK) {
+            return crv;
+        }
+    }
+    if (sftk_isTrue(privateKey, CKA_SIGN_RECOVER)) {
+        crv = sftk_forceAttribute(publicKey, CKA_VERIFY_RECOVER, &cktrue, sizeof(CK_BBOOL));
+        if (crv != CKR_OK) {
+            return crv;
+        }
+    }
+    if (sftk_isTrue(privateKey, CKA_DERIVE)) {
+        crv = sftk_forceAttribute(publicKey, CKA_DERIVE, &cktrue, sizeof(CK_BBOOL));
+        if (crv != CKR_OK) {
+            return crv;
+        }
+    }
+    return crv;
 }
 
 /*
@@ -2674,8 +2810,9 @@ sftk_CloseAllSessions(SFTKSlot *slot, PRBool logout)
             } else {
                 SKIP_AFTER_FORK(PZ_Unlock(lock));
             }
-            if (session)
-                sftk_FreeSession(session);
+            if (session) {
+                sftk_DestroySession(session);
+            }
         } while (session != NULL);
     }
     return CKR_OK;
@@ -2965,6 +3102,9 @@ sftk_closePeer(PRBool isFIPS)
     return;
 }
 
+extern void sftk_PBELockInit(void);
+extern void sftk_PBELockShutdown(void);
+
 /* NSC_Initialize initializes the Cryptoki library. */
 CK_RV
 nsc_CommonInitialize(CK_VOID_PTR pReserved, PRBool isFIPS)
@@ -2980,6 +3120,8 @@ nsc_CommonInitialize(CK_VOID_PTR pReserved, PRBool isFIPS)
     }
 
     ENABLE_FORK_CHECK();
+
+    sftk_PBELockInit();
 
     rv = SECOID_Init();
     if (rv != SECSuccess) {
@@ -3152,7 +3294,7 @@ nsc_CommonFinalize(CK_VOID_PTR pReserved, PRBool isFIPS)
      * this call doesn't force freebl to be reloaded. */
     BL_SetForkState(PR_FALSE);
 
-#ifndef NSS_TEST_BUILD
+#ifndef NSS_STATIC_SOFTOKEN
     /* unload freeBL shared library from memory. This may only decrement the
      * OS refcount if it's been loaded multiple times, eg. by libssl */
     BL_Unload();
@@ -3160,6 +3302,8 @@ nsc_CommonFinalize(CK_VOID_PTR pReserved, PRBool isFIPS)
 
     /* clean up the default OID table */
     SECOID_Shutdown();
+
+    sftk_PBELockShutdown();
 
     /* reset fork status in util */
     UTIL_SetForkState(PR_FALSE);
@@ -3333,11 +3477,18 @@ NSC_GetSlotInfo(CK_SLOT_ID slotID, CK_SLOT_INFO_PTR pInfo)
 static PRBool
 sftk_checkNeedLogin(SFTKSlot *slot, SFTKDBHandle *keyHandle)
 {
+    PRBool needLogin;
     if (sftkdb_PWCached(keyHandle) == SECSuccess) {
-        return slot->needLogin;
+        PZ_Lock(slot->slotLock);
+        needLogin = slot->needLogin;
+        PZ_Unlock(slot->slotLock);
+    } else {
+        needLogin = (PRBool)!sftk_hasNullPassword(slot, keyHandle);
+        PZ_Lock(slot->slotLock);
+        slot->needLogin = needLogin;
+        PZ_Unlock(slot->slotLock);
     }
-    slot->needLogin = (PRBool)!sftk_hasNullPassword(slot, keyHandle);
-    return (slot->needLogin);
+    return needLogin;
 }
 
 static PRBool
@@ -3372,10 +3523,12 @@ NSC_GetTokenInfo(CK_SLOT_ID slotID, CK_TOKEN_INFO_PTR pInfo)
     PORT_Memcpy(pInfo->model, "NSS 3           ", 16);
     PORT_Memcpy(pInfo->serialNumber, "0000000000000000", 16);
     PORT_Memcpy(pInfo->utcTime, "0000000000000000", 16);
-    pInfo->ulMaxSessionCount = 0; /* arbitrarily large */
+    pInfo->ulMaxSessionCount = 0;   /* arbitrarily large */
+    pInfo->ulMaxRwSessionCount = 0; /* arbitrarily large */
+    PZ_Lock(slot->slotLock);        /* Protect sessionCount / rwSessioncount */
     pInfo->ulSessionCount = slot->sessionCount;
-    pInfo->ulMaxRwSessionCount = 0; /* arbitarily large */
     pInfo->ulRwSessionCount = slot->rwSessionCount;
+    PZ_Unlock(slot->slotLock);      /* Unlock before sftk_getKeyDB */
     pInfo->firmwareVersion.major = 0;
     pInfo->firmwareVersion.minor = 0;
     PORT_Memcpy(pInfo->label, slot->tokDescription, sizeof(pInfo->label));
@@ -3707,8 +3860,11 @@ NSC_InitPIN(CK_SESSION_HANDLE hSession,
 
     /* Now update our local copy of the pin */
     if (rv == SECSuccess) {
-        if (ulPinLen == 0)
+        if (ulPinLen == 0) {
+            PZ_Lock(slot->slotLock);
             slot->needLogin = PR_FALSE;
+            PZ_Unlock(slot->slotLock);
+        }
         /* database has been initialized, now force min password in FIPS
          * mode. NOTE: if we are in level1, we may not have a password, but
          * forcing it now will prevent an insufficient password from being set.
@@ -3743,6 +3899,7 @@ NSC_SetPIN(CK_SESSION_HANDLE hSession, CK_CHAR_PTR pOldPin,
     char newPinStr[SFTK_MAX_PIN + 1], oldPinStr[SFTK_MAX_PIN + 1];
     SECStatus rv;
     CK_RV crv = CKR_SESSION_HANDLE_INVALID;
+    PRBool needLogin;
     PRBool tokenRemoved = PR_FALSE;
 
     CHECK_FORK();
@@ -3763,7 +3920,10 @@ NSC_SetPIN(CK_SESSION_HANDLE hSession, CK_CHAR_PTR pOldPin,
         return CKR_PIN_LEN_RANGE; /* XXX FIXME wrong return value */
     }
 
-    if (slot->needLogin && sp->info.state != CKS_RW_USER_FUNCTIONS) {
+    PZ_Lock(slot->slotLock);
+    needLogin = slot->needLogin;
+    PZ_Unlock(slot->slotLock);
+    if (needLogin && sp->info.state != CKS_RW_USER_FUNCTIONS) {
         crv = CKR_USER_NOT_LOGGED_IN;
         goto loser;
     }
@@ -3776,7 +3936,10 @@ NSC_SetPIN(CK_SESSION_HANDLE hSession, CK_CHAR_PTR pOldPin,
         crv = CKR_PIN_LEN_RANGE;
         goto loser;
     }
-    if (ulNewLen < (CK_ULONG)slot->minimumPinLen) {
+    /* check the length of new pin, unless both old and new passwords
+     * are empty */
+    if ((ulNewLen != 0 || ulOldLen != 0) &&
+        ulNewLen < (CK_ULONG)slot->minimumPinLen) {
         crv = CKR_PIN_LEN_RANGE;
         goto loser;
     }
@@ -3812,7 +3975,7 @@ NSC_SetPIN(CK_SESSION_HANDLE hSession, CK_CHAR_PTR pOldPin,
             PZ_Unlock(slot->slotLock);
 
             tokenRemoved = PR_FALSE;
-            rv = sftkdb_CheckPassword(handle, "", &tokenRemoved);
+            rv = sftkdb_CheckPasswordNull(handle, &tokenRemoved);
             if (tokenRemoved) {
                 sftk_CloseAllSessions(slot, PR_FALSE);
             }
@@ -3910,8 +4073,6 @@ NSC_CloseSession(CK_SESSION_HANDLE hSession)
     if (sftkqueue_is_queued(session, hSession, slot->head, slot->sessHashSize)) {
         sessionFound = PR_TRUE;
         sftkqueue_delete(session, hSession, slot->head, slot->sessHashSize);
-        session->refCount--; /* can't go to zero while we hold the reference */
-        PORT_Assert(session->refCount > 0);
     }
     PZ_Unlock(lock);
 
@@ -3932,9 +4093,10 @@ NSC_CloseSession(CK_SESSION_HANDLE hSession)
         if (session->info.flags & CKF_RW_SESSION) {
             (void)PR_ATOMIC_DECREMENT(&slot->rwSessionCount);
         }
+        sftk_DestroySession(session);
+        session = NULL;
     }
 
-    sftk_FreeSession(session);
     return CKR_OK;
 }
 
@@ -3989,6 +4151,8 @@ NSC_Login(CK_SESSION_HANDLE hSession, CK_USER_TYPE userType,
     CK_RV crv;
     char pinStr[SFTK_MAX_PIN + 1];
     PRBool tokenRemoved = PR_FALSE;
+    PRBool isLoggedIn;
+    PRBool needLogin;
 
     CHECK_FORK();
 
@@ -4012,9 +4176,14 @@ NSC_Login(CK_SESSION_HANDLE hSession, CK_USER_TYPE userType,
         return CKR_USER_TYPE_INVALID;
     }
 
-    if (slot->isLoggedIn)
+    PZ_Lock(slot->slotLock);
+    isLoggedIn = slot->isLoggedIn;
+    needLogin = slot->needLogin;
+    PZ_Unlock(slot->slotLock);
+
+    if (isLoggedIn)
         return CKR_USER_ALREADY_LOGGED_IN;
-    if (!slot->needLogin) {
+    if (!needLogin) {
         return ulPinLen ? CKR_PIN_INCORRECT : CKR_OK;
     }
     slot->ssoLoggedIn = PR_FALSE;
@@ -4468,7 +4637,7 @@ NSC_GetAttributeValue(CK_SESSION_HANDLE hSession,
     SFTKSession *session;
     SFTKObject *object;
     SFTKAttribute *attribute;
-    PRBool sensitive;
+    PRBool sensitive, isLoggedIn, needLogin;
     CK_RV crv;
     int i;
 
@@ -4499,9 +4668,13 @@ NSC_GetAttributeValue(CK_SESSION_HANDLE hSession,
         return CKR_OBJECT_HANDLE_INVALID;
     }
 
+    PZ_Lock(slot->slotLock);
+    isLoggedIn = slot->isLoggedIn;
+    needLogin = slot->needLogin;
+    PZ_Unlock(slot->slotLock);
+
     /* don't read a private object if we aren't logged in */
-    if ((!slot->isLoggedIn) && (slot->needLogin) &&
-        (sftk_isTrue(object, CKA_PRIVATE))) {
+    if (!isLoggedIn && needLogin && sftk_isTrue(object, CKA_PRIVATE)) {
         sftk_FreeObject(object);
         return CKR_USER_NOT_LOGGED_IN;
     }
@@ -4542,7 +4715,7 @@ NSC_SetAttributeValue(CK_SESSION_HANDLE hSession,
     SFTKSession *session;
     SFTKAttribute *attribute;
     SFTKObject *object;
-    PRBool isToken;
+    PRBool isToken, isLoggedIn, needLogin;
     CK_RV crv = CKR_OK;
     CK_BBOOL legal;
     int i;
@@ -4566,9 +4739,13 @@ NSC_SetAttributeValue(CK_SESSION_HANDLE hSession,
         return CKR_OBJECT_HANDLE_INVALID;
     }
 
+    PZ_Lock(slot->slotLock);
+    isLoggedIn = slot->isLoggedIn;
+    needLogin = slot->needLogin;
+    PZ_Unlock(slot->slotLock);
+
     /* don't modify a private object if we aren't logged in */
-    if ((!slot->isLoggedIn) && (slot->needLogin) &&
-        (sftk_isTrue(object, CKA_PRIVATE))) {
+    if (!isLoggedIn && needLogin && sftk_isTrue(object, CKA_PRIVATE)) {
         sftk_FreeSession(session);
         sftk_FreeObject(object);
         return CKR_USER_NOT_LOGGED_IN;
@@ -4846,7 +5023,10 @@ NSC_FindObjectsInit(CK_SESSION_HANDLE hSession,
     search->index = 0;
     search->size = 0;
     search->array_size = NSC_SEARCH_BLOCK_SIZE;
+
+    PZ_Lock(slot->slotLock);
     isLoggedIn = (PRBool)((!slot->needLogin) || slot->isLoggedIn);
+    PZ_Unlock(slot->slotLock);
 
     crv = sftk_searchTokenList(slot, search, pTemplate, ulCount, isLoggedIn);
     if (crv != CKR_OK) {

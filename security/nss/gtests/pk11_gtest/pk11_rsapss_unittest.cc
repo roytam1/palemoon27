@@ -1,5 +1,4 @@
 /* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* vim: set ts=2 et sw=2 tw=80: */
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -93,6 +92,20 @@ TEST_F(Pkcs11RsaPssTest, GenerateAndSignAndVerify) {
   EXPECT_EQ(rv, SECFailure);
 }
 
+TEST_F(Pkcs11RsaPssTest, NoLeakWithInvalidExponent) {
+  // Attempt to generate an RSA key with a public exponent of 1. This should
+  // fail, but it shouldn't leak memory.
+  PK11RSAGenParams rsaGenParams = {1024, 0x01};
+
+  // Generate RSA key pair.
+  ScopedPK11SlotInfo slot(PK11_GetInternalSlot());
+  SECKEYPublicKey* pubKey = nullptr;
+  SECKEYPrivateKey* privKey =
+      PK11_GenerateKeyPair(slot.get(), CKM_RSA_PKCS_KEY_PAIR_GEN, &rsaGenParams,
+                           &pubKey, false, false, nullptr);
+  EXPECT_FALSE(privKey);
+  EXPECT_FALSE(pubKey);
+}
 class Pkcs11RsaPssVectorTest
     : public Pkcs11RsaPssTest,
       public ::testing::WithParamInterface<Pkcs11SignatureTestParams> {};

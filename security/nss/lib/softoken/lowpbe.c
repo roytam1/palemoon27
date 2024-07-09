@@ -18,6 +18,7 @@
 #include "alghmac.h"
 #include "softoken.h"
 #include "secerr.h"
+#include "pkcs11i.h"
 
 SEC_ASN1_MKSUB(SECOID_AlgorithmIDTemplate)
 
@@ -553,6 +554,162 @@ loser:
     return A;
 }
 
+struct KDFCacheItemStr {
+    SECItem *hash;
+    SECItem *salt;
+    SECItem *pwItem;
+    HASH_HashType hashType;
+    int iterations;
+    int keyLen;
+};
+typedef struct KDFCacheItemStr KDFCacheItem;
+
+/* Bug 1606992 - Cache the hash result for the common case that we're
+ * asked to repeatedly compute the key for the same password item,
+ * hash, iterations and salt. */
+static struct {
+    PZLock *lock;
+    struct {
+        KDFCacheItem common;
+        int ivLen;
+        PRBool faulty3DES;
+    } cacheKDF1;
+    struct {
+        KDFCacheItem common;
+    } cacheKDF2;
+} PBECache;
+
+void
+sftk_PBELockInit(void)
+{
+    if (!PBECache.lock) {
+        PBECache.lock = PZ_NewLock(nssIPBECacheLock);
+    }
+}
+
+static void
+sftk_clearPBECommonCacheItemsLocked(KDFCacheItem *item)
+{
+    if (item->hash) {
+        SECITEM_ZfreeItem(item->hash, PR_TRUE);
+        item->hash = NULL;
+    }
+    if (item->salt) {
+        SECITEM_FreeItem(item->salt, PR_TRUE);
+        item->salt = NULL;
+    }
+    if (item->pwItem) {
+        SECITEM_ZfreeItem(item->pwItem, PR_TRUE);
+        item->pwItem = NULL;
+    }
+}
+
+sftk_setPBECommonCacheItemsKDFLocked(KDFCacheItem *cacheItem,
+                                     const SECItem *hash,
+                                     const NSSPKCS5PBEParameter *pbe_param,
+                                     const SECItem *pwItem)
+{
+    cacheItem->hash = SECITEM_DupItem(hash);
+    cacheItem->hashType = pbe_param->hashType;
+    cacheItem->iterations = pbe_param->iter;
+    cacheItem->keyLen = pbe_param->keyLen;
+    cacheItem->salt = SECITEM_DupItem(&pbe_param->salt);
+    cacheItem->pwItem = SECITEM_DupItem(pwItem);
+}
+
+static void
+sftk_setPBECacheKDF2(const SECItem *hash,
+                     const NSSPKCS5PBEParameter *pbe_param,
+                     const SECItem *pwItem)
+{
+    PZ_Lock(PBECache.lock);
+    sftk_clearPBECommonCacheItemsLocked(&PBECache.cacheKDF2.common);
+    sftk_setPBECommonCacheItemsKDFLocked(&PBECache.cacheKDF2.common,
+                                         hash, pbe_param, pwItem);
+
+    PZ_Unlock(PBECache.lock);
+} 
+
+static void
+sftk_setPBECacheKDF1(const SECItem *hash,
+                     const NSSPKCS5PBEParameter *pbe_param,
+                     const SECItem *pwItem,
+                     PRBool faulty3DES)
+{
+    PZ_Lock(PBECache.lock);
+
+    sftk_clearPBECommonCacheItemsLocked(&PBECache.cacheKDF1.common);
+
+    sftk_setPBECommonCacheItemsKDFLocked(&PBECache.cacheKDF1.common,
+                                         hash, pbe_param, pwItem);
+    PBECache.cacheKDF1.faulty3DES = faulty3DES;
+    PBECache.cacheKDF1.ivLen = pbe_param->ivLen;
+
+    PZ_Unlock(PBECache.lock);
+}
+
+static PRBool
+sftk_comparePBECommonCacheItemLocked(const KDFCacheItem *cacheItem,
+                                     const NSSPKCS5PBEParameter *pbe_param,
+                                     const SECItem *pwItem)
+{
+    return (cacheItem->hash &&
+            cacheItem->salt &&
+            cacheItem->pwItem &&
+            pbe_param->hashType == cacheItem->hashType &&
+            pbe_param->iter == cacheItem->iterations &&
+            pbe_param->keyLen == cacheItem->keyLen &&
+            SECITEM_ItemsAreEqual(&pbe_param->salt, cacheItem->salt) &&
+            SECITEM_ItemsAreEqual(pwItem, cacheItem->pwItem));
+}
+
+static SECItem *
+sftk_getPBECacheKDF2(const NSSPKCS5PBEParameter *pbe_param,
+                     const SECItem *pwItem)
+{
+    SECItem *result = NULL;
+    const KDFCacheItem *cacheItem = &PBECache.cacheKDF2.common;
+
+    PZ_Lock(PBECache.lock);
+    if (sftk_comparePBECommonCacheItemLocked(cacheItem, pbe_param, pwItem)) {
+        result = SECITEM_DupItem(cacheItem->hash);
+    }
+    PZ_Unlock(PBECache.lock);
+
+    return result;
+}
+
+static SECItem *
+sftk_getPBECacheKDF1(const NSSPKCS5PBEParameter *pbe_param,
+                     const SECItem *pwItem,
+                     PRBool faulty3DES)
+{
+    SECItem *result = NULL;
+    const KDFCacheItem *cacheItem = &PBECache.cacheKDF1.common;
+
+    PZ_Lock(PBECache.lock);
+    if (sftk_comparePBECommonCacheItemLocked(cacheItem, pbe_param, pwItem) &&
+        PBECache.cacheKDF1.faulty3DES == faulty3DES &&
+        PBECache.cacheKDF1.ivLen == pbe_param->ivLen) {
+        result = SECITEM_DupItem(cacheItem->hash);
+    }
+    PZ_Unlock(PBECache.lock);
+
+    return result;
+}
+
+
+void
+sftk_PBELockShutdown(void)
+{
+    if (PBECache.lock) {
+        PZ_DestroyLock(PBECache.lock);
+        PBECache.lock = 0;
+    }
+    sftk_clearPBECommonCacheItemsLocked(&PBECache.cacheKDF1.common);
+    sftk_clearPBECommonCacheItemsLocked(&PBECache.cacheKDF2.common);
+}
+
 /*
  * generate key as per PKCS 5
  */
@@ -585,7 +742,11 @@ nsspkcs5_ComputeKeyAndIV(NSSPKCS5PBEParameter *pbe_param, SECItem *pwitem,
     hashObj = HASH_GetRawHashObject(pbe_param->hashType);
     switch (pbe_param->pbeType) {
         case NSSPKCS5_PBKDF1:
-            hash = nsspkcs5_PBKDF1Extended(hashObj, pbe_param, pwitem, faulty3DES);
+            hash = sftk_getPBECacheKDF1(pbe_param, pwitem, faulty3DES);
+            if (!hash) {
+                hash = nsspkcs5_PBKDF1Extended(hashObj, pbe_param, pwitem, faulty3DES);
+                sftk_setPBECacheKDF1(hash, pbe_param, pwitem, faulty3DES);
+            }
             if (hash == NULL) {
                 goto loser;
             }
@@ -596,7 +757,11 @@ nsspkcs5_ComputeKeyAndIV(NSSPKCS5PBEParameter *pbe_param, SECItem *pwitem,
 
             break;
         case NSSPKCS5_PBKDF2:
-            hash = nsspkcs5_PBKDF2(hashObj, pbe_param, pwitem);
+            hash = sftk_getPBECacheKDF2(pbe_param, pwitem);
+            if (!hash) {
+                hash = nsspkcs5_PBKDF2(hashObj, pbe_param, pwitem);
+                sftk_setPBECacheKDF2(hash, pbe_param, pwitem);
+            }
             if (getIV) {
                 PORT_Memcpy(iv->data, pbe_param->ivData, iv->len);
             }

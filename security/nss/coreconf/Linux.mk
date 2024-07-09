@@ -21,6 +21,7 @@ ifeq ($(USE_PTHREADS),1)
 endif
 
 DEFAULT_COMPILER = gcc
+DEFINES += -D_DEFAULT_SOURCE -D_BSD_SOURCE -D_POSIX_SOURCE
 
 ifeq ($(OS_TARGET),Android)
 ifndef ANDROID_NDK
@@ -134,6 +135,10 @@ ifeq ($(KERNEL),Linux)
 	OS_CFLAGS	+= -DLINUX -Dlinux
 endif
 OS_LIBS			= $(OS_PTHREAD) -ldl -lc
+
+ifeq ($(OS_TARGET),Android)
+	OS_LIBS		+= -llog
+endif
 
 ifdef USE_PTHREADS
 	DEFINES		+= -D_REENTRANT

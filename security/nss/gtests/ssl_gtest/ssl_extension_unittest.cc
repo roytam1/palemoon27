@@ -1,5 +1,4 @@
 /* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* vim: set ts=2 et sw=2 tw=80: */
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -436,14 +435,14 @@ TEST_P(TlsExtensionTest12Plus, SignatureAlgorithmsOddLength) {
 }
 
 TEST_F(TlsExtensionTest13Stream, SignatureAlgorithmsPrecedingGarbage) {
-  // 31 unknown signature algorithms followed by sha-256, rsa
+  // 31 unknown signature algorithms followed by sha-256, rsa-pss
   const uint8_t val[] = {
       0x00, 0x40, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
       0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
       0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
       0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
       0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
-      0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0x04, 0x01};
+      0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0x08, 0x04};
   DataBuffer extension(val, sizeof(val));
   MakeTlsFilter<TlsExtensionReplacer>(client_, ssl_signature_algorithms_xtn,
                                       extension);
@@ -480,6 +479,73 @@ TEST_P(TlsExtensionTestGeneric, SupportedCurvesTrailingData) {
   DataBuffer extension(val, sizeof(val));
   ClientHelloErrorTest(std::make_shared<TlsExtensionReplacer>(
       client_, ssl_elliptic_curves_xtn, extension));
+}
+
+TEST_P(TlsExtensionTest12, SupportedCurvesDisableX25519) {
+  // Disable session resumption.
+  ConfigureSessionCache(RESUME_NONE, RESUME_NONE);
+
+  // Ensure that we can enable its use in the key exchange.
+  SECStatus rv =
+      NSS_SetAlgorithmPolicy(SEC_OID_CURVE25519, NSS_USE_ALG_IN_SSL_KX, 0);
+  ASSERT_EQ(SECSuccess, rv);
+  rv = NSS_SetAlgorithmPolicy(SEC_OID_APPLY_SSL_POLICY, NSS_USE_POLICY_IN_SSL,
+                              0);
+  ASSERT_EQ(SECSuccess, rv);
+
+  auto capture1 =
+      MakeTlsFilter<TlsExtensionCapture>(client_, ssl_elliptic_curves_xtn);
+  Connect();
+
+  EXPECT_TRUE(capture1->captured());
+  const DataBuffer& ext1 = capture1->extension();
+
+  uint32_t count;
+  ASSERT_TRUE(ext1.Read(0, 2, &count));
+
+  // Whether or not we've seen x25519 offered in this handshake.
+  bool seen1_x25519 = false;
+  for (size_t offset = 2; offset <= count; offset++) {
+    uint32_t val;
+    ASSERT_TRUE(ext1.Read(offset, 2, &val));
+    if (val == ssl_grp_ec_curve25519) {
+      seen1_x25519 = true;
+      break;
+    }
+  }
+  ASSERT_TRUE(seen1_x25519);
+
+  // Ensure that we can disable its use in the key exchange.
+  rv = NSS_SetAlgorithmPolicy(SEC_OID_CURVE25519, 0, NSS_USE_ALG_IN_SSL_KX);
+  ASSERT_EQ(SECSuccess, rv);
+  rv = NSS_SetAlgorithmPolicy(SEC_OID_APPLY_SSL_POLICY, NSS_USE_POLICY_IN_SSL,
+                              0);
+  ASSERT_EQ(SECSuccess, rv);
+
+  // Clean up after the last run.
+  Reset();
+  auto capture2 =
+      MakeTlsFilter<TlsExtensionCapture>(client_, ssl_elliptic_curves_xtn);
+  Connect();
+
+  EXPECT_TRUE(capture2->captured());
+  const DataBuffer& ext2 = capture2->extension();
+
+  ASSERT_TRUE(ext2.Read(0, 2, &count));
+
+  // Whether or not we've seen x25519 offered in this handshake.
+  bool seen2_x25519 = false;
+  for (size_t offset = 2; offset <= count; offset++) {
+    uint32_t val;
+    ASSERT_TRUE(ext2.Read(offset, 2, &val));
+
+    if (val == ssl_grp_ec_curve25519) {
+      seen2_x25519 = true;
+      break;
+    }
+  }
+
+  ASSERT_FALSE(seen2_x25519);
 }
 
 TEST_P(TlsExtensionTestPre13, SupportedPointsEmpty) {
@@ -545,6 +611,56 @@ TEST_P(TlsExtensionTest12, SignatureAlgorithmConfiguration) {
     cursor += 2;
     EXPECT_EQ(schemes[i], static_cast<SSLSignatureScheme>(v));
   }
+}
+
+// This only works on TLS 1.2, since it relies on DSA.
+TEST_P(TlsExtensionTest12, SignatureAlgorithmDisableDSA) {
+  const std::vector<SSLSignatureScheme> schemes = {
+      ssl_sig_dsa_sha1, ssl_sig_dsa_sha256, ssl_sig_dsa_sha384,
+      ssl_sig_dsa_sha512, ssl_sig_rsa_pss_rsae_sha256};
+
+  // Connect with DSA enabled by policy.
+  SECStatus rv = NSS_SetAlgorithmPolicy(SEC_OID_ANSIX9_DSA_SIGNATURE,
+                                        NSS_USE_ALG_IN_SSL_KX, 0);
+  ASSERT_EQ(SECSuccess, rv);
+  rv = NSS_SetAlgorithmPolicy(SEC_OID_APPLY_SSL_POLICY, NSS_USE_POLICY_IN_SSL,
+                              0);
+  ASSERT_EQ(SECSuccess, rv);
+
+  Reset(TlsAgent::kServerDsa);
+  auto capture1 =
+      MakeTlsFilter<TlsExtensionCapture>(client_, ssl_signature_algorithms_xtn);
+  client_->SetSignatureSchemes(schemes.data(), schemes.size());
+  Connect();
+
+  // Check if all the signature algorithms are advertised.
+  EXPECT_TRUE(capture1->captured());
+  const DataBuffer& ext1 = capture1->extension();
+  EXPECT_EQ(2U + 2U * schemes.size(), ext1.len());
+
+  // Connect with DSA disabled by policy.
+  rv = NSS_SetAlgorithmPolicy(SEC_OID_ANSIX9_DSA_SIGNATURE, 0,
+                              NSS_USE_ALG_IN_SSL_KX);
+  ASSERT_EQ(SECSuccess, rv);
+  rv = NSS_SetAlgorithmPolicy(SEC_OID_APPLY_SSL_POLICY, NSS_USE_POLICY_IN_SSL,
+                              0);
+  ASSERT_EQ(SECSuccess, rv);
+
+  Reset(TlsAgent::kServerDsa);
+  auto capture2 =
+      MakeTlsFilter<TlsExtensionCapture>(client_, ssl_signature_algorithms_xtn);
+  client_->SetSignatureSchemes(schemes.data(), schemes.size());
+  ConnectExpectAlert(server_, kTlsAlertHandshakeFailure);
+  server_->CheckErrorCode(SSL_ERROR_NO_CYPHER_OVERLAP);
+  client_->CheckErrorCode(SSL_ERROR_NO_CYPHER_OVERLAP);
+
+  // Check if no DSA algorithms are advertised.
+  EXPECT_TRUE(capture2->captured());
+  const DataBuffer& ext2 = capture2->extension();
+  EXPECT_EQ(2U + 2U, ext2.len());
+  uint32_t v = 0;
+  EXPECT_TRUE(ext2.Read(2, 2, &v));
+  EXPECT_EQ(ssl_sig_rsa_pss_rsae_sha256, v);
 }
 
 // Temporary test to verify that we choke on an empty ClientKeyShare.
@@ -614,7 +730,7 @@ TEST_F(TlsExtensionTest13Stream, AddServerSignatureAlgorithmsOnResumption) {
   DataBuffer empty;
   MakeTlsFilter<TlsExtensionInjector>(server_, ssl_signature_algorithms_xtn,
                                       empty);
-  client_->ExpectSendAlert(kTlsAlertUnsupportedExtension);
+  client_->ExpectSendAlert(kTlsAlertIllegalParameter);
   server_->ExpectSendAlert(kTlsAlertUnexpectedMessage);
   ConnectExpectFail();
   EXPECT_EQ(SSL_ERROR_EXTENSION_DISALLOWED_FOR_VERSION, client_->error_code());
@@ -1062,19 +1178,6 @@ TEST_P(TlsBogusExtensionTest13, AddBogusExtensionHelloRetryRequest) {
   Run(kTlsHandshakeHelloRetryRequest);
 }
 
-TEST_P(TlsBogusExtensionTest13, AddVersionExtensionEncryptedExtensions) {
-  Run(kTlsHandshakeEncryptedExtensions, ssl_tls13_supported_versions_xtn);
-}
-
-TEST_P(TlsBogusExtensionTest13, AddVersionExtensionCertificate) {
-  Run(kTlsHandshakeCertificate, ssl_tls13_supported_versions_xtn);
-}
-
-TEST_P(TlsBogusExtensionTest13, AddVersionExtensionCertificateRequest) {
-  server_->RequestClientAuth(false);
-  Run(kTlsHandshakeCertificateRequest, ssl_tls13_supported_versions_xtn);
-}
-
 // NewSessionTicket allows unknown extensions AND it isn't protected by the
 // Finished.  So adding an unknown extension doesn't cause an error.
 TEST_P(TlsBogusExtensionTest13, AddBogusExtensionNewSessionTicket) {
@@ -1090,6 +1193,55 @@ TEST_P(TlsBogusExtensionTest13, AddBogusExtensionNewSessionTicket) {
   ExpectResumption(RESUME_TICKET);
   Connect();
   SendReceive();
+}
+
+class TlsDisallowedExtensionTest13 : public TlsBogusExtensionTest {
+ protected:
+  void ConnectAndFail(uint8_t message) override {
+    ConnectExpectAlert(client_, kTlsAlertIllegalParameter);
+  }
+};
+
+TEST_P(TlsDisallowedExtensionTest13, AddVersionExtensionEncryptedExtensions) {
+  Run(kTlsHandshakeEncryptedExtensions, ssl_tls13_supported_versions_xtn);
+}
+
+TEST_P(TlsDisallowedExtensionTest13, AddVersionExtensionCertificate) {
+  Run(kTlsHandshakeCertificate, ssl_tls13_supported_versions_xtn);
+}
+
+TEST_P(TlsDisallowedExtensionTest13, AddVersionExtensionCertificateRequest) {
+  server_->RequestClientAuth(false);
+  Run(kTlsHandshakeCertificateRequest, ssl_tls13_supported_versions_xtn);
+}
+
+/* For unadvertised disallowed extensions an unsupported_extension alert is
+ * thrown since NSS checks for unadvertised extensions before its disallowed
+ * extension check. */
+class TlsDisallowedUnadvertisedExtensionTest13 : public TlsBogusExtensionTest {
+ protected:
+  void ConnectAndFail(uint8_t message) override {
+    uint8_t alert = kTlsAlertUnsupportedExtension;
+    if (message == kTlsHandshakeCertificateRequest) {
+      alert = kTlsAlertIllegalParameter;
+    }
+    ConnectExpectAlert(client_, alert);
+  }
+};
+
+TEST_P(TlsDisallowedUnadvertisedExtensionTest13,
+       AddPSKExtensionEncryptedExtensions) {
+  Run(kTlsHandshakeEncryptedExtensions, ssl_tls13_pre_shared_key_xtn);
+}
+
+TEST_P(TlsDisallowedUnadvertisedExtensionTest13, AddPSKExtensionCertificate) {
+  Run(kTlsHandshakeCertificate, ssl_tls13_pre_shared_key_xtn);
+}
+
+TEST_P(TlsDisallowedUnadvertisedExtensionTest13,
+       AddPSKExtensionCertificateRequest) {
+  server_->RequestClientAuth(false);
+  Run(kTlsHandshakeCertificateRequest, ssl_tls13_pre_shared_key_xtn);
 }
 
 TEST_P(TlsConnectStream, IncludePadding) {
@@ -1121,6 +1273,10 @@ INSTANTIATE_TEST_CASE_P(
 INSTANTIATE_TEST_CASE_P(ExtensionDatagramOnly, TlsExtensionTestDtls,
                         TlsConnectTestBase::kTlsV11Plus);
 
+INSTANTIATE_TEST_CASE_P(ExtensionTls12, TlsExtensionTest12,
+                        ::testing::Combine(TlsConnectTestBase::kTlsVariantsAll,
+                                           TlsConnectTestBase::kTlsV12));
+
 INSTANTIATE_TEST_CASE_P(ExtensionTls12Plus, TlsExtensionTest12Plus,
                         ::testing::Combine(TlsConnectTestBase::kTlsVariantsAll,
                                            TlsConnectTestBase::kTlsV12Plus));
@@ -1148,5 +1304,14 @@ INSTANTIATE_TEST_CASE_P(
 INSTANTIATE_TEST_CASE_P(BogusExtension13, TlsBogusExtensionTest13,
                         ::testing::Combine(TlsConnectTestBase::kTlsVariantsAll,
                                            TlsConnectTestBase::kTlsV13));
+
+INSTANTIATE_TEST_SUITE_P(DisallowedExtension13, TlsDisallowedExtensionTest13,
+                         ::testing::Combine(TlsConnectTestBase::kTlsVariantsAll,
+                                            TlsConnectTestBase::kTlsV13));
+
+INSTANTIATE_TEST_SUITE_P(DisallowedUnadvertisedExtension13,
+                         TlsDisallowedUnadvertisedExtensionTest13,
+                         ::testing::Combine(TlsConnectTestBase::kTlsVariantsAll,
+                                            TlsConnectTestBase::kTlsV13));
 
 }  // namespace nss_test

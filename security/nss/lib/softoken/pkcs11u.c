@@ -15,6 +15,47 @@
 #include "softoken.h"
 
 /*
+ * ******************** Error mapping *******************************
+ */
+/*
+ * map all the SEC_ERROR_xxx error codes that may be returned by freebl
+ * functions to CKR_xxx.  return CKR_DEVICE_ERROR by default for backward
+ * compatibility.
+ */
+CK_RV
+sftk_MapCryptError(int error)
+{
+    switch (error) {
+        case SEC_ERROR_INVALID_ARGS:
+        case SEC_ERROR_BAD_DATA: /* MP_RANGE gets mapped to this */
+            return CKR_ARGUMENTS_BAD;
+        case SEC_ERROR_INPUT_LEN:
+            return CKR_DATA_LEN_RANGE;
+        case SEC_ERROR_OUTPUT_LEN:
+            return CKR_BUFFER_TOO_SMALL;
+        case SEC_ERROR_LIBRARY_FAILURE:
+            return CKR_GENERAL_ERROR;
+        case SEC_ERROR_NO_MEMORY:
+            return CKR_HOST_MEMORY;
+        case SEC_ERROR_BAD_SIGNATURE:
+            return CKR_SIGNATURE_INVALID;
+        case SEC_ERROR_INVALID_KEY:
+            return CKR_KEY_SIZE_RANGE;
+        case SEC_ERROR_BAD_KEY:        /* an EC public key that fails validation */
+            return CKR_KEY_SIZE_RANGE; /* the closest error code */
+        case SEC_ERROR_UNSUPPORTED_EC_POINT_FORM:
+            return CKR_TEMPLATE_INCONSISTENT;
+        case SEC_ERROR_UNSUPPORTED_KEYALG:
+            return CKR_MECHANISM_INVALID;
+        case SEC_ERROR_UNSUPPORTED_ELLIPTIC_CURVE:
+            return CKR_DOMAIN_PARAMS_INVALID;
+        /* key pair generation failed after max number of attempts */
+        case SEC_ERROR_NEED_RANDOM:
+            return CKR_FUNCTION_FAILED;
+    }
+    return CKR_DEVICE_ERROR;
+}
+/*
  * ******************** Attribute Utilities *******************************
  */
 
@@ -100,7 +141,7 @@ sftk_DestroyAttribute(SFTKAttribute *attribute)
 void
 sftk_FreeAttribute(SFTKAttribute *attribute)
 {
-    if (attribute->freeAttr) {
+    if (attribute && attribute->freeAttr) {
         sftk_DestroyAttribute(attribute);
         return;
     }
@@ -1772,7 +1813,6 @@ sftk_NewSession(CK_SLOT_ID slotID, CK_NOTIFY notify, CK_VOID_PTR pApplication,
         return NULL;
 
     session->next = session->prev = NULL;
-    session->refCount = 1;
     session->enc_context = NULL;
     session->hash_context = NULL;
     session->sign_context = NULL;
@@ -1796,11 +1836,10 @@ sftk_NewSession(CK_SLOT_ID slotID, CK_NOTIFY notify, CK_VOID_PTR pApplication,
 }
 
 /* free all the data associated with a session. */
-static void
+void
 sftk_DestroySession(SFTKSession *session)
 {
     SFTKObjectList *op, *next;
-    PORT_Assert(session->refCount == 0);
 
     /* clean out the attributes */
     /* since no one is referencing us, it's safe to walk the chain
@@ -1844,31 +1883,20 @@ sftk_SessionFromHandle(CK_SESSION_HANDLE handle)
 
     PZ_Lock(lock);
     sftkqueue_find(session, handle, slot->head, slot->sessHashSize);
-    if (session)
-        session->refCount++;
     PZ_Unlock(lock);
 
     return (session);
 }
 
 /*
- * release a reference to a session handle
+ * release a reference to a session handle. This method of using SFTKSessions
+ * is deprecated, but the pattern should be retained until a future effort
+ * to refactor all SFTKSession users at once is completed.
  */
 void
 sftk_FreeSession(SFTKSession *session)
 {
-    PRBool destroy = PR_FALSE;
-    SFTKSlot *slot = sftk_SlotFromSession(session);
-    PZLock *lock = SFTK_SESSION_LOCK(slot, session->handle);
-
-    PZ_Lock(lock);
-    if (session->refCount == 1)
-        destroy = PR_TRUE;
-    session->refCount--;
-    PZ_Unlock(lock);
-
-    if (destroy)
-        sftk_DestroySession(session);
+    return;
 }
 
 void

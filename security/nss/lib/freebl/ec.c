@@ -24,7 +24,7 @@ static const ECMethod kMethods[] = {
 static const ECMethod *
 ec_get_method_from_name(ECCurveName name)
 {
-    int i;
+    unsigned long i;
     for (i = 0; i < sizeof(kMethods) / sizeof(kMethods[0]); ++i) {
         if (kMethods[i].name == name) {
             return &kMethods[i];
@@ -202,8 +202,8 @@ ec_NewKey(ECParams *ecParams, ECPrivateKey **privKey,
 #endif
     MP_DIGITS(&k) = 0;
 
-    if (!ecParams || !privKey || !privKeyBytes || (privKeyLen < 0) ||
-        !ecParams->name) {
+    if (!ecParams || ecParams->name == ECCurve_noName ||
+        !privKey || !privKeyBytes || privKeyLen <= 0) {
         PORT_SetError(SEC_ERROR_INVALID_ARGS);
         return SECFailure;
     }
@@ -391,7 +391,7 @@ EC_NewKey(ECParams *ecParams, ECPrivateKey **privKey)
     int len;
     unsigned char *privKeyBytes = NULL;
 
-    if (!ecParams) {
+    if (!ecParams || ecParams->name == ECCurve_noName || !privKey) {
         PORT_SetError(SEC_ERROR_INVALID_ARGS);
         return SECFailure;
     }
@@ -430,7 +430,8 @@ EC_ValidatePublicKey(ECParams *ecParams, SECItem *publicValue)
     mp_err err = MP_OKAY;
     int len;
 
-    if (!ecParams || !publicValue || !ecParams->name) {
+    if (!ecParams || ecParams->name == ECCurve_noName ||
+        !publicValue || !publicValue->len) {
         PORT_SetError(SEC_ERROR_INVALID_ARGS);
         return SECFailure;
     }
@@ -536,8 +537,9 @@ ECDH_Derive(SECItem *publicValue,
     int i;
 #endif
 
-    if (!publicValue || !ecParams || !privateValue || !derivedSecret ||
-        !ecParams->name) {
+    if (!publicValue || !publicValue->len ||
+        !ecParams || ecParams->name == ECCurve_noName ||
+        !privateValue || !privateValue->len || !derivedSecret) {
         PORT_SetError(SEC_ERROR_INVALID_ARGS);
         return SECFailure;
     }
@@ -719,27 +721,6 @@ ECDSA_SignDigestWithSeed(ECPrivateKey *key, SECItem *signature,
 #endif
         PORT_SetError(SEC_ERROR_NEED_RANDOM);
         goto cleanup;
-    }
-
-    /*
-    ** We do not want timing information to leak the length of k,
-    ** so we compute k*G using an equivalent scalar of fixed
-    ** bit-length.
-    ** Fix based on patch for ECDSA timing attack in the paper
-    ** by Billy Bob Brumley and Nicola Tuveri at
-    **   http://eprint.iacr.org/2011/232
-    **
-    ** How do we convert k to a value of a fixed bit-length?
-    ** k starts off as an integer satisfying 0 <= k < n.  Hence,
-    ** n <= k+n < 2n, which means k+n has either the same number
-    ** of bits as n or one more bit than n.  If k+n has the same
-    ** number of bits as n, the second addition ensures that the
-    ** final value has exactly one more bit than n.  Thus, we
-    ** always end up with a value that exactly one more bit than n.
-    */
-    CHECK_MPI_OK(mp_add(&k, &n, &k));
-    if (mpl_significant_bits(&k) <= mpl_significant_bits(&n)) {
-        CHECK_MPI_OK(mp_add(&k, &n, &k));
     }
 
     /*

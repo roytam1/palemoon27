@@ -1,5 +1,4 @@
 /* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* vim: set ts=2 et sw=2 tw=80: */
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -33,8 +32,10 @@ class PacketFilter {
     CHANGE,  // change the packet to a different value
     DROP     // drop the packet
   };
-  PacketFilter(bool enabled = true) : enabled_(enabled) {}
+  explicit PacketFilter(bool on = true) : enabled_(on) {}
   virtual ~PacketFilter() {}
+
+  bool enabled() const { return enabled_; }
 
   virtual Action Process(const DataBuffer& input, DataBuffer* output) {
     if (!enabled_) {
@@ -67,6 +68,8 @@ class DummyPrSocket : public DummyIOLayerMethods {
         filter_(nullptr),
         write_error_(0) {}
   virtual ~DummyPrSocket() {}
+
+  static PRDescIdentity LayerId();
 
   // Create a file descriptor that will reference this object.  The fd must not
   // live longer than this adapter; call PR_Close() before.

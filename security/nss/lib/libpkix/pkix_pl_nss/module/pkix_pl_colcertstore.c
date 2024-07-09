@@ -59,11 +59,21 @@ SECU_ReadDERFromFile(SECItem *der, PRFileDesc *inFile, PRBool ascii)
 
         /* Read in ascii data */
         rv = SECU_FileToItem(&filedata, inFile);
-        asc = (char *)filedata.data;
-        if (!asc) {
+        if (rv != SECSuccess) {
+            return rv;
+        }
+        if (!filedata.data) {
             fprintf(stderr, "unable to read data from input file\n");
             return SECFailure;
         }
+        /* need one additional byte for zero terminator */
+        rv = SECITEM_ReallocItemV2(NULL, &filedata, filedata.len + 1);
+        if (rv != SECSuccess) {
+            PORT_Free(filedata.data);
+            return rv;
+        }
+        asc = (char *)filedata.data;
+        asc[filedata.len - 1] = '\0';
 
         /* check for headers and trailers and remove them */
         if ((body = strstr(asc, "-----BEGIN")) != NULL) {

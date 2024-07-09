@@ -139,6 +139,11 @@ SEC_ReadPKCS7Certs(SECItem *pkcs7Item, CERTImportCertificateFunc f, void *arg)
         goto done;
     }
 
+    if (contentInfo.content.signedData == NULL) {
+        PORT_SetError(SEC_ERROR_BAD_DER);
+        goto done;
+    }
+
     rv = SECSuccess;
 
     certs = contentInfo.content.signedData->certificates;
@@ -492,14 +497,16 @@ typedef struct {
 static SECStatus
 collect_certs(void *arg, SECItem **certs, int numcerts)
 {
-    SECStatus rv;
-    collect_args *collectArgs;
-
-    collectArgs = (collect_args *)arg;
-
-    rv = SECITEM_CopyItem(collectArgs->arena, &collectArgs->cert, *certs);
-
-    return (rv);
+    collect_args *collectArgs = (collect_args *)arg;
+    if (!collectArgs || !collectArgs->arena) {
+        PORT_SetError(SEC_ERROR_INVALID_ARGS);
+        return SECFailure;
+    }
+    if (numcerts < 1 || !certs || !*certs) {
+        PORT_SetError(SEC_ERROR_BAD_DER);
+        return SECFailure;
+    }
+    return SECITEM_CopyItem(collectArgs->arena, &collectArgs->cert, *certs);
 }
 
 /*

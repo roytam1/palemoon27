@@ -1,5 +1,4 @@
 /* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* vim: set ts=2 et sw=2 tw=80: */
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -664,6 +663,80 @@ TEST_P(TlsConnectTls12, ConnectIncorrectSigAlg) {
                                             ssl_sig_ecdsa_secp256r1_sha256);
   ConnectExpectAlert(client_, kTlsAlertIllegalParameter);
   client_->CheckErrorCode(SSL_ERROR_INCORRECT_SIGNATURE_ALGORITHM);
+}
+
+static void CheckSkeSigScheme(
+    std::shared_ptr<TlsHandshakeRecorder> &capture_ske,
+    uint16_t expected_scheme) {
+  TlsParser parser(capture_ske->buffer());
+  uint32_t tmp = 0;
+  EXPECT_TRUE(parser.Read(&tmp, 1)) << " read curve_type";
+  EXPECT_EQ(3U, tmp) << "curve type has to be 3";
+  EXPECT_TRUE(parser.Skip(2)) << " read namedcurve";
+  EXPECT_TRUE(parser.SkipVariable(1)) << " read public";
+
+  EXPECT_TRUE(parser.Read(&tmp, 2)) << " read sig_scheme";
+  EXPECT_EQ(expected_scheme, static_cast<uint16_t>(tmp));
+}
+
+TEST_P(TlsConnectTls12, ConnectSigAlgEnabledByPolicy) {
+  EnsureTlsSetup();
+  client_->DisableAllCiphers();
+  client_->EnableCiphersByKeyExchange(ssl_kea_ecdh);
+
+  const std::vector<SSLSignatureScheme> schemes = {ssl_sig_rsa_pkcs1_sha1,
+                                                   ssl_sig_rsa_pkcs1_sha384};
+
+  client_->SetSignatureSchemes(schemes.data(), schemes.size());
+  server_->SetSignatureSchemes(schemes.data(), schemes.size());
+  auto capture_ske = MakeTlsFilter<TlsHandshakeRecorder>(
+      server_, kTlsHandshakeServerKeyExchange);
+
+  StartConnect();
+  client_->Handshake();  // Send ClientHello
+
+  // Enable SHA-1 by policy.
+  SECStatus rv = NSS_SetAlgorithmPolicy(SEC_OID_SHA1, NSS_USE_ALG_IN_SSL_KX, 0);
+  ASSERT_EQ(SECSuccess, rv);
+  rv = NSS_SetAlgorithmPolicy(SEC_OID_APPLY_SSL_POLICY, NSS_USE_POLICY_IN_SSL,
+                              0);
+  ASSERT_EQ(SECSuccess, rv);
+
+  Handshake();  // Remainder of handshake
+  // The server should now report that it is connected
+  EXPECT_EQ(TlsAgent::STATE_CONNECTED, server_->state());
+
+  CheckSkeSigScheme(capture_ske, ssl_sig_rsa_pkcs1_sha1);
+}
+
+TEST_P(TlsConnectTls12, ConnectSigAlgDisabledByPolicy) {
+  EnsureTlsSetup();
+  client_->DisableAllCiphers();
+  client_->EnableCiphersByKeyExchange(ssl_kea_ecdh);
+
+  const std::vector<SSLSignatureScheme> schemes = {ssl_sig_rsa_pkcs1_sha1,
+                                                   ssl_sig_rsa_pkcs1_sha384};
+
+  client_->SetSignatureSchemes(schemes.data(), schemes.size());
+  server_->SetSignatureSchemes(schemes.data(), schemes.size());
+  auto capture_ske = MakeTlsFilter<TlsHandshakeRecorder>(
+      server_, kTlsHandshakeServerKeyExchange);
+
+  StartConnect();
+  client_->Handshake();  // Send ClientHello
+
+  // Disable SHA-1 by policy.
+  SECStatus rv = NSS_SetAlgorithmPolicy(SEC_OID_SHA1, 0, NSS_USE_ALG_IN_SSL_KX);
+  ASSERT_EQ(SECSuccess, rv);
+  rv = NSS_SetAlgorithmPolicy(SEC_OID_APPLY_SSL_POLICY, NSS_USE_POLICY_IN_SSL,
+                              0);
+  ASSERT_EQ(SECSuccess, rv);
+
+  Handshake();  // Remainder of handshake
+  // The server should now report that it is connected
+  EXPECT_EQ(TlsAgent::STATE_CONNECTED, server_->state());
+
+  CheckSkeSigScheme(capture_ske, ssl_sig_rsa_pkcs1_sha384);
 }
 
 INSTANTIATE_TEST_CASE_P(KeyExchangeTest, TlsKeyExchangeTest,

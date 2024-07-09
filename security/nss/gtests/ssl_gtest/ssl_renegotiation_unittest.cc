@@ -1,5 +1,4 @@
 /* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* vim: set ts=2 et sw=2 tw=80: */
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -10,6 +9,11 @@
 #include "ssl.h"
 #include "sslerr.h"
 #include "sslproto.h"
+
+extern "C" {
+// This is not something that should make you happy.
+#include "libssl_internals.h"
+}
 
 #include "gtest_utils.h"
 #include "tls_connect.h"
@@ -32,6 +36,24 @@ TEST_P(TlsConnectStreamPre13, RenegotiateServer) {
   server_->StartRenegotiate();
   Handshake();
   CheckConnected();
+}
+
+TEST_P(TlsConnectStreamPre13, RenegotiateRandoms) {
+  SSL3Random crand1, crand2, srand1, srand2;
+  Connect();
+  EXPECT_EQ(SECSuccess,
+            SSLInt_GetHandshakeRandoms(client_->ssl_fd(), crand1, srand1));
+
+  // Renegotiate and check that both randoms have changed.
+  client_->PrepareForRenegotiate();
+  server_->StartRenegotiate();
+  Handshake();
+  CheckConnected();
+  EXPECT_EQ(SECSuccess,
+            SSLInt_GetHandshakeRandoms(client_->ssl_fd(), crand2, srand2));
+
+  EXPECT_NE(0, memcmp(crand1, crand2, sizeof(SSL3Random)));
+  EXPECT_NE(0, memcmp(srand1, srand2, sizeof(SSL3Random)));
 }
 
 // The renegotiation options shouldn't cause an error if TLS 1.3 is chosen.

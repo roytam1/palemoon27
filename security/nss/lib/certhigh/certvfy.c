@@ -37,7 +37,7 @@ CERT_CertTimesValid(CERTCertificate *c)
     return (valid == secCertTimeValid) ? SECSuccess : SECFailure;
 }
 
-SECStatus
+static SECStatus
 checkKeyParams(const SECAlgorithmID *sigAlgorithm, const SECKEYPublicKey *key)
 {
     SECStatus rv;
@@ -162,36 +162,62 @@ CERT_VerifySignedDataWithPublicKey(const CERTSignedData *sd,
 {
     SECStatus rv;
     SECItem sig;
-    SECOidTag hashAlg = SEC_OID_UNKNOWN;
+    SECOidTag sigAlg;
+    SECOidTag encAlg;
+    SECOidTag hashAlg;
+    PRUint32 policyFlags;
 
     if (!pubKey || !sd) {
         PORT_SetError(PR_INVALID_ARGUMENT_ERROR);
         return SECFailure;
     }
+
+    /* Can we use this algorithm for signature verification?  */
+    sigAlg = SECOID_GetAlgorithmTag(&sd->signatureAlgorithm);
+    rv = sec_DecodeSigAlg(pubKey, sigAlg,
+                          &sd->signatureAlgorithm.parameters,
+                          &encAlg, &hashAlg);
+    if (rv != SECSuccess) {
+        return SECFailure; /* error is set */
+    }
+    rv = NSS_GetAlgorithmPolicy(encAlg, &policyFlags);
+    if (rv == SECSuccess &&
+        !(policyFlags & NSS_USE_ALG_IN_CERT_SIGNATURE)) {
+        PORT_SetError(SEC_ERROR_CERT_SIGNATURE_ALGORITHM_DISABLED);
+        return SECFailure;
+    }
+    rv = NSS_GetAlgorithmPolicy(hashAlg, &policyFlags);
+    if (rv == SECSuccess &&
+        !(policyFlags & NSS_USE_ALG_IN_CERT_SIGNATURE)) {
+        PORT_SetError(SEC_ERROR_CERT_SIGNATURE_ALGORITHM_DISABLED);
+        return SECFailure;
+    }
+    rv = checkKeyParams(&sd->signatureAlgorithm, pubKey);
+    if (rv != SECSuccess) {
+        PORT_SetError(SEC_ERROR_CERT_SIGNATURE_ALGORITHM_DISABLED);
+        return SECFailure;
+    }
+
     /* check the signature */
     sig = sd->signature;
     /* convert sig->len from bit counts to byte count. */
     DER_ConvertBitString(&sig);
 
     rv = VFY_VerifyDataWithAlgorithmID(sd->data.data, sd->data.len, pubKey,
-                                       &sig, &sd->signatureAlgorithm, &hashAlg, wincx);
-    if (rv == SECSuccess) {
-        /* Are we honoring signatures for this algorithm?  */
-        PRUint32 policyFlags = 0;
-        rv = checkKeyParams(&sd->signatureAlgorithm, pubKey);
-        if (rv != SECSuccess) {
-            PORT_SetError(SEC_ERROR_CERT_SIGNATURE_ALGORITHM_DISABLED);
-            return SECFailure;
-        }
-
-        rv = NSS_GetAlgorithmPolicy(hashAlg, &policyFlags);
-        if (rv == SECSuccess &&
-            !(policyFlags & NSS_USE_ALG_IN_CERT_SIGNATURE)) {
-            PORT_SetError(SEC_ERROR_CERT_SIGNATURE_ALGORITHM_DISABLED);
-            return SECFailure;
-        }
+                                       &sig, &sd->signatureAlgorithm,
+                                       &hashAlg, wincx);
+    if (rv != SECSuccess) {
+        return SECFailure; /* error is set */
     }
-    return rv;
+
+    /* for some algorithms, hash algorithm is only known after verification */
+    rv = NSS_GetAlgorithmPolicy(hashAlg, &policyFlags);
+    if (rv == SECSuccess &&
+        !(policyFlags & NSS_USE_ALG_IN_CERT_SIGNATURE)) {
+        PORT_SetError(SEC_ERROR_CERT_SIGNATURE_ALGORITHM_DISABLED);
+        return SECFailure;
+    }
+    return SECSuccess;
 }
 
 /*
@@ -1395,7 +1421,6 @@ CERT_VerifyCertificate(CERTCertDBHandle *handle, CERTCertificate *cert,
 
     for (i = 1; i <= certificateUsageHighest &&
                 (SECSuccess == valid || returnedUsages || log);) {
-        PRBool typeAndEKUAllowed = PR_TRUE;
         PRBool requiredUsage = (i & requiredUsages) ? PR_TRUE : PR_FALSE;
         if (PR_FALSE == requiredUsage && PR_FALSE == checkAllUsages) {
             NEXT_USAGE();
@@ -1445,19 +1470,7 @@ CERT_VerifyCertificate(CERTCertDBHandle *handle, CERTCertificate *cert,
             LOG_ERROR(log, cert, 0, requiredKeyUsage);
             INVALID_USAGE();
         }
-        if (certUsage != certUsageIPsec) {
-            if (!(certType & requiredCertType)) {
-                typeAndEKUAllowed = PR_FALSE;
-            }
-        } else {
-            PRBool isCritical;
-            PRBool allowed = cert_EKUAllowsIPsecIKE(cert, &isCritical);
-            /* If the extension isn't critical, we allow any EKU value. */
-            if (isCritical && !allowed) {
-                typeAndEKUAllowed = PR_FALSE;
-            }
-        }
-        if (!typeAndEKUAllowed) {
+        if (!(certType & requiredCertType)) {
             if (PR_TRUE == requiredUsage) {
                 PORT_SetError(SEC_ERROR_INADEQUATE_CERT_TYPE);
             }

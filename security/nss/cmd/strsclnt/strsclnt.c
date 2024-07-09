@@ -121,6 +121,9 @@ static PRBool enableCertStatus = PR_FALSE;
 
 PRIntervalTime maxInterval = PR_INTERVAL_NO_TIMEOUT;
 
+static const SSLSignatureScheme *enabledSigSchemes = NULL;
+static unsigned int enabledSigSchemeCount = 0;
+
 char *progName;
 
 secuPWData pwdata = { PW_NONE, 0 };
@@ -143,7 +146,8 @@ Usage(void)
             "Usage: %s [-n nickname] [-p port] [-d dbdir] [-c connections]\n"
             "          [-BDNovqs] [-f filename] [-N | -P percentage]\n"
             "          [-w dbpasswd] [-C cipher(s)] [-t threads] [-W pwfile]\n"
-            "          [-V [min-version]:[max-version]] [-a sniHostName] hostname\n"
+            "          [-V [min-version]:[max-version]] [-a sniHostName]\n"
+            "          [-J signatureschemes] hostname\n"
             " where -v means verbose\n"
             "       -o flag is interpreted as follows:\n"
             "          1 -o   means override the result of server certificate validation.\n"
@@ -161,7 +165,20 @@ Usage(void)
             "       -T enable the cert_status extension (OCSP stapling)\n"
             "       -u enable TLS Session Ticket extension\n"
             "       -z enable compression\n"
-            "       -g enable false start\n",
+            "       -g enable false start\n"
+            "       -4  Enforce using an IPv4 destination address\n"
+            "       -6  Enforce using an IPv6 destination address\n"
+            "           Note: Default behavior is both IPv4 and IPv6 enabled\n"
+            "       -J enable signature schemes\n"
+            "          This takes a comma separated list of signature schemes in preference\n"
+            "          order.\n"
+            "          Possible values are:\n"
+            "          rsa_pkcs1_sha1, rsa_pkcs1_sha256, rsa_pkcs1_sha384, rsa_pkcs1_sha512,\n"
+            "          ecdsa_sha1, ecdsa_secp256r1_sha256, ecdsa_secp384r1_sha384,\n"
+            "          ecdsa_secp521r1_sha512,\n"
+            "          rsa_pss_rsae_sha256, rsa_pss_rsae_sha384, rsa_pss_rsae_sha512,\n"
+            "          rsa_pss_pss_sha256, rsa_pss_pss_sha384, rsa_pss_pss_sha512,\n"
+            "          dsa_sha1, dsa_sha256, dsa_sha384, dsa_sha512\n",
             progName);
     exit(1);
 }
@@ -1047,7 +1064,9 @@ client_main(
     int connections,
     cert_and_key *Cert_And_Key,
     const char *hostName,
-    const char *sniHostName)
+    const char *sniHostName,
+    PRBool allowIPv4,
+    PRBool allowIPv6)
 {
     PRFileDesc *model_sock = NULL;
     int i;
@@ -1069,11 +1088,15 @@ client_main(
             SECU_PrintError(progName, "error looking up host");
             return;
         }
-        do {
+        for (;;) {
             enumPtr = PR_EnumerateAddrInfo(enumPtr, addrInfo, port, &addr);
-        } while (enumPtr != NULL &&
-                 addr.raw.family != PR_AF_INET &&
-                 addr.raw.family != PR_AF_INET6);
+            if (enumPtr == NULL)
+                break;
+            if (addr.raw.family == PR_AF_INET && allowIPv4)
+                break;
+            if (addr.raw.family == PR_AF_INET6 && allowIPv6)
+                break;
+        }
         PR_FreeAddrInfo(addrInfo);
         if (enumPtr == NULL) {
             SECU_PrintError(progName, "error looking up host address");
@@ -1156,6 +1179,14 @@ client_main(
     rv = SSL_VersionRangeSet(model_sock, &enabledVersions);
     if (rv != SECSuccess) {
         errExit("error setting SSL/TLS version range ");
+    }
+
+    if (enabledSigSchemes) {
+        rv = SSL_SignatureSchemePrefSet(model_sock, enabledSigSchemes,
+                                        enabledSigSchemeCount);
+        if (rv < 0) {
+            errExit("SSL_SignatureSchemePrefSet");
+        }
     }
 
     if (bigBuf.data) { /* doing FDX */
@@ -1297,6 +1328,8 @@ main(int argc, char **argv)
     int connections = 1;
     int exitVal;
     int tmpInt;
+    PRBool allowIPv4 = PR_TRUE;
+    PRBool allowIPv6 = PR_TRUE;
     unsigned short port = 443;
     SECStatus rv;
     PLOptState *optstate;
@@ -1316,9 +1349,25 @@ main(int argc, char **argv)
     /* XXX: 'B' was used in the past but removed in 3.28,
      *      please leave some time before resuing it. */
     optstate = PL_CreateOptState(argc, argv,
-                                 "C:DNP:TUV:W:a:c:d:f:gin:op:qst:uvw:z");
+                                 "46C:DJ:NP:TUV:W:a:c:d:f:gin:op:qst:uvw:z");
     while ((status = PL_GetNextOpt(optstate)) == PL_OPT_OK) {
         switch (optstate->option) {
+            case '4':
+                if (!allowIPv4) {
+                    fprintf(stderr, "Only one of [-4, -6] can be specified.\n");
+                    Usage();
+                }
+                allowIPv6 = PR_FALSE;
+                break;
+
+            case '6':
+                if (!allowIPv6) {
+                    fprintf(stderr, "Only one of [-4, -6] can be specified.\n");
+                    Usage();
+                }
+                allowIPv4 = PR_FALSE;
+                break;
+
             case 'C':
                 cipherString = optstate->value;
                 break;
@@ -1328,6 +1377,15 @@ main(int argc, char **argv)
                 break;
 
             case 'I': /* reserved for OCSP multi-stapling */
+                break;
+
+            case 'J':
+                rv = parseSigSchemeList(optstate->value, &enabledSigSchemes, &enabledSigSchemeCount);
+                if (rv != SECSuccess) {
+                    PL_DestroyOptState(optstate);
+                    fprintf(stderr, "Bad signature scheme specified.\n");
+                    Usage();
+                }
                 break;
 
             case 'N':
@@ -1492,7 +1550,7 @@ main(int argc, char **argv)
     }
 
     client_main(port, connections, &Cert_And_Key, hostName,
-                sniHostName);
+                sniHostName, allowIPv4, allowIPv6);
 
     /* clean up */
     if (Cert_And_Key.cert) {
@@ -1515,6 +1573,8 @@ main(int argc, char **argv)
     }
 
     PL_strfree(hostName);
+
+    PORT_Free((SSLSignatureScheme *)enabledSigSchemes);
 
     /* some final stats. */
     printf(

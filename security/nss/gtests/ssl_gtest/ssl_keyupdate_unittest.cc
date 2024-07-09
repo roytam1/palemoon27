@@ -1,5 +1,4 @@
 /* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* vim: set ts=2 et sw=2 tw=80: */
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -31,6 +30,37 @@ TEST_F(TlsConnectTest, KeyUpdateClient) {
   SendReceive(50);
   SendReceive(60);
   CheckEpochs(4, 3);
+}
+
+TEST_F(TlsConnectStreamTls13, KeyUpdateTooEarly_Client) {
+  StartConnect();
+  auto filter = MakeTlsFilter<TlsEncryptedHandshakeMessageReplacer>(
+      server_, kTlsHandshakeFinished, kTlsHandshakeKeyUpdate);
+  filter->EnableDecryption();
+
+  client_->Handshake();
+  server_->Handshake();
+  ExpectAlert(client_, kTlsAlertUnexpectedMessage);
+  client_->Handshake();
+  client_->CheckErrorCode(SSL_ERROR_RX_UNEXPECTED_KEY_UPDATE);
+  server_->Handshake();
+  server_->CheckErrorCode(SSL_ERROR_HANDSHAKE_UNEXPECTED_ALERT);
+}
+
+TEST_F(TlsConnectStreamTls13, KeyUpdateTooEarly_Server) {
+  StartConnect();
+  auto filter = MakeTlsFilter<TlsEncryptedHandshakeMessageReplacer>(
+      client_, kTlsHandshakeFinished, kTlsHandshakeKeyUpdate);
+  filter->EnableDecryption();
+
+  client_->Handshake();
+  server_->Handshake();
+  client_->Handshake();
+  ExpectAlert(server_, kTlsAlertUnexpectedMessage);
+  server_->Handshake();
+  server_->CheckErrorCode(SSL_ERROR_RX_UNEXPECTED_KEY_UPDATE);
+  client_->Handshake();
+  client_->CheckErrorCode(SSL_ERROR_HANDSHAKE_UNEXPECTED_ALERT);
 }
 
 TEST_F(TlsConnectTest, KeyUpdateClientRequestUpdate) {

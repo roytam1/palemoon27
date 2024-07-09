@@ -950,9 +950,9 @@ lg_FindECPrivateKeyAttribute(NSSLOWKEYPrivateKey *key, CK_ATTRIBUTE_TYPE type,
         case CKA_UNWRAP:
             return LG_CLONE_ATTR(attribute, type, lg_StaticFalseAttr);
         case CKA_VALUE:
-            return lg_CopyPrivAttrSigned(attribute, type,
-                                         key->u.ec.privateValue.data,
-                                         key->u.ec.privateValue.len, sdbpw);
+            return lg_CopyPrivAttribute(attribute, type,
+                                        key->u.ec.privateValue.data,
+                                        key->u.ec.privateValue.len, sdbpw);
         case CKA_EC_PARAMS:
             return lg_CopyAttributeSigned(attribute, type,
                                           key->u.ec.ecParams.DEREncoding.data,
@@ -1069,7 +1069,7 @@ lg_FindTrustAttribute(LGObjectCache *obj, CK_ATTRIBUTE_TYPE type,
     NSSLOWCERTCertificate *cert;
     unsigned char hash[SHA1_LENGTH];
     unsigned int trustFlags;
-    CK_RV crv;
+    CK_RV crv = CKR_CANCEL;
 
     switch (type) {
         case CKA_PRIVATE:

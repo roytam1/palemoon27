@@ -1,5 +1,4 @@
 /* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* vim: set ts=2 et sw=2 tw=80: */
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -31,6 +30,7 @@ const uint8_t kTlsHandshakeCertificateRequest = 13;
 const uint8_t kTlsHandshakeCertificateVerify = 15;
 const uint8_t kTlsHandshakeClientKeyExchange = 16;
 const uint8_t kTlsHandshakeFinished = 20;
+const uint8_t kTlsHandshakeKeyUpdate = 24;
 
 const uint8_t kTlsAlertWarning = 1;
 const uint8_t kTlsAlertFatal = 2;
@@ -47,11 +47,13 @@ const uint8_t kTlsAlertIllegalParameter = 47;
 const uint8_t kTlsAlertDecodeError = 50;
 const uint8_t kTlsAlertDecryptError = 51;
 const uint8_t kTlsAlertProtocolVersion = 70;
+const uint8_t kTlsAlertInsufficientSecurity = 71;
 const uint8_t kTlsAlertInternalError = 80;
 const uint8_t kTlsAlertInappropriateFallback = 86;
 const uint8_t kTlsAlertMissingExtension = 109;
 const uint8_t kTlsAlertUnsupportedExtension = 110;
 const uint8_t kTlsAlertUnrecognizedName = 112;
+const uint8_t kTlsAlertCertificateRequired = 116;
 const uint8_t kTlsAlertNoApplicationProtocol = 120;
 
 const uint8_t kTlsFakeChangeCipherSpec[] = {
@@ -78,6 +80,32 @@ static const uint8_t kTls13PskSignAuth = 1;
 
 inline std::ostream& operator<<(std::ostream& os, SSLProtocolVariant v) {
   return os << ((v == ssl_variant_stream) ? "TLS" : "DTLS");
+}
+
+inline std::ostream& operator<<(std::ostream& os, SSLContentType v) {
+  switch (v) {
+    case ssl_ct_change_cipher_spec:
+      return os << "CCS";
+    case ssl_ct_alert:
+      return os << "alert";
+    case ssl_ct_handshake:
+      return os << "handshake";
+    case ssl_ct_application_data:
+      return os << "application data";
+    case ssl_ct_ack:
+      return os << "ack";
+  }
+  return os << "UNKNOWN content type " << static_cast<int>(v);
+}
+
+inline std::ostream& operator<<(std::ostream& os, SSLSecretDirection v) {
+  switch (v) {
+    case ssl_secret_read:
+      return os << "read";
+    case ssl_secret_write:
+      return os << "write";
+  }
+  return os << "UNKNOWN secret direction " << static_cast<int>(v);
 }
 
 inline bool IsDtls(uint16_t version) { return (version & 0x8000) == 0x8000; }

@@ -10,6 +10,7 @@
 
 #include "blapit.h"
 #include "hasht.h"
+#include "cmac.h"
 #include "alghmac.h"
 
 SEC_BEGIN_PROTOS
@@ -1012,6 +1013,10 @@ extern SECStatus ChaCha20Poly1305_Open(
     const unsigned char *input, unsigned int inputLen,
     const unsigned char *nonce, unsigned int nonceLen,
     const unsigned char *ad, unsigned int adLen);
+
+extern SECStatus ChaCha20_Xor(
+    unsigned char *output, const unsigned char *block, unsigned int len,
+    const unsigned char *k, const unsigned char *nonce, PRUint32 ctr);
 
 /******************************************/
 /*

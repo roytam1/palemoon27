@@ -1,5 +1,4 @@
 /* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* vim: set ts=2 et sw=2 tw=80: */
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -214,12 +213,6 @@ class TestPolicyVersionRange
       ASSERT_EQ(SECSuccess, rv);
       rv = NSS_OptionSet(NSS_DTLS_VERSION_MAX_POLICY, saved_max_dtls_);
       ASSERT_EQ(SECSuccess, rv);
-      // If it wasn't set initially, clear the bit that we set.
-      if (!(saved_algorithm_policy_ & NSS_USE_POLICY_IN_SSL)) {
-        rv = NSS_SetAlgorithmPolicy(SEC_OID_APPLY_SSL_POLICY, 0,
-                                    NSS_USE_POLICY_IN_SSL);
-        ASSERT_EQ(SECSuccess, rv);
-      }
     }
 
    private:
@@ -233,16 +226,12 @@ class TestPolicyVersionRange
       ASSERT_EQ(SECSuccess, rv);
       rv = NSS_OptionGet(NSS_DTLS_VERSION_MAX_POLICY, &saved_max_dtls_);
       ASSERT_EQ(SECSuccess, rv);
-      rv = NSS_GetAlgorithmPolicy(SEC_OID_APPLY_SSL_POLICY,
-                                  &saved_algorithm_policy_);
-      ASSERT_EQ(SECSuccess, rv);
     }
 
     int32_t saved_min_tls_;
     int32_t saved_max_tls_;
     int32_t saved_min_dtls_;
     int32_t saved_max_dtls_;
-    uint32_t saved_algorithm_policy_;
   };
 
   VersionPolicy saved_version_policy_;

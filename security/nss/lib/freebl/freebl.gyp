@@ -76,11 +76,11 @@
             '__SSSE3__',
           ],
         }],
-        [ 'OS=="android"', {
-          # On Android we can't use any of the hardware acceleration :(
-          'defines!': [
-            '__ARM_NEON__',
-            '__ARM_NEON',
+        [ 'target_arch=="arm"', {
+          # Gecko doesn't support non-NEON platform on Android, but tier-3
+          # platform such as Linux/arm will need it
+          'cflags_mozilla': [
+            '-mfpu=neon'
           ],
         }],
       ],
@@ -107,12 +107,75 @@
           ],
         }],
         # macOS build doesn't use cflags.
-        [ 'OS=="mac"', {
+        [ 'OS=="mac" or OS=="ios"', {
           'xcode_settings': {
             'OTHER_CFLAGS': [
               '-mpclmul', '-maes'
             ],
           },
+        }]
+      ]
+    },
+    {
+      'target_name': 'gcm-aes-aarch64_c_lib',
+      'type': 'static_library',
+      'sources': [
+        'gcm-aarch64.c'
+      ],
+      'dependencies': [
+        '<(DEPTH)/exports.gyp:nss_exports'
+      ],
+      'cflags': [
+        '-march=armv8-a+crypto'
+      ],
+      'cflags_mozilla': [
+        '-march=armv8-a+crypto'
+      ]
+    },
+    {
+      'target_name': 'gcm-aes-ppc_c_lib',
+      'type': 'static_library',
+      'sources': [
+        'gcm-ppc.c'
+      ],
+      'dependencies': [
+        '<(DEPTH)/exports.gyp:nss_exports'
+      ],
+      'cflags': [
+        '-mcrypto',
+        '-maltivec'
+      ],
+      'cflags_mozilla': [
+        '-mcrypto',
+        '-maltivec'
+      ]
+    },
+    {
+      'target_name': 'armv8_c_lib',
+      'type': 'static_library',
+      'sources': [
+        'aes-armv8.c',
+      ],
+      'dependencies': [
+        '<(DEPTH)/exports.gyp:nss_exports'
+      ],
+      'conditions': [
+        [ 'target_arch=="arm"', {
+          'cflags': [
+            '-march=armv8-a',
+            '-mfpu=crypto-neon-fp-armv8'
+          ],
+          'cflags_mozilla': [
+            '-march=armv8-a',
+            '-mfpu=crypto-neon-fp-armv8'
+          ],
+        }, 'target_arch=="arm64" or target_arch=="aarch64"', {
+          'cflags': [
+            '-march=armv8-a+crypto'
+          ],
+          'cflags_mozilla': [
+            '-march=armv8-a+crypto'
+          ],
         }]
       ]
     },
@@ -126,9 +189,9 @@
         '<(DEPTH)/exports.gyp:nss_exports'
       ]
     },
-    # For test builds, build a static freebl library so we can statically
-    # link it into the test build binary. This way we don't have to
-    # dlopen() the shared lib but can directly call freebl functions.
+    # Build a static freebl library so we can statically link it into
+    # the binary. This way we don't have to dlopen() the shared lib
+    # but can directly call freebl functions.
     {
       'target_name': 'freebl_static',
       'type': 'static_library',
@@ -144,6 +207,20 @@
           'dependencies': [
             'gcm-aes-x86_c_lib',
           ],
+        }, 'disable_arm_hw_aes==0 and (target_arch=="arm" or target_arch=="arm64" or target_arch=="aarch64")', {
+          'dependencies': [
+            'armv8_c_lib'
+          ],
+        }],
+        [ 'target_arch=="arm64" or target_arch=="aarch64"', {
+          'dependencies': [
+            'gcm-aes-aarch64_c_lib',
+          ],
+        }],
+        [ 'target_arch=="ppc64le"', {
+          'dependencies': [
+            'gcm-aes-ppc_c_lib',
+          ],
         }],
         [ 'OS=="linux"', {
           'defines!': [
@@ -154,7 +231,7 @@
           ],
           'conditions': [
             [ 'target_arch=="x64"', {
-              # The AES assembler code doesn't work in static test builds.
+              # The AES assembler code doesn't work in static builds.
               # The linker complains about non-relocatable code, and I
               # currently don't know how to fix this properly.
               'sources!': [
@@ -181,8 +258,22 @@
           'dependencies': [
             'gcm-aes-x86_c_lib',
           ]
+        }, 'target_arch=="arm" or target_arch=="arm64" or target_arch=="aarch64"', {
+          'dependencies': [
+            'armv8_c_lib',
+          ],
         }],
-        [ 'OS!="linux" and OS!="android"', {
+        [ 'target_arch=="arm64" or target_arch=="aarch64"', {
+          'dependencies': [
+            'gcm-aes-aarch64_c_lib',
+          ],
+        }],
+        [ 'target_arch=="ppc64" or target_arch=="ppc64le"', {
+          'dependencies': [
+            'gcm-aes-ppc_c_lib',
+          ],
+        }],
+        [ 'OS!="linux"', {
           'conditions': [
             [ 'moz_fold_libs==0', {
               'dependencies': [
@@ -194,7 +285,8 @@
               ],
             }],
           ],
-        }, 'target_arch=="x64"', {
+        }],
+        [ '(OS=="linux" or OS=="android") and target_arch=="x64"', {
           'dependencies': [
             'intel-gcm-wrap_c_lib',
           ],
@@ -220,6 +312,43 @@
          }],
        ]
       },
+    },
+    {
+      'target_name': 'freebl_64int_3',
+      'includes': [
+        'freebl_base.gypi',
+      ],
+      'type': 'shared_library',
+      'dependencies': [
+        '<(DEPTH)/exports.gyp:nss_exports',
+        'hw-acc-crypto',
+      ],
+    },
+    {
+      'target_name': 'freebl_64fpu_3',
+      'includes': [
+        'freebl_base.gypi',
+      ],
+      'type': 'shared_library',
+      'sources': [
+        'mpi/mpi_sparc.c',
+        'mpi/mpv_sparcv9.s',
+        'mpi/montmulfv9.s',
+      ],
+      'dependencies': [
+        '<(DEPTH)/exports.gyp:nss_exports',
+        'hw-acc-crypto',
+      ],
+      'asflags_mozilla': [
+        '-mcpu=v9', '-Wa,-xarch=v9a'
+      ],
+      'defines': [
+        'MP_NO_MP_WORD',
+        'MP_USE_UINT_DIGIT',
+        'MP_ASSEMBLY_MULTIPLY',
+        'MP_USING_MONT_MULF',
+        'MP_MONT_USE_MP_MUL',
+      ],
     },
   ],
   'conditions': [
@@ -260,15 +389,6 @@
       'MP_API_COMPATIBLE'
     ],
     'conditions': [
-      [ 'OS=="mac"', {
-        'xcode_settings': {
-          # I'm not sure since when this is supported.
-          # But I hope that doesn't matter. We also assume this is x86/x64.
-          'OTHER_CFLAGS': [
-            '-std=gnu99',
-          ],
-        },
-      }],
       [ 'OS=="win" and target_arch=="ia32"', {
         'msvs_settings': {
           'VCCLCompilerTool': {
@@ -323,14 +443,6 @@
           'FREEBL_LOWHASH',
           'FREEBL_NO_DEPEND',
         ],
-        'cflags': [
-          '-std=gnu99',
-        ],
-      }],
-      [ 'OS=="dragonfly" or OS=="freebsd" or OS=="netbsd" or OS=="openbsd"', {
-        'cflags': [
-          '-std=gnu99',
-        ],
       }],
       [ 'OS=="linux" or OS=="android"', {
         'conditions': [
@@ -365,6 +477,11 @@
               'MP_USE_UINT_DIGIT',
               'SHA_NO_LONG_LONG',
               'ARMHF',
+            ],
+          }],
+          [ 'disable_arm_hw_aes==0 and (target_arch=="arm" or target_arch=="arm64" or target_arch=="aarch64")', {
+            'defines': [
+              'USE_HW_AES',
             ],
           }],
         ],

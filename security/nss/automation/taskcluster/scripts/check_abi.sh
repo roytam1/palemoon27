@@ -20,6 +20,12 @@ set_env()
     done
   fi
 
+  if [[ -f nss/nspr.patch && "$ALLOW_NSPR_PATCH" == "1" ]]; then
+    pushd nspr
+    cat ../nss/nspr.patch | patch -p1
+    popd
+  fi
+
   cd nss
   ./build.sh -v -c
   cd ..
@@ -103,6 +109,7 @@ abi_diff()
       cat ${HGDIR}/nss/automation/abi-check/new-report-temp$SO.txt \
           | grep -v "^Functions changes summary:" \
           | grep -v "^Variables changes summary:" \
+          | sed -e 's/__anonymous_enum__[0-9]*/__anonymous_enum__/g' \
           > ${HGDIR}/nss/automation/abi-check/new-report-$SO.txt
       rm -f ${HGDIR}/nss/automation/abi-check/new-report-temp$SO.txt
 

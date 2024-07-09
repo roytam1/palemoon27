@@ -1,5 +1,4 @@
 /* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* vim: set ts=2 et sw=2 tw=80: */
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -123,9 +122,11 @@ TEST_P(TlsConnectGeneric, RecordSizeMaximum) {
 
   EnsureTlsSetup();
   auto client_max = MakeTlsFilter<TlsRecordMaximum>(client_);
-  client_max->EnableDecryption();
   auto server_max = MakeTlsFilter<TlsRecordMaximum>(server_);
-  server_max->EnableDecryption();
+  if (version_ >= SSL_LIBRARY_VERSION_TLS_1_3) {
+    client_max->EnableDecryption();
+    server_max->EnableDecryption();
+  }
 
   Connect();
   client_->SendData(send_size, send_size);
@@ -140,7 +141,9 @@ TEST_P(TlsConnectGeneric, RecordSizeMaximum) {
 TEST_P(TlsConnectGeneric, RecordSizeMinimumClient) {
   EnsureTlsSetup();
   auto server_max = MakeTlsFilter<TlsRecordMaximum>(server_);
-  server_max->EnableDecryption();
+  if (version_ >= SSL_LIBRARY_VERSION_TLS_1_3) {
+    server_max->EnableDecryption();
+  }
 
   client_->SetOption(SSL_RECORD_SIZE_LIMIT, 64);
   Connect();
@@ -152,7 +155,9 @@ TEST_P(TlsConnectGeneric, RecordSizeMinimumClient) {
 TEST_P(TlsConnectGeneric, RecordSizeMinimumServer) {
   EnsureTlsSetup();
   auto client_max = MakeTlsFilter<TlsRecordMaximum>(client_);
-  client_max->EnableDecryption();
+  if (version_ >= SSL_LIBRARY_VERSION_TLS_1_3) {
+    client_max->EnableDecryption();
+  }
 
   server_->SetOption(SSL_RECORD_SIZE_LIMIT, 64);
   Connect();
@@ -164,9 +169,11 @@ TEST_P(TlsConnectGeneric, RecordSizeMinimumServer) {
 TEST_P(TlsConnectGeneric, RecordSizeAsymmetric) {
   EnsureTlsSetup();
   auto client_max = MakeTlsFilter<TlsRecordMaximum>(client_);
-  client_max->EnableDecryption();
   auto server_max = MakeTlsFilter<TlsRecordMaximum>(server_);
-  server_max->EnableDecryption();
+  if (version_ >= SSL_LIBRARY_VERSION_TLS_1_3) {
+    client_max->EnableDecryption();
+    server_max->EnableDecryption();
+  }
 
   client_->SetOption(SSL_RECORD_SIZE_LIMIT, 64);
   server_->SetOption(SSL_RECORD_SIZE_LIMIT, 100);
@@ -222,14 +229,15 @@ TEST_P(TlsConnectTls13, RecordSizePlaintextExceed) {
 
 // Tweak the ciphertext of server records so that they greatly exceed the limit.
 // This requires a much larger expansion than for plaintext to trigger the
-// guard, which runs before decryption (current allowance is 304 octets).
+// guard, which runs before decryption (current allowance is 320 octets,
+// see MAX_EXPANSION in ssl3con.c).
 TEST_P(TlsConnectTls13, RecordSizeCiphertextExceed) {
   EnsureTlsSetup();
 
   client_->SetOption(SSL_RECORD_SIZE_LIMIT, 64);
   Connect();
 
-  auto server_expand = MakeTlsFilter<TlsRecordExpander>(server_, 320);
+  auto server_expand = MakeTlsFilter<TlsRecordExpander>(server_, 336);
   server_->SendData(100);
 
   client_->ExpectReadWriteError();
@@ -256,9 +264,11 @@ class TlsRecordPadder : public TlsRecordFilter {
       return KEEP;
     }
 
+    uint16_t protection_epoch;
     uint8_t inner_content_type;
     DataBuffer plaintext;
-    if (!Unprotect(header, record, &inner_content_type, &plaintext)) {
+    if (!Unprotect(header, record, &protection_epoch, &inner_content_type,
+                   &plaintext)) {
       return KEEP;
     }
 
@@ -267,8 +277,8 @@ class TlsRecordPadder : public TlsRecordFilter {
     }
 
     DataBuffer ciphertext;
-    bool ok =
-        Protect(header, inner_content_type, plaintext, &ciphertext, padding_);
+    bool ok = Protect(spec(protection_epoch), header, inner_content_type,
+                      plaintext, &ciphertext, padding_);
     EXPECT_TRUE(ok);
     if (!ok) {
       return KEEP;
@@ -334,7 +344,9 @@ TEST_P(TlsConnectGeneric, RecordSizeCapExtensionClient) {
   client_->SetOption(SSL_RECORD_SIZE_LIMIT, 16385);
   auto capture =
       MakeTlsFilter<TlsExtensionCapture>(client_, ssl_record_size_limit_xtn);
-  capture->EnableDecryption();
+  if (version_ >= SSL_LIBRARY_VERSION_TLS_1_3) {
+    capture->EnableDecryption();
+  }
   Connect();
 
   uint64_t val = 0;
@@ -352,7 +364,9 @@ TEST_P(TlsConnectGeneric, RecordSizeCapExtensionServer) {
   server_->SetOption(SSL_RECORD_SIZE_LIMIT, 16385);
   auto capture =
       MakeTlsFilter<TlsExtensionCapture>(server_, ssl_record_size_limit_xtn);
-  capture->EnableDecryption();
+  if (version_ >= SSL_LIBRARY_VERSION_TLS_1_3) {
+    capture->EnableDecryption();
+  }
   Connect();
 
   uint64_t val = 0;
@@ -393,8 +407,22 @@ TEST_P(TlsConnectGeneric, RecordSizeServerExtensionInvalid) {
   static const uint8_t v[] = {0xf4, 0x1f};
   auto replace = MakeTlsFilter<TlsExtensionReplacer>(
       server_, ssl_record_size_limit_xtn, DataBuffer(v, sizeof(v)));
-  replace->EnableDecryption();
+  if (version_ >= SSL_LIBRARY_VERSION_TLS_1_3) {
+    replace->EnableDecryption();
+  }
   ConnectExpectAlert(client_, kTlsAlertIllegalParameter);
+}
+
+TEST_P(TlsConnectGeneric, RecordSizeServerExtensionExtra) {
+  EnsureTlsSetup();
+  server_->SetOption(SSL_RECORD_SIZE_LIMIT, 1000);
+  static const uint8_t v[] = {0x01, 0x00, 0x00};
+  auto replace = MakeTlsFilter<TlsExtensionReplacer>(
+      server_, ssl_record_size_limit_xtn, DataBuffer(v, sizeof(v)));
+  if (version_ >= SSL_LIBRARY_VERSION_TLS_1_3) {
+    replace->EnableDecryption();
+  }
+  ConnectExpectAlert(client_, kTlsAlertDecodeError);
 }
 
 class RecordSizeDefaultsTest : public ::testing::Test {

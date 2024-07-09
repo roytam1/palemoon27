@@ -1,5 +1,4 @@
 /* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* vim: set ts=2 et sw=2 tw=80: */
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -25,10 +24,13 @@ namespace nss_test {
     if (g_ssl_gtest_verbose) LOG(a); \
   } while (false)
 
+PRDescIdentity DummyPrSocket::LayerId() {
+  static PRDescIdentity id = PR_GetUniqueIdentity("dummysocket");
+  return id;
+}
+
 ScopedPRFileDesc DummyPrSocket::CreateFD() {
-  static PRDescIdentity test_fd_identity =
-      PR_GetUniqueIdentity("testtransportadapter");
-  return DummyIOLayerMethods::CreateFD(test_fd_identity, this);
+  return DummyIOLayerMethods::CreateFD(DummyPrSocket::LayerId(), this);
 }
 
 void DummyPrSocket::Reset() {
@@ -136,19 +138,18 @@ int32_t DummyPrSocket::Write(PRFileDesc *f, const void *buf, int32_t length) {
   DataBuffer filtered;
   PacketFilter::Action action = PacketFilter::KEEP;
   if (filter_) {
+    LOGV("Original packet: " << packet);
     action = filter_->Process(packet, &filtered);
   }
   switch (action) {
     case PacketFilter::CHANGE:
-      LOG("Original packet: " << packet);
       LOG("Filtered packet: " << filtered);
       dst->PacketReceived(filtered);
       break;
     case PacketFilter::DROP:
-      LOG("Droppped packet: " << packet);
+      LOG("Drop packet");
       break;
     case PacketFilter::KEEP:
-      LOGV("Packet: " << packet);
       dst->PacketReceived(packet);
       break;
   }

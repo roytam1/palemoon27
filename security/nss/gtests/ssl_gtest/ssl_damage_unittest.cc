@@ -1,5 +1,4 @@
 /* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* vim: set ts=2 et sw=2 tw=80: */
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -62,7 +61,6 @@ TEST_P(TlsConnectGenericPre13, DamageServerSignature) {
   EnsureTlsSetup();
   auto filter = MakeTlsFilter<TlsLastByteDamager>(
       server_, kTlsHandshakeServerKeyExchange);
-  filter->EnableDecryption();
   ExpectAlert(client_, kTlsAlertDecryptError);
   ConnectExpectFail();
   client_->CheckErrorCode(SEC_ERROR_BAD_SIGNATURE);
@@ -84,7 +82,9 @@ TEST_P(TlsConnectGeneric, DamageClientSignature) {
   server_->RequestClientAuth(true);
   auto filter = MakeTlsFilter<TlsLastByteDamager>(
       client_, kTlsHandshakeCertificateVerify);
-  filter->EnableDecryption();
+  if (version_ >= SSL_LIBRARY_VERSION_TLS_1_3) {
+    filter->EnableDecryption();
+  }
   server_->ExpectSendAlert(kTlsAlertDecryptError);
   // Do these handshakes by hand to avoid race condition on
   // the client processing the server's alert.

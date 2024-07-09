@@ -618,7 +618,7 @@ cleanup:
 static char *
 filePasswd(char *pwFile)
 {
-    unsigned char phrase[200];
+    unsigned char phrase[500];
     PRFileDesc *fd;
     PRInt32 nb;
     int i;

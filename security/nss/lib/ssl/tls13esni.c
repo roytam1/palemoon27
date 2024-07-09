@@ -594,9 +594,11 @@ tls13_ClientSetupESNI(sslSocket *ss)
     size_t i;
     PRCList *cur;
     SECStatus rv;
-    TLS13KeyShareEntry *share;
+    TLS13KeyShareEntry *share = NULL;
     const sslNamedGroupDef *group = NULL;
-    PRTime now = PR_Now() / PR_USEC_PER_SEC;
+    PRTime now = ssl_Time(ss) / PR_USEC_PER_SEC;
+
+    PORT_Assert(!ss->xtnData.esniPrivateKey);
 
     if (!ss->esniKeys) {
         return SECSuccess;
@@ -735,12 +737,12 @@ tls13_ServerGetEsniAEAD(const sslSocket *ss, PRUint64 suite,
 }
 
 SECStatus
-tls13_ServerDecryptEsniXtn(const sslSocket *ss, PRUint8 *in, unsigned int inLen,
-                           PRUint8 *out, int *outLen, int maxLen)
+tls13_ServerDecryptEsniXtn(const sslSocket *ss, const PRUint8 *in, unsigned int inLen,
+                           PRUint8 *out, unsigned int *outLen, unsigned int maxLen)
 {
     sslReader rdr = SSL_READER(in, inLen);
     PRUint64 suite;
-    const ssl3CipherSuiteDef *suiteDef;
+    const ssl3CipherSuiteDef *suiteDef = NULL;
     SSLAEADCipher aead = NULL;
     TLSExtension *keyShareExtension;
     TLS13KeyShareEntry *entry = NULL;

@@ -1,5 +1,4 @@
 /* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* vim: set ts=8 sts=2 et sw=2 tw=80: */
 /* This code is made available to you under your choice of the following sets
  * of licensing terms:
  */
@@ -100,7 +99,7 @@ class EverythingFailsByDefaultTrustDomain : public TrustDomain {
                       Result::FATAL_ERROR_LIBRARY_FAILURE);
   }
 
-  Result CheckRevocation(EndEntityOrCA, const CertID&, Time, Duration,
+  Result CheckRevocation(EndEntityOrCA, const CertID&, Time, Time, Duration,
                          /*optional*/ const Input*,
                          /*optional*/ const Input*) override {
     ADD_FAILURE();

@@ -359,19 +359,24 @@ PK11_NewSlotInfo(SECMODModule *mod)
     PK11SlotInfo *slot;
 
     slot = (PK11SlotInfo *)PORT_Alloc(sizeof(PK11SlotInfo));
-    if (slot == NULL)
+    if (slot == NULL) {
         return slot;
-
-    slot->sessionLock = mod->isThreadSafe ? PZ_NewLock(nssILockSession) : mod->refLock;
-    if (slot->sessionLock == NULL) {
-        PORT_Free(slot);
-        return NULL;
     }
     slot->freeListLock = PZ_NewLock(nssILockFreelist);
     if (slot->freeListLock == NULL) {
-        if (mod->isThreadSafe) {
-            PZ_DestroyLock(slot->sessionLock);
-        }
+        PORT_Free(slot);
+        return NULL;
+    }
+    slot->nssTokenLock = PZ_NewLock(nssILockOther);
+    if (slot->nssTokenLock == NULL) {
+        PZ_DestroyLock(slot->freeListLock);
+        PORT_Free(slot);
+        return NULL;
+    }
+    slot->sessionLock = mod->isThreadSafe ? PZ_NewLock(nssILockSession) : mod->refLock;
+    if (slot->sessionLock == NULL) {
+        PZ_DestroyLock(slot->nssTokenLock);
+        PZ_DestroyLock(slot->freeListLock);
         PORT_Free(slot);
         return NULL;
     }
@@ -419,6 +424,8 @@ PK11_NewSlotInfo(SECMODModule *mod)
     slot->hasRootCerts = PR_FALSE;
     slot->hasRootTrust = PR_FALSE;
     slot->nssToken = NULL;
+    slot->profileList = NULL;
+    slot->profileCount = 0;
     return slot;
 }
 
@@ -446,6 +453,9 @@ PK11_DestroySlot(PK11SlotInfo *slot)
     if (slot->mechanismList) {
         PORT_Free(slot->mechanismList);
     }
+    if (slot->profileList) {
+        PORT_Free(slot->profileList);
+    }
     if (slot->isThreadSafe && slot->sessionLock) {
         PZ_DestroyLock(slot->sessionLock);
     }
@@ -453,6 +463,10 @@ PK11_DestroySlot(PK11SlotInfo *slot)
     if (slot->freeListLock) {
         PZ_DestroyLock(slot->freeListLock);
         slot->freeListLock = NULL;
+    }
+    if (slot->nssTokenLock) {
+        PZ_DestroyLock(slot->nssTokenLock);
+        slot->nssTokenLock = NULL;
     }
 
     /* finally Tell our parent module that we've gone away so it can unload */
@@ -1170,6 +1184,76 @@ PK11_ReadMechanismList(PK11SlotInfo *slot)
     return SECSuccess;
 }
 
+static SECStatus
+pk11_ReadProfileList(PK11SlotInfo *slot)
+{
+    CK_ATTRIBUTE findTemp[2];
+    CK_ATTRIBUTE *attrs;
+    CK_BBOOL cktrue = CK_TRUE;
+    CK_OBJECT_CLASS oclass = CKO_PROFILE;
+    int tsize;
+    int objCount;
+    CK_OBJECT_HANDLE *handles = NULL;
+    int i;
+
+    attrs = findTemp;
+    PK11_SETATTRS(attrs, CKA_TOKEN, &cktrue, sizeof(cktrue));
+    attrs++;
+    PK11_SETATTRS(attrs, CKA_CLASS, &oclass, sizeof(oclass));
+    attrs++;
+    tsize = attrs - findTemp;
+    PORT_Assert(tsize <= sizeof(findTemp) / sizeof(CK_ATTRIBUTE));
+
+    if (slot->profileList) {
+        PORT_Free(slot->profileList);
+        slot->profileList = NULL;
+    }
+    slot->profileCount = 0;
+
+    objCount = 0;
+    handles = pk11_FindObjectsByTemplate(slot, findTemp, tsize, &objCount);
+    if (handles == NULL) {
+        if (objCount < 0) {
+            return SECFailure; /* error code is set */
+        }
+        PORT_Assert(objCount == 0);
+        return SECSuccess;
+    }
+
+    slot->profileList = (CK_PROFILE_ID *)
+        PORT_Alloc(objCount * sizeof(CK_PROFILE_ID));
+    if (slot->profileList == NULL) {
+        PORT_Free(handles);
+        return SECFailure; /* error code is set */
+    }
+
+    for (i = 0; i < objCount; i++) {
+        CK_ULONG value;
+
+        value = PK11_ReadULongAttribute(slot, handles[i], CKA_PROFILE_ID);
+        if (value == CK_UNAVAILABLE_INFORMATION) {
+            continue;
+        }
+        slot->profileList[slot->profileCount++] = value;
+    }
+
+    PORT_Free(handles);
+    return SECSuccess;
+}
+
+static PRBool
+pk11_HasProfile(PK11SlotInfo *slot, CK_PROFILE_ID id)
+{
+    int i;
+
+    for (i = 0; i < slot->profileCount; i++) {
+        if (slot->profileList[i] == id) {
+            return PR_TRUE;
+        }
+    }
+    return PR_FALSE;
+}
+
 /*
  * initialize a new token
  * unlike initialize slot, this can be called multiple times in the lifetime
@@ -1182,6 +1266,7 @@ PK11_InitToken(PK11SlotInfo *slot, PRBool loadCerts)
     CK_RV crv;
     SECStatus rv;
     PRStatus status;
+    NSSToken *nssToken;
 
     /* set the slot flags to the current token values */
     if (!slot->isThreadSafe)
@@ -1219,7 +1304,9 @@ PK11_InitToken(PK11SlotInfo *slot, PRBool loadCerts)
     slot->maxPassword = slot->tokenInfo.ulMaxPinLen;
     PORT_Memcpy(slot->serial, slot->tokenInfo.serialNumber, sizeof(slot->serial));
 
-    nssToken_UpdateName(slot->nssToken);
+    nssToken = PK11Slot_GetNSSToken(slot);
+    nssToken_UpdateName(nssToken); /* null token is OK */
+    (void)nssToken_Destroy(nssToken);
 
     slot->defRWSession = (PRBool)((!slot->readOnly) &&
                                   (slot->tokenInfo.ulMaxSessionCount == 1));
@@ -1287,9 +1374,16 @@ PK11_InitToken(PK11SlotInfo *slot, PRBool loadCerts)
             PK11_ExitSlotMonitor(slot);
     }
 
-    status = nssToken_Refresh(slot->nssToken);
+    nssToken = PK11Slot_GetNSSToken(slot);
+    status = nssToken_Refresh(nssToken); /* null token is OK */
+    (void)nssToken_Destroy(nssToken);
     if (status != PR_SUCCESS)
         return SECFailure;
+
+    rv = pk11_ReadProfileList(slot);
+    if (rv != SECSuccess) {
+        return SECFailure;
+    }
 
     if (!(slot->isInternal) && (slot->hasRandom)) {
         /* if this slot has a random number generater, use it to add entropy
@@ -1439,6 +1533,11 @@ PK11_InitSlot(SECMODModule *mod, CK_SLOT_ID slotID, PK11SlotInfo *slot)
     slot->slotID = slotID;
     slot->isThreadSafe = mod->isThreadSafe;
     slot->hasRSAInfo = PR_FALSE;
+    slot->module = mod; /* NOTE: we don't make a reference here because
+                         * modules have references to their slots. This
+                         * works because modules keep implicit references
+                         * from their slots, and won't unload and disappear
+                         * until all their slots have been freed */
 
     if (PK11_GETTAB(slot)->C_GetSlotInfo(slotID, &slotInfo) != CKR_OK) {
         slot->disabled = PR_TRUE;
@@ -1448,11 +1547,6 @@ PK11_InitSlot(SECMODModule *mod, CK_SLOT_ID slotID, PK11SlotInfo *slot)
 
     /* test to make sure claimed mechanism work */
     slot->needTest = mod->internal ? PR_FALSE : PR_TRUE;
-    slot->module = mod; /* NOTE: we don't make a reference here because
-                         * modules have references to their slots. This
-                         * works because modules keep implicit references
-                         * from their slots, and won't unload and disappear
-                         * until all their slots have been freed */
     (void)PK11_MakeString(NULL, slot->slot_name,
                           (char *)slotInfo.slotDescription, sizeof(slotInfo.slotDescription));
     slot->isHW = (PRBool)((slotInfo.flags & CKF_HW_SLOT) == CKF_HW_SLOT);
@@ -1505,6 +1599,7 @@ pk11_IsPresentCertLoad(PK11SlotInfo *slot, PRBool loadCerts)
     CK_SLOT_INFO slotInfo;
     CK_SESSION_INFO sessionInfo;
     CK_RV crv;
+    NSSToken *nssToken;
 
     /* disabled slots are never present */
     if (slot->disabled) {
@@ -1516,8 +1611,11 @@ pk11_IsPresentCertLoad(PK11SlotInfo *slot, PRBool loadCerts)
         return PR_TRUE;
     }
 
-    if (slot->nssToken) {
-        return nssToken_IsPresent(slot->nssToken);
+    nssToken = PK11Slot_GetNSSToken(slot);
+    if (nssToken) {
+        PRBool present = nssToken_IsPresent(nssToken);
+        (void)nssToken_Destroy(nssToken);
+        return present;
     }
 
     /* removable slots have a flag that says they are present */
@@ -1695,6 +1793,7 @@ PK11_IsFriendly(PK11SlotInfo *slot)
 {
     /* internal slot always has public readable certs */
     return (PRBool)(slot->isInternal ||
+                    pk11_HasProfile(slot, CKP_PUBLIC_CERTIFICATES_TOKEN) ||
                     ((slot->defaultFlags & SECMOD_FRIENDLY_FLAG) ==
                      SECMOD_FRIENDLY_FLAG));
 }
@@ -2096,10 +2195,6 @@ PK11_GetAllTokens(CK_MECHANISM_TYPE type, PRBool needRW, PRBool loadCerts,
     SECMODModuleList *modules;
     SECMODListLock *moduleLock;
     int i;
-#if defined(XP_WIN32)
-    int j = 0;
-    PRInt32 waste[16];
-#endif
 
     moduleLock = SECMOD_GetDefaultModuleListLock();
     if (!moduleLock) {
@@ -2124,18 +2219,6 @@ PK11_GetAllTokens(CK_MECHANISM_TYPE type, PRBool needRW, PRBool loadCerts,
 
     modules = SECMOD_GetDefaultModuleList();
     for (mlp = modules; mlp != NULL; mlp = mlp->next) {
-
-#if defined(XP_WIN32)
-        /* This is works around some horrible cache/page thrashing problems
-        ** on Win32.  Without this, this loop can take up to 6 seconds at
-        ** 100% CPU on a Pentium-Pro 200.  The thing this changes is to
-        ** increase the size of the stack frame and modify it.
-        ** Moving the loop code itself seems to have no effect.
-        ** Dunno why this combination makes a difference, but it does.
-        */
-        waste[j & 0xf] = j++;
-#endif
-
         for (i = 0; i < mlp->module->slotCount; i++) {
             PK11SlotInfo *slot = mlp->module->slots[i];
 
@@ -2537,6 +2620,7 @@ PK11_ResetToken(PK11SlotInfo *slot, char *sso_pwd)
     unsigned char tokenName[32];
     int tokenNameLen;
     CK_RV crv;
+    NSSToken *token;
 
     /* reconstruct the token name */
     tokenNameLen = PORT_Strlen(slot->token_name);
@@ -2569,20 +2653,44 @@ PK11_ResetToken(PK11SlotInfo *slot, char *sso_pwd)
         PORT_SetError(PK11_MapError(crv));
         return SECFailure;
     }
-    nssTrustDomain_UpdateCachedTokenCerts(slot->nssToken->trustDomain,
-                                          slot->nssToken);
+    token = PK11Slot_GetNSSToken(slot);
+    if (token) {
+        nssTrustDomain_UpdateCachedTokenCerts(token->trustDomain, token);
+        (void)nssToken_Destroy(token);
+    }
     return SECSuccess;
 }
+
 void
 PK11Slot_SetNSSToken(PK11SlotInfo *sl, NSSToken *nsst)
 {
+    NSSToken *old;
+    if (nsst) {
+        nsst = nssToken_AddRef(nsst);
+    }
+
+    PZ_Lock(sl->nssTokenLock);
+    old = sl->nssToken;
     sl->nssToken = nsst;
+    PZ_Unlock(sl->nssTokenLock);
+
+    if (old) {
+        (void)nssToken_Destroy(old);
+    }
 }
 
 NSSToken *
 PK11Slot_GetNSSToken(PK11SlotInfo *sl)
 {
-    return sl->nssToken;
+    NSSToken *rv = NULL;
+
+    PZ_Lock(sl->nssTokenLock);
+    if (sl->nssToken) {
+        rv = nssToken_AddRef(sl->nssToken);
+    }
+    PZ_Unlock(sl->nssTokenLock);
+
+    return rv;
 }
 
 /*

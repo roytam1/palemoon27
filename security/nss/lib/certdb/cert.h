@@ -215,6 +215,12 @@ extern void CERT_DestroyCertificate(CERTCertificate *cert);
 */
 extern CERTCertificate *CERT_DupCertificate(CERTCertificate *c);
 
+/* Access the DER of the certificate. This only creates a reference to the DER
+ * in the outparam not a copy.  To avoid the pointer becoming invalid, use
+ * CERT_DupCertificate() and keep a reference to the duplicate alive.
+ */
+extern SECStatus CERT_GetCertificateDer(const CERTCertificate *c, SECItem *der);
+
 /*
 ** Create a new certificate request. This result must be wrapped with an
 ** CERTSignedData to create a signed certificate request.
@@ -1307,6 +1313,21 @@ SECStatus CERT_FilterCertListByCANames(CERTCertList *certList, int nCANames,
  * Filter a list of certificates, removing those certs that aren't user certs
  */
 SECStatus CERT_FilterCertListForUserCerts(CERTCertList *certList);
+
+/*
+ * Filter a list of certificates, removing those certs that don't match the
+ * nickname.
+ */
+SECStatus CERT_FilterCertListByNickname(CERTCertList *certList, char *nickname,
+                                        void *pwarg);
+
+/* return true if cert is in cert list */
+PRBool CERT_IsInList(const CERTCertificate *cert, const CERTCertList *certList);
+
+/* returned certList is the intersection of the certs on certList and the
+ * certs on filterList */
+SECStatus CERT_FilterCertListByCertList(CERTCertList *certList,
+                                        const CERTCertList *filterList);
 
 /*
  * Collect the nicknames from all certs in a CertList.  If the cert is not

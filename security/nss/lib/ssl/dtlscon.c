@@ -343,6 +343,7 @@ dtls_HandleHandshake(sslSocket *ss, DTLSEpoch epoch, sslSequenceNumber seqNum,
             SSL_TRC(5, ("%d: DTLS[%d]: Received apparent 2nd ClientHello",
                         SSL_GETPID(), ss->fd));
             ss->ssl3.hs.recvMessageSeq = 1;
+            ss->ssl3.hs.helloRetry = PR_TRUE;
         }
 
         /* There are three ways we could not be ready for this packet.
@@ -542,7 +543,6 @@ dtls_QueueMessage(sslSocket *ss, SSLContentType ct,
 
 /* Add DTLS handshake message to the pending queue
  * Empty the sendBuf buffer.
- * This function returns SECSuccess or SECFailure, never SECWouldBlock.
  * Always set sendBuf.len to 0, even when returning SECFailure.
  *
  * Called from:

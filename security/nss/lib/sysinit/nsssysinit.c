@@ -15,11 +15,10 @@
  * of pkcs11 modules common to all applications.
  */
 
-/*
- * OS Specific function to get where the NSS user database should reside.
- */
+#ifndef LINUX
+#error __FILE__ only builds on Linux.
+#endif
 
-#ifdef XP_UNIX
 #include <unistd.h>
 #include <sys/stat.h>
 #include <sys/types.h>
@@ -150,44 +149,7 @@ userCanModifySystemDB()
     return (access(NSS_DEFAULT_SYSTEM, W_OK) == 0);
 }
 
-#else
-#ifdef XP_WIN
-static char *
-getUserDB(void)
-{
-    /* use the registry to find the user's NSS_DIR. if no entry exists, create
-     * one in the users Appdir location */
-    return NULL;
-}
-
-static char *
-getSystemDB(void)
-{
-    /* use the registry to find the system's NSS_DIR. if no entry exists, create
-     * one based on the windows system data area */
-    return NULL;
-}
-
-static PRBool
-userIsRoot()
-{
-    /* use the registry to find if the user is the system administrator. */
-    return PR_FALSE;
-}
-
-static PRBool
-userCanModifySystemDB()
-{
-    /* use the registry to find if the user has administrative privilege
-    * to modify the system's nss database. */
-    return PR_FALSE;
-}
-
-#else
-#error "Need to write getUserDB, SystemDB, userIsRoot, and userCanModifySystemDB functions"
-#endif
-#endif
-
+#ifndef NSS_FIPS_DISABLED
 static PRBool
 getFIPSEnv(void)
 {
@@ -203,11 +165,12 @@ getFIPSEnv(void)
     }
     return PR_FALSE;
 }
-#ifdef XP_LINUX
+#endif /* NSS_FIPS_DISABLED */
 
 static PRBool
 getFIPSMode(void)
 {
+#ifndef NSS_FIPS_DISABLED
     FILE *f;
     char d;
     size_t size;
@@ -226,15 +189,10 @@ getFIPSMode(void)
     if (d != '1')
         return PR_FALSE;
     return PR_TRUE;
-}
-
 #else
-static PRBool
-getFIPSMode(void)
-{
-    return getFIPSEnv();
+    return PR_FALSE;
+#endif /* NSS_FIPS_DISABLED */
 }
-#endif
 
 #define NSS_DEFAULT_FLAGS "flags=readonly"
 

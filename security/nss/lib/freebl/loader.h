@@ -10,7 +10,7 @@
 
 #include "blapi.h"
 
-#define FREEBL_VERSION 0x0314
+#define FREEBL_VERSION 0x0316
 
 struct FREEBLVectorStr {
 
@@ -758,6 +758,26 @@ struct FREEBLVectorStr {
     BLAKE2BContext *(*p_BLAKE2B_Resurrect)(unsigned char *space, void *arg);
 
     /* Version 3.020 came to here */
+
+    SECStatus (*p_ChaCha20_Xor)(unsigned char *output, const unsigned char *block,
+                                unsigned int len, const unsigned char *k,
+                                const unsigned char *nonce, PRUint32 ctr);
+
+    /* Version 3.021 came to here */
+
+    SECStatus (*p_CMAC_Init)(CMACContext *ctx, CMACCipher type,
+                             const unsigned char *key, unsigned int key_len);
+    CMACContext *(*p_CMAC_Create)(CMACCipher type, const unsigned char *key,
+                                  unsigned int key_len);
+    SECStatus (*p_CMAC_Begin)(CMACContext *ctx);
+    SECStatus (*p_CMAC_Update)(CMACContext *ctx, const unsigned char *data,
+                               unsigned int data_len);
+    SECStatus (*p_CMAC_Finish)(CMACContext *ctx, unsigned char *result,
+                               unsigned int *result_len,
+                               unsigned int max_result_len);
+    void (*p_CMAC_Destroy)(CMACContext *ctx, PRBool free_it);
+
+    /* Version 3.022 came to here */
 
     /* Add new function pointers at the end of this struct and bump
      * FREEBL_VERSION at the beginning of this file. */

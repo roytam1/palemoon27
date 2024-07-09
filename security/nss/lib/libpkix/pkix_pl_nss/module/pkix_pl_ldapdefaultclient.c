@@ -352,12 +352,14 @@ pkix_pl_LdapDefaultClient_VerifyBindResponse(
         SECItem decode = {siBuffer, NULL, 0};
         SECStatus rv = SECFailure;
         LDAPMessage msg;
-        LDAPBindResponse *ldapBindResponse = NULL;
+        LDAPBindResponse *ldapBindResponse = &msg.protocolOp.op.bindResponseMsg;
 
         PKIX_ENTER
                 (LDAPDEFAULTCLIENT,
                 "pkix_pl_LdapDefaultClient_VerifyBindResponse");
         PKIX_NULLCHECK_TWO(client, client->rcvBuf);
+
+        ldapBindResponse->resultCode.data = NULL;
 
         decode.data = (unsigned char *)(client->rcvBuf);
         decode.len = bufLen;
@@ -367,7 +369,6 @@ pkix_pl_LdapDefaultClient_VerifyBindResponse(
                 PKIX_LDAPDEFAULTCLIENTDECODEBINDRESPONSEFAILED);
 
         if (rv == SECSuccess) {
-                ldapBindResponse = &msg.protocolOp.op.bindResponseMsg;
                 if (*(ldapBindResponse->resultCode.data) == SUCCESS) {
                         client->connectStatus = BOUND;
                 } else {

@@ -1,5 +1,4 @@
 /* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* vim: set ts=2 et sw=2 tw=80: */
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -11,6 +10,48 @@
 #include "pk11pub.h"
 #include "seccomon.h"
 #include "selfencrypt.h"
+
+SECStatus SSLInt_TweakChannelInfoForDC(PRFileDesc *fd, PRBool changeAuthKeyBits,
+                                       PRBool changeScheme) {
+  if (!fd) {
+    return SECFailure;
+  }
+  sslSocket *ss = ssl_FindSocket(fd);
+  if (!ss) {
+    return SECFailure;
+  }
+
+  // Just toggle so we'll always have a valid value.
+  if (changeScheme) {
+    ss->sec.signatureScheme = (ss->sec.signatureScheme == ssl_sig_ed25519)
+                                  ? ssl_sig_ecdsa_secp256r1_sha256
+                                  : ssl_sig_ed25519;
+  }
+  if (changeAuthKeyBits) {
+    ss->sec.authKeyBits = ss->sec.authKeyBits ? ss->sec.authKeyBits * 2 : 384;
+  }
+
+  return SECSuccess;
+}
+
+SECStatus SSLInt_GetHandshakeRandoms(PRFileDesc *fd, SSL3Random client_random,
+                                     SSL3Random server_random) {
+  if (!fd) {
+    return SECFailure;
+  }
+  sslSocket *ss = ssl_FindSocket(fd);
+  if (!ss) {
+    return SECFailure;
+  }
+
+  if (client_random) {
+    memcpy(client_random, ss->ssl3.hs.client_random, sizeof(SSL3Random));
+  }
+  if (server_random) {
+    memcpy(server_random, ss->ssl3.hs.server_random, sizeof(SSL3Random));
+  }
+  return SECSuccess;
+}
 
 SECStatus SSLInt_IncrementClientHandshakeVersion(PRFileDesc *fd) {
   sslSocket *ss = ssl_FindSocket(fd);
@@ -109,9 +150,10 @@ void SSLInt_PrintCipherSpecs(const char *label, PRFileDesc *fd) {
   }
 }
 
-/* Force a timer expiry by backdating when all active timers were started. We
- * could set the remaining time to 0 but then backoff would not work properly if
- * we decide to test it. */
+/* DTLS timers are separate from the time that the rest of the stack uses.
+ * Force a timer expiry by backdating when all active timers were started.
+ * We could set the remaining time to 0 but then backoff would not work properly
+ * if we decide to test it. */
 SECStatus SSLInt_ShiftDtlsTimers(PRFileDesc *fd, PRIntervalTime shift) {
   size_t i;
   sslSocket *ss = ssl_FindSocket(fd);
@@ -297,42 +339,6 @@ SSLKEAType SSLInt_GetKEAType(SSLNamedGroup group) {
   return groupDef->keaType;
 }
 
-SECStatus SSLInt_SetCipherSpecChangeFunc(PRFileDesc *fd,
-                                         sslCipherSpecChangedFunc func,
-                                         void *arg) {
-  sslSocket *ss;
-
-  ss = ssl_FindSocket(fd);
-  if (!ss) {
-    return SECFailure;
-  }
-
-  ss->ssl3.changedCipherSpecFunc = func;
-  ss->ssl3.changedCipherSpecArg = arg;
-
-  return SECSuccess;
-}
-
-PK11SymKey *SSLInt_CipherSpecToKey(const ssl3CipherSpec *spec) {
-  return spec->keyMaterial.key;
-}
-
-SSLCipherAlgorithm SSLInt_CipherSpecToAlgorithm(const ssl3CipherSpec *spec) {
-  return spec->cipherDef->calg;
-}
-
-const PRUint8 *SSLInt_CipherSpecToIv(const ssl3CipherSpec *spec) {
-  return spec->keyMaterial.iv;
-}
-
-PRUint16 SSLInt_CipherSpecToEpoch(const ssl3CipherSpec *spec) {
-  return spec->epoch;
-}
-
-void SSLInt_SetTicketLifetime(uint32_t lifetime) {
-  ssl_ticket_lifetime = lifetime;
-}
-
 SECStatus SSLInt_SetSocketMaxEarlyDataSize(PRFileDesc *fd, uint32_t size) {
   sslSocket *ss;
 
@@ -356,20 +362,14 @@ SECStatus SSLInt_SetSocketMaxEarlyDataSize(PRFileDesc *fd, uint32_t size) {
   return SECSuccess;
 }
 
-void SSLInt_RolloverAntiReplay(void) {
-  tls13_AntiReplayRollover(ssl_TimeUsec());
-}
-
-SECStatus SSLInt_GetEpochs(PRFileDesc *fd, PRUint16 *readEpoch,
-                           PRUint16 *writeEpoch) {
+SECStatus SSLInt_HasPendingHandshakeData(PRFileDesc *fd, PRBool *pending) {
   sslSocket *ss = ssl_FindSocket(fd);
-  if (!ss || !readEpoch || !writeEpoch) {
+  if (!ss) {
     return SECFailure;
   }
 
-  ssl_GetSpecReadLock(ss);
-  *readEpoch = ss->ssl3.crSpec->epoch;
-  *writeEpoch = ss->ssl3.cwSpec->epoch;
-  ssl_ReleaseSpecReadLock(ss);
+  ssl_GetSSL3HandshakeLock(ss);
+  *pending = ss->ssl3.hs.msg_body.len > 0;
+  ssl_ReleaseSSL3HandshakeLock(ss);
   return SECSuccess;
 }

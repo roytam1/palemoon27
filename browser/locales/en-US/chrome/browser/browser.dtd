@@ -158,6 +158,7 @@ These should match what Safari and other Apple applications use on OS X Lion. --
 <!ENTITY addCurPagesCmd.label "Bookmark All Tabs…">
 <!ENTITY showAllBookmarks2.label "Show All Bookmarks">
 <!ENTITY organizeBookmarks.label "Organize Bookmarks">
+<!ENTITY recentBookmarks.label "Recently Bookmarked">
 <!ENTITY unsortedBookmarksCmd.label "Unsorted Bookmarks">
 <!ENTITY bookmarksToolbarChevron.tooltip "Show more bookmarks">
 
@@ -237,6 +238,12 @@ These should match what Safari and other Apple applications use on OS X Lion. --
 <!ENTITY webDeveloperMenu.label       "Web Developer">
 <!ENTITY webDeveloperMenu.accesskey   "W">
 
+<!ENTITY devToolsCmd.keycode          "VK_F12">
+<!ENTITY devToolsCmd.keytext          "F12">
+
+<!ENTITY devtoolsServiceWorkers.label      "Service Workers">
+<!ENTITY devtoolsServiceWorkers.accesskey  "k">
+
 <!ENTITY devtoolsConnect.label        "Connect…">
 <!ENTITY devtoolsConnect.accesskey    "e">
 
@@ -252,9 +259,9 @@ These should match what Safari and other Apple applications use on OS X Lion. --
 <!ENTITY inspectContextMenu.label     "Inspect Element">
 <!ENTITY inspectContextMenu.accesskey "Q">
 
-<!ENTITY responsiveDesignTool.label   "Responsive Design View">
-<!ENTITY responsiveDesignTool.accesskey "R">
-<!ENTITY responsiveDesignTool.commandkey "M">
+<!ENTITY responsiveDesignMode.label   "Responsive Design Mode">
+<!ENTITY responsiveDesignMode.accesskey "R">
+<!ENTITY responsiveDesignMode.commandkey "M">
 
 <!ENTITY eyedropper.label   "Eyedropper">
 <!ENTITY eyedropper.accesskey "Y">

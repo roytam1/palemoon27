@@ -38,13 +38,23 @@ module.exports = createClass({
       dom.div({ className: "target-details" },
         dom.div({ className: "target-name" }, target.name)
       ),
+      (isRunning && isServiceWorker ?
+        dom.button({
+          className: "push-button",
+          onClick: this.push
+        }, Strings.GetStringFromName("push")) :
+        null
+      ),
       (isRunning ?
         dom.button({
           className: "debug-button",
           onClick: this.debug,
           disabled: debugDisabled,
         }, Strings.GetStringFromName("debug")) :
-        null
+        dom.button({
+          className: "start-button",
+          onClick: this.start
+        }, Strings.GetStringFromName("start"))
       )
     );
   },
@@ -69,6 +79,26 @@ module.exports = createClass({
       default:
         window.alert("Not implemented yet!");
         break;
+    }
+  },
+
+  push() {
+    let { client, target } = this.props;
+    if (target.workerActor) {
+      client.request({
+        to: target.workerActor,
+        type: "push"
+      });
+    }
+  },
+
+  start() {
+    let { client, target } = this.props;
+    if (target.type === "serviceworker" && !target.workerActor) {
+      client.request({
+        to: target.registrationActor,
+        type: "start"
+      });
     }
   },
 

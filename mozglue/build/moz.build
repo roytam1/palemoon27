@@ -30,6 +30,9 @@ if CONFIG['OS_TARGET'] == 'Android':
     ]
 
 if CONFIG['OS_TARGET'] == 'WINNT':
+    LOCAL_INCLUDES += [
+        '/memory/build',
+    ]
     SOURCES += [
         'WindowsDllBlocklist.cpp',
     ]
@@ -53,6 +56,7 @@ if CONFIG['MOZ_NUWA_PROCESS']:
 
 EXPORTS.mozilla += [
     'arm.h',
+    'mips.h',
     'SSE.h',
     'WindowsDllBlocklist.h',
 ]
@@ -76,6 +80,11 @@ if CONFIG['MOZ_ASAN']:
 USE_LIBS += [
     'mfbt',
 ]
+
+if CONFIG['CPU_ARCH'].startswith('mips'):
+    SOURCES += [
+        'mips.cpp',
+    ]
 
 if CONFIG['MOZ_LINKER']:
     USE_LIBS += [

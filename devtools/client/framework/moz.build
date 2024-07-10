@@ -9,6 +9,7 @@ BROWSER_CHROME_MANIFESTS += ['test/browser.ini']
 DevToolsModules(
     'about-devtools-toolbox.js',
     'attach-thread.js',
+    'browser-menus.js',
     'devtools-browser.js',
     'devtools.js',
     'gDevTools.jsm',

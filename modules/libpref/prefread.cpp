@@ -115,17 +115,17 @@ pref_DoCallback(PrefParseState *ps)
     PrefValue  value;
 
     switch (ps->vtype) {
-    case PREF_STRING:
+    case PrefType::String:
         value.stringVal = ps->vb;
         break;
-    case PREF_INT:
+    case PrefType::Int:
         if ((ps->vb[0] == '-' || ps->vb[0] == '+') && ps->vb[1] == '\0') {
             NS_WARNING("malformed integer value");
             return false;
         }
         value.intVal = atoi(ps->vb);
         break;
-    case PREF_BOOL:
+    case PrefType::Bool:
         value.boolVal = (ps->vb == kTrue);
         break;
     default:
@@ -155,7 +155,7 @@ PREF_FinalizeParseState(PrefParseState *ps)
  * Pseudo-BNF
  * ----------
  * function      = LJUNK function-name JUNK function-args
- * function-name = "user_pref" | "pref"
+ * function-name = "user_pref" | "pref" | "sticky_pref"
  * function-args = "(" JUNK pref-name JUNK "," JUNK pref-value JUNK ")" JUNK ";"
  * pref-name     = quoted-string
  * pref-value    = quoted-string | "true" | "false" | integer-value
@@ -189,7 +189,7 @@ PREF_ParseBuf(PrefParseState *ps, const char *buf, int bufLen)
             if (ps->lbcur != ps->lb) { /* reset state */
                 ps->lbcur = ps->lb;
                 ps->vb    = nullptr;
-                ps->vtype = PREF_INVALID;
+                ps->vtype = PrefType::Invalid;
                 ps->fdefault = false;
                 ps->fstickydefault = false;
                 ps->flock = false;
@@ -288,21 +288,21 @@ PREF_ParseBuf(PrefParseState *ps, const char *buf, int bufLen)
             /* the pref value type is unknown.  so, we scan for the first
              * character of the value, and determine the type from that. */
             if (c == '\"' || c == '\'') {
-                ps->vtype = PREF_STRING;
+                ps->vtype = PrefType::String;
                 ps->quotechar = c;
                 ps->nextstate = PREF_PARSE_UNTIL_CLOSE_PAREN;
                 state = PREF_PARSE_QUOTED_STRING;
             }
             else if (c == 't' || c == 'f') {
                 ps->vb = (char *) (c == 't' ? kTrue : kFalse);
-                ps->vtype = PREF_BOOL;
+                ps->vtype = PrefType::Bool;
                 ps->smatch = ps->vb;
                 ps->sindex = 1;
                 ps->nextstate = PREF_PARSE_UNTIL_CLOSE_PAREN;
                 state = PREF_PARSE_MATCH_STRING;
             }
             else if (isdigit(c) || (c == '-') || (c == '+')) {
-                ps->vtype = PREF_INT;
+                ps->vtype = PrefType::Int;
                 /* write c to line buffer... */
                 if (ps->lbcur == ps->lbend && !pref_GrowBuf(ps))
                     return false; /* out of memory */
@@ -515,13 +515,12 @@ PREF_ParseBuf(PrefParseState *ps, const char *buf, int bufLen)
             break;
         case PREF_PARSE_UNTIL_CLOSE_PAREN:
             /* tolerate only whitespace and embedded comments  */
-            if (c == ')')
+            if (c == ')') {
                 state = PREF_PARSE_UNTIL_SEMICOLON;
-            else if (c == '/') {
+            } else if (c == '/') {
                 ps->nextstate = state; /* return here when done with comment */
                 state = PREF_PARSE_COMMENT_MAYBE_START;
-            }
-            else if (!isspace(c)) {
+            } else if (!isspace(c)) {
                 NS_WARNING("malformed pref file");
                 return false;
             }

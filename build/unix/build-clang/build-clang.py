@@ -52,7 +52,11 @@ def with_env(env, f):
 
 def build_tar_package(tar, name, base, directory):
     name = os.path.realpath(name)
-    run_in(base, [tar, "-cjf", name, directory])
+    run_in(base, [tar,
+                  "-c",
+                  "-%s" % ("J" if ".xz" in name else "j"),
+                  "-f",
+                  name, directory])
 
 
 def svn_co(url, directory, revision):

@@ -1192,7 +1192,8 @@ nsSocketTransport::BuildSocket(PRFileDesc *&fd, bool &proxyTransparent, bool &us
         if (NS_FAILED(rv)) {
             SOCKET_LOG(("  error pushing io layer [%u:%s rv=%x]\n", i, mTypes[i], rv));
             if (fd) {
-                CloseSocket(fd, /*mSocketTransportService->IsTelemetryEnabled()*/false);
+                CloseSocket(fd,
+                    /*mSocketTransportService->IsTelemetryEnabledAndNotSleepPhase()*/false);
             }
         }
     }
@@ -1370,7 +1371,8 @@ nsSocketTransport::InitiateSocket()
     // inform socket transport about this newly created socket...
     rv = mSocketTransportService->AttachSocket(fd, this);
     if (NS_FAILED(rv)) {
-        CloseSocket(fd, /*mSocketTransportService->IsTelemetryEnabled()*/false);
+        CloseSocket(fd,
+            /*mSocketTransportService->IsTelemetryEnabledAndNotSleepPhase()*/false);
         return rv;
     }
     mAttached = true;
@@ -1753,7 +1755,8 @@ nsSocketTransport::ReleaseFD_Locked(PRFileDesc *fd)
           SOCKET_LOG(("Intentional leak"));
         } else if (PR_GetCurrentThread() == gSocketThread) {
             SOCKET_LOG(("nsSocketTransport: calling PR_Close [this=%p]\n", this));
-            CloseSocket(mFD, /*mSocketTransportService->IsTelemetryEnabled()*/false);
+            CloseSocket(mFD,
+                /*mSocketTransportService->IsTelemetryEnabledAndNotSleepPhase()*/false);
         } else {
             // Can't PR_Close() a socket off STS thread. Thunk it to STS to die
             STS_PRCloseOnSocketTransport(mFD);

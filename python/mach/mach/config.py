@@ -20,9 +20,8 @@ locale directory is the "locale" directory beneath the directory containing the
 module that defines it.
 
 People implementing ConfigProvider instances are expected to define a complete
-gettext .po and .mo file for the en-US locale. You can use the gettext-provided
-msgfmt binary to perform this conversion. Generation of the original .po file
-can be done via the write_pot() of ConfigSettings.
+gettext .po and .mo file for the en_US locale. The |mach settings locale-gen|
+command can be used to populate these files.
 """
 
 from __future__ import absolute_import, unicode_literals
@@ -39,6 +38,14 @@ if sys.version_info[0] == 3:
 else:
     from ConfigParser import RawConfigParser, NoSectionError
     str_type = basestring
+
+
+TRANSLATION_NOT_FOUND = """
+No translation files detected for {section}, there must at least be a
+translation for the 'en_US' locale. To generate these files, run:
+
+    mach settings locale-gen {section}
+""".lstrip()
 
 
 class ConfigException(Exception):
@@ -213,6 +220,9 @@ class ConfigSettings(collections.Mapping):
             object.__setattr__(self, '_name', name)
             object.__setattr__(self, '_settings', settings)
 
+            wildcard = any(s == '*' for s in self._settings)
+            object.__setattr__(self, '_wildcard', wildcard)
+
         @property
         def options(self):
             try:
@@ -220,11 +230,15 @@ class ConfigSettings(collections.Mapping):
             except NoSectionError:
                 return []
 
-        def _validate(self, option, value):
-            if option not in self._settings:
-                raise KeyError('Option not registered with provider: %s' % option)
+        def get_meta(self, option):
+            if option in self._settings:
+                return self._settings[option]
+            if self._wildcard:
+                return self._settings['*']
+            raise KeyError('Option not registered with provider: %s' % option)
 
-            meta = self._settings[option]
+        def _validate(self, option, value):
+            meta = self.get_meta(option)
             meta['type_cls'].validate(value)
 
             if 'choices' in meta and value not in meta['choices']:
@@ -242,7 +256,7 @@ class ConfigSettings(collections.Mapping):
             return self._config.has_option(self._name, k)
 
         def __getitem__(self, k):
-            meta = self._settings[k]
+            meta = self.get_meta(k)
 
             if self._config.has_option(self._name, k):
                 v = meta['type_cls'].from_config(self._config, self._name, k)
@@ -255,11 +269,10 @@ class ConfigSettings(collections.Mapping):
             self._validate(k, v)
             return v
 
-
         def __setitem__(self, k, v):
             self._validate(k, v)
+            meta = self.get_meta(k)
 
-            meta = self._settings[k]
             if not self._config.has_section(self._name):
                 self._config.add_section(self._name)
 
@@ -291,7 +304,7 @@ class ConfigSettings(collections.Mapping):
         self._settings = {}
         self._sections = {}
         self._finalized = False
-        self._loaded_filenames = set()
+        self.loaded_files = set()
 
     def load_file(self, filename):
         self.load_files([filename])
@@ -307,7 +320,7 @@ class ConfigSettings(collections.Mapping):
 
         fps = [open(f, 'rt') for f in filtered]
         self.load_fps(fps)
-        self._loaded_filenames.update(set(filtered))
+        self.loaded_files.update(set(filtered))
         for fp in fps:
             fp.close()
 
@@ -316,9 +329,6 @@ class ConfigSettings(collections.Mapping):
 
         for fp in fps:
             self._config.readfp(fp)
-
-    def loaded_files(self):
-        return self._loaded_filenames
 
     def write(self, fh):
         """Write the config to a file object."""
@@ -393,38 +403,24 @@ class ConfigSettings(collections.Mapping):
             for k, v in settings.items():
                 if k in section:
                     raise ConfigException('Setting already registered: %s.%s' %
-                        section_name, k)
+                                          section_name, k)
 
                 section[k] = v
 
             self._settings[section_name] = section
 
-    def write_pot(self, fh):
-        """Write a pot gettext translation file."""
-
-        for section in sorted(self):
-            fh.write('# Section %s\n\n' % section)
-            for option in sorted(self[section]):
-                fh.write('msgid "%s.%s.short"\n' % (section, option))
-                fh.write('msgstr ""\n\n')
-
-                fh.write('msgid "%s.%s.full"\n' % (section, option))
-                fh.write('msgstr ""\n\n')
-
-            fh.write('# End of section %s\n\n' % section)
-
     def option_help(self, section, option):
         """Obtain the translated help messages for an option."""
 
-        meta = self[section]._settings[option]
+        meta = self[section].get_meta(option)
 
-        # Providers should always have an en-US translation. If they don't,
+        # Providers should always have an en_US translation. If they don't,
         # they are coded wrong and this will raise.
         default = gettext.translation(meta['domain'], meta['localedir'],
-            ['en-US'])
+                                      ['en_US'])
 
         t = gettext.translation(meta['domain'], meta['localedir'],
-            fallback=True)
+                                fallback=True)
         t.add_fallback(default)
 
         short = t.ugettext('%s.%s.short' % (section, option))

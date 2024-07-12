@@ -5,7 +5,7 @@ Settings
 ========
 
 Mach can read settings in from a set of configuration files. These
-configuration files are either named ``mach.ini`` or ``.machrc`` and
+configuration files are either named ``machrc`` or ``.machrc`` and
 are specified by the bootstrap script. In mozilla-central, these files
 can live in ``~/.mozbuild`` and/or ``topsrcdir``.
 
@@ -13,11 +13,25 @@ Settings can be specified anywhere, and used both by mach core or
 individual commands.
 
 
+Core Settings
+=============
+
+These settings are implemented by mach core.
+
+* alias - Create a command alias. This is useful if you want to alias a command to something else, optionally including some defaults. It can either be used to create an entire new command, or provide defaults for an existing one. For example:
+
+.. parsed-literal::
+
+    [alias]
+    mochitest = mochitest -f browser
+    browser-test = mochitest -f browser
+
+
 Defining Settings
 =================
 
 Settings need to be explicitly defined, along with their type,
-otherwise mach will throw when loading the configuration files.
+otherwise mach will throw when trying to access them.
 
 To define settings, use the :func:`~decorators.SettingsProvider`
 decorator in an existing mach command module. E.g:
@@ -53,6 +67,41 @@ specified by any of the configuration files.
 pairs to add to the setting's metadata. The following keys may be specified
 in the ``extra`` dict:
     * ``choices`` - A set of allowed values for the setting.
+
+Wildcards
+---------
+
+Sometimes a section should allow arbitrarily defined options from the user, such
+as the ``alias`` section mentioned above. To define a section like this, use ``*``
+as the option name. For example:
+
+.. parsed-literal::
+
+    ('foo.*', 'string')
+
+This allows configuration files like this:
+
+.. parsed-literal::
+
+    [foo]
+    arbitrary1 = some string
+    arbitrary2 = some other string
+
+
+Documenting Settings
+====================
+
+All settings must at least be documented in the en_US locale. Otherwise,
+running ``mach settings`` will raise. Mach uses gettext to perform localization.
+
+A handy command exists to generate the localization files:
+
+.. parsed-literal::
+
+    mach settings locale-gen <section>
+
+You'll be prompted to add documentation for all options in section with the
+en_US locale. To add documentation in another locale, pass in ``--locale``.
 
 
 Accessing Settings

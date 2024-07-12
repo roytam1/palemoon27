@@ -88,6 +88,14 @@ class Provider4(object):
     ]
 
 
+@SettingsProvider
+class Provider5(object):
+    config_settings = [
+        ('foo.*', 'string'),
+        ('foo.bar', 'string'),
+    ]
+
+
 class TestConfigSettings(unittest.TestCase):
     def test_empty(self):
         s = ConfigSettings()
@@ -211,6 +219,24 @@ class TestConfigSettings(unittest.TestCase):
         foo.abc = 'b'
         foo.xyz = 'y'
 
+    def test_wildcard_options(self):
+        s = ConfigSettings()
+        s.register_provider(Provider5)
+
+        foo = s.foo
+
+        self.assertIn('*', foo._settings)
+        self.assertNotIn('*', foo)
+
+        foo.baz = 'value1'
+        foo.bar = 'value2'
+
+        self.assertIn('baz', foo)
+        self.assertEqual(foo.baz, 'value1')
+
+        self.assertIn('bar', foo)
+        self.assertEqual(foo.bar, 'value2')
+
     def test_file_reading_single(self):
         temp = NamedTemporaryFile(mode='wt')
         temp.write(CONFIG1)
@@ -265,16 +291,6 @@ class TestConfigSettings(unittest.TestCase):
 
         self.assertEqual(s.a.string, s2.a.string)
         self.assertEqual(s.a.boolean, s2.a.boolean)
-
-    def test_write_pot(self):
-        s = ConfigSettings()
-        s.register_provider(Provider1)
-        s.register_provider(Provider2)
-
-        # Just a basic sanity test.
-        temp = NamedTemporaryFile('wt')
-        s.write_pot(temp)
-        temp.flush()
 
 
 if __name__ == '__main__':

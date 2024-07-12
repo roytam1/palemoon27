@@ -554,6 +554,12 @@ public:
    */
   static ProducerID AllocateProducerID();
 
+  /// ImageBridgeChild thread only.
+  static void AsyncDestroyActor(PImageContainerChild* aActor);
+
+  /// ImageBridgeChild thread only.
+  static void DeallocActor(PImageContainerChild* aActor);
+
 private:
   typedef mozilla::ReentrantMonitor ReentrantMonitor;
 
@@ -819,7 +825,7 @@ public:
   virtual gfx::IntSize GetSize() override { return mSize; }
 
   SourceSurfaceImage(const gfx::IntSize& aSize, gfx::SourceSurface* aSourceSurface);
-  SourceSurfaceImage(gfx::SourceSurface* aSourceSurface);
+  explicit SourceSurfaceImage(gfx::SourceSurface* aSourceSurface);
   ~SourceSurfaceImage();
 
 private:

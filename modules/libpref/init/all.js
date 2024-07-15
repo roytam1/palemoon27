@@ -2849,6 +2849,12 @@ pref("dom.animations-api.core.enabled", false);
 pref("dom.animations-api.core.enabled", true);
 #endif
 
+// Is support for the Element.animate() function (a subset of the Web Animations
+// API) enabled?
+// Note that if dom.animations-api.core.enabled is true, this preference is
+// ignored.
+pref("dom.animations-api.element-animate.enabled", true);
+
 // pref to permit users to make verified SOAP calls by default
 pref("capability.policy.default.SOAPCall.invokeVerifySourceHeader", "allAccess");
 

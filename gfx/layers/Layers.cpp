@@ -631,7 +631,7 @@ Layer::SnapTransformTranslation(const Matrix4x4& aTransform,
 
   Matrix matrix2D;
   Matrix4x4 result;
-  if (aTransform.Is2D(&matrix2D) &&
+  if (aTransform.CanDraw2D(&matrix2D) &&
       !matrix2D.HasNonTranslation() &&
       matrix2D.HasNonIntegerTranslation()) {
     IntPoint snappedTranslation = RoundedToInt(matrix2D.GetTranslation());
@@ -1075,7 +1075,7 @@ Layer::GetVisibleRegionRelativeToRootLayer(nsIntRegion& aResult,
       gfx::Matrix siblingMatrix;
       if (!sibling->GetLocalTransform().Is2D(&siblingMatrix) ||
           !siblingMatrix.IsTranslation()) {
-        return false;
+        continue;
       }
 
       // Retreive the translation from sibling to |layer|. The accumulated

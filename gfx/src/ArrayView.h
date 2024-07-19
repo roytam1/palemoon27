@@ -8,6 +8,10 @@
 
 #include "nsTArray.h"
 
+/* This is similar to mfbt/Range.h but has implicit conversion
+ * from nsTArray and less bounds checking.
+ * For now, prefer Range over ArrayView */
+
 namespace mozilla {
 namespace gfx {
 
@@ -15,7 +19,7 @@ template<typename T>
 class ArrayView
 {
     public:
-        ArrayView(const nsTArray<T>& aData) :
+        MOZ_IMPLICIT ArrayView(const nsTArray<T>& aData) :
             mData(aData.Elements()), mLength(aData.Length())
         {
         }

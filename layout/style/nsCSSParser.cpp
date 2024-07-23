@@ -14961,6 +14961,7 @@ CSSParserImpl::ParseScrollSnapPoints(nsCSSValue& aValue, nsCSSProperty aPropID)
     functionArray->Item(1) = lengthValue;
     return true;
   }
+  UngetToken();
   return false;
 }
 

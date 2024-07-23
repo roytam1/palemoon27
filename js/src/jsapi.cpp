@@ -1939,7 +1939,7 @@ JS_NewObject(JSContext *cx, const JSClass *jsclasp)
     MOZ_ASSERT(clasp != &JSFunction::class_);
     MOZ_ASSERT(!(clasp->flags & JSCLASS_IS_GLOBAL));
 
-    JSObject *obj = NewObjectWithClassProto(cx, clasp, NullPtr(), NullPtr());
+    JSObject *obj = NewObjectWithClassProto(cx, clasp, NullPtr());
     if (obj)
         obj->assertParentIs(cx->global());
     return obj;
@@ -2611,7 +2611,7 @@ JS_DefineObject(JSContext* cx, HandleObject obj, const char* name, const JSClass
     if (!clasp)
         clasp = &PlainObject::class_;    /* default class is Object */
 
-    RootedObject nobj(cx, NewObjectWithClassProto(cx, clasp, NullPtr(), obj));
+    RootedObject nobj(cx, NewObjectWithClassProto(cx, clasp, NullPtr()));
     if (!nobj)
         return nullptr;
 
@@ -2747,6 +2747,17 @@ JS_GetOwnPropertyDescriptorById(JSContext* cx, HandleObject obj, HandleId id,
     CHECK_REQUEST(cx);
 
     return GetOwnPropertyDescriptor(cx, obj, id, desc);
+}
+
+JS_PUBLIC_API(bool)
+JS_GetOwnUCPropertyDescriptor(JSContext *cx, HandleObject obj, const char16_t *name,
+                              MutableHandle<JSPropertyDescriptor> desc)
+{
+    JSAtom *atom = AtomizeChars(cx, name, js_strlen(name));
+    if (!atom)
+        return false;
+    RootedId id(cx, AtomToId(atom));
+    return JS_GetOwnPropertyDescriptorById(cx, obj, id, desc);
 }
 
 JS_PUBLIC_API(bool)
@@ -3202,40 +3213,12 @@ JS::GetSelfHostedFunction(JSContext* cx, const char* selfHostedName, HandleId id
 }
 
 static bool
-CreateScopeObjectsForScopeChain(JSContext* cx, AutoObjectVector& scopeChain,
+CreateScopeObjectsForScopeChain(JSContext *cx, AutoObjectVector &scopeChain,
                                 MutableHandleObject dynamicScopeObj,
                                 MutableHandleObject staticScopeObj)
 {
-#ifdef DEBUG
-    for (size_t i = 0; i < scopeChain.length(); ++i) {
-        assertSameCompartment(cx, scopeChain[i]);
-        MOZ_ASSERT(!scopeChain[i]->is<GlobalObject>());
-    }
-#endif
-
-    // Construct With object wrappers for the things on this scope
-    // chain and use the result as the thing to scope the function to.
-    Rooted<StaticWithObject*> staticWith(cx);
-    RootedObject staticEnclosingScope(cx);
-    Rooted<DynamicWithObject*> dynamicWith(cx);
-    RootedObject dynamicEnclosingScope(cx, cx->global());
-    for (size_t i = scopeChain.length(); i > 0; ) {
-        staticWith = StaticWithObject::create(cx);
-        if (!staticWith)
-            return false;
-        staticWith->initEnclosingNestedScope(staticEnclosingScope);
-        staticEnclosingScope = staticWith;
-
-        dynamicWith = DynamicWithObject::create(cx, scopeChain[--i], dynamicEnclosingScope,
-                                                staticWith, DynamicWithObject::NonSyntacticWith);
-        if (!dynamicWith)
-            return false;
-        dynamicEnclosingScope = dynamicWith;
-    }
-
-    dynamicScopeObj.set(dynamicEnclosingScope);
-    staticScopeObj.set(staticEnclosingScope);
-    return true;
+    return js::CreateScopeObjectsForScopeChain(cx, scopeChain, cx->global(),
+                                               dynamicScopeObj, staticScopeObj);
 }
 
 static bool
@@ -4021,8 +4004,9 @@ CompileFunction(JSContext* cx, const ReadOnlyCompileOptions& options,
             return false;
     }
 
-    fun.set(NewScriptedFunction(cx, 0, JSFunction::INTERPRETED, enclosingDynamicScope,
-                                funAtom, JSFunction::FinalizeKind, TenuredObject));
+    fun.set(NewScriptedFunction(cx, 0, JSFunction::INTERPRETED, funAtom,
+                                JSFunction::FinalizeKind, TenuredObject,
+                                enclosingDynamicScope));
     if (!fun)
         return false;
 

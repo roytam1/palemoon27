@@ -592,7 +592,7 @@ js::XDRInterpretedFunction(XDRState<mode>* xdr, HandleObject enclosingScope, Han
         if (uint16_t(flagsword) & JSFunction::EXTENDED)
             allocKind = JSFunction::ExtendedFinalizeKind;
         fun = NewFunctionWithProto(cx, nullptr, 0, JSFunction::INTERPRETED,
-                                   /* parent = */ NullPtr(), NullPtr(), proto,
+                                   /* enclosingDynamicScope = */ NullPtr(), NullPtr(), proto,
                                    allocKind, TenuredObject);
         if (!fun)
             return false;
@@ -2113,17 +2113,19 @@ js::NewNativeConstructor(ExclusiveContext *cx, Native native, unsigned nargs, Ha
 
 JSFunction *
 js::NewScriptedFunction(ExclusiveContext *cx, unsigned nargs,
-                        JSFunction::Flags flags, HandleObject parent, HandleAtom atom,
+                        JSFunction::Flags flags, HandleAtom atom,
                         gc::AllocKind allocKind /* = JSFunction::FinalizeKind */,
-                        NewObjectKind newKind /* = GenericObject */)
+                        NewObjectKind newKind /* = GenericObject */,
+                        HandleObject enclosingDynamicScope /* = NullPtr() */)
 {
-    return NewFunctionWithProto(cx, nullptr, nargs, flags, parent, atom, NullPtr(),
-                                allocKind, newKind);
+    return NewFunctionWithProto(cx, nullptr, nargs, flags,
+                                enclosingDynamicScope ? enclosingDynamicScope : cx->global(),
+                                atom, NullPtr(), allocKind, newKind);
 }
 
 JSFunction *
 js::NewFunctionWithProto(ExclusiveContext *cx, Native native,
-                         unsigned nargs, JSFunction::Flags flags, HandleObject parent,
+                         unsigned nargs, JSFunction::Flags flags, HandleObject enclosingDynamicScope,
                          HandleAtom atom, HandleObject proto,
                          gc::AllocKind allocKind /* = JSFunction::FinalizeKind */,
                          NewObjectKind newKind /* = GenericObject */)
@@ -2131,7 +2133,7 @@ js::NewFunctionWithProto(ExclusiveContext *cx, Native native,
     MOZ_ASSERT(allocKind == JSFunction::FinalizeKind || allocKind == JSFunction::ExtendedFinalizeKind);
     MOZ_ASSERT(sizeof(JSFunction) <= gc::Arena::thingSize(JSFunction::FinalizeKind));
     MOZ_ASSERT(sizeof(FunctionExtended) <= gc::Arena::thingSize(JSFunction::ExtendedFinalizeKind));
-    MOZ_ASSERT_IF(native, !parent);
+    MOZ_ASSERT_IF(native, !enclosingDynamicScope);
 
     RootedObject funobj(cx);
     // Don't mark asm.js module functions as singleton since they are
@@ -2139,8 +2141,11 @@ js::NewFunctionWithProto(ExclusiveContext *cx, Native native,
     // isSingleton implies isInterpreted.
     if (native && !IsAsmJSModuleNative(native))
         newKind = SingletonObject;
-    RootedObject realParent(cx, SkipScopeParent(parent));
-    funobj = NewObjectWithClassProto(cx, &JSFunction::class_, proto, realParent, allocKind,
+#ifdef DEBUG
+    RootedObject nonScopeParent(cx, SkipScopeParent(enclosingDynamicScope));
+    MOZ_ASSERT(!nonScopeParent || nonScopeParent == cx->global());
+#endif
+    funobj = NewObjectWithClassProto(cx, &JSFunction::class_, proto, allocKind,
                                      newKind);
     if (!funobj)
         return nullptr;
@@ -2156,7 +2161,7 @@ js::NewFunctionWithProto(ExclusiveContext *cx, Native native,
     if (fun->isInterpreted()) {
         MOZ_ASSERT(!native);
         fun->mutableScript().init(nullptr);
-        fun->initEnvironment(parent);
+        fun->initEnvironment(enclosingDynamicScope);
     } else {
         MOZ_ASSERT(fun->isNative());
         MOZ_ASSERT(native);
@@ -2199,8 +2204,16 @@ js::CloneFunctionObject(JSContext* cx, HandleFunction fun, HandleObject parent,
         if (!cloneProto)
             return nullptr;
     }
+#ifdef DEBUG
     RootedObject realParent(cx, SkipScopeParent(parent));
-    JSObject* cloneobj = NewObjectWithClassProto(cx, &JSFunction::class_, cloneProto, realParent,
+    // We'd like to assert that realParent is null-or-global, but
+    // js::ExecuteInGlobalAndReturnScope messes that up.  Assert that it's one
+    // of those or the unqualified var obj, since it should still be ok to
+    // parent to the global in that case.
+    MOZ_ASSERT(!realParent || realParent == cx->global() ||
+               realParent->isUnqualifiedVarObj());
+#endif
+    JSObject *cloneobj = NewObjectWithClassProto(cx, &JSFunction::class_, cloneProto,
                                                  allocKind, newKind);
     if (!cloneobj)
         return nullptr;
@@ -2324,8 +2337,8 @@ js::DefineFunction(JSContext* cx, HandleObject obj, HandleId id, Native native,
     RootedFunction fun(cx);
     if (!native)
         fun = NewScriptedFunction(cx, nargs,
-                                  JSFunction::INTERPRETED_LAZY, obj,
-                                  atom, allocKind, newKind);
+                                  JSFunction::INTERPRETED_LAZY, atom,
+                                  allocKind, newKind, obj);
     else if (flags & JSFUN_CONSTRUCTOR)
         fun = NewNativeConstructor(cx, native, nargs, atom, allocKind, newKind);
     else

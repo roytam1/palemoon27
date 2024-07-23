@@ -1099,10 +1099,10 @@ static inline gc::AllocKind
 NewObjectGCKind(const js::Class *clasp)
 {
     if (clasp == &ArrayObject::class_)
-        return gc::FINALIZE_OBJECT8;
+        return gc::AllocKind::OBJECT8;
     if (clasp == &JSFunction::class_)
-        return gc::FINALIZE_OBJECT2;
-    return gc::FINALIZE_OBJECT4;
+        return gc::AllocKind::OBJECT2;
+    return gc::AllocKind::OBJECT4;
 }
 
 static inline JSObject *
@@ -1411,7 +1411,7 @@ js::NewObjectWithGroupCommon(JSContext *cx, HandleObjectGroup group, HandleObjec
 {
     MOZ_ASSERT(parent);
 
-    MOZ_ASSERT(allocKind <= gc::FINALIZE_OBJECT_LAST);
+    MOZ_ASSERT(allocKind <= gc::AllocKind::OBJECT_LAST);
     if (CanBeFinalizedInBackground(allocKind, group->clasp()))
         allocKind = GetBackgroundAllocKind(allocKind);
 
@@ -1486,7 +1486,7 @@ CreateThisForFunctionWithGroup(JSContext *cx, HandleObjectGroup group,
     if (TypeNewScript *newScript = group->newScript()) {
         if (newScript->analyzed()) {
             // The definite properties analysis has been performed for this
-            // group, so get the shape and finalize kind to use from the
+            // group, so get the shape and alloc kind to use from the
             // TypeNewScript's template.
             RootedPlainObject templateObject(cx, newScript->templateObject());
             MOZ_ASSERT(templateObject->group() == group);
@@ -2467,7 +2467,7 @@ DefineConstructorAndPrototype(JSContext* cx, HandleObject obj, JSProtoKey key, H
          * (FIXME: remove this dependency on the exact identity of the parent,
          * perhaps as part of bug 638316.)
          */
-        RootedFunction fun(cx, NewFunction(cx, js::NullPtr(), constructor, nargs,
+        RootedFunction fun(cx, NewFunction(cx, constructor, nargs,
                                            JSFunction::NATIVE_CTOR, obj, atom, ctorKind));
         if (!fun)
             goto bad;

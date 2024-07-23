@@ -325,8 +325,8 @@ GlobalObject::initStarGenerators(JSContext* cx, Handle<GlobalObject*> global)
         return false;
     RootedObject proto(cx, &function.toObject());
     RootedAtom name(cx, cx->names().GeneratorFunction);
-    RootedObject genFunction(cx, NewFunctionWithProto(cx, NullPtr(), Generator, 1,
-                                                      JSFunction::NATIVE_CTOR, global, name,
+    RootedObject genFunction(cx, NewFunctionWithProto(cx, Generator, 1,
+                                                      JSFunction::NATIVE_CTOR, NullPtr(), name,
                                                       proto));
     if (!genFunction)
         return false;

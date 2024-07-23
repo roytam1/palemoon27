@@ -453,11 +453,11 @@ class JSFunction : public js::NativeObject
     }
 
 #if JS_BITS_PER_WORD == 32
-    static const js::gc::AllocKind FinalizeKind = js::gc::FINALIZE_OBJECT2_BACKGROUND;
-    static const js::gc::AllocKind ExtendedFinalizeKind = js::gc::FINALIZE_OBJECT4_BACKGROUND;
+    static const js::gc::AllocKind FinalizeKind = js::gc::AllocKind::OBJECT2_BACKGROUND;
+    static const js::gc::AllocKind ExtendedFinalizeKind = js::gc::AllocKind::OBJECT4_BACKGROUND;
 #else
-    static const js::gc::AllocKind FinalizeKind = js::gc::FINALIZE_OBJECT4_BACKGROUND;
-    static const js::gc::AllocKind ExtendedFinalizeKind = js::gc::FINALIZE_OBJECT8_BACKGROUND;
+    static const js::gc::AllocKind FinalizeKind = js::gc::AllocKind::OBJECT4_BACKGROUND;
+    static const js::gc::AllocKind ExtendedFinalizeKind = js::gc::AllocKind::OBJECT8_BACKGROUND;
 #endif
 
     inline void trace(JSTracer* trc);
@@ -527,20 +527,20 @@ JSAPIToJSFunctionFlags(unsigned flags)
 namespace js {
 
 extern bool
-Function(JSContext* cx, unsigned argc, Value* vp);
+Function(JSContext *cx, unsigned argc, Value *vp);
 
 extern bool
-Generator(JSContext* cx, unsigned argc, Value* vp);
+Generator(JSContext *cx, unsigned argc, Value *vp);
 
-extern JSFunction*
-NewFunction(ExclusiveContext* cx, HandleObject funobj, JSNative native, unsigned nargs,
+extern JSFunction *
+NewFunction(ExclusiveContext *cx, JSNative native, unsigned nargs,
             JSFunction::Flags flags, HandleObject parent, HandleAtom atom,
             gc::AllocKind allocKind = JSFunction::FinalizeKind,
             NewObjectKind newKind = GenericObject);
 
 // If proto is nullptr, Function.prototype is used instead.
-extern JSFunction*
-NewFunctionWithProto(ExclusiveContext* cx, HandleObject funobj, JSNative native, unsigned nargs,
+extern JSFunction *
+NewFunctionWithProto(ExclusiveContext *cx, JSNative native, unsigned nargs,
                      JSFunction::Flags flags, HandleObject parent, HandleAtom atom,
                      HandleObject proto, gc::AllocKind allocKind = JSFunction::FinalizeKind,
                      NewObjectKind newKind = GenericObject);

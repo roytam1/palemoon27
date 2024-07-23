@@ -1930,7 +1930,7 @@ UpdateExecutionObservabilityOfScriptsInZone(JSContext* cx, Zone* zone,
                     return false;
             }
         } else {
-            for (gc::ZoneCellIter iter(zone, gc::FINALIZE_SCRIPT); !iter.done(); iter.next()) {
+            for (gc::ZoneCellIter iter(zone, gc::AllocKind::SCRIPT); !iter.done(); iter.next()) {
                 JSScript *script = iter.get<JSScript>();
                 if (obs.shouldRecompileOrInvalidate(script) &&
                     !gc::IsScriptAboutToBeFinalized(&script))
@@ -5851,7 +5851,7 @@ DebuggerFrame_getArguments(JSContext* cx, unsigned argc, Value* vp)
         Rooted<jsid> id(cx);
         for (unsigned i = 0; i < fargc; i++) {
             RootedFunction getobj(cx);
-            getobj = NewFunction(cx, js::NullPtr(), DebuggerArguments_getArg, 0,
+            getobj = NewFunction(cx, DebuggerArguments_getArg, 0,
                                  JSFunction::NATIVE_FUN, global, js::NullPtr(),
                                  JSFunction::ExtendedFinalizeKind);
             if (!getobj)

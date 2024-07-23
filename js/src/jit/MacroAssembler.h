@@ -716,12 +716,12 @@ class MacroAssembler : public MacroAssemblerSpecific
     }
 
     template<typename T>
-    void loadFromTypedArray(Scalar::Type arrayType, const T& src, AnyRegister dest, Register temp, Label* fail,
-                            bool canonicalizeDoubles = true);
+    void loadFromTypedArray(Scalar::Type arrayType, const T &src, AnyRegister dest, Register temp, Label *fail,
+                            bool canonicalizeDoubles = true, unsigned numElems = 0);
 
     template<typename T>
-    void loadFromTypedArray(Scalar::Type arrayType, const T& src, const ValueOperand& dest, bool allowDouble,
-                            Register temp, Label* fail);
+    void loadFromTypedArray(Scalar::Type arrayType, const T &src, const ValueOperand &dest, bool allowDouble,
+                            Register temp, Label *fail);
 
     template<typename S, typename T>
     void storeToTypedIntArray(Scalar::Type arrayType, const S& value, const T& dest) {
@@ -745,15 +745,17 @@ class MacroAssembler : public MacroAssemblerSpecific
     }
 
     template<typename T>
-    void compareExchangeToTypedIntArray(Scalar::Type arrayType, const T& mem, Register oldval, Register newval,
+    void compareExchangeToTypedIntArray(Scalar::Type arrayType, const T &mem, Register oldval, Register newval,
                                         Register temp, AnyRegister output);
 
     template<typename S, typename T>
-    void atomicBinopToTypedIntArray(AtomicOp op, Scalar::Type arrayType, const S& value,
-                                    const T& mem, Register temp1, Register temp2, AnyRegister output);
+    void atomicBinopToTypedIntArray(AtomicOp op, Scalar::Type arrayType, const S &value,
+                                    const T &mem, Register temp1, Register temp2, AnyRegister output);
 
-    void storeToTypedFloatArray(Scalar::Type arrayType, FloatRegister value, const BaseIndex& dest);
-    void storeToTypedFloatArray(Scalar::Type arrayType, FloatRegister value, const Address& dest);
+    void storeToTypedFloatArray(Scalar::Type arrayType, FloatRegister value, const BaseIndex &dest,
+                                unsigned numElems = 0);
+    void storeToTypedFloatArray(Scalar::Type arrayType, FloatRegister value, const Address &dest,
+                                unsigned numElems = 0);
 
     // Load a property from an UnboxedPlainObject.
     template <typename T>

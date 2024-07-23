@@ -5830,7 +5830,10 @@ SetRuntimeOptions(JSRuntime* rt, const OptionParser& op)
     if (op.getBoolOption("ion-check-range-analysis"))
         jit::js_JitOptions.checkRangeAnalysis = true;
 
-    if (const char* str = op.getStringOption("ion-inlining")) {
+    if (op.getBoolOption("ion-extra-checks"))
+        jit::js_JitOptions.runExtraChecks = true;
+
+    if (const char *str = op.getStringOption("ion-inlining")) {
         if (strcmp(str, "on") == 0)
             jit::js_JitOptions.disableInlining = false;
         else if (strcmp(str, "off") == 0)
@@ -6132,6 +6135,8 @@ main(int argc, char** argv, char** envp)
                                "Loop unrolling (default: off, on to enable)")
         || !op.addBoolOption('\0', "ion-check-range-analysis",
                                "Range analysis checking")
+        || !op.addBoolOption('\0', "ion-extra-checks",
+                               "Perform extra dynamic validation checks")
         || !op.addStringOption('\0', "ion-inlining", "on/off",
                                "Inline methods where possible (default: on, off to disable)")
         || !op.addStringOption('\0', "ion-osr", "on/off",

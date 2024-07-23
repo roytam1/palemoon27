@@ -3929,7 +3929,7 @@ class ICGetPropNativeStub : public ICMonitoredStub
     uint32_t offset_;
 
   protected:
-    ICGetPropNativeStub(ICStub::Kind kind, JitCode* stubCode, ICStub* firstMonitorStub,
+    ICGetPropNativeStub(ICStub::Kind kind, JitCode *stubCode, ICStub *firstMonitorStub,
                         uint32_t offset);
 
   public:
@@ -3955,7 +3955,7 @@ class ICGetProp_Native : public ICGetPropNativeStub
     // Object shape (lastProperty).
     HeapPtrShape shape_;
 
-    ICGetProp_Native(JitCode* stubCode, ICStub* firstMonitorStub, Shape* shape,
+    ICGetProp_Native(JitCode *stubCode, ICStub *firstMonitorStub, Shape *shape,
                      uint32_t offset)
       : ICGetPropNativeStub(GetProp_Native, stubCode, firstMonitorStub, offset),
         shape_(shape)
@@ -3969,8 +3969,8 @@ class ICGetProp_Native : public ICGetPropNativeStub
         return offsetof(ICGetProp_Native, shape_);
     }
 
-    static ICGetProp_Native* Clone(ICStubSpace* space, ICStub* firstMonitorStub,
-                                   ICGetProp_Native& other);
+    static ICGetProp_Native *Clone(ICStubSpace *space, ICStub *firstMonitorStub,
+                                   ICGetProp_Native &other);
 };
 
 // Structure encapsulating the guarding that needs to be done on an object
@@ -5049,7 +5049,7 @@ class ICSetPropNativeAddCompiler : public ICStubCompiler
                     space, getStubCode(), oldGroup_, shapes, newShape, newGroup, offset_);
     }
 
-    ICUpdatedStub* getStub(ICStubSpace* space);
+    ICUpdatedStub *getStub(ICStubSpace *space);
 };
 
 class ICSetProp_Unboxed : public ICUpdatedStub
@@ -5221,8 +5221,8 @@ class ICSetPropCallSetter : public ICStub
     // PC of call, for profiler
     uint32_t pcOffset_;
 
-    ICSetPropCallSetter(Kind kind, JitCode* stubCode, ReceiverGuard::Token guard, JSObject* holder,
-                        Shape* holderShape, JSFunction* setter, uint32_t pcOffset);
+    ICSetPropCallSetter(Kind kind, JitCode *stubCode, ReceiverGuard::Token guard, JSObject *holder,
+                        Shape *holderShape, JSFunction *setter, uint32_t pcOffset);
 
   public:
     ReceiverGuard &guard() {

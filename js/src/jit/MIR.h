@@ -300,12 +300,13 @@ class AliasSet {
     enum Flag {
         None_             = 0,
         ObjectFields      = 1 << 0, // shape, class, slots, length etc.
-        Element           = 1 << 1, // A member of obj->elements, or reference
-                                    // typed object field.
-        DynamicSlot       = 1 << 2, // A member of obj->slots.
-        FixedSlot         = 1 << 3, // A member of obj->fixedSlots().
-        TypedArrayElement = 1 << 4, // A typed array element, or scalar typed
-                                    // object field.
+        Element           = 1 << 1, // A Value member of obj->elements or
+                                    // a typed object.
+        UnboxedElement    = 1 << 2, // An unboxed scalar or reference member of
+                                    // a typed array, typed object, or unboxed
+                                    // object.
+        DynamicSlot       = 1 << 3, // A Value member of obj->slots.
+        FixedSlot         = 1 << 4, // A Value member of obj->fixedSlots().
         DOMProperty       = 1 << 5, // A DOM property
         FrameArgument     = 1 << 6, // An argument kept on the stack frame
         AsmJSGlobalVar    = 1 << 7, // An asm.js global var
@@ -1808,12 +1809,6 @@ class MSimdSwizzle
   public:
     INSTRUCTION_HEADER(SimdSwizzle)
 
-    static MSimdSwizzle *NewAsmJS(TempAllocator &alloc, MDefinition *obj, MIRType type,
-                                  uint32_t laneX, uint32_t laneY, uint32_t laneZ, uint32_t laneW)
-    {
-        return new(alloc) MSimdSwizzle(obj, type, laneX, laneY, laneZ, laneW);
-    }
-
     static MSimdSwizzle *New(TempAllocator &alloc, MDefinition *obj, MIRType type,
                              uint32_t laneX, uint32_t laneY, uint32_t laneZ, uint32_t laneW)
     {
@@ -1836,23 +1831,24 @@ class MSimdSwizzle
     ALLOW_CLONE(MSimdSwizzle)
 };
 
-// A "general swizzle" is a swizzle with non-constant lane indices.  This is the
-// one that Ion inlines and it can be folded into a MSimdSwizzle if lane indices
-// are constant. Performance of general swizzle does not really matter, as we
-// expect to always get constant indices.
-class MSimdGeneralSwizzle :
-    public MAryInstruction<5>,
-    public SimdSwizzlePolicy::Data
+// A "general swizzle" is a swizzle or a shuffle with non-constant lane
+// indices.  This is the one that Ion inlines and it can be folded into a
+// MSimdSwizzle/MSimdShuffle if lane indices are constant.  Performance of
+// general swizzle/shuffle does not really matter, as we expect to get
+// constant indices most of the time.
+class MSimdGeneralShuffle :
+    public MVariadicInstruction,
+    public SimdShufflePolicy::Data
 {
+    unsigned numVectors_;
+    unsigned numLanes_;
+
   protected:
-    MSimdGeneralSwizzle(MDefinition *vec, MDefinition *lanes[4], MIRType type)
+    MSimdGeneralShuffle(unsigned numVectors, unsigned numLanes, MIRType type)
+      : numVectors_(numVectors), numLanes_(numLanes)
     {
         MOZ_ASSERT(IsSimdType(type));
-        MOZ_ASSERT(SimdTypeToLength(type) == 4);
-
-        initOperand(0, vec);
-        for (unsigned i = 0; i < 4; i++)
-            initOperand(1 + i, lanes[i]);
+        MOZ_ASSERT(SimdTypeToLength(type) == numLanes_);
 
         setResultType(type);
         specialization_ = type;
@@ -1860,24 +1856,48 @@ class MSimdGeneralSwizzle :
     }
 
   public:
-    INSTRUCTION_HEADER(SimdGeneralSwizzle);
-    ALLOW_CLONE(MSimdGeneralSwizzle);
+    INSTRUCTION_HEADER(SimdGeneralShuffle);
 
-    static MSimdGeneralSwizzle *New(TempAllocator &alloc, MDefinition *vec, MDefinition *lanes[4],
+    static MSimdGeneralShuffle *New(TempAllocator &alloc, unsigned numVectors, unsigned numLanes,
                                     MIRType type)
     {
-        return new(alloc) MSimdGeneralSwizzle(vec, lanes, type);
+        return new(alloc) MSimdGeneralShuffle(numVectors, numLanes, type);
     }
 
-    MDefinition *input() const {
-        return getOperand(0);
+    bool init(TempAllocator &alloc) {
+        return MVariadicInstruction::init(alloc, numVectors_ + numLanes_);
     }
-    MDefinition *lane(size_t i) const {
-        return getOperand(1 + i);
+    void setVector(unsigned i, MDefinition* vec) {
+        MOZ_ASSERT(i < numVectors_);
+        initOperand(i, vec);
+    }
+    void setLane(unsigned i, MDefinition* laneIndex) {
+        MOZ_ASSERT(i < numLanes_);
+        initOperand(numVectors_ + i, laneIndex);
+    }
+
+    unsigned numVectors() const {
+        return numVectors_;
+    }
+    unsigned numLanes() const {
+        return numLanes_;
+    }
+    MDefinition *vector(unsigned i) const {
+        MOZ_ASSERT(i < numVectors_);
+        return getOperand(i);
+    }
+    MDefinition *lane(unsigned i) const {
+        MOZ_ASSERT(i < numLanes_);
+        return getOperand(numVectors_ + i);
     }
 
     bool congruentTo(const MDefinition *ins) const MOZ_OVERRIDE {
-        return congruentIfOperandsEqual(ins);
+        if (!ins->isSimdGeneralShuffle())
+            return false;
+        const MSimdGeneralShuffle *other = ins->toSimdGeneralShuffle();
+        return numVectors_ == other->numVectors() &&
+               numLanes_ == other->numLanes() &&
+               congruentIfOperandsEqual(other);
     }
 
     MDefinition *foldsTo(TempAllocator &alloc) MOZ_OVERRIDE;
@@ -1912,9 +1932,9 @@ class MSimdShuffle
   public:
     INSTRUCTION_HEADER(SimdShuffle)
 
-    static MInstruction *NewAsmJS(TempAllocator &alloc, MDefinition *lhs, MDefinition *rhs,
-                                  MIRType type, uint32_t laneX, uint32_t laneY, uint32_t laneZ,
-                                  uint32_t laneW)
+    static MInstruction *New(TempAllocator &alloc, MDefinition *lhs, MDefinition *rhs,
+                             MIRType type, uint32_t laneX, uint32_t laneY, uint32_t laneZ,
+                             uint32_t laneW)
     {
         // Swap operands so that new lanes come from LHS in majority.
         // In the balanced case, swap operands if needs be, in order to be able
@@ -1930,7 +1950,7 @@ class MSimdShuffle
 
         // If all lanes come from the same vector, just use swizzle instead.
         if (laneX < 4 && laneY < 4 && laneZ < 4 && laneW < 4)
-            return MSimdSwizzle::NewAsmJS(alloc, lhs, type, laneX, laneY, laneZ, laneW);
+            return MSimdSwizzle::New(alloc, lhs, type, laneX, laneY, laneZ, laneW);
 
         return new(alloc) MSimdShuffle(lhs, rhs, type, laneX, laneY, laneZ, laneW);
     }
@@ -8293,7 +8313,7 @@ class MLoadUnboxedObjectOrNull
         return congruentIfOperandsEqual(other);
     }
     AliasSet getAliasSet() const MOZ_OVERRIDE {
-        return AliasSet::Load(AliasSet::Element);
+        return AliasSet::Load(AliasSet::UnboxedElement);
     }
 
     ALLOW_CLONE(MLoadUnboxedObjectOrNull)
@@ -8342,7 +8362,7 @@ class MLoadUnboxedString
         return congruentIfOperandsEqual(ins);
     }
     AliasSet getAliasSet() const MOZ_OVERRIDE {
-        return AliasSet::Load(AliasSet::Element);
+        return AliasSet::Load(AliasSet::UnboxedElement);
     }
 
     ALLOW_CLONE(MLoadUnboxedString)
@@ -8352,13 +8372,11 @@ class MStoreElementCommon
 {
     MIRType elementType_;
     bool needsBarrier_;
-    bool racy_; // if true, exempted from normal data race req. during par. exec.
 
   protected:
     MStoreElementCommon()
       : elementType_(MIRType_Value),
-        needsBarrier_(false),
-        racy_(false)
+        needsBarrier_(false)
     { }
 
   public:
@@ -8374,12 +8392,6 @@ class MStoreElementCommon
     }
     void setNeedsBarrier() {
         needsBarrier_ = true;
-    }
-    bool racy() const {
-        return racy_;
-    }
-    void setRacy() {
-        racy_ = true;
     }
 };
 
@@ -8531,8 +8543,7 @@ class MStoreUnboxedObjectOrNull
         return offsetAdjustment_;
     }
     AliasSet getAliasSet() const MOZ_OVERRIDE {
-        // Use AliasSet::Element for reference typed object fields.
-        return AliasSet::Store(AliasSet::Element);
+        return AliasSet::Store(AliasSet::UnboxedElement);
     }
 
     // For StoreUnboxedObjectOrNullPolicy.
@@ -8582,8 +8593,7 @@ class MStoreUnboxedString
         return offsetAdjustment_;
     }
     AliasSet getAliasSet() const MOZ_OVERRIDE {
-        // Use AliasSet::Element for reference typed object fields.
-        return AliasSet::Store(AliasSet::Element);
+        return AliasSet::Store(AliasSet::UnboxedElement);
     }
 
     ALLOW_CLONE(MStoreUnboxedString)
@@ -8808,22 +8818,25 @@ enum MemoryBarrierRequirement
 
 // Also see comments above MMemoryBarrier, below.
 
-class MLoadTypedArrayElement
+// Load an unboxed scalar value from a typed array or other object.
+class MLoadUnboxedScalar
   : public MBinaryInstruction,
     public SingleObjectPolicy::Data
 {
-    Scalar::Type arrayType_;
+    Scalar::Type indexType_;
     Scalar::Type readType_;
+    unsigned numElems_; // used only for SIMD
     bool requiresBarrier_;
     int32_t offsetAdjustment_;
     bool canonicalizeDoubles_;
 
-    MLoadTypedArrayElement(MDefinition *elements, MDefinition *index,
-                           Scalar::Type arrayType, MemoryBarrierRequirement requiresBarrier,
-                           int32_t offsetAdjustment, bool canonicalizeDoubles)
+    MLoadUnboxedScalar(MDefinition *elements, MDefinition *index,
+                       Scalar::Type indexType, MemoryBarrierRequirement requiresBarrier,
+                       int32_t offsetAdjustment, bool canonicalizeDoubles)
       : MBinaryInstruction(elements, index),
-        arrayType_(arrayType),
-        readType_(arrayType),
+        indexType_(indexType),
+        readType_(indexType),
+        numElems_(1),
         requiresBarrier_(requiresBarrier == DoesRequireMemoryBarrier),
         offsetAdjustment_(offsetAdjustment),
         canonicalizeDoubles_(canonicalizeDoubles)
@@ -8835,36 +8848,41 @@ class MLoadTypedArrayElement
             setMovable();
         MOZ_ASSERT(IsValidElementsType(elements, offsetAdjustment));
         MOZ_ASSERT(index->type() == MIRType_Int32);
-        MOZ_ASSERT(arrayType >= 0 && arrayType < Scalar::MaxTypedArrayViewType);
+        MOZ_ASSERT(indexType >= 0 && indexType < Scalar::MaxTypedArrayViewType);
     }
 
   public:
-    INSTRUCTION_HEADER(LoadTypedArrayElement)
+    INSTRUCTION_HEADER(LoadUnboxedScalar)
 
-    static MLoadTypedArrayElement *New(TempAllocator &alloc, MDefinition *elements, MDefinition *index,
-                                       Scalar::Type arrayType,
-                                       MemoryBarrierRequirement requiresBarrier=DoesNotRequireMemoryBarrier,
-                                       int32_t offsetAdjustment = 0,
-                                       bool canonicalizeDoubles = true)
+    static MLoadUnboxedScalar *New(TempAllocator &alloc, MDefinition *elements, MDefinition *index,
+                                   Scalar::Type indexType,
+                                   MemoryBarrierRequirement requiresBarrier
+                                       = DoesNotRequireMemoryBarrier,
+                                   int32_t offsetAdjustment = 0,
+                                   bool canonicalizeDoubles = true)
     {
-        return new(alloc) MLoadTypedArrayElement(elements, index, arrayType,
-                                                 requiresBarrier, offsetAdjustment,
-                                                 canonicalizeDoubles);
+        return new(alloc) MLoadUnboxedScalar(elements, index, indexType,
+                                             requiresBarrier, offsetAdjustment,
+                                             canonicalizeDoubles);
     }
 
-    void setReadType(Scalar::Type type) {
+    void setSimdRead(Scalar::Type type, unsigned numElems) {
         readType_ = type;
+        numElems_ = numElems;
+    }
+    unsigned numElems() const {
+        return numElems_;
     }
     Scalar::Type readType() const {
         return readType_;
     }
 
-    Scalar::Type arrayType() const {
-        return arrayType_;
+    Scalar::Type indexType() const {
+        return indexType_;
     }
     bool fallible() const {
         // Bailout if the result does not fit in an int32.
-        return arrayType_ == Scalar::Uint32 && type() == MIRType_Int32;
+        return readType_ == Scalar::Uint32 && type() == MIRType_Int32;
     }
     bool requiresMemoryBarrier() const {
         return requiresBarrier_;
@@ -8885,19 +8903,21 @@ class MLoadTypedArrayElement
         // When a barrier is needed make the instruction effectful by
         // giving it a "store" effect.
         if (requiresBarrier_)
-            return AliasSet::Store(AliasSet::TypedArrayElement);
-        return AliasSet::Load(AliasSet::TypedArrayElement);
+            return AliasSet::Store(AliasSet::UnboxedElement);
+        return AliasSet::Load(AliasSet::UnboxedElement);
     }
 
     bool congruentTo(const MDefinition *ins) const MOZ_OVERRIDE {
         if (requiresBarrier_)
             return false;
-        if (!ins->isLoadTypedArrayElement())
+        if (!ins->isLoadUnboxedScalar())
             return false;
-        const MLoadTypedArrayElement *other = ins->toLoadTypedArrayElement();
-        if (arrayType_ != other->arrayType_)
+        const MLoadUnboxedScalar *other = ins->toLoadUnboxedScalar();
+        if (indexType_ != other->indexType_)
             return false;
         if (readType_ != other->readType_)
+            return false;
+        if (numElems_ != other->numElems_)
             return false;
         if (offsetAdjustment() != other->offsetAdjustment())
             return false;
@@ -8910,9 +8930,9 @@ class MLoadTypedArrayElement
 
     void computeRange(TempAllocator &alloc) override;
 
-    bool canProduceFloat32() const MOZ_OVERRIDE { return arrayType_ == Scalar::Float32; }
+    bool canProduceFloat32() const MOZ_OVERRIDE { return indexType_ == Scalar::Float32; }
 
-    ALLOW_CLONE(MLoadTypedArrayElement)
+    ALLOW_CLONE(MLoadUnboxedScalar)
 };
 
 // Load a value from a typed array. Out-of-bounds accesses are handled in-line.
@@ -8967,7 +8987,7 @@ class MLoadTypedArrayElementHole
         return congruentIfOperandsEqual(other);
     }
     AliasSet getAliasSet() const MOZ_OVERRIDE {
-        return AliasSet::Load(AliasSet::TypedArrayElement);
+        return AliasSet::Load(AliasSet::UnboxedElement);
     }
     bool canProduceFloat32() const MOZ_OVERRIDE { return arrayType_ == Scalar::Float32; }
 
@@ -9023,7 +9043,7 @@ class MLoadTypedArrayElementStatic
     void setOffset(int32_t offset) { offset_ = offset; }
     bool congruentTo(const MDefinition* ins) const MOZ_OVERRIDE;
     AliasSet getAliasSet() const MOZ_OVERRIDE {
-        return AliasSet::Load(AliasSet::TypedArrayElement);
+        return AliasSet::Load(AliasSet::UnboxedElement);
     }
 
     bool needsBoundsCheck() const { return needsBoundsCheck_; }
@@ -9043,13 +9063,13 @@ class MLoadTypedArrayElementStatic
     void collectRangeInfoPreTrunc() MOZ_OVERRIDE;
 };
 
-// Base class for MIR ops that write to typed arrays.
-class StoreTypedArrayBase
+// Base class for MIR ops that write unboxed scalar values.
+class StoreUnboxedScalarBase
 {
     Scalar::Type writeType_;
 
   protected:
-    explicit StoreTypedArrayBase(Scalar::Type writeType)
+    explicit StoreUnboxedScalarBase(Scalar::Type writeType)
       : writeType_(writeType)
     {
         MOZ_ASSERT(isIntegerWrite() || isFloatWrite() || isSimdWrite());
@@ -9083,27 +9103,26 @@ class StoreTypedArrayBase
     }
 };
 
-class MStoreTypedArrayElement
+// Store an unboxed scalar value to a typed array or other object.
+class MStoreUnboxedScalar
   : public MTernaryInstruction,
-    public StoreTypedArrayBase,
-    public StoreTypedArrayPolicy::Data
+    public StoreUnboxedScalarBase,
+    public StoreUnboxedScalarPolicy::Data
 {
-    Scalar::Type arrayType_;
+    Scalar::Type indexType_;
     bool requiresBarrier_;
     int32_t offsetAdjustment_;
+    unsigned numElems_; // used only for SIMD
 
-    // See note in MStoreElementCommon.
-    bool racy_;
-
-    MStoreTypedArrayElement(MDefinition* elements, MDefinition* index, MDefinition* value,
-                            Scalar::Type arrayType, MemoryBarrierRequirement requiresBarrier,
-                            int32_t offsetAdjustment)
+    MStoreUnboxedScalar(MDefinition *elements, MDefinition *index, MDefinition *value,
+                        Scalar::Type indexType, MemoryBarrierRequirement requiresBarrier,
+                        int32_t offsetAdjustment)
       : MTernaryInstruction(elements, index, value),
-        StoreTypedArrayBase(arrayType),
-        arrayType_(arrayType),
+        StoreUnboxedScalarBase(indexType),
+        indexType_(indexType),
         requiresBarrier_(requiresBarrier == DoesRequireMemoryBarrier),
         offsetAdjustment_(offsetAdjustment),
-        racy_(false)
+        numElems_(1)
     {
         if (requiresBarrier_)
             setGuard();         // Not removable or movable
@@ -9111,23 +9130,33 @@ class MStoreTypedArrayElement
             setMovable();
         MOZ_ASSERT(IsValidElementsType(elements, offsetAdjustment));
         MOZ_ASSERT(index->type() == MIRType_Int32);
-        MOZ_ASSERT(arrayType >= 0 && arrayType < Scalar::MaxTypedArrayViewType);
+        MOZ_ASSERT(indexType >= 0 && indexType < Scalar::MaxTypedArrayViewType);
     }
 
   public:
-    INSTRUCTION_HEADER(StoreTypedArrayElement)
+    INSTRUCTION_HEADER(StoreUnboxedScalar)
 
-    static MStoreTypedArrayElement *New(TempAllocator &alloc, MDefinition *elements, MDefinition *index,
-                                        MDefinition *value, Scalar::Type arrayType,
-                                        MemoryBarrierRequirement requiresBarrier = DoesNotRequireMemoryBarrier,
-                                        int32_t offsetAdjustment = 0)
+    static MStoreUnboxedScalar *New(TempAllocator &alloc,
+                                    MDefinition *elements, MDefinition *index,
+                                    MDefinition *value, Scalar::Type indexType,
+                                    MemoryBarrierRequirement requiresBarrier =
+                                        DoesNotRequireMemoryBarrier,
+                                    int32_t offsetAdjustment = 0)
     {
-        return new(alloc) MStoreTypedArrayElement(elements, index, value, arrayType,
-                                                  requiresBarrier, offsetAdjustment);
+        return new(alloc) MStoreUnboxedScalar(elements, index, value, indexType,
+                                              requiresBarrier, offsetAdjustment);
     }
 
-    Scalar::Type arrayType() const {
-        return arrayType_;
+    void setSimdWrite(Scalar::Type writeType, unsigned numElems) {
+        MOZ_ASSERT(Scalar::isSimdType(writeType));
+        setWriteType(writeType);
+        numElems_ = numElems;
+    }
+    unsigned numElems() const {
+        return numElems_;
+    }
+    Scalar::Type indexType() const {
+        return indexType_;
     }
     MDefinition *elements() const {
         return getOperand(0);
@@ -9139,7 +9168,7 @@ class MStoreTypedArrayElement
         return getOperand(2);
     }
     AliasSet getAliasSet() const MOZ_OVERRIDE {
-        return AliasSet::Store(AliasSet::TypedArrayElement);
+        return AliasSet::Store(AliasSet::UnboxedElement);
     }
     bool requiresMemoryBarrier() const {
         return requiresBarrier_;
@@ -9147,30 +9176,24 @@ class MStoreTypedArrayElement
     int32_t offsetAdjustment() const {
         return offsetAdjustment_;
     }
-    bool racy() const {
-        return racy_;
-    }
-    void setRacy() {
-        racy_ = true;
-    }
     TruncateKind operandTruncateKind(size_t index) const MOZ_OVERRIDE;
 
-    bool canConsumeFloat32(MUse* use) const MOZ_OVERRIDE {
-        return use == getUseFor(2) && arrayType_ == Scalar::Float32;
+    bool canConsumeFloat32(MUse *use) const MOZ_OVERRIDE {
+        return use == getUseFor(2) && writeType() == Scalar::Float32;
     }
 
-    ALLOW_CLONE(MStoreTypedArrayElement)
+    ALLOW_CLONE(MStoreUnboxedScalar)
 };
 
 class MStoreTypedArrayElementHole
   : public MAryInstruction<4>,
-    public StoreTypedArrayBase,
+    public StoreUnboxedScalarBase,
     public StoreTypedArrayHolePolicy::Data
 {
     MStoreTypedArrayElementHole(MDefinition* elements, MDefinition* length, MDefinition* index,
                                 MDefinition* value, Scalar::Type arrayType)
       : MAryInstruction<4>(),
-        StoreTypedArrayBase(arrayType)
+        StoreUnboxedScalarBase(arrayType)
     {
         initOperand(0, elements);
         initOperand(1, length);
@@ -9211,7 +9234,7 @@ class MStoreTypedArrayElementHole
         return getOperand(3);
     }
     AliasSet getAliasSet() const MOZ_OVERRIDE {
-        return AliasSet::Store(AliasSet::TypedArrayElement);
+        return AliasSet::Store(AliasSet::UnboxedElement);
     }
     TruncateKind operandTruncateKind(size_t index) const MOZ_OVERRIDE;
 
@@ -9225,13 +9248,13 @@ class MStoreTypedArrayElementHole
 // Store a value infallibly to a statically known typed array.
 class MStoreTypedArrayElementStatic :
     public MBinaryInstruction,
-    public StoreTypedArrayBase,
+    public StoreUnboxedScalarBase,
     public StoreTypedArrayElementStaticPolicy::Data
 {
     MStoreTypedArrayElementStatic(JSObject *someTypedArray, MDefinition *ptr, MDefinition *v,
                                   int32_t offset, bool needsBoundsCheck)
         : MBinaryInstruction(ptr, v),
-          StoreTypedArrayBase(AnyTypedArrayType(someTypedArray)),
+          StoreUnboxedScalarBase(AnyTypedArrayType(someTypedArray)),
           someTypedArray_(someTypedArray),
           offset_(offset), needsBoundsCheck_(needsBoundsCheck)
     {}
@@ -9270,7 +9293,7 @@ class MStoreTypedArrayElementStatic :
     int32_t offset() const { return offset_; }
     void setOffset(int32_t offset) { offset_ = offset; }
     AliasSet getAliasSet() const MOZ_OVERRIDE {
-        return AliasSet::Store(AliasSet::TypedArrayElement);
+        return AliasSet::Store(AliasSet::UnboxedElement);
     }
     TruncateKind operandTruncateKind(size_t index) const MOZ_OVERRIDE;
 
@@ -9695,8 +9718,10 @@ class MGetPropertyPolymorphic
         return getOperand(0);
     }
     AliasSet getAliasSet() const MOZ_OVERRIDE {
-        return AliasSet::Load(AliasSet::ObjectFields | AliasSet::FixedSlot | AliasSet::DynamicSlot |
-                              (unboxedGroups_.empty() ? 0 : (AliasSet::TypedArrayElement | AliasSet::Element)));
+        return AliasSet::Load(AliasSet::ObjectFields |
+                              AliasSet::FixedSlot |
+                              AliasSet::DynamicSlot |
+                              (!unboxedGroups_.empty() ? AliasSet::UnboxedElement : 0));
     }
 
     bool mightAlias(const MDefinition* store) const MOZ_OVERRIDE;
@@ -9779,8 +9804,10 @@ class MSetPropertyPolymorphic
         needsBarrier_ = true;
     }
     AliasSet getAliasSet() const MOZ_OVERRIDE {
-        return AliasSet::Store(AliasSet::ObjectFields | AliasSet::FixedSlot | AliasSet::DynamicSlot |
-                               (unboxedGroups_.empty() ? 0 : (AliasSet::TypedArrayElement | AliasSet::Element)));
+        return AliasSet::Store(AliasSet::ObjectFields |
+                               AliasSet::FixedSlot |
+                               AliasSet::DynamicSlot |
+                               (!unboxedGroups_.empty() ? AliasSet::UnboxedElement : 0));
     }
 };
 
@@ -10131,11 +10158,11 @@ class MGuardObjectGroup
   : public MUnaryInstruction,
     public SingleObjectPolicy::Data
 {
-    AlwaysTenured<ObjectGroup*> group_;
+    AlwaysTenured<ObjectGroup *> group_;
     bool bailOnEquality_;
     BailoutKind bailoutKind_;
 
-    MGuardObjectGroup(MDefinition* obj, ObjectGroup* group, bool bailOnEquality,
+    MGuardObjectGroup(MDefinition *obj, ObjectGroup *group, bool bailOnEquality,
                       BailoutKind bailoutKind)
       : MUnaryInstruction(obj),
         group_(group),
@@ -10154,15 +10181,15 @@ class MGuardObjectGroup
   public:
     INSTRUCTION_HEADER(GuardObjectGroup)
 
-    static MGuardObjectGroup* New(TempAllocator& alloc, MDefinition* obj, ObjectGroup* group,
+    static MGuardObjectGroup *New(TempAllocator &alloc, MDefinition *obj, ObjectGroup *group,
                                   bool bailOnEquality, BailoutKind bailoutKind) {
         return new(alloc) MGuardObjectGroup(obj, group, bailOnEquality, bailoutKind);
     }
 
-    MDefinition* obj() const {
+    MDefinition *obj() const {
         return getOperand(0);
     }
-    const ObjectGroup* group() const {
+    const ObjectGroup *group() const {
         return group_;
     }
     bool bailOnEquality() const {
@@ -10171,7 +10198,7 @@ class MGuardObjectGroup
     BailoutKind bailoutKind() const {
         return bailoutKind_;
     }
-    bool congruentTo(const MDefinition* ins) const MOZ_OVERRIDE {
+    bool congruentTo(const MDefinition *ins) const MOZ_OVERRIDE {
         if (!ins->isGuardObjectGroup())
             return false;
         if (group() != ins->toGuardObjectGroup()->group())
@@ -12200,8 +12227,8 @@ class MRecompileCheck : public MNullaryInstruction
 };
 
 // All barriered operations - MMemoryBarrier, MCompareExchangeTypedArrayElement,
-// and MAtomicTypedArrayElementBinop, as well as MLoadTypedArrayElement and
-// MStoreTypedArrayElement when they are marked as requiring a memory barrer - have
+// and MAtomicTypedArrayElementBinop, as well as MLoadUnboxedScalar and
+// MStoreUnboxedSclaar when they are marked as requiring a memory barrer - have
 // the following attributes:
 //
 // - Not movable
@@ -12238,7 +12265,7 @@ class MMemoryBarrier
     }
 
     AliasSet getAliasSet() const MOZ_OVERRIDE {
-        return AliasSet::Store(AliasSet::TypedArrayElement);
+        return AliasSet::Store(AliasSet::UnboxedElement);
     }
 };
 
@@ -12293,7 +12320,7 @@ class MCompareExchangeTypedArrayElement
         return arrayType_;
     }
     AliasSet getAliasSet() const MOZ_OVERRIDE {
-        return AliasSet::Store(AliasSet::TypedArrayElement);
+        return AliasSet::Store(AliasSet::UnboxedElement);
     }
 };
 
@@ -12348,7 +12375,7 @@ class MAtomicTypedArrayElementBinop
         return getOperand(2);
     }
     AliasSet getAliasSet() const MOZ_OVERRIDE {
-        return AliasSet::Store(AliasSet::TypedArrayElement);
+        return AliasSet::Store(AliasSet::UnboxedElement);
     }
 };
 

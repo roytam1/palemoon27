@@ -46,17 +46,15 @@ class LIRGenerator : public LIRGeneratorSpecific
 
   private:
 
-    void useBoxAtStart(LInstruction* lir, size_t n, MDefinition* mir,
-                       LUse::Policy policy = LUse::REGISTER) {
-        return useBox(lir, n, mir, policy, true);
-    }
+    void useBoxAtStart(LInstruction *lir, size_t n, MDefinition *mir,
+                       LUse::Policy policy = LUse::REGISTER);
 
-    void lowerBitOp(JSOp op, MInstruction* ins);
-    void lowerShiftOp(JSOp op, MShiftInstruction* ins);
-    void lowerBinaryV(JSOp op, MBinaryInstruction* ins);
+    void lowerBitOp(JSOp op, MInstruction *ins);
+    void lowerShiftOp(JSOp op, MShiftInstruction *ins);
+    void lowerBinaryV(JSOp op, MBinaryInstruction *ins);
     void definePhis();
 
-    void lowerCallArguments(MCall* call);
+    void lowerCallArguments(MCall *call);
 
   public:
     bool visitInstruction(MInstruction* ins);
@@ -203,10 +201,10 @@ class LIRGenerator : public LIRGeneratorSpecific
     void visitArrayPush(MArrayPush *ins);
     void visitArrayConcat(MArrayConcat *ins);
     void visitArrayJoin(MArrayJoin *ins);
-    void visitLoadTypedArrayElement(MLoadTypedArrayElement *ins);
+    void visitLoadUnboxedScalar(MLoadUnboxedScalar *ins);
     void visitLoadTypedArrayElementHole(MLoadTypedArrayElementHole *ins);
     void visitLoadTypedArrayElementStatic(MLoadTypedArrayElementStatic *ins);
-    void visitStoreTypedArrayElement(MStoreTypedArrayElement *ins);
+    void visitStoreUnboxedScalar(MStoreUnboxedScalar *ins);
     void visitStoreTypedArrayElementHole(MStoreTypedArrayElementHole *ins);
     void visitClampToUint8(MClampToUint8 *ins);
     void visitLoadFixedSlot(MLoadFixedSlot *ins);
@@ -271,7 +269,7 @@ class LIRGenerator : public LIRGeneratorSpecific
     void visitSimdInsertElement(MSimdInsertElement *ins);
     void visitSimdSignMask(MSimdSignMask *ins);
     void visitSimdSwizzle(MSimdSwizzle *ins);
-    void visitSimdGeneralSwizzle(MSimdGeneralSwizzle *ins);
+    void visitSimdGeneralShuffle(MSimdGeneralShuffle *ins);
     void visitSimdShuffle(MSimdShuffle *ins);
     void visitSimdUnaryArith(MSimdUnaryArith *ins);
     void visitSimdBinaryComp(MSimdBinaryComp *ins);

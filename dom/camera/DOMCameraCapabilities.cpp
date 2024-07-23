@@ -95,9 +95,9 @@ NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(CameraRecorderVideoProfile)
 NS_INTERFACE_MAP_END
 
 JSObject*
-CameraRecorderVideoProfile::WrapObject(JSContext* aCx)
+CameraRecorderVideoProfile::WrapObject(JSContext* aCx, JS::Handle<JSObject*> aGivenProto)
 {
-  return CameraRecorderVideoProfileBinding::Wrap(aCx, this);
+  return CameraRecorderVideoProfileBinding::Wrap(aCx, this, aGivenProto);
 }
 
 CameraRecorderVideoProfile::CameraRecorderVideoProfile(nsISupports* aParent,
@@ -135,9 +135,9 @@ NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(CameraRecorderAudioProfile)
 NS_INTERFACE_MAP_END
 
 JSObject*
-CameraRecorderAudioProfile::WrapObject(JSContext* aCx)
+CameraRecorderAudioProfile::WrapObject(JSContext* aCx, JS::Handle<JSObject*> aGivenProto)
 {
-  return CameraRecorderAudioProfileBinding::Wrap(aCx, this);
+  return CameraRecorderAudioProfileBinding::Wrap(aCx, this, aGivenProto);
 }
 
 CameraRecorderAudioProfile::CameraRecorderAudioProfile(nsISupports* aParent,
@@ -175,9 +175,9 @@ NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(CameraRecorderProfile)
 NS_INTERFACE_MAP_END
 
 JSObject*
-CameraRecorderProfile::WrapObject(JSContext* aCx)
+CameraRecorderProfile::WrapObject(JSContext* aCx, JS::Handle<JSObject*> aGivenProto)
 {
-  return CameraRecorderProfileBinding::Wrap(aCx, this);
+  return CameraRecorderProfileBinding::Wrap(aCx, this, aGivenProto);
 }
 
 CameraRecorderProfile::CameraRecorderProfile(nsISupports* aParent,
@@ -217,9 +217,9 @@ NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(CameraRecorderProfiles)
 NS_INTERFACE_MAP_END
 
 JSObject*
-CameraRecorderProfiles::WrapObject(JSContext* aCx)
+CameraRecorderProfiles::WrapObject(JSContext* aCx, JS::Handle<JSObject*> aGivenProto)
 {
-  return CameraRecorderProfilesBinding::Wrap(aCx, this);
+  return CameraRecorderProfilesBinding::Wrap(aCx, this, aGivenProto);
 }
 
 CameraRecorderProfiles::CameraRecorderProfiles(nsISupports* aParent,
@@ -350,9 +350,9 @@ CameraCapabilities::OnHardwareClosed()
 }
 
 JSObject*
-CameraCapabilities::WrapObject(JSContext* aCx)
+CameraCapabilities::WrapObject(JSContext* aCx, JS::Handle<JSObject*> aGivenProto)
 {
-  return CameraCapabilitiesBinding::Wrap(aCx, this);
+  return CameraCapabilitiesBinding::Wrap(aCx, this, aGivenProto);
 }
 
 #define LOG_IF_ERROR(rv, param)                               \

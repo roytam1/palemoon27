@@ -21,10 +21,6 @@ namespace mozilla {
 
 class ErrorResult;
 
-namespace ipc {
-  class IProtocol;
-}
-
 namespace dom {
 
 class OwningRequestOrUSVString;
@@ -39,10 +35,8 @@ namespace cache {
 
 class CacheChild;
 class PCacheRequest;
-class PCacheRequestOrVoid;
 class PCacheResponse;
 class PCacheResponseOrVoid;
-class PCacheStreamControlChild;
 
 class Cache MOZ_FINAL : public PromiseNativeHandler
                       , public nsWrapperCache
@@ -77,7 +71,7 @@ public:
   static bool PrefEnabled(JSContext* aCx, JSObject* aObj);
 
   nsISupports* GetParentObject() const;
-  virtual JSObject* WrapObject(JSContext* aContext) MOZ_OVERRIDE;
+  virtual JSObject* WrapObject(JSContext* aContext, JS::Handle<JSObject*> aGivenProto) MOZ_OVERRIDE;
 
   // Called when CacheChild actor is being destroyed
   void DestroyInternal(CacheChild* aActor);
@@ -112,6 +106,9 @@ public:
 
 private:
   ~Cache();
+
+  // Called when we're destroyed or CCed.
+  void DisconnectFromActor();
 
   // TODO: Replace with actor-per-request model during refactor (bug 1110485)
   RequestId AddRequestPromise(Promise* aPromise, ErrorResult& aRv);

@@ -74,7 +74,7 @@ public:
 protected:
   virtual ~HTMLLabelElement();
 
-  virtual JSObject* WrapNode(JSContext *aCx) override;
+  virtual JSObject* WrapNode(JSContext *aCx, JS::Handle<JSObject*> aGivenProto) override;
 
   nsGenericHTMLElement* GetFirstLabelableDescendant() const;
 

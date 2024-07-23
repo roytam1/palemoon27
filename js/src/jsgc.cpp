@@ -1084,6 +1084,7 @@ GCRuntime::GCRuntime(JSRuntime* rt) :
     numActiveZoneIters(0),
     decommitThreshold(32 * 1024 * 1024),
     cleanUpEverything(false),
+    grayBufferState(GCRuntime::GrayBufferState::Unused),
     grayBitsValid(false),
     majorGCTriggerReason(JS::gcreason::NO_REASON),
     minorGCTriggerReason(JS::gcreason::NO_REASON),
@@ -3980,7 +3981,7 @@ GCRuntime::beginMarkPhase(JS::gcreason::Reason reason)
 
     marker.start();
     MOZ_ASSERT(!marker.callback);
-    MOZ_ASSERT(IS_GC_MARKING_TRACER(&marker));
+    MOZ_ASSERT(IsMarkingTracer(&marker));
 
     /* For non-incremental GC the following sweep discards the jit code. */
     if (isIncremental) {
@@ -4034,8 +4035,10 @@ GCRuntime::beginMarkPhase(JS::gcreason::Reason reason)
 
     gcstats::AutoPhase ap2(stats, gcstats::PHASE_MARK_ROOTS);
 
-    if (isIncremental)
+    if (isIncremental) {
+        gcstats::AutoPhase ap3(stats, gcstats::PHASE_BUFFER_GRAY_ROOTS);
         bufferGrayRoots();
+    }
 
     /*
      * This code ensures that if a compartment is "dead", then it will be
@@ -4140,9 +4143,9 @@ void
 GCRuntime::markGrayReferences(gcstats::Phase phase)
 {
     gcstats::AutoPhase ap(stats, phase);
-    if (marker.hasBufferedGrayRoots()) {
+    if (hasBufferedGrayRoots()) {
         for (ZoneIterT zone(rt); !zone.done(); zone.next())
-            marker.markBufferedGrayRoots(zone);
+            markBufferedGrayRoots(zone);
     } else {
         MOZ_ASSERT(!isIncremental);
         if (JSTraceDataOp op = grayRootTracer.op)
@@ -5605,6 +5608,7 @@ GCRuntime::finishCollection(JS::gcreason::Reason reason)
 {
     MOZ_ASSERT(marker.isDrained());
     marker.stop();
+    clearBufferedGrayRoots();
 
     uint64_t currentTime = PRMJ_Now();
     schedulingState.updateHighFrequencyMode(lastGCTime, currentTime, tunables);
@@ -5725,6 +5729,7 @@ GCRuntime::resetIncrementalGC(const char* reason)
 
         marker.reset();
         marker.stop();
+        clearBufferedGrayRoots();
 
         for (GCCompartmentsIter c(rt); !c.done(); c.next())
             ResetGrayList(c);
@@ -5947,7 +5952,7 @@ GCRuntime::incrementalCollectSlice(SliceBudget& budget, JS::gcreason::Reason rea
         AutoGCRooter::traceAllWrappers(&marker);
 
         /* If we needed delayed marking for gray roots, then collect until done. */
-        if (!marker.hasBufferedGrayRoots()) {
+        if (!hasBufferedGrayRoots()) {
             budget.makeUnlimited();
             isIncremental = false;
         }

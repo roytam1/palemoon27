@@ -2129,7 +2129,7 @@ js::CloneObjectLiteral(JSContext *cx, HandleObject srcObj)
         value = srcArray->getDenseElement(i);
         MOZ_ASSERT_IF(value.isMarkable(),
                       value.toGCThing()->isTenured() &&
-                      cx->runtime()->isAtomsZone(value.toGCThing()->asTenured().zone()));
+                      cx->runtime()->isAtomsZone(value.toGCThing()->asTenured().zoneFromAnyThread()));
 
         id = INT_TO_JSID(i);
         if (!DefineProperty(cx, res, id, value, nullptr, nullptr, JSPROP_ENUMERATE))
@@ -2937,7 +2937,7 @@ js::LookupPropertyPure(ExclusiveContext* cx, JSObject* obj, jsid id, JSObject** 
             // are not handled here.
             if (!obj->is<UnboxedPlainObject>())
                 return false;
-            if (obj->as<UnboxedPlainObject>().layout().lookup(id)) {
+            if (obj->as<UnboxedPlainObject>().containsUnboxedOrExpandoProperty(cx, id)) {
                 *objp = obj;
                 MarkNonNativePropertyFound<NoGC>(propp);
                 return true;

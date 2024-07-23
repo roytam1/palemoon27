@@ -1106,7 +1106,7 @@ NewObjectGCKind(const js::Class *clasp)
 }
 
 static inline JSObject *
-NewObject(ExclusiveContext *cx, HandleObjectGroup group, HandleObject parent, gc::AllocKind kind,
+NewObject(ExclusiveContext *cx, HandleObjectGroup group, gc::AllocKind kind,
           NewObjectKind newKind)
 {
     const Class *clasp = group->clasp();
@@ -1114,7 +1114,6 @@ NewObject(ExclusiveContext *cx, HandleObjectGroup group, HandleObject parent, gc
     MOZ_ASSERT(clasp != &ArrayObject::class_);
     MOZ_ASSERT_IF(clasp == &JSFunction::class_,
                   kind == JSFunction::FinalizeKind || kind == JSFunction::ExtendedFinalizeKind);
-    MOZ_ASSERT_IF(parent, &parent->global() == cx->global());
 
     JSObject *metadata = nullptr;
     if (!NewObjectMetadata(cx, &metadata))
@@ -1128,7 +1127,7 @@ NewObject(ExclusiveContext *cx, HandleObjectGroup group, HandleObject parent, gc
                     : GetGCKindSlots(kind, clasp);
 
     RootedShape shape(cx, EmptyShape::getInitialShape(cx, clasp, group->proto(),
-                                                      parent, metadata, nfixed));
+                                                      cx->global(), metadata, nfixed));
     if (!shape)
         return nullptr;
 
@@ -1199,10 +1198,7 @@ js::NewObjectWithGivenTaggedProto(ExclusiveContext *cxArg, const Class *clasp,
     if (!group)
         return nullptr;
 
-    // Default parent to the global.
-    RootedObject parent(cxArg, cxArg->global());
-
-    RootedObject obj(cxArg, NewObject(cxArg, group, parent, allocKind, newKind));
+    RootedObject obj(cxArg, NewObject(cxArg, group, allocKind, newKind));
     if (!obj)
         return nullptr;
 
@@ -1369,7 +1365,7 @@ js::NewObjectWithClassProtoCommon(ExclusiveContext *cxArg, const Class *clasp,
     if (!group)
         return nullptr;
 
-    JSObject *obj = NewObject(cxArg, group, global, allocKind, newKind);
+    JSObject *obj = NewObject(cxArg, group, allocKind, newKind);
     if (!obj)
         return nullptr;
 
@@ -1420,7 +1416,7 @@ js::NewObjectWithGroupCommon(ExclusiveContext *cx, HandleObjectGroup group,
         }
     }
 
-    JSObject *obj = NewObject(cx, group, cx->global(), allocKind, newKind);
+    JSObject *obj = NewObject(cx, group, allocKind, newKind);
     if (!obj)
         return nullptr;
 

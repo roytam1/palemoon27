@@ -8,6 +8,7 @@
 #define gc_GCRuntime_h
 
 #include "mozilla/Atomics.h"
+#include "mozilla/TypedEnum.h"
 
 #include "jsgc.h"
 
@@ -1014,11 +1015,11 @@ class GCRuntime
     // accumulate these roots in each zone's gcGrayRoots vector and then mark
     // them later, after black marking is complete for each compartment. This
     // accumulation can fail, but in that case we switch to non-incremental GC.
-    enum class GrayBufferState {
+    MOZ_BEGIN_NESTED_ENUM_CLASS(GrayBufferState)
         Unused,
         Okay,
         Failed
-    };
+    MOZ_END_NESTED_ENUM_CLASS(GrayBufferState)
     GrayBufferState grayBufferState;
     bool hasBufferedGrayRoots() const { return grayBufferState == GrayBufferState::Okay; }
 

@@ -310,7 +310,7 @@ class SimdScalarPolicy final : public TypePolicy
 
 class SimdAllPolicy MOZ_FINAL : public TypePolicy
 {
-    public:
+  public:
     SPECIALIZATION_DATA_;
     virtual bool adjustInputs(TempAllocator &alloc, MInstruction *ins) MOZ_OVERRIDE;
 };
@@ -318,14 +318,21 @@ class SimdAllPolicy MOZ_FINAL : public TypePolicy
 template <unsigned Op>
 class SimdPolicy MOZ_FINAL : public TypePolicy
 {
-    public:
+  public:
     SPECIALIZATION_DATA_;
     virtual bool adjustInputs(TempAllocator &alloc, MInstruction *ins) MOZ_OVERRIDE;
 };
 
 class SimdSelectPolicy MOZ_FINAL : public TypePolicy
 {
-    public:
+  public:
+    SPECIALIZATION_DATA_;
+    virtual bool adjustInputs(TempAllocator &alloc, MInstruction *ins) MOZ_OVERRIDE;
+};
+
+class SimdSwizzlePolicy MOZ_FINAL : public TypePolicy
+{
+  public:
     SPECIALIZATION_DATA_;
     virtual bool adjustInputs(TempAllocator &alloc, MInstruction *ins) MOZ_OVERRIDE;
 };
@@ -435,14 +442,15 @@ class StoreTypedArrayElementStaticPolicy;
 class StoreTypedArrayPolicy : public TypePolicy
 {
   private:
-    static bool adjustValueInput(TempAllocator& alloc, MInstruction* ins, int arrayType, MDefinition* value, int valueOperand);
+    static bool adjustValueInput(TempAllocator &alloc, MInstruction *ins, Scalar::Type arrayType,
+                                 MDefinition *value, int valueOperand);
 
     friend class StoreTypedArrayHolePolicy;
     friend class StoreTypedArrayElementStaticPolicy;
 
   public:
     EMPTY_DATA_;
-    virtual bool adjustInputs(TempAllocator& alloc, MInstruction* ins) MOZ_OVERRIDE;
+    virtual bool adjustInputs(TempAllocator &alloc, MInstruction *ins) MOZ_OVERRIDE;
 };
 
 class StoreTypedArrayHolePolicy final : public StoreTypedArrayPolicy

@@ -168,8 +168,8 @@ private:
   ~InternalResponse()
   { }
 
-  explicit InternalResponse(const InternalResponse& aOther) = delete;
-  InternalResponse& operator=(const InternalResponse&) = delete;
+  explicit InternalResponse(const InternalResponse& aOther) MOZ_DELETE;
+  InternalResponse& operator=(const InternalResponse&) MOZ_DELETE;
 
   // Returns an instance of InternalResponse which is a copy of this
   // InternalResponse, except headers, body and wrapped response (if any) which

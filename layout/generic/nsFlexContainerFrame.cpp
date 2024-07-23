@@ -1942,7 +1942,8 @@ nsFlexContainerFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
   // Our children are all block-level, so their borders/backgrounds all go on
   // the BlockBorderBackgrounds list.
   nsDisplayListSet childLists(aLists, aLists.BlockBorderBackgrounds());
-  for (nsIFrame* childFrame : mFrames) {
+  for (nsFrameList::Enumerator e(mFrames); !e.AtEnd(); e.Next()) {
+    nsIFrame* childFrame = e.get();
     BuildDisplayListForChild(aBuilder, childFrame, aDirtyRect, childLists,
                              GetDisplayFlagsForFlexItem(childFrame));
   }
@@ -1974,7 +1975,8 @@ void
 nsFlexContainerFrame::SanityCheckAnonymousFlexItems() const
 {
   bool prevChildWasAnonFlexItem = false;
-  for (nsIFrame* child : mFrames) {
+  for (nsFrameList::Enumerator e(mFrames); !e.AtEnd(); e.Next()) {
+    nsIFrame* child = e.get();
     MOZ_ASSERT(!FrameWantsToBeInAnonymousFlexItem(child),
                "frame wants to be inside an anonymous flex item, "
                "but it isn't");
@@ -3078,7 +3080,8 @@ nsFlexContainerFrame::GenerateFlexLines(
   // checked against entries in aStruts.)
   uint32_t itemIdxInContainer = 0;
 
-  for (nsIFrame* childFrame : mFrames) {
+  for (nsFrameList::Enumerator e(mFrames); !e.AtEnd(); e.Next()) {
+    nsIFrame* childFrame = e.get();
     // Honor "page-break-before", if we're multi-line and this line isn't empty:
     if (!isSingleLine && !curLine->IsEmpty() &&
         childFrame->StyleDisplay()->mBreakBefore) {
@@ -3849,7 +3852,8 @@ nsFlexContainerFrame::DoFlexLayout(nsPresContext*           aPresContext,
 
   // Overflow area = union(my overflow area, kids' overflow areas)
   aDesiredSize.SetOverflowAreasToDesiredBounds();
-  for (nsIFrame* childFrame : mFrames) {
+  for (nsFrameList::Enumerator e(mFrames); !e.AtEnd(); e.Next()) {
+    nsIFrame* childFrame = e.get();
     ConsiderChildOverflow(aDesiredSize.mOverflowAreas, childFrame);
   }
 
@@ -4000,7 +4004,8 @@ nsFlexContainerFrame::GetMinISize(nsRenderingContext* aRenderingContext)
 
   FlexboxAxisTracker axisTracker(this);
 
-  for (nsIFrame* childFrame : mFrames) {
+  for (nsFrameList::Enumerator e(mFrames); !e.AtEnd(); e.Next()) {
+    nsIFrame* childFrame = e.get();
     nscoord childMinWidth =
       nsLayoutUtils::IntrinsicForContainer(aRenderingContext, childFrame,
                                            nsLayoutUtils::MIN_ISIZE);
@@ -4031,7 +4036,8 @@ nsFlexContainerFrame::GetPrefISize(nsRenderingContext* aRenderingContext)
   // does)
   FlexboxAxisTracker axisTracker(this);
 
-  for (nsIFrame* childFrame : mFrames) {
+  for (nsFrameList::Enumerator e(mFrames); !e.AtEnd(); e.Next()) {
+    nsIFrame* childFrame = e.get();
     nscoord childPrefWidth =
       nsLayoutUtils::IntrinsicForContainer(aRenderingContext, childFrame,
                                            nsLayoutUtils::PREF_ISIZE);

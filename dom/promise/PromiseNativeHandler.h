@@ -9,6 +9,7 @@
 
 #include "js/Value.h"
 #include "nsISupports.h"
+#include "js/TypeDecls.h"
 
 namespace mozilla {
 namespace dom {

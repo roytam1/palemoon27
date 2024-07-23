@@ -3404,6 +3404,27 @@ nsFrameList::FrameLinkEnumerator::Next()
   Enumerator::Next();
 }
 
+// Operators of nsFrameList::Iterator
+// ---------------------------------------------------
+
+inline nsFrameList::Iterator&
+nsFrameList::Iterator::operator++()
+{
+  mCurrent = mCurrent->GetNextSibling();
+  return *this;
+}
+
+inline nsFrameList::Iterator&
+nsFrameList::Iterator::operator--()
+{
+  if (!mCurrent) {
+    mCurrent = mList.LastChild();
+  } else {
+    mCurrent = mCurrent->GetPrevSibling();
+  }
+  return *this;
+}
+
 // Helper-functions for nsIFrame::SortFrameList()
 // ---------------------------------------------------
 

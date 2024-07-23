@@ -2161,22 +2161,10 @@ BytecodeEmitter::checkSingletonContext()
 bool
 BytecodeEmitter::needsImplicitThis()
 {
-    if (!script->compileAndGo())
+    if (sc->isFunctionBox() && sc->asFunctionBox()->inWith)
         return true;
 
-    if (sc->isFunctionBox()) {
-        if (sc->asFunctionBox()->inWith)
-            return true;
-    } else {
-        JSObject* scope = sc->asGlobalSharedContext()->scopeChain();
-        while (scope) {
-            if (scope->is<DynamicWithObject>())
-                return true;
-            scope = scope->enclosingScope();
-        }
-    }
-
-    for (StmtInfoBCE* stmt = topStmt; stmt; stmt = stmt->down) {
+    for (StmtInfoBCE *stmt = topStmt; stmt; stmt = stmt->down) {
         if (stmt->type == STMT_WITH)
             return true;
     }
@@ -2350,8 +2338,10 @@ EmitNameOp(ExclusiveContext* cx, BytecodeEmitter* bce, ParseNode* pn, bool callC
 
     /* Need to provide |this| value for call */
     if (callContext) {
-        if (op == JSOP_GETNAME && bce->needsImplicitThis()) {
-            if (!EmitAtomOp(cx, pn, JSOP_IMPLICITTHIS, bce))
+        if (op == JSOP_GETNAME) {
+            JSOp thisOp =
+                bce->needsImplicitThis() ? JSOP_IMPLICITTHIS : JSOP_GIMPLICITTHIS;
+            if (!EmitAtomOp(cx, pn, thisOp, bce))
                 return false;
         } else {
             if (Emit1(cx, bce, JSOP_UNDEFINED) < 0)

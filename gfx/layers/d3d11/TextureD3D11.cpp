@@ -642,7 +642,9 @@ static CompositorD3D11* AssertD3D11Compositor(Compositor* aCompositor)
 {
   CompositorD3D11* compositor = aCompositor ? aCompositor->AsCompositorD3D11()
                                             : nullptr;
-  MOZ_DIAGNOSTIC_ASSERT(!!compositor);
+  if (!compositor) {
+    gfxCriticalNote << "[D3D11] Attempt to set an incompatible compositor";
+  }
   return compositor;
 }
 
@@ -670,6 +672,7 @@ DXGITextureHostD3D11::Lock()
   }
   if (!mTextureSource) {
     if (!mTexture && !OpenSharedHandle()) {
+      gfxWindowsPlatform::GetPlatform()->ForceDeviceReset(ForcedDeviceResetReason::OPENSHAREDHANDLE);
       return false;
     }
 

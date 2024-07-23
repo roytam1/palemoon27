@@ -61,7 +61,7 @@ if CONFIG['OS_ARCH'] == 'WINNT':
     SOURCES += [
         'CrossProcessMutex_windows.cpp',
     ]
-elif CONFIG['OS_ARCH'] in ('Linux', 'Darwin'):
+elif not CONFIG['OS_ARCH'] in ('NetBSD', 'OpenBSD'):
     UNIFIED_SOURCES += [
         'CrossProcessMutex_posix.cpp',
     ]
@@ -175,6 +175,10 @@ FINAL_LIBRARY = 'xul'
 for var in ('MOZ_CHILD_PROCESS_NAME', 'MOZ_CHILD_PROCESS_NAME_PIE',
             'MOZ_CHILD_PROCESS_BUNDLE', 'DLL_PREFIX', 'DLL_SUFFIX'):
     DEFINES[var] = '"%s"' % CONFIG[var]
+
+LOCAL_INCLUDES += [
+    '/toolkit/crashreporter',
+]
 
 if CONFIG['MOZ_SANDBOX'] and CONFIG['OS_ARCH'] == 'WINNT':
     LOCAL_INCLUDES += [

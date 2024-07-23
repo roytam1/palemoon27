@@ -22,6 +22,8 @@
 #include "prenv.h"
 #include "nsXPCOMPrivate.h"
 
+#include "nsExceptionHandler.h"
+
 #include "nsDirectoryServiceDefs.h"
 #include "nsIFile.h"
 #include "nsPrintfCString.h"
@@ -1086,7 +1088,7 @@ GeckoChildProcessHost::PerformAsyncLaunchInternal(std::vector<std::string>& aExt
       EnvironmentLog("MOZ_PROCESS_LOG").print(
         "==> process %d launched child process %d (%S)\n",
         base::GetCurrentProcId(), base::GetProcId(process),
-        cmdLine.command_line_string());
+        cmdLine.command_line_string().c_str());
     }
   } else
 #endif
@@ -1162,11 +1164,11 @@ GeckoChildProcessHost::OnChannelConnected(int32_t peer_pid)
 }
 
 void
-GeckoChildProcessHost::OnMessageReceived(const IPC::Message& aMsg)
+GeckoChildProcessHost::OnMessageReceived(IPC::Message&& aMsg)
 {
   // We never process messages ourself, just save them up for the next
   // listener.
-  mQueue.push(aMsg);
+  mQueue.push(Move(aMsg));
 }
 
 void

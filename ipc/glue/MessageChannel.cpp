@@ -119,7 +119,7 @@ static MessageChannel* gParentProcessBlocker;
 namespace mozilla {
 namespace ipc {
 
-static const int kMinTelemetryMessageSize = 8192;
+static const uint32_t kMinTelemetryMessageSize = 8192;
 
 const int32_t MessageChannel::kNoTimeout = INT32_MIN;
 
@@ -757,8 +757,9 @@ MessageChannel::Echo(Message* aMsg)
 bool
 MessageChannel::Send(Message* aMsg)
 {
-    if (aMsg->size() >= kMinTelemetryMessageSize) {
-        Telemetry::Accumulate(Telemetry::IPC_MESSAGE_SIZE, nsCString(aMsg->name()), aMsg->size());
+    if (aMsg->capacity() >= kMinTelemetryMessageSize) {
+        Telemetry::Accumulate(Telemetry::IPC_MESSAGE_SIZE,
+                              nsCString(aMsg->name()), aMsg->capacity());
     }
 
     CxxStackFrame frame(*this, OUT_MESSAGE, aMsg);
@@ -875,7 +876,7 @@ public:
 };
 
 void
-MessageChannel::OnMessageReceivedFromLink(const Message& aMsg)
+MessageChannel::OnMessageReceivedFromLink(Message&& aMsg)
 {
     AssertLinkThread();
     mMonitor->AssertCurrentThreadOwns();
@@ -972,7 +973,7 @@ MessageChannel::OnMessageReceivedFromLink(const Message& aMsg)
     // blocked. This is okay, since we always check for pending events before
     // blocking again.
 
-    mPending.push_back(aMsg);
+    mPending.push_back(Move(aMsg));
 
     if (shouldWakeUp) {
         NotifyWorkerThread();
@@ -988,14 +989,13 @@ MessageChannel::OnMessageReceivedFromLink(const Message& aMsg)
 }
 
 void
-MessageChannel::PeekMessages(msgid_t aMsgId, mozilla::function<bool(const Message& aMsg)> aInvoke)
+MessageChannel::PeekMessages(mozilla::function<bool(const Message& aMsg)> aInvoke)
 {
     MonitorAutoLock lock(*mMonitor);
 
     for (MessageQueue::iterator it = mPending.begin(); it != mPending.end(); it++) {
         Message &msg = *it;
-
-        if (msg.type() == aMsgId && !aInvoke(msg)) {
+        if (!aInvoke(msg)) {
             break;
         }
     }
@@ -1057,8 +1057,9 @@ MessageChannel::ProcessPendingRequests(AutoEnterTransaction& aTransaction)
 bool
 MessageChannel::Send(Message* aMsg, Message* aReply)
 {
-    if (aMsg->size() >= kMinTelemetryMessageSize) {
-        Telemetry::Accumulate(Telemetry::IPC_MESSAGE_SIZE, nsCString(aMsg->name()), aMsg->size());
+    if (aMsg->capacity() >= kMinTelemetryMessageSize) {
+        Telemetry::Accumulate(Telemetry::IPC_MESSAGE_SIZE,
+                              nsCString(aMsg->name()), aMsg->capacity());
     }
 
     nsAutoPtr<Message> msg(aMsg);
@@ -1750,7 +1751,7 @@ MessageChannel::MaybeUndeferIncall()
                "fatal logic error");
 
     // maybe time to process this message
-    Message call = mDeferred.top();
+    Message call(Move(mDeferred.top()));
     mDeferred.pop();
 
     // fix up fudge factor we added to account for race
@@ -1758,7 +1759,7 @@ MessageChannel::MaybeUndeferIncall()
     --mRemoteStackDepthGuess;
 
     MOZ_RELEASE_ASSERT(call.priority() == IPC::Message::PRIORITY_NORMAL);
-    mPending.push_back(call);
+    mPending.push_back(Move(call));
 }
 
 void

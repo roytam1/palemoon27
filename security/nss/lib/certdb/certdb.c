@@ -27,7 +27,7 @@
 #include "sslerr.h"
 #include "pk11func.h"
 #include "xconst.h" /* for  CERT_DecodeAltNameExtension */
-#include "secport.h"
+
 #include "pki.h"
 #include "pki3hack.h"
 
@@ -384,9 +384,9 @@ GetKeyUsage(CERTCertificate *cert)
     rv = CERT_FindKeyUsageExtension(cert, &tmpitem);
     if (rv == SECSuccess) {
         /* remember the actual value of the extension */
-        cert->rawKeyUsage = tmpitem.len ? tmpitem.data[0] : 0;
+        cert->rawKeyUsage = tmpitem.data[0];
         cert->keyUsagePresent = PR_TRUE;
-        cert->keyUsage = cert->rawKeyUsage;
+        cert->keyUsage = tmpitem.data[0];
 
         PORT_Free(tmpitem.data);
         tmpitem.data = NULL;
@@ -447,39 +447,71 @@ cert_GetCertType(CERTCertificate *cert)
 }
 
 PRBool
-cert_IsIPsecOID(CERTOidSequence *extKeyUsage)
+cert_EKUAllowsIPsecIKE(CERTCertificate *cert, PRBool *isCritical)
 {
-    if (findOIDinOIDSeqByTagNum(
-            extKeyUsage, SEC_OID_EXT_KEY_USAGE_IPSEC_IKE) == SECSuccess) {
-        return PR_TRUE;
+    SECStatus rv;
+    SECItem encodedExtKeyUsage;
+    CERTOidSequence *extKeyUsage = NULL;
+    PRBool result = PR_FALSE;
+
+    rv = CERT_GetExtenCriticality(cert->extensions,
+                                  SEC_OID_X509_EXT_KEY_USAGE,
+                                  isCritical);
+    if (rv != SECSuccess) {
+        *isCritical = PR_FALSE;
     }
-    if (findOIDinOIDSeqByTagNum(
-            extKeyUsage, SEC_OID_IPSEC_IKE_END) == SECSuccess) {
-        return PR_TRUE;
+
+    encodedExtKeyUsage.data = NULL;
+    rv = CERT_FindCertExtension(cert, SEC_OID_X509_EXT_KEY_USAGE,
+                                &encodedExtKeyUsage);
+    if (rv != SECSuccess) {
+        /* EKU not present, allowed. */
+        result = PR_TRUE;
+        goto done;
     }
-    if (findOIDinOIDSeqByTagNum(
-            extKeyUsage, SEC_OID_IPSEC_IKE_INTERMEDIATE) == SECSuccess) {
-        return PR_TRUE;
+
+    extKeyUsage = CERT_DecodeOidSequence(&encodedExtKeyUsage);
+    if (!extKeyUsage) {
+        /* failure */
+        goto done;
     }
-    /* these are now deprecated, but may show up. Treat them the same as IKE */
-    if (findOIDinOIDSeqByTagNum(
-            extKeyUsage, SEC_OID_EXT_KEY_USAGE_IPSEC_END) == SECSuccess) {
-        return PR_TRUE;
+
+    if (findOIDinOIDSeqByTagNum(extKeyUsage,
+                                SEC_OID_X509_ANY_EXT_KEY_USAGE) ==
+        SECSuccess) {
+        result = PR_TRUE;
+        goto done;
     }
-    if (findOIDinOIDSeqByTagNum(
-            extKeyUsage, SEC_OID_EXT_KEY_USAGE_IPSEC_TUNNEL) == SECSuccess) {
-        return PR_TRUE;
+
+    if (findOIDinOIDSeqByTagNum(extKeyUsage,
+                                SEC_OID_EXT_KEY_USAGE_IPSEC_IKE) ==
+        SECSuccess) {
+        result = PR_TRUE;
+        goto done;
     }
-    if (findOIDinOIDSeqByTagNum(
-            extKeyUsage, SEC_OID_EXT_KEY_USAGE_IPSEC_USER) == SECSuccess) {
-        return PR_TRUE;
+
+    if (findOIDinOIDSeqByTagNum(extKeyUsage,
+                                SEC_OID_IPSEC_IKE_END) ==
+        SECSuccess) {
+        result = PR_TRUE;
+        goto done;
     }
-    /* this one should probably be in cert_ComputeCertType and set all usages? */
-    if (findOIDinOIDSeqByTagNum(
-            extKeyUsage, SEC_OID_X509_ANY_EXT_KEY_USAGE) == SECSuccess) {
-        return PR_TRUE;
+
+    if (findOIDinOIDSeqByTagNum(extKeyUsage,
+                                SEC_OID_IPSEC_IKE_INTERMEDIATE) ==
+        SECSuccess) {
+        result = PR_TRUE;
+        goto done;
     }
-    return PR_FALSE;
+
+done:
+    if (encodedExtKeyUsage.data != NULL) {
+        PORT_Free(encodedExtKeyUsage.data);
+    }
+    if (extKeyUsage != NULL) {
+        CERT_DestroyOidSequence(extKeyUsage);
+    }
+    return result;
 }
 
 PRUint32
@@ -489,9 +521,9 @@ cert_ComputeCertType(CERTCertificate *cert)
     SECItem tmpitem;
     SECItem encodedExtKeyUsage;
     CERTOidSequence *extKeyUsage = NULL;
+    PRBool basicConstraintPresent = PR_FALSE;
     CERTBasicConstraints basicConstraint;
     PRUint32 nsCertType = 0;
-    PRBool isCA = PR_FALSE;
 
     tmpitem.data = NULL;
     CERT_FindNSCertTypeExtension(cert, &tmpitem);
@@ -503,10 +535,10 @@ cert_ComputeCertType(CERTCertificate *cert)
     }
     rv = CERT_FindBasicConstraintExten(cert, &basicConstraint);
     if (rv == SECSuccess) {
-        isCA = basicConstraint.isCA;
+        basicConstraintPresent = PR_TRUE;
     }
     if (tmpitem.data != NULL || extKeyUsage != NULL) {
-        if (tmpitem.data == NULL || tmpitem.len == 0) {
+        if (tmpitem.data == NULL) {
             nsCertType = 0;
         } else {
             nsCertType = tmpitem.data[0];
@@ -539,11 +571,19 @@ cert_ComputeCertType(CERTCertificate *cert)
         if (findOIDinOIDSeqByTagNum(extKeyUsage,
                                     SEC_OID_EXT_KEY_USAGE_EMAIL_PROTECT) ==
             SECSuccess) {
-            nsCertType |= isCA ? NS_CERT_TYPE_EMAIL_CA : NS_CERT_TYPE_EMAIL;
+            if (basicConstraintPresent == PR_TRUE && (basicConstraint.isCA)) {
+                nsCertType |= NS_CERT_TYPE_EMAIL_CA;
+            } else {
+                nsCertType |= NS_CERT_TYPE_EMAIL;
+            }
         }
         if (findOIDinOIDSeqByTagNum(
                 extKeyUsage, SEC_OID_EXT_KEY_USAGE_SERVER_AUTH) == SECSuccess) {
-            nsCertType |= isCA ? NS_CERT_TYPE_SSL_CA : NS_CERT_TYPE_SSL_SERVER;
+            if (basicConstraintPresent == PR_TRUE && (basicConstraint.isCA)) {
+                nsCertType |= NS_CERT_TYPE_SSL_CA;
+            } else {
+                nsCertType |= NS_CERT_TYPE_SSL_SERVER;
+            }
         }
         /*
          * Treat certs with step-up OID as also having SSL server type.
@@ -552,18 +592,27 @@ cert_ComputeCertType(CERTCertificate *cert)
         if (findOIDinOIDSeqByTagNum(extKeyUsage,
                                     SEC_OID_NS_KEY_USAGE_GOVT_APPROVED) ==
             SECSuccess) {
-            nsCertType |= isCA ? NS_CERT_TYPE_SSL_CA : NS_CERT_TYPE_SSL_SERVER;
+            if (basicConstraintPresent == PR_TRUE && (basicConstraint.isCA)) {
+                nsCertType |= NS_CERT_TYPE_SSL_CA;
+            } else {
+                nsCertType |= NS_CERT_TYPE_SSL_SERVER;
+            }
         }
         if (findOIDinOIDSeqByTagNum(
                 extKeyUsage, SEC_OID_EXT_KEY_USAGE_CLIENT_AUTH) == SECSuccess) {
-            nsCertType |= isCA ? NS_CERT_TYPE_SSL_CA : NS_CERT_TYPE_SSL_CLIENT;
-        }
-        if (cert_IsIPsecOID(extKeyUsage)) {
-            nsCertType |= isCA ? NS_CERT_TYPE_IPSEC_CA : NS_CERT_TYPE_IPSEC;
+            if (basicConstraintPresent == PR_TRUE && (basicConstraint.isCA)) {
+                nsCertType |= NS_CERT_TYPE_SSL_CA;
+            } else {
+                nsCertType |= NS_CERT_TYPE_SSL_CLIENT;
+            }
         }
         if (findOIDinOIDSeqByTagNum(
                 extKeyUsage, SEC_OID_EXT_KEY_USAGE_CODE_SIGN) == SECSuccess) {
-            nsCertType |= isCA ? NS_CERT_TYPE_OBJECT_SIGNING_CA : NS_CERT_TYPE_OBJECT_SIGNING;
+            if (basicConstraintPresent == PR_TRUE && (basicConstraint.isCA)) {
+                nsCertType |= NS_CERT_TYPE_OBJECT_SIGNING_CA;
+            } else {
+                nsCertType |= NS_CERT_TYPE_OBJECT_SIGNING;
+            }
         }
         if (findOIDinOIDSeqByTagNum(
                 extKeyUsage, SEC_OID_EXT_KEY_USAGE_TIME_STAMP) == SECSuccess) {
@@ -580,21 +629,13 @@ cert_ComputeCertType(CERTCertificate *cert)
             nsCertType |= EXT_KEY_USAGE_STATUS_RESPONDER;
         /* if the basic constraint extension says the cert is a CA, then
            allow SSL CA and EMAIL CA and Status Responder */
-        if (isCA) {
+        if (basicConstraintPresent && basicConstraint.isCA) {
             nsCertType |= (NS_CERT_TYPE_SSL_CA | NS_CERT_TYPE_EMAIL_CA |
                            EXT_KEY_USAGE_STATUS_RESPONDER);
         }
         /* allow any ssl or email (no ca or object signing. */
         nsCertType |= NS_CERT_TYPE_SSL_CLIENT | NS_CERT_TYPE_SSL_SERVER |
                       NS_CERT_TYPE_EMAIL;
-    }
-
-    /* IPSEC is allowed to use SSL client and server certs as well as email certs */
-    if (nsCertType & (NS_CERT_TYPE_SSL_CLIENT | NS_CERT_TYPE_SSL_SERVER | NS_CERT_TYPE_EMAIL)) {
-        nsCertType |= NS_CERT_TYPE_IPSEC;
-    }
-    if (nsCertType & (NS_CERT_TYPE_SSL_CA | NS_CERT_TYPE_EMAIL_CA)) {
-        nsCertType |= NS_CERT_TYPE_IPSEC_CA;
     }
 
     if (encodedExtKeyUsage.data != NULL) {
@@ -1112,7 +1153,7 @@ CERT_KeyUsageAndTypeForCertUsage(SECCertUsage usage, PRBool ca,
                 break;
             case certUsageIPsec:
                 requiredKeyUsage = KU_KEY_CERT_SIGN;
-                requiredCertType = NS_CERT_TYPE_IPSEC_CA;
+                requiredCertType = NS_CERT_TYPE_SSL_CA;
                 break;
             case certUsageSSLCA:
                 requiredKeyUsage = KU_KEY_CERT_SIGN;
@@ -1159,7 +1200,7 @@ CERT_KeyUsageAndTypeForCertUsage(SECCertUsage usage, PRBool ca,
             case certUsageIPsec:
                 /* RFC 4945 Section 5.1.3.2 */
                 requiredKeyUsage = KU_DIGITAL_SIGNATURE_OR_NON_REPUDIATION;
-                requiredCertType = NS_CERT_TYPE_IPSEC;
+                requiredCertType = 0;
                 break;
             case certUsageSSLServerWithStepUp:
                 requiredKeyUsage =
@@ -1271,17 +1312,6 @@ CERT_DupCertificate(CERTCertificate *c)
         nssCertificate_AddRef(tmp);
     }
     return c;
-}
-
-SECStatus
-CERT_GetCertificateDer(const CERTCertificate *c, SECItem *der)
-{
-    if (!c || !der) {
-        PORT_SetError(SEC_ERROR_INVALID_ARGS);
-        return SECFailure;
-    }
-    *der = c->derCert;
-    return SECSuccess;
 }
 
 /*
@@ -2552,10 +2582,6 @@ CERT_DestroyCertList(CERTCertList *certs)
 {
     PRCList *node;
 
-    if (!certs) {
-        return;
-    }
-
     while (!PR_CLIST_IS_EMPTY(&certs->list)) {
         node = PR_LIST_HEAD(&certs->list);
         CERT_DestroyCertificate(((CERTCertListNode *)node)->cert);
@@ -2870,86 +2896,6 @@ CERT_FilterCertListForUserCerts(CERTCertList *certList)
     return (SECSuccess);
 }
 
-/* return true if cert is in the list */
-PRBool
-CERT_IsInList(const CERTCertificate *cert, const CERTCertList *certList)
-{
-    CERTCertListNode *node;
-    for (node = CERT_LIST_HEAD(certList); !CERT_LIST_END(node, certList);
-         node = CERT_LIST_NEXT(node)) {
-        if (node->cert == cert) {
-            return PR_TRUE;
-        }
-    }
-    return PR_FALSE;
-}
-
-/* returned certList is the intersection of the certs on certList and the
- * certs on filterList */
-SECStatus
-CERT_FilterCertListByCertList(CERTCertList *certList,
-                              const CERTCertList *filterList)
-{
-    CERTCertListNode *node, *freenode;
-    CERTCertificate *cert;
-
-    if (!certList) {
-        return SECFailure;
-    }
-
-    if (!filterList || CERT_LIST_EMPTY(certList)) {
-        /* if the filterList is empty, just clear out certList and return */
-        for (node = CERT_LIST_HEAD(certList); !CERT_LIST_END(node, certList);) {
-            freenode = node;
-            node = CERT_LIST_NEXT(node);
-            CERT_RemoveCertListNode(freenode);
-        }
-        return SECSuccess;
-    }
-
-    node = CERT_LIST_HEAD(certList);
-
-    while (!CERT_LIST_END(node, certList)) {
-        cert = node->cert;
-        if (!CERT_IsInList(cert, filterList)) {
-            // no matching cert on filter list, remove it from certlist */
-            freenode = node;
-            node = CERT_LIST_NEXT(node);
-            CERT_RemoveCertListNode(freenode);
-        } else {
-            /* matching cert, keep it around */
-            node = CERT_LIST_NEXT(node);
-        }
-    }
-
-    return (SECSuccess);
-}
-
-SECStatus
-CERT_FilterCertListByNickname(CERTCertList *certList, char *nickname,
-                              void *pwarg)
-{
-    CERTCertList *nameList;
-    SECStatus rv;
-
-    if (!certList) {
-        return SECFailure;
-    }
-
-    /* we could try to match the nickname to the individual cert,
-     * but nickname parsing is quite complicated, so it's best just
-     * to use the existing code and get a list of certs that match the
-     * nickname. We can then compare that list with our input cert list
-     * and return only those certs that are on both. */
-    nameList = PK11_FindCertsFromNickname(nickname, pwarg);
-
-    /* namelist could be NULL, this will force certList to become empty */
-    rv = CERT_FilterCertListByCertList(certList, nameList);
-    /* CERT_DestroyCertList can now accept a NULL pointer */
-    CERT_DestroyCertList(nameList);
-    return rv;
-}
-
 static PZLock *certRefCountLock = NULL;
 
 /*
@@ -2972,10 +2918,16 @@ CERT_LockCertRefCount(CERTCertificate *cert)
 void
 CERT_UnlockCertRefCount(CERTCertificate *cert)
 {
-    PRStatus prstat;
     PORT_Assert(certRefCountLock != NULL);
-    prstat = PZ_Unlock(certRefCountLock);
-    PORT_AssertArg(prstat == PR_SUCCESS);
+
+#ifdef DEBUG
+    {
+        PRStatus prstat = PZ_Unlock(certRefCountLock);
+        PORT_Assert(prstat == PR_SUCCESS);
+    }
+#else
+    PZ_Unlock(certRefCountLock);
+#endif
 }
 
 static PZLock *certTrustLock = NULL;
@@ -2993,27 +2945,16 @@ CERT_LockCertTrust(const CERTCertificate *cert)
     PZ_Lock(certTrustLock);
 }
 
-static PZLock *certTempPermCertLock = NULL;
+static PZLock *certTempPermLock = NULL;
 
 /*
- * Acquire the cert temp/perm/nssCert lock
+ * Acquire the cert temp/perm lock
  */
 void
 CERT_LockCertTempPerm(const CERTCertificate *cert)
 {
-    PORT_Assert(certTempPermCertLock != NULL);
-    PZ_Lock(certTempPermCertLock);
-}
-
-/* Maybe[Lock, Unlock] variants are only to be used by
- * CERT_DestroyCertificate, since an application could
- * call this after NSS_Shutdown destroys cert locks. */
-void
-CERT_MaybeLockCertTempPerm(const CERTCertificate *cert)
-{
-    if (certTempPermCertLock) {
-        PZ_Lock(certTempPermCertLock);
-    }
+    PORT_Assert(certTempPermLock != NULL);
+    PZ_Lock(certTempPermLock);
 }
 
 SECStatus
@@ -3037,10 +2978,10 @@ cert_InitLocks(void)
         }
     }
 
-    if (certTempPermCertLock == NULL) {
-        certTempPermCertLock = PZ_NewLock(nssILockCertDB);
-        PORT_Assert(certTempPermCertLock != NULL);
-        if (!certTempPermCertLock) {
+    if (certTempPermLock == NULL) {
+        certTempPermLock = PZ_NewLock(nssILockCertDB);
+        PORT_Assert(certTempPermLock != NULL);
+        if (!certTempPermLock) {
             PZ_DestroyLock(certTrustLock);
             PZ_DestroyLock(certRefCountLock);
             certRefCountLock = NULL;
@@ -3073,10 +3014,10 @@ cert_DestroyLocks(void)
         rv = SECFailure;
     }
 
-    PORT_Assert(certTempPermCertLock != NULL);
-    if (certTempPermCertLock) {
-        PZ_DestroyLock(certTempPermCertLock);
-        certTempPermCertLock = NULL;
+    PORT_Assert(certTempPermLock != NULL);
+    if (certTempPermLock) {
+        PZ_DestroyLock(certTempPermLock);
+        certTempPermLock = NULL;
     } else {
         rv = SECFailure;
     }
@@ -3089,30 +3030,33 @@ cert_DestroyLocks(void)
 void
 CERT_UnlockCertTrust(const CERTCertificate *cert)
 {
-    PRStatus prstat;
     PORT_Assert(certTrustLock != NULL);
-    prstat = PZ_Unlock(certTrustLock);
-    PORT_AssertArg(prstat == PR_SUCCESS);
+
+#ifdef DEBUG
+    {
+        PRStatus prstat = PZ_Unlock(certTrustLock);
+        PORT_Assert(prstat == PR_SUCCESS);
+    }
+#else
+    PZ_Unlock(certTrustLock);
+#endif
 }
 
 /*
- * Free the temp/perm/nssCert lock
+ * Free the temp/perm lock
  */
 void
 CERT_UnlockCertTempPerm(const CERTCertificate *cert)
 {
-    PRStatus prstat;
-    PORT_Assert(certTempPermCertLock != NULL);
-    prstat = PZ_Unlock(certTempPermCertLock);
-    PORT_AssertArg(prstat == PR_SUCCESS);
-}
-
-void
-CERT_MaybeUnlockCertTempPerm(const CERTCertificate *cert)
-{
-    if (certTempPermCertLock) {
-        PZ_Unlock(certTempPermCertLock);
+    PORT_Assert(certTempPermLock != NULL);
+#ifdef DEBUG
+    {
+        PRStatus prstat = PZ_Unlock(certTempPermLock);
+        PORT_Assert(prstat == PR_SUCCESS);
     }
+#else
+    (void)PZ_Unlock(certTempPermLock);
+#endif
 }
 
 /*

@@ -42,14 +42,6 @@
           # Define verbose as -1 to turn off all zlib trace messages in
           # debug builds.
           'verbose=-1',
-          'HAVE_STDARG_H',
-        ],
-        'conditions': [
-          [ 'OS!="win"', {
-            'defines': [
-              'HAVE_UNISTD_H',
-            ],
-          }],
         ],
       }],
     }]

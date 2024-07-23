@@ -1,4 +1,5 @@
 /* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
+/* vim: set ts=8 sts=2 et sw=2 tw=80: */
 /* This code is made available to you under your choice of the following sets
  * of licensing terms:
  */
@@ -557,7 +558,7 @@ private:
     return checker.Check(derCert, nullptr, keepGoing);
   }
 
-  Result CheckRevocation(EndEntityOrCA, const CertID&, Time, Time, Duration,
+  Result CheckRevocation(EndEntityOrCA, const CertID&, Time, Duration,
                          const Input*, const Input*) override
   {
     return Success;

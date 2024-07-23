@@ -17,12 +17,6 @@
 
 #include <limits.h>
 
-/* old gcc doesn't support some poly64x2_t intrinsic */
-#if defined(__aarch64__) && defined(IS_LITTLE_ENDIAN) && \
-    (defined(__clang__) || defined(__GNUC__) && __GNUC__ > 6)
-#define USE_ARM_GCM
-#endif
-
 /* Forward declarations */
 SECStatus gcm_HashInit_hw(gcmHashContext *ghash);
 SECStatus gcm_HashWrite_hw(gcmHashContext *ghash, unsigned char *outbuf);
@@ -36,7 +30,7 @@ SECStatus gcm_HashMult_sftw32(gcmHashContext *ghash, const unsigned char *buf,
 
 /* Stub definitions for the above *_hw functions, which shouldn't be
  * used unless NSS_X86_OR_X64 is defined */
-#if (!defined(NSS_X86_OR_X64) && !defined(USE_ARM_GCM) && !defined(USE_PPC_CRYPTO)) || (defined(_MSC_VER) && _MSC_VER <= 1400)
+#if (!defined(NSS_X86_OR_X64) || (defined(_MSC_VER) && _MSC_VER <= 1400))
 SECStatus
 gcm_HashWrite_hw(gcmHashContext *ghash, unsigned char *outbuf)
 {
@@ -65,7 +59,7 @@ gcm_HashZeroX_hw(gcmHashContext *ghash)
     PORT_SetError(SEC_ERROR_LIBRARY_FAILURE);
     return SECFailure;
 }
-#endif /* !NSS_X86_OR_X64 && !USE_ARM_GCM && !USE_PPC_CRYPTO */
+#endif /* NSS_X86_OR_X64 */
 
 uint64_t
 get64(const unsigned char *bytes)
@@ -92,13 +86,7 @@ gcmHash_InitContext(gcmHashContext *ghash, const unsigned char *H, PRBool sw)
 
     ghash->h_low = get64(H + 8);
     ghash->h_high = get64(H);
-#ifdef USE_ARM_GCM
-    if (arm_pmull_support() && !sw) {
-#elif defined(USE_PPC_CRYPTO)
-    if (ppc_crypto_support() && !sw) {
-#else
     if (clmul_support() && !sw) {
-#endif
         rv = gcm_HashInit_hw(ghash);
     } else {
 /* We fall back to the software implementation if we can't use / don't
@@ -481,12 +469,6 @@ gcmHash_Reset(gcmHashContext *ghash, const unsigned char *AAD,
 {
     SECStatus rv;
 
-    // Limit AADLen in accordance with SP800-38D
-    if (sizeof(AADLen) >= 8 && AADLen > (1ULL << 61) - 1) {
-        PORT_SetError(SEC_ERROR_INPUT_LEN);
-        return SECFailure;
-    }
-
     ghash->cLen = 0;
     PORT_Memset(ghash->counterBuf, 0, GCM_HASH_LEN_LEN * 2);
     ghash->bufLen = 0;
@@ -543,15 +525,6 @@ GCM_CreateContext(void *context, freeblCipherFunc cipher,
         PORT_SetError(SEC_ERROR_INVALID_ARGS);
         return NULL;
     }
-
-    if (gcmParams->ulTagBits != 128 && gcmParams->ulTagBits != 120 &&
-        gcmParams->ulTagBits != 112 && gcmParams->ulTagBits != 104 &&
-        gcmParams->ulTagBits != 96 && gcmParams->ulTagBits != 64 &&
-        gcmParams->ulTagBits != 32) {
-        PORT_SetError(SEC_ERROR_INVALID_ARGS);
-        return NULL;
-    }
-
     gcm = PORT_ZNew(GCMContext);
     if (gcm == NULL) {
         return NULL;

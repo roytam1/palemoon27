@@ -20,6 +20,8 @@
 #include <time.h>
 #endif
 
+PRUint32 ssl3_sid_timeout = 86400L; /* 24 hours */
+
 static sslSessionID *cache = NULL;
 static PZLock *cacheLock = NULL;
 
@@ -257,28 +259,30 @@ ssl_ReferenceSID(sslSessionID *sid)
 */
 
 sslSessionID *
-ssl_LookupSID(PRTime now, const PRIPv6Addr *addr, PRUint16 port, const char *peerID,
+ssl_LookupSID(const PRIPv6Addr *addr, PRUint16 port, const char *peerID,
               const char *urlSvrName)
 {
     sslSessionID **sidp;
     sslSessionID *sid;
+    PRUint32 now;
 
     if (!urlSvrName)
         return NULL;
+    now = ssl_TimeSec();
     LOCK_CACHE;
     sidp = &cache;
     while ((sid = *sidp) != 0) {
         PORT_Assert(sid->cached == in_client_cache);
         PORT_Assert(sid->references >= 1);
 
-        SSL_TRC(8, ("SSL: lookup: sid=0x%x", sid));
+        SSL_TRC(8, ("SSL: Lookup1: sid=0x%x", sid));
 
         if (sid->expirationTime < now) {
             /*
             ** This session-id timed out.
             ** Don't even care who it belongs to, blow it out of our cache.
             */
-            SSL_TRC(7, ("SSL: lookup, throwing sid out, age=%d refs=%d",
+            SSL_TRC(7, ("SSL: lookup1, throwing sid out, age=%d refs=%d",
                         now - sid->creationTime, sid->references));
 
             *sidp = sid->next;                                      /* delink it from the list. */
@@ -312,7 +316,7 @@ ssl_LookupSID(PRTime now, const PRIPv6Addr *addr, PRUint16 port, const char *pee
 ** Although this is static, it is called via ss->sec.cache().
 */
 static void
-CacheSID(sslSessionID *sid, PRTime creationTime)
+CacheSID(sslSessionID *sid)
 {
     PORT_Assert(sid);
     PORT_Assert(sid->cached == never_cached);
@@ -349,16 +353,11 @@ CacheSID(sslSessionID *sid, PRTime creationTime)
     if (!sid->u.ssl3.lock) {
         return;
     }
-    PORT_Assert(sid->creationTime != 0);
-    if (!sid->creationTime) {
-        sid->lastAccessTime = sid->creationTime = creationTime;
-    }
-    PORT_Assert(sid->expirationTime != 0);
-    if (!sid->expirationTime) {
-        sid->expirationTime = sid->creationTime + (PR_MIN(ssl_ticket_lifetime,
-                                                          sid->u.ssl3.locked.sessionTicket.ticket_lifetime_hint) *
-                                                   PR_USEC_PER_SEC);
-    }
+    PORT_Assert(sid->creationTime != 0 && sid->expirationTime != 0);
+    if (!sid->creationTime)
+        sid->lastAccessTime = sid->creationTime = ssl_TimeUsec();
+    if (!sid->expirationTime)
+        sid->expirationTime = sid->creationTime + ssl3_sid_timeout * PR_USEC_PER_SEC;
 
     /*
      * Put sid into the cache.  Bump reference count to indicate that
@@ -543,9 +542,6 @@ ssl_DecodeResumptionToken(sslSessionID *sid, const PRUint8 *encodedToken,
     }
     if (readerBuffer.len) {
         PORT_Assert(readerBuffer.buf);
-        if (sid->peerID) {
-            PORT_Free((void *)sid->peerID);
-        }
         sid->peerID = PORT_Strdup((const char *)readerBuffer.buf);
     }
 
@@ -738,13 +734,13 @@ ssl_IsResumptionTokenUsable(sslSocket *ss, sslSessionID *sid)
     if (ticket->ticket_lifetime_hint != 0) {
         endTime = ticket->received_timestamp +
                   (PRTime)(ticket->ticket_lifetime_hint * PR_USEC_PER_SEC);
-        if (endTime <= ssl_Time(ss)) {
+        if (endTime < ssl_TimeUsec()) {
             return PR_FALSE;
         }
     }
 
     // Check that the session entry didn't expire.
-    if (sid->expirationTime < ssl_Time(ss)) {
+    if (sid->expirationTime < ssl_TimeUsec()) {
         return PR_FALSE;
     }
 
@@ -1104,12 +1100,10 @@ ssl_CacheExternalToken(sslSocket *ss)
     }
 
     if (!sid->creationTime) {
-        sid->lastAccessTime = sid->creationTime = ssl_Time(ss);
+        sid->lastAccessTime = sid->creationTime = ssl_TimeUsec();
     }
     if (!sid->expirationTime) {
-        sid->expirationTime = sid->creationTime + (PR_MIN(ssl_ticket_lifetime,
-                                                          sid->u.ssl3.locked.sessionTicket.ticket_lifetime_hint) *
-                                                   PR_USEC_PER_SEC);
+        sid->expirationTime = sid->creationTime + ssl3_sid_timeout;
     }
 
     if (ssl_EncodeResumptionToken(sid, &encodedToken) != SECSuccess) {
@@ -1146,11 +1140,11 @@ ssl_CacheSessionID(sslSocket *ss)
 
     PORT_Assert(!ss->resumptionTokenCallback);
     if (sec->isServer) {
-        ssl_ServerCacheSessionID(sec->ci.sid, ssl_Time(ss));
+        ssl_ServerCacheSessionID(sec->ci.sid);
         return;
     }
 
-    CacheSID(sec->ci.sid, ssl_Time(ss));
+    CacheSID(sec->ci.sid);
 }
 
 void
@@ -1183,8 +1177,32 @@ SSL_ClearSessionCache(void)
     UNLOCK_CACHE;
 }
 
+/* returns an unsigned int containing the number of seconds in PR_Now() */
+PRUint32
+ssl_TimeSec(void)
+{
+#ifdef UNSAFE_FUZZER_MODE
+    return 1234;
+#endif
+
+    PRUint32 myTime;
+#if defined(XP_UNIX) || defined(XP_WIN) || defined(_WINDOWS) || defined(XP_BEOS)
+    myTime = time(NULL); /* accurate until the year 2038. */
+#else
+    /* portable, but possibly slower */
+    PRTime now;
+    PRInt64 ll;
+
+    now = PR_Now();
+    LL_I2L(ll, 1000000L);
+    LL_DIV(now, now, ll);
+    LL_L2UI(myTime, now);
+#endif
+    return myTime;
+}
+
 PRBool
-ssl_TicketTimeValid(const sslSocket *ss, const NewSessionTicket *ticket)
+ssl_TicketTimeValid(const NewSessionTicket *ticket)
 {
     PRTime endTime;
 
@@ -1194,7 +1212,7 @@ ssl_TicketTimeValid(const sslSocket *ss, const NewSessionTicket *ticket)
 
     endTime = ticket->received_timestamp +
               (PRTime)(ticket->ticket_lifetime_hint * PR_USEC_PER_SEC);
-    return endTime > ssl_Time(ss);
+    return endTime > ssl_TimeUsec();
 }
 
 void
@@ -1212,15 +1230,14 @@ ssl3_SetSIDSessionTicket(sslSessionID *sid,
      * anything yet, so no locking is needed.
      */
     if (sid->u.ssl3.lock) {
+        PORT_Assert(sid->cached == in_client_cache);
         PR_RWLock_Wlock(sid->u.ssl3.lock);
-        /* Another thread may have evicted, or it may be in external cache. */
-        PORT_Assert(sid->cached != never_cached);
     }
     /* If this was in the client cache, then we might have to free the old
      * ticket.  In TLS 1.3, we might get a replacement ticket if the server
      * sends more than one ticket. */
     if (sid->u.ssl3.locked.sessionTicket.ticket.data) {
-        PORT_Assert(sid->cached != never_cached ||
+        PORT_Assert(sid->cached == in_client_cache ||
                     sid->version >= SSL_LIBRARY_VERSION_TLS_1_3);
         SECITEM_FreeItem(&sid->u.ssl3.locked.sessionTicket.ticket,
                          PR_FALSE);

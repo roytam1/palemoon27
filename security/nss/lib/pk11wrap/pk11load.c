@@ -353,7 +353,7 @@ SECMOD_SetRootCerts(PK11SlotInfo *slot, SECMODModule *mod)
     }
 }
 
-#ifndef NSS_STATIC_SOFTOKEN
+#ifndef NSS_TEST_BUILD
 static const char *my_shlib_name =
     SHLIB_PREFIX "nss" SHLIB_VERSION "." SHLIB_SUFFIX;
 static const char *softoken_shlib_name =
@@ -403,7 +403,7 @@ secmod_LoadPKCS11Module(SECMODModule *mod, SECMODModule **oldModule)
 
     /* internal modules get loaded from their internal list */
     if (mod->internal && (mod->dllName == NULL)) {
-#ifdef NSS_STATIC_SOFTOKEN
+#ifdef NSS_TEST_BUILD
         entry = (CK_C_GetFunctionList)NSC_GetFunctionList;
 #else
         /*
@@ -430,7 +430,7 @@ secmod_LoadPKCS11Module(SECMODModule *mod, SECMODModule **oldModule)
 
         if (mod->isModuleDB) {
             mod->moduleDBFunc = (CK_C_GetFunctionList)
-#ifdef NSS_STATIC_SOFTOKEN
+#ifdef NSS_TEST_BUILD
                 NSC_ModuleDBFunc;
 #else
                 PR_FindSymbol(softokenLib, "NSC_ModuleDBFunc");
@@ -488,10 +488,12 @@ secmod_LoadPKCS11Module(SECMODModule *mod, SECMODModule **oldModule)
         goto fail;
 
 #ifdef DEBUG_MODULE
-    modToDBG = PR_GetEnvSecure("NSS_DEBUG_PKCS11_MODULE");
-    if (modToDBG && strcmp(mod->commonName, modToDBG) == 0) {
-        mod->functionList = (void *)nss_InsertDeviceLog(
-            (CK_FUNCTION_LIST_PTR)mod->functionList);
+    if (PR_TRUE) {
+        modToDBG = PR_GetEnvSecure("NSS_DEBUG_PKCS11_MODULE");
+        if (modToDBG && strcmp(mod->commonName, modToDBG) == 0) {
+            mod->functionList = (void *)nss_InsertDeviceLog(
+                (CK_FUNCTION_LIST_PTR)mod->functionList);
+        }
     }
 #endif
 
@@ -610,7 +612,7 @@ SECMOD_UnloadModule(SECMODModule *mod)
      * if not, we should change this to SECFailure and move it above the
      * mod->loaded = PR_FALSE; */
     if (mod->internal && (mod->dllName == NULL)) {
-#ifndef NSS_STATIC_SOFTOKEN
+#ifndef NSS_TEST_BUILD
         if (0 == PR_ATOMIC_DECREMENT(&softokenLoadCount)) {
             if (softokenLib) {
                 disableUnload = PR_GetEnvSecure("NSS_DISABLE_UNLOAD");

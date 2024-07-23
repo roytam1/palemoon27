@@ -1,4 +1,5 @@
 /* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
+/* vim: set ts=2 et sw=2 tw=80: */
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -51,7 +52,6 @@ class AeadTest : public ::testing::Test {
     static const size_t kMaxSize = 32;
 
     ASSERT_GE(kMaxSize, ciphertext_len);
-    ASSERT_LT(0U, ciphertext_len);
 
     uint8_t output[kMaxSize];
     unsigned int output_len = 0;
@@ -191,7 +191,7 @@ TEST_F(AeadTest, AeadAes128Gcm) {
 }
 
 TEST_F(AeadTest, AeadAes256Gcm) {
-  SSLAeadContext *ctxInit = nullptr;
+  SSLAeadContext *ctxInit;
   ASSERT_EQ(SECSuccess,
             SSL_MakeAead(SSL_LIBRARY_VERSION_TLS_1_3, TLS_AES_256_GCM_SHA384,
                          secret_.get(), kLabel, strlen(kLabel), &ctxInit));

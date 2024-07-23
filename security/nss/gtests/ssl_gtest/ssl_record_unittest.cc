@@ -1,4 +1,5 @@
 /* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
+/* vim: set ts=2 et sw=2 tw=80: */
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -202,42 +203,6 @@ TEST_F(TlsConnectDatagram13, ShortHeadersServer) {
   server_->SetOption(SSL_ENABLE_DTLS_SHORT_HEADER, PR_TRUE);
   server_->SetFilter(std::make_shared<ShortHeaderChecker>());
   SendReceive();
-}
-
-TEST_F(TlsConnectStreamTls13, UnencryptedFinishedMessage) {
-  StartConnect();
-  client_->Handshake();  // Send ClientHello
-  server_->Handshake();  // Send first server flight
-
-  // Record and drop the first record, which is the Finished.
-  auto recorder = std::make_shared<TlsRecordRecorder>(client_);
-  recorder->EnableDecryption();
-  auto dropper = std::make_shared<SelectiveDropFilter>(1);
-  client_->SetFilter(std::make_shared<ChainedPacketFilter>(
-      ChainedPacketFilterInit({recorder, dropper})));
-  client_->Handshake();  // Save and drop CFIN.
-  EXPECT_EQ(TlsAgent::STATE_CONNECTED, client_->state());
-
-  ASSERT_EQ(1U, recorder->count());
-  auto& finished = recorder->record(0);
-
-  DataBuffer d;
-  size_t offset = d.Write(0, ssl_ct_handshake, 1);
-  offset = d.Write(offset, SSL_LIBRARY_VERSION_TLS_1_2, 2);
-  offset = d.Write(offset, finished.buffer.len(), 2);
-  d.Append(finished.buffer);
-  client_->SendDirect(d);
-
-  // Now process the message.
-  ExpectAlert(server_, kTlsAlertUnexpectedMessage);
-  // The server should generate an alert.
-  server_->Handshake();
-  EXPECT_EQ(TlsAgent::STATE_ERROR, server_->state());
-  server_->CheckErrorCode(SSL_ERROR_RX_UNEXPECTED_RECORD_TYPE);
-  // Have the client consume the alert.
-  client_->Handshake();
-  EXPECT_EQ(TlsAgent::STATE_ERROR, client_->state());
-  client_->CheckErrorCode(SSL_ERROR_HANDSHAKE_UNEXPECTED_ALERT);
 }
 
 const static size_t kContentSizesArr[] = {

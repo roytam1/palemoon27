@@ -19,7 +19,6 @@ endif
 ifneq ($(NSS_BUILD_SOFTOKEN_ONLY),1)
 ifneq ($(NSS_BUILD_UTIL_ONLY),1)
 NSS_SRCDIRS = \
-	base_gtest \
 	certdb_gtest \
 	certhigh_gtest \
 	cryptohi_gtest \
@@ -30,7 +29,6 @@ NSS_SRCDIRS = \
 	ssl_gtest \
 	$(SYSINIT_GTEST) \
 	nss_bogo_shim \
-	pkcs11testmodule \
 	$(NULL)
 endif
 endif

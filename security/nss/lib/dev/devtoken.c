@@ -32,6 +32,13 @@ nssToken_Destroy(
             PK11_FreeSlot(tok->pk11slot);
             PZ_DestroyLock(tok->base.lock);
             nssTokenObjectCache_Destroy(tok->cache);
+
+            /* We're going away, let the nssSlot know in case it's held
+             * alive by someone else. Usually we should hold the last ref. */
+            nssSlot_EnterMonitor(tok->slot);
+            tok->slot->token = NULL;
+            nssSlot_ExitMonitor(tok->slot);
+
             (void)nssSlot_Destroy(tok->slot);
             return nssArena_Destroy(tok->base.arena);
         }
@@ -44,6 +51,13 @@ nssToken_Remove(
     NSSToken *tok)
 {
     nssTokenObjectCache_Clear(tok->cache);
+}
+
+NSS_IMPLEMENT void
+NSSToken_Destroy(
+    NSSToken *tok)
+{
+    (void)nssToken_Destroy(tok);
 }
 
 NSS_IMPLEMENT NSSToken *
@@ -982,9 +996,8 @@ sha1_hash(NSSItem *input, NSSItem *output)
     NSSToken *token = PK11Slot_GetNSSToken(internal);
     ap = NSSAlgorithmAndParameters_CreateSHA1Digest(NULL);
     (void)nssToken_Digest(token, NULL, ap, input, output, NULL);
+    PK11_FreeSlot(token->pk11slot);
     nss_ZFreeIf(ap);
-    (void)nssToken_Destroy(token);
-    PK11_FreeSlot(internal);
 }
 
 static void
@@ -995,9 +1008,8 @@ md5_hash(NSSItem *input, NSSItem *output)
     NSSToken *token = PK11Slot_GetNSSToken(internal);
     ap = NSSAlgorithmAndParameters_CreateMD5Digest(NULL);
     (void)nssToken_Digest(token, NULL, ap, input, output, NULL);
+    PK11_FreeSlot(token->pk11slot);
     nss_ZFreeIf(ap);
-    (void)nssToken_Destroy(token);
-    PK11_FreeSlot(internal);
 }
 
 static CK_TRUST

@@ -190,7 +190,7 @@ SSL_IMPORT PRFileDesc *DTLS_ImportFD(PRFileDesc *model, PRFileDesc *fd);
 /* Use draft-ietf-tls-session-hash. Controls whether we offer the
  * extended_master_secret extension which, when accepted, hashes
  * the handshake transcript into the master secret. This option is
- * enabled by default.
+ * disabled by default.
  */
 #define SSL_ENABLE_EXTENDED_MASTER_SECRET 30
 
@@ -309,22 +309,6 @@ SSL_IMPORT PRFileDesc *DTLS_ImportFD(PRFileDesc *model, PRFileDesc *fd);
  * authentication.
  */
 #define SSL_ENABLE_POST_HANDSHAKE_AUTH 39
-
-/* Enables the delegated credentials extension (draft-ietf-tls-subcerts). When
- * enabled, a client that supports TLS 1.3 will indicate willingness to
- * negotiate a delegated credential (DC).
- *
- * If support is indicated, the peer may use a DC to authenticate itself. The DC
- * is sent as an extension to the peer's end-entity certificate; the end-entity
- * certificate is used to verify the DC, which in turn is used to verify the
- * handshake. DCs effectively extend the certificate chain by one, but only
- * within the context of TLS. Once issued, DCs can't be revoked; in order to
- * mitigate the damage in case the secret key is compromised, the DC is only
- * valid for a short time (days, hours, or even minutes).
- *
- * This library implements draft-03 of the protocol spec.
- */
-#define SSL_ENABLE_DELEGATED_CREDENTIALS 40
 
 #ifdef SSL_DEPRECATED_FUNCTION
 /* Old deprecated function names */
@@ -1231,20 +1215,6 @@ NSS_GetClientAuthData(void *arg,
                       struct CERTDistNamesStr *caNames,
                       struct CERTCertificateStr **pRetCert,
                       struct SECKEYPrivateKeyStr **pRetKey);
-
-/* This function can be called by the appliation's custom GetClientAuthHook
- * to filter out any certs in the cert list that doesn't match the negotiated
- * requirements of the current SSL connection.
- */
-SSL_IMPORT SECStatus
-SSL_FilterClientCertListBySocket(PRFileDesc *socket, CERTCertList *certlist);
-
-/* This function can be called by the application's custom GetClientAuthHook
- * to determine if a single certificate matches the negotiated requirements of
- * the current SSL connection.
- */
-SSL_IMPORT PRBool
-SSL_CertIsUsable(PRFileDesc *socket, CERTCertificate *cert);
 
 /*
 ** Configure DTLS-SRTP (RFC 5764) cipher suite preferences.

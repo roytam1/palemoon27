@@ -9,7 +9,6 @@ RUN apt-get update \
     gcc-4.4 \
     locales \
     make \
-    patch \
     mercurial \
     zlib1g-dev \
  && rm -rf /var/lib/apt/lists/* \

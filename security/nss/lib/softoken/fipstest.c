@@ -12,7 +12,6 @@
 #include "lowkeyi.h"
 #include "secoid.h"
 #include "secerr.h"
-#include "pkcs11i.h"
 
 /*
  * different platforms have different ways of calling and initial entry point
@@ -625,10 +624,6 @@ sftk_startup_tests(void)
                         (PRFuncPtr)&sftk_fips_RSA_PowerUpSelfTest)) {
         /* something is wrong with the library, fail without enabling
          * the token */
-        return;
-    }
-    rv = sftk_fips_IKE_PowerUpSelfTests();
-    if (rv != SECSuccess) {
         return;
     }
     sftk_self_tests_success = PR_TRUE;

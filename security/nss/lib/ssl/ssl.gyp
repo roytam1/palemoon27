@@ -49,7 +49,6 @@
         'tls13hashstate.c',
         'tls13hkdf.c',
         'tls13replay.c',
-        'tls13subcerts.c',
       ],
       'conditions': [
         [ 'OS=="win"', {
@@ -70,11 +69,11 @@
             'UNSAFE_FUZZER_MODE',
           ],
         }],
-#        [ 'enable_sslkeylogfile==1', {
-#          'defines': [
-#            'NSS_ALLOW_SSLKEYLOGFILE',
-#          ],
-#        }],
+        [ 'OS=="dragonfly" or OS=="freebsd" or OS=="netbsd" or OS=="openbsd" or OS=="linux"', {
+          'cflags': [
+            '-std=gnu99',
+          ],
+        }],
       ],
       'dependencies': [
         '<(DEPTH)/exports.gyp:nss_exports',
@@ -94,6 +93,11 @@
       }
     }
   ],
+  'target_defaults': {
+    'defines': [
+      'NSS_ALLOW_SSLKEYLOGFILE=1'
+    ]
+  },
   'variables': {
     'module': 'nss'
   }

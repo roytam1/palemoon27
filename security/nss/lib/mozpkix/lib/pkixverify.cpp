@@ -1,4 +1,5 @@
 /* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
+/* vim: set ts=8 sts=2 et sw=2 tw=80: */
 /* This code is made available to you under your choice of the following sets
  * of licensing terms:
  */
@@ -42,7 +43,14 @@ DigestSignedData(TrustDomain& trustDomain,
     return Result::ERROR_BAD_DER;
   }
 
-  size_t digestLen = DigestAlgorithmToSizeInBytes(signedDigest.digestAlgorithm);
+  size_t digestLen;
+  switch (signedDigest.digestAlgorithm) {
+    case DigestAlgorithm::sha512: digestLen = 512 / 8; break;
+    case DigestAlgorithm::sha384: digestLen = 384 / 8; break;
+    case DigestAlgorithm::sha256: digestLen = 256 / 8; break;
+    case DigestAlgorithm::sha1: digestLen = 160 / 8; break;
+    MOZILLA_PKIX_UNREACHABLE_DEFAULT_ENUM
+  }
   assert(digestLen <= sizeof(digestBuf));
 
   rv = trustDomain.DigestBuf(signedData.data, signedDigest.digestAlgorithm,

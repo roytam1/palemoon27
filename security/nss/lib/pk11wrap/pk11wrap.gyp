@@ -10,7 +10,7 @@
       'target_name': 'pk11wrap_static',
       'type': 'static_library',
       'defines': [
-        'NSS_STATIC_SOFTOKEN',
+        'NSS_TEST_BUILD',
       ],
       'dependencies': [
         'pk11wrap_base',

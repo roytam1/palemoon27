@@ -18,6 +18,11 @@ typedef enum {
     tls13_extension_unknown
 } tls13ExtensionStatus;
 
+typedef enum {
+    update_not_requested = 0,
+    update_requested = 1
+} tls13KeyUpdateRequest;
+
 #define TLS13_MAX_FINISHED_SIZE 64
 
 SECStatus tls13_UnprotectRecord(
@@ -41,8 +46,6 @@ void tls13_SetHsState(sslSocket *ss, SSL3WaitState ws,
 PRBool tls13_InHsState(sslSocket *ss, ...);
 #define TLS13_IN_HS_STATE(ss, ...) \
     tls13_InHsState(ss, __VA_ARGS__, wait_invalid)
-
-PRBool tls13_IsPostHandshake(const sslSocket *ss);
 
 SSLHashType tls13_GetHashForCipherSuite(ssl3CipherSuite suite);
 SSLHashType tls13_GetHash(const sslSocket *ss);
@@ -104,7 +107,7 @@ SECStatus tls13_ProtectRecord(sslSocket *ss,
                               const PRUint8 *pIn,
                               PRUint32 contentLen,
                               sslBuffer *wrBuf);
-PRInt32 tls13_Read0RttData(sslSocket *ss, PRUint8 *buf, PRInt32 len);
+PRInt32 tls13_Read0RttData(sslSocket *ss, void *buf, PRInt32 len);
 SECStatus tls13_HandleEarlyApplicationData(sslSocket *ss, sslBuffer *origBuf);
 PRBool tls13_ClientAllow0Rtt(const sslSocket *ss, const sslSessionID *sid);
 PRUint16 tls13_EncodeDraftVersion(SSL3ProtocolVersion version,
@@ -115,16 +118,10 @@ SECStatus tls13_NegotiateVersion(sslSocket *ss,
 PRBool tls13_ShouldRequestClientAuth(sslSocket *ss);
 
 PRBool tls13_IsReplay(const sslSocket *ss, const sslSessionID *sid);
-void tls13_AntiReplayRollover(SSLAntiReplayContext *ctx, PRTime now);
-SSLAntiReplayContext *tls13_RefAntiReplayContext(SSLAntiReplayContext *ctx);
-void tls13_ReleaseAntiReplayContext(SSLAntiReplayContext *ctx);
+void tls13_AntiReplayRollover(PRTime now);
 
-SECStatus SSLExp_CreateAntiReplayContext(
-    PRTime now, PRTime window, unsigned int k, unsigned int bits,
-    SSLAntiReplayContext **ctx);
-SECStatus SSLExp_SetAntiReplayContext(PRFileDesc *fd,
-                                      SSLAntiReplayContext *ctx);
-SECStatus SSLExp_ReleaseAntiReplayContext(SSLAntiReplayContext *ctx);
+SECStatus SSLExp_SetupAntiReplay(PRTime window, unsigned int k,
+                                 unsigned int bits);
 
 SECStatus SSLExp_HelloRetryRequestCallback(PRFileDesc *fd,
                                            SSLHelloRetryRequestCallback cb,

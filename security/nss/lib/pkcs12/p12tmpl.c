@@ -30,12 +30,12 @@ sec_pkcs12_choose_safe_bag_type(void *src_or_dest, PRBool encoding)
 
     oiddata = SECOID_FindOID(&safeBag->safeBagType);
     if (oiddata == NULL) {
-        return SEC_ASN1_GET(SEC_PointerToAnyTemplate);
+        return SEC_ASN1_GET(SEC_AnyTemplate);
     }
 
     switch (oiddata->offset) {
         default:
-            theTemplate = SEC_ASN1_GET(SEC_PointerToAnyTemplate);
+            theTemplate = SEC_ASN1_GET(SEC_AnyTemplate);
             break;
         case SEC_OID_PKCS12_V1_KEY_BAG_ID:
             theTemplate = SEC_ASN1_GET(SECKEY_PointerToPrivateKeyInfoTemplate);

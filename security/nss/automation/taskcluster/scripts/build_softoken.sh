@@ -20,9 +20,8 @@ export NSS_BUILD_SOFTOKEN_ONLY=1
 rm -rf dist
 make -C nss-softoken nss_build_all
 
-for i in blapi alghmac cmac; do
-    mv "dist/private/nss/${i}.h" dist/public/nss
-done
+mv dist/private/nss/blapi.h dist/public/nss
+mv dist/private/nss/alghmac.h dist/public/nss
 
 # Package.
 test -d artifacts || mkdir artifacts

@@ -159,7 +159,7 @@ static const CK_ATTRIBUTE_TYPE known_attributes[] = {
     CKA_TRUST_IPSEC_TUNNEL, CKA_TRUST_IPSEC_USER, CKA_TRUST_TIME_STAMPING,
     CKA_TRUST_STEP_UP_APPROVED, CKA_CERT_SHA1_HASH, CKA_CERT_MD5_HASH,
     CKA_NETSCAPE_DB, CKA_NETSCAPE_TRUST, CKA_NSS_OVERRIDE_EXTENSIONS,
-    CKA_PUBLIC_KEY_INFO, CKA_NSS_SERVER_DISTRUST_AFTER, CKA_NSS_EMAIL_DISTRUST_AFTER
+    CKA_PUBLIC_KEY_INFO
 };
 
 static int known_attributes_size = sizeof(known_attributes) /
@@ -657,11 +657,6 @@ sdb_openDB(const char *name, sqlite3 **sqlDB, int flags)
         openFlags = SQLITE_OPEN_READONLY;
     } else {
         openFlags = SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE;
-        /* sqlite 3.34 seem to incorrectly open readwrite.
-        * when the file is readonly. Explicitly reject that issue here */
-        if ((_NSSUTIL_Access(name, PR_ACCESS_EXISTS) == PR_SUCCESS) && (_NSSUTIL_Access(name, PR_ACCESS_WRITE_OK) != PR_SUCCESS)) {
-            return SQLITE_READONLY;
-        }
     }
 
     /* Requires SQLite 3.5.0 or newer. */
@@ -864,6 +859,7 @@ sdb_FindObjectsFinal(SDB *sdb, SDBFind *sdbFind)
     return sdb_mapSQLError(sdb_p->type, sqlerr);
 }
 
+static const char GET_ATTRIBUTE_CMD[] = "SELECT ALL %s FROM %s WHERE id=$ID;";
 CK_RV
 sdb_GetAttributeValueNoLock(SDB *sdb, CK_OBJECT_HANDLE object_id,
                             CK_ATTRIBUTE *template, CK_ULONG count)
@@ -871,19 +867,14 @@ sdb_GetAttributeValueNoLock(SDB *sdb, CK_OBJECT_HANDLE object_id,
     SDBPrivate *sdb_p = sdb->private;
     sqlite3 *sqlDB = NULL;
     sqlite3_stmt *stmt = NULL;
+    char *getStr = NULL;
+    char *newStr = NULL;
     const char *table = NULL;
     int sqlerr = SQLITE_OK;
     CK_RV error = CKR_OK;
     int found = 0;
     int retry = 0;
     unsigned int i;
-    char *columns = NULL;
-    char *statement;
-
-    if (count == 0) {
-        error = CKR_OBJECT_HANDLE_INVALID;
-        goto loser;
-    }
 
     /* open a new db if necessary */
     error = sdb_openDBLocal(sdb_p, &sqlDB, &table);
@@ -892,66 +883,52 @@ sdb_GetAttributeValueNoLock(SDB *sdb, CK_OBJECT_HANDLE object_id,
     }
 
     for (i = 0; i < count; i++) {
-        char *newColumns;
-        if (columns) {
-            newColumns = sqlite3_mprintf("%s, a%x", columns, template[i].type);
-            sqlite3_free(columns);
-            columns = NULL;
-        } else {
-            newColumns = sqlite3_mprintf("a%x", template[i].type);
-        }
-        if (!newColumns) {
+        getStr = sqlite3_mprintf("a%x", template[i].type);
+
+        if (getStr == NULL) {
             error = CKR_HOST_MEMORY;
             goto loser;
         }
-        columns = newColumns;
-    }
 
-    PORT_Assert(columns);
-
-    statement = sqlite3_mprintf("SELECT DISTINCT %s FROM %s where id=$ID LIMIT 1;",
-                                      columns, table);
-    sqlite3_free(columns);
-    columns = NULL;
-    if (!statement) {
-        error = CKR_HOST_MEMORY;
-        goto loser;
-    }
-
-    sqlerr = sqlite3_prepare_v2(sqlDB, statement, -1, &stmt, NULL);
-    sqlite3_free(statement);
-    statement = NULL;
-    if (sqlerr != SQLITE_OK) {
-        goto loser;
-    }
-
-    // NB: indices in sqlite3_bind_int are 1-indexed
-    sqlerr = sqlite3_bind_int(stmt, 1, object_id);
-    if (sqlerr != SQLITE_OK) {
-        goto loser;
-    }
-
-    do {
-        sqlerr = sqlite3_step(stmt);
-        if (sqlerr == SQLITE_BUSY) {
-            PR_Sleep(SDB_BUSY_RETRY_TIME);
+        newStr = sqlite3_mprintf(GET_ATTRIBUTE_CMD, getStr, table);
+        sqlite3_free(getStr);
+        getStr = NULL;
+        if (newStr == NULL) {
+            error = CKR_HOST_MEMORY;
+            goto loser;
         }
-        if (sqlerr == SQLITE_ROW) {
-            PORT_Assert(!found);
-            for (i = 0; i < count; i++) {
+
+        sqlerr = sqlite3_prepare_v2(sqlDB, newStr, -1, &stmt, NULL);
+        sqlite3_free(newStr);
+        newStr = NULL;
+        if (sqlerr == SQLITE_ERROR) {
+            template[i].ulValueLen = -1;
+            error = CKR_ATTRIBUTE_TYPE_INVALID;
+            continue;
+        } else if (sqlerr != SQLITE_OK) {
+            goto loser;
+        }
+
+        sqlerr = sqlite3_bind_int(stmt, 1, object_id);
+        if (sqlerr != SQLITE_OK) {
+            goto loser;
+        }
+
+        do {
+            sqlerr = sqlite3_step(stmt);
+            if (sqlerr == SQLITE_BUSY) {
+                PR_Sleep(SDB_BUSY_RETRY_TIME);
+            }
+            if (sqlerr == SQLITE_ROW) {
                 unsigned int blobSize;
                 const char *blobData;
 
-                // NB: indices in sqlite_column_{bytes,blob} are 0-indexed
-                blobSize = sqlite3_column_bytes(stmt, i);
-                blobData = sqlite3_column_blob(stmt, i);
+                blobSize = sqlite3_column_bytes(stmt, 0);
+                blobData = sqlite3_column_blob(stmt, 0);
                 if (blobData == NULL) {
-                    /* PKCS 11 requires that get attributes process all the
-                     * attributes in the template, marking the attributes with
-                     * issues with -1. Mark the error but continue */
                     template[i].ulValueLen = -1;
                     error = CKR_ATTRIBUTE_TYPE_INVALID;
-                    continue;
+                    break;
                 }
                 /* If the blob equals our explicit NULL value, then the
                  * attribute is a NULL. */
@@ -962,21 +939,20 @@ sdb_GetAttributeValueNoLock(SDB *sdb, CK_OBJECT_HANDLE object_id,
                 }
                 if (template[i].pValue) {
                     if (template[i].ulValueLen < blobSize) {
-                        /* like CKR_ATTRIBUTE_TYPE_INVALID, continue processing */
                         template[i].ulValueLen = -1;
                         error = CKR_BUFFER_TOO_SMALL;
-                        continue;
+                        break;
                     }
                     PORT_Memcpy(template[i].pValue, blobData, blobSize);
                 }
                 template[i].ulValueLen = blobSize;
+                found = 1;
             }
-            found = 1;
-        }
-    } while (!sdb_done(sqlerr, &retry));
-    sqlite3_reset(stmt);
-    sqlite3_finalize(stmt);
-    stmt = NULL;
+        } while (!sdb_done(sqlerr, &retry));
+        sqlite3_reset(stmt);
+        sqlite3_finalize(stmt);
+        stmt = NULL;
+    }
 
 loser:
     /* fix up the error if necessary */

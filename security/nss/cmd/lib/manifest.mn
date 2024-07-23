@@ -37,5 +37,3 @@ CSRCS	= basicutil.c \
 endif
 
 NO_MD_RELEASE	= 1
-
-USE_STATIC_LIBS = 1

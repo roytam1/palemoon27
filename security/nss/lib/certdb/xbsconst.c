@@ -120,11 +120,8 @@ CERT_DecodeBasicConstraintValue(CERTBasicConstraints *value,
               number
               for unlimited certificate path.
              */
-            if (value->isCA) {
+            if (value->isCA)
                 value->pathLenConstraint = CERT_UNLIMITED_PATH_CONSTRAINT;
-            } else {
-                value->pathLenConstraint = 0;
-            }
         } else if (value->isCA) {
             long len = DER_GetInteger(&decodeContext.pathLenConstraint);
             if (len < 0 || len == LONG_MAX) {

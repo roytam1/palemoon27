@@ -43,7 +43,6 @@
         '<(DEPTH)/lib/base/base.gyp:nssb',
         '<(DEPTH)/lib/dev/dev.gyp:nssdev',
         '<(DEPTH)/lib/pki/pki.gyp:nsspki',
-        '<(DEPTH)/lib/libpkix/libpkix.gyp:libpkix',
         '<(DEPTH)/lib/mozpkix/mozpkix.gyp:mozpkix',
         '<(DEPTH)/lib/mozpkix/mozpkix.gyp:mozpkix-testlib',
       ],

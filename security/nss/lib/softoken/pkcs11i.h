@@ -17,9 +17,6 @@
 #include "chacha20poly1305.h"
 #include "hasht.h"
 
-#include "alghmac.h"
-#include "cmac.h"
-
 /*
  * Configuration Defines
  *
@@ -109,7 +106,6 @@ typedef struct SFTKOAEPEncryptInfoStr SFTKOAEPEncryptInfo;
 typedef struct SFTKOAEPDecryptInfoStr SFTKOAEPDecryptInfo;
 typedef struct SFTKSSLMACInfoStr SFTKSSLMACInfo;
 typedef struct SFTKChaCha20Poly1305InfoStr SFTKChaCha20Poly1305Info;
-typedef struct SFTKChaCha20CtrInfoStr SFTKChaCha20CtrInfo;
 typedef struct SFTKItemTemplateStr SFTKItemTemplate;
 
 /* define function pointer typdefs for pointer tables */
@@ -257,15 +253,12 @@ struct SFTKSessionContextStr {
     PRBool multi;               /* is multipart */
     PRBool rsa;                 /* is rsa */
     PRBool doPad;               /* use PKCS padding for block ciphers */
-    PRBool isXCBC;              /* xcbc, use special handling in final */
     unsigned int blockSize;     /* blocksize for padding */
     unsigned int padDataLength; /* length of the valid data in padbuf */
     /** latest incomplete block of data for block cipher */
     unsigned char padBuf[SFTK_MAX_BLOCK_SIZE];
     /** result of MAC'ing of latest full block of data with block cipher */
     unsigned char macBuf[SFTK_MAX_BLOCK_SIZE];
-    unsigned char k2[SFTK_MAX_BLOCK_SIZE];
-    unsigned char k3[SFTK_MAX_BLOCK_SIZE];
     CK_ULONG macSize; /* size of a general block cipher mac*/
     void *cipherInfo;
     void *hashInfo;
@@ -288,6 +281,7 @@ struct SFTKSessionStr {
     SFTKSession *next;
     SFTKSession *prev;
     CK_SESSION_HANDLE handle;
+    int refCount;
     PZLock *objectLock;
     int objectIDCount;
     CK_SESSION_INFO info;
@@ -310,7 +304,7 @@ struct SFTKSessionStr {
  * object hash tables (sessObjHashTable[] and tokObjHashTable), and
  * sessionObjectHandleCount.
  * slotLock protects the remaining protected elements:
- * password, needLogin, isLoggedIn, ssoLoggedIn, and sessionCount,
+ * password, isLoggedIn, ssoLoggedIn, and sessionCount,
  * and pwCheckLock serializes the key database password checks in
  * NSC_SetPIN and NSC_Login.
  *
@@ -415,14 +409,6 @@ struct SFTKChaCha20Poly1305InfoStr {
     unsigned int adLen;
 };
 
-/* SFTKChaCha20BlockInfoStr the key, nonce and counter for a
- * ChaCha20 block operation. */
-struct SFTKChaCha20CtrInfoStr {
-    PRUint8 key[32];
-    PRUint8 nonce[12];
-    PRUint32 counter;
-};
-
 /*
  * Template based on SECItems, suitable for passing as arrays
  */
@@ -461,7 +447,7 @@ struct SFTKItemTemplateStr {
 
 #define SFTK_TOKEN_KRL_HANDLE (SFTK_TOKEN_MAGIC | SFTK_TOKEN_TYPE_CRL | 1)
 /* how big (in bytes) a password/pin we can deal with */
-#define SFTK_MAX_PIN 500
+#define SFTK_MAX_PIN 255
 /* minimum password/pin length (in Unicode characters) in FIPS mode */
 #define FIPS_MIN_PIN 7
 
@@ -598,73 +584,6 @@ typedef struct sftk_parametersStr {
 #define CERT_DB_FMT "%scert%s.db"
 #define KEY_DB_FMT "%skey%s.db"
 
-struct sftk_MACConstantTimeCtxStr {
-    const SECHashObject *hash;
-    unsigned char mac[64];
-    unsigned char secret[64];
-    unsigned int headerLength;
-    unsigned int secretLength;
-    unsigned int totalLength;
-    unsigned char header[75];
-};
-typedef struct sftk_MACConstantTimeCtxStr sftk_MACConstantTimeCtx;
-
-struct sftk_MACCtxStr {
-    /* This is a common MAC context that supports both HMAC and CMAC
-     * operations. This also presents a unified set of semantics:
-     *
-     *  - Everything except Destroy returns a CK_RV, indicating success
-     *    or failure. (This handles the difference between HMAC's and CMAC's
-     *    interfaces, since the underlying AES _might_ fail with CMAC).
-     *
-     *  - The underlying MAC is started on Init(...), so Update(...) can
-     *    called right away. (This handles the difference between HMAC and
-     *    CMAC in their *_Init(...) functions).
-     *
-     *  - Calling semantics:
-     *
-     *      - One of sftk_MAC_{Create,Init,InitRaw}(...) to set up the MAC
-     *        context, checking the return code.
-     *      - sftk_MAC_Update(...) as many times as necessary to process
-     *        input data, checking the return code.
-     *      - sftk_MAC_Finish(...) to get the output of the MAC; result_len
-     *        may be NULL if the caller knows the expected output length,
-     *        checking the return code. If result_len is NULL, this will
-     *        PR_ASSERT(...) that the actual returned length was equal to
-     *        max_result_len.
-     *
-     *        Note: unlike HMAC_Finish(...), this allows the caller to specify
-     *        a return value less than return length, to align with
-     *        CMAC_Finish(...)'s semantics. This will force an additional
-     *        stack allocation of size SFTK_MAX_MAC_LENGTH.
-     *      - sftk_MAC_Reset(...) if the caller wishes to compute a new MAC
-     *        with the same key, checking the return code.
-     *      - sftk_MAC_Destroy(...) when the caller frees its associated
-     *        memory, passing PR_TRUE if sftk_MAC_Create(...) was called,
-     *        and PR_FALSE otherwise.
-     */
-
-    CK_MECHANISM_TYPE mech;
-    unsigned int mac_size;
-
-    union {
-        HMACContext *hmac;
-        CMACContext *cmac;
-
-        /* Functions to update when adding a new MAC or a new hash:
-         *
-         *  - sftk_MAC_Init
-         *  - sftk_MAC_Update
-         *  - sftk_MAC_Finish
-         *  - sftk_MAC_Reset
-         */
-        void *raw;
-    } mac;
-
-    void (*destroy_func)(void *ctx, PRBool free_it);
-};
-typedef struct sftk_MACCtxStr sftk_MACCtx;
-
 SEC_BEGIN_PROTOS
 
 /* shared functions between pkcs11.c and fipstokn.c */
@@ -686,7 +605,6 @@ extern CK_RV SFTK_ShutdownSlot(SFTKSlot *slot);
 extern CK_RV sftk_CloseAllSessions(SFTKSlot *slot, PRBool logout);
 
 /* internal utility functions used by pkcs11.c */
-extern CK_RV sftk_MapCryptError(int error);
 extern SFTKAttribute *sftk_FindAttribute(SFTKObject *object,
                                          CK_ATTRIBUTE_TYPE type);
 extern void sftk_FreeAttribute(SFTKAttribute *attribute);
@@ -752,7 +670,6 @@ extern SFTKSlot *sftk_SlotFromSessionHandle(CK_SESSION_HANDLE handle);
 extern CK_SLOT_ID sftk_SlotIDFromSessionHandle(CK_SESSION_HANDLE handle);
 extern SFTKSession *sftk_SessionFromHandle(CK_SESSION_HANDLE handle);
 extern void sftk_FreeSession(SFTKSession *session);
-extern void sftk_DestroySession(SFTKSession *session);
 extern SFTKSession *sftk_NewSession(CK_SLOT_ID slotID, CK_NOTIFY notify,
                                     CK_VOID_PTR pApplication, CK_FLAGS flags);
 extern void sftk_update_state(SFTKSlot *slot, SFTKSession *session);
@@ -765,35 +682,9 @@ extern NSSLOWKEYPublicKey *sftk_GetPubKey(SFTKObject *object,
                                           CK_KEY_TYPE key_type, CK_RV *crvp);
 extern NSSLOWKEYPrivateKey *sftk_GetPrivKey(SFTKObject *object,
                                             CK_KEY_TYPE key_type, CK_RV *crvp);
-extern CK_RV sftk_PutPubKey(SFTKObject *publicKey, SFTKObject *privKey, CK_KEY_TYPE keyType,
-                            NSSLOWKEYPublicKey *pubKey);
 extern void sftk_FormatDESKey(unsigned char *key, int length);
 extern PRBool sftk_CheckDESKey(unsigned char *key);
 extern PRBool sftk_IsWeakKey(unsigned char *key, CK_KEY_TYPE key_type);
-
-/* ike and xcbc helpers */
-extern CK_RV sftk_ike_prf(CK_SESSION_HANDLE hSession,
-                          const SFTKAttribute *inKey,
-                          const CK_NSS_IKE_PRF_DERIVE_PARAMS *params, SFTKObject *outKey);
-extern CK_RV sftk_ike1_prf(CK_SESSION_HANDLE hSession,
-                           const SFTKAttribute *inKey,
-                           const CK_NSS_IKE1_PRF_DERIVE_PARAMS *params, SFTKObject *outKey,
-                           unsigned int keySize);
-extern CK_RV sftk_ike1_appendix_b_prf(CK_SESSION_HANDLE hSession,
-                                      const SFTKAttribute *inKey,
-                                      const CK_MECHANISM_TYPE *params, SFTKObject *outKey,
-                                      unsigned int keySize);
-extern CK_RV sftk_ike_prf_plus(CK_SESSION_HANDLE hSession,
-                               const SFTKAttribute *inKey,
-                               const CK_NSS_IKE_PRF_PLUS_DERIVE_PARAMS *params, SFTKObject *outKey,
-                               unsigned int keySize);
-extern CK_RV sftk_aes_xcbc_new_keys(CK_SESSION_HANDLE hSession,
-                                    CK_OBJECT_HANDLE hKey, CK_OBJECT_HANDLE_PTR phKey,
-                                    unsigned char *k2, unsigned char *k3);
-extern CK_RV sftk_xcbc_mac_pad(unsigned char *padBuf, unsigned int bufLen,
-                               int blockSize, const unsigned char *k2,
-                               const unsigned char *k3);
-extern SECStatus sftk_fips_IKE_PowerUpSelfTests(void);
 
 /* mechanism allows this operation */
 extern CK_RV sftk_MechAllowsOperation(CK_MECHANISM_TYPE type, CK_ATTRIBUTE_TYPE op);
@@ -836,6 +727,17 @@ extern CK_RV jpake_Final(HASH_HashType hashType,
                          SFTKObject *sourceKey, SFTKObject *key);
 
 /* Constant time MAC functions (hmacct.c) */
+
+struct sftk_MACConstantTimeCtxStr {
+    const SECHashObject *hash;
+    unsigned char mac[64];
+    unsigned char secret[64];
+    unsigned int headerLength;
+    unsigned int secretLength;
+    unsigned int totalLength;
+    unsigned char header[75];
+};
+typedef struct sftk_MACConstantTimeCtxStr sftk_MACConstantTimeCtx;
 sftk_MACConstantTimeCtx *sftk_HMACConstantTime_New(
     CK_MECHANISM_PTR mech, SFTKObject *key);
 sftk_MACConstantTimeCtx *sftk_SSLv3MACConstantTime_New(
@@ -856,16 +758,6 @@ sftk_TLSPRFInit(SFTKSessionContext *context,
                 CK_KEY_TYPE key_type,
                 HASH_HashType hash_alg,
                 unsigned int out_len);
-
-/* PKCS#11 MAC implementation. See sftk_MACCtxStr declaration above for
- * calling semantics for these functions. */
-CK_RV sftk_MAC_Create(CK_MECHANISM_TYPE mech, SFTKObject *key, sftk_MACCtx **ret_ctx);
-CK_RV sftk_MAC_Init(sftk_MACCtx *ctx, CK_MECHANISM_TYPE mech, SFTKObject *key);
-CK_RV sftk_MAC_InitRaw(sftk_MACCtx *ctx, CK_MECHANISM_TYPE mech, const unsigned char *key, unsigned int key_len, PRBool isFIPS);
-CK_RV sftk_MAC_Update(sftk_MACCtx *ctx, CK_BYTE_PTR data, unsigned int data_len);
-CK_RV sftk_MAC_Finish(sftk_MACCtx *ctx, CK_BYTE_PTR result, unsigned int *result_len, unsigned int max_result_len);
-CK_RV sftk_MAC_Reset(sftk_MACCtx *ctx);
-void sftk_MAC_Destroy(sftk_MACCtx *ctx, PRBool free_it);
 
 SEC_END_PROTOS
 

@@ -219,7 +219,7 @@ decode(FILE *out, SECItem *input, const struct decodeOptionsStr *decodeOptions)
         switch (typetag) {
             case SEC_OID_PKCS7_SIGNED_DATA: {
                 NSSCMSSignedData *sigd = NULL;
-                SECItem **digests = NULL;
+                SECItem **digests;
                 int nsigners;
                 int j;
 

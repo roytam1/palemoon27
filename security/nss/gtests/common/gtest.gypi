@@ -21,13 +21,6 @@
         'libraries': [
           '-lws2_32',
         ],
-        'conditions': [
-          ['static_libs==1', {
-            'libraries': [
-              '-ladvapi32',
-            ],
-          }],
-        ],
       }],
       ['OS=="android"', {
         'libraries': [

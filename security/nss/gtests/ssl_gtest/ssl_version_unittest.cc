@@ -1,4 +1,5 @@
 /* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
+/* vim: set ts=2 et sw=2 tw=80: */
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -54,10 +55,6 @@ TEST_P(TlsConnectGeneric, ServerNegotiateTls12) {
 // two validate that we can also detect fallback using the
 // SSL_SetDowngradeCheckVersion() API.
 TEST_F(TlsConnectTest, TestDowngradeDetectionToTls11) {
-  client_->SetVersionRange(SSL_LIBRARY_VERSION_TLS_1_0,
-                           SSL_LIBRARY_VERSION_TLS_1_2);
-  server_->SetVersionRange(SSL_LIBRARY_VERSION_TLS_1_0,
-                           SSL_LIBRARY_VERSION_TLS_1_2);
   client_->SetOption(SSL_ENABLE_HELLO_DOWNGRADE_CHECK, PR_TRUE);
   MakeTlsFilter<TlsClientHelloVersionSetter>(client_,
                                              SSL_LIBRARY_VERSION_TLS_1_1);
@@ -101,61 +98,6 @@ TEST_F(TlsConnectTest, TestDisableDowngradeDetection) {
   server_->CheckErrorCode(SSL_ERROR_BAD_HANDSHAKE_HASH_VALUE);
 }
 
-typedef std::tuple<SSLProtocolVariant,
-                   uint16_t,  // client version
-                   uint16_t>  // server version
-    TlsDowngradeProfile;
-
-class TlsDowngradeTest
-    : public TlsConnectTestBase,
-      public ::testing::WithParamInterface<TlsDowngradeProfile> {
- public:
-  TlsDowngradeTest()
-      : TlsConnectTestBase(std::get<0>(GetParam()), std::get<1>(GetParam())),
-        c_ver(std::get<1>(GetParam())),
-        s_ver(std::get<2>(GetParam())) {}
-
- protected:
-  const uint16_t c_ver;
-  const uint16_t s_ver;
-};
-
-TEST_P(TlsDowngradeTest, TlsDowngradeSentinelTest) {
-  static const uint8_t tls12_downgrade_random[] = {0x44, 0x4F, 0x57, 0x4E,
-                                                   0x47, 0x52, 0x44, 0x01};
-  static const uint8_t tls1_downgrade_random[] = {0x44, 0x4F, 0x57, 0x4E,
-                                                  0x47, 0x52, 0x44, 0x00};
-  static const size_t kRandomLen = 32;
-
-  if (c_ver > s_ver) {
-    return;
-  }
-
-  client_->SetVersionRange(c_ver, c_ver);
-  server_->SetVersionRange(c_ver, s_ver);
-
-  auto sh = MakeTlsFilter<TlsHandshakeRecorder>(server_, ssl_hs_server_hello);
-  Connect();
-  ASSERT_TRUE(sh->buffer().len() > (kRandomLen + 2));
-
-  const uint8_t* downgrade_sentinel =
-      sh->buffer().data() + 2 + kRandomLen - sizeof(tls1_downgrade_random);
-  if (c_ver < s_ver) {
-    if (c_ver == SSL_LIBRARY_VERSION_TLS_1_2) {
-      EXPECT_EQ(0, memcmp(downgrade_sentinel, tls12_downgrade_random,
-                          sizeof(tls12_downgrade_random)));
-    } else {
-      EXPECT_EQ(0, memcmp(downgrade_sentinel, tls1_downgrade_random,
-                          sizeof(tls1_downgrade_random)));
-    }
-  } else {
-    EXPECT_NE(0, memcmp(downgrade_sentinel, tls12_downgrade_random,
-                        sizeof(tls12_downgrade_random)));
-    EXPECT_NE(0, memcmp(downgrade_sentinel, tls1_downgrade_random,
-                        sizeof(tls1_downgrade_random)));
-  }
-}
-
 // TLS 1.1 clients do not check the random values, so we should
 // instead get a handshake failure alert from the server.
 TEST_F(TlsConnectTest, TestDowngradeDetectionToTls10) {
@@ -174,11 +116,11 @@ TEST_F(TlsConnectTest, TestDowngradeDetectionToTls10) {
 
 TEST_F(TlsConnectTest, TestFallbackFromTls12) {
   client_->SetOption(SSL_ENABLE_HELLO_DOWNGRADE_CHECK, PR_TRUE);
+  client_->SetDowngradeCheckVersion(SSL_LIBRARY_VERSION_TLS_1_2);
   client_->SetVersionRange(SSL_LIBRARY_VERSION_TLS_1_1,
                            SSL_LIBRARY_VERSION_TLS_1_1);
   server_->SetVersionRange(SSL_LIBRARY_VERSION_TLS_1_1,
                            SSL_LIBRARY_VERSION_TLS_1_2);
-  client_->SetDowngradeCheckVersion(SSL_LIBRARY_VERSION_TLS_1_2);
   ConnectExpectAlert(client_, kTlsAlertIllegalParameter);
   client_->CheckErrorCode(SSL_ERROR_RX_MALFORMED_SERVER_HELLO);
   server_->CheckErrorCode(SSL_ERROR_ILLEGAL_PARAMETER_ALERT);
@@ -327,28 +269,11 @@ TEST_F(TlsConnectStreamTls13, Tls14ClientHelloWithSupportedVersions) {
   ASSERT_LT(static_cast<uint32_t>(SSL_LIBRARY_VERSION_TLS_1_2), version);
 }
 
-// Offer 1.3 but with Server/ClientHello.legacy_version == SSL 3.0. This
+// Offer 1.3 but with ClientHello.legacy_version == SSL 3.0. This
 // causes a protocol version alert.  See RFC 8446 Appendix D.5.
 TEST_F(TlsConnectStreamTls13, Ssl30ClientHelloWithSupportedVersions) {
   MakeTlsFilter<TlsClientHelloVersionSetter>(client_, SSL_LIBRARY_VERSION_3_0);
   ConnectExpectAlert(server_, kTlsAlertProtocolVersion);
 }
-
-TEST_F(TlsConnectStreamTls13, Ssl30ServerHelloWithSupportedVersions) {
-  MakeTlsFilter<TlsServerHelloVersionSetter>(server_, SSL_LIBRARY_VERSION_3_0);
-  StartConnect();
-  client_->ExpectSendAlert(kTlsAlertProtocolVersion);
-  /* Since the handshake is not finished the client will send an unencrypted
-   * alert. The server is expected to close the connection with a unexpected
-   * message alert. */
-  server_->ExpectSendAlert(kTlsAlertUnexpectedMessage);
-  Handshake();
-}
-
-INSTANTIATE_TEST_CASE_P(
-    TlsDowngradeSentinelTest, TlsDowngradeTest,
-    ::testing::Combine(TlsConnectTestBase::kTlsVariantsStream,
-                       TlsConnectTestBase::kTlsVAll,
-                       TlsConnectTestBase::kTlsV12Plus));
 
 }  // namespace nss_test

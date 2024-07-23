@@ -104,7 +104,7 @@ endif
 DLL_SUFFIX   = dll
 
 ifdef NS_USE_GCC
-    OS_CFLAGS += -mwindows
+    OS_CFLAGS += -mwindows -mms-bitfields
     _GEN_IMPORT_LIB=-Wl,--out-implib,$(IMPORT_LIBRARY)
     DLLFLAGS  += -mwindows -o $@ -shared -Wl,--export-all-symbols $(if $(IMPORT_LIBRARY),$(_GEN_IMPORT_LIB))
     ifdef BUILD_OPT
@@ -116,7 +116,11 @@ ifdef NS_USE_GCC
 	DEFINES    += -UDEBUG -DNDEBUG
     else
 	OPTIMIZER  += -g
-	DEFINES    += -DDEBUG -UNDEBUG
+	NULLSTRING :=
+	SPACE      := $(NULLSTRING) # end of the line
+	USERNAME   := $(subst $(SPACE),_,$(USERNAME))
+	USERNAME   := $(subst -,_,$(USERNAME))
+	DEFINES    += -DDEBUG -UNDEBUG -DDEBUG_$(USERNAME)
     endif
 else # !NS_USE_GCC
     WARNING_CFLAGS = -W3 -nologo -D_CRT_SECURE_NO_WARNINGS \
@@ -175,7 +179,10 @@ else # !NS_USE_GCC
     else
 	OPTIMIZER += -Zi -Fd$(OBJDIR)/ -Od
 	NULLSTRING :=
-	DEFINES    += -DDEBUG -UNDEBUG
+	SPACE      := $(NULLSTRING) # end of the line
+	USERNAME   := $(subst $(SPACE),_,$(USERNAME))
+	USERNAME   := $(subst -,_,$(USERNAME))
+	DEFINES    += -DDEBUG -UNDEBUG -DDEBUG_$(USERNAME)
 	DLLFLAGS   += -DEBUG -OUT:$@
 	LDFLAGS    += -DEBUG 
 ifeq ($(_MSC_VER),$(_MSC_VER_6))
@@ -259,12 +266,6 @@ else
 	AS	= ml.exe
 	ASFLAGS = -nologo -Cp -Sn -Zi -coff -safeseh $(INCLUDES)
 endif
-endif
-
-# clear any CSTD and CXXSTD unless we're using GCC
-ifndef NS_USE_GCC
-        CSTD    =
-        CXXSTD  =
 endif
 
 #

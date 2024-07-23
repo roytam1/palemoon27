@@ -10,7 +10,7 @@
       'target_name': 'softokn_static',
       'type': 'static_library',
       'defines': [
-        'NSS_STATIC_SOFTOKEN',
+        'NSS_TEST_BUILD',
       ],
       'dependencies': [
         'softokn_base',
@@ -58,7 +58,6 @@
           'sdb.c',
           'sftkdb.c',
           'sftkhmac.c',
-          'sftkike.c',
           'sftkpars.c',
           'sftkpwd.c',
           'softkver.c',

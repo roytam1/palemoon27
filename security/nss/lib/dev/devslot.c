@@ -12,9 +12,7 @@
 #include "ckhelper.h"
 #endif /* CKHELPER_H */
 
-#include "pkim.h"
-#include "dev3hack.h"
-#include "pk11func.h"
+#include "pk11pub.h"
 
 /* measured in seconds */
 #define NSSSLOT_TOKEN_DELAY_TIME 1
@@ -81,6 +79,13 @@ nssSlot_GetName(
     return slot->base.name;
 }
 
+NSS_IMPLEMENT NSSUTF8 *
+nssSlot_GetTokenName(
+    NSSSlot *slot)
+{
+    return nssToken_GetName(slot->token);
+}
+
 NSS_IMPLEMENT void
 nssSlot_ResetDelay(
     NSSSlot *slot)
@@ -118,13 +123,11 @@ nssSlot_IsTokenPresent(
 {
     CK_RV ckrv;
     PRStatus nssrv;
-    NSSToken *nssToken = NULL;
     /* XXX */
     nssSession *session;
     CK_SLOT_INFO slotInfo;
     void *epv;
     PRBool isPresent = PR_FALSE;
-    PRBool doUpdateCachedCerts = PR_FALSE;
 
     /* permanent slots are always present unless they're disabled */
     if (nssSlot_IsPermanent(slot)) {
@@ -166,24 +169,23 @@ nssSlot_IsTokenPresent(
 
     PZ_Unlock(slot->isPresentLock);
 
-    nssToken = PK11Slot_GetNSSToken(slot->pk11slot);
-    if (!nssToken) {
-        isPresent = PR_FALSE;
-        goto done;
-    }
-
     nssSlot_EnterMonitor(slot);
     ckrv = CKAPI(epv)->C_GetSlotInfo(slot->slotID, &slotInfo);
     nssSlot_ExitMonitor(slot);
     if (ckrv != CKR_OK) {
-        nssToken->base.name[0] = 0; /* XXX */
+        slot->token->base.name[0] = 0; /* XXX */
         isPresent = PR_FALSE;
         goto done;
     }
     slot->ckFlags = slotInfo.flags;
     /* check for the presence of the token */
     if ((slot->ckFlags & CKF_TOKEN_PRESENT) == 0) {
-        session = nssToken_GetDefaultSession(nssToken);
+        if (!slot->token) {
+            /* token was never present */
+            isPresent = PR_FALSE;
+            goto done;
+        }
+        session = nssToken_GetDefaultSession(slot->token);
         if (session) {
             nssSession_EnterMonitor(session);
             /* token is not present */
@@ -195,21 +197,21 @@ nssSlot_IsTokenPresent(
             }
             nssSession_ExitMonitor(session);
         }
-        if (nssToken->base.name[0] != 0) {
+        if (slot->token->base.name[0] != 0) {
             /* notify the high-level cache that the token is removed */
-            nssToken->base.name[0] = 0; /* XXX */
-            nssToken_NotifyCertsNotVisible(nssToken);
+            slot->token->base.name[0] = 0; /* XXX */
+            nssToken_NotifyCertsNotVisible(slot->token);
         }
-        nssToken->base.name[0] = 0; /* XXX */
+        slot->token->base.name[0] = 0; /* XXX */
         /* clear the token cache */
-        nssToken_Remove(nssToken);
+        nssToken_Remove(slot->token);
         isPresent = PR_FALSE;
         goto done;
     }
     /* token is present, use the session info to determine if the card
      * has been removed and reinserted.
      */
-    session = nssToken_GetDefaultSession(nssToken);
+    session = nssToken_GetDefaultSession(slot->token);
     if (session) {
         PRBool tokenRemoved;
         nssSession_EnterMonitor(session);
@@ -235,31 +237,17 @@ nssSlot_IsTokenPresent(
      * a token it doesn't recognize. invalidate all the old
      * information we had on this token, if we can't refresh, clear
      * the present flag */
-    nssToken_NotifyCertsNotVisible(nssToken);
-    nssToken_Remove(nssToken);
-    if (nssToken->base.name[0] == 0) {
-        doUpdateCachedCerts = PR_TRUE;
-    }
-    if (PK11_InitToken(slot->pk11slot, PR_FALSE) != SECSuccess) {
-        isPresent = PR_FALSE;
-        goto done;
-    }
-    if (doUpdateCachedCerts) {
-        nssTrustDomain_UpdateCachedTokenCerts(nssToken->trustDomain,
-                                              nssToken);
-    }
-    nssrv = nssToken_Refresh(nssToken);
+    nssToken_NotifyCertsNotVisible(slot->token);
+    nssToken_Remove(slot->token);
+    /* token has been removed, need to refresh with new session */
+    nssrv = nssSlot_Refresh(slot);
+    isPresent = PR_TRUE;
     if (nssrv != PR_SUCCESS) {
-        nssToken->base.name[0] = 0; /* XXX */
+        slot->token->base.name[0] = 0; /* XXX */
         slot->ckFlags &= ~CKF_TOKEN_PRESENT;
         isPresent = PR_FALSE;
-        goto done;
     }
-    isPresent = PR_TRUE;
 done:
-    if (nssToken) {
-        (void)nssToken_Destroy(nssToken);
-    }
     /* Once we've set up the condition variable,
      * Before returning, it's necessary to:
      *  1) Set the lastTokenPingTime so that any other threads waiting on this
@@ -295,7 +283,12 @@ nssSlot_GetToken(
     NSSToken *rvToken = NULL;
 
     if (nssSlot_IsTokenPresent(slot)) {
-        rvToken = PK11Slot_GetNSSToken(slot->pk11slot);
+        /* Even if a token should be present, check `slot->token` too as it
+         * might be gone already. This would happen mostly on shutdown. */
+        nssSlot_EnterMonitor(slot);
+        if (slot->token)
+            rvToken = nssToken_AddRef(slot->token);
+        nssSlot_ExitMonitor(slot);
     }
 
     return rvToken;

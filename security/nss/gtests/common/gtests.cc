@@ -1,5 +1,6 @@
 #include "nspr.h"
 #include "nss.h"
+#include "ssl.h"
 
 #include <cstdlib>
 
@@ -26,6 +27,9 @@ int main(int argc, char **argv) {
   }
 
   if (NSS_Initialize(workdir, "", "", SECMOD_DB, flags) != SECSuccess) {
+    return 1;
+  }
+  if (NSS_SetDomesticPolicy() != SECSuccess) {
     return 1;
   }
   int rv = RUN_ALL_TESTS();

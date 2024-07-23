@@ -45,8 +45,6 @@ include $(CORE_DEPTH)/coreconf/rules.mk
 # (7) Execute "local" rules. (OPTIONAL).                              #
 #######################################################################
 
-WARNING_CFLAGS = $(NULL)
-
 export:: private_export
 
 ifeq (WINNT,$(OS_ARCH))

@@ -1,4 +1,5 @@
 /* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
+/* vim: set ts=8 sts=2 et sw=2 tw=80: */
 /* This code is made available to you under your choice of the following sets
  * of licensing terms:
  */
@@ -233,14 +234,14 @@ GenerateKeyPairInner()
   if (!slot) {
     abort();
   }
-  PK11RSAGenParams params;
-  params.keySizeInBits = 2048;
-  params.pe = 65537;
 
   // Bug 1012786: PK11_GenerateKeyPair can fail if there is insufficient
   // entropy to generate a random key. Attempting to add some entropy and
   // retrying appears to solve this issue.
   for (uint32_t retries = 0; retries < 10; retries++) {
+    PK11RSAGenParams params;
+    params.keySizeInBits = 2048;
+    params.pe = 3;
     SECKEYPublicKey* publicKeyTemp = nullptr;
     ScopedSECKEYPrivateKey
       privateKey(PK11_GenerateKeyPair(slot.get(), CKM_RSA_PKCS_KEY_PAIR_GEN,
@@ -261,9 +262,8 @@ GenerateKeyPairInner()
     // random keys.
     // https://xkcd.com/221/
     static const uint8_t RANDOM_NUMBER[] = { 4, 4, 4, 4, 4, 4, 4, 4 };
-    if (PK11_RandomUpdate(
-          const_cast<void*>(reinterpret_cast<const void*>(RANDOM_NUMBER)),
-          sizeof(RANDOM_NUMBER)) != SECSuccess) {
+    if (PK11_RandomUpdate((void*) &RANDOM_NUMBER,
+                          sizeof(RANDOM_NUMBER)) != SECSuccess) {
       break;
     }
   }

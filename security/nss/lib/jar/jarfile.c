@@ -208,12 +208,13 @@ JAR_extract(JAR *jar, char *path, char *outpath)
 
     phy = jar_get_physical(jar, path);
     if (phy) {
+        if (phy->compression != 0 && phy->compression != 8) {
+            /* unsupported compression method */
+            result = JAR_ERR_CORRUPT;
+        }
         if (phy->compression == 0) {
             result = jar_physical_extraction((PRFileDesc *)jar->fp, outpath, phy->offset, phy->length);
         } else {
-            /* compression methods other than 8 are unsupported,
-             * but for historical reasons, jar_physical_inflate will be called for
-             * unsupported compression method constants too. */
             result = jar_physical_inflate((PRFileDesc *)jar->fp, outpath,
                                           phy->offset, phy->length,
                                           (unsigned int)phy->compression);
@@ -304,19 +305,19 @@ jar_physical_inflate(JAR_FILE fp, char *outpath, unsigned long offset, unsigned 
         return JAR_ERR_MEMORY;
 
     if ((outbuf = (char *)PORT_ZAlloc(OCHUNK)) == NULL) {
-        status = JAR_ERR_MEMORY;
-        goto loser;
+        PORT_Free(inbuf);
+        return JAR_ERR_MEMORY;
     }
 
     PORT_Memset(&zs, 0, sizeof(zs));
     status = inflateInit2(&zs, -MAX_WBITS);
     if (status != Z_OK) {
-        status = JAR_ERR_GENERAL;
-        goto loser;
+        PORT_Free(inbuf);
+        PORT_Free(outbuf);
+        return JAR_ERR_GENERAL;
     }
 
     if ((out = JAR_FOPEN(outpath, "wb")) != NULL) {
-        int status2 = 0;
         unsigned long at = 0;
 
         JAR_FSEEK(fp, offset, (PRSeekWhence)0);
@@ -327,8 +328,9 @@ jar_physical_inflate(JAR_FILE fp, char *outpath, unsigned long offset, unsigned 
             if (JAR_FREAD(fp, inbuf, chunk) != chunk) {
                 /* incomplete read */
                 JAR_FCLOSE(out);
-                status = JAR_ERR_CORRUPT;
-                break;
+                PORT_Free(inbuf);
+                PORT_Free(outbuf);
+                return JAR_ERR_CORRUPT;
             }
             at += chunk;
             if (at == length) {
@@ -349,8 +351,9 @@ jar_physical_inflate(JAR_FILE fp, char *outpath, unsigned long offset, unsigned 
                 if (status != Z_OK && status != Z_STREAM_END) {
                     /* error during decompression */
                     JAR_FCLOSE(out);
-                    status = JAR_ERR_CORRUPT;
-                    break;
+                    PORT_Free(inbuf);
+                    PORT_Free(outbuf);
+                    return JAR_ERR_CORRUPT;
                 }
                 ochunk = zs.total_out - prev_total;
                 if (JAR_FWRITE(out, outbuf, ochunk) < (long)ochunk) {
@@ -361,26 +364,15 @@ jar_physical_inflate(JAR_FILE fp, char *outpath, unsigned long offset, unsigned 
                 if (status == Z_STREAM_END)
                     break;
             }
-            if (status != Z_OK) {
-                break;
-            }
         }
         JAR_FCLOSE(out);
-        status2 = inflateEnd(&zs);
-        if (status == Z_OK) {
-            status = status2;
-        }
+        status = inflateEnd(&zs);
     } else {
         /* error opening output file */
         status = JAR_ERR_DISK;
     }
-loser:
-    if (inbuf) {
-        PORT_Free(inbuf);
-    }
-    if (outbuf) {
-        PORT_Free(outbuf);
-    }
+    PORT_Free(inbuf);
+    PORT_Free(outbuf);
     return status;
 }
 

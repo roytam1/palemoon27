@@ -463,7 +463,7 @@ handle_connection(
     char *getData = NULL; /* inplace conversion */
     SECItem postData;
     PRBool isOcspRequest = PR_FALSE;
-    PRBool isPost = PR_FALSE;
+    PRBool isPost;
 
     postData.data = NULL;
     postData.len = 0;

@@ -1391,7 +1391,6 @@ TokenCRLStillExists(CERTSignedCrl* crl)
     arena = NSSArena_Create();
     PORT_Assert(arena);
     if (!arena) {
-        (void)nssToken_Destroy(instance.token);
         return PR_FALSE;
     }
 
@@ -1413,7 +1412,6 @@ TokenCRLStillExists(CERTSignedCrl* crl)
         xstatus = PR_FALSE;
     }
     NSSArena_Destroy(arena);
-    (void)nssToken_Destroy(instance.token);
     return xstatus;
 }
 

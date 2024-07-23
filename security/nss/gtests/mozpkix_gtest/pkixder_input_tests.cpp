@@ -1,4 +1,5 @@
 /* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
+/* vim: set ts=8 sts=2 et sw=2 tw=80: */
 /* This code is made available to you under your choice of the following sets
  * of licensing terms:
  */
@@ -190,10 +191,8 @@ TEST_F(pkixder_input_tests, ReadByteWrapAroundPointer)
   // a null pointer is undefined behavior according to the C++ language spec.,
   // but this should catch the problem on at least some compilers, if not all of
   // them.
-  uintptr_t derint = -1;
-  auto der = reinterpret_cast<const uint8_t*>(derint);
-  ASSERT_EQ(sizeof(der), sizeof(derint))
-      << "underflow of pointer might not work";
+  const uint8_t* der = nullptr;
+  --der;
   Input buf;
   ASSERT_EQ(Success, buf.Init(der, 0));
   Reader input(buf);
@@ -360,7 +359,6 @@ TEST_F(pkixder_input_tests, Skip_WrapAroundPointer)
   // but this should catch the problem on at least some compilers, if not all of
   // them.
   const uint8_t* der = nullptr;
-  // coverity[FORWARD_NULL]
   --der;
   Input buf;
   ASSERT_EQ(Success, buf.Init(der, 0));

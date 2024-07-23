@@ -7,7 +7,6 @@
 #include "sslimpl.h"
 #include "sslproto.h"
 #include "tls13hkdf.h"
-#include "tls13subcerts.h"
 
 SECStatus
 SSL_GetChannelInfo(PRFileDesc *fd, SSLChannelInfo *info, PRUintn len)
@@ -80,7 +79,6 @@ SSL_GetChannelInfo(PRFileDesc *fd, SSLChannelInfo *info, PRUintn len)
             inf.signatureScheme = sid->sigScheme;
         }
         inf.resumed = ss->statelessResume || ss->ssl3.hs.isResuming;
-        inf.peerDelegCred = tls13_IsVerifyingWithDelegatedCredential(ss);
 
         if (sid) {
             unsigned int sidLen;
@@ -153,10 +151,6 @@ SSL_GetPreliminaryChannelInfo(PRFileDesc *fd,
         inf.maxEarlyDataSize = 0;
     }
     inf.zeroRttCipherSuite = ss->ssl3.hs.zeroRttSuite;
-
-    inf.peerDelegCred = tls13_IsVerifyingWithDelegatedCredential(ss);
-    inf.authKeyBits = ss->sec.authKeyBits;
-    inf.signatureScheme = ss->sec.signatureScheme;
 
     memcpy(info, &inf, inf.length);
     return SECSuccess;
@@ -243,7 +237,7 @@ static const SSLCipherSuiteInfo suiteInfo[] = {
     /* <------ Cipher suite --------------------> <auth> <KEA>  <bulk cipher> <MAC> <FIPS> */
     { 0, CS_(TLS_AES_128_GCM_SHA256), S_ANY, K_ANY, C_AESGCM, B_128, M_AEAD_128, F_FIPS_STD, A_ANY, ssl_hash_sha256 },
     { 0, CS_(TLS_CHACHA20_POLY1305_SHA256), S_ANY, K_ANY, C_CHACHA20, B_256, M_AEAD_128, F_NFIPS_STD, A_ANY, ssl_hash_sha256 },
-    { 0, CS_(TLS_AES_256_GCM_SHA384), S_ANY, K_ANY, C_AESGCM, B_256, M_AEAD_128, F_FIPS_STD, A_ANY, ssl_hash_sha384 },
+    { 0, CS_(TLS_AES_256_GCM_SHA384), S_ANY, K_ANY, C_AESGCM, B_256, M_AEAD_128, F_NFIPS_STD, A_ANY, ssl_hash_sha384 },
 
     { 0, CS(RSA_WITH_AES_128_GCM_SHA256), S_RSA, K_RSA, C_AESGCM, B_128, M_AEAD_128, F_FIPS_STD, A_RSAD, ssl_hash_sha256 },
     { 0, CS(DHE_RSA_WITH_CHACHA20_POLY1305_SHA256), S_RSA, K_DHE, C_CHACHA20, B_256, M_AEAD_128, F_NFIPS_STD, A_RSAS, ssl_hash_sha256 },
@@ -300,10 +294,8 @@ static const SSLCipherSuiteInfo suiteInfo[] = {
     { 0, CS(ECDHE_ECDSA_WITH_3DES_EDE_CBC_SHA), S_ECDSA, K_ECDHE, C_3DES, B_3DES, M_SHA, F_FIPS_STD, A_ECDSA, ssl_hash_none },
     { 0, CS(ECDHE_ECDSA_WITH_AES_128_CBC_SHA), S_ECDSA, K_ECDHE, C_AES, B_128, M_SHA, F_FIPS_STD, A_ECDSA, ssl_hash_none },
     { 0, CS(ECDHE_ECDSA_WITH_AES_128_CBC_SHA256), S_ECDSA, K_ECDHE, C_AES, B_128, M_SHA256, F_FIPS_STD, A_ECDSA, ssl_hash_sha256 },
-    { 0, CS(ECDHE_ECDSA_WITH_CAMELLIA_128_CBC_SHA256), S_ECDSA, K_ECDHE, C_CAMELLIA, B_128, M_SHA256, F_NFIPS_STD, A_ECDSA, ssl_hash_sha256 },
     { 0, CS(ECDHE_ECDSA_WITH_AES_256_CBC_SHA), S_ECDSA, K_ECDHE, C_AES, B_256, M_SHA, F_FIPS_STD, A_ECDSA, ssl_hash_none },
     { 0, CS(ECDHE_ECDSA_WITH_CHACHA20_POLY1305_SHA256), S_ECDSA, K_ECDHE, C_CHACHA20, B_256, M_AEAD_128, F_NFIPS_STD, A_ECDSA, ssl_hash_sha256 },
-    { 0, CS(ECDHE_ECDSA_WITH_CAMELLIA_256_CBC_SHA384), S_ECDSA, K_ECDHE, C_CAMELLIA, B_256, M_SHA384, F_NFIPS_STD, A_ECDSA, ssl_hash_sha384 },
 
     { 0, CS(ECDH_RSA_WITH_NULL_SHA), S_RSA, K_ECDH, C_NULL, B_0, M_SHA, F_NFIPS_STD, A_ECDH_R, ssl_hash_none },
     { 0, CS(ECDH_RSA_WITH_RC4_128_SHA), S_RSA, K_ECDH, C_RC4, B_128, M_SHA, F_NFIPS_STD, A_ECDH_R, ssl_hash_none },
@@ -316,14 +308,12 @@ static const SSLCipherSuiteInfo suiteInfo[] = {
     { 0, CS(ECDHE_RSA_WITH_3DES_EDE_CBC_SHA), S_RSA, K_ECDHE, C_3DES, B_3DES, M_SHA, F_FIPS_STD, A_RSAS, ssl_hash_none },
     { 0, CS(ECDHE_RSA_WITH_AES_128_CBC_SHA), S_RSA, K_ECDHE, C_AES, B_128, M_SHA, F_FIPS_STD, A_RSAS, ssl_hash_none },
     { 0, CS(ECDHE_RSA_WITH_AES_128_CBC_SHA256), S_RSA, K_ECDHE, C_AES, B_128, M_SHA256, F_FIPS_STD, A_RSAS, ssl_hash_sha256 },
-    { 0, CS(ECDHE_RSA_WITH_CAMELLIA_128_CBC_SHA256), S_RSA, K_ECDHE, C_CAMELLIA, B_128, M_SHA256, F_NFIPS_STD, A_RSAS, ssl_hash_sha256 },
     { 0, CS(ECDHE_RSA_WITH_AES_256_CBC_SHA), S_RSA, K_ECDHE, C_AES, B_256, M_SHA, F_FIPS_STD, A_RSAS, ssl_hash_none },
     { 0, CS(ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256), S_RSA, K_ECDHE, C_CHACHA20, B_256, M_AEAD_128, F_NFIPS_STD, A_RSAS, ssl_hash_sha256 },
     { 0, CS(ECDHE_RSA_WITH_AES_256_CBC_SHA384), S_RSA, K_ECDHE, C_AES, B_256, M_SHA384, F_FIPS_STD, A_RSAS, ssl_hash_sha384 },
     { 0, CS(ECDHE_ECDSA_WITH_AES_256_CBC_SHA384), S_ECDSA, K_ECDHE, C_AES, B_256, M_SHA384, F_FIPS_STD, A_ECDSA, ssl_hash_sha384 },
     { 0, CS(ECDHE_ECDSA_WITH_AES_256_GCM_SHA384), S_ECDSA, K_ECDHE, C_AESGCM, B_256, M_AEAD_128, F_FIPS_STD, A_ECDSA, ssl_hash_sha384 },
     { 0, CS(ECDHE_RSA_WITH_AES_256_GCM_SHA384), S_RSA, K_ECDHE, C_AESGCM, B_256, M_AEAD_128, F_FIPS_STD, A_RSAS, ssl_hash_sha384 },
-    { 0, CS(ECDHE_RSA_WITH_CAMELLIA_256_CBC_SHA384), S_RSA, K_ECDHE, C_CAMELLIA, B_256, M_SHA384, F_NFIPS_STD, A_RSAS, ssl_hash_sha384 },
 
     { 0, CS(DHE_DSS_WITH_AES_256_GCM_SHA384), S_DSA, K_DHE, C_AESGCM, B_256, M_AEAD_128, F_FIPS_STD, A_DSA, ssl_hash_sha384 },
     { 0, CS(DHE_RSA_WITH_AES_256_GCM_SHA384), S_RSA, K_DHE, C_AESGCM, B_256, M_AEAD_128, F_FIPS_STD, A_RSAS, ssl_hash_sha384 },

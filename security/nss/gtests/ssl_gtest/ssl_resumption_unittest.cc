@@ -1,4 +1,5 @@
 /* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
+/* vim: set ts=2 et sw=2 tw=80: */
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -324,17 +325,14 @@ TEST_P(TlsConnectGeneric, ConnectResumeClientBothTicketServerTicketForget) {
   SendReceive();
 }
 
-// Tickets last two days maximum; this is a time longer than that.
-static const PRTime kLongerThanTicketLifetime =
-    3LL * 24 * 60 * 60 * PR_USEC_PER_SEC;
-
 TEST_P(TlsConnectGenericResumption, ConnectWithExpiredTicketAtClient) {
+  SSLInt_SetTicketLifetime(1);  // one second
   // This causes a ticket resumption.
   ConfigureSessionCache(RESUME_BOTH, RESUME_TICKET);
   Connect();
   SendReceive();
 
-  AdvanceTime(kLongerThanTicketLifetime);
+  WAIT_(false, 1000);
 
   Reset();
   ConfigureSessionCache(RESUME_BOTH, RESUME_TICKET);
@@ -356,6 +354,7 @@ TEST_P(TlsConnectGenericResumption, ConnectWithExpiredTicketAtClient) {
 }
 
 TEST_P(TlsConnectGeneric, ConnectWithExpiredTicketAtServer) {
+  SSLInt_SetTicketLifetime(1);  // one second
   // This causes a ticket resumption.
   ConfigureSessionCache(RESUME_BOTH, RESUME_TICKET);
   Connect();
@@ -374,7 +373,7 @@ TEST_P(TlsConnectGeneric, ConnectWithExpiredTicketAtServer) {
   EXPECT_TRUE(capture->captured());
   EXPECT_LT(0U, capture->extension().len());
 
-  AdvanceTime(kLongerThanTicketLifetime);
+  WAIT_(false, 1000);  // Let the ticket expire on the server.
 
   Handshake();
   CheckConnected();
@@ -422,7 +421,6 @@ static int32_t SwitchCertificates(TlsAgent* agent, const SECItem* srvNameArr,
 TEST_P(TlsConnectGeneric, ServerSNICertSwitch) {
   Connect();
   ScopedCERTCertificate cert1(SSL_PeerCertificate(client_->ssl_fd()));
-  ASSERT_NE(nullptr, cert1.get());
 
   Reset();
   ConfigureSessionCache(RESUME_NONE, RESUME_NONE);
@@ -431,7 +429,6 @@ TEST_P(TlsConnectGeneric, ServerSNICertSwitch) {
 
   Connect();
   ScopedCERTCertificate cert2(SSL_PeerCertificate(client_->ssl_fd()));
-  ASSERT_NE(nullptr, cert2.get());
   CheckKeys();
   EXPECT_FALSE(SECITEM_ItemsAreEqual(&cert1->derCert, &cert2->derCert));
 }
@@ -440,7 +437,6 @@ TEST_P(TlsConnectGeneric, ServerSNICertTypeSwitch) {
   Reset(TlsAgent::kServerEcdsa256);
   Connect();
   ScopedCERTCertificate cert1(SSL_PeerCertificate(client_->ssl_fd()));
-  ASSERT_NE(nullptr, cert1.get());
 
   Reset();
   ConfigureSessionCache(RESUME_NONE, RESUME_NONE);
@@ -451,7 +447,6 @@ TEST_P(TlsConnectGeneric, ServerSNICertTypeSwitch) {
 
   Connect();
   ScopedCERTCertificate cert2(SSL_PeerCertificate(client_->ssl_fd()));
-  ASSERT_NE(nullptr, cert2.get());
   CheckKeys(ssl_kea_ecdh, ssl_auth_ecdsa);
   EXPECT_TRUE(SECITEM_ItemsAreEqual(&cert1->derCert, &cert2->derCert));
 }
@@ -536,7 +531,6 @@ TEST_P(TlsConnectTls13, TestTls13ResumeNoCertificateRequest) {
   Connect();
   SendReceive();  // Need to read so that we absorb the session ticket.
   ScopedCERTCertificate cert1(SSL_LocalCertificate(client_->ssl_fd()));
-  ASSERT_NE(nullptr, cert1.get());
 
   Reset();
   ConfigureSessionCache(RESUME_BOTH, RESUME_TICKET);
@@ -552,7 +546,6 @@ TEST_P(TlsConnectTls13, TestTls13ResumeNoCertificateRequest) {
   // Sanity check whether the client certificate matches the one
   // decrypted from ticket.
   ScopedCERTCertificate cert2(SSL_PeerCertificate(server_->ssl_fd()));
-  ASSERT_NE(nullptr, cert2.get());
   EXPECT_TRUE(SECITEM_ItemsAreEqual(&cert1->derCert, &cert2->derCert));
 }
 
@@ -568,7 +561,6 @@ TEST_P(TlsConnectTls13, WriteBeforeHandshakeCompleteOnResumption) {
   Connect();
   SendReceive();  // Absorb the session ticket.
   ScopedCERTCertificate cert1(SSL_LocalCertificate(client_->ssl_fd()));
-  ASSERT_NE(nullptr, cert1.get());
 
   Reset();
   ConfigureSessionCache(RESUME_BOTH, RESUME_TICKET);
@@ -585,7 +577,6 @@ TEST_P(TlsConnectTls13, WriteBeforeHandshakeCompleteOnResumption) {
 
   // Check whether the client certificate matches the one from the ticket.
   ScopedCERTCertificate cert2(SSL_PeerCertificate(server_->ssl_fd()));
-  ASSERT_NE(nullptr, cert2.get());
   EXPECT_TRUE(SECITEM_ItemsAreEqual(&cert1->derCert, &cert2->derCert));
 }
 
@@ -598,17 +589,15 @@ static uint16_t ChooseOneCipher(uint16_t version) {
   return TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA;
 }
 
-static uint16_t ChooseIncompatibleCipher(uint16_t version) {
+static uint16_t ChooseAnotherCipher(uint16_t version) {
   if (version >= SSL_LIBRARY_VERSION_TLS_1_3) {
     return TLS_AES_256_GCM_SHA384;
   }
   return TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA;
 }
 
-// Test that we don't resume when we can't negotiate the same cipher.  Note that
-// for TLS 1.3, resumption is allowed between compatible ciphers, that is those
-// with the same KDF hash, but we choose an incompatible one here.
-TEST_P(TlsConnectGenericResumption, ResumeClientIncompatibleCipher) {
+// Test that we don't resume when we can't negotiate the same cipher.
+TEST_P(TlsConnectGenericResumption, TestResumeClientDifferentCipher) {
   ConfigureSessionCache(RESUME_BOTH, RESUME_TICKET);
   client_->EnableSingleCipher(ChooseOneCipher(version_));
   Connect();
@@ -618,7 +607,7 @@ TEST_P(TlsConnectGenericResumption, ResumeClientIncompatibleCipher) {
   Reset();
   ConfigureSessionCache(RESUME_BOTH, RESUME_TICKET);
   ExpectResumption(RESUME_NONE);
-  client_->EnableSingleCipher(ChooseIncompatibleCipher(version_));
+  client_->EnableSingleCipher(ChooseAnotherCipher(version_));
   uint16_t ticket_extension;
   if (version_ >= SSL_LIBRARY_VERSION_TLS_1_3) {
     ticket_extension = ssl_tls13_pre_shared_key_xtn;
@@ -633,24 +622,24 @@ TEST_P(TlsConnectGenericResumption, ResumeClientIncompatibleCipher) {
 }
 
 // Test that we don't resume when we can't negotiate the same cipher.
-TEST_P(TlsConnectGenericResumption, ResumeServerIncompatibleCipher) {
+TEST_P(TlsConnectGenericResumption, TestResumeServerDifferentCipher) {
   ConfigureSessionCache(RESUME_BOTH, RESUME_TICKET);
   server_->EnableSingleCipher(ChooseOneCipher(version_));
   Connect();
-  SendReceive();  // Absorb the session ticket.
+  SendReceive();  // Need to read so that we absorb the session ticket.
   CheckKeys();
 
   Reset();
   ConfigureSessionCache(RESUME_BOTH, RESUME_TICKET);
   ExpectResumption(RESUME_NONE);
-  server_->EnableSingleCipher(ChooseIncompatibleCipher(version_));
+  server_->EnableSingleCipher(ChooseAnotherCipher(version_));
   Connect();
   CheckKeys();
 }
 
 // Test that the client doesn't tolerate the server picking a different cipher
 // suite for resumption.
-TEST_P(TlsConnectStream, ResumptionOverrideCipher) {
+TEST_P(TlsConnectStream, TestResumptionOverrideCipher) {
   ConfigureSessionCache(RESUME_BOTH, RESUME_TICKET);
   server_->EnableSingleCipher(ChooseOneCipher(version_));
   Connect();
@@ -659,8 +648,8 @@ TEST_P(TlsConnectStream, ResumptionOverrideCipher) {
 
   Reset();
   ConfigureSessionCache(RESUME_BOTH, RESUME_TICKET);
-  MakeTlsFilter<SelectedCipherSuiteReplacer>(
-      server_, ChooseIncompatibleCipher(version_));
+  MakeTlsFilter<SelectedCipherSuiteReplacer>(server_,
+                                             ChooseAnotherCipher(version_));
 
   if (version_ >= SSL_LIBRARY_VERSION_TLS_1_3) {
     client_->ExpectSendAlert(kTlsAlertIllegalParameter);
@@ -677,38 +666,6 @@ TEST_P(TlsConnectStream, ResumptionOverrideCipher) {
   } else {
     server_->CheckErrorCode(SSL_ERROR_HANDSHAKE_FAILURE_ALERT);
   }
-}
-
-// In TLS 1.3, it is possible to resume with a different cipher if it has the
-// same hash.
-TEST_P(TlsConnectTls13, ResumeClientCompatibleCipher) {
-  ConfigureSessionCache(RESUME_BOTH, RESUME_TICKET);
-  client_->EnableSingleCipher(TLS_AES_128_GCM_SHA256);
-  Connect();
-  SendReceive();  // Absorb the session ticket.
-  CheckKeys();
-
-  Reset();
-  ConfigureSessionCache(RESUME_BOTH, RESUME_TICKET);
-  ExpectResumption(RESUME_TICKET);
-  client_->EnableSingleCipher(TLS_CHACHA20_POLY1305_SHA256);
-  Connect();
-  CheckKeys();
-}
-
-TEST_P(TlsConnectTls13, ResumeServerCompatibleCipher) {
-  ConfigureSessionCache(RESUME_BOTH, RESUME_TICKET);
-  server_->EnableSingleCipher(TLS_AES_128_GCM_SHA256);
-  Connect();
-  SendReceive();  // Absorb the session ticket.
-  CheckKeys();
-
-  Reset();
-  ConfigureSessionCache(RESUME_BOTH, RESUME_TICKET);
-  ExpectResumption(RESUME_TICKET);
-  server_->EnableSingleCipher(TLS_CHACHA20_POLY1305_SHA256);
-  Connect();
-  CheckKeys();
 }
 
 class SelectedVersionReplacer : public TlsHandshakeFilter {
@@ -800,7 +757,7 @@ TEST_F(TlsConnectTest, TestTls13ResumptionTwice) {
   ASSERT_LT(0U, initialTicket.len());
 
   ScopedCERTCertificate cert1(SSL_PeerCertificate(client_->ssl_fd()));
-  ASSERT_NE(nullptr, cert1.get());
+  ASSERT_TRUE(!!cert1.get());
 
   Reset();
   ClearStats();
@@ -816,7 +773,7 @@ TEST_F(TlsConnectTest, TestTls13ResumptionTwice) {
   ASSERT_LT(0U, c2->extension().len());
 
   ScopedCERTCertificate cert2(SSL_PeerCertificate(client_->ssl_fd()));
-  ASSERT_NE(nullptr, cert2.get());
+  ASSERT_TRUE(!!cert2.get());
 
   // Check that the cipher suite is reported the same on both sides, though in
   // TLS 1.3 resumption actually negotiates a different cipher suite.
@@ -837,7 +794,7 @@ TEST_F(TlsConnectTest, TestTls13ResumptionDuplicateNST) {
 
   // Clear the session ticket keys to invalidate the old ticket.
   SSLInt_ClearSelfEncryptKey();
-  EXPECT_EQ(SECSuccess, SSL_SendSessionTicket(server_->ssl_fd(), NULL, 0));
+  SSL_SendSessionTicket(server_->ssl_fd(), NULL, 0);
 
   SendReceive();  // Need to read so that we absorb the session tickets.
   CheckKeys();
@@ -1004,8 +961,7 @@ TEST_F(TlsConnectStreamTls13, ExternalResumptionUseSecondTicket) {
     state->invoked++;
     return SECSuccess;
   };
-  EXPECT_EQ(SECSuccess, SSL_SetResumptionTokenCallback(client_->ssl_fd(), cb,
-                                                       &ticket_state));
+  SSL_SetResumptionTokenCallback(client_->ssl_fd(), cb, &ticket_state);
 
   Connect();
   EXPECT_EQ(SECSuccess, SSL_SendSessionTicket(server_->ssl_fd(), nullptr, 0));
@@ -1153,7 +1109,7 @@ TEST_P(TlsConnectGenericResumption, ReConnectAgainTicket) {
                       ssl_auth_rsa_sign, ssl_sig_rsa_pss_rsae_sha256);
 }
 
-void CheckGetInfoResult(PRTime now, uint32_t alpnSize, uint32_t earlyDataSize,
+void CheckGetInfoResult(uint32_t alpnSize, uint32_t earlyDataSize,
                         ScopedCERTCertificate& cert,
                         ScopedSSLResumptionTokenInfo& token) {
   ASSERT_TRUE(cert);
@@ -1169,7 +1125,7 @@ void CheckGetInfoResult(PRTime now, uint32_t alpnSize, uint32_t earlyDataSize,
 
   ASSERT_EQ(earlyDataSize, token->maxEarlyDataSize);
 
-  ASSERT_LT(now, token->expirationTime);
+  ASSERT_LT(ssl_TimeUsec(), token->expirationTime);
 }
 
 // The client should generate a new, randomized session_id
@@ -1218,64 +1174,13 @@ TEST_P(TlsConnectGenericResumptionToken, ConnectResumeGetInfo) {
   client_->GetTokenInfo(token);
   ScopedCERTCertificate cert(
       PK11_FindCertFromNickname(server_->name().c_str(), nullptr));
-  ASSERT_NE(nullptr, cert.get());
 
-  CheckGetInfoResult(now(), 0, 0, cert, token);
-
-  Handshake();
-  CheckConnected();
-
-  SendReceive();
-}
-
-TEST_P(TlsConnectGenericResumptionToken, RefuseExpiredTicketClient) {
-  ConfigureSessionCache(RESUME_BOTH, RESUME_BOTH);
-  Connect();
-  SendReceive();
-
-  // Move the clock to the expiration time of the ticket.
-  SSLResumptionTokenInfo tokenInfo = {0};
-  ScopedSSLResumptionTokenInfo token(&tokenInfo);
-  client_->GetTokenInfo(token);
-  AdvanceTime(token->expirationTime - now());
-
-  Reset();
-  ConfigureSessionCache(RESUME_BOTH, RESUME_BOTH);
-  ExpectResumption(RESUME_TICKET);
-
-  StartConnect();
-  ASSERT_EQ(SECFailure,
-            SSL_SetResumptionToken(client_->ssl_fd(),
-                                   client_->GetResumptionToken().data(),
-                                   client_->GetResumptionToken().size()));
-  EXPECT_EQ(SSL_ERROR_BAD_RESUMPTION_TOKEN_ERROR, PORT_GetError());
-}
-
-TEST_P(TlsConnectGenericResumptionToken, RefuseExpiredTicketServer) {
-  ConfigureSessionCache(RESUME_BOTH, RESUME_BOTH);
-  Connect();
-  SendReceive();
-
-  Reset();
-  ConfigureSessionCache(RESUME_BOTH, RESUME_BOTH);
-  ExpectResumption(RESUME_NONE);
-
-  // Start the handshake and send the ClientHello.
-  StartConnect();
-  ASSERT_EQ(SECSuccess,
-            SSL_SetResumptionToken(client_->ssl_fd(),
-                                   client_->GetResumptionToken().data(),
-                                   client_->GetResumptionToken().size()));
-  client_->Handshake();
-
-  // Move the clock to the expiration time of the ticket.
-  SSLResumptionTokenInfo tokenInfo = {0};
-  ScopedSSLResumptionTokenInfo token(&tokenInfo);
-  client_->GetTokenInfo(token);
-  AdvanceTime(token->expirationTime - now());
+  CheckGetInfoResult(0, 0, cert, token);
 
   Handshake();
   CheckConnected();
+
+  SendReceive();
 }
 
 TEST_P(TlsConnectGenericResumptionToken, ConnectResumeGetInfoAlpn) {
@@ -1299,9 +1204,8 @@ TEST_P(TlsConnectGenericResumptionToken, ConnectResumeGetInfoAlpn) {
   client_->GetTokenInfo(token);
   ScopedCERTCertificate cert(
       PK11_FindCertFromNickname(server_->name().c_str(), nullptr));
-  ASSERT_NE(nullptr, cert.get());
 
-  CheckGetInfoResult(now(), 1, 0, cert, token);
+  CheckGetInfoResult(1, 0, cert, token);
 
   Handshake();
   CheckConnected();
@@ -1312,7 +1216,7 @@ TEST_P(TlsConnectGenericResumptionToken, ConnectResumeGetInfoAlpn) {
 
 TEST_P(TlsConnectTls13ResumptionToken, ConnectResumeGetInfoZeroRtt) {
   EnableAlpn();
-  RolloverAntiReplay();
+  SSLInt_RolloverAntiReplay();
   ConfigureSessionCache(RESUME_BOTH, RESUME_BOTH);
   server_->Set0RttEnabled(true);
   Connect();
@@ -1335,8 +1239,8 @@ TEST_P(TlsConnectTls13ResumptionToken, ConnectResumeGetInfoZeroRtt) {
   client_->GetTokenInfo(token);
   ScopedCERTCertificate cert(
       PK11_FindCertFromNickname(server_->name().c_str(), nullptr));
-  ASSERT_NE(nullptr, cert.get());
-  CheckGetInfoResult(now(), 1, 1024, cert, token);
+
+  CheckGetInfoResult(1, 1024, cert, token);
 
   ZeroRttSendReceive(true, true);
   Handshake();
@@ -1368,54 +1272,6 @@ TEST_P(TlsConnectGenericResumption, ConnectResumeClientAuth) {
   SendReceive();
 }
 
-// Check that resumption is blocked if the server requires client auth.
-TEST_P(TlsConnectGenericResumption, ClientAuthRequiredOnResumption) {
-  ConfigureSessionCache(RESUME_BOTH, RESUME_BOTH);
-  server_->RequestClientAuth(false);
-  Connect();
-  SendReceive();
-
-  Reset();
-  client_->SetupClientAuth();
-  server_->RequestClientAuth(true);
-  ConfigureSessionCache(RESUME_BOTH, RESUME_BOTH);
-  ExpectResumption(RESUME_NONE);
-  Connect();
-  SendReceive();
-}
-
-// Check that resumption is blocked if the server requires client auth and
-// the client fails to provide a certificate.
-TEST_P(TlsConnectGenericResumption, ClientAuthRequiredOnResumptionNoCert) {
-  ConfigureSessionCache(RESUME_BOTH, RESUME_BOTH);
-  server_->RequestClientAuth(false);
-  Connect();
-  SendReceive();
-
-  Reset();
-  server_->RequestClientAuth(true);
-  ConfigureSessionCache(RESUME_BOTH, RESUME_BOTH);
-  // Drive handshake manually because TLS 1.3 needs it.
-  StartConnect();
-  client_->Handshake();  // CH
-  server_->Handshake();  // SH.. (no resumption)
-  client_->Handshake();  // ...
-  if (version_ >= SSL_LIBRARY_VERSION_TLS_1_3) {
-    // In TLS 1.3, the client thinks that everything is OK here.
-    ASSERT_EQ(TlsAgent::STATE_CONNECTED, client_->state());
-    ExpectAlert(server_, kTlsAlertCertificateRequired);
-    server_->Handshake();  // Alert
-    client_->Handshake();  // Receive Alert
-    client_->CheckErrorCode(SSL_ERROR_RX_CERTIFICATE_REQUIRED_ALERT);
-  } else {
-    ExpectAlert(server_, kTlsAlertBadCertificate);
-    server_->Handshake();  // Alert
-    client_->Handshake();  // Receive Alert
-    client_->CheckErrorCode(SSL_ERROR_BAD_CERT_ALERT);
-  }
-  server_->CheckErrorCode(SSL_ERROR_NO_CERTIFICATE);
-}
-
 TEST_F(TlsConnectStreamTls13, ExternalTokenAfterHrr) {
   ConfigureSessionCache(RESUME_BOTH, RESUME_BOTH);
   Connect();
@@ -1443,36 +1299,6 @@ TEST_F(TlsConnectStreamTls13, ExternalTokenAfterHrr) {
 
   Handshake();
   CheckConnected();
-  SendReceive();
-}
-
-TEST_F(TlsConnectStreamTls13, ExternalTokenWithPeerId) {
-  ConfigureSessionCache(RESUME_BOTH, RESUME_BOTH);
-  ConfigureVersion(SSL_LIBRARY_VERSION_TLS_1_3);
-  EXPECT_EQ(SECSuccess, SSL_SetSockPeerID(client_->ssl_fd(), "testPeerId"));
-  std::vector<uint8_t> ticket_state;
-  auto cb = [](PRFileDesc* fd, const PRUint8* ticket, unsigned int ticket_len,
-               void* arg) -> SECStatus {
-    EXPECT_NE(0U, ticket_len);
-    EXPECT_NE(nullptr, ticket);
-    auto ticket_state_ = reinterpret_cast<std::vector<uint8_t>*>(arg);
-    ticket_state_->assign(ticket, ticket + ticket_len);
-    return SECSuccess;
-  };
-  EXPECT_EQ(SECSuccess, SSL_SetResumptionTokenCallback(client_->ssl_fd(), cb,
-                                                       &ticket_state));
-
-  Connect();
-  SendReceive();
-  EXPECT_NE(0U, ticket_state.size());
-
-  Reset();
-  ConfigureSessionCache(RESUME_BOTH, RESUME_BOTH);
-  EXPECT_EQ(SECSuccess, SSL_SetSockPeerID(client_->ssl_fd(), "testPeerId"));
-  client_->SetResumptionToken(ticket_state);
-  ASSERT_TRUE(client_->MaybeSetResumptionToken());
-  ExpectResumption(RESUME_TICKET);
-  Connect();
   SendReceive();
 }
 

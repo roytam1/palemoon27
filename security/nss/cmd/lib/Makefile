@@ -27,7 +27,6 @@ include $(CORE_DEPTH)/coreconf/config.mk
 #######################################################################
 
 include config.mk
-include ../platlibs.mk
 
 #######################################################################
 # (5) Execute "global" rules. (OPTIONAL)                              #

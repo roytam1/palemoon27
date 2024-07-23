@@ -176,9 +176,7 @@ cleanup:
     }
     SECITEM_FreeItem(&pubValue, PR_FALSE);
     SECITEM_FreeItem(&privID, PR_FALSE);
-    if (epki && epki->arena) {
-        PORT_FreeArena(epki->arena, PR_TRUE);
-    }
+    PORT_FreeArena(epki->arena, PR_TRUE);
     SECKEY_DestroyPublicKey(pubKey);
     SECKEY_DestroyPrivateKey(privKey);
     fprintf(stderr, "%s PrivateKeyImport %s ***********************\n",
@@ -187,7 +185,7 @@ cleanup:
 }
 
 static const char *const usageInfo[] = {
-    "pk11import - test PK11_PrivateKeyImport()",
+    "pk11import - test PK11_PrivateKeyImport()"
     "Options:",
     " -d certdir            directory containing cert database",
     " -k keysize            size of the rsa, dh, and dsa key to test (default 1024)",

@@ -291,7 +291,7 @@ CMMF_CertifiedKeyPairUnwrapPrivKey(CMMFCertifiedKeyPair *inKeyPair,
     cert = CMMF_CertifiedKeyPairGetCertificate(inKeyPair, inCertdb);
     CERT_FindKeyUsageExtension(cert, &keyUsageValue);
     if (keyUsageValue.data != NULL) {
-        keyUsage = keyUsageValue.len ? keyUsageValue.data[0] : 0;
+        keyUsage = keyUsageValue.data[3];
         PORT_Free(keyUsageValue.data);
     }
     pubKey = CERT_ExtractPublicKey(cert);

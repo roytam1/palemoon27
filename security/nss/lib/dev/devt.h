@@ -81,6 +81,7 @@ typedef enum {
 struct NSSSlotStr {
     struct nssDeviceBaseStr base;
     NSSModule *module; /* Parent */
+    NSSToken *token;   /* Peer */
     CK_SLOT_ID slotID;
     CK_FLAGS ckFlags; /* from CK_SLOT_INFO.flags */
     struct nssSlotAuthInfoStr authInfo;
@@ -95,9 +96,6 @@ struct NSSSlotStr {
 };
 
 struct nssSessionStr {
-    /* Must not hold slot->lock when taking lock.
-     * See ordering in nssSlot_IsTokenPresent.
-     */
     PZLock *lock;
     CK_SESSION_HANDLE handle;
     NSSSlot *slot;

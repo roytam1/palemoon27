@@ -1,3 +1,4 @@
+/* vim: set ts=2 et sw=2 tw=80: */
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -12,22 +13,22 @@
 #include <string>
 #include <vector>
 
-typedef struct chaChaTestVectorStr {
+typedef struct chacha_testvector_str {
   uint32_t id;
   std::vector<uint8_t> Data;
   std::vector<uint8_t> AAD;
   std::vector<uint8_t> Key;
   std::vector<uint8_t> IV;
   std::vector<uint8_t> CT;
-  bool invalidTag;
-  bool invalidIV;
-} chaChaTestVector;
+  bool invalid_tag;
+  bool invalid_iv;
+} chacha_testvector;
 
 // ChaCha20/Poly1305 Test Vector 1, RFC 7539
 // <http://tools.ietf.org/html/rfc7539#section-2.8.2>
 // ChaCha20/Poly1305 Test Vector 2, RFC 7539
 // <http://tools.ietf.org/html/rfc7539#appendix-A.5>
-const chaChaTestVector kChaCha20Vectors[] = {
+const chacha_testvector kChaCha20Vectors[] = {
     {0,
      {0x4c, 0x61, 0x64, 0x69, 0x65, 0x73, 0x20, 0x61, 0x6e, 0x64, 0x20, 0x47,
       0x65, 0x6e, 0x74, 0x6c, 0x65, 0x6d, 0x65, 0x6e, 0x20, 0x6f, 0x66, 0x20,

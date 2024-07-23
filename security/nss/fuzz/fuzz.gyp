@@ -43,7 +43,6 @@
         '<(DEPTH)/lib/pkcs7/pkcs7.gyp:pkcs7',
         # This is a static build of pk11wrap, softoken, and freebl.
         '<(DEPTH)/lib/pk11wrap/pk11wrap.gyp:pk11wrap_static',
-        '<(DEPTH)/lib/libpkix/libpkix.gyp:libpkix',
       ],
       'cflags_cc': [
         '-Wno-error=shadow',
@@ -92,7 +91,7 @@
               '-lcrypto',
             ],
           }],
-          # For static builds we have to set MPI defines.
+          # For test builds we have to set MPI defines.
           [ 'target_arch=="ia32"', {
             'defines': [
               'MP_USE_UINT_DIGIT',

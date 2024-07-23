@@ -1,4 +1,5 @@
 /* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
+/* vim: set ts=2 et sw=2 tw=80: */
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -229,15 +230,14 @@ TEST_P(TlsConnectTls13, RecordSizePlaintextExceed) {
 
 // Tweak the ciphertext of server records so that they greatly exceed the limit.
 // This requires a much larger expansion than for plaintext to trigger the
-// guard, which runs before decryption (current allowance is 320 octets,
-// see MAX_EXPANSION in ssl3con.c).
+// guard, which runs before decryption (current allowance is 304 octets).
 TEST_P(TlsConnectTls13, RecordSizeCiphertextExceed) {
   EnsureTlsSetup();
 
   client_->SetOption(SSL_RECORD_SIZE_LIMIT, 64);
   Connect();
 
-  auto server_expand = MakeTlsFilter<TlsRecordExpander>(server_, 336);
+  auto server_expand = MakeTlsFilter<TlsRecordExpander>(server_, 320);
   server_->SendData(100);
 
   client_->ExpectReadWriteError();

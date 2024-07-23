@@ -594,9 +594,9 @@ tls13_ClientSetupESNI(sslSocket *ss)
     size_t i;
     PRCList *cur;
     SECStatus rv;
-    TLS13KeyShareEntry *share = NULL;
+    TLS13KeyShareEntry *share;
     const sslNamedGroupDef *group = NULL;
-    PRTime now = ssl_Time(ss) / PR_USEC_PER_SEC;
+    PRTime now = PR_Now() / PR_USEC_PER_SEC;
 
     PORT_Assert(!ss->xtnData.esniPrivateKey);
 
@@ -742,7 +742,7 @@ tls13_ServerDecryptEsniXtn(const sslSocket *ss, const PRUint8 *in, unsigned int 
 {
     sslReader rdr = SSL_READER(in, inLen);
     PRUint64 suite;
-    const ssl3CipherSuiteDef *suiteDef = NULL;
+    const ssl3CipherSuiteDef *suiteDef;
     SSLAEADCipher aead = NULL;
     TLSExtension *keyShareExtension;
     TLS13KeyShareEntry *entry = NULL;

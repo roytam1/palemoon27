@@ -1,4 +1,5 @@
 /* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
+/* vim: set ts=8 sts=2 et sw=2 tw=80: */
 /* This code is made available to you under your choice of the following sets
  * of licensing terms:
  */
@@ -155,8 +156,6 @@ OCSPResponseExtension::OCSPResponseExtension()
 
 OCSPResponseContext::OCSPResponseContext(const CertID& aCertID, time_t time)
   : certID(aCertID)
-  , certIDHashAlgorithm(DigestAlgorithm::sha1)
-  , certIDHashAlgorithmEncoded(ByteString())
   , responseStatus(successful)
   , skipResponseBytes(false)
   , producedAt(time)
@@ -185,26 +184,25 @@ static ByteString CertID(OCSPResponseContext& context);
 static ByteString CertStatus(OCSPResponseContext& context);
 
 static ByteString
-HASH(const ByteString& toHash, DigestAlgorithm digestAlgorithm)
+SHA1(const ByteString& toHash)
 {
-  uint8_t digestBuf[MAX_DIGEST_SIZE_IN_BYTES];
+  uint8_t digestBuf[20];
   Input input;
   if (input.Init(toHash.data(), toHash.length()) != Success) {
     abort();
   }
-  size_t digestLen = DigestAlgorithmToSizeInBytes(digestAlgorithm);
-  assert(digestLen <= sizeof(digestBuf));
-  Result rv = TestDigestBuf(input, digestAlgorithm, digestBuf, digestLen);
+  Result rv = TestDigestBuf(input, DigestAlgorithm::sha1, digestBuf,
+                            sizeof(digestBuf));
   if (rv != Success) {
     abort();
   }
-  return ByteString(digestBuf, digestLen);
+  return ByteString(digestBuf, sizeof(digestBuf));
 }
 
 static ByteString
-HashedOctetString(const ByteString& bytes, DigestAlgorithm digestAlgorithm)
+HashedOctetString(const ByteString& bytes)
 {
-  ByteString digest(HASH(bytes, digestAlgorithm));
+  ByteString digest(SHA1(bytes));
   if (ENCODING_FAILED(digest)) {
     return ByteString();
   }
@@ -995,7 +993,7 @@ ResponderID(OCSPResponseContext& context)
 ByteString
 KeyHash(const ByteString& subjectPublicKey)
 {
-  return HashedOctetString(subjectPublicKey, DigestAlgorithm::sha1);
+  return HashedOctetString(subjectPublicKey);
 }
 
 // SingleResponse ::= SEQUENCE {
@@ -1052,7 +1050,7 @@ CertID(OCSPResponseContext& context)
 {
   ByteString issuerName(context.certID.issuer.UnsafeGetData(),
                         context.certID.issuer.GetLength());
-  ByteString issuerNameHash(HashedOctetString(issuerName, context.certIDHashAlgorithm));
+  ByteString issuerNameHash(HashedOctetString(issuerName));
   if (ENCODING_FAILED(issuerNameHash)) {
     return ByteString();
   }
@@ -1076,8 +1074,8 @@ CertID(OCSPResponseContext& context)
           != Success) {
       return ByteString();
     }
-    issuerKeyHash = HashedOctetString(ByteString(subjectPublicKey.UnsafeGetData(),
-        subjectPublicKey.GetLength()), context.certIDHashAlgorithm);
+    issuerKeyHash = KeyHash(ByteString(subjectPublicKey.UnsafeGetData(),
+                                       subjectPublicKey.GetLength()));
     if (ENCODING_FAILED(issuerKeyHash)) {
       return ByteString();
     }
@@ -1091,39 +1089,9 @@ CertID(OCSPResponseContext& context)
   static const uint8_t alg_id_sha1[] = {
     0x30, 0x07, 0x06, 0x05, 0x2b, 0x0e, 0x03, 0x02, 0x1a
   };
-  // python DottedOIDToCode.py --alg id-sha256 2.16.840.1.101.3.4.2.1
-  static const uint8_t alg_id_sha256[] = {
-    0x30, 0x0b, 0x06, 0x09, 0x60, 0x86, 0x48, 0x01, 0x65, 0x03, 0x04, 0x02, 0x01
-  };
-  // python DottedOIDToCode.py --alg id-sha384 2.16.840.1.101.3.4.2.2
-  static const uint8_t alg_id_sha384[] = {
-    0x30, 0x0b, 0x06, 0x09, 0x60, 0x86, 0x48, 0x01, 0x65, 0x03, 0x04, 0x02, 0x02
-  };
-  // python DottedOIDToCode.py --alg id-sha512 2.16.840.1.101.3.4.2.3
-  static const uint8_t alg_id_sha512[] = {
-    0x30, 0x0b, 0x06, 0x09, 0x60, 0x86, 0x48, 0x01, 0x65, 0x03, 0x04, 0x02, 0x03
-  };
 
   ByteString value;
-  if (!context.certIDHashAlgorithmEncoded.empty()) {
-    value.append(context.certIDHashAlgorithmEncoded);
-  } else {
-    switch (context.certIDHashAlgorithm) {
-      case DigestAlgorithm::sha1:
-        value.append(alg_id_sha1, sizeof(alg_id_sha1));
-        break;
-      case DigestAlgorithm::sha256:
-        value.append(alg_id_sha256, sizeof(alg_id_sha256));
-        break;
-      case DigestAlgorithm::sha384:
-        value.append(alg_id_sha384, sizeof(alg_id_sha384));
-        break;
-      case DigestAlgorithm::sha512:
-        value.append(alg_id_sha512, sizeof(alg_id_sha512));
-        break;
-      MOZILLA_PKIX_UNREACHABLE_DEFAULT_ENUM
-    }
-  }
+  value.append(alg_id_sha1, sizeof(alg_id_sha1));
   value.append(issuerNameHash);
   value.append(issuerKeyHash);
   value.append(serialNumber);

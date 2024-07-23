@@ -11,7 +11,6 @@
 #endif /* PKIM_H */
 
 #include "cert.h"
-#include "dev3hack.h"
 #include "pki3hack.h"
 #include "pk11pub.h"
 #include "nssrwlk.h"
@@ -62,14 +61,11 @@ static void
 token_destructor(void *t)
 {
     NSSToken *tok = (NSSToken *)t;
-    /* Remove the token list's reference to the token */
-    (void)nssToken_Destroy(tok);
-
-    /* Signal that the slot should not give out any more references to the
-     * token. The token might still have a positive refcount after this call.
-     * The token has a reference to the slot, so the slot will not be destroyed
-     * until after the token's refcount drops to 0. */
-    PK11Slot_SetNSSToken(tok->pk11slot, NULL);
+    /* The token holds the first/last reference to the slot.
+     * When the token is actually destroyed (ref count == 0),
+     * the slot will also be destroyed.
+     */
+    nssToken_Destroy(tok);
 }
 
 NSS_IMPLEMENT PRStatus
@@ -131,6 +127,7 @@ nssTrustDomain_GetActiveSlots(
         return NULL;
     }
     nssList_GetArray(td->tokenList, (void **)tokens, count);
+    NSSRWLock_UnlockRead(td->tokensLock);
     count = 0;
     for (tp = tokens; *tp; tp++) {
         NSSSlot *slot = nssToken_GetSlot(*tp);
@@ -140,7 +137,6 @@ nssTrustDomain_GetActiveSlots(
             nssSlot_Destroy(slot);
         }
     }
-    NSSRWLock_UnlockRead(td->tokensLock);
     nss_ZFreeIf(tokens);
     if (!count) {
         nss_ZFreeIf(slots);
@@ -473,7 +469,7 @@ nssTrustDomain_FindCertificatesByNickname(
                                                                 numRemaining,
                                                                 &status);
             }
-            (void)nssToken_Destroy(token);
+            nssToken_Destroy(token);
             if (status != PR_SUCCESS) {
                 errors++;
                 continue;
@@ -622,7 +618,7 @@ nssTrustDomain_FindCertificatesBySubject(
                                                                numRemaining,
                                                                &status);
             }
-            (void)nssToken_Destroy(token);
+            nssToken_Destroy(token);
             if (status != PR_SUCCESS) {
                 errors++;
                 continue;
@@ -783,7 +779,7 @@ nssTrustDomain_FindCertificateByIssuerAndSerialNumber(
                     tokenOnly,
                     &status);
             }
-            (void)nssToken_Destroy(token);
+            nssToken_Destroy(token);
             if (status != PR_SUCCESS) {
                 continue;
             }
@@ -1026,7 +1022,7 @@ NSSTrustDomain_TraverseCertificates(
                                                     collector,
                                                     collection);
             }
-            (void)nssToken_Destroy(token);
+            nssToken_Destroy(token);
         }
     }
 
@@ -1080,7 +1076,7 @@ nssTrustDomain_FindTrustForCertificate(
                     nssCryptokiObject_Destroy(to);
                 }
             }
-            (void)nssToken_Destroy(token);
+            nssToken_Destroy(token);
         }
     }
     if (pkio) {
@@ -1130,7 +1126,7 @@ nssTrustDomain_FindCRLsBySubject(
                 instances = nssToken_FindCRLsBySubject(token, session, subject,
                                                        tokenOnly, 0, &status);
             }
-            (void)nssToken_Destroy(token);
+            nssToken_Destroy(token);
             if (status == PR_SUCCESS) {
                 /* add the found CRL's to the collection */
                 status = nssPKIObjectCollection_AddInstances(collection,

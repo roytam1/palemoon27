@@ -1,4 +1,5 @@
 /* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
+/* vim: set ts=2 et sw=2 tw=80: */
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -32,10 +33,8 @@ class PacketFilter {
     CHANGE,  // change the packet to a different value
     DROP     // drop the packet
   };
-  explicit PacketFilter(bool on = true) : enabled_(on) {}
+  PacketFilter(bool enabled = true) : enabled_(enabled) {}
   virtual ~PacketFilter() {}
-
-  bool enabled() const { return enabled_; }
 
   virtual Action Process(const DataBuffer& input, DataBuffer* output) {
     if (!enabled_) {

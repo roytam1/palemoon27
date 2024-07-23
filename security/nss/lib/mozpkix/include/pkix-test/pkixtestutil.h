@@ -1,4 +1,5 @@
 /* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
+/* vim: set ts=8 sts=2 et sw=2 tw=80: */
 /* This code is made available to you under your choice of the following sets
  * of licensing terms:
  */
@@ -348,14 +349,6 @@ class OCSPResponseContext final {
   OCSPResponseContext(const CertID& certID, std::time_t time);
 
   const CertID& certID;
-  // What digest algorithm to use to produce issuerNameHash and issuerKeyHash.
-  // Defaults to sha1.
-  DigestAlgorithm certIDHashAlgorithm;
-  // If non-empty, the sequence of bytes to use for hashAlgorithm when encoding
-  // this response. If empty, the sequence of bytes corresponding to
-  // certIDHashAlgorithm will be used. Defaults to empty.
-  ByteString certIDHashAlgorithmEncoded;
-
   // TODO(bug 980538): add a way to specify what certificates are included.
 
   // The fields below are in the order that they appear in an OCSP response.

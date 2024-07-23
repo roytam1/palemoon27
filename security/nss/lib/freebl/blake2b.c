@@ -148,8 +148,9 @@ blake2b_Begin(BLAKE2BContext* ctx, uint8_t outlen, const uint8_t* key,
               size_t keylen)
 {
     uint64_t param;
+    PORT_Assert(ctx != NULL);
     if (!ctx) {
-        goto failure_noclean;
+        goto failure;
     }
     if (outlen == 0 || outlen > BLAKE2B512_LENGTH) {
         goto failure;
@@ -181,7 +182,6 @@ blake2b_Begin(BLAKE2BContext* ctx, uint8_t outlen, const uint8_t* key,
 
 failure:
     PORT_Memset(ctx, 0, sizeof(*ctx));
-failure_noclean:
     PORT_SetError(SEC_ERROR_INVALID_ARGS);
     return SECFailure;
 }
@@ -219,12 +219,17 @@ SECStatus
 BLAKE2B_Update(BLAKE2BContext* ctx, const unsigned char* in,
                unsigned int inlen)
 {
-    size_t left, fill;
+    size_t left = ctx->buflen;
+    size_t fill = BLAKE2B_BLOCK_LENGTH - left;
+
     /* Nothing to do if there's nothing. */
     if (inlen == 0) {
         return SECSuccess;
     }
 
+    PORT_Assert(ctx != NULL);
+    PORT_Assert(in != NULL);
+    PORT_Assert(left <= BLAKE2B_BLOCK_LENGTH);
     if (!ctx || !in) {
         PORT_SetError(SEC_ERROR_INVALID_ARGS);
         return SECFailure;
@@ -235,10 +240,6 @@ BLAKE2B_Update(BLAKE2BContext* ctx, const unsigned char* in,
         PORT_SetError(SEC_ERROR_INVALID_ARGS);
         return SECFailure;
     }
-
-    left = ctx->buflen;
-    PORT_Assert(left <= BLAKE2B_BLOCK_LENGTH);
-    fill = BLAKE2B_BLOCK_LENGTH - left;
 
     if (inlen > fill) {
         if (ctx->buflen) {

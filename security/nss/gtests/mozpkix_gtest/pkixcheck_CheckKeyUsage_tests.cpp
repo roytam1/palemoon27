@@ -1,4 +1,5 @@
 /* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
+/* vim: set ts=8 sts=2 et sw=2 tw=80: */
 /* This code is made available to you under your choice of the following sets
  * of licensing terms:
  */
@@ -165,8 +166,8 @@ void ASSERT_SimpleCase(uint8_t unusedBits, uint8_t bits, KeyUsage usage)
 
   // Test that none of the other non-padding bits are mistaken for the given
   // key usage in the single-byte value case.
-  uint8_t paddingBits = (static_cast<uint8_t>(~bits) >> unusedBits) << unusedBits;
-  NAMED_SIMPLE_KU(notGood, unusedBits, paddingBits);
+  NAMED_SIMPLE_KU(notGood, unusedBits,
+                  static_cast<uint8_t>((~bits >> unusedBits) << unusedBits));
   ASSERT_BAD(CheckKeyUsage(EndEntityOrCA::MustBeEndEntity, &notGood, usage));
   ASSERT_BAD(CheckKeyUsage(EndEntityOrCA::MustBeCA, &notGood, usage));
 

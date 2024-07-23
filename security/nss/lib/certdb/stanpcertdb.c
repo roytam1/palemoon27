@@ -32,9 +32,6 @@
 #include "dev.h"
 #include "secmodi.h"
 
-extern void CERT_MaybeLockCertTempPerm(const CERTCertificate *cert);
-extern void CERT_MaybeUnlockCertTempPerm(const CERTCertificate *cert);
-
 PRBool
 SEC_CertNicknameConflict(const char *nickname, const SECItem *derSubject,
                          CERTCertDBHandle *handle)
@@ -299,15 +296,9 @@ __CERT_AddTempCertToPerm(CERTCertificate *cert, char *nickname,
     /* Import the perm instance onto the internal token */
     slot = PK11_GetInternalKeySlot();
     internal = PK11Slot_GetNSSToken(slot);
-    if (!internal) {
-        PK11_FreeSlot(slot);
-        PORT_SetError(SEC_ERROR_NO_TOKEN);
-        return SECFailure;
-    }
     permInstance = nssToken_ImportCertificate(
         internal, NULL, NSSCertificateType_PKIX, &c->id, stanNick, &c->encoding,
         &c->issuer, &c->subject, &c->serial, cert->emailAddr, PR_TRUE);
-    (void)nssToken_Destroy(internal);
     nss_ZFreeIf(stanNick);
     stanNick = NULL;
     PK11_FreeSlot(slot);
@@ -320,9 +311,7 @@ __CERT_AddTempCertToPerm(CERTCertificate *cert, char *nickname,
     nssPKIObject_AddInstance(&c->object, permInstance);
     nssTrustDomain_AddCertsToCache(STAN_GetDefaultTrustDomain(), &c, 1);
     /* reset the CERTCertificate fields */
-    CERT_LockCertTempPerm(cert);
     cert->nssCertificate = NULL;
-    CERT_UnlockCertTempPerm(cert);
     cert = STAN_GetCERTCertificateOrRelease(c); /* should return same pointer */
     if (!cert) {
         CERT_MapStanError();
@@ -361,7 +350,6 @@ CERT_NewTempCertificate(CERTCertDBHandle *handle, SECItem *derCert,
     nssPKIObject *pkio;
     NSSCryptoContext *gCC = STAN_GetDefaultCryptoContext();
     NSSTrustDomain *gTD = STAN_GetDefaultTrustDomain();
-    SECItem derSerial = { 0 };
     if (!isperm) {
         NSSDER encoding;
         NSSITEM_FROM_SECITEM(&encoding, derCert);
@@ -424,16 +412,18 @@ CERT_NewTempCertificate(CERTCertDBHandle *handle, SECItem *derCert,
                    cc->derIssuer.data);
     nssItem_Create(c->object.arena, &c->subject, cc->derSubject.len,
                    cc->derSubject.data);
-    /* CERTCertificate stores serial numbers decoded.  I need the DER
-    * here.  sigh.
-    */
-    CERT_SerialNumberFromDERCert(&cc->derCert, &derSerial);
-    if (!derSerial.data)
-        goto loser;
-    nssItem_Create(c->object.arena, &c->serial, derSerial.len,
-                   derSerial.data);
-    PORT_Free(derSerial.data);
-
+    if (PR_TRUE) {
+        /* CERTCertificate stores serial numbers decoded.  I need the DER
+        * here.  sigh.
+        */
+        SECItem derSerial = { 0 };
+        CERT_SerialNumberFromDERCert(&cc->derCert, &derSerial);
+        if (!derSerial.data)
+            goto loser;
+        nssItem_Create(c->object.arena, &c->serial, derSerial.len,
+                       derSerial.data);
+        PORT_Free(derSerial.data);
+    }
     if (nickname) {
         c->object.tempName =
             nssUTF8_Create(c->object.arena, nssStringType_UTF8String,
@@ -816,21 +806,12 @@ void
 CERT_DestroyCertificate(CERTCertificate *cert)
 {
     if (cert) {
-        NSSCertificate *tmp;
         /* don't use STAN_GetNSSCertificate because we don't want to
          * go to the trouble of translating the CERTCertificate into
          * an NSSCertificate just to destroy it.  If it hasn't been done
-         * yet, don't do it at all
-         *
-         * cert->nssCertificate contains its own locks and refcount, but as it
-         * may be NULL, the pointer itself must be guarded by some other lock.
-         * Rather than creating a new global lock for only this purpose, share
-         * an existing global lock that happens to be taken near the write in
-         * fill_CERTCertificateFields(). The longer-term goal is to refactor
-         * all these global locks to be certificate-scoped. */
-        CERT_MaybeLockCertTempPerm(cert);
-        tmp = cert->nssCertificate;
-        CERT_MaybeUnlockCertTempPerm(cert);
+         * yet, don't do it at all.
+         */
+        NSSCertificate *tmp = cert->nssCertificate;
         if (tmp) {
             /* delete the NSSCertificate */
             NSSCertificate_Destroy(tmp);

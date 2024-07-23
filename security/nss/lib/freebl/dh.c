@@ -210,8 +210,7 @@ DH_Derive(SECItem *publicValue,
     unsigned int len = 0;
     unsigned int nb;
     unsigned char *secret = NULL;
-    if (!publicValue || !publicValue->len || !prime || !prime->len ||
-        !privateValue || !privateValue->len || !derivedSecret) {
+    if (!publicValue || !prime || !privateValue || !derivedSecret) {
         PORT_SetError(SEC_ERROR_INVALID_ARGS);
         return SECFailure;
     }

@@ -1,4 +1,5 @@
 /* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
+/* vim: set ts=8 sts=2 et sw=2 tw=80: */
 /* This code is made available to you under your choice of the following sets
  * of licensing terms:
  */
@@ -111,17 +112,6 @@ inline Result ExpectTagAndEmptyValue(Reader& input, uint8_t tag) {
 inline Result ExpectTagAndSkipValue(Reader& input, uint8_t tag) {
   Input ignoredValue;
   return ExpectTagAndGetValue(input, tag, ignoredValue);
-}
-
-// This skips IMPLICIT OPTIONAL tags that are "primitive" (not constructed),
-// given the number in the class of the tag (i.e. the number in the brackets in
-// `issuerUniqueID  [1]  IMPLICIT UniqueIdentifier OPTIONAL`).
-inline Result SkipOptionalImplicitPrimitiveTag(Reader& input,
-                                               uint8_t numberInClass) {
-  if (input.Peek(CONTEXT_SPECIFIC | numberInClass)) {
-    return ExpectTagAndSkipValue(input, CONTEXT_SPECIFIC | numberInClass);
-  }
-  return Success;
 }
 
 // Like ExpectTagAndGetValue, except the output Input will contain the

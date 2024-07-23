@@ -1,4 +1,5 @@
 /* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
+/* vim: set ts=2 et sw=2 tw=80: */
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -46,8 +47,6 @@ class TlsConnectTestBase : public ::testing::Test {
 
   virtual void SetUp();
   virtual void TearDown();
-
-  PRTime now() const { return now_; }
 
   // Initialize client and server.
   void Init();
@@ -132,10 +131,6 @@ class TlsConnectTestBase : public ::testing::Test {
 
   // Move the DTLS timers for both endpoints to pop the next timer.
   void ShiftDtlsTimers();
-  void AdvanceTime(PRTime time_shift);
-
-  void ResetAntiReplay(PRTime window);
-  void RolloverAntiReplay();
 
   void SaveAlgorithmPolicy();
   void RestoreAlgorithmPolicy();
@@ -150,7 +145,6 @@ class TlsConnectTestBase : public ::testing::Test {
   SessionResumptionMode expected_resumption_mode_;
   uint8_t expected_resumptions_;
   std::vector<std::vector<uint8_t>> session_ids_;
-  ScopedSSLAntiReplayContext anti_replay_;
 
   // A simple value of "a", "b".  Note that the preferred value of "a" is placed
   // at the end, because the NSS API follows the now defunct NPN specification,
@@ -162,20 +156,17 @@ class TlsConnectTestBase : public ::testing::Test {
   // around test cases.  In particular, DSA is checked in
   // ssl_extension_unittest.cc.
   const std::vector<SECOidTag> algorithms_ = {SEC_OID_APPLY_SSL_POLICY,
-                                              SEC_OID_ANSIX9_DSA_SIGNATURE,
-                                              SEC_OID_CURVE25519, SEC_OID_SHA1};
+                                              SEC_OID_ANSIX9_DSA_SIGNATURE};
   std::vector<std::tuple<SECOidTag, uint32_t>> saved_policies_;
 
  private:
   void CheckResumption(SessionResumptionMode expected);
   void CheckExtendedMasterSecret();
   void CheckEarlyDataAccepted();
-  static PRTime TimeFunc(void* arg);
 
   bool expect_extended_master_secret_;
   bool expect_early_data_accepted_;
   bool skip_version_checks_;
-  PRTime now_;
 
   // Track groups and make sure that there are no duplicates.
   class DuplicateGroupChecker {

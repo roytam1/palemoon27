@@ -8,6 +8,7 @@
 #define mozilla_layers_APZUtils_h
 
 #include <stdint.h>                     // for uint32_t
+#include <mozilla/TypedEnum.h>
 
 namespace mozilla {
 namespace layers {
@@ -23,7 +24,7 @@ enum CancelAnimationFlags : uint32_t {
   ExcludeOverscroll = 1   /* Don't clear overscroll */
 };
 
-enum class ScrollSource {
+MOZ_BEGIN_ENUM_CLASS(ScrollSource)
   // scrollTo() or something similar.
   DOM,
 
@@ -32,7 +33,7 @@ enum class ScrollSource {
 
   // Mouse wheel.
   Wheel
-};
+MOZ_END_ENUM_CLASS(ScrollSource)
 
 typedef uint32_t TouchBehaviorFlags;
 

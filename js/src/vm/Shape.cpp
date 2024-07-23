@@ -1024,9 +1024,9 @@ NativeObject::removeProperty(ExclusiveContext* cx, jsid id_)
 }
 
 /* static */ void
-NativeObject::clear(JSContext* cx, HandleNativeObject obj)
+NativeObject::clear(ExclusiveContext *cx, HandleNativeObject obj)
 {
-    Shape* shape = obj->lastProperty();
+    Shape *shape = obj->lastProperty();
     MOZ_ASSERT(obj->inDictionaryMode() == shape->inDictionary());
 
     while (shape->parent) {
@@ -1040,7 +1040,8 @@ NativeObject::clear(JSContext* cx, HandleNativeObject obj)
 
     JS_ALWAYS_TRUE(obj->setLastProperty(cx, shape));
 
-    ++cx->runtime()->propertyRemovals;
+    if (cx->isJSContext())
+        ++cx->asJSContext()->runtime()->propertyRemovals;
     obj->checkShapeConsistency();
 }
 

@@ -54,28 +54,28 @@ public:
   // other lower-level methods.
   bool getOwnPropertyDescriptor(JSContext* cx, JS::Handle<JSObject*> proxy,
                                 JS::Handle<jsid> id,
-                                JS::MutableHandle<JSPropertyDescriptor> desc) const override;
+                                JS::MutableHandle<JSPropertyDescriptor> desc) const MOZ_OVERRIDE;
   virtual bool ownPropertyKeys(JSContext* cx, JS::Handle<JSObject*> proxy,
-                               JS::AutoIdVector &props) const override;
+                               JS::AutoIdVector &props) const MOZ_OVERRIDE;
 
   bool getPropertyDescriptor(JSContext* cx, JS::Handle<JSObject*> proxy,
                              JS::Handle<jsid> id,
-                             JS::MutableHandle<JSPropertyDescriptor> desc) const override;
+                             JS::MutableHandle<JSPropertyDescriptor> desc) const MOZ_OVERRIDE;
 
   virtual bool enumerate(JSContext *cx, JS::Handle<JSObject*> proxy,
-                         JS::MutableHandle<JSObject*> objp) const override;
+                         JS::MutableHandle<JSObject*> objp) const MOZ_OVERRIDE;
 
   // We override getOwnEnumerablePropertyKeys() and implement it directly
   // instead of using the default implementation, which would call
   // ownPropertyKeys and then filter out the non-enumerable ones. This avoids
   // unnecessary work during enumeration.
   virtual bool getOwnEnumerablePropertyKeys(JSContext* cx, JS::Handle<JSObject*> proxy,
-                                            JS::AutoIdVector &props) const override;
+                                            JS::AutoIdVector &props) const MOZ_OVERRIDE;
 
   bool watch(JSContext* cx, JS::Handle<JSObject*> proxy, JS::Handle<jsid> id,
-             JS::Handle<JSObject*> callable) const override;
+             JS::Handle<JSObject*> callable) const MOZ_OVERRIDE;
   bool unwatch(JSContext* cx, JS::Handle<JSObject*> proxy,
-               JS::Handle<jsid> id) const override;
+               JS::Handle<jsid> id) const MOZ_OVERRIDE;
 
 protected:
   // Hook for subclasses to implement shared ownPropertyKeys()/keys()

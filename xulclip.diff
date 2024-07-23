@@ -1,0 +1,107 @@
+diff --git a/dom/base/nsGkAtomList.h b/dom/base/nsGkAtomList.h
+index 7535547e7..54bfffed9 100644
+--- a/dom/base/nsGkAtomList.h
++++ b/dom/base/nsGkAtomList.h
+@@ -40,6 +40,7 @@ GK_ATOM(_moz_resizing, "_moz_resizing")
+ GK_ATOM(mozallowfullscreen, "mozallowfullscreen")
+ GK_ATOM(moztype, "_moz-type")
+ GK_ATOM(mozdirty, "_moz_dirty")
++GK_ATOM(_is_cropped, "_is_cropped")
+ GK_ATOM(mozdisallowselectionprint, "mozdisallowselectionprint")
+ GK_ATOM(moznomarginboxes, "moznomarginboxes")
+ GK_ATOM(mozdonotsend, "moz-do-not-send")
+diff --git a/layout/xul/nsTextBoxFrame.cpp b/layout/xul/nsTextBoxFrame.cpp
+index e3c52bdc9..cfe34472c 100644
+--- a/layout/xul/nsTextBoxFrame.cpp
++++ b/layout/xul/nsTextBoxFrame.cpp
+@@ -228,7 +228,8 @@ nsTextBoxFrame::UpdateAttributes(nsIAtom*         aAttribute,
+     if (aAttribute == nullptr || aAttribute == nsGkAtoms::crop) {
+         static nsIContent::AttrValuesArray strings[] =
+           {&nsGkAtoms::left, &nsGkAtoms::start, &nsGkAtoms::center,
+-           &nsGkAtoms::right, &nsGkAtoms::end, nullptr};
++           &nsGkAtoms::right, &nsGkAtoms::end, &nsGkAtoms::none,
++           &nsGkAtoms::clip, nullptr};
+         CroppingStyle cropType;
+         switch (mContent->FindAttrValueIn(kNameSpaceID_None, nsGkAtoms::crop,
+                                           strings, eCaseMatters)) {
+@@ -243,9 +244,14 @@ nsTextBoxFrame::UpdateAttributes(nsIAtom*         aAttribute,
+           case 4:
+             cropType = CropRight;
+             break;
+-          default:
++          case 5:
+             cropType = CropNone;
+             break;
++          case 6:
++            cropType = CropClip;
++            break;
++          default:
++            cropType = CropAuto;
+         }
+ 
+         if (cropType != mCropType) {
+@@ -608,6 +614,10 @@ nsTextBoxFrame::CalculateTitleForWidth(nsPresContext*      aPresContext,
+                                        nsRenderingContext& aRenderingContext,
+                                        nscoord              aWidth)
+ {
++    if (mContent->HasAttr(kNameSpaceID_None, nsGkAtoms::_is_cropped)) {
++        mContent->UnsetAttr(kNameSpaceID_None, nsGkAtoms::_is_cropped, true);
++    }
++
+     if (mTitle.IsEmpty()) {
+         mCroppedTitle.Truncate();
+         return 0;
+@@ -629,6 +639,9 @@ nsTextBoxFrame::CalculateTitleForWidth(nsPresContext*      aPresContext,
+     }
+ 
+     const nsDependentString& kEllipsis = nsContentUtils::GetLocalizedEllipsis();
++    if (mCropType == CropClip) {
++      mCroppedTitle.Truncate();
++    } else if (mCropType != CropNone) {
+     // start with an ellipsis
+     mCroppedTitle.Assign(kEllipsis);
+ 
+@@ -648,14 +661,20 @@ nsTextBoxFrame::CalculateTitleForWidth(nsPresContext*      aPresContext,
+         return titleWidth;
+ 
+     aWidth -= titleWidth;
++    } else {
++      mCroppedTitle.Truncate(0);
++      titleWidth = 0;
++    }
+ 
+     // XXX: This whole block should probably take surrogates into account
+     // XXX and clusters!
+     // ok crop things
+     switch (mCropType)
+     {
++        case CropAuto:
+         case CropNone:
+         case CropRight:
++        case CropClip:
+         {
+             nscoord cwidth;
+             nscoord twidth = 0;
+@@ -774,6 +793,9 @@ nsTextBoxFrame::CalculateTitleForWidth(nsPresContext*      aPresContext,
+         break;
+     }
+ 
++    mContent->SetAttr(kNameSpaceID_None, nsGkAtoms::_is_cropped,
++                      NS_LITERAL_STRING("true"), true);
++
+     return nsLayoutUtils::AppUnitWidthOfStringBidi(mCroppedTitle, this, *fm,
+                                                    aRenderingContext);
+ }
+diff --git a/layout/xul/nsTextBoxFrame.h b/layout/xul/nsTextBoxFrame.h
+index db221571d..18949f4b8 100644
+--- a/layout/xul/nsTextBoxFrame.h
++++ b/layout/xul/nsTextBoxFrame.h
+@@ -26,7 +26,7 @@ public:
+   NS_IMETHOD DoLayout(nsBoxLayoutState& aBoxLayoutState) override;
+   virtual void MarkIntrinsicISizesDirty() override;
+ 
+-  enum CroppingStyle { CropNone, CropLeft, CropRight, CropCenter };
++  enum CroppingStyle { CropNone, CropLeft, CropRight, CropCenter, CropClip, CropAuto };
+ 
+   friend nsIFrame* NS_NewTextBoxFrame(nsIPresShell* aPresShell, nsStyleContext* aContext);
+ 

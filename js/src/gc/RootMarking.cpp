@@ -160,6 +160,15 @@ AutoGCRooter::trace(JSTracer* trc)
         return;
       }
 
+      case IDVALVECTOR: {
+        AutoIdValueVector::VectorImpl &vector = static_cast<AutoIdValueVector *>(this)->vector;
+        for (size_t i = 0; i < vector.length(); i++) {
+            MarkIdRoot(trc, &vector[i].id, "js::AutoIdValueVector id");
+            MarkValueRoot(trc, &vector[i].value, "js::AutoIdValueVector value");
+        }
+        return;
+      }
+
       case SHAPEVECTOR: {
         AutoShapeVector::VectorImpl& vector = static_cast<js::AutoShapeVector*>(this)->vector;
         MarkShapeRootRange(trc, vector.length(), const_cast<Shape**>(vector.begin()),
@@ -422,7 +431,7 @@ js::gc::GCRuntime::markRuntime(JSTracer* trc,
             if (!c->zone()->isCollecting())
                 c->markCrossCompartmentWrappers(trc);
         }
-        Debugger::markIncomingCrossCompartmentEdges(trc);
+        Debugger::markAllCrossCompartmentEdges(trc);
     }
 
     {

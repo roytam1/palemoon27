@@ -2586,6 +2586,12 @@ nsSSLIOLayerSetOptions(PRFileDesc* fd, bool forSTARTTLS,
     return NS_ERROR_FAILURE;
   }
 
+  // Set TLS 1.3 compat mode.
+  if (SECSuccess != SSL_OptionSet(fd, SSL_ENABLE_TLS13_COMPAT_MODE, PR_TRUE)) {
+    PR_LOG(gPIPNSSLog, PR_LOG_ERROR,
+            ("[%p] nsSSLIOLayerSetOptions: Setting compat mode failed\n", fd));
+  }
+
   uint16_t maxEnabledVersion = range.max;
   StrongCipherStatus strongCiphersStatus = StrongCipherStatusUnknown;
   infoObject->SharedState().IOLayerHelpers()

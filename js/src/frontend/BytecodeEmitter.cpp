@@ -4236,8 +4236,11 @@ EmitAssignment(ExclusiveContext* cx, BytecodeEmitter* bce, ParseNode* lhs, JSOp 
 }
 
 bool
-ParseNode::getConstantValue(ExclusiveContext* cx, AllowConstantObjects allowObjects, MutableHandleValue vp)
+ParseNode::getConstantValue(ExclusiveContext *cx, AllowConstantObjects allowObjects, MutableHandleValue vp,
+                            NewObjectKind newKind)
 {
+    MOZ_ASSERT(newKind == TenuredObject || newKind == SingletonObject);
+
     switch (getKind()) {
       case PNK_NUMBER:
         vp.setNumber(pn_dval);
@@ -4277,8 +4280,7 @@ ParseNode::getConstantValue(ExclusiveContext* cx, AllowConstantObjects allowObje
             pn = pn_head;
         }
 
-        RootedArrayObject obj(cx, NewDenseFullyAllocatedArray(cx, count, NullPtr(),
-                                                              MaybeSingletonObject));
+        RootedArrayObject obj(cx, NewDenseFullyAllocatedArray(cx, count, NullPtr(), newKind));
         if (!obj)
             return false;
 
@@ -4341,7 +4343,7 @@ ParseNode::getConstantValue(ExclusiveContext* cx, AllowConstantObjects allowObje
         }
 
         JSObject *obj = ObjectGroup::newPlainObject(cx, properties.begin(), properties.length(),
-                                                    TenuredObject);
+                                                    newKind);
         if (!obj)
             return false;
 
@@ -4355,17 +4357,17 @@ ParseNode::getConstantValue(ExclusiveContext* cx, AllowConstantObjects allowObje
 }
 
 static bool
-EmitSingletonInitialiser(ExclusiveContext* cx, BytecodeEmitter* bce, ParseNode* pn)
+EmitSingletonInitialiser(ExclusiveContext *cx, BytecodeEmitter *bce, ParseNode *pn)
 {
+    NewObjectKind newKind = (pn->getKind() == PNK_OBJECT) ? SingletonObject : TenuredObject;
+
     RootedValue value(cx);
-    if (!pn->getConstantValue(cx, ParseNode::AllowObjects, &value))
+    if (!pn->getConstantValue(cx, ParseNode::AllowObjects, &value, newKind))
         return false;
 
-    RootedNativeObject obj(cx, &value.toObject().as<NativeObject>());
-    if (!obj->is<ArrayObject>() && !JSObject::setSingleton(cx, obj))
-        return false;
+    MOZ_ASSERT_IF(newKind == SingletonObject, value.toObject().isSingleton());
 
-    ObjectBox* objbox = bce->parser->newObjectBox(obj);
+    ObjectBox *objbox = bce->parser->newObjectBox(&value.toObject());
     if (!objbox)
         return false;
 
@@ -6932,11 +6934,8 @@ EmitClass(ExclusiveContext *cx, BytecodeEmitter *bce, ParseNode *pn)
     ClassNames *names = classNode.names();
 
     ParseNode *heritageExpression = classNode.heritage();
-    LexicalScopeNode *innerBlock = classNode.scope();
 
-    ParseNode *classMethods = innerBlock->pn_expr;
-    MOZ_ASSERT(classMethods->isKind(PNK_CLASSMETHODLIST));
-
+    ParseNode *classMethods = classNode.methodList();
     ParseNode *constructor = nullptr;
     for (ParseNode *mn = classMethods->pn_head; mn; mn = mn->pn_next) {
         ClassMethod &method = mn->as<ClassMethod>();
@@ -6953,8 +6952,10 @@ EmitClass(ExclusiveContext *cx, BytecodeEmitter *bce, ParseNode *pn)
     bool savedStrictness = bce->sc->setLocalStrictMode(true);
 
     StmtInfoBCE stmtInfo(cx);
-    if (!EnterBlockScope(cx, bce, &stmtInfo, innerBlock->pn_objbox, JSOP_UNINITIALIZED))
-        return false;
+    if (names) {
+        if (!EnterBlockScope(cx, bce, &stmtInfo, classNode.scopeObject(), JSOP_UNINITIALIZED))
+            return false;
+    }
 
     if (heritageExpression) {
         if (!EmitTree(cx, bce, heritageExpression))
@@ -6992,20 +6993,25 @@ EmitClass(ExclusiveContext *cx, BytecodeEmitter *bce, ParseNode *pn)
     if (Emit1(cx, bce, JSOP_POP) < 0)
         return false;
 
-    // That DEFCONST is never gonna be used, but use it here for logical consistency.
-    ParseNode *innerName = names->innerBinding();
-    if (!EmitLexicalInitialization(cx, bce, innerName, JSOP_DEFCONST))
-        return false;
+    if (names) {
+        // That DEFCONST is never gonna be used, but use it here for logical consistency.
+        ParseNode *innerName = names->innerBinding();
+        if (!EmitLexicalInitialization(cx, bce, innerName, JSOP_DEFCONST))
+            return false;
 
-    if (!LeaveNestedScope(cx, bce, &stmtInfo))
-        return false;
+        if (!LeaveNestedScope(cx, bce, &stmtInfo))
+            return false;
 
-    ParseNode *outerName = names->outerBinding();
-    if (!EmitLexicalInitialization(cx, bce, outerName, JSOP_DEFVAR))
-        return false;
-
-    if (Emit1(cx, bce, JSOP_POP) < 0)
-        return false;
+        ParseNode *outerName = names->outerBinding();
+        if (outerName) {
+            if (!EmitLexicalInitialization(cx, bce, outerName, JSOP_DEFVAR))
+                return false;
+            // Only class statements make outer bindings, and they do not leave
+            // themselves on the stack.
+            if (Emit1(cx, bce, JSOP_POP) < 0)
+                return false;
+        }
+    }
 
     MOZ_ALWAYS_TRUE(bce->sc->setLocalStrictMode(savedStrictness));
 

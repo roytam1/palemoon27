@@ -47,6 +47,7 @@ JSCompartment::JSCompartment(Zone* zone, const JS::CompartmentOptions& options =
     isSelfHosting(false),
     marked(true),
     warnedAboutNoSuchMethod(false),
+    warnedAboutFlagsArgument(false),
     addonId(options.addonIdOrNull()),
 #ifdef DEBUG
     firedOnNewGlobalObject(false),
@@ -242,9 +243,6 @@ bool
 JSCompartment::putWrapper(JSContext* cx, const CrossCompartmentKey& wrapped, const js::Value& wrapper)
 {
     MOZ_ASSERT(wrapped.wrapped);
-    MOZ_ASSERT(!IsPoisonedPtr(wrapped.wrapped));
-    MOZ_ASSERT(!IsPoisonedPtr(wrapped.debugger));
-    MOZ_ASSERT(!IsPoisonedPtr(wrapper.toGCThing()));
     MOZ_ASSERT_IF(wrapped.kind == CrossCompartmentKey::StringWrapper, wrapper.isString());
     MOZ_ASSERT_IF(wrapped.kind != CrossCompartmentKey::StringWrapper, wrapper.isObject());
     bool success = crossCompartmentWrappers.put(wrapped, ReadBarriered<Value>(wrapper));

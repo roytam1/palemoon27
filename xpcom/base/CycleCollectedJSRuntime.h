@@ -260,7 +260,7 @@ public:
   already_AddRefed<nsIException> GetPendingException() const;
   void SetPendingException(nsIException* aException);
 
-  nsTArray<nsRefPtr<nsIRunnable>>& GetPromiseMicroTaskQueue();
+  nsTArray<nsCOMPtr<nsIRunnable>>& GetPromiseMicroTaskQueue();
 
   nsCycleCollectionParticipant* GCThingParticipant();
   nsCycleCollectionParticipant* ZoneParticipant();
@@ -310,7 +310,7 @@ private:
 
   nsCOMPtr<nsIException> mPendingException;
 
-  nsTArray<nsRefPtr<nsIRunnable>> mPromiseMicroTaskQueue;
+  nsTArray<nsCOMPtr<nsIRunnable>> mPromiseMicroTaskQueue;
 
   OOMState mOutOfMemoryState;
   OOMState mLargeAllocationFailureState;

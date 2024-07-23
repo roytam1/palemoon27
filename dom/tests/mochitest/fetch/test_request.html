@@ -5,18 +5,18 @@
 <!DOCTYPE HTML>
 <html>
 <head>
-  <title>Test worker::unregister</title>
+  <title>Bug XXXXXX - Test Request object in worker</title>
   <script type="text/javascript" src="/tests/SimpleTest/SimpleTest.js"></script>
   <link rel="stylesheet" type="text/css" href="/tests/SimpleTest/test.css" />
 </head>
 <body>
-<script type="text/javascript">
-
-  navigator.serviceWorker.onmessage = function(e) { parent.postMessage(e.data, "*"); }
-  navigator.serviceWorker.controller.postMessage("GO");
-
+<p id="display"></p>
+<div id="content" style="display: none"></div>
+<pre id="test"></pre>
+<script type="text/javascript" src="fetch_test_framework.js"> </script>
+<script class="testbody" type="text/javascript">
+testScript("test_request.js");
 </script>
-</pre>
 </body>
 </html>
 

@@ -2236,7 +2236,7 @@ MediaStream::RemoveListener(MediaStreamListener* aListener)
 }
 
 void
-MediaStream::RunAfterPendingUpdates(nsRefPtr<nsIRunnable> aRunnable)
+MediaStream::RunAfterPendingUpdates(nsCOMPtr<nsIRunnable> aRunnable)
 {
   MOZ_ASSERT(NS_IsMainThread());
   MediaStreamGraphImpl* graph = GraphImpl();
@@ -2266,7 +2266,7 @@ MediaStream::RunAfterPendingUpdates(nsRefPtr<nsIRunnable> aRunnable)
       NS_DispatchToCurrentThread(mRunnable);
     }
   private:
-    nsRefPtr<nsIRunnable> mRunnable;
+    nsCOMPtr<nsIRunnable> mRunnable;
   };
 
   graph->AppendMessage(new Message(this, aRunnable.forget()));

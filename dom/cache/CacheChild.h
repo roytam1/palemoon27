@@ -17,7 +17,7 @@ namespace cache {
 class Cache;
 
 class CacheChild final : public PCacheChild
-                           , public ActorChild
+                       , public ActorChild
 {
 public:
   CacheChild();
@@ -41,6 +41,12 @@ private:
   virtual void
   ActorDestroy(ActorDestroyReason aReason) override;
 
+  virtual PCachePushStreamChild*
+  AllocPCachePushStreamChild() override;
+
+  virtual bool
+  DeallocPCachePushStreamChild(PCachePushStreamChild* aActor) override;
+
   virtual bool
   RecvMatchResponse(const RequestId& requestId, const nsresult& aRv,
                     const PCacheResponseOrVoid& aResponse) override;
@@ -49,7 +55,7 @@ private:
                        nsTArray<PCacheResponse>&& responses) override;
   virtual bool
   RecvAddAllResponse(const RequestId& requestId,
-                     const nsresult& aRv) override;
+                     const mozilla::ErrorResult& aError) override;
   virtual bool
   RecvPutResponse(const RequestId& aRequestId,
                   const nsresult& aRv) override;

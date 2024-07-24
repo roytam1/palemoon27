@@ -14,14 +14,16 @@
 #include "mozIStorageStatement.h"
 #include "nsCOMPtr.h"
 #include "nsTArray.h"
+#include "nsCRT.h"
+#include "nsHttp.h"
 
 namespace mozilla {
 namespace dom {
 namespace cache {
 
 
-const int32_t DBSchema::kMaxWipeSchemaVersion = 2;
-const int32_t DBSchema::kLatestSchemaVersion = 2;
+const int32_t DBSchema::kMaxWipeSchemaVersion = 3;
+const int32_t DBSchema::kLatestSchemaVersion = 3;
 const int32_t DBSchema::kMaxEntriesPerStatement = 255;
 
 using mozilla::void_t;
@@ -34,18 +36,9 @@ DBSchema::CreateSchema(mozIStorageConnection* aConn)
   MOZ_ASSERT(aConn);
 
   nsAutoCString pragmas(
-#if defined(MOZ_WIDGET_ANDROID) || defined(MOZ_WIDGET_GONK)
-    // Switch the journaling mode to TRUNCATE to avoid changing the directory
-    // structure at the conclusion of every transaction for devices with slower
-    // file systems.
-    "PRAGMA journal_mode = TRUNCATE; "
-#endif
-    "PRAGMA foreign_keys = ON; "
-
-    // Note, the default encoding of UTF-8 is preferred.  mozStorage does all
-    // the work necessary to convert UTF-16 nsString values for us.  We don't
-    // need ordering and the binary equality operations are correct.  So, do
-    // NOT set PRAGMA encoding to UTF-16.
+    // Enable auto-vaccum but in incremental mode in order to avoid doing a lot
+    // of work at the end of each transaction.
+    "PRAGMA auto_vacuum = INCREMENTAL; "
   );
 
   nsresult rv = aConn->ExecuteSimpleSQL(pragmas);
@@ -56,6 +49,12 @@ DBSchema::CreateSchema(mozIStorageConnection* aConn)
   if (NS_WARN_IF(NS_FAILED(rv))) { return rv; }
 
   if (schemaVersion == kLatestSchemaVersion) {
+    // We already have the correct schema, so just do an incremental vaccum and
+    // get started.
+    rv = aConn->ExecuteSimpleSQL(NS_LITERAL_CSTRING(
+      "PRAGMA incremental_vacuum;"));
+    if (NS_WARN_IF(NS_FAILED(rv))) { return rv; }
+
     return rv;
   }
 
@@ -164,6 +163,37 @@ DBSchema::CreateSchema(mozIStorageConnection* aConn)
   }
 
   return rv;
+}
+
+// static
+nsresult
+DBSchema::InitializeConnection(mozIStorageConnection* aConn)
+{
+  MOZ_ASSERT(!NS_IsMainThread());
+  MOZ_ASSERT(aConn);
+
+  // This function needs to perform per-connection initialization tasks that
+  // need to happen regardless of the schema.
+
+  nsAutoCString pragmas(
+#if defined(MOZ_WIDGET_ANDROID) || defined(MOZ_WIDGET_GONK)
+    // Switch the journaling mode to TRUNCATE to avoid changing the directory
+    // structure at the conclusion of every transaction for devices with slower
+    // file systems.
+    "PRAGMA journal_mode = TRUNCATE; "
+#endif
+    "PRAGMA foreign_keys = ON; "
+
+    // Note, the default encoding of UTF-8 is preferred.  mozStorage does all
+    // the work necessary to convert UTF-16 nsString values for us.  We don't
+    // need ordering and the binary equality operations are correct.  So, do
+    // NOT set PRAGMA encoding to UTF-16.
+  );
+
+  nsresult rv = aConn->ExecuteSimpleSQL(pragmas);
+  if (NS_WARN_IF(NS_FAILED(rv))) { return rv; }
+
+  return NS_OK;
 }
 
 // static
@@ -780,8 +810,6 @@ DBSchema::MatchByVaryHeader(mozIStorageConnection* aConn,
 
   nsRefPtr<InternalHeaders> cachedHeaders = new InternalHeaders(HeadersGuardEnum::None);
 
-  ErrorResult errorResult;
-
   while (NS_SUCCEEDED(state->ExecuteStep(&hasMoreData)) && hasMoreData) {
     nsAutoCString name;
     nsAutoCString value;
@@ -789,6 +817,8 @@ DBSchema::MatchByVaryHeader(mozIStorageConnection* aConn,
     if (NS_WARN_IF(NS_FAILED(rv))) { return rv; }
     rv = state->GetUTF8String(1, value);
     if (NS_WARN_IF(NS_FAILED(rv))) { return rv; }
+
+    ErrorResult errorResult;
 
     cachedHeaders->Append(name, value, errorResult);
     if (errorResult.Failed()) { return errorResult.ErrorCode(); };
@@ -801,20 +831,41 @@ DBSchema::MatchByVaryHeader(mozIStorageConnection* aConn,
   bool varyHeadersMatch = true;
 
   for (uint32_t i = 0; i < varyValues.Length(); ++i) {
-    if (varyValues[i].EqualsLiteral("*")) {
-      continue;
+    // Extract the header names inside the Vary header value.
+    nsAutoCString varyValue(varyValues[i]);
+    char* rawBuffer = varyValue.BeginWriting();
+    char* token = nsCRT::strtok(rawBuffer, NS_HTTP_HEADER_SEPS, &rawBuffer);
+    bool bailOut = false;
+    for (; token;
+         token = nsCRT::strtok(rawBuffer, NS_HTTP_HEADER_SEPS, &rawBuffer)) {
+      nsDependentCString header(token);
+      if (header.EqualsLiteral("*")) {
+        continue;
+      }
+
+      ErrorResult errorResult;
+      nsAutoCString queryValue;
+      queryHeaders->Get(header, queryValue, errorResult);
+      if (errorResult.Failed()) {
+        errorResult.ClearMessage();
+        MOZ_ASSERT(queryValue.IsEmpty());
+      }
+
+      nsAutoCString cachedValue;
+      cachedHeaders->Get(header, cachedValue, errorResult);
+      if (errorResult.Failed()) {
+        errorResult.ClearMessage();
+        MOZ_ASSERT(cachedValue.IsEmpty());
+      }
+
+      if (queryValue != cachedValue) {
+        varyHeadersMatch = false;
+        bailOut = true;
+        break;
+      }
     }
 
-    nsAutoCString queryValue;
-    queryHeaders->Get(varyValues[i], queryValue, errorResult);
-    if (errorResult.Failed()) { return errorResult.ErrorCode(); };
-
-    nsAutoCString cachedValue;
-    cachedHeaders->Get(varyValues[i], cachedValue, errorResult);
-    if (errorResult.Failed()) { return errorResult.ErrorCode(); };
-
-    if (queryValue != cachedValue) {
-      varyHeadersMatch = false;
+    if (bailOut) {
       break;
     }
   }

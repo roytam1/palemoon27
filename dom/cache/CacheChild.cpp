@@ -9,6 +9,7 @@
 #include "mozilla/unused.h"
 #include "mozilla/dom/cache/ActorUtils.h"
 #include "mozilla/dom/cache/Cache.h"
+#include "mozilla/dom/cache/PCachePushStreamChild.h"
 #include "mozilla/dom/cache/StreamUtils.h"
 
 namespace mozilla {
@@ -94,6 +95,20 @@ CacheChild::ActorDestroy(ActorDestroyReason aReason)
   RemoveFeature();
 }
 
+PCachePushStreamChild*
+CacheChild::AllocPCachePushStreamChild()
+{
+  MOZ_CRASH("CachePushStreamChild should be manually constructed.");
+  return nullptr;
+}
+
+bool
+CacheChild::DeallocPCachePushStreamChild(PCachePushStreamChild* aActor)
+{
+  delete aActor;
+  return true;
+}
+
 bool
 CacheChild::RecvMatchResponse(const RequestId& requestId, const nsresult& aRv,
                               const PCacheResponseOrVoid& aResponse)
@@ -131,12 +146,13 @@ CacheChild::RecvMatchAllResponse(const RequestId& requestId, const nsresult& aRv
 }
 
 bool
-CacheChild::RecvAddAllResponse(const RequestId& requestId, const nsresult& aRv)
+CacheChild::RecvAddAllResponse(const RequestId& requestId,
+                               const mozilla::ErrorResult& aError)
 {
   NS_ASSERT_OWNINGTHREAD(CacheChild);
   nsRefPtr<Cache> listener = mListener;
   if (listener) {
-    listener->RecvAddAllResponse(requestId, aRv);
+    listener->RecvAddAllResponse(requestId, aError);
   }
   return true;
 }

@@ -9,6 +9,7 @@
 
 #include "mozilla/AlreadyAddRefed.h"
 #include "mozilla/Attributes.h"
+#include "mozilla/ErrorResult.h"
 #include "mozilla/dom/cache/Manager.h"
 #include "mozilla/dom/cache/PCacheTypes.h"
 #include "mozilla/dom/cache/Types.h"
@@ -30,7 +31,7 @@ class Response;
 namespace cache {
 
 class FetchPut final : public Manager::Listener
-                         , public TypeUtils
+                     , public TypeUtils
 {
 public:
   typedef std::pair<nsRefPtr<Request>, nsRefPtr<Response>> PutPair;
@@ -39,7 +40,7 @@ public:
   {
   public:
     virtual void
-    OnFetchPut(FetchPut* aFetchPut, RequestId aRequestId, nsresult aRv) = 0;
+    OnFetchPut(FetchPut* aFetchPut, RequestId aRequestId, const ErrorResult& aRv) = 0;
   };
 
   static nsresult
@@ -94,6 +95,9 @@ private:
   virtual void AssertOwningThread() const override;
 #endif
 
+  virtual CachePushStreamChild*
+  CreatePushStream(nsIAsyncInputStream* aStream) override;
+
   Listener* mListener;
   nsRefPtr<Manager> mManager;
   const RequestId mRequestId;
@@ -101,7 +105,7 @@ private:
   nsCOMPtr<nsIThread> mInitiatingThread;
   nsTArray<State> mStateList;
   uint32_t mPendingCount;
-  nsresult mResult;
+  ErrorResult mResult;
   nsCOMPtr<nsIRunnable> mRunnable;
 
 public:

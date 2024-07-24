@@ -44,9 +44,9 @@ class Feature;
 class PCacheResponseOrVoid;
 
 class CacheStorage final : public nsIIPCBackgroundChildCreateCallback
-                             , public nsWrapperCache
-                             , public TypeUtils
-                             , public PromiseNativeHandler
+                         , public nsWrapperCache
+                         , public TypeUtils
+                         , public PromiseNativeHandler
 {
   typedef mozilla::ipc::PBackgroundChild PBackgroundChild;
 
@@ -97,6 +97,9 @@ public:
   virtual void AssertOwningThread() const override;
 #endif
 
+  virtual CachePushStreamChild*
+  CreatePushStream(nsIAsyncInputStream* aStream) override;
+
   // PromiseNativeHandler methods
   virtual void
   ResolvedCallback(JSContext* aCx, JS::Handle<JS::Value> aValue) override;
@@ -108,6 +111,9 @@ private:
   CacheStorage(Namespace aNamespace, nsIGlobalObject* aGlobal,
                const mozilla::ipc::PrincipalInfo& aPrincipalInfo, Feature* aFeature);
   ~CacheStorage();
+
+  // Called when we're destroyed or CCed.
+  void DisconnectFromActor();
 
   void MaybeRunPendingRequests();
 

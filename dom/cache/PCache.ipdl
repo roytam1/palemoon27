@@ -3,6 +3,7 @@
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 include protocol PBackground;
+include protocol PCachePushStream;
 include PCacheTypes;
 include protocol PFileDescriptorSet;
 
@@ -10,6 +11,7 @@ include protocol PBlob; // FIXME: bug 792908
 include protocol PCacheStreamControl;
 
 using mozilla::dom::cache::RequestId from "mozilla/dom/cache/Types.h";
+using mozilla::ErrorResult from "ipc/ErrorIPCUtils.h";
 include "mozilla/dom/cache/IPCUtils.h";
 
 namespace mozilla {
@@ -19,8 +21,10 @@ namespace cache {
 protocol PCache
 {
   manager PBackground;
+  manages PCachePushStream;
 
 parent:
+  PCachePushStream();
   Teardown();
   Match(RequestId requestId, PCacheRequest request, PCacheQueryParams params);
   MatchAll(RequestId requestId, PCacheRequestOrVoid request, PCacheQueryParams params);
@@ -32,7 +36,7 @@ parent:
 child:
   MatchResponse(RequestId requestId, nsresult aRv, PCacheResponseOrVoid aResponse);
   MatchAllResponse(RequestId requestId, nsresult aRv, PCacheResponse[] responses);
-  AddAllResponse(RequestId requestId, nsresult aRv);
+  AddAllResponse(RequestId requestId, ErrorResult aRv);
   PutResponse(RequestId requestId, nsresult aRv);
   DeleteResponse(RequestId requestId, nsresult aRv, bool success);
   KeysResponse(RequestId requestId, nsresult aRv, PCacheRequest[] requests);

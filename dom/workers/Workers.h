@@ -262,10 +262,10 @@ void
 CancelWorkersForWindow(nsPIDOMWindow* aWindow);
 
 void
-SuspendWorkersForWindow(nsPIDOMWindow* aWindow);
+FreezeWorkersForWindow(nsPIDOMWindow* aWindow);
 
 void
-ResumeWorkersForWindow(nsPIDOMWindow* aWindow);
+ThawWorkersForWindow(nsPIDOMWindow* aWindow);
 
 class WorkerTask
 {
@@ -337,6 +337,9 @@ IsWorkerGlobal(JSObject* global);
 
 bool
 IsDebuggerGlobal(JSObject* global);
+
+bool
+IsDebuggerSandbox(JSObject* object);
 
 // Throws the JSMSG_GETTER_ONLY exception.  This shouldn't be used going
 // forward -- getter-only properties should just use JS_PSG for the setter

@@ -22,8 +22,8 @@ namespace cache {
 struct SavedResponse;
 
 class CacheParent final : public PCacheParent
-                            , public Manager::Listener
-                            , public FetchPut::Listener
+                        , public Manager::Listener
+                        , public FetchPut::Listener
 {
 public:
   CacheParent(cache::Manager* aManager, CacheId aCacheId);
@@ -32,6 +32,8 @@ public:
 private:
   // PCacheParent method
   virtual void ActorDestroy(ActorDestroyReason aReason) override;
+  virtual PCachePushStreamParent* AllocPCachePushStreamParent() override;
+  virtual bool DeallocPCachePushStreamParent(PCachePushStreamParent* aActor) override;
   virtual bool RecvTeardown() override;
   virtual bool
   RecvMatch(const RequestId& aRequestId, const PCacheRequest& aRequest,
@@ -68,7 +70,7 @@ private:
 
   // FetchPut::Listener methods
   virtual void OnFetchPut(FetchPut* aFetchPut, RequestId aRequestId,
-                          nsresult aRv) override;
+                          const mozilla::ErrorResult& aRv) override;
 
   already_AddRefed<nsIInputStream>
   DeserializeCacheStream(const PCacheReadStreamOrVoid& aStreamOrVoid);

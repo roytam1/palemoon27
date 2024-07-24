@@ -60,6 +60,7 @@
 
 #include "Principal.h"
 #include "SharedWorker.h"
+#include "WorkerDebuggerManager.h"
 #include "WorkerPrivate.h"
 #include "WorkerRunnable.h"
 #include "WorkerThread.h"
@@ -870,14 +871,14 @@ JSObject*
 Wrap(JSContext *cx, JS::HandleObject existing, JS::HandleObject obj)
 {
   JSObject* targetGlobal = JS::CurrentGlobalOrNull(cx);
-  if (!IsDebuggerGlobal(targetGlobal)) {
+  if (!IsDebuggerGlobal(targetGlobal) && !IsDebuggerSandbox(targetGlobal)) {
     MOZ_CRASH("There should be no edges from the debuggee to the debugger.");
   }
 
   JSObject* originGlobal = js::GetGlobalForObjectCrossCompartment(obj);
 
   const js::Wrapper* wrapper = nullptr;
-  if (IsDebuggerGlobal(originGlobal)) {
+  if (IsDebuggerGlobal(originGlobal) || IsDebuggerSandbox(originGlobal)) {
     wrapper = &js::CrossCompartmentWrapper::singleton;
   } else {
     if (obj != originGlobal) {
@@ -1243,22 +1244,22 @@ CancelWorkersForWindow(nsPIDOMWindow* aWindow)
 }
 
 void
-SuspendWorkersForWindow(nsPIDOMWindow* aWindow)
+FreezeWorkersForWindow(nsPIDOMWindow* aWindow)
 {
   AssertIsOnMainThread();
   RuntimeService* runtime = RuntimeService::GetService();
   if (runtime) {
-    runtime->SuspendWorkersForWindow(aWindow);
+    runtime->FreezeWorkersForWindow(aWindow);
   }
 }
 
 void
-ResumeWorkersForWindow(nsPIDOMWindow* aWindow)
+ThawWorkersForWindow(nsPIDOMWindow* aWindow)
 {
   AssertIsOnMainThread();
   RuntimeService* runtime = RuntimeService::GetService();
   if (runtime) {
-    runtime->ResumeWorkersForWindow(aWindow);
+    runtime->ThawWorkersForWindow(aWindow);
   }
 }
 
@@ -1918,6 +1919,12 @@ RuntimeService::Shutdown()
   // That's it, no more workers.
   mShuttingDown = true;
 
+  // Remove all listeners from the worker debugger manager to ensure that it
+  // gets properly destroyed.
+  if (NS_FAILED(ClearWorkerDebuggerManagerListeners())) {
+    NS_WARNING("Failed to clear worker debugger manager listeners!");
+  }
+
   nsCOMPtr<nsIObserverService> obs = services::GetObserverService();
   NS_WARN_IF_FALSE(obs, "Failed to get observer service?!");
 
@@ -2211,7 +2218,7 @@ RuntimeService::CancelWorkersForWindow(nsPIDOMWindow* aWindow)
 }
 
 void
-RuntimeService::SuspendWorkersForWindow(nsPIDOMWindow* aWindow)
+RuntimeService::FreezeWorkersForWindow(nsPIDOMWindow* aWindow)
 {
   AssertIsOnMainThread();
   MOZ_ASSERT(aWindow);
@@ -2227,7 +2234,7 @@ RuntimeService::SuspendWorkersForWindow(nsPIDOMWindow* aWindow)
     JSContext* cx = jsapi.cx();
 
     for (uint32_t index = 0; index < workers.Length(); index++) {
-      if (!workers[index]->Suspend(cx, aWindow)) {
+      if (!workers[index]->Freeze(cx, aWindow)) {
         JS_ReportPendingException(cx);
       }
     }
@@ -2235,7 +2242,7 @@ RuntimeService::SuspendWorkersForWindow(nsPIDOMWindow* aWindow)
 }
 
 void
-RuntimeService::ResumeWorkersForWindow(nsPIDOMWindow* aWindow)
+RuntimeService::ThawWorkersForWindow(nsPIDOMWindow* aWindow)
 {
   AssertIsOnMainThread();
   MOZ_ASSERT(aWindow);
@@ -2251,7 +2258,7 @@ RuntimeService::ResumeWorkersForWindow(nsPIDOMWindow* aWindow)
     JSContext* cx = jsapi.cx();
 
     for (uint32_t index = 0; index < workers.Length(); index++) {
-      if (!workers[index]->SynchronizeAndResume(cx, aWindow)) {
+      if (!workers[index]->Thaw(cx, aWindow)) {
         JS_ReportPendingException(cx);
       }
     }

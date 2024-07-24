@@ -14,6 +14,7 @@
 #include "mozilla/dom/CacheBinding.h"
 #include "mozilla/dom/cache/AutoUtils.h"
 #include "mozilla/dom/cache/CacheChild.h"
+#include "mozilla/dom/cache/CachePushStreamChild.h"
 #include "mozilla/dom/cache/ReadStream.h"
 #include "mozilla/dom/cache/TypeUtils.h"
 #include "mozilla/ErrorResult.h"
@@ -92,6 +93,7 @@ NS_IMPL_CYCLE_COLLECTION_TRACE_WRAPPERCACHE(mozilla::dom::cache::Cache)
 
 NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(Cache)
   NS_WRAPPERCACHE_INTERFACE_MAP_ENTRY
+  NS_INTERFACE_MAP_ENTRY(nsISupports)
 NS_INTERFACE_MAP_END
 
 Cache::Cache(nsIGlobalObject* aGlobal, CacheChild* aActor)
@@ -450,12 +452,16 @@ Cache::RecvMatchAllResponse(RequestId aRequestId, nsresult aRv,
 }
 
 void
-Cache::RecvAddAllResponse(RequestId aRequestId, nsresult aRv)
+Cache::RecvAddAllResponse(RequestId aRequestId,
+                          const mozilla::ErrorResult& aError)
 {
   nsRefPtr<Promise> promise = RemoveRequestPromise(aRequestId);
 
-  if (NS_FAILED(aRv)) {
-    promise->MaybeReject(aRv);
+  if (aError.Failed()) {
+    // TODO: Remove this const_cast (bug 1152078).
+    // It is safe for now since this ErrorResult is handed off to us by IPDL
+    // and is thrown into the trash afterwards.
+    promise->MaybeReject(const_cast<ErrorResult&>(aError));
     return;
   }
 
@@ -525,6 +531,18 @@ Cache::AssertOwningThread() const
   NS_ASSERT_OWNINGTHREAD(Cache);
 }
 #endif
+
+CachePushStreamChild*
+Cache::CreatePushStream(nsIAsyncInputStream* aStream)
+{
+  NS_ASSERT_OWNINGTHREAD(Cache);
+  MOZ_ASSERT(mActor);
+  MOZ_ASSERT(aStream);
+  auto actor = mActor->SendPCachePushStreamConstructor(
+    new CachePushStreamChild(mActor->GetFeature(), aStream));
+  MOZ_ASSERT(actor);
+  return static_cast<CachePushStreamChild*>(actor);
+}
 
 void
 Cache::ResolvedCallback(JSContext* aCx, JS::Handle<JS::Value> aValue)

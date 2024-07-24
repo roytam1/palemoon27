@@ -73,8 +73,8 @@ public:
     ~ThreadsafeHandle();
 
     // disallow copying
-    ThreadsafeHandle(const ThreadsafeHandle&) = delete;
-    ThreadsafeHandle& operator=(const ThreadsafeHandle&) = delete;
+    ThreadsafeHandle(const ThreadsafeHandle&) MOZ_DELETE;
+    ThreadsafeHandle& operator=(const ThreadsafeHandle&) MOZ_DELETE;
 
     void AllowToCloseOnOwningThread();
     void InvalidateAndAllowToCloseOnOwningThread();

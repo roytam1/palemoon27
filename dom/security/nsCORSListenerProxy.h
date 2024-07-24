@@ -35,9 +35,9 @@ MOZ_BEGIN_ENUM_CLASS(DataURIHandling)
 MOZ_END_ENUM_CLASS(DataURIHandling)
 
 class nsCORSListenerProxy final : public nsIStreamListener,
-                                      public nsIInterfaceRequestor,
-                                      public nsIChannelEventSink,
-                                      public nsIAsyncVerifyRedirectCallback
+                                  public nsIInterfaceRequestor,
+                                  public nsIChannelEventSink,
+                                  public nsIAsyncVerifyRedirectCallback
 {
 public:
   nsCORSListenerProxy(nsIStreamListener* aOuter,

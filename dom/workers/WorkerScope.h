@@ -235,8 +235,8 @@ public:
   IMPL_EVENT_HANDLER(message)
 };
 
-class WorkerDebuggerGlobalScope MOZ_FINAL : public DOMEventTargetHelper,
-                                            public nsIGlobalObject
+class WorkerDebuggerGlobalScope final : public DOMEventTargetHelper,
+                                        public nsIGlobalObject
 {
   WorkerPrivate* mWorkerPrivate;
 
@@ -246,7 +246,7 @@ public:
   NS_DECL_ISUPPORTS_INHERITED
 
   virtual JSObject*
-  WrapObject(JSContext* aCx, JS::Handle<JSObject*> aGivenProto) MOZ_OVERRIDE
+  WrapObject(JSContext* aCx, JS::Handle<JSObject*> aGivenProto) override
   {
     MOZ_CRASH("Shouldn't get here!");
   }
@@ -256,7 +256,7 @@ public:
                    JS::MutableHandle<JSObject*> aReflector);
 
   virtual JSObject*
-  GetGlobalJSObject(void) MOZ_OVERRIDE
+  GetGlobalJSObject(void) override
   {
     return GetWrapper();
   }

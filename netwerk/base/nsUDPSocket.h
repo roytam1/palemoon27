@@ -17,7 +17,7 @@
 //-----------------------------------------------------------------------------
 
 class nsUDPSocket final : public nsASocketHandler
-                            , public nsIUDPSocket
+                        , public nsIUDPSocket
 {
 public:
   NS_DECL_THREADSAFE_ISUPPORTS

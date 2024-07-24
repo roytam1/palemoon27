@@ -43,7 +43,7 @@ MOZ_BEGIN_ENUM_CLASS(CanvasContextType, uint8_t)
 MOZ_END_ENUM_CLASS(CanvasContextType)
 
 class HTMLCanvasElement final : public nsGenericHTMLElement,
-                                    public nsIDOMHTMLCanvasElement
+                                public nsIDOMHTMLCanvasElement
 {
   enum {
     DEFAULT_CANVAS_WIDTH = 300,

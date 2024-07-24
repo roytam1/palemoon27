@@ -2387,14 +2387,6 @@ PrototypeHasIndexedProperty(CompilerConstraintList* constraints, JSObject* obj)
 }
 
 bool
-js::ArrayPrototypeHasIndexedProperty(CompilerConstraintList* constraints, JSScript* script)
-{
-    if (JSObject* proto = script->global().maybeGetArrayPrototype())
-        return PrototypeHasIndexedProperty(constraints, proto);
-    return true;
-}
-
-bool
 js::TypeCanHaveExtraIndexedProperties(CompilerConstraintList* constraints,
                                       TemporaryTypeSet* types)
 {

@@ -1,4 +1,4 @@
-﻿// © 2016 and later: Unicode, Inc. and others.
+// © 2016 and later: Unicode, Inc. and others.
 // License & terms of use: http://www.unicode.org/copyright.html#License
 fil{
     AuxExemplarCharacters{"[á à â é è ê í ì î ó ò ô ú ù û]"}

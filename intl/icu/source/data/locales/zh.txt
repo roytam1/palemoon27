@@ -1,4 +1,4 @@
-﻿// © 2016 and later: Unicode, Inc. and others.
+// © 2016 and later: Unicode, Inc. and others.
 // License & terms of use: http://www.unicode.org/copyright.html#License
 zh{
     AuxExemplarCharacters{"[仂 侣 傈 傣 僳 卑 卞 厘 吕 坝 堤 奎 屿 巽 撤 楔 楠 滕 瑚 甫 盲 碑 禄 粟 脚 艮 谬 钯 铂 锑 镑 魁]"}
@@ -2167,6 +2167,7 @@ zh{
                     "大正",
                     "昭和",
                     "平成",
+                    "令和",
                 }
                 narrow{
                     "大化(645–650)",
@@ -2405,6 +2406,7 @@ zh{
                     "T",
                     "S",
                     "H",
+                    "R",
                 }
             }
         }

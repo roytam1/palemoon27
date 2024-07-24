@@ -1,4 +1,4 @@
-﻿// © 2016 and later: Unicode, Inc. and others.
+// © 2016 and later: Unicode, Inc. and others.
 // License & terms of use: http://www.unicode.org/copyright.html#License
 timezoneTypes:table(nofallback){
     bcpTypeAlias{
@@ -416,6 +416,7 @@ timezoneTypes:table(nofallback){
             "Asia:Pontianak"{"idpnk"}
             "Asia:Pyongyang"{"kpfnj"}
             "Asia:Qatar"{"qadoh"}
+            "Asia:Qostanay"{"kzksn"}
             "Asia:Qyzylorda"{"kzkzo"}
             "Asia:Rangoon"{"mmrgn"}
             "Asia:Riyadh"{"saruh"}

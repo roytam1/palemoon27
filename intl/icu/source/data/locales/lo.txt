@@ -1,4 +1,4 @@
-﻿// © 2016 and later: Unicode, Inc. and others.
+// © 2016 and later: Unicode, Inc. and others.
 // License & terms of use: http://www.unicode.org/copyright.html#License
 lo{
     AuxExemplarCharacters{"[\u200B ໐ ໑ ໒ ໓ ໔ ໕ ໖ ໗ ໘ ໙]"}
@@ -1817,6 +1817,7 @@ lo{
                     "ໄຕໂຊ",
                     "ໂຊວາ",
                     "ຮີຊີ",
+                    "Reiwa",
                 }
             }
         }

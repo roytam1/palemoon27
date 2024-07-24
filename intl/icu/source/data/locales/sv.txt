@@ -1,4 +1,4 @@
-﻿// © 2016 and later: Unicode, Inc. and others.
+// © 2016 and later: Unicode, Inc. and others.
 // License & terms of use: http://www.unicode.org/copyright.html#License
 sv{
     AuxExemplarCharacters{"[á â ã ā ç ë í î ï ī ñ ó ú ÿ ü æ ø]"}
@@ -1563,6 +1563,7 @@ sv{
                     "Taishō",
                     "Shōwa",
                     "Heisei",
+                    "Reiwa",
                 }
             }
         }

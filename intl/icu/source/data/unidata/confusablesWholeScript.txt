@@ -1,4 +1,4 @@
-﻿# Summary: Whole-Script Confusables
+# Summary: Whole-Script Confusables
 # File: confusablesWholeScript.txt
 # Version: 8.0.0
 # Generated: 2015-05-17, 03:09:04 GMT

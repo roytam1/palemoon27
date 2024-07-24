@@ -1,4 +1,4 @@
-﻿UTF-8 encoded sample plain-text file
+UTF-8 encoded sample plain-text file
 ‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾
 This file is a place-holder. The original file is available from Markus Kuhn's website at http://www.cl.cam.ac.uk/~mgk25/ucs/examples/UTF-8-demo.txt.
 

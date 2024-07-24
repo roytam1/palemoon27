@@ -1,4 +1,4 @@
-﻿// © 2016 and later: Unicode, Inc. and others.
+// © 2016 and later: Unicode, Inc. and others.
 // License & terms of use: http://www.unicode.org/copyright.html#License
 nb{
     AuxExemplarCharacters{"[á ǎ ã č ç đ è ê í ń ñ ŋ š ŧ ú ü ž ä ö]"}
@@ -2018,6 +2018,7 @@ nb{
                     "Taishō",
                     "Shōwa",
                     "Heisei",
+                    "Reiwa",
                 }
                 narrow{
                     "Taika (645–650)",
@@ -2256,6 +2257,7 @@ nb{
                     "T",
                     "S",
                     "H",
+                    "R",
                 }
             }
         }

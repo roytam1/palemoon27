@@ -6,8 +6,6 @@
 
 #include "mozilla/HangMonitor.h"
 
-#include <set>
-
 #include "mozilla/Atomics.h"
 #include "mozilla/BackgroundHangMonitor.h"
 #include "mozilla/Monitor.h"
@@ -273,16 +271,6 @@ Suspend()
   if (gThread && !gShutdown) {
     mozilla::BackgroundHangMonitor().NotifyWait();
   }
-}
-
-void
-RegisterAnnotator(Annotator& aAnnotator)
-{
-}
-
-void
-UnregisterAnnotator(Annotator& aAnnotator)
-{
 }
 
 } // namespace HangMonitor

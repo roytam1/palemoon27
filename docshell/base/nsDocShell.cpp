@@ -450,6 +450,11 @@ public:
 
   nsresult StartTimeout();
 
+  void SetInterceptController(nsINetworkInterceptController* aInterceptController)
+  {
+    mInterceptController = aInterceptController;
+  }
+
 private:
   ~nsPingListener();
 
@@ -457,6 +462,7 @@ private:
   nsCOMPtr<nsIContent> mContent;
   nsCOMPtr<nsILoadGroup> mLoadGroup;
   nsCOMPtr<nsITimer> mTimer;
+  nsCOMPtr<nsINetworkInterceptController> mInterceptController;
 };
 
 NS_IMPL_ISUPPORTS(nsPingListener, nsIStreamListener, nsIRequestObserver,
@@ -521,8 +527,15 @@ NS_IMETHODIMP
 nsPingListener::GetInterface(const nsIID& aIID, void** aResult)
 {
   if (aIID.Equals(NS_GET_IID(nsIChannelEventSink))) {
-    NS_ADDREF_THIS();
-    *aResult = (nsIChannelEventSink*)this;
+    nsCOMPtr<nsIChannelEventSink> copy(this);
+    *aResult = copy.forget().take();
+    return NS_OK;
+  }
+
+  if (aIID.Equals(NS_GET_IID(nsINetworkInterceptController)) &&
+      mInterceptController) {
+    nsCOMPtr<nsINetworkInterceptController> copy(mInterceptController);
+    *aResult = copy.forget().take();
     return NS_OK;
   }
 
@@ -561,13 +574,14 @@ nsPingListener::AsyncOnChannelRedirect(nsIChannel* aOldChan,
   return NS_OK;
 }
 
-struct SendPingInfo
+struct MOZ_STACK_CLASS SendPingInfo
 {
   int32_t numPings;
   int32_t maxPings;
   bool requireSameHost;
   nsIURI* target;
   nsIURI* referrer;
+  nsIDocShell* docShell;
   uint32_t referrerPolicy;
 };
 
@@ -701,6 +715,8 @@ SendPing(void* aClosure, nsIContent* aContent, nsIURI* aURI,
   nsPingListener* pingListener =
     new nsPingListener(info->requireSameHost, aContent, loadGroup);
 
+  nsCOMPtr<nsINetworkInterceptController> interceptController = do_QueryInterface(info->docShell);
+  pingListener->SetInterceptController(interceptController);
   nsCOMPtr<nsIStreamListener> listener(pingListener);
 
   // Observe redirects as well:
@@ -725,7 +741,8 @@ SendPing(void* aClosure, nsIContent* aContent, nsIURI* aURI,
 
 // Spec: http://whatwg.org/specs/web-apps/current-work/#ping
 static void
-DispatchPings(nsIContent* aContent,
+DispatchPings(nsIDocShell* aDocShell,
+              nsIContent* aContent,
               nsIURI* aTarget,
               nsIURI* aReferrer,
               uint32_t aReferrerPolicy)
@@ -743,6 +760,7 @@ DispatchPings(nsIContent* aContent,
   info.target = aTarget;
   info.referrer = aReferrer;
   info.referrerPolicy = aReferrerPolicy;
+  info.docShell = aDocShell;
 
   ForEachPing(aContent, SendPing, &info);
 }
@@ -13750,7 +13768,7 @@ nsDocShell::OnLinkClickSync(nsIContent* aContent,
                               aDocShell,                 // DocShell out-param
                               aRequest);                 // Request out-param
   if (NS_SUCCEEDED(rv)) {
-    DispatchPings(aContent, aURI, referer, refererPolicy);
+    DispatchPings(this, aContent, aURI, referer, refererPolicy);
   }
   return rv;
 }

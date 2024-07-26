@@ -34,12 +34,12 @@ namespace IPC {
                                     mozilla::dom::RequestCredentials::EndGuard_> {};
   template<>
   struct ParamTraits<mozilla::dom::RequestCache> :
-    public ContiguousEnumSerializer<mozilla::dom::RequestCache,
+    public ContiguousTypedEnumSerializer<mozilla::dom::RequestCache,
                                     mozilla::dom::RequestCache::Default,
                                     mozilla::dom::RequestCache::EndGuard_> {};
   template<>
   struct ParamTraits<mozilla::dom::RequestContext> :
-    public ContiguousEnumSerializer<mozilla::dom::RequestContext,
+    public ContiguousTypedEnumSerializer<mozilla::dom::RequestContext,
                                     mozilla::dom::RequestContext::Audio,
                                     mozilla::dom::RequestContext::EndGuard_> {};
   template<>

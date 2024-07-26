@@ -2395,6 +2395,8 @@ struct ArenasToUpdate
 bool ArenasToUpdate::shouldProcessKind(unsigned kind)
 {
     MOZ_ASSERT(kind < FINALIZE_LIMIT);
+
+    // GC things that do not contain JSObject pointers don't need updating.
     if (kind == FINALIZE_FAT_INLINE_STRING ||
         kind == FINALIZE_STRING ||
         kind == FINALIZE_EXTERNAL_STRING ||
@@ -2403,10 +2405,19 @@ bool ArenasToUpdate::shouldProcessKind(unsigned kind)
         return false;
     }
 
-    if (js::gc::IsBackgroundFinalized(AllocKind(kind)))
+    // We try to update as many GC things in parallel as we can, but there are
+    // kinds for which this might not be safe:
+    //  - we assume JSObjects that are foreground finalized are not safe to
+    //    update in parallel
+    //  - updating a shape touches child shapes in fixupShapeTreeAfterMovingGC()
+    if (js::gc::IsBackgroundFinalized(AllocKind(kind)) &&
+        kind != FINALIZE_SHAPE &&
+        kind != FINALIZE_ACCESSOR_SHAPE)
+    {
         return (kinds & BACKGROUND) != 0;
-    else
+    } else {
         return (kinds & FOREGROUND) != 0;
+    }
 }
 
 ArenasToUpdate::ArenasToUpdate(JSRuntime *rt, KindsToUpdate kinds)

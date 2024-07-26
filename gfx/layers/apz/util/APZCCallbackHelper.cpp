@@ -212,7 +212,7 @@ APZCCallbackHelper::UpdateRootFrame(nsIDOMWindowUtils* aUtils,
   // last paint.
   float presShellResolution = aMetrics.GetPresShellResolution()
                             * aMetrics.GetAsyncZoom().scale;
-  aUtils->SetResolutionAndScaleTo(presShellResolution, presShellResolution);
+  aUtils->SetResolutionAndScaleTo(presShellResolution);
 
   SetDisplayPortMargins(aUtils, content, aMetrics);
 }

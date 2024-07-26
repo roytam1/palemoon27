@@ -1534,7 +1534,8 @@ FrameLayerBuilder::GetDebugSingleOldLayerForFrame(nsIFrame* aFrame)
   }
 
   Layer* layer = nullptr;
-  for (DisplayItemData* data : *array) {
+  for (uint32_t i = 0; i < array->Length(); i++) {
+    DisplayItemData *data = array->ElementAt(i);
     if (layer && layer != data->mLayer) {
       // More than one layer assigned, bail.
       return nullptr;

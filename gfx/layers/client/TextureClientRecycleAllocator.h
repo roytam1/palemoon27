@@ -49,6 +49,8 @@ public:
                   TextureFlags aTextureFlags,
                   TextureAllocationFlags flags = ALLOC_DEFAULT);
 
+  void ShrinkToMinimumSize();
+
 protected:
   virtual already_AddRefed<TextureClient>
   Allocate(gfx::SurfaceFormat aFormat,

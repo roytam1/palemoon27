@@ -375,7 +375,16 @@ RasterImage::LookupFrame(uint32_t aFrameNum,
   // async decoder that's currently running, the contents of the frame may not
   // be available yet. Make sure we get everything.
   if (mHasSourceData && (aFlags & FLAG_SYNC_DECODE)) {
-    result.DrawableRef()->WaitUntilComplete();
+    result.DrawableRef()->WaitUntilFinished();
+  }
+
+  // If we could have done some decoding in this function we need to check if
+  // that decoding encountered an error and hence aborted the surface. We want
+  // to avoid calling IsAborted if we weren't passed any sync decode flag because
+  // IsAborted acquires the monitor for the imgFrame.
+  if (aFlags & (FLAG_SYNC_DECODE | FLAG_SYNC_DECODE_IF_FAST) &&
+    result.DrawableRef()->IsAborted()) {
+    return DrawableFrameRef();
   }
 
   return Move(result.DrawableRef());
@@ -622,7 +631,7 @@ RasterImage::GetFrameInternal(const IntSize& aSize,
     frameSurf = CopyFrame(aWhichFrame, aFlags);
   }
 
-  if (!frameRef->IsImageComplete()) {
+  if (!frameRef->IsFinished()) {
     return MakePair(DrawResult::INCOMPLETE, Move(frameSurf));
   }
 
@@ -1454,7 +1463,7 @@ RasterImage::DrawInternal(DrawableFrameRef&& aFrameRef,
 {
   gfxContextMatrixAutoSaveRestore saveMatrix(aContext);
   ImageRegion region(aRegion);
-  bool frameIsComplete = aFrameRef->IsImageComplete();
+  bool frameIsFinished = aFrameRef->IsFinished();
 
   // By now we may have a frame with the requested size. If not, we need to
   // adjust the drawing parameters accordingly.
@@ -1473,7 +1482,7 @@ RasterImage::DrawInternal(DrawableFrameRef&& aFrameRef,
     RecoverFromInvalidFrames(aSize, aFlags);
     return DrawResult::TEMPORARY_ERROR;
   }
-  if (!frameIsComplete) {
+  if (!frameIsFinished) {
     return DrawResult::INCOMPLETE;
   }
   if (couldRedecodeForBetterFrame) {

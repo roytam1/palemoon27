@@ -20,32 +20,32 @@
 namespace IPC {
   template<>
   struct ParamTraits<mozilla::dom::HeadersGuardEnum> :
-    public ContiguousEnumSerializer<mozilla::dom::HeadersGuardEnum,
+    public ContiguousTypedEnumSerializer<mozilla::dom::HeadersGuardEnum,
                                     mozilla::dom::HeadersGuardEnum::None,
                                     mozilla::dom::HeadersGuardEnum::EndGuard_> {};
   template<>
   struct ParamTraits<mozilla::dom::RequestMode> :
-    public ContiguousEnumSerializer<mozilla::dom::RequestMode,
+    public ContiguousTypedEnumSerializer<mozilla::dom::RequestMode,
                                     mozilla::dom::RequestMode::Same_origin,
                                     mozilla::dom::RequestMode::EndGuard_> {};
   template<>
   struct ParamTraits<mozilla::dom::RequestCredentials> :
-    public ContiguousEnumSerializer<mozilla::dom::RequestCredentials,
+    public ContiguousTypedEnumSerializer<mozilla::dom::RequestCredentials,
                                     mozilla::dom::RequestCredentials::Omit,
                                     mozilla::dom::RequestCredentials::EndGuard_> {};
   template<>
   struct ParamTraits<mozilla::dom::RequestCache> :
-    public ContiguousEnumSerializer<mozilla::dom::RequestCache,
+    public ContiguousTypedEnumSerializer<mozilla::dom::RequestCache,
                                     mozilla::dom::RequestCache::Default,
                                     mozilla::dom::RequestCache::EndGuard_> {};
   template<>
   struct ParamTraits<mozilla::dom::RequestContext> :
-    public ContiguousEnumSerializer<mozilla::dom::RequestContext,
+    public ContiguousTypedEnumSerializer<mozilla::dom::RequestContext,
                                     mozilla::dom::RequestContext::Audio,
                                     mozilla::dom::RequestContext::EndGuard_> {};
   template<>
   struct ParamTraits<mozilla::dom::ResponseType> :
-    public ContiguousEnumSerializer<mozilla::dom::ResponseType,
+    public ContiguousTypedEnumSerializer<mozilla::dom::ResponseType,
                                     mozilla::dom::ResponseType::Basic,
                                     mozilla::dom::ResponseType::EndGuard_> {};
   template<>

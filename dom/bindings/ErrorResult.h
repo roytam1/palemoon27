@@ -67,8 +67,13 @@ public:
   ErrorResult& operator=(ErrorResult&& aRHS);
 
   explicit ErrorResult(nsresult aRv)
-    : ErrorResult()
   {
+    mResult = NS_OK;
+
+#ifdef DEBUG
+    mMightHaveUnreportedJSException = false;
+    mHasMessage = false;
+#endif
     AssignErrorCode(aRv);
   }
 

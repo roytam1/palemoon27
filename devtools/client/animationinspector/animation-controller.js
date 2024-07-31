@@ -99,6 +99,8 @@ var getServerTraits = Task.async(function*(target) {
       method: "setCurrentTimes" },
     { name: "hasGetFrames", actor: "animationplayer",
       method: "getFrames" },
+    { name: "hasGetProperties", actor: "animationplayer",
+      method: "getProperties" },
     { name: "hasSetWalkerActor", actor: "animations",
       method: "setWalkerActor" },
   ];
@@ -230,8 +232,7 @@ var AnimationsController = {
     let done = gInspector.updating("animationscontroller");
 
     if (!gInspector.selection.isConnected() ||
-        !gInspector.selection.isElementNode() ||
-        gInspector.selection.isPseudoElementNode()) {
+        !gInspector.selection.isElementNode()) {
       this.destroyAnimationPlayers();
       this.emit(this.PLAYERS_UPDATED_EVENT);
       done();

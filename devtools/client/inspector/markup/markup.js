@@ -209,6 +209,8 @@ MarkupView.prototype = {
       }
     }
     this._showContainerAsHovered(container.node);
+
+    this.emit("node-hover");
   },
 
   /**
@@ -341,6 +343,8 @@ MarkupView.prototype = {
       this.getContainer(this._hoveredNode).hovered = false;
     }
     this._hoveredNode = null;
+
+    this.emit("leave");
   },
 
   /**
@@ -1949,7 +1953,7 @@ MarkupContainer.prototype = {
    * Check if element is draggable.
    */
   isDraggable: function() {
-    let tagName = this.node.tagName.toLowerCase();
+    let tagName = this.node.tagName && this.node.tagName.toLowerCase();
 
     return !this.node.isPseudoElement &&
            !this.node.isAnonymous &&

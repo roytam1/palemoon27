@@ -740,10 +740,11 @@ IMEContentObserver::HandleQueryContentEvent(WidgetQueryContentEvent* aEvent)
   mIsHandlingQueryContentEvent = true;
   ContentEventHandler handler(GetPresContext());
   nsresult rv = handler.HandleQueryContentEvent(aEvent);
-  if (aEvent->mSucceeded) {
-    // We need to guarantee that mRootContent should be always same value for
-    // the observing editor.
-    aEvent->mReply.mContentsRoot = mRootContent;
+
+  if (!IsInitializedWithPlugin() &&
+      NS_WARN_IF(aEvent->mReply.mContentsRoot != mRootContent)) {
+    // Focus has changed unexpectedly, so make the query fail.
+    aEvent->mSucceeded = false;
   }
   return rv;
 }
@@ -1263,7 +1264,8 @@ IMEContentObserver::UpdateSelectionCache()
   WidgetQueryContentEvent selection(true, eQuerySelectedText, mWidget);
   ContentEventHandler handler(GetPresContext());
   handler.OnQuerySelectedText(&selection);
-  if (NS_WARN_IF(!selection.mSucceeded)) {
+  if (NS_WARN_IF(!selection.mSucceeded) ||
+      NS_WARN_IF(selection.mReply.mContentsRoot != mRootContent)) {
     return false;
   }
 
@@ -1404,7 +1406,8 @@ IMEContentObserver::TryToFlushPendingNotifications()
   MOZ_LOG(sIMECOLog, LogLevel::Debug,
     ("IMECO: 0x%p IMEContentObserver::TryToFlushPendingNotifications(), "
      "performing queued IMENotificationSender forcibly", this));
-  mQueuedSender->Run();
+  RefPtr<IMENotificationSender> queuedSender = mQueuedSender;
+  queuedSender->Run();
 }
 
 /******************************************************************************
@@ -1549,12 +1552,18 @@ IMEContentObserver::IMENotificationSender::Run()
 
   // If notifications caused some new change, we should notify them now.
   if (mIMEContentObserver->NeedsToNotifyIMEOfSomething()) {
-    MOZ_LOG(sIMECOLog, LogLevel::Debug,
-      ("IMECO: 0x%p IMEContentObserver::IMENotificationSender::Run(), "
-       "posting IMENotificationSender to current thread", this));
-    mIMEContentObserver->mQueuedSender =
-      new IMENotificationSender(mIMEContentObserver);
-    NS_DispatchToCurrentThread(mIMEContentObserver->mQueuedSender);
+    if (mIMEContentObserver->GetState() == eState_StoppedObserving) {
+      MOZ_LOG(sIMECOLog, LogLevel::Debug,
+        ("IMECO: 0x%p IMEContentObserver::IMENotificationSender::Run(), "
+         "waiting IMENotificationSender to be reinitialized", this));
+    } else {
+      MOZ_LOG(sIMECOLog, LogLevel::Debug,
+        ("IMECO: 0x%p IMEContentObserver::IMENotificationSender::Run(), "
+         "posting IMENotificationSender to current thread", this));
+      mIMEContentObserver->mQueuedSender =
+        new IMENotificationSender(mIMEContentObserver);
+      NS_DispatchToCurrentThread(mIMEContentObserver->mQueuedSender);
+    }
   }
   return NS_OK;
 }

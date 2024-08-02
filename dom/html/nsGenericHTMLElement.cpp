@@ -2739,7 +2739,6 @@ nsGenericHTMLElement::IsHTMLFocusable(bool aWithMouse,
   }
 
   int32_t tabIndex = TabIndex();
-
   bool disabled = false;
   bool disallowOverridingFocusability = true;
 

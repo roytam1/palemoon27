@@ -713,16 +713,6 @@ nsFocusManager::WindowRaised(mozIDOMWindowProxy* aWindow)
   if (!currentWindow)
     return NS_OK;
 
-  nsCOMPtr<nsIDocShell> currentDocShell = currentWindow->GetDocShell();
-
-  nsCOMPtr<nsIPresShell> presShell = currentDocShell->GetPresShell();
-  if (presShell) {
-    // disable selection mousedown state on activation
-    // XXXndeakin P3 not sure if this is necessary, but it doesn't hurt
-    RefPtr<nsFrameSelection> frameSelection = presShell->FrameSelection();
-    frameSelection->SetDragState(false);
-  }
-
   // If there is no nsIXULWindow, then this is an embedded or child process window.
   // Pass false for aWindowRaised so that commands get updated.
   nsCOMPtr<nsIXULWindow> xulWin(do_GetInterface(baseWindow));
@@ -759,6 +749,19 @@ nsFocusManager::WindowLowered(mozIDOMWindowProxy* aWindow)
 
   // clear the mouse capture as the active window has changed
   nsIPresShell::SetCapturingContent(nullptr, 0);
+
+  // In addition, reset the drag state to ensure that we are no longer in
+  // drag-select mode.
+  if (mFocusedWindow) {
+    nsCOMPtr<nsIDocShell> docShell = mFocusedWindow->GetDocShell();
+    if (docShell) {
+      nsCOMPtr<nsIPresShell> presShell = docShell->GetPresShell();
+      if (presShell) {
+        RefPtr<nsFrameSelection> frameSelection = presShell->FrameSelection();
+        frameSelection->SetDragState(false);
+      }
+    }
+  }
 
   // If this is a parent or single process window, send the deactivate event.
   // Events for child process windows will be sent when ParentActivated
@@ -973,9 +976,11 @@ nsFocusManager::WindowHidden(mozIDOMWindowProxy* aWindow)
   // to the toplevel window. But if the window isn't being destroyed, we are
   // likely just loading a new document in it, so we want to maintain the
   // focused window so that the new document gets properly focused.
-  bool beingDestroyed;
   nsCOMPtr<nsIDocShell> docShellBeingHidden = window->GetDocShell();
-  docShellBeingHidden->IsBeingDestroyed(&beingDestroyed);
+  bool beingDestroyed = !docShellBeingHidden;
+  if (docShellBeingHidden) {
+    docShellBeingHidden->IsBeingDestroyed(&beingDestroyed);
+  }
   if (beingDestroyed) {
     // There is usually no need to do anything if a toplevel window is going
     // away, as we assume that WindowLowered will be called. However, this may
@@ -1332,7 +1337,7 @@ nsFocusManager::SetFocusInner(nsIContent* aNewContent, int32_t aFlags,
       nsCOMPtr<nsIDocShell> docShell = newWindow->GetDocShell();
 
       nsCOMPtr<nsIPresShell> presShell = docShell->GetPresShell();
-      if (presShell)
+      if (presShell && presShell->DidInitialize())
         ScrollIntoView(presShell, contentToFocus, aFlags);
     }
 
@@ -2837,6 +2842,11 @@ nsFocusManager::DetermineElementToMoveFocus(nsPIDOMWindowOuter* aWindow,
         nsIContent* root = GetRootForFocus(piWindow, doc, true, true);
         return FocusFirst(root, aNextContent);
       }
+
+      // Once we have hit the top-level and have iterated to the end again, we
+      // just want to break out next time we hit this spot to prevent infinite
+      // iteration.
+      mayFocusRoot = true;
 
       // reset the tab index and start again from the beginning or end
       startContent = rootContent;

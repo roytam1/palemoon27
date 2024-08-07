@@ -43,7 +43,6 @@ let bootstrap = {
     this.telemetry.toolOpened("responsive");
     let store = this.store = Store();
     let provider = createElement(Provider, { store }, App());
-
     ReactDOM.render(provider, document.querySelector("#root"));
     this.initDevices();
     window.postMessage({ type: "init" }, "*");
@@ -117,6 +116,14 @@ window.addInitialViewport = contentURI => {
 };
 
 /**
+ * Called by manager.js when tests want to check the viewport size.
+ */
+window.getViewportSize = () => {
+  let { width, height } = bootstrap.store.getState().viewports[0];
+  return { width, height };
+};
+
+/**
  * Called by manager.js to set viewport size from GCLI.
  */
 window.setViewportSize = (width, height) => {
@@ -125,4 +132,14 @@ window.setViewportSize = (width, height) => {
   } catch (e) {
     console.error(e);
   }
+};
+
+/**
+ * Called by manager.js when tests want to use the viewport's message manager.
+ * It is packed into an object because this is the format most easily usable
+ * with ContentTask.spawn().
+ */
+window.getViewportMessageManager = () => {
+  let { messageManager } = document.querySelector("iframe.browser").frameLoader;
+  return { messageManager };
 };

@@ -662,7 +662,7 @@ public:
   {
     nsresult rv;
 
-    if (mHandle->IsClosed()) {
+    if (mHandle->IsClosed() || (mCallback && mCallback->IsKilled())) {
       rv = NS_ERROR_NOT_INITIALIZED;
     } else {
       rv = CacheFileIOManager::gInstance->ReadInternal(
@@ -712,7 +712,7 @@ public:
   {
     nsresult rv;
 
-    if (mHandle->IsClosed()) {
+    if (mHandle->IsClosed() || (mCallback && mCallback->IsKilled())) {
       // We usually get here only after the internal shutdown
       // (i.e. mShuttingDown == true).  Pretend write has succeeded
       // to avoid any past-shutdown file dooming.
@@ -885,7 +885,7 @@ public:
   {
     nsresult rv;
 
-    if (mHandle->IsClosed()) {
+    if (mHandle->IsClosed() || (mCallback && mCallback->IsKilled())) {
       rv = NS_ERROR_NOT_INITIALIZED;
     } else {
       rv = CacheFileIOManager::gInstance->TruncateSeekSetEOFInternal(
@@ -1913,7 +1913,7 @@ CacheFileIOManager::Write(CacheFileHandle *aHandle, int64_t aOffset,
   nsresult rv;
   RefPtr<CacheFileIOManager> ioMan = gInstance;
 
-  if (aHandle->IsClosed() || !ioMan) {
+  if (aHandle->IsClosed() || (aCallback && aCallback->IsKilled()) || !ioMan) {
     if (!aCallback) {
       // When no callback is provided, CacheFileIOManager is responsible for
       // releasing the buffer. We must release it even in case of failure.
@@ -2317,7 +2317,7 @@ CacheFileIOManager::TruncateSeekSetEOF(CacheFileHandle *aHandle,
   nsresult rv;
   RefPtr<CacheFileIOManager> ioMan = gInstance;
 
-  if (aHandle->IsClosed() || !ioMan) {
+  if (aHandle->IsClosed() || (aCallback && aCallback->IsKilled()) || !ioMan) {
     return NS_ERROR_NOT_INITIALIZED;
   }
 
@@ -3750,6 +3750,8 @@ CacheFileIOManager::CreateCacheTree()
 nsresult
 CacheFileIOManager::OpenNSPRHandle(CacheFileHandle *aHandle, bool aCreate)
 {
+  LOG(("CacheFileIOManager::OpenNSPRHandle BEGIN, handle=%p", aHandle));
+
   MOZ_ASSERT(CacheFileIOManager::IsOnIOThreadOrCeased());
   MOZ_ASSERT(!aHandle->mFD);
   MOZ_ASSERT(mHandlesByLastUsed.IndexOf(aHandle) == mHandlesByLastUsed.NoIndex);
@@ -3807,6 +3809,9 @@ CacheFileIOManager::OpenNSPRHandle(CacheFileHandle *aHandle, bool aCreate)
   }
 
   mHandlesByLastUsed.AppendElement(aHandle);
+
+  LOG(("CacheFileIOManager::OpenNSPRHandle END, handle=%p", aHandle));
+
   return NS_OK;
 }
 

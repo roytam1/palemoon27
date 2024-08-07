@@ -1420,6 +1420,20 @@ nsSocketTransport::InitiateSocket()
 
     NetAddrToPRNetAddr(&mNetAddr, &prAddr);
 
+#ifdef XP_WIN
+    // Find the real tcp socket and set non-blocking once again!
+    // Bug 1158189.
+    PRFileDesc *bottom = PR_GetIdentitiesLayer(fd, PR_NSPR_IO_LAYER);
+    if (bottom) {
+      PROsfd osfd = PR_FileDesc2NativeHandle(bottom);
+      u_long nonblocking = 1;
+      if (ioctlsocket(osfd, FIONBIO, &nonblocking) != 0) {
+        NS_WARNING("Socket could not be set non-blocking!");
+        return NS_ERROR_FAILURE;
+      }
+    }
+#endif
+
     // We use PRIntervalTime here because we need
     // nsIOService::LastOfflineStateChange time and
     // nsIOService::LastConectivityChange time to be atomic.
@@ -2972,10 +2986,10 @@ nsSocketTransport::PRFileDescAutoLock::SetKeepaliveVals(bool aEnabled,
 #if defined(XP_WIN)
     // Windows allows idle time and retry interval to be set; NOT ping count.
     struct tcp_keepalive keepalive_vals = {
-        (int)aEnabled,
+        (u_long)aEnabled,
         // Windows uses msec.
-        aIdleTime * 1000,
-        aRetryInterval * 1000
+        (u_long)(aIdleTime * 1000UL),
+        (u_long)(aRetryInterval * 1000UL)
     };
     DWORD bytes_returned;
     int err = WSAIoctl(sock, SIO_KEEPALIVE_VALS, &keepalive_vals,

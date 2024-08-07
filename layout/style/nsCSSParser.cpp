@@ -348,6 +348,9 @@ public:
   bool AgentRulesEnabled() const {
     return mParsingMode == css::eAgentSheetFeatures;
   }
+  bool ChromeRulesEnabled() const {
+    return mIsChrome;
+  }
   bool UserRulesEnabled() const {
     return mParsingMode == css::eAgentSheetFeatures ||
            mParsingMode == css::eUserSheetFeatures;
@@ -692,6 +695,7 @@ protected:
   bool ParseSupportsCondition(bool& aConditionMet);
   bool ParseSupportsConditionNegation(bool& aConditionMet);
   bool ParseSupportsConditionInParens(bool& aConditionMet);
+  bool ParseSupportsMozBoolPrefName(bool& aConditionMet);
   bool ParseSupportsConditionInParensInsideParens(bool& aConditionMet);
   bool ParseSupportsConditionTerms(bool& aConditionMet);
   enum SupportsConditionTermOperator { eAnd, eOr };
@@ -2134,7 +2138,10 @@ CSSParserImpl::ParseSourceSizeList(const nsAString& aBuffer,
       query->SetNegated();
     }
 
-    if (ParseNonNegativeVariant(value, VARIANT_LPCALC, nullptr) !=
+    // https://html.spec.whatwg.org/multipage/embedded-content.html#source-size-value
+    // Percentages are not allowed in a <source-size-value>, to avoid
+    // confusion about what it would be relative to.
+    if (ParseNonNegativeVariant(value, VARIANT_LCALC, nullptr) !=
         CSSParseResult::Ok) {
       hitError = true;
       break;
@@ -4525,6 +4532,7 @@ CSSParserImpl::ParseSupportsConditionNegation(bool& aConditionMet)
 
 // supports_condition_in_parens
 //   : '(' S* supports_condition_in_parens_inside_parens ')' S*
+//   | supports_condition_pref
 //   | general_enclosed
 //   ;
 bool
@@ -4538,6 +4546,12 @@ CSSParserImpl::ParseSupportsConditionInParens(bool& aConditionMet)
   if (mToken.mType == eCSSToken_URL) {
     aConditionMet = false;
     return true;
+  }
+
+  if (AgentRulesEnabled() &&
+      mToken.mType == eCSSToken_Function &&
+      mToken.mIdent.LowerCaseEqualsLiteral("-moz-bool-pref")) {
+    return ParseSupportsMozBoolPrefName(aConditionMet);
   }
 
   if (mToken.mType == eCSSToken_Function ||
@@ -4569,6 +4583,32 @@ CSSParserImpl::ParseSupportsConditionInParens(bool& aConditionMet)
     SkipUntil(')');
     aConditionMet = false;
     return true;
+  }
+
+  return true;
+}
+
+// supports_condition_pref
+//   : '-moz-bool-pref(' bool_pref_name ')'
+//   ;
+bool
+CSSParserImpl::ParseSupportsMozBoolPrefName(bool& aConditionMet)
+{
+  if (!GetToken(true)) {
+    return false;
+  }
+
+  if (mToken.mType != eCSSToken_String) {
+    SkipUntil(')');
+    return false;
+  }
+
+  aConditionMet = Preferences::GetBool(
+    NS_ConvertUTF16toUTF8(mToken.mIdent).get());
+
+  if (!ExpectSymbol(')', true)) {
+    SkipUntil(')');
+    return false;
   }
 
   return true;
@@ -5879,7 +5919,10 @@ CSSParserImpl::ParsePseudoSelector(int32_t&       aDataMask,
       ((pseudoElementType < CSSPseudoElementType::Count &&
         nsCSSPseudoElements::PseudoElementIsUASheetOnly(pseudoElementType)) ||
        (pseudoClassType != nsCSSPseudoClasses::ePseudoClass_NotPseudoClass &&
-        nsCSSPseudoClasses::PseudoClassIsUASheetOnly(pseudoClassType)))) {
+        nsCSSPseudoClasses::PseudoClassIsUASheetOnly(pseudoClassType)) ||
+       (!ChromeRulesEnabled() &&
+        (pseudoClassType != nsCSSPseudoClasses::ePseudoClass_NotPseudoClass &&
+         nsCSSPseudoClasses::PseudoClassIsUASheetAndChromeOnly(pseudoClassType))))) {
     // This pseudo-element or pseudo-class is not exposed to content.
     REPORT_UNEXPECTED_TOKEN(PEPseudoSelUnknown);
     UngetToken();
@@ -15860,10 +15903,10 @@ bool CSSParserImpl::ParseClipPath()
       return false;
     }
 
-    nsCSSValueList* cur = value.SetListValue();
-
     nsCSSValue referenceBox;
     bool hasBox = ParseEnum(referenceBox, nsCSSProps::kClipShapeSizingKTable);
+
+    const bool boxCameFirst = hasBox;
 
     nsCSSValue basicShape;
     bool basicShapeConsumedTokens = false;
@@ -15875,26 +15918,25 @@ bool CSSParserImpl::ParseClipPath()
       return false;
     }
 
-    // We need to preserve the specified order of arguments for inline style.
-    if (hasBox) {
-      cur->mValue = referenceBox;
-    }
-
-    if (hasShape) {
-      if (hasBox) {
-        cur->mNext = new nsCSSValueList;
-        cur = cur->mNext;
-      }
-      cur->mValue = basicShape;
-    }
-
     // Check if the second argument is a reference box if the first wasn't.
-    if (!hasBox &&
-        ParseEnum(referenceBox, nsCSSProps::kClipShapeSizingKTable)) {
-        cur->mNext = new nsCSSValueList;
-        cur = cur->mNext;
-        cur->mValue = referenceBox;
+    if (!hasBox) {
+      hasBox = ParseEnum(referenceBox, nsCSSProps::kClipShapeSizingKTable);
     }
+
+    RefPtr<nsCSSValue::Array> fullValue =
+      nsCSSValue::Array::Create((hasBox && hasShape) ? 2 : 1);
+
+    if (hasBox && hasShape) {
+      fullValue->Item(boxCameFirst ? 0 : 1) = referenceBox;
+      fullValue->Item(boxCameFirst ? 1 : 0) = basicShape;
+    } else if (hasBox) {
+      fullValue->Item(0) = referenceBox;
+    } else {
+      MOZ_ASSERT(hasShape, "should've bailed if we got neither box nor shape");
+      fullValue->Item(0) = basicShape;
+    }
+
+    value.SetArrayValue(fullValue, eCSSUnit_Array);
   }
 
   AppendValue(eCSSProperty_clip_path, value);

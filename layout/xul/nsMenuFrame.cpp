@@ -418,6 +418,7 @@ nsMenuFrame::HandleEvent(nsPresContext* aPresContext,
     }
     else {
       if (!IsOpen()) {
+        menuParent->ChangeMenuItem(this, false, false);
         OpenMenu(false);
       }
     }
@@ -466,7 +467,11 @@ nsMenuFrame::HandleEvent(nsPresContext* aPresContext,
         if (IsMenu() && !onmenubar && IsOpen()) {
           // Submenus don't get closed up immediately.
         }
-        else if (this == menuParent->GetCurrentMenuItem()) {
+        else if (this == menuParent->GetCurrentMenuItem()
+#ifdef XP_WIN
+                 && GetParentMenuListType() == eNotMenuList
+#endif
+        ) {
           menuParent->ChangeMenuItem(nullptr, false, false);
         }
       }

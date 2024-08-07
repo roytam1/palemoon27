@@ -211,8 +211,7 @@ public:
 } // namespace mozilla
 
 /**
- * Frame class for SVG <text> elements, used when the
- * layout.svg.css-text.enabled is true.
+ * Frame class for SVG <text> elements.
  *
  * An SVGTextFrame manages SVG text layout, painting and interaction for
  * all descendent text content elements.  The frame tree will look like this:
@@ -608,12 +607,6 @@ private:
   already_AddRefed<Path> GetTextPath(nsIFrame* aTextPathFrame);
   gfxFloat GetOffsetScale(nsIFrame* aTextPathFrame);
   gfxFloat GetStartOffset(nsIFrame* aTextPathFrame);
-
-  DrawMode SetupContextPaint(const DrawTarget* aDrawTarget,
-                             const gfxMatrix& aContextMatrix,
-                             nsIFrame* aFrame,
-                             gfxTextContextPaint* aOuterContextPaint,
-                             SVGTextContextPaint* aThisContextPaint);
 
   /**
    * The MutationObserver we have registered for the <text> element subtree.

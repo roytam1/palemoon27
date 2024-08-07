@@ -11,6 +11,7 @@
 #include "nsCOMPtr.h"
 #include "nsIAsyncInputStream.h"
 #include "nsIPresentationSessionTransport.h"
+#include "nsIPresentationSessionTransportBuilder.h"
 #include "nsIStreamListener.h"
 #include "nsISupportsImpl.h"
 #include "nsITransport.h"
@@ -32,34 +33,32 @@ namespace dom {
  * presenting receiver side. The lifetime is managed in either
  * |PresentationControllingInfo| (sender side) or |PresentationPresentingInfo|
  * (receiver side) in PresentationSessionInfo.cpp.
- *
- * TODO bug 1148307 Implement PresentationSessionTransport with DataChannel.
- * The implementation over the TCP channel is primarily used for the early stage
- * of Presentation API (without SSL) and should be migrated to DataChannel with
- * full support soon.
  */
-class PresentationSessionTransport final : public nsIPresentationSessionTransport
-                                         , public nsITransportEventSink
-                                         , public nsIInputStreamCallback
-                                         , public nsIStreamListener
+class PresentationTCPSessionTransport final : public nsIPresentationSessionTransport
+                                            , public nsIPresentationTCPSessionTransportBuilder
+                                            , public nsITransportEventSink
+                                            , public nsIInputStreamCallback
+                                            , public nsIStreamListener
 {
 public:
   NS_DECL_CYCLE_COLLECTING_ISUPPORTS
-  NS_DECL_CYCLE_COLLECTION_CLASS_AMBIGUOUS(PresentationSessionTransport,
+  NS_DECL_CYCLE_COLLECTION_CLASS_AMBIGUOUS(PresentationTCPSessionTransport,
                                            nsIPresentationSessionTransport)
 
   NS_DECL_NSIPRESENTATIONSESSIONTRANSPORT
+  NS_DECL_NSIPRESENTATIONSESSIONTRANSPORTBUILDER
+  NS_DECL_NSIPRESENTATIONTCPSESSIONTRANSPORTBUILDER
   NS_DECL_NSITRANSPORTEVENTSINK
   NS_DECL_NSIINPUTSTREAMCALLBACK
   NS_DECL_NSIREQUESTOBSERVER
   NS_DECL_NSISTREAMLISTENER
 
-  PresentationSessionTransport();
+  PresentationTCPSessionTransport();
 
   void NotifyCopyComplete(nsresult aStatus);
 
 private:
-  ~PresentationSessionTransport();
+  ~PresentationTCPSessionTransport();
 
   nsresult CreateStream();
 
@@ -67,7 +66,7 @@ private:
 
   void EnsureCopying();
 
-  enum ReadyState {
+  enum class ReadyState {
     CONNECTING,
     OPEN,
     CLOSING,
@@ -78,13 +77,15 @@ private:
 
   bool IsReadyToNotifyData()
   {
-    return mDataNotificationEnabled && mReadyState == OPEN;
+    return mDataNotificationEnabled && mReadyState == ReadyState::OPEN;
   }
 
   ReadyState mReadyState;
   bool mAsyncCopierActive;
   nsresult mCloseStatus;
   bool mDataNotificationEnabled;
+
+  uint8_t mType = 0;
 
   // Raw socket streams
   nsCOMPtr<nsISocketTransport> mTransport;
@@ -100,6 +101,7 @@ private:
   nsCOMPtr<nsIAsyncStreamCopier> mMultiplexStreamCopier;
 
   nsCOMPtr<nsIPresentationSessionTransportCallback> mCallback;
+  nsCOMPtr<nsIPresentationSessionTransportBuilderListener> mListener;
 };
 
 } // namespace dom

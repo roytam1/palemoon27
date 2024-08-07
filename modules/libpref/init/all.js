@@ -562,9 +562,6 @@ pref("media.video-queue.send-to-compositor-size", 9999);
 // Whether to disable the video stats to prevent fingerprinting
 pref("media.video_stats.enabled", true);
 
-// Whether to enable the audio writing APIs on the audio element
-pref("media.audio_data.enabled", false);
-
 // Weather we allow AMD switchable graphics
 pref("layers.amd-switchable-gfx.enabled", true);
 
@@ -637,10 +634,10 @@ pref("apz.touch_start_tolerance", "0.2222222");  // 0.2222222 came from 1.0/4.5
 pref("apz.touch_move_tolerance", "0.0");
 pref("apz.velocity_bias", "1.0");
 pref("apz.velocity_relevance_time_ms", 150);
-pref("apz.x_stationary_size_multiplier", "3.0");
-pref("apz.y_stationary_size_multiplier", "3.5");
 pref("apz.x_skate_highmem_adjust", "0.0");
 pref("apz.y_skate_highmem_adjust", "0.0");
+pref("apz.x_stationary_size_multiplier", "3.0");
+pref("apz.y_stationary_size_multiplier", "3.5");
 pref("apz.zoom_animation_duration_ms", 250);
 
 #ifdef XP_MACOSX
@@ -665,8 +662,7 @@ pref("gfx.hidpi.enabled", 2);
 #endif
 
 #if !defined(MOZ_WIDGET_GONK) && !defined(MOZ_WIDGET_ANDROID)
-// Containerless scrolling for root frames does not yet pass tests on Android
-// or B2G.
+// Use containerless scrolling for now on desktop.
 pref("layout.scroll.root-frame-containers", false);
 #endif
 
@@ -910,6 +906,7 @@ sticky_pref("devtools.chrome.enabled", false);
 // Disable remote debugging protocol logging
 pref("devtools.debugger.log", false);
 pref("devtools.debugger.log.verbose", false);
+
 // Disable remote debugging connections
 #ifdef MOZ_DEV_EDITION
 sticky_pref("devtools.debugger.remote-enabled", true);
@@ -1252,6 +1249,9 @@ pref("nglayout.debug.paint_flashing_chrome", false);
 // BasicLayers (other layer managers always update the entire widget area)
 pref("nglayout.debug.widget_update_flashing", false);
 
+// Enable/disable display list invalidation logging --- useful for debugging.
+pref("nglayout.debug.invalidation", false);
+
 // Whether frame visibility tracking is enabled globally.
 pref("layout.framevisibility.enabled", true);
 
@@ -1327,7 +1327,7 @@ pref("print.print_edge_right", 0);
 pref("print.print_edge_bottom", 0);
 
 // Print via the parent process. This is only used when e10s is enabled.
-#if defined(XP_WIN)
+#if defined(XP_WIN) && defined(NIGHTLY_BUILD)
 pref("print.print_via_parent", true);
 #else
 pref("print.print_via_parent", false);
@@ -1337,9 +1337,6 @@ pref("print.print_via_parent", false);
 // maximum number of misspelled words that will be underlined
 // in a document.
 pref("extensions.spellcheck.inline.max-misspellings", 500);
-
-// Predefined convenience pref for overriding the dictionary
-pref("spellchecker.dictionary.override", "");
 
 // Prefs used by libeditor. Prefs specific to seamonkey composer
 // belong in comm-central/editor/ui/composer.js
@@ -1403,6 +1400,10 @@ pref("dom.forms.autocomplete.experimental", false);
 
 // Enables requestAutocomplete DOM API on forms.
 pref("dom.forms.requestAutocomplete", false);
+
+#ifdef NIGHTLY_BUILD
+pref("dom.input.dirpicker", true);
+#endif
 
 // Enables system messages and activities
 pref("dom.sysmsg.enabled", false);
@@ -1500,14 +1501,14 @@ pref("javascript.options.mem.gc_max_empty_chunk_count", 30);
 
 pref("javascript.options.showInConsole", false);
 
-pref("javascript.options.throw_on_debuggee_would_run", false);
-pref("javascript.options.dump_stack_on_debuggee_would_run", false);
-
 #ifdef NIGHTLY_BUILD
 pref("javascript.options.shared_memory", true);
 #else
 pref("javascript.options.shared_memory", false);
 #endif
+
+pref("javascript.options.throw_on_debuggee_would_run", false);
+pref("javascript.options.dump_stack_on_debuggee_would_run", false);
 
 // advanced prefs
 pref("advanced.mailftp",                    false);
@@ -2200,7 +2201,6 @@ pref("network.cookie.cookieBehavior",       0); // Keep the old default of accep
 #endif
 pref("network.cookie.thirdparty.sessionOnly", false);
 pref("network.cookie.lifetimePolicy",       0); // 0-accept, 2-acceptForSession, 3-acceptForNDays
-pref("network.cookie.alwaysAcceptSessionCookies", false);
 pref("network.cookie.prefsMigrated",        false);
 pref("network.cookie.lifetime.days",        90);
 
@@ -2632,9 +2632,6 @@ pref("layout.css.isolation.enabled", true);
 // Is support for CSS Filters enabled?
 pref("layout.css.filters.enabled", true);
 
-// Is support for scroll-snap enabled?
-pref("layout.css.scroll-snap.enabled", false);
-
 // Set the threshold distance in CSS pixels below which scrolling will snap to
 // an edge, when scroll snapping is set to "proximity".
 pref("layout.css.scroll-snap.proximity-threshold", 200);
@@ -2805,6 +2802,9 @@ pref("layout.css.scroll-behavior.spring-constant", "250.0");
 // at the greatest speed without overshooting.
 pref("layout.css.scroll-behavior.damping-ratio", "1.0");
 
+// Is support for scroll-snap enabled?
+pref("layout.css.scroll-snap.enabled", true);
+
 // Is support for document.fonts enabled?
 //
 // Don't enable the pref for the CSS Font Loading API until bug 1072101 is
@@ -2893,7 +2893,6 @@ pref("editor.positioning.offset",            0);
 
 pref("dom.use_watchdog", true);
 pref("dom.max_chrome_script_run_time", 20);
-pref("dom.max_child_script_run_time", 10);
 pref("dom.max_script_run_time", 10);
 
 // Stop all scripts in a compartment when the "Stop script" button on the
@@ -3931,22 +3930,22 @@ pref("font.name.serif.zh-CN", "Times");
 pref("font.name.sans-serif.zh-CN", "Helvetica");
 pref("font.name.monospace.zh-CN", "Courier");
 pref("font.name-list.serif.zh-CN", "Times,STSong,Heiti SC");
-pref("font.name-list.sans-serif.zh-CN", "Helvetica,STHeiti,Heiti SC");
-pref("font.name-list.monospace.zh-CN", "Courier,STHeiti,Heiti SC");
+pref("font.name-list.sans-serif.zh-CN", "Helvetica,PingFang SC,STHeiti,Heiti SC");
+pref("font.name-list.monospace.zh-CN", "Courier,PingFang SC,STHeiti,Heiti SC");
 
 pref("font.name.serif.zh-TW", "Times");
 pref("font.name.sans-serif.zh-TW", "Helvetica");
 pref("font.name.monospace.zh-TW", "Courier");
 pref("font.name-list.serif.zh-TW", "Times,LiSong Pro,Heiti TC");
-pref("font.name-list.sans-serif.zh-TW", "Helvetica,Heiti TC,LiHei Pro");
-pref("font.name-list.monospace.zh-TW", "Courier,Heiti TC,LiHei Pro");
+pref("font.name-list.sans-serif.zh-TW", "Helvetica,PingFang TC,Heiti TC,LiHei Pro");
+pref("font.name-list.monospace.zh-TW", "Courier,PingFang TC,Heiti TC,LiHei Pro");
 
 pref("font.name.serif.zh-HK", "Times");
 pref("font.name.sans-serif.zh-HK", "Helvetica");
 pref("font.name.monospace.zh-HK", "Courier");
 pref("font.name-list.serif.zh-HK", "Times,LiSong Pro,Heiti TC");
-pref("font.name-list.sans-serif.zh-HK", "Helvetica,Heiti TC,LiHei Pro");
-pref("font.name-list.monospace.zh-HK", "Courier,Heiti TC,LiHei Pro");
+pref("font.name-list.sans-serif.zh-HK", "Helvetica,PingFang TC,Heiti TC,LiHei Pro");
+pref("font.name-list.monospace.zh-HK", "Courier,PingFang TC,Heiti TC,LiHei Pro");
 
 // XP_MACOSX changes to default font sizes
 pref("font.minimum-size.th", 10);
@@ -4065,12 +4064,16 @@ pref("print.print_paper_size", 0);
 // around the content of the page for Print Preview only
 pref("print.print_extra_margin", 0); // twips
 
-// CSSOM-View scroll-behavior smooth scrolling requires the C++ APZC
+// CSSOM-View scroll-behavior smooth scrolling and scroll snap requires the C++ APZC
+#ifdef MOZ_ANDROID_APZ
+pref("layout.css.scroll-behavior.enabled", true);
+pref("layout.css.scroll-behavior.property-enabled", true);
+pref("layout.css.scroll-snap.enabled", true);
+#else
 pref("layout.css.scroll-behavior.enabled", false);
 pref("layout.css.scroll-behavior.property-enabled", false);
-
-// CSS Scroll Snapping requires the C++ APZC
 pref("layout.css.scroll-snap.enabled", false);
+#endif
 
 /* PostScript print module prefs */
 // pref("print.postscript.enabled",      true);
@@ -4161,13 +4164,77 @@ pref("font.name.monospace.ko", "monospace");
 
 pref("font.name.serif.th", "serif");
 pref("font.name.sans-serif.th", "sans-serif");
-pref("font.minimum-size.th", 13);
 pref("font.name.monospace.th", "monospace");
+pref("font.minimum-size.th", 13);
+
+pref("font.name.serif.x-armn", "serif");
+pref("font.name.sans-serif.x-armn", "sans-serif");
+pref("font.name.monospace.x-armn", "monospace");
+
+pref("font.name.serif.x-beng", "serif");
+pref("font.name.sans-serif.x-beng", "sans-serif");
+pref("font.name.monospace.x-beng", "monospace");
+
+pref("font.name.serif.x-cans", "serif");
+pref("font.name.sans-serif.x-cans", "sans-serif");
+pref("font.name.monospace.x-cans", "monospace");
 
 pref("font.name.serif.x-cyrillic", "serif");
 pref("font.name.sans-serif.x-cyrillic", "sans-serif");
 pref("font.name.monospace.x-cyrillic", "monospace");
 pref("font.size.fixed.x-cyrillic", 12);
+
+pref("font.name.serif.x-devanagari", "serif");
+pref("font.name.sans-serif.x-devanagari", "sans-serif");
+pref("font.name.monospace.x-devanagari", "monospace");
+
+pref("font.name.serif.x-ethi", "serif");
+pref("font.name.sans-serif.x-ethi", "sans-serif");
+pref("font.name.monospace.x-ethi", "monospace");
+
+pref("font.name.serif.x-geor", "serif");
+pref("font.name.sans-serif.x-geor", "sans-serif");
+pref("font.name.monospace.x-geor", "monospace");
+
+pref("font.name.serif.x-gujr", "serif");
+pref("font.name.sans-serif.x-gujr", "sans-serif");
+pref("font.name.monospace.x-gujr", "monospace");
+
+pref("font.name.serif.x-guru", "serif");
+pref("font.name.sans-serif.x-guru", "sans-serif");
+pref("font.name.monospace.x-guru", "monospace");
+
+pref("font.name.serif.x-khmr", "serif");
+pref("font.name.sans-serif.x-khmr", "sans-serif");
+pref("font.name.monospace.x-khmr", "monospace");
+
+pref("font.name.serif.x-knda", "serif");
+pref("font.name.sans-serif.x-knda", "sans-serif");
+pref("font.name.monospace.x-knda", "monospace");
+
+pref("font.name.serif.x-mlym", "serif");
+pref("font.name.sans-serif.x-mlym", "sans-serif");
+pref("font.name.monospace.x-mlym", "monospace");
+
+pref("font.name.serif.x-orya", "serif");
+pref("font.name.sans-serif.x-orya", "sans-serif");
+pref("font.name.monospace.x-orya", "monospace");
+
+pref("font.name.serif.x-sinh", "serif");
+pref("font.name.sans-serif.x-sinh", "sans-serif");
+pref("font.name.monospace.x-sinh", "monospace");
+
+pref("font.name.serif.x-tamil", "serif");
+pref("font.name.sans-serif.x-tamil", "sans-serif");
+pref("font.name.monospace.x-tamil", "monospace");
+
+pref("font.name.serif.x-telu", "serif");
+pref("font.name.sans-serif.x-telu", "sans-serif");
+pref("font.name.monospace.x-telu", "monospace");
+
+pref("font.name.serif.x-tibt", "serif");
+pref("font.name.sans-serif.x-tibt", "sans-serif");
+pref("font.name.monospace.x-tibt", "monospace");
 
 pref("font.name.serif.x-unicode", "serif");
 pref("font.name.sans-serif.x-unicode", "sans-serif");
@@ -4183,8 +4250,6 @@ pref("font.name.serif.zh-CN", "serif");
 pref("font.name.sans-serif.zh-CN", "sans-serif");
 pref("font.name.monospace.zh-CN", "monospace");
 
-// ming_uni.ttf (HKSCS-2001)
-// http://www.info.gov.hk/digital21/eng/hkscs/download/uime.exe
 pref("font.name.serif.zh-HK", "serif");
 pref("font.name.sans-serif.zh-HK", "sans-serif");
 pref("font.name.monospace.zh-HK", "monospace");
@@ -4329,68 +4394,70 @@ pref("font.name.monospace.x-math", "Fira Mono");
 pref("font.name.serif.el", "Droid Serif"); // not Charis SIL Compact, only has a few Greek chars
 pref("font.name.sans-serif.el", "Clear Sans");
 pref("font.name.monospace.el", "Droid Sans Mono");
+pref("font.name-list.serif.el", "Noto Serif");
 pref("font.name-list.sans-serif.el", "Clear Sans, Roboto, Droid Sans");
 
 pref("font.name.serif.he", "Droid Serif");
 pref("font.name.sans-serif.he", "Clear Sans");
 pref("font.name.monospace.he", "Droid Sans Mono");
+pref("font.name-list.serif.he", "Noto Serif");
 pref("font.name-list.sans-serif.he", "Droid Sans Hebrew, Clear Sans, Droid Sans");
 
 pref("font.name.serif.ja", "Charis SIL Compact");
 pref("font.name.sans-serif.ja", "Clear Sans");
 pref("font.name.monospace.ja", "MotoyaLMaru");
-pref("font.name-list.serif.ja", "Droid Serif");
+pref("font.name-list.serif.ja", "Noto Serif, Droid Serif");
 pref("font.name-list.sans-serif.ja", "Clear Sans, Roboto, Droid Sans, MotoyaLMaru, MotoyaLCedar, Noto Sans JP, Droid Sans Japanese");
 pref("font.name-list.monospace.ja", "MotoyaLMaru, MotoyaLCedar, Droid Sans Mono");
 
 pref("font.name.serif.ko", "Charis SIL Compact");
 pref("font.name.sans-serif.ko", "Clear Sans");
 pref("font.name.monospace.ko", "Droid Sans Mono");
-pref("font.name-list.serif.ko", "Droid Serif, HYSerif");
+pref("font.name-list.serif.ko", "Noto Serif, Droid Serif, HYSerif");
 pref("font.name-list.sans-serif.ko", "SmartGothic, NanumGothic, Noto Sans KR, DroidSansFallback, Droid Sans Fallback");
 
 pref("font.name.serif.th", "Charis SIL Compact");
 pref("font.name.sans-serif.th", "Clear Sans");
 pref("font.name.monospace.th", "Droid Sans Mono");
-pref("font.name-list.serif.th", "Droid Serif");
+pref("font.name-list.serif.th", "Noto Serif, Droid Serif");
 pref("font.name-list.sans-serif.th", "Droid Sans Thai, Clear Sans, Droid Sans");
 
 pref("font.name.serif.x-cyrillic", "Charis SIL Compact");
 pref("font.name.sans-serif.x-cyrillic", "Clear Sans");
 pref("font.name.monospace.x-cyrillic", "Droid Sans Mono");
-pref("font.name-list.serif.x-cyrillic", "Droid Serif");
+pref("font.name-list.serif.x-cyrillic", "Noto Serif, Droid Serif");
 pref("font.name-list.sans-serif.x-cyrillic", "Clear Sans, Roboto, Droid Sans");
 
 pref("font.name.serif.x-unicode", "Charis SIL Compact");
 pref("font.name.sans-serif.x-unicode", "Clear Sans");
 pref("font.name.monospace.x-unicode", "Droid Sans Mono");
-pref("font.name-list.serif.x-unicode", "Droid Serif");
+pref("font.name-list.serif.x-unicode", "Noto Serif, Droid Serif");
 pref("font.name-list.sans-serif.x-unicode", "Clear Sans, Roboto, Droid Sans");
 
 pref("font.name.serif.x-western", "Charis SIL Compact");
 pref("font.name.sans-serif.x-western", "Clear Sans");
 pref("font.name.monospace.x-western", "Droid Sans Mono");
-pref("font.name-list.serif.x-western", "Droid Serif");
+pref("font.name-list.serif.x-western", "Noto Serif, Droid Serif");
 pref("font.name-list.sans-serif.x-western", "Clear Sans, Roboto, Droid Sans");
 
 pref("font.name.serif.zh-CN", "Charis SIL Compact");
 pref("font.name.sans-serif.zh-CN", "Clear Sans");
 pref("font.name.monospace.zh-CN", "Droid Sans Mono");
-pref("font.name-list.serif.zh-CN", "Droid Serif, Droid Sans Fallback");
+pref("font.name-list.serif.zh-CN", "Noto Serif, Droid Serif, Droid Sans Fallback");
 pref("font.name-list.sans-serif.zh-CN", "Roboto, Droid Sans, Noto Sans SC, Droid Sans Fallback");
 pref("font.name-list.monospace.zh-CN", "Droid Sans Fallback");
 
 pref("font.name.serif.zh-HK", "Charis SIL Compact");
 pref("font.name.sans-serif.zh-HK", "Clear Sans");
 pref("font.name.monospace.zh-HK", "Droid Sans Mono");
-pref("font.name-list.serif.zh-HK", "Droid Serif, Droid Sans Fallback");
+pref("font.name-list.serif.zh-HK", "Noto Serif, Droid Serif, Droid Sans Fallback");
 pref("font.name-list.sans-serif.zh-HK", "Roboto, Droid Sans, Noto Sans TC, Noto Sans SC, Droid Sans Fallback");
 pref("font.name-list.monospace.zh-HK", "Droid Sans Fallback");
 
 pref("font.name.serif.zh-TW", "Charis SIL Compact");
 pref("font.name.sans-serif.zh-TW", "Clear Sans");
 pref("font.name.monospace.zh-TW", "Droid Sans Mono");
-pref("font.name-list.serif.zh-TW", "Droid Serif, Droid Sans Fallback");
+pref("font.name-list.serif.zh-TW", "Noto Serif, Droid Serif, Droid Sans Fallback");
 pref("font.name-list.sans-serif.zh-TW", "Roboto, Droid Sans, Noto Sans TC, Noto Sans SC, Droid Sans Fallback");
 pref("font.name-list.monospace.zh-TW", "Droid Sans Fallback");
 
@@ -5275,15 +5342,20 @@ pref("layout.accessiblecaret.timeout_ms", 3000);
 // or long tap events does not fired by APZ.
 pref("layout.accessiblecaret.use_long_tap_injector", true);
 
-// Use AccessibleCaret default behaviours.
-pref("layout.accessiblecaret.extendedvisibility", false);
-
 // By default, carets become tilt only when they are overlapping.
 pref("layout.accessiblecaret.always_tilt", false);
+
+// By default, carets always show when scrolling (either panning for zooming)
+// the page.
+pref("layout.accessiblecaret.always_show_when_scrolling", true);
 
 // Selection change notifications generated by Javascript hide
 // AccessibleCarets and close UI interaction by default.
 pref("layout.accessiblecaret.allow_script_change_updates", false);
+
+// Allow one caret to be dragged across the other caret without any limitation.
+// This matches the built-in convention for all desktop platforms.
+pref("layout.accessiblecaret.allow_dragging_across_other_caret", true);
 
 // Optionally provide haptic feedback on longPress selection events.
 pref("layout.accessiblecaret.hapticfeedback", false);
@@ -5338,6 +5410,7 @@ pref("dom.presentation.tcp_server.debug", false);
 pref("dom.presentation.discovery.enabled", false);
 pref("dom.presentation.discovery.timeout_ms", 10000);
 pref("dom.presentation.discoverable", false);
+pref("dom.presentation.session_transport.data_channel.enable", false);
 
 #ifdef XP_MACOSX
 // Use raw ICU instead of CoreServices API in Unicode collation

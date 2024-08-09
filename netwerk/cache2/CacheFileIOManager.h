@@ -234,6 +234,8 @@ public:
   NS_IMETHOD OnFileDoomed(CacheFileHandle *aHandle, nsresult aResult) = 0;
   NS_IMETHOD OnEOFSet(CacheFileHandle *aHandle, nsresult aResult) = 0;
   NS_IMETHOD OnFileRenamed(CacheFileHandle *aHandle, nsresult aResult) = 0;
+
+  virtual bool IsKilled() { return false; }
 };
 
 NS_DEFINE_STATIC_IID_ACCESSOR(CacheFileIOListener, CACHEFILEIOLISTENER_IID)
@@ -442,6 +444,10 @@ private:
   // Shutdown time stamp, accessed only on the I/O thread.  Used to bypass
   // I/O after a certain time pass the shutdown has been demanded.
   TimeStamp                            mShutdownDemandedTime;
+  // Set true on the main thread when cache shutdown is first demanded.
+  Atomic<bool, Relaxed>                mShutdownDemanded;
+  // Set true on the IO thread, CLOSE level as part of the internal shutdown
+  // procedure.
   bool                                 mShuttingDown;
   RefPtr<CacheIOThread>                mIOThread;
   nsCOMPtr<nsIFile>                    mCacheDirectory;

@@ -477,7 +477,7 @@ HardwareKeyHandler::GetCurrentTarget()
     return nullptr;
   }
 
-  nsCOMPtr<mozIDOMWindowProxy> focusedWindow;
+  nsCOMPtr<nsIDOMWindow> domWindow;
   fm->GetFocusedWindow(getter_AddRefs(focusedWindow));
   if (NS_WARN_IF(!focusedWindow)) {
     return nullptr;

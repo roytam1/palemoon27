@@ -736,7 +736,7 @@ PackagedAppService::PackagedAppDownloader::AddCallback(nsIURI *aURI,
 {
   MOZ_RELEASE_ASSERT(NS_IsMainThread(), "mCallbacks hashtable is not thread safe");
   nsAutoCString spec;
-  aURI->GetAsciiSpec(spec);
+  aURI->GetSpecIgnoringRef(spec);
 
   LogURI("PackagedAppDownloader::AddCallback", this, aURI);
   LOG(("[%p]    > callback: %p\n", this, aCallback));
@@ -1075,7 +1075,7 @@ PackagedAppService::GetResource(nsIChannel *aChannel,
   nsCOMPtr<nsILoadInfo> loadInfo = aChannel->GetLoadInfo();
 
   nsCOMPtr<nsIURI> uri;
-  rv = principal->GetURI(getter_AddRefs(uri));
+  rv = aChannel->GetURI(getter_AddRefs(uri));
   if (NS_WARN_IF(NS_FAILED(rv))) {
     LOG(("[%p]    > Error calling GetURI rv=%X\n", this, rv));
     return rv;

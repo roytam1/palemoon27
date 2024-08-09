@@ -991,6 +991,8 @@ nsChildView::BackingScaleFactorChanged()
   }
 
   mBackingScaleFactor = newScale;
+  NSRect frame = [mView frame];
+  mBounds = nsCocoaUtils::CocoaRectToGeckoRectDevPix(frame, newScale);
 
   if (mWidgetListener && !mWidgetListener->GetXULWindow()) {
     nsIPresShell* presShell = mWidgetListener->GetPresShell();
@@ -2968,6 +2970,7 @@ RectTextureImage::EndUpdate(bool aKeepSurface)
   LayoutDeviceIntRegion updateRegion = mUpdateRegion;
   if (mTextureSize != mBufferSize) {
     mTextureSize = mBufferSize;
+    needInit = true;
   }
 
   if (needInit || !CanUploadSubtextures()) {

@@ -28,6 +28,7 @@ function add_ocsp_test(aHost, aExpectedResult, aOCSPResponseToServe) {
 do_get_profile();
 Services.prefs.setBoolPref("security.ssl.enable_ocsp_stapling", true);
 Services.prefs.setIntPref("security.OCSP.enabled", 1);
+Services.prefs.setIntPref("security.pki.sha1_enforcement_level", 3);
 var args = [["good", "default-ee", "unused"],
              ["expiredresponse", "default-ee", "unused"],
              ["oldvalidperiod", "default-ee", "unused"],
@@ -45,6 +46,14 @@ var oldValidityPeriodOCSPResponseGood = ocspResponses[2];
 var ocspResponseRevoked = ocspResponses[3];
 // Fresh signature, certificate is unknown.
 var ocspResponseUnknown = ocspResponses[4];
+
+// sometimes we expect a result without re-fetch
+var willNotRetry = 1;
+// but sometimes, since a bad response is in the cache, OCSP fetch will be
+// attempted for each validation - in practice, for these test certs, this
+// means 6 requests because various hash algorithm and key size combinations
+// are tried.
+var willRetry = 6;
 
 function run_test() {
   let ocspResponder = new HttpServer();
@@ -149,6 +158,19 @@ function run_test() {
                 ocspResponseUnknown);
 
   add_test(function () { ocspResponder.stop(run_next_test); });
+  add_test(check_ocsp_stapling_telemetry);
   run_next_test();
 }
 
+function check_ocsp_stapling_telemetry() {
+  let histogram = Cc["@mozilla.org/base/telemetry;1"]
+                    .getService(Ci.nsITelemetry)
+                    .getHistogramById("SSL_OCSP_STAPLING")
+                    .snapshot();
+  do_check_eq(histogram.counts[0], 0); // histogram bucket 0 is unused
+  do_check_eq(histogram.counts[1], 0); // 0 connections with a good response
+  do_check_eq(histogram.counts[2], 0); // 0 connections with no stapled resp.
+  do_check_eq(histogram.counts[3], 21); // 21 connections with an expired response
+  do_check_eq(histogram.counts[4], 0); // 0 connections with bad responses
+  run_next_test();
+}

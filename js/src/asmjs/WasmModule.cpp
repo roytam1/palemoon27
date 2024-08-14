@@ -18,12 +18,14 @@
 
 #include "asmjs/WasmModule.h"
 
+#include "mozilla/Atomics.h"
 #include "mozilla/BinarySearch.h"
 #include "mozilla/EnumeratedRange.h"
 #include "mozilla/PodOperations.h"
 
 #include "jsprf.h"
 
+#include "asmjs/WasmBinaryToText.h"
 #include "asmjs/WasmSerialize.h"
 #include "builtin/AtomicsObject.h"
 #include "builtin/SIMD.h"
@@ -34,6 +36,7 @@
 #include "jit/ExecutableAllocator.h"
 #include "jit/JitCommon.h"
 #include "js/MemoryMetrics.h"
+#include "vm/StringBuffer.h"
 #ifdef MOZ_VTUNE
 # include "vtune/VTuneWrapper.h"
 #endif
@@ -47,6 +50,7 @@
 using namespace js;
 using namespace js::jit;
 using namespace js::wasm;
+using mozilla::Atomic;
 using mozilla::BinarySearch;
 using mozilla::MakeEnumeratedRange;
 using mozilla::PodCopy;
@@ -54,20 +58,26 @@ using mozilla::PodZero;
 using mozilla::Swap;
 using JS::GenericNaN;
 
-const uint32_t ExportMap::MemoryExport;
+// Limit the number of concurrent wasm code allocations per process. Note that
+// on Linux, the real maximum is ~32k, as each module requires 2 maps (RW/RX),
+// and the kernel's default max_map_count is ~65k.
+static Atomic<uint32_t> wasmCodeAllocations(0);
+static const uint32_t MaxWasmCodeAllocations = 16384;
 
 UniqueCodePtr
 wasm::AllocateCode(ExclusiveContext* cx, size_t bytes)
 {
-    // On most platforms, this will allocate RWX memory. On iOS, or when
-    // --non-writable-jitcode is used, this will allocate RW memory. In this
-    // case, DynamicallyLinkModule will reprotect the code as RX.
+    // Allocate RW memory. DynamicallyLinkModule will reprotect the code as RX.
     unsigned permissions =
         ExecutableAllocator::initialProtectionFlags(ExecutableAllocator::Writable);
 
-    void* p = AllocateExecutableMemory(nullptr, bytes, permissions, "asm-js-code", gc::SystemPageSize());
-    if (!p)
+    void* p = nullptr;
+    if (wasmCodeAllocations++ < MaxWasmCodeAllocations)
+        p = AllocateExecutableMemory(nullptr, bytes, permissions, "asm-js-code", gc::SystemPageSize());
+    if (!p) {
+        wasmCodeAllocations--;
         ReportOutOfMemory(cx);
+    }
 
     return UniqueCodePtr((uint8_t*)p, CodeDeleter(bytes));
 }
@@ -75,6 +85,9 @@ wasm::AllocateCode(ExclusiveContext* cx, size_t bytes)
 void
 CodeDeleter::operator()(uint8_t* p)
 {
+    MOZ_ASSERT(wasmCodeAllocations > 0);
+    wasmCodeAllocations--;
+
     MOZ_ASSERT(bytes_ != 0);
     DeallocateExecutableMemory(p, bytes_, gc::SystemPageSize());
 }
@@ -231,14 +244,9 @@ StaticLinkData::clone(JSContext* cx, StaticLinkData* out) const
 size_t
 StaticLinkData::sizeOfExcludingThis(MallocSizeOf mallocSizeOf) const
 {
-    size_t size = internalLinks.sizeOfExcludingThis(mallocSizeOf) +
-                  symbolicLinks.sizeOfExcludingThis(mallocSizeOf) +
-                  SizeOfVectorExcludingThis(funcPtrTables, mallocSizeOf);
-
-    for (const Uint32Vector& offsets : symbolicLinks)
-        size += offsets.sizeOfExcludingThis(mallocSizeOf);
-
-    return size;
+    return internalLinks.sizeOfExcludingThis(mallocSizeOf) +
+           symbolicLinks.sizeOfExcludingThis(mallocSizeOf) +
+           SizeOfVectorExcludingThis(funcPtrTables, mallocSizeOf);
 }
 
 static size_t
@@ -400,16 +408,22 @@ CodeRange::CodeRange(uint32_t funcIndex, uint32_t funcLineOrBytecode, FuncOffset
     end_ = offsets.end;
 }
 
+static size_t
+NullableStringLength(const char* chars)
+{
+    return chars ? strlen(chars) : 0;
+}
+
 size_t
 CacheableChars::serializedSize() const
 {
-    return sizeof(uint32_t) + strlen(get());
+    return sizeof(uint32_t) + NullableStringLength(get());
 }
 
 uint8_t*
 CacheableChars::serialize(uint8_t* cursor) const
 {
-    uint32_t length = strlen(get());
+    uint32_t length = NullableStringLength(get());
     cursor = WriteBytes(cursor, &length, sizeof(uint32_t));
     cursor = WriteBytes(cursor, get(), length);
     return cursor;
@@ -432,7 +446,7 @@ CacheableChars::deserialize(ExclusiveContext* cx, const uint8_t* cursor)
 bool
 CacheableChars::clone(JSContext* cx, CacheableChars* out) const
 {
-    uint32_t length = strlen(get());
+    uint32_t length = NullableStringLength(get());
 
     UniqueChars chars(cx->pod_calloc<char>(length + 1));
     if (!chars)
@@ -799,10 +813,13 @@ Module::setProfilingEnabled(JSContext* cx, bool enabled)
     }
 
     // Update the function-pointer tables to point to profiling prologues.
-    for (FuncPtrTable& funcPtrTable : funcPtrTables_) {
-        auto array = reinterpret_cast<void**>(globalData() + funcPtrTable.globalDataOffset);
-        for (size_t i = 0; i < funcPtrTable.numElems; i++) {
+    for (FuncPtrTable& table : funcPtrTables_) {
+        auto array = reinterpret_cast<void**>(globalData() + table.globalDataOffset);
+        for (size_t i = 0; i < table.numElems; i++) {
             const CodeRange* codeRange = lookupCodeRange(array[i]);
+            // Don't update entries for the BadIndirectCall exit.
+            if (codeRange->isErrorExit())
+                continue;
             void* from = code() + codeRange->funcNonProfilingEntry();
             void* to = code() + codeRange->funcProfilingEntry();
             if (!enabled)
@@ -891,13 +908,19 @@ Module::~Module()
 /* virtual */ void
 Module::trace(JSTracer* trc)
 {
-    for (const Import& import : imports()) {
-        if (importToExit(import).fun)
-            TraceEdge(trc, &importToExit(import).fun, "wasm function import");
-    }
+    for (const Import& import : imports())
+        TraceNullableEdge(trc, &importToExit(import).fun, "wasm function import");
 
-    if (heap_)
-        TraceEdge(trc, &heap_, "wasm buffer");
+    TraceNullableEdge(trc, &heap_, "wasm buffer");
+
+    MOZ_ASSERT(ownerObject_);
+    TraceEdge(trc, &ownerObject_, "wasm owner object");
+}
+
+/* virtual */ void
+Module::readBarrier()
+{
+    InternalBarrierMethods<JSObject*>::readBarrier(owner());
 }
 
 /* virtual */ void
@@ -908,6 +931,7 @@ Module::addSizeOfMisc(MallocSizeOf mallocSizeOf, size_t* code, size_t* data)
              globalBytes() +
              mallocSizeOf(module_.get()) +
              module_->sizeOfExcludingThis(mallocSizeOf) +
+             source_.sizeOfExcludingThis(mallocSizeOf) +
              funcPtrTables_.sizeOfExcludingThis(mallocSizeOf) +
              SizeOfVectorExcludingThis(funcLabels_, mallocSizeOf);
 }
@@ -1056,8 +1080,9 @@ Module::staticallyLink(ExclusiveContext* cx, const StaticLinkData& linkData)
         auto array = reinterpret_cast<void**>(globalData() + table.globalDataOffset);
         for (size_t i = 0; i < table.elemOffsets.length(); i++) {
             uint8_t* elem = code() + table.elemOffsets[i];
-            if (profilingEnabled_)
-                elem = code() + lookupCodeRange(elem)->funcProfilingEntry();
+            const CodeRange* codeRange = lookupCodeRange(elem);
+            if (profilingEnabled_ && !codeRange->isErrorExit())
+                elem = code() + codeRange->funcProfilingEntry();
             array[i] = elem;
         }
     }
@@ -1125,7 +1150,7 @@ CreateExportObject(JSContext* cx,
         if (!*fieldName) {
             MOZ_ASSERT(!exportObj);
             uint32_t exportIndex = exportMap.fieldsToExports[fieldIndex];
-            if (exportIndex == ExportMap::MemoryExport) {
+            if (exportIndex == MemoryExport) {
                 MOZ_ASSERT(heap);
                 exportObj.set(heap);
             } else {
@@ -1162,7 +1187,7 @@ CreateExportObject(JSContext* cx,
         RootedId id(cx, AtomToId(atom));
         RootedValue val(cx);
         uint32_t exportIndex = exportMap.fieldsToExports[fieldIndex];
-        if (exportIndex == ExportMap::MemoryExport)
+        if (exportIndex == MemoryExport)
             val = ObjectValue(*heap);
         else
             val = vals[exportIndex];
@@ -1249,6 +1274,24 @@ Module::deoptimizeImportExit(uint32_t importIndex)
     exit.baselineScript = nullptr;
 }
 
+static JSObject*
+CreateI64Object(JSContext* cx, int64_t i64)
+{
+    RootedObject result(cx, JS_NewPlainObject(cx));
+    if (!result)
+        return nullptr;
+
+    RootedValue val(cx, Int32Value(uint32_t(i64)));
+    if (!JS_DefineProperty(cx, result, "low", val, JSPROP_ENUMERATE))
+        return nullptr;
+
+    val = Int32Value(uint32_t(i64 >> 32));
+    if (!JS_DefineProperty(cx, result, "high", val, JSPROP_ENUMERATE))
+        return nullptr;
+
+    return result;
+}
+
 bool
 Module::callExport(JSContext* cx, uint32_t exportIndex, CallArgs args)
 {
@@ -1286,7 +1329,10 @@ Module::callExport(JSContext* cx, uint32_t exportIndex, CallArgs args)
                 return false;
             break;
           case ValType::I64:
-            MOZ_CRASH("int64");
+            MOZ_ASSERT(JitOptions.wasmTestMode, "no int64 in asm.js/wasm");
+            if (!ReadI64Object(cx, v, (int64_t*)&coercedArgs[i]))
+                return false;
+            break;
           case ValType::F32:
             if (!RoundFloat32(cx, v, (float*)&coercedArgs[i]))
                 return false;
@@ -1349,56 +1395,103 @@ Module::callExport(JSContext* cx, uint32_t exportIndex, CallArgs args)
         return true;
     }
 
-    JSObject* simdObj;
+    void* retAddr = &coercedArgs[0];
+    JSObject* retObj = nullptr;
     switch (exp.sig().ret()) {
       case ExprType::Void:
         args.rval().set(UndefinedValue());
         break;
       case ExprType::I32:
-        args.rval().set(Int32Value(*(int32_t*)&coercedArgs[0]));
+        args.rval().set(Int32Value(*(int32_t*)retAddr));
         break;
       case ExprType::I64:
-        MOZ_CRASH("int64");
+        MOZ_ASSERT(JitOptions.wasmTestMode, "no int64 in asm.js/wasm");
+        retObj = CreateI64Object(cx, *(int64_t*)retAddr);
+        if (!retObj)
+            return false;
+        break;
       case ExprType::F32:
+        // The entry stub has converted the F32 into a double for us.
       case ExprType::F64:
-        args.rval().set(NumberValue(*(double*)&coercedArgs[0]));
+        args.rval().set(NumberValue(*(double*)retAddr));
         break;
       case ExprType::I32x4:
-        simdObj = CreateSimd<Int32x4>(cx, (int32_t*)&coercedArgs[0]);
-        if (!simdObj)
+        retObj = CreateSimd<Int32x4>(cx, (int32_t*)retAddr);
+        if (!retObj)
             return false;
-        args.rval().set(ObjectValue(*simdObj));
         break;
       case ExprType::F32x4:
-        simdObj = CreateSimd<Float32x4>(cx, (float*)&coercedArgs[0]);
-        if (!simdObj)
+        retObj = CreateSimd<Float32x4>(cx, (float*)retAddr);
+        if (!retObj)
             return false;
-        args.rval().set(ObjectValue(*simdObj));
         break;
       case ExprType::B32x4:
-        simdObj = CreateSimd<Bool32x4>(cx, (int32_t*)&coercedArgs[0]);
-        if (!simdObj)
+        retObj = CreateSimd<Bool32x4>(cx, (int32_t*)retAddr);
+        if (!retObj)
             return false;
-        args.rval().set(ObjectValue(*simdObj));
         break;
       case ExprType::Limit:
         MOZ_CRASH("Limit");
     }
 
+    if (retObj)
+        args.rval().set(ObjectValue(*retObj));
+
     return true;
 }
 
 bool
-Module::callImport(JSContext* cx, uint32_t importIndex, unsigned argc, const Value* argv,
+Module::callImport(JSContext* cx, uint32_t importIndex, unsigned argc, const uint64_t* argv,
                    MutableHandleValue rval)
 {
     MOZ_ASSERT(dynamicallyLinked_);
 
     const Import& import = imports()[importIndex];
 
-    RootedValue fval(cx, ObjectValue(*importToExit(import).fun));
-    if (!Invoke(cx, UndefinedValue(), fval, argc, argv, rval))
+    InvokeArgs args(cx);
+    if (!args.init(argc))
         return false;
+
+    bool hasI64Arg = false;
+    MOZ_ASSERT(import.sig().args().length() == argc);
+    for (size_t i = 0; i < argc; i++) {
+        switch (import.sig().args()[i]) {
+          case ValType::I32:
+            args[i].set(Int32Value(*(int32_t*)&argv[i]));
+            break;
+          case ValType::F32:
+            args[i].set(JS::CanonicalizedDoubleValue(*(float*)&argv[i]));
+            break;
+          case ValType::F64:
+            args[i].set(JS::CanonicalizedDoubleValue(*(double*)&argv[i]));
+            break;
+          case ValType::I64: {
+            MOZ_ASSERT(JitOptions.wasmTestMode, "no int64 in asm.js/wasm");
+            RootedObject obj(cx, CreateI64Object(cx, *(int64_t*)&argv[i]));
+            if (!obj)
+                return false;
+            args[i].set(ObjectValue(*obj));
+            hasI64Arg = true;
+            break;
+          }
+          case ValType::I32x4:
+          case ValType::F32x4:
+          case ValType::B32x4:
+          case ValType::Limit:
+            MOZ_CRASH("unhandled type in callImport");
+        }
+    }
+
+    RootedValue fval(cx, ObjectValue(*importToExit(import).fun));
+    RootedValue thisv(cx, UndefinedValue());
+    if (!Call(cx, fval, thisv, args, rval))
+        return false;
+
+    // Don't try to optimize if the function has at least one i64 arg or if
+    // it returns an int64. GenerateJitExit relies on this, as does the
+    // type inference code below in this function.
+    if (hasI64Arg || import.sig().ret() == ExprType::I64)
+        return true;
 
     ImportExit& exit = importToExit(import);
 
@@ -1410,6 +1503,7 @@ Module::callImport(JSContext* cx, uint32_t importIndex, unsigned argc, const Val
     // Test if the function is JIT compiled.
     if (!exit.fun->hasScript())
         return true;
+
     JSScript* script = exit.fun->nonLazyScript();
     if (!script->hasBaselineScript()) {
         MOZ_ASSERT(!script->hasIonScript());
@@ -1440,7 +1534,7 @@ Module::callImport(JSContext* cx, uint32_t importIndex, unsigned argc, const Val
         TypeSet::Type type = TypeSet::UnknownType();
         switch (import.sig().args()[i]) {
           case ValType::I32:   type = TypeSet::Int32Type(); break;
-          case ValType::I64:   MOZ_CRASH("NYI");
+          case ValType::I64:   MOZ_CRASH("can't happen because of above guard");
           case ValType::F32:   type = TypeSet::DoubleType(); break;
           case ValType::F64:   type = TypeSet::DoubleType(); break;
           case ValType::I32x4: MOZ_CRASH("NYI");
@@ -1498,6 +1592,38 @@ Module::getFuncAtom(JSContext* cx, uint32_t funcIndex) const
     return atom;
 }
 
+const char experimentalWarning[] =
+    "Temporary\n"
+    ".--.      .--.   ____       .-'''-. ,---.    ,---.\n"
+    "|  |_     |  | .'  __ `.   / _     \\|    \\  /    |\n"
+    "| _( )_   |  |/   '  \\  \\ (`' )/`--'|  ,  \\/  ,  |\n"
+    "|(_ o _)  |  ||___|  /  |(_ o _).   |  |\\_   /|  |\n"
+    "| (_,_) \\ |  |   _.-`   | (_,_). '. |  _( )_/ |  |\n"
+    "|  |/    \\|  |.'   _    |.---.  \\  :| (_ o _) |  |\n"
+    "|  '  /\\  `  ||  _( )_  |\\    `-'  ||  (_,_)  |  |\n"
+    "|    /  \\    |\\ (_ o _) / \\       / |  |      |  |\n"
+    "`---'    `---` '.(_,_).'   `-...-'  '--'      '--'\n"
+    "text support (Work In Progress):\n\n";
+
+const char enabledMessage[] =
+    "Restart with debugger open to view WebAssembly source";
+
+JSString*
+Module::createText(JSContext* cx)
+{
+    StringBuffer buffer(cx);
+    if (!source_.empty()) {
+        if (!buffer.append(experimentalWarning))
+            return nullptr;
+        if (!BinaryToText(cx, source_.begin(), source_.length(), buffer))
+            return nullptr;
+    } else {
+        if (!buffer.append(enabledMessage))
+            return nullptr;
+    }
+    return buffer.finishString();
+}
+
 const char*
 Module::profilingLabel(uint32_t funcIndex) const
 {
@@ -1506,10 +1632,7 @@ Module::profilingLabel(uint32_t funcIndex) const
     return funcLabels_[funcIndex].get();
 }
 
-const Class WasmModuleObject::class_ = {
-    "WasmModuleObject",
-    JSCLASS_IS_ANONYMOUS | JSCLASS_DELAY_METADATA_CALLBACK |
-    JSCLASS_HAS_RESERVED_SLOTS(WasmModuleObject::RESERVED_SLOTS),
+const ClassOps WasmModuleObject::classOps_ = {
     nullptr, /* addProperty */
     nullptr, /* delProperty */
     nullptr, /* getProperty */
@@ -1522,6 +1645,13 @@ const Class WasmModuleObject::class_ = {
     nullptr, /* hasInstance */
     nullptr, /* construct */
     WasmModuleObject::trace
+};
+
+const Class WasmModuleObject::class_ = {
+    "WasmModuleObject",
+    JSCLASS_IS_ANONYMOUS | JSCLASS_DELAY_METADATA_BUILDER |
+    JSCLASS_HAS_RESERVED_SLOTS(WasmModuleObject::RESERVED_SLOTS),
+    &WasmModuleObject::classOps_,
 };
 
 bool
@@ -1565,6 +1695,7 @@ WasmModuleObject::init(Module* module)
     MOZ_ASSERT(!hasModule());
     if (!module)
         return false;
+    module->setOwner(this);
     setReservedSlot(MODULE_SLOT, PrivateValue(module));
     return true;
 }

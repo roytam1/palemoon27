@@ -8,9 +8,6 @@
 #include "Logging.h"
 
 #include "SourceSurfaceD2D1.h"
-#include "SourceSurfaceD2D.h"
-#include "SourceSurfaceD2DTarget.h"
-#include "DrawTargetD2D.h"
 #include "DrawTargetD2D1.h"
 #include "ExtendInputEffectD2D1.h"
 
@@ -159,8 +156,6 @@ already_AddRefed<ID2D1Image> GetImageForSourceSurface(DrawTarget *aDT, SourceSur
   switch (aDT->GetBackendType()) {
     case BackendType::DIRECT2D1_1:
       return static_cast<DrawTargetD2D1*>(aDT)->GetImageForSurface(aSurface, ExtendMode::CLAMP);
-    case BackendType::DIRECT2D:
-      return static_cast<DrawTargetD2D*>(aDT)->GetImageForSurface(aSurface);
     default:
       gfxDevCrash(LogReason::FilterNodeD2D1Backend) << "Unknown draw target type! " << (int)aDT->GetBackendType();
       return nullptr;
@@ -573,6 +568,10 @@ FilterNodeD2D1::Create(ID2D1DeviceContext *aDC, FilterType aType)
   if (FAILED(hr) || !effect) {
     gfxCriticalErrorOnce() << "Failed to create effect for FilterType: " << hexa(hr);
     return nullptr;
+  }
+
+  if (aType == FilterType::ARITHMETIC_COMBINE) {
+    effect->SetValue(D2D1_ARITHMETICCOMPOSITE_PROP_CLAMP_OUTPUT, TRUE);
   }
 
   RefPtr<FilterNodeD2D1> filter = new FilterNodeD2D1(effect, aType);

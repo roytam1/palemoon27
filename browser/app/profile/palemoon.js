@@ -1269,13 +1269,17 @@ pref("browser.display.standalone_images.background_color", "#2E3B41");
 pref("view_source.tab", false);
 
 // Enable ServiceWorkers for Push API consumers.
-// Interception is still disabled.
 pref("dom.serviceWorkers.enabled", true);
-
 pref("dom.serviceWorkers.openWindow.enabled", true);
 
 // Enable Push API.
 pref("dom.push.enabled", true);
+
+// These are the thumbnail width/height set in about:newtab.
+// If you change this, ENSURE IT IS THE SAME SIZE SET
+// by about:newtab. These values are in CSS pixels.
+pref("toolkit.pageThumbs.minWidth", 280);
+pref("toolkit.pageThumbs.minHeight", 190);
 
 // ****************** domain-specific UAs ******************
 

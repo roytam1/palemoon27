@@ -164,14 +164,15 @@ SetBaseURIUsingFirstBaseWithHref(nsIDocument* aDocument, nsIContent* aMustMatch)
         return;
       }
 
-      // Resolve the <base> element's href relative to our document URI
+      // Resolve the <base> element's href relative to our document's
+      // fallback base URI.
       nsAutoString href;
       child->GetAttr(kNameSpaceID_None, nsGkAtoms::href, href);
 
       nsCOMPtr<nsIURI> newBaseURI;
       nsContentUtils::NewURIWithDocumentCharset(
         getter_AddRefs(newBaseURI), href, aDocument,
-        aDocument->GetDocumentURI());
+        aDocument->GetFallbackBaseURI());
 
       // Try to set our base URI.  If that fails, try to set base URI to null
       nsresult rv = aDocument->SetBaseURI(newBaseURI);
@@ -225,7 +226,7 @@ HTMLSharedElement::SetAttr(int32_t aNameSpaceID, nsIAtom* aName,
   // similarly need to change the base target.
   if (mNodeInfo->Equals(nsGkAtoms::base) &&
       aNameSpaceID == kNameSpaceID_None &&
-      IsInDoc()) {
+      IsInUncomposedDoc()) {
     if (aName == nsGkAtoms::href) {
       SetBaseURIUsingFirstBaseWithHref(GetUncomposedDoc(), this);
     } else if (aName == nsGkAtoms::target) {
@@ -248,7 +249,7 @@ HTMLSharedElement::UnsetAttr(int32_t aNameSpaceID, nsIAtom* aName,
   // find the new one.  Similar for target.
   if (mNodeInfo->Equals(nsGkAtoms::base) &&
       aNameSpaceID == kNameSpaceID_None &&
-      IsInDoc()) {
+      IsInUncomposedDoc()) {
     if (aName == nsGkAtoms::href) {
       SetBaseURIUsingFirstBaseWithHref(GetUncomposedDoc(), nullptr);
     } else if (aName == nsGkAtoms::target) {

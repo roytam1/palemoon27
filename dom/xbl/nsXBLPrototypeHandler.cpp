@@ -35,7 +35,6 @@
 #include "nsReadableUtils.h"
 #include "nsGkAtoms.h"
 #include "nsIXPConnect.h"
-#include "nsIDOMScriptObjectFactory.h"
 #include "mozilla/AddonPathService.h"
 #include "nsDOMCID.h"
 #include "nsUnicharUtils.h"
@@ -227,7 +226,7 @@ nsXBLPrototypeHandler::ExecuteHandler(EventTarget* aTarget,
 
   // Look for a compiled handler on the element. 
   // Should be compiled and bound with "on" in front of the name.
-  nsCOMPtr<nsIAtom> onEventAtom = do_GetAtom(NS_LITERAL_STRING("onxbl") +
+  nsCOMPtr<nsIAtom> onEventAtom = NS_Atomize(NS_LITERAL_STRING("onxbl") +
                                              nsDependentAtomString(mEventName));
 
   // Compile the handler and bind it to the element.
@@ -278,7 +277,6 @@ nsXBLPrototypeHandler::ExecuteHandler(EventTarget* aTarget,
   if (NS_WARN_IF(!jsapi.Init(boundGlobal))) {
     return NS_OK;
   }
-  jsapi.TakeOwnershipOfErrorReporting();
   JSContext* cx = jsapi.cx();
   JS::Rooted<JSObject*> handler(cx);
 
@@ -787,7 +785,7 @@ nsXBLPrototypeHandler::ConstructPrototype(nsIContent* aKeyElement,
       return;
   }
 
-  mEventName = do_GetAtom(event);
+  mEventName = NS_Atomize(event);
 
   if (aPhase) {
     const nsDependentString phase(aPhase);
@@ -924,7 +922,7 @@ nsXBLPrototypeHandler::ModifiersMatchMask(
                          nsIDOMUIEvent* aEvent,
                          const IgnoreModifierState& aIgnoreModifierState)
 {
-  WidgetInputEvent* inputEvent = aEvent->AsEvent()->GetInternalNSEvent()->AsInputEvent();
+  WidgetInputEvent* inputEvent = aEvent->AsEvent()->WidgetEventPtr()->AsInputEvent();
   NS_ENSURE_TRUE(inputEvent, false);
 
   if (mKeyMask & cMetaMask) {
@@ -981,7 +979,7 @@ nsXBLPrototypeHandler::Read(nsIObjectInputStream* aStream)
   nsAutoString name;
   rv = aStream->ReadString(name);
   NS_ENSURE_SUCCESS(rv, rv);
-  mEventName = do_GetAtom(name);
+  mEventName = NS_Atomize(name);
 
   rv = aStream->Read32(&mLineNumber);
   NS_ENSURE_SUCCESS(rv, rv);

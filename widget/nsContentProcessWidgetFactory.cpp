@@ -17,7 +17,7 @@
 using namespace mozilla;
 using namespace mozilla::widget;
 
-#ifndef MOZ_B2G
+#ifndef MOZ_WIDGET_GONK
 
 NS_GENERIC_FACTORY_CONSTRUCTOR(nsClipboardProxy)
 NS_GENERIC_FACTORY_CONSTRUCTOR(nsColorPickerProxy)
@@ -55,6 +55,8 @@ static const mozilla::Module::ContractIDEntry kWidgetContracts[] = {
     { "@mozilla.org/filepicker;1", &kNS_FILEPICKER_CID, Module::CONTENT_PROCESS_ONLY },
     { "@mozilla.org/gfx/screenmanager;1", &kNS_SCREENMANAGER_CID, Module::CONTENT_PROCESS_ONLY },
     { "@mozilla.org/widget/dragservice;1", &kNS_DRAGSERVICE_CID, Module::CONTENT_PROCESS_ONLY },
+    { "@mozilla.org/widget/bidikeyboard;1", &kPUPPETBIDIKEYBOARD_CID,
+      Module::CONTENT_PROCESS_ONLY },
     { nullptr }
 };
 
@@ -66,4 +68,4 @@ static const mozilla::Module kWidgetModule = {
 
 NSMODULE_DEFN(nsContentProcessWidgetModule) = &kWidgetModule;
 
-#endif /* MOZ_B2G */
+#endif /* MOZ_WIDGET_GONK */

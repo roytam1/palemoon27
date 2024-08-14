@@ -9,6 +9,8 @@
 #include "nsString.h"
 #include "nsThreadUtils.h"
 #include "nsHtml5ViewSourceUtils.h"
+
+#include "mozilla/Attributes.h"
 #include "mozilla/Preferences.h"
 
 using namespace mozilla;
@@ -568,7 +570,7 @@ nsHtml5Highlighter::FlushChars()
           // the input data, because there are no reparses in the View Source
           // case, so we won't need the original data in the buffer anymore.
           buf[i] = '\n';
-          // fall through
+          MOZ_FALLTHROUGH;
         case '\n': {
           ++i;
           if (mCStart < i) {
@@ -646,7 +648,7 @@ nsHtml5Highlighter::AllocateContentHandle()
     mHandlesUsed = 0;
   }
 #ifdef DEBUG
-  mHandles[mHandlesUsed] = (nsIContent*)0xC0DEDBAD;
+  mHandles[mHandlesUsed] = reinterpret_cast<nsIContent*>(uintptr_t(0xC0DEDBAD));
 #endif
   return &mHandles[mHandlesUsed++];
 }

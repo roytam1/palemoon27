@@ -29,6 +29,10 @@
 
 #include "mozilla/gfx/2D.h"
 
+#if MOZ_WIDGET_GTK != 2
+#include <cairo-gobject.h>
+#endif
+
 using mozilla::LookAndFeel;
 
 #define GDK_COLOR_TO_NS_RGB(c) \
@@ -60,6 +64,123 @@ nsLookAndFeel::~nsLookAndFeel()
     g_object_unref(mButtonStyle);
 #endif
 }
+
+#if MOZ_WIDGET_GTK != 2
+static void
+GetLightAndDarkness(const GdkRGBA& aColor,
+                    double* aLightness, double* aDarkness)
+{
+    double sum = aColor.red + aColor.green + aColor.blue;
+    *aLightness = sum * aColor.alpha;
+    *aDarkness = (3.0 - sum) * aColor.alpha;
+}
+
+static bool
+GetGradientColors(const GValue* aValue,
+                  GdkRGBA* aLightColor, GdkRGBA* aDarkColor)
+{
+    if (!G_TYPE_CHECK_VALUE_TYPE(aValue, CAIRO_GOBJECT_TYPE_PATTERN))
+        return false;
+
+    auto pattern = static_cast<cairo_pattern_t*>(g_value_get_boxed(aValue));
+    if (!pattern)
+        return false;
+
+    // Just picking the lightest and darkest colors as simple samples rather
+    // than trying to blend, which could get messy if there are many stops.
+    if (CAIRO_STATUS_SUCCESS !=
+        cairo_pattern_get_color_stop_rgba(pattern, 0, nullptr, &aDarkColor->red,
+                                          &aDarkColor->green, &aDarkColor->blue,
+                                          &aDarkColor->alpha))
+        return false;
+
+    double maxLightness, maxDarkness;
+    GetLightAndDarkness(*aDarkColor, &maxLightness, &maxDarkness);
+    *aLightColor = *aDarkColor;
+
+    GdkRGBA stop;
+    for (int index = 1;
+         CAIRO_STATUS_SUCCESS ==
+             cairo_pattern_get_color_stop_rgba(pattern, index, nullptr,
+                                               &stop.red, &stop.green,
+                                               &stop.blue, &stop.alpha);
+         ++index) {
+        double lightness, darkness;
+        GetLightAndDarkness(stop, &lightness, &darkness);
+        if (lightness > maxLightness) {
+            maxLightness = lightness;
+            *aLightColor = stop;
+        }
+        if (darkness > maxDarkness) {
+            maxDarkness = darkness;
+            *aDarkColor = stop;
+        }
+    }
+
+    return true;
+}
+
+static bool
+GetUnicoBorderGradientColors(GtkStyleContext* aContext,
+                             GdkRGBA* aLightColor, GdkRGBA* aDarkColor)
+{
+    // Ubuntu 12.04 has GTK engine Unico-1.0.2, which overrides render_frame,
+    // providing its own border code.  Ubuntu 14.04 has
+    // Unico-1.0.3+14.04.20140109, which does not override render_frame, and
+    // so does not need special attention.  The earlier Unico can be detected
+    // by the -unico-border-gradient style property it registers.
+    // gtk_style_properties_lookup_property() is checked first to avoid the
+    // warning from gtk_style_context_get_property() when the property does
+    // not exist.  (gtk_render_frame() of GTK+ 3.16 no longer uses the
+    // engine.)
+    const char* propertyName = "-unico-border-gradient";
+    if (!gtk_style_properties_lookup_property(propertyName, nullptr, nullptr))
+        return false;
+
+    // -unico-border-gradient is used only when the CSS node's engine is Unico.
+    GtkThemingEngine* engine;
+    GtkStateFlags state = gtk_style_context_get_state(aContext);
+    gtk_style_context_get(aContext, state, "engine", &engine, nullptr);
+    if (strcmp(g_type_name(G_TYPE_FROM_INSTANCE(engine)), "UnicoEngine") != 0)
+        return false;
+
+    // draw_border() of Unico engine uses -unico-border-gradient
+    // in preference to border-color.
+    GValue value = G_VALUE_INIT;
+    gtk_style_context_get_property(aContext, propertyName, state, &value);
+
+    bool result = GetGradientColors(&value, aLightColor, aDarkColor);
+
+    g_value_unset(&value);
+    return result;
+}
+
+
+static void
+GetBorderColors(GtkStyleContext* aContext,
+                GdkRGBA* aLightColor, GdkRGBA* aDarkColor)
+{
+    if (GetUnicoBorderGradientColors(aContext, aLightColor, aDarkColor))
+        return;
+
+    GtkStateFlags state = gtk_style_context_get_state(aContext);
+    gtk_style_context_get_border_color(aContext, state, aDarkColor);
+    // TODO GTK3 - update aLightColor
+    // for GTK_BORDER_STYLE_INSET/OUTSET/GROVE/RIDGE border styles.
+    // https://bugzilla.mozilla.org/show_bug.cgi?id=978172#c25
+    *aLightColor = *aDarkColor;
+}
+
+static void
+GetBorderColors(GtkStyleContext* aContext,
+                nscolor* aLightColor, nscolor* aDarkColor)
+{
+    GdkRGBA lightColor, darkColor;
+    GetBorderColors(aContext, &lightColor, &darkColor);
+    *aLightColor = GDK_RGBA_TO_NS_RGBA(lightColor);
+    *aDarkColor = GDK_RGBA_TO_NS_RGBA(darkColor);
+}
+#endif
 
 nsresult
 nsLookAndFeel::NativeGetColor(ColorID aID, nscolor& aColor)
@@ -102,6 +223,7 @@ nsLookAndFeel::NativeGetColor(ColorID aID, nscolor& aColor)
     case eColorID_window:
     case eColorID_windowframe:
     case eColorID__moz_dialog:
+    case eColorID__moz_combobox:
         aColor = sMozWindowBackground;
         break;
     case eColorID_WindowForeground:
@@ -243,9 +365,7 @@ nsLookAndFeel::NativeGetColor(ColorID aID, nscolor& aColor)
         break;
     case eColorID_graytext: // disabled text in windows, menus, etc.
     case eColorID_inactivecaptiontext: // text in inactive window caption
-        gtk_style_context_get_color(mBackgroundStyle, 
-                                    GTK_STATE_FLAG_INSENSITIVE, &gdk_color);
-        aColor = GDK_RGBA_TO_NS_RGBA(gdk_color);
+        aColor = sMenuTextInactive;
         break;
     case eColorID_inactivecaption:
         // inactive window caption
@@ -405,9 +525,11 @@ nsLookAndFeel::NativeGetColor(ColorID aID, nscolor& aColor)
     case eColorID__moz_comboboxtext:
         aColor = sComboBoxText;
         break;
+#if (MOZ_WIDGET_GTK == 2)
     case eColorID__moz_combobox:
         aColor = sComboBoxBackground;
         break;
+#endif
     case eColorID__moz_menubartext:
         aColor = sMenuBarText;
         break;
@@ -992,25 +1114,6 @@ nsLookAndFeel::Init()
     sMozScrollbar = GDK_RGBA_TO_NS_RGBA(color);
     g_object_unref(style);
 
-    // Text colors
-    style = create_context(path);
-    gtk_style_context_add_class(style, GTK_STYLE_CLASS_VIEW);
-    gtk_style_context_get_background_color(style, GTK_STATE_FLAG_NORMAL, &color);
-    sMozFieldBackground = GDK_RGBA_TO_NS_RGBA(color);
-    gtk_style_context_get_color(style, GTK_STATE_FLAG_NORMAL, &color);
-    sMozFieldText = GDK_RGBA_TO_NS_RGBA(color);
-
-    // Selected text and background
-    gtk_style_context_get_background_color(style,
-        static_cast<GtkStateFlags>(GTK_STATE_FLAG_FOCUSED|GTK_STATE_FLAG_SELECTED),
-        &color);
-    sTextSelectedBackground = GDK_RGBA_TO_NS_RGBA(color);
-    gtk_style_context_get_color(style,
-        static_cast<GtkStateFlags>(GTK_STATE_FLAG_FOCUSED|GTK_STATE_FLAG_SELECTED),
-        &color);
-    sTextSelectedText = GDK_RGBA_TO_NS_RGBA(color);
-    g_object_unref(style);
-
     // Window colors
     style = create_context(path);
     gtk_style_context_save(style);
@@ -1023,6 +1126,7 @@ nsLookAndFeel::Init()
 
     // tooltip foreground and background
     gtk_style_context_add_class(style, GTK_STYLE_CLASS_TOOLTIP);
+    gtk_style_context_add_class(style, GTK_STYLE_CLASS_BACKGROUND);
     gtk_style_context_get_background_color(style, GTK_STATE_FLAG_NORMAL, &color);
     sInfoBackground = GDK_RGBA_TO_NS_RGBA(color);
     gtk_style_context_get_color(style, GTK_STATE_FLAG_NORMAL, &color);
@@ -1042,6 +1146,8 @@ nsLookAndFeel::Init()
     style = gtk_widget_get_style_context(accel_label);
     gtk_style_context_get_color(style, GTK_STATE_FLAG_NORMAL, &color);
     sMenuText = GDK_RGBA_TO_NS_RGBA(color);
+    gtk_style_context_get_color(style, GTK_STATE_FLAG_INSENSITIVE, &color);
+    sMenuTextInactive = GDK_RGBA_TO_NS_RGBA(color);
 
     style = gtk_widget_get_style_context(menu);
     gtk_style_context_get_background_color(style, GTK_STATE_FLAG_NORMAL, &color);
@@ -1073,6 +1179,7 @@ nsLookAndFeel::Init()
     GtkWidget *linkButton = gtk_link_button_new("http://example.com/");
     GtkWidget *menuBar = gtk_menu_bar_new();
     GtkWidget *entry = gtk_entry_new();
+    GtkWidget *textView = gtk_text_view_new();
 
     gtk_container_add(GTK_CONTAINER(button), label);
     gtk_container_add(GTK_CONTAINER(parent), button);
@@ -1082,6 +1189,7 @@ nsLookAndFeel::Init()
     gtk_container_add(GTK_CONTAINER(parent), menuBar);
     gtk_container_add(GTK_CONTAINER(window), parent);
     gtk_container_add(GTK_CONTAINER(parent), entry);
+    gtk_container_add(GTK_CONTAINER(parent), textView);
     
 #if (MOZ_WIDGET_GTK == 2)
     gtk_widget_set_style(button, nullptr);
@@ -1158,6 +1266,26 @@ nsLookAndFeel::Init()
             GDK_COLOR_TO_NS_RGB(style->dark[GTK_STATE_NORMAL]);
     }
 #else
+    // Text colors
+    style = gtk_widget_get_style_context(textView);
+    gtk_style_context_save(style);
+    gtk_style_context_add_class(style, GTK_STYLE_CLASS_VIEW);
+    gtk_style_context_get_background_color(style, GTK_STATE_FLAG_NORMAL, &color);
+    sMozFieldBackground = GDK_RGBA_TO_NS_RGBA(color);
+    gtk_style_context_get_color(style, GTK_STATE_FLAG_NORMAL, &color);
+    sMozFieldText = GDK_RGBA_TO_NS_RGBA(color);
+
+    // Selected text and background
+    gtk_style_context_get_background_color(style,
+        static_cast<GtkStateFlags>(GTK_STATE_FLAG_FOCUSED|GTK_STATE_FLAG_SELECTED),
+        &color);
+    sTextSelectedBackground = GDK_RGBA_TO_NS_RGBA(color);
+    gtk_style_context_get_color(style,
+        static_cast<GtkStateFlags>(GTK_STATE_FLAG_FOCUSED|GTK_STATE_FLAG_SELECTED),
+        &color);
+    sTextSelectedText = GDK_RGBA_TO_NS_RGBA(color);
+    gtk_style_context_restore(style);
+
     // Button text, background, border
     style = gtk_widget_get_style_context(label);
     gtk_style_context_get_color(style, GTK_STATE_FLAG_NORMAL, &color);
@@ -1165,14 +1293,10 @@ nsLookAndFeel::Init()
     gtk_style_context_get_color(style, GTK_STATE_FLAG_PRELIGHT, &color);
     sButtonHoverText = GDK_RGBA_TO_NS_RGBA(color);
 
-    // Combobox label and background colors
+    // Combobox text color
     style = gtk_widget_get_style_context(comboboxLabel);
     gtk_style_context_get_color(style, GTK_STATE_FLAG_NORMAL, &color);
     sComboBoxText = GDK_RGBA_TO_NS_RGBA(color);
-
-    style = gtk_widget_get_style_context(combobox);
-    gtk_style_context_get_background_color(style, GTK_STATE_FLAG_NORMAL, &color);
-    sComboBoxBackground = GDK_RGBA_TO_NS_RGBA(color);
 
     // Menubar text and hover text colors    
     style = gtk_widget_get_style_context(menuBar);
@@ -1198,25 +1322,21 @@ nsLookAndFeel::Init()
 
     GtkWidget *frame = gtk_frame_new(nullptr);
     gtk_container_add(GTK_CONTAINER(parent), frame);
-
-    // TODO GTK3 - update sFrameOuterLightBorder 
-    // for GTK_BORDER_STYLE_INSET/OUTSET/GROVE/RIDGE border styles (Bug 978172).
     style = gtk_widget_get_style_context(frame);
-    gtk_style_context_get_border_color(style, GTK_STATE_FLAG_NORMAL, &color);
-    sFrameInnerDarkBorder = sFrameOuterLightBorder = GDK_RGBA_TO_NS_RGBA(color);
+    GetBorderColors(style, &sFrameOuterLightBorder, &sFrameInnerDarkBorder);
 
     gtk_widget_path_free(path);
 
     // GtkInfoBar
-    path = gtk_widget_path_new();
-    gtk_widget_path_append_type(path, GTK_TYPE_WINDOW);
-    gtk_widget_path_append_type(path, GTK_TYPE_INFO_BAR);
-    style = create_context(path);
+    GtkWidget* infoBar = gtk_info_bar_new();
+    GtkWidget* infoBarContent = gtk_info_bar_get_content_area(GTK_INFO_BAR(infoBar));
+    GtkWidget* infoBarLabel = gtk_label_new(nullptr);
+    gtk_container_add(GTK_CONTAINER(parent), infoBar);
+    gtk_container_add(GTK_CONTAINER(infoBarContent), infoBarLabel);
+    style = gtk_widget_get_style_context(infoBarLabel);
     gtk_style_context_add_class(style, GTK_STYLE_CLASS_INFO);
     gtk_style_context_get_color(style, GTK_STATE_FLAG_NORMAL, &color);
     sInfoBarText = GDK_RGBA_TO_NS_RGBA(color);
-    g_object_unref(style);
-    gtk_widget_path_free(path);
 #endif
     // Some themes have a unified menu bar, and support window dragging on it
     gboolean supports_menubar_drag = FALSE;

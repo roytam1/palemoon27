@@ -62,7 +62,7 @@
     "no-duplicate-case": 2,
 
     // No labels
-    // "no-labels": 2,
+    "no-labels": 2,
 
     // If an if block ends with a return no need for an else block
     // "no-else-return": 2,
@@ -71,10 +71,10 @@
     // "no-empty": 2,
 
     // No empty character classes in regex
-    // "no-empty-character-class": 2,
+    "no-empty-character-class": 2,
 
     // Disallow empty destructuring
-    // "no-empty-pattern": 2,
+    "no-empty-pattern": 2,
 
     // No assiging to exception variable
     // "no-ex-assign": 2,
@@ -83,13 +83,13 @@
     // "no-extra-boolean-cast": 2,
 
     // No double semicolon
-    // "no-extra-semi": 2,
+    "no-extra-semi": 2,
 
     // No overwriting defined functions
-    // "no-func-assign": 2,
+    "no-func-assign": 2,
 
     // No invalid regular expresions
-    // "no-invalid-regexp": 2,
+    "no-invalid-regexp": 2,
 
     // No odd whitespace characters
     // "no-irregular-whitespace": 2,
@@ -104,13 +104,13 @@
     // "no-multi-spaces": [2, { exceptions: { "AssignmentExpression": true, "VariableDeclarator": true, "ArrayExpression": true, "ObjectExpression": true } }],
 
     // No reassigning native JS objects
-    // "no-native-reassign": 2,
+    "no-native-reassign": 2,
 
     // No (!foo in bar)
-    // "no-negated-in-lhs": 2,
+    "no-negated-in-lhs": 2,
 
     // Nested ternary statements are confusing
-    // "no-nested-ternary": 2,
+    "no-nested-ternary": 2,
 
     // Use {} instead of new Object()
     // "no-new-object": 2,
@@ -137,7 +137,7 @@
     // "no-spaced-func": 2,
 
     // No trailing whitespace
-    // "no-trailing-spaces": 2,
+    "no-trailing-spaces": 2,
 
     // No using undeclared variables
     // "no-undef": 2,
@@ -191,6 +191,16 @@
     // "use-isnan": 2,
 
     // Only check typeof against valid results
-    // "valid-typeof": 2,
+    "valid-typeof": 2,
+  },
+  "env": {
+    "es6": true,
+    "browser": true,
+  },
+  "globals": {
+    "Components": false,
+    "dump": true,
+    "openDialog": false,
+    "sizeToContent": false,
   }
 }

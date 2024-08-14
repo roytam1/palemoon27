@@ -26,6 +26,7 @@
 #include "GeckoProfiler.h"
 #include "jsfriendapi.h"
 #include "mozilla/ArrayUtils.h"
+#include "mozilla/Atomics.h"
 #include "mozilla/CycleCollectedJSRuntime.h"
 #include "mozilla/Telemetry.h"
 #include "mozilla/TimeStamp.h"
@@ -38,7 +39,7 @@
 #include "mozilla/dom/MessageEventBinding.h"
 #include "mozilla/dom/WorkerBinding.h"
 #include "mozilla/dom/ScriptSettings.h"
-#include "mozilla/dom/indexedDB/IndexedDatabaseManager.h"
+#include "mozilla/dom/IndexedDatabaseManager.h"
 #include "mozilla/ipc/BackgroundChild.h"
 #include "mozilla/DebugOnly.h"
 #include "mozilla/Preferences.h"
@@ -49,6 +50,7 @@
 #include "nsIIPCBackgroundChildCreateCallback.h"
 #include "nsISupportsImpl.h"
 #include "nsLayoutStatics.h"
+#include "nsNetUtil.h"
 #include "nsServiceManagerUtils.h"
 #include "nsThreadUtils.h"
 #include "nsXPCOM.h"
@@ -65,13 +67,9 @@
 #include "WorkerDebuggerManager.h"
 #include "WorkerPrivate.h"
 #include "WorkerRunnable.h"
+#include "WorkerScope.h"
 #include "WorkerThread.h"
-
-#ifdef ENABLE_TESTS
-#include "BackgroundChildImpl.h"
-#include "mozilla/ipc/PBackgroundChild.h"
-#include "prrng.h"
-#endif
+#include "prsystem.h"
 
 using namespace mozilla;
 using namespace mozilla::dom;
@@ -82,7 +80,6 @@ USING_WORKERS_NAMESPACE
 using mozilla::MutexAutoLock;
 using mozilla::MutexAutoUnlock;
 using mozilla::Preferences;
-using mozilla::dom::indexedDB::IndexedDatabaseManager;
 
 // The size of the worker runtime heaps in bytes. May be changed via pref.
 #define WORKER_DEFAULT_RUNTIME_HEAPSIZE 32 * 1024 * 1024
@@ -134,10 +131,8 @@ static_assert(MAX_WORKERS_PER_DOMAIN >= 1,
     }                                                                          \
                                                                                \
     if (!workers.IsEmpty()) {                                                  \
-      AutoSafeJSContext cx;                                                    \
-      JSAutoRequest ar(cx);                                                    \
       for (uint32_t index = 0; index < workers.Length(); index++) {            \
-        workers[index]-> _func (cx, __VA_ARGS__);                              \
+        workers[index]-> _func (__VA_ARGS__);                                  \
       }                                                                        \
     }                                                                          \
   PR_END_MACRO
@@ -162,10 +157,6 @@ RuntimeService* gRuntimeService = nullptr;
 
 // Only true during the call to Init.
 bool gRuntimeServiceDuringInit = false;
-
-#ifdef ENABLE_TESTS
-bool gTestPBackground = false;
-#endif // ENABLE_TESTS
 
 class LiteralRebindingCString : public nsDependentCString
 {
@@ -314,6 +305,7 @@ LoadRuntimeOptions(const char* aPrefName, void* /* aClosure */)
   // Runtime options.
   JS::RuntimeOptions runtimeOptions;
   runtimeOptions.setAsmJS(GetWorkerPref<bool>(NS_LITERAL_CSTRING("asmjs")))
+                .setWasm(GetWorkerPref<bool>(NS_LITERAL_CSTRING("wasm")))
                 .setThrowOnAsmJSValidationFailure(GetWorkerPref<bool>(
                       NS_LITERAL_CSTRING("throw_on_asmjs_validation_failure")))
                 .setBaseline(GetWorkerPref<bool>(NS_LITERAL_CSTRING("baselinejit")))
@@ -563,6 +555,15 @@ LoadJSGCMemoryOptions(const char* aPrefName, void* /* aClosure */)
       continue;
     }
 
+    matchName.RebindLiteral(PREF_MEM_OPTIONS_PREFIX "gc_refresh_frame_slices_enabled");
+    if (memPrefName == matchName ||
+        (gRuntimeServiceDuringInit && index == 15)) {
+      bool prefValue = GetWorkerPref(matchName, false);
+      UpdateOtherJSGCMemoryOption(rts, JSGC_REFRESH_FRAME_SLICES_ENABLED,
+                                 prefValue ? 0 : 1);
+      continue;
+    }
+
 #ifdef DEBUG
     nsAutoCString message("Workers don't support the 'mem.");
     message.Append(memPrefName);
@@ -570,15 +571,6 @@ LoadJSGCMemoryOptions(const char* aPrefName, void* /* aClosure */)
     NS_WARNING(message.get());
 #endif
   }
-}
-
-void
-ErrorReporter(JSContext* aCx, const char* aMessage, JSErrorReport* aReport)
-{
-  WorkerPrivate* worker = GetWorkerPrivateFromContext(aCx);
-  MOZ_ASSERT(worker);
-
-  return worker->ReportError(aCx, aMessage, aReport);
 }
 
 bool
@@ -612,7 +604,7 @@ public:
   NS_DECL_ISUPPORTS_INHERITED
 
   bool
-  Dispatch(JSContext* aCx)
+  Dispatch()
   {
     AutoSyncLoopHolder syncLoop(mWorkerPrivate);
 
@@ -620,7 +612,6 @@ public:
     MOZ_ASSERT(mSyncLoopTarget);
 
     if (NS_FAILED(NS_DispatchToMainThread(this))) {
-      JS_ReportError(aCx, "Failed to dispatch to main thread!");
       return false;
     }
 
@@ -643,19 +634,17 @@ ContentSecurityPolicyAllows(JSContext* aCx)
     nsString fileName;
     uint32_t lineNum = 0;
 
-    JS::UniqueChars file;
+    JS::AutoFilename file;
     if (JS::DescribeScriptedCaller(aCx, &file, &lineNum) && file.get()) {
       fileName = NS_ConvertUTF8toUTF16(file.get());
     } else {
-      JS_ReportPendingException(aCx);
+      MOZ_ASSERT(!JS_IsExceptionPending(aCx));
     }
 
     RefPtr<LogViolationDetailsRunnable> runnable =
         new LogViolationDetailsRunnable(worker, fileName, lineNum);
 
-    if (!runnable->Dispatch(aCx)) {
-      JS_ReportPendingException(aCx);
-    }
+    runnable->Dispatch();
   }
 
   return worker->IsEvalAllowed();
@@ -817,8 +806,7 @@ CreateJSContextForWorker(WorkerPrivate* aWorkerPrivate, JSRuntime* aRuntime)
     AsmJSCacheOpenEntryForRead,
     asmjscache::CloseEntryForRead,
     AsmJSCacheOpenEntryForWrite,
-    asmjscache::CloseEntryForWrite,
-    asmjscache::GetBuildId
+    asmjscache::CloseEntryForWrite
   };
   JS::SetAsmJSCacheOps(aRuntime, &asmJSCacheOps);
 
@@ -827,8 +815,6 @@ CreateJSContextForWorker(WorkerPrivate* aWorkerPrivate, JSRuntime* aRuntime)
     NS_WARNING("Could not create new context!");
     return nullptr;
   }
-
-  JS_SetErrorReporter(aRuntime, ErrorReporter);
 
   JS_SetInterruptCallback(aRuntime, InterruptCallback);
 
@@ -886,26 +872,18 @@ class WorkerJSRuntime : public mozilla::CycleCollectedJSRuntime
 public:
   // The heap size passed here doesn't matter, we will change it later in the
   // call to JS_SetGCParameter inside CreateJSContextForWorker.
-  WorkerJSRuntime(JSRuntime* aParentRuntime, WorkerPrivate* aWorkerPrivate)
-    : CycleCollectedJSRuntime(aParentRuntime,
-                              WORKER_DEFAULT_RUNTIME_HEAPSIZE,
-                              WORKER_DEFAULT_NURSERY_SIZE),
-    mWorkerPrivate(aWorkerPrivate)
+  explicit WorkerJSRuntime(WorkerPrivate* aWorkerPrivate)
+    : mWorkerPrivate(aWorkerPrivate)
   {
-    JSRuntime* rt = Runtime();
-    MOZ_ASSERT(rt);
-
-    JS_SetRuntimePrivate(rt, new WorkerThreadRuntimePrivate(aWorkerPrivate));
-
-    js::SetPreserveWrapperCallback(rt, PreserveWrapper);
-    JS_InitDestroyPrincipalsCallback(rt, DestroyWorkerPrincipals);
-    JS_SetWrapObjectCallbacks(rt, &WrapObjectCallbacks);
+    MOZ_ASSERT(aWorkerPrivate);
   }
 
   ~WorkerJSRuntime()
   {
-    JSRuntime* rt = Runtime();
-    MOZ_ASSERT(rt);
+    JSRuntime* rt = MaybeRuntime();
+    if (!rt) {
+      return;   // Initialize() must have failed
+    }
 
     delete static_cast<WorkerThreadRuntimePrivate*>(JS_GetRuntimePrivate(rt));
     JS_SetRuntimePrivate(rt, nullptr);
@@ -919,6 +897,31 @@ public:
     // The CC is shut down, and the superclass destructor will GC, so make sure
     // we don't try to CC again.
     mWorkerPrivate = nullptr;
+  }
+
+  nsresult Initialize(JSRuntime* aParentRuntime)
+  {
+    nsresult rv =
+      CycleCollectedJSRuntime::Initialize(aParentRuntime,
+                                          WORKER_DEFAULT_RUNTIME_HEAPSIZE,
+                                          WORKER_DEFAULT_NURSERY_SIZE);
+     if (NS_WARN_IF(NS_FAILED(rv))) {
+       return rv;
+     }
+
+    JSRuntime* rt = Runtime();
+    MOZ_ASSERT(rt);
+
+    JS_SetRuntimePrivate(rt, new WorkerThreadRuntimePrivate(mWorkerPrivate));
+
+    js::SetPreserveWrapperCallback(rt, PreserveWrapper);
+    JS_InitDestroyPrincipalsCallback(rt, DestroyWorkerPrincipals);
+    JS_SetWrapObjectCallbacks(rt, &WrapObjectCallbacks);
+    if (mWorkerPrivate->IsDedicatedWorker()) {
+      JS_SetFutexCanWait(rt);
+    }
+
+    return NS_OK;
   }
 
   virtual void
@@ -968,61 +971,37 @@ public:
     }
   }
 
+  virtual void DispatchToMicroTask(nsIRunnable* aRunnable) override
+  {
+    MOZ_ASSERT(!NS_IsMainThread());
+    MOZ_ASSERT(aRunnable);
+
+    std::queue<nsCOMPtr<nsIRunnable>>* microTaskQueue = nullptr;
+
+    JSContext* cx = GetCurrentThreadJSContext();
+    NS_ASSERTION(cx, "This should never be null!");
+
+    JS::Rooted<JSObject*> global(cx, JS::CurrentGlobalOrNull(cx));
+    NS_ASSERTION(global, "This should never be null!");
+
+    // On worker threads, if the current global is the worker global, we use the
+    // main promise micro task queue. Otherwise, the current global must be
+    // either the debugger global or a debugger sandbox, and we use the debugger
+    // promise micro task queue instead.
+    if (IsWorkerGlobal(global)) {
+      microTaskQueue = &mPromiseMicroTaskQueue;
+    } else {
+      MOZ_ASSERT(IsDebuggerGlobal(global) || IsDebuggerSandbox(global));
+
+      microTaskQueue = &mDebuggerPromiseMicroTaskQueue;
+    }
+
+    microTaskQueue->push(aRunnable);
+  }
+
 private:
   WorkerPrivate* mWorkerPrivate;
 };
-
-#ifdef ENABLE_TESTS
-
-class TestPBackgroundCreateCallback final :
-  public nsIIPCBackgroundChildCreateCallback
-{
-public:
-  NS_DECL_ISUPPORTS
-
-  virtual void
-  ActorCreated(PBackgroundChild* aActor) override
-  {
-    MOZ_RELEASE_ASSERT(aActor);
-  }
-
-  virtual void
-  ActorFailed() override
-  {
-    MOZ_CRASH("TestPBackground() should not fail "
-              "GetOrCreateForCurrentThread()");
-  }
-
-private:
-  ~TestPBackgroundCreateCallback()
-  { }
-};
-
-NS_IMPL_ISUPPORTS(TestPBackgroundCreateCallback,
-                  nsIIPCBackgroundChildCreateCallback);
-
-void
-TestPBackground()
-{
-  using namespace mozilla::ipc;
-
-  if (gTestPBackground) {
-    // Randomize value to validate workers are not cross-posting messages.
-    uint32_t testValue;
-    size_t randomSize = PR_GetRandomNoise(&testValue, sizeof(testValue));
-    MOZ_RELEASE_ASSERT(randomSize == sizeof(testValue));
-    nsCString testStr;
-    testStr.AppendInt(testValue);
-    testStr.AppendInt(reinterpret_cast<int64_t>(PR_GetCurrentThread()));
-    PBackgroundChild* existingBackgroundChild =
-      BackgroundChild::GetForCurrentThread();
-    MOZ_RELEASE_ASSERT(existingBackgroundChild);
-    bool ok = existingBackgroundChild->SendPBackgroundTestConstructor(testStr);
-    MOZ_RELEASE_ASSERT(ok);
-  }
-}
-
-#endif // ENABLE_TESTS
 
 class WorkerBackgroundChildCallback final :
   public nsIIPCBackgroundChildCreateCallback
@@ -1117,15 +1096,14 @@ public:
 
 private:
   virtual bool
-  PreDispatch(JSContext* aCx, WorkerPrivate* aWorkerPrivate) override
+  PreDispatch(WorkerPrivate* aWorkerPrivate) override
   {
     // May be called on any thread!
     return true;
   }
 
   virtual void
-  PostDispatch(JSContext* aCx, WorkerPrivate* aWorkerPrivate,
-               bool aDispatchResult) override
+  PostDispatch(WorkerPrivate* aWorkerPrivate, bool aDispatchResult) override
   {
     // May be called on any thread!
   }
@@ -1304,7 +1282,7 @@ WorkerCrossThreadDispatcher::PostTask(WorkerTask* aTask)
 
   RefPtr<WorkerTaskRunnable> runnable =
     new WorkerTaskRunnable(mWorkerPrivate, aTask);
-  return runnable->Dispatch(nullptr);
+  return runnable->Dispatch();
 }
 
 WorkerPrivate*
@@ -1355,6 +1333,12 @@ GetCurrentThreadJSContext()
   return GetCurrentThreadWorkerPrivate()->GetJSContext();
 }
 
+JSObject*
+GetCurrentThreadWorkerGlobal()
+{
+  return GetCurrentThreadWorkerPrivate()->GlobalScope()->GetGlobalJSObject();
+}
+
 END_WORKERS_NAMESPACE
 
 struct RuntimeService::IdleThreadInfo
@@ -1401,10 +1385,6 @@ RuntimeService::GetOrCreateService()
       gRuntimeService = nullptr;
       return nullptr;
     }
-
-#ifdef ENABLE_TESTS
-    gTestPBackground = mozilla::Preferences::GetBool("pbackground.testing", false);
-#endif // ENABLE_TESTS
   }
 
   return gRuntimeService;
@@ -1418,7 +1398,7 @@ RuntimeService::GetService()
 }
 
 bool
-RuntimeService::RegisterWorker(JSContext* aCx, WorkerPrivate* aWorkerPrivate)
+RuntimeService::RegisterWorker(WorkerPrivate* aWorkerPrivate)
 {
   aWorkerPrivate->AssertIsOnParentThread();
 
@@ -1427,7 +1407,6 @@ RuntimeService::RegisterWorker(JSContext* aCx, WorkerPrivate* aWorkerPrivate)
     AssertIsOnMainThread();
 
     if (mShuttingDown) {
-      JS_ReportError(aCx, "Cannot create worker during shutdown!");
       return false;
     }
   }
@@ -1449,7 +1428,6 @@ RuntimeService::RegisterWorker(JSContext* aCx, WorkerPrivate* aWorkerPrivate)
     nsresult rv = scriptURI->GetSpec(sharedWorkerScriptSpec);
     if (NS_FAILED(rv)) {
       NS_WARNING("GetSpec failed?!");
-      xpc::Throw(aCx, rv);
       return false;
     }
 
@@ -1524,8 +1502,8 @@ RuntimeService::RegisterWorker(JSContext* aCx, WorkerPrivate* aWorkerPrivate)
 
   // From here on out we must call UnregisterWorker if something fails!
   if (parent) {
-    if (!parent->AddChildWorker(aCx, aWorkerPrivate)) {
-      UnregisterWorker(aCx, aWorkerPrivate);
+    if (!parent->AddChildWorker(aWorkerPrivate)) {
+      UnregisterWorker(aWorkerPrivate);
       return false;
     }
   }
@@ -1537,8 +1515,7 @@ RuntimeService::RegisterWorker(JSContext* aCx, WorkerPrivate* aWorkerPrivate)
                                              false /* aUsePrefOverriddenValue */)) ||
           NS_FAILED(Navigator::GetPlatform(mNavigatorProperties.mPlatform,
                                            false /* aUsePrefOverriddenValue */))) {
-        JS_ReportError(aCx, "Failed to load navigator strings!");
-        UnregisterWorker(aCx, aWorkerPrivate);
+        UnregisterWorker(aWorkerPrivate);
         return false;
       }
 
@@ -1567,7 +1544,7 @@ RuntimeService::RegisterWorker(JSContext* aCx, WorkerPrivate* aWorkerPrivate)
     }
   }
 
-  if (!queued && !ScheduleWorker(aCx, aWorkerPrivate)) {
+  if (!queued && !ScheduleWorker(aWorkerPrivate)) {
     return false;
   }
 
@@ -1600,7 +1577,7 @@ RuntimeService::RemoveSharedWorker(WorkerDomainInfo* aDomainInfo,
 }
 
 void
-RuntimeService::UnregisterWorker(JSContext* aCx, WorkerPrivate* aWorkerPrivate)
+RuntimeService::UnregisterWorker(WorkerPrivate* aWorkerPrivate)
 {
   aWorkerPrivate->AssertIsOnParentThread();
 
@@ -1681,7 +1658,7 @@ RuntimeService::UnregisterWorker(JSContext* aCx, WorkerPrivate* aWorkerPrivate)
   }
 
   if (parent) {
-    parent->RemoveChildWorker(aCx, aWorkerPrivate);
+    parent->RemoveChildWorker(aWorkerPrivate);
   }
   else if (aWorkerPrivate->IsSharedWorker()) {
     AssertIsOnMainThread();
@@ -1714,13 +1691,13 @@ RuntimeService::UnregisterWorker(JSContext* aCx, WorkerPrivate* aWorkerPrivate)
     }
   }
 
-  if (queuedWorker && !ScheduleWorker(aCx, queuedWorker)) {
-    UnregisterWorker(aCx, queuedWorker);
+  if (queuedWorker && !ScheduleWorker(queuedWorker)) {
+    UnregisterWorker(queuedWorker);
   }
 }
 
 bool
-RuntimeService::ScheduleWorker(JSContext* aCx, WorkerPrivate* aWorkerPrivate)
+RuntimeService::ScheduleWorker(WorkerPrivate* aWorkerPrivate)
 {
   if (!aWorkerPrivate->Start()) {
     // This is ok, means that we didn't need to make a thread for this worker.
@@ -1742,8 +1719,7 @@ RuntimeService::ScheduleWorker(JSContext* aCx, WorkerPrivate* aWorkerPrivate)
   if (!thread) {
     thread = WorkerThread::Create(friendKey);
     if (!thread) {
-      UnregisterWorker(aCx, aWorkerPrivate);
-      JS_ReportError(aCx, "Could not create new thread!");
+      UnregisterWorker(aWorkerPrivate);
       return false;
     }
   }
@@ -1756,11 +1732,12 @@ RuntimeService::ScheduleWorker(JSContext* aCx, WorkerPrivate* aWorkerPrivate)
     NS_WARNING("Could not set the thread's priority!");
   }
 
+  JSRuntime* rt = CycleCollectedJSRuntime::Get()->Runtime();
   nsCOMPtr<nsIRunnable> runnable =
-    new WorkerThreadPrimaryRunnable(aWorkerPrivate, thread, JS_GetParentRuntime(aCx));
+    new WorkerThreadPrimaryRunnable(aWorkerPrivate, thread,
+                                    JS_GetParentRuntime(rt));
   if (NS_FAILED(thread->DispatchPrimaryRunnable(friendKey, runnable.forget()))) {
-    UnregisterWorker(aCx, aWorkerPrivate);
-    JS_ReportError(aCx, "Could not dispatch to thread!");
+    UnregisterWorker(aWorkerPrivate);
     return false;
   }
 
@@ -1809,11 +1786,11 @@ RuntimeService::ShutdownIdleThreads(nsITimer* aTimer, void* /* aClosure */)
     uint32_t delay(delta > TimeDuration(0) ? delta.ToMilliseconds() : 0);
 
     // Reschedule the timer.
-    MOZ_ALWAYS_TRUE(NS_SUCCEEDED(
+    MOZ_ALWAYS_SUCCEEDS(
       aTimer->InitWithFuncCallback(ShutdownIdleThreads,
                                    nullptr,
                                    delay,
-                                   nsITimer::TYPE_ONE_SHOT)));
+                                   nsITimer::TYPE_ONE_SHOT));
   }
 
   for (uint32_t index = 0; index < expiredThreads.Length(); index++) {
@@ -1969,12 +1946,6 @@ RuntimeService::Shutdown()
   // That's it, no more workers.
   mShuttingDown = true;
 
-  // Remove all listeners from the worker debugger manager to ensure that it
-  // gets properly destroyed.
-  if (NS_FAILED(ClearWorkerDebuggerManagerListeners())) {
-    NS_WARNING("Failed to clear worker debugger manager listeners!");
-  }
-
   nsCOMPtr<nsIObserverService> obs = services::GetObserverService();
   NS_WARN_IF_FALSE(obs, "Failed to get observer service?!");
 
@@ -1995,11 +1966,8 @@ RuntimeService::Shutdown()
       {
         MutexAutoUnlock unlock(mMutex);
 
-        AutoSafeJSContext cx;
-        JSAutoRequest ar(cx);
-
         for (uint32_t index = 0; index < workers.Length(); index++) {
-          if (!workers[index]->Kill(cx)) {
+          if (!workers[index]->Kill()) {
             NS_WARNING("Failed to cancel worker!");
           }
         }
@@ -2196,19 +2164,13 @@ RuntimeService::CancelWorkersForWindow(nsPIDOMWindow* aWindow)
   GetWorkersForWindow(aWindow, workers);
 
   if (!workers.IsEmpty()) {
-    AutoJSAPI jsapi;
-    if (NS_WARN_IF(!jsapi.InitWithLegacyErrorReporting(aWindow))) {
-      return;
-    }
-    JSContext* cx = jsapi.cx();
-
     for (uint32_t index = 0; index < workers.Length(); index++) {
       WorkerPrivate*& worker = workers[index];
 
       if (worker->IsSharedWorker()) {
         worker->CloseSharedWorkersForWindow(aWindow);
-      } else if (!worker->Cancel(cx)) {
-        JS_ReportPendingException(cx);
+      } else {
+        worker->Cancel();
       }
     }
   }
@@ -2223,18 +2185,8 @@ RuntimeService::FreezeWorkersForWindow(nsPIDOMWindow* aWindow)
   AutoTArray<WorkerPrivate*, MAX_WORKERS_PER_DOMAIN> workers;
   GetWorkersForWindow(aWindow, workers);
 
-  if (!workers.IsEmpty()) {
-    AutoJSAPI jsapi;
-    if (NS_WARN_IF(!jsapi.InitWithLegacyErrorReporting(aWindow))) {
-      return;
-    }
-    JSContext* cx = jsapi.cx();
-
-    for (uint32_t index = 0; index < workers.Length(); index++) {
-      if (!workers[index]->Freeze(cx, aWindow)) {
-        JS_ReportPendingException(cx);
-      }
-    }
+  for (uint32_t index = 0; index < workers.Length(); index++) {
+    workers[index]->Freeze(aWindow);
   }
 }
 
@@ -2247,18 +2199,8 @@ RuntimeService::ThawWorkersForWindow(nsPIDOMWindow* aWindow)
   AutoTArray<WorkerPrivate*, MAX_WORKERS_PER_DOMAIN> workers;
   GetWorkersForWindow(aWindow, workers);
 
-  if (!workers.IsEmpty()) {
-    AutoJSAPI jsapi;
-    if (NS_WARN_IF(!jsapi.InitWithLegacyErrorReporting(aWindow))) {
-      return;
-    }
-    JSContext* cx = jsapi.cx();
-
-    for (uint32_t index = 0; index < workers.Length(); index++) {
-      if (!workers[index]->Thaw(cx, aWindow)) {
-        JS_ReportPendingException(cx);
-      }
-    }
+  for (uint32_t index = 0; index < workers.Length(); index++) {
+    workers[index]->Thaw(aWindow);
   }
 }
 
@@ -2370,16 +2312,16 @@ RuntimeService::CreateSharedWorkerFromLoadInfo(JSContext* aCx,
 
   // We don't actually care about this MessageChannel, but we use it to 'steal'
   // its 2 connected ports.
-  RefPtr<MessageChannel> channel = MessageChannel::Constructor(window, rv);
+  nsCOMPtr<nsIGlobalObject> global = do_QueryInterface(window);
+  RefPtr<MessageChannel> channel = MessageChannel::Constructor(global, rv);
   if (NS_WARN_IF(rv.Failed())) {
     return rv.StealNSResult();
   }
 
   RefPtr<SharedWorker> sharedWorker = new SharedWorker(window, workerPrivate,
-                                                         channel->Port1());
+                                                       channel->Port1());
 
-  if (!workerPrivate->RegisterSharedWorker(aCx, sharedWorker,
-                                           channel->Port2())) {
+  if (!workerPrivate->RegisterSharedWorker(sharedWorker, channel->Port2())) {
     NS_WARNING("Worker is unreachable, this shouldn't happen!");
     sharedWorker->Close();
     return NS_ERROR_FAILURE;
@@ -2453,13 +2395,13 @@ RuntimeService::NoteIdleThread(WorkerThread* aThread)
 
   // Too many idle threads, just shut this one down.
   if (shutdownThread) {
-    MOZ_ALWAYS_TRUE(NS_SUCCEEDED(aThread->Shutdown()));
+    MOZ_ALWAYS_SUCCEEDS(aThread->Shutdown());
   } else if (scheduleTimer) {
-    MOZ_ALWAYS_TRUE(NS_SUCCEEDED(
+    MOZ_ALWAYS_SUCCEEDS(
       mIdleThreadTimer->InitWithFuncCallback(ShutdownIdleThreads,
                                              nullptr,
                                              IDLE_THREAD_TIMEOUT_SEC * 1000,
-                                             nsITimer::TYPE_ONE_SHOT)));
+                                             nsITimer::TYPE_ONE_SHOT));
   }
 }
 
@@ -2539,6 +2481,34 @@ RuntimeService::SendOfflineStatusChangeEventToAllWorkers(bool aIsOffline)
   BROADCAST_ALL_WORKERS(OfflineStatusChangeEvent, aIsOffline);
 }
 
+void
+RuntimeService::MemoryPressureAllWorkers()
+{
+  BROADCAST_ALL_WORKERS(MemoryPressure, /* dummy = */ false);
+}
+
+uint32_t
+RuntimeService::ClampedHardwareConcurrency() const
+{
+  // This needs to be atomic, because multiple workers, and even mainthread,
+  // could race to initialize it at once.
+  static Atomic<uint32_t> clampedHardwareConcurrency;
+
+  // No need to loop here: if compareExchange fails, that just means that some
+  // other worker has initialized numberOfProcessors, so we're good to go.
+  if (!clampedHardwareConcurrency) {
+    int32_t numberOfProcessors = PR_GetNumberOfProcessors();
+    if (numberOfProcessors <= 0) {
+      numberOfProcessors = 1; // Must be one there somewhere
+    }
+    uint32_t clampedValue = std::min(uint32_t(numberOfProcessors),
+                                     gMaxWorkersPerDomain);
+    clampedHardwareConcurrency.compareExchange(0, clampedValue);
+  }
+
+  return clampedHardwareConcurrency;
+}
+
 // nsISupports
 NS_IMPL_ISUPPORTS(RuntimeService, nsIObserver)
 
@@ -2568,6 +2538,7 @@ RuntimeService::Observe(nsISupports* aSubject, const char* aTopic,
   if (!strcmp(aTopic, MEMORY_PRESSURE_OBSERVER_TOPIC)) {
     GarbageCollectAllWorkers(/* shrinking = */ true);
     CycleCollectAllWorkers();
+    MemoryPressureAllWorkers();
     return NS_OK;
   }
   if (!strcmp(aTopic, NS_IOSERVICE_OFFLINE_STATUS_TOPIC)) {
@@ -2644,7 +2615,7 @@ LogViolationDetailsRunnable::Run()
   RefPtr<MainThreadStopSyncLoopRunnable> response =
     new MainThreadStopSyncLoopRunnable(mWorkerPrivate, mSyncLoopTarget.forget(),
                                        true);
-  MOZ_ALWAYS_TRUE(response->Dispatch(nullptr));
+  MOZ_ALWAYS_TRUE(response->Dispatch());
 
   return NS_OK;
 }
@@ -2687,16 +2658,17 @@ WorkerThreadPrimaryRunnable::Run()
 
   mWorkerPrivate->SetThread(mThread);
 
-#ifdef ENABLE_TESTS
-  TestPBackground();
-#endif
-
   mWorkerPrivate->AssertIsOnWorkerThread();
 
   {
     nsCycleCollector_startup();
 
-    WorkerJSRuntime runtime(mParentRuntime, mWorkerPrivate);
+    WorkerJSRuntime runtime(mWorkerPrivate);
+    nsresult rv = runtime.Initialize(mParentRuntime);
+    if (NS_WARN_IF(NS_FAILED(rv))) {
+      return rv;
+    }
+
     JSRuntime* rt = runtime.Runtime();
 
     JSContext* cx = CreateJSContextForWorker(mWorkerPrivate, rt);
@@ -2718,13 +2690,11 @@ WorkerThreadPrimaryRunnable::Run()
         JSAutoRequest ar(cx);
 
         mWorkerPrivate->DoRunLoop(cx);
-
-        JS_ReportPendingException(cx);
+        // The AutoJSAPI in DoRunLoop should have reported any exceptions left
+        // on cx.  Note that we still need the JSAutoRequest above because
+        // AutoJSAPI on workers does NOT enter a request!
+        MOZ_ASSERT(!JS_IsExceptionPending(cx));
       }
-
-#ifdef ENABLE_TESTS
-      TestPBackground();
-#endif
 
       BackgroundChild::CloseForCurrentThread();
 
@@ -2734,6 +2704,13 @@ WorkerThreadPrimaryRunnable::Run()
       }
 #endif
     }
+
+    // There may still be runnables on the debugger event queue that hold a
+    // strong reference to the debugger global scope. These runnables are not
+    // visible to the cycle collector, so we need to make sure to clear the
+    // debugger event queue before we try to destroy the context. If we don't,
+    // the garbage collector will crash.
+    mWorkerPrivate->ClearDebuggerEventQueue();
 
     // Destroy the main context. This will unroot the main worker global and GC,
     // which should break all cycles that touch JS.
@@ -2762,8 +2739,8 @@ WorkerThreadPrimaryRunnable::Run()
 
   RefPtr<FinishedRunnable> finishedRunnable =
     new FinishedRunnable(mThread.forget());
-  MOZ_ALWAYS_TRUE(NS_SUCCEEDED(mainThread->Dispatch(finishedRunnable,
-                                                    NS_DISPATCH_NORMAL)));
+  MOZ_ALWAYS_SUCCEEDS(mainThread->Dispatch(finishedRunnable,
+                                           NS_DISPATCH_NORMAL));
 
   profiler_unregister_thread();
   return NS_OK;
@@ -2813,7 +2790,7 @@ WorkerThreadPrimaryRunnable::FinishedRunnable::Run()
     rts->NoteIdleThread(thread);
   }
   else if (thread->ShutdownRequired()) {
-    MOZ_ALWAYS_TRUE(NS_SUCCEEDED(thread->Shutdown()));
+    MOZ_ALWAYS_SUCCEEDS(thread->Shutdown());
   }
 
   return NS_OK;

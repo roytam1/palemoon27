@@ -506,11 +506,16 @@ class HashSet
         return false;
     }
 
-    // Infallibly rekey one entry with a new key that is equivalent.
-    void rekeyInPlace(Ptr p, const T& new_value)
-    {
+    // Infallibly replace the current key at |p| with an equivalent key.
+    // Specifically, both HashPolicy::hash and HashPolicy::match must return
+    // identical results for the new and old key when applied against all
+    // possible matching values.
+    void replaceKey(Ptr p, const T& new_value) {
+        MOZ_ASSERT(p.found());
+        MOZ_ASSERT(*p != new_value);
+        MOZ_ASSERT(HashPolicy::hash(*p) == HashPolicy::hash(new_value));
         MOZ_ASSERT(HashPolicy::match(*p, new_value));
-        impl.rekeyInPlace(p, new_value);
+        const_cast<T&>(*p) = new_value;
     }
 
     // HashSet is movable
@@ -1078,9 +1083,9 @@ class HashTable : private AllocPolicy
     static const size_t CAP_BITS = 30;
 
   public:
-    Entry*      table;                 // entry storage
-    uint32_t    gen:24;                 // entry storage generation number
-    uint32_t    hashShift:8;            // multiplicative hash shift
+    uint64_t    gen:56;                 // entry storage generation number
+    uint64_t    hashShift:8;            // multiplicative hash shift
+    Entry*      table;                  // entry storage
     uint32_t    entryCount;             // number of entries in table
     uint32_t    removedCount;           // removed entry sentinels in table
 
@@ -1177,9 +1182,9 @@ class HashTable : private AllocPolicy
   public:
     explicit HashTable(AllocPolicy ap)
       : AllocPolicy(ap)
-      , table(nullptr)
       , gen(0)
       , hashShift(sHashBits)
+      , table(nullptr)
       , entryCount(0)
       , removedCount(0)
 #ifdef JS_DEBUG
@@ -1558,6 +1563,33 @@ class HashTable : private AllocPolicy
         // which approach is best.
     }
 
+    // Note: |l| may be a reference to a piece of |u|, so this function
+    // must take care not to use |l| after moving |u|.
+    //
+    // Prefer to use putNewInfallible; this function does not check
+    // invariants.
+    template <typename... Args>
+    void putNewInfallibleInternal(const Lookup& l, Args&&... args)
+    {
+        MOZ_ASSERT(table);
+
+        HashNumber keyHash = prepareHash(l);
+        Entry* entry = &findFreeEntry(keyHash);
+        MOZ_ASSERT(entry);
+
+        if (entry->isRemoved()) {
+            METER(stats.addOverRemoved++);
+            removedCount--;
+            keyHash |= sCollisionBit;
+        }
+
+        entry->setLive(keyHash, mozilla::Forward<Args>(args)...);
+        entryCount++;
+#ifdef JS_DEBUG
+        mutationCount++;
+#endif
+    }
+
   public:
     void clear()
     {
@@ -1677,7 +1709,7 @@ class HashTable : private AllocPolicy
             RebuildStatus status = checkOverloaded();
             if (status == RehashFailed)
                 return false;
-            if (!this->checkSimulatedOOM())
+            if (status == NotOverloaded && !this->checkSimulatedOOM())
                 return false;
             if (status == Rehashed)
                 p.entry_ = &findFreeEntry(p.keyHash);
@@ -1698,23 +1730,9 @@ class HashTable : private AllocPolicy
     template <typename... Args>
     void putNewInfallible(const Lookup& l, Args&&... args)
     {
-        MOZ_ASSERT(table);
-
-        HashNumber keyHash = prepareHash(l);
-        Entry* entry = &findFreeEntry(keyHash);
-        MOZ_ASSERT(entry);
-
-        if (entry->isRemoved()) {
-            METER(stats.addOverRemoved++);
-            removedCount--;
-            keyHash |= sCollisionBit;
-        }
-
-        entry->setLive(keyHash, mozilla::Forward<Args>(args)...);
-        entryCount++;
-#ifdef JS_DEBUG
-        mutationCount++;
-#endif
+        MOZ_ASSERT(!lookup(l).found());
+        mozilla::ReentrancyGuard g(*this);
+        putNewInfallibleInternal(l, mozilla::Forward<Args>(args)...);
     }
 
     // Note: |l| may be alias arguments in |args|, so this function must take
@@ -1766,21 +1784,13 @@ class HashTable : private AllocPolicy
         typename HashTableEntry<T>::NonConstT t(mozilla::Move(*p));
         HashPolicy::setKey(t, const_cast<Key&>(k));
         remove(*p.entry_);
-        putNewInfallible(l, mozilla::Move(t));
+        putNewInfallibleInternal(l, mozilla::Move(t));
     }
 
     void rekeyAndMaybeRehash(Ptr p, const Lookup& l, const Key& k)
     {
         rekeyWithoutRehash(p, l, k);
         checkOverRemoved();
-    }
-
-    void rekeyInPlace(Ptr p, const Key& k)
-    {
-        MOZ_ASSERT(table);
-        mozilla::ReentrancyGuard g(*this);
-        MOZ_ASSERT(p.found());
-        HashPolicy::rekey(const_cast<Key&>(*p), const_cast<Key&>(k));
     }
 
 #undef METER

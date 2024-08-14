@@ -122,8 +122,8 @@ CheckPermission(JSContext* aCx,
     case PermissionName::Push:
       return CheckPushPermission(aCx, aPermission, aWindow, aResult);
 
-    case PermissionName::Midi:
     default:
+      MOZ_ASSERT_UNREACHABLE("Unhandled type");
       return NS_ERROR_NOT_IMPLEMENTED;
   }
 }

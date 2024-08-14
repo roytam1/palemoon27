@@ -260,11 +260,6 @@ this.DOMApplicationRegistry = {
                                         this.getFullAppByManifestURL.bind(this));
 
     MessageBroadcaster.init(this.getAppByManifestURL);
-
-    if (AppConstants.MOZ_B2GDROID) {
-      Cu.import("resource://gre/modules/AndroidUtils.jsm");
-      AndroidUtils.init(this);
-    }
   },
 
   // loads the current registry, that could be empty on first run.
@@ -530,7 +525,7 @@ this.DOMApplicationRegistry = {
 
   // Installs a 3rd party app.
   installPreinstalledApp: function installPreinstalledApp(aId) {
-    if (!AppConstants.MOZ_B2GDROID && AppConstants.platform !== "gonk") {
+    if (AppConstants.platform !== "gonk") {
       return false;
     }
 
@@ -799,12 +794,8 @@ this.DOMApplicationRegistry = {
           }
         }
 
-        if (AppConstants.MOZ_B2GDROID || AppConstants.MOZ_B2G) {
+        if (AppConstants.MOZ_B2G) {
           yield this.installSystemApps();
-        }
-
-        if (AppConstants.MOZ_B2GDROID) {
-          yield AndroidUtils.installAndroidApps();
         }
 
         // At first run, install preloaded apps and set up their permissions.
@@ -1319,7 +1310,7 @@ this.DOMApplicationRegistry = {
     this.registryReady.then( () => {
       switch (aMessage.name) {
         case "Webapps:Install": {
-          if (AppConstants.platform == "android" && !AppConstants.MOZ_B2GDROID) {
+          if (AppConstants.platform == "android") {
             Services.obs.notifyObservers(mm, "webapps-runtime-install", JSON.stringify(msg));
           } else {
             this.doInstall(msg, mm);
@@ -1330,7 +1321,7 @@ this.DOMApplicationRegistry = {
           this.getSelf(msg, mm);
           break;
         case "Webapps:Uninstall":
-          if (AppConstants.platform == "android" && !AppConstants.MOZ_B2GDROID) {
+          if (AppConstants.platform == "android") {
             Services.obs.notifyObservers(mm, "webapps-runtime-uninstall", JSON.stringify(msg));
           } else {
             this.doUninstall(msg, mm);
@@ -1352,7 +1343,7 @@ this.DOMApplicationRegistry = {
           this.getNotInstalled(msg, mm);
           break;
         case "Webapps:InstallPackage": {
-          if (AppConstants.platform == "android" && !AppConstants.MOZ_B2GDROID) {
+          if (AppConstants.platform == "android") {
             Services.obs.notifyObservers(mm, "webapps-runtime-install-package", JSON.stringify(msg));
           } else {
             this.doInstallPackage(msg, mm);
@@ -3421,21 +3412,15 @@ this.DOMApplicationRegistry = {
     let requestChannel;
 
     let appURI = NetUtil.newURI(aNewApp.origin, null, null);
-    let principal =
-      Services.scriptSecurityManager.createCodebasePrincipal(appURI,
-                                                             {appId: aNewApp.localId});
-
     if (aIsLocalFileInstall) {
       requestChannel = NetUtil.newChannel({
         uri: aFullPackagePath,
-        loadingPrincipal: principal,
-        contentPolicyType: Ci.nsIContentPolicy.TYPE_OTHER}
+        loadUsingSystemPrincipal: true}
       ).QueryInterface(Ci.nsIFileChannel);
     } else {
       requestChannel = NetUtil.newChannel({
         uri: aFullPackagePath,
-        loadingPrincipal: principal,
-        contentPolicyType: Ci.nsIContentPolicy.TYPE_OTHER}
+        loadUsingSystemPrincipal: true}
       ).QueryInterface(Ci.nsIHttpChannel);
       requestChannel.loadFlags |= Ci.nsIRequest.INHIBIT_CACHING;
     }
@@ -4385,10 +4370,12 @@ this.DOMApplicationRegistry = {
         return "INVALID_SEGMENTS_NUMBER";
       }
 
-      // We need to translate the base64 alphabet used in JWT to our base64 alphabet
-      // before calling atob.
-      let decodedReceipt = JSON.parse(atob(segments[1].replace(/-/g, '+')
-                                                      .replace(/_/g, '/')));
+      let jwtBuffer = ChromeUtils.base64URLDecode(segments[1], {
+        // JWT/JWS prohibits padding per RFC 7515, section 2.
+        padding: "reject",
+      });
+      let textDecoder = new TextDecoder("utf-8");
+      let decodedReceipt = JSON.parse(textDecoder.decode(jwtBuffer));
       if (!decodedReceipt) {
         return "INVALID_RECEIPT_ENCODING";
       }
@@ -4619,6 +4606,10 @@ this.DOMApplicationRegistry = {
     }
 
     return this.getManifestFor(aManifestURL).then((aManifest) => {
+      if (!aManifest) {
+        return Promise.reject("NoManifest");
+      }
+
       let manifest = aEntryPoint && aManifest.entry_points &&
                      aManifest.entry_points[aEntryPoint]
         ? aManifest.entry_points[aEntryPoint]
@@ -4679,6 +4670,10 @@ this.DOMApplicationRegistry = {
 
   getWebAppsBasePath: function() {
     return OS.Path.dirname(this.appsFile);
+  },
+
+  areAnyAppsInstalled: function() {
+    return AppsUtils.areAnyAppsInstalled(this.webapps);
   },
 
   updateDataStoreEntriesFromLocalId: function(aLocalId) {
@@ -4790,7 +4785,7 @@ this.DOMApplicationRegistry = {
 /**
  * Appcache download observer
  */
-let AppcacheObserver = function(aApp) {
+var AppcacheObserver = function(aApp) {
   debug("Creating AppcacheObserver for " + aApp.origin +
         " - " + aApp.installState);
   this.app = aApp;

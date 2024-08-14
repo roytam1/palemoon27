@@ -33,7 +33,7 @@ with Files('jit/**'):
 for gcfile in ['jsgc*', 'devtools/rootAnalysis', 'devtools/gc-ubench', 'devtools/gctrace']:
     with Files(gcfile):
         BUG_COMPONENT = component_gc
-for header in ('GCAPI.h', 'HeapAPI.h', 'RootingAPI.h', 'SliceBudget.h', 'TraceKind.h', 'TracingAPI.h', 'WeakMapPtr.h'):
+for header in ('GCAnnotations.h', 'GCAPI.h', 'HeapAPI.h', 'RootingAPI.h', 'SliceBudget.h', 'SweepingAPI.h', 'TraceKind.h', 'TracingAPI.h', 'WeakMapPtr.h'):
     with Files('../public/' + header):
         BUG_COMPONENT = component_gc
 
@@ -114,9 +114,11 @@ EXPORTS.js += [
     '../public/Conversions.h',
     '../public/Date.h',
     '../public/Debug.h',
+    '../public/GCAnnotations.h',
     '../public/GCAPI.h',
     '../public/GCHashTable.h',
     '../public/GCPolicyAPI.h',
+    '../public/GCVariant.h',
     '../public/GCVector.h',
     '../public/HashTable.h',
     '../public/HeapAPI.h',
@@ -132,6 +134,7 @@ EXPORTS.js += [
     '../public/RootingAPI.h',
     '../public/SliceBudget.h',
     '../public/StructuredClone.h',
+    '../public/SweepingAPI.h',
     '../public/TraceKind.h',
     '../public/TracingAPI.h',
     '../public/TrackedOptimizationInfo.h',
@@ -152,13 +155,15 @@ EXPORTS.js += [
 UNIFIED_SOURCES += [
     'asmjs/AsmJS.cpp',
     'asmjs/Wasm.cpp',
+    'asmjs/WasmBinary.cpp',
+    'asmjs/WasmBinaryToText.cpp',
     'asmjs/WasmFrameIterator.cpp',
     'asmjs/WasmGenerator.cpp',
     'asmjs/WasmIonCompile.cpp',
     'asmjs/WasmModule.cpp',
     'asmjs/WasmSignalHandlers.cpp',
     'asmjs/WasmStubs.cpp',
-    'asmjs/WasmText.cpp',
+    'asmjs/WasmTextToBinary.cpp',
     'asmjs/WasmTypes.cpp',
     'builtin/AtomicsObject.cpp',
     'builtin/Eval.cpp',
@@ -167,6 +172,7 @@ UNIFIED_SOURCES += [
     'builtin/ModuleObject.cpp',
     'builtin/Object.cpp',
     'builtin/Profilers.cpp',
+    'builtin/Promise.cpp',
     'builtin/Reflect.cpp',
     'builtin/ReflectParse.cpp',
     'builtin/SIMD.cpp',
@@ -209,6 +215,7 @@ UNIFIED_SOURCES += [
     'jit/BacktrackingAllocator.cpp',
     'jit/Bailouts.cpp',
     'jit/BaselineBailouts.cpp',
+    'jit/BaselineCacheIR.cpp',
     'jit/BaselineCompiler.cpp',
     'jit/BaselineDebugModeOSR.cpp',
     'jit/BaselineFrame.cpp',
@@ -219,6 +226,7 @@ UNIFIED_SOURCES += [
     'jit/BitSet.cpp',
     'jit/BytecodeAnalysis.cpp',
     'jit/C1Spewer.cpp',
+    'jit/CacheIR.cpp',
     'jit/CodeGenerator.cpp',
     'jit/CompileWrappers.cpp',
     'jit/Disassembler.cpp',
@@ -295,7 +303,6 @@ UNIFIED_SOURCES += [
     'proxy/OpaqueCrossCompartmentWrapper.cpp',
     'proxy/Proxy.cpp',
     'proxy/ScriptedDirectProxyHandler.cpp',
-    'proxy/ScriptedIndirectProxyHandler.cpp',
     'proxy/SecurityWrapper.cpp',
     'proxy/Wrapper.cpp',
     'vm/ArgumentsObject.cpp',
@@ -547,12 +554,14 @@ elif CONFIG['JS_CODEGEN_MIPS32'] or CONFIG['JS_CODEGEN_MIPS64']:
 if CONFIG['OS_ARCH'] == 'WINNT':
     SOURCES += [
         'jit/ExecutableAllocatorWin.cpp',
+        'threading/windows/Mutex.cpp',
     ]
     # _CRT_RAND_S must be #defined before #including stdlib.h to get rand_s()
     DEFINES['_CRT_RAND_S'] = True
 else:
     SOURCES += [
         'jit/ExecutableAllocatorPosix.cpp',
+        'threading/posix/Mutex.cpp',
     ]
 
 if CONFIG['JS_HAS_CTYPES']:
@@ -613,6 +622,7 @@ if CONFIG['ENABLE_INTL_API']:
     ]
 
 USE_LIBS += [
+    'fdlibm',
     'nspr',
     'zlib',
 ]
@@ -661,6 +671,13 @@ if CONFIG['_MSC_VER']:
     # Parser<SyntaxParseHandler> definition, see bug 1167030.
     CXXFLAGS += ['-wd4661']
     CXXFLAGS += ['-we4067', '-we4258', '-we4275']
+    CXXFLAGS += ['-wd4146'] # FIXME: unary minus operator applied to unsigned type (bug 1229189)
+
+    # This is intended as a temporary hack to support building with VS2015.
+    # 'noexcept' used with no exception handling mode specified;
+    # termination on exception is not guaranteed. Specify /EHsc
+    CXXFLAGS += ['-wd4577']
+    CXXFLAGS += ['-wd4312']
 
 if CONFIG['OS_ARCH'] not in ('WINNT', 'HP-UX'):
     OS_LIBS += [
@@ -688,9 +705,6 @@ if CONFIG['OS_ARCH'] == 'SunOS':
 CFLAGS += CONFIG['MOZ_ICU_CFLAGS']
 CXXFLAGS += CONFIG['MOZ_ICU_CFLAGS']
 LOCAL_INCLUDES += CONFIG['MOZ_ICU_INCLUDES']
-
-if not CONFIG['GNU_CXX']:
-    ALLOW_COMPILER_WARNINGS = True
 
 NO_EXPAND_LIBS = True
 
@@ -720,6 +734,8 @@ selfhosted.inputs = [
     'builtin/Object.js',
     'builtin/Reflect.js',
     'builtin/RegExp.js',
+    'builtin/RegExpGlobalReplaceOpt.h.js',
+    'builtin/RegExpLocalReplaceOpt.h.js',
     'builtin/String.js',
     'builtin/Set.js',
     'builtin/Sorting.js',
@@ -727,6 +743,9 @@ selfhosted.inputs = [
     'builtin/TypedObject.js',
     'builtin/WeakSet.js'
 ]
+
+if CONFIG['SPIDERMONKEY_PROMISE']:
+    selfhosted.inputs += ['builtin/Promise.js']
 
 if CONFIG['JS_HAS_CTYPES']:
     if CONFIG['MOZ_NATIVE_FFI']:

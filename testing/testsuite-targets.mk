@@ -520,10 +520,6 @@ ifdef MOZ_ENABLE_SZIP
 # Tinderbox scripts are not unzipping everything, so the file needs to be in a directory it unzips
 	$(NSINSTALL) $(DIST)/host/bin/szip $(PKG_STAGE)/bin/host
 endif
-	$(NSINSTALL) $(DEPTH)/build/mobile/sutagent/android/sutAgentAndroid.apk $(PKG_STAGE)/bin
-	$(NSINSTALL) $(DEPTH)/build/mobile/sutagent/android/watcher/Watcher.apk $(PKG_STAGE)/bin
-	$(NSINSTALL) $(DEPTH)/build/mobile/sutagent/android/fencp/FenCP.apk $(PKG_STAGE)/bin
-	$(NSINSTALL) $(DEPTH)/build/mobile/sutagent/android/ffxcp/FfxCP.apk $(PKG_STAGE)/bin
 
 stage-jetpack: make-stage-dir
 	$(MAKE) -C $(DEPTH)/addon-sdk stage-tests-package
@@ -563,19 +559,17 @@ stage-luciddream: make-stage-dir
 MARIONETTE_DIR=$(PKG_STAGE)/marionette
 stage-marionette: make-stage-dir
 	$(NSINSTALL) -D $(MARIONETTE_DIR)/tests
-	$(NSINSTALL) -D $(MARIONETTE_DIR)/transport
-	$(NSINSTALL) -D $(MARIONETTE_DIR)/driver
-	@(cd $(topsrcdir)/testing/marionette/client && tar --exclude marionette/tests $(TAR_CREATE_FLAGS) - *) | (cd $(MARIONETTE_DIR)/ && tar -xf -)
-	@(cd $(topsrcdir)/testing/marionette/transport && tar $(TAR_CREATE_FLAGS) - *) | (cd $(MARIONETTE_DIR)/transport && tar -xf -)
-	@(cd $(topsrcdir)/testing/marionette/driver && tar $(TAR_CREATE_FLAGS) - *) | (cd $(MARIONETTE_DIR)/driver && tar -xf -)
-	$(PYTHON) $(topsrcdir)/testing/marionette/client/marionette/tests/print-manifest-dirs.py \
+	$(NSINSTALL) -D $(MARIONETTE_DIR)/client
+	@(cd $(topsrcdir)/testing/marionette/harness && tar --exclude marionette/tests $(TAR_CREATE_FLAGS) - *) | (cd $(MARIONETTE_DIR)/ && tar -xf -)
+	@(cd $(topsrcdir)/testing/marionette/client && tar $(TAR_CREATE_FLAGS) - *) | (cd $(MARIONETTE_DIR)/client && tar -xf -)
+	$(PYTHON) $(topsrcdir)/testing/marionette/harness/marionette/tests/print-manifest-dirs.py \
           $(topsrcdir) \
-          $(topsrcdir)/testing/marionette/client/marionette/tests/unit-tests.ini \
+          $(topsrcdir)/testing/marionette/harness/marionette/tests/unit-tests.ini \
           | (cd $(topsrcdir) && xargs tar $(TAR_CREATE_FLAGS) -) \
           | (cd $(MARIONETTE_DIR)/tests && tar -xf -)
-	$(PYTHON) $(topsrcdir)/testing/marionette/client/marionette/tests/print-manifest-dirs.py \
+	$(PYTHON) $(topsrcdir)/testing/marionette/harness/marionette/tests/print-manifest-dirs.py \
           $(topsrcdir) \
-          $(topsrcdir)/testing/marionette/client/marionette/tests/webapi-tests.ini \
+          $(topsrcdir)/testing/marionette/harness/marionette/tests/webapi-tests.ini \
           | (cd $(topsrcdir) && xargs tar $(TAR_CREATE_FLAGS) -) \
           | (cd $(MARIONETTE_DIR)/tests && tar -xf -)
 

@@ -56,10 +56,11 @@ public:
 protected:
   ~GfxInfo() {}
 
-  virtual nsresult GetFeatureStatusImpl(int32_t aFeature, 
-                                        int32_t *aStatus, 
-                                        nsAString & aSuggestedDriverVersion, 
-                                        const nsTArray<GfxDriverInfo>& aDriverInfo, 
+  virtual nsresult GetFeatureStatusImpl(int32_t aFeature,
+                                        int32_t *aStatus,
+                                        nsAString & aSuggestedDriverVersion,
+                                        const nsTArray<GfxDriverInfo>& aDriverInfo,
+                                        nsACString& aFailureId,
                                         OperatingSystem* aOS = nullptr) override;
   virtual const nsTArray<GfxDriverInfo>& GetGfxDriverInfo() override;
 
@@ -74,6 +75,7 @@ private:
   bool mHasTextureFromPixmap;
   int mGLMajorVersion, mMajorVersion, mMinorVersion, mRevisionVersion;
 
+  void AddCrashReportAnnotations();
 };
 
 } // namespace widget

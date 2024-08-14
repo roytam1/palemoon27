@@ -11,6 +11,7 @@
 #include "base/basictypes.h"
 #include "base/message_loop.h"
 
+#include "mozilla/Function.h"
 #include "mozilla/DebugOnly.h"
 #include "mozilla/Monitor.h"
 #include "mozilla/Vector.h"
@@ -56,6 +57,8 @@ enum class SyncSendError {
     TimedOut,
     ReplyError,
 };
+
+class AutoEnterTransaction;
 
 class MessageChannel : HasResultCodes
 {
@@ -107,6 +110,11 @@ class MessageChannel : HasResultCodes
         mAbortOnError = abort;
     }
 
+    // Call aInvoke for each pending message until it returns false.
+    // XXX: You must get permission from an IPC peer to use this function
+    //      since it requires custom deserialization and re-orders events.
+    void PeekMessages(mozilla::function<bool(const Message& aMsg)> aInvoke);
+
     // Misc. behavioral traits consumers can request for this channel
     enum ChannelFlags {
       REQUIRE_DEFAULT                         = 0,
@@ -156,7 +164,7 @@ class MessageChannel : HasResultCodes
         return !mCxxStackFrames.empty();
     }
 
-    bool IsInTransaction() const { return mCurrentTransaction != 0; }
+    bool IsInTransaction() const;
     void CancelCurrentTransaction();
 
     /**
@@ -263,7 +271,7 @@ class MessageChannel : HasResultCodes
     bool InterruptEventOccurred();
     bool HasPendingEvents();
 
-    void ProcessPendingRequests(int seqno, int transaction);
+    void ProcessPendingRequests(AutoEnterTransaction& aTransaction);
     bool ProcessPendingRequest(const Message &aUrgent);
 
     void MaybeUndeferIncall();
@@ -301,6 +309,7 @@ class MessageChannel : HasResultCodes
 
     bool ShouldContinueFromTimeout();
 
+    void EndTimeout();
     void CancelTransaction(int transaction);
 
     // The "remote view of stack depth" can be different than the
@@ -365,15 +374,6 @@ class MessageChannel : HasResultCodes
         return mInterruptStack.size();
     }
 
-    // Returns true if we're blocking waiting for a reply.
-    bool AwaitingSyncReply() const {
-        mMonitor->AssertCurrentThreadOwns();
-        return mAwaitingSyncReply;
-    }
-    int AwaitingSyncReplyPriority() const {
-        mMonitor->AssertCurrentThreadOwns();
-        return mAwaitingSyncReplyPriority;
-    }
     bool AwaitingInterruptReply() const {
         mMonitor->AssertCurrentThreadOwns();
         return !mInterruptStack.empty();
@@ -403,17 +403,7 @@ class MessageChannel : HasResultCodes
     };
     friend class AutoEnterWaitForIncoming;
 
-    // Returns true if we're dispatching a sync message's callback.
-    bool DispatchingSyncMessage() const {
-        AssertWorkerThread();
-        return mDispatchingSyncMessage;
-    }
-
-    int DispatchingSyncMessagePriority() const {
-        AssertWorkerThread();
-        return mDispatchingSyncMessagePriority;
-    }
-
+    // Returns true if we're dispatching an async message's callback.
     bool DispatchingAsyncMessage() const {
         AssertWorkerThread();
         return mDispatchingAsyncMessage;
@@ -441,7 +431,7 @@ class MessageChannel : HasResultCodes
 
     bool WasTransactionCanceled(int transaction);
     bool ShouldDeferMessage(const Message& aMsg);
-    void OnMessageReceivedFromLink(const Message& aMsg);
+    void OnMessageReceivedFromLink(Message&& aMsg);
     void OnChannelErrorFromLink();
 
   private:
@@ -453,8 +443,8 @@ class MessageChannel : HasResultCodes
     // Can be run on either thread
     void AssertWorkerThread() const
     {
-        MOZ_ASSERT(mWorkerLoopID == MessageLoop::current()->id(),
-                   "not on worker thread!");
+        MOZ_RELEASE_ASSERT(mWorkerLoopID == MessageLoop::current()->id(),
+                           "not on worker thread!");
     }
 
     // The "link" thread is either the I/O thread (ProcessLink) or the
@@ -462,8 +452,8 @@ class MessageChannel : HasResultCodes
     // NOT our worker thread.
     void AssertLinkThread() const
     {
-        MOZ_ASSERT(mWorkerLoopID != MessageLoop::current()->id(),
-                   "on worker thread but should not be!");
+        MOZ_RELEASE_ASSERT(mWorkerLoopID != MessageLoop::current()->id(),
+                           "on worker thread but should not be!");
     }
 
   private:
@@ -541,26 +531,23 @@ class MessageChannel : HasResultCodes
     class AutoSetValue {
       public:
         explicit AutoSetValue(T &var, const T &newValue)
-          : mVar(var), mPrev(var)
+          : mVar(var), mPrev(var), mNew(newValue)
         {
             mVar = newValue;
         }
         ~AutoSetValue() {
-            mVar = mPrev;
+            // The value may have been zeroed if the transaction was
+            // canceled. In that case we shouldn't return it to its previous
+            // value.
+            if (mVar == mNew) {
+                mVar = mPrev;
+            }
         }
       private:
         T& mVar;
         T mPrev;
+        T mNew;
     };
-
-    // Worker thread only.
-    bool mAwaitingSyncReply;
-    int mAwaitingSyncReplyPriority;
-
-    // Set while we are dispatching a synchronous message. Only for use on the
-    // worker thread.
-    bool mDispatchingSyncMessage;
-    int mDispatchingSyncMessagePriority;
 
     bool mDispatchingAsyncMessage;
     int mDispatchingAsyncMessagePriority;
@@ -583,55 +570,16 @@ class MessageChannel : HasResultCodes
     // To ensure IDs are unique, we use sequence numbers for transaction IDs,
     // which grow in opposite directions from child to parent.
 
-    // The current transaction ID.
-    int32_t mCurrentTransaction;
+    friend class AutoEnterTransaction;
+    AutoEnterTransaction *mTransactionStack;
 
-    // This field describes the priorities of the sync Send calls that are
-    // currently on stack. If a Send call for a message with priority P is on
-    // the C stack, then mPendingSendPriorities & (1 << P) will be
-    // non-zero. Note that cancelled Send calls are not removed from this
-    // bitfield (until they return).
-    int mPendingSendPriorities;
+    int32_t CurrentHighPriorityTransaction() const;
 
-    class AutoEnterTransaction
-    {
-     public:
-       explicit AutoEnterTransaction(MessageChannel *aChan, int32_t aMsgSeqno)
-        : mChan(aChan),
-          mNewTransaction(INT32_MAX),
-          mOldTransaction(mChan->mCurrentTransaction)
-       {
-           mChan->mMonitor->AssertCurrentThreadOwns();
-           if (mChan->mCurrentTransaction == 0) {
-               mNewTransaction = aMsgSeqno;
-               mChan->mCurrentTransaction = aMsgSeqno;
-           }
-       }
-       explicit AutoEnterTransaction(MessageChannel *aChan, const Message &aMessage)
-        : mChan(aChan),
-          mNewTransaction(aMessage.transaction_id()),
-          mOldTransaction(mChan->mCurrentTransaction)
-       {
-           mChan->mMonitor->AssertCurrentThreadOwns();
+    bool AwaitingSyncReply() const;
+    int AwaitingSyncReplyPriority() const;
 
-           if (!aMessage.is_sync())
-               return;
-
-           MOZ_ASSERT_IF(mChan->mSide == ParentSide && mOldTransaction != aMessage.transaction_id(),
-                         !mOldTransaction || aMessage.priority() > mChan->AwaitingSyncReplyPriority());
-           mChan->mCurrentTransaction = aMessage.transaction_id();
-       }
-       ~AutoEnterTransaction() {
-           mChan->mMonitor->AssertCurrentThreadOwns();
-           if (mChan->mCurrentTransaction == mNewTransaction) {
-               mChan->mCurrentTransaction = mOldTransaction;
-           }
-       }
-
-      private:
-       MessageChannel *mChan;
-       int32_t mNewTransaction, mOldTransaction;
-    };
+    bool DispatchingSyncMessage() const;
+    int DispatchingSyncMessagePriority() const;
 
     // If a sync message times out, we store its sequence number here. Any
     // future sync messages will fail immediately. Once the reply for original
@@ -648,14 +596,6 @@ class MessageChannel : HasResultCodes
     // care about.
     int32_t mTimedOutMessageSeqno;
     int mTimedOutMessagePriority;
-
-    // If waiting for the reply to a sync out-message, it will be saved here
-    // on the I/O thread and then read and cleared by the worker thread.
-    nsAutoPtr<Message> mRecvd;
-
-    // If a sync message reply that is an error arrives, we increment this
-    // counter rather than storing it in mRecvd.
-    size_t mRecvdErrors;
 
     // Queue of all incoming messages, except for replies to sync and urgent
     // messages, which are delivered directly to mRecvd, and any pending urgent
@@ -769,7 +709,7 @@ class MessageChannel : HasResultCodes
     // safely.  This is necessary to be able to cancel notification if we are
     // closed at the same time.
     RefPtr<RefCountedTask> mOnChannelConnectedTask;
-    DebugOnly<bool> mPeerPidSet;
+    bool mPeerPidSet;
     int32_t mPeerPid;
 };
 

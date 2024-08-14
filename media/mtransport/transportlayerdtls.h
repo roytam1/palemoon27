@@ -15,7 +15,7 @@
 #include "sigslot.h"
 
 #include "mozilla/RefPtr.h"
-#include "mozilla/Scoped.h"
+#include "mozilla/UniquePtr.h"
 #include "nsCOMPtr.h"
 #include "nsIEventTarget.h"
 #include "nsITimer.h"
@@ -33,17 +33,20 @@ class TransportLayerNSPRAdapter {
  public:
   explicit TransportLayerNSPRAdapter(TransportLayer *output) :
   output_(output),
-  input_() {}
+  input_(),
+  enabled_(true) {}
 
   void PacketReceived(const void *data, int32_t len);
   int32_t Recv(void *buf, int32_t buflen);
   int32_t Write(const void *buf, int32_t length);
+  void SetEnabled(bool enabled) { enabled_ = enabled; }
 
  private:
   DISALLOW_COPY_ASSIGN(TransportLayerNSPRAdapter);
 
   TransportLayer *output_;
   std::queue<Packet *> input_;
+  bool enabled_;
 };
 
 class TransportLayerDtls final : public TransportLayer {
@@ -174,7 +177,7 @@ class TransportLayerDtls final : public TransportLayer {
 
   // Must delete nspr_io_adapter after ssl_fd_ b/c ssl_fd_ causes an alert
   // (ssl_fd_ contains an un-owning pointer to nspr_io_adapter_)
-  ScopedDeletePtr<TransportLayerNSPRAdapter> nspr_io_adapter_;
+  UniquePtr<TransportLayerNSPRAdapter> nspr_io_adapter_;
   ScopedPRFileDesc ssl_fd_;
 
   ScopedCERTCertificate peer_cert_;

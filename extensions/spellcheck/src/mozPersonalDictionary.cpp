@@ -65,16 +65,7 @@ public:
     mDict->SyncLoad();
 
     // Release the dictionary on the main thread
-    mozPersonalDictionary *dict;
-    mDict.forget(&dict);
-
-    nsCOMPtr<nsIThread> mainThread = do_GetMainThread();
-    if (mainThread) {
-      NS_ProxyRelease(mainThread, static_cast<mozIPersonalDictionary *>(dict));
-    } else {
-      // It's better to leak the dictionary than to release it on a wrong thread
-      NS_WARNING("Cannot get main thread, leaking mozPersonalDictionary.");
-    }
+    NS_ReleaseOnMainThread(mDict.forget());
 
     return NS_OK;
   }
@@ -145,16 +136,8 @@ public:
     }
 
     // Release the dictionary on the main thread.
-    mozPersonalDictionary *dict;
-    mDict.forget(&dict);
+    NS_ReleaseOnMainThread(mDict.forget());
 
-    nsCOMPtr<nsIThread> mainThread = do_GetMainThread();
-    if (mainThread) {
-      NS_ProxyRelease(mainThread, static_cast<mozIPersonalDictionary *>(dict));
-    } else {
-      // It's better to leak the dictionary than to release it on a wrong thread.
-      NS_WARNING("Cannot get main thread, leaking mozPersonalDictionary.");
-    }
     return NS_OK;
   }
 
@@ -304,8 +287,7 @@ void mozPersonalDictionary::SyncLoadInternal()
   NS_NewLocalFileInputStream(getter_AddRefs(inStream), mFile);
 
   nsCOMPtr<nsIUnicharInputStream> convStream;
-  rv = nsSimpleUnicharStreamFactory::GetInstance()->
-    CreateInstanceFromUTF8Stream(inStream, getter_AddRefs(convStream));
+  rv = NS_NewUnicharInputStream(inStream, getter_AddRefs(convStream));
   if (NS_FAILED(rv)) {
     return;
   }

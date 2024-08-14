@@ -66,8 +66,10 @@ gfxSparseBitSet::Dump(const char* aPrefix, eGfxLog aWhichLog) const
     uint32_t b, numBlocks = mBlocks.Length();
 
     for (b = 0; b < numBlocks; b++) {
-        Block *block = mBlocks[b];
-        if (!block) continue;
+        Block *block = mBlocks[b].get();
+        if (!block) {
+            continue;
+        }
         const int BUFSIZE = 256;
         char outStr[BUFSIZE];
         int index = 0;
@@ -388,7 +390,7 @@ gfxFontUtils::ReadCMAPTableFormat14(const uint8_t *aBuf, uint32_t aLength,
     #define acceptableUCS4Encoding(p, e, k) \
         (((p) == PLATFORM_ID_MICROSOFT && (e) == EncodingIDUCS4ForMicrosoftPlatform) && (k) != 12 || \
          ((p) == PLATFORM_ID_UNICODE   && \
-          ((e) == EncodingIDDefaultForUnicodePlatform || (e) >= EncodingIDUCS4ForUnicodePlatform)))
+          ((e) != EncodingIDUVSForUnicodePlatform)))
 #else
     #define acceptableFormat4(p,e,k) ((p) == PLATFORM_ID_MICROSOFT && (e) == EncodingIDMicrosoft)
 

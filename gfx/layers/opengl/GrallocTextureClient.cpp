@@ -11,7 +11,9 @@
 #include "mozilla/layers/CompositableForwarder.h"
 #include "mozilla/layers/ISurfaceAllocator.h"
 #include "mozilla/layers/ShadowLayerUtilsGralloc.h"
+#include "mozilla/layers/SharedBufferManagerChild.h"
 #include "gfx2DGlue.h"
+#include "gfxPrefs.h" // for gfxPrefs
 #include "SharedSurfaceGralloc.h"
 
 #if defined(MOZ_WIDGET_GONK) && ANDROID_VERSION >= 17
@@ -33,14 +35,6 @@ DisableGralloc(SurfaceFormat aFormat, const gfx::IntSize& aSizeHint)
   if (aFormat == gfx::SurfaceFormat::A8) {
     return true;
   }
-#if ANDROID_VERSION <= 15
-  // Adreno 200 has a problem of drawing gralloc buffer width less than 64 and
-  // drawing gralloc buffer with a height 9px-16px.
-  // See Bug 983971.
-  if (aSizeHint.width < 64 || aSizeHint.height < 32) {
-    return true;
-  }
-#endif
 
   return false;
 }
@@ -116,11 +110,11 @@ GrallocTextureData::~GrallocTextureData()
 }
 
 void
-GrallocTextureData::Deallocate(ISurfaceAllocator* aAllocator)
+GrallocTextureData::Deallocate(ClientIPCAllocator* aAllocator)
 {
   MOZ_ASSERT(aAllocator);
-  if (aAllocator) {
-    aAllocator->DeallocGrallocBuffer(&mGrallocHandle);
+  if (aAllocator && aAllocator->IPCOpen()) {
+    SharedBufferManagerChild::GetSingleton()->DeallocGrallocBuffer(mGrallocHandle);
   }
 
   mGrallocHandle = null_t();
@@ -128,11 +122,11 @@ GrallocTextureData::Deallocate(ISurfaceAllocator* aAllocator)
 }
 
 void
-GrallocTextureData::Forget(ISurfaceAllocator* aAllocator)
+GrallocTextureData::Forget(ClientIPCAllocator* aAllocator)
 {
   MOZ_ASSERT(aAllocator);
-  if (aAllocator) {
-    aAllocator->DropGrallocBuffer(&mGrallocHandle);
+  if (aAllocator && aAllocator->IPCOpen()) {
+    SharedBufferManagerChild::GetSingleton()->DropGrallocBuffer(mGrallocHandle);
   }
 
   mGrallocHandle = null_t();
@@ -142,7 +136,7 @@ GrallocTextureData::Forget(ISurfaceAllocator* aAllocator)
 bool
 GrallocTextureData::Serialize(SurfaceDescriptor& aOutDescriptor)
 {
-  aOutDescriptor = NewSurfaceDescriptorGralloc(mGrallocHandle, gfx::IsOpaque(mFormat));
+  aOutDescriptor = SurfaceDescriptorGralloc(mGrallocHandle, gfx::IsOpaque(mFormat));
   return true;
 }
 
@@ -285,12 +279,12 @@ GrallocTextureData::UpdateFromSurface(gfx::SourceSurface* aSurface)
 GrallocTextureData*
 GrallocTextureData::Create(gfx::IntSize aSize, AndroidFormat aAndroidFormat,
                            gfx::BackendType aMoz2dBackend, uint32_t aUsage,
-                           ISurfaceAllocator* aAllocator)
+                           ClientIPCAllocator* aAllocator)
 {
-  if (!aAllocator) {
+  if (!aAllocator || !aAllocator->IPCOpen()) {
     return nullptr;
   }
-  int32_t maxSize = aAllocator->GetMaxTextureSize();
+  int32_t maxSize = aAllocator->AsClientAllocator()->GetMaxTextureSize();
   if (aSize.width > maxSize || aSize.height > maxSize) {
     return nullptr;
   }
@@ -320,7 +314,7 @@ GrallocTextureData::Create(gfx::IntSize aSize, AndroidFormat aAndroidFormat,
   }
 
   MaybeMagicGrallocBufferHandle handle;
-  if (!aAllocator->AllocGrallocBuffer(aSize, aAndroidFormat, aUsage, &handle)) {
+  if (!SharedBufferManagerChild::GetSingleton()->AllocGrallocBuffer(aSize, aAndroidFormat, aUsage, &handle)) {
     return nullptr;
   }
 
@@ -340,11 +334,25 @@ GrallocTextureData::Create(gfx::IntSize aSize, AndroidFormat aAndroidFormat,
 GrallocTextureData*
 GrallocTextureData::CreateForDrawing(gfx::IntSize aSize, gfx::SurfaceFormat aFormat,
                                      gfx::BackendType aMoz2dBackend,
-                                     ISurfaceAllocator* aAllocator)
+                                     ClientIPCAllocator* aAllocator)
 {
   if (DisableGralloc(aFormat, aSize)) {
     return nullptr;
   }
+
+#if ANDROID_VERSION <= 15
+  // Adreno 200 has a problem of drawing gralloc buffer width less than 64 and
+  // drawing gralloc buffer with a height 9px-16px.
+  // See Bug 983971.
+  // We only have this restriction in TextureClients that we'll use for drawing
+  // (not with WebGL for instance). Not sure why that's OK, but we have tests that
+  // rely on being able to create 32x32 webgl canvases with gralloc, so moving
+  // this check in DisableGralloc will break them.
+  if (aSize.width < 64 || aSize.height < 32) {
+    return nullptr;
+  }
+#endif
+
   uint32_t usage = android::GraphicBuffer::USAGE_SW_READ_OFTEN |
                    android::GraphicBuffer::USAGE_SW_WRITE_OFTEN |
                    android::GraphicBuffer::USAGE_HW_TEXTURE;
@@ -378,7 +386,7 @@ GrallocTextureData::GetTextureFlags() const
 // static
 GrallocTextureData*
 GrallocTextureData::CreateForYCbCr(gfx::IntSize aYSize, gfx::IntSize aCbCrSize,
-                                   ISurfaceAllocator* aAllocator)
+                                   ClientIPCAllocator* aAllocator)
 {
   MOZ_ASSERT(aYSize.width == aCbCrSize.width * 2);
   MOZ_ASSERT(aYSize.height == aCbCrSize.height * 2);
@@ -391,7 +399,7 @@ GrallocTextureData::CreateForYCbCr(gfx::IntSize aYSize, gfx::IntSize aCbCrSize,
 // static
 GrallocTextureData*
 GrallocTextureData::CreateForGLRendering(gfx::IntSize aSize, gfx::SurfaceFormat aFormat,
-                                         ISurfaceAllocator* aAllocator)
+                                         ClientIPCAllocator* aAllocator)
 {
   if (aFormat == gfx::SurfaceFormat::YUV) {
     return nullptr;
@@ -427,7 +435,7 @@ GrallocTextureData::TextureClientFromSharedSurface(gl::SharedSurface* abstractSu
 }
 
 TextureData*
-GrallocTextureData::CreateSimilar(ISurfaceAllocator* aAllocator,
+GrallocTextureData::CreateSimilar(ClientIPCAllocator* aAllocator,
                                   TextureFlags aFlags,
                                   TextureAllocationFlags aAllocFlags) const
 {

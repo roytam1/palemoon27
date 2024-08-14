@@ -51,6 +51,7 @@ class nsIURI;
 class nsNodeSupportsWeakRefTearoff;
 class nsNodeWeakReference;
 class nsDOMMutationObserver;
+struct ServoNodeData;
 
 namespace mozilla {
 class EventListenerManager;
@@ -319,14 +320,17 @@ public:
 
 #ifdef MOZILLA_INTERNAL_API
   explicit nsINode(already_AddRefed<mozilla::dom::NodeInfo>& aNodeInfo)
-  : mNodeInfo(aNodeInfo),
-    mParent(nullptr),
-    mBoolFlags(0),
-    mNextSibling(nullptr),
-    mPreviousSibling(nullptr),
-    mFirstChild(nullptr),
-    mSubtreeRoot(this),
-    mSlots(nullptr)
+  : mNodeInfo(aNodeInfo)
+  , mParent(nullptr)
+  , mBoolFlags(0)
+  , mNextSibling(nullptr)
+  , mPreviousSibling(nullptr)
+  , mFirstChild(nullptr)
+  , mSubtreeRoot(this)
+  , mSlots(nullptr)
+#ifdef MOZ_STYLO
+  , mServoNodeData(nullptr)
+#endif
   {
   }
 #endif
@@ -504,14 +508,6 @@ public:
   }
 
   /**
-   * @deprecated
-   */
-  bool IsInDoc() const
-  {
-    return IsInUncomposedDoc();
-  }
-
-  /**
    * Get the document that this content is currently in, if any. This will be
    * null if the content has no ancestor that is a document.
    *
@@ -524,14 +520,6 @@ public:
   }
 
   /**
-   * @deprecated
-   */
-  nsIDocument *GetCurrentDoc() const
-  {
-    return GetUncomposedDoc();
-  }
-
-  /**
    * This method returns the owner doc if the node is in the
    * composed document (as defined in the Shadow DOM spec), otherwise
    * it returns null.
@@ -540,14 +528,6 @@ public:
   {
     return IsInShadowTree() ?
       GetComposedDocInternal() : GetUncomposedDoc();
-  }
-
-  /**
-   * @deprecated
-   */
-  nsIDocument* GetCrossShadowCurrentDoc() const
-  {
-    return GetComposedDoc();
   }
 
   /**
@@ -936,6 +916,11 @@ public:
    * are the roots of disconnected subtrees).
    */
   nsINode* SubtreeRoot() const;
+
+  nsINode* RootNode() const
+  {
+    return SubtreeRoot();
+  }
 
   /**
    * See nsIDOMEventTarget
@@ -1613,8 +1598,11 @@ public:
                "ClearHasTextNodeDirectionalityMap on non-text node");
     ClearBoolFlag(NodeHasTextNodeDirectionalityMap);
   }
-  bool HasTextNodeDirectionalityMap() const
-    { return GetBoolFlag(NodeHasTextNodeDirectionalityMap); }
+  bool HasTextNodeDirectionalityMap() const {
+    MOZ_ASSERT(NodeType() == nsIDOMNode::TEXT_NODE,
+               "HasTextNodeDirectionalityMap on non-text node");
+    return GetBoolFlag(NodeHasTextNodeDirectionalityMap);
+  }
 
   void SetHasDirAuto() { SetBoolFlag(NodeHasDirAuto); }
   void ClearHasDirAuto() { ClearBoolFlag(NodeHasDirAuto); }
@@ -1683,7 +1671,7 @@ protected:
   void SetSubtreeRootPointer(nsINode* aSubtreeRoot)
   {
     NS_ASSERTION(aSubtreeRoot, "aSubtreeRoot can never be null!");
-    NS_ASSERTION(!(IsNodeOfType(eCONTENT) && IsInDoc()) &&
+    NS_ASSERTION(!(IsNodeOfType(eCONTENT) && IsInUncomposedDoc()) &&
                  !IsInShadowTree(), "Shouldn't be here!");
     mSubtreeRoot = aSubtreeRoot;
   }
@@ -1971,6 +1959,23 @@ public:
 #undef TOUCH_EVENT
 #undef EVENT
 
+  ServoNodeData* GetServoNodeData() {
+#ifdef MOZ_STYLO
+    return mServoNodeData;
+#else
+    MOZ_CRASH("Accessing servo node data in non-stylo build");
+#endif
+  }
+
+  void SetServoNodeData(ServoNodeData* aData) {
+#ifdef MOZ_STYLO
+  MOZ_ASSERT(!mServoNodeData);
+  mServoNodeData = aData;
+#else
+    MOZ_CRASH("Setting servo node data in non-stylo build");
+#endif
+  }
+
 protected:
   static bool Traverse(nsINode *tmp, nsCycleCollectionTraversalCallback &cb);
   static void Unlink(nsINode *tmp);
@@ -2008,6 +2013,11 @@ protected:
 
   // Storage for more members that are usually not needed; allocated lazily.
   nsSlots* mSlots;
+
+#ifdef MOZ_STYLO
+  // Layout data managed by Servo.
+  ServoNodeData* mServoNodeData;
+#endif
 };
 
 inline nsIDOMNode* GetAsDOMNode(nsINode* aNode)

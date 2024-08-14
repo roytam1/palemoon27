@@ -22,6 +22,12 @@ class Sdp;
 
 class SdpHelper {
   public:
+    enum MsectionBundleType {
+      kNoBundle,
+      kSlaveBundle,
+      kMasterBundle
+    };
+
     // Takes a std::string* into which error strings will be written for the
     // lifetime of the SdpHelper.
     explicit SdpHelper(std::string* errorDest) : mLastError(*errorDest) {}
@@ -32,8 +38,11 @@ class SdpHelper {
                                  const SdpMediaSection& source,
                                  SdpMediaSection* dest);
     bool AreOldTransportParamsValid(const Sdp& oldAnswer,
+                                    const Sdp& offerersPreviousSdp,
                                     const Sdp& newOffer,
                                     size_t level);
+    bool IceCredentialsDiffer(const SdpMediaSection& msection1,
+                              const SdpMediaSection& msection2);
 
     bool MsectionIsDisabled(const SdpMediaSection& msection) const;
     static void DisableMsection(Sdp* sdp, SdpMediaSection* msection);
@@ -65,6 +74,9 @@ class SdpHelper {
                                const std::string& candidate,
                                const std::string& mid,
                                uint16_t level);
+    void SetIceGatheringComplete(Sdp* sdp,
+                                 uint16_t level,
+                                 BundledMids bundledMids);
     void SetDefaultAddresses(const std::string& defaultCandidateAddr,
                              uint16_t defaultCandidatePort,
                              const std::string& defaultRtcpCandidateAddr,
@@ -79,6 +91,10 @@ class SdpHelper {
                              SdpMediaSection* msection);
     void SetupMsidSemantic(const std::vector<std::string>& msids,
                            Sdp* sdp) const;
+    MsectionBundleType GetMsectionBundleType(const Sdp& sdp,
+                                             uint16_t level,
+                                             BundledMids& bundledMids,
+                                             std::string* masterMid) const;
 
     std::string GetCNAME(const SdpMediaSection& msection) const;
 

@@ -28,8 +28,7 @@ typedef std::vector<mozilla::layers::EditReply> EditReplyVector;
 class CompositableParentManager : public ISurfaceAllocator
 {
 public:
-  virtual void SendFenceHandleIfPresent(PTextureParent* aTexture,
-                                        CompositableHost* aCompositableHost) = 0;
+  virtual void SendFenceHandleIfPresent(PTextureParent* aTexture) = 0;
 
   virtual void SendAsyncMessage(const InfallibleTArray<AsyncParentMessageData>& aMessage) = 0;
 
@@ -40,26 +39,18 @@ public:
    */
   virtual base::ProcessId GetChildProcessId() = 0;
 
+  void DestroyActor(const OpDestroy& aOp);
+
 protected:
   /**
    * Handle the IPDL messages that affect PCompositable actors.
    */
   bool ReceiveCompositableUpdate(const CompositableOperation& aEdit,
                                  EditReplyVector& replyv);
-  void DestroyActor(const OpDestroy& aOp);
-
-  bool IsOnCompositorSide() const override { return true; }
-
-  /**
-   * Return true if this protocol is asynchronous with respect to the content
-   * thread (ImageBridge for instance).
-   */
-  virtual bool IsAsync() const { return false; }
 
   virtual void ReplyRemoveTexture(const OpReplyRemoveTexture& aReply) {}
 
   std::vector<AsyncParentMessageData> mPendingAsyncMessage;
-  std::vector<PTextureParent*> mDestroyedTextures;
 };
 
 } // namespace layers

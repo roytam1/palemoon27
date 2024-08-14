@@ -209,7 +209,7 @@ TVTuner::ReloadMediaStream()
 nsresult
 TVTuner::InitMediaStream()
 {
-  nsCOMPtr<nsIDOMWindow> window = do_QueryInterface(GetOwner());
+  nsCOMPtr<nsPIDOMWindow> window = do_QueryInterface(GetOwner());
   RefPtr<DOMMediaStream> stream = nullptr;
   if (mStreamType == nsITVTunerData::TV_STREAM_TYPE_HW) {
     stream = DOMHwMediaStream::CreateHwStream(window);
@@ -224,12 +224,17 @@ TVTuner::InitMediaStream()
 already_AddRefed<DOMMediaStream>
 TVTuner::CreateSimulatedMediaStream()
 {
-  ErrorResult error;
+  nsCOMPtr<nsPIDOMWindow> domWin = GetOwner();
+  if (NS_WARN_IF(!domWin)) {
+    return nullptr;
+  }
 
-  nsIDocument* doc = GetOwner()->GetExtantDoc();
+  nsIDocument* doc = domWin->GetExtantDoc();
   if (NS_WARN_IF(!doc)) {
     return nullptr;
   }
+
+  ErrorResult error;
   RefPtr<Element> element = doc->CreateElement(VIDEO_TAG, error);
   if (NS_WARN_IF(error.Failed())) {
     return nullptr;
@@ -252,11 +257,6 @@ TVTuner::CreateSimulatedMediaStream()
 
   mediaElement->SetLoop(true, error);
   if (NS_WARN_IF(error.Failed())) {
-    return nullptr;
-  }
-
-  nsCOMPtr<nsIDOMWindow> domWin(do_QueryInterface(GetOwner()));
-  if (NS_WARN_IF(!domWin)) {
     return nullptr;
   }
 

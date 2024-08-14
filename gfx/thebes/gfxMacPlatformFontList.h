@@ -6,7 +6,11 @@
 #ifndef gfxMacPlatformFontList_H_
 #define gfxMacPlatformFontList_H_
 
+#include <AvailabilityMacros.h>
 #include <CoreFoundation/CoreFoundation.h>
+#if defined(MAC_OS_X_VERSION_10_5) && (MAC_OS_X_VERSION_MAX_ALLOWED <= MAC_OS_X_VERSION_10_5)
+#include <Carbon/Carbon.h>
+#endif
 
 #include "mozilla/MemoryReporting.h"
 #include "nsDataHashtable.h"
@@ -32,13 +36,34 @@ public:
                    bool aIsStandardFace = false);
 
     // for use with data fonts
+#if defined(MAC_OS_X_VERSION_10_6) && (MAC_OS_X_VERSION_MAX_ALLOWED >= MAC_OS_X_VERSION_10_6)
     MacOSFontEntry(const nsAString& aPostscriptName, CGFontRef aFontRef,
+#else
+    MacOSFontEntry(const nsAString& aPostscriptName, ATSFontRef aFontRef,
+#endif
                    uint16_t aWeight, uint16_t aStretch, uint8_t aStyle,
+#if defined(MAC_OS_X_VERSION_10_5) && (MAC_OS_X_VERSION_MAX_ALLOWED <= MAC_OS_X_VERSION_10_5)
+                   ATSFontContainerRef aContainerRef, // 10.4Fx
+#endif
                    bool aIsDataUserFont, bool aIsLocal);
 
     virtual ~MacOSFontEntry() {
+#if defined(MAC_OS_X_VERSION_10_6) && (MAC_OS_X_VERSION_MAX_ALLOWED >= MAC_OS_X_VERSION_10_6)
         ::CGFontRelease(mFontRef);
+#else
+        if (mFontRefInitialized)
+        ::CGFontRelease(mFontRef);
+        /* Per Apple, even synthesized CGFontRefs must be released. Also,
+           we do need to release our container ref, if any. */
+        if (mContainerRef)
+                ::ATSFontDeactivate(mContainerRef, NULL,
+                        kATSOptionFlagsDefault);
+#endif
     }
+#if defined(MAC_OS_X_VERSION_10_5) && (MAC_OS_X_VERSION_MAX_ALLOWED <= MAC_OS_X_VERSION_10_5)
+    // 10.4Fx
+    ATSFontRef GetATSFontRef();
+#endif
 
     virtual CGFontRef GetFontRef();
 
@@ -63,7 +88,15 @@ protected:
     static void DestroyBlobFunc(void* aUserData);
 
     CGFontRef mFontRef; // owning reference to the CGFont, released on destruction
-
+#if defined(MAC_OS_X_VERSION_10_5) && (MAC_OS_X_VERSION_MAX_ALLOWED <= MAC_OS_X_VERSION_10_5)
+    // 10.4Fx class variables
+    ATSFontRef mATSFontRef; // 10.4Fx (owning reference to our ATSFont)
+    ATSFontContainerRef mContainerRef; // 10.4Fx (for MakePlatformFont)
+    bool mATSFontRefInitialized; // 10.4Fx. mUserFontData is in gfxFont.h.
+    AutoTArray<uint8_t,1024> mFontTableDir; // 10.4Fx
+    ByteCount mFontTableDirSize; // 10.4Fx
+    void TryGlobalFontTableCache();
+#endif
     bool mFontRefInitialized;
     bool mRequiresAAT;
     bool mIsCFF;
@@ -95,9 +128,10 @@ public:
                                    const uint8_t* aFontData,
                                    uint32_t aLength) override;
 
-    gfxFontFamily* FindFamily(const nsAString& aFamily,
-                              gfxFontStyle* aStyle = nullptr,
-                              gfxFloat aDevToCssSize = 1.0) override;
+    bool FindAndAddFamilies(const nsAString& aFamily,
+                            nsTArray<gfxFontFamily*>* aOutput,
+                            gfxFontStyle* aStyle = nullptr,
+                            gfxFloat aDevToCssSize = 1.0) override;
 
     // lookup the system font for a particular system font type and set
     // the name and style characteristics
@@ -124,15 +158,25 @@ private:
     // helper function to lookup in both hidden system fonts and normal fonts
     gfxFontFamily* FindSystemFontFamily(const nsAString& aFamily);
 
+#if defined(__APPLE__) && defined(MAC_OS_X_VERSION_10_6) && (MAC_OS_X_VERSION_MAX_ALLOWED >= MAC_OS_X_VERSION_10_6)
     static void RegisteredFontsChangedNotificationCallback(CFNotificationCenterRef center,
                                                            void *observer,
                                                            CFStringRef name,
                                                            const void *object,
                                                            CFDictionaryRef userInfo);
+#else
+    // eliminate faces which have the same ATS font reference
+    // backout bug 663688
+    void EliminateDuplicateFaces(const nsAString& aFamilyName);
+
+	// backout bug 869762
+	static void ATSNotification(ATSFontNotificationInfoRef aInfo, void* aUserArg);
+	uint32_t mATSGeneration;
+#endif
 
     // search fonts system-wide for a given character, null otherwise
     gfxFontEntry* GlobalFontFallback(const uint32_t aCh,
-                                     int32_t aRunScript,
+                                     Script aRunScript,
                                      const gfxFontStyle* aMatchStyle,
                                      uint32_t& aCmapCount,
                                      gfxFontFamily** aMatchedFamily) override;

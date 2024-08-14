@@ -13,6 +13,7 @@
 #include "nsTArray.h"
 #include "nsIWidget.h"
 #include "mozilla/EventForwards.h"
+#include "mozilla/TextEventDispatcher.h"
 #include "nsRect.h"
 #include "WritingModes.h"
 #include "npapi.h"
@@ -359,6 +360,11 @@ protected:
   bool GetTargetClauseRange(uint32_t *aOffset, uint32_t *aLength = nullptr);
 
   /**
+   * DispatchEvent() dispatches aEvent if aWidget hasn't been destroyed yet.
+   */
+  static void DispatchEvent(nsWindow* aWindow, WidgetGUIEvent& aEvent);
+
+  /**
    * DispatchCompositionChangeEvent() dispatches eCompositionChange event
    * with clause information (it'll be retrieved by CreateTextRangeArray()).
    * I.e., this should be called only during composing.  If a composition is
@@ -369,7 +375,6 @@ protected:
    */
   void DispatchCompositionChangeEvent(nsWindow* aWindow,
                                       const IMEContext& aContext);
-  already_AddRefed<mozilla::TextRangeArray> CreateTextRangeArray();
 
   nsresult EnsureClauseArray(int32_t aCount);
   nsresult EnsureAttributeArray(int32_t aCount);
@@ -409,7 +414,10 @@ protected:
     mPassedIMEChar.AppendElement(msg);
   }
 
+  TextEventDispatcher* GetTextEventDispatcherFor(nsWindow* aWindow);
+
   nsWindow* mComposingWindow;
+  RefPtr<TextEventDispatcher> mDispatcher;
   nsString  mCompositionString;
   InfallibleTArray<uint32_t> mClauseArray;
   InfallibleTArray<uint8_t> mAttributeArray;
@@ -442,11 +450,29 @@ protected:
     bool Update(const IMENotification& aIMENotification);
     bool Init(nsWindow* aWindow);
     bool EnsureValidSelection(nsWindow* aWindow);
+  private:
+    Selection(const Selection& aOther) = delete;
+    void operator =(const Selection& aOther) = delete;
   };
+  // mSelection stores the latest selection data only when sHasFocus is true.
+  // Don't access mSelection directly.  You should use GetSelection() for
+  // getting proper state.
   Selection mSelection;
-  // mSelection stores the latest selection data only when sHasFocus it true.
-  // Therefore, if sHasFocus is false, temporary instance should be used.
-  Selection GetSelection() { return sHasFocus ? mSelection : Selection(); }
+
+  Selection& GetSelection()
+  {
+    // When IME has focus, mSelection is automatically updated by
+    // NOTIFY_IME_OF_SELECTION_CHANGE.
+    if (sHasFocus) {
+      return mSelection;
+    }
+    // Otherwise, i.e., While IME doesn't have focus, we cannot observe
+    // selection changes.  So, in such case, we need to query selection
+    // when it's necessary.
+    static Selection sTempSelection;
+    sTempSelection.Clear();
+    return sTempSelection;
+  }
 
   bool mIsComposing;
   bool mIsComposingOnPlugin;
@@ -459,6 +485,7 @@ protected:
   static DWORD sIMEUIProperty;
   static bool sAssumeVerticalWritingModeNotSupported;
   static bool sHasFocus;
+  static bool sNativeCaretIsCreatedForPlugin;
 };
 
 } // namespace widget

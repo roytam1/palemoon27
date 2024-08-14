@@ -42,6 +42,7 @@
 #ifdef XP_WIN
 #include <windows.h>
 #include <shlobj.h>
+#include "mozilla/WindowsVersion.h"
 #endif
 #ifdef XP_MACOSX
 #include "nsILocalFileMac.h"
@@ -396,6 +397,14 @@ nsXREDirProvider::GetFile(const char* aProperty, bool* aPersistent,
     bool unused;
     rv = dirsvc->GetFile("XCurProcD", &unused, getter_AddRefs(file));
   }
+#if (defined(XP_WIN) || defined(XP_MACOSX)) && defined(MOZ_CONTENT_SANDBOX)
+  else if (!strcmp(aProperty, NS_APP_CONTENT_PROCESS_TEMP_DIR)) {
+    if (!mContentTempDir && NS_FAILED((rv = LoadContentProcessTempDir()))) {
+      return rv;
+    }
+    rv = mContentTempDir->Clone(getter_AddRefs(file));
+  }
+#endif // defined(XP_WIN) && defined(MOZ_CONTENT_SANDBOX)
   else if (NS_SUCCEEDED(GetProfileStartupDir(getter_AddRefs(file)))) {
     // We need to allow component, xpt, and chrome registration to
     // occur prior to the profile-after-change notification.
@@ -621,6 +630,64 @@ LoadExtensionDirectories(nsINIParser &parser,
   while (true);
 }
 
+#if (defined(XP_WIN) || defined(XP_MACOSX)) && defined(MOZ_CONTENT_SANDBOX)
+
+static const char*
+GetContentProcessTempBaseDirKey()
+{
+#if defined(XP_WIN)
+  return NS_WIN_LOW_INTEGRITY_TEMP_BASE;
+#else
+  return NS_OS_TEMP_DIR;
+#endif
+}
+
+nsresult
+nsXREDirProvider::LoadContentProcessTempDir()
+{
+#if defined(XP_WIN)
+  const bool isSandboxDisabled = !mozilla::IsVistaOrLater() ||
+    (Preferences::GetInt("security.sandbox.content.level") < 1);
+#elif defined(XP_MACOSX)
+  const bool isSandboxDisabled =
+    Preferences::GetInt("security.sandbox.content.level") < 1;
+#endif
+
+  if (isSandboxDisabled) {
+    // Just use the normal temp directory if sandboxing is turned off
+    return NS_GetSpecialDirectory(NS_OS_TEMP_DIR,
+                                  getter_AddRefs(mContentTempDir));
+  }
+
+  nsCOMPtr<nsIFile> localFile;
+
+  nsresult rv = NS_GetSpecialDirectory(GetContentProcessTempBaseDirKey(),
+                                       getter_AddRefs(localFile));
+  if (NS_WARN_IF(NS_FAILED(rv))) {
+    return rv;
+  }
+
+  nsAutoString tempDirSuffix;
+  rv = Preferences::GetString("security.sandbox.content.tempDirSuffix",
+                              &tempDirSuffix);
+  if (NS_WARN_IF(NS_FAILED(rv))) {
+    return rv;
+  }
+  if (tempDirSuffix.IsEmpty()) {
+    return NS_ERROR_NOT_AVAILABLE;
+  }
+
+  rv = localFile->Append(NS_LITERAL_STRING("Temp-") + tempDirSuffix);
+  if (NS_WARN_IF(NS_FAILED(rv))) {
+    return rv;
+  }
+
+  localFile.swap(mContentTempDir);
+  return NS_OK;
+}
+
+#endif // defined(XP_WIN) && defined(MOZ_CONTENT_SANDBOX)
+
 void
 nsXREDirProvider::LoadExtensionBundleDirectories()
 {
@@ -651,15 +718,24 @@ nsXREDirProvider::LoadExtensionBundleDirectories()
                                NS_COMPONENT_LOCATION);
       LoadExtensionDirectories(parser, "ThemeDirs", mThemeDirectories,
                                NS_SKIN_LOCATION);
-#if MOZ_BUILD_APP == browser
+/* non-Firefox applications that use overrides in their default theme should
+ * define AC_DEFINE(MOZ_SEPARATE_MANIFEST_FOR_THEME_OVERRIDES) in their
+ * configure.in */
+#if defined(MOZ_BUILD_APP_IS_BROWSER) || defined(MOZ_SEPARATE_MANIFEST_FOR_THEME_OVERRIDES)
     } else {
       // In safe mode, still load the default theme directory:
       nsCOMPtr<nsIFile> themeManifest;
       mXULAppDir->Clone(getter_AddRefs(themeManifest));
       themeManifest->AppendNative(NS_LITERAL_CSTRING("extensions"));
-      themeManifest->AppendNative(NS_LITERAL_CSTRING("{972ce4c6-7e08-4474-a285-3208198ce6fd}"));
-      themeManifest->AppendNative(NS_LITERAL_CSTRING("chrome.manifest"));
-      XRE_AddManifestLocation(NS_SKIN_LOCATION, themeManifest);
+      themeManifest->AppendNative(NS_LITERAL_CSTRING("{972ce4c6-7e08-4474-a285-3208198ce6fd}.xpi"));
+      bool exists = false;
+      if (NS_SUCCEEDED(themeManifest->Exists(&exists)) && exists) {
+        XRE_AddJarManifestLocation(NS_SKIN_LOCATION, themeManifest);
+      } else {
+        themeManifest->SetNativeLeafName(NS_LITERAL_CSTRING("{972ce4c6-7e08-4474-a285-3208198ce6fd}"));
+        themeManifest->AppendNative(NS_LITERAL_CSTRING("chrome.manifest"));
+        XRE_AddManifestLocation(NS_SKIN_LOCATION, themeManifest);
+      }
 #endif
     }
   }
@@ -861,6 +937,7 @@ nsXREDirProvider::DoStartup()
 
     static const char16_t kStartup[] = {'s','t','a','r','t','u','p','\0'};
     obsSvc->NotifyObservers(nullptr, "profile-do-change", kStartup);
+
     // Init the Extension Manager
     nsCOMPtr<nsIObserver> em = do_GetService("@mozilla.org/addons/integration;1");
     if (em) {

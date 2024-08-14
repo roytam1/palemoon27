@@ -22,17 +22,19 @@ class WGLLibrary;
 class SharedSurface_D3D11Interop
     : public SharedSurface
 {
+public:
     const GLuint mProdRB;
     const RefPtr<DXGLDevice> mDXGL;
     const HANDLE mObjectWGL;
     const HANDLE mSharedHandle;
     const RefPtr<ID3D11Texture2D> mTextureD3D;
+    const bool mNeedsFinish;
+
+protected:
     RefPtr<IDXGIKeyedMutex> mKeyedMutex;
     RefPtr<IDXGIKeyedMutex> mConsumerKeyedMutex;
     RefPtr<ID3D11Texture2D> mConsumerTexture;
-    const GLuint mFence;
 
-protected:
     bool mLockedForGL;
 
 public:
@@ -56,8 +58,7 @@ protected:
                                HANDLE objectWGL,
                                const RefPtr<ID3D11Texture2D>& textureD3D,
                                HANDLE sharedHandle,
-                               const RefPtr<IDXGIKeyedMutex>& keyedMutex,
-                               GLuint fence);
+                               const RefPtr<IDXGIKeyedMutex>& keyedMutex);
 
 public:
     virtual ~SharedSurface_D3D11Interop();
@@ -65,28 +66,14 @@ public:
     virtual void LockProdImpl() override;
     virtual void UnlockProdImpl() override;
 
-    virtual void Fence() override;
     virtual void ProducerAcquireImpl() override;
     virtual void ProducerReleaseImpl() override;
-    virtual void ConsumerAcquireImpl() override;
-    virtual void ConsumerReleaseImpl() override;
-    virtual bool WaitSync() override;
-    virtual bool PollSync() override;
-
-    virtual void Fence_ContentThread_Impl() override;
-    virtual bool WaitSync_ContentThread_Impl() override;
-    virtual bool PollSync_ContentThread_Impl() override;
 
     virtual GLuint ProdRenderbuffer() override {
         return mProdRB;
     }
 
     virtual bool ToSurfaceDescriptor(layers::SurfaceDescriptor* const out_descriptor) override;
-
-    // Implementation-specific functions below:
-    HANDLE GetSharedHandle() const {
-        return mSharedHandle;
-    }
 };
 
 
@@ -98,12 +85,12 @@ public:
 
     static UniquePtr<SurfaceFactory_D3D11Interop> Create(GLContext* gl,
                                                          const SurfaceCaps& caps,
-                                                         const RefPtr<layers::ISurfaceAllocator>& allocator,
+                                                         const RefPtr<layers::ClientIPCAllocator>& allocator,
                                                          const layers::TextureFlags& flags);
 
 protected:
     SurfaceFactory_D3D11Interop(GLContext* gl, const SurfaceCaps& caps,
-                                const RefPtr<layers::ISurfaceAllocator>& allocator,
+                                const RefPtr<layers::ClientIPCAllocator>& allocator,
                                 const layers::TextureFlags& flags,
                                 const RefPtr<DXGLDevice>& dxgl);
 

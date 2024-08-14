@@ -11,6 +11,7 @@
 #include "mozilla/Attributes.h"
 #include "mozilla/MemoryReporting.h"
 #include "mozilla/SheetType.h"
+#include "mozilla/UniquePtr.h"
 
 #include "nsIPrincipal.h"
 #include "nsIURI.h"
@@ -447,6 +448,8 @@ public:
   nsCSSUnit GetUnit() const { return mUnit; }
   bool      IsLengthUnit() const
     { return eCSSUnit_PhysicalMillimeter <= mUnit && mUnit <= eCSSUnit_Pixel; }
+  bool      IsLengthPercentCalcUnit() const
+    { return IsLengthUnit() || mUnit == eCSSUnit_Percent || IsCalcUnit(); }
   /**
    * A "fixed" length unit is one that means a specific physical length
    * which we try to match based on the physical characteristics of an
@@ -716,6 +719,10 @@ public:
   nsCSSRect& SetRectValue();
   nsCSSValueList* SetListValue();
   nsCSSValuePairList* SetPairListValue();
+
+  // These take ownership of the passed-in resource.
+  void AdoptListValue(mozilla::UniquePtr<nsCSSValueList> aValue);
+  void AdoptPairListValue(mozilla::UniquePtr<nsCSSValuePairList> aValue);
 
   void StartImageLoad(nsIDocument* aDocument) const;  // Only pretend const
 
@@ -990,7 +997,7 @@ nsCSSValue::GetListValue()
   if (mUnit == eCSSUnit_List)
     return mValue.mList;
   else {
-    MOZ_ASSERT(mUnit == eCSSUnit_ListDep, "not a pairlist value");
+    MOZ_ASSERT(mUnit == eCSSUnit_ListDep, "not a list value");
     return mValue.mListDependent;
   }
 }
@@ -1001,7 +1008,7 @@ nsCSSValue::GetListValue() const
   if (mUnit == eCSSUnit_List)
     return mValue.mList;
   else {
-    MOZ_ASSERT(mUnit == eCSSUnit_ListDep, "not a pairlist value");
+    MOZ_ASSERT(mUnit == eCSSUnit_ListDep, "not a list value");
     return mValue.mListDependent;
   }
 }
@@ -1115,6 +1122,12 @@ struct nsCSSValuePair {
   ~nsCSSValuePair()
   {
     MOZ_COUNT_DTOR(nsCSSValuePair);
+  }
+
+  nsCSSValuePair& operator=(const nsCSSValuePair& aOther) {
+    mXValue = aOther.mXValue;
+    mYValue = aOther.mYValue;
+    return *this;
   }
 
   bool operator==(const nsCSSValuePair& aOther) const {

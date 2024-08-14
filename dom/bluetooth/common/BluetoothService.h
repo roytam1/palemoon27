@@ -10,7 +10,6 @@
 #include "BluetoothCommon.h"
 #include "BluetoothInterface.h"
 #include "BluetoothProfileManagerBase.h"
-#include "nsAutoPtr.h"
 #include "nsClassHashtable.h"
 #include "nsIObserver.h"
 #include "nsTObserverArray.h"
@@ -238,6 +237,18 @@ public:
   virtual void
   StartLeScanInternal(const nsTArray<BluetoothUuid>& aServiceUuids,
                       BluetoothReplyRunnable* aRunnable) = 0;
+
+  /**
+   * Start/Stop advertising.
+   */
+  virtual void
+  StartAdvertisingInternal(const BluetoothUuid& aAppUuid,
+                           const BluetoothGattAdvertisingData& aAdvData,
+                           BluetoothReplyRunnable* aRunnable) { }
+
+  virtual void
+  StopAdvertisingInternal(const BluetoothUuid& aAppUuid,
+                          BluetoothReplyRunnable* aRunnable) { }
 
   /**
    * Set a property for the specified object
@@ -584,6 +595,11 @@ public:
     const BluetoothGattId& aCharacteristicId,
     const BluetoothGattId& aDescriptorId,
     const nsTArray<uint8_t>& aValue,
+    BluetoothReplyRunnable* aRunnable) = 0;
+
+  virtual void
+  GattServerRegisterInternal(
+    const BluetoothUuid& aAppUuid,
     BluetoothReplyRunnable* aRunnable) = 0;
 
   virtual void

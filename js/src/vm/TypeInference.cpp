@@ -680,6 +680,7 @@ ConstraintTypeSet::addType(ExclusiveContext* cxArg, Type type)
 void
 TypeSet::print(FILE* fp)
 {
+    bool fromDebugger = !fp;
     if (!fp)
         fp = stderr;
 
@@ -730,6 +731,9 @@ TypeSet::print(FILE* fp)
                 fprintf(fp, " %s", TypeString(ObjectType(key)));
         }
     }
+
+    if (fromDebugger)
+        fprintf(fp, "\n");
 }
 
 /* static */ void
@@ -772,10 +776,10 @@ TypeSet::IsTypeAllocatedDuringIncremental(TypeSet::Type v)
     bool rv;
     if (v.isSingletonUnchecked()) {
         JSObject* obj = v.singletonNoBarrier();
-        rv = obj->isTenured() && obj->asTenured().arenaHeader()->allocatedDuringIncremental;
+        rv = obj->isTenured() && obj->asTenured().arena()->allocatedDuringIncremental;
     } else if (v.isGroupUnchecked()) {
         ObjectGroup* group = v.groupNoBarrier();
-        rv = group->arenaHeader()->allocatedDuringIncremental;
+        rv = group->arena()->allocatedDuringIncremental;
     } else {
         rv = false;
     }
@@ -2305,8 +2309,7 @@ TemporaryTypeSet::forAllClasses(CompilerConstraintList* constraints,
             true_results = true;
             if (false_results)
                 return ForAllResult::MIXED;
-        }
-        else {
+        } else {
             false_results = true;
             if (true_results)
                 return ForAllResult::MIXED;
@@ -2465,9 +2468,9 @@ js::ClassCanHaveExtraProperties(const Class* clasp)
 {
     if (clasp == &UnboxedPlainObject::class_ || clasp == &UnboxedArrayObject::class_)
         return false;
-    return clasp->resolve
-        || clasp->ops.lookupProperty
-        || clasp->ops.getProperty
+    return clasp->getResolve()
+        || clasp->getOpsLookupProperty()
+        || clasp->getOpsGetProperty()
         || IsTypedArrayClass(clasp);
 }
 
@@ -2724,7 +2727,11 @@ ObjectGroup::addDefiniteProperties(ExclusiveContext* cx, Shape* shape)
             MOZ_ASSERT_IF(shape->slot() >= shape->numFixedSlots(),
                           shape->numFixedSlots() == NativeObject::MAX_FIXED_SLOTS);
             TypeSet* types = getProperty(cx, nullptr, id);
-            if (types && types->canSetDefinite(shape->slot()))
+            if (!types) {
+                MOZ_ASSERT(unknownProperties());
+                return;
+            }
+            if (types->canSetDefinite(shape->slot()))
                 types->setDefinite(shape->slot());
         }
 
@@ -2950,12 +2957,15 @@ ObjectGroup::detachNewScript(bool writeBarrier, ObjectGroup* replacement)
 
     if (newScript->analyzed()) {
         ObjectGroupCompartment& objectGroups = newScript->function()->compartment()->objectGroups;
+        TaggedProto proto = this->proto();
+        if (proto.isObject() && IsForwarded(proto.toObject()))
+            proto = TaggedProto(Forwarded(proto.toObject()));
+        JSObject* associated = MaybeForwarded(newScript->function());
         if (replacement) {
             MOZ_ASSERT(replacement->newScript()->function() == newScript->function());
-            objectGroups.replaceDefaultNewGroup(nullptr, proto(), newScript->function(),
-                                                replacement);
+            objectGroups.replaceDefaultNewGroup(nullptr, proto, associated, replacement);
         } else {
-            objectGroups.removeDefaultNewGroup(nullptr, proto(), newScript->function());
+            objectGroups.removeDefaultNewGroup(nullptr, proto, associated);
         }
     } else {
         MOZ_ASSERT(!replacement);
@@ -3143,7 +3153,11 @@ js::AddClearDefiniteGetterSetterForPrototypeChain(JSContext* cx, ObjectGroup* gr
     RootedObject proto(cx, group->proto().toObjectOrNull());
     while (proto) {
         ObjectGroup* protoGroup = proto->getGroup(cx);
-        if (!protoGroup || protoGroup->unknownProperties())
+        if (!protoGroup) {
+            cx->recoverFromOutOfMemory();
+            return false;
+        }
+        if (protoGroup->unknownProperties())
             return false;
         HeapTypeSet* protoTypes = protoGroup->getProperty(cx, proto, id);
         if (!protoTypes || protoTypes->nonDataProperty() || protoTypes->nonWritableProperty())
@@ -3440,7 +3454,7 @@ PreliminaryObjectArray::sweep()
                 obj->setGroup(objectProto->groupRaw());
                 MOZ_ASSERT(obj->is<NativeObject>());
                 MOZ_ASSERT(obj->getClass() == objectProto->getClass());
-                MOZ_ASSERT(!obj->getClass()->finalize);
+                MOZ_ASSERT(!obj->getClass()->hasFinalize());
             }
 
             *ptr = nullptr;
@@ -3451,8 +3465,7 @@ PreliminaryObjectArray::sweep()
 void
 PreliminaryObjectArrayWithTemplate::trace(JSTracer* trc)
 {
-    if (shape_)
-        TraceEdge(trc, &shape_, "PreliminaryObjectArrayWithTemplate_shape");
+    TraceNullableEdge(trc, &shape_, "PreliminaryObjectArrayWithTemplate_shape");
 }
 
 /* static */ void
@@ -3925,8 +3938,9 @@ TypeNewScript::rollbackPartiallyInitializedObjects(JSContext* cx, ObjectGroup* g
     Vector<uint32_t, 32> pcOffsets(cx);
     for (ScriptFrameIter iter(cx); !iter.done(); ++iter) {
         {
+            AutoEnterOOMUnsafeRegion oomUnsafe;
             if (!pcOffsets.append(iter.script()->pcToOffset(iter.pc())))
-                MOZ_CRASH("rollbackPartiallyInitializedObjects");
+                oomUnsafe.crash("rollbackPartiallyInitializedObjects");
         }
 
         if (!iter.isConstructing()) {
@@ -4021,15 +4035,9 @@ void
 TypeNewScript::trace(JSTracer* trc)
 {
     TraceEdge(trc, &function_, "TypeNewScript_function");
-
-    if (templateObject_)
-        TraceEdge(trc, &templateObject_, "TypeNewScript_templateObject");
-
-    if (initializedShape_)
-        TraceEdge(trc, &initializedShape_, "TypeNewScript_initializedShape");
-
-    if (initializedGroup_)
-        TraceEdge(trc, &initializedGroup_, "TypeNewScript_initializedGroup");
+    TraceNullableEdge(trc, &templateObject_, "TypeNewScript_templateObject");
+    TraceNullableEdge(trc, &initializedShape_, "TypeNewScript_initializedShape");
+    TraceNullableEdge(trc, &initializedGroup_, "TypeNewScript_initializedGroup");
 }
 
 /* static */ void
@@ -4471,7 +4479,7 @@ TypeZone::endSweep(JSRuntime* rt)
 void
 TypeZone::clearAllNewScriptsOnOOM()
 {
-    for (gc::ZoneCellIterUnderGC iter(zone(), gc::AllocKind::OBJECT_GROUP);
+    for (gc::ZoneCellIter iter(zone(), gc::AllocKind::OBJECT_GROUP);
          !iter.done(); iter.next())
     {
         ObjectGroup* group = iter.get<ObjectGroup>();

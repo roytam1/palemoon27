@@ -132,14 +132,19 @@ class StringifyContext
 {
   public:
     StringifyContext(JSContext* cx, StringBuffer& sb, const StringBuffer& gap,
-                     HandleObject replacer, const AutoIdVector& propertyList)
+                     HandleObject replacer, const AutoIdVector& propertyList,
+                     bool maybeSafely)
       : sb(sb),
         gap(gap),
         replacer(cx, replacer),
         stack(cx, GCHashSet<JSObject*, MovableCellHasher<JSObject*>>(cx)),
         propertyList(propertyList),
-        depth(0)
-    {}
+        depth(0),
+        maybeSafely(maybeSafely)
+    {
+        MOZ_ASSERT_IF(maybeSafely, !replacer);
+        MOZ_ASSERT_IF(maybeSafely, gap.empty());
+    }
 
     bool init() {
         return stack.init(8);
@@ -151,6 +156,7 @@ class StringifyContext
     Rooted<GCHashSet<JSObject*, MovableCellHasher<JSObject*>>> stack;
     const AutoIdVector& propertyList;
     uint32_t depth;
+    bool maybeSafely;
 };
 
 } /* anonymous namespace */
@@ -212,6 +218,11 @@ template<typename KeyType>
 static bool
 PreprocessValue(JSContext* cx, HandleObject holder, KeyType key, MutableHandleValue vp, StringifyContext* scx)
 {
+    // We don't want to do any preprocessing here if scx->maybeSafely,
+    // since the stuff we do here can have side-effects.
+    if (scx->maybeSafely)
+        return true;
+
     RootedString keyStr(cx);
 
     /* Step 2. */
@@ -226,17 +237,9 @@ PreprocessValue(JSContext* cx, HandleObject holder, KeyType key, MutableHandleVa
             if (!keyStr)
                 return false;
 
-            InvokeArgs args(cx);
-            if (!args.init(1))
+            RootedValue arg0(cx, StringValue(keyStr));
+            if (!js::Call(cx, toJSON, vp, arg0, vp))
                 return false;
-
-            args.setCallee(toJSON);
-            args.setThis(vp);
-            args[0].setString(keyStr);
-
-            if (!Invoke(cx, args))
-                return false;
-            vp.set(args.rval());
         }
     }
 
@@ -248,18 +251,10 @@ PreprocessValue(JSContext* cx, HandleObject holder, KeyType key, MutableHandleVa
                 return false;
         }
 
-        InvokeArgs args(cx);
-        if (!args.init(2))
+        RootedValue arg0(cx, StringValue(keyStr));
+        RootedValue replacerVal(cx, ObjectValue(*scx->replacer));
+        if (!js::Call(cx, replacerVal, holder, arg0, vp, vp))
             return false;
-
-        args.setCallee(ObjectValue(*scx->replacer));
-        args.setThis(ObjectValue(*holder));
-        args[0].setString(keyStr);
-        args[1].set(vp);
-
-        if (!Invoke(cx, args))
-            return false;
-        vp.set(args.rval());
     }
 
     /* Step 4. */
@@ -342,6 +337,8 @@ JO(JSContext* cx, HandleObject obj, StringifyContext* scx)
      *     (and in JA as well).
      */
 
+    MOZ_ASSERT_IF(scx->maybeSafely, obj->is<PlainObject>());
+
     /* Steps 1-2, 11. */
     CycleDetector detect(scx, obj);
     if (!detect.foundCycle(cx))
@@ -375,6 +372,9 @@ JO(JSContext* cx, HandleObject obj, StringifyContext* scx)
     bool wroteMember = false;
     RootedId id(cx);
     for (size_t i = 0, len = propertyList.length(); i < len; i++) {
+        if (!CheckForInterrupt(cx))
+            return false;
+
         /*
          * Steps 8a-8b.  Note that the call to Str is broken up into 1) getting
          * the property; 2) processing for toJSON, calling the replacer, and
@@ -384,6 +384,14 @@ JO(JSContext* cx, HandleObject obj, StringifyContext* scx)
          */
         id = propertyList[i];
         RootedValue outputValue(cx);
+#ifdef DEBUG
+        if (scx->maybeSafely) {
+            RootedNativeObject nativeObj(cx, &obj->as<NativeObject>());
+            RootedShape prop(cx);
+            NativeLookupOwnPropertyNoResolve(cx, nativeObj, id, &prop);
+            MOZ_ASSERT(prop && prop->isDataDescriptor());
+        }
+#endif // DEBUG
         if (!GetProperty(cx, obj, obj, id, &outputValue))
             return false;
         if (!PreprocessValue(cx, obj, HandleId(id), &outputValue, scx))
@@ -454,12 +462,36 @@ JA(JSContext* cx, HandleObject obj, StringifyContext* scx)
         /* Steps 7-10. */
         RootedValue outputValue(cx);
         for (uint32_t i = 0; i < length; i++) {
+            if (!CheckForInterrupt(cx))
+                return false;
+
             /*
              * Steps 8a-8c.  Again note how the call to the spec's Str method
              * is broken up into getting the property, running it past toJSON
              * and the replacer and maybe unboxing, and interpreting some
              * values as |null| in separate steps.
              */
+#ifdef DEBUG
+            if (scx->maybeSafely) {
+                /*
+                 * Trying to do a JS_AlreadyHasOwnElement runs the risk of
+                 * hitting OOM on jsid creation.  Let's just assert sanity for
+                 * small enough indices.
+                 */
+                MOZ_ASSERT(obj->is<ArrayObject>());
+                MOZ_ASSERT(obj->is<NativeObject>());
+                RootedNativeObject nativeObj(cx, &obj->as<NativeObject>());
+                if (i <= JSID_INT_MAX) {
+                    MOZ_ASSERT(nativeObj->containsDenseElement(i) != nativeObj->isIndexed(),
+                               "the array must either be small enough to remain "
+                               "fully dense (and otherwise un-indexed), *or* "
+                               "all its initially-dense elements were sparsified "
+                               "and the object is indexed");
+                } else {
+                    MOZ_ASSERT(obj->isIndexed());
+                }
+            }
+#endif
             if (!GetElement(cx, obj, obj, i, &outputValue))
                 return false;
             if (!PreprocessValue(cx, obj, i, &outputValue, scx))
@@ -525,8 +557,12 @@ Str(JSContext* cx, const Value& v, StringifyContext* scx)
     /* Step 9. */
     if (v.isNumber()) {
         if (v.isDouble()) {
-            if (!IsFinite(v.toDouble()))
+            if (!IsFinite(v.toDouble())) {
+                MOZ_ASSERT(!scx->maybeSafely,
+                           "input JS::ToJSONMaybeSafely must not include "
+                           "reachable non-finite numbers");
                 return scx->sb.append("null");
+            }
         }
 
         return NumberValueToStringBuffer(cx, v, scx->sb);
@@ -535,6 +571,10 @@ Str(JSContext* cx, const Value& v, StringifyContext* scx)
     /* Step 10. */
     MOZ_ASSERT(v.isObject());
     RootedObject obj(cx, &v.toObject());
+
+    MOZ_ASSERT(!scx->maybeSafely || obj->is<PlainObject>() || obj->is<ArrayObject>(),
+               "input to JS::ToJSONMaybeSafely must not include reachable "
+               "objects that are neither arrays nor plain objects");
 
     scx->depth++;
     auto dec = mozilla::MakeScopeExit([&] { scx->depth--; });
@@ -549,10 +589,20 @@ Str(JSContext* cx, const Value& v, StringifyContext* scx)
 /* ES6 24.3.2. */
 bool
 js::Stringify(JSContext* cx, MutableHandleValue vp, JSObject* replacer_, Value space_,
-              StringBuffer& sb)
+              StringBuffer& sb, StringifyBehavior stringifyBehavior)
 {
     RootedObject replacer(cx, replacer_);
     RootedValue space(cx, space_);
+
+    MOZ_ASSERT_IF(stringifyBehavior == StringifyBehavior::RestrictedSafe, space.isNull());
+    MOZ_ASSERT_IF(stringifyBehavior == StringifyBehavior::RestrictedSafe, vp.isObject());
+    /**
+     * This uses MOZ_ASSERT, since it's actually asserting something jsapi
+     * consumers could get wrong, so needs a better error message.
+     */
+    MOZ_ASSERT(stringifyBehavior == StringifyBehavior::Normal ||
+               vp.toObject().is<PlainObject>() || vp.toObject().is<ArrayObject>(),
+               "input to JS::ToJSONMaybeSafely must be a plain object or array");
 
     /* Step 4. */
     AutoIdVector propertyList(cx);
@@ -575,7 +625,7 @@ js::Stringify(JSContext* cx, MutableHandleValue vp, JSObject* replacer_, Value s
             // is passed in.  If we end up having to add elements past this
             // size, the set will naturally resize to accommodate them.
             const uint32_t MaxInitialSize = 32;
-            HashSet<jsid, JsidHasher> idSet(cx);
+            Rooted<GCHashSet<jsid>> idSet(cx, GCHashSet<jsid>(cx));
             if (!idSet.init(Min(len, MaxInitialSize)))
                 return false;
 
@@ -691,7 +741,8 @@ js::Stringify(JSContext* cx, MutableHandleValue vp, JSObject* replacer_, Value s
         return false;
 
     /* Step 12. */
-    StringifyContext scx(cx, sb, gap, replacer, propertyList);
+    StringifyContext scx(cx, sb, gap, replacer, propertyList,
+                         stringifyBehavior == StringifyBehavior::RestrictedSafe);
     if (!scx.init())
         return false;
     if (!PreprocessValue(cx, wrapper, HandleId(emptyId), vp, &scx))
@@ -731,6 +782,9 @@ Walk(JSContext* cx, HandleObject holder, HandleId name, HandleValue reviver, Mut
             RootedId id(cx);
             RootedValue newElement(cx);
             for (uint32_t i = 0; i < length; i++) {
+                if (!CheckForInterrupt(cx))
+                    return false;
+
                 if (!IndexToId(cx, i, &id))
                     return false;
 
@@ -761,6 +815,9 @@ Walk(JSContext* cx, HandleObject holder, HandleId name, HandleValue reviver, Mut
             RootedId id(cx);
             RootedValue newElement(cx);
             for (size_t i = 0, len = keys.length(); i < len; i++) {
+                if (!CheckForInterrupt(cx))
+                    return false;
+
                 /* Step 2b(ii)(1). */
                 id = keys[i];
                 if (!Walk(cx, obj, id, reviver, &newElement))
@@ -787,19 +844,8 @@ Walk(JSContext* cx, HandleObject holder, HandleId name, HandleValue reviver, Mut
     if (!key)
         return false;
 
-    InvokeArgs args(cx);
-    if (!args.init(2))
-        return false;
-
-    args.setCallee(reviver);
-    args.setThis(ObjectValue(*holder));
-    args[0].setString(key);
-    args[1].set(val);
-
-    if (!Invoke(cx, args))
-        return false;
-    vp.set(args.rval());
-    return true;
+    RootedValue keyVal(cx, StringValue(key));
+    return js::Call(cx, reviver, holder, keyVal, val, vp);
 }
 
 static bool
@@ -890,7 +936,7 @@ json_stringify(JSContext* cx, unsigned argc, Value* vp)
     RootedValue space(cx, args.get(2));
 
     StringBuffer sb(cx);
-    if (!Stringify(cx, &value, replacer, space, sb))
+    if (!Stringify(cx, &value, replacer, space, sb, StringifyBehavior::Normal))
         return false;
 
     // XXX This can never happen to nsJSON.cpp, but the JSON object

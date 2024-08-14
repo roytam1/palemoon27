@@ -58,10 +58,7 @@
 #    define MOZ_HAVE_EXPLICIT_CONVERSION
 #  endif
 #  ifdef __clang__
-     /* clang-cl probably supports constexpr and explicit conversions. */
-#    if __has_extension(cxx_constexpr)
-#      define MOZ_HAVE_CXX11_CONSTEXPR
-#    endif
+     /* clang-cl probably supports explicit conversions. */
 #    if __has_extension(cxx_explicit_conversions)
 #      define MOZ_HAVE_EXPLICIT_CONVERSION
 #    endif
@@ -90,9 +87,7 @@
 #elif defined(__GNUC__)
 #  if defined(__GXX_EXPERIMENTAL_CXX0X__) || __cplusplus >= 201103L
 #    define MOZ_HAVE_CXX11_CONSTEXPR
-#    if MOZ_GCC_VERSION_AT_LEAST(4, 8, 0)
-#      define MOZ_HAVE_CXX11_CONSTEXPR_IN_TEMPLATES
-#    endif
+#    define MOZ_HAVE_CXX11_CONSTEXPR_IN_TEMPLATES
 #    define MOZ_HAVE_EXPLICIT_CONVERSION
 #  endif
 #  define MOZ_HAVE_NEVER_INLINE          __attribute__((noinline))
@@ -462,10 +457,12 @@
  *   intended to prevent introducing static initializers.  This attribute
  *   currently makes it a compile-time error to instantiate these classes
  *   anywhere other than at the global scope, or as a static member of a class.
+ *   In non-debug mode, it also prohibits non-trivial constructors and
+ *   destructors.
  * MOZ_TRIVIAL_CTOR_DTOR: Applies to all classes that must have both a trivial
- *   constructor and a trivial destructor.  Setting this attribute on a class
- *   makes it a compile-time error for that class to get a non-trivial
- *   constructor or destructor for any reason.
+ *   or constexpr constructor and a trivial destructor. Setting this attribute
+ *   on a class makes it a compile-time error for that class to get a
+ *   non-trivial constructor or destructor for any reason.
  * MOZ_HEAP_ALLOCATOR: Applies to any function. This indicates that the return
  *   value is allocated on the heap, and will as a result check such allocations
  *   during MOZ_STACK_CLASS and MOZ_NONHEAP_CLASS annotation checking.
@@ -523,6 +520,9 @@
  *   template arguments are required to be safe to move in memory using
  *   memmove().  Passing MOZ_NON_MEMMOVABLE types to these templates is a
  *   compile time error.
+ * MOZ_NEEDS_MEMMOVABLE_MEMBERS: Applies to class declarations where each member
+ *   must be safe to move in memory using memmove().  MOZ_NON_MEMMOVABLE types
+ *   used in members of these classes are compile time errors.
  * MOZ_INHERIT_TYPE_ANNOTATIONS_FROM_TEMPLATE_ARGS: Applies to template class
  *   declarations where an instance of the template should be considered, for
  *   static analysis purposes, to inherit any type annotations (such as
@@ -556,6 +556,7 @@
 #  define MOZ_NEEDS_NO_VTABLE_TYPE __attribute__((annotate("moz_needs_no_vtable_type")))
 #  define MOZ_NON_MEMMOVABLE __attribute__((annotate("moz_non_memmovable")))
 #  define MOZ_NEEDS_MEMMOVABLE_TYPE __attribute__((annotate("moz_needs_memmovable_type")))
+#  define MOZ_NEEDS_MEMMOVABLE_MEMBERS __attribute__((annotate("moz_needs_memmovable_members")))
 #  define MOZ_INHERIT_TYPE_ANNOTATIONS_FROM_TEMPLATE_ARGS \
     __attribute__((annotate("moz_inherit_type_annotations_from_template_args")))
 #  define MOZ_NON_AUTOABLE __attribute__((annotate("moz_non_autoable")))
@@ -588,6 +589,7 @@
 #  define MOZ_NEEDS_NO_VTABLE_TYPE /* nothing */
 #  define MOZ_NON_MEMMOVABLE /* nothing */
 #  define MOZ_NEEDS_MEMMOVABLE_TYPE /* nothing */
+#  define MOZ_NEEDS_MEMMOVABLE_MEMBERS /* nothing */
 #  define MOZ_INHERIT_TYPE_ANNOTATIONS_FROM_TEMPLATE_ARGS /* nothing */
 #  define MOZ_NON_AUTOABLE /* nothing */
 #endif /* MOZ_CLANG_PLUGIN */

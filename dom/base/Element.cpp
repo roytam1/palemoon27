@@ -45,7 +45,6 @@
 #include "nsNameSpaceManager.h"
 #include "nsContentList.h"
 #include "nsVariant.h"
-#include "nsDOMSettableTokenList.h"
 #include "nsDOMTokenList.h"
 #include "nsXBLPrototypeBinding.h"
 #include "nsError.h"
@@ -69,6 +68,7 @@
 #include "nsDocument.h"
 #include "nsAttrValueOrString.h"
 #include "nsAttrValueInlines.h"
+#include "nsCSSPseudoElements.h"
 #ifdef MOZ_XUL
 #include "nsXULElement.h"
 #endif /* MOZ_XUL */
@@ -137,13 +137,15 @@
 #include "nsITextControlElement.h"
 #include "nsITextControlFrame.h"
 #include "nsISupportsImpl.h"
+#include "mozilla/dom/CSSPseudoElement.h"
 #include "mozilla/dom/DocumentFragment.h"
-#include "mozilla/IntegerPrintfMacros.h"
+#include "mozilla/dom/KeyframeEffectBinding.h"
 #include "mozilla/dom/WindowBinding.h"
 #include "mozilla/dom/ElementBinding.h"
 #include "mozilla/dom/VRDevice.h"
-#include "nsComputedDOMStyle.h"
+#include "mozilla/IntegerPrintfMacros.h"
 #include "mozilla/Preferences.h"
+#include "nsComputedDOMStyle.h"
 
 using namespace mozilla;
 using namespace mozilla::dom;
@@ -205,7 +207,7 @@ Element::IntrinsicState() const
 void
 Element::NotifyStateChange(EventStates aStates)
 {
-  nsIDocument* doc = GetCrossShadowCurrentDoc();
+  nsIDocument* doc = GetComposedDoc();
   if (doc) {
     nsAutoScriptBlocker scriptBlocker;
     doc->ContentStateChanged(this, aStates);
@@ -231,7 +233,7 @@ Element::UpdateState(bool aNotify)
   if (aNotify) {
     EventStates changedStates = oldState ^ mState;
     if (!changedStates.IsEmpty()) {
-      nsIDocument* doc = GetCrossShadowCurrentDoc();
+      nsIDocument* doc = GetComposedDoc();
       if (doc) {
         nsAutoScriptBlocker scriptBlocker;
         doc->ContentStateChanged(this, changedStates);
@@ -925,7 +927,7 @@ already_AddRefed<DOMRect>
 Element::GetBoundingClientRect()
 {
   RefPtr<DOMRect> rect = new DOMRect(this);
-  
+
   nsIFrame* frame = GetPrimaryFrame(Flush_Layout);
   if (!frame) {
     // display:none, perhaps? Return the empty rect
@@ -1018,7 +1020,7 @@ Element::CreateShadowRoot(ErrorResult& aError)
     return nullptr;
   }
 
-  nsIDocument* doc = GetCrossShadowCurrentDoc();
+  nsIDocument* doc = GetComposedDoc();
   nsIContent* destroyedFramesFor = nullptr;
   if (doc) {
     nsIPresShell* shell = doc->GetShell();
@@ -1069,7 +1071,7 @@ Element::CreateShadowRoot(ErrorResult& aError)
   // Recreate the frame for the bound content because binding a ShadowRoot
   // changes how things are rendered.
   if (doc) {
-    MOZ_ASSERT(doc == GetCrossShadowCurrentDoc());
+    MOZ_ASSERT(doc == GetComposedDoc());
     nsIPresShell* shell = doc->GetShell();
     if (shell) {
       shell->CreateFramesFor(destroyedFramesFor);
@@ -1497,7 +1499,7 @@ Element::BindToTree(nsIDocument* aDocument, nsIContent* aParent,
   if (xulElem) {
     xulElem->SetXULBindingParent(aBindingParent);
   }
-  else 
+  else
 #endif
   {
     if (aBindingParent) {
@@ -1557,7 +1559,7 @@ Element::BindToTree(nsIDocument* aDocument, nsIContent* aParent,
     // XXXbz ordering issues here?  Probably not, since ChangeDocumentFor is
     // just pretty broken anyway....  Need to get it working.
     // XXXbz XBL doesn't handle this (asserts), and we don't really want
-    // to be doing this during parsing anyway... sort this out.    
+    // to be doing this during parsing anyway... sort this out.
     //    aDocument->BindingManager()->ChangeDocumentFor(this, nullptr,
     //                                                   aDocument);
 
@@ -1749,7 +1751,8 @@ RemoveFromBindingManagerRunnable::Run()
   // down the old binding if the element is inserted back into the
   // DOM and loads a different binding.
   if (!mContent->IsInComposedDoc()) {
-    mManager->RemovedFromDocumentInternal(mContent, mDoc);
+    mManager->RemovedFromDocumentInternal(mContent, mDoc,
+                                          nsBindingManager::eRunDtor);
   }
 
   return NS_OK;
@@ -1769,6 +1772,9 @@ Element::UnbindFromTree(bool aDeep, bool aNullParent)
   nsIDocument* document =
     HasFlag(NODE_FORCE_XBL_BINDINGS) ? OwnerDoc() : GetComposedDoc();
 
+  if (HasPointerLock()) {
+    nsIDocument::UnlockPointer();
+  }
   if (aNullParent) {
     if (IsFullScreenAncestor()) {
       // The element being removed is an ancestor of the full-screen element,
@@ -1779,9 +1785,6 @@ Element::UnbindFromTree(bool aDeep, bool aNullParent)
                                       "RemovedFullScreenElement");
       // Fully exit full-screen.
       nsIDocument::ExitFullscreen(OwnerDoc(), /* async */ false);
-    }
-    if (HasPointerLock()) {
-      nsIDocument::UnlockPointer();
     }
 
     if (GetParent() && GetParent()->IsInUncomposedDoc()) {
@@ -1881,7 +1884,7 @@ Element::UnbindFromTree(bool aDeep, bool aNullParent)
     }
   }
 
-  // This has to be here, rather than in nsGenericHTMLElement::UnbindFromTree, 
+  // This has to be here, rather than in nsGenericHTMLElement::UnbindFromTree,
   //  because it has to happen after unsetting the parent pointer, but before
   //  recursively unbinding the kids.
   if (IsHTMLElement()) {
@@ -2114,9 +2117,9 @@ Element::DispatchClickEvent(nsPresContext* aPresContext,
   NS_PRECONDITION(aSourceEvent, "Must have source event");
   NS_PRECONDITION(aStatus, "Null out param?");
 
-  WidgetMouseEvent event(aSourceEvent->mFlags.mIsTrusted, eMouseClick,
-                         aSourceEvent->widget, WidgetMouseEvent::eReal);
-  event.refPoint = aSourceEvent->refPoint;
+  WidgetMouseEvent event(aSourceEvent->IsTrusted(), eMouseClick,
+                         aSourceEvent->mWidget, WidgetMouseEvent::eReal);
+  event.mRefPoint = aSourceEvent->mRefPoint;
   uint32_t clickCount = 1;
   float pressure = 0;
   uint16_t inputSource = 0;
@@ -2131,7 +2134,7 @@ Element::DispatchClickEvent(nsPresContext* aPresContext,
   event.pressure = pressure;
   event.clickCount = clickCount;
   event.inputSource = inputSource;
-  event.modifiers = aSourceEvent->modifiers;
+  event.mModifiers = aSourceEvent->mModifiers;
   if (aExtraEventFlags) {
     // Be careful not to overwrite existing flags!
     event.mFlags.Union(*aExtraEventFlags);
@@ -2495,7 +2498,7 @@ Element::SetAttrAndNotify(int32_t aNamespaceID,
     nsAutoString newValue;
     GetAttr(aNamespaceID, aName, newValue);
     if (!newValue.IsEmpty()) {
-      mutation.mNewAttrValue = do_GetAtom(newValue);
+      mutation.mNewAttrValue = NS_Atomize(newValue);
     }
     if (!oldValue->IsEmptyString()) {
       mutation.mPrevAttrValue = oldValue->GetAsAtom();
@@ -2591,7 +2594,7 @@ Element::GetAttrInfo(int32_t aNamespaceID, nsIAtom* aName) const
 
   return nsAttrInfo(nullptr, nullptr);
 }
-  
+
 
 bool
 Element::GetAttr(int32_t aNameSpaceID, nsIAtom* aName,
@@ -2612,7 +2615,7 @@ Element::FindAttrValueIn(int32_t aNameSpaceID,
   NS_ASSERTION(aName, "Must have attr name");
   NS_ASSERTION(aNameSpaceID != kNameSpaceID_Unknown, "Must have namespace");
   NS_ASSERTION(aValues, "Null value array");
-  
+
   const nsAttrValue* val = mAttrsAndChildren.GetAttr(aName, aNameSpaceID);
   if (val) {
     for (int32_t i = 0; aValues[i]; ++i) {
@@ -2733,7 +2736,7 @@ Element::UnsetAttr(int32_t aNameSpaceID, nsIAtom* aName,
     nsAutoString value;
     oldValue.ToString(value);
     if (!value.IsEmpty())
-      mutation.mPrevAttrValue = do_GetAtom(value);
+      mutation.mPrevAttrValue = NS_Atomize(value);
     mutation.mAttrChange = nsIDOMMutationEvent::REMOVAL;
 
     mozAutoSubtreeModified subtree(OwnerDoc(), this);
@@ -2816,7 +2819,7 @@ Element::List(FILE* out, int32_t aIndent,
   nsIContent* child = GetFirstChild();
   if (child) {
     fputs("\n", out);
-    
+
     for (; child; child = child->GetNextSibling()) {
       child->List(out, aIndent + 1);
     }
@@ -2825,7 +2828,7 @@ Element::List(FILE* out, int32_t aIndent,
   }
 
   fputs(">\n", out);
-  
+
   Element* nonConstThis = const_cast<Element*>(this);
 
   // XXX sXBL/XBL2 issue! Owner or current document?
@@ -2927,7 +2930,7 @@ Element::CheckHandleEventForLinksPrecondition(EventChainVisitor& aVisitor,
                                               nsIURI** aURI) const
 {
   if (aVisitor.mEventStatus == nsEventStatus_eConsumeNoDefault ||
-      (!aVisitor.mEvent->mFlags.mIsTrusted &&
+      (!aVisitor.mEvent->IsTrusted() &&
        (aVisitor.mEvent->mMessage != eMouseClick) &&
        (aVisitor.mEvent->mMessage != eKeyPress) &&
        (aVisitor.mEvent->mMessage != eLegacyDOMActivate)) ||
@@ -2972,7 +2975,7 @@ Element::PreHandleEventForLinks(EventChainPreVisitor& aVisitor)
     MOZ_FALLTHROUGH;
   case eFocus: {
     InternalFocusEvent* focusEvent = aVisitor.mEvent->AsFocusEvent();
-    if (!focusEvent || !focusEvent->isRefocus) {
+    if (!focusEvent || !focusEvent->mIsRefocus) {
       nsAutoString target;
       GetLinkTarget(target);
       nsContentUtils::TriggerLink(this, aVisitor.mPresContext, absURI, target,
@@ -3064,7 +3067,7 @@ Element::PostHandleEventForLinks(EventChainPostVisitor& aVisitor)
         // DOMActive event should be trusted since the activation is actually
         // occurred even if the cause is an untrusted click event.
         InternalUIEvent actEvent(true, eLegacyDOMActivate, mouseEvent);
-        actEvent.detail = 1;
+        actEvent.mDetail = 1;
 
         rv = shell->HandleDOMEventWithTarget(this, &actEvent, &status);
         if (NS_SUCCEEDED(rv)) {
@@ -3076,7 +3079,7 @@ Element::PostHandleEventForLinks(EventChainPostVisitor& aVisitor)
   }
   case eLegacyDOMActivate:
     {
-      if (aVisitor.mEvent->originalTarget == this) {
+      if (aVisitor.mEvent->mOriginalTarget == this) {
         nsAutoString target;
         GetLinkTarget(target);
         const InternalUIEvent* activeEvent = aVisitor.mEvent->AsUIEvent();
@@ -3118,11 +3121,11 @@ Element::GetLinkTarget(nsAString& aTarget)
 }
 
 static void
-nsDOMSettableTokenListPropertyDestructor(void *aObject, nsIAtom *aProperty,
-                                         void *aPropertyValue, void *aData)
+nsDOMTokenListPropertyDestructor(void *aObject, nsIAtom *aProperty,
+                                 void *aPropertyValue, void *aData)
 {
-  nsDOMSettableTokenList* list =
-    static_cast<nsDOMSettableTokenList*>(aPropertyValue);
+  nsDOMTokenList* list =
+    static_cast<nsDOMTokenList*>(aPropertyValue);
   NS_RELEASE(list);
 }
 
@@ -3144,7 +3147,7 @@ Element::HTMLSVGPropertiesToTraverseAndUnlink()
   return sPropertiesToTraverseAndUnlink;
 }
 
-nsDOMSettableTokenList*
+nsDOMTokenList*
 Element::GetTokenList(nsIAtom* aAtom)
 {
 #ifdef DEBUG
@@ -3160,14 +3163,14 @@ Element::GetTokenList(nsIAtom* aAtom)
   MOZ_ASSERT(found, "Trying to use an unknown tokenlist!");
 #endif
 
-  nsDOMSettableTokenList* list = nullptr;
+  nsDOMTokenList* list = nullptr;
   if (HasProperties()) {
-    list = static_cast<nsDOMSettableTokenList*>(GetProperty(aAtom));
+    list = static_cast<nsDOMTokenList*>(GetProperty(aAtom));
   }
   if (!list) {
-    list = new nsDOMSettableTokenList(this, aAtom);
+    list = new nsDOMTokenList(this, aAtom);
     NS_ADDREF(list);
-    SetProperty(aAtom, list, nsDOMSettableTokenListPropertyDestructor);
+    SetProperty(aAtom, list, nsDOMTokenListPropertyDestructor);
   }
   return list;
 }
@@ -3184,7 +3187,7 @@ Element::GetTokenList(nsIAtom* aAtom, nsIVariant** aResult)
 nsresult
 Element::SetTokenList(nsIAtom* aAtom, nsIVariant* aValue)
 {
-  nsDOMSettableTokenList* itemType = GetTokenList(aAtom);
+  nsDOMTokenList* itemType = GetTokenList(aAtom);
   nsAutoString string;
   aValue->GetAsAString(string);
   ErrorResult rv;
@@ -3379,7 +3382,31 @@ Element::Animate(JSContext* aContext,
                  const UnrestrictedDoubleOrKeyframeAnimationOptions& aOptions,
                  ErrorResult& aError)
 {
-  nsCOMPtr<nsIGlobalObject> ownerGlobal = GetOwnerGlobal();
+  Nullable<ElementOrCSSPseudoElement> target;
+  target.SetValue().SetAsElement() = this;
+  return Animate(target, aContext, aFrames, aOptions, aError);
+}
+
+/* static */ already_AddRefed<Animation>
+Element::Animate(const Nullable<ElementOrCSSPseudoElement>& aTarget,
+                 JSContext* aContext,
+                 JS::Handle<JSObject*> aFrames,
+                 const UnrestrictedDoubleOrKeyframeAnimationOptions& aOptions,
+                 ErrorResult& aError)
+{
+  MOZ_ASSERT(!aTarget.IsNull() &&
+             (aTarget.Value().IsElement() ||
+              aTarget.Value().IsCSSPseudoElement()),
+             "aTarget should be initialized");
+
+  RefPtr<Element> referenceElement;
+  if (aTarget.Value().IsElement()) {
+    referenceElement = &aTarget.Value().GetAsElement();
+  } else {
+    referenceElement = aTarget.Value().GetAsCSSPseudoElement().ParentElement();
+  }
+
+  nsCOMPtr<nsIGlobalObject> ownerGlobal = referenceElement->GetOwnerGlobal();
   if (!ownerGlobal) {
     aError.Throw(NS_ERROR_FAILURE);
     return nullptr;
@@ -3399,16 +3426,15 @@ Element::Animate(JSContext* aContext,
     }
   }
 
-  // Bug 1211783: Use KeyframeEffect here (instead of KeyframeEffectReadOnly)
-  RefPtr<KeyframeEffectReadOnly> effect =
-    KeyframeEffectReadOnly::Constructor(global, this, frames,
-      TimingParams::FromOptionsUnion(aOptions), aError);
+  RefPtr<KeyframeEffect> effect =
+    KeyframeEffect::Constructor(global, aTarget, frames, aOptions, aError);
   if (aError.Failed()) {
     return nullptr;
   }
 
   RefPtr<Animation> animation =
-    Animation::Constructor(global, effect, OwnerDoc()->Timeline(), aError);
+    Animation::Constructor(global, effect,
+                           referenceElement->OwnerDoc()->Timeline(), aError);
   if (aError.Failed()) {
     return nullptr;
   }
@@ -3426,22 +3452,66 @@ Element::Animate(JSContext* aContext,
 }
 
 void
-Element::GetAnimations(nsTArray<RefPtr<Animation>>& aAnimations)
+Element::GetAnimations(const AnimationFilter& filter,
+                       nsTArray<RefPtr<Animation>>& aAnimations)
 {
   nsIDocument* doc = GetComposedDoc();
   if (doc) {
     doc->FlushPendingNotifications(Flush_Style);
   }
 
-  GetAnimationsUnsorted(aAnimations);
+  Element* elem = this;
+  CSSPseudoElementType pseudoType = CSSPseudoElementType::NotPseudo;
+  // For animations on generated-content elements, the animations are stored
+  // on the parent element.
+  nsIAtom* name = NodeInfo()->NameAtom();
+  if (name == nsGkAtoms::mozgeneratedcontentbefore) {
+    elem = GetParentElement();
+    pseudoType = CSSPseudoElementType::before;
+  } else if (name == nsGkAtoms::mozgeneratedcontentafter) {
+    elem = GetParentElement();
+    pseudoType = CSSPseudoElementType::after;
+  }
+
+  if (!elem) {
+    return;
+  }
+
+  if (!filter.mSubtree ||
+      pseudoType == CSSPseudoElementType::before ||
+      pseudoType == CSSPseudoElementType::after) {
+    GetAnimationsUnsorted(elem, pseudoType, aAnimations);
+  } else {
+    for (nsIContent* node = this;
+         node;
+         node = node->GetNextNode(this)) {
+      if (!node->IsElement()) {
+        continue;
+      }
+      Element* element = node->AsElement();
+      Element::GetAnimationsUnsorted(element, CSSPseudoElementType::NotPseudo,
+                                     aAnimations);
+      Element::GetAnimationsUnsorted(element, CSSPseudoElementType::before,
+                                     aAnimations);
+      Element::GetAnimationsUnsorted(element, CSSPseudoElementType::after,
+                                     aAnimations);
+    }
+  }
   aAnimations.Sort(AnimationPtrComparator<RefPtr<Animation>>());
 }
 
-void
-Element::GetAnimationsUnsorted(nsTArray<RefPtr<Animation>>& aAnimations)
+/* static */ void
+Element::GetAnimationsUnsorted(Element* aElement,
+                               CSSPseudoElementType aPseudoType,
+                               nsTArray<RefPtr<Animation>>& aAnimations)
 {
-  EffectSet* effects = EffectSet::GetEffectSet(this,
-                         nsCSSPseudoElements::ePseudo_NotPseudoElement);
+  MOZ_ASSERT(aPseudoType == CSSPseudoElementType::NotPseudo ||
+             aPseudoType == CSSPseudoElementType::after ||
+             aPseudoType == CSSPseudoElementType::before,
+             "Unsupported pseudo type");
+  MOZ_ASSERT(aElement, "Null element");
+
+  EffectSet* effects = EffectSet::GetEffectSet(aElement, aPseudoType);
   if (!effects) {
     return;
   }
@@ -3583,7 +3653,7 @@ Element::InsertAdjacentHTML(const nsAString& aPosition, const nsAString& aText,
   // Needed when insertAdjacentHTML is used in combination with contenteditable
   mozAutoDocUpdate updateBatch(doc, UPDATE_CONTENT_MODEL, true);
   nsAutoScriptLoaderDisabler sld(doc);
-  
+
   // Batch possible DOMSubtreeModified events.
   mozAutoSubtreeModified subtree(doc, nullptr);
 

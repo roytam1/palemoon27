@@ -14,7 +14,6 @@ user_pref("dom.forms.color", true); // on for testing
 user_pref("dom.max_script_run_time", 0); // no slow script dialogs
 user_pref("hangmonitor.timeout", 0); // no hang monitor
 user_pref("dom.max_chrome_script_run_time", 0);
-user_pref("dom.max_child_script_run_time", 0);
 user_pref("dom.ipc.reportProcessHangs", false); // process hang monitor
 user_pref("dom.popup_maximum", -1);
 user_pref("dom.send_after_paint_to_content", true);
@@ -103,6 +102,8 @@ user_pref("extensions.getAddons.get.url", "http://%(server)s/extensions-dummy/re
 user_pref("extensions.getAddons.getWithPerformance.url", "http://%(server)s/extensions-dummy/repositoryGetWithPerformanceURL");
 user_pref("extensions.getAddons.search.browseURL", "http://%(server)s/extensions-dummy/repositoryBrowseURL");
 user_pref("extensions.getAddons.search.url", "http://%(server)s/extensions-dummy/repositorySearchURL");
+// Ensure kinto updates don't hit the network
+user_pref("services.kinto.base", "http://%(server)s/dummy-kinto/v1");
 // Make sure that opening the plugins check page won't hit the network
 user_pref("plugins.update.url", "http://%(server)s/plugins-dummy/updateCheckURL");
 // Make sure SNTP requests don't hit the network
@@ -111,6 +112,9 @@ user_pref("network.sntp.pools", "%(server)s");
 // port 135. The default number of retries (10) is excessive, but retrying
 // at least once will mean that codepath is still tested in automation.
 user_pref("network.sntp.maxRetryCount", 1);
+
+// Make sure the notification permission migration test doesn't hit the network.
+user_pref("app.support.baseURL", "http://%(server)s/support-dummy/");
 
 // Existing tests don't wait for the notification button security delay
 user_pref("security.notification_enable_delay", 0);
@@ -144,6 +148,7 @@ user_pref("layout.css.report_errors", true);
 
 // Enable CSS Grid for testing
 user_pref("layout.css.grid.enabled", true);
+user_pref("layout.css.grid-template-subgrid-value.enabled", true);
 
 // Enable CSS 'contain' for testing
 user_pref("layout.css.contain.enabled", true);
@@ -194,9 +199,6 @@ user_pref("browser.download.panel.shown", true);
 // which test runs first and happens to open about:newtab
 user_pref("browser.newtabpage.introShown", true);
 
-// Tell the PBackground infrastructure to run a test at startup.
-user_pref("pbackground.testing", true);
-
 // Enable webapps testing mode, which bypasses native installation.
 user_pref("browser.webapps.testing", true);
 
@@ -241,7 +243,7 @@ user_pref("identity.fxaccounts.remote.signin.uri", "https://%(server)s/fxa-signi
 user_pref("identity.fxaccounts.settings.uri", "https://%(server)s/fxa-settings");
 
 // Make sure SSL Error reports don't hit the network
-user_pref("security.ssl.errorReporting.url", "https://example.com/browser/browser/base/content/test/general/pinning_reports.sjs?succeed");
+user_pref("security.ssl.errorReporting.url", "https://example.com/browser/browser/base/content/test/general/ssl_error_reports.sjs?succeed");
 
 // Make sure Translation won't hit the network.
 user_pref("browser.translation.bing.authURL", "http://%(server)s/browser/browser/components/translation/test/bing.sjs");
@@ -280,7 +282,6 @@ user_pref("browser.search.countryCode", "US");
 user_pref("browser.selfsupport.url", "https://%(server)s/selfsupport-dummy/");
 
 user_pref("media.eme.enabled", true);
-user_pref("media.eme.apiVisible", true);
 
 #if defined(XP_WIN)
 user_pref("media.decoder.heuristic.dormant.timeout", 0);

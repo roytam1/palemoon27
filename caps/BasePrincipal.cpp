@@ -7,6 +7,9 @@
 #include "mozilla/BasePrincipal.h"
 
 #include "nsDocShell.h"
+#ifdef MOZ_CRASHREPORTER
+#include "nsExceptionHandler.h"
+#endif
 #include "nsIAddonPolicyService.h"
 #include "nsIContentSecurityPolicy.h"
 #include "nsIObjectInputStream.h"
@@ -73,7 +76,13 @@ OriginAttributes::CreateSuffix(nsACString& aStr) const
   }
 
   if (!mAddonId.IsEmpty()) {
-    MOZ_RELEASE_ASSERT(mAddonId.FindCharInSet(dom::quota::QuotaManager::kReplaceChars) == kNotFound);
+    if (mAddonId.FindCharInSet(dom::quota::QuotaManager::kReplaceChars) != kNotFound) {
+#ifdef MOZ_CRASHREPORTER
+      CrashReporter::AnnotateCrashReport(NS_LITERAL_CSTRING("Crash_AddonId"),
+                                         NS_ConvertUTF16toUTF8(mAddonId));
+#endif
+      MOZ_CRASH();
+    }
     params->Set(NS_LITERAL_STRING("addonId"), mAddonId);
   }
 
@@ -303,13 +312,25 @@ BasePrincipal::GetCsp(nsIContentSecurityPolicy** aCsp)
 }
 
 NS_IMETHODIMP
-BasePrincipal::SetCsp(nsIContentSecurityPolicy* aCsp)
+BasePrincipal::EnsureCSP(nsIDOMDocument* aDocument,
+                         nsIContentSecurityPolicy** aCSP)
 {
   if (mCSP) {
-    return NS_ERROR_ALREADY_INITIALIZED;
+    // if there is a CSP already associated with this principal
+    // then just return that - do not overwrite it!!!
+    NS_IF_ADDREF(*aCSP = mCSP);
+    return NS_OK;
   }
 
-  mCSP = aCsp;
+  nsresult rv = NS_OK;
+  mCSP = do_CreateInstance("@mozilla.org/cspcontext;1", &rv);
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  // Store the request context for violation reports
+  rv = aDocument ? mCSP->SetRequestContext(aDocument, nullptr)
+                 : mCSP->SetRequestContext(nullptr, this);
+  NS_ENSURE_SUCCESS(rv, rv);
+  NS_IF_ADDREF(*aCSP = mCSP);
   return NS_OK;
 }
 
@@ -321,12 +342,25 @@ BasePrincipal::GetPreloadCsp(nsIContentSecurityPolicy** aPreloadCSP)
 }
 
 NS_IMETHODIMP
-BasePrincipal::SetPreloadCsp(nsIContentSecurityPolicy* aPreloadCSP)
+BasePrincipal::EnsurePreloadCSP(nsIDOMDocument* aDocument,
+                                nsIContentSecurityPolicy** aPreloadCSP)
 {
   if (mPreloadCSP) {
-    return NS_ERROR_ALREADY_INITIALIZED;
+    // if there is a speculative CSP already associated with this principal
+    // then just return that - do not overwrite it!!!
+    NS_IF_ADDREF(*aPreloadCSP = mPreloadCSP);
+    return NS_OK;
   }
-  mPreloadCSP = aPreloadCSP;
+
+  nsresult rv = NS_OK;
+  mPreloadCSP = do_CreateInstance("@mozilla.org/cspcontext;1", &rv);
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  // Store the request context for violation reports
+  rv = aDocument ? mPreloadCSP->SetRequestContext(aDocument, nullptr)
+                 : mPreloadCSP->SetRequestContext(nullptr, this);
+  NS_ENSURE_SUCCESS(rv, rv);
+  NS_IF_ADDREF(*aPreloadCSP = mPreloadCSP);
   return NS_OK;
 }
 
@@ -421,6 +455,13 @@ BasePrincipal::GetAppId(uint32_t* aAppId)
 }
 
 NS_IMETHODIMP
+BasePrincipal::GetAddonId(nsAString& aAddonId)
+{
+  aAddonId.Assign(mOriginAttributes.mAddonId);
+  return NS_OK;
+}
+
+NS_IMETHODIMP
 BasePrincipal::GetUserContextId(uint32_t* aUserContextId)
 {
   *aUserContextId = UserContextId();
@@ -471,6 +512,28 @@ BasePrincipal::CreateCodebasePrincipal(nsIURI* aURI, const OriginAttributes& aAt
   rv = codebase->Init(aURI, aAttrs);
   NS_ENSURE_SUCCESS(rv, nullptr);
   return codebase.forget();
+}
+
+already_AddRefed<BasePrincipal>
+BasePrincipal::CreateCodebasePrincipal(const nsACString& aOrigin)
+{
+  MOZ_ASSERT(!StringBeginsWith(aOrigin, NS_LITERAL_CSTRING("[")),
+             "CreateCodebasePrincipal does not support System and Expanded principals");
+
+  MOZ_ASSERT(!StringBeginsWith(aOrigin, NS_LITERAL_CSTRING(NS_NULLPRINCIPAL_SCHEME ":")),
+             "CreateCodebasePrincipal does not support nsNullPrincipal");
+
+  nsAutoCString originNoSuffix;
+  mozilla::OriginAttributes attrs;
+  if (!attrs.PopulateFromOrigin(aOrigin, originNoSuffix)) {
+    return nullptr;
+  }
+
+  nsCOMPtr<nsIURI> uri;
+  nsresult rv = NS_NewURI(getter_AddRefs(uri), originNoSuffix);
+  NS_ENSURE_SUCCESS(rv, nullptr);
+
+  return BasePrincipal::CreateCodebasePrincipal(uri, attrs);
 }
 
 bool

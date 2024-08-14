@@ -93,6 +93,34 @@ function create_fileList() {
   script.sendAsyncMessage("file.open");
 }
 
+function create_directory() {
+  if (navigator.userAgent.toLowerCase().indexOf('Android') != -1) {
+    next();
+    return;
+  }
+
+  var url = SimpleTest.getTestFileURL("script_postmessages_fileList.js");
+  var script = SpecialPowers.loadChromeScript(url);
+
+  function onOpened(message) {
+    var fileList = document.getElementById('fileList');
+    SpecialPowers.wrap(fileList).mozSetDirectory(message.dir);
+
+    fileList.getFilesAndDirectories().then(function(list) {
+      // Just a simple test
+      is(list.length, 1, "This list has 1 element");
+      ok(list[0] instanceof Directory, "We have a directory.");
+
+      clonableObjects.push(list[0]);
+      script.destroy();
+      next();
+    });
+  }
+
+  script.addMessageListener("dir.opened", onOpened);
+  script.sendAsyncMessage("dir.open");
+}
+
 function runTests(obj) {
   ok(('clonableObjects' in obj) &&
      ('transferableObjects' in obj) &&
@@ -113,6 +141,7 @@ function runTests(obj) {
       }
 
       var object = clonableObjects[clonableObjectsId++];
+
       obj.send(object, []).then(function(received) {
         compare(received.data, object);
         runClonableTest();
@@ -499,6 +528,7 @@ function test_messagePort_inWorkers() {
 
 var tests = [
   create_fileList,
+  create_directory,
 
   test_windowToWindow,
   test_windowToIframe,

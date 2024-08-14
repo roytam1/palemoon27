@@ -256,7 +256,10 @@ BookmarksEngine.prototype = {
       stmt.params.id = id;
       let rows = Async.querySpinningly(stmt, ["url"]);
       url = rows.length == 0 ? "<not found>" : rows[0].url;
-    } catch (ex if !Async.isShutdownException(ex)) {
+    } catch (ex) {
+      if (Async.isShutdownException(ex)) {
+        throw ex;
+      }
       if (ex instanceof Ci.mozIStorageError) {
         url = `<failed: Storage error: ${ex.message} (${ex.result})>`;
       } else {
@@ -414,7 +417,7 @@ BookmarksEngine.prototype = {
     SyncEngine.prototype._syncStartup.call(this);
 
     let cb = Async.makeSpinningCallback();
-    Task.spawn(function() {
+    Task.spawn(function* () {
       // For first-syncs, make a backup for the user to restore
       if (this.lastSync == 0) {
         this._log.debug("Bookmarks backup starting.");
@@ -426,8 +429,7 @@ BookmarksEngine.prototype = {
         // Failure to create a backup is somewhat bad, but probably not bad
         // enough to prevent syncing of bookmarks - so just log the error and
         // continue.
-        this._log.warn("Got exception \"" + Utils.exceptionStr(ex) +
-                       "\" backing up bookmarks, but continuing with sync.");
+        this._log.warn("Error while backing up bookmarks, but continuing with sync", ex);
         cb();
       }
     );
@@ -441,10 +443,11 @@ BookmarksEngine.prototype = {
       let guidMap;
       try {
         guidMap = this._buildGUIDMap();
-      } catch (ex if !Async.isShutdownException(ex)) {
-        this._log.warn("Got exception \"" + Utils.exceptionStr(ex) +
-                       "\" building GUID map." +
-                       " Skipping all other incoming items.");
+      } catch (ex) {
+        if (Async.isShutdownException(ex)) {
+          throw ex;
+        }
+        this._log.warn("Error while building GUID map, skipping all other incoming items", ex);
         throw {code: Engine.prototype.eEngineAbortApplyIncoming,
                cause: ex};
       }
@@ -691,7 +694,7 @@ BookmarksStore.prototype = {
         return true;
       }
     } catch(ex) {
-      this._log.debug("Failed to reparent item. " + Utils.exceptionStr(ex));
+      this._log.debug("Failed to reparent item", ex);
     }
     return false;
   },
@@ -1323,8 +1326,7 @@ BookmarksStore.prototype = {
       let u = PlacesUtils.bookmarks.getBookmarkURI(itemID);
       this._tagURI(u, tags);
     } catch (e) {
-      this._log.warn("Got exception fetching URI for " + itemID + ": not tagging. " +
-                     Utils.exceptionStr(e));
+      this._log.warn(`Got exception fetching URI for ${itemID} not tagging`, e);
 
       // I guess it doesn't have a URI. Don't try to tag it.
       return;
@@ -1371,7 +1373,7 @@ BookmarksStore.prototype = {
 
   wipe: function BStore_wipe() {
     let cb = Async.makeSpinningCallback();
-    Task.spawn(function() {
+    Task.spawn(function* () {
       // Save a backup before clearing out all bookmarks.
       yield PlacesBackups.create(null, true);
       for (let guid of kSpecialIds.guids)

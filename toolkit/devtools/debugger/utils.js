@@ -106,7 +106,7 @@ const SourceUtils = {
   clearCache: function() {
     this._labelsCache.clear();
     this._groupsCache.clear();
-    this._minifiedCache = new WeakMap();
+    this._minifiedCache.clear();
   },
 
   /**
@@ -304,7 +304,11 @@ const SourceUtils = {
     }
     // Prepend the hostname and port number.
     if (aSeq == 4) {
-      let host = aUrl.hostPort;
+      let host;
+      try {
+        // Bug 1261860: jar: URLs throw when accessing `hostPost`
+        host = aUrl.hostPort;
+      } catch(e) {}
       if (host) {
         return this.trimUrl(aUrl, host + "/" + aLabel, aSeq + 1);
       }

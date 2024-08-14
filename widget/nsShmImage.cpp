@@ -4,22 +4,14 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#if defined(MOZ_WIDGET_GTK)
-#include <gtk/gtk.h>
-#include <gdk/gdkx.h>
-#elif defined(MOZ_WIDGET_QT)
-#include <QWindow>
-#endif
-
 #include "nsShmImage.h"
-#ifdef MOZ_WIDGET_GTK
-#include "gfxPlatformGtk.h"
-#endif
 
 #ifdef MOZ_HAVE_SHMIMAGE
 #include "mozilla/X11Util.h"
-
 #include "mozilla/ipc/SharedMemory.h"
+#include "gfxPlatform.h"
+#include "nsPrintfCString.h"
+#include "nsTArray.h"
 
 #include <errno.h>
 #include <string.h>
@@ -29,29 +21,46 @@
 using namespace mozilla::ipc;
 using namespace mozilla::gfx;
 
+nsShmImage::nsShmImage(Display* aDisplay,
+                       Drawable aWindow,
+                       Visual* aVisual,
+                       unsigned int aDepth)
+  : mImage(nullptr)
+  , mDisplay(aDisplay)
+  , mWindow(aWindow)
+  , mVisual(aVisual)
+  , mDepth(aDepth)
+  , mFormat(mozilla::gfx::SurfaceFormat::UNKNOWN)
+  , mPixmap(None)
+  , mGC(nullptr)
+  , mRequest(0)
+  , mPreviousRequestProcessed(0)
+{
+  memset(&mInfo, -1, sizeof(mInfo));
+}
+
+nsShmImage::~nsShmImage()
+{
+  DestroyImage();
+}
+
 // If XShm isn't available to our client, we'll try XShm once, fail,
 // set this to false and then never try again.
 static bool gShmAvailable = true;
 bool nsShmImage::UseShm()
 {
-#ifdef MOZ_WIDGET_GTK
-    return (gShmAvailable && !gfxPlatformGtk::GetPlatform()->UseXRender());
-#else
-    return gShmAvailable;
-#endif
+  return gShmAvailable;
 }
 
-#ifdef MOZ_WIDGET_GTK
 static int gShmError = 0;
 
 static int
 TrapShmError(Display* aDisplay, XErrorEvent* aEvent)
 {
-    // store the error code and ignore the error
-    gShmError = aEvent->error_code;
-    return 0;
+  // store the error code and ignore the error
+  gShmError = aEvent->error_code;
+  return 0;
 }
-#endif
 
 bool
 nsShmImage::CreateShmSegment()
@@ -68,15 +77,18 @@ nsShmImage::CreateShmSegment()
   }
 
   mInfo.shmaddr = (char *)shmat(mInfo.shmid, nullptr, 0);
+
+  // Mark the handle removed so that it will destroy the segment when unmapped.
+  shmctl(mInfo.shmid, IPC_RMID, nullptr);
+
   if (mInfo.shmaddr == (void *)-1) {
+    // Since mapping failed, the segment is already destroyed.
+    mInfo.shmid = -1;
+
     nsPrintfCString warning("shmat(): %s (%d)\n", strerror(errno), errno);
     NS_WARNING(warning.get());
     return false;
   }
-
-  // Mark the handle as deleted so that, should this process go away, the
-  // segment is cleaned up.
-  shmctl(mInfo.shmid, IPC_RMID, 0);
 
 #ifdef DEBUG
   struct shmid_ds info;
@@ -104,61 +116,81 @@ nsShmImage::DestroyShmSegment()
   }
 }
 
+static bool gShmInitialized = false;
+static int gShmEvent = -1;
+static Atom gShmPixmapAtom = None;
+
 bool
-nsShmImage::CreateImage(const LayoutDeviceIntSize& aSize,
-                        Display* aDisplay, Visual* aVisual, unsigned int aDepth)
+nsShmImage::InitExtension()
 {
-  mDisplay = aDisplay;
-  mImage = XShmCreateImage(aDisplay, aVisual, aDepth,
-                           ZPixmap, nullptr,
-                           &mInfo,
-                           aSize.width, aSize.height);
-  if (!mImage || !CreateShmSegment()) {
-    return false;
+  if (gShmInitialized) {
+    return gShmAvailable;
   }
 
-#if defined(MOZ_WIDGET_GTK)
-  gShmError = 0;
-  XErrorHandler previousHandler = XSetErrorHandler(TrapShmError);
-  Status attachOk = XShmAttach(aDisplay, &mInfo);
-  XSync(aDisplay, False);
-  XSetErrorHandler(previousHandler);
-  if (gShmError) {
-    attachOk = 0;
-  }
-#elif defined(MOZ_WIDGET_QT)
-  Status attachOk = XShmAttach(aDisplay, &mInfo);
-#endif
+  gShmInitialized = true;
 
-  if (!attachOk) {
-    // Assume XShm isn't available, and don't attempt to use it
-    // again.
+  if (!XShmQueryExtension(mDisplay)) {
     gShmAvailable = false;
     return false;
   }
 
-  mXAttached = true;
-  mSize = aSize;
+  int major, minor;
+  Bool pixmaps;
+  if (!XShmQueryVersion(mDisplay, &major, &minor, &pixmaps)) {
+    gShmAvailable = false;
+    return false;
+  }
+
+  gShmEvent = XShmGetEventBase(mDisplay);
+  if (gShmEvent < 0) {
+    gShmAvailable = false;
+    return false;
+  }
+
+  if (pixmaps && XShmPixmapFormat(mDisplay) == ZPixmap) {
+    gShmPixmapAtom = XInternAtom(mDisplay, "_MOZ_SHM_PIXMAP", False);
+  }
+
+  return true;
+}
+
+bool
+nsShmImage::CreateImage(const IntSize& aSize)
+{
+  MOZ_ASSERT(mDisplay && mVisual);
+
+  if (!InitExtension()) {
+    return false;
+  }
+
+  BackendType backend = gfxPlatform::GetPlatform()->GetDefaultContentBackend();
+
   mFormat = SurfaceFormat::UNKNOWN;
-  switch (mImage->depth) {
+  switch (mDepth) {
   case 32:
-    if ((mImage->red_mask == 0xff0000) &&
-        (mImage->green_mask == 0xff00) &&
-        (mImage->blue_mask == 0xff)) {
+    if (mVisual->red_mask == 0xff0000 &&
+        mVisual->green_mask == 0xff00 &&
+        mVisual->blue_mask == 0xff) {
       mFormat = SurfaceFormat::B8G8R8A8;
     }
     break;
   case 24:
     // Only support the BGRX layout, and report it as BGRA to the compositor.
     // The alpha channel will be discarded when we put the image.
-    if ((mImage->red_mask == 0xff0000) &&
-        (mImage->green_mask == 0xff00) &&
-        (mImage->blue_mask == 0xff)) {
-      mFormat = SurfaceFormat::B8G8R8A8;
+    // Cairo/pixman lacks some fast paths for compositing BGRX onto BGRA, so
+    // just report it as BGRX directly in that case.
+    if (mVisual->red_mask == 0xff0000 &&
+        mVisual->green_mask == 0xff00 &&
+        mVisual->blue_mask == 0xff) {
+      mFormat = backend == BackendType::CAIRO ? SurfaceFormat::B8G8R8X8 : SurfaceFormat::B8G8R8A8;
     }
     break;
   case 16:
-    mFormat = SurfaceFormat::R5G6B5_UINT16;
+    if (mVisual->red_mask == 0xf800 &&
+        mVisual->green_mask == 0x07e0 &&
+        mVisual->blue_mask == 0x1f) {
+      mFormat = SurfaceFormat::R5G6B5_UINT16;
+    }
     break;
   }
 
@@ -168,96 +200,178 @@ nsShmImage::CreateImage(const LayoutDeviceIntSize& aSize,
     return false;
   }
 
+  mImage = XShmCreateImage(mDisplay, mVisual, mDepth,
+                           ZPixmap, nullptr,
+                           &mInfo,
+                           aSize.width, aSize.height);
+  if (!mImage || !CreateShmSegment()) {
+    DestroyImage();
+    return false;
+  }
+
+  gShmError = 0;
+  XErrorHandler previousHandler = XSetErrorHandler(TrapShmError);
+  Status attachOk = XShmAttach(mDisplay, &mInfo);
+  XSync(mDisplay, False);
+  XSetErrorHandler(previousHandler);
+  if (gShmError) {
+    attachOk = 0;
+  }
+
+  if (!attachOk) {
+    DestroyShmSegment();
+    DestroyImage();
+
+    // Assume XShm isn't available, and don't attempt to use it
+    // again.
+    gShmAvailable = false;
+    return false;
+  }
+
+  if (gShmPixmapAtom != None) {
+    mPixmap = XShmCreatePixmap(mDisplay, mWindow,
+                               mImage->data, &mInfo,
+                               mImage->width, mImage->height, mImage->depth);
+  }
+
   return true;
 }
 
-nsShmImage::~nsShmImage()
+void
+nsShmImage::DestroyImage()
 {
   if (mImage) {
     mozilla::FinishX(mDisplay);
-    if (mXAttached) {
+  }
+  if (mGC) {
+    XFreeGC(mDisplay, mGC);
+    mGC = nullptr;
+  }
+  if (mPixmap != None) {
+    XFreePixmap(mDisplay, mPixmap);
+    mPixmap = None;
+  }
+  if (mImage) {
+    if (mInfo.shmid != -1) {
       XShmDetach(mDisplay, &mInfo);
     }
     XDestroyImage(mImage);
+    mImage = nullptr;
   }
   DestroyShmSegment();
 }
 
 already_AddRefed<DrawTarget>
-nsShmImage::CreateDrawTarget()
+nsShmImage::CreateDrawTarget(const mozilla::LayoutDeviceIntRegion& aRegion)
 {
+  // Wait for any in-flight XShmPutImage requests to complete.
+  WaitForRequest();
+
+  // Due to bug 1205045, we must avoid making GTK calls off the main thread to query window size.
+  // Instead we just track the largest offset within the image we are drawing to and grow the image
+  // to accomodate it. Since usually the entire window is invalidated on the first paint to it,
+  // this should grow the image to the necessary size quickly without many intermediate reallocations.
+  IntRect bounds = aRegion.GetBounds().ToUnknownRect();
+  IntSize size(bounds.XMost(), bounds.YMost());
+  if (!mImage || size.width > mImage->width || size.height > mImage->height) {
+    DestroyImage();
+    if (!CreateImage(size)) {
+      return nullptr;
+    }
+  }
+
   return gfxPlatform::GetPlatform()->CreateDrawTargetForData(
-    reinterpret_cast<unsigned char*>(mImage->data),
-    mSize.ToUnknownSize(),
+    reinterpret_cast<unsigned char*>(mImage->data)
+      + bounds.y * mImage->bytes_per_line + bounds.x * BytesPerPixel(mFormat),
+    bounds.Size(),
     mImage->bytes_per_line,
     mFormat);
 }
 
-#ifdef MOZ_WIDGET_GTK
-void
-nsShmImage::Put(Display* aDisplay, Drawable aWindow,
-                const LayoutDeviceIntRegion& aRegion)
+bool
+nsShmImage::RequestWasProcessed()
 {
-    GC gc = XCreateGC(aDisplay, aWindow, 0, nullptr);
-    LayoutDeviceIntRegion bounded;
-    bounded.And(aRegion,
-                LayoutDeviceIntRect(0, 0, mImage->width, mImage->height));
-    for (auto iter = bounded.RectIter(); !iter.Done(); iter.Next()) {
-        const LayoutDeviceIntRect& r = iter.Get();
-        XShmPutImage(aDisplay, aWindow, gc, mImage,
-                     r.x, r.y,
-                     r.x, r.y,
-                     r.width, r.height,
-                     False);
-    }
-
-    XFreeGC(aDisplay, gc);
-
-    // FIXME/bug 597336: we need to ensure that the shm image isn't
-    // scribbled over before all its pending XShmPutImage()s complete.
-    // However, XSync() is an unnecessarily heavyweight
-    // synchronization mechanism; other options are possible.  If this
-    // XSync is shown to hurt responsiveness, we need to explore the
-    // other options.
-    XSync(aDisplay, False);
+  // Check for either that the sequence number has advanced to the request,
+  // or that it has advanced so far around that it appears to be before the
+  // last request processed at the time the request was initially sent.
+  unsigned long processed = LastKnownRequestProcessed(mDisplay);
+  return long(processed - mRequest) >= 0 ||
+         long(processed - mPreviousRequestProcessed) < 0;
 }
 
-#elif defined(MOZ_WIDGET_QT)
-void
-nsShmImage::Put(QWindow* aWindow, QRect& aRect)
+Bool
+nsShmImage::FindEvent(Display* aDisplay, XEvent* aEvent, XPointer aArg)
 {
-    Display* dpy = gfxQtPlatform::GetXDisplay(aWindow);
-    Drawable d = aWindow->winId();
-
-    GC gc = XCreateGC(dpy, d, 0, nullptr);
-    // Avoid out of bounds painting
-    QRect inter = aRect.intersected(aWindow->geometry());
-    XShmPutImage(dpy, d, gc, mImage,
-                 inter.x(), inter.y(),
-                 inter.x(), inter.y(),
-                 inter.width(), inter.height(),
-                 False);
-    XFreeGC(dpy, gc);
+  nsShmImage* image = (nsShmImage*)aArg;
+  return image->RequestWasProcessed();
 }
-#endif
 
-already_AddRefed<DrawTarget>
-nsShmImage::EnsureShmImage(const LayoutDeviceIntSize& aSize,
-                           Display* aDisplay, Visual* aVisual, unsigned int aDepth,
-                           RefPtr<nsShmImage>& aImage)
+void
+nsShmImage::WaitForRequest()
 {
-  if (!aImage || aImage->Size() != aSize) {
-    // Because we XSync() after XShmAttach() to trap errors, we
-    // know that the X server has the old image's memory mapped
-    // into its address space, so it's OK to destroy the old image
-    // here even if there are outstanding Puts.  The Detach is
-    // ordered after the Puts.
-    aImage = new nsShmImage;
-    if (!aImage->CreateImage(aSize, aDisplay, aVisual, aDepth)) {
-      aImage = nullptr;
+  if (!mRequest) {
+    return;
+  }
+
+  if (!RequestWasProcessed()) {
+    XEvent event;
+    XPeekIfEvent(mDisplay, &event, FindEvent, (XPointer)this);
+  }
+
+  mRequest = 0;
+}
+
+void
+nsShmImage::SendEvent()
+{
+  XClientMessageEvent event;
+  memset(&event, 0, sizeof(event));
+
+  event.type = ClientMessage;
+  event.window = mWindow;
+  event.message_type = gShmPixmapAtom;
+  event.format = 32;
+  event.data.l[0] = (long)mInfo.shmseg;
+
+  XSendEvent(mDisplay, mWindow, False, 0, (XEvent*)&event);
+}
+
+void
+nsShmImage::Put(const mozilla::LayoutDeviceIntRegion& aRegion)
+{
+  if (!mImage) {
+    return;
+  }
+
+  AutoTArray<XRectangle, 32> xrects;
+  xrects.SetCapacity(aRegion.GetNumRects());
+
+  for (auto iter = aRegion.RectIter(); !iter.Done(); iter.Next()) {
+    const mozilla::LayoutDeviceIntRect &r = iter.Get();
+    XRectangle xrect = { (short)r.x, (short)r.y, (unsigned short)r.width, (unsigned short)r.height };
+    xrects.AppendElement(xrect);
+  }
+
+  if (!mGC) {
+    mGC = XCreateGC(mDisplay, mWindow, 0, nullptr);
+    if (!mGC) {
+      return;
     }
   }
-  return !aImage ? nullptr : aImage->CreateDrawTarget();
+  XSetClipRectangles(mDisplay, mGC, 0, 0, xrects.Elements(), xrects.Length(), YXBanded);
+
+  mRequest = XNextRequest(mDisplay);
+  if (mPixmap != None) {
+    XCopyArea(mDisplay, mPixmap, mWindow, mGC, 0, 0, mImage->width, mImage->height, 0, 0);
+    // Send a synthetic event to ensure WaitForRequest can safely poll it.
+    SendEvent();
+  } else {
+    // The send_event parameter is True here for WaitForRequest polling.
+    XShmPutImage(mDisplay, mWindow, mGC, mImage, 0, 0, 0, 0, mImage->width, mImage->height, True);
+  }
+
+  mPreviousRequestProcessed = LastKnownRequestProcessed(mDisplay);
+  XFlush(mDisplay);
 }
 
 #endif  // MOZ_HAVE_SHMIMAGE

@@ -16,7 +16,7 @@
 #include "mozilla/Services.h"           // for GetObserverService
 #include "mozilla/StaticMutex.h"
 #include "mozilla/mozalloc.h"           // for operator new, etc
-#include "nsAutoPtr.h"                  // for nsRefPtr
+#include "mozilla/RefPtr.h"             // for RefPtr
 #include "nsCOMPtr.h"                   // for nsCOMPtr
 #include "nsError.h"                    // for NS_OK, NS_FAILED, nsresult
 #include "nsExceptionHandler.h"         // for AppendAppNotesToCrashReport
@@ -26,7 +26,6 @@
 #include "nsIObserverService.h"         // for nsIObserverService
 #include "nsIRunnable.h"                // for nsIRunnable
 #include "nsISupports.h"
-#include "nsString.h"               // for nsAutoCString, nsCString, etc
 #include "nsTArray.h"                   // for nsTArray
 #include "nsThreadUtils.h"              // for NS_DispatchToMainThread, etc
 #include "nscore.h"                     // for NS_IMETHOD, NS_IMETHODIMP, etc
@@ -84,9 +83,9 @@ public:
   }
 };
 
-class AppendAppNotesRunnable : public nsCancelableRunnable {
+class AppendAppNotesRunnable : public CancelableRunnable {
 public:
-  explicit AppendAppNotesRunnable(nsAutoCString aFeatureStr)
+  explicit AppendAppNotesRunnable(const nsACString& aFeatureStr)
     : mFeatureString(aFeatureStr)
   {
   }
@@ -97,7 +96,7 @@ public:
   }
 
 private:
-  nsCString mFeatureString;
+  nsAutoCString mFeatureString;
 };
 
 void
@@ -118,17 +117,29 @@ ScopedGfxFeatureReporter::WriteAppNote(char statusChar)
 
   if (!gFeaturesAlreadyReported->Contains(featureString)) {
     gFeaturesAlreadyReported->AppendElement(featureString);
-    nsCOMPtr<nsIRunnable> r = new AppendAppNotesRunnable(featureString);
-    NS_DispatchToMainThread(r);
+    AppNote(featureString);
   }
 }
 
+void
+ScopedGfxFeatureReporter::AppNote(const nsACString& aMessage)
+{
+  if (NS_IsMainThread()) {
+    CrashReporter::AppendAppNotesToCrashReport(aMessage);
+  } else {
+    nsCOMPtr<nsIRunnable> r = new AppendAppNotesRunnable(aMessage);
+    NS_DispatchToMainThread(r);
+  }
+}
+  
 } // end namespace mozilla
 
 #else
 
 namespace mozilla {
 void ScopedGfxFeatureReporter::WriteAppNote(char) {}
+void ScopedGfxFeatureReporter::AppNote(const nsACString&) {}
+  
 } // namespace mozilla
 
 #endif

@@ -101,7 +101,8 @@ WMFDecoderModule::CreateVideoDecoder(const VideoInfo& aConfig,
                                      layers::LayersBackend aLayersBackend,
                                      layers::ImageContainer* aImageContainer,
                                      FlushableTaskQueue* aVideoTaskQueue,
-                                     MediaDataDecoderCallback* aCallback)
+                                     MediaDataDecoderCallback* aCallback,
+                                     DecoderDoctorDiagnostics* aDiagnostics)
 {
   nsAutoPtr<WMFVideoMFTManager> manager(
     new WMFVideoMFTManager(aConfig,
@@ -122,7 +123,8 @@ WMFDecoderModule::CreateVideoDecoder(const VideoInfo& aConfig,
 already_AddRefed<MediaDataDecoder>
 WMFDecoderModule::CreateAudioDecoder(const AudioInfo& aConfig,
                                      FlushableTaskQueue* aAudioTaskQueue,
-                                     MediaDataDecoderCallback* aCallback)
+                                     MediaDataDecoderCallback* aCallback,
+                                     DecoderDoctorDiagnostics* aDiagnostics)
 {
   nsAutoPtr<WMFAudioMFTManager> manager(new WMFAudioMFTManager(aConfig));
 
@@ -163,17 +165,30 @@ CanCreateWMFDecoder()
   return result.value();
 }
 
+/* static */ bool
+WMFDecoderModule::HasH264()
+{
+  return CanCreateWMFDecoder<CLSID_CMSH264DecoderMFT>();
+}
+
+/* static */ bool
+WMFDecoderModule::HasAAC()
+{
+  return CanCreateWMFDecoder<CLSID_CMSAACDecMFT>();
+}
+
 bool
-WMFDecoderModule::SupportsMimeType(const nsACString& aMimeType) const
+WMFDecoderModule::SupportsMimeType(const nsACString& aMimeType,
+                                   DecoderDoctorDiagnostics* aDiagnostics) const
 {
   if ((aMimeType.EqualsLiteral("audio/mp4a-latm") ||
        aMimeType.EqualsLiteral("audio/mp4")) &&
-      CanCreateWMFDecoder<CLSID_CMSAACDecMFT>()) {
+       WMFDecoderModule::HasAAC()) {
     return true;
   }
   if ((aMimeType.EqualsLiteral("video/avc") ||
        aMimeType.EqualsLiteral("video/mp4")) &&
-      CanCreateWMFDecoder<CLSID_CMSH264DecoderMFT>()) {
+       WMFDecoderModule::HasH264()) {
     return true;
   }
   if (aMimeType.EqualsLiteral("audio/mpeg") &&

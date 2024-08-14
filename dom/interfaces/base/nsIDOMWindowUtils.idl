@@ -107,6 +107,11 @@ interface nsIDOMWindowUtils : nsISupports {
   void updateLayerTree();
 
   /**
+   * Get the last used layer transaction id for this window's refresh driver.
+   */
+  readonly attribute unsigned long long lastTransactionId;
+
+  /**
    * Information retrieved from the <meta name="viewport"> tag.
    * See nsContentUtils::GetViewportInfo for more information.
    */
@@ -1481,13 +1486,6 @@ interface nsIDOMWindowUtils : nsISupports {
   readonly attribute string focusedInputType;
 
   /**
-   * Given a view ID from the compositor process, retrieve the element
-   * associated with a view. For scrollpanes for documents, the root
-   * element of the document is returned.
-   */
-  nsIDOMElement findElementWithViewId(in nsViewID aId);
-
-  /**
    * Find the view ID for a given element. This is the reverse of
    * findElementWithViewId().
    */
@@ -1744,6 +1742,12 @@ interface nsIDOMWindowUtils : nsISupports {
    * Posts an eRestyle_Self restyle event for the given element.
    */
   void postRestyleSelfEvent(in nsIDOMElement aElement);
+
+  /**
+   * Used to pause or resume all MediaElements in this window. Use-cases are
+   * audio competing and remote media control.
+   */
+  attribute boolean mediaSuspended;
 
   /**
    * With this it's possible to mute all the MediaElements in this window.

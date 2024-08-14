@@ -523,6 +523,7 @@ SpdySession31::ResetDownstreamState()
       DecrementConcurrent(mInputFrameDataStream);
     }
   }
+  mInputFrameDataLast = false;
   mInputFrameBufferUsed = 0;
   mInputFrameDataStream = nullptr;
 }
@@ -1746,9 +1747,10 @@ SpdySession31::OnTransportStatus(nsITransport* aTransport,
 // generated instead.
 
 nsresult
-SpdySession31::ReadSegments(nsAHttpSegmentReader *reader,
-                            uint32_t count,
-                            uint32_t *countRead)
+SpdySession31::ReadSegmentsAgain(nsAHttpSegmentReader *reader,
+                                 uint32_t count,
+                                 uint32_t *countRead,
+                                 bool *again)
 {
   MOZ_ASSERT(PR_GetCurrentThread() == gSocketThread);
 
@@ -1816,6 +1818,8 @@ SpdySession31::ReadSegments(nsAHttpSegmentReader *reader,
     CleanupStream(stream, rv, RST_CANCEL);
     if (SoftStreamError(rv)) {
       LOG3(("SpdySession31::ReadSegments %p soft error override\n", this));
+      *again = false;
+      SetWriteCallbacks();
       rv = NS_OK;
     }
     return rv;
@@ -1845,6 +1849,14 @@ SpdySession31::ReadSegments(nsAHttpSegmentReader *reader,
   return rv;
 }
 
+nsresult
+SpdySession31::ReadSegments(nsAHttpSegmentReader *reader,
+                            uint32_t count, uint32_t *countRead)
+{
+  bool again = false;
+  return ReadSegmentsAgain(reader, count, countRead, &again);
+}
+
 // WriteSegments() is used to read data off the socket. Generally this is
 // just the SPDY frame header and from there the appropriate SPDYStream
 // is identified from the Stream-ID. The http transaction associated with
@@ -1859,9 +1871,10 @@ SpdySession31::ReadSegments(nsAHttpSegmentReader *reader,
 // data. It always gets full frames if they are part of the stream
 
 nsresult
-SpdySession31::WriteSegments(nsAHttpSegmentWriter *writer,
-                             uint32_t count,
-                             uint32_t *countWritten)
+SpdySession31::WriteSegmentsAgain(nsAHttpSegmentWriter *writer,
+                                  uint32_t count,
+                                  uint32_t *countWritten,
+                                  bool *again)
 {
   typedef nsresult  (*Control_FX) (SpdySession31 *self);
   static const Control_FX sControlFunctions[] =
@@ -2028,7 +2041,7 @@ SpdySession31::WriteSegments(nsAHttpSegmentWriter *writer,
         mInputFrameDataStream->SetRecvdData(true);
         rv = ResponseHeadersComplete();
         if (rv == NS_ERROR_ILLEGAL_VALUE) {
-          LOG3(("SpdySession31 %p PROTOCOL_ERROR detected 0x%X\n",
+          LOG3(("SpdySession31 %p ResponseHeadersComplete PROTOCOL_ERROR detected 0x%X\n",
                 this, streamID));
           CleanupStream(mInputFrameDataStream, rv, RST_PROTOCOL_ERROR);
           ChangeDownstreamState(DISCARDING_DATA_FRAME);
@@ -2090,6 +2103,13 @@ SpdySession31::WriteSegments(nsAHttpSegmentWriter *writer,
     SpdyStream31 *stream = mInputFrameDataStream;
     mSegmentWriter = writer;
     rv = mInputFrameDataStream->WriteSegments(this, count, countWritten);
+    bool channelPipeFull = false;
+    if (rv == NS_BASE_STREAM_WOULD_BLOCK) {
+      LOG3(("SpdySession31::WriteSegments session=%p stream=%p 0x%X "
+            "stream channel pipe full\n",
+            this, stream, stream ? stream->StreamID() : 0));
+      channelPipeFull = mInputFrameDataStream->ChannelPipeFull();
+    }
     mSegmentWriter = nullptr;
 
     mLastDataReadEpoch = mLastReadEpoch;
@@ -2113,6 +2133,8 @@ SpdySession31::WriteSegments(nsAHttpSegmentWriter *writer,
       CleanupStream(stream, NS_OK, RST_CANCEL);
       MOZ_ASSERT(!mNeedsCleanup || mNeedsCleanup == stream);
       mNeedsCleanup = nullptr;
+      *again = false;
+      ResumeRecv();
       return NS_OK;
     }
 
@@ -2125,10 +2147,13 @@ SpdySession31::WriteSegments(nsAHttpSegmentWriter *writer,
     }
 
     if (NS_FAILED(rv)) {
-      LOG3(("SpdySession31 %p data frame read failure %x\n", this, rv));
+      LOG3(("SpdySession31::WriteSegments session=%p stream=%p 0x%X "
+            "data frame read failure %x pipefull=%d\n",
+            this, stream, stream ? stream->StreamID() : 0, rv, channelPipeFull));
       // maybe just blocked reading from network
-      if (rv == NS_BASE_STREAM_WOULD_BLOCK)
+      if ((rv == NS_BASE_STREAM_WOULD_BLOCK) && !channelPipeFull) {
         rv = NS_OK;
+      }
     }
 
     return rv;
@@ -2210,6 +2235,14 @@ SpdySession31::WriteSegments(nsAHttpSegmentWriter *writer,
   if (mShouldGoAway && !mStreamTransactionHash.Count())
     Close(NS_OK);
   return rv;
+}
+
+nsresult
+SpdySession31::WriteSegments(nsAHttpSegmentWriter *writer,
+                             uint32_t count, uint32_t *countWritten)
+{
+  bool again = false;
+  return WriteSegmentsAgain(writer, count, countWritten, &again);
 }
 
 void
@@ -2795,7 +2828,7 @@ SpdySession31::TakeTransport(nsISocketTransport **,
   return NS_ERROR_UNEXPECTED;
 }
 
-nsHttpConnection *
+already_AddRefed<nsHttpConnection>
 SpdySession31::TakeHttpConnection()
 {
   MOZ_ASSERT(false, "TakeHttpConnection of SpdySession31");

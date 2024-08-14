@@ -12,21 +12,30 @@
 namespace mozilla {
 namespace dom {
 
-class OSFileSystem : public FileSystemBase
+class OSFileSystem final : public FileSystemBase
 {
 public:
   explicit OSFileSystem(const nsAString& aRootDir);
 
   void
-  Init(nsPIDOMWindow* aWindow);
+  Init(nsISupports* aParent);
 
   // Overrides FileSystemBase
 
-  virtual nsPIDOMWindow*
-  GetWindow() const override;
+  virtual already_AddRefed<FileSystemBase>
+  Clone() override;
 
-  virtual void
-  GetRootName(nsAString& aRetval) const override;
+  virtual bool
+  ShouldCreateDirectory() override
+  {
+    MOZ_CRASH("This should not be called.");
+    // Because OSFileSystem should not be used when the creation of directories
+    // is needed. For that we have OSFileSystemParent.
+    return false;
+  }
+
+  virtual nsISupports*
+  GetParentObject() const override;
 
   virtual bool
   IsSafeFile(nsIFile* aFile) const override;
@@ -34,10 +43,88 @@ public:
   virtual bool
   IsSafeDirectory(Directory* aDir) const override;
 
+  virtual void
+  SerializeDOMPath(nsAString& aOutput) const override;
+
+  virtual bool
+  ClonableToDifferentThreadOrProcess() const override { return true; }
+
+  // CC methods
+  virtual void Unlink() override;
+  virtual void Traverse(nsCycleCollectionTraversalCallback &cb) override;
+
 private:
   virtual ~OSFileSystem() {}
 
-   nsCOMPtr<nsPIDOMWindow> mWindow;
+  nsCOMPtr<nsISupports> mParent;
+};
+
+class OSFileSystemParent final : public FileSystemBase
+{
+public:
+  explicit OSFileSystemParent(const nsAString& aRootDir);
+
+  // Overrides FileSystemBase
+
+  virtual already_AddRefed<FileSystemBase>
+  Clone() override
+  {
+    MOZ_CRASH("This should not be called on the PBackground thread.");
+    return nullptr;
+  }
+
+  virtual bool
+  ShouldCreateDirectory() override { return false; }
+
+  virtual nsISupports*
+  GetParentObject() const override
+  {
+    MOZ_CRASH("This should not be called on the PBackground thread.");
+    return nullptr;
+  }
+
+  virtual void
+  GetDirectoryName(nsIFile* aFile, nsAString& aRetval,
+                   ErrorResult& aRv) const override
+  {
+    MOZ_CRASH("This should not be called on the PBackground thread.");
+  }
+
+  virtual bool
+  IsSafeFile(nsIFile* aFile) const override
+  {
+    MOZ_CRASH("This should not be called on the PBackground thread.");
+    return true;
+  }
+
+  virtual bool
+  IsSafeDirectory(Directory* aDir) const override
+  {
+    MOZ_CRASH("This should not be called on the PBackground thread.");
+    return true;
+  }
+
+  virtual void
+  SerializeDOMPath(nsAString& aOutput) const override
+  {
+    MOZ_CRASH("This should not be called on the PBackground thread.");
+  }
+
+  // CC methods
+  virtual void
+  Unlink() override
+  {
+    MOZ_CRASH("This should not be called on the PBackground thread.");
+  }
+
+  virtual void
+  Traverse(nsCycleCollectionTraversalCallback &cb) override
+  {
+    MOZ_CRASH("This should not be called on the PBackground thread.");
+  }
+
+private:
+  virtual ~OSFileSystemParent() {}
 };
 
 } // namespace dom

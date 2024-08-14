@@ -9,6 +9,7 @@
 
 #include <stdint.h>
 #include "mozilla/ipc/DaemonSocketPDU.h"
+#include "mozilla/UniquePtr.h"
 #include "nsString.h"
 
 namespace mozilla {
@@ -342,6 +343,42 @@ PackPDU(const PackReversed<PackArray<U>>& aIn, DaemonSocketPDU& aPDU)
 {
   for (size_t i = 0; i < aIn.mValue.mLength; ++i) {
     nsresult rv = PackPDU(aIn.mValue.mData[aIn.mValue.mLength - i - 1], aPDU);
+    if (NS_FAILED(rv)) {
+      return rv;
+    }
+  }
+  return NS_OK;
+}
+
+/* |PackArray<PackReversed<U>>| is a helper for packing data of each element in
+ * the reversed order. Pass an instance of this structure as the first argument
+ * to |PackPDU| to pack data of each array element in the reversed order.
+ *
+ * Unlike |PackReversed<PackArray<U>>| which packed array elements in the
+ * reversed order, here we use |PackReversed<U>| to pack data of each element
+ * of |PackArray| in the reversed order.
+ */
+template<typename U>
+struct PackArray<PackReversed<U>>
+{
+  PackArray(const U* aData, size_t aLength)
+    : mData(aData)
+    , mLength(aLength)
+  { }
+
+  const U* mData;
+  size_t mLength;
+};
+
+/* This implementation of |PackPDU| packs data of each element in |PackArray|
+ * in the reversed order. (ex. reversed GATT UUID, see bug 1171866)
+ */
+template<typename U>
+inline nsresult
+PackPDU(const PackArray<PackReversed<U>>& aIn, DaemonSocketPDU& aPDU)
+{
+  for (size_t i = 0; i < aIn.mLength; ++i) {
+    nsresult rv = PackPDU(PackReversed<U>(aIn.mData[i]), aPDU);
     if (NS_FAILED(rv)) {
       return rv;
     }
@@ -750,19 +787,19 @@ struct UnpackArray
     , mLength(aLength)
   { }
 
-  UnpackArray(nsAutoArrayPtr<T>& aData, size_t aLength)
+  UnpackArray(UniquePtr<T[]>& aData, size_t aLength)
     : mData(nullptr)
     , mLength(aLength)
   {
-    aData = new T[mLength];
+    aData.reset(new T[mLength]);
     mData = aData.get();
   }
 
-  UnpackArray(nsAutoArrayPtr<T>& aData, size_t aSize, size_t aElemSize)
+  UnpackArray(UniquePtr<T>& aData, size_t aSize, size_t aElemSize)
     : mData(nullptr)
     , mLength(aSize / aElemSize)
   {
-    aData = new T[mLength];
+    aData.reset(new T[mLength]);
     mData = aData.get();
   }
 
@@ -1100,6 +1137,136 @@ public:
       return rv;
     }
     rv = UnpackPDU(pdu, aArg6);
+    if (NS_FAILED(rv)) {
+      return rv;
+    }
+    WarnAboutTrailingData();
+    return NS_OK;
+  }
+
+  template<typename T1, typename T2, typename T3, typename T4, typename T5,
+           typename T6, typename T7>
+  nsresult operator () (T1& aArg1, T2& aArg2, T3& aArg3, T4& aArg4,
+                        T5& aArg5, T6& aArg6, T7& aArg7) const
+  {
+    DaemonSocketPDU& pdu = GetPDU();
+
+    nsresult rv = UnpackPDU(pdu, aArg1);
+    if (NS_FAILED(rv)) {
+      return rv;
+    }
+    rv = UnpackPDU(pdu, aArg2);
+    if (NS_FAILED(rv)) {
+      return rv;
+    }
+    rv = UnpackPDU(pdu, aArg3);
+    if (NS_FAILED(rv)) {
+      return rv;
+    }
+    rv = UnpackPDU(pdu, aArg4);
+    if (NS_FAILED(rv)) {
+      return rv;
+    }
+    rv = UnpackPDU(pdu, aArg5);
+    if (NS_FAILED(rv)) {
+      return rv;
+    }
+    rv = UnpackPDU(pdu, aArg6);
+    if (NS_FAILED(rv)) {
+      return rv;
+    }
+    rv = UnpackPDU(pdu, aArg7);
+    if (NS_FAILED(rv)) {
+      return rv;
+    }
+    WarnAboutTrailingData();
+    return NS_OK;
+  }
+
+  template<typename T1, typename T2, typename T3, typename T4, typename T5,
+           typename T6, typename T7, typename T8>
+  nsresult operator () (T1& aArg1, T2& aArg2, T3& aArg3, T4& aArg4,
+                        T5& aArg5, T6& aArg6, T7& aArg7, T8& aArg8) const
+  {
+    DaemonSocketPDU& pdu = GetPDU();
+
+    nsresult rv = UnpackPDU(pdu, aArg1);
+    if (NS_FAILED(rv)) {
+      return rv;
+    }
+    rv = UnpackPDU(pdu, aArg2);
+    if (NS_FAILED(rv)) {
+      return rv;
+    }
+    rv = UnpackPDU(pdu, aArg3);
+    if (NS_FAILED(rv)) {
+      return rv;
+    }
+    rv = UnpackPDU(pdu, aArg4);
+    if (NS_FAILED(rv)) {
+      return rv;
+    }
+    rv = UnpackPDU(pdu, aArg5);
+    if (NS_FAILED(rv)) {
+      return rv;
+    }
+    rv = UnpackPDU(pdu, aArg6);
+    if (NS_FAILED(rv)) {
+      return rv;
+    }
+    rv = UnpackPDU(pdu, aArg7);
+    if (NS_FAILED(rv)) {
+      return rv;
+    }
+    rv = UnpackPDU(pdu, aArg8);
+    if (NS_FAILED(rv)) {
+      return rv;
+    }
+    WarnAboutTrailingData();
+    return NS_OK;
+  }
+
+  template<typename T1, typename T2, typename T3, typename T4, typename T5,
+           typename T6, typename T7, typename T8, typename T9>
+  nsresult operator () (T1& aArg1, T2& aArg2, T3& aArg3, T4& aArg4,
+                        T5& aArg5, T6& aArg6, T7& aArg7, T8& aArg8,
+                        T9& aArg9) const
+  {
+    DaemonSocketPDU& pdu = GetPDU();
+
+    nsresult rv = UnpackPDU(pdu, aArg1);
+    if (NS_FAILED(rv)) {
+      return rv;
+    }
+    rv = UnpackPDU(pdu, aArg2);
+    if (NS_FAILED(rv)) {
+      return rv;
+    }
+    rv = UnpackPDU(pdu, aArg3);
+    if (NS_FAILED(rv)) {
+      return rv;
+    }
+    rv = UnpackPDU(pdu, aArg4);
+    if (NS_FAILED(rv)) {
+      return rv;
+    }
+    rv = UnpackPDU(pdu, aArg5);
+    if (NS_FAILED(rv)) {
+      return rv;
+    }
+    rv = UnpackPDU(pdu, aArg6);
+    if (NS_FAILED(rv)) {
+      return rv;
+    }
+    rv = UnpackPDU(pdu, aArg7);
+    if (NS_FAILED(rv)) {
+      return rv;
+    }
+    rv = UnpackPDU(pdu, aArg8);
+    if (NS_FAILED(rv)) {
+      return rv;
+    }
+    rv = UnpackPDU(pdu, aArg9);
     if (NS_FAILED(rv)) {
       return rv;
     }

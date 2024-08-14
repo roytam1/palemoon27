@@ -249,27 +249,6 @@ SharedSurface::UnlockProd()
     mIsLocked = false;
 }
 
-void
-SharedSurface::Fence_ContentThread()
-{
-    MOZ_ASSERT(NS_GetCurrentThread() == mOwningThread);
-    Fence_ContentThread_Impl();
-}
-
-bool
-SharedSurface::WaitSync_ContentThread()
-{
-    MOZ_ASSERT(NS_GetCurrentThread() == mOwningThread);
-    return WaitSync_ContentThread_Impl();
-}
-
-bool
-SharedSurface::PollSync_ContentThread()
-{
-    MOZ_ASSERT(NS_GetCurrentThread() == mOwningThread);
-    return PollSync_ContentThread_Impl();
-}
-
 ////////////////////////////////////////////////////////////////////////
 // SurfaceFactory
 
@@ -309,7 +288,7 @@ ChooseBufferBits(const SurfaceCaps& caps,
 
 SurfaceFactory::SurfaceFactory(SharedSurfaceType type, GLContext* gl,
                                const SurfaceCaps& caps,
-                               const RefPtr<layers::ISurfaceAllocator>& allocator,
+                               const RefPtr<layers::ClientIPCAllocator>& allocator,
                                const layers::TextureFlags& flags)
     : mType(type)
     , mGL(gl)
@@ -325,7 +304,9 @@ SurfaceFactory::SurfaceFactory(SharedSurfaceType type, GLContext* gl,
 SurfaceFactory::~SurfaceFactory()
 {
     while (!mRecycleTotalPool.empty()) {
-        StopRecycling(*mRecycleTotalPool.begin());
+        RefPtr<layers::SharedSurfaceTextureClient> tex = *mRecycleTotalPool.begin();
+        StopRecycling(tex);
+        tex->CancelWaitForCompositorRecycle();
     }
 
     MOZ_RELEASE_ASSERT(mRecycleTotalPool.empty());

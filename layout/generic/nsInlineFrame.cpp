@@ -15,10 +15,13 @@
 #include "nsRenderingContext.h"
 #include "nsCSSAnonBoxes.h"
 #include "nsAutoPtr.h"
-#include "RestyleManager.h"
+#include "mozilla/RestyleManagerHandle.h"
+#include "mozilla/RestyleManagerHandleInlines.h"
 #include "nsDisplayList.h"
 #include "mozilla/Likely.h"
 #include "SVGTextFrame.h"
+#include "mozilla/StyleSetHandle.h"
+#include "mozilla/StyleSetHandleInlines.h"
 
 #ifdef DEBUG
 #undef NOISY_PUSHING
@@ -68,7 +71,7 @@ nsInlineFrame::InvalidateFrame(uint32_t aDisplayItemKey)
     svgTextFrame->InvalidateFrame();
     return;
   }
-  nsInlineFrameBase::InvalidateFrame(aDisplayItemKey);
+  nsContainerFrame::InvalidateFrame(aDisplayItemKey);
 }
 
 void
@@ -81,7 +84,7 @@ nsInlineFrame::InvalidateFrameWithRect(const nsRect& aRect, uint32_t aDisplayIte
     svgTextFrame->InvalidateFrame();
     return;
   }
-  nsInlineFrameBase::InvalidateFrameWithRect(aRect, aDisplayItemKey);
+  nsContainerFrame::InvalidateFrameWithRect(aRect, aDisplayItemKey);
 }
 
 static inline bool
@@ -350,7 +353,7 @@ ReparentChildListStyle(nsPresContext* aPresContext,
                        const nsFrameList::Slice& aFrames,
                        nsIFrame* aParentFrame)
 {
-  RestyleManager* restyleManager = aPresContext->RestyleManager();
+  RestyleManagerHandle restyleManager = aPresContext->RestyleManager();
 
   for (nsFrameList::Enumerator e(aFrames); !e.AtEnd(); e.Next()) {
     NS_ASSERTION(e.get()->GetParent() == aParentFrame, "Bogus parentage");
@@ -479,7 +482,7 @@ nsInlineFrame::AttributeChanged(int32_t aNameSpaceID,
                                 int32_t aModType)
 {
   nsresult rv =
-    nsInlineFrameBase::AttributeChanged(aNameSpaceID, aAttribute, aModType);
+    nsContainerFrame::AttributeChanged(aNameSpaceID, aAttribute, aModType);
 
   if (NS_FAILED(rv)) {
     return rv;
@@ -511,7 +514,7 @@ nsInlineFrame::DrainSelfOverflowListInternal(DrainFlags aFlags,
       }
       const bool doReparentSC =
         (aFlags & eInFirstLine) && !(aFlags & eForDestroy);
-      RestyleManager* restyleManager = PresContext()->RestyleManager();
+      RestyleManagerHandle restyleManager = PresContext()->RestyleManager();
       for (nsIFrame* f = firstChild; f; f = f->GetNextSibling()) {
         f->SetParent(this);
         if (doReparentSC) {
@@ -578,7 +581,7 @@ nsInlineFrame::ReflowFrames(nsPresContext* aPresContext,
 
   nsLineLayout* lineLayout = aReflowState.mLineLayout;
   bool inFirstLine = aReflowState.mLineLayout->GetInFirstLine();
-  RestyleManager* restyleManager = aPresContext->RestyleManager();
+  RestyleManagerHandle restyleManager = aPresContext->RestyleManager();
   WritingMode frameWM = aReflowState.GetWritingMode();
   WritingMode lineWM = aReflowState.mLineLayout->mRootSpan->mWritingMode;
   LogicalMargin framePadding = aReflowState.ComputedLogicalBorderPadding();

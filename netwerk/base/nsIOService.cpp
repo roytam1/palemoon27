@@ -576,7 +576,7 @@ nsIOService::GetProtocolHandler(const char* scheme, nsIProtocolHandler* *result)
 NS_IMETHODIMP
 nsIOService::ExtractScheme(const nsACString &inURI, nsACString &scheme)
 {
-    return net_ExtractURLScheme(inURI, nullptr, nullptr, &scheme);
+    return net_ExtractURLScheme(inURI, scheme);
 }
 
 NS_IMETHODIMP 
@@ -1012,9 +1012,6 @@ nsIOService::SetOffline(bool offline)
                                                  NS_IOSERVICE_GOING_OFFLINE_TOPIC,
                                                  offlineString.get());
 
-            if (mDNSService)
-                mDNSService->SetOffline(true);
-
             if (mSocketTransportService)
                 mSocketTransportService->SetOffline(true);
 
@@ -1026,7 +1023,6 @@ nsIOService::SetOffline(bool offline)
         else if (!offline && mOffline) {
             // go online
             if (mDNSService) {
-                mDNSService->SetOffline(false);
                 DebugOnly<nsresult> rv = mDNSService->Init();
                 NS_ASSERTION(NS_SUCCEEDED(rv), "DNS service init failed");
             }
@@ -1857,7 +1853,7 @@ nsIOService::SpeculativeConnectInternal(nsIURI *aURI,
                             nullptr, // aLoadingNode,
                             systemPrincipal,
                             nullptr, //aTriggeringPrincipal,
-                            nsILoadInfo::SEC_NORMAL,
+                            nsILoadInfo::SEC_ALLOW_CROSS_ORIGIN_DATA_IS_NULL,
                             nsIContentPolicy::TYPE_OTHER,
                             getter_AddRefs(channel));
     NS_ENSURE_SUCCESS(rv, rv);

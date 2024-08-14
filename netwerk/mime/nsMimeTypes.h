@@ -84,6 +84,7 @@
 #define AUDIO_AMR                           "audio/amr"
 #define AUDIO_FLAC                          "audio/flac"
 #define AUDIO_3GPP                          "audio/3gpp"
+#define AUDIO_3GPP2                         "audio/3gpp2"
 #define AUDIO_MIDI                          "audio/x-midi"
 #define AUDIO_MATROSKA                      "audio/x-matroska"
 
@@ -155,6 +156,7 @@
 
 #define VIDEO_MPEG                          "video/mpeg"
 #define VIDEO_MP4                           "video/mp4"
+#define VIDEO_QUICKTIME                     "video/quicktime"
 #define VIDEO_RAW                           "video/x-raw-yuv"
 #define VIDEO_OGG                           "video/ogg"
 #define VIDEO_WEBM                          "video/webm"

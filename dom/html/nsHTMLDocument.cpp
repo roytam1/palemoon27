@@ -114,6 +114,8 @@
 #include "nsIFrame.h"
 #include "nsIContent.h"
 #include "nsLayoutStylesheetCache.h"
+#include "mozilla/StyleSheetHandle.h"
+#include "mozilla/StyleSheetHandleInlines.h"
 
 using namespace mozilla;
 using namespace mozilla::dom;
@@ -267,7 +269,7 @@ nsHTMLDocument::ResetToURI(nsIURI *aURI, nsILoadGroup *aLoadGroup,
 already_AddRefed<nsIPresShell>
 nsHTMLDocument::CreateShell(nsPresContext* aContext,
                             nsViewManager* aViewManager,
-                            nsStyleSet* aStyleSet)
+                            StyleSetHandle aStyleSet)
 {
   return doCreateShell(aContext, aViewManager, aStyleSet);
 }
@@ -891,8 +893,8 @@ nsHTMLDocument::GetDomain(nsAString& aDomain)
   }
 
   nsAutoCString hostName;
-
-  if (NS_SUCCEEDED(uri->GetHost(hostName))) {
+  nsresult rv = nsContentUtils::GetHostOrIPv6WithBrackets(uri, hostName);
+  if (NS_SUCCEEDED(rv)) {
     CopyUTF8toUTF16(hostName, aDomain);
   } else {
     // If we can't get the host from the URI (e.g. about:, javascript:,
@@ -1105,7 +1107,7 @@ nsHTMLDocument::MatchLinks(nsIContent *aContent, int32_t aNamespaceID,
   nsIDocument* doc = aContent->GetUncomposedDoc();
 
   if (doc) {
-    NS_ASSERTION(aContent->IsInDoc(),
+    NS_ASSERTION(aContent->IsInUncomposedDoc(),
                  "This method should never be called on content nodes that "
                  "are not in a document!");
 #ifdef DEBUG
@@ -1150,7 +1152,7 @@ bool
 nsHTMLDocument::MatchAnchors(nsIContent *aContent, int32_t aNamespaceID,
                              nsIAtom* aAtom, void* aData)
 {
-  NS_ASSERTION(aContent->IsInDoc(),
+  NS_ASSERTION(aContent->IsInUncomposedDoc(),
                "This method should never be called on content nodes that "
                "are not in a document!");
 #ifdef DEBUG
@@ -1221,9 +1223,11 @@ nsHTMLDocument::CreateDummyChannelForCookies(nsIURI* aCodebaseURI)
   // FOR ANY OTHER PURPOSE.
   MOZ_ASSERT(!mChannel);
 
+  // The following channel is never openend, so it does not matter what
+  // securityFlags we pass; let's follow the principle of least privilege.
   nsCOMPtr<nsIChannel> channel;
   NS_NewChannel(getter_AddRefs(channel), aCodebaseURI, this,
-                nsILoadInfo::SEC_NORMAL,
+                nsILoadInfo::SEC_REQUIRE_SAME_ORIGIN_DATA_IS_BLOCKED,
                 nsIContentPolicy::TYPE_INVALID);
   nsCOMPtr<nsIPrivateBrowsingChannel> pbChannel =
     do_QueryInterface(channel);
@@ -2044,7 +2048,7 @@ static void* CreateTokens(nsINode* aRootNode, const nsString* types)
       ++iter;
     } while (iter != end && !nsContentUtils::IsHTMLWhitespace(*iter));
 
-    tokens->AppendElement(do_GetAtom(Substring(start, iter)));
+    tokens->AppendElement(NS_Atomize(Substring(start, iter)));
 
     // skip whitespace
     while (iter != end && nsContentUtils::IsHTMLWhitespace(*iter)) {
@@ -2642,16 +2646,18 @@ nsHTMLDocument::TearingDownEditor(nsIEditor *aEditor)
     if (!presShell)
       return;
 
-    nsCOMArray<nsIStyleSheet> agentSheets;
+    nsTArray<StyleSheetHandle::RefPtr> agentSheets;
     presShell->GetAgentStyleSheets(agentSheets);
 
-    agentSheets.RemoveObject(nsLayoutStylesheetCache::ContentEditableSheet());
+    auto cache = nsLayoutStylesheetCache::For(GetStyleBackendType());
+
+    agentSheets.RemoveElement(cache->ContentEditableSheet());
     if (oldState == eDesignMode)
-      agentSheets.RemoveObject(nsLayoutStylesheetCache::DesignModeSheet());
+      agentSheets.RemoveElement(cache->DesignModeSheet());
 
     presShell->SetAgentStyleSheets(agentSheets);
 
-    presShell->ReconstructStyleData();
+    presShell->RestyleForCSSRuleChanges();
   }
 }
 
@@ -2781,18 +2787,16 @@ nsHTMLDocument::EditingStateChanged()
     // Before making this window editable, we need to modify UA style sheet
     // because new style may change whether focused element will be focusable
     // or not.
-    nsCOMArray<nsIStyleSheet> agentSheets;
+    nsTArray<StyleSheetHandle::RefPtr> agentSheets;
     rv = presShell->GetAgentStyleSheets(agentSheets);
     NS_ENSURE_SUCCESS(rv, rv);
 
-    CSSStyleSheet* contentEditableSheet =
-      nsLayoutStylesheetCache::ContentEditableSheet();
+    auto cache = nsLayoutStylesheetCache::For(GetStyleBackendType());
 
-    bool result;
+    StyleSheetHandle contentEditableSheet = cache->ContentEditableSheet();
 
     if (!agentSheets.Contains(contentEditableSheet)) {
-      bool result = agentSheets.AppendObject(contentEditableSheet);
-      NS_ENSURE_TRUE(result, NS_ERROR_OUT_OF_MEMORY);
+      agentSheets.AppendElement(contentEditableSheet);
     }
 
     // Should we update the editable state of all the nodes in the document? We
@@ -2800,11 +2804,9 @@ nsHTMLDocument::EditingStateChanged()
     // specific states on the elements.
     if (designMode) {
       // designMode is being turned on (overrides contentEditable).
-      CSSStyleSheet* designModeSheet =
-        nsLayoutStylesheetCache::DesignModeSheet();
+      StyleSheetHandle designModeSheet = cache->DesignModeSheet();
       if (!agentSheets.Contains(designModeSheet)) {
-        result = agentSheets.AppendObject(designModeSheet);
-        NS_ENSURE_TRUE(result, NS_ERROR_OUT_OF_MEMORY);
+        agentSheets.AppendElement(designModeSheet);
       }
 
       updateState = true;
@@ -2812,14 +2814,14 @@ nsHTMLDocument::EditingStateChanged()
     }
     else if (oldState == eDesignMode) {
       // designMode is being turned off (contentEditable is still on).
-      agentSheets.RemoveObject(nsLayoutStylesheetCache::DesignModeSheet());
+      agentSheets.RemoveElement(cache->DesignModeSheet());
       updateState = true;
     }
 
     rv = presShell->SetAgentStyleSheets(agentSheets);
     NS_ENSURE_SUCCESS(rv, rv);
 
-    presShell->ReconstructStyleData();
+    presShell->RestyleForCSSRuleChanges();
 
     // Adjust focused element with new style but blur event shouldn't be fired
     // until mEditingState is modified with newState.
@@ -3250,6 +3252,12 @@ nsHTMLDocument::ExecCommand(const nsAString& commandID,
     }
     
     if (!nsContentUtils::IsCutCopyAllowed()) {
+      // We have rejected the event due to it not being performed in an
+      // input-driven context therefore, we report the error to the console.
+      nsContentUtils::ReportToConsole(nsIScriptError::warningFlag,
+                                      NS_LITERAL_CSTRING("DOM"), this,
+                                      nsContentUtils::eDOM_PROPERTIES,
+                                      "ExecCommandCutCopyDeniedNotInputDriven");
       return false;
     }
 

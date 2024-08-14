@@ -1,4 +1,4 @@
-;(function(){
+(function(){
 
 // CommonJS require()
 
@@ -415,7 +415,13 @@ var JsDiff = (function() {
       var ret = [], change;
       for ( var i = 0; i < changes.length; i++) {
         change = changes[i];
-        ret.push([(change.added ? 1 : change.removed ? -1 : 0), change.value]);
+        var order = 0;
+        if (change.added) {
+          order = 1;
+        } else if (change.removed) {
+          order = -1;
+        }
+        ret.push([order, change.value]);
       }
       return ret;
     }
@@ -464,7 +470,7 @@ function isArray(obj) {
  * @api public
  */
 
-function EventEmitter(){};
+function EventEmitter(){}
 
 /**
  * Adds a listener.
@@ -502,7 +508,7 @@ EventEmitter.prototype.once = function (name, fn) {
   function on () {
     self.removeListener(name, on);
     fn.apply(this, arguments);
-  };
+  }
 
   on.listener = fn;
   this.on(name, on);
@@ -910,7 +916,7 @@ function Hook(title, fn) {
  * Inherit from `Runnable.prototype`.
  */
 
-function F(){};
+function F(){}
 F.prototype = Runnable.prototype;
 Hook.prototype = new F;
 Hook.prototype.constructor = Hook;
@@ -2097,12 +2103,13 @@ var color = exports.color = function(type, str) {
  */
 
 exports.window = {
-  width: isatty
-    ? process.stdout.getWindowSize
-      ? process.stdout.getWindowSize(1)[0]
-      : tty.getWindowSize()[1]
-    : 75
+  width: 75
 };
+if (isatty) {
+  exports.window.width = process.stdout.getWindowSize
+                       ? process.stdout.getWindowSize(1)[0]
+                       : tty.getWindowSize()[1];
+}
 
 /**
  * Expose some basic cursor interactions
@@ -2240,11 +2247,13 @@ function Base(runner) {
     stats.passes = stats.passes || 0;
 
     var medium = test.slow() / 2;
-    test.speed = test.duration > test.slow()
-      ? 'slow'
-      : test.duration > medium
-        ? 'medium'
-        : 'fast';
+    if (test.duration > test.slow()) {
+      test.speed = 'slow';
+    } else if (test.duration > medium) {
+      test.speed = 'medium';
+    } else {
+      test.speed = 'fast';
+    }
 
     stats.passes++;
   });
@@ -2582,7 +2591,7 @@ function Dot(runner) {
  * Inherit from `Base.prototype`.
  */
 
-function F(){};
+function F(){}
 F.prototype = Base.prototype;
 Dot.prototype = new F;
 Dot.prototype.constructor = Dot;
@@ -3370,7 +3379,7 @@ function Landing(runner) {
  * Inherit from `Base.prototype`.
  */
 
-function F(){};
+function F(){}
 F.prototype = Base.prototype;
 Landing.prototype = new F;
 Landing.prototype.constructor = Landing;
@@ -3441,7 +3450,7 @@ function List(runner) {
  * Inherit from `Base.prototype`.
  */
 
-function F(){};
+function F(){}
 F.prototype = Base.prototype;
 List.prototype = new F;
 List.prototype.constructor = List;
@@ -3590,7 +3599,7 @@ function Min(runner) {
  * Inherit from `Base.prototype`.
  */
 
-function F(){};
+function F(){}
 F.prototype = Base.prototype;
 Min.prototype = new F;
 Min.prototype.constructor = Min;
@@ -3858,7 +3867,7 @@ function write(string) {
  * Inherit from `Base.prototype`.
  */
 
-function F(){};
+function F(){}
 F.prototype = Base.prototype;
 NyanCat.prototype = new F;
 NyanCat.prototype.constructor = NyanCat;
@@ -3958,7 +3967,7 @@ function Progress(runner, options) {
  * Inherit from `Base.prototype`.
  */
 
-function F(){};
+function F(){}
 F.prototype = Base.prototype;
 Progress.prototype = new F;
 Progress.prototype.constructor = Progress;
@@ -4048,7 +4057,7 @@ function Spec(runner) {
  * Inherit from `Base.prototype`.
  */
 
-function F(){};
+function F(){}
 F.prototype = Base.prototype;
 Spec.prototype = new F;
 Spec.prototype.constructor = Spec;
@@ -4223,7 +4232,7 @@ XUnit.prototype.done = function(failures, fn) {
  * Inherit from `Base.prototype`.
  */
 
-function F(){};
+function F(){}
 F.prototype = Base.prototype;
 XUnit.prototype = new F;
 XUnit.prototype.constructor = XUnit;
@@ -4346,7 +4355,7 @@ function Runnable(title, fn) {
  * Inherit from `EventEmitter.prototype`.
  */
 
-function F(){};
+function F(){}
 F.prototype = EventEmitter.prototype;
 Runnable.prototype = new F;
 Runnable.prototype.constructor = Runnable;
@@ -4664,7 +4673,7 @@ Runner.immediately = global.setImmediate || process.nextTick;
  * Inherit from `EventEmitter.prototype`.
  */
 
-function F(){};
+function F(){}
 F.prototype = EventEmitter.prototype;
 Runner.prototype = new F;
 Runner.prototype.constructor = Runner;
@@ -5373,7 +5382,7 @@ function Suite(title, parentContext) {
  * Inherit from `EventEmitter.prototype`.
  */
 
-function F(){};
+function F(){}
 F.prototype = EventEmitter.prototype;
 Suite.prototype = new F;
 Suite.prototype.constructor = Suite;
@@ -5695,7 +5704,7 @@ function Test(title, fn) {
  * Inherit from `Runnable.prototype`.
  */
 
-function F(){};
+function F(){}
 F.prototype = Runnable.prototype;
 Test.prototype = new F;
 Test.prototype.constructor = Test;

@@ -54,7 +54,8 @@
 #include "nsSMILAnimationController.h"
 #include "mozilla/dom/SVGElementBinding.h"
 #include "mozilla/unused.h"
-#include "RestyleManager.h"
+#include "mozilla/RestyleManagerHandle.h"
+#include "mozilla/RestyleManagerHandleInlines.h"
 
 using namespace mozilla;
 using namespace mozilla::dom;
@@ -526,7 +527,7 @@ nsSVGElement::ParseAttribute(int32_t aNamespaceID,
       EnumAttributesInfo enumInfo = GetEnumInfo();
       for (i = 0; i < enumInfo.mEnumCount; i++) {
         if (aAttribute == *enumInfo.mEnumInfo[i].mName) {
-          nsCOMPtr<nsIAtom> valAtom = do_GetAtom(aValue);
+          nsCOMPtr<nsIAtom> valAtom = NS_Atomize(aValue);
           rv = enumInfo.mEnums[i].SetBaseValueAtom(valAtom, this);
           if (NS_FAILED(rv)) {
             enumInfo.Reset(i);
@@ -919,8 +920,12 @@ nsSVGElement::WalkAnimatedContentStyleRules(nsRuleWalker* aRuleWalker)
   // whether this is a "no-animation restyle". (This should match the check
   // in nsHTMLCSSStyleSheet::RulesMatching(), where we determine whether to
   // apply the SMILOverrideStyle.)
-  RestyleManager* restyleManager = aRuleWalker->PresContext()->RestyleManager();
-  if (!restyleManager->SkipAnimationRules()) {
+  RestyleManagerHandle restyleManager =
+    aRuleWalker->PresContext()->RestyleManager();
+  MOZ_ASSERT(restyleManager->IsGecko(),
+             "stylo: Servo-backed style system should not be calling "
+             "WalkAnimatedContentStyleRules");
+  if (!restyleManager->AsGecko()->SkipAnimationRules()) {
     // update/walk the animated content style rule.
     css::StyleRule* animContentStyleRule = GetAnimatedContentStyleRule();
     if (!animContentStyleRule) {
@@ -1267,24 +1272,6 @@ nsSVGElement::UpdateContentStyleRule()
     if (attrName->Equals(nsGkAtoms::lang, kNameSpaceID_None) &&
         HasAttr(kNameSpaceID_XML, nsGkAtoms::lang)) {
       continue; // xml:lang has precedence
-    }
-
-    if (IsSVGElement(nsGkAtoms::svg)) {
-      // Special case: we don't want <svg> 'width'/'height' mapped into style
-      // if the attribute value isn't a valid <length> according to SVG (which
-      // only supports a subset of the CSS <length> values). We don't enforce
-      // this by checking the attribute value in SVGSVGElement::
-      // IsAttributeMapped since we don't want that method to depend on the
-      // value of the attribute that is being checked. Rather we just prevent
-      // the actual mapping here, as necessary.
-      if (attrName->Atom() == nsGkAtoms::width &&
-          !GetAnimatedLength(nsGkAtoms::width)->HasBaseVal()) {
-        continue;
-      }
-      if (attrName->Atom() == nsGkAtoms::height &&
-          !GetAnimatedLength(nsGkAtoms::height)->HasBaseVal()) {
-        continue;
-      }
     }
 
     nsAutoString value;

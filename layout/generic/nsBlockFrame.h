@@ -16,7 +16,6 @@
 #include "nsHTMLParts.h"
 #include "nsLineBox.h"
 #include "nsCSSPseudoElements.h"
-#include "nsStyleSet.h"
 #include "nsFloatManager.h"
 
 enum LineReflowStatus {
@@ -69,14 +68,12 @@ class nsBulletFrame;
  * prepended to the overflow lines.
  */
 
-typedef nsContainerFrame nsBlockFrameSuper;
-
 /*
  * Base class for block and inline frames.
  * The block frame has an additional child list, kAbsoluteList, which
  * contains the absolutely positioned frames.
- */ 
-class nsBlockFrame : public nsBlockFrameSuper
+ */
+class nsBlockFrame : public nsContainerFrame
 {
 public:
   NS_DECL_QUERYFRAME_TARGET(nsBlockFrame)
@@ -172,8 +169,9 @@ public:
   // to be before any line which does contain 'y'.
   nsLineBox* GetFirstLineContaining(nscoord y);
   // Set the line cursor to our first line. Only call this if you
-  // guarantee that the lines' combinedArea.ys and combinedArea.yMosts
-  // are non-decreasing.
+  // guarantee that either the lines' combinedArea.ys and combinedArea.
+  // yMosts are non-decreasing, or the line cursor is cleared before
+  // building the display list of this frame.
   void SetupLineCursor();
 
   virtual void ChildIsDirty(nsIFrame* aChild) override;
@@ -362,13 +360,7 @@ protected:
   virtual ~nsBlockFrame();
 
 #ifdef DEBUG
-  already_AddRefed<nsStyleContext> GetFirstLetterStyle(nsPresContext* aPresContext)
-  {
-    return aPresContext->StyleSet()->
-      ProbePseudoElementStyle(mContent->AsElement(),
-                              nsCSSPseudoElements::ePseudo_firstLetter,
-                              mStyleContext);
-  }
+  already_AddRefed<nsStyleContext> GetFirstLetterStyle(nsPresContext* aPresContext);
 #endif
 
   NS_DECLARE_FRAME_PROPERTY_WITHOUT_DTOR(LineCursorProperty, nsLineBox)

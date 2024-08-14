@@ -7,6 +7,8 @@
 #define VorbisDecoder_h_
 
 #include "PlatformDecoderModule.h"
+#include "mozilla/Maybe.h"
+#include "AudioConverter.h"
 
 #ifdef MOZ_TREMOR
 #include "tremor/ivorbiscodec.h"
@@ -29,9 +31,14 @@ public:
   nsresult Flush() override;
   nsresult Drain() override;
   nsresult Shutdown() override;
+  const char* GetDescriptionName() const override
+  {
+    return "vorbis audio decoder";
+  }
 
   // Return true if mimetype is Vorbis
   static bool IsVorbis(const nsACString& aMimeType);
+  static const AudioConfig::Channel* VorbisLayout(uint32_t aChannels);
 
 private:
   nsresult DecodeHeader(const unsigned char* aData, size_t aLength);
@@ -52,6 +59,8 @@ private:
 
   int64_t mPacketCount;
   int64_t mFrames;
+  Maybe<int64_t> mLastFrameTime;
+  UniquePtr<AudioConverter> mAudioConverter;
 };
 
 } // namespace mozilla

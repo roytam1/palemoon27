@@ -351,6 +351,12 @@ MTest::New(TempAllocator& alloc, MDefinition* ins, MBasicBlock* ifTrue, MBasicBl
     return new(alloc) MTest(ins, ifTrue, ifFalse);
 }
 
+MTest*
+MTest::NewAsm(TempAllocator& alloc, MDefinition* ins, MBasicBlock* ifFalse)
+{
+    return new(alloc) MTest(ins, nullptr, ifFalse);
+}
+
 void
 MTest::cacheOperandMightEmulateUndefined(CompilerConstraintList* constraints)
 {
@@ -899,6 +905,9 @@ MConstant::printOpcode(GenericPrinter& out) const
       case MIRType_Int32:
         out.printf("0x%x", toInt32());
         break;
+      case MIRType_Int64:
+        out.printf("0x%" PRIx64, toInt64());
+        break;
       case MIRType_Double:
         out.printf("%.16g", toDouble());
         break;
@@ -1384,8 +1393,12 @@ void
 MControlInstruction::printOpcode(GenericPrinter& out) const
 {
     MDefinition::printOpcode(out);
-    for (size_t j = 0; j < numSuccessors(); j++)
-        out.printf(" block%u", getSuccessor(j)->id());
+    for (size_t j = 0; j < numSuccessors(); j++) {
+        if (getSuccessor(j))
+            out.printf(" block%u", getSuccessor(j)->id());
+        else
+            out.printf(" (null-to-be-patched)");
+    }
 }
 
 void
@@ -1808,6 +1821,7 @@ MCompare::NewAsmJS(TempAllocator& alloc, MDefinition* left, MDefinition* right, 
                    CompareType compareType)
 {
     MOZ_ASSERT(compareType == Compare_Int32 || compareType == Compare_UInt32 ||
+               compareType == Compare_Int64 || compareType == Compare_UInt64 ||
                compareType == Compare_Double || compareType == Compare_Float32);
     MCompare* comp = new(alloc) MCompare(left, right, op);
     comp->compareType_ = compareType;
@@ -1827,6 +1841,12 @@ MGoto::New(TempAllocator& alloc, MBasicBlock* target)
 {
     MOZ_ASSERT(target);
     return new(alloc) MGoto(target);
+}
+
+MGoto*
+MGoto::NewAsm(TempAllocator& alloc)
+{
+    return new(alloc) MGoto(nullptr);
 }
 
 void
@@ -2473,15 +2493,17 @@ MBinaryBitwiseInstruction::infer(BaselineInspector*, jsbytecode*)
     {
         specialization_ = MIRType_None;
     } else {
-        specializeAsInt32();
+        specializeAs(MIRType_Int32);
     }
 }
 
 void
-MBinaryBitwiseInstruction::specializeAsInt32()
+MBinaryBitwiseInstruction::specializeAs(MIRType type)
 {
-    specialization_ = MIRType_Int32;
-    MOZ_ASSERT(type() == MIRType_Int32);
+    MOZ_ASSERT(type == MIRType_Int32 || type == MIRType_Int64);
+    MOZ_ASSERT(this->type() == type);
+
+    specialization_ = type;
 
     if (isBitOr() || isBitAnd() || isBitXor())
         setCommutative();
@@ -2698,6 +2720,9 @@ MBinaryArithInstruction::foldsTo(TempAllocator& alloc)
     if (specialization_ == MIRType_None)
         return this;
 
+    if (specialization_ == MIRType_Int64)
+        return this;
+
     MDefinition* lhs = getOperand(0);
     MDefinition* rhs = getOperand(1);
     if (MConstant* folded = EvaluateConstantOperands(alloc, this)) {
@@ -2881,6 +2906,53 @@ MMinMax::foldsTo(TempAllocator& alloc)
     return this;
 }
 
+MDefinition*
+MPow::foldsTo(TempAllocator& alloc)
+{
+    if (!power()->isConstant() || !power()->toConstant()->isTypeRepresentableAsDouble())
+        return this;
+
+    double pow = power()->toConstant()->numberToDouble();
+    MIRType outputType = type();
+
+    // Math.pow(x, 0.5) is a sqrt with edge-case detection.
+    if (pow == 0.5)
+        return MPowHalf::New(alloc, input());
+
+    // Math.pow(x, -0.5) == 1 / Math.pow(x, 0.5), even for edge cases.
+    if (pow == -0.5) {
+        MPowHalf* half = MPowHalf::New(alloc, input());
+        block()->insertBefore(this, half);
+        MConstant* one = MConstant::New(alloc, DoubleValue(1.0));
+        block()->insertBefore(this, one);
+        return MDiv::New(alloc, one, half, MIRType_Double);
+    }
+
+    // Math.pow(x, 1) == x.
+    if (pow == 1.0)
+        return input();
+
+    // Math.pow(x, 2) == x*x.
+    if (pow == 2.0)
+        return MMul::New(alloc, input(), input(), outputType);
+
+    // Math.pow(x, 3) == x*x*x.
+    if (pow == 3.0) {
+        MMul* mul1 = MMul::New(alloc, input(), input(), outputType);
+        block()->insertBefore(this, mul1);
+        return MMul::New(alloc, input(), mul1, outputType);
+    }
+
+    // Math.pow(x, 4) == y*y, where y = x*x.
+    if (pow == 4.0) {
+        MMul* y = MMul::New(alloc, input(), input(), outputType);
+        block()->insertBefore(this, y);
+        return MMul::New(alloc, y, y, outputType);
+    }
+
+    return this;
+}
+
 bool
 MAbs::fallible() const
 {
@@ -2908,6 +2980,9 @@ MDefinition*
 MDiv::foldsTo(TempAllocator& alloc)
 {
     if (specialization_ == MIRType_None)
+        return this;
+
+    if (specialization_ == MIRType_Int64)
         return this;
 
     if (MDefinition* folded = EvaluateConstantOperands(alloc, this))
@@ -2970,6 +3045,9 @@ MDefinition*
 MMod::foldsTo(TempAllocator& alloc)
 {
     if (specialization_ == MIRType_None)
+        return this;
+
+    if (specialization_ == MIRType_Int64)
         return this;
 
     if (MDefinition* folded = EvaluateConstantOperands(alloc, this))
@@ -3182,7 +3260,7 @@ MustBeUInt32(MDefinition* def, MDefinition** pwrapped)
     if (def->isUrsh()) {
         *pwrapped = def->toUrsh()->lhs();
         MDefinition* rhs = def->toUrsh()->rhs();
-        return !def->toUrsh()->bailoutsDisabled() &&
+        return def->toUrsh()->bailoutsDisabled() &&
                rhs->maybeConstantValue() &&
                rhs->maybeConstantValue()->isInt32(0);
     }
@@ -3192,6 +3270,7 @@ MustBeUInt32(MDefinition* def, MDefinition** pwrapped)
         return defConst->type() == MIRType_Int32 && defConst->toInt32() >= 0;
     }
 
+    *pwrapped = nullptr;  // silence GCC warning
     return false;
 }
 
@@ -3407,84 +3486,84 @@ MTypeOf::cacheInputMaybeCallableOrEmulatesUndefined(CompilerConstraintList* cons
 MBitAnd*
 MBitAnd::New(TempAllocator& alloc, MDefinition* left, MDefinition* right)
 {
-    return new(alloc) MBitAnd(left, right);
+    return new(alloc) MBitAnd(left, right, MIRType_Int32);
 }
 
 MBitAnd*
-MBitAnd::NewAsmJS(TempAllocator& alloc, MDefinition* left, MDefinition* right)
+MBitAnd::NewAsmJS(TempAllocator& alloc, MDefinition* left, MDefinition* right, MIRType type)
 {
-    MBitAnd* ins = new(alloc) MBitAnd(left, right);
-    ins->specializeAsInt32();
+    MBitAnd* ins = new(alloc) MBitAnd(left, right, type);
+    ins->specializeAs(type);
     return ins;
 }
 
 MBitOr*
 MBitOr::New(TempAllocator& alloc, MDefinition* left, MDefinition* right)
 {
-    return new(alloc) MBitOr(left, right);
+    return new(alloc) MBitOr(left, right, MIRType_Int32);
 }
 
 MBitOr*
-MBitOr::NewAsmJS(TempAllocator& alloc, MDefinition* left, MDefinition* right)
+MBitOr::NewAsmJS(TempAllocator& alloc, MDefinition* left, MDefinition* right, MIRType type)
 {
-    MBitOr* ins = new(alloc) MBitOr(left, right);
-    ins->specializeAsInt32();
+    MBitOr* ins = new(alloc) MBitOr(left, right, type);
+    ins->specializeAs(type);
     return ins;
 }
 
 MBitXor*
 MBitXor::New(TempAllocator& alloc, MDefinition* left, MDefinition* right)
 {
-    return new(alloc) MBitXor(left, right);
+    return new(alloc) MBitXor(left, right, MIRType_Int32);
 }
 
 MBitXor*
-MBitXor::NewAsmJS(TempAllocator& alloc, MDefinition* left, MDefinition* right)
+MBitXor::NewAsmJS(TempAllocator& alloc, MDefinition* left, MDefinition* right, MIRType type)
 {
-    MBitXor* ins = new(alloc) MBitXor(left, right);
-    ins->specializeAsInt32();
+    MBitXor* ins = new(alloc) MBitXor(left, right, type);
+    ins->specializeAs(type);
     return ins;
 }
 
 MLsh*
 MLsh::New(TempAllocator& alloc, MDefinition* left, MDefinition* right)
 {
-    return new(alloc) MLsh(left, right);
+    return new(alloc) MLsh(left, right, MIRType_Int32);
 }
 
 MLsh*
-MLsh::NewAsmJS(TempAllocator& alloc, MDefinition* left, MDefinition* right)
+MLsh::NewAsmJS(TempAllocator& alloc, MDefinition* left, MDefinition* right, MIRType type)
 {
-    MLsh* ins = new(alloc) MLsh(left, right);
-    ins->specializeAsInt32();
+    MLsh* ins = new(alloc) MLsh(left, right, type);
+    ins->specializeAs(type);
     return ins;
 }
 
 MRsh*
 MRsh::New(TempAllocator& alloc, MDefinition* left, MDefinition* right)
 {
-    return new(alloc) MRsh(left, right);
+    return new(alloc) MRsh(left, right, MIRType_Int32);
 }
 
 MRsh*
-MRsh::NewAsmJS(TempAllocator& alloc, MDefinition* left, MDefinition* right)
+MRsh::NewAsmJS(TempAllocator& alloc, MDefinition* left, MDefinition* right, MIRType type)
 {
-    MRsh* ins = new(alloc) MRsh(left, right);
-    ins->specializeAsInt32();
+    MRsh* ins = new(alloc) MRsh(left, right, type);
+    ins->specializeAs(type);
     return ins;
 }
 
 MUrsh*
 MUrsh::New(TempAllocator& alloc, MDefinition* left, MDefinition* right)
 {
-    return new(alloc) MUrsh(left, right);
+    return new(alloc) MUrsh(left, right, MIRType_Int32);
 }
 
 MUrsh*
-MUrsh::NewAsmJS(TempAllocator& alloc, MDefinition* left, MDefinition* right)
+MUrsh::NewAsmJS(TempAllocator& alloc, MDefinition* left, MDefinition* right, MIRType type)
 {
-    MUrsh* ins = new(alloc) MUrsh(left, right);
-    ins->specializeAsInt32();
+    MUrsh* ins = new(alloc) MUrsh(left, right, type);
+    ins->specializeAs(type);
 
     // Since Ion has no UInt32 type, we use Int32 and we have a special
     // exception to the type rules: we can return values in
@@ -3705,6 +3784,31 @@ MTruncateToInt32::foldsTo(TempAllocator& alloc)
     if (input->type() == MIRType_Double && input->isConstant()) {
         int32_t ret = ToInt32(input->toConstant()->toDouble());
         return MConstant::New(alloc, Int32Value(ret));
+    }
+
+    return this;
+}
+
+MDefinition*
+MWrapInt64ToInt32::foldsTo(TempAllocator& alloc)
+{
+    MDefinition* input = this->input();
+    if (input->isConstant()) {
+        int64_t c = input->toConstant()->toInt64();
+        return MConstant::New(alloc, Int32Value(int32_t(c)));
+    }
+
+    return this;
+}
+
+MDefinition*
+MExtendInt32ToInt64::foldsTo(TempAllocator& alloc)
+{
+    MDefinition* input = this->input();
+    if (input->isConstant()) {
+        int32_t c = input->toConstant()->toInt32();
+        int64_t res = isUnsigned() ? int64_t(uint32_t(c)) : int64_t(c);
+        return MConstant::NewInt64(alloc, res);
     }
 
     return this;
@@ -3945,6 +4049,21 @@ MCompare::tryFold(bool* result)
     return false;
 }
 
+template <typename T>
+static bool
+FoldComparison(JSOp op, T left, T right)
+{
+    switch (op) {
+      case JSOP_LT: return left < right;
+      case JSOP_LE: return left <= right;
+      case JSOP_GT: return left > right;
+      case JSOP_GE: return left >= right;
+      case JSOP_STRICTEQ: case JSOP_EQ: return left == right;
+      case JSOP_STRICTNE: case JSOP_NE: return left != right;
+      default: MOZ_CRASH("Unexpected op.");
+    }
+}
+
 bool
 MCompare::evaluateConstantOperands(TempAllocator& alloc, bool* result)
 {
@@ -4046,96 +4165,31 @@ MCompare::evaluateConstantOperands(TempAllocator& alloc, bool* result)
         int32_t comp = 0; // Default to equal.
         if (left != right)
             comp = CompareAtoms(&lhs->toString()->asAtom(), &rhs->toString()->asAtom());
-
-        switch (jsop_) {
-          case JSOP_LT:
-            *result = (comp < 0);
-            break;
-          case JSOP_LE:
-            *result = (comp <= 0);
-            break;
-          case JSOP_GT:
-            *result = (comp > 0);
-            break;
-          case JSOP_GE:
-            *result = (comp >= 0);
-            break;
-          case JSOP_STRICTEQ: // Fall through.
-          case JSOP_EQ:
-            *result = (comp == 0);
-            break;
-          case JSOP_STRICTNE: // Fall through.
-          case JSOP_NE:
-            *result = (comp != 0);
-            break;
-          default:
-            MOZ_CRASH("Unexpected op.");
-        }
-
+        *result = FoldComparison(jsop_, comp, 0);
         return true;
     }
 
     if (compareType_ == Compare_UInt32) {
-        uint32_t lhsUint = uint32_t(lhs->toInt32());
-        uint32_t rhsUint = uint32_t(rhs->toInt32());
-
-        switch (jsop_) {
-          case JSOP_LT:
-            *result = (lhsUint < rhsUint);
-            break;
-          case JSOP_LE:
-            *result = (lhsUint <= rhsUint);
-            break;
-          case JSOP_GT:
-            *result = (lhsUint > rhsUint);
-            break;
-          case JSOP_GE:
-            *result = (lhsUint >= rhsUint);
-            break;
-          case JSOP_STRICTEQ: // Fall through.
-          case JSOP_EQ:
-            *result = (lhsUint == rhsUint);
-            break;
-          case JSOP_STRICTNE: // Fall through.
-          case JSOP_NE:
-            *result = (lhsUint != rhsUint);
-            break;
-          default:
-            MOZ_CRASH("Unexpected op.");
-        }
-
+        *result = FoldComparison(jsop_, uint32_t(lhs->toInt32()), uint32_t(rhs->toInt32()));
         return true;
     }
 
-    if (!lhs->isTypeRepresentableAsDouble() || !rhs->isTypeRepresentableAsDouble())
-        return false;
-
-    switch (jsop_) {
-      case JSOP_LT:
-        *result = (lhs->numberToDouble() < rhs->numberToDouble());
-        break;
-      case JSOP_LE:
-        *result = (lhs->numberToDouble() <= rhs->numberToDouble());
-        break;
-      case JSOP_GT:
-        *result = (lhs->numberToDouble() > rhs->numberToDouble());
-        break;
-      case JSOP_GE:
-        *result = (lhs->numberToDouble() >= rhs->numberToDouble());
-        break;
-      case JSOP_STRICTEQ: // Fall through.
-      case JSOP_EQ:
-        *result = (lhs->numberToDouble() == rhs->numberToDouble());
-        break;
-      case JSOP_STRICTNE: // Fall through.
-      case JSOP_NE:
-        *result = (lhs->numberToDouble() != rhs->numberToDouble());
-        break;
-      default:
-        return false;
+    if (compareType_ == Compare_Int64) {
+        *result = FoldComparison(jsop_, lhs->toInt64(), rhs->toInt64());
+        return true;
     }
 
-    return true;
+    if (compareType_ == Compare_UInt64) {
+        *result = FoldComparison(jsop_, uint64_t(lhs->toInt64()), uint64_t(rhs->toInt64()));
+        return true;
+    }
+
+    if (lhs->isTypeRepresentableAsDouble() && rhs->isTypeRepresentableAsDouble()) {
+        *result = FoldComparison(jsop_, lhs->numberToDouble(), rhs->numberToDouble());
+        return true;
+    }
+
+    return false;
 }
 
 MDefinition*
@@ -4263,14 +4317,6 @@ MBeta::printOpcode(GenericPrinter& out) const
 
     out.printf(" ");
     comparison_->dump(out);
-}
-
-bool
-MNewObject::shouldUseVM() const
-{
-    if (JSObject* obj = templateObject())
-        return obj->is<PlainObject>() && obj->as<PlainObject>().hasDynamicSlots();
-    return true;
 }
 
 bool
@@ -4502,25 +4548,6 @@ MNewArray::MNewArray(CompilerConstraintList* constraints, uint32_t length, MCons
 }
 
 bool
-MNewArray::shouldUseVM() const
-{
-    if (!templateObject())
-        return true;
-
-    if (templateObject()->is<UnboxedArrayObject>()) {
-        MOZ_ASSERT(templateObject()->as<UnboxedArrayObject>().capacity() >= length());
-        return !templateObject()->as<UnboxedArrayObject>().hasInlineElements();
-    }
-
-    MOZ_ASSERT(length() <= NativeObject::MAX_DENSE_ELEMENTS_COUNT);
-
-    size_t arraySlots =
-        gc::GetGCKindSlots(templateObject()->asTenured().getAllocKind()) - ObjectElements::VALUES_PER_HEADER;
-
-    return length() > arraySlots;
-}
-
-bool
 MLoadFixedSlot::mightAlias(const MDefinition* store) const
 {
     if (store->isStoreFixedSlot() && store->toStoreFixedSlot()->slot() != slot())
@@ -4562,10 +4589,11 @@ MAsmJSLoadHeap::mightAlias(const MDefinition* def) const
         const MAsmJSStoreHeap* store = def->toAsmJSStoreHeap();
         if (store->accessType() != accessType())
             return true;
-        if (!ptr()->isConstant() || !store->ptr()->isConstant())
+        if (!base()->isConstant() || !store->base()->isConstant())
             return true;
-        const MConstant* otherPtr = store->ptr()->toConstant();
-        return ptr()->toConstant()->equals(otherPtr);
+        const MConstant* otherBase = store->base()->toConstant();
+        return base()->toConstant()->equals(otherBase) &&
+               offset() == store->offset();
     }
     return true;
 }
@@ -4576,7 +4604,9 @@ MAsmJSLoadHeap::congruentTo(const MDefinition* ins) const
     if (!ins->isAsmJSLoadHeap())
         return false;
     const MAsmJSLoadHeap* load = ins->toAsmJSLoadHeap();
-    return load->accessType() == accessType() && congruentIfOperandsEqual(load);
+    return load->accessType() == accessType() &&
+           load->offset() == offset() &&
+           congruentIfOperandsEqual(load);
 }
 
 bool
@@ -4697,6 +4727,9 @@ MLoadSlot::foldsTo(TempAllocator& alloc)
     if (store->slots() != slots())
         return this;
 
+    if (store->slot() != slot())
+        return this;
+
     return foldsToStoredValue(alloc, store->value());
 }
 
@@ -4723,6 +4756,31 @@ MLoadElement::foldsTo(TempAllocator& alloc)
         return this;
 
     if (store->index() != index())
+        return this;
+
+    return foldsToStoredValue(alloc, store->value());
+}
+
+MDefinition*
+MLoadUnboxedObjectOrNull::foldsTo(TempAllocator& alloc)
+{
+    if (!dependency() || !dependency()->isStoreUnboxedObjectOrNull())
+        return this;
+
+    MStoreUnboxedObjectOrNull* store = dependency()->toStoreUnboxedObjectOrNull();
+    if (!store->block()->dominates(block()))
+        return this;
+
+    if (store->elements() != elements())
+        return this;
+
+    if (store->index() != index())
+        return this;
+
+    if (store->value()->type() == MIRType_ObjectOrNull)
+        return this;
+
+    if (store->offsetAdjustment() != offsetAdjustment())
         return this;
 
     return foldsToStoredValue(alloc, store->value());
@@ -5132,6 +5190,30 @@ MClz::foldsTo(TempAllocator& alloc)
         if (n == 0)
             return MConstant::New(alloc, Int32Value(32));
         return MConstant::New(alloc, Int32Value(mozilla::CountLeadingZeroes32(n)));
+    }
+
+    return this;
+}
+
+MDefinition*
+MCtz::foldsTo(TempAllocator& alloc)
+{
+    if (num()->isConstant()) {
+        int32_t n = num()->toConstant()->toInt32();
+        if (n == 0)
+            return MConstant::New(alloc, Int32Value(32));
+        return MConstant::New(alloc, Int32Value(mozilla::CountTrailingZeroes32(n)));
+    }
+
+    return this;
+}
+
+MDefinition*
+MPopcnt::foldsTo(TempAllocator& alloc)
+{
+    if (num()->isConstant()) {
+        int32_t n = num()->toConstant()->toInt32();
+        return MConstant::New(alloc, Int32Value(mozilla::CountPopulation32(n)));
     }
 
     return this;

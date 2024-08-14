@@ -743,7 +743,7 @@ DispatchErrorEvent(IDBRequest* aRequest,
   MOZ_ASSERT(!transaction || transaction->IsOpen() || transaction->IsAborted());
 
   if (transaction && transaction->IsOpen()) {
-    WidgetEvent* internalEvent = aEvent->GetInternalNSEvent();
+    WidgetEvent* internalEvent = aEvent->WidgetEventPtr();
     MOZ_ASSERT(internalEvent);
 
     if (internalEvent->mFlags.mExceptionHasBeenRisen) {
@@ -816,7 +816,7 @@ DispatchSuccessEvent(ResultHelper* aResultHelper,
   MOZ_ASSERT_IF(transaction,
                 transaction->IsOpen() || transaction->IsAborted());
 
-  WidgetEvent* internalEvent = aEvent->GetInternalNSEvent();
+  WidgetEvent* internalEvent = aEvent->WidgetEventPtr();
   MOZ_ASSERT(internalEvent);
 
   if (transaction &&
@@ -830,14 +830,14 @@ class WorkerPermissionChallenge;
 
 // This class calles WorkerPermissionChallenge::OperationCompleted() in the
 // worker thread.
-class WorkerPermissionOperationCompleted final : public WorkerRunnable
+class WorkerPermissionOperationCompleted final : public WorkerControlRunnable
 {
   RefPtr<WorkerPermissionChallenge> mChallenge;
 
 public:
   WorkerPermissionOperationCompleted(WorkerPrivate* aWorkerPrivate,
                                      WorkerPermissionChallenge* aChallenge)
-    : WorkerRunnable(aWorkerPrivate, WorkerThreadUnchangedBusyCount)
+    : WorkerControlRunnable(aWorkerPrivate, WorkerThreadUnchangedBusyCount)
     , mChallenge(aChallenge)
   {
     MOZ_ASSERT(NS_IsMainThread());
@@ -929,7 +929,7 @@ public:
   }
 
   virtual bool
-  Notify(JSContext* aCx, workers::Status aStatus) override
+  Notify(workers::Status aStatus) override
   {
     // We don't care about the notification. We just want to keep the
     // mWorkerPrivate alive.
@@ -943,11 +943,7 @@ public:
       RefPtr<WorkerPermissionOperationCompleted> runnable =
         new WorkerPermissionOperationCompleted(mWorkerPrivate, this);
 
-      if (!runnable->Dispatch(nullptr)) {
-        NS_WARNING("Failed to dispatch a runnable to the worker thread.");
-        return;
-      }
-
+      MOZ_ALWAYS_TRUE(runnable->Dispatch());
       return;
     }
 
@@ -963,8 +959,7 @@ public:
     mActor = nullptr;
 
     mWorkerPrivate->AssertIsOnWorkerThread();
-    JSContext* cx = mWorkerPrivate->GetJSContext();
-    mWorkerPrivate->RemoveFeature(cx, this);
+    mWorkerPrivate->RemoveFeature(this);
   }
 
 private:
@@ -1416,14 +1411,11 @@ BackgroundFactoryRequestChild::RecvPermissionChallenge(
       new WorkerPermissionChallenge(workerPrivate, this, mFactory,
                                     aPrincipalInfo);
 
-    JSContext* cx = workerPrivate->GetJSContext();
-    MOZ_ASSERT(cx);
-
-    if (!workerPrivate->AddFeature(cx, challenge)) {
+    if (NS_WARN_IF(!workerPrivate->AddFeature(challenge))) {
       return false;
     }
 
-    MOZ_ALWAYS_TRUE(NS_SUCCEEDED(NS_DispatchToMainThread(challenge)));
+    MOZ_ALWAYS_SUCCEEDS(NS_DispatchToMainThread(challenge));
     return true;
   }
 
@@ -1441,7 +1433,9 @@ BackgroundFactoryRequestChild::RecvPermissionChallenge(
     nsCOMPtr<Element> ownerElement =
       do_QueryInterface(window->GetChromeEventHandler());
     if (NS_WARN_IF(!ownerElement)) {
-      return false;
+      // If this fails, the page was navigated. Fail the permission check by
+      // forcing an immediate retry.
+      return SendPermissionRetry();
     }
 
     RefPtr<PermissionRequestMainProcessHelper> helper =
@@ -2392,11 +2386,13 @@ BackgroundRequestChild::HandleResponse(
 
       StructuredCloneReadInfo* cloneReadInfo = cloneReadInfos.AppendElement();
 
-      *cloneReadInfo = Move(serializedCloneInfo);
+      // Get the files
+      nsTArray<StructuredCloneFile> files;
+      ConvertActorsToBlobs(database, serializedCloneInfo, files);
 
-      ConvertActorsToBlobs(database,
-                           serializedCloneInfo,
-                           cloneReadInfo->mFiles);
+      // Move relevant data into the cloneReadInfo
+      *cloneReadInfo = Move(serializedCloneInfo);
+      cloneReadInfo->mFiles = Move(files);
     }
   }
 
@@ -2534,8 +2530,10 @@ BackgroundRequestChild::Recv__delete__(const RequestResponse& aResponse)
  * BackgroundCursorChild
  ******************************************************************************/
 
+// Does not need to be threadsafe since this only runs on one thread, but
+// inheriting from CancelableRunnable is easy.
 class BackgroundCursorChild::DelayedActionRunnable final
-  : public nsICancelableRunnable
+  : public CancelableRunnable
 {
   using ActionFunc = void (BackgroundCursorChild::*)();
 
@@ -2556,15 +2554,12 @@ public:
     MOZ_ASSERT(mActionFunc);
   }
 
-  // Does not need to be threadsafe since this only runs on one thread.
-  NS_DECL_ISUPPORTS
-
 private:
   ~DelayedActionRunnable()
   { }
 
   NS_DECL_NSIRUNNABLE
-  NS_DECL_NSICANCELABLERUNNABLE
+  nsresult Cancel() override;
 };
 
 BackgroundCursorChild::BackgroundCursorChild(IDBRequest* aRequest,
@@ -2681,7 +2676,7 @@ BackgroundCursorChild::SendContinueInternal(const CursorRequestParams& aParams,
   if (!mCachedResponses.IsEmpty()) {
     nsCOMPtr<nsIRunnable> continueRunnable = new DelayedActionRunnable(
       this, &BackgroundCursorChild::SendDelayedContinueInternal);
-    MOZ_ALWAYS_TRUE(NS_SUCCEEDED(NS_DispatchToCurrentThread(continueRunnable)));
+    MOZ_ALWAYS_SUCCEEDS(NS_DispatchToCurrentThread(continueRunnable));
   } else {
     MOZ_ALWAYS_TRUE(PBackgroundIDBCursorChild::SendContinue(params, key));
   }
@@ -2770,7 +2765,7 @@ BackgroundCursorChild::HandleResponse(const void_t& aResponse)
   if (!mCursor) {
     nsCOMPtr<nsIRunnable> deleteRunnable = new DelayedActionRunnable(
       this, &BackgroundCursorChild::SendDeleteMeInternal);
-    MOZ_ALWAYS_TRUE(NS_SUCCEEDED(NS_DispatchToCurrentThread(deleteRunnable)));
+    MOZ_ALWAYS_SUCCEEDS(NS_DispatchToCurrentThread(deleteRunnable));
   }
 }
 
@@ -3001,10 +2996,6 @@ BackgroundCursorChild::RecvResponse(const CursorResponse& aResponse)
   return true;
 }
 
-NS_IMPL_ISUPPORTS(BackgroundCursorChild::DelayedActionRunnable,
-                  nsIRunnable,
-                  nsICancelableRunnable)
-
 NS_IMETHODIMP
 BackgroundCursorChild::
 DelayedActionRunnable::Run()
@@ -3022,7 +3013,7 @@ DelayedActionRunnable::Run()
   return NS_OK;
 }
 
-NS_IMETHODIMP
+nsresult
 BackgroundCursorChild::
 DelayedActionRunnable::Cancel()
 {

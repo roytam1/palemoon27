@@ -16,7 +16,7 @@ namespace mozilla {
 
 namespace unicode {
 
-extern nsIUGenCategory::nsUGenCategory sDetailedToGeneralCategory[];
+extern const nsIUGenCategory::nsUGenCategory sDetailedToGeneralCategory[];
 
 // Return whether the char has a mirrored-pair counterpart.
 uint32_t GetMirroredChar(uint32_t aCh);
@@ -26,24 +26,18 @@ bool HasMirroredChar(uint32_t aChr);
 uint8_t GetCombiningClass(uint32_t aCh);
 
 // returns the detailed General Category in terms of HB_UNICODE_* values
-inline uint8_t GetGeneralCategory(uint32_t aCh) {
-  return GetCharProps2(aCh).mCategory;
-}
+uint8_t GetGeneralCategory(uint32_t aCh);
 
 // returns the simplified Gen Category as defined in nsIUGenCategory
 inline nsIUGenCategory::nsUGenCategory GetGenCategory(uint32_t aCh) {
   return sDetailedToGeneralCategory[GetGeneralCategory(aCh)];
 }
 
-inline uint8_t GetScriptCode(uint32_t aCh) {
-  return GetCharProps2(aCh).mScriptCode;
-}
+nsCharType GetBidiCat(uint32_t aCh);
 
-uint32_t GetScriptTagForCode(int32_t aScriptCode);
+Script GetScriptCode(uint32_t aCh);
 
-inline nsCharType GetBidiCat(uint32_t aCh) {
-  return nsCharType(GetCharProps2(aCh).mBidiCategory);
-}
+uint32_t GetScriptTagForCode(Script aScriptCode);
 
 /* This MUST match the values assigned by genUnicodePropertyData.pl! */
 enum VerticalOrientation {
@@ -93,10 +87,9 @@ inline XidmodType GetIdentifierModification(uint32_t aCh) {
  * To restrict to decimal digits, the caller should also check whether
  * GetGeneralCategory returns HB_UNICODE_GENERAL_CATEGORY_DECIMAL_NUMBER
  */
-inline int8_t GetNumericValue(uint32_t aCh) {
-  return GetCharProps2(aCh).mNumericValue;
-}
+int8_t GetNumericValue(uint32_t aCh);
 
+#if 0 // currently unused - bug 857481
 enum HanVariantType {
   HVT_NotHan = 0x0,
   HVT_SimplifiedOnly = 0x1,
@@ -105,8 +98,14 @@ enum HanVariantType {
 };
 
 HanVariantType GetHanVariant(uint32_t aCh);
+#endif
 
 uint32_t GetFullWidth(uint32_t aCh);
+// This is the reverse function of GetFullWidth which guarantees that
+// for every codepoint c, GetFullWidthInverse(GetFullWidth(c)) == c.
+// Note that, this function does not guarantee to convert all wide
+// form characters to their possible narrow form.
+uint32_t GetFullWidthInverse(uint32_t aCh);
 
 bool IsClusterExtender(uint32_t aCh, uint8_t aCategory);
 
@@ -151,6 +150,9 @@ private:
     const char16_t* mText;
 #endif
 };
+
+// Count the number of grapheme clusters in the given string
+uint32_t CountGraphemeClusters(const char16_t* aText, uint32_t aLength);
 
 } // end namespace unicode
 

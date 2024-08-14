@@ -112,7 +112,7 @@ static eEventAction
 GetActionForEvent(nsIDOMEvent* aEvent)
 {
   WidgetKeyboardEvent* keyEvent =
-    aEvent->GetInternalNSEvent()->AsKeyboardEvent();
+    aEvent->WidgetEventPtr()->AsKeyboardEvent();
   if (!keyEvent) {
     return eEventAction_Suppress;
   }
@@ -173,7 +173,7 @@ nsPrintPreviewListener::HandleEvent(nsIDOMEvent* aEvent)
         if (eventString.EqualsLiteral("keydown")) {
           // Handle tabbing explicitly here since we don't want focus ending up
           // inside the content document, bug 244128.
-          nsIDocument* doc = content->GetCurrentDoc();
+          nsIDocument* doc = content->GetUncomposedDoc();
           NS_ASSERTION(doc, "no document");
 
           nsIDocument* parentDoc = doc->GetParentDocument();

@@ -88,9 +88,12 @@ SharedSurface_EGLImage::~SharedSurface_EGLImage()
 {
     mEGL->fDestroyImage(Display(), mImage);
 
-    mGL->MakeCurrent();
-    mGL->fDeleteTextures(1, &mProdTex);
-    mProdTex = 0;
+    if (mSync) {
+        // We can't call this unless we have the ext, but we will always have
+        // the ext if we have something to destroy.
+        mEGL->fDestroySync(Display(), mSync);
+        mSync = 0;
+    }
 
     if (mConsTex) {
         MOZ_ASSERT(mGarbageBin);
@@ -98,12 +101,11 @@ SharedSurface_EGLImage::~SharedSurface_EGLImage()
         mConsTex = 0;
     }
 
-    if (mSync) {
-        // We can't call this unless we have the ext, but we will always have
-        // the ext if we have something to destroy.
-        mEGL->fDestroySync(Display(), mSync);
-        mSync = 0;
-    }
+    if (!mGL->MakeCurrent())
+        return;
+
+    mGL->fDeleteTextures(1, &mProdTex);
+    mProdTex = 0;
 }
 
 layers::TextureFlags
@@ -113,7 +115,7 @@ SharedSurface_EGLImage::GetTextureFlags() const
 }
 
 void
-SharedSurface_EGLImage::Fence()
+SharedSurface_EGLImage::ProducerReleaseImpl()
 {
     MutexAutoLock lock(mMutex);
     mGL->MakeCurrent();
@@ -140,46 +142,13 @@ SharedSurface_EGLImage::Fence()
     mGL->fFinish();
 }
 
-bool
-SharedSurface_EGLImage::WaitSync()
+void
+SharedSurface_EGLImage::ProducerReadAcquireImpl()
 {
-    MutexAutoLock lock(mMutex);
-    if (!mSync) {
-        // We must not be needed.
-        return true;
+    // Wait on the fence, because presumably we're going to want to read this surface
+    if (mSync) {
+        mEGL->fClientWaitSync(Display(), mSync, 0, LOCAL_EGL_FOREVER);
     }
-    MOZ_ASSERT(mEGL->IsExtensionSupported(GLLibraryEGL::KHR_fence_sync));
-
-    // Wait FOREVER, primarily because some NVIDIA (at least Tegra) drivers
-    // have ClientWaitSync returning immediately if the timeout delay is anything
-    // else than FOREVER.
-    //
-    // FIXME: should we try to use a finite timeout delay where possible?
-    EGLint status = mEGL->fClientWaitSync(Display(),
-                                          mSync,
-                                          0,
-                                          LOCAL_EGL_FOREVER);
-
-    return status == LOCAL_EGL_CONDITION_SATISFIED;
-}
-
-bool
-SharedSurface_EGLImage::PollSync()
-{
-    MutexAutoLock lock(mMutex);
-    if (!mSync) {
-        // We must not be needed.
-        return true;
-    }
-    MOZ_ASSERT(mEGL->IsExtensionSupported(GLLibraryEGL::KHR_fence_sync));
-
-    EGLint status = 0;
-    MOZ_ALWAYS_TRUE( mEGL->fGetSyncAttrib(mEGL->Display(),
-                                         mSync,
-                                         LOCAL_EGL_SYNC_STATUS_KHR,
-                                         &status) );
-
-    return status == LOCAL_EGL_SIGNALED_KHR;
 }
 
 EGLDisplay
@@ -230,7 +199,7 @@ SharedSurface_EGLImage::ReadbackBySharedHandle(gfx::DataSourceSurface* out_surfa
 
 /*static*/ UniquePtr<SurfaceFactory_EGLImage>
 SurfaceFactory_EGLImage::Create(GLContext* prodGL, const SurfaceCaps& caps,
-                                const RefPtr<layers::ISurfaceAllocator>& allocator,
+                                const RefPtr<layers::ClientIPCAllocator>& allocator,
                                 const layers::TextureFlags& flags)
 {
     EGLContext context = GLContextEGL::Cast(prodGL)->mContext;

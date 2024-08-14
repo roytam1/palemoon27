@@ -30,6 +30,7 @@
 #include "mozilla/media/MediaChild.h"
 #include "mozilla/media/MediaParent.h"
 #include "mozilla/Logging.h"
+#include "mozilla/UniquePtr.h"
 #include "DOMMediaStream.h"
 
 #ifdef MOZ_WEBRTC
@@ -125,9 +126,11 @@ class GetUserMediaCallbackMediaStreamListener : public MediaStreamListener
 public:
   // Create in an inactive state
   GetUserMediaCallbackMediaStreamListener(base::Thread *aThread,
-    uint64_t aWindowID)
+    uint64_t aWindowID,
+    const PrincipalHandle& aPrincipalHandle)
     : mMediaThread(aThread)
     , mWindowID(aWindowID)
+    , mPrincipalHandle(aPrincipalHandle)
     , mStopped(false)
     , mFinished(false)
     , mRemoved(false)
@@ -174,7 +177,7 @@ public:
 
   already_AddRefed<PledgeVoid>
   ApplyConstraintsToTrack(nsPIDOMWindow* aWindow,
-                          TrackID aID, bool aIsAudio,
+                          TrackID aID,
                           const dom::MediaTrackConstraints& aConstraints);
 
   // mVideo/AudioDevice are set by Activate(), so we assume they're capturing
@@ -259,11 +262,11 @@ public:
     // watch it especially for fake audio.
     if (mAudioDevice) {
       mAudioDevice->GetSource()->NotifyPull(aGraph, mStream, kAudioTrack,
-                                            aDesiredTime);
+                                            aDesiredTime, mPrincipalHandle);
     }
     if (mVideoDevice) {
       mVideoDevice->GetSource()->NotifyPull(aGraph, mStream, kVideoTrack,
-                                            aDesiredTime);
+                                            aDesiredTime, mPrincipalHandle);
     }
   }
 
@@ -300,10 +303,13 @@ public:
   void
   NotifyDirectListeners(MediaStreamGraph* aGraph, bool aHasListeners);
 
+  PrincipalHandle GetPrincipalHandle() const { return mPrincipalHandle; }
+
 private:
   // Set at construction
   base::Thread* mMediaThread;
   uint64_t mWindowID;
+  const PrincipalHandle mPrincipalHandle;
 
   // true after this listener has sent MEDIA_STOP. MainThread only.
   bool mStopped;
@@ -349,7 +355,7 @@ class GetUserMediaNotificationEvent: public nsRunnable
 
     GetUserMediaNotificationEvent(GetUserMediaStatus aStatus,
                                   already_AddRefed<DOMMediaStream> aStream,
-                                  DOMMediaStream::OnTracksAvailableCallback* aOnTracksAvailableCallback,
+                                  OnTracksAvailableCallback* aOnTracksAvailableCallback,
                                   bool aIsAudio, bool aIsVideo, uint64_t aWindowID,
                                   already_AddRefed<nsIDOMGetUserMediaErrorCallback> aError)
     : mStream(aStream), mOnTracksAvailableCallback(aOnTracksAvailableCallback),
@@ -365,7 +371,7 @@ class GetUserMediaNotificationEvent: public nsRunnable
   protected:
     RefPtr<GetUserMediaCallbackMediaStreamListener> mListener; // threadsafe
     RefPtr<DOMMediaStream> mStream;
-    nsAutoPtr<DOMMediaStream::OnTracksAvailableCallback> mOnTracksAvailableCallback;
+    nsAutoPtr<OnTracksAvailableCallback> mOnTracksAvailableCallback;
     GetUserMediaStatus mStatus;
     bool mIsAudio;
     bool mIsVideo;
@@ -387,13 +393,13 @@ class ReleaseMediaOperationResource : public nsRunnable
 {
 public:
   ReleaseMediaOperationResource(already_AddRefed<DOMMediaStream> aStream,
-    DOMMediaStream::OnTracksAvailableCallback* aOnTracksAvailableCallback):
+    OnTracksAvailableCallback* aOnTracksAvailableCallback):
     mStream(aStream),
     mOnTracksAvailableCallback(aOnTracksAvailableCallback) {}
   NS_IMETHOD Run() override {return NS_OK;}
 private:
   RefPtr<DOMMediaStream> mStream;
-  nsAutoPtr<DOMMediaStream::OnTracksAvailableCallback> mOnTracksAvailableCallback;
+  nsAutoPtr<OnTracksAvailableCallback> mOnTracksAvailableCallback;
 };
 
 typedef nsTArray<RefPtr<GetUserMediaCallbackMediaStreamListener> > StreamListeners;
@@ -501,7 +507,7 @@ private:
   already_AddRefed<PledgeChar>
   SelectSettings(
       dom::MediaStreamConstraints& aConstraints,
-      RefPtr<media::Refcountable<ScopedDeletePtr<SourceSet>>>& aSources);
+      RefPtr<media::Refcountable<UniquePtr<SourceSet>>>& aSources);
 
   StreamListeners* AddWindowID(uint64_t aWindowId);
   WindowTable *GetActiveWindows() {
@@ -550,7 +556,7 @@ private:
 #endif
 public:
   media::CoatCheck<media::Pledge<nsCString>> mGetOriginKeyPledges;
-  ScopedDeletePtr<media::Parent<media::NonE10s>> mNonE10sParent;
+  UniquePtr<media::Parent<media::NonE10s>> mNonE10sParent;
 };
 
 } // namespace mozilla

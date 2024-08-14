@@ -41,7 +41,16 @@ public:
   RefPtr<InitPromise> Init() override;
   nsresult Input(MediaRawData* aSample) override;
   void ProcessDrain() override;
+  void ProcessFlush() override;
   void InitCodecContext() override;
+  const char* GetDescriptionName() const override
+  {
+#ifdef USING_MOZFFVPX
+    return "ffvpx video decoder";
+#else
+    return "ffmpeg video decoder";
+#endif
+  }
   static AVCodecID GetCodecId(const nsACString& aMimeType);
 
 private:
@@ -61,10 +70,7 @@ private:
                                  AVFrame* aFrame);
 
   RefPtr<ImageContainer> mImageContainer;
-  uint32_t mPictureWidth;
-  uint32_t mPictureHeight;
-  uint32_t mDisplayWidth;
-  uint32_t mDisplayHeight;
+  VideoInfo mInfo;
 
   // Parser used for VP8 and VP9 decoding.
   AVCodecParserContext* mCodecParser;

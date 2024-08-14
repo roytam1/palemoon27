@@ -115,10 +115,7 @@ FFmpegH264Decoder<LIBAV_VER>::FFmpegH264Decoder(
   ImageContainer* aImageContainer)
   : FFmpegDataDecoder(aTaskQueue, aCallback, GetCodecId(aConfig.mMimeType))
   , mImageContainer(aImageContainer)
-  , mPictureWidth(aConfig.mImage.width)
-  , mPictureHeight(aConfig.mImage.height)
-  , mDisplayWidth(aConfig.mDisplay.width)
-  , mDisplayHeight(aConfig.mDisplay.height)
+  , mInfo(aConfig)
   , mCodecParser(nullptr)
 {
   MOZ_COUNT_CTOR(FFmpegH264Decoder);
@@ -143,18 +140,18 @@ FFmpegH264Decoder<LIBAV_VER>::Init()
 void
 FFmpegH264Decoder<LIBAV_VER>::InitCodecContext()
 {
-  mCodecContext->width = mPictureWidth;
-  mCodecContext->height = mPictureHeight;
+  mCodecContext->width = mInfo.mImage.width;
+  mCodecContext->height = mInfo.mImage.height;
 
   // We use the same logic as libvpx in determining the number of threads to use
   // so that we end up behaving in the same fashion when using ffmpeg as
   // we would otherwise cause various crashes (see bug 1236167)
   int decode_threads = 1;
-  if (mDisplayWidth >= 2048) {
+  if (mInfo.mDisplay.width >= 2048) {
     decode_threads = 8;
-  } else if (mDisplayWidth >= 1024) {
+  } else if (mInfo.mDisplay.width >= 1024) {
     decode_threads = 4;
-  } else if (mDisplayWidth >= 320) {
+  } else if (mInfo.mDisplay.width >= 320) {
     decode_threads = 2;
   }
 
@@ -310,9 +307,6 @@ FFmpegH264Decoder<LIBAV_VER>::DoDecodeFrame(MediaRawData* aSample,
       mDurationMap.Clear();
     }
 
-    VideoInfo info;
-    info.mDisplay = nsIntSize(mDisplayWidth, mDisplayHeight);
-
     VideoData::YCbCrBuffer b;
     b.mPlanes[0].mData = mFrame->data[0];
     b.mPlanes[1].mData = mFrame->data[1];
@@ -336,15 +330,17 @@ FFmpegH264Decoder<LIBAV_VER>::DoDecodeFrame(MediaRawData* aSample,
       b.mPlanes[1].mHeight = b.mPlanes[2].mHeight = (mFrame->height + 1) >> 1;
     }
 
-    RefPtr<VideoData> v = VideoData::Create(info,
-                                              mImageContainer,
-                                              aSample->mOffset,
-                                              pts,
-                                              duration,
-                                              b,
-                                              !!mFrame->key_frame,
-                                              -1,
-                                              gfx::IntRect(0, 0, mCodecContext->width, mCodecContext->height));
+    RefPtr<VideoData> v = VideoData::Create(mInfo,
+                                            mImageContainer,
+                                            aSample->mOffset,
+                                            pts,
+                                            duration,
+                                            b,
+                                            !!mFrame->key_frame,
+                                            -1,
+                                            mInfo.ScaledImageRect(mFrame->width,
+                                                                  mFrame->height));
+
     if (!v) {
       NS_WARNING("image allocation error.");
       mCallback->Error();
@@ -387,6 +383,14 @@ FFmpegH264Decoder<LIBAV_VER>::ProcessDrain()
   while (DoDecodeFrame(empty) == DecodeResult::DECODE_FRAME) {
   }
   mCallback->DrainComplete();
+}
+
+void
+FFmpegH264Decoder<LIBAV_VER>::ProcessFlush()
+{
+  mPtsContext.Reset();
+  mDurationMap.Clear();
+  FFmpegDataDecoder::ProcessFlush();
 }
 
 FFmpegH264Decoder<LIBAV_VER>::~FFmpegH264Decoder()

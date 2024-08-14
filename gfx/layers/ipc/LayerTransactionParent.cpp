@@ -149,6 +149,7 @@ LayerTransactionParent::LayerTransactionParent(LayerManagerComposite* aManager,
   , mShadowLayersManager(aLayersManager)
   , mId(aId)
   , mPendingTransaction(0)
+  , mPendingCompositorUpdates(0)
   , mDestroyed(false)
   , mIPCOpen(false)
 {
@@ -178,6 +179,8 @@ LayerTransactionParent::Destroy()
   }
   InfallibleTArray<PTextureParent*> textures;
   ManagedPTextureParent(textures);
+  // We expect all textures to be destroyed by now.
+  MOZ_DIAGNOSTIC_ASSERT(textures.Length() == 0);
   for (unsigned int i = 0; i < textures.Length(); ++i) {
     RefPtr<TextureHost> tex = TextureHost::AsTextureHost(textures[i]);
     tex->DeallocateDeviceData();
@@ -207,16 +210,27 @@ LayerTransactionParent::RecvUpdateNoSwap(InfallibleTArray<Edit>&& cset,
 class MOZ_STACK_CLASS AutoLayerTransactionParentAsyncMessageSender
 {
 public:
-  explicit AutoLayerTransactionParentAsyncMessageSender(LayerTransactionParent* aLayerTransaction)
-    : mLayerTransaction(aLayerTransaction) {}
+  explicit AutoLayerTransactionParentAsyncMessageSender(LayerTransactionParent* aLayerTransaction,
+                                                        InfallibleTArray<OpDestroy>* aDestroyActors = nullptr)
+    : mLayerTransaction(aLayerTransaction)
+    , mActorsToDestroy(aDestroyActors)
+  {}
 
   ~AutoLayerTransactionParentAsyncMessageSender()
   {
     mLayerTransaction->SendPendingAsyncMessages();
     ImageBridgeParent::SendPendingAsyncMessages(mLayerTransaction->GetChildProcessId());
+    if (mActorsToDestroy) {
+      // Destroy the actors after sending the async messages because the latter may contain
+      // references to some actors.
+      for (const auto& op : *mActorsToDestroy) {
+        mLayerTransaction->DestroyActor(op);
+      }
+    }
   }
 private:
   LayerTransactionParent* mLayerTransaction;
+  InfallibleTArray<OpDestroy>* mActorsToDestroy;
 };
 
 bool
@@ -247,12 +261,11 @@ LayerTransactionParent::RecvUpdate(InfallibleTArray<Edit>&& cset,
     for (const auto& op : aToDestroy) {
       DestroyActor(op);
     }
-
     return true;
   }
 
+  AutoLayerTransactionParentAsyncMessageSender autoAsyncMessageSender(this, &aToDestroy);
   EditReplyVector replyv;
-  AutoLayerTransactionParentAsyncMessageSender autoAsyncMessageSender(this);
 
   {
     AutoResolveRefLayers resolve(mShadowLayersManager->GetCompositionManager(this));
@@ -348,6 +361,9 @@ LayerTransactionParent::RecvUpdate(InfallibleTArray<Edit>&& cset,
       layer->SetScrollbarData(common.scrollbarTargetContainerId(),
         static_cast<Layer::ScrollDirection>(common.scrollbarDirection()),
         common.scrollbarThumbRatio());
+      if (common.isScrollbarContainer()) {
+        layer->SetIsScrollbarContainer();
+      }
       layer->SetMixBlendMode((gfx::CompositionOp)common.mixBlendMode());
       layer->SetForceIsolatedGroup(common.forceIsolatedGroup());
       if (PLayerParent* maskLayer = common.maskLayerParent()) {
@@ -356,7 +372,7 @@ LayerTransactionParent::RecvUpdate(InfallibleTArray<Edit>&& cset,
         layer->SetMaskLayer(nullptr);
       }
       layer->SetAnimations(common.animations());
-      layer->SetFrameMetrics(common.metrics());
+      layer->SetScrollMetadata(common.scrollMetadata());
       layer->SetDisplayListLog(common.displayListLog().get());
 
       // The updated invalid region is added to the existing one, since we can
@@ -576,6 +592,11 @@ LayerTransactionParent::RecvUpdate(InfallibleTArray<Edit>&& cset,
     case Edit::TOpAttachCompositable: {
       const OpAttachCompositable& op = edit.get_OpAttachCompositable();
       CompositableHost* host = CompositableHost::FromIPDLActor(op.compositableParent());
+      if (mPendingCompositorUpdates) {
+        // Do not attach compositables from old layer trees. Return true since
+        // content cannot handle errors.
+        return true;
+      }
       if (!Attach(cast(op.layerParent()), host, false)) {
         return false;
       }
@@ -589,6 +610,11 @@ LayerTransactionParent::RecvUpdate(InfallibleTArray<Edit>&& cset,
         NS_ERROR("CompositableParent not found in the map");
         return false;
       }
+      if (mPendingCompositorUpdates) {
+        // Do not attach compositables from old layer trees. Return true since
+        // content cannot handle errors.
+        return true;
+      }
       CompositableHost* host = CompositableHost::FromIPDLActor(compositableParent);
       if (!Attach(cast(op.layerParent()), host, true)) {
         return false;
@@ -599,10 +625,6 @@ LayerTransactionParent::RecvUpdate(InfallibleTArray<Edit>&& cset,
     default:
       NS_RUNTIMEABORT("not reached");
     }
-  }
-
-  for (const auto& op : aToDestroy) {
-    DestroyActor(op);
   }
 
   mShadowLayersManager->ShadowLayersUpdated(this, aTransactionId, targetConfig,
@@ -706,7 +728,7 @@ LayerTransactionParent::RecvGetAnimationTransform(PLayerParent* aParent,
 
   // Make sure we apply the latest animation style or else we can end up with
   // a race between when we temporarily clear the animation transform (in
-  // CompositorParent::SetShadowProperties) and when animation recalculates
+  // CompositorBridgeParent::SetShadowProperties) and when animation recalculates
   // the value.
   mShadowLayersManager->ApplyAsyncProperties(this);
 
@@ -725,7 +747,7 @@ LayerTransactionParent::RecvGetAnimationTransform(PLayerParent* aParent,
   // from the shadow transform by undoing the translations in
   // AsyncCompositionManager::SampleValue.
 
-  Matrix4x4 transform = layer->AsLayerComposite()->GetShadowTransform();
+  Matrix4x4 transform = layer->AsLayerComposite()->GetShadowBaseTransform();
   if (ContainerLayer* c = layer->AsContainerLayer()) {
     // Undo the scale transform applied by AsyncCompositionManager::SampleValue
     transform.PostScale(1.0f/c->GetInheritedXScale(),
@@ -775,7 +797,7 @@ LayerTransactionParent::RecvGetAnimationTransform(PLayerParent* aParent,
 static AsyncPanZoomController*
 GetAPZCForViewID(Layer* aLayer, FrameMetrics::ViewID aScrollID)
 {
-  for (uint32_t i = 0; i < aLayer->GetFrameMetricsCount(); i++) {
+  for (uint32_t i = 0; i < aLayer->GetScrollMetadataCount(); i++) {
     if (aLayer->GetFrameMetrics(i).GetScrollId() == aScrollID) {
       return aLayer->GetAsyncPanZoomController(i);
     }
@@ -943,8 +965,20 @@ LayerTransactionParent::AllocPTextureParent(const SurfaceDescriptor& aSharedData
                                             const LayersBackend& aLayersBackend,
                                             const TextureFlags& aFlags)
 {
-  MOZ_ASSERT(aLayersBackend == mLayerManager->GetCompositor()->GetBackendType());
-  return TextureHost::CreateIPDLActor(this, aSharedData, aLayersBackend, aFlags);
+  TextureFlags flags = aFlags;
+
+  if (mPendingCompositorUpdates) {
+    // The compositor was recreated, and we're receiving layers updates for a
+    // a layer manager that will soon be discarded or invalidated. We can't
+    // return null because this will mess up deserialization later and we'll
+    // kill the content process. Instead, we signal that the underlying
+    // TextureHost should not attempt to access the compositor.
+    flags |= TextureFlags::INVALID_COMPOSITOR;
+  } else if (aLayersBackend != mLayerManager->GetCompositor()->GetBackendType()) {
+    gfxDevCrash(gfx::LogReason::PAllocTextureBackendMismatch) << "Texture backend is wrong";
+  }
+
+  return TextureHost::CreateIPDLActor(this, aSharedData, aLayersBackend, flags);
 }
 
 bool
@@ -962,8 +996,16 @@ LayerTransactionParent::RecvChildAsyncMessages(InfallibleTArray<AsyncChildMessag
     const AsyncChildMessageData& message = aMessages[i];
 
     switch (message.type()) {
-      case AsyncChildMessageData::TOpRemoveTextureAsync: {
-        const OpRemoveTextureAsync& op = message.get_OpRemoveTextureAsync();
+      case AsyncChildMessageData::TCompositableOperation: {
+
+        const CompositableOperation& compositable_op =
+          message.get_CompositableOperation();
+        MOZ_ASSERT(compositable_op.detail().type() ==
+          CompositableOperationDetail::TOpRemoveTextureAsync);
+
+        const OpRemoveTextureAsync& op =
+          compositable_op.detail().get_OpRemoveTextureAsync();
+
         CompositableHost* compositable = CompositableHost::FromIPDLActor(op.compositableParent());
         RefPtr<TextureHost> tex = TextureHost::AsTextureHost(op.textureParent());
 
@@ -977,8 +1019,7 @@ LayerTransactionParent::RecvChildAsyncMessages(InfallibleTArray<AsyncChildMessag
             GetChildProcessId(),
             op.holderId(),
             op.transactionId(),
-            op.textureParent(),
-            compositable);
+            op.textureParent());
           // Send message back via PImageBridge.
           ImageBridgeParent::ReplyRemoveTexture(
             GetChildProcessId(),
@@ -1040,25 +1081,22 @@ bool LayerTransactionParent::IsSameProcess() const
 }
 
 void
-LayerTransactionParent::SendFenceHandleIfPresent(PTextureParent* aTexture,
-                                                 CompositableHost* aCompositableHost)
+LayerTransactionParent::SendFenceHandleIfPresent(PTextureParent* aTexture)
 {
   RefPtr<TextureHost> texture = TextureHost::AsTextureHost(aTexture);
-  if (!texture) {
+  if (!texture || !texture->NeedsFenceHandle()) {
     return;
   }
 
   // Send a ReleaseFence of CompositorOGL.
-  if (aCompositableHost && aCompositableHost->GetCompositor()) {
-    FenceHandle fence = aCompositableHost->GetCompositor()->GetReleaseFence();
-    if (fence.IsValid()) {
-      mPendingAsyncMessage.push_back(OpDeliverFence(aTexture, nullptr,
-                                                    fence));
-    }
+  FenceHandle fence = texture->GetCompositorReleaseFence();
+  if (fence.IsValid()) {
+    mPendingAsyncMessage.push_back(OpDeliverFence(aTexture, nullptr,
+                                                  fence));
   }
 
-  // Send a ReleaseFence that is set by HwcComposer2D.
-  FenceHandle fence = texture->GetAndResetReleaseFenceHandle();
+  // Send a ReleaseFence that is set to TextureHost by HwcComposer2D.
+  fence = texture->GetAndResetReleaseFenceHandle();
   if (fence.IsValid()) {
     mPendingAsyncMessage.push_back(OpDeliverFence(aTexture, nullptr,
                                                   fence));

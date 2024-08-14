@@ -25,7 +25,7 @@ function MapForEach(callbackfn, thisArg = undefined) {
     /* Step 6-8. */
     var entries = callFunction(std_Map_iterator, M);
     while (true) {
-        var result = callFunction(std_Map_iterator_next, entries);
+        var result = callFunction(MapIteratorNext, entries);
         if (result.done)
             break;
         var entry = result.value;
@@ -47,8 +47,10 @@ function MapIteratorNext() {
     // Steps 8-9 (omitted).
 
     var mapIterationResultPair = iteratorTemp.mapIterationResultPair;
-    if (!mapIterationResultPair)
-        mapIterationResultPair = iteratorTemp.mapIterationResultPair = [null, null];
+    if (!mapIterationResultPair) {
+        mapIterationResultPair = iteratorTemp.mapIterationResultPair =
+            _CreateMapIterationResultPair();
+    }
 
     var retVal = {value: undefined, done: true};
 

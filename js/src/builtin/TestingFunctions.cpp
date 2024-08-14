@@ -21,7 +21,10 @@
 
 #include "asmjs/AsmJS.h"
 #include "asmjs/Wasm.h"
-#include "asmjs/WasmText.h"
+#include "asmjs/WasmBinaryToText.h"
+#include "asmjs/WasmTextToBinary.h"
+#include "builtin/Promise.h"
+#include "builtin/SelfHostingDefines.h"
 #include "jit/InlinableNatives.h"
 #include "jit/JitFrameIterator.h"
 #include "js/Debug.h"
@@ -37,6 +40,7 @@
 #include "vm/ProxyObject.h"
 #include "vm/SavedStacks.h"
 #include "vm/Stack.h"
+#include "vm/StringBuffer.h"
 #include "vm/TraceLogging.h"
 
 #include "jscntxtinlines.h"
@@ -347,7 +351,8 @@ MinorGC(JSContext* cx, unsigned argc, Value* vp)
     _("decommitThreshold",          JSGC_DECOMMIT_THRESHOLD,             true)  \
     _("minEmptyChunkCount",         JSGC_MIN_EMPTY_CHUNK_COUNT,          true)  \
     _("maxEmptyChunkCount",         JSGC_MAX_EMPTY_CHUNK_COUNT,          true)  \
-    _("compactingEnabled",          JSGC_COMPACTING_ENABLED,             true)
+    _("compactingEnabled",          JSGC_COMPACTING_ENABLED,             true)  \
+    _("refreshFrameSlicesEnabled",  JSGC_REFRESH_FRAME_SLICES_ENABLED,   true)
 
 static const struct ParamInfo {
     const char*     name;
@@ -493,42 +498,7 @@ static bool
 WasmIsSupported(JSContext* cx, unsigned argc, Value* vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
-    args.rval().setBoolean(wasm::HasCompilerSupport(cx));
-    return true;
-}
-
-static bool
-WasmEval(JSContext* cx, unsigned argc, Value* vp)
-{
-    CallArgs args = CallArgsFromVp(argc, vp);
-    RootedObject callee(cx, &args.callee());
-
-    if (args.length() < 1 || args.length() > 2) {
-        ReportUsageError(cx, callee, "Wrong number of arguments");
-        return false;
-    }
-
-    if (!args[0].isObject() || !args[0].toObject().is<ArrayBufferObject>()) {
-        ReportUsageError(cx, callee, "First argument must be an ArrayBuffer");
-        return false;
-    }
-
-    RootedObject importObj(cx);
-    if (!args.get(1).isUndefined()) {
-        if (!args.get(1).isObject()) {
-            ReportUsageError(cx, callee, "Second argument, if present, must be an Object");
-            return false;
-        }
-        importObj = &args[1].toObject();
-    }
-
-    Rooted<ArrayBufferObject*> code(cx, &args[0].toObject().as<ArrayBufferObject>());
-
-    RootedObject exportObj(cx);
-    if (!wasm::Eval(cx, code, importObj, &exportObj))
-        return false;
-
-    args.rval().setObject(*exportObj);
+    args.rval().setBoolean(wasm::HasCompilerSupport(cx) && cx->runtime()->options().wasm());
     return true;
 }
 
@@ -552,21 +522,70 @@ WasmTextToBinary(JSContext* cx, unsigned argc, Value* vp)
     if (!twoByteChars.initTwoByte(cx, args[0].toString()))
         return false;
 
+    wasm::Bytes bytes;
     UniqueChars error;
-    wasm::UniqueBytecode bytes = wasm::TextToBinary(twoByteChars.twoByteChars(), &error);
-    if (!bytes) {
+    if (!wasm::TextToBinary(twoByteChars.twoByteChars(), &bytes, &error)) {
         JS_ReportErrorNumber(cx, GetErrorMessage, nullptr, JSMSG_WASM_TEXT_FAIL,
                              error.get() ? error.get() : "out of memory");
         return false;
     }
 
-    Rooted<ArrayBufferObject*> buffer(cx, ArrayBufferObject::create(cx, bytes->length()));
-    if (!buffer)
+    RootedObject obj(cx, JS_NewUint8Array(cx, bytes.length()));
+    if (!obj)
         return false;
 
-    memcpy(buffer->dataPointer(), bytes->begin(), bytes->length());
+    memcpy(obj->as<TypedArrayObject>().viewDataUnshared(), bytes.begin(), bytes.length());
 
-    args.rval().setObject(*buffer);
+    args.rval().setObject(*obj);
+    return true;
+}
+
+static bool
+WasmBinaryToText(JSContext* cx, unsigned argc, Value* vp)
+{
+    MOZ_ASSERT(cx->runtime()->options().wasm());
+    CallArgs args = CallArgsFromVp(argc, vp);
+
+    if (!args.get(0).isObject() || !args.get(0).toObject().is<TypedArrayObject>()) {
+        JS_ReportErrorNumber(cx, GetErrorMessage, nullptr, JSMSG_WASM_BAD_BUF_ARG);
+        return false;
+    }
+
+    Rooted<TypedArrayObject*> code(cx, &args[0].toObject().as<TypedArrayObject>());
+
+    if (!TypedArrayObject::ensureHasBuffer(cx, code))
+        return false;
+
+    if (code->isSharedMemory()) {
+        JS_ReportErrorNumber(cx, GetErrorMessage, nullptr, JSMSG_WASM_BAD_BUF_ARG);
+        return false;
+    }
+
+    const uint8_t* bufferStart = code->bufferUnshared()->dataPointer();
+    const uint8_t* bytes = bufferStart + code->byteOffset();
+    uint32_t length = code->byteLength();
+
+    Vector<uint8_t> copy(cx);
+    if (code->bufferUnshared()->hasInlineData()) {
+        if (!copy.append(bytes, length))
+            return false;
+        bytes = copy.begin();
+    }
+
+    StringBuffer buffer(cx);
+    if (!wasm::BinaryToText(cx, bytes, length, buffer)) {
+        if (!cx->isExceptionPending()) {
+            JS_ReportErrorNumber(cx, GetErrorMessage, nullptr, JSMSG_WASM_DECODE_FAIL,
+                                 "print error");
+        }
+        return false;
+    }
+
+    JSString* result = buffer.finishString();
+    if (!result)
+        return false;
+
+    args.rval().setString(result);
     return true;
 }
 
@@ -786,6 +805,8 @@ GCState(JSContext* cx, unsigned argc, Value* vp)
         state = "mark";
     else if (globalState == gc::SWEEP)
         state = "sweep";
+    else if (globalState == gc::FINALIZE)
+        state = "finalize";
     else if (globalState == gc::COMPACT)
         state = "compact";
     else
@@ -1100,8 +1121,13 @@ CallFunctionWithAsyncStack(JSContext* cx, unsigned argc, Value* vp)
     RootedObject function(cx, &args[0].toObject());
     RootedObject stack(cx, &args[1].toObject());
     RootedString asyncCause(cx, args[2].toString());
+    JSAutoByteString utf8Cause;
+    if (!utf8Cause.encodeUtf8(cx, asyncCause)) {
+        MOZ_ASSERT(cx->isExceptionPending());
+        return false;
+    }
 
-    JS::AutoSetAsyncStackForNewCalls sas(cx, stack, asyncCause,
+    JS::AutoSetAsyncStackForNewCalls sas(cx, stack, utf8Cause.ptr(),
                                          JS::AutoSetAsyncStackForNewCalls::AsyncCallKind::EXPLICIT);
     return Call(cx, UndefinedHandleValue, function,
                 JS::HandleValueArray::empty(), args.rval());
@@ -1110,14 +1136,14 @@ CallFunctionWithAsyncStack(JSContext* cx, unsigned argc, Value* vp)
 static bool
 EnableTrackAllocations(JSContext* cx, unsigned argc, Value* vp)
 {
-    SetObjectMetadataCallback(cx, SavedStacksMetadataCallback);
+    SetAllocationMetadataBuilder(cx, &SavedStacks::metadataBuilder);
     return true;
 }
 
 static bool
 DisableTrackAllocations(JSContext* cx, unsigned argc, Value* vp)
 {
-    SetObjectMetadataCallback(cx, nullptr);
+    SetAllocationMetadataBuilder(cx, nullptr);
     return true;
 }
 
@@ -1169,13 +1195,7 @@ SetupOOMFailure(JSContext* cx, bool failAlways, unsigned argc, Value* vp)
     }
 
     HelperThreadState().waitForAllThreads();
-    js::oom::targetThread = targetThread;
-    if (uint64_t(OOM_counter) + count >= UINT32_MAX) {
-        JS_ReportError(cx, "OOM cutoff out of range");
-        return false;
-    }
-    OOM_maxAllocations = OOM_counter + count;
-    OOM_failAlways = failAlways;
+    js::oom::SimulateOOMAfter(count, targetThread, failAlways);
     args.rval().setUndefined();
     return true;
 }
@@ -1196,9 +1216,8 @@ static bool
 ResetOOMFailure(JSContext* cx, unsigned argc, Value* vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
-    args.rval().setBoolean(OOM_counter >= OOM_maxAllocations);
-    js::oom::targetThread = js::oom::THREAD_TYPE_NONE;
-    OOM_maxAllocations = UINT32_MAX;
+    args.rval().setBoolean(js::oom::HadSimulatedOOM());
+    js::oom::ResetSimulatedOOM();
     return true;
 }
 
@@ -1207,10 +1226,29 @@ OOMTest(JSContext* cx, unsigned argc, Value* vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
 
-    if (args.length() != 1 || !args[0].isObject() || !args[0].toObject().is<JSFunction>()) {
-        JS_ReportError(cx, "oomTest() takes a single function argument.");
+    if (args.length() < 1 || args.length() > 2) {
+        JS_ReportError(cx, "oomTest() takes between 1 and 2 arguments.");
         return false;
     }
+
+    if (!args[0].isObject() || !args[0].toObject().is<JSFunction>()) {
+        JS_ReportError(cx, "The first argument to oomTest() must be a function.");
+        return false;
+    }
+
+    if (args.length() == 2 && !args[1].isBoolean()) {
+        JS_ReportError(cx, "The optional second argument to oomTest() must be a boolean.");
+        return false;
+    }
+
+    bool expectExceptionOnFailure = true;
+    if (args.length() == 2)
+        expectExceptionOnFailure = args[1].toBoolean();
+
+    // There are some places where we do fail without raising an exception, so
+    // we can't expose this to the fuzzers by default.
+    if (fuzzingSafe)
+        expectExceptionOnFailure = false;
 
     if (disableOOMFunctions) {
         args.rval().setUndefined();
@@ -1257,17 +1295,26 @@ OOMTest(JSContext* cx, unsigned argc, Value* vp)
             MOZ_ASSERT(!cx->isExceptionPending());
             MOZ_ASSERT(!cx->runtime()->hadOutOfMemory);
 
-            OOM_maxAllocations = OOM_counter + allocation;
-            OOM_failAlways = false;
+            js::oom::SimulateOOMAfter(allocation, thread, false);
 
             RootedValue result(cx);
             bool ok = JS_CallFunction(cx, cx->global(), function,
                                       HandleValueArray::empty(), &result);
 
-            handledOOM = OOM_counter >= OOM_maxAllocations;
-            OOM_maxAllocations = UINT32_MAX;
+            handledOOM = js::oom::HadSimulatedOOM();
+            js::oom::ResetSimulatedOOM();
 
             MOZ_ASSERT_IF(ok, !cx->isExceptionPending());
+
+            if (ok) {
+                MOZ_ASSERT(!cx->isExceptionPending(),
+                           "Thunk execution succeeded but an exception was raised - "
+                           "missing error check?");
+            } else if (expectExceptionOnFailure) {
+                MOZ_ASSERT(cx->isExceptionPending(),
+                           "Thunk execution failed but no exception was raised - "
+                           "missing call to js::ReportOutOfMemory()?");
+            }
 
             // Note that it is possible that the function throws an exception
             // unconnected to OOM, in which case we ignore it. More correct
@@ -1285,12 +1332,32 @@ OOMTest(JSContext* cx, unsigned argc, Value* vp)
         }
     }
 
-    js::oom::targetThread = js::oom::THREAD_TYPE_NONE;
-
     args.rval().setUndefined();
     return true;
 }
 #endif
+
+#ifdef SPIDERMONKEY_PROMISE
+static bool
+SettlePromiseNow(JSContext* cx, unsigned argc, Value* vp)
+{
+    CallArgs args = CallArgsFromVp(argc, vp);
+    if (!args.requireAtLeast(cx, "settlePromiseNow", 1))
+        return false;
+    if (!args[0].isObject() || !args[0].toObject().is<PromiseObject>()) {
+        JS_ReportError(cx, "first argument must be a Promise object");
+        return false;
+    }
+
+    RootedNativeObject promise(cx, &args[0].toObject().as<NativeObject>());
+    promise->setReservedSlot(PROMISE_STATE_SLOT, Int32Value(PROMISE_STATE_FULFILLED));
+    promise->setReservedSlot(PROMISE_RESULT_SLOT, UndefinedValue());
+
+    JS::dbg::onPromiseSettled(cx, promise);
+    return true;
+}
+
+#else
 
 static const js::Class FakePromiseClass = {
     "Promise", JSCLASS_IS_ANONYMOUS
@@ -1325,6 +1392,7 @@ SettleFakePromise(JSContext* cx, unsigned argc, Value* vp)
     JS::dbg::onPromiseSettled(cx, promise);
     return true;
 }
+#endif // SPIDERMONKEY_PROMISE
 
 static unsigned finalizeCount = 0;
 
@@ -1334,8 +1402,7 @@ finalize_counter_finalize(JSFreeOp* fop, JSObject* obj)
     ++finalizeCount;
 }
 
-static const JSClass FinalizeCounterClass = {
-    "FinalizeCounter", JSCLASS_IS_ANONYMOUS,
+static const JSClassOps FinalizeCounterClassOps = {
     nullptr, /* addProperty */
     nullptr, /* delProperty */
     nullptr, /* getProperty */
@@ -1344,6 +1411,11 @@ static const JSClass FinalizeCounterClass = {
     nullptr, /* resolve */
     nullptr, /* mayResolve */
     finalize_counter_finalize
+};
+
+static const JSClass FinalizeCounterClass = {
+    "FinalizeCounter", JSCLASS_IS_ANONYMOUS,
+    &FinalizeCounterClassOps
 };
 
 static bool
@@ -1612,18 +1684,27 @@ DisplayName(JSContext* cx, unsigned argc, Value* vp)
     return true;
 }
 
-static JSObject*
-ShellObjectMetadataCallback(JSContext* cx, JSObject*)
-{
-    AutoEnterOOMUnsafeRegion oomUnsafe;
+class ShellAllocationMetadataBuilder : public AllocationMetadataBuilder {
+  public:
+    ShellAllocationMetadataBuilder() : AllocationMetadataBuilder() { }
 
+    virtual JSObject* build(JSContext *cx, HandleObject,
+                            AutoEnterOOMUnsafeRegion& oomUnsafe) const override;
+
+    static const ShellAllocationMetadataBuilder metadataBuilder;
+};
+
+JSObject*
+ShellAllocationMetadataBuilder::build(JSContext* cx, HandleObject,
+                                      AutoEnterOOMUnsafeRegion& oomUnsafe) const
+{
     RootedObject obj(cx, NewBuiltinClassInstance<PlainObject>(cx));
     if (!obj)
-        oomUnsafe.crash("ShellObjectMetadataCallback");
+        oomUnsafe.crash("ShellAllocationMetadataBuilder::build");
 
     RootedObject stack(cx, NewDenseEmptyArray(cx));
     if (!stack)
-        oomUnsafe.crash("ShellObjectMetadataCallback");
+        oomUnsafe.crash("ShellAllocationMetadataBuilder::build");
 
     static int createdIndex = 0;
     createdIndex++;
@@ -1631,13 +1712,13 @@ ShellObjectMetadataCallback(JSContext* cx, JSObject*)
     if (!JS_DefineProperty(cx, obj, "index", createdIndex, 0,
                            JS_STUBGETTER, JS_STUBSETTER))
     {
-        oomUnsafe.crash("ShellObjectMetadataCallback");
+        oomUnsafe.crash("ShellAllocationMetadataBuilder::build");
     }
 
     if (!JS_DefineProperty(cx, obj, "stack", stack, 0,
                            JS_STUBGETTER, JS_STUBSETTER))
     {
-        oomUnsafe.crash("ShellObjectMetadataCallback");
+        oomUnsafe.crash("ShellAllocationMetadataBuilder::build");
     }
 
     int stackIndex = 0;
@@ -1650,7 +1731,7 @@ ShellObjectMetadataCallback(JSContext* cx, JSObject*)
             if (!JS_DefinePropertyById(cx, stack, id, callee, 0,
                                        JS_STUBGETTER, JS_STUBSETTER))
             {
-                oomUnsafe.crash("ShellObjectMetadataCallback");
+                oomUnsafe.crash("ShellAllocationMetadataBuilder::build");
             }
             stackIndex++;
         }
@@ -1659,19 +1740,21 @@ ShellObjectMetadataCallback(JSContext* cx, JSObject*)
     return obj;
 }
 
+const ShellAllocationMetadataBuilder ShellAllocationMetadataBuilder::metadataBuilder;
+
 static bool
-EnableShellObjectMetadataCallback(JSContext* cx, unsigned argc, Value* vp)
+EnableShellAllocationMetadataBuilder(JSContext* cx, unsigned argc, Value* vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
 
-    SetObjectMetadataCallback(cx, ShellObjectMetadataCallback);
+    SetAllocationMetadataBuilder(cx, &ShellAllocationMetadataBuilder::metadataBuilder);
 
     args.rval().setUndefined();
     return true;
 }
 
 static bool
-GetObjectMetadata(JSContext* cx, unsigned argc, Value* vp)
+GetAllocationMetadata(JSContext* cx, unsigned argc, Value* vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
     if (args.length() != 1 || !args[0].isObject()) {
@@ -1679,7 +1762,7 @@ GetObjectMetadata(JSContext* cx, unsigned argc, Value* vp)
         return false;
     }
 
-    args.rval().setObjectOrNull(GetObjectMetadata(&args[0].toObject()));
+    args.rval().setObjectOrNull(GetAllocationMetadata(&args[0].toObject()));
     return true;
 }
 
@@ -2026,8 +2109,7 @@ class CloneBufferObject : public NativeObject {
     }
 };
 
-const Class CloneBufferObject::class_ = {
-    "CloneBuffer", JSCLASS_HAS_RESERVED_SLOTS(CloneBufferObject::NUM_SLOTS),
+static const ClassOps CloneBufferObjectClassOps = {
     nullptr, /* addProperty */
     nullptr, /* delProperty */
     nullptr, /* getProperty */
@@ -2035,7 +2117,12 @@ const Class CloneBufferObject::class_ = {
     nullptr, /* enumerate */
     nullptr, /* resolve */
     nullptr, /* mayResolve */
-    Finalize
+    CloneBufferObject::Finalize
+};
+
+const Class CloneBufferObject::class_ = {
+    "CloneBuffer", JSCLASS_HAS_RESERVED_SLOTS(CloneBufferObject::NUM_SLOTS),
+    &CloneBufferObjectClassOps
 };
 
 const JSPropertySpec CloneBufferObject::props_[] = {
@@ -2102,12 +2189,12 @@ Deserialize(JSContext* cx, unsigned argc, Value* vp)
 }
 
 static bool
-Neuter(JSContext* cx, unsigned argc, Value* vp)
+DetachArrayBuffer(JSContext* cx, unsigned argc, Value* vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
 
     if (args.length() != 2) {
-        JS_ReportError(cx, "wrong number of arguments to neuter()");
+        JS_ReportError(cx, "wrong number of arguments to detachArrayBuffer()");
         return false;
     }
 
@@ -2116,7 +2203,7 @@ Neuter(JSContext* cx, unsigned argc, Value* vp)
         return false;
 
     if (!obj) {
-        JS_ReportError(cx, "neuter must be passed an object");
+        JS_ReportError(cx, "detachArrayBuffer must be passed an object");
         return false;
     }
 
@@ -2133,7 +2220,7 @@ Neuter(JSContext* cx, unsigned argc, Value* vp)
     } else if (strcmp(dataDisposition.ptr(), "change-data") == 0) {
         changeData = ChangeData;
     } else {
-        JS_ReportError(cx, "unknown parameter 2 to neuter()");
+        JS_ReportError(cx, "unknown parameter 2 to detachArrayBuffer()");
         return false;
     }
 
@@ -2360,6 +2447,13 @@ ReportOutOfMemory(JSContext* cx, unsigned argc, Value* vp)
 }
 
 static bool
+ThrowOutOfMemory(JSContext* cx, unsigned argc, Value* vp)
+{
+    JS_ReportOutOfMemory(cx);
+    return false;
+}
+
+static bool
 ReportLargeAllocationFailure(JSContext* cx, unsigned argc, Value* vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
@@ -2563,7 +2657,11 @@ FindPath(JSContext* cx, unsigned argc, Value* vp)
         if (!obj)
             return false;
 
-        if (!JS_DefineProperty(cx, obj, "node", nodes[i],
+        RootedValue wrapped(cx, nodes[i]);
+        if (!cx->compartment()->wrap(cx, &wrapped))
+            return false;
+
+        if (!JS_DefineProperty(cx, obj, "node", wrapped,
                                JSPROP_ENUMERATE, nullptr, nullptr))
             return false;
 
@@ -2620,9 +2718,7 @@ ShortestPaths(JSContext* cx, unsigned argc, Value* vp)
     for (size_t i = 0; i < length; i++) {
         RootedValue el(cx, objs->getDenseElement(i));
         if (!el.isObject() && !el.isString() && !el.isSymbol()) {
-            ReportValueErrorFlags(cx, JSREPORT_ERROR, JSMSG_UNEXPECTED_TYPE,
-                                  JSDVG_SEARCH_STACK, el, nullptr,
-                                  "not an object, string, or symbol", nullptr);
+            JS_ReportError(cx, "Each target must be an object, string, or symbol");
             return false;
         }
     }
@@ -2733,8 +2829,11 @@ ShortestPaths(JSContext* cx, unsigned argc, Value* vp)
                     return false;
 
                 RootedValue predecessor(cx, values[i][j][k]);
-                if (!JS_DefineProperty(cx, part, "predecessor", predecessor, JSPROP_ENUMERATE))
+                if (!cx->compartment()->wrap(cx, &predecessor) ||
+                    !JS_DefineProperty(cx, part, "predecessor", predecessor, JSPROP_ENUMERATE))
+                {
                     return false;
+                }
 
                 if (names[i][j][k]) {
                     RootedString edge(cx, NewStringCopyZ<CanGC>(cx, names[i][j][k].get()));
@@ -2781,7 +2880,7 @@ EvalReturningScope(JSContext* cx, unsigned argc, Value* vp)
     size_t srclen = chars.length();
     const char16_t* src = chars.start().get();
 
-    JS::UniqueChars filename;
+    JS::AutoFilename filename;
     unsigned lineno;
 
     JS::DescribeScriptedCaller(cx, &filename, &lineno);
@@ -2867,7 +2966,7 @@ ShellCloneAndExecuteScript(JSContext* cx, unsigned argc, Value* vp)
     size_t srclen = chars.length();
     const char16_t* src = chars.start().get();
 
-    JS::UniqueChars filename;
+    JS::AutoFilename filename;
     unsigned lineno;
 
     JS::DescribeScriptedCaller(cx, &filename, &lineno);
@@ -3493,12 +3592,23 @@ static const JSFunctionSpecWithHelp TestingFunctions[] = {
 "  oomAtAllocation() and return whether any allocation had been caused to fail."),
 
     JS_FN_HELP("oomTest", OOMTest, 0, 0,
-"oomTest(function)",
+"oomTest(function, [expectExceptionOnFailure = true])",
 "  Test that the passed function behaves correctly under OOM conditions by\n"
 "  repeatedly executing it and simulating allocation failure at successive\n"
-"  allocations until the function completes without seeing a failure."),
+"  allocations until the function completes without seeing a failure.\n"
+"  By default this tests that an exception is raised if execution fails, but\n"
+"  this can be disabled by passing false as the optional second parameter.\n"
+"  This is also disabled when --fuzzing-safe is specified."),
 #endif
 
+#ifdef SPIDERMONKEY_PROMISE
+    JS_FN_HELP("settlePromiseNow", SettlePromiseNow, 1, 0,
+"settlePromiseNow(promise)",
+"  'Settle' a 'promise' immediately. This just marks the promise as resolved\n"
+"  with a value of `undefined` and causes the firing of any onPromiseSettled\n"
+"  hooks set on Debugger instances that are observing the given promise's\n"
+"  global as a debuggee."),
+#else
     JS_FN_HELP("makeFakePromise", MakeFakePromise, 0, 0,
 "makeFakePromise()",
 "  Create an object whose [[Class]] name is 'Promise' and call\n"
@@ -3511,6 +3621,7 @@ static const JSFunctionSpecWithHelp TestingFunctions[] = {
 "  observable effects outside of firing any onPromiseSettled hooks set on\n"
 "  Debugger instances that are observing the given promise's global as a\n"
 "  debuggee."),
+#endif // SPIDERMONKEY_PROMISE
 
     JS_FN_HELP("makeFinalizeObserver", MakeFinalizeObserver, 0, 0,
 "makeFinalizeObserver()",
@@ -3662,14 +3773,13 @@ gc::ZealModeHelpText),
 "wasmIsSupported()",
 "  Returns a boolean indicating whether WebAssembly is supported on the current device."),
 
-    JS_FN_HELP("wasmEval", WasmEval, 2, 0,
-"wasmEval(buffer, imports)",
-"  Compiles the given binary wasm module given by 'buffer' (which must be an ArrayBuffer)\n"
-"  and links the module's imports with the given 'imports' object."),
-
     JS_FN_HELP("wasmTextToBinary", WasmTextToBinary, 1, 0,
 "wasmTextToBinary(str)",
 "  Translates the given text wasm module into its binary encoding."),
+
+    JS_FN_HELP("wasmBinaryToText", WasmBinaryToText, 1, 0,
+"wasmBinaryToText(bin)",
+"  Translates binary encoding to text format"),
 
     JS_FN_HELP("isLazyFunction", IsLazyFunction, 1, 0,
 "isLazyFunction(fun)",
@@ -3679,12 +3789,12 @@ gc::ZealModeHelpText),
 "isRelazifiableFunction(fun)",
 "  Ture if fun is a JSFunction with a relazifiable JSScript."),
 
-    JS_FN_HELP("enableShellObjectMetadataCallback", EnableShellObjectMetadataCallback, 0, 0,
-"enableShellObjectMetadataCallback()",
-"  Use ShellObjectMetadataCallback to supply metadata for all newly created objects."),
+    JS_FN_HELP("enableShellAllocationMetadataBuilder", EnableShellAllocationMetadataBuilder, 0, 0,
+"enableShellAllocationMetadataBuilder()",
+"  Use ShellAllocationMetadataBuilder to supply metadata for all newly created objects."),
 
-    JS_FN_HELP("getObjectMetadata", GetObjectMetadata, 1, 0,
-"getObjectMetadata(obj)",
+    JS_FN_HELP("getAllocationMetadata", GetAllocationMetadata, 1, 0,
+"getAllocationMetadata(obj)",
 "  Get the metadata for an object."),
 
     JS_INLINABLE_FN_HELP("bailout", testingFunc_bailout, 0, 0, TestBailout,
@@ -3728,12 +3838,12 @@ gc::ZealModeHelpText),
 "deserialize(clonebuffer)",
 "  Deserialize data generated by serialize."),
 
-    JS_FN_HELP("neuter", Neuter, 1, 0,
-"neuter(buffer, \"change-data\"|\"same-data\")",
-"  Neuter the given ArrayBuffer object as if it had been transferred to a\n"
-"  WebWorker. \"change-data\" will update the internal data pointer.\n"
-"  \"same-data\" will leave it set to its original value, to mimic eg\n"
-"  asm.js ArrayBuffer neutering."),
+    JS_FN_HELP("detachArrayBuffer", DetachArrayBuffer, 1, 0,
+"detachArrayBuffer(buffer, \"change-data\"|\"same-data\")",
+"  Detach the given ArrayBuffer object from its memory, i.e. as if it\n"
+"  had been transferred to a WebWorker. \"change-data\" will update\n"
+"  the internal data pointer.  \"same-data\" will leave it set to \n"
+"  its original value, mimicking, e.g.,  asm.js ArrayBuffer detaching."),
 
     JS_FN_HELP("helperThreadCount", HelperThreadCount, 0, 0,
 "helperThreadCount()",
@@ -3754,6 +3864,10 @@ gc::ZealModeHelpText),
     JS_FN_HELP("reportOutOfMemory", ReportOutOfMemory, 0, 0,
 "reportOutOfMemory()",
 "  Report OOM, then clear the exception and return undefined. For crash testing."),
+
+    JS_FN_HELP("throwOutOfMemory", ThrowOutOfMemory, 0, 0,
+"throwOutOfMemory()",
+"  Throw out of memory exception, for OOM handling testing."),
 
     JS_FN_HELP("reportLargeAllocationFailure", ReportLargeAllocationFailure, 0, 0,
 "reportLargeAllocationFailure()",

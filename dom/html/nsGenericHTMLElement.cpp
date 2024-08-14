@@ -96,7 +96,7 @@
 
 #include "HTMLPropertiesCollection.h"
 #include "nsVariant.h"
-#include "nsDOMSettableTokenList.h"
+#include "nsDOMTokenList.h"
 #include "nsThreadUtils.h"
 #include "nsTextFragment.h"
 #include "mozilla/dom/BindingUtils.h"
@@ -107,6 +107,8 @@
 #include "mozilla/dom/HTMLBodyElement.h"
 #include "imgIContainer.h"
 #include "nsComputedDOMStyle.h"
+#include "mozilla/StyleSetHandle.h"
+#include "mozilla/StyleSetHandleInlines.h"
 
 using namespace mozilla;
 using namespace mozilla::dom;
@@ -571,7 +573,7 @@ nsGenericHTMLElement::BindToTree(nsIDocument* aDocument, nsIContent* aParent,
 void
 nsGenericHTMLElement::UnbindFromTree(bool aDeep, bool aNullParent)
 {
-  if (IsInDoc()) {
+  if (IsInUncomposedDoc()) {
     UnregAccessKey();
   }
   
@@ -1435,32 +1437,27 @@ void
 nsGenericHTMLElement::MapImageAlignAttributeInto(const nsMappedAttributes* aAttributes,
                                                  nsRuleData* aRuleData)
 {
-  if (aRuleData->mSIDs & (NS_STYLE_INHERIT_BIT(Display) |
-                          NS_STYLE_INHERIT_BIT(TextReset))) {
+  if (aRuleData->mSIDs & NS_STYLE_INHERIT_BIT(Display)) {
     const nsAttrValue* value = aAttributes->GetAttr(nsGkAtoms::align);
     if (value && value->Type() == nsAttrValue::eEnum) {
       int32_t align = value->GetEnumValue();
-      if (aRuleData->mSIDs & NS_STYLE_INHERIT_BIT(Display)) {
-        nsCSSValue* cssFloat = aRuleData->ValueForFloat();
-        if (cssFloat->GetUnit() == eCSSUnit_Null) {
-          if (align == NS_STYLE_TEXT_ALIGN_LEFT) {
-            cssFloat->SetIntValue(NS_STYLE_FLOAT_LEFT, eCSSUnit_Enumerated);
-          } else if (align == NS_STYLE_TEXT_ALIGN_RIGHT) {
-            cssFloat->SetIntValue(NS_STYLE_FLOAT_RIGHT, eCSSUnit_Enumerated);
-          }
+      nsCSSValue* cssFloat = aRuleData->ValueForFloat();
+      if (cssFloat->GetUnit() == eCSSUnit_Null) {
+        if (align == NS_STYLE_TEXT_ALIGN_LEFT) {
+          cssFloat->SetIntValue(NS_STYLE_FLOAT_LEFT, eCSSUnit_Enumerated);
+        } else if (align == NS_STYLE_TEXT_ALIGN_RIGHT) {
+          cssFloat->SetIntValue(NS_STYLE_FLOAT_RIGHT, eCSSUnit_Enumerated);
         }
       }
-      if (aRuleData->mSIDs & NS_STYLE_INHERIT_BIT(TextReset)) {
-        nsCSSValue* verticalAlign = aRuleData->ValueForVerticalAlign();
-        if (verticalAlign->GetUnit() == eCSSUnit_Null) {
-          switch (align) {
-          case NS_STYLE_TEXT_ALIGN_LEFT:
-          case NS_STYLE_TEXT_ALIGN_RIGHT:
-            break;
-          default:
-            verticalAlign->SetIntValue(align, eCSSUnit_Enumerated);
-            break;
-          }
+      nsCSSValue* verticalAlign = aRuleData->ValueForVerticalAlign();
+      if (verticalAlign->GetUnit() == eCSSUnit_Null) {
+        switch (align) {
+        case NS_STYLE_TEXT_ALIGN_LEFT:
+        case NS_STYLE_TEXT_ALIGN_RIGHT:
+          break;
+        default:
+          verticalAlign->SetIntValue(align, eCSSUnit_Enumerated);
+          break;
         }
       }
     }
@@ -2278,7 +2275,7 @@ nsGenericHTMLFormElement::AfterSetAttr(int32_t aNameSpaceID, nsIAtom* aName,
 nsresult
 nsGenericHTMLFormElement::PreHandleEvent(EventChainPreVisitor& aVisitor)
 {
-  if (aVisitor.mEvent->mFlags.mIsTrusted) {
+  if (aVisitor.mEvent->IsTrusted()) {
     switch (aVisitor.mEvent->mMessage) {
       case eFocus: {
         // Check to see if focus has bubbled up from a form control's
@@ -2286,7 +2283,7 @@ nsGenericHTMLFormElement::PreHandleEvent(EventChainPreVisitor& aVisitor)
         // this parent file control -- leave focus on the child.
         nsIFormControlFrame* formControlFrame = GetFormControlFrame(true);
         if (formControlFrame &&
-            aVisitor.mEvent->originalTarget == static_cast<nsINode*>(this))
+            aVisitor.mEvent->mOriginalTarget == static_cast<nsINode*>(this))
           formControlFrame->SetFocus(true, true);
         break;
       }
@@ -2419,7 +2416,7 @@ nsGenericHTMLFormElement::AddFormIdObserver()
   GetAttr(kNameSpaceID_None, nsGkAtoms::form, formId);
   NS_ASSERTION(!formId.IsEmpty(),
                "@form value should not be the empty string!");
-  nsCOMPtr<nsIAtom> atom = do_GetAtom(formId);
+  nsCOMPtr<nsIAtom> atom = NS_Atomize(formId);
 
   return doc->AddIDTargetObserver(atom, FormIdUpdated, this, false);
 }
@@ -2448,7 +2445,7 @@ nsGenericHTMLFormElement::RemoveFormIdObserver()
   GetAttr(kNameSpaceID_None, nsGkAtoms::form, formId);
   NS_ASSERTION(!formId.IsEmpty(),
                "@form value should not be the empty string!");
-  nsCOMPtr<nsIAtom> atom = do_GetAtom(formId);
+  nsCOMPtr<nsIAtom> atom = NS_Atomize(formId);
 
   doc->RemoveIDTargetObserver(atom, FormIdUpdated, this, false);
 }
@@ -2742,7 +2739,6 @@ nsGenericHTMLElement::IsHTMLFocusable(bool aWithMouse,
   }
 
   int32_t tabIndex = TabIndex();
-
   bool disabled = false;
   bool disallowOverridingFocusability = true;
 
@@ -3354,7 +3350,7 @@ IsOrHasAncestorWithDisplayNone(Element* aElement, nsIPresShell* aPresShell)
     return false;
   }
 
-  nsStyleSet* styleSet = aPresShell->StyleSet();
+  StyleSetHandle styleSet = aPresShell->StyleSet();
   RefPtr<nsStyleContext> sc;
   for (int32_t i = elementsToCheck.Length() - 1; i >= 0; --i) {
     if (sc) {

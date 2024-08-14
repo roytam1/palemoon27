@@ -20,12 +20,6 @@ if CONFIG['OS_TARGET'] == 'Android' and not CONFIG['MOZ_ANDROID_LIBSTDCXX']:
 
 if CONFIG['MOZ_WIDGET_TOOLKIT'] == 'android':
     DIRS += ['annotationProcessors']
-    TEST_DIRS += [
-        'mobile/sutagent/android',
-        'mobile/sutagent/android/watcher',
-        'mobile/sutagent/android/ffxcp',
-        'mobile/sutagent/android/fencp',
-    ]
 
 for var in ('GRE_MILESTONE', 'MOZ_APP_VERSION', 'MOZ_APP_BASENAME',
             'MOZ_APP_VENDOR', 'MOZ_APP_ID', 'MAR_CHANNEL_ID',

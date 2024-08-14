@@ -220,19 +220,20 @@ IMFYCbCrImage::GetD3D9TextureClient(CompositableClient* aClient)
 TextureClient*
 IMFYCbCrImage::GetTextureClient(CompositableClient* aClient)
 {
-  LayersBackend backend = aClient->GetForwarder()->GetCompositorBackendType();
-  ID3D11Device* device = gfxWindowsPlatform::GetPlatform()->GetD3D11ImageBridgeDevice();
+  if (mTextureClient) {
+    return mTextureClient;
+  }
 
+  RefPtr<ID3D11Device> device;
+  gfxWindowsPlatform::GetPlatform()->GetD3D11ImageBridgeDevice(&device);
+
+  LayersBackend backend = aClient->GetForwarder()->GetCompositorBackendType();
   if (!device || backend != LayersBackend::LAYERS_D3D11) {
     if (backend == LayersBackend::LAYERS_D3D9 ||
         backend == LayersBackend::LAYERS_D3D11) {
       return GetD3D9TextureClient(aClient);
     }
     return nullptr;
-  }
-
-  if (mTextureClient) {
-    return mTextureClient;
   }
 
   RefPtr<ID3D11DeviceContext> ctx;

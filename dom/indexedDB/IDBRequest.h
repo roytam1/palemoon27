@@ -4,14 +4,14 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef mozilla_dom_indexeddb_idbrequest_h__
-#define mozilla_dom_indexeddb_idbrequest_h__
+#ifndef mozilla_dom_idbrequest_h__
+#define mozilla_dom_idbrequest_h__
 
 #include "js/RootingAPI.h"
 #include "mozilla/Attributes.h"
 #include "mozilla/EventForwards.h"
 #include "mozilla/dom/IDBRequestBinding.h"
-#include "mozilla/dom/indexedDB/IDBWrapperCache.h"
+#include "mozilla/dom/IDBWrapperCache.h"
 #include "nsAutoPtr.h"
 #include "nsCycleCollectionParticipant.h"
 
@@ -28,17 +28,14 @@ class ErrorResult;
 namespace dom {
 
 class DOMError;
-template <typename> struct Nullable;
-class OwningIDBObjectStoreOrIDBIndexOrIDBCursor;
-
-namespace indexedDB {
-
 class IDBCursor;
 class IDBDatabase;
 class IDBFactory;
 class IDBIndex;
 class IDBObjectStore;
 class IDBTransaction;
+template <typename> struct Nullable;
+class OwningIDBObjectStoreOrIDBIndexOrIDBCursor;
 
 class IDBRequest
   : public IDBWrapperCache
@@ -70,20 +67,23 @@ public:
   class ResultCallback;
 
   static already_AddRefed<IDBRequest>
-  Create(IDBDatabase* aDatabase, IDBTransaction* aTransaction);
+  Create(JSContext* aCx, IDBDatabase* aDatabase, IDBTransaction* aTransaction);
 
   static already_AddRefed<IDBRequest>
-  Create(IDBObjectStore* aSource,
+  Create(JSContext* aCx,
+         IDBObjectStore* aSource,
          IDBDatabase* aDatabase,
          IDBTransaction* aTransaction);
 
   static already_AddRefed<IDBRequest>
-  Create(IDBIndex* aSource,
+  Create(JSContext* aCx,
+         IDBIndex* aSource,
          IDBDatabase* aDatabase,
          IDBTransaction* aTransaction);
 
   static void
-  CaptureCaller(nsAString& aFilename, uint32_t* aLineNo, uint32_t* aColumn);
+  CaptureCaller(JSContext* aCx, nsAString& aFilename, uint32_t* aLineNo,
+                uint32_t* aColumn);
 
   static uint64_t
   NextSerialNumber();
@@ -237,12 +237,14 @@ class IDBOpenDBRequest final
 
 public:
   static already_AddRefed<IDBOpenDBRequest>
-  CreateForWindow(IDBFactory* aFactory,
+  CreateForWindow(JSContext* aCx,
+                  IDBFactory* aFactory,
                   nsPIDOMWindow* aOwner,
                   JS::Handle<JSObject*> aScriptOwner);
 
   static already_AddRefed<IDBOpenDBRequest>
-  CreateForJS(IDBFactory* aFactory,
+  CreateForJS(JSContext* aCx,
+              IDBFactory* aFactory,
               JS::Handle<JSObject*> aScriptOwner);
 
   bool
@@ -285,8 +287,7 @@ private:
   ~IDBOpenDBRequest();
 };
 
-} // namespace indexedDB
 } // namespace dom
 } // namespace mozilla
 
-#endif // mozilla_dom_indexeddb_idbrequest_h__
+#endif // mozilla_dom_idbrequest_h__

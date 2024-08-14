@@ -32,6 +32,7 @@ NS_IMPL_ISUPPORTS_INHERITED(ExternalHelperAppParent,
                             nsIRequest,
                             nsIChannel,
                             nsIMultiPartChannel,
+                            nsIPrivateBrowsingChannel,
                             nsIResumableChannel,
                             nsIStreamListener)
 
@@ -40,7 +41,9 @@ ExternalHelperAppParent::ExternalHelperAppParent(
     const int64_t& aContentLength)
   : mURI(DeserializeURI(uri))
   , mPending(false)
+#ifdef DEBUG
   , mDiverted(false)
+#endif
   , mIPCClosed(false)
   , mLoadFlags(0)
   , mStatus(NS_OK)
@@ -84,6 +87,11 @@ ExternalHelperAppParent::Init(ContentParent *parent,
     TabParent* tabParent = TabParent::GetFrom(aBrowser);
     if (tabParent->GetOwnerElement())
       window = do_QueryInterface(tabParent->GetOwnerElement()->OwnerDoc()->GetWindow());
+
+    bool isPrivate = false;
+    nsCOMPtr<nsILoadContext> loadContext = tabParent->GetLoadContext();
+    loadContext->GetUsePrivateBrowsing(&isPrivate);
+    SetPrivate(isPrivate);
   }
 
   helperAppService->DoContent(aMimeContentType, this, window,
@@ -153,7 +161,9 @@ ExternalHelperAppParent::RecvDivertToParentUsing(PChannelDiverterParent* diverte
   MOZ_ASSERT(diverter);
   auto p = static_cast<mozilla::net::ChannelDiverterParent*>(diverter);
   p->DivertTo(this);
+#ifdef DEBUG
   mDiverted = true;
+#endif
   Unused << p->Send__delete__(p);
   return true;
 }

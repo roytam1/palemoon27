@@ -1036,7 +1036,7 @@ module.exports = function (chai, _) {
       , 'expected #{this} to be an instance of ' + name
       , 'expected #{this} to not be an instance of ' + name
     );
-  };
+  }
 
   Assertion.addMethod('instanceof', assertInstanceOf);
   Assertion.addMethod('instanceOf', assertInstanceOf);
@@ -1593,12 +1593,13 @@ module.exports = function (chai, _) {
       }
     }
 
-    var actuallyGot = ''
-      , expectedThrown = name !== null
-        ? name
-        : desiredError
-          ? '#{exp}' //_.inspect(desiredError)
-          : 'an error';
+    var actuallyGot = '';
+    var expectedThrown = 'an error';
+    if (name !== null) {
+      expectedThrown = name;
+    } else if (desiredError) {
+      expectedThrown = '#{exp}'; //_.inspect(desiredError)
+    }
 
     if (thrown) {
       actuallyGot = ' but #{act} was thrown'
@@ -1613,7 +1614,7 @@ module.exports = function (chai, _) {
     );
 
     flag(this, 'object', thrownError);
-  };
+  }
 
   Assertion.addMethod('throw', assertThrows);
   Assertion.addMethod('throws', assertThrows);
@@ -3155,7 +3156,7 @@ module.exports = function (chai, util) {
    * ### .ifError(object)
    *
    * Asserts if value is not a false value, and throws if it is a true value.
-   * This is added to allow for chai to be a drop-in replacement for Node's 
+   * This is added to allow for chai to be a drop-in replacement for Node's
    * assert class.
    *
    *     var err = new Error('I am a custom error');
@@ -3313,7 +3314,7 @@ module.exports = function (chai, util) {
     should.not['throw'] = should.not['Throw'];
 
     return should;
-  };
+  }
 
   chai.should = loadShould;
   chai.Should = loadShould;
@@ -3828,7 +3829,7 @@ var getPathInfo = require('./getPathInfo');
 module.exports = function(path, obj) {
   var info = getPathInfo(path, obj);
   return info.value;
-}; 
+};
 
 },{"./getPathInfo":16}],18:[function(require,module,exports){
 /*!
@@ -3896,7 +3897,7 @@ var type = require('type-detect');
  *     hasProperty('str', obj);  // true
  *     hasProperty('constructor', obj);  // true
  *     hasProperty('bar', obj);  // false
- *     
+ *
  *     hasProperty('length', obj.str); // true
  *     hasProperty(1, obj.str);  // true
  *     hasProperty(5, obj.str);  // false
@@ -4720,7 +4721,7 @@ function exclude () {
 
     return res;
   };
-};
+}
 
 /*!
  * Primary Exports

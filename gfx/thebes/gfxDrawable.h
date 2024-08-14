@@ -6,7 +6,6 @@
 #ifndef GFX_DRAWABLE_H
 #define GFX_DRAWABLE_H
 
-#include "nsAutoPtr.h"
 #include "gfxRect.h"
 #include "gfxMatrix.h"
 #include "mozilla/gfx/2D.h"
@@ -23,6 +22,10 @@ class gfxPattern;
 class gfxDrawable {
     NS_INLINE_DECL_REFCOUNTING(gfxDrawable)
 public:
+    typedef mozilla::gfx::AntialiasMode AntialiasMode;
+    typedef mozilla::gfx::CompositionOp CompositionOp;
+    typedef mozilla::gfx::DrawTarget DrawTarget;
+
     explicit gfxDrawable(const mozilla::gfx::IntSize aSize)
      : mSize(aSize) {}
 
@@ -40,7 +43,9 @@ public:
                         gfxFloat aOpacity = 1.0,
                         const gfxMatrix& aTransform = gfxMatrix()) = 0;
 
-    virtual bool DrawWithSamplingRect(gfxContext* aContext,
+    virtual bool DrawWithSamplingRect(DrawTarget* aDrawTarget,
+                                      CompositionOp aOp,
+                                      AntialiasMode aAntialiasMode,
                                       const gfxRect& aFillRect,
                                       const gfxRect& aSamplingRect,
                                       mozilla::gfx::ExtendMode aExtendMode,
@@ -76,7 +81,9 @@ public:
                         gfxFloat aOpacity = 1.0,
                         const gfxMatrix& aTransform = gfxMatrix());
 
-    virtual bool DrawWithSamplingRect(gfxContext* aContext,
+    virtual bool DrawWithSamplingRect(DrawTarget* aDrawTarget,
+                                      CompositionOp aOp,
+                                      AntialiasMode aAntialiasMode,
                                       const gfxRect& aFillRect,
                                       const gfxRect& aSamplingRect,
                                       mozilla::gfx::ExtendMode aExtendMode,
@@ -84,7 +91,9 @@ public:
                                       gfxFloat aOpacity = 1.0);
 
 protected:
-    void DrawInternal(gfxContext* aContext,
+    void DrawInternal(DrawTarget* aDrawTarget,
+                      CompositionOp aOp,
+                      AntialiasMode aAntialiasMode,
                       const gfxRect& aFillRect,
                       const mozilla::gfx::IntRect& aSamplingRect,
                       mozilla::gfx::ExtendMode aExtendMode,

@@ -65,6 +65,10 @@ public:
     virtual nsresult CheckFontLoad(const gfxFontFaceSrc* aFontFaceSrc,
                                    nsIPrincipal** aPrincipal,
                                    bool* aBypassCache) override;
+
+    virtual bool IsFontLoadAllowed(nsIURI* aFontLocation,
+                                   nsIPrincipal* aPrincipal) override;
+
     virtual nsresult StartLoad(gfxUserFontEntry* aUserFontEntry,
                                const gfxFontFaceSrc* aFontFaceSrc) override;
 
@@ -89,7 +93,8 @@ public:
                                    uint8_t aStyle,
                                    const nsTArray<gfxFontFeature>& aFeatureSettings,
                                    uint32_t aLanguageOverride,
-                                   gfxSparseBitSet* aUnicodeRanges) override;
+                                   gfxSparseBitSet* aUnicodeRanges,
+                                   uint8_t aFontDisplay) override;
 
   private:
     RefPtr<FontFaceSet> mFontFaceSet;
@@ -144,7 +149,7 @@ public:
   static bool PrefEnabled();
 
   // nsICSSLoaderObserver
-  NS_IMETHOD StyleSheetLoaded(mozilla::CSSStyleSheet* aSheet,
+  NS_IMETHOD StyleSheetLoaded(mozilla::StyleSheetHandle aSheet,
                               bool aWasAlternate,
                               nsresult aStatus) override;
 
@@ -256,6 +261,7 @@ private:
   nsresult CheckFontLoad(const gfxFontFaceSrc* aFontFaceSrc,
                          nsIPrincipal** aPrincipal,
                          bool* aBypassCache);
+  bool IsFontLoadAllowed(nsIURI* aFontLocation, nsIPrincipal* aPrincipal);
   bool GetPrivateBrowsing();
   nsresult SyncLoadFontData(gfxUserFontEntry* aFontToLoad,
                             const gfxFontFaceSrc* aFontFaceSrc,

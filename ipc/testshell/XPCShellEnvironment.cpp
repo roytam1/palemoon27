@@ -46,6 +46,8 @@ using mozilla::ipc::XPCShellEnvironment;
 using mozilla::ipc::TestShellChild;
 using mozilla::ipc::TestShellParent;
 using mozilla::AutoSafeJSContext;
+using mozilla::dom::AutoJSAPI;
+using mozilla::dom::AutoEntryScript;
 using namespace JS;
 
 namespace {
@@ -71,9 +73,13 @@ private:
 };
 
 inline XPCShellEnvironment*
-Environment(JS::Handle<JSObject*> global) {
-    AutoSafeJSContext cx;
-    JSAutoCompartment ac(cx, global);
+Environment(JS::Handle<JSObject*> global)
+{
+    AutoJSAPI jsapi;
+    if (!jsapi.Init(global)) {
+        return nullptr;
+    }
+    JSContext* cx = jsapi.cx();
     Rooted<Value> v(cx);
     if (!JS_GetProperty(cx, global, "__XPCShellEnvironment", &v) ||
         !v.get().isDouble())
@@ -450,10 +456,14 @@ XPCShellEnvironment::XPCShellEnvironment()
 
 XPCShellEnvironment::~XPCShellEnvironment()
 {
+    if (GetGlobalObject()) {
+        AutoJSAPI jsapi;
+        if (!jsapi.Init(GetGlobalObject())) {
+            return;
+        }
+        JSContext* cx = jsapi.cx();
+        Rooted<JSObject*> global(cx, GetGlobalObject());
 
-    AutoSafeJSContext cx;
-    Rooted<JSObject*> global(cx, GetGlobalObject());
-    if (global) {
         {
             JSAutoCompartment ac(cx, global);
             JS_SetAllNonReservedSlotsToUndefined(cx, global);
@@ -515,6 +525,8 @@ XPCShellEnvironment::Init()
     JS::CompartmentOptions options;
     options.creationOptions().setZone(JS::SystemZone);
     options.behaviors().setVersion(JSVERSION_LATEST);
+    if (xpc::SharedMemoryEnabled())
+        options.creationOptions().setSharedMemoryAndAtomicsEnabled(true);
 
     nsCOMPtr<nsIXPConnectJSObjectHolder> holder;
     rv = xpc->InitClassesWithNewWrappedGlobal(cx,
@@ -565,9 +577,9 @@ bool
 XPCShellEnvironment::EvaluateString(const nsString& aString,
                                     nsString* aResult)
 {
-  AutoSafeJSContext cx;
-  JS::Rooted<JSObject*> global(cx, GetGlobalObject());
-  JSAutoCompartment ac(cx, global);
+  AutoEntryScript aes(GetGlobalObject(),
+                      "ipc XPCShellEnvironment::EvaluateString");
+  JSContext* cx = aes.cx();
 
   JS::CompileOptions options(cx);
   options.setFileAndLine("typein", 0);

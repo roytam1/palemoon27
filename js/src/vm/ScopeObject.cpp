@@ -440,37 +440,28 @@ const Class CallObject::class_ = {
 
 /*****************************************************************************/
 
+const ObjectOps ModuleEnvironmentObject::objectOps_ = {
+    ModuleEnvironmentObject::lookupProperty,
+    nullptr,                                             /* defineProperty */
+    ModuleEnvironmentObject::hasProperty,
+    ModuleEnvironmentObject::getProperty,
+    ModuleEnvironmentObject::setProperty,
+    ModuleEnvironmentObject::getOwnPropertyDescriptor,
+    ModuleEnvironmentObject::deleteProperty,
+    nullptr, nullptr,                                    /* watch/unwatch */
+    nullptr,                                             /* getElements */
+    ModuleEnvironmentObject::enumerate,
+    nullptr
+};
+
 const Class ModuleEnvironmentObject::class_ = {
     "ModuleEnvironmentObject",
     JSCLASS_HAS_RESERVED_SLOTS(ModuleEnvironmentObject::RESERVED_SLOTS) |
     JSCLASS_IS_ANONYMOUS,
-    nullptr,        /* addProperty */
-    nullptr,        /* delProperty */
-    nullptr,        /* getProperty */
-    nullptr,        /* setProperty */
-    nullptr,        /* enumerate   */
-    nullptr,        /* resolve     */
-    nullptr,        /* mayResolve  */
-    nullptr,        /* finalize    */
-    nullptr,        /* call        */
-    nullptr,        /* hasInstance */
-    nullptr,        /* construct   */
-    nullptr,        /* trace       */
+    JS_NULL_CLASS_OPS,
     JS_NULL_CLASS_SPEC,
     JS_NULL_CLASS_EXT,
-    {
-        ModuleEnvironmentObject::lookupProperty,
-        nullptr,                                             /* defineProperty */
-        ModuleEnvironmentObject::hasProperty,
-        ModuleEnvironmentObject::getProperty,
-        ModuleEnvironmentObject::setProperty,
-        ModuleEnvironmentObject::getOwnPropertyDescriptor,
-        ModuleEnvironmentObject::deleteProperty,
-        nullptr, nullptr,                                    /* watch/unwatch */
-        nullptr,                                             /* getElements */
-        ModuleEnvironmentObject::enumerate,
-        nullptr
-    }
+    &ModuleEnvironmentObject::objectOps_
 };
 
 /* static */ ModuleEnvironmentObject*
@@ -622,8 +613,20 @@ ModuleEnvironmentObject::setProperty(JSContext* cx, HandleObject obj, HandleId i
 ModuleEnvironmentObject::getOwnPropertyDescriptor(JSContext* cx, HandleObject obj, HandleId id,
                                                   MutableHandle<PropertyDescriptor> desc)
 {
-    // We never call this hook on scope objects.
-    MOZ_CRASH();
+    const IndirectBindingMap& bindings = obj->as<ModuleEnvironmentObject>().importBindings();
+    Shape* shape;
+    ModuleEnvironmentObject* env;
+    if (bindings.lookup(id, &env, &shape)) {
+        desc.setAttributes(JSPROP_ENUMERATE | JSPROP_PERMANENT);
+        desc.object().set(obj);
+        RootedValue value(cx, env->getSlot(shape->slot()));
+        desc.setValue(value);
+        desc.assertComplete();
+        return true;
+    }
+
+    RootedNativeObject self(cx, &obj->as<NativeObject>());
+    return NativeGetOwnPropertyDescriptor(cx, self, id, desc);
 }
 
 /* static */ bool
@@ -684,8 +687,8 @@ DeclEnvObject::createTemplateObject(JSContext* cx, HandleFunction fun, NewObject
     const Class* clasp = obj->getClass();
     unsigned attrs = JSPROP_ENUMERATE | JSPROP_PERMANENT | JSPROP_READONLY;
 
-    JSGetterOp getter = clasp->getProperty;
-    JSSetterOp setter = clasp->setProperty;
+    JSGetterOp getter = clasp->getGetProperty();
+    JSSetterOp setter = clasp->getSetProperty();
     MOZ_ASSERT(getter != JS_PropertyStub);
     MOZ_ASSERT(setter != JS_StrictPropertyStub);
 
@@ -854,37 +857,28 @@ with_DeleteProperty(JSContext* cx, HandleObject obj, HandleId id, ObjectOpResult
     return DeleteProperty(cx, actual, id, result);
 }
 
+static const ObjectOps DynamicWithObjectObjectOps = {
+    with_LookupProperty,
+    with_DefineProperty,
+    with_HasProperty,
+    with_GetProperty,
+    with_SetProperty,
+    with_GetOwnPropertyDescriptor,
+    with_DeleteProperty,
+    nullptr, nullptr,    /* watch/unwatch */
+    nullptr,             /* getElements */
+    nullptr,             /* enumerate (native enumeration of target doesn't work) */
+    nullptr,
+};
+
 const Class DynamicWithObject::class_ = {
     "With",
     JSCLASS_HAS_RESERVED_SLOTS(DynamicWithObject::RESERVED_SLOTS) |
     JSCLASS_IS_ANONYMOUS,
-    nullptr, /* addProperty */
-    nullptr, /* delProperty */
-    nullptr, /* getProperty */
-    nullptr, /* setProperty */
-    nullptr, /* enumerate */
-    nullptr, /* resolve */
-    nullptr, /* mayResolve */
-    nullptr, /* finalize */
-    nullptr, /* call */
-    nullptr, /* hasInstance */
-    nullptr, /* construct */
-    nullptr, /* trace */
+    JS_NULL_CLASS_OPS,
     JS_NULL_CLASS_SPEC,
     JS_NULL_CLASS_EXT,
-    {
-        with_LookupProperty,
-        with_DefineProperty,
-        with_HasProperty,
-        with_GetProperty,
-        with_SetProperty,
-        with_GetOwnPropertyDescriptor,
-        with_DeleteProperty,
-        nullptr, nullptr,    /* watch/unwatch */
-        nullptr,             /* getElements */
-        nullptr,             /* enumerate (native enumeration of target doesn't work) */
-        nullptr,
-    }
+    &DynamicWithObjectObjectOps
 };
 
 /* static */ StaticEvalScope*
@@ -1010,7 +1004,7 @@ ClonedBlockObject::createGlobal(JSContext* cx, Handle<GlobalObject*> global)
 
     // Currently the global lexical scope cannot have any bindings with frame
     // slots.
-    staticLexical->setLocalOffset(UINT32_MAX);
+    staticLexical->setLocalOffsetToInvalid();
     staticLexical->initEnclosingScope(nullptr);
     Rooted<ClonedBlockObject*> lexical(cx, ClonedBlockObject::create(cx, staticLexical, global));
     if (!lexical)
@@ -1031,7 +1025,7 @@ ClonedBlockObject::createNonSyntactic(JSContext* cx, HandleObject enclosingStati
     if (!staticLexical)
         return nullptr;
 
-    staticLexical->setLocalOffset(UINT32_MAX);
+    staticLexical->setLocalOffsetToInvalid();
     staticLexical->initEnclosingScope(enclosingStatic);
     Rooted<ClonedBlockObject*> lexical(cx, ClonedBlockObject::create(cx, staticLexical,
                                                                      enclosingScope));
@@ -1112,33 +1106,10 @@ const Class ClonedBlockObject::class_ = {
     "Block",
     JSCLASS_HAS_RESERVED_SLOTS(ClonedBlockObject::RESERVED_SLOTS) |
     JSCLASS_IS_ANONYMOUS,
-    nullptr, /* addProperty */
-    nullptr, /* delProperty */
-    nullptr, /* getProperty */
-    nullptr, /* setProperty */
-    nullptr, /* enumerate */
-    nullptr, /* resolve */
-    nullptr, /* mayResolve */
-    nullptr, /* finalize */
-    nullptr, /* call */
-    nullptr, /* hasInstance */
-    nullptr, /* construct */
-    nullptr, /* trace */
+    JS_NULL_CLASS_OPS,
     JS_NULL_CLASS_SPEC,
     JS_NULL_CLASS_EXT,
-    {
-        nullptr,          /* lookupProperty */
-        nullptr,          /* defineProperty */
-        nullptr,          /* hasProperty */
-        nullptr,          /* getProperty */
-        nullptr,          /* setProperty */
-        nullptr,          /* getOwnPropertyDescriptor */
-        nullptr,          /* deleteProperty */
-        nullptr, nullptr, /* watch/unwatch */
-        nullptr,          /* getElements */
-        nullptr,          /* enumerate (native enumeration of target doesn't work) */
-        nullptr,
-    }
+    JS_NULL_OBJECT_OPS
 };
 
 template<XDRMode mode>
@@ -1379,37 +1350,28 @@ lexicalError_DeleteProperty(JSContext* cx, HandleObject obj, HandleId id, Object
     return false;
 }
 
+static const ObjectOps RuntimeLexicalErrorObjectObjectOps = {
+    lexicalError_LookupProperty,
+    nullptr,             /* defineProperty */
+    lexicalError_HasProperty,
+    lexicalError_GetProperty,
+    lexicalError_SetProperty,
+    lexicalError_GetOwnPropertyDescriptor,
+    lexicalError_DeleteProperty,
+    nullptr, nullptr,    /* watch/unwatch */
+    nullptr,             /* getElements */
+    nullptr,             /* enumerate (native enumeration of target doesn't work) */
+    nullptr,             /* this */
+};
+
 const Class RuntimeLexicalErrorObject::class_ = {
     "RuntimeLexicalError",
     JSCLASS_HAS_RESERVED_SLOTS(RuntimeLexicalErrorObject::RESERVED_SLOTS) |
     JSCLASS_IS_ANONYMOUS,
-    nullptr, /* addProperty */
-    nullptr, /* delProperty */
-    nullptr, /* getProperty */
-    nullptr, /* setProperty */
-    nullptr, /* enumerate */
-    nullptr, /* resolve */
-    nullptr, /* mayResolve */
-    nullptr, /* finalize */
-    nullptr, /* call */
-    nullptr, /* hasInstance */
-    nullptr, /* construct */
-    nullptr, /* trace */
+    JS_NULL_CLASS_OPS,
     JS_NULL_CLASS_SPEC,
     JS_NULL_CLASS_EXT,
-    {
-        lexicalError_LookupProperty,
-        nullptr,             /* defineProperty */
-        lexicalError_HasProperty,
-        lexicalError_GetProperty,
-        lexicalError_SetProperty,
-        lexicalError_GetOwnPropertyDescriptor,
-        lexicalError_DeleteProperty,
-        nullptr, nullptr,    /* watch/unwatch */
-        nullptr,             /* getElements */
-        nullptr,             /* enumerate (native enumeration of target doesn't work) */
-        nullptr,             /* this */
-    }
+    &RuntimeLexicalErrorObjectObjectOps
 };
 
 /*****************************************************************************/
@@ -1479,6 +1441,13 @@ ScopeIter::settle()
     if (frame_ && frame_.isFunctionFrame() && frame_.callee()->needsCallObject() &&
         !frame_.hasCallObj())
     {
+        // At the very start of a script that starts with a lexical block, the
+        // static scope will be that block. Skip it if this is the case.
+        if (ssi_.type() == StaticScopeIter<CanGC>::Block)
+            incrementStaticScopeIter();
+
+        // We should now be at the function scope, so since we have no
+        // CallObject, skip that too.
         MOZ_ASSERT(ssi_.type() == StaticScopeIter<CanGC>::Function);
         incrementStaticScopeIter();
     }
@@ -1486,8 +1455,14 @@ ScopeIter::settle()
     // Check for trying to iterate a strict eval frame before the prologue has
     // created the CallObject.
     if (frame_ && frame_.isStrictEvalFrame() && !frame_.hasCallObj() && !ssi_.done()) {
+        // Eval frames always have their own lexical scope. Analogous to the
+        // function frame case above, if the script starts with a lexical
+        // block, the SSI could see 2 block scopes here. So skip between 1-2
+        // static block scopes here.
         MOZ_ASSERT(ssi_.type() == StaticScopeIter<CanGC>::Block);
         incrementStaticScopeIter();
+        if (ssi_.type() == StaticScopeIter<CanGC>::Block)
+            incrementStaticScopeIter();
         MOZ_ASSERT(ssi_.type() == StaticScopeIter<CanGC>::Eval);
         MOZ_ASSERT(maybeStaticScope() == frame_.script()->enclosingStaticScope());
         incrementStaticScopeIter();
@@ -1638,6 +1613,16 @@ LiveScopeVal::staticAsserts()
 
 namespace {
 
+static void
+ReportOptimizedOut(JSContext* cx, HandleId id)
+{
+    JSAutoByteString printable;
+    if (ValueToPrintable(cx, IdToValue(id), &printable)) {
+        JS_ReportErrorNumber(cx, GetErrorMessage, nullptr, JSMSG_DEBUG_OPTIMIZED_OUT,
+                             printable.ptr());
+    }
+}
+
 /*
  * DebugScopeProxy is the handler for DebugScopeObject proxy objects. Having a
  * custom handler (rather than trying to reuse js::Wrapper) gives us several
@@ -1777,7 +1762,15 @@ class DebugScopeProxy : public BaseProxyHandler
                     TypeScript::SetArgument(cx, script, i, vp);
             }
 
-            *accessResult = ACCESS_UNALIASED;
+            // It is possible that an optimized out value flows to this
+            // location due to Debugger.Frame.prototype.eval operating on a
+            // live bailed-out Baseline frame. In that case, treat the access
+            // as lost.
+            if (vp.isMagic() && vp.whyMagic() == JS_OPTIMIZED_OUT)
+                *accessResult = ACCESS_LOST;
+            else
+                *accessResult = ACCESS_UNALIASED;
+
             return true;
         }
 
@@ -1822,12 +1815,19 @@ class DebugScopeProxy : public BaseProxyHandler
                 }
             }
 
-            *accessResult = ACCESS_UNALIASED;
+            // See comment above in analogous CallObject case.
+            if (vp.isMagic() && vp.whyMagic() == JS_OPTIMIZED_OUT)
+                *accessResult = ACCESS_LOST;
+            else
+                *accessResult = ACCESS_UNALIASED;
+
             return true;
         }
 
         /* The rest of the internal scopes do not have unaliased vars. */
-        MOZ_ASSERT(scope->is<DeclEnvObject>() || scope->is<DynamicWithObject>() ||
+        MOZ_ASSERT(!IsSyntacticScope(scope) ||
+                   scope->is<DeclEnvObject>() ||
+                   scope->is<DynamicWithObject>() ||
                    scope->as<CallObject>().isForEval());
         return true;
     }
@@ -1900,10 +1900,54 @@ class DebugScopeProxy : public BaseProxyHandler
     static bool isMagicMissingArgumentsValue(JSContext* cx, ScopeObject& scope, HandleValue v)
     {
         bool isMagic = v.isMagic() && v.whyMagic() == JS_OPTIMIZED_ARGUMENTS;
-        MOZ_ASSERT_IF(isMagic,
-                      isFunctionScope(scope) &&
-                      scope.as<CallObject>().callee().nonLazyScript()->argumentsHasVarBinding());
+
+#ifdef DEBUG
+        // The |scope| object here is not limited to CallObjects but may also
+        // be block scopes in case of the following:
+        //
+        //   function f() { { let a = arguments; } }
+        //
+        // We need to check that |scope|'s static scope's nearest function
+        // scope has an 'arguments' var binding. The dynamic scope chain is
+        // not sufficient: |f| above will not have a CallObject because there
+        // are no aliased body-level bindings.
+        if (isMagic) {
+            JSFunction* callee = nullptr;
+            if (isFunctionScope(scope)) {
+                callee = &scope.as<CallObject>().callee();
+            } else {
+                // We will never have a DynamicWithObject here because no
+                // binding accesses on with scopes are unaliased.
+                for (StaticScopeIter<NoGC> ssi(&scope.as<ClonedBlockObject>().staticBlock());
+                     !ssi.done();
+                     ssi++)
+                {
+                    if (ssi.type() == StaticScopeIter<NoGC>::Function) {
+                        callee = &ssi.fun();
+                        break;
+                    }
+                }
+            }
+            MOZ_ASSERT(callee && callee->nonLazyScript()->argumentsHasVarBinding());
+        }
+#endif
+
         return isMagic;
+    }
+
+    /*
+     * If the value of |this| is requested before the this-binding has been
+     * initialized by JSOP_FUNCTIONTHIS, the this-binding will be |undefined|.
+     * In that case, we have to call createMissingThis to initialize the
+     * this-binding.
+     *
+     * Note that an |undefined| this-binding is perfectly valid in strict-mode
+     * code, but that's fine: createMissingThis will do the right thing in that
+     * case.
+     */
+    static bool isMaybeUninitializedThisValue(JSContext* cx, jsid id, Value v)
+    {
+        return isThis(cx, id) && v.isUndefined();
     }
 
     /*
@@ -1939,6 +1983,9 @@ class DebugScopeProxy : public BaseProxyHandler
         if (!GetFunctionThis(cx, maybeScope->frame(), thisv))
             return false;
 
+        // Update the this-argument to avoid boxing primitive |this| more
+        // than once.
+        maybeScope->frame().thisArgument() = thisv;
         *success = true;
         return true;
     }
@@ -2053,7 +2100,7 @@ class DebugScopeProxy : public BaseProxyHandler
           case ACCESS_GENERIC:
             return JS_GetOwnPropertyDescriptorById(cx, scope, id, desc);
           case ACCESS_LOST:
-            JS_ReportErrorNumber(cx, GetErrorMessage, nullptr, JSMSG_DEBUG_OPTIMIZED_OUT);
+            ReportOptimizedOut(cx, id);
             return false;
           default:
             MOZ_CRASH("bad AccessResult");
@@ -2113,11 +2160,17 @@ class DebugScopeProxy : public BaseProxyHandler
           case ACCESS_UNALIASED:
             if (isMagicMissingArgumentsValue(cx, *scope, vp))
                 return getMissingArguments(cx, *scope, vp);
+            if (isMaybeUninitializedThisValue(cx, id, vp))
+                return getMissingThis(cx, *scope, vp);
             return true;
           case ACCESS_GENERIC:
-            return GetProperty(cx, scope, scope, id, vp);
+            if (!GetProperty(cx, scope, scope, id, vp))
+                return false;
+            if (isMaybeUninitializedThisValue(cx, id, vp))
+                return getMissingThis(cx, *scope, vp);
+            return true;
           case ACCESS_LOST:
-            JS_ReportErrorNumber(cx, GetErrorMessage, nullptr, JSMSG_DEBUG_OPTIMIZED_OUT);
+            ReportOptimizedOut(cx, id);
             return false;
           default:
             MOZ_CRASH("bad AccessResult");
@@ -2167,9 +2220,15 @@ class DebugScopeProxy : public BaseProxyHandler
           case ACCESS_UNALIASED:
             if (isMagicMissingArgumentsValue(cx, *scope, vp))
                 return getMissingArgumentsMaybeSentinelValue(cx, *scope, vp);
+            if (isMaybeUninitializedThisValue(cx, id, vp))
+                return getMissingThisMaybeSentinelValue(cx, *scope, vp);
             return true;
           case ACCESS_GENERIC:
-            return GetProperty(cx, scope, scope, id, vp);
+            if (!GetProperty(cx, scope, scope, id, vp))
+                return false;
+            if (isMaybeUninitializedThisValue(cx, id, vp))
+                return getMissingThisMaybeSentinelValue(cx, *scope, vp);
+            return true;
           case ACCESS_LOST:
             vp.setMagic(JS_OPTIMIZED_OUT);
             return true;
@@ -2281,8 +2340,11 @@ class DebugScopeProxy : public BaseProxyHandler
             *bp = true;
             return true;
         }
-        if (isThis(cx, id) && isFunctionScopeWithThis(scopeObj)) {
-            *bp = true;
+
+        // Be careful not to look up '.this' as a normal binding below, it will
+        // assert in with_HasProperty.
+        if (isThis(cx, id)) {
+            *bp = isFunctionScopeWithThis(scopeObj);
             return true;
         }
 
@@ -2424,7 +2486,7 @@ DebugScopes::DebugScopes(JSContext* cx)
 
 DebugScopes::~DebugScopes()
 {
-    MOZ_ASSERT(missingScopes.empty());
+    MOZ_ASSERT_IF(missingScopes.initialized(), missingScopes.empty());
 }
 
 bool
@@ -2524,15 +2586,14 @@ DebugScopes::ensureCompartmentData(JSContext* cx)
     if (c->debugScopes)
         return c->debugScopes;
 
-    c->debugScopes = cx->runtime()->new_<DebugScopes>(cx);
-    if (c->debugScopes && c->debugScopes->init())
-        return c->debugScopes;
+    AutoInitGCManagedObject<DebugScopes> debugScopes(cx->make_unique<DebugScopes>(cx));
+    if (!debugScopes || !debugScopes->init()) {
+        ReportOutOfMemory(cx);
+        return nullptr;
+    }
 
-    if (c->debugScopes)
-        js_delete<DebugScopes>(c->debugScopes);
-    c->debugScopes = nullptr;
-    ReportOutOfMemory(cx);
-    return nullptr;
+    c->debugScopes = debugScopes.release();
+    return c->debugScopes;
 }
 
 DebugScopeObject*
@@ -3174,16 +3235,43 @@ js::GetThisValueForDebuggerMaybeOptimizedOut(JSContext* cx, AbstractFramePtr fra
 
         RootedScript script(cx, si.fun().nonLazyScript());
 
-        if (!script->functionHasThisBinding()) {
-            MOZ_ASSERT(!script->isDerivedClassConstructor(),
-                       "Derived class constructors always have a this-binding");
+        if (si.withinInitialFrame() &&
+            (pc < script->main() || !script->functionHasThisBinding()))
+        {
+            // Either we're in the script prologue and we may still have to
+            // initialize the this-binding (JSOP_FUNCTIONTHIS), or the script
+            // does not have a this-binding (because it doesn't use |this|).
 
-            // If we're still inside `frame`, we can use the this-value passed
-            // to it, if it does not require boxing.
-            if (si.withinInitialFrame() && (frame.thisArgument().isObject() || script->strict()))
+            // If our this-argument is an object, or we're in strict mode,
+            // the this-binding is always the same as our this-argument.
+            if (frame.thisArgument().isObject() || script->strict()) {
                 res.set(frame.thisArgument());
-            else
-                res.setMagic(JS_OPTIMIZED_OUT);
+                return true;
+            }
+
+            // Figure out if we already executed JSOP_FUNCTIONTHIS.
+            bool executedInitThisOp = false;
+            if (script->functionHasThisBinding()) {
+                jsbytecode* initThisPc = script->code();
+                while (*initThisPc != JSOP_FUNCTIONTHIS && initThisPc < script->main())
+                    initThisPc = GetNextPc(initThisPc);
+                executedInitThisOp = (pc > initThisPc);
+            }
+
+            if (!executedInitThisOp) {
+                // We didn't initialize the this-binding yet. Determine the
+                // correct |this| value for this frame (box primitives if not
+                // in strict mode), and assign it to the this-argument slot so
+                // JSOP_FUNCTIONTHIS will use it and not box a second time.
+                if (!GetFunctionThis(cx, frame, res))
+                    return false;
+                frame.thisArgument() = res;
+                return true;
+            }
+        }
+
+        if (!script->functionHasThisBinding()) {
+            res.setMagic(JS_OPTIMIZED_OUT);
             return true;
         }
 
@@ -3343,8 +3431,12 @@ js::CheckEvalDeclarationConflicts(JSContext* cx, HandleScript script,
     // Check that a direct eval will not hoist 'var' bindings over lexical
     // bindings with the same name.
     while (obj != varObj) {
-        if (!CheckVarNameConflictsInScope<ClonedBlockObject>(cx, script, obj))
-            return false;
+        // Annex B.3.5 says 'var' declarations with the same name as catch
+        // parameters are allowed.
+        if (!obj->is<ClonedBlockObject>() || !obj->as<ClonedBlockObject>().isForCatchParameters()) {
+            if (!CheckVarNameConflictsInScope<ClonedBlockObject>(cx, script, obj))
+                return false;
+        }
         obj = obj->enclosingScope();
     }
 

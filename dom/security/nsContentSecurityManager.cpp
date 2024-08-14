@@ -42,6 +42,11 @@ static bool SchemeIs(nsIURI* aURI, const char* aScheme)
 static nsresult
 DoCheckLoadURIChecks(nsIURI* aURI, nsILoadInfo* aLoadInfo)
 {
+  // Bug 1228117: determine the correct security policy for DTD loads
+  if (aLoadInfo->GetExternalContentPolicyType() == nsIContentPolicy::TYPE_DTD) {
+    return NS_OK;
+  }
+
   nsresult rv = NS_OK;
 
   nsCOMPtr<nsIPrincipal> loadingPrincipal = aLoadInfo->LoadingPrincipal();
@@ -50,11 +55,14 @@ DoCheckLoadURIChecks(nsIURI* aURI, nsILoadInfo* aLoadInfo)
     flags |= nsIScriptSecurityManager::ALLOW_CHROME;
   }
 
-  rv = nsContentUtils::GetSecurityManager()->
-    CheckLoadURIWithPrincipal(loadingPrincipal,
-                              aURI,
-                              flags);
-  NS_ENSURE_SUCCESS(rv, rv);
+  // We don't have a loadingPrincipal for TYPE_DOCUMENT
+  if (aLoadInfo->GetExternalContentPolicyType() != nsIContentPolicy::TYPE_DOCUMENT) {
+    rv = nsContentUtils::GetSecurityManager()->
+      CheckLoadURIWithPrincipal(loadingPrincipal,
+                                aURI,
+                                flags);
+    NS_ENSURE_SUCCESS(rv, rv);
+  }
 
   // If the loadingPrincipal and the triggeringPrincipal are different, then make
   // sure the triggeringPrincipal is allowed to access that URI.
@@ -146,8 +154,17 @@ DoContentSecurityChecks(nsIURI* aURI, nsILoadInfo* aLoadInfo)
       break;
     }
 
-    case nsIContentPolicy::TYPE_IMAGE:
-    case nsIContentPolicy::TYPE_STYLESHEET:
+    case nsIContentPolicy::TYPE_IMAGE: {
+      MOZ_ASSERT(false, "contentPolicyType not supported yet");
+      break;
+    }
+
+    case nsIContentPolicy::TYPE_STYLESHEET: {
+      mimeTypeGuess = NS_LITERAL_CSTRING("text/css");
+      requestingContext = aLoadInfo->LoadingNode();
+      break;
+    }
+
     case nsIContentPolicy::TYPE_OBJECT:
     case nsIContentPolicy::TYPE_DOCUMENT: {
       MOZ_ASSERT(false, "contentPolicyType not supported yet");
@@ -223,7 +240,8 @@ DoContentSecurityChecks(nsIURI* aURI, nsILoadInfo* aLoadInfo)
     }
 
     case nsIContentPolicy::TYPE_FONT: {
-      MOZ_ASSERT(false, "contentPolicyType not supported yet");
+      mimeTypeGuess = EmptyCString();
+      requestingContext = aLoadInfo->LoadingNode();
       break;
     }
 
@@ -358,14 +376,6 @@ nsContentSecurityManager::doContentSecurityCheck(nsIChannel* aChannel,
   rv = loadInfo->SetEnforceSecurity(true);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  // Allow subresource loads if TriggeringPrincipal is the SystemPrincipal.
-  // For example, allow user stylesheets to load XBL from external files.
-  if (nsContentUtils::IsSystemPrincipal(loadInfo->TriggeringPrincipal()) &&
-      loadInfo->GetExternalContentPolicyType() != nsIContentPolicy::TYPE_DOCUMENT &&
-      loadInfo->GetExternalContentPolicyType() != nsIContentPolicy::TYPE_SUBDOCUMENT) {
-    return NS_OK;
-  }
-
   if (loadInfo->GetSecurityMode() == nsILoadInfo::SEC_REQUIRE_CORS_DATA_INHERITS) {
     rv = DoCORSChecks(aChannel, loadInfo, aInAndOutListener);
     NS_ENSURE_SUCCESS(rv, rv);
@@ -460,6 +470,10 @@ nsContentSecurityManager::CheckChannel(nsIChannel* aChannel)
   // Handle cookie policies
   uint32_t cookiePolicy = loadInfo->GetCookiePolicy();
   if (cookiePolicy == nsILoadInfo::SEC_COOKIES_SAME_ORIGIN) {
+
+    // We shouldn't have the SEC_COOKIES_SAME_ORIGIN flag for top level loads
+    MOZ_ASSERT(loadInfo->GetExternalContentPolicyType() !=
+               nsIContentPolicy::TYPE_DOCUMENT);
     nsIPrincipal* loadingPrincipal = loadInfo->LoadingPrincipal();
 
     // It doesn't matter what we pass for the third, data-inherits, argument.
@@ -480,6 +494,14 @@ nsContentSecurityManager::CheckChannel(nsIChannel* aChannel)
     if (NS_HasBeenCrossOrigin(aChannel)) {
       loadInfo->MaybeIncreaseTainting(LoadTainting::CORS);
     }
+    return NS_OK;
+  }
+
+  // Allow subresource loads if TriggeringPrincipal is the SystemPrincipal.
+  // For example, allow user stylesheets to load XBL from external files.
+  if (nsContentUtils::IsSystemPrincipal(loadInfo->TriggeringPrincipal()) &&
+      loadInfo->GetExternalContentPolicyType() != nsIContentPolicy::TYPE_DOCUMENT &&
+      loadInfo->GetExternalContentPolicyType() != nsIContentPolicy::TYPE_SUBDOCUMENT) {
     return NS_OK;
   }
 
@@ -531,10 +553,18 @@ nsContentSecurityManager::IsURIPotentiallyTrustworthy(nsIURI* aURI, bool* aIsTru
   *aIsTrustWorthy = false;
   nsAutoCString scheme;
   nsresult rv = aURI->GetScheme(scheme);
-  NS_ENSURE_SUCCESS(rv, NS_OK);
+  if (NS_FAILED(rv)) {
+    return NS_OK;
+  }
 
+  // According to the specification, the user agent may choose to extend the
+  // trust to other, vendor-specific URL schemes. We use this for "resource:",
+  // which is technically a substituting protocol handler that is not limited to
+  // local resource mapping, but in practice is never mapped remotely as this
+  // would violate assumptions a lot of code makes.
   if (scheme.EqualsLiteral("https") ||
       scheme.EqualsLiteral("file") ||
+      scheme.EqualsLiteral("resource") ||
       scheme.EqualsLiteral("app") ||
       scheme.EqualsLiteral("wss")) {
     *aIsTrustWorthy = true;
@@ -543,7 +573,9 @@ nsContentSecurityManager::IsURIPotentiallyTrustworthy(nsIURI* aURI, bool* aIsTru
 
   nsAutoCString host;
   rv = aURI->GetHost(host);
-  NS_ENSURE_SUCCESS(rv, NS_OK);
+  if (NS_FAILED(rv)) {
+    return NS_OK;
+  }
 
   if (host.Equals("127.0.0.1") ||
       host.Equals("localhost") ||
@@ -551,6 +583,5 @@ nsContentSecurityManager::IsURIPotentiallyTrustworthy(nsIURI* aURI, bool* aIsTru
     *aIsTrustWorthy = true;
     return NS_OK;
   }
-
   return NS_OK;
 }

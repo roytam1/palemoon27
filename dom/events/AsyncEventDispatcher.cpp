@@ -30,7 +30,7 @@ AsyncEventDispatcher::AsyncEventDispatcher(EventTarget* aTarget,
   mEvent = do_QueryInterface(event);
   NS_ASSERTION(mEvent, "Should never fail to create an event");
   mEvent->DuplicatePrivateData();
-  mEvent->SetTrusted(aEvent.mFlags.mIsTrusted);
+  mEvent->SetTrusted(aEvent.IsTrusted());
 }
 
 NS_IMETHODIMP
@@ -47,14 +47,14 @@ AsyncEventDispatcher::Run()
   }
   if (mOnlyChromeDispatch) {
     MOZ_ASSERT(event->IsTrusted());
-    event->GetInternalNSEvent()->mFlags.mOnlyChromeDispatch = true;
+    event->WidgetEventPtr()->mFlags.mOnlyChromeDispatch = true;
   }
   bool dummy;
   mTarget->DispatchEvent(event, &dummy);
   return NS_OK;
 }
 
-NS_IMETHODIMP
+nsresult
 AsyncEventDispatcher::Cancel()
 {
   mCanceled = true;

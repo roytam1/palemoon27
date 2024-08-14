@@ -3,6 +3,7 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "js/HashTable.h"
+#include "js/Utility.h"
 #include "jsapi-tests/tests.h"
 
 //#define FUZZ
@@ -343,3 +344,47 @@ BEGIN_TEST(testHashSetOfMoveOnlyType)
     return true;
 }
 END_TEST(testHashSetOfMoveOnlyType)
+
+#if defined(DEBUG)
+
+// Add entries to a HashMap using lookupWithDefault until either we get an OOM,
+// or the table has been resized a few times.
+static bool
+LookupWithDefaultUntilResize() {
+    IntMap m;
+
+    if (!m.init())
+        return false;
+
+    // Add entries until we've resized the table four times.
+    size_t lastCapacity = m.capacity();
+    size_t resizes = 0;
+    uint32_t key = 0;
+    while (resizes < 4) {
+        if (!m.lookupWithDefault(key++, 0))
+            return false;
+
+        size_t capacity = m.capacity();
+        if (capacity != lastCapacity) {
+            resizes++;
+            lastCapacity = capacity;
+        }
+    }
+
+    return true;
+}
+
+BEGIN_TEST(testHashMapLookupWithDefaultOOM)
+{
+    uint32_t timeToFail;
+    for (timeToFail = 1; timeToFail < 1000; timeToFail++) {
+        js::oom::SimulateOOMAfter(timeToFail, js::oom::THREAD_TYPE_MAIN, false);
+        LookupWithDefaultUntilResize();
+    }
+
+    js::oom::ResetSimulatedOOM();
+    return true;
+}
+
+END_TEST(testHashMapLookupWithDefaultOOM)
+#endif // defined(DEBUG)

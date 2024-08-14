@@ -205,7 +205,7 @@ GeckoMediaPluginService::GMPCrashCallback::Run(const nsACString& aPluginName)
   RefPtr<dom::PluginCrashedEvent> event =
     dom::PluginCrashedEvent::Constructor(document, NS_LITERAL_STRING("PluginCrashed"), init);
   event->SetTrusted(true);
-  event->GetInternalNSEvent()->mFlags.mOnlyChromeDispatch = true;
+  event->WidgetEventPtr()->mFlags.mOnlyChromeDispatch = true;
 
   EventDispatcher::DispatchDOMEvent(parentWindow, nullptr, event, nullptr, nullptr);
 }
@@ -302,7 +302,7 @@ GeckoMediaPluginService::Init()
 
   nsCOMPtr<nsIObserverService> obsService = mozilla::services::GetObserverService();
   MOZ_ASSERT(obsService);
-  MOZ_ALWAYS_TRUE(NS_SUCCEEDED(obsService->AddObserver(this, NS_XPCOM_SHUTDOWN_THREADS_OBSERVER_ID, false)));
+  MOZ_ALWAYS_SUCCEEDS(obsService->AddObserver(this, NS_XPCOM_SHUTDOWN_THREADS_OBSERVER_ID, false));
 
   // Kick off scanning for plugins
   nsCOMPtr<nsIThread> thread;
@@ -357,6 +357,8 @@ GeckoMediaPluginService::GetThread(nsIThread** aThread)
       return rv;
     }
 
+    mAbstractGMPThread = AbstractThread::CreateXPCOMThreadWrapper(mGMPThread, false);
+
     // Tell the thread to initialize plugins
     InitializePlugins();
   }
@@ -365,6 +367,12 @@ GeckoMediaPluginService::GetThread(nsIThread** aThread)
   copy.forget(aThread);
 
   return NS_OK;
+}
+
+RefPtr<AbstractThread>
+GeckoMediaPluginService::GetAbstractGMPThread()
+{
+  return mAbstractGMPThread;
 }
 
 class GetGMPContentParentForAudioDecoderDone : public GetGMPContentParentCallback

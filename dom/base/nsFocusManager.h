@@ -239,9 +239,10 @@ protected:
    * If aAdjustWidget is false, don't change the widget focus state.
    */
   bool Blur(nsPIDOMWindow* aWindowToClear,
-              nsPIDOMWindow* aAncestorWindowToFocus,
-              bool aIsLeavingDocument,
-              bool aAdjustWidget);
+            nsPIDOMWindow* aAncestorWindowToFocus,
+            bool aIsLeavingDocument,
+            bool aAdjustWidget,
+            nsIContent* aContentToFocus = nullptr);
 
   /**
    * Focus an element in the active window and child frame.
@@ -275,7 +276,8 @@ protected:
              bool aIsNewDocument,
              bool aFocusChanged,
              bool aWindowRaised,
-             bool aAdjustWidget);
+             bool aAdjustWidget,
+             nsIContent* aContentLostFocus = nullptr);
 
   /**
    * Fires a focus or blur event at aTarget.
@@ -291,7 +293,8 @@ protected:
                             nsISupports* aTarget,
                             uint32_t aFocusMethod,
                             bool aWindowRaised,
-                            bool aIsRefocus = false);
+                            bool aIsRefocus = false,
+                            mozilla::dom::EventTarget* aRelatedTarget = nullptr);
 
   /**
    * Scrolls aContent into view unless the FLAG_NOSCROLL flag is set.

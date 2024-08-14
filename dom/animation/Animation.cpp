@@ -11,11 +11,14 @@
 #include "mozilla/AutoRestore.h"
 #include "mozilla/AsyncEventDispatcher.h" // For AsyncEventDispatcher
 #include "mozilla/Maybe.h" // For Maybe
+#include "mozilla/NonOwningAnimationTarget.h"
+#include "nsAnimationManager.h" // For CSSAnimation
 #include "nsDOMMutationObserver.h" // For nsAutoAnimationMutationBatch
 #include "nsIDocument.h" // For nsIDocument
 #include "nsIPresShell.h" // For nsIPresShell
 #include "nsLayoutUtils.h" // For PostRestyleEvent (remove after bug 1073336)
 #include "nsThreadUtils.h" // For nsRunnableMethod and nsRevocableEventPtr
+#include "nsTransitionManager.h" // For CSSTransition
 #include "PendingAnimationTracker.h" // For PendingAnimationTracker
 
 namespace mozilla {
@@ -56,13 +59,14 @@ namespace {
     explicit AutoMutationBatchForAnimation(const Animation& aAnimation
                                            MOZ_GUARD_OBJECT_NOTIFIER_PARAM) {
       MOZ_GUARD_OBJECT_NOTIFIER_INIT;
-      Element* targetElement = nsNodeUtils::GetTargetForAnimation(&aAnimation);
-      if (!targetElement) {
+      Maybe<NonOwningAnimationTarget> target =
+        nsNodeUtils::GetTargetForAnimation(&aAnimation);
+      if (!target) {
         return;
       }
 
       // For mutation observers, we use the OwnerDoc.
-      nsIDocument* doc = targetElement->OwnerDoc();
+      nsIDocument* doc = target->mElement->OwnerDoc();
       if (!doc) {
         return;
       }
@@ -90,14 +94,14 @@ Animation::Constructor(const GlobalObject& aGlobal,
   nsCOMPtr<nsIGlobalObject> global = do_QueryInterface(aGlobal.GetAsSupports());
   RefPtr<Animation> animation = new Animation(global);
 
-  if (!aTimeline) {
-    // Bug 1096776: We do not support null timeline yet.
-    aRv.Throw(NS_ERROR_FAILURE);
-    return nullptr;
-  }
   if (!aEffect) {
     // Bug 1049975: We do not support null effect yet.
-    aRv.Throw(NS_ERROR_FAILURE);
+    aRv.Throw(NS_ERROR_DOM_ANIM_NO_EFFECT_ERR);
+    return nullptr;
+  }
+  if (!aTimeline) {
+    // Bug 1096776: We do not support null timeline yet.
+    aRv.Throw(NS_ERROR_DOM_ANIM_NO_TIMELINE_ERR);
     return nullptr;
   }
 
@@ -693,14 +697,58 @@ Animation::UpdateRelevance()
 bool
 Animation::HasLowerCompositeOrderThan(const Animation& aOther) const
 {
-  // Due to the way subclasses of this repurpose the mAnimationIndex to
-  // implement their own brand of composite ordering it is possible for
-  // two animations to have an identical mAnimationIndex member.
-  // However, these subclasses override this method so we shouldn't see
-  // identical animation indices here.
-  MOZ_ASSERT(mAnimationIndex != aOther.mAnimationIndex || &aOther == this,
+  // 0. Object-equality case
+  if (&aOther == this) {
+    return false;
+  }
+
+  // 1. CSS Transitions sort lowest
+  {
+    auto asCSSTransitionForSorting =
+      [] (const Animation& anim) -> const CSSTransition*
+      {
+        const CSSTransition* transition = anim.AsCSSTransition();
+        return transition && transition->IsTiedToMarkup() ?
+               transition :
+               nullptr;
+      };
+    auto thisTransition  = asCSSTransitionForSorting(*this);
+    auto otherTransition = asCSSTransitionForSorting(aOther);
+    if (thisTransition && otherTransition) {
+      return thisTransition->HasLowerCompositeOrderThan(*otherTransition);
+    }
+    if (thisTransition || otherTransition) {
+      return thisTransition;
+    }
+  }
+
+  // 2. CSS Animations sort next
+  {
+    auto asCSSAnimationForSorting =
+      [] (const Animation& anim) -> const CSSAnimation*
+      {
+        const CSSAnimation* animation = anim.AsCSSAnimation();
+        return animation && animation->IsTiedToMarkup() ? animation : nullptr;
+      };
+    auto thisAnimation  = asCSSAnimationForSorting(*this);
+    auto otherAnimation = asCSSAnimationForSorting(aOther);
+    if (thisAnimation && otherAnimation) {
+      return thisAnimation->HasLowerCompositeOrderThan(*otherAnimation);
+    }
+    if (thisAnimation || otherAnimation) {
+      return thisAnimation;
+    }
+  }
+
+  // Subclasses of Animation repurpose mAnimationIndex to implement their
+  // own brand of composite ordering. However, by this point we should have
+  // handled any such custom composite ordering so we should now have unique
+  // animation indices.
+  MOZ_ASSERT(mAnimationIndex != aOther.mAnimationIndex,
              "Animation indices should be unique");
 
+  // 3. Finally, generic animations sort by their position in the global
+  // animation array.
   return mAnimationIndex < aOther.mAnimationIndex;
 }
 
@@ -750,7 +798,6 @@ Animation::ComposeStyle(RefPtr<AnimValuesStyleRule>& aStyleRule,
   // immediately before updating the style rule and then restore it immediately
   // afterwards. This is purely to prevent visual flicker. Other behavior
   // such as dispatching events continues to rely on the regular timeline time.
-  bool updatedHoldTime = false;
   AnimationPlayState playState = PlayState();
   {
     AutoRestore<Nullable<TimeDuration>> restoreHoldTime(mHoldTime);
@@ -767,18 +814,10 @@ Animation::ComposeStyle(RefPtr<AnimValuesStyleRule>& aStyleRule,
       if (!timeToUse.IsNull()) {
         mHoldTime.SetValue((timeToUse.Value() - mStartTime.Value())
                             .MultDouble(mPlaybackRate));
-        // Push the change down to the effect
-        UpdateEffect();
-        updatedHoldTime = true;
       }
     }
 
     mEffect->ComposeStyle(aStyleRule, aSetProperties);
-  }
-
-  // Now that the hold time has been restored, update the effect
-  if (updatedHoldTime) {
-    UpdateEffect();
   }
 
   MOZ_ASSERT(playState == PlayState(),
@@ -1069,16 +1108,14 @@ Animation::PostUpdate()
     return;
   }
 
-  Element* targetElement;
-  nsCSSPseudoElements::Type targetPseudoType;
-  mEffect->GetTarget(targetElement, targetPseudoType);
-  if (!targetElement) {
+  Maybe<NonOwningAnimationTarget> target = mEffect->GetTarget();
+  if (!target) {
     return;
   }
 
   presContext->EffectCompositor()
-             ->RequestRestyle(targetElement,
-                              targetPseudoType,
+             ->RequestRestyle(target->mElement,
+                              target->mPseudoType,
                               EffectCompositor::RestyleType::Layer,
                               CascadeLevel());
 }
@@ -1167,8 +1204,7 @@ Animation::EffectEnd() const
     return StickyTimeDuration(0);
   }
 
-  return mEffect->SpecifiedTiming().mDelay
-         + mEffect->GetComputedTiming().mActiveDuration;
+  return mEffect->GetComputedTiming().mEndTime;
 }
 
 nsIDocument*
@@ -1194,12 +1230,14 @@ Animation::GetPresContext() const
 void
 Animation::DoFinishNotification(SyncNotifyFlag aSyncNotifyFlag)
 {
+  CycleCollectedJSRuntime* runtime = CycleCollectedJSRuntime::Get();
+
   if (aSyncNotifyFlag == SyncNotifyFlag::Sync) {
     DoFinishNotificationImmediately();
   } else if (!mFinishNotificationTask.IsPending()) {
     RefPtr<nsRunnableMethod<Animation>> runnable =
       NS_NewRunnableMethod(this, &Animation::DoFinishNotificationImmediately);
-    Promise::DispatchToMicroTask(runnable);
+    runtime->DispatchToMicroTask(runnable);
     mFinishNotificationTask = runnable;
   }
 }

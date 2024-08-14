@@ -122,7 +122,7 @@ enum {
 , NS_FOLDER_VALUE_CUSTOM = 2
 };
 
-PRLogModuleInfo* nsExternalHelperAppService::mLog = nullptr;
+LazyLogModule nsExternalHelperAppService::mLog("HelperAppService");
 
 // Using level 3 here because the OSHelperAppServices use a log level
 // of LogLevel::Debug (4), and we want less detailed output here
@@ -625,6 +625,7 @@ static nsExtraMimeTypeEntry extraMimeEntries [] =
   // app on Firefox OS depends on the "3gp" extension mapping to the
   // "video/3gpp" MIME type.
   { AUDIO_3GPP, "3gpp,3gp", "3GPP Audio" },
+  { AUDIO_3GPP2, "3g2", "3GPP2 Audio" },
 #endif
   { AUDIO_MIDI, "mid", "Standard MIDI Audio" }
 };
@@ -661,12 +662,6 @@ nsresult nsExternalHelperAppService::Init()
   nsCOMPtr<nsIObserverService> obs = mozilla::services::GetObserverService();
   if (!obs)
     return NS_ERROR_FAILURE;
-
-  if (!mLog) {
-    mLog = PR_NewLogModule("HelperAppService");
-    if (!mLog)
-      return NS_ERROR_OUT_OF_MEMORY;
-  }
 
   nsresult rv = obs->AddObserver(this, "profile-before-change", true);
   NS_ENSURE_SUCCESS(rv, rv);

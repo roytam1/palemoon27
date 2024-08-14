@@ -22,7 +22,7 @@ TEST_F(APZCBasicTester, Overzoom) {
 
   EXPECT_CALL(*mcc, RequestContentRepaint(_)).Times(1);
 
-  PinchWithPinchInputAndCheckStatus(apzc, 50, 50, 0.5, true);
+  PinchWithPinchInputAndCheckStatus(apzc, ScreenIntPoint(50, 50), 0.5, true);
 
   fm = apzc->GetFrameMetrics();
   EXPECT_EQ(0.8f, fm.GetZoom().ToScaleFactor().scale);
@@ -78,7 +78,8 @@ TEST_F(APZCBasicTester, ComplexTransform) {
   RefPtr<LayerManager> lm;
   RefPtr<Layer> root = CreateLayerTree(layerTreeSyntax, layerVisibleRegion, transforms, lm, layers);
 
-  FrameMetrics metrics;
+  ScrollMetadata metadata;
+  FrameMetrics& metrics = metadata.GetMetrics();
   metrics.SetCompositionBounds(ParentLayerRect(0, 0, 24, 24));
   metrics.SetDisplayPort(CSSRect(-1, -1, 6, 6));
   metrics.SetScrollOffset(CSSPoint(10, 10));
@@ -89,11 +90,12 @@ TEST_F(APZCBasicTester, ComplexTransform) {
   metrics.SetDevPixelsPerCSSPixel(CSSToLayoutDeviceScale(3));
   metrics.SetScrollId(FrameMetrics::START_SCROLL_ID);
 
-  FrameMetrics childMetrics = metrics;
+  ScrollMetadata childMetadata = metadata;
+  FrameMetrics& childMetrics = childMetadata.GetMetrics();
   childMetrics.SetScrollId(FrameMetrics::START_SCROLL_ID + 1);
 
-  layers[0]->SetFrameMetrics(metrics);
-  layers[1]->SetFrameMetrics(childMetrics);
+  layers[0]->SetScrollMetadata(metadata);
+  layers[1]->SetScrollMetadata(childMetadata);
 
   ParentLayerPoint pointOut;
   AsyncTransform viewTransformOut;
@@ -103,13 +105,13 @@ TEST_F(APZCBasicTester, ComplexTransform) {
 
   // initial transform
   apzc->SetFrameMetrics(metrics);
-  apzc->NotifyLayersUpdated(metrics, true, true);
+  apzc->NotifyLayersUpdated(metadata, true, true);
   apzc->SampleContentTransformForFrame(&viewTransformOut, pointOut);
   EXPECT_EQ(AsyncTransform(LayerToParentLayerScale(1), ParentLayerPoint()), viewTransformOut);
   EXPECT_EQ(ParentLayerPoint(60, 60), pointOut);
 
   childApzc->SetFrameMetrics(childMetrics);
-  childApzc->NotifyLayersUpdated(childMetrics, true, true);
+  childApzc->NotifyLayersUpdated(childMetadata, true, true);
   childApzc->SampleContentTransformForFrame(&viewTransformOut, pointOut);
   EXPECT_EQ(AsyncTransform(LayerToParentLayerScale(1), ParentLayerPoint()), viewTransformOut);
   EXPECT_EQ(ParentLayerPoint(60, 60), pointOut);
@@ -295,8 +297,8 @@ TEST_F(APZCBasicTester, OverScroll_Bug1152051b) {
   // to schedule a new one since we're still overscrolled. We don't pan because
   // panning can trigger functions that clear the overscroll animation state
   // in other ways.
-  TouchDown(apzc, 10, 10, mcc->Time(), nullptr);
-  TouchUp(apzc, 10, 10, mcc->Time());
+  TouchDown(apzc, ScreenIntPoint(10, 10), mcc->Time(), nullptr);
+  TouchUp(apzc, ScreenIntPoint(10, 10), mcc->Time());
 
   // Sample the second overscroll animation to its end.
   // If the ending of the first overscroll animation fails to clear state

@@ -36,7 +36,6 @@ class BackgroundChildImpl;
 } // namespace ipc
 
 namespace dom {
-namespace indexedDB {
 
 class IDBCursor;
 class IDBDatabase;
@@ -44,6 +43,9 @@ class IDBFactory;
 class IDBMutableFile;
 class IDBOpenDBRequest;
 class IDBRequest;
+
+namespace indexedDB {
+
 class Key;
 class PermissionRequestChild;
 class PermissionRequestParent;
@@ -52,7 +54,7 @@ class SerializedStructuredCloneReadInfo;
 class ThreadLocal
 {
   friend class nsAutoPtr<ThreadLocal>;
-  friend class IDBFactory;
+  friend IDBFactory;
 
   LoggingInfo mLoggingInfo;
   IDBTransaction* mCurrentTransaction;
@@ -147,7 +149,7 @@ class BackgroundFactoryChild final
   : public PBackgroundIDBFactoryChild
 {
   friend class mozilla::ipc::BackgroundChildImpl;
-  friend class IDBFactory;
+  friend IDBFactory;
 
   IDBFactory* mFactory;
 
@@ -240,7 +242,7 @@ class BackgroundFactoryRequestChild final
 {
   typedef mozilla::dom::quota::PersistenceType PersistenceType;
 
-  friend class IDBFactory;
+  friend IDBFactory;
   friend class BackgroundFactoryChild;
   friend class BackgroundDatabaseChild;
   friend class PermissionRequestChild;
@@ -292,7 +294,7 @@ class BackgroundDatabaseChild final
 {
   friend class BackgroundFactoryChild;
   friend class BackgroundFactoryRequestChild;
-  friend class IDBDatabase;
+  friend IDBDatabase;
 
   nsAutoPtr<DatabaseSpec> mSpec;
   RefPtr<IDBDatabase> mTemporaryStrongDatabase;
@@ -424,7 +426,7 @@ class BackgroundDatabaseRequestChild final
   , public PBackgroundIDBDatabaseRequestChild
 {
   friend class BackgroundDatabaseChild;
-  friend class IDBDatabase;
+  friend IDBDatabase;
 
   RefPtr<IDBDatabase> mDatabase;
 
@@ -504,7 +506,7 @@ class BackgroundTransactionChild final
   , public PBackgroundIDBTransactionChild
 {
   friend class BackgroundDatabaseChild;
-  friend class IDBDatabase;
+  friend IDBDatabase;
 
 public:
 #ifdef DEBUG
@@ -631,7 +633,7 @@ class BackgroundRequestChild final
 {
   friend class BackgroundTransactionChild;
   friend class BackgroundVersionChangeTransactionChild;
-  friend class IDBTransaction;
+  friend IDBTransaction;
 
   RefPtr<IDBTransaction> mTransaction;
 

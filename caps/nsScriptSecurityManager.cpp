@@ -27,6 +27,7 @@
 #include "nsXPIDLString.h"
 #include "nsCRT.h"
 #include "nsCRTGlue.h"
+#include "nsDocShell.h"
 #include "nsError.h"
 #include "nsDOMCID.h"
 #include "nsIXPConnect.h"
@@ -67,6 +68,7 @@
 #include "nsContentUtils.h"
 #include "nsJSUtils.h"
 #include "nsILoadInfo.h"
+#include "nsXPCOMStrings.h"
 
 // This should be probably defined on some other place... but I couldn't find it
 #define WEBAPPS_PERM_NAME "webapps-manage"
@@ -258,13 +260,23 @@ uint16_t
 nsScriptSecurityManager::AppStatusForPrincipal(nsIPrincipal *aPrin)
 {
     uint32_t appId = aPrin->GetAppId();
-    bool inMozBrowser = aPrin->GetIsInBrowserElement();
+
+    // After bug 1238160, the principal no longer knows how to answer "is this a
+    // browser element", which is really what this code path wants. Currently,
+    // desktop is the only platform where we intend to disable isolation on a
+    // browser frame, so non-desktop should be able to assume that
+    // inIsolatedMozBrowser is true for all mozbrowser frames.  Additionally,
+    // apps are no longer used on desktop, so appId is always NO_APP_ID.  We use
+    // a release assertion in nsFrameLoader::OwnerIsIsolatedMozBrowserFrame so
+    // that platforms with apps can assume inIsolatedMozBrowser is true for all
+    // mozbrowser frames.
+    bool inIsolatedMozBrowser = aPrin->GetIsInBrowserElement();
     NS_WARN_IF_FALSE(appId != nsIScriptSecurityManager::UNKNOWN_APP_ID,
                      "Asking for app status on a principal with an unknown app id");
     // Installed apps have a valid app id (not NO_APP_ID or UNKNOWN_APP_ID)
     // and they are not inside a mozbrowser.
     if (appId == nsIScriptSecurityManager::NO_APP_ID ||
-        appId == nsIScriptSecurityManager::UNKNOWN_APP_ID || inMozBrowser)
+        appId == nsIScriptSecurityManager::UNKNOWN_APP_ID || inIsolatedMozBrowser)
     {
         return nsIPrincipal::APP_STATUS_NOT_INSTALLED;
     }
@@ -289,8 +301,13 @@ nsScriptSecurityManager::AppStatusForPrincipal(nsIPrincipal *aPrin)
 
     // The app could contain a cross-origin iframe - make sure that the content
     // is actually same-origin with the app.
-    MOZ_ASSERT(inMozBrowser == false, "Checked this above");
-    OriginAttributes attrs(appId, false);
+    MOZ_ASSERT(inIsolatedMozBrowser == false, "Checked this above");
+    nsAutoCString suffix;
+    OriginAttributes attrs;
+    NS_ENSURE_TRUE(attrs.PopulateFromOrigin(NS_ConvertUTF16toUTF8(appOrigin), suffix),
+                   nsIPrincipal::APP_STATUS_NOT_INSTALLED);
+    attrs.mAppId = appId;
+    attrs.mInBrowser = false;
     nsCOMPtr<nsIPrincipal> appPrin = BasePrincipal::CreateCodebasePrincipal(appURI, attrs);
     NS_ENSURE_TRUE(appPrin, nsIPrincipal::APP_STATUS_NOT_INSTALLED);
     return aPrin->Equals(appPrin) ? status
@@ -325,9 +342,17 @@ nsScriptSecurityManager::GetChannelResultPrincipal(nsIChannel* aChannel,
     aChannel->GetLoadInfo(getter_AddRefs(loadInfo));
     if (loadInfo) {
         if (loadInfo->GetLoadingSandboxed()) {
-            RefPtr<nsNullPrincipal> prin =
-              nsNullPrincipal::CreateWithInheritedAttributes(loadInfo->LoadingPrincipal());
-            NS_ENSURE_TRUE(prin, NS_ERROR_FAILURE);
+            RefPtr<nsNullPrincipal> prin;
+            if (loadInfo->LoadingPrincipal()) {
+              prin =
+                nsNullPrincipal::CreateWithInheritedAttributes(loadInfo->LoadingPrincipal());
+              NS_ENSURE_TRUE(prin, NS_ERROR_FAILURE);
+            } else {
+              OriginAttributes oAttrs;
+              loadInfo->GetOriginAttributes(&oAttrs);
+              prin = nsNullPrincipal::Create(oAttrs);
+              NS_ENSURE_TRUE(prin, NS_ERROR_FAILURE);
+            }
             prin.forget(aPrincipal);
             return NS_OK;
         }
@@ -400,11 +425,32 @@ nsScriptSecurityManager::GetChannelURIPrincipal(nsIChannel* aChannel,
     nsCOMPtr<nsILoadContext> loadContext;
     NS_QueryNotificationCallbacks(aChannel, loadContext);
 
-    if (loadContext) {
-        return GetLoadContextCodebasePrincipal(uri, loadContext, aPrincipal);
+    nsCOMPtr<nsILoadInfo> loadInfo;
+    aChannel->GetLoadInfo(getter_AddRefs(loadInfo));
+    nsContentPolicyType contentPolicyType = nsIContentPolicy::TYPE_INVALID;
+    if (loadInfo) {
+      contentPolicyType = loadInfo->GetExternalContentPolicyType();
     }
 
-    OriginAttributes attrs(UNKNOWN_APP_ID, false);
+    OriginAttributes attrs;
+    if (nsIContentPolicy::TYPE_DOCUMENT == contentPolicyType ||
+        nsIContentPolicy::TYPE_SUBDOCUMENT == contentPolicyType) {
+      // If it's document or sub-document, inherit originAttributes from
+      // the document.
+      if (loadContext) {
+        return GetLoadContextCodebasePrincipal(uri, loadContext, aPrincipal);
+      }
+    } else {
+      // Inherit origin attributes from loading principal if any.
+      nsCOMPtr<nsIPrincipal> loadingPrincipal;
+      if (loadInfo) {
+        loadInfo->GetLoadingPrincipal(getter_AddRefs(loadingPrincipal));
+      }
+      if (loadingPrincipal) {
+        attrs = BasePrincipal::Cast(loadingPrincipal)->OriginAttributesRef();
+      }
+    }
+
     rv = MaybeSetAddonIdFromURI(attrs, uri);
     NS_ENSURE_SUCCESS(rv, rv);
     nsCOMPtr<nsIPrincipal> prin = BasePrincipal::CreateCodebasePrincipal(uri, attrs);
@@ -465,11 +511,13 @@ nsScriptSecurityManager::ContentSecurityPolicyPermitsJSAction(JSContext *cx)
         unsigned lineNum = 0;
         NS_NAMED_LITERAL_STRING(scriptSample, "call to eval() or related function blocked by CSP");
 
-        JS::UniqueChars scriptFilename;
+        JS::AutoFilename scriptFilename;
         if (JS::DescribeScriptedCaller(cx, &scriptFilename, &lineNum)) {
             if (const char *file = scriptFilename.get()) {
                 CopyUTF8toUTF16(nsDependentCString(file), fileName);
             }
+        } else {
+            MOZ_ASSERT(!JS_IsExceptionPending(cx));
         }
         csp->LogViolationDetails(nsIContentSecurityPolicy::VIOLATION_TYPE_EVAL,
                                  fileName,
@@ -1058,6 +1106,23 @@ nsScriptSecurityManager::CreateCodebasePrincipal(nsIURI* aURI, JS::Handle<JS::Va
       return NS_ERROR_INVALID_ARG;
   }
   nsCOMPtr<nsIPrincipal> prin = BasePrincipal::CreateCodebasePrincipal(aURI, attrs);
+  prin.forget(aPrincipal);
+  return *aPrincipal ? NS_OK : NS_ERROR_FAILURE;
+}
+
+NS_IMETHODIMP
+nsScriptSecurityManager::CreateCodebasePrincipalFromOrigin(const nsACString& aOrigin,
+                                                           nsIPrincipal** aPrincipal)
+{
+  if (StringBeginsWith(aOrigin, NS_LITERAL_CSTRING("["))) {
+    return NS_ERROR_INVALID_ARG;
+  }
+
+  if (StringBeginsWith(aOrigin, NS_LITERAL_CSTRING(NS_NULLPRINCIPAL_SCHEME ":"))) {
+    return NS_ERROR_INVALID_ARG;
+  }
+
+  nsCOMPtr<nsIPrincipal> prin = BasePrincipal::CreateCodebasePrincipal(aOrigin);
   prin.forget(aPrincipal);
   return *aPrincipal ? NS_OK : NS_ERROR_FAILURE;
 }

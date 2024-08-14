@@ -34,6 +34,8 @@ patch -p1 < $gcc_bt_patch || exit 1
 
 patch -p0 < $gcc_pr55650_patch || exit 1
 
+patch -p1 < "${this_path}/PR64905.patch" || exit 1
+
 cd ..
 mkdir gcc-objdir
 cd gcc-objdir

@@ -63,6 +63,7 @@
 #include "plstr.h"
 #include "nsINestedURI.h"
 #include "mozilla/dom/nsCSPUtils.h"
+#include "mozilla/net/HttpBaseChannel.h"
 #include "nsIScriptError.h"
 #include "nsISiteSecurityService.h"
 #include "nsHttpHandler.h"
@@ -370,11 +371,7 @@ NS_NewInputStreamChannelInternal(nsIChannel        **outChannel,
                                  nsIURI             *aUri,
                                  const nsAString    &aData,
                                  const nsACString   &aContentType,
-                                 nsINode            *aLoadingNode,
-                                 nsIPrincipal       *aLoadingPrincipal,
-                                 nsIPrincipal       *aTriggeringPrincipal,
-                                 nsSecurityFlags     aSecurityFlags,
-                                 nsContentPolicyType aContentPolicyType,
+                                 nsILoadInfo        *aLoadInfo,
                                  bool                aIsSrcdocChannel /* = false */)
 {
   nsresult rv;
@@ -397,11 +394,7 @@ NS_NewInputStreamChannelInternal(nsIChannel        **outChannel,
                                         stream,
                                         aContentType,
                                         NS_LITERAL_CSTRING("UTF-8"),
-                                        aLoadingNode,
-                                        aLoadingPrincipal,
-                                        aTriggeringPrincipal,
-                                        aSecurityFlags,
-                                        aContentPolicyType);
+                                        aLoadInfo);
 
   NS_ENSURE_SUCCESS(rv, rv);
 
@@ -412,6 +405,25 @@ NS_NewInputStreamChannelInternal(nsIChannel        **outChannel,
   }
   channel.forget(outChannel);
   return NS_OK;
+}
+
+nsresult
+NS_NewInputStreamChannelInternal(nsIChannel        **outChannel,
+                                 nsIURI             *aUri,
+                                 const nsAString    &aData,
+                                 const nsACString   &aContentType,
+                                 nsINode            *aLoadingNode,
+                                 nsIPrincipal       *aLoadingPrincipal,
+                                 nsIPrincipal       *aTriggeringPrincipal,
+                                 nsSecurityFlags     aSecurityFlags,
+                                 nsContentPolicyType aContentPolicyType,
+                                 bool                aIsSrcdocChannel /* = false */)
+{
+  nsCOMPtr<nsILoadInfo> loadInfo =
+      new mozilla::LoadInfo(aLoadingPrincipal, aTriggeringPrincipal,
+                            aLoadingNode, aSecurityFlags, aContentPolicyType);
+  return NS_NewInputStreamChannelInternal(outChannel, aUri, aData, aContentType,
+                                          loadInfo, aIsSrcdocChannel);
 }
 
 nsresult
@@ -1281,6 +1293,8 @@ NS_HasBeenCrossOrigin(nsIChannel* aChannel, bool aReport)
 {
   nsCOMPtr<nsILoadInfo> loadInfo = aChannel->GetLoadInfo();
   MOZ_RELEASE_ASSERT(loadInfo, "Origin tracking only works for channels created with a loadinfo");
+  MOZ_ASSERT(loadInfo->GetExternalContentPolicyType() != nsIContentPolicy::TYPE_DOCUMENT,
+             "calling NS_HasBeenCrossOrigin on a top level load");
 
   // Always treat tainted channels as cross-origin.
   if (loadInfo->GetTainting() != LoadTainting::Basic) {
@@ -1644,9 +1658,10 @@ NS_SecurityHashURI(nsIURI *aURI)
     if (scheme.EqualsLiteral("file"))
         return schemeHash; // sad face
 
-    if (scheme.EqualsLiteral("imap") ||
-        scheme.EqualsLiteral("mailbox") ||
-        scheme.EqualsLiteral("news"))
+    bool hasFlag;
+    if (NS_FAILED(NS_URIChainHasFlags(baseURI,
+        nsIProtocolHandler::ORIGIN_IS_FULL_SPEC, &hasFlag)) ||
+        hasFlag)
     {
         nsAutoCString spec;
         uint32_t specHash;
@@ -1743,13 +1758,13 @@ NS_SecurityCompareURIs(nsIURI *aSourceURI,
         return NS_SUCCEEDED(rv) && filesAreEqual;
     }
 
-    // Special handling for mailnews schemes
-    if (targetScheme.EqualsLiteral("imap") ||
-        targetScheme.EqualsLiteral("mailbox") ||
-        targetScheme.EqualsLiteral("news"))
+    bool hasFlag;
+    if (NS_FAILED(NS_URIChainHasFlags(targetBaseURI,
+        nsIProtocolHandler::ORIGIN_IS_FULL_SPEC, &hasFlag)) ||
+        hasFlag)
     {
-        // Each message is a distinct trust domain; use the
-        // whole spec for comparison
+        // URIs with this flag have the whole spec as a distinct trust
+        // domain; use the whole spec for comparison
         nsAutoCString targetSpec;
         nsAutoCString sourceSpec;
         return ( NS_SUCCEEDED( targetBaseURI->GetSpec(targetSpec) ) &&
@@ -1916,28 +1931,10 @@ NS_IsHSTSUpgradeRedirect(nsIChannel *aOldChannel,
     return false;
   }
 
-  bool isHttps;
-  if (NS_FAILED(newURI->SchemeIs("https", &isHttps)) || !isHttps) {
-    return false;
-  }
-
   nsCOMPtr<nsIURI> upgradedURI;
-  if (NS_FAILED(oldURI->Clone(getter_AddRefs(upgradedURI)))) {
+  nsresult rv = NS_GetSecureUpgradedURI(oldURI, getter_AddRefs(upgradedURI));
+  if (NS_FAILED(rv)) {
     return false;
-  }
-
-  if (NS_FAILED(upgradedURI->SetScheme(NS_LITERAL_CSTRING("https")))) {
-    return false;
-  }
-
-  int32_t oldPort = -1;
-  if (NS_FAILED(oldURI->GetPort(&oldPort))) {
-    return false;
-  }
-  if (oldPort == 80 || oldPort == -1) {
-    upgradedURI->SetPort(-1);
-  } else {
-    upgradedURI->SetPort(oldPort);
   }
 
   bool res;
@@ -2256,19 +2253,16 @@ NS_ShouldSecureUpgrade(nsIURI* aURI,
     // the promise to CSP and mixed content blocking to upgrade the channel
     // from http to https.
     if (aLoadInfo) {
-      bool isPreload = nsContentUtils::IsPreloadType(aLoadInfo->InternalContentPolicyType());
-      bool upgradeRequests =
-        ((isPreload && aLoadInfo->GetUpgradeInsecurePreloads()) ||
-         (aLoadInfo->GetUpgradeInsecureRequests()));
-
       // Please note that cross origin top level navigations are not subject
       // to upgrade-insecure-requests, see:
       // http://www.w3.org/TR/upgrade-insecure-requests/#examples
+      // Compare the principal we are navigating to (aChannelResultPrincipal)
+      // with the referring/triggering Principal.
       bool crossOriginNavigation =
         (aLoadInfo->GetExternalContentPolicyType() == nsIContentPolicy::TYPE_DOCUMENT) &&
-        (!aChannelResultPrincipal->Equals(aLoadInfo->LoadingPrincipal()));
+        (!aChannelResultPrincipal->Equals(aLoadInfo->TriggeringPrincipal()));
 
-      if (upgradeRequests && !crossOriginNavigation) {
+      if (aLoadInfo->GetUpgradeInsecureRequests() && !crossOriginNavigation) {
         // let's log a message to the console that we are upgrading a request
         nsAutoCString spec, scheme;
         aURI->GetSpec(spec);
@@ -2325,6 +2319,111 @@ NS_ShouldSecureUpgrade(nsIURI* aURI,
     //Telemetry::Accumulate(Telemetry::HTTP_SCHEME_UPGRADE, 0);
   }
   aShouldUpgrade = false;
+  return NS_OK;
+}
+
+nsresult
+NS_GetSecureUpgradedURI(nsIURI* aURI, nsIURI** aUpgradedURI)
+{
+  nsCOMPtr<nsIURI> upgradedURI;
+
+  nsresult rv = aURI->Clone(getter_AddRefs(upgradedURI));
+  NS_ENSURE_SUCCESS(rv,rv);
+
+  // Change the scheme to HTTPS:
+  upgradedURI->SetScheme(NS_LITERAL_CSTRING("https"));
+
+  // Change the default port to 443:
+  nsCOMPtr<nsIStandardURL> upgradedStandardURL = do_QueryInterface(upgradedURI);
+  if (upgradedStandardURL) {
+    upgradedStandardURL->SetDefaultPort(443);
+  } else {
+    // If we don't have a nsStandardURL, fall back to using GetPort/SetPort.
+    // XXXdholbert Is this function even called with a non-nsStandardURL arg,
+    // in practice?
+    int32_t oldPort = -1;
+    rv = aURI->GetPort(&oldPort);
+    if (NS_FAILED(rv)) return rv;
+
+    // Keep any nonstandard ports so only the scheme is changed.
+    // For example:
+    //  http://foo.com:80 -> https://foo.com:443
+    //  http://foo.com:81 -> https://foo.com:81
+
+    if (oldPort == 80 || oldPort == -1) {
+        upgradedURI->SetPort(-1);
+    } else {
+        upgradedURI->SetPort(oldPort);
+    }
+  }
+
+  upgradedURI.forget(aUpgradedURI);
+  return NS_OK;
+}
+
+nsresult
+NS_CompareLoadInfoAndLoadContext(nsIChannel *aChannel)
+{
+  nsCOMPtr<nsILoadInfo> loadInfo;
+  aChannel->GetLoadInfo(getter_AddRefs(loadInfo));
+
+  nsCOMPtr<nsILoadContext> loadContext;
+  NS_QueryNotificationCallbacks(aChannel, loadContext);
+  if (loadInfo && loadContext) {
+
+    uint32_t loadContextAppId = 0;
+    nsresult rv = loadContext->GetAppId(&loadContextAppId);
+    if (NS_FAILED(rv)) {
+      return NS_ERROR_UNEXPECTED;
+    }
+
+    bool loadContextIsInBE = false;
+    rv = loadContext->GetIsInBrowserElement(&loadContextIsInBE);
+    if (NS_FAILED(rv)) {
+      return NS_ERROR_UNEXPECTED;
+    }
+
+    OriginAttributes originAttrsLoadInfo = loadInfo->GetOriginAttributes();
+    OriginAttributes originAttrsLoadContext;
+    loadContext->GetOriginAttributes(originAttrsLoadContext);
+
+    bool loadInfoUsePB = false;
+    rv = loadInfo->GetUsePrivateBrowsing(&loadInfoUsePB);
+    if (NS_FAILED(rv)) {
+      return NS_ERROR_UNEXPECTED;
+    }
+    bool loadContextUsePB = false;
+    rv = loadContext->GetUsePrivateBrowsing(&loadContextUsePB);
+    if (NS_FAILED(rv)) {
+      return NS_ERROR_UNEXPECTED;
+    }
+
+    LOG(("NS_CompareLoadInfoAndLoadContext - loadInfo: %d, %d, %d, %d; "
+         "loadContext: %d %d, %d, %d. [channel=%p]",
+         originAttrsLoadInfo.mAppId, originAttrsLoadInfo.mInBrowser,
+         originAttrsLoadInfo.mUserContextId, loadInfoUsePB,
+         loadContextAppId, loadContextUsePB,
+         originAttrsLoadContext.mUserContextId, loadContextIsInBE,
+         aChannel));
+
+    MOZ_ASSERT(originAttrsLoadInfo.mAppId == loadContextAppId,
+               "AppId in the loadContext and in the loadInfo are not the "
+               "same!");
+
+    MOZ_ASSERT(originAttrsLoadInfo.mInIsolatedMozBrowser ==
+               loadContextIsInBE,
+               "The value of InIsolatedMozBrowser in the loadContext and in "
+               "the loadInfo are not the same!");
+
+    MOZ_ASSERT(originAttrsLoadInfo.mUserContextId ==
+               originAttrsLoadContext.mUserContextId,
+               "The value of mUserContextId in the loadContext and in the "
+               "loadInfo are not the same!");
+
+    MOZ_ASSERT(loadInfoUsePB == loadContextUsePB,
+               "The value of usePrivateBrowsing in the loadContext and in the loadInfo "
+               "are not the same!");
+  }
   return NS_OK;
 }
 

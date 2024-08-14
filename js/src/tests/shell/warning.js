@@ -9,14 +9,14 @@ print(BUGNUMBER + ": " + summary);
 
 enableLastWarning();
 
-eval(`({}).__proto__ = {};`);
+eval(`(function() "This is an expression closure.")`);
 
 var warning = getLastWarning();
 assertEq(warning !== null, true);
 assertEq(warning.name, "None");
-assertEq(warning.message.includes("mutating"), true);
+assertEq(warning.message.includes("expression closures are deprecated"), true);
 assertEq(warning.lineNumber, 1);
-assertEq(warning.columnNumber, 2);
+assertEq(warning.columnNumber, 12);
 
 // Clear last warning.
 

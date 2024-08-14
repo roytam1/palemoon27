@@ -239,7 +239,10 @@ SyncScheduler.prototype = {
          this.setDefaults();
          try {
            Svc.Idle.removeIdleObserver(this, Svc.Prefs.get("scheduler.idleTime"));
-         } catch (ex if (ex.result == Cr.NS_ERROR_FAILURE)) {
+         } catch (ex) {
+           if (ex.result != Cr.NS_ERROR_FAILURE) {
+             throw ex;
+           }
            // In all likelihood we didn't have an idle observer registered yet.
            // It's all good.
          }
@@ -620,7 +623,7 @@ ErrorHandler.prototype = {
         this.checkServerError(exception);
 
         Status.engines = [engine_name, exception.failureCode || ENGINE_UNKNOWN_FAIL];
-        this._log.debug(engine_name + " failed: " + Utils.exceptionStr(exception));
+        this._log.debug(engine_name + " failed", exception);
         break;
       case "weave:service:login:error":
         this.resetFileLog(this._logManager.REASON_ERROR);

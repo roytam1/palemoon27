@@ -61,7 +61,7 @@ enum XrayType {
 class XrayTraits
 {
 public:
-    XrayTraits() {}
+    MOZ_CONSTEXPR XrayTraits() {}
 
     static JSObject* getTargetObject(JSObject* wrapper) {
         return js::UncheckedUnwrap(wrapper, /* stopAtWindowProxy = */ false);
@@ -135,17 +135,17 @@ public:
     bool defineProperty(JSContext* cx, JS::HandleObject wrapper, JS::HandleId id,
                         JS::Handle<JS::PropertyDescriptor> desc,
                         JS::Handle<JS::PropertyDescriptor> existingDesc,
-                        JS::ObjectOpResult& result, bool* defined);
+                        JS::ObjectOpResult& result, bool* defined)
+    {
+        *defined = false;
+        return true;
+    }
     virtual bool enumerateNames(JSContext* cx, JS::HandleObject wrapper, unsigned flags,
                                 JS::AutoIdVector& props);
     static bool call(JSContext* cx, JS::HandleObject wrapper,
                      const JS::CallArgs& args, const js::Wrapper& baseInstance);
     static bool construct(JSContext* cx, JS::HandleObject wrapper,
                           const JS::CallArgs& args, const js::Wrapper& baseInstance);
-
-    static bool resolveDOMCollectionProperty(JSContext* cx, JS::HandleObject wrapper,
-                                             JS::HandleObject holder, JS::HandleId id,
-                                             JS::MutableHandle<JS::PropertyDescriptor> desc);
 
     static XPCWrappedNative* getWN(JSObject* wrapper);
 
@@ -160,6 +160,8 @@ public:
 class DOMXrayTraits : public XrayTraits
 {
 public:
+    MOZ_CONSTEXPR DOMXrayTraits() = default;
+
     enum {
         HasPrototype = 1
     };
@@ -252,20 +254,7 @@ public:
     }
 
     static bool construct(JSContext* cx, JS::HandleObject wrapper,
-                          const JS::CallArgs& args, const js::Wrapper& baseInstance)
-    {
-        JSXrayTraits& self = JSXrayTraits::singleton;
-        JS::RootedObject holder(cx, self.ensureHolder(cx, wrapper));
-        if (!holder) {
-          return false;
-        }
-        if (self.getProtoKey(holder) == JSProto_Function)
-            return baseInstance.construct(cx, wrapper, args);
-
-        JS::RootedValue v(cx, JS::ObjectValue(*wrapper));
-        js::ReportIsNotFunction(cx, v);
-        return false;
-    }
+                          const JS::CallArgs& args, const js::Wrapper& baseInstance);
 
     bool getPrototype(JSContext* cx, JS::HandleObject wrapper,
                       JS::HandleObject target,

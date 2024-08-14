@@ -10,6 +10,7 @@
 #include "nsIResumableChannel.h"
 #include "nsIStreamListener.h"
 #include "nsHashPropertyBag.h"
+#include "PrivateBrowsingChannel.h"
 
 namespace IPC {
 class URI;
@@ -36,6 +37,7 @@ class ExternalHelperAppParent : public PExternalHelperAppParent
                               , public nsIMultiPartChannel
                               , public nsIResumableChannel
                               , public nsIStreamListener
+                              , public net::PrivateBrowsingChannel<ExternalHelperAppParent>
 {
     typedef mozilla::ipc::OptionalURIParams OptionalURIParams;
 
@@ -76,7 +78,9 @@ private:
   nsCOMPtr<nsIStreamListener> mListener;
   nsCOMPtr<nsIURI> mURI;
   bool mPending;
-  DebugOnly<bool> mDiverted;
+#ifdef DEBUG
+  bool mDiverted;
+#endif
   bool mIPCClosed;
   nsLoadFlags mLoadFlags;
   nsresult mStatus;

@@ -10,9 +10,9 @@
 
 #import <Cocoa/Cocoa.h>
 
+#include "mozilla/RefPtr.h"
 #include "nsBaseWidget.h"
 #include "nsPIWidgetCocoa.h"
-#include "nsAutoPtr.h"
 #include "nsCocoaUtils.h"
 
 class nsCocoaWindow;
@@ -47,6 +47,12 @@ typedef struct NSEdgeInsets {
     CGFloat bottom;
     CGFloat right;
 } NSEdgeInsets;
+
+#if (MAC_OS_X_VERSION_MAX_ALLOWED <= MAC_OS_X_VERSION_10_5)
+// Not in 10.4 or 10.5.
+@protocol NSAnimationDelegate
+@end
+#endif // 10.5 or earlier
 
 #endif
 
@@ -391,9 +397,6 @@ protected:
     nsCOMPtr<nsIWidget> widget = do_CreateInstance(kCPopUpCID);
     return widget.forget();
   }
-
-  virtual nsresult NotifyIMEInternal(
-                     const IMENotification& aIMENotification) override;
 
   nsIWidget*           mParent;         // if we're a popup, this is our parent [WEAK]
   nsIWidget*           mAncestorLink;   // link to traverse ancestors [WEAK]

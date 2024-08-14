@@ -42,11 +42,12 @@
 #include "mozilla/ipc/FileDescriptorSetChild.h"
 #include "mozilla/ipc/FileDescriptorUtils.h"
 #include "mozilla/ipc/GeckoChildProcessHost.h"
+#include "mozilla/ipc/ProcessChild.h"
 #include "mozilla/ipc/TestShellChild.h"
 #include "mozilla/jsipc/CrossProcessObjectWrappers.h"
-#include "mozilla/layers/CompositorChild.h"
+#include "mozilla/layers/APZChild.h"
+#include "mozilla/layers/CompositorBridgeChild.h"
 #include "mozilla/layers/ImageBridgeChild.h"
-#include "mozilla/layers/PCompositorChild.h"
 #include "mozilla/layers/SharedBufferManagerChild.h"
 #include "mozilla/layout/RenderFrameChild.h"
 #include "mozilla/net/NeckoChild.h"
@@ -70,6 +71,7 @@
 #include "mozilla/unused.h"
 
 #include "mozInlineSpellChecker.h"
+#include "nsDocShell.h"
 #include "nsIConsoleListener.h"
 #include "nsICycleCollectorListener.h"
 #include "nsIDragService.h"
@@ -98,6 +100,7 @@
 #include "nsISpellChecker.h"
 #include "nsClipboardProxy.h"
 #include "nsISystemMessageCache.h"
+#include "nsDirectoryService.h"
 #include "nsDirectoryServiceUtils.h"
 #include "nsDirectoryServiceDefs.h"
 #include "nsContentPermissionHelper.h"
@@ -142,6 +145,7 @@
 #ifdef XP_WIN
 #include <process.h>
 #define getpid _getpid
+#include "mozilla/widget/AudioSession.h"
 #endif
 
 #ifdef MOZ_X11
@@ -171,8 +175,6 @@
 #include "mozilla/dom/mobileconnection/MobileConnectionChild.h"
 #include "mozilla/dom/mobilemessage/SmsChild.h"
 #include "mozilla/dom/devicestorage/DeviceStorageRequestChild.h"
-#include "mozilla/dom/PFileSystemRequestChild.h"
-#include "mozilla/dom/FileSystemTaskBase.h"
 #include "mozilla/dom/bluetooth/PBluetoothChild.h"
 #include "mozilla/dom/PFMRadioChild.h"
 #include "mozilla/dom/PPresentationChild.h"
@@ -446,6 +448,9 @@ ConsoleListener::Observe(nsIConsoleMessage* aMessage)
     // errors in particular share the memory for long lines with
     // repeated errors, but the IPC communication we're about to do
     // will break that sharing, so we better truncate now.
+    if (sourceName.Length() > 1000) {
+      sourceName.Truncate(1000);
+    }
     if (sourceLine.Length() > 1000) {
       sourceLine.Truncate(1000);
     }
@@ -590,9 +595,6 @@ ReinitTaskTracer(void* /*aUnused*/)
 
 ContentChild::ContentChild()
  : mID(uint64_t(-1))
-#ifdef ANDROID
- , mScreenSize(0, 0)
-#endif
  , mCanOverrideProcessName(true)
  , mIsAlive(true)
 {
@@ -847,11 +849,16 @@ ContentChild::ProvideWindowCommon(TabChild* aTabOpener,
   nsTArray<FrameScriptInfo> frameScripts;
   nsCString urlToLoad;
 
+  PRenderFrameChild* renderFrame = newChild->SendPRenderFrameConstructor();
+  TextureFactoryIdentifier textureFactoryIdentifier;
+  uint64_t layersId = 0;
+
   if (aIframeMoz) {
     MOZ_ASSERT(aTabOpener);
-    newChild->SendBrowserFrameOpenWindow(aTabOpener, NS_ConvertUTF8toUTF16(url),
+    newChild->SendBrowserFrameOpenWindow(aTabOpener, renderFrame, NS_ConvertUTF8toUTF16(url),
                                          name, NS_ConvertUTF8toUTF16(features),
-                                         aWindowIsNew);
+                                         aWindowIsNew, &textureFactoryIdentifier,
+                                         &layersId);
   } else {
     nsAutoCString baseURIString;
     if (aTabOpener) {
@@ -866,34 +873,51 @@ ContentChild::ProvideWindowCommon(TabChild* aTabOpener,
       baseURI->GetSpec(baseURIString);
     }
 
+    nsCOMPtr<nsPIDOMWindow> opener = do_QueryInterface(aParent);
+    nsIDocShell* openerShell;
+    RefPtr<nsDocShell> openerDocShell;
+    float fullZoom = 1.0f;
+    if (opener && (openerShell = opener->GetDocShell())) {
+      openerDocShell = static_cast<nsDocShell*>(openerShell);
+      nsCOMPtr<nsIContentViewer> cv;
+      openerDocShell->GetContentViewer(getter_AddRefs(cv));
+      if (cv) {
+        cv->GetFullZoom(&fullZoom);
+      }
+    }
+
     nsresult rv;
-    if (!SendCreateWindow(aTabOpener, newChild,
+    if (!SendCreateWindow(aTabOpener, newChild, renderFrame,
                           aChromeFlags, aCalledFromJS, aPositionSpecified,
                           aSizeSpecified, url,
                           name, features,
                           baseURIString,
+                          openerDocShell
+                            ? openerDocShell->GetOriginAttributes()
+                            : OriginAttributes(),
+                          fullZoom,
                           &rv,
                           aWindowIsNew,
                           &frameScripts,
-                          &urlToLoad)) {
+                          &urlToLoad,
+                          &textureFactoryIdentifier,
+                          &layersId)) {
+      PRenderFrameChild::Send__delete__(renderFrame);
       return NS_ERROR_NOT_AVAILABLE;
     }
 
     if (NS_FAILED(rv)) {
+      PRenderFrameChild::Send__delete__(renderFrame);
+      PBrowserChild::Send__delete__(newChild);
       return rv;
     }
   }
   if (!*aWindowIsNew) {
+    PRenderFrameChild::Send__delete__(renderFrame);
     PBrowserChild::Send__delete__(newChild);
     return NS_ERROR_ABORT;
   }
 
-  TextureFactoryIdentifier textureFactoryIdentifier;
-  uint64_t layersId = 0;
-  PRenderFrameChild* renderFrame = newChild->SendPRenderFrameConstructor();
-  newChild->SendGetRenderFrameInfo(renderFrame,
-                                   &textureFactoryIdentifier,
-                                   &layersId);
   if (layersId == 0) { // if renderFrame is invalid.
     PRenderFrameChild::Send__delete__(renderFrame);
     renderFrame = nullptr;
@@ -1255,11 +1279,24 @@ ContentChild::AllocPGMPServiceChild(mozilla::ipc::Transport* aTransport,
   return GMPServiceChild::Create(aTransport, aOtherProcess);
 }
 
-PCompositorChild*
-ContentChild::AllocPCompositorChild(mozilla::ipc::Transport* aTransport,
-                                    base::ProcessId aOtherProcess)
+PAPZChild*
+ContentChild::AllocPAPZChild(const TabId& aTabId)
 {
-  return CompositorChild::Create(aTransport, aOtherProcess);
+  return APZChild::Create(aTabId);
+}
+
+bool
+ContentChild::DeallocPAPZChild(PAPZChild* aActor)
+{
+  delete aActor;
+  return true;
+}
+
+PCompositorBridgeChild*
+ContentChild::AllocPCompositorBridgeChild(mozilla::ipc::Transport* aTransport,
+                                          base::ProcessId aOtherProcess)
+{
+  return CompositorBridgeChild::Create(aTransport, aOtherProcess);
 }
 
 PSharedBufferManagerChild*
@@ -1380,12 +1417,29 @@ StartMacOSContentSandbox()
     MOZ_CRASH("Error resolving child process path");
   }
 
+  // During sandboxed content process startup, before reaching
+  // this point, NS_OS_TEMP_DIR is modified to refer to a sandbox-
+  // writable temporary directory
+  nsCOMPtr<nsIFile> tempDir;
+  nsresult rv = nsDirectoryService::gService->Get(NS_OS_TEMP_DIR,
+      NS_GET_IID(nsIFile), getter_AddRefs(tempDir));
+  if (NS_FAILED(rv)) {
+    MOZ_CRASH("Failed to get NS_OS_TEMP_DIR");
+  }
+
+  nsAutoCString tempDirPath;
+  rv = tempDir->GetNativePath(tempDirPath);
+  if (NS_FAILED(rv)) {
+    MOZ_CRASH("Failed to get NS_OS_TEMP_DIR path");
+  }
+
   MacSandboxInfo info;
   info.type = MacSandboxType_Content;
   info.level = Preferences::GetInt("security.sandbox.content.level");
   info.appPath.assign(appPath.get());
   info.appBinaryPath.assign(appBinaryPath.get());
   info.appDir.assign(appDir.get());
+  info.appTempDir.assign(tempDirPath.get());
 
   std::string err;
   if (!mozilla::StartMacSandbox(info, err)) {
@@ -1768,24 +1822,6 @@ bool
 ContentChild::DeallocPDeviceStorageRequestChild(PDeviceStorageRequestChild* aDeviceStorage)
 {
   delete aDeviceStorage;
-  return true;
-}
-
-PFileSystemRequestChild*
-ContentChild::AllocPFileSystemRequestChild(const FileSystemParams& aParams)
-{
-  MOZ_CRASH("Should never get here!");
-  return nullptr;
-}
-
-bool
-ContentChild::DeallocPFileSystemRequestChild(PFileSystemRequestChild* aFileSystem)
-{
-  mozilla::dom::FileSystemTaskBase* child =
-    static_cast<mozilla::dom::FileSystemTaskBase*>(aFileSystem);
-  // The reference is increased in FileSystemTaskBase::Start of
-  // FileSystemTaskBase.cpp. We should decrease it after IPC.
-  NS_RELEASE(child);
   return true;
 }
 
@@ -2192,14 +2228,14 @@ ContentChild::ActorDestroy(ActorDestroyReason why)
 {
   if (AbnormalShutdown == why) {
     NS_WARNING("shutting down early because of crash!");
-    QuickExit();
+    ProcessChild::QuickExit();
   }
 
 #ifndef NS_FREE_PERMANENT_DATA
   // In release builds, there's no point in the content process
   // going through the full XPCOM shutdown path, because it doesn't
   // keep persistent state.
-  QuickExit();
+  ProcessChild::QuickExit();
 #else
   if (sFirstIdleTask) {
     sFirstIdleTask->Cancel();
@@ -2220,7 +2256,7 @@ ContentChild::ActorDestroy(ActorDestroyReason why)
   if (IsNuwaProcess()) {
     // The Nuwa cannot go through the full XPCOM shutdown path or deadlock
     // will result.
-    QuickExit();
+    ProcessChild::QuickExit();
   }
 #endif
 
@@ -2259,13 +2295,6 @@ ContentChild::ProcessingError(Result aCode, const char* aReason)
   }
 #endif
   NS_RUNTIMEABORT("Content child abort due to IPC error");
-}
-
-void
-ContentChild::QuickExit()
-{
-  NS_WARNING("content process _exit()ing");
-  _exit(0);
 }
 
 nsresult
@@ -2376,9 +2405,9 @@ ContentChild::RecvLoadProcessScript(const nsString& aURL)
 
 bool
 ContentChild::RecvAsyncMessage(const nsString& aMsg,
-                               const ClonedMessageData& aData,
                                InfallibleTArray<CpowEntry>&& aCpows,
-                               const IPC::Principal& aPrincipal)
+                               const IPC::Principal& aPrincipal,
+                               const ClonedMessageData& aData)
 {
   RefPtr<nsFrameMessageManager> cpm = nsFrameMessageManager::GetChildProcessManager();
   if (cpm) {
@@ -2464,17 +2493,6 @@ ContentChild::RecvAddPermission(const IPC::Permission& permission)
 }
 
 bool
-ContentChild::RecvScreenSizeChanged(const gfx::IntSize& size)
-{
-#ifdef ANDROID
-  mScreenSize = size;
-#else
-  NS_RUNTIMEABORT("Message currently only expected on android");
-#endif
-  return true;
-}
-
-bool
 ContentChild::RecvFlushMemory(const nsString& reason)
 {
 #ifdef MOZ_NUWA_PROCESS
@@ -2529,8 +2547,8 @@ OnFinishNuwaPreparation()
 {
   // We want to ensure that the PBackground actor gets cloned in the Nuwa
   // process before we freeze. Also, we have to do this to avoid deadlock.
-  // Protocols that are "opened" (e.g. PBackground, PCompositor) block the
-  // main thread to wait for the IPC thread during the open operation.
+  // Protocols that are "opened" (e.g. PBackground, PCompositorBridge) block
+  // the main thread to wait for the IPC thread during the open operation.
   // NuwaSpawnWait() blocks the IPC thread to wait for the main thread when
   // the Nuwa process is forked. Unless we ensure that the two cannot happen
   // at the same time then we risk deadlock. Spinning the event loop here
@@ -2552,7 +2570,10 @@ static void
 PreloadSlowThings()
 {
   // This fetches and creates all the built-in stylesheets.
-  nsLayoutStylesheetCache::UserContentSheet();
+  //
+  // XXXheycam In the future we might want to preload the Servo-flavoured
+  // UA sheets too, but for now that will be a waste of time.
+  nsLayoutStylesheetCache::For(StyleBackendType::Gecko)->UserContentSheet();
 
   TabChild::PreloadSlowThings();
 }
@@ -2989,6 +3010,10 @@ ContentChild::RecvShutdown()
                           "content-child-shutdown", nullptr);
   }
 
+#if defined(XP_WIN)
+    mozilla::widget::StopAudioSession();
+#endif
+
   GetIPCChannel()->SetAbortOnError(false);
 
 #ifdef MOZ_ENABLE_PROFILER_SPS
@@ -3068,6 +3093,26 @@ ContentChild::RecvGamepadUpdate(const GamepadChangeEvent& aGamepadEvent)
   return true;
 }
 
+bool
+ContentChild::RecvSetAudioSessionData(const nsID& aId,
+                                      const nsString& aDisplayName,
+                                      const nsString& aIconPath)
+{
+#if defined(XP_WIN)
+    if (NS_FAILED(mozilla::widget::RecvAudioSessionData(aId, aDisplayName,
+                                                        aIconPath))) {
+      return true;
+    }
+
+    // Ignore failures here; we can't really do anything about them
+    mozilla::widget::StartAudioSession();
+    return true;
+#else
+    NS_RUNTIMEABORT("Not Reached!");
+    return false;
+#endif
+}
+
 // This code goes here rather than nsGlobalWindow.cpp because nsGlobalWindow.cpp
 // can't include ContentChild.h since it includes windows.h.
 
@@ -3125,6 +3170,9 @@ ContentChild::RecvInvokeDragSession(nsTArray<IPCDataTransfer>&& aTransfers,
           if (item.data().type() == IPCDataTransferData::TnsString) {
             const nsString& data = item.data().get_nsString();
             variant->SetAsAString(data);
+          } else if (item.data().type() == IPCDataTransferData::TnsCString) {
+            const nsCString& data = item.data().get_nsCString();
+            variant->SetAsACString(data);
           } else if (item.data().type() == IPCDataTransferData::TPBlobChild) {
             BlobChild* blob = static_cast<BlobChild*>(item.data().get_PBlobChild());
             RefPtr<BlobImpl> blobImpl = blob->GetBlobImpl();
@@ -3132,9 +3180,9 @@ ContentChild::RecvInvokeDragSession(nsTArray<IPCDataTransfer>&& aTransfers,
           } else {
             continue;
           }
-          dataTransfer->SetDataWithPrincipal(NS_ConvertUTF8toUTF16(item.flavor()),
-                                             variant, i,
-                                             nsContentUtils::GetSystemPrincipal());
+          dataTransfer->SetDataWithPrincipalFromOtherProcess(
+            NS_ConvertUTF8toUTF16(item.flavor()), variant, i,
+            nsContentUtils::GetSystemPrincipal());
         }
       }
       session->SetDataTransfer(dataTransfer);
@@ -3162,17 +3210,9 @@ ContentChild::RecvEndDragSession(const bool& aDoneDrag,
 }
 
 bool
-ContentChild::RecvTestGraphicsDeviceReset(const uint32_t& aResetReason)
-{
-#if defined(XP_WIN)
-  gfxPlatform::GetPlatform()->TestDeviceReset(DeviceResetReason(aResetReason));
-#endif
-  return true;
-}
-
-bool
 ContentChild::RecvPush(const nsCString& aScope,
-                       const IPC::Principal& aPrincipal)
+                       const IPC::Principal& aPrincipal,
+                       const nsString& aMessageId)
 {
 #ifndef MOZ_SIMPLEPUSH
   nsCOMPtr<nsIPushNotifier> pushNotifierIface =
@@ -3182,7 +3222,8 @@ ContentChild::RecvPush(const nsCString& aScope,
   }
   PushNotifier* pushNotifier =
     static_cast<PushNotifier*>(pushNotifierIface.get());
-  nsresult rv = pushNotifier->NotifyPushWorkers(aScope, aPrincipal, Nothing());
+  nsresult rv = pushNotifier->NotifyPushWorkers(aScope, aPrincipal,
+                                                aMessageId, Nothing());
   Unused << NS_WARN_IF(NS_FAILED(rv));
 #endif
   return true;
@@ -3191,6 +3232,7 @@ ContentChild::RecvPush(const nsCString& aScope,
 bool
 ContentChild::RecvPushWithData(const nsCString& aScope,
                                const IPC::Principal& aPrincipal,
+                               const nsString& aMessageId,
                                InfallibleTArray<uint8_t>&& aData)
 {
 #ifndef MOZ_SIMPLEPUSH
@@ -3202,7 +3244,7 @@ ContentChild::RecvPushWithData(const nsCString& aScope,
   PushNotifier* pushNotifier =
     static_cast<PushNotifier*>(pushNotifierIface.get());
   nsresult rv = pushNotifier->NotifyPushWorkers(aScope, aPrincipal,
-                                                Some(aData));
+                                                aMessageId, Some(aData));
   Unused << NS_WARN_IF(NS_FAILED(rv));
 #endif
   return true;
@@ -3223,6 +3265,23 @@ ContentChild::RecvPushSubscriptionChange(const nsCString& aScope,
   nsresult rv = pushNotifier->NotifySubscriptionChangeWorkers(aScope,
                                                               aPrincipal);
   Unused << NS_WARN_IF(NS_FAILED(rv));
+#endif
+  return true;
+}
+
+bool
+ContentChild::RecvPushError(const nsCString& aScope, const nsString& aMessage,
+                            const uint32_t& aFlags)
+{
+#ifndef MOZ_SIMPLEPUSH
+  nsCOMPtr<nsIPushNotifier> pushNotifierIface =
+      do_GetService("@mozilla.org/push/Notifier;1");
+  if (NS_WARN_IF(!pushNotifierIface)) {
+      return true;
+  }
+  PushNotifier* pushNotifier =
+    static_cast<PushNotifier*>(pushNotifierIface.get());
+  pushNotifier->NotifyErrorWorkers(aScope, aMessage, aFlags);
 #endif
   return true;
 }

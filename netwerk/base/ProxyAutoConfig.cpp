@@ -322,7 +322,7 @@ PACErrorReporter(JSContext *cx, const char *message, JSErrorReport *report)
   nsString formattedMessage(NS_LITERAL_STRING("PAC Execution Error: "));
   formattedMessage += report->ucmessage;
   formattedMessage += NS_LITERAL_STRING(" [");
-  formattedMessage += report->uclinebuf;
+  formattedMessage.Append(report->linebuf(), report->linebufLength());
   formattedMessage += NS_LITERAL_STRING("]");
   PACLogToConsole(formattedMessage);
 }
@@ -665,13 +665,17 @@ private:
   }
 };
 
-const JSClass JSRuntimeWrapper::sGlobalClass = {
-  "PACResolutionThreadGlobal",
-  JSCLASS_GLOBAL_FLAGS,
+static const JSClassOps sJSRuntimeWrapperGlobalClassOps = {
   nullptr, nullptr, nullptr, nullptr,
   nullptr, nullptr, nullptr, nullptr,
   nullptr, nullptr, nullptr,
   JS_GlobalObjectTraceHook
+};
+
+const JSClass JSRuntimeWrapper::sGlobalClass = {
+  "PACResolutionThreadGlobal",
+  JSCLASS_GLOBAL_FLAGS,
+  &sJSRuntimeWrapperGlobalClassOps
 };
 
 void

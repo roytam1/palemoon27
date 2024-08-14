@@ -29,11 +29,6 @@ public:
   bool IsSeekable() const override;
   void NotifyDataArrived() override;
   void NotifyDataRemoved() override;
-  // Do not shift the calculated buffered range by the start time of the first
-  // decoded frame. The mac MP3 decoder will buffer some samples and the first
-  // frame returned has typically a start time that is non-zero, causing our
-  // buffered range to have a negative start time.
-  bool ShouldComputeStartTime() const override { return false; }
 
 private:
   // Synchronous initialization.
@@ -377,9 +372,11 @@ public:
   // or a 0-duration if unknown.
   media::TimeUnit Duration(int64_t aNumFrames) const;
 
+  // Returns the estimated current seek position time.
+  media::TimeUnit SeekPosition() const;
+
   const FrameParser::Frame& LastFrame() const;
   RefPtr<MediaRawData> DemuxSample();
-  media::TimeUnit SeekPosition() const;
 
   const ID3Parser::ID3Header& ID3Header() const;
   const FrameParser::VBRHeader& VBRInfo() const;
@@ -427,7 +424,7 @@ private:
   // Returns the estimated frame index for the given offset.
   int64_t FrameIndexFromOffset(int64_t aOffset) const;
 
- // Returns the estimated frame index for the given time.
+  // Returns the estimated frame index for the given time.
   int64_t FrameIndexFromTime(const media::TimeUnit& aTime) const;
 
   // Restricts the read size aSize to prevent blocking reads past stream length.

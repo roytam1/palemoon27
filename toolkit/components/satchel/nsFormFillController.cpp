@@ -1206,6 +1206,14 @@ nsFormFillController::StopControllingInput()
 
   if (mFocusedInputNode) {
     MaybeRemoveMutationObserver(mFocusedInputNode);
+
+    nsresult rv;
+    nsCOMPtr <nsIFormAutoComplete> formAutoComplete =
+      do_GetService("@mozilla.org/satchel/form-autocomplete;1", &rv);
+    if (formAutoComplete) {
+      formAutoComplete->StopControllingInput(mFocusedInput);
+    }
+
     mFocusedInputNode = nullptr;
     mFocusedInput = nullptr;
   }

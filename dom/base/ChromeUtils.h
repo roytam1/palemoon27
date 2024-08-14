@@ -20,6 +20,8 @@ class HeapSnapshot;
 
 namespace dom {
 
+class ArrayBufferViewOrArrayBuffer;
+
 class ThreadSafeChromeUtils
 {
 public:
@@ -43,6 +45,18 @@ public:
                                              JS::Handle<JS::Value> aSet,
                                              JS::MutableHandle<JS::Value> aRetval,
                                              ErrorResult& aRv);
+
+  static void Base64URLEncode(GlobalObject& aGlobal,
+                              const ArrayBufferViewOrArrayBuffer& aSource,
+                              const Base64URLEncodeOptions& aOptions,
+                              nsACString& aResult,
+                              ErrorResult& aRv);
+
+  static void Base64URLDecode(GlobalObject& aGlobal,
+                              const nsACString& aString,
+                              const Base64URLDecodeOptions& aOptions,
+                              JS::MutableHandle<JSObject*> aRetval,
+                              ErrorResult& aRv);
 };
 
 class ChromeUtils : public ThreadSafeChromeUtils
@@ -57,6 +71,17 @@ public:
   OriginAttributesMatchPattern(dom::GlobalObject& aGlobal,
                                const dom::OriginAttributesDictionary& aAttrs,
                                const dom::OriginAttributesPatternDictionary& aPattern);
+
+  static void
+  CreateOriginAttributesFromOrigin(dom::GlobalObject& aGlobal,
+                                   const nsAString& aOrigin,
+                                   dom::OriginAttributesDictionary& aAttrs,
+                                   ErrorResult& aRv);
+
+  static void
+  FillNonDefaultOriginAttributes(dom::GlobalObject& aGlobal,
+                                 const dom::OriginAttributesDictionary& aAttrs,
+                                 dom::OriginAttributesDictionary& aNewAttrs);
 };
 
 } // namespace dom

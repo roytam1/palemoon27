@@ -113,9 +113,9 @@ WorkerThread::SetWorker(const WorkerThreadFriendKey& /* aKey */,
     }
 
     mObserver = new Observer(aWorkerPrivate);
-    MOZ_ALWAYS_TRUE(NS_SUCCEEDED(AddObserver(mObserver)));
+    MOZ_ALWAYS_SUCCEEDS(AddObserver(mObserver));
   } else {
-    MOZ_ALWAYS_TRUE(NS_SUCCEEDED(RemoveObserver(mObserver)));
+    MOZ_ALWAYS_SUCCEEDS(RemoveObserver(mObserver));
     mObserver = nullptr;
 
     {

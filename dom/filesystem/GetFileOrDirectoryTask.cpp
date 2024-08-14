@@ -7,11 +7,10 @@
 #include "GetFileOrDirectoryTask.h"
 
 #include "js/Value.h"
-#include "mozilla/dom/Directory.h"
-#include "mozilla/dom/DOMError.h"
 #include "mozilla/dom/File.h"
 #include "mozilla/dom/FileSystemBase.h"
 #include "mozilla/dom/FileSystemUtils.h"
+#include "mozilla/dom/PFileSystemParams.h"
 #include "mozilla/dom/Promise.h"
 #include "mozilla/dom/ipc/BlobChild.h"
 #include "mozilla/dom/ipc/BlobParent.h"
@@ -21,91 +20,104 @@
 namespace mozilla {
 namespace dom {
 
-GetFileOrDirectoryTask::GetFileOrDirectoryTask(
-  FileSystemBase* aFileSystem,
-  const nsAString& aTargetPath,
-  bool aDirectoryOnly,
-  ErrorResult& aRv)
-  : FileSystemTaskBase(aFileSystem)
-  , mTargetRealPath(aTargetPath)
+/**
+ * GetFileOrDirectoryTaskChild
+ */
+
+/* static */ already_AddRefed<GetFileOrDirectoryTaskChild>
+GetFileOrDirectoryTaskChild::Create(FileSystemBase* aFileSystem,
+                                    nsIFile* aTargetPath,
+                                    bool aDirectoryOnly,
+                                    ErrorResult& aRv)
+{
+  MOZ_ASSERT(NS_IsMainThread(), "Only call on main thread!");
+  MOZ_ASSERT(aFileSystem);
+
+  RefPtr<GetFileOrDirectoryTaskChild> task =
+    new GetFileOrDirectoryTaskChild(aFileSystem, aTargetPath, aDirectoryOnly);
+
+  // aTargetPath can be null. In this case SetError will be called.
+
+  nsCOMPtr<nsIGlobalObject> globalObject =
+    do_QueryInterface(aFileSystem->GetParentObject());
+  if (NS_WARN_IF(!globalObject)) {
+    aRv.Throw(NS_ERROR_FAILURE);
+    return nullptr;
+  }
+
+  task->mPromise = Promise::Create(globalObject, aRv);
+  if (NS_WARN_IF(aRv.Failed())) {
+    return nullptr;
+  }
+
+  return task.forget();
+}
+
+GetFileOrDirectoryTaskChild::GetFileOrDirectoryTaskChild(FileSystemBase* aFileSystem,
+                                                         nsIFile* aTargetPath,
+                                                         bool aDirectoryOnly)
+  : FileSystemTaskChildBase(aFileSystem)
+  , mTargetPath(aTargetPath)
   , mIsDirectory(aDirectoryOnly)
 {
   MOZ_ASSERT(NS_IsMainThread(), "Only call on main thread!");
   MOZ_ASSERT(aFileSystem);
-  nsCOMPtr<nsIGlobalObject> globalObject =
-    do_QueryInterface(aFileSystem->GetWindow());
-  if (!globalObject) {
-    return;
-  }
-  mPromise = Promise::Create(globalObject, aRv);
 }
 
-GetFileOrDirectoryTask::GetFileOrDirectoryTask(
-  FileSystemBase* aFileSystem,
-  const FileSystemGetFileOrDirectoryParams& aParam,
-  FileSystemRequestParent* aParent)
-  : FileSystemTaskBase(aFileSystem, aParam, aParent)
-  , mIsDirectory(false)
+GetFileOrDirectoryTaskChild::~GetFileOrDirectoryTaskChild()
 {
-  MOZ_ASSERT(XRE_IsParentProcess(),
-             "Only call from parent process!");
-  MOZ_ASSERT(NS_IsMainThread(), "Only call on main thread!");
-  MOZ_ASSERT(aFileSystem);
-  mTargetRealPath = aParam.realPath();
-}
-
-GetFileOrDirectoryTask::~GetFileOrDirectoryTask()
-{
-  MOZ_ASSERT(!mPromise || NS_IsMainThread(),
-             "mPromise should be released on main thread!");
+  MOZ_ASSERT(NS_IsMainThread());
 }
 
 already_AddRefed<Promise>
-GetFileOrDirectoryTask::GetPromise()
+GetFileOrDirectoryTaskChild::GetPromise()
 {
   MOZ_ASSERT(NS_IsMainThread(), "Only call on main thread!");
   return RefPtr<Promise>(mPromise).forget();
 }
 
 FileSystemParams
-GetFileOrDirectoryTask::GetRequestParams(const nsString& aFileSystem) const
+GetFileOrDirectoryTaskChild::GetRequestParams(const nsString& aSerializedDOMPath,
+                                              ErrorResult& aRv) const
 {
   MOZ_ASSERT(NS_IsMainThread(), "Only call on main thread!");
-  return FileSystemGetFileOrDirectoryParams(aFileSystem, mTargetRealPath);
-}
 
-FileSystemResponseValue
-GetFileOrDirectoryTask::GetSuccessRequestResult() const
-{
-  MOZ_ASSERT(NS_IsMainThread(), "Only call on main thread!");
-  if (mIsDirectory) {
-    return FileSystemDirectoryResponse(mTargetRealPath);
+  nsAutoString path;
+  aRv = mTargetPath->GetPath(path);
+  if (NS_WARN_IF(aRv.Failed())) {
+    return FileSystemGetFileOrDirectoryParams();
   }
 
-  BlobParent* actor = GetBlobParent(mTargetBlobImpl);
-  if (!actor) {
-    return FileSystemErrorResponse(NS_ERROR_DOM_FILESYSTEM_UNKNOWN_ERR);
-  }
-  FileSystemFileResponse response;
-  response.blobParent() = actor;
-  return response;
+  return FileSystemGetFileOrDirectoryParams(aSerializedDOMPath, path);
 }
 
 void
-GetFileOrDirectoryTask::SetSuccessRequestResult(const FileSystemResponseValue& aValue)
+GetFileOrDirectoryTaskChild::SetSuccessRequestResult(const FileSystemResponseValue& aValue,
+                                                     ErrorResult& aRv)
 {
   MOZ_ASSERT(NS_IsMainThread(), "Only call on main thread!");
   switch (aValue.type()) {
     case FileSystemResponseValue::TFileSystemFileResponse: {
       FileSystemFileResponse r = aValue;
-      BlobChild* actor = static_cast<BlobChild*>(r.blobChild());
-      mTargetBlobImpl = actor->GetBlobImpl();
+
+      NS_ConvertUTF16toUTF8 path(r.realPath());
+      aRv = NS_NewNativeLocalFile(path, true, getter_AddRefs(mTargetPath));
+      if (NS_WARN_IF(aRv.Failed())) {
+        return;
+      }
+
       mIsDirectory = false;
       break;
     }
     case FileSystemResponseValue::TFileSystemDirectoryResponse: {
       FileSystemDirectoryResponse r = aValue;
-      mTargetRealPath = r.realPath();
+
+      NS_ConvertUTF16toUTF8 path(r.realPath());
+      aRv = NS_NewNativeLocalFile(path, true, getter_AddRefs(mTargetPath));
+      if (NS_WARN_IF(aRv.Failed())) {
+        return;
+      }
+
       mIsDirectory = true;
       break;
     }
@@ -116,8 +128,101 @@ GetFileOrDirectoryTask::SetSuccessRequestResult(const FileSystemResponseValue& a
   }
 }
 
+void
+GetFileOrDirectoryTaskChild::HandlerCallback()
+{
+  MOZ_ASSERT(NS_IsMainThread(), "Only call on main thread!");
+  if (mFileSystem->IsShutdown()) {
+    mPromise = nullptr;
+    return;
+  }
+
+  if (HasError()) {
+    mPromise->MaybeReject(mErrorValue);
+    mPromise = nullptr;
+    return;
+  }
+
+  if (mIsDirectory) {
+    RefPtr<Directory> dir = Directory::Create(mFileSystem->GetParentObject(),
+                                              mTargetPath,
+                                              mFileSystem);
+    MOZ_ASSERT(dir);
+
+    mPromise->MaybeResolve(dir);
+    mPromise = nullptr;
+    return;
+  }
+
+  RefPtr<File> file = File::CreateFromFile(mFileSystem->GetParentObject(),
+                                           mTargetPath);
+  mPromise->MaybeResolve(file);
+  mPromise = nullptr;
+}
+
+void
+GetFileOrDirectoryTaskChild::GetPermissionAccessType(nsCString& aAccess) const
+{
+  aAccess.AssignLiteral(DIRECTORY_READ_PERMISSION);
+}
+
+/**
+ * GetFileOrDirectoryTaskParent
+ */
+
+/* static */ already_AddRefed<GetFileOrDirectoryTaskParent>
+GetFileOrDirectoryTaskParent::Create(FileSystemBase* aFileSystem,
+                                     const FileSystemGetFileOrDirectoryParams& aParam,
+                                     FileSystemRequestParent* aParent,
+                                     ErrorResult& aRv)
+{
+  MOZ_ASSERT(XRE_IsParentProcess(), "Only call from parent process!");
+  AssertIsOnBackgroundThread();
+  MOZ_ASSERT(aFileSystem);
+
+  RefPtr<GetFileOrDirectoryTaskParent> task =
+    new GetFileOrDirectoryTaskParent(aFileSystem, aParam, aParent);
+
+  NS_ConvertUTF16toUTF8 path(aParam.realPath());
+  aRv = NS_NewNativeLocalFile(path, true, getter_AddRefs(task->mTargetPath));
+  if (NS_WARN_IF(aRv.Failed())) {
+    return nullptr;
+  }
+
+  return task.forget();
+}
+
+GetFileOrDirectoryTaskParent::GetFileOrDirectoryTaskParent(FileSystemBase* aFileSystem,
+                                                           const FileSystemGetFileOrDirectoryParams& aParam,
+                                                           FileSystemRequestParent* aParent)
+  : FileSystemTaskParentBase(aFileSystem, aParam, aParent)
+  , mIsDirectory(false)
+{
+  MOZ_ASSERT(XRE_IsParentProcess(), "Only call from parent process!");
+  AssertIsOnBackgroundThread();
+  MOZ_ASSERT(aFileSystem);
+}
+
+FileSystemResponseValue
+GetFileOrDirectoryTaskParent::GetSuccessRequestResult(ErrorResult& aRv) const
+{
+  AssertIsOnBackgroundThread();
+
+  nsAutoString path;
+  aRv = mTargetPath->GetPath(path);
+  if (NS_WARN_IF(aRv.Failed())) {
+    return FileSystemDirectoryResponse();
+  }
+
+  if (mIsDirectory) {
+    return FileSystemDirectoryResponse(path);
+  }
+
+  return FileSystemFileResponse(path);
+}
+
 nsresult
-GetFileOrDirectoryTask::Work()
+GetFileOrDirectoryTaskParent::IOWork()
 {
   MOZ_ASSERT(XRE_IsParentProcess(),
              "Only call from parent process!");
@@ -128,33 +233,25 @@ GetFileOrDirectoryTask::Work()
   }
 
   // Whether we want to get the root directory.
-  bool getRoot = mTargetRealPath.IsEmpty();
-
-  nsCOMPtr<nsIFile> file = mFileSystem->GetLocalFile(mTargetRealPath);
-  if (!file) {
-    return NS_ERROR_DOM_FILESYSTEM_INVALID_PATH_ERR;
-  }
-
   bool exists;
-  nsresult rv = file->Exists(&exists);
+  nsresult rv = mTargetPath->Exists(&exists);
   if (NS_WARN_IF(NS_FAILED(rv))) {
     return rv;
   }
 
   if (!exists) {
-    if (!getRoot) {
+    if (!mFileSystem->ShouldCreateDirectory()) {
       return NS_ERROR_DOM_FILE_NOT_FOUND_ERR;
     }
 
-    // If the root directory doesn't exit, create it.
-    rv = file->Create(nsIFile::DIRECTORY_TYPE, 0777);
+    rv = mTargetPath->Create(nsIFile::DIRECTORY_TYPE, 0777);
     if (NS_WARN_IF(NS_FAILED(rv))) {
       return rv;
     }
   }
 
   // Get isDirectory.
-  rv = file->IsDirectory(&mIsDirectory);
+  rv = mTargetPath->IsDirectory(&mIsDirectory);
   if (NS_WARN_IF(NS_FAILED(rv))) {
     return rv;
   }
@@ -163,14 +260,9 @@ GetFileOrDirectoryTask::Work()
     return NS_OK;
   }
 
-  // Check if the root is a directory.
-  if (getRoot) {
-    return NS_ERROR_DOM_FILESYSTEM_TYPE_MISMATCH_ERR;
-  }
-
   bool isFile;
   // Get isFile
-  rv = file->IsFile(&isFile);
+  rv = mTargetPath->IsFile(&isFile);
   if (NS_WARN_IF(NS_FAILED(rv))) {
     return rv;
   }
@@ -180,48 +272,17 @@ GetFileOrDirectoryTask::Work()
     return NS_ERROR_DOM_FILESYSTEM_TYPE_MISMATCH_ERR;
   }
 
-  if (!mFileSystem->IsSafeFile(file)) {
+  if (!mFileSystem->IsSafeFile(mTargetPath)) {
     return NS_ERROR_DOM_SECURITY_ERR;
   }
-
-  mTargetBlobImpl = new BlobImplFile(file);
 
   return NS_OK;
 }
 
 void
-GetFileOrDirectoryTask::HandlerCallback()
+GetFileOrDirectoryTaskParent::GetPermissionAccessType(nsCString& aAccess) const
 {
-  MOZ_ASSERT(NS_IsMainThread(), "Only call on main thread!");
-  if (mFileSystem->IsShutdown()) {
-    mPromise = nullptr;
-    return;
-  }
-
-  if (HasError()) {
-    RefPtr<DOMError> domError = new DOMError(mFileSystem->GetWindow(),
-      mErrorValue);
-    mPromise->MaybeRejectBrokenly(domError);
-    mPromise = nullptr;
-    return;
-  }
-
-  if (mIsDirectory) {
-    RefPtr<Directory> dir = new Directory(mFileSystem, mTargetRealPath);
-    mPromise->MaybeResolve(dir);
-    mPromise = nullptr;
-    return;
-  }
-
-  RefPtr<Blob> blob = Blob::Create(mFileSystem->GetWindow(), mTargetBlobImpl);
-  mPromise->MaybeResolve(blob);
-  mPromise = nullptr;
-}
-
-void
-GetFileOrDirectoryTask::GetPermissionAccessType(nsCString& aAccess) const
-{
-  aAccess.AssignLiteral("read");
+  aAccess.AssignLiteral(DIRECTORY_READ_PERMISSION);
 }
 
 } // namespace dom

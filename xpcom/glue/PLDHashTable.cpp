@@ -63,21 +63,19 @@ public:
 #endif
 
 /* static */ PLDHashNumber
-PLDHashTable::HashStringKey(PLDHashTable* aTable, const void* aKey)
+PLDHashTable::HashStringKey(const void* aKey)
 {
   return HashString(static_cast<const char*>(aKey));
 }
 
 /* static */ PLDHashNumber
-PLDHashTable::HashVoidPtrKeyStub(PLDHashTable* aTable, const void* aKey)
+PLDHashTable::HashVoidPtrKeyStub(const void* aKey)
 {
   return (PLDHashNumber)(ptrdiff_t)aKey >> 2;
 }
 
 /* static */ bool
-PLDHashTable::MatchEntryStub(PLDHashTable* aTable,
-                             const PLDHashEntryHdr* aEntry,
-                             const void* aKey)
+PLDHashTable::MatchEntryStub(const PLDHashEntryHdr* aEntry, const void* aKey)
 {
   const PLDHashEntryStub* stub = (const PLDHashEntryStub*)aEntry;
 
@@ -85,9 +83,7 @@ PLDHashTable::MatchEntryStub(PLDHashTable* aTable,
 }
 
 /* static */ bool
-PLDHashTable::MatchStringKey(PLDHashTable* aTable,
-                             const PLDHashEntryHdr* aEntry,
-                             const void* aKey)
+PLDHashTable::MatchStringKey(const PLDHashEntryHdr* aEntry, const void* aKey)
 {
   const PLDHashEntryStub* stub = (const PLDHashEntryStub*)aEntry;
 
@@ -274,33 +270,6 @@ PLDHashTable::Hash2(PLDHashNumber aHash,
 // uses the high order bits of mKeyHash, so this least-significant reservation
 // should not hurt the hash function's effectiveness much.
 
-/* static */ MOZ_ALWAYS_INLINE bool
-PLDHashTable::EntryIsFree(PLDHashEntryHdr* aEntry)
-{
-  return aEntry->mKeyHash == 0;
-}
-/* static */ MOZ_ALWAYS_INLINE bool
-PLDHashTable::EntryIsRemoved(PLDHashEntryHdr* aEntry)
-{
-  return aEntry->mKeyHash == 1;
-}
-/* static */ MOZ_ALWAYS_INLINE bool
-PLDHashTable::EntryIsLive(PLDHashEntryHdr* aEntry)
-{
-  return aEntry->mKeyHash >= 2;
-}
-
-/* static */ MOZ_ALWAYS_INLINE void
-PLDHashTable::MarkEntryFree(PLDHashEntryHdr* aEntry)
-{
-  aEntry->mKeyHash = 0;
-}
-/* static */ MOZ_ALWAYS_INLINE void
-PLDHashTable::MarkEntryRemoved(PLDHashEntryHdr* aEntry)
-{
-  aEntry->mKeyHash = 1;
-}
-
 // Match an entry's mKeyHash against an unstored one computed from a key.
 /* static */ bool
 PLDHashTable::MatchEntryKeyhash(PLDHashEntryHdr* aEntry, PLDHashNumber aKeyHash)
@@ -363,7 +332,7 @@ PLDHashTable::Clear()
 // distinction is a bit grotty but this function is hot enough that these
 // differences are worthwhile.
 template <PLDHashTable::SearchReason Reason>
-PLDHashEntryHdr* PL_DHASH_FASTCALL
+PLDHashEntryHdr* NS_FASTCALL
 PLDHashTable::SearchTable(const void* aKey, PLDHashNumber aKeyHash)
 {
   MOZ_ASSERT(mEntryStore.Get());
@@ -382,7 +351,7 @@ PLDHashTable::SearchTable(const void* aKey, PLDHashNumber aKeyHash)
   // Hit: return entry.
   PLDHashMatchEntry matchEntry = mOps->matchEntry;
   if (MatchEntryKeyhash(entry, aKeyHash) &&
-      matchEntry(this, entry, aKey)) {
+      matchEntry(entry, aKey)) {
     return entry;
   }
 
@@ -416,7 +385,7 @@ PLDHashTable::SearchTable(const void* aKey, PLDHashNumber aKeyHash)
     }
 
     if (MatchEntryKeyhash(entry, aKeyHash) &&
-        matchEntry(this, entry, aKey)) {
+        matchEntry(entry, aKey)) {
       return entry;
     }
   }
@@ -432,7 +401,7 @@ PLDHashTable::SearchTable(const void* aKey, PLDHashNumber aKeyHash)
 //      structure.
 // Avoiding the need for |aKey| means we can avoid needing a way to map entries
 // to keys, which means callers can use complex key types more easily.
-PLDHashEntryHdr* PL_DHASH_FASTCALL
+MOZ_ALWAYS_INLINE PLDHashEntryHdr*
 PLDHashTable::FindFreeEntry(PLDHashNumber aKeyHash)
 {
   MOZ_ASSERT(mEntryStore.Get());
@@ -468,7 +437,6 @@ PLDHashTable::FindFreeEntry(PLDHashNumber aKeyHash)
   }
 
   // NOTREACHED
-  return nullptr;
 }
 
 bool
@@ -529,7 +497,7 @@ PLDHashTable::ComputeKeyHash(const void* aKey)
 {
   MOZ_ASSERT(mEntryStore.Get());
 
-  PLDHashNumber keyHash = mOps->hashKey(this, aKey);
+  PLDHashNumber keyHash = mOps->hashKey(aKey);
   keyHash *= kGoldenRatio;
 
   // Avoid 0 and 1 hash codes, they indicate free and removed entries.
@@ -784,12 +752,6 @@ PLDHashTable::Iterator::~Iterator()
   }
 }
 
-bool
-PLDHashTable::Iterator::Done() const
-{
-  return mNexts == mNextsLimit;
-}
-
 MOZ_ALWAYS_INLINE bool
 PLDHashTable::Iterator::IsOnNonLiveEntry() const
 {
@@ -804,16 +766,6 @@ PLDHashTable::Iterator::MoveToNextEntry()
   if (mCurrent == mLimit) {
     mCurrent = mStart;  // Wrap-around. Possible due to Chaos Mode.
   }
-}
-
-PLDHashEntryHdr*
-PLDHashTable::Iterator::Get() const
-{
-  MOZ_ASSERT(!Done());
-
-  PLDHashEntryHdr* entry = reinterpret_cast<PLDHashEntryHdr*>(mCurrent);
-  MOZ_ASSERT(EntryIsLive(entry));
-  return entry;
 }
 
 void
@@ -846,4 +798,3 @@ PLDHashTable::MarkImmutable()
   mChecker.SetNonWritable();
 }
 #endif
-

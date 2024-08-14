@@ -166,7 +166,7 @@ PrincipalToPrincipalInfo(nsIPrincipal* aPrincipal,
     PrincipalInfo info;
 
     nsTArray< nsCOMPtr<nsIPrincipal> >* whitelist;
-    MOZ_ALWAYS_TRUE(NS_SUCCEEDED(expanded->GetWhiteList(&whitelist)));
+    MOZ_ALWAYS_SUCCEEDS(expanded->GetWhiteList(&whitelist));
 
     for (uint32_t i = 0; i < whitelist->Length(); i++) {
       rv = PrincipalToPrincipalInfo((*whitelist)[i], &info);
@@ -244,7 +244,7 @@ LoadInfoToLoadInfoArgs(nsILoadInfo *aLoadInfo,
       aLoadInfo->InternalContentPolicyType(),
       static_cast<uint32_t>(aLoadInfo->GetTainting()),
       aLoadInfo->GetUpgradeInsecureRequests(),
-      aLoadInfo->GetUpgradeInsecurePreloads(),
+      aLoadInfo->GetVerifySignedContent(),
       aLoadInfo->GetInnerWindowID(),
       aLoadInfo->GetOuterWindowID(),
       aLoadInfo->GetParentOuterWindowID(),
@@ -304,7 +304,7 @@ LoadInfoArgsToLoadInfo(const OptionalLoadInfoArgs& aOptionalLoadInfoArgs,
                           loadInfoArgs.contentPolicyType(),
                           static_cast<LoadTainting>(loadInfoArgs.tainting()),
                           loadInfoArgs.upgradeInsecureRequests(),
-                          loadInfoArgs.upgradeInsecurePreloads(),
+                          loadInfoArgs.verifySignedContent(),
                           loadInfoArgs.innerWindowID(),
                           loadInfoArgs.outerWindowID(),
                           loadInfoArgs.parentOuterWindowID(),

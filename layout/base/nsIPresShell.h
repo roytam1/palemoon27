@@ -24,6 +24,8 @@
 #include "mozilla/EventForwards.h"
 #include "mozilla/MemoryReporting.h"
 #include "mozilla/StaticPtr.h"
+#include "mozilla/StyleSetHandle.h"
+#include "mozilla/StyleSheetHandle.h"
 #include "mozilla/WeakPtr.h"
 #include "gfxPoint.h"
 #include "nsTHashtable.h"
@@ -43,15 +45,17 @@
 #include "nsRefPtrHashtable.h"
 #include "nsClassHashtable.h"
 #include "nsPresArena.h"
-#include "nsIImageLoadingContent.h"
 #include "nsMargin.h"
 #include "nsFrameState.h"
+
+#ifdef MOZ_B2G
+#include "nsIHardwareKeyHandler.h"
+#endif
 
 class nsDocShell;
 class nsIDocument;
 class nsIFrame;
 class nsPresContext;
-class nsStyleSet;
 class nsViewManager;
 class nsView;
 class nsRenderingContext;
@@ -61,13 +65,13 @@ class nsAString;
 class nsCaret;
 namespace mozilla {
 class AccessibleCaretEventHub;
+class CSSStyleSheet;
 } // namespace mozilla
 class nsFrameSelection;
 class nsFrameManager;
 class nsILayoutHistoryState;
 class nsIReflowCallback;
 class nsIDOMNode;
-class nsIStyleSheet;
 class nsCSSFrameConstructor;
 class nsISelection;
 template<class E> class nsCOMArray;
@@ -137,10 +141,10 @@ typedef struct CapturingContentInfo {
   mozilla::StaticRefPtr<nsIContent> mContent;
 } CapturingContentInfo;
 
-// 6654f67f-c5aa-4934-b611-6d8d01e6193f
+// a75573d6-34c8-4485-8fb7-edcb6fc70e12
 #define NS_IPRESSHELL_IID \
-{ 0x6654f67f, 0xc5aa, 0x4934, \
-  { 0xb6, 0x11, 0x6d, 0x8d, 0x01, 0xe6, 0x19, 0x3f } }
+{ 0xa75573d6, 0x34c8, 0x4485, \
+  { 0x8f, 0xb7, 0xed, 0xcb, 0x6f, 0xc7, 0x0e, 0x12 } }
 
 // debug VerifyReflow flags
 #define VERIFY_REFLOW_ON                    0x01
@@ -331,7 +335,7 @@ public:
 #endif
 
 #ifdef MOZILLA_INTERNAL_API
-  nsStyleSet* StyleSet() const { return mStyleSet; }
+  mozilla::StyleSetHandle StyleSet() const { return mStyleSet; }
 
   nsCSSFrameConstructor* FrameConstructor() const { return mFrameConstructor; }
 
@@ -353,22 +357,25 @@ public:
   bool GetAuthorStyleDisabled() const;
 
   /*
-   * Called when stylesheets are added/removed/enabled/disabled to rebuild
-   * all style data for a given pres shell without necessarily reconstructing
-   * all of the frames.  This will not reconstruct style synchronously; if
-   * you need to do that, call FlushPendingNotifications to flush out style
-   * reresolves.
+   * Called when stylesheets are added/removed/enabled/disabled to
+   * recompute style and clear other cached data as needed.  This will
+   * not reconstruct style synchronously; if you need to do that, call
+   * FlushPendingNotifications to flush out style reresolves.
+   *
+   * This handles the the addition and removal of the various types of
+   * style rules that can be in CSS style sheets, such as @font-face
+   * rules and @counter-style rules.
+   *
+   * It requires that StyleSheetAdded, StyleSheetRemoved,
+   * StyleSheetApplicableStateChanged, StyleRuleAdded, StyleRuleRemoved,
+   * or StyleRuleChanged has been called on the style sheets that have
+   * changed.
+   *
    * // XXXbz why do we have this on the interface anyway?  The only consumer
    * is calling AddOverrideStyleSheet/RemoveOverrideStyleSheet, and I think
    * those should just handle reconstructing style data...
    */
-  virtual void ReconstructStyleDataExternal();
-  void ReconstructStyleDataInternal();
-#ifdef MOZILLA_INTERNAL_API
-  void ReconstructStyleData() { ReconstructStyleDataInternal(); }
-#else
-  void ReconstructStyleData() { ReconstructStyleDataExternal(); }
-#endif
+  void RestyleForCSSRuleChanges();
 
   /**
    * Update the style set somehow to take into account changed prefs which
@@ -489,15 +496,6 @@ public:
   * Returns nullptr if is XUL document.
   */
   virtual nsCanvasFrame* GetCanvasFrame() const = 0;
-
-  /**
-   * Gets the real primary frame associated with the content object.
-   *
-   * In the case of absolutely positioned elements and floated elements,
-   * the real primary frame is the frame that is out of the flow and not the
-   * placeholder frame.
-   */
-  virtual nsIFrame* GetRealPrimaryFrameFor(nsIContent* aContent) const = 0;
 
   /**
    * Gets the placeholder frame associated with the specified frame. This is
@@ -879,6 +877,12 @@ public:
                                           bool aEmbeddedCancelled) = 0;
 
   /**
+   * Return whether or not the event is valid to be dispatched
+   */
+  virtual bool CanDispatchEvent(
+      const mozilla::WidgetGUIEvent* aEvent = nullptr) const = 0;
+
+  /**
     * Gets the current target event frame from the PresShell
     */
   virtual nsIFrame* GetEventTargetFrame() = 0;
@@ -909,6 +913,20 @@ public:
   bool IsPaintingSuppressed() const { return mPaintingSuppressed; }
 
   /**
+   * Pause painting by freezing the refresh driver of this and all parent
+   * presentations. This may not have the desired effect if this pres shell
+   * has its own refresh driver.
+   */
+  virtual void PausePainting() = 0;
+
+  /**
+   * Resume painting by thawing the refresh driver of this and all parent
+   * presentations. This may not have the desired effect if this pres shell
+   * has its own refresh driver.
+   */
+  virtual void ResumePainting() = 0;
+
+  /**
    * Unsuppress painting.
    */
   virtual void UnsuppressPainting() = 0;
@@ -930,22 +948,24 @@ public:
   /**
    * Get the set of agent style sheets for this presentation
    */
-  virtual nsresult GetAgentStyleSheets(nsCOMArray<nsIStyleSheet>& aSheets) = 0;
+  virtual nsresult GetAgentStyleSheets(
+      nsTArray<mozilla::StyleSheetHandle::RefPtr>& aSheets) = 0;
 
   /**
    * Replace the set of agent style sheets
    */
-  virtual nsresult SetAgentStyleSheets(const nsCOMArray<nsIStyleSheet>& aSheets) = 0;
+  virtual nsresult SetAgentStyleSheets(
+      const nsTArray<mozilla::StyleSheetHandle::RefPtr>& aSheets) = 0;
 
   /**
    * Add an override style sheet for this presentation
    */
-  virtual nsresult AddOverrideStyleSheet(nsIStyleSheet *aSheet) = 0;
+  virtual nsresult AddOverrideStyleSheet(mozilla::StyleSheetHandle aSheet) = 0;
 
   /**
    * Remove an override style sheet
    */
-  virtual nsresult RemoveOverrideStyleSheet(nsIStyleSheet *aSheet) = 0;
+  virtual nsresult RemoveOverrideStyleSheet(mozilla::StyleSheetHandle aSheet) = 0;
 
   /**
    * Reconstruct frames for all elements in the document
@@ -1384,7 +1404,7 @@ public:
    * The resolution defaults to 1.0.
    */
   virtual nsresult SetResolution(float aResolution) = 0;
-  float GetResolution() { return mResolution.valueOr(1.0); }
+  float GetResolution() const { return mResolution.valueOr(1.0); }
   virtual float GetCumulativeResolution() = 0;
 
   /**
@@ -1547,22 +1567,39 @@ public:
   void InvalidatePresShellIfHidden();
   void CancelInvalidatePresShellIfHidden();
 
-  // Schedule an update of the list of visible images.
-  virtual void ScheduleImageVisibilityUpdate() = 0;
 
-  // Clears the current list of visible images on this presshell and replaces it
-  // with images that are in the display list aList.
-  virtual void RebuildImageVisibilityDisplayList(const nsDisplayList& aList) = 0;
-  virtual void RebuildImageVisibility(nsRect* aRect = nullptr) = 0;
+  //////////////////////////////////////////////////////////////////////////////
+  // Approximate frame visibility tracking public API.
+  //////////////////////////////////////////////////////////////////////////////
 
-  // Ensures the image is in the list of visible images.
-  virtual void EnsureImageInVisibleList(nsIImageLoadingContent* aImage) = 0;
+  /// Schedule an update of the list of approximately visible frames "soon".
+  /// This lets the refresh driver know that we want a visibility update in the
+  /// near future. The refresh driver applies its own heuristics and throttling
+  /// to decide when to actually perform the visibility update.
+  virtual void ScheduleApproximateFrameVisibilityUpdateSoon() = 0;
 
-  // Removes the image from the list of visible images if it is present there.
-  virtual void RemoveImageFromVisibleList(nsIImageLoadingContent* aImage) = 0;
+  /// Schedule an update of the list of approximately visible frames "now". The
+  /// update runs asynchronously, but it will be posted to the event loop
+  /// immediately. Prefer the "soon" variation of this method when possible, as
+  /// this variation ignores the refresh driver's heuristics.
+  virtual void ScheduleApproximateFrameVisibilityUpdateNow() = 0;
 
-  // Whether we should assume all images are visible.
-  virtual bool AssumeAllImagesVisible() = 0;
+  /// Clears the current list of approximately visible frames on this pres shell
+  /// and replaces it with frames that are in the display list @aList.
+  virtual void RebuildApproximateFrameVisibilityDisplayList(const nsDisplayList& aList) = 0;
+  virtual void RebuildApproximateFrameVisibility(nsRect* aRect = nullptr,
+                                                 bool aRemoveOnly = false) = 0;
+
+  /// Adds @aFrame to the list of frames which were visible within the
+  /// displayport during the last paint.
+  virtual void MarkFrameVisibleInDisplayPort(nsIFrame* aFrame) = 0;
+
+  /// Marks @aFrame nonvisible and removes it from all lists of visible frames.
+  virtual void MarkFrameNonvisible(nsIFrame* aFrame) = 0;
+
+  /// Whether we should assume all frames are visible.
+  virtual bool AssumeAllFramesVisible() = 0;
+
 
   /**
    * Returns whether the document's style set's rule processor for the
@@ -1670,7 +1707,7 @@ protected:
   // we must share ownership.
   nsCOMPtr<nsIDocument>     mDocument;
   RefPtr<nsPresContext>   mPresContext;
-  nsStyleSet*               mStyleSet;      // [OWNS]
+  mozilla::StyleSetHandle   mStyleSet;      // [OWNS]
   nsCSSFrameConstructor*    mFrameConstructor; // [OWNS]
   nsViewManager*           mViewManager;   // [WEAK] docViewer owns it so I don't have to
   nsPresArena               mFrameArena;
@@ -1692,6 +1729,11 @@ protected:
   // posted messages are processed before other messages when the modal
   // moving/sizing loop is running, see bug 491700 for details.
   nsCOMPtr<nsITimer>        mReflowContinueTimer;
+
+#ifdef MOZ_B2G
+  // Forward hardware key events to the input-method-app
+  nsCOMPtr<nsIHardwareKeyHandler> mHardwareKeyHandler;
+#endif // MOZ_B2G
 
 #ifdef DEBUG
   nsIFrame*                 mDrawEventTargetFrame;
@@ -1771,6 +1813,7 @@ protected:
   bool mFontSizeInflationForceEnabled;
   bool mFontSizeInflationDisabledInMasterProcess;
   bool mFontSizeInflationEnabled;
+  bool mPaintingIsFrozen;
 
   // Dirty bit indicating that mFontSizeInflationEnabled needs to be recomputed.
   bool mFontSizeInflationEnabledIsDirty;

@@ -35,6 +35,7 @@ public:
         mWasOffererLastTime(false),
         mIceControlling(false),
         mRemoteIsIceLite(false),
+        mRemoteIceIsRestarting(false),
         mBundlePolicy(kBundleBalanced),
         mSessionId(0),
         mSessionVersion(0),
@@ -53,12 +54,20 @@ public:
 
   virtual nsresult SetIceCredentials(const std::string& ufrag,
                                      const std::string& pwd) override;
+  virtual const std::string& GetUfrag() const override { return mIceUfrag; }
+  virtual const std::string& GetPwd() const override { return mIcePwd; }
   nsresult SetBundlePolicy(JsepBundlePolicy policy) override;
 
   virtual bool
   RemoteIsIceLite() const override
   {
     return mRemoteIsIceLite;
+  }
+
+  virtual bool
+  RemoteIceIsRestarting() const override
+  {
+    return mRemoteIceIsRestarting;
   }
 
   virtual std::vector<std::string>
@@ -86,6 +95,16 @@ public:
                                 const std::string& oldTrackId,
                                 const std::string& newStreamId,
                                 const std::string& newTrackId) override;
+
+  virtual nsresult SetParameters(
+      const std::string& streamId,
+      const std::string& trackId,
+      const std::vector<JsepTrack::JsConstraints>& constraints) override;
+
+  virtual nsresult GetParameters(
+      const std::string& streamId,
+      const std::string& trackId,
+      std::vector<JsepTrack::JsConstraints>* outConstraints) override;
 
   virtual std::vector<RefPtr<JsepTrack>> GetLocalTracks() const override;
 
@@ -122,11 +141,14 @@ public:
                                         std::string* mid,
                                         bool* skipped) override;
 
-  virtual nsresult EndOfLocalCandidates(const std::string& defaultCandidateAddr,
-                                        uint16_t defaultCandidatePort,
-                                        const std::string& defaultRtcpCandidateAddr,
-                                        uint16_t defaultRtcpCandidatePort,
-                                        uint16_t level) override;
+  virtual nsresult UpdateDefaultCandidate(
+      const std::string& defaultCandidateAddr,
+      uint16_t defaultCandidatePort,
+      const std::string& defaultRtcpCandidateAddr,
+      uint16_t defaultRtcpCandidatePort,
+      uint16_t level) override;
+
+  virtual nsresult EndOfLocalCandidates(uint16_t level) override;
 
   virtual nsresult Close() override;
 
@@ -209,6 +231,7 @@ private:
   nsresult AddTransportAttributes(SdpMediaSection* msection,
                                   SdpSetupAttribute::Role dtlsRole);
   nsresult CopyPreviousTransportParams(const Sdp& oldAnswer,
+                                       const Sdp& offerersPreviousSdp,
                                        const Sdp& newOffer,
                                        Sdp* newLocal);
   nsresult SetupOfferMSections(const JsepOfferOptions& options, Sdp* sdp);
@@ -269,6 +292,8 @@ private:
 
   nsresult EnableOfferMsection(SdpMediaSection* msection);
 
+  mozilla::Sdp* GetParsedLocalDescription() const;
+  mozilla::Sdp* GetParsedRemoteDescription() const;
   const Sdp* GetAnswer() const;
 
   std::vector<JsepSendingTrack> mLocalTracks;
@@ -287,6 +312,7 @@ private:
   std::string mIceUfrag;
   std::string mIcePwd;
   bool mRemoteIsIceLite;
+  bool mRemoteIceIsRestarting;
   std::vector<std::string> mIceOptions;
   JsepBundlePolicy mBundlePolicy;
   std::vector<JsepDtlsFingerprint> mDtlsFingerprints;

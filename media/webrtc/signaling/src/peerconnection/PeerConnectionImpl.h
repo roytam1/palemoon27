@@ -31,6 +31,7 @@
 
 #include "mozilla/ErrorResult.h"
 #include "mozilla/dom/PeerConnectionImplEnumsBinding.h"
+#include "PrincipalChangeObserver.h"
 #include "StreamBuffer.h"
 
 #if !defined(MOZILLA_EXTERNAL_LINKAGE)
@@ -41,9 +42,6 @@
 #include "mozilla/dom/RTCStatsReportBinding.h"
 #include "nsIPrincipal.h"
 #include "mozilla/PeerIdentity.h"
-#ifndef USE_FAKE_MEDIA_STREAMS
-#include "DOMMediaStream.h"
-#endif
 #endif
 
 namespace test {
@@ -71,7 +69,6 @@ class MediaPipeline;
 
 #ifdef USE_FAKE_MEDIA_STREAMS
 typedef Fake_DOMMediaStream DOMMediaStream;
-typedef Fake_MediaStreamTrack MediaStreamTrack;
 #else
 class DOMMediaStream;
 #endif
@@ -81,6 +78,7 @@ class RTCCertificate;
 struct RTCConfiguration;
 struct RTCIceServer;
 struct RTCOfferOptions;
+struct RTCRtpParameters;
 #ifdef USE_FAKE_MEDIA_STREAMS
 typedef Fake_MediaStreamTrack MediaStreamTrack;
 #else
@@ -156,12 +154,11 @@ public:
   bool addStunServer(const std::string& addr, uint16_t port,
                      const char* transport)
   {
-    NrIceStunServer* server(NrIceStunServer::Create(addr, port, transport));
+    UniquePtr<NrIceStunServer> server(NrIceStunServer::Create(addr, port, transport));
     if (!server) {
       return false;
     }
     addStunServer(*server);
-    delete server;
     return true;
   }
   bool addTurnServer(const std::string& addr, uint16_t port,
@@ -173,13 +170,12 @@ public:
     // username and password. Bug # ???
     std::vector<unsigned char> password(pwd.begin(), pwd.end());
 
-    NrIceTurnServer* server(NrIceTurnServer::Create(addr, port, username, password,
-                                                    transport));
+    UniquePtr<NrIceTurnServer> server(NrIceTurnServer::Create(addr, port, username, password,
+							      transport));
     if (!server) {
       return false;
     }
     addTurnServer(*server);
-    delete server;
     return true;
   }
   void addStunServer(const NrIceStunServer& server) { mStunServers.push_back (server); }
@@ -248,7 +244,7 @@ class RTCStatsQuery {
 class PeerConnectionImpl final : public nsISupports,
 #if !defined(MOZILLA_EXTERNAL_LINKAGE)
                                  public mozilla::DataChannelConnection::DataConnectionListener,
-                                 public DOMMediaStream::PrincipalChangeObserver,
+                                 public dom::PrincipalChangeObserver<dom::MediaStreamTrack>,
 #endif
                                  public sigslot::has_slots<>
 {
@@ -316,11 +312,12 @@ public:
                                 NrIceCtx::ConnectionState state);
   void IceGatheringStateChange(NrIceCtx* ctx,
                                NrIceCtx::GatheringState state);
-  void EndOfLocalCandidates(const std::string& defaultAddr,
-                            uint16_t defaultPort,
-                            const std::string& defaultRtcpAddr,
-                            uint16_t defaultRtcpPort,
-                            uint16_t level);
+  void UpdateDefaultCandidate(const std::string& defaultAddr,
+                              uint16_t defaultPort,
+                              const std::string& defaultRtcpAddr,
+                              uint16_t defaultRtcpPort,
+                              uint16_t level);
+  void EndOfLocalCandidates(uint16_t level);
   void IceStreamReady(NrIceMediaStream *aStream);
 
   static void ListenThread(void *aData);
@@ -389,6 +386,10 @@ public:
     rv = SetLocalDescription(aAction, NS_ConvertUTF16toUTF8(aSDP).get());
   }
 
+  nsresult CreateNewRemoteTracks(RefPtr<PeerConnectionObserver>& aPco);
+
+  void RemoveOldRemoteTracks(RefPtr<PeerConnectionObserver>& aPco);
+
   NS_IMETHODIMP SetRemoteDescription (int32_t aAction, const char* aSDP);
 
   void SetRemoteDescription (int32_t aAction, const nsAString& aSDP, ErrorResult &rv)
@@ -440,6 +441,37 @@ public:
                                mozilla::dom::MediaStreamTrack& aWithTrack)
   {
     rv = ReplaceTrack(aThisTrack, aWithTrack);
+  }
+
+#if !defined(MOZILLA_EXTERNAL_LINKAGE)
+  NS_IMETHODIMP_TO_ERRORRESULT(SetParameters, ErrorResult &rv,
+                               dom::MediaStreamTrack& aTrack,
+                               const dom::RTCRtpParameters& aParameters)
+  {
+    rv = SetParameters(aTrack, aParameters);
+  }
+
+  NS_IMETHODIMP_TO_ERRORRESULT(GetParameters, ErrorResult &rv,
+                               dom::MediaStreamTrack& aTrack,
+                               dom::RTCRtpParameters& aOutParameters)
+  {
+    rv = GetParameters(aTrack, aOutParameters);
+  }
+#endif
+
+  nsresult
+  SetParameters(dom::MediaStreamTrack& aTrack,
+                const std::vector<JsepTrack::JsConstraints>& aConstraints);
+
+  nsresult
+  GetParameters(dom::MediaStreamTrack& aTrack,
+                std::vector<JsepTrack::JsConstraints>* aOutConstraints);
+
+  NS_IMETHODIMP_TO_ERRORRESULT(SelectSsrc, ErrorResult &rv,
+                               dom::MediaStreamTrack& aRecvTrack,
+                               unsigned short aSsrcIndex)
+  {
+    rv = SelectSsrc(aRecvTrack, aSsrcIndex);
   }
 
   nsresult GetPeerIdentity(nsAString& peerIdentity)
@@ -586,10 +618,6 @@ public:
   // is called to start the list over.
   void ClearSdpParseErrorMessages();
 
-  void OnAddIceCandidateError() {
-    ++mAddCandidateErrorCount;
-  }
-
   // Called to retreive the list of parsing errors.
   const std::vector<std::string> &GetSdpParseErrors();
 
@@ -616,12 +644,12 @@ public:
 
   static nsresult ExecuteStatsQuery_s(RTCStatsQuery *query);
 
-  // for monitoring changes in stream ownership
+  // for monitoring changes in track ownership
   // PeerConnectionMedia can't do it because it doesn't know about principals
-  virtual void PrincipalChanged(DOMMediaStream* aMediaStream) override;
+  virtual void PrincipalChanged(dom::MediaStreamTrack* aTrack) override;
 
   nsresult GetRemoteTrackId(const std::string streamId,
-                            TrackID numericTrackId,
+                            const dom::MediaStreamTrack& track,
                             std::string* trackId) const;
 #endif
 
@@ -684,6 +712,10 @@ private:
                                  const std::string& streamId,
                                  const std::string& trackId);
 
+  nsresult SetupIceRestart();
+  nsresult RollbackIceRestart();
+  void FinalizeIceRestart();
+
 #if !defined(MOZILLA_EXTERNAL_LINKAGE)
   static void GetStatsForPCObserver_s(
       const std::string& pcHandle,
@@ -740,7 +772,7 @@ private:
 #if !defined(MOZILLA_EXTERNAL_LINKAGE)
   // The entity on the other end of the peer-to-peer connection;
   // void if they are not yet identified, and no identity setting has been set
-  nsAutoPtr<PeerIdentity> mPeerIdentity;
+  RefPtr<PeerIdentity> mPeerIdentity;
   // The certificate we are using.
   RefPtr<mozilla::dom::RTCCertificate> mCertificate;
 #else
@@ -776,6 +808,8 @@ private:
   // The JSEP negotiation session.
   mozilla::UniquePtr<PCUuidGenerator> mUuidGen;
   mozilla::UniquePtr<mozilla::JsepSession> mJsepSession;
+  std::string mPreviousIceUfrag; // used during rollback of ice restart
+  std::string mPreviousIcePwd; // used during rollback of ice restart
 
 #if !defined(MOZILLA_EXTERNAL_LINKAGE)
   // Start time of ICE, used for telemetry

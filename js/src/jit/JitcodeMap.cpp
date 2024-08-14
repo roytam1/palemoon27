@@ -870,7 +870,7 @@ bool
 JitcodeGlobalEntry::BaseEntry::isJitcodeMarkedFromAnyThread()
 {
     return IsMarkedUnbarriered(&jitcode_) ||
-           jitcode_->arenaHeader()->allocatedDuringIncremental;
+           jitcode_->arena()->allocatedDuringIncremental;
 }
 
 bool
@@ -900,7 +900,7 @@ bool
 JitcodeGlobalEntry::BaselineEntry::isMarkedFromAnyThread()
 {
     return IsMarkedUnbarriered(&script_) ||
-           script_->arenaHeader()->allocatedDuringIncremental;
+           script_->arena()->allocatedDuringIncremental;
 }
 
 template <class ShouldMarkProvider>
@@ -968,7 +968,7 @@ JitcodeGlobalEntry::IonEntry::isMarkedFromAnyThread()
 {
     for (unsigned i = 0; i < numScripts(); i++) {
         if (!IsMarkedUnbarriered(&sizedScriptList()->pairs[i].script) &&
-            !sizedScriptList()->pairs[i].script->arenaHeader()->allocatedDuringIncremental)
+            !sizedScriptList()->pairs[i].script->arena()->allocatedDuringIncremental)
         {
             return false;
         }
@@ -1276,6 +1276,9 @@ struct JitcodeMapBufferWriteSpewer
     {}
 
     void spewAndAdvance(const char* name) {
+        if (writer->oom())
+            return;
+
         uint32_t curPos = writer->length();
         const uint8_t* start = writer->buffer() + startPos;
         const uint8_t* end = writer->buffer() + curPos;

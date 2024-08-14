@@ -12,6 +12,7 @@
 #include "jsfriendapi.h"
 #include "mozilla/Assertions.h"
 #include "mozilla/CondVar.h"
+#include "mozilla/CycleCollectedJSRuntime.h"
 #include "mozilla/dom/asmjscache/PAsmJSCacheEntryChild.h"
 #include "mozilla/dom/asmjscache/PAsmJSCacheEntryParent.h"
 #include "mozilla/dom/ContentChild.h"
@@ -34,7 +35,6 @@
 #include "nsIRunnable.h"
 #include "nsISimpleEnumerator.h"
 #include "nsIThread.h"
-#include "nsIXULAppInfo.h"
 #include "nsJSPrincipals.h"
 #include "nsThreadUtils.h"
 #include "nsXULAppAPI.h"
@@ -493,8 +493,7 @@ private:
                mState != eFinished);
 
     mState = eFailing;
-    MOZ_ALWAYS_TRUE(NS_SUCCEEDED(mOwningThread->Dispatch(this,
-                                                         NS_DISPATCH_NORMAL)));
+    MOZ_ALWAYS_SUCCEEDS(mOwningThread->Dispatch(this, NS_DISPATCH_NORMAL));
   }
 
   void
@@ -948,15 +947,13 @@ ParentRunnable::Run()
       rv = ReadMetadata();
       if (NS_FAILED(rv)) {
         mState = eFailedToReadMetadata;
-        MOZ_ALWAYS_TRUE(NS_SUCCEEDED(
-          mOwningThread->Dispatch(this, NS_DISPATCH_NORMAL)));
+        MOZ_ALWAYS_SUCCEEDS(mOwningThread->Dispatch(this, NS_DISPATCH_NORMAL));
         return NS_OK;
       }
 
       if (mOpenMode == eOpenForRead) {
         mState = eSendingMetadataForRead;
-        MOZ_ALWAYS_TRUE(NS_SUCCEEDED(
-          mOwningThread->Dispatch(this, NS_DISPATCH_NORMAL)));
+        MOZ_ALWAYS_SUCCEEDS(mOwningThread->Dispatch(this, NS_DISPATCH_NORMAL));
 
         return NS_OK;
       }
@@ -968,8 +965,7 @@ ParentRunnable::Run()
       }
 
       mState = eSendingCacheFile;
-      MOZ_ALWAYS_TRUE(NS_SUCCEEDED(
-        mOwningThread->Dispatch(this, NS_DISPATCH_NORMAL)));
+      MOZ_ALWAYS_SUCCEEDS(mOwningThread->Dispatch(this, NS_DISPATCH_NORMAL));
       return NS_OK;
     }
 
@@ -993,7 +989,8 @@ ParentRunnable::Run()
 
       // Metadata is now open.
       if (!SendOnOpenMetadataForRead(mMetadata)) {
-        Unused << Send__delete__(this, JS::AsmJSCache_InternalError);
+        Fail();
+        return NS_OK;
       }
 
       return NS_OK;
@@ -1018,8 +1015,7 @@ ParentRunnable::Run()
       }
 
       mState = eSendingCacheFile;
-      MOZ_ALWAYS_TRUE(NS_SUCCEEDED(
-        mOwningThread->Dispatch(this, NS_DISPATCH_NORMAL)));
+      MOZ_ALWAYS_SUCCEEDS(mOwningThread->Dispatch(this, NS_DISPATCH_NORMAL));
       return NS_OK;
     }
 
@@ -1035,7 +1031,8 @@ ParentRunnable::Run()
       FileDescriptor::PlatformHandleType handle =
         FileDescriptor::PlatformHandleType(PR_FileDesc2NativeHandle(mFileDesc));
       if (!SendOnOpenCacheFile(mFileSize, FileDescriptor(handle))) {
-        Unused << Send__delete__(this, JS::AsmJSCache_InternalError);
+        Fail();
+        return NS_OK;
       }
 
       return NS_OK;
@@ -1268,6 +1265,13 @@ public:
     return JS::AsmJSCache_Success;
   }
 
+  void Cleanup()
+  {
+#ifdef DEBUG
+    NoteActorDestroyed();
+#endif
+  }
+
 private:
   ~ChildRunnable()
   {
@@ -1326,7 +1330,7 @@ private:
   ActorDestroy(ActorDestroyReason why) override
   {
     MOZ_ASSERT(NS_IsMainThread());
-    mActorDestroyed = true;
+    NoteActorDestroyed();
   }
 
   void
@@ -1363,6 +1367,11 @@ private:
     mOpened = aResult == JS::AsmJSCache_Success;
     mResult = aResult;
     mCondVar.Notify();
+  }
+
+  void NoteActorDestroyed()
+  {
+    mActorDestroyed = true;
   }
 
   nsIPrincipal* const mPrincipal;
@@ -1550,6 +1559,7 @@ OpenFile(nsIPrincipal* aPrincipal,
   JS::AsmJSCacheResult openResult =
     childRunnable->BlockUntilOpen(aChildRunnable);
   if (openResult != JS::AsmJSCache_Success) {
+    childRunnable->Cleanup();
     return openResult;
   }
 
@@ -1689,29 +1699,6 @@ CloseEntryForWrite(size_t aSize,
                     childRunnable->FileSize()) == PR_SUCCESS) {
     *(AsmJSCookieType*)childRunnable->MappedMemory() = sAsmJSCookie;
   }
-}
-
-bool
-GetBuildId(JS::BuildIdCharVector* aBuildID)
-{
-  nsCOMPtr<nsIXULAppInfo> info = do_GetService("@mozilla.org/xre/app-info;1");
-  if (!info) {
-    return false;
-  }
-
-  nsCString buildID;
-  nsresult rv = info->GetPlatformBuildID(buildID);
-  NS_ENSURE_SUCCESS(rv, false);
-
-  if (!aBuildID->resize(buildID.Length())) {
-    return false;
-  }
-
-  for (size_t i = 0; i < buildID.Length(); i++) {
-    (*aBuildID)[i] = buildID[i];
-  }
-
-  return true;
 }
 
 class Client : public quota::Client

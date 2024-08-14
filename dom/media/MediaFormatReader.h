@@ -10,6 +10,7 @@
 #include "mozilla/Atomics.h"
 #include "mozilla/Maybe.h"
 #include "mozilla/TaskQueue.h"
+#include "mozilla/Monitor.h"
 
 #include "MediaDataDemuxer.h"
 #include "MediaDecoderReader.h"
@@ -22,7 +23,6 @@ class CDMProxy;
 class MediaFormatReader final : public MediaDecoderReader
 {
   typedef TrackInfo::TrackType TrackType;
-  typedef media::Interval<int64_t> ByteInterval;
 
 public:
   MediaFormatReader(AbstractMediaDecoder* aDecoder,
@@ -37,10 +37,10 @@ public:
   size_t SizeOfVideoQueueInFrames() override;
   size_t SizeOfAudioQueueInFrames() override;
 
-  RefPtr<VideoDataPromise>
+  RefPtr<MediaDataPromise>
   RequestVideoData(bool aSkipToNextKeyframe, int64_t aTimeThreshold) override;
 
-  RefPtr<AudioDataPromise> RequestAudioData() override;
+  RefPtr<MediaDataPromise> RequestAudioData() override;
 
   RefPtr<MetadataPromise> AsyncReadMetadata() override;
 
@@ -55,6 +55,8 @@ protected:
 public:
   media::TimeIntervals GetBuffered() override;
 
+  RefPtr<BufferedUpdatePromise> UpdateBufferedWithPromise() override;
+
   bool ForceZeroStartTime() const override;
 
   // For Media Resource Management
@@ -68,9 +70,7 @@ public:
 
   bool VideoIsHardwareAccelerated() const override;
 
-  void DisableHardwareAcceleration() override;
-
-  bool IsWaitForDataSupported() override { return true; }
+  bool IsWaitForDataSupported() const override { return true; }
   RefPtr<WaitForDataPromise> WaitForData(MediaData::Type aType) override;
 
   // MediaFormatReader supports demuxed-only mode.
@@ -87,7 +87,7 @@ public:
     OwnerThread()->Dispatch(r.forget());
   }
 
-  bool UseBufferingHeuristics() override
+  bool UseBufferingHeuristics() const override
   {
     return mTrackDemuxersMayBlock;
   }
@@ -213,6 +213,8 @@ private:
                 uint32_t aDecodeAhead)
       : mOwner(aOwner)
       , mType(aType)
+      , mMonitor("DecoderData")
+      , mDescription("shutdown")
       , mDecodeAhead(aDecodeAhead)
       , mUpdateScheduled(false)
       , mDemuxEOS(false)
@@ -231,6 +233,8 @@ private:
       , mNumSamplesOutput(0)
       , mNumSamplesOutputTotal(0)
       , mNumSamplesSkippedTotal(0)
+      , mNumSamplesOutputTotalSinceTelemetry(0)
+      , mNumSamplesSkippedTotalSinceTelemetry(0)
       , mSizeOfQueue(0)
       , mIsHardwareAccelerated(false)
       , mLastStreamSourceID(UINT32_MAX)
@@ -240,13 +244,26 @@ private:
     // Disambiguate Audio vs Video.
     MediaData::Type mType;
     RefPtr<MediaTrackDemuxer> mTrackDemuxer;
-    // The platform decoder.
-    RefPtr<MediaDataDecoder> mDecoder;
     // TaskQueue on which decoder can choose to decode.
     // Only non-null up until the decoder is created.
     RefPtr<FlushableTaskQueue> mTaskQueue;
     // Callback that receives output and error notifications from the decoder.
     nsAutoPtr<DecoderCallback> mCallback;
+
+    // Monitor protecting mDescription and mDecoder.
+    Monitor mMonitor;
+    // The platform decoder.
+    RefPtr<MediaDataDecoder> mDecoder;
+    const char* mDescription;
+    void ShutdownDecoder()
+    {
+      MonitorAutoLock mon(mMonitor);
+      if (mDecoder) {
+        mDecoder->Shutdown();
+      }
+      mDescription = "shutdown";
+      mDecoder = nullptr;
+    }
 
     // Only accessed from reader's task queue.
     uint32_t mDecodeAhead;
@@ -295,6 +312,9 @@ private:
     uint64_t mNumSamplesOutput;
     uint64_t mNumSamplesOutputTotal;
     uint64_t mNumSamplesSkippedTotal;
+
+    uint64_t mNumSamplesOutputTotalSinceTelemetry;
+    uint64_t mNumSamplesSkippedTotalSinceTelemetry;
 
     // These get overriden in the templated concrete class.
     // Indicate if we have a pending promise for decoded frame.
@@ -346,7 +366,6 @@ private:
     RefPtr<SharedTrackInfo> mInfo;
   };
 
-  template<typename PromiseType>
   struct DecoderDataWithPromise : public DecoderData {
     DecoderDataWithPromise(MediaFormatReader* aOwner,
                            MediaData::Type aType,
@@ -354,7 +373,7 @@ private:
       DecoderData(aOwner, aType, aDecodeAhead)
     {}
 
-    MozPromiseHolder<PromiseType> mPromise;
+    MozPromiseHolder<MediaDataPromise> mPromise;
 
     bool HasPromise() override
     {
@@ -371,8 +390,8 @@ private:
     }
   };
 
-  DecoderDataWithPromise<AudioDataPromise> mAudio;
-  DecoderDataWithPromise<VideoDataPromise> mVideo;
+  DecoderDataWithPromise mAudio;
+  DecoderDataWithPromise mVideo;
 
   // Returns true when the decoder for this track needs input.
   bool NeedInput(DecoderData& aDecoder);
@@ -427,8 +446,6 @@ private:
   // Set to true if any of our track buffers may be blocking.
   bool mTrackDemuxersMayBlock;
 
-  bool mHardwareAccelerationDisabled;
-
   // Set the demuxed-only flag.
   Atomic<bool> mDemuxOnly;
 
@@ -449,6 +466,9 @@ private:
   {
     OnSeekFailed(TrackType::kAudioTrack, aFailure);
   }
+
+  void ReportDroppedFramesTelemetry();
+
   // Temporary seek information while we wait for the data
   Maybe<SeekTarget> mOriginalSeekTarget;
   Maybe<media::TimeUnit> mPendingSeekTime;

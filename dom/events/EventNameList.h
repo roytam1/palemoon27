@@ -238,6 +238,14 @@ EVENT(keyup,
       eKeyUp,
       EventNameType_HTMLXUL,
       eKeyboardEventClass)
+EVENT(mozkeydownonplugin,
+      eKeyDownOnPlugin,
+      EventNameType_None,
+      eKeyboardEventClass)
+EVENT(mozkeyuponplugin,
+      eKeyUpOnPlugin,
+      EventNameType_None,
+      eKeyboardEventClass)
 NON_IDL_EVENT(mozbrowserbeforekeydown,
               eBeforeKeyDown,
               EventNameType_None,
@@ -549,6 +557,10 @@ WINDOW_ONLY_EVENT(devicemotion,
                   eBasicEventClass)
 WINDOW_ONLY_EVENT(deviceorientation,
                   eDeviceOrientation,
+                  EventNameType_None,
+                  eBasicEventClass)
+WINDOW_ONLY_EVENT(absolutedeviceorientation,
+                  eAbsoluteDeviceOrientation,
                   EventNameType_None,
                   eBasicEventClass)
 WINDOW_ONLY_EVENT(deviceproximity,

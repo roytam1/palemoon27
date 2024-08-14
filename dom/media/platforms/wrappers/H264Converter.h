@@ -26,7 +26,8 @@ public:
                 layers::LayersBackend aLayersBackend,
                 layers::ImageContainer* aImageContainer,
                 FlushableTaskQueue* aVideoTaskQueue,
-                MediaDataDecoderCallback* aCallback);
+                MediaDataDecoderCallback* aCallback,
+                DecoderDoctorDiagnostics* aDiagnostics);
   virtual ~H264Converter();
 
   RefPtr<InitPromise> Init() override;
@@ -35,6 +36,13 @@ public:
   nsresult Drain() override;
   nsresult Shutdown() override;
   bool IsHardwareAccelerated(nsACString& aFailureReason) const override;
+  const char* GetDescriptionName() const override
+  {
+    if (mDecoder) {
+      return mDecoder->GetDescriptionName();
+    }
+    return "H264Converter decoder (pending)";
+  }
 
   // Return true if mimetype is H.264.
   static bool IsH264(const TrackInfo& aConfig);
@@ -44,7 +52,7 @@ private:
   // Will create the required MediaDataDecoder if need AVCC and we have a SPS NAL.
   // Returns NS_ERROR_FAILURE if error is permanent and can't be recovered and
   // will set mError accordingly.
-  nsresult CreateDecoder();
+  nsresult CreateDecoder(DecoderDoctorDiagnostics* aDiagnostics);
   nsresult CreateDecoderAndInit(MediaRawData* aSample);
   nsresult CheckForSPSChange(MediaRawData* aSample);
   void UpdateConfigFromExtraData(MediaByteBuffer* aExtraData);
@@ -53,7 +61,7 @@ private:
   void OnDecoderInitFailed(MediaDataDecoder::DecoderFailureReason aReason);
 
   RefPtr<PlatformDecoderModule> mPDM;
-  const VideoInfo& mOriginalConfig;
+  VideoInfo mOriginalConfig;
   VideoInfo mCurrentConfig;
   layers::LayersBackend mLayersBackend;
   RefPtr<layers::ImageContainer> mImageContainer;

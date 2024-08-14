@@ -41,16 +41,9 @@
 using namespace mozilla;
 using namespace mozilla::psm;
 
-static PRLogModuleInfo *
-GetSSSLog()
-{
-  static PRLogModuleInfo *gSSSLog;
-  if (!gSSSLog)
-    gSSSLog = PR_NewLogModule("nsSSService");
-  return gSSSLog;
-}
+static LazyLogModule gSSSLog("nsSSService");
 
-#define SSSLOG(args) MOZ_LOG(GetSSSLog(), mozilla::LogLevel::Debug, args)
+#define SSSLOG(args) MOZ_LOG(gSSSLog, mozilla::LogLevel::Debug, args)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -709,7 +702,7 @@ nsSiteSecurityService::ProcessPKPHeader(nsIURI* aSourceURI,
   rv = aSSLStatus->GetServerCert(getter_AddRefs(cert));
   NS_ENSURE_SUCCESS(rv, rv);
   NS_ENSURE_TRUE(cert, NS_ERROR_FAILURE);
-  ScopedCERTCertificate nssCert(cert->GetCert());
+  UniqueCERTCertificate nssCert(cert->GetCert());
   NS_ENSURE_TRUE(nssCert, NS_ERROR_FAILURE);
 
   mozilla::pkix::Time now(mozilla::pkix::Now());
@@ -719,9 +712,10 @@ nsSiteSecurityService::ProcessPKPHeader(nsIURI* aSourceURI,
   if (certVerifier->VerifySSLServerCert(nssCert, nullptr, // stapled ocsp
                                         now, nullptr, // pinarg
                                         host.get(), // hostname
+                                        certList,
                                         false, // don't store intermediates
-                                        CertVerifier::FLAG_LOCAL_ONLY,
-                                        &certList) != SECSuccess) {
+                                        CertVerifier::FLAG_LOCAL_ONLY)
+      != SECSuccess) {
     return NS_ERROR_FAILURE;
   }
 
@@ -730,8 +724,8 @@ nsSiteSecurityService::ProcessPKPHeader(nsIURI* aSourceURI,
     return NS_ERROR_FAILURE;
   }
   bool isBuiltIn = false;
-  SECStatus srv = IsCertBuiltInRoot(rootNode->cert, isBuiltIn);
-  if (srv != SECSuccess) {
+  mozilla::pkix::Result result = IsCertBuiltInRoot(rootNode->cert, isBuiltIn);
+  if (result != mozilla::pkix::Success) {
     return NS_ERROR_FAILURE;
   }
 

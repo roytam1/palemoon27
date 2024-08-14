@@ -9,7 +9,7 @@
 
 #include "pkix/pkixtypes.h"
 #include "mozilla/StaticMutex.h"
-#include "nsAutoPtr.h"
+#include "mozilla/UniquePtr.h"
 #include "nsDebug.h"
 #include "nsIX509CertDB.h"
 #include "ScopedNSSTypes.h"
@@ -69,11 +69,11 @@ public:
 private:
   /*out*/ ScopedCERTCertList& mCertChain;
   void* mPinArg; // non-owning!
-  ScopedCERTCertificate mTrustedRoot;
+  UniqueCERTCertificate mTrustedRoot;
   unsigned int mMinRSABits;
 
   static StaticMutex sMutex;
-  static nsAutoArrayPtr<unsigned char> sDevImportedDERData;
+  static UniquePtr<unsigned char[]> sDevImportedDERData;
   static unsigned int sDevImportedDERLen;
 };
 

@@ -27,14 +27,14 @@ struct VertexShaderConstants
   gfx::Rect textureCoords;
   gfx::Rect layerQuad;
   gfx::Rect maskQuad;
-  float vrEyeToSourceUVScale[2];
-  float vrEyeToSourceUVOffset[2];
+  float backdropTransform[4][4];
 };
 
 struct PixelShaderConstants
 {
   float layerColor[4];
   float layerOpacity[4];
+  int blendConfig[4];
 };
 
 struct DeviceAttachmentsD3D11;
@@ -42,11 +42,14 @@ struct DeviceAttachmentsD3D11;
 class CompositorD3D11 : public Compositor
 {
 public:
-  CompositorD3D11(nsIWidget* aWidget);
+  CompositorD3D11(CompositorBridgeParent* aParent, nsIWidget* aWidget);
   ~CompositorD3D11();
+
+  virtual CompositorD3D11* AsCompositorD3D11() override { return this; }
 
   virtual bool Initialize() override;
   virtual void Destroy() override {}
+  virtual void DetachWidget() override { mWidget = nullptr; }
 
   virtual TextureFactoryIdentifier
     GetTextureFactoryIdentifier() override;
@@ -111,6 +114,7 @@ public:
   virtual void BeginFrame(const nsIntRegion& aInvalidRegion,
                           const gfx::Rect *aClipRectIn,
                           const gfx::Rect& aRenderBounds,
+                          const nsIntRegion& aOpaqueRegion,
                           gfx::Rect *aClipRectOut = nullptr,
                           gfx::Rect *aRenderBoundsOut = nullptr) override;
 
@@ -143,6 +147,8 @@ public:
     return LayersBackend::LAYERS_D3D11;
   }
 
+  virtual void ForcePresent() { mSwapChain->Present(0, 0); }
+
   virtual nsIWidget* GetWidget() const override { return mWidget; }
 
   ID3D11Device* GetDevice() { return mDevice; }
@@ -168,8 +174,14 @@ private:
   bool UpdateRenderTarget();
   bool UpdateConstantBuffers();
   void SetSamplerForFilter(gfx::Filter aFilter);
-  void SetPSForEffect(Effect *aEffect, MaskType aMaskType, gfx::SurfaceFormat aFormat);
+  ID3D11PixelShader* GetPSForEffect(Effect *aEffect, MaskType aMaskType);
   void PaintToTarget();
+  RefPtr<ID3D11Texture2D> CreateTexture(const gfx::IntRect& aRect,
+                                        const CompositingRenderTarget* aSource,
+                                        const gfx::IntPoint& aSourcePoint);
+  bool CopyBackdrop(const gfx::IntRect& aRect,
+                    RefPtr<ID3D11Texture2D>* aOutTexture,
+                    RefPtr<ID3D11ShaderResourceView>* aOutView);
 
   RefPtr<ID3D11DeviceContext> mContext;
   RefPtr<ID3D11Device> mDevice;

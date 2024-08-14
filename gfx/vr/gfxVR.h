@@ -236,7 +236,6 @@ public:
     RefPtr<layers::Compositor> compositor;
     IntSize size;
     nsTArray<RefPtr<layers::CompositingRenderTarget>> renderTargets;
-    int32_t currentRenderTarget;
 
     virtual already_AddRefed<layers::CompositingRenderTarget> GetNextRenderTarget() = 0;
   protected:
@@ -264,7 +263,8 @@ public:
 
   virtual bool KeepSensorTracking() = 0;
   virtual void NotifyVsync(const TimeStamp& aVsyncTimestamp) = 0;
-  virtual VRHMDSensorState GetSensorState(double timeOffset = 0.0) = 0;
+  virtual VRHMDSensorState GetSensorState() = 0;
+  virtual VRHMDSensorState GetImmediateSensorState() = 0;
 
   virtual void ZeroSensor() = 0;
 

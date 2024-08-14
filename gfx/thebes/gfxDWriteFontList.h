@@ -208,10 +208,10 @@ protected:
 };
 
 // custom text renderer used to determine the fallback font for a given char
-class FontFallbackRenderer final : public IDWriteTextRenderer
+class DWriteFontFallbackRenderer final : public IDWriteTextRenderer
 {
 public:
-    FontFallbackRenderer(IDWriteFactory *aFactory)
+    DWriteFontFallbackRenderer(IDWriteFactory *aFactory)
         : mRefCount(0)
     {
         HRESULT hr = S_OK;
@@ -220,7 +220,7 @@ public:
         NS_ASSERTION(SUCCEEDED(hr), "GetSystemFontCollection failed!");
     }
 
-    ~FontFallbackRenderer()
+    ~DWriteFontFallbackRenderer()
     {}
 
     // IDWriteTextRenderer methods
@@ -378,9 +378,10 @@ public:
     IDWriteGdiInterop *GetGDIInterop() { return mGDIInterop; }
     bool UseGDIFontTableAccess() { return mGDIFontTableAccess; }
 
-    gfxFontFamily* FindFamily(const nsAString& aFamily,
-                              gfxFontStyle* aStyle = nullptr,
-                              gfxFloat aDevToCssSize = 1.0) override;
+    bool FindAndAddFamilies(const nsAString& aFamily,
+                            nsTArray<gfxFontFamily*>* aOutput,
+                            gfxFontStyle* aStyle = nullptr,
+                            gfxFloat aDevToCssSize = 1.0) override;
 
     gfxFloat GetForceGDIClassicMaxFontSize() { return mForceGDIClassicMaxFontSize; }
 
@@ -398,7 +399,7 @@ private:
 
     // search fonts system-wide for a given character, null otherwise
     virtual gfxFontEntry* GlobalFontFallback(const uint32_t aCh,
-                                             int32_t aRunScript,
+                                             Script aRunScript,
                                              const gfxFontStyle* aMatchStyle,
                                              uint32_t& aCmapCount,
                                              gfxFontFamily** aMatchedFamily);
@@ -432,7 +433,7 @@ private:
     bool mGDIFontTableAccess;
     RefPtr<IDWriteGdiInterop> mGDIInterop;
 
-    RefPtr<FontFallbackRenderer> mFallbackRenderer;
+    RefPtr<DWriteFontFallbackRenderer> mFallbackRenderer;
     RefPtr<IDWriteTextFormat>    mFallbackFormat;
 
     RefPtr<IDWriteFontCollection> mSystemFonts;

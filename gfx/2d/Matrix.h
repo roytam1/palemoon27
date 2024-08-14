@@ -298,8 +298,8 @@ public:
   */
   bool HasNonIntegerTranslation() const {
     return HasNonTranslation() ||
-      !FuzzyEqual(_31, floor(_31 + 0.5)) ||
-      !FuzzyEqual(_32, floor(_32 + 0.5));
+      !FuzzyEqual(_31, floor(_31 + Float(0.5))) ||
+      !FuzzyEqual(_32, floor(_32 + Float(0.5)));
   }
 
   /**
@@ -548,6 +548,24 @@ public:
     _33 = 1.0f;
     _43 = 0.0f;
     _34 = 0.0f;
+    // Some matrices, such as those derived from perspective transforms,
+    // can modify _44 from 1, while leaving the rest of the fourth column
+    // (_14, _24) at 0. In this case, after resetting the third row and
+    // third column above, the value of _44 functions only to scale the
+    // coordinate transform divide by W. The matrix can be converted to
+    // a true 2D matrix by normalizing out the scaling effect of _44 on
+    // the remaining components ahead of time.
+    if (_14 == 0.0f && _24 == 0.0f &&
+        _44 != 1.0f && _44 != 0.0f) {
+      Float scale = 1.0f / _44;
+      _11 *= scale;
+      _12 *= scale;
+      _21 *= scale;
+      _22 *= scale;
+      _41 *= scale;
+      _42 *= scale;
+      _44 = 1.0f;
+    }
     return *this;
   }
 
@@ -1251,24 +1269,6 @@ public:
     return *this;
   }
 
-  // Nudge the 3D components to integer so that this matrix will become 2D if
-  // it's very close to already being 2D.
-  // This doesn't change the _41 and _42 components.
-  Matrix4x4Typed &NudgeTo2D()
-  {
-    NudgeToInteger(&_13);
-    NudgeToInteger(&_14);
-    NudgeToInteger(&_23);
-    NudgeToInteger(&_24);
-    NudgeToInteger(&_31);
-    NudgeToInteger(&_32);
-    NudgeToInteger(&_33);
-    NudgeToInteger(&_34);
-    NudgeToInteger(&_43);
-    NudgeToInteger(&_44);
-    return *this;
-  }
-
   Point4D TransposedVector(int aIndex) const
   {
       MOZ_ASSERT(aIndex >= 0 && aIndex <= 3, "Invalid matrix array index");
@@ -1431,6 +1431,48 @@ public:
     temp = _14;
     _14 = cosTheta * _14 + sinTheta * _24;
     _24 = -sinTheta * temp + cosTheta * _24;
+  }
+
+  // Sets this matrix to a rotation matrix about a
+  // vector [x,y,z] by angle theta. The vector is normalized
+  // to a unit vector.
+  // https://www.w3.org/TR/css3-3d-transforms/#Rotate3dDefined
+  void SetRotateAxisAngle(double aX, double aY, double aZ, double aTheta)
+  {
+    Point3D vector(aX, aY, aZ);
+    if (!vector.Length()) {
+      return;
+    }
+    vector.Normalize();
+
+    double x = vector.x;
+    double y = vector.y;
+    double z = vector.z;
+
+    double cosTheta = FlushToZero(cos(aTheta));
+    double sinTheta = FlushToZero(sin(aTheta));
+
+    // sin(aTheta / 2) * cos(aTheta / 2)
+    double sc = sinTheta / 2;
+    // pow(sin(aTheta / 2), 2)
+    double sq = (1 - cosTheta) / 2;
+
+    _11 = 1 - 2 * (y * y + z * z) * sq;
+    _12 = 2 * (x * y * sq + z * sc);
+    _13 = 2 * (x * z * sq - y * sc);
+    _14 = 0.0f;
+    _21 = 2 * (x * y * sq - z * sc);
+    _22 = 1 - 2 * (x * x + z * z) * sq;
+    _23 = 2 * (y * z * sq + x * sc);
+    _24 = 0.0f;
+    _31 = 2 * (x * z * sq + y * sc);
+    _32 = 2 * (y * z * sq - x * sc);
+    _33 = 1 - 2 * (x * x + y * y) * sq;
+    _34 = 0.0f;
+    _41 = 0.0f;
+    _42 = 0.0f;
+    _43 = 0.0f;
+    _44 = 1.0f;
   }
 
   void Perspective(float aDepth)

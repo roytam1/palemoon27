@@ -36,6 +36,7 @@ public:
     LeafAccessible(aContent, aDoc)
   {
     mType = eHTMLBRType;
+    mGenericTypes |= eText;
   }
 
   // Accessible
@@ -61,6 +62,11 @@ public:
 
   // Accessible
   virtual Relation RelationByType(RelationType aType) override;
+
+  // ActionAccessible
+  virtual uint8_t ActionCount() override;
+  virtual void ActionNameAt(uint8_t aIndex, nsAString& aName) override;
+  virtual bool DoAction(uint8_t aIndex) override;
 
 protected:
   virtual ~HTMLLabelAccessible() {}

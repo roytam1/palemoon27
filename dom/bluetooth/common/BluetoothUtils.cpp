@@ -9,6 +9,7 @@
 #include "BluetoothService.h"
 #include "jsapi.h"
 #include "mozilla/dom/BluetoothGattCharacteristicBinding.h"
+#include "mozilla/dom/BluetoothGattServerBinding.h"
 #include "mozilla/dom/ScriptSettings.h"
 #include "mozilla/dom/bluetooth/BluetoothTypes.h"
 #include "nsContentUtils.h"
@@ -277,6 +278,86 @@ StringToUuid(const nsAString& aString, BluetoothUuid& aUuid)
 }
 
 nsresult
+BytesToUuid(const nsTArray<uint8_t>& aArray,
+            nsTArray<uint8_t>::index_type aOffset,
+            BluetoothUuidType aType,
+            BluetoothProfileEndian aEndian,
+            BluetoothUuid& aUuid)
+{
+  MOZ_ASSERT(aType == UUID_16_BIT ||
+             aType == UUID_32_BIT ||
+             aType == UUID_128_BIT);
+  MOZ_ASSERT(aEndian == ENDIAN_BIG || aEndian == ENDIAN_LITTLE);
+
+  size_t index = (aType == UUID_16_BIT) ? 2 : 0;
+  size_t length = 0;
+
+  if (aType == UUID_16_BIT) {
+    length =  sizeof(uint16_t);
+  } else if (aType == UUID_32_BIT) {
+    length = sizeof(uint32_t);
+  } else {
+    length = MOZ_ARRAY_LENGTH(aUuid.mUuid);
+  }
+
+  if (aArray.Length() < aOffset + length) {
+    return NS_ERROR_ILLEGAL_VALUE;
+  }
+
+  aUuid = BluetoothUuid::BASE();
+
+  if (aEndian == ENDIAN_BIG) {
+    for (size_t i = 0; i < length; ++i) {
+      aUuid.mUuid[index + i] = aArray[aOffset + i];
+    }
+  } else {
+    for (size_t i = 0; i < length; ++i) {
+      aUuid.mUuid[index + i] = aArray[aOffset + length - i - 1];
+    }
+  }
+
+  return NS_OK;
+}
+
+nsresult
+UuidToBytes(const BluetoothUuid& aUuid,
+            BluetoothUuidType aType,
+            BluetoothProfileEndian aEndian,
+            nsTArray<uint8_t>& aArray,
+            nsTArray<uint8_t>::index_type aOffset)
+{
+  MOZ_ASSERT(aType == UUID_16_BIT ||
+             aType == UUID_32_BIT ||
+             aType == UUID_128_BIT);
+  MOZ_ASSERT(aEndian == ENDIAN_BIG || aEndian == ENDIAN_LITTLE);
+
+  size_t index = (aType == UUID_16_BIT) ? 2 : 0;
+  size_t length = 0;
+
+  if (aType == UUID_16_BIT) {
+    length =  sizeof(uint16_t);
+  } else if (aType == UUID_32_BIT) {
+    length = sizeof(uint32_t);
+  } else {
+    length = MOZ_ARRAY_LENGTH(aUuid.mUuid);
+  }
+
+  aArray.SetCapacity(aOffset + length);
+
+  if (aEndian == ENDIAN_BIG) {
+    for (size_t i = 0; i < length; ++i) {
+      aArray[aOffset + i] = aUuid.mUuid[index + i];
+    }
+  } else {
+    for (size_t i = 0; i < length; ++i) {
+      aArray[aOffset + length - i - 1] = aUuid.mUuid[index + i];
+    }
+  }
+
+  return NS_OK;
+}
+
+nsresult
 GenerateUuid(BluetoothUuid &aUuid)
 {
   nsresult rv;
@@ -413,7 +494,55 @@ GattPropertiesToBits(const GattCharacteristicProperties& aProperties,
   }
 }
 
+nsresult
+AdvertisingDataToGattAdvertisingData(
+  const BluetoothAdvertisingData& aAdvData,
+  BluetoothGattAdvertisingData& aGattAdvData)
+{
+  aGattAdvData.mAppearance = aAdvData.mAppearance;
+  aGattAdvData.mIncludeDevName = aAdvData.mIncludeDevName;
+  aGattAdvData.mIncludeTxPower = aAdvData.mIncludeTxPower;
 
+  for (size_t i = 0; i < aAdvData.mServiceUuids.Length(); i++) {
+    BluetoothUuid uuid;
+    if (NS_WARN_IF(NS_FAILED(StringToUuid(aAdvData.mServiceUuids[i], uuid)))) {
+      return NS_ERROR_ILLEGAL_VALUE;
+    }
+    aGattAdvData.mServiceUuids.AppendElement(uuid);
+  }
+
+  if (!aAdvData.mManufacturerData.IsNull()) {
+    // First two bytes are manufacturer ID in little-endian.
+    LittleEndian::writeUint16(aGattAdvData.mManufacturerData.Elements(),
+                              aAdvData.mManufacturerId);
+
+    // Concatenate custom manufacturer data.
+    const ArrayBuffer& manufacturerData = aAdvData.mManufacturerData.Value();
+    manufacturerData.ComputeLengthAndData();
+    aGattAdvData.mManufacturerData.AppendElements(manufacturerData.Data(),
+                                                  manufacturerData.Length());
+  }
+
+  if (!aAdvData.mServiceData.IsNull()) {
+    BluetoothUuid uuid;
+    if (NS_WARN_IF(NS_FAILED(StringToUuid(aAdvData.mServiceUuid, uuid)))) {
+      return NS_ERROR_ILLEGAL_VALUE;
+    }
+
+    // First 16 bytes are service UUID in little-endian.
+    for (size_t i = 0; i < sizeof(uuid.mUuid); i++) {
+      aGattAdvData.mServiceData[i] = uuid.mUuid[sizeof(uuid.mUuid) - i - 1];
+    }
+
+    // Concatenate custom service data.
+    const ArrayBuffer& serviceData = aAdvData.mServiceData.Value();
+    serviceData.ComputeLengthAndData();
+    aGattAdvData.mServiceData.AppendElements(serviceData.Data(),
+                                             serviceData.Length());
+  }
+
+  return NS_OK;
+}
 
 void
 GeneratePathFromGattId(const BluetoothGattId& aId,
@@ -678,6 +807,20 @@ DispatchReplyError(BluetoothReplyRunnable* aRunnable,
   // Reply will be deleted by the runnable after running on main thread
   BluetoothReply* reply =
     new BluetoothReply(BluetoothReplyError(aStatus, EmptyString()));
+
+  aRunnable->SetReply(reply);
+  NS_WARN_IF(NS_FAILED(NS_DispatchToMainThread(aRunnable)));
+}
+
+void
+DispatchReplyError(BluetoothReplyRunnable* aRunnable,
+                   const enum BluetoothGattStatus aGattStatus)
+{
+  MOZ_ASSERT(aRunnable);
+
+  // Reply will be deleted by the runnable after running on main thread
+  BluetoothReply* reply =
+    new BluetoothReply(BluetoothReplyError(aGattStatus, EmptyString()));
 
   aRunnable->SetReply(reply);
   NS_WARN_IF(NS_FAILED(NS_DispatchToMainThread(aRunnable)));

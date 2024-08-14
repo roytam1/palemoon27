@@ -26,7 +26,7 @@ using namespace mozilla;
 
 NS_QUERYFRAME_HEAD(nsRubyFrame)
   NS_QUERYFRAME_ENTRY(nsRubyFrame)
-NS_QUERYFRAME_TAIL_INHERITING(nsRubyFrameSuper)
+NS_QUERYFRAME_TAIL_INHERITING(nsInlineFrame)
 
 NS_IMPL_FRAMEARENA_HELPERS(nsRubyFrame)
 
@@ -54,7 +54,7 @@ nsRubyFrame::IsFrameOfType(uint32_t aFlags) const
   if (aFlags & eBidiInlineContainer) {
     return false;
   }
-  return nsRubyFrameSuper::IsFrameOfType(aFlags);
+  return nsInlineFrame::IsFrameOfType(aFlags);
 }
 
 #ifdef DEBUG_FRAME_DUMP
@@ -286,8 +286,8 @@ nsRubyFrame::ReflowSegment(nsPresContext* aPresContext,
     // handled when reflowing the base containers.
     NS_ASSERTION(textReflowStatus == NS_FRAME_COMPLETE,
                  "Ruby text container must not break itself inside");
-    // The metric is initialized with the reflow state of this ruby frame,
-    // hence the writing-mode being tied to rubyWM instead of rtcWM.
+    // The metrics is initialized with reflow state of this ruby frame,
+    // hence the writing-mode is tied to rubyWM instead of rtcWM.
     LogicalSize size = textMetrics.Size(rubyWM).ConvertTo(lineWM, rubyWM);
     textContainer->SetSize(lineWM, size);
 

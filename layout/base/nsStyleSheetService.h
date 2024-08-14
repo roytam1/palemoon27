@@ -15,14 +15,15 @@
 #include "nsIStyleSheetService.h"
 #include "mozilla/Attributes.h"
 #include "mozilla/MemoryReporting.h"
+#include "mozilla/StyleSheetHandle.h"
 
 class nsICategoryManager;
 class nsIMemoryReporter;
 class nsISimpleEnumerator;
-class nsIStyleSheet;
 
 #define NS_STYLESHEETSERVICE_CID \
-{0xfcca6f83, 0x9f7d, 0x44e4, {0xa7, 0x4b, 0xb5, 0x94, 0x33, 0xe6, 0xc8, 0xc3}}
+{ 0x3b55e72e, 0xab7e, 0x431b, \
+  { 0x89, 0xc0, 0x3b, 0x06, 0xa8, 0xb1, 0x40, 0x16 } }
 
 #define NS_STYLESHEETSERVICE_CONTRACTID \
   "@mozilla.org/content/style-sheet-service;1"
@@ -40,9 +41,18 @@ class nsStyleSheetService final
 
   nsresult Init();
 
-  nsCOMArray<nsIStyleSheet>* AgentStyleSheets() { return &mSheets[AGENT_SHEET]; }
-  nsCOMArray<nsIStyleSheet>* UserStyleSheets() { return &mSheets[USER_SHEET]; }
-  nsCOMArray<nsIStyleSheet>* AuthorStyleSheets() { return &mSheets[AUTHOR_SHEET]; }
+  nsTArray<mozilla::StyleSheetHandle::RefPtr>* AgentStyleSheets()
+  {
+    return &mSheets[AGENT_SHEET];
+  }
+  nsTArray<mozilla::StyleSheetHandle::RefPtr>* UserStyleSheets()
+  {
+    return &mSheets[USER_SHEET];
+  }
+  nsTArray<mozilla::StyleSheetHandle::RefPtr>* AuthorStyleSheets()
+  {
+    return &mSheets[AUTHOR_SHEET];
+  }
 
   size_t SizeOfIncludingThis(mozilla::MallocSizeOf aMallocSizeOf) const;
 
@@ -57,15 +67,15 @@ class nsStyleSheetService final
                                           nsISimpleEnumerator *aEnumerator,
                                           uint32_t             aSheetType);
 
-  int32_t FindSheetByURI(const nsCOMArray<nsIStyleSheet> &sheets,
-                                     nsIURI *sheetURI);
+  int32_t FindSheetByURI(const nsTArray<mozilla::StyleSheetHandle::RefPtr>& aSheets,
+                         nsIURI* aSheetURI);
 
   // Like LoadAndRegisterSheet, but doesn't notify.  If successful, the
   // new sheet will be the last sheet in mSheets[aSheetType].
   nsresult LoadAndRegisterSheetInternal(nsIURI *aSheetURI,
                                         uint32_t aSheetType);
 
-  nsCOMArray<nsIStyleSheet> mSheets[3];
+  nsTArray<mozilla::StyleSheetHandle::RefPtr> mSheets[3];
 };
 
 #endif

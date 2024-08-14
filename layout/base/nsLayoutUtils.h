@@ -16,7 +16,6 @@
 #include "mozilla/layout/FrameChildList.h"
 #include "nsThreadUtils.h"
 #include "nsIPrincipal.h"
-#include "nsCSSPseudoElements.h"
 #include "FrameMetrics.h"
 #include "nsIWidget.h"
 #include "nsCSSProperty.h"
@@ -30,6 +29,7 @@
 #include "mozilla/ToString.h"
 #include "nsHTMLReflowMetrics.h"
 #include "ImageContainer.h"
+#include "gfx2DGlue.h"
 
 #include <limits>
 #include <algorithm>
@@ -62,6 +62,7 @@ struct nsStyleImageOrientation;
 struct nsOverflowAreas;
 
 namespace mozilla {
+enum class CSSPseudoElementType : uint8_t;
 class EventListenerManager;
 class SVGImageContext;
 struct IntrinsicSize;
@@ -142,6 +143,7 @@ class nsLayoutUtils
 
 public:
   typedef mozilla::layers::FrameMetrics FrameMetrics;
+  typedef mozilla::layers::ScrollMetadata ScrollMetadata;
   typedef FrameMetrics::ViewID ViewID;
   typedef mozilla::CSSPoint CSSPoint;
   typedef mozilla::CSSSize CSSSize;
@@ -183,6 +185,16 @@ public:
    * Check whether the given element has a displayport.
    */
   static bool HasDisplayPort(nsIContent* aContent);
+
+
+  /**
+   * Go through the IPC Channel and update displayport margins for content
+   * elements based on UpdateFrame messages. The messages are left in the
+   * queue and will be fully processed when dequeued. The aim is to paint
+   * the most up-to-date displayport without waiting for these message to
+   * go through the message queue.
+   */
+  static void UpdateDisplayPortMarginsFromPendingMessages();
 
   /**
    * @return the display port for the given element which should be used for
@@ -240,6 +252,17 @@ public:
    * Check whether the given element has a critical display port.
    */
   static bool HasCriticalDisplayPort(nsIContent* aContent);
+
+  /**
+   * If low-precision painting is turned on, delegates to GetCriticalDisplayPort.
+   * Otherwise, delegates to GetDisplayPort.
+   */
+  static bool GetHighResolutionDisplayPort(nsIContent* aContent, nsRect* aResult);
+
+  /**
+   * Remove the displayport for the given element.
+   */
+  static void RemoveDisplayPort(nsIContent* aContent);
 
   /**
    * Use heuristics to figure out the child list that
@@ -325,6 +348,10 @@ public:
    * return the frame that has the non-psuedoelement style context for
    * the content.
    * This is aPrimaryFrame itself except for tableOuter frames.
+   *
+   * Given a non-null input, this will return null if and only if its
+   * argument is a table outer frame that is mid-destruction (and its
+   * table frame has been destroyed).
    */
   static nsIFrame* GetStyleFrame(nsIFrame* aPrimaryFrame);
 
@@ -335,6 +362,15 @@ public:
    * This is aContent->GetPrimaryFrame() except for tableOuter frames.
    */
   static nsIFrame* GetStyleFrame(const nsIContent* aContent);
+
+  /**
+   * Gets the real primary frame associated with the content object.
+   *
+   * In the case of absolutely positioned elements and floated elements,
+   * the real primary frame is the frame that is out of the flow and not the
+   * placeholder frame.
+   */
+  static nsIFrame* GetRealPrimaryFrameFor(const nsIContent* aContent);
 
   /**
    * IsGeneratedContentFor returns true if aFrame is the outermost
@@ -651,7 +687,7 @@ public:
    */
   static bool HasPseudoStyle(nsIContent* aContent,
                                nsStyleContext* aStyleContext,
-                               nsCSSPseudoElements::Type aPseudoElement,
+                               mozilla::CSSPseudoElementType aPseudoElement,
                                nsPresContext* aPresContext);
 
   /**
@@ -879,13 +915,6 @@ public:
    */
   static bool ContainsPoint(const nsRect& aRect, const nsPoint& aPoint,
                             nscoord aInflateSize);
-
-  /**
-   * Check whether aRect is visible in the boundary of the scroll frames
-   * boundary.
-   */
-  static bool IsRectVisibleInScrollFrames(nsIFrame* aFrame,
-                                          const nsRect& aRect);
 
   /**
    * Clamp aRect relative to aFrame to the scroll frames boundary searching from
@@ -1209,40 +1238,37 @@ public:
   /**
    * Get the font metrics corresponding to the frame's style data.
    * @param aFrame the frame
-   * @param aFontMetrics the font metrics result
    * @param aSizeInflation number to multiply font size by
-   * @return success or failure code
    */
-  static nsresult GetFontMetricsForFrame(const nsIFrame* aFrame,
-                                         nsFontMetrics** aFontMetrics,
-                                         float aSizeInflation = 1.0f);
+  static already_AddRefed<nsFontMetrics> GetFontMetricsForFrame(
+    const nsIFrame* aFrame, float aSizeInflation);
+
+  static already_AddRefed<nsFontMetrics>
+    GetInflatedFontMetricsForFrame(const nsIFrame* aFrame)
+  {
+    return GetFontMetricsForFrame(aFrame, FontSizeInflationFor(aFrame));
+  }
 
   /**
    * Get the font metrics corresponding to the given style data.
    * @param aStyleContext the style data
-   * @param aFontMetrics the font metrics result
    * @param aSizeInflation number to multiply font size by
-   * @return success or failure code
    */
-  static nsresult GetFontMetricsForStyleContext(nsStyleContext* aStyleContext,
-                                                nsFontMetrics** aFontMetrics,
-                                                float aSizeInflation = 1.0f);
+  static already_AddRefed<nsFontMetrics> GetFontMetricsForStyleContext(
+      nsStyleContext* aStyleContext, float aSizeInflation = 1.0f,
+      uint8_t aVariantWidth = NS_FONT_VARIANT_WIDTH_NORMAL);
 
   /**
    * Get the font metrics of emphasis marks corresponding to the given
    * style data. The result is same as GetFontMetricsForStyleContext
    * except that the font size is scaled down to 50%.
    * @param aStyleContext the style data
-   * @param aFontMetrics the font metrics result
    * @param aInflation number to multiple font size by
-   * @return success or failure code
    */
-  static nsresult GetFontMetricsOfEmphasisMarks(nsStyleContext* aStyleContext,
-                                                nsFontMetrics** aFontMetrics,
-                                                float aInflation)
+  static already_AddRefed<nsFontMetrics> GetFontMetricsOfEmphasisMarks(
+      nsStyleContext* aStyleContext, float aInflation)
   {
-    return GetFontMetricsForStyleContext(aStyleContext, aFontMetrics,
-                                         aInflation * 0.5f);
+    return GetFontMetricsForStyleContext(aStyleContext, aInflation * 0.5f);
   }
 
   /**
@@ -1402,40 +1428,6 @@ public:
   static nscoord ComputeCBDependentValue(nscoord aPercentBasis,
                                          const nsStyleCoord& aCoord);
 
-  /*
-   * Convert nsStyleCoord to nscoord when percentages depend on the
-   * containing block width, and enumerated values are for width,
-   * min-width, or max-width.  Returns the content-box width value based
-   * on aContentEdgeToBoxSizing and aBoxSizingToMarginEdge (which are
-   * also used for the enumerated values for width.  This function does
-   * not handle 'auto'.  It ensures that the result is nonnegative.
-   *
-   * @param aRenderingContext Rendering context for font measurement/metrics.
-   * @param aFrame Frame whose (min-/max-/)width is being computed.
-   * @param aContainingBlockWidth Width of aFrame's containing block.
-   * @param aContentEdgeToBoxSizing The sum of any left/right padding and
-   *          border that goes inside the rect chosen by box-sizing.
-   * @param aBoxSizingToMarginEdge The sum of any left/right padding, border,
-   *          and margin that goes outside the rect chosen by box-sizing.
-   * @param aCoord The width value to compute.
-   */
-  // XXX to be removed
-  static nscoord ComputeWidthValue(
-                   nsRenderingContext* aRenderingContext,
-                   nsIFrame*            aFrame,
-                   nscoord              aContainingBlockWidth,
-                   nscoord              aContentEdgeToBoxSizing,
-                   nscoord              aBoxSizingToMarginEdge,
-                   const nsStyleCoord&  aCoord)
-  {
-    return ComputeISizeValue(aRenderingContext,
-                             aFrame,
-                             aContainingBlockWidth,
-                             aContentEdgeToBoxSizing,
-                             aBoxSizingToMarginEdge,
-                             aCoord);
-  }
-
   static nscoord ComputeISizeValue(
                    nsRenderingContext* aRenderingContext,
                    nsIFrame*           aFrame,
@@ -1444,34 +1436,9 @@ public:
                    nscoord             aBoxSizingToMarginEdge,
                    const nsStyleCoord& aCoord);
 
-  /*
-   * Convert nsStyleCoord to nscoord when percentages depend on the
-   * containing block height.
-   */
-  // XXX to be removed
-  static nscoord ComputeHeightDependentValue(
-                   nscoord              aContainingBlockHeight,
-                   const nsStyleCoord&  aCoord)
-  {
-    return ComputeBSizeDependentValue(aContainingBlockHeight, aCoord);
-  }
-
   static nscoord ComputeBSizeDependentValue(
                    nscoord              aContainingBlockBSize,
                    const nsStyleCoord&  aCoord);
-
-  /*
-   * Likewise, but for 'height', 'min-height', or 'max-height'.
-   */
-  // XXX to be removed
-  static nscoord ComputeHeightValue(nscoord aContainingBlockHeight,
-                                    nscoord aContentEdgeToBoxSizingBoxEdge,
-                                    const nsStyleCoord& aCoord)
-  {
-    return ComputeBSizeValue(aContainingBlockHeight,
-                             aContentEdgeToBoxSizingBoxEdge,
-                             aCoord);
-  }
 
   static nscoord ComputeBSizeValue(nscoord aContainingBlockBSize,
                                     nscoord aContentEdgeToBoxSizingBoxEdge,
@@ -1535,6 +1502,8 @@ public:
   }
 
   static void MarkDescendantsDirty(nsIFrame *aSubtreeRoot);
+
+  static void MarkIntrinsicISizesDirtyIfDependentOnBSize(nsIFrame* aFrame);
 
   /*
    * Calculate the used values for 'width' and 'height' for a replaced element.
@@ -2254,7 +2223,8 @@ public:
    */
   static bool GetAnimationContent(const nsIFrame* aFrame,
                                   nsIContent* &aContentResult,
-                                  nsCSSPseudoElements::Type &aPseudoTypeResult);
+                                  mozilla::CSSPseudoElementType
+                                    &aPseudoTypeResult);
 
   /**
    * Returns true if the frame has current (i.e. running or scheduled-to-run)
@@ -2448,6 +2418,10 @@ public:
     return sSVGTransformBoxEnabled;
   }
 
+  static bool TextCombineUprightDigitsEnabled() {
+    return sTextCombineUprightDigitsEnabled;
+  }
+
   /**
    * See comment above "font.size.inflation.mappingIntercept" in
    * modules/libpref/src/init/all.js .
@@ -2597,14 +2571,6 @@ public:
     nsRegion* aImpreciseTargetDest);
 
   /**
-   * Determine if aImageFrame (which is an nsImageFrame, nsImageControlFrame, or
-   * nsSVGImageFrame) is visible or close to being visible via scrolling and
-   * update the presshell with this knowledge.
-   */
-  static void
-  UpdateImageVisibilityForFrame(nsIFrame* aImageFrame);
-
-  /**
    * Populate aOutSize with the size of the content viewer corresponding
    * to the given prescontext. Return true if the size was set, false
    * otherwise.
@@ -2735,14 +2701,10 @@ public:
    * displayport yet (as tracked by |aBuilder|), calculate and set a
    * displayport.
    *
-   * If this function creates a displayport, it computes margins and stores
-   * |aDisplayPortBase| as the base rect.
-   *
    * This is intended to be called during display list building.
    */
   static void MaybeCreateDisplayPort(nsDisplayListBuilder& aBuilder,
-                                     nsIFrame* aScrollFrame,
-                                     nsRect aDisplayPortBase);
+                                     nsIFrame* aScrollFrame);
 
   static nsIScrollableFrame* GetAsyncScrollableAncestorFrame(nsIFrame* aTarget);
 
@@ -2752,6 +2714,12 @@ public:
    */
   static void SetZeroMarginDisplayPortOnAsyncScrollableAncestors(nsIFrame* aFrame,
                                                                  RepaintMode aRepaintMode);
+  /**
+   * Finds the closest ancestor async scrollable frame from aFrame that has a
+   * displayport and attempts to trigger the displayport expiry on that
+   * ancestor.
+   */
+  static void ExpireDisplayPortOnAsyncScrollableAncestor(nsIFrame* aFrame);
 
   static bool IsOutlineStyleAutoEnabled();
 
@@ -2771,16 +2739,25 @@ public:
   static void SetScrollPositionClampingScrollPortSize(nsIPresShell* aPresShell,
                                                       CSSSize aSize);
 
-  static FrameMetrics ComputeFrameMetrics(nsIFrame* aForFrame,
-                                          nsIFrame* aScrollFrame,
-                                          nsIContent* aContent,
-                                          const nsIFrame* aReferenceFrame,
-                                          Layer* aLayer,
-                                          ViewID aScrollParentId,
-                                          const nsRect& aViewport,
-                                          const mozilla::Maybe<nsRect>& aClipRect,
-                                          bool aIsRoot,
-                                          const ContainerLayerParameters& aContainerParameters);
+  /**
+   * Returns true if the given scroll origin is "higher priority" than APZ.
+   * In general any content programmatic scrolls (e.g. scrollTo calls) are
+   * higher priority, and take precedence over APZ scrolling. This function
+   * returns true for those, and returns false for other origins like APZ
+   * itself, or scroll position updates from the history restore code.
+   */
+  static bool CanScrollOriginClobberApz(nsIAtom* aScrollOrigin);
+
+  static ScrollMetadata ComputeScrollMetadata(nsIFrame* aForFrame,
+                                              nsIFrame* aScrollFrame,
+                                              nsIContent* aContent,
+                                              const nsIFrame* aReferenceFrame,
+                                              Layer* aLayer,
+                                              ViewID aScrollParentId,
+                                              const nsRect& aViewport,
+                                              const mozilla::Maybe<nsRect>& aClipRect,
+                                              bool aIsRoot,
+                                              const ContainerLayerParameters& aContainerParameters);
 
   /**
    * If the given scroll frame needs an area excluded from its composition
@@ -2833,10 +2810,6 @@ public:
   static nsRect GetSelectionBoundingRect(mozilla::dom::Selection* aSel);
 
   /**
-   * Returns true if the given frame is a scrollframe and it has snap points.
-   */
-  static bool IsScrollFrameWithSnapping(nsIFrame* aFrame);
-  /**
    * Calculate the bounding rect of |aContent|, relative to the origin
    * of the scrolled content of |aRootScrollFrame|.
    * Where the element is contained inside a scrollable subframe, the
@@ -2862,6 +2835,7 @@ private:
   static bool sCSSVariablesEnabled;
   static bool sInterruptibleReflowEnabled;
   static bool sSVGTransformBoxEnabled;
+  static bool sTextCombineUprightDigitsEnabled;
 
   /**
    * Helper function for LogTestDataForPaint().

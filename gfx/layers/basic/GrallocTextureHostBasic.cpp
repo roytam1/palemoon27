@@ -82,7 +82,7 @@ NeedsConvertFromYUVtoRGB565(int aHalFormat)
 
 GrallocTextureHostBasic::GrallocTextureHostBasic(
   TextureFlags aFlags,
-  const NewSurfaceDescriptorGralloc& aDescriptor)
+  const SurfaceDescriptorGralloc& aDescriptor)
   : TextureHost(aFlags)
   , mGrallocHandle(aDescriptor)
   , mSize(0, 0)
@@ -180,7 +180,11 @@ GrallocTextureHostBasic::ClearTextureSource()
 void
 GrallocTextureHostBasic::SetCompositor(Compositor* aCompositor)
 {
-  BasicCompositor* compositor = static_cast<BasicCompositor*>(aCompositor);
+  BasicCompositor* compositor = AssertBasicCompositor(aCompositor);
+  if (!compositor) {
+    return;
+  }
+
   mCompositor = compositor;
   if (mTextureSource) {
     mTextureSource->SetCompositor(compositor);

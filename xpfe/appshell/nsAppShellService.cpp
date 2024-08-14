@@ -519,10 +519,6 @@ nsAppShellService::CreateWindowlessBrowser(bool aIsChrome, nsIWindowlessBrowser 
    * of nsIWebBrowserChrome2.
    */
   RefPtr<WebBrowserChrome2Stub> stub = new WebBrowserChrome2Stub();
-  if (!stub) {
-    NS_ERROR("Couldn't create instance of WebBrowserChrome2Stub!");
-    return NS_ERROR_FAILURE;
-  }
   browser->SetContainerWindow(stub);
 
   nsCOMPtr<nsIWebNavigation> navigation = do_QueryInterface(browser);
@@ -649,7 +645,6 @@ nsAppShellService::JustCreateTopWindow(nsIXULWindow *aParent,
     parent = aParent;
 
   RefPtr<nsWebShellWindow> window = new nsWebShellWindow(aChromeMask);
-  NS_ENSURE_TRUE(window, NS_ERROR_OUT_OF_MEMORY);
 
 #ifdef XP_WIN
   // If the parent is currently fullscreen, tell the child to ignore persisted

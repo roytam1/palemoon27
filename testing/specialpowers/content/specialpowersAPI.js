@@ -14,7 +14,6 @@ var Cu = Components.utils;
 Cu.import("resource://specialpowers/MockFilePicker.jsm");
 Cu.import("resource://specialpowers/MockColorPicker.jsm");
 Cu.import("resource://specialpowers/MockPermissionPrompt.jsm");
-Cu.import("resource://specialpowers/MockPaymentsUIGlue.jsm");
 Cu.import("resource://gre/modules/Services.jsm");
 Cu.import("resource://gre/modules/PrivateBrowsingUtils.jsm");
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
@@ -538,10 +537,6 @@ SpecialPowersAPI.prototype = {
 
   get MockPermissionPrompt() {
     return MockPermissionPrompt;
-  },
-
-  get MockPaymentsUIGlue() {
-    return MockPaymentsUIGlue;
   },
 
   loadChromeScript: function (url) {
@@ -1167,6 +1162,9 @@ SpecialPowersAPI.prototype = {
       let uri = aMessage.json.uri;
       Services.obs.notifyObservers(null, "specialpowers-http-notify-request", uri);
     },
+    "specialpowers-browser-fullZoom:zoomReset": function() {
+      Services.obs.notifyObservers(null, "specialpowers-browser-fullZoom:zoomReset", null);
+    },
   },
 
   _addObserverProxy: function(notification) {
@@ -1174,7 +1172,6 @@ SpecialPowersAPI.prototype = {
       this._addMessageListener(notification, this._proxiedObservers[notification]);
     }
   },
-
   _removeObserverProxy: function(notification) {
     if (notification in this._proxiedObservers) {
       this._removeMessageListener(notification, this._proxiedObservers[notification]);

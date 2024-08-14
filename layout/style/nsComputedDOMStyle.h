@@ -177,12 +177,14 @@ private:
 
   already_AddRefed<CSSValue> GetSVGPaintFor(bool aFill);
 
-  // Appends all aLineNames (must be non-empty) space-separated to aResult.
+  // Appends all aLineNames (may be empty) space-separated to aResult.
   void AppendGridLineNames(nsString& aResult,
                            const nsTArray<nsString>& aLineNames);
-  // Appends aLineNames (if non-empty) as a CSSValue* to aValueList.
+  // Appends aLineNames as a CSSValue* to aValueList.  If aLineNames is empty
+  // a value ("[]") is only appended if aSuppressEmptyList is false.
   void AppendGridLineNames(nsDOMCSSValueList* aValueList,
-                           const nsTArray<nsString>& aLineNames);
+                           const nsTArray<nsString>& aLineNames,
+                           bool aSuppressEmptyList = true);
   // Appends aLineNames1/2 (if non-empty) as a CSSValue* to aValueList.
   void AppendGridLineNames(nsDOMCSSValueList* aValueList,
                            const nsTArray<nsString>& aLineNames1,
@@ -283,6 +285,12 @@ private:
   already_AddRefed<CSSValue> DoGetGridColumnGap();
   already_AddRefed<CSSValue> DoGetGridRowGap();
 
+  /* StyleImageLayer properties */
+  already_AddRefed<CSSValue> DoGetImageLayerImage(const nsStyleImageLayers& aLayers);
+  already_AddRefed<CSSValue> DoGetImageLayerPosition(const nsStyleImageLayers& aLayers);
+  already_AddRefed<CSSValue> DoGetImageLayerRepeat(const nsStyleImageLayers& aLayers);
+  already_AddRefed<CSSValue> DoGetImageLayerSize(const nsStyleImageLayers& aLayers);
+
   /* Background properties */
   already_AddRefed<CSSValue> DoGetBackgroundAttachment();
   already_AddRefed<CSSValue> DoGetBackgroundColor();
@@ -294,6 +302,18 @@ private:
   already_AddRefed<CSSValue> DoGetBackgroundOrigin();
   already_AddRefed<CSSValue> DoGetBackgroundSize();
 
+  /* Mask properties */
+  already_AddRefed<CSSValue> DoGetMask();
+#ifdef MOZ_ENABLE_MASK_AS_SHORTHAND
+  already_AddRefed<CSSValue> DoGetMaskImage();
+  already_AddRefed<CSSValue> DoGetMaskPosition();
+  already_AddRefed<CSSValue> DoGetMaskRepeat();
+  already_AddRefed<CSSValue> DoGetMaskClip();
+  already_AddRefed<CSSValue> DoGetMaskOrigin();
+  already_AddRefed<CSSValue> DoGetMaskSize();
+  already_AddRefed<CSSValue> DoGetMaskMode();
+  already_AddRefed<CSSValue> DoGetMaskComposite();
+#endif
   /* Padding properties */
   already_AddRefed<CSSValue> DoGetPaddingTop();
   already_AddRefed<CSSValue> DoGetPaddingBottom();
@@ -405,8 +425,12 @@ private:
   already_AddRefed<CSSValue> DoGetHyphens();
   already_AddRefed<CSSValue> DoGetTabSize();
   already_AddRefed<CSSValue> DoGetTextSizeAdjust();
+  already_AddRefed<CSSValue> DoGetWebkitTextFillColor();
+  already_AddRefed<CSSValue> DoGetWebkitTextStrokeColor();
+  already_AddRefed<CSSValue> DoGetWebkitTextStrokeWidth();
 
   /* Visibility properties */
+  already_AddRefed<CSSValue> DoGetColorAdjust();
   already_AddRefed<CSSValue> DoGetOpacity();
   already_AddRefed<CSSValue> DoGetPointerEvents();
   already_AddRefed<CSSValue> DoGetVisibility();
@@ -542,7 +566,6 @@ private:
 
   already_AddRefed<CSSValue> DoGetClipPath();
   already_AddRefed<CSSValue> DoGetFilter();
-  already_AddRefed<CSSValue> DoGetMask();
   already_AddRefed<CSSValue> DoGetMaskType();
   already_AddRefed<CSSValue> DoGetPaintOrder();
 
@@ -700,4 +723,3 @@ NS_NewComputedDOMStyle(mozilla::dom::Element* aElement,
                          nsComputedDOMStyle::eAll);
 
 #endif /* nsComputedDOMStyle_h__ */
-

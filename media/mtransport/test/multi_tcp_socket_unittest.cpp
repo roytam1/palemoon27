@@ -7,7 +7,6 @@
 #include <iostream>
 #include <vector>
 
-#include "mozilla/Scoped.h"
 #include "mozilla/Atomics.h"
 #include "runnable_utils.h"
 #include "nss.h"
@@ -21,17 +20,11 @@ extern "C" {
 #include "nr_socket_multi_tcp.h"
 }
 
-#include "mtransport_test_utils.h"
-#include "gtest_ringbuffer_dumper.h"
-
 #include "nr_socket_prsock.h"
 
 #include "stunserver.h"
-// TODO(bcampen@mozilla.com): Big fat hack since the build system doesn't give
-// us a clean way to add object files to a single executable.
-#include "stunserver.cpp"
 
-#include "nricectx.h"
+#include "nricectxhandler.h"
 #include "nricemediastream.h"
 
 #define GTEST_HAS_RTTI 0
@@ -39,23 +32,39 @@ extern "C" {
 #include "gtest_utils.h"
 
 using namespace mozilla;
-MtransportTestUtils *test_utils;
 
 namespace {
 
-class MultiTcpSocketTest : public ::testing::Test {
+class MultiTcpSocketTest : public MtransportTest {
  public:
   MultiTcpSocketTest()
-    :socks(3,nullptr),
+    :MtransportTest(),
+     socks(3,nullptr),
      readable(false),
-     ice_ctx_(NrIceCtx::Create("stun", true))
+     ice_ctx_()
    {}
 
-  ~MultiTcpSocketTest() {
-    test_utils->sts_target()->Dispatch(
+  void SetUp() {
+    MtransportTest::SetUp();
+
+    ice_ctx_ = NrIceCtxHandler::Create("stun", true);
+
+    test_utils_->sts_target()->Dispatch(
+        WrapRunnableNM(&TestStunTcpServer::GetInstance, AF_INET),
+                       NS_DISPATCH_SYNC);
+    test_utils_->sts_target()->Dispatch(
+      WrapRunnableNM(&TestStunTcpServer::GetInstance, AF_INET6),
+                     NS_DISPATCH_SYNC);
+  }
+
+
+  void TearDown() {
+    test_utils_->sts_target()->Dispatch(
             WrapRunnable(
                 this, &MultiTcpSocketTest::Shutdown_s),
             NS_DISPATCH_SYNC);
+
+    MtransportTest::TearDown();
   }
 
   DISALLOW_COPY_ASSIGN(MultiTcpSocketTest);
@@ -96,11 +105,11 @@ class MultiTcpSocketTest : public ::testing::Test {
 
     if (!stun_server_addr.empty()) {
       std::vector<NrIceStunServer> stun_servers;
-      ScopedDeletePtr<NrIceStunServer> server(NrIceStunServer::Create(
+      UniquePtr<NrIceStunServer> server(NrIceStunServer::Create(
           stun_server_addr, stun_server_port, kNrIceTransportTcp));
       stun_servers.push_back(*server);
 
-      ASSERT_TRUE(NS_SUCCEEDED(ice_ctx_->SetStunServers(stun_servers)));
+      ASSERT_TRUE(NS_SUCCEEDED(ice_ctx_->ctx()->SetStunServers(stun_servers)));
     }
 
     r = 1;
@@ -109,7 +118,7 @@ class MultiTcpSocketTest : public ::testing::Test {
         (char *)"127.0.0.1", EnsureEphemeral(port_s++), IPPROTO_TCP, &local);
       ASSERT_EQ(0, r);
 
-      r = nr_socket_multi_tcp_create(ice_ctx_->ctx(),
+      r = nr_socket_multi_tcp_create(ice_ctx_->ctx()->ctx(),
           &local, tcp_type, 1, 2048, sock);
     }
 
@@ -124,7 +133,7 @@ class MultiTcpSocketTest : public ::testing::Test {
                     std::string stun_server_addr = "",
                     uint16_t stun_server_port = 0) {
     nr_socket *sock=nullptr;
-    test_utils->sts_target()->Dispatch(
+    test_utils_->sts_target()->Dispatch(
             WrapRunnable(
                 this, &MultiTcpSocketTest::Create_s, tcp_type,
                 stun_server_addr, stun_server_port, &sock),
@@ -142,9 +151,21 @@ class MultiTcpSocketTest : public ::testing::Test {
   }
 
   void Listen(nr_socket *sock) {
-    test_utils->sts_target()->Dispatch(
+    test_utils_->sts_target()->Dispatch(
             WrapRunnable(
                 this, &MultiTcpSocketTest::Listen_s, sock),
+            NS_DISPATCH_SYNC);
+  }
+
+  void Destroy_s(nr_socket *sock) {
+    int r = nr_socket_destroy(&sock);
+    ASSERT_EQ(0, r);
+  }
+
+  void Destroy(nr_socket *sock) {
+    test_utils_->sts_target()->Dispatch(
+            WrapRunnable(
+                this, &MultiTcpSocketTest::Destroy_s, sock),
             NS_DISPATCH_SYNC);
   }
 
@@ -161,7 +182,7 @@ class MultiTcpSocketTest : public ::testing::Test {
   }
 
   void Connect(nr_socket *from, nr_socket *to) {
-    test_utils->sts_target()->Dispatch(
+    test_utils_->sts_target()->Dispatch(
             WrapRunnable(
                 this, &MultiTcpSocketTest::Connect_s, from, to),
             NS_DISPATCH_SYNC);
@@ -182,7 +203,7 @@ class MultiTcpSocketTest : public ::testing::Test {
   }
 
   void ConnectSo(nr_socket *from, nr_socket *to) {
-    test_utils->sts_target()->Dispatch(
+    test_utils_->sts_target()->Dispatch(
             WrapRunnable(
                 this, &MultiTcpSocketTest::ConnectSo_s, from, to),
             NS_DISPATCH_SYNC);
@@ -201,7 +222,7 @@ class MultiTcpSocketTest : public ::testing::Test {
   }
 
   void SendData(nr_socket *from, nr_transport_addr *to, const char *data, size_t len) {
-    test_utils->sts_target()->Dispatch(
+    test_utils_->sts_target()->Dispatch(
             WrapRunnable(
                 this, &MultiTcpSocketTest::SendDataToAddress_s, from, to, data,
                 len),
@@ -218,7 +239,7 @@ class MultiTcpSocketTest : public ::testing::Test {
   }
 
   void SendData(nr_socket *from, nr_socket *to, const char *data, size_t len) {
-    test_utils->sts_target()->Dispatch(
+    test_utils_->sts_target()->Dispatch(
             WrapRunnable(
                 this, &MultiTcpSocketTest::SendDataToSocket_s, from, to, data,
                 len),
@@ -259,7 +280,7 @@ class MultiTcpSocketTest : public ::testing::Test {
   void RecvData(nr_transport_addr *expected_from, nr_socket *sent_to,
                 const char *expected_data = nullptr, size_t expected_len = 0) {
     ASSERT_TRUE_WAIT(IsReadable(), 1000);
-    test_utils->sts_target()->Dispatch(
+    test_utils_->sts_target()->Dispatch(
             WrapRunnable(
                 this, &MultiTcpSocketTest::RecvDataFromAddress_s,
                 expected_from, sent_to, expected_data,
@@ -280,10 +301,35 @@ class MultiTcpSocketTest : public ::testing::Test {
   void RecvData(nr_socket *expected_from, nr_socket *sent_to,
                 const char *expected_data, size_t expected_len) {
     ASSERT_TRUE_WAIT(IsReadable(), 1000);
-    test_utils->sts_target()->Dispatch(
+    test_utils_->sts_target()->Dispatch(
             WrapRunnable(
                 this, &MultiTcpSocketTest::RecvDataFromSocket_s,
                 expected_from, sent_to, expected_data, expected_len),
+            NS_DISPATCH_SYNC);
+  }
+
+  void RecvDataFailed_s(nr_socket *sent_to, size_t expected_len, int expected_err) {
+    SetReadable(false);
+    char received_data[expected_len+1];
+    nr_transport_addr addr_to;
+    nr_transport_addr retaddr;
+    size_t retlen;
+
+    int r=nr_socket_getaddr(sent_to, &addr_to);
+    ASSERT_EQ(0, r);
+    r=nr_socket_recvfrom(sent_to, received_data, expected_len+1,
+                         &retlen, 0, &retaddr);
+    ASSERT_EQ(expected_err, r) << "Expecting receive failure " << expected_err
+    << " on " << addr_to.as_string;
+  }
+
+  void RecvDataFailed(nr_socket *sent_to, size_t expected_len,
+                      int expected_err) {
+    ASSERT_TRUE_WAIT(IsReadable(), 1000);
+    test_utils_->sts_target()->Dispatch(
+            WrapRunnable(
+                this, &MultiTcpSocketTest::RecvDataFailed_s, sent_to, expected_len,
+                expected_err),
             NS_DISPATCH_SYNC);
   }
 
@@ -302,7 +348,7 @@ class MultiTcpSocketTest : public ::testing::Test {
   }
   std::vector<nr_socket *> socks;
   Atomic<bool> readable;
-  RefPtr<NrIceCtx> ice_ctx_;
+  RefPtr<NrIceCtxHandler> ice_ctx_;
 };
 }
 
@@ -329,6 +375,44 @@ TEST_F(MultiTcpSocketTest, TestTransmit) {
 
   TransferData(socks[0], socks[1], data, sizeof(data));
   TransferData(socks[1], socks[0], data, sizeof(data));
+}
+
+TEST_F(MultiTcpSocketTest, TestClosePassive) {
+  const char data[] = "TestClosePassive";
+  socks[0] = Create(TCP_TYPE_ACTIVE);
+  socks[1] = Create(TCP_TYPE_PASSIVE);
+  Listen(socks[1]);
+  Connect(socks[0], socks[1]);
+
+  TransferData(socks[0], socks[1], data, sizeof(data));
+  TransferData(socks[1], socks[0], data, sizeof(data));
+
+  /* We have to destroy as only that calls PR_Close() */
+  std::cerr << "Destructing socket" << std::endl;
+  Destroy(socks[1]);
+
+  RecvDataFailed(socks[0], sizeof(data), R_EOD);
+
+  socks[1] = nullptr;
+}
+
+TEST_F(MultiTcpSocketTest, TestCloseActive) {
+  const char data[] = "TestCloseActive";
+  socks[0] = Create(TCP_TYPE_ACTIVE);
+  socks[1] = Create(TCP_TYPE_PASSIVE);
+  Listen(socks[1]);
+  Connect(socks[0], socks[1]);
+
+  TransferData(socks[0], socks[1], data, sizeof(data));
+  TransferData(socks[1], socks[0], data, sizeof(data));
+
+  /* We have to destroy as only that calls PR_Close() */
+  std::cerr << "Destructing socket" << std::endl;
+  Destroy(socks[0]);
+
+  RecvDataFailed(socks[1], sizeof(data), R_EOD);
+
+  socks[0] = nullptr;
 }
 
 TEST_F(MultiTcpSocketTest, TestTwoSendsBeforeReceives) {
@@ -453,34 +537,4 @@ TEST_F(MultiTcpSocketTest, TestBigData) {
   SendData(socks[1], socks[0], buf1, sizeof(buf1));
   RecvData(socks[1], socks[0], buf2, sizeof(buf2));
   RecvData(socks[1], socks[0], buf1, sizeof(buf1));
-}
-
-
-int main(int argc, char **argv)
-{
-  test_utils = new MtransportTestUtils();
-  NSS_NoDB_Init(nullptr); // For random number generation
-
-  ::testing::TestEventListeners& listeners =
-        ::testing::UnitTest::GetInstance()->listeners();
-  // Adds a listener to the end.  Google Test takes the ownership.
-  listeners.Append(new test::RingbufferDumper(test_utils));
-
-  test_utils->sts_target()->Dispatch(
-      WrapRunnableNM(&TestStunTcpServer::GetInstance, AF_INET),
-                     NS_DISPATCH_SYNC);
-  test_utils->sts_target()->Dispatch(
-    WrapRunnableNM(&TestStunTcpServer::GetInstance, AF_INET6),
-                   NS_DISPATCH_SYNC);
-
-  // Start the tests
-  ::testing::InitGoogleTest(&argc, argv);
-
-  int rv = RUN_ALL_TESTS();
-
-  test_utils->sts_target()->Dispatch(
-    WrapRunnableNM(&TestStunTcpServer::ShutdownInstance), NS_DISPATCH_SYNC);
-
-  delete test_utils;
-  return rv;
 }

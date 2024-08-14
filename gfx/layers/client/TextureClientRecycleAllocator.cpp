@@ -83,7 +83,8 @@ TextureClientRecycleAllocator::CreateOrRecycle(gfx::SurfaceFormat aFormat,
   // This class does not handle ContentClient's TextureClient allocation.
   MOZ_ASSERT(aAllocFlags == TextureAllocationFlags::ALLOC_DEFAULT ||
              aAllocFlags == TextureAllocationFlags::ALLOC_DISALLOW_BUFFERTEXTURECLIENT ||
-             aAllocFlags == TextureAllocationFlags::ALLOC_FOR_OUT_OF_BAND_CONTENT);
+             aAllocFlags == TextureAllocationFlags::ALLOC_FOR_OUT_OF_BAND_CONTENT ||
+             aAllocFlags == TextureAllocationFlags::ALLOC_MANUAL_SYNCHRONIZATION);
   MOZ_ASSERT(!(aTextureFlags & TextureFlags::RECYCLE));
   aTextureFlags = aTextureFlags | TextureFlags::RECYCLE; // Set recycle flag
 
@@ -141,6 +142,15 @@ TextureClientRecycleAllocator::Allocate(gfx::SurfaceFormat aFormat,
 {
   return TextureClient::CreateForDrawing(mSurfaceAllocator, aFormat, aSize, aSelector,
                                          aTextureFlags, aAllocFlags);
+}
+
+void
+TextureClientRecycleAllocator::ShrinkToMinimumSize()
+{
+  MutexAutoLock lock(mLock);
+  while (!mPooledClients.empty()) {
+    mPooledClients.pop();
+  }
 }
 
 void

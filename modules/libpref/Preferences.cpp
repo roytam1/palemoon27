@@ -10,6 +10,7 @@
 #include "mozilla/ArrayUtils.h"
 #include "mozilla/Attributes.h"
 #include "mozilla/HashFunctions.h"
+#include "mozilla/UniquePtrExtensions.h"
 
 #include "nsXULAppAPI.h"
 
@@ -238,15 +239,18 @@ Preferences::SizeOfIncludingThisAndOtherStuff(mozilla::MallocSizeOf aMallocSizeO
     }
   }
   if (gObserverTable) {
-    n += aMallocSizeOf(gObserverTable);
     n += gObserverTable->ShallowSizeOfIncludingThis(aMallocSizeOf);
     for (auto iter = gObserverTable->Iter(); !iter.Done(); iter.Next()) {
       n += iter.Key()->mPrefName.SizeOfExcludingThisIfUnshared(aMallocSizeOf);
       n += iter.Data()->mClosures.ShallowSizeOfExcludingThis(aMallocSizeOf);
     }
   }
-  // We don't measure sRootBranch and sDefaultRootBranch here because
-  // DMD indicates they are not significant.
+  if (sRootBranch) {
+    n += reinterpret_cast<nsPrefBranch*>(sRootBranch)->SizeOfIncludingThis(aMallocSizeOf);
+  }
+  if (sDefaultRootBranch) {
+    n += reinterpret_cast<nsPrefBranch*>(sDefaultRootBranch)->SizeOfIncludingThis(aMallocSizeOf);
+  }
   n += pref_SizeOfPrivateData(aMallocSizeOf);
   return n;
 }
@@ -938,25 +942,23 @@ Preferences::WritePrefFile(nsIFile* aFile)
   if (NS_FAILED(rv)) 
       return rv;  
 
-  nsAutoArrayPtr<char*> valueArray(new char*[gHashTable->EntryCount()]);
-  memset(valueArray, 0, gHashTable->EntryCount() * sizeof(char*));
-
   // get the lines that we're supposed to be writing to the file
-  pref_savePrefs(gHashTable, valueArray);
+  UniquePtr<char*[]> valueArray = pref_savePrefs(gHashTable);
 
   /* Sort the preferences to make a readable file on disk */
-  NS_QuickSort(valueArray, gHashTable->EntryCount(), sizeof(char *),
+  NS_QuickSort(valueArray.get(), gHashTable->EntryCount(), sizeof(char *),
                pref_CompareStrings, nullptr);
 
   // write out the file header
   outStream->Write(outHeader, sizeof(outHeader) - 1, &writeAmount);
 
-  char** walker = valueArray;
-  for (uint32_t valueIdx = 0; valueIdx < gHashTable->EntryCount(); valueIdx++, walker++) {
-    if (*walker) {
-      outStream->Write(*walker, strlen(*walker), &writeAmount);
+  for (uint32_t valueIdx = 0; valueIdx < gHashTable->EntryCount(); valueIdx++) {
+    char*& pref = valueArray[valueIdx];
+    if (pref) {
+      outStream->Write(pref, strlen(pref), &writeAmount);
       outStream->Write(NS_LINEBREAK, NS_LINEBREAK_LEN, &writeAmount);
-      NS_Free(*walker);
+      free(pref);
+      pref = nullptr;
     }
   }
 
@@ -991,7 +993,7 @@ static nsresult openPrefFile(nsIFile* aFile)
   NS_ENSURE_TRUE(fileSize64 <= UINT32_MAX, NS_ERROR_FILE_TOO_BIG);
 
   uint32_t fileSize = (uint32_t)fileSize64;
-  nsAutoArrayPtr<char> fileBuffer(new char[fileSize]);
+  auto fileBuffer = MakeUniqueFallible<char[]>(fileSize);
   if (fileBuffer == nullptr)
     return NS_ERROR_OUT_OF_MEMORY;
 
@@ -1004,10 +1006,10 @@ static nsresult openPrefFile(nsIFile* aFile)
   uint32_t offset = 0;
   for (;;) {
     uint32_t amtRead = 0;
-    rv = inStr->Read((char*)fileBuffer, fileSize, &amtRead);
+    rv = inStr->Read(fileBuffer.get(), fileSize, &amtRead);
     if (NS_FAILED(rv) || amtRead == 0)
       break;
-    if (!PREF_ParseBuf(&ps, fileBuffer, amtRead))
+    if (!PREF_ParseBuf(&ps, fileBuffer.get(), amtRead))
       rv2 = NS_ERROR_FILE_CORRUPTED;
     offset += amtRead;
     if (offset == fileSize) {
@@ -1314,7 +1316,7 @@ static nsresult pref_InitInitialObjects()
   // channel, telemetry is on by default, otherwise not. This is necessary
   // so that beta users who are testing final release builds don't flipflop
   // defaults.
-  if (Preferences::GetDefaultType(kTelemetryPref) == PREF_INVALID) {
+  if (Preferences::GetDefaultType(kTelemetryPref) == nsIPrefBranch::PREF_INVALID) {
     bool prerelease = false;
 #ifdef MOZ_TELEMETRY_ON_BY_DEFAULT
     prerelease = true;
@@ -1786,6 +1788,40 @@ Preferences::AddUintVarCache(uint32_t* aCache,
   gCacheData->AppendElement(data);
   return RegisterCallback(UintVarChanged, aPref, data);
 }
+
+template <MemoryOrdering Order>
+static void AtomicUintVarChanged(const char* aPref, void* aClosure)
+{
+  CacheData* cache = static_cast<CacheData*>(aClosure);
+  *((Atomic<uint32_t, Order>*)cache->cacheLocation) =
+    Preferences::GetUint(aPref, cache->defaultValueUint);
+}
+
+template <MemoryOrdering Order>
+// static
+nsresult
+Preferences::AddAtomicUintVarCache(Atomic<uint32_t, Order>* aCache,
+                                   const char* aPref,
+                                   uint32_t aDefault)
+{
+  NS_ASSERTION(aCache, "aCache must not be NULL");
+#ifdef DEBUG
+  AssertNotAlreadyCached("uint", aPref, aCache);
+#endif
+  *aCache = Preferences::GetUint(aPref, aDefault);
+  CacheData* data = new CacheData();
+  data->cacheLocation = aCache;
+  data->defaultValueUint = aDefault;
+  gCacheData->AppendElement(data);
+  return RegisterCallback(AtomicUintVarChanged<Order>, aPref, data);
+}
+
+// Since the definition of this template function is not in a header file,
+// we need to explicitly specify the instantiations that are required.
+// Currently only the order=Relaxed variant is needed.
+template
+nsresult Preferences::AddAtomicUintVarCache(Atomic<uint32_t,Relaxed>*,
+                                            const char*, uint32_t);
 
 static void FloatVarChanged(const char* aPref, void* aClosure)
 {

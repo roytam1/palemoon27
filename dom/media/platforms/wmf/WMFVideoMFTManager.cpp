@@ -21,7 +21,9 @@
 #include "IMFYCbCrImage.h"
 #include "mozilla/WindowsVersion.h"
 #include "mozilla/Preferences.h"
+#include "mozilla/Telemetry.h"
 #include "nsPrintfCString.h"
+#include "MediaTelemetryConstants.h"
 
 extern mozilla::LogModule* GetPDMLog();
 #define LOG(...) MOZ_LOG(GetPDMLog(), mozilla::LogLevel::Debug, (__VA_ARGS__))
@@ -31,6 +33,8 @@ using mozilla::layers::IMFYCbCrImage;
 using mozilla::layers::LayerManager;
 using mozilla::layers::LayersBackend;
 
+#if MOZ_WINSDK_MAXVER < 0x0A000000
+// Windows 10+ SDK has VP80 and VP90 defines
 const GUID MFVideoFormat_VP80 =
 {
   0x30385056,
@@ -46,6 +50,7 @@ const GUID MFVideoFormat_VP90 =
   0x0010,
   {0x80, 0x00, 0x00, 0xaa, 0x00, 0x38, 0x9b, 0x71}
 };
+#endif
 
 const CLSID CLSID_WebmMfVp8Dec =
 {
@@ -70,9 +75,15 @@ WMFVideoMFTManager::WMFVideoMFTManager(
                             mozilla::layers::LayersBackend aLayersBackend,
                             mozilla::layers::ImageContainer* aImageContainer,
                             bool aDXVAEnabled)
-  : mImageContainer(aImageContainer)
+  : mVideoInfo(aConfig)
+  , mVideoStride(0)
+  , mImageSize(aConfig.mImage)
+  , mImageContainer(aImageContainer)
   , mDXVAEnabled(aDXVAEnabled)
   , mLayersBackend(aLayersBackend)
+  , mNullOutputCount(0)
+  , mGotValidOutputAfterNullOutput(false)
+  , mGotExcessiveNullOutput(false)
   // mVideoStride, mVideoWidth, mVideoHeight, mUseHwAccel are initialized in
   // Init().
 {
@@ -98,6 +109,20 @@ WMFVideoMFTManager::~WMFVideoMFTManager()
   if (mDXVA2Manager) {
     DeleteOnMainThread(mDXVA2Manager);
   }
+
+  // Record whether the video decoder successfully decoded, or output null
+  // samples but did/didn't recover.
+  uint32_t telemetry = (mNullOutputCount == 0) ? 0 :
+                       (mGotValidOutputAfterNullOutput && mGotExcessiveNullOutput) ? 1 :
+                       mGotExcessiveNullOutput ? 2 :
+                       mGotValidOutputAfterNullOutput ? 3 :
+                       4;
+
+  nsCOMPtr<nsIRunnable> task = NS_NewRunnableFunction([=]() -> void {
+    LOG(nsPrintfCString("Reporting telemetry VIDEO_MFT_OUTPUT_NULL_SAMPLES=%d", telemetry).get());
+    Telemetry::Accumulate(Telemetry::ID::VIDEO_MFT_OUTPUT_NULL_SAMPLES, telemetry);
+  });
+  AbstractThread::MainThread()->Dispatch(task.forget());
 }
 
 const GUID&
@@ -133,13 +158,23 @@ public:
 
   NS_IMETHOD Run() {
     NS_ASSERTION(NS_IsMainThread(), "Must be on main thread.");
+    nsACString* failureReason = &mFailureReason;
+    nsCString secondFailureReason;
     if (mBackend == LayersBackend::LAYERS_D3D11 &&
-        Preferences::GetBool("media.windows-media-foundation.allow-d3d11-dxva", false) &&
+        Preferences::GetBool("media.windows-media-foundation.allow-d3d11-dxva", true) &&
         IsWin8OrLater()) {
-      mDXVA2Manager = DXVA2Manager::CreateD3D11DXVA(mFailureReason);
-    } else {
-      mDXVA2Manager = DXVA2Manager::CreateD3D9DXVA(mFailureReason);
+      mDXVA2Manager = DXVA2Manager::CreateD3D11DXVA(*failureReason);
+      if (mDXVA2Manager) {
+        return NS_OK;
+      }
+      // Try again with d3d9, but record the failure reason
+      // into a new var to avoid overwriting the d3d11 failure.
+      failureReason = &secondFailureReason;
+      mFailureReason.Append(NS_LITERAL_CSTRING("; "));
     }
+    mDXVA2Manager = DXVA2Manager::CreateD3D9DXVA(*failureReason);
+    // Make sure we include the messages from both attempts (if applicable).
+    mFailureReason.Append(secondFailureReason);
     return NS_OK;
   }
   nsAutoPtr<DXVA2Manager> mDXVA2Manager;
@@ -150,8 +185,6 @@ public:
 bool
 WMFVideoMFTManager::InitializeDXVA(bool aForceD3D9)
 {
-  MOZ_ASSERT(!mDXVA2Manager);
-
   // If we use DXVA but aren't running with a D3D layer manager then the
   // readback of decoded video frames from GPU to CPU memory grinds painting
   // to a halt, and makes playback performance *worse*.
@@ -159,6 +192,7 @@ WMFVideoMFTManager::InitializeDXVA(bool aForceD3D9)
     mDXVAFailureReason.AssignLiteral("Hardware video decoding disabled or blacklisted");
     return false;
   }
+  MOZ_ASSERT(!mDXVA2Manager);
   if (mLayersBackend != LayersBackend::LAYERS_D3D9 &&
       mLayersBackend != LayersBackend::LAYERS_D3D11) {
     mDXVAFailureReason.AssignLiteral("Unsupported layers backend");
@@ -184,14 +218,14 @@ WMFVideoMFTManager::Init()
 {
   bool success = InitInternal(/* aForceD3D9 = */ false);
 
-  // If initialization failed with d3d11 DXVA then try falling back
-  // to d3d9.
-  if (!success && mDXVA2Manager && mDXVA2Manager->IsD3D11()) {
-    mDXVA2Manager = nullptr;
-    nsCString d3d11Failure = mDXVAFailureReason;
-    success = InitInternal(true);
-    mDXVAFailureReason.Append(NS_LITERAL_CSTRING("; "));
-    mDXVAFailureReason.Append(d3d11Failure);
+  if (success && mDXVA2Manager) {
+    // If we had some failures but eventually made it work,
+    // make sure we preserve the messages.
+    if (mDXVA2Manager->IsD3D11()) {
+      mDXVAFailureReason.Append(NS_LITERAL_CSTRING("Using D3D11 API"));
+    } else {
+      mDXVAFailureReason.Append(NS_LITERAL_CSTRING("Using D3D9 API"));
+    }
   }
 
   return success;
@@ -250,13 +284,6 @@ WMFVideoMFTManager::InitInternal(bool aForceD3D9)
 
   LOG("Video Decoder initialized, Using DXVA: %s", (mUseHwAccel ? "Yes" : "No"));
 
-  // Just in case ConfigureVideoFrameGeometry() does not set these
-  mVideoInfo = VideoInfo();
-  mVideoStride = 0;
-  mVideoWidth = 0;
-  mVideoHeight = 0;
-  mPictureRegion.SetEmpty();
-
   return true;
 }
 
@@ -305,6 +332,8 @@ WMFVideoMFTManager::Input(MediaRawData* aSample)
                                            &mLastInput);
   NS_ENSURE_TRUE(SUCCEEDED(hr) && mLastInput != nullptr, hr);
 
+  mLastDuration = aSample->mDuration;
+
   // Forward sample data to the decoder.
   return mDecoder->Input(mLastInput);
 }
@@ -321,32 +350,19 @@ WMFVideoMFTManager::Input(MediaRawData* aSample)
 // This code tests if the given resolution can be supported directly on the GPU,
 // and makes sure we only ask the MFT for DXVA if it can be supported properly.
 bool
-WMFVideoMFTManager::MaybeToggleDXVA(IMFMediaType* aType)
+WMFVideoMFTManager::CanUseDXVA(IMFMediaType* aType)
 {
+  MOZ_ASSERT(mDXVA2Manager);
   // SupportsConfig only checks for valid h264 decoders currently.
-  if (!mDXVA2Manager || mStreamType != H264) {
-    return false;
-  }
-
-  if (mDXVA2Manager->SupportsConfig(aType)) {
-    if (!mUseHwAccel) {
-      // DXVA disabled, but supported for this resolution
-      ULONG_PTR manager = ULONG_PTR(mDXVA2Manager->GetDXVADeviceManager());
-      HRESULT hr = mDecoder->SendMFTMessage(MFT_MESSAGE_SET_D3D_MANAGER, manager);
-      if (SUCCEEDED(hr)) {
-        mUseHwAccel = true;
-        return true;
-      }
-    }
-  } else if (mUseHwAccel) {
-    // DXVA enabled, and not supported for this resolution
-    HRESULT hr = mDecoder->SendMFTMessage(MFT_MESSAGE_SET_D3D_MANAGER, 0);
-    MOZ_ASSERT(SUCCEEDED(hr), "Attempting to fall back to software failed?");
-    mUseHwAccel = false;
+  if (mStreamType != H264) {
     return true;
   }
 
-  return false;
+  // Assume the current samples duration is representative for the
+  // entire video.
+  float framerate = 1000000.0 / mLastDuration;
+
+  return mDXVA2Manager->SupportsConfig(aType, framerate);
 }
 
 HRESULT
@@ -360,14 +376,14 @@ WMFVideoMFTManager::ConfigureVideoFrameGeometry()
   // change then we need to renegotiate our media types,
   // and resubmit our previous frame (since the MFT appears
   // to lose it otherwise).
-  if (MaybeToggleDXVA(mediaType)) {
-    hr = SetDecoderMediaTypes();
-    NS_ENSURE_TRUE(SUCCEEDED(hr), hr);
-
-    HRESULT hr = mDecoder->GetOutputMediaType(mediaType);
-    NS_ENSURE_TRUE(SUCCEEDED(hr), hr);
+  if (mUseHwAccel && !CanUseDXVA(mediaType)) {
+    mDXVAEnabled = false;
+    if (!Init()) {
+      return E_FAIL;
+    }
 
     mDecoder->Input(mLastInput);
+    return S_OK;
   }
 
   // Verify that the video subtype is what we expect it to be.
@@ -385,23 +401,13 @@ WMFVideoMFTManager::ConfigureVideoFrameGeometry()
   hr = GetPictureRegion(mediaType, pictureRegion);
   NS_ENSURE_TRUE(SUCCEEDED(hr), hr);
 
-  UINT32 width = 0, height = 0;
-  hr = MFGetAttributeSize(mediaType, MF_MT_FRAME_SIZE, &width, &height);
-  NS_ENSURE_TRUE(SUCCEEDED(hr), hr);
-
-  uint32_t aspectNum = 0, aspectDenom = 0;
-  hr = MFGetAttributeRatio(mediaType,
-                           MF_MT_PIXEL_ASPECT_RATIO,
-                           &aspectNum,
-                           &aspectDenom);
-  NS_ENSURE_TRUE(SUCCEEDED(hr), hr);
-
+  UINT32 width = pictureRegion.width;
+  UINT32 height = pictureRegion.height;
+  mImageSize = nsIntSize(width, height);
   // Calculate and validate the picture region and frame dimensions after
   // scaling by the pixel aspect ratio.
-  nsIntSize frameSize = nsIntSize(width, height);
-  nsIntSize displaySize = nsIntSize(pictureRegion.width, pictureRegion.height);
-  ScaleDisplayByAspectRatio(displaySize, float(aspectNum) / float(aspectDenom));
-  if (!IsValidVideoRegion(frameSize, pictureRegion, displaySize)) {
+  pictureRegion = mVideoInfo.ScaledImageRect(width, height);
+  if (!IsValidVideoRegion(mImageSize, pictureRegion, mVideoInfo.mDisplay)) {
     // Video track's frame sizes will overflow. Ignore the video track.
     return E_FAIL;
   }
@@ -412,18 +418,13 @@ WMFVideoMFTManager::ConfigureVideoFrameGeometry()
   }
 
   // Success! Save state.
-  mVideoInfo.mDisplay = displaySize;
-  GetDefaultStride(mediaType, &mVideoStride);
-  mVideoWidth = width;
-  mVideoHeight = height;
-  mPictureRegion = pictureRegion;
+  GetDefaultStride(mediaType, width, &mVideoStride);
 
-  LOG("WMFVideoMFTManager frame geometry frame=(%u,%u) stride=%u picture=(%d, %d, %d, %d) display=(%d,%d) PAR=%d:%d",
+  LOG("WMFVideoMFTManager frame geometry frame=(%u,%u) stride=%u picture=(%d, %d, %d, %d) display=(%d,%d)",
       width, height,
       mVideoStride,
-      mPictureRegion.x, mPictureRegion.y, mPictureRegion.width, mPictureRegion.height,
-      displaySize.width, displaySize.height,
-      aspectNum, aspectDenom);
+      pictureRegion.x, pictureRegion.y, pictureRegion.width, pictureRegion.height,
+      mVideoInfo.mDisplay.width, mVideoInfo.mDisplay.height);
 
   return S_OK;
 }
@@ -465,25 +466,28 @@ WMFVideoMFTManager::CreateBasicVideoFrame(IMFSample* aSample,
   // i.e., Y, then V, then U.
   VideoData::YCbCrBuffer b;
 
+  uint32_t videoWidth = mImageSize.width;
+  uint32_t videoHeight = mImageSize.height;
+
   // Y (Y') plane
   b.mPlanes[0].mData = data;
   b.mPlanes[0].mStride = stride;
-  b.mPlanes[0].mHeight = mVideoHeight;
-  b.mPlanes[0].mWidth = mVideoWidth;
+  b.mPlanes[0].mHeight = videoHeight;
+  b.mPlanes[0].mWidth = videoWidth;
   b.mPlanes[0].mOffset = 0;
   b.mPlanes[0].mSkip = 0;
 
   // The V and U planes are stored 16-row-aligned, so we need to add padding
   // to the row heights to ensure the Y'CbCr planes are referenced properly.
   uint32_t padding = 0;
-  if (mVideoHeight % 16 != 0) {
-    padding = 16 - (mVideoHeight % 16);
+  if (videoHeight % 16 != 0) {
+    padding = 16 - (videoHeight % 16);
   }
-  uint32_t y_size = stride * (mVideoHeight + padding);
-  uint32_t v_size = stride * (mVideoHeight + padding) / 4;
+  uint32_t y_size = stride * (videoHeight + padding);
+  uint32_t v_size = stride * (videoHeight + padding) / 4;
   uint32_t halfStride = (stride + 1) / 2;
-  uint32_t halfHeight = (mVideoHeight + 1) / 2;
-  uint32_t halfWidth = (mVideoWidth + 1) / 2;
+  uint32_t halfHeight = (videoHeight + 1) / 2;
+  uint32_t halfWidth = (videoWidth + 1) / 2;
 
   // U plane (Cb)
   b.mPlanes[1].mData = data + y_size + v_size;
@@ -509,10 +513,11 @@ WMFVideoMFTManager::CreateBasicVideoFrame(IMFSample* aSample,
   RefPtr<layers::PlanarYCbCrImage> image =
     new IMFYCbCrImage(buffer, twoDBuffer);
 
+  nsIntRect pictureRegion = mVideoInfo.ScaledImageRect(videoWidth, videoHeight);
   VideoData::SetVideoDataToImage(image,
                                  mVideoInfo,
                                  b,
-                                 mPictureRegion,
+                                 pictureRegion,
                                  false);
 
   RefPtr<VideoData> v =
@@ -524,7 +529,7 @@ WMFVideoMFTManager::CreateBasicVideoFrame(IMFSample* aSample,
                                image.forget(),
                                false,
                                -1,
-                               mPictureRegion);
+                               pictureRegion);
 
   v.forget(aOutVideoData);
   return S_OK;
@@ -543,9 +548,11 @@ WMFVideoMFTManager::CreateD3DVideoFrame(IMFSample* aSample,
   *aOutVideoData = nullptr;
   HRESULT hr;
 
+  nsIntRect pictureRegion =
+    mVideoInfo.ScaledImageRect(mImageSize.width, mImageSize.height);
   RefPtr<Image> image;
   hr = mDXVA2Manager->CopyToImage(aSample,
-                                  mPictureRegion,
+                                  pictureRegion,
                                   mImageContainer,
                                   getter_AddRefs(image));
   NS_ENSURE_TRUE(SUCCEEDED(hr), hr);
@@ -556,14 +563,14 @@ WMFVideoMFTManager::CreateD3DVideoFrame(IMFSample* aSample,
   media::TimeUnit duration = GetSampleDuration(aSample);
   NS_ENSURE_TRUE(duration.IsValid(), E_FAIL);
   RefPtr<VideoData> v = VideoData::CreateFromImage(mVideoInfo,
-                                                     mImageContainer,
-                                                     aStreamOffset,
-                                                     pts.ToMicroseconds(),
-                                                     duration.ToMicroseconds(),
-                                                     image.forget(),
-                                                     false,
-                                                     -1,
-                                                     mPictureRegion);
+                                                   mImageContainer,
+                                                   aStreamOffset,
+                                                   pts.ToMicroseconds(),
+                                                   duration.ToMicroseconds(),
+                                                   image.forget(),
+                                                   false,
+                                                   -1,
+                                                   pictureRegion);
 
   NS_ENSURE_TRUE(v, E_FAIL);
   v.forget(aOutVideoData);
@@ -604,6 +611,23 @@ WMFVideoMFTManager::Output(int64_t aStreamOffset,
       continue;
     }
     if (SUCCEEDED(hr)) {
+      if (!sample) {
+        LOG("Video MFTDecoder returned success but no output!");
+        // On some machines/input the MFT returns success but doesn't output
+        // a video frame. If we detect this, try again, but only up to a
+        // point; after 250 failures, give up. Note we count all failures
+        // over the life of the decoder, as we may end up exiting with a
+        // NEED_MORE_INPUT and coming back to hit the same error. So just
+        // counting with a local variable (like typeChangeCount does) may
+        // not work in this situation.
+        ++mNullOutputCount;
+        if (mNullOutputCount > 250) {
+          LOG("Excessive Video MFTDecoder returning success but no output; giving up");
+          mGotExcessiveNullOutput = true;
+          return E_FAIL;
+        }
+        continue;
+      }
       break;
     }
     // Else unexpected error, assert, and bail.
@@ -624,6 +648,10 @@ WMFVideoMFTManager::Output(int64_t aStreamOffset,
 
   aOutData = frame;
 
+  if (mNullOutputCount) {
+    mGotValidOutputAfterNullOutput = true;
+  }
+
   return S_OK;
 }
 
@@ -639,6 +667,25 @@ WMFVideoMFTManager::IsHardwareAccelerated(nsACString& aFailureReason) const
 {
   aFailureReason = mDXVAFailureReason;
   return mDecoder && mUseHwAccel;
+}
+
+const char*
+WMFVideoMFTManager::GetDescriptionName() const
+{
+  if (mDecoder && mUseHwAccel && mDXVA2Manager) {
+    return (mDXVA2Manager->IsD3D11()) ?
+      "D3D11 Hardware Decoder" : "D3D9 Hardware Decoder";
+  } else {
+    return "wmf software video decoder";
+  }
+}
+
+void
+WMFVideoMFTManager::ConfigurationChanged(const TrackInfo& aConfig)
+{
+  MOZ_ASSERT(aConfig.GetAsVideoInfo());
+  mVideoInfo = *aConfig.GetAsVideoInfo();
+  mImageSize = mVideoInfo.mImage;
 }
 
 } // namespace mozilla

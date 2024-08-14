@@ -172,10 +172,12 @@ QueryProgramInfo(WebGLProgram* prog, gl::GLContext* gl)
 
         // Collect active locations:
         GLint loc = gl->fGetAttribLocation(prog->mGLName, mappedName.BeginReading());
-        if (loc == -1)
-            MOZ_CRASH("Active attrib has no location.");
-
-        info->activeAttribLocs.insert(loc);
+        if (loc == -1) {
+            if (mappedName != "gl_InstanceID")
+                MOZ_CRASH("Active attrib has no location.");
+        } else {
+            info->activeAttribLocs.insert(loc);
+        }
     }
 
     // Uniforms
@@ -340,7 +342,6 @@ QueryProgramInfo(WebGLProgram* prog, gl::GLContext* gl)
 
 webgl::LinkedProgramInfo::LinkedProgramInfo(WebGLProgram* prog)
     : prog(prog)
-    , fragDataMap(nullptr)
 { }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -567,8 +568,9 @@ WebGLProgram::GetFragDataLocation(const nsAString& userName_wide) const
     const NS_LossyConvertUTF16toASCII userName(userName_wide);
 
     nsCString mappedName;
-    if (!LinkInfo()->FindFragData(userName, &mappedName))
-        return -1;
+    if (!FindActiveOutputMappedNameByUserName(userName, &mappedName)) {
+        mappedName = userName;
+    }
 
     gl::GLContext* gl = mContext->GL();
     gl->MakeCurrent();
@@ -599,6 +601,7 @@ WebGLProgram::GetProgramParameter(GLenum pname) const
     if (mContext->IsWebGL2()) {
         switch (pname) {
         case LOCAL_GL_ACTIVE_UNIFORM_BLOCKS:
+        case LOCAL_GL_TRANSFORM_FEEDBACK_BUFFER_MODE:
             return JS::Int32Value(GetProgramiv(gl, mGLName, pname));
 
         case LOCAL_GL_TRANSFORM_FEEDBACK_VARYINGS:
@@ -882,7 +885,7 @@ WebGLProgram::UniformBlockBinding(GLuint uniformBlockIndex, GLuint uniformBlockB
     gl->fUniformBlockBinding(mGLName, uniformBlockIndex, uniformBlockBinding);
 }
 
-bool
+void
 WebGLProgram::LinkProgram()
 {
     mContext->InvalidateBufferFetching(); // we do it early in this function
@@ -894,18 +897,18 @@ WebGLProgram::LinkProgram()
     if (!mVertShader || !mVertShader->IsCompiled()) {
         mLinkLog.AssignLiteral("Must have a compiled vertex shader attached.");
         mContext->GenerateWarning("linkProgram: %s", mLinkLog.BeginReading());
-        return false;
+        return;
     }
 
     if (!mFragShader || !mFragShader->IsCompiled()) {
         mLinkLog.AssignLiteral("Must have an compiled fragment shader attached.");
         mContext->GenerateWarning("linkProgram: %s", mLinkLog.BeginReading());
-        return false;
+        return;
     }
 
     if (!mFragShader->CanLinkTo(mVertShader, &mLinkLog)) {
         mContext->GenerateWarning("linkProgram: %s", mLinkLog.BeginReading());
-        return false;
+        return;
     }
 
     gl::GLContext* gl = mContext->gl;
@@ -922,14 +925,14 @@ WebGLProgram::LinkProgram()
             mLinkLog.AssignLiteral("Programs with more than 16 samplers are disallowed on"
                                    " Mesa drivers to avoid crashing.");
             mContext->GenerateWarning("linkProgram: %s", mLinkLog.BeginReading());
-            return false;
+            return;
         }
 
         // Bug 1203135: Mesa crashes internally if we exceed the reported maximum attribute count.
         if (mVertShader->NumAttributes() > mContext->MaxVertexAttribs()) {
             mLinkLog.AssignLiteral("Number of attributes exceeds Mesa's reported max attribute count.");
             mContext->GenerateWarning("linkProgram: %s", mLinkLog.BeginReading());
-            return false;
+            return;
         }
     }
 
@@ -951,8 +954,9 @@ WebGLProgram::LinkProgram()
                                                     &mTempMappedVaryings);
     }
 
-    if (LinkAndUpdate())
-        return true;
+    LinkAndUpdate();
+    if (IsLinked())
+        return;
 
     // Failed link.
     if (mContext->ShouldGenerateWarnings()) {
@@ -967,8 +971,6 @@ WebGLProgram::LinkProgram()
                                       mLinkLog.BeginReading());
         }
     }
-
-    return false;
 }
 
 bool
@@ -1010,7 +1012,7 @@ WebGLProgram::ValidateProgram() const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-bool
+void
 WebGLProgram::LinkAndUpdate()
 {
     mMostRecentLinkInfo = nullptr;
@@ -1036,15 +1038,21 @@ WebGLProgram::LinkAndUpdate()
     GLint ok = 0;
     gl->fGetProgramiv(mGLName, LOCAL_GL_LINK_STATUS, &ok);
     if (!ok)
-        return false;
+        return;
 
     mMostRecentLinkInfo = QueryProgramInfo(this, gl);
+    MOZ_RELEASE_ASSERT(mMostRecentLinkInfo);
+}
 
-    MOZ_ASSERT(mMostRecentLinkInfo);
-    if (!mMostRecentLinkInfo)
-        mLinkLog.AssignLiteral("Failed to gather program info.");
+bool
+WebGLProgram::FindActiveOutputMappedNameByUserName(const nsACString& userName,
+                                                   nsCString* const out_mappedName) const
+{
+    if (mFragShader->FindActiveOutputMappedNameByUserName(userName, out_mappedName)) {
+        return true;
+    }
 
-    return mMostRecentLinkInfo;
+    return false;
 }
 
 bool

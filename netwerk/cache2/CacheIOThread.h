@@ -36,7 +36,7 @@ public:
     READ,
     MANAGEMENT,
     WRITE,
-    CLOSE,
+    CLOSE = WRITE,
     INDEX,
     EVICT,
     LAST_LEVEL,
@@ -96,7 +96,9 @@ private:
   Atomic<bool, Relaxed> mHasXPCOMEvents;
   bool mRerunCurrentEvent;
   bool mShutdown;
-  DebugOnly<bool> mInsideLoop;
+#ifdef DEBUG
+  bool mInsideLoop;
+#endif
 };
 
 } // namespace net

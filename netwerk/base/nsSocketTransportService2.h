@@ -19,6 +19,9 @@
 #include "mozilla/net/DashboardTypes.h"
 #include "mozilla/Atomics.h"
 #include "mozilla/TimeStamp.h"
+#include "nsITimer.h"
+#include "mozilla/UniquePtr.h"
+#include "PollableEvent.h"
 
 class nsASocketHandler;
 struct PRPollDesc;
@@ -81,10 +84,7 @@ public:
     NS_DECL_NSITHREADOBSERVER
     NS_DECL_NSIRUNNABLE
     NS_DECL_NSIOBSERVER 
-    // missing from NS_DECL_NSIEVENTTARGET because MSVC
-    nsresult Dispatch(nsIRunnable* aEvent, uint32_t aFlags) {
-      return Dispatch(nsCOMPtr<nsIRunnable>(aEvent).forget(), aFlags);
-    }
+    using nsIEventTarget::Dispatch;
 
     nsSocketTransportService();
 
@@ -94,16 +94,7 @@ public:
     static PRCallOnceType gMaxCountInitOnce;
     static PRStatus DiscoverMaxCount();
 
-    //
-    // the number of sockets that can be attached at any given time is
-    // limited.  this is done because some operating systems (e.g., Win9x)
-    // limit the number of sockets that can be created by an application.
-    // AttachSocket will fail if the limit is exceeded.  consumers should
-    // call CanAttachSocket and check the result before creating a socket.
-    //
-    bool CanAttachSocket() {
-        return mActiveCount + mIdleCount < gMaxCount;
-    }
+    bool CanAttachSocket();
 
     // Called by the networking dashboard on the socket thread only
     // Fills the passed array with socket information
@@ -126,14 +117,7 @@ private:
     //-------------------------------------------------------------------------
 
     nsCOMPtr<nsIThread> mThread;    // protected by mLock
-    PRFileDesc *mThreadEvent;
-                            // protected by mLock.  mThreadEvent may change
-                            // if the old pollable event is broken.  only
-                            // the socket thread may change mThreadEvent;
-                            // it needs to lock mLock only when it changes
-                            // mThreadEvent.  other threads don't change
-                            // mThreadEvent; they need to lock mLock
-                            // whenever they access mThreadEvent.
+    mozilla::UniquePtr<mozilla::net::PollableEvent> mPollableEvent;
     bool        mAutodialEnabled;
                             // pref to control autodial code
 
@@ -175,6 +159,7 @@ private:
 
     SocketContext *mActiveList;                   /* mListSize entries */
     SocketContext *mIdleList;                     /* mListSize entries */
+    nsIThread     *mRawThread;
 
     uint32_t mActiveListSize;
     uint32_t mIdleListSize;
@@ -199,18 +184,16 @@ private:
     //-------------------------------------------------------------------------
     // poll list (socket thread only)
     //
-    // first element of the poll list is mThreadEvent (or null if the pollable
+    // first element of the poll list is mPollableEvent (or null if the pollable
     // event cannot be created).
     //-------------------------------------------------------------------------
 
     PRPollDesc *mPollList;                        /* mListSize + 1 entries */
 
     PRIntervalTime PollTimeout();            // computes ideal poll timeout
-    nsresult       DoPollIteration(bool wait,
-                                   mozilla::TimeDuration *pollDuration);
+    nsresult       DoPollIteration(mozilla::TimeDuration *pollDuration);
                                              // perfoms a single poll iteration
-    int32_t        Poll(bool wait,
-                        uint32_t *interval,
+    int32_t        Poll(uint32_t *interval,
                         mozilla::TimeDuration *pollDuration);
                                              // calls PR_Poll.  the out param
                                              // interval indicates the poll
@@ -241,6 +224,11 @@ private:
     mozilla::Atomic<int32_t, mozilla::Relaxed> mMaxTimePerPollIter;
     mozilla::Atomic<bool, mozilla::Relaxed>  mTelemetryEnabledPref;
     mozilla::Atomic<PRIntervalTime, mozilla::Relaxed> mMaxTimeForPrClosePref;
+
+    // Between a computer going to sleep and waking up the PR_*** telemetry
+    // will be corrupted - so do not record it.
+    mozilla::Atomic<bool, mozilla::Relaxed> mSleepPhase;
+    nsCOMPtr<nsITimer> mAfterWakeUpTimer;
 
     void OnKeepaliveEnabledPrefChange();
     void NotifyKeepaliveEnabledPrefChange(SocketContext *sock);

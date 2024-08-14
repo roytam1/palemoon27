@@ -12,7 +12,7 @@
 #include "mozilla/dom/TabChild.h"
 #include "mozilla/Hal.h"
 #include "mozilla/IMEStateManager.h"
-#include "mozilla/layers/CompositorChild.h"
+#include "mozilla/layers/APZChild.h"
 #include "mozilla/layers/PLayerTransactionChild.h"
 #include "mozilla/Preferences.h"
 #include "mozilla/TextComposition.h"
@@ -92,6 +92,8 @@ PuppetWidget::PuppetWidget(TabChild* aTabChild)
 PuppetWidget::~PuppetWidget()
 {
   MOZ_COUNT_DTOR(PuppetWidget);
+
+  Destroy();
 }
 
 NS_IMETHODIMP
@@ -272,8 +274,7 @@ NS_IMETHODIMP
 PuppetWidget::Invalidate(const LayoutDeviceIntRect& aRect)
 {
 #ifdef DEBUG
-  debug_DumpInvalidate(stderr, this, &aRect,
-                       nsAutoCString("PuppetWidget"), 0);
+  debug_DumpInvalidate(stderr, this, &aRect, "PuppetWidget", 0);
 #endif
 
   if (mChild) {
@@ -294,21 +295,19 @@ void
 PuppetWidget::InitEvent(WidgetGUIEvent& event, LayoutDeviceIntPoint* aPoint)
 {
   if (nullptr == aPoint) {
-    event.refPoint.x = 0;
-    event.refPoint.y = 0;
+    event.mRefPoint = LayoutDeviceIntPoint(0, 0);
   } else {
     // use the point override if provided
-    event.refPoint = *aPoint;
+    event.mRefPoint = *aPoint;
   }
-  event.time = PR_Now() / 1000;
+  event.mTime = PR_Now() / 1000;
 }
 
 NS_IMETHODIMP
 PuppetWidget::DispatchEvent(WidgetGUIEvent* event, nsEventStatus& aStatus)
 {
 #ifdef DEBUG
-  debug_DumpEvent(stdout, event->widget, event,
-                  nsAutoCString("PuppetWidget"), 0);
+  debug_DumpEvent(stdout, event->mWidget, event, "PuppetWidget", 0);
 #endif
 
   MOZ_ASSERT(!mChild || mChild->mWindowType == eWindowType_popup,
@@ -352,29 +351,6 @@ PuppetWidget::DispatchEvent(WidgetGUIEvent* event, nsEventStatus& aStatus)
 nsEventStatus
 PuppetWidget::DispatchInputEvent(WidgetInputEvent* aEvent)
 {
-  if (!mTabChild) {
-    return nsEventStatus_eIgnore;
-  }
-
-  switch (aEvent->mClass) {
-    case eMouseEventClass:
-      Unused <<
-        mTabChild->SendDispatchMouseEvent(*aEvent->AsMouseEvent());
-      break;
-    case eKeyboardEventClass:
-      Unused <<
-        mTabChild->SendDispatchKeyboardEvent(*aEvent->AsKeyboardEvent());
-      break;
-    default:
-      MOZ_ASSERT_UNREACHABLE("unsupported event type");
-  }
-
-  return nsEventStatus_eIgnore;
-}
-
-nsEventStatus
-PuppetWidget::DispatchAPZAwareEvent(WidgetInputEvent* aEvent)
-{
   if (!AsyncPanZoomEnabled()) {
     nsEventStatus status = nsEventStatus_eIgnore;
     DispatchEvent(aEvent, status);
@@ -389,6 +365,14 @@ PuppetWidget::DispatchAPZAwareEvent(WidgetInputEvent* aEvent)
     case eWheelEventClass:
       Unused <<
         mTabChild->SendDispatchWheelEvent(*aEvent->AsWheelEvent());
+      break;
+    case eMouseEventClass:
+      Unused <<
+        mTabChild->SendDispatchMouseEvent(*aEvent->AsMouseEvent());
+      break;
+    case eKeyboardEventClass:
+      Unused <<
+        mTabChild->SendDispatchKeyboardEvent(*aEvent->AsKeyboardEvent());
       break;
     default:
       MOZ_ASSERT_UNREACHABLE("unsupported event type");
@@ -465,7 +449,7 @@ PuppetWidget::SynthesizeNativeMouseScrollEvent(mozilla::LayoutDeviceIntPoint aPo
 nsresult
 PuppetWidget::SynthesizeNativeTouchPoint(uint32_t aPointerId,
                                          TouchPointerState aPointerState,
-                                         ScreenIntPoint aPointerScreenPoint,
+                                         LayoutDeviceIntPoint aPoint,
                                          double aPointerPressure,
                                          uint32_t aPointerOrientation,
                                          nsIObserver* aObserver)
@@ -475,13 +459,13 @@ PuppetWidget::SynthesizeNativeTouchPoint(uint32_t aPointerId,
     return NS_ERROR_FAILURE;
   }
   mTabChild->SendSynthesizeNativeTouchPoint(aPointerId, aPointerState,
-    aPointerScreenPoint, aPointerPressure, aPointerOrientation,
+    aPoint, aPointerPressure, aPointerOrientation,
     notifier.SaveObserver());
   return NS_OK;
 }
 
 nsresult
-PuppetWidget::SynthesizeNativeTouchTap(ScreenIntPoint aPointerScreenPoint,
+PuppetWidget::SynthesizeNativeTouchTap(LayoutDeviceIntPoint aPoint,
                                        bool aLongTap,
                                        nsIObserver* aObserver)
 {
@@ -489,7 +473,7 @@ PuppetWidget::SynthesizeNativeTouchTap(ScreenIntPoint aPointerScreenPoint,
   if (!mTabChild) {
     return NS_ERROR_FAILURE;
   }
-  mTabChild->SendSynthesizeNativeTouchTap(aPointerScreenPoint, aLongTap,
+  mTabChild->SendSynthesizeNativeTouchTap(aPoint, aLongTap,
     notifier.SaveObserver());
   return NS_OK;
 }
@@ -510,7 +494,7 @@ PuppetWidget::SetConfirmedTargetAPZC(uint64_t aInputBlockId,
                                      const nsTArray<ScrollableLayerGuid>& aTargets) const
 {
   if (mTabChild) {
-    mTabChild->SendSetTargetAPZC(aInputBlockId, aTargets);
+    mTabChild->SetTargetAPZC(aInputBlockId, aTargets);
   }
 }
 
@@ -537,9 +521,9 @@ PuppetWidget::ExecuteNativeKeyBinding(NativeKeyBindingsType aType,
                                       void* aCallbackData)
 {
   // B2G doesn't have native key bindings.
-#ifdef MOZ_B2G
+#ifdef MOZ_WIDGET_GONK
   return false;
-#else // #ifdef MOZ_B2G
+#else // #ifdef MOZ_WIDGET_GONK
   MOZ_ASSERT(mNativeKeyCommandsValid);
 
   const nsTArray<mozilla::CommandInt>* commands = nullptr;
@@ -852,7 +836,7 @@ PuppetWidget::NotifyIMEOfTextChange(const IMENotification& aIMENotification)
   // if parent process doesn't request NOTIFY_TEXT_CHANGE.
   if (mIMEPreferenceOfParent.WantTextChange() &&
       (mIMEPreferenceOfParent.WantChangesCausedByComposition() ||
-       !aIMENotification.mTextChangeData.mCausedByComposition)) {
+       !aIMENotification.mTextChangeData.mCausedOnlyByComposition)) {
     mTabChild->SendNotifyIMETextChange(mContentCache, aIMENotification);
   } else {
     mTabChild->SendUpdateContentCache(mContentCache);
@@ -953,9 +937,12 @@ PuppetWidget::NotifyIMEOfPositionChange(const IMENotification& aIMENotification)
 NS_IMETHODIMP
 PuppetWidget::SetCursor(nsCursor aCursor)
 {
+  // Don't cache on windows, Windowless flash breaks this via async cursor updates.
+#if !defined(XP_WIN)
   if (mCursor == aCursor && !mCustomCursor && !mUpdateCursor) {
     return NS_OK;
   }
+#endif
 
   mCustomCursor = nullptr;
 
@@ -978,12 +965,14 @@ PuppetWidget::SetCursor(imgIContainer* aCursor,
     return NS_OK;
   }
 
+#if !defined(XP_WIN)
   if (mCustomCursor == aCursor &&
       mCursorHotspotX == aHotspotX &&
       mCursorHotspotY == aHotspotY &&
       !mUpdateCursor) {
     return NS_OK;
   }
+#endif
 
   RefPtr<mozilla::gfx::SourceSurface> surface =
     aCursor->GetFrame(imgIContainer::FRAME_CURRENT,
@@ -999,7 +988,7 @@ PuppetWidget::SetCursor(imgIContainer* aCursor,
   mozilla::UniquePtr<char[]> surfaceData =
     nsContentUtils::GetSurfaceData(dataSurface, &length, &stride);
 
-  nsCString cursorData = nsCString(surfaceData.get(), length);
+  nsDependentCString cursorData(surfaceData.get(), length);
   mozilla::gfx::IntSize size = dataSurface->GetSize();
   if (!mTabChild->SendSetCustomCursor(cursorData, size.width, size.height, stride,
                                       static_cast<uint8_t>(dataSurface->GetFormat()),
@@ -1042,7 +1031,7 @@ PuppetWidget::Paint()
   if (GetCurrentWidgetListener()) {
 #ifdef DEBUG
     debug_DumpPaintEvent(stderr, this, region.ToUnknownRegion(),
-                         nsAutoCString("PuppetWidget"), 0);
+                         "PuppetWidget", 0);
 #endif
 
     if (mozilla::layers::LayersBackend::LAYERS_CLIENT == mLayerManager->GetBackendType()) {
@@ -1051,7 +1040,11 @@ PuppetWidget::Paint()
         mTabChild->NotifyPainted();
       }
     } else {
-      RefPtr<gfxContext> ctx = new gfxContext(mDrawTarget);
+      RefPtr<gfxContext> ctx = gfxContext::ForDrawTarget(mDrawTarget);
+      if (!ctx) {
+        gfxDevCrash(LogReason::InvalidContext) << "PuppetWidget context problem " << gfx::hexa(mDrawTarget);
+        return NS_ERROR_FAILURE;
+      }
       ctx->Rectangle(gfxRect(0,0,0,0));
       ctx->Clip();
       AutoLayerManagerSetup setupLayerManager(this, ctx,
@@ -1174,13 +1167,13 @@ PuppetWidget::GetNativeData(uint32_t aDataType)
     }
     return (void*)nativeData;
   }
+  case NS_NATIVE_WINDOW:
   case NS_NATIVE_WIDGET:
   case NS_NATIVE_DISPLAY:
-    // These types are ignored (see bug 1183828).
+    // These types are ignored (see bug 1183828, bug 1240891).
     break;
   case NS_RAW_NATIVE_IME_CONTEXT:
     MOZ_CRASH("You need to call GetNativeIMEContext() instead");
-  case NS_NATIVE_WINDOW:
   case NS_NATIVE_PLUGIN_PORT:
   case NS_NATIVE_GRAPHIC:
   case NS_NATIVE_SHELLWIDGET:
@@ -1227,7 +1220,7 @@ PuppetWidget::GetWindowPosition()
 
   int32_t winX, winY, winW, winH;
   NS_ENSURE_SUCCESS(GetOwningTabChild()->GetDimensions(0, &winX, &winY, &winW, &winH), nsIntPoint());
-  return nsIntPoint(winX, winY);
+  return nsIntPoint(winX, winY) + GetOwningTabChild()->GetClientOffset().ToUnknownPoint();
 }
 
 NS_METHOD
@@ -1254,7 +1247,7 @@ uint32_t PuppetWidget::GetMaxTouchPoints() const
 void
 PuppetWidget::StartAsyncScrollbarDrag(const AsyncDragMetrics& aDragMetrics)
 {
-  mTabChild->SendStartScrollbarDrag(aDragMetrics);
+  mTabChild->StartScrollbarDrag(aDragMetrics);
 }
 
 PuppetScreen::PuppetScreen(void *nativeScreen)
@@ -1427,7 +1420,72 @@ PuppetWidget::ZoomToRect(const uint32_t& aPresShellId,
     return;
   }
 
-  mTabChild->SendZoomToRect(aPresShellId, aViewId, aRect, aFlags);
+  mTabChild->ZoomToRect(aPresShellId, aViewId, aRect, aFlags);
+}
+
+bool
+PuppetWidget::HasPendingInputEvent()
+{
+  if (!mTabChild) {
+    return false;
+  }
+
+  bool ret = false;
+
+  mTabChild->GetIPCChannel()->PeekMessages(
+    [&ret](const IPC::Message& aMsg) -> bool {
+      if ((aMsg.type() & mozilla::dom::PBrowser::PBrowserStart)
+          == mozilla::dom::PBrowser::PBrowserStart) {
+        switch (aMsg.type()) {
+          case mozilla::dom::PBrowser::Msg_RealMouseMoveEvent__ID:
+          case mozilla::dom::PBrowser::Msg_SynthMouseMoveEvent__ID:
+          case mozilla::dom::PBrowser::Msg_RealMouseButtonEvent__ID:
+          case mozilla::dom::PBrowser::Msg_RealKeyEvent__ID:
+          case mozilla::dom::PBrowser::Msg_MouseWheelEvent__ID:
+          case mozilla::dom::PBrowser::Msg_RealTouchEvent__ID:
+          case mozilla::dom::PBrowser::Msg_RealTouchMoveEvent__ID:
+          case mozilla::dom::PBrowser::Msg_RealDragEvent__ID:
+          case mozilla::dom::PBrowser::Msg_UpdateDimensions__ID:
+          case mozilla::dom::PBrowser::Msg_MouseEvent__ID:
+          case mozilla::dom::PBrowser::Msg_KeyEvent__ID:
+            ret = true;
+            return false;  // Stop peeking.
+        }
+      }
+      return true;
+    }
+  );
+
+  return ret;
+}
+
+void
+PuppetWidget::HandledWindowedPluginKeyEvent(
+                const NativeEventData& aKeyEventData,
+                bool aIsConsumed)
+{
+  if (NS_WARN_IF(mKeyEventInPluginCallbacks.IsEmpty())) {
+    return;
+  }
+  nsCOMPtr<nsIKeyEventInPluginCallback> callback =
+    mKeyEventInPluginCallbacks[0];
+  MOZ_ASSERT(callback);
+  mKeyEventInPluginCallbacks.RemoveElementAt(0);
+  callback->HandledWindowedPluginKeyEvent(aKeyEventData, aIsConsumed);
+}
+
+nsresult
+PuppetWidget::OnWindowedPluginKeyEvent(const NativeEventData& aKeyEventData,
+                                       nsIKeyEventInPluginCallback* aCallback)
+{
+  if (NS_WARN_IF(!mTabChild)) {
+    return NS_ERROR_NOT_AVAILABLE;
+  }
+  if (NS_WARN_IF(!mTabChild->SendOnWindowedPluginKeyEvent(aKeyEventData))) {
+    return NS_ERROR_FAILURE;
+  }
+  mKeyEventInPluginCallbacks.AppendElement(aCallback);
+  return NS_SUCCESS_EVENT_HANDLED_ASYNCHRONOUSLY;
 }
 
 } // namespace widget

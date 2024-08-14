@@ -333,7 +333,7 @@ function DBAddonInternal(aLoaded) {
           delete this.pendingUpgrade;
           return this.pendingUpgrade = install.addon;
         }
-      };
+      }
       return null;
     });
 }
@@ -628,7 +628,7 @@ this.XPIDatabase = {
       for (let loadedAddon of inputAddons.addons) {
         let newAddon = new DBAddonInternal(loadedAddon);
         addonDB.set(newAddon._key, newAddon);
-      };
+      }
       parseTimer.done();
       this.addonDB = addonDB;
       logger.debug("Successfully read XPI database");

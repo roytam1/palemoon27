@@ -16,7 +16,8 @@
 #include "nsTableFrame.h"
 #include "celldata.h"
 
-#include "RestyleManager.h"
+#include "mozilla/RestyleManagerHandle.h"
+#include "mozilla/RestyleManagerHandleInlines.h"
 #include <algorithm>
 
 #include "nsIScriptError.h"
@@ -505,9 +506,8 @@ ParseSpacingAttribute(nsMathMLmtableFrame* aFrame, nsIAtom* aAttribute)
   nscoord value2;
   // Set defaults
   float fontSizeInflation = nsLayoutUtils::FontSizeInflationFor(aFrame);
-  RefPtr<nsFontMetrics> fm;
-  nsLayoutUtils::GetFontMetricsForFrame(aFrame, getter_AddRefs(fm),
-                                        fontSizeInflation);
+  RefPtr<nsFontMetrics> fm =
+    nsLayoutUtils::GetFontMetricsForFrame(aFrame, fontSizeInflation);
   if (nsGkAtoms::rowspacing_ == aAttribute) {
     value = kDefaultRowspacingEx * fm->XHeight();
     value2 = 0;
@@ -881,10 +881,8 @@ nsMathMLmtableOuterFrame::Reflow(nsPresContext*          aPresContext,
     case eAlign_axis:
     default: {
       // XXX should instead use style data from the row of reference here ?
-      RefPtr<nsFontMetrics> fm;
-      nsLayoutUtils::GetFontMetricsForFrame(this, getter_AddRefs(fm),
-                                            nsLayoutUtils::
-                                            FontSizeInflationFor(this));
+      RefPtr<nsFontMetrics> fm =
+        nsLayoutUtils::GetInflatedFontMetricsForFrame(this);
       nscoord axisHeight;
       GetAxisHeight(aReflowState.rendContext->GetDrawTarget(), fm, axisHeight);
       if (rowFrame) {
@@ -1191,7 +1189,7 @@ nsMathMLmtdFrame::GetColSpan()
     if (!value.IsEmpty()) {
       nsresult error;
       colspan = value.ToInteger(&error);
-      if (NS_FAILED(error) || colspan < 0 || colspan > MAX_COLSPAN)
+      if (NS_FAILED(error) || colspan <= 0 || colspan > MAX_COLSPAN)
         colspan = 1;
     }
   }

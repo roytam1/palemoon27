@@ -148,6 +148,15 @@ MP3TrackDemuxer::Init() {
   return mSamplesPerSecond && mChannels;
 }
 
+media::TimeUnit
+MP3TrackDemuxer::SeekPosition() const {
+  TimeUnit pos = Duration(mFrameIndex);
+  if (Duration() > TimeUnit()) {
+    pos = std::min(Duration(), pos);
+  }
+  return pos;
+}
+
 const FrameParser::Frame&
 MP3TrackDemuxer::LastFrame() const {
   return mParser.PrevFrame();
@@ -156,15 +165,6 @@ MP3TrackDemuxer::LastFrame() const {
 RefPtr<MediaRawData>
 MP3TrackDemuxer::DemuxSample() {
   return GetNextFrame(FindNextFrame());
-}
-
-media::TimeUnit
-MP3TrackDemuxer::SeekPosition() const {
-  TimeUnit pos = Duration(mFrameIndex);
-  if (Duration() > TimeUnit()) {
-    pos = std::min(Duration(), pos);
-  }
-  return pos;
 }
 
 const ID3Parser::ID3Header&
@@ -196,13 +196,14 @@ TimeUnit
 MP3TrackDemuxer::FastSeek(const TimeUnit& aTime) {
   MP3LOG("FastSeek(%" PRId64 ") avgFrameLen=%f mNumParsedFrames=%" PRIu64
          " mFrameIndex=%" PRId64 " mOffset=%" PRIu64,
-         aTime, AverageFrameLength(), mNumParsedFrames, mFrameIndex, mOffset);
+         aTime.ToMicroseconds(), AverageFrameLength(), mNumParsedFrames,
+         mFrameIndex, mOffset);
 
   const auto& vbr = mParser.VBRInfo();
   if (!aTime.ToMicroseconds()) {
     // Quick seek to the beginning of the stream.
     mFrameIndex = 0;
-    } else if (vbr.IsTOCPresent() && Duration().ToMicroseconds() > 0) {
+  } else if (vbr.IsTOCPresent() && Duration().ToMicroseconds() > 0) {
     // Use TOC for more precise seeking.
     const float durationFrac = static_cast<float>(aTime.ToMicroseconds()) /
                                                   Duration().ToMicroseconds();
@@ -219,6 +220,12 @@ MP3TrackDemuxer::FastSeek(const TimeUnit& aTime) {
 
   mParser.EndFrameSession();
 
+  MP3LOG("FastSeek End TOC=%d avgFrameLen=%f mNumParsedFrames=%" PRIu64
+         " mFrameIndex=%" PRId64 " mFirstFrameOffset=%llu mOffset=%" PRIu64
+         " SL=%llu NumBytes=%u",
+         vbr.IsTOCPresent(), AverageFrameLength(), mNumParsedFrames, mFrameIndex,
+         mFirstFrameOffset, mOffset, StreamLength(), vbr.NumBytes().valueOr(0));
+
   return Duration(mFrameIndex);
 }
 
@@ -226,8 +233,8 @@ TimeUnit
 MP3TrackDemuxer::ScanUntil(const TimeUnit& aTime) {
   MP3LOG("ScanUntil(%" PRId64 ") avgFrameLen=%f mNumParsedFrames=%" PRIu64
          " mFrameIndex=%" PRId64 " mOffset=%" PRIu64,
-         aTime, AverageFrameLength(), mNumParsedFrames, mFrameIndex,
-         mOffset);
+         aTime.ToMicroseconds(), AverageFrameLength(), mNumParsedFrames,
+         mFrameIndex, mOffset);
 
   if (!aTime.ToMicroseconds()) {
     return FastSeek(aTime);
@@ -246,14 +253,13 @@ MP3TrackDemuxer::ScanUntil(const TimeUnit& aTime) {
     nextRange = FindNextFrame();
     MP3LOGV("ScanUntil* avgFrameLen=%f mNumParsedFrames=%" PRIu64
             " mFrameIndex=%" PRId64 " mOffset=%" PRIu64 " Duration=%" PRId64,
-            aTime, AverageFrameLength(), mNumParsedFrames, mFrameIndex,
-            mOffset, Duration(mFrameIndex + 1));
+            AverageFrameLength(), mNumParsedFrames,
+            mFrameIndex, mOffset, Duration(mFrameIndex + 1).ToMicroseconds());
   }
 
   MP3LOG("ScanUntil End avgFrameLen=%f mNumParsedFrames=%" PRIu64
          " mFrameIndex=%" PRId64 " mOffset=%" PRIu64,
-         aTime, AverageFrameLength(), mNumParsedFrames, mFrameIndex,
-         mOffset);
+         AverageFrameLength(), mNumParsedFrames, mFrameIndex, mOffset);
 
   return SeekPosition();
 }
@@ -1058,7 +1064,7 @@ FrameParser::VBRHeader::ParseXing(ByteReader* aReader) {
     // Skip across the VBR header ID tag.
     aReader->ReadU32();
     mType = XING;
-    }
+  }
   uint32_t flags = 0;
   if (aReader->CanRead32()) {
     flags = aReader->ReadU32();

@@ -298,6 +298,8 @@ private:
     nsDocShell*, const char*, const TimeStamp&, MarkerTracingType);
   friend void mozilla::TimelineConsumers::AddMarkerForDocShell(
     nsDocShell*, UniquePtr<AbstractTimelineMarker>&&);
+  friend void mozilla::TimelineConsumers::PopMarkers(nsDocShell*,
+    JSContext*, nsTArray<dom::ProfileTimelineMarker>&);
 
 public:
   // Tell the favicon service that aNewURI has the same favicon as aOldURI.
@@ -377,7 +379,9 @@ protected:
                          nsIURILoader* aURILoader,
                          bool aBypassClassifier);
 
-  nsresult ScrollToAnchor(nsACString& aCurHash, nsACString& aNewHash,
+  nsresult ScrollToAnchor(bool aCurHasRef,
+                          bool aNewHasRef,
+                          nsACString& aNewHash,
                           uint32_t aLoadType);
 
   // Returns true if would have called FireOnLocationChange,
@@ -724,6 +728,9 @@ protected:
                              nsIDocShellLoadInfo* aLoadInfo,
                              bool aFirstParty);
 
+  // Check if aURI is about:newtab.
+  bool IsAboutNewtab(nsIURI* aURI);
+
 protected:
   nsresult GetCurScrollPos(int32_t aScrollOrientation, int32_t* aCurPos);
   nsresult SetCurScrollPosEx(int32_t aCurHorizontalPos,
@@ -940,6 +947,7 @@ protected:
   bool mAllowKeywordFixup;
   bool mIsOffScreenBrowser;
   bool mIsActive;
+  bool mDisableMetaRefreshWhenInactive;
   bool mIsPrerendered;
   bool mIsAppTab;
   bool mUseGlobalHistory;

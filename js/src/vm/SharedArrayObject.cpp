@@ -164,15 +164,15 @@ SharedArrayRawBuffer::New(JSContext* cx, uint32_t length)
 void
 SharedArrayRawBuffer::addReference()
 {
-    MOZ_ASSERT(this->refcount > 0);
-    ++this->refcount; // Atomic.
+    MOZ_ASSERT(this->refcount_ > 0);
+    ++this->refcount_; // Atomic.
 }
 
 void
 SharedArrayRawBuffer::dropReference()
 {
     // Drop the reference to the buffer.
-    uint32_t refcount = --this->refcount; // Atomic.
+    uint32_t refcount = --this->refcount_; // Atomic.
 
     // If this was the final reference, release the buffer.
     if (refcount == 0) {
@@ -330,7 +330,15 @@ SharedArrayBufferObject::Finalize(FreeOp* fop, JSObject* obj)
 SharedArrayBufferObject::addSizeOfExcludingThis(JSObject* obj, mozilla::MallocSizeOf mallocSizeOf,
                                                 JS::ClassInfo* info)
 {
-    info->objectsNonHeapElementsMapped += obj->as<SharedArrayBufferObject>().byteLength();
+    // Divide the buffer size by the refcount to get the fraction of the buffer
+    // owned by this thread. It's conceivable that the refcount might change in
+    // the middle of memory reporting, in which case the amount reported for
+    // some threads might be to high (if the refcount goes up) or too low (if
+    // the refcount goes down). But that's unlikely and hard to avoid, so we
+    // just live with the risk.
+    const SharedArrayBufferObject& buf = obj->as<SharedArrayBufferObject>();
+    info->objectsNonHeapElementsShared +=
+        buf.byteLength() / buf.rawBufferObject()->refcount();
 }
 
 const Class SharedArrayBufferObject::protoClass = {
@@ -338,11 +346,7 @@ const Class SharedArrayBufferObject::protoClass = {
     JSCLASS_HAS_CACHED_PROTO(JSProto_SharedArrayBuffer)
 };
 
-const Class SharedArrayBufferObject::class_ = {
-    "SharedArrayBuffer",
-    JSCLASS_DELAY_METADATA_CALLBACK |
-    JSCLASS_HAS_RESERVED_SLOTS(SharedArrayBufferObject::RESERVED_SLOTS) |
-    JSCLASS_HAS_CACHED_PROTO(JSProto_SharedArrayBuffer),
+static const ClassOps SharedArrayBufferObjectClassOps = {
     nullptr, /* addProperty */
     nullptr, /* delProperty */
     nullptr, /* getProperty */
@@ -355,6 +359,14 @@ const Class SharedArrayBufferObject::class_ = {
     nullptr, /* hasInstance */
     nullptr, /* construct */
     nullptr, /* trace */
+};
+
+const Class SharedArrayBufferObject::class_ = {
+    "SharedArrayBuffer",
+    JSCLASS_DELAY_METADATA_BUILDER |
+    JSCLASS_HAS_RESERVED_SLOTS(SharedArrayBufferObject::RESERVED_SLOTS) |
+    JSCLASS_HAS_CACHED_PROTO(JSProto_SharedArrayBuffer),
+    &SharedArrayBufferObjectClassOps,
     JS_NULL_CLASS_SPEC,
     JS_NULL_CLASS_EXT
 };

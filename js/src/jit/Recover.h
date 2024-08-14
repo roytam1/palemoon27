@@ -89,8 +89,8 @@ namespace jit {
     _(MathFunction)                             \
     _(StringSplit)                              \
     _(RegExpMatcher)                            \
+    _(RegExpSearcher)                           \
     _(RegExpTester)                             \
-    _(RegExpReplace)                            \
     _(StringReplace)                            \
     _(TypeOf)                                   \
     _(ToDouble)                                 \
@@ -571,6 +571,18 @@ class RRegExpMatcher final : public RInstruction
     bool recover(JSContext* cx, SnapshotIterator& iter) const;
 };
 
+class RRegExpSearcher final : public RInstruction
+{
+  public:
+    RINSTRUCTION_HEADER_(RegExpSearcher)
+
+    virtual uint32_t numOperands() const {
+        return 5;
+    }
+
+    bool recover(JSContext* cx, SnapshotIterator& iter) const;
+};
+
 class RRegExpTester final : public RInstruction
 {
   public:
@@ -583,20 +595,11 @@ class RRegExpTester final : public RInstruction
     bool recover(JSContext* cx, SnapshotIterator& iter) const;
 };
 
-class RRegExpReplace final : public RInstruction
-{
-  public:
-    RINSTRUCTION_HEADER_(RegExpReplace)
-
-    virtual uint32_t numOperands() const {
-        return 3;
-    }
-
-    bool recover(JSContext* cx, SnapshotIterator& iter) const;
-};
-
 class RStringReplace final : public RInstruction
 {
+  private:
+    bool isFlatReplacement_;
+
   public:
     RINSTRUCTION_HEADER_(StringReplace)
 

@@ -230,10 +230,6 @@ var shell = {
   },
 
   bootstrap: function() {
-#ifdef MOZ_B2GDROID
-    Cc["@mozilla.org/b2g/b2gdroid-setup;1"]
-      .getService(Ci.nsIObserver).observe(window, "shell-startup", null);
-#endif
 
     window.performance.mark('gecko-shell-bootstrap');
 

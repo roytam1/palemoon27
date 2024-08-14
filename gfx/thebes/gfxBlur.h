@@ -8,7 +8,6 @@
 
 #include "gfxTypes.h"
 #include "nsSize.h"
-#include "nsAutoPtr.h"
 #include "gfxPoint.h"
 #include "mozilla/RefPtr.h"
 #include "mozilla/UniquePtr.h"
@@ -48,6 +47,7 @@ namespace mozilla {
 class gfxAlphaBoxBlur
 {
     typedef mozilla::gfx::Color Color;
+    typedef mozilla::gfx::DrawTarget DrawTarget;
     typedef mozilla::gfx::RectCornerRadii RectCornerRadii;
 
 public:
@@ -89,7 +89,8 @@ public:
         return mContext;
     }
 
-    already_AddRefed<mozilla::gfx::SourceSurface> DoBlur(mozilla::gfx::DrawTarget* aDT, mozilla::gfx::IntPoint* aTopLeft);
+    already_AddRefed<mozilla::gfx::SourceSurface>
+    DoBlur(DrawTarget* aDT, mozilla::gfx::IntPoint* aTopLeft);
 
     /**
      * Does the actual blurring/spreading and mask applying. Users of this
@@ -165,18 +166,14 @@ public:
 
 protected:
     already_AddRefed<mozilla::gfx::SourceSurface>
-    GetInsetBlur(mozilla::gfx::IntMargin& aExtendDestBy,
-                 mozilla::gfx::IntMargin& aSlice,
-                 const mozilla::gfx::Rect aDestinationRect,
-                 const mozilla::gfx::Rect aShadowClipRect,
-                 const mozilla::gfx::IntSize& aBlurRadius,
-                 const mozilla::gfx::IntSize& aSpreadRadius,
-                 const RectCornerRadii& aInnerClipRadii,
+    GetInsetBlur(const mozilla::gfx::Rect aOuterRect,
+                 const mozilla::gfx::Rect aWhitespaceRect,
+                 const bool aIsDestRect,
                  const mozilla::gfx::Color& aShadowColor,
-                 const bool& aHasBorderRadius,
-                 const mozilla::gfx::Point aShadowOffset,
-                 bool& aMovedOffset,
-                 gfxContext* aDestinationCtx);
+                 const mozilla::gfx::IntSize& aBlurRadius,
+                 const bool aHasBorderRadius,
+                 const RectCornerRadii& aInnerClipRadii,
+                 DrawTarget* aDestDrawTarget);
 
     /**
      * The context of the temporary alpha surface.
@@ -186,7 +183,7 @@ protected:
     /**
      * The temporary alpha surface.
      */
-    nsAutoArrayPtr<unsigned char> mData;
+    mozilla::UniquePtr<unsigned char[]> mData;
 
      /**
       * The object that actually does the blurring for us.

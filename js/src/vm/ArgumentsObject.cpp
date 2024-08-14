@@ -328,6 +328,8 @@ ArgumentsObject::obj_delProperty(JSContext* cx, HandleObject obj, HandleId id,
         argsobj.markLengthOverridden();
     } else if (JSID_IS_ATOM(id, cx->names().callee)) {
         argsobj.as<MappedArgumentsObject>().clearCallee();
+    } else if (JSID_IS_SYMBOL(id) && JSID_TO_SYMBOL(id) == cx->wellKnownSymbols().iterator) {
+        argsobj.markIteratorOverridden();
     }
     return result.succeed();
 }
@@ -398,10 +400,33 @@ MappedArgSetter(JSContext* cx, HandleObject obj, HandleId id, MutableHandleValue
            NativeDefineProperty(cx, argsobj, id, vp, nullptr, nullptr, attrs, result);
 }
 
+static bool
+DefineArgumentsIterator(JSContext* cx, Handle<ArgumentsObject*> argsobj)
+{
+    RootedId iteratorId(cx, SYMBOL_TO_JSID(cx->wellKnownSymbols().iterator));
+    HandlePropertyName shName = cx->names().ArrayValues;
+    RootedAtom name(cx, cx->names().values);
+    RootedValue val(cx);
+    if (!GlobalObject::getSelfHostedFunction(cx, cx->global(), shName, name, 0, &val))
+        return false;
+
+    return NativeDefineProperty(cx, argsobj, iteratorId, val, nullptr, nullptr, JSPROP_RESOLVING);
+}
+
 /* static */ bool
 MappedArgumentsObject::obj_resolve(JSContext* cx, HandleObject obj, HandleId id, bool* resolvedp)
 {
     Rooted<MappedArgumentsObject*> argsobj(cx, &obj->as<MappedArgumentsObject>());
+
+    if (JSID_IS_SYMBOL(id) && JSID_TO_SYMBOL(id) == cx->wellKnownSymbols().iterator) {
+        if (argsobj->hasOverriddenIterator())
+            return true;
+
+        if (!DefineArgumentsIterator(cx, argsobj))
+            return false;
+        *resolvedp = true;
+        return true;
+    }
 
     unsigned attrs = JSPROP_SHARED | JSPROP_SHADOWABLE | JSPROP_RESOLVING;
     if (JSID_IS_INT(id)) {
@@ -445,6 +470,10 @@ MappedArgumentsObject::obj_enumerate(JSContext* cx, HandleObject obj)
         return false;
 
     id = NameToId(cx->names().callee);
+    if (!HasProperty(cx, argsobj, id, &found))
+        return false;
+
+    id = SYMBOL_TO_JSID(cx->wellKnownSymbols().iterator);
     if (!HasProperty(cx, argsobj, id, &found))
         return false;
 
@@ -519,6 +548,16 @@ UnmappedArgumentsObject::obj_resolve(JSContext* cx, HandleObject obj, HandleId i
 {
     Rooted<UnmappedArgumentsObject*> argsobj(cx, &obj->as<UnmappedArgumentsObject>());
 
+    if (JSID_IS_SYMBOL(id) && JSID_TO_SYMBOL(id) == cx->wellKnownSymbols().iterator) {
+        if (argsobj->hasOverriddenIterator())
+            return true;
+
+        if (!DefineArgumentsIterator(cx, argsobj))
+            return false;
+        *resolvedp = true;
+        return true;
+    }
+
     unsigned attrs = JSPROP_SHARED | JSPROP_SHADOWABLE;
     GetterOp getter = UnmappedArgGetter;
     SetterOp setter = UnmappedArgSetter;
@@ -567,6 +606,10 @@ UnmappedArgumentsObject::obj_enumerate(JSContext* cx, HandleObject obj)
         return false;
 
     id = NameToId(cx->names().caller);
+    if (!HasProperty(cx, argsobj, id, &found))
+        return false;
+
+    id = SYMBOL_TO_JSID(cx->wellKnownSymbols().iterator);
     if (!HasProperty(cx, argsobj, id, &found))
         return false;
 
@@ -632,13 +675,7 @@ ArgumentsObject::objectMovedDuringMinorGC(JSTracer* trc, JSObject* dst, JSObject
  * stack frame with their corresponding property values in the frame's
  * arguments object.
  */
-const Class MappedArgumentsObject::class_ = {
-    "Arguments",
-    JSCLASS_DELAY_METADATA_CALLBACK |
-    JSCLASS_HAS_RESERVED_SLOTS(MappedArgumentsObject::RESERVED_SLOTS) |
-    JSCLASS_HAS_CACHED_PROTO(JSProto_Object) |
-    JSCLASS_SKIP_NURSERY_FINALIZE |
-    JSCLASS_BACKGROUND_FINALIZE,
+const ClassOps MappedArgumentsObject::classOps_ = {
     nullptr,                 /* addProperty */
     ArgumentsObject::obj_delProperty,
     nullptr,                 /* getProperty */
@@ -653,17 +690,21 @@ const Class MappedArgumentsObject::class_ = {
     ArgumentsObject::trace
 };
 
+const Class MappedArgumentsObject::class_ = {
+    "Arguments",
+    JSCLASS_DELAY_METADATA_BUILDER |
+    JSCLASS_HAS_RESERVED_SLOTS(MappedArgumentsObject::RESERVED_SLOTS) |
+    JSCLASS_HAS_CACHED_PROTO(JSProto_Object) |
+    JSCLASS_SKIP_NURSERY_FINALIZE |
+    JSCLASS_BACKGROUND_FINALIZE,
+    &MappedArgumentsObject::classOps_
+};
+
 /*
  * Unmapped arguments is significantly less magical than mapped arguments, so
  * it is represented by a different class while sharing some functionality.
  */
-const Class UnmappedArgumentsObject::class_ = {
-    "Arguments",
-    JSCLASS_DELAY_METADATA_CALLBACK |
-    JSCLASS_HAS_RESERVED_SLOTS(UnmappedArgumentsObject::RESERVED_SLOTS) |
-    JSCLASS_HAS_CACHED_PROTO(JSProto_Object) |
-    JSCLASS_SKIP_NURSERY_FINALIZE |
-    JSCLASS_BACKGROUND_FINALIZE,
+const ClassOps UnmappedArgumentsObject::classOps_ = {
     nullptr,                 /* addProperty */
     ArgumentsObject::obj_delProperty,
     nullptr,                 /* getProperty */
@@ -676,4 +717,14 @@ const Class UnmappedArgumentsObject::class_ = {
     nullptr,                 /* hasInstance */
     nullptr,                 /* construct   */
     ArgumentsObject::trace
+};
+
+const Class UnmappedArgumentsObject::class_ = {
+    "Arguments",
+    JSCLASS_DELAY_METADATA_BUILDER |
+    JSCLASS_HAS_RESERVED_SLOTS(UnmappedArgumentsObject::RESERVED_SLOTS) |
+    JSCLASS_HAS_CACHED_PROTO(JSProto_Object) |
+    JSCLASS_SKIP_NURSERY_FINALIZE |
+    JSCLASS_BACKGROUND_FINALIZE,
+    &UnmappedArgumentsObject::classOps_
 };

@@ -85,6 +85,7 @@ protected:
                               nsITabParent* aOpeningTab,
                               nsIArray* argv,
 			      nsIDocShellLoadInfo* aLoadInfo,
+                              float* aOpenerFullZoom,
                               nsIDOMWindow** aResult);
 
   static nsresult URIfromURL(const char* aURL,
@@ -110,7 +111,8 @@ protected:
   static void SizeOpenedDocShellItem(nsIDocShellTreeItem* aDocShellItem,
                                      nsIDOMWindow* aParent,
                                      bool aIsCallerChrome,
-                                     const SizeSpec& aSizeSpec);
+                                     const SizeSpec& aSizeSpec,
+                                     float* aOpenerFullZoom);
   static void GetWindowTreeItem(nsIDOMWindow* aWindow,
                                 nsIDocShellTreeItem** aResult);
   static void GetWindowTreeOwner(nsIDOMWindow* aWindow,

@@ -110,9 +110,6 @@ enum BailoutKind
     // maps unshared memory.
     Bailout_NonSharedTypedArrayInput,
 
-    // For the initial snapshot when entering a function.
-    Bailout_InitialState,
-
     // We hit a |debugger;| statement.
     Bailout_Debugger,
 
@@ -222,8 +219,6 @@ BailoutKindString(BailoutKind kind)
         return "Bailout_NonSimdFloat32x4Input";
       case Bailout_NonSharedTypedArrayInput:
         return "Bailout_NonSharedTypedArrayInput";
-      case Bailout_InitialState:
-        return "Bailout_InitialState";
       case Bailout_Debugger:
         return "Bailout_Debugger";
       case Bailout_UninitializedThis:
@@ -402,14 +397,17 @@ enum MIRType
     MIRType_Int64,
     MIRType_Double,
     MIRType_Float32,
+    // Types above have trivial conversion to a number.
     MIRType_String,
     MIRType_Symbol,
+    // Types above are primitive (including undefined and null).
     MIRType_Object,
     MIRType_MagicOptimizedArguments,   // JS_OPTIMIZED_ARGUMENTS magic value.
     MIRType_MagicOptimizedOut,         // JS_OPTIMIZED_OUT magic value.
     MIRType_MagicHole,                 // JS_ELEMENTS_HOLE magic value.
     MIRType_MagicIsConstructing,       // JS_IS_CONSTRUCTING magic value.
     MIRType_MagicUninitializedLexical, // JS_UNINITIALIZED_LEXICAL magic value.
+    // Types above are specialized.
     MIRType_Value,
     MIRType_SinCosDouble,              // Optimizing a sin/cos to sincos.
     MIRType_ObjectOrNull,
@@ -549,11 +547,12 @@ StringFromMIRType(MIRType type)
       return "Float32x4";
     case MIRType_Int32x4:
       return "Int32x4";
+    case MIRType_Bool32x4:
+      return "Bool32x4";
     case MIRType_Doublex2:
       return "Doublex2";
-    default:
-      MOZ_CRASH("Unknown MIRType.");
   }
+  MOZ_CRASH("Unknown MIRType.");
 }
 
 static inline bool

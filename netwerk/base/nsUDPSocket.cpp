@@ -272,11 +272,7 @@ nsUDPSocket::nsUDPSocket()
 
 nsUDPSocket::~nsUDPSocket()
 {
-  if (mFD) {
-    PR_Close(mFD);
-    mFD = nullptr;
-  }
-
+  CloseSocket();
   MOZ_COUNT_DTOR(nsUDPSocket);
 }
 
@@ -463,9 +459,9 @@ nsUDPSocket::OnSocketReady(PRFileDesc *fd, int16_t outFlags)
 
   PRNetAddr prClientAddr;
   uint32_t count;
-  // Bug 1165423 - using 8k here because the packet could be larger
-  // than the MTU with fragmentation
-  char buff[8 * 1024];
+  // Bug 1252755 - use 9216 bytes to allign with nICEr and transportlayer to
+  // support the maximum size of jumbo frames
+  char buff[9216];
   count = PR_RecvFrom(mFD, buff, sizeof(buff), 0, &prClientAddr, PR_INTERVAL_NO_WAIT);
 
   if (count < 1) {
@@ -519,23 +515,22 @@ nsUDPSocket::OnSocketDetached(PRFileDesc *fd)
   if (mFD)
   {
     NS_ASSERTION(mFD == fd, "wrong file descriptor");
-    PR_Close(mFD);
-    mFD = nullptr;
+    CloseSocket();
   }
   SaveNetworkStats(true);
 
   if (mListener)
   {
     // need to atomically clear mListener.  see our Close() method.
-    nsCOMPtr<nsIUDPSocketListener> listener;
+    RefPtr<nsIUDPSocketListener> listener = nullptr;
     {
       MutexAutoLock lock(mLock);
-      mListener.swap(listener);
+      listener = mListener.forget();
     }
 
     if (listener) {
       listener->OnStopListening(this, mCondition);
-      NS_ProxyRelease(mListenerTarget, listener);
+      NS_ProxyRelease(mListenerTarget, listener.forget());
     }
   }
 }
@@ -718,13 +713,10 @@ nsUDPSocket::Close()
     // has been set.  otherwise, we should just close the socket here...
     if (!mListener)
     {
-      if (mFD)
-      {
-        // Here we want to go directly with closing the socket since some tests
-        // expects this happen synchronously.
-        PR_Close(mFD);
-        mFD = nullptr;
-      }
+      // Here we want to go directly with closing the socket since some tests
+      // expects this happen synchronously.
+      CloseSocket();
+
       SaveNetworkStats(true);
       return NS_OK;
     }
@@ -779,6 +771,22 @@ nsUDPSocket::SaveNetworkStats(bool aEnforce)
     mByteWriteCount = 0;
   }
 #endif
+}
+
+void
+nsUDPSocket::CloseSocket()
+{
+  if (mFD) {
+    if (gIOService->IsNetTearingDown() &&
+        ((PR_IntervalNow() - gIOService->NetTearingDownStarted()) >
+         gSocketTransportService->MaxTimeForPrClosePref())) {
+      // If shutdown last to long, let the socket leak and do not close it.
+      UDPSOCKET_LOG(("Intentional leak"));
+    } else {
+      PR_Close(mFD);
+    }
+    mFD = nullptr;
+  }
 }
 
 NS_IMETHODIMP
@@ -1423,6 +1431,33 @@ nsUDPSocket::SetMulticastLoopback(bool aLoopback)
 
   opt.option = PR_SockOpt_McastLoopback;
   opt.value.mcast_loopback = aLoopback;
+
+  nsresult rv = SetSocketOption(opt);
+  if (NS_WARN_IF(NS_FAILED(rv))) {
+    return NS_ERROR_FAILURE;
+  }
+
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+nsUDPSocket::GetRecvBufferSize(int* size)
+{
+  // Bug 1252759 - missing support for GetSocketOption
+  return NS_ERROR_NOT_IMPLEMENTED;
+}
+
+NS_IMETHODIMP
+nsUDPSocket::SetRecvBufferSize(int size)
+{
+  if (NS_WARN_IF(!mFD)) {
+    return NS_ERROR_NOT_INITIALIZED;
+  }
+
+  PRSocketOptionData opt;
+
+  opt.option = PR_SockOpt_RecvBufferSize;
+  opt.value.recv_buffer_size = size;
 
   nsresult rv = SetSocketOption(opt);
   if (NS_WARN_IF(NS_FAILED(rv))) {

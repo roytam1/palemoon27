@@ -372,10 +372,8 @@ AsyncFaviconHelperBase::AsyncFaviconHelperBase(
 
 AsyncFaviconHelperBase::~AsyncFaviconHelperBase()
 {
-  nsCOMPtr<nsIThread> thread;
-  (void)NS_GetMainThread(getter_AddRefs(thread));
   if (mCallback) {
-    (void)NS_ProxyRelease(thread, mCallback, true);
+    NS_ReleaseOnMainThread(mCallback.forget(), true);
   }
 }
 
@@ -1073,7 +1071,7 @@ NotifyIconObservers::Run()
 
   nsCOMPtr<nsIURI> iconURI;
   if (!mIcon.spec.IsEmpty()) {
-    MOZ_ALWAYS_TRUE(NS_SUCCEEDED(NS_NewURI(getter_AddRefs(iconURI), mIcon.spec)));
+    MOZ_ALWAYS_SUCCEEDS(NS_NewURI(getter_AddRefs(iconURI), mIcon.spec));
     if (iconURI)
     {
       // Notify observers only if something changed.
@@ -1096,7 +1094,7 @@ void
 NotifyIconObservers::SendGlobalNotifications(nsIURI* aIconURI)
 {
   nsCOMPtr<nsIURI> pageURI;
-  MOZ_ALWAYS_TRUE(NS_SUCCEEDED(NS_NewURI(getter_AddRefs(pageURI), mPage.spec)));
+  MOZ_ALWAYS_SUCCEEDS(NS_NewURI(getter_AddRefs(pageURI), mPage.spec));
   if (pageURI) {
     nsFaviconService* favicons = nsFaviconService::GetFaviconService();
     MOZ_ASSERT(favicons);

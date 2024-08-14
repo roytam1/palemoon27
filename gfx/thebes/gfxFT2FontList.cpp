@@ -544,7 +544,7 @@ FT2FontEntry::GetFontTable(uint32_t aTableTag)
         FTUserFontData *userFontData = static_cast<FTUserFontData*>(
             cairo_font_face_get_user_data(mFontFace, &sFTUserFontDataKey));
         if (userFontData && userFontData->FontData()) {
-			return gfxFontUtils::GetTableFromFontData(userFontData->FontData(), aTableTag);
+            return GetTableFromFontData(userFontData->FontData(), aTableTag);
         }
     }
 
@@ -643,7 +643,21 @@ public:
         }
 
         nsAutoCString buf;
-        PL_DHashTableEnumerate(&mMap, WriteOutMap, &buf);
+        for (auto iter = mMap.Iter(); !iter.Done(); iter.Next()) {
+            auto entry = static_cast<FNCMapEntry*>(iter.Get());
+            if (!entry->mFileExists) {
+                // skip writing entries for files that are no longer present
+                continue;
+            }
+            buf.Append(entry->mFilename);
+            buf.Append(';');
+            buf.Append(entry->mFaces);
+            buf.Append(';');
+            buf.AppendInt(entry->mTimestamp);
+            buf.Append(';');
+            buf.AppendInt(entry->mFilesize);
+            buf.Append(';');
+        }
         mCache->PutBuffer(CACHE_KEY, buf.get(), buf.Length() + 1);
     }
 
@@ -653,14 +667,14 @@ public:
             return;
         }
         uint32_t size;
-        char* buf;
+        UniquePtr<char[]> buf;
         if (NS_FAILED(mCache->GetBuffer(CACHE_KEY, &buf, &size))) {
             return;
         }
 
-        LOG(("got: %s from the cache", nsDependentCString(buf, size).get()));
+        LOG(("got: %s from the cache", nsDependentCString(buf.get(), size).get()));
 
-        const char* beginning = buf;
+        const char* beginning = buf.get();
         const char* end = strchr(beginning, ';');
         while (end) {
             nsCString filename(beginning, end - beginning);
@@ -695,9 +709,6 @@ public:
             beginning = end + 1;
             end = strchr(beginning, ';');
         }
-
-        // Should we use free() or delete[] here? See bug 684700.
-        free(buf);
     }
 
     virtual void
@@ -739,28 +750,6 @@ private:
 
     PLDHashTableOps mOps;
 
-    static PLDHashOperator WriteOutMap(PLDHashTable *aTable,
-                                       PLDHashEntryHdr *aHdr,
-                                       uint32_t aNumber, void *aData)
-    {
-        FNCMapEntry* entry = static_cast<FNCMapEntry*>(aHdr);
-        if (!entry->mFileExists) {
-            // skip writing entries for files that are no longer present
-            return PL_DHASH_NEXT;
-        }
-
-        nsAutoCString* buf = reinterpret_cast<nsAutoCString*>(aData);
-        buf->Append(entry->mFilename);
-        buf->Append(';');
-        buf->Append(entry->mFaces);
-        buf->Append(';');
-        buf->AppendInt(entry->mTimestamp);
-        buf->Append(';');
-        buf->AppendInt(entry->mFilesize);
-        buf->Append(';');
-        return PL_DHASH_NEXT;
-    }
-
     typedef struct : public PLDHashEntryHdr {
     public:
         nsCString mFilename;
@@ -770,13 +759,12 @@ private:
         bool      mFileExists;
     } FNCMapEntry;
 
-    static PLDHashNumber StringHash(PLDHashTable *table, const void *key)
+    static PLDHashNumber StringHash(const void *key)
     {
         return HashString(reinterpret_cast<const char*>(key));
     }
 
-    static bool HashMatchEntry(PLDHashTable *table,
-                                 const PLDHashEntryHdr *aHdr, const void *key)
+    static bool HashMatchEntry(const PLDHashEntryHdr *aHdr, const void *key)
     {
         const FNCMapEntry* entry =
             static_cast<const FNCMapEntry*>(aHdr);
@@ -961,7 +949,7 @@ gfxFT2FontList::FindFontsInOmnijar(FontNameCache *aCache)
 
     mozilla::scache::StartupCache* cache =
         mozilla::scache::StartupCache::GetSingleton();
-    char *cachedModifiedTimeBuf;
+    UniquePtr<char[]> cachedModifiedTimeBuf;
     uint32_t longSize;
     int64_t jarModifiedTime;
     if (cache &&
@@ -972,7 +960,7 @@ gfxFT2FontList::FindFontsInOmnijar(FontNameCache *aCache)
     {
         nsCOMPtr<nsIFile> jarFile = Omnijar::GetPath(Omnijar::Type::GRE);
         jarFile->GetLastModifiedTime(&jarModifiedTime);
-        if (jarModifiedTime > *(int64_t*)cachedModifiedTimeBuf) {
+        if (jarModifiedTime > *(int64_t*)cachedModifiedTimeBuf.get()) {
             jarChanged = true;
         }
     }
@@ -1213,6 +1201,22 @@ gfxFT2FontList::FindFonts()
         FindFontsInOmnijar(&fnc);
     }
 
+    // Look for downloaded fonts in a profile-agnostic "fonts" directory.
+    nsCOMPtr<nsIProperties> dirSvc =
+      do_GetService(NS_DIRECTORY_SERVICE_CONTRACTID);
+    if (dirSvc) {
+        nsCOMPtr<nsIFile> appDir;
+        nsresult rv = dirSvc->Get(NS_XPCOM_CURRENT_PROCESS_DIR,
+                         NS_GET_IID(nsIFile), getter_AddRefs(appDir));
+        if (NS_SUCCEEDED(rv)) {
+            appDir->AppendNative(NS_LITERAL_CSTRING("fonts"));
+            nsCString localPath;
+            if (NS_SUCCEEDED(appDir->GetNativePath(localPath))) {
+                FindFontsInDir(localPath, &fnc, FT2FontFamily::kVisible);
+            }
+        }
+    }
+
     // look for locally-added fonts in a "fonts" subdir of the profile
     nsCOMPtr<nsIFile> localDir;
     nsresult rv = NS_GetSpecialDirectory(NS_APP_USER_PROFILE_LOCAL_50_DIR,
@@ -1401,7 +1405,7 @@ PreloadAsUserFontFaces(nsStringHashKey::KeyType aKey,
              crc);
 #endif
 
-        fe->mUserFontData = new gfxUserFontData;
+        fe->mUserFontData = MakeUnique<gfxUserFontData>();
         fe->mUserFontData->mRealName = fe->Name();
         fe->mUserFontData->mCRC32 = crc;
         fe->mUserFontData->mLength = buf.st_size;

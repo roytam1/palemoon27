@@ -88,6 +88,10 @@
 @BINPATH@/@MSVC_C_RUNTIME_DLL@
 @BINPATH@/@MSVC_CXX_RUNTIME_DLL@
 #endif
+#if MOZ_PACKAGE_WIN_UCRT_DLLS
+@BINPATH@/api-ms-win-*.dll
+@BINPATH@/ucrtbase.dll
+#endif
 #endif
 #ifndef MOZ_NATIVE_ICU
 #ifdef MOZ_SHARED_ICU
@@ -108,11 +112,6 @@
 #endif
 #ifdef MOZ_SHARED_MOZGLUE
 @BINPATH@/@DLL_PREFIX@mozglue@DLL_SUFFIX@
-#endif
-#ifdef MOZ_REPLACE_MALLOC
-#ifndef MOZ_JEMALLOC4
-@BINPATH@/@DLL_PREFIX@replace_jemalloc@DLL_SUFFIX@
-#endif
 #endif
 #ifdef ANDROID
 @RESPATH@/AndroidManifest.xml
@@ -429,8 +428,12 @@
 @RESPATH@/components/nsLoginInfo.js
 @RESPATH@/components/nsLoginManager.js
 @RESPATH@/components/nsLoginManagerPrompter.js
+@RESPATH@/components/TooltipTextProvider.js
+@RESPATH@/components/TooltipTextProvider.manifest
 @RESPATH@/components/NetworkGeolocationProvider.manifest
 @RESPATH@/components/NetworkGeolocationProvider.js
+@RESPATH@/components/TVSimulatorService.js
+@RESPATH@/components/TVSimulatorService.manifest
 #ifdef MOZ_WEBRTC
 @RESPATH@/components/PeerConnection.js
 @RESPATH@/components/PeerConnection.manifest
@@ -696,6 +699,9 @@
 ; InputMethod API
 @RESPATH@/components/MozKeyboard.js
 @RESPATH@/components/InputMethod.manifest
+#ifdef MOZ_B2G
+@RESPATH@/components/inputmethod.xpt
+#endif
 
 @RESPATH@/components/EngineeringMode.manifest
 @RESPATH@/components/EngineeringModeAPI.js
@@ -800,18 +806,6 @@
 @RESPATH@/res/table-remove-row-active.gif
 @RESPATH@/res/table-remove-row-hover.gif
 @RESPATH@/res/table-remove-row.gif
-@RESPATH@/res/accessiblecaret.png
-@RESPATH@/res/accessiblecaret@1.5x.png
-@RESPATH@/res/accessiblecaret@2.25x.png
-@RESPATH@/res/accessiblecaret@2x.png
-@RESPATH@/res/accessiblecaret_tilt_left.png
-@RESPATH@/res/accessiblecaret_tilt_left@1.5x.png
-@RESPATH@/res/accessiblecaret_tilt_left@2.25x.png
-@RESPATH@/res/accessiblecaret_tilt_left@2x.png
-@RESPATH@/res/accessiblecaret_tilt_right.png
-@RESPATH@/res/accessiblecaret_tilt_right@1.5x.png
-@RESPATH@/res/accessiblecaret_tilt_right@2.25x.png
-@RESPATH@/res/accessiblecaret_tilt_right@2x.png
 @RESPATH@/res/grabber.gif
 #ifdef XP_MACOSX
 @RESPATH@/res/cursors/*

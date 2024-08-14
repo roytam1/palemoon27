@@ -310,7 +310,7 @@ nsMixedContentBlocker::AsyncOnChannelRedirect(nsIChannel* aOldChannel,
   }
 
   int16_t decision = REJECT_REQUEST;
-  rv = ShouldLoad(nsContentUtils::InternalContentPolicyTypeToExternalOrMCBInternal(contentPolicyType),
+  rv = ShouldLoad(contentPolicyType,
                   newUri,
                   requestingLocation,
                   loadInfo->LoadingNode(),
@@ -323,7 +323,6 @@ nsMixedContentBlocker::AsyncOnChannelRedirect(nsIChannel* aOldChannel,
   // If the channel is about to load mixed content, abort the channel
   if (!NS_CP_ACCEPTED(decision)) {
     autoCallback.DontCallback();
-    aOldChannel->Cancel(NS_ERROR_DOM_BAD_URI);
     return NS_BINDING_FAILED;
   }
 
@@ -378,9 +377,6 @@ nsMixedContentBlocker::ShouldLoad(bool aHadInsecureImageRedirect,
   // and unlock sBlockMixedScript and sBlockMixedDisplay before reading/writing
   // to them.
   MOZ_ASSERT(NS_IsMainThread());
-
-  MOZ_ASSERT(aContentType == nsContentUtils::InternalContentPolicyTypeToExternalOrMCBInternal(aContentType),
-             "We should only see external content policy types here.");
 
   bool isPreload = nsContentUtils::IsPreloadType(aContentType);
 
@@ -636,6 +632,35 @@ nsMixedContentBlocker::ShouldLoad(bool aHadInsecureImageRedirect,
     return NS_OK;
   }
 
+  nsCOMPtr<nsIDocShell> docShell = NS_CP_GetDocShellFromContext(aRequestingContext);
+  NS_ENSURE_TRUE(docShell, NS_OK);
+
+  // The page might have set the CSP directive 'block-all-mixed-content' which
+  // should block not only active mixed content loads but in fact all mixed content
+  // loads, see https://www.w3.org/TR/mixed-content/#strict-checking
+  // Block all non secure loads in case the CSP directive is present. Please note
+  // that at this point we already know, based on |schemeSecure| that the load is
+  // not secure, so we can bail out early at this point.
+  if (docShell->GetDocument()->GetBlockAllMixedContent(isPreload)) {
+    // log a message to the console before returning.
+    nsAutoCString spec;
+    rv = aContentLocation->GetSpec(spec);
+    NS_ENSURE_SUCCESS(rv, rv);
+    NS_ConvertUTF8toUTF16 reportSpec(spec);
+
+    const char16_t* params[] = { reportSpec.get()};
+    CSP_LogLocalizedStr(MOZ_UTF16("blockAllMixedContent"),
+                        params, ArrayLength(params),
+                        EmptyString(), // aSourceFile
+                        EmptyString(), // aScriptSample
+                        0, // aLineNumber
+                        0, // aColumnNumber
+                        nsIScriptError::errorFlag, "CSP",
+                        docShell->GetDocument()->InnerWindowID());
+    *aDecision = REJECT_REQUEST;
+    return NS_OK;
+  }
+
   // Disallow mixed content loads for workers, shared workers and service
   // workers.
   if (isWorkerType) {
@@ -653,10 +678,6 @@ nsMixedContentBlocker::ShouldLoad(bool aHadInsecureImageRedirect,
     return NS_OK;
   }
 
-  // Determine if the rootDoc is https and if the user decided to allow Mixed Content
-  nsCOMPtr<nsIDocShell> docShell = NS_CP_GetDocShellFromContext(aRequestingContext);
-  NS_ENSURE_TRUE(docShell, NS_OK);
-
   // The page might have set the CSP directive 'upgrade-insecure-requests'. In such
   // a case allow the http: load to succeed with the promise that the channel will
   // get upgraded to https before fetching any data from the netwerk.
@@ -671,11 +692,12 @@ nsMixedContentBlocker::ShouldLoad(bool aHadInsecureImageRedirect,
   bool isHttpScheme = false;
   rv = aContentLocation->SchemeIs("http", &isHttpScheme);
   NS_ENSURE_SUCCESS(rv, rv);
-  if (isHttpScheme && docShell->GetDocument()->GetUpgradeInsecureRequests()) {
+  if (isHttpScheme && docShell->GetDocument()->GetUpgradeInsecureRequests(isPreload)) {
     *aDecision = ACCEPT;
     return NS_OK;
   }
 
+  // Determine if the rootDoc is https and if the user decided to allow Mixed Content
   bool rootHasSecureConnection = false;
   bool allowMixedContent = false;
   bool isRootDocShell = false;
@@ -775,6 +797,11 @@ nsMixedContentBlocker::ShouldLoad(bool aHadInsecureImageRedirect,
         cc->SendAccumulateMixedContentHSTS(uri, active);
       }
     }
+  }
+
+  // set hasMixedContentObjectSubrequest on this object if necessary
+  if (aContentType == TYPE_OBJECT_SUBREQUEST) {
+    rootDoc->SetHasMixedContentObjectSubrequest(true);
   }
 
   // If the content is display content, and the pref says display content should be blocked, block it.
@@ -898,8 +925,7 @@ nsMixedContentBlocker::ShouldProcess(uint32_t aContentType,
                                      nsIPrincipal* aRequestPrincipal,
                                      int16_t* aDecision)
 {
-  MOZ_ASSERT(aContentType == nsContentUtils::InternalContentPolicyTypeToExternal(aContentType),
-             "We should only see external content policy types here.");
+  aContentType = nsContentUtils::InternalContentPolicyTypeToExternal(aContentType);
 
   if (!aContentLocation) {
     // aContentLocation may be null when a plugin is loading without an associated URI resource

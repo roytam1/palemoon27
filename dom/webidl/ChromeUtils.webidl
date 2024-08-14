@@ -28,6 +28,31 @@ interface ChromeUtils : ThreadSafeChromeUtils {
   static boolean
   originAttributesMatchPattern(optional OriginAttributesDictionary originAttrs,
                                optional OriginAttributesPatternDictionary pattern);
+
+  /**
+   * Returns an OriginAttributesDictionary with values from the |origin| suffix
+   * and unspecified attributes added and assigned default values.
+   *
+   * @param origin            The origin URI to create from.
+   * @returns                 An OriginAttributesDictionary with values from
+   *                          the origin suffix and unspecified attributes
+   *                          added and assigned default values.
+   */
+  [Throws]
+  static OriginAttributesDictionary
+  createOriginAttributesFromOrigin(DOMString origin);
+
+  /**
+   * Returns an OriginAttributesDictionary that is a copy of |originAttrs| with
+   * unspecified attributes added and assigned default values.
+   *
+   * @param originAttrs       The origin attributes to copy.
+   * @returns                 An OriginAttributesDictionary copy of |originAttrs|
+   *                          with unspecified attributes added and assigned
+   *                          default values.
+   */
+  static OriginAttributesDictionary
+  fillNonDefaultOriginAttributes(optional OriginAttributesDictionary originAttrs);
 };
 
 /**

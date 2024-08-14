@@ -40,9 +40,6 @@ public:
 
 protected:
   virtual ~LeafAccessible() {}
-
-  // Accessible
-  virtual void CacheChildren() override;
 };
 
 /**
@@ -76,7 +73,8 @@ public:
 
   // ActionAccessible helpers
   Accessible* ActionWalk(bool* aIsLink = nullptr,
-                          bool* aIsOnclick = nullptr);
+                         bool* aIsOnclick = nullptr,
+                         bool* aIsLabelWithControl = nullptr);
   // HyperLinkAccessible
   virtual already_AddRefed<nsIURI> AnchorURIAt(uint32_t aAnchorIndex) override;
 

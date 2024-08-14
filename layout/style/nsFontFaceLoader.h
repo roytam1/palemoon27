@@ -42,13 +42,13 @@ public:
 
   static void LoadTimerCallback(nsITimer* aTimer, void* aClosure);
 
-  static nsresult CheckLoadAllowed(nsIPrincipal* aSourcePrincipal,
-                                   nsIURI* aTargetURI,
-                                   nsISupports* aContext);
   gfxUserFontEntry* GetUserFontEntry() const { return mUserFontEntry; }
 
 protected:
   virtual ~nsFontFaceLoader();
+
+  // helper method for determining the font-display value
+  uint8_t GetFontDisplay();
 
 private:
   RefPtr<gfxUserFontEntry>  mUserFontEntry;

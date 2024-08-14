@@ -37,7 +37,7 @@
 
 using namespace mozilla::pkix;
 
-extern PRLogModuleInfo* gPIPNSSLog;
+extern mozilla::LazyLogModule gPIPNSSLog;
 
 static const unsigned int DEFAULT_MIN_RSA_BITS = 2048;
 static char kDevImportedDER[] =
@@ -46,7 +46,7 @@ static char kDevImportedDER[] =
 namespace mozilla { namespace psm {
 
 StaticMutex AppTrustDomain::sMutex;
-nsAutoArrayPtr<unsigned char> AppTrustDomain::sDevImportedDERData(nullptr);
+UniquePtr<unsigned char[]> AppTrustDomain::sDevImportedDERData;
 unsigned int AppTrustDomain::sDevImportedDERLen = 0;
 
 AppTrustDomain::AppTrustDomain(ScopedCERTCertList& certChain, void* pinArg)
@@ -144,18 +144,18 @@ AppTrustDomain::SetTrustedRoot(AppTrustedRoot trustedRoot)
           return SECFailure;
         }
 
-        char* data = new char[length];
-        rv = inputStream->Read(data, length, &sDevImportedDERLen);
+        auto data = MakeUnique<char[]>(length);
+        rv = inputStream->Read(data.get(), length, &sDevImportedDERLen);
         if (NS_FAILED(rv)) {
           PR_SetError(SEC_ERROR_IO, 0);
           return SECFailure;
         }
 
         MOZ_ASSERT(length == sDevImportedDERLen);
-        sDevImportedDERData = reinterpret_cast<unsigned char*>(data);
+        sDevImportedDERData.reset(reinterpret_cast<unsigned char*>(data.release()));
       }
 
-      trustedDER.data = sDevImportedDERData;
+      trustedDER.data = sDevImportedDERData.get();
       trustedDER.len = sDevImportedDERLen;
       break;
     }
@@ -165,8 +165,8 @@ AppTrustDomain::SetTrustedRoot(AppTrustedRoot trustedRoot)
       return SECFailure;
   }
 
-  mTrustedRoot = CERT_NewTempCertificate(CERT_GetDefaultCertDB(),
-                                         &trustedDER, nullptr, false, true);
+  mTrustedRoot.reset(CERT_NewTempCertificate(CERT_GetDefaultCertDB(),
+                                             &trustedDER, nullptr, false, true));
   if (!mTrustedRoot) {
     return SECFailure;
   }
@@ -244,7 +244,7 @@ AppTrustDomain::GetCertTrust(EndEntityOrCA endEntityOrCA,
   // expose it in any other easy-to-use fashion.
   SECItem candidateCertDERSECItem =
     UnsafeMapInputToSECItem(candidateCertDER);
-  ScopedCERTCertificate candidateCert(
+  UniqueCERTCertificate candidateCert(
     CERT_NewTempCertificate(CERT_GetDefaultCertDB(), &candidateCertDERSECItem,
                             nullptr, false, true));
   if (!candidateCert) {

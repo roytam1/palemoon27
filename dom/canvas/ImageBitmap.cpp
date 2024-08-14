@@ -627,7 +627,7 @@ ImageBitmap::CreateInternal(nsIGlobalObject* aGlobal, HTMLVideoElement& aVideoEl
   }
 
   // Check security.
-  nsCOMPtr<nsIPrincipal> principal = aVideoEl.GetCurrentPrincipal();
+  nsCOMPtr<nsIPrincipal> principal = aVideoEl.GetCurrentVideoPrincipal();
   bool CORSUsed = aVideoEl.GetCORSMode() != CORS_NONE;
   if (!CheckSecurityForHTMLElements(false, CORSUsed, principal)) {
     aRv.Throw(NS_ERROR_DOM_SECURITY_ERR);
@@ -894,7 +894,7 @@ AsyncFulfillImageBitmapPromise(Promise* aPromise, ImageBitmap* aImageBitmap)
   } else {
     RefPtr<FulfillImageBitmapPromiseWorkerTask> task =
       new FulfillImageBitmapPromiseWorkerTask(aPromise, aImageBitmap);
-    task->Dispatch(GetCurrentThreadWorkerPrivate()->GetJSContext()); // Actually, to the current worker-thread.
+    task->Dispatch(); // Actually, to the current worker-thread.
   }
 }
 
@@ -1167,7 +1167,7 @@ AsyncCreateImageBitmapFromBlob(Promise* aPromise, nsIGlobalObject* aGlobal,
   } else {
     RefPtr<CreateImageBitmapFromBlobWorkerTask> task =
       new CreateImageBitmapFromBlobWorkerTask(aPromise, aGlobal, aBlob, aCropRect);
-    task->Dispatch(GetCurrentThreadWorkerPrivate()->GetJSContext()); // Actually, to the current worker-thread.
+    task->Dispatch(); // Actually, to the current worker-thread.
   }
 }
 

@@ -162,6 +162,8 @@ TEST_F(APZHitTestingTester, HitTesting1) {
 
 // A more involved hit testing test that involves css and async transforms.
 TEST_F(APZHitTestingTester, HitTesting2) {
+  SCOPED_GFX_PREF(APZVelocityBias, float, 0.0); // Velocity bias can cause extra repaint requests
+
   CreateHitTesting2LayerTree();
   ScopedLayerTreeRegistration registration(manager, 0, root, mcc);
 
@@ -465,12 +467,12 @@ TEST_F(APZHitTestingTester, Bug1148350) {
     EXPECT_CALL(check, Call("Tapped with interleaved transform"));
   }
 
-  Tap(manager, 100, 100, mcc, TimeDuration::FromMilliseconds(100));
+  Tap(manager, ScreenIntPoint(100, 100), mcc, TimeDuration::FromMilliseconds(100));
   mcc->RunThroughDelayedTasks();
   check.Call("Tapped without transform");
 
   uint64_t blockId;
-  TouchDown(manager, 100, 100, mcc->Time(), &blockId);
+  TouchDown(manager, ScreenIntPoint(100, 100), mcc->Time(), &blockId);
   if (gfxPrefs::TouchActionEnabled()) {
     SetDefaultAllowedTouchBehavior(manager, blockId);
   }
@@ -480,8 +482,49 @@ TEST_F(APZHitTestingTester, Bug1148350) {
   layers[0]->SetBaseTransform(Matrix4x4::Translation(0, 50, 0));
   manager->UpdateHitTestingTree(nullptr, root, false, 0, 0);
 
-  TouchUp(manager, 100, 100, mcc->Time());
+  TouchUp(manager, ScreenIntPoint(100, 100), mcc->Time());
   mcc->RunThroughDelayedTasks();
   check.Call("Tapped with interleaved transform");
 }
 
+TEST_F(APZHitTestingTester, HitTestingRespectsScrollClip_Bug1257288) {
+  // Create the layer tree.
+  const char* layerTreeSyntax = "c(tt)";
+  // LayerID                     0 12
+  nsIntRegion layerVisibleRegion[] = {
+    nsIntRegion(IntRect(0,0,200,200)),
+    nsIntRegion(IntRect(0,0,200,200)),
+    nsIntRegion(IntRect(0,0,200,100))
+  };
+  root = CreateLayerTree(layerTreeSyntax, layerVisibleRegion, nullptr, lm, layers);
+
+  // Add root scroll metadata to the first painted layer.
+  SetScrollableFrameMetrics(layers[1], FrameMetrics::START_SCROLL_ID, CSSRect(0,0,200,200));
+
+  // Add root and subframe scroll metadata to the second painted layer.
+  // Give the subframe metadata a scroll clip corresponding to the subframe's
+  // composition bounds.
+  // Importantly, give the layer a layer clip which leaks outside of the
+  // subframe's composition bounds.
+  ScrollMetadata rootMetadata = BuildScrollMetadata(
+      FrameMetrics::START_SCROLL_ID, CSSRect(0,0,200,200),
+      ParentLayerRect(0,0,200,200));
+  ScrollMetadata subframeMetadata = BuildScrollMetadata(
+      FrameMetrics::START_SCROLL_ID + 1, CSSRect(0,0,200,200),
+      ParentLayerRect(0,0,200,100));
+  subframeMetadata.SetClipRect(Some(ParentLayerIntRect(0,0,200,100)));
+  layers[2]->SetScrollMetadata({subframeMetadata, rootMetadata});
+  layers[2]->SetClipRect(Some(ParentLayerIntRect(0,0,200,200)));
+  SetEventRegionsBasedOnBottommostMetrics(layers[2]);
+
+  // Build the hit testing tree.
+  ScopedLayerTreeRegistration registration(manager, 0, root, mcc);
+  manager->UpdateHitTestingTree(nullptr, root, false, 0, 0);
+
+  // Pan on a region that's inside layers[2]'s layer clip, but outside
+  // its subframe metadata's scroll clip.
+  Pan(manager, mcc, 120, 110);
+
+  // Test that the subframe hasn't scrolled.
+  EXPECT_EQ(CSSPoint(0,0), ApzcOf(layers[2], 0)->GetFrameMetrics().GetScrollOffset());
+}

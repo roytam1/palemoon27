@@ -7,6 +7,8 @@
 #include "nsSVGEffects.h"
 
 // Keep others in (case-insensitive) order:
+#include "mozilla/RestyleManagerHandle.h"
+#include "mozilla/RestyleManagerHandleInlines.h"
 #include "nsCSSFrameConstructor.h"
 #include "nsISupportsImpl.h"
 #include "nsSVGClipPathFrame.h"
@@ -15,7 +17,6 @@
 #include "nsSVGFilterFrame.h"
 #include "nsSVGMaskFrame.h"
 #include "nsIReflowCallback.h"
-#include "RestyleManager.h"
 #include "nsCycleCollectionParticipant.h"
 
 using namespace mozilla;
@@ -486,15 +487,15 @@ GetEffectProperty(nsIURI *aURI, nsIFrame *aFrame,
 static nsSVGFilterProperty*
 GetOrCreateFilterProperty(nsIFrame *aFrame)
 {
-  const nsStyleSVGReset* style = aFrame->StyleSVGReset();
-  if (!style->HasFilters())
+  const nsStyleEffects* effects = aFrame->StyleEffects();
+  if (!effects->HasFilters())
     return nullptr;
 
   FrameProperties props = aFrame->Properties();
   nsSVGFilterProperty *prop = props.Get(nsSVGEffects::FilterProperty());
   if (prop)
     return prop;
-  prop = new nsSVGFilterProperty(style->mFilters, aFrame);
+  prop = new nsSVGFilterProperty(effects->mFilters, aFrame);
   if (!prop)
     return nullptr;
   NS_ADDREF(prop);
@@ -575,8 +576,14 @@ nsSVGEffects::GetEffectProperties(nsIFrame *aFrame)
   } else {
     result.mClipPath = nullptr;
   }
-  result.mMask =
-    GetPaintingProperty(style->mMask, aFrame, MaskProperty());
+
+  // FIXME: Bug 1228280.
+  // Before fixing bug 1228280, we support only single svg mask as before.
+  MOZ_ASSERT(style->mMask.mImageCount > 0);
+  nsCOMPtr<nsIURI> uri = style->mMask.mLayers[0].mSourceURI;
+  result.mMask = uri ? GetPaintingProperty(uri, aFrame, MaskProperty()) :
+                         nullptr;
+
   return result;
 }
 
@@ -587,8 +594,18 @@ nsSVGEffects::GetPaintServer(nsIFrame *aTargetFrame, const nsStyleSVGPaint *aPai
   if (aPaint->mType != eStyleSVGPaintType_Server)
     return nullptr;
 
-  nsIFrame *frame = aTargetFrame->GetContent()->IsNodeOfType(nsINode::eTEXT) ?
-                      aTargetFrame->GetParent() : aTargetFrame;
+  // If we're looking at a frame within SVG text, then we need to look up
+  // to find the right frame to get the painting property off.  We should at
+  // least look up past a text frame, and if the text frame's parent is the
+  // anonymous block frame, then we look up to its parent (the SVGTextFrame).
+  nsIFrame* frame = aTargetFrame;
+  if (frame->GetContent()->IsNodeOfType(nsINode::eTEXT)) {
+    frame = frame->GetParent();
+    nsIFrame* grandparent = frame->GetParent();
+    if (grandparent && grandparent->GetType() == nsGkAtoms::svgTextFrame) {
+      frame = grandparent;
+    }
+  }
   nsSVGPaintingProperty *property =
     nsSVGEffects::GetPaintingProperty(aPaint->mPaint.mPaintServer, frame, aType);
   if (!property)
@@ -667,7 +684,7 @@ nsSVGEffects::GetFilterProperty(nsIFrame *aFrame)
 {
   NS_ASSERTION(!aFrame->GetPrevContinuation(), "aFrame should be first continuation");
 
-  if (!aFrame->StyleSVGReset()->HasFilters())
+  if (!aFrame->StyleEffects()->HasFilters())
     return nullptr;
 
   return static_cast<nsSVGFilterProperty *>

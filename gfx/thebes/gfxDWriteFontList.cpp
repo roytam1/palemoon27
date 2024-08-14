@@ -1257,23 +1257,27 @@ gfxDWriteFontList::GetStandardFamilyName(const nsAString& aFontName,
     return false;
 }
 
-gfxFontFamily*
-gfxDWriteFontList::FindFamily(const nsAString& aFamily, gfxFontStyle* aStyle,
-                              gfxFloat aDevToCssSize)
+bool
+gfxDWriteFontList::FindAndAddFamilies(const nsAString& aFamily,
+                                      nsTArray<gfxFontFamily*>* aOutput,
+                                      gfxFontStyle* aStyle,
+                                      gfxFloat aDevToCssSize)
 {
     nsAutoString keyName(aFamily);
     BuildKeyNameFromFontName(keyName);
 
     gfxFontFamily *ff = mFontSubstitutes.GetWeak(keyName);
     if (ff) {
-        return ff;
+        aOutput->AppendElement(ff);
+        return true;
     }
 
     if (mNonExistingFonts.Contains(keyName)) {
-        return nullptr;
+        return false;
     }
 
-    return gfxPlatformFontList::FindFamily(aFamily);
+    return gfxPlatformFontList::FindAndAddFamilies(aFamily, aOutput, aStyle,
+                                                   aDevToCssSize);
 }
 
 void
@@ -1358,7 +1362,7 @@ static HRESULT GetFamilyName(IDWriteFont *aFont, nsString& aFamilyName)
 // used to invoke the DirectWrite layout engine to determine the fallback font
 // for a given character.
 
-IFACEMETHODIMP FontFallbackRenderer::DrawGlyphRun(
+IFACEMETHODIMP DWriteFontFallbackRenderer::DrawGlyphRun(
     void* clientDrawingContext,
     FLOAT baselineOriginX,
     FLOAT baselineOriginY,
@@ -1398,7 +1402,7 @@ IFACEMETHODIMP FontFallbackRenderer::DrawGlyphRun(
 
 gfxFontEntry*
 gfxDWriteFontList::GlobalFontFallback(const uint32_t aCh,
-                                      int32_t aRunScript,
+                                      Script aRunScript,
                                       const gfxFontStyle* aMatchStyle,
                                       uint32_t& aCmapCount,
                                       gfxFontFamily** aMatchedFamily)
@@ -1423,7 +1427,7 @@ gfxDWriteFontList::GlobalFontFallback(const uint32_t aCh,
 
     // initialize fallback renderer
     if (!mFallbackRenderer) {
-        mFallbackRenderer = new FontFallbackRenderer(dwFactory);
+        mFallbackRenderer = new DWriteFontFallbackRenderer(dwFactory);
     }
 
     // initialize text format

@@ -19,8 +19,20 @@
 #include "nsThreadUtils.h"
 #include "nsXULAppAPI.h"
 
+#ifdef MOZ_CRASHREPORTER
+#include "nsExceptionHandler.h"
+#endif
+
+#ifdef MOZ_NUWA_PROCESS
+#include "ipc/Nuwa.h"
+#endif
+
 #ifdef XP_WIN
 #include <windows.h>
+#endif
+
+#if defined(MOZ_ENABLE_PROFILER_SPS) && defined(MOZ_PROFILING) && defined(XP_WIN)
+  #define REPORT_CHROME_HANGS
 #endif
 
 namespace mozilla {
@@ -100,165 +112,19 @@ Crash()
   }
 #endif
 
+#ifdef MOZ_CRASHREPORTER
+  // If you change this, you must also deal with the threadsafety of AnnotateCrashReport in
+  // non-chrome processes!
+  if (GeckoProcessType_Default == XRE_GetProcessType()) {
+    CrashReporter::AnnotateCrashReport(NS_LITERAL_CSTRING("Hang"),
+                                       NS_LITERAL_CSTRING("1"));
+  }
+#endif
+
   NS_RUNTIMEABORT("HangMonitor triggered");
 }
 
 #ifdef REPORT_CHROME_HANGS
-class ChromeHangAnnotations : public HangAnnotations
-{
-public:
-  ChromeHangAnnotations();
-  ~ChromeHangAnnotations();
-
-  void AddAnnotation(const nsAString& aName, const int32_t aData) override;
-  void AddAnnotation(const nsAString& aName, const double aData) override;
-  void AddAnnotation(const nsAString& aName, const nsAString& aData) override;
-  void AddAnnotation(const nsAString& aName, const nsACString& aData) override;
-  void AddAnnotation(const nsAString& aName, const bool aData) override;
-
-  size_t SizeOfIncludingThis(mozilla::MallocSizeOf aMallocSizeOf) const override;
-  bool IsEmpty() const override;
-  bool GetEnumerator(Enumerator** aOutEnum) override;
-
-  typedef std::pair<nsString, nsString> AnnotationType;
-  typedef std::vector<AnnotationType> VectorType;
-  typedef VectorType::const_iterator IteratorType;
-
-private:
-  VectorType  mAnnotations;
-};
-
-ChromeHangAnnotations::ChromeHangAnnotations()
-{
-  MOZ_COUNT_CTOR(ChromeHangAnnotations);
-}
-
-ChromeHangAnnotations::~ChromeHangAnnotations()
-{
-  MOZ_COUNT_DTOR(ChromeHangAnnotations);
-}
-
-void
-ChromeHangAnnotations::AddAnnotation(const nsAString& aName, const int32_t aData)
-{
-  nsString dataString;
-  dataString.AppendInt(aData);
-  AnnotationType annotation = std::make_pair(nsString(aName), dataString);
-  mAnnotations.push_back(annotation);
-}
-
-void
-ChromeHangAnnotations::AddAnnotation(const nsAString& aName, const double aData)
-{
-  nsString dataString;
-  dataString.AppendFloat(aData);
-  AnnotationType annotation = std::make_pair(nsString(aName), dataString);
-  mAnnotations.push_back(annotation);
-}
-
-void
-ChromeHangAnnotations::AddAnnotation(const nsAString& aName, const nsAString& aData)
-{
-  AnnotationType annotation = std::make_pair(nsString(aName), nsString(aData));
-  mAnnotations.push_back(annotation);
-}
-
-void
-ChromeHangAnnotations::AddAnnotation(const nsAString& aName, const nsACString& aData)
-{
-  nsString dataString;
-  AppendUTF8toUTF16(aData, dataString);
-  AnnotationType annotation = std::make_pair(nsString(aName), dataString);
-  mAnnotations.push_back(annotation);
-}
-
-void
-ChromeHangAnnotations::AddAnnotation(const nsAString& aName, const bool aData)
-{
-  nsString dataString;
-  dataString += aData ? NS_LITERAL_STRING("true") : NS_LITERAL_STRING("false");
-  AnnotationType annotation = std::make_pair(nsString(aName), dataString);
-  mAnnotations.push_back(annotation);
-}
-
-/**
- * This class itself does not use synchronization but it (and its parent object)
- * should be protected by mutual exclusion in some way. In Telemetry the chrome
- * hang data is protected via TelemetryImpl::mHangReportsMutex.
- */
-class ChromeHangAnnotationEnumerator : public HangAnnotations::Enumerator
-{
-public:
-  ChromeHangAnnotationEnumerator(const ChromeHangAnnotations::VectorType& aAnnotations);
-  ~ChromeHangAnnotationEnumerator();
-
-  virtual bool Next(nsAString& aOutName, nsAString& aOutValue);
-
-private:
-  ChromeHangAnnotations::IteratorType mIterator;
-  ChromeHangAnnotations::IteratorType mEnd;
-};
-
-ChromeHangAnnotationEnumerator::ChromeHangAnnotationEnumerator(
-                          const ChromeHangAnnotations::VectorType& aAnnotations)
-  : mIterator(aAnnotations.begin())
-  , mEnd(aAnnotations.end())
-{
-  MOZ_COUNT_CTOR(ChromeHangAnnotationEnumerator);
-}
-
-ChromeHangAnnotationEnumerator::~ChromeHangAnnotationEnumerator()
-{
-  MOZ_COUNT_DTOR(ChromeHangAnnotationEnumerator);
-}
-
-bool
-ChromeHangAnnotationEnumerator::Next(nsAString& aOutName, nsAString& aOutValue)
-{
-  aOutName.Truncate();
-  aOutValue.Truncate();
-  if (mIterator == mEnd) {
-    return false;
-  }
-  aOutName = mIterator->first;
-  aOutValue = mIterator->second;
-  ++mIterator;
-  return true;
-}
-
-bool
-ChromeHangAnnotations::IsEmpty() const
-{
-  return mAnnotations.empty();
-}
-
-size_t
-ChromeHangAnnotations::SizeOfIncludingThis(mozilla::MallocSizeOf aMallocSizeOf) const
-{
-  size_t result = sizeof(mAnnotations) +
-                  mAnnotations.capacity() * sizeof(AnnotationType);
-  for (IteratorType i = mAnnotations.begin(), e = mAnnotations.end(); i != e;
-       ++i) {
-    result += i->first.SizeOfExcludingThisIfUnshared(aMallocSizeOf);
-    result += i->second.SizeOfExcludingThisIfUnshared(aMallocSizeOf);
-  }
-
-  return result;
-}
-
-bool
-ChromeHangAnnotations::GetEnumerator(HangAnnotations::Enumerator** aOutEnum)
-{
-  if (!aOutEnum) {
-    return false;
-  }
-  *aOutEnum = nullptr;
-  if (mAnnotations.empty()) {
-    return false;
-  }
-  *aOutEnum = new ChromeHangAnnotationEnumerator(mAnnotations);
-  return true;
-}
 
 static void
 ChromeStackWalker(uint32_t aFrameNumber, void* aPC, void* aSP, void* aClosure)
@@ -317,6 +183,12 @@ void
 ThreadMain(void*)
 {
   PR_SetCurrentThreadName("Hang Monitor");
+
+#ifdef MOZ_NUWA_PROCESS
+  if (IsNuwaProcess()) {
+    NuwaMarkCurrentThread(nullptr, nullptr);
+  }
+#endif
 
   MonitorAutoLock lock(*gMonitor);
 
@@ -398,10 +270,8 @@ ThreadMain(void*)
 void
 Startup()
 {
-  // The hang detector only runs in chrome processes. If you change this,
-  // you must also deal with the threadsafety of AnnotateCrashReport in
-  // non-chrome processes!
-  if (GeckoProcessType_Default != XRE_GetProcessType()) {
+  if (GeckoProcessType_Default != XRE_GetProcessType() &&
+      GeckoProcessType_Content != XRE_GetProcessType()) {
     return;
   }
 
@@ -435,7 +305,8 @@ Startup()
 void
 Shutdown()
 {
-  if (GeckoProcessType_Default != XRE_GetProcessType()) {
+  if (GeckoProcessType_Default != XRE_GetProcessType() &&
+      GeckoProcessType_Content != XRE_GetProcessType()) {
     return;
   }
 
@@ -512,16 +383,10 @@ NotifyActivity(ActivityType aActivityType)
   // penalties here.
   gTimestamp = PR_IntervalNow();
 
-  // If we have UI activity we should reset the timer and report it if it is
-  // significant enough.
+  // If we have UI activity we should reset the timer and report it
   if (aActivityType == kUIActivity) {
-    // The minimum amount of lag time that we should report for telemetry data.
-    // Mozilla's UI responsiveness goal is 50ms
-    static const uint32_t kUIResponsivenessThresholdMS = 50;
-    if (cumulativeUILagMS > kUIResponsivenessThresholdMS) {
-      mozilla::Telemetry::Accumulate(mozilla::Telemetry::EVENTLOOP_UI_LAG_EXP_MS,
+    mozilla::Telemetry::Accumulate(mozilla::Telemetry::EVENTLOOP_UI_ACTIVITY_EXP_MS,
                                      cumulativeUILagMS);
-    }
     cumulativeUILagMS = 0;
   }
 

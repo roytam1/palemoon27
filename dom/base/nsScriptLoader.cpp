@@ -67,9 +67,6 @@ GetSriLog()
   return gSriPRLog;
 }
 
-// The nsScriptLoadRequest is passed as the context to necko, and thus
-// it needs to be threadsafe. Necko won't do anything with this
-// context, but it will AddRef and Release it on other threads.
 NS_IMPL_ISUPPORTS0(nsScriptLoadRequest)
 
 nsScriptLoadRequestList::~nsScriptLoadRequestList()
@@ -297,7 +294,9 @@ nsScriptLoader::StartLoad(nsScriptLoadRequest *aRequest, const nsAString &aType,
     aRequest->mCORSMode == CORS_NONE
     ? nsILoadInfo::SEC_ALLOW_CROSS_ORIGIN_DATA_IS_NULL
     : nsILoadInfo::SEC_REQUIRE_CORS_DATA_INHERITS;
-  if (aRequest->mCORSMode == CORS_USE_CREDENTIALS) {
+  if (aRequest->mCORSMode == CORS_ANONYMOUS) {
+    securityFlags |= nsILoadInfo::SEC_COOKIES_SAME_ORIGIN;
+  } else if (aRequest->mCORSMode == CORS_USE_CREDENTIALS) {
     securityFlags |= nsILoadInfo::SEC_COOKIES_INCLUDE;
   }
   securityFlags |= nsILoadInfo::SEC_ALLOW_CHROME;
@@ -803,17 +802,8 @@ nsScriptLoader::ProcessOffThreadRequest(nsScriptLoadRequest* aRequest)
 NotifyOffThreadScriptLoadCompletedRunnable::~NotifyOffThreadScriptLoadCompletedRunnable()
 {
   if (MOZ_UNLIKELY(mRequest || mLoader) && !NS_IsMainThread()) {
-    nsCOMPtr<nsIThread> mainThread;
-    NS_GetMainThread(getter_AddRefs(mainThread));
-    if (mainThread) {
-      NS_ProxyRelease(mainThread, mRequest);
-      NS_ProxyRelease(mainThread, mLoader);
-    } else {
-      MOZ_ASSERT(false, "We really shouldn't leak!");
-      // Better to leak than crash.
-      Unused << mRequest.forget();
-      Unused << mLoader.forget();
-    }
+    NS_ReleaseOnMainThread(mRequest.forget());
+    NS_ReleaseOnMainThread(mLoader.forget());
   }
 }
 
@@ -856,7 +846,7 @@ nsScriptLoader::AttemptAsyncScriptCompile(nsScriptLoadRequest* aRequest)
   }
 
   AutoJSAPI jsapi;
-  if (!jsapi.InitWithLegacyErrorReporting(globalObject)) {
+  if (!jsapi.Init(globalObject)) {
     return NS_ERROR_FAILURE;
   }
 
@@ -1143,10 +1133,9 @@ nsScriptLoader::EvaluateScript(nsScriptLoadRequest* aRequest,
   // New script entry point required, due to the "Create a script" sub-step of
   // http://www.whatwg.org/specs/web-apps/current-work/#execute-the-script-block
   nsAutoMicroTask mt;
-  AutoEntryScript entryScript(globalObject, "<script> element", true,
-                              context->GetNativeContext());
-  entryScript.TakeOwnershipOfErrorReporting();
-  JS::Rooted<JSObject*> global(entryScript.cx(),
+  AutoEntryScript aes(globalObject, "<script> element", true,
+                      context->GetNativeContext());
+  JS::Rooted<JSObject*> global(aes.cx(),
                                globalObject->GetGlobalJSObject());
 
   bool oldProcessingScriptTag = context->GetProcessingScriptTag();
@@ -1167,9 +1156,9 @@ nsScriptLoader::EvaluateScript(nsScriptLoadRequest* aRequest,
                                   aRequest->mElement);
     }
 
-    JS::CompileOptions options(entryScript.cx());
-    FillCompileOptionsForRequest(entryScript, aRequest, global, &options);
-    rv = nsJSUtils::EvaluateString(entryScript.cx(), aSrcBuf, global, options,
+    JS::CompileOptions options(aes.cx());
+    FillCompileOptionsForRequest(aes, aRequest, global, &options);
+    rv = nsJSUtils::EvaluateString(aes.cx(), aSrcBuf, global, options,
                                    aRequest->OffThreadTokenPtr());
   }
 

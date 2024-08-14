@@ -44,6 +44,8 @@
 #include "mozilla/dom/CDATASection.h"
 #include "mozilla/dom/Comment.h"
 #include "mozilla/dom/Element.h"
+#include "mozilla/StyleSheetHandle.h"
+#include "mozilla/StyleSheetHandleInlines.h"
 
 #ifdef MOZ_XUL
 #include "nsXULElement.h"
@@ -850,7 +852,7 @@ nsXBLPrototypeBinding::Read(nsIObjectInputStream* aStream,
   rv = aStream->ReadString(baseTag);
   NS_ENSURE_SUCCESS(rv, rv);
   if (!baseTag.IsEmpty()) {
-    mBaseTag = do_GetAtom(baseTag);
+    mBaseTag = NS_Atomize(baseTag);
   }
 
   mBinding = aDocument->CreateElem(NS_LITERAL_STRING("binding"), nullptr,
@@ -878,9 +880,12 @@ nsXBLPrototypeBinding::Read(nsIObjectInputStream* aStream,
     mInterfaceTable.Put(iid, mBinding);
   }
 
-  AutoSafeJSContext cx;
-  JS::Rooted<JSObject*> compilationGlobal(cx, xpc::CompilationScope());
-  JSAutoCompartment ac(cx, compilationGlobal);
+  // We're not directly using this AutoJSAPI here, but callees use it via
+  // AutoJSContext.
+  AutoJSAPI jsapi;
+  if (!jsapi.Init(xpc::CompilationScope())) {
+    return NS_ERROR_UNEXPECTED;
+  }
 
   bool isFirstBinding = aFlags & XBLBinding_Serialize_IsFirstBinding;
   rv = Init(id, aDocInfo, nullptr, isFirstBinding);
@@ -963,8 +968,8 @@ nsXBLPrototypeBinding::Read(nsIObjectInputStream* aStream,
       rv = aStream->ReadString(attrValue);
       NS_ENSURE_SUCCESS(rv, rv);
 
-      nsCOMPtr<nsIAtom> atomPrefix = do_GetAtom(attrPrefix);
-      nsCOMPtr<nsIAtom> atomName = do_GetAtom(attrName);
+      nsCOMPtr<nsIAtom> atomPrefix = NS_Atomize(attrPrefix);
+      nsCOMPtr<nsIAtom> atomName = NS_Atomize(attrName);
       mBinding->SetAttr(attrNamespace, atomName, atomPrefix, attrValue, false);
     }
   }
@@ -1021,9 +1026,12 @@ nsXBLPrototypeBinding::Write(nsIObjectOutputStream* aStream)
   // mKeyHandlersRegistered and mKeyHandlers are not serialized as they are
   // computed on demand.
 
-  AutoSafeJSContext cx;
-  JS::Rooted<JSObject*> compilationGlobal(cx, xpc::CompilationScope());
-  JSAutoCompartment ac(cx, compilationGlobal);
+  // We're not directly using this AutoJSAPI here, but callees use it via
+  // AutoJSContext.
+  AutoJSAPI jsapi;
+  if (!jsapi.Init(xpc::CompilationScope())) {
+    return NS_ERROR_UNEXPECTED;
+  }
 
   uint8_t flags = mInheritStyle ? XBLBinding_Serialize_InheritStyle : 0;
 
@@ -1207,12 +1215,12 @@ nsXBLPrototypeBinding::ReadContentNode(nsIObjectInputStream* aStream,
 
   nsCOMPtr<nsIAtom> prefixAtom;
   if (!prefix.IsEmpty())
-    prefixAtom = do_GetAtom(prefix);
+    prefixAtom = NS_Atomize(prefix);
 
   rv = aStream->ReadString(tag);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  nsCOMPtr<nsIAtom> tagAtom = do_GetAtom(tag);
+  nsCOMPtr<nsIAtom> tagAtom = NS_Atomize(tag);
   RefPtr<NodeInfo> nodeInfo =
     aNim->GetNodeInfo(tagAtom, prefixAtom, namespaceID, nsIDOMNode::ELEMENT_NODE);
 
@@ -1250,14 +1258,14 @@ nsXBLPrototypeBinding::ReadContentNode(nsIObjectInputStream* aStream,
       rv = aStream->ReadString(val);
       NS_ENSURE_SUCCESS(rv, rv);
 
-      nsCOMPtr<nsIAtom> nameAtom = do_GetAtom(name);
+      nsCOMPtr<nsIAtom> nameAtom = NS_Atomize(name);
       if (namespaceID == kNameSpaceID_None) {
         attrs[i].mName.SetTo(nameAtom);
       }
       else {
         nsCOMPtr<nsIAtom> prefixAtom;
         if (!prefix.IsEmpty())
-          prefixAtom = do_GetAtom(prefix);
+          prefixAtom = NS_Atomize(prefix);
 
         RefPtr<NodeInfo> ni =
           aNim->GetNodeInfo(nameAtom, prefixAtom,
@@ -1295,9 +1303,9 @@ nsXBLPrototypeBinding::ReadContentNode(nsIObjectInputStream* aStream,
 
       nsCOMPtr<nsIAtom> prefixAtom;
       if (!prefix.IsEmpty())
-        prefixAtom = do_GetAtom(prefix);
+        prefixAtom = NS_Atomize(prefix);
 
-      nsCOMPtr<nsIAtom> nameAtom = do_GetAtom(name);
+      nsCOMPtr<nsIAtom> nameAtom = NS_Atomize(name);
       content->SetAttr(namespaceID, nameAtom, prefixAtom, val, false);
     }
 
@@ -1320,8 +1328,8 @@ nsXBLPrototypeBinding::ReadContentNode(nsIObjectInputStream* aStream,
     rv = aStream->ReadString(destAttribute);
     NS_ENSURE_SUCCESS(rv, rv);
 
-    nsCOMPtr<nsIAtom> srcAtom = do_GetAtom(srcAttribute);
-    nsCOMPtr<nsIAtom> destAtom = do_GetAtom(destAttribute);
+    nsCOMPtr<nsIAtom> srcAtom = NS_Atomize(srcAttribute);
+    nsCOMPtr<nsIAtom> destAtom = NS_Atomize(destAttribute);
 
     EnsureAttributeTable();
     AddToAttributeTable(srcNamespaceID, srcAtom, destNamespaceID, destAtom, content);
@@ -1589,7 +1597,7 @@ nsXBLPrototypeBinding::ResolveBaseBinding()
       int32_t nameSpaceID =
         nsContentUtils::NameSpaceManager()->GetNameSpaceID(nameSpace);
 
-      nsCOMPtr<nsIAtom> tagName = do_GetAtom(display);
+      nsCOMPtr<nsIAtom> tagName = NS_Atomize(display);
       // Check the white list
       if (!CheckTagNameWhiteList(nameSpaceID, tagName)) {
         const char16_t* params[] = { display.get() };
@@ -1629,14 +1637,14 @@ nsXBLPrototypeBinding::EnsureResources()
 }
 
 void
-nsXBLPrototypeBinding::AppendStyleSheet(CSSStyleSheet* aSheet)
+nsXBLPrototypeBinding::AppendStyleSheet(StyleSheetHandle aSheet)
 {
   EnsureResources();
   mResources->AppendStyleSheet(aSheet);
 }
 
 void
-nsXBLPrototypeBinding::RemoveStyleSheet(CSSStyleSheet* aSheet)
+nsXBLPrototypeBinding::RemoveStyleSheet(StyleSheetHandle aSheet)
 {
   if (!mResources) {
     MOZ_ASSERT(false, "Trying to remove a sheet that does not exist.");
@@ -1646,13 +1654,13 @@ nsXBLPrototypeBinding::RemoveStyleSheet(CSSStyleSheet* aSheet)
   mResources->RemoveStyleSheet(aSheet);
 } 
 void
-nsXBLPrototypeBinding::InsertStyleSheetAt(size_t aIndex, CSSStyleSheet* aSheet)
+nsXBLPrototypeBinding::InsertStyleSheetAt(size_t aIndex, StyleSheetHandle aSheet)
 {
   EnsureResources();
   mResources->InsertStyleSheetAt(aIndex, aSheet);
 }
 
-CSSStyleSheet*
+StyleSheetHandle
 nsXBLPrototypeBinding::StyleSheetAt(size_t aIndex) const
 {
   MOZ_ASSERT(mResources);
@@ -1673,7 +1681,7 @@ nsXBLPrototypeBinding::HasStyleSheets() const
 
 void
 nsXBLPrototypeBinding::AppendStyleSheetsTo(
-                                      nsTArray<CSSStyleSheet*>& aResult) const
+                                      nsTArray<StyleSheetHandle>& aResult) const
 {
   if (mResources) {
     mResources->AppendStyleSheetsTo(aResult);

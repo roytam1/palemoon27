@@ -11,6 +11,7 @@
 #include "gfxFT2FontBase.h"
 #include "gfxPlatformFontList.h"
 #include "mozilla/mozalloc.h"
+#include "nsClassHashtable.h"
 
 #include <fontconfig/fontconfig.h>
 #include "ft2build.h"
@@ -181,7 +182,10 @@ public:
     gfxFontconfigFont(cairo_scaled_font_t *aScaledFont,
                       gfxFontEntry *aFontEntry,
                       const gfxFontStyle *aFontStyle,
-                      bool aNeedsBold);
+                      bool aNeedsBold,
+                      bool aAutoHinting = false);
+
+    bool GetAutoHinting() const { return mAutoHinting; }
 
 #ifdef USE_SKIA
     virtual already_AddRefed<mozilla::gfx::GlyphRenderingOptions>
@@ -190,6 +194,9 @@ public:
 
 protected:
     virtual ~gfxFontconfigFont();
+
+private:
+    bool mAutoHinting;
 };
 
 class nsILanguageAtomService;
@@ -224,9 +231,10 @@ public:
                      const uint8_t* aFontData,
                      uint32_t aLength) override;
 
-    gfxFontFamily* FindFamily(const nsAString& aFamily,
-                              gfxFontStyle* aStyle = nullptr,
-                              gfxFloat aDevToCssSize = 1.0) override;
+    bool FindAndAddFamilies(const nsAString& aFamily,
+                            nsTArray<gfxFontFamily*>* aOutput,
+                            gfxFontStyle* aStyle = nullptr,
+                            gfxFloat aDevToCssSize = 1.0) override;
 
     bool GetStandardFamilyName(const nsAString& aFontName,
                                nsAString& aFamilyName) override;
@@ -245,8 +253,6 @@ public:
         mGenericMappings.Clear();
     }
 
-    void GetSampleLangForGroup(nsIAtom* aLanguage, nsACString& aLangStr);
-
     static FT_Library GetFTLibrary();
 
 protected:
@@ -263,10 +269,6 @@ protected:
     // are all pref font settings set to use fontconfig generics?
     bool PrefFontListsUseOnlyGenerics();
 
-    // helper method for finding an appropriate fontconfig language
-    bool TryLangForGroup(const nsACString& aOSLang, nsIAtom* aLangGroup,
-                         nsACString& aFcLang);
-
     static void CheckFontUpdates(nsITimer *aTimer, void *aThis);
 
 #ifdef MOZ_BUNDLED_FONTS
@@ -282,12 +284,17 @@ protected:
                     FcPattern*> mLocalNames;
 
     // caching generic/lang ==> font family list
-    nsBaseHashtable<nsCStringHashKey,
-                    nsAutoPtr<PrefFontList>,
-                    PrefFontList*> mGenericMappings;
+    nsClassHashtable<nsCStringHashKey,
+                     PrefFontList> mGenericMappings;
 
-    // caching family lookups as found by FindFamily after resolving substitutions
-    nsRefPtrHashtable<nsCStringHashKey, gfxFontFamily> mFcSubstituteCache;
+    // Caching family lookups as found by FindAndAddFamilies after resolving
+    // substitutions. The gfxFontFamily objects cached here are owned by the
+    // gfxFcPlatformFontList via its mFamilies table; note that if the main
+    // font list is rebuilt (e.g. due to a fontconfig configuration change),
+    // these pointers will be invalidated. InitFontList() flushes the cache
+    // in this case.
+    nsDataHashtable<nsCStringHashKey,
+                    nsTArray<gfxFontFamily*>> mFcSubstituteCache;
 
     nsCOMPtr<nsITimer> mCheckFontUpdatesTimer;
     nsCountedRef<FcConfig> mLastConfig;

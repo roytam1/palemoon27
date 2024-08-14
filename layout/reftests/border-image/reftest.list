@@ -54,7 +54,7 @@ fuzzy(1,12) == border-image-linear-gradient-repeat-repeat-1.html border-image-li
 fuzzy(1,13) == border-image-linear-gradient-repeat-round-1.html border-image-linear-gradient-repeat-round-1-ref.html
 == border-image-linear-gradient-repeat-repeat-2.html border-image-linear-gradient-repeat-repeat-2-ref.html
 fuzzy(1,576) == border-image-linear-gradient-repeat-round-2.html border-image-linear-gradient-repeat-round-2-ref.html
-fuzzy(1,6440) == border-image-linear-gradient-repeat-repeat-3.html border-image-linear-gradient-repeat-repeat-3-ref.html
+fuzzy(1,8533) == border-image-linear-gradient-repeat-repeat-3.html border-image-linear-gradient-repeat-repeat-3-ref.html
 fuzzy(1,7161) == border-image-linear-gradient-repeat-round-3.html border-image-linear-gradient-repeat-round-3-ref.html
 
 == border-image-radial-gradient.html border-image-radial-gradient-ref.html
@@ -82,3 +82,8 @@ fuzzy(1,1054) fails-if(OSX) == border-image-repeating-radial-gradient-repeat-rou
 
 # border-image-source (-moz-)element
 fuzzy(125,5808) fuzzy-if(B2G,151,5809) == border-image-element.html border-image-element-ref.html
+
+# svg-as-border-image
+== svg-as-border-image-1a.html svg-as-border-image-1-ref.html
+== svg-as-border-image-1b.html svg-as-border-image-1-ref.html
+== svg-as-border-image-1c.html svg-as-border-image-1-ref.html

@@ -54,6 +54,7 @@
 #include "jit/shared/Lowering-shared-inl.h"
 #include "vm/Debugger-inl.h"
 #include "vm/ScopeObject-inl.h"
+#include "vm/Stack-inl.h"
 
 using namespace js;
 using namespace js::jit;
@@ -396,10 +397,12 @@ JitRuntime::patchIonBackedges(JSRuntime* rt, BackedgeTarget target)
 
 JitCompartment::JitCompartment()
   : stubCodes_(nullptr),
+    cacheIRStubCodes_(nullptr),
     baselineGetPropReturnAddr_(nullptr),
     baselineSetPropReturnAddr_(nullptr),
     stringConcatStub_(nullptr),
     regExpMatcherStub_(nullptr),
+    regExpSearcherStub_(nullptr),
     regExpTesterStub_(nullptr)
 {
     baselineCallReturnAddrs_[0] = baselineCallReturnAddrs_[1] = nullptr;
@@ -408,6 +411,7 @@ JitCompartment::JitCompartment()
 JitCompartment::~JitCompartment()
 {
     js_delete(stubCodes_);
+    js_delete(cacheIRStubCodes_);
 }
 
 bool
@@ -418,6 +422,15 @@ JitCompartment::initialize(JSContext* cx)
         return false;
 
     if (!stubCodes_->init()) {
+        ReportOutOfMemory(cx);
+        return false;
+    }
+
+    cacheIRStubCodes_ = cx->new_<CacheIRStubCodeMap>(cx->runtime());
+    if (!cacheIRStubCodes_)
+        return false;
+
+    if (!cacheIRStubCodes_->init()) {
         ReportOutOfMemory(cx);
         return false;
     }
@@ -435,70 +448,6 @@ JitCompartment::ensureIonStubsExist(JSContext* cx)
     }
 
     return true;
-}
-
-struct OnIonCompilationInfo {
-    size_t numBlocks;
-    size_t scriptIndex;
-    LifoAlloc alloc;
-    LSprinter graph;
-
-    OnIonCompilationInfo()
-      : numBlocks(0),
-        scriptIndex(0),
-        alloc(4096),
-        graph(&alloc)
-    { }
-
-    bool filled() const {
-        return numBlocks != 0;
-    }
-};
-
-typedef Vector<OnIonCompilationInfo> OnIonCompilationVector;
-
-// This function initializes the values which are given to the Debugger
-// onIonCompilation hook, if the compilation was successful, and if Ion
-// compilations of this compartment are watched by any debugger.
-//
-// This function must be called in the same AutoEnterAnalysis section as the
-// CodeGenerator::link. Failing to do so might leave room to interleave other
-// allocations which can invalidate any JSObject / JSFunction referenced by the
-// MIRGraph.
-//
-// This function ignores any allocation failure and returns whether the
-// Debugger::onIonCompilation should be called.
-static inline void
-PrepareForDebuggerOnIonCompilationHook(JSContext* cx, jit::MIRGraph& graph,
-                                       MutableHandle<ScriptVector> scripts,
-                                       OnIonCompilationInfo* info)
-{
-    info->numBlocks = 0;
-    if (!Debugger::observesIonCompilation(cx))
-        return;
-
-    // fireOnIonCompilation failures are ignored, do the same here.
-    info->scriptIndex = scripts.length();
-    if (!scripts.reserve(graph.numBlocks() + scripts.length())) {
-        cx->clearPendingException();
-        return;
-    }
-
-    // Collect the list of scripts which are inlined in the MIRGraph.
-    info->numBlocks = graph.numBlocks();
-    for (jit::MBasicBlockIterator block(graph.begin()); block != graph.end(); block++)
-        scripts.infallibleAppend(block->info().script());
-
-    // Spew the JSON graph made for the Debugger at the end of the LifoAlloc
-    // used by the compiler. This would not prevent unexpected GC from the
-    // compartment of the Debuggee, but do them as part of the compartment of
-    // the Debugger when the content is copied over to a JSString.
-    jit::JSONSpewer spewer(info->graph);
-    spewer.spewDebuggerGraph(&graph);
-    if (info->graph.hadOutOfMemory()) {
-        scripts.resize(info->scriptIndex);
-        info->numBlocks = 0;
-    }
 }
 
 void
@@ -553,8 +502,7 @@ FinishAllOffThreadCompilations(JSCompartment* comp)
 }
 
 static bool
-LinkCodeGen(JSContext* cx, IonBuilder* builder, CodeGenerator *codegen,
-            MutableHandle<ScriptVector> scripts, OnIonCompilationInfo* info)
+LinkCodeGen(JSContext* cx, IonBuilder* builder, CodeGenerator *codegen)
 {
     RootedScript script(cx, builder->script());
     TraceLoggerThread* logger = TraceLoggerForMainThread(cx->runtime());
@@ -565,13 +513,11 @@ LinkCodeGen(JSContext* cx, IonBuilder* builder, CodeGenerator *codegen,
     if (!codegen->link(cx, builder->constraints()))
         return false;
 
-    PrepareForDebuggerOnIonCompilationHook(cx, builder->graph(), scripts, info);
     return true;
 }
 
 static bool
-LinkBackgroundCodeGen(JSContext* cx, IonBuilder* builder,
-                      MutableHandle<ScriptVector> scripts, OnIonCompilationInfo* info)
+LinkBackgroundCodeGen(JSContext* cx, IonBuilder* builder)
 {
     CodeGenerator* codegen = builder->backgroundCodegen();
     if (!codegen)
@@ -584,7 +530,7 @@ LinkBackgroundCodeGen(JSContext* cx, IonBuilder* builder,
     // though any GC activity would discard the builder.
     MacroAssembler::AutoRooter masm(cx, &codegen->masm);
 
-    return LinkCodeGen(cx, builder, codegen, scripts, info);
+    return LinkCodeGen(cx, builder, codegen);
 }
 
 void
@@ -604,13 +550,9 @@ jit::LazyLink(JSContext* cx, HandleScript calleeScript)
         builder->removeFrom(HelperThreadState().ionLazyLinkList());
     }
 
-    // See PrepareForDebuggerOnIonCompilationHook
-    Rooted<ScriptVector> debugScripts(cx, ScriptVector(cx));
-    OnIonCompilationInfo info;
-
     {
         AutoEnterAnalysis enterTypes(cx);
-        if (!LinkBackgroundCodeGen(cx, builder, &debugScripts, &info)) {
+        if (!LinkBackgroundCodeGen(cx, builder)) {
             // Silently ignore OOM during code generation. The assembly code
             // doesn't has code to handle it after linking happened. So it's
             // not OK to throw a catchable exception from there.
@@ -625,9 +567,6 @@ jit::LazyLink(JSContext* cx, HandleScript calleeScript)
         AutoLockHelperThreadState lock;
         FinishOffThreadBuilder(cx, builder);
     }
-
-    if (info.filled())
-        Debugger::onIonCompilation(cx, debugScripts, info.graph);
 }
 
 uint8_t*
@@ -705,6 +644,7 @@ JitCompartment::sweep(FreeOp* fop, JSCompartment* compartment)
     FinishAllOffThreadCompilations(compartment);
 
     stubCodes_->sweep();
+    cacheIRStubCodes_->sweep();
 
     // If the sweep removed the ICCall_Fallback stub, nullptr the baselineCallReturnAddr_ field.
     if (!stubCodes_->lookup(ICCall_Fallback::Compiler::BASELINE_CALL_KEY))
@@ -724,6 +664,9 @@ JitCompartment::sweep(FreeOp* fop, JSCompartment* compartment)
     if (regExpMatcherStub_ && !IsMarkedUnbarriered(&regExpMatcherStub_))
         regExpMatcherStub_ = nullptr;
 
+    if (regExpSearcherStub_ && !IsMarkedUnbarriered(&regExpSearcherStub_))
+        regExpSearcherStub_ = nullptr;
+
     if (regExpTesterStub_ && !IsMarkedUnbarriered(&regExpTesterStub_))
         regExpTesterStub_ = nullptr;
 
@@ -739,6 +682,8 @@ JitCompartment::toggleBarriers(bool enabled)
     // Toggle barriers in compartment wide stubs that have patchable pre barriers.
     if (regExpMatcherStub_)
         regExpMatcherStub_->togglePreBarriers(enabled, Reprotect);
+    if (regExpSearcherStub_)
+        regExpSearcherStub_->togglePreBarriers(enabled, Reprotect);
     if (regExpTesterStub_)
         regExpTesterStub_->togglePreBarriers(enabled, Reprotect);
 
@@ -747,6 +692,21 @@ JitCompartment::toggleBarriers(bool enabled)
         JitCode* code = *e.front().value().unsafeGet();
         code->togglePreBarriers(enabled, Reprotect);
     }
+    for (CacheIRStubCodeMap::Enum e(*cacheIRStubCodes_); !e.empty(); e.popFront()) {
+        JitCode* code = *e.front().value().unsafeGet();
+        code->togglePreBarriers(enabled, Reprotect);
+    }
+}
+
+size_t
+JitCompartment::sizeOfIncludingThis(mozilla::MallocSizeOf mallocSizeOf) const
+{
+    size_t n = mallocSizeOf(this);
+    if (stubCodes_)
+        n += stubCodes_->sizeOfIncludingThis(mallocSizeOf);
+    if (cacheIRStubCodes_)
+        n += cacheIRStubCodes_->sizeOfIncludingThis(mallocSizeOf);
+    return n;
 }
 
 JitCode*
@@ -1060,6 +1020,10 @@ IonScript::trace(JSTracer* trc)
         ICEntry& ent = sharedStubList()[i];
         ent.trace(trc);
     }
+
+    // Trace caches so that the JSScript pointer can be updated if moved.
+    for (size_t i = 0; i < numCaches(); i++)
+        getCacheFromIndex(i).trace(trc);
 }
 
 /* static */ void
@@ -1292,15 +1256,19 @@ IonScript::purgeOptimizedStubs(Zone* zone)
                 stub = stub->next();
             }
 
+            lastStub->toFallbackStub()->setInvalid();
+
             if (lastStub->isMonitoredFallback()) {
                 // Monitor stubs can't make calls, so are always in the
                 // optimized stub space.
                 ICTypeMonitor_Fallback* lastMonStub =
                     lastStub->toMonitoredFallbackStub()->fallbackMonitorStub();
                 lastMonStub->resetMonitorStubChain(zone);
+                lastMonStub->setInvalid();
             }
         } else if (lastStub->isTypeMonitor_Fallback()) {
             lastStub->toTypeMonitor_Fallback()->resetMonitorStubChain(zone);
+            lastStub->toTypeMonitor_Fallback()->setInvalid();
         } else {
             MOZ_ASSERT(lastStub->isTableSwitch());
         }
@@ -1544,8 +1512,7 @@ OptimizeMIR(MIRGenerator* mir)
 
     {
         AutoTraceLog log(logger, TraceLogger_RenumberBlocks);
-        if (!RenumberBlocks(graph))
-            return false;
+        RenumberBlocks(graph);
         gs.spewPass("Renumber Blocks");
         AssertGraphCoherency(graph);
 
@@ -1693,9 +1660,9 @@ OptimizeMIR(MIRGenerator* mir)
         }
     }
 
+    RangeAnalysis r(mir, graph);
     if (mir->optimizationInfo().rangeAnalysisEnabled()) {
         AutoTraceLog log(logger, TraceLogger_RangeAnalysis);
-        RangeAnalysis r(mir, graph);
         if (!r.addBetaNodes())
             return false;
         gs.spewPass("Beta");
@@ -1762,6 +1729,28 @@ OptimizeMIR(MIRGenerator* mir)
         }
     }
 
+    {
+        AutoTraceLog log(logger, TraceLogger_Sink);
+        if (!Sink(mir, graph))
+            return false;
+        gs.spewPass("Sink");
+        AssertExtendedGraphCoherency(graph);
+
+        if (mir->shouldCancel("Sink"))
+            return false;
+    }
+
+    if (mir->optimizationInfo().rangeAnalysisEnabled()) {
+        AutoTraceLog log(logger, TraceLogger_RemoveUnnecessaryBitops);
+        if (!r.removeUnnecessaryBitops())
+            return false;
+        gs.spewPass("Remove Unnecessary Bitops");
+        AssertExtendedGraphCoherency(graph);
+
+        if (mir->shouldCancel("Remove Unnecessary Bitops"))
+            return false;
+    }
+
     if (mir->optimizationInfo().eaaEnabled()) {
         AutoTraceLog log(logger, TraceLogger_EffectiveAddressAnalysis);
         EffectiveAddressAnalysis eaa(mir, graph);
@@ -1792,17 +1781,6 @@ OptimizeMIR(MIRGenerator* mir)
         AssertExtendedGraphCoherency(graph);
 
         if (mir->shouldCancel("DCE"))
-            return false;
-    }
-
-    {
-        AutoTraceLog log(logger, TraceLogger_EliminateDeadCode);
-        if (!Sink(mir, graph))
-            return false;
-        gs.spewPass("Sink");
-        AssertExtendedGraphCoherency(graph);
-
-        if (mir->shouldCancel("Sink"))
             return false;
     }
 
@@ -2102,8 +2080,6 @@ IonCompile(JSContext* cx, JSScript* script,
     AutoTraceLog logScript(logger, event);
     AutoTraceLog logCompile(logger, TraceLogger_IonCompilation);
 
-    MOZ_ASSERT(optimizationLevel != OptimizationLevel::DontCompile);
-
     // Make sure the script's canonical function isn't lazy. We can't de-lazify
     // it in a helper thread.
     script->ensureNonLazyCanonicalFunction(cx);
@@ -2246,10 +2222,6 @@ IonCompile(JSContext* cx, JSScript* script,
         return AbortReason_NoAbort;
     }
 
-    // See PrepareForDebuggerOnIonCompilationHook
-    Rooted<ScriptVector> debugScripts(cx, ScriptVector(cx));
-    OnIonCompilationInfo debugInfo;
-
     {
         ScopedJSDeletePtr<CodeGenerator> codegen;
         AutoEnterAnalysis enter(cx);
@@ -2261,11 +2233,8 @@ IonCompile(JSContext* cx, JSScript* script,
             return AbortReason_Disable;
         }
 
-        succeeded = LinkCodeGen(cx, builder, codegen, &debugScripts, &debugInfo);
+        succeeded = LinkCodeGen(cx, builder, codegen);
     }
-
-    if (debugInfo.filled())
-        Debugger::onIonCompilation(cx, debugScripts, debugInfo.graph);
 
     if (succeeded)
         return AbortReason_NoAbort;
@@ -3347,7 +3316,6 @@ AutoFlushICache::flush(uintptr_t start, size_t len)
     PerThreadData* pt = TlsPerThreadData.get();
     AutoFlushICache* afc = pt ? pt->PerThreadData::autoFlushICache() : nullptr;
     if (!afc) {
-        MOZ_ASSERT(!IsCompilingAsmJS(), "asm.js should always create an AutoFlushICache");
         JitSpewCont(JitSpew_CacheFlush, "#");
         ExecutableAllocator::cacheFlush((void*)start, len);
         MOZ_ASSERT(len <= 32);
@@ -3361,7 +3329,6 @@ AutoFlushICache::flush(uintptr_t start, size_t len)
         return;
     }
 
-    MOZ_ASSERT(!IsCompilingAsmJS(), "asm.js should always flush within the range");
     JitSpewCont(JitSpew_CacheFlush, afc->inhibit_ ? "x" : "*");
     ExecutableAllocator::cacheFlush((void*)start, len);
 #endif

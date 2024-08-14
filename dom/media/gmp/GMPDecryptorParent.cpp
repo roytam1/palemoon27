@@ -169,15 +169,20 @@ GMPDecryptorParent::Decrypt(uint32_t aId,
   }
 
   // Caller should ensure parameters passed in are valid.
-  MOZ_ASSERT(!aBuffer.IsEmpty() && aCrypto.mValid);
+  MOZ_ASSERT(!aBuffer.IsEmpty());
 
-  GMPDecryptionData data(aCrypto.mKeyId,
-                         aCrypto.mIV,
-                         aCrypto.mPlainSizes,
-                         aCrypto.mEncryptedSizes,
-                         aCrypto.mSessionIds);
+  if (aCrypto.mValid) {
+    GMPDecryptionData data(aCrypto.mKeyId,
+                           aCrypto.mIV,
+                           aCrypto.mPlainSizes,
+                           aCrypto.mEncryptedSizes,
+                           aCrypto.mSessionIds);
 
-  Unused << SendDecrypt(aId, aBuffer, data);
+    Unused << SendDecrypt(aId, aBuffer, data);
+  } else {
+    GMPDecryptionData data;
+    Unused << SendDecrypt(aId, aBuffer, data);
+  }
 }
 
 bool
@@ -248,7 +253,7 @@ GMPDecryptorParent::RecvRejectPromise(const uint32_t& aPromiseId,
                                       const nsCString& aMessage)
 {
   LOGD(("GMPDecryptorParent[%p]::RecvRejectPromise(promiseId=%u, exception=%d, msg='%s')",
-        this, aException, aMessage.get()));
+        this, aPromiseId, aException, aMessage.get()));
 
   if (!mIsOpen) {
     NS_WARNING("Trying to use a dead GMP decrypter!");

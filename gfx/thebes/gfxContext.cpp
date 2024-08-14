@@ -71,9 +71,10 @@ gfxContext::gfxContext(DrawTarget *aTarget, const Point& aDeviceOffset)
   : mPathIsRect(false)
   , mTransformChanged(false)
   , mDT(aTarget)
-  , mOriginalDT(aTarget)
 {
-  MOZ_ASSERT(aTarget, "Don't create a gfxContext without a DrawTarget");
+  if (!aTarget) {
+    gfxCriticalError() << "Don't create a gfxContext without a DrawTarget";
+  }
 
   MOZ_COUNT_CTOR(gfxContext);
 
@@ -84,10 +85,23 @@ gfxContext::gfxContext(DrawTarget *aTarget, const Point& aDeviceOffset)
 }
 
 /* static */ already_AddRefed<gfxContext>
-gfxContext::ContextForDrawTarget(DrawTarget* aTarget)
+gfxContext::ForDrawTarget(DrawTarget* aTarget,
+                          const mozilla::gfx::Point& aDeviceOffset)
 {
   if (!aTarget || !aTarget->IsValid()) {
-    gfxWarning() << "Invalid target in gfxContext::ContextForDrawTarget";
+    gfxCriticalNote << "Invalid target in gfxContext::ForDrawTarget " << hexa(aTarget);
+    return nullptr;
+  }
+
+  RefPtr<gfxContext> result = new gfxContext(aTarget, aDeviceOffset);
+  return result.forget();
+}
+
+/* static */ already_AddRefed<gfxContext>
+gfxContext::ForDrawTargetWithTransform(DrawTarget* aTarget)
+{
+  if (!aTarget || !aTarget->IsValid()) {
+    gfxCriticalNote << "Invalid target in gfxContext::ForDrawTargetWithTransform " << hexa(aTarget);
     return nullptr;
   }
 
@@ -109,7 +123,7 @@ gfxContext::~gfxContext()
 }
 
 already_AddRefed<gfxASurface>
-gfxContext::CurrentSurface(gfxFloat *dx, gfxFloat *dy)
+gfxContext::CurrentSurface()
 {
   if (mDT->GetBackendType() == BackendType::CAIRO) {
     cairo_t* ctx = static_cast<cairo_t*>
@@ -117,20 +131,11 @@ gfxContext::CurrentSurface(gfxFloat *dx, gfxFloat *dy)
     if (ctx) {
       cairo_surface_t* s = cairo_get_group_target(ctx);
       if (s) {
-        if (dx && dy) {
-          double sdx, sdy;
-          cairo_surface_get_device_offset(s, &sdx, &sdy);
-          *dx = -CurrentState().deviceOffset.x + sdx;
-          *dy = -CurrentState().deviceOffset.y + sdy;
-        }
         return gfxASurface::Wrap(s);
       }
     }
   }
 
-  if (dx && dy) {
-    *dx = *dy = 0;
-  }
   // An Azure context doesn't have a surface backing it.
   return nullptr;
 }
@@ -828,7 +833,9 @@ gfxContext::PushGroupForBlendBack(gfxContentType content, Float aOpacity, Source
 
     CurrentState().mBlendOpacity = aOpacity;
     CurrentState().mBlendMask = aMask;
+#ifdef DEBUG
     CurrentState().mWasPushedForBlendBack = true;
+#endif
     CurrentState().mBlendMaskTransform = aMaskTransform;
   }
 }
@@ -864,9 +871,11 @@ gfxContext::PushGroupAndCopyBackground(gfxContentType content, Float aOpacity, S
       mDT->PushLayer(content == gfxContentType::COLOR, aOpacity, aMask, aMaskTransform, IntRect(), false);
     }
   } else {
-    if (pushOpaqueWithCopiedBG) {
+    RefPtr<SourceSurface> source;
+    // This snapshot can be nullptr if the DrawTarget is a cairo target that is currently
+    // in an error state.
+    if (pushOpaqueWithCopiedBG && (source = mDT->Snapshot())) {
       DrawTarget *oldDT = mDT;
-      RefPtr<SourceSurface> source = mDT->Snapshot();
       Point oldDeviceOffset = CurrentState().deviceOffset;
 
       PushNewDT(gfxContentType::COLOR);
@@ -878,7 +887,9 @@ gfxContext::PushGroupAndCopyBackground(gfxContentType content, Float aOpacity, S
 
       CurrentState().mBlendOpacity = aOpacity;
       CurrentState().mBlendMask = aMask;
+#ifdef DEBUG
       CurrentState().mWasPushedForBlendBack = true;
+#endif
       CurrentState().mBlendMaskTransform = aMaskTransform;
 
       Point offset = CurrentState().deviceOffset - oldDeviceOffset;
@@ -926,7 +937,9 @@ gfxContext::PushGroupAndCopyBackground(gfxContentType content, Float aOpacity, S
     mDT->SetTransform(GetDTTransform());
     CurrentState().mBlendOpacity = aOpacity;
     CurrentState().mBlendMask = aMask;
+#ifdef DEBUG
     CurrentState().mWasPushedForBlendBack = true;
+#endif
     CurrentState().mBlendMaskTransform = aMaskTransform;
   }
 }
@@ -1014,15 +1027,6 @@ gfxContext::EnsurePath()
 
       mTransformChanged = false;
     }
-
-    if (FillRule::FILL_WINDING == mPath->GetFillRule()) {
-      return;
-    }
-
-    mPathBuilder = mPath->CopyToBuilder();
-
-    mPath = mPathBuilder->Finish();
-    mPathBuilder = nullptr;
     return;
   }
 
@@ -1077,6 +1081,9 @@ gfxContext::EnsurePathBuilder()
     Matrix toNewUS = mPathTransform * invTransform;
 
     RefPtr<Path> path = mPathBuilder->Finish();
+    if (!path) {
+      gfxCriticalError() << "gfxContext::EnsurePathBuilder failed in PathBuilder::Finish";
+    }
     mPathBuilder = path->TransformedCopyToBuilder(toNewUS);
   }
 

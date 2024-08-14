@@ -24,7 +24,9 @@ namespace mozilla {
 // the same name get the same SharedThreadPool. Users must store a reference
 // to the pool, and when the last reference to a SharedThreadPool is dropped
 // the pool is shutdown and deleted. Users aren't required to manually
-// shutdown the pool, and can release references on any thread.
+// shutdown the pool, and can release references on any thread. This can make
+// it significantly easier to use thread pools, because the caller doesn't need
+// to worry about joining and tearing it down.
 //
 // On Windows all threads in the pool have MSCOM initialized with
 // COINIT_MULTITHREADED. Note that not all users of MSCOM use this mode see [1],
@@ -39,7 +41,6 @@ public:
 
   // Gets (possibly creating) the shared thread pool singleton instance with
   // thread pool named aName.
-  // *Must* be called on the main thread.
   static already_AddRefed<SharedThreadPool> Get(const nsCString& aName,
                                             uint32_t aThreadLimit = 4);
 
@@ -54,16 +55,19 @@ public:
   // Forward behaviour to wrapped thread pool implementation.
   NS_FORWARD_SAFE_NSITHREADPOOL(mPool);
 
-  // See bug 1155059 - MSVC forces us to not declare Dispatch normally in idl
-  //  NS_FORWARD_SAFE_NSIEVENTTARGET(mEventTarget);
-  nsresult Dispatch(nsIRunnable *event, uint32_t flags) { return !mEventTarget ? NS_ERROR_NULL_POINTER : mEventTarget->Dispatch(event, flags); }
- 
+  // Call this when dispatching from an event on the same
+  // threadpool that is about to complete. We should not create a new thread
+  // in that case since a thread is about to become idle.
+  nsresult TailDispatch(nsIRunnable *event) { return Dispatch(event, NS_DISPATCH_TAIL); }
+
   NS_IMETHOD DispatchFromScript(nsIRunnable *event, uint32_t flags) override {
       return Dispatch(event, flags);
   }
 
   NS_IMETHOD Dispatch(already_AddRefed<nsIRunnable>&& event, uint32_t flags) override
     { return !mEventTarget ? NS_ERROR_NULL_POINTER : mEventTarget->Dispatch(Move(event), flags); }
+
+  using nsIEventTarget::Dispatch;
 
   NS_IMETHOD IsOnCurrentThread(bool *_retval) override { return !mEventTarget ? NS_ERROR_NULL_POINTER : mEventTarget->IsOnCurrentThread(_retval); }
 

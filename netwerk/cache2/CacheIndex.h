@@ -687,6 +687,10 @@ public:
   // READY or WRITING and mIndexNeedsUpdate as well as mShuttingDown is false.
   static nsresult IsUpToDate(bool *_retval);
 
+  // Called from CacheStorageService::Clear() and CacheFileContextEvictor::EvictEntries(),
+  // sets a flag that blocks notification to AsyncGetDiskConsumption.
+  static void OnAsyncEviction(bool aEvicting);
+
   // Memory reporting
   static size_t SizeOfExcludingThis(mozilla::MallocSizeOf mallocSizeOf);
   static size_t SizeOfIncludingThis(mozilla::MallocSizeOf mallocSizeOf);
@@ -901,6 +905,7 @@ private:
 
   static char const * StateString(EState aState);
   void ChangeState(EState aNewState);
+  void NotifyAsyncGetDiskConsumptionCallbacks();
 
   // Allocates and releases buffer used for reading and writing index.
   void AllocBuffer();
@@ -1015,8 +1020,14 @@ private:
   // and such entries are stored at the end of the array. Uninitialized entries
   // and entries marked as deleted are not present in this array.
   nsTArray<CacheIndexRecord *>  mFrecencyArray;
+  bool                          mFrecencyArraySorted;
 
   nsTArray<CacheIndexIterator *> mIterators;
+
+  // This flag is true iff we are between CacheStorageService:Clear() and processing
+  // all contexts to be evicted.  It will make UI to show "calculating" instead of
+  // any intermediate cache size.
+  bool mAsyncGetDiskConsumptionBlocked;
 
   class DiskConsumptionObserver : public nsRunnable
   {
@@ -1041,16 +1052,7 @@ private:
       : mObserver(aWeakObserver) { }
     virtual ~DiskConsumptionObserver() {
       if (mObserver && !NS_IsMainThread()) {
-        nsIWeakReference *obs;
-        mObserver.forget(&obs);
-
-        nsCOMPtr<nsIThread> mainThread = do_GetMainThread();
-        if (mainThread) {
-          NS_ProxyRelease(mainThread, obs);
-        } else {
-          NS_WARNING("Cannot get main thread, leaking weak reference to "
-                     "CacheStorageConsumptionObserver.");
-        }
+        NS_ReleaseOnMainThread(mObserver.forget());
       }
     }
 

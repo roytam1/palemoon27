@@ -86,7 +86,10 @@ public:
   // By defualt SMS/MMS is default supported
   static const int SDP_SMS_MMS_INSTANCE_ID = 0;
 
+  static void InitMapSmsInterface(BluetoothProfileResultHandler* aRes);
+  static void DeinitMapSmsInterface(BluetoothProfileResultHandler* aRes);
   static BluetoothMapSmsManager* Get();
+
   bool Listen();
 
   /**
@@ -194,7 +197,9 @@ protected:
 
 private:
   BluetoothMapSmsManager();
-  bool Init();
+
+  nsresult Init();
+  void Uninit();
   void HandleShutdown();
 
   void ReplyToConnect();
@@ -280,7 +285,7 @@ private:
   RefPtr<BluetoothSocket> mMnsSocket;
 
   int mBodySegmentLength;
-  nsAutoArrayPtr<uint8_t> mBodySegment;
+  UniquePtr<uint8_t[]> mBodySegment;
 
   /**
    * The bMessage/message-listing data stream for current processing response

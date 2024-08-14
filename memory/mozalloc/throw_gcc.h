@@ -8,6 +8,8 @@
 #ifndef mozilla_throw_gcc_h
 #define mozilla_throw_gcc_h
 
+#if !defined(_LIBCPP_VERSION) || _LIBCPP_VERSION < 14000
+
 #include "mozilla/Attributes.h"
 
 #include <stdio.h>              // snprintf
@@ -75,8 +77,9 @@ __throw_bad_typeid(void)
 
 // used by <functional>
 MOZ_THROW_NORETURN MOZ_THROW_EXPORT MOZ_THROW_INLINE void
-__throw_bad_function_call(void) {
-  mozalloc_abort("fatal: STL threw bad_function_call");
+__throw_bad_function_call(void)
+{
+    mozalloc_abort("fatal: STL threw bad_function_call");
 }
 
 MOZ_THROW_NORETURN MOZ_THROW_EXPORT MOZ_ALWAYS_INLINE void
@@ -149,5 +152,10 @@ __throw_system_error(int err)
 }
 
 } // namespace std
+
+#undef MOZ_THROW_NORETURN
+#undef MOZ_THROW_INLINE
+
+#endif
 
 #endif  // mozilla_throw_gcc_h

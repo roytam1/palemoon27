@@ -15,14 +15,6 @@
 #include "mozilla/Types.h"
 #include "nscore.h"
 
-#if defined(__GNUC__) && defined(__i386__)
-#define PL_DHASH_FASTCALL __attribute__ ((regparm (3),stdcall))
-#elif defined(XP_WIN)
-#define PL_DHASH_FASTCALL __fastcall
-#else
-#define PL_DHASH_FASTCALL
-#endif
-
 typedef uint32_t PLDHashNumber;
 
 class PLDHashTable;
@@ -404,18 +396,15 @@ public:
   static const PLDHashTableOps* StubOps();
 
   // The individual stub operations in StubOps().
-  static PLDHashNumber HashVoidPtrKeyStub(PLDHashTable* aTable,
-                                          const void* aKey);
-  static bool MatchEntryStub(PLDHashTable* aTable,
-                             const PLDHashEntryHdr* aEntry, const void* aKey);
+  static PLDHashNumber HashVoidPtrKeyStub(const void* aKey);
+  static bool MatchEntryStub(const PLDHashEntryHdr* aEntry, const void* aKey);
   static void MoveEntryStub(PLDHashTable* aTable, const PLDHashEntryHdr* aFrom,
                             PLDHashEntryHdr* aTo);
   static void ClearEntryStub(PLDHashTable* aTable, PLDHashEntryHdr* aEntry);
 
   // Hash/match operations for tables holding C strings.
-  static PLDHashNumber HashStringKey(PLDHashTable* aTable, const void* aKey);
-  static bool MatchStringKey(PLDHashTable* aTable,
-                             const PLDHashEntryHdr* aEntry, const void* aKey);
+  static PLDHashNumber HashStringKey(const void* aKey);
+  static bool MatchStringKey(const PLDHashEntryHdr* aEntry, const void* aKey);
 
   // This is an iterator for PLDHashtable. Assertions will detect some, but not
   // all, mid-iteration table modifications that might invalidate (e.g.
@@ -450,9 +439,21 @@ public:
     Iterator(Iterator&& aOther);
     ~Iterator();
 
-    bool Done() const;                // Have we finished?
-    PLDHashEntryHdr* Get() const;     // Get the current entry.
-    void Next();                      // Advance to the next entry.
+    // Have we finished?
+    bool Done() const { return mNexts == mNextsLimit; }
+
+    // Get the current entry.
+    PLDHashEntryHdr* Get() const
+    {
+      MOZ_ASSERT(!Done());
+
+      PLDHashEntryHdr* entry = reinterpret_cast<PLDHashEntryHdr*>(mCurrent);
+      MOZ_ASSERT(EntryIsLive(entry));
+      return entry;
+    }
+
+    // Advance to the next entry.
+    void Next();
 
     // Remove the current entry. Must only be called once per entry, and Get()
     // must not be called on that entry afterwards.
@@ -498,11 +499,27 @@ private:
 
   static const PLDHashNumber kCollisionFlag = 1;
 
-  static bool EntryIsFree(PLDHashEntryHdr* aEntry);
-  static bool EntryIsRemoved(PLDHashEntryHdr* aEntry);
-  static bool EntryIsLive(PLDHashEntryHdr* aEntry);
-  static void MarkEntryFree(PLDHashEntryHdr* aEntry);
-  static void MarkEntryRemoved(PLDHashEntryHdr* aEntry);
+  static bool EntryIsFree(PLDHashEntryHdr* aEntry)
+  {
+    return aEntry->mKeyHash == 0;
+  }
+  static bool EntryIsRemoved(PLDHashEntryHdr* aEntry)
+  {
+    return aEntry->mKeyHash == 1;
+  }
+  static bool EntryIsLive(PLDHashEntryHdr* aEntry)
+  {
+    return aEntry->mKeyHash >= 2;
+  }
+
+  static void MarkEntryFree(PLDHashEntryHdr* aEntry)
+  {
+    aEntry->mKeyHash = 0;
+  }
+  static void MarkEntryRemoved(PLDHashEntryHdr* aEntry)
+  {
+    aEntry->mKeyHash = 1;
+  }
 
   PLDHashNumber Hash1(PLDHashNumber aHash0);
   void Hash2(PLDHashNumber aHash, uint32_t& aHash2Out, uint32_t& aSizeMaskOut);
@@ -522,10 +539,10 @@ private:
   enum SearchReason { ForSearchOrRemove, ForAdd };
 
   template <SearchReason Reason>
-  PLDHashEntryHdr* PL_DHASH_FASTCALL
+  PLDHashEntryHdr* NS_FASTCALL
     SearchTable(const void* aKey, PLDHashNumber aKeyHash);
 
-  PLDHashEntryHdr* PL_DHASH_FASTCALL FindFreeEntry(PLDHashNumber aKeyHash);
+  PLDHashEntryHdr* FindFreeEntry(PLDHashNumber aKeyHash);
 
   bool ChangeTable(int aDeltaLog2);
 
@@ -535,15 +552,13 @@ private:
   PLDHashTable& operator=(const PLDHashTable& aOther) = delete;
 };
 
-// Compute the hash code for a given key to be looked up, added, or removed
-// from aTable. A hash code may have any PLDHashNumber value.
-typedef PLDHashNumber (*PLDHashHashKey)(PLDHashTable* aTable,
-                                        const void* aKey);
+// Compute the hash code for a given key to be looked up, added, or removed.
+// A hash code may have any PLDHashNumber value.
+typedef PLDHashNumber (*PLDHashHashKey)(const void* aKey);
 
-// Compare the key identifying aEntry in aTable with the provided key parameter.
-// Return true if keys match, false otherwise.
-typedef bool (*PLDHashMatchEntry)(PLDHashTable* aTable,
-                                  const PLDHashEntryHdr* aEntry,
+// Compare the key identifying aEntry with the provided key parameter. Return
+// true if keys match, false otherwise.
+typedef bool (*PLDHashMatchEntry)(const PLDHashEntryHdr* aEntry,
                                   const void* aKey);
 
 // Copy the data starting at aFrom to the new entry storage at aTo. Do not add

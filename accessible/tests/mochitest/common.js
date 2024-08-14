@@ -111,6 +111,41 @@ function isLogged(aModule)
 }
 
 /**
+ * Dumps the accessible tree into console.
+ */
+function dumpTree(aId, aMsg)
+{
+  function dumpTreeIntl(acc, indent)
+  {
+    dump(indent + prettyName(acc) + "\n");
+
+    var children = acc.children;
+    for (var i = 0; i < children.length; i++) {
+      var child = children.queryElementAt(i, nsIAccessible);
+      dumpTreeIntl(child, indent + "  ");
+    }
+  }
+
+  function dumpDOMTreeIntl(node, indent)
+  {
+    dump(indent + prettyName(node) + "\n");
+
+    var children = node.childNodes;
+    for (var i = 0; i < children.length; i++) {
+      var child = children.item(i);
+      dumpDOMTreeIntl(child, indent + "  ");
+    }
+  }
+
+  dump(aMsg + "\n");
+  var root = getAccessible(aId);
+  dumpTreeIntl(root, "  ");
+
+  dump("DOM tree:\n");
+  dumpDOMTreeIntl(getNode(aId), "  ");
+}
+
+/**
  * Invokes the given function when document is loaded and focused. Preferable
  * to mochitests 'addLoadEvent' function -- additionally ensures state of the
  * document accessible is not busy.

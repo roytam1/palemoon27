@@ -12,6 +12,7 @@
 #include "mozilla/ReentrantMonitor.h"
 #include "mozilla/Vector.h"
 #include "nsIThread.h"
+#include "AudioConverter.h"
 
 namespace mozilla {
 
@@ -31,6 +32,11 @@ public:
   nsresult Drain() override;
   nsresult Shutdown() override;
 
+  const char* GetDescriptionName() const override
+  {
+    return "apple CoreMedia decoder";
+  }
+
   // Callbacks also need access to the config.
   const AudioInfo& mConfig;
 
@@ -48,6 +54,8 @@ private:
   UInt32 mFormatID;
   AudioFileStreamID mStream;
   nsTArray<RefPtr<MediaRawData>> mQueuedSamples;
+  UniquePtr<AudioConfig::ChannelLayout> mChannelLayout;
+  UniquePtr<AudioConverter> mAudioConverter;
 
   void SubmitSample(MediaRawData* aSample);
   nsresult DecodeSample(MediaRawData* aSample);
@@ -57,6 +65,7 @@ private:
   // Will return NS_ERROR_NOT_INITIALIZED if more data is required.
   nsresult SetupDecoder(MediaRawData* aSample);
   nsresult GetImplicitAACMagicCookie(const MediaRawData* aSample);
+  nsresult SetupChannelLayout();
 };
 
 } // namespace mozilla

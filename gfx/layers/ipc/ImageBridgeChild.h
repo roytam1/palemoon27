@@ -9,6 +9,7 @@
 #include <stddef.h>                     // for size_t
 #include <stdint.h>                     // for uint32_t, uint64_t
 #include "mozilla/Attributes.h"         // for override
+#include "mozilla/Atomics.h"
 #include "mozilla/RefPtr.h"             // for already_AddRefed
 #include "mozilla/ipc/SharedMemory.h"   // for SharedMemory, etc
 #include "mozilla/layers/AsyncTransactionTracker.h" // for AsyncTransactionTrackerHolder
@@ -104,10 +105,13 @@ bool InImageBridgeChildThread();
 class ImageBridgeChild final : public PImageBridgeChild
                              , public CompositableForwarder
                              , public AsyncTransactionTrackersHolder
+                             , public ShmemAllocator
 {
   friend class ImageContainer;
   typedef InfallibleTArray<AsyncParentMessageData> AsyncParentMessageArray;
 public:
+
+  virtual ShmemAllocator* AsShmemAllocator() override { return this; }
 
   /**
    * Creates the image bridge with a dedicated thread for ImageBridgeChild.
@@ -140,6 +144,15 @@ public:
    * Can be called from any thread.
    */
   static bool IsCreated();
+  /**
+   * Returns true if the singleton's ShutDown() was called.
+   *
+   * Can be called from any thread.
+   */
+  static bool IsShutDown()
+  {
+    return sIsShutDown;
+  }
 
   /**
    * returns the singleton instance.
@@ -236,7 +249,7 @@ public:
   virtual void Connect(CompositableClient* aCompositable,
                        ImageContainer* aImageContainer) override;
 
-  virtual bool IsImageBridgeChild() const override { return true; }
+  virtual bool UsesImageBridge() const override { return true; }
 
   /**
    * See CompositableForwarder::UseTextures
@@ -283,17 +296,12 @@ public:
    * call on the ImageBridgeChild thread.
    */
   virtual bool AllocUnsafeShmem(size_t aSize,
-                                mozilla::ipc::SharedMemory::SharedMemoryType aType,
+                                mozilla::ipc::SharedMemory::SharedMemoryType aShmType,
                                 mozilla::ipc::Shmem* aShmem) override;
-  /**
-   * See ISurfaceAllocator.h
-   * Can be used from any thread.
-   * If used outside the ImageBridgeChild thread, it will proxy a synchronous
-   * call on the ImageBridgeChild thread.
-   */
   virtual bool AllocShmem(size_t aSize,
-                          mozilla::ipc::SharedMemory::SharedMemoryType aType,
+                          mozilla::ipc::SharedMemory::SharedMemoryType aShmType,
                           mozilla::ipc::Shmem* aShmem) override;
+
   /**
    * See ISurfaceAllocator.h
    * Can be used from any thread.
@@ -321,7 +329,8 @@ protected:
                                   bool aUnsafe);
 
   CompositableTransaction* mTxn;
-  bool mShuttingDown;
+  Atomic<bool> mShuttingDown;
+  static Atomic<bool> sIsShutDown;
 };
 
 } // namespace layers

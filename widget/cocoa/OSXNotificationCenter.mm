@@ -220,7 +220,8 @@ OSXNotificationCenter::~OSXNotificationCenter()
   NS_OBJC_END_TRY_ABORT_BLOCK;
 }
 
-NS_IMPL_ISUPPORTS(OSXNotificationCenter, nsIAlertsService, imgINotificationObserver, nsITimerCallback)
+NS_IMPL_ISUPPORTS(OSXNotificationCenter, nsIAlertsService, nsITimerCallback,
+                  imgINotificationObserver, nsIAlertsIconData)
 
 nsresult OSXNotificationCenter::Init()
 {
@@ -257,6 +258,15 @@ OSXNotificationCenter::ShowAlertNotification(const nsAString & aImageUrl, const 
 NS_IMETHODIMP
 OSXNotificationCenter::ShowAlert(nsIAlertNotification* aAlert,
                                  nsIObserver* aAlertListener)
+{
+  return ShowAlertWithIconData(aAlert, aAlertListener, 0, nullptr);
+}
+
+NS_IMETHODIMP
+OSXNotificationCenter::ShowAlertWithIconData(nsIAlertNotification* aAlert,
+                                             nsIObserver* aAlertListener,
+                                             uint32_t aIconSize,
+                                             const uint8_t* aIconData)
 {
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK_NSRESULT;
 
@@ -353,6 +363,18 @@ OSXNotificationCenter::ShowAlert(nsIAlertNotification* aAlert,
 
   OSXNotificationInfo *osxni = new OSXNotificationInfo(alertName, aAlertListener, cookie);
 
+  // Show the favicon if supported on this version of OS X.
+  if (aIconSize > 0 &&
+      [notification respondsToSelector:@selector(set_identityImage:)] &&
+      [notification respondsToSelector:@selector(set_identityImageHasBorder:)]) {
+
+    NSData *iconData = [NSData dataWithBytes:aIconData length:aIconSize];
+    NSImage *icon = [[[NSImage alloc] initWithData:iconData] autorelease];
+
+    [(NSObject*)notification setValue:icon forKey:@"_identityImage"];
+    [(NSObject*)notification setValue:@(NO) forKey:@"_identityImageHasBorder"];
+  }
+
   nsAutoString imageUrl;
   rv = aAlert->GetImageURL(imageUrl);
   NS_ENSURE_SUCCESS(rv, rv);
@@ -385,7 +407,7 @@ OSXNotificationCenter::ShowAlert(nsIAlertNotification* aAlert,
           rv = il->LoadImage(imageUri, nullptr, nullptr,
                              mozilla::net::RP_Default,
                              principal, nullptr,
-                             this, nullptr,
+                             this, nullptr, nullptr,
                              inPrivateBrowsing ? nsIRequest::LOAD_ANONYMOUS :
                                                  nsIRequest::LOAD_NORMAL,
                              nullptr, nsIContentPolicy::TYPE_INTERNAL_IMAGE,

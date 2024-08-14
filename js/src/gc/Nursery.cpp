@@ -82,10 +82,10 @@ js::Nursery::init(uint32_t maxNurseryBytes)
     heapStart_ = uintptr_t(heap);
     heapEnd_ = heapStart_ + nurserySize();
     currentStart_ = start();
-    numActiveChunks_ = 1;
+    numActiveChunks_ = numNurseryChunks_;
     JS_POISON(heap, JS_FRESH_NURSERY_PATTERN, nurserySize());
+    updateNumActiveChunks(1);
     setCurrentChunk(0);
-    updateDecommittedRegion();
 
     char* env = getenv("JS_GC_PROFILE_NURSERY");
     if (env) {
@@ -111,31 +111,13 @@ js::Nursery::~Nursery()
 }
 
 void
-js::Nursery::updateDecommittedRegion()
-{
-#ifndef JS_GC_ZEAL
-    if (numActiveChunks_ < numNurseryChunks_) {
-        // Bug 994054: madvise on MacOS is too slow to make this
-        //             optimization worthwhile.
-# ifndef XP_DARWIN
-        uintptr_t decommitStart = chunk(numActiveChunks_).start();
-        uintptr_t decommitSize = heapEnd() - decommitStart;
-        MOZ_ASSERT(decommitStart == AlignBytes(decommitStart, Alignment));
-        MOZ_ASSERT(decommitSize == AlignBytes(decommitStart, Alignment));
-        MarkPagesUnused((void*)decommitStart, decommitSize);
-# endif
-    }
-#endif
-}
-
-void
 js::Nursery::enable()
 {
     MOZ_ASSERT(isEmpty());
     MOZ_ASSERT(!runtime()->gc.isVerifyPreBarriersEnabled());
     if (isEnabled())
         return;
-    numActiveChunks_ = 1;
+    updateNumActiveChunks(1);
     setCurrentChunk(0);
     currentStart_ = position();
 #ifdef JS_GC_ZEAL
@@ -150,9 +132,8 @@ js::Nursery::disable()
     MOZ_ASSERT(isEmpty());
     if (!isEnabled())
         return;
-    numActiveChunks_ = 0;
+    updateNumActiveChunks(0);
     currentEnd_ = 0;
-    updateDecommittedRegion();
 }
 
 bool
@@ -194,7 +175,7 @@ js::Nursery::allocateObject(JSContext* cx, size_t size, size_t numDynamic, const
      * heap. The finalizers for these classes must do nothing except free data
      * which was allocated via Nursery::allocateBuffer.
      */
-    MOZ_ASSERT_IF(clasp->finalize, clasp->flags & JSCLASS_SKIP_NURSERY_FINALIZE);
+    MOZ_ASSERT_IF(clasp->hasFinalize(), clasp->flags & JSCLASS_SKIP_NURSERY_FINALIZE);
 
     /* Make the object allocation. */
     JSObject* obj = static_cast<JSObject*>(allocate(size));
@@ -544,12 +525,6 @@ js::Nursery::collect(JSRuntime* rt, JS::gcreason::Reason reason, ObjectGroupList
     }
     TIME_END(pretenure);
 
-    TIME_START(logPromotionsToTenured);
-    for (ZonesIter zone(rt, SkipAtoms); !zone.done(); zone.next()) {
-        zone->logPromotionsToTenured();
-    }
-    TIME_END(logPromotionsToTenured);
-
     // We ignore gcMaxBytes when allocating for minor collection. However, if we
     // overflowed, we disable the nursery. The next time we allocate, we'll fail
     // because gcBytes >= gcMaxBytes.
@@ -584,8 +559,7 @@ js::Nursery::collect(JSRuntime* rt, JS::gcreason::Reason reason, ObjectGroupList
             {" clrSB", TIME_TOTAL(clearStoreBuffer)},
             {" sweep", TIME_TOTAL(sweep)},
             {"resize", TIME_TOTAL(resize)},
-            {"pretnr", TIME_TOTAL(pretenure)},
-            {"logPtT", TIME_TOTAL(logPromotionsToTenured)}
+            {"pretnr", TIME_TOTAL(pretenure)}
         };
         static int printedHeader = 0;
         if ((printedHeader++ % 200) == 0) {
@@ -703,7 +677,7 @@ js::Nursery::growAllocableSpace()
     MOZ_ASSERT_IF(runtime()->hasZealMode(ZealMode::GenerationalGC),
                   numActiveChunks_ == numNurseryChunks_);
 #endif
-    numActiveChunks_ = Min(numActiveChunks_ * 2, numNurseryChunks_);
+    updateNumActiveChunks(Min(numActiveChunks_ * 2, numNurseryChunks_));
 }
 
 void
@@ -713,6 +687,28 @@ js::Nursery::shrinkAllocableSpace()
     if (runtime()->hasZealMode(ZealMode::GenerationalGC))
         return;
 #endif
-    numActiveChunks_ = Max(numActiveChunks_ - 1, 1);
-    updateDecommittedRegion();
+    updateNumActiveChunks(Max(numActiveChunks_ - 1, 1));
+}
+
+void
+js::Nursery::updateNumActiveChunks(int newCount)
+{
+#ifndef JS_GC_ZEAL
+    int priorChunks = numActiveChunks_;
+#endif
+    numActiveChunks_ = newCount;
+
+    // In zeal mode, we want to keep the unused memory poisoned so that we
+    // will crash sooner. Avoid decommit in that case to avoid having the
+    // system zero the pages.
+#ifndef JS_GC_ZEAL
+    if (numActiveChunks_ < priorChunks) {
+        uintptr_t decommitStart = chunk(numActiveChunks_).start();
+        uintptr_t decommitSize = chunk(priorChunks - 1).start() + ChunkSize - decommitStart;
+        MOZ_ASSERT(decommitSize != 0);
+        MOZ_ASSERT(decommitStart == AlignBytes(decommitStart, Alignment));
+        MOZ_ASSERT(decommitSize == AlignBytes(decommitSize, Alignment));
+        MarkPagesUnused((void*)decommitStart, decommitSize);
+    }
+#endif // !defined(JS_GC_ZEAL)
 }

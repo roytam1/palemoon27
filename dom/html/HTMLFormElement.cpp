@@ -153,7 +153,7 @@ NS_IMPL_CYCLE_COLLECTION_UNLINK_END
 NS_IMPL_CYCLE_COLLECTION_TRACE_BEGIN_INHERITED(HTMLFormElement,
                                                nsGenericHTMLElement)
   if (tmp->PreservingWrapper()) {
-    NS_IMPL_CYCLE_COLLECTION_TRACE_JSVAL_MEMBER_CALLBACK(mExpandoAndGeneration.expando);
+    NS_IMPL_CYCLE_COLLECTION_TRACE_JS_MEMBER_CALLBACK(mExpandoAndGeneration.expando)
   }
 NS_IMPL_CYCLE_COLLECTION_TRACE_END
 
@@ -493,7 +493,7 @@ nsresult
 HTMLFormElement::PreHandleEvent(EventChainPreVisitor& aVisitor)
 {
   aVisitor.mWantsWillHandleEvent = true;
-  if (aVisitor.mEvent->originalTarget == static_cast<nsIContent*>(this)) {
+  if (aVisitor.mEvent->mOriginalTarget == static_cast<nsIContent*>(this)) {
     uint32_t msg = aVisitor.mEvent->mMessage;
     if (msg == eFormSubmit) {
       if (mGeneratingSubmit) {
@@ -526,8 +526,8 @@ HTMLFormElement::WillHandleEvent(EventChainPostVisitor& aVisitor)
   if ((aVisitor.mEvent->mMessage == eFormSubmit ||
        aVisitor.mEvent->mMessage == eFormReset) &&
       aVisitor.mEvent->mFlags.mInBubblingPhase &&
-      aVisitor.mEvent->originalTarget != static_cast<nsIContent*>(this)) {
-    aVisitor.mEvent->mFlags.mPropagationStopped = true;
+      aVisitor.mEvent->mOriginalTarget != static_cast<nsIContent*>(this)) {
+    aVisitor.mEvent->StopPropagation();
   }
   return NS_OK;
 }
@@ -535,7 +535,7 @@ HTMLFormElement::WillHandleEvent(EventChainPostVisitor& aVisitor)
 nsresult
 HTMLFormElement::PostHandleEvent(EventChainPostVisitor& aVisitor)
 {
-  if (aVisitor.mEvent->originalTarget == static_cast<nsIContent*>(this)) {
+  if (aVisitor.mEvent->mOriginalTarget == static_cast<nsIContent*>(this)) {
     EventMessage msg = aVisitor.mEvent->mMessage;
     if (msg == eFormSubmit) {
       // let the form know not to defer subsequent submissions
@@ -1671,7 +1671,7 @@ HTMLFormElement::GetActionURL(nsIURI** aActionURL,
   // Get the document to form the URL.
   // We'll also need it later to get the DOM window when notifying form submit
   // observers (bug 33203)
-  if (!IsInDoc()) {
+  if (!IsInUncomposedDoc()) {
     return NS_OK; // No doc means don't submit, see Bug 28988
   }
 
@@ -1744,7 +1744,7 @@ HTMLFormElement::GetActionURL(nsIURI** aActionURL,
   bool isHttpScheme = false;
   rv = actionURL->SchemeIs("http", &isHttpScheme);
   NS_ENSURE_SUCCESS(rv, rv);
-  if (isHttpScheme && document->GetUpgradeInsecureRequests()) {
+  if (isHttpScheme && document->GetUpgradeInsecureRequests(false)) {
     // let's use the old specification before the upgrade for logging
     nsAutoCString spec;
     rv = actionURL->GetSpec(spec);
@@ -1752,8 +1752,10 @@ HTMLFormElement::GetActionURL(nsIURI** aActionURL,
     NS_ConvertUTF8toUTF16 reportSpec(spec);
 
     // upgrade the actionURL from http:// to use https://
-    rv = actionURL->SetScheme(NS_LITERAL_CSTRING("https"));
+    nsCOMPtr<nsIURI> upgradedActionURL;
+    rv = NS_GetSecureUpgradedURI(actionURL, getter_AddRefs(upgradedActionURL));
     NS_ENSURE_SUCCESS(rv, rv);
+    actionURL = upgradedActionURL.forget();
 
     // let's log a message to the console that we are upgrading a request
     nsAutoCString scheme;

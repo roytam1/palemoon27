@@ -273,6 +273,12 @@ public:
         NotifyObservers(chan, NS_HTTP_ON_MODIFY_REQUEST_TOPIC);
     }
 
+    // Called by the channel and cached in the loadGroup
+    void OnUserAgentRequest(nsIHttpChannel *chan)
+    {
+      NotifyObservers(chan, NS_HTTP_ON_USERAGENT_REQUEST_TOPIC);
+    }
+
     // Called by the channel once headers are available
     void OnExamineResponse(nsIHttpChannel *chan)
     {
@@ -328,6 +334,13 @@ public:
     SpdyInformation *SpdyInfo() { return &mSpdyInfo; }
     bool IsH2MandatorySuiteEnabled() { return mH2MandatorySuiteEnabled; }
 
+    // Returns true if content-signature test pref is set such that they are
+    // NOT enforced on remote newtabs.
+    bool NewTabContentSignaturesDisabled()
+    {
+      return mNewTabContentSignaturesDisabled;
+    }
+
     // returns true in between Init and Shutdown states
     bool Active() { return mHandlerActive; }
 
@@ -376,7 +389,7 @@ private:
     nsHttpAuthCache mPrivateAuthCache;
 
     // the connection manager
-    nsHttpConnectionMgr *mConnMgr;
+    RefPtr<nsHttpConnectionMgr> mConnMgr;
 
     //
     // prefs
@@ -479,11 +492,11 @@ private:
     bool           mSafeHintEnabled;
     bool           mParentalControlEnabled;
 
+    // true in between init and shutdown states
+    Atomic<bool, Relaxed> mHandlerActive;
+
     // The value of 'hidden' network.http.debug-observations : 1;
     uint32_t           mDebugObservations : 1;
-
-    // true in between init and shutdown states
-    uint32_t           mHandlerActive : 1;
 
     uint32_t           mEnableSpdy : 1;
     uint32_t           mSpdyV31 : 1;
@@ -550,6 +563,9 @@ private:
 
     nsCOMPtr<nsISchedulingContextService> mSchedulingContextService;
 
+    // True if remote newtab content-signature disabled because of the channel.
+    bool mNewTabContentSignaturesDisabled;
+
 private:
     // For Rate Pacing Certain Network Events. Only assign this pointer on
     // socket thread.
@@ -562,8 +578,9 @@ public:
                                 nsICancelable **cancel)
     {
         MOZ_ASSERT(PR_GetCurrentThread() == gSocketThread);
-        if (!mRequestTokenBucket)
-            return NS_ERROR_UNEXPECTED;
+        if (!mRequestTokenBucket) {
+            return NS_ERROR_NOT_AVAILABLE;
+        }
         return mRequestTokenBucket->SubmitEvent(event, cancel);
     }
 

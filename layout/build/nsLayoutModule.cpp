@@ -68,14 +68,12 @@
 #include "nsContentCreatorFunctions.h"
 
 #include "mozilla/dom/FormData.h"
-#include "nsHostObjectProtocolHandler.h"
 #include "nsHostObjectURI.h"
 #include "nsGlobalWindowCommands.h"
 #include "nsIControllerCommandTable.h"
 #include "nsJSProtocolHandler.h"
 #include "nsScriptNameSpaceManager.h"
 #include "nsIControllerContext.h"
-#include "nsDOMScriptObjectFactory.h"
 #include "DOMStorageManager.h"
 #include "nsJSON.h"
 #include "nsZipArchive.h"
@@ -248,7 +246,6 @@ static void Shutdown();
 #include "nsITelephonyService.h"
 #include "nsIVoicemailService.h"
 
-#include "mozilla/dom/FakeTVService.h"
 #include "mozilla/dom/TVServiceFactory.h"
 #include "mozilla/dom/TVTypes.h"
 #include "nsITVService.h"
@@ -269,6 +266,11 @@ static void Shutdown();
 #include "mozilla/dom/PresentationSessionTransport.h"
 
 #include "mozilla/TextInputProcessor.h"
+
+#ifdef MOZ_B2G
+#include "nsIHardwareKeyHandler.h"
+#include "mozilla/HardwareKeyHandler.h"
+#endif
 
 using namespace mozilla;
 using namespace mozilla::dom;
@@ -308,10 +310,6 @@ NS_GENERIC_FACTORY_CONSTRUCTOR_INIT(txNodeSetAdaptor, Init)
 NS_GENERIC_FACTORY_CONSTRUCTOR(nsDOMSerializer)
 NS_GENERIC_FACTORY_CONSTRUCTOR_INIT(nsXMLHttpRequest, Init)
 NS_GENERIC_FACTORY_CONSTRUCTOR(FormData)
-NS_GENERIC_FACTORY_CONSTRUCTOR(nsBlobProtocolHandler)
-NS_GENERIC_FACTORY_CONSTRUCTOR(nsMediaStreamProtocolHandler)
-NS_GENERIC_FACTORY_CONSTRUCTOR(nsMediaSourceProtocolHandler)
-NS_GENERIC_FACTORY_CONSTRUCTOR(nsFontTableProtocolHandler)
 NS_GENERIC_FACTORY_CONSTRUCTOR(nsHostObjectURI)
 NS_GENERIC_FACTORY_CONSTRUCTOR(DOMParser)
 NS_GENERIC_FACTORY_CONSTRUCTOR(Exception)
@@ -323,7 +321,8 @@ NS_GENERIC_FACTORY_SINGLETON_CONSTRUCTOR(QuotaManager,
                                          QuotaManager::FactoryCreate)
 NS_GENERIC_FACTORY_SINGLETON_CONSTRUCTOR(ServiceWorkerManager,
                                          ServiceWorkerManager::GetInstance)
-NS_GENERIC_FACTORY_CONSTRUCTOR(WorkerDebuggerManager)
+NS_GENERIC_FACTORY_SINGLETON_CONSTRUCTOR(WorkerDebuggerManager,
+                                         WorkerDebuggerManager::GetInstance)
 
 #ifdef MOZ_WIDGET_GONK
 NS_GENERIC_FACTORY_SINGLETON_CONSTRUCTOR(SystemWorkerManager,
@@ -396,8 +395,6 @@ NS_GENERIC_FACTORY_SINGLETON_CONSTRUCTOR(nsITelephonyService,
                                          NS_CreateTelephonyService)
 NS_GENERIC_FACTORY_SINGLETON_CONSTRUCTOR(nsIVoicemailService,
                                          NS_CreateVoicemailService)
-NS_GENERIC_FACTORY_SINGLETON_CONSTRUCTOR(FakeTVService,
-                                         TVServiceFactory::CreateFakeTVService)
 NS_GENERIC_FACTORY_CONSTRUCTOR(TVTunerData)
 NS_GENERIC_FACTORY_CONSTRUCTOR(TVChannelData)
 NS_GENERIC_FACTORY_CONSTRUCTOR(TVProgramData)
@@ -626,8 +623,6 @@ _InstanceClass##Constructor(nsISupports *aOuter, REFNSIID aIID,               \
     return rv;                                                                \
 }                                                                             \
 
-NS_GENERIC_FACTORY_CONSTRUCTOR(nsDOMScriptObjectFactory)
-
 #define NS_GEOLOCATION_CID \
   { 0x1E1C3FF, 0x94A, 0xD048, { 0x44, 0xB4, 0x62, 0xD2, 0x9C, 0x7B, 0x4F, 0x39 } }
 
@@ -675,6 +670,11 @@ NS_GENERIC_FACTORY_CONSTRUCTOR(OSFileConstantsService)
 NS_GENERIC_FACTORY_CONSTRUCTOR(UDPSocketChild)
 
 NS_GENERIC_FACTORY_SINGLETON_CONSTRUCTOR(GeckoMediaPluginService, GeckoMediaPluginService::GetGeckoMediaPluginService)
+
+#ifdef MOZ_B2G
+NS_GENERIC_FACTORY_SINGLETON_CONSTRUCTOR(nsIHardwareKeyHandler,
+                                         HardwareKeyHandler::GetInstance)
+#endif
 
 #ifdef ACCESSIBILITY
 #include "nsAccessibilityService.h"
@@ -748,7 +748,6 @@ NS_DEFINE_NAMED_CID(NS_XULTREEBUILDER_CID);
 NS_DEFINE_NAMED_CID(NS_XULDOCUMENT_CID);
 #endif
 NS_DEFINE_NAMED_CID(NS_CONTENT_DOCUMENT_LOADER_FACTORY_CID);
-NS_DEFINE_NAMED_CID(NS_DOM_SCRIPT_OBJECT_FACTORY_CID);
 NS_DEFINE_NAMED_CID(NS_JSPROTOCOLHANDLER_CID);
 NS_DEFINE_NAMED_CID(NS_JSURI_CID);
 NS_DEFINE_NAMED_CID(NS_WINDOWCOMMANDTABLE_CID);
@@ -762,10 +761,6 @@ NS_DEFINE_NAMED_CID(TRANSFORMIIX_XPATH_EVALUATOR_CID);
 NS_DEFINE_NAMED_CID(TRANSFORMIIX_NODESET_CID);
 NS_DEFINE_NAMED_CID(NS_XMLSERIALIZER_CID);
 NS_DEFINE_NAMED_CID(NS_FORMDATA_CID);
-NS_DEFINE_NAMED_CID(NS_BLOBPROTOCOLHANDLER_CID);
-NS_DEFINE_NAMED_CID(NS_MEDIASTREAMPROTOCOLHANDLER_CID);
-NS_DEFINE_NAMED_CID(NS_MEDIASOURCEPROTOCOLHANDLER_CID);
-NS_DEFINE_NAMED_CID(NS_FONTTABLEPROTOCOLHANDLER_CID);
 NS_DEFINE_NAMED_CID(NS_HOSTOBJECTURI_CID);
 NS_DEFINE_NAMED_CID(NS_XMLHTTPREQUEST_CID);
 NS_DEFINE_NAMED_CID(NS_DOMPARSER_CID);
@@ -866,7 +861,6 @@ NS_DEFINE_NAMED_CID(NS_SYNTHVOICEREGISTRY_CID);
 #ifdef ACCESSIBILITY
 NS_DEFINE_NAMED_CID(NS_ACCESSIBILITY_SERVICE_CID);
 #endif
-NS_DEFINE_NAMED_CID(FAKE_TV_SERVICE_CID);
 NS_DEFINE_NAMED_CID(TV_TUNER_DATA_CID);
 NS_DEFINE_NAMED_CID(TV_CHANNEL_DATA_CID);
 NS_DEFINE_NAMED_CID(TV_PROGRAM_DATA_CID);
@@ -881,6 +875,10 @@ NS_DEFINE_NAMED_CID(PRESENTATION_DEVICE_MANAGER_CID);
 NS_DEFINE_NAMED_CID(PRESENTATION_SESSION_TRANSPORT_CID);
 
 NS_DEFINE_NAMED_CID(TEXT_INPUT_PROCESSOR_CID);
+
+#ifdef MOZ_B2G
+NS_DEFINE_NAMED_CID(NS_HARDWARE_KEY_HANDLER_CID);
+#endif
 
 static nsresult
 CreateWindowCommandTableConstructor(nsISupports *aOuter,
@@ -1061,7 +1059,6 @@ static const mozilla::Module::CIDEntry kLayoutCIDs[] = {
   { &kNS_XULDOCUMENT_CID, false, nullptr, CreateXULDocument },
 #endif
   { &kNS_CONTENT_DOCUMENT_LOADER_FACTORY_CID, false, nullptr, CreateContentDLF },
-  { &kNS_DOM_SCRIPT_OBJECT_FACTORY_CID, false, nullptr, nsDOMScriptObjectFactoryConstructor },
   { &kNS_JSPROTOCOLHANDLER_CID, false, nullptr, nsJSProtocolHandler::Create },
   { &kNS_JSURI_CID, false, nullptr, nsJSURIConstructor },
   { &kNS_WINDOWCOMMANDTABLE_CID, false, nullptr, CreateWindowCommandTableConstructor },
@@ -1075,10 +1072,6 @@ static const mozilla::Module::CIDEntry kLayoutCIDs[] = {
   { &kTRANSFORMIIX_NODESET_CID, false, nullptr, txNodeSetAdaptorConstructor },
   { &kNS_XMLSERIALIZER_CID, false, nullptr, nsDOMSerializerConstructor },
   { &kNS_FORMDATA_CID, false, nullptr, FormDataConstructor },
-  { &kNS_BLOBPROTOCOLHANDLER_CID, false, nullptr, nsBlobProtocolHandlerConstructor },
-  { &kNS_MEDIASTREAMPROTOCOLHANDLER_CID, false, nullptr, nsMediaStreamProtocolHandlerConstructor },
-  { &kNS_MEDIASOURCEPROTOCOLHANDLER_CID, false, nullptr, nsMediaSourceProtocolHandlerConstructor },
-  { &kNS_FONTTABLEPROTOCOLHANDLER_CID, false, nullptr, nsFontTableProtocolHandlerConstructor },
   { &kNS_HOSTOBJECTURI_CID, false, nullptr, nsHostObjectURIConstructor },
   { &kNS_XMLHTTPREQUEST_CID, false, nullptr, nsXMLHttpRequestConstructor },
   { &kNS_DOMPARSER_CID, false, nullptr, DOMParserConstructor },
@@ -1173,7 +1166,6 @@ static const mozilla::Module::CIDEntry kLayoutCIDs[] = {
   { &kTELEPHONY_SERVICE_CID, false, nullptr, nsITelephonyServiceConstructor },
   { &kNS_MOBILE_CONNECTION_SERVICE_CID, false, NULL, nsIMobileConnectionServiceConstructor },
   { &kNS_VOICEMAIL_SERVICE_CID, false, nullptr, nsIVoicemailServiceConstructor },
-  { &kFAKE_TV_SERVICE_CID, false, nullptr, FakeTVServiceConstructor },
   { &kTV_TUNER_DATA_CID, false, nullptr, TVTunerDataConstructor },
   { &kTV_CHANNEL_DATA_CID, false, nullptr, TVChannelDataConstructor },
   { &kTV_PROGRAM_DATA_CID, false, nullptr, TVProgramDataConstructor },
@@ -1183,6 +1175,9 @@ static const mozilla::Module::CIDEntry kLayoutCIDs[] = {
   { &kTEXT_INPUT_PROCESSOR_CID, false, nullptr, TextInputProcessorConstructor },
   { &kFAKE_INPUTPORT_SERVICE_CID, false, nullptr, FakeInputPortServiceConstructor },
   { &kINPUTPORT_DATA_CID, false, nullptr, InputPortDataConstructor },
+#ifdef MOZ_B2G
+  { &kNS_HARDWARE_KEY_HANDLER_CID, false, nullptr, nsIHardwareKeyHandlerConstructor },
+#endif
   { nullptr }
 };
 
@@ -1246,10 +1241,6 @@ static const mozilla::Module::ContractIDEntry kLayoutContracts[] = {
   { TRANSFORMIIX_NODESET_CONTRACTID, &kTRANSFORMIIX_NODESET_CID },
   { NS_XMLSERIALIZER_CONTRACTID, &kNS_XMLSERIALIZER_CID },
   { NS_FORMDATA_CONTRACTID, &kNS_FORMDATA_CID },
-  { NS_NETWORK_PROTOCOL_CONTRACTID_PREFIX BLOBURI_SCHEME, &kNS_BLOBPROTOCOLHANDLER_CID },
-  { NS_NETWORK_PROTOCOL_CONTRACTID_PREFIX MEDIASTREAMURI_SCHEME, &kNS_MEDIASTREAMPROTOCOLHANDLER_CID },
-  { NS_NETWORK_PROTOCOL_CONTRACTID_PREFIX MEDIASOURCEURI_SCHEME, &kNS_MEDIASOURCEPROTOCOLHANDLER_CID },
-  { NS_NETWORK_PROTOCOL_CONTRACTID_PREFIX FONTTABLEURI_SCHEME, &kNS_FONTTABLEPROTOCOLHANDLER_CID },
   { NS_XMLHTTPREQUEST_CONTRACTID, &kNS_XMLHTTPREQUEST_CID },
   { NS_DOMPARSER_CONTRACTID, &kNS_DOMPARSER_CID },
   { XPC_EXCEPTION_CONTRACTID, &kNS_XPCEXCEPTION_CID },
@@ -1341,7 +1332,6 @@ static const mozilla::Module::ContractIDEntry kLayoutContracts[] = {
   { "@mozilla.org/accessibleRetrieval;1", &kNS_ACCESSIBILITY_SERVICE_CID },
 #endif
   { TELEPHONY_SERVICE_CONTRACTID, &kTELEPHONY_SERVICE_CID },
-  { FAKE_TV_SERVICE_CONTRACTID, &kFAKE_TV_SERVICE_CID },
   { TV_TUNER_DATA_CONTRACTID, &kTV_TUNER_DATA_CID },
   { TV_CHANNEL_DATA_CONTRACTID, &kTV_CHANNEL_DATA_CID },
   { TV_PROGRAM_DATA_CONTRACTID, &kTV_PROGRAM_DATA_CID },
@@ -1354,6 +1344,9 @@ static const mozilla::Module::ContractIDEntry kLayoutContracts[] = {
   { "@mozilla.org/text-input-processor;1", &kTEXT_INPUT_PROCESSOR_CID },
   { FAKE_INPUTPORT_SERVICE_CONTRACTID, &kFAKE_INPUTPORT_SERVICE_CID },
   { INPUTPORT_DATA_CONTRACTID, &kINPUTPORT_DATA_CID },
+#ifdef MOZ_B2G
+  { NS_HARDWARE_KEY_HANDLER_CONTRACTID, &kNS_HARDWARE_KEY_HANDLER_CID },
+#endif
   { nullptr }
 };
 

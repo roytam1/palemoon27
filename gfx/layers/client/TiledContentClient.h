@@ -35,7 +35,6 @@
 #include "nsTArray.h"                   // for nsTArray, nsTArray_Impl, etc
 #include "nsExpirationTracker.h"
 #include "mozilla/layers/ISurfaceAllocator.h"
-#include "gfxReusableSurfaceWrapper.h"
 #include "pratom.h"                     // For PR_ATOMIC_INCREMENT/DECREMENT
 
 namespace mozilla {
@@ -97,7 +96,7 @@ private:
   };
 
 public:
-  explicit gfxShmSharedReadLock(ISurfaceAllocator* aAllocator);
+  explicit gfxShmSharedReadLock(ClientIPCAllocator* aAllocator);
 
 protected:
   ~gfxShmSharedReadLock();
@@ -318,10 +317,10 @@ struct BasicTiledLayerPaintData {
 
   /*
    * The critical displayport of the content from the nearest ancestor layer
-   * that represents scrollable content with a display port set. Empty if a
-   * critical displayport is not set.
+   * that represents scrollable content with a display port set. isNothing()
+   * if a critical displayport is not set.
    */
-  LayerIntRect mCriticalDisplayPort;
+  Maybe<LayerIntRect> mCriticalDisplayPort;
 
   /*
    * The render resolution of the document that the content this layer
@@ -627,9 +626,6 @@ public:
     LOW_PRECISION_TILED_BUFFER
   };
   virtual void UpdatedBuffer(TiledBufferType aType) = 0;
-
-  virtual bool SupportsLayerSize(const gfx::IntSize& aSize, ClientLayerManager* aManager) const
-  { return true; }
 
 private:
   const char* mName;

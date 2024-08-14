@@ -39,6 +39,8 @@
 #include "mozilla/CDMProxy.h"
 #endif
 
+#include "DecoderDoctorDiagnostics.h"
+
 namespace mozilla {
 
 extern already_AddRefed<PlatformDecoderModule> CreateAgnosticDecoderModule();
@@ -76,10 +78,10 @@ PDMFactory::Init()
   alreadyInitialized = true;
 
   Preferences::AddBoolVarCache(&sUseBlankDecoder,
-                               "media.use-blank-decoder");
+                               "media.use-blank-decoder", false);
 #ifdef MOZ_GONK_MEDIACODEC
   Preferences::AddBoolVarCache(&sGonkDecoderEnabled,
-                               "media.gonk.enabled", false);
+                               "media.gonk.enabled", true);
 #endif
 #ifdef MOZ_WIDGET_ANDROID
   Preferences::AddBoolVarCache(&sAndroidMCDecoderEnabled,
@@ -89,14 +91,14 @@ PDMFactory::Init()
 #endif
 
   Preferences::AddBoolVarCache(&sGMPDecoderEnabled,
-                               "media.gmp.decoder.enabled", false);
+                               "media.gmp.decoder.enabled", true);
 #ifdef MOZ_FFMPEG
   Preferences::AddBoolVarCache(&sFFmpegDecoderEnabled,
-                               "media.ffmpeg.enabled", false);
+                               "media.ffmpeg.enabled", true);
 #endif
 #ifdef XP_WIN
   Preferences::AddBoolVarCache(&sWMFDecoderEnabled,
-                               "media.wmf.enabled", false);
+                               "media.wmf.enabled", true);
 #endif
 
   Preferences::AddBoolVarCache(&sEnableFuzzingWrapper,
@@ -131,6 +133,7 @@ already_AddRefed<MediaDataDecoder>
 PDMFactory::CreateDecoder(const TrackInfo& aConfig,
                           FlushableTaskQueue* aTaskQueue,
                           MediaDataDecoderCallback* aCallback,
+                          DecoderDoctorDiagnostics* aDiagnostics,
                           layers::LayersBackend aLayersBackend,
                           layers::ImageContainer* aImageContainer)
 {
@@ -141,12 +144,27 @@ PDMFactory::CreateDecoder(const TrackInfo& aConfig,
                                 aConfig,
                                 aTaskQueue,
                                 aCallback,
+                                aDiagnostics,
                                 aLayersBackend,
                                 aImageContainer);
   }
 
+  if (aDiagnostics) {
+    // If libraries failed to load, the following loop over mCurrentPDMs
+    // will not even try to use them. So we record failures now.
+    if (mWMFFailedToLoad) {
+      aDiagnostics->SetWMFFailedToLoad();
+    }
+    if (mFFmpegFailedToLoad) {
+      aDiagnostics->SetFFmpegFailedToLoad();
+    }
+    if (mGMPPDMFailedToStartup) {
+      aDiagnostics->SetGMPPDMFailedToStartup();
+    }
+  }
+
   for (auto& current : mCurrentPDMs) {
-    if (!current->SupportsMimeType(aConfig.mMimeType)) {
+    if (!current->SupportsMimeType(aConfig.mMimeType, aDiagnostics)) {
       continue;
     }
     RefPtr<MediaDataDecoder> m =
@@ -154,6 +172,7 @@ PDMFactory::CreateDecoder(const TrackInfo& aConfig,
                            aConfig,
                            aTaskQueue,
                            aCallback,
+                           aDiagnostics,
                            aLayersBackend,
                            aImageContainer);
     if (m) {
@@ -169,6 +188,7 @@ PDMFactory::CreateDecoderWithPDM(PlatformDecoderModule* aPDM,
                                  const TrackInfo& aConfig,
                                  FlushableTaskQueue* aTaskQueue,
                                  MediaDataDecoderCallback* aCallback,
+                                 DecoderDoctorDiagnostics* aDiagnostics,
                                  layers::LayersBackend aLayersBackend,
                                  layers::ImageContainer* aImageContainer)
 {
@@ -178,7 +198,8 @@ PDMFactory::CreateDecoderWithPDM(PlatformDecoderModule* aPDM,
   if (aConfig.GetAsAudioInfo()) {
     m = aPDM->CreateAudioDecoder(*aConfig.GetAsAudioInfo(),
                                  aTaskQueue,
-                                 aCallback);
+                                 aCallback,
+                                 aDiagnostics);
     return m.forget();
   }
 
@@ -203,7 +224,8 @@ PDMFactory::CreateDecoderWithPDM(PlatformDecoderModule* aPDM,
                           aLayersBackend,
                           aImageContainer,
                           aTaskQueue,
-                          callback);
+                          callback,
+                          aDiagnostics);
     const nsresult rv = h->GetLastError();
     if (NS_SUCCEEDED(rv) || rv == NS_ERROR_NOT_INITIALIZED) {
       // The H264Converter either successfully created the wrapped decoder,
@@ -216,7 +238,8 @@ PDMFactory::CreateDecoderWithPDM(PlatformDecoderModule* aPDM,
                                  aLayersBackend,
                                  aImageContainer,
                                  aTaskQueue,
-                                 callback);
+                                 callback,
+                                 aDiagnostics);
   }
 
   if (callbackWrapper && m) {
@@ -227,12 +250,13 @@ PDMFactory::CreateDecoderWithPDM(PlatformDecoderModule* aPDM,
 }
 
 bool
-PDMFactory::SupportsMimeType(const nsACString& aMimeType) const
+PDMFactory::SupportsMimeType(const nsACString& aMimeType,
+                             DecoderDoctorDiagnostics* aDiagnostics) const
 {
   if (mEMEPDM) {
-    return mEMEPDM->SupportsMimeType(aMimeType);
+    return mEMEPDM->SupportsMimeType(aMimeType, aDiagnostics);
   }
-  RefPtr<PlatformDecoderModule> current = GetDecoder(aMimeType);
+  RefPtr<PlatformDecoderModule> current = GetDecoder(aMimeType, aDiagnostics);
   return !!current;
 }
 
@@ -259,13 +283,17 @@ PDMFactory::CreatePDMs()
 #ifdef XP_WIN
   if (sWMFDecoderEnabled) {
     m = new WMFDecoderModule();
-    StartupPDM(m);
+    if (!StartupPDM(m)) {
+      mWMFFailedToLoad = true;
+    }
   }
 #endif
 #ifdef MOZ_FFMPEG
   if (sFFmpegDecoderEnabled) {
     m = FFmpegRuntimeLinker::CreateDecoderModule();
-    StartupPDM(m);
+    if (!StartupPDM(m)) {
+      mFFmpegFailedToLoad = true;
+    }
   }
 #endif
 #ifdef MOZ_APPLEMEDIA
@@ -290,8 +318,10 @@ PDMFactory::CreatePDMs()
 
   if (sGMPDecoderEnabled) {
     m = new GMPDecoderModule();
-    StartupPDM(m);
-  }  
+    if (!StartupPDM(m)) {
+      mGMPPDMFailedToStartup = true;
+    }
+  }
 }
 
 bool
@@ -305,11 +335,26 @@ PDMFactory::StartupPDM(PlatformDecoderModule* aPDM)
 }
 
 already_AddRefed<PlatformDecoderModule>
-PDMFactory::GetDecoder(const nsACString& aMimeType) const
+PDMFactory::GetDecoder(const nsACString& aMimeType,
+                       DecoderDoctorDiagnostics* aDiagnostics) const
 {
+  if (aDiagnostics) {
+    // If libraries failed to load, the following loop over mCurrentPDMs
+    // will not even try to use them. So we record failures now.
+    if (mWMFFailedToLoad) {
+      aDiagnostics->SetWMFFailedToLoad();
+    }
+    if (mFFmpegFailedToLoad) {
+      aDiagnostics->SetFFmpegFailedToLoad();
+    }
+    if (mGMPPDMFailedToStartup) {
+      aDiagnostics->SetGMPPDMFailedToStartup();
+    }
+  }
+
   RefPtr<PlatformDecoderModule> pdm;
   for (auto& current : mCurrentPDMs) {
-    if (current->SupportsMimeType(aMimeType)) {
+    if (current->SupportsMimeType(aMimeType, aDiagnostics)) {
       pdm = current;
       break;
     }

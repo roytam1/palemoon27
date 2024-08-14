@@ -17,6 +17,7 @@
 #define nsWindow_h
 
 #include "InputData.h"
+#include "mozilla/UniquePtr.h"
 #include "nsBaseWidget.h"
 #include "nsRegion.h"
 #include "nsIIdleServiceInternal.h"
@@ -39,7 +40,6 @@ class nsWindow : public nsBaseWidget
 {
 public:
     nsWindow();
-    virtual ~nsWindow();
 
     NS_DECL_ISUPPORTS_INHERITED
 
@@ -90,7 +90,7 @@ public:
                              nsEventStatus& aStatus);
     virtual nsresult SynthesizeNativeTouchPoint(uint32_t aPointerId,
                                                 TouchPointerState aPointerState,
-                                                ScreenIntPoint aPointerScreenPoint,
+                                                LayoutDeviceIntPoint aPoint,
                                                 double aPointerPressure,
                                                 uint32_t aPointerOrientation,
                                                 nsIObserver* aObserver) override;
@@ -117,6 +117,8 @@ public:
                         bool* aAllowRetaining = nullptr);
     virtual void DestroyCompositor();
 
+    virtual CompositorBridgeParent* NewCompositorBridgeParent(int aSurfaceWidth, int aSurfaceHeight);
+
     NS_IMETHOD_(void) SetInputContext(const InputContext& aContext,
                                       const InputContextAction& aAction);
     NS_IMETHOD_(InputContext) GetInputContext();
@@ -137,25 +139,8 @@ protected:
     bool mVisible;
     InputContext mInputContext;
     nsCOMPtr<nsIIdleServiceInternal> mIdleService;
-    // If we're using a BasicCompositor, these fields are temporarily
-    // set during frame composition.  They wrap the hardware
-    // framebuffer.
-    RefPtr<mozilla::gfx::DrawTarget> mFramebufferTarget;
-    ANativeWindowBuffer* mFramebuffer;
-    /**
-     * Points to a mapped gralloc buffer between calls to lock and unlock.
-     * Should be null outside of the lock-unlock pair.
-     */
-    uint8_t* mMappedBuffer;
-    // If we're using a BasicCompositor, this is our window back
-    // buffer.  The gralloc framebuffer driver expects us to draw the
-    // entire framebuffer on every frame, but gecko expects the
-    // windowing system to be tracking buffer updates for invalidated
-    // regions.  We get stuck holding that bag.
-    //
-    // Only accessed on the compositor thread, except during
-    // destruction.
-    RefPtr<mozilla::gfx::DrawTarget> mBackBuffer;
+
+    virtual ~nsWindow();
 
     void BringToTop();
 
@@ -166,7 +151,7 @@ protected:
 private:
     // This is used by SynthesizeNativeTouchPoint to maintain state between
     // multiple synthesized points
-    nsAutoPtr<mozilla::MultiTouchInput> mSynthesizedTouchInput;
+    mozilla::UniquePtr<mozilla::MultiTouchInput> mSynthesizedTouchInput;
 
     RefPtr<nsScreenGonk> mScreen;
 

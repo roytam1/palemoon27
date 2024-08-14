@@ -25,6 +25,16 @@ ToInt32(const LAllocation* a)
     MOZ_CRASH("this is not a constant!");
 }
 
+static inline int64_t
+ToInt64(const LAllocation* a)
+{
+    if (a->isConstantValue())
+        return a->toConstant()->toInt64();
+    if (a->isConstantIndex())
+        return a->toConstantIndex()->index();
+    MOZ_CRASH("this is not a constant!");
+}
+
 static inline double
 ToDouble(const LAllocation* a)
 {
@@ -130,12 +140,12 @@ ToAnyRegister(const LDefinition* def)
     return ToAnyRegister(def->output());
 }
 
-static inline Int32Key
-ToInt32Key(const LAllocation* a)
+static inline RegisterOrInt32Constant
+ToRegisterOrInt32Constant(const LAllocation* a)
 {
     if (a->isConstant())
-        return Int32Key(ToInt32(a));
-    return Int32Key(ToRegister(a));
+        return RegisterOrInt32Constant(ToInt32(a));
+    return RegisterOrInt32Constant(ToRegister(a));
 }
 
 static inline ValueOperand
@@ -234,26 +244,17 @@ CodeGeneratorShared::ToStackOffset(const LAllocation* a) const
     return ToStackOffset(*a);
 }
 
-Operand
-CodeGeneratorShared::ToOperand(const LAllocation& a)
+Address
+CodeGeneratorShared::ToAddress(const LAllocation& a)
 {
-    if (a.isGeneralReg())
-        return Operand(a.toGeneralReg()->reg());
-    if (a.isFloatReg())
-        return Operand(a.toFloatReg()->reg());
-    return Operand(masm.getStackPointer(), ToStackOffset(&a));
+    MOZ_ASSERT(a.isMemory());
+    return Address(masm.getStackPointer(), ToStackOffset(&a));
 }
 
-Operand
-CodeGeneratorShared::ToOperand(const LAllocation* a)
+Address
+CodeGeneratorShared::ToAddress(const LAllocation* a)
 {
-    return ToOperand(*a);
-}
-
-Operand
-CodeGeneratorShared::ToOperand(const LDefinition* def)
-{
-    return ToOperand(def->output());
+    return ToAddress(*a);
 }
 
 void

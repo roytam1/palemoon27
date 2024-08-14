@@ -14,6 +14,7 @@ namespace mozilla {
 namespace dom {
 class GattPermissions;
 class GattCharacteristicProperties;
+class BluetoothAdvertisingData;
 }
 }
 
@@ -22,6 +23,30 @@ BEGIN_BLUETOOTH_NAMESPACE
 class BluetoothNamedValue;
 class BluetoothReplyRunnable;
 class BluetoothValue;
+
+/*
+ * Each profile has its distinct endianness for multi-byte values
+ */
+enum BluetoothProfileEndian {
+  ENDIAN_BIG,
+  ENDIAN_LITTLE,
+  ENDIAN_SDP      = ENDIAN_BIG,     // SDP uses big endian
+  ENDIAN_GAP      = ENDIAN_LITTLE,  // GAP uses little endian
+  ENDIAN_GATT     = ENDIAN_LITTLE,  // GATT uses little endian
+};
+
+/*
+ * A UUID is a 128-bit value. To reduce the burden of storing and transferring
+ * 128-bit UUID values, a range of UUID values has been pre-allocated for
+ * assignment to often-used, registered purposes. UUID values in the
+ * pre-allocated range have aliases that are represented as 16-bit or 32-bit
+ * values.
+ */
+enum BluetoothUuidType {
+  UUID_16_BIT,
+  UUID_32_BIT,
+  UUID_128_BIT,
+};
 
 //
 // Address/String conversion
@@ -104,6 +129,36 @@ nsresult
 StringToUuid(const nsAString& aString, BluetoothUuid& aUuid);
 
 /**
+ * Convert continuous bytes from nsTArray to BluetoothUuid object.
+ * @param aArray [in] The byte array.
+ * @param aOffset [in] The offset of continuous bytes of UUID value.
+ * @param aType [in] The type of UUID.
+ * @param aEndian [in] The endianness of UUID value.
+ * @param aUuid [out] The BluetoothUuid object.
+ */
+nsresult
+BytesToUuid(const nsTArray<uint8_t>& aArray,
+            nsTArray<uint8_t>::index_type aOffset,
+            BluetoothUuidType aType,
+            BluetoothProfileEndian aEndian,
+            BluetoothUuid& aUuid);
+
+/**
+ * Convert BluetoothUuid object to nsTArray with continuous bytes.
+ * @param aUuid [in] The BluetoothUuid object.
+ * @param aType [in] The type of UUID.
+ * @param aEndian [in] The endianness of UUID value.
+ * @param aArray [out] The byte array.
+ * @param aOffset [in] The offset of continuous bytes of UUID value.
+ */
+nsresult
+UuidToBytes(const BluetoothUuid& aUuid,
+            BluetoothUuidType aType,
+            BluetoothProfileEndian aEndian,
+            nsTArray<uint8_t>& aArray,
+            nsTArray<uint8_t>::index_type aOffset);
+
+/**
  * Generate a random uuid.
  *
  * @param aUuid [out] The generated uuid.
@@ -174,6 +229,19 @@ GattPropertiesToBits(const GattCharacteristicProperties& aProperties,
 void
 GeneratePathFromGattId(const BluetoothGattId& aId,
                        nsAString& aPath);
+
+/**
+ * Convert BluetoothAdvertisingData object used by applications to
+ * BluetoothGattAdvertisingData object used by gecko backend.
+ *
+ * @param aAdvData [in] BluetoothAdvertisingData object.
+ * @param aGattAdData [out] Target BluetoothGattAdvertisingData.
+ * @return NS_OK on success, NS_ERROR_ILLEGAL_VALUE otherwise.
+ */
+nsresult
+AdvertisingDataToGattAdvertisingData(
+  const BluetoothAdvertisingData& aAdvData,
+  BluetoothGattAdvertisingData& aGattAdvData);
 
 //
 // Register/Unregister bluetooth signal handlers
@@ -310,6 +378,20 @@ DispatchReplyError(BluetoothReplyRunnable* aRunnable,
 void
 DispatchReplyError(BluetoothReplyRunnable* aRunnable,
                    const enum BluetoothStatus aStatus);
+
+/**
+ * Dispatch failed bluetooth reply with error bluetooth gatt status and
+ * string.
+ *
+ * This function is for bluetooth to return Promise as the error status is
+ * bluetooth gatt status.
+ *
+ * @param aRunnable   the runnable to reply bluetooth request.
+ * @param aGattStatus the bluettoh gatt error status to reply failed request.
+ */
+void
+DispatchReplyError(BluetoothReplyRunnable* aRunnable,
+                   const enum BluetoothGattStatus aGattStatus);
 
 void
 DispatchStatusChangedEvent(const nsAString& aType,

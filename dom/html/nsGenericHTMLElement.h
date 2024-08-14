@@ -20,7 +20,7 @@
 #include "mozilla/dom/ValidityState.h"
 #include "mozilla/dom/ElementInlines.h"
 
-class nsDOMSettableTokenList;
+class nsDOMTokenList;
 class nsIDOMHTMLMenuElement;
 class nsIEditor;
 class nsIFormControlFrame;
@@ -104,7 +104,7 @@ public:
   {
     SetHTMLBoolAttr(nsGkAtoms::itemscope, aItemScope, aError);
   }
-  nsDOMSettableTokenList* ItemType()
+  nsDOMTokenList* ItemType()
   {
     return GetTokenList(nsGkAtoms::itemtype);
   }
@@ -116,11 +116,11 @@ public:
   {
     SetHTMLAttr(nsGkAtoms::itemid, aItemID, aError);
   }
-  nsDOMSettableTokenList* ItemRef()
+  nsDOMTokenList* ItemRef()
   {
     return GetTokenList(nsGkAtoms::itemref);
   }
-  nsDOMSettableTokenList* ItemProp()
+  nsDOMTokenList* ItemProp()
   {
     return GetTokenList(nsGkAtoms::itemprop);
   }
@@ -412,7 +412,7 @@ public:
   NS_IMETHOD GetItemId(nsAString& aId) final override {
     nsString id;
     GetItemId(id);
-    aId.Assign(aId);
+    aId.Assign(id);
     return NS_OK;
   }
   NS_IMETHOD SetItemId(const nsAString& aId) final override {
@@ -960,10 +960,16 @@ public:
   static inline bool
   ShouldExposeIdAsHTMLDocumentProperty(Element* aElement)
   {
-    return aElement->IsAnyOfHTMLElements(nsGkAtoms::img,
-                                         nsGkAtoms::applet,
-                                         nsGkAtoms::embed,
-                                         nsGkAtoms::object);
+    if (aElement->IsAnyOfHTMLElements(nsGkAtoms::applet,
+                                      nsGkAtoms::embed,
+                                      nsGkAtoms::object)) {
+      return true;
+    }
+
+    // Per spec, <img> is exposed by id only if it also has a nonempty
+    // name (which doesn't have to match the id or anything).
+    // HasName() is true precisely when name is nonempty.
+    return aElement->IsHTMLElement(nsGkAtoms::img) && aElement->HasName();
   }
 
   static bool
@@ -975,14 +981,14 @@ protected:
    */
   void AddToNameTable(nsIAtom* aName) {
     NS_ASSERTION(HasName(), "Node doesn't have name?");
-    nsIDocument* doc = GetCurrentDoc();
+    nsIDocument* doc = GetUncomposedDoc();
     if (doc && !IsInAnonymousSubtree()) {
       doc->AddToNameTable(this, aName);
     }
   }
   void RemoveFromNameTable() {
     if (HasName()) {
-      nsIDocument* doc = GetCurrentDoc();
+      nsIDocument* doc = GetUncomposedDoc();
       if (doc) {
         doc->RemoveFromNameTable(this, GetParsedAttr(nsGkAtoms::name)->
                                          GetAtomValue());
@@ -1392,7 +1398,7 @@ protected:
    * with the id in @form. Otherwise, it *must* be null.
    *
    * @note Callers of UpdateFormOwner have to be sure the element is in a
-   * document (GetCurrentDoc() != nullptr).
+   * document (GetUncomposedDoc() != nullptr).
    */
   void UpdateFormOwner(bool aBindToTree, Element* aFormIdElement);
 
@@ -1770,7 +1776,6 @@ NS_DECLARE_NS_NEW_HTML_ELEMENT(Data)
 NS_DECLARE_NS_NEW_HTML_ELEMENT(DataList)
 NS_DECLARE_NS_NEW_HTML_ELEMENT(Details)
 NS_DECLARE_NS_NEW_HTML_ELEMENT(Div)
-NS_DECLARE_NS_NEW_HTML_ELEMENT(ExtApp)
 NS_DECLARE_NS_NEW_HTML_ELEMENT(FieldSet)
 NS_DECLARE_NS_NEW_HTML_ELEMENT(Font)
 NS_DECLARE_NS_NEW_HTML_ELEMENT(Form)

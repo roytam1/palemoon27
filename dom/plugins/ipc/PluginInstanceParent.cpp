@@ -7,6 +7,7 @@
 #include "mozilla/DebugOnly.h"
 #include <stdint.h> // for intptr_t
 
+#include "mozilla/BasicEvents.h"
 #include "mozilla/Preferences.h"
 #include "mozilla/Telemetry.h"
 #include "PluginInstanceParent.h"
@@ -60,6 +61,7 @@
 #include "nsIWidget.h"
 #include "nsPluginNativeWindow.h"
 #include "PluginQuirks.h"
+#include "nsWindowsHelpers.h"
 extern const wchar_t* kFlashFullscreenClass;
 #elif defined(MOZ_WIDGET_GTK)
 #include "mozilla/dom/ContentChild.h"
@@ -68,13 +70,16 @@ extern const wchar_t* kFlashFullscreenClass;
 #include <ApplicationServices/ApplicationServices.h>
 #endif // defined(XP_MACOSX)
 
-// This is the pref used to determine whether to use Shumway on a Flash object
-// (when Shumway is enabled).
-static const char kShumwayWhitelistPref[] = "shumway.swf.whitelist";
-
 using namespace mozilla::plugins;
 using namespace mozilla::layers;
 using namespace mozilla::gl;
+
+#if defined(XP_WIN)
+// Delays associated with attempting an e10s window capture for scrolling.
+const int kScrollCaptureDelayMs = 100;
+const int kInitScrollCaptureDelayMs = 1000;
+const uint32_t kScrollCaptureFillColor = 0xFFa0a0a0; // gray
+#endif
 
 void
 StreamNotifyParent::ActorDestroy(ActorDestroyReason aWhy)
@@ -113,6 +118,13 @@ PluginInstanceParent::LookupPluginInstanceByID(uintptr_t aId)
 }
 #endif
 
+template<>
+struct RunnableMethodTraits<PluginInstanceParent>
+{
+    static void RetainCallee(PluginInstanceParent* obj) { }
+    static void ReleaseCallee(PluginInstanceParent* obj) { }
+};
+
 PluginInstanceParent::PluginInstanceParent(PluginModuleParent* parent,
                                            NPP npp,
                                            const nsCString& aMimeType,
@@ -122,7 +134,6 @@ PluginInstanceParent::PluginInstanceParent(PluginModuleParent* parent,
     , mUseSurrogate(true)
     , mNPP(npp)
     , mNPNIface(npniface)
-    , mIsWhitelistedForShumway(false)
     , mWindowType(NPWindowTypeWindow)
     , mDrawingModel(kDefaultDrawingModel)
     , mLastRecordedDrawingModel(-1)
@@ -138,6 +149,11 @@ PluginInstanceParent::PluginInstanceParent(PluginModuleParent* parent,
     , mShWidth(0)
     , mShHeight(0)
     , mShColorSpace(nullptr)
+#endif
+#if defined(XP_WIN)
+    , mCaptureRefreshTask(nullptr)
+    , mValidFirstCapture(false)
+    , mIsScrolling(false)
 #endif
 {
 #if defined(OS_WIN)
@@ -163,6 +179,9 @@ PluginInstanceParent::~PluginInstanceParent()
     if (mShColorSpace)
         ::CGColorSpaceRelease(mShColorSpace);
 #endif
+#if defined(XP_WIN)
+    CancelScheduledScrollCapture();
+#endif
 }
 
 bool
@@ -178,26 +197,7 @@ PluginInstanceParent::InitMetadata(const nsACString& aMimeType,
         return false;
     }
     nsCOMPtr<nsIURI> baseUri(owner->GetBaseURI());
-    nsresult rv = NS_MakeAbsoluteURI(mSrcAttribute, aSrcAttribute, baseUri);
-    if (NS_FAILED(rv)) {
-        return false;
-    }
-    // Check the whitelist
-    nsAutoCString baseUrlSpec;
-    rv = baseUri->GetSpec(baseUrlSpec);
-    if (NS_FAILED(rv)) {
-        return false;
-    }
-    auto whitelist = Preferences::GetCString(kShumwayWhitelistPref);
-    // Empty whitelist is interpreted by CheckWhitelist as "allow everything,"
-    // which is not valid for our use case and should be treated as a failure.
-    if (whitelist.IsEmpty()) {
-        return false;
-    }
-    rv = nsPluginPlayPreviewInfo::CheckWhitelist(baseUrlSpec, mSrcAttribute,
-                                                 whitelist,
-                                                 &mIsWhitelistedForShumway);
-    return NS_SUCCEEDED(rv);
+    return NS_SUCCEEDED(NS_MakeAbsoluteURI(mSrcAttribute, aSrcAttribute, baseUri));
 }
 
 void
@@ -459,6 +459,12 @@ PluginInstanceParent::AnswerNPN_SetValue_NPPVpluginWindow(
     // non-pointer-sized integer.
     *result = mNPNIface->setvalue(mNPP, NPPVpluginWindowBool,
                                   (void*)(intptr_t)windowed);
+
+#if defined(XP_WIN)
+    if (windowed) {
+        ScheduleScrollCapture(kScrollCaptureDelayMs);
+    }
+#endif
     return true;
 }
 
@@ -1206,6 +1212,208 @@ PluginInstanceParent::EndUpdateBackground(const nsIntRect& aRect)
     return NS_OK;
 }
 
+#if defined(XP_WIN)
+//#define CAPTURE_LOG(...) printf_stderr("CAPTURE [%X]: ", this);printf_stderr(__VA_ARGS__);printf_stderr("\n");
+#define CAPTURE_LOG(...)
+
+void
+PluginInstanceParent::ScheduleScrollCapture(int aTimeout)
+{
+    if (mCaptureRefreshTask) {
+        return;
+    }
+    CAPTURE_LOG("delayed scroll capture requested.");
+    mCaptureRefreshTask =
+        NewRunnableMethod(this, &PluginInstanceParent::ScheduledUpdateScrollCaptureCallback);
+    MessageLoop::current()->PostDelayedTask(FROM_HERE, mCaptureRefreshTask,
+                                            kScrollCaptureDelayMs);
+}
+
+void
+PluginInstanceParent::ScheduledUpdateScrollCaptureCallback()
+{
+    CAPTURE_LOG("taking delayed scrollcapture.");
+    mCaptureRefreshTask = nullptr;
+    bool retrigger = false;
+    UpdateScrollCapture(retrigger);
+    if (retrigger) {
+        // reset the async request
+        ScheduleScrollCapture(kScrollCaptureDelayMs);
+    }
+}
+
+void
+PluginInstanceParent::CancelScheduledScrollCapture()
+{
+    CAPTURE_LOG("delayed scroll capture cancelled.");
+    if (mCaptureRefreshTask) {
+        mCaptureRefreshTask->Cancel();
+        mCaptureRefreshTask = nullptr;
+    }
+}
+
+bool
+PluginInstanceParent::UpdateScrollCapture(bool& aRequestNewCapture)
+{
+    aRequestNewCapture = false;
+    if (!::IsWindow(mChildPluginHWND)) {
+        CAPTURE_LOG("invalid window");
+        aRequestNewCapture = true;
+        return false;
+    }
+
+    nsAutoHDC windowDC(::GetDC(mChildPluginHWND));
+    if (!windowDC) {
+        CAPTURE_LOG("no windowdc");
+        aRequestNewCapture = true;
+        return false;
+    }
+
+    RECT bounds = {0};
+    ::GetWindowRect(mChildPluginHWND, &bounds);
+    if ((bounds.left == bounds.right && bounds.top == bounds.bottom) ||
+        mWindowSize.IsEmpty()) {
+        CAPTURE_LOG("empty bounds");
+        // Lots of null window plugins in content, don't capture.
+        return false;
+    }
+
+    // If we need to init mScrollCapture do so, also reset it if the size of the
+    // plugin window changes.
+    if (!mScrollCapture || mScrollCapture->GetSize() != mWindowSize) {
+        mValidFirstCapture = false;
+        mScrollCapture =
+            gfxPlatform::GetPlatform()->CreateOffscreenSurface(mWindowSize,
+                                                               SurfaceFormat::X8R8G8B8_UINT32);
+    }
+
+    // Check clipping, we don't want to capture windows that are clipped by
+    // the viewport.
+    RECT clip = {0};
+    int rgnType = ::GetWindowRgnBox(mPluginHWND, &clip);
+    bool clipCorrect = !clip.left && !clip.top &&
+                       clip.right == mWindowSize.width &&
+                       clip.bottom == mWindowSize.height;
+
+    bool isVisible = ::IsWindowVisible(mChildPluginHWND);
+
+    CAPTURE_LOG("validcap=%d visible=%d region=%d clip=%d:%dx%dx%dx%d",
+                mValidFirstCapture, isVisible, rgnType, clipCorrect,
+                clip.left, clip.top, clip.right, clip.bottom);
+
+    // We have a good capture and can't update so keep using the existing
+    // capture image. Otherwise fall through so we paint the fill color to
+    // the layer.
+    if (mValidFirstCapture && (!isVisible || !clipCorrect)) {
+        return true;
+    }
+
+    // On Windows we'll need a native bitmap for BitBlt.
+    RefPtr<gfxWindowsSurface> nativeScrollCapture;
+
+    // Copy the plugin window if it's visible and there's no clipping, otherwise
+    // use a default fill color.
+    if (isVisible && clipCorrect) {
+        CAPTURE_LOG("capturing window");
+        nativeScrollCapture =
+            new gfxWindowsSurface(mWindowSize, SurfaceFormat::X8R8G8B8_UINT32);
+        if (!::BitBlt(nativeScrollCapture->GetDC(), 0, 0, mWindowSize.width,
+                      mWindowSize.height, windowDC, 0, 0, SRCCOPY)) {
+            CAPTURE_LOG("blt failure??");
+            return false;
+        }
+        ::GdiFlush();
+        mValidFirstCapture = true;
+    }
+
+    IntSize targetSize = mScrollCapture->GetSize();
+
+    if (targetSize.IsEmpty()) {
+        return false;
+    }
+
+    RefPtr<gfx::DrawTarget> dt =
+        gfxPlatform::GetPlatform()->CreateDrawTargetForSurface(mScrollCapture,
+                                                               targetSize);
+
+    if (nativeScrollCapture) {
+        // Copy the native capture image over to a remotable gfx surface.
+        RefPtr<gfx::SourceSurface> sourceSurface =
+            gfxPlatform::GetPlatform()->GetSourceSurfaceForSurface(nullptr,
+                                                                   nativeScrollCapture);
+        dt->CopySurface(sourceSurface,
+                        IntRect(0, 0, targetSize.width, targetSize.height),
+                        IntPoint());
+    } else {
+        CAPTURE_LOG("using fill color");
+        dt->FillRect(gfx::Rect(0, 0, targetSize.width, targetSize.height),
+                     gfx::ColorPattern(gfx::Color::FromABGR(kScrollCaptureFillColor)),
+                     gfx::DrawOptions(1.f, CompositionOp::OP_SOURCE));
+        aRequestNewCapture = true;
+    }
+    dt->Flush();
+
+    // Get a source for mScrollCapture and load it into the image container.
+    RefPtr<gfx::SourceSurface> cachedSource =
+        gfxPlatform::GetPlatform()->GetSourceSurfaceForSurface(dt,
+                                                               mScrollCapture);
+    RefPtr<SourceSurfaceImage> image =
+        new SourceSurfaceImage(cachedSource->GetSize(), cachedSource);
+
+    ImageContainer::NonOwningImage holder(image);
+    holder.mFrameID = ++mFrameID;
+
+    AutoTArray<ImageContainer::NonOwningImage,1> imageList;
+    imageList.AppendElement(holder);
+
+    // inits mImageContainer
+    ImageContainer *container = GetImageContainer();
+    container->SetCurrentImages(imageList);
+
+    // Invalidate our area in the page so the image gets flushed.
+    NPRect nprect = {0, 0, targetSize.width, targetSize.height};
+    RecvNPN_InvalidateRect(nprect);
+
+    return true;
+}
+
+nsresult
+PluginInstanceParent::GetScrollCaptureContainer(ImageContainer** aContainer)
+{
+    if (!aContainer || !::IsWindow(mPluginHWND)) {
+        return NS_ERROR_FAILURE;
+    }
+
+    if (!mImageContainer) {
+        ScheduleScrollCapture(kInitScrollCaptureDelayMs);
+        return NS_ERROR_FAILURE;
+    }
+
+    ImageContainer *container = GetImageContainer();
+    NS_IF_ADDREF(container);
+    *aContainer = container;
+
+    return NS_OK;
+}
+
+nsresult
+PluginInstanceParent::UpdateScrollState(bool aIsScrolling)
+{
+  bool scrollStateChanged = (mIsScrolling != aIsScrolling);
+  mIsScrolling = aIsScrolling;
+  if (scrollStateChanged && !aIsScrolling) {
+      // At the end of a dom scroll operation capturing now will attempt to
+      // capture a window that is still hidden due to the current scroll
+      // operation. (The browser process will update visibility after layer
+      // updates get pushed over.) So we delay our attempt for a bit. This
+      // shouldn't hurt our chances of capturing with APZ scroll since the
+      // delay is short.
+      ScheduleScrollCapture(kScrollCaptureDelayMs);
+  }
+  return NS_OK;
+}
+#endif // XP_WIN
+
 PluginAsyncSurrogate*
 PluginInstanceParent::GetAsyncSurrogate()
 {
@@ -1358,6 +1566,9 @@ PluginInstanceParent::NPP_SetWindow(const NPWindow* aWindow)
     window.type = aWindow->type;
 #endif
 
+    mWindowSize.width = window.width;
+    mWindowSize.height = window.height;
+
 #if defined(XP_MACOSX)
     double floatScaleFactor = 1.0;
     mNPNIface->getvalue(mNPP, NPNVcontentsScaleFactor, &floatScaleFactor);
@@ -1402,6 +1613,12 @@ PluginInstanceParent::NPP_SetWindow(const NPWindow* aWindow)
     }
 
     RecordDrawingModel();
+
+#if defined(XP_WIN)
+    if (!mCaptureRefreshTask) {
+        ScheduleScrollCapture(kScrollCaptureDelayMs);
+    }
+#endif
     return NPERR_NO_ERROR;
 }
 
@@ -1514,6 +1731,13 @@ PluginInstanceParent::NPP_SetValue(NPNVariable variable, void* value)
 
     case NPNVmuteAudioBool:
         if (!CallNPP_SetValue_NPNVmuteAudioBool(*static_cast<NPBool*>(value),
+                                                &result))
+            return NPERR_GENERIC_ERROR;
+
+        return result;
+
+    case NPNVCSSZoomFactor:
+        if (!CallNPP_SetValue_NPNVCSSZoomFactor(*static_cast<double*>(value),
                                                 &result))
             return NPERR_GENERIC_ERROR;
 
@@ -1778,7 +2002,7 @@ PluginInstanceParent::NPP_NewStream(NPMIMEType type, NPStream* stream,
         MOZ_ASSERT(mSurrogate);
         mSurrogate->AsyncCallDeparting();
         if (SendAsyncNPP_NewStream(bs, NullableString(type), seekable)) {
-            *stype = UINT16_MAX;
+            *stype = nsPluginStreamListenerPeer::STREAM_TYPE_UNKNOWN;
         } else {
             err = NPERR_GENERIC_ERROR;
         }
@@ -1841,31 +2065,6 @@ PluginInstanceParent::AllocPPluginScriptableObjectParent()
     return new PluginScriptableObjectParent(Proxy);
 }
 
-#ifdef DEBUG
-namespace {
-
-struct ActorSearchData
-{
-    PluginScriptableObjectParent* actor;
-    bool found;
-};
-
-PLDHashOperator
-ActorSearch(NPObject* aKey,
-            PluginScriptableObjectParent* aData,
-            void* aUserData)
-{
-    ActorSearchData* asd = reinterpret_cast<ActorSearchData*>(aUserData);
-    if (asd->actor == aData) {
-        asd->found = true;
-        return PL_DHASH_STOP;
-    }
-    return PL_DHASH_NEXT;
-}
-
-} // namespace
-#endif // DEBUG
-
 bool
 PluginInstanceParent::DeallocPPluginScriptableObjectParent(
                                          PPluginScriptableObjectParent* aObject)
@@ -1881,9 +2080,10 @@ PluginInstanceParent::DeallocPPluginScriptableObjectParent(
     }
 #ifdef DEBUG
     else {
-        ActorSearchData asd = { actor, false };
-        mScriptableObjects.EnumerateRead(ActorSearch, &asd);
-        NS_ASSERTION(!asd.found, "Actor in the hash with a null NPObject!");
+        for (auto iter = mScriptableObjects.Iter(); !iter.Done(); iter.Next()) {
+            NS_ASSERTION(actor != iter.UserData(),
+                         "Actor in the hash with a null NPObject!");
+        }
     }
 #endif
 
@@ -2460,6 +2660,33 @@ PluginInstanceParent::RecvRequestCommitOrCancel(const bool& aCommitted)
         owner->RequestCommitOrCancel(aCommitted);
     }
 #endif
+    return true;
+}
+
+nsresult
+PluginInstanceParent::HandledWindowedPluginKeyEvent(
+                        const NativeEventData& aKeyEventData,
+                        bool aIsConsumed)
+{
+    if (NS_WARN_IF(!SendHandledWindowedPluginKeyEvent(aKeyEventData,
+                                                      aIsConsumed))) {
+        return NS_ERROR_FAILURE;
+    }
+    return NS_OK;
+}
+
+bool
+PluginInstanceParent::RecvOnWindowedPluginKeyEvent(
+                        const NativeEventData& aKeyEventData)
+{
+    nsPluginInstanceOwner* owner = GetOwner();
+    if (NS_WARN_IF(!owner)) {
+        // Notifies the plugin process of the key event being not consumed
+        // by us.
+        HandledWindowedPluginKeyEvent(aKeyEventData, false);
+        return true;
+    }
+    owner->OnWindowedPluginKeyEvent(aKeyEventData);
     return true;
 }
 

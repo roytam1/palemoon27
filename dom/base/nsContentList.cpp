@@ -172,16 +172,14 @@ struct ContentListHashEntry : public PLDHashEntryHdr
 };
 
 static PLDHashNumber
-ContentListHashtableHashKey(PLDHashTable *table, const void *key)
+ContentListHashtableHashKey(const void *key)
 {
   const nsContentListKey* list = static_cast<const nsContentListKey *>(key);
   return list->GetHash();
 }
 
 static bool
-ContentListHashtableMatchEntry(PLDHashTable *table,
-                               const PLDHashEntryHdr *entry,
-                               const void *key)
+ContentListHashtableMatchEntry(const PLDHashEntryHdr *entry, const void *key)
 {
   const ContentListHashEntry *e =
     static_cast<const ContentListHashEntry *>(entry);
@@ -231,12 +229,12 @@ NS_GetContentList(nsINode* aRootNode,
   if (!list) {
     // We need to create a ContentList and add it to our new entry, if
     // we have an entry
-    nsCOMPtr<nsIAtom> xmlAtom = do_GetAtom(aTagname);
+    nsCOMPtr<nsIAtom> xmlAtom = NS_Atomize(aTagname);
     nsCOMPtr<nsIAtom> htmlAtom;
     if (aMatchNameSpaceId == kNameSpaceID_Unknown) {
       nsAutoString lowercaseName;
       nsContentUtils::ASCIIToLower(aTagname, lowercaseName);
-      htmlAtom = do_GetAtom(lowercaseName);
+      htmlAtom = NS_Atomize(lowercaseName);
     } else {
       htmlAtom = xmlAtom;
     }
@@ -279,7 +277,7 @@ struct FuncStringContentListHashEntry : public PLDHashEntryHdr
 };
 
 static PLDHashNumber
-FuncStringContentListHashtableHashKey(PLDHashTable *table, const void *key)
+FuncStringContentListHashtableHashKey(const void *key)
 {
   const nsFuncStringCacheKey* funcStringKey =
     static_cast<const nsFuncStringCacheKey *>(key);
@@ -287,9 +285,8 @@ FuncStringContentListHashtableHashKey(PLDHashTable *table, const void *key)
 }
 
 static bool
-FuncStringContentListHashtableMatchEntry(PLDHashTable *table,
-                               const PLDHashEntryHdr *entry,
-                               const void *key)
+FuncStringContentListHashtableMatchEntry(const PLDHashEntryHdr *entry,
+                                         const void *key)
 {
   const FuncStringContentListHashEntry *e =
     static_cast<const FuncStringContentListHashEntry *>(entry);
@@ -521,7 +518,7 @@ nsContentList::NamedItem(const nsAString& aName, bool aDoFlush)
   uint32_t i, count = mElements.Length();
 
   // Typically IDs and names are atomized
-  nsCOMPtr<nsIAtom> name = do_GetAtom(aName);
+  nsCOMPtr<nsIAtom> name = NS_Atomize(aName);
   NS_ENSURE_TRUE(name, nullptr);
 
   for (i = 0; i < count; i++) {
@@ -857,11 +854,11 @@ nsContentList::Match(Element *aElement)
     return false;
 
   NodeInfo *ni = aElement->NodeInfo();
-
-  bool wildcard = mMatchNameSpaceId == kNameSpaceID_Wildcard ||
-                  mMatchNameSpaceId == kNameSpaceID_Unknown;
+ 
+  bool unknown = mMatchNameSpaceId == kNameSpaceID_Unknown;
+  bool wildcard = mMatchNameSpaceId == kNameSpaceID_Wildcard;
   bool toReturn = mMatchAll;
-  if (!wildcard)
+  if (!unknown && !wildcard)
     toReturn &= ni->NamespaceEquals(mMatchNameSpaceId);
 
   if (toReturn)
@@ -869,6 +866,11 @@ nsContentList::Match(Element *aElement)
 
   bool matchHTML =
     mIsHTMLDocument && aElement->GetNameSpaceID() == kNameSpaceID_XHTML;
+
+  if (unknown) {
+    return matchHTML ? ni->QualifiedNameEquals(mHTMLMatchAtom) :
+                       ni->QualifiedNameEquals(mXMLMatchAtom);
+  }
 
   if (wildcard) {
     return matchHTML ? ni->Equals(mHTMLMatchAtom) :

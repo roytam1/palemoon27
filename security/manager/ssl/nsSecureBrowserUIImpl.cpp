@@ -49,15 +49,14 @@ using namespace mozilla;
 // this enables LogLevel::Debug level information and places all output in
 // the file nspr.log
 //
-PRLogModuleInfo* gSecureDocLog = nullptr;
+LazyLogModule gSecureDocLog("nsSecureBrowserUI");
 
 struct RequestHashEntry : PLDHashEntryHdr {
     void *r;
 };
 
 static bool
-RequestMapMatchEntry(PLDHashTable *table, const PLDHashEntryHdr *hdr,
-                         const void *key)
+RequestMapMatchEntry(const PLDHashEntryHdr *hdr, const void *key)
 {
   const RequestHashEntry *entry = static_cast<const RequestHashEntry*>(hdr);
   return entry->r == key;
@@ -107,6 +106,7 @@ nsSecureBrowserUIImpl::nsSecureBrowserUIImpl()
   , mIsViewSource(false)
   , mSubRequestsBrokenSecurity(0)
   , mSubRequestsNoSecurity(0)
+  , mCertUserOverridden(false)
   , mRestoreSubrequests(false)
   , mOnLocationChangeSeen(false)
 #ifdef DEBUG
@@ -117,9 +117,6 @@ nsSecureBrowserUIImpl::nsSecureBrowserUIImpl()
   MOZ_ASSERT(NS_IsMainThread());
 
   ResetStateTracking();
-
-  if (!gSecureDocLog)
-    gSecureDocLog = PR_NewLogModule("nsSecureBrowserUI");
 }
 
 NS_IMPL_ISUPPORTS(nsSecureBrowserUIImpl,
@@ -240,6 +237,10 @@ nsSecureBrowserUIImpl::MapInternalToExternalState(uint32_t* aState, lockIconStat
   if (ev && (*aState & STATE_IS_SECURE))
     *aState |= nsIWebProgressListener::STATE_IDENTITY_EV_TOPLEVEL;
 
+  if (mCertUserOverridden && (*aState & STATE_IS_SECURE)) {
+    *aState |= nsIWebProgressListener::STATE_CERT_USER_OVERRIDDEN;
+  }
+
   nsCOMPtr<nsIDocShell> docShell = do_QueryReferent(mDocShell);
   if (!docShell)
     return NS_OK;
@@ -266,6 +267,9 @@ nsSecureBrowserUIImpl::MapInternalToExternalState(uint32_t* aState, lockIconStat
     *aState = STATE_IS_SECURE | STATE_SECURE_HIGH;
     if (ev) {
       *aState |= nsIWebProgressListener::STATE_IDENTITY_EV_TOPLEVEL;
+    }
+    if (mCertUserOverridden) {
+      *aState |= nsIWebProgressListener::STATE_CERT_USER_OVERRIDDEN;
     }
   }
   // * If so, the state should be broken or insecure; overriding the previous
@@ -800,6 +804,11 @@ nsSecureBrowserUIImpl::OnStateChange(nsIWebProgress* aWebProgress,
     f -= nsIWebProgressListener::STATE_SECURE_HIGH;
     info.AppendLiteral("SECURE_HIGH ");
   }
+  if (f & nsIWebProgressListener::STATE_CERT_USER_OVERRIDDEN)
+  {
+    f -= nsIWebProgressListener::STATE_CERT_USER_OVERRIDDEN;
+    info.AppendLiteral("STATE_CERT_USER_OVERRIDDEN ");
+  }
   if (f & nsIWebProgressListener::STATE_RESTORING)
   {
     f -= nsIWebProgressListener::STATE_RESTORING;
@@ -1138,6 +1147,9 @@ nsSecureBrowserUIImpl::UpdateSecurityState(nsIRequest* aRequest,
     newSecurityState = lis_broken_security;
   }
 
+  mCertUserOverridden =
+    mNewToplevelSecurityState & STATE_CERT_USER_OVERRIDDEN;
+
   MOZ_LOG(gSecureDocLog, LogLevel::Debug,
          ("SecureUI:%p: UpdateSecurityState:  old-new  %d - %d\n", this,
           mNotifiedSecurityState, newSecurityState));
@@ -1324,7 +1336,7 @@ nsSecureBrowserUIImpl::GetSSLStatus(nsISSLStatus** _result)
       break;
 
     default:
-      NS_NOTREACHED("if this is reached you must add more entries to the switch");
+      MOZ_FALLTHROUGH_ASSERT("if this is reached you must add more entries to the switch");
     case lis_no_security:
       *_result = nullptr;
       return NS_OK;

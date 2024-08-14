@@ -126,6 +126,10 @@ ExceptionHandler(PEXCEPTION_RECORD exceptionRecord, _EXCEPTION_REGISTRATION_RECO
 static bool
 RegisterExecutableMemory(void* p, size_t bytes, size_t pageSize)
 {
+    DWORD oldProtect;
+    if (!VirtualProtect(p, pageSize, PAGE_READWRITE, &oldProtect))
+        return false;
+
     ExceptionHandlerRecord* r = reinterpret_cast<ExceptionHandlerRecord*>(p);
 
     // All these fields are specified to be offsets from the base of the
@@ -158,7 +162,6 @@ RegisterExecutableMemory(void* p, size_t bytes, size_t pageSize)
     r->thunk[10] = 0xff;
     r->thunk[11] = 0xe0;
 
-    DWORD oldProtect;
     if (!VirtualProtect(p, pageSize, PAGE_EXECUTE_READ, &oldProtect))
         return false;
 
@@ -236,10 +239,11 @@ ExecutableAllocator::systemRelease(const ExecutablePool::Allocation& alloc)
     DeallocateExecutableMemory(alloc.pages, alloc.size, pageSize);
 }
 
+#if defined(NON_WRITABLE_JIT_CODE)
+
 bool
 ExecutableAllocator::reprotectRegion(void* start, size_t size, ProtectionSetting setting)
 {
-    MOZ_ASSERT(NON_WRITABLE_JIT_CODE);
     MOZ_ASSERT(pageSize);
 
     // Calculate the start of the page containing this region,
@@ -257,6 +261,8 @@ ExecutableAllocator::reprotectRegion(void* start, size_t size, ProtectionSetting
     int flags = (setting == Writable) ? PAGE_READWRITE : PAGE_EXECUTE_READ;
     return VirtualProtect(pageStart, size, flags, &oldProtect);
 }
+
+#endif // defined(NON_WRITABLE_JIT_CODE)
 
 /* static */ unsigned
 ExecutableAllocator::initialProtectionFlags(ProtectionSetting protection)

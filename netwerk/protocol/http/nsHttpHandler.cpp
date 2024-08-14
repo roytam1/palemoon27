@@ -56,7 +56,9 @@
 #include "nsIOService.h"
 
 #include "mozilla/net/NeckoChild.h"
+#include "mozilla/net/NeckoParent.h"
 #include "mozilla/ipc/URIUtils.h"
+#include "mozilla/unused.h"
 
 #if defined(XP_UNIX)
 #include <sys/utsname.h>
@@ -87,6 +89,8 @@
 #define H2MANDATORY_SUITE        "security.ssl3.ecdhe_rsa_aes_128_gcm_sha256"
 #define ALLOW_EXPERIMENTS        "network.allow-experiments"
 #define SAFE_HINT_HEADER_VALUE   "safeHint.enabled"
+#define SECURITY_PREFIX          "security."
+#define NEW_TAB_REMOTE_MODE           "browser.newtabpage.remote.mode"
 
 #define UA_PREF(_pref) UA_PREF_PREFIX _pref
 #define HTTP_PREF(_pref) HTTP_PREF_PREFIX _pref
@@ -108,19 +112,15 @@ NewURI(const nsACString &aSpec,
        int32_t aDefaultPort,
        nsIURI **aURI)
 {
-    nsStandardURL *url = new nsStandardURL();
-    if (!url)
-        return NS_ERROR_OUT_OF_MEMORY;
-    NS_ADDREF(url);
+    RefPtr<nsStandardURL> url = new nsStandardURL();
 
     nsresult rv = url->Init(nsIStandardURL::URLTYPE_AUTHORITY,
                             aDefaultPort, aSpec, aCharset, aBaseURI);
     if (NS_FAILED(rv)) {
-        NS_RELEASE(url);
         return rv;
     }
 
-    *aURI = url; // no QI needed
+    url.forget(aURI);
     return NS_OK;
 }
 
@@ -131,8 +131,7 @@ NewURI(const nsACString &aSpec,
 nsHttpHandler *gHttpHandler = nullptr;
 
 nsHttpHandler::nsHttpHandler()
-    : mConnMgr(nullptr)
-    , mHttpVersion(NS_HTTP_VERSION_1_1)
+    : mHttpVersion(NS_HTTP_VERSION_1_1)
     , mProxyHttpVersion(NS_HTTP_VERSION_1_1)
     , mCapabilities(NS_HTTP_ALLOW_KEEPALIVE)
     , mReferrerLevel(0xff) // by default we always send a referrer
@@ -146,7 +145,7 @@ nsHttpHandler::nsHttpHandler()
     , mResponseTimeout(PR_SecondsToInterval(300))
     , mResponseTimeoutEnabled(false)
     , mNetworkChangedTimeout(5000)
-    , mMaxRequestAttempts(10)
+    , mMaxRequestAttempts(6)
     , mMaxRequestDelay(10)
     , mIdleSynTimeout(250)
     , mH2MandatorySuiteEnabled(false)
@@ -171,6 +170,7 @@ nsHttpHandler::nsHttpHandler()
     , mLegacyAppName("Mozilla")
     , mLegacyAppVersion("5.0")
     , mProduct("Goanna")
+    , mCompatFirefoxEnabled(false)
     , mUserAgentIsDirty(true)
     , mPromptTempRedirect(true)
     , mSendSecureXSiteReferrer(true)
@@ -178,8 +178,8 @@ nsHttpHandler::nsHttpHandler()
     , mDoNotTrackEnabled(false)
     , mSafeHintEnabled(false)
     , mParentalControlEnabled(false)
-    , mDebugObservations(false)
     , mHandlerActive(false)
+    , mDebugObservations(false)
     , mEnableSpdy(false)
     , mSpdyV31(true)
     , mHttp2Enabled(true)
@@ -203,6 +203,7 @@ nsHttpHandler::nsHttpHandler()
     , mRequestTokenBucketMinParallelism(6)
     , mRequestTokenBucketHz(100)
     , mRequestTokenBucketBurst(32)
+    , mCriticalRequestPrioritization(true)
     , mTCPKeepaliveShortLivedEnabled(false)
     , mTCPKeepaliveShortLivedTimeS(60)
     , mTCPKeepaliveShortLivedIdleTimeS(10)
@@ -225,7 +226,7 @@ nsHttpHandler::~nsHttpHandler()
     // make sure the connection manager is shutdown
     if (mConnMgr) {
         mConnMgr->Shutdown();
-        NS_RELEASE(mConnMgr);
+        mConnMgr = nullptr;
     }
 
     // Note: don't call NeckoChild::DestroyNeckoChild() here, as it's too late
@@ -246,6 +247,7 @@ nsHttpHandler::Init()
     nsresult rv;
 
     LOG(("nsHttpHandler::Init\n"));
+    MOZ_ASSERT(NS_IsMainThread());
 
     rv = nsHttp::CreateAtomTable();
     if (NS_FAILED(rv))
@@ -275,6 +277,8 @@ nsHttpHandler::Init()
         prefBranch->AddObserver(HTTP_PREF("tcp_keepalive.short_lived_connections"), this, true);
         prefBranch->AddObserver(HTTP_PREF("tcp_keepalive.long_lived_connections"), this, true);
         prefBranch->AddObserver(SAFE_HINT_HEADER_VALUE, this, true);
+        prefBranch->AddObserver(SECURITY_PREFIX, this, true);
+        prefBranch->AddObserver(NEW_TAB_REMOTE_MODE, this, true);
         PrefsChanged(prefBranch, nullptr);
     }
 
@@ -326,7 +330,7 @@ nsHttpHandler::Init()
     mSchedulingContextService =
         do_GetService("@mozilla.org/network/scheduling-context-service;1");
 
-#ifdef ANDROID
+#if defined(ANDROID) || defined(MOZ_MULET)
     mProductSub.AssignLiteral(MOZILLA_UAVERSION);
 #else
     if (mCompatFirefoxEnabled) {
@@ -371,6 +375,8 @@ nsHttpHandler::Init()
         obsService->AddObserver(this, NS_XPCOM_SHUTDOWN_OBSERVER_ID, true);
         obsService->AddObserver(this, "net:clear-active-logins", true);
         obsService->AddObserver(this, "net:prune-dead-connections", true);
+        // Sent by the TorButton add-on in the Tor Browser
+        obsService->AddObserver(this, "net:prune-all-connections", true);
         obsService->AddObserver(this, "net:failed-to-process-uri-content", true);
         obsService->AddObserver(this, "last-pb-context-exited", true);
         obsService->AddObserver(this, "webapps-clear-data", true);
@@ -394,9 +400,11 @@ nsHttpHandler::Init()
 void
 nsHttpHandler::MakeNewRequestTokenBucket()
 {
-    if (!mConnMgr)
+    LOG(("nsHttpHandler::MakeNewRequestTokenBucket this=%p child=%d\n",
+         this, IsNeckoChild()));
+    if (!mConnMgr || IsNeckoChild()) {
         return;
-
+    }
     RefPtr<EventTokenBucket> tokenBucket =
         new EventTokenBucket(RequestTokenBucketHz(), RequestTokenBucketBurst());
     mConnMgr->UpdateRequestTokenBucket(tokenBucket);
@@ -414,9 +422,6 @@ nsHttpHandler::InitConnectionMgr()
 
     if (!mConnMgr) {
         mConnMgr = new nsHttpConnectionMgr();
-        if (!mConnMgr)
-            return NS_ERROR_OUT_OF_MEMORY;
-        NS_ADDREF(mConnMgr);
     }
 
     rv = mConnMgr->Init(mMaxConnections,
@@ -566,6 +571,8 @@ nsHttpHandler::GetCookieService()
 nsresult
 nsHttpHandler::GetIOService(nsIIOService** result)
 {
+    NS_ENSURE_ARG_POINTER(result);
+
     NS_ADDREF(*result = mIOService);
     return NS_OK;
 }
@@ -754,6 +761,7 @@ nsHttpHandler::InitUserAgentComponents()
     nsresult rv;
     // Add the Android version number to the Fennec platform identifier.
 #if defined MOZ_WIDGET_ANDROID
+#ifndef MOZ_UA_OS_AGNOSTIC // Don't add anything to mPlatform since it's empty.
     nsAutoString androidVersion;
     rv = infoService->GetPropertyAsAString(
         NS_LITERAL_STRING("release_version"), androidVersion);
@@ -768,6 +776,7 @@ nsHttpHandler::InitUserAgentComponents()
         mPlatform += NS_LossyConvertUTF16toASCII(androidVersion);
       }
     }
+#endif
 #endif
     // Add the `Mobile` or `Tablet` or `TV` token when running on device.
     bool isTablet;
@@ -785,7 +794,7 @@ nsHttpHandler::InitUserAgentComponents()
     }
 #endif // ANDROID
 
-#ifdef FXOS_SIMULATOR
+#ifdef MOZ_MULET
     {
         // Add the `Mobile` or `Tablet` or `TV` token when running in the b2g
         // desktop simulator via preference.
@@ -797,7 +806,7 @@ nsHttpHandler::InitUserAgentComponents()
             mCompatDevice.AssignLiteral("Mobile");
         }
     }
-#endif // FXOS_SIMULATOR
+#endif // MOZ_MULET
 
 #if defined(MOZ_WIDGET_GONK)
     // Device model identifier should be a simple token, which can be composed
@@ -933,6 +942,15 @@ nsHttpHandler::PrefsChanged(nsIPrefBranch *prefs, const char *pref)
 #define PREF_CHANGED(p) ((pref == nullptr) || !PL_strcmp(pref, p))
 #define MULTI_PREF_CHANGED(p) \
   ((pref == nullptr) || !PL_strncmp(pref, p, sizeof(p) - 1))
+
+    // If a security pref changed, lets clear our connection pool reuse
+    if (MULTI_PREF_CHANGED(SECURITY_PREFIX)) {
+        LOG(("nsHttpHandler::PrefsChanged Security Pref Changed %s\n", pref));
+        if (mConnMgr) {
+            mConnMgr->DoShiftReloadConnectionCleanup(nullptr);
+            mConnMgr->PruneDeadConnections();
+        }
+    }
 
     //
     // UA components
@@ -1613,6 +1631,19 @@ nsHttpHandler::PrefsChanged(nsIPrefBranch *prefs, const char *pref)
         }
     }
 
+    // remote content-signature testing option
+    if (PREF_CHANGED(NEW_TAB_REMOTE_MODE)) {
+        nsAutoCString channel;
+        prefs->GetCharPref(NEW_TAB_REMOTE_MODE, getter_Copies(channel));
+        if (channel.EqualsLiteral("test") ||
+            channel.EqualsLiteral("test2") ||
+            channel.EqualsLiteral("dev")) {
+            mNewTabContentSignaturesDisabled = true;
+        } else {
+            mNewTabContentSignaturesDisabled = false;
+        }
+    }
+
     // Enable HTTP response timeout if TCP Keepalives are disabled.
     mResponseTimeoutEnabled = !mTCPKeepaliveShortLivedEnabled &&
                               !mTCPKeepaliveLongLivedEnabled;
@@ -2017,6 +2048,7 @@ nsHttpHandler::Observe(nsISupports *subject,
                        const char *topic,
                        const char16_t *data)
 {
+    MOZ_ASSERT(NS_IsMainThread());
     LOG(("nsHttpHandler::Observe [topic=\"%s\"]\n", topic));
 
     if (!strcmp(topic, NS_PREFBRANCH_PREFCHANGE_TOPIC_ID)) {
@@ -2051,6 +2083,11 @@ nsHttpHandler::Observe(nsISupports *subject,
         mPrivateAuthCache.ClearAll();
     } else if (!strcmp(topic, "net:prune-dead-connections")) {
         if (mConnMgr) {
+            mConnMgr->PruneDeadConnections();
+        }
+    } else if (!strcmp(topic, "net:prune-all-connections")) {
+        if (mConnMgr) {
+            mConnMgr->DoShiftReloadConnectionCleanup(nullptr);
             mConnMgr->PruneDeadConnections();
         }
     } else if (!strcmp(topic, "net:failed-to-process-uri-content")) {
@@ -2123,6 +2160,9 @@ nsHttpHandler::SpeculativeConnectInternal(nsIURI *aURI,
         obsService->NotifyObservers(nullptr,
                                     "speculative-connect-request",
                                     NS_ConvertUTF8toUTF16(spec).get());
+        if (!IsNeckoChild() && gNeckoParent) {
+            Unused << gNeckoParent->SendSpeculativeConnectRequest(spec);
+        }
     }
 
     nsISiteSecurityService* sss = gHttpHandler->GetSSService();
@@ -2137,9 +2177,11 @@ nsHttpHandler::SpeculativeConnectInternal(nsIURI *aURI,
     nsCOMPtr<nsIURI> clone;
     if (NS_SUCCEEDED(sss->IsSecureURI(nsISiteSecurityService::HEADER_HSTS,
                                       aURI, flags, &isStsHost)) && isStsHost) {
-        if (NS_SUCCEEDED(aURI->Clone(getter_AddRefs(clone)))) {
-            clone->SetScheme(NS_LITERAL_CSTRING("https"));
+        if (NS_SUCCEEDED(NS_GetSecureUpgradedURI(aURI,
+                                                 getter_AddRefs(clone)))) {
             aURI = clone.get();
+            // (NOTE: We better make sure |clone| stays alive until the end
+            // of the function now, since our aURI arg now points to it!)
         }
     }
 

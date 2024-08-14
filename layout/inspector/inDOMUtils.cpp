@@ -74,15 +74,23 @@ inDOMUtils::GetAllStyleSheets(nsIDOMDocument *aDocument, uint32_t *aLength,
 {
   NS_ENSURE_ARG_POINTER(aDocument);
 
-  nsCOMArray<nsIStyleSheet> sheets;
+  nsTArray<RefPtr<CSSStyleSheet>> sheets;
 
   nsCOMPtr<nsIDocument> document = do_QueryInterface(aDocument);
   MOZ_ASSERT(document);
 
   // Get the agent, then user and finally xbl sheets in the style set.
   nsIPresShell* presShell = document->GetShell();
+
+  if (presShell && presShell->StyleSet()->IsServo()) {
+    // XXXheycam ServoStyleSets don't have the ability to expose their
+    // sheets in a script-accessible way yet.
+    NS_ERROR("stylo: ServoStyleSets cannot expose their sheets to script yet");
+    return NS_ERROR_FAILURE;
+  }
+
   if (presShell) {
-    nsStyleSet* styleSet = presShell->StyleSet();
+    nsStyleSet* styleSet = presShell->StyleSet()->AsGecko();
     SheetType sheetType = SheetType::Agent;
     for (int32_t i = 0; i < styleSet->SheetCount(sheetType); i++) {
       sheets.AppendElement(styleSet->StyleSheetAt(sheetType, i));
@@ -106,17 +114,19 @@ inDOMUtils::GetAllStyleSheets(nsIDOMDocument *aDocument, uint32_t *aLength,
 
   // Get the document sheets.
   for (int32_t i = 0; i < document->GetNumberOfStyleSheets(); i++) {
-    sheets.AppendElement(document->GetStyleSheetAt(i));
+    // XXXheycam ServoStyleSets don't have the ability to expose their
+    // sheets in a script-accessible way yet.
+    sheets.AppendElement(document->GetStyleSheetAt(i)->AsGecko());
   }
 
-  nsISupports** ret = static_cast<nsISupports**>(NS_Alloc(sheets.Count() *
+  nsISupports** ret = static_cast<nsISupports**>(NS_Alloc(sheets.Length() *
                                                  sizeof(nsISupports*)));
 
-  for (int32_t i = 0; i < sheets.Count(); i++) {
-    NS_ADDREF(ret[i] = sheets[i]);
+  for (int32_t i = 0; i < sheets.Length(); i++) {
+    NS_ADDREF(ret[i] = NS_ISUPPORTS_CAST(nsIDOMCSSStyleSheet*, sheets[i]));
   }
 
-  *aLength = sheets.Count();
+  *aLength = sheets.Length();
   *aSheets = ret;
 
   return NS_OK;
@@ -220,7 +230,7 @@ inDOMUtils::GetCSSStyleRules(nsIDOMElement *aElement,
 
   nsCOMPtr<nsIAtom> pseudoElt;
   if (!aPseudo.IsEmpty()) {
-    pseudoElt = do_GetAtom(aPseudo);
+    pseudoElt = NS_Atomize(aPseudo);
   }
 
   nsRuleNode* ruleNode = nullptr;
@@ -445,7 +455,7 @@ inDOMUtils::SelectorMatchesElement(nsIDOMElement* aElement,
   if (!aPseudo.IsEmpty()) {
     // We need to make sure that the requested pseudo element type
     // matches the selector pseudo element type before proceeding.
-    nsCOMPtr<nsIAtom> pseudoElt = do_GetAtom(aPseudo);
+    nsCOMPtr<nsIAtom> pseudoElt = NS_Atomize(aPseudo);
     if (sel->mSelectors->PseudoType() !=
         nsCSSPseudoElements::GetPseudoType(pseudoElt)) {
       *aMatches = false;
@@ -765,6 +775,10 @@ PropertySupportsVariant(nsCSSProperty aPropertyID, uint32_t aVariant)
       case eCSSProperty_border_bottom_right_radius:
       case eCSSProperty_background_position:
       case eCSSProperty_background_size:
+#ifdef MOZ_ENABLE_MASK_AS_SHORTHAND
+      case eCSSProperty_mask_position:
+      case eCSSProperty_mask_size:
+#endif
       case eCSSProperty_grid_auto_columns:
       case eCSSProperty_grid_auto_rows:
       case eCSSProperty_grid_template_columns:
@@ -1082,21 +1096,36 @@ inDOMUtils::GetBindingURLs(nsIDOMElement *aElement, nsIArray **_retval)
 
 NS_IMETHODIMP
 inDOMUtils::SetContentState(nsIDOMElement* aElement,
-                            EventStates::InternalType aState)
+                            EventStates::InternalType aState,
+                            bool* aRetVal)
 {
   NS_ENSURE_ARG_POINTER(aElement);
 
   RefPtr<EventStateManager> esm =
     inLayoutUtils::GetEventStateManagerFor(aElement);
-  if (esm) {
-    nsCOMPtr<nsIContent> content;
-    content = do_QueryInterface(aElement);
+  NS_ENSURE_TRUE(esm, NS_ERROR_INVALID_ARG);
 
-    // XXX Invalid cast of bool to nsresult (bug 778108)
-    return (nsresult)esm->SetContentState(content, EventStates(aState));
-  }
+  nsCOMPtr<nsIContent> content;
+  content = do_QueryInterface(aElement);
+  NS_ENSURE_TRUE(content, NS_ERROR_INVALID_ARG);
 
-  return NS_ERROR_FAILURE;
+  *aRetVal = esm->SetContentState(content, EventStates(aState));
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+inDOMUtils::RemoveContentState(nsIDOMElement* aElement,
+                               EventStates::InternalType aState,
+                               bool* aRetVal)
+{
+  NS_ENSURE_ARG_POINTER(aElement);
+
+  RefPtr<EventStateManager> esm =
+    inLayoutUtils::GetEventStateManagerFor(aElement);
+  NS_ENSURE_TRUE(esm, NS_ERROR_INVALID_ARG);
+
+  *aRetVal = esm->SetContentState(nullptr, EventStates(aState));
+  return NS_OK;
 }
 
 NS_IMETHODIMP
@@ -1174,7 +1203,7 @@ GetStatesForPseudoClass(const nsAString& aStatePseudo)
                 nsCSSPseudoClasses::ePseudoClass_NotPseudoClass + 1,
                 "Length of PseudoClassStates array is incorrect");
 
-  nsCOMPtr<nsIAtom> atom = do_GetAtom(aStatePseudo);
+  nsCOMPtr<nsIAtom> atom = NS_Atomize(aStatePseudo);
 
   // Ignore :moz-any-link so we don't give the element simultaneous
   // visited and unvisited style state
@@ -1192,8 +1221,10 @@ inDOMUtils::GetCSSPseudoElementNames(uint32_t* aLength, char16_t*** aNames)
 {
   nsTArray<nsIAtom*> array;
 
-  for (int i = 0; i < nsCSSPseudoElements::ePseudo_PseudoElementCount; ++i) {
-    nsCSSPseudoElements::Type type = static_cast<nsCSSPseudoElements::Type>(i);
+  const CSSPseudoElementTypeBase pseudoCount =
+    static_cast<CSSPseudoElementTypeBase>(CSSPseudoElementType::Count);
+  for (CSSPseudoElementTypeBase i = 0; i < pseudoCount; ++i) {
+    CSSPseudoElementType type = static_cast<CSSPseudoElementType>(i);
     if (!nsCSSPseudoElements::PseudoElementIsUASheetOnly(type)) {
       nsIAtom* atom = nsCSSPseudoElements::GetPseudoAtom(type);
       array.AppendElement(atom);

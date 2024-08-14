@@ -35,10 +35,10 @@ public:
   int32_t  mNamespaceID;
 
   /**
-   * The atom for attribute, weak ref. is fine as we only use it for the
-   * hashcode, we never dereference it.
+   * The atom for attribute, stored as void*, to make sure that we only use it
+   * for the hashcode, and we can never dereference it.
    */
-  nsIAtom* mLocalName;
+  void* mLocalName;
 
   nsAttrKey(int32_t aNs, nsIAtom* aName)
     : mNamespaceID(aNs), mLocalName(aName) {}
@@ -158,10 +158,8 @@ public:
   RemoveNamedItemNS(const nsAString& aNamespaceURI, const nsAString& aLocalName,
                     ErrorResult& aError);
 
-  void GetSupportedNames(unsigned, nsTArray<nsString>& aNames)
-  {
-    // No supported names we want to show up in iteration.
-  }
+  void
+  GetSupportedNames(unsigned aFlags, nsTArray<nsString>& aNames);
 
   size_t SizeOfIncludingThis(mozilla::MallocSizeOf aMallocSizeOf) const;
 
@@ -180,12 +178,7 @@ private:
   GetAttrNodeInfo(const nsAString& aNamespaceURI,
                   const nsAString& aLocalName);
 
-  Attr* GetAttribute(mozilla::dom::NodeInfo* aNodeInfo, bool aNsAware);
-
-  /**
-   * Remove an attribute, returns the removed node.
-   */
-  already_AddRefed<Attr> RemoveAttribute(mozilla::dom::NodeInfo* aNodeInfo);
+  Attr* GetAttribute(mozilla::dom::NodeInfo* aNodeInfo);
 };
 
 // XXX khuey yes this is crazy.  The bindings code needs to see this include,

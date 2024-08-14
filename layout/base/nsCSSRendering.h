@@ -232,6 +232,10 @@ public:
    * aIndex identifies the component: 0 1 2
    *                                  3 4 5
    *                                  6 7 8
+   * aSVGViewportSize The image size evaluated by default sizing algorithm.
+   * Pass Nothing() if we can read a valid viewport size or aspect-ratio from
+   * the drawing image directly, otherwise, pass Some() with viewport size
+   * evaluated from default sizing algorithm.
    */
   DrawResult
   DrawBorderImageComponent(nsPresContext*       aPresContext,
@@ -242,20 +246,11 @@ public:
                            uint8_t              aHFill,
                            uint8_t              aVFill,
                            const nsSize&        aUnitSize,
-                           uint8_t              aIndex);
+                           uint8_t              aIndex,
+                           const mozilla::Maybe<nsSize>& aSVGViewportSize);
 
   bool IsRasterImage();
   bool IsAnimatedImage();
-
-  /**
-   * @return true if this nsImageRenderer wraps an image which has an
-   * ImageContainer available.
-   *
-   * If IsContainerAvailable() returns true, GetImage() will return a non-null
-   * imgIContainer which callers can use to retrieve the ImageContainer.
-   */
-  bool IsContainerAvailable(LayerManager* aManager,
-                            nsDisplayListBuilder* aBuilder);
 
   /// Retrieves the image associated with this nsImageRenderer, if there is one.
   already_AddRefed<imgIContainer> GetImage();
@@ -263,6 +258,7 @@ public:
   bool IsReady() const { return mPrepareResult == DrawResult::SUCCESS; }
   DrawResult PrepareResult() const { return mPrepareResult; }
   void SetExtendMode(mozilla::gfx::ExtendMode aMode) { mExtendMode = aMode; }
+  void SetMaskOp(uint8_t aMaskOp) { mMaskOp = aMaskOp; }
 
 private:
   /**
@@ -282,7 +278,7 @@ private:
                   const mozilla::CSSIntRect& aSrc);
 
   /**
-   * Helper method for creating a gfxDrawable from mPaintServerFrame or
+   * Helper method for creating a gfxDrawable from mPaintServerFrame or 
    * mImageElementSurface.
    * Requires mType is eStyleImageType_Element.
    * Returns null if we cannot create the drawable.
@@ -301,6 +297,7 @@ private:
   nsSize                    mSize; // unscaled size of the image, in app units
   uint32_t                  mFlags;
   mozilla::gfx::ExtendMode  mExtendMode;
+  uint8_t                   mMaskOp;
 };
 
 /**
@@ -317,7 +314,6 @@ struct nsBackgroundLayerState {
   nsBackgroundLayerState(nsIFrame* aForFrame, const nsStyleImage* aImage,
                          uint32_t aFlags)
     : mImageRenderer(aForFrame, aImage, aFlags)
-    , mCompositionOp(CompositionOp::OP_OVER)
   {}
 
   /**
@@ -347,17 +343,15 @@ struct nsBackgroundLayerState {
    * 'space' keyword, which is the image size plus spacing.
    */
   nsSize mRepeatSize;
-  /**
-   * The composition operation that the image should use.
-   */
-  CompositionOp mCompositionOp;
 };
 
 struct nsCSSRendering {
   typedef mozilla::gfx::CompositionOp CompositionOp;
   typedef mozilla::gfx::DrawTarget DrawTarget;
   typedef mozilla::gfx::Float Float;
+  typedef mozilla::gfx::Point Point;
   typedef mozilla::gfx::Rect Rect;
+  typedef mozilla::gfx::Size Size;
   typedef mozilla::gfx::RectCornerRadii RectCornerRadii;
   typedef mozilla::image::DrawResult DrawResult;
   typedef nsIFrame::Sides Sides;
@@ -549,7 +543,8 @@ struct nsCSSRendering {
                     uint32_t aFlags,
                     const nsRect& aBorderArea,
                     const nsRect& aBGClipRect,
-                    const nsStyleImageLayers::Layer& aLayer);
+                    const nsStyleImageLayers::Layer& aLayer,
+                    CompositionOp aCompositionOp = CompositionOp::OP_OVER);
 
   struct ImageLayerClipState {
     nsRect mBGClipArea;  // Affected by mClippedRadii
@@ -576,7 +571,7 @@ struct nsCSSRendering {
 
   /**
    * Render the background for an element using css rendering rules
-   * for backgrounds.
+   * for backgrounds or mask.
    */
   enum {
     /**
@@ -592,7 +587,12 @@ struct nsCSSRendering {
      * When this flag is passed, painting will go to the screen so we can
      * take advantage of the fact that it will be clipped to the viewport.
      */
-    PAINTBG_TO_WINDOW = 0x04
+    PAINTBG_TO_WINDOW = 0x04,
+    /**
+     * When this flag is passed, painting will read properties of mask-image
+     * style, instead of background-image.
+     */
+    PAINTBG_MASK_IMAGE = 0x08
   };
   static DrawResult PaintBackground(nsPresContext* aPresContext,
                                     nsRenderingContext& aRenderingContext,
@@ -601,7 +601,9 @@ struct nsCSSRendering {
                                     const nsRect& aBorderArea,
                                     uint32_t aFlags,
                                     nsRect* aBGClipRect = nullptr,
-                                    int32_t aLayer = -1);
+                                    int32_t aLayer = -1,
+                                    CompositionOp aCompositionOp = CompositionOp::OP_OVER);
+
 
   /**
    * Same as |PaintBackground|, except using the provided style structs.
@@ -611,6 +613,9 @@ struct nsCSSRendering {
    * The default value for aLayer, -1, means that all layers will be painted.
    * The background color will only be painted if the back-most layer is also
    * being painted.
+   * aCompositionOp is only respected if a single layer is specified (aLayer != -1).
+   * If all layers are painted, the image layer's blend mode (or the mask
+   * layer's composition mode) will be used.
    */
   static DrawResult PaintBackgroundWithSC(nsPresContext* aPresContext,
                                           nsRenderingContext& aRenderingContext,
@@ -621,7 +626,8 @@ struct nsCSSRendering {
                                           const nsStyleBorder& aBorder,
                                           uint32_t aFlags,
                                           nsRect* aBGClipRect = nullptr,
-                                          int32_t aLayer = -1);
+                                          int32_t aLayer = -1,
+                                          CompositionOp aCompositionOp = CompositionOp::OP_OVER);
 
   /**
    * Returns the rectangle covered by the given background layer image, taking
@@ -649,8 +655,8 @@ struct nsCSSRendering {
 
   // Draw a border segment in the table collapsing border model without
   // beveling corners
-  static void DrawTableBorderSegment(nsRenderingContext& aContext,
-                                     uint8_t              aBorderStyle,  
+  static void DrawTableBorderSegment(DrawTarget&          aDrawTarget,
+                                     uint8_t              aBorderStyle,
                                      nscolor              aBorderColor,
                                      const nsStyleBackground* aBGColor,
                                      const nsRect&        aBorderRect,
@@ -661,85 +667,69 @@ struct nsCSSRendering {
                                      uint8_t              aEndBevelSide = 0,
                                      nscoord              aEndBevelOffset = 0);
 
+  // NOTE: pt, dirtyRect, lineSize, ascent, offset in the following
+  //       structs are non-rounded device pixels, not app units.
+  struct DecorationRectParams
+  {
+    // The width [length] and the height [thickness] of the decoration
+    // line. This is a "logical" size in textRun orientation, so that
+    // for a vertical textrun, width will actually be a physical height;
+    // and conversely, height will be a physical width.
+    Size lineSize;
+    // The ascent of the text.
+    Float ascent = 0.0f;
+    // The offset of the decoration line from the baseline of the text
+    // (if the value is positive, the line is lifted up).
+    Float offset = 0.0f;
+    // If descentLimit is zero or larger and the underline overflows
+    // from the descent space, the underline should be lifted up as far
+    // as possible.  Note that this does not mean the underline never
+    // overflows from this limitation, because if the underline is
+    // positioned to the baseline or upper, it causes unreadability.
+    // Note that if this is zero or larger, the underline rect may be
+    // shrunken if it's possible.  Therefore, this value is used for
+    // strikeout line and overline too.
+    Float descentLimit = -1.0f;
+    // Which line will be painted. The value can be
+    // NS_STYLE_TEXT_DECORATION_LINE_UNDERLINE or
+    // NS_STYLE_TEXT_DECORATION_LINE_OVERLINE or
+    // NS_STYLE_TEXT_DECORATION_LINE_LINE_THROUGH.
+    uint8_t decoration = NS_STYLE_TEXT_DECORATION_LINE_UNDERLINE;
+    // The style of the decoration line such as
+    // NS_STYLE_TEXT_DECORATION_STYLE_*.
+    uint8_t style = NS_STYLE_TEXT_DECORATION_STYLE_NONE;
+    bool vertical = false;
+  };
+  struct PaintDecorationLineParams : DecorationRectParams
+  {
+    // No need to paint outside this rect.
+    Rect dirtyRect;
+    // The top/left edge of the text.
+    Point pt;
+    // The color of the decoration line.
+    nscolor color = NS_RGBA(0, 0, 0, 0);
+    // The distance between the left edge of the given frame and the
+    // position of the text as positioned without offset of the shadow.
+    Float icoordInFrame = 0.0f;
+  };
+
   /**
    * Function for painting the decoration lines for the text.
-   * NOTE: aPt, aLineSize, aAscent and aOffset are non-rounded device pixels,
-   *       not app units.
-   * NOTE: aLineSize is a "logical" size in textRun orientation, so that for
-   *       a vertical textrun, aLineSize.width (which is the decoration line
-   *       length) will actually be a physical height; and conversely,
-   *       aLineSize.height [thickness] will be a physical width. The alternate
-   *       names in [brackets] in the comments here apply to the vertical case.
    *
    *   input:
    *     @param aFrame            the frame which needs the decoration line
    *     @param aGfxContext
-   *     @param aDirtyRect        no need to paint outside this rect
-   *     @param aColor            the color of the decoration line
-   *     @param aPt               the top/left edge of the text
-   *     @param aICoordInFrame    the distance between aPt.x [y] and left [top]
-   *                              edge of aFrame. If the decoration line is for
-   *                              shadow, set the distance between the left edge
-   *                              of the aFrame and the position of the text as
-   *                              positioned without offset of the shadow.
-   *     @param aLineSize         the width [length] and the height [thickness]
-   *                              of the decoration line
-   *     @param aAscent           the ascent of the text
-   *     @param aOffset           the offset of the decoration line from
-   *                              the baseline of the text (if the value is
-   *                              positive, the line is lifted up [right])
-   *     @param aDecoration       which line will be painted. The value can be
-   *                              NS_STYLE_TEXT_DECORATION_LINE_UNDERLINE or
-   *                              NS_STYLE_TEXT_DECORATION_LINE_OVERLINE or
-   *                              NS_STYLE_TEXT_DECORATION_LINE_LINE_THROUGH.
-   *     @param aStyle            the style of the decoration line such as
-   *                              NS_STYLE_TEXT_DECORATION_STYLE_*.
-   *     @param aDescentLimit     If aDescentLimit is zero or larger and the
-   *                              underline overflows from the descent space,
-   *                              the underline should be lifted up as far as
-   *                              possible.  Note that this does not mean the
-   *                              underline never overflows from this
-   *                              limitation.  Because if the underline is
-   *                              positioned to the baseline or upper, it causes
-   *                              unreadability.  Note that if this is zero
-   *                              or larger, the underline rect may be shrunken
-   *                              if it's possible.  Therefore, this value is
-   *                              used for strikeout line and overline too.
    */
-  static void PaintDecorationLine(nsIFrame* aFrame,
-                                  DrawTarget& aDrawTarget,
-                                  const Rect& aDirtyRect,
-                                  const nscolor aColor,
-                                  const gfxPoint& aPt,
-                                  const Float aICoordInFrame,
-                                  const gfxSize& aLineSize,
-                                  const gfxFloat aAscent,
-                                  const gfxFloat aOffset,
-                                  const uint8_t aDecoration,
-                                  const uint8_t aStyle,
-                                  bool aVertical,
-                                  const gfxFloat aDescentLimit = -1.0);
+  static void PaintDecorationLine(nsIFrame* aFrame, DrawTarget& aDrawTarget,
+                                  const PaintDecorationLineParams& aParams);
 
   /**
-   * Adds a path corresponding to the outline of the decoration line to
-   * the specified context.  Arguments have the same meaning as for
+   * Returns a Rect corresponding to the outline of the decoration line for the
+   * given text metrics.  Arguments have the same meaning as for
    * PaintDecorationLine.  Currently this only works for solid
-   * decorations; for other decoration styles, an empty path is added
-   * to the context.
+   * decorations; for other decoration styles the returned Rect will be empty.
    */
-  static void DecorationLineToPath(nsIFrame* aFrame,
-                                   gfxContext* aGfxContext,
-                                   const gfxRect& aDirtyRect,
-                                   const nscolor aColor,
-                                   const gfxPoint& aPt,
-                                   const gfxFloat aICoordInFrame,
-                                   const gfxSize& aLineSize,
-                                   const gfxFloat aAscent,
-                                   const gfxFloat aOffset,
-                                   const uint8_t aDecoration,
-                                   const uint8_t aStyle,
-                                   bool aVertical,
-                                   const gfxFloat aDescentLimit = -1.0);
+  static Rect DecorationLineToPath(const PaintDecorationLineParams& aParams);
 
   /**
    * Function for getting the decoration line rect for the text.
@@ -747,41 +737,12 @@ struct nsCSSRendering {
    *       not app units.
    *   input:
    *     @param aPresContext
-   *     @param aLineSize         the width and the height of the decoration
-   *                              line
-   *     @param aAscent           the ascent of the text
-   *     @param aOffset           the offset of the decoration line from
-   *                              the baseline of the text (if the value is
-   *                              positive, the line is lifted up)
-   *     @param aDecoration       which line will be painted. The value can be
-   *                              NS_STYLE_TEXT_DECORATION_LINE_UNDERLINE or
-   *                              NS_STYLE_TEXT_DECORATION_LINE_OVERLINE or
-   *                              NS_STYLE_TEXT_DECORATION_LINE_LINE_THROUGH.
-   *     @param aStyle            the style of the decoration line such as
-   *                              NS_STYLE_TEXT_DECORATION_STYLE_*.
-   *     @param aDescentLimit     If aDescentLimit is zero or larger and the
-   *                              underline overflows from the descent space,
-   *                              the underline should be lifted up as far as
-   *                              possible.  Note that this does not mean the
-   *                              underline never overflows from this
-   *                              limitation.  Because if the underline is
-   *                              positioned to the baseline or upper, it causes
-   *                              unreadability.  Note that if this is zero
-   *                              or larger, the underline rect may be shrunken
-   *                              if it's possible.  Therefore, this value is
-   *                              used for strikeout line and overline too.
    *   output:
    *     @return                  the decoration line rect for the input,
    *                              the each values are app units.
    */
   static nsRect GetTextDecorationRect(nsPresContext* aPresContext,
-                                      const gfxSize& aLineSize,
-                                      const gfxFloat aAscent,
-                                      const gfxFloat aOffset,
-                                      const uint8_t aDecoration,
-                                      const uint8_t aStyle,
-                                      bool aVertical,
-                                      const gfxFloat aDescentLimit = -1.0);
+                                      const DecorationRectParams& aParams);
 
   static CompositionOp GetGFXBlendMode(uint8_t mBlendMode) {
     switch (mBlendMode) {
@@ -805,15 +766,19 @@ struct nsCSSRendering {
     }
   }
 
+  static CompositionOp GetGFXCompositeMode(uint8_t aCompositeMode) {
+    switch (aCompositeMode) {
+      case NS_STYLE_MASK_COMPOSITE_ADD:        return CompositionOp::OP_OVER;
+      case NS_STYLE_MASK_COMPOSITE_SUBSTRACT:  return CompositionOp::OP_OUT;
+      case NS_STYLE_MASK_COMPOSITE_INTERSECT:  return CompositionOp::OP_IN;
+      case NS_STYLE_MASK_COMPOSITE_EXCLUDE:    return CompositionOp::OP_XOR;
+      default:              MOZ_ASSERT(false); return CompositionOp::OP_OVER;
+    }
+
+  }
 protected:
-  static gfxRect GetTextDecorationRectInternal(const gfxPoint& aPt,
-                                               const gfxSize& aLineSize,
-                                               const gfxFloat aAscent,
-                                               const gfxFloat aOffset,
-                                               const uint8_t aDecoration,
-                                               const uint8_t aStyle,
-                                               bool aVertical,
-                                               const gfxFloat aDescentLimit);
+  static gfxRect GetTextDecorationRectInternal(
+      const Point& aPt, const DecorationRectParams& aParams);
 
   /**
    * Returns inflated rect for painting a decoration line.

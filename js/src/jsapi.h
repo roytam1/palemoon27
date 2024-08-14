@@ -15,6 +15,7 @@
 #include "mozilla/Range.h"
 #include "mozilla/RangedPtr.h"
 #include "mozilla/RefPtr.h"
+#include "mozilla/Variant.h"
 
 #include <stdarg.h>
 #include <stddef.h>
@@ -601,6 +602,9 @@ typedef void
 typedef bool
 (* JSInterruptCallback)(JSContext* cx);
 
+typedef bool
+(* JSEnqueuePromiseJobCallback)(JSContext* cx, JS::HandleObject job, void* data);
+
 typedef void
 (* JSErrorReporter)(JSContext* cx, const char* message, JSErrorReport* report);
 
@@ -624,6 +628,9 @@ typedef enum JSExnType {
 } JSExnType;
 
 typedef struct JSErrorFormatString {
+     /** The error message name in ASCII. */
+    const char* name;
+
     /** The error format string in ASCII. */
     const char* format;
 
@@ -679,6 +686,10 @@ struct JSWrapObjectCallbacks
 
 typedef void
 (* JSDestroyCompartmentCallback)(JSFreeOp* fop, JSCompartment* compartment);
+
+typedef size_t
+(* JSSizeOfIncludingThisCompartmentCallback)(mozilla::MallocSizeOf mallocSizeOf,
+                                             JSCompartment* compartment);
 
 typedef void
 (* JSZoneCallback)(JS::Zone* zone);
@@ -819,27 +830,14 @@ class MOZ_STACK_CLASS SourceBufferHolder final
                                            object that delegates to a prototype
                                            containing this property */
 #define JSPROP_INTERNAL_USE_BIT 0x80    /* internal JS engine use only */
-#define JSPROP_DEFINE_LATE     0x100    /* Don't define property when initially creating
-                                           the constructor. Some objects like Function/Object
-                                           have self-hosted functions that can only be defined
-                                           after the initialization is already finished. */
+//                             0x100    /* Unused */
 #define JSFUN_STUB_GSOPS       0x200    /* use JS_PropertyStub getter/setter
                                            instead of defaulting to class gsops
                                            for property holding function */
 
 #define JSFUN_CONSTRUCTOR      0x400    /* native that can be called as a ctor */
 
-/*
- * Specify a generic native prototype methods, i.e., methods of a class
- * prototype that are exposed as static methods taking an extra leading
- * argument: the generic |this| parameter.
- *
- * If you set this flag in a JSFunctionSpec struct's flags initializer, then
- * that struct must live at least as long as the native static method object
- * created due to this flag by JS_DefineFunctions or JS_InitClass.  Typically
- * JSFunctionSpec structs are allocated in static arrays.
- */
-#define JSFUN_GENERIC_NATIVE   0x800
+//                             0x800    /* Unused */
 
 #define JSFUN_HAS_REST        0x1000    /* function has ...rest parameter. */
 
@@ -990,7 +988,7 @@ extern JS_PUBLIC_API(JSRuntime*)
 JS_GetRuntime(JSContext* cx);
 
 extern JS_PUBLIC_API(JSRuntime*)
-JS_GetParentRuntime(JSContext* cx);
+JS_GetParentRuntime(JSRuntime* rt);
 
 JS_PUBLIC_API(void)
 JS_SetRuntimePrivate(JSRuntime* rt, void* data);
@@ -1000,6 +998,9 @@ JS_BeginRequest(JSContext* cx);
 
 extern JS_PUBLIC_API(void)
 JS_EndRequest(JSContext* cx);
+
+extern JS_PUBLIC_API(void)
+JS_SetFutexCanWait(JSRuntime* rt);
 
 namespace js {
 
@@ -1094,6 +1095,7 @@ class JS_PUBLIC_API(RuntimeOptions) {
       : baseline_(true),
         ion_(true),
         asmJS_(true),
+        wasm_(false),
         throwOnAsmJSValidationFailure_(false),
         nativeRegExp_(true),
         unboxedArrays_(false),
@@ -1138,6 +1140,16 @@ class JS_PUBLIC_API(RuntimeOptions) {
     }
     RuntimeOptions& toggleAsmJS() {
         asmJS_ = !asmJS_;
+        return *this;
+    }
+
+    bool wasm() const { return wasm_; }
+    RuntimeOptions& setWasm(bool flag) {
+        wasm_ = flag;
+        return *this;
+    }
+    RuntimeOptions& toggleWasm() {
+        wasm_ = !wasm_;
         return *this;
     }
 
@@ -1221,6 +1233,7 @@ class JS_PUBLIC_API(RuntimeOptions) {
     bool baseline_ : 1;
     bool ion_ : 1;
     bool asmJS_ : 1;
+    bool wasm_ : 1;
     bool throwOnAsmJSValidationFailure_ : 1;
     bool nativeRegExp_ : 1;
     bool unboxedArrays_ : 1;
@@ -1320,6 +1333,10 @@ JS_GetImplementationVersion(void);
 
 extern JS_PUBLIC_API(void)
 JS_SetDestroyCompartmentCallback(JSRuntime* rt, JSDestroyCompartmentCallback callback);
+
+extern JS_PUBLIC_API(void)
+JS_SetSizeOfIncludingThisCompartmentCallback(JSRuntime* rt,
+                                             JSSizeOfIncludingThisCompartmentCallback callback);
 
 extern JS_PUBLIC_API(void)
 JS_SetDestroyZoneCallback(JSRuntime* rt, JSZoneCallback callback);
@@ -1822,6 +1839,9 @@ typedef enum JSGCParamKey {
 
     /** Whether compacting GC is enabled. */
     JSGC_COMPACTING_ENABLED = 23,
+
+    /** If true, painting can trigger IGC slices. */
+    JSGC_REFRESH_FRAME_SLICES_ENABLED = 24,
 } JSGCParamKey;
 
 extern JS_PUBLIC_API(void)
@@ -2479,7 +2499,7 @@ enum OnNewGlobalHookOption {
 extern JS_PUBLIC_API(JSObject*)
 JS_NewGlobalObject(JSContext* cx, const JSClass* clasp, JSPrincipals* principals,
                    JS::OnNewGlobalHookOption hookOption,
-                   const JS::CompartmentOptions& options = JS::CompartmentOptions());
+                   const JS::CompartmentOptions& options);
 /**
  * Spidermonkey does not have a good way of keeping track of what compartments should be marked on
  * their own. We can mark the roots unconditionally, but marking GC things only relevant in live
@@ -2818,6 +2838,16 @@ ObjectToCompletePropertyDescriptor(JSContext* cx,
                                    JS::HandleObject obj,
                                    JS::HandleValue descriptor,
                                    JS::MutableHandle<PropertyDescriptor> desc);
+
+/*
+ * ES6 draft rev 32 (2015 Feb 2) 6.2.4.4 FromPropertyDescriptor(Desc).
+ *
+ * If desc.object() is null, then vp is set to undefined.
+ */
+extern JS_PUBLIC_API(bool)
+FromPropertyDescriptor(JSContext* cx,
+                       JS::Handle<JS::PropertyDescriptor> desc,
+                       JS::MutableHandleValue vp);
 
 } // namespace JS
 
@@ -3562,20 +3592,8 @@ JS_IsNativeFunction(JSObject* funobj, JSNative call);
 extern JS_PUBLIC_API(bool)
 JS_IsConstructor(JSFunction* fun);
 
-/**
- * This enum is used to select if properties with JSPROP_DEFINE_LATE flag
- * should be defined on the object.
- * Normal JSAPI consumers probably always want DefineAllProperties here.
- */
-enum PropertyDefinitionBehavior {
-    DefineAllProperties,
-    OnlyDefineLateProperties,
-    DontDefineLateProperties
-};
-
 extern JS_PUBLIC_API(bool)
-JS_DefineFunctions(JSContext* cx, JS::Handle<JSObject*> obj, const JSFunctionSpec* fs,
-                   PropertyDefinitionBehavior behavior = DefineAllProperties);
+JS_DefineFunctions(JSContext* cx, JS::Handle<JSObject*> obj, const JSFunctionSpec* fs);
 
 extern JS_PUBLIC_API(JSFunction*)
 JS_DefineFunction(JSContext* cx, JS::Handle<JSObject*> obj, const char* name, JSNative call,
@@ -4271,6 +4289,159 @@ JS_GetInterruptCallback(JSRuntime* rt);
 extern JS_PUBLIC_API(void)
 JS_RequestInterruptCallback(JSRuntime* rt);
 
+namespace JS {
+
+/**
+ * Sets the callback that's invoked whenever a Promise job should be enqeued.
+ *
+ * SpiderMonkey doesn't schedule Promise resolution jobs itself; instead,
+ * using this function the embedding can provide a callback to do that
+ * scheduling. The provided `callback` is invoked with the promise job
+ * and the `data` pointer passed here as arguments.
+ */
+extern JS_PUBLIC_API(void)
+SetEnqueuePromiseJobCallback(JSRuntime* rt, JSEnqueuePromiseJobCallback callback,
+                             void* data = nullptr);
+
+/**
+ * Returns a new instance of the Promise builtin class in the current
+ * compartment, with the right slot layout. If a `proto` is passed, that gets
+ * set as the instance's [[Prototype]] instead of the original value of
+ * `Promise.prototype`.
+ */
+extern JS_PUBLIC_API(JSObject*)
+NewPromiseObject(JSContext* cx, JS::HandleObject executor, JS::HandleObject proto = nullptr);
+
+/**
+ * Returns true if the given object is an unwrapped PromiseObject, false
+ * otherwise.
+ */
+extern JS_PUBLIC_API(bool)
+IsPromiseObject(JS::HandleObject obj);
+
+/**
+ * Returns the current compartment's original Promise constructor.
+ */
+extern JS_PUBLIC_API(JSObject*)
+GetPromiseConstructor(JSContext* cx);
+
+/**
+ * Returns the current compartment's original Promise.prototype.
+ */
+extern JS_PUBLIC_API(JSObject*)
+GetPromisePrototype(JSContext* cx);
+
+// Keep this in sync with the PROMISE_STATE defines in SelfHostingDefines.h.
+enum class PromiseState {
+    Pending,
+    Fulfilled,
+    Rejected
+};
+
+/**
+ * Returns the given Promise's state as a JS::PromiseState enum value.
+ */
+extern JS_PUBLIC_API(PromiseState)
+GetPromiseState(JS::HandleObject promise);
+
+/**
+ * Returns the given Promise's process-unique ID.
+ */
+JS_PUBLIC_API(double)
+GetPromiseID(JS::HandleObject promise);
+
+/**
+ * Returns the given Promise's result: either the resolution value for
+ * fulfilled promises, or the rejection reason for rejected ones.
+ */
+extern JS_PUBLIC_API(JS::Value)
+GetPromiseResult(JS::HandleObject promise);
+
+/**
+ * Returns a js::SavedFrame linked list of the stack that lead to the given
+ * Promise's allocation.
+ */
+extern JS_PUBLIC_API(JSObject*)
+GetPromiseAllocationSite(JS::HandleObject promise);
+
+extern JS_PUBLIC_API(JSObject*)
+GetPromiseResolutionSite(JS::HandleObject promise);
+
+/**
+ * Calls the current compartment's original Promise.resolve on the original
+ * Promise constructor, with `resolutionValue` passed as an argument.
+ */
+extern JS_PUBLIC_API(JSObject*)
+CallOriginalPromiseResolve(JSContext* cx, JS::HandleValue resolutionValue);
+
+/**
+ * Calls the current compartment's original Promise.reject on the original
+ * Promise constructor, with `resolutionValue` passed as an argument.
+ */
+extern JS_PUBLIC_API(JSObject*)
+CallOriginalPromiseReject(JSContext* cx, JS::HandleValue rejectionValue);
+
+/**
+ * Resolves the given Promise with the given `resolutionValue`.
+ *
+ * Calls the `resolve` function that was passed to the executor function when
+ * the Promise was created.
+ */
+extern JS_PUBLIC_API(bool)
+ResolvePromise(JSContext* cx, JS::HandleObject promise, JS::HandleValue resolutionValue);
+
+/**
+ * Rejects the given `promise` with the given `rejectionValue`.
+ *
+ * Calls the `reject` function that was passed to the executor function when
+ * the Promise was created.
+ */
+extern JS_PUBLIC_API(bool)
+RejectPromise(JSContext* cx, JS::HandleObject promise, JS::HandleValue rejectionValue);
+
+/**
+ * Calls the current compartment's original Promise.prototype.then on the
+ * given `promise`, with `onResolve` and `onReject` passed as arguments.
+ *
+ * Asserts if the passed-in `promise` object isn't an unwrapped instance of
+ * `Promise` or a subclass or `onResolve` and `onReject` aren't both either
+ * `nullptr` or callable objects.
+ */
+extern JS_PUBLIC_API(JSObject*)
+CallOriginalPromiseThen(JSContext* cx, JS::HandleObject promise,
+                        JS::HandleObject onResolve, JS::HandleObject onReject);
+
+/**
+ * Unforgeable, optimized version of the JS builtin Promise.prototype.then.
+ *
+ * Takes a Promise instance and `onResolve`, `onReject` callables to enqueue
+ * as reactions for that promise. In difference to Promise.prototype.then,
+ * this doesn't create and return a new Promise instance.
+ *
+ * Asserts if the passed-in `promise` object isn't an unwrapped instance of
+ * `Promise` or a subclass or `onResolve` and `onReject` aren't both callable
+ * objects.
+ */
+extern JS_PUBLIC_API(bool)
+AddPromiseReactions(JSContext* cx, JS::HandleObject promise,
+                    JS::HandleObject onResolve, JS::HandleObject onReject);
+
+/**
+ * Unforgeable version of the JS builtin Promise.all.
+ *
+ * Takes an AutoObjectVector of Promise objects and returns a promise that's
+ * resolved with an array of resolution values when all those promises ahve
+ * been resolved, or rejected with the rejection value of the first rejected
+ * promise.
+ *
+ * Asserts if the array isn't dense or one of the entries isn't an unwrapped
+ * instance of Promise or a subclass.
+ */
+extern JS_PUBLIC_API(JSObject*)
+GetWaitForAllPromise(JSContext* cx, const JS::AutoObjectVector& promises);
+
+} // namespace JS
+
 extern JS_PUBLIC_API(bool)
 JS_IsRunning(JSContext* cx);
 
@@ -4314,7 +4485,7 @@ class MOZ_STACK_CLASS JS_PUBLIC_API(AutoSetAsyncStackForNewCalls)
 {
     JSContext* cx;
     RootedObject oldAsyncStack;
-    RootedString oldAsyncCause;
+    const char* oldAsyncCause;
     bool oldAsyncCallIsExplicit;
 
   public:
@@ -4331,8 +4502,13 @@ class MOZ_STACK_CLASS JS_PUBLIC_API(AutoSetAsyncStackForNewCalls)
     // ambiguous whether that would clear any scheduled async stack and make the
     // normal stack reappear in the new call, or just keep the async stack
     // already scheduled for the new call, if any.
+    //
+    // asyncCause is owned by the caller and its lifetime must outlive the
+    // lifetime of the AutoSetAsyncStackForNewCalls object. It is strongly
+    // encouraged that asyncCause be a string constant or similar statically
+    // allocated string.
     AutoSetAsyncStackForNewCalls(JSContext* cx, HandleObject stack,
-                                 HandleString asyncCause,
+                                 const char* asyncCause,
                                  AsyncCallKind kind = AsyncCallKind::IMPLICIT);
     ~AutoSetAsyncStackForNewCalls();
 };
@@ -4360,6 +4536,12 @@ extern JS_PUBLIC_API(JSString*)
 JS_AtomizeAndPinJSString(JSContext* cx, JS::HandleString str);
 
 extern JS_PUBLIC_API(JSString*)
+JS_AtomizeStringN(JSContext* cx, const char* s, size_t length);
+
+extern JS_PUBLIC_API(JSString*)
+JS_AtomizeString(JSContext* cx, const char* s);
+
+extern JS_PUBLIC_API(JSString*)
 JS_AtomizeAndPinStringN(JSContext* cx, const char* s, size_t length);
 
 extern JS_PUBLIC_API(JSString*)
@@ -4373,6 +4555,12 @@ JS_NewUCStringCopyN(JSContext* cx, const char16_t* s, size_t n);
 
 extern JS_PUBLIC_API(JSString*)
 JS_NewUCStringCopyZ(JSContext* cx, const char16_t* s);
+
+extern JS_PUBLIC_API(JSString*)
+JS_AtomizeUCStringN(JSContext* cx, const char16_t* s, size_t length);
+
+extern JS_PUBLIC_API(JSString*)
+JS_AtomizeUCString(JSContext* cx, const char16_t* s);
 
 extern JS_PUBLIC_API(JSString*)
 JS_AtomizeAndPinUCStringN(JSContext* cx, const char16_t* s, size_t length);
@@ -4583,7 +4771,7 @@ class MOZ_RAII JSAutoByteString
     }
 
     ~JSAutoByteString() {
-        js_free(mBytes);
+        JS_free(nullptr, mBytes);
     }
 
     /* Take ownership of the given byte array. */
@@ -4628,7 +4816,7 @@ class MOZ_RAII JSAutoByteString
     }
 
   private:
-    char*       mBytes;
+    char* mBytes;
     MOZ_DECL_USE_GUARD_OBJECT_NOTIFIER
 
     /* Copy and assignment are not supported. */
@@ -4687,9 +4875,13 @@ GetSymbolDescription(HandleSymbol symbol);
 
 /* Well-known symbols. */
 #define JS_FOR_EACH_WELL_KNOWN_SYMBOL(macro) \
+    macro(isConcatSpreadable) \
     macro(iterator) \
     macro(match) \
+    macro(replace) \
+    macro(search) \
     macro(species) \
+    macro(split) \
     macro(toPrimitive) \
     macro(hasInstance) \
     macro(unscopables)
@@ -4763,6 +4955,31 @@ typedef bool (* JSONWriteCallback)(const char16_t* buf, uint32_t len, void* data
 JS_PUBLIC_API(bool)
 JS_Stringify(JSContext* cx, JS::MutableHandleValue value, JS::HandleObject replacer,
              JS::HandleValue space, JSONWriteCallback callback, void* data);
+
+namespace JS {
+
+/**
+ * An API akin to JS_Stringify but with the goal of not having observable
+ * side-effects when the stringification is performed.  This means it does not
+ * allow a replacer or a custom space, and has the following constraints on its
+ * input:
+ *
+ * 1) The input must be a plain object or array, not an abitrary value.
+ * 2) Every value in the graph reached by the algorithm starting with this
+ *    object must be one of the following: null, undefined, a string (NOT a
+ *    string object!), a boolean, a finite number (i.e. no NaN or Infinity or
+ *    -Infinity), a plain object with no accessor properties, or an Array with
+ *    no holes.
+ *
+ * The actual behavior differs from JS_Stringify only in asserting the above and
+ * NOT attempting to get the "toJSON" property from things, since that could
+ * clearly have side-effects.
+ */
+JS_PUBLIC_API(bool)
+ToJSONMaybeSafely(JSContext* cx, JS::HandleObject input,
+                  JSONWriteCallback callback, void* data);
+
+} /* namespace JS */
 
 /**
  * JSON.parse as specified by ES5.
@@ -4899,26 +5116,43 @@ JS_ReportAllocationOverflow(JSContext* cx);
 
 class JSErrorReport
 {
+    // Offending source line without final '\n'.
+    const char16_t* linebuf_;
+
+    // Number of chars in linebuf_. Does not include trailing '\0'.
+    size_t linebufLength_;
+
+    // The 0-based offset of error token in linebuf_.
+    size_t tokenOffset_;
+
   public:
     JSErrorReport()
-      : filename(nullptr), lineno(0), column(0), isMuted(false), linebuf(nullptr),
-        tokenptr(nullptr), uclinebuf(nullptr), uctokenptr(nullptr), flags(0), errorNumber(0),
-        ucmessage(nullptr), messageArgs(nullptr), exnType(0)
+      : linebuf_(nullptr), linebufLength_(0), tokenOffset_(0),
+        filename(nullptr), lineno(0), column(0), isMuted(false),
+        flags(0), errorNumber(0), ucmessage(nullptr),
+        messageArgs(nullptr), exnType(0)
     {}
 
     const char*     filename;      /* source file name, URL, etc., or null */
     unsigned        lineno;         /* source line number */
     unsigned        column;         /* zero-based column index in line */
     bool            isMuted;        /* See the comment in ReadOnlyCompileOptions. */
-    const char*     linebuf;       /* offending source line without final \n */
-    const char*     tokenptr;      /* pointer to error token in linebuf */
-    const char16_t* uclinebuf;     /* unicode (original) line buffer */
-    const char16_t* uctokenptr;    /* unicode (original) token pointer */
     unsigned        flags;          /* error/warning, etc. */
     unsigned        errorNumber;    /* the error number, e.g. see js.msg */
     const char16_t* ucmessage;     /* the (default) error message */
     const char16_t** messageArgs;  /* arguments for the error message */
     int16_t         exnType;        /* One of the JSExnType constants */
+
+    const char16_t* linebuf() const {
+        return linebuf_;
+    }
+    size_t linebufLength() const {
+        return linebufLength_;
+    }
+    size_t tokenOffset() const {
+        return tokenOffset_;
+    }
+    void initLinebuf(const char16_t* linebuf, size_t linebufLength, size_t tokenOffset);
 };
 
 /*
@@ -5084,16 +5318,13 @@ JS_ObjectIsDate(JSContext* cx, JS::HandleObject obj, bool* isDate);
 #define JSREG_UNICODE   0x10u   /* unicode */
 
 extern JS_PUBLIC_API(JSObject*)
-JS_NewRegExpObject(JSContext* cx, JS::HandleObject obj, const char* bytes, size_t length,
-                   unsigned flags);
+JS_NewRegExpObject(JSContext* cx, const char* bytes, size_t length, unsigned flags);
 
 extern JS_PUBLIC_API(JSObject*)
-JS_NewUCRegExpObject(JSContext* cx, JS::HandleObject obj, const char16_t* chars, size_t length,
-                     unsigned flags);
+JS_NewUCRegExpObject(JSContext* cx, const char16_t* chars, size_t length, unsigned flags);
 
 extern JS_PUBLIC_API(bool)
-JS_SetRegExpInput(JSContext* cx, JS::HandleObject obj, JS::HandleString input,
-                  bool multiline);
+JS_SetRegExpInput(JSContext* cx, JS::HandleObject obj, JS::HandleString input);
 
 extern JS_PUBLIC_API(bool)
 JS_ClearRegExpStatics(JSContext* cx, JS::HandleObject obj);
@@ -5104,12 +5335,6 @@ JS_ExecuteRegExp(JSContext* cx, JS::HandleObject obj, JS::HandleObject reobj,
                  JS::MutableHandleValue rval);
 
 /* RegExp interface for clients without a global object. */
-
-extern JS_PUBLIC_API(JSObject*)
-JS_NewRegExpObjectNoStatics(JSContext* cx, char* bytes, size_t length, unsigned flags);
-
-extern JS_PUBLIC_API(JSObject*)
-JS_NewUCRegExpObjectNoStatics(JSContext* cx, char16_t* chars, size_t length, unsigned flags);
 
 extern JS_PUBLIC_API(bool)
 JS_ExecuteRegExpNoStatics(JSContext* cx, JS::HandleObject reobj, char16_t* chars, size_t length,
@@ -5225,8 +5450,15 @@ JS_DropExceptionState(JSContext* cx, JSExceptionState* state);
 extern JS_PUBLIC_API(JSErrorReport*)
 JS_ErrorFromException(JSContext* cx, JS::HandleObject obj);
 
+/**
+ * If the given object is an exception object (or an unwrappable
+ * cross-compartment wrapper for one), return the stack for that exception, if
+ * any.  Will return null if the given object is not an exception object
+ * (including if it's null or a security wrapper that can't be unwrapped) or if
+ * the exception has no stack.
+ */
 extern JS_PUBLIC_API(JSObject*)
-ExceptionStackOrNull(JSContext* cx, JS::HandleObject obj);
+ExceptionStackOrNull(JS::HandleObject obj);
 
 /*
  * Throws a StopIteration exception on cx.
@@ -5293,7 +5525,8 @@ JS_SetOffthreadIonCompilationEnabled(JSRuntime* rt, bool enabled);
     Register(BASELINE_ENABLE, "baseline.enable")                           \
     Register(OFFTHREAD_COMPILATION_ENABLE, "offthread-compilation.enable") \
     Register(SIGNALS_ENABLE, "signals.enable")                             \
-    Register(JUMP_THRESHOLD, "jump-threshold")
+    Register(JUMP_THRESHOLD, "jump-threshold")                             \
+    Register(WASM_TEST_MODE, "wasm.test-mode")
 
 typedef enum JSJitCompilerOption {
 #define JIT_COMPILER_DECLARE(key, str) \
@@ -5338,7 +5571,39 @@ JS_IsIdentifier(JSContext* cx, JS::HandleString str, bool* isIdentifier);
 extern JS_PUBLIC_API(bool)
 JS_IsIdentifier(const char16_t* chars, size_t length);
 
+namespace js {
+class ScriptSource;
+} // namespace js
+
 namespace JS {
+
+class MOZ_RAII JS_PUBLIC_API(AutoFilename)
+{
+  private:
+    js::ScriptSource* ss_;
+    mozilla::Variant<const char*, UniqueChars> filename_;
+
+    AutoFilename(const AutoFilename&) = delete;
+    AutoFilename& operator=(const AutoFilename&) = delete;
+
+  public:
+    AutoFilename()
+      : ss_(nullptr),
+        filename_(mozilla::AsVariant<const char*>(nullptr))
+    {}
+
+    ~AutoFilename() {
+        reset();
+    }
+
+    void reset();
+
+    void setOwned(UniqueChars&& filename);
+    void setUnowned(const char* filename);
+    void setScriptSource(js::ScriptSource* ss);
+
+    const char* get() const;
+};
 
 /**
  * Return the current filename, line number and column number of the most
@@ -5349,7 +5614,7 @@ namespace JS {
  * record, this will also return false.
  */
 extern JS_PUBLIC_API(bool)
-DescribeScriptedCaller(JSContext* cx, UniqueChars* filename = nullptr,
+DescribeScriptedCaller(JSContext* cx, AutoFilename* filename = nullptr,
                        unsigned* lineno = nullptr, unsigned* column = nullptr);
 
 extern JS_PUBLIC_API(JSObject*)
@@ -5483,11 +5748,13 @@ struct AsmJSCacheOps
     CloseAsmJSCacheEntryForReadOp closeEntryForRead;
     OpenAsmJSCacheEntryForWriteOp openEntryForWrite;
     CloseAsmJSCacheEntryForWriteOp closeEntryForWrite;
-    BuildIdOp buildId;
 };
 
 extern JS_PUBLIC_API(void)
 SetAsmJSCacheOps(JSRuntime* rt, const AsmJSCacheOps* callbacks);
+
+extern JS_PUBLIC_API(void)
+SetBuildIdOp(JSRuntime* rt, BuildIdOp buildIdOp);
 
 /**
  * Convenience class for imitating a JS level for-of loop. Typical usage:
@@ -5737,6 +6004,13 @@ GetSavedFrameParent(JSContext* cx, HandleObject savedFrame, MutableHandleObject 
  */
 extern JS_PUBLIC_API(bool)
 BuildStackString(JSContext* cx, HandleObject stack, MutableHandleString stringp, size_t indent = 0);
+
+/**
+ * Return true iff the given object is either a SavedFrame object or wrapper
+ * around a SavedFrame object, and it is not the SavedFrame.prototype object.
+ */
+extern JS_PUBLIC_API(bool)
+IsSavedFrame(JSObject* obj);
 
 } /* namespace JS */
 

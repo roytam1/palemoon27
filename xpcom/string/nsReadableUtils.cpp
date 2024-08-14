@@ -28,7 +28,7 @@ CopyASCIItoUTF16(const nsACString& aSource, nsAString& aDest)
 }
 
 void
-LossyCopyUTF16toASCII(const char16_t* aSource, nsACString& aDest)
+LossyCopyUTF16toASCII(const char16ptr_t aSource, nsACString& aDest)
 {
   aDest.Truncate();
   if (aSource) {
@@ -74,7 +74,7 @@ CopyUTF8toUTF16(const nsACString& aSource, nsAString& aDest)
 }
 
 void
-CopyUTF16toUTF8(const char16_t* aSource, nsACString& aDest)
+CopyUTF16toUTF8(const char16ptr_t aSource, nsACString& aDest)
 {
   aDest.Truncate();
   AppendUTF16toUTF8(aSource, aDest);
@@ -141,7 +141,7 @@ AppendASCIItoUTF16(const nsACString& aSource, nsAString& aDest,
 }
 
 void
-LossyAppendUTF16toASCII(const char16_t* aSource, nsACString& aDest)
+LossyAppendUTF16toASCII(const char16ptr_t aSource, nsACString& aDest)
 {
   if (aSource) {
     LossyAppendUTF16toASCII(nsDependentString(aSource), aDest);
@@ -261,7 +261,7 @@ AppendUTF8toUTF16(const nsACString& aSource, nsAString& aDest,
 }
 
 void
-AppendUTF16toUTF8(const char16_t* aSource, nsACString& aDest)
+AppendUTF16toUTF8(const char16ptr_t aSource, nsACString& aDest)
 {
   if (aSource) {
     AppendUTF16toUTF8(nsDependentString(aSource), aDest);
@@ -1033,6 +1033,17 @@ CountCharInReadable(const nsACString& aStr, char aChar)
 }
 
 bool
+StringBeginsWith(const nsAString& aSource, const nsAString& aSubstring)
+{
+  nsAString::size_type src_len = aSource.Length(),
+                       sub_len = aSubstring.Length();
+  if (sub_len > src_len) {
+    return false;
+  }
+  return Substring(aSource, 0, sub_len).Equals(aSubstring);
+}
+
+bool
 StringBeginsWith(const nsAString& aSource, const nsAString& aSubstring,
                  const nsStringComparator& aComparator)
 {
@@ -1042,6 +1053,17 @@ StringBeginsWith(const nsAString& aSource, const nsAString& aSubstring,
     return false;
   }
   return Substring(aSource, 0, sub_len).Equals(aSubstring, aComparator);
+}
+
+bool
+StringBeginsWith(const nsACString& aSource, const nsACString& aSubstring)
+{
+  nsACString::size_type src_len = aSource.Length(),
+                        sub_len = aSubstring.Length();
+  if (sub_len > src_len) {
+    return false;
+  }
+  return Substring(aSource, 0, sub_len).Equals(aSubstring);
 }
 
 bool
@@ -1057,6 +1079,17 @@ StringBeginsWith(const nsACString& aSource, const nsACString& aSubstring,
 }
 
 bool
+StringEndsWith(const nsAString& aSource, const nsAString& aSubstring)
+{
+  nsAString::size_type src_len = aSource.Length(),
+                       sub_len = aSubstring.Length();
+  if (sub_len > src_len) {
+    return false;
+  }
+  return Substring(aSource, src_len - sub_len, sub_len).Equals(aSubstring);
+}
+
+bool
 StringEndsWith(const nsAString& aSource, const nsAString& aSubstring,
                const nsStringComparator& aComparator)
 {
@@ -1067,6 +1100,17 @@ StringEndsWith(const nsAString& aSource, const nsAString& aSubstring,
   }
   return Substring(aSource, src_len - sub_len, sub_len).Equals(aSubstring,
                                                                aComparator);
+}
+
+bool
+StringEndsWith(const nsACString& aSource, const nsACString& aSubstring)
+{
+  nsACString::size_type src_len = aSource.Length(),
+                        sub_len = aSubstring.Length();
+  if (sub_len > src_len) {
+    return false;
+  }
+  return Substring(aSource, src_len - sub_len, sub_len).Equals(aSubstring);
 }
 
 bool

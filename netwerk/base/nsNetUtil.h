@@ -317,6 +317,14 @@ nsresult NS_NewInputStreamChannelInternal(nsIChannel        **outChannel,
                                           nsContentPolicyType aContentPolicyType,
                                           bool                aIsSrcdocChannel = false);
 
+nsresult
+NS_NewInputStreamChannelInternal(nsIChannel        **outChannel,
+                                 nsIURI             *aUri,
+                                 const nsAString    &aData,
+                                 const nsACString   &aContentType,
+                                 nsILoadInfo        *aLoadInfo,
+                                 bool                aIsSrcdocChannel = false);
+
 nsresult NS_NewInputStreamChannel(nsIChannel        **outChannel,
                                   nsIURI             *aUri,
                                   const nsAString    &aData,
@@ -989,6 +997,13 @@ nsresult NS_ShouldSecureUpgrade(nsIURI* aURI,
                                 bool aPrivateBrowsing,
                                 bool aAllowSTS,
                                 bool& aShouldUpgrade);
+
+/**
+ * Returns an https URI for channels that need to go through secure upgrades.
+ */
+nsresult NS_GetSecureUpgradedURI(nsIURI* aURI, nsIURI** aUpgradedURI);
+
+nsresult NS_CompareLoadInfoAndLoadContext(nsIChannel *aChannel);
 
 namespace mozilla {
 namespace net {

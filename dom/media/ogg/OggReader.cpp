@@ -22,6 +22,8 @@ extern "C" {
 #include "MediaMetadataManager.h"
 #include "nsISeekableStream.h"
 #include "gfx2DGlue.h"
+#include "mozilla/Telemetry.h"
+#include "nsPrintfCString.h"
 
 using namespace mozilla::gfx;
 using namespace mozilla::media;
@@ -148,6 +150,17 @@ OggReader::~OggReader()
 {
   ogg_sync_clear(&mOggState);
   MOZ_COUNT_DTOR(OggReader);
+  if (HasAudio() || HasVideo()) {
+    // If we were able to initialize our decoders, report whether we encountered
+    // a chained stream or not.
+    ReentrantMonitorAutoEnter mon(mMonitor);
+    bool isChained = mIsChained;
+    nsCOMPtr<nsIRunnable> task = NS_NewRunnableFunction([=]() -> void {
+      LOG(LogLevel::Debug, (nsPrintfCString("Reporting telemetry MEDIA_OGG_LOADED_IS_CHAINED=%d", isChained).get()));
+      Telemetry::Accumulate(Telemetry::ID::MEDIA_OGG_LOADED_IS_CHAINED, isChained);
+    });
+    AbstractThread::MainThread()->Dispatch(task.forget());
+  }
 }
 
 nsresult OggReader::Init() {
@@ -515,7 +528,10 @@ nsresult OggReader::DecodeVorbis(ogg_packet* aPacket) {
   ogg_int64_t endFrame = aPacket->granulepos;
   while ((frames = vorbis_synthesis_pcmout(&mVorbisState->mDsp, &pcm)) > 0) {
     mVorbisState->ValidateVorbisPacketSamples(aPacket, frames);
-    auto buffer = MakeUnique<AudioDataValue[]>(frames * channels);
+    AlignedAudioBuffer buffer(frames * channels);
+    if (!buffer) {
+      return NS_ERROR_OUT_OF_MEMORY;
+    }
     for (uint32_t j = 0; j < channels; ++j) {
       VorbisPCMValue* channel = pcm[j];
       for (uint32_t i = 0; i < uint32_t(frames); ++i) {
@@ -564,7 +580,10 @@ nsresult OggReader::DecodeOpus(ogg_packet* aPacket) {
   if (frames < 120 || frames > 5760)
     return NS_ERROR_FAILURE;
   uint32_t channels = mOpusState->mChannels;
-  auto buffer = MakeUnique<AudioDataValue[]>(frames * channels);
+  AlignedAudioBuffer buffer(frames * channels);
+  if (!buffer) {
+    return NS_ERROR_OUT_OF_MEMORY;
+  }
 
   // Decode to the appropriate sample type.
 #ifdef MOZ_SAMPLE_TYPE_FLOAT32
@@ -604,7 +623,10 @@ nsresult OggReader::DecodeOpus(ogg_packet* aPacket) {
     }
     int32_t keepFrames = frames - skipFrames;
     int samples = keepFrames * channels;
-    auto trimBuffer = MakeUnique<AudioDataValue[]>(samples);
+    AlignedAudioBuffer trimBuffer(samples);
+    if (!trimBuffer) {
+      return NS_ERROR_OUT_OF_MEMORY;
+    }
     for (int i = 0; i < samples; i++)
       trimBuffer[i] = buffer[skipFrames*channels + i];
 
@@ -704,10 +726,13 @@ bool OggReader::DecodeAudioData()
   return true;
 }
 
-void OggReader::SetChained(bool aIsChained) {
+void OggReader::SetChained() {
   {
     ReentrantMonitorAutoEnter mon(mMonitor);
-    mIsChained = aIsChained;
+    if (mIsChained) {
+      return;
+    }
+    mIsChained = true;
   }
   mOnMediaNotSeekable.Notify();
 }
@@ -800,7 +825,7 @@ bool OggReader::ReadOggChain()
   }
 
   if (chained) {
-    SetChained(true);
+    SetChained();
     {
       auto t = mDecodedAudioFrames * USECS_PER_S / mInfo.mAudio.mRate;
       mTimedMetadataEvent.Notify(
@@ -1139,7 +1164,7 @@ int64_t OggReader::RangeEndTime(int64_t aStartOffset,
       // This page is from a bitstream which we haven't encountered yet.
       // It's probably from a new "link" in a "chained" ogg. Don't
       // bother even trying to find a duration...
-      SetChained(true);
+      SetChained();
       endTime = -1;
       break;
     }
@@ -1913,7 +1938,7 @@ media::TimeIntervals OggReader::GetBuffered()
         // ogg), return OK to abort the finding any further ranges. This
         // prevents us searching through the rest of the media when we
         // may not be able to extract timestamps from it.
-        SetChained(true);
+        SetChained();
         return buffered;
       }
     }

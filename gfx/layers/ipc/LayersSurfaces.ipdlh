@@ -93,7 +93,7 @@ struct SurfaceDescriptorSharedGLTexture {
   bool hasAlpha;
 };
 
-struct NewSurfaceDescriptorGralloc {
+struct SurfaceDescriptorGralloc {
   MaybeMagicGrallocBufferHandle buffer;
   bool isOpaque;
 };
@@ -101,6 +101,7 @@ struct NewSurfaceDescriptorGralloc {
 struct RGBDescriptor {
   IntSize size;
   SurfaceFormat format;
+  bool hasIntermediateBuffer;
 };
 
 struct YCbCrDescriptor {
@@ -138,7 +139,7 @@ union SurfaceDescriptor {
   SurfaceTextureDescriptor;
   EGLImageDescriptor;
   SurfaceDescriptorMacIOSurface;
-  NewSurfaceDescriptorGralloc;
+  SurfaceDescriptorGralloc;
   SurfaceDescriptorSharedGLTexture;
   null_t;
 };

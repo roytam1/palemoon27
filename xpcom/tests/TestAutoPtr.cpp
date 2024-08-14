@@ -184,14 +184,6 @@ int main()
     }
 
     {
-        printf("Should create 3 |TestObject|s:\n");
-        nsAutoArrayPtr<TestObject> pobj( new TestObject[3] );
-        printf("Should create 5 |TestObject|s and then destroy 3:\n");
-        pobj = new TestObject[5];
-        printf("Should destroy 5 |TestObject|s:\n");
-    }
-
-    {
         printf("Should create and AddRef one |TestRefObject|:\n");
         RefPtr<TestRefObject> pobj( new TestRefObject() );
         printf("Should Release and destroy one |TestRefObject|:\n");
@@ -319,8 +311,10 @@ int main()
 
     printf("\nTesting casts and equality tests.\n");
 
-    if ((void*)(TestObject*)0x1000 ==
-        (void*)(TestObjectBaseB*)(TestObject*)0x1000)
+    // This comparison is always false, as it should be. The extra parens
+    // suppress a -Wunreachable-code warning about printf being unreachable.
+    if (((void*)(TestObject*)0x1000) ==
+        ((void*)(TestObjectBaseB*)(TestObject*)0x1000))
         printf("\n\nAll these tests are meaningless!\n\n\n");
 
     {
@@ -380,14 +374,6 @@ int main()
     }
 
     {
-        printf("Should create 3 |TestObject|s:\n");
-        nsAutoArrayPtr<TestObject> pobj( new TestObject[3] );
-        printf("Should do nothing:\n");
-        nsAutoArrayPtr<TestObject> pobj2( pobj.forget() );
-        printf("Should destroy 3 |TestObject|s:\n");
-    }
-
-    {
         printf("Should create one |TestRefObject|:\n");
         RefPtr<TestRefObject> pobj( new TestRefObject() );
         printf("Should do nothing:\n");
@@ -395,19 +381,12 @@ int main()
         printf("Should destroy one |TestRefObject|:\n");
     }
 
-
     printf("\nTesting construction.\n");
 
     {
         printf("Should create one |TestObject|:\n");
         nsAutoPtr<TestObject> pobj(new TestObject());
         printf("Should destroy one |TestObject|:\n");
-    }
-
-    {
-        printf("Should create 3 |TestObject|s:\n");
-        nsAutoArrayPtr<TestObject> pobj(new TestObject[3]);
-        printf("Should destroy 3 |TestObject|s:\n");
     }
 
     {
@@ -429,20 +408,6 @@ int main()
     }
 
     {
-        printf("Should create 3 |TestObject|s:\n");
-        nsAutoArrayPtr<TestObject> pobj(new TestObject[3]);
-        printf("Should do something with one |TestObject|:\n");
-        DoSomethingWithTestObject(&pobj[2]);
-        printf("Should do something with one |TestObject|:\n");
-        DoSomethingWithConstTestObject(&pobj[1]);
-        printf("Should do something with one |TestObject|:\n");
-        DoSomethingWithTestObject(pobj + 2);
-        printf("Should do something with one |TestObject|:\n");
-        DoSomethingWithConstTestObject(pobj + 1);
-        printf("Should destroy 3 |TestObject|s:\n");
-    }
-
-    {
         printf("Should create and AddRef one |TestRefObject|:\n");
         RefPtr<TestRefObject> pobj = new TestRefObject();
         printf("Should do something with one |TestRefObject|:\n");
@@ -460,20 +425,6 @@ int main()
         printf("Should do something with one |TestObject|:\n");
         DoSomethingWithConstTestObjectBaseB(pobj);
         printf("Should destroy one |TestObject|:\n");
-    }
-
-    {
-        printf("Should create 3 |TestObject|s:\n");
-        nsAutoArrayPtr<TestObject> pobj(new TestObject[3]);
-        printf("Should do something with one |TestObject|:\n");
-        DoSomethingWithTestObjectBaseB(&pobj[2]);
-        printf("Should do something with one |TestObject|:\n");
-        DoSomethingWithConstTestObjectBaseB(&pobj[1]);
-        printf("Should do something with one |TestObject|:\n");
-        DoSomethingWithTestObjectBaseB(pobj + 2);
-        printf("Should do something with one |TestObject|:\n");
-        DoSomethingWithConstTestObjectBaseB(pobj + 1);
-        printf("Should destroy 3 |TestObject|s:\n");
     }
 
     {
@@ -497,20 +448,6 @@ int main()
     }
 
     {
-        printf("Should create 3 |TestObject|s:\n");
-        const nsAutoArrayPtr<TestObject> pobj(new TestObject[3]);
-        printf("Should do something with one |TestObject|:\n");
-        DoSomethingWithTestObject(&pobj[2]);
-        printf("Should do something with one |TestObject|:\n");
-        DoSomethingWithConstTestObject(&pobj[1]);
-        printf("Should do something with one |TestObject|:\n");
-        DoSomethingWithTestObject(pobj + 2);
-        printf("Should do something with one |TestObject|:\n");
-        DoSomethingWithConstTestObject(pobj + 1);
-        printf("Should destroy 3 |TestObject|s:\n");
-    }
-
-    {
         printf("Should create and AddRef one |TestRefObject|:\n");
         const RefPtr<TestRefObject> pobj = new TestRefObject();
         printf("Should do something with one |TestRefObject|:\n");
@@ -528,20 +465,6 @@ int main()
         printf("Should do something with one |TestObject|:\n");
         DoSomethingWithConstTestObjectBaseB(pobj);
         printf("Should destroy one |TestObject|:\n");
-    }
-
-    {
-        printf("Should create 3 |TestObject|s:\n");
-        const nsAutoArrayPtr<TestObject> pobj(new TestObject[3]);
-        printf("Should do something with one |TestObject|:\n");
-        DoSomethingWithTestObjectBaseB(&pobj[2]);
-        printf("Should do something with one |TestObject|:\n");
-        DoSomethingWithConstTestObjectBaseB(&pobj[1]);
-        printf("Should do something with one |TestObject|:\n");
-        DoSomethingWithTestObjectBaseB(pobj + 2);
-        printf("Should do something with one |TestObject|:\n");
-        DoSomethingWithConstTestObjectBaseB(pobj + 1);
-        printf("Should destroy 3 |TestObject|s:\n");
     }
 
     {

@@ -142,7 +142,8 @@ private:
   ErrorResult& mRv;
 };
 
-class BCPostMessageRunnable final : public nsICancelableRunnable
+class BCPostMessageRunnable final : public nsIRunnable,
+                                    public nsICancelableRunnable
 {
 public:
   NS_DECL_ISUPPORTS
@@ -190,7 +191,7 @@ public:
     return NS_OK;
   }
 
-  NS_IMETHODIMP Cancel() override
+  nsresult Cancel() override
   {
     mActor = nullptr;
     return NS_OK;
@@ -205,7 +206,8 @@ private:
 
 NS_IMPL_ISUPPORTS(BCPostMessageRunnable, nsICancelableRunnable, nsIRunnable)
 
-class CloseRunnable final : public nsICancelableRunnable
+class CloseRunnable final : public nsIRunnable,
+                            public nsICancelableRunnable
 {
 public:
   NS_DECL_ISUPPORTS
@@ -222,7 +224,7 @@ public:
     return NS_OK;
   }
 
-  NS_IMETHODIMP Cancel() override
+  nsresult Cancel() override
   {
     mBC = nullptr;
     return NS_OK;
@@ -236,7 +238,8 @@ private:
 
 NS_IMPL_ISUPPORTS(CloseRunnable, nsICancelableRunnable, nsIRunnable)
 
-class TeardownRunnable final : public nsICancelableRunnable
+class TeardownRunnable final : public nsIRunnable,
+                               public nsICancelableRunnable
 {
 public:
   NS_DECL_ISUPPORTS
@@ -256,7 +259,7 @@ public:
     return NS_OK;
   }
 
-  NS_IMETHODIMP Cancel() override
+  nsresult Cancel() override
   {
     mActor = nullptr;
     return NS_OK;
@@ -281,7 +284,7 @@ public:
     MOZ_COUNT_CTOR(BroadcastChannelFeature);
   }
 
-  virtual bool Notify(JSContext* aCx, workers::Status aStatus) override
+  virtual bool Notify(workers::Status aStatus) override
   {
     if (aStatus >= Closing) {
       mChannel->Shutdown();
@@ -420,8 +423,7 @@ BroadcastChannel::Constructor(const GlobalObject& aGlobal,
     }
   } else {
     bc->mWorkerFeature = new BroadcastChannelFeature(bc);
-    JSContext* cx = workerPrivate->GetJSContext();
-    if (NS_WARN_IF(!workerPrivate->AddFeature(cx, bc->mWorkerFeature))) {
+    if (NS_WARN_IF(!workerPrivate->AddFeature(bc->mWorkerFeature))) {
       NS_WARNING("Failed to register the BroadcastChannel worker feature.");
       bc->mWorkerFeature = nullptr;
       aRv.Throw(NS_ERROR_FAILURE);
@@ -545,7 +547,7 @@ BroadcastChannel::Shutdown()
 
   if (mWorkerFeature) {
     WorkerPrivate* workerPrivate = GetCurrentThreadWorkerPrivate();
-    workerPrivate->RemoveFeature(workerPrivate->GetJSContext(), mWorkerFeature);
+    workerPrivate->RemoveFeature(mWorkerFeature);
     mWorkerFeature = nullptr;
   }
 

@@ -9,10 +9,10 @@
 #include "MP4Demuxer.h"
 #include "mozilla/Preferences.h"
 #include "nsCharSeparatedTokenizer.h"
-#include "nsContentTypeParser.h"
-#include "VideoUtils.h"
 #include "mozilla/Logging.h"
 #include "nsMimeTypes.h"
+#include "nsContentTypeParser.h"
+#include "VideoUtils.h"
 
 #ifdef XP_WIN
 #include "mozilla/WindowsVersion.h"
@@ -92,7 +92,8 @@ IsWhitelistedH264Codec(const nsAString& aCodec)
 /* static */
 bool
 MP4Decoder::CanHandleMediaType(const nsACString& aMIMETypeExcludingCodecs,
-                               const nsAString& aCodecs)
+                               const nsAString& aCodecs,
+                               DecoderDoctorDiagnostics* aDiagnostics)
 {
   if (!IsEnabled()) {
     return false;
@@ -103,20 +104,17 @@ MP4Decoder::CanHandleMediaType(const nsACString& aMIMETypeExcludingCodecs,
   // etc output).
   const bool isMP4Audio = aMIMETypeExcludingCodecs.EqualsASCII("audio/mp4") ||
                           aMIMETypeExcludingCodecs.EqualsASCII("audio/x-m4a");
-  const bool isMP4Video = aMIMETypeExcludingCodecs.EqualsASCII("video/mp4") ||
-#ifdef XP_LINUX
-                          aMIMETypeExcludingCodecs.EqualsASCII("video/quicktime") ||
+  const bool isMP4Video =
+  // On B2G, treat 3GPP as MP4 when Gonk PDM is available.
+#ifdef MOZ_GONK_MEDIACODEC
+    aMIMETypeExcludingCodecs.EqualsASCII(VIDEO_3GPP) ||
 #endif
-                          aMIMETypeExcludingCodecs.EqualsASCII("video/x-m4v");
+    aMIMETypeExcludingCodecs.EqualsASCII("video/mp4") ||
+    aMIMETypeExcludingCodecs.EqualsASCII("video/quicktime") ||
+    aMIMETypeExcludingCodecs.EqualsASCII("video/x-m4v");
   if (!isMP4Audio && !isMP4Video) {
     return false;
   }
-
-#ifdef MOZ_GONK_MEDIACODEC
-  if (aMIMETypeExcludingCodecs.EqualsASCII(VIDEO_3GPP)) {
-    return Preferences::GetBool("media.gonk.enabled", false);
-  }
-#endif
 
   nsTArray<nsCString> codecMimes;
   if (aCodecs.IsEmpty()) {
@@ -158,7 +156,7 @@ MP4Decoder::CanHandleMediaType(const nsACString& aMIMETypeExcludingCodecs,
   PDMFactory::Init();
   RefPtr<PDMFactory> platform = new PDMFactory();
   for (const nsCString& codecMime : codecMimes) {
-    if (!platform->SupportsMimeType(codecMime)) {
+    if (!platform->SupportsMimeType(codecMime, aDiagnostics)) {
       return false;
     }
   }
@@ -167,7 +165,8 @@ MP4Decoder::CanHandleMediaType(const nsACString& aMIMETypeExcludingCodecs,
 }
 
 /* static */ bool
-MP4Decoder::CanHandleMediaType(const nsAString& aContentType)
+MP4Decoder::CanHandleMediaType(const nsAString& aContentType,
+                               DecoderDoctorDiagnostics* aDiagnostics)
 {
   nsContentTypeParser parser(aContentType);
   nsAutoString mimeType;
@@ -178,14 +177,16 @@ MP4Decoder::CanHandleMediaType(const nsAString& aContentType)
   nsString codecs;
   parser.GetParameter("codecs", codecs);
 
-  return CanHandleMediaType(NS_ConvertUTF16toUTF8(mimeType), codecs);
+  return CanHandleMediaType(NS_ConvertUTF16toUTF8(mimeType),
+                            codecs,
+                            aDiagnostics);
 }
 
 /* static */
 bool
 MP4Decoder::IsEnabled()
 {
-  return Preferences::GetBool("media.mp4.enabled");
+  return Preferences::GetBool("media.mp4.enabled", true);
 }
 
 // sTestH264ExtraData represents the content of the avcC atom found in
@@ -226,8 +227,7 @@ CreateTestH264Decoder(layers::LayersBackend aBackend,
   aConfig.mId = 1;
   aConfig.mDuration = 40000;
   aConfig.mMediaTime = 0;
-  aConfig.mDisplay = nsIntSize(640, 360);
-  aConfig.mImage = nsIntRect(0, 0, 640, 360);
+  aConfig.mImage = aConfig.mDisplay = nsIntSize(640, 360);
   aConfig.mExtraData = new MediaByteBuffer();
   aConfig.mExtraData->AppendElements(sTestH264ExtraData,
                                      MOZ_ARRAY_LENGTH(sTestH264ExtraData));
@@ -236,7 +236,9 @@ CreateTestH264Decoder(layers::LayersBackend aBackend,
 
   RefPtr<PDMFactory> platform = new PDMFactory();
   RefPtr<MediaDataDecoder> decoder(
-    platform->CreateDecoder(aConfig, aTaskQueue, nullptr, aBackend, nullptr));
+    platform->CreateDecoder(aConfig, aTaskQueue, nullptr,
+                            /* DecoderDoctorDiagnostics* */ nullptr,
+                            aBackend, nullptr));
 
   return decoder.forget();
 }
@@ -275,10 +277,10 @@ MP4Decoder::IsVideoAccelerated(layers::LayersBackend aBackend, nsIGlobalObject* 
                result.AssignLiteral("Yes");
              } else {
                result.AssignLiteral("No");
-               if (failureReason.Length()) {
-                 result.AppendLiteral("; ");
-                 AppendUTF8toUTF16(failureReason, result);
-               }
+             }
+             if (failureReason.Length()) {
+               result.AppendLiteral("; ");
+               AppendUTF8toUTF16(failureReason, result);
              }
              decoder->Shutdown();
              taskQueue->BeginShutdown();

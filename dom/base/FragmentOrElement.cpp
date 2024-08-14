@@ -112,7 +112,7 @@
 
 #include "mozAutoDocUpdate.h"
 
-#include "prprf.h"
+#include "mozilla/Snprintf.h"
 #include "nsDOMMutationObserver.h"
 #include "nsWrapperCacheInlines.h"
 #include "nsCycleCollector.h"
@@ -239,10 +239,15 @@ dom::Element*
 nsIContent::GetEditingHost()
 {
   // If this isn't editable, return nullptr.
-  NS_ENSURE_TRUE(IsEditableInternal(), nullptr);
+  if (!IsEditableInternal()) {
+    return nullptr;
+  }
 
   nsIDocument* doc = GetComposedDoc();
-  NS_ENSURE_TRUE(doc, nullptr);
+  if (!doc) {
+    return nullptr;
+  }
+
   // If this is in designMode, we should return <body>
   if (doc->HasFlag(NODE_IS_EDITABLE) && !IsInShadowTree()) {
     return doc->GetBodyElement();
@@ -275,7 +280,7 @@ nsIContent::LookupNamespaceURIInternal(const nsAString& aNamespacePrefix,
 
   nsCOMPtr<nsIAtom> name;
   if (!aNamespacePrefix.IsEmpty()) {
-    name = do_GetAtom(aNamespacePrefix);
+    name = NS_Atomize(aNamespacePrefix);
     NS_ENSURE_TRUE(name, NS_ERROR_OUT_OF_MEMORY);
   }
   else {
@@ -589,7 +594,9 @@ FragmentOrElement::nsDOMSlots::Unlink(bool aIsXUL)
   }
   if (aIsXUL)
     NS_IF_RELEASE(mControllers);
-  mXBLBinding = nullptr;
+
+  MOZ_ASSERT(!mXBLBinding);
+
   mXBLInsertionParent = nullptr;
   mShadowRoot = nullptr;
   mContainingShadow = nullptr;
@@ -635,7 +642,7 @@ FragmentOrElement::FragmentOrElement(already_AddRefed<mozilla::dom::NodeInfo>&& 
 
 FragmentOrElement::~FragmentOrElement()
 {
-  NS_PRECONDITION(!IsInDoc(),
+  NS_PRECONDITION(!IsInUncomposedDoc(),
                   "Please remove this from the document properly");
   if (GetParent()) {
     NS_RELEASE(mParent);
@@ -685,7 +692,7 @@ nsIContent::PreHandleEvent(EventChainPreVisitor& aVisitor)
       // dispatched or when we're about to propagate from
       // chrome access only subtree or if we are about to propagate out of
       // a shadow root to a shadow root host.
-      ((this == aVisitor.mEvent->originalTarget &&
+      ((this == aVisitor.mEvent->mOriginalTarget &&
         !ChromeOnlyAccess()) || isAnonForEvents || GetShadowRoot())) {
      nsCOMPtr<nsIContent> relatedTarget =
        do_QueryInterface(aVisitor.mEvent->AsMouseEvent()->relatedTarget);
@@ -710,7 +717,7 @@ nsIContent::PreHandleEvent(EventChainPreVisitor& aVisitor)
       // If this is the original target, aVisitor.mRelatedTargetIsInAnon
       // must be updated.
       if (isAnonForEvents || aVisitor.mRelatedTargetIsInAnon ||
-          (aVisitor.mEvent->originalTarget == this &&
+          (aVisitor.mEvent->mOriginalTarget == this &&
            (aVisitor.mRelatedTargetIsInAnon =
             relatedTarget->ChromeOnlyAccess()))) {
         nsIContent* anonOwner = FindChromeAccessOnlySubtreeOwner(this);
@@ -729,7 +736,7 @@ nsIContent::PreHandleEvent(EventChainPreVisitor& aVisitor)
             if (anonOwner == anonOwnerRelated) {
 #ifdef DEBUG_smaug
               nsCOMPtr<nsIContent> originalTarget =
-                do_QueryInterface(aVisitor.mEvent->originalTarget);
+                do_QueryInterface(aVisitor.mEvent->mOriginalTarget);
               nsAutoString ot, ct, rt;
               if (originalTarget) {
                 originalTarget->NodeInfo()->NameAtom()->ToString(ot);
@@ -868,7 +875,8 @@ nsIContent::PreHandleEvent(EventChainPreVisitor& aVisitor)
 #ifdef DEBUG
     // If a DOM event is explicitly dispatched using node.dispatchEvent(), then
     // all the events are allowed even in the native anonymous content..
-    nsCOMPtr<nsIContent> t = do_QueryInterface(aVisitor.mEvent->originalTarget);
+    nsCOMPtr<nsIContent> t =
+      do_QueryInterface(aVisitor.mEvent->mOriginalTarget);
     NS_ASSERTION(!t || !t->ChromeOnlyAccess() ||
                  aVisitor.mEvent->mClass != eMutationEventClass ||
                  aVisitor.mDOMEvent,
@@ -876,7 +884,7 @@ nsIContent::PreHandleEvent(EventChainPreVisitor& aVisitor)
 #endif
     aVisitor.mEventTargetAtParent = parent;
   } else if (parent && aVisitor.mOriginalTargetIsInAnon) {
-    nsCOMPtr<nsIContent> content(do_QueryInterface(aVisitor.mEvent->target));
+    nsCOMPtr<nsIContent> content(do_QueryInterface(aVisitor.mEvent->mTarget));
     if (content && content->GetBindingParent() == parent) {
       aVisitor.mEventTargetAtParent = parent;
     }
@@ -1175,12 +1183,9 @@ void
 FragmentOrElement::DestroyContent()
 {
   nsIDocument *document = OwnerDoc();
-  document->BindingManager()->RemovedFromDocument(this, document);
+  document->BindingManager()->RemovedFromDocument(this, document,
+                                                  nsBindingManager::eRunDtor);
   document->ClearBoxObjectFor(this);
-
-  // XXX We really should let cycle collection do this, but that currently still
-  //     leaks (see https://bugzilla.mozilla.org/show_bug.cgi?id=406684).
-  ReleaseWrapper(this);
 
   uint32_t i, count = mAttrsAndChildren.ChildCount();
   for (i = 0; i < count; ++i) {
@@ -1352,10 +1357,11 @@ NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(FragmentOrElement)
       for (uint32_t i = 0; props[i]; ++i) {
         tmp->DeleteProperty(*props[i]);
       }
-      // Bug 1226091: Call MayHaveAnimations() first
-      nsIAtom** effectProps = EffectSet::GetEffectSetPropertyAtoms();
-      for (uint32_t i = 0; effectProps[i]; ++i) {
-        tmp->DeleteProperty(effectProps[i]);
+      if (tmp->MayHaveAnimations()) {
+        nsIAtom** effectProps = EffectSet::GetEffectSetPropertyAtoms();
+        for (uint32_t i = 0; effectProps[i]; ++i) {
+          tmp->DeleteProperty(effectProps[i]);
+        }
       }
     }
   }
@@ -1390,6 +1396,10 @@ NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(FragmentOrElement)
   // containing shadow root pointer.
   tmp->UnsetFlags(NODE_IS_IN_SHADOW_TREE);
 
+  nsIDocument* doc = tmp->OwnerDoc();
+  doc->BindingManager()->RemovedFromDocument(tmp, doc,
+                                             nsBindingManager::eDoNotRunDtor);
+
   // Unlink any DOM slots of interest.
   {
     nsDOMSlots *slots = tmp->GetExistingDOMSlots();
@@ -1398,12 +1408,6 @@ NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(FragmentOrElement)
     }
   }
 
-  {
-    nsIDocument *doc;
-    if (!tmp->GetParentNode() && (doc = tmp->OwnerDoc())) {
-      doc->BindingManager()->RemovedFromDocument(tmp, doc);
-    }
-  }
 NS_IMPL_CYCLE_COLLECTION_UNLINK_END
 
 NS_IMPL_CYCLE_COLLECTION_TRACE_WRAPPERCACHE(FragmentOrElement)
@@ -1868,7 +1872,7 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INTERNAL(FragmentOrElement)
     }
 
     nsAutoCString orphan;
-    if (!tmp->IsInDoc() &&
+    if (!tmp->IsInUncomposedDoc() &&
         // Ignore xbl:content, which is never in the document and hence always
         // appears to be orphaned.
         !tmp->NodeInfo()->Equals(nsGkAtoms::content, kNameSpaceID_XBL)) {
@@ -1876,13 +1880,13 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INTERNAL(FragmentOrElement)
     }
 
     const char* nsuri = nsid < ArrayLength(kNSURIs) ? kNSURIs[nsid] : "";
-    PR_snprintf(name, sizeof(name), "FragmentOrElement%s %s%s%s%s %s",
-                nsuri,
-                localName.get(),
-                NS_ConvertUTF16toUTF8(id).get(),
-                NS_ConvertUTF16toUTF8(classes).get(),
-                orphan.get(),
-                uri.get());
+    snprintf_literal(name, "FragmentOrElement%s %s%s%s%s %s",
+                     nsuri,
+                     localName.get(),
+                     NS_ConvertUTF16toUTF8(id).get(),
+                     NS_ConvertUTF16toUTF8(classes).get(),
+                     orphan.get(),
+                     uri.get());
     cb.DescribeRefCountedNode(tmp->mRefCnt.get(), name);
   }
   else {
@@ -1899,6 +1903,14 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INTERNAL(FragmentOrElement)
 
   tmp->OwnerDoc()->BindingManager()->Traverse(tmp, cb);
 
+  // Check that whenever we have effect properties, MayHaveAnimations is set.
+#ifdef DEBUG
+  nsIAtom** effectProps = EffectSet::GetEffectSetPropertyAtoms();
+  for (uint32_t i = 0; effectProps[i]; ++i) {
+    MOZ_ASSERT_IF(tmp->GetProperty(effectProps[i]), tmp->MayHaveAnimations());
+  }
+#endif
+
   if (tmp->HasProperties()) {
     if (tmp->IsHTMLElement() || tmp->IsSVGElement()) {
       nsIAtom*** props = Element::HTMLSVGPropertiesToTraverseAndUnlink();
@@ -1907,13 +1919,14 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INTERNAL(FragmentOrElement)
           static_cast<nsISupports*>(tmp->GetProperty(*props[i]));
         cb.NoteXPCOMChild(property);
       }
-      // Bug 1226091: Check MayHaveAnimations() first
-      nsIAtom** effectProps = EffectSet::GetEffectSetPropertyAtoms();
-      for (uint32_t i = 0; effectProps[i]; ++i) {
-        EffectSet* effectSet =
-          static_cast<EffectSet*>(tmp->GetProperty(effectProps[i]));
-        if (effectSet) {
-          effectSet->Traverse(cb);
+      if (tmp->MayHaveAnimations()) {
+        nsIAtom** effectProps = EffectSet::GetEffectSetPropertyAtoms();
+        for (uint32_t i = 0; effectProps[i]; ++i) {
+          EffectSet* effectSet =
+            static_cast<EffectSet*>(tmp->GetProperty(effectProps[i]));
+          if (effectSet) {
+            effectSet->Traverse(cb);
+          }
         }
       }
     }

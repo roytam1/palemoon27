@@ -135,6 +135,11 @@ using namespace mozilla::system;
 #include "MediaDecoder.h"
 #include "mozilla/layers/CompositorLRU.h"
 #include "mozilla/dom/devicestorage/DeviceStorageStatics.h"
+#include "mozilla/StaticPresData.h"
+
+#ifdef MOZ_B2G_BT
+#include "mozilla/dom/BluetoothUUID.h"
+#endif
 
 using namespace mozilla;
 using namespace mozilla::net;
@@ -197,9 +202,8 @@ nsLayoutStatics::Initialize()
 
   nsCellMap::Init();
 
+  StaticPresData::Init();
   nsCSSRendering::Init();
-
-  nsTextFrameTextRunCache::Init();
 
   rv = nsHTMLDNSPrefetch::Initialize();
   if (NS_FAILED(rv)) {
@@ -344,9 +348,9 @@ nsLayoutStatics::Shutdown()
   IMEStateManager::Shutdown();
   nsCSSParser::Shutdown();
   nsCSSRuleProcessor::Shutdown();
-  nsTextFrameTextRunCache::Shutdown();
   nsHTMLDNSPrefetch::Shutdown();
   nsCSSRendering::Shutdown();
+  StaticPresData::Shutdown();
 #ifdef DEBUG
   nsFrame::DisplayReflowShutdown();
 #endif
@@ -448,4 +452,8 @@ nsLayoutStatics::Shutdown()
   CameraPreferences::Shutdown();
 
   PromiseDebugging::Shutdown();
+
+#ifdef MOZ_B2G_BT
+  BluetoothUUID::HandleShutdown();
+#endif
 }

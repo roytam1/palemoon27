@@ -6,7 +6,7 @@
 #ifndef TSFTextStore_h_
 #define TSFTextStore_h_
 
-#include "nsAutoPtr.h"
+#include "mozilla/RefPtr.h"
 #include "nsString.h"
 #include "nsCOMPtr.h"
 #include "nsIWidget.h"
@@ -14,6 +14,7 @@
 #include "WinUtils.h"
 #include "mozilla/Attributes.h"
 #include "mozilla/StaticPtr.h"
+#include "mozilla/TextEventDispatcher.h"
 #include "mozilla/TextRange.h"
 #include "mozilla/WindowsVersion.h"
 
@@ -302,7 +303,8 @@ protected:
   HRESULT  HandleRequestAttrs(DWORD aFlags,
                               ULONG aFilterCount,
                               const TS_ATTRID* aFilterAttrs);
-  void     SetInputScope(const nsString& aHTMLInputType);
+  void     SetInputScope(const nsString& aHTMLInputType,
+                         const nsString& aHTMLInputInputmode);
 
   // Creates native caret over our caret.  This method only works on desktop
   // application.  Otherwise, this does nothing.
@@ -312,6 +314,8 @@ protected:
 
   // Holds the pointer to our current win32 widget
   RefPtr<nsWindowBase>       mWidget;
+  // mDispatcher is a helper class to dispatch composition events.
+  RefPtr<TextEventDispatcher> mDispatcher;
   // Document manager for the currently focused editor
   RefPtr<ITfDocumentMgr>     mDocumentMgr;
   // Edit cookie associated with the current editing context

@@ -87,6 +87,13 @@ public:
                uint32_t aFileType,
                uint32_t aFileAttributes);
 
+  static already_AddRefed<DeviceStorageFile>
+  CreateUnique(const nsAString& aStorageType,
+               const nsAString& aStorageName,
+               nsAString& aFileName,
+               uint32_t aFileType,
+               uint32_t aFileAttributes);
+
   NS_DECL_THREADSAFE_ISUPPORTS
 
   bool IsAvailable();
@@ -94,8 +101,9 @@ public:
 
   // we want to make sure that the names of file can't reach
   // outside of the type of storage the user asked for.
-  bool IsSafePath();
-  bool IsSafePath(const nsAString& aPath);
+  bool IsSafePath() const;
+  bool ValidateAndSplitPath(const nsAString& aPath,
+                            nsTArray<nsString>* aParts = nullptr) const;
 
   void Dump(const char* label);
 
@@ -130,7 +138,6 @@ public:
 private:
   ~DeviceStorageFile() {}
   void Init();
-  void NormalizeFilePath();
   void AppendRelativePath(const nsAString& aPath);
   void AccumDirectoryUsage(nsIFile* aFile,
                            uint64_t* aPicturesSoFar,
@@ -300,11 +307,10 @@ public:
   already_AddRefed<DOMRequest> CreateAndRejectDOMRequest(const char *aReason,
                                                          ErrorResult& aRv);
 
-  nsresult CheckPermission(DeviceStorageRequest* aRequest);
-  void StorePermission(DeviceStorageRequest* aRequest, bool aAllow);
+  nsresult CheckPermission(already_AddRefed<DeviceStorageRequest>&& aRequest);
 
   bool IsOwningThread();
-  nsresult DispatchToOwningThread(nsIRunnable* aRunnable);
+  nsresult DispatchToOwningThread(already_AddRefed<nsIRunnable>&& aRunnable);
 
 private:
   ~nsDOMDeviceStorage();

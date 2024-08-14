@@ -47,10 +47,11 @@ ScopedResolveTexturesForDraw::ScopedResolveTexturesForDraw(WebGLContext* webgl,
                                                            bool* const out_error)
     : mWebGL(webgl)
 {
-    //typedef nsTArray<WebGLRefPtr<WebGLTexture>> TexturesT;
+    MOZ_ASSERT(webgl->gl->IsCurrent());
+
     typedef decltype(WebGLContext::mBound2DTextures) TexturesT;
 
-    const auto fnResolveAll = [this, funcName, out_error](const TexturesT& textures)
+    const auto fnResolveAll = [this, funcName](const TexturesT& textures)
     {
         const auto len = textures.Length();
         for (uint32_t texUnit = 0; texUnit < len; ++texUnit) {
@@ -59,7 +60,8 @@ ScopedResolveTexturesForDraw::ScopedResolveTexturesForDraw(WebGLContext* webgl,
                 continue;
 
             FakeBlackType fakeBlack;
-            *out_error |= !tex->ResolveForDraw(funcName, texUnit, &fakeBlack);
+            if (!tex->ResolveForDraw(funcName, texUnit, &fakeBlack))
+                return false;
 
             if (fakeBlack == FakeBlackType::None)
                 continue;
@@ -67,18 +69,21 @@ ScopedResolveTexturesForDraw::ScopedResolveTexturesForDraw(WebGLContext* webgl,
             mWebGL->BindFakeBlack(texUnit, tex->Target(), fakeBlack);
             mRebindRequests.push_back({texUnit, tex});
         }
+
+        return true;
     };
 
-    *out_error = false;
+    bool ok = true;
+    ok &= fnResolveAll(mWebGL->mBound2DTextures);
+    ok &= fnResolveAll(mWebGL->mBoundCubeMapTextures);
+    ok &= fnResolveAll(mWebGL->mBound3DTextures);
+    ok &= fnResolveAll(mWebGL->mBound2DArrayTextures);
 
-    fnResolveAll(mWebGL->mBound2DTextures);
-    fnResolveAll(mWebGL->mBoundCubeMapTextures);
-    fnResolveAll(mWebGL->mBound3DTextures);
-    fnResolveAll(mWebGL->mBound2DArrayTextures);
-
-    if (*out_error) {
+    if (!ok) {
         mWebGL->ErrorOutOfMemory("%s: Failed to resolve textures for draw.", funcName);
     }
+
+    *out_error = !ok;
 }
 
 ScopedResolveTexturesForDraw::~ScopedResolveTexturesForDraw()
@@ -217,7 +222,7 @@ WebGLContext::DrawArrays_check(GLint first, GLsizei count, GLsizei primcount,
         return false;
     }
 
-    MakeContextCurrent();
+    MOZ_ASSERT(gl->IsCurrent());
 
     if (mBoundDrawFramebuffer) {
         if (!mBoundDrawFramebuffer->ValidateAndInitAttachments(info))
@@ -242,6 +247,8 @@ WebGLContext::DrawArrays(GLenum mode, GLint first, GLsizei count)
 
     if (!ValidateDrawModeEnum(mode, funcName))
         return;
+
+    MakeContextCurrent();
 
     bool error;
     ScopedResolveTexturesForDraw scopedResolve(this, funcName, &error);
@@ -270,6 +277,8 @@ WebGLContext::DrawArraysInstanced(GLenum mode, GLint first, GLsizei count, GLsiz
 
     if (!ValidateDrawModeEnum(mode, funcName))
         return;
+
+    MakeContextCurrent();
 
     bool error;
     ScopedResolveTexturesForDraw scopedResolve(this, funcName, &error);
@@ -351,8 +360,10 @@ WebGLContext::DrawElements_check(GLsizei count, GLenum type,
         return false;
     }
 
-    // Any checks below this depend on a program being available.
-    if (!mCurrentProgram) {
+    // Any checks below this depend on mActiveProgramLinkInfo being available.
+    if (!mActiveProgramLinkInfo) {
+        // Technically, this will only be null iff CURRENT_PROGRAM is null.
+        // But it's better to branch on what we actually care about.
         ErrorInvalidOperation("%s: null CURRENT_PROGRAM", info);
         return false;
     }
@@ -406,7 +417,7 @@ WebGLContext::DrawElements_check(GLsizei count, GLenum type,
                         WebGLContext::EnumName(type));
     }
 
-    MakeContextCurrent();
+    MOZ_ASSERT(gl->IsCurrent());
 
     if (mBoundDrawFramebuffer) {
         if (!mBoundDrawFramebuffer->ValidateAndInitAttachments(info))
@@ -432,6 +443,8 @@ WebGLContext::DrawElements(GLenum mode, GLsizei count, GLenum type,
 
     if (!ValidateDrawModeEnum(mode, funcName))
         return;
+
+    MakeContextCurrent();
 
     bool error;
     ScopedResolveTexturesForDraw scopedResolve(this, funcName, &error);
@@ -469,6 +482,8 @@ WebGLContext::DrawElementsInstanced(GLenum mode, GLsizei count, GLenum type,
 
     if (!ValidateDrawModeEnum(mode, funcName))
         return;
+
+    MakeContextCurrent();
 
     bool error;
     ScopedResolveTexturesForDraw scopedResolve(this, funcName, &error);
@@ -828,19 +843,34 @@ WebGLContext::FakeBlackTexture::FakeBlackTexture(gl::GLContext* gl, TexTarget ta
     const webgl::DriverUnpackInfo dui = {texFormat, texFormat, LOCAL_GL_UNSIGNED_BYTE};
     UniqueBuffer zeros = moz_xcalloc(1, 16); // Infallible allocation.
 
+    MOZ_ASSERT(gl->IsCurrent());
     if (target == LOCAL_GL_TEXTURE_CUBE_MAP) {
         for (int i = 0; i < 6; ++i) {
             const TexImageTarget curTarget = LOCAL_GL_TEXTURE_CUBE_MAP_POSITIVE_X + i;
             const GLenum error = DoTexImage(mGL, curTarget.get(), 0, &dui, 1, 1, 1,
                                             zeros.get());
-            if (error)
-                MOZ_CRASH("Unexpected error during FakeBlack creation.");
+            if (error) {
+                const nsPrintfCString text("DoTexImage failed with `error`: 0x%04x, "
+                                           "for `curTarget`: 0x%04x, "
+                                           "`dui`: {0x%04x, 0x%04x, 0x%04x}.",
+                                           error, curTarget.get(), dui.internalFormat,
+                                           dui.unpackFormat, dui.unpackType);
+                gfxCriticalError() << text.BeginReading();
+                MOZ_CRASH("Unexpected error during cube map FakeBlack creation.");
+            }
         }
     } else {
         const GLenum error = DoTexImage(mGL, target.get(), 0, &dui, 1, 1, 1,
                                         zeros.get());
-        if (error)
+        if (error) {
+            const nsPrintfCString text("DoTexImage failed with `error`: 0x%04x, "
+                                       "for `target`: 0x%04x, "
+                                       "`dui`: {0x%04x, 0x%04x, 0x%04x}.",
+                                       error, target.get(), dui.internalFormat,
+                                       dui.unpackFormat, dui.unpackType);
+            gfxCriticalError() << text.BeginReading();
             MOZ_CRASH("Unexpected error during FakeBlack creation.");
+        }
     }
 }
 

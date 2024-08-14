@@ -83,9 +83,11 @@ CompositorOGL::BindBackdrop(ShaderProgramOGL* aProgram, GLuint aBackdrop, GLenum
   aProgram->SetBackdropTextureUnit(aTexUnit - LOCAL_GL_TEXTURE0);
 }
 
-CompositorOGL::CompositorOGL(nsIWidget *aWidget, int aSurfaceWidth,
+CompositorOGL::CompositorOGL(CompositorBridgeParent* aParent,
+                             nsIWidget *aWidget, int aSurfaceWidth,
                              int aSurfaceHeight, bool aUseExternalSurfaceSize)
-  : mWidget(aWidget)
+  : Compositor(aParent)
+  , mWidget(aWidget)
   , mWidgetSize(-1, -1)
   , mSurfaceSize(aSurfaceWidth, aSurfaceHeight)
   , mHasBGRA(0)
@@ -420,7 +422,23 @@ CompositorOGL::Initialize()
     }
   }
 
+  reporter.SetSuccessful();
   return true;
+}
+
+/*
+ * Returns a size that is equal to, or larger than and closest to,
+ * aSize where both width and height are powers of two.
+ * If the OpenGL setup is capable of using non-POT textures,
+ * then it will just return aSize.
+ */
+static IntSize
+CalculatePOTSize(const IntSize& aSize, GLContext* gl)
+{
+  if (CanUploadNonPowerOfTwo(gl))
+    return aSize;
+
+  return IntSize(NextPowerOfTwo(aSize.width), NextPowerOfTwo(aSize.height));
 }
 
 // |aRect| is the rectangle we want to draw to. We will draw it with
@@ -435,10 +453,26 @@ CompositorOGL::BindAndDrawQuadWithTextureRect(ShaderProgramOGL *aProg,
                                               const Rect& aTexCoordRect,
                                               TextureSource *aTexture)
 {
+  Rect scaledTexCoordRect = aTexCoordRect;
+
+  // If the OpenGL setup does not support non-power-of-two textures then the
+  // texture's width and height will have been increased to the next
+  // power-of-two (unless already a power of two). In that case we must scale
+  // the texture coordinates to account for that.
+  if (!CanUploadNonPowerOfTwo(mGLContext)) {
+    const IntSize& textureSize = aTexture->GetSize();
+    const IntSize potSize = CalculatePOTSize(textureSize, mGLContext);
+    if (potSize != textureSize) {
+      const float xScale = (float)textureSize.width / (float)potSize.width;
+      const float yScale = (float)textureSize.height / (float)potSize.height;
+      scaledTexCoordRect.Scale(xScale, yScale);
+    }
+  }
+
   Rect layerRects[4];
   Rect textureRects[4];
   size_t rects = DecomposeIntoNoRepeatRects(aRect,
-                                            aTexCoordRect,
+                                            scaledTexCoordRect,
                                             &layerRects,
                                             &textureRects);
 
@@ -581,21 +615,6 @@ GetFrameBufferInternalFormat(GLContext* gl,
   return LOCAL_GL_RGBA;
 }
 
-/*
- * Returns a size that is larger than and closest to aSize where both
- * width and height are powers of two.
- * If the OpenGL setup is capable of using non-POT textures, then it
- * will just return aSize.
- */
-static IntSize
-CalculatePOTSize(const IntSize& aSize, GLContext* gl)
-{
-  if (CanUploadNonPowerOfTwo(gl))
-    return aSize;
-
-  return IntSize(NextPowerOfTwo(aSize.width), NextPowerOfTwo(aSize.height));
-}
-
 void
 CompositorOGL::ClearRect(const gfx::Rect& aRect)
 {
@@ -612,6 +631,7 @@ void
 CompositorOGL::BeginFrame(const nsIntRegion& aInvalidRegion,
                           const Rect *aClipRectIn,
                           const Rect& aRenderBounds,
+                          const nsIntRegion& aOpaqueRegion,
                           Rect *aClipRectOut,
                           Rect *aRenderBoundsOut)
 {
@@ -850,7 +870,8 @@ CompositorOGL::GetShaderConfigFor(Effect *aEffect,
     MOZ_ASSERT_IF(source->GetTextureTarget() == LOCAL_GL_TEXTURE_RECTANGLE_ARB,
                   source->GetFormat() == gfx::SurfaceFormat::R8G8B8A8 ||
                   source->GetFormat() == gfx::SurfaceFormat::R8G8B8X8 ||
-                  source->GetFormat() == gfx::SurfaceFormat::R5G6B5_UINT16);
+                  source->GetFormat() == gfx::SurfaceFormat::R5G6B5_UINT16 ||
+                  source->GetFormat() == gfx::SurfaceFormat::YUV422 );
     config = ShaderConfigFromTargetAndFormat(source->GetTextureTarget(),
                                              source->GetFormat());
     if (!texturedEffect->mPremultiplied) {
@@ -860,8 +881,7 @@ CompositorOGL::GetShaderConfigFor(Effect *aEffect,
   }
   }
   config.SetColorMatrix(aColorMatrix);
-  config.SetMask2D(aMask == MaskType::Mask2d);
-  config.SetMask3D(aMask == MaskType::Mask3d);
+  config.SetMask(aMask == MaskType::Mask);
   config.SetDEAA(aDEAAEnabled);
   config.SetCompositionOp(aOp);
   return config;
@@ -1051,9 +1071,7 @@ CompositorOGL::DrawQuad(const Rect& aRect,
     maskQuadTransform._41 = float(-bounds.x)/bounds.width;
     maskQuadTransform._42 = float(-bounds.y)/bounds.height;
 
-    maskType = effectMask->mIs3D
-                 ? MaskType::Mask3d
-                 : MaskType::Mask2d;
+    maskType = MaskType::Mask;
   } else {
     maskType = MaskType::MaskNone;
   }
@@ -1107,10 +1125,11 @@ CompositorOGL::DrawQuad(const Rect& aRect,
   }
 
   if (BlendOpIsMixBlendMode(blendMode)) {
-    gfx::Matrix4x4 transform;
-    gfx::IntRect rect = ComputeBackdropCopyRect(aRect, aClipRect, aTransform, &transform);
+    gfx::Matrix4x4 backdropTransform;
+    gfx::IntRect rect = ComputeBackdropCopyRect(aRect, aClipRect, aTransform, &backdropTransform);
+
     mixBlendBackdrop = CreateTexture(rect, true, mCurrentRenderTarget->GetFBO());
-    program->SetBackdropTransform(transform);
+    program->SetBackdropTransform(backdropTransform);
   }
 
   program->SetRenderOffset(offset.x, offset.y);

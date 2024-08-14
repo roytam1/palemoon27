@@ -652,9 +652,6 @@ nsHTTPIndex::Create(nsIURI* aBaseURL, nsIInterfaceRequestor* aRequestor,
   *aResult = nullptr;
 
   nsHTTPIndex* result = new nsHTTPIndex(aRequestor);
-  if (! result)
-    return NS_ERROR_OUT_OF_MEMORY;
-
   nsresult rv = result->Init(aBaseURL);
   if (NS_SUCCEEDED(rv))
   {

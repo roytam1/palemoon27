@@ -12,6 +12,7 @@
 #include "mozilla/layers/APZThreadUtils.h"              // for AssertOnCompositorThread
 #include "mozilla/layers/APZUtils.h"                    // for CompleteAsyncTransform
 #include "mozilla/layers/AsyncCompositionManager.h"     // for ViewTransform::operator Matrix4x4()
+#include "mozilla/layers/AsyncDragMetrics.h"            // for AsyncDragMetrics
 #include "nsPrintfCString.h"                            // for nsPrintfCString
 #include "UnitTransforms.h"                             // for ViewAs
 
@@ -27,6 +28,7 @@ HitTestingTreeNode::HitTestingTreeNode(AsyncPanZoomController* aApzc,
   , mScrollViewId(FrameMetrics::NULL_SCROLL_ID)
   , mScrollDir(Layer::NONE)
   , mScrollSize(0)
+  , mIsScrollbarContainer(false)
   , mOverride(EventRegionsOverride::NoOverride)
 {
 if (mIsPrimaryApzcHolder) {
@@ -91,11 +93,15 @@ HitTestingTreeNode::SetLastChild(HitTestingTreeNode* aChild)
 }
 
 void
-HitTestingTreeNode::SetScrollbarData(FrameMetrics::ViewID aScrollViewId, Layer::ScrollDirection aDir, int32_t aScrollSize)
+HitTestingTreeNode::SetScrollbarData(FrameMetrics::ViewID aScrollViewId,
+                                     Layer::ScrollDirection aDir,
+                                     int32_t aScrollSize,
+                                     bool aIsScrollContainer)
 {
   mScrollViewId = aScrollViewId;
   mScrollDir = aDir;
   mScrollSize = aScrollSize;;
+  mIsScrollbarContainer = aIsScrollContainer;
 }
 
 bool
@@ -112,6 +118,12 @@ int32_t
 HitTestingTreeNode::GetScrollSize() const
 {
   return mScrollSize;
+}
+
+bool
+HitTestingTreeNode::IsScrollbarNode() const
+{
+  return mIsScrollbarContainer || (mScrollDir != Layer::NONE);
 }
 
 void
@@ -234,7 +246,7 @@ HitTestingTreeNode::Untransform(const ParentLayerPoint& aPoint) const
   LayerToParentLayerMatrix4x4 transform = mTransform *
       CompleteAsyncTransform(
         mApzc
-      ? mApzc->GetCurrentAsyncTransformWithOverscroll()
+      ? mApzc->GetCurrentAsyncTransformWithOverscroll(AsyncPanZoomController::NORMAL)
       : AsyncTransformComponentMatrix());
   return UntransformBy(transform.Inverse(), aPoint);
 }

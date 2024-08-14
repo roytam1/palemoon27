@@ -1808,6 +1808,10 @@ QuotaObject::MaybeUpdateSize(int64_t aSize, bool aTruncate)
 
   MutexAutoLock lock(quotaManager->mQuotaMutex);
 
+  if (mQuotaCheckDisabled) {
+    return true;
+  }
+
   if (mSize == aSize) {
     return true;
   }
@@ -1981,6 +1985,28 @@ QuotaObject::MaybeUpdateSize(int64_t aSize, bool aTruncate)
   mSize = aSize;
 
   return true;
+}
+
+void
+QuotaObject::DisableQuotaCheck()
+{
+  QuotaManager* quotaManager = QuotaManager::Get();
+  MOZ_ASSERT(quotaManager);
+
+  MutexAutoLock lock(quotaManager->mQuotaMutex);
+
+  mQuotaCheckDisabled = true;
+}
+
+void
+QuotaObject::EnableQuotaCheck()
+{
+  QuotaManager* quotaManager = QuotaManager::Get();
+  MOZ_ASSERT(quotaManager);
+
+  MutexAutoLock lock(quotaManager->mQuotaMutex);
+
+  mQuotaCheckDisabled = false;
 }
 
 /*******************************************************************************

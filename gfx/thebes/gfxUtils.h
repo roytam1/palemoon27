@@ -291,6 +291,7 @@ public:
 
     static nsresult ThreadSafeGetFeatureStatus(const nsCOMPtr<nsIGfxInfo>& gfxInfo,
                                                int32_t feature,
+                                               nsACString& failureId,
                                                int32_t* status);
 
     /**
@@ -331,8 +332,8 @@ IsPowerOfTwo(int aNumber)
 }
 
 /**
- * Returns the first integer greater than |aNumber| which is a power of two
- * Undefined for |aNumber| < 0
+ * Returns the first integer greater than or equal to |aNumber| which is a
+ * power of two. Undefined for |aNumber| < 0.
  */
 static inline int
 NextPowerOfTwo(int aNumber)

@@ -269,9 +269,9 @@ function check_results(aQuery, aSortBy, aReverseOrder, aShowLocal) {
   try {
     xpinstall_enabled = Services.prefs.getBoolPref(PREF_XPI_ENABLED);
   }
-  catch (e) {};
+  catch (e) {}
 
-  // When XPI Instalation is disabled, those buttons are hidden and unused  
+  // When XPI Instalation is disabled, those buttons are hidden and unused
   if (xpinstall_enabled) {
     var localFilterSelected = gManagerWindow.document.getElementById("search-filter-local").selected;
     var remoteFilterSelected = gManagerWindow.document.getElementById("search-filter-remote").selected;
@@ -626,10 +626,10 @@ add_test(function() {
       var item = get_addon_item("remote5");
       is_element_visible(item, "Incompatible addon should be visible");
       isnot(item.getAttribute("notification"), "warning", "Compatibility warning should not be shown");
-  
+
       item = get_addon_item("remote6");
       is(item, null, "Addon incompatible with the product should not be visible");
-  
+
       Services.prefs.setBoolPref(PREF_STRICT_COMPAT, true);
       run_next_test();
     });

@@ -631,8 +631,13 @@ Range::Range(const MDefinition* def)
     // bailouts. If range analysis hasn't ruled out values in
     // (INT32_MAX,UINT32_MAX], set the range to be conservatively correct for
     // use as either a uint32 or an int32.
-    if (!hasInt32UpperBound() && def->isUrsh() && def->toUrsh()->bailoutsDisabled())
+    if (!hasInt32UpperBound() &&
+        def->isUrsh() &&
+        def->toUrsh()->bailoutsDisabled() &&
+        def->type() != MIRType_Int64)
+    {
         lower_ = INT32_MIN;
+    }
 
     assertInvariants();
 }
@@ -1314,6 +1319,9 @@ MClampToUint8::computeRange(TempAllocator& alloc)
 void
 MBitAnd::computeRange(TempAllocator& alloc)
 {
+    if (specialization_ == MIRType_Int64)
+        return;
+
     Range left(getOperand(0));
     Range right(getOperand(1));
     left.wrapAroundToInt32();
@@ -1325,6 +1333,9 @@ MBitAnd::computeRange(TempAllocator& alloc)
 void
 MBitOr::computeRange(TempAllocator& alloc)
 {
+    if (specialization_ == MIRType_Int64)
+        return;
+
     Range left(getOperand(0));
     Range right(getOperand(1));
     left.wrapAroundToInt32();
@@ -1336,6 +1347,9 @@ MBitOr::computeRange(TempAllocator& alloc)
 void
 MBitXor::computeRange(TempAllocator& alloc)
 {
+    if (specialization_ == MIRType_Int64)
+        return;
+
     Range left(getOperand(0));
     Range right(getOperand(1));
     left.wrapAroundToInt32();
@@ -1356,6 +1370,9 @@ MBitNot::computeRange(TempAllocator& alloc)
 void
 MLsh::computeRange(TempAllocator& alloc)
 {
+    if (specialization_ == MIRType_Int64)
+        return;
+
     Range left(getOperand(0));
     Range right(getOperand(1));
     left.wrapAroundToInt32();
@@ -1374,6 +1391,9 @@ MLsh::computeRange(TempAllocator& alloc)
 void
 MRsh::computeRange(TempAllocator& alloc)
 {
+    if (specialization_ == MIRType_Int64)
+        return;
+
     Range left(getOperand(0));
     Range right(getOperand(1));
     left.wrapAroundToInt32();
@@ -1392,6 +1412,9 @@ MRsh::computeRange(TempAllocator& alloc)
 void
 MUrsh::computeRange(TempAllocator& alloc)
 {
+    if (specialization_ == MIRType_Int64)
+        return;
+
     Range left(getOperand(0));
     Range right(getOperand(1));
 
@@ -1443,6 +1466,18 @@ MCeil::computeRange(TempAllocator& alloc)
 
 void
 MClz::computeRange(TempAllocator& alloc)
+{
+    setRange(Range::NewUInt32Range(alloc, 0, 32));
+}
+
+void
+MCtz::computeRange(TempAllocator& alloc)
+{
+    setRange(Range::NewUInt32Range(alloc, 0, 32));
+}
+
+void
+MPopcnt::computeRange(TempAllocator& alloc)
 {
     setRange(Range::NewUInt32Range(alloc, 0, 32));
 }
@@ -1863,6 +1898,8 @@ RangeAnalysis::analyzeLoop(MBasicBlock* header)
             direction = NegateBranchDirection(direction);
             MBasicBlock* otherBlock = branch->branchSuccessor(direction);
             if (!otherBlock->isMarked()) {
+                if (!alloc().ensureBallast())
+                    return false;
                 iterationBound =
                     analyzeLoopIterationCount(header, branch, direction);
                 if (iterationBound)
@@ -1908,6 +1945,8 @@ RangeAnalysis::analyzeLoop(MBasicBlock* header)
             for (MDefinitionIterator iter(block); iter; iter++) {
                 MDefinition* def = *iter;
                 if (def->isBoundsCheck() && def->isMovable()) {
+                    if (!alloc().ensureBallast())
+                        return false;
                     if (tryHoistBoundsCheck(header, def->toBoundsCheck())) {
                         if (!hoistedChecks.append(def->toBoundsCheck()))
                             return false;
@@ -2087,7 +2126,7 @@ RangeAnalysis::analyzeLoopPhi(MBasicBlock* header, LoopIterationBound* loopBound
         return;
 
     if (!phi->range())
-        phi->setRange(new(alloc()) Range());
+        phi->setRange(new(alloc()) Range(phi));
 
     LinearSum initialSum(alloc());
     if (!initialSum.add(initial, 1))
@@ -2234,18 +2273,23 @@ RangeAnalysis::analyze()
 
     for (ReversePostorderIterator iter(graph_.rpoBegin()); iter != graph_.rpoEnd(); iter++) {
         MBasicBlock* block = *iter;
-        MOZ_ASSERT(!block->unreachable());
+        // No blocks are supposed to be unreachable, except when we have an OSR
+        // block, in which case the Value Numbering phase add fixup blocks which
+        // are unreachable.
+        MOZ_ASSERT(!block->unreachable() || graph_.osrBlock());
 
         // If the block's immediate dominator is unreachable, the block is
         // unreachable. Iterating in RPO, we'll always see the immediate
         // dominator before the block.
         if (block->immediateDominator()->unreachable()) {
-            block->setUnreachable();
+            block->setUnreachableUnchecked();
             continue;
         }
 
         for (MDefinitionIterator iter(block); iter; iter++) {
             MDefinition* def = *iter;
+            if (!alloc().ensureBallast())
+                return false;
 
             def->computeRange(alloc());
             JitSpew(JitSpew_Range, "computing range on %d", def->id());
@@ -2311,12 +2355,18 @@ RangeAnalysis::addRangeAssertions()
             if (ins->isRecoveredOnBailout())
                 continue;
 
+            if (!alloc().ensureBallast())
+                return false;
             MAssertRange* guard = MAssertRange::New(alloc(), ins, new(alloc()) Range(r));
 
             // Beta nodes and interrupt checks are required to be located at the
             // beginnings of basic blocks, so we must insert range assertions
             // after any such instructions.
-            MInstruction* insertAt = block->safeInsertTop(ins);
+            MInstruction* insertAt = nullptr;
+            if (block->graph().osrBlock() == block)
+                insertAt = ins->toInstruction();
+            else
+                insertAt = block->safeInsertTop(ins);
 
             if (insertAt == *iter)
                 block->insertAfter(insertAt,  guard);
@@ -2723,31 +2773,33 @@ MCompare::operandTruncateKind(size_t index) const
     return truncateOperands_ ? TruncateAfterBailouts : NoTruncate;
 }
 
-static void
+static bool
 TruncateTest(TempAllocator& alloc, MTest* test)
 {
     // If all possible inputs to the test are either int32 or boolean,
     // convert those inputs to int32 so that an int32 test can be performed.
 
     if (test->input()->type() != MIRType_Value)
-        return;
+        return true;
 
     if (!test->input()->isPhi() || !test->input()->hasOneDefUse() || test->input()->isImplicitlyUsed())
-        return;
+        return true;
 
     MPhi* phi = test->input()->toPhi();
     for (size_t i = 0; i < phi->numOperands(); i++) {
         MDefinition* def = phi->getOperand(i);
         if (!def->isBox())
-            return;
+            return true;
         MDefinition* inner = def->getOperand(0);
         if (inner->type() != MIRType_Boolean && inner->type() != MIRType_Int32)
-            return;
+            return true;
     }
 
     for (size_t i = 0; i < phi->numOperands(); i++) {
         MDefinition* inner = phi->getOperand(i)->getOperand(0);
         if (inner->type() != MIRType_Int32) {
+            if (!alloc.ensureBallast())
+                return false;
             MBasicBlock* block = inner->block();
             inner = MToInt32::New(alloc, inner);
             block->insertBefore(block->lastIns(), inner->toInstruction());
@@ -2757,6 +2809,7 @@ TruncateTest(TempAllocator& alloc, MTest* test)
     }
 
     phi->setResultType(MIRType_Int32);
+    return true;
 }
 
 // Truncating instruction result is an optimization which implies
@@ -2778,6 +2831,8 @@ CloneForDeadBranches(TempAllocator& alloc, MInstruction* candidate)
         return true;
 
     MOZ_ASSERT(candidate->canClone());
+    if (!alloc.ensureBallast())
+        return false;
 
     MDefinitionVector operands(alloc);
     size_t end = candidate->numOperands();
@@ -2819,9 +2874,9 @@ CloneForDeadBranches(TempAllocator& alloc, MInstruction* candidate)
 static MDefinition::TruncateKind
 ComputeRequestedTruncateKind(MDefinition* candidate, bool* shouldClone)
 {
-    bool isCapturedResult = false;
-    bool isObservableResult = false;
-    bool isRecoverableResult = true;
+    bool isCapturedResult = false;   // Check if used by a recovered instruction or a resume point.
+    bool isObservableResult = false; // Check if it can be read from another frame.
+    bool isRecoverableResult = true; // Check if it can safely be reconstructed.
     bool hasUseRemoved = candidate->isUseRemoved();
 
     MDefinition::TruncateKind kind = MDefinition::Truncate;
@@ -2861,30 +2916,32 @@ ComputeRequestedTruncateKind(MDefinition* candidate, bool* shouldClone)
     // seeing truncated values.
     bool needsConversion = !candidate->range() || !candidate->range()->isInt32();
 
+    // If the instruction is explicitly truncated (not indirectly) by all its
+    // uses and if it has no removed uses, then we can safely encode its
+    // truncated result as part of the resume point operands.  This is safe,
+    // because even if we resume with a truncated double, the next baseline
+    // instruction operating on this instruction is going to be a no-op.
+    //
+    // Note, that if the result can be observed from another frame, then this
+    // optimization is not safe.
+    bool safeToConvert = kind == MDefinition::Truncate && !hasUseRemoved && !isObservableResult;
+
     // If the candidate instruction appears as operand of a resume point or a
     // recover instruction, and we have to truncate its result, then we might
     // have to either recover the result during the bailout, or avoid the
     // truncation.
-    if (isCapturedResult && needsConversion) {
+    if (isCapturedResult && needsConversion && !safeToConvert) {
 
-        // These optimizations are pointless if there are no removed uses or any
-        // resume point observing the result.  Not having any means that we know
-        // everything about where this results flows into.
-        if ((hasUseRemoved || (isObservableResult && isRecoverableResult)) &&
-            candidate->canRecoverOnBailout())
-        {
-            // The cloned instruction is expected to be used as a recover
-            // instruction.
+        // If the result can be recovered from all the resume points (not needed
+        // for iterating over the inlined frames), and this instruction can be
+        // recovered on bailout, then we can clone it and use the cloned
+        // instruction to encode the recover instruction.  Otherwise, we should
+        // keep the original result and bailout if the value is not in the int32
+        // range.
+        if (isRecoverableResult && candidate->canRecoverOnBailout())
             *shouldClone = true;
-
-        } else if (hasUseRemoved || isObservableResult) {
-            // 1. If uses are removed and we cannot recover the result, then we
-            // need to keep the expected result for dead branches.
-            //
-            // 2. If the result is observable and not recoverable, then the
-            // result might be read while the frame is on the stack.
+        else
             kind = Min(kind, MDefinition::TruncateAfterBailouts);
-        }
     }
 
     return kind;
@@ -3000,7 +3057,6 @@ RangeAnalysis::truncate()
     MOZ_ASSERT(!mir->compilingAsmJS());
 
     Vector<MDefinition*, 16, SystemAllocPolicy> worklist;
-    Vector<MBinaryBitwiseInstruction*, 16, SystemAllocPolicy> bitops;
 
     for (PostorderIterator block(graph_.poBegin()); block != graph_.poEnd(); block++) {
         for (MInstructionReverseIterator iter(block->rbegin()); iter != block->rend(); iter++) {
@@ -3008,8 +3064,10 @@ RangeAnalysis::truncate()
                 continue;
 
             if (iter->type() == MIRType_None) {
-                if (iter->isTest())
-                    TruncateTest(alloc(), iter->toTest());
+                if (iter->isTest()) {
+                    if (!TruncateTest(alloc(), iter->toTest()))
+                        return false;
+                }
                 continue;
             }
 
@@ -3089,17 +3147,34 @@ RangeAnalysis::truncate()
     // Update inputs/outputs of truncated instructions.
     JitSpew(JitSpew_Range, "Do graph type fixup (dequeue)");
     while (!worklist.empty()) {
+        if (!alloc().ensureBallast())
+            return false;
         MDefinition* def = worklist.popCopy();
         def->setNotInWorklist();
         RemoveTruncatesOnOutput(def);
         AdjustTruncatedInputs(alloc(), def);
     }
 
+    return true;
+}
+
+bool
+RangeAnalysis::removeUnnecessaryBitops()
+{
+    // Note: This operation change the semantic of the program in a way which
+    // uniquely works with Int32, Recover Instructions added by the Sink phase
+    // expects the MIR Graph to still have a valid flow as-if they were double
+    // operations instead of Int32 operations. Thus, this phase should be
+    // executed after the Sink phase, and before DCE.
+
     // Fold any unnecessary bitops in the graph, such as (x | 0) on an integer
     // input. This is done after range analysis rather than during GVN as the
     // presence of the bitop can change which instructions are truncated.
     for (size_t i = 0; i < bitops.length(); i++) {
         MBinaryBitwiseInstruction* ins = bitops[i];
+        if (ins->isRecoveredOnBailout())
+            continue;
+
         MDefinition* folded = ins->foldUnnecessaryBitop();
         if (folded != ins) {
             ins->replaceAllLiveUsesWith(folded);
@@ -3107,8 +3182,10 @@ RangeAnalysis::truncate()
         }
     }
 
+    bitops.clear();
     return true;
 }
+
 
 ///////////////////////////////////////////////////////////////////////////////
 // Collect Range information of operands
@@ -3164,6 +3241,14 @@ MStoreTypedArrayElementStatic::collectRangeInfoPreTrunc()
 
 void
 MClz::collectRangeInfoPreTrunc()
+{
+    Range inputRange(input());
+    if (!inputRange.canBeZero())
+        operandIsNeverZero_ = true;
+}
+
+void
+MCtz::collectRangeInfoPreTrunc()
 {
     Range inputRange(input());
     if (!inputRange.canBeZero())
@@ -3304,6 +3389,9 @@ MPowHalf::collectRangeInfoPreTrunc()
 void
 MUrsh::collectRangeInfoPreTrunc()
 {
+    if (specialization_ == MIRType_Int64)
+        return;
+
     Range lhsRange(lhs()), rhsRange(rhs());
 
     // As in MUrsh::computeRange(), convert the inputs.
@@ -3364,6 +3452,15 @@ RangeAnalysis::prepareForUCE(bool* shouldRemoveDeadCode)
 
         if (!block->unreachable())
             continue;
+
+        // Filter out unreachable fake entries.
+        if (block->numPredecessors() == 0) {
+            // Ignore fixup blocks added by the Value Numbering phase, in order
+            // to keep the dominator tree as-is when we have OSR Block which are
+            // no longer reachable from the main entry point of the graph.
+            MOZ_ASSERT(graph_.osrBlock());
+            continue;
+        }
 
         MControlInstruction* cond = block->getPredecessor(0)->lastIns();
         if (!cond->isTest())

@@ -13,6 +13,7 @@
 #include "gc/Zone.h"
 
 #include "js/GCVector.h"
+#include "js/Id.h"
 
 #include "vm/NativeObject.h"
 #include "vm/ProxyObject.h"
@@ -43,9 +44,9 @@ class ImportEntryObject : public NativeObject
     };
 
     static const Class class_;
-    static JSObject* initClass(JSContext* cx, HandleObject obj);
+    static JSObject* initClass(ExclusiveContext* cx, HandleObject obj);
     static bool isInstance(HandleValue value);
-    static ImportEntryObject* create(JSContext* cx,
+    static ImportEntryObject* create(ExclusiveContext* cx,
                                      HandleAtom moduleRequest,
                                      HandleAtom importName,
                                      HandleAtom localName);
@@ -70,9 +71,9 @@ class ExportEntryObject : public NativeObject
     };
 
     static const Class class_;
-    static JSObject* initClass(JSContext* cx, HandleObject obj);
+    static JSObject* initClass(ExclusiveContext* cx, HandleObject obj);
     static bool isInstance(HandleValue value);
-    static ExportEntryObject* create(JSContext* cx,
+    static ExportEntryObject* create(ExclusiveContext* cx,
                                      HandleAtom maybeExportName,
                                      HandleAtom maybeModuleRequest,
                                      HandleAtom maybeImportName,
@@ -121,7 +122,7 @@ class IndirectBindingMap
         RelocatablePtrShape shape;
     };
 
-    typedef HashMap<jsid, Binding, JsidHasher, ZoneAllocPolicy> Map;
+    typedef HashMap<jsid, Binding, DefaultHasher<jsid>, ZoneAllocPolicy> Map;
 
     Map map_;
 };
@@ -133,7 +134,7 @@ class ModuleNamespaceObject : public ProxyObject
     static ModuleNamespaceObject* create(JSContext* cx, HandleModuleObject module);
 
     ModuleObject& module();
-    ArrayObject& exports();
+    JSObject& exports();
     IndirectBindingMap& bindings();
 
     bool addBinding(JSContext* cx, HandleAtom exportedName, HandleModuleObject targetModule,
@@ -232,6 +233,9 @@ class ModuleObject : public NativeObject
                               HandleArrayObject localExportEntries,
                               HandleArrayObject indiretExportEntries,
                               HandleArrayObject starExportEntries);
+    static bool FreezeArrayProperties(JSContext* cx, HandleModuleObject self);
+    static void AssertArrayPropertiesFrozen(JSContext* cx, HandleModuleObject self);
+    void fixScopesAfterCompartmentMerge(JSContext* cx);
 
     JSScript* script() const;
     JSObject* enclosingStaticScope() const;
@@ -245,7 +249,7 @@ class ModuleObject : public NativeObject
     ArrayObject& indirectExportEntries() const;
     ArrayObject& starExportEntries() const;
     IndirectBindingMap& importBindings();
-    ArrayObject* namespaceExports();
+    JSObject* namespaceExports();
     IndirectBindingMap* namespaceBindings();
 
     void createEnvironment();
@@ -257,9 +261,11 @@ class ModuleObject : public NativeObject
     static bool evaluate(JSContext* cx, HandleModuleObject self, MutableHandleValue rval);
 
     static ModuleNamespaceObject* createNamespace(JSContext* cx, HandleModuleObject self,
-                                                  HandleArrayObject exports);
+                                                  HandleObject exports);
 
   private:
+    static const ClassOps classOps_;
+
     static void trace(JSTracer* trc, JSObject* obj);
     static void finalize(js::FreeOp* fop, JSObject* obj);
 
@@ -273,7 +279,7 @@ class ModuleObject : public NativeObject
 class MOZ_STACK_CLASS ModuleBuilder
 {
   public:
-    explicit ModuleBuilder(JSContext* cx, HandleModuleObject module);
+    explicit ModuleBuilder(ExclusiveContext* cx, HandleModuleObject module);
 
     bool processImport(frontend::ParseNode* pn);
     bool processExport(frontend::ParseNode* pn);
@@ -296,7 +302,7 @@ class MOZ_STACK_CLASS ModuleBuilder
     using RootedImportEntryVector = JS::Rooted<ImportEntryVector>;
     using RootedExportEntryVector = JS::Rooted<ExportEntryVector>;
 
-    JSContext* cx_;
+    ExclusiveContext* cx_;
     RootedModuleObject module_;
     RootedAtomVector requestedModules_;
     RootedAtomVector importedBoundNames_;

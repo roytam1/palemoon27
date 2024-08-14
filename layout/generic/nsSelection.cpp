@@ -78,9 +78,13 @@ static NS_DEFINE_CID(kFrameTraversalCID, NS_FRAMETRAVERSAL_CID);
 #include "mozilla/ErrorResult.h"
 #include "mozilla/dom/SelectionBinding.h"
 #include "mozilla/AsyncEventDispatcher.h"
+#include "nsHTMLEditor.h"
+#include "mozilla/Telemetry.h"
+#include "mozilla/layers/ScrollInputMethods.h"
 
 using namespace mozilla;
 using namespace mozilla::dom;
+using mozilla::layers::ScrollInputMethod;
 
 //#define DEBUG_TABLE 1
 
@@ -823,6 +827,14 @@ nsFrameSelection::Init(nsIPresShell *aShell, nsIContent *aLimiter)
                                  "dom.select_events.textcontrols.enabled", false);
   }
 
+  RefPtr<AccessibleCaretEventHub> eventHub = mShell->GetAccessibleCaretEventHub();
+  if (eventHub) {
+    int8_t index = GetIndexFromSelectionType(nsISelectionController::SELECTION_NORMAL);
+    if (mDomSelections[index]) {
+      mDomSelections[index]->AddSelectionListener(eventHub);
+    }
+  }
+
   nsIDocument* doc = aShell->GetDocument();
   if (sSelectionEventsEnabled ||
       (doc && nsContentUtils::IsSystemPrincipal(doc->NodePrincipal()))) {
@@ -833,14 +845,6 @@ nsFrameSelection::Init(nsIPresShell *aShell, nsIContent *aLimiter)
       // so we don't have to worry about that!
       RefPtr<SelectionChangeListener> listener = new SelectionChangeListener;
       mDomSelections[index]->AddSelectionListener(listener);
-    }
-  }
-
-  RefPtr<AccessibleCaretEventHub> eventHub = mShell->GetAccessibleCaretEventHub();
-  if (eventHub) {
-    int8_t index = GetIndexFromSelectionType(nsISelectionController::SELECTION_NORMAL);
-    if (mDomSelections[index]) {
-      mDomSelections[index]->AddSelectionListener(eventHub);
     }
   }
 }
@@ -880,7 +884,7 @@ nsFrameSelection::MoveCaret(nsDirection       aDirection,
   if (!sel)
     return NS_ERROR_NULL_POINTER;
 
-  int32_t scrollFlags = 0;
+  int32_t scrollFlags = Selection::SCROLL_FOR_CARET_MOVE;
   nsINode* focusNode = sel->GetFocusNode();
   if (focusNode &&
       (focusNode->IsEditable() ||
@@ -1703,11 +1707,17 @@ nsFrameSelection::TakeFocus(nsIContent*        aNewFocus,
     // BUT only do this in an editor
 
     NS_ENSURE_STATE(mShell);
-    int16_t displaySelection = mShell->GetSelectionFlags();
+    bool editable = false;
+    RefPtr<nsPresContext> context = mShell->GetPresContext();
+    if (context) {
+      nsCOMPtr<nsIHTMLEditor> editor = do_QueryInterface(nsContentUtils::GetHTMLEditor(context));
+      if (editor) {
+        nsCOMPtr<nsINode> editorHostNode = editor->GetActiveEditingHost();
+        editable = editorHostNode && nsContentUtils::ContentIsDescendantOf(aNewFocus, editorHostNode);
+      }
+    }
 
-    // Editor has DISPLAY_ALL selection type
-    if (displaySelection == nsISelectionDisplay::DISPLAY_ALL)
-    {
+    if (editable) {
       mCellParent = GetCellParent(aNewFocus);
 #ifdef DEBUG_TABLE_SELECTION
       if (mCellParent)
@@ -1740,7 +1750,7 @@ printf(" * TakeFocus - moving into new cell\n");
 
         // XXXX We need to REALLY get the current key shift state
         //  (we'd need to add event listener -- let's not bother for now)
-        event.modifiers &= ~MODIFIER_SHIFT; //aContinueSelection;
+        event.mModifiers &= ~MODIFIER_SHIFT; //aContinueSelection;
         if (parent)
         {
           mCellParent = cellparent;
@@ -1842,6 +1852,9 @@ nsFrameSelection::ScrollSelectionIntoView(SelectionType   aType,
   if (aFlags & nsISelectionController::SCROLL_CENTER_VERTICALLY) {
     verticalScroll = nsIPresShell::ScrollAxis(
       nsIPresShell::SCROLL_CENTER, nsIPresShell::SCROLL_IF_NOT_FULLY_VISIBLE);
+  }
+  if (aFlags & nsISelectionController::SCROLL_FOR_CARET_MOVE) {
+    flags |= Selection::SCROLL_FOR_CARET_MOVE;
   }
 
   // After ScrollSelectionIntoView(), the pending notifications might be
@@ -2040,6 +2053,8 @@ nsFrameSelection::CommonPageMove(bool aForward,
     return;
 
   // scroll one page
+  mozilla::Telemetry::Accumulate(mozilla::Telemetry::SCROLL_INPUT_METHODS,
+      (uint32_t) ScrollInputMethod::MainThreadScrollPage);
   aScrollableFrame->ScrollBy(nsIntPoint(0, aForward ? 1 : -1),
                              nsIScrollableFrame::PAGES,
                              nsIScrollableFrame::SMOOTH);
@@ -2116,7 +2131,17 @@ nsFrameSelection::PhysicalMove(int16_t aDirection, int16_t aAmount,
   if (NS_SUCCEEDED(sel->GetPrimaryFrameForFocusNode(&frame, &offsetused,
                                                     true))) {
     if (frame) {
-      wm = frame->GetWritingMode();
+      if (!frame->StyleContext()->IsTextCombined()) {
+        wm = frame->GetWritingMode();
+      } else {
+        // Using different direction for horizontal-in-vertical would
+        // make it hard to navigate via keyboard. Inherit the moving
+        // direction from its parent.
+        MOZ_ASSERT(frame->GetType() == nsGkAtoms::textFrame);
+        wm = frame->GetParent()->GetWritingMode();
+        MOZ_ASSERT(wm.IsVertical(), "Text combined "
+                   "can only appear in vertical text");
+      }
     }
   }
 
@@ -4973,6 +4998,23 @@ Selection::Collapse(nsINode& aParentNode, uint32_t aOffset, ErrorResult& aRv)
   // Turn off signal for table selection
   mFrameSelection->ClearTableCellSelection();
 
+  // Hack to display the caret on the right line (bug 1237236).
+  if (mFrameSelection->GetHint() != CARET_ASSOCIATE_AFTER &&
+      aParentNode.IsContent()) {
+    int32_t frameOffset;
+    nsTextFrame* f =
+      do_QueryFrame(nsCaret::GetFrameAndOffset(this, &aParentNode,
+                                               aOffset, &frameOffset));
+    if (f && f->IsAtEndOfLine() && f->HasSignificantTerminalNewline()) {
+      if ((aParentNode.AsContent() == f->GetContent() &&
+           f->GetContentEnd() == int32_t(aOffset)) ||
+          (&aParentNode == f->GetContent()->GetParentNode() &&
+           aParentNode.IndexOf(f->GetContent()) + 1 == int32_t(aOffset))) {
+        mFrameSelection->SetHint(CARET_ASSOCIATE_AFTER);
+      }
+    }
+  }
+
   RefPtr<nsRange> range = new nsRange(&aParentNode);
   result = range->SetEnd(&aParentNode, aOffset);
   if (NS_FAILED(result)) {
@@ -5928,6 +5970,11 @@ Selection::ScrollIntoView(SelectionRegion aRegion,
   }
   if (aFlags & Selection::SCROLL_OVERFLOW_HIDDEN) {
     flags |= nsIPresShell::SCROLL_OVERFLOW_HIDDEN;
+  }
+
+  if (aFlags & Selection::SCROLL_FOR_CARET_MOVE) {
+    mozilla::Telemetry::Accumulate(mozilla::Telemetry::SCROLL_INPUT_METHODS,
+        (uint32_t) ScrollInputMethod::MainThreadScrollCaretIntoView);
   }
 
   presShell->ScrollFrameRectIntoView(frame, rect, aVertical, aHorizontal,

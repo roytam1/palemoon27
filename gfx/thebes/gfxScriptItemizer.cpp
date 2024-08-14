@@ -64,7 +64,7 @@
 #define SYNC_FIXUP() (fixupCount = 0)
 
 void
-gfxScriptItemizer::push(uint32_t endPairChar, int32_t newScriptCode)
+gfxScriptItemizer::push(uint32_t endPairChar, Script newScriptCode)
 {
     pushCount  = LIMIT_INC(pushCount);
     fixupCount = LIMIT_INC(fixupCount);
@@ -97,7 +97,7 @@ gfxScriptItemizer::pop()
 }
 
 void
-gfxScriptItemizer::fixup(int32_t newScriptCode)
+gfxScriptItemizer::fixup(Script newScriptCode)
 {
     int32_t fixupSP = DEC(parenSP, fixupCount);
 
@@ -108,10 +108,10 @@ gfxScriptItemizer::fixup(int32_t newScriptCode)
 }
 
 static inline bool
-SameScript(int32_t runScript, int32_t currCharScript)
+SameScript(Script runScript, Script currCharScript)
 {
-    return runScript <= MOZ_SCRIPT_INHERITED ||
-           currCharScript <= MOZ_SCRIPT_INHERITED ||
+    return runScript <= Script::INHERITED ||
+           currCharScript <= Script::INHERITED ||
            currCharScript == runScript;
 }
 
@@ -132,7 +132,7 @@ gfxScriptItemizer::SetText(const char16_t *src, uint32_t length)
 
 bool
 gfxScriptItemizer::Next(uint32_t& aRunStart, uint32_t& aRunLimit,
-                        int32_t& aRunScript)
+                        Script& aRunScript)
 {
     /* if we've fallen off the end of the text, we're done */
     if (scriptLimit >= textLength) {
@@ -140,11 +140,11 @@ gfxScriptItemizer::Next(uint32_t& aRunStart, uint32_t& aRunLimit,
     }
 
     SYNC_FIXUP();
-    scriptCode = MOZ_SCRIPT_COMMON;
+    scriptCode = Script::COMMON;
 
     for (scriptStart = scriptLimit; scriptLimit < textLength; scriptLimit += 1) {
         uint32_t ch;
-        int32_t sc;
+        Script sc;
         uint32_t startOfChar = scriptLimit;
 
         ch = textPtr[scriptLimit];
@@ -158,20 +158,12 @@ gfxScriptItemizer::Next(uint32_t& aRunStart, uint32_t& aRunLimit,
             }
         }
 
-        // Get the nsCharProps2 record for the current character,
-        // so we can read the script and (if needed) the gen category
-        // without needing to do two multi-level lookups.
-        // NOTE that this means we're relying on an implementation detail
-        // of the nsUnicodeProperties tables, and might have to revise this
-        // if the nsCharProps records used there are modified in future.
-        const nsCharProps2& charProps = GetCharProps2(ch);
-
         // Initialize gc to UNASSIGNED; we'll only set it to the true GC
         // if the character has script=COMMON, otherwise we don't care.
         uint8_t gc = HB_UNICODE_GENERAL_CATEGORY_UNASSIGNED;
 
-        sc = charProps.mScriptCode;
-        if (sc == MOZ_SCRIPT_COMMON) {
+        sc = GetScriptCode(ch);
+        if (sc == Script::COMMON) {
             /*
              * Paired character handling:
              *
@@ -183,7 +175,7 @@ gfxScriptItemizer::Next(uint32_t& aRunStart, uint32_t& aRunLimit,
              * We only do this if the script is COMMON; for chars with
              * specific script assignments, we just use them as-is.
              */
-            gc = charProps.mCategory;
+            gc = GetGeneralCategory(ch);
             if (gc == HB_UNICODE_GENERAL_CATEGORY_OPEN_PUNCTUATION) {
                 uint32_t endPairChar = mozilla::unicode::GetMirroredChar(ch);
                 if (endPairChar != ch) {
@@ -203,8 +195,8 @@ gfxScriptItemizer::Next(uint32_t& aRunStart, uint32_t& aRunLimit,
         }
 
         if (SameScript(scriptCode, sc)) {
-            if (scriptCode <= MOZ_SCRIPT_INHERITED &&
-                sc > MOZ_SCRIPT_INHERITED)
+            if (scriptCode <= Script::INHERITED &&
+                sc > Script::INHERITED)
             {
                 scriptCode = sc;
                 fixup(scriptCode);

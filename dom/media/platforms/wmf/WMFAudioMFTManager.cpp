@@ -10,7 +10,7 @@
 #include "WMFUtils.h"
 #include "nsTArray.h"
 #include "TimeUnits.h"
-
+#include "mozilla/Telemetry.h"
 #include "mozilla/Logging.h"
 
 extern mozilla::LogModule* GetPDMLog();
@@ -226,6 +226,16 @@ WMFAudioMFTManager::Output(int64_t aStreamOffset,
 
   NS_ENSURE_TRUE(SUCCEEDED(hr), hr);
 
+  if (!sample) {
+    LOG("Audio MFTDecoder returned success but null output.");
+    nsCOMPtr<nsIRunnable> task = NS_NewRunnableFunction([]() -> void {
+      LOG("Reporting telemetry AUDIO_MFT_OUTPUT_NULL_SAMPLES");
+      Telemetry::Accumulate(Telemetry::ID::AUDIO_MFT_OUTPUT_NULL_SAMPLES, 1);
+    });
+    AbstractThread::MainThread()->Dispatch(task.forget());
+    return E_FAIL;
+  }
+
   RefPtr<IMFMediaBuffer> buffer;
   hr = sample->ConvertToContiguousBuffer(getter_AddRefs(buffer));
   NS_ENSURE_TRUE(SUCCEEDED(hr), hr);
@@ -280,7 +290,10 @@ WMFAudioMFTManager::Output(int64_t aStreamOffset,
     return S_OK;
   }
 
-  auto audioData = MakeUnique<AudioDataValue[]>(numSamples);
+  AlignedAudioBuffer audioData(numSamples);
+  if (!audioData) {
+    return E_OUTOFMEMORY;
+  }
 
   int16_t* pcm = (int16_t*)data;
   for (int32_t i = 0; i < numSamples; ++i) {

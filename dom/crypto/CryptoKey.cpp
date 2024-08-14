@@ -9,7 +9,6 @@
 #include "nsNSSComponent.h"
 #include "ScopedNSSTypes.h"
 #include "mozilla/dom/CryptoKey.h"
-#include "mozilla/dom/WebCryptoCommon.h"
 #include "mozilla/dom/SubtleCryptoBinding.h"
 #include "mozilla/dom/ToJSValue.h"
 
@@ -746,7 +745,7 @@ CryptoKey::PrivateKeyFromJwk(const JsonWebKey& aJwk,
       { CKA_ID,               objID->data,          objID->len },
       { CKA_EC_PARAMS,        params->data,         params->len },
       { CKA_EC_POINT,         ecPoint->data,        ecPoint->len },
-      { CKA_VALUE,            (void*) d.Elements(), d.Length() },
+      { CKA_VALUE,            (void*) d.Elements(), (CK_ULONG) d.Length() },
     };
 
     return PrivateKeyFromPrivateKeyTemplate(objID, keyTemplate,
@@ -793,14 +792,14 @@ CryptoKey::PrivateKeyFromJwk(const JsonWebKey& aJwk,
       { CKA_SENSITIVE,        &falseValue,           sizeof(falseValue) },
       { CKA_PRIVATE,          &falseValue,           sizeof(falseValue) },
       { CKA_ID,               objID->data,           objID->len },
-      { CKA_MODULUS,          (void*) n.Elements(),  n.Length() },
-      { CKA_PUBLIC_EXPONENT,  (void*) e.Elements(),  e.Length() },
-      { CKA_PRIVATE_EXPONENT, (void*) d.Elements(),  d.Length() },
-      { CKA_PRIME_1,          (void*) p.Elements(),  p.Length() },
-      { CKA_PRIME_2,          (void*) q.Elements(),  q.Length() },
-      { CKA_EXPONENT_1,       (void*) dp.Elements(), dp.Length() },
-      { CKA_EXPONENT_2,       (void*) dq.Elements(), dq.Length() },
-      { CKA_COEFFICIENT,      (void*) qi.Elements(), qi.Length() },
+      { CKA_MODULUS,          (void*) n.Elements(),  (CK_ULONG) n.Length() },
+      { CKA_PUBLIC_EXPONENT,  (void*) e.Elements(),  (CK_ULONG) e.Length() },
+      { CKA_PRIVATE_EXPONENT, (void*) d.Elements(),  (CK_ULONG) d.Length() },
+      { CKA_PRIME_1,          (void*) p.Elements(),  (CK_ULONG) p.Length() },
+      { CKA_PRIME_2,          (void*) q.Elements(),  (CK_ULONG) q.Length() },
+      { CKA_EXPONENT_1,       (void*) dp.Elements(), (CK_ULONG) dp.Length() },
+      { CKA_EXPONENT_2,       (void*) dq.Elements(), (CK_ULONG) dq.Length() },
+      { CKA_COEFFICIENT,      (void*) qi.Elements(), (CK_ULONG) qi.Length() },
     };
 
     return PrivateKeyFromPrivateKeyTemplate(objID, keyTemplate,
@@ -974,11 +973,16 @@ CreateECPublicKey(const SECItem* aKeyData, const nsString& aNamedCurve)
     return nullptr;
   }
 
-  SECKEYPublicKey* key = PORT_ArenaZNew(arena, SECKEYPublicKey);
+  // It's important that this be a ScopedSECKEYPublicKey, as this ensures that
+  // SECKEY_DestroyPublicKey will be called on it. If this doesn't happen, when
+  // CryptoKey::PublicKeyValid is called on it and it gets moved to the internal
+  // PKCS#11 slot, it will leak a reference to the slot.
+  ScopedSECKEYPublicKey key(PORT_ArenaZNew(arena, SECKEYPublicKey));
   if (!key) {
     return nullptr;
   }
 
+  key->arena = nullptr; // key doesn't own the arena; it won't get double-freed
   key->keyType = ecKey;
   key->pkcs11Slot = nullptr;
   key->pkcs11ID = CK_INVALID_HANDLE;

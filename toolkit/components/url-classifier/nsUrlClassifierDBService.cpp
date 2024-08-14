@@ -798,11 +798,8 @@ NS_IMPL_ISUPPORTS(nsUrlClassifierLookupCallback,
 
 nsUrlClassifierLookupCallback::~nsUrlClassifierLookupCallback()
 {
-  nsCOMPtr<nsIThread> thread;
-  (void)NS_GetMainThread(getter_AddRefs(thread));
-
   if (mCallback) {
-    (void)NS_ProxyRelease(thread, mCallback, false);
+    NS_ReleaseOnMainThread(mCallback.forget());
   }
 }
 
@@ -866,6 +863,8 @@ nsUrlClassifierLookupCallback::LookupComplete(nsTArray<LookupResult>* results)
     }
   }
 
+  LOG(("nsUrlClassifierLookupCallback::LookupComplete [%p] "
+       "%u pending completions", this, mPendingCompletions));
   if (mPendingCompletions == 0) {
     // All results were complete, we're ready!
     HandleResults();
@@ -936,8 +935,14 @@ nsUrlClassifierLookupCallback::HandleResults()
 {
   if (!mResults) {
     // No results, this URI is clean.
+    LOG(("nsUrlClassifierLookupCallback::HandleResults [%p, no results]", this));
     return mCallback->HandleEvent(NS_LITERAL_CSTRING(""));
   }
+  MOZ_ASSERT(mPendingCompletions == 0, "HandleResults() should never be "
+             "called while there are pending completions");
+
+  LOG(("nsUrlClassifierLookupCallback::HandleResults [%p, %u results]",
+       this, mResults->Length()));
 
   nsTArray<nsCString> tables;
   // Build a stringified list of result tables.
@@ -955,7 +960,8 @@ nsUrlClassifierLookupCallback::HandleResults()
       continue;
     }
 
-    LOG(("Confirmed result from table %s", result.mTableName.get()));
+    LOG(("Confirmed result %X from table %s",
+         result.hash.prefix.ToUint32(), result.mTableName.get()));
 
     if (tables.IndexOf(result.mTableName) == nsTArray<nsCString>::NoIndex) {
       tables.AppendElement(result.mTableName);

@@ -120,8 +120,9 @@ enum class StyleBoxSizing : uint8_t {
 #define NS_STYLE_USER_MODIFY_WRITE_ONLY  2
 
 // -moz-window-dragging
-#define NS_STYLE_WINDOW_DRAGGING_DRAG    0
-#define NS_STYLE_WINDOW_DRAGGING_NO_DRAG 1
+#define NS_STYLE_WINDOW_DRAGGING_DEFAULT 0
+#define NS_STYLE_WINDOW_DRAGGING_DRAG    1
+#define NS_STYLE_WINDOW_DRAGGING_NO_DRAG 2
 
 // box-align
 #define NS_STYLE_BOX_ALIGN_STRETCH     0
@@ -266,10 +267,12 @@ enum class FillMode : uint32_t;
 #define NS_STYLE_IMAGELAYER_ATTACHMENT_LOCAL         2
 
 // See nsStyleImageLayers
-// Code depends on these constants having the same values as BG_ORIGIN_*
+// Code depends on these constants having the same values as IMAGELAYER_ORIGIN_*
 #define NS_STYLE_IMAGELAYER_CLIP_BORDER              0
 #define NS_STYLE_IMAGELAYER_CLIP_PADDING             1
 #define NS_STYLE_IMAGELAYER_CLIP_CONTENT             2
+// One extra constant which does not exist in IMAGELAYER_ORIGIN_*
+#define NS_STYLE_IMAGELAYER_CLIP_TEXT                3
 
 // A magic value that we use for our "pretend that background-clip is
 // 'padding' when we have a solid border" optimization.  This isn't
@@ -304,6 +307,11 @@ enum class FillMode : uint32_t;
 // See nsStyleImageLayers
 #define NS_STYLE_IMAGELAYER_SIZE_CONTAIN             0
 #define NS_STYLE_IMAGELAYER_SIZE_COVER               1
+
+// Mask mode
+#define NS_STYLE_MASK_MODE_ALPHA                0
+#define NS_STYLE_MASK_MODE_LUMINANCE            1
+#define NS_STYLE_MASK_MODE_MATCH_SOURCE         2
 
 // See nsStyleBackground
 #define NS_STYLE_BG_INLINE_POLICY_EACH_BOX      0
@@ -461,6 +469,8 @@ enum class FillMode : uint32_t;
 #define NS_STYLE_DISPLAY_RUBY_TEXT              36
 #define NS_STYLE_DISPLAY_RUBY_TEXT_CONTAINER    37
 #define NS_STYLE_DISPLAY_CONTENTS               38
+#define NS_STYLE_DISPLAY_WEBKIT_BOX             39
+#define NS_STYLE_DISPLAY_WEBKIT_INLINE_BOX      40
 
 // See nsStyleDisplay
 // If these are re-ordered, nsComputedDOMStyle::DoGetContain() and
@@ -947,7 +957,7 @@ enum class FillMode : uint32_t;
 #define NS_STYLE_UNICODE_BIDI_NORMAL            0x0
 #define NS_STYLE_UNICODE_BIDI_EMBED             0x1
 #define NS_STYLE_UNICODE_BIDI_ISOLATE           0x2
-#define NS_STYLE_UNICODE_BIDI_OVERRIDE          0x4
+#define NS_STYLE_UNICODE_BIDI_BIDI_OVERRIDE     0x4
 #define NS_STYLE_UNICODE_BIDI_ISOLATE_OVERRIDE  0x6
 #define NS_STYLE_UNICODE_BIDI_PLAINTEXT         0x8
 
@@ -1116,6 +1126,10 @@ enum class FillMode : uint32_t;
 #define NS_STYLE_TEXT_RENDERING_OPTIMIZELEGIBILITY 2
 #define NS_STYLE_TEXT_RENDERING_GEOMETRICPRECISION 3
 
+// adjust-color
+#define NS_STYLE_COLOR_ADJUST_ECONOMY               0
+#define NS_STYLE_COLOR_ADJUST_EXACT                 1
+
 // color-interpolation and color-interpolation-filters
 #define NS_STYLE_COLOR_INTERPOLATION_AUTO           0
 #define NS_STYLE_COLOR_INTERPOLATION_SRGB           1
@@ -1153,6 +1167,12 @@ enum class FillMode : uint32_t;
 #define NS_STYLE_BLEND_SATURATION                   13
 #define NS_STYLE_BLEND_COLOR                        14
 #define NS_STYLE_BLEND_LUMINOSITY                   15
+
+// composite
+#define NS_STYLE_MASK_COMPOSITE_ADD                 0
+#define NS_STYLE_MASK_COMPOSITE_SUBSTRACT           1
+#define NS_STYLE_MASK_COMPOSITE_INTERSECT           2
+#define NS_STYLE_MASK_COMPOSITE_EXCLUDE             3
 
 // See nsStyleText::mControlCharacterVisibility
 #define NS_STYLE_CONTROL_CHARACTER_VISIBILITY_HIDDEN  0
@@ -1195,6 +1215,12 @@ enum class FillMode : uint32_t;
 // scan
 #define NS_STYLE_SCAN_PROGRESSIVE               0
 #define NS_STYLE_SCAN_INTERLACE                 1
+
+// display-mode
+#define NS_STYLE_DISPLAY_MODE_BROWSER           0
+#define NS_STYLE_DISPLAY_MODE_MINIMAL_UI        1
+#define NS_STYLE_DISPLAY_MODE_STANDALONE        2
+#define NS_STYLE_DISPLAY_MODE_FULLSCREEN        3
 
 } // namespace mozilla
 

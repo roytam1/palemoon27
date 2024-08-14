@@ -704,7 +704,7 @@ function* updateBookmark(info, item, newParent) {
     if (info.hasOwnProperty("url")) {
       // Ensure a page exists in moz_places for this URL.
       yield db.executeCached(
-        `INSERT OR IGNORE INTO moz_places (url, rev_host, hidden, frecency, guid) 
+          `INSERT OR IGNORE INTO moz_places (url, rev_host, hidden, frecency, guid)
          VALUES (:url, :rev_host, 0, :frecency, GENERATE_GUID())
         `, { url: info.url ? info.url.href : null,
              rev_host: PlacesUtils.getReversedHost(info.url),
@@ -790,7 +790,7 @@ function* insertBookmark(item, parent) {
     if (item.type == Bookmarks.TYPE_BOOKMARK) {
       // Ensure a page exists in moz_places for this URL.
       yield db.executeCached(
-        `INSERT OR IGNORE INTO moz_places (url, rev_host, hidden, frecency, guid) 
+          `INSERT OR IGNORE INTO moz_places (url, rev_host, hidden, frecency, guid)
          VALUES (:url, :rev_host, 0, :frecency, GENERATE_GUID())
         `, { url: item.url.href, rev_host: PlacesUtils.getReversedHost(item.url),
              frecency: item.url.protocol == "place:" ? 0 : -1 });
@@ -974,8 +974,9 @@ function* reorderChildren(parent, orderedChildrenGuids) {
       let i = orderedChildrenGuids.indexOf(a.guid);
       let j = orderedChildrenGuids.indexOf(b.guid);
       // This works provided fetchBookmarksByParent returns sorted children.
-      return (i == -1 && j == -1) ? 0 :
-               (i != -1 && j != -1 && i < j) || (i != -1 && j == -1) ? -1 : 1;
+        if (i == -1 && j == -1)
+          return 0;
+        return (i != -1 && j != -1 && i < j) || (i != -1 && j == -1) ? -1 : 1;
      });
 
     // Update the bookmarks position now.  If any unknown guid have been

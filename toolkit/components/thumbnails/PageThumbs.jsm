@@ -154,7 +154,8 @@ this.PageThumbs = {
    */
   getThumbnailURL: function PageThumbs_getThumbnailURL(aUrl) {
     return this.scheme + "://" + this.staticHost +
-           "/?url=" + encodeURIComponent(aUrl);
+           "/?url=" + encodeURIComponent(aUrl) +
+           "&revision=" + PageThumbsStorage.getRevision(aUrl);
   },
 
    /**
@@ -184,7 +185,7 @@ this.PageThumbs = {
 
     let deferred = Promise.defer();
 
-    let canvas = this.createCanvas();
+    let canvas = this.createCanvas(aBrowser.contentWindow);
     this.captureToCanvas(aBrowser, canvas, () => {
       canvas.toBlob(blob => {
         deferred.resolve(blob, this.contentType);
@@ -223,7 +224,7 @@ this.PageThumbs = {
    * transitory as it is based on current navigation state and the type of
    * content being displayed.
    *
-   * @param aBrowser The target browser 
+   * @param aBrowser The target browser
    * @param aCallback(aResult) A callback invoked once security checks have
    *   completed. aResult is a boolean indicating the combined result of the
    *   security checks performed.
@@ -266,24 +267,7 @@ this.PageThumbs = {
       return;
     }
 
-    // Generate in-process content thumbnail
-    let [width, height, scale] =
-      PageThumbUtils.determineCropSize(aBrowser.contentWindow, aCanvas);
-    let ctx = aCanvas.getContext("2d");
-
-    // Scale the canvas accordingly.
-    ctx.save();
-    ctx.scale(scale, scale);
-
-    try {
-      // Draw the window contents to the canvas.
-      ctx.drawWindow(aBrowser.contentWindow, 0, 0, width, height,
-                     PageThumbUtils.THUMBNAIL_BG_COLOR,
-                     ctx.DRAWWINDOW_DO_NOT_FLUSH);
-    } catch (e) {
-      // We couldn't draw to the canvas for some reason.
-    }
-    ctx.restore();
+    aCanvas = PageThumbUtils.createSnapshotThumbnail(aBrowser.contentWindow, aCanvas);
 
     if (aCallback) {
       aCallback(aCanvas);
@@ -554,12 +538,50 @@ this.PageThumbsStorage = {
     return OS.Path.join(this.path, this.getLeafNameForURL(aURL));
   },
 
+  _revisionTable: {},
+
+  // Generate an arbitrary revision tag, i.e. one that can't be used to
+  // infer URL frecency.
+  _updateRevision(aURL) {
+    // Initialize with a random value and increment on each update. Wrap around
+    // modulo _revisionRange, so that even small values carry no meaning.
+    let rev = this._revisionTable[aURL];
+    if (rev == null)
+      rev = Math.floor(Math.random() * this._revisionRange);
+    this._revisionTable[aURL] = (rev + 1) % this._revisionRange;
+  },
+
+  // If two thumbnails with the same URL and revision are in cache at the
+  // same time, the image loader may pick the stale thumbnail in some cases.
+  // Therefore _revisionRange must be large enough to prevent this, e.g.
+  // in the pathological case image.cache.size (5MB by default) could fill
+  // with (abnormally small) 10KB thumbnail images if the browser session
+  // runs long enough (though this is unlikely as thumbnails are usually
+  // only updated every MAX_THUMBNAIL_AGE_SECS).
+  _revisionRange: 8192,
+
+  /**
+  * Return a revision tag for the thumbnail stored for a given URL.
+  *
+  * @param aURL The URL spec string
+  * @return A revision tag for the corresponding thumbnail. Returns a changed
+  * value whenever the stored thumbnail changes.
+  */
+  getRevision(aURL) {
+    let rev = this._revisionTable[aURL];
+    if (rev == null) {
+      this._updateRevision(aURL);
+      rev = this._revisionTable[aURL];
+    }
+    return rev;
+  },
+
   /**
    * Write the contents of a thumbnail, off the main thread.
    *
    * @param {string} aURL The url for which to store a thumbnail.
    * @param {ArrayBuffer} aData The data to store in the thumbnail, as
-   * an ArrayBuffer. This array buffer is neutered and cannot be
+   * an ArrayBuffer. This array buffer will be detached and cannot be
    * reused after the copy.
    * @param {boolean} aNoOverwrite If true and the thumbnail's file already
    * exists, the file will not be overwritten.
@@ -583,7 +605,7 @@ this.PageThumbsStorage = {
       msg /*we don't want that message garbage-collected,
            as OS.Shared.Type.void_t.in_ptr.toMsg uses C-level
            memory tricks to enforce zero-copy*/).
-      then(null, this._eatNoOverwriteError(aNoOverwrite));
+      then(() => this._updateRevision(aURL), this._eatNoOverwriteError(aNoOverwrite));
   },
 
   /**
@@ -602,7 +624,7 @@ this.PageThumbsStorage = {
     let targetFile = this.getFilePathForURL(aTargetURL);
     let options = { noOverwrite: aNoOverwrite };
     return PageThumbsWorker.post("copy", [sourceFile, targetFile, options]).
-      then(null, this._eatNoOverwriteError(aNoOverwrite));
+      then(() => this._updateRevision(aTargetURL), this._eatNoOverwriteError(aNoOverwrite));
   },
 
   /**
@@ -713,7 +735,7 @@ this.PageThumbsStorage = {
   }
 };
 
-let PageThumbsStorageMigrator = {
+var PageThumbsStorageMigrator = {
   get currentVersion() {
     try {
       return Services.prefs.getIntPref(PREF_STORAGE_VERSION);
@@ -771,7 +793,7 @@ let PageThumbsStorageMigrator = {
   }
 };
 
-let PageThumbsExpiration = {
+var PageThumbsExpiration = {
   _filters: [],
 
   init: function Expiration_init() {
@@ -836,12 +858,12 @@ let PageThumbsExpiration = {
 /**
  * Interface to a dedicated thread handling I/O
  */
-let PageThumbsWorker = new BasePromiseWorker("resource://gre/modules/PageThumbsWorker.js");
+var PageThumbsWorker = new BasePromiseWorker("resource://gre/modules/PageThumbsWorker.js");
 // As the PageThumbsWorker performs I/O, we can receive instances of
 // OS.File.Error, so we need to install a decoder.
 PageThumbsWorker.ExceptionHandlers["OS.File.Error"] = OS.File.Error.fromMsg;
 
-let PageThumbsHistoryObserver = {
+var PageThumbsHistoryObserver = {
   onDeleteURI: function Thumbnails_onDeleteURI(aURI, aGUID) {
     PageThumbsStorage.remove(aURI.spec);
   },

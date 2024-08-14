@@ -36,9 +36,8 @@ public:
     virtual void LockProdImpl() override { }
     virtual void UnlockProdImpl() override { }
 
-    virtual void Fence() override;
-    virtual bool WaitSync() override { return true; }
-    virtual bool PollSync() override { return true; }
+    virtual void ProducerAcquireImpl() override {}
+    virtual void ProducerReleaseImpl() override;
 
     virtual bool CopyTexImage2D(GLenum target, GLint level, GLenum internalformat,
                                 GLint x, GLint y, GLsizei width, GLsizei height,
@@ -78,13 +77,13 @@ public:
     // Infallible.
     static UniquePtr<SurfaceFactory_IOSurface> Create(GLContext* gl,
                                                       const SurfaceCaps& caps,
-                                                      const RefPtr<layers::ISurfaceAllocator>& allocator,
+                                                      const RefPtr<layers::ClientIPCAllocator>& allocator,
                                                       const layers::TextureFlags& flags);
 protected:
     const gfx::IntSize mMaxDims;
 
     SurfaceFactory_IOSurface(GLContext* gl, const SurfaceCaps& caps,
-                             const RefPtr<layers::ISurfaceAllocator>& allocator,
+                             const RefPtr<layers::ClientIPCAllocator>& allocator,
                              const layers::TextureFlags& flags,
                              const gfx::IntSize& maxDims)
         : SurfaceFactory(SharedSurfaceType::IOSurface, gl, caps, allocator, flags)

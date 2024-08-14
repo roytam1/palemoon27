@@ -203,12 +203,9 @@ public:
                                int aMinInterval,
                                int aMaxInterval,
                                int aApperance,
-                               uint16_t aManufacturerLen,
-                               char* aManufacturerData,
-                               uint16_t aServiceDataLen,
-                               char* aServiceData,
-                               uint16_t aServiceUUIDLen,
-                               char* aServiceUUID,
+                               const nsTArray<uint8_t>& aManufacturerData,
+                               const nsTArray<uint8_t>& aServiceData,
+                               const nsTArray<BluetoothUuid>& aServiceUuids,
                                BluetoothGattResultHandler* aRes);
 
   nsresult ClientTestCommandCmd(int aCommand,
@@ -656,7 +653,7 @@ protected:
   typedef mozilla::ipc::DaemonNotificationRunnable9<
     NotificationHandlerWrapper, void,
     int, int, BluetoothAddress, BluetoothAttributeHandle,
-    int, int, nsAutoArrayPtr<uint8_t>, bool, bool,
+    int, int, UniquePtr<uint8_t[]>, bool, bool,
     int, int, const BluetoothAddress&, const BluetoothAttributeHandle&,
     int, int, const uint8_t*, bool, bool>
     ServerRequestWriteNotification;
@@ -908,9 +905,9 @@ public:
                   int aMinInterval,
                   int aMaxInterval,
                   int aApperance,
-                  uint16_t aManufacturerLen, char* aManufacturerData,
-                  uint16_t aServiceDataLen, char* aServiceData,
-                  uint16_t aServiceUuidLen, char* aServiceUuid,
+                  const nsTArray<uint8_t>& aManufacturerData,
+                  const nsTArray<uint8_t>& aServiceData,
+                  const nsTArray<BluetoothUuid>& aServiceUuids,
                   BluetoothGattResultHandler* aRes) override;
 
   void TestCommand(int aCommand,

@@ -41,6 +41,12 @@
 #define NS_FONT_SYNTHESIS_WEIGHT                    0x1
 #define NS_FONT_SYNTHESIS_STYLE                     0x2
 
+#define NS_FONT_DISPLAY_AUTO            0
+#define NS_FONT_DISPLAY_BLOCK           1
+#define NS_FONT_DISPLAY_SWAP            2
+#define NS_FONT_DISPLAY_FALLBACK        3
+#define NS_FONT_DISPLAY_OPTIONAL        4
+
 enum {
     eFeatureAlternates_historical,
     eFeatureAlternates_stylistic,
@@ -196,6 +202,12 @@ enum {
 #define NS_FONT_VARIANT_POSITION_NORMAL             0
 #define NS_FONT_VARIANT_POSITION_SUPER              1
 #define NS_FONT_VARIANT_POSITION_SUB                2
+
+#define NS_FONT_VARIANT_WIDTH_NORMAL  0
+#define NS_FONT_VARIANT_WIDTH_FULL    1
+#define NS_FONT_VARIANT_WIDTH_HALF    2
+#define NS_FONT_VARIANT_WIDTH_THIRD   3
+#define NS_FONT_VARIANT_WIDTH_QUARTER 4
 
 // based on fixed offset values used within WebKit
 #define NS_FONT_SUBSCRIPT_OFFSET_RATIO     (0.20)

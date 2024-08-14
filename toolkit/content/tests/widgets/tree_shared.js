@@ -43,7 +43,7 @@ function testtag_tree(treeid, treerowinfoid, seltype, columnstype, testid)
   is(tree.selType, seltype == "multiple" ? "" : seltype, testid + " seltype");
 
   // note: the functions below should be in this order due to changes made in later tests
-  
+
   // select the first column in cell selection mode so that the selection
   // functions can be tested
   if (seltype == "cell")
@@ -74,8 +74,8 @@ function testtag_tree(treeid, treerowinfoid, seltype, columnstype, testid)
   var ecolumn = tree.columns[0];
   ok(!tree.startEditing(1, ecolumn), "non-editable trees shouldn't start editing");
   is(tree.editingRow, -1, testid + " failed startEditing shouldn't set editingRow");
-  is(tree.editingColumn, null, testid + " failed startEditing shouldn't set editingColumn");  
-  
+  is(tree.editingColumn, null, testid + " failed startEditing shouldn't set editingColumn");
+
   tree.editable = true;
 
   ok(tree.startEditing(1, ecolumn), "startEditing should have returned true");
@@ -372,7 +372,7 @@ function testtag_tree_TreeSelection_UI(tree, testid, multiple)
   selection.select(3);
   synthesizeKeyExpectEvent("VK_DOWN", {}, tree, "!select", "key down with scroll");
   is(tree.treeBoxObject.getFirstVisibleRow(), 1, testid + "key down with scroll");
-  
+
   // accel key and cursor movement adjust currentIndex but should not change
   // the selection. In single selection mode, the selection will not change,
   // but instead will just scroll up or down a line
@@ -393,7 +393,11 @@ function testtag_tree_TreeSelection_UI(tree, testid, multiple)
   // do this three times, one for each state of pageUpOrDownMovesSelection,
   // and then once with the accel key pressed
   for (let t = 0; t < 3; t++) {
-    let testidmod = (t == 2) ? " with accel" : (t == 1) ? " rev" : "";
+    let testidmod = "";
+    if (t == 2)
+      testidmod = " with accel"
+    else if (t == 1)
+      testidmod = " rev";
     var keymod = (t == 2) ? { accelKey: true } : { };
 
     var moveselection = tree.pageUpOrDownMovesSelection;
@@ -722,7 +726,7 @@ function testtag_tree_TreeSelection_UI_cell(tree, testid, rowInfo)
   }
 
   tree.focus();
- 
+
   // selection is set, so it should move when the left and right cursor keys are pressed
   tree.treeBoxObject.scrollToRow(0);
   selection.select(1);
@@ -1164,10 +1168,20 @@ function testtag_tree_wheel(aTree)
   function helper(aStart, aDelta, aIntDelta, aDeltaMode)
   {
     aTree.treeBoxObject.scrollToRow(aStart);
-    var expected = !aIntDelta ? aStart :
-          aDeltaMode != WheelEvent.DOM_DELTA_PAGE ? aStart + aIntDelta :
-          aIntDelta > 0 ? aStart + aTree.treeBoxObject.getPageLength() :
-                          aStart - aTree.treeBoxObject.getPageLength();
+    var expected;
+    if (!aIntDelta) {
+      expected = aStart;
+    }
+    else if (aDeltaMode != WheelEvent.DOM_DELTA_PAGE) {
+      expected = aStart + aIntDelta;
+    }
+    else if (aIntDelta > 0) {
+      expected = aStart + aTree.treeBoxObject.getPageLength();
+    }
+    else {
+      expected = aStart - aTree.treeBoxObject.getPageLength();
+    }
+
     if (expected < 0) {
       expected = 0;
     }

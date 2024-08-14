@@ -80,6 +80,8 @@ class ArrayBufferObjectMaybeShared : public NativeObject
         return AnyArrayBufferByteLength(this);
     }
 
+    inline bool isDetached() const;
+
     inline SharedMem<uint8_t*> dataPointerEither();
 };
 
@@ -99,6 +101,8 @@ class ArrayBufferObject : public ArrayBufferObjectMaybeShared
 {
     static bool byteLengthGetterImpl(JSContext* cx, const CallArgs& args);
     static bool fun_slice_impl(JSContext* cx, const CallArgs& args);
+
+    static const ClassOps classOps_;
 
   public:
     static const uint8_t DATA_SLOT = 0;
@@ -198,6 +202,7 @@ class ArrayBufferObject : public ArrayBufferObjectMaybeShared
     static const Class protoClass;
     static const JSFunctionSpec jsfuncs[];
     static const JSFunctionSpec jsstaticfuncs[];
+    static const JSPropertySpec jsstaticprops[];
 
     static bool byteLengthGetter(JSContext* cx, unsigned argc, Value* vp);
 
@@ -207,6 +212,8 @@ class ArrayBufferObject : public ArrayBufferObjectMaybeShared
 #ifdef NIGHTLY_BUILD
     static bool fun_transfer(JSContext* cx, unsigned argc, Value* vp);
 #endif
+
+    static bool fun_species(JSContext* cx, unsigned argc, Value* vp);
 
     static bool class_constructor(JSContext* cx, unsigned argc, Value* vp);
 
@@ -288,7 +295,7 @@ class ArrayBufferObject : public ArrayBufferObjectMaybeShared
   public:
     uint8_t* dataPointer() const;
     SharedMem<uint8_t*> dataPointerShared() const;
-    size_t byteLength() const;
+    uint32_t byteLength() const;
     BufferContents contents() const {
         return BufferContents(dataPointer(), bufferKind());
     }
@@ -339,7 +346,7 @@ class ArrayBufferObject : public ArrayBufferObjectMaybeShared
 
   protected:
     void setDataPointer(BufferContents contents, OwnsState ownsState);
-    void setByteLength(size_t length);
+    void setByteLength(uint32_t length);
 
     uint32_t flags() const;
     void setFlags(uint32_t flags);

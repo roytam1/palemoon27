@@ -69,7 +69,7 @@ typedef any Transferable;
 #ifdef HAVE_SIDEBAR
   [Replaceable, Throws] readonly attribute External external;
 #endif
-  [Throws] readonly attribute ApplicationCache applicationCache;
+  [Throws, Pref="browser.cache.offline.enable"] readonly attribute ApplicationCache applicationCache;
 
   // user prompts
   [Throws, UnsafeInPrerendering] void alert();
@@ -93,10 +93,10 @@ Window implements WindowEventHandlers;
 interface WindowTimers {
   [Throws] long setTimeout(Function handler, optional long timeout = 0, any... arguments);
   [Throws] long setTimeout(DOMString handler, optional long timeout = 0, any... unused);
-  [Throws] void clearTimeout(optional long handle = 0);
+  void clearTimeout(optional long handle = 0);
   [Throws] long setInterval(Function handler, optional long timeout, any... arguments);
   [Throws] long setInterval(DOMString handler, optional long timeout, any... unused);
-  [Throws] void clearInterval(optional long handle = 0);
+  void clearInterval(optional long handle = 0);
 };
 Window implements WindowTimers;
 
@@ -246,6 +246,9 @@ partial interface Window {
 // https://dvcs.w3.org/hg/webcrypto-api/raw-file/tip/spec/Overview.html
 Window implements GlobalCrypto;
 
+// https://fidoalliance.org/specifications/download/
+Window implements GlobalU2F;
+
 #ifdef MOZ_WEBSPEECH
 // http://dvcs.w3.org/hg/speech-api/raw-file/tip/speechapi.html
 [NoInterfaceObject]
@@ -266,7 +269,7 @@ Window implements WindowModal;
 
 // https://slightlyoff.github.io/ServiceWorker/spec/service_worker/index.html#self-caches
 partial interface Window {
-[Throws, Func="mozilla::dom::cache::CacheStorage::PrefEnabled"]
+[Throws, Func="mozilla::dom::cache::CacheStorage::PrefEnabled", SameObject]
 readonly attribute CacheStorage caches;
 };
 
@@ -354,6 +357,7 @@ partial interface Window {
 
            attribute EventHandler ondevicemotion;
            attribute EventHandler ondeviceorientation;
+           attribute EventHandler onabsolutedeviceorientation;
            attribute EventHandler ondeviceproximity;
            attribute EventHandler onuserproximity;
            attribute EventHandler ondevicelight;
@@ -417,7 +421,7 @@ partial interface Window {
 #ifdef HAVE_SIDEBAR
 // Mozilla extension
 partial interface Window {
-  [Replaceable, Throws]
+  [Replaceable, Throws, UseCounter]
   readonly attribute (External or WindowProxy) sidebar;
 };
 #endif

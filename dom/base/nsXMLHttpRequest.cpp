@@ -455,7 +455,7 @@ NS_IMPL_CYCLE_COLLECTION_UNLINK_END
 NS_IMPL_CYCLE_COLLECTION_TRACE_BEGIN_INHERITED(nsXMLHttpRequest,
                                                nsXHREventTarget)
   NS_IMPL_CYCLE_COLLECTION_TRACE_JS_MEMBER_CALLBACK(mResultArrayBuffer)
-  NS_IMPL_CYCLE_COLLECTION_TRACE_JSVAL_MEMBER_CALLBACK(mResultJSON)
+  NS_IMPL_CYCLE_COLLECTION_TRACE_JS_MEMBER_CALLBACK(mResultJSON)
 NS_IMPL_CYCLE_COLLECTION_TRACE_END
 
 // QueryInterface implementation for nsXMLHttpRequest
@@ -697,7 +697,7 @@ nsXMLHttpRequest::GetResponseText(nsString& aResponseText, ErrorResult& aRv)
   }
 
   mResponseBodyDecodedPos = mResponseBody.Length();
-  
+
   if (mState & XML_HTTP_REQUEST_DONE) {
     // Free memory buffer which we no longer need
     mResponseBody.Truncate();
@@ -1222,7 +1222,7 @@ nsXMLHttpRequest::IsSafeHeader(const nsACString& header, nsIHttpChannel* httpCha
     if (NS_FAILED(status)) {
       return false;
     }
-  }  
+  }
   const char* kCrossOriginSafeHeaders[] = {
     "cache-control", "content-language", "content-type", "expires",
     "last-modified", "pragma"
@@ -1382,7 +1382,7 @@ nsXMLHttpRequest::GetResponseHeader(const nsACString& header,
 already_AddRefed<nsILoadGroup>
 nsXMLHttpRequest::GetLoadGroup() const
 {
-  if (mState & XML_HTTP_REQUEST_BACKGROUND) {                 
+  if (mState & XML_HTTP_REQUEST_BACKGROUND) {
     return nullptr;
   }
 
@@ -1391,11 +1391,7 @@ nsXMLHttpRequest::GetLoadGroup() const
     return ref.forget();
   }
 
-  nsresult rv = NS_ERROR_FAILURE;
-  nsIScriptContext* sc =
-    const_cast<nsXMLHttpRequest*>(this)->GetContextForEventHandlers(&rv);
-  nsCOMPtr<nsIDocument> doc =
-    nsContentUtils::GetDocumentFromScriptContext(sc);
+  nsIDocument* doc = GetDocumentIfCurrent();
   if (doc) {
     return doc->GetDocumentLoadGroup();
   }
@@ -1455,7 +1451,7 @@ nsXMLHttpRequest::DispatchProgressEvent(DOMEventTargetHelper* aTarget,
                           aLengthComputable, aLoaded, aTotal);
   }
 }
-                                          
+
 already_AddRefed<nsIHttpChannel>
 nsXMLHttpRequest::GetCurrentHttpChannel()
 {
@@ -1558,11 +1554,14 @@ nsXMLHttpRequest::Open(const nsACString& inMethod, const nsACString& url,
     mState &= ~XML_HTTP_REQUEST_ASYNC;
   }
 
-  nsIScriptContext* sc = GetContextForEventHandlers(&rv);
-  NS_ENSURE_SUCCESS(rv, rv);
-  nsCOMPtr<nsIDocument> doc =
-    nsContentUtils::GetDocumentFromScriptContext(sc);
-  
+  nsCOMPtr<nsIDocument> doc = GetDocumentIfCurrent();
+  if (!doc) {
+    // This could be because we're no longer current or because we're in some
+    // non-window context...
+    nsresult rv = CheckInnerWindowCorrectness();
+    NS_ENSURE_SUCCESS(rv, rv);
+  }
+
   nsCOMPtr<nsIURI> baseURI;
   if (mBaseURI) {
     baseURI = mBaseURI;
@@ -1836,7 +1835,7 @@ nsXMLHttpRequest::OnDataAvailable(nsIRequest *request,
   mDataAvailable += totalRead;
 
   ChangeState(XML_HTTP_REQUEST_LOADING);
-  
+
   MaybeDispatchProgressEvents(false);
 
   return NS_OK;
@@ -1996,7 +1995,12 @@ nsXMLHttpRequest::OnStartRequest(nsIRequest *request, nsISupports *ctxt)
       } else {
         mIsHtml = true;
       }
-    } else if (type.Find("xml") == kNotFound) {
+    } else if (!(type.EqualsLiteral("text/xml") ||
+                 type.EqualsLiteral("application/xml") ||
+                 type.RFind("+xml", true, -1, 4) != kNotFound)) {
+      // Follow https://xhr.spec.whatwg.org/
+      // If final MIME type is not null, text/html, text/xml, application/xml,
+      // or does not end in +xml, return null.
       mState &= ~XML_HTTP_REQUEST_PARSEBODY;
     }
   } else {
@@ -2010,14 +2014,16 @@ nsXMLHttpRequest::OnStartRequest(nsIRequest *request, nsISupports *ctxt)
     NS_ENSURE_SUCCESS(rv, rv);
     baseURI = docURI;
 
-    nsIScriptContext* sc = GetContextForEventHandlers(&rv);
-    NS_ENSURE_SUCCESS(rv, rv);
-    nsCOMPtr<nsIDocument> doc =
-      nsContentUtils::GetDocumentFromScriptContext(sc);
+    nsCOMPtr<nsIDocument> doc = GetDocumentIfCurrent();
     nsCOMPtr<nsIURI> chromeXHRDocURI, chromeXHRDocBaseURI;
     if (doc) {
       chromeXHRDocURI = doc->GetDocumentURI();
       chromeXHRDocBaseURI = doc->GetBaseURI();
+    } else {
+      // If we're no longer current, just kill the load, though it really should
+      // have been killed already.
+      nsresult rv = CheckInnerWindowCorrectness();
+      NS_ENSURE_SUCCESS(rv, rv);
     }
 
     // Create an empty document from it.
@@ -2445,13 +2451,13 @@ GetRequestBody(nsIVariant* aBody, nsIInputStream** aResult, uint64_t* aContentLe
     }
 
     // ArrayBuffer?
-    AutoSafeJSContext cx;
-    JS::Rooted<JS::Value> realVal(cx);
+    JSContext* rootingCx = nsContentUtils::RootingCx();
+    JS::Rooted<JS::Value> realVal(rootingCx);
 
     nsresult rv = aBody->GetAsJSVal(&realVal);
     if (NS_SUCCEEDED(rv) && !realVal.isPrimitive()) {
-      JS::Rooted<JSObject*> obj(cx, realVal.toObjectOrNull());
-      ArrayBuffer buf;
+      JS::Rooted<JSObject*> obj(rootingCx, realVal.toObjectOrNull());
+      RootedTypedArray<ArrayBuffer> buf(rootingCx);
       if (buf.Init(obj)) {
           buf.ComputeLengthAndData();
           return GetRequestBody(buf.Data(), buf.Length(), aResult,
@@ -2605,7 +2611,7 @@ nsXMLHttpRequest::Send(nsIVariant* aVariant, const Nullable<RequestBody>& aBody)
       nsCOMPtr<nsPIDOMWindow> owner = GetOwner();
       nsCOMPtr<nsIDocument> doc = owner ? owner->GetExtantDoc() : nullptr;
       nsContentUtils::SetFetchReferrerURIWithPolicy(mPrincipal, doc,
-                                                    httpChannel);
+                                                    httpChannel, mozilla::net::RP_Default);
     }
 
     // Some extensions override the http protocol handler and provide their own
@@ -2726,7 +2732,7 @@ nsXMLHttpRequest::Send(nsIVariant* aVariant, const Nullable<RequestBody>& aBody)
       if (!NS_InputStreamIsBuffered(postDataStream)) {
         nsCOMPtr<nsIInputStream> bufferedStream;
         rv = NS_NewBufferedInputStream(getter_AddRefs(bufferedStream),
-                                       postDataStream, 
+                                       postDataStream,
                                        4096);
         NS_ENSURE_SUCCESS(rv, rv);
 

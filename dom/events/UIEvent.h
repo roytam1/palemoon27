@@ -89,7 +89,7 @@ public:
 
   bool CancelBubble() const
   {
-    return mEvent->mFlags.mPropagationStopped;
+    return mEvent->PropagationStopped();
   }
 
   bool IsChar() const;
@@ -104,7 +104,7 @@ protected:
   nsCOMPtr<nsIDOMWindow> mView;
   int32_t mDetail;
   CSSIntPoint mClientPoint;
-  // Screenpoint is mEvent->refPoint.
+  // Screenpoint is mEvent->mRefPoint.
   nsIntPoint mLayerPoint;
   CSSIntPoint mPagePoint;
   nsIntPoint mMovementPoint;

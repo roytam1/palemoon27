@@ -24,8 +24,8 @@ DragEvent::DragEvent(EventTarget* aOwner,
   }
   else {
     mEventIsInternal = true;
-    mEvent->time = PR_Now();
-    mEvent->refPoint.x = mEvent->refPoint.y = 0;
+    mEvent->mTime = PR_Now();
+    mEvent->mRefPoint = LayoutDeviceIntPoint(0, 0);
     mEvent->AsMouseEvent()->inputSource = nsIDOMMouseEvent::MOZ_SOURCE_UNKNOWN;
   }
 }
@@ -66,7 +66,7 @@ DragEvent::InitDragEvent(const nsAString& aType,
   }
 
   if (mEventIsInternal && mEvent) {
-    mEvent->AsDragEvent()->dataTransfer = aDataTransfer;
+    mEvent->AsDragEvent()->mDataTransfer = aDataTransfer;
   }
 }
 
@@ -98,7 +98,7 @@ DragEvent::InitDragEvent(const nsAString& aType,
   NS_ENSURE_SUCCESS(rv, rv);
 
   if (mEventIsInternal && mEvent) {
-    mEvent->AsDragEvent()->dataTransfer = dataTransfer;
+    mEvent->AsDragEvent()->mDataTransfer = dataTransfer;
   }
 
   return NS_OK;
@@ -130,7 +130,7 @@ DragEvent::GetDataTransfer()
     NS_ENSURE_SUCCESS(rv, nullptr);
   }
 
-  return dragEvent->dataTransfer;
+  return dragEvent->mDataTransfer;
 }
 
 // static

@@ -44,6 +44,7 @@ struct JsepOfferOptions : public JsepOAOptions {
   Maybe<size_t> mOfferToReceiveAudio;
   Maybe<size_t> mOfferToReceiveVideo;
   Maybe<bool> mDontOfferDataChannel;
+  Maybe<bool> mIceRestart; // currently ignored by JsepSession
 };
 struct JsepAnswerOptions : public JsepOAOptions {};
 
@@ -84,8 +85,11 @@ public:
   // Set up the ICE And DTLS data.
   virtual nsresult SetIceCredentials(const std::string& ufrag,
                                      const std::string& pwd) = 0;
+  virtual const std::string& GetUfrag() const = 0;
+  virtual const std::string& GetPwd() const = 0;
   virtual nsresult SetBundlePolicy(JsepBundlePolicy policy) = 0;
   virtual bool RemoteIsIceLite() const = 0;
+  virtual bool RemoteIceIsRestarting() const = 0;
   virtual std::vector<std::string> GetIceOptions() const = 0;
 
   virtual nsresult AddDtlsFingerprint(const std::string& algorithm,
@@ -102,6 +106,30 @@ public:
   // that manipulate the data structure (still pretty unwieldy).
   virtual std::vector<JsepCodecDescription*>& Codecs() = 0;
 
+  template <class UnaryFunction>
+  void ForEachCodec(UnaryFunction& function)
+  {
+    std::for_each(Codecs().begin(), Codecs().end(), function);
+    for (RefPtr<JsepTrack>& track : GetLocalTracks()) {
+      track->ForEachCodec(function);
+    }
+    for (RefPtr<JsepTrack>& track : GetRemoteTracks()) {
+      track->ForEachCodec(function);
+    }
+  }
+
+  template <class BinaryPredicate>
+  void SortCodecs(BinaryPredicate& sorter)
+  {
+    std::stable_sort(Codecs().begin(), Codecs().end(), sorter);
+    for (RefPtr<JsepTrack>& track : GetLocalTracks()) {
+      track->SortCodecs(sorter);
+    }
+    for (RefPtr<JsepTrack>& track : GetRemoteTracks()) {
+      track->SortCodecs(sorter);
+    }
+  }
+
   // Manage tracks. We take shared ownership of any track.
   virtual nsresult AddTrack(const RefPtr<JsepTrack>& track) = 0;
   virtual nsresult RemoveTrack(const std::string& streamId,
@@ -110,6 +138,15 @@ public:
                                 const std::string& oldTrackId,
                                 const std::string& newStreamId,
                                 const std::string& newTrackId) = 0;
+  virtual nsresult SetParameters(
+      const std::string& streamId,
+      const std::string& trackId,
+      const std::vector<JsepTrack::JsConstraints>& constraints) = 0;
+
+  virtual nsresult GetParameters(
+      const std::string& streamId,
+      const std::string& trackId,
+      std::vector<JsepTrack::JsConstraints>* outConstraints) = 0;
 
   virtual std::vector<RefPtr<JsepTrack>> GetLocalTracks() const = 0;
 
@@ -143,12 +180,13 @@ public:
                                         uint16_t level,
                                         std::string* mid,
                                         bool* skipped) = 0;
-  virtual nsresult EndOfLocalCandidates(
+  virtual nsresult UpdateDefaultCandidate(
       const std::string& defaultCandidateAddr,
       uint16_t defaultCandidatePort,
       const std::string& defaultRtcpCandidateAddr,
       uint16_t defaultRtcpCandidatePort,
       uint16_t level) = 0;
+  virtual nsresult EndOfLocalCandidates(uint16_t level) = 0;
   virtual nsresult Close() = 0;
 
   // ICE controlling or controlled

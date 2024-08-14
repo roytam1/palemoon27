@@ -186,6 +186,20 @@ function toLocalTimeISOString(date) {
 }
 
 /**
+ * Annotate the current session ID with the crash reporter to map potential
+ * crash pings with the related main ping.
+ */
+function annotateCrashReport(sessionId) {
+  try {
+    const cr = Cc["@mozilla.org/toolkit/crash-reporter;1"]
+            .getService(Ci.nsICrashReporter);
+    cr.setTelemetrySessionId(sessionId);
+  } catch (e) {
+    // Ignore errors when crash reporting is disabled
+  }
+}
+
+/**
  * Read current process I/O counters.
  */
 var processInfo = {
@@ -810,7 +824,7 @@ var Impl = {
     b("MEMORY_VSIZE_MAX_CONTIGUOUS", "vsizeMaxContiguous");
     b("MEMORY_RESIDENT", "residentFast");
     b("MEMORY_HEAP_ALLOCATED", "heapAllocated");
-    p("MEMORY_HEAP_COMMITTED_UNUSED_RATIO", "heapOverheadRatio");
+    p("MEMORY_HEAP_OVERHEAD_FRACTION", "heapOverheadFraction");
     b("MEMORY_JS_GC_HEAP", "JSMainRuntimeGCHeap");
     b("MEMORY_JS_MAIN_RUNTIME_TEMPORARY_PEAK", "JSMainRuntimeTemporaryPeak");
     c("MEMORY_JS_COMPARTMENTS_SYSTEM", "JSMainRuntimeCompartmentsSystem");
@@ -1071,6 +1085,8 @@ var Impl = {
     // startNewSubsession sets |_subsessionStartDate| to the current date/time. Use
     // the very same value for |_sessionStartDate|.
     this._sessionStartDate = this._subsessionStartDate;
+
+    annotateCrashReport(this._sessionId);
 
     // Initialize some probes that are kept in their own modules
     this._thirdPartyCookies = new ThirdPartyCookieProbe();

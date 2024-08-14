@@ -22,6 +22,7 @@ class ErrorResult;
 class MediaInputPort;
 struct MediaRecorderOptions;
 class MediaStream;
+class GlobalObject;
 
 namespace dom {
 
@@ -76,6 +77,9 @@ public:
   // Return the current encoding MIME type selected by the MediaEncoder.
   void GetMimeType(nsString &aMimeType);
 
+  static bool IsTypeSupported(GlobalObject& aGlobal, const nsAString& aType);
+  static bool IsTypeSupported(const nsAString& aType);
+
   // Construct a recorder with a DOM media stream object as its source.
   static already_AddRefed<MediaRecorder>
   Constructor(const GlobalObject& aGlobal,
@@ -117,8 +121,6 @@ protected:
   void DispatchSimpleEvent(const nsAString & aStr);
   // Creating a error event with message.
   void NotifyError(nsresult aRv);
-  // Check if the recorder's principal is the subsume of mediaStream
-  bool CheckPrincipal();
   // Set encoded MIME type.
   void SetMimeType(const nsString &aMimeType);
   void SetOptions(const MediaRecorderOptions& aInitDict);
@@ -128,7 +130,6 @@ protected:
   void RemoveSession(Session* aSession);
   // Functions for Session to query input source info.
   MediaStream* GetSourceMediaStream();
-  nsIPrincipal* GetSourcePrincipal();
   // DOM wrapper for source media stream. Will be null when input is audio node.
   RefPtr<DOMMediaStream> mDOMStream;
   // Source audio node. Will be null when input is a media stream.
@@ -159,7 +160,7 @@ private:
   void RegisterActivityObserver();
   void UnRegisterActivityObserver();
 
-  bool Check3gppPermission();
+  bool CheckPermission(const nsString &aType);
 };
 
 } // namespace dom

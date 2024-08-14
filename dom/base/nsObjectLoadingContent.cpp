@@ -354,7 +354,7 @@ nsPluginCrashedEvent::Run()
     PluginCrashedEvent::Constructor(doc, NS_LITERAL_STRING("PluginCrashed"), init);
 
   event->SetTrusted(true);
-  event->GetInternalNSEvent()->mFlags.mOnlyChromeDispatch = true;
+  event->WidgetEventPtr()->mFlags.mOnlyChromeDispatch = true;
 
   EventDispatcher::DispatchDOMEvent(mContent, nullptr, event, nullptr, nullptr);
   return NS_OK;
@@ -557,6 +557,11 @@ IsPluginEnabledByExtension(nsIURI* uri, nsCString& mimeType)
     return false;
   }
 
+  // Disables any native SWF plugins, when internal SWF player is enabled.
+  if (ext.EqualsIgnoreCase("swf") && nsContentUtils::IsSWFPlayerEnabled()) {
+    return false;
+  }
+
   RefPtr<nsPluginHost> pluginHost = nsPluginHost::GetInst();
 
   if (!pluginHost) {
@@ -709,7 +714,6 @@ nsObjectLoadingContent::nsObjectLoadingContent()
   , mInstantiating(false)
   , mNetworkCreated(true)
   , mActivated(false)
-  , mPlayPreviewCanceled(false)
   , mIsStopping(false)
   , mIsLoading(false)
   , mScriptRequested(false) {}
@@ -1149,6 +1153,20 @@ nsObjectLoadingContent::OnStopRequest(nsIRequest *aRequest,
     if (thisNode && thisNode->IsInComposedDoc()) {
       thisNode->GetComposedDoc()->AddBlockedTrackingNode(thisNode);
     }
+  } else if (aStatusCode == NS_ERROR_BLOCKED_URI) {
+    // Logging is temporarily disabled until after experiment phase.
+    //
+    // nsAutoCString uri;
+    // mURI->GetSpec(uri);
+    // nsCOMPtr<nsIConsoleService> console(
+    //   do_GetService("@mozilla.org/consoleservice;1"));
+    // if (console) {
+    //   nsString message = NS_LITERAL_STRING("Blocking ") +
+    //     NS_ConvertASCIItoUTF16(uri) +
+    //     NS_LITERAL_STRING(" since it was found on an internal Firefox blocklist.");
+    //   console->LogStringMessage(message.get());
+    // }
+    Telemetry::Accumulate(Telemetry::PLUGIN_BLOCKED_FOR_STABILITY, 1);
   }
 
   NS_ENSURE_TRUE(nsContentUtils::LegacyIsCallerChromeOrNativeCode(), NS_ERROR_NOT_AVAILABLE);
@@ -1226,12 +1244,6 @@ nsObjectLoadingContent::GetParentApplication(mozIApplication** aApplication)
 
 NS_IMETHODIMP
 nsObjectLoadingContent::SetIsPrerendered()
-{
-  return NS_ERROR_NOT_IMPLEMENTED;
-}
-
-NS_IMETHODIMP
-nsObjectLoadingContent::SwapFrameLoaders(nsIFrameLoaderOwner* aOtherLoader)
 {
   return NS_ERROR_NOT_IMPLEMENTED;
 }
@@ -1411,8 +1423,6 @@ nsObjectLoadingContent::ObjectState() const
           return NS_EVENT_STATE_USERDISABLED;
         case eFallbackClickToPlay:
           return NS_EVENT_STATE_TYPE_CLICK_TO_PLAY;
-        case eFallbackPlayPreview:
-          return NS_EVENT_STATE_TYPE_PLAY_PREVIEW;
         case eFallbackDisabled:
           return NS_EVENT_STATE_BROKEN | NS_EVENT_STATE_HANDLER_DISABLED;
         case eFallbackBlocklisted:
@@ -1534,7 +1544,7 @@ nsObjectLoadingContent::CheckProcessPolicy(int16_t *aContentPolicy)
   NS_ASSERTION(thisContent, "Must be an instance of content");
 
   nsIDocument* doc = thisContent->OwnerDoc();
-  
+
   int32_t objectType;
   switch (mType) {
     case eType_Image:
@@ -2545,8 +2555,7 @@ nsObjectLoadingContent::GetCapabilities() const
 {
   return eSupportImages |
          eSupportPlugins |
-         eSupportDocuments |
-         eSupportSVG;
+         eSupportDocuments;
 }
 
 void
@@ -2652,8 +2661,8 @@ nsObjectLoadingContent::NotifyStateChanged(ObjectType aOldType,
   EventStates newState = ObjectState();
 
   if (newState != aOldState) {
+    NS_ASSERTION(thisContent->IsInComposedDoc(), "Something is confused");
     // This will trigger frame construction
-    NS_ASSERTION(InActiveDocument(thisContent), "Something is confused");
     EventStates changedBits = aOldState ^ newState;
 
     {
@@ -2661,6 +2670,7 @@ nsObjectLoadingContent::NotifyStateChanged(ObjectType aOldType,
       doc->ContentStateChanged(thisContent, changedBits);
     }
     if (aSync) {
+      NS_ASSERTION(InActiveDocument(thisContent), "Something is confused");
       // Make sure that frames are actually constructed immediately.
       doc->FlushPendingNotifications(Flush_Frames);
     }
@@ -2694,10 +2704,14 @@ nsObjectLoadingContent::GetTypeOfContent(const nsCString& aMIMEType)
     return eType_Document;
   }
 
-  // SVGs load as documents, but are their own capability
-  bool isSVG = aMIMEType.LowerCaseEqualsLiteral("image/svg+xml");
-  Capabilities supportType = isSVG ? eSupportSVG : eSupportDocuments;
-  if ((caps & supportType) && IsSupportedDocument(aMIMEType)) {
+  // Faking support of the SWF content as a document for EMBED tags
+  // when internal SWF player is enabled.
+  if (aMIMEType.LowerCaseEqualsLiteral("application/x-shockwave-flash") &&
+      nsContentUtils::IsSWFPlayerEnabled()) {
+    return eType_Document;
+  }
+
+  if ((caps & eSupportDocuments) && IsSupportedDocument(aMIMEType)) {
     return eType_Document;
   }
 
@@ -2759,8 +2773,10 @@ nsObjectLoadingContent::PluginDestroyed()
   // plugins in plugin host. Invalidate instance owner / prototype but otherwise
   // don't take any action.
   TeardownProtoChain();
-  mInstanceOwner->Destroy();
-  mInstanceOwner = nullptr;
+  if (mInstanceOwner) {
+    mInstanceOwner->Destroy();
+    mInstanceOwner = nullptr;
+  }
   return NS_OK;
 }
 
@@ -2787,7 +2803,7 @@ nsObjectLoadingContent::PluginCrashed(nsIPluginTag* aPluginTag,
 
   // send nsPluginCrashedEvent
 
-  // Note that aPluginTag in invalidated after we're called, so copy 
+  // Note that aPluginTag in invalidated after we're called, so copy
   // out any data we need now.
   nsAutoCString pluginName;
   aPluginTag->GetName(pluginName);
@@ -2821,8 +2837,7 @@ nsObjectLoadingContent::ScriptRequestPluginInstance(JSContext* aCx,
                 aCx == nsContentUtils::GetCurrentJSContext());
   bool callerIsContentJS = (nsContentUtils::GetCurrentJSContext() &&
                             !nsContentUtils::IsCallerChrome() &&
-                            !nsContentUtils::IsCallerContentXBL() &&
-                            JS_IsRunning(aCx));
+                            !nsContentUtils::IsCallerContentXBL());
 
   nsCOMPtr<nsIContent> thisContent =
     do_QueryInterface(static_cast<nsIImageLoadingContent*>(this));
@@ -2954,7 +2969,8 @@ nsObjectLoadingContent::LoadFallback(FallbackType aType, bool aNotify) {
     aType = eFallbackAlternate;
   }
 
-  if (thisContent->IsHTMLElement(nsGkAtoms::object) &&
+  if ((thisContent->IsHTMLElement(nsGkAtoms::object) ||
+       thisContent->IsHTMLElement(nsGkAtoms::applet)) &&
       (aType == eFallbackUnsupported ||
        aType == eFallbackDisabled ||
        aType == eFallbackBlocklisted))
@@ -3112,7 +3128,7 @@ nsObjectLoadingContent::PlayPlugin()
     LOG(("OBJLC [%p]: Activated by user", this));
   }
 
-  // If we're in a click-to-play or play preview state, we need to reload
+  // If we're in a click-to-play state, reload.
   // Fallback types >= eFallbackClickToPlay are plugin-replacement types, see
   // header
   if (mType == eType_Null && mFallbackType >= eFallbackClickToPlay) {
@@ -3127,7 +3143,6 @@ nsObjectLoadingContent::Reload(bool aClearActivation)
 {
   if (aClearActivation) {
     mActivated = false;
-    mPlayPreviewCanceled = false;
   }
 
   return LoadObject(true, true);
@@ -3164,22 +3179,6 @@ nsObjectLoadingContent::GetHasRunningPlugin(bool *aHasPlugin)
 {
   NS_ENSURE_TRUE(nsContentUtils::IsCallerChrome(), NS_ERROR_NOT_AVAILABLE);
   *aHasPlugin = HasRunningPlugin();
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-nsObjectLoadingContent::CancelPlayPreview()
-{
-  if (!nsContentUtils::IsCallerChrome())
-    return NS_ERROR_NOT_AVAILABLE;
-
-  mPlayPreviewCanceled = true;
-
-  // If we're in play preview state already, reload
-  if (mType == eType_Null && mFallbackType == eFallbackPlayPreview) {
-    return LoadObject(true, true);
-  }
-
   return NS_OK;
 }
 
@@ -3233,31 +3232,6 @@ nsObjectLoadingContent::ShouldPlay(FallbackType &aReason, bool aIgnoreCurrentTyp
 
   RefPtr<nsPluginHost> pluginHost = nsPluginHost::GetInst();
 
-  nsCOMPtr<nsIPluginPlayPreviewInfo> playPreviewInfo;
-  bool isPlayPreviewSpecified = NS_SUCCEEDED(pluginHost->GetPlayPreviewInfo(
-    mContentType, getter_AddRefs(playPreviewInfo)));
-  if (isPlayPreviewSpecified) {
-    // Checking PlayPreview whitelist as well.
-    nsCString uriSpec, baseSpec;
-    if (mURI) {
-      mURI->GetSpec(uriSpec);
-    }
-    if (mBaseURI) {
-      mBaseURI->GetSpec(baseSpec);
-    }
-    playPreviewInfo->CheckWhitelist(baseSpec, uriSpec, &isPlayPreviewSpecified);
-  }
-  bool ignoreCTP = false;
-  if (isPlayPreviewSpecified) {
-    playPreviewInfo->GetIgnoreCTP(&ignoreCTP);
-  }
-  if (isPlayPreviewSpecified && !mPlayPreviewCanceled &&
-      ignoreCTP) {
-    // play preview in ignoreCTP mode is shown even if the native plugin
-    // is not present/installed
-    aReason = eFallbackPlayPreview;
-    return false;
-  }
   // at this point if it's not a plugin, we let it play/fallback
   if (!aIgnoreCurrentType && mType != eType_Plugin) {
     return true;
@@ -3267,8 +3241,6 @@ nsObjectLoadingContent::ShouldPlay(FallbackType &aReason, bool aIgnoreCurrentTyp
   // * Assume a default of click-to-play
   // * If globally disabled, per-site permissions cannot override.
   // * If blocklisted, override the reason with the blocklist reason
-  // * If not blocklisted but playPreview, override the reason with the
-  //   playPreview reason.
   // * Check per-site permissions and follow those if specified.
   // * Honor per-plugin disabled permission
   // * Blocklisted plugins are forced to CtP
@@ -3285,8 +3257,9 @@ nsObjectLoadingContent::ShouldPlay(FallbackType &aReason, bool aIgnoreCurrentTyp
   }
 
   // Before we check permissions, get the blocklist state of this plugin to set
-  // the fallback reason correctly.
-  uint32_t blocklistState = nsIBlocklistService::STATE_NOT_BLOCKED;
+  // the fallback reason correctly. In the content process this will involve
+  // an ipc call to chrome.
+  uint32_t blocklistState = nsIBlocklistService::STATE_BLOCKED;
   pluginHost->GetBlocklistStateForType(mContentType,
                                        nsPluginHost::eExcludeNone,
                                        &blocklistState);
@@ -3301,12 +3274,6 @@ nsObjectLoadingContent::ShouldPlay(FallbackType &aReason, bool aIgnoreCurrentTyp
   }
   else if (blocklistState == nsIBlocklistService::STATE_VULNERABLE_NO_UPDATE) {
     aReason = eFallbackVulnerableNoUpdate;
-  }
-
-  if (aReason == eFallbackClickToPlay && isPlayPreviewSpecified &&
-      !mPlayPreviewCanceled && !ignoreCTP) {
-    // play preview in click-to-play mode is shown instead of standard CTP UI
-    aReason = eFallbackPlayPreview;
   }
 
   // Check the permission manager for permission based on the principal of
@@ -3637,11 +3604,15 @@ nsObjectLoadingContent::TeardownProtoChain()
   nsCOMPtr<nsIContent> thisContent =
     do_QueryInterface(static_cast<nsIImageLoadingContent*>(this));
 
-  // Use the safe JSContext here as we're not always able to find the
-  // JSContext associated with the NPP any more.
-  AutoSafeJSContext cx;
+  NS_ENSURE_TRUE_VOID(thisContent->GetWrapper());
+
+  // We don't init the AutoJSAPI with our wrapper because we don't want it
+  // reporting errors to our window's onerror listeners.
+  AutoJSAPI jsapi;
+  jsapi.Init();
+  JSContext* cx = jsapi.cx();
   JS::Rooted<JSObject*> obj(cx, thisContent->GetWrapper());
-  NS_ENSURE_TRUE(obj, /* void */);
+  MOZ_ASSERT(obj);
 
   JS::Rooted<JSObject*> proto(cx);
   JSAutoCompartment ac(cx, obj);
@@ -3744,4 +3715,3 @@ nsObjectLoadingContent::SetupProtoChainRunner::Run()
 }
 
 NS_IMPL_ISUPPORTS(nsObjectLoadingContent::SetupProtoChainRunner, nsIRunnable)
-

@@ -103,6 +103,8 @@ public:
   virtual nsresult RegisterIdleObserver(nsIIdleObserver* aIdleObserver) = 0;
   virtual nsresult UnregisterIdleObserver(nsIIdleObserver* aIdleObserver) = 0;
 
+  virtual bool IsTopLevelWindowActive() = 0;
+
   // Outer windows only.
   virtual void SetActive(bool aActive)
   {
@@ -200,6 +202,9 @@ public:
   virtual bool IsRunningTimeout() = 0;
 
   // Audio API
+  bool GetMediaSuspended() const;
+  void SetMediaSuspended(bool aSuspended);
+
   bool GetAudioMuted() const;
   void SetAudioMuted(bool aMuted);
 
@@ -209,17 +214,8 @@ public:
   bool GetAudioCaptured() const;
   nsresult SetAudioCapture(bool aCapture);
 
-  virtual void SetServiceWorkersTestingEnabled(bool aEnabled)
-  {
-    MOZ_ASSERT(IsOuterWindow());
-    mServiceWorkersTestingEnabled = aEnabled;
-  }
-
-  bool GetServiceWorkersTestingEnabled()
-  {
-    MOZ_ASSERT(IsOuterWindow());
-    return mServiceWorkersTestingEnabled;
-  }
+  void SetServiceWorkersTestingEnabled(bool aEnabled);
+  bool GetServiceWorkersTestingEnabled();
 
   already_AddRefed<mozilla::dom::ServiceWorkerRegistrationMainThread>
     GetServiceWorkerRegistration(const nsAString& aScope);
@@ -330,14 +326,6 @@ public:
   virtual nsresult FireDelayedDOMEvents() = 0;
 
   virtual bool IsFrozen() const = 0;
-
-  // Add a timeout to this window.
-  virtual nsresult SetTimeoutOrInterval(nsIScriptTimeoutHandler *aHandler,
-                                        int32_t interval,
-                                        bool aIsInterval, int32_t *aReturn) = 0;
-
-  // Clear a timeout from this window.
-  virtual nsresult ClearTimeoutOrInterval(int32_t aTimerID) = 0;
 
   nsPIDOMWindow *GetOuterWindow()
   {
@@ -539,6 +527,14 @@ public:
     mMayHavePointerEnterLeaveEventListener = true;
   }
 
+  /**
+   * Check whether this has had inner objects freed.
+   */
+  bool InnerObjectsFreed() const
+  {
+    return mInnerObjectsFreed;
+  }
+
 
   virtual JSObject* GetCachedXBLPrototypeHandler(nsXBLPrototypeHandler* aKey) = 0;
   virtual void CacheXBLPrototypeHandler(nsXBLPrototypeHandler* aKey,
@@ -705,14 +701,6 @@ public:
   virtual bool DispatchCustomEvent(const nsAString& aEventName) = 0;
 
   /**
-   * Call when the document principal may have changed and the compartment
-   * principal needs to be updated.
-   *
-   * Inner windows only.
-   */
-  virtual void RefreshCompartmentPrincipal() = 0;
-
-  /**
    * Like nsIDOMWindow::Open, except that we don't navigate to the given URL.
    *
    * Outer windows only.
@@ -837,6 +825,12 @@ protected:
   bool                   mMayHaveMouseEnterLeaveEventListener;
   bool                   mMayHavePointerEnterLeaveEventListener;
 
+  // Used to detect whether we have called FreeInnerObjects() (e.g. to ensure
+  // that a call to ResumeTimeouts() after FreeInnerObjects() does nothing).
+  // This member is only used by inner windows.
+  bool                   mInnerObjectsFreed;
+
+
   // This variable is used on both inner and outer windows (and they
   // should match).
   bool                   mIsModalContentWindow;
@@ -850,6 +844,7 @@ protected:
   // "active".  Only used on outer windows.
   bool                   mIsBackground;
 
+  bool                   mMediaSuspended;
   bool                   mAudioMuted;
   float                  mAudioVolume;
 

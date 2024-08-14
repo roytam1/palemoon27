@@ -14,7 +14,6 @@
 #include "gfxMatrix.h"
 #include "gfxPattern.h"
 #include "nsTArray.h"
-#include "nsAutoPtr.h"
 
 #include "mozilla/gfx/2D.h"
 
@@ -57,32 +56,32 @@ class gfxContext final {
     NS_INLINE_DECL_REFCOUNTING(gfxContext)
 
 public:
-
     /**
      * Initialize this context from a DrawTarget.
      * Strips any transform from aTarget.
      * aTarget will be flushed in the gfxContext's destructor.
+     * If aTarget is null or invalid, nullptr is returned.  The caller
+     * is responsible for handling this scenario as appropriate.
      */
-    explicit gfxContext(mozilla::gfx::DrawTarget *aTarget,
-                        const mozilla::gfx::Point& aDeviceOffset = mozilla::gfx::Point());
-
+    static already_AddRefed<gfxContext>
+        ForDrawTarget(mozilla::gfx::DrawTarget* aTarget,
+                      const mozilla::gfx::Point& aDeviceOffset = mozilla::gfx::Point());
+    
     /**
      * Create a new gfxContext wrapping aTarget and preserving aTarget's
      * transform. Note that the transform is moved from aTarget to the resulting
      * gfxContext, aTarget will no longer have its transform.
+     * If aTarget is null or invalid, nullptr is returned.  The caller
+     * is responsible for handling this scenario as appropriate.
      */
-    static already_AddRefed<gfxContext> ContextForDrawTarget(mozilla::gfx::DrawTarget* aTarget);
+    static already_AddRefed<gfxContext>
+        ForDrawTargetWithTransform(mozilla::gfx::DrawTarget* aTarget);
 
     /**
-     * Return the current transparency group target, if any, along
-     * with its device offsets from the top.  If no group is
-     * active, returns the surface the gfxContext was created with,
-     * and 0,0 in dx,dy.
+     * Return the current transparency group target, if any. If no group is
+     * active, returns the surface the gfxContext was created with.
      */
-    already_AddRefed<gfxASurface> CurrentSurface(gfxFloat *dx, gfxFloat *dy);
-    already_AddRefed<gfxASurface> CurrentSurface() {
-        return CurrentSurface(nullptr, nullptr);
-    }
+    already_AddRefed<gfxASurface> CurrentSurface();
 
     mozilla::gfx::DrawTarget *GetDrawTarget() { return mDT; }
 
@@ -462,6 +461,16 @@ public:
     static mozilla::gfx::UserDataKey sDontUseAsSourceKey;
 
 private:
+
+    /**
+     * Initialize this context from a DrawTarget.
+     * Strips any transform from aTarget.
+     * aTarget will be flushed in the gfxContext's destructor.  Use the static
+     * ContextForDrawTargetNoTransform() when you want this behavior, as that
+     * version deals with null DrawTarget better.
+     */
+    explicit gfxContext(mozilla::gfx::DrawTarget *aTarget,
+                        const mozilla::gfx::Point& aDeviceOffset = mozilla::gfx::Point());
     ~gfxContext();
 
   friend class PatternFromState;
@@ -481,6 +490,7 @@ private:
       , color(0, 0, 0, 1.0f)
       , aaMode(mozilla::gfx::AntialiasMode::SUBPIXEL)
       , patternTransformChanged(false)
+      , mBlendOpacity(0.0f)
     {}
 
     mozilla::gfx::CompositionOp op;
@@ -510,7 +520,9 @@ private:
     mozilla::gfx::Float mBlendOpacity;
     RefPtr<SourceSurface> mBlendMask;
     Matrix mBlendMaskTransform;
-    mozilla::DebugOnly<bool> mWasPushedForBlendBack;
+#ifdef DEBUG
+    bool mWasPushedForBlendBack;
+#endif
   };
 
   // This ensures mPath contains a valid path (in user space!)
@@ -539,7 +551,6 @@ private:
   const AzureState &CurrentState() const { return mStateStack[mStateStack.Length() - 1]; }
 
   RefPtr<DrawTarget> mDT;
-  RefPtr<DrawTarget> mOriginalDT;
 };
 
 /**
@@ -629,6 +640,8 @@ public:
         MOZ_ASSERT(mContext, "mMatrix doesn't contain a useful matrix");
         return mMatrix;
     }
+
+    bool HasMatrix() const { return !!mContext; }
 
 private:
     gfxContext *mContext;

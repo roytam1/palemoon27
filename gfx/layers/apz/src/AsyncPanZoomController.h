@@ -25,7 +25,10 @@
 #include "Layers.h"                     // for Layer::ScrollDirection
 #include "LayersTypes.h"
 #include "mozilla/gfx/Matrix.h"
+#include "nsIScrollableFrame.h"
 #include "nsRegion.h"
+#include "nsTArray.h"
+#include "PotentialCheckerboardDurationTracker.h"
 
 #include "base/message_loop.h"
 
@@ -41,9 +44,9 @@ namespace layers {
 
 class AsyncDragMetrics;
 struct ScrollableLayerGuid;
-class CompositorParent;
+class CompositorBridgeParent;
 class GestureEventListener;
-class PCompositorParent;
+class PCompositorBridgeParent;
 struct AsyncTransform;
 class AsyncPanZoomAnimation;
 class FlingAnimation;
@@ -159,38 +162,23 @@ public:
   bool AdvanceAnimations(const TimeStamp& aSampleTime);
 
   bool UpdateAnimation(const TimeStamp& aSampleTime,
-                       Vector<Task*>* aOutDeferredTasks);
+                       nsTArray<Task*>* aOutDeferredTasks);
 
   /**
-   * Query the transforms that should be applied to the layer corresponding
-   * to this APZC due to asynchronous panning and zooming.
-   * This function returns the async transform via the |aOutTransform|
-   * out parameter.
-   */
-  void SampleContentTransformForFrame(AsyncTransform* aOutTransform,
-                                      ParentLayerPoint& aScrollOffset);
-
-  /**
-   * Return a visual effect that reflects this apzc's
-   * overscrolled state, if any.
-   */
-  AsyncTransformComponentMatrix GetOverscrollTransform() const;
-
-  /**
-   * A shadow layer update has arrived. |aLayerMetrics| is the new FrameMetrics
+   * A shadow layer update has arrived. |aScrollMetdata| is the new ScrollMetadata
    * for the container layer corresponding to this APZC.
    * |aIsFirstPaint| is a flag passed from the shadow
-   * layers code indicating that the frame metrics being sent with this call are
-   * the initial metrics and the initial paint of the frame has just happened.
+   * layers code indicating that the scroll metadata being sent with this call are
+   * the initial metadata and the initial paint of the frame has just happened.
    */
-  void NotifyLayersUpdated(const FrameMetrics& aLayerMetrics, bool aIsFirstPaint,
+  void NotifyLayersUpdated(const ScrollMetadata& aScrollMetadata, bool aIsFirstPaint,
                            bool aThisLayerTreeUpdated);
 
   /**
    * The platform implementation must set the compositor parent so that we can
    * request composites.
    */
-  void SetCompositorParent(CompositorParent* aCompositorParent);
+  void SetCompositorBridgeParent(CompositorBridgeParent* aCompositorBridgeParent);
 
   /**
    * Inform this APZC that it will be sharing its FrameMetrics with a cross-process
@@ -213,20 +201,6 @@ public:
    * Returns true if Destroy() has already been called on this APZC instance.
    */
   bool IsDestroyed() const;
-
-  /**
-   * Returns the incremental transformation corresponding to the async pan/zoom
-   * in progress. That is, when this transform is multiplied with the layer's
-   * existing transform, it will make the layer appear with the desired pan/zoom
-   * amount.
-   */
-  AsyncTransform GetCurrentAsyncTransform() const;
-
-  /**
-   * Returns the same transform as GetCurrentAsyncTransform(), but includes
-   * any transform due to axis over-scroll.
-   */
-  AsyncTransformComponentMatrix GetCurrentAsyncTransformWithOverscroll() const;
 
   /**
    * Returns the transform to take something from the coordinate space of the
@@ -285,6 +259,14 @@ public:
   nsEventStatus HandleGestureEvent(const InputData& aEvent);
 
   /**
+   * Handler for touch velocity.
+   * Sometimes the touch move event will have a velocity even though no scrolling
+   * is occurring such as when the toolbar is being hidden/shown in Fennec.
+   * This function can be called to have the y axis' velocity queue updated.
+   */
+  void HandleTouchVelocity(uint32_t aTimesampMs, float aSpeedY);
+
+  /**
    * Populates the provided object (if non-null) with the scrollable guid of this apzc.
    */
   void GetGuid(ScrollableLayerGuid* aGuidOut) const;
@@ -313,6 +295,15 @@ public:
    * See CancelAnimationFlags.
    */
   void CancelAnimation(CancelAnimationFlags aFlags = Default);
+
+  /**
+   * Adjusts the scroll position to compensate for a shift in the surface, such
+   * that the content appears to remain visually in the same position. i.e. if
+   * the surface moves up by 10 screenpixels, the scroll position should also
+   * move up by 10 pixels so that what used to be at the top of the surface is
+   * now 10 pixels down the surface.
+   */
+  void AdjustScrollForSurfaceShift(const ScreenPoint& aShift);
 
   /**
    * Clear any overscroll on this APZC.
@@ -498,7 +489,7 @@ protected:
 
   /**
    * Schedules a composite on the compositor thread. Wrapper for
-   * CompositorParent::ScheduleRenderOnCompositorThread().
+   * CompositorBridgeParent::ScheduleRenderOnCompositorThread().
    */
   void ScheduleComposite();
 
@@ -577,27 +568,19 @@ protected:
   /**
    * Utility function to send updated FrameMetrics to Gecko so that it can paint
    * the displayport area. Calls into GeckoContentController to do the actual
-   * work. Note that only one paint request can be active at a time. If a paint
-   * request is made while a paint is currently happening, it gets queued up. If
-   * a new paint request arrives before a paint is completed, the old request
-   * gets discarded.
+   * work. This call will use the current metrics. If this function is called
+   * from a non-main thread, it will redispatch itself to the main thread, and
+   * use the latest metrics during the redispatch.
    */
   void RequestContentRepaint();
 
   /**
-   * Tell the paint throttler to request a content repaint with the given
-   * metrics.  (Helper function used by RequestContentRepaint.) If aThrottled
-   * is set to false, the repaint request is sent directly without going through
-   * the paint throttler. In particular, the GeckoContentController::RequestContentRepaint
-   * function will be invoked before this function returns.
+   * Send the provided metrics to Gecko to trigger a repaint. This function
+   * may filter duplicate calls with the same metrics. This function must be
+   * called on the main thread.
    */
-  void RequestContentRepaint(FrameMetrics& aFrameMetrics);
-
-  /**
-   * Actually send the next pending paint request to gecko.
-   */
-  void DispatchRepaintRequest(const FrameMetrics& aFrameMetrics,
-                              const ParentLayerPoint& aVelocity);
+  void RequestContentRepaint(const FrameMetrics& aFrameMetrics,
+                             const ParentLayerPoint& aVelocity);
 
   /**
    * Gets the current frame metrics. This is *not* the Gecko copy stored in the
@@ -611,11 +594,6 @@ protected:
    * ensures that no lock is set.
    */
   APZCTreeManager* GetApzcTreeManager() const;
-
-  /**
-   * Gets a ref to the input queue that is shared across the entire tree manager.
-   */
-  const RefPtr<InputQueue>& GetInputQueue() const;
 
   /**
    * Convert ScreenPoint relative to the screen to CSSPoint relative
@@ -639,13 +617,8 @@ protected:
   // Common processing at the end of a touch block.
   void OnTouchEndOrCancel();
 
-  // This is called to request that the main thread snap the scroll position
-  // to a nearby snap position if appropriate. The current scroll position is
-  // used as the final destination.
-  void RequestSnap();
-
   uint64_t mLayersId;
-  RefPtr<CompositorParent> mCompositorParent;
+  RefPtr<CompositorBridgeParent> mCompositorBridgeParent;
 
   /* Access to the following two fields is protected by the mRefPtrMonitor,
      since they are accessed on the UI thread but can be cleared on the
@@ -669,12 +642,13 @@ protected:
   bool mSharingFrameMetricsAcrossProcesses;
   /* Utility function to get the Compositor with which we share the FrameMetrics.
      This function is only callable from the compositor thread. */
-  PCompositorParent* GetSharedFrameMetricsCompositor();
+  PCompositorBridgeParent* GetSharedFrameMetricsCompositor();
 
 protected:
   // Both |mFrameMetrics| and |mLastContentPaintMetrics| are protected by the
   // monitor. Do not read from or modify either of them without locking.
-  FrameMetrics mFrameMetrics;
+  ScrollMetadata mScrollMetadata;
+  FrameMetrics& mFrameMetrics;  // for convenience, refers to mScrollMetadata.mMetrics
 
   // Protects |mFrameMetrics|, |mLastContentPaintMetrics|, and |mState|.
   // Before manipulating |mFrameMetrics| or |mLastContentPaintMetrics|, the
@@ -727,6 +701,52 @@ private:
 
   friend class Axis;
 
+
+  /* ===================================================================
+   * The functions and members in this section are used to expose
+   * the current async transform state to callers.
+   */
+public:
+  /**
+   * Allows callers to specify which type of async transform they want:
+   * NORMAL provides the actual async transforms of the APZC, whereas
+   * RESPECT_FORCE_DISABLE will provide empty async transforms if and only if
+   * the metrics has the mForceDisableApz flag set. In general the latter should
+   * only be used by call sites that are applying the transform to update
+   * a layer's position.
+   */
+  enum AsyncMode {
+    NORMAL,
+    RESPECT_FORCE_DISABLE,
+  };
+
+  /**
+   * Query the transforms that should be applied to the layer corresponding
+   * to this APZC due to asynchronous panning and zooming.
+   * This function returns the async transform via the |aOutTransform|
+   * out parameter.
+   */
+  ParentLayerPoint GetCurrentAsyncScrollOffset(AsyncMode aMode) const;
+
+  /**
+   * Return a visual effect that reflects this apzc's
+   * overscrolled state, if any.
+   */
+  AsyncTransformComponentMatrix GetOverscrollTransform(AsyncMode aMode) const;
+
+  /**
+   * Returns the incremental transformation corresponding to the async pan/zoom
+   * in progress. That is, when this transform is multiplied with the layer's
+   * existing transform, it will make the layer appear with the desired pan/zoom
+   * amount.
+   */
+  AsyncTransform GetCurrentAsyncTransform(AsyncMode aMode) const;
+
+  /**
+   * Returns the same transform as GetCurrentAsyncTransform(), but includes
+   * any transform due to axis over-scroll.
+   */
+  AsyncTransformComponentMatrix GetCurrentAsyncTransformWithOverscroll(AsyncMode aMode) const;
 
 
   /* ===================================================================
@@ -808,6 +828,11 @@ public:
    */
   void ResetTouchInputState();
 
+  /**
+   * Gets a ref to the input queue that is shared across the entire tree manager.
+   */
+  const RefPtr<InputQueue>& GetInputQueue() const;
+
 private:
   void CancelAnimationAndGestureState();
 
@@ -866,7 +891,7 @@ private:
   // Start an overscroll animation with the given initial velocity.
   void StartOverscrollAnimation(const ParentLayerPoint& aVelocity);
 
-  void StartSmoothScroll(ScrollSource aSource);
+  void SmoothScrollTo(const CSSPoint& aDestination);
 
   // Returns whether overscroll is allowed during an event.
   bool AllowScrollHandoffInCurrentBlock() const;
@@ -1092,9 +1117,9 @@ public:
   }
 
 private:
-  // Extra offset to add in SampleContentTransformForFrame for testing
+  // Extra offset to add to the async scroll position for testing
   CSSPoint mTestAsyncScrollOffset;
-  // Extra zoom to include in SampleContentTransformForFrame for testing
+  // Extra zoom to include in the aync zoom for testing
   LayerToParentLayerScale mTestAsyncZoom;
   // Flag to track whether or not the APZ transform is not used. This
   // flag is recomputed for every composition frame.
@@ -1106,10 +1131,49 @@ private:
    * recording.
    */
 private:
+  // Mutex protecting mCheckerboardEvent
+  Mutex mCheckerboardEventLock;
   // This is created when this APZC instance is first included as part of a
   // composite. If a checkerboard event takes place, this is destroyed at the
   // end of the event, and a new one is created on the next composite.
   UniquePtr<CheckerboardEvent> mCheckerboardEvent;
+  // This is used to track the total amount of time that we could reasonably
+  // be checkerboarding. Combined with other info, this allows us to meaningfully
+  // say how frequently users actually encounter checkerboarding.
+  PotentialCheckerboardDurationTracker mPotentialCheckerboardTracker;
+
+
+  /* ===================================================================
+   * The functions in this section are used for CSS scroll snapping.
+   */
+
+  // If |aEvent| should trigger scroll snapping, adjust |aDelta| to reflect
+  // the snapping (that is, make it a delta that will take us to the desired
+  // snap point). The delta is interpreted as being relative to
+  // |aStartPosition|, and if a target snap point is found, |aStartPosition|
+  // is also updated, to the value of the snap point.
+  // Returns true iff. a target snap point was found.
+  bool MaybeAdjustDeltaForScrollSnapping(const ScrollWheelInput& aEvent,
+                                         ParentLayerPoint& aDelta,
+                                         CSSPoint& aStartPosition);
+
+  // Snap to a snap position nearby the current scroll position, if appropriate.
+  void ScrollSnap();
+
+  // Snap to a snap position nearby the destination predicted based on the
+  // current velocity, if appropriate.
+  void ScrollSnapToDestination();
+
+  // Snap to a snap position nearby the provided destination, if appropriate.
+  void ScrollSnapNear(const CSSPoint& aDestination);
+
+  // Find a snap point near |aDestination| that we should snap to.
+  // Returns the snap point if one was found, or an empty Maybe otherwise.
+  // |aUnit| affects the snapping behaviour (see ScrollSnapUtils::
+  // GetSnapPointForDestination). It should generally be determined by the
+  // type of event that's triggering the scroll.
+  Maybe<CSSPoint> FindSnapPointNear(const CSSPoint& aDestination,
+                                    nsIScrollableFrame::ScrollUnit aUnit);
 };
 
 } // namespace layers

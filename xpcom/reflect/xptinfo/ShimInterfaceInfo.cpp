@@ -1,4 +1,4 @@
-/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
+/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 2 -*-
  * vim: set ts=8 sw=4 et tw=78:
  *
  * This Source Code Form is subject to the terms of the Mozilla Public
@@ -278,9 +278,14 @@
 using namespace mozilla;
 
 struct ComponentsInterfaceShimEntry {
+  MOZ_CONSTEXPR
+  ComponentsInterfaceShimEntry(const char* aName, const nsIID& aIID,
+                               const dom::NativePropertyHooks* aNativePropHooks)
+    : geckoName(aName), iid(aIID), nativePropHooks(aNativePropHooks) {}
+
   const char *geckoName;
-  nsIID iid;
-  const mozilla::dom::NativePropertyHooks* nativePropHooks;
+  const nsIID& iid;
+  const dom::NativePropertyHooks* nativePropHooks;
 };
 
 #define DEFINE_SHIM_WITH_CUSTOM_INTERFACE(geckoName, domName) \
@@ -560,8 +565,8 @@ ShimInterfaceInfo::GetConstantCount(uint16_t* aCount)
         };
         for (size_t i = 0; i < ArrayLength(props); ++i) {
             auto prop = props[i];
-            if (prop && prop->constants) {
-                for (auto cs = prop->constants->specs; cs->name; ++cs) {
+            if (prop && prop->HasConstants()) {
+                for (auto cs = prop->Constants()->specs; cs->name; ++cs) {
                     // We have found one constant here.  We explicitly do not
                     // bother calling isEnabled() here because it's OK to define
                     // potentially extra constants on these shim interfaces.
@@ -606,8 +611,8 @@ ShimInterfaceInfo::GetConstant(uint16_t aIndex, JS::MutableHandleValue aConstant
         };
         for (size_t i = 0; i < ArrayLength(props); ++i) {
             auto prop = props[i];
-            if (prop && prop->constants) {
-                for (auto cs = prop->constants->specs; cs->name; ++cs) {
+            if (prop && prop->HasConstants()) {
+                for (auto cs = prop->Constants()->specs; cs->name; ++cs) {
                     // We have found one constant here.  We explicitly do not
                     // bother calling isEnabled() here because it's OK to define
                     // potentially extra constants on these shim interfaces.

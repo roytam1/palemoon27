@@ -29,7 +29,7 @@
 #include "BluetoothProfileController.h"
 #include "BluetoothReplyRunnable.h"
 #include "BluetoothUtils.h"
-#include "BluetoothUuid.h"
+#include "BluetoothUuidHelper.h"
 #include "mozilla/dom/bluetooth/BluetoothTypes.h"
 #include "mozilla/ipc/SocketBase.h"
 #include "mozilla/StaticMutex.h"
@@ -138,6 +138,10 @@ public:
   void Init() override
   {
     static void (* const sInitManager[])(BluetoothProfileResultHandler*) = {
+      BluetoothMapSmsManager::InitMapSmsInterface,
+      BluetoothOppManager::InitOppInterface,
+      BluetoothPbapManager::InitPbapInterface,
+      BluetoothHidManager::InitHidInterface,
       BluetoothHfpManager::InitHfpInterface,
       BluetoothA2dpManager::InitA2dpInterface,
       BluetoothAvrcpManager::InitAvrcpInterface,
@@ -363,6 +367,35 @@ BluetoothServiceBluedroid::StopLeScanInternal(
 }
 
 void
+BluetoothServiceBluedroid::StartAdvertisingInternal(
+  const BluetoothUuid& aAppUuid,
+  const BluetoothGattAdvertisingData& aAdvData,
+  BluetoothReplyRunnable* aRunnable)
+{
+  MOZ_ASSERT(NS_IsMainThread());
+  ENSURE_BLUETOOTH_IS_ENABLED_VOID(aRunnable);
+
+  BluetoothGattManager* gatt = BluetoothGattManager::Get();
+  ENSURE_GATT_MGR_IS_READY_VOID(gatt, aRunnable);
+
+  gatt->StartAdvertising(aAppUuid, aAdvData, aRunnable);
+}
+
+void
+BluetoothServiceBluedroid::StopAdvertisingInternal(
+  const BluetoothUuid& aAppUuid,
+  BluetoothReplyRunnable* aRunnable)
+{
+  MOZ_ASSERT(NS_IsMainThread());
+  ENSURE_BLUETOOTH_IS_ENABLED_VOID(aRunnable);
+
+  BluetoothGattManager* gatt = BluetoothGattManager::Get();
+  ENSURE_GATT_MGR_IS_READY_VOID(gatt, aRunnable);
+
+  gatt->StopAdvertising(aAppUuid, aRunnable);
+}
+
+void
 BluetoothServiceBluedroid::ConnectGattClientInternal(
   const BluetoothUuid& aAppUuid, const BluetoothAddress& aDeviceAddress,
   BluetoothReplyRunnable* aRunnable)
@@ -543,6 +576,20 @@ BluetoothServiceBluedroid::GattClientWriteDescriptorValueInternal(
 }
 
 // GATT Server
+void
+BluetoothServiceBluedroid::GattServerRegisterInternal(
+  const BluetoothUuid& aAppUuid, BluetoothReplyRunnable* aRunnable)
+{
+  MOZ_ASSERT(NS_IsMainThread());
+
+  ENSURE_BLUETOOTH_IS_ENABLED_VOID(aRunnable);
+
+  BluetoothGattManager* gatt = BluetoothGattManager::Get();
+  ENSURE_GATT_MGR_IS_READY_VOID(gatt, aRunnable);
+
+  gatt->RegisterServer(aAppUuid, aRunnable);
+}
+
 void
 BluetoothServiceBluedroid::GattServerConnectPeripheralInternal(
   const BluetoothUuid& aAppUuid, const BluetoothAddress& aAddress,
@@ -1994,7 +2041,11 @@ BluetoothServiceBluedroid::AdapterStateChangedNotification(bool aState)
       BluetoothGattManager::DeinitGattInterface,
       BluetoothAvrcpManager::DeinitAvrcpInterface,
       BluetoothA2dpManager::DeinitA2dpInterface,
-      BluetoothHfpManager::DeinitHfpInterface
+      BluetoothHfpManager::DeinitHfpInterface,
+      BluetoothHidManager::DeinitHidInterface,
+      BluetoothPbapManager::DeinitPbapInterface,
+      BluetoothOppManager::DeinitOppInterface,
+      BluetoothMapSmsManager::DeinitMapSmsInterface
     };
 
     // Return error if BluetoothService is unavailable
@@ -2207,19 +2258,7 @@ BluetoothServiceBluedroid::RemoteDevicePropertiesNotification(
       }
 
       // Handler for |FetchUuidsInternal|
-
-      nsTArray<nsString> uuids;
-
-      // Construct a sorted uuid set
-      for (index = 0; index < p.mUuidArray.Length(); ++index) {
-        nsAutoString uuid;
-        UuidToString(p.mUuidArray[index], uuid);
-
-        if (!uuids.Contains(uuid)) { // filter out duplicate uuids
-          uuids.InsertElementSorted(uuid);
-        }
-      }
-      AppendNamedValue(propertiesArray, "UUIDs", uuids);
+      AppendNamedValue(propertiesArray, "UUIDs", p.mUuidArray);
 
     } else if (p.mType == PROPERTY_TYPE_OF_DEVICE) {
       AppendNamedValue(propertiesArray, "Type",
@@ -2327,18 +2366,7 @@ BluetoothServiceBluedroid::DeviceFoundNotification(
       AppendNamedValue(propertiesArray, "Cod", p.mUint32);
 
     } else if (p.mType == PROPERTY_UUIDS) {
-      nsTArray<nsString> uuids;
-
-      // Construct a sorted uuid set
-      for (uint32_t index = 0; index < p.mUuidArray.Length(); ++index) {
-        nsAutoString uuid;
-        UuidToString(p.mUuidArray[index], uuid);
-
-        if (!uuids.Contains(uuid)) { // filter out duplicate uuids
-          uuids.InsertElementSorted(uuid);
-        }
-      }
-      AppendNamedValue(propertiesArray, "UUIDs", uuids);
+      AppendNamedValue(propertiesArray, "UUIDs", p.mUuidArray);
 
     } else if (p.mType == PROPERTY_TYPE_OF_DEVICE) {
       AppendNamedValue(propertiesArray, "Type",
@@ -2603,6 +2631,7 @@ BluetoothServiceBluedroid::BackendErrorNotification(bool aCrashed)
    * Reset following profile manager states for unexpected backend crash.
    * - HFP: connection state and audio state
    * - A2DP: connection state
+   * - HID: connection state
    */
   BluetoothHfpManager* hfp = BluetoothHfpManager::Get();
   NS_ENSURE_TRUE_VOID(hfp);
@@ -2610,6 +2639,9 @@ BluetoothServiceBluedroid::BackendErrorNotification(bool aCrashed)
   BluetoothA2dpManager* a2dp = BluetoothA2dpManager::Get();
   NS_ENSURE_TRUE_VOID(a2dp);
   a2dp->HandleBackendError();
+  BluetoothHidManager* hid = BluetoothHidManager::Get();
+  NS_ENSURE_TRUE_VOID(hid);
+  hid->HandleBackendError();
 
   mIsRestart = true;
   BT_LOGR("Recovery step2: stop bluetooth");

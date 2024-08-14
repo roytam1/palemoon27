@@ -9,51 +9,20 @@
 #ifndef mtransport_test_utils_h__
 #define mtransport_test_utils_h__
 
-#include <iostream>
-
-#include "nspr.h"
 #include "nsCOMPtr.h"
 #include "nsNetCID.h"
-#include "nsXPCOMGlue.h"
-#include "nsXPCOM.h"
 
-#include "nsIComponentManager.h"
-#include "nsIComponentRegistrar.h"
 #include "nsIEventTarget.h"
-#include "nsIIOService.h"
-#include "nsIServiceManager.h"
-#include "nsISocketTransportService.h"
-#include "nsDirectoryServiceUtils.h"
-#include "nsDirectoryServiceDefs.h"
 #include "nsPISocketTransportService.h"
 #include "nsServiceManagerUtils.h"
-#if !defined(MOZILLA_XPCOMRT_API)
-#include "TestHarness.h"
-#else
-#include "XPCOMRTInit.h"
-class ScopedXPCOM {
-public:
-  explicit ScopedXPCOM(const char*)
-  {
-    NS_InitXPCOMRT();
-  }
-  ~ScopedXPCOM()
-  {
-    NS_ShutdownXPCOMRT();
-  }
-};
-#endif
 
 class MtransportTestUtils {
  public:
-  MtransportTestUtils() : xpcom_("") {
-    if (!sts_) {
+  MtransportTestUtils() {
       InitServices();
-    }
   }
 
   ~MtransportTestUtils() {
-    sts_->Shutdown();
   }
 
   void InitServices() {
@@ -62,22 +31,15 @@ class MtransportTestUtils {
     MOZ_ASSERT(NS_SUCCEEDED(rv));
     sts_ = do_GetService(NS_SOCKETTRANSPORTSERVICE_CONTRACTID, &rv);
     MOZ_ASSERT(NS_SUCCEEDED(rv));
-
   }
 
   nsCOMPtr<nsIEventTarget> sts_target() { return sts_target_; }
 
  private:
-  ScopedXPCOM xpcom_;
   nsCOMPtr<nsIEventTarget> sts_target_;
   nsCOMPtr<nsPISocketTransportService> sts_;
 };
 
-
-MtransportTestUtils *mtransport_test_utils;
-
-#define SETUP_MTRANSPORT_TEST_UTILS() \
-  MtransportTestUtils utils_; mtransport_test_utils = &utils_
 
 #define CHECK_ENVIRONMENT_FLAG(envname) \
   char *test_flag = getenv(envname); \
@@ -88,4 +50,3 @@ MtransportTestUtils *mtransport_test_utils;
 
 
 #endif
-

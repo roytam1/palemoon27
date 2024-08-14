@@ -48,12 +48,18 @@ static RedirEntry kRedirMap[] = {
   {
     "logo", "chrome://branding/content/about.png",
     nsIAboutModule::URI_SAFE_FOR_UNTRUSTED_CONTENT |
+    // Linkable for testing reasons.
     nsIAboutModule::MAKE_LINKABLE
   },
   {
     "buildconfig", "chrome://global/content/buildconfig.html",
     nsIAboutModule::URI_SAFE_FOR_UNTRUSTED_CONTENT |
     nsIAboutModule::MAKE_LINKABLE
+  },
+  {
+    "checkerboard", "chrome://global/content/aboutCheckerboard.xhtml",
+    nsIAboutModule::URI_SAFE_FOR_UNTRUSTED_CONTENT |
+      nsIAboutModule::ALLOW_SCRIPT
   },
   {
     "license", "chrome://global/content/license.html",
@@ -112,7 +118,8 @@ static RedirEntry kRedirMap[] = {
     nsIAboutModule::URI_SAFE_FOR_UNTRUSTED_CONTENT |
     nsIAboutModule::HIDE_FROM_ABOUTABOUT |
     // Needs to be linkable so content can touch its own srcdoc frames
-    nsIAboutModule::MAKE_LINKABLE
+      nsIAboutModule::MAKE_LINKABLE |
+      nsIAboutModule::URI_CAN_LOAD_IN_CHILD
   }
 };
 static const int kRedirTotal = mozilla::ArrayLength(kRedirMap);

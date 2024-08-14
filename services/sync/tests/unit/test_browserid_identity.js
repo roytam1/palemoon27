@@ -73,7 +73,7 @@ add_test(function test_initial_state() {
   }
 );
 
-add_task(function test_initialializeWithCurrentIdentity() {
+add_task(function* test_initialializeWithCurrentIdentity() {
     _("Verify start after initializeWithCurrentIdentity");
     browseridManager.initializeWithCurrentIdentity();
     yield browseridManager.whenReadyToAuthenticate.promise;
@@ -83,7 +83,7 @@ add_task(function test_initialializeWithCurrentIdentity() {
   }
 );
 
-add_task(function test_initialializeWithNoKeys() {
+add_task(function* test_initialializeWithNoKeys() {
     _("Verify start after initializeWithCurrentIdentity without kA, kB or keyFetchToken");
     let identityConfig = makeIdentityConfig();
     delete identityConfig.fxaccount.user.kA;
@@ -252,7 +252,7 @@ add_test(function test_RESTResourceAuthenticatorSkew() {
   run_next_test();
 });
 
-add_task(function test_ensureLoggedIn() {
+add_task(function* test_ensureLoggedIn() {
   configureFxAccountIdentity(browseridManager);
   yield browseridManager.initializeWithCurrentIdentity();
   yield browseridManager.whenReadyToAuthenticate.promise;
@@ -349,7 +349,7 @@ add_test(function test_computeXClientStateHeader() {
   run_next_test();
 });
 
-add_task(function test_getTokenErrors() {
+add_task(function* test_getTokenErrors() {
   _("BrowserIDManager correctly handles various failures to get a token.");
 
   _("Arrange for a 401 - Sync should reflect an auth error.");
@@ -382,7 +382,7 @@ add_task(function test_getTokenErrors() {
   Assert.equal(Status.login, LOGIN_FAILED_NETWORK_ERROR, "login state is LOGIN_FAILED_NETWORK_ERROR");
 });
 
-add_task(function test_getTokenErrorWithRetry() {
+add_task(function* test_getTokenErrorWithRetry() {
   _("tokenserver sends an observer notification on various backoff headers.");
 
   // Set Sync's backoffInterval to zero - after we simulated the backoff header
@@ -424,7 +424,7 @@ add_task(function test_getTokenErrorWithRetry() {
   Assert.ok(Status.backoffInterval >= 200000);
 });
 
-add_task(function test_getKeysErrorWithBackoff() {
+add_task(function* test_getKeysErrorWithBackoff() {
   _("Auth server (via hawk) sends an observer notification on backoff headers.");
 
   // Set Sync's backoffInterval to zero - after we simulated the backoff header
@@ -458,7 +458,7 @@ add_task(function test_getKeysErrorWithBackoff() {
   Assert.ok(Status.backoffInterval >= 100000);
 });
 
-add_task(function test_getKeysErrorWithRetry() {
+add_task(function* test_getKeysErrorWithRetry() {
   _("Auth server (via hawk) sends an observer notification on retry headers.");
 
   // Set Sync's backoffInterval to zero - after we simulated the backoff header
@@ -492,7 +492,7 @@ add_task(function test_getKeysErrorWithRetry() {
   Assert.ok(Status.backoffInterval >= 100000);
 });
 
-add_task(function test_getHAWKErrors() {
+add_task(function* test_getHAWKErrors() {
   _("BrowserIDManager correctly handles various HAWK failures.");
 
   _("Arrange for a 401 - Sync should reflect an auth error.");
@@ -525,7 +525,7 @@ add_task(function test_getHAWKErrors() {
   Assert.equal(Status.login, LOGIN_FAILED_NETWORK_ERROR, "login state is LOGIN_FAILED_NETWORK_ERROR");
 });
 
-add_task(function test_getGetKeysFailing401() {
+add_task(function* test_getGetKeysFailing401() {
   _("BrowserIDManager correctly handles 401 responses fetching keys.");
 
   _("Arrange for a 401 - Sync should reflect an auth error.");
@@ -546,7 +546,7 @@ add_task(function test_getGetKeysFailing401() {
   Assert.equal(Status.login, LOGIN_FAILED_LOGIN_REJECTED, "login was rejected");
 });
 
-add_task(function test_getGetKeysFailing503() {
+add_task(function* test_getGetKeysFailing503() {
   _("BrowserIDManager correctly handles 5XX responses fetching keys.");
 
   _("Arrange for a 503 - Sync should reflect a network error.");
@@ -567,7 +567,7 @@ add_task(function test_getGetKeysFailing503() {
   Assert.equal(Status.login, LOGIN_FAILED_NETWORK_ERROR, "state reflects network error");
 });
 
-add_task(function test_getKeysMissing() {
+add_task(function* test_getKeysMissing() {
   _("BrowserIDManager correctly handles getKeys succeeding but not returning keys.");
 
   let browseridManager = new BrowserIDManager();

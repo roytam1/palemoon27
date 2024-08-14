@@ -10,7 +10,7 @@ const nsIPKCS11Slot = Components.interfaces.nsIPKCS11Slot;
 const nsIPK11Token = Components.interfaces.nsIPK11Token;
 
 var params;
-var tokenName="";
+var tokenName = "";
 var pw1;
 
 function doPrompt(msg)
@@ -28,7 +28,7 @@ function onLoad()
   try {
      params = window.arguments[0].QueryInterface(nsIDialogParamBlock);
      tokenName = params.GetString(1);
-  } catch(exception) {
+  } catch (e) {
       // this should not happen.
       // previously we had self.name, but self.name was a bad idea
       // as window name must be a subset of ascii, and the code was
@@ -203,9 +203,10 @@ function setPassword()
     success = true;
   }
 
-  if (success && params)
+  if (success && params) {
     // Return value 1 means "successfully executed ok"
     params.SetInt(1, 1);
+  }
 
   // Terminate dialog
   return success;
@@ -237,7 +238,7 @@ function setPasswordStrength()
   }
 
   let numnumeric = pw.replace(/[0-9]/g, "");
-  let numeric= pw.length - numnumeric.length;
+  let numeric = pw.length - numnumeric.length;
   if (numeric > 3) {
     numeric = 3;
   }
@@ -273,8 +274,8 @@ function setPasswordStrength()
 
 function checkPasswords()
 {
-  var pw1=document.getElementById('pw1').value;
-  var pw2=document.getElementById('pw2').value;
+  let pw1 = document.getElementById("pw1").value;
+  let pw2 = document.getElementById("pw2").value;
 
   var oldpwbox = document.getElementById("oldpw");
   if (oldpwbox) {

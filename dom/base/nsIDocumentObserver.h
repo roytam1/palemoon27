@@ -7,11 +7,11 @@
 #define nsIDocumentObserver_h___
 
 #include "mozilla/EventStates.h"
+#include "mozilla/StyleSheetHandle.h"
 #include "nsISupports.h"
 #include "nsIMutationObserver.h"
 
 class nsIContent;
-class nsIStyleSheet;
 class nsIDocument;
 
 namespace mozilla {
@@ -100,7 +100,7 @@ public:
    * @param aDocumentSheet True if sheet is in document's style sheet list,
    *                       false if sheet is not (i.e., UA or user sheet)
    */
-  virtual void StyleSheetAdded(nsIStyleSheet* aStyleSheet,
+  virtual void StyleSheetAdded(mozilla::StyleSheetHandle aStyleSheet,
                                bool aDocumentSheet) = 0;
 
   /**
@@ -113,7 +113,7 @@ public:
    * @param aDocumentSheet True if sheet is in document's style sheet list,
    *                       false if sheet is not (i.e., UA or user sheet)
    */
-  virtual void StyleSheetRemoved(nsIStyleSheet* aStyleSheet,
+  virtual void StyleSheetRemoved(mozilla::StyleSheetHandle aStyleSheet,
                                  bool aDocumentSheet) = 0;
   
   /**
@@ -125,7 +125,7 @@ public:
    *
    * @param aStyleSheet the StyleSheet that has changed state
    */
-  virtual void StyleSheetApplicableStateChanged(nsIStyleSheet* aStyleSheet) = 0;
+  virtual void StyleSheetApplicableStateChanged(mozilla::StyleSheetHandle aStyleSheet) = 0;
 
   /**
    * A StyleRule has just been modified within a style sheet.
@@ -136,7 +136,7 @@ public:
    *
    * @param aStyleSheet the StyleSheet that contians the rule
    */
-  virtual void StyleRuleChanged(nsIStyleSheet* aStyleSheet) = 0;
+  virtual void StyleRuleChanged(mozilla::StyleSheetHandle aStyleSheet) = 0;
 
   /**
    * A StyleRule has just been added to a style sheet.
@@ -147,7 +147,7 @@ public:
    *
    * @param aStyleSheet the StyleSheet that has been modified
    */
-  virtual void StyleRuleAdded(nsIStyleSheet* aStyleSheet) = 0;
+  virtual void StyleRuleAdded(mozilla::StyleSheetHandle aStyleSheet) = 0;
 
   /**
    * A StyleRule has just been removed from a style sheet.
@@ -158,7 +158,7 @@ public:
    *
    * @param aStyleSheet the StyleSheet that has been modified
    */
-  virtual void StyleRuleRemoved(nsIStyleSheet* aStyleSheet) = 0;
+  virtual void StyleRuleRemoved(mozilla::StyleSheetHandle aStyleSheet) = 0;
 };
 
 NS_DEFINE_STATIC_IID_ACCESSOR(nsIDocumentObserver, NS_IDOCUMENT_OBSERVER_IID)
@@ -186,24 +186,25 @@ NS_DEFINE_STATIC_IID_ACCESSOR(nsIDocumentObserver, NS_IDOCUMENT_OBSERVER_IID)
                                        mozilla::EventStates aStateMask) override;
 
 #define NS_DECL_NSIDOCUMENTOBSERVER_STYLESHEETADDED                          \
-    virtual void StyleSheetAdded(nsIStyleSheet* aStyleSheet,                 \
+    virtual void StyleSheetAdded(mozilla::StyleSheetHandle aStyleSheet,      \
                                  bool aDocumentSheet) override;
 
 #define NS_DECL_NSIDOCUMENTOBSERVER_STYLESHEETREMOVED                        \
-    virtual void StyleSheetRemoved(nsIStyleSheet* aStyleSheet,               \
+    virtual void StyleSheetRemoved(mozilla::StyleSheetHandle aStyleSheet,    \
                                    bool aDocumentSheet) override;
 
 #define NS_DECL_NSIDOCUMENTOBSERVER_STYLESHEETAPPLICABLESTATECHANGED         \
-    virtual void StyleSheetApplicableStateChanged(nsIStyleSheet* aStyleSheet) override;
+    virtual void StyleSheetApplicableStateChanged(                           \
+        mozilla::StyleSheetHandle aStyleSheet) override;
 
 #define NS_DECL_NSIDOCUMENTOBSERVER_STYLERULECHANGED                         \
-    virtual void StyleRuleChanged(nsIStyleSheet* aStyleSheet) override;
+    virtual void StyleRuleChanged(mozilla::StyleSheetHandle aStyleSheet) override;
 
 #define NS_DECL_NSIDOCUMENTOBSERVER_STYLERULEADDED                           \
-    virtual void StyleRuleAdded(nsIStyleSheet* aStyleSheet) override;
+    virtual void StyleRuleAdded(mozilla::StyleSheetHandle aStyleSheet) override;
 
 #define NS_DECL_NSIDOCUMENTOBSERVER_STYLERULEREMOVED                         \
-    virtual void StyleRuleRemoved(nsIStyleSheet* aStyleSheet) override;
+    virtual void StyleRuleRemoved(mozilla::StyleSheetHandle aStyleSheet) override;
 
 #define NS_DECL_NSIDOCUMENTOBSERVER                                          \
     NS_DECL_NSIDOCUMENTOBSERVER_BEGINUPDATE                                  \
@@ -261,29 +262,29 @@ NS_IMPL_NSIMUTATIONOBSERVER_CONTENT(_class)
 
 #define NS_IMPL_NSIDOCUMENTOBSERVER_STYLE_STUB(_class)                    \
 void                                                                      \
-_class::StyleSheetAdded(nsIStyleSheet* aStyleSheet,                       \
+_class::StyleSheetAdded(mozilla::StyleSheetHandle aStyleSheet,            \
                         bool aDocumentSheet)                              \
 {                                                                         \
 }                                                                         \
 void                                                                      \
-_class::StyleSheetRemoved(nsIStyleSheet* aStyleSheet,                     \
+_class::StyleSheetRemoved(mozilla::StyleSheetHandle aStyleSheet,          \
                           bool aDocumentSheet)                            \
 {                                                                         \
 }                                                                         \
 void                                                                      \
-_class::StyleSheetApplicableStateChanged(nsIStyleSheet* aStyleSheet)      \
+_class::StyleSheetApplicableStateChanged(mozilla::StyleSheetHandle aStyleSheet) \
 {                                                                         \
 }                                                                         \
 void                                                                      \
-_class::StyleRuleChanged(nsIStyleSheet* aStyleSheet)                      \
+_class::StyleRuleChanged(mozilla::StyleSheetHandle aStyleSheet)           \
 {                                                                         \
 }                                                                         \
 void                                                                      \
-_class::StyleRuleAdded(nsIStyleSheet* aStyleSheet)                        \
+_class::StyleRuleAdded(mozilla::StyleSheetHandle aStyleSheet)             \
 {                                                                         \
 }                                                                         \
 void                                                                      \
-_class::StyleRuleRemoved(nsIStyleSheet* aStyleSheet)                      \
+_class::StyleRuleRemoved(mozilla::StyleSheetHandle aStyleSheet)           \
 {                                                                         \
 }
 

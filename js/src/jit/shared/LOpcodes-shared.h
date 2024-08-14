@@ -97,8 +97,10 @@
     _(BitNotI)                      \
     _(BitNotV)                      \
     _(BitOpI)                       \
+    _(BitOpI64)                     \
     _(BitOpV)                       \
     _(ShiftI)                       \
+    _(ShiftI64)                     \
     _(UrshD)                        \
     _(Return)                       \
     _(Throw)                        \
@@ -112,6 +114,8 @@
     _(ObjectGroupDispatch)          \
     _(Compare)                      \
     _(CompareAndBranch)             \
+    _(Compare64)                    \
+    _(Compare64AndBranch)           \
     _(CompareD)                     \
     _(CompareDAndBranch)            \
     _(CompareF)                     \
@@ -138,6 +142,8 @@
     _(AbsD)                         \
     _(AbsF)                         \
     _(ClzI)                         \
+    _(CtzI)                         \
+    _(PopcntI)                      \
     _(SqrtD)                        \
     _(SqrtF)                        \
     _(Atan2D)                       \
@@ -154,8 +160,11 @@
     _(NotO)                         \
     _(NotV)                         \
     _(AddI)                         \
+    _(AddI64)                       \
     _(SubI)                         \
+    _(SubI64)                       \
     _(MulI)                         \
+    _(MulI64)                       \
     _(MathD)                        \
     _(MathF)                        \
     _(DivI)                         \
@@ -180,6 +189,8 @@
     _(Float32ToInt32)               \
     _(TruncateDToInt32)             \
     _(TruncateFToInt32)             \
+    _(WrapInt64ToInt32)             \
+    _(ExtendInt32ToInt64)           \
     _(BooleanToString)              \
     _(IntToString)                  \
     _(DoubleToString)               \
@@ -196,12 +207,15 @@
     _(OsrArgumentsObject)           \
     _(RegExp)                       \
     _(RegExpMatcher)                \
+    _(RegExpSearcher)               \
     _(RegExpTester)                 \
-    _(RegExpReplace)                \
+    _(RegExpPrototypeOptimizable)   \
+    _(RegExpInstanceOptimizable)    \
     _(StringReplace)                \
     _(Substr)                       \
     _(BinarySharedStub)             \
     _(UnarySharedStub)              \
+    _(NullarySharedStub)            \
     _(Lambda)                       \
     _(LambdaArrow)                  \
     _(LambdaForSingleton)           \
@@ -254,7 +268,6 @@
     _(ArrayPopShiftT)               \
     _(ArrayPushV)                   \
     _(ArrayPushT)                   \
-    _(ArrayConcat)                  \
     _(ArraySlice)                   \
     _(ArrayJoin)                    \
     _(StoreElementHoleV)            \
@@ -304,6 +317,7 @@
     _(IteratorEnd)                  \
     _(ArrayLength)                  \
     _(SetArrayLength)               \
+    _(GetNextMapEntryForIterator)   \
     _(TypedArrayLength)             \
     _(TypedArrayElements)           \
     _(SetDisjointTypedElements)     \
@@ -333,15 +347,22 @@
     _(CallInstanceOf)               \
     _(InterruptCheck)               \
     _(AsmJSInterruptCheck)          \
+    _(AsmThrowUnreachable)          \
+    _(AsmReinterpret)               \
+    _(AsmReinterpretToI64)          \
+    _(AsmReinterpretFromI64)        \
     _(GetDOMProperty)               \
     _(GetDOMMemberV)                \
     _(GetDOMMemberT)                \
     _(SetDOMProperty)               \
     _(CallDOMNative)                \
     _(IsCallable)                   \
+    _(IsConstructor)                \
     _(IsObject)                     \
     _(IsObjectAndBranch)            \
     _(HasClass)                     \
+    _(AsmSelect)                    \
+    _(AsmSelectI64)                 \
     _(AsmJSLoadHeap)                \
     _(AsmJSStoreHeap)               \
     _(AsmJSLoadFuncPtr)             \

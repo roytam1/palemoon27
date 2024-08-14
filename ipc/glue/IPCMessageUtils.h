@@ -11,6 +11,7 @@
 #include "chrome/common/ipc_message_utils.h"
 
 #include "mozilla/ArrayUtils.h"
+#include "mozilla/Attributes.h"
 #include "mozilla/DebugOnly.h"
 #include "mozilla/dom/ipc/StructuredCloneData.h"
 #include "mozilla/Maybe.h"
@@ -24,6 +25,9 @@
 
 #include <stdint.h>
 
+#ifdef MOZ_CRASHREPORTER
+#include "nsExceptionHandler.h"
+#endif
 #include "nsID.h"
 #include "nsIWidget.h"
 #include "nsMemory.h"
@@ -60,7 +64,7 @@ struct null_t {
   bool operator==(const null_t&) const { return true; }
 };
 
-struct SerializedStructuredCloneBuffer
+struct MOZ_STACK_CLASS SerializedStructuredCloneBuffer
 {
   SerializedStructuredCloneBuffer()
   : data(nullptr), dataLength(0)
@@ -112,8 +116,17 @@ struct EnumSerializer {
 
   static bool Read(const Message* aMsg, void** aIter, paramType* aResult) {
     uintParamType value;
-    if(!ReadParam(aMsg, aIter, &value) ||
-       !EnumValidator::IsLegalValue(paramType(value))) {
+    if (!ReadParam(aMsg, aIter, &value)) {
+#ifdef MOZ_CRASHREPORTER
+      CrashReporter::AnnotateCrashReport(NS_LITERAL_CSTRING("IPCReadErrorReason"),
+                                         NS_LITERAL_CSTRING("Bad iter"));
+#endif
+      return false;
+    } else if (!EnumValidator::IsLegalValue(paramType(value))) {
+#ifdef MOZ_CRASHREPORTER
+      CrashReporter::AnnotateCrashReport(NS_LITERAL_CSTRING("IPCReadErrorReason"),
+                                         NS_LITERAL_CSTRING("Illegal value"));
+#endif
       return false;
     }
     *aResult = paramType(value);

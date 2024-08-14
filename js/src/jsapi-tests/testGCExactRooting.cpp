@@ -51,10 +51,8 @@ struct MyContainer
 
     MyContainer() : obj(nullptr), str(nullptr) {}
     void trace(JSTracer* trc) {
-        if (obj)
-            js::TraceEdge(trc, &obj, "test container");
-        if (str)
-            js::TraceEdge(trc, &str, "test container");
+        js::TraceNullableEdge(trc, &obj, "test container");
+        js::TraceNullableEdge(trc, &str, "test container");
     }
 };
 
@@ -128,15 +126,8 @@ END_TEST(testGCRootedStaticStructInternalStackStorageAugmented)
 static JS::PersistentRooted<JSObject*> sLongLived;
 BEGIN_TEST(testGCPersistentRootedOutlivesRuntime)
 {
-    JSContext* cx2 = JS_NewContext(rt, 8192);
-    CHECK(cx2);
-
-    sLongLived.init(cx2, JS_NewObject(cx, nullptr));
+    sLongLived.init(rt, JS_NewObject(cx, nullptr));
     CHECK(sLongLived);
-
-    JS_DestroyContext(cx2);
-    CHECK(!sLongLived);
-
     return true;
 }
 END_TEST(testGCPersistentRootedOutlivesRuntime)

@@ -30,6 +30,7 @@ UNIFIED_SOURCES += [
     'testException.cpp',
     'testExternalStrings.cpp',
     'testFindSCCs.cpp',
+    'testForceLexicalInitialization.cpp',
     'testForOfIterator.cpp',
     'testForwardSetProperty.cpp',
     'testFreshGlobalEvalRedefinition.cpp',
@@ -44,6 +45,7 @@ UNIFIED_SOURCES += [
     'testGCOutOfMemory.cpp',
     'testGCStoreBufferRemoval.cpp',
     'testGCUniqueId.cpp',
+    'testGCWeakCache.cpp',
     'testGCWeakRef.cpp',
     'testGetPropertyDescriptor.cpp',
     'testHashTable.cpp',
@@ -81,10 +83,13 @@ UNIFIED_SOURCES += [
     'testStringBuffer.cpp',
     'testStructuredClone.cpp',
     'testSymbol.cpp',
+    'testThreadingExclusiveData.cpp',
+    'testThreadingMutex.cpp',
     'testToIntWidth.cpp',
     'testTypedArrays.cpp',
     'testUbiNode.cpp',
     'testUncaughtError.cpp',
+    'testUncaughtSymbol.cpp',
     'testUTF8.cpp',
     'testWasmLEB128.cpp',
     'testWeakMap.cpp',
@@ -108,6 +113,11 @@ if CONFIG['ENABLE_ION']:
         'testJitRValueAlloc.cpp',
     ]
 
+if CONFIG['SPIDERMONKEY_PROMISE']:
+    UNIFIED_SOURCES += [
+        'testPromise.cpp',
+    ]
+
 DEFINES['EXPORT_JS_API'] = True
 
 LOCAL_INCLUDES += [
@@ -121,5 +131,6 @@ USE_LIBS += [
 
 OS_LIBS += CONFIG['MOZ_ZLIB_LIBS']
 
-if not CONFIG['GNU_CXX']:
-    ALLOW_COMPILER_WARNINGS = True
+# This is intended as a temporary workaround to enable VS2015.
+if CONFIG['_MSC_VER']:
+    CXXFLAGS += ['-wd4312']

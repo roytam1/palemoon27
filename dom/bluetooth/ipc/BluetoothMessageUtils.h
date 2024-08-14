@@ -323,6 +323,44 @@ struct ParamTraits<mozilla::dom::bluetooth::ControlPlayStatus>
   }
 };
 
+template <>
+struct ParamTraits<mozilla::dom::bluetooth::BluetoothGattAdvertisingData>
+{
+  typedef mozilla::dom::bluetooth::BluetoothGattAdvertisingData paramType;
+
+  static void Write(Message* aMsg, const paramType& aParam)
+  {
+    WriteParam(aMsg, aParam.mAppearance);
+    WriteParam(aMsg, aParam.mIncludeDevName);
+    WriteParam(aMsg, aParam.mIncludeTxPower);
+    WriteParam(aMsg, aParam.mManufacturerData);
+    WriteParam(aMsg, aParam.mServiceData);
+    WriteParam(aMsg, aParam.mServiceUuids);
+  }
+
+  static bool Read(const Message* aMsg, void** aIter, paramType* aResult)
+  {
+    if (!ReadParam(aMsg, aIter, &(aResult->mAppearance)) ||
+        !ReadParam(aMsg, aIter, &(aResult->mIncludeDevName)) ||
+        !ReadParam(aMsg, aIter, &(aResult->mIncludeTxPower)) ||
+        !ReadParam(aMsg, aIter, &(aResult->mManufacturerData)) ||
+        !ReadParam(aMsg, aIter, &(aResult->mServiceData)) ||
+        !ReadParam(aMsg, aIter, &(aResult->mServiceUuids))) {
+      return false;
+    }
+
+    return true;
+  }
+};
+
+template <>
+struct ParamTraits<mozilla::dom::bluetooth::BluetoothGattStatus>
+  : public ContiguousEnumSerializer<
+             mozilla::dom::bluetooth::BluetoothGattStatus,
+             mozilla::dom::bluetooth::GATT_STATUS_SUCCESS,
+             mozilla::dom::bluetooth::GATT_STATUS_END_OF_ERROR>
+{ };
+
 } // namespace IPC
 
 #endif // mozilla_dom_bluetooth_ipc_BluetoothMessageUtils_h

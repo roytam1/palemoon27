@@ -19,6 +19,7 @@
 #include "nsIStkCmdFactory.h"
 #include "nsIStkProactiveCmd.h"
 #include "nsServiceManagerUtils.h"
+#include "nsContentUtils.h"
 
 using mozilla::dom::icc::IccCallback;
 using mozilla::dom::icc::IccContact;
@@ -42,6 +43,8 @@ IsPukCardLockType(IccLockType aLockType)
     case IccLockType::SpckPuk:
     case IccLockType::RcckPuk:
     case IccLockType::RspckPuk:
+    case IccLockType::NsckPuk:
+    case IccLockType::PckPuk:
       return true;
     default:
       return false;
@@ -91,11 +94,7 @@ Icc::NotifyEvent(const nsAString& aName)
 nsresult
 Icc::NotifyStkEvent(const nsAString& aName, nsIStkProactiveCmd* aStkProactiveCmd)
 {
-  AutoJSAPI jsapi;
-  if (NS_WARN_IF(!jsapi.InitWithLegacyErrorReporting(GetOwner()))) {
-    return NS_ERROR_UNEXPECTED;
-  }
-  JSContext* cx = jsapi.cx();
+  JSContext* cx = nsContentUtils::RootingCxForThread();
   JS::Rooted<JS::Value> value(cx);
 
   nsCOMPtr<nsIStkCmdFactory> cmdFactory =
@@ -105,7 +104,7 @@ Icc::NotifyStkEvent(const nsAString& aName, nsIStkProactiveCmd* aStkProactiveCmd
   cmdFactory->CreateCommandMessage(aStkProactiveCmd, &value);
   NS_ENSURE_TRUE(value.isObject(), NS_ERROR_UNEXPECTED);
 
-  MozStkCommandEventInit init;
+  RootedDictionary<MozStkCommandEventInit> init(cx);
   init.mBubbles = false;
   init.mCancelable = false;
   init.mCommand = value;

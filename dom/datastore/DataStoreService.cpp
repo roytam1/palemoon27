@@ -21,12 +21,13 @@
 #include "mozilla/dom/ContentChild.h"
 #include "mozilla/dom/ContentParent.h"
 #include "mozilla/dom/DOMError.h"
-#include "mozilla/dom/indexedDB/IDBCursor.h"
-#include "mozilla/dom/indexedDB/IDBObjectStore.h"
-#include "mozilla/dom/indexedDB/IDBRequest.h"
-#include "mozilla/dom/indexedDB/IDBTransaction.h"
+#include "mozilla/dom/IDBCursor.h"
+#include "mozilla/dom/IDBObjectStore.h"
+#include "mozilla/dom/IDBRequest.h"
+#include "mozilla/dom/IDBTransaction.h"
 #include "mozilla/dom/PermissionMessageUtils.h"
 #include "mozilla/dom/Promise.h"
+#include "mozilla/dom/ScriptSettings.h"
 #include "mozilla/unused.h"
 
 #include "mozIApplication.h"
@@ -62,8 +63,6 @@ using mozilla::OriginAttributes;
 
 namespace mozilla {
 namespace dom {
-
-using namespace indexedDB;
 
 // This class contains all the information about a DataStore.
 class DataStoreInfo
@@ -412,9 +411,9 @@ public:
         return;
       }
 
-      AutoSafeJSContext cx;
-      mRequest = store->OpenCursor(cx, JS::UndefinedHandleValue,
-                                   IDBCursorDirection::Prev, error);
+      AutoJSAPI jsapi;
+      jsapi.Init();
+      mRequest = store->OpenCursor(jsapi.cx(), IDBCursorDirection::Prev, error);
       if (NS_WARN_IF(error.Failed())) {
         return;
       }
@@ -494,11 +493,9 @@ public:
     MOZ_ASSERT(type.EqualsASCII("success"));
 #endif
 
-    AutoSafeJSContext cx;
-
     ErrorResult error;
-    JS::Rooted<JS::Value> result(cx);
-    request->GetResult(cx, &result, error);
+    JS::Rooted<JS::Value> result(nsContentUtils::RootingCx());
+    request->GetResult(&result, error);
     if (NS_WARN_IF(error.Failed())) {
       return error.StealNSResult();
     }

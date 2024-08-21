@@ -143,7 +143,7 @@ public:
     PARTIAL_RELIABLE_TIMED = 2
   } Type;
 
-  MOZ_WARN_UNUSED_RESULT
+  MOZ_MUST_USE
   already_AddRefed<DataChannel> Open(const nsACString& label,
                                      const nsACString& protocol,
                                      Type type, bool inOrder,
@@ -444,7 +444,7 @@ private:
 // used to dispatch notifications of incoming data to the main thread
 // Patterned on CallOnMessageAvailable in WebSockets
 // Also used to proxy other items to MainThread
-class DataChannelOnMessageAvailable : public nsRunnable
+class DataChannelOnMessageAvailable : public Runnable
 {
 public:
   enum {

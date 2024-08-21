@@ -6243,7 +6243,7 @@ nsHttpChannel::OnStopRequest(nsIRequest *request, nsISupports *ctxt, nsresult st
 // nsHttpChannel::nsIStreamListener
 //-----------------------------------------------------------------------------
 
-class OnTransportStatusAsyncEvent : public nsRunnable
+class OnTransportStatusAsyncEvent : public Runnable
 {
 public:
     OnTransportStatusAsyncEvent(nsITransportEventSink* aEventSink,

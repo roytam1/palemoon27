@@ -532,7 +532,7 @@ Predictor::GetInterface(const nsIID &iid, void **result)
 
 #ifdef MOZ_NUWA_PROCESS
 namespace {
-class NuwaMarkPredictorThreadRunner : public nsRunnable
+class NuwaMarkPredictorThreadRunner : public Runnable
 {
   NS_IMETHODIMP Run() override
   {
@@ -650,7 +650,7 @@ Predictor::Init()
 }
 
 namespace {
-class PredictorThreadShutdownRunner : public nsRunnable
+class PredictorThreadShutdownRunner : public Runnable
 {
 public:
   PredictorThreadShutdownRunner(nsIThread *ioThread, bool success)
@@ -675,7 +675,7 @@ private:
   bool mSuccess;
 };
 
-class PredictorOldCleanupRunner : public nsRunnable
+class PredictorOldCleanupRunner : public Runnable
 {
 public:
   PredictorOldCleanupRunner(nsIThread *ioThread, nsIFile *dbFile)

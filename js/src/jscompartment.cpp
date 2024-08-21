@@ -503,6 +503,16 @@ JSCompartment::wrap(JSContext* cx, MutableHandle<PropertyDescriptor> desc)
     return wrap(cx, desc.value());
 }
 
+bool
+JSCompartment::wrap(JSContext* cx, MutableHandle<GCVector<Value>> vec)
+{
+    for (size_t i = 0; i < vec.length(); ++i) {
+        if (!wrap(cx, vec[i]))
+            return false;
+    }
+    return true;
+}
+
 ClonedBlockObject*
 JSCompartment::getOrCreateNonSyntacticLexicalScope(JSContext* cx,
                                                    HandleObject enclosingStatic,

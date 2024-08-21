@@ -347,7 +347,7 @@ private:
 
   nsCOMPtr<nsITimer> mPurgeTimer;
 
-  class PurgeFromMemoryRunnable : public nsRunnable
+  class PurgeFromMemoryRunnable : public Runnable
   {
   public:
     PurgeFromMemoryRunnable(CacheStorageService* aService, uint32_t aWhat)
@@ -363,7 +363,7 @@ private:
   };
 
   // nsICacheTesting
-  class IOThreadSuspender : public nsRunnable
+  class IOThreadSuspender : public Runnable
   {
   public:
     IOThreadSuspender() : mMon("IOThreadSuspender"), mSignaled(false) { }

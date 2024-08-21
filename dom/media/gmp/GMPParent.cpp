@@ -467,7 +467,7 @@ GMPParent::Shutdown()
   MOZ_ASSERT(mState == GMPStateNotLoaded);
 }
 
-class NotifyGMPShutdownTask : public nsRunnable {
+class NotifyGMPShutdownTask : public Runnable {
 public:
   explicit NotifyGMPShutdownTask(const nsAString& aNodeId)
     : mNodeId(aNodeId)
@@ -976,7 +976,7 @@ GMPParent::RecvAsyncShutdownComplete()
   return true;
 }
 
-class RunCreateContentParentCallbacks : public nsRunnable
+class RunCreateContentParentCallbacks : public Runnable
 {
 public:
   explicit RunCreateContentParentCallbacks(GMPContentParent* aGMPContentParent)

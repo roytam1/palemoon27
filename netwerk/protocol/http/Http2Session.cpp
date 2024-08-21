@@ -2005,7 +2005,7 @@ Http2Session::RecvContinuation(Http2Session *self)
   return RecvPushPromise(self);
 }
 
-class UpdateAltSvcEvent : public nsRunnable
+class UpdateAltSvcEvent : public Runnable
 {
 public:
 UpdateAltSvcEvent(const nsCString &header,

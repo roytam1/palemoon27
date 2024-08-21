@@ -65,7 +65,7 @@ LazyLogModule gMediaStreamGraphLog("MediaStreamGraph");
 // NS_ReleaseOnMainThread(). This is based on our fix for M1348955
 // et al. as demonstrated in TenFourFox issue 478.
 template<typename T>
-class ProxyReleaseEvent : public nsRunnable
+class ProxyReleaseEvent : public Runnable
 {
 public:
   explicit ProxyReleaseEvent(already_AddRefed<T> aDoomed)
@@ -913,7 +913,7 @@ SetImageToBlackPixel(PlanarYCbCrImage* aImage)
   aImage->CopyData(data);
 }
 
-class VideoFrameContainerInvalidateRunnable : public nsRunnable {
+class VideoFrameContainerInvalidateRunnable : public Runnable {
 public:
   explicit VideoFrameContainerInvalidateRunnable(VideoFrameContainer* aVideoFrameContainer)
     : mVideoFrameContainer(aVideoFrameContainer)
@@ -1613,7 +1613,7 @@ MediaStreamGraphImpl::ForceShutDown(ShutdownTicket* aShutdownTicket)
 
 namespace {
 
-class MediaStreamGraphShutDownRunnable : public nsRunnable {
+class MediaStreamGraphShutDownRunnable : public Runnable {
 public:
   explicit MediaStreamGraphShutDownRunnable(MediaStreamGraphImpl* aGraph)
     : mGraph(aGraph)
@@ -1673,7 +1673,7 @@ private:
   RefPtr<MediaStreamGraphImpl> mGraph;
 };
 
-class MediaStreamGraphStableStateRunnable : public nsRunnable {
+class MediaStreamGraphStableStateRunnable : public Runnable {
 public:
   explicit MediaStreamGraphStableStateRunnable(MediaStreamGraphImpl* aGraph,
                                                bool aSourceIsMSG)
@@ -2611,7 +2611,7 @@ MediaStream::AddMainThreadListener(MainThreadMediaStreamListener* aListener)
     return;
   }
 
-  class NotifyRunnable final : public nsRunnable
+  class NotifyRunnable final : public Runnable
   {
   public:
     explicit NotifyRunnable(MediaStream* aStream)
@@ -2631,7 +2631,7 @@ MediaStream::AddMainThreadListener(MainThreadMediaStreamListener* aListener)
     RefPtr<MediaStream> mStream;
   };
 
-  RefPtr<nsRunnable> runnable = new NotifyRunnable(this);
+  nsCOMPtr<nsIRunnable> runnable = new NotifyRunnable(this);
   NS_WARN_IF(NS_FAILED(NS_DispatchToMainThread(runnable.forget())));
 }
 
@@ -3503,7 +3503,7 @@ MediaStreamGraph::AddStream(MediaStream* aStream)
   graph->AppendMessage(MakeUnique<CreateMessage>(aStream));
 }
 
-class GraphStartedRunnable final : public nsRunnable
+class GraphStartedRunnable final : public Runnable
 {
 public:
   GraphStartedRunnable(AudioNodeStream* aStream, MediaStreamGraph* aGraph)

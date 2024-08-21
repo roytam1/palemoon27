@@ -90,7 +90,7 @@ private:
 
 NS_IMPL_ISUPPORTS(KeyPair, nsIIdentityKeyPair)
 
-class KeyGenRunnable : public nsRunnable, public nsNSSShutDownObject
+class KeyGenRunnable : public Runnable, public nsNSSShutDownObject
 {
 public:
   NS_DECL_NSIRUNNABLE
@@ -128,7 +128,7 @@ private:
   void operator=(const KeyGenRunnable &) = delete;
 };
 
-class SignRunnable : public nsRunnable, public nsNSSShutDownObject
+class SignRunnable : public Runnable, public nsNSSShutDownObject
 {
 public:
   NS_DECL_NSIRUNNABLE
@@ -336,7 +336,7 @@ KeyGenRunnable::KeyGenRunnable(KeyType keyType,
 {
 }
 
-MOZ_WARN_UNUSED_RESULT nsresult
+MOZ_MUST_USE nsresult
 GenerateKeyPair(PK11SlotInfo * slot,
                 SECKEYPrivateKey ** privateKey,
                 SECKEYPublicKey ** publicKey,
@@ -362,7 +362,7 @@ GenerateKeyPair(PK11SlotInfo * slot,
 }
 
 
-MOZ_WARN_UNUSED_RESULT nsresult
+MOZ_MUST_USE nsresult
 GenerateRSAKeyPair(PK11SlotInfo * slot,
                    SECKEYPrivateKey ** privateKey,
                    SECKEYPublicKey ** publicKey)
@@ -376,7 +376,7 @@ GenerateRSAKeyPair(PK11SlotInfo * slot,
                          &rsaParams);
 }
 
-MOZ_WARN_UNUSED_RESULT nsresult
+MOZ_MUST_USE nsresult
 GenerateDSAKeyPair(PK11SlotInfo * slot,
                    SECKEYPrivateKey ** privateKey,
                    SECKEYPublicKey ** publicKey)

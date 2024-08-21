@@ -18,7 +18,7 @@
 
 using namespace mozilla;
 
-class nsBlockOnBackgroundThreadEvent : public nsRunnable {
+class nsBlockOnBackgroundThreadEvent : public Runnable {
 public:
   nsBlockOnBackgroundThreadEvent() {}
   NS_IMETHOD Run()

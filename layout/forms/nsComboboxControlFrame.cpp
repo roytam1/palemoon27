@@ -378,7 +378,7 @@ nsComboboxControlFrame::ShowList(bool aShowList)
 }
 
 class nsResizeDropdownAtFinalPosition final
-  : public nsIReflowCallback, public nsRunnable
+  : public nsIReflowCallback, public Runnable
 {
 public:
   explicit nsResizeDropdownAtFinalPosition(nsComboboxControlFrame* aFrame)
@@ -517,7 +517,7 @@ nsComboboxControlFrame::GetCSSTransformTranslation()
   return translation;
 }
 
-class nsAsyncRollup : public nsRunnable
+class nsAsyncRollup : public Runnable
 {
 public:
   explicit nsAsyncRollup(nsComboboxControlFrame* aFrame) : mFrame(aFrame) {}
@@ -532,7 +532,7 @@ public:
   nsWeakFrame mFrame;
 };
 
-class nsAsyncResize : public nsRunnable
+class nsAsyncResize : public Runnable
 {
 public:
   explicit nsAsyncResize(nsComboboxControlFrame* aFrame) : mFrame(aFrame) {}

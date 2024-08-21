@@ -717,7 +717,7 @@ nsFormFillController::PerformInputListAutoComplete(const nsAString& aSearch,
   return NS_OK;
 }
 
-class UpdateSearchResultRunnable : public nsRunnable
+class UpdateSearchResultRunnable : public mozilla::Runnable
 {
 public:
   UpdateSearchResultRunnable(nsIAutoCompleteObserver* aObserver,

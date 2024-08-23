@@ -179,7 +179,7 @@ class MediaRecorder::Session: public nsIObserver,
 
   // Main thread task.
   // Create a blob event and send back to client.
-  class PushBlobRunnable : public nsRunnable
+  class PushBlobRunnable : public Runnable
   {
   public:
     explicit PushBlobRunnable(Session* aSession)
@@ -209,7 +209,7 @@ class MediaRecorder::Session: public nsIObserver,
   };
 
   // Notify encoder error, run in main thread task. (Bug 1095381)
-  class EncoderErrorNotifierRunnable : public nsRunnable
+  class EncoderErrorNotifierRunnable : public Runnable
   {
   public:
     explicit EncoderErrorNotifierRunnable(Session* aSession)
@@ -237,7 +237,7 @@ class MediaRecorder::Session: public nsIObserver,
   };
 
   // Fire start event and set mimeType, run in main thread task.
-  class DispatchStartEventRunnable : public nsRunnable
+  class DispatchStartEventRunnable : public Runnable
   {
   public:
     DispatchStartEventRunnable(Session* aSession, const nsAString & aEventName)
@@ -266,7 +266,7 @@ class MediaRecorder::Session: public nsIObserver,
 
   // Record thread task and it run in Media Encoder thread.
   // Fetch encoded Audio/Video data from MediaEncoder.
-  class ExtractRunnable : public nsRunnable
+  class ExtractRunnable : public Runnable
   {
   public:
     explicit ExtractRunnable(Session* aSession)
@@ -366,7 +366,7 @@ class MediaRecorder::Session: public nsIObserver,
   };
   // Main thread task.
   // To delete RecordingSession object.
-  class DestroyRunnable : public nsRunnable
+  class DestroyRunnable : public Runnable
   {
   public:
     explicit DestroyRunnable(Session* aSession)

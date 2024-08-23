@@ -1412,7 +1412,7 @@ nsFrameLoader::Destroy()
   return NS_OK;
 }
 
-class nsFrameLoaderDestroyRunnable : public nsRunnable
+class nsFrameLoaderDestroyRunnable : public Runnable
 {
   enum DestroyPhase
   {
@@ -2528,7 +2528,7 @@ nsFrameLoader::DoLoadMessageManagerScript(const nsAString& aURL, bool aRunInGlob
 }
 
 class nsAsyncMessageToChild : public nsSameProcessAsyncMessageBase,
-                              public nsRunnable
+                              public Runnable
 {
 public:
   nsAsyncMessageToChild(JSContext* aCx, JS::Handle<JSObject*> aCpows, nsFrameLoader* aFrameLoader)

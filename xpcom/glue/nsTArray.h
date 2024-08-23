@@ -1209,7 +1209,7 @@ public:
   }
 
   template<class Allocator>
-  MOZ_WARN_UNUSED_RESULT
+  MOZ_MUST_USE
   bool Assign(const nsTArray_Impl<E, Allocator>& aOther,
               const mozilla::fallible_t&)
   {
@@ -1292,7 +1292,7 @@ protected:
 public:
 
   template<class Item>
-  MOZ_WARN_UNUSED_RESULT
+  MOZ_MUST_USE
   elem_type* ReplaceElementsAt(index_type aStart, size_type aCount,
                                const Item* aArray, size_type aArrayLen,
                                const mozilla::fallible_t&)
@@ -1313,7 +1313,7 @@ protected:
 public:
 
   template<class Item>
-  MOZ_WARN_UNUSED_RESULT
+  MOZ_MUST_USE
   elem_type* ReplaceElementsAt(index_type aStart, size_type aCount,
                                const nsTArray<Item>& aArray,
                                const mozilla::fallible_t&)
@@ -1332,7 +1332,7 @@ protected:
 public:
 
   template<class Item>
-  MOZ_WARN_UNUSED_RESULT
+  MOZ_MUST_USE
   elem_type* ReplaceElementsAt(index_type aStart, size_type aCount,
                                const Item& aItem, const mozilla::fallible_t&)
   {
@@ -1357,7 +1357,7 @@ protected:
 public:
 
   template<class Item>
-  MOZ_WARN_UNUSED_RESULT
+  MOZ_MUST_USE
   elem_type* InsertElementsAt(index_type aIndex, const Item* aArray,
                               size_type aArrayLen, const mozilla::fallible_t&)
   {
@@ -1376,7 +1376,7 @@ protected:
 public:
 
   template<class Item, class Allocator>
-  MOZ_WARN_UNUSED_RESULT
+  MOZ_MUST_USE
   elem_type* InsertElementsAt(index_type aIndex,
                               const nsTArray_Impl<Item, Allocator>& aArray,
                               const mozilla::fallible_t&)
@@ -1404,7 +1404,7 @@ protected:
   }
 public:
 
-  MOZ_WARN_UNUSED_RESULT
+  MOZ_MUST_USE
   elem_type* InsertElementAt(index_type aIndex, const mozilla::fallible_t&)
   {
     return InsertElementAt<FallibleAlloc>(aIndex);
@@ -1429,7 +1429,7 @@ protected:
 public:
 
   template<class Item>
-  MOZ_WARN_UNUSED_RESULT
+  MOZ_MUST_USE
   elem_type* InsertElementAt(index_type aIndex, Item&& aItem,
                              const mozilla::fallible_t&)
   {
@@ -1486,7 +1486,7 @@ protected:
 public:
 
   template<class Item, class Comparator>
-  MOZ_WARN_UNUSED_RESULT
+  MOZ_MUST_USE
   elem_type* InsertElementSorted(Item&& aItem, const Comparator& aComp,
                                  const mozilla::fallible_t&)
   {
@@ -1506,7 +1506,7 @@ protected:
 public:
 
   template<class Item>
-  MOZ_WARN_UNUSED_RESULT
+  MOZ_MUST_USE
   elem_type* InsertElementSorted(Item&& aItem, const mozilla::fallible_t&)
   {
     return InsertElementSorted<Item, FallibleAlloc>(
@@ -1534,7 +1534,7 @@ protected:
 public:
 
   template<class Item>
-  /* MOZ_WARN_UNUSED_RESULT */
+  /* MOZ_MUST_USE */
   elem_type* AppendElements(const Item* aArray, size_type aArrayLen,
                             const mozilla::fallible_t&)
   {
@@ -1551,7 +1551,7 @@ protected:
 public:
 
   template<class Item, class Allocator>
-  /* MOZ_WARN_UNUSED_RESULT */
+  /* MOZ_MUST_USE */
   elem_type* AppendElements(const nsTArray_Impl<Item, Allocator>& aArray,
                             const mozilla::fallible_t&)
   {
@@ -1586,7 +1586,7 @@ protected:
 public:
 
   template<class Item, class Allocator, typename ActualAlloc = Alloc>
-  /* MOZ_WARN_UNUSED_RESULT */
+  /* MOZ_MUST_USE */
   elem_type* AppendElements(nsTArray_Impl<Item, Allocator>&& aArray,
                             const mozilla::fallible_t&)
   {
@@ -1611,7 +1611,7 @@ protected:
 public:
 
   template<class Item>
-  /* MOZ_WARN_UNUSED_RESULT */
+  /* MOZ_MUST_USE */
   elem_type* AppendElement(Item&& aItem,
                            const mozilla::fallible_t&)
   {
@@ -1638,7 +1638,7 @@ protected:
   }
 public:
 
-  /* MOZ_WARN_UNUSED_RESULT */
+  /* MOZ_MUST_USE */
   elem_type* AppendElements(size_type aCount,
                             const mozilla::fallible_t&)
   {
@@ -1656,7 +1656,7 @@ protected:
   }
 public:
 
-  /* MOZ_WARN_UNUSED_RESULT */
+  /* MOZ_MUST_USE */
   elem_type* AppendElement(const mozilla::fallible_t&)
   {
     return AppendElement<FallibleAlloc>();
@@ -1760,7 +1760,7 @@ protected:
   }
 public:
 
-  MOZ_WARN_UNUSED_RESULT
+  MOZ_MUST_USE
   bool SetCapacity(size_type aCapacity, const mozilla::fallible_t&)
   {
     return SetCapacity<FallibleAlloc>(aCapacity);
@@ -1789,7 +1789,7 @@ protected:
   }
 public:
 
-  MOZ_WARN_UNUSED_RESULT
+  MOZ_MUST_USE
   bool SetLength(size_type aNewLen, const mozilla::fallible_t&)
   {
     return SetLength<FallibleAlloc>(aNewLen);
@@ -1828,7 +1828,7 @@ protected:
   }
 public:
 
-  MOZ_WARN_UNUSED_RESULT
+  MOZ_MUST_USE
   bool EnsureLengthAtLeast(size_type aMinLen, const mozilla::fallible_t&)
   {
     return EnsureLengthAtLeast<FallibleAlloc>(aMinLen);
@@ -1859,7 +1859,7 @@ protected:
   }
 public:
 
-  MOZ_WARN_UNUSED_RESULT
+  MOZ_MUST_USE
   elem_type* InsertElementsAt(index_type aIndex, size_type aCount,
                               const mozilla::fallible_t&)
   {
@@ -1895,7 +1895,7 @@ protected:
 public:
 
   template<class Item>
-  MOZ_WARN_UNUSED_RESULT
+  MOZ_MUST_USE
   elem_type* InsertElementsAt(index_type aIndex, size_type aCount,
                               const Item& aItem, const mozilla::fallible_t&)
   {

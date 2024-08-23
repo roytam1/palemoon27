@@ -1971,7 +1971,7 @@ nsFocusManager::Focus(nsPIDOMWindow* aWindow,
     mFirstFocusEvent = nullptr;
 }
 
-class FocusBlurEvent : public nsRunnable
+class FocusBlurEvent : public Runnable
 {
 public:
   FocusBlurEvent(nsISupports* aTarget, EventMessage aEventMessage,
@@ -3425,7 +3425,7 @@ nsFocusManager::GetFocusInSelection(nsPIDOMWindow* aWindow,
   while (selectionNode && selectionNode != endSelectionNode);
 }
 
-class PointerUnlocker : public nsRunnable
+class PointerUnlocker : public Runnable
 {
 public:
   PointerUnlocker()

@@ -66,7 +66,7 @@ CreateDummyChannel(nsIURI* aHostURI, OriginAttributes &aAttrs, bool aIsPrivate,
 namespace mozilla {
 namespace net {
 
-MOZ_WARN_UNUSED_RESULT
+MOZ_MUST_USE
 bool
 CookieServiceParent::GetOriginAttributesFromParams(const IPC::SerializedLoadContext &aLoadContext,
                                                    OriginAttributes& aAttrs,

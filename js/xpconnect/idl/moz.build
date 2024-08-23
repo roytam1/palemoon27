@@ -8,7 +8,6 @@ XPIDL_SOURCES += [
     'mozIJSSubScriptLoader.idl',
     'nsIAddonInterposition.idl',
     'nsIJSContextStack.idl',
-    'nsIRemoteTagService.idl',
     'nsIScriptError.idl',
     'nsIXPConnect.idl',
     'nsIXPCScriptable.idl',

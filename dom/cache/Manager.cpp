@@ -436,7 +436,7 @@ private:
     MaybeDestroyInstance();
   }
 
-  class AbortRunnable final : public nsRunnable
+  class AbortRunnable final : public Runnable
   {
   public:
     explicit AbortRunnable(const nsACString& aOrigin)
@@ -456,7 +456,7 @@ private:
     const nsCString mOrigin;
   };
 
-  class ShutdownAllRunnable final : public nsRunnable
+  class ShutdownAllRunnable final : public Runnable
   {
   public:
     NS_IMETHOD

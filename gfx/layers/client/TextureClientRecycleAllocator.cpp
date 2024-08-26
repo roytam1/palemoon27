@@ -54,7 +54,7 @@ TextureClientRecycleAllocator::SetMaxPoolSize(uint32_t aMax)
   mMaxPooledSize = aMax;
 }
 
-class TextureClientRecycleTask : public Task
+class TextureClientRecycleTask : public Runnable
 {
 public:
   explicit TextureClientRecycleTask(TextureClient* aClient, TextureFlags aFlags)
@@ -62,9 +62,10 @@ public:
     , mFlags(aFlags)
   {}
 
-  virtual void Run() override
+  NS_IMETHOD Run() override
   {
     mTextureClient->RecycleTexture(mFlags);
+    return NS_OK;
   }
 
 private:
@@ -95,7 +96,7 @@ TextureClientRecycleAllocator::CreateOrRecycle(gfx::SurfaceFormat aFormat,
     if (!mPooledClients.empty()) {
       textureHolder = mPooledClients.top();
       mPooledClients.pop();
-      Task* task = nullptr;
+      RefPtr<Runnable> task;
       // If a pooled TextureClient is not compatible, release it.
       if (textureHolder->GetTextureClient()->GetFormat() != aFormat ||
           textureHolder->GetTextureClient()->GetSize() != aSize) {
@@ -106,7 +107,7 @@ TextureClientRecycleAllocator::CreateOrRecycle(gfx::SurfaceFormat aFormat,
       } else {
         task = new TextureClientRecycleTask(textureHolder->GetTextureClient(), aTextureFlags);
       }
-      mSurfaceAllocator->GetMessageLoop()->PostTask(FROM_HERE, task);
+      mSurfaceAllocator->GetMessageLoop()->PostTask(task.forget());
     }
   }
 

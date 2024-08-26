@@ -23,7 +23,6 @@
 #include "UnitTransforms.h"             // for TransformTo
 #include "base/message_loop.h"          // for MessageLoop
 #include "base/task.h"                  // for NewRunnableMethod, etc
-#include "base/tracked.h"               // for FROM_HERE
 #include "gfxPrefs.h"                   // for gfxPrefs
 #include "gfxTypes.h"                   // for gfxFloat
 #include "LayersLogging.h"              // for print_stderr
@@ -3060,7 +3059,7 @@ AsyncPanZoomController::RequestContentRepaint(const FrameMetrics& aFrameMetrics,
 }
 
 bool AsyncPanZoomController::UpdateAnimation(const TimeStamp& aSampleTime,
-                                             nsTArray<Task*>* aOutDeferredTasks)
+                                             nsTArray<RefPtr<Runnable>>* aOutDeferredTasks)
 {
   APZThreadUtils::AssertOnCompositorThread();
 
@@ -3161,7 +3160,7 @@ bool AsyncPanZoomController::AdvanceAnimations(const TimeStamp& aSampleTime)
   // responsibility to schedule a composite.
   mAsyncTransformAppliedToContent = false;
   bool requestAnimationFrame = false;
-  nsTArray<Task*> deferredTasks;
+  nsTArray<RefPtr<Runnable>> deferredTasks;
 
   {
     ReentrantMonitorAutoEnter lock(mMonitor);
@@ -3185,7 +3184,7 @@ bool AsyncPanZoomController::AdvanceAnimations(const TimeStamp& aSampleTime)
   // the tree lock.
   for (uint32_t i = 0; i < deferredTasks.Length(); ++i) {
     deferredTasks[i]->Run();
-    delete deferredTasks[i];
+    deferredTasks[i] = nullptr;
   }
 
   // One of the deferred tasks may have started a new animation. In this case,
@@ -3456,9 +3455,6 @@ void AsyncPanZoomController::NotifyLayersUpdated(const ScrollMetadata& aScrollMe
     CancelAnimation();
 
     mScrollMetadata = aScrollMetadata;
-    if (scrollOffsetUpdated) {
-      AcknowledgeScrollUpdate();
-    }
     mExpectedGeckoMetrics = aLayerMetrics;
     ShareCompositorFrameMetrics();
 
@@ -3532,7 +3528,6 @@ void AsyncPanZoomController::NotifyLayersUpdated(const ScrollMetadata& aScrollMe
       // correct this we need to update mExpectedGeckoMetrics to be the
       // last thing we know was painted by Gecko.
       mFrameMetrics.CopyScrollInfoFrom(aLayerMetrics);
-      AcknowledgeScrollUpdate();
       mExpectedGeckoMetrics = aLayerMetrics;
 
       // Cancel the animation (which might also trigger a repaint request)
@@ -3564,7 +3559,7 @@ void AsyncPanZoomController::NotifyLayersUpdated(const ScrollMetadata& aScrollMe
     // See comment on the similar code in the |if (scrollOffsetUpdated)| block
     // above.
     mFrameMetrics.CopySmoothScrollInfoFrom(aLayerMetrics);
-    AcknowledgeScrollUpdate();
+    needContentRepaint = true;
     mExpectedGeckoMetrics = aLayerMetrics;
 
     SmoothScrollTo(mFrameMetrics.GetSmoothScrollOffset());
@@ -3574,21 +3569,6 @@ void AsyncPanZoomController::NotifyLayersUpdated(const ScrollMetadata& aScrollMe
     RequestContentRepaint();
   }
   UpdateSharedCompositorFrameMetrics();
-}
-
-void
-AsyncPanZoomController::AcknowledgeScrollUpdate() const
-{
-  // Once layout issues a scroll offset update, it becomes impervious to
-  // scroll offset updates from APZ until we acknowledge the update it sent.
-  // This prevents APZ updates from clobbering scroll updates from other
-  // more "legitimate" sources like content scripts.
-  RefPtr<GeckoContentController> controller = GetGeckoContentController();
-  if (controller) {
-    APZC_LOG("%p sending scroll update acknowledgement with gen %u\n", this, mFrameMetrics.GetScrollGeneration());
-    controller->AcknowledgeScrollUpdate(mFrameMetrics.GetScrollId(),
-                                        mFrameMetrics.GetScrollGeneration());
-  }
 }
 
 const FrameMetrics& AsyncPanZoomController::GetFrameMetrics() const {
@@ -3869,12 +3849,13 @@ AsyncPanZoomController::GetZoomConstraints() const
 }
 
 
-void AsyncPanZoomController::PostDelayedTask(Task* aTask, int aDelayMs) {
+void AsyncPanZoomController::PostDelayedTask(already_AddRefed<Runnable> aTask, int aDelayMs) {
   APZThreadUtils::AssertOnControllerThread();
   RefPtr<GeckoContentController> controller = GetGeckoContentController();
   if (controller) {
-    controller->PostDelayedTask(aTask, aDelayMs);
+    controller->PostDelayedTask(Move(aTask), aDelayMs);
   }
+  // XXX khuey what is supposed to happen if there's no controller? We were leaking tasks ...
 }
 
 bool AsyncPanZoomController::Matches(const ScrollableLayerGuid& aGuid)

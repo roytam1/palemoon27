@@ -3203,8 +3203,12 @@ ContentChild::RecvPush(const nsCString& aScope,
   }
   PushNotifier* pushNotifier =
     static_cast<PushNotifier*>(pushNotifierIface.get());
-  nsresult rv = pushNotifier->NotifyPushWorkers(aScope, aPrincipal,
-                                                aMessageId, Nothing());
+
+  nsresult rv = pushNotifier->NotifyPushObservers(aScope, Nothing());
+  Unused << NS_WARN_IF(NS_FAILED(rv));
+
+  rv = pushNotifier->NotifyPushWorkers(aScope, aPrincipal,
+                                       aMessageId, Nothing());
   Unused << NS_WARN_IF(NS_FAILED(rv));
 #endif
   return true;
@@ -3224,8 +3228,12 @@ ContentChild::RecvPushWithData(const nsCString& aScope,
   }
   PushNotifier* pushNotifier =
     static_cast<PushNotifier*>(pushNotifierIface.get());
-  nsresult rv = pushNotifier->NotifyPushWorkers(aScope, aPrincipal,
-                                                aMessageId, Some(aData));
+
+  nsresult rv = pushNotifier->NotifyPushObservers(aScope, Some(aData));
+  Unused << NS_WARN_IF(NS_FAILED(rv));
+
+  rv = pushNotifier->NotifyPushWorkers(aScope, aPrincipal,
+                                       aMessageId, Some(aData));
   Unused << NS_WARN_IF(NS_FAILED(rv));
 #endif
   return true;
@@ -3243,8 +3251,11 @@ ContentChild::RecvPushSubscriptionChange(const nsCString& aScope,
   }
   PushNotifier* pushNotifier =
     static_cast<PushNotifier*>(pushNotifierIface.get());
-  nsresult rv = pushNotifier->NotifySubscriptionChangeWorkers(aScope,
-                                                              aPrincipal);
+
+  nsresult rv = pushNotifier->NotifySubscriptionChangeObservers(aScope);
+  Unused << NS_WARN_IF(NS_FAILED(rv));
+
+  rv = pushNotifier->NotifySubscriptionChangeWorkers(aScope, aPrincipal);
   Unused << NS_WARN_IF(NS_FAILED(rv));
 #endif
   return true;

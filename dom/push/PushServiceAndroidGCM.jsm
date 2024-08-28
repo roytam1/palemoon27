@@ -71,9 +71,9 @@ this.PushServiceAndroidGCM = {
     if (serverURI.scheme == "https") {
       return true;
     }
-    if (prefs.get("debug") && serverURI.scheme == "http") {
-      // Accept HTTP endpoints when debugging.
-      return true;
+    if (serverURI.scheme == "http") {
+      // Allow insecure server URLs for development and testing.
+      return !!prefs.get("testing.allowInsecureServerURL");
     }
     console.info("Unsupported Android GCM dom.push.serverURL scheme", serverURI.scheme);
     return false;
@@ -125,7 +125,7 @@ this.PushServiceAndroidGCM = {
 
       console.debug("Delivering message to main PushService:", message, cryptoParams);
       this._mainPushService.receivedPushMessage(
-        data.channelID, message, cryptoParams, (record) => {
+        data.channelID, "", message, cryptoParams, (record) => {
           // Always update the stored record.
           return record;
         });
@@ -230,6 +230,11 @@ this.PushServiceAndroidGCM = {
       type: "PushServiceAndroidGCM:UnsubscribeChannel",
       channelID: record.keyID,
     });
+  },
+
+  reportDeliveryError: function(messageID, reason) {
+    console.warn("reportDeliveryError: Ignoring message delivery error",
+      messageID, reason);
   },
 };
 

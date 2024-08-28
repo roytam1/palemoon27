@@ -5241,9 +5241,6 @@ pref("dom.forms.inputmode", true);
 // InputMethods for soft keyboards in B2G
 pref("dom.mozInputMethod.enabled", false);
 
-// DataStore is disabled by default
-pref("dom.datastore.enabled", false);
-
 // Telephony API
 #ifdef MOZ_B2G_RIL
 pref("dom.telephony.enabled", true);

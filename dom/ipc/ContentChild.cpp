@@ -193,7 +193,6 @@
 #include "nsIPrincipal.h"
 #include "nsDeviceStorage.h"
 #include "DomainPolicy.h"
-#include "mozilla/dom/DataStoreService.h"
 #include "mozilla/dom/ipc/StructuredCloneData.h"
 #include "mozilla/dom/telephony/PTelephonyChild.h"
 #include "mozilla/dom/time/DateCacheCleaner.h"
@@ -1187,24 +1186,6 @@ NS_IMETHODIMP MemoryReportRequestChild::Run()
   return mgr->GetReportsForThisProcessExtended(cb, nullptr, mAnonymize,
                                                FileDescriptorToFILE(mDMDFile, "wb"),
                                                finished, nullptr);
-}
-
-bool
-ContentChild::RecvDataStoreNotify(const uint32_t& aAppId,
-                                  const nsString& aName,
-                                  const nsString& aManifestURL)
-{
-  RefPtr<DataStoreService> service = DataStoreService::GetOrCreate();
-  if (NS_WARN_IF(!service)) {
-    return false;
-  }
-
-  nsresult rv = service->EnableDataStore(aAppId, aName, aManifestURL);
-  if (NS_WARN_IF(NS_FAILED(rv))) {
-    return false;
-  }
-
-  return true;
 }
 
 bool
@@ -3266,8 +3247,12 @@ ContentChild::RecvPush(const nsCString& aScope,
   }
   PushNotifier* pushNotifier =
     static_cast<PushNotifier*>(pushNotifierIface.get());
-  nsresult rv = pushNotifier->NotifyPushWorkers(aScope, aPrincipal,
-                                                aMessageId, Nothing());
+
+  nsresult rv = pushNotifier->NotifyPushObservers(aScope, Nothing());
+  Unused << NS_WARN_IF(NS_FAILED(rv));
+
+  rv = pushNotifier->NotifyPushWorkers(aScope, aPrincipal,
+                                       aMessageId, Nothing());
   Unused << NS_WARN_IF(NS_FAILED(rv));
 #endif
   return true;
@@ -3287,8 +3272,12 @@ ContentChild::RecvPushWithData(const nsCString& aScope,
   }
   PushNotifier* pushNotifier =
     static_cast<PushNotifier*>(pushNotifierIface.get());
-  nsresult rv = pushNotifier->NotifyPushWorkers(aScope, aPrincipal,
-                                                aMessageId, Some(aData));
+
+  nsresult rv = pushNotifier->NotifyPushObservers(aScope, Some(aData));
+  Unused << NS_WARN_IF(NS_FAILED(rv));
+
+  rv = pushNotifier->NotifyPushWorkers(aScope, aPrincipal,
+                                       aMessageId, Some(aData));
   Unused << NS_WARN_IF(NS_FAILED(rv));
 #endif
   return true;
@@ -3306,8 +3295,11 @@ ContentChild::RecvPushSubscriptionChange(const nsCString& aScope,
   }
   PushNotifier* pushNotifier =
     static_cast<PushNotifier*>(pushNotifierIface.get());
-  nsresult rv = pushNotifier->NotifySubscriptionChangeWorkers(aScope,
-                                                              aPrincipal);
+
+  nsresult rv = pushNotifier->NotifySubscriptionChangeObservers(aScope);
+  Unused << NS_WARN_IF(NS_FAILED(rv));
+
+  rv = pushNotifier->NotifySubscriptionChangeWorkers(aScope, aPrincipal);
   Unused << NS_WARN_IF(NS_FAILED(rv));
 #endif
   return true;

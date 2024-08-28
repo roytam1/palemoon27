@@ -41,7 +41,6 @@
 #include "mozilla/DataStorage.h"
 #include "mozilla/devtools/HeapSnapshotTempFileHelperParent.h"
 #include "mozilla/docshell/OfflineCacheUpdateParent.h"
-#include "mozilla/dom/DataStoreService.h"
 #include "mozilla/dom/DataTransfer.h"
 #include "mozilla/dom/DOMStorageIPC.h"
 #include "mozilla/dom/Element.h"
@@ -259,6 +258,10 @@ using namespace mozilla::system;
 
 #ifdef MOZ_GAMEPAD
 #include "mozilla/dom/GamepadMonitoring.h"
+#endif
+
+#ifndef MOZ_SIMPLEPUSH
+#include "mozilla/dom/PushNotifier.h"
 #endif
 
 #ifdef XP_WIN
@@ -2298,7 +2301,6 @@ ContentParent::InitializeMembers()
   mIsAlive = true;
   mMetamorphosed = false;
   mSendPermissionUpdates = false;
-  mSendDataStoreInfos = false;
   mCalledClose = false;
   mCalledCloseWithError = false;
   mCalledKillHard = false;
@@ -2948,27 +2950,6 @@ ContentParent::RecvAudioChannelServiceStatus(
 
   service->ChildStatusReceived(mChildID, aTelephonyChannel,
                                aContentOrNormalChannel, aAnyChannel);
-  return true;
-}
-
-bool
-ContentParent::RecvDataStoreGetStores(
-                                    const nsString& aName,
-                                    const nsString& aOwner,
-                                    const IPC::Principal& aPrincipal,
-                                    InfallibleTArray<DataStoreSetting>* aValue)
-{
-  RefPtr<DataStoreService> service = DataStoreService::GetOrCreate();
-  if (NS_WARN_IF(!service)) {
-    return false;
-  }
-
-  nsresult rv = service->GetDataStoresFromIPC(aName, aOwner, aPrincipal, aValue);
-  if (NS_WARN_IF(NS_FAILED(rv))) {
-    return false;
-  }
-
-  mSendDataStoreInfos = true;
   return true;
 }
 
@@ -5824,6 +5805,82 @@ ContentParent::StartProfiler(nsIProfilerStartParams* aParams)
   profiler->GetProfileGatherer(getter_AddRefs(gatherer));
   mGatherer = static_cast<ProfileGatherer*>(gatherer.get());
 #endif
+}
+
+bool
+ContentParent::RecvNotifyPushObservers(const nsCString& aScope,
+                                       const nsString& aMessageId)
+{
+#ifndef MOZ_SIMPLEPUSH
+  nsCOMPtr<nsIPushNotifier> pushNotifierIface =
+      do_GetService("@mozilla.org/push/Notifier;1");
+  if (NS_WARN_IF(!pushNotifierIface)) {
+      return true;
+  }
+  PushNotifier* pushNotifier =
+    static_cast<PushNotifier*>(pushNotifierIface.get());
+
+  nsresult rv = pushNotifier->NotifyPushObservers(aScope, Nothing());
+  Unused << NS_WARN_IF(NS_FAILED(rv));
+#endif
+  return true;
+}
+
+bool
+ContentParent::RecvNotifyPushObserversWithData(const nsCString& aScope,
+                                               const nsString& aMessageId,
+                                               InfallibleTArray<uint8_t>&& aData)
+{
+#ifndef MOZ_SIMPLEPUSH
+  nsCOMPtr<nsIPushNotifier> pushNotifierIface =
+      do_GetService("@mozilla.org/push/Notifier;1");
+  if (NS_WARN_IF(!pushNotifierIface)) {
+      return true;
+  }
+  PushNotifier* pushNotifier =
+    static_cast<PushNotifier*>(pushNotifierIface.get());
+
+  nsresult rv = pushNotifier->NotifyPushObservers(aScope, Some(aData));
+  Unused << NS_WARN_IF(NS_FAILED(rv));
+#endif
+  return true;
+}
+
+bool
+ContentParent::RecvNotifyPushSubscriptionChangeObservers(const nsCString& aScope)
+{
+#ifndef MOZ_SIMPLEPUSH
+  nsCOMPtr<nsIPushNotifier> pushNotifierIface =
+      do_GetService("@mozilla.org/push/Notifier;1");
+  if (NS_WARN_IF(!pushNotifierIface)) {
+      return true;
+  }
+  PushNotifier* pushNotifier =
+    static_cast<PushNotifier*>(pushNotifierIface.get());
+
+  nsresult rv = pushNotifier->NotifySubscriptionChangeObservers(aScope);
+  Unused << NS_WARN_IF(NS_FAILED(rv));
+#endif
+  return true;
+}
+
+bool
+ContentParent::RecvNotifyPushSubscriptionLostObservers(const nsCString& aScope,
+                                                       const uint16_t& aReason)
+{
+#ifndef MOZ_SIMPLEPUSH
+  nsCOMPtr<nsIPushNotifier> pushNotifierIface =
+      do_GetService("@mozilla.org/push/Notifier;1");
+  if (NS_WARN_IF(!pushNotifierIface)) {
+      return true;
+  }
+  PushNotifier* pushNotifier =
+    static_cast<PushNotifier*>(pushNotifierIface.get());
+
+  nsresult rv = pushNotifier->NotifySubscriptionLostObservers(aScope, aReason);
+  Unused << NS_WARN_IF(NS_FAILED(rv));
+#endif
+  return true;
 }
 
 } // namespace dom

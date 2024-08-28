@@ -104,3 +104,11 @@ TEST_HARNESS_FILES.testing.mochitest.pywebsocket.mod_pywebsocket.handshake += [
     'pywebsocket/mod_pywebsocket/handshake/hybi.py',
     'pywebsocket/mod_pywebsocket/handshake/hybi00.py',
 ]
+
+TEST_HARNESS_FILES.testing.mochitest.iceserver += [
+    '/testing/tools/iceserver/iceserver.py',
+]
+
+TEST_HARNESS_FILES.testing.mochitest.websocketprocessbridge += [
+    '/testing/tools/websocketprocessbridge/websocketprocessbridge.py',
+]

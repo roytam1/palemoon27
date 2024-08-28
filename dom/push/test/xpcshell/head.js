@@ -183,7 +183,6 @@ function setPrefs(prefs = {}) {
     maxQuotaPerSubscription: 16,
     quotaUpdateDelay: 3000,
     'testing.notifyWorkers': false,
-    'testing.notifyAllObservers': true,
   }, prefs);
   for (let pref in defaultPrefs) {
     servicePrefs.set(pref, defaultPrefs[pref]);
@@ -474,6 +473,15 @@ var setUpServiceInParent = Task.async(function* (service, db) {
           }));
         },
         onRegister(request) {
+          if (request.key) {
+            let appServerKey = new Uint8Array(
+              ChromeUtils.base64URLDecode(request.key, {
+                padding: "require",
+              })
+            );
+            equal(appServerKey.length, 65, 'Wrong app server key length');
+            equal(appServerKey[0], 4, 'Wrong app server key format');
+          }
           this.serverSendMsg(JSON.stringify({
             messageType: 'register',
             uaid: userAgentID,

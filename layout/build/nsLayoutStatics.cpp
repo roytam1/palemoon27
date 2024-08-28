@@ -71,7 +71,6 @@
 #include "LayerAnimationInfo.h"
 
 #include "AudioChannelService.h"
-#include "mozilla/dom/DataStoreService.h"
 #include "mozilla/dom/PromiseDebugging.h"
 #include "mozilla/dom/WebCryptoThreadPool.h"
 
@@ -436,8 +435,6 @@ nsLayoutStatics::Shutdown()
 
   nsHyphenationManager::Shutdown();
   nsDOMMutationObserver::Shutdown();
-
-  DataStoreService::Shutdown();
 
   ContentParent::ShutDown();
 

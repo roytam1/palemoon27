@@ -190,8 +190,6 @@ nsPrintingPromptService::DoDialog(nsIDOMWindow *aParent,
     if (!mWatcher)
         return NS_ERROR_FAILURE;
 
-    nsresult rv = NS_OK;
-
     // get a parent, if at all possible
     // (though we'd rather this didn't fail, it's OK if it does. so there's
     // no failure or null check.)
@@ -205,8 +203,10 @@ nsPrintingPromptService::DoDialog(nsIDOMWindow *aParent,
     // create a nsISupportsArray of the parameters 
     // being passed to the window
     nsCOMPtr<nsISupportsArray> array;
-    NS_NewISupportsArray(getter_AddRefs(array));
-    if (!array) return NS_ERROR_FAILURE;
+    nsresult rv = NS_NewISupportsArray(getter_AddRefs(array));
+    if (NS_FAILED(rv)) {
+      return NS_ERROR_FAILURE;
+    }
 
     nsCOMPtr<nsISupports> psSupports(do_QueryInterface(aPS));
     NS_ASSERTION(psSupports, "PrintSettings must be a supports");

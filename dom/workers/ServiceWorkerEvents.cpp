@@ -45,6 +45,7 @@
 
 #include "mozilla/dom/BodyUtil.h"
 #include "mozilla/dom/EncodingUtils.h"
+#include "mozilla/dom/PushUtil.h"
 #include "mozilla/dom/TypedArray.h"
 #endif
 
@@ -100,8 +101,10 @@ AsyncLog(nsIInterceptedChannel* aInterceptedChannel,
 BEGIN_WORKERS_NAMESPACE
 
 CancelChannelRunnable::CancelChannelRunnable(nsMainThreadPtrHandle<nsIInterceptedChannel>& aChannel,
+                                             nsMainThreadPtrHandle<ServiceWorkerRegistrationInfo>& aRegistration,
                                              nsresult aStatus)
   : mChannel(aChannel)
+  , mRegistration(aRegistration)
   , mStatus(aStatus)
 {
 }
@@ -110,8 +113,8 @@ NS_IMETHODIMP
 CancelChannelRunnable::Run()
 {
   MOZ_ASSERT(NS_IsMainThread());
-  nsresult rv = mChannel->Cancel(mStatus);
-  NS_ENSURE_SUCCESS(rv, rv);
+  mChannel->Cancel(mStatus);
+  mRegistration->MaybeScheduleUpdate();
   return NS_OK;
 }
 
@@ -130,9 +133,11 @@ FetchEvent::~FetchEvent()
 
 void
 FetchEvent::PostInit(nsMainThreadPtrHandle<nsIInterceptedChannel>& aChannel,
+                     nsMainThreadPtrHandle<ServiceWorkerRegistrationInfo>& aRegistration,
                      const nsACString& aScriptSpec)
 {
   mChannel = aChannel;
+  mRegistration = aRegistration;
   mScriptSpec.Assign(aScriptSpec);
 }
 
@@ -266,9 +271,10 @@ public:
 class RespondWithHandler final : public PromiseNativeHandler
 {
   nsMainThreadPtrHandle<nsIInterceptedChannel> mInterceptedChannel;
+  nsMainThreadPtrHandle<ServiceWorkerRegistrationInfo> mRegistration;
   const RequestMode mRequestMode;
+  const RequestRedirect mRequestRedirectMode;
   const DebugOnly<bool> mIsClientRequest;
-  const bool mIsNavigationRequest;
   const nsCString mScriptSpec;
   const nsString mRequestURL;
   const nsCString mRespondWithScriptSpec;
@@ -279,17 +285,19 @@ public:
   NS_DECL_ISUPPORTS
 
   RespondWithHandler(nsMainThreadPtrHandle<nsIInterceptedChannel>& aChannel,
+                     nsMainThreadPtrHandle<ServiceWorkerRegistrationInfo>& aRegistration,
                      RequestMode aRequestMode, bool aIsClientRequest,
-                     bool aIsNavigationRequest,
+                     RequestRedirect aRedirectMode,
                      const nsACString& aScriptSpec,
                      const nsAString& aRequestURL,
                      const nsACString& aRespondWithScriptSpec,
                      uint32_t aRespondWithLineNumber,
                      uint32_t aRespondWithColumnNumber)
     : mInterceptedChannel(aChannel)
+    , mRegistration(aRegistration)
     , mRequestMode(aRequestMode)
+    , mRequestRedirectMode(aRedirectMode)
     , mIsClientRequest(aIsClientRequest)
-    , mIsNavigationRequest(aIsNavigationRequest)
     , mScriptSpec(aScriptSpec)
     , mRequestURL(aRequestURL)
     , mRespondWithScriptSpec(aRespondWithScriptSpec)
@@ -333,6 +341,7 @@ private:
 struct RespondWithClosure
 {
   nsMainThreadPtrHandle<nsIInterceptedChannel> mInterceptedChannel;
+  nsMainThreadPtrHandle<ServiceWorkerRegistrationInfo> mRegistration;
   RefPtr<InternalResponse> mInternalResponse;
   ChannelInfo mWorkerChannelInfo;
   const nsCString mScriptSpec;
@@ -343,6 +352,7 @@ struct RespondWithClosure
   const uint32_t mRespondWithColumnNumber;
 
   RespondWithClosure(nsMainThreadPtrHandle<nsIInterceptedChannel>& aChannel,
+                     nsMainThreadPtrHandle<ServiceWorkerRegistrationInfo>& aRegistration,
                      InternalResponse* aInternalResponse,
                      const ChannelInfo& aWorkerChannelInfo,
                      const nsCString& aScriptSpec,
@@ -352,6 +362,7 @@ struct RespondWithClosure
                      uint32_t aRespondWithLineNumber,
                      uint32_t aRespondWithColumnNumber)
     : mInterceptedChannel(aChannel)
+    , mRegistration(aRegistration)
     , mInternalResponse(aInternalResponse)
     , mWorkerChannelInfo(aWorkerChannelInfo)
     , mScriptSpec(aScriptSpec)
@@ -374,6 +385,7 @@ void RespondWithCopyComplete(void* aClosure, nsresult aStatus)
              NS_LITERAL_CSTRING("InterceptionFailedWithURL"),
              data->mRequestURL);
     event = new CancelChannelRunnable(data->mInterceptedChannel,
+                                      data->mRegistration,
                                       NS_ERROR_INTERCEPTION_FAILED);
   } else {
     event = new FinishResponse(data->mInterceptedChannel,
@@ -565,11 +577,11 @@ RespondWithHandler::ResolvedCallback(JSContext* aCx, JS::Handle<JS::Value> aValu
   MOZ_ASSERT(worker);
   worker->AssertIsOnWorkerThread();
 
-  // Section "HTTP Fetch", step 2.2:
+  // Section "HTTP Fetch", step 3.3:
   //  If one of the following conditions is true, return a network error:
   //    * response's type is "error".
   //    * request's mode is not "no-cors" and response's type is "opaque".
-  //    * request is not a navigation request and response's type is
+  //    * request's redirect mode is not "manual" and response's type is
   //      "opaqueredirect".
 
   if (response->Type() == ResponseType::Error) {
@@ -592,7 +604,8 @@ RespondWithHandler::ResolvedCallback(JSContext* aCx, JS::Handle<JS::Value> aValu
     return;
   }
 
-  if (!mIsNavigationRequest && response->Type() == ResponseType::Opaqueredirect) {
+  if (mRequestRedirectMode != RequestRedirect::Manual &&
+      response->Type() == ResponseType::Opaqueredirect) {
     autoCancel.SetCancelMessage(
       NS_LITERAL_CSTRING("BadOpaqueRedirectInterceptionWithURL"), mRequestURL);
     return;
@@ -620,7 +633,8 @@ RespondWithHandler::ResolvedCallback(JSContext* aCx, JS::Handle<JS::Value> aValu
     }
   }
 
-  nsAutoPtr<RespondWithClosure> closure(new RespondWithClosure(mInterceptedChannel, ir,
+  nsAutoPtr<RespondWithClosure> closure(new RespondWithClosure(mInterceptedChannel,
+                                                               mRegistration, ir,
                                                                worker->GetChannelInfo(),
                                                                mScriptSpec,
                                                                responseURL,
@@ -701,7 +715,7 @@ void
 RespondWithHandler::CancelRequest(nsresult aStatus)
 {
   nsCOMPtr<nsIRunnable> runnable =
-    new CancelChannelRunnable(mInterceptedChannel, aStatus);
+    new CancelChannelRunnable(mInterceptedChannel, mRegistration, aStatus);
   NS_DispatchToMainThread(runnable);
   mRequestWasHandled = true;
 }
@@ -733,9 +747,9 @@ FetchEvent::RespondWith(JSContext* aCx, Promise& aArg, ErrorResult& aRv)
   StopImmediatePropagation();
   mWaitToRespond = true;
   RefPtr<RespondWithHandler> handler =
-    new RespondWithHandler(mChannel, mRequest->Mode(), ir->IsClientRequest(),
-                           ir->IsNavigationRequest(), mScriptSpec,
-                           NS_ConvertUTF8toUTF16(requestURL),
+    new RespondWithHandler(mChannel, mRegistration, mRequest->Mode(),
+                           ir->IsClientRequest(), mRequest->Redirect(),
+                           mScriptSpec, NS_ConvertUTF8toUTF16(requestURL),
                            spec, line, column);
   aArg.AppendNativeHandler(handler);
 
@@ -940,29 +954,11 @@ NS_IMPL_CYCLE_COLLECTION_INHERITED(ExtendableEvent, Event, mPromises)
 
 namespace {
 nsresult
-ExtractBytesFromArrayBufferView(const ArrayBufferView& aView, nsTArray<uint8_t>& aBytes)
-{
-  MOZ_ASSERT(aBytes.IsEmpty());
-  aView.ComputeLengthAndData();
-  aBytes.InsertElementsAt(0, aView.Data(), aView.Length());
-  return NS_OK;
-}
-
-nsresult
-ExtractBytesFromArrayBuffer(const ArrayBuffer& aBuffer, nsTArray<uint8_t>& aBytes)
-{
-  MOZ_ASSERT(aBytes.IsEmpty());
-  aBuffer.ComputeLengthAndData();
-  aBytes.InsertElementsAt(0, aBuffer.Data(), aBuffer.Length());
-  return NS_OK;
-}
-
-nsresult
 ExtractBytesFromUSVString(const nsAString& aStr, nsTArray<uint8_t>& aBytes)
 {
   MOZ_ASSERT(aBytes.IsEmpty());
   nsCOMPtr<nsIUnicodeEncoder> encoder = EncodingUtils::EncoderForEncoding("UTF-8");
-  if (!encoder) {
+  if (NS_WARN_IF(!encoder)) {
     return NS_ERROR_OUT_OF_MEMORY;
   }
 
@@ -973,17 +969,19 @@ ExtractBytesFromUSVString(const nsAString& aStr, nsTArray<uint8_t>& aBytes)
     return rv;
   }
 
-  aBytes.SetLength(destBufferLen);
+  if (NS_WARN_IF(!aBytes.SetLength(destBufferLen, fallible))) {
+    return NS_ERROR_OUT_OF_MEMORY;
+  }
 
   char* destBuffer = reinterpret_cast<char*>(aBytes.Elements());
   int32_t outLen = destBufferLen;
   rv = encoder->Convert(aStr.BeginReading(), &srcLen, destBuffer, &outLen);
   if (NS_WARN_IF(NS_FAILED(rv))) {
+    aBytes.Clear();
     return rv;
   }
 
-  MOZ_ASSERT(outLen <= destBufferLen);
-  aBytes.SetLength(outLen);
+  aBytes.TruncateLength(outLen);
 
   return NS_OK;
 }
@@ -993,11 +991,19 @@ ExtractBytesFromData(const OwningArrayBufferViewOrArrayBufferOrUSVString& aDataI
 {
   if (aDataInit.IsArrayBufferView()) {
     const ArrayBufferView& view = aDataInit.GetAsArrayBufferView();
-    return ExtractBytesFromArrayBufferView(view, aBytes);
-  } else if (aDataInit.IsArrayBuffer()) {
+    if (NS_WARN_IF(!PushUtil::CopyArrayBufferViewToArray(view, aBytes))) {
+      return NS_ERROR_OUT_OF_MEMORY;
+    }
+    return NS_OK;
+  }
+  if (aDataInit.IsArrayBuffer()) {
     const ArrayBuffer& buffer = aDataInit.GetAsArrayBuffer();
-    return ExtractBytesFromArrayBuffer(buffer, aBytes);
-  } else if (aDataInit.IsUSVString()) {
+    if (NS_WARN_IF(!PushUtil::CopyArrayBufferToArray(buffer, aBytes))) {
+      return NS_ERROR_OUT_OF_MEMORY;
+    }
+    return NS_OK;
+  }
+  if (aDataInit.IsUSVString()) {
     return ExtractBytesFromUSVString(aDataInit.GetAsUSVString(), aBytes);
   }
   NS_NOTREACHED("Unexpected push message data");
@@ -1006,8 +1012,8 @@ ExtractBytesFromData(const OwningArrayBufferViewOrArrayBufferOrUSVString& aDataI
 }
 
 PushMessageData::PushMessageData(nsISupports* aOwner,
-                                 const nsTArray<uint8_t>& aBytes)
-  : mOwner(aOwner), mBytes(aBytes) {}
+                                 nsTArray<uint8_t>&& aBytes)
+  : mOwner(aOwner), mBytes(Move(aBytes)) {}
 
 PushMessageData::~PushMessageData()
 {
@@ -1125,7 +1131,7 @@ PushEvent::Constructor(mozilla::dom::EventTarget* aOwner,
       aRv.Throw(rv);
       return nullptr;
     }
-    e->mData = new PushMessageData(aOwner, bytes);
+    e->mData = new PushMessageData(aOwner, Move(bytes));
   }
   return e.forget();
 }

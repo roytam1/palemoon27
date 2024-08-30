@@ -128,7 +128,6 @@ AudioStream::AudioStream(DataSource& aSource)
   , mTimeStretcher(nullptr)
   , mDumpFile(nullptr)
   , mState(INITIALIZED)
-  , mIsMonoAudioEnabled(gfxPrefs::MonoAudio())
   , mDataSource(aSource)
 {
 }
@@ -330,7 +329,7 @@ AudioStream::Init(uint32_t aNumChannels, uint32_t aRate,
     ("%s  channels: %d, rate: %d for %p", __FUNCTION__, aNumChannels, aRate, this));
   mInRate = mOutRate = aRate;
   mChannels = aNumChannels;
-  mOutChannels = mIsMonoAudioEnabled ? 1 : aNumChannels;
+  mOutChannels = aNumChannels;
 
   mDumpFile = OpenDumpFile(this);
 
@@ -352,11 +351,6 @@ AudioStream::Init(uint32_t aNumChannels, uint32_t aRate,
   params.format = ToCubebFormat<AUDIO_OUTPUT_FORMAT>::value;
   mAudioClock.Init();
 
-  if (mIsMonoAudioEnabled) {
-    AudioConfig inConfig(mChannels, mInRate);
-    AudioConfig outConfig(mOutChannels, mOutRate);
-    mAudioConverter = MakeUnique<AudioConverter>(inConfig, outConfig);
-  }
   return OpenCubeb(params);
 }
 
@@ -549,7 +543,7 @@ AudioStream::IsPaused()
 }
 
 bool
-AudioStream::Downmix(Chunk* aChunk)
+AudioStream::IsValidAudioFormat(Chunk* aChunk)
 {
   if (aChunk->Rate() != mInRate) {
     LOGW("mismatched sample %u, mInRate=%u", aChunk->Rate(), mInRate);
@@ -558,10 +552,6 @@ AudioStream::Downmix(Chunk* aChunk)
 
   if (aChunk->Channels() > 8) {
     return false;
-  }
-
-  if (mAudioConverter) {
-    mAudioConverter->Process(aChunk->GetWritable(), aChunk->Frames());
   }
 
   return true;
@@ -592,10 +582,10 @@ AudioStream::GetUnprocessed(AudioBufferWriter& aWriter)
       break;
     }
     MOZ_ASSERT(c->Frames() <= aWriter.Available());
-    if (Downmix(c.get())) {
+    if (IsValidAudioFormat(c.get())) {
       aWriter.Write(c->Data(), c->Frames());
     } else {
-      // Write silence if downmixing fails.
+      // Write silence if invalid format.
       aWriter.WriteZeros(c->Frames());
     }
   }
@@ -620,10 +610,10 @@ AudioStream::GetTimeStretched(AudioBufferWriter& aWriter)
       break;
     }
     MOZ_ASSERT(c->Frames() <= toPopFrames);
-    if (Downmix(c.get())) {
+    if (IsValidAudioFormat(c.get())) {
       mTimeStretcher->putSamples(c->Data(), c->Frames());
     } else {
-      // Write silence if downmixing fails.
+      // Write silence if invalid format.
       AutoTArray<AudioDataValue, 1000> buf;
       buf.SetLength(mOutChannels * c->Frames());
       memset(buf.Elements(), 0, buf.Length() * sizeof(AudioDataValue));

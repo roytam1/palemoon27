@@ -2063,7 +2063,10 @@ nsIScriptContext *
 nsGlobalWindow::GetScriptContext()
 {
   nsGlobalWindow* outer = GetOuterWindowInternal();
-  return outer ? outer->mContext : nullptr;
+  if (!outer) {
+    return nullptr;
+  }
+  return outer->mContext;
 }
 
 JSObject *
@@ -7538,7 +7541,7 @@ nsGlobalWindow::PrintOuter(ErrorResult& aError)
   if (NS_SUCCEEDED(GetInterface(NS_GET_IID(nsIWebBrowserPrint),
                                 getter_AddRefs(webBrowserPrint)))) {
     nsAutoSyncOperation sync(GetCurrentInnerWindowInternal() ?
-                               GetCurrentInnerWindowInternal()->mDoc :
+                               GetCurrentInnerWindowInternal()->mDoc.get() :
                                nullptr);
 
     nsCOMPtr<nsIPrintSettingsService> printSettingsService =

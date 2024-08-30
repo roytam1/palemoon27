@@ -191,7 +191,6 @@
 #include "nsIPrincipal.h"
 #include "nsDeviceStorage.h"
 #include "DomainPolicy.h"
-#include "mozilla/dom/DataStoreService.h"
 #include "mozilla/dom/ipc/StructuredCloneData.h"
 #include "mozilla/dom/telephony/PTelephonyChild.h"
 #include "mozilla/dom/time/DateCacheCleaner.h"
@@ -1188,24 +1187,6 @@ NS_IMETHODIMP MemoryReportRequestChild::Run()
 }
 
 bool
-ContentChild::RecvDataStoreNotify(const uint32_t& aAppId,
-                                  const nsString& aName,
-                                  const nsString& aManifestURL)
-{
-  RefPtr<DataStoreService> service = DataStoreService::GetOrCreate();
-  if (NS_WARN_IF(!service)) {
-    return false;
-  }
-
-  nsresult rv = service->EnableDataStore(aAppId, aName, aManifestURL);
-  if (NS_WARN_IF(NS_FAILED(rv))) {
-    return false;
-  }
-
-  return true;
-}
-
-bool
 ContentChild::DeallocPMemoryReportRequestChild(PMemoryReportRequestChild* actor)
 {
   static_cast<MemoryReportRequestChild*>(actor)->Release();
@@ -1511,7 +1492,7 @@ ContentChild::RecvBidiKeyboardNotify(const bool& aIsLangRTL)
   return true;
 }
 
-static CancelableTask* sFirstIdleTask;
+static CancelableRunnable* sFirstIdleTask;
 
 static void FirstIdle(void)
 {
@@ -1592,8 +1573,9 @@ ContentChild::RecvPBrowserConstructor(PBrowserChild* aActor,
       hasRunOnce = true;
 
     MOZ_ASSERT(!sFirstIdleTask);
-    sFirstIdleTask = NewRunnableFunction(FirstIdle);
-    MessageLoop::current()->PostIdleTask(FROM_HERE, sFirstIdleTask);
+    RefPtr<CancelableRunnable> firstIdleTask = NewRunnableFunction(FirstIdle);
+    sFirstIdleTask = firstIdleTask;
+    MessageLoop::current()->PostIdleTask(firstIdleTask.forget());
 
     // Redo InitProcessAttributes() when the app or browser is really
     // launching so the attributes will be correct.
@@ -2612,8 +2594,7 @@ ContentChild::RecvAppInit()
 #ifdef MOZ_NUWA_PROCESS
   if (IsNuwaProcess()) {
     ContentChild::GetSingleton()->RecvGarbageCollect();
-    MessageLoop::current()->PostTask(
-      FROM_HERE, NewRunnableFunction(OnFinishNuwaPreparation));
+    MessageLoop::current()->PostTask(NewRunnableFunction(OnFinishNuwaPreparation));
   }
 #endif
 
@@ -3222,8 +3203,12 @@ ContentChild::RecvPush(const nsCString& aScope,
   }
   PushNotifier* pushNotifier =
     static_cast<PushNotifier*>(pushNotifierIface.get());
-  nsresult rv = pushNotifier->NotifyPushWorkers(aScope, aPrincipal,
-                                                aMessageId, Nothing());
+
+  nsresult rv = pushNotifier->NotifyPushObservers(aScope, Nothing());
+  Unused << NS_WARN_IF(NS_FAILED(rv));
+
+  rv = pushNotifier->NotifyPushWorkers(aScope, aPrincipal,
+                                       aMessageId, Nothing());
   Unused << NS_WARN_IF(NS_FAILED(rv));
 #endif
   return true;
@@ -3243,8 +3228,12 @@ ContentChild::RecvPushWithData(const nsCString& aScope,
   }
   PushNotifier* pushNotifier =
     static_cast<PushNotifier*>(pushNotifierIface.get());
-  nsresult rv = pushNotifier->NotifyPushWorkers(aScope, aPrincipal,
-                                                aMessageId, Some(aData));
+
+  nsresult rv = pushNotifier->NotifyPushObservers(aScope, Some(aData));
+  Unused << NS_WARN_IF(NS_FAILED(rv));
+
+  rv = pushNotifier->NotifyPushWorkers(aScope, aPrincipal,
+                                       aMessageId, Some(aData));
   Unused << NS_WARN_IF(NS_FAILED(rv));
 #endif
   return true;
@@ -3262,8 +3251,11 @@ ContentChild::RecvPushSubscriptionChange(const nsCString& aScope,
   }
   PushNotifier* pushNotifier =
     static_cast<PushNotifier*>(pushNotifierIface.get());
-  nsresult rv = pushNotifier->NotifySubscriptionChangeWorkers(aScope,
-                                                              aPrincipal);
+
+  nsresult rv = pushNotifier->NotifySubscriptionChangeObservers(aScope);
+  Unused << NS_WARN_IF(NS_FAILED(rv));
+
+  rv = pushNotifier->NotifySubscriptionChangeWorkers(aScope, aPrincipal);
   Unused << NS_WARN_IF(NS_FAILED(rv));
 #endif
   return true;

@@ -899,7 +899,7 @@ public:
     }
   }
 
-  bool Exists() { return !!mRequest; }
+  bool Exists() const { return !!mRequest; }
 
 private:
   RefPtr<typename PromiseType::Request> mRequest;

@@ -7399,27 +7399,32 @@ nsContentUtils::TransferableToIPCTransferable(nsITransferable* aTransferable,
             RefPtr<mozilla::gfx::SourceSurface> surface =
               image->GetFrame(imgIContainer::FRAME_CURRENT,
                               imgIContainer::FLAG_SYNC_DECODE);
-            if (surface) {
-              RefPtr<mozilla::gfx::DataSourceSurface> dataSurface =
-                surface->GetDataSurface();
-              size_t length;
-              int32_t stride;
-              mozilla::UniquePtr<char[]> surfaceData =
-                nsContentUtils::GetSurfaceData(dataSurface, &length, &stride);
-
-              IPCDataTransferItem* item = aIPCDataTransfer->items().AppendElement();
-              item->flavor() = flavorStr;
-              // Turn item->data() into an nsCString prior to accessing it.
-              item->data() = EmptyCString();
-              item->data().get_nsCString().Adopt(surfaceData.release(), length);
-
-              IPCDataTransferImage& imageDetails = item->imageDetails();
-              mozilla::gfx::IntSize size = dataSurface->GetSize();
-              imageDetails.width() = size.width;
-              imageDetails.height() = size.height;
-              imageDetails.stride() = stride;
-              imageDetails.format() = static_cast<uint8_t>(dataSurface->GetFormat());
+            if (!surface) {
+              continue;
             }
+            RefPtr<mozilla::gfx::DataSourceSurface> dataSurface =
+              surface->GetDataSurface();
+            if (!dataSurface) {
+              continue;
+            }
+            size_t length;
+            int32_t stride;
+            mozilla::UniquePtr<char[]> surfaceData =
+              nsContentUtils::GetSurfaceData(WrapNotNull(dataSurface), &length,
+                                             &stride);
+
+            IPCDataTransferItem* item = aIPCDataTransfer->items().AppendElement();
+            item->flavor() = flavorStr;
+            // Turn item->data() into an nsCString prior to accessing it.
+            item->data() = EmptyCString();
+            item->data().get_nsCString().Adopt(surfaceData.release(), length);
+
+            IPCDataTransferImage& imageDetails = item->imageDetails();
+            mozilla::gfx::IntSize size = dataSurface->GetSize();
+            imageDetails.width() = size.width;
+            imageDetails.height() = size.height;
+            imageDetails.stride() = stride;
+            imageDetails.format() = static_cast<uint8_t>(dataSurface->GetFormat());
 
             continue;
           }
@@ -7510,8 +7515,9 @@ nsContentUtils::TransferableToIPCTransferable(nsITransferable* aTransferable,
 }
 
 mozilla::UniquePtr<char[]>
-nsContentUtils::GetSurfaceData(mozilla::gfx::DataSourceSurface* aSurface,
-                               size_t* aLength, int32_t* aStride)
+nsContentUtils::GetSurfaceData(
+  NotNull<mozilla::gfx::DataSourceSurface*> aSurface,
+  size_t* aLength, int32_t* aStride)
 {
   mozilla::gfx::DataSourceSurface::MappedSurface map;
   if (NS_WARN_IF(!aSurface->Map(mozilla::gfx::DataSourceSurface::MapType::READ, &map))) {
@@ -8581,8 +8587,7 @@ StartElement(Element* aContent, StringBuilder& aBuilder)
   }
 
   int32_t count = aContent->GetAttrCount();
-  for (int32_t i = count; i > 0;) {
-    --i;
+  for (int32_t i = 0; i < count; i++) {
     const nsAttrName* name = aContent->GetAttrNameAt(i);
     int32_t attNs = name->NamespaceID();
     nsIAtom* attName = name->LocalName();

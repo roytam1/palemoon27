@@ -1095,7 +1095,7 @@ nsDisplayTableItem::UpdateForFrameBackground(nsIFrame* aFrame)
   nsStyleContext *bgSC;
   if (!nsCSSRendering::FindBackground(aFrame, &bgSC))
     return;
-  if (!bgSC->StyleBackground()->HasFixedBackground())
+  if (!bgSC->StyleBackground()->HasFixedBackground(aFrame))
     return;
 
   mPartHasFixedBackground = true;
@@ -1253,6 +1253,7 @@ nsTableFrame::DisplayGenericTablePart(nsDisplayListBuilder* aBuilder,
     // XXX how to handle collapsed borders?
     if (aBuilder->IsForEventDelivery()) {
       nsDisplayBackgroundImage::AppendBackgroundItemsToTop(aBuilder, aFrame,
+                                                           aFrame->GetRectRelativeToSelf(),
                                                            lists->BorderBackground());
     }
 

@@ -1468,8 +1468,8 @@ ResolveAutoFlexBasisFromRatio(FlexItem& aFlexItem,
   //  - a [used] flex-basis of 'main-size' [auto?] [We have this, if we're here.]
   //  - a definite cross size
   // then the flex base size is calculated from its inner cross size and the
-  // flex item?™s intrinsic aspect ratio.
-  if (aAxisTracker.GetCrossComponent(aFlexItem.mIntrinsicRatio) != 0) {
+  // flex item's intrinsic aspect ratio.
+  if (aAxisTracker.GetCrossComponent(aFlexItem.IntrinsicRatio()) != 0) {
     // We have a usable aspect ratio. (not going to divide by 0)
     const bool useMinSizeIfCrossSizeIsIndefinite = false;
     nscoord crossSizeToUseWithRatio =
@@ -1480,7 +1480,7 @@ ResolveAutoFlexBasisFromRatio(FlexItem& aFlexItem,
       // We have a definite cross-size
       nscoord mainSizeFromRatio =
         MainSizeFromAspectRatio(crossSizeToUseWithRatio,
-                                aFlexItem.mIntrinsicRatio, aAxisTracker);
+                                aFlexItem.IntrinsicRatio(), aAxisTracker);
       aFlexItem.SetFlexBaseSizeAndMainSize(mainSizeFromRatio);
       return true;
     }

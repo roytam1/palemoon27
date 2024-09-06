@@ -758,7 +758,7 @@ MessageChannel::Send(Message* aMsg)
 {
     if (aMsg->capacity() >= kMinTelemetryMessageSize) {
         Telemetry::Accumulate(Telemetry::IPC_MESSAGE_SIZE,
-                              nsCString(aMsg->name()), aMsg->capacity());
+                              nsDependentCString(aMsg->name()), aMsg->capacity());
     }
 
     CxxStackFrame frame(*this, OUT_MESSAGE, aMsg);
@@ -1059,7 +1059,7 @@ MessageChannel::Send(Message* aMsg, Message* aReply)
 {
     if (aMsg->capacity() >= kMinTelemetryMessageSize) {
         Telemetry::Accumulate(Telemetry::IPC_MESSAGE_SIZE,
-                              nsCString(aMsg->name()), aMsg->capacity());
+                              nsDependentCString(aMsg->name()), aMsg->capacity());
     }
 
     nsAutoPtr<Message> msg(aMsg);
@@ -1158,6 +1158,9 @@ MessageChannel::Send(Message* aMsg, Message* aReply)
 
     IPC_LOG("Send seqno=%d, xid=%d", seqno, transaction);
 
+    // msg will be destroyed soon, but name() is not owned by msg.
+    const char* msgName = msg->name();
+
     mLink->SendMessage(msg.forget());
 
     while (true) {
@@ -1244,6 +1247,10 @@ MessageChannel::Send(Message* aMsg, Message* aReply)
     MOZ_RELEASE_ASSERT(reply->is_sync());
 
     *aReply = Move(*reply);
+    if (aReply->capacity() >= kMinTelemetryMessageSize) {
+        Telemetry::Accumulate(Telemetry::IPC_REPLY_SIZE,
+                              nsDependentCString(msgName), aReply->capacity());
+    }
     return true;
 }
 
@@ -1284,7 +1291,7 @@ MessageChannel::Call(Message* aMsg, Message* aReply)
     msg->set_seqno(NextSeqno());
     msg->set_interrupt_remote_stack_depth_guess(mRemoteStackDepthGuess);
     msg->set_interrupt_local_stack_depth(1 + InterruptStackDepth());
-    mInterruptStack.push(*msg);
+    mInterruptStack.push(MessageInfo(*msg));
     mLink->SendMessage(msg.forget());
 
     while (true) {
@@ -1369,7 +1376,7 @@ MessageChannel::Call(Message* aMsg, Message* aReply)
             // If this is not a reply the call we've initiated, add it to our
             // out-of-turn replies and keep polling for events.
             {
-                const Message &outcall = mInterruptStack.top();
+                const MessageInfo &outcall = mInterruptStack.top();
 
                 // Note, In the parent, sequence numbers increase from 0, and
                 // in the child, they decrease from 0.
@@ -1671,9 +1678,11 @@ MessageChannel::DispatchInterruptMessage(const Message& aMsg, size_t stackDepth)
         // processing of the other side's in-call.
         bool defer;
         const char* winner;
-        const Message& parentMsg = (mSide == ChildSide) ? aMsg : mInterruptStack.top();
-        const Message& childMsg = (mSide == ChildSide) ? mInterruptStack.top() : aMsg;
-        switch (mListener->MediateInterruptRace(parentMsg, childMsg))
+        const MessageInfo parentMsgInfo =
+          (mSide == ChildSide) ? MessageInfo(aMsg) : mInterruptStack.top();
+        const MessageInfo childMsgInfo =
+          (mSide == ChildSide) ? mInterruptStack.top() : MessageInfo(aMsg);
+        switch (mListener->MediateInterruptRace(parentMsgInfo, childMsgInfo))
         {
           case RIPChildWins:
             winner = "child";

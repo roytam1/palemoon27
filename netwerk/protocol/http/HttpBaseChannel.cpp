@@ -123,7 +123,7 @@ HttpBaseChannel::HttpBaseChannel()
 #endif
   mSelfAddr.raw.family = PR_AF_UNSPEC;
   mPeerAddr.raw.family = PR_AF_UNSPEC;
-  mSchedulingContextID.Clear();
+  mRequestContextID.Clear();
 }
 
 HttpBaseChannel::~HttpBaseChannel()
@@ -1814,17 +1814,17 @@ HttpBaseChannel::RedirectTo(nsIURI *targetURI)
 }
 
 NS_IMETHODIMP
-HttpBaseChannel::GetSchedulingContextID(nsID *aSCID)
+HttpBaseChannel::GetRequestContextID(nsID *aRCID)
 {
-  NS_ENSURE_ARG_POINTER(aSCID);
-  *aSCID = mSchedulingContextID;
+  NS_ENSURE_ARG_POINTER(aRCID);
+  *aRCID = mRequestContextID;
   return NS_OK;
 }
 
 NS_IMETHODIMP
-HttpBaseChannel::SetSchedulingContextID(const nsID aSCID)
+HttpBaseChannel::SetRequestContextID(const nsID aRCID)
 {
-  mSchedulingContextID = aSCID;
+  mRequestContextID = aRCID;
   return NS_OK;
 }
 
@@ -2549,41 +2549,6 @@ HttpBaseChannel::ShouldIntercept(nsIURI* aURI)
   return shouldIntercept;
 }
 
-void
-HttpBaseChannel::SetLoadGroupUserAgentOverride()
-{
-  nsCOMPtr<nsIURI> uri;
-  GetURI(getter_AddRefs(uri));
-  nsAutoCString uriScheme;
-  if (uri) {
-    uri->GetScheme(uriScheme);
-  }
-  nsCOMPtr<nsILoadGroupChild> childLoadGroup = do_QueryInterface(mLoadGroup);
-  nsCOMPtr<nsILoadGroup> rootLoadGroup;
-  if (childLoadGroup) {
-    childLoadGroup->GetRootLoadGroup(getter_AddRefs(rootLoadGroup));
-  }
-  if (rootLoadGroup && !uriScheme.EqualsLiteral("file")) {
-    nsAutoCString ua;
-    if (nsContentUtils::IsNonSubresourceRequest(this)) {
-      gHttpHandler->OnUserAgentRequest(this);
-      GetRequestHeader(NS_LITERAL_CSTRING("User-Agent"), ua);
-      rootLoadGroup->SetUserAgentOverrideCache(ua);
-    } else {
-      GetRequestHeader(NS_LITERAL_CSTRING("User-Agent"), ua);
-      // Don't overwrite the UA if it is already set (eg by an XHR with explicit UA).
-      if (ua.IsEmpty()) {
-        rootLoadGroup->GetUserAgentOverrideCache(ua);
-        SetRequestHeader(NS_LITERAL_CSTRING("User-Agent"), ua, false);
-      }
-    }
-  } else {
-    // If the root loadgroup doesn't exist or if the channel's URI's scheme is "file",
-    // fall back on getting the UA override per channel.
-    gHttpHandler->OnUserAgentRequest(this);
-  }
-}
-
 //-----------------------------------------------------------------------------
 // nsHttpChannel::nsITraceableChannel
 //-----------------------------------------------------------------------------
@@ -2901,8 +2866,8 @@ HttpBaseChannel::SetupReplacementChannel(nsIURI       *newURI,
     }
   }
 
-  // share the scheduling context - see bug 1236650
-  httpChannel->SetSchedulingContextID(mSchedulingContextID);
+  // share the request context - see bug 1236650
+  httpChannel->SetRequestContextID(mRequestContextID);
 
   if (httpInternal) {
     // Convey third party cookie and spdy flags.
@@ -3355,12 +3320,12 @@ HttpBaseChannel::GetInnerDOMWindow()
 //------------------------------------------------------------------------------
 
 bool
-HttpBaseChannel::EnsureSchedulingContextID()
+HttpBaseChannel::EnsureRequestContextID()
 {
     nsID nullID;
     nullID.Clear();
-    if (!mSchedulingContextID.Equals(nullID)) {
-        // Already have a scheduling context ID, no need to do the rest of this work
+    if (!mRequestContextID.Equals(nullID)) {
+        // Already have a request context ID, no need to do the rest of this work
         return true;
     }
 
@@ -3379,7 +3344,7 @@ HttpBaseChannel::EnsureSchedulingContextID()
     }
 
     // Set the load group connection scope on the transaction
-    rootLoadGroup->GetSchedulingContextID(&mSchedulingContextID);
+    rootLoadGroup->GetRequestContextID(&mRequestContextID);
     return true;
 }
 

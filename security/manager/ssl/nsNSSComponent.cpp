@@ -4,8 +4,6 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#define CERT_AddTempCertToPerm __CERT_AddTempCertToPerm
-
 #include "nsNSSComponent.h"
 
 #include "ExtendedValidation.h"
@@ -2191,6 +2189,13 @@ InitializeCipherSuite()
   SEC_PKCS12EnableCipher(PKCS12_DES_EDE3_168, 1);
   SEC_PKCS12SetPreferredCipher(PKCS12_DES_EDE3_168, 1);
   PORT_SetUCS2_ASCIIConversionFunction(pip_ucs2_ascii_conversion_fn);
+
+  // PSM enforces a minimum RSA key size of 1024 bits, which is overridable.
+  // NSS has its own minimum, which is not overridable (the default is 1023
+  // bits). This sets the NSS minimum to 512 bits so users can still connect to
+  // devices like wifi routers with woefully small keys (they would have to add
+  // an override to do so, but they already do for such devices).
+  NSS_OptionSet(NSS_RSA_MIN_KEY_SIZE, 512);
 
   // Observe preference change around cipher suite setting.
   return CipherSuiteChangeObserver::StartObserve();

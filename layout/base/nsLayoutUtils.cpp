@@ -2820,7 +2820,8 @@ nsLayoutUtils::GetLayerTransformForFrame(nsIFrame* aFrame,
     return true;
   }
 
-  nsDisplayListBuilder builder(root, nsDisplayListBuilder::TRANSFORM_COMPUTATION,
+  nsDisplayListBuilder builder(root,
+                               nsDisplayListBuilderMode::TRANSFORM_COMPUTATION,
                                false/*don't build caret*/);
   nsDisplayList list;
   nsDisplayTransform* item =
@@ -3074,7 +3075,8 @@ nsLayoutUtils::GetFramesForArea(nsIFrame* aFrame, const nsRect& aRect,
   PROFILER_LABEL("nsLayoutUtils", "GetFramesForArea",
     js::ProfileEntry::Category::GRAPHICS);
 
-  nsDisplayListBuilder builder(aFrame, nsDisplayListBuilder::EVENT_DELIVERY,
+  nsDisplayListBuilder builder(aFrame,
+                               nsDisplayListBuilderMode::EVENT_DELIVERY,
                                false);
   nsDisplayList list;
 
@@ -3298,7 +3300,8 @@ nsLayoutUtils::ExpireDisplayPortOnAsyncScrollableAncestor(nsIFrame* aFrame)
 nsresult
 nsLayoutUtils::PaintFrame(nsRenderingContext* aRenderingContext, nsIFrame* aFrame,
                           const nsRegion& aDirtyRegion, nscolor aBackstop,
-                          uint32_t aFlags)
+                          nsDisplayListBuilderMode aBuilderMode,
+                          PaintFrameFlags aFlags)
 {
   PROFILER_LABEL("nsLayoutUtils", "PaintFrame",
     js::ProfileEntry::Category::GRAPHICS);
@@ -3314,10 +3317,10 @@ nsLayoutUtils::PaintFrame(nsRenderingContext* aRenderingContext, nsIFrame* aFram
   AutoNestedPaintCount nestedPaintCount;
 #endif
 
-  if (aFlags & PAINT_WIDGET_LAYERS) {
+  if (aFlags & PaintFrameFlags::PAINT_WIDGET_LAYERS) {
     nsView* view = aFrame->GetView();
     if (!(view && view->GetWidget() && GetDisplayRootFrame(aFrame) == aFrame)) {
-      aFlags &= ~PAINT_WIDGET_LAYERS;
+      aFlags &= ~PaintFrameFlags::PAINT_WIDGET_LAYERS;
       NS_ASSERTION(aRenderingContext, "need a rendering context");
     }
   }
@@ -3330,18 +3333,19 @@ nsLayoutUtils::PaintFrame(nsRenderingContext* aRenderingContext, nsIFrame* aFram
   }
 
   TimeStamp startBuildDisplayList = TimeStamp::Now();
-  nsDisplayListBuilder builder(aFrame, nsDisplayListBuilder::PAINTING,
-                           !(aFlags & PAINT_HIDE_CARET));
-  if (aFlags & PAINT_IN_TRANSFORM) {
+  nsDisplayListBuilder builder(aFrame, aBuilderMode,
+                               !(aFlags & PaintFrameFlags::PAINT_HIDE_CARET));
+  if (aFlags & PaintFrameFlags::PAINT_IN_TRANSFORM) {
     builder.SetInTransform(true);
   }
-  if (aFlags & PAINT_SYNC_DECODE_IMAGES) {
+  if (aFlags & PaintFrameFlags::PAINT_SYNC_DECODE_IMAGES) {
     builder.SetSyncDecodeImages(true);
   }
-  if (aFlags & (PAINT_WIDGET_LAYERS | PAINT_TO_WINDOW)) {
+  if (aFlags & (PaintFrameFlags::PAINT_WIDGET_LAYERS |
+                PaintFrameFlags::PAINT_TO_WINDOW)) {
     builder.SetPaintingToWindow(true);
   }
-  if (aFlags & PAINT_IGNORE_SUPPRESSION) {
+  if (aFlags & PaintFrameFlags::PAINT_IGNORE_SUPPRESSION) {
     builder.IgnorePaintSuppression();
   }
 
@@ -3355,7 +3359,7 @@ nsLayoutUtils::PaintFrame(nsRenderingContext* aRenderingContext, nsIFrame* aFram
   }
 
   nsRegion visibleRegion;
-  if (aFlags & PAINT_WIDGET_LAYERS) {
+  if (aFlags & PaintFrameFlags::PAINT_WIDGET_LAYERS) {
     // This layer tree will be reused, so we'll need to calculate it
     // for the whole "visible" area of the window
     //
@@ -3371,8 +3375,8 @@ nsLayoutUtils::PaintFrame(nsRenderingContext* aRenderingContext, nsIFrame* aFram
 
   // If the root has embedded plugins, flag the builder so we know we'll need
   // to update plugin geometry after painting.
-  if ((aFlags & PAINT_WIDGET_LAYERS) &&
-      !(aFlags & PAINT_DOCUMENT_RELATIVE) &&
+  if ((aFlags & PaintFrameFlags::PAINT_WIDGET_LAYERS) &&
+      !(aFlags & PaintFrameFlags::PAINT_DOCUMENT_RELATIVE) &&
       rootPresContext->NeedToComputePluginGeometryUpdates()) {
     builder.SetWillComputePluginGeometry(true);
   }
@@ -3383,7 +3387,7 @@ nsLayoutUtils::PaintFrame(nsRenderingContext* aRenderingContext, nsIFrame* aFram
   if (ignoreViewportScrolling && rootScrollFrame) {
     nsIScrollableFrame* rootScrollableFrame =
       presShell->GetRootScrollFrameAsScrollable();
-    if (aFlags & PAINT_DOCUMENT_RELATIVE) {
+    if (aFlags & PaintFrameFlags::PAINT_DOCUMENT_RELATIVE) {
       // Make visibleRegion and aRenderingContext relative to the
       // scrolled frame instead of the root frame.
       nsPoint pos = rootScrollableFrame->GetScrollPosition();
@@ -3443,6 +3447,20 @@ nsLayoutUtils::PaintFrame(nsRenderingContext* aRenderingContext, nsIFrame* aFram
       js::ProfileEntry::Category::GRAPHICS);
 
     aFrame->BuildDisplayListForStackingContext(&builder, dirtyRect, &list);
+#ifdef DEBUG
+    if (builder.IsForGenerateGlyphPath()) {
+      // PaintFrame is called to generate text glyph by
+      // nsDisplayBackgroundImage::Paint or nsDisplayBackgroundColor::Paint.
+      //
+      // Assert that we do not generate and put nsDisplayBackgroundImage or
+      // nsDisplayBackgroundColor into the list again, which would lead to
+      // infinite recursion.
+      for (nsDisplayItem* i = list.GetBottom(); i; i = i->GetAbove()) {
+        MOZ_ASSERT(nsDisplayItem::TYPE_BACKGROUND != i->GetType() &&
+                   nsDisplayItem::TYPE_BACKGROUND_COLOR != i->GetType());
+      }
+    }
+#endif
   }
 
   nsIAtom* frameType = aFrame->GetType();
@@ -3532,9 +3550,9 @@ nsLayoutUtils::PaintFrame(nsRenderingContext* aRenderingContext, nsIFrame* aFram
   }
 
   uint32_t flags = nsDisplayList::PAINT_DEFAULT;
-  if (aFlags & PAINT_WIDGET_LAYERS) {
+  if (aFlags & PaintFrameFlags::PAINT_WIDGET_LAYERS) {
     flags |= nsDisplayList::PAINT_USE_WIDGET_LAYERS;
-    if (!(aFlags & PAINT_DOCUMENT_RELATIVE)) {
+    if (!(aFlags & PaintFrameFlags::PAINT_DOCUMENT_RELATIVE)) {
       nsIWidget *widget = aFrame->GetNearestWidget();
       if (widget) {
         // If we're finished building display list items for painting of the outermost
@@ -3543,13 +3561,13 @@ nsLayoutUtils::PaintFrame(nsRenderingContext* aRenderingContext, nsIFrame* aFram
       }
     }
   }
-  if (aFlags & PAINT_EXISTING_TRANSACTION) {
+  if (aFlags & PaintFrameFlags::PAINT_EXISTING_TRANSACTION) {
     flags |= nsDisplayList::PAINT_EXISTING_TRANSACTION;
   }
-  if (aFlags & PAINT_NO_COMPOSITE) {
+  if (aFlags & PaintFrameFlags::PAINT_NO_COMPOSITE) {
     flags |= nsDisplayList::PAINT_NO_COMPOSITE;
   }
-  if (aFlags & PAINT_COMPRESSED) {
+  if (aFlags & PaintFrameFlags::PAINT_COMPRESSED) {
     flags |= nsDisplayList::PAINT_COMPRESSED;
   }
 
@@ -3628,8 +3646,8 @@ nsLayoutUtils::PaintFrame(nsRenderingContext* aRenderingContext, nsIFrame* aFram
   // Update the widget's opaque region information. This sets
   // glass boundaries on Windows. Also set up the window dragging region
   // and plugin clip regions and bounds.
-  if ((aFlags & PAINT_WIDGET_LAYERS) &&
-      !(aFlags & PAINT_DOCUMENT_RELATIVE)) {
+  if ((aFlags & PaintFrameFlags::PAINT_WIDGET_LAYERS) &&
+      !(aFlags & PaintFrameFlags::PAINT_DOCUMENT_RELATIVE)) {
     nsIWidget *widget = aFrame->GetNearestWidget();
     if (widget) {
       nsRegion opaqueRegion;
@@ -7762,6 +7780,8 @@ static const PrefCallbacks kPrefCallbacks[] = {
     DisplayContentsEnabledPrefChangeCallback },
   { FLOAT_LOGICAL_VALUES_ENABLED_PREF_NAME,
     FloatLogicalValuesEnabledPrefChangeCallback },
+  { BG_CLIP_TEXT_ENABLED_PREF_NAME,
+    BackgroundClipTextEnabledPrefChangeCallback },
 };
 
 /* static */
@@ -7796,10 +7816,6 @@ nsLayoutUtils::Initialize()
   for (auto& callback : kPrefCallbacks) {
     Preferences::RegisterCallbackAndCall(callback.func, callback.name);
   }
-  Preferences::RegisterCallback(BackgroundClipTextEnabledPrefChangeCallback,
-                                BG_CLIP_TEXT_ENABLED_PREF_NAME);
-  BackgroundClipTextEnabledPrefChangeCallback(BG_CLIP_TEXT_ENABLED_PREF_NAME,
-                                              nullptr);
   nsComputedDOMStyle::RegisterPrefChangeCallbacks();
 }
 
@@ -8833,20 +8849,20 @@ nsLayoutUtils::ComputeScrollMetadata(nsIFrame* aForFrame,
     nsSize lineScrollAmount = scrollableFrame->GetLineScrollAmount();
     LayoutDeviceIntSize lineScrollAmountInDevPixels =
       LayoutDeviceIntSize::FromAppUnitsRounded(lineScrollAmount, presContext->AppUnitsPerDevPixel());
-    metrics.SetLineScrollAmount(lineScrollAmountInDevPixels);
+    metadata.SetLineScrollAmount(lineScrollAmountInDevPixels);
 
     nsSize pageScrollAmount = scrollableFrame->GetPageScrollAmount();
     LayoutDeviceIntSize pageScrollAmountInDevPixels =
       LayoutDeviceIntSize::FromAppUnitsRounded(pageScrollAmount, presContext->AppUnitsPerDevPixel());
-    metrics.SetPageScrollAmount(pageScrollAmountInDevPixels);
+    metadata.SetPageScrollAmount(pageScrollAmountInDevPixels);
 
     if (!aScrollFrame->GetParent() ||
         EventStateManager::CanVerticallyScrollFrameWithWheel(aScrollFrame->GetParent()))
     {
-      metrics.SetAllowVerticalScrollWithWheel(true);
+      metadata.SetAllowVerticalScrollWithWheel(true);
     }
 
-    metrics.SetUsesContainerScrolling(scrollableFrame->UsesContainerScrolling());
+    metadata.SetUsesContainerScrolling(scrollableFrame->UsesContainerScrolling());
 
     metadata.SetSnapInfo(scrollableFrame->GetScrollSnapInfo());
   }
@@ -8857,12 +8873,12 @@ nsLayoutUtils::ComputeScrollMetadata(nsIFrame* aForFrame,
   MOZ_ASSERT(aScrollParentId == FrameMetrics::NULL_SCROLL_ID || scrollId != aScrollParentId);
   metrics.SetScrollId(scrollId);
   metrics.SetIsRootContent(aIsRootContent);
-  metrics.SetScrollParentId(aScrollParentId);
+  metadata.SetScrollParentId(aScrollParentId);
 
   if (scrollId != FrameMetrics::NULL_SCROLL_ID && !presContext->GetParentPresContext()) {
     if ((aScrollFrame && (aScrollFrame == presShell->GetRootScrollFrame())) ||
         aContent == presShell->GetDocument()->GetDocumentElement()) {
-      metrics.SetIsLayersIdRoot(true);
+      metadata.SetIsLayersIdRoot(true);
     }
   }
 
@@ -8950,9 +8966,9 @@ nsLayoutUtils::ComputeScrollMetadata(nsIFrame* aForFrame,
     if (nsIContent* content = frameForCompositionBoundsCalculation->GetContent()) {
       nsAutoString contentDescription;
       content->Describe(contentDescription);
-      metrics.SetContentDescription(NS_LossyConvertUTF16toASCII(contentDescription));
+      metadata.SetContentDescription(NS_LossyConvertUTF16toASCII(contentDescription));
       nsLayoutUtils::LogTestDataForPaint(aLayer->Manager(), scrollId, "contentDescription",
-          metrics.GetContentDescription().get());
+          metadata.GetContentDescription().get());
     }
   }
 
@@ -8962,26 +8978,26 @@ nsLayoutUtils::ComputeScrollMetadata(nsIFrame* aForFrame,
   // in the FrameMetrics so APZ knows to provide the scroll grabbing
   // behaviour.
   if (aScrollFrame && nsContentUtils::HasScrollgrab(aScrollFrame->GetContent())) {
-    metrics.SetHasScrollgrab(true);
+    metadata.SetHasScrollgrab(true);
   }
 
   // Also compute and set the background color.
   // This is needed for APZ overscrolling support.
   if (aScrollFrame) {
     if (isRootScrollFrame) {
-      metrics.SetBackgroundColor(Color::FromABGR(
+      metadata.SetBackgroundColor(Color::FromABGR(
         presShell->GetCanvasBackground()));
     } else {
       nsStyleContext* backgroundStyle;
       if (nsCSSRendering::FindBackground(aScrollFrame, &backgroundStyle)) {
-        metrics.SetBackgroundColor(Color::FromABGR(
+        metadata.SetBackgroundColor(Color::FromABGR(
           backgroundStyle->StyleBackground()->mBackgroundColor));
       }
     }
   }
 
   if (ShouldDisableApzForElement(aContent)) {
-    metrics.SetForceDisableApz(true);
+    metadata.SetForceDisableApz(true);
   }
 
   return metadata;
@@ -9250,3 +9266,15 @@ nsLayoutUtils::UpdateDisplayPortMarginsFromPendingMessages() {
       });
   }
 }
+
+/* static */ bool
+nsLayoutUtils::IsTransformed(nsIFrame* aForFrame, nsIFrame* aTopFrame)
+{
+  for (nsIFrame* f = aForFrame; f != aTopFrame; f = f->GetParent()) {
+    if (f->IsTransformed()) {
+      return true;
+    }
+  }
+  return false;
+}
+

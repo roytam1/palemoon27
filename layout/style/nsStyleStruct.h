@@ -158,7 +158,7 @@ struct MOZ_NEEDS_MEMMOVABLE_MEMBERS nsStyleFont
   nsStyleFont(const nsFont& aFont, StyleStructContext aContext);
   nsStyleFont(const nsStyleFont& aStyleFont);
   explicit nsStyleFont(StyleStructContext aContext);
-  ~nsStyleFont(void) {
+  ~nsStyleFont() {
     MOZ_COUNT_DTOR(nsStyleFont);
   }
 
@@ -426,7 +426,7 @@ struct MOZ_NEEDS_MEMMOVABLE_MEMBERS nsStyleColor
 {
   explicit nsStyleColor(StyleStructContext aContext);
   nsStyleColor(const nsStyleColor& aOther);
-  ~nsStyleColor(void) {
+  ~nsStyleColor() {
     MOZ_COUNT_DTOR(nsStyleColor);
   }
 
@@ -528,7 +528,8 @@ struct nsStyleImageLayers {
     color,
     image,
     repeat,
-    position,
+    positionX,
+    positionY,
     clip,
     origin,
     size,
@@ -738,7 +739,8 @@ struct nsStyleImageLayers {
            mClipCount,
            mOriginCount,
            mRepeatCount,
-           mPositionCount,
+           mPositionXCount,
+           mPositionYCount,
            mImageCount,
            mSizeCount,
            mMaskModeCount,
@@ -800,7 +802,7 @@ struct MOZ_NEEDS_MEMMOVABLE_MEMBERS nsStyleBackground {
   static nsChangeHint MaxDifference() {
      return nsChangeHint_UpdateEffects |
            nsChangeHint_RepaintFrame |
-           nsChangeHint_SchedulePaint |
+           nsChangeHint_UpdateBackgroundPosition |
            nsChangeHint_NeutralChange;
   }
   static nsChangeHint DifferenceAlwaysHandledForDescendants() {
@@ -816,7 +818,7 @@ struct MOZ_NEEDS_MEMMOVABLE_MEMBERS nsStyleBackground {
   // but we don't want to do that when there's no image.
   // Not inline because it uses an nsCOMPtr<imgIRequest>
   // FIXME: Should be in nsStyleStructInlines.h.
-  bool HasFixedBackground() const;
+  bool HasFixedBackground(nsIFrame* aFrame) const;
 
   const nsStyleImageLayers::Layer& BottomLayer() const { return mImage.BottomLayer(); }
 
@@ -841,7 +843,7 @@ struct MOZ_NEEDS_MEMMOVABLE_MEMBERS nsStyleMargin
 {
   explicit nsStyleMargin(StyleStructContext aContext);
   nsStyleMargin(const nsStyleMargin& aMargin);
-  ~nsStyleMargin(void) {
+  ~nsStyleMargin() {
     MOZ_COUNT_DTOR(nsStyleMargin);
   }
 
@@ -887,7 +889,7 @@ struct MOZ_NEEDS_MEMMOVABLE_MEMBERS nsStylePadding
 {
   explicit nsStylePadding(StyleStructContext aContext);
   nsStylePadding(const nsStylePadding& aPadding);
-  ~nsStylePadding(void) {
+  ~nsStylePadding() {
     MOZ_COUNT_DTOR(nsStylePadding);
   }
 
@@ -1317,7 +1319,7 @@ struct MOZ_NEEDS_MEMMOVABLE_MEMBERS nsStyleOutline
 {
   explicit nsStyleOutline(StyleStructContext aContext);
   nsStyleOutline(const nsStyleOutline& aOutline);
-  ~nsStyleOutline(void) {
+  ~nsStyleOutline() {
     MOZ_COUNT_DTOR(nsStyleOutline);
   }
 
@@ -1358,7 +1360,7 @@ struct MOZ_NEEDS_MEMMOVABLE_MEMBERS nsStyleOutline
     return mCachedOutlineWidth;
   }
 
-  uint8_t GetOutlineStyle(void) const
+  uint8_t GetOutlineStyle() const
   {
     return (mOutlineStyle & BORDER_STYLE_MASK);
   }
@@ -1428,7 +1430,7 @@ struct MOZ_NEEDS_MEMMOVABLE_MEMBERS nsStyleList
 {
   explicit nsStyleList(StyleStructContext aContext);
   nsStyleList(const nsStyleList& aStyleList);
-  ~nsStyleList(void);
+  ~nsStyleList();
 
   void* operator new(size_t sz, nsStyleList* aSelf) CPP_THROW_NEW { return aSelf; }
   void* operator new(size_t sz, nsPresContext* aContext) CPP_THROW_NEW {
@@ -1634,7 +1636,7 @@ struct MOZ_NEEDS_MEMMOVABLE_MEMBERS nsStyleTextReset
 {
   explicit nsStyleTextReset(StyleStructContext aContext);
   nsStyleTextReset(const nsStyleTextReset& aOther);
-  ~nsStyleTextReset(void);
+  ~nsStyleTextReset();
 
   void* operator new(size_t sz, nsStyleTextReset* aSelf) CPP_THROW_NEW { return aSelf; }
   void* operator new(size_t sz, nsPresContext* aContext) CPP_THROW_NEW {
@@ -1719,7 +1721,7 @@ struct MOZ_NEEDS_MEMMOVABLE_MEMBERS nsStyleText
 {
   explicit nsStyleText(StyleStructContext aContext);
   nsStyleText(const nsStyleText& aOther);
-  ~nsStyleText(void);
+  ~nsStyleText();
 
   void* operator new(size_t sz, nsStyleText* aSelf) CPP_THROW_NEW { return aSelf; }
   void* operator new(size_t sz, nsPresContext* aContext) CPP_THROW_NEW {
@@ -2489,7 +2491,7 @@ struct MOZ_NEEDS_MEMMOVABLE_MEMBERS nsStyleTable
 {
   explicit nsStyleTable(StyleStructContext aContext);
   nsStyleTable(const nsStyleTable& aOther);
-  ~nsStyleTable(void);
+  ~nsStyleTable();
 
   void* operator new(size_t sz, nsStyleTable* aSelf) CPP_THROW_NEW { return aSelf; }
   void* operator new(size_t sz, nsPresContext* aContext) CPP_THROW_NEW {
@@ -2600,7 +2602,7 @@ struct MOZ_NEEDS_MEMMOVABLE_MEMBERS nsStylePosition
 {
   explicit nsStylePosition(StyleStructContext aContext);
   nsStylePosition(const nsStylePosition& aOther);
-  ~nsStylePosition(void);
+  ~nsStylePosition();
 
   void* operator new(size_t sz, nsStylePosition* aSelf) CPP_THROW_NEW { return aSelf; }
   void* operator new(size_t sz, nsPresContext* aContext) CPP_THROW_NEW {
@@ -2794,7 +2796,7 @@ struct MOZ_NEEDS_MEMMOVABLE_MEMBERS nsStyleTableBorder
 {
   explicit nsStyleTableBorder(StyleStructContext aContext);
   nsStyleTableBorder(const nsStyleTableBorder& aOther);
-  ~nsStyleTableBorder(void);
+  ~nsStyleTableBorder();
 
   void* operator new(size_t sz, nsStyleTableBorder* aSelf) CPP_THROW_NEW { return aSelf; }
   void* operator new(size_t sz, nsPresContext* aContext) CPP_THROW_NEW {
@@ -2894,7 +2896,7 @@ struct MOZ_NEEDS_MEMMOVABLE_MEMBERS nsStyleContent
 {
   explicit nsStyleContent(StyleStructContext aContext);
   nsStyleContent(const nsStyleContent& aContent);
-  ~nsStyleContent(void);
+  ~nsStyleContent();
 
   void* operator new(size_t sz, nsStyleContent* aSelf) CPP_THROW_NEW { return aSelf; }
   void* operator new(size_t sz, nsPresContext* aContext) CPP_THROW_NEW {
@@ -2915,7 +2917,7 @@ struct MOZ_NEEDS_MEMMOVABLE_MEMBERS nsStyleContent
            nsChangeHint_ClearAncestorIntrinsics;
   }
 
-  uint32_t  ContentCount(void) const  { return mContentCount; } // [reset]
+  uint32_t  ContentCount() const  { return mContentCount; } // [reset]
 
   const nsStyleContentData& ContentAt(uint32_t aIndex) const {
     NS_ASSERTION(aIndex < mContentCount, "out of range");
@@ -2929,7 +2931,7 @@ struct MOZ_NEEDS_MEMMOVABLE_MEMBERS nsStyleContent
 
   nsresult AllocateContents(uint32_t aCount);
 
-  uint32_t  CounterIncrementCount(void) const { return mIncrementCount; }  // [reset]
+  uint32_t  CounterIncrementCount() const { return mIncrementCount; }  // [reset]
   const nsStyleCounterData* GetCounterIncrementAt(uint32_t aIndex) const {
     NS_ASSERTION(aIndex < mIncrementCount, "out of range");
     return &mIncrements[aIndex];
@@ -2959,7 +2961,7 @@ struct MOZ_NEEDS_MEMMOVABLE_MEMBERS nsStyleContent
     return NS_ERROR_ILLEGAL_VALUE;
   }
 
-  uint32_t  CounterResetCount(void) const { return mResetCount; }  // [reset]
+  uint32_t  CounterResetCount() const { return mResetCount; }  // [reset]
   const nsStyleCounterData* GetCounterResetAt(uint32_t aIndex) const {
     NS_ASSERTION(aIndex < mResetCount, "out of range");
     return &mResets[aIndex];
@@ -3005,7 +3007,7 @@ struct MOZ_NEEDS_MEMMOVABLE_MEMBERS nsStyleUIReset
 {
   explicit nsStyleUIReset(StyleStructContext aContext);
   nsStyleUIReset(const nsStyleUIReset& aOther);
-  ~nsStyleUIReset(void);
+  ~nsStyleUIReset();
 
   void* operator new(size_t sz, nsStyleUIReset* aSelf) CPP_THROW_NEW { return aSelf; }
   void* operator new(size_t sz, nsPresContext* aContext) CPP_THROW_NEW {
@@ -3071,7 +3073,7 @@ struct MOZ_NEEDS_MEMMOVABLE_MEMBERS nsStyleUserInterface
 {
   explicit nsStyleUserInterface(StyleStructContext aContext);
   nsStyleUserInterface(const nsStyleUserInterface& aOther);
-  ~nsStyleUserInterface(void);
+  ~nsStyleUserInterface();
 
   void* operator new(size_t sz, nsStyleUserInterface* aSelf) CPP_THROW_NEW { return aSelf; }
   void* operator new(size_t sz, nsPresContext* aContext) CPP_THROW_NEW {
@@ -3240,8 +3242,10 @@ struct nsStyleSVGPaint
   nsStyleSVGPaintType mType;
   nscolor mFallbackColor;
 
-  nsStyleSVGPaint() : mType(nsStyleSVGPaintType(0)) { mPaint.mPaintServer = nullptr; }
+  explicit nsStyleSVGPaint(nsStyleSVGPaintType aType = nsStyleSVGPaintType(0));
+  nsStyleSVGPaint(const nsStyleSVGPaint& aSource);
   ~nsStyleSVGPaint();
+  void Reset();
   void SetType(nsStyleSVGPaintType aType);
   nsStyleSVGPaint& operator=(const nsStyleSVGPaint& aOther);
   bool operator==(const nsStyleSVGPaint& aOther) const;

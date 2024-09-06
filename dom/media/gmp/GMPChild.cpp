@@ -26,6 +26,9 @@
 #include <fstream>
 #include "GMPUtils.h"
 #include "prio.h"
+#ifdef MOZ_WIDEVINE_EME
+#include "widevine-adapter/WidevineAdapter.h"
+#endif
 
 using namespace mozilla::ipc;
 using mozilla::dom::CrashReporterChild;
@@ -216,7 +219,7 @@ GetAppPaths(nsCString &aAppPath, nsCString &aAppBinaryPath)
 }
 
 bool
-GMPChild::SetMacSandboxInfo()
+GMPChild::SetMacSandboxInfo(MacSandboxPluginType aPluginType)
 {
   if (!mGMPLoader) {
     return false;
@@ -232,7 +235,7 @@ GMPChild::SetMacSandboxInfo()
 
   MacSandboxInfo info;
   info.type = MacSandboxType_Plugin;
-  info.pluginInfo.type = MacSandboxPluginType_GMPlugin_Default;
+  info.pluginInfo.type = aPluginType;
   info.pluginInfo.pluginPath.assign(pluginDirectoryPath.get());
   info.pluginInfo.pluginBinaryPath.assign(pluginFilePath.get());
   info.appPath.assign(appPath.get());
@@ -376,8 +379,18 @@ GMPChild::AnswerStartPlugin(const nsString& aAdapter)
     return false;
   }
 
+#ifdef MOZ_WIDEVINE_EME
+  bool isWidevine = aAdapter.EqualsLiteral("widevine");
+#endif
+
 #if defined(MOZ_GMP_SANDBOX) && defined(XP_MACOSX)
-  if (!SetMacSandboxInfo()) {
+  MacSandboxPluginType pluginType = MacSandboxPluginType_GMPlugin_Default;
+#ifdef MOZ_WIDEVINE_EME
+  if (isWidevine) {
+      pluginType = MacSandboxPluginType_GMPlugin_EME_Widevine;
+  }
+#endif
+  if (!SetMacSandboxInfo(pluginType)) {
     NS_WARNING("Failed to set Mac GMP sandbox info");
     delete platformAPI;
     return false;
@@ -385,6 +398,11 @@ GMPChild::AnswerStartPlugin(const nsString& aAdapter)
 #endif
 
   GMPAdapter* adapter = nullptr;
+#ifdef MOZ_WIDEVINE_EME
+  if (isWidevine) {
+    adapter = new WidevineAdapter();
+  }
+#endif
   if (!mGMPLoader->Load(libPath.get(),
                         libPath.Length(),
                         mNodeId.BeginWriting(),

@@ -137,6 +137,8 @@
 #include "mozilla/widget/WinNativeEventData.h"
 #include "nsThemeConstants.h"
 #include "nsBidiKeyboard.h"
+#include "nsThemeConstants.h"
+#include "gfxConfig.h"
 
 #include "nsIGfxInfo.h"
 #include "nsUXThemeConstants.h"
@@ -3206,6 +3208,27 @@ nsWindow::MakeFullScreen(bool aFullScreen, nsIScreen* aTargetScreen)
   return rv;
 }
 
+HDC nsWindow::GetWindowSurface()
+{
+#ifdef MOZ_XUL
+  return eTransparencyTransparent == mTransparencyMode
+         ? mMemoryDC
+         : ::GetDC(mWnd);
+#else
+  return ::GetDC(mWnd);
+#endif
+}
+
+void nsWindow::FreeWindowSurface(HDC dc)
+{
+#ifdef MOZ_XUL
+  if (eTransparencyTransparent != mTransparencyMode)
+    ::ReleaseDC(mWnd, dc);
+#else
+  ::ReleaseDC(mWnd, dc);
+#endif
+}
+
 /**************************************************************
  *
  * SECTION: Native data storage
@@ -3242,14 +3265,8 @@ void* nsWindow::GetNativeData(uint32_t aDataType)
     case NS_NATIVE_SHAREABLE_WINDOW:
       return (void*) WinUtils::GetTopLevelHWND(mWnd);
     case NS_NATIVE_GRAPHIC:
-      // XXX:  This is sleezy!!  Remember to Release the DC after using it!
-#ifdef MOZ_XUL
-      return (void*)(eTransparencyTransparent == mTransparencyMode) ?
-        mMemoryDC : ::GetDC(mWnd);
-#else
-      return (void*)::GetDC(mWnd);
-#endif
-
+      MOZ_ASSERT_UNREACHABLE("Not supported on Windows:");
+      return nullptr;
     case NS_RAW_NATIVE_IME_CONTEXT: {
       void* pseudoIMEContext = GetPseudoIMEContext();
       if (pseudoIMEContext) {
@@ -3305,13 +3322,6 @@ void nsWindow::FreeNativeData(void * data, uint32_t aDataType)
   switch (aDataType)
   {
     case NS_NATIVE_GRAPHIC:
-#ifdef MOZ_XUL
-      if (eTransparencyTransparent != mTransparencyMode)
-        ::ReleaseDC(mWnd, (HDC)data);
-#else
-      ::ReleaseDC(mWnd, (HDC)data);
-#endif
-      break;
     case NS_NATIVE_WIDGET:
     case NS_NATIVE_WINDOW:
     case NS_NATIVE_PLUGIN_PORT:
@@ -3704,11 +3714,7 @@ already_AddRefed<mozilla::gfx::DrawTarget>
 nsWindow::StartRemoteDrawing()
 {
   MOZ_ASSERT(!mCompositeDC);
-  NS_ASSERTION(IsRenderMode(gfxWindowsPlatform::RENDER_DIRECT2D) ||
-               IsRenderMode(gfxWindowsPlatform::RENDER_GDI),
-               "Unexpected render mode for remote drawing");
-
-  HDC dc = (HDC)GetNativeData(NS_NATIVE_GRAPHIC);
+  HDC dc = GetWindowSurface();
   RefPtr<gfxASurface> surf;
 
   if (mTransparencyMode == eTransparencyTransparent) {
@@ -3732,7 +3738,7 @@ nsWindow::StartRemoteDrawing()
   mozilla::gfx::IntSize size(surf->GetSize().width, surf->GetSize().height);
   if (size.width <= 0 || size.height <= 0) {
     if (dc) {
-      FreeNativeData(dc, NS_NATIVE_GRAPHIC);
+      FreeWindowSurface(dc);
     }
     return nullptr;
   }
@@ -3747,12 +3753,12 @@ void
 nsWindow::EndRemoteDrawing()
 {
   if (mTransparencyMode == eTransparencyTransparent) {
-    MOZ_ASSERT(IsRenderMode(gfxWindowsPlatform::RENDER_DIRECT2D)
+    MOZ_ASSERT(gfxWindowsPlatform::GetPlatform()->IsDirect2DBackend()
                || mTransparentSurface);
     UpdateTranslucentWindow();
   }
   if (mCompositeDC) {
-    FreeNativeData(mCompositeDC, NS_NATIVE_GRAPHIC);
+    FreeWindowSurface(mCompositeDC);
   }
   mCompositeDC = nullptr;
 }
@@ -6631,8 +6637,7 @@ nsWindow::ConfigureChildren(const nsTArray<Configuration>& aConfigurations)
       w->Move(configuration.mBounds.x, configuration.mBounds.y);
 
 
-      if (gfxWindowsPlatform::GetPlatform()->GetRenderMode() ==
-          gfxWindowsPlatform::RENDER_DIRECT2D ||
+      if (gfxWindowsPlatform::GetPlatform()->IsDirect2DBackend() ||
           GetLayerManager()->GetBackendType() != LayersBackend::LAYERS_BASIC) {
         // XXX - Workaround for Bug 587508. This will invalidate the part of the
         // plugin window that might be touched by moving content somehow. The
@@ -6862,11 +6867,10 @@ nsWindow::HasBogusPopupsDropShadowOnMultiMonitor() {
     // done just once.
     // Check for Direct2D first.
     sHasBogusPopupsDropShadowOnMultiMonitor =
-      gfxWindowsPlatform::GetPlatform()->GetRenderMode() ==
-        gfxWindowsPlatform::RENDER_DIRECT2D ? TRI_TRUE : TRI_FALSE;
+      gfxWindowsPlatform::GetPlatform()->IsDirect2DBackend() ? TRI_TRUE : TRI_FALSE;
     if (!sHasBogusPopupsDropShadowOnMultiMonitor) {
       // Otherwise check if Direct3D 9 may be used.
-      if (gfxPlatform::GetPlatform()->ShouldUseLayersAcceleration() &&
+      if (gfxConfig::IsEnabled(Feature::HW_COMPOSITING) &&
           !gfxPrefs::LayersPreferOpenGL())
       {
         nsCOMPtr<nsIGfxInfo> gfxInfo = services::GetGfxInfo();
@@ -6876,7 +6880,7 @@ nsWindow::HasBogusPopupsDropShadowOnMultiMonitor() {
           if (NS_SUCCEEDED(gfxInfo->GetFeatureStatus(nsIGfxInfo::FEATURE_DIRECT3D_9_LAYERS,
                                                      discardFailureId, &status))) {
             if (status == nsIGfxInfo::FEATURE_STATUS_OK ||
-                gfxPrefs::LayersAccelerationForceEnabled())
+                gfxConfig::IsForcedOnByUser(Feature::HW_COMPOSITING))
             {
               sHasBogusPopupsDropShadowOnMultiMonitor = TRI_TRUE;
             }

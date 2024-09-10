@@ -658,6 +658,7 @@ BrotliDecoderIsFinished
 #ifdef MOZ_WEBRTC
 downmix_int
 run_analysis
+tonality_analysis_init
 #endif
 
 

@@ -494,7 +494,7 @@ PeerConnectionImpl::MakeMediaStream()
                                   AudioChannel::Normal);
 
   RefPtr<DOMMediaStream> stream =
-    DOMMediaStream::CreateSourceStream(GetWindow(), graph);
+    DOMMediaStream::CreateSourceStreamAsInput(GetWindow(), graph);
 
   CSFLogDebug(logTag, "Created media stream %p, inner: %p", stream.get(), stream->GetInputStream());
 

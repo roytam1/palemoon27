@@ -670,6 +670,7 @@ BrotliDecoderDecompressStream
 BrotliDecoderIsFinished
 #ifdef MOZ_WEBRTC
 downmix_int
+tonality_analysis_init
 #ifdef MOZ_SAMPLE_TYPE_FLOAT32
 run_analysis
 #endif

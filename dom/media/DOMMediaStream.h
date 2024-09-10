@@ -10,7 +10,7 @@
 
 #include "nsCycleCollectionParticipant.h"
 #include "nsWrapperCache.h"
-#include "StreamBuffer.h"
+#include "StreamTracks.h"
 #include "nsIDOMWindow.h"
 #include "nsIPrincipal.h"
 #include "mozilla/DOMEventTargetHelper.h"
@@ -484,25 +484,25 @@ public:
   /**
    * Create a DOMMediaStream whose underlying input stream is a SourceMediaStream.
    */
-  static already_AddRefed<DOMMediaStream> CreateSourceStream(nsPIDOMWindow* aWindow,
-                                                             MediaStreamGraph* aGraph,
-                                                             MediaStreamTrackSourceGetter* aTrackSourceGetter = nullptr);
+  static already_AddRefed<DOMMediaStream> CreateSourceStreamAsInput(nsPIDOMWindow* aWindow,
+                                                                    MediaStreamGraph* aGraph,
+                                                                    MediaStreamTrackSourceGetter* aTrackSourceGetter = nullptr);
 
   /**
    * Create a DOMMediaStream whose underlying input stream is a TrackUnionStream.
    */
-  static already_AddRefed<DOMMediaStream> CreateTrackUnionStream(nsPIDOMWindow* aWindow,
-                                                                 MediaStreamGraph* aGraph,
-                                                                 MediaStreamTrackSourceGetter* aTrackSourceGetter = nullptr);
+  static already_AddRefed<DOMMediaStream> CreateTrackUnionStreamAsInput(nsPIDOMWindow* aWindow,
+                                                                        MediaStreamGraph* aGraph,
+                                                                        MediaStreamTrackSourceGetter* aTrackSourceGetter = nullptr);
 
   /**
    * Create an DOMMediaStream whose underlying input stream is an
    * AudioCaptureStream.
    */
   static already_AddRefed<DOMMediaStream>
-  CreateAudioCaptureStream(nsPIDOMWindow* aWindow,
-                           nsIPrincipal* aPrincipal,
-                           MediaStreamGraph* aGraph);
+  CreateAudioCaptureStreamAsInput(nsPIDOMWindow* aWindow,
+                                  nsIPrincipal* aPrincipal,
+                                  MediaStreamGraph* aGraph);
 
   void SetLogicalStreamStartTime(StreamTime aTime)
   {
@@ -719,17 +719,17 @@ public:
    * Create an nsDOMLocalMediaStream whose underlying stream is a SourceMediaStream.
    */
   static already_AddRefed<DOMLocalMediaStream>
-  CreateSourceStream(nsPIDOMWindow* aWindow,
-                     MediaStreamGraph* aGraph,
-                     MediaStreamTrackSourceGetter* aTrackSourceGetter = nullptr);
+  CreateSourceStreamAsInput(nsPIDOMWindow* aWindow,
+                            MediaStreamGraph* aGraph,
+                            MediaStreamTrackSourceGetter* aTrackSourceGetter = nullptr);
 
   /**
    * Create an nsDOMLocalMediaStream whose underlying stream is a TrackUnionStream.
    */
   static already_AddRefed<DOMLocalMediaStream>
-  CreateTrackUnionStream(nsPIDOMWindow* aWindow,
-                         MediaStreamGraph* aGraph,
-                         MediaStreamTrackSourceGetter* aTrackSourceGetter = nullptr);
+  CreateTrackUnionStreamAsInput(nsPIDOMWindow* aWindow,
+                                MediaStreamGraph* aGraph,
+                                MediaStreamTrackSourceGetter* aTrackSourceGetter = nullptr);
 
 protected:
   virtual ~DOMLocalMediaStream();
@@ -753,9 +753,9 @@ public:
    * Create a DOMAudioNodeMediaStream whose underlying stream is a TrackUnionStream.
    */
   static already_AddRefed<DOMAudioNodeMediaStream>
-  CreateTrackUnionStream(nsPIDOMWindow* aWindow,
-                         AudioNode* aNode,
-                         MediaStreamGraph* aGraph);
+  CreateTrackUnionStreamAsInput(nsPIDOMWindow* aWindow,
+                                AudioNode* aNode,
+                                MediaStreamGraph* aGraph);
 
 protected:
   ~DOMAudioNodeMediaStream();

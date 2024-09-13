@@ -400,8 +400,8 @@ AudioChannelService::GetState(nsPIDOMWindow* aWindow, uint32_t aAudioChannel,
     // TODO : distiguish between suspend and mute, it would be done in bug1242874.
     *aMuted = *aMuted || window->GetMediaSuspended() || window->GetAudioMuted();
 
-    nsCOMPtr<nsPIDOMWindow> win = window->GetScriptableParent();
-    if (window == win) {
+    nsCOMPtr<nsPIDOMWindow> win = window->GetScriptableParentOrNull();
+    if (!win) {
       break;
     }
 

@@ -1041,8 +1041,6 @@ GLContext::InitWithPrefixImpl(const char* prefix, bool trygl)
         mCaps.alpha = false;
     }
 
-    UpdateGLFormats(mCaps);
-
     mTexGarbageBin = new TextureGarbageBin(this);
 
     MOZ_ASSERT(IsCurrent());
@@ -2863,8 +2861,6 @@ GLContext::InitOffscreen(const gfx::IntSize& size, const SurfaceCaps& caps)
 
     mCaps = mScreen->mCaps;
     MOZ_ASSERT(!mCaps.any);
-
-    UpdateGLFormats(mCaps);
 
     return true;
 }

@@ -494,7 +494,6 @@ public:
                                 const bool& aCalledFromJS,
                                 const bool& aPositionSpecified,
                                 const bool& aSizeSpecified,
-                                const nsCString& aURI,
                                 const nsString& aName,
                                 const nsCString& aFeatures,
                                 const nsCString& aBaseURI,

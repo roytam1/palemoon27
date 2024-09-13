@@ -152,6 +152,25 @@ TabContext::SetTabContext(const TabContext& aContext)
   return true;
 }
 
+bool
+TabContext::UpdateTabContextAfterSwap(const TabContext& aContext)
+{
+  // This is only used after already initialized.
+  MOZ_ASSERT(mInitialized);
+
+  // The only permissable change is to `mOriginAttributes.mInBrowser`.  All other fields
+  // must match for the change to be accepted.
+  if (aContext.OwnAppId() != OwnAppId() ||
+      aContext.mContainingAppId != mContainingAppId ||
+      aContext.mOriginAttributes != mOriginAttributes ||
+      aContext.mSignedPkgOriginNoSuffix != mSignedPkgOriginNoSuffix) {
+    return false;
+  }
+
+  mOriginAttributes.mInBrowser = aContext.mOriginAttributes.mInBrowser;
+  return true;
+}
+
 const OriginAttributes&
 TabContext::OriginAttributesRef() const
 {

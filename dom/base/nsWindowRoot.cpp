@@ -117,7 +117,7 @@ nsWindowRoot::AddEventListener(const nsAString& aType,
 void
 nsWindowRoot::AddEventListener(const nsAString& aType,
                                 EventListener* aListener,
-                                bool aUseCapture,
+                                const AddEventListenerOptionsOrBoolean& aOptions,
                                 const Nullable<bool>& aWantsUntrusted,
                                 ErrorResult& aRv)
 {
@@ -127,7 +127,7 @@ nsWindowRoot::AddEventListener(const nsAString& aType,
     aRv.Throw(NS_ERROR_UNEXPECTED);
     return;
   }
-  elm->AddEventListener(aType, aListener, aUseCapture, wantsUntrusted);
+  elm->AddEventListener(aType, aListener, aOptions, wantsUntrusted);
 }
 
 
@@ -289,7 +289,7 @@ nsWindowRoot::GetControllerForCommand(const char * aCommand,
     nsGlobalWindow *win = static_cast<nsGlobalWindow*>(focusedWindow.get());
     focusedWindow = win->GetPrivateParent();
   }
-  
+
   return NS_OK;
 }
 

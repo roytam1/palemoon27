@@ -493,8 +493,15 @@ nsGeolocationRequest::Allow(JS::HandleValue aChoices)
   MOZ_ASSERT(aChoices.isUndefined());
 
   if (mRequester) {
-    // Record the number of granted requests for regular web content.
-    Telemetry::Accumulate(Telemetry::GEOLOCATION_REQUEST_GRANTED, mProtocolType + 10);
+    // Record whether a location callback is fulfilled while the owner window
+    // is not visible.
+    bool isVisible = false;
+    nsCOMPtr<nsPIDOMWindow> window = do_QueryInterface(mLocator->GetParentObject());
+
+    if (window) {
+      nsCOMPtr<nsIDocument> doc = window->GetDoc();
+      isVisible = doc && !doc->Hidden();
+    }
   }
 
   if (mLocator->ClearPendingRequest(this)) {
@@ -778,8 +785,9 @@ NS_IMPL_ISUPPORTS(nsGeolocationRequest::TimerCallbackHolder, nsISupports, nsITim
 NS_IMETHODIMP
 nsGeolocationRequest::TimerCallbackHolder::Notify(nsITimer*)
 {
-  if (mRequest) {
-    mRequest->Notify();
+  if (mRequest && mRequest->mLocator) {
+    RefPtr<nsGeolocationRequest> request(mRequest);
+    request->Notify();
   }
   return NS_OK;
 }

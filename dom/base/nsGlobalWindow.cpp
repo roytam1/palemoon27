@@ -3539,6 +3539,7 @@ nsGlobalWindow::PostHandleEvent(EventChainPostVisitor& aVisitor)
       nsEventStatus status = nsEventStatus_eIgnore;
       WidgetEvent event(aVisitor.mEvent->IsTrusted(), eLoad);
       event.mFlags.mBubbles = false;
+      event.mFlags.mCancelable = false;
 
       // Most of the time we could get a pres context to pass in here,
       // but not always (i.e. if this window is not shown there won't
@@ -3902,8 +3903,8 @@ nsPIDOMWindow::CreatePerformanceObjectIfNeeded()
     // If we are dealing with an iframe, we will need the parent's performance
     // object (so we can add the iframe as a resource of that page).
     nsPerformance* parentPerformance = nullptr;
-    nsCOMPtr<nsPIDOMWindow> parentWindow = GetScriptableParent();
-    if (GetOuterWindow() != parentWindow) {
+    nsCOMPtr<nsPIDOMWindow> parentWindow = GetScriptableParentOrNull();
+    if (parentWindow) {
       if (parentWindow && !parentWindow->IsInnerWindow()) {
         parentWindow = parentWindow->GetCurrentInnerWindow();
       }
@@ -4120,6 +4121,19 @@ nsGlobalWindow::GetScriptableParent()
   nsCOMPtr<nsIDOMWindow> parent = GetParentOuter();
   nsCOMPtr<nsPIDOMWindow> piParent = do_QueryInterface(parent);
   return piParent.get();
+}
+
+/**
+ * Behavies identically to GetScriptableParent extept that it returns null
+ * if GetScriptableParent would return this window.
+ */
+nsPIDOMWindow*
+nsGlobalWindow::GetScriptableParentOrNull()
+{
+  FORWARD_TO_OUTER(GetScriptableParentOrNull, (), nullptr);
+
+  nsPIDOMWindow* parent = GetScriptableParent();
+  return (Cast(parent) == this) ? nullptr : parent;
 }
 
 /**
@@ -10071,7 +10085,7 @@ nsGlobalWindow::AddEventListener(const nsAString& aType,
 void
 nsGlobalWindow::AddEventListener(const nsAString& aType,
                                  EventListener* aListener,
-                                 bool aUseCapture,
+                                 const AddEventListenerOptionsOrBoolean& aOptions,
                                  const Nullable<bool>& aWantsUntrusted,
                                  ErrorResult& aRv)
 {
@@ -10093,7 +10107,8 @@ nsGlobalWindow::AddEventListener(const nsAString& aType,
     aRv.Throw(NS_ERROR_UNEXPECTED);
     return;
   }
-  manager->AddEventListener(aType, aListener, aUseCapture, wantsUntrusted);
+
+  manager->AddEventListener(aType, aListener, aOptions, wantsUntrusted);
 }
 
 NS_IMETHODIMP

@@ -1141,7 +1141,6 @@ parent:
                       bool aCalledFromJS,
                       bool aPositionSpecified,
                       bool aSizeSpecified,
-                      nsCString aURI,
                       nsString aName,
                       nsCString aFeatures,
                       nsCString aBaseURI,

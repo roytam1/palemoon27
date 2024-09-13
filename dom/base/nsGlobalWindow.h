@@ -378,7 +378,7 @@ public:
   using mozilla::dom::EventTarget::RemoveEventListener;
   virtual void AddEventListener(const nsAString& aType,
                                 mozilla::dom::EventListener* aListener,
-                                bool aUseCapture,
+                                const mozilla::dom::AddEventListenerOptionsOrBoolean& aOptions,
                                 const mozilla::dom::Nullable<bool>& aWantsUntrusted,
                                 mozilla::ErrorResult& aRv) override;
   virtual nsIDOMWindow* GetOwnerGlobalForBindings() override
@@ -865,6 +865,7 @@ public:
   already_AddRefed<nsIDOMWindow> GetParent(mozilla::ErrorResult& aError);
   already_AddRefed<nsPIDOMWindow> GetParent() override;
   nsPIDOMWindow* GetScriptableParent() override;
+  nsPIDOMWindow* GetScriptableParentOrNull() override;
   mozilla::dom::Element* GetFrameElementOuter();
   mozilla::dom::Element* GetFrameElement(mozilla::ErrorResult& aError);
   already_AddRefed<nsIDOMWindow> OpenOuter(const nsAString& aUrl,

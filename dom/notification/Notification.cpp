@@ -544,7 +544,8 @@ protected:
 
 uint32_t Notification::sCount = 0;
 
-NS_IMPL_CYCLE_COLLECTION(NotificationPermissionRequest, mWindow, mPromise)
+NS_IMPL_CYCLE_COLLECTION(NotificationPermissionRequest, mWindow, mPromise,
+                                                        mCallback)
 
 NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(NotificationPermissionRequest)
   NS_INTERFACE_MAP_ENTRY(nsIContentPermissionRequest)
@@ -615,7 +616,11 @@ NotificationPermissionRequest::GetElement(nsIDOMElement** aElement)
 NS_IMETHODIMP
 NotificationPermissionRequest::Cancel()
 {
-  mPermission = NotificationPermission::Denied;
+  // `Cancel` is called if the user denied permission or dismissed the
+  // permission request. To distinguish between the two, we set the
+  // permission to "default" and query the permission manager in
+  // `ResolvePromise`.
+  mPermission = NotificationPermission::Default;
   return DispatchResolvePromise();
 }
 
@@ -650,6 +655,11 @@ nsresult
 NotificationPermissionRequest::ResolvePromise()
 {
   nsresult rv = NS_OK;
+  if (mPermission == NotificationPermission::Default) {
+    // This will still be "default" if the user dismissed the doorhanger,
+    // or "denied" otherwise.
+    mPermission = Notification::TestPermission(mPrincipal);
+  }
   if (mCallback) {
     ErrorResult error;
     mCallback->Call(mPermission, error);
@@ -1285,8 +1295,18 @@ public:
 
   ServiceWorkerNotificationObserver(const nsAString& aScope,
                                     nsIPrincipal* aPrincipal,
-                                    const nsAString& aID)
-    : mScope(aScope), mID(aID), mPrincipal(aPrincipal)
+                                    const nsAString& aID,
+                                    const nsAString& aTitle,
+                                    const nsAString& aDir,
+                                    const nsAString& aLang,
+                                    const nsAString& aBody,
+                                    const nsAString& aTag,
+                                    const nsAString& aIcon,
+                                    const nsAString& aData,
+                                    const nsAString& aBehavior)
+    : mScope(aScope), mID(aID), mPrincipal(aPrincipal), mTitle(aTitle)
+    , mDir(aDir), mLang(aLang), mBody(aBody), mTag(aTag), mIcon(aIcon)
+    , mData(aData), mBehavior(aBehavior)
   {
     AssertIsOnMainThread();
     MOZ_ASSERT(aPrincipal);
@@ -1299,6 +1319,14 @@ private:
   const nsString mScope;
   const nsString mID;
   nsCOMPtr<nsIPrincipal> mPrincipal;
+  const nsString mTitle;
+  const nsString mDir;
+  const nsString mLang;
+  const nsString mBody;
+  const nsString mTag;
+  const nsString mIcon;
+  const nsString mData;
+  const nsString mBehavior;
 };
 
 NS_IMPL_ISUPPORTS(ServiceWorkerNotificationObserver, nsIObserver)
@@ -1555,34 +1583,14 @@ WorkerNotificationObserver::Observe(nsISupports* aSubject, const char* aTopic,
   return NS_OK;
 }
 
-class NotificationClickEventCallback final : public nsINotificationStorageCallback
+NS_IMETHODIMP
+ServiceWorkerNotificationObserver::Observe(nsISupports* aSubject,
+                                           const char* aTopic,
+                                           const char16_t* aData)
 {
-public:
-  NS_DECL_ISUPPORTS
+  AssertIsOnMainThread();
 
-  NotificationClickEventCallback(nsIPrincipal* aPrincipal,
-                                 const nsAString& aScope)
-  : mPrincipal(aPrincipal), mScope(aScope)
-  {
-    MOZ_ASSERT(aPrincipal);
-  }
-
-  NS_IMETHOD Handle(const nsAString& aID,
-                    const nsAString& aTitle,
-                    const nsAString& aDir,
-                    const nsAString& aLang,
-                    const nsAString& aBody,
-                    const nsAString& aTag,
-                    const nsAString& aIcon,
-                    const nsAString& aData,
-                    const nsAString& aBehavior,
-                    const nsAString& aServiceWorkerRegistrationID) override
-  {
-    MOZ_ASSERT(!aID.IsEmpty());
-    MOZ_ASSERT(mScope.Equals(aServiceWorkerRegistrationID));
-
-    AssertIsOnMainThread();
-
+  if (!strcmp("alertclickcallback", aTopic)) {
     nsAutoCString originSuffix;
     nsresult rv = mPrincipal->GetOriginSuffix(originSuffix);
     if (NS_WARN_IF(NS_FAILED(rv))) {
@@ -1595,62 +1603,31 @@ public:
     if (swm) {
       swm->SendNotificationClickEvent(originSuffix,
                                       NS_ConvertUTF16toUTF8(mScope),
-                                      aID,
-                                      aTitle,
-                                      aDir,
-                                      aLang,
-                                      aBody,
-                                      aTag,
-                                      aIcon,
-                                      aData,
-                                      aBehavior);
+                                      mID,
+                                      mTitle,
+                                      mDir,
+                                      mLang,
+                                      mBody,
+                                      mTag,
+                                      mIcon,
+                                      mData,
+                                      mBehavior);
     }
     return NS_OK;
   }
 
-  NS_IMETHOD Done() override
-  {
-    return NS_OK;
-  }
+  if (!strcmp("alertfinished", aTopic)) {
+    nsString origin;
+    nsresult rv = Notification::GetOrigin(mPrincipal, origin);
+    if (NS_WARN_IF(NS_FAILED(rv))) {
+      return rv;
+    }
 
-private:
-  ~NotificationClickEventCallback()
-  {
-  }
-
-  nsCOMPtr<nsIPrincipal> mPrincipal;
-  nsString mScope;
-};
-
-NS_IMPL_ISUPPORTS(NotificationClickEventCallback, nsINotificationStorageCallback)
-
-NS_IMETHODIMP
-ServiceWorkerNotificationObserver::Observe(nsISupports* aSubject,
-                                           const char* aTopic,
-                                           const char16_t* aData)
-{
-  AssertIsOnMainThread();
-  // Persistent notifications only care about the click event.
-  if (!strcmp("alertclickcallback", aTopic)) {
-    nsresult rv;
+    // Remove closed or dismissed persistent notifications.
     nsCOMPtr<nsINotificationStorage> notificationStorage =
-      do_GetService(NS_NOTIFICATION_STORAGE_CONTRACTID, &rv);
-    if (NS_WARN_IF(NS_FAILED(rv))) {
-      return rv;
-    }
-
-    nsCOMPtr<nsINotificationStorageCallback> callback =
-      new NotificationClickEventCallback(mPrincipal, mScope);
-
-    nsAutoString origin;
-    rv = Notification::GetOrigin(mPrincipal, origin);
-    if (NS_WARN_IF(NS_FAILED(rv))) {
-      return rv;
-    }
-
-    rv = notificationStorage->GetByID(origin, mID, callback);
-    if (NS_WARN_IF(NS_FAILED(rv))) {
-      return rv;
+      do_GetService(NS_NOTIFICATION_STORAGE_CONTRACTID);
+    if (notificationStorage) {
+      notificationStorage->Delete(origin, mID);
     }
   }
 
@@ -1758,7 +1735,21 @@ Notification::ShowInternal()
     // at the end of this function.
     //
     // The observer is wholly owned by the NotificationObserver passed to the alert service.
-    observer = new ServiceWorkerNotificationObserver(mScope, GetPrincipal(), mID);
+    nsAutoString behavior;
+    if (NS_WARN_IF(!mBehavior.ToJSON(behavior))) {
+      behavior.Truncate();
+    }
+    observer = new ServiceWorkerNotificationObserver(mScope,
+                                                     GetPrincipal(),
+                                                     mID,
+                                                     mTitle,
+                                                     DirectionToString(mDir),
+                                                     mLang,
+                                                     mBody,
+                                                     mTag,
+                                                     iconUrl,
+                                                     mDataAsBase64,
+                                                     behavior);
   }
   MOZ_ASSERT(observer);
   nsCOMPtr<nsIObserver> alertObserver = new NotificationObserver(observer,
@@ -1948,10 +1939,21 @@ Notification::GetPermissionInternal(nsIPrincipal* aPrincipal,
     }
   }
 
+  return TestPermission(aPrincipal);
+}
+
+/* static */ NotificationPermission
+Notification::TestPermission(nsIPrincipal* aPrincipal)
+{
+  AssertIsOnMainThread();
+
   uint32_t permission = nsIPermissionManager::UNKNOWN_ACTION;
 
   nsCOMPtr<nsIPermissionManager> permissionManager =
     services::GetPermissionManager();
+  if (!permissionManager) {
+    return NotificationPermission::Default;
+  }
 
   permissionManager->TestExactPermissionFromPrincipal(aPrincipal,
                                                       "desktop-notification",

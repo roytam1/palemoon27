@@ -78,7 +78,7 @@ enum class OscillatorType : uint32_t;
 class BasicWaveFormCache
 {
 public:
-  BasicWaveFormCache(uint32_t aSampleRate);
+  explicit BasicWaveFormCache(uint32_t aSampleRate);
   NS_INLINE_DECL_THREADSAFE_REFCOUNTING(BasicWaveFormCache)
   WebCore::PeriodicWave* GetBasicWaveForm(OscillatorType aType);
 private:
@@ -268,6 +268,7 @@ public:
   // OfflineAudioContext methods
   already_AddRefed<Promise> StartRendering(ErrorResult& aRv);
   IMPL_EVENT_HANDLER(complete)
+  unsigned long Length();
 
   bool IsOffline() const { return mIsOffline; }
 
@@ -313,6 +314,7 @@ public:
   IMPL_EVENT_HANDLER(mozinterruptend)
 
 private:
+  void DisconnectFromWindow();
   void RemoveFromDecodeQueue(WebAudioDecodeJob* aDecodeJob);
   void ShutdownDecoder();
 

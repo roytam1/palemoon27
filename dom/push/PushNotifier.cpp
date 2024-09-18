@@ -202,7 +202,7 @@ PushNotifier::NotifyPushWorkers(const nsACString& aScope,
 
   // Otherwise, we're in the parent and e10s is enabled. Broadcast the event
   // to all content processes.
-  bool ok = false;
+  bool ok = true;
   nsTArray<ContentParent*> contentActors;
   ContentParent::GetAll(contentActors);
   for (uint32_t i = 0; i < contentActors.Length(); ++i) {
@@ -244,7 +244,7 @@ PushNotifier::NotifySubscriptionChangeWorkers(const nsACString& aScope,
   }
 
   // Parent process, e10s enabled.
-  bool ok = false;
+  bool ok = true;
   nsTArray<ContentParent*> contentActors;
   ContentParent::GetAll(contentActors);
   for (uint32_t i = 0; i < contentActors.Length(); ++i) {
@@ -365,8 +365,8 @@ PushNotifier::DoNotifyObservers(nsISupports *aSubject, const char *aTopic,
 bool
 PushNotifier::ShouldNotifyWorkers(nsIPrincipal* aPrincipal)
 {
-  // System subscriptions use XPCOM observer notifications instead of service
-  // worker events. The `testing.notifyWorkers` pref disables worker events for
+  // System subscriptions use observer notifications instead of service worker
+  // events. The `testing.notifyWorkers` pref disables worker events for
   // non-system subscriptions.
   return !nsContentUtils::IsSystemPrincipal(aPrincipal) &&
          Preferences::GetBool("dom.push.testing.notifyWorkers", true);
@@ -428,10 +428,7 @@ PushMessage::Json(JSContext* aCx,
   }
   ErrorResult error;
   BodyUtil::ConsumeJson(aCx, aResult, mDecodedText, error);
-  if (error.Failed()) {
-    return error.StealNSResult();
-  }
-  return NS_OK;
+  return error.StealNSResult();
 }
 
 NS_IMETHODIMP

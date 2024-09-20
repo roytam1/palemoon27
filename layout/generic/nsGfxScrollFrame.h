@@ -256,6 +256,9 @@ public:
    * @note This method might destroy the frame, pres shell and other objects.
    */
   void ScrollToRestoredPosition();
+
+  bool PageIsStillLoading();
+
   /**
    * GetSnapPointForDestination determines which point to snap to after
    * scrolling. aStartPos gives the position before scrolling and aDestination

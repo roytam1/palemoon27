@@ -4055,20 +4055,40 @@ ScrollFrameHelper::ScrollToRestoredPosition()
       if (!weakFrame.IsAlive()) {
         return;
       }
-      // Re-get the scroll position, it might not be exactly equal to
-      // mRestorePos due to rounding and clamping.
-      mLastPos = GetLogicalScrollPosition();
-    } else {
-      // if we reached the position then stop
-      mRestorePos.y = -1;
-      mLastPos.x = -1;
-      mLastPos.y = -1;
+      if (PageIsStillLoading()) {
+        // If we're trying to do a history scroll restore, then we want to
+        // keep trying this until we succeed, because the page can be loading
+        // incrementally. So re-get the scroll position for the next iteration,
+        // it might not be exactly equal to mRestorePos due to rounding and
+        // clamping.
+        mLastPos = GetLogicalScrollPosition();
+        return;
+      }
     }
+    // If we get here, either we reached the desired position (mLastPos ==
+    // mRestorePos) or we're not trying to do a history scroll restore, so
+    // we can stop after the scroll attempt above.
+    mRestorePos.y = -1;
+    mLastPos.x = -1;
+    mLastPos.y = -1;
   } else {
     // user moved the position, so we won't need to restore
     mLastPos.x = -1;
     mLastPos.y = -1;
   }
+}
+
+bool
+ScrollFrameHelper::PageIsStillLoading()
+{
+  bool loadCompleted = false;
+  nsCOMPtr<nsIDocShell> ds = mOuter->GetContent()->GetComposedDoc()->GetDocShell();
+  if (ds) {
+    nsCOMPtr<nsIContentViewer> cv;
+    ds->GetContentViewer(getter_AddRefs(cv));
+    cv->GetLoadCompleted(&loadCompleted);
+  }
+  return !loadCompleted;
 }
 
 nsresult
@@ -5665,7 +5685,7 @@ ScrollFrameHelper::SaveState() const
 void
 ScrollFrameHelper::RestoreState(nsPresState* aState)
 {
-  mRestorePos = aState->GetScrollState();
+  mRestorePos = aState->GetScrollPosition();
   mDidHistoryRestore = true;
   mLastPos = mScrolledFrame ? GetLogicalScrollPosition() : nsPoint(0,0);
 

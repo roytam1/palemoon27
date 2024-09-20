@@ -204,7 +204,6 @@ public:
   void RemoveObserver(Observer<InfoType>* aObserver) {
     bool removed = mObservers && mObservers->RemoveObserver(aObserver);
     if (!removed) {
-      NS_WARNING("RemoveObserver() called for unregistered observer");
       return;
     }
 
@@ -334,7 +333,13 @@ protected:
   }
 };
 
-static WakeLockObserversManager sWakeLockObservers;
+static WakeLockObserversManager&
+WakeLockObservers()
+{
+  static WakeLockObserversManager sWakeLockObservers;
+  AssertMainThread();
+  return sWakeLockObservers;
+}
 
 class ScreenConfigurationObserversManager : public CachingObserversManager<ScreenConfiguration>
 {
@@ -453,26 +458,32 @@ protected:
   }
 };
 
-static SystemClockChangeObserversManager sSystemClockChangeObservers;
+static SystemClockChangeObserversManager&
+SystemClockChangeObservers()
+{
+  static SystemClockChangeObserversManager sSystemClockChangeObservers;
+  AssertMainThread();
+  return sSystemClockChangeObservers;
+}
 
 void
 RegisterSystemClockChangeObserver(SystemClockChangeObserver* aObserver)
 {
   AssertMainThread();
-  sSystemClockChangeObservers.AddObserver(aObserver);
+  SystemClockChangeObservers().AddObserver(aObserver);
 }
 
 void
 UnregisterSystemClockChangeObserver(SystemClockChangeObserver* aObserver)
 {
   AssertMainThread();
-  sSystemClockChangeObservers.RemoveObserver(aObserver);
+  SystemClockChangeObservers().RemoveObserver(aObserver);
 }
 
 void
 NotifySystemClockChange(const int64_t& aClockDeltaMS)
 {
-  sSystemClockChangeObservers.BroadcastInformation(aClockDeltaMS);
+  SystemClockChangeObservers().BroadcastInformation(aClockDeltaMS);
 }
 
 class SystemTimezoneChangeObserversManager : public ObserversManager<SystemTimezoneChangeInformation>
@@ -487,27 +498,32 @@ protected:
   }
 };
 
-static SystemTimezoneChangeObserversManager sSystemTimezoneChangeObservers;
+static SystemTimezoneChangeObserversManager&
+SystemTimezoneChangeObservers()
+{
+  static SystemTimezoneChangeObserversManager sSystemTimezoneChangeObservers;
+  return sSystemTimezoneChangeObservers;
+}
 
 void
 RegisterSystemTimezoneChangeObserver(SystemTimezoneChangeObserver* aObserver)
 {
   AssertMainThread();
-  sSystemTimezoneChangeObservers.AddObserver(aObserver);
+  SystemTimezoneChangeObservers().AddObserver(aObserver);
 }
 
 void
 UnregisterSystemTimezoneChangeObserver(SystemTimezoneChangeObserver* aObserver)
 {
   AssertMainThread();
-  sSystemTimezoneChangeObservers.RemoveObserver(aObserver);
+  SystemTimezoneChangeObservers().RemoveObserver(aObserver);
 }
 
 void
 NotifySystemTimezoneChange(const SystemTimezoneChangeInformation& aSystemTimezoneChangeInfo)
 {
   nsJSUtils::ResetTimeZone();
-  sSystemTimezoneChangeObservers.BroadcastInformation(aSystemTimezoneChangeInfo);
+  SystemTimezoneChangeObservers().BroadcastInformation(aSystemTimezoneChangeInfo);
 }
 
 void
@@ -661,14 +677,14 @@ void
 RegisterWakeLockObserver(WakeLockObserver* aObserver)
 {
   AssertMainThread();
-  sWakeLockObservers.AddObserver(aObserver);
+  WakeLockObservers().AddObserver(aObserver);
 }
 
 void
 UnregisterWakeLockObserver(WakeLockObserver* aObserver)
 {
   AssertMainThread();
-  sWakeLockObservers.RemoveObserver(aObserver);
+  WakeLockObservers().RemoveObserver(aObserver);
 }
 
 void
@@ -699,7 +715,7 @@ void
 NotifyWakeLockChange(const WakeLockInformation& aInfo)
 {
   AssertMainThread();
-  sWakeLockObservers.BroadcastInformation(aInfo);
+  WakeLockObservers().BroadcastInformation(aInfo);
 }
 
 void

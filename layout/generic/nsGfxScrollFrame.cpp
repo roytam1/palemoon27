@@ -2174,6 +2174,11 @@ ScrollFrameHelper::ScrollToWithOrigin(nsPoint aScrollPosition,
 
   nsRect scrollRange = GetScrollRangeForClamping();
   mDestination = scrollRange.ClampPoint(aScrollPosition);
+  if (mDestination != aScrollPosition && aOrigin == nsGkAtoms::restore) {
+    // If we're doing a restore but the scroll position is clamped, promote
+    // the origin from one that APZ can clobber to one that it can't clobber.
+    aOrigin = nsGkAtoms::other;
+  }
 
   nsRect range = aRange ? *aRange : nsRect(aScrollPosition, nsSize(0, 0));
 
@@ -2743,25 +2748,29 @@ ScrollFrameHelper::ScrollToImpl(nsPoint aPt, const nsRect& aRange, nsIAtom* aOri
         usingDisplayPort, displayPort.IsEqualEdges(oldDisplayPort),
         mScrollableByAPZ, HasPluginFrames());
     if (usingDisplayPort && displayPort.IsEqualEdges(oldDisplayPort)) {
-      if (LastScrollOrigin() == nsGkAtoms::apz) {
-        schedulePaint = false;
-        PAINT_SKIP_LOG("Skipping due to APZ scroll\n");
-      } else if (mScrollableByAPZ && !HasPluginFrames()) {
-        nsIWidget* widget = presContext->GetNearestWidget();
-        LayerManager* manager = widget ? widget->GetLayerManager() : nullptr;
-        if (manager) {
-          mozilla::layers::FrameMetrics::ViewID id;
-          DebugOnly<bool> success = nsLayoutUtils::FindIDFor(content, &id);
-          MOZ_ASSERT(success); // we have a displayport, we better have an ID
-
-          // Schedule an empty transaction to carry over the scroll offset update,
-          // instead of a full transaction. This empty transaction might still get
-          // squashed into a full transaction if something happens to trigger one.
+      bool haveScrollLinkedEffects = content->GetComposedDoc()->HasScrollLinkedEffect();
+      bool apzDisabled = haveScrollLinkedEffects && gfxPrefs::APZDisableForScrollLinkedEffects();
+      if (!apzDisabled) {
+        if (LastScrollOrigin() == nsGkAtoms::apz) {
           schedulePaint = false;
-          manager->SetPendingScrollUpdateForNextTransaction(id,
-              { mScrollGeneration, CSSPoint::FromAppUnits(GetScrollPosition()) });
-          mOuter->SchedulePaint(nsIFrame::PAINT_COMPOSITE_ONLY);
-          PAINT_SKIP_LOG("Skipping due to APZ-forwarded main-thread scroll\n");
+          PAINT_SKIP_LOG("Skipping due to APZ scroll\n");
+        } else if (mScrollableByAPZ && !HasPluginFrames()) {
+          nsIWidget* widget = presContext->GetNearestWidget();
+          LayerManager* manager = widget ? widget->GetLayerManager() : nullptr;
+          if (manager) {
+            mozilla::layers::FrameMetrics::ViewID id;
+            DebugOnly<bool> success = nsLayoutUtils::FindIDFor(content, &id);
+            MOZ_ASSERT(success); // we have a displayport, we better have an ID
+
+            // Schedule an empty transaction to carry over the scroll offset update,
+            // instead of a full transaction. This empty transaction might still get
+            // squashed into a full transaction if something happens to trigger one.
+            schedulePaint = false;
+            manager->SetPendingScrollUpdateForNextTransaction(id,
+                { mScrollGeneration, CSSPoint::FromAppUnits(GetScrollPosition()) });
+            mOuter->SchedulePaint(nsIFrame::PAINT_COMPOSITE_ONLY);
+            PAINT_SKIP_LOG("Skipping due to APZ-forwarded main-thread scroll\n");
+          }
         }
       }
     }

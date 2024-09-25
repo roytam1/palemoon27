@@ -119,16 +119,18 @@ RemoteFinder.prototype = {
     this._browser.messageManager.sendAsyncMessage("Finder:GetInitialSelection", {});
   },
 
-  fastFind: function (aSearchString, aLinksOnly) {
+  fastFind: function (aSearchString, aLinksOnly, aDrawOutline) {
     this._browser.messageManager.sendAsyncMessage("Finder:FastFind",
                                                   { searchString: aSearchString,
-                                                    linksOnly: aLinksOnly });
+                                                    linksOnly: aLinksOnly,
+                                                    drawOutline: aDrawOutline });
   },
 
-  findAgain: function (aFindBackwards, aLinksOnly) {
+  findAgain: function (aFindBackwards, aLinksOnly, aDrawOutline) {
     this._browser.messageManager.sendAsyncMessage("Finder:FindAgain",
                                                   { findBackwards: aFindBackwards,
-                                                    linksOnly: aLinksOnly });
+                                                    linksOnly: aLinksOnly,
+                                                    drawOutline: aDrawOutline });
   },
 
   highlight: function (aHighlight, aWord) {
@@ -157,12 +159,16 @@ RemoteFinder.prototype = {
       }
     }
 
+    this._browser.focus();
     this._browser.messageManager.sendAsyncMessage("Finder:FocusContent");
   },
 
   keyPress: function (aEvent) {
     this._browser.messageManager.sendAsyncMessage("Finder:KeyPress",
                                                   { keyCode: aEvent.keyCode,
+                                                    ctrlKey: aEvent.ctrlKey,
+                                                    metaKey: aEvent.metaKey,
+                                                    altKey: aEvent.altKey,
                                                     shiftKey: aEvent.shiftKey });
   },
 
@@ -239,15 +245,19 @@ RemoteFinderListener.prototype = {
       }
 
       case "Finder:FastFind":
-        this._finder.fastFind(data.searchString, data.linksOnly);
+        this._finder.fastFind(data.searchString, data.linksOnly, data.drawOutline);
         break;
 
       case "Finder:FindAgain":
-        this._finder.findAgain(data.findBackwards, data.linksOnly);
+        this._finder.findAgain(data.findBackwards, data.linksOnly, data.drawOutline);
         break;
 
       case "Finder:Highlight":
         this._finder.highlight(data.highlight, data.word);
+        break;
+
+      case "Finder:EnableSelection":
+        this._finder.enableSelection();
         break;
 
       case "Finder:RemoveSelection":

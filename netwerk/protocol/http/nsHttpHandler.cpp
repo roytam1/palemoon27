@@ -434,7 +434,7 @@ nsHttpHandler::InitConnectionMgr()
 }
 
 nsresult
-nsHttpHandler::AddStandardRequestHeaders(nsHttpHeaderArray *request, bool isSecure)
+nsHttpHandler::AddStandardRequestHeaders(nsHttpRequestHead *request, bool isSecure)
 {
     nsresult rv;
 
@@ -487,7 +487,7 @@ nsHttpHandler::AddStandardRequestHeaders(nsHttpHeaderArray *request, bool isSecu
 }
 
 nsresult
-nsHttpHandler::AddConnectionHeader(nsHttpHeaderArray *request,
+nsHttpHandler::AddConnectionHeader(nsHttpRequestHead *request,
                                    uint32_t caps)
 {
     // RFC2616 section 19.6.2 states that the "Connection: keep-alive"

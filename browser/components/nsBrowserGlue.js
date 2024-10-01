@@ -12,6 +12,8 @@ const XULNS = "http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul";
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 Cu.import("resource://gre/modules/Services.jsm");
 Cu.import("resource://gre/modules/AppConstants.jsm");
+// Set us up to use async prefs in the parent process.
+Cu.import("resource://gre/modules/AsyncPrefs.jsm");
 
 XPCOMUtils.defineLazyModuleGetter(this, "AboutHome",
                                   "resource:///modules/AboutHome.jsm");
@@ -84,6 +86,9 @@ XPCOMUtils.defineLazyModuleGetter(this, "OS",
 
 XPCOMUtils.defineLazyModuleGetter(this, "RemotePrompt",
                                   "resource:///modules/RemotePrompt.jsm");
+
+XPCOMUtils.defineLazyModuleGetter(this, "ContentPrefServiceParent",
+                                  "resource://gre/modules/ContentPrefServiceParent.jsm");
 
 XPCOMUtils.defineLazyModuleGetter(this, "Feeds",
                                   "resource:///modules/Feeds.jsm");
@@ -726,6 +731,7 @@ BrowserGlue.prototype = {
       RemotePrompt.init();
     }
     Feeds.init();
+    ContentPrefServiceParent.init();
 
     LoginManagerParent.init();
     ReaderParent.init();
@@ -835,7 +841,7 @@ BrowserGlue.prototype = {
         label:     win.gNavigatorBundle.getString("slowStartup.helpButton.label"),
         accessKey: win.gNavigatorBundle.getString("slowStartup.helpButton.accesskey"),
         callback: function () {
-          win.openUILinkIn(Services.prefs.getCharPref("browser.slowstartup.help.url"), "tab");
+          win.openUILinkIn("https://support.mozilla.org/kb/reset-firefox-easily-fix-most-problems", "tab");
         }
       },
       {
@@ -953,13 +959,6 @@ BrowserGlue.prototype = {
     // With older versions of the extension installed, this load will fail
     // passively.
     Services.ppmm.loadProcessScript("resource://pdf.js/pdfjschildbootstrap.js", true);
-
-    if (0 && AppConstants.NIGHTLY_BUILD) {
-      // Registering Shumway bootstrap script the child processes.
-      Services.ppmm.loadProcessScript("chrome://shumway/content/bootstrap-content.js", true);
-      // Initializing Shumway (shall be run after child script registration).
-      ShumwayUtils.init();
-    }
 
     if (AppConstants.platform == "win") {
       // For Windows 7, initialize the jump list module.
@@ -1746,7 +1745,7 @@ BrowserGlue.prototype = {
   },
 
   _migrateUI: function BG__migrateUI() {
-    const UI_VERSION = 35;
+    const UI_VERSION = 36;
     const BROWSER_DOCURL = "chrome://browser/content/browser.xul";
 
     let currentUIVersion;
@@ -2103,6 +2102,12 @@ BrowserGlue.prototype = {
     // Only do this outside of safe mode, because in safe mode we do this earlier.
     if (currentUIVersion < 35 && !Services.appinfo.inSafeMode) {
       this._maybeMigrateTabGroups();
+    }
+
+    if (currentUIVersion < 36) {
+      xulStore.removeValue("chrome://passwordmgr/content/passwordManager.xul",
+                           "passwordCol",
+                           "hidden");
     }
 
     // Update the migration version.

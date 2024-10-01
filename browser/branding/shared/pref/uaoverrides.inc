@@ -32,6 +32,11 @@ pref("@GUAO_PREF@.calendar.yahoo.com","Mozilla/5.0 (@OS_SLICE@ rv:@GK_VERSION@) 
 pref("@GUAO_PREF@.google.com","Mozilla/5.0 (@OS_SLICE@ rv:52.0) Gecko/20010101 @GRE_VERSION_SLICE@ Firefox/52.0 @PM_SLICE@");
 pref("@GUAO_PREF@.googlevideos.com","Mozilla/5.0 (@OS_SLICE@ rv:52.0) Gecko/20010101 @GRE_VERSION_SLICE@ Firefox/52.0 @PM_SLICE@");
 pref("@GUAO_PREF@.gstatic.com","Mozilla/5.0 (@OS_SLICE@ rv:52.0) Gecko/20010101 @GRE_VERSION_SLICE@ Firefox/52.0 @PM_SLICE@");
+
+// Google fonts serves physically different fonts to later Firefox versions that render incorrectly unless on Gecko
+pref("@GUAO_PREF@.fonts.googleapis.com", "Mozilla/5.0 (%OS_SLICE% rv:52.0) Gecko/20100101 Firefox/52.0 @PM_SLICE@"");
+pref("@GUAO_PREF@.fonts-api.wp.com", "Mozilla/5.0 (%OS_SLICE% rv:52.0) Gecko/20100101 Firefox/52.0 @PM_SLICE@"");
+
 // now YouTube needs to be fooled too
 pref("@GUAO_PREF@.youtube.com","Mozilla/5.0 (Linux; U; Android 4.4.2) AppleWebKit/534.30 (KHTML, like Gecko) Version/4.0 Safari/534.30");
 // also GMail

@@ -81,6 +81,7 @@
 #include "mozilla/jsipc/CrossProcessObjectWrappers.h"
 #include "mozilla/layers/PAPZParent.h"
 #include "mozilla/layers/CompositorBridgeParent.h"
+#include "mozilla/layers/CompositorThread.h"
 #include "mozilla/layers/ImageBridgeParent.h"
 #include "mozilla/layers/SharedBufferManagerParent.h"
 #include "mozilla/layout/RenderFrameParent.h"
@@ -2174,9 +2175,10 @@ ContentParent::ActorDestroy(ActorDestroyReason why)
   // Destroy any processes created by this ContentParent
   for(uint32_t i = 0; i < childIDArray.Length(); i++) {
     ContentParent* cp = cpm->GetContentProcessById(childIDArray[i]);
-    MessageLoop::current()->PostTask(
-      NewRunnableMethod(cp, &ContentParent::ShutDownProcess,
-                        SEND_SHUTDOWN_MESSAGE));
+    MessageLoop::current()->PostTask(NewRunnableMethod
+                                     <ShutDownMethod>(cp,
+                                                      &ContentParent::ShutDownProcess,
+                                                      SEND_SHUTDOWN_MESSAGE));
   }
   cpm->RemoveContentProcess(this->ChildID());
 
@@ -2257,9 +2259,10 @@ ContentParent::NotifyTabDestroyed(const TabId& aTabId,
   if (tabIds.Length() == 1) {
     // In the case of normal shutdown, send a shutdown message to child to
     // allow it to perform shutdown tasks.
-    MessageLoop::current()->PostTask(
-      NewRunnableMethod(this, &ContentParent::ShutDownProcess,
-                        SEND_SHUTDOWN_MESSAGE));
+    MessageLoop::current()->PostTask(NewRunnableMethod
+                                     <ShutDownMethod>(this,
+                                                      &ContentParent::ShutDownProcess,
+                                                      SEND_SHUTDOWN_MESSAGE));
   }
 }
 
@@ -2548,7 +2551,7 @@ ContentParent::InitInternal(ProcessPriority aInitialPriority,
     // PBrowsers are created, because they rely on the Compositor
     // already being around.  (Creation is async, so can't happen
     // on demand.)
-    bool useOffMainThreadCompositing = !!CompositorBridgeParent::CompositorLoop();
+    bool useOffMainThreadCompositing = !!CompositorThreadHolder::Loop();
     if (useOffMainThreadCompositing) {
       DebugOnly<bool> opened = PCompositorBridge::Open(this);
       MOZ_ASSERT(opened);

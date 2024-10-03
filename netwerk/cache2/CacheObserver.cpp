@@ -317,7 +317,7 @@ CacheObserver::SetDiskCacheCapacity(uint32_t aCapacity)
     sSelf->StoreDiskCacheCapacity();
   } else {
     nsCOMPtr<nsIRunnable> event =
-      NS_NewRunnableMethod(sSelf, &CacheObserver::StoreDiskCacheCapacity);
+      NewRunnableMethod(sSelf, &CacheObserver::StoreDiskCacheCapacity);
     NS_DispatchToMainThread(event);
   }
 }

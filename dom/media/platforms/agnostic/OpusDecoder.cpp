@@ -10,6 +10,7 @@
 #include "VorbisDecoder.h" // For VorbisLayout
 #include "mozilla/Endian.h"
 #include "mozilla/PodOperations.h"
+#include "mozilla/SyncRunnable.h"
 
 #include <stdint.h>
 #include <inttypes.h>  // For PRId64
@@ -21,7 +22,7 @@ extern mozilla::LogModule* GetPDMLog();
 namespace mozilla {
 
 OpusDataDecoder::OpusDataDecoder(const AudioInfo& aConfig,
-                                 FlushableTaskQueue* aTaskQueue,
+                                 TaskQueue* aTaskQueue,
                                  MediaDataDecoderCallback* aCallback)
   : mInfo(aConfig)
   , mTaskQueue(aTaskQueue)
@@ -31,6 +32,7 @@ OpusDataDecoder::OpusDataDecoder(const AudioInfo& aConfig,
   , mDecodedHeader(false)
   , mPaddingDiscarded(false)
   , mFrames(0)
+  , mIsFlushing(false)
 {
 }
 
@@ -132,18 +134,18 @@ OpusDataDecoder::DecodeHeader(const unsigned char* aData, size_t aLength)
 nsresult
 OpusDataDecoder::Input(MediaRawData* aSample)
 {
-  nsCOMPtr<nsIRunnable> runnable(
-    NS_NewRunnableMethodWithArg<RefPtr<MediaRawData>>(
-      this, &OpusDataDecoder::Decode,
-      RefPtr<MediaRawData>(aSample)));
-  mTaskQueue->Dispatch(runnable.forget());
+  mTaskQueue->Dispatch(NewRunnableMethod<RefPtr<MediaRawData>>(
+                       this, &OpusDataDecoder::ProcessDecode, aSample));
 
   return NS_OK;
 }
 
 void
-OpusDataDecoder::Decode(MediaRawData* aSample)
+OpusDataDecoder::ProcessDecode(MediaRawData* aSample)
 {
+  if (mIsFlushing) {
+    return;
+  }
   if (DoDecode(aSample) == -1) {
     mCallback->Error();
   } else if(mTaskQueue->IsEmpty()) {
@@ -301,7 +303,7 @@ OpusDataDecoder::DoDecode(MediaRawData* aSample)
 }
 
 void
-OpusDataDecoder::DoDrain()
+OpusDataDecoder::ProcessDrain()
 {
   mCallback->DrainComplete();
 }
@@ -309,23 +311,27 @@ OpusDataDecoder::DoDrain()
 nsresult
 OpusDataDecoder::Drain()
 {
-  RefPtr<nsIRunnable> runnable(
-    NS_NewRunnableMethod(this, &OpusDataDecoder::DoDrain));
-  mTaskQueue->Dispatch(runnable.forget());
+  mTaskQueue->Dispatch(NewRunnableMethod(this, &OpusDataDecoder::ProcessDrain));
   return NS_OK;
 }
 
 nsresult
 OpusDataDecoder::Flush()
 {
-  mTaskQueue->Flush();
-  if (mOpusDecoder) {
+  if (!mOpusDecoder) {
+    return NS_OK;
+  }
+  mIsFlushing = true;
+  nsCOMPtr<nsIRunnable> runnable = NS_NewRunnableFunction([this] () {
+    MOZ_ASSERT(mOpusDecoder);
     // Reset the decoder.
     opus_multistream_decoder_ctl(mOpusDecoder, OPUS_RESET_STATE);
     mSkip = mOpusParser->mPreSkip;
     mPaddingDiscarded = false;
     mLastFrameTime.reset();
-  }
+  });
+  SyncRunnable::DispatchToThread(mTaskQueue, runnable);
+  mIsFlushing = false;
   return NS_OK;
 }
 

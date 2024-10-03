@@ -19,7 +19,6 @@
 #include "mozilla/ipc/GeckoChildProcessHost.h"
 #include "mozilla/media/MediaSystemResourceManagerParent.h" // for MediaSystemResourceManagerParent
 #include "mozilla/layers/CompositableTransactionParent.h"
-#include "mozilla/layers/CompositorBridgeParent.h"  // for CompositorBridgeParent
 #include "mozilla/layers/LayerManagerComposite.h"
 #include "mozilla/layers/LayersMessages.h"  // for EditReply
 #include "mozilla/layers/LayersSurfaces.h"  // for PGrallocBufferParent
@@ -106,8 +105,7 @@ ImageBridgeParent::ActorDestroy(ActorDestroyReason aWhy)
     mSubprocess = nullptr;
   }
 
-  MessageLoop::current()->PostTask(
-    NewRunnableMethod(this, &ImageBridgeParent::DeferredDestroy));
+  MessageLoop::current()->PostTask(NewRunnableMethod(this, &ImageBridgeParent::DeferredDestroy));
 
   // It is very important that this method gets called at shutdown (be it a clean
   // or an abnormal shutdown), because DeferredDestroy is what clears mSelfRef.
@@ -201,7 +199,7 @@ ConnectImageBridgeInParentProcess(ImageBridgeParent* aBridge,
 /*static*/ PImageBridgeParent*
 ImageBridgeParent::Create(Transport* aTransport, ProcessId aChildProcessId, GeckoChildProcessHost* aProcessHost)
 {
-  MessageLoop* loop = CompositorBridgeParent::CompositorLoop();
+  MessageLoop* loop = CompositorThreadHolder::Loop();
   RefPtr<ImageBridgeParent> bridge = new ImageBridgeParent(loop, aTransport, aChildProcessId);
 
   if (aProcessHost) {

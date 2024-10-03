@@ -4,11 +4,13 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef mozilla_psm__NSSCertDBTrustDomain_h
-#define mozilla_psm__NSSCertDBTrustDomain_h
+#ifndef NSSCertDBTrustDomain_h
+#define NSSCertDBTrustDomain_h
 
 #include "CertVerifier.h"
+#include "ScopedNSSTypes.h"
 #include "nsICertBlocklist.h"
+#include "nsString.h"
 #include "pkix/pkixtypes.h"
 #include "secmodt.h"
 
@@ -36,10 +38,10 @@ SECStatus LoadLoadableRoots(/*optional*/ const char* dir,
 
 void UnloadLoadableRoots(const char* modNameUTF8);
 
-// Caller must free the result with PR_Free
-char* DefaultServerNicknameForCert(CERTCertificate* cert);
+nsresult DefaultServerNicknameForCert(const CERTCertificate* cert,
+                              /*out*/ nsCString& nickname);
 
-void SaveIntermediateCerts(const ScopedCERTCertList& certList);
+void SaveIntermediateCerts(const UniqueCERTCertList& certList);
 
 class NSSCertDBTrustDomain : public mozilla::pkix::TrustDomain
 {
@@ -63,7 +65,7 @@ public:
                        unsigned int minRSABits,
                        ValidityCheckingMode validityCheckingMode,
                        CertVerifier::SHA1Mode sha1Mode,
-                       ScopedCERTCertList& builtChain,
+                       UniqueCERTCertList& builtChain,
           /*optional*/ PinningTelemetryInfo* pinningTelemetryInfo = nullptr,
           /*optional*/ const char* hostname = nullptr);
 
@@ -149,7 +151,7 @@ private:
   const unsigned int mMinRSABits;
   ValidityCheckingMode mValidityCheckingMode;
   CertVerifier::SHA1Mode mSHA1Mode;
-  ScopedCERTCertList& mBuiltChain; // non-owning
+  UniqueCERTCertList& mBuiltChain; // non-owning
   PinningTelemetryInfo* mPinningTelemetryInfo;
   const char* mHostname; // non-owning - only used for pinning checks
   nsCOMPtr<nsICertBlocklist> mCertBlocklist;
@@ -158,4 +160,4 @@ private:
 
 } } // namespace mozilla::psm
 
-#endif // mozilla_psm__NSSCertDBTrustDomain_h
+#endif // NSSCertDBTrustDomain_h

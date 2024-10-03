@@ -11599,7 +11599,7 @@ ConnectionPool::ShutdownThread(ThreadInfo& aThreadInfo)
   MOZ_ALWAYS_SUCCEEDS(thread->Dispatch(runnable, NS_DISPATCH_NORMAL));
 
   nsCOMPtr<nsIRunnable> shutdownRunnable =
-    NS_NewRunnableMethod(thread, &nsIThread::Shutdown);
+    NewRunnableMethod(thread, &nsIThread::Shutdown);
   MOZ_ALWAYS_SUCCEEDS(NS_DispatchToMainThread(shutdownRunnable));
 
   mTotalThreadCount--;
@@ -13451,7 +13451,7 @@ Database::MaybeCloseConnection()
       IsClosed() &&
       mDirectoryLock) {
     nsCOMPtr<nsIRunnable> callback =
-      NS_NewRunnableMethod(this, &Database::ConnectionClosedCallback);
+      NewRunnableMethod(this, &Database::ConnectionClosedCallback);
 
     RefPtr<WaitForTransactionsHelper> helper =
       new WaitForTransactionsHelper(Id(), callback);
@@ -17153,7 +17153,7 @@ QuotaClient::StartIdleMaintenance()
   }
 
   nsCOMPtr<nsIRunnable> runnable =
-    NS_NewRunnableMethodWithArg<uint32_t>(
+    NewRunnableMethod<uint32_t>(
       this,
       &QuotaClient::FindDatabasesForIdleMaintenance,
       mMaintenanceRunId);
@@ -17379,7 +17379,7 @@ QuotaClient::FindDatabasesForIdleMaintenance(uint32_t aRunId)
 
       if (!databasePaths.IsEmpty()) {
         nsCOMPtr<nsIRunnable> runnable =
-          NS_NewRunnableMethodWithArgs<uint32_t, MultipleMaintenanceInfo&&>(
+          NewRunnableMethod<uint32_t, MultipleMaintenanceInfo&&>(
             this,
             &QuotaClient::GetDirectoryLockForIdleMaintenance,
             aRunId,
@@ -17448,7 +17448,7 @@ QuotaClient::ScheduleIdleMaintenance(uint32_t aRunId,
 
   for (const nsString& databasePath : aMaintenanceInfo.mDatabasePaths) {
     nsCOMPtr<nsIRunnable> runnable =
-      NS_NewRunnableMethodWithArgs<uint32_t,
+      NewRunnableMethod<uint32_t,
                                    nsCString,
                                    SingleMaintenanceInfo&&>(
         this,
@@ -17483,7 +17483,7 @@ QuotaClient::PerformIdleMaintenanceOnDatabase(
   PerformIdleMaintenanceOnDatabaseInternal(aRunId, aMaintenanceInfo);
 
   nsCOMPtr<nsIRunnable> runnable =
-    NS_NewRunnableMethodWithArgs<nsCString, nsString>(
+    NewRunnableMethod<nsCString, nsString>(
       this,
       &QuotaClient::MaybeReleaseDirectoryLockForIdleMaintenance,
       aKey,
@@ -21084,7 +21084,7 @@ OpenDatabaseOp::SendResults()
     mDatabase = nullptr;
   } else if (mDirectoryLock) {
     nsCOMPtr<nsIRunnable> callback =
-      NS_NewRunnableMethod(this, &OpenDatabaseOp::ConnectionClosedCallback);
+      NewRunnableMethod(this, &OpenDatabaseOp::ConnectionClosedCallback);
 
     RefPtr<WaitForTransactionsHelper> helper =
       new WaitForTransactionsHelper(mDatabaseId, callback);

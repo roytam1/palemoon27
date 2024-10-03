@@ -134,6 +134,7 @@ using namespace mozilla::system;
 #include "MediaDecoder.h"
 #include "mozilla/layers/CompositorLRU.h"
 #include "mozilla/dom/devicestorage/DeviceStorageStatics.h"
+#include "mozilla/ServoBindings.h"
 #include "mozilla/StaticPresData.h"
 
 #ifdef MOZ_B2G_BT
@@ -325,6 +326,10 @@ nsLayoutStatics::Initialize()
   mozilla::dom::devicestorage::DeviceStorageStatics::Initialize();
 
   mozilla::dom::WebCryptoThreadPool::Initialize();
+
+#ifdef MOZ_STYLO
+  Servo_Initialize();
+#endif
 
   return NS_OK;
 }

@@ -3860,7 +3860,7 @@ QuotaManager::Observe(nsISupports* aSubject,
 
       // Give clients a chance to cleanup IO thread only objects.
       nsCOMPtr<nsIRunnable> runnable =
-        NS_NewRunnableMethod(this, &QuotaManager::ReleaseIOThreadObjects);
+        NewRunnableMethod(this, &QuotaManager::ReleaseIOThreadObjects);
       if (!runnable) {
         NS_WARNING("Failed to create runnable!");
       }

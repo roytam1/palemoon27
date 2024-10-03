@@ -687,7 +687,7 @@ Context::ThreadsafeHandle::AllowToClose()
   // Dispatch is guaranteed to succeed here because we block shutdown until
   // all Contexts have been destroyed.
   nsCOMPtr<nsIRunnable> runnable =
-    NS_NewRunnableMethod(this, &ThreadsafeHandle::AllowToCloseOnOwningThread);
+    NewRunnableMethod(this, &ThreadsafeHandle::AllowToCloseOnOwningThread);
   MOZ_ALWAYS_SUCCEEDS(
     mOwningThread->Dispatch(runnable, nsIThread::DISPATCH_NORMAL));
 }
@@ -703,7 +703,7 @@ Context::ThreadsafeHandle::InvalidateAndAllowToClose()
   // Dispatch is guaranteed to succeed here because we block shutdown until
   // all Contexts have been destroyed.
   nsCOMPtr<nsIRunnable> runnable =
-    NS_NewRunnableMethod(this, &ThreadsafeHandle::InvalidateAndAllowToCloseOnOwningThread);
+    NewRunnableMethod(this, &ThreadsafeHandle::InvalidateAndAllowToCloseOnOwningThread);
   MOZ_ALWAYS_SUCCEEDS(
     mOwningThread->Dispatch(runnable, nsIThread::DISPATCH_NORMAL));
 }
@@ -727,10 +727,7 @@ Context::ThreadsafeHandle::~ThreadsafeHandle()
 
   // Dispatch is guaranteed to succeed here because we block shutdown until
   // all Contexts have been destroyed.
-  nsCOMPtr<nsIRunnable> runnable =
-    NS_NewNonOwningRunnableMethod(mStrongRef.forget().take(), &Context::Release);
-  MOZ_ALWAYS_SUCCEEDS(
-    mOwningThread->Dispatch(runnable, nsIThread::DISPATCH_NORMAL));
+  NS_ProxyRelease(mOwningThread, mStrongRef.forget());
 }
 
 void

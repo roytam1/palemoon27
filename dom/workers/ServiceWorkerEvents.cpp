@@ -849,9 +849,8 @@ public:
       mColumn = column;
     }
 
-    nsCOMPtr<nsIRunnable> runnable =
-      NS_NewRunnableMethod(this, &WaitUntilHandler::ReportOnMainThread);
-    MOZ_ALWAYS_SUCCEEDS(NS_DispatchToMainThread(runnable.forget()));
+    MOZ_ALWAYS_SUCCEEDS(
+      NS_DispatchToMainThread(NewRunnableMethod(this, &WaitUntilHandler::ReportOnMainThread)));
   }
 
   void

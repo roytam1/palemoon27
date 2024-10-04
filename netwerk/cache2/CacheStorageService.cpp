@@ -143,7 +143,7 @@ void CacheStorageService::Shutdown()
   mShutdown = true;
 
   nsCOMPtr<nsIRunnable> event =
-    NS_NewRunnableMethod(this, &CacheStorageService::ShutdownBackground);
+    NewRunnableMethod(this, &CacheStorageService::ShutdownBackground);
   Dispatch(event);
 
   mozilla::MutexAutoLock lock(mLock);
@@ -1208,7 +1208,7 @@ CacheStorageService::OnMemoryConsumptionChange(CacheMemoryConsumer* aConsumer,
   // Dispatch as a priority task, we want to set the purge timer
   // ASAP to prevent vain redispatch of this event.
   nsCOMPtr<nsIRunnable> event =
-    NS_NewRunnableMethod(this, &CacheStorageService::SchedulePurgeOverMemoryLimit);
+    NewRunnableMethod(this, &CacheStorageService::SchedulePurgeOverMemoryLimit);
   cacheIOTarget->Dispatch(event, nsIEventTarget::DISPATCH_NORMAL);
 }
 
@@ -1248,7 +1248,7 @@ CacheStorageService::Notify(nsITimer* aTimer)
     mPurgeTimer = nullptr;
 
     nsCOMPtr<nsIRunnable> event =
-      NS_NewRunnableMethod(this, &CacheStorageService::PurgeOverMemoryLimit);
+      NewRunnableMethod(this, &CacheStorageService::PurgeOverMemoryLimit);
     Dispatch(event);
   }
 

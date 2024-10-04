@@ -6281,7 +6281,7 @@ IonBuilder::createThisScriptedSingleton(JSFunction* target, MDefinition* callee)
         return nullptr;
     if (!templateObject->is<PlainObject>() && !templateObject->is<UnboxedPlainObject>())
         return nullptr;
-    if (templateObject->getProto() != proto)
+    if (templateObject->staticPrototype() != proto)
         return nullptr;
 
     TypeSet::ObjectKey* templateObjectKey = TypeSet::ObjectKey::get(templateObject->group());
@@ -6328,7 +6328,7 @@ IonBuilder::createThisScriptedBaseline(MDefinition* callee)
         return nullptr;
 
     JSObject* proto = checkNurseryObject(&protov.toObject());
-    if (proto != templateObject->getProto())
+    if (proto != templateObject->staticPrototype())
         return nullptr;
 
     TypeSet::ObjectKey* templateObjectKey = TypeSet::ObjectKey::get(templateObject->group());
@@ -8116,7 +8116,7 @@ IonBuilder::testSingletonProperty(JSObject* obj, jsid id)
         if (ObjectHasExtraOwnProperty(compartment, objKey, id))
             return nullptr;
 
-        obj = checkNurseryObject(obj->getProto());
+        obj = checkNurseryObject(obj->staticPrototype());
     }
 
     return nullptr;
@@ -13826,23 +13826,26 @@ IonBuilder::jsop_instanceof()
         if (!rhsObject || !rhsObject->is<JSFunction>() || rhsObject->isBoundFunction())
             break;
 
-	// Refuse to optimize anything whose [[Prototype]] isn't Function.prototype
+        // Refuse to optimize anything whose [[Prototype]] isn't Function.prototype
         // since we can't guarantee that it uses the default @@hasInstance method.
-        if (rhsObject->hasUncacheableProto() || rhsObject->hasLazyPrototype())
+        if (rhsObject->hasUncacheableProto() || !rhsObject->hasStaticPrototype())
             break;
+
         Value funProto = script()->global().getPrototype(JSProto_Function);
-        if (!funProto.isObject() || rhsObject->getProto() != &funProto.toObject())
+        if (!funProto.isObject() || rhsObject->staticPrototype() != &funProto.toObject())
             break;
+
         // If the user has supplied their own @@hasInstance method we shouldn't
         // clobber it.
         JSFunction* fun = &rhsObject->as<JSFunction>();
         const WellKnownSymbols* symbols = &compartment->runtime()->wellKnownSymbols();
         if (!js::FunctionHasDefaultHasInstance(fun, *symbols))
             break;
+
         // Ensure that we will bail if the @@hasInstance property or [[Prototype]]
         // change.
         TypeSet::ObjectKey* rhsKey = TypeSet::ObjectKey::get(rhsObject);
-	if (!rhsKey->hasStableClassAndProto(constraints()))
+        if (!rhsKey->hasStableClassAndProto(constraints()))
             break;
 
         if (rhsKey->unknownProperties())

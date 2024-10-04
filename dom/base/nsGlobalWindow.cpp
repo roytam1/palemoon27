@@ -619,7 +619,8 @@ nsPIDOMWindow::nsPIDOMWindow(nsPIDOMWindow *aOuterWindow)
   mMayHavePointerEnterLeaveEventListener(false),
   mInnerObjectsFreed(false),
   mIsModalContentWindow(false),
-  mIsActive(false), mIsBackground(false), mMediaSuspended(false),
+  mIsActive(false), mIsBackground(false),
+  mMediaSuspend(nsISuspendedTypes::NONE_SUSPENDED),
   mAudioMuted(false), mAudioVolume(1.0), mAudioCaptured(false),
   mDesktopModeViewport(false), mInnerWindow(nullptr),
   mOuterWindow(aOuterWindow),
@@ -911,13 +912,14 @@ nsOuterWindowProxy::getPrototypeIfOrdinary(JSContext* cx,
   //
   //   https://html.spec.whatwg.org/multipage/browsers.html#windowproxy-getprototypeof
   //
-  // We nonetheless can implement it here using a non-"lazy" [[Prototype]],
-  // because wrapper-class handlers (particularly, XOW in FilteringWrapper.cpp)
-  // supply all the non-ordinary behavior.
+  // We nonetheless can implement it with a static [[Prototype]], because
+  // wrapper-class handlers (particularly, XOW in FilteringWrapper.cpp) supply
+  // all non-ordinary behavior.
   //
   // But from a spec point of view, it's the exact same object in both cases --
-  // only the observer's changed.  So both cases *must* report non-ordinary,
-  // even if non-"lazy" [[Prototype]] usually means ordinary.
+  // only the observer's changed.  So this getPrototypeIfOrdinary trap on the
+  // non-wrapper object *must* report non-ordinary, even if static [[Prototype]]
+  // usually means ordinary.
   *isOrdinary = false;
   return true;
 }
@@ -2637,7 +2639,7 @@ nsGlobalWindow::SetNewDocument(nsIDocument* aDocument,
      under normal circumstances, but bug 49615 describes a case.) */
 
   nsContentUtils::AddScriptRunner(
-    NS_NewRunnableMethod(this, &nsGlobalWindow::ClearStatus));
+    NewRunnableMethod(this, &nsGlobalWindow::ClearStatus));
 
   // Sometimes, WouldReuseInnerWindow() returns true even if there's no inner
   // window (see bug 776497). Be safe.
@@ -2954,8 +2956,8 @@ nsGlobalWindow::SetNewDocument(nsIDocument* aDocument,
   // up with the outer. See bug 969156.
   if (createdInnerWindow) {
     nsContentUtils::AddScriptRunner(
-      NS_NewRunnableMethod(newInnerWindow,
-                           &nsGlobalWindow::FireOnNewGlobalObject));
+      NewRunnableMethod(newInnerWindow,
+                        &nsGlobalWindow::FireOnNewGlobalObject));
   }
 
   if (newInnerWindow && !newInnerWindow->mHasNotifiedGlobalCreated && mDoc) {
@@ -2968,7 +2970,7 @@ nsGlobalWindow::SetNewDocument(nsIDocument* aDocument,
         nsContentUtils::IsSystemPrincipal(mDoc->NodePrincipal())) {
       newInnerWindow->mHasNotifiedGlobalCreated = true;
       nsContentUtils::AddScriptRunner(
-        NS_NewRunnableMethod(this, &nsGlobalWindow::DispatchDOMWindowCreated));
+        NewRunnableMethod(this, &nsGlobalWindow::DispatchDOMWindowCreated));
     }
   }
 
@@ -3917,30 +3919,29 @@ nsPIDOMWindow::CreatePerformanceObjectIfNeeded()
   }
 }
 
-bool
-nsPIDOMWindow::GetMediaSuspended() const
+SuspendTypes
+nsPIDOMWindow::GetMediaSuspend() const
 {
   if (IsInnerWindow()) {
-    return mOuterWindow->GetMediaSuspended();
+    return mOuterWindow->GetMediaSuspend();
   }
 
-  return mMediaSuspended;
+  return mMediaSuspend;
 }
 
 void
-nsPIDOMWindow::SetMediaSuspended(bool aSuspended)
+nsPIDOMWindow::SetMediaSuspend(SuspendTypes aSuspend)
 {
   if (IsInnerWindow()) {
-    mOuterWindow->SetMediaSuspended(aSuspended);
+    mOuterWindow->SetMediaSuspend(aSuspend);
     return;
   }
 
-  if (mMediaSuspended == aSuspended) {
-    return;
+  if (!IsDisposableSuspend(aSuspend)) {
+    mMediaSuspend = aSuspend;
   }
 
-  mMediaSuspended = aSuspended;
-  RefreshMediaElements();
+  RefreshMediaElementsSuspend(aSuspend);
 }
 
 bool
@@ -3966,7 +3967,7 @@ nsPIDOMWindow::SetAudioMuted(bool aMuted)
   }
 
   mAudioMuted = aMuted;
-  RefreshMediaElements();
+  RefreshMediaElementsVolume();
 }
 
 float
@@ -3995,17 +3996,33 @@ nsPIDOMWindow::SetAudioVolume(float aVolume)
   }
 
   mAudioVolume = aVolume;
-  RefreshMediaElements();
+  RefreshMediaElementsVolume();
   return NS_OK;
 }
 
 void
-nsPIDOMWindow::RefreshMediaElements()
+nsPIDOMWindow::RefreshMediaElementsVolume()
 {
   RefPtr<AudioChannelService> service = AudioChannelService::GetOrCreate();
   if (service) {
     service->RefreshAgentsVolume(GetOuterWindow());
   }
+}
+
+void
+nsPIDOMWindow::RefreshMediaElementsSuspend(SuspendTypes aSuspend)
+{
+  RefPtr<AudioChannelService> service = AudioChannelService::GetOrCreate();
+  if (service) {
+    service->RefreshAgentsSuspend(GetOuterWindow(), aSuspend);
+  }
+}
+
+bool
+nsPIDOMWindow::IsDisposableSuspend(SuspendTypes aSuspend) const
+{
+  return (aSuspend == nsISuspendedTypes::SUSPENDED_PAUSE_DISPOSABLE ||
+          aSuspend == nsISuspendedTypes::SUSPENDED_STOP_DISPOSABLE);
 }
 
 void
@@ -12256,7 +12273,7 @@ public:
   ~AutoUnblockScriptClosing()
   {
     void (nsGlobalWindow::*run)() = &nsGlobalWindow::UnblockScriptedClosing;
-    NS_DispatchToCurrentThread(NS_NewRunnableMethod(mWin, run));
+    NS_DispatchToCurrentThread(NewRunnableMethod(mWin, run));
   }
 };
 

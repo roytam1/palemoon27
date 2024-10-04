@@ -14,6 +14,7 @@ EXPORTS += [
 
 EXPORTS.mozilla.widget += [
     'AudioSession.h',
+    'WinCompositorWidgetProxy.h',
     'WinMessages.h',
     'WinModifierKeyState.h',
     'WinNativeEventData.h',
@@ -53,17 +54,14 @@ UNIFIED_SOURCES += [
     'TaskbarPreviewButton.cpp',
     'TaskbarTabPreview.cpp',
     'TaskbarWindowPreview.cpp',
+    'WidgetTraceEvent.cpp',
+    'WinCompositorWidgetProxy.cpp',
     'WindowHook.cpp',
     'WinIMEHandler.cpp',
     'WinTaskbar.cpp',
     'WinTextEventDispatcherListener.cpp',
     'WinUtils.cpp',
 ]
-
-if CONFIG['MOZ_INSTRUMENT_EVENT_LOOP']:    
-    UNIFIED_SOURCES += [
-         'WidgetTraceEvent.cpp',
-    ]
 
 # The following files cannot be built in unified mode because of name clashes.
 SOURCES += [

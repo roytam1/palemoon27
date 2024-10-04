@@ -548,8 +548,6 @@ pref("media.encoder.omx.enabled", true);
 
 // Whether to autostart a media element with an |autoplay| attribute
 pref("media.autoplay.enabled", true);
-// Whether to autostart a media element with an autoplaying script event
-pref("media.autoplay.allowscripted", true);
 
 // The default number of decoded video frames that are enqueued in
 // MediaDecoderReader's mVideoQueue.
@@ -5516,6 +5514,10 @@ pref("reader.parse-node-limit", 3000);
 // Force-enables reader mode parsing, even on low-memory platforms, where it
 // is disabled by default.
 pref("reader.parse-on-load.force-enabled", false);
+
+// Whether we include full URLs in browser console errors. This is disabled
+// by default because some platforms will persist these, leading to privacy issues.
+pref("reader.errors.includeURLs", false);
 
 // The default relative font size in reader mode (1-9)
 pref("reader.font_size", 5);

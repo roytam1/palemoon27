@@ -363,11 +363,7 @@ EventSource::OnStartRequest(nsIRequest *aRequest,
     return NS_ERROR_ABORT;
   }
 
-  nsCOMPtr<nsIRunnable> event =
-    NS_NewRunnableMethod(this, &EventSource::AnnounceConnection);
-  NS_ENSURE_STATE(event);
-
-  rv = NS_DispatchToMainThread(event);
+  rv = NS_DispatchToMainThread(NewRunnableMethod(this, &EventSource::AnnounceConnection));
   NS_ENSURE_SUCCESS(rv, rv);
 
   mStatus = PARSE_STATE_BEGIN_OF_STREAM;
@@ -473,11 +469,7 @@ EventSource::OnStopRequest(nsIRequest *aRequest,
 
   ClearFields();
 
-  nsCOMPtr<nsIRunnable> event =
-    NS_NewRunnableMethod(this, &EventSource::ReestablishConnection);
-  NS_ENSURE_STATE(event);
-
-  rv = NS_DispatchToMainThread(event);
+  rv = NS_DispatchToMainThread(NewRunnableMethod(this, &EventSource::ReestablishConnection));
   NS_ENSURE_SUCCESS(rv, rv);
 
   return NS_OK;
@@ -899,11 +891,8 @@ EventSource::ConsoleError()
 nsresult
 EventSource::DispatchFailConnection()
 {
-  nsCOMPtr<nsIRunnable> event =
-    NS_NewRunnableMethod(this, &EventSource::FailConnection);
-  NS_ENSURE_STATE(event);
 
-  return NS_DispatchToMainThread(event);
+  return NS_DispatchToMainThread(NewRunnableMethod(this, &EventSource::FailConnection));
 }
 
 void
@@ -977,7 +966,7 @@ EventSource::Thaw()
   nsresult rv;
   if (!mGoingToDispatchAllMessages && mMessagesToDispatch.GetSize() > 0) {
     nsCOMPtr<nsIRunnable> event =
-      NS_NewRunnableMethod(this, &EventSource::DispatchAllMessageEvents);
+      NewRunnableMethod(this, &EventSource::DispatchAllMessageEvents);
     NS_ENSURE_STATE(event);
 
     mGoingToDispatchAllMessages = true;
@@ -1037,7 +1026,7 @@ EventSource::DispatchCurrentMessageEvent()
 
   if (!mGoingToDispatchAllMessages) {
     nsCOMPtr<nsIRunnable> event =
-      NS_NewRunnableMethod(this, &EventSource::DispatchAllMessageEvents);
+      NewRunnableMethod(this, &EventSource::DispatchAllMessageEvents);
     NS_ENSURE_STATE(event);
 
     mGoingToDispatchAllMessages = true;

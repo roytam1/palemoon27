@@ -659,12 +659,11 @@ nsSynthVoiceRegistry::SpeakUtterance(SpeechSynthesisUtterance& aUtterance,
     nsCOMPtr<nsPIDOMWindow> topWindow =
       do_QueryInterface(aUtterance.GetOwner());
     if (topWindow) {
-      float audioVolume = 1.0f;
-      bool muted = false;
-      service->GetState(topWindow->GetOuterWindow(),
-                        static_cast<uint32_t>(AudioChannelService::GetDefaultAudioChannel()),
-                        &audioVolume, &muted);
-      volume = muted ? 0.0f : audioVolume * volume; 
+      // TODO : use audio channel agent, open new bug to fix it.
+      uint32_t channel = static_cast<uint32_t>(AudioChannelService::GetDefaultAudioChannel());
+      AudioPlaybackConfig config = service->GetMediaConfig(topWindow->GetOuterWindow(),
+                                                           channel);
+      volume = config.mMuted ? 0.0f : config.mVolume * volume;
     }
   }
 

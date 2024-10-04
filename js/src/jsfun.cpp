@@ -693,7 +693,6 @@ js::fun_symbolHasInstance(JSContext* cx, unsigned argc, Value* vp)
 /*
  * ES6 (4-25-16) 7.3.19 OrdinaryHasInstance
  */
-
 bool
 js::OrdinaryHasInstance(JSContext* cx, HandleObject objArg, MutableHandleValue v, bool* bp)
 {
@@ -1164,20 +1163,6 @@ js::FunctionToString(JSContext* cx, HandleFunction fun, bool lambdaParen)
     return out.finishString();
 }
 
-bool
-js::FunctionHasDefaultHasInstance(JSFunction* fun, const WellKnownSymbols& symbols)
-{
-    jsid id = SYMBOL_TO_JSID(symbols.hasInstance);
-    Shape* shape = fun->lookupPure(id);
-    if (shape) {
-        if (!shape->hasSlot() || !shape->hasDefaultGetter())
-            return false;
-        const Value hasInstance = fun->as<NativeObject>().getSlot(shape->slot());
-        return IsNativeFunction(hasInstance, js::fun_symbolHasInstance);
-    }
-    return true;
-}
-
 JSString*
 fun_toStringHelper(JSContext* cx, HandleObject obj, unsigned indent)
 {
@@ -1194,6 +1179,20 @@ fun_toStringHelper(JSContext* cx, HandleObject obj, unsigned indent)
 
     RootedFunction fun(cx, &obj->as<JSFunction>());
     return FunctionToString(cx, fun, indent != JS_DONT_PRETTY_PRINT);
+}
+
+bool
+js::FunctionHasDefaultHasInstance(JSFunction* fun, const WellKnownSymbols& symbols)
+{
+    jsid id = SYMBOL_TO_JSID(symbols.hasInstance);
+    Shape* shape = fun->lookupPure(id);
+    if (shape) {
+        if (!shape->hasSlot() || !shape->hasDefaultGetter())
+            return false;
+        const Value hasInstance = fun->as<NativeObject>().getSlot(shape->slot());
+        return IsNativeFunction(hasInstance, js::fun_symbolHasInstance);
+    }
+    return true;
 }
 
 bool
@@ -2107,7 +2106,7 @@ js::CloneFunctionReuseScript(JSContext* cx, HandleFunction fun, HandleObject par
      * Clone the function, reusing its script. We can use the same group as
      * the original function provided that its prototype is correct.
      */
-    if (fun->getProto() == clone->getProto())
+    if (fun->staticPrototype() == clone->staticPrototype())
         clone->setGroup(fun->group());
     return clone;
 }
@@ -2260,8 +2259,8 @@ js::ReportIncompatibleMethod(JSContext* cx, CallReceiver call, const Class* clas
     if (thisv.isObject()) {
         MOZ_ASSERT(thisv.toObject().getClass() != clasp ||
                    !thisv.toObject().isNative() ||
-                   !thisv.toObject().getProto() ||
-                   thisv.toObject().getProto()->getClass() != clasp);
+                   !thisv.toObject().staticPrototype() ||
+                   thisv.toObject().staticPrototype()->getClass() != clasp);
     } else if (thisv.isString()) {
         MOZ_ASSERT(clasp != &StringObject::class_);
     } else if (thisv.isNumber()) {

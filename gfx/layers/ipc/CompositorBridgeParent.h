@@ -17,9 +17,6 @@
 
 #include <stdint.h>                     // for uint64_t
 #include "Layers.h"                     // for Layer
-#include "base/basictypes.h"            // for DISALLOW_EVIL_CONSTRUCTORS
-#include "base/platform_thread.h"       // for PlatformThreadId
-#include "base/thread.h"                // for Thread
 #include "mozilla/Assertions.h"         // for MOZ_ASSERT_HELPER2
 #include "mozilla/Attributes.h"         // for override
 #include "mozilla/Maybe.h"
@@ -29,7 +26,9 @@
 #include "mozilla/dom/ipc/IdType.h"
 #include "mozilla/gfx/Point.h"          // for IntSize
 #include "mozilla/ipc/ProtocolUtils.h"
+#include "mozilla/ipc/SharedMemory.h"
 #include "mozilla/layers/GeckoContentController.h"
+#include "mozilla/layers/ISurfaceAllocator.h" // for ShmemAllocator
 #include "mozilla/layers/LayersMessages.h"  // for TargetConfig
 #include "mozilla/layers/PCompositorBridgeParent.h"
 #include "mozilla/layers/ShadowLayersManager.h" // for ShadowLayersManager
@@ -53,6 +52,7 @@ class DrawTarget;
 
 namespace ipc {
 class GeckoChildProcessHost;
+class Shmem;
 } // namespace ipc
 
 namespace layers {
@@ -65,6 +65,7 @@ class LayerManagerComposite;
 class LayerTransactionParent;
 class PAPZParent;
 class CrossProcessCompositorBridgeParent;
+class CompositorThreadHolder;
 
 struct ScopedLayerTreeRegistration
 {
@@ -78,28 +79,6 @@ private:
   uint64_t mLayersId;
 };
 
-class CompositorThreadHolder final
-{
-  NS_INLINE_DECL_THREADSAFE_REFCOUNTING_WITH_MAIN_THREAD_DESTRUCTION(CompositorThreadHolder)
-
-public:
-  CompositorThreadHolder();
-
-  base::Thread* GetCompositorThread() const {
-    return mCompositorThread;
-  }
-
-private:
-  ~CompositorThreadHolder();
-
-  base::Thread* const mCompositorThread;
-
-  static base::Thread* CreateCompositorThread();
-  static void DestroyCompositorThread(base::Thread* aCompositorThread);
-
-  friend class CompositorBridgeParent;
-};
-
 /**
  * Manages the vsync (de)registration and tracking on behalf of the
  * compositor when it need to paint.
@@ -110,7 +89,8 @@ class CompositorVsyncScheduler
   NS_INLINE_DECL_THREADSAFE_REFCOUNTING(CompositorVsyncScheduler)
 
 public:
-  explicit CompositorVsyncScheduler(CompositorBridgeParent* aCompositorBridgeParent, nsIWidget* aWidget);
+  explicit CompositorVsyncScheduler(CompositorBridgeParent* aCompositorBridgeParent,
+                                    widget::CompositorWidgetProxy* aWidgetProxy);
 
 #ifdef MOZ_WIDGET_GONK
   // emulator-ics never trigger the display on/off, so compositor will always
@@ -222,10 +202,12 @@ protected:
 };
 
 class CompositorBridgeParent final : public PCompositorBridgeParent,
-                               public ShadowLayersManager
+                                     public ShadowLayersManager,
+                                     public ISurfaceAllocator,
+                                     public ShmemAllocator
 {
-  NS_INLINE_DECL_THREADSAFE_REFCOUNTING_WITH_MAIN_THREAD_DESTRUCTION(CompositorBridgeParent)
   friend class CompositorVsyncScheduler;
+  friend class CompositorThreadHolder;
 
 public:
   explicit CompositorBridgeParent(widget::CompositorWidgetProxy* aWidget,
@@ -299,6 +281,26 @@ public:
                                       const nsTArray<ScrollableLayerGuid>& aTargets) override;
   virtual AsyncCompositionManager* GetCompositionManager(LayerTransactionParent* aLayerTree) override { return mCompositionManager; }
 
+  virtual PTextureParent* AllocPTextureParent(const SurfaceDescriptor& aSharedData,
+                                              const LayersBackend& aLayersBackend,
+                                              const TextureFlags& aFlags,
+                                              const uint64_t& aId) override;
+  virtual bool DeallocPTextureParent(PTextureParent* actor) override;
+
+  virtual bool IsSameProcess() const override;
+
+  virtual ShmemAllocator* AsShmemAllocator() override { return this; }
+
+  virtual bool AllocShmem(size_t aSize,
+                          mozilla::ipc::SharedMemory::SharedMemoryType aType,
+                          mozilla::ipc::Shmem* aShmem) override;
+
+  virtual bool AllocUnsafeShmem(size_t aSize,
+                                mozilla::ipc::SharedMemory::SharedMemoryType aType,
+                                mozilla::ipc::Shmem* aShmem) override;
+
+  virtual void DeallocShmem(mozilla::ipc::Shmem& aShmem) override;
+
   /**
    * Request that the compositor be recreated due to a shared device reset.
    * This must be called on the main thread, and blocks until a task posted
@@ -369,27 +371,6 @@ public:
    * Returns a pointer to the compositor corresponding to the given ID.
    */
   static CompositorBridgeParent* GetCompositor(uint64_t id);
-
-  /**
-   * Returns the compositor thread's message loop.
-   *
-   * This message loop is used by CompositorBridgeParent, ImageBridgeParent,
-   * and VRManagerParent
-   */
-  static MessageLoop* CompositorLoop();
-
-  /**
-   * Creates the compositor thread and the global compositor map.
-   */
-  static void StartUp();
-
-  /**
-   * Waits for all [CrossProcess]CompositorBridgeParent's to be gone,
-   * and destroys the compositor thread and global compositor map.
-   *
-   * Does not return until all of that has completed.
-   */
-  static void ShutDown();
 
   /**
    * Allocate an ID that can be used to refer to a layer tree and
@@ -516,6 +497,9 @@ public:
                                             dom::ContentParent* aContentParent,
                                             const dom::TabId& aTabId,
                                             dom::TabParent* aBrowserParent);
+  bool AsyncPanZoomEnabled() const {
+    return !!mApzcTreeManager;
+  }
 
 protected:
   // Protected destructor, to discourage deletion outside of Release():
@@ -556,7 +540,22 @@ protected:
    */
   static CompositorBridgeParent* RemoveCompositor(uint64_t id);
 
-   /**
+  /**
+   * Creates the global compositor map.
+   */
+  static void Initialize();
+
+  /**
+   * Destroys the compositor thread and global compositor map.
+   */
+  static void Shutdown();
+
+  /**
+   * Finish the shutdown operation on the compositor thread.
+   */
+  static void FinishShutdown();
+
+  /**
    * Return true if current state allows compositing, that is
    * finishing a layers transaction.
    */

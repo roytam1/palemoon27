@@ -782,11 +782,7 @@ js::HasInstance(JSContext* cx, HandleObject obj, HandleValue v, bool* bp)
     RootedValue local(cx, v);
     if (JSHasInstanceOp hasInstance = clasp->getHasInstance())
         return hasInstance(cx, obj, &local, bp);
-
-    RootedValue val(cx, ObjectValue(*obj));
-    ReportValueError(cx, JSMSG_BAD_INSTANCEOF_RHS,
-                        JSDVG_SEARCH_STACK, val, nullptr);
-    return false;
+    return js::InstanceOfOperator(cx, obj, &local, bp);
 }
 
 static inline bool
@@ -3401,7 +3397,8 @@ CASE(JSOP_LAMBDA)
     JSObject* obj = Lambda(cx, fun, REGS.fp()->scopeChain());
     if (!obj)
         goto error;
-    MOZ_ASSERT(obj->getProto());
+
+    MOZ_ASSERT(obj->staticPrototype());
     PUSH_OBJECT(*obj);
 }
 END_CASE(JSOP_LAMBDA)
@@ -3414,7 +3411,8 @@ CASE(JSOP_LAMBDA_ARROW)
     JSObject* obj = LambdaArrow(cx, fun, REGS.fp()->scopeChain(), newTarget);
     if (!obj)
         goto error;
-    MOZ_ASSERT(obj->getProto());
+
+    MOZ_ASSERT(obj->staticPrototype());
     REGS.sp[-1].setObject(*obj);
 }
 END_CASE(JSOP_LAMBDA_ARROW)

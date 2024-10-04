@@ -367,7 +367,7 @@ nsresult
 FFmpegH264Decoder<LIBAV_VER>::Input(MediaRawData* aSample)
 {
   nsCOMPtr<nsIRunnable> runnable(
-    NS_NewRunnableMethodWithArg<RefPtr<MediaRawData>>(
+    NewRunnableMethod<RefPtr<MediaRawData>>(
       this, &FFmpegH264Decoder<LIBAV_VER>::DecodeFrame,
       RefPtr<MediaRawData>(aSample)));
   mTaskQueue->Dispatch(runnable.forget());

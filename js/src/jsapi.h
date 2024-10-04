@@ -4910,9 +4910,9 @@ GetSymbolDescription(HandleSymbol symbol);
     macro(replace) \
     macro(search) \
     macro(species) \
+    macro(hasInstance) \
     macro(split) \
     macro(toPrimitive) \
-    macro(hasInstance) \
     macro(unscopables)
 
 enum class SymbolCode : uint32_t {

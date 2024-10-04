@@ -67,9 +67,10 @@ CacheFileHandle::DispatchRelease()
     return false;
   }
 
-  RefPtr<nsRunnableMethod<CacheFileHandle, MozExternalRefCountType, false> > event =
-    NS_NewNonOwningRunnableMethod(this, &CacheFileHandle::Release);
-  nsresult rv = ioTarget->Dispatch(event, nsIEventTarget::DISPATCH_NORMAL);
+  nsresult rv =
+    ioTarget->Dispatch(NewNonOwningRunnableMethod(this,
+						  &CacheFileHandle::Release),
+		       nsIEventTarget::DISPATCH_NORMAL);
   if (NS_FAILED(rv)) {
     return false;
   }
@@ -2635,8 +2636,8 @@ CacheFileIOManager::EvictIfOverLimit()
   }
 
   nsCOMPtr<nsIRunnable> ev;
-  ev = NS_NewRunnableMethod(ioMan,
-                            &CacheFileIOManager::EvictIfOverLimitInternal);
+  ev = NewRunnableMethod(ioMan,
+			 &CacheFileIOManager::EvictIfOverLimitInternal);
 
   rv = ioMan->mIOThread->Dispatch(ev, CacheIOThread::EVICT);
   NS_ENSURE_SUCCESS(rv, rv);
@@ -2696,8 +2697,8 @@ CacheFileIOManager::EvictIfOverLimitInternal()
        cacheUsage, cacheLimit));
 
   nsCOMPtr<nsIRunnable> ev;
-  ev = NS_NewRunnableMethod(this,
-                            &CacheFileIOManager::OverLimitEvictionInternal);
+  ev = NewRunnableMethod(this,
+			 &CacheFileIOManager::OverLimitEvictionInternal);
 
   rv = mIOThread->Dispatch(ev, CacheIOThread::EVICT);
   NS_ENSURE_SUCCESS(rv, rv);
@@ -2836,7 +2837,7 @@ CacheFileIOManager::EvictAll()
   }
 
   nsCOMPtr<nsIRunnable> ev;
-  ev = NS_NewRunnableMethod(ioMan, &CacheFileIOManager::EvictAllInternal);
+  ev = NewRunnableMethod(ioMan, &CacheFileIOManager::EvictAllInternal);
 
   rv = ioMan->mIOThread->DispatchAfterPendingOpens(ev);
   if (NS_WARN_IF(NS_FAILED(rv))) {
@@ -2954,7 +2955,7 @@ CacheFileIOManager::EvictByContext(nsILoadContextInfo *aLoadContextInfo, bool aP
   }
 
   nsCOMPtr<nsIRunnable> ev;
-  ev = NS_NewRunnableMethodWithArgs<nsCOMPtr<nsILoadContextInfo>, bool>
+  ev = NewRunnableMethod<nsCOMPtr<nsILoadContextInfo>, bool>
          (ioMan, &CacheFileIOManager::EvictByContextInternal, aLoadContextInfo, aPinned);
 
   rv = ioMan->mIOThread->DispatchAfterPendingOpens(ev);
@@ -3073,7 +3074,7 @@ CacheFileIOManager::CacheIndexStateChanged()
   // We have to re-distatch even if we are on IO thread to prevent reentering
   // the lock in CacheIndex
   nsCOMPtr<nsIRunnable> ev;
-  ev = NS_NewRunnableMethod(
+  ev = NewRunnableMethod(
     gInstance, &CacheFileIOManager::CacheIndexStateChangedInternal);
 
   nsCOMPtr<nsIEventTarget> ioTarget = IOTarget();
@@ -3248,8 +3249,8 @@ CacheFileIOManager::StartRemovingTrash()
   }
 
   nsCOMPtr<nsIRunnable> ev;
-  ev = NS_NewRunnableMethod(this,
-                            &CacheFileIOManager::RemoveTrashInternal);
+  ev = NewRunnableMethod(this,
+			 &CacheFileIOManager::RemoveTrashInternal);
 
   rv = mIOThread->Dispatch(ev, CacheIOThread::EVICT);
   NS_ENSURE_SUCCESS(rv, rv);
@@ -3692,7 +3693,7 @@ CacheFileIOManager::CheckAndCreateDir(nsIFile *aFile, const char *aDir,
     NS_ENSURE_SUCCESS(rv, rv);
 
     if (!isEmpty) {
-      // Don't check the result, if this fails, that's OK.  We do this
+      // Don't check the result, if this fails, it's OK.  We do this
       // only for the doomed directory that doesn't need to be deleted
       // for the cost of completely disabling the whole browser.
       TrashDirectory(file);

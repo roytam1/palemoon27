@@ -2100,6 +2100,8 @@ SpdySession31::WriteSegmentsAgain(nsAHttpSegmentWriter *writer,
     MOZ_ASSERT(!mNeedsCleanup, "cleanup stream set unexpectedly");
     mNeedsCleanup = nullptr;                     /* just in case */
 
+    // The writesegments() stack can clear mInputFrameDataStream so
+    // only reference this local copy of it afterwards
     SpdyStream31 *stream = mInputFrameDataStream;
     mSegmentWriter = writer;
     rv = mInputFrameDataStream->WriteSegments(this, count, countWritten);
@@ -2108,7 +2110,7 @@ SpdySession31::WriteSegmentsAgain(nsAHttpSegmentWriter *writer,
       LOG3(("SpdySession31::WriteSegments session=%p stream=%p 0x%X "
             "stream channel pipe full\n",
             this, stream, stream ? stream->StreamID() : 0));
-      channelPipeFull = mInputFrameDataStream->ChannelPipeFull();
+      channelPipeFull = stream->ChannelPipeFull();
     }
     mSegmentWriter = nullptr;
 

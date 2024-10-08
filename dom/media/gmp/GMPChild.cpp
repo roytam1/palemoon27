@@ -20,6 +20,7 @@
 #include "GMPPlatform.h"
 #include "GMPUtils.h"
 #include "prio.h"
+#include "base/task.h"
 #include "mozilla/dom/CrashReporterChild.h"
 #include "mozilla/ipc/ProcessChild.h"
 #ifdef MOZ_WIDEVINE_EME

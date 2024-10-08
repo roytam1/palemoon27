@@ -200,6 +200,18 @@ MessagePump::ScheduleDelayedWork(const base::TimeTicks& aDelayedTime)
                                       nsITimer::TYPE_ONE_SHOT);
 }
 
+nsIEventTarget*
+MessagePump::GetXPCOMThread()
+{
+  if (mThread) {
+    return mThread;
+  }
+
+  // Main thread
+  nsCOMPtr<nsIThread> mainThread = do_GetMainThread();
+  return mainThread;
+}
+
 void
 MessagePump::DoDelayedWork(base::MessagePump::Delegate* aDelegate)
 {

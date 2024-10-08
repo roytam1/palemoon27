@@ -13,6 +13,7 @@
 #include "mozIGeckoMediaPluginService.h"
 #include "nsServiceManagerUtils.h"
 #include "mozilla/StaticMutex.h"
+#include "mozilla/SyncRunnable.h"
 #include "gmp-audio-decode.h"
 #include "gmp-video-decode.h"
 #ifdef XP_WIN
@@ -48,7 +49,7 @@ already_AddRefed<MediaDataDecoder>
 GMPDecoderModule::CreateVideoDecoder(const VideoInfo& aConfig,
                                      layers::LayersBackend aLayersBackend,
                                      layers::ImageContainer* aImageContainer,
-                                     FlushableTaskQueue* aVideoTaskQueue,
+                                     TaskQueue* aTaskQueue,
                                      MediaDataDecoderCallback* aCallback,
                                      DecoderDoctorDiagnostics* aDiagnostics)
 {
@@ -67,14 +68,14 @@ GMPDecoderModule::CreateVideoDecoder(const VideoInfo& aConfig,
   wrapper->SetProxyTarget(new GMPVideoDecoder(aConfig,
                                               aLayersBackend,
                                               aImageContainer,
-                                              aVideoTaskQueue,
+                                              aTaskQueue,
                                               wrapper->Callback()));
   return wrapper.forget();
 }
 
 already_AddRefed<MediaDataDecoder>
 GMPDecoderModule::CreateAudioDecoder(const AudioInfo& aConfig,
-                                     FlushableTaskQueue* aAudioTaskQueue,
+                                     TaskQueue* aTaskQueue,
                                      MediaDataDecoderCallback* aCallback,
                                      DecoderDoctorDiagnostics* aDiagnostics)
 {
@@ -91,7 +92,7 @@ GMPDecoderModule::CreateAudioDecoder(const AudioInfo& aConfig,
 
   RefPtr<MediaDataDecoderProxy> wrapper = CreateDecoderWrapper(aCallback);
   wrapper->SetProxyTarget(new GMPAudioDecoder(aConfig,
-                                              aAudioTaskQueue,
+                                              aTaskQueue,
                                               wrapper->Callback()));
   return wrapper.forget();
 }
@@ -112,7 +113,6 @@ HasGMPFor(const nsACString& aAPI,
           const nsACString& aCodec,
           const nsACString& aGMP)
 {
-  MOZ_ASSERT(NS_IsMainThread());
 #ifdef XP_WIN
   // gmp-clearkey uses WMF for decoding, so if we're using clearkey we must
   // verify that WMF works before continuing.
@@ -130,6 +130,8 @@ HasGMPFor(const nsACString& aAPI,
     }
   }
 #endif
+  MOZ_ASSERT(NS_IsMainThread(),
+             "HasPluginForAPI must be called on the main thread");
   nsTArray<nsCString> tags;
   tags.AppendElement(aCodec);
   tags.AppendElement(aGMP);
@@ -178,8 +180,13 @@ GMPDecoderModule::UpdateUsableCodecs()
 void
 GMPDecoderModule::Init()
 {
-  MOZ_ASSERT(NS_IsMainThread());
-
+  if (!NS_IsMainThread()) {
+    nsCOMPtr<nsIThread> mainThread = do_GetMainThread();
+    nsCOMPtr<nsIRunnable> runnable =
+      NS_NewRunnableFunction([]() { Init(); });
+    SyncRunnable::DispatchToThread(mainThread, runnable);
+    return;
+  }
   // GMPService::HasPluginForAPI is main thread only, so to implement
   // SupportsMimeType() we build a table of the codecs which each whitelisted
   // GMP has and update it when any GMPs are removed or added at runtime.

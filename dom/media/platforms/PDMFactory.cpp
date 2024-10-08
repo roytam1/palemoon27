@@ -23,9 +23,10 @@
 #endif
 #include "GMPDecoderModule.h"
 
-#include "mozilla/TaskQueue.h"
-
+#include "mozilla/ClearOnShutdown.h"
 #include "mozilla/SharedThreadPool.h"
+#include "mozilla/StaticPtr.h"
+#include "mozilla/TaskQueue.h"
 
 #include "MediaInfo.h"
 #include "MediaPrefs.h"
@@ -46,34 +47,29 @@ namespace mozilla {
 extern already_AddRefed<PlatformDecoderModule> CreateAgnosticDecoderModule();
 extern already_AddRefed<PlatformDecoderModule> CreateBlankDecoderModule();
 
-/* static */
-void
-PDMFactory::Init()
-{
-  MOZ_ASSERT(NS_IsMainThread());
-  static bool alreadyInitialized = false;
-  if (alreadyInitialized) {
-    return;
-  }
-  alreadyInitialized = true;
-
-  // Ensure MediaPrefs are initialized.
-  MediaPrefs::GetSingleton();
-
+class PDMFactoryImpl final {
+public:
+  PDMFactoryImpl()
+  {
 #ifdef XP_WIN
-  WMFDecoderModule::Init();
+    WMFDecoderModule::Init();
 #endif
 #ifdef MOZ_APPLEMEDIA
-  AppleDecoderModule::Init();
+    AppleDecoderModule::Init();
 #endif
 #ifdef MOZ_FFMPEG
-  FFmpegRuntimeLinker::Link();
+    FFmpegRuntimeLinker::Link();
 #endif
-  GMPDecoderModule::Init();
-}
+    GMPDecoderModule::Init();
+  }
+};
+
+StaticAutoPtr<PDMFactoryImpl> PDMFactory::sInstance;
+StaticMutex PDMFactory::sMonitor;
 
 PDMFactory::PDMFactory()
 {
+  EnsureInit();
   CreatePDMs();
 }
 
@@ -81,13 +77,29 @@ PDMFactory::~PDMFactory()
 {
 }
 
+void
+PDMFactory::EnsureInit() const
+{
+  StaticMutexAutoLock mon(sMonitor);
+  if (!sInstance) {
+    sInstance = new PDMFactoryImpl();
+    if (NS_IsMainThread()) {
+      ClearOnShutdown(&sInstance);
+    } else {
+      nsCOMPtr<nsIRunnable> runnable =
+        NS_NewRunnableFunction([]() { ClearOnShutdown(&sInstance); });
+      NS_DispatchToMainThread(runnable);
+    }
+  }
+}
+
 already_AddRefed<MediaDataDecoder>
 PDMFactory::CreateDecoder(const TrackInfo& aConfig,
-                          FlushableTaskQueue* aTaskQueue,
+                          TaskQueue* aTaskQueue,
                           MediaDataDecoderCallback* aCallback,
                           DecoderDoctorDiagnostics* aDiagnostics,
                           layers::LayersBackend aLayersBackend,
-                          layers::ImageContainer* aImageContainer)
+                          layers::ImageContainer* aImageContainer) const
 {
   bool isEncrypted = mEMEPDM && aConfig.mCrypto.mValid;
 
@@ -138,11 +150,11 @@ PDMFactory::CreateDecoder(const TrackInfo& aConfig,
 already_AddRefed<MediaDataDecoder>
 PDMFactory::CreateDecoderWithPDM(PlatformDecoderModule* aPDM,
                                  const TrackInfo& aConfig,
-                                 FlushableTaskQueue* aTaskQueue,
+                                 TaskQueue* aTaskQueue,
                                  MediaDataDecoderCallback* aCallback,
                                  DecoderDoctorDiagnostics* aDiagnostics,
                                  layers::LayersBackend aLayersBackend,
-                                 layers::ImageContainer* aImageContainer)
+                                 layers::ImageContainer* aImageContainer) const
 {
   MOZ_ASSERT(aPDM);
   RefPtr<MediaDataDecoder> m;

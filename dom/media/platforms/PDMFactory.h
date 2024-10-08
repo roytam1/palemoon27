@@ -8,22 +8,21 @@
 #define PDMFactory_h_
 
 #include "PlatformDecoderModule.h"
+#include "mozilla/StaticMutex.h"
 
 class CDMProxy;
 
 namespace mozilla {
 
 class DecoderDoctorDiagnostics;
+class PDMFactoryImpl;
+template<class T> class StaticAutoPtr;
 
 class PDMFactory final {
 public:
   NS_INLINE_DECL_THREADSAFE_REFCOUNTING(PDMFactory)
 
   PDMFactory();
-
-  // Call on the main thread to initialize the static state
-  // needed by Create().
-  static void Init();
 
   // Factory method that creates the appropriate PlatformDecoderModule for
   // the platform we're running on. Caller is responsible for deleting this
@@ -32,11 +31,11 @@ public:
   // This is called on the decode task queue.
   already_AddRefed<MediaDataDecoder>
   CreateDecoder(const TrackInfo& aConfig,
-                FlushableTaskQueue* aTaskQueue,
+                TaskQueue* aTaskQueue,
                 MediaDataDecoderCallback* aCallback,
                 DecoderDoctorDiagnostics* aDiagnostics,
                 layers::LayersBackend aLayersBackend = layers::LayersBackend::LAYERS_NONE,
-                layers::ImageContainer* aImageContainer = nullptr);
+                layers::ImageContainer* aImageContainer = nullptr) const;
 
   bool SupportsMimeType(const nsACString& aMimeType,
                         DecoderDoctorDiagnostics* aDiagnostics) const;
@@ -63,11 +62,11 @@ private:
   already_AddRefed<MediaDataDecoder>
   CreateDecoderWithPDM(PlatformDecoderModule* aPDM,
                        const TrackInfo& aConfig,
-                       FlushableTaskQueue* aTaskQueue,
+                       TaskQueue* aTaskQueue,
                        MediaDataDecoderCallback* aCallback,
                        DecoderDoctorDiagnostics* aDiagnostics,
                        layers::LayersBackend aLayersBackend,
-                       layers::ImageContainer* aImageContainer);
+                       layers::ImageContainer* aImageContainer) const;
 
   nsTArray<RefPtr<PlatformDecoderModule>> mCurrentPDMs;
   RefPtr<PlatformDecoderModule> mEMEPDM;
@@ -75,6 +74,11 @@ private:
   bool mWMFFailedToLoad = false;
   bool mFFmpegFailedToLoad = false;
   bool mGMPPDMFailedToStartup = false;
+
+  void EnsureInit() const;
+  template<class T> friend class StaticAutoPtr;
+  static StaticAutoPtr<PDMFactoryImpl> sInstance;
+  static StaticMutex sMonitor;
 };
 
 } // namespace mozilla

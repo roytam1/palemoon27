@@ -128,6 +128,7 @@ class mozilla::gl::SkiaGLGlue : public GenericAtomicRefCounted {
 
 #include "mozilla/Preferences.h"
 #include "mozilla/Assertions.h"
+#include "mozilla/Atomics.h"
 #include "mozilla/Attributes.h"
 #include "mozilla/Mutex.h"
 
@@ -2061,14 +2062,13 @@ gfxPlatform::OptimalFormatForContent(gfxContentType aContent)
  * and remember the values.  Changing these preferences during the run will
  * not have any effect until we restart.
  */
-static bool sLayersSupportsD3D9 = false;
 bool gANGLESupportsD3D11 = false;
-static bool sLayersSupportsHardwareVideoDecoding = false;
+static mozilla::Atomic<bool> sLayersSupportsHardwareVideoDecoding(false);
 static bool sLayersHardwareVideoDecodingFailed = false;
 static bool sBufferRotationCheckPref = true;
 static bool sPrefBrowserTabsRemoteAutostart = false;
 
-static bool sLayersAccelerationPrefsInitialized = false;
+static mozilla::Atomic<bool> sLayersAccelerationPrefsInitialized(false);
 
 void
 gfxPlatform::InitAcceleration()
@@ -2092,15 +2092,7 @@ gfxPlatform::InitAcceleration()
   nsCString discardFailureId;
   int32_t status;
 #ifdef XP_WIN
-  if (gfxConfig::IsForcedOnByUser(Feature::HW_COMPOSITING)) {
-    sLayersSupportsD3D9 = true;
-  } else if (!gfxPrefs::LayersAccelerationDisabledDoNotUseDirectly() && gfxInfo) {
-    if (NS_SUCCEEDED(gfxInfo->GetFeatureStatus(nsIGfxInfo::FEATURE_DIRECT3D_9_LAYERS, discardFailureId, &status))) {
-      if (status == nsIGfxInfo::FEATURE_STATUS_OK) {
-        MOZ_ASSERT(!sPrefBrowserTabsRemoteAutostart || IsVistaOrLater());
-        sLayersSupportsD3D9 = true;
-      }
-    }
+  if (!gfxPrefs::LayersAccelerationDisabledDoNotUseDirectly() && gfxInfo) {
     if (NS_SUCCEEDED(gfxInfo->GetFeatureStatus(nsIGfxInfo::FEATURE_DIRECT3D_11_ANGLE, discardFailureId, &status))) {
       if (status == nsIGfxInfo::FEATURE_STATUS_OK) {
         gANGLESupportsD3D11 = true;
@@ -2162,28 +2154,12 @@ gfxPlatform::InitCompositorAccelerationPrefs()
 }
 
 bool
-gfxPlatform::CanUseDirect3D9()
-{
-  // this function is called from the compositor thread, so it is not
-  // safe to init the prefs etc. from here.
-  MOZ_ASSERT(sLayersAccelerationPrefsInitialized);
-  return sLayersSupportsD3D9;
-}
-
-bool
 gfxPlatform::CanUseHardwareVideoDecoding()
 {
   // this function is called from the compositor thread, so it is not
   // safe to init the prefs etc. from here.
   MOZ_ASSERT(sLayersAccelerationPrefsInitialized);
   return sLayersSupportsHardwareVideoDecoding && !sLayersHardwareVideoDecodingFailed;
-}
-
-bool
-gfxPlatform::CanUseDirect3D11ANGLE()
-{
-  MOZ_ASSERT(sLayersAccelerationPrefsInitialized);
-  return gANGLESupportsD3D11;
 }
 
 bool

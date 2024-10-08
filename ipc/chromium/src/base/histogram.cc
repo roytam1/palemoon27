@@ -1,3 +1,5 @@
+/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
+/* vim: set ts=8 sts=2 et sw=2 tw=80: */
 // Copyright (c) 2011 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
@@ -273,7 +275,7 @@ bool Histogram::DeserializeHistogramInfo(const std::string& histogram_info) {
   int pickle_flags;
   SampleSet sample;
 
-  void* iter = NULL;
+  PickleIterator iter(pickle);
   if (!pickle.ReadString(&iter, &histogram_name) ||
       !pickle.ReadInt(&iter, &declared_min) ||
       !pickle.ReadInt(&iter, &declared_max) ||
@@ -784,7 +786,7 @@ bool Histogram::SampleSet::Serialize(Pickle* pickle) const {
   return true;
 }
 
-bool Histogram::SampleSet::Deserialize(void** iter, const Pickle& pickle) {
+bool Histogram::SampleSet::Deserialize(PickleIterator* iter, const Pickle& pickle) {
   OffTheBooksMutexAutoLock locker(mutex_);
   DCHECK_EQ(counts_.size(), 0u);
   DCHECK_EQ(sum_, 0);

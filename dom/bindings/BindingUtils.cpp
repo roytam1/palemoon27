@@ -45,6 +45,7 @@
 #include "mozilla/dom/HTMLAppletElementBinding.h"
 #include "mozilla/dom/Promise.h"
 #include "mozilla/dom/ResolveSystemBinding.h"
+#include "mozilla/dom/WebIDLGlobalNameHash.h"
 #include "mozilla/dom/WorkerPrivate.h"
 #include "mozilla/dom/WorkerScope.h"
 #include "mozilla/jsipc/CrossProcessObjectWrappers.h"
@@ -172,7 +173,7 @@ ErrorResult::SerializeMessage(IPC::Message* aMsg) const
 }
 
 bool
-ErrorResult::DeserializeMessage(const IPC::Message* aMsg, void** aIter)
+ErrorResult::DeserializeMessage(const IPC::Message* aMsg, PickleIterator* aIter)
 {
   using namespace IPC;
   nsAutoPtr<Message> readMessage(new Message());
@@ -294,7 +295,7 @@ ErrorResult::SerializeDOMExceptionInfo(IPC::Message* aMsg) const
 }
 
 bool
-ErrorResult::DeserializeDOMExceptionInfo(const IPC::Message* aMsg, void** aIter)
+ErrorResult::DeserializeDOMExceptionInfo(const IPC::Message* aMsg, PickleIterator* aIter)
 {
   using namespace IPC;
   nsCString message;
@@ -2936,19 +2937,14 @@ RegisterDOMNames()
     return NS_OK;
   }
 
+  // Register new DOM bindings
+  WebIDLGlobalNameHash::Init();
+
   nsresult rv = nsDOMClassInfo::Init();
   if (NS_FAILED(rv)) {
     NS_ERROR("Could not initialize nsDOMClassInfo");
     return rv;
   }
-
-  // Register new DOM bindings
-  nsScriptNameSpaceManager* nameSpaceManager = GetNameSpaceManager();
-  if (!nameSpaceManager) {
-    NS_ERROR("Could not initialize nsScriptNameSpaceManager");
-    return NS_ERROR_FAILURE;
-  }
-  mozilla::dom::Register(nameSpaceManager);
 
   sRegisteredDOMNames = true;
 

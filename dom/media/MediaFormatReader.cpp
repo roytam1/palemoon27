@@ -174,9 +174,9 @@ MediaFormatReader::Init()
   InitLayersBackendType();
 
   mAudio.mTaskQueue =
-    new FlushableTaskQueue(GetMediaThreadPool(MediaThreadType::PLATFORM_DECODER));
+    new TaskQueue(GetMediaThreadPool(MediaThreadType::PLATFORM_DECODER));
   mVideo.mTaskQueue =
-    new FlushableTaskQueue(GetMediaThreadPool(MediaThreadType::PLATFORM_DECODER));
+    new TaskQueue(GetMediaThreadPool(MediaThreadType::PLATFORM_DECODER));
 
   return NS_OK;
 }
@@ -1336,7 +1336,6 @@ MediaFormatReader::ResetDecode(TargetQueues aQueues)
 
   if (HasVideo()) {
     mVideo.ResetDemuxer();
-    mVideo.ResetState();
     Reset(TrackInfo::kVideoTrack);
     if (mVideo.HasPromise()) {
       mVideo.RejectPromise(CANCELED, __func__);
@@ -1345,7 +1344,6 @@ MediaFormatReader::ResetDecode(TargetQueues aQueues)
 
   if (HasAudio() && aQueues == AUDIO_VIDEO) {
     mAudio.ResetDemuxer();
-    mAudio.ResetState();
     Reset(TrackInfo::kAudioTrack);
     if (mAudio.HasPromise()) {
       mAudio.RejectPromise(CANCELED, __func__);

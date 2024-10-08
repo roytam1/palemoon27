@@ -927,12 +927,12 @@ TabParent::ThemeChanged()
 }
 
 void
-TabParent::HandleAccessKey(nsTArray<uint32_t>& aCharCodes,
-                           const bool& aIsTrusted,
+TabParent::HandleAccessKey(const WidgetKeyboardEvent& aEvent,
+                           nsTArray<uint32_t>& aCharCodes,
                            const int32_t& aModifierMask)
 {
   if (!mIsDestroyed) {
-    Unused << SendHandleAccessKey(aCharCodes, aIsTrusted, aModifierMask);
+    Unused << SendHandleAccessKey(aEvent, aCharCodes, aModifierMask);
   }
 }
 
@@ -1186,7 +1186,7 @@ bool TabParent::SendRealMouseEvent(WidgetMouseEvent& event)
   ApzAwareEventRoutingToChild(&guid, &blockId, nullptr);
 
   if (eMouseMove == event.mMessage) {
-    if (event.reason == WidgetMouseEvent::eSynthesized) {
+    if (event.mReason == WidgetMouseEvent::eSynthesized) {
       return SendSynthMouseMoveEvent(event, guid, blockId);
     } else {
       return SendRealMouseMoveEvent(event, guid, blockId);
@@ -2064,6 +2064,31 @@ TabParent::RecvDispatchAfterKeyboardEvent(const WidgetKeyboardEvent& aEvent)
       localEvent.mMessage != eKeyPress) {
     presShell->DispatchAfterKeyboardEvent(mFrameElement, localEvent,
                                           aEvent.DefaultPrevented());
+  }
+
+  return true;
+}
+
+bool
+TabParent::RecvAccessKeyNotHandled(const WidgetKeyboardEvent& aEvent)
+{
+  NS_ENSURE_TRUE(mFrameElement, true);
+
+  WidgetKeyboardEvent localEvent(aEvent);
+  localEvent.mMessage = eAccessKeyNotFound;
+  localEvent.mAccessKeyForwardedToChild = false;
+
+  // Here we convert the WidgetEvent that we received to an nsIDOMEvent
+  // to be able to dispatch it to the <browser> element as the target element.
+  nsIDocument* doc = mFrameElement->OwnerDoc();
+  nsIPresShell* presShell = doc->GetShell();
+  NS_ENSURE_TRUE(presShell, true);
+
+  if (presShell->CanDispatchEvent()) {
+    nsPresContext* presContext = presShell->GetPresContext();
+    NS_ENSURE_TRUE(presContext, true);
+
+    EventDispatcher::Dispatch(mFrameElement, presContext, &localEvent);
   }
 
   return true;

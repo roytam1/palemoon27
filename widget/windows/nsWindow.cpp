@@ -3916,17 +3916,18 @@ nsWindow::DispatchMouseEvent(EventMessage aEventMessage, WPARAM wParam,
       }
       break;
     case eMouseExitFromWidget:
-      event.exit = IsTopLevelMouseExit(mWnd) ?
-                     WidgetMouseEvent::eTopLevel : WidgetMouseEvent::eChild;
+      event.mExitFrom =
+        IsTopLevelMouseExit(mWnd) ? WidgetMouseEvent::eTopLevel :
+                                    WidgetMouseEvent::eChild;
       break;
     default:
       break;
   }
-  event.clickCount = sLastClickCount;
+  event.mClickCount = sLastClickCount;
 
 #ifdef NS_DEBUG_XX
   MOZ_LOG(gWindowsLog, LogLevel::Info,
-         ("Msg Time: %d Click Count: %d\n", curMsgTime, event.clickCount));
+         ("Msg Time: %d Click Count: %d\n", curMsgTime, event.mClickCount));
 #endif
 
   NPEvent pluginEvent;

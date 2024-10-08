@@ -22,6 +22,7 @@
 #include "mozilla/SandboxInfo.h"
 #endif
 #include "GMPContentParent.h"
+#include "MediaPrefs.h"
 
 #ifdef XP_WIN
 #include "WMFDecoderModule.h"
@@ -257,7 +258,7 @@ GMPParent::EnsureAsyncShutdownTimeoutSet()
    return rv;
   }
 
-  int32_t timeout = GMP_DEFAULT_ASYNC_SHUTDONW_TIMEOUT;
+  int32_t timeout = MediaPrefs::GMPAsyncShutdownTimeout();
   RefPtr<GeckoMediaPluginServiceParent> service =
     GeckoMediaPluginServiceParent::GetSingleton();
   if (service) {

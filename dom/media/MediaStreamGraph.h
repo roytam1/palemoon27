@@ -159,9 +159,11 @@ public:
    */
   virtual void NotifyEvent(MediaStreamGraph* aGraph, MediaStreamGraphEvent aEvent) {}
 
+  // maskable flags, not a simple enumerated value
   enum {
     TRACK_EVENT_CREATED = 0x01,
-    TRACK_EVENT_ENDED = 0x02
+    TRACK_EVENT_ENDED = 0x02,
+    TRACK_EVENT_UNUSED = ~(TRACK_EVENT_ENDED | TRACK_EVENT_CREATED),
   };
   /**
    * Notify that changes to one of the stream tracks have been queued.
@@ -178,6 +180,16 @@ public:
                                         const MediaSegment& aQueuedMedia,
                                         MediaStream* aInputStream = nullptr,
                                         TrackID aInputTrackID = TRACK_INVALID) {}
+
+  /**
+   * Notify queued audio data. Only audio data need to be queued. The video data
+   * will be notified by MediaStreamVideoSink::SetCurrentFrame.
+   */
+  virtual void NotifyQueuedAudioData(MediaStreamGraph* aGraph, TrackID aID,
+                                     StreamTime aTrackOffset,
+                                     const AudioSegment& aQueuedMedia,
+                                     MediaStream* aInputStream = nullptr,
+                                     TrackID aInputTrackID = TRACK_INVALID) {}
 
   /**
    * Notify that all new tracks this iteration have been created.
@@ -1078,19 +1090,10 @@ public:
   friend class MediaStreamGraphImpl;
 
 protected:
-  struct ThreadAndRunnable {
-    void Init(TaskQueue* aTarget, nsIRunnable* aRunnable)
-    {
-      mTarget = aTarget;
-      mRunnable = aRunnable;
-    }
-
-    RefPtr<TaskQueue> mTarget;
-    nsCOMPtr<nsIRunnable> mRunnable;
-  };
   enum TrackCommands {
     TRACK_CREATE = MediaStreamListener::TRACK_EVENT_CREATED,
-    TRACK_END = MediaStreamListener::TRACK_EVENT_ENDED
+    TRACK_END = MediaStreamListener::TRACK_EVENT_ENDED,
+    TRACK_UNUSED = MediaStreamListener::TRACK_EVENT_UNUSED,
   };
   /**
    * Data for each track that hasn't ended.
@@ -1455,7 +1458,6 @@ public:
   // IdealAudioBlockSize()/AudioStream::PreferredSampleRate(). A stream that
   // never blocks and has a track with the ideal audio rate will produce audio
   // in multiples of the block size.
-  //
 
   // Initializing an graph that outputs audio can be quite long on some
   // platforms. Code that want to output audio at some point can express the

@@ -69,7 +69,7 @@ protected:
 class WMFMediaDataDecoder : public MediaDataDecoder {
 public:
   WMFMediaDataDecoder(MFTManager* aOutputSource,
-                      TaskQueue* aAudioTaskQueue,
+                      TaskQueue* aTaskQueue,
                       MediaDataDecoderCallback* aCallback);
   ~WMFMediaDataDecoder();
 
@@ -116,7 +116,7 @@ private:
   // different configuration (typically resolution change).
   void ProcessConfigurationChanged(UniquePtr<TrackInfo>&& aConfig);
 
-  RefPtr<TaskQueue> mTaskQueue;
+  const RefPtr<TaskQueue> mTaskQueue;
   MediaDataDecoderCallback* mCallback;
 
   nsAutoPtr<MFTManager> mMFTManager;

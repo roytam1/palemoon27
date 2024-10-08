@@ -4,6 +4,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
+#include "mozilla/SyncRunnable.h"
 #include "mozilla/TaskQueue.h"
 
 #include <string.h>
@@ -21,17 +22,16 @@ namespace mozilla
 StaticMutex FFmpegDataDecoder<LIBAV_VER>::sMonitor;
 
   FFmpegDataDecoder<LIBAV_VER>::FFmpegDataDecoder(FFmpegLibWrapper* aLib,
-                                                  FlushableTaskQueue* aTaskQueue,
+                                                  TaskQueue* aTaskQueue,
                                                   MediaDataDecoderCallback* aCallback,
                                                   AVCodecID aCodecID)
   : mLib(aLib)
-  , mTaskQueue(aTaskQueue)
   , mCallback(aCallback)
   , mCodecContext(nullptr)
   , mFrame(NULL)
   , mExtraData(nullptr)
   , mCodecID(aCodecID)
-  , mMonitor("FFMpegaDataDecoder")
+  , mTaskQueue(aTaskQueue)
   , mIsFlushing(false)
 {
   MOZ_ASSERT(aLib);
@@ -118,19 +118,44 @@ FFmpegDataDecoder<LIBAV_VER>::Shutdown()
   return NS_OK;
 }
 
+void
+FFmpegDataDecoder<LIBAV_VER>::ProcessDecode(MediaRawData* aSample)
+{
+  MOZ_ASSERT(mTaskQueue->IsCurrentThreadIn());
+  if (mIsFlushing) {
+    return;
+  }
+  switch (DoDecode(aSample)) {
+    case DecodeResult::DECODE_ERROR:
+      mCallback->Error(MediaDataDecoderError::DECODE_ERROR);
+      break;
+    case DecodeResult::FATAL_ERROR:
+      mCallback->Error(MediaDataDecoderError::FATAL_ERROR);
+      break;
+    default:
+      if (mTaskQueue->IsEmpty()) {
+        mCallback->InputExhausted();
+      }
+  }
+}
+
+nsresult
+FFmpegDataDecoder<LIBAV_VER>::Input(MediaRawData* aSample)
+{
+  mTaskQueue->Dispatch(NewRunnableMethod<RefPtr<MediaRawData>>(
+    this, &FFmpegDataDecoder::ProcessDecode, aSample));
+  return NS_OK;
+}
+
 nsresult
 FFmpegDataDecoder<LIBAV_VER>::Flush()
 {
   MOZ_ASSERT(mCallback->OnReaderTaskQueue());
   mIsFlushing = true;
-  mTaskQueue->Flush();
   nsCOMPtr<nsIRunnable> runnable =
     NewRunnableMethod(this, &FFmpegDataDecoder<LIBAV_VER>::ProcessFlush);
-  MonitorAutoLock mon(mMonitor);
-  mTaskQueue->Dispatch(runnable.forget());
-  while (mIsFlushing) {
-    mon.Wait();
-  }
+  SyncRunnable::DispatchToThread(mTaskQueue, runnable);
+  mIsFlushing = false;
   return NS_OK;
 }
 
@@ -151,9 +176,6 @@ FFmpegDataDecoder<LIBAV_VER>::ProcessFlush()
   if (mCodecContext) {
     mLib->avcodec_flush_buffers(mCodecContext);
   }
-  MonitorAutoLock mon(mMonitor);
-  mIsFlushing = false;
-  mon.NotifyAll();
 }
 
 void

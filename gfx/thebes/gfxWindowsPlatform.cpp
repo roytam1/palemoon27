@@ -428,6 +428,12 @@ gfxWindowsPlatform::CanUseHardwareVideoDecoding()
 }
 
 bool
+gfxWindowsPlatform::CanUseDirect3D11ANGLE()
+{
+  return gANGLESupportsD3D11 && gfxConfig::IsEnabled(Feature::D3D11_COMPOSITING);
+}
+
+bool
 gfxWindowsPlatform::InitDWriteSupport()
 {
   MOZ_ASSERT(!mDWriteFactory && IsVistaOrLater());
@@ -1949,8 +1955,38 @@ gfxWindowsPlatform::InitializeConfig()
     return;
   }
 
+  InitializeD3D9Config();
   InitializeD3D11Config();
   InitializeD2DConfig();
+}
+
+void
+gfxWindowsPlatform::InitializeD3D9Config()
+{
+  MOZ_ASSERT(XRE_IsParentProcess());
+
+  FeatureState& d3d9 = gfxConfig::GetFeature(Feature::D3D9_COMPOSITING);
+
+  if (!IsVistaOrLater()) {
+    d3d9.EnableByDefault();
+  } else {
+    d3d9.SetDefaultFromPref(
+      gfxPrefs::GetLayersAllowD3D9FallbackPrefName(),
+      true,
+      gfxPrefs::GetLayersAllowD3D9FallbackPrefDefault());
+
+    if (!d3d9.IsEnabled() && gfxPrefs::LayersPreferD3D9()) {
+      d3d9.UserEnable("Direct3D9 enabled via layers.prefer-d3d9");
+    }
+  }
+
+  if (!IsGfxInfoStatusOkay(nsIGfxInfo::FEATURE_DIRECT3D_9_LAYERS)) {
+    d3d9.Disable(FeatureStatus::Blacklisted, "Direct3D 9 for layers is blacklisted on this hardware");
+  }
+
+  if (gfxConfig::IsForcedOnByUser(Feature::HW_COMPOSITING)) {
+    d3d9.UserForceEnable("Hardware compositing is force-enabled");
+  }
 }
 
 void
@@ -2898,23 +2934,18 @@ gfxWindowsPlatform::GetAcceleratedCompositorBackends(nsTArray<LayersBackend>& aB
     aBackends.AppendElement(LayersBackend::LAYERS_OPENGL);
   }
 
-  bool allowTryingD3D9 = false;
-  if (!gfxPrefs::LayersPreferD3D9()) {
-    if (mD3D11Device) {
-      aBackends.AppendElement(LayersBackend::LAYERS_D3D11);
-    } else {
-      allowTryingD3D9 = gfxPrefs::LayersAllowD3D9Fallback();
-      NS_WARNING("Direct3D 11-accelerated layers are not supported on this system.");
-    }
+  if (gfxConfig::IsEnabled(Feature::D3D9_COMPOSITING) && gfxPrefs::LayersPreferD3D9()) {
+    aBackends.AppendElement(LayersBackend::LAYERS_D3D9);
   }
 
-  if (gfxPrefs::LayersPreferD3D9() || !IsVistaOrLater() || allowTryingD3D9) {
-    // We don't want D3D9 except on Windows XP, unless we failed to get D3D11
-    if (gfxPlatform::CanUseDirect3D9()) {
-      aBackends.AppendElement(LayersBackend::LAYERS_D3D9);
-    } else {
-      NS_WARNING("Direct3D 9-accelerated layers are not supported on this system.");
-    }
+  if (mD3D11Device) {
+    aBackends.AppendElement(LayersBackend::LAYERS_D3D11);
+  } else {
+    NS_WARNING("Direct3D 11-accelerated layers are not supported on this system.");
+  }
+
+  if (gfxConfig::IsEnabled(Feature::D3D9_COMPOSITING) && !gfxPrefs::LayersPreferD3D9()) {
+    aBackends.AppendElement(LayersBackend::LAYERS_D3D9);
   }
 }
 

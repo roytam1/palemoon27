@@ -134,6 +134,8 @@ public:
   // for deletion when all actors have cleared their associations.
   void DissociateActor();
 
+  static void EnableSameExecutableForContentProc() { sRunSelfAsContentProc = true; }
+
 protected:
   GeckoProcessType mProcessType;
   ChildPrivileges mPrivileges;
@@ -196,11 +198,14 @@ private:
                                   base::ProcessArchitecture arch);
 
   bool RunPerformAsyncLaunch(StringVector aExtraOpts=StringVector(),
-			     base::ProcessArchitecture aArch=base::GetCurrentProcessArchitecture());
+                             base::ProcessArchitecture aArch=base::GetCurrentProcessArchitecture());
 
-  static void GetPathToBinary(FilePath& exePath);
+  static void GetPathToBinary(FilePath& exePath, GeckoProcessType processType);
 
-  void SetChildLogName(const char* varName, const char* origLogName);
+  // The buffer is passed to preserve its lifetime until we are done
+  // with launching the sub-process.
+  void SetChildLogName(const char* varName, const char* origLogName,
+                       nsACString &buffer);
 
   // In between launching the subprocess and handing off its IPC
   // channel, there's a small window of time in which *we* might still
@@ -215,7 +220,15 @@ private:
   // it to stay alive and have not yet been destroyed.
   Atomic<int32_t> mAssociatedActors;
 
+  // Remember original env values so we can restore it (there is no other
+  // simple way how to change environment of a child process than to modify
+  // the current environment).
+  nsCString mRestoreOrigNSPRLogName;
+  nsCString mRestoreOrigMozLogName;
+
   static uint32_t sNextUniqueID;
+
+  static bool sRunSelfAsContentProc;
 };
 
 #ifdef MOZ_NUWA_PROCESS

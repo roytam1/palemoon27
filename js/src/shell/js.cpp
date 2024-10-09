@@ -185,7 +185,8 @@ static bool enableNativeRegExp = false;
 static bool enableUnboxedArrays = false;
 static bool enableSharedMemory = SHARED_MEMORY_DEFAULT;
 #ifdef JS_GC_ZEAL
-static char gZealStr[128];
+static uint32_t gZealBits = 0;
+static uint32_t gZealFrequency = 0;
 #endif
 static bool printTiming = false;
 static const char* jsCacheDir = nullptr;
@@ -3951,22 +3952,6 @@ runOffThreadScript(JSContext* cx, unsigned argc, Value* vp)
 }
 
 static bool
-CompileOffThreadModule(JSContext* cx, const ReadOnlyCompileOptions& options,
-                       const char16_t* chars, size_t length,
-                       JS::OffThreadCompileCallback callback, void* callbackData)
-{
-    MOZ_ASSERT(JS::CanCompileOffThread(cx, options, length));
-    return StartOffThreadParseModule(cx, options, chars, length, callback, callbackData);
-}
-
-static JSObject*
-FinishOffThreadModule(JSContext* maybecx, JSRuntime* rt, void* token)
-{
-    MOZ_ASSERT(CurrentThreadCanAccessRuntime(rt));
-    return HelperThreadState().finishModuleParseTask(maybecx, rt, token);
-}
-
-static bool
 OffThreadCompileModule(JSContext* cx, unsigned argc, Value* vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
@@ -4019,8 +4004,8 @@ OffThreadCompileModule(JSContext* cx, unsigned argc, Value* vp)
         return false;
     }
 
-    if (!CompileOffThreadModule(cx, options, chars, length,
-                                OffThreadCompileScriptCallback, nullptr))
+    if (!JS::CompileOffThreadModule(cx, options, chars, length,
+                                    OffThreadCompileScriptCallback, nullptr))
     {
         offThreadState.abandon(cx);
         return false;
@@ -4045,7 +4030,7 @@ FinishOffThreadModule(JSContext* cx, unsigned argc, Value* vp)
         return false;
     }
 
-    RootedObject module(cx, FinishOffThreadModule(cx, rt, token));
+    RootedObject module(cx, JS::FinishOffThreadModule(cx, rt, token));
     if (!module)
         return false;
 
@@ -6630,9 +6615,6 @@ NewGlobalObject(JSContext* cx, JS::CompartmentOptions& options,
 
         /* Initialize FakeDOMObject.prototype */
         InitDOMObject(domProto);
-
-        if (!js::InitModuleClasses(cx, glob))
-            return nullptr;
     }
 
     JS_FireOnNewGlobalObject(cx, glob);
@@ -7030,12 +7012,11 @@ SetRuntimeOptions(JSRuntime* rt, const OptionParser& op)
 
 #ifdef JS_GC_ZEAL
     const char* zealStr = op.getStringOption("gc-zeal");
-    gZealStr[0] = 0;
     if (zealStr) {
         if (!rt->gc.parseAndSetZeal(zealStr))
             return false;
-        strncpy(gZealStr, zealStr, sizeof(gZealStr));
-        gZealStr[sizeof(gZealStr)-1] = 0;
+        uint32_t nextScheduled;
+        rt->gc.getZealBits(&gZealBits, &gZealFrequency, &nextScheduled);
     }
 #endif
 
@@ -7056,8 +7037,13 @@ SetWorkerRuntimeOptions(JSRuntime* rt)
     rt->profilingScripts = enableCodeCoverage || enableDisassemblyDumps;
 
 #ifdef JS_GC_ZEAL
-    if (*gZealStr)
-        rt->gc.parseAndSetZeal(gZealStr);
+    if (gZealBits && gZealFrequency) {
+#define ZEAL_MODE(_, value)                        \
+        if (gZealBits & (1 << value))              \
+            rt->gc.setZeal(value, gZealFrequency);
+        JS_FOR_EACH_ZEAL_MODE(ZEAL_MODE)
+#undef ZEAL_MODE
+    }
 #endif
 
     JS_SetNativeStackQuota(rt, gMaxStackSize);
@@ -7359,7 +7345,7 @@ main(int argc, char** argv, char** envp)
 #endif
         || !op.addIntOption('\0', "nursery-size", "SIZE-MB", "Set the maximum nursery size in MB", 16)
 #ifdef JS_GC_ZEAL
-        || !op.addStringOption('z', "gc-zeal", "LEVEL[,N]", gc::ZealModeHelpText)
+        || !op.addStringOption('z', "gc-zeal", "LEVEL(;LEVEL)*[,N]", gc::ZealModeHelpText)
 #endif
         || !op.addStringOption('\0', "module-load-path", "DIR", "Set directory to load modules from")
     )

@@ -1235,8 +1235,11 @@ GetCurrentWorkingDirectory(nsAString& workingDirectory)
 static JSSecurityCallbacks shellSecurityCallbacks;
 
 int
-XRE_XPCShellMain(int argc, char** argv, char** envp)
+XRE_XPCShellMain(int argc, char** argv, char** envp,
+                 const XREShellData* aShellData)
 {
+    MOZ_ASSERT(aShellData);
+
     JSRuntime* rt;
     JSContext* cx;
     int result = 0;
@@ -1493,7 +1496,9 @@ XRE_XPCShellMain(int argc, char** argv, char** envp)
 
 #if defined(MOZ_SANDBOX)
         // Required for sandboxed child processes.
-        if (!SandboxBroker::Initialize()) {
+        if (aShellData->sandboxBrokerServices) {
+          SandboxBroker::Initialize(aShellData->sandboxBrokerServices);
+        } else {
           NS_WARNING("Failed to initialize broker services, sandboxed "
                      "processes will fail to start.");
         }

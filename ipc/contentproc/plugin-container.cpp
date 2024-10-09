@@ -8,11 +8,6 @@
 #include "nsXULAppAPI.h"
 #include "nsAutoPtr.h"
 
-// FIXME/cjones testing
-#if !defined(OS_WIN)
-#include <unistd.h>
-#endif
-
 #ifdef XP_WIN
 #include <windows.h>
 // we want a wmain entry point
@@ -20,14 +15,16 @@
 #define XRE_DONT_PROTECT_DLL_LOAD
 #include "nsWindowsWMain.cpp"
 #include "nsSetDllDirectory.h"
+#else
+// FIXME/cjones testing
+#include <unistd.h>
 #endif
 
 #include "GMPLoader.h"
 
 #if defined(XP_WIN) && defined(MOZ_SANDBOX)
-#include "mozilla/sandboxTarget.h"
-#include "mozilla/sandboxing/loggingCallbacks.h"
-#include "sandbox/win/src/sandbox_factory.h"
+#include "mozilla/sandboxing/SandboxInitialization.h"
+#include "mozilla/sandboxing/sandboxLogging.h"
 #endif
 
 #if defined(XP_LINUX) && defined(MOZ_GMP_SANDBOX)
@@ -86,7 +83,7 @@ class WinSandboxStarter : public mozilla::gmp::SandboxStarter {
 public:
     virtual bool Start(const char *aLibPath) override {
         if (gIsSandboxEnabled) {
-            sandbox::SandboxFactory::GetTargetServices()->LowerToken();
+            mozilla::sandboxing::LowerSandbox();
         }
         return true;
     }
@@ -163,21 +160,17 @@ content_process_main(int argc, char* argv[])
 #endif
     }
 
+    XREChildData childData;
+
 #if defined(XP_WIN) && defined(MOZ_SANDBOX)
     if (gIsSandboxEnabled) {
-        sandbox::TargetServices* target_service =
-            sandbox::SandboxFactory::GetTargetServices();
-        if (!target_service) {
+        childData.sandboxTargetServices =
+            mozilla::sandboxing::GetInitializedTargetServices();
+        if (!childData.sandboxTargetServices) {
             return 1;
         }
 
-        sandbox::ResultCode result = target_service->Init();
-        if (result != sandbox::SBOX_ALL_OK) {
-           return 2;
-        }
-
-        mozilla::SandboxTarget::Instance()->SetTargetServices(target_service);
-        mozilla::sandboxing::PrepareForLogging();
+        childData.ProvideLogFunction = mozilla::sandboxing::ProvideLogFunction;
     }
 #endif
 
@@ -222,19 +215,18 @@ content_process_main(int argc, char* argv[])
     // the details.
     if (XRE_GetProcessType() != GeckoProcessType_Plugin) {
         mozilla::SanitizeEnvironmentVariables();
-        SetDllDirectory(L"");
+        SetDllDirectoryW(L"");
     }
 #endif
-    nsAutoPtr<mozilla::gmp::GMPLoader> loader;
-#if !defined(MOZ_WIDGET_ANDROID) && !defined(MOZ_WIDGET_GONK)
+#if !defined(MOZ_WIDGET_ANDROID) && !defined(MOZ_WIDGET_GONK) && defined(MOZ_PLUGIN_CONTAINER)
     // On desktop, the GMPLoader lives in plugin-container, so that its
     // code can be covered by an EME/GMP vendor's voucher.
     nsAutoPtr<mozilla::gmp::SandboxStarter> starter(MakeSandboxStarter());
     if (XRE_GetProcessType() == GeckoProcessType_GMPlugin) {
-        loader = mozilla::gmp::CreateGMPLoader(starter);
+        childData.gmpLoader = mozilla::gmp::CreateGMPLoader(starter);
     }
 #endif
-    nsresult rv = XRE_InitChildProcess(argc, argv, loader);
+    nsresult rv = XRE_InitChildProcess(argc, argv, &childData);
     NS_ENSURE_SUCCESS(rv, 1);
 
     return 0;

@@ -1,5 +1,3 @@
-/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 2 -*-
- */
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -138,8 +136,24 @@ GeckoChildProcessHost::~GeckoChildProcessHost()
 
 //static
 void
-GeckoChildProcessHost::GetPathToBinary(FilePath& exePath)
+GeckoChildProcessHost::GetPathToBinary(FilePath& exePath, GeckoProcessType processType)
 {
+  if (sRunSelfAsContentProc &&
+      processType == GeckoProcessType_Content) {
+#if defined(OS_WIN)
+    wchar_t exePathBuf[MAXPATHLEN];
+    if (!::GetModuleFileNameW(nullptr, exePathBuf, MAXPATHLEN)) {
+      MOZ_CRASH("GetModuleFileNameW failed (FIXME)");
+    }
+    exePath = FilePath::FromWStringHack(exePathBuf);
+#elif defined(OS_POSIX)
+    exePath = FilePath(CommandLine::ForCurrentProcess()->argv()[0]);
+#else
+#  error Sorry; target OS not supported yet.
+#endif
+    return;
+  }
+
   if (ShouldHaveDirectoryService()) {
     MOZ_ASSERT(gGREBinPath);
 #ifdef OS_WIN
@@ -148,6 +162,7 @@ GeckoChildProcessHost::GetPathToBinary(FilePath& exePath)
     nsCOMPtr<nsIFile> childProcPath;
     NS_NewLocalFile(nsDependentString(gGREBinPath), false,
                     getter_AddRefs(childProcPath));
+
     // We need to use an App Bundle on OS X so that we can hide
     // the dock icon. See Bug 557225.
     childProcPath->AppendNative(NS_LITERAL_CSTRING("plugin-container.app"));
@@ -258,7 +273,7 @@ uint32_t GeckoChildProcessHost::GetSupportedArchitecturesForProcessType(GeckoPro
     static uint32_t pluginContainerArchs = 0;
     if (pluginContainerArchs == 0) {
       FilePath exePath;
-      GetPathToBinary(exePath);
+      GetPathToBinary(exePath, type);
       nsresult rv = GetArchitecturesForBinary(exePath.value().c_str(), &pluginContainerArchs);
       NS_ASSERTION(NS_SUCCEEDED(rv) && pluginContainerArchs != 0, "Getting architecture of plugin container failed!");
       if (NS_FAILED(rv) || pluginContainerArchs == 0) {
@@ -492,22 +507,24 @@ GeckoChildProcessHost::DissociateActor()
 int32_t GeckoChildProcessHost::mChildCounter = 0;
 
 void
-GeckoChildProcessHost::SetChildLogName(const char* varName, const char* origLogName)
+GeckoChildProcessHost::SetChildLogName(const char* varName, const char* origLogName,
+                                       nsACString &buffer)
 {
   // We currently have no portable way to launch child with environment
   // different than parent.  So temporarily change NSPR_LOG_FILE so child
   // inherits value we want it to have. (NSPR only looks at NSPR_LOG_FILE at
   // startup, so it's 'safe' to play with the parent's environment this way.)
-  nsAutoCString setChildLogName(varName);
-  setChildLogName.Append(origLogName);
+  buffer.Assign(varName);
+  buffer.Append(origLogName);
 
   // Append child-specific postfix to name
-  setChildLogName.AppendLiteral(".child-");
-  setChildLogName.AppendInt(mChildCounter);
+  buffer.AppendLiteral(".child-");
+  buffer.AppendInt(mChildCounter);
 
-  // Passing temporary to PR_SetEnv is ok here because env gets copied
-  // by exec, etc., to permanent storage in child when process launched.
-  PR_SetEnv(setChildLogName.get());
+  // Passing temporary to PR_SetEnv is ok here if we keep the temporary
+  // for the time we launch the sub-process.  It's copied to the new
+  // environment.
+  PR_SetEnv(buffer.BeginReading());
 }
 
 bool
@@ -520,37 +537,38 @@ GeckoChildProcessHost::PerformAsyncLaunch(std::vector<std::string> aExtraOpts, b
     return PerformAsyncLaunchInternal(aExtraOpts, arch);
   }
 
-  ++mChildCounter;
-
-  // remember original value so we can restore it.
   // - Note: this code is not called re-entrantly, nor are restoreOrig*LogName
   //   or mChildCounter touched by any other thread, so this is safe.
-  static nsAutoCString restoreOrigNSPRLogName;
-  static nsAutoCString restoreOrigMozLogName;
+  ++mChildCounter;
+
+  // Must keep these on the same stack where from we call PerformAsyncLaunchInternal
+  // so that PR_DuplicateEnvironment() still sees a valid memory.
+  nsAutoCString nsprLogName;
+  nsAutoCString mozLogName;
 
   if (origNSPRLogName) {
-    if (restoreOrigNSPRLogName.IsEmpty()) {
-      restoreOrigNSPRLogName.AssignLiteral("NSPR_LOG_FILE=");
-      restoreOrigNSPRLogName.Append(origNSPRLogName);
+    if (mRestoreOrigNSPRLogName.IsEmpty()) {
+      mRestoreOrigNSPRLogName.AssignLiteral("NSPR_LOG_FILE=");
+      mRestoreOrigNSPRLogName.Append(origNSPRLogName);
     }
-    SetChildLogName("NSPR_LOG_FILE=", origNSPRLogName);
+    SetChildLogName("NSPR_LOG_FILE=", origNSPRLogName, nsprLogName);
   }
   if (origMozLogName) {
-    if (restoreOrigMozLogName.IsEmpty()) {
-      restoreOrigMozLogName.AssignLiteral("MOZ_LOG_FILE=");
-      restoreOrigMozLogName.Append(origMozLogName);
+    if (mRestoreOrigMozLogName.IsEmpty()) {
+      mRestoreOrigMozLogName.AssignLiteral("MOZ_LOG_FILE=");
+      mRestoreOrigMozLogName.Append(origMozLogName);
     }
-    SetChildLogName("MOZ_LOG_FILE=", origMozLogName);
+    SetChildLogName("MOZ_LOG_FILE=", origMozLogName, mozLogName);
   }
 
   bool retval = PerformAsyncLaunchInternal(aExtraOpts, arch);
 
   // Revert to original value
   if (origNSPRLogName) {
-    PR_SetEnv(restoreOrigNSPRLogName.get());
+    PR_SetEnv(mRestoreOrigNSPRLogName.get());
   }
   if (origMozLogName) {
-    PR_SetEnv(restoreOrigMozLogName.get());
+    PR_SetEnv(mRestoreOrigMozLogName.get());
   }
 
   return retval;
@@ -772,7 +790,7 @@ GeckoChildProcessHost::PerformAsyncLaunchInternal(std::vector<std::string>& aExt
 #endif  // OS_LINUX || OS_MACOSX
 
   FilePath exePath;
-  GetPathToBinary(exePath);
+  GetPathToBinary(exePath, mProcessType);
 
 #ifdef MOZ_WIDGET_ANDROID
   // The java wrapper unpacks this for us but can't make it executable
@@ -814,6 +832,11 @@ GeckoChildProcessHost::PerformAsyncLaunchInternal(std::vector<std::string>& aExt
   std::vector<std::string> childArgv;
 
   childArgv.push_back(exePath.value());
+
+  if (sRunSelfAsContentProc &&
+      mProcessType == GeckoProcessType_Content) {
+    childArgv.push_back("-contentproc");
+  }
 
   childArgv.insert(childArgv.end(), aExtraOpts.begin(), aExtraOpts.end());
 
@@ -951,9 +974,15 @@ GeckoChildProcessHost::PerformAsyncLaunchInternal(std::vector<std::string>& aExt
 #elif defined(OS_WIN)
 
   FilePath exePath;
-  GetPathToBinary(exePath);
+  GetPathToBinary(exePath, mProcessType);
 
   CommandLine cmdLine(exePath.ToWStringHack());
+
+  if (sRunSelfAsContentProc &&
+      mProcessType == GeckoProcessType_Content) {
+    cmdLine.AppendLooseValue(UTF8ToWide("-contentproc"));
+  }
+
   cmdLine.AppendSwitchWithValue(switches::kProcessChannelID, channel_id());
 
   for (std::vector<std::string>::iterator it = aExtraOpts.begin();
@@ -1196,6 +1225,8 @@ GeckoChildProcessHost::OnWaitableEventSignaled(base::WaitableEvent *event)
   }
   ChildProcessHost::OnWaitableEventSignaled(event);
 }
+
+bool GeckoChildProcessHost::sRunSelfAsContentProc(false);
 
 #ifdef MOZ_NUWA_PROCESS
 

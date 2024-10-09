@@ -6,14 +6,6 @@ $inherits:
   from: tasks/branches/base_job_flags.yml
 
 builds:
-  linux64_gecko:
-    platforms:
-      - b2g
-    types:
-      opt:
-        task: tasks/builds/b2g_desktop_opt.yml
-      debug:
-        task: tasks/builds/b2g_desktop_debug.yml
   linux64-mulet:
     platforms:
       - Mulet Linux
@@ -28,6 +20,14 @@ builds:
         task: tasks/builds/b2g_emulator_kk_opt.yml
       debug:
         task: tasks/builds/b2g_emulator_kk_debug.yml
+  emulator-x86-kk:
+    platfoms:
+      - b2g
+    types:
+      opt:
+        task: tasks/builds/b2g_emulator_x86_kk_opt.yml
+      debug:
+        task: tasks/builds/b2g_emulator_x86_kk_debug.yml
   emulator-l:
     platfoms:
       - b2g
@@ -36,22 +36,14 @@ builds:
         task: tasks/builds/b2g_emulator_l_opt.yml
       debug:
         task: tasks/builds/b2g_emulator_l_debug.yml
-  emulator-jb:
+  linux:
     platfoms:
-      - b2g
+      - Linux
     types:
       opt:
-        task: tasks/builds/b2g_emulator_jb_opt.yml
+        task: tasks/builds/opt_linux32.yml
       debug:
-        task: tasks/builds/b2g_emulator_jb_debug.yml
-  emulator:
-    platfoms:
-      - b2g
-    types:
-      opt:
-        task: tasks/builds/b2g_emulator_ics_opt.yml
-      debug:
-        task: tasks/builds/b2g_emulator_ics_debug.yml
+        task: tasks/builds/dbg_linux32.yml
   aries:
     platforms:
       - b2g

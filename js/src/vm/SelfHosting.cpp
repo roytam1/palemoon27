@@ -1803,13 +1803,30 @@ static bool
 intrinsic_EnqueuePromiseJob(JSContext* cx, unsigned argc, Value* vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
-    MOZ_ASSERT(args.length() == 1);
-    MOZ_ASSERT(args[0].isObject());
-    MOZ_ASSERT(args[0].toObject().is<JSFunction>());
+    MOZ_ASSERT(args.length() == 2);
+    MOZ_ASSERT(args[0].toObject().is<PromiseObject>());
+    MOZ_ASSERT(args[1].toObject().is<JSFunction>());
 
-    RootedFunction job(cx, &args[0].toObject().as<JSFunction>());
-    if (!cx->runtime()->enqueuePromiseJob(cx, job))
+    RootedObject promise(cx, &args[0].toObject());
+    RootedFunction job(cx, &args[1].toObject().as<JSFunction>());
+    if (!cx->runtime()->enqueuePromiseJob(cx, job, promise))
         return false;
+    args.rval().setUndefined();
+    return true;
+}
+
+// ES2016, February 12 draft, 25.4.1.9.
+static bool
+intrinsic_HostPromiseRejectionTracker(JSContext* cx, unsigned argc, Value* vp)
+{
+    CallArgs args = CallArgsFromVp(argc, vp);
+    MOZ_ASSERT(args.length() == 2);
+    MOZ_ASSERT(args[0].toObject().is<PromiseObject>());
+
+    Rooted<PromiseObject*> promise(cx, &args[0].toObject().as<PromiseObject>());
+    mozilla::DebugOnly<bool> isHandled = args[1].toBoolean();
+    MOZ_ASSERT(isHandled, "HostPromiseRejectionTracker intrinsic currently only marks as handled");
+    cx->runtime()->removeUnhandledRejectedPromise(cx, promise);
     args.rval().setUndefined();
     return true;
 }
@@ -2163,33 +2180,9 @@ intrinsic_onPromiseSettled(JSContext* cx, unsigned argc, Value* vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
     MOZ_ASSERT(args.length() == 1);
-    RootedObject promise(cx, &args[0].toObject());
-    JS::dbg::onPromiseSettled(cx, promise);
+    Rooted<PromiseObject*> promise(cx, &args[0].toObject().as<PromiseObject>());
+    promise->onSettled(cx);
     args.rval().setUndefined();
-    return true;
-}
-
-/**
- * Intrinsic used to tell the debugger about settled promises.
- *
- * This is invoked both when resolving and rejecting promises, after the
- * resulting state has been set on the promise, and it's up to the debugger
- * to act on this signal in whichever way it wants.
- */
-static bool
-intrinsic_captureCurrentStack(JSContext* cx, unsigned argc, Value* vp)
-{
-    CallArgs args = CallArgsFromVp(argc, vp);
-    MOZ_ASSERT(args.length() < 2);
-    unsigned maxFrameCount = 0;
-    if (args.length() == 1)
-        maxFrameCount = args[0].toInt32();
-
-    RootedObject stack(cx);
-    if (!JS::CaptureCurrentStack(cx, &stack, maxFrameCount))
-        return false;
-
-    args.rval().setObject(*stack);
     return true;
 }
 
@@ -2480,6 +2473,7 @@ static const JSFunctionSpec intrinsic_functions[] = {
     JS_FN("IsPromise",                      intrinsic_IsInstanceOfBuiltin<PromiseObject>, 1,0),
     JS_FN("IsWrappedPromise",               intrinsic_IsWrappedPromiseObject,     1, 0),
     JS_FN("_EnqueuePromiseJob",             intrinsic_EnqueuePromiseJob,          1, 0),
+    JS_FN("HostPromiseRejectionTracker",    intrinsic_HostPromiseRejectionTracker,2, 0),
     JS_FN("_GetOriginalPromiseConstructor", intrinsic_OriginalPromiseConstructor, 0, 0),
     JS_FN("RejectUnwrappedPromise",         intrinsic_RejectUnwrappedPromise,     2, 0),
     JS_FN("CallPromiseMethodIfWrapped",
@@ -2519,8 +2513,8 @@ static const JSFunctionSpec intrinsic_functions[] = {
 #undef LOAD_AND_STORE_SCALAR_FN_DECLS
 
 #define LOAD_AND_STORE_REFERENCE_FN_DECLS(_constant, _type, _name)      \
-    JS_FN("Store_" #_name, js::StoreReference##_type::Func, 3, 0),      \
-    JS_FN("Load_" #_name,  js::LoadReference##_type::Func, 3, 0),
+    JS_FN("Store_" #_name, js::StoreReference##_name::Func, 3, 0),      \
+    JS_FN("Load_" #_name,  js::LoadReference##_name::Func, 3, 0),
     JS_FOR_EACH_REFERENCE_TYPE_REPR(LOAD_AND_STORE_REFERENCE_FN_DECLS)
 #undef LOAD_AND_STORE_REFERENCE_FN_DECLS
 
@@ -2597,7 +2591,6 @@ static const JSFunctionSpec intrinsic_functions[] = {
     JS_FN("ModuleNamespaceExports", intrinsic_ModuleNamespaceExports, 1, 0),
 
     JS_FN("_dbg_onPromiseSettled", intrinsic_onPromiseSettled, 1, 0),
-    JS_FN("_dbg_captureCurrentStack", intrinsic_captureCurrentStack, 1, 0),
 
     JS_FS_END
 };
@@ -3114,8 +3107,13 @@ js::SelfHostedFunction(JSContext* cx, HandlePropertyName propName)
 bool
 js::IsSelfHostedFunctionWithName(JSFunction* fun, JSAtom* name)
 {
-    return fun->isSelfHostedBuiltin() &&
-           fun->getExtendedSlot(LAZY_FUNCTION_NAME_SLOT).toString() == name;
+    return fun->isSelfHostedBuiltin() && GetSelfHostedFunctionName(fun) == name;
+}
+
+JSAtom*
+js::GetSelfHostedFunctionName(JSFunction* fun)
+{
+    return &fun->getExtendedSlot(LAZY_FUNCTION_NAME_SLOT).toString()->asAtom();
 }
 
 static_assert(JSString::MAX_LENGTH <= INT32_MAX,

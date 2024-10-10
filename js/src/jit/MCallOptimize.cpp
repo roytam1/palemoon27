@@ -3257,6 +3257,9 @@ IonBuilder::inlineSimd(CallInfo& callInfo, JSFunction* target, SimdType type)
       case SimdOperation::Fn_minNum:
         return inlineSimdBinary<MSimdBinaryArith>(callInfo, native, MSimdBinaryArith::Op_minNum,
                                                   type);
+      case SimdOperation::Fn_addSaturate:
+      case SimdOperation::Fn_subSaturate:
+        MOZ_CRASH("NYI");
 
         // Binary bitwise.
       case SimdOperation::Fn_and:
@@ -3383,6 +3386,12 @@ IonBuilder::inlineConstructSimdObject(CallInfo& callInfo, SimdTypeDescr* descr)
     // Generic constructor of SIMD valuesX4.
     MIRType simdType;
     if (!MaybeSimdTypeToMIRType(descr->type(), &simdType)) {
+        trackOptimizationOutcome(TrackedOutcome::SimdTypeNotOptimized);
+        return InliningStatus_NotInlined;
+    }
+
+    // NYI, this will be removed by a bug 1136226 patch.
+    if (SimdTypeToLength(simdType) != 4) {
         trackOptimizationOutcome(TrackedOutcome::SimdTypeNotOptimized);
         return InliningStatus_NotInlined;
     }
@@ -3551,7 +3560,7 @@ IonBuilder::inlineSimdShift(CallInfo& callInfo, JSNative native, MSimdShift::Ope
 
     MDefinition* vec = unboxSimd(callInfo.getArg(0), type);
 
-    MInstruction* ins = MSimdShift::New(alloc(), vec, callInfo.getArg(1), op);
+    MInstruction* ins = MSimdShift::AddLegalized(alloc(), current, vec, callInfo.getArg(1), op);
     return boxSimd(callInfo, ins, templateObj);
 }
 
@@ -3598,7 +3607,7 @@ IonBuilder::inlineSimdSplat(CallInfo& callInfo, JSNative native, SimdType type)
     if (SimdTypeToLaneType(mirType) == MIRType::Boolean)
         arg = convertToBooleanSimdLane(arg);
 
-    MSimdSplatX4* ins = MSimdSplatX4::New(alloc(), arg, mirType);
+    MSimdSplat* ins = MSimdSplat::New(alloc(), arg, mirType);
     return boxSimd(callInfo, ins, templateObj);
 }
 
@@ -3616,8 +3625,8 @@ IonBuilder::inlineSimdExtractLane(CallInfo& callInfo, JSNative native, SimdType 
     MDefinition* arg = callInfo.getArg(1);
     if (!arg->isConstant() || arg->type() != MIRType::Int32)
         return InliningStatus_NotInlined;
-    int32_t lane = arg->toConstant()->toInt32();
-    if (lane < 0 || lane >= 4)
+    unsigned lane = arg->toConstant()->toInt32();
+    if (lane >= GetSimdLanes(type))
         return InliningStatus_NotInlined;
 
     // Original vector.
@@ -3631,7 +3640,7 @@ IonBuilder::inlineSimdExtractLane(CallInfo& callInfo, JSNative native, SimdType 
         laneType = MIRType::Double;
 
     MSimdExtractElement* ins =
-      MSimdExtractElement::New(alloc(), orig, laneType, SimdLane(lane), sign);
+      MSimdExtractElement::New(alloc(), orig, laneType, lane, sign);
     current->add(ins);
     current->push(ins);
     callInfo.setImplicitlyUsedUnchecked();
@@ -3650,8 +3659,8 @@ IonBuilder::inlineSimdReplaceLane(CallInfo& callInfo, JSNative native, SimdType 
     if (!arg->isConstant() || arg->type() != MIRType::Int32)
         return InliningStatus_NotInlined;
 
-    int32_t lane = arg->toConstant()->toInt32();
-    if (lane < 0 || lane >= 4)
+    unsigned lane = arg->toConstant()->toInt32();
+    if (lane >= GetSimdLanes(type))
         return InliningStatus_NotInlined;
 
     // Original vector.
@@ -3663,7 +3672,7 @@ IonBuilder::inlineSimdReplaceLane(CallInfo& callInfo, JSNative native, SimdType 
     if (SimdTypeToLaneType(vecType) == MIRType::Boolean)
         value = convertToBooleanSimdLane(value);
 
-    MSimdInsertElement* ins = MSimdInsertElement::New(alloc(), orig, value, SimdLane(lane));
+    MSimdInsertElement* ins = MSimdInsertElement::New(alloc(), orig, value, lane);
     return boxSimd(callInfo, ins, templateObj);
 }
 
@@ -3769,6 +3778,10 @@ SimdTypeToArrayElementType(SimdType type)
 {
     switch (type) {
       case SimdType::Float32x4: return Scalar::Float32x4;
+      case SimdType::Int8x16:
+      case SimdType::Uint8x16:  return Scalar::Int8x16;
+      case SimdType::Int16x8:
+      case SimdType::Uint16x8:  return Scalar::Int16x8;
       case SimdType::Int32x4:
       case SimdType::Uint32x4:  return Scalar::Int32x4;
       default:                MOZ_CRASH("unexpected simd type");

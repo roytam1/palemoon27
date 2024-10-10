@@ -525,7 +525,8 @@ CodeGeneratorShared::encodeAllocation(LSnapshot* snapshot, MDefinition* mir,
     if (mir->isIncompleteObject())
         alloc.setNeedSideEffect();
 
-    snapshots_.add(alloc);
+    masm.propagateOOM(snapshots_.add(alloc));
+
     *allocIndex += mir->isRecoveredOnBailout() ? 0 : 1;
 }
 
@@ -1160,7 +1161,7 @@ class StoreOp
             masm.storeFloat32(reg, dump);
 #if defined(JS_CODEGEN_X86) || defined(JS_CODEGEN_X64)
         else if (reg.isSimd128())
-            masm.storeUnalignedFloat32x4(reg, dump);
+            masm.storeUnalignedSimd128Float(reg, dump);
 #endif
         else
             MOZ_CRASH("Unexpected register type.");
@@ -1518,9 +1519,13 @@ CodeGeneratorShared::emitAsmJSCall(LAsmJSCall* ins)
       case MAsmJSCall::Callee::Internal:
         masm.call(mir->desc(), callee.internal());
         break;
-      case MAsmJSCall::Callee::Dynamic:
-        masm.call(mir->desc(), ToRegister(ins->getOperand(mir->dynamicCalleeOperandIndex())));
+      case MAsmJSCall::Callee::Dynamic: {
+        if (callee.dynamicHasSigIndex())
+            masm.move32(Imm32(callee.dynamicSigIndex()), WasmTableCallSigReg);
+        MOZ_ASSERT(WasmTableCallPtrReg == ToRegister(ins->getOperand(mir->dynamicCalleeOperandIndex())));
+        masm.call(mir->desc(), WasmTableCallPtrReg);
         break;
+      }
       case MAsmJSCall::Callee::Builtin:
         masm.call(callee.builtin());
         break;

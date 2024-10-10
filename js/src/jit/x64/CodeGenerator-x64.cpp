@@ -19,6 +19,8 @@
 using namespace js;
 using namespace js::jit;
 
+using mozilla::DebugOnly;
+
 CodeGeneratorX64::CodeGeneratorX64(MIRGenerator* gen, LIRGraph* graph, MacroAssembler* masm)
   : CodeGeneratorX86Shared(gen, graph, masm)
 {
@@ -463,12 +465,12 @@ CodeGeneratorX64::visitUDivOrMod64(LUDivOrMod64* lir)
 {
     Register lhs = ToRegister(lir->lhs());
     Register rhs = ToRegister(lir->rhs());
-    Register output = ToRegister(lir->output());
 
+    DebugOnly<Register> output = ToRegister(lir->output());
     MOZ_ASSERT_IF(lhs != rhs, rhs != rax);
     MOZ_ASSERT(rhs != rdx);
-    MOZ_ASSERT_IF(output == rax, ToRegister(lir->remainder()) == rdx);
-    MOZ_ASSERT_IF(output == rdx, ToRegister(lir->remainder()) == rax);
+    MOZ_ASSERT_IF(output.value == rax, ToRegister(lir->remainder()) == rdx);
+    MOZ_ASSERT_IF(output.value == rdx, ToRegister(lir->remainder()) == rax);
 
     // Put the lhs in rax.
     if (lhs != rax)
@@ -568,7 +570,7 @@ CodeGeneratorX64::loadSimd(Scalar::Type type, unsigned numElems, const Operand& 
           case 1: masm.loadFloat32(srcAddr, out); break;
           // See comment above, which also applies to movsd.
           case 2: masm.loadDouble(srcAddr, out); break;
-          case 4: masm.loadUnalignedFloat32x4(srcAddr, out); break;
+          case 4: masm.loadUnalignedSimd128Float(srcAddr, out); break;
           default: MOZ_CRASH("unexpected size for partial load");
         }
         break;
@@ -579,11 +581,19 @@ CodeGeneratorX64::loadSimd(Scalar::Type type, unsigned numElems, const Operand& 
           case 1: masm.vmovd(srcAddr, out); break;
           // See comment above, which also applies to movq.
           case 2: masm.vmovq(srcAddr, out); break;
-          case 4: masm.loadUnalignedInt32x4(srcAddr, out); break;
+          case 4: masm.loadUnalignedSimd128Int(srcAddr, out); break;
           default: MOZ_CRASH("unexpected size for partial load");
         }
         break;
       }
+      case Scalar::Int8x16:
+        MOZ_ASSERT(numElems = 16, "unexpected partial load");
+        masm.loadUnalignedSimd128Int(srcAddr, out);
+        break;
+      case Scalar::Int16x8:
+        MOZ_ASSERT(numElems = 8, "unexpected partial load");
+        masm.loadUnalignedSimd128Int(srcAddr, out);
+        break;
       case Scalar::Int8:
       case Scalar::Uint8:
       case Scalar::Int16:
@@ -684,6 +694,8 @@ CodeGeneratorX64::visitAsmJSLoadHeap(LAsmJSLoadHeap* ins)
       case Scalar::Float32:   masm.loadFloat32(srcAddr, ToFloatRegister(out)); break;
       case Scalar::Float64:   masm.loadDouble(srcAddr, ToFloatRegister(out)); break;
       case Scalar::Float32x4:
+      case Scalar::Int8x16:
+      case Scalar::Int16x8:
       case Scalar::Int32x4:   MOZ_CRASH("SIMD loads should be handled in emitSimdLoad");
       case Scalar::Uint8Clamped:
       case Scalar::MaxTypedArrayViewType:
@@ -711,10 +723,10 @@ CodeGeneratorX64::storeSimd(Scalar::Type type, unsigned numElems, FloatRegister 
       case Scalar::Float32x4: {
         switch (numElems) {
           // In memory-to-register mode, movss zeroes out the high lanes.
-          case 1: masm.storeFloat32(in, dstAddr); break;
+          case 1: masm.storeUncanonicalizedFloat32(in, dstAddr); break;
           // See comment above, which also applies to movsd.
-          case 2: masm.storeDouble(in, dstAddr); break;
-          case 4: masm.storeUnalignedFloat32x4(in, dstAddr); break;
+          case 2: masm.storeUncanonicalizedDouble(in, dstAddr); break;
+          case 4: masm.storeUnalignedSimd128Float(in, dstAddr); break;
           default: MOZ_CRASH("unexpected size for partial load");
         }
         break;
@@ -725,11 +737,19 @@ CodeGeneratorX64::storeSimd(Scalar::Type type, unsigned numElems, FloatRegister 
           case 1: masm.vmovd(in, dstAddr); break;
           // See comment above, which also applies to movq.
           case 2: masm.vmovq(in, dstAddr); break;
-          case 4: masm.storeUnalignedInt32x4(in, dstAddr); break;
+          case 4: masm.storeUnalignedSimd128Int(in, dstAddr); break;
           default: MOZ_CRASH("unexpected size for partial load");
         }
         break;
       }
+      case Scalar::Int8x16:
+        MOZ_ASSERT(numElems == 16, "unexpected partial store");
+        masm.storeUnalignedSimd128Int(in, dstAddr);
+        break;
+      case Scalar::Int16x8:
+        MOZ_ASSERT(numElems == 8, "unexpected partial store");
+        masm.storeUnalignedSimd128Int(in, dstAddr);
+        break;
       case Scalar::Int8:
       case Scalar::Uint8:
       case Scalar::Int16:
@@ -802,11 +822,13 @@ CodeGeneratorX64::visitAsmJSStoreHeap(LAsmJSStoreHeap* ins)
 {
     const MAsmJSStoreHeap* mir = ins->mir();
     Scalar::Type accessType = mir->accessType();
+    const LAllocation* value = ins->value();
+
+    canonicalizeIfDeterministic(accessType, value);
 
     if (Scalar::isSimdType(accessType))
         return emitSimdStore(ins);
 
-    const LAllocation* value = ins->value();
     const LAllocation* ptr = ins->ptr();
     Operand dstAddr = ptr->isBogus()
                       ? Operand(HeapReg, mir->offset())
@@ -829,6 +851,8 @@ CodeGeneratorX64::visitAsmJSStoreHeap(LAsmJSStoreHeap* ins)
           case Scalar::Float32:
           case Scalar::Float64:
           case Scalar::Float32x4:
+          case Scalar::Int8x16:
+          case Scalar::Int16x8:
           case Scalar::Int32x4:
           case Scalar::Uint8Clamped:
           case Scalar::MaxTypedArrayViewType:
@@ -837,18 +861,31 @@ CodeGeneratorX64::visitAsmJSStoreHeap(LAsmJSStoreHeap* ins)
     } else {
         switch (accessType) {
           case Scalar::Int8:
-          case Scalar::Uint8:        masm.movb(ToRegister(value), dstAddr); break;
+          case Scalar::Uint8:
+            masm.movb(ToRegister(value), dstAddr);
+            break;
           case Scalar::Int16:
-          case Scalar::Uint16:       masm.movw(ToRegister(value), dstAddr); break;
+          case Scalar::Uint16:
+            masm.movw(ToRegister(value), dstAddr);
+            break;
           case Scalar::Int32:
-          case Scalar::Uint32:       masm.movl(ToRegister(value), dstAddr); break;
-          case Scalar::Float32:      masm.storeFloat32(ToFloatRegister(value), dstAddr); break;
-          case Scalar::Float64:      masm.storeDouble(ToFloatRegister(value), dstAddr); break;
+          case Scalar::Uint32:
+            masm.movl(ToRegister(value), dstAddr);
+            break;
+          case Scalar::Float32:
+            masm.storeUncanonicalizedFloat32(ToFloatRegister(value), dstAddr);
+            break;
+          case Scalar::Float64:
+            masm.storeUncanonicalizedDouble(ToFloatRegister(value), dstAddr);
+            break;
           case Scalar::Float32x4:
-          case Scalar::Int32x4:      MOZ_CRASH("SIMD stores must be handled in emitSimdStore");
+          case Scalar::Int8x16:
+          case Scalar::Int16x8:
+          case Scalar::Int32x4:
+            MOZ_CRASH("SIMD stores must be handled in emitSimdStore");
           case Scalar::Uint8Clamped:
           case Scalar::MaxTypedArrayViewType:
-              MOZ_CRASH("unexpected array type");
+            MOZ_CRASH("unexpected array type");
         }
     }
     uint32_t after = masm.size();
@@ -1093,13 +1130,9 @@ CodeGeneratorX64::visitAsmJSLoadFuncPtr(LAsmJSLoadFuncPtr* ins)
                       wasm::JumpTarget::OutOfBounds);
     }
 
-    if (mir->alwaysThrow()) {
-        masm.jump(wasm::JumpTarget::BadIndirectCall);
-    } else {
-        CodeOffset label = masm.leaRipRelative(tmp);
-        masm.loadPtr(Operand(tmp, index, TimesEight, 0), out);
-        masm.append(AsmJSGlobalAccess(label, mir->globalDataOffset()));
-    }
+    CodeOffset label = masm.leaRipRelative(tmp);
+    masm.loadPtr(Operand(tmp, index, ScalePointer, 0), out);
+    masm.append(AsmJSGlobalAccess(label, mir->globalDataOffset()));
 }
 
 void
@@ -1306,4 +1339,91 @@ CodeGeneratorX64::visitInt64ToFloatingPoint(LInt64ToFloatingPoint* lir)
             masm.vcvtsq2ss(input, output, output);
     }
     masm.bind(&done);
+}
+
+void
+CodeGeneratorX64::visitNotI64(LNotI64* lir)
+{
+    masm.cmpq(Imm32(0), ToRegister(lir->input()));
+    masm.emitSet(Assembler::Equal, ToRegister(lir->output()));
+}
+
+void
+CodeGeneratorX64::visitClzI64(LClzI64* lir)
+{
+    Register input = ToRegister(lir->input());
+    Register output = ToRegister(lir->output());
+
+    Label nonzero;
+    masm.bsrq(input, output);
+
+    masm.j(Assembler::NonZero, &nonzero);
+    // 0x7f ^ 0x3f == 0x40 == 64
+    masm.movq(ImmWord(0x7f), output);
+
+    masm.bind(&nonzero);
+    masm.xorq(Imm32(0x3f), output);
+}
+
+void
+CodeGeneratorX64::visitCtzI64(LCtzI64* lir)
+{
+    Register input = ToRegister(lir->input());
+    Register output = ToRegister(lir->output());
+
+    Label nonzero;
+    masm.bsfq(input, output);
+
+    masm.j(Assembler::NonZero, &nonzero);
+    masm.movq(ImmWord(64), output);
+
+    masm.bind(&nonzero);
+}
+
+void
+CodeGeneratorX64::visitPopcntI64(LPopcntI64* lir)
+{
+    Register input = ToRegister(lir->input());
+    Register output = ToRegister(lir->output());
+
+    if (AssemblerX86Shared::HasPOPCNT()) {
+        masm.popcntq(input, output);
+        return;
+    }
+
+    Register tmp = ToRegister(lir->getTemp(0));
+    if (input != output)
+        masm.movq(input, output);
+
+    MOZ_ASSERT(tmp != output);
+
+    ScratchRegisterScope scratch(masm);
+
+    // Equivalent to mozilla::CountPopulation32, adapted for 64 bits.
+    // x -= (x >> 1) & m1;
+    masm.movq(input, tmp);
+    masm.movq(ImmWord(0x5555555555555555), scratch);
+    masm.shrq(Imm32(1), tmp);
+    masm.andq(scratch, tmp);
+    masm.subq(tmp, output);
+
+    // x = (x & m2) + ((x >> 2) & m2);
+    masm.movq(output, tmp);
+    masm.movq(ImmWord(0x3333333333333333), scratch);
+    masm.andq(scratch, output);
+    masm.shrq(Imm32(2), tmp);
+    masm.andq(scratch, tmp);
+    masm.addq(tmp, output);
+
+    // x = (x + (x >> 4)) & m4;
+    masm.movq(output, tmp);
+    masm.movq(ImmWord(0x0f0f0f0f0f0f0f0f), scratch);
+    masm.shrq(Imm32(4), tmp);
+    masm.addq(tmp, output);
+    masm.andq(scratch, output);
+
+    // (x * h01) >> 56
+    masm.movq(ImmWord(0x0101010101010101), scratch);
+    masm.imulq(scratch, output);
+    masm.shrq(Imm32(56), output);
 }

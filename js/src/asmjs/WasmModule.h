@@ -35,19 +35,6 @@ namespace jit { struct BaselineScript; }
 
 namespace wasm {
 
-// A wasm Module and everything it contains must support serialization,
-// deserialization and cloning. Some data can be simply copied as raw bytes and,
-// as a convention, is stored in an inline CacheablePod struct. Everything else
-// should implement the below methods which are called recusively by the
-// containing Module. See comments for these methods in wasm::Module.
-
-#define WASM_DECLARE_SERIALIZABLE(Type)                                         \
-    size_t serializedSize() const;                                              \
-    uint8_t* serialize(uint8_t* cursor) const;                                  \
-    const uint8_t* deserialize(ExclusiveContext* cx, const uint8_t* cursor);    \
-    MOZ_MUST_USE bool clone(JSContext* cx, Type* out) const;                    \
-    size_t sizeOfExcludingThis(mozilla::MallocSizeOf mallocSizeOf) const;
-
 // The StaticLinkData contains all the metadata necessary to perform
 // Module::staticallyLink but is not necessary afterwards.
 
@@ -195,27 +182,24 @@ typedef Vector<Import, 0, SystemAllocPolicy> ImportVector;
 
 class CodeRange
 {
+  public:
+    enum Kind { Function, Entry, ImportJitExit, ImportInterpExit, Inline, CallThunk };
+
+  private:
     // All fields are treated as cacheable POD:
-    uint32_t funcIndex_;
-    uint32_t funcLineOrBytecode_;
     uint32_t begin_;
     uint32_t profilingReturn_;
     uint32_t end_;
-    union {
-        struct {
-            uint8_t kind_;
-            uint8_t beginToEntry_;
-            uint8_t profilingJumpToProfilingReturn_;
-            uint8_t profilingEpilogueToProfilingReturn_;
-        } func;
-        uint8_t kind_;
-    } u;
-
-    void assertValid();
+    uint32_t funcIndex_;
+    uint32_t funcLineOrBytecode_;
+    uint8_t funcBeginToTableEntry_;
+    uint8_t funcBeginToTableProfilingJump_;
+    uint8_t funcBeginToNonProfilingEntry_;
+    uint8_t funcProfilingJumpToProfilingReturn_;
+    uint8_t funcProfilingEpilogueToProfilingReturn_;
+    Kind kind_ : 8;
 
   public:
-    enum Kind { Function, Entry, ImportJitExit, ImportInterpExit, ErrorExit, Inline, CallThunk };
-
     CodeRange() = default;
     CodeRange(Kind kind, Offsets offsets);
     CodeRange(Kind kind, ProfilingOffsets offsets);
@@ -232,7 +216,19 @@ class CodeRange
 
     // Other fields are only available for certain CodeRange::Kinds.
 
-    Kind kind() const { return Kind(u.kind_); }
+    Kind kind() const {
+        return kind_;
+    }
+
+    bool isFunction() const {
+        return kind() == Function;
+    }
+    bool isImportExit() const {
+        return kind() == ImportJitExit || kind() == ImportInterpExit;
+    }
+    bool isInline() const {
+        return kind() == Inline;
+    }
 
     // Every CodeRange except entry and inline stubs has a profiling return
     // which is used for asynchronous profiling to determine the frame pointer.
@@ -245,30 +241,29 @@ class CodeRange
     // Functions have offsets which allow patching to selectively execute
     // profiling prologues/epilogues.
 
-    bool isFunction() const {
-        return kind() == Function;
-    }
-    bool isImportExit() const {
-        return kind() == ImportJitExit || kind() == ImportInterpExit;
-    }
-    bool isErrorExit() const {
-        return kind() == ErrorExit;
-    }
     uint32_t funcProfilingEntry() const {
         MOZ_ASSERT(isFunction());
         return begin();
     }
+    uint32_t funcTableEntry() const {
+        MOZ_ASSERT(isFunction());
+        return begin_ + funcBeginToTableEntry_;
+    }
+    uint32_t funcTableProfilingJump() const {
+        MOZ_ASSERT(isFunction());
+        return begin_ + funcBeginToTableProfilingJump_;
+    }
     uint32_t funcNonProfilingEntry() const {
         MOZ_ASSERT(isFunction());
-        return begin_ + u.func.beginToEntry_;
+        return begin_ + funcBeginToNonProfilingEntry_;
     }
-    uint32_t functionProfilingJump() const {
+    uint32_t funcProfilingJump() const {
         MOZ_ASSERT(isFunction());
-        return profilingReturn_ - u.func.profilingJumpToProfilingReturn_;
+        return profilingReturn_ - funcProfilingJumpToProfilingReturn_;
     }
     uint32_t funcProfilingEpilogue() const {
         MOZ_ASSERT(isFunction());
-        return profilingReturn_ - u.func.profilingEpilogueToProfilingReturn_;
+        return profilingReturn_ - funcProfilingEpilogueToProfilingReturn_;
     }
     uint32_t funcIndex() const {
         MOZ_ASSERT(isFunction());
@@ -293,7 +288,7 @@ class CodeRange
     };
 };
 
-typedef Vector<CodeRange, 0, SystemAllocPolicy> CodeRangeVector;
+WASM_DECLARE_POD_VECTOR(CodeRange, CodeRangeVector)
 
 // A CallThunk describes the offset and target of thunks so that they may be
 // patched at runtime when profiling is toggled. Thunks are emitted to connect
@@ -312,7 +307,7 @@ struct CallThunk
     CallThunk() = default;
 };
 
-typedef Vector<CallThunk, 0, SystemAllocPolicy> CallThunkVector;
+WASM_DECLARE_POD_VECTOR(CallThunk, CallThunkVector)
 
 // CacheableChars is used to cacheably store UniqueChars.
 
@@ -391,7 +386,6 @@ struct ModuleCacheablePod
     uint32_t              functionBytes;
     uint32_t              codeBytes;
     uint32_t              globalBytes;
-    uint32_t              numFuncs;
     ModuleKind            kind;
     HeapUsage             heapUsage;
     CompileArgs           compileArgs;
@@ -451,8 +445,8 @@ class Module : public mozilla::LinkedListElement<Module>
     struct ImportExit {
         void* code;
         jit::BaselineScript* baselineScript;
-        HeapPtrFunction fun;
-        static_assert(sizeof(HeapPtrFunction) == sizeof(void*), "for JIT access");
+        GCPtrFunction fun;
+        static_assert(sizeof(GCPtrFunction) == sizeof(void*), "for JIT access");
     };
     struct EntryArg {
         uint64_t lo;
@@ -469,8 +463,8 @@ class Module : public mozilla::LinkedListElement<Module>
     };
     typedef Vector<FuncPtrTable, 0, SystemAllocPolicy> FuncPtrTableVector;
     typedef Vector<CacheableChars, 0, SystemAllocPolicy> FuncLabelVector;
-    typedef RelocatablePtrArrayBufferObjectMaybeShared BufferPtr;
-    typedef HeapPtr<WasmModuleObject*> ModuleObjectPtr;
+    typedef HeapPtr<ArrayBufferObjectMaybeShared*> BufferPtr;
+    typedef GCPtr<WasmModuleObject*> ModuleObjectPtr;
 
     // Initialized when constructed:
     const UniqueConstModuleData  module_;
@@ -504,7 +498,15 @@ class Module : public mozilla::LinkedListElement<Module>
     MOZ_MUST_USE bool setProfilingEnabled(JSContext* cx, bool enabled);
     ImportExit& importToExit(const Import& import);
 
+    bool callImport(JSContext* cx, uint32_t importIndex, unsigned argc, const uint64_t* argv,
+                    MutableHandleValue rval);
+    static int32_t callImport_void(int32_t importIndex, int32_t argc, uint64_t* argv);
+    static int32_t callImport_i32(int32_t importIndex, int32_t argc, uint64_t* argv);
+    static int32_t callImport_i64(int32_t importIndex, int32_t argc, uint64_t* argv);
+    static int32_t callImport_f64(int32_t importIndex, int32_t argc, uint64_t* argv);
+
     friend class js::WasmActivation;
+    friend void* wasm::AddressOf(SymbolicAddress, ExclusiveContext*);
 
   protected:
     const ModuleData& base() const { return *module_; }
@@ -522,7 +524,7 @@ class Module : public mozilla::LinkedListElement<Module>
     virtual void addSizeOfMisc(MallocSizeOf mallocSizeOf, size_t* code, size_t* data);
 
     void setOwner(WasmModuleObject* owner) { MOZ_ASSERT(!ownerObject_); ownerObject_ = owner; }
-    inline const HeapPtr<WasmModuleObject*>& owner() const;
+    inline const GCPtr<WasmModuleObject*>& owner() const;
 
     void setSource(Bytes&& source) { source_ = Move(source); }
 
@@ -601,8 +603,6 @@ class Module : public mozilla::LinkedListElement<Module>
     // directly into the JIT code. If the JIT code is released, the Module must
     // be notified so it can go back to the generic callImport.
 
-    MOZ_MUST_USE bool callImport(JSContext* cx, uint32_t importIndex, unsigned argc,
-                                 const uint64_t* argv, MutableHandleValue rval);
     void deoptimizeImportExit(uint32_t importIndex);
 
     // At runtime, when $pc is in wasm function code (containsFunctionPC($pc)),
@@ -616,7 +616,7 @@ class Module : public mozilla::LinkedListElement<Module>
     // name given by the asm.js function name or wasm symbols or something
     // generated from the function index.
 
-    const char* prettyFuncName(uint32_t funcIndex) const;
+    const char* maybePrettyFuncName(uint32_t funcIndex) const;
     const char* getFuncName(JSContext* cx, uint32_t funcIndex, UniqueChars* owner) const;
     JSAtom* getFuncAtom(JSContext* cx, uint32_t funcIndex) const;
 
@@ -672,7 +672,7 @@ class WasmModuleObject : public NativeObject
     static const Class class_;
 };
 
-inline const HeapPtr<WasmModuleObject*>&
+inline const GCPtr<WasmModuleObject*>&
 wasm::Module::owner() const {
     MOZ_ASSERT(&ownerObject_->module() == this);
     return ownerObject_;

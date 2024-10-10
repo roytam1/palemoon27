@@ -170,7 +170,7 @@ JSRuntime::createJitRuntime(JSContext* cx)
     jitRuntime_ = jrt;
 
     AutoEnterOOMUnsafeRegion noOOM;
-    if (!jitRuntime_->initialize(cx)) {
+    if (!jitRuntime_->initialize(cx, atomsLock)) {
         // Handling OOM here is complicated: if we delete jitRuntime_ now, we
         // will destroy the ExecutableAllocator, even though there may still be
         // JitCode instances holding references to ExecutablePools.
@@ -993,8 +993,8 @@ AddLazyFunctionsForCompartment(JSContext* cx, AutoObjectVector& lazyFunctions, A
     // want to delazify in that case: this pointer is weak so the JSScript
     // could be destroyed at the next GC.
 
-    for (gc::ZoneCellIter i(cx->zone(), kind); !i.done(); i.next()) {
-        JSFunction* fun = &i.get<JSObject>()->as<JSFunction>();
+    for (auto i = cx->zone()->cellIter<JSObject>(kind); !i.done(); i.next()) {
+        JSFunction* fun = &i->as<JSFunction>();
 
         // Sweeping is incremental; take care to not delazify functions that
         // are about to be finalized. GC things referenced by objects that are
@@ -1154,8 +1154,7 @@ JSCompartment::clearScriptCounts()
 void
 JSCompartment::clearBreakpointsIn(FreeOp* fop, js::Debugger* dbg, HandleObject handler)
 {
-    for (gc::ZoneCellIter i(zone(), gc::AllocKind::SCRIPT); !i.done(); i.next()) {
-        JSScript* script = i.get<JSScript>();
+    for (auto script = zone()->cellIter<JSScript>(); !script.done(); script.next()) {
         if (script->compartment() == this && script->hasAnyBreakpointsOrStepMode())
             script->clearBreakpointsIn(fop, dbg, handler);
     }

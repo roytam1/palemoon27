@@ -47,6 +47,29 @@ using mozilla::MallocSizeOf;
 
 typedef Vector<uint32_t, 0, SystemAllocPolicy> Uint32Vector;
 
+// To call Vector::podResizeToFit, a type must specialize mozilla::IsPod
+// which is pretty verbose to do within js::wasm, so factor that process out
+// into a macro.
+
+#define WASM_DECLARE_POD_VECTOR(Type, VectorName)                               \
+} } namespace mozilla {                                                         \
+template <> struct IsPod<js::wasm::Type> : TrueType {};                         \
+} namespace js { namespace wasm {                                               \
+typedef Vector<Type, 0, SystemAllocPolicy> VectorName;
+
+// A wasm Module and everything it contains must support serialization,
+// deserialization and cloning. Some data can be simply copied as raw bytes and,
+// as a convention, is stored in an inline CacheablePod struct. Everything else
+// should implement the below methods which are called recusively by the
+// containing Module. See comments for these methods in wasm::Module.
+
+#define WASM_DECLARE_SERIALIZABLE(Type)                                         \
+    size_t serializedSize() const;                                              \
+    uint8_t* serialize(uint8_t* cursor) const;                                  \
+    const uint8_t* deserialize(ExclusiveContext* cx, const uint8_t* cursor);    \
+    MOZ_MUST_USE bool clone(JSContext* cx, Type* out) const;                    \
+    size_t sizeOfExcludingThis(mozilla::MallocSizeOf mallocSizeOf) const;
+
 // ValType/ExprType utilities
 
 // ExprType::Limit is an out-of-band value and has no wasm-semantic meaning. For
@@ -89,7 +112,18 @@ ToExprType(ValType vt)
 static inline bool
 IsSimdType(ValType vt)
 {
-    return vt == ValType::I32x4 || vt == ValType::F32x4 || vt == ValType::B32x4;
+    switch (vt) {
+      case ValType::I8x16:
+      case ValType::I16x8:
+      case ValType::I32x4:
+      case ValType::F32x4:
+      case ValType::B8x16:
+      case ValType::B16x8:
+      case ValType::B32x4:
+        return true;
+      default:
+        return false;
+    }
 }
 
 static inline uint32_t
@@ -97,6 +131,12 @@ NumSimdElements(ValType vt)
 {
     MOZ_ASSERT(IsSimdType(vt));
     switch (vt) {
+      case ValType::I8x16:
+      case ValType::B8x16:
+        return 16;
+      case ValType::I16x8:
+      case ValType::B16x8:
+        return 8;
       case ValType::I32x4:
       case ValType::F32x4:
       case ValType::B32x4:
@@ -111,10 +151,14 @@ SimdElementType(ValType vt)
 {
     MOZ_ASSERT(IsSimdType(vt));
     switch (vt) {
+      case ValType::I8x16:
+      case ValType::I16x8:
       case ValType::I32x4:
         return ValType::I32;
       case ValType::F32x4:
         return ValType::F32;
+      case ValType::B8x16:
+      case ValType::B16x8:
       case ValType::B32x4:
         return ValType::I32;
      default:
@@ -127,6 +171,12 @@ SimdBoolType(ValType vt)
 {
     MOZ_ASSERT(IsSimdType(vt));
     switch (vt) {
+      case ValType::I8x16:
+      case ValType::B8x16:
+        return ValType::B8x16;
+      case ValType::I16x8:
+      case ValType::B16x8:
+        return ValType::B16x8;
       case ValType::I32x4:
       case ValType::F32x4:
       case ValType::B32x4:
@@ -145,7 +195,7 @@ IsSimdType(ExprType et)
 static inline bool
 IsSimdBoolType(ValType vt)
 {
-    return vt == ValType::B32x4;
+    return vt == ValType::B8x16 || vt == ValType::B16x8 || vt == ValType::B32x4;
 }
 
 static inline jit::MIRType
@@ -156,8 +206,12 @@ ToMIRType(ValType vt)
       case ValType::I64: return jit::MIRType::Int64;
       case ValType::F32: return jit::MIRType::Float32;
       case ValType::F64: return jit::MIRType::Double;
+      case ValType::I8x16: return jit::MIRType::Int8x16;
+      case ValType::I16x8: return jit::MIRType::Int16x8;
       case ValType::I32x4: return jit::MIRType::Int32x4;
       case ValType::F32x4: return jit::MIRType::Float32x4;
+      case ValType::B8x16: return jit::MIRType::Bool8x16;
+      case ValType::B16x8: return jit::MIRType::Bool16x8;
       case ValType::B32x4: return jit::MIRType::Bool32x4;
       case ValType::Limit: break;
     }
@@ -179,8 +233,12 @@ ToCString(ExprType type)
       case ExprType::I64:   return "i64";
       case ExprType::F32:   return "f32";
       case ExprType::F64:   return "f64";
+      case ExprType::I8x16: return "i8x16";
+      case ExprType::I16x8: return "i16x8";
       case ExprType::I32x4: return "i32x4";
       case ExprType::F32x4: return "f32x4";
+      case ExprType::B8x16: return "b8x16";
+      case ExprType::B16x8: return "b16x8";
       case ExprType::B32x4: return "b32x4";
       case ExprType::Limit:;
     }
@@ -208,6 +266,8 @@ class Val
         uint64_t i64_;
         float f32_;
         double f64_;
+        I8x16 i8x16_;
+        I16x8 i16x8_;
         I32x4 i32x4_;
         F32x4 f32x4_;
     } u;
@@ -220,6 +280,14 @@ class Val
     explicit Val(float f32) : type_(ValType::F32) { u.f32_ = f32; }
     explicit Val(double f64) : type_(ValType::F64) { u.f64_ = f64; }
 
+    explicit Val(const I8x16& i8x16, ValType type = ValType::I8x16) : type_(type) {
+        MOZ_ASSERT(type_ == ValType::I8x16 || type_ == ValType::B8x16);
+        memcpy(u.i8x16_, i8x16, sizeof(u.i8x16_));
+    }
+    explicit Val(const I16x8& i16x8, ValType type = ValType::I16x8) : type_(type) {
+        MOZ_ASSERT(type_ == ValType::I16x8 || type_ == ValType::B16x8);
+        memcpy(u.i16x8_, i16x8, sizeof(u.i16x8_));
+    }
     explicit Val(const I32x4& i32x4, ValType type = ValType::I32x4) : type_(type) {
         MOZ_ASSERT(type_ == ValType::I32x4 || type_ == ValType::B32x4);
         memcpy(u.i32x4_, i32x4, sizeof(u.i32x4_));
@@ -233,6 +301,14 @@ class Val
     uint64_t i64() const { MOZ_ASSERT(type_ == ValType::I64); return u.i64_; }
     float f32() const { MOZ_ASSERT(type_ == ValType::F32); return u.f32_; }
     double f64() const { MOZ_ASSERT(type_ == ValType::F64); return u.f64_; }
+    const I8x16& i8x16() const {
+        MOZ_ASSERT(type_ == ValType::I8x16 || type_ == ValType::B8x16);
+        return u.i8x16_;
+    }
+    const I16x8& i16x8() const {
+        MOZ_ASSERT(type_ == ValType::I16x8 || type_ == ValType::B16x8);
+        return u.i16x8_;
+    }
     const I32x4& i32x4() const {
         MOZ_ASSERT(type_ == ValType::I32x4 || type_ == ValType::B32x4);
         return u.i32x4_;
@@ -371,14 +447,21 @@ struct ProfilingOffsets : Offsets
 
 struct FuncOffsets : ProfilingOffsets
 {
-    MOZ_IMPLICIT FuncOffsets(uint32_t nonProfilingEntry = 0,
-                             uint32_t profilingJump = 0,
-                             uint32_t profilingEpilogue = 0)
+    MOZ_IMPLICIT FuncOffsets()
       : ProfilingOffsets(),
-        nonProfilingEntry(nonProfilingEntry),
-        profilingJump(profilingJump),
-        profilingEpilogue(profilingEpilogue)
+        tableEntry(0),
+        tableProfilingJump(0),
+        nonProfilingEntry(0),
+        profilingJump(0),
+        profilingEpilogue(0)
     {}
+
+    // Function CodeRanges have a table entry which takes an extra signature
+    // argument which is checked against the callee's signature before falling
+    // through to the normal prologue. When profiling is enabled, a nop on the
+    // fallthrough is patched to instead jump to the profiling epilogue.
+    uint32_t tableEntry;
+    uint32_t tableProfilingJump;
 
     // Function CodeRanges have an additional non-profiling entry that comes
     // after the profiling entry and a non-profiling epilogue that comes before
@@ -392,6 +475,8 @@ struct FuncOffsets : ProfilingOffsets
 
     void offsetBy(uint32_t offset) {
         ProfilingOffsets::offsetBy(offset);
+        tableEntry += offset;
+        tableProfilingJump += offset;
         nonProfilingEntry += offset;
         profilingJump += offset;
         profilingEpilogue += offset;
@@ -451,6 +536,8 @@ class CallSite : public CallSiteDesc
     uint32_t stackDepth() const { return stackDepth_; }
 };
 
+WASM_DECLARE_POD_VECTOR(CallSite, CallSiteVector)
+
 class CallSiteAndTarget : public CallSite
 {
     uint32_t targetIndex_;
@@ -466,7 +553,6 @@ class CallSiteAndTarget : public CallSite
     uint32_t targetIndex() const { MOZ_ASSERT(isInternal()); return targetIndex_; }
 };
 
-typedef Vector<CallSite, 0, SystemAllocPolicy> CallSiteVector;
 typedef Vector<CallSiteAndTarget, 0, SystemAllocPolicy> CallSiteAndTargetVector;
 
 // Summarizes a heap access made by wasm code that needs to be patched later
@@ -568,7 +654,7 @@ class HeapAccess {
 };
 #endif
 
-typedef Vector<HeapAccess, 0, SystemAllocPolicy> HeapAccessVector;
+WASM_DECLARE_POD_VECTOR(HeapAccess, HeapAccessVector)
 
 // A wasm::SymbolicAddress represents a pointer to a well-known function or
 // object that is embedded in wasm code. Since wasm code is serialized and
@@ -602,6 +688,10 @@ enum class SymbolicAddress
     CeilF,
     FloorD,
     FloorF,
+    TruncD,
+    TruncF,
+    NearbyIntD,
+    NearbyIntF,
     ExpD,
     LogD,
     PowD,
@@ -610,14 +700,12 @@ enum class SymbolicAddress
     RuntimeInterruptUint32,
     StackLimit,
     ReportOverRecursed,
-    OnOutOfBounds,
-    BadIndirectCall,
     HandleExecutionInterrupt,
     HandleTrap,
-    InvokeImport_Void,
-    InvokeImport_I32,
-    InvokeImport_I64,
-    InvokeImport_F64,
+    CallImport_Void,
+    CallImport_I32,
+    CallImport_I64,
+    CallImport_F64,
     CoerceInPlace_ToInt32,
     CoerceInPlace_ToNumber,
     Limit
@@ -625,10 +713,6 @@ enum class SymbolicAddress
 
 void*
 AddressOf(SymbolicAddress imm, ExclusiveContext* cx);
-
-// Extracts low and high from an int64 object {low: int32, high: int32}, for
-// testing purposes mainly.
-MOZ_MUST_USE bool ReadI64Object(JSContext* cx, HandleValue v, int64_t* val);
 
 // A wasm::Trap is a reason for why we reached a trap in executed code. Each
 // different trap is mapped to a different error message.
@@ -643,6 +727,10 @@ enum class Trap
     InvalidConversionToInteger,
     // Integer division by zero.
     IntegerDivideByZero,
+    // Out of bounds on wasm memory accesses and asm.js SIMD/atomic accesses.
+    OutOfBounds,
+    // Bad signature for an indirect call.
+    BadIndirectCall,
 
     // (asm.js only) SIMD float to int conversion failed because the input
     // wasn't in bounds.
@@ -663,11 +751,11 @@ enum class JumpTarget
     IntegerOverflow = unsigned(Trap::IntegerOverflow),
     InvalidConversionToInteger = unsigned(Trap::InvalidConversionToInteger),
     IntegerDivideByZero = unsigned(Trap::IntegerDivideByZero),
+    OutOfBounds = unsigned(Trap::OutOfBounds),
+    BadIndirectCall = unsigned(Trap::BadIndirectCall),
     ImpreciseSimdConversion = unsigned(Trap::ImpreciseSimdConversion),
     // Non-traps
     StackOverflow,
-    OutOfBounds,
-    BadIndirectCall,
     Throw,
     Limit
 };
@@ -710,6 +798,7 @@ static const unsigned MaxFuncs                   =      512 * 1024;
 static const unsigned MaxLocals                  =       64 * 1024;
 static const unsigned MaxImports                 =       64 * 1024;
 static const unsigned MaxExports                 =       64 * 1024;
+static const unsigned MaxTables                  =        4 * 1024;
 static const unsigned MaxTableElems              =      128 * 1024;
 static const unsigned MaxArgsPerFunc             =        4 * 1024;
 static const unsigned MaxBrTableElems            = 4 * 1024 * 1024;

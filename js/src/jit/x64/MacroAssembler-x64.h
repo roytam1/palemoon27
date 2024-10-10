@@ -861,8 +861,8 @@ class MacroAssemblerX64 : public MacroAssemblerX86Shared
 
     void loadConstantDouble(double d, FloatRegister dest);
     void loadConstantFloat32(float f, FloatRegister dest);
-    void loadConstantInt32x4(const SimdConstant& v, FloatRegister dest);
-    void loadConstantFloat32x4(const SimdConstant& v, FloatRegister dest);
+    void loadConstantSimd128Int(const SimdConstant& v, FloatRegister dest);
+    void loadConstantSimd128Float(const SimdConstant& v, FloatRegister dest);
 
     Condition testInt32Truthy(bool truthy, const ValueOperand& operand) {
         test32(operand.valueReg(), operand.valueReg());
@@ -887,9 +887,6 @@ class MacroAssemblerX64 : public MacroAssemblerX86Shared
         else
             unboxNonDouble(Operand(src), dest.gpr());
     }
-
-    template <typename T>
-    void storeUnboxedValue(ConstantOrRegister value, MIRType valueType, const T& dest, MIRType slotType);
 
     template <typename T>
     void storeUnboxedPayload(ValueOperand value, T address, size_t nbytes) {

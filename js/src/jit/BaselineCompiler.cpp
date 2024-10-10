@@ -208,7 +208,8 @@ BaselineCompiler::compile()
                             pcMappingIndexEntries.length(),
                             pcEntries.length(),
                             bytecodeTypeMapEntries,
-                            yieldOffsets_.length()));
+                            yieldOffsets_.length()),
+        JS::DeletePolicy<BaselineScript>(cx->runtime()));
     if (!baselineScript) {
         ReportOutOfMemory(cx);
         return Method_Error;
@@ -2599,7 +2600,8 @@ BaselineCompiler::emit_JSOP_GETIMPORT()
     // Imports are initialized by this point except in rare circumstances, so
     // don't emit a check unless we have to.
     if (targetEnv->getSlot(shape->slot()).isMagic(JS_UNINITIALIZED_LEXICAL))
-        emitUninitializedLexicalCheck(R0);
+        if (!emitUninitializedLexicalCheck(R0))
+            return false;
 
     if (ionCompileable_) {
         // No need to monitor types if we know Ion can't compile this script.

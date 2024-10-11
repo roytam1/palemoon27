@@ -53,19 +53,19 @@ enum State {
     NUM_STATES
 };
 
-/* Map from C++ type to alloc kind. JSObject does not have a 1:1 mapping, so must use Arena::thingSize. */
+/*
+ * Map from C++ type to alloc kind for non-object types. JSObject does not have
+ * a 1:1 mapping, so must use Arena::thingSize.
+ *
+ * The AllocKind is available as MapTypeToFinalizeKind<SomeType>::kind.
+ */
 template <typename T> struct MapTypeToFinalizeKind {};
-template <> struct MapTypeToFinalizeKind<JSScript>          { static const AllocKind kind = AllocKind::SCRIPT; };
-template <> struct MapTypeToFinalizeKind<LazyScript>        { static const AllocKind kind = AllocKind::LAZY_SCRIPT; };
-template <> struct MapTypeToFinalizeKind<Shape>             { static const AllocKind kind = AllocKind::SHAPE; };
-template <> struct MapTypeToFinalizeKind<AccessorShape>     { static const AllocKind kind = AllocKind::ACCESSOR_SHAPE; };
-template <> struct MapTypeToFinalizeKind<BaseShape>         { static const AllocKind kind = AllocKind::BASE_SHAPE; };
-template <> struct MapTypeToFinalizeKind<ObjectGroup>       { static const AllocKind kind = AllocKind::OBJECT_GROUP; };
-template <> struct MapTypeToFinalizeKind<JSFatInlineString> { static const AllocKind kind = AllocKind::FAT_INLINE_STRING; };
-template <> struct MapTypeToFinalizeKind<JSString>          { static const AllocKind kind = AllocKind::STRING; };
-template <> struct MapTypeToFinalizeKind<JSExternalString>  { static const AllocKind kind = AllocKind::EXTERNAL_STRING; };
-template <> struct MapTypeToFinalizeKind<JS::Symbol>        { static const AllocKind kind = AllocKind::SYMBOL; };
-template <> struct MapTypeToFinalizeKind<jit::JitCode>      { static const AllocKind kind = AllocKind::JITCODE; };
+#define EXPAND_MAPTYPETOFINALIZEKIND(allocKind, traceKind, type, sizedType) \
+    template <> struct MapTypeToFinalizeKind<type> { \
+        static const AllocKind kind = AllocKind::allocKind; \
+    };
+FOR_EACH_NONOBJECT_ALLOCKIND(EXPAND_MAPTYPETOFINALIZEKIND)
+#undef EXPAND_MAPTYPETOFINALIZEKIND
 
 template <typename T> struct ParticipatesInCC {};
 #define EXPAND_PARTICIPATES_IN_CC(_, type, addToCCKind) \
@@ -739,9 +739,18 @@ class ArenaLists
 #endif
     }
 
+    void checkEmptyArenaLists() {
+#ifdef DEBUG
+        for (auto i : AllAllocKinds())
+            checkEmptyArenaList(i);
+#endif
+    }
+
     void checkEmptyFreeList(AllocKind kind) {
         MOZ_ASSERT(freeLists[kind]->isEmpty());
     }
+
+    void checkEmptyArenaList(AllocKind kind);
 
     bool relocateArenas(Zone* zone, Arena*& relocatedListOut, JS::gcreason::Reason reason,
                         SliceBudget& sliceBudget, gcstats::Statistics& stats);
@@ -1155,15 +1164,6 @@ Forwarded(const JS::Value& value)
     return DispatchTyped(ForwardedFunctor(), value);
 }
 
-inline void
-MakeAccessibleAfterMovingGC(void* anyp) {}
-
-inline void
-MakeAccessibleAfterMovingGC(JSObject* obj) {
-    if (obj->isNative())
-        obj->as<NativeObject>().updateShapeAfterMovingGC();
-}
-
 template <typename T>
 inline T
 MaybeForwarded(T t)
@@ -1177,13 +1177,18 @@ MaybeForwarded(T t)
 #ifdef JSGC_HASH_TABLE_CHECKS
 
 template <typename T>
+inline bool
+IsGCThingValidAfterMovingGC(T* t)
+{
+    return !IsInsideNursery(t) && !RelocationOverlay::isCellForwarded(t);
+}
+
+template <typename T>
 inline void
 CheckGCThingAfterMovingGC(T* t)
 {
-    if (t) {
-        MOZ_RELEASE_ASSERT(!IsInsideNursery(t));
-        MOZ_RELEASE_ASSERT(!RelocationOverlay::isCellForwarded(t));
-    }
+    if (t)
+        MOZ_RELEASE_ASSERT(IsGCThingValidAfterMovingGC(t));
 }
 
 template <typename T>
@@ -1205,22 +1210,28 @@ CheckValueAfterMovingGC(const JS::Value& value)
 
 #endif // JSGC_HASH_TABLE_CHECKS
 
+#define JS_FOR_EACH_ZEAL_MODE(D)               \
+            D(Poke, 1)                         \
+            D(Alloc, 2)                        \
+            D(FrameGC, 3)                      \
+            D(VerifierPre, 4)                  \
+            D(FrameVerifierPre, 5)             \
+            D(StackRooting, 6)                 \
+            D(GenerationalGC, 7)               \
+            D(IncrementalRootsThenFinish, 8)   \
+            D(IncrementalMarkAllThenFinish, 9) \
+            D(IncrementalMultipleSlices, 10)   \
+            D(IncrementalMarkingValidator, 11) \
+            D(ElementsBarrier, 12)             \
+            D(CheckHashTablesOnMinorGC, 13)    \
+            D(Compact, 14)                     \
+            D(CheckHeapOnMovingGC, 15)
+
 enum class ZealMode {
-    Poke = 1,
-    Alloc = 2,
-    FrameGC = 3,
-    VerifierPre = 4,
-    FrameVerifierPre = 5,
-    StackRooting = 6,
-    GenerationalGC = 7,
-    IncrementalRootsThenFinish = 8,
-    IncrementalMarkAllThenFinish = 9,
-    IncrementalMultipleSlices = 10,
-    IncrementalMarkingValidator = 11,
-    ElementsBarrier = 12,
-    CheckHashTablesOnMinorGC = 13,
-    Compact = 14,
-    Limit = 14
+#define ZEAL_MODE(name, value) name = value,
+    JS_FOR_EACH_ZEAL_MODE(ZEAL_MODE)
+#undef ZEAL_MODE
+    Limit = 15
 };
 
 enum VerifierType {

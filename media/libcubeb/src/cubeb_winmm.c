@@ -211,7 +211,7 @@ winmm_refill_stream(cubeb_stream * stm)
       short * b = (short *) hdr->lpData;
       uint32_t i;
       for (i = 0; i < got * stm->params.channels; i++) {
-        b[i] *= stm->soft_volume;
+        b[i] = (short) (b[i] * stm->soft_volume);
       }
     }
   }
@@ -402,7 +402,11 @@ winmm_stream_init(cubeb * context, cubeb_stream ** stream, char const * stream_n
   XASSERT(context);
   XASSERT(stream);
 
-  XASSERT(!input_stream_params && "not supported.");
+  if (input_stream_params) {
+    /* Capture support not yet implemented. */
+    return CUBEB_ERROR_NOT_SUPPORTED;
+  }
+
   if (input_device || output_device) {
     /* Device selection not yet implemented. */
     return CUBEB_ERROR_DEVICE_UNAVAILABLE;
@@ -848,7 +852,10 @@ static char *
 guid_to_cstr(LPGUID guid)
 {
   char * ret = malloc(sizeof(char) * 40);
-  _snprintf(ret, sizeof(char) * 40,
+  if (!ret) {
+    return NULL;
+  }
+  _snprintf_s(ret, sizeof(char) * 40, _TRUNCATE,
       "{%08X-%04X-%04X-%02X%02X-%02X%02X%02X%02X%02X%02X}",
       guid->Data1, guid->Data2, guid->Data3,
       guid->Data4[0], guid->Data4[1], guid->Data4[2], guid->Data4[3],
@@ -879,7 +886,10 @@ static char *
 device_id_idx(UINT devid)
 {
   char * ret = (char *)malloc(sizeof(char)*16);
-  _snprintf(ret, 16, "%u", devid);
+  if (!ret) {
+    return NULL;
+  }
+  _snprintf_s(ret, 16, _TRUNCATE, "%u", devid);
   return ret;
 }
 
@@ -889,6 +899,9 @@ winmm_create_device_from_outcaps2(LPWAVEOUTCAPS2A caps, UINT devid)
   cubeb_device_info * ret;
 
   ret = calloc(1, sizeof(cubeb_device_info));
+  if (!ret) {
+    return NULL;
+  }
   ret->devid = (cubeb_devid)(size_t)devid;
   ret->device_id = device_id_idx(devid);
   ret->friendly_name = _strdup(caps->szPname);
@@ -917,6 +930,9 @@ winmm_create_device_from_outcaps(LPWAVEOUTCAPSA caps, UINT devid)
   cubeb_device_info * ret;
 
   ret = calloc(1, sizeof(cubeb_device_info));
+  if (!ret) {
+    return NULL;
+  }
   ret->devid = (cubeb_devid)(size_t)devid;
   ret->device_id = device_id_idx(devid);
   ret->friendly_name = _strdup(caps->szPname);
@@ -964,6 +980,9 @@ winmm_create_device_from_incaps2(LPWAVEINCAPS2A caps, UINT devid)
   cubeb_device_info * ret;
 
   ret = calloc(1, sizeof(cubeb_device_info));
+  if (!ret) {
+    return NULL;
+  }
   ret->devid = (cubeb_devid)(size_t)devid;
   ret->device_id = device_id_idx(devid);
   ret->friendly_name = _strdup(caps->szPname);
@@ -992,6 +1011,9 @@ winmm_create_device_from_incaps(LPWAVEINCAPSA caps, UINT devid)
   cubeb_device_info * ret;
 
   ret = calloc(1, sizeof(cubeb_device_info));
+  if (!ret) {
+    return NULL;
+  }
   ret->devid = (cubeb_devid)(size_t)devid;
   ret->device_id = device_id_idx(devid);
   ret->friendly_name = _strdup(caps->szPname);

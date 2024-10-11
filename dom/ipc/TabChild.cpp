@@ -2078,8 +2078,15 @@ TabChild::RecvRealKeyEvent(const WidgetKeyboardEvent& event,
     mIgnoreKeyPressEvent = status == nsEventStatus_eConsumeNoDefault;
   }
 
+  // If a response is desired from the content process, resend the key event.
+  // If mAccessKeyForwardedToChild is set, then don't resend the key event yet
+  // as RecvHandleAccessKey will do this.
   if (localEvent.mFlags.mWantReplyFromContentProcess) {
     SendReplyKeyEvent(localEvent);
+  }
+
+  if (localEvent.mAccessKeyForwardedToChild) {
+    SendAccessKeyNotHandled(localEvent);
   }
 
   if (PresShell::BeforeAfterKeyboardEventEnabled()) {
@@ -2344,8 +2351,8 @@ TabChild::RecvSwappedWithOtherRemoteLoader(const IPCTabContext& aContext)
 }
 
 bool
-TabChild::RecvHandleAccessKey(nsTArray<uint32_t>&& aCharCodes,
-                              const bool& aIsTrusted,
+TabChild::RecvHandleAccessKey(const WidgetKeyboardEvent& aEvent,
+                              nsTArray<uint32_t>&& aCharCodes,
                               const int32_t& aModifierMask)
 {
   nsCOMPtr<nsIDocument> document(GetDocument());
@@ -2353,7 +2360,16 @@ TabChild::RecvHandleAccessKey(nsTArray<uint32_t>&& aCharCodes,
   if (presShell) {
     nsPresContext* pc = presShell->GetPresContext();
     if (pc) {
-      pc->EventStateManager()->HandleAccessKey(pc, aCharCodes, aIsTrusted, aModifierMask);
+      if (!pc->EventStateManager()->
+                 HandleAccessKey(&(const_cast<WidgetKeyboardEvent&>(aEvent)),
+                                 pc, aCharCodes,
+                                 aModifierMask, true)) {
+        // If no accesskey was found, inform the parent so that accesskeys on
+        // menus can be handled.
+        WidgetKeyboardEvent localEvent(aEvent);
+        localEvent.mWidget = mPuppetWidget;
+        SendAccessKeyNotHandled(localEvent);
+      }
     }
   }
 

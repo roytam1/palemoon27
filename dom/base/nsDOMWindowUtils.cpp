@@ -711,7 +711,7 @@ nsDOMWindowUtils::SendPointerEventCommon(const nsAString& aType,
   event.tiltX = aTiltX;
   event.tiltY = aTiltY;
   event.isPrimary = (nsIDOMMouseEvent::MOZ_SOURCE_MOUSE == aInputSourceArg) ? true : aIsPrimary;
-  event.clickCount = aClickCount;
+  event.mClickCount = aClickCount;
   event.mTime = PR_IntervalNow();
   event.mFlags.mIsSynthesizedForTests = aOptionalArgCount >= 10 ? aIsSynthesized : true;
 
@@ -722,7 +722,7 @@ nsDOMWindowUtils::SendPointerEventCommon(const nsAString& aType,
 
   event.mRefPoint =
     nsContentUtils::ToWidgetPoint(CSSPoint(aX, aY), offset, presContext);
-  event.ignoreRootScrollFrame = aIgnoreRootScrollFrame;
+  event.mIgnoreRootScrollFrame = aIgnoreRootScrollFrame;
 
   nsEventStatus status;
   if (aToWindow) {

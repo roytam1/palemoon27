@@ -66,8 +66,6 @@ FFmpegRuntimeLinker::Link()
     return sLinkStatus == LinkStatus_SUCCEEDED;
   }
 
-  MOZ_ASSERT(NS_IsMainThread());
-
 #if defined(XP_WIN)
   HKEY aKey;
   DWORD d;

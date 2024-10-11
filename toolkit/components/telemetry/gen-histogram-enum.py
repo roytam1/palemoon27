@@ -23,6 +23,10 @@ def main(argv):
     filenames = argv
 
     print banner
+    print "#ifndef mozilla_TelemetryHistogramEnums_h"
+    print "#define mozilla_TelemetryHistogramEnums_h"
+    print "namespace mozilla {"
+    print "namespace Telemetry {"
     print "enum ID : uint32_t {"
 
     groups = itertools.groupby(histogram_tools.from_files(filenames),
@@ -63,5 +67,8 @@ def main(argv):
         print "  HistogramLastUseCounter = 0,"
         print "  HistogramUseCounterCount = 0"
     print "};"
+    print "} // namespace mozilla"
+    print "} // namespace Telemetry"
+    print "#endif // mozilla_TelemetryHistogramEnums_h"
 
 main(sys.argv[1:])

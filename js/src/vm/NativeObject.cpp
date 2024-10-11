@@ -84,7 +84,7 @@ ObjectElements::ConvertElementsToDoubles(JSContext* cx, uintptr_t elementsPtr)
 /* static */ bool
 ObjectElements::MakeElementsCopyOnWrite(ExclusiveContext* cx, NativeObject* obj)
 {
-    static_assert(sizeof(HeapSlot) >= sizeof(HeapPtrObject),
+    static_assert(sizeof(HeapSlot) >= sizeof(GCPtrObject),
                   "there must be enough room for the owner object pointer at "
                   "the end of the elements");
     if (!obj->ensureElements(cx, obj->getDenseInitializedLength() + 1))
@@ -1049,7 +1049,7 @@ CallAddPropertyHookDense(ExclusiveContext* cx, HandleNativeObject obj, uint32_t 
 }
 
 static bool
-UpdateShapeTypeAndValue(ExclusiveContext* cx, NativeObject* obj, Shape* shape, const Value& value)
+UpdateShapeTypeAndValue(ExclusiveContext* cx, HandleNativeObject obj, HandleShape shape, const Value& value)
 {
     jsid id = shape->propid();
     if (shape->hasSlot()) {

@@ -829,7 +829,7 @@ ICStubCompiler::PushStubPayload(MacroAssembler& masm, Register scratch)
     masm.adjustFrame(sizeof(intptr_t));
 }
 
-bool
+void
 ICStubCompiler::emitPostWriteBarrierSlot(MacroAssembler& masm, Register obj, ValueOperand val,
                                          Register scratch, LiveGeneralRegisterSet saveRegs)
 {
@@ -851,7 +851,6 @@ ICStubCompiler::emitPostWriteBarrierSlot(MacroAssembler& masm, Register obj, Val
     masm.PopRegsInMask(saveRegs);
 
     masm.bind(&skipBarrier);
-    return true;
 }
 
 SharedStubInfo::SharedStubInfo(JSContext* cx, void* payload, ICEntry* icEntry)
@@ -1645,7 +1644,7 @@ DoCompareFallback(JSContext* cx, void* payload, ICCompare_Fallback* stub_, Handl
             return false;
         break;
       default:
-        MOZ_ASSERT(!"Unhandled baseline compare op");
+        MOZ_ASSERT_UNREACHABLE("Unhandled baseline compare op");
         return false;
     }
 

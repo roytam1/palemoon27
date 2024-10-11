@@ -20,6 +20,7 @@ EXPORTS.mozilla += [
 
 SOURCES += [
     'Telemetry.cpp',
+    'TelemetryHistogram.cpp',
     'WebrtcTelemetry.cpp',
 ]
 

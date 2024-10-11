@@ -141,11 +141,15 @@ public:
                        const media::TimeUnit& aFuzz);
   uint32_t SkipToNextRandomAccessPoint(TrackInfo::TrackType aTrack,
                                        const media::TimeUnit& aTimeThreadshold,
+                                       const media::TimeUnit& aFuzz,
                                        bool& aFound);
   already_AddRefed<MediaRawData> GetSample(TrackInfo::TrackType aTrack,
                                            const media::TimeUnit& aFuzz,
                                            bool& aError);
-  media::TimeUnit GetNextRandomAccessPoint(TrackInfo::TrackType aTrack);
+  int32_t FindCurrentPosition(TrackInfo::TrackType aTrack,
+                              const media::TimeUnit& aFuzz);
+  media::TimeUnit GetNextRandomAccessPoint(TrackInfo::TrackType aTrack,
+                                           const media::TimeUnit& aFuzz);
 
   void AddSizeOfResources(MediaSourceDecoder::ResourceSizes* aSizes);
 
@@ -339,6 +343,11 @@ private:
   // Find index of sample. Return a negative value if not found.
   uint32_t FindSampleIndex(const TrackBuffer& aTrackBuffer,
                            const media::TimeInterval& aInterval);
+  const MediaRawData* GetSample(TrackInfo::TrackType aTrack,
+                                size_t aIndex,
+                                const media::TimeUnit& aExpectedDts,
+                                const media::TimeUnit& aExpectedPts,
+                                const media::TimeUnit& aFuzz);
   void UpdateBufferedRanges();
   void RejectProcessing(nsresult aRejectValue, const char* aName);
   void ResolveProcessing(bool aResolveValue, const char* aName);

@@ -4193,6 +4193,32 @@ JS::FinishOffThreadScript(JSContext* maybecx, JSRuntime* rt, void* token)
 }
 
 JS_PUBLIC_API(bool)
+JS::CompileOffThreadModule(JSContext* cx, const ReadOnlyCompileOptions& options,
+                           const char16_t* chars, size_t length,
+                           OffThreadCompileCallback callback, void* callbackData)
+{
+    MOZ_ASSERT(CanCompileOffThread(cx, options, length));
+    return StartOffThreadParseModule(cx, options, chars, length, callback, callbackData);
+}
+
+JS_PUBLIC_API(JSObject*)
+JS::FinishOffThreadModule(JSContext* maybecx, JSRuntime* rt, void* token)
+{
+    MOZ_ASSERT(CurrentThreadCanAccessRuntime(rt));
+
+    if (maybecx) {
+        RootedObject module(maybecx);
+        {
+            AutoLastFrameCheck lfc(maybecx);
+            module = HelperThreadState().finishModuleParseTask(maybecx, rt, token);
+        }
+        return module;
+    } else {
+        return HelperThreadState().finishModuleParseTask(maybecx, rt, token);
+    }
+}
+
+JS_PUBLIC_API(bool)
 JS_CompileScript(JSContext* cx, const char* ascii, size_t length,
                  const JS::CompileOptions& options, MutableHandleScript script)
 {
@@ -4621,6 +4647,85 @@ JS::Evaluate(JSContext* cx, const ReadOnlyCompileOptions& optionsArg,
     return ::Evaluate(cx, optionsArg, filename, rval);
 }
 
+JS_PUBLIC_API(JSFunction*)
+JS::GetModuleResolveHook(JSContext* cx)
+{
+    AssertHeapIsIdle(cx);
+    CHECK_REQUEST(cx);
+    return cx->global()->moduleResolveHook();
+}
+
+JS_PUBLIC_API(void)
+JS::SetModuleResolveHook(JSContext* cx, HandleFunction func)
+{
+    AssertHeapIsIdle(cx);
+    CHECK_REQUEST(cx);
+    assertSameCompartment(cx, func);
+    cx->global()->setModuleResolveHook(func);
+}
+
+JS_PUBLIC_API(bool)
+JS::CompileModule(JSContext* cx, const ReadOnlyCompileOptions& options,
+                  SourceBufferHolder& srcBuf, JS::MutableHandleObject module)
+{
+    MOZ_ASSERT(!cx->runtime()->isAtomsCompartment(cx->compartment()));
+    AssertHeapIsIdle(cx);
+    CHECK_REQUEST(cx);
+
+    AutoLastFrameCheck lfc(cx);
+
+    module.set(frontend::CompileModule(cx, options, srcBuf));
+    return !!module;
+}
+
+JS_PUBLIC_API(void)
+JS::SetModuleHostDefinedField(JSObject* module, JS::Value value)
+{
+    module->as<ModuleObject>().setHostDefinedField(value);
+}
+
+JS_PUBLIC_API(JS::Value)
+JS::GetModuleHostDefinedField(JSObject* module)
+{
+    return module->as<ModuleObject>().hostDefinedField();
+}
+
+JS_PUBLIC_API(bool)
+JS::ModuleDeclarationInstantiation(JSContext* cx, JS::HandleObject moduleArg)
+{
+    AssertHeapIsIdle(cx);
+    CHECK_REQUEST(cx);
+    assertSameCompartment(cx, moduleArg);
+    return ModuleObject::DeclarationInstantiation(cx, moduleArg.as<ModuleObject>());
+}
+
+JS_PUBLIC_API(bool)
+JS::ModuleEvaluation(JSContext* cx, JS::HandleObject moduleArg)
+{
+    AssertHeapIsIdle(cx);
+    CHECK_REQUEST(cx);
+    assertSameCompartment(cx, moduleArg);
+    return ModuleObject::Evaluation(cx, moduleArg.as<ModuleObject>());
+}
+
+JS_PUBLIC_API(JSObject*)
+JS::GetRequestedModules(JSContext* cx, JS::HandleObject moduleArg)
+{
+    AssertHeapIsIdle(cx);
+    CHECK_REQUEST(cx);
+    assertSameCompartment(cx, moduleArg);
+    return &moduleArg->as<ModuleObject>().requestedModules();
+}
+
+JS_PUBLIC_API(JSScript*)
+JS::GetModuleScript(JSContext* cx, JS::HandleObject moduleArg)
+{
+    AssertHeapIsIdle(cx);
+    CHECK_REQUEST(cx);
+    assertSameCompartment(cx, moduleArg);
+    return moduleArg->as<ModuleObject>().script();
+}
+
 static JSObject*
 JS_NewHelper(JSContext* cx, HandleObject ctor, const JS::HandleValueArray& inputArgs)
 {
@@ -4690,6 +4795,14 @@ JS::SetEnqueuePromiseJobCallback(JSRuntime* rt, JSEnqueuePromiseJobCallback call
     rt->enqueuePromiseJobCallbackData = data;
 }
 
+extern JS_PUBLIC_API(void)
+JS::SetPromiseRejectionTrackerCallback(JSRuntime* rt, JSPromiseRejectionTrackerCallback callback,
+                                       void* data /* = nullptr */)
+{
+    rt->promiseRejectionTrackerCallback = callback;
+    rt->promiseRejectionTrackerCallbackData = data;
+}
+
 JS_PUBLIC_API(JSObject*)
 JS::NewPromiseObject(JSContext* cx, HandleObject executor, HandleObject proto /* = nullptr */)
 {
@@ -4731,7 +4844,7 @@ JS::GetPromiseState(JS::HandleObject obj)
     return promise->as<PromiseObject>().state();
 }
 
-JS_PUBLIC_API(double)
+JS_PUBLIC_API(uint64_t)
 JS::GetPromiseID(JS::HandleObject promise)
 {
     return promise->as<PromiseObject>().getID();

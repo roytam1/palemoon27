@@ -19,6 +19,8 @@
 #ifndef wasm_signal_handlers_h
 #define wasm_signal_handlers_h
 
+#include "mozilla/Attributes.h"
+
 #if defined(XP_DARWIN) && defined(ASMJS_MAY_USE_SIGNAL_HANDLERS)
 # include <mach/mach.h>
 # include "jslock.h"
@@ -38,7 +40,7 @@ namespace wasm {
 // runtime. Return whether runtime can:
 //  - rely on fault handler support for avoiding asm.js heap bounds checks
 //  - rely on InterruptRunningJitCode to halt running Ion/asm.js from any thread
-bool
+MOZ_MUST_USE bool
 EnsureSignalHandlersInstalled(JSRuntime* rt);
 
 #if defined(XP_DARWIN) && defined(ASMJS_MAY_USE_SIGNAL_HANDLERS)

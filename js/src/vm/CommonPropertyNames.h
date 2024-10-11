@@ -182,6 +182,8 @@
     macro(minute, minute, "minute") \
     macro(missingArguments, missingArguments, "missingArguments") \
     macro(module, module, "module") \
+    macro(ModuleDeclarationInstantiation, ModuleDeclarationInstantiation, "ModuleDeclarationInstantiation") \
+    macro(ModuleEvaluation, ModuleEvaluation, "ModuleEvaluation") \
     macro(month, month, "month") \
     macro(multiline, multiline, "multiline") \
     macro(name, name, "name") \
@@ -297,6 +299,12 @@
     macro(wasm, wasm, "wasm") \
     macro(watch, watch, "watch") \
     macro(WeakSet_add, WeakSet_add, "WeakSet_add") \
+    macro(RegExp_prototype_Exec, RegExp_prototype_Exec, "RegExp_prototype_Exec") \
+    macro(UnwrapAndCallRegExpBuiltinExec, UnwrapAndCallRegExpBuiltinExec, "UnwrapAndCallRegExpBuiltinExec") \
+    macro(RegExpBuiltinExec, RegExpBuiltinExec, "RegExpBuiltinExec") \
+    macro(RegExpMatcher, RegExpMatcher, "RegExpMatcher") \
+    macro(RegExpSearcher, RegExpSearcher, "RegExpSearcher") \
+    macro(RegExpTester, RegExpTester, "RegExpTester") \
     macro(weekday, weekday, "weekday") \
     macro(writable, writable, "writable") \
     macro(year, year, "year") \

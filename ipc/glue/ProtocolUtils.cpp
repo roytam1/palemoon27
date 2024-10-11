@@ -190,7 +190,7 @@ public:
                    ProcessId* aOtherProcess,
                    ProtocolId* aProtocol)
   {
-    void* iter = nullptr;
+    PickleIterator iter(aMsg);
     if (!IPC::ReadParam(&aMsg, &iter, aDescriptor) ||
         !IPC::ReadParam(&aMsg, &iter, aOtherProcess) ||
         !IPC::ReadParam(&aMsg, &iter, reinterpret_cast<uint32_t*>(aProtocol))) {
@@ -480,6 +480,48 @@ void
 LogicError(const char* aMsg)
 {
   NS_RUNTIMEABORT(aMsg);
+}
+
+void
+ActorIdReadError(const char* aActorDescription)
+{
+  nsPrintfCString message("Error deserializing id for %s", aActorDescription);
+  NS_RUNTIMEABORT(message.get());
+}
+
+void
+BadActorIdError(const char* aActorDescription)
+{
+  nsPrintfCString message("bad id for %s", aActorDescription);
+  ProtocolErrorBreakpoint(message.get());
+}
+
+void
+ActorLookupError(const char* aActorDescription)
+{
+  nsPrintfCString message("could not lookup id for %s", aActorDescription);
+  ProtocolErrorBreakpoint(message.get());
+}
+
+void
+MismatchedActorTypeError(const char* aActorDescription)
+{
+  nsPrintfCString message("actor that should be of type %s has different type",
+                          aActorDescription);
+  ProtocolErrorBreakpoint(message.get());
+}
+
+void
+UnionTypeReadError(const char* aUnionName)
+{
+  nsPrintfCString message("error deserializing type of union %s", aUnionName);
+  NS_RUNTIMEABORT(message.get());
+}
+
+void ArrayLengthReadError(const char* aElementName)
+{
+  nsPrintfCString message("error deserializing length of %s[]", aElementName);
+  NS_RUNTIMEABORT(message.get());
 }
 
 } // namespace ipc

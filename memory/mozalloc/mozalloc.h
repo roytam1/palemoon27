@@ -329,6 +329,11 @@ public:
     void reportAllocOverflow() const
     {
     }
+
+    bool checkSimulatedOOM() const
+    {
+        return true;
+    }
 };
 
 #endif  /* ifdef __cplusplus */

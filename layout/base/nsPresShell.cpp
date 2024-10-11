@@ -6798,7 +6798,7 @@ PresShell::RecordMouseLocation(WidgetGUIEvent* aEvent)
   }
 
   if ((aEvent->mMessage == eMouseMove &&
-       aEvent->AsMouseEvent()->reason == WidgetMouseEvent::eReal) ||
+       aEvent->AsMouseEvent()->mReason == WidgetMouseEvent::eReal) ||
       aEvent->mMessage == eMouseEnterIntoWidget ||
       aEvent->mMessage == eMouseDown ||
       aEvent->mMessage == eMouseUp) {
@@ -7577,7 +7577,7 @@ PresShell::HandleEvent(nsIFrame* aFrame,
 
     WidgetMouseEvent* mouseEvent = aEvent->AsMouseEvent();
     bool isWindowLevelMouseExit = (aEvent->mMessage == eMouseExitFromWidget) &&
-      (mouseEvent && mouseEvent->exit == WidgetMouseEvent::eTopLevel);
+      (mouseEvent && mouseEvent->mExitFrom == WidgetMouseEvent::eTopLevel);
 
     // Get the frame at the event point. However, don't do this if we're
     // capturing and retargeting the event because the captured frame will
@@ -7679,7 +7679,7 @@ PresShell::HandleEvent(nsIFrame* aFrame,
         eventPoint = nsLayoutUtils::GetEventCoordinatesRelativeTo(aEvent, frame);
       }
       if (mouseEvent && mouseEvent->mClass == eMouseEventClass &&
-          mouseEvent->ignoreRootScrollFrame) {
+          mouseEvent->mIgnoreRootScrollFrame) {
         flags |= INPUT_IGNORE_ROOT_SCROLL_FRAME;
       }
       nsIFrame* target =
@@ -8123,7 +8123,7 @@ PresShell::HandleEventInternal(WidgetEvent* aEvent,
         nsIDocument* doc = GetCurrentEventContent() ?
                            mCurrentEventContent->OwnerDoc() : nullptr;
         nsIDocument* fullscreenAncestor = nullptr;
-        auto keyCode = aEvent->AsKeyboardEvent()->keyCode;
+        auto keyCode = aEvent->AsKeyboardEvent()->mKeyCode;
         if (keyCode == NS_VK_ESCAPE) {
           if ((fullscreenAncestor = nsContentUtils::GetFullscreenAncestor(doc))) {
             // Prevent default action on ESC key press when exiting
@@ -8209,7 +8209,7 @@ PresShell::HandleEventInternal(WidgetEvent* aEvent,
 
     if (aEvent->mMessage == eContextMenu) {
       WidgetMouseEvent* mouseEvent = aEvent->AsMouseEvent();
-      if (mouseEvent->context == WidgetMouseEvent::eContextMenuKey &&
+      if (mouseEvent->IsContextMenuKeyEvent() &&
           !AdjustContextMenuKeyEvent(mouseEvent)) {
         return NS_OK;
       }
@@ -8279,7 +8279,7 @@ PresShell::HandleEventInternal(WidgetEvent* aEvent,
     case eKeyPress:
     case eKeyDown:
     case eKeyUp: {
-      if (aEvent->AsKeyboardEvent()->keyCode == NS_VK_ESCAPE) {
+      if (aEvent->AsKeyboardEvent()->mKeyCode == NS_VK_ESCAPE) {
         if (aEvent->mMessage == eKeyUp) {
           // Reset this flag after key up is handled.
           mIsLastChromeOnlyEscapeKeyConsumed = false;
@@ -9882,8 +9882,8 @@ PresShell::DelayedMouseEvent::DelayedMouseEvent(WidgetMouseEvent* aEvent) :
     new WidgetMouseEvent(aEvent->IsTrusted(),
                          aEvent->mMessage,
                          aEvent->mWidget,
-                         aEvent->reason,
-                         aEvent->context);
+                         aEvent->mReason,
+                         aEvent->mContextMenuTrigger);
   mouseEvent->AssignMouseEventData(*aEvent, false);
   mEvent = mouseEvent;
 }

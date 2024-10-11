@@ -6624,10 +6624,17 @@
     "description": "The length of time (in seconds) that a call lasted."
   },
   "WEBRTC_CALL_COUNT": {
-    "expires_in_version": "never",
+    "expires_in_version": "48",
     "kind": "exponential",
     "high": 500,
     "n_buckets": 50,
+    "description": "The number of calls made during a session."
+  },
+  "WEBRTC_CALL_COUNT_2": {
+    "alert_emails": ["webrtc-telemetry-alerts@mozilla.com"],
+    "bug_numbers": [1261063],
+    "expires_in_version": "never",
+    "kind": "count",
     "description": "The number of calls made during a session."
   },
   "WEBRTC_ICE_ADD_CANDIDATE_ERRORS_GIVEN_SUCCESS": {
@@ -10255,16 +10262,6 @@
     "n_buckets": 50,
     "bug_numbers": [1238433],
     "description": "Percentage of frames decoded frames dropped in an HTMLVideoElement"
-  },
-  "VIDEO_DETAILED_DROPPED_FRAMES_PROPORTION" : {
-    "alert_emails": ["lchristie@mozilla.com", "cpearce@mozilla.com"],
-    "expires_in_version": "55",
-    "kind": "linear",
-    "high": 100,
-    "n_buckets": 50,
-    "keyed": true,
-    "bug_numbers": [1238433],
-    "description": "Percentage of frames decoded frames dropped in an HTMLVideoElement, keyed by MimeType, Resolution and Hardware Accelerated Decoding"
   },
   "TAB_SWITCH_CACHE_POSITION": {
     "expires_in_version": "55",

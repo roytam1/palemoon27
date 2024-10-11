@@ -11,6 +11,7 @@
 #include "mozilla/ThreadLocal.h"
 
 #include "jscompartment.h"
+#include "jsgc.h"
 #include "jsprf.h"
 
 #include "gc/Marking.h"
@@ -198,11 +199,9 @@ JitRuntime::~JitRuntime()
 }
 
 bool
-JitRuntime::initialize(JSContext* cx)
+JitRuntime::initialize(JSContext* cx, AutoLockForExclusiveAccess& lock)
 {
-    MOZ_ASSERT(cx->runtime()->currentThreadHasExclusiveAccess());
-
-    AutoCompartment ac(cx, cx->atomsCompartment());
+    AutoCompartment ac(cx, cx->atomsCompartment(lock));
 
     JitContext jctx(cx, nullptr);
 
@@ -336,7 +335,7 @@ JitRuntime::debugTrapHandler(JSContext* cx)
         // JitRuntime code stubs are shared across compartments and have to
         // be allocated in the atoms compartment.
         AutoLockForExclusiveAccess lock(cx);
-        AutoCompartment ac(cx, cx->runtime()->atomsCompartment());
+        AutoCompartment ac(cx, cx->runtime()->atomsCompartment(lock));
         debugTrapHandler_ = generateDebugTrapHandler(cx);
     }
     return debugTrapHandler_;
@@ -587,12 +586,12 @@ jit::LazyLinkTopActivation(JSContext* cx)
 }
 
 /* static */ void
-JitRuntime::Mark(JSTracer* trc)
+JitRuntime::Mark(JSTracer* trc, AutoLockForExclusiveAccess& lock)
 {
     MOZ_ASSERT(!trc->runtime()->isHeapMinorCollecting());
-    Zone* zone = trc->runtime()->atomsCompartment()->zone();
-    for (gc::ZoneCellIterUnderGC i(zone, gc::AllocKind::JITCODE); !i.done(); i.next()) {
-        JitCode* code = i.get<JitCode>();
+    Zone* zone = trc->runtime()->atomsCompartment(lock)->zone();
+    for (auto i = zone->cellIter<JitCode>(); !i.done(); i.next()) {
+        JitCode* code = i;
         TraceRoot(trc, &code, "wrapper");
     }
 }
@@ -805,9 +804,8 @@ JitCode::finalize(FreeOp* fop)
 #ifdef DEBUG
     JSRuntime* rt = fop->runtime();
     if (hasBytecodeMap_) {
-        JitcodeGlobalEntry result;
         MOZ_ASSERT(rt->jitRuntime()->hasJitcodeGlobalTable());
-        MOZ_ASSERT(!rt->jitRuntime()->getJitcodeGlobalTable()->lookup(raw(), &result, rt));
+        MOZ_ASSERT(!rt->jitRuntime()->getJitcodeGlobalTable()->lookup(raw()));
     }
 #endif
 
@@ -1223,7 +1221,24 @@ void
 IonScript::Destroy(FreeOp* fop, IonScript* script)
 {
     script->unlinkFromRuntime(fop);
+
+    /*
+     * When the script contains pointers to nursery things, the store buffer can
+     * contain entries that point into the fallback stub space. Since we can
+     * destroy scripts outside the context of a GC, this situation could result
+     * in us trying to mark invalid store buffer entries.
+     *
+     * Defer freeing any allocated blocks until after the next minor GC.
+     */
+    script->fallbackStubSpace_.freeAllAfterMinorGC(fop->runtime());
+
     fop->delete_(script);
+}
+
+void
+JS::DeletePolicy<js::jit::IonScript>::operator()(const js::jit::IonScript* script)
+{
+    IonScript::Destroy(rt_->defaultFreeOp(), const_cast<IonScript*>(script));
 }
 
 void
@@ -1337,8 +1352,7 @@ jit::ToggleBarriers(JS::Zone* zone, bool needs)
     if (!rt->hasJitRuntime())
         return;
 
-    for (gc::ZoneCellIterUnderGC i(zone, gc::AllocKind::SCRIPT); !i.done(); i.next()) {
-        JSScript* script = i.get<JSScript>();
+    for (auto script = zone->cellIter<JSScript>(); !script.done(); script.next()) {
         if (script->hasIonScript())
             script->ionScript()->toggleBarriers(needs);
         if (script->hasBaselineScript())
@@ -2071,8 +2085,8 @@ TrackIonAbort(JSContext* cx, JSScript* script, jsbytecode* pc, const char* messa
         return;
 
     JitcodeGlobalTable* table = cx->runtime()->jitRuntime()->getJitcodeGlobalTable();
-    JitcodeGlobalEntry entry;
-    table->lookupInfallible(script->baselineScript()->method()->raw(), &entry, cx->runtime());
+    void* ptr = script->baselineScript()->method()->raw();
+    JitcodeGlobalEntry& entry = table->lookupInfallible(ptr);
     entry.baselineEntry().trackIonAbort(pc, message);
 }
 

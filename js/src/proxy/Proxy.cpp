@@ -16,7 +16,7 @@
 
 #include "gc/Marking.h"
 #include "proxy/DeadObjectProxy.h"
-#include "proxy/ScriptedDirectProxyHandler.h"
+#include "proxy/ScriptedProxyHandler.h"
 #include "vm/WrapperObject.h"
 
 #include "jsatominlines.h"
@@ -174,8 +174,10 @@ js::AppendUnique(JSContext* cx, AutoIdVector& base, AutoIdVector& others)
                 break;
             }
         }
-        if (unique)
-            uniqueOthers.append(others[i]);
+        if (unique) {
+            if (!uniqueOthers.append(others[i]))
+                return false;
+        }
     }
     return base.appendAll(uniqueOthers);
 }

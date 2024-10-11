@@ -30,7 +30,7 @@
 #include "js/StructuredClone.h"
 
 #include "mozilla/CheckedInt.h"
-#include "mozilla/Endian.h"
+#include "mozilla/EndianUtils.h"
 #include "mozilla/FloatingPoint.h"
 
 #include <algorithm>
